@@ -1,0 +1,5 @@
+--- ServerScriptService/GwangalliGameplay (Script)
++++ ServerScriptService/GwangalliGameplay (Script)
+@@ Optional feature modules (docs/features_contract.md §2)
+-local FEATURE_MODULES = { "Bank", "Relationships", "Health", "Bump", "Garage", "Interact", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" }
++local FEATURE_MODULES = { "MiniGames", "Bank", "Relationships", "Health", "Bump", "Garage", "Interact", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" }

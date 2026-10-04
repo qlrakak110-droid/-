@@ -1,0 +1,5205 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" version="4"><Item class="ModuleScript" referent="RBX0000001E"><Properties><string name="Name">MiniGames</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames (server feature module of GwangalliGameplay; docs/MINIGAMES.md): 광안리 해변 미니게임 거리.
+-- Players meet other players or NPCs on the promenade, put up in-game 원 and play 오목 / 끝말잇기 /
+-- 가위바위보 / 순발력 / 기억력 / 숫자 맞히기 / 타이밍 / 퀴즈 at real tables in the world.
+--
+-- Wiring: GwangalliGameplay.server's FEATURE_MODULES list contains "MiniGames"; it requires this
+-- module and calls init(ctx), onLoaded(player), onCharacter(player, character), onLeave(player)
+-- (onLeave runs BEFORE the profile is saved, so a match settled there is saved with the profile).
+-- ctx gives the money API (ctx.spend / ctx.ledger / ctx.canAfford), notifications and stats.
+--
+-- Children (one job each; new games are one more module in M.GAME_MODULES):
+--   MiniGameManager    stations, seats, match life cycle, leave / forfeit rules, rematch, spectators
+--   MatchmakingService challenges, open calls (상대 찾기), walking to an accepted table
+--   BetService         escrow: the only money path (in-game 원 only, no Robux, settle exactly once)
+--   RewardService      records, Elo rating, 브론즈..다이아 ranks, DataStore
+--   AntiCheat          rate limits, payload checks, distance checks, latency for timing games
+--   StationBuilder     the tables / machines on the promenade
+--   NpcHosts           the NPCs who wait at the tables
+--   <Game>/<Game>Server  one module per game: new / begin / input / tick / view / cleanup
+--
+-- Remotes (ReplicatedStorage.GwangalliMiniGames): Request (client -> server: action, payload),
+-- Update (server -> client: kind, payload), Query (RemoteFunction: "record" | "board").
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local MiniGames = {}
+
+local function child(path: { string }): Instance
+	local node: Instance = script
+	for _, n in path do
+		local c = node:FindFirstChild(n)
+		if not c then
+			error("[MiniGames] missing module " .. table.concat(path, "/"))
+		end
+		node = c
+	end
+	return node
+end
+
+local M: any = {}
+M.GAME_MODULES = {
+	omok = { "Omok", "OmokServer" },
+	wordchain = { "WordChain", "WordChainServer" },
+	rps = { "RockPaperScissors", "RpsServer" },
+	reaction = { "ReactionGame", "ReactionServer" },
+	memory = { "MemoryGame", "MemoryServer" },
+	numberguess = { "NumberGuess", "NumberGuessServer" },
+	timing = { "TimingGame", "TimingServer" },
+	quiz = { "Quiz", "QuizServer" },
+}
+
+local started = false
+
+local ACTION_RATE: { [string]: { number } } = {
+	-- tokens per second, burst
+	move = { 8, 12 },
+	ping = { 2, 4 },
+	default = { 2, 5 },
+}
+
+function MiniGames.init(ctx: any)
+	if started then
+		return
+	end
+	started = true
+	local sharedModule = ReplicatedStorage:WaitForChild("GwangalliMiniGamesShared", 30)
+	assert(sharedModule and sharedModule:IsA("ModuleScript"), "ReplicatedStorage.GwangalliMiniGamesShared missing")
+	local MS = require(sharedModule) :: any
+	M.MS = MS
+	M.OC = require(sharedModule:WaitForChild("OmokConfig")) :: any
+	M.WR = require(sharedModule:WaitForChild("WordRules")) :: any
+	M.ctx = ctx
+	M.G = ctx.G
+
+	-- remotes (folder parented last so clients that find it find every remote)
+	local old = ReplicatedStorage:FindFirstChild(MS.FolderName)
+	if old then
+		old:Destroy()
+	end
+	local folder = Instance.new("Folder")
+	folder.Name = MS.FolderName
+	local request = Instance.new("RemoteEvent")
+	request.Name = MS.Remote.Request
+	request.Parent = folder
+	local update = Instance.new("RemoteEvent")
+	update.Name = MS.Remote.Update
+	update.Parent = folder
+	local query = Instance.new("RemoteFunction")
+	query.Name = MS.Remote.Query
+	query.Parent = folder
+	folder.Parent = ReplicatedStorage
+
+	function M.fire(player: Player, kind: string, payload: any)
+		if player.Parent == Players then
+			update:FireClient(player, kind, payload)
+		end
+	end
+	function M.toast(player: Player, kind: string, title: string, body: string?)
+		M.fire(player, MS.Kinds.toast, { kind = kind, title = title, body = body or "" })
+	end
+	-- speech bubble over a head part, sent to the players who can see it
+	function M.say(head: BasePart, text: string, dur: number?)
+		for _, p in Players:GetPlayers() do
+			if M.Anti.near(p, head.Position, 90) then
+				update:FireClient(p, MS.Kinds.say, { part = head, text = text, dur = dur or 3 })
+			end
+		end
+	end
+
+	M.Anti = require(child({ "AntiCheat" }) :: ModuleScript) :: any
+	M.Bet = require(child({ "BetService" }) :: ModuleScript) :: any
+	M.Reward = require(child({ "RewardService" }) :: ModuleScript) :: any
+	M.Builder = require(child({ "StationBuilder" }) :: ModuleScript) :: any
+	M.Npc = require(child({ "NpcHosts" }) :: ModuleScript) :: any
+	M.Match = require(child({ "MatchmakingService" }) :: ModuleScript) :: any
+	M.Manager = require(child({ "MiniGameManager" }) :: ModuleScript) :: any
+	for _, svc in { M.Anti, M.Bet, M.Reward, M.Builder, M.Npc, M.Match, M.Manager } do
+		svc.init(M)
+	end
+	M.games = {}
+	for id, path in M.GAME_MODULES do
+		local ok, res = pcall(function()
+			return require(child(path) :: ModuleScript)
+		end)
+		if ok and type(res) == "table" then
+			if type(res.init) == "function" then
+				res.init(M)
+			end
+			M.games[id] = res
+		else
+			warn("[MiniGames] game " .. id .. " failed to load: " .. tostring(res))
+		end
+	end
+
+	-- world (deferred: the place's own parts are in by now, but let the other features settle first)
+	task.defer(function()
+		local list = M.Builder.build()
+		M.Manager.setStations(list)
+		local npcs = 0
+		for _, st in list do
+			if st.npc and M.Npc.spawn(st) then
+				npcs += 1
+			end
+			M.Manager.publishStation(st)
+		end
+		print(string.format("[MiniGames] ready: %d stations, %d NPC hosts, %d games", #list, npcs, (function()
+			local n = 0
+			for _ in M.games do
+				n += 1
+			end
+			return n
+		end)()))
+	end)
+
+	request.OnServerEvent:Connect(function(player: Player, action: any, payload: any)
+		MiniGames.handle(player, action, payload)
+	end)
+	query.OnServerInvoke = function(player: Player, what: any): any
+		if not M.Anti.allow(player, "query", 1, 4) then
+			return nil
+		end
+		if what == "record" then
+			return M.Reward.snapshot(player)
+		elseif what == "board" then
+			return M.Reward.board(10)
+		end
+		return nil
+	end
+
+	-- loops
+	task.spawn(function()
+		local last = os.clock()
+		while true do
+			task.wait(0.1)
+			local now = os.clock()
+			local ok, err = pcall(M.Manager.tick, now)
+			if not ok then
+				warn("[MiniGames] tick: " .. tostring(err))
+			end
+			local ok2, err2 = pcall(M.Match.tick, now)
+			if not ok2 then
+				warn("[MiniGames] matchmaking tick: " .. tostring(err2))
+			end
+			if now - last >= 1 then
+				last = now
+				pcall(M.Manager.slowTick)
+				-- latency probes for everyone in a match (cheap: one event per player per 3 s)
+				for _, match in M.Manager.activeMatches() do
+					if (match.stateAt :: number) > 0 then
+						for _, s in match.sides do
+							if s.kind == "player" and s.player and (math.floor(now) % 3 == 0) then
+								M.Anti.sendPing(s.player)
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
+
+	game:BindToClose(function()
+		-- every stake held by a running match goes back before the profiles are saved
+		M.Bet.refundAll("서버 종료")
+	end)
+end
+
+-- Request router: shape + rate checks here, rules in the services.
+function MiniGames.handle(player: Player, action: any, payload: any)
+	local MS = M.MS
+	if not MS or type(action) ~= "string" or not MS.Actions[action] then
+		return
+	end
+	if payload == nil then
+		payload = {}
+	end
+	if not M.Anti.payload(payload) then
+		M.Anti.strike(player, "payload", action)
+		return
+	end
+	local rate = ACTION_RATE[action] or ACTION_RATE.default
+	if not M.Anti.allow(player, action == "move" and "move" or (action == "ping" and "ping" or "act"), rate[1], rate[2]) then
+		return
+	end
+	if action == "ping" then
+		M.Anti.onPong(player, payload)
+		return
+	end
+	if action == "move" then
+		M.Manager.input(player, payload)
+		return
+	end
+	if not M.ctx.Profiles.get(player) then
+		M.toast(player, "info", "잠시만요", "프로필을 불러오는 중이에요")
+		return
+	end
+	local ok, err = pcall(MiniGames.act, player, action, payload)
+	if not ok then
+		warn(string.format("[MiniGames] %s from %s failed: %s", action, player.Name, tostring(err)))
+	end
+end
+
+local function needStation(player: Player, p: any): any?
+	local st = M.Manager.station(p.station)
+	if not st then
+		return nil
+	end
+	if not M.Anti.near(player, st.frame.Position, M.MS.T.nearStation + 4) then
+		M.toast(player, "info", "너무 멀어요", "테이블 가까이 가서 눌러 주세요")
+		return nil
+	end
+	return st
+end
+
+local function busyVehicle(player: Player): boolean
+	local c = player.Character
+	local h = c and c:FindFirstChildOfClass("Humanoid")
+	local seat = h and h.SeatPart
+	return seat ~= nil and seat:IsA("VehicleSeat")
+end
+
+function MiniGames.act(player: Player, action: string, p: any)
+	local MS = M.MS
+	local Manager = M.Manager
+	if action == "sit" or action == "open" or action == "practice" or action == "challenge" then
+		local st = needStation(player, p)
+		if not st then
+			return
+		end
+		if busyVehicle(player) or not M.Anti.alive(player) then
+			M.toast(player, "info", "지금은 안 돼요", "차에서 내려서 해 주세요")
+			return
+		end
+		local stake = p.stake
+		if action == "practice" then
+			if not st.npc or not MS.isNpcStake(st.npc.difficulty, stake) then
+				M.Anti.strike(player, "stake", tostring(stake))
+				return
+			end
+			local ok, err = Manager.practice(player, st, stake)
+			if not ok and err then
+				M.toast(player, "warn", "시작할 수 없어요", err)
+			end
+			return
+		end
+		if not MS.isStake(stake) then
+			M.Anti.strike(player, "stake", tostring(stake))
+			return
+		end
+		-- already waiting at this very table (e.g. 게임 참가, then 친구에게 신청): keep the seat
+		local ps = Manager.stateOf(player)
+		local waitingHere = ps and ps.kind == "wait" and ps.station == st
+		if waitingHere and st.waiting.stake ~= stake then
+			M.toast(player, "info", "참가비가 달라요", "앉은 자리의 참가비는 " .. MS.stakeLabel(st.waiting.stake) .. "예요")
+			return
+		end
+		if not waitingHere then
+			local ok, err = Manager.sit(player, st, stake)
+			if not ok then
+				if err then
+					M.toast(player, "warn", "앉을 수 없어요", err)
+				end
+				return
+			end
+		end
+		if action == "open" then
+			local n = M.Match.openCall(player, st, stake)
+			M.toast(player, "info", "상대 찾는 중", if n > 0 then n .. "명에게 알렸어요. 지나가는 사람도 도전할 수 있어요" else "지금은 접속한 사람이 없어요. 지나가는 사람을 기다려요")
+		elseif action == "challenge" then
+			local target = if type(p.target) == "number" then Players:GetPlayerByUserId(p.target) else nil
+			if not target then
+				M.toast(player, "warn", "신청 실패", "상대를 찾을 수 없어요")
+				return
+			end
+			local ok, err = M.Match.challenge(player, target, st, stake)
+			if ok then
+				M.toast(player, "info", "대결 신청", target.DisplayName .. "님에게 " .. MS.GAMES[st.game].name .. " 대결을 신청했어요")
+			else
+				M.toast(player, "warn", "신청 실패", err or "")
+			end
+		else
+			M.toast(player, "info", MS.GAMES[st.game].name .. " 자리에 앉았어요", "지나가는 사람이 도전할 수 있어요 · " .. MS.stakeLabel(stake))
+		end
+	elseif action == "join" then
+		local st = needStation(player, p)
+		if st then
+			local ok, err = Manager.joinWaiting(st, player)
+			if not ok and err then
+				M.toast(player, "warn", "도전할 수 없어요", err)
+			end
+		end
+	elseif action == "respond" then
+		local id = M.Anti.int(p.id, 1, 1e9)
+		if id then
+			M.Match.respond(player, id, p.accept == true)
+		end
+	elseif action == "spectate" then
+		local st = M.Manager.station(p.station)
+		if st and M.Anti.near(player, st.frame.Position, MS.T.spectate) then
+			local ok, err = Manager.spectate(player, st)
+			if not ok and err then
+				M.toast(player, "info", "관전", err)
+			end
+		end
+	elseif action == "unspectate" then
+		Manager.unspectate(player)
+	elseif action == "leave" then
+		Manager.leave(player, "leave")
+	elseif action == "forfeit" then
+		local ps = Manager.stateOf(player)
+		if ps and ps.match then
+			Manager.sideLeft(ps.match, ps.side, "forfeit")
+		end
+	elseif action == "rematch" then
+		local ps = Manager.stateOf(player)
+		if ps and ps.match then
+			Manager.rematch(ps.match, ps.side)
+		end
+	elseif action == "draw" then
+		local ps = Manager.stateOf(player)
+		if ps and ps.match then
+			Manager.offerDraw(ps.match, ps.side, p.offer == true)
+		end
+	end
+end
+
+function MiniGames.onLoaded(player: Player)
+	if M.Reward then
+		M.Reward.load(player)
+	end
+end
+
+function MiniGames.onCharacter(player: Player, _character: Model)
+	if M.Manager then
+		M.Manager.onCharacter(player)
+	end
+end
+
+function MiniGames.onLeave(player: Player)
+	if not M.Manager then
+		return
+	end
+	pcall(M.Match.onLeave, player)
+	pcall(M.Manager.onLeave, player)
+	M.Reward.release(player)
+end
+
+-- for tests / admin tools
+MiniGames._M = M
+
+return MiniGames
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000004"><Properties><string name="Name">AntiCheat</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/AntiCheat: request hygiene for the minigame remotes (server only).
+--   * per-player token buckets per action family (spam never reaches a game module)
+--   * payload shape checks (tables only, bounded key count / string length / numbers finite)
+--   * distance checks against stations (a remote from across the map is ignored)
+--   * latency estimate per player (Update "ping" -> Request "ping" round trips, smoothed, and
+--     Player:GetNetworkPing() when the engine has it) for the timing games: the server judges with
+--     server time and only ever SUBTRACTS a bounded latency allowance, so a lying client can never
+--     claim a faster reaction than the server measured minus the player's own measured round trip.
+--   * a strike counter: suspicious requests are logged (once per kind per player) and dropped.
+-- Nothing here touches money; BetService is the only money path.
+
+local Players = game:GetService("Players")
+
+local AntiCheat = {}
+
+local M: any = nil
+
+type Bucket = { tokens: number, t: number }
+local buckets: { [Player]: { [string]: Bucket } } = {}
+local rtts: { [Player]: { rtt: number, n: number, sent: { [number]: number }, seq: number } } = {}
+local strikes: { [Player]: { [string]: number } } = {}
+
+function AntiCheat.init(m: any)
+	M = m
+end
+
+-- true when the action may run now (rate tokens per second, burst size)
+function AntiCheat.allow(player: Player, key: string, rate: number, burst: number): boolean
+	local per = buckets[player]
+	if not per then
+		per = {}
+		buckets[player] = per
+	end
+	local now = os.clock()
+	local b = per[key]
+	if not b then
+		b = { tokens = burst, t = now }
+		per[key] = b
+	end
+	b.tokens = math.min(burst, b.tokens + (now - b.t) * rate)
+	b.t = now
+	if b.tokens < 1 then
+		return false
+	end
+	b.tokens -= 1
+	return true
+end
+
+local function finite(v: any): boolean
+	return type(v) == "number" and v == v and v > -math.huge and v < math.huge
+end
+AntiCheat.finite = finite
+
+-- Shallow payload check: a table with at most 12 keys, string keys, values that are booleans,
+-- finite numbers, short strings, or Instances (stations are sent as ids, never as Instances).
+function AntiCheat.payload(p: any): boolean
+	if type(p) ~= "table" then
+		return false
+	end
+	local n = 0
+	for k, v in p do
+		n += 1
+		if n > 12 or type(k) ~= "string" or #k > 24 then
+			return false
+		end
+		local t = type(v)
+		if t == "number" then
+			if not finite(v) then
+				return false
+			end
+		elseif t == "string" then
+			if #v > 200 then
+				return false
+			end
+		elseif t ~= "boolean" then
+			return false
+		end
+	end
+	return true
+end
+
+function AntiCheat.int(v: any, lo: number, hi: number): number?
+	if not finite(v) or v % 1 ~= 0 or v < lo or v > hi then
+		return nil
+	end
+	return v
+end
+
+function AntiCheat.rootPos(player: Player): Vector3?
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart")
+	if root and root:IsA("BasePart") then
+		return root.Position
+	end
+	return nil
+end
+
+function AntiCheat.near(player: Player, pos: Vector3, dist: number): boolean
+	local p = AntiCheat.rootPos(player)
+	return p ~= nil and (p - pos).Magnitude <= dist
+end
+
+function AntiCheat.alive(player: Player): boolean
+	local char = player.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	return hum ~= nil and hum.Health > 0
+end
+
+-- Logged once per (player, kind); returns the strike count.
+function AntiCheat.strike(player: Player, kind: string, detail: string?): number
+	local s = strikes[player]
+	if not s then
+		s = {}
+		strikes[player] = s
+	end
+	s[kind] = (s[kind] or 0) + 1
+	if s[kind] == 1 then
+		warn(string.format("[MiniGames] suspicious %s from %s (%d): %s", kind, player.Name, player.UserId, detail or ""))
+	end
+	return s[kind]
+end
+
+-------------------------------------------------------------------------------------------------
+-- latency
+-------------------------------------------------------------------------------------------------
+function AntiCheat.sendPing(player: Player)
+	local r = rtts[player]
+	if not r then
+		r = { rtt = 0.15, n = 0, sent = {}, seq = 0 }
+		rtts[player] = r
+	end
+	r.seq += 1
+	r.sent[r.seq] = os.clock()
+	-- forget unanswered probes
+	for k in r.sent do
+		if k < r.seq - 4 then
+			r.sent[k] = nil
+		end
+	end
+	M.fire(player, M.MS.Kinds.ping, { s = r.seq })
+end
+
+function AntiCheat.onPong(player: Player, p: any)
+	local r = rtts[player]
+	local seq = AntiCheat.int(p.s, 1, 1e9)
+	if not r or not seq then
+		return
+	end
+	local t0 = r.sent[seq]
+	if not t0 then
+		return
+	end
+	r.sent[seq] = nil
+	local sample = math.clamp(os.clock() - t0, 0.005, 1.5)
+	r.n += 1
+	-- fast start, then an exponential average that trusts lower samples more (spikes are not latency)
+	if r.n == 1 then
+		r.rtt = sample
+	else
+		local a = if sample < r.rtt then 0.4 else 0.15
+		r.rtt += (sample - r.rtt) * a
+	end
+end
+
+-- Round trip in seconds (clamped). Engine ping wins when it is available and plausible.
+function AntiCheat.rtt(player: Player?): number
+	if not player then
+		return 0
+	end
+	local own = rtts[player]
+	local v = if own then own.rtt else 0.15
+	local ok, np = pcall(function()
+		return (player :: any):GetNetworkPing()
+	end)
+	if ok and finite(np) and np > 0 and np < 2 then
+		-- GetNetworkPing is the one-way-ish isolated latency; our probe is a full round trip
+		v = math.min(v, np * 2 + 0.03)
+	end
+	return math.clamp(v, 0.01, 0.6)
+end
+
+function AntiCheat.forget(player: Player)
+	buckets[player] = nil
+	rtts[player] = nil
+	strikes[player] = nil
+end
+
+Players.PlayerRemoving:Connect(function(p)
+	task.defer(AntiCheat.forget, p)
+end)
+
+return AntiCheat
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000005"><Properties><string name="Name">BetService</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/BetService: the ONLY money path of the minigames (server only).
+--
+-- In-game 원 only (MS.VIRTUAL_CURRENCY_ONLY): stakes come out of the life game's profile cash / bank
+-- through ctx.spend and prizes go back through ctx.ledger (the one place GwangalliGameplay changes
+-- money). Nothing here can create Robux, and nothing reads a money value from a client.
+--
+-- Flow (MiniGameManager calls these):
+--   hold(match)              both stakes are checked first (ctx.canAfford), then taken one after the
+--                            other; if the second payment fails the first is refunded at once. The
+--                            money is now held by the match (escrow) - it is in nobody's wallet.
+--   settle(match, winner)    exactly once per escrow (the `settled` flag is set BEFORE any ledger
+--                            write and nothing between check and set yields), winner 1 | 2, 0 = draw
+--                            (both stakes back). Returns the per-side net result for the result card.
+--   refund(match, reason)    every stake back (cancelled before play, server shutdown, a bug).
+-- NPC opponents: the house matches the player's stake. A win pays the stake back plus the house's
+-- stake, limited by the player's remaining NPC allowance for the KST day (RewardService.npcRoom), so
+-- the NPCs cannot be farmed for money. A loss to an NPC simply keeps the stake (it is removed from
+-- the game economy, like any shop purchase).
+
+local BetService = {}
+
+local M: any = nil
+local nextId = 0
+local open: { [number]: any } = {} -- escrow id -> escrow (diagnostics + shutdown refunds)
+
+function BetService.init(m: any)
+	M = m
+end
+
+local function gameName(match: any): string
+	local info = M.MS.GAMES[match.gameId]
+	return if info then info.name else "미니게임"
+end
+
+local function label(match: any, what: string): string
+	return "광안리 미니게임 · " .. gameName(match) .. " " .. what
+end
+
+local function isPlayer(side: any): boolean
+	return side ~= nil and side.kind == "player" and side.player ~= nil
+end
+
+-- Pre-check without taking money (UI / invites): can every player side pay `stake`?
+function BetService.canPay(player: Player, stake: number): boolean
+	if stake <= 0 then
+		return true
+	end
+	return M.ctx.canAfford(player, stake) == true
+end
+
+-- -> ok, failedSide?
+function BetService.hold(match: any): (boolean, number?)
+	if match.escrow then
+		return false, nil -- never hold twice for one match
+	end
+	nextId += 1
+	local e = { id = nextId, matchId = match.id, entries = {} :: { [number]: number }, settled = false, stake = match.stake }
+	if match.stake > 0 then
+		for i, side in match.sides do
+			if isPlayer(side) and not BetService.canPay(side.player, match.stake) then
+				return false, i
+			end
+		end
+		for i, side in match.sides do
+			if isPlayer(side) then
+				local ok = M.ctx.spend(side.player, match.stake, label(match, "참가비"), false)
+				if not ok then
+					-- roll back what was already taken
+					for j, amount in e.entries do
+						local s = match.sides[j]
+						M.ctx.ledger(s.player, "cash", amount, label(match, "참가비 환불"), false)
+					end
+					return false, i
+				end
+				e.entries[i] = match.stake
+			end
+		end
+	end
+	match.escrow = e
+	open[e.id] = match
+	return true, nil
+end
+
+-- -> { [side] = net } (0 for free games), or nil when it was already settled
+function BetService.settle(match: any, winner: number): { [number]: number }?
+	local e = match.escrow
+	if not e or e.settled then
+		return nil
+	end
+	e.settled = true -- first, so a second call (double finish / leave race) can never pay again
+	open[e.id] = nil
+	local net = { [1] = 0, [2] = 0 }
+	if e.stake <= 0 then
+		return net
+	end
+	local stake = e.stake
+	if winner == 0 then
+		for i, amount in e.entries do
+			M.ctx.ledger(match.sides[i].player, "cash", amount, label(match, "무승부 · 참가비 반환"), false)
+		end
+		return net
+	end
+	local loser = if winner == 1 then 2 else 1
+	local ws, ls = match.sides[winner], match.sides[loser]
+	if isPlayer(ws) and isPlayer(ls) then
+		-- PvP: the winner takes the pot (minus the configured cut, 0 by default)
+		local pot = (e.entries[winner] or 0) + (e.entries[loser] or 0)
+		local prize = math.floor(pot * (1 - M.MS.HOUSE_CUT) + 0.5)
+		M.ctx.ledger(ws.player, "cash", prize, label(match, "상금"), false)
+		net[winner] = prize - (e.entries[winner] or 0)
+		net[loser] = -(e.entries[loser] or 0)
+	elseif isPlayer(ws) then
+		-- beat an NPC: stake back + the house's stake, capped by today's NPC allowance
+		local paid = e.entries[winner] or 0
+		local room = M.Reward.npcRoom(ws.player)
+		local gain = math.clamp(math.min(paid, room), 0, paid)
+		M.ctx.ledger(ws.player, "cash", paid + gain, label(match, "상금 (NPC)"), false)
+		M.Reward.addNpcNet(ws.player, gain)
+		net[winner] = gain
+		match.capped = gain < paid
+	elseif isPlayer(ls) then
+		-- lost to an NPC: the stake stays with the house
+		local paid = e.entries[loser] or 0
+		M.Reward.addNpcNet(ls.player, -paid)
+		net[loser] = -paid
+	end
+	return net
+end
+
+function BetService.refund(match: any, reason: string?)
+	local e = match.escrow
+	if not e or e.settled then
+		return
+	end
+	e.settled = true
+	open[e.id] = nil
+	for i, amount in e.entries do
+		local side = match.sides[i]
+		if isPlayer(side) and amount > 0 then
+			M.ctx.ledger(side.player, "cash", amount, label(match, "참가비 반환" .. (if reason then " (" .. reason .. ")" else "")), false)
+		end
+	end
+end
+
+-- Server shutdown: every open escrow goes back to its players before profiles are saved.
+function BetService.refundAll(reason: string)
+	for _, match in open do
+		BetService.refund(match, reason)
+	end
+	table.clear(open)
+end
+
+function BetService.openCount(): number
+	local n = 0
+	for _ in open do
+		n += 1
+	end
+	return n
+end
+
+return BetService
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000006"><Properties><string name="Name">MatchmakingService</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/MatchmakingService: challenges between players (server only).
+--   * direct challenge (친구에게 신청): the challenger sits at the table first (MiniGameManager
+--     waiting state), the target gets "OOO님이 오목 대결을 신청했습니다. 참가비 ₩10,000 [수락][거절]".
+--   * open call (상대 찾기): the same, sent to every free player in the server; the first to accept
+--     takes the seat, everyone else sees it close.
+--   * accepting near the table (MS.T.nearInvite) seats you at once; from further away the table is
+--     reserved for you, you get a waypoint and MS.T.arriveTTL seconds to walk there (no teleport -
+--     the minigames happen in the real 광안리). Arriving within MS.T.nearStation starts the match.
+-- Every check (both players free, stakes affordable, the challenger still waiting at that table) is
+-- repeated at accept time and again at match start (BetService.hold is the final word).
+
+local Players = game:GetService("Players")
+
+local MatchmakingService = {}
+
+local M: any = nil
+local MS: any = nil
+
+type Invite = {
+	id: number,
+	from: Player,
+	to: Player?, -- nil = open call
+	station: any,
+	stake: number,
+	expires: number,
+	open: boolean,
+	sentTo: { [Player]: boolean },
+	acceptedBy: Player?,
+	arriveUntil: number,
+}
+local invites: { [number]: Invite } = {}
+local nextId = 0
+
+function MatchmakingService.init(m: any)
+	M = m
+	MS = m.MS
+end
+
+local function closeFor(inv: Invite, reason: string, except: Player?)
+	for p in inv.sentTo do
+		if p ~= except and p.Parent == Players then
+			M.fire(p, MS.Kinds.inviteClosed, { id = inv.id, reason = reason })
+		end
+	end
+end
+
+local function remove(inv: Invite, reason: string, except: Player?)
+	if invites[inv.id] ~= inv then
+		return
+	end
+	invites[inv.id] = nil
+	closeFor(inv, reason, except)
+	if inv.acceptedBy then
+		M.fire(inv.acceptedBy, MS.Kinds.waypoint, { station = inv.station.id, clear = true })
+	end
+end
+
+local function payload(inv: Invite, to: Player): any
+	local info = MS.GAMES[inv.station.game]
+	return {
+		id = inv.id,
+		from = inv.from.DisplayName,
+		fromId = inv.from.UserId,
+		rank = inv.from:GetAttribute("MiniRank") or "브론즈",
+		rankIcon = inv.from:GetAttribute("MiniRankIcon") or "🥉",
+		game = inv.station.game,
+		gameName = info.name,
+		icon = info.icon,
+		stake = inv.stake,
+		station = inv.station.id,
+		where = inv.station.seed.label,
+		ttl = math.max(1, inv.expires - os.clock()),
+		open = inv.open,
+		dist = (function()
+			local p = M.Anti.rootPos(to)
+			return if p then math.floor((p - inv.station.frame.Position).Magnitude) else -1
+		end)(),
+	}
+end
+
+-- Direct challenge. The challenger must already be waiting at `station` (Manager.sit first).
+function MatchmakingService.challenge(from: Player, to: Player, station: any, stake: number): (boolean, string?)
+	if to == from or to.Parent ~= Players then
+		return false, "신청할 수 없는 상대예요"
+	end
+	if M.Manager.isBusy(to) then
+		return false, to.DisplayName .. "님은 지금 다른 게임 중이에요"
+	end
+	for _, inv in invites do
+		if inv.from == from and inv.to == to then
+			return false, "이미 신청했어요. 답을 기다려 주세요"
+		end
+	end
+	nextId += 1
+	local inv: Invite = { id = nextId, from = from, to = to, station = station, stake = stake, expires = os.clock() + MS.T.inviteTTL, open = false, sentTo = { [to] = true }, acceptedBy = nil, arriveUntil = 0 }
+	invites[inv.id] = inv
+	M.fire(to, MS.Kinds.invite, payload(inv, to))
+	return true, nil
+end
+
+-- Open call to every free player (상대 찾기).
+function MatchmakingService.openCall(from: Player, station: any, stake: number): number
+	nextId += 1
+	local inv: Invite = { id = nextId, from = from, to = nil, station = station, stake = stake, expires = os.clock() + MS.T.openTTL, open = true, sentTo = {}, acceptedBy = nil, arriveUntil = 0 }
+	invites[inv.id] = inv
+	local n = 0
+	for _, p in Players:GetPlayers() do
+		if p ~= from and not M.Manager.isBusy(p) then
+			inv.sentTo[p] = true
+			M.fire(p, MS.Kinds.invite, payload(inv, p))
+			n += 1
+		end
+	end
+	return n
+end
+
+function MatchmakingService.respond(player: Player, id: number, accept: boolean)
+	local inv = invites[id]
+	if not inv or not inv.sentTo[player] then
+		return
+	end
+	if not accept then
+		inv.sentTo[player] = nil
+		if not inv.open then
+			remove(inv, "declined")
+			M.toast(inv.from, "info", "대결 거절", player.DisplayName .. "님이 거절했어요")
+		end
+		return
+	end
+	if inv.acceptedBy then
+		M.fire(player, MS.Kinds.inviteClosed, { id = id, reason = "taken" })
+		return
+	end
+	-- the challenger must still be waiting at that table
+	local w = inv.station.waiting
+	if not w or w.player ~= inv.from or inv.station.match then
+		remove(inv, "gone")
+		M.toast(player, "warn", "신청 취소됨", "상대가 자리를 떠났어요")
+		return
+	end
+	if M.Manager.isBusy(player) then
+		M.toast(player, "warn", "지금은 안 돼요", "다른 게임을 먼저 끝내 주세요")
+		return
+	end
+	if not M.Bet.canPay(player, inv.stake) then
+		M.toast(player, "warn", "게임머니 부족", "참가비 " .. MS.won(inv.stake) .. "가 필요해요")
+		return
+	end
+	inv.acceptedBy = player
+	closeFor(inv, "taken", player)
+	inv.sentTo = { [player] = true }
+	if M.Anti.near(player, inv.station.frame.Position, MS.T.nearInvite) then
+		invites[inv.id] = nil
+		M.Manager.joinWaiting(inv.station, player)
+	else
+		inv.arriveUntil = os.clock() + MS.T.arriveTTL
+		inv.station.waiting.reservedFor = player
+		M.Manager.publishStation(inv.station)
+		M.fire(player, MS.Kinds.waypoint, { station = inv.station.id, pos = inv.station.frame.Position, ttl = MS.T.arriveTTL, label = inv.station.seed.label })
+		M.toast(inv.from, "success", "수락!", player.DisplayName .. "님이 오고 있어요")
+	end
+end
+
+-- The waiting player stood up / left: close their calls.
+function MatchmakingService.cancelFrom(player: Player, reason: string)
+	for _, inv in invites do
+		if inv.from == player then
+			remove(inv, reason)
+			if inv.acceptedBy and inv.acceptedBy ~= player then
+				M.toast(inv.acceptedBy, "warn", "신청 취소됨", player.DisplayName .. "님이 자리를 떠났어요")
+			end
+		end
+	end
+end
+
+function MatchmakingService.onLeave(player: Player)
+	MatchmakingService.cancelFrom(player, "left")
+	for _, inv in invites do
+		inv.sentTo[player] = nil
+		if inv.acceptedBy == player then
+			inv.acceptedBy = nil
+			if inv.station.waiting then
+				inv.station.waiting.reservedFor = nil
+			end
+			if not inv.open then
+				remove(inv, "left")
+			end
+		end
+	end
+end
+
+function MatchmakingService.hasOpenCall(station: any): boolean
+	for _, inv in invites do
+		if inv.station == station and inv.open then
+			return true
+		end
+	end
+	return false
+end
+
+function MatchmakingService.tick(now: number)
+	for _, inv in invites do
+		if inv.acceptedBy then
+			local p = inv.acceptedBy :: Player
+			if p.Parent ~= Players or now > inv.arriveUntil then
+				if inv.station.waiting then
+					inv.station.waiting.reservedFor = nil
+					M.Manager.publishStation(inv.station)
+				end
+				M.toast(inv.from, "info", "상대가 오지 않았어요", "다시 상대를 찾아보세요")
+				remove(inv, "timeout")
+			elseif M.Anti.near(p, inv.station.frame.Position, MS.T.nearStation) then
+				invites[inv.id] = nil
+				M.fire(p, MS.Kinds.waypoint, { station = inv.station.id, clear = true })
+				M.Manager.joinWaiting(inv.station, p)
+			end
+		elseif now > inv.expires then
+			if not inv.open then
+				M.toast(inv.from, "info", "응답 없음", "신청이 만료됐어요")
+			end
+			remove(inv, "expired")
+		end
+	end
+end
+
+return MatchmakingService
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000008"><Properties><string name="Name">MemoryGame</string></Properties><Item class="ModuleScript" referent="RBX00000007"><Properties><string name="Name">MemoryServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MemoryGame/MemoryServer: 기억력 대결 (server only). Both players see the same digits for 2-3 s,
+-- the digits disappear and both type them in order at the same time.
+--   round 1: 3 digits, +1 per round both pass (up to MAX_LEN).
+--   one right / one wrong -> the right one wins. both wrong -> same length again (3 double fails in a
+--   row = draw). Both still right at MAX_LEN -> the faster total typing time wins.
+-- The answer is checked on the server only; the digits are sent when they are shown (everyone sees
+-- the same thing, so there is nothing to gain from reading the packet).
+-- NPC accuracy falls with the length per difficulty.
+-- Move payload: { round = n, answer = "38271" }.
+
+local MemoryServer = {}
+
+local M: any = nil
+
+local START_LEN = 3
+local MAX_LEN = 12
+local SHOW_GAP = 1.0
+
+function MemoryServer.init(m: any)
+	M = m
+end
+
+function MemoryServer.new(_match: any, _api: any): any
+	return {
+		round = 0,
+		len = START_LEN,
+		seq = "",
+		phase = "idle",
+		showUntil = 0,
+		deadline = 0,
+		answers = {} :: { [number]: { ok: boolean, t: number } },
+		npcAt = {} :: { [number]: number },
+		total = { 0, 0 },
+		fails = 0,
+		last = nil :: any,
+		nextAt = 0,
+		over = false,
+	}
+end
+
+local function showTime(len: number): number
+	return math.min(3.0, 1.8 + 0.15 * len)
+end
+
+local function startRound(gs: any, api: any)
+	gs.round += 1
+	local digits = table.create(gs.len)
+	local prev = -1
+	for i = 1, gs.len do
+		local d = api.rng:NextInteger(0, 9)
+		if d == prev then
+			d = (d + api.rng:NextInteger(1, 9)) % 10
+		end
+		digits[i] = tostring(d)
+		prev = d
+	end
+	gs.seq = table.concat(digits)
+	gs.phase = "show"
+	gs.answers = {}
+	gs.showUntil = os.clock() + showTime(gs.len)
+	gs.deadline = gs.showUntil + 6 + 0.8 * gs.len
+	for side = 1, 2 do
+		if api.isNpc(side) then
+			gs.npcAt[side] = gs.showUntil + 1.2 + gs.len * (0.35 + api.rng:NextNumber() * 0.3)
+		end
+	end
+	api.score(string.format("%d자리", gs.len))
+	api.event("memShow", { round = gs.round, seq = gs.seq, len = gs.len, until_ = api.toServer(gs.showUntil), deadline = api.toServer(gs.deadline) })
+	api.push()
+end
+
+function MemoryServer.begin(gs: any, api: any)
+	startRound(gs, api)
+end
+
+local function npcCorrect(api: any, side: number, len: number): boolean
+	local d = api.difficulty(side)
+	local p
+	if d == "easy" then
+		p = 1 - (len - 3) * 0.2
+	elseif d == "hard" then
+		p = 1 - (len - 7) * 0.13
+	else
+		p = 1 - (len - 4) * 0.16
+	end
+	return api.rng:NextNumber() < math.clamp(p, 0.05, 0.99)
+end
+
+local function judge(gs: any, api: any)
+	local a1, a2 = gs.answers[1], gs.answers[2]
+	local ok1 = a1 ~= nil and a1.ok
+	local ok2 = a2 ~= nil and a2.ok
+	gs.last = { ok1 = ok1, ok2 = ok2, seq = gs.seq }
+	gs.phase = "judge"
+	gs.nextAt = os.clock() + 2.4
+	api.event("memJudge", { ok1 = ok1, ok2 = ok2, seq = gs.seq })
+	if ok1 ~= ok2 then
+		gs.over = true
+		gs.winner = if ok1 then 1 else 2
+	elseif not ok1 then
+		gs.fails += 1
+		if gs.fails >= 3 then
+			gs.over = true
+			gs.winner = 0
+		end
+	else
+		gs.fails = 0
+		gs.total[1] += a1.t
+		gs.total[2] += a2.t
+		if gs.len >= MAX_LEN then
+			gs.over = true
+			gs.winner = if math.abs(gs.total[1] - gs.total[2]) < 0.05 then 0 elseif gs.total[1] < gs.total[2] then 1 else 2
+		else
+			gs.len += 1
+		end
+	end
+	for side = 1, 2 do
+		local ok = if side == 1 then ok1 else ok2
+		api.emote(side, if ok then "nod" else "facepalm")
+	end
+	api.push()
+end
+
+function MemoryServer.input(gs: any, side: number, p: any, api: any)
+	if gs.phase ~= "input" and gs.phase ~= "show" then
+		return
+	end
+	if gs.answers[side] or M.Anti.int(p.round, 1, 1000) ~= gs.round then
+		return
+	end
+	if type(p.answer) ~= "string" or #p.answer > MAX_LEN + 2 or not string.match(p.answer, "^%d*$") then
+		return
+	end
+	local now = os.clock()
+	if now < gs.showUntil then
+		return -- typing while the digits are still shown is not allowed
+	end
+	gs.answers[side] = { ok = p.answer == gs.seq, t = now - gs.showUntil }
+	local pl = api.player(side)
+	if pl then
+		M.fire(pl, M.MS.Kinds.event, { id = api.match.id, e = "memSent" })
+	end
+	if gs.answers[1] and gs.answers[2] then
+		judge(gs, api)
+	end
+end
+
+function MemoryServer.tick(gs: any, now: number, api: any)
+	if gs.phase == "show" and now >= gs.showUntil then
+		gs.phase = "input"
+		api.event("memHide", { round = gs.round })
+		api.push()
+	elseif gs.phase == "input" then
+		for side = 1, 2 do
+			local at = gs.npcAt[side]
+			if api.isNpc(side) and not gs.answers[side] and at and now >= at then
+				gs.answers[side] = { ok = npcCorrect(api, side, gs.len), t = now - gs.showUntil }
+			end
+		end
+		if (gs.answers[1] and gs.answers[2]) or now >= gs.deadline then
+			judge(gs, api)
+		end
+	elseif gs.phase == "judge" and now >= gs.nextAt then
+		if gs.over then
+			gs.phase = "done"
+			api.finish(gs.winner or 0, "memory")
+		else
+			startRound(gs, api)
+		end
+	end
+end
+
+function MemoryServer.view(gs: any, side: number): any
+	return {
+		round = gs.round,
+		len = gs.len,
+		phase = gs.phase,
+		seq = if gs.phase == "show" or gs.phase == "judge" then gs.seq else nil,
+		showUntil = workspace:GetServerTimeNow() + (gs.showUntil - os.clock()),
+		deadline = workspace:GetServerTimeNow() + (gs.deadline - os.clock()),
+		sent = if side > 0 then gs.answers[side] ~= nil else false,
+		last = gs.last,
+		gap = SHOW_GAP,
+	}
+end
+
+return MemoryServer
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000009"><Properties><string name="Name">MiniGameManager</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/MiniGameManager: stations, seats and the life of every match (server only).
+--
+-- A station is free, WAITING (one player seated with a chosen stake: 게임 참가 / 상대 찾기 / a sent
+-- challenge) or busy with a MATCH. Match states:
+--   seating   both players sit down / step onto their pads, cameras move (MS.T.seatWalk)
+--   countdown "3 2 1" on every screen (MS.T.countdown)
+--   playing   the game module runs (input / tick / NPC); only now can a game be won or lost
+--   result    winner card, money, record; 재대결 votes for MS.T.result seconds, then everyone stands up
+-- Money: BetService.hold when the match is created (both stakes checked + taken, rolled back if one
+-- fails), BetService.settle exactly once in finish(), BetService.refund for anything cancelled before
+-- `playing`. Leaving rules (server decides, never the client):
+--   before playing (seating / countdown)        -> cancelled, both stakes back
+--   during playing: 기권 button, leaving the server, dying / respawning, walking away from the table
+--   (> 22 studs for MS.T.leaveGrace s)           -> the other side wins the pot
+--   result                                         -> nothing changes (already settled)
+--   server shutdown (BindToClose)                  -> every open escrow is refunded
+-- Players are seated with Seat:Sit (the stools are not touch-seatable) and jumping is blocked while
+-- seated; the client disables its movement controls for stand games and moves its camera
+-- (CameraDirector). Nobody is teleported to a lobby: the match happens at the table in the world.
+
+local Players = game:GetService("Players")
+
+local Manager = {}
+
+local M: any = nil
+local MS: any = nil
+
+local stations: { [string]: any } = {}
+local stationList: { any } = {}
+local matches: { [number]: any } = {}
+local nextMatch = 0
+type PState = { kind: string, station: any, match: any?, side: number }
+local pstate: { [Player]: PState } = {}
+local spect: { [Player]: any } = {} -- player -> match they watch
+local saved: { [Player]: { jp: number, jh: number } } = {}
+
+function Manager.init(m: any)
+	M = m
+	MS = m.MS
+end
+
+function Manager.setStations(list: { any })
+	stationList = list
+	for _, s in list do
+		stations[s.id] = s
+		s.match = nil
+		s.waiting = nil
+	end
+end
+
+function Manager.station(id: any): any?
+	if type(id) ~= "string" then
+		return nil
+	end
+	return stations[id]
+end
+
+function Manager.stations(): { any }
+	return stationList
+end
+
+function Manager.isBusy(player: Player): boolean
+	return pstate[player] ~= nil
+end
+
+function Manager.stateOf(player: Player): PState?
+	return pstate[player]
+end
+
+-------------------------------------------------------------------------------------------------
+-- station public attributes
+-------------------------------------------------------------------------------------------------
+local function setA(model: Instance, k: string, v: any)
+	if model:GetAttribute(k) ~= v then
+		model:SetAttribute(k, v)
+	end
+end
+
+function Manager.publishStation(st: any)
+	local m = st.model
+	local match = st.match
+	if match then
+		setA(m, "State", if match.state == "result" then "result" else "playing")
+		for i = 1, 2 do
+			local s = match.sides[i]
+			setA(m, "P" .. i, s.name)
+			setA(m, "P" .. i .. "Id", if s.kind == "player" then s.userId else -1)
+		end
+		setA(m, "Stake", match.stake)
+		setA(m, "Pot", match.stake * 2)
+		setA(m, "MatchId", match.id)
+		setA(m, "WaitStake", -1)
+		local n = 0
+		for _ in match.spectators do
+			n += 1
+		end
+		setA(m, "Spectators", n)
+	elseif st.waiting then
+		local w = st.waiting
+		setA(m, "State", "waiting")
+		setA(m, "P1", w.player.DisplayName)
+		setA(m, "P1Id", w.player.UserId)
+		setA(m, "P2", if w.reservedFor then w.reservedFor.DisplayName else "")
+		setA(m, "P2Id", if w.reservedFor then w.reservedFor.UserId else 0)
+		setA(m, "WaitStake", w.stake)
+		setA(m, "Stake", w.stake)
+		setA(m, "Pot", 0)
+		setA(m, "Score", "")
+		setA(m, "Turn", 0)
+		setA(m, "MatchId", 0)
+		setA(m, "Spectators", 0)
+	else
+		setA(m, "State", "idle")
+		setA(m, "P1", "")
+		setA(m, "P2", "")
+		setA(m, "P1Id", 0)
+		setA(m, "P2Id", 0)
+		setA(m, "WaitStake", -1)
+		setA(m, "Stake", 0)
+		setA(m, "Pot", 0)
+		setA(m, "Score", "")
+		setA(m, "Turn", 0)
+		setA(m, "MatchId", 0)
+		setA(m, "Spectators", 0)
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- seats / pads
+-------------------------------------------------------------------------------------------------
+local function humanoidOf(player: Player): Humanoid?
+	local c = player.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+
+local function lockJump(player: Player)
+	local h = humanoidOf(player)
+	if not h or saved[player] then
+		return
+	end
+	saved[player] = { jp = h.JumpPower, jh = h.JumpHeight }
+	h.JumpPower = 0
+	h.JumpHeight = 0
+end
+
+local function unlockJump(player: Player)
+	local s = saved[player]
+	saved[player] = nil
+	local h = humanoidOf(player)
+	if s and h then
+		h.JumpPower = s.jp
+		h.JumpHeight = s.jh
+	end
+end
+
+local function seatPart(st: any, side: number): BasePart?
+	local name = if st.info.kind == "table" then (if side == 1 then "SeatA" else "SeatB") else (if side == 1 then "SpotA" else "SpotB")
+	local p = st.model:FindFirstChild(name)
+	return if p and p:IsA("BasePart") then p else nil
+end
+
+local function placePlayer(player: Player, st: any, side: number)
+	local h = humanoidOf(player)
+	local spot = seatPart(st, side)
+	if not h or not spot then
+		return
+	end
+	lockJump(player)
+	if spot:IsA("Seat") then
+		local seat = spot :: Seat
+		if seat.Occupant and seat.Occupant ~= h then
+			return
+		end
+		seat.CanTouch = false
+		pcall(function()
+			seat:Sit(h)
+		end)
+	else
+		-- stand games: walk the last few steps onto the pad, then square up
+		h:MoveTo(spot.Position)
+		task.delay(MS.T.seatWalk * 0.8, function()
+			local c = player.Character
+			if c and pstate[player] and pstate[player].station == st and c:FindFirstChild("HumanoidRootPart") then
+				local root = c:FindFirstChild("HumanoidRootPart") :: BasePart
+				local hip = (h :: Humanoid).HipHeight + root.Size.Y / 2
+				c:PivotTo(CFrame.new(spot.Position + Vector3.new(0, hip + 0.05, 0)) * spot.CFrame.Rotation)
+			end
+		end)
+	end
+	if M.ctx.allowTeleport then
+		pcall(M.ctx.allowTeleport, player, 5)
+	end
+end
+
+local function standUp(player: Player)
+	unlockJump(player)
+	local h = humanoidOf(player)
+	if h and h.SeatPart then
+		local seat = h.SeatPart
+		for _, st in stationList do
+			if seat:IsDescendantOf(st.model) then
+				local weld = seat:FindFirstChild("SeatWeld")
+				if weld then
+					weld:Destroy()
+				end
+				h.Sit = false
+				break
+			end
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- views
+-------------------------------------------------------------------------------------------------
+local function sideView(s: any): any
+	return {
+		name = s.name,
+		userId = if s.kind == "player" then s.userId else -1,
+		npc = s.kind == "npc",
+		npcId = if s.npc then s.npc.id else nil,
+		role = if s.npc then s.npc.role else nil,
+		difficulty = if s.npc then MS.DIFFICULTY[s.npc.difficulty] else nil,
+		rank = if s.player then (s.player:GetAttribute("MiniRank") or "브론즈") else (if s.npc then MS.DIFFICULTY[s.npc.difficulty] else ""),
+		rankIcon = if s.player then (s.player:GetAttribute("MiniRankIcon") or "🥉") else "🤖",
+	}
+end
+
+local function matchView(match: any, forSide: number): any
+	local st = match.station
+	local g = nil
+	if match.gs and match.def.view then
+		local ok, v = pcall(match.def.view, match.gs, forSide)
+		g = if ok then v else nil
+	end
+	return {
+		id = match.id,
+		game = match.gameId,
+		station = st.id,
+		state = match.state,
+		you = forSide,
+		sides = { sideView(match.sides[1]), sideView(match.sides[2]) },
+		stake = match.stake,
+		pot = match.stake * 2,
+		t0 = match.stateAt,
+		tEnd = match.stateEnd,
+		result = match.result,
+		votes = { match.votes[1] == true, match.votes[2] == true },
+		drawOffer = match.drawOffer or 0,
+		g = g,
+	}
+end
+
+local function recipients(match: any): { [Player]: number }
+	local out: { [Player]: number } = {}
+	for i, s in match.sides do
+		if s.kind == "player" and s.player and s.player.Parent == Players and not s.gone then
+			out[s.player] = i
+		end
+	end
+	for p in match.spectators do
+		if p.Parent == Players then
+			out[p] = 0
+		end
+	end
+	return out
+end
+
+function Manager.broadcast(match: any)
+	for p, side in recipients(match) do
+		M.fire(p, MS.Kinds.match, matchView(match, side))
+	end
+end
+
+function Manager.pushGame(match: any)
+	if not match.gs or not match.def.view then
+		return
+	end
+	for p, side in recipients(match) do
+		local ok, v = pcall(match.def.view, match.gs, side)
+		if ok then
+			M.fire(p, MS.Kinds.game, { id = match.id, g = v })
+		end
+	end
+end
+
+-- one-shot game event to the match AND passers-by within 100 studs (they see the hands move)
+function Manager.event(match: any, e: string, data: { [string]: any }?)
+	local pl = data or {}
+	pl.id = match.id
+	pl.e = e
+	pl.station = match.station.id
+	local sent: { [Player]: boolean } = {}
+	for p in recipients(match) do
+		sent[p] = true
+		M.fire(p, MS.Kinds.event, pl)
+	end
+	local pos = match.station.frame.Position
+	for _, p in Players:GetPlayers() do
+		if not sent[p] and M.Anti.near(p, pos, 100) then
+			M.fire(p, MS.Kinds.event, pl)
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- game api
+-------------------------------------------------------------------------------------------------
+local function headOf(match: any, side: number): BasePart?
+	local s = match.sides[side]
+	if s.kind == "npc" then
+		return M.Npc.head(match.station.id)
+	end
+	local c = s.player and s.player.Character
+	local h = c and c:FindFirstChild("Head")
+	return if h and h:IsA("BasePart") then h else nil
+end
+
+local function makeApi(match: any): any
+	local st = match.station
+	local api = {}
+	api.match = match
+	api.rng = Random.new()
+	api.now = os.clock
+	api.serverNow = function()
+		return workspace:GetServerTimeNow()
+	end
+	-- clock conversion: an os.clock() deadline -> server time (clients count down in server time)
+	api.toServer = function(t: number): number
+		return workspace:GetServerTimeNow() + (t - os.clock())
+	end
+	api.finish = function(winner: number, reason: string)
+		Manager.finish(match, winner, reason)
+	end
+	api.push = function()
+		Manager.pushGame(match)
+	end
+	api.event = function(e: string, data: any?)
+		Manager.event(match, e, data)
+	end
+	api.attr = function(k: string, v: any)
+		setA(st.model, k, v)
+	end
+	api.score = function(s: string)
+		setA(st.model, "Score", s)
+	end
+	api.turn = function(side: number)
+		setA(st.model, "Turn", side)
+	end
+	api.isNpc = function(side: number): boolean
+		return match.sides[side].kind == "npc"
+	end
+	api.npc = function(side: number): any?
+		return match.sides[side].npc
+	end
+	api.difficulty = function(side: number): string
+		local n = match.sides[side].npc
+		return if n then n.difficulty else "normal"
+	end
+	api.name = function(side: number): string
+		return match.sides[side].name
+	end
+	api.player = function(side: number): Player?
+		return match.sides[side].player
+	end
+	api.rtt = function(side: number): number
+		return M.Anti.rtt(match.sides[side].player)
+	end
+	-- speech bubble over a side (NPC line kinds: think / good / ... ; or literal text)
+	api.say = function(side: number, text: string, dur: number?)
+		local head = headOf(match, side)
+		if head then
+			M.say(head, text, dur or 3)
+		end
+	end
+	api.line = function(side: number, kind: string)
+		local n = match.sides[side].npc
+		if n then
+			M.Npc.say(st.id, kind)
+		end
+	end
+	api.emote = function(side: number, name: string)
+		local s = match.sides[side]
+		if s.kind == "npc" then
+			M.Npc.emote(st.id, name)
+		else
+			Manager.event(match, "emote", { userId = s.userId, name = name })
+		end
+	end
+	return api
+end
+
+-------------------------------------------------------------------------------------------------
+-- match lifecycle
+-------------------------------------------------------------------------------------------------
+local function setState(match: any, state: string, duration: number?)
+	match.state = state
+	match.stateAt = workspace:GetServerTimeNow()
+	match.stateEnd = if duration then match.stateAt + duration else 0
+	match.stateClock = os.clock()
+	match.stateClockEnd = if duration then os.clock() + duration else 0
+	Manager.publishStation(match.station)
+	Manager.broadcast(match)
+end
+
+local function playerSide(player: Player): any
+	return { kind = "player", player = player, userId = player.UserId, name = player.DisplayName }
+end
+
+local function npcSide(npc: any): any
+	return { kind = "npc", npc = npc, name = npc.name, difficulty = npc.difficulty }
+end
+
+-- Creates and starts a match. sides = { side1, side2 } (side tables above). -> match | nil, err
+function Manager.start(st: any, sides: { any }, stake: number, rematch: boolean?): (any?, string?)
+	if st.match then
+		return nil, "이미 게임 중인 테이블이에요"
+	end
+	local def = M.games[st.game]
+	if not def then
+		return nil, "준비 중인 게임이에요"
+	end
+	nextMatch += 1
+	local match = {
+		id = nextMatch,
+		gameId = st.game,
+		def = def,
+		station = st,
+		sides = sides,
+		stake = stake,
+		state = "new",
+		stateAt = 0,
+		stateEnd = 0,
+		stateClock = 0,
+		stateClockEnd = 0,
+		spectators = {} :: { [Player]: boolean },
+		votes = {} :: { [number]: boolean },
+		drawOffer = 0,
+		result = nil :: any,
+		escrow = nil :: any,
+		gs = nil :: any,
+		api = nil :: any,
+		away = {} :: { [number]: number },
+	}
+	local ok, failed = M.Bet.hold(match)
+	if not ok then
+		local who = if failed then sides[failed] else nil
+		return nil, if who then who.name .. "님의 게임머니가 부족해요 (" .. MS.won(stake) .. ")" else "참가비 처리 실패"
+	end
+	match.api = makeApi(match)
+	st.waiting = nil
+	st.match = match
+	matches[match.id] = match
+	for i, s in sides do
+		if s.kind == "player" then
+			pstate[s.player] = { kind = "match", station = st, match = match, side = i }
+			M.Match.cancelFrom(s.player, "started")
+		end
+	end
+	-- NPC host: plays (its own seat) or steps aside for two players
+	if st.host then
+		local npcPlays = sides[2].kind == "npc"
+		M.Npc.setMode(st.id, if npcPlays then "play" else "aside")
+		if npcPlays then
+			M.Npc.look(st.id, sides[1].userId)
+		end
+	end
+	local okNew, gs = pcall(def.new, match, match.api)
+	if not okNew then
+		warn("[MiniGames] " .. st.game .. ".new failed: " .. tostring(gs))
+		M.Bet.refund(match, "오류")
+		Manager.close(match)
+		return nil, "게임을 시작하지 못했어요"
+	end
+	match.gs = gs
+	for i, s in sides do
+		if s.kind == "player" then
+			placePlayer(s.player, st, i)
+		end
+	end
+	setState(match, "seating", if rematch then 0.8 else MS.T.seatWalk)
+	if sides[2].kind == "npc" then
+		M.Npc.say(st.id, "start")
+	end
+	return match, nil
+end
+
+function Manager.finish(match: any, winner: number, reason: string)
+	if match.state ~= "playing" then
+		return
+	end
+	local net = M.Bet.settle(match, winner)
+	if not net then
+		return -- already settled: never twice
+	end
+	local recs = M.Reward.apply(match, winner, net)
+	local loser = if winner == 1 then 2 elseif winner == 2 then 1 else 0
+	match.result = {
+		winner = winner,
+		reason = reason,
+		net = { net[1] or 0, net[2] or 0 },
+		records = { recs[1], recs[2] },
+		capped = match.capped == true,
+		winnerName = if winner > 0 then match.sides[winner].name else "",
+	}
+	-- NPC reaction
+	for i, s in match.sides do
+		if s.kind == "npc" then
+			if winner == 0 then
+				M.Npc.say(match.station.id, "draw")
+				M.Npc.emote(match.station.id, "shrug")
+			elseif winner == i then
+				M.Npc.say(match.station.id, "win")
+				M.Npc.emote(match.station.id, if math.random() < 0.5 then "cheer" else "laugh")
+			else
+				M.Npc.say(match.station.id, "lose")
+				M.Npc.emote(match.station.id, if math.random() < 0.5 then "facepalm" else "clap")
+			end
+		end
+	end
+	if winner > 0 then
+		match.api.emote(winner, "cheer")
+		if loser > 0 and match.sides[loser].kind == "player" then
+			match.api.emote(loser, "shrug")
+		end
+	end
+	setState(match, "result", MS.T.result)
+	Manager.pushGame(match)
+end
+
+-- Before `playing`: cancel with full refund.
+function Manager.cancel(match: any, reason: string)
+	if match.state == "playing" or match.state == "result" or match.state == "closed" then
+		return
+	end
+	M.Bet.refund(match, reason)
+	for _, s in match.sides do
+		if s.kind == "player" and s.player.Parent == Players and not s.gone then
+			M.toast(s.player, "info", "게임 취소", reason .. " · 참가비는 돌려드렸어요")
+		end
+	end
+	Manager.close(match)
+end
+
+function Manager.close(match: any)
+	if match.state == "closed" then
+		return
+	end
+	-- safety net: a match must never close holding money
+	M.Bet.refund(match, "종료")
+	local prev = match.state
+	match.state = "closed"
+	matches[match.id] = nil
+	local st = match.station
+	if match.def.cleanup and match.gs then
+		pcall(match.def.cleanup, match.gs, match.api)
+	end
+	for p in recipients(match) do
+		M.fire(p, MS.Kinds.closed, { id = match.id })
+	end
+	for i, s in match.sides do
+		if s.kind == "player" then
+			local ps = pstate[s.player]
+			if ps and ps.match == match then
+				pstate[s.player] = nil
+			end
+			if s.player.Parent == Players then
+				standUp(s.player)
+			end
+		end
+		local _ = i
+	end
+	for p in match.spectators do
+		spect[p] = nil
+	end
+	if st.match == match then
+		st.match = nil
+	end
+	if st.host then
+		M.Npc.setMode(st.id, "host")
+		M.Npc.look(st.id, 0)
+	end
+	Manager.publishStation(st)
+	local _ = prev
+end
+
+-- A player side leaves (button, server leave, death, walking away).
+function Manager.sideLeft(match: any, side: number, why: string)
+	local s = match.sides[side]
+	if match.state == "playing" then
+		local other = if side == 1 then 2 else 1
+		s.gone = why == "left" -- left the server: no more updates for them
+		Manager.finish(match, other, if why == "forfeit" then "forfeit" else "left")
+		if s.player and s.player.Parent == Players then
+			local ps = pstate[s.player]
+			if ps and ps.match == match then
+				pstate[s.player] = nil
+			end
+			standUp(s.player)
+			M.fire(s.player, MS.Kinds.closed, { id = match.id, keepResult = why == "forfeit" })
+		end
+		s.gone = true
+	elseif match.state == "result" then
+		s.gone = true
+		match.votes[side] = nil
+		if s.player then
+			local ps = pstate[s.player]
+			if ps and ps.match == match then
+				pstate[s.player] = nil
+			end
+			if s.player.Parent == Players then
+				standUp(s.player)
+				M.fire(s.player, MS.Kinds.closed, { id = match.id })
+			end
+		end
+		-- everyone left the result screen: free the table now
+		local anyone = false
+		for _, o in match.sides do
+			if o.kind == "player" and not o.gone then
+				anyone = true
+			end
+		end
+		if not anyone then
+			Manager.close(match)
+		else
+			Manager.broadcast(match)
+		end
+	else
+		Manager.cancel(match, s.name .. "님이 자리를 떠났어요")
+	end
+end
+
+function Manager.rematch(match: any, side: number)
+	if match.state ~= "result" or match.sides[side].gone then
+		return
+	end
+	match.votes[side] = true
+	local other = if side == 1 then 2 else 1
+	if match.sides[other].kind == "npc" then
+		match.votes[other] = true
+	end
+	Manager.broadcast(match)
+	for i, s in match.sides do
+		if not match.votes[i] or s.gone then
+			if s.kind == "player" and not s.gone and s.player then
+				M.toast(s.player, "info", "재대결 신청", match.sides[side].name .. "님이 재대결을 원해요")
+			end
+			return
+		end
+	end
+	-- everyone wants another round: same seats, same stake
+	local st = match.station
+	local sides = { table.clone(match.sides[1]), table.clone(match.sides[2]) }
+	for _, s in sides do
+		s.gone = nil
+	end
+	local stake = match.stake
+	-- keep the players seated: detach them from the old match without standing them up
+	for _, s in match.sides do
+		if s.kind == "player" then
+			pstate[s.player] = nil
+		end
+	end
+	local spectators = match.spectators
+	match.spectators = {}
+	match.sides = { { kind = "none", name = "" }, { kind = "none", name = "" } }
+	Manager.close(match)
+	local newMatch, err = Manager.start(st, sides, stake, true)
+	if not newMatch then
+		for _, s in sides do
+			if s.kind == "player" and s.player.Parent == Players then
+				standUp(s.player)
+				M.toast(s.player, "warn", "재대결 불가", err or "")
+			end
+		end
+		return
+	end
+	for p in spectators do
+		if p.Parent == Players then
+			newMatch.spectators[p] = true
+			spect[p] = newMatch
+		end
+	end
+	Manager.broadcast(newMatch)
+end
+
+function Manager.offerDraw(match: any, side: number, offer: boolean)
+	if match.state ~= "playing" or not (MS.GAMES[match.gameId] and MS.GAMES[match.gameId].turn) then
+		return
+	end
+	local other = if side == 1 then 2 else 1
+	if not offer then
+		if match.drawOffer == other then
+			match.drawOffer = 0
+			Manager.broadcast(match)
+		end
+		return
+	end
+	if match.drawOffer == other then
+		match.drawOffer = 0
+		Manager.finish(match, 0, "agreed")
+		return
+	end
+	if match.drawOffer ~= 0 then
+		return
+	end
+	match.drawOffer = side
+	if match.sides[other].kind == "npc" then
+		-- NPCs politely decline (they always believe they can still win)
+		match.drawOffer = 0
+		match.api.say(other, "아직 승부 안 끝났다!", 2.5)
+		match.api.emote(other, "shake")
+	end
+	Manager.broadcast(match)
+end
+
+-------------------------------------------------------------------------------------------------
+-- waiting tables
+-------------------------------------------------------------------------------------------------
+-- 게임 참가 / 상대 찾기 / before a challenge: sit at the free seat A and wait.
+function Manager.sit(player: Player, st: any, stake: number): (boolean, string?)
+	if pstate[player] then
+		return false, "이미 다른 게임에 참가 중이에요"
+	end
+	if st.match or st.waiting then
+		return false, "이미 사용 중인 자리예요"
+	end
+	if not M.Bet.canPay(player, stake) then
+		return false, "게임머니가 부족해요 (" .. MS.won(stake) .. ")"
+	end
+	Manager.unspectate(player)
+	st.waiting = { player = player, stake = stake, since = os.clock(), reservedFor = nil }
+	pstate[player] = { kind = "wait", station = st, side = 1 }
+	placePlayer(player, st, 1)
+	Manager.publishStation(st)
+	if st.host then
+		M.Npc.setMode(st.id, "aside")
+	end
+	return true, nil
+end
+
+function Manager.standFromWait(player: Player, reason: string?)
+	local ps = pstate[player]
+	if not ps or ps.kind ~= "wait" then
+		return
+	end
+	local st = ps.station
+	pstate[player] = nil
+	if st.waiting and st.waiting.player == player then
+		st.waiting = nil
+	end
+	M.Match.cancelFrom(player, reason or "stood")
+	standUp(player)
+	if st.host and not st.match then
+		M.Npc.setMode(st.id, "host")
+	end
+	Manager.publishStation(st)
+	M.fire(player, MS.Kinds.closed, { id = 0, station = st.id })
+end
+
+-- 도전하기 (walk up and take the free seat) and accepted challenges.
+function Manager.joinWaiting(st: any, player: Player): (boolean, string?)
+	local w = st.waiting
+	if not w or st.match then
+		return false, "기다리는 사람이 없어요"
+	end
+	if w.player == player then
+		return false, nil
+	end
+	if w.reservedFor and w.reservedFor ~= player then
+		return false, "다른 사람이 오기로 한 자리예요"
+	end
+	if pstate[player] then
+		return false, "이미 다른 게임에 참가 중이에요"
+	end
+	Manager.unspectate(player)
+	local host = w.player
+	pstate[host] = nil
+	local match, err = Manager.start(st, { playerSide(host), playerSide(player) }, w.stake)
+	if not match then
+		-- the host keeps waiting
+		pstate[host] = { kind = "wait", station = st, side = 1 }
+		st.waiting = w
+		w.reservedFor = nil
+		Manager.publishStation(st)
+		M.toast(player, "warn", "시작할 수 없어요", err or "")
+		M.toast(host, "warn", "시작할 수 없어요", err or "")
+		return false, err
+	end
+	return true, nil
+end
+
+function Manager.practice(player: Player, st: any, stake: number): (boolean, string?)
+	if not st.npc or not st.host then
+		return false, "여기는 NPC가 없어요"
+	end
+	if pstate[player] then
+		return false, "이미 다른 게임에 참가 중이에요"
+	end
+	if st.match or st.waiting then
+		return false, "지금은 다른 사람이 쓰고 있어요"
+	end
+	Manager.unspectate(player)
+	local match, err = Manager.start(st, { playerSide(player), npcSide(st.npc) }, stake)
+	if not match then
+		return false, err
+	end
+	return true, nil
+end
+
+-------------------------------------------------------------------------------------------------
+-- spectators (관전: no betting, by design)
+-------------------------------------------------------------------------------------------------
+function Manager.spectate(player: Player, st: any): (boolean, string?)
+	local match = st.match
+	if not match then
+		return false, "지금은 경기가 없어요"
+	end
+	if pstate[player] then
+		return false, nil
+	end
+	Manager.unspectate(player)
+	match.spectators[player] = true
+	spect[player] = match
+	Manager.publishStation(st)
+	M.fire(player, MS.Kinds.match, matchView(match, 0))
+	return true, nil
+end
+
+function Manager.unspectate(player: Player)
+	local match = spect[player]
+	spect[player] = nil
+	if match then
+		match.spectators[player] = nil
+		if match.state ~= "closed" then
+			Manager.publishStation(match.station)
+		end
+		M.fire(player, MS.Kinds.closed, { id = match.id, spectator = true })
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- input routing
+-------------------------------------------------------------------------------------------------
+function Manager.input(player: Player, payload: any)
+	local ps = pstate[player]
+	if not ps or ps.kind ~= "match" then
+		return
+	end
+	local match = ps.match
+	if match.state ~= "playing" or not match.def.input then
+		return
+	end
+	local ok, err = pcall(match.def.input, match.gs, ps.side, payload, match.api)
+	if not ok then
+		warn("[MiniGames] " .. match.gameId .. ".input failed: " .. tostring(err))
+	end
+end
+
+function Manager.leave(player: Player, why: string)
+	local ps = pstate[player]
+	if not ps then
+		Manager.unspectate(player)
+		return
+	end
+	if ps.kind == "wait" then
+		Manager.standFromWait(player, why)
+	elseif ps.match then
+		Manager.sideLeft(ps.match, ps.side, why)
+	end
+end
+
+function Manager.onCharacter(player: Player)
+	-- a respawn (death / reset) during a match counts as leaving the table
+	local ps = pstate[player]
+	if ps then
+		Manager.leave(player, "respawn")
+	end
+	saved[player] = nil
+end
+
+function Manager.onLeave(player: Player)
+	Manager.unspectate(player)
+	Manager.leave(player, "left")
+	pstate[player] = nil
+	saved[player] = nil
+end
+
+-------------------------------------------------------------------------------------------------
+-- tick (10 Hz)
+-------------------------------------------------------------------------------------------------
+local AWAY_DIST = 22
+
+function Manager.tick(now: number)
+	for _, match in matches do
+		local st = match.station
+		if match.state == "seating" and now >= match.stateClockEnd then
+			setState(match, "countdown", MS.T.countdown)
+		elseif match.state == "countdown" and now >= match.stateClockEnd then
+			setState(match, "playing", nil)
+			local ok, err = pcall(match.def.begin, match.gs, match.api)
+			if not ok then
+				warn("[MiniGames] " .. match.gameId .. ".begin failed: " .. tostring(err))
+				match.state = "countdown"
+				Manager.cancel(match, "게임 오류")
+			else
+				Manager.pushGame(match)
+			end
+		elseif match.state == "playing" then
+			local ok, err = pcall(match.def.tick, match.gs, now, match.api)
+			if not ok then
+				warn("[MiniGames] " .. match.gameId .. ".tick failed: " .. tostring(err))
+			end
+		elseif match.state == "result" and now >= match.stateClockEnd then
+			Manager.close(match)
+		end
+		-- walking away / not seated any more
+		if match.state ~= "closed" and match.state ~= "result" then
+			for i, s in match.sides do
+				if s.kind == "player" and not s.gone then
+					local near = M.Anti.near(s.player, st.frame.Position, AWAY_DIST) and M.Anti.alive(s.player)
+					if near then
+						match.away[i] = nil
+					else
+						match.away[i] = match.away[i] or now
+						if now - match.away[i] > MS.T.leaveGrace then
+							match.away[i] = nil
+							Manager.sideLeft(match, i, "away")
+							break
+						end
+					end
+				end
+			end
+		end
+		-- spectators who walked off
+		for p in match.spectators do
+			if not M.Anti.near(p, st.frame.Position, MS.T.spectate) then
+				Manager.unspectate(p)
+			end
+		end
+	end
+	for _, st in stationList do
+		local w = st.waiting
+		if w then
+			local p = w.player
+			if not M.Anti.near(p, st.frame.Position, AWAY_DIST) or now - w.since > MS.T.waitTTL then
+				Manager.standFromWait(p, "timeout")
+				if p.Parent == Players then
+					M.toast(p, "info", "자리에서 일어났어요", "상대가 오지 않았어요")
+				end
+			end
+		end
+	end
+end
+
+-- Slow tick (1 Hz): NPC hosts greet passers-by, latency probes for players in timing games.
+function Manager.slowTick()
+	local players = Players:GetPlayers()
+	for _, st in stationList do
+		if st.host and not st.match and not st.waiting then
+			local best, bestD = nil, math.huge
+			for _, p in players do
+				local pos = M.Anti.rootPos(p)
+				if pos then
+					local d = (pos - st.frame.Position).Magnitude
+					if d < bestD then
+						best, bestD = p, d
+					end
+				end
+			end
+			M.Npc.idleTick(st.id, best, bestD)
+		end
+	end
+end
+
+function Manager.activeMatches(): { [number]: any }
+	return matches
+end
+
+return Manager
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX0000000A"><Properties><string name="Name">NpcHosts</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/NpcHosts: the NPCs who wait at the minigame spots (박씨 아저씨 at the omok table, 민준 at
+-- the word-chain table, 하은 the tourist at the 가위바위보 sign ...). Server only, brain only.
+--
+-- Rigs are GwangalliNPCLooks block-R15 people (GwangalliAnim.buildR15 as a fallback) parented to
+-- workspace.GwangalliNPCs with the NPC.luau attribute contract, so StarterPlayerScripts.
+-- GwangalliNPCClient animates them like every key NPC (acts, emotes, head look-at, LOD):
+--   NpcId "mg_<id>", NpcKind "street", NpcAct, NpcYaw, NpcLeg (zero-length leg = stand here / a
+--   short leg = walk), NpcLook (UserId), NpcEmote "name#seq#serverTime", NpcGround.
+-- Modes: "host" (seated on SeatB / standing on PadB, waiting for a player: act sit / idle), "play"
+-- (same spot, thinking / reacting during a match), "aside" (two players took the table: the NPC
+-- gets up and watches from the side, arms crossed, and comes back afterwards).
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local NpcHosts = {}
+
+local M: any = nil
+local MS: any = nil
+local Looks: any = nil
+local Anim: any = nil
+
+type Host = {
+	npc: any,
+	station: any,
+	model: Model,
+	root: BasePart,
+	head: BasePart?,
+	ground: number,
+	mode: string,
+	emoteSeq: number,
+	lastInvite: number,
+	feetHost: Vector3,
+	yawHost: number,
+	actHost: string,
+}
+local hosts: { [string]: Host } = {} -- station id -> host
+
+local function optional(name: string): any
+	local m = ReplicatedStorage:FindFirstChild(name)
+	if m and m:IsA("ModuleScript") then
+		local ok, res = pcall(require, m)
+		if ok then
+			return res
+		end
+	end
+	return nil
+end
+
+function NpcHosts.init(m: any)
+	M = m
+	MS = m.MS
+	Looks = optional("GwangalliNPCLooks")
+	Anim = optional("GwangalliAnim")
+end
+
+local function serverNow(): number
+	return workspace:GetServerTimeNow()
+end
+
+-- yaw (degrees) whose facing (CFrame.Angles(0, yaw, 0).LookVector) points along `dir`
+local function yawOf(dir: Vector3): number
+	return math.deg(math.atan2(-dir.X, -dir.Z))
+end
+
+local function npcFolder(): Instance
+	local f = workspace:FindFirstChild(MS.NpcFolder)
+	if not f then
+		f = Instance.new("Folder")
+		f.Name = MS.NpcFolder
+		f.Parent = workspace
+	end
+	return f :: Instance
+end
+
+local function nameTag(model: Model, head: BasePart?, npc: any)
+	if not head then
+		return
+	end
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "MiniGameNameTag"
+	bb.Size = UDim2.fromOffset(170, 40)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 1.9, 0)
+	bb.MaxDistance = 45
+	bb.AlwaysOnTop = false
+	bb.LightInfluence = 0
+	bb.Adornee = head
+	local name = Instance.new("TextLabel")
+	name.BackgroundTransparency = 1
+	name.Size = UDim2.new(1, 0, 0.55, 0)
+	name.Font = Enum.Font.GothamBold
+	name.TextScaled = true
+	name.TextColor3 = Color3.new(1, 1, 1)
+	name.TextStrokeTransparency = 0.5
+	name.Text = npc.name
+	name.Parent = bb
+	local role = Instance.new("TextLabel")
+	role.BackgroundTransparency = 1
+	role.Position = UDim2.fromScale(0, 0.56)
+	role.Size = UDim2.new(1, 0, 0.42, 0)
+	role.Font = Enum.Font.GothamMedium
+	role.TextScaled = true
+	role.TextColor3 = Color3.fromRGB(255, 214, 110)
+	role.TextStrokeTransparency = 0.6
+	role.Text = npc.role .. " · " .. MS.DIFFICULTY[npc.difficulty]
+	role.Parent = bb
+	bb.Parent = model
+end
+
+local function buildRig(npc: any): (Model?, BasePart?, BasePart?, number)
+	if Looks then
+		local ok, rig = pcall(function()
+			local spec = Looks.random(npc.seed, npc.look)
+			return Looks.build(spec, { name = "MG_" .. npc.id, anchored = true, shadow = false })
+		end)
+		if ok and type(rig) == "table" and rig.model then
+			return rig.model, rig.root, rig.head or (rig.parts and rig.parts.Head), rig.ground or 3
+		end
+		warn("[MiniGames] npc " .. npc.id .. ": look build failed: " .. tostring(rig))
+	end
+	if Anim then
+		local ok, m, parts = pcall(Anim.buildR15, { name = "MG_" .. npc.id, body = npc.look.body or "m" })
+		if ok and m then
+			m:PivotTo(CFrame.new(0, -Anim.R15.rootY, 0) * m:GetPivot())
+			return m, parts.HumanoidRootPart, parts.Head, Anim.R15.rootY
+		end
+	end
+	return nil, nil, nil, 3
+end
+
+local function setAttr(h: Host, k: string, v: any)
+	if h.model:GetAttribute(k) ~= v then
+		h.model:SetAttribute(k, v)
+	end
+end
+
+local function legStr(a: Vector3, b: Vector3, t0: number, dur: number): string
+	return string.format("%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f", a.X, a.Y, a.Z, b.X, b.Y, b.Z, t0, dur)
+end
+
+local function place(h: Host, feet: Vector3, yaw: number, act: string, walkFrom: Vector3?)
+	setAttr(h, "NpcYaw", math.floor(yaw * 10 + 0.5) / 10)
+	setAttr(h, "NpcAct", act)
+	if walkFrom and (walkFrom - feet).Magnitude > 0.5 then
+		local dur = (walkFrom - feet).Magnitude / 6
+		setAttr(h, "NpcLeg", legStr(walkFrom, feet, serverNow() + 0.1, dur))
+		task.delay(dur + 0.2, function()
+			if h.model.Parent then
+				h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+			end
+		end)
+	else
+		setAttr(h, "NpcLeg", legStr(feet, feet, serverNow(), 0.01))
+		h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+	end
+end
+
+-- Seated hosts: the rigs' sit pose lowers the hips ~1.25 studs from standing; the stool top is ~1.6
+-- above the paving, so the seated rig's feet hang a little above it.
+local SIT_RAISE = 0.55
+
+function NpcHosts.spawn(station: any): Host?
+	local npc = station.npc
+	if not npc then
+		return nil
+	end
+	local model, root, head, ground = buildRig(npc)
+	if not model or not root then
+		warn("[MiniGames] npc " .. npc.id .. ": no rig builder (GwangalliNPCLooks / GwangalliAnim missing)")
+		return nil
+	end
+	local m = station.model
+	local feet: Vector3
+	local yaw: number
+	local act: string
+	if station.info.kind == "table" then
+		local seat = m:FindFirstChild("SeatB") :: BasePart
+		local focus = m:FindFirstChild("Focus") :: BasePart
+		local base = seat.Position - Vector3.new(0, 1.45, 0)
+		feet = base + Vector3.new(0, SIT_RAISE, 0)
+		local d = focus.Position - seat.Position
+		yaw = yawOf(Vector3.new(d.X, 0, d.Z))
+		act = "sit"
+	else
+		local spot = m:FindFirstChild("SpotB") :: BasePart
+		feet = spot.Position
+		yaw = yawOf(spot.CFrame.LookVector)
+		act = if station.game == "rps" then "hips" else "idle"
+	end
+	model:SetAttribute("NpcId", "mg_" .. npc.id)
+	model:SetAttribute("NpcPost", "home")
+	model:SetAttribute("NpcKind", "street")
+	model:SetAttribute("NpcGround", ground)
+	model:SetAttribute("NpcLook", 0)
+	model:SetAttribute("NpcTalk", 0)
+	model:SetAttribute("NpcEmote", "")
+	model:SetAttribute("MiniGameHost", station.id)
+	local h: Host = {
+		npc = npc,
+		station = station,
+		model = model,
+		root = root,
+		head = head,
+		ground = ground,
+		mode = "host",
+		emoteSeq = 0,
+		lastInvite = 0,
+		feetHost = feet,
+		yawHost = yaw,
+		actHost = act,
+	}
+	place(h, feet, yaw, act, nil)
+	nameTag(model, head, npc)
+	model.Parent = npcFolder()
+	hosts[station.id] = h
+	station.host = h
+	return h
+end
+
+function NpcHosts.get(stationId: string): Host?
+	return hosts[stationId]
+end
+
+function NpcHosts.head(stationId: string): BasePart?
+	local h = hosts[stationId]
+	return h and h.head
+end
+
+function NpcHosts.emote(stationId: string, name: string)
+	local h = hosts[stationId]
+	if not h then
+		return
+	end
+	h.emoteSeq += 1
+	setAttr(h, "NpcEmote", string.format("%s#%d#%.1f", name, h.emoteSeq, serverNow()))
+end
+
+function NpcHosts.act(stationId: string, act: string?)
+	local h = hosts[stationId]
+	if h then
+		setAttr(h, "NpcAct", act or h.actHost)
+	end
+end
+
+function NpcHosts.look(stationId: string, userId: number)
+	local h = hosts[stationId]
+	if h then
+		setAttr(h, "NpcLook", userId)
+	end
+end
+
+-- Speech bubble over the NPC (and the line is remembered for the station prompt).
+function NpcHosts.say(stationId: string, kind: string, text: string?)
+	local h = hosts[stationId]
+	if not h then
+		return
+	end
+	local line = text or MS.line(h.npc, kind)
+	if line and h.head then
+		M.say(h.head, line, 3.5)
+	end
+end
+
+function NpcHosts.setMode(stationId: string, mode: string)
+	local h = hosts[stationId]
+	if not h or h.mode == mode then
+		return
+	end
+	local m = h.station.model
+	if mode == "aside" then
+		local aside = m:FindFirstChild("NpcAside") :: BasePart?
+		if aside then
+			local focus = m:FindFirstChild("Focus") :: BasePart
+			local d = focus.Position - aside.Position
+			place(h, aside.Position, yawOf(Vector3.new(d.X, 0, d.Z)), "arms_crossed", (h.root.Position - Vector3.new(0, h.ground, 0)))
+		end
+	else
+		local from = if h.mode == "aside" then h.root.Position - Vector3.new(0, h.ground, 0) else nil
+		place(h, h.feetHost, h.yawHost, if mode == "play" and h.actHost == "idle" then "idle" else h.actHost, from)
+	end
+	h.mode = mode
+end
+
+-- Every few seconds while the station is free: greet a player who walks by.
+function NpcHosts.idleTick(stationId: string, nearest: Player?, dist: number)
+	local h = hosts[stationId]
+	if not h or h.mode ~= "host" then
+		return
+	end
+	if nearest and dist < 12 then
+		setAttr(h, "NpcLook", nearest.UserId)
+		local now = os.clock()
+		if now - h.lastInvite > 30 then
+			h.lastInvite = now
+			NpcHosts.say(stationId, "invite")
+			NpcHosts.emote(stationId, if math.random() < 0.5 then "wave_small" else "beckon")
+		end
+	else
+		setAttr(h, "NpcLook", 0)
+	end
+end
+
+return NpcHosts
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX0000000C"><Properties><string name="Name">NumberGuess</string></Properties><Item class="ModuleScript" referent="RBX0000000B"><Properties><string name="Name">NumberGuessServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- NumberGuess/NumberGuessServer: 숫자 맞히기 (업다운), server only. The server picks 1..100 and
+-- never sends it before the end. Players take turns (TURN_TIME s): every guess must be inside the
+-- range that is still open ("23 ~ 61"), the answer is UP / DOWN for everyone; the exact number wins.
+-- A timeout passes the turn; the second timeout loses.
+-- NPC: 초보 guesses anywhere in the open range, 일반 near the middle, 고수 splits it exactly.
+-- Move payload: { n = integer }.
+
+local NumberGuessServer = {}
+
+local M: any = nil
+
+local LO, HI = 1, 100
+local TURN_TIME = 12
+
+function NumberGuessServer.init(m: any)
+	M = m
+end
+
+function NumberGuessServer.new(_match: any, api: any): any
+	return {
+		secret = api.rng:NextInteger(LO, HI),
+		lo = LO,
+		hi = HI,
+		turn = api.rng:NextInteger(1, 2),
+		deadline = 0,
+		npcAt = 0,
+		history = {} :: { { s: number, n: number, r: string } },
+		strikes = { 0, 0 },
+		over = false,
+	}
+end
+
+local function startTurn(gs: any, side: number, api: any)
+	gs.turn = side
+	gs.deadline = os.clock() + TURN_TIME
+	gs.npcAt = if api.isNpc(side) then os.clock() + 1.4 + api.rng:NextNumber() * 2.2 else 0
+	api.turn(side)
+	api.score(string.format("%d ~ %d", gs.lo, gs.hi))
+	api.push()
+end
+
+function NumberGuessServer.begin(gs: any, api: any)
+	startTurn(gs, gs.turn, api)
+end
+
+local function guess(gs: any, side: number, n: number, api: any)
+	local r
+	if n == gs.secret then
+		r = "정답"
+	elseif n < gs.secret then
+		r = "UP"
+		gs.lo = n + 1
+	else
+		r = "DOWN"
+		gs.hi = n - 1
+	end
+	table.insert(gs.history, { s = side, n = n, r = r })
+	api.say(side, tostring(n) .. "!", 1.8)
+	api.event("guess", { side = side, n = n, r = r, lo = gs.lo, hi = gs.hi })
+	if r == "정답" then
+		gs.over = true
+		api.attr("NumberSecret", gs.secret)
+		api.finish(side, "exact")
+		return
+	end
+	local other = if side == 1 then 2 else 1
+	if api.isNpc(other) and api.rng:NextNumber() < 0.2 then
+		api.line(other, "good")
+	end
+	startTurn(gs, other, api)
+end
+
+function NumberGuessServer.input(gs: any, side: number, p: any, api: any)
+	if gs.over or gs.turn ~= side then
+		return
+	end
+	local n = M.Anti.int(p.n, LO, HI)
+	if not n then
+		return
+	end
+	if n < gs.lo or n > gs.hi then
+		local pl = api.player(side)
+		if pl then
+			M.toast(pl, "info", "범위 밖이에요", string.format("%d ~ %d 사이에서 골라 주세요", gs.lo, gs.hi))
+		end
+		return
+	end
+	guess(gs, side, n, api)
+end
+
+local function npcGuess(gs: any, side: number, api: any): number
+	local d = api.difficulty(side)
+	local lo, hi = gs.lo, gs.hi
+	if d == "hard" then
+		return (lo + hi) // 2
+	elseif d == "normal" then
+		local mid = (lo + hi) / 2
+		local spread = math.max(1, (hi - lo) * 0.2)
+		return math.clamp(math.floor(mid + (api.rng:NextNumber() * 2 - 1) * spread + 0.5), lo, hi)
+	end
+	return api.rng:NextInteger(lo, hi)
+end
+
+function NumberGuessServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	local side = gs.turn
+	if api.isNpc(side) then
+		if gs.npcAt > 0 and now >= gs.npcAt then
+			gs.npcAt = 0
+			guess(gs, side, npcGuess(gs, side, api), api)
+		end
+		return
+	end
+	if now >= gs.deadline then
+		gs.strikes[side] += 1
+		if gs.strikes[side] >= 2 then
+			gs.over = true
+			api.attr("NumberSecret", gs.secret)
+			api.finish(if side == 1 then 2 else 1, "timeout")
+			return
+		end
+		local pl = api.player(side)
+		if pl then
+			M.toast(pl, "warn", "시간 초과!", "차례가 넘어갔어요. 한 번 더 넘기면 패배예요")
+		end
+		startTurn(gs, if side == 1 then 2 else 1, api)
+	end
+end
+
+function NumberGuessServer.view(gs: any, _side: number): any
+	local hist = {}
+	for k = math.max(1, #gs.history - 7), #gs.history do
+		table.insert(hist, gs.history[k])
+	end
+	return {
+		lo = gs.lo,
+		hi = gs.hi,
+		turn = gs.turn,
+		deadline = workspace:GetServerTimeNow() + math.max(0, gs.deadline - os.clock()),
+		turnTime = TURN_TIME,
+		history = hist,
+		secret = if gs.over then gs.secret else nil,
+	}
+end
+
+function NumberGuessServer.cleanup(_gs: any, api: any)
+	api.attr("NumberSecret", 0)
+end
+
+return NumberGuessServer
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX0000000E"><Properties><string name="Name">Omok</string></Properties><Item class="ModuleScript" referent="RBX0000000D"><Properties><string name="Name">OmokServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Omok/OmokServer: 오목 on the 3D board (server only; rules + board logic in the shared OmokConfig).
+--   * 흑 / 백 random, 흑 first. One move per turn, OmokConfig.MOVE_TIME seconds each; the first
+--     timeout plays a random move for the sleeper, the second loses the game (OmokConfig.TIMEOUT_STRIKES).
+--   * Korean rule by default (흑: 쌍삼 / 4-4 / 장목 금지 - the move is refused with the reason).
+--   * Win = five in a row (OmokConfig.winLine), board full = draw, 기권 / 무승부 합의 via the manager.
+-- Public broadcast (station attributes, so passers-by watch the real board): OmokBoard (225 chars),
+-- OmokLast (cell), OmokSeq, OmokBlack (side 1 | 2), OmokWin ("i,j,k,l,m").
+-- NPC: pattern-scoring AI. 초보 picks among the top moves at random and sometimes misses a block,
+-- 일반 adds noise, 고수 always takes the best scored point (and never misses a win or a forced block).
+-- Move payload: { cell = 1..225 }.
+
+local OmokServer = {}
+
+local M: any = nil
+local OC: any = nil
+
+function OmokServer.init(m: any)
+	M = m
+	OC = m.OC
+end
+
+local SIZE = 15
+local DIRS = { { 1, 0 }, { 0, 1 }, { 1, 1 }, { 1, -1 } }
+
+-------------------------------------------------------------------------------------------------
+-- AI
+-------------------------------------------------------------------------------------------------
+-- value of the line through (x, y) for `color` if it played there: run length + open ends
+local function lineValue(b: { number }, x: number, y: number, color: number): number
+	local total = 0
+	for _, d in DIRS do
+		local dx, dy = d[1], d[2]
+		local n = 1
+		local open = 0
+		local cx, cy = x + dx, y + dy
+		while OC.at(b, cx, cy) == color do
+			n += 1
+			cx += dx
+			cy += dy
+		end
+		if OC.at(b, cx, cy) == 0 then
+			open += 1
+			-- a gap then more stones (X_XX patterns) count a little
+			if OC.at(b, cx + dx, cy + dy) == color then
+				n += 0.6
+			end
+		end
+		cx, cy = x - dx, y - dy
+		while OC.at(b, cx, cy) == color do
+			n += 1
+			cx -= dx
+			cy -= dy
+		end
+		if OC.at(b, cx, cy) == 0 then
+			open += 1
+			if OC.at(b, cx - dx, cy - dy) == color then
+				n += 0.6
+			end
+		end
+		local v = 0
+		if n >= 5 then
+			v = 1000000
+		elseif n >= 4 then
+			v = if open == 2 then 50000 elseif open == 1 then 6000 else 0
+		elseif n >= 3 then
+			v = if open == 2 then 5000 elseif open == 1 then 400 else 0
+		elseif n >= 2 then
+			v = if open == 2 then 300 elseif open == 1 then 40 else 0
+		else
+			v = if open == 2 then 10 elseif open == 1 then 2 else 0
+		end
+		total += v
+	end
+	return total
+end
+
+local function candidates(b: { number }): { number }
+	local out = {}
+	local any = false
+	for i = 1, SIZE * SIZE do
+		if b[i] ~= 0 then
+			any = true
+			break
+		end
+	end
+	if not any then
+		return { OC.idx(8, 8) }
+	end
+	for i = 1, SIZE * SIZE do
+		if b[i] == 0 then
+			local x, y = OC.xy(i)
+			local near = false
+			for dy = -2, 2 do
+				for dx = -2, 2 do
+					local v = OC.at(b, x + dx, y + dy)
+					if v == 1 or v == 2 then
+						near = true
+						break
+					end
+				end
+				if near then
+					break
+				end
+			end
+			if near then
+				table.insert(out, i)
+			end
+		end
+	end
+	return out
+end
+
+local function choose(gs: any, color: number, difficulty: string, rng: Random): number?
+	local b = gs.board
+	local opp = if color == 1 then 2 else 1
+	local scored = {}
+	for _, i in candidates(b) do
+		local x, y = OC.xy(i)
+		if not OC.forbidden(b, x, y, color, gs.rule) then
+			local attack = lineValue(b, x, y, color)
+			local defend = lineValue(b, x, y, opp)
+			local s = attack * 1.1 + defend * (if difficulty == "hard" then 1.0 elseif difficulty == "normal" then 0.85 else 0.6)
+			-- prefer the centre a little
+			s += (8 - math.max(math.abs(x - 8), math.abs(y - 8))) * 0.5
+			table.insert(scored, { i = i, s = s, attack = attack, defend = defend })
+		end
+	end
+	if #scored == 0 then
+		return nil
+	end
+	table.sort(scored, function(a, c)
+		return a.s > c.s
+	end)
+	local best = scored[1]
+	-- never miss a win (all levels); forced blocks: hard always, normal mostly, easy sometimes
+	if best.attack >= 1000000 then
+		return best.i
+	end
+	if best.defend >= 50000 then
+		local p = if difficulty == "hard" then 1 elseif difficulty == "normal" then 0.92 else 0.6
+		if rng:NextNumber() < p then
+			return best.i
+		end
+	end
+	if difficulty == "hard" then
+		return best.i
+	end
+	local top = if difficulty == "normal" then 3 else 7
+	top = math.min(top, #scored)
+	-- weighted pick among the top moves
+	local sum = 0
+	for k = 1, top do
+		sum += 1 / k
+	end
+	local r = rng:NextNumber() * sum
+	for k = 1, top do
+		r -= 1 / k
+		if r <= 0 then
+			return scored[k].i
+		end
+	end
+	return scored[1].i
+end
+OmokServer._choose = choose
+
+-------------------------------------------------------------------------------------------------
+-- game
+-------------------------------------------------------------------------------------------------
+function OmokServer.new(match: any, api: any): any
+	local black = api.rng:NextInteger(1, 2)
+	return {
+		board = OC.empty(),
+		rule = OC.RULE,
+		black = black,
+		colorOf = { [black] = 1, [if black == 1 then 2 else 1] = 2 },
+		turn = black,
+		last = 0,
+		seq = 0,
+		deadline = 0,
+		strikes = { 0, 0 },
+		npcAt = 0,
+		moves = 0,
+		winLine = nil :: { number }?,
+	}
+end
+
+local function publish(gs: any, api: any)
+	api.attr("OmokBoard", OC.encode(gs.board))
+	api.attr("OmokLast", gs.last)
+	api.attr("OmokSeq", gs.seq)
+	api.attr("OmokBlack", gs.black)
+	api.attr("OmokWin", if gs.winLine then table.concat(gs.winLine, ",") else "")
+	api.turn(if gs.winLine then 0 else gs.turn)
+	api.score(string.format("%d수", gs.moves))
+end
+
+local function npcDelay(api: any, side: number): number
+	local d = api.difficulty(side)
+	local lo, hi = 1.2, 2.6
+	if d == "normal" then
+		lo, hi = 1.6, 3.4
+	elseif d == "hard" then
+		lo, hi = 2.0, 4.2
+	end
+	return lo + api.rng:NextNumber() * (hi - lo)
+end
+
+local function startTurn(gs: any, side: number, api: any)
+	gs.turn = side
+	gs.deadline = os.clock() + OC.MOVE_TIME
+	gs.npcAt = if api.isNpc(side) then os.clock() + npcDelay(api, side) else 0
+	if api.isNpc(side) and api.rng:NextNumber() < 0.25 then
+		api.line(side, "think")
+	end
+end
+
+function OmokServer.begin(gs: any, api: any)
+	for i = 1, #gs.board do
+		gs.board[i] = 0
+	end
+	startTurn(gs, gs.black, api)
+	publish(gs, api)
+	api.event("omokStart", { black = gs.black })
+end
+
+local function place(gs: any, side: number, cell: number, api: any, auto: boolean?): (boolean, string?)
+	if gs.turn ~= side then
+		return false, "상대 차례예요"
+	end
+	if gs.board[cell] ~= 0 then
+		return false, "이미 돌이 있어요"
+	end
+	local color = gs.colorOf[side]
+	local x, y = OC.xy(cell)
+	local bad = OC.forbidden(gs.board, x, y, color, gs.rule)
+	if bad then
+		return false, OC.FORBIDDEN_TEXT[bad]
+	end
+	gs.board[cell] = color
+	gs.last = cell
+	gs.seq += 1
+	gs.moves += 1
+	api.emote(side, "mg_place")
+	local line = OC.winLine(gs.board, x, y, color, gs.rule)
+	if line then
+		gs.winLine = line
+		publish(gs, api)
+		api.event("omokMove", { side = side, cell = cell, color = color, seq = gs.seq, auto = auto == true })
+		api.finish(side, "five")
+		return true, nil
+	end
+	if OC.full(gs.board) then
+		publish(gs, api)
+		api.finish(0, "full")
+		return true, nil
+	end
+	local other = if side == 1 then 2 else 1
+	-- an NPC reacts to a strong player move now and then
+	if api.isNpc(other) and api.rng:NextNumber() < 0.18 then
+		local opp = gs.colorOf[other]
+		local _ = opp
+		api.line(other, "good")
+	end
+	startTurn(gs, other, api)
+	publish(gs, api)
+	api.event("omokMove", { side = side, cell = cell, color = color, seq = gs.seq, auto = auto == true })
+	api.push()
+	return true, nil
+end
+
+function OmokServer.input(gs: any, side: number, p: any, api: any)
+	local cell = M.Anti.int(p.cell, 1, SIZE * SIZE)
+	if not cell then
+		return
+	end
+	local ok, err = place(gs, side, cell, api, false)
+	if not ok and err then
+		local pl = api.player(side)
+		if pl then
+			M.toast(pl, "warn", "둘 수 없는 자리", err)
+		end
+	end
+end
+
+local function randomMove(gs: any, side: number, api: any): number?
+	return choose(gs, gs.colorOf[side], "easy", api.rng)
+end
+
+function OmokServer.tick(gs: any, now: number, api: any)
+	if gs.winLine then
+		return
+	end
+	local side = gs.turn
+	if api.isNpc(side) then
+		if gs.npcAt > 0 and now >= gs.npcAt then
+			gs.npcAt = 0
+			local cell = choose(gs, gs.colorOf[side], api.difficulty(side), api.rng)
+			if cell then
+				place(gs, side, cell, api, false)
+			else
+				api.finish(0, "full")
+			end
+		end
+		return
+	end
+	if now >= gs.deadline then
+		gs.strikes[side] += 1
+		local pl = api.player(side)
+		if gs.strikes[side] >= OC.TIMEOUT_STRIKES then
+			api.finish(if side == 1 then 2 else 1, "timeout")
+			return
+		end
+		if pl then
+			M.toast(pl, "warn", "시간 초과!", "한 번 더 시간을 넘기면 패배예요")
+		end
+		local cell = randomMove(gs, side, api)
+		if cell then
+			place(gs, side, cell, api, true)
+		end
+	end
+end
+
+function OmokServer.view(gs: any, side: number): any
+	return {
+		board = OC.encode(gs.board),
+		black = gs.black,
+		turn = gs.turn,
+		color = if side > 0 then gs.colorOf[side] else 0,
+		last = gs.last,
+		seq = gs.seq,
+		deadline = workspace:GetServerTimeNow() + math.max(0, gs.deadline - os.clock()),
+		moveTime = OC.MOVE_TIME,
+		strikes = gs.strikes,
+		rule = gs.rule,
+		win = gs.winLine,
+	}
+end
+
+function OmokServer.cleanup(gs: any, api: any)
+	-- leave the final position on the table for a while (passers-by see how it ended), then clear it
+	local seq = gs.seq
+	task.delay(12, function()
+		local model = api.match.station.model
+		if model:GetAttribute("OmokSeq") == seq and not api.match.station.match then
+			model:SetAttribute("OmokBoard", "")
+			model:SetAttribute("OmokLast", 0)
+			model:SetAttribute("OmokWin", "")
+			model:SetAttribute("OmokSeq", 0)
+		end
+	end)
+end
+
+return OmokServer
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000011"><Properties><string name="Name">Quiz</string></Properties><Item class="ModuleScript" referent="RBX0000000F"><Properties><string name="Name">QuizBank</string><ProtectedString name="Source"><![CDATA[--!strict
+-- QuizBank: questions of the 퀴즈 대결 minigame (4 choices, `a` = index of the correct choice 1-4).
+-- Data only (QuizServer shuffles the choices per match). tags: busan | general | korean | math | culture | sea,
+-- d = difficulty 1 (쉬움) .. 3 (어려움). Keep q ≤ 40 chars and each choice ≤ 12 chars (mobile buttons).
+export type Question = { q: string, c: { string }, a: number, tag: string, d: number }
+local Q: { Question } = {
+	-- busan
+	{ q = "광안대교가 있는 도시는?", c = { "부산", "인천", "여수", "목포" }, a = 1, tag = "busan", d = 1 },
+	{ q = "광안리해수욕장이 있는 부산의 구는?", c = { "해운대구", "수영구", "중구", "사하구" }, a = 2, tag = "busan", d = 2 },
+	{ q = "부산의 시화(市花)는?", c = { "무궁화", "개나리", "동백꽃", "진달래" }, a = 3, tag = "busan", d = 2 },
+	{ q = "부산의 시조(市鳥)는?", c = { "까치", "비둘기", "참새", "갈매기" }, a = 4, tag = "busan", d = 2 },
+	{ q = "부산의 대표 음식으로 유명한 국밥은?", c = { "콩나물국밥", "돼지국밥", "순대국밥", "소머리국밥" }, a = 2, tag = "busan", d = 1 },
+	{ q = "냉면과 비슷한 부산의 대표 면 요리는?", c = { "칼국수", "밀면", "쫄면", "막국수" }, a = 2, tag = "busan", d = 1 },
+	{ q = "부산의 유명한 수산 시장은?", c = { "남대문시장", "광장시장", "자갈치시장", "동대문시장" }, a = 3, tag = "busan", d = 1 },
+	{ q = "알록달록한 집들로 유명한 부산의 마을은?", c = { "북촌한옥마을", "벽화마을", "민속촌", "감천문화마을" }, a = 4, tag = "busan", d = 1 },
+	{ q = "부산국제영화제의 영어 약칭은?", c = { "BIFF", "BIFA", "BSFF", "BUFF" }, a = 1, tag = "busan", d = 2 },
+	{ q = "인구로 볼 때 부산은 우리나라 몇 번째 도시?", c = { "첫 번째", "두 번째", "세 번째", "네 번째" }, a = 2, tag = "busan", d = 2 },
+	{ q = "부산을 연고로 하는 프로야구팀은?", c = { "LG 트윈스", "KIA 타이거즈", "롯데 자이언츠", "두산 베어스" }, a = 3, tag = "busan", d = 1 },
+	{ q = "파전으로 유명한 부산의 지명은?", c = { "동래", "기장", "서면", "영도" }, a = 1, tag = "busan", d = 3 },
+	{ q = "광안대교의 다른 이름(별명)은?", c = { "골든브릿지", "다이아몬드브릿지", "레인보우브릿지", "실버브릿지" }, a = 2, tag = "busan", d = 2 },
+	{ q = "태종대가 있는 부산의 섬은?", c = { "가덕도", "을숙도", "동백섬", "영도" }, a = 4, tag = "busan", d = 3 },
+	{ q = "광안리 바다 위로 펼쳐지는 부산의 큰 축제는?", c = { "부산불꽃축제", "벚꽃축제", "눈꽃축제", "머드축제" }, a = 1, tag = "busan", d = 1 },
+	{ q = "부산과 거제도를 잇는 다리는?", c = { "광안대교", "거가대교", "부산항대교", "남해대교" }, a = 2, tag = "busan", d = 3 },
+	{ q = "해운대 옆, 동백꽃 이름이 붙은 섬은?", c = { "제주도", "울릉도", "독도", "동백섬" }, a = 4, tag = "busan", d = 2 },
+	{ q = "부산과 맞닿아 있는 도(道)는?", c = { "전라남도", "경상남도", "강원도", "충청북도" }, a = 2, tag = "busan", d = 2 },
+	{ q = "광안대교는 몇 층 구조의 다리일까?", c = { "1층", "2층", "3층", "4층" }, a = 2, tag = "busan", d = 3 },
+
+	-- general
+	{ q = "지구에서 가장 큰 대륙은?", c = { "아프리카", "유럽", "아시아", "남아메리카" }, a = 3, tag = "general", d = 1 },
+	{ q = "태양계에서 가장 큰 행성은?", c = { "지구", "토성", "화성", "목성" }, a = 4, tag = "general", d = 1 },
+	{ q = "1기압에서 물이 끓는 온도는?", c = { "100도", "50도", "80도", "120도" }, a = 1, tag = "general", d = 1 },
+	{ q = "어른 몸의 뼈는 대략 몇 개일까?", c = { "106개", "156개", "206개", "306개" }, a = 3, tag = "general", d = 3 },
+	{ q = "태양에서 가장 가까운 행성은?", c = { "금성", "지구", "화성", "수성" }, a = 4, tag = "general", d = 2 },
+	{ q = "'붉은 행성'이라고 불리는 행성은?", c = { "화성", "목성", "금성", "천왕성" }, a = 1, tag = "general", d = 1 },
+	{ q = "세계에서 가장 높은 산은?", c = { "한라산", "에베레스트", "후지산", "킬리만자로" }, a = 2, tag = "general", d = 1 },
+	{ q = "거미의 다리는 몇 개일까?", c = { "4개", "6개", "8개", "10개" }, a = 3, tag = "general", d = 1 },
+	{ q = "식물이 빛으로 양분을 만드는 과정은?", c = { "광합성", "증발", "소화", "호흡" }, a = 1, tag = "general", d = 1 },
+	{ q = "호주의 수도는?", c = { "시드니", "캔버라", "멜버른", "브리즈번" }, a = 2, tag = "general", d = 3 },
+	{ q = "피를 온몸으로 보내는 우리 몸의 기관은?", c = { "폐", "위", "심장", "간" }, a = 3, tag = "general", d = 1 },
+	{ q = "땅 위에서 가장 빠른 동물은?", c = { "치타", "사자", "말", "타조" }, a = 1, tag = "general", d = 1 },
+	{ q = "남한에서 가장 높은 산은?", c = { "설악산", "지리산", "한라산", "북한산" }, a = 3, tag = "general", d = 2 },
+	{ q = "낙타의 혹에 주로 저장된 것은?", c = { "물", "공기", "피", "지방" }, a = 4, tag = "general", d = 3 },
+	{ q = "공기 중에 가장 많은 기체는?", c = { "질소", "산소", "수소", "이산화탄소" }, a = 1, tag = "general", d = 3 },
+	{ q = "박쥐는 어떤 동물 무리에 속할까?", c = { "조류", "포유류", "곤충", "파충류" }, a = 2, tag = "general", d = 2 },
+	{ q = "개구리는 어떤 동물 무리에 속할까?", c = { "파충류", "어류", "양서류", "포유류" }, a = 3, tag = "general", d = 2 },
+
+	-- korean
+	{ q = "맞춤법이 올바른 것은?", c = { "안 되요", "안 돼요", "안대요", "안 되여" }, a = 2, tag = "korean", d = 2 },
+	{ q = "'곧바로'라는 뜻의 올바른 표기는?", c = { "금새", "금쌔", "급세", "금세" }, a = 4, tag = "korean", d = 3 },
+	{ q = "식사 후 그릇을 씻는 일의 올바른 표기는?", c = { "설거지", "설겆이", "설걷이", "설거쥐" }, a = 1, tag = "korean", d = 2 },
+	{ q = "맞춤법이 올바른 것은? (걱정할 때)", c = { "어떻해", "어떡해", "어뜩해", "어떻게해" }, a = 2, tag = "korean", d = 2 },
+	{ q = "맞춤법이 올바른 것은? (청소)", c = { "깨끗히", "깨끝이", "깨끗이", "깨끄시" }, a = 3, tag = "korean", d = 3 },
+	{ q = "가는 말이 고와야 ○○ 말이 곱다?", c = { "오는", "하는", "듣는", "쓰는" }, a = 1, tag = "korean", d = 1 },
+	{ q = "원숭이도 ○○에서 떨어진다?", c = { "지붕", "나무", "하늘", "구름" }, a = 2, tag = "korean", d = 1 },
+	{ q = "소 잃고 ○○○ 고친다?", c = { "대문", "지붕", "외양간", "울타리" }, a = 3, tag = "korean", d = 1 },
+	{ q = "세 살 버릇 ○○까지 간다?", c = { "스물", "마흔", "예순", "여든" }, a = 4, tag = "korean", d = 1 },
+	{ q = "'하늘의 별 따기'의 뜻은?", c = { "아주 쉬움", "아주 빠름", "아주 어려움", "아주 높음" }, a = 3, tag = "korean", d = 1 },
+	{ q = "발 없는 말이 ○○ 간다?", c = { "천 리", "십 리", "백 리", "만 리" }, a = 1, tag = "korean", d = 2 },
+	{ q = "현대 한글의 기본 자음은 몇 개일까?", c = { "10개", "19개", "24개", "14개" }, a = 4, tag = "korean", d = 2 },
+
+	-- math
+	{ q = "7 × 8 = ?", c = { "56", "54", "48", "63" }, a = 1, tag = "math", d = 1 },
+	{ q = "15 + 27 = ?", c = { "32", "41", "42", "43" }, a = 3, tag = "math", d = 1 },
+	{ q = "100 - 37 = ?", c = { "73", "67", "53", "63" }, a = 4, tag = "math", d = 1 },
+	{ q = "12 × 12 = ?", c = { "144", "124", "132", "122" }, a = 1, tag = "math", d = 2 },
+	{ q = "3,000원에서 1,200원을 쓰면 남는 돈은?", c = { "2,200원", "1,200원", "1,800원", "1,700원" }, a = 3, tag = "math", d = 2 },
+	{ q = "1시간은 몇 초일까?", c = { "600초", "1,800초", "6,000초", "3,600초" }, a = 4, tag = "math", d = 2 },
+	{ q = "삼각형 세 각의 합은?", c = { "180도", "90도", "270도", "360도" }, a = 1, tag = "math", d = 2 },
+	{ q = "2를 10번 곱하면?", c = { "512", "1,024", "2,048", "1,000" }, a = 2, tag = "math", d = 3 },
+	{ q = "13 × 7 = ?", c = { "81", "87", "91", "97" }, a = 3, tag = "math", d = 2 },
+	{ q = "주사위(정육면체)의 면은 몇 개일까?", c = { "4개", "5개", "8개", "6개" }, a = 4, tag = "math", d = 1 },
+	{ q = "1부터 10까지 모두 더하면?", c = { "45", "55", "50", "60" }, a = 2, tag = "math", d = 2 },
+	{ q = "15 × 15 = ?", c = { "215", "205", "225", "235" }, a = 3, tag = "math", d = 3 },
+	{ q = "360 ÷ 8 = ?", c = { "40", "48", "42", "45" }, a = 4, tag = "math", d = 3 },
+	{ q = "일주일은 모두 몇 시간일까?", c = { "168시간", "148시간", "144시간", "172시간" }, a = 1, tag = "math", d = 3 },
+	{ q = "다음 중 소수(素數)는?", c = { "21", "17", "27", "33" }, a = 2, tag = "math", d = 3 },
+
+	-- culture
+	{ q = "한글날은 몇 월 며칠일까?", c = { "5월 5일", "8월 15일", "10월 9일", "10월 3일" }, a = 3, tag = "culture", d = 1 },
+	{ q = "설날 아침에 먹는 대표 음식은?", c = { "송편", "팥죽", "오곡밥", "떡국" }, a = 4, tag = "culture", d = 1 },
+	{ q = "추석에 빚어 먹는 대표 떡은?", c = { "송편", "인절미", "가래떡", "시루떡" }, a = 1, tag = "culture", d = 1 },
+	{ q = "추석은 음력 몇 월 며칠일까?", c = { "1월 1일", "8월 15일", "5월 5일", "7월 7일" }, a = 2, tag = "culture", d = 2 },
+	{ q = "정월 대보름에 깨물어 먹는 견과류는?", c = { "고명", "다식", "부럼", "약과" }, a = 3, tag = "culture", d = 3 },
+	{ q = "동짓날에 먹는 대표 음식은?", c = { "떡국", "송편", "냉면", "팥죽" }, a = 4, tag = "culture", d = 2 },
+	{ q = "한글(훈민정음)을 만든 임금은?", c = { "세종대왕", "태조", "정조", "광개토대왕" }, a = 1, tag = "culture", d = 1 },
+	{ q = "우리나라의 나라꽃은?", c = { "장미", "무궁화", "벚꽃", "해바라기" }, a = 2, tag = "culture", d = 1 },
+	{ q = "설날 어른께 절하며 드리는 인사는?", c = { "세배", "성묘", "차례", "덕담" }, a = 1, tag = "culture", d = 1 },
+	{ q = "한복에서 윗옷을 부르는 이름은?", c = { "치마", "저고리", "바지", "두루마기" }, a = 2, tag = "culture", d = 2 },
+	{ q = "윷놀이에서 다섯 칸을 가는 것은?", c = { "도", "윷", "모", "걸" }, a = 3, tag = "culture", d = 2 },
+	{ q = "비빔밥으로 특히 유명한 도시는?", c = { "춘천", "안동", "통영", "전주" }, a = 4, tag = "culture", d = 2 },
+	{ q = "개천절은 몇 월 며칠일까?", c = { "10월 3일", "10월 9일", "8월 15일", "3월 1일" }, a = 1, tag = "culture", d = 2 },
+
+	-- sea
+	{ q = "세계에서 가장 넓은 바다는?", c = { "대서양", "인도양", "태평양", "북극해" }, a = 3, tag = "sea", d = 1 },
+	{ q = "문어의 다리는 몇 개일까?", c = { "6개", "10개", "12개", "8개" }, a = 4, tag = "sea", d = 1 },
+	{ q = "오징어의 다리는 몇 개일까?", c = { "10개", "8개", "6개", "12개" }, a = 1, tag = "sea", d = 2 },
+	{ q = "고래는 어떤 동물 무리에 속할까?", c = { "어류", "포유류", "양서류", "파충류" }, a = 2, tag = "sea", d = 1 },
+	{ q = "지구에서 가장 큰 동물은?", c = { "코끼리", "고래상어", "대왕고래", "범고래" }, a = 3, tag = "sea", d = 2 },
+	{ q = "바닷물에 가장 많이 녹아 있는 염류는?", c = { "설탕", "철", "탄산칼슘", "염화나트륨" }, a = 4, tag = "sea", d = 3 },
+	{ q = "수컷이 배 주머니에서 새끼를 낳는 물고기는?", c = { "복어", "해마", "고등어", "갈치" }, a = 2, tag = "sea", d = 2 },
+	{ q = "밀물과 썰물이 생기는 주된 까닭은?", c = { "바람", "비", "달의 인력", "물고기" }, a = 3, tag = "sea", d = 2 },
+	{ q = "바다거북은 어떤 동물 무리에 속할까?", c = { "양서류", "어류", "포유류", "파충류" }, a = 4, tag = "sea", d = 2 },
+	{ q = "서해안에 넓게 펼쳐진 진흙 바닷가는?", c = { "갯벌", "사막", "빙하", "초원" }, a = 1, tag = "sea", d = 1 },
+	{ q = "말미잘 속에 사는 주황색 줄무늬 물고기는?", c = { "금붕어", "흰동가리", "참치", "가오리" }, a = 2, tag = "sea", d = 3 },
+	{ q = "산호는 동물일까, 식물일까?", c = { "식물", "돌", "동물", "버섯" }, a = 3, tag = "sea", d = 3 },
+	{ q = "세계에서 가장 깊은 바다 골짜기는?", c = { "일본 해구", "통가 해구", "자바 해구", "마리아나 해구" }, a = 4, tag = "sea", d = 3 },
+	{ q = "알을 낳으러 태어난 강으로 돌아오는 물고기는?", c = { "고등어", "연어", "광어", "참치" }, a = 2, tag = "sea", d = 2 },
+}
+return Q
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000010"><Properties><string name="Name">QuizServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Quiz/QuizServer: 퀴즈 대결 (server only). QUESTIONS questions from QuizBank (choices shuffled per
+-- match, the answer index never leaves the server before the reveal). Each question: QTIME seconds,
+-- one answer per player; a wrong answer locks you out of that question. The faster CORRECT answer
+-- scores 1 point. Speeds are compared after latency compensation (like TimingServer: the client's
+-- own elapsed time is used when it is within the allowance of the server's estimate), and the server
+-- waits SETTLE seconds after the first correct answer so a laggier but faster player can still win.
+-- Tie after QUESTIONS -> up to 3 sudden-death questions, then a draw.
+-- NPC: accuracy by difficulty and question difficulty, answers after 2-7 s.
+-- Move payload: { q = question number, choice = 1..4, t = seconds since the question appeared }.
+
+local QuizServer = {}
+
+local M: any = nil
+local BANK: { any } = {}
+
+local QUESTIONS = 5
+local QTIME = 10
+local SETTLE = 0.45
+local SHOW = 2.6
+local MAX_EXTRA = 3
+
+function QuizServer.init(m: any)
+	M = m
+	local ok, bank = pcall(require, script.Parent:WaitForChild("QuizBank"))
+	if ok and type(bank) == "table" then
+		BANK = bank
+	else
+		warn("[MiniGames] QuizBank failed to load: " .. tostring(bank))
+	end
+end
+
+local function pickQuestions(api: any, n: number): { any }
+	local idx = {}
+	for i = 1, #BANK do
+		idx[i] = i
+	end
+	for i = #idx, 2, -1 do
+		local j = api.rng:NextInteger(1, i)
+		idx[i], idx[j] = idx[j], idx[i]
+	end
+	local out = {}
+	for k = 1, math.min(n, #idx) do
+		local q = BANK[idx[k]]
+		-- shuffle the choices, remember where the answer went
+		local order = { 1, 2, 3, 4 }
+		for i = 4, 2, -1 do
+			local j = api.rng:NextInteger(1, i)
+			order[i], order[j] = order[j], order[i]
+		end
+		local choices = {}
+		local answer = 1
+		for pos, from in order do
+			choices[pos] = q.c[from]
+			if from == q.a then
+				answer = pos
+			end
+		end
+		table.insert(out, { q = q.q, c = choices, a = answer, d = q.d, tag = q.tag })
+	end
+	return out
+end
+
+function QuizServer.new(_match: any, api: any): any
+	return {
+		list = pickQuestions(api, QUESTIONS + MAX_EXTRA),
+		qi = 0,
+		phase = "idle",
+		startAt = 0,
+		deadline = 0,
+		settleAt = 0,
+		nextAt = 0,
+		answers = {} :: { [number]: { c: number, t: number, ok: boolean } },
+		npcPlan = {} :: { [number]: { at: number, c: number } },
+		score = { 0, 0 },
+		last = nil :: any,
+		over = false,
+	}
+end
+
+local function startQuestion(gs: any, api: any)
+	gs.qi += 1
+	local q = gs.list[gs.qi]
+	if not q then
+		gs.over = true
+		api.finish(if gs.score[1] > gs.score[2] then 1 elseif gs.score[2] > gs.score[1] then 2 else 0, "points")
+		return
+	end
+	gs.phase = "q"
+	gs.answers = {}
+	gs.settleAt = 0
+	gs.startAt = os.clock()
+	gs.deadline = gs.startAt + QTIME
+	gs.last = nil
+	for side = 1, 2 do
+		if api.isNpc(side) then
+			local d = api.difficulty(side)
+			local acc = (if d == "hard" then 0.9 elseif d == "normal" then 0.72 else 0.52) - (q.d - 1) * 0.07
+			local c = q.a
+			if api.rng:NextNumber() > acc then
+				c = (q.a % 4) + 1
+			end
+			local lo = if d == "hard" then 1.8 elseif d == "normal" then 2.6 else 3.4
+			gs.npcPlan[side] = { at = gs.startAt + lo + api.rng:NextNumber() * 4.0, c = c }
+		end
+	end
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	api.event("quizQ", { qi = gs.qi, q = q.q, c = q.c, deadline = api.toServer(gs.deadline), extra = gs.qi > QUESTIONS })
+	api.push()
+end
+
+function QuizServer.begin(gs: any, api: any)
+	startQuestion(gs, api)
+end
+
+local function reveal(gs: any, api: any)
+	local q = gs.list[gs.qi]
+	local best, bestT = 0, math.huge
+	for side = 1, 2 do
+		local a = gs.answers[side]
+		if a and a.ok and a.t < bestT then
+			best, bestT = side, a.t
+		end
+	end
+	if best > 0 then
+		gs.score[best] += 1
+		api.emote(best, "mg_fist")
+		if api.isNpc(best) and api.rng:NextNumber() < 0.5 then
+			api.line(best, "win")
+		end
+	end
+	gs.phase = "show"
+	gs.nextAt = os.clock() + SHOW
+	gs.last = { a = q.a, w = best, c1 = gs.answers[1] and gs.answers[1].c, c2 = gs.answers[2] and gs.answers[2].c }
+	api.event("quizReveal", { qi = gs.qi, a = q.a, w = best, c1 = gs.last.c1, c2 = gs.last.c2, s1 = gs.score[1], s2 = gs.score[2] })
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	api.push()
+end
+
+local function answer(gs: any, side: number, c: number, t: number, api: any)
+	local q = gs.list[gs.qi]
+	local ok = c == q.a
+	gs.answers[side] = { c = c, t = t, ok = ok }
+	local pl = api.player(side)
+	if pl then
+		M.fire(pl, M.MS.Kinds.event, { id = api.match.id, e = "quizLocked", c = c })
+	end
+	if ok and gs.settleAt == 0 then
+		gs.settleAt = os.clock() + SETTLE
+	end
+end
+
+function QuizServer.input(gs: any, side: number, p: any, api: any)
+	if gs.phase ~= "q" or gs.answers[side] or M.Anti.int(p.q, 1, 100) ~= gs.qi then
+		return
+	end
+	local c = M.Anti.int(p.choice, 1, 4)
+	if not c then
+		return
+	end
+	local rtt = api.rtt(side)
+	local est = os.clock() - gs.startAt - rtt
+	local t = est
+	if M.Anti.finite(p.t) and math.abs(p.t - est) <= 0.1 + rtt * 0.5 then
+		t = p.t
+	end
+	answer(gs, side, c, math.max(0, t), api)
+end
+
+function QuizServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	if gs.phase == "q" then
+		for side = 1, 2 do
+			local plan = gs.npcPlan[side]
+			if api.isNpc(side) and plan and not gs.answers[side] and now >= plan.at then
+				answer(gs, side, plan.c, plan.at - gs.startAt, api)
+			end
+		end
+		local both = gs.answers[1] and gs.answers[2]
+		if both or now >= gs.deadline or (gs.settleAt > 0 and now >= gs.settleAt) then
+			reveal(gs, api)
+		end
+	elseif gs.phase == "show" and now >= gs.nextAt then
+		local a, b = gs.score[1], gs.score[2]
+		if gs.qi >= QUESTIONS and a ~= b then
+			gs.over = true
+			api.finish(if a > b then 1 else 2, "points")
+		elseif gs.qi >= QUESTIONS + MAX_EXTRA then
+			gs.over = true
+			api.finish(0, "points")
+		else
+			if gs.qi == QUESTIONS then
+				api.event("quizSudden", {})
+			end
+			startQuestion(gs, api)
+		end
+	end
+end
+
+function QuizServer.view(gs: any, side: number): any
+	local q = gs.list[gs.qi]
+	return {
+		qi = gs.qi,
+		total = QUESTIONS,
+		phase = gs.phase,
+		q = q and q.q,
+		c = q and q.c,
+		deadline = workspace:GetServerTimeNow() + math.max(0, gs.deadline - os.clock()),
+		qtime = QTIME,
+		score = gs.score,
+		mine = if side > 0 and gs.answers[side] then gs.answers[side].c else nil,
+		last = gs.last,
+	}
+end
+
+return QuizServer
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000013"><Properties><string name="Name">ReactionGame</string></Properties><Item class="ModuleScript" referent="RBX00000012"><Properties><string name="Name">ReactionServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- ReactionGame/ReactionServer: 순발력 대결, 3판 2선승 (server only, server clock decides).
+--   준비 ... 준비 ... (random 2-5 s) ... 지금!
+-- Fairness / anti-cheat:
+--   * The server never announces WHEN "지금!" comes: it fires the go event at that moment, so a
+--     client cannot pre-schedule a press.
+--   * A press that reaches the server before "지금!" was sent, or so soon after it that it must have
+--     been sent before the go event could have arrived (server delta < half the player's measured
+--     round trip), is a 부정 출발 (false start) and loses the round.
+--   * Ping compensation: presses are collected until both sides pressed (or WINDOW seconds); each
+--     side's reaction = the server-measured delay minus that player's own round trip (AntiCheat.rtt,
+--     bounded). The client's own measurement is only used when it is SLOWER than that (a client can
+--     make itself slower, never faster). Equal within 10 ms = 무승부 round (replayed).
+-- NPC reaction times per difficulty, with an occasional false start for 초보.
+-- Move payload: { round = n, early = bool, rt = seconds measured on the client }.
+
+local ReactionServer = {}
+
+local M: any = nil
+
+local WIN_TO = 2
+local WINDOW = 2.0
+local SHOW = 2.2
+local MAX_ROUNDS = 7
+local MIN_HUMAN = 0.1 -- faster than this after compensation = anticipation, treated as a false start
+
+local NPC_RT = { easy = { 0.42, 0.62 }, normal = { 0.30, 0.42 }, hard = { 0.21, 0.29 } }
+local NPC_FOUL = { easy = 0.08, normal = 0.03, hard = 0.01 }
+
+function ReactionServer.init(m: any)
+	M = m
+end
+
+function ReactionServer.new(_match: any, _api: any): any
+	return {
+		round = 0,
+		score = { 0, 0 },
+		phase = "idle",
+		goAt = 0,
+		goSent = 0,
+		nextAt = 0,
+		press = {} :: { [number]: any },
+		npcPress = {} :: { [number]: number },
+		last = nil :: any,
+		over = false,
+	}
+end
+
+local function startRound(gs: any, api: any)
+	gs.round += 1
+	gs.phase = "ready"
+	gs.press = {}
+	gs.npcPress = {}
+	gs.last = nil
+	gs.goAt = os.clock() + 2.0 + api.rng:NextNumber() * 3.0
+	gs.goSent = 0
+	for side = 1, 2 do
+		if api.isNpc(side) then
+			local d = api.difficulty(side)
+			if api.rng:NextNumber() < (NPC_FOUL[d] or 0.03) then
+				-- jumps the gun somewhere in the waiting time
+				gs.npcPress[side] = os.clock() + 0.8 + api.rng:NextNumber() * math.max(0.2, gs.goAt - os.clock() - 1)
+			else
+				local r = NPC_RT[d] or NPC_RT.normal
+				gs.npcPress[side] = gs.goAt + r[1] + api.rng:NextNumber() * (r[2] - r[1])
+			end
+		end
+	end
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	api.event("reactReady", { round = gs.round })
+	api.push()
+end
+
+function ReactionServer.begin(gs: any, api: any)
+	startRound(gs, api)
+end
+
+local function decide(gs: any, api: any)
+	local p1, p2 = gs.press[1], gs.press[2]
+	local foul1 = p1 and p1.foul or false
+	local foul2 = p2 and p2.foul or false
+	local w = 0
+	if foul1 and not foul2 then
+		w = 2
+	elseif foul2 and not foul1 then
+		w = 1
+	elseif not foul1 and not foul2 then
+		local t1 = if p1 then p1.t else math.huge
+		local t2 = if p2 then p2.t else math.huge
+		if t1 == math.huge and t2 == math.huge then
+			w = 0
+		elseif math.abs(t1 - t2) <= 0.01 then
+			w = 0
+		else
+			w = if t1 < t2 then 1 else 2
+		end
+	end
+	if w > 0 then
+		gs.score[w] += 1
+	end
+	gs.phase = "show"
+	gs.nextAt = os.clock() + SHOW
+	gs.last = {
+		w = w,
+		t1 = if p1 and not p1.foul then math.floor(p1.t * 1000) else nil,
+		t2 = if p2 and not p2.foul then math.floor(p2.t * 1000) else nil,
+		foul1 = foul1,
+		foul2 = foul2,
+	}
+	api.event("reactResult", { w = w, t1 = gs.last.t1, t2 = gs.last.t2, foul1 = foul1, foul2 = foul2, s1 = gs.score[1], s2 = gs.score[2] })
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	if w > 0 then
+		api.emote(w, "mg_fist")
+	end
+	for side = 1, 2 do
+		if api.isNpc(side) and w ~= 0 then
+			api.line(side, if w == side then "win" else "good")
+		end
+	end
+	api.push()
+end
+
+local function record(gs: any, side: number, foul: boolean, t: number)
+	if gs.press[side] then
+		return
+	end
+	gs.press[side] = { foul = foul, t = t }
+end
+
+function ReactionServer.input(gs: any, side: number, p: any, api: any)
+	if gs.press[side] then
+		return
+	end
+	local round = M.Anti.int(p.round, 1, 1000)
+	if round ~= gs.round then
+		return
+	end
+	local now = os.clock()
+	if gs.phase == "ready" then
+		record(gs, side, true, 0)
+		api.event("reactFoul", { side = side })
+		decide(gs, api)
+		return
+	end
+	if gs.phase ~= "go" then
+		return
+	end
+	local rtt = api.rtt(side)
+	local serverDelta = now - gs.goSent
+	if p.early == true or serverDelta < rtt * 0.5 then
+		record(gs, side, true, 0)
+		api.event("reactFoul", { side = side })
+		decide(gs, api)
+		return
+	end
+	local est = serverDelta - math.min(rtt, 0.5)
+	local claimed = if M.Anti.finite(p.rt) then p.rt else est
+	local t = math.max(est, claimed)
+	if t < MIN_HUMAN then
+		record(gs, side, true, 0)
+		M.Anti.strike(api.player(side) :: Player, "reaction", string.format("%.3f", t))
+		api.event("reactFoul", { side = side })
+		decide(gs, api)
+		return
+	end
+	record(gs, side, false, t)
+	if gs.press[1] and gs.press[2] then
+		decide(gs, api)
+	end
+end
+
+function ReactionServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	if gs.phase == "ready" then
+		for side = 1, 2 do
+			local at = gs.npcPress[side]
+			if at and now >= at and now < gs.goAt then
+				record(gs, side, true, 0)
+				api.event("reactFoul", { side = side })
+				decide(gs, api)
+				return
+			end
+		end
+		if now >= gs.goAt then
+			gs.phase = "go"
+			gs.goSent = os.clock()
+			api.event("reactGo", { round = gs.round })
+		end
+	elseif gs.phase == "go" then
+		for side = 1, 2 do
+			local at = gs.npcPress[side]
+			if at and not gs.press[side] and now >= at then
+				record(gs, side, false, at - gs.goAt)
+			end
+		end
+		if (gs.press[1] and gs.press[2]) or now - gs.goSent > WINDOW then
+			decide(gs, api)
+		end
+	elseif gs.phase == "show" and now >= gs.nextAt then
+		if gs.score[1] >= WIN_TO or gs.score[2] >= WIN_TO then
+			gs.over = true
+			api.finish(if gs.score[1] > gs.score[2] then 1 else 2, "score")
+		elseif gs.round >= MAX_ROUNDS then
+			gs.over = true
+			api.finish(if gs.score[1] > gs.score[2] then 1 elseif gs.score[2] > gs.score[1] then 2 else 0, "rounds")
+		else
+			startRound(gs, api)
+		end
+	end
+end
+
+function ReactionServer.view(gs: any, _side: number): any
+	return { round = gs.round, score = gs.score, phase = gs.phase, last = gs.last, winTo = WIN_TO }
+end
+
+return ReactionServer
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000014"><Properties><string name="Name">RewardService</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/RewardService: records, rating, ranks and the "명성" side of the minigames (server only).
+--
+-- Per player: MS.emptyRecord() shape (per-game W / L / D, streak, best streak, one Elo rating for
+-- every minigame, earned / lost totals, today's NPC net). Persisted in DataStore MS.DATASTORE key
+-- "u_<UserId>" with UpdateAsync (memory only in Studio / unpublished places, like Profiles), saved on
+-- leave and every AUTOSAVE seconds when dirty. The record is NOT part of the life-game profile, so
+-- Profiles.sanitize never drops it.
+-- Public face: player attributes MiniRating (number), MiniRank ("골드"), MiniRankIcon ("🥇"),
+-- MiniWins (total wins) - the VS cards, challenge popups and the HUD read these.
+-- Life-game hooks: a win gives 행복 +1 (PvP also 인기 +1) through ctx.addStats (silent).
+
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+
+local RewardService = {}
+
+local M: any = nil
+local MS: any = nil
+
+local AUTOSAVE = 150
+type Entry = { rec: any, dirty: boolean, loaded: boolean, persistent: boolean, lastSave: number }
+local entries: { [Player]: Entry } = {}
+local store: any = nil
+local storeOk = false
+
+function RewardService.init(m: any)
+	M = m
+	MS = m.MS
+	local ok, s = pcall(function()
+		return DataStoreService:GetDataStore(MS.DATASTORE)
+	end)
+	if ok and s then
+		store = s
+		storeOk = true
+	else
+		print("[MiniGames] DataStore unavailable: minigame records are kept in memory only this session.")
+	end
+	task.spawn(function()
+		while true do
+			task.wait(AUTOSAVE)
+			for player, e in entries do
+				if e.dirty and e.persistent then
+					task.spawn(RewardService.save, player, false)
+				end
+			end
+		end
+	end)
+end
+
+local function keyOf(player: Player): string
+	return MS.KEY_PREFIX .. tostring(player.UserId)
+end
+
+local function publish(player: Player, rec: any)
+	if player.Parent ~= Players then
+		return
+	end
+	local w, l = MS.totals(rec)
+	local rank = MS.rankOf(rec.rating, w + l)
+	player:SetAttribute("MiniRating", rec.rating)
+	player:SetAttribute("MiniRank", rank.name)
+	player:SetAttribute("MiniRankIcon", rank.icon)
+	player:SetAttribute("MiniWins", w)
+end
+
+function RewardService.load(player: Player)
+	if entries[player] then
+		return
+	end
+	local e: Entry = { rec = MS.emptyRecord(), dirty = false, loaded = false, persistent = false, lastSave = 0 }
+	entries[player] = e
+	publish(player, e.rec)
+	if not storeOk or player.UserId <= 0 then
+		e.loaded = true
+		return
+	end
+	task.spawn(function()
+		for attempt = 1, 3 do
+			local ok, raw = pcall(function()
+				return store:GetAsync(keyOf(player))
+			end)
+			if ok then
+				if entries[player] ~= e then
+					return
+				end
+				-- merge: games played before the load finished (rare) are kept on top of the saved record
+				local saved = MS.sanitizeRecord(raw)
+				if e.dirty then
+					for id, g in e.rec.games do
+						local s = saved.games[id]
+						s.w += g.w
+						s.l += g.l
+						s.d += g.d
+					end
+					saved.rating = e.rec.rating
+					saved.earned += e.rec.earned
+					saved.lost += e.rec.lost
+					saved.played += e.rec.played
+				end
+				e.rec = saved
+				e.loaded = true
+				e.persistent = true
+				publish(player, e.rec)
+				return
+			end
+			local msg = string.lower(tostring(raw))
+			if string.find(msg, "studio", 1, true) or string.find(msg, "publish", 1, true) or string.find(msg, "api", 1, true) then
+				storeOk = false
+				break
+			end
+			task.wait(2 ^ attempt)
+		end
+		e.loaded = true -- memory only for this player (never overwrites the saved record)
+	end)
+end
+
+function RewardService.save(player: Player, release: boolean): boolean
+	local e = entries[player]
+	if not e then
+		return false
+	end
+	if release then
+		entries[player] = nil
+	end
+	if not e.persistent or not e.dirty or not store then
+		return false
+	end
+	e.dirty = false
+	local snapshot = table.clone(e.rec)
+	local ok, err = pcall(function()
+		store:UpdateAsync(keyOf(player), function(_old: any)
+			return snapshot
+		end)
+	end)
+	if not ok then
+		e.dirty = true
+		warn("[MiniGames] record save failed for " .. player.Name .. ": " .. tostring(err))
+	end
+	e.lastSave = os.clock()
+	return ok
+end
+
+function RewardService.release(player: Player)
+	task.spawn(RewardService.save, player, true)
+end
+
+function RewardService.get(player: Player): any
+	local e = entries[player]
+	if not e then
+		RewardService.load(player)
+		e = entries[player]
+	end
+	return (e :: Entry).rec
+end
+
+function RewardService.rating(player: Player): number
+	return RewardService.get(player).rating
+end
+
+function RewardService.rank(player: Player): any
+	local rec = RewardService.get(player)
+	local w, l = MS.totals(rec)
+	return MS.rankOf(rec.rating, w + l)
+end
+
+-------------------------------------------------------------------------------------------------
+-- NPC allowance (MS.NPC_DAILY_PROFIT_CAP net per KST day)
+-------------------------------------------------------------------------------------------------
+local function npcDay(rec: any): any
+	local today = MS.kstDay(os.time())
+	if rec.npcDay.day ~= today then
+		rec.npcDay = { day = today, net = 0 }
+	end
+	return rec.npcDay
+end
+
+function RewardService.npcRoom(player: Player): number
+	local d = npcDay(RewardService.get(player))
+	return math.max(0, MS.NPC_DAILY_PROFIT_CAP - d.net)
+end
+
+function RewardService.addNpcNet(player: Player, delta: number)
+	local e = entries[player]
+	if not e then
+		return
+	end
+	local d = npcDay(e.rec)
+	d.net += delta
+	e.dirty = true
+end
+
+-------------------------------------------------------------------------------------------------
+-- Results
+-------------------------------------------------------------------------------------------------
+-- Applies one finished match to the player sides' records. winner 1 | 2 | 0 (draw).
+-- net = BetService.settle result. Returns { [side] = {rating, delta, rank, w, l, d, streak} }.
+function RewardService.apply(match: any, winner: number, net: { [number]: number }?): { [number]: any }
+	local out: { [number]: any } = {}
+	local ratings: { [number]: number } = {}
+	for i, side in match.sides do
+		if side.kind == "player" and side.player then
+			ratings[i] = RewardService.rating(side.player)
+		else
+			ratings[i] = MS.NPC_RATING[side.difficulty or "normal"] or 1100
+		end
+	end
+	local pvp = match.sides[1].kind == "player" and match.sides[2].kind == "player"
+	local friendly = match.stake <= 0
+	for i, side in match.sides do
+		if side.kind == "player" and side.player and entries[side.player] then
+			local e = entries[side.player] :: Entry
+			local rec = e.rec
+			local g = rec.games[match.gameId]
+			local score = if winner == 0 then 0.5 elseif winner == i then 1 else 0
+			if winner == 0 then
+				g.d += 1
+			elseif winner == i then
+				g.w += 1
+				g.streak += 1
+				g.best = math.max(g.best, g.streak)
+			else
+				g.l += 1
+				g.streak = 0
+			end
+			rec.played += 1
+			local opp = if i == 1 then 2 else 1
+			local k = if pvp then MS.K_PVP else MS.K_NPC
+			-- 친선전 counts in the record but moves the rating half as much
+			if friendly then
+				k = math.floor(k / 2)
+			end
+			local before = rec.rating
+			rec.rating = MS.rated(before, ratings[opp], score, k)
+			local n = net and net[i] or 0
+			if n > 0 then
+				rec.earned += n
+			elseif n < 0 then
+				rec.lost += -n
+			end
+			e.dirty = true
+			publish(side.player, rec)
+			local w, l, d = MS.totals(rec)
+			local rank = MS.rankOf(rec.rating, w + l)
+			local oldRank = MS.rankOf(before, w + l - (if winner == i then 1 elseif winner == 0 then 0 else 1))
+			out[i] = {
+				rating = rec.rating,
+				delta = rec.rating - before,
+				rank = rank.name,
+				rankIcon = rank.icon,
+				rankUp = rank.min > oldRank.min,
+				w = g.w,
+				l = g.l,
+				d = g.d,
+				streak = g.streak,
+				totalW = w,
+				totalL = l,
+				totalD = d,
+			}
+			if winner == i then
+				pcall(M.ctx.addStats, side.player, if pvp then { happiness = 1, popularity = 1 } else { happiness = 1 }, nil, true)
+			end
+			if out[i].rankUp then
+				M.ctx.notify(side.player, "success", "미니게임 랭크 UP!", rank.icon .. " " .. rank.name .. " 달성")
+			end
+		end
+	end
+	return out
+end
+
+-- Snapshot for the client's 전적 card.
+function RewardService.snapshot(player: Player): any
+	local rec = RewardService.get(player)
+	local w, l, d = MS.totals(rec)
+	local rank = MS.rankOf(rec.rating, w + l)
+	local games = {}
+	for _, id in MS.GAME_ORDER do
+		local g = rec.games[id]
+		games[id] = { w = g.w, l = g.l, d = g.d, streak = g.streak, best = g.best, rate = MS.winRate(g.w, g.l) }
+	end
+	return {
+		rating = rec.rating,
+		rank = rank.name,
+		rankIcon = rank.icon,
+		rankId = rank.id,
+		w = w,
+		l = l,
+		d = d,
+		rate = MS.winRate(w, l),
+		earned = rec.earned,
+		lost = rec.lost,
+		games = games,
+		npcRoom = RewardService.npcRoom(player),
+		persistent = entries[player] ~= nil and entries[player].persistent,
+	}
+end
+
+-- Server leaderboard (players in this server, by rating).
+function RewardService.board(limit: number): { any }
+	local list = {}
+	for player, e in entries do
+		if player.Parent == Players then
+			local w, l = MS.totals(e.rec)
+			local rank = MS.rankOf(e.rec.rating, w + l)
+			table.insert(list, { name = player.DisplayName, userId = player.UserId, rating = e.rec.rating, rank = rank.name, rankIcon = rank.icon, w = w, l = l })
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.rating > b.rating
+	end)
+	while #list > limit do
+		table.remove(list)
+	end
+	return list
+end
+
+return RewardService
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000016"><Properties><string name="Name">RockPaperScissors</string></Properties><Item class="ModuleScript" referent="RBX00000015"><Properties><string name="Name">RpsServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- RockPaperScissors/RpsServer: 가위바위보, 3판 2선승 (draws are replayed). Server only.
+-- Round: "3 · 2 · 1 · 가위바위보!" (server time tShoot), choices are accepted from the start of the
+-- count until tShoot + GRACE; nobody ever receives the other side's choice before the reveal.
+-- A side that did not choose gets a random hand (marked "늦음"). Both characters pump their fists
+-- during the count and show the hand at the reveal (client emotes + a hand glyph over the hand).
+-- NPC: 초보 random, 일반 slightly rock-heavy, 고수 counters the player's most frequent hand.
+-- Move payload: { hand = 1 (✊ 바위) | 2 (✋ 보) | 3 (✌️ 가위) }.
+
+local RpsServer = {}
+
+local M: any = nil
+
+local WIN_TO = 2
+local COUNT = 3.0
+local GRACE = 0.8
+local SHOW = 2.4
+local MAX_ROUNDS = 9
+
+-- beats[a] = the hand that a beats (rock 1 beats scissors 3, paper 2 beats rock 1, scissors 3 beats paper 2)
+local BEATS = { [1] = 3, [2] = 1, [3] = 2 }
+local NAMES = { "바위", "보", "가위" }
+
+function RpsServer.init(m: any)
+	M = m
+end
+
+function RpsServer.new(_match: any, _api: any): any
+	return {
+		round = 0,
+		score = { 0, 0 },
+		phase = "idle",
+		tShoot = 0,
+		revealAt = 0,
+		nextAt = 0,
+		choice = {} :: { [number]: number },
+		late = {} :: { [number]: boolean },
+		last = nil :: any,
+		history = {} :: { [number]: { number } },
+		npcAt = 0,
+		over = false,
+	}
+end
+
+local function npcHand(gs: any, side: number, api: any): number
+	local d = api.difficulty(side)
+	local opp = if side == 1 then 2 else 1
+	if d == "hard" and api.rng:NextNumber() < 0.7 then
+		local h = gs.history[opp] or {}
+		local counts = { 0, 0, 0 }
+		for k = math.max(1, #h - 5), #h do
+			counts[h[k]] += 1
+		end
+		local fav, best = api.rng:NextInteger(1, 3), -1
+		for hand = 1, 3 do
+			if counts[hand] > best then
+				fav, best = hand, counts[hand]
+			end
+		end
+		-- play what beats their favourite
+		for hand = 1, 3 do
+			if BEATS[hand] == fav then
+				return hand
+			end
+		end
+	elseif d == "normal" and api.rng:NextNumber() < 0.25 then
+		return 1
+	end
+	return api.rng:NextInteger(1, 3)
+end
+
+local function startRound(gs: any, api: any)
+	gs.round += 1
+	gs.phase = "count"
+	gs.choice = {}
+	gs.late = {}
+	gs.last = nil
+	gs.tShoot = os.clock() + COUNT
+	gs.revealAt = gs.tShoot + GRACE
+	for side = 1, 2 do
+		if api.isNpc(side) then
+			gs.npcAt = os.clock() + 0.6 + api.rng:NextNumber() * (COUNT - 0.4)
+		end
+		api.emote(side, "mg_rps_pump")
+	end
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	api.event("rpsRound", { round = gs.round, tShoot = api.toServer(gs.tShoot), grace = GRACE })
+	api.push()
+end
+
+function RpsServer.begin(gs: any, api: any)
+	startRound(gs, api)
+end
+
+function RpsServer.input(gs: any, side: number, p: any, api: any)
+	if gs.phase ~= "count" or gs.choice[side] then
+		return
+	end
+	local hand = M.Anti.int(p.hand, 1, 3)
+	if not hand then
+		return
+	end
+	if os.clock() > gs.revealAt then
+		return
+	end
+	gs.choice[side] = hand
+	-- confirm to that player only
+	local pl = api.player(side)
+	if pl then
+		M.fire(pl, M.MS.Kinds.event, { id = api.match.id, e = "rpsPicked", hand = hand })
+	end
+end
+
+local function reveal(gs: any, api: any)
+	for side = 1, 2 do
+		if not gs.choice[side] then
+			gs.choice[side] = api.rng:NextInteger(1, 3)
+			gs.late[side] = not api.isNpc(side)
+		end
+		local h = gs.history[side]
+		if not h then
+			h = {}
+			gs.history[side] = h
+		end
+		table.insert(h, gs.choice[side])
+	end
+	local c1, c2 = gs.choice[1], gs.choice[2]
+	local w = 0
+	if c1 ~= c2 then
+		w = if BEATS[c1] == c2 then 1 else 2
+	end
+	if w > 0 then
+		gs.score[w] += 1
+	end
+	gs.phase = "show"
+	gs.last = { c1 = c1, c2 = c2, w = w, late1 = gs.late[1] == true, late2 = gs.late[2] == true }
+	gs.nextAt = os.clock() + SHOW
+	for side = 1, 2 do
+		api.emote(side, "mg_rps_show")
+	end
+	api.event("rpsReveal", { c1 = c1, c2 = c2, w = w, s1 = gs.score[1], s2 = gs.score[2], late1 = gs.late[1] == true, late2 = gs.late[2] == true })
+	api.score(string.format("%d : %d", gs.score[1], gs.score[2]))
+	for side = 1, 2 do
+		if api.isNpc(side) and w ~= 0 then
+			if w == side then
+				api.say(side, NAMES[gs.choice[side]] .. "! 이겼다~", 2)
+			elseif api.rng:NextNumber() < 0.5 then
+				api.line(side, "good")
+			end
+		end
+	end
+	api.push()
+end
+
+function RpsServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	if gs.phase == "count" then
+		for side = 1, 2 do
+			if api.isNpc(side) and not gs.choice[side] and now >= gs.npcAt then
+				gs.choice[side] = npcHand(gs, side, api)
+			end
+		end
+		if now >= gs.revealAt or (now >= gs.tShoot and gs.choice[1] and gs.choice[2]) then
+			reveal(gs, api)
+		end
+	elseif gs.phase == "show" and now >= gs.nextAt then
+		if gs.score[1] >= WIN_TO or gs.score[2] >= WIN_TO then
+			gs.over = true
+			api.finish(if gs.score[1] > gs.score[2] then 1 else 2, "score")
+		elseif gs.round >= MAX_ROUNDS then
+			gs.over = true
+			api.finish(if gs.score[1] > gs.score[2] then 1 elseif gs.score[2] > gs.score[1] then 2 else 0, "rounds")
+		else
+			startRound(gs, api)
+		end
+	end
+end
+
+function RpsServer.view(gs: any, side: number): any
+	return {
+		round = gs.round,
+		score = gs.score,
+		phase = gs.phase,
+		tShoot = workspace:GetServerTimeNow() + (gs.tShoot - os.clock()),
+		grace = GRACE,
+		mine = if side > 0 then gs.choice[side] else nil,
+		last = gs.last,
+		winTo = WIN_TO,
+	}
+end
+
+return RpsServer
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000017"><Properties><string name="Name">StationBuilder</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MiniGames/StationBuilder: builds the minigame spots on the 광안리 promenade at server start (server
+-- only; plain Parts, no uploaded assets). One Model per MS.STATIONS entry under
+-- workspace.GwangalliMiniGames, tagged MS.Tags.Station (contract in GwangalliMiniGamesShared).
+--
+-- Placement: the station frame sits on the seaside paving band (n = seed.n studs from the seawall
+-- coping, on the MapData coast baseline), X along the promenade (tangent of the coast), -Z toward the
+-- sea. The builder probes the floor (raycast) and the space above it (GetPartBoundsInBox) and slides
+-- the spot along the promenade (0, +-6, +-12 ... up to MS.SLIDE) until nothing stands there (benches,
+-- planters, lamp posts, plaza props), so a table never cuts through the existing street furniture.
+--
+-- Table station (omok / wordchain / memory / numberguess / quiz): a parasol picnic table between two
+--   stools (SeatA west / SeatB east, facing each other), game props on the table (the 15x15 omok board
+--   is a real board: grid lines and star points as thin parts; the stones are drawn by every client
+--   from the station's OmokBoard attribute), an A-frame sign facing the walk, a warm lantern.
+-- Stand station (rps / reaction / timing): two pads; rps face to face around a small sign post,
+--   reaction / timing side by side in front of a beach arcade cabinet (screen SurfaceGui is drawn by
+--   the clients) that faces the walk with the sea and 광안대교 behind it.
+-- Camera hints (invisible parts): CamA / CamB (each player's view), CamSpec (spectators), Focus (the
+-- point the cameras look at).
+
+local CollectionService = game:GetService("CollectionService")
+
+local StationBuilder = {}
+
+local M: any = nil
+local MS: any = nil
+local OC: any = nil
+
+local WOOD = Color3.fromRGB(176, 128, 82)
+local WOOD_DARK = Color3.fromRGB(110, 76, 48)
+local METAL = Color3.fromRGB(70, 74, 82)
+local WHITE = Color3.fromRGB(240, 240, 236)
+
+-- parasol colours per game (stripes A / B)
+local PARASOL = {
+	omok = { Color3.fromRGB(32, 92, 168), WHITE },
+	wordchain = { Color3.fromRGB(230, 110, 40), WHITE },
+	memory = { Color3.fromRGB(46, 160, 120), WHITE },
+	numberguess = { Color3.fromRGB(200, 60, 80), WHITE },
+	quiz = { Color3.fromRGB(120, 80, 200), WHITE },
+}
+
+function StationBuilder.init(m: any)
+	M = m
+	MS = m.MS
+	OC = m.OC
+end
+
+local function part(parent: Instance, name: string, size: Vector3, cf: CFrame, color: Color3, props: { [string]: any }?): BasePart
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Anchored = true
+	p.Size = size
+	p.CFrame = cf
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.CastShadow = false
+	p.CanTouch = false
+	if props then
+		for k, v in props do
+			(p :: any)[k] = v
+		end
+	end
+	p.Parent = parent
+	return p
+end
+
+local function cyl(parent: Instance, name: string, diameter: number, height: number, cf: CFrame, color: Color3, props: { [string]: any }?): BasePart
+	-- cylinders are along X in Roblox: stand it up
+	local p = part(parent, name, Vector3.new(height, diameter, diameter), cf * CFrame.Angles(0, 0, math.rad(90)), color, props)
+	p.Shape = Enum.PartType.Cylinder
+	return p
+end
+
+local function hint(parent: Instance, name: string, cf: CFrame): BasePart
+	return part(parent, name, Vector3.new(0.4, 0.4, 0.4), cf, WHITE, { Transparency = 1, CanCollide = false, CanQuery = false })
+end
+
+-------------------------------------------------------------------------------------------------
+-- placement
+-------------------------------------------------------------------------------------------------
+local FLOOR_TOP = 6.5
+local function frameAt(x: number, n: number): CFrame
+	local z = MS.baseline(x) + n
+	local tangent = Vector3.new(1, 0, -2 * MS.COAST_A * x).Unit
+	local up = Vector3.new(0, 1, 0)
+	return CFrame.fromMatrix(Vector3.new(x, FLOOR_TOP, z), tangent, up)
+end
+
+local function excluded(): { Instance }
+	local list: { Instance } = {}
+	local f = workspace:FindFirstChild(MS.FolderName)
+	if f then
+		table.insert(list, f)
+	end
+	local npcs = workspace:FindFirstChild(MS.NpcFolder)
+	if npcs then
+		table.insert(list, npcs)
+	end
+	for _, pl in game:GetService("Players"):GetPlayers() do
+		if pl.Character then
+			table.insert(list, pl.Character)
+		end
+	end
+	return list
+end
+
+-- floor height at a world point (nil when there is no walkable floor: the sea, sand far below...)
+local function floorAt(p: Vector3): number?
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = excluded()
+	local ok, r = pcall(function()
+		return workspace:Raycast(p + Vector3.new(0, 30, 0), Vector3.new(0, -50, 0), params)
+	end)
+	if ok and r then
+		return r.Position.Y
+	end
+	return nil
+end
+
+-- true when nothing taller than the floor occupies the footprint (half extents along X / Z)
+local function clear(cf: CFrame, hx: number, hz: number, floorY: number): boolean
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = excluded()
+	local box = CFrame.new(cf.Position.X, floorY + 3.4, cf.Position.Z) * cf.Rotation
+	local ok, hits = pcall(function()
+		return workspace:GetPartBoundsInBox(box, Vector3.new(hx * 2, 6, hz * 2), params)
+	end)
+	if not ok or type(hits) ~= "table" then
+		return true -- engine without spatial queries: trust the seed
+	end
+	for _, h in hits do
+		if h:IsA("BasePart") and h.Transparency < 0.95 then
+			local top = h.Position.Y + h.Size.Y / 2
+			-- the paving itself (and kerb lips) is fine; anything that rises above it blocks
+			if top > floorY + 0.35 and h.Size.Y < 400 then
+				return false
+			end
+		end
+	end
+	return true
+end
+
+local function findSpot(seed: any, hx: number, hz: number): (CFrame, boolean)
+	local tries = { 0 }
+	local step = 6
+	local d = step
+	while d <= MS.SLIDE do
+		table.insert(tries, d)
+		table.insert(tries, -d)
+		d += step
+	end
+	for _, dn in { 0, 1, -1 } do
+		for _, dx in tries do
+			local cf = frameAt(seed.x + dx, seed.n + dn)
+			local fy = floorAt(cf.Position)
+			if fy and math.abs(fy - FLOOR_TOP) < 1.2 and clear(cf, hx, hz, fy) then
+				return CFrame.new(cf.Position.X, fy, cf.Position.Z) * cf.Rotation, true
+			end
+		end
+	end
+	local cf = frameAt(seed.x, seed.n)
+	local fy = floorAt(cf.Position) or FLOOR_TOP
+	return CFrame.new(cf.Position.X, fy, cf.Position.Z) * cf.Rotation, false
+end
+
+-------------------------------------------------------------------------------------------------
+-- props
+-------------------------------------------------------------------------------------------------
+local function sign(model: Model, f: CFrame, info: any, npc: any?, at: Vector3)
+	local post = f * CFrame.new(at)
+	local face = post * CFrame.new(0, 2.1, 0)
+	local board = part(model, "Sign", Vector3.new(2.6, 1.9, 0.18), face, Color3.fromRGB(28, 34, 52), { CanCollide = false })
+	part(model, "SignLeg", Vector3.new(0.18, 1.3, 0.18), post * CFrame.new(-0.9, 0.65, 0), METAL, { CanCollide = false })
+	part(model, "SignLeg", Vector3.new(0.18, 1.3, 0.18), post * CFrame.new(0.9, 0.65, 0), METAL, { CanCollide = false })
+	for _, side in { Enum.NormalId.Back, Enum.NormalId.Front } do
+		local g = Instance.new("SurfaceGui")
+		g.Name = "SignGui"
+		g.Face = side
+		g.CanvasSize = Vector2.new(260, 190)
+		g.LightInfluence = 0.2
+		g.Brightness = 1.4
+		g.Parent = board
+		local title = Instance.new("TextLabel")
+		title.BackgroundTransparency = 1
+		title.Size = UDim2.new(1, 0, 0.42, 0)
+		title.Position = UDim2.fromScale(0, 0.06)
+		title.Font = Enum.Font.GothamBlack
+		title.TextScaled = true
+		title.TextColor3 = Color3.fromRGB(255, 214, 110)
+		title.Text = info.icon .. " " .. info.name
+		title.Parent = g
+		local sub = Instance.new("TextLabel")
+		sub.BackgroundTransparency = 1
+		sub.Size = UDim2.new(0.92, 0, 0.22, 0)
+		sub.Position = UDim2.fromScale(0.04, 0.5)
+		sub.Font = Enum.Font.GothamBold
+		sub.TextScaled = true
+		sub.TextColor3 = Color3.fromRGB(235, 240, 250)
+		sub.Text = info.desc
+		sub.Parent = g
+		local foot = Instance.new("TextLabel")
+		foot.BackgroundTransparency = 1
+		foot.Size = UDim2.new(0.92, 0, 0.18, 0)
+		foot.Position = UDim2.fromScale(0.04, 0.76)
+		foot.Font = Enum.Font.Gotham
+		foot.TextScaled = true
+		foot.TextColor3 = Color3.fromRGB(160, 220, 255)
+		foot.Text = if npc then npc.name .. " (" .. MS.DIFFICULTY[npc.difficulty] .. ") 대기 중" else "누구나 한 판!"
+		foot.Name = "Foot"
+		foot.Parent = g
+	end
+end
+
+local function lantern(model: Model, cf: CFrame)
+	local l = part(model, "Lantern", Vector3.new(0.45, 0.6, 0.45), cf, Color3.fromRGB(255, 220, 160), { Material = Enum.Material.Neon, CanCollide = false })
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 196, 130)
+	light.Brightness = 1.2
+	light.Range = 14
+	light.Shadows = false
+	light.Parent = l
+end
+
+local function parasol(model: Model, f: CFrame, colors: { Color3 })
+	cyl(model, "ParasolPole", 0.22, 8.4, f * CFrame.new(0, 4.2, 0), WHITE, { CanCollide = false })
+	-- eight wedge-ish panels as a low cone: alternating colours
+	local radius = 4.6
+	for i = 0, 7 do
+		local a = i * math.pi / 4
+		local mid = f * CFrame.Angles(0, a, 0) * CFrame.new(0, 7.9, -radius * 0.5)
+		local panel = part(model, "Canopy", Vector3.new(radius * 0.82, 0.12, radius), mid * CFrame.Angles(math.rad(-14), 0, 0), colors[(i % 2) + 1], { CanCollide = false, CanQuery = false })
+		panel.Material = Enum.Material.Fabric
+	end
+	cyl(model, "ParasolTop", 0.5, 0.4, f * CFrame.new(0, 8.6, 0), colors[1], { CanCollide = false })
+	lantern(model, f * CFrame.new(0, 7.2, 0))
+end
+
+local function stool(model: Model, name: string, f: CFrame, local_: Vector3, yaw: number): Seat
+	local base = f * CFrame.new(local_)
+	cyl(model, name .. "Leg", 0.35, 1.3, base * CFrame.new(0, 0.65, 0), METAL)
+	local seat = Instance.new("Seat")
+	seat.Name = name
+	seat.Anchored = true
+	seat.Size = Vector3.new(1.7, 0.3, 1.7)
+	seat.CFrame = base * CFrame.new(0, 1.45, 0) * CFrame.Angles(0, yaw, 0)
+	seat.Color = WOOD
+	seat.Material = Enum.Material.WoodPlanks
+	seat.TopSurface = Enum.SurfaceType.Smooth
+	seat.CastShadow = false
+	seat.CanTouch = false -- only the server seats players (Seat:Sit); walking into it does nothing
+	seat.Parent = model
+	return seat
+end
+
+local function omokBoard(model: Model, top: CFrame)
+	local size = OC.SIZE
+	local span = (size - 1) * OC.CELL
+	local slab = span + OC.CELL * 1.6
+	local board = part(model, "Board", Vector3.new(slab, OC.BOARD_Y, slab), top * CFrame.new(0, OC.BOARD_Y / 2, 0), Color3.fromRGB(222, 178, 104), { Material = Enum.Material.Wood })
+	board:SetAttribute("Cell", OC.CELL)
+	board:SetAttribute("Size", size)
+	local surface = top * CFrame.new(0, OC.BOARD_Y + 0.006, 0)
+	local lineColor = Color3.fromRGB(60, 40, 22)
+	local lines = Instance.new("Model")
+	lines.Name = "Grid"
+	lines.Parent = model
+	for k = 1, size do
+		local o = (k - (size + 1) / 2) * OC.CELL
+		part(lines, "L", Vector3.new(span, 0.012, 0.025), surface * CFrame.new(0, 0, o), lineColor, { CanCollide = false, CanQuery = false })
+		part(lines, "L", Vector3.new(0.025, 0.012, span), surface * CFrame.new(o, 0, 0), lineColor, { CanCollide = false, CanQuery = false })
+	end
+	for _, s in { { 4, 4 }, { 12, 4 }, { 8, 8 }, { 4, 12 }, { 12, 12 } } do
+		local ox = (s[1] - (size + 1) / 2) * OC.CELL
+		local oz = (s[2] - (size + 1) / 2) * OC.CELL
+		local dot = part(lines, "Star", Vector3.new(0.012, 0.09, 0.09), surface * CFrame.new(ox, 0.004, oz) * CFrame.Angles(0, 0, math.rad(90)), lineColor, { CanCollide = false, CanQuery = false })
+		dot.Shape = Enum.PartType.Cylinder
+	end
+	-- stone bowls (흑 at seat A's side, 백 at seat B's side)
+	cyl(model, "BowlBlack", 0.55, 0.28, top * CFrame.new(-slab / 2 - 0.15, 0.14, slab / 2 - 0.4), WOOD_DARK, { CanCollide = false })
+	cyl(model, "BowlWhite", 0.55, 0.28, top * CFrame.new(slab / 2 + 0.15, 0.14, -slab / 2 + 0.4), WOOD_DARK, { CanCollide = false })
+end
+
+local function tableProps(model: Model, gameId: string, top: CFrame)
+	if gameId == "omok" then
+		omokBoard(model, top)
+	elseif gameId == "wordchain" then
+		part(model, "Notebook", Vector3.new(1.0, 0.06, 1.3), top * CFrame.new(-0.4, 0.03, 0.2) * CFrame.Angles(0, 0.2, 0), WHITE, { CanCollide = false })
+		part(model, "Pencil", Vector3.new(0.06, 0.06, 0.9), top * CFrame.new(0.4, 0.05, 0.1) * CFrame.Angles(0, -0.5, 0), Color3.fromRGB(250, 200, 40), { CanCollide = false })
+	elseif gameId == "quiz" then
+		cyl(model, "BuzzerA", 0.6, 0.25, top * CFrame.new(-1.2, 0.12, 0), Color3.fromRGB(230, 60, 70), { CanCollide = false, Material = Enum.Material.Neon })
+		cyl(model, "BuzzerB", 0.6, 0.25, top * CFrame.new(1.2, 0.12, 0), Color3.fromRGB(60, 140, 240), { CanCollide = false, Material = Enum.Material.Neon })
+	elseif gameId == "memory" then
+		for i = 1, 5 do
+			part(model, "Card", Vector3.new(0.4, 0.04, 0.56), top * CFrame.new((i - 3) * 0.5, 0.02, 0), if i % 2 == 0 then Color3.fromRGB(240, 90, 90) else WHITE, { CanCollide = false })
+		end
+	elseif gameId == "numberguess" then
+		part(model, "NumberStand", Vector3.new(1.2, 0.8, 0.1), top * CFrame.new(0, 0.4, 0) * CFrame.Angles(math.rad(-10), 0, 0), Color3.fromRGB(30, 34, 50), { CanCollide = false })
+	end
+end
+
+local function buildTable(model: Model, f: CFrame, seed: any, info: any, npc: any?)
+	local topY = 2.7
+	part(model, "Table", Vector3.new(4.6, 0.25, 4.0), f * CFrame.new(0, topY - 0.125, 0), WOOD, { Material = Enum.Material.WoodPlanks })
+	cyl(model, "TableLeg", 0.5, topY - 0.25, f * CFrame.new(0, (topY - 0.25) / 2, 0), METAL)
+	part(model, "TableFoot", Vector3.new(2.2, 0.15, 2.2), f * CFrame.new(0, 0.075, 0), METAL, { CanCollide = false })
+	local top = f * CFrame.new(0, topY, 0)
+	tableProps(model, seed.game, top)
+	-- seats face the table: A on the west (-X) faces +X, B on the east faces -X
+	stool(model, "SeatA", f, Vector3.new(-3.0, 0, 0), -math.pi / 2)
+	stool(model, "SeatB", f, Vector3.new(3.0, 0, 0), math.pi / 2)
+	parasol(model, f * CFrame.new(0, 0, 0), PARASOL[seed.game] or PARASOL.omok)
+	sign(model, f, info, npc, Vector3.new(0, 0, 3.6))
+	-- cameras: each player looks over the table from behind their own stool, spectators from the walk
+	local focus = top.Position + Vector3.new(0, 0.1, 0)
+	hint(model, "Focus", CFrame.new(focus))
+	hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-6.8, 8.4, 1.6)).Position, focus))
+	hint(model, "CamB", CFrame.lookAt((f * CFrame.new(6.8, 8.4, -1.6)).Position, focus))
+	hint(model, "CamSpec", CFrame.lookAt((f * CFrame.new(0, 7.5, 8.5)).Position, focus))
+	-- where an NPC host waits when two players take the table
+	hint(model, "NpcAside", f * CFrame.new(-1.5, 0, 4.6) * CFrame.Angles(0, math.pi, 0))
+end
+
+local function pad(model: Model, name: string, cf: CFrame)
+	local p = part(model, name, Vector3.new(0.08, 2.4, 2.4), cf * CFrame.new(0, 0.04, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 194, 71), { CanCollide = false, CanQuery = false, Transparency = 0.25, Material = Enum.Material.Neon })
+	p.Shape = Enum.PartType.Cylinder
+end
+
+local function buildStand(model: Model, f: CFrame, seed: any, info: any, npc: any?)
+	if seed.game == "rps" then
+		-- face to face across a little round sign
+		cyl(model, "Post", 0.25, 3.2, f * CFrame.new(0, 1.6, 0), METAL, { CanCollide = false })
+		local disc = cyl(model, "Disc", 1.6, 0.15, f * CFrame.new(0, 3.4, 0) * CFrame.Angles(math.rad(90), 0, 0), Color3.fromRGB(255, 120, 160), { CanCollide = false })
+		disc:SetAttribute("Screen", true)
+		local padA = f * CFrame.new(-2.4, 0, 0) * CFrame.Angles(0, -math.pi / 2, 0)
+		local padB = f * CFrame.new(2.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0)
+		pad(model, "PadA", padA)
+		pad(model, "PadB", padB)
+		hint(model, "SpotA", padA)
+		hint(model, "SpotB", padB)
+		local focus = (f * CFrame.new(0, 3.2, 0)).Position
+		hint(model, "Focus", CFrame.new(focus))
+		hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-6.5, 5.6, 4.5)).Position, focus))
+		hint(model, "CamB", CFrame.lookAt((f * CFrame.new(6.5, 5.6, 4.5)).Position, focus))
+		hint(model, "CamSpec", CFrame.lookAt((f * CFrame.new(0, 6, 10)).Position, focus))
+		sign(model, f, info, npc, Vector3.new(0, 0, 4.2))
+	else
+		-- a beach arcade cabinet on the sea side; players stand on the walk side facing the sea
+		local body = part(model, "Cabinet", Vector3.new(4.6, 5.2, 1.4), f * CFrame.new(0, 2.6, -1.9), Color3.fromRGB(24, 28, 44))
+		body.Material = Enum.Material.SmoothPlastic
+		local screen = part(model, "Screen", Vector3.new(3.9, 2.3, 0.1), f * CFrame.new(0, 3.75, -1.17), Color3.fromRGB(8, 10, 18), { CanCollide = false, Material = Enum.Material.Neon })
+		screen:SetAttribute("Screen", true)
+		part(model, "Marquee", Vector3.new(4.6, 0.8, 1.6), f * CFrame.new(0, 5.6, -1.9), if seed.game == "reaction" then Color3.fromRGB(255, 70, 110) else Color3.fromRGB(70, 200, 255), { Material = Enum.Material.Neon, CanCollide = false })
+		part(model, "Console", Vector3.new(4.6, 0.3, 1.2), f * CFrame.new(0, 2.3, -0.9) * CFrame.Angles(math.rad(-15), 0, 0), Color3.fromRGB(40, 44, 64), { CanCollide = false })
+		cyl(model, "ButtonA", 0.7, 0.3, f * CFrame.new(-1.2, 2.5, -0.85), Color3.fromRGB(240, 60, 70), { Material = Enum.Material.Neon, CanCollide = false })
+		cyl(model, "ButtonB", 0.7, 0.3, f * CFrame.new(1.2, 2.5, -0.85), Color3.fromRGB(60, 140, 255), { Material = Enum.Material.Neon, CanCollide = false })
+		lantern(model, f * CFrame.new(0, 6.2, -1.9))
+		local padA = f * CFrame.new(-1.3, 0, 0.6)
+		local padB = f * CFrame.new(1.3, 0, 0.6)
+		pad(model, "PadA", padA)
+		pad(model, "PadB", padB)
+		hint(model, "SpotA", padA)
+		hint(model, "SpotB", padB)
+		local focus = (f * CFrame.new(0, 3.4, -1.2)).Position
+		hint(model, "Focus", CFrame.new(focus))
+		hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-1.0, 6.2, 8.0)).Position, focus))
+		hint(model, "CamB", CFrame.lookAt((f * CFrame.new(1.0, 6.2, 8.0)).Position, focus))
+		hint(model, "CamSpec", CFrame.lookAt((f * CFrame.new(-5, 6.5, 9)).Position, focus))
+		sign(model, f, info, npc, Vector3.new(3.8, 0, 1.2))
+	end
+	hint(model, "NpcAside", f * CFrame.new(-3.6, 0, 3.4) * CFrame.Angles(0, math.rad(200), 0))
+end
+
+-------------------------------------------------------------------------------------------------
+-- public
+-------------------------------------------------------------------------------------------------
+-- -> list of station records { id, seed, game, info, model, frame, npc (NpcHost?), clearSpot }
+function StationBuilder.build(): { any }
+	local folder = workspace:FindFirstChild(MS.FolderName)
+	if folder then
+		folder:Destroy()
+	end
+	folder = Instance.new("Folder")
+	folder.Name = MS.FolderName
+	folder.Parent = workspace
+	local out = {}
+	for _, seed in MS.STATIONS do
+		local info = MS.GAMES[seed.game]
+		if info then
+			local npc = if seed.npc then MS.NPCS[seed.npc] else nil
+			local tableKind = info.kind == "table"
+			local hx = if tableKind then 5 else 4
+			local hz = if tableKind then 3.4 else 2.6
+			local f, ok = findSpot(seed, hx, hz)
+			if not ok then
+				warn("[MiniGames] station " .. seed.id .. ": no clear spot found near x = " .. seed.x .. ", built at the seed")
+			end
+			local model = Instance.new("Model")
+			model.Name = seed.id
+			if info.kind == "table" then
+				buildTable(model, f, seed, info, npc)
+			else
+				buildStand(model, f, seed, info, npc)
+			end
+			model:SetAttribute("StationId", seed.id)
+			model:SetAttribute("GameId", seed.game)
+			model:SetAttribute("Label", seed.label)
+			model:SetAttribute("NpcId", if npc then npc.id else "")
+			model:SetAttribute("State", "idle")
+			model:SetAttribute("P1", "")
+			model:SetAttribute("P2", "")
+			model:SetAttribute("P1Id", 0)
+			model:SetAttribute("P2Id", 0)
+			model:SetAttribute("Stake", 0)
+			model:SetAttribute("Pot", 0)
+			model:SetAttribute("Score", "")
+			model:SetAttribute("Turn", 0)
+			model:SetAttribute("MatchId", 0)
+			model:SetAttribute("WaitStake", -1)
+			model:SetAttribute("Spectators", 0)
+			pcall(function()
+				(model :: any).ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+			end)
+			local primary = model:FindFirstChild("Table") or model:FindFirstChild("Cabinet") or model:FindFirstChild("Post")
+			if primary and primary:IsA("BasePart") then
+				model.PrimaryPart = primary
+			end
+			model.Parent = folder
+			CollectionService:AddTag(model, MS.Tags.Station)
+			table.insert(out, { id = seed.id, seed = seed, game = seed.game, info = info, model = model, frame = f, npc = npc, clearSpot = ok })
+		end
+	end
+	return out
+end
+
+return StationBuilder
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000019"><Properties><string name="Name">TimingGame</string></Properties><Item class="ModuleScript" referent="RBX00000018"><Properties><string name="Name">TimingServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- TimingGame/TimingServer: 타이밍 게임 (server only). A marker sweeps across a bar (triangle wave,
+-- faster every round); press once to stop it as close to the centre as possible. Score per round =
+-- 100 - |position - 0.5| x 200 (0..100), 3 rounds summed, higher total wins (equal = draw).
+-- Both players play every round at the same time. Each client starts its bar when the round event
+-- arrives and reports the elapsed time on its own clock (`t`): that is the fair number on a laggy
+-- connection. The server checks it against its own estimate (receive time - start - round trip) and
+-- uses the server estimate whenever the claim is off by more than the latency allowance.
+-- NPC: centre error by difficulty.
+-- Move payload: { round = n, t = seconds since the bar started on the client }.
+
+local TimingServer = {}
+
+local M: any = nil
+
+local ROUNDS = 3
+local PERIODS = { 1.7, 1.35, 1.05 } -- seconds for one sweep (left -> right)
+local WINDOW = 6
+local READY = 1.2
+local SHOW = 2.2
+local NPC_ERR = { easy = 0.17, normal = 0.08, hard = 0.035 }
+
+function TimingServer.init(m: any)
+	M = m
+end
+
+local function posAt(t: number, period: number): number
+	local u = (t / period) % 2
+	return if u <= 1 then u else 2 - u
+end
+TimingServer.posAt = posAt
+
+function TimingServer.new(_match: any, _api: any): any
+	return {
+		round = 0,
+		phase = "idle",
+		startAt = 0,
+		endAt = 0,
+		nextAt = 0,
+		period = PERIODS[1],
+		press = {} :: { [number]: number },
+		npcPos = {} :: { [number]: number },
+		npcAt = {} :: { [number]: number },
+		total = { 0, 0 },
+		rounds = {} :: { { number } },
+		over = false,
+	}
+end
+
+local function points(pos: number): number
+	return math.max(0, math.floor(100 - math.abs(pos - 0.5) * 200 + 0.5))
+end
+
+local function startRound(gs: any, api: any)
+	gs.round += 1
+	gs.phase = "ready"
+	gs.period = PERIODS[gs.round] or PERIODS[#PERIODS]
+	gs.press = {}
+	gs.startAt = os.clock() + READY
+	gs.endAt = gs.startAt + WINDOW
+	for side = 1, 2 do
+		if api.isNpc(side) then
+			local err = NPC_ERR[api.difficulty(side)] or 0.08
+			local g = 0
+			for _ = 1, 3 do
+				g += api.rng:NextNumber() * 2 - 1
+			end
+			gs.npcPos[side] = math.clamp(0.5 + g / 3 * err * 1.8, 0, 1)
+			gs.npcAt[side] = gs.startAt + 1.0 + api.rng:NextNumber() * 2.5
+		end
+	end
+	api.score(string.format("%d : %d", gs.total[1], gs.total[2]))
+	api.event("timingReady", { round = gs.round, period = gs.period, startAt = api.toServer(gs.startAt), window = WINDOW })
+	api.push()
+end
+
+function TimingServer.begin(gs: any, api: any)
+	startRound(gs, api)
+end
+
+local function decide(gs: any, api: any)
+	local s = { points(gs.press[1] or -1), points(gs.press[2] or -1) }
+	if not gs.press[1] then
+		s[1] = 0
+	end
+	if not gs.press[2] then
+		s[2] = 0
+	end
+	gs.total[1] += s[1]
+	gs.total[2] += s[2]
+	table.insert(gs.rounds, s)
+	gs.phase = "show"
+	gs.nextAt = os.clock() + SHOW
+	api.event("timingResult", { round = gs.round, p1 = gs.press[1], p2 = gs.press[2], s1 = s[1], s2 = s[2], t1 = gs.total[1], t2 = gs.total[2] })
+	api.score(string.format("%d : %d", gs.total[1], gs.total[2]))
+	for side = 1, 2 do
+		if s[side] >= 95 then
+			api.emote(side, "cheer")
+		end
+	end
+	api.push()
+end
+
+function TimingServer.input(gs: any, side: number, p: any, api: any)
+	if gs.phase ~= "run" or gs.press[side] or M.Anti.int(p.round, 1, 100) ~= gs.round then
+		return
+	end
+	local now = os.clock()
+	local rtt = api.rtt(side)
+	local est = now - gs.startAt - rtt
+	local t = est
+	if M.Anti.finite(p.t) and math.abs(p.t - est) <= 0.08 + rtt * 0.5 then
+		t = p.t
+	elseif M.Anti.finite(p.t) then
+		M.Anti.strike(api.player(side) :: Player, "timing", string.format("claim %.3f est %.3f", p.t, est))
+	end
+	t = math.clamp(t, 0, WINDOW)
+	gs.press[side] = posAt(t, gs.period)
+	api.emote(side, "mg_press")
+	if gs.press[1] and gs.press[2] then
+		decide(gs, api)
+	end
+end
+
+function TimingServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	if gs.phase == "ready" and now >= gs.startAt then
+		gs.phase = "run"
+		gs.startAt = os.clock() -- the moment the go event leaves (clients start their bars on it)
+		gs.endAt = gs.startAt + WINDOW
+		api.event("timingGo", { round = gs.round })
+	elseif gs.phase == "run" then
+		for side = 1, 2 do
+			if api.isNpc(side) and not gs.press[side] and now >= (gs.npcAt[side] or math.huge) then
+				gs.press[side] = gs.npcPos[side]
+				api.emote(side, "mg_press")
+			end
+		end
+		if (gs.press[1] and gs.press[2]) or now >= gs.endAt then
+			decide(gs, api)
+		end
+	elseif gs.phase == "show" and now >= gs.nextAt then
+		if gs.round >= ROUNDS then
+			gs.over = true
+			local a, b = gs.total[1], gs.total[2]
+			api.finish(if a > b then 1 elseif b > a then 2 else 0, "points")
+		else
+			startRound(gs, api)
+		end
+	end
+end
+
+function TimingServer.view(gs: any, side: number): any
+	return {
+		round = gs.round,
+		rounds = ROUNDS,
+		phase = gs.phase,
+		period = gs.period,
+		total = gs.total,
+		history = gs.rounds,
+		pressed = if side > 0 then gs.press[side] ~= nil else false,
+	}
+end
+
+return TimingServer
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX0000001D"><Properties><string name="Name">WordChain</string></Properties><Item class="ModuleScript" referent="RBX0000001A"><Properties><string name="Name">WordChainServer</string><ProtectedString name="Source"><![CDATA[--!strict
+-- WordChain/WordChainServer: 끝말잇기 at a beach table (server only; rules in the shared WordRules).
+--   * The server opens with a friendly start word ("바다"), a random side answers first.
+--   * Each answer: WordRules.TURN_TIME (10 s). Valid = Hangul, 2+ syllables, starts with the last
+--     syllable of the current word (or its 두음법칙 form), not used in this game, in the dictionary
+--     (WordDictionary), not blocked, and unchanged by Roblox text filtering (TextService, fails
+--     closed on live servers). A wrong answer is refused with the reason and the clock keeps running;
+--     no valid answer in time = 패배.
+--   * Accepted words appear as a speech bubble over the speaker's head for everyone nearby.
+-- NPC: answers from the dictionary after a "thinking" pause; 초보 sometimes cannot think of one
+-- (and loses on time), 고수 likes 한방 words (few followers).
+-- Move payload: { word = string }.
+
+local RunService = game:GetService("RunService")
+local TextService = game:GetService("TextService")
+
+local WordChainServer = {}
+
+local M: any = nil
+local WR: any = nil
+local Dict: any = nil
+
+function WordChainServer.init(m: any)
+	M = m
+	WR = m.WR
+	Dict = require(script.Parent:WaitForChild("WordDictionary")) :: any
+	Dict.init(WR, script.Parent:FindFirstChild("WordList") :: ModuleScript?)
+	WordChainServer.Dict = Dict
+end
+
+-- Roblox text filtering. true = safe to show. Studio (where filtering is often unavailable) falls back
+-- to the local dictionary + block list; live servers fail closed.
+local function filtered(text: string, userId: number): boolean
+	local ok, res = pcall(function()
+		local r = TextService:FilterStringAsync(text, userId, Enum.TextFilterContext.PublicChat)
+		return r:GetNonChatStringForBroadcastAsync()
+	end)
+	if ok and type(res) == "string" then
+		return res == text
+	end
+	return RunService:IsStudio() and Dict.hasLocal(text)
+end
+
+function WordChainServer.new(match: any, api: any): any
+	return {
+		current = "",
+		chain = {} :: { { w: string, side: number } },
+		used = {} :: { [string]: boolean },
+		turn = api.rng:NextInteger(1, 2),
+		deadline = 0,
+		npcAt = 0,
+		npcGiveUp = false,
+		busy = {} :: { [number]: boolean },
+		seq = 0,
+		over = false,
+	}
+end
+
+local function npcPlan(gs: any, side: number, api: any)
+	local d = api.difficulty(side)
+	local lo, hi = 2.0, 5.5
+	if d == "normal" then
+		lo, hi = 1.8, 4.5
+	elseif d == "hard" then
+		lo, hi = 1.2, 3.2
+	end
+	gs.npcAt = os.clock() + lo + api.rng:NextNumber() * (hi - lo)
+	-- the longer the game, the harder it is to think of one (easy NPCs tire first)
+	local giveUp = if d == "easy" then 0.08 + #gs.chain * 0.02 elseif d == "normal" then 0.03 + #gs.chain * 0.008 else 0.005 * #gs.chain
+	gs.npcGiveUp = api.rng:NextNumber() < giveUp
+	if api.rng:NextNumber() < 0.3 then
+		api.line(side, "think")
+	end
+end
+
+local function startTurn(gs: any, side: number, api: any)
+	gs.turn = side
+	gs.deadline = os.clock() + WR.TURN_TIME
+	gs.npcAt = 0
+	if api.isNpc(side) then
+		npcPlan(gs, side, api)
+	end
+	api.turn(side)
+	api.score(string.format("%d단어", #gs.chain))
+end
+
+function WordChainServer.begin(gs: any, api: any)
+	gs.current = Dict.startWord(api.rng)
+	gs.used[gs.current] = true
+	table.insert(gs.chain, { w = gs.current, side = 0 })
+	startTurn(gs, gs.turn, api)
+	api.attr("WordCurrent", gs.current)
+	api.event("wordStart", { word = gs.current, first = gs.turn })
+end
+
+local function accept(gs: any, side: number, word: string, api: any)
+	gs.used[word] = true
+	gs.current = word
+	gs.seq += 1
+	table.insert(gs.chain, { w = word, side = side })
+	api.say(side, word, 2.5)
+	api.attr("WordCurrent", word)
+	api.event("word", { side = side, word = word, n = #gs.chain })
+	local other = if side == 1 then 2 else 1
+	-- nobody (in the dictionary) can follow this word: the opponent still gets the full time, but the
+	-- NPC knows it is lost
+	startTurn(gs, other, api)
+	api.push()
+end
+
+local function reject(gs: any, side: number, reason: string, api: any)
+	local pl = api.player(side)
+	if pl then
+		M.fire(pl, M.MS.Kinds.event, { id = api.match.id, e = "wordReject", reason = reason })
+	end
+end
+
+function WordChainServer.input(gs: any, side: number, p: any, api: any)
+	if gs.over or gs.turn ~= side or gs.busy[side] then
+		return
+	end
+	local word = WR.normalize(p.word)
+	local okShape, why = WR.shape(word)
+	if not okShape then
+		reject(gs, side, why or "올바른 단어가 아니에요", api)
+		return
+	end
+	if not WR.follows(gs.current, word) then
+		reject(gs, side, "'" .. WR.hint(gs.current) .. "'(으)로 시작해야 해요", api)
+		return
+	end
+	if gs.used[word] then
+		reject(gs, side, "이미 나온 단어예요", api)
+		return
+	end
+	gs.busy[side] = true
+	local seq = gs.seq
+	local userId = if api.player(side) then (api.player(side) :: Player).UserId else 0
+	task.spawn(function()
+		local known = Dict.has(word)
+		local clean = known and filtered(word, userId)
+		gs.busy[side] = nil
+		-- the world may have moved on while we were checking (time out, forfeit)
+		if gs.over or gs.seq ~= seq or gs.turn ~= side or api.match.state ~= "playing" or os.clock() > gs.deadline + 0.3 then
+			return
+		end
+		if not known then
+			reject(gs, side, "사전에 없는 단어예요", api)
+		elseif not clean then
+			reject(gs, side, "사용할 수 없는 단어예요", api)
+		else
+			accept(gs, side, word, api)
+		end
+	end)
+end
+
+local function npcAnswer(gs: any, side: number, api: any): string?
+	local list = Dict.starting(WR.starts(gs.current))
+	local options = {}
+	for _, w in list do
+		if not gs.used[w] then
+			table.insert(options, w)
+		end
+	end
+	if #options == 0 then
+		return nil
+	end
+	if api.difficulty(side) == "hard" and api.rng:NextNumber() < 0.7 then
+		-- 한방 hunting: the word that leaves the fewest answers
+		local best, bestN = options[1], math.huge
+		for k = 1, math.min(#options, 60) do
+			local w = options[api.rng:NextInteger(1, #options)]
+			local n = Dict.followers(w)
+			if n < bestN then
+				best, bestN = w, n
+			end
+			local _ = k
+		end
+		return best
+	end
+	return options[api.rng:NextInteger(1, #options)]
+end
+
+function WordChainServer.tick(gs: any, now: number, api: any)
+	if gs.over then
+		return
+	end
+	local side = gs.turn
+	if now >= gs.deadline and not gs.busy[side] then
+		gs.over = true
+		api.event("wordTimeout", { side = side })
+		if api.isNpc(side) then
+			api.say(side, "아... 모르겠다!", 2.5)
+		end
+		api.finish(if side == 1 then 2 else 1, "timeout")
+		return
+	end
+	if api.isNpc(side) and gs.npcAt > 0 and now >= gs.npcAt then
+		gs.npcAt = 0
+		if gs.npcGiveUp then
+			api.say(side, "음... 음...", 3)
+			return
+		end
+		local w = npcAnswer(gs, side, api)
+		if w then
+			accept(gs, side, w, api)
+		else
+			api.say(side, "그걸로 시작하는 단어가... 없는데?", 3)
+		end
+	end
+end
+
+function WordChainServer.view(gs: any, side: number): any
+	local chain = {}
+	for k = math.max(1, #gs.chain - 9), #gs.chain do
+		local c = gs.chain[k]
+		table.insert(chain, { w = c.w, s = c.side })
+	end
+	return {
+		current = gs.current,
+		hint = WR.hint(gs.current),
+		starts = WR.starts(gs.current),
+		turn = gs.turn,
+		deadline = workspace:GetServerTimeNow() + math.max(0, gs.deadline - os.clock()),
+		turnTime = WR.TURN_TIME,
+		chain = chain,
+		count = #gs.chain - 1,
+	}
+end
+
+function WordChainServer.cleanup(_gs: any, api: any)
+	api.attr("WordCurrent", "")
+end
+
+return WordChainServer
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX0000001B"><Properties><string name="Name">WordDictionary</string><ProtectedString name="Source"><![CDATA[--!strict
+-- WordChain/WordDictionary: the 끝말잇기 dictionary service (server only).
+--
+-- Sources (providers), checked in order; a word is valid when any source knows it:
+--   1. "builtin"   WordList.luau (common nouns, family friendly) - always on, indexed in memory.
+--   2. "datastore" extra words from DataStore D.EXTRA_STORE (key "words": one space-separated string,
+--                  written by an admin tool or the live-ops pipeline) - merged into the index at start
+--                  (pcall: silently skipped in Studio / unpublished places).
+--   3. registered providers: D.registerProvider({ name, has = function(word) -> boolean? }) for an
+--                  external dictionary (e.g. an HTTP proxy in front of 국립국어원 표준국어대사전 Open API,
+--                  see D.httpProvider below - disabled unless D.HTTP_URL is set). A provider may yield;
+--                  answers are cached (D.CACHE_TTL) and a provider error counts as "unknown".
+-- NPC answers only come from the in-memory index (fast, never yields).
+-- Inappropriate words: D.BLOCK (local list) here, plus Roblox text filtering in WordChainServer.
+
+local DataStoreService = game:GetService("DataStoreService")
+local HttpService = game:GetService("HttpService")
+
+local D = {}
+
+D.EXTRA_STORE = "GwangalliWordList_v1"
+D.HTTP_URL = "" -- e.g. "https://your-proxy.example/dict?word=%s" returning {"exists": true}; "" = off
+D.CACHE_TTL = 3600
+
+local WR: any = nil
+local words: { [string]: boolean } = {}
+local byFirst: { [string]: { string } } = {}
+local count = 0
+local providers: { { name: string, has: (string) -> boolean? } } = {}
+local cache: { [string]: { ok: boolean, t: number } } = {}
+
+-- words never accepted even if a provider knows them (insults etc.; the Roblox filter catches the rest)
+D.BLOCK = {}
+for _, w in string.split("바보 멍청이 병신 새끼 개새끼 씨발 존나 닥쳐 꺼져 죽어 자살 살인 마약 도박 섹스 야동", " ") do
+	D.BLOCK[w] = true
+end
+
+local function add(w: string): boolean
+	if words[w] or D.BLOCK[w] then
+		return false
+	end
+	local ok = WR.shape(w)
+	if not ok then
+		return false
+	end
+	words[w] = true
+	count += 1
+	local f = WR.first(w)
+	local list = byFirst[f]
+	if not list then
+		list = {}
+		byFirst[f] = list
+	end
+	table.insert(list, w)
+	return true
+end
+
+-- Adds words from a whitespace-separated string or a list. Returns how many were new.
+function D.addWords(src: any): number
+	local n = 0
+	if type(src) == "string" then
+		for w in string.gmatch(src, "%S+") do
+			if add(w) then
+				n += 1
+			end
+		end
+	elseif type(src) == "table" then
+		for _, w in src do
+			if type(w) == "string" and add(w) then
+				n += 1
+			end
+		end
+	end
+	return n
+end
+
+function D.init(wr: any, listModule: ModuleScript?)
+	WR = wr
+	if listModule then
+		local ok, src = pcall(require, listModule)
+		if ok then
+			D.addWords(src)
+		else
+			warn("[MiniGames] WordList failed to load: " .. tostring(src))
+		end
+	end
+	task.spawn(function()
+		local ok, extra = pcall(function()
+			return DataStoreService:GetDataStore(D.EXTRA_STORE):GetAsync("words")
+		end)
+		if ok and type(extra) == "string" then
+			local n = D.addWords(extra)
+			if n > 0 then
+				print("[MiniGames] word list: +" .. n .. " words from DataStore")
+			end
+		end
+	end)
+	if D.HTTP_URL ~= "" then
+		D.registerProvider(D.httpProvider(D.HTTP_URL))
+	end
+end
+
+function D.count(): number
+	return count
+end
+
+function D.registerProvider(p: { name: string, has: (string) -> boolean? })
+	table.insert(providers, p)
+end
+
+-- Known locally (no yield)?
+function D.hasLocal(w: string): boolean
+	return words[w] == true
+end
+
+-- Valid word? May yield when an external provider is registered.
+function D.has(w: string): boolean
+	if D.BLOCK[w] then
+		return false
+	end
+	if words[w] then
+		return true
+	end
+	if #providers == 0 then
+		return false
+	end
+	local c = cache[w]
+	if c and os.clock() - c.t < D.CACHE_TTL then
+		return c.ok
+	end
+	local found = false
+	for _, p in providers do
+		local ok, res = pcall(p.has, w)
+		if ok and res == true then
+			found = true
+			break
+		end
+	end
+	cache[w] = { ok = found, t = os.clock() }
+	if found then
+		add(w) -- NPCs may use it from now on
+	end
+	return found
+end
+
+-- Words starting with any of the syllables (the 두음법칙 alternatives of WordRules.starts).
+function D.starting(syllables: { string }): { string }
+	local out = {}
+	for _, s in syllables do
+		local list = byFirst[s]
+		if list then
+			for _, w in list do
+				table.insert(out, w)
+			end
+		end
+	end
+	return out
+end
+
+-- How many words can follow `w` (few = a strong "한방" word).
+function D.followers(w: string): number
+	local n = 0
+	for _, s in WR.starts(w) do
+		local list = byFirst[s]
+		if list then
+			n += #list
+		end
+	end
+	return n
+end
+
+-- A friendly first word: 2-3 syllables with many followers.
+function D.startWord(rng: Random): string
+	local pool = { "바다", "광안리", "파도", "모래", "갈매기", "등대", "자동차", "기차", "사과", "나무", "하늘", "구름", "축제", "산책", "여름" }
+	for _ = 1, 20 do
+		local w = pool[rng:NextInteger(1, #pool)]
+		if words[w] and D.followers(w) >= 5 then
+			return w
+		end
+	end
+	for w in words do
+		if D.followers(w) >= 8 then
+			return w
+		end
+	end
+	return "바다"
+end
+
+-- Optional HTTP provider. The endpoint must answer JSON {"exists": true|false}. Requires
+-- HttpService.HttpEnabled and a server-side proxy that holds the dictionary API key (never put a
+-- key in a ModuleScript clients can see - this file is server-only).
+function D.httpProvider(urlPattern: string): { name: string, has: (string) -> boolean? }
+	return {
+		name = "http",
+		has = function(w: string): boolean?
+			local url = string.format(urlPattern, HttpService:UrlEncode(w))
+			local body = HttpService:GetAsync(url, true)
+			local data = HttpService:JSONDecode(body)
+			return type(data) == "table" and data.exists == true
+		end,
+	}
+end
+
+return D
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX0000001C"><Properties><string name="Name">WordList</string><ProtectedString name="Source"><![CDATA[--!strict
+-- WordList: built-in 끝말잇기 dictionary (common Korean nouns, 2-4 syllables, family friendly).
+-- Data only. WordDictionary.luau parses this string (one word per whitespace-separated token).
+-- Add words freely; duplicates are ignored by the parser. Extra providers (DataStore / HTTP) can be
+-- registered in WordDictionary without touching this file.
+return [[
+가게 가격 가계 가계부 가곡 가공 가교 가구 가극 가늠 가능성 가락 가랑비 가랑잎 가로 가로등 가로수 가루 가마 가마솥
+가면 가문 가뭄 가방 가사 가상 가설 가속 가속도 가수 가스 가슴 가습기 가시 가열 가오리 가요 가운 가운데 가위
+가을 가이드 가입 가입자 가자미 가장 가재 가전 가정 가족 가죽 가지 가짓수 가치 가해 가호 가훈 각국 각도 각본
+각설이 각설탕 각성 각오 각자 각종 각지 간격 간단 간식 간식거리 간이 간이역 간장 간접 간판 간편식 간호 간호사 갈대
+갈등 갈림길 갈매기 갈비 갈색 갈증 갈치 감각 감귤 감기 감나무 감독 감동 감사 감사장 감상 감속 감시 감자 감자칩
+감자튀김 감정 감정선 감초 감탄 갑옷 강가 강낭콩 강당 강도 강물 강변 강사 강산 강수량 강아지 강아지풀 강약 강연 강우량
+강원도 강의 강점 강조 강철 강화 개구리 개구쟁이 개나리 개념 개똥벌레 개미 개발 개방 개선 개성 개수 개업 개요 개울
+개인 개찰구 개척 개체 개펄 개학 개회식 객석 객실 갯바위 갯벌 거래 거름 거름망 거리 거리감 거미 거북 거북선 거북이
+거스름돈 거실 거울 거위 거인 거주 거짓말 거품 건강 건강식 건널목 건물 건배 건설 건의 건전지 건조 건축 걸레 검도
+검사 검색 검정 검토 겉옷 게시판 게임 게임기 겨울 겨울잠 겨자 격려 견과류 견본 견학 견해 결과 결단 결론 결말
+결석 결승 결승선 결실 결심 결정 결혼식 경계 경고 경관 경기 경기장 경단 경도 경력 경례 경로 경로당 경매 경보
+경비 경사 경영 경우 경작 경쟁 경제 경주 경찰 경청 경치 경험 계곡 계기 계단 계란 계량 계량기 계산 계산기
+계속 계승 계약 계절 계좌 계주 계획 고개 고객 고구마 고급 고기 고드름 고등어 고래 고려 고리 고모 고무 고무신
+고무줄 고물 고민 고백 고생 고속 고속도로 고속버스 고슴도치 고양이 고원 고원지대 고유 고장 고적대 고지 고집 고체 고추 고추장
+고춧가루 고층 고통 고향 곡선 곡식 곤충 골격 골대 골목 골짜기 골키퍼 골프 곰돌이 곰인형 곰팡이 공간 공감 공급 공기
+공기놀이 공깃돌 공동 공로 공룡 공립 공모 공부 공사 공상 공식 공연 공예 공원 공유 공장 공정 공주 공중전화 공지
+공책 공포 공학 공항 공해 공휴일 과거 과대 과목 과수원 과식 과일 과일가게 과일즙 과자 과장 과정 과제 과학 관객
+관계 관광 관광객 관광지 관람 관리 관문 관습 관심 관용 관절 관찰 광고 광물 광산 광선 광안리 광어 광장 광택
+괴물 교과 교과서 교대 교류 교문 교복 교사 교습 교실 교양 교육 교장 교재 교차로 교통 교환 구간 구경 구급상자
+구급차 구내 구도 구두 구름 구매 구멍 구명 구명조끼 구분 구상 구석 구성 구슬 구슬치기 구역 구입 구장 구조 구청
+구출 구호 구획 국가 국경 국기 국내 국립 국물 국민 국밥 국보 국수 국어 국자 국제 국토 국화 국화빵 군것질
+군고구마 군만두 군밤 굴뚝 굴삭기 궁궐 궁금증 궁전 권리 귀가 귀걸이 귀국 귀뚜라미 귀마개 귀여움 귀중품 규모 규칙 균형 귤껍질
+귤나무 그네 그늘 그릇 그림 그림일기 그림자 그림책 그물 극복 극장 근거 근면 근무 근육 근처 글씨 글자 글짓기 금고
+금메달 금반지 금붕어 금빛 금액 금요일 급류 급수 급식 급식실 급행 기간 기계 기계음 기관 기구 기념 기념품 기능 기대
+기도 기둥 기량 기러기 기록 기류 기름 기린 기립 기백 기법 기본 기부 기분 기사 기상 기상청 기색 기숙사 기술
+기슭 기압 기억 기여 기온 기온차 기와 기운 기원 기입 기자 기재 기적 기준 기지 기질 기차 기차역 기찻길 기체
+기초 기침 기타 기탁 기품 기풍 기한 기행문 기호 기회 기획 기후 길가 길목 길이 김밥 김장 김치 김치전 깃발
+깃털 까마귀 까치 깍두기 깔때기 깨소금 껍질 꼬리 꼬마 꼭두각시 꽃가루 꽃게 꽃게탕 꽃다발 꽃밭 꽃병 꽃사슴 꽃잎 꽃집 꿀단지
+꿀떡 꿀벌 꿈나무 꿈속 끈기 끈끈이 끝말 끼니 낌새 나그네 나들이 나라 나루 나무 나무꾼 나물 나뭇잎 나비 나사 나선
+나열 나이 나침반 나팔 나팔꽃 낙관 낙농 낙서 낙엽 낙원 낙지 낙지볶음 낙타 낙하산 낚시 낚싯대 난간 난로 난방 난이도
+난초 날개 날씨 날짜 남극 남녀 남동생 남매 남산 남자 남쪽 남해 납득 납작만두 낭독 낭떠러지 낮잠 내기 내년 내륙
+내리막 내막 내면 내복 내부 내신 내외 내용 내일 냄비 냄새 냉동 냉동실 냉면 냉방 냉수 냉장고 너구리 너울 널뛰기
+널빤지 넓이 네거리 네모 넥타이 노고 노동 노란색 노래 노래방 노래자랑 노력 노루 노른자 노면 노선 노을 노인 노점 노천
+노트 노화 노후 녹두 녹색 녹음 녹지 녹차 논리 논문 논밭 논술 논의 놀이 놀이공원 놀이기구 놀이터 농구 농구공 농도
+농부 농사 농산물 농어 농장 농촌 높이 뇌우 누각 누나 누룽지 누리 누적 눈길 눈꽃 눈동자 눈물 눈사람 눈송이 눈썰매
+눈썹 뉴스 느낌 늑대 늘보 늠름 능력 능률 능선 늦가을 늦여름 늦잠 다과 다도 다락방 다람쥐 다리 다리목 다리미 다방
+다섯 다수 다슬기 다시마 다양성 다음 다이빙 다짐 닥터 단결 단계 단골 단면 단무지 단상 단속 단순 단어 단열 단오
+단위 단점 단지 단짝 단체 단추 단팥빵 단편 단풍 단풍잎 단합 달걀 달님 달력 달리기 달맞이꽃 달빛 달팽이 닭갈비 담당
+담요 담임 담장 담쟁이 답례 답안 답장 당근 당나귀 당도 당번 당부 당신 당일 당첨 대가족 대각선 대감 대게 대관람차
+대구 대금 대기 대나무 대나무숲 대답 대들보 대략 대량 대롱 대륙 대리 대목 대문 대비 대사 대상 대신 대여 대열
+대왕 대응 대장 대전 대접 대조 대중 대지 대책 대처 대청소 대체 대추 대추나무 대칭 대표 대피 대학 대학교 대학생
+대한민국 대합실 대행 대형 대화 대회 더위 덕담 덕목 덕분 덕택 덩굴 데이지 도구 도깨비 도넛 도달 도덕 도라지 도로
+도로변 도마 도마뱀 도매 도면 도미 도서관 도시 도시락 도약 도열 도용 도움 도움말 도입 도자기 도장 도전 도착 도착지
+도토리 도표 도형 도화 도화지 독감 독립 독서 독수리 독자 독창 독해 독후감 돈가스 돌고래 돌다리 돌담 돌멩이 돌탑 돗자리
+동굴 동그라미 동그랑땡 동기 동네 동력 동료 동맥 동물 동반 동백꽃 동산 동상 동생 동선 동시 동아리 동요 동의 동작
+동전 동쪽 동참 동창 동치미 동포 동해 동화 돼지 된장 된장국 두각 두꺼비 두뇌 두더지 두레 두루미 두부 두유 둑길
+둔각 둘레길 둥지 뒤뜰 뒷마당 드라마 득점 득표 들깨 들꽃 들판 듬뿍 등교 등급 등나무 등대 등록 등불 등산 등산객
+등산로 등식 등장 등장인물 등지 디자인 딱따구리 딱지 딸기 땅거미 땅콩 떡갈비 떡국 떡볶이 떡잎 떼까마귀 똑딱단추 똑딱이 뚜껑 뚝배기
+뜨개질 뜰채 띠지 라디오 라면 라벨 라켓 레몬 레슬링 로봇 로켓 리듬 리모컨 리본 리코더 마감 마녀 마늘 마당 마당발
+마라톤 마력 마련 마루 마무리 마법 마법사 마비 마술 마스크 마을 마음 마중 마차 마침표 마카롱 막대 막대기 만남 만년필
+만능 만두 만두국 만료 만세 만약 만점 만족 만화 말씀 말투 말풍선 맛집 망고 망원경 망치 매년 매듭 매력 매미
+매실 매일 매장 매점 매체 매출 매표소 매화 맥박 맨발 머리 머리띠 머리카락 먹이 먼지 멍게 메뉴 메달 메뚜기 메아리
+멜로디 멧돼지 멧새 며느리 면담 면도 면적 면허 멸치 명단 명랑 명령 명물 명상 명성 명소 명언 명예 명절 명절날
+명칭 명태 명품 명함 명화 모과 모국 모기 모니터 모닥불 모델 모란 모래 모래밭 모래성 모범 모빌 모색 모서리 모순
+모습 모양 모임 모자 모집 모퉁이 모험 모형 목걸이 목도리 목련 목록 목소리 목수 목요일 목욕 목장 목재 목적 목적지
+목표 몰입 몸무게 몸짓 못자리 몽당연필 몽돌 묘기 묘목 무게 무관 무궁화 무기력 무늬 무늬목 무대 무료 무릉도원 무릎 무리
+무상 무선 무술 무심 무엇 무역 무용 무지개 무지개떡 무한 무화과 묵찌빠 문구 문단 문물 문방구 문법 문어 문어빵 문의
+문자 문장 문제 문패 문학 문화 물가 물감 물개 물결 물고기 물놀이 물량 물레방아 물리 물방울 물병 물수건 물안경 물오리
+물자 물질 물티슈 뮤지컬 미각 미끄럼틀 미나리 미남 미녀 미니 미덕 미래 미로 미묘 미성년 미세 미션 미소 미숙 미술
+미술관 미숫가루 미역 미용실 미지 미풍 민간 민들레 민물고기 민박 민속 민요 믿음 밀가루 밀도 밀물 밀짚모자 바구니 바나나 바늘
+바다 바닥 바닷가 바닷물 바닷바람 바둑 바람 바람개비 바위 바이올린 바지 바지락 바퀴 박람회 박물관 박사 박수 박자 박쥐 박하사탕
+반납 반달 반대 반도 반딧불이 반려견 반복 반성 반영 반응 반장 반주 반죽 반지 반찬 반팔 받침 발가락 발견 발달
+발레 발명 발상 발생 발송 발언 발육 발음 발자국 발전 발판 발표 발효 밤나무 밤송이 밤하늘 밥그릇 밥맛 밥상 밥솥
+밥알 방도 방문 방법 방석 방송 방수 방식 방아깨비 방안 방어 방울 방침 방패연 방학 방향 밭고랑 밭농사 밭두렁 밭일
+배경 배구 배꼽 배낭 배달 배당 배드민턴 배려 배롱나무 배열 배우 배추 배치 백과사전 백설기 백조 백화점 뱀장어 버들피리 버섯
+버스 버튼 번개 번역 번호 벌레 벌집 범선 범위 법규 법률 법원 법정 법칙 벚꽃 베개 벨소리 벼루 벼이삭 벽돌
+벽지 변경 변동 변화 별명 별빛 별자리 병아리 병원 병행 보건실 보고서 보관 보급 보너스 보답 보도 보람 보름달 보리
+보리차 보물 보물섬 보상 보석 보수 보온 보완 보유 보자기 보장 보정 보조 보존 보충 보통 보험 보호 복도 복숭아
+복습 복어 복장 볶음밥 본능 본보기 본부 본성 본인 볼링 봄나물 봉사 봉선화 봉우리 봉지 봉투 부담 부두 부류 부모
+부분 부산 부엉이 부엌 부여 부위 부자 부족 부채 부채꼴 부츠 부침개 부탁 부품 부피 북극 북극곰 북쪽 분량 분류
+분리 분석 분수 분야 분위기 분필 분홍색 불꽃 불꽃놀이 불빛 불편 붓글씨 붕어 붕어빵 블록 비결 비교 비교적 비누 비단
+비둘기 비례 비밀 비빔국수 비빔밥 비상 비옷 비용 비유 비율 비자 비중 비타민 비판 비행기 빈대떡 빈도 빗방울 빗자루 빙수
+빙어 빙판 빙하 빛깔 빛줄기 빨래 빵집 뻐꾸기 뽕나무 뿌리 사거리 사계절 사고력 사과 사과나무 사냥개 사다리 사람 사랑 사례
+사료 사막 사명 사무실 사물 사발 사방 사상 사슴 사슴벌레 사실 사업 사연 사용 사원 사이 사인 사자 사장 사전
+사정 사진 사진기 사촌 사춘기 사탕 사투리 사항 사회 사회자 산골 산길 산꼭대기 산들바람 산딸기 산맥 산물 산불 산새 산소
+산수 산수유 산업 산장 산책 산출 산타 산호 살구 살얼음 삼각형 삼겹살 삼계탕 삼촌 상관 상담 상대 상봉 상상 상세
+상승 상식 상어 상업 상의 상인 상자 상장 상점 상징 상처 상추 상쾌함 상태 상품 상하 상황 새벽 새싹 새우
+새해 색깔 색연필 색종이 생각 생강 생강차 생략 생명 생물 생산 생선 생수 생일 생쥐 생활 서랍 서론 서류 서명
+서비스 서열 서예 서울 서점 서쪽 석류 석양 선글라스 선두 선물 선박 선반 선배 선생님 선수 선율 선의 선인장 선장
+선정 선착순 선택 선풍기 선행 설거지 설계 설날 설득 설명 설비 설탕 섬진강 섭취 성격 성공 성능 성벽 성분 성실
+성의 성장 성적 성질 성탄절 성향 세계 세기 세대 세력 세모 세배 세부 세상 세수 세월 세탁기 소감 소개 소규모
+소금 소나무 소녀 소년 소득 소라 소라게 소리 소망 소매 소멸 소문 소방관 소방차 소비 소설 소수 소시지 소식 소양
+소원 소유 소재 소질 소통 소포 소풍 소화기 속담 속도 손가락 손님 손뼉 손수건 손실 손잡이 손톱 솔바람 솔방울 솔잎
+솔잎차 솜사탕 송사리 송아지 송이 송이버섯 송편 솥뚜껑 쇠고기 쇠붙이 수건 수국 수도 수량 수레 수리 수명 수박 수비 수상
+수송 수수깡 수술 수식 수업 수염 수영 수요일 수용 수입 수저 수제비 수족관 수준 수증기 수집 수채화 수첩 수출 수치
+수평선 수프 수학 수화기 수확 숙박 숙소 숙제 순간 순두부 순발력 순서 순위 순환 숟가락 술래 술래잡기 숨바꼭질 숫자 숭늉
+숲속 슈퍼 스웨터 스케치북 스키 스티커 스포츠 슬기 슬리퍼 습관 습도 승객 승리 승부 시각 시간 시계 시골 시금치 시기
+시냇물 시도 시력 시루떡 시민 시선 시설 시소 시작 시장 시점 시청 시합 시행 시험 식단 식당 식량 식료품 식물
+식빵 식사 식탁 식혜 신고 신기록 신념 신뢰 신문 신발 신비 신선 신속 신용 신입 신중 신청 신호 신호등 실감
+실기 실내 실내외 실내화 실력 실력자 실수 실습 실외 실용 실재 실제 실천 실체 실험 심부름 심사 심신 심장 심판
+싱크대 쌍둥이 썰매 쑥떡 쓰레기 씀씀이 씨름 씨앗 아기 아빠 아이 아저씨 아줌마 아침 아카시아 아파트 악기 악보 악어 안개
+안건 안경 안내 안녕 안마 안방 안부 안전 안정 안테나 알람 알약 압력 앙금 앞치마 애벌레 애정 애착 액자 액체
+앵두 앵무새 야간 야경 야광 야구 야영 야자수 야채 약과 약국 약도 약속 약점 양떼 양말 양배추 양보 양복 양산
+양상 양식 양심 양육 양초 양치 양파 어감 어깨 어른 어린이 어머니 어묵 어부 어조 어항 어휘 억새 억양 언급
+언니 언덕 언어 얼굴 얼룩말 얼음 엄마 업무 업적 엉덩이 에너지 여가 여객선 여건 여권 여기 여론 여름 여부 여왕
+여우 여유 여자 여정 여행 역량 역방향 역사 역할 연결 연계 연관 연구 연극 연근 연기 연꽃 연날리기 연락 연령
+연말 연못 연상 연세 연속 연습 연어 연장 연주 연출 연필 연휴 열기 열람 열량 열매 열무 열쇠 열정 열차
+염소 염원 엽서 엿가락 영상 영수증 영양 영어 영업 영역 영웅 영원 영토 영하 영향 영화 예감 예고 예방 예보
+예산 예상 예술 예시 예약 예의 예절 예측 오곡밥 오늘 오답 오두막 오디 오락 오렌지 오리 오색 오솔길 오아시스 오이
+오전 오징어 오차 오후 옥상 옥수수 옥잠화 온기 온도 온정 온천 올림픽 옷걸이 옷장 와이셔츠 완두콩 완성 왕관 왕복 왕자
+외국 외모 외부 외출 외투 요구르트 요금 요리 요리사 요소 요약 요일 요정 요청 요트 욕실 용건 용기 용도 용돈
+용량 용수철 용어 우리 우물 우산 우선 우세 우수 우승 우엉 우연 우유 우정 우주 우체국 우편 우표 운동 운동장
+운동화 운반 운영 운율 운행 울타리 움직임 움집 웃음 웅덩이 원고 원동력 원두막 원래 원료 원리 원본 원숭이 원인 원칙
+원피스 원형 월급 월드컵 월요일 위기 위로 위생 위성 위주 위치 유람선 유래 유령 유리 유리병 유머 유물 유용 유익
+유자 유적 유지 유채꽃 유치원 유행 유행가 유형 육각형 육교 육상 육성 육아 육지 윤곽 율동 율무 융통성 은하수 은행
+은행잎 음계 음량 음료 음성 음식 음악 음표 응답 응용 응원 의견 의도 의무 의미 의사 의식 의욕 의자 의존
+이동 이력 이론 이름 이마 이면 이모 이발소 이변 이불 이사 이삿짐 이상 이슬 이야기 이용 이웃 이유 이익 이해
+익살 인간 인기 인도 인물 인사 인삼 인상 인생 인식 인원 인절미 인정 인증 인터넷 인형 일과 일기 일등 일몰
+일반 일부 일상 일손 일요일 일정 일정표 일출 일치 임금 임대 임무 임시 입구 입금 입력 입장 입체 입학 잉어
+잎사귀 자갈 자격 자극 자동차 자두 자두나무 자라 자랑 자료 자리 자막 자몽 자물쇠 자부심 자석 자세 자신 자연 자원
+자유 자율 자전거 자체 자취 자판기 작가 작년 작동 작업 작용 작품 잔고 잔디 잔치 잠옷 잠자리 잠재력 잡지 잡채
+장갑 장구 장기 장난감 장날 장독대 장마 장면 장미 장벽 장비 장소 장수 장어 장점 장학금 장화 재능 재료 재미
+재생 재주 재채기 재활용 잼병 쟁반 저금 저금통 저녁 저장 저축 적금 적성 적응 전개 전구 전국 전기 전달 전등
+전략 전망 전망대 전문 전복 전부 전설 전시 전시회 전원 전진 전철 전체 전통 전화 전환 절기 절대 절반 절벽
+절약 절정 절차 절친 점검 점수 점심 점원 접근 접수 젓가락 정규 정답 정도 정돈 정류장 정리 정면 정보 정상
+정성 정숙 정식 정신 정오 정원 정의 정자 정지 정체 제공 제기 제도 제목 제비 제비꽃 제안 제약 제외 제자
+제작 제주도 제출 제품 제한 조각 조개 조건 조금 조기 조끼 조랭이떡 조류 조립 조명 조사 조수 조약 조약돌 조언
+조용 조절 조정 조직 조카 조화 족자 존중 졸업 종류 종소리 종이 종합 좌석 좌우 주기 주꾸미 주년 주말 주머니
+주문 주민 주방 주변 주사위 주소 주스 주요 주위 주의 주인 주장 주전자 주제 주차장 주황색 죽순 준비 준수 줄넘기
+중간 중심 중앙 중요성 중학교 쥐불놀이 쥐포 즐거움 증가 증거 증기 증명 지갑 지게 지구 지구본 지느러미 지능 지도 지렁이
+지름길 지붕 지식 지역 지우개 지원 지점 지정 지출 지표 지하철 지혜 직선 직업 직원 직접 진단 진달래 진달래꽃 진도
+진로 진주 진행 진화 진흙 질문 질서 짐꾼 집게 집안 집중 집합 징검다리 징조 짚신 짜장면 짝꿍 짬뽕 쪽문 쪽배
+쪽지 찌개 차도 차량 차례 차선 차양 차원 차이 차트 차표 착각 찬물 찰떡 찰흙 참가 참고 참깨 참나무 참새
+참새우 참여 참외 참치 찹쌀떡 창가 창고 창문 창의력 창작 창조 채널 채소 채택 책가방 책상 책임 책장 처리 처방
+처음 척도 척박 척추 천둥 천사 천연 천장 철도 철새 철저 첨가 첨단 첫눈 청결 청바지 청소 청소년 청포도 체계
+체력 체온 체육 체조 체험 초과 초대 초록 초밥 초보 초원 초인종 초점 초코칩 초콜릿 촌락 촌수 촛불 총명 최고
+최선 추가 추리 추석 추어탕 추억 추진 추천 축구 축소 축제 축하 출구 출력 출발 출석 출신 출처 춤꾼 충분
+충전 충족 취미 취향 측정 층계 치과 치료 치마 치약 치즈 친구 친절 친척 칠면조 칠판 칡뿌리 침대 침착 칫솔
+칭찬 칭호 카네이션 카드 카메라 칼국수 캠핑 커튼 커피 컬러 컴퓨터 컵라면 코끼리 코스모스 콧노래 콩국수 콩나물 콩떡 퀴즈 크레파스
+큰절 키위 타당 타조 탁구 탁자 탄력 탄산수 탄생 탐구 탐험 탑승 탕수육 탕약 태도 태양 태풍 택시 탬버린 탱자
+터널 털실 텃밭 텐트 토끼 토란 토론 토마토 토요일 톱니 통계 통과 통닭 통로 통신 통일 통조림 통합 투명 투수
+투자 튀김 튤립 트럭 특급 특기 특별 특성 특징 틀니 틈새 티셔츠 파도 파랑 파리 파마 파악 파인애플 파전 파티
+판단 판매 판사 팔꿈치 팝콘 팥빙수 팥죽 패배 패션 팬케이크 팽이 퍼즐 펭귄 편견 편리 편백 편안 편의 편지 평가
+평균 평소 평일 평화 포기 포도 포도나무 포장 포크 포함 폭포 표고버섯 표면 표범 표본 표시 표정 표지판 표현 풀밭
+품격 품목 품앗이 품위 품종 품질 풍경 풍부 풍선 풍차 프라이팬 프린터 피라미 피로 피리 피아노 필수 필요 필통 핑계
+하강 하늘 하루 하마 학교 학기 학년 학생 학습 학업 학원 한계 한과 한글 한도 한복 할머니 할아버지 할인 함박눈
+합격 합계 합리 합창 항구 항목 해결 해님 해답 해당화 해바라기 해변 해삼 해석 해설 해수욕장 해파리 핵심 햄버거 햇빛
+햇살 행동 행복 행사 행운 향기 향상 허가 허리 허브 허용 험로 헬멧 현관 현실 현장 현재 협동 협력 형식
+형제 형태 혜성 혜택 호기심 호두 호떡 호랑이 호박 호박죽 호수 호흡 혹등고래 혼합 홍보 홍시 홍합 화면 화분 화장실
+화채 화합 확대 확률 확성기 확인 확장 환경 활기 활동 활력 활어 활용 황금 황사 황소 황태 회복 회색 회오리
+회원 회의 회전목마 획수 효과 효도 효율 후배 후식 후원 훈련 훈련장 훈장 휘파람 휴가 휴식 휴지 흐름 흑미 흑설탕
+흙탕물 흡수 흥미 희망 흰색
+]]
+]]></ProtectedString></Properties></Item></Item></Item></roblox>

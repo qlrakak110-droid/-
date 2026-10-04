@@ -1,0 +1,29 @@
+{
+  "name": "GwangalliMiniGames",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "GwangalliMiniGamesShared": { "$path": "src/ReplicatedStorage/GwangalliMiniGamesShared" }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "GwangalliGameplay": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "MiniGames": { "$path": "src/ServerScriptService/GwangalliGameplay/MiniGames" }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "GwangalliMiniGames": { "$path": "src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames" }
+      }
+    }
+  }
+}

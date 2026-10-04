@@ -1,0 +1,2998 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" version="4"><Item class="LocalScript" referent="RBX00000035"><Properties><string name="Name">GwangalliMiniGames</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames (LocalScript, StarterPlayerScripts): the player's side of the 광안리 해변 미니게임
+-- 거리 (server: ServerScriptService.GwangalliGameplay.MiniGames, contract: ReplicatedStorage.
+-- GwangalliMiniGamesShared).
+--   Hud             station buttons while walking, stake / friend pickers, challenge popups, records
+--   Stage           the match screen (VS bar, timer, countdown, result, rematch / forfeit)
+--   CameraDirector  camera onto the table and back, movement lock while playing
+--   Fx              sounds, hand emotes, speech bubbles
+--   <Game>/<Game>Client  one module per game: mount(ctx) -> { update, game, event, destroy }
+--   Omok/OmokBoards draws the stones of EVERY omok table near you (passers-by watch real games)
+-- Nothing here decides money or results; the server sends views and this script draws them.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+
+local function need(name: string): any
+	local m = ReplicatedStorage:WaitForChild(name, 60)
+	if not m or not m:IsA("ModuleScript") then
+		warn("[MiniGames] ReplicatedStorage." .. name .. " missing; minigames disabled on this client")
+		return nil
+	end
+	return require(m) :: any
+end
+
+local MS = need("GwangalliMiniGamesShared")
+local K = need("GwangalliUI")
+if not MS or not K then
+	return
+end
+
+local Net = require(script:WaitForChild("Net")) :: any
+local Fx = require(script:WaitForChild("Fx")) :: any
+local Cam = require(script:WaitForChild("CameraDirector")) :: any
+local Hud = require(script:WaitForChild("Hud")) :: any
+local Stage = require(script:WaitForChild("Stage")) :: any
+
+local CLIENTS = {
+	omok = { "Omok", "OmokClient" },
+	wordchain = { "WordChain", "WordChainClient" },
+	rps = { "RockPaperScissors", "RpsClient" },
+	reaction = { "ReactionGame", "ReactionClient" },
+	memory = { "MemoryGame", "MemoryClient" },
+	numberguess = { "NumberGuess", "NumberGuessClient" },
+	timing = { "TimingGame", "TimingClient" },
+	quiz = { "Quiz", "QuizClient" },
+}
+local clients: { [string]: any } = {}
+for id, path in CLIENTS do
+	local ok, res = pcall(function()
+		return require(script:WaitForChild(path[1]):WaitForChild(path[2]))
+	end)
+	if ok then
+		clients[id] = res
+	else
+		warn("[MiniGames] client " .. id .. " failed: " .. tostring(res))
+	end
+end
+
+if not Net.init(MS) then
+	warn("[MiniGames] remotes missing (is the MiniGames feature module enabled on the server?)")
+	return
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "GwangalliMiniGames"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 8
+pcall(function()
+	(gui :: any).ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+end)
+gui.Parent = player:WaitForChild("PlayerGui")
+
+Fx.init()
+Stage.init(K, MS, Net, Fx, gui)
+Hud.init(K, MS, Net, gui)
+
+local boards = script:WaitForChild("Omok"):FindFirstChild("OmokBoards")
+if boards then
+	local ok, res = pcall(require, boards)
+	if ok then
+		res.start(MS, Fx)
+	else
+		warn("[MiniGames] OmokBoards: " .. tostring(res))
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- the current match
+-------------------------------------------------------------------------------------------------
+local current: any = nil -- { id, view, ctrl, station }
+
+local function stationModel(id: string): Model?
+	local f = Workspace:FindFirstChild(MS.FolderName)
+	local m = f and f:FindFirstChild(id)
+	return if m and m:IsA("Model") then m else nil
+end
+
+local function closeCurrent()
+	if not current then
+		return
+	end
+	local c = current
+	current = nil
+	if c.ctrl and c.ctrl.destroy then
+		pcall(c.ctrl.destroy)
+	end
+	Stage.hide()
+	Cam.release()
+	Hud.setInMatch(false)
+end
+
+local function onMatch(view: any)
+	if type(view) ~= "table" then
+		return
+	end
+	if current and current.id ~= view.id then
+		local keep = current.station == view.station and view.you > 0
+		if current.ctrl and current.ctrl.destroy then
+			pcall(current.ctrl.destroy)
+		end
+		current = nil
+		Stage.hide()
+		if not keep then
+			Cam.release()
+		end
+	end
+	local model = stationModel(view.station)
+	if not current then
+		local client = clients[view.game]
+		current = { id = view.id, view = view, station = view.station, model = model, ctrl = nil }
+		Hud.setInMatch(true)
+		Stage.show(view)
+		if client then
+			local ok, ctrl = pcall(client.mount, {
+				K = K,
+				MS = MS,
+				Net = Net,
+				Fx = Fx,
+				Stage = Stage,
+				Cam = Cam,
+				panel = Stage.panel,
+				gui = gui,
+				view = view,
+				model = model,
+				you = view.you,
+				matchId = view.id,
+			})
+			if ok then
+				current.ctrl = ctrl
+			else
+				warn("[MiniGames] mount " .. view.game .. ": " .. tostring(ctrl))
+			end
+		end
+		local hint = if view.you == 1 then "CamA" elseif view.you == 2 then "CamB" else "CamSpec"
+		Cam.focus(model, hint)
+		if view.you > 0 then
+			Cam.lockControls(true)
+		end
+	end
+	current.view = view
+	Stage.show(view)
+	if current.ctrl and current.ctrl.update then
+		pcall(current.ctrl.update, view)
+	end
+	if view.g and current.ctrl and current.ctrl.game then
+		pcall(current.ctrl.game, view.g)
+	end
+end
+
+Net.on(MS.Kinds.match, onMatch)
+Net.on(MS.Kinds.game, function(p: any)
+	if current and p and p.id == current.id and current.ctrl and current.ctrl.game then
+		pcall(current.ctrl.game, p.g)
+	end
+end)
+Net.on(MS.Kinds.event, function(p: any)
+	if type(p) ~= "table" then
+		return
+	end
+	-- world-level: a hand emote on a player character (participants and passers-by see it)
+	if p.e == "emote" and type(p.userId) == "number" then
+		Fx.emote(Fx.characterOf(p.userId), p.name)
+	end
+	if current and p.id == current.id and current.ctrl and current.ctrl.event then
+		pcall(current.ctrl.event, p)
+	end
+end)
+Net.on(MS.Kinds.closed, function(p: any)
+	if not current then
+		return
+	end
+	if p and p.id ~= 0 and p.id ~= current.id then
+		return
+	end
+	if p and p.id == 0 then
+		return -- stood up from a waiting seat (no match screen was open)
+	end
+	closeCurrent()
+end)
+Net.on(MS.Kinds.toast, function(p: any)
+	if type(p) == "table" then
+		K.toast({ kind = p.kind or "info", title = p.title or "", body = p.body or "" })
+	end
+end)
+Net.on(MS.Kinds.say, function(p: any)
+	if type(p) == "table" and typeof(p.part) == "Instance" and p.part:IsA("BasePart") and type(p.text) == "string" then
+		Fx.bubble(p.part, p.text, p.dur)
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	-- a respawn ends any match on the server; make sure the camera comes back
+	closeCurrent()
+end)
+
+print("[MiniGames] client ready")
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX0000001F"><Properties><string name="Name">CameraDirector</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames/CameraDirector: the minigame camera (client only).
+--   focus(station, hint)  eases the camera from wherever it is to the station's camera hint part
+--                         (CamA / CamB = over your own shoulder onto the table, CamSpec = the
+--                         spectators' view from the walk) and holds it there (Scriptable) - the bay,
+--                         the bridge and the people around stay in the shot
+--   release()             eases back to the player's normal camera
+--   lockControls(on)      movement off while you sit at a table / stand at a machine (the server also
+--                         blocks jumping); restored on release
+-- Players can still look around a little: dragging (touch / right mouse) orbits the hint view
+-- by up to +-25 degrees, so the scene never feels frozen.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Cam = {}
+
+local player = Players.LocalPlayer
+local owning = false
+local base: CFrame? = nil
+local focusPos: Vector3? = nil
+local yawOff, pitchOff = 0, 0
+local conn: RBXScriptConnection? = nil
+local dragConn: RBXScriptConnection? = nil
+local controlsOff = false
+local prevType: Enum.CameraType? = nil
+local tween: Tween? = nil
+
+local function controls(): any
+	local ok, c = pcall(function()
+		local ps = player:WaitForChild("PlayerScripts", 2)
+		local pm = ps and ps:FindFirstChild("PlayerModule")
+		if not pm then
+			return nil
+		end
+		return (require(pm :: ModuleScript) :: any):GetControls()
+	end)
+	return if ok then c else nil
+end
+
+function Cam.lockControls(on: boolean)
+	if on == controlsOff then
+		return
+	end
+	controlsOff = on
+	local c = controls()
+	if c then
+		pcall(function()
+			if on then
+				c:Disable()
+			else
+				c:Enable()
+			end
+		end)
+	end
+end
+
+function Cam.owning(): boolean
+	return owning
+end
+
+local function apply()
+	local cam = Workspace.CurrentCamera
+	if not cam or not base or not focusPos then
+		return
+	end
+	if tween and tween.PlaybackState == Enum.PlaybackState.Playing then
+		return
+	end
+	local b = base :: CFrame
+	local f = focusPos :: Vector3
+	local offset = b.Position - f
+	local rotated = CFrame.Angles(0, math.rad(yawOff), 0) * offset
+	local right = rotated:Cross(Vector3.new(0, 1, 0))
+	if right.Magnitude > 1e-3 then
+		rotated = CFrame.fromAxisAngle(right.Unit, math.rad(pitchOff)) * rotated
+	end
+	cam.CFrame = CFrame.lookAt(f + rotated, f)
+end
+
+function Cam.focus(model: Model?, hintName: string)
+	if not model then
+		return
+	end
+	local hint = model:FindFirstChild(hintName)
+	local focus = model:FindFirstChild("Focus")
+	local cam = Workspace.CurrentCamera
+	if not hint or not hint:IsA("BasePart") or not cam then
+		return
+	end
+	if not owning then
+		prevType = cam.CameraType
+	end
+	owning = true
+	base = hint.CFrame
+	focusPos = if focus and focus:IsA("BasePart") then focus.Position else hint.CFrame.Position + hint.CFrame.LookVector * 8
+	yawOff, pitchOff = 0, 0
+	cam.CameraType = Enum.CameraType.Scriptable
+	if tween then
+		tween:Cancel()
+	end
+	local t = TweenService:Create(cam, TweenInfo.new(1.1, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { CFrame = CFrame.lookAt(base.Position, focusPos :: Vector3) })
+	tween = t
+	t:Play()
+	if not conn then
+		conn = RunService.RenderStepped:Connect(function()
+			if owning then
+				apply()
+			end
+		end)
+	end
+	if not dragConn then
+		dragConn = UserInputService.InputChanged:Connect(function(input, processed)
+			if not owning or processed then
+				return
+			end
+			local drag = input.UserInputType == Enum.UserInputType.Touch
+				or (input.UserInputType == Enum.UserInputType.MouseMovement and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2))
+			if drag then
+				yawOff = math.clamp(yawOff - input.Delta.X * 0.15, -25, 25)
+				pitchOff = math.clamp(pitchOff - input.Delta.Y * 0.1, -12, 12)
+			end
+		end)
+	end
+end
+
+function Cam.release()
+	if not owning then
+		return
+	end
+	owning = false
+	base = nil
+	focusPos = nil
+	if conn then
+		conn:Disconnect()
+		conn = nil
+	end
+	if dragConn then
+		dragConn:Disconnect()
+		dragConn = nil
+	end
+	if tween then
+		tween:Cancel()
+		tween = nil
+	end
+	local cam = Workspace.CurrentCamera
+	if cam then
+		cam.CameraType = if prevType and prevType ~= Enum.CameraType.Scriptable then prevType else Enum.CameraType.Custom
+		local char = player.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if hum then
+			cam.CameraSubject = hum
+		end
+	end
+	Cam.lockControls(false)
+end
+
+return Cam
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000020"><Properties><string name="Name">Fx</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames/Fx: what the minigames look and sound like in the world (client only).
+--   * sounds: built-in rbxasset samples only (no uploads), pitched per use (the 딱 of a stone, ticks,
+--     buzzers, cheers), positional when a part is given.
+--   * hand emotes on any character (yours, other players', NPC rigs) through GwangalliAnim's rig
+--     controller: the minigame emotes are registered into Anim.EMOTES (mg_place = reach to the board
+--     and put a stone down, mg_rps_pump = fist pumps on "가위바위보", mg_rps_show = the hand held out,
+--     mg_press = a quick button press, mg_fist = a small victory fist), stepped every frame while
+--     they play.
+--   * speech bubbles over heads (accepted words, NPC lines) and the hand glyph (✊ ✋ ✌️) over a hand.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local Fx = {}
+
+local Anim: any = nil
+local active: { [Model]: number } = {} -- model -> os.clock() until which its controller is stepped
+
+local SOUNDS = {
+	stone = { id = "rbxasset://sounds/clickfast.wav", vol = 0.9, speed = 0.62 },
+	tick = { id = "rbxasset://sounds/clickfast.wav", vol = 0.35, speed = 1.5 },
+	go = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.6, speed = 1.0 },
+	buzz = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.55, speed = 0.55 },
+	win = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.6, speed = 1.35 },
+	lose = { id = "rbxasset://sounds/electronicpingshort.wav", vol = 0.45, speed = 0.7 },
+	whoosh = { id = "rbxasset://sounds/swoosh.wav", vol = 0.35, speed = 1.2 },
+	pop = { id = "rbxasset://sounds/clickfast.wav", vol = 0.5, speed = 1.0 },
+}
+
+local function setJ(out: any, j: string, p: number, y: number, r: number)
+	local e = out[j]
+	if not e then
+		e = { 0, 0, 0, 0, 0, 0 }
+		out[j] = e
+	end
+	e[1] += p
+	e[2] += y
+	e[3] += r
+end
+
+local function env(u: number): number
+	if u < 0.15 then
+		return u / 0.15
+	elseif u > 0.8 then
+		return math.max(0, (1 - u) / 0.2)
+	end
+	return 1
+end
+
+local function registerEmotes()
+	if not Anim or not Anim.EMOTES then
+		return
+	end
+	-- reach over the table, put the stone down with a little wrist snap, bring the hand back
+	Anim.EMOTES.mg_place = { 1.0, function(u: number, out: any)
+		local reach = math.clamp(u / 0.35, 0, 1) * math.clamp((1 - u) / 0.35, 0, 1)
+		local snap = if u > 0.32 and u < 0.48 then math.sin((u - 0.32) / 0.16 * math.pi) else 0
+		setJ(out, "RightShoulder", 62 * reach, 0, -10 * reach)
+		setJ(out, "RightElbow", 18 * reach, 0, 0)
+		setJ(out, "RightWrist", -25 * snap, 0, 0)
+		setJ(out, "Waist", -10 * reach, 0, 0)
+		setJ(out, "Neck", -14 * reach, 0, 0)
+	end }
+	-- 가위, 바위, 보! three pumps of the fist
+	Anim.EMOTES.mg_rps_pump = { 3.0, function(u: number, out: any)
+		local e = env(u)
+		local pump = math.abs(math.sin(u * math.pi * 3))
+		setJ(out, "RightShoulder", (40 + 40 * pump) * e, 0, -8 * e)
+		setJ(out, "RightElbow", (90 - 30 * pump) * e, 0, 0)
+		setJ(out, "Neck", -6 * e, 0, 0)
+	end }
+	Anim.EMOTES.mg_rps_show = { 1.8, function(u: number, out: any)
+		local e = env(u)
+		setJ(out, "RightShoulder", 82 * e, 0, -4 * e)
+		setJ(out, "RightElbow", 10 * e, 0, 0)
+		setJ(out, "Waist", -6 * e, 0, 0)
+	end }
+	Anim.EMOTES.mg_press = { 0.6, function(u: number, out: any)
+		local down = math.sin(math.clamp(u, 0, 1) * math.pi)
+		setJ(out, "RightShoulder", (40 + 20 * down), 0, -6)
+		setJ(out, "RightElbow", (50 - 30 * down), 0, 0)
+		setJ(out, "RightWrist", -20 * down, 0, 0)
+	end }
+	Anim.EMOTES.mg_fist = { 1.2, function(u: number, out: any)
+		local e = env(u)
+		setJ(out, "RightShoulder", 150 * e, 0, 10 * e)
+		setJ(out, "RightElbow", 40 * e, 0, 0)
+		setJ(out, "Neck", 10 * e, 0, 0)
+	end }
+end
+
+function Fx.init()
+	local m = ReplicatedStorage:FindFirstChild("GwangalliAnim")
+	if m and m:IsA("ModuleScript") then
+		local ok, res = pcall(require, m)
+		if ok then
+			Anim = res
+		end
+	end
+	registerEmotes()
+	RunService.RenderStepped:Connect(function()
+		if not Anim then
+			return
+		end
+		local now = os.clock()
+		for model, untilT in active do
+			if now > untilT or not model.Parent then
+				active[model] = nil
+			else
+				pcall(function()
+					Anim.rig(model):step()
+				end)
+			end
+		end
+	end)
+end
+
+function Fx.sound(kind: string, at: BasePart?, volume: number?)
+	local s = SOUNDS[kind]
+	if not s then
+		return
+	end
+	local snd = Instance.new("Sound")
+	snd.SoundId = s.id
+	snd.Volume = (volume or 1) * s.vol
+	snd.PlaybackSpeed = s.speed
+	if at then
+		snd.RollOffMaxDistance = 60
+		snd.RollOffMinDistance = 6
+		snd.Parent = at
+	else
+		snd.Parent = Workspace.CurrentCamera or Workspace
+	end
+	snd:Play()
+	task.delay(3, function()
+		snd:Destroy()
+	end)
+end
+
+-- One-shot emote on a character / rig (players are animated by this client; NPC rigs by
+-- GwangalliNPCClient through their NpcEmote attribute, so they never come through here).
+function Fx.emote(model: Model?, name: string)
+	if not Anim or not model or not model.Parent then
+		return
+	end
+	local ok, dur = pcall(function()
+		return Anim.rig(model):emote(name)
+	end)
+	if ok and type(dur) == "number" and dur > 0 then
+		active[model] = math.max(active[model] or 0, os.clock() + dur + 0.3)
+	end
+end
+
+function Fx.characterOf(userId: number): Model?
+	local p = Players:GetPlayerByUserId(userId)
+	return p and p.Character
+end
+
+-------------------------------------------------------------------------------------------------
+-- bubbles
+-------------------------------------------------------------------------------------------------
+local bubbles: { [Instance]: BillboardGui } = {}
+
+function Fx.bubble(head: BasePart?, text: string, dur: number?)
+	if not head or not head.Parent then
+		return
+	end
+	local old = bubbles[head]
+	if old then
+		old:Destroy()
+	end
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "MiniGameBubble"
+	bb.Adornee = head
+	bb.Size = UDim2.fromOffset(220, 56)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 3.1, 0)
+	bb.MaxDistance = 70
+	bb.LightInfluence = 0
+	bb.AlwaysOnTop = false
+	local box = Instance.new("TextLabel")
+	box.AnchorPoint = Vector2.new(0.5, 1)
+	box.Position = UDim2.fromScale(0.5, 1)
+	box.AutomaticSize = Enum.AutomaticSize.X
+	box.Size = UDim2.fromOffset(0, 40)
+	box.BackgroundColor3 = Color3.fromRGB(250, 250, 252)
+	box.BackgroundTransparency = 0.04
+	box.TextColor3 = Color3.fromRGB(20, 24, 36)
+	box.Font = Enum.Font.GothamBold
+	box.TextSize = 20
+	box.Text = text
+	box.Parent = bb
+	local pad = Instance.new("UIPadding")
+	pad.PaddingLeft = UDim.new(0, 14)
+	pad.PaddingRight = UDim.new(0, 14)
+	pad.Parent = box
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, 14)
+	c.Parent = box
+	local sc = Instance.new("UIScale")
+	sc.Scale = 0.6
+	sc.Parent = box
+	bb.Parent = head
+	bubbles[head] = bb
+	TweenService:Create(sc, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	task.delay(dur or 3, function()
+		if bubbles[head] == bb then
+			bubbles[head] = nil
+			local t = TweenService:Create(box, TweenInfo.new(0.25), { BackgroundTransparency = 1, TextTransparency = 1 })
+			t:Play()
+			t.Completed:Wait()
+			bb:Destroy()
+		end
+	end)
+end
+
+-- ✊ ✋ ✌️ over a character's right hand for a moment
+local HANDS = { "✊", "✋", "✌️" }
+function Fx.hand(model: Model?, hand: number, dur: number?)
+	if not model then
+		return
+	end
+	local part = model:FindFirstChild("RightHand") or model:FindFirstChild("Right Arm") or model:FindFirstChild("Head")
+	if not part or not part:IsA("BasePart") then
+		return
+	end
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "MiniGameHand"
+	bb.Adornee = part
+	bb.Size = UDim2.fromOffset(90, 90)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 1.2, 0)
+	bb.MaxDistance = 80
+	bb.LightInfluence = 0
+	bb.AlwaysOnTop = true
+	local l = Instance.new("TextLabel")
+	l.BackgroundTransparency = 1
+	l.Size = UDim2.fromScale(1, 1)
+	l.TextScaled = true
+	l.Text = HANDS[hand] or "?"
+	l.Parent = bb
+	local sc = Instance.new("UIScale")
+	sc.Scale = 0.2
+	sc.Parent = l
+	bb.Parent = part
+	TweenService:Create(sc, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
+	task.delay(dur or 2.2, function()
+		bb:Destroy()
+	end)
+end
+
+return Fx
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000021"><Properties><string name="Name">Hud</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames/Hud: the minigames while you walk the promenade (client only, GwangalliUI kit).
+--   * STATION CARD (bottom centre) when you are within MS.T.nearStation of a table / machine:
+--       free:    [게임 참가] [상대 찾기] [친구에게 신청] [NPC와 연습]  (NPC only where a host waits)
+--       waiting: "OOO님이 ₩10,000로 상대를 기다려요" [⚔️ 도전하기 ₩10,000]   (your own seat: [친구에게
+--                신청] [일어나기])
+--       playing: "OOO VS OOO · 상금 ₩20,000 · 2 : 1" [👀 관전]
+--     plus a small 📊 (my record). Buttons are >= 48 px for thumbs.
+--   * STAKE PICKER: 친선전 / ₩1,000 / ₩5,000 / ₩10,000 / ₩50,000 (NPC: the host's allowed stakes);
+--     a stake you cannot afford (Money / Bank attributes, the server checks again) is disabled.
+--   * FRIEND PICKER: players in the server, Roblox friends first, with distance.
+--   * CHALLENGE POPUP: "OOO님이 오목 대결을 신청했습니다." 참가비, place, distance, [수락] [거절]
+--     with a countdown ring; accepted from far away -> a waypoint marker over the table.
+--   * RECORD CARD: rank, rating, per-game W / L / 승률, today's NPC allowance, server top 5.
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local Hud = {}
+
+local K: any = nil
+local MS: any = nil
+local Net: any = nil
+local gui: ScreenGui = nil :: any
+local player = Players.LocalPlayer
+
+local card: Frame = nil :: any
+local cardTitle: TextLabel = nil :: any
+local cardSub: TextLabel = nil :: any
+local cardButtons: Frame = nil :: any
+local nearStation: Model? = nil
+local cardKey = ""
+local inMatch = false
+local scale: UIScale = nil :: any
+local inviteCards: { [number]: Frame } = {}
+local waypoint: BillboardGui? = nil
+local friendCache: { [number]: boolean } = {}
+local sheet: any = nil
+
+function Hud.init(k: any, ms: any, net: any, screen: ScreenGui)
+	K, MS, Net, gui = k, ms, net, screen
+	card = K.Panel(gui, { Name = "StationCard", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -12), Size = UDim2.fromOffset(380, 168), Visible = false, Radius = K.Radius.xl })
+	scale = Instance.new("UIScale")
+	scale.Parent = card
+	cardTitle = K.text(card, { Position = UDim2.fromOffset(16, 10), Size = UDim2.new(1, -70, 0, 22), Font = K.Font.bold, TextSize = K.Type.title2, TextTruncate = Enum.TextTruncate.AtEnd })
+	cardSub = K.text(card, { Position = UDim2.fromOffset(16, 34), Size = UDim2.new(1, -32, 0, 18), TextColor3 = K.Color.sub, TextSize = K.Type.caption, TextTruncate = Enum.TextTruncate.AtEnd })
+	K.Button(card, { text = "📊", style = "icon", size = UDim2.fromOffset(40, 40), position = UDim2.new(1, -50, 0, 8), onClick = Hud.openRecord })
+	cardButtons = K.frame(card, { Position = UDim2.fromOffset(12, 60), Size = UDim2.new(1, -24, 1, -72) })
+	local grid = Instance.new("UIGridLayout")
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.CellSize = UDim2.new(0.5, -4, 0, 46)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = cardButtons
+	RunService.Heartbeat:Connect(Hud.step)
+	Net.on(MS.Kinds.invite, Hud.invite)
+	Net.on(MS.Kinds.inviteClosed, function(p: any)
+		local c = inviteCards[p and p.id]
+		if c then
+			inviteCards[p.id] = nil
+			c:Destroy()
+			if p.reason == "taken" then
+				K.toast({ kind = "info", title = "마감됐어요", body = "다른 사람이 먼저 수락했어요" })
+			end
+		end
+	end)
+	Net.on(MS.Kinds.waypoint, Hud.waypoint)
+end
+
+function Hud.setInMatch(on: boolean)
+	inMatch = on
+	if on then
+		card.Visible = false
+		cardKey = ""
+	end
+end
+
+local function money(): (number, number)
+	local c = player:GetAttribute("Money")
+	local b = player:GetAttribute("Bank")
+	return if type(c) == "number" then c else 0, if type(b) == "number" then b else 0
+end
+
+local function rootPos(): Vector3?
+	local c = player.Character
+	local r = c and c:FindFirstChild("HumanoidRootPart")
+	return if r and r:IsA("BasePart") then r.Position else nil
+end
+
+local function stationPos(m: Model): Vector3
+	local f = m:FindFirstChild("Focus")
+	if f and f:IsA("BasePart") then
+		return f.Position
+	end
+	return m:GetPivot().Position
+end
+
+-------------------------------------------------------------------------------------------------
+-- station card
+-------------------------------------------------------------------------------------------------
+local function clearButtons()
+	for _, c in cardButtons:GetChildren() do
+		if c:IsA("GuiButton") or c:IsA("Frame") then
+			c:Destroy()
+		end
+	end
+end
+
+local function btn(text: string, icon: string?, style: string, order: number, fn: () -> ()): TextButton
+	return K.Button(cardButtons, { text = text, icon = icon, style = style, order = order, textSize = K.Type.bodySm, onClick = fn })
+end
+
+local function nameOf(id: string): string
+	local n = MS.NPCS[id]
+	return if n then n.name else ""
+end
+
+local function render(m: Model)
+	local gameId = m:GetAttribute("GameId") :: string
+	local info = MS.GAMES[gameId]
+	if not info then
+		return
+	end
+	local state = m:GetAttribute("State")
+	local npcId = m:GetAttribute("NpcId")
+	local station = m:GetAttribute("StationId")
+	local p1, p2 = m:GetAttribute("P1") or "", m:GetAttribute("P2") or ""
+	local p1Id = m:GetAttribute("P1Id")
+	local waitStake = m:GetAttribute("WaitStake") or -1
+	local pot = m:GetAttribute("Pot") or 0
+	local score = m:GetAttribute("Score") or ""
+	local key = table.concat({ station, state, p1, p2, tostring(waitStake), tostring(pot), score }, "|")
+	if key == cardKey then
+		return
+	end
+	cardKey = key
+	cardTitle.Text = info.icon .. " " .. info.name .. "  ·  " .. (m:GetAttribute("Label") or "")
+	clearButtons()
+	local host = if type(npcId) == "string" and npcId ~= "" then MS.NPCS[npcId] else nil
+	if state == "idle" then
+		cardSub.Text = if host then (host.name .. " (" .. MS.DIFFICULTY[host.difficulty] .. ")가 기다리고 있어요 · " .. info.desc) else info.desc
+		btn("게임 참가", "🪑", "primary", 1, function()
+			Hud.pickStake(station, "sit", nil)
+		end)
+		btn("상대 찾기", "📣", "tonal", 2, function()
+			Hud.pickStake(station, "open", nil)
+		end)
+		btn("친구에게 신청", "💌", "secondary", 3, function()
+			Hud.pickFriend(station)
+		end)
+		if host then
+			btn("NPC와 연습", "🤖", "gold", 4, function()
+				Hud.pickStake(station, "practice", host)
+			end)
+		end
+	elseif state == "waiting" then
+		local mine = p1Id == player.UserId
+		if mine then
+			cardSub.Text = "상대를 기다리는 중 · " .. MS.stakeLabel(waitStake) .. (if p2 ~= "" then " · " .. p2 .. "님이 오는 중" else "")
+			btn("친구에게 신청", "💌", "secondary", 1, function()
+				Hud.pickFriend(station, waitStake)
+			end)
+			btn("상대 찾기", "📣", "tonal", 2, function()
+				Net.send("open", { station = station, stake = waitStake })
+			end)
+			btn("일어나기", "🚶", "danger", 3, function()
+				Net.send("leave")
+			end)
+		else
+			cardSub.Text = p1 .. "님이 " .. MS.stakeLabel(waitStake) .. (if waitStake > 0 then "로" else "으로") .. " 상대를 기다려요"
+			if p2 ~= "" then
+				cardSub.Text = p1 .. "님과 " .. p2 .. "님이 곧 대결해요"
+			else
+				local c, b = money()
+				local b1 = btn("도전하기 " .. MS.stakeLabel(waitStake), "⚔️", "gold", 1, function()
+					Net.send("join", { station = station })
+				end)
+				if not MS.canAfford(c, b, waitStake) then
+					K.setButtonEnabled(b1, false)
+					cardSub.Text ..= " · 게임머니 부족"
+				end
+			end
+		end
+	else
+		cardSub.Text = string.format("%s VS %s · %s%s", p1, p2, if pot > 0 then "상금 " .. MS.won(pot) else "친선전", if score ~= "" then " · " .. score else "")
+		btn("관전", "👀", "tonal", 1, function()
+			Net.send("spectate", { station = station })
+		end)
+	end
+	local n = 0
+	for _, c in cardButtons:GetChildren() do
+		if c:IsA("GuiButton") then
+			n += 1
+		end
+	end
+	card.Size = UDim2.fromOffset(380, 72 + math.max(1, math.ceil(n / 2)) * 54)
+	local _ = nameOf
+end
+
+function Hud.step()
+	if inMatch then
+		return
+	end
+	local pos = rootPos()
+	local best: Model? = nil
+	local bestD = MS.T.nearStation
+	if pos then
+		for _, m in CollectionService:GetTagged(MS.Tags.Station) do
+			if m:IsA("Model") then
+				local d = (stationPos(m) - pos).Magnitude
+				if d < bestD then
+					best, bestD = m, d
+				end
+			end
+		end
+	end
+	if best ~= nearStation then
+		nearStation = best
+		cardKey = ""
+		if best then
+			card.Visible = true
+			K.pop(card, 0.94)
+		else
+			card.Visible = false
+		end
+	end
+	if best then
+		local cam = Workspace.CurrentCamera
+		if cam then
+			local vp = cam.ViewportSize
+			scale.Scale = if vp.X < 700 then math.clamp(vp.X / 520, 0.78, 1) else 1
+		end
+		render(best)
+	end
+	-- waypoint distance
+	if waypoint and waypoint.Parent and pos then
+		local adornee = waypoint.Adornee
+		local l = waypoint:FindFirstChild("Dist") :: TextLabel?
+		if adornee and adornee:IsA("BasePart") and l then
+			l.Text = math.floor((adornee.Position - pos).Magnitude * 0.28 + 0.5) .. "m"
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- stake picker
+-------------------------------------------------------------------------------------------------
+local function closeSheet()
+	if sheet then
+		pcall(sheet.close)
+		sheet = nil
+	end
+end
+
+-- action "sit" | "open" | "practice" | "challenge"
+function Hud.pickStake(station: string, action: string, host: any?, target: Player?)
+	closeSheet()
+	local stakes = if host then MS.NPC_STAKES[host.difficulty] else MS.STAKES
+	local title = if action == "practice" then (host.name .. "와 연습") elseif action == "challenge" and target then (target.DisplayName .. "님에게 신청") else "참가비 선택"
+	sheet = K.BottomSheet(gui, { title = title, subtitle = "게임 안의 원(게임머니)만 걸 수 있어요 · 실제 돈/Robux와 무관", height = 300 })
+	local content = sheet.content
+	local grid = K.frame(content, { Size = UDim2.new(1, 0, 0, 120) })
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(1 / 3, -6, 0, 52)
+	layout.CellPadding = UDim2.fromOffset(8, 8)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = grid
+	local c, b = money()
+	for i, s in stakes do
+		local ok = MS.canAfford(c, b, s)
+		local bt = K.Button(grid, {
+			text = MS.stakeLabel(s),
+			style = if s == 0 then "secondary" elseif s >= 10000 then "gold" else "tonal",
+			order = i,
+			textSize = K.Type.body,
+			onClick = function()
+				closeSheet()
+				if action == "challenge" and target then
+					Net.send("challenge", { station = station, target = target.UserId, stake = s })
+				else
+					Net.send(action, { station = station, stake = s })
+				end
+			end,
+		})
+		if not ok then
+			K.setButtonEnabled(bt, false)
+		end
+	end
+	local note = if host then string.format("NPC 상대는 하루 순수익 %s까지만 받을 수 있어요. 이겨서 받는 돈은 연습 보너스예요.", MS.won(MS.NPC_DAILY_PROFIT_CAP)) else "이기면 상대 참가비까지 모두 받아요. 경기 전에 나가면 참가비는 돌려받고, 경기 중에 나가면 기권패예요."
+	K.text(content, { Position = UDim2.fromOffset(0, 128), Size = UDim2.new(1, 0, 0, 40), TextWrapped = true, TextSize = K.Type.caption, TextColor3 = K.Color.sub, Text = note .. "\n보유: 현금 " .. MS.won(c) .. " · 통장 " .. MS.won(b) })
+	sheet.open()
+end
+
+-------------------------------------------------------------------------------------------------
+-- friend picker
+-------------------------------------------------------------------------------------------------
+local function isFriend(p: Player): boolean
+	local v = friendCache[p.UserId]
+	if v == nil then
+		friendCache[p.UserId] = false
+		task.spawn(function()
+			local ok, res = pcall(function()
+				return player:IsFriendsWith(p.UserId)
+			end)
+			friendCache[p.UserId] = ok and res == true
+		end)
+		return false
+	end
+	return v
+end
+
+function Hud.pickFriend(station: string, fixedStake: number?)
+	closeSheet()
+	sheet = K.BottomSheet(gui, { title = "대결 신청", subtitle = "친구 · 근처 사람에게 신청해요", height = 380 })
+	local scroll = K.make("ScrollingFrame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new() }, sheet.content)
+	K.list(scroll, false, 6)
+	local pos = rootPos()
+	local list = {}
+	for _, p in Players:GetPlayers() do
+		if p ~= player then
+			local r = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+			local d = if r and pos then ((r :: BasePart).Position - pos).Magnitude else 1e9
+			table.insert(list, { p = p, d = d, f = isFriend(p) })
+		end
+	end
+	table.sort(list, function(a, c)
+		if a.f ~= c.f then
+			return a.f
+		end
+		return a.d < c.d
+	end)
+	if #list == 0 then
+		K.EmptyState(scroll, { icon = "🏖️", title = "지금은 다른 사람이 없어요", body = "NPC와 연습하거나 '게임 참가'로 앉아서 기다려 보세요" })
+	end
+	for i, e in list do
+		local p: Player = e.p
+		K.ListRow(scroll, {
+			icon = if e.f then "💛" else "🙂",
+			title = p.DisplayName,
+			subtitle = (p:GetAttribute("MiniRankIcon") or "🥉") .. " " .. (p:GetAttribute("MiniRank") or "브론즈") .. " · " .. (if e.d < 1e8 then math.floor(e.d * 0.28) .. "m" else "멀리 있음") .. (if e.f then " · 친구" else ""),
+			chevron = true,
+			order = i,
+			onClick = function()
+				closeSheet()
+				if fixedStake then
+					Net.send("challenge", { station = station, target = p.UserId, stake = fixedStake })
+				else
+					Hud.pickStake(station, "challenge", nil, p)
+				end
+			end,
+		})
+	end
+	sheet.open()
+end
+
+-------------------------------------------------------------------------------------------------
+-- incoming challenges
+-------------------------------------------------------------------------------------------------
+function Hud.invite(p: any)
+	if type(p) ~= "table" or inviteCards[p.id] then
+		return
+	end
+	local stack = gui:FindFirstChild("InviteStack") :: Frame?
+	if not stack then
+		local f = K.frame(gui, { Name = "InviteStack", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(360, 400), ZIndex = 50 })
+		K.list(f, false, 8, Enum.HorizontalAlignment.Center)
+		stack = f
+	end
+	local c = K.Panel(stack, { Size = UDim2.fromOffset(350, 150), ZIndex = 51, BackgroundTransparency = 0.04, Radius = K.Radius.xl })
+	inviteCards[p.id] = c
+	local who = p.from .. "님이 " .. p.gameName .. " 대결을 " .. (if p.open then "찾고 있어요!" else "신청했습니다.")
+	K.text(c, { Position = UDim2.fromOffset(16, 12), Size = UDim2.new(1, -80, 0, 40), TextWrapped = true, Font = K.Font.bold, TextSize = K.Type.body, Text = p.icon .. " " .. who, ZIndex = 52 })
+	K.text(c, { Position = UDim2.fromOffset(16, 54), Size = UDim2.new(1, -32, 0, 18), TextColor3 = K.Color.gold, Font = K.Font.bold, TextSize = K.Type.caption, Text = "참가비 " .. MS.stakeLabel(p.stake) .. "  ·  " .. p.rankIcon .. " " .. p.rank, ZIndex = 52 })
+	K.text(c, { Position = UDim2.fromOffset(16, 72), Size = UDim2.new(1, -32, 0, 16), TextColor3 = K.Color.sub, TextSize = K.Type.micro, Text = p.where .. (if p.dist and p.dist >= 0 then " · " .. math.floor(p.dist * 0.28) .. "m" else ""), ZIndex = 52 })
+	local ring = K.text(c, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -14, 0, 12), Size = UDim2.fromOffset(44, 44), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 16, TextColor3 = K.Color.cyan, ZIndex = 52 })
+	K.corner(ring, UDim.new(0.5, 0))
+	K.stroke(ring, K.Color.cyan, 2, 0.2)
+	local c2, b2 = money()
+	local accept = K.Button(c, { text = "수락", icon = "⚔️", style = "success", size = UDim2.new(0.5, -20, 0, 44), position = UDim2.new(0, 14, 1, -54), zIndex = 52, onClick = function()
+		Net.send("respond", { id = p.id, accept = true })
+		inviteCards[p.id] = nil
+		c:Destroy()
+	end })
+	if not MS.canAfford(c2, b2, p.stake) then
+		K.setButtonEnabled(accept, false)
+		accept.Text = "게임머니 부족"
+	end
+	K.Button(c, { text = "거절", style = "secondary", size = UDim2.new(0.5, -20, 0, 44), position = UDim2.new(0.5, 6, 1, -54), zIndex = 52, onClick = function()
+		Net.send("respond", { id = p.id, accept = false })
+		inviteCards[p.id] = nil
+		c:Destroy()
+	end })
+	K.pop(c, 0.9)
+	K.feedback("notify")
+	local untilT = os.clock() + (p.ttl or MS.T.inviteTTL)
+	task.spawn(function()
+		while c.Parent do
+			local left = untilT - os.clock()
+			if left <= 0 then
+				inviteCards[p.id] = nil
+				c:Destroy()
+				break
+			end
+			ring.Text = tostring(math.ceil(left))
+			task.wait(0.25)
+		end
+	end)
+end
+
+function Hud.waypoint(p: any)
+	if waypoint then
+		waypoint:Destroy()
+		waypoint = nil
+	end
+	if type(p) ~= "table" or p.clear then
+		return
+	end
+	local m = Workspace:FindFirstChild(MS.FolderName)
+	local st = m and m:FindFirstChild(p.station)
+	local target: BasePart? = nil
+	if st then
+		local f = st:FindFirstChild("Focus")
+		target = if f and f:IsA("BasePart") then f else nil
+	end
+	if not target then
+		-- not streamed in yet: a temporary anchor part at the position
+		local a = Instance.new("Part")
+		a.Anchored = true
+		a.CanCollide = false
+		a.CanQuery = false
+		a.Transparency = 1
+		a.Size = Vector3.one
+		a.Position = p.pos
+		a.Parent = Workspace.CurrentCamera
+		target = a
+		task.delay(p.ttl or 90, function()
+			a:Destroy()
+		end)
+	end
+	local bb = Instance.new("BillboardGui")
+	bb.Name = "MiniGameWaypoint"
+	bb.AlwaysOnTop = true
+	bb.Size = UDim2.fromOffset(150, 64)
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 7, 0)
+	bb.LightInfluence = 0
+	bb.Adornee = target
+	local l = K.text(bb, { Size = UDim2.new(1, 0, 0.6, 0), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 22, Text = "🎯 대결 테이블", TextStrokeTransparency = 0.4 })
+	local _ = l
+	local d = K.text(bb, { Name = "Dist", Position = UDim2.fromScale(0, 0.6), Size = UDim2.new(1, 0, 0.4, 0), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.bold, TextSize = 16, TextColor3 = K.Color.gold, TextStrokeTransparency = 0.4 })
+	local _2 = d
+	bb.Parent = gui
+	waypoint = bb
+	K.toast({ kind = "travel", title = "대결 테이블로 가요", body = (p.label or "") .. " · " .. math.floor(p.ttl or 90) .. "초 안에 도착해 주세요" })
+	task.delay(p.ttl or 90, function()
+		if waypoint == bb then
+			bb:Destroy()
+			waypoint = nil
+		end
+	end)
+end
+
+-------------------------------------------------------------------------------------------------
+-- record card
+-------------------------------------------------------------------------------------------------
+function Hud.openRecord()
+	closeSheet()
+	sheet = K.BottomSheet(gui, { title = "내 미니게임 전적", subtitle = "불러오는 중…", height = 460 })
+	sheet.open()
+	task.spawn(function()
+		local rec = Net.query("record")
+		local board = Net.query("board")
+		if not sheet or not rec then
+			return
+		end
+		sheet.setTitle("내 미니게임 전적", rec.rankIcon .. " " .. rec.rank .. " · " .. rec.rating .. "점 · " .. rec.w .. "승 " .. rec.l .. "패 (승률 " .. rec.rate .. "%)")
+		local scroll = K.make("ScrollingFrame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 4, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new() }, sheet.content)
+		K.list(scroll, false, 6)
+		local order = 0
+		for _, id in MS.GAME_ORDER do
+			local g = rec.games[id]
+			local info = MS.GAMES[id]
+			order += 1
+			K.ListRow(scroll, {
+				icon = info.icon,
+				title = info.name,
+				subtitle = if g.w + g.l + g.d > 0 then string.format("전적 %d승 %d패%s · 승률 %d%%", g.w, g.l, if g.d > 0 then " " .. g.d .. "무" else "", g.rate) else "아직 기록이 없어요",
+				trailing = if g.best >= 2 then ("최고 " .. g.best .. "연승") else "",
+				order = order,
+				height = 52,
+			})
+		end
+		order += 1
+		K.SectionHeader(scroll, { title = "광안리 명예의 전당 (이 서버)", order = order })
+		for i, e in (board or {}) do
+			order += 1
+			K.ListRow(scroll, { icon = if i == 1 then "👑" else tostring(i), title = e.name, subtitle = e.rankIcon .. " " .. e.rank .. " · " .. e.w .. "승 " .. e.l .. "패", trailing = tostring(e.rating), order = order, height = 48 })
+		end
+		order += 1
+		K.text(scroll, { Size = UDim2.new(1, 0, 0, 40), TextWrapped = true, TextSize = K.Type.micro, TextColor3 = K.Color.sub, LayoutOrder = order, Text = "랭크: 브론즈 → 실버 1100 → 골드 1250 → 플래티넘 1400 → 다이아 1550 · 오늘 NPC 상금 남은 한도 " .. MS.won(rec.npcRoom) .. (if rec.persistent then "" else " · (이번 접속에만 저장)") })
+	end)
+end
+
+return Hud
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000023"><Properties><string name="Name">MemoryGame</string></Properties><Item class="ModuleScript" referent="RBX00000022"><Properties><string name="Name">MemoryClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- MemoryGame/MemoryClient: 기억력 대결 (client only). The digits appear big in the middle for 2-3 s,
+-- vanish, then a thumb keypad (1-9, 0, ⌫) fills the slots "_ _ _ _ _"; the answer is sent when the
+-- last slot is filled. Each round shows ✔ / ✖ for both players; rounds get one digit longer.
+
+local Workspace = game:GetService("Workspace")
+
+local MemoryClient = {}
+
+function MemoryClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local round = 0
+	local len = 0
+	local typed = ""
+	local sent = false
+	local phase = "idle"
+	local inputDeadline = 0
+	local inputSpan = 10
+
+	local card = K.Panel(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(420, 96), Radius = K.Radius.xl, ZIndex = 5 })
+	local big = K.text(card, { Size = UDim2.new(1, 0, 0, 64), Position = UDim2.fromOffset(0, 6), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 44, Text = "", ZIndex = 6 })
+	local sub = K.text(card, { Size = UDim2.new(1, 0, 0, 20), Position = UDim2.fromOffset(0, 70), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.sub, Text = "", ZIndex = 6 })
+
+	local pad = K.frame(ctx.panel, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.fromOffset(300, 228), Visible = false })
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.new(1 / 3, -6, 0, 50)
+	grid.CellPadding = UDim2.fromOffset(8, 8)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = pad
+
+	local function slots(): string
+		local parts = {}
+		for i = 1, len do
+			parts[i] = if i <= #typed then string.sub(typed, i, i) else "_"
+		end
+		return table.concat(parts, " ")
+	end
+
+	local function submit()
+		if sent or phase ~= "input" then
+			return
+		end
+		sent = true
+		Net.send("move", { round = round, answer = typed })
+		sub.Text = "제출했어요 · 상대를 기다려요"
+		Fx.sound("pop")
+	end
+
+	local keys = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "✔" }
+	for i, kname in keys do
+		K.Button(pad, { text = kname, style = if kname == "✔" then "primary" elseif kname == "⌫" then "secondary" else "glass", order = i, textSize = 24, onClick = function()
+			if sent or phase ~= "input" then
+				return
+			end
+			if kname == "⌫" then
+				typed = string.sub(typed, 1, math.max(0, #typed - 1))
+			elseif kname == "✔" then
+				submit()
+				return
+			elseif #typed < len then
+				typed ..= kname
+			end
+			big.Text = slots()
+			if #typed >= len then
+				submit()
+			end
+		end })
+	end
+
+	local api = {}
+	function api.game(g: any)
+		Stage.updateScore(g.len .. "자리")
+	end
+	function api.event(e: any)
+		if e.e == "memShow" then
+			round = e.round
+			len = e.len
+			typed = ""
+			sent = false
+			phase = "show"
+			big.Text = table.concat(string.split(e.seq, ""), " ")
+			big.TextColor3 = K.Color.gold
+			sub.Text = round .. "라운드 · " .. len .. "자리 외우기!"
+			pad.Visible = false
+			Stage.setDeadline(e.until_, math.max(0.5, e.until_ - Workspace:GetServerTimeNow()))
+			inputDeadline = e.deadline
+			inputSpan = math.max(1, e.deadline - e.until_)
+			Stage.setStatus("외우세요!")
+			K.pop(card, 0.9)
+			Fx.sound("whoosh")
+			card.Size = UDim2.fromOffset(math.max(300, 52 * len + 60), 96)
+		elseif e.e == "memHide" then
+			phase = "input"
+			big.TextColor3 = K.Color.text
+			big.Text = slots()
+			sub.Text = if you > 0 then "순서대로 입력하세요" else "입력 중…"
+			pad.Visible = you > 0
+			Stage.setStatus("입력!")
+			Stage.setDeadline(inputDeadline, inputSpan)
+			Fx.sound("tick")
+		elseif e.e == "memSent" then
+			sent = true
+		elseif e.e == "memJudge" then
+			phase = "judge"
+			pad.Visible = false
+			big.Text = table.concat(string.split(e.seq, ""), " ")
+			big.TextColor3 = K.Color.text
+			local function mark(ok: boolean): string
+				return if ok then "✔" else "✖"
+			end
+			sub.Text = string.format("%s %s   ·   %s %s", view.sides[1].name, mark(e.ok1), view.sides[2].name, mark(e.ok2))
+			local mine = if you == 1 then e.ok1 elseif you == 2 then e.ok2 else nil
+			if mine ~= nil then
+				Stage.flash(if mine then "정답!" else "땡!", if mine then K.Color.green else K.Color.red, 1.2)
+				Fx.sound(if mine then "win" else "buzz")
+			end
+			Stage.setStatus(nil)
+		end
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		card:Destroy()
+		pad:Destroy()
+		Stage.setStatus(nil)
+		Stage.setDeadline(nil)
+	end
+	return api
+end
+
+return MemoryClient
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000024"><Properties><string name="Name">Net</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames/Net: the client's only link to the minigame server (ReplicatedStorage.
+-- GwangalliMiniGames: Request / Update / Query). Every money / result decision is the server's;
+-- this module only sends intents ("I want to sit here with ₩10,000", "my move is H8").
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Net = {}
+
+local MS: any = nil
+local request: RemoteEvent? = nil
+local query: RemoteFunction? = nil
+local handlers: { [string]: { (any) -> () } } = {}
+
+function Net.init(ms: any): boolean
+	MS = ms
+	local folder = ReplicatedStorage:WaitForChild(MS.FolderName, 60)
+	if not folder then
+		return false
+	end
+	request = folder:WaitForChild(MS.Remote.Request, 30) :: RemoteEvent
+	query = folder:WaitForChild(MS.Remote.Query, 30) :: RemoteFunction
+	local update = folder:WaitForChild(MS.Remote.Update, 30) :: RemoteEvent
+	if not request or not update then
+		return false
+	end
+	update.OnClientEvent:Connect(function(kind: any, payload: any)
+		if type(kind) ~= "string" then
+			return
+		end
+		if kind == MS.Kinds.ping then
+			Net.send("ping", { s = payload and payload.s })
+			return
+		end
+		local list = handlers[kind]
+		if list then
+			for _, fn in list do
+				task.spawn(fn, payload)
+			end
+		end
+	end)
+	return true
+end
+
+function Net.send(action: string, payload: { [string]: any }?)
+	if request then
+		request:FireServer(action, payload or {})
+	end
+end
+
+function Net.on(kind: string, fn: (any) -> ())
+	local list = handlers[kind]
+	if not list then
+		list = {}
+		handlers[kind] = list
+	end
+	table.insert(list, fn)
+end
+
+function Net.query(what: string): any
+	if not query then
+		return nil
+	end
+	local ok, res = pcall(function()
+		return (query :: RemoteFunction):InvokeServer(what)
+	end)
+	return if ok then res else nil
+end
+
+return Net
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000026"><Properties><string name="Name">NumberGuess</string></Properties><Item class="ModuleScript" referent="RBX00000025"><Properties><string name="Name">NumberGuessClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- NumberGuess/NumberGuessClient: 숫자 맞히기 (업다운) screen (client only). The open range is shown big
+-- ("23 ~ 61"), every guess so far as chips (48 ▲UP / 70 ▼DOWN), and on your turn a thumb keypad
+-- builds the number (확인 sends it; numbers outside the open range are refused here and on the server).
+
+local NumberGuessClient = {}
+
+function NumberGuessClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local g: any = nil
+	local typed = ""
+
+	local card = K.Panel(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(320, 120), Radius = K.Radius.xl, ZIndex = 5 })
+	K.text(card, { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.sub, Text = "비밀 숫자는 이 사이에 있어요", ZIndex = 6 })
+	local range = K.text(card, { Position = UDim2.fromOffset(0, 26), Size = UDim2.new(1, 0, 0, 44), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 36, ZIndex = 6 })
+	local chips = K.frame(card, { Position = UDim2.fromOffset(10, 78), Size = UDim2.new(1, -20, 0, 30), ZIndex = 6 })
+	K.list(chips, true, 6, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+
+	local pad = K.Panel(ctx.panel, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.fromOffset(300, 262), Visible = false, Radius = K.Radius.xl })
+	local entry = K.text(pad, { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 36), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 30, Text = "_" })
+	local keys = K.frame(pad, { Position = UDim2.fromOffset(12, 50), Size = UDim2.new(1, -24, 1, -60) })
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.new(1 / 3, -6, 0, 44)
+	grid.CellPadding = UDim2.fromOffset(8, 6)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = keys
+
+	local function show()
+		entry.Text = if typed == "" then "_" else typed
+	end
+	local labels = { "1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "확인" }
+	for i, kname in labels do
+		K.Button(keys, { text = kname, style = if kname == "확인" then "primary" elseif kname == "⌫" then "secondary" else "glass", order = i, textSize = 22, onClick = function()
+			if not g or g.turn ~= you then
+				return
+			end
+			if kname == "⌫" then
+				typed = string.sub(typed, 1, math.max(0, #typed - 1))
+			elseif kname == "확인" then
+				local n = tonumber(typed)
+				if n and n >= g.lo and n <= g.hi then
+					Net.send("move", { n = n })
+					typed = ""
+				else
+					Fx.sound("buzz")
+					K.toast({ kind = "info", title = "범위 밖이에요", body = g.lo .. " ~ " .. g.hi .. " 사이로 골라 주세요" })
+				end
+			elseif #typed < 3 then
+				typed ..= kname
+				if tonumber(typed) and (tonumber(typed) :: number) > 100 then
+					typed = string.sub(typed, 1, #typed - 1)
+				end
+			end
+			show()
+		end })
+	end
+
+	local api = {}
+	function api.game(v: any)
+		g = v
+		range.Text = if g.secret then ("정답: " .. g.secret) else (g.lo .. " ~ " .. g.hi)
+		for _, c in chips:GetChildren() do
+			if c:IsA("TextLabel") then
+				c:Destroy()
+			end
+		end
+		for i, h in g.history do
+			local up = h.r == "UP"
+			local chip = K.text(chips, {
+				AutomaticSize = Enum.AutomaticSize.X,
+				Size = UDim2.fromOffset(0, 26),
+				BackgroundTransparency = 0,
+				BackgroundColor3 = if h.r == "정답" then Color3.fromRGB(70, 56, 10) elseif up then Color3.fromRGB(20, 60, 40) else Color3.fromRGB(70, 24, 30),
+				TextColor3 = if h.r == "정답" then K.Color.gold elseif up then K.Color.green else K.Color.red,
+				Font = K.Font.bold,
+				TextSize = K.Type.caption,
+				Text = h.n .. (if h.r == "정답" then " ✔" elseif up then " ▲" else " ▼"),
+				LayoutOrder = i,
+				ZIndex = 7,
+			})
+			K.corner(chip, UDim.new(0.5, 0))
+			K.pad(chip, 8, 8, 0, 0)
+		end
+		local mine = you > 0 and g.turn == you
+		pad.Visible = mine
+		Stage.turn(g.turn)
+		Stage.setDeadline(g.deadline, g.turnTime)
+		Stage.updateScore(g.lo .. "~" .. g.hi)
+		Stage.setStatus(if mine then "내 차례! 숫자를 골라요" else (view.sides[g.turn].name .. " 차례"))
+	end
+	function api.event(e: any)
+		if e.e == "guess" then
+			if e.r == "정답" then
+				Stage.flash(e.n .. " 정답!", K.Color.gold, 1.6)
+			else
+				Stage.flash(e.n .. (if e.r == "UP" then "  UP ▲" else "  DOWN ▼"), if e.r == "UP" then K.Color.green else K.Color.red, 1.1)
+			end
+			Fx.sound("pop")
+		end
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		card:Destroy()
+		pad:Destroy()
+		Stage.setStatus(nil)
+		Stage.setDeadline(nil)
+	end
+	return api
+end
+
+return NumberGuessClient
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000029"><Properties><string name="Name">Omok</string></Properties><Item class="ModuleScript" referent="RBX00000027"><Properties><string name="Name">OmokBoards</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Omok/OmokBoards: draws the stones on EVERY omok table this client can see (client only; local
+-- parts, nothing replicated). Source of truth: the station attributes the server writes
+-- (OmokBoard 225 chars, OmokLast, OmokSeq, OmokWin). So anyone walking past watches the real game.
+--   * a new stone: the mover's hand reaches out first (their mg_place emote), then the stone drops
+--     onto its point with a short wooden "딱" (positional sound) - DROP_DELAY after the attribute
+--     change, which is when the hand is over the board.
+--   * the last move carries a small red marker; a finished game lights the winning five.
+--   * ghost(model, cell, color, bad) shows the local player's pending stone (OmokClient).
+-- Board geometry = StationBuilder: cell (x, y) sits at Board.CFrame * (x - 8, top, y - 8) * Cell.
+
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+
+local OmokBoards = {}
+
+local MS: any = nil
+local OC: any = nil
+local Fx: any = nil
+local folder: Folder = nil :: any
+
+local DROP_DELAY = 0.38
+local STONE_H = 0.07
+
+type B = {
+	model: Model,
+	board: BasePart,
+	stones: { [number]: BasePart },
+	shown: string,
+	seq: number,
+	marker: BasePart?,
+	ghost: BasePart?,
+	winParts: { BasePart },
+	conns: { RBXScriptConnection },
+}
+local boards: { [Model]: B } = {}
+
+local BLACK = Color3.fromRGB(22, 22, 26)
+local WHITE = Color3.fromRGB(244, 244, 238)
+
+local function cellCFrame(b: B, i: number, lift: number?): CFrame
+	local x, y = OC.xy(i)
+	local cell = OC.CELL
+	local top = b.board.Size.Y / 2 + STONE_H / 2 + (lift or 0)
+	return b.board.CFrame * CFrame.new((x - (OC.SIZE + 1) / 2) * cell, top, (y - (OC.SIZE + 1) / 2) * cell)
+end
+
+local function makeStone(b: B, i: number, color: number): BasePart
+	local p = Instance.new("Part")
+	p.Name = "Stone"
+	p.Shape = Enum.PartType.Cylinder
+	p.Size = Vector3.new(STONE_H, OC.CELL * 0.92, OC.CELL * 0.92)
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.CastShadow = false
+	p.Material = if color == 1 then Enum.Material.SmoothPlastic else Enum.Material.Glass
+	p.Color = if color == 1 then BLACK else WHITE
+	p.Reflectance = if color == 1 then 0.08 else 0.04
+	p.CFrame = cellCFrame(b, i) * CFrame.Angles(0, 0, math.rad(90))
+	p.Parent = folder
+	return p
+end
+
+local function clearAll(b: B)
+	for _, s in b.stones do
+		s:Destroy()
+	end
+	table.clear(b.stones)
+	for _, w in b.winParts do
+		w:Destroy()
+	end
+	table.clear(b.winParts)
+	if b.marker then
+		b.marker:Destroy()
+		b.marker = nil
+	end
+	b.shown = ""
+end
+
+local function setMarker(b: B, i: number)
+	if i <= 0 or not b.stones[i] then
+		if b.marker then
+			b.marker.Transparency = 1
+		end
+		return
+	end
+	if not b.marker then
+		local m = Instance.new("Part")
+		m.Name = "LastMove"
+		m.Shape = Enum.PartType.Cylinder
+		m.Size = Vector3.new(0.012, OC.CELL * 0.34, OC.CELL * 0.34)
+		m.Anchored = true
+		m.CanCollide = false
+		m.CanQuery = false
+		m.CastShadow = false
+		m.Material = Enum.Material.Neon
+		m.Color = Color3.fromRGB(255, 70, 70)
+		m.Parent = folder
+		b.marker = m
+	end
+	local mk = b.marker :: BasePart
+	mk.Transparency = 0
+	mk.CFrame = cellCFrame(b, i, STONE_H / 2 + 0.006) * CFrame.Angles(0, 0, math.rad(90))
+end
+
+local function showWin(b: B)
+	for _, w in b.winParts do
+		w:Destroy()
+	end
+	table.clear(b.winParts)
+	local s = b.model:GetAttribute("OmokWin")
+	if type(s) ~= "string" or s == "" then
+		return
+	end
+	for _, v in string.split(s, ",") do
+		local i = tonumber(v)
+		if i and b.stones[i] then
+			local ring = Instance.new("Part")
+			ring.Name = "WinGlow"
+			ring.Shape = Enum.PartType.Cylinder
+			ring.Size = Vector3.new(STONE_H * 0.4, OC.CELL * 1.02, OC.CELL * 1.02)
+			ring.Anchored = true
+			ring.CanCollide = false
+			ring.CanQuery = false
+			ring.Material = Enum.Material.Neon
+			ring.Color = Color3.fromRGB(255, 200, 60)
+			ring.Transparency = 0.25
+			ring.CFrame = cellCFrame(b, i, -STONE_H * 0.35) * CFrame.Angles(0, 0, math.rad(90))
+			ring.Parent = folder
+			table.insert(b.winParts, ring)
+		end
+	end
+end
+
+local function sync(b: B)
+	local s = b.model:GetAttribute("OmokBoard")
+	local seq = b.model:GetAttribute("OmokSeq")
+	local last = b.model:GetAttribute("OmokLast")
+	seq = if type(seq) == "number" then seq else 0
+	last = if type(last) == "number" then last else 0
+	if type(s) ~= "string" or s == "" or seq < b.seq then
+		clearAll(b)
+		b.seq = seq
+		if type(s) ~= "string" or s == "" then
+			return
+		end
+	end
+	local animate = seq == b.seq + 1 and b.shown ~= ""
+	b.seq = seq
+	local target = OC.decode(s)
+	for i = 1, OC.SIZE * OC.SIZE do
+		local want = target[i]
+		local have = b.stones[i]
+		if want == 0 and have then
+			have:Destroy()
+			b.stones[i] = nil
+		elseif want ~= 0 and not have then
+			local stone = makeStone(b, i, want)
+			b.stones[i] = stone
+			if animate and i == last then
+				-- the hand comes over the board first, then the stone lands with a 딱
+				local restCF = stone.CFrame
+				stone.Transparency = 1
+				task.delay(DROP_DELAY, function()
+					if not stone.Parent then
+						return
+					end
+					stone.CFrame = restCF + Vector3.new(0, 0.35, 0)
+					stone.Transparency = 0
+					TweenService:Create(stone, TweenInfo.new(0.09, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = restCF }):Play()
+					task.delay(0.09, function()
+						Fx.sound("stone", b.board)
+						setMarker(b, last)
+					end)
+				end)
+			end
+		end
+	end
+	b.shown = s
+	if not animate then
+		setMarker(b, last)
+	end
+	showWin(b)
+end
+
+local function add(model: Instance)
+	if not model:IsA("Model") or boards[model] or model:GetAttribute("GameId") ~= "omok" then
+		return
+	end
+	local board = model:WaitForChild("Board", 10)
+	if not board or not board:IsA("BasePart") then
+		return
+	end
+	local b: B = { model = model, board = board, stones = {}, shown = "", seq = 0, marker = nil, ghost = nil, winParts = {}, conns = {} }
+	boards[model] = b
+	for _, a in { "OmokBoard", "OmokSeq", "OmokWin" } do
+		table.insert(b.conns, model:GetAttributeChangedSignal(a):Connect(function()
+			sync(b)
+		end))
+	end
+	sync(b)
+end
+
+local function remove(model: Instance)
+	local b = boards[model :: Model]
+	if not b then
+		return
+	end
+	boards[model :: Model] = nil
+	for _, c in b.conns do
+		c:Disconnect()
+	end
+	clearAll(b)
+	if b.ghost then
+		b.ghost:Destroy()
+	end
+end
+
+function OmokBoards.start(ms: any, fx: any)
+	MS = ms
+	Fx = fx
+	OC = require(game:GetService("ReplicatedStorage"):WaitForChild("GwangalliMiniGamesShared"):WaitForChild("OmokConfig")) :: any
+	folder = Instance.new("Folder")
+	folder.Name = "MiniGamesLocal"
+	folder.Parent = Workspace
+	CollectionService:GetInstanceAddedSignal(MS.Tags.Station):Connect(function(m)
+		task.spawn(add, m)
+	end)
+	CollectionService:GetInstanceRemovedSignal(MS.Tags.Station):Connect(remove)
+	for _, m in CollectionService:GetTagged(MS.Tags.Station) do
+		task.spawn(add, m)
+	end
+	OmokBoards.started = true
+end
+
+-- Cell under a world point on this board (nil = off the grid).
+function OmokBoards.cellAt(model: Model, pos: Vector3): number?
+	local b = boards[model]
+	if not b then
+		return nil
+	end
+	local l = b.board.CFrame:PointToObjectSpace(pos)
+	local half = (OC.SIZE + 1) / 2
+	local x = math.floor(l.X / OC.CELL + half + 0.5)
+	local y = math.floor(l.Z / OC.CELL + half + 0.5)
+	if not OC.inside(x, y) then
+		return nil
+	end
+	return OC.idx(x, y)
+end
+
+function OmokBoards.boardPart(model: Model): BasePart?
+	local b = boards[model]
+	return b and b.board
+end
+
+function OmokBoards.ghost(model: Model, cell: number?, color: number, bad: boolean?)
+	local b = boards[model]
+	if not b then
+		return
+	end
+	if not cell then
+		if b.ghost then
+			b.ghost.Transparency = 1
+		end
+		return
+	end
+	if not b.ghost then
+		local g = makeStone(b, cell, color)
+		g.Name = "Ghost"
+		b.ghost = g
+	end
+	local g = b.ghost :: BasePart
+	g.Color = if bad then Color3.fromRGB(255, 80, 80) elseif color == 1 then BLACK else WHITE
+	g.Material = Enum.Material.SmoothPlastic
+	g.Transparency = 0.45
+	g.CFrame = cellCFrame(b, cell, 0.01) * CFrame.Angles(0, 0, math.rad(90))
+end
+
+return OmokBoards
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000028"><Properties><string name="Name">OmokClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Omok/OmokClient: your side of an 오목 match (client only). The board is the real 3D board on the
+-- table (OmokBoards draws the stones); you play by touching it:
+--   tap / click a point -> a see-through ghost stone appears there (red with the reason when it is a
+--   forbidden point for 흑 under the korean rule) -> tap the same point again or press [착수].
+-- Small drags still orbit the camera (CameraDirector), so only short taps count as a choice.
+-- The panel stays small (bottom-right): colour, whose turn, the chosen point, [착수].
+
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local OmokClient = {}
+
+local Boards = require(script.Parent:WaitForChild("OmokBoards")) :: any
+
+function OmokClient.mount(ctx: any): any
+	local K, MS, Net, Stage = ctx.K, ctx.MS, ctx.Net, ctx.Stage
+	local OC = require(game:GetService("ReplicatedStorage"):WaitForChild("GwangalliMiniGamesShared"):WaitForChild("OmokConfig")) :: any
+	local model: Model? = ctx.model
+	local you = ctx.you
+	local g: any = nil
+	local selected: number? = nil
+	local conns: { RBXScriptConnection } = {}
+	local matchState = ctx.view and ctx.view.state or "seating"
+
+	local panel = K.Panel(ctx.panel, { AnchorPoint = Vector2.new(1, 1), Position = UDim2.fromScale(1, 1), Size = UDim2.fromOffset(250, if you > 0 then 128 else 60), Radius = K.Radius.lg })
+	local line1 = K.text(panel, { Position = UDim2.fromOffset(14, 8), Size = UDim2.new(1, -28, 0, 20), Font = K.Font.bold, TextSize = K.Type.body })
+	local line2 = K.text(panel, { Position = UDim2.fromOffset(14, 30), Size = UDim2.new(1, -28, 0, 18), TextSize = K.Type.caption, TextColor3 = K.Color.sub, TextWrapped = true })
+	local placeBtn: TextButton? = nil
+	if you > 0 then
+		placeBtn = K.Button(panel, { text = "착수", icon = "⚫", style = "primary", size = UDim2.new(1, -24, 0, 56), position = UDim2.new(0, 12, 1, -64), textSize = K.Type.title2, onClick = function()
+			if selected and g and g.turn == you then
+				Net.send("move", { cell = selected })
+				selected = nil
+				if model then
+					Boards.ghost(model, nil, 0)
+				end
+			end
+		end })
+	end
+
+	local function myColor(): number
+		return if g then g.color else 0
+	end
+
+	local function refresh()
+		if not g then
+			return
+		end
+		local mine = you > 0 and g.turn == you and matchState == "playing"
+		local colorName = if myColor() == 1 then "⚫ 흑" elseif myColor() == 2 then "⚪ 백" else ""
+		if you > 0 then
+			line1.Text = colorName .. (if mine then " · 내 차례!" else " · 상대 차례")
+			line1.TextColor3 = if mine then K.Color.cyan else K.Color.text
+			if selected then
+				local x, y = OC.xy(selected)
+				local b = OC.decode(g.board)
+				local bad = OC.forbidden(b, x, y, myColor(), g.rule)
+				line2.Text = OC.label(selected) .. (if bad then " · " .. OC.FORBIDDEN_TEXT[bad] else " · 한 번 더 탭하거나 착수")
+				line2.TextColor3 = if bad then K.Color.red else K.Color.sub
+				if placeBtn then
+					K.setButtonEnabled(placeBtn, mine and not bad)
+				end
+			else
+				line2.Text = if mine then "판을 탭해서 둘 곳을 고르세요" else "상대가 생각 중이에요…"
+				line2.TextColor3 = K.Color.sub
+				if placeBtn then
+					K.setButtonEnabled(placeBtn, false)
+				end
+			end
+			if g.strikes and g.strikes[you] and g.strikes[you] > 0 and mine then
+				line2.Text ..= " (시간 초과 1회!)"
+			end
+		else
+			local blackSide = g.black
+			line1.Text = (if g.turn == blackSide then "⚫ 흑" else "⚪ 백") .. " 차례"
+			line2.Text = ""
+		end
+		Stage.turn(g.turn)
+		Stage.setDeadline(g.deadline, g.moveTime)
+		Stage.setStatus(if mine then "내 차례 · " .. colorName else nil)
+	end
+
+	local function choose(cell: number)
+		if not g or g.turn ~= you or matchState ~= "playing" then
+			return
+		end
+		local b = OC.decode(g.board)
+		if b[cell] ~= 0 then
+			return
+		end
+		if selected == cell then
+			local x, y = OC.xy(cell)
+			if not OC.forbidden(b, x, y, myColor(), g.rule) then
+				Net.send("move", { cell = cell })
+				selected = nil
+				if model then
+					Boards.ghost(model, nil, 0)
+				end
+				refresh()
+				return
+			end
+		end
+		selected = cell
+		local x, y = OC.xy(cell)
+		if model then
+			Boards.ghost(model, cell, myColor(), OC.forbidden(b, x, y, myColor(), g.rule) ~= nil)
+		end
+		ctx.Fx.sound("pop", nil, 0.6)
+		refresh()
+	end
+
+	if you > 0 and model then
+		local downAt: Vector2? = nil
+		table.insert(conns, UserInputService.InputBegan:Connect(function(input, processed)
+			if processed then
+				return
+			end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				downAt = Vector2.new(input.Position.X, input.Position.Y)
+			end
+		end))
+		table.insert(conns, UserInputService.InputEnded:Connect(function(input, processed)
+			if processed or not downAt then
+				return
+			end
+			if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then
+				return
+			end
+			local p = Vector2.new(input.Position.X, input.Position.Y)
+			local moved = (p - (downAt :: Vector2)).Magnitude
+			downAt = nil
+			if moved > 14 then
+				return
+			end
+			local cam = Workspace.CurrentCamera
+			local board = Boards.boardPart(model :: Model)
+			if not cam or not board then
+				return
+			end
+			local ray = cam:ViewportPointToRay(p.X, p.Y + (if input.UserInputType == Enum.UserInputType.MouseButton1 then 0 else 0))
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Include
+			params.FilterDescendantsInstances = { board }
+			local hit = Workspace:Raycast(ray.Origin, ray.Direction * 60, params)
+			if hit then
+				local cell = Boards.cellAt(model :: Model, hit.Position)
+				if cell then
+					choose(cell)
+				end
+			end
+		end))
+	end
+
+	local api = {}
+	function api.update(view: any)
+		matchState = view.state
+		if view.state ~= "playing" then
+			Stage.setStatus(nil)
+			selected = nil
+			if model then
+				Boards.ghost(model, nil, 0)
+			end
+		end
+		refresh()
+		if view.state ~= "playing" then
+			Stage.setStatus(nil)
+		end
+	end
+	function api.game(view: any)
+		g = view
+		if selected and g.board and string.sub(g.board, selected, selected) ~= "0" then
+			selected = nil
+			if model then
+				Boards.ghost(model, nil, 0)
+			end
+		end
+		refresh()
+	end
+	function api.event(e: any)
+		if e.e == "omokStart" then
+			Stage.flash(if you > 0 and e.black == you then "⚫ 흑 (선공)" elseif you > 0 then "⚪ 백 (후공)" else "흑 선공", nil, 1.4)
+		end
+	end
+	function api.destroy()
+		for _, c in conns do
+			c:Disconnect()
+		end
+		if model then
+			Boards.ghost(model, nil, 0)
+		end
+		Stage.setStatus(nil)
+		Stage.setDeadline(nil)
+		panel:Destroy()
+	end
+	return api
+end
+
+return OmokClient
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX0000002B"><Properties><string name="Name">Quiz</string></Properties><Item class="ModuleScript" referent="RBX0000002A"><Properties><string name="Name">QuizClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- Quiz/QuizClient: 퀴즈 대결 (client only). The question card sits under the VS bar, four big answer
+-- buttons (2 x 2) at the bottom. One tap locks your answer (the time since the question appeared on
+-- this device is sent with it); the reveal colours the right answer green, wrong picks red, and
+-- tells who scored.
+
+local Workspace = game:GetService("Workspace")
+
+local QuizClient = {}
+
+function QuizClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local qi = 0
+	local shownAt = 0
+	local locked: number? = nil
+
+	local card = K.Panel(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(460, 92), Radius = K.Radius.xl, ZIndex = 5 })
+	local head = K.text(card, { Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -32, 0, 16), TextSize = K.Type.caption, TextColor3 = K.Color.cyan, Font = K.Font.bold, ZIndex = 6 })
+	local qText = K.text(card, { Position = UDim2.fromOffset(16, 26), Size = UDim2.new(1, -32, 0, 58), TextWrapped = true, Font = K.Font.bold, TextSize = K.Type.title2, TextYAlignment = Enum.TextYAlignment.Top, ZIndex = 6 })
+
+	local grid = K.frame(ctx.panel, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.fromOffset(520, 124) })
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0.5, -5, 0, 56)
+	layout.CellPadding = UDim2.fromOffset(10, 10)
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = grid
+	local buttons: { TextButton } = {}
+	for i = 1, 4 do
+		local b = K.Button(grid, { text = "", style = "glass", order = i, textSize = K.Type.body, onClick = function()
+			if you == 0 or locked or qi == 0 then
+				return
+			end
+			locked = i
+			Net.send("move", { q = qi, choice = i, t = os.clock() - shownAt })
+			for k, bb in buttons do
+				bb.BackgroundTransparency = if k == i then 0 else 0.5
+			end
+			Fx.sound("pop")
+		end })
+		buttons[i] = b
+	end
+
+	local function resetButtons(choices: { string })
+		for i, b in buttons do
+			b.Text = string.char(64 + i) .. ".  " .. (choices[i] or "")
+			b.BackgroundColor3 = K.Color.glass
+			b.BackgroundTransparency = K.GLASS_T
+			b.TextColor3 = K.Color.text
+		end
+	end
+
+	local api = {}
+	function api.game(g: any)
+		Stage.updateScore(string.format("%d : %d", g.score[1], g.score[2]))
+		if g.phase == "q" then
+			Stage.setDeadline(g.deadline, g.qtime)
+		end
+	end
+	function api.event(e: any)
+		if e.e == "quizQ" then
+			qi = e.qi
+			locked = nil
+			shownAt = os.clock()
+			head.Text = if e.extra then "서든데스!" else ("Q" .. e.qi .. " / 5")
+			qText.Text = e.q
+			resetButtons(e.c)
+			K.pop(card, 0.92)
+			Fx.sound("whoosh")
+			Stage.setStatus(if you > 0 then "빨리 맞히면 1점!" else nil)
+			Stage.setDeadline(e.deadline, math.max(1, e.deadline - Workspace:GetServerTimeNow()))
+		elseif e.e == "quizLocked" then
+			locked = e.c
+		elseif e.e == "quizReveal" then
+			for i, b in buttons do
+				if i == e.a then
+					b.BackgroundColor3 = Color3.fromRGB(30, 120, 70)
+					b.BackgroundTransparency = 0
+				elseif i == e.c1 or i == e.c2 then
+					b.BackgroundColor3 = Color3.fromRGB(130, 36, 44)
+					b.BackgroundTransparency = 0
+				end
+			end
+			local w = e.w
+			Stage.flash(if w == 0 then "아무도 못 맞혔어요" elseif w == you then "+1점!" else (view.sides[w].name .. " +1점"), if w == you and you > 0 then K.Color.gold else nil, 1.4)
+			Fx.sound(if w == you and you > 0 then "win" elseif w == 0 then "buzz" else "pop")
+			Stage.updateScore(string.format("%d : %d", e.s1, e.s2))
+			Stage.setStatus(nil)
+		elseif e.e == "quizSudden" then
+			Stage.flash("동점! 서든데스", K.Color.magenta, 1.5)
+		end
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		card:Destroy()
+		grid:Destroy()
+		Stage.setStatus(nil)
+		Stage.setDeadline(nil)
+	end
+	return api
+end
+
+return QuizClient
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX0000002D"><Properties><string name="Name">ReactionGame</string></Properties><Item class="ModuleScript" referent="RBX0000002C"><Properties><string name="Name">ReactionClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- ReactionGame/ReactionClient: 순발력 대결 (client only). One huge round button in the middle of the
+-- screen: red "준비…" while waiting (pressing now = 부정 출발!), green "지금!" the moment the server's
+-- go event arrives. Your own reaction time is measured from that arrival on this device and sent with
+-- the press; the server compares it with its own clock (see ReactionServer) and decides.
+-- Keyboard: Space presses too.
+
+local ContextActionService = game:GetService("ContextActionService")
+
+local ReactionClient = {}
+
+function ReactionClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local g: any = nil
+	local round = 0
+	local phase = "idle"
+	local goAt = 0
+	local pressed = false
+
+	local size = 210
+	local big = K.make("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.56),
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = Color3.fromRGB(180, 40, 56),
+		AutoButtonColor = false,
+		Text = "준비…",
+		Font = K.Font.heavy,
+		TextSize = 40,
+		TextColor3 = Color3.new(1, 1, 1),
+		ZIndex = 10,
+		Visible = you > 0,
+	}, ctx.gui)
+	K.corner(big, UDim.new(0.5, 0))
+	local ring = K.stroke(big, Color3.new(1, 1, 1), 4, 0.6)
+	local _ = ring
+	local info = K.text(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0.56, size / 2 + 10), Size = UDim2.fromOffset(360, 30), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.bold, TextSize = K.Type.title2, TextStrokeTransparency = 0.5, ZIndex = 10 })
+
+	local function setBig(color: Color3, text: string)
+		big.BackgroundColor3 = color
+		big.Text = text
+	end
+
+	local function press()
+		if you == 0 or pressed or round == 0 then
+			return
+		end
+		if phase == "ready" then
+			pressed = true
+			Net.send("move", { round = round, early = true })
+			setBig(Color3.fromRGB(90, 90, 100), "부정 출발!")
+			Fx.sound("buzz")
+		elseif phase == "go" then
+			pressed = true
+			local rt = os.clock() - goAt
+			Net.send("move", { round = round, rt = rt })
+			setBig(Color3.fromRGB(40, 120, 200), string.format("%d ms", math.floor(rt * 1000)))
+			Fx.sound("pop")
+			K.haptic("tap")
+		end
+	end
+	big.Activated:Connect(press)
+	ContextActionService:BindAction("MiniGameReactionPress", function(_, state)
+		if state == Enum.UserInputState.Begin then
+			press()
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
+
+	local api = {}
+	function api.game(v: any)
+		g = v
+		Stage.updateScore(string.format("%d : %d", g.score[1], g.score[2]))
+	end
+	function api.event(e: any)
+		if e.e == "reactReady" then
+			round = e.round
+			phase = "ready"
+			pressed = false
+			setBig(Color3.fromRGB(180, 40, 56), "준비…")
+			info.Text = round .. "라운드 · 초록색이 되면 누르세요!"
+			info.TextColor3 = K.Color.text
+			Stage.setStatus("준비…")
+		elseif e.e == "reactGo" then
+			phase = "go"
+			goAt = os.clock()
+			setBig(Color3.fromRGB(40, 200, 110), "지금!")
+			K.pop(big, 0.85)
+			Fx.sound("go")
+			Stage.setStatus("지금!")
+		elseif e.e == "reactFoul" then
+			local who = view.sides[e.side]
+			info.Text = (if e.side == you then "부정 출발!" else (who and who.name or "상대") .. " 부정 출발!")
+			info.TextColor3 = K.Color.orange
+		elseif e.e == "reactResult" then
+			phase = "show"
+			local function fmt(t: number?, foul: boolean): string
+				if foul then
+					return "부정 출발"
+				end
+				return if t then (t .. "ms") else "안 누름"
+			end
+			local a = fmt(e.t1, e.foul1)
+			local b = fmt(e.t2, e.foul2)
+			local w = e.w
+			info.Text = string.format("%s %s · %s %s", view.sides[1].name, a, view.sides[2].name, b)
+			info.TextColor3 = if w == you and you > 0 then K.Color.gold else K.Color.text
+			Stage.flash(if w == 0 then "무승부" elseif w == you then "승리!" elseif you > 0 then "패배" else (view.sides[w].name .. " 승!"), if w == you then K.Color.gold else nil, 1.6)
+			Stage.updateScore(string.format("%d : %d", e.s1, e.s2))
+			Stage.setStatus(nil)
+		end
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		ContextActionService:UnbindAction("MiniGameReactionPress")
+		big:Destroy()
+		info:Destroy()
+		Stage.setStatus(nil)
+	end
+	return api
+end
+
+return ReactionClient
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX0000002F"><Properties><string name="Name">RockPaperScissors</string></Properties><Item class="ModuleScript" referent="RBX0000002E"><Properties><string name="Name">RpsClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- RockPaperScissors/RpsClient: 가위바위보 screen (client only). "3 · 2 · 1 · 가위바위보!" follows the
+-- server's shoot time; three big thumb buttons (✊ 바위 ✋ 보 ✌️ 가위) can be pressed any time during
+-- the count (your pick is confirmed by the server, the other side's is never known before the
+-- reveal). At the reveal both hands pop up in the middle and over each character's hand.
+
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local RpsClient = {}
+
+local GLYPH = { "✊", "✋", "✌️" }
+local NAME = { "바위", "보", "가위" }
+
+function RpsClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local g: any = nil
+	local tShoot = 0
+	local round = 0
+	local picked: number? = nil
+	local lastCount = ""
+
+	local bar = K.frame(ctx.panel, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.fromOffset(math.min(420, 9999), 104) })
+	local buttons: { TextButton } = {}
+	if you > 0 then
+		K.list(bar, true, 12, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Bottom)
+		for i = 1, 3 do
+			local b = K.Button(bar, { text = GLYPH[i], style = "glass", size = UDim2.fromOffset(104, 96), order = i, textSize = 50, onClick = function()
+				if picked or not g or g.phase ~= "count" then
+					return
+				end
+				picked = i
+				Net.send("move", { hand = i })
+				for k, bb in buttons do
+					bb.BackgroundTransparency = if k == i then 0 else 0.6
+					bb.TextTransparency = if k == i then 0 else 0.55
+				end
+				Fx.sound("pop")
+			end })
+			local lab = K.text(b, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -4), Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, Text = NAME[i], TextColor3 = K.Color.sub })
+			local _ = lab
+			buttons[i] = b
+		end
+	end
+
+	-- reveal card
+	local reveal = K.Panel(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.45), Size = UDim2.fromOffset(300, 150), Visible = false, Radius = K.Radius.xl, ZIndex = 20 })
+	local left = K.text(reveal, { Position = UDim2.fromOffset(10, 10), Size = UDim2.fromOffset(120, 90), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 72, ZIndex = 21 })
+	local right = K.text(reveal, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -10, 0, 10), Size = UDim2.fromOffset(120, 90), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 72, ZIndex = 21 })
+	K.text(reveal, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 36), Size = UDim2.fromOffset(40, 30), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 18, Text = "VS", TextColor3 = K.Color.gold, ZIndex = 21 })
+	local verdict = K.text(reveal, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -20, 0, 34), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 26, ZIndex = 21 })
+
+	local function resetPick()
+		picked = nil
+		for _, b in buttons do
+			b.BackgroundTransparency = 0.14
+			b.TextTransparency = 0
+		end
+	end
+
+	local stepConn = RunService.RenderStepped:Connect(function()
+		if not g or g.phase ~= "count" or tShoot <= 0 then
+			return
+		end
+		local left_ = tShoot - Workspace:GetServerTimeNow()
+		local txt
+		if left_ > 2 then
+			txt = "3"
+		elseif left_ > 1 then
+			txt = "2"
+		elseif left_ > 0 then
+			txt = "1"
+		else
+			txt = "가위바위보!"
+		end
+		if txt ~= lastCount then
+			lastCount = txt
+			Stage.flash(txt, if txt == "가위바위보!" then K.Color.gold else nil, 1.0)
+			Fx.sound(if txt == "가위바위보!" then "go" else "tick")
+		end
+	end)
+
+	local api = {}
+	function api.game(v: any)
+		g = v
+		Stage.updateScore(string.format("%d : %d", g.score[1], g.score[2]))
+		Stage.setStatus(if g.phase == "count" then (if picked then "선택 완료!" elseif you > 0 then "하나를 골라요!" else "가위바위보!") else nil)
+	end
+	function api.event(e: any)
+		if e.e == "rpsRound" then
+			round = e.round
+			tShoot = e.tShoot
+			lastCount = ""
+			reveal.Visible = false
+			resetPick()
+		elseif e.e == "rpsReveal" then
+			local mine = if you == 2 then e.c2 else e.c1
+			local theirs = if you == 2 then e.c1 else e.c2
+			left.Text = GLYPH[mine] or "?"
+			right.Text = GLYPH[theirs] or "?"
+			local w = e.w
+			if you == 0 then
+				verdict.Text = if w == 0 then "비김" else (view.sides[w].name .. " 승!")
+				verdict.TextColor3 = K.Color.text
+			else
+				verdict.Text = if w == 0 then "비김! 다시" elseif w == you then "이겼다!" else "졌다…"
+				verdict.TextColor3 = if w == 0 then K.Color.text elseif w == you then K.Color.gold else K.Color.sub
+			end
+			if (you == 1 and e.late1) or (you == 2 and e.late2) then
+				verdict.Text ..= " (늦어서 랜덤)"
+			end
+			reveal.Visible = true
+			K.pop(reveal, 0.7)
+			Fx.sound(if w == 0 then "pop" elseif w == you then "win" else "lose")
+			-- hands over the characters
+			for side = 1, 2 do
+				local s = view.sides[side]
+				local hand = if side == 1 then e.c1 else e.c2
+				local char = if s.npc then nil else Fx.characterOf(s.userId)
+				if char then
+					Fx.hand(char, hand, 2.2)
+				elseif s.npc and ctx.model then
+					-- the NPC host rig is in workspace.GwangalliNPCs, tagged by its station
+					local npcs = Workspace:FindFirstChild(ctx.MS.NpcFolder)
+					if npcs then
+						for _, m in npcs:GetChildren() do
+							if m:GetAttribute("MiniGameHost") == view.station then
+								Fx.hand(m :: Model, hand, 2.2)
+							end
+						end
+					end
+				end
+			end
+			Stage.updateScore(string.format("%d : %d", e.s1, e.s2))
+			task.delay(2.2, function()
+				reveal.Visible = false
+			end)
+		elseif e.e == "rpsPicked" then
+			picked = e.hand
+		end
+		local _ = round
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		stepConn:Disconnect()
+		bar:Destroy()
+		reveal:Destroy()
+		Stage.setStatus(nil)
+	end
+	return api
+end
+
+return RpsClient
+]]></ProtectedString></Properties></Item></Item><Item class="ModuleScript" referent="RBX00000030"><Properties><string name="Name">Stage</string><ProtectedString name="Source"><![CDATA[--!strict
+-- GwangalliMiniGames/Stage: the match screen around every game (client only, GwangalliUI kit).
+--   * VS bar (top centre, compact): both players (rank / NPC level), whose turn it is (glow), the
+--     state line ("자리에 앉는 중", "3 2 1", the game's own status), 상금, the game's score.
+--   * the game panel (bottom, at most ~40 % of the screen so the table and the bay stay visible):
+--     each game client draws its controls in Stage.panel.
+--   * small buttons: 기권 (with confirm), 무승부 제안 / 수락 (turn games), 관전 종료 (spectators).
+--   * countdown overlay, and the RESULT card: "OOO 승리!", +₩20,000 / -₩10,000 (count-up),
+--     the record line (오목 33승 18패 · 승률 64% · 🥇 골드 +12), 재대결 / 나가기.
+-- The ScreenGui carries HideGwangalliHUD while a match is shown, so the walking HUD steps aside.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local Stage = {}
+
+local K: any = nil
+local MS: any = nil
+local Net: any = nil
+local Fx: any = nil
+local gui: ScreenGui = nil :: any
+local player = Players.LocalPlayer
+
+local root: Frame = nil :: any
+local vsBar: Frame = nil :: any
+local sideFrames: { any } = {}
+local center: TextLabel = nil :: any
+local status: TextLabel = nil :: any
+local potPill: TextLabel = nil :: any
+local scoreLabel: TextLabel = nil :: any
+local timerBar: Frame = nil :: any
+local timerFill: Frame = nil :: any
+local buttons: Frame = nil :: any
+local forfeitBtn: TextButton = nil :: any
+local drawBtn: TextButton = nil :: any
+local leaveSpecBtn: TextButton = nil :: any
+local countdown: TextLabel = nil :: any
+local resultCard: Frame = nil :: any
+Stage.panel = nil :: any -- Frame the game clients draw into
+
+local current: any = nil -- last match view
+local deadline: number = 0
+local deadlineSpan: number = 1
+local statusOverride: string? = nil
+local scale: UIScale = nil :: any
+
+function Stage.init(k: any, ms: any, net: any, fx: any, screen: ScreenGui)
+	K, MS, Net, Fx, gui = k, ms, net, fx, screen
+	Stage.build()
+	RunService.RenderStepped:Connect(Stage.step)
+end
+
+local function sideCard(parent: Instance, align: string): any
+	local f = K.frame(parent, { Size = UDim2.new(0.5, -34, 1, 0), Position = if align == "left" then UDim2.fromOffset(0, 0) else UDim2.new(0.5, 34, 0, 0) })
+	local avatar = K.frame(f, { Size = UDim2.fromOffset(38, 38), AnchorPoint = Vector2.new(0, 0.5), Position = if align == "left" then UDim2.new(0, 10, 0.5, 0) else UDim2.new(1, -48, 0.5, 0), BackgroundTransparency = 0, BackgroundColor3 = K.Color.card2 })
+	K.corner(avatar, UDim.new(0.5, 0))
+	local glow = K.stroke(avatar, K.Color.cyan, 2.5, 1)
+	local icon = K.text(avatar, { Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center, TextSize = 20, Text = "🙂" })
+	local name = K.text(f, { Font = K.Font.bold, TextSize = K.Type.bodySm, TextTruncate = Enum.TextTruncate.AtEnd, Size = UDim2.new(1, -66, 0, 18), Position = if align == "left" then UDim2.new(0, 56, 0, 9) else UDim2.new(0, 10, 0, 9), TextXAlignment = if align == "left" then Enum.TextXAlignment.Left else Enum.TextXAlignment.Right })
+	local sub = K.text(f, { TextColor3 = K.Color.sub, TextSize = K.Type.micro, Size = UDim2.new(1, -66, 0, 14), Position = if align == "left" then UDim2.new(0, 56, 0, 29) else UDim2.new(0, 10, 0, 29), TextXAlignment = if align == "left" then Enum.TextXAlignment.Left else Enum.TextXAlignment.Right })
+	return { frame = f, icon = icon, name = name, sub = sub, glow = glow, avatar = avatar }
+end
+
+function Stage.build()
+	root = K.frame(gui, { Name = "Stage", Size = UDim2.fromScale(1, 1), Visible = false })
+	scale = Instance.new("UIScale")
+	scale.Parent = root
+	-- VS bar
+	vsBar = K.Panel(root, { Name = "VsBar", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.fromOffset(520, 58), Radius = K.Radius.lg })
+	sideFrames[1] = sideCard(vsBar, "left")
+	sideFrames[2] = sideCard(vsBar, "right")
+	center = K.text(vsBar, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 4), Size = UDim2.fromOffset(68, 26), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 20, Text = "VS", TextColor3 = K.Color.gold })
+	scoreLabel = K.text(vsBar, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 30), Size = UDim2.fromOffset(80, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.text, Font = K.Font.bold })
+	timerBar = K.frame(vsBar, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -3), Size = UDim2.new(1, -28, 0, 3), BackgroundTransparency = 0, BackgroundColor3 = K.Color.card3 })
+	K.corner(timerBar, UDim.new(0.5, 0))
+	timerFill = K.frame(timerBar, { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = K.Color.cyan })
+	K.corner(timerFill, UDim.new(0.5, 0))
+	-- status + pot under the bar
+	local under = K.frame(root, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 70), Size = UDim2.fromOffset(520, 26) })
+	K.list(under, true, 8, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+	potPill = K.text(under, { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 24), BackgroundTransparency = 0.15, BackgroundColor3 = Color3.fromRGB(44, 34, 8), TextColor3 = K.Color.gold, Font = K.Font.bold, TextSize = K.Type.caption, LayoutOrder = 1 })
+	K.corner(potPill, UDim.new(0.5, 0))
+	K.pad(potPill, 10, 10, 0, 0)
+	status = K.text(under, { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 24), BackgroundTransparency = 0.25, BackgroundColor3 = K.Color.glass, TextColor3 = K.Color.text, Font = K.Font.bold, TextSize = K.Type.caption, LayoutOrder = 2 })
+	K.corner(status, UDim.new(0.5, 0))
+	K.pad(status, 10, 10, 0, 0)
+	-- small action buttons (top right of the bar)
+	buttons = K.frame(root, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 8), Size = UDim2.fromOffset(110, 140) })
+	K.list(buttons, false, 6, Enum.HorizontalAlignment.Right)
+	forfeitBtn = K.Button(buttons, { text = "기권", icon = "🏳", style = "danger", size = UDim2.fromOffset(104, 40), order = 1, textSize = K.Type.caption, onClick = function()
+		K.confirm(gui, {
+			title = "기권할까요?",
+			body = "상대가 승리하고 참가비는 돌려받지 못해요.",
+			confirmText = "기권",
+			destructive = true,
+			onConfirm = function()
+				Net.send("forfeit")
+			end,
+		})
+	end })
+	drawBtn = K.Button(buttons, { text = "무승부", icon = "🤝", style = "secondary", size = UDim2.fromOffset(104, 40), order = 2, textSize = K.Type.caption, onClick = function()
+		if current and current.drawOffer ~= 0 and current.drawOffer ~= current.you then
+			Net.send("draw", { offer = true })
+		elseif current and current.drawOffer == 0 then
+			Net.send("draw", { offer = true })
+			K.toast({ kind = "info", title = "무승부 제안", body = "상대의 답을 기다려요" })
+		end
+	end })
+	leaveSpecBtn = K.Button(buttons, { text = "관전 종료", icon = "👀", style = "glass", size = UDim2.fromOffset(104, 40), order = 3, textSize = K.Type.caption, onClick = function()
+		Net.send("unspectate")
+	end })
+	-- game panel
+	Stage.panel = K.frame(root, { Name = "GamePanel", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -10), Size = UDim2.new(1, -16, 0.4, 0) })
+	-- countdown
+	countdown = K.text(root, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.42), Size = UDim2.fromOffset(300, 140), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 96, TextColor3 = Color3.new(1, 1, 1), TextStrokeTransparency = 0.4, Visible = false, ZIndex = 30 })
+	-- result
+	resultCard = K.Panel(root, { Name = "Result", AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Size = UDim2.fromOffset(340, 300), Visible = false, ZIndex = 40, BackgroundTransparency = 0.04, Radius = K.Radius.xl })
+	Stage.layout()
+end
+
+function Stage.layout()
+	local cam = Workspace.CurrentCamera
+	if not cam or not root then
+		return
+	end
+	local vp = cam.ViewportSize
+	local s = 1
+	if vp.X < 700 or vp.Y < 420 then
+		s = math.clamp(math.min(vp.X / 640, vp.Y / 400), 0.72, 1)
+	end
+	scale.Scale = s
+	local w = math.min(520, vp.X / s - 140)
+	vsBar.Size = UDim2.fromOffset(w, 58)
+end
+
+function Stage.root(): Frame
+	return root
+end
+
+function Stage.setStatus(text: string?)
+	statusOverride = text
+end
+
+-- deadline in server time (workspace:GetServerTimeNow()) and the full span for the timer bar
+function Stage.setDeadline(t: number?, span: number?)
+	deadline = t or 0
+	deadlineSpan = span or 10
+end
+
+local STATE_TEXT = { seating = "자리에 앉는 중…", countdown = "곧 시작해요!", playing = "", result = "경기 종료" }
+
+function Stage.show(view: any)
+	current = view
+	gui:SetAttribute("HideGwangalliHUD", true)
+	root.Visible = true
+	Stage.layout()
+	local info = MS.GAMES[view.game]
+	for i = 1, 2 do
+		local s = view.sides[i]
+		local f = sideFrames[i]
+		f.name.Text = s.name .. (if i == view.you then " (나)" else "")
+		f.sub.Text = if s.npc then ("NPC · " .. (s.difficulty or "")) else (s.rankIcon .. " " .. s.rank)
+		f.icon.Text = if s.npc then "🧑" else s.rankIcon
+	end
+	potPill.Text = if view.stake > 0 then ("상금 " .. MS.won(view.pot)) else "친선전"
+	center.Text = info and info.icon or "VS"
+	local participant = view.you > 0
+	forfeitBtn.Visible = participant and view.state == "playing"
+	drawBtn.Visible = participant and view.state == "playing" and info ~= nil and info.turn and view.sides[3 - view.you] and not view.sides[3 - view.you].npc
+	if drawBtn.Visible then
+		drawBtn.Text = if view.drawOffer ~= 0 and view.drawOffer ~= view.you then "🤝  무승부 수락" elseif view.drawOffer == view.you then "🤝  제안함" else "🤝  무승부"
+	end
+	leaveSpecBtn.Visible = not participant
+	-- countdown / seating overlay
+	if view.state == "countdown" then
+		countdown.Visible = true
+	else
+		countdown.Visible = false
+	end
+	if view.state == "result" and view.result then
+		Stage.showResult(view)
+	else
+		resultCard.Visible = false
+	end
+end
+
+function Stage.updateScore(text: string?)
+	scoreLabel.Text = text or ""
+end
+
+function Stage.turn(side: number)
+	for i = 1, 2 do
+		local f = sideFrames[i]
+		local on = side == i
+		f.glow.Transparency = if on then 0 else 1
+		f.name.TextColor3 = if on then K.Color.cyan else K.Color.text
+	end
+end
+
+function Stage.hide()
+	current = nil
+	root.Visible = false
+	resultCard.Visible = false
+	countdown.Visible = false
+	gui:SetAttribute("HideGwangalliHUD", nil)
+	statusOverride = nil
+	deadline = 0
+	for _, c in Stage.panel:GetChildren() do
+		c:Destroy()
+	end
+end
+
+function Stage.flash(text: string, color: Color3?, dur: number?)
+	countdown.Text = text
+	countdown.TextColor3 = color or Color3.new(1, 1, 1)
+	countdown.Visible = true
+	countdown.TextSize = 72
+	K.pop(countdown, 0.6)
+	local token = os.clock()
+	countdown:SetAttribute("Token", token)
+	task.delay(dur or 1.2, function()
+		if countdown:GetAttribute("Token") == token and not (current and current.state == "countdown") then
+			countdown.Visible = false
+		end
+	end)
+end
+
+function Stage.step()
+	if not current or not root.Visible then
+		return
+	end
+	local now = Workspace:GetServerTimeNow()
+	if current.state == "countdown" then
+		local left = math.max(0, current.tEnd - now)
+		local n = math.ceil(left)
+		local txt = if n > 0 then tostring(n) else "시작!"
+		if countdown.Text ~= txt then
+			countdown.Text = txt
+			countdown.TextSize = 96
+			countdown.TextColor3 = if n > 0 then Color3.new(1, 1, 1) else K.Color.gold
+			K.pop(countdown, 0.5)
+			Fx.sound(if n > 0 then "tick" else "go")
+		end
+	end
+	local st = statusOverride or STATE_TEXT[current.state] or ""
+	if st == "" and current.state == "playing" then
+		st = MS.GAMES[current.game].name
+	end
+	status.Text = st
+	status.Visible = st ~= ""
+	if deadline > 0 and current.state == "playing" then
+		local left = math.max(0, deadline - now)
+		timerBar.Visible = true
+		timerFill.Size = UDim2.fromScale(math.clamp(left / deadlineSpan, 0, 1), 1)
+		timerFill.BackgroundColor3 = if left < 3 then K.Color.red elseif left < 6 then K.Color.orange else K.Color.cyan
+	else
+		timerBar.Visible = false
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- result card
+-------------------------------------------------------------------------------------------------
+local REASONS = {
+	five = "오목 완성!",
+	full = "판이 가득 찼어요",
+	timeout = "시간 초과",
+	forfeit = "기권",
+	left = "상대가 자리를 떠났어요",
+	agreed = "무승부 합의",
+	score = "",
+	rounds = "",
+	points = "",
+	memory = "",
+	exact = "정답!",
+}
+
+local resultShownFor = 0
+
+function Stage.showResult(view: any)
+	local r = view.result
+	local first = resultShownFor ~= view.id
+	resultShownFor = view.id
+	for _, c in resultCard:GetChildren() do
+		if not c:IsA("UICorner") and not c:IsA("UIStroke") and c.Name ~= "Sheen" then
+			c:Destroy()
+		end
+	end
+	resultCard.Visible = true
+	local content = K.frame(resultCard, { Size = UDim2.new(1, -32, 1, -28), Position = UDim2.fromOffset(16, 14), ZIndex = 41 })
+	K.list(content, false, 8, Enum.HorizontalAlignment.Center)
+	local you = view.you
+	local won = you > 0 and r.winner == you
+	local lost = you > 0 and r.winner > 0 and r.winner ~= you
+	local title = if r.winner == 0 then "무승부" else (r.winnerName .. " 승리!")
+	local t = K.text(content, { Size = UDim2.new(1, 0, 0, 36), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 26, Text = title, TextColor3 = if won then K.Color.gold elseif lost then K.Color.sub else K.Color.text, LayoutOrder = 1, ZIndex = 42 })
+	local _ = t
+	local reason = REASONS[r.reason] or ""
+	if reason ~= "" then
+		K.text(content, { Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.sub, Text = reason, LayoutOrder = 2, ZIndex = 42 })
+	end
+	if you > 0 then
+		local net = r.net[you] or 0
+		local money = K.text(content, { Size = UDim2.new(1, 0, 0, 34), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 28, LayoutOrder = 3, ZIndex = 42, TextColor3 = if net > 0 then K.Color.green elseif net < 0 then K.Color.red else K.Color.text })
+		if view.stake <= 0 then
+			money.Text = "친선전"
+			money.TextSize = 18
+		elseif net == 0 then
+			money.Text = if r.winner == 0 then "참가비 반환" else "±₩0"
+			money.TextSize = 20
+		else
+			money.Text = (if net > 0 then "+" else "-") .. MS.won(math.abs(net))
+			if first then
+				pcall(function()
+					K.countUp(money, math.abs(net), { prefix = (if net > 0 then "+₩" else "-₩") })
+				end)
+			end
+		end
+		if won and view.stake > 0 then
+			K.text(content, { Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.gold, Text = "상금 " .. MS.won(if view.sides[3 - you].npc then view.stake + net else view.pot) .. " 획득", LayoutOrder = 4, ZIndex = 42 })
+		end
+		if r.capped then
+			K.text(content, { Size = UDim2.new(1, 0, 0, 30), TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.micro, TextColor3 = K.Color.orange, Text = "오늘 NPC 상금 한도에 도달해서 참가비만 돌려받았어요", LayoutOrder = 5, ZIndex = 42 })
+		end
+		local rec = r.records and r.records[you]
+		if rec then
+			local info = MS.GAMES[view.game]
+			local line = string.format("%s %d승 %d패%s · 승률 %d%%", info.name, rec.w, rec.l, if rec.d > 0 then " " .. rec.d .. "무" else "", MS.winRate(rec.w, rec.l))
+			K.text(content, { Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, Text = line, LayoutOrder = 6, ZIndex = 42 })
+			local d = rec.delta or 0
+			K.text(content, {
+				Size = UDim2.new(1, 0, 0, 18),
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextSize = K.Type.caption,
+				Font = K.Font.bold,
+				TextColor3 = if rec.rankUp then K.Color.gold else K.Color.sub,
+				Text = string.format("%s %s · %d점 (%s%d)%s", rec.rankIcon, rec.rank, rec.rating, if d >= 0 then "+" else "", d, if rec.rankUp then " · 랭크 UP!" else ""),
+				LayoutOrder = 7,
+				ZIndex = 42,
+			})
+			if rec.streak and rec.streak >= 2 and won then
+				K.text(content, { Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.micro, TextColor3 = K.Color.magenta, Text = "🔥 " .. rec.streak .. "연승 중", LayoutOrder = 8, ZIndex = 42 })
+			end
+		end
+		local row = K.frame(content, { Size = UDim2.new(1, 0, 0, 48), LayoutOrder = 9, ZIndex = 42 })
+		local other = 3 - you
+		local otherVoted = view.votes[other]
+		local meVoted = view.votes[you]
+		local opponentGone = false
+		local rb = K.Button(row, {
+			text = if meVoted then "기다리는 중…" elseif otherVoted then "재대결 수락" else "재대결",
+			icon = "🔁",
+			style = if otherVoted then "gold" else "primary",
+			size = UDim2.new(0.5, -4, 1, 0),
+			zIndex = 43,
+			onClick = function()
+				Net.send("rematch")
+			end,
+		})
+		if meVoted or opponentGone then
+			K.setButtonEnabled(rb, false)
+		end
+		K.Button(row, { text = "나가기", style = "secondary", size = UDim2.new(0.5, -4, 1, 0), position = UDim2.new(0.5, 4, 0, 0), zIndex = 43, onClick = function()
+			Net.send("leave")
+		end })
+		if first and won then
+			Fx.sound("win")
+			K.feedback("money")
+		elseif first and lost then
+			Fx.sound("lose")
+		end
+	else
+		K.Button(content, { text = "관전 종료", style = "secondary", size = UDim2.new(1, 0, 0, 44), order = 9, zIndex = 43, onClick = function()
+			Net.send("unspectate")
+		end })
+	end
+	if first then
+		K.pop(resultCard, 0.85)
+	end
+end
+
+return Stage
+]]></ProtectedString></Properties></Item><Item class="Folder" referent="RBX00000032"><Properties><string name="Name">TimingGame</string></Properties><Item class="ModuleScript" referent="RBX00000031"><Properties><string name="Name">TimingClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- TimingGame/TimingClient: 타이밍 게임 (client only). A marker sweeps a bar (faster each round); the
+-- big STOP button (or Space) freezes it - the closer to the gold centre the more points (0-100).
+-- The bar starts when the server's go event ARRIVES here, and the elapsed time on this device is
+-- what is sent, so lag does not move your marker (TimingServer cross-checks it).
+
+local ContextActionService = game:GetService("ContextActionService")
+local RunService = game:GetService("RunService")
+
+local TimingClient = {}
+
+local function posAt(t: number, period: number): number
+	local u = (t / period) % 2
+	return if u <= 1 then u else 2 - u
+end
+
+function TimingClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local you = ctx.you
+	local view = ctx.view
+	local round = 0
+	local period = 1.5
+	local running = false
+	local startAt = 0
+	local stoppedAt: number? = nil
+
+	local wrap = K.Panel(ctx.gui, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 108), Size = UDim2.new(0.8, 0, 0, 96), Radius = K.Radius.xl, ZIndex = 5 })
+	local title = K.text(wrap, { Position = UDim2.fromOffset(0, 6), Size = UDim2.new(1, 0, 0, 18), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.sub, ZIndex = 6 })
+	local bar = K.frame(wrap, { Position = UDim2.new(0, 16, 0, 32), Size = UDim2.new(1, -32, 0, 34), BackgroundTransparency = 0, BackgroundColor3 = K.Color.card3, ZIndex = 6 })
+	K.corner(bar, K.Radius.sm)
+	local zone2 = K.frame(bar, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromScale(0.3, 1), BackgroundTransparency = 0.55, BackgroundColor3 = K.Color.green, ZIndex = 7 })
+	local zone1 = K.frame(bar, { AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.fromScale(0.5, 0), Size = UDim2.fromScale(0.08, 1), BackgroundTransparency = 0.1, BackgroundColor3 = K.Color.gold, ZIndex = 8 })
+	local _ = zone2
+	local _2 = zone1
+	local marker = K.frame(bar, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(0, 6, 1, 14), BackgroundTransparency = 0, BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 9 })
+	K.corner(marker, UDim.new(0.5, 0))
+	local other = K.frame(bar, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.new(0, 6, 1, 14), BackgroundTransparency = 0, BackgroundColor3 = K.Color.magenta, Visible = false, ZIndex = 9 })
+	K.corner(other, UDim.new(0.5, 0))
+	local pts = K.text(wrap, { Position = UDim2.fromOffset(0, 70), Size = UDim2.new(1, 0, 0, 20), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.bold, TextSize = K.Type.bodySm, ZIndex = 6 })
+
+	local stop = K.make("TextButton", {
+		AnchorPoint = Vector2.new(0.5, 1),
+		Position = UDim2.new(0.5, 0, 1, -16),
+		Size = UDim2.fromOffset(170, 170),
+		BackgroundColor3 = Color3.fromRGB(255, 176, 32),
+		AutoButtonColor = false,
+		Text = "STOP",
+		Font = K.Font.heavy,
+		TextSize = 40,
+		TextColor3 = Color3.fromRGB(40, 24, 0),
+		Visible = you > 0,
+	}, ctx.panel)
+	K.corner(stop, UDim.new(0.5, 0))
+	K.stroke(stop, Color3.new(1, 1, 1), 4, 0.5)
+
+	local function press()
+		if you == 0 or not running or stoppedAt then
+			return
+		end
+		local t = os.clock() - startAt
+		stoppedAt = t
+		Net.send("move", { round = round, t = t })
+		Fx.sound("pop")
+		K.haptic("tap")
+		local p = posAt(t, period)
+		marker.Position = UDim2.fromScale(p, 0.5)
+		pts.Text = string.format("%d점", math.max(0, math.floor(100 - math.abs(p - 0.5) * 200 + 0.5)))
+	end
+	stop.Activated:Connect(press)
+	ContextActionService:BindAction("MiniGameTimingStop", function(_, state)
+		if state == Enum.UserInputState.Begin then
+			press()
+		end
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
+
+	local stepConn = RunService.RenderStepped:Connect(function()
+		if running and not stoppedAt then
+			marker.Position = UDim2.fromScale(posAt(os.clock() - startAt, period), 0.5)
+		end
+	end)
+
+	local api = {}
+	function api.game(g: any)
+		Stage.updateScore(string.format("%d : %d", g.total[1], g.total[2]))
+	end
+	function api.event(e: any)
+		if e.e == "timingReady" then
+			round = e.round
+			period = e.period
+			running = false
+			stoppedAt = nil
+			other.Visible = false
+			marker.Position = UDim2.fromScale(0, 0.5)
+			pts.Text = ""
+			title.Text = round .. " / 3 라운드 · 가운데 금색에 맞춰 멈추세요"
+			Stage.flash(round .. "라운드", nil, 1.0)
+		elseif e.e == "timingGo" then
+			running = true
+			startAt = os.clock()
+			Fx.sound("go")
+		elseif e.e == "timingResult" then
+			running = false
+			local mine = if you == 2 then e.p2 else e.p1
+			local theirs = if you == 2 then e.p1 else e.p2
+			if you == 0 then
+				mine, theirs = e.p1, e.p2
+			end
+			if mine then
+				marker.Position = UDim2.fromScale(mine, 0.5)
+			end
+			if theirs then
+				other.Visible = true
+				other.Position = UDim2.fromScale(theirs, 0.5)
+			end
+			pts.Text = string.format("%s %d점 · %s %d점", view.sides[1].name, e.s1, view.sides[2].name, e.s2)
+			Stage.updateScore(string.format("%d : %d", e.t1, e.t2))
+		end
+	end
+	function api.update(_v: any) end
+	function api.destroy()
+		ContextActionService:UnbindAction("MiniGameTimingStop")
+		stepConn:Disconnect()
+		wrap:Destroy()
+		stop:Destroy()
+	end
+	return api
+end
+
+return TimingClient
+]]></ProtectedString></Properties></Item></Item><Item class="Folder" referent="RBX00000034"><Properties><string name="Name">WordChain</string></Properties><Item class="ModuleScript" referent="RBX00000033"><Properties><string name="Name">WordChainClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- WordChain/WordChainClient: 끝말잇기 screen (client only).
+--   centre: 현재 단어 (big) + the next start syllable ("차" / "력(역)") and the remaining time;
+--   bottom: the mobile-keyboard input ("차______" placeholder, 보내기 / Enter) - only on your turn -
+--   and the chain so far as chips. A refused word shows the server's reason in red under the input
+--   while your clock keeps running. Accepted words also pop as bubbles over the speaker's head.
+
+local Workspace = game:GetService("Workspace")
+
+local WordChainClient = {}
+
+function WordChainClient.mount(ctx: any): any
+	local K, Net, Stage, Fx = ctx.K, ctx.Net, ctx.Stage, ctx.Fx
+	local WR = require(game:GetService("ReplicatedStorage"):WaitForChild("GwangalliMiniGamesShared"):WaitForChild("WordRules")) :: any
+	local you = ctx.you
+	local g: any = nil
+
+	local wordCard = K.Panel(ctx.gui, { Name = "WordCard", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 104), Size = UDim2.fromOffset(300, 112), Radius = K.Radius.xl, ZIndex = 5 })
+	K.text(wordCard, { Position = UDim2.fromOffset(0, 8), Size = UDim2.new(1, 0, 0, 16), TextXAlignment = Enum.TextXAlignment.Center, TextSize = K.Type.caption, TextColor3 = K.Color.sub, Text = "현재 단어", ZIndex = 6 })
+	local word = K.text(wordCard, { Position = UDim2.fromOffset(0, 24), Size = UDim2.new(1, 0, 0, 46), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.heavy, TextSize = 38, Text = "…", ZIndex = 6 })
+	local timeL = K.text(wordCard, { Position = UDim2.fromOffset(0, 74), Size = UDim2.new(1, 0, 0, 28), TextXAlignment = Enum.TextXAlignment.Center, Font = K.Font.bold, TextSize = K.Type.title2, TextColor3 = K.Color.cyan, ZIndex = 6 })
+
+	local bottom = K.Panel(ctx.panel, { AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.fromScale(0.5, 1), Size = UDim2.new(1, 0, 0, if you > 0 then 138 else 64), Radius = K.Radius.xl })
+	local chips = K.make("ScrollingFrame", { Position = UDim2.fromOffset(12, 8), Size = UDim2.new(1, -24, 0, 34), BackgroundTransparency = 1, BorderSizePixel = 0, ScrollBarThickness = 0, ScrollingDirection = Enum.ScrollingDirection.X, AutomaticCanvasSize = Enum.AutomaticSize.X, CanvasSize = UDim2.new() }, bottom)
+	K.list(chips, true, 6, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center)
+	local box: TextBox? = nil
+	local sendBtn: TextButton? = nil
+	local err: TextLabel? = nil
+	if you > 0 then
+		local b = K.make("TextBox", {
+			Position = UDim2.fromOffset(12, 48),
+			Size = UDim2.new(1, -118, 0, 52),
+			BackgroundColor3 = K.Color.card,
+			TextColor3 = K.Color.text,
+			PlaceholderColor3 = K.Color.faint,
+			Font = K.Font.bold,
+			TextSize = 22,
+			ClearTextOnFocus = false,
+			Text = "",
+			PlaceholderText = "",
+			TextXAlignment = Enum.TextXAlignment.Left,
+		}, bottom)
+		K.corner(b, K.Radius.md)
+		K.pad(b, 14, 14, 0, 0)
+		box = b
+		local function send()
+			if not g or g.turn ~= you then
+				return
+			end
+			local w = WR.normalize(b.Text)
+			if w == "" then
+				return
+			end
+			local ok, why = WR.shape(w)
+			if not ok then
+				(err :: TextLabel).Text = why or ""
+				return
+			end
+			if not WR.follows(g.current, w) then
+				(err :: TextLabel).Text = "'" .. g.hint .. "'(으)로 시작해야 해요"
+				return
+			end
+			(err :: TextLabel).Text = "확인 중…"
+			Net.send("move", { word = w })
+		end
+		sendBtn = K.Button(bottom, { text = "보내기", style = "primary", size = UDim2.fromOffset(94, 52), position = UDim2.new(1, -106, 0, 48), textSize = K.Type.body, onClick = send })
+		b.FocusLost:Connect(function(enter)
+			if enter then
+				send()
+			end
+		end)
+		err = K.text(bottom, { Position = UDim2.fromOffset(14, 104), Size = UDim2.new(1, -28, 0, 22), TextSize = K.Type.caption, TextColor3 = K.Color.red, Text = "" })
+	end
+
+	local function setChips()
+		for _, c in chips:GetChildren() do
+			if c:IsA("TextLabel") then
+				c:Destroy()
+			end
+		end
+		if not g then
+			return
+		end
+		for i, c in g.chain do
+			local mine = c.s == you and you > 0
+			local chip = K.text(chips, { AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromOffset(0, 28), BackgroundTransparency = 0, BackgroundColor3 = if c.s == 0 then K.Color.card3 elseif mine then Color3.fromRGB(22, 58, 76) else K.Color.card2, TextColor3 = if mine then K.Color.cyan else K.Color.text, TextSize = K.Type.bodySm, Font = K.Font.bold, Text = c.w, LayoutOrder = i })
+			K.corner(chip, UDim.new(0.5, 0))
+			K.pad(chip, 10, 10, 0, 0)
+		end
+		chips.CanvasPosition = Vector2.new(1e5, 0)
+	end
+
+	local function refresh()
+		if not g then
+			return
+		end
+		word.Text = g.current
+		local mine = you > 0 and g.turn == you
+		Stage.turn(g.turn)
+		Stage.setDeadline(g.deadline, g.turnTime)
+		Stage.updateScore(g.count .. "단어")
+		Stage.setStatus(if mine then "내 차례! '" .. g.hint .. "'(으)로 시작" else ("다음: '" .. g.hint .. "'"))
+		if box then
+			box.PlaceholderText = if mine then (g.starts[1] or "") .. "______" else "상대 차례…"
+			box.TextEditable = mine
+			if mine and not box:IsFocused() then
+				box.Text = ""
+				pcall(function()
+					(box :: TextBox):CaptureFocus()
+				end)
+			end
+			if sendBtn then
+				K.setButtonEnabled(sendBtn, mine)
+			end
+		end
+		setChips()
+	end
+
+	local stepConn = game:GetService("RunService").RenderStepped:Connect(function()
+		if g then
+			local left = math.max(0, g.deadline - Workspace:GetServerTimeNow())
+			timeL.Text = string.format("남은 시간 %.1f초", left)
+			timeL.TextColor3 = if left < 3 then K.Color.red else K.Color.cyan
+		end
+	end)
+
+	local api = {}
+	function api.game(view: any)
+		local prevTurn = g and g.turn
+		g = view
+		if prevTurn ~= nil and prevTurn ~= g.turn and err then
+			err.Text = ""
+		end
+		refresh()
+	end
+	function api.event(e: any)
+		if e.e == "wordReject" and err then
+			err.Text = "✖ " .. tostring(e.reason)
+			Fx.sound("buzz")
+			if box then
+				box.Text = ""
+			end
+		elseif e.e == "word" then
+			K.pop(word, 0.8)
+			Fx.sound("pop")
+		elseif e.e == "wordStart" then
+			Stage.flash("시작 단어: " .. e.word, nil, 1.6)
+		elseif e.e == "wordTimeout" then
+			Stage.flash("시간 초과!", K.Color.red, 1.5)
+		end
+	end
+	function api.update(_view: any) end
+	function api.destroy()
+		stepConn:Disconnect()
+		wordCard:Destroy()
+		bottom:Destroy()
+		Stage.setStatus(nil)
+		Stage.setDeadline(nil)
+	end
+	return api
+end
+
+return WordChainClient
+]]></ProtectedString></Properties></Item></Item></Item></roblox>
