@@ -192,6 +192,19 @@ Social.SOURCES = {
 	cafe = { base = 2, max = 1, label = "카페 데이트" },
 	karaoke = { base = 3, max = 1, label = "코노" },
 	bowling = { base = 3, max = 1, label = "볼링" },
+	billiards = { base = 3, max = 1, label = "당구" },
+	pocha = { base = 4, max = 1, label = "포차에서 한잔" },
+	-- npc_mind (GwangalliMind): conversations / interactions scored by the mind engine (amount given)
+	mind = { base = 1, max = 8, dim = { 1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3 }, label = "대화" },
+	food = { base = 3, max = 2, dim = { 1, 0.5 }, label = "음식 사 줌" },
+	money = { base = 3, max = 2, dim = { 1, 0.4 }, label = "용돈" },
+	play = { base = 3, max = 2, label = "같이 놂" },
+	help = { base = 5, max = 2, label = "도와줌" },
+	love = { base = 6, max = 1, label = "고백" },
+	insult = { base = -6, label = "욕설" },
+	provoke = { base = -5, label = "시비" },
+	assault = { base = -15, label = "폭행" },
+	harass = { base = -3, label = "괴롭힘" },
 	home = { base = 5, max = 1, label = "집에 초대" },
 	housewarming = { base = 10, max = 1, label = "집들이", nocap = true },
 	bday = { base = 10, max = 1, label = "생일 축하", nocap = true },
@@ -484,7 +497,7 @@ end
 -- source = affinity source awarded when you get there together. minTier = to even ask (lower
 -- tiers politely decline).
 -------------------------------------------------------------------------------------------------
-Social.INVITE_ORDER = { "now", "club", "beach", "cafe", "meal", "karaoke", "bowling", "home" }
+Social.INVITE_ORDER = { "now", "club", "beach", "walk", "cafe", "meal", "pocha", "billiards", "karaoke", "bowling", "home" }
 Social.INVITES = {
 	now = { label = "지금 같이 다니자", icon = "🚶", minTier = 3, companion = true },
 	club = { label = "클럽 가자", icon = "🎶", minTier = 1, dest = "CLUB OCEAN 광안", source = "club", evening = true },
@@ -494,6 +507,9 @@ Social.INVITES = {
 	karaoke = { label = "코노 가자", icon = "🎤", minTier = 3, dest = "광안 코인노래연습장", source = "karaoke" },
 	bowling = { label = "볼링 치자", icon = "🎳", minTier = 3, dest = "광안 락볼링클럽 (볼링장)", source = "bowling" },
 	home = { label = "우리 집 놀러 와", icon = "🏠", minTier = 3, needsHome = true, source = "home" },
+	billiards = { label = "당구 한 게임 치자", icon = "🎱", minTier = 2, dest = "광안 당구클럽 (2F)", source = "billiards" },
+	pocha = { label = "포차에서 한잔하자", icon = "🍶", minTier = 2, dest = "민락회타운", source = "pocha", adult = true, evening = true },
+	walk = { label = "광안리에서 만나자", icon = "🌉", minTier = 2, dest = "광안리 만남의 광장", source = "beach" },
 }
 Social.ACCEPT_BASE = { 0.08, 0.4, 0.75, 0.95, 1 }
 Social.INVITE_DECLINE_COOLDOWN = 240 -- seconds before asking the same NPC again after a no
@@ -517,7 +533,7 @@ function Social.acceptChance(kind: string, info: any): number
 		return 0
 	end
 	local tier = math.clamp(info.tier or 1, 1, 5)
-	if kind == "club" and info.minor then
+	if (kind == "club" or inv.adult) and info.minor then
 		return 0
 	end
 	if inv.needsHome and not info.hasHome then
@@ -762,7 +778,7 @@ end
 -- on a bench; NO alcohol depiction - all ages). color = name-tag hint / speech-bubble tint, lines =
 -- ambient + reaction banks (std / busan), chatty = talks to the player first by default.
 -------------------------------------------------------------------------------------------------
-Social.TYPE_ORDER = { "plain", "violent", "fool", "beggar", "drunk" }
+Social.TYPE_ORDER = { "plain", "violent", "fool", "beggar", "drunk", "police", "punk", "thug", "rich" }
 -- Affinity is 0..MAX; a 폭력적인 NPC starts BELOW zero: `grudge` points (record field gr) are paid off by
 -- the first goodwill before the visible affinity moves, and rudeness / 어깨빵 at 0 grow it again (up to
 -- grudgeCap). Others never hold a grudge.
@@ -771,8 +787,15 @@ Social.TYPES = {
 	plain = { label = "그냥 NPC", short = "", icon = "", color = { 190, 190, 200 }, bubble = { 250, 250, 252 }, ink = { 24, 26, 36 }, chatty = false, startA = nil },
 	violent = { label = "폭력적인 NPC", short = "성깔", icon = "😠", color = { 255, 90, 95 }, bubble = { 255, 214, 214 }, ink = { 70, 14, 20 }, chatty = false, startA = 0, grudge = 10, grudgeCap = 30 },
 	fool = { label = "동네바보", short = "동네바보", icon = "🤪", color = { 255, 194, 71 }, bubble = { 255, 240, 196 }, ink = { 72, 48, 6 }, chatty = true, startA = 10 },
-	beggar = { label = "걸렁뱅이", short = "천원만", icon = "🥤", color = { 160, 140, 110 }, bubble = { 232, 224, 206 }, ink = { 60, 48, 30 }, chatty = true, startA = 5 },
-	drunk = { label = "주정뱅이", short = "비틀", icon = "😵‍💫", color = { 139, 108, 255 }, bubble = { 224, 216, 255 }, ink = { 40, 26, 90 }, chatty = false, startA = 5 },
+	beggar = { label = "노숙자", short = "천원만", icon = "🥤", color = { 160, 140, 110 }, bubble = { 232, 224, 206 }, ink = { 60, 48, 30 }, chatty = true, startA = 5 },
+	drunk = { label = "취객", short = "비틀", icon = "😵‍💫", color = { 139, 108, 255 }, bubble = { 224, 216, 255 }, ink = { 40, 26, 90 }, chatty = false, startA = 5 },
+	-- npc_mind archetypes
+	police = { label = "경찰", short = "경찰", icon = "👮", color = { 84, 140, 255 }, bubble = { 222, 234, 255 }, ink = { 16, 32, 80 }, chatty = false, startA = 8 },
+	punk = { label = "걸렁뱅이", short = "시비꾼", icon = "😏", color = { 255, 150, 60 }, bubble = { 255, 228, 204 }, ink = { 80, 36, 6 }, chatty = true, startA = 3 },
+	thug = { label = "불량배", short = "불량배", icon = "😤", color = { 220, 60, 80 }, bubble = { 250, 206, 210 }, ink = { 72, 10, 20 }, chatty = false, startA = 0, grudge = 6, grudgeCap = 25 },
+	rich = { label = "부자", short = "부자", icon = "💎", color = { 214, 176, 90 }, bubble = { 252, 244, 222 }, ink = { 70, 52, 10 }, chatty = false, startA = 4 },
+	-- bubble styles only (never a citizen's type): the player's own lines in a conversation
+	player = { label = "나", short = "", icon = "", color = { 61, 214, 245 }, bubble = { 206, 240, 255 }, ink = { 6, 40, 64 }, chatty = false, bubbleOnly = true },
 }
 -- Lines by type. kinds: ambient (said now and then near the player), glare (violent: the player is
 -- close), block (violent blocks the way), insult (violent, mild), chase (violent runs after you),
@@ -909,6 +932,112 @@ Social.TYPE_LINES = {
 			witness = { "어어, 저 사람 괜찮나…", "피곤한가 보다…" },
 			bye = { "히끅… 잘 가소…", "으으… 집에… 가야지…" },
 			shrug = { "어… 히끅…" },
+		},
+	},
+	police = {
+		std = {
+			ambient = { "순찰 중입니다~", "질서 지켜 주세요!", "무단횡단 하지 마세요~", "분실물은 지구대로 오세요." },
+			bumped = { "어허, 경찰한테 어깨빵입니까?", "조심하세요. 다음엔 경고입니다.", "공무집행 중입니다, 비켜 주세요." },
+			down = { "…지금 경찰을 넘어뜨린 겁니까?", "공무집행방해예요. 신분증 주세요.", "하… 일어나서 얘기합시다." },
+			witness = { "거기! 무슨 일입니까?", "다들 물러서세요!", "괜찮으세요? 경찰입니다." },
+			opener = { "잠시만요, 경찰입니다.", "실례합니다, 몇 가지만 여쭤볼게요.", "저기요, 잠깐 이리 와 보세요." },
+			bye = { "협조 감사합니다.", "안전하게 다니세요.", "수고하세요." },
+			shrug = { "…가 버리시네.", "흠, 수상한데." },
+			glare = { "…지켜보고 있습니다.", "행동 조심하세요." },
+		},
+		busan = {
+			ambient = { "순찰 중입니더~", "질서 지키이소!", "무단횡단 하지 마이소~", "분실물은 지구대로 오이소." },
+			bumped = { "어허, 경찰한테 어깨빵이가?", "조심하이소. 다음엔 경고다.", "공무 중이다, 비키이소." },
+			down = { "…지금 경찰을 넘어뜨린 기가?", "공무집행방해다. 신분증 주이소.", "하… 일어나서 얘기하자." },
+			witness = { "거기! 무슨 일이고?", "다들 물러서이소!", "괜찮습니꺼? 경찰입니더." },
+			opener = { "잠시만예, 경찰입니더.", "실례합니더, 몇 가지만 물어볼게예.", "저기요, 잠깐 이리 와 보이소." },
+			bye = { "협조 감사합니더.", "조심히 댕기이소.", "수고하이소." },
+			shrug = { "…가 버리네.", "흠, 수상한데." },
+			glare = { "…지켜보고 있다.", "행동 조심하이소." },
+		},
+	},
+	punk = {
+		std = {
+			ambient = { "뭘 봐?", "아 심심해…", "야, 너 뭐 가진 거 있냐?", "오늘 누가 나한테 걸리나 보자." },
+			glare = { "뭘 봐?", "왜 꼬나봐?", "눈 깔아라 ㅋ", "할 말 있냐?" },
+			block = { "어딜 지나가? 통행료 내 ㅋㅋ", "잠깐, 얘기 좀 하자.", "급하냐? 안 비켜 줄 건데 ㅋ" },
+			insult = { "옷 꼬라지 봐라 ㅋㅋ", "걸음걸이 웃기네.", "너 어디서 왔냐? 촌스럽게." },
+			bumped = { "야 지금 친 거냐?", "아 씨, 어깨 아프잖아!", "어쭈? 해보자는 거지?" },
+			down = { "아 진짜… 너 기억했다.", "두고 봐라…", "쪽팔리게…" },
+			witness = { "오 싸움 났냐? ㅋㅋ", "ㅋㅋ 개웃기네", "찍어 찍어!" },
+			opener = { "야 너 잠깐 와봐.", "거기 너 말이야.", "어이, 너 이리 와봐." },
+			bye = { "가라 가 ㅋ", "다음에 또 보자 ㅋㅋ", "쳇, 재미없네." },
+			shrug = { "어쭈, 그냥 가네?", "쫄았냐? ㅋㅋ", "가라, 가." },
+			chase = { "야 거기 안 서?", "도망가냐? ㅋㅋ" },
+			giveup = { "됐다 귀찮다.", "다음에 걸리면 죽는다 ㅋ" },
+		},
+		busan = {
+			ambient = { "뭘 보노?", "아 심심하다…", "야, 니 뭐 가진 거 있나?", "오늘 누가 내한테 걸리나 보자." },
+			glare = { "뭘 보노?", "와 꼬나보노?", "눈 깔아라 ㅋ", "할 말 있나?" },
+			block = { "어델 지나가노? 통행료 내라 ㅋㅋ", "잠깐, 얘기 좀 하자.", "급하나? 안 비켜 줄 낀데 ㅋ" },
+			insult = { "옷 꼬라지 봐라 ㅋㅋ", "걸음걸이 웃기네.", "니 어데서 왔노? 촌스럽게." },
+			bumped = { "마 지금 친 기가?", "아 씨, 어깨 아프다 아이가!", "어쭈? 해보자는 기제?" },
+			down = { "아 진짜… 니 기억했다.", "두고 봐라…", "쪽팔리구로…" },
+			witness = { "오 싸움 났나? ㅋㅋ", "ㅋㅋ 억수로 웃기네", "찍어라 찍어!" },
+			opener = { "야 니 잠깐 와봐라.", "거기 니 말이다.", "어이, 니 이리 와봐라." },
+			bye = { "가라 가 ㅋ", "다음에 또 보자 ㅋㅋ", "쳇, 재미없네." },
+			shrug = { "어쭈, 그냥 가네?", "쫄았나? ㅋㅋ", "가라, 가." },
+			chase = { "마 거기 안 서나?", "도망가나? ㅋㅋ" },
+			giveup = { "됐다 귀찮다.", "다음에 걸리면 죽는다 ㅋ" },
+		},
+	},
+	thug = {
+		std = {
+			ambient = { "이 동네는 우리 구역이야.", "짭새 없지?", "형님 오신다, 비켜.", "요즘 애들 겁이 없어." },
+			glare = { "뭘 봐, 새끼야.", "눈 마주치지 마라.", "할 말 있냐?" },
+			block = { "잠깐. 지갑 좀 보자.", "여기 지나가려면 인사부터 해야지.", "어디 가? 얘기 좀 하자." },
+			insult = { "겁먹었냐? ㅋ", "꼬맹이네.", "깝치지 마라." },
+			bumped = { "…너 지금 나 친 거냐?", "죽고 싶냐?", "하, 간이 부었네." },
+			retaliate = { "이게 어깨빵이다.", "받아라.", "다음엔 이걸로 안 끝나." },
+			down = { "…너 오늘 제삿날이다.", "애들아, 이 새끼 기억해.", "끝까지 찾아간다." },
+			witness = { "어이, 무슨 일이야?", "누가 우리 애 건드렸냐?", "형님한테 보고해." },
+			shove = { "꺼져.", "가까이 오지 마라.", "저리 비켜." },
+			chase = { "거기 서!", "도망가면 더 맞는다!" },
+			giveup = { "…운 좋은 줄 알아라.", "다음엔 없다." },
+			opener = { "어이, 너.", "잠깐 이리 와 봐.", "얘기 좀 하자." },
+			bye = { "조심히 다녀라.", "다음엔 인사해라.", "가 봐." },
+			shrug = { "…쫄았네.", "다음에 보자." },
+		},
+		busan = {
+			ambient = { "이 동네는 우리 구역이다.", "짭새 없제?", "형님 오신다, 비키라.", "요즘 아들 겁이 없다." },
+			glare = { "뭘 보노, 이 자슥아.", "눈 마주치지 마라.", "할 말 있나?" },
+			block = { "잠깐. 지갑 좀 보자.", "여기 지나갈라 카믄 인사부터 해야지.", "어데 가노? 얘기 좀 하자." },
+			insult = { "겁묵었나? ㅋ", "꼬맹이네.", "깝치지 마라." },
+			bumped = { "…니 지금 내 친 기가?", "죽고 싶나?", "하, 간이 부었네." },
+			retaliate = { "이기 어깨빵이다.", "받아라.", "다음엔 이걸로 안 끝난다." },
+			down = { "…니 오늘 제삿날이다.", "아들아, 이 자슥 기억해라.", "끝까지 찾아간다." },
+			witness = { "어이, 무슨 일이고?", "누가 우리 아 건드렸노?", "형님한테 보고해라." },
+			shove = { "꺼지라.", "가까이 오지 마라.", "저리 비키라." },
+			chase = { "거기 서라!", "도망가믄 더 맞는다!" },
+			giveup = { "…운 좋은 줄 알아라.", "다음엔 없다." },
+			opener = { "어이, 니.", "잠깐 이리 와 봐라.", "얘기 좀 하자." },
+			bye = { "조심히 댕기라.", "다음엔 인사해라.", "가 봐라." },
+			shrug = { "…쫄았네.", "다음에 보자." },
+		},
+	},
+	rich = {
+		std = {
+			ambient = { "요트 정박비가 또 올랐네…", "이 동네 땅값이 참…", "오늘 저녁은 오마카세로 할까.", "운전기사가 늦네." },
+			bumped = { "어머, 이 옷 얼마짜린 줄 알아요?", "조심 좀 해요! 명품이라고요.", "…교양이 없으시네." },
+			down = { "변호사 부를 거예요.", "세상에… 이게 무슨 일이야.", "CCTV 다 있는 거 알죠?" },
+			witness = { "어머 무서워라…", "경찰 불러야 하는 거 아니에요?", "이 동네도 예전 같지 않네." },
+			opener = { "저기, 잠깐만요.", "실례지만 이 근처 사세요?", "어머, 인상이 좋으시네요." },
+			bye = { "그럼 이만.", "좋은 하루 보내세요.", "다음에 또 봐요~" },
+			shrug = { "…바쁘신가 보네.", "흠." },
+		},
+		busan = {
+			ambient = { "요트 정박비가 또 올랐네…", "이 동네 땅값이 참…", "오늘 저녁은 회 묵으러 갈까.", "운전기사가 늦네." },
+			bumped = { "어머, 이 옷 얼만 줄 아나?", "조심 좀 하이소! 명품이라예.", "…교양이 없네." },
+			down = { "변호사 부를 끼다.", "세상에… 이기 무슨 일이고.", "CCTV 다 있는 거 알제?" },
+			witness = { "어머 무서버라…", "경찰 불러야 되는 거 아이가?", "이 동네도 예전 같지 않네." },
+			opener = { "저기, 잠깐만예.", "실례지만 이 근처 사능교?", "어머, 인상이 좋네예." },
+			bye = { "그럼 이만.", "좋은 하루 보내이소.", "다음에 또 봐예~" },
+			shrug = { "…바쁜갑네.", "흠." },
 		},
 	},
 }

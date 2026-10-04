@@ -63,6 +63,7 @@ local CALL = {
 	approachWant = 420, -- studs of road the taxi drives to reach the caller
 	approachMin = 170,
 	pickupRadius = 260, -- a lane within this many studs of the caller
+	pickupFallback = { 600, 1200, 2400, 6000 }, -- [택시 수정] no lane that close: widen the search, the caller walks to the kerb
 	dropRadius = 340,
 	cancelGrace = 10, -- seconds after booking: free cancel
 	cancelFee = 1000,
@@ -734,6 +735,7 @@ type Job = {
 	lines: { [string]: any }?,
 	pickupLoc: any?, -- lane location where the taxi stops (nil: slab fallback)
 	pickupPos: Vector3, -- caller position the pickup was planned for
+	walkTo: number?, -- [택시 수정] studs the caller walks to a far kerb (nil: normal pickup)
 	stopCF: CFrame?, -- where the taxi stands at the kerb
 	kerbOff: number,
 	dropLoc: any?,
@@ -1154,10 +1156,29 @@ local function cruiseFor(len: number): number
 	return math.clamp(34 + len / 250, 34, 52)
 end
 
+-- [택시 수정] flat studs from the caller to the stop, nil when the stop is close (normal kerb pickup)
+local function walkDistance(pos: Vector3, stopCF: CFrame?): number?
+	if not stopCF then
+		return nil
+	end
+	local d = stopCF.Position - pos
+	local dd = math.sqrt(d.X * d.X + d.Z * d.Z)
+	return if dd > CALL.replanDistance then dd else nil
+end
+
 -- Pickup plan for a caller at `pos`: lane location + kerb offset + stop CFrame, or slab fallback.
 local function planPickup(pos: Vector3): (any?, number, CFrame?)
 	if graph then
 		local loc = D.nearestLocation(graph, pos, { maxDist = CALL.pickupRadius, side = pos, kerbOnly = true })
+		if not loc then
+			-- [택시 수정] 큰길이 멀어도 호출 실패 대신 가장 가까운 차선으로 배차 (손님이 걸어감)
+			for _, r in CALL.pickupFallback do
+				loc = D.nearestLocation(graph, pos, { maxDist = r, side = pos, kerbOnly = true })
+				if loc then
+					break
+				end
+			end
+		end
 		if loc then
 			local dir = D.edgeDir(graph, loc.edge)
 			local off = kerbOffset(loc.point, dir)
@@ -1168,6 +1189,14 @@ local function planPickup(pos: Vector3): (any?, number, CFrame?)
 		return nil, 0, nil
 	end
 	local slab, s = nearestRoad(pos, T.searchRadius)
+	if not slab then
+		for _, r in CALL.pickupFallback do -- [택시 수정]
+			slab, s = nearestRoad(pos, r)
+			if slab then
+				break
+			end
+		end
+	end
 	if slab then
 		local k = kerbAt(slab, s, pos)
 		return { kerb = k }, 0, k.cf
@@ -1497,7 +1526,7 @@ local function onArrived(job: Job)
 	job.state = "arrived"
 	local t = now()
 	job.arriveAt = t
-	job.waitUntil = t + CALL.waitSeconds
+	job.waitUntil = t + CALL.waitSeconds + math.min(120, (job.walkTo or 0) / 10) -- [택시 수정] 걸어오는 시간만큼 더 기다림
 	local model = job.model
 	model:SetAttribute("TaxiState", "arrived")
 	model:SetAttribute("TaxiHazard", true)
@@ -1631,6 +1660,7 @@ local function book(player: Player, p: any, silentFail: boolean?): { [string]: a
 		lines = lines,
 		pickupLoc = if pickupLoc and pickupLoc.edge then pickupLoc else nil,
 		pickupPos = pos,
+		walkTo = walkDistance(pos, stopCF),
 		stopCF = stopCF,
 		kerbOff = kerbOff,
 		dropLoc = nil,
@@ -1664,6 +1694,9 @@ local function book(player: Player, p: any, silentFail: boolean?): { [string]: a
 	local eta = math.max(1, math.ceil(job.arriveAt - t))
 	sendState(job)
 	sms(player, string.format("[%s] 배차 완료! %s %s(%s) · %s · 약 %d초 후 도착 · 안심번호 %s", CALL.company, driver.color, driver.car, driver.plate, driver.title, eta, driver.phone))
+	if job.walkTo then -- [택시 수정] 승차 지점이 멀면 걸어가라고 안내
+		ctx.notify(player, "taxi", CALL.company, string.format("근처 큰길(약 %dm)에 택시가 서요. 지도 표시를 따라 걸어가 주세요", math.floor(job.walkTo * 0.3 + 0.5)))
+	end
 	audit(player, "book", { ride = job.id, dest = job.destLabel, fare = fare or 0, plate = driver.plate })
 	local _ = silentFail
 	return { ok = true, job = viewOf(job) }
@@ -1982,6 +2015,7 @@ local function replan(job: Job, pos: Vector3)
 	end
 	job.replans += 1
 	job.pickupPos = pos
+	job.walkTo = walkDistance(pos, stopCF)
 	job.pickupLoc = if pickupLoc and pickupLoc.edge then pickupLoc else nil
 	job.kerbOff = kerbOff
 	job.stopCF = stopCF
@@ -2092,9 +2126,16 @@ local function watch(job: Job, tNow: number)
 		end
 		local d = root.Position - job.pickupPos
 		local flatD = math.sqrt(d.X * d.X + d.Z * d.Z)
-		if flatD > CALL.walkAway then
+		local limit = CALL.walkAway
+		if job.walkTo and job.stopCF then
+			-- [택시 수정] 멀리 있는 승차 지점으로 걸어가는 중: 취소·재배차하지 않음
+			local sd = root.Position - job.stopCF.Position
+			flatD = math.min(flatD, math.sqrt(sd.X * sd.X + sd.Z * sd.Z))
+			limit = math.max(CALL.walkAway, job.walkTo + 150)
+		end
+		if flatD > limit then
 			cancelJob(job, "walkaway", "너무 멀리 가셔서 택시 호출이 취소됐어요")
-		elseif flatD > CALL.replanDistance then
+		elseif flatD > CALL.replanDistance and not job.walkTo then
 			if job.replans < CALL.maxReplans then
 				replan(job, root.Position)
 			end
@@ -2121,7 +2162,7 @@ local function watch(job: Job, tNow: number)
 		elseif tNow > job.waitUntil then
 			local fee = takeFee(job, CALL.noShowFee, "택시 노쇼 수수료")
 			cancelJob(job, "timeout", if fee > 0 then string.format("기사님이 기다리다 떠났어요 😢 · 노쇼 수수료 %s", G.format.won(fee)) else "기사님이 기다리다 떠났어요 😢", fee)
-		elseif (root.Position - job.root.Position).Magnitude > CALL.walkAway then
+		elseif (root.Position - job.root.Position).Magnitude > math.max(CALL.walkAway, (job.walkTo or 0) + 150) then
 			local fee = takeFee(job, CALL.noShowFee, "택시 노쇼 수수료")
 			cancelJob(job, "walkaway", if fee > 0 then string.format("너무 멀어져서 택시가 떠났어요 · 노쇼 수수료 %s", G.format.won(fee)) else "너무 멀어져서 택시가 떠났어요", fee)
 		end
@@ -2419,6 +2460,17 @@ function Taxi.setDestination(player: Player, payload: any)
 	local want = if payload.name ~= nil then payload.name else payload.destination
 	local res = handlers.setDest(player, { dest = want })
 	legacyFail(player, res)
+	-- [택시 수정] 휴대폰 택시 앱의 '탑승 · ○○ 출발' 버튼이 목적지만 보내고 태우지 않던 문제:
+	-- 택시가 도착해 있으면 목적지 설정과 함께 바로 탑승시킴 (멀면 가까이 오라고 안내)
+	local job = jobs[player]
+	if res.ok and job and job.state == "arrived" and not job.boarded and not job.boarding then
+		task.spawn(function()
+			local r2 = board(job)
+			if not r2.ok and r2.code == "far" then
+				ctx.notify(player, "taxi", CALL.company, MESSAGES.far)
+			end
+		end)
+	end
 end
 
 function Taxi.cancel(player: Player)

@@ -1208,6 +1208,10 @@ function Jobs.startShift(player: Player)
 	if not d then
 		return
 	end
+	if ctx.work and d.job and ctx.work.handles(d.job.id) then
+		ctx.work.startShift(player, d.job.id)
+		return
+	end
 	if not d.job then
 		ctx.notify(player, "job", "직업이 없어요", "알바 앱이나 가게 NPC에게 먼저 지원하세요")
 		return
@@ -1258,6 +1262,7 @@ function Jobs.startShift(player: Player)
 end
 
 function Jobs.endShift(player: Player)
+	if ctx.work and ctx.work.onShift(player) then ctx.work.endShift(player); return end
 	if shifts[player] then
 		finish(player, false, "근무 조기 종료")
 	end

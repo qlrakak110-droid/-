@@ -1516,4 +1516,8 @@ function Anim.solve(model: Instance)
 	end
 end
 
+do
+ local m=script.Parent:FindFirstChild("GwangalliCombatAnim")
+ if m then pcall(function() require(m).install(Anim) end) end
+end
 return Anim

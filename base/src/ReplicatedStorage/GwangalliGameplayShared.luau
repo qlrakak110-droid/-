@@ -1174,7 +1174,8 @@ function G.homeDaily(listingId: string, home: any?): number
 		return 0
 	end
 	if l.kind == "rent" then
-		return G.homePrices(listingId, home).rentPerDay
+		local m = if type(home) == "table" and isFiniteNumber(home.priceMult) then math.clamp(home.priceMult, 0.5, 3) else 1
+		return if m == 1 then l.rentPerDay else G.round100(l.rentPerDay * m)
 	end
 	return l.upkeepPerDay or 0
 end
@@ -3178,6 +3179,8 @@ G.Attr.AtmId = "GwangalliAtmId"
 
 -- 입출금 알림 thread (messages) -- a service contact that is not in the dial list
 G.CONTACTS.bnk = { name = "BNK부산은행", role = "입출금 알림", icon = "🏦", color = { 214, 30, 60 }, kind = "service" }
+-- 전투·범죄·경찰: 광안지구대 texts (fines, escapes); a service thread, not in the dial list
+G.CONTACTS.police = { name = "광안지구대", role = "경찰", icon = "🚓", color = { 70, 120, 255 }, kind = "service" }
 
 G.BANK = {
 	bankName = "BNK부산은행",

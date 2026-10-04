@@ -450,7 +450,28 @@ NPC.init(ctx)
 -- Optional feature modules (docs/features_contract.md §2). Append a module name to add one; a missing
 -- or failing module is skipped. Hooks: init(ctx), onLoaded(player), onCharacter(player, character),
 -- onLeave(player) (before the profile is saved and released).
-local FEATURE_MODULES = { "Bank", "Relationships", "Health", "Bump", "Garage", "Interact", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" } -- Relationships: 호감도 / 친구 (sets ctx.social; listens to Players itself). Living*: docs/living_city_contract.md §C (missing modules are skipped)
+
+-- Unified server wallet used by building purchases, furniture and the original life game.
+do
+ local ss = game:GetService("ServerStorage")
+ local api = ss:FindFirstChild("GwangalliGameplayAPI")
+ if not api then api = Instance.new("BindableFunction"); api.Name = "GwangalliGameplayAPI"; api.Parent = ss end
+ api.OnInvoke = function(op, player, amount, label)
+  local d = Profiles.get(player)
+  if op == "balance" then return d and d.cash or 0, d and d.bank or 0 end
+  if not d then return false end
+  if op == "spend" then
+   if type(amount) ~= "number" or amount ~= amount or amount < 0 or amount == math.huge then return false end
+   return ctx.spend(player, math.floor(amount), label or "건물 · 생활")
+  elseif op == "earn" then
+   if type(amount) ~= "number" or amount ~= amount or amount < 0 or amount == math.huge then return false end
+   return ctx.ledger(player, "bank", math.floor(amount), label or "생활 수익")
+  elseif op == "addStats" then return ctx.addStats(player, amount, label or "생활") end
+  return false
+ end
+end
+
+local FEATURE_MODULES = { "MiniGames", "Bank", "Relationships", "Health", "Bump", "Mind", "Garage", "Interact", "Work", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" } -- Relationships: 호감도 / 친구 (sets ctx.social; listens to Players itself). Living*: docs/living_city_contract.md §C (missing modules are skipped)
 local features: { any } = {}
 for _, name in FEATURE_MODULES do
 	local m = (folder :: Instance):FindFirstChild(name)

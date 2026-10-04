@@ -296,6 +296,9 @@ local function bumpNpc(player: Player, id: string, payload: any)
 	if plausible then
 		award(player, id, "bump", Shared.AFFINITY[outcome] or -3)
 	end
+	if ctx.mind and type(ctx.mind.note) == "function" then
+		pcall(ctx.mind.note, player, id, "bump", outcome) -- npc_mind: memory, anger / fear, 연쇄 어깨빵 = 수배
+	end
 	if isKey and NPC and type(NPC.knock) == "function" then
 		pcall(NPC.knock, id, dx, dz, outcome, player)
 		local text = line(id, if outcome == "knockdown" then "down" else "bumped")
@@ -306,7 +309,7 @@ local function bumpNpc(player: Player, id: string, payload: any)
 		end
 	end
 	-- 폭력적인 NPC: bumps back HARD (the player goes down) a beat later
-	if c.type == "violent" then
+	if c.type == "violent" or c.type == "thug" then
 		task.delay(if outcome == "knockdown" then Shared.KNOCK_DUR + Shared.GETUP_DUR + 0.3 else 0.9, function()
 			if player.Parent ~= Players then
 				return
@@ -662,7 +665,7 @@ handlers.fell = function(player, p)
 	end
 	local id = Util.str(p.id, 40)
 	local c = id and citizen(id)
-	if not c or (c.type ~= "fool" and c.type ~= "violent" and c.type ~= "drunk") then
+	if not c or (c.type ~= "fool" and c.type ~= "violent" and c.type ~= "drunk" and c.type ~= "punk" and c.type ~= "thug") then
 		dbg("fell", id, "type", c and c.type)
 		return
 	end
@@ -681,7 +684,7 @@ handlers.fell = function(player, p)
 		-- the fool's card says "체력 -3" itself: no toast on top of the card header
 		playerDown(player, if c.type == "fool" then nil else c.name .. "의 어깨빵")
 	end
-	if c.type == "fool" then
+	if c.type == "fool" and not ctx.mind then
 		openLaughOff(player, id, outcome)
 	end
 end

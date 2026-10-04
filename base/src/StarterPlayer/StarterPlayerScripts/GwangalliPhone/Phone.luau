@@ -72,9 +72,10 @@ local APP_META = {
 	settings = { title = "설정", glyph = "⚙️", c1 = Color3.fromRGB(134, 140, 160), c2 = Color3.fromRGB(58, 62, 78), module = "Settings", server = false },
 	-- taxi: on the home screen and opened from 전화 (광안 콜택시); camera: photo mode
 	taxi = { title = "택시", glyph = "🚕", c1 = Color3.fromRGB(255, 214, 70), c2 = Color3.fromRGB(230, 150, 20), module = "Taxi", server = true },
+	people = { title = "인맥", glyph = "💞", c1 = Color3.fromRGB(255, 120, 190), c2 = Color3.fromRGB(200, 60, 140), module = "People", server = false },
 	camera = { title = "카메라", glyph = "📷", c1 = Color3.fromRGB(150, 156, 176), c2 = Color3.fromRGB(62, 66, 82), module = "Camera", server = false },
 }
-local GRID_APPS = { "jobs", "realty", "taxi", "shop", "profile", "camera", "settings" }
+local GRID_APPS = { "people", "jobs", "realty", "taxi", "shop", "profile", "camera", "settings" }
 local DOCK_APPS = { "call", "messages", "map", "bank" }
 local KIND_APP = { message = "messages", taxi = "taxi", money = "bank", pay = "bank", stat = "profile", job = "jobs", home = "realty", quest = "messages" }
 

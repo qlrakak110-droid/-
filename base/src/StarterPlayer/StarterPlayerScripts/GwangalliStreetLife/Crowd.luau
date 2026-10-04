@@ -332,6 +332,9 @@ function Crowd.canChat(now: number, a: any?): boolean
 	if SocialUI.talkingNow and SocialUI.talkingNow() then
 		return false
 	end
+	if ctx.Mind and ctx.Mind.busy() then
+		return false -- npc_mind: in a bubble conversation already
+	end
 	if P.seat ~= nil then
 		return false
 	end
@@ -891,7 +894,7 @@ local BUSY_PLANS = { enter = true, queueing = true, leave = true, watch = true, 
 
 -- named citizen: follow the schedule. Returns true when it set a new plan.
 function Crowd.scheduleCheck(a: any, now: number, atEnd: boolean): boolean
-	if not Citizens or a.mode == "talk" or a.mode == "follow" or a.mode == "dodge" or a.companion or a.clubGuest then
+	if not Citizens or a.ctl or a.mode == "talk" or a.mode == "follow" or a.mode == "dodge" or a.companion or a.clubGuest then
 		return false
 	end
 	local plan = a.plan or {}
@@ -1242,6 +1245,25 @@ local function spawnNamed(id: string, pp: Vector3, fill: boolean, now: number): 
 	else
 		a:setPlan(plan or Crowd.makeAreaPlan(area, act), now)
 	end
+	return a
+end
+
+-- npc_mind: a police officer dispatched to the player (GwangalliStreetLife/Mind.dispatch): spawned
+-- out of sight in a ring around the player whatever the roster says (they come from the 지구대)
+function Crowd.spawnResponder(id: string, pp: Vector3, now: number): any?
+	local c = Citizens and Citizens.get(id)
+	if not c or byId[id] then
+		return nil
+	end
+	local node = pickNode(pp, 40, 80, true, function(_i)
+		return 1
+	end)
+	if not node then
+		return nil
+	end
+	local spec = Looks.forCitizen(c, false)
+	local a = newAgent({ id = id, name = c.name, named = true, citizen = c, speed = speedFor(c, "patrol"), lure = false }, spec, id .. "#d", node, W.pos[node], rnd() * math.pi * 2)
+	a:idleFor("idle", 1, now)
 	return a
 end
 
@@ -2215,7 +2237,7 @@ local function tick()
 				elseif not a.fadeAt then
 					Crowd.remove(a)
 				end
-			elseif not a.companion and not a.leader and not a.clubGuest then
+			elseif not a.companion and not a.leader and not a.clubGuest and not (a.ctl and a.ctl.keep and a.dist < despawn * 1.6) then
 				if a.dist > despawn then
 					if not a.onScreen then
 						Crowd.remove(a)

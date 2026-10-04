@@ -254,6 +254,15 @@ local function travel(player: Player, id: string)
 		return
 	end
 	state.lastRequest = now
+	-- 전투·범죄·경찰 (GwangalliCombatShared attributes): no quick travel while wanted / arrested / chased / KO
+	do
+		local wanted = player:GetAttribute("Wanted")
+		local ch = player.Character
+		if (type(wanted) == "number" and wanted > 0) or player:GetAttribute("Arrested") == true or player:GetAttribute("PoliceChase") == true or (ch and ch:GetAttribute("GwKO") == true) then
+			reply(player, false, "수배 중에는 빠른 이동을 할 수 없어요")
+			return
+		end
+	end
 	local remaining = cfg.Cooldown - (now - state.lastTravel)
 	if remaining > 0 then
 		reply(player, false, string.format("%d초 후에 다시 이동할 수 있어요", math.ceil(remaining)))

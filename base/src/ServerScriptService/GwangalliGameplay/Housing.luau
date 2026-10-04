@@ -1826,6 +1826,9 @@ function Housing.enter(player: Player, via: string?, quiet: boolean?): (boolean,
 	else
 		entry = entranceFor(key, Util.rootPosition(player))
 	end
+	if via == "respawn" and (player:GetAttribute("Arrested") == true or (tonumber(player:GetAttribute("Wanted")) or 0) > 0) then
+		return false -- 전투·범죄·경찰: a wanted player who respawned goes to the 광안지구대, not home
+	end
 	if via ~= "respawn" and not canTeleport(player) then
 		return false
 	end

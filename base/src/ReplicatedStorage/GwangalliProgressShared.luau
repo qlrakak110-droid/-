@@ -352,6 +352,12 @@ P.KEYS = {
 	furniture = { name = "가구 배치", owner = "homes" },
 	housewarming = { name = "집들이", owner = "homes" },
 	sleep_home = { name = "집에서 잠", owner = "homes" },
+	-- 전투·범죄·경찰 (GwangalliGameplay.Crime calls ctx.progress.track)
+	punch_hit = { name = "주먹 적중", owner = "crime", live = true },
+	crime_ko = { name = "KO", owner = "crime", live = true },
+	police_escape = { name = "경찰 따돌리기", owner = "crime", live = true },
+	arrested = { name = "체포", owner = "crime", live = true },
+	fine_paid = { name = "범칙금 납부", owner = "crime", live = true },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -667,6 +673,12 @@ P.ACHIEVEMENTS = {
 	{ id = "fish_10", cat = "fun", name = "강태공", desc = "물고기 10마리 낚기", icon = "🎣", tier = "silver", metric = "c:fish_catch", n = 10, key = "fish_catch" },
 	{ id = "karaoke_1", cat = "fun", name = "노래방 가수", desc = "노래방에서 한 곡", icon = "🎤", tier = "bronze", metric = "c:karaoke_song", n = 1, key = "karaoke_song" },
 	{ id = "hospital", cat = "fun", name = "아프면 병원", desc = "병원에서 진료 받기", icon = "🏥", tier = "bronze", metric = "c:hospital", n = 1 },
+	-- 전투·범죄·경찰
+	{ id = "first_punch", cat = "fun", name = "첫 주먹", desc = "처음으로 주먹을 맞히기", icon = "🥊", tier = "bronze", metric = "c:punch_hit", n = 1, key = "punch_hit" },
+	{ id = "brawler", cat = "fun", name = "광안리 싸움꾼", desc = "싸움에서 10번 KO 시키기", icon = "🥊", tier = "silver", metric = "c:crime_ko", n = 10, key = "crime_ko" },
+	{ id = "escape_1", cat = "fun", name = "경찰 따돌리기", desc = "수배 중에 경찰을 따돌리기", icon = "🚨", tier = "silver", metric = "c:police_escape", n = 1, key = "police_escape" },
+	{ id = "escape_10", cat = "fun", name = "도주의 신", desc = "경찰을 10번 따돌리기", icon = "🏃", tier = "gold", metric = "c:police_escape", n = 10, key = "police_escape" },
+	{ id = "arrested_1", cat = "life", name = "철컹철컹", desc = "처음으로 경찰에게 체포되기", icon = "🚔", tier = "bronze", metric = "c:arrested", n = 1, key = "arrested" },
 	-- 목표 · 레벨
 	{ id = "goals_10", cat = "money", name = "목표 달성러", desc = "일일 목표 10개 달성", icon = "🎯", tier = "silver", metric = "goals", n = 10 },
 	{ id = "goals_100", cat = "money", name = "갓생러", desc = "일일 목표 100개 달성", icon = "🔥", tier = "gold", metric = "goals", n = 100 },

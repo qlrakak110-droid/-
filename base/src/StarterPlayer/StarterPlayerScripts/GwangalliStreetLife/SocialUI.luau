@@ -108,13 +108,15 @@ local function buildChip(rig: any): BillboardGui
 	bb.Name = "StreetLifeChip"
 	bb.Size = UDim2.fromOffset(190, 118)
 	bb.SizeOffset = Vector2.new(0, 0.5)
-	bb.StudsOffsetWorldSpace = Vector3.new(0, 1.2 * rig.scale, 0)
+	-- adorned to the root (the head is welded to it): the chip follows the person everywhere the root
+	-- goes (BulkMoveTo moves the root), head height + a little
+	bb.StudsOffsetWorldSpace = Vector3.new(0, 2.75 * rig.scale, 0)
 	bb.MaxDistance = 60
 	bb.LightInfluence = 0
 	bb.AlwaysOnTop = false
 	bb.ResetOnSpawn = false
 	bb.Enabled = false
-	bb.Adornee = rig.head
+	bb.Adornee = rig.root or rig.head
 	-- speech bubble (top)
 	local bubble = Instance.new("Frame")
 	bubble.Name = "Bubble"
@@ -204,7 +206,7 @@ local function refreshChip(a: any)
 		local t = SocialUI.tier(a.id)
 		local def = tierDef(t)
 		local col = def.color or { 190, 190, 200 }
-		rig.chipName.Text = a.c.name or a.id
+		rig.chipName.Text = (ctx.Mind and ctx.Mind.displayName(a)) or a.c.name or a.id -- npc_mind: names you learnt only
 		local job = a.c.job or ""
 		if #job > 24 then
 			job = ""
@@ -279,6 +281,12 @@ local function interact(a: any)
 	if talking and talking ~= a and not talking.gone then
 		talking:endTalk(now)
 	end
+	if a.named and ctx.Mind and ctx.Mind.ready() and not (a.c and a.c.key) then
+		-- npc_mind: the conversation happens in bubbles (GwangalliStreetLife/Mind + MindUI)
+		if ctx.Mind.begin(a, "talk") then
+			return
+		end
+	end
 	if a.named then
 		talking = a
 		a:beginTalk(now, 30)
@@ -322,10 +330,11 @@ local function ensurePrompt(a: any): ProximityPrompt
 			end
 		end)
 	end
-	if rig.promptFor ~= a.id then
+	if rig.promptFor ~= a.id or rig.promptName ~= (ctx.Mind and ctx.Mind.displayName(a)) then
+		rig.promptName = ctx.Mind and ctx.Mind.displayName(a)
 		rig.promptFor = a.id
 		pp.ActionText = if a.named then "말 걸기" else "인사하기"
-		pp.ObjectText = if a.named and a.c then a.c.name else ""
+		pp.ObjectText = if a.named and a.c then ((ctx.Mind and ctx.Mind.displayName(a)) or a.c.name) else ""
 	end
 	return pp
 end
@@ -377,7 +386,7 @@ function SocialUI.update(now: number)
 			chipN += 1
 			want[a] = true
 		end
-		if promptN < Config.PromptMax and a.dist <= Config.PromptDist + 3 and not a.lying then
+		if promptN < Config.PromptMax and a.dist <= Config.PromptDist + 3 and not a.lying and not (ctx.Mind and ctx.Mind.busy()) then
 			promptN += 1
 			wantPrompt[a] = true
 		end

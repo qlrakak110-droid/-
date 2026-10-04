@@ -105,6 +105,9 @@ local Agent = load("Agent")
 local Crowd = load("Crowd")
 local SocialUI = load("SocialUI")
 local ClubCrowd = load("ClubCrowd")
+local Face = load("Face") -- npc_mind: facial expressions
+local MindUI = load("MindUI") -- npc_mind: the conversation bar
+local Mind = load("Mind") -- npc_mind: bubble conversations, pranks, scenes, witnesses, police
 if not (Config and World and Anim and Pool and Agent and Crowd and SocialUI) then
 	fail("core modules missing: street life disabled")
 	return
@@ -130,6 +133,9 @@ local ctx = {
 	Crowd = Crowd,
 	SocialUI = SocialUI,
 	ClubCrowd = ClubCrowd,
+	Face = Face,
+	MindUI = MindUI,
+	Mind = nil, -- set once Mind.init succeeds (every user checks ctx.Mind first)
 	clock = function(): number
 		return Night.clock()
 	end,
@@ -153,6 +159,20 @@ task.spawn(function()
 		fail("Crowd.start failed: " .. tostring(err))
 	end
 end)
+
+if Mind and MindUI then
+	local okM, res = pcall(Mind.init, ctx)
+	if okM and res then
+		ctx.Mind = Mind
+		local okS, errS = pcall(Mind.start)
+		if not okS then
+			fail("Mind.start failed: " .. tostring(errS))
+			ctx.Mind = nil
+		end
+	else
+		fail("Mind.init failed: " .. tostring(res))
+	end
+end
 
 -- LocalPlayer.GwangalliStreetAPI: other client scripts (GwangalliBump: 어깨빵 targets / knockdowns /
 -- bubbles over pedestrians) reach the client-side crowd through this BindableFunction

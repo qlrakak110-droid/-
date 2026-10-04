@@ -143,6 +143,13 @@ Looks.STYLES = {
 	uniform = { top = { { 34, 44, 80 } }, sleeve = "short", bottom = { { 30, 34, 50 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { BLACK }, acc = { "cap" } },
 	lifeguard = { top = { { 230, 50, 44 } }, sleeve = "short", bottom = { { 250, 206, 40 } }, kind = { f = { "shorts" }, m = { "shorts" } }, shoes = { "skin" }, acc = { "visor" } },
 	merch = { top = { BLACK }, trim = { { 40, 220, 255 }, { 255, 60, 170 } }, sleeve = "short", bottom = { BLACK, JEANS[2] }, kind = { f = { "pants" }, m = { "pants" } }, shoes = SNEAKER },
+	-- npc_mind archetypes: 경찰 (navy shirt + the neon vest as an apron panel + cap), 노숙자 (faded layers),
+	-- 걸렁뱅이 (loud colours, open jacket), 불량배 (black / red track suits), 부자 (cream suits, gold trim)
+	police = { top = { { 26, 40, 86 } }, sleeve = "long", bottom = { { 22, 28, 48 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { BLACK }, apron = { { 196, 236, 40 } }, acc = { "cap" } },
+	shabby = { top = { { 120, 108, 92 }, { 96, 100, 86 }, { 132, 120, 110 } }, jacket = { { 84, 72, 60 }, { 70, 74, 66 } }, sleeve = "long", bottom = { { 82, 76, 66 }, { 70, 70, 74 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { { 60, 52, 44 } }, acc = { "tote" } },
+	punk = { top = { { 250, 80, 140 }, { 255, 206, 60 }, { 120, 220, 90 }, WHITE }, jacket = { BLACK, { 120, 30, 40 } }, sleeve = "long", bottom = { BLACK, JEANS[4] }, kind = { f = { "pants", "skirt" }, m = { "pants" } }, shoes = SNEAKER, acc = { "headphones", "sunglasses", "cap" } },
+	thug = { top = { BLACK, { 150, 26, 36 }, { 30, 30, 34 } }, trim = { WHITE, { 255, 206, 60 } }, sleeve = "long", bottom = { BLACK, { 40, 40, 46 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { WHITE, BLACK }, acc = { "cap", "sunglasses" } },
+	luxe = { top = { { 246, 240, 228 }, WHITE, { 30, 30, 34 } }, jacket = { { 232, 220, 196 }, { 26, 26, 30 }, { 120, 24, 40 } }, trim = { { 214, 176, 90 } }, sleeve = "long", bottom = { { 236, 228, 212 }, { 26, 26, 30 } }, kind = { f = { "longskirt", "pants" }, m = { "pants" } }, shoes = { { 120, 70, 40 }, BLACK }, acc = { "sunglasses", "tote" } },
 }
 
 -- club outfits (look.night)

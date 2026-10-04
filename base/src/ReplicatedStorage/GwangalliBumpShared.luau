@@ -312,6 +312,9 @@ function Bump.bubbles(opts: any?): any
 	end
 	local self = setmetatable({}, Bubbles)
 	self.gui = gui
+	-- each bubble is its own BillboardGui root directly in PlayerGui (Adornee = the head / root): the
+	-- usual Roblox pattern, and the one the 광안리 임시 스튜디오 player places in the world (npc_mind)
+	self.parent = pg
 	self.items = {}
 	self.byAdornee = {}
 	self.font = if typeof(o.font) == "EnumItem" then o.font else Enum.Font.GothamMedium
@@ -339,7 +342,7 @@ function Bubbles:_free(newDist: number): any
 		end
 	end
 	if #self.items < Bump.BUBBLE_MAX then
-		local it = newBubbleGui(self.gui, self.font)
+		local it = newBubbleGui(self.parent or self.gui, self.font)
 		table.insert(self.items, it)
 		return it
 	end

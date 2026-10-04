@@ -109,7 +109,7 @@ def rebuild(data, changes):
             raise SystemExit('parent missing for ' + path)
         if sid is not None:
             it = P.inst[sid]
-            assert it['shape'] == src_shape, path
+            assert it['shape'] and 'Source' in [P.s(x) for x in P.shapes[it['shape']]], path
             edits[sid] = sref(src)
             replaced.append(path)
         else:
@@ -128,9 +128,25 @@ def rebuild(data, changes):
         it = P.inst[i]
         if i in edits:
             body = enc_vi(it['cls']) + enc_vi(it['name']) + enc_vi(i - it['parent'] if it['parent'] else 0) + enc_vi(it['shape'])
-            body += b'\x00\x06' + enc_vi(edits[i])
-            ex_start = it['props'][-1][2]
-            out += body + data[ex_start:it['end']]
+            names = [P.s(x) for x in P.shapes[it['shape']]]
+            for nm, (ref, vp, ve) in zip(names, it['props']):
+                if nm == 'Source':
+                    body += b'\x00\x06' + enc_vi(edits[i])
+                elif ref:
+                    body += enc_vi(ref)
+                else:
+                    body += b'\x00' + data[vp:ve]
+            # attributes + tags follow the last property verbatim
+            tail_start = it['props'][-1][2] if it['props'][-1][0] == 0 else None
+            if tail_start is None:
+                # last prop was a pool ref: the attrs start right after its varint; re-read the record
+                r = __import__('gwpb').Reader(data); r.p = it['start']
+                for _ in range(4): r.vi()
+                for (ref2, vp2, ve2) in it['props']:
+                    v = r.vi()
+                    if v == 0: r.skip()
+                tail_start = r.p
+            out += body + data[tail_start:it['end']]
         else:
             out += data[it['start']:it['end']]
     for r in new_records:

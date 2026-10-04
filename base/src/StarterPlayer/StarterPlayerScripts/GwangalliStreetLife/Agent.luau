@@ -550,6 +550,10 @@ function Agent:idleFor(kind: string, dur: number, now: number, faceYaw: number?)
 end
 
 function Agent:endIdle(now: number)
+	if self.ctl then
+		self.idleUntil = now + 1e6
+		return
+	end
 	self.sitting = false
 	self.lying = false
 	if self.sitGround then
@@ -909,6 +913,15 @@ end
 
 -- arrived at the end of the nav strategy
 function Agent:arrive(now: number)
+	if self.ctl then
+		-- the mind retargets them; meanwhile they stand where the last point was
+		self.want, self.speed, self.nav = 0, 0, nil
+		self.mode = "idle"
+		self.idleKind = "idle"
+		self.idleUntil = now + 1e6
+		self:setAnim("idle")
+		return
+	end
 	if self.chase then
 		-- chasing the player: the point was where they stood; chaseTick retargets right away
 		self.want, self.speed, self.nav = 0, 0, nil
@@ -1560,6 +1573,15 @@ function Agent:think(now: number)
 	local st = self.rig.anim
 	if st and st.flashUntil then
 		Anim.tick(self.rig, now)
+	end
+	-- npc_mind: an agent the mind drives (a prank, a scene, a witness, a police officer, a talk)
+	if self.ctl and ctx.Mind then
+		local ok, err = pcall(ctx.Mind.drive, self, now)
+		if not ok then
+			warn("[GwangalliStreetLife] Mind.drive: " .. tostring(err))
+			self.ctl = nil
+		end
+		return
 	end
 	local mode = self.mode
 	if mode == "wait" then
@@ -2392,6 +2414,9 @@ function Agent:foolBump(now: number, pp: Vector3)
 	local outcome = if type(streak) == "number" and streak >= 2 then "knockdown" else "stagger"
 	Anim.flash(self.rig, "pointp", 0.6)
 	self:hitPlayer(dx / d, dz / d, outcome, self:typeLine("foolbump"))
+	if ctx.Mind then
+		pcall(ctx.Mind.playerBumped, self, outcome)
+	end
 	self.pauseUntil = now + 0.5
 	self.lookUntil = now + 2
 	ctx.Crowd.stats.foolBumps = (ctx.Crowd.stats.foolBumps or 0) + 1
@@ -2547,6 +2572,19 @@ end
 
 -- stopped next to the player: the opener bubble + the server opens the card
 function Agent:startChat(now: number, pp: Vector3)
+	if ctx.Mind and ctx.Mind.ready() then
+		self.chatState = "talking"
+		self.chatUntil = now + 600
+		local ok, started = pcall(ctx.Mind.npcStart, self, ctx.Mind.kindFor(self))
+		ctx.Crowd.noteChat(self, now)
+		ctx.Crowd.stats.chats = (ctx.Crowd.stats.chats or 0) + 1
+		if ok and started then
+			return
+		end
+		self.chatState = nil
+		self:endChat(now, false)
+		return
+	end
 	self.chatState = "talking"
 	self.chatUntil = now + 45
 	self:beginTalk(now, 45)
@@ -2593,6 +2631,13 @@ function Agent:typeReact(now: number, pp: Vector3, d: number, toX: number, toZ: 
 	if self.chase then
 		return true -- chaseTick (think) runs the chase
 	end
+	-- npc_mind: feelings (scared / hostile / lover), 걸렁뱅이 시비, 불량배, 동네바보 pranks, patrol questions
+	if ctx.Mind and not self.chatState then
+		local ok, handled = pcall(ctx.Mind.react, self, now, pp, d, pspeed)
+		if ok and handled then
+			return true
+		end
+	end
 	-- chatty / beggar approach in progress
 	local cs = self.chatState
 	if cs == "approach" then
@@ -2629,7 +2674,7 @@ function Agent:typeReact(now: number, pp: Vector3, d: number, toX: number, toZ: 
 		end
 	end
 	local standing = not (self.sitting or self.lying or self.sitGround or self.napping)
-	if t == "violent" then
+	if t == "violent" or t == "thug" then
 		-- glares (face the player), blocks the way for a moment, shoves when you stand too close too long
 		if d < BUMP.VIOLENT.glare then
 			self.lookUntil = math.max(self.lookUntil, now + 1)
@@ -2667,8 +2712,18 @@ function Agent:typeReact(now: number, pp: Vector3, d: number, toX: number, toZ: 
 	elseif t == "fool" then
 		self.wobble = BUMP.FOOL.wobble
 		-- passing by (or standing there as you pass): a deliberate shoulder bump
+		if d > BUMP.FOOL.bumpReach + 2.5 then
+			self.bumpRoll = nil
+		end
 		if (self.mode == "walk" or (self.mode == "idle" and standing)) and d < BUMP.FOOL.bumpReach and now - self.lastFoolBump > BUMP.FOOL.bumpCooldown and math.abs(pp.Y - self.pos.Y) < 4 then
-			self:foolBump(now, pp)
+			-- one roll per pass: he bumps you about half of the times he brushes by (npc_mind)
+			if self.bumpRoll == nil then
+				self.bumpRoll = rnd() < 0.5
+			end
+			if self.bumpRoll then
+				self.bumpRoll = false
+				self:foolBump(now, pp)
+			end
 		end
 		-- bumps into other pedestrians too
 		if self.mode == "walk" and now - self.lastFoolBump > BUMP.FOOL.bumpCooldown * 0.5 and now >= (self.nextNpcBump or 0) then
@@ -2725,7 +2780,7 @@ function Agent:typeReact(now: number, pp: Vector3, d: number, toX: number, toZ: 
 		end
 	end
 	-- somebody who talks to you first
-	if self.chatty and t ~= "beggar" and d < BUMP.CHAT_RANGE and d > 5 and (standing or self.sitting) and (self.mode == "walk" or self.mode == "idle") and now - self.chatAt > BUMP.CHAT_COOLDOWN and Crowd.canChat(now, self) and not Crowd.playerSeated() and pspeed < 14 then
+	if self.chatty and t ~= "beggar" and t ~= "punk" and d < BUMP.CHAT_RANGE and d > 5 and (standing or self.sitting) and (self.mode == "walk" or self.mode == "idle") and now - self.chatAt > BUMP.CHAT_COOLDOWN and Crowd.canChat(now, self) and not Crowd.playerSeated() and pspeed < 14 then
 		self:approachPlayer(now, pp, BUMP.CHAT_STOP, "approach")
 		return true
 	end

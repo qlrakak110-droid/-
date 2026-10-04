@@ -301,6 +301,28 @@ local function sanitize(raw: any): any
 			end
 		end
 	end
+	if type(raw.work) == "table" then d.work = raw.work end
+	-- 전투·범죄·경찰 (GwangalliGameplay.Crime): 전과 / unpaid fines / last arrests only (the live wanted level never persists)
+	if type(raw.crime) == "table" then
+		local arrests = {}
+		if type(raw.crime.arrests) == "table" then
+			for _, a in raw.crime.arrests do
+				if type(a) == "table" and #arrests < 8 then
+					table.insert(arrests, {
+						t = num(a.t, 0),
+						fine = math.max(0, math.floor(num(a.fine, 0))),
+						paid = math.max(0, math.floor(num(a.paid, 0))),
+						crimes = if type(a.crimes) == "string" then G.clipText(a.crimes, 80) else "",
+					})
+				end
+			end
+		end
+		d.crime = {
+			record = math.clamp(math.floor(num(raw.crime.record, 0)), 0, 100000),
+			debt = math.clamp(math.floor(num(raw.crime.debt, 0)), 0, 100000000),
+			arrests = arrests,
+		}
+	end
 	d.created = num(raw.created, os.time())
 	d.playSeconds = math.max(0, num(raw.playSeconds, 0))
 	d.lastLogin = os.time()

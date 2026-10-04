@@ -258,6 +258,7 @@ Citizens.ACT_STYLE = {
 	club = { move = "post", idle = "dance", speed = 1, label = "클럽에서 노는 중" },
 	home = { move = "post", idle = "idle", speed = 1, label = "집에 있는 중" },
 	sleep = { move = "post", idle = "idle", speed = 1, label = "자는 중" },
+	patrol = { move = "wander", idle = "look", speed = 0.95, label = "순찰 중" },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -847,6 +848,169 @@ Citizens.PERSONAS = {
 			},
 		},
 	},
+	-- npc_mind: the archetypes the life sim needed (police, the street people, the rich, the shop staff)
+	police = {
+		label = "경찰",
+		tones = { like = { "honest", "agree" }, dislike = { "rude", "tease" } },
+		topics = { "work", "family", "fitness" },
+		errands = { "post", "map" },
+		secret = "광안지구대",
+		style = "police",
+		sched = "police_day",
+		lines = {
+			morning = {
+				p = { "좋은 아침입니다. 오늘도 안전하게 다니세요.", "아침 순찰 중입니다. 별일 없으시죠?", "출근길 무단횡단은 안 됩니다, 아시죠?" },
+				c = { "아침부터 민원 세 건이다… 커피가 필요해.", "오늘 해변 쪽은 조용하네, 다행이다.", "야간조한테 인수인계 받는데 별일 없었대." },
+			},
+			day = {
+				p = { "관광객이 많아서 소매치기 조심하셔야 해요.", "해변에서 분실물 생기면 지구대로 오세요.", "더운데 수분 보충 잘 하세요." },
+				c = { "오늘 길 잃은 애 둘이나 찾아 줬다 ㅎㅎ", "점심 먹을 시간도 없네.", "순찰차 에어컨이 또 고장이야." },
+			},
+			evening = {
+				p = { "저녁엔 취객이 많아요. 시비 붙지 마세요.", "해 지면 해변 쪽 사람 많아집니다. 조심하세요.", "드론쇼 날엔 질서 유지가 제일 힘들어요." },
+				c = { "오늘 밤 근무만 버티면 비번이다.", "포차 골목 또 시끄럽겠네…", "너도 늦게 다니지 마라, 걱정된다." },
+			},
+			night = {
+				p = { "늦은 시간인데 귀가 안 하세요?", "밤엔 혼자 골목 다니지 마세요.", "야간 순찰 중입니다. 수상한 사람 보면 112." },
+				c = { "새벽 세 시가 제일 졸려…", "오늘은 큰 사건 없이 넘어가자, 제발.", "야식으로 국밥 어때? 근무 끝나고." },
+			},
+		},
+	},
+	street = {
+		label = "노숙자",
+		tones = { like = { "agree", "deep" }, dislike = { "brag", "rude" } },
+		topics = { "food", "sea", "family" },
+		errands = { "gs25", "pharmacy" },
+		secret = "민락수변공원",
+		style = "shabby",
+		sched = "homeless",
+		lines = {
+			morning = {
+				p = { "아침 해가 따뜻해서 살 것 같네요…", "벤치가 차가워서 밤새 못 잤어요.", "편의점 폐기 도시락이라도 있으면…" },
+				c = { "오늘은 왠지 좋은 일이 있을 것 같아.", "니가 지나가니까 아침이 덜 춥네.", "갈매기들이 내 아침밥을 노린다 ㅎㅎ" },
+			},
+			day = {
+				p = { "사람들이 다 바빠 보이네요…", "옛날엔 저도 저 빌딩에서 일했어요.", "더울 땐 그늘 찾는 게 일이에요." },
+				c = { "오늘 바다가 참 곱다. 돈 없어도 이건 공짜지.", "너 밥은 먹고 다니냐?", "예전 얘기 해 줄까? 나도 왕년엔 말이야…" },
+			},
+			evening = {
+				p = { "해 지면 금방 쌀쌀해져요…", "포장마차 냄새가 너무 좋네요.", "오늘은 어디서 자야 하나…" },
+				c = { "노을 볼 때만큼은 부자가 된 기분이야.", "너는 집에 가는 길이냐? 부럽다.", "광안대교 불 켜지면 마음이 좀 놓여." },
+			},
+			night = {
+				p = { "밤엔 바람이 매서워요…", "여긴 제 자리예요. 조용히 좀 쉴게요.", "잠이 안 와서 바다만 보고 있어요." },
+				c = { "밤바다 소리 들으면서 자면 꿈이 좋아.", "니도 잠 안 오냐? 같이 바다나 보자.", "추워도 별은 잘 보인다." },
+			},
+		},
+	},
+	punk = {
+		label = "걸렁뱅이",
+		tones = { like = { "joke", "tease" }, dislike = { "deep", "honest", "compliment" } },
+		topics = { "games", "money", "club" },
+		errands = { "gs25", "game" },
+		secret = "광안 PC방",
+		style = "punk",
+		sched = "punk",
+		lines = {
+			morning = {
+				p = { "아 뭐… 아침부터 왜요.", "아침에 사람 보는 거 별로인데.", "편의점 앞이 내 출근지다 ㅋ" },
+				c = { "야 너 아침 먹었냐? 나 좀 사 주라 ㅋㅋ", "어제 밤새 놀았더니 해가 따갑네.", "오늘 뭐 재밌는 거 없냐?" },
+			},
+			day = {
+				p = { "뭘 그렇게 쳐다봐요?", "할 말 있으면 하고.", "여기 우리 구역인 거 알지?" },
+				c = { "야 심심한데 뭐 하냐 ㅋㅋ", "니 요즘 좀 컸다? ㅋ", "PC방 갈래? 니가 쏘면 ㅋㅋ" },
+			},
+			evening = {
+				p = { "저녁엔 이 골목 우리가 접수한다.", "어이, 길 막지 말고.", "포차 가는 길이야? 부럽네." },
+				c = { "오늘 밤은 좀 놀아 보자고!", "야 너 의리 있는 놈인 거 안다.", "누가 너 건들면 말해라, 내가 해결한다 ㅋ" },
+			},
+			night = {
+				p = { "이 시간에 뭐 하고 다녀?", "밤엔 여기 조용히 지나가는 게 좋을걸.", "아 졸려… 근데 집엔 가기 싫고." },
+				c = { "새벽 감성 오지지 않냐 ㅋㅋ", "야 라면 먹으러 갈래?", "너 말고는 다 재미없다." },
+			},
+		},
+	},
+	thug = {
+		label = "불량배",
+		tones = { like = { "brag", "agree" }, dislike = { "tease", "deep", "rude" } },
+		topics = { "money", "fitness", "club" },
+		errands = { "gs25", "ticket" },
+		secret = "광안 공영주차장",
+		style = "thug",
+		sched = "thug",
+		lines = {
+			morning = {
+				p = { "…아침부터 귀찮게 하지 마.", "어디서 많이 본 얼굴인데.", "볼일 없으면 지나가." },
+				c = { "아침부터 형님한테 인사하러 왔냐 ㅋ", "어제 주차장에서 한판 붙을 뻔했다.", "운동 끝나고 국밥 콜?" },
+			},
+			day = {
+				p = { "니 여기 처음 보는 놈이네.", "우리 형님들 지나가신다. 비켜.", "돈 좀 있어 보이네?" },
+				c = { "요즘 이 동네 시끄러워. 몸 조심해라.", "니는 우리 편이니까 건들 놈 없다.", "헬스 몇 키로 치냐? ㅋ" },
+			},
+			evening = {
+				p = { "해 졌다. 이제 우리 시간이다.", "어이, 거기. 잠깐 얘기 좀 하자.", "여기서 얼쩡대지 마라." },
+				c = { "오늘 밤 클럽 앞에서 보자.", "니 의리 하나는 인정한다.", "형이 오늘 기분 좋다, 뭐 먹을래?" },
+			},
+			night = {
+				p = { "밤길 조심해라. 여긴 무서운 동네다.", "경찰 짭새 없나 망 좀 봐라… 아, 니가 아니지.", "볼일 없으면 꺼져." },
+				c = { "새벽엔 우리 형님들 다 모인다.", "니는 내가 지켜 준다. 걱정 마라.", "오늘 일 잘 끝났다. 한잔 콜?" },
+			},
+		},
+	},
+	rich = {
+		label = "부자",
+		tones = { like = { "compliment", "deep" }, dislike = { "joke", "rude", "tease" } },
+		topics = { "money", "travel", "fashion" },
+		errands = { "coffee", "fish" },
+		secret = "테라스타오션",
+		style = "luxe",
+		sched = "rich",
+		lines = {
+			morning = {
+				p = { "아침엔 요트 정박장에서 커피 한 잔이 루틴이에요.", "오늘 미팅이 세 개나 있네요.", "바다 뷰 펜트하우스는 아침이 제일 예뻐요." },
+				c = { "아침 골프 치고 왔더니 피곤하네 ㅎㅎ", "너도 아침에 주식 창 봤어?", "오늘 브런치는 내가 살게." },
+			},
+			day = {
+				p = { "이 근처 건물 몇 개가 제 거예요. 호호.", "명품 매장은 서울보다 부산이 덜 붐벼서 좋아요.", "요즘 부동산이 영 시원찮네요." },
+				c = { "돈이 다는 아니더라… 근데 많으면 좋아 ㅋㅋ", "새 차 뽑았는데 주차할 데가 없네.", "너 투자 같은 거 관심 있어?" },
+			},
+			evening = {
+				p = { "저녁은 늘 오마카세로 하는 편이에요.", "광안대교 야경은 우리 집 거실에서 보는 게 최고죠.", "와인 한 잔 하기 좋은 저녁이네요." },
+				c = { "오늘 저녁 회 먹으러 갈래? 제일 비싼 걸로.", "요트에서 보는 불꽃축제가 진짜야.", "가끔은 포장마차가 더 맛있더라 ㅎㅎ" },
+			},
+			night = {
+				p = { "밤엔 운전기사가 데리러 와요.", "늦게까지 일하는 사람들 보면 대단해요.", "잠이 안 와서 바다 산책 중이에요." },
+				c = { "부자도 잠 안 오는 밤이 있다 ㅋㅋ", "너랑 얘기하면 돈 얘기 안 해도 돼서 좋아.", "다음 주에 요트 파티 할 건데 올래?" },
+			},
+		},
+	},
+	clerk = {
+		label = "점원 · 알바생",
+		tones = { like = { "agree", "joke" }, dislike = { "rude", "brag" } },
+		topics = { "work", "food", "money" },
+		errands = { "gs25", "coffee" },
+		secret = "GS25 광안리점",
+		style = "apron",
+		sched = "clerk_day",
+		lines = {
+			morning = {
+				p = { "어서 오세요~ 아침 일찍 나오셨네요!", "오픈 준비 중이라 조금만 기다려 주세요.", "아침엔 삼각김밥이 제일 잘 나가요." },
+				c = { "아 출근하기 싫었다 ㅠㅠ", "점장님 오늘 기분 좋으셔서 다행이야.", "아침 손님들은 다 조용해서 좋아." },
+			},
+			day = {
+				p = { "점심시간엔 줄이 길어서 정신없어요.", "포인트 적립하시겠어요? ㅎㅎ", "1+1 행사 중인 거 보셨어요?" },
+				c = { "진상 손님 왔다 갔어… 멘탈 나감", "알바비 들어오면 뭐 살지 고민 중이야.", "시급 좀 올려 줬으면 ㅠ" },
+			},
+			evening = {
+				p = { "저녁엔 맥주랑 안주가 많이 나가요.", "퇴근 시간 다가오니까 힘이 나네요!", "오늘 신상 디저트 들어왔어요~" },
+				c = { "교대하는 애가 또 늦는대… 하", "끝나고 뭐 먹을래? 배고파 죽겠어.", "오늘 손님한테 칭찬받았다 ㅎㅎ" },
+			},
+			night = {
+				p = { "야간에는 손님이 별로 없어서 조용해요.", "심야엔 컵라면이 효자 상품이에요.", "새벽에 취하신 분들 오면 좀 무서워요…" },
+				c = { "야간 알바 3주째… 낮밤이 바뀌었어.", "새벽 감성에 폐기 도시락 먹는 중 ㅋㅋ", "너도 이 시간까지 안 자? 같이 버티자." },
+			},
+		},
+	},
 }
 
 -------------------------------------------------------------------------------------------------
@@ -1187,6 +1351,20 @@ Citizens.SCHEDULES = {
 	fisher_nap = { { 0, "home", "sleep" }, { 3.5, "work", "work" }, { 10, "hoetown", "work" }, { 12.5, "millak_park", "sit" }, { 15.5, "beach_w", "walk" }, { 18, "hoetown", "drink" }, { 20.5, "home", "sleep" } },
 	sunrise_paint = { { 0, "home", "sleep" }, { 4.5, "beach_c", "paint" }, { 8.5, "eat", "eat" }, { 9.5, "plaza", "sit" }, { 11, "fun", "paint" }, { 14, "beach_c", "paint" }, { 17, "plaza", "sit" }, { 20, "beach_c", "paint" }, { 22, "gwangan_st", "walk" }, { 23.5, "home", "home" } },
 	late_office = { { 0, "gwangan_st", "walk" }, { 3, "home", "sleep" }, { 9.5, "work", "work" }, { 12, "eat", "eat" }, { 13, "work", "work" }, { 19, "walk", "walk" }, { 20, "eat", "drink" }, { 21.5, "beach_c", "walk" } },
+	-- npc_mind archetypes: police shifts (day + night crews cover 24 h), the street people (always
+	-- outside: benches by night), 걸렁뱅이 / 불량배 hanging around the night streets, the rich, shop staff
+	police_day = { { 0, "home", "sleep" }, { 7, "work", "work" }, { 9, "plaza", "patrol" }, { 12, "eat", "eat" }, { 13, "beach_c", "patrol" }, { 16, "gwangan_st", "patrol" }, { 18.5, "home", "home" } },
+	police_night = { { 0, "club", "patrol" }, { 3, "gwangan_st", "patrol" }, { 6, "home", "sleep" }, { 15, "work", "work" }, { 18, "plaza", "patrol" }, { 21, "beach_c", "patrol" } },
+	homeless = { { 0, "plaza", "sit" }, { 6, "millak_park", "sit" }, { 10, "beach_w", "walk" }, { 13, "plaza", "sit" }, { 17, "gs25", "sit" }, { 20, "beach_c", "sit" } },
+	homeless_b = { { 0, "beach_c", "sit" }, { 5, "plaza", "sit" }, { 9, "gs25_beach", "walk" }, { 12, "millak_park", "sit" }, { 16, "beach_w", "walk" }, { 19, "plaza", "sit" } },
+	punk = { { 0, "gwangan_st", "hangout" }, { 3, "home", "sleep" }, { 11.5, "gs25", "hangout" }, { 14.5, "plaza", "walk" }, { 17.5, "beach_c", "hangout" }, { 20.5, "gwangan_st", "hangout" } },
+	punk_late = { { 0, "club", "hangout" }, { 4, "home", "sleep" }, { 13, "gs25", "hangout" }, { 16, "beach_w", "walk" }, { 19, "plaza", "hangout" }, { 22, "gwangan_st", "hangout" } },
+	thug = { { 0, "club", "hangout" }, { 3.5, "home", "sleep" }, { 13, "pcbang", "play" }, { 16, "gwangan_st", "walk" }, { 19, "plaza", "hangout" }, { 22, "gwangan_st", "hangout" } },
+	rich = { { 0, "home", "sleep" }, { 9, "terrace", "walk" }, { 11, "starbucks_beach", "cafe" }, { 13, "eat", "eat" }, { 15, "beach_e", "walk" }, { 18, "hoetown", "eat" }, { 20.5, "terrace", "walk" }, { 22.5, "home", "home" } },
+	clerk_day = { { 0, "home", "sleep" }, { 7.5, "work", "work" }, { 12.5, "eat", "eat" }, { 13.5, "work", "work" }, { 19, "walk", "walk" }, { 21, "home", "home" } },
+	alba_night = { { 0, "work", "work" }, { 6, "home", "sleep" }, { 14, "cafe", "cafe" }, { 16, "walk", "walk" }, { 18, "eat", "eat" }, { 20, "work", "work" } },
+	drunk_night = { { 0, "gwangan_st", "walk" }, { 2.5, "home", "sleep" }, { 11, "work", "work" }, { 17.5, "eat", "drink" }, { 20, "beach_c", "walk" }, { 22, "gwangan_st", "drink" } },
+	fool_day = { { 0, "home", "sleep" }, { 7, "plaza", "walk" }, { 10, "beach_c", "walk" }, { 12, "gs25", "walk" }, { 14, "millak_park", "walk" }, { 17, "plaza", "walk" }, { 20, "gwangan_st", "walk" }, { 23, "home", "home" } },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -1308,7 +1486,7 @@ Citizens.LIST = {
 		topics = { "food", "travel", "music" }, hate = { "work" }, love = { "saltbread", "cake" }, like = { "cat:dessert", "rose" }, dislike = { "soju" }, bday = { 4, 7 },
 		look = { hair = "long", hc = "darkbrown", style = "casual", night = "dress", skin = 2 },
 		sig = { "대학 오니까 신기한 게 억수로 많다!", "첫 클럽은 니랑 가고 싶다 ㅋㅋ" } },
-	{ id = "hyunwoo", chatty = true, type = "beggar", name = "오현우", age = 25, g = "m", persona = "uni", speech = "std", job = "취업 준비생", home = "station6", eat = "gs25", cafe = "starbucks_beach", fun = "beach_w", club = 0.4, social = 0.5,
+	{ id = "hyunwoo", chatty = true, name = "오현우", age = 25, g = "m", persona = "uni", speech = "std", job = "취업 준비생", home = "station6", eat = "gs25", cafe = "starbucks_beach", fun = "beach_w", club = 0.4, social = 0.5,
 		topics = { "work", "money", "study" }, hate = { "fashion" }, love = { "americano", "book" }, like = { "cat:coffee" }, dislike = { "cat:luxury" }, bday = { 11, 5 },
 		look = { hair = "side", hc = "black", style = "casual", night = "jacket", acc = "backpack", skin = 2 },
 		sig = { "면접 붙으면 내가 제일 먼저 너한테 말할게.", "요즘 자소서만 백 장 쓴 것 같아…" } },
@@ -1404,7 +1582,7 @@ Citizens.LIST = {
 		topics = { "photo", "travel", "food" }, hate = { "games" }, love = { "fishcake", "book" }, like = { "cat:food", "cat:book" }, dislike = { "cat:pet" }, bday = { 8, 25 },
 		look = { hair = "side", hc = "black", style = "tourist", night = "jacket", acc = "camera", skin = 2 },
 		sig = { "광안대교 사진으로 전시회 할 거예요. 너도 초대할게!", "부산 사투리 어려워요… '머하노'는 알아요 ㅋㅋ" } },
-	{ id = "lucas", chatty = true, type = "beggar", sched = "street_night", name = "루카스", age = 27, g = "m", persona = "foreigner", speech = "std", job = "브라질에서 온 서퍼", home = "aqua", eat = "bronx", fun = "sup", club = 0, social = 0.95,
+	{ id = "lucas", chatty = true, sched = "street_night", name = "루카스", age = 27, g = "m", persona = "foreigner", speech = "std", job = "브라질에서 온 서퍼", home = "aqua", eat = "bronx", fun = "sup", club = 0, social = 0.95,
 		topics = { "sea", "club", "music" }, hate = { "work" }, love = { "beer", "surf_wax" }, like = { "cat:alcohol", "cat:beach" }, dislike = { "book" }, bday = { 2, 27 },
 		look = { hair = "curly", hc = "darkbrown", style = "surf", night = "streetnight", acc = "surfboard", skin = 5, build = "broad" },
 		sig = { "Party tonight? 브라질 스타일로 놀자!", "광안리 파도, 리우만큼 좋아!" } },
@@ -1474,7 +1652,7 @@ Citizens.LIST = {
 		look = { hair = "ponytail", hc = "red", style = "chef", night = "black", skin = 2 },
 		sig = { "신메뉴 시식단 1호는 너야!", "버거는 빵이 반이야, 진짜로." } },
 	-- artists ---------------------------------------------------------------------------------------
-	{ id = "painter_woo", chatty = true, type = "beggar", sched = "sunrise_paint", name = "우지안", age = 33, g = "m", persona = "artist", speech = "std", job = "해변 화가", home = "jwell", fun = "bread", club = 0.3, social = 0.5,
+	{ id = "painter_woo", chatty = true, sched = "sunrise_paint", name = "우지안", age = 33, g = "m", persona = "artist", speech = "std", job = "해변 화가", home = "jwell", fun = "bread", club = 0.3, social = 0.5,
 		topics = { "art", "sea", "coffee" }, hate = { "money" }, love = { "book", "latte" }, like = { "cat:book", "cat:coffee" }, dislike = { "cat:merch" }, bday = { 4, 18 },
 		look = { hair = "long", hc = "black", style = "artsy", night = "jacket", acc = "sketchbook", skin = 2 },
 		sig = { "너 표정 좋다. 오늘 그림 모델 해 줄래?", "광안리 바다는 매일 색이 달라." } },
@@ -1539,6 +1717,99 @@ Citizens.LIST = {
 		topics = { "art", "coffee", "fashion" }, hate = { "baseball" }, love = { "book", "latte" }, like = { "cat:book", "cat:coffee", "lp" }, dislike = { "fishcake" }, bday = { 11, 29 },
 		look = { hair = "bob", hc = "ash", style = "hoodie", night = "jacket", acc = "glasses", skin = 1 },
 		sig = { "네 폰 UI 불편한 거 있으면 말해, 내가 고쳐 줄게 ㅋㅋ", "노을 색 조합은 최고의 디자인 레퍼런스야." } },
+	-- npc_mind archetypes ---------------------------------------------------------------------------
+	-- police (광안지구대): day crew 박종호 / 이수빈, night crew 김민혁 / 최다은. type police: they patrol,
+	-- answer reports (GwangalliMind dispatch) and question people about trouble.
+	{ id = "cop_park", type = "police", name = "박종호", age = 46, g = "m", persona = "police", speech = "busan", job = "광안지구대 경사", home = "xi", work = "police", eat = "gwangan_st", walk = "beach_c", club = 0, social = 0.55, start = 8,
+		topics = { "work", "family", "baseball" }, love = { "fishcake", "vitamin" }, like = { "cat:food", "americano" }, dislike = { "cat:luxury" }, bday = { 3, 14 },
+		look = { hair = "buzz", hc = "gray", style = "police", skin = 3, build = "broad" },
+		sig = { "이 동네 25년째 지키고 있다 아이가.", "니는 사고 치지 마래이. 내가 다 안다." } },
+	{ id = "cop_lee", type = "police", name = "이수빈", age = 31, g = "f", persona = "police", speech = "std", job = "광안지구대 경장", home = "jwell", work = "police", eat = "bronx", walk = "plaza", club = 0, social = 0.65, start = 8,
+		topics = { "work", "fitness", "coffee" }, love = { "americano", "saltbread" }, like = { "cat:coffee", "cat:dessert" }, dislike = { "soju" }, bday = { 7, 7 },
+		look = { hair = "ponytail", hc = "black", style = "police", skin = 2 },
+		sig = { "비번 날엔 해변 러닝해요. 같이 뛸래요?", "제 동기들은 다 서울 갔는데 저는 부산이 좋아요." } },
+	{ id = "cop_kim", type = "police", sched = "police_night", name = "김민혁", age = 27, g = "m", persona = "police", speech = "busan", job = "광안지구대 순경 (야간조)", home = "suyeong_stn", work = "police", eat = "gs25", walk = "club", club = 0, social = 0.6, start = 8,
+		topics = { "games", "fitness", "food" }, love = { "game_card", "tteokbokki" }, like = { "cat:snack", "cat:game" }, dislike = { "cat:flower" }, bday = { 12, 2 },
+		look = { hair = "short", hc = "black", style = "police", skin = 2 },
+		sig = { "야간조 하면 컵라면 맛을 알게 된다.", "순경 1년 차라 아직 다 신기하다 아이가." } },
+	{ id = "cop_choi", type = "police", sched = "police_night", name = "최다은", age = 29, g = "f", persona = "police", speech = "std", job = "광안지구대 순경 (야간조)", home = "samik", work = "police", eat = "gwangan_st", walk = "beach_c", club = 0, social = 0.6, start = 8,
+		topics = { "work", "music", "sea" }, love = { "latte", "lp" }, like = { "cat:music", "cat:coffee" }, dislike = { "cat:alcohol" }, bday = { 10, 21 },
+		look = { hair = "bun", hc = "darkbrown", style = "police", skin = 1 },
+		sig = { "밤바다 순찰할 때가 제일 좋아요. 조용해서.", "취객 상대하는 법은 학교에서 안 가르쳐 줘요 ㅎㅎ" } },
+	-- 노숙자 (type beggar: the 천원만 street people; always outside, naps on the benches at night)
+	{ id = "street_kim", chatty = true, type = "beggar", sched = "homeless", name = "김영감", fullName = "김덕수", age = 67, g = "m", persona = "street", speech = "busan", job = "광안리 벤치 터줏대감", home = "plaza", club = 0, social = 0.5, start = 5,
+		topics = { "sea", "food", "family" }, love = { "fishcake", "bungeoppang" }, like = { "cat:food", "cat:snack" }, dislike = { "cat:luxury" }, bday = { 2, 9 },
+		look = { hair = "bald", hc = "gray", style = "shabby", skin = 4, build = "slim" },
+		sig = { "왕년엔 내도 저 빌딩 짓던 사람이다.", "니 같은 놈 만나면 살맛 난다." } },
+	{ id = "street_park", chatty = true, type = "beggar", sched = "homeless_b", name = "박씨 아저씨", fullName = "박만석", age = 54, g = "m", persona = "street", speech = "std", job = "해변 떠돌이 · 전직 요리사", home = "beach_c", club = 0, social = 0.55, start = 5,
+		topics = { "food", "work", "sea" }, love = { "tteokbokki", "hotteok" }, like = { "cat:snack", "tangerine" }, dislike = { "perfume" }, bday = { 8, 30 },
+		look = { hair = "curly", hc = "darkbrown", style = "shabby", skin = 3 },
+		sig = { "내가 예전에 호텔 주방에 있었어. 진짜야.", "언젠가 너한테 김치찌개 끓여 줄게." } },
+	{ id = "street_oh", chatty = true, type = "beggar", sched = "homeless", name = "오할매", fullName = "오말순", age = 72, g = "f", persona = "street", speech = "busan", job = "폐지 줍는 할매", home = "millak_park", club = 0, social = 0.6, start = 8,
+		topics = { "family", "food", "sea" }, love = { "tangerine", "hotteok" }, like = { "cat:fruit", "cat:snack" }, dislike = { "cat:alcohol" }, bday = { 5, 8 },
+		look = { hair = "granny_perm", hc = "white", style = "shabby", skin = 3, build = "slim", height = 0.92 },
+		sig = { "우리 손주가 니만 하다.", "폐지값이 또 떨어졌다 아이가…" } },
+	-- 걸렁뱅이 (type punk: picks on passers-by first: 뭘 봐? / 야 너 잠깐 와봐, backs off or keeps at it)
+	{ id = "punk_dongsu", chatty = true, type = "punk", name = "황동수", age = 24, g = "m", persona = "punk", speech = "busan", job = "백수 · 동네 걸렁뱅이", home = "station6", eat = "gs25", fun = "gwangan_st", club = 0.6, social = 0.5, start = 3,
+		topics = { "games", "money", "club" }, hate = { "study" }, love = { "game_card", "tteokbokki" }, like = { "cat:snack", "cat:game" }, dislike = { "book", "cat:flower" }, bday = { 1, 17 },
+		look = { hair = "twoblock", hc = "blonde", style = "punk", night = "streetnight", skin = 3, build = "slim" },
+		sig = { "니는 내가 인정한 몇 안 되는 놈이다.", "다음에 누가 니 건들면 이름만 대라." } },
+	{ id = "punk_jjang", chatty = true, type = "punk", sched = "punk_late", name = "짱구", fullName = "장현구", age = 21, g = "m", persona = "punk", speech = "busan", job = "편의점 앞 죽돌이", home = "suyeong_stn", eat = "gs25", fun = "plaza", club = 0.5, social = 0.45, start = 3,
+		topics = { "games", "fashion", "money" }, hate = { "work" }, love = { "club_tee", "beer" }, like = { "cat:merch", "cat:snack" }, dislike = { "book" }, bday = { 6, 6 },
+		look = { hair = "perm", hc = "red", style = "punk", night = "streetnight", acc = "headphones", skin = 2 },
+		sig = { "야 니 진짜 웃긴다 ㅋㅋ 친구 하자.", "내가 이래 보여도 의리는 있다." } },
+	{ id = "punk_mira", chatty = true, type = "punk", name = "도미라", age = 23, g = "f", persona = "punk", speech = "std", job = "알바 그만둔 지 3일째", home = "station", eat = "gwangan_st", fun = "beach_w", club = 0.7, social = 0.5, start = 3,
+		topics = { "fashion", "music", "club" }, hate = { "study" }, love = { "perfume", "lp" }, like = { "cat:music", "cat:luxury" }, dislike = { "cat:pet" }, bday = { 9, 9 },
+		look = { hair = "long", hc = "pink", style = "punk", night = "streetnight", acc = "sunglasses", skin = 1 },
+		sig = { "너 생각보다 괜찮은 애네.", "솔직히 시비 거는 것도 심심해서 그래." } },
+	-- 불량배 (type thug: groups, intimidation, a shove when you stand up to them)
+	{ id = "thug_gang", type = "thug", name = "강태식", age = 28, g = "m", persona = "thug", speech = "busan", job = "광남로 불량배 형님", home = "parking", eat = "gwangan_st", fun = "pcbang", club = 0.7, social = 0.4, start = 0,
+		topics = { "money", "fitness", "club" }, hate = { "art" }, love = { "cheer_towel", "fishcake" }, like = { "cat:food", "cat:merch" }, dislike = { "cat:flower", "book" }, bday = { 4, 22 },
+		look = { hair = "buzz", hc = "black", style = "thug", night = "black", skin = 4, build = "broad", height = 1.06 },
+		sig = { "니는 내 동생이다. 누가 뭐라 하면 말해라.", "이 바닥도 의리가 전부다." } },
+	{ id = "thug_seok", type = "thug", name = "윤석구", age = 25, g = "m", persona = "thug", speech = "busan", job = "강태식 똘마니", home = "station6", eat = "gs25", fun = "pcbang", club = 0.6, social = 0.45, start = 0,
+		topics = { "games", "money", "fitness" }, hate = { "study" }, love = { "game_card", "beer" }, like = { "cat:game", "cat:snack" }, dislike = { "cat:flower" }, bday = { 11, 23 },
+		look = { hair = "short", hc = "black", style = "thug", night = "black", acc = "cap", skin = 3, build = "broad" },
+		sig = { "형님이 니 괜찮다 카더라.", "내도 사실 이 짓 오래 할 생각 없다." } },
+	{ id = "thug_jun", type = "thug", name = "변준기", age = 22, g = "m", persona = "thug", speech = "std", job = "동네 일진 출신", home = "suyeong_stn", eat = "gwangan_st", fun = "plaza", club = 0.6, social = 0.45, start = 0,
+		topics = { "fashion", "money", "club" }, hate = { "family" }, love = { "club_tee", "perfume" }, like = { "cat:merch", "cat:luxury" }, dislike = { "book" }, bday = { 3, 3 },
+		look = { hair = "side", hc = "ash", style = "thug", night = "streetnight", acc = "sunglasses", skin = 2 },
+		sig = { "너랑 있으면 싸울 일이 없네.", "형들 몰래 공부 다시 해볼까 생각 중이야." } },
+	-- 동네바보 (type fool) + 취객 (type drunk): one more of each, always around the plaza / the 먹자골목
+	{ id = "fool_mansik", chatty = true, type = "fool", sched = "fool_day", name = "만식이", fullName = "최만식", age = 34, g = "m", persona = "street", speech = "busan", job = "동네 바보 형 · 광장 지킴이", home = "station", club = 0, social = 0.95, start = 12,
+		topics = { "sea", "food", "baseball" }, love = { "bungeoppang", "cheer_towel" }, like = { "cat:snack", "cat:merch" }, dislike = { "book" }, bday = { 7, 21 },
+		look = { hair = "perm", hc = "black", style = "casual", acc = "cap", skin = 3, build = "broad" },
+		sig = { "니는 내 베프다! 히히", "내가 광안대교 불 켜는 사람이다~ 비밀이다!" } },
+	{ id = "drunk_bae", type = "drunk", sched = "drunk_night", name = "배부장", fullName = "배상만", age = 52, g = "m", persona = "office", speech = "busan", job = "회식 3차 중인 부장님", home = "xi", work = "kbs", eat = "hoetown", club = 0, social = 0.7, start = 6,
+		topics = { "work", "baseball", "family" }, hate = { "games" }, love = { "soju", "fishcake" }, like = { "cat:alcohol", "cat:food" }, dislike = { "cat:game" }, bday = { 9, 30 },
+		look = { hair = "side", hc = "gray", style = "office", night = "suit", skin = 4, build = "broad" },
+		sig = { "내가 니만 할 때는 말이야… 히끅", "부장 되면 행복할 줄 알았다…" } },
+	-- 부자 (type rich: big spenders, polite to the polite, cold to the rude)
+	{ id = "rich_madam", type = "rich", name = "한사모님", fullName = "한정숙", age = 55, g = "f", persona = "rich", speech = "busan", job = "광안리 건물주 사모님", home = "terrace", eat = "hoetown", cafe = "starbucks_beach", club = 0, social = 0.55, start = 4,
+		topics = { "money", "family", "fashion" }, hate = { "games" }, love = { "perfume", "bouquet" }, like = { "cat:flower", "cat:luxury" }, dislike = { "cat:snack", "soju" }, bday = { 12, 24 },
+		look = { hair = "wave", hc = "brown", style = "luxe", skin = 1, acc = "sunglasses" },
+		sig = { "우리 건물 1층에 카페 하나 차려 볼래?", "돈 많아도 외로운 건 똑같다." } },
+	{ id = "rich_yoon", type = "rich", name = "윤대표", fullName = "윤성재", age = 38, g = "m", persona = "rich", speech = "std", job = "요트 클럽 대표 · 스타트업 엑싯", home = "central_bay", eat = "bronx", cafe = "hongmidang", club = 0.6, social = 0.6, start = 4,
+		topics = { "money", "travel", "sea" }, hate = { "baseball" }, love = { "wine", "lp" }, like = { "cat:luxury", "cat:music" }, dislike = { "cat:snack" }, bday = { 2, 2 },
+		look = { hair = "side", hc = "black", style = "luxe", night = "suit", acc = "sunglasses", skin = 2 },
+		sig = { "엑싯하고 나니까 할 게 요트밖에 없더라 ㅋㅋ", "너 같은 사람한테 투자하고 싶다." } },
+	{ id = "rich_heir", type = "rich", name = "정재희", age = 26, g = "f", persona = "rich", speech = "std", job = "재벌 3세 인플루언서", home = "terrace", eat = "bronx", cafe = "starbucks_beach", club = 0.9, social = 0.65, start = 4,
+		topics = { "fashion", "travel", "club" }, hate = { "work" }, love = { "perfume", "macaron" }, like = { "cat:luxury", "cat:dessert" }, dislike = { "fishcake", "cat:snack" }, bday = { 5, 1 },
+		look = { hair = "long", hc = "blonde", style = "luxe", night = "sparkle", acc = "sunglasses", skin = 1 },
+		sig = { "아빠 카드 말고 내 돈으로 살게, 오늘은.", "너랑 있으면 진짜 나로 있을 수 있어." } },
+	-- 점원 · 알바생 (persona clerk)
+	{ id = "clerk_gs", name = "임하늘", age = 20, g = "f", persona = "clerk", speech = "busan", job = "GS25 광안리점 알바생", home = "station6", work = "gs25", eat = "gs25", cafe = "starbucks_beach", walk = "beach_c", club = 0.3, social = 0.75,
+		topics = { "food", "music", "money" }, hate = { "baseball" }, love = { "cake", "macaron" }, like = { "cat:dessert", "cat:coffee" }, dislike = { "soju" }, bday = { 4, 16 },
+		look = { hair = "ponytail", hc = "brown", style = "apron", skin = 2 },
+		sig = { "폐기 나오면 니 몫 챙겨 둘게 ㅋㅋ", "사장님 몰래 1+1 하나 더 줄까?" } },
+	{ id = "alba_night", sched = "alba_night", name = "권태양", age = 23, g = "m", persona = "clerk", speech = "std", job = "편의점 야간 알바 · 휴학생", home = "suyeong_stn", work = "gs25_beach", eat = "gwangan_st", cafe = "hongmidang", walk = "beach_w", club = 0.2, social = 0.6,
+		topics = { "games", "study", "food" }, hate = { "fashion" }, love = { "game_card", "americano" }, like = { "cat:coffee", "cat:game" }, dislike = { "perfume" }, bday = { 8, 8 },
+		look = { hair = "side", hc = "black", style = "apron", acc = "glasses", skin = 2 },
+		sig = { "새벽 세 시에 오는 손님은 다 사연이 있어.", "알바 끝나면 해 뜨는 거 같이 볼래?" } },
+	{ id = "clerk_shop", name = "남예슬", age = 27, g = "f", persona = "clerk", speech = "std", job = "헤어살롱 편집숍 점원", home = "jwell", work = "salon", eat = "bread", cafe = "hongmidang", walk = "beach_e", club = 0.6, social = 0.7,
+		topics = { "fashion", "music", "coffee" }, hate = { "games" }, love = { "perfume", "rose" }, like = { "cat:flower", "cat:luxury" }, dislike = { "fishcake" }, bday = { 10, 3 },
+		look = { hair = "bob", hc = "ash", style = "trendy", night = "dress", skin = 1 },
+		sig = { "너한테 어울리는 옷 내가 골라 줄게!", "손님한테 웃는 거 말고 진짜 웃는 건 오랜만이다." } },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -1564,8 +1835,12 @@ Citizens.TYPES = {
 	plain = { label = "그냥 NPC", chatty = false },
 	violent = { label = "폭력적인 NPC", chatty = false, bumpBack = true },
 	fool = { label = "동네바보", chatty = true, bumps = true },
-	beggar = { label = "걸렁뱅이", chatty = true, begs = true },
-	drunk = { label = "주정뱅이", chatty = false, stagger = true },
+	beggar = { label = "노숙자", chatty = true, begs = true },
+	drunk = { label = "취객", chatty = false, stagger = true },
+	police = { label = "경찰", chatty = false, police = true },
+	punk = { label = "걸렁뱅이", chatty = true, provokes = true },
+	thug = { label = "불량배", chatty = false, bumpBack = true, threatens = true },
+	rich = { label = "부자", chatty = false },
 }
 function Citizens.typeOf(id: any): string
 	local c = Citizens.byId[id]
@@ -1758,6 +2033,27 @@ Citizens.CREWS = {
 	{ id = "artists", name = "해변 예술가들", kind = "friends", members = { "painter_woo", "singer_yeon", "haeun", "dancer_kai" },
 		slots = { { 11, 13, "bread", "paint" } },
 		lines = { "여기 색감 좋다", "노을 질 때 다시 그리자", "새 노래 가사 들어 볼래?" } },
+	{ id = "cops", name = "광안지구대", kind = "coworkers", members = { "cop_park", "cop_lee", "cop_kim", "cop_choi" },
+		slots = { { 15, 16, "police", "work" } },
+		lines = { "오늘 신고 몇 건이고?", "교대 전에 순찰 한 바퀴 더 돌자.", "국밥 먹고 가자, 내가 쏜다." } },
+	{ id = "bench", name = "벤치 이웃들", kind = "neighbors", members = { "street_kim", "street_park", "street_oh" },
+		slots = { { 13, 14.5, "plaza", "sit" } },
+		lines = { "오늘은 좀 따뜻하네.", "편의점 폐기 나왔다더라.", "할매, 이거 같이 잡수소." } },
+	{ id = "plaza_bros", name = "광장 형님들", kind = "friends", members = { "street_kim", "fool_mansik", "drunk_bae" },
+		slots = { { 17.5, 18.5, "plaza", "sit" } },
+		lines = { "히히 형님 오늘도 취했다~", "만식아, 니 밥은 묵었나?", "히끅… 내가 오늘 쏜다…" } },
+	{ id = "punks", name = "동네 걸렁뱅이들", kind = "friends", members = { "punk_dongsu", "punk_jjang", "punk_mira" },
+		slots = { { 21, 23, "gwangan_st", "hangout" } },
+		lines = { "야 저기 지나가는 애 봐라 ㅋㅋ", "오늘 누구한테 얻어먹지?", "심심하다… 시비나 걸까 ㅋ" } },
+	{ id = "thugs", name = "광남로 불량배", kind = "friends", members = { "thug_gang", "thug_seok", "thug_jun" },
+		slots = { { 19, 21.5, "plaza", "hangout" } },
+		lines = { "형님, 오늘 분위기 어떻습니까?", "짭새 뜨면 바로 흩어진다.", "저기 저놈 눈빛 봐라." } },
+	{ id = "rich", name = "광안 부자 모임", kind = "friends", members = { "rich_madam", "rich_yoon", "rich_heir" },
+		slots = { { 15, 16.5, "terrace", "cafe" } },
+		lines = { "요즘 요트 계류비가 또 올랐어요.", "다음 달에 파리 가는데 같이 가요.", "이 동네 땅값이 미쳤어요 호호." } },
+	{ id = "alba", name = "알바생 동기들", kind = "coworkers", members = { "clerk_gs", "alba_night", "clerk_shop" },
+		slots = { { 19.5, 20, "gs25", "eat" } },
+		lines = { "오늘 진상 손님 몇 명?", "시급 언제 오르냐…", "끝나고 떡볶이 콜?" } },
 }
 -- Short names for the chips and how friends call them: nick (replaces the 3-syllable rule), title
 -- (what clearly younger people call them), formal (no 아/야 after the nick).
@@ -1769,6 +2065,19 @@ Citizens.NICKS = {
 	vendor_hotteok = { nick = "호떡 아지매", title = "아지매", formal = true },
 	market_ahn = { title = "사장님" },
 	haenyeo = { title = "이모님" },
+	cop_park = { nick = "박경사", title = "경사님", formal = true },
+	cop_lee = { title = "경장님" },
+	cop_kim = { title = "순경님" },
+	cop_choi = { title = "순경님" },
+	street_kim = { nick = "김영감", title = "영감님", formal = true },
+	street_park = { nick = "박씨 아저씨", title = "아저씨", formal = true },
+	street_oh = { nick = "오할매", title = "할매", formal = true },
+	fool_mansik = { nick = "만식이", title = "만식이 형" },
+	drunk_bae = { nick = "배부장", title = "부장님", formal = true },
+	rich_madam = { nick = "한사모님", title = "사모님", formal = true },
+	rich_yoon = { nick = "윤대표", title = "대표님", formal = true },
+	thug_gang = { nick = "태식", title = "형님" },
+	punk_jjang = { nick = "짱구" },
 }
 Citizens.CREW_MIN_GAP = 0.5 -- hours between two windows of one citizen (crew jitter is +-0.25 h)
 local SCHED_MIN_SLOT = 0.3 -- a schedule entry shorter than this (in-game hours) is dropped

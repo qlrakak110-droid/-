@@ -1009,7 +1009,7 @@ local function tryInvite(player: Player, sess: Sess, id: string, kind: string, r
 	if math.random() >= p then
 		sess.inviteCd[id] = os.clock() + Social.INVITE_DECLINE_COOLDOWN
 		local key = "decline"
-		if kind == "club" and c.minor then
+		if (kind == "club" or inv.adult) and c.minor then
 			key = "declineMinor"
 		elseif inv.needsHome and not info.hasHome then
 			key = "declineNoHome"
