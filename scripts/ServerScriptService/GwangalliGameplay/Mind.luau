@@ -1044,27 +1044,16 @@ ops.debug = function(player, sess, p)
 		return { ok = false, err = "off" }
 	end
 	local id = Util.str(p.id, 40)
-	if not citizen(id) or not social() then
+	local s = social()
+	if not citizen(id) or not s or type(s.debugSet) ~= "function" then
 		return { ok = false }
 	end
 	local rec = recOf(sess, id, true)
 	rec.tk = math.max(rec.tk or 0, 1)
 	rec.nm = true
-	local tier = 1
-	for i = 1, 60 do
-		if tier >= (tonumber(p.tier) or 3) then
-			break
-		end
-		for _, src in { "gift", "talk", "help", "food", "play", "compliment" } do
-			if Social.SOURCES[src] then
-				local _, _, t = social().award(player, id, src, 10)
-				tier = t or tier
-			end
-		end
-		local _ = i
-	end
+	local ok, tier = s.debugSet(player, id, tonumber(p.aff) or 55)
 	markDirty(sess)
-	return { ok = true, tier = tier, view = viewOf(player, sess, id) }
+	return { ok = ok, tier = tier, view = viewOf(player, sess, id) }
 end
 
 -- the police -----------------------------------------------------------------------------------------

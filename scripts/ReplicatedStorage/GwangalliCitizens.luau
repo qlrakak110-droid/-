@@ -3151,6 +3151,8 @@ function Citizens.introLine(id: string, friendId: string, vars: any?): string
 	return Citizens.fill(string.format(s, fI), vars)
 end
 
+local ROUGH_TYPES = { punk = true, thug = true, beggar = true, police = true, fool = true, drunk = true }
+
 -- All small-talk lines for a tier (1..5) and clock (unfilled; see Citizens.fill). met = you have met
 -- before (tier 1 then drops its "first time?" lines).
 function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean?): { string }
@@ -3166,10 +3168,15 @@ function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean
 	if P then
 		addAll(out, P.lines[tod][reg])
 	end
-	local TL = if met and t == 1 then Citizens.TIER_LINES_MET else Citizens.TIER_LINES[t]
-	addAll(out, TL[c.speech] or TL.std)
-	if c.speech == "busan" then
-		addAll(out, Citizens.BUSAN_LINES[tod][reg])
+	-- street types with their own voice (걸렁뱅이, 불량배, 노숙자, 경찰, 동네바보, 취객) keep to their persona
+	-- until they are close: the friendly generic lines ("같이 클럽 가실래요?") don't fit them
+	local rough = ROUGH_TYPES[c.type or ""] == true
+	if not rough or t >= 3 then
+		local TL = if met and t == 1 then Citizens.TIER_LINES_MET else Citizens.TIER_LINES[t]
+		addAll(out, TL[c.speech] or TL.std)
+		if c.speech == "busan" then
+			addAll(out, Citizens.BUSAN_LINES[tod][reg])
+		end
 	end
 	if t >= 3 then
 		addAll(out, c.sig)
@@ -3177,7 +3184,7 @@ function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean
 	if t >= 2 and c.crews and #c.crews > 0 then
 		addAll(out, crewLinesOf(c)[reg]) -- their friends (by name), where the crew hangs out
 	end
-	if (tod == "evening" or tod == "night") and (c.club or 0) > 0 and not c.minor then
+	if (tod == "evening" or tod == "night") and (c.club or 0) > 0 and not c.minor and not rough then
 		local CL = Citizens.CLUB_LINES[reg]
 		addAll(out, CL[c.speech] or CL.std)
 	end

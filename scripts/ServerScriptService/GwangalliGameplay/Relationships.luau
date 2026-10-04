@@ -2062,6 +2062,29 @@ function Relationships.award(player: Player, id: string, source: string, amount:
 	return res.delta, res.after, res.tierTo
 end
 
+-- Test harness only (workspace.GwangalliStreetLifeDebug): set an affinity outright (tier perks such as
+-- the number exchange fire as if it had been earned).
+function Relationships.debugSet(player: Player, id: string, a: number): (boolean, number)
+	if workspace:GetAttribute("GwangalliStreetLifeDebug") ~= true then
+		return false, 0
+	end
+	local sess = sessOf(player)
+	if not sess or not citizen(id) or type(a) ~= "number" then
+		return false, 0
+	end
+	local rec = recOf(sess, id, true)
+	local pkBefore = rec.pk or 1
+	local from = Social.tierOf(rec.a)
+	rec.a = Social.clampA(a)
+	local to = Social.tierOf(rec.a)
+	markDirty(player, sess)
+	push(player, { kind = "affinity", id = id, a = rec.a, delta = 0, tier = to, source = "talk", reason = "test" })
+	if to ~= from then
+		onTierChange(player, sess, id, rec, from, to, to > pkBefore)
+	end
+	return true, to
+end
+
 -- A joint activity (club / homes / NPC code): the companion and/or explicit ids get `activity`.
 function Relationships.joint(player: Player, activity: string, ids: { string }?): { [string]: number }
 	local sess = sessOf(player)

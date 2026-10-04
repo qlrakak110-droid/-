@@ -1008,10 +1008,10 @@ local function memoryLine(c: any, rec: any, env: any, reg: string, mood: string)
 	if br and now - br.t < 3 * 86400 then
 		return line("broken")
 	end
-	if (rec.tk or 0) == 0 then
+	if (rec.tk or 0) == 0 or (rec.lt or 0) <= 0 then
 		return nil
 	end
-	local since = now - (rec.lt or now)
+	local since = now - rec.lt
 	if since < 300 then
 		return line("again")
 	end

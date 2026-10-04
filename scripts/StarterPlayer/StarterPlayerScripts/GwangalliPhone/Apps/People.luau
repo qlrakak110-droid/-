@@ -866,7 +866,7 @@ return function(ctx: any)
 				elseif method == "back" then
 					app.back()
 				elseif method == "befriend" then
-					local r = invoke("debug", { id = a, tier = b })
+					local r = invoke("debug", { id = a, aff = b })
 					lastDebug = string.format("befriend %s ok=%s tier=%s number=%s", tostring(a), tostring(r.ok), tostring(r.tier), tostring(r.view and r.view.number))
 					snapAt = -1e9
 				end

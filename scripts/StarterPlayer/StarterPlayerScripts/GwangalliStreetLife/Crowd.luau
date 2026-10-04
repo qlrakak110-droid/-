@@ -2,7 +2,7 @@
 -- surroundings).
 --   * SPAWNER (TickHz): keeps `cap` pedestrians around the player - GwangalliQuality low 12 / mid 18 /
 --     high 25 (saver 6), shrinking away from the club at night (GwangalliNight.streetCap: cap * (1 -
---     0.6 * hype), blended by the distance to the club door) and 0 outside while the player is inside
+--     0.3 * hype), blended by the distance to the club door) and 0 outside while the player is inside
 --     CLUB OCEAN (the street is behind the walls; the club crowd is ClubCrowd's). Named citizens come
 --     first (GwangalliCitizens.candidates), anonymous passers-by fill up. Spawns go where a GTA crowd
 --     appears: ahead of the player's direction of travel, off-screen or at least SpawnViewMin studs
