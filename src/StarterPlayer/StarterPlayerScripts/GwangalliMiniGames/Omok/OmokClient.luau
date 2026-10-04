@@ -50,7 +50,7 @@ function OmokClient.mount(ctx: any): any
 		local mine = you > 0 and g.turn == you and matchState == "playing"
 		local colorName = if myColor() == 1 then "⚫ 흑" elseif myColor() == 2 then "⚪ 백" else ""
 		if you > 0 then
-			line1.Text = colorName .. (if mine then " · 내 차례!" else " · 상대 차례")
+			line1.Text = colorName .. (if matchState ~= "playing" then "" elseif mine then " · 내 차례!" else " · 상대 차례")
 			line1.TextColor3 = if mine then K.Color.cyan else K.Color.text
 			if selected then
 				local x, y = OC.xy(selected)
@@ -62,7 +62,7 @@ function OmokClient.mount(ctx: any): any
 					K.setButtonEnabled(placeBtn, mine and not bad)
 				end
 			else
-				line2.Text = if mine then "판을 탭해서 둘 곳을 고르세요" else "상대가 생각 중이에요…"
+				line2.Text = if matchState ~= "playing" then "곧 시작해요!" elseif mine then "판을 탭해서 둘 곳을 고르세요" else "상대가 생각 중이에요…"
 				line2.TextColor3 = K.Color.sub
 				if placeBtn then
 					K.setButtonEnabled(placeBtn, false)

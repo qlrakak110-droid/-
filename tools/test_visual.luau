@@ -20,7 +20,7 @@ task.wait(1)
 local ps = M.Manager.stateOf(plr)
 print("VIS state", ps and ps.match and ps.match.state)
 local moves = 0
-while ps and ps.match and ps.match.state ~= "result" and moves < 6 do
+while ps and ps.match and ps.match.state ~= "result" and moves < 4 do
   task.wait(0.3)
   local gs = ps.match.gs
   if ps.match.state == "playing" and gs.turn == ps.side then

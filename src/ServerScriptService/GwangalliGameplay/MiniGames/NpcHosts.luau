@@ -146,12 +146,13 @@ local function place(h: Host, feet: Vector3, yaw: number, act: string, walkFrom:
 		setAttr(h, "NpcLeg", legStr(walkFrom, feet, serverNow() + 0.1, dur))
 		task.delay(dur + 0.2, function()
 			if h.model.Parent then
-				h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+				h.model:PivotTo(CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0))
 			end
 		end)
 	else
 		setAttr(h, "NpcLeg", legStr(feet, feet, serverNow(), 0.01))
-		h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+		-- the whole rig (root + every body part), like NPC.luau's first placement
+		h.model:PivotTo(CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0))
 	end
 end
 

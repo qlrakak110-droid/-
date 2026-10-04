@@ -2288,12 +2288,13 @@ local function place(h: Host, feet: Vector3, yaw: number, act: string, walkFrom:
 		setAttr(h, "NpcLeg", legStr(walkFrom, feet, serverNow() + 0.1, dur))
 		task.delay(dur + 0.2, function()
 			if h.model.Parent then
-				h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+				h.model:PivotTo(CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0))
 			end
 		end)
 	else
 		setAttr(h, "NpcLeg", legStr(feet, feet, serverNow(), 0.01))
-		h.root.CFrame = CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0)
+		-- the whole rig (root + every body part), like NPC.luau's first placement
+		h.model:PivotTo(CFrame.new(feet + Vector3.new(0, h.ground, 0)) * CFrame.Angles(0, math.rad(yaw), 0))
 	end
 end
 
@@ -4327,8 +4328,8 @@ local function buildTable(model: Model, f: CFrame, seed: any, info: any, npc: an
 	-- cameras: each player looks over the table from behind their own stool, spectators from the walk
 	local focus = top.Position + Vector3.new(0, 0.1, 0)
 	hint(model, "Focus", CFrame.new(focus))
-	hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-6.8, 8.4, 1.6)).Position, focus))
-	hint(model, "CamB", CFrame.lookAt((f * CFrame.new(6.8, 8.4, -1.6)).Position, focus))
+	hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-5.6, 9.6, 1.2)).Position, focus))
+	hint(model, "CamB", CFrame.lookAt((f * CFrame.new(5.6, 9.6, -1.2)).Position, focus))
 	hint(model, "CamSpec", CFrame.lookAt((f * CFrame.new(0, 7.5, 8.5)).Position, focus))
 	-- where an NPC host waits when two players take the table
 	hint(model, "NpcAside", f * CFrame.new(-1.5, 0, 4.6) * CFrame.Angles(0, math.pi, 0))

@@ -165,3 +165,10 @@ src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames/  클라이언트 (Loc
 ```
 node tools/harness.js <repo> <초> tools/test_bot.luau   # studio.html 이 tools/ 옆에 있어야 함
 ```
+
+## 임시 스튜디오(HTML) 버전
+`dist/Gwangalli_Studio_1.0_v2.0_MiniGames.html` 은 업로드한 `광안리 임시 스튜디오 1.0 v2.0` 에 미니게임을
+넣은 버전입니다. 열면 엔진이 뜬 뒤 몇 초 안에 미니게임 스크립트가 자동으로 들어가고
+(`[MiniGames] ready: 12 stations, 11 NPC hosts, 8 games`), 산책로 테이블 근처로 가면 버튼이 뜹니다.
+다시 만들기: `python3 tools/build_studio.py <원본 스튜디오.html> dist/<출력>.html`
+(스튜디오는 1인 시뮬레이션이라 PvP는 NPC 대결·관전 위주로 확인할 수 있습니다.)

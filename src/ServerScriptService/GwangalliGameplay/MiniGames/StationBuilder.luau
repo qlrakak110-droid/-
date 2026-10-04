@@ -319,8 +319,8 @@ local function buildTable(model: Model, f: CFrame, seed: any, info: any, npc: an
 	-- cameras: each player looks over the table from behind their own stool, spectators from the walk
 	local focus = top.Position + Vector3.new(0, 0.1, 0)
 	hint(model, "Focus", CFrame.new(focus))
-	hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-6.8, 8.4, 1.6)).Position, focus))
-	hint(model, "CamB", CFrame.lookAt((f * CFrame.new(6.8, 8.4, -1.6)).Position, focus))
+	hint(model, "CamA", CFrame.lookAt((f * CFrame.new(-5.6, 9.6, 1.2)).Position, focus))
+	hint(model, "CamB", CFrame.lookAt((f * CFrame.new(5.6, 9.6, -1.2)).Position, focus))
 	hint(model, "CamSpec", CFrame.lookAt((f * CFrame.new(0, 7.5, 8.5)).Position, focus))
 	-- where an NPC host waits when two players take the table
 	hint(model, "NpcAside", f * CFrame.new(-1.5, 0, 4.6) * CFrame.Angles(0, math.pi, 0))

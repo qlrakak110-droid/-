@@ -28,6 +28,30 @@ local dragConn: RBXScriptConnection? = nil
 local controlsOff = false
 local prevType: Enum.CameraType? = nil
 local tween: Tween? = nil
+local hidden: { BasePart } = {}
+
+-- the parasol over a table would cover the board from the player's camera: fade it for this client only
+local OCCLUDERS = { Canopy = true, ParasolTop = true, Lantern = true, ParasolPole = true }
+local function hideOccluders(model: Model)
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and OCCLUDERS[d.Name] then
+			pcall(function()
+				d.LocalTransparencyModifier = if d.Name == "ParasolPole" then 0.6 else 0.85
+			end)
+			table.insert(hidden, d)
+		end
+	end
+end
+local function restoreOccluders()
+	for _, p in hidden do
+		if p.Parent then
+			pcall(function()
+				p.LocalTransparencyModifier = 0
+			end)
+		end
+	end
+	table.clear(hidden)
+end
 
 local function controls(): any
 	local ok, c = pcall(function()
@@ -95,6 +119,8 @@ function Cam.focus(model: Model?, hintName: string)
 		prevType = cam.CameraType
 	end
 	owning = true
+	restoreOccluders()
+	hideOccluders(model)
 	base = hint.CFrame
 	focusPos = if focus and focus:IsA("BasePart") then focus.Position else hint.CFrame.Position + hint.CFrame.LookVector * 8
 	yawOff, pitchOff = 0, 0
@@ -134,6 +160,7 @@ function Cam.release()
 	owning = false
 	base = nil
 	focusPos = nil
+	restoreOccluders()
 	if conn then
 		conn:Disconnect()
 		conn = nil
