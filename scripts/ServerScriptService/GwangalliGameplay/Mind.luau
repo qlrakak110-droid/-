@@ -578,7 +578,7 @@ local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: a
 		notify(player, "warn", "💔 " .. c.name .. "와(과) 헤어졌어요", "말 한마디가 이렇게 무서워요…")
 	elseif out.act == "warn" and c and Citizens.typeOf(id) == "police" and (out.intent == "insult" or out.intent == "threaten") then
 		crime(player, sess, if out.intent == "insult" then "insult_police" else "threat", id, nil)
-	elseif out.act == "report" then
+	elseif out.act == "report" and not o.noCrime then
 		crime(player, sess, "threat", id, nil)
 		sess.reported = true
 	end
@@ -912,8 +912,22 @@ ops.act = function(player, sess, p)
 			req.outcome = "angry"
 		end
 		extra = { an = 40, fe = 20 + (1 - t.brave) * 40, tr = -30, cl = -5 }
-		award(player, id, "assault")
-		crime(player, sess, if arch == "police" then "assault_police" else "assault", id, vec(p.pos))
+		-- the hit itself (HP, KO, the reaction by personality, 폭행 with Law, 호감도) is the street
+		-- fight module's; this card only words it
+		local fr = ctx.fight and type(ctx.fight.applyHit) == "function" and ctx.fight.applyHit(player, { kind = if c.key then "npc" else "ped", id = id, pos = p.pos, attack = "punch", silent = true })
+		if type(fr) == "table" then
+			req.fightReact = fr.react
+			if fr.react == "fight" then
+				req.outcome = "fight"
+			elseif fr.react == "flee" or fr.react == "cower" or fr.react == "ko" then
+				req.outcome = "scared"
+			elseif fr.react == "warn" then
+				req.outcome = "angry"
+			end
+		else
+			award(player, id, "assault")
+			crime(player, sess, if arch == "police" then "assault_police" else "assault", id, vec(p.pos))
+		end
 	elseif act == "number" then
 		return sayCommon(player, sess, id, { intent = "number" }, "talk")
 	else
@@ -931,9 +945,19 @@ ops.act = function(player, sess, p)
 	end
 	-- reactions the client plays (fight back / flee / report)
 	if act == "hit" then
-		out.act = if req.outcome == "fight" then "fight" elseif req.outcome == "scared" then (if math.random() < 0.5 then "report" else "flee") elseif arch == "police" then "arrest" else "report"
+		local fr = req.fightReact
+		if fr == "ko" then
+			out.act = "ko"
+		elseif fr == "fight" or fr == "flee" or fr == "report" or fr == "arrest" or fr == "cower" then
+			out.act = fr
+		elseif fr == "warn" then
+			out.act = "escalate"
+		else
+			out.act = if req.outcome == "fight" then "fight" elseif req.outcome == "scared" then (if math.random() < 0.5 then "report" else "flee") elseif arch == "police" then "arrest" else "report"
+		end
 	end
-	applyOut(player, sess, id, rec, out, { noAff = true })
+	-- (a hit's report is already a 폭행 report: no extra 협박 for it)
+	applyOut(player, sess, id, rec, out, { noAff = true, noCrime = act == "hit" })
 	if act == "hit" and out.act == "report" then
 		sess.reported = true
 	end
@@ -1202,6 +1226,11 @@ function MindServer.note(player: Player, id: string, kind: string, x: any)
 	local t = now()
 	if kind == "bump" then
 		M.remember(rec, "bump", x, t)
+		-- the shove counts against their HP and they remember it a while (GwangalliGameplay/Fight);
+		-- 어깨빵 plays its own fall and reaction, so no second reaction / no 폭행 here
+		if ctx.fight and type(ctx.fight.applyHit) == "function" then
+			pcall(ctx.fight.applyHit, player, { kind = if c.key then "npc" else "ped", id = id, attack = "shove", outcome = x, silent = true, noCrime = true, noReact = true })
+		end
 		local tr = M.traits(c)
 		M.apply(rec, { an = (if x == "knockdown" then 18 else 8) + tr.temper * 10, fe = (if x == "knockdown" then 10 else 3) * (1 - tr.brave), tr = -3 }, t)
 		-- a run of knockdowns on people is trouble with the police

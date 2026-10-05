@@ -90,6 +90,15 @@ function F.roll(r: () -> number, strength: number?): (number, boolean, string)
 	return math.floor(dmg + 0.5), crit, outcome
 end
 
+-- attack kinds a combat system may report: damage factor, knock rule
+F.ATTACK = {
+	shove = { dmg = 0.35, noCrit = true, knock = "stagger" },
+	punch = { dmg = 1 },
+	kick = { dmg = 1.4 },
+	strong = { dmg = 1.8, knock = "knockdown" },
+	car = { dmg = 1, noCrit = true },
+}
+
 F.LINES = {
 	hit = { "아악!", "왜 때려요!", "아파!!", "미쳤어요?!", "으윽…" },
 	fight = { "너 오늘 제삿날이다!", "어쭈? 덤벼!", "한 판 붙자 이거지?", "가만 안 둬!", "맞고만 있을 줄 알았냐!" },
@@ -97,6 +106,8 @@ F.LINES = {
 	report = { "경찰 부를 거예요! 112죠?", "여보세요, 경찰이죠? 여기 사람이 때려요!", "신고했어요! 거기 있어요!" },
 	arrest = { "경찰 폭행이다! 당장 체포한다!", "공무집행방해 현행범으로 체포합니다!" },
 	ko = { "으…", "…", "끄응…" },
+	warn = { "진짜 계속 할 거야?", "한 번 더 건드려 봐.", "뭐 하는 거예요?!", "그만하세요. 진짜로.", "어딜 감히…!" },
+	cower = { "저, 저한테 왜 그러세요…", "제발 그만해요…", "항복! 항복이에요!", "잘못했어요, 그만…" },
 	witness_ko = { "사람이 쓰러졌어요!!", "119 불러요, 119!", "괜찮으세요?! 정신 차려요!", "경찰! 경찰 불러!" },
 	swing = { "받아라!", "이얍!", "어딜!", "퍽!" },
 	brawl_end = { "다음엔 가만 안 둔다…", "오늘은 봐준다!", "헉헉… 됐다 됐어." },

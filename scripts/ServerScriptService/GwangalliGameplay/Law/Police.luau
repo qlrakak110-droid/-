@@ -949,9 +949,10 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 			local left = -D.rightOf(dir)
 			-- (braking distance first: the speed never drops in a jump)
 			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
-			local opp = headingLoc(a0 + left * 9, -dir, 16)
+			-- the lane running the other way: right across, or past a wider median
+			local opp = headingLoc(a0 + left * 9, -dir, 16) or headingLoc(a0 + left * 18, -dir, 16) or headingLoc(a0 + dir * 25 + left * 12, -dir, 22)
 			if opp then
-				local w = math.clamp((opp.point - a0):Dot(left), 4, 22)
+				local w = math.clamp((opp.point - a0):Dot(left), 4, 30)
 				local back = opp.point - dir * 2
 				local okU, ru = pcall(D.route, graph, opp, toLoc)
 				if okU and ru and #ru >= 2 then

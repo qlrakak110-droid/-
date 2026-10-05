@@ -1,20 +1,19 @@
--- GwangalliFight (LocalScript, StarterPlayerScripts; owner: npc): the player's side of 길거리 싸움
--- (contract: ReplicatedStorage.GwangalliFightShared; server: GwangalliGameplay/Fight).
---   * 👊 주먹 button (left of 어깨빵) / key F: appears when an NPC (street pedestrian or key NPC) stands
---     within FightShared.RANGE in front; a punch plays the lunge and asks the server.
---   * the server's answer plays here: the fall (stagger / knockdown) or the KO (down for good, then
---     taken away) through LocalPlayer.GwangalliStreetAPI, the HP bar + damage number over the head,
---     the line, and the reaction (fight back = a brawl, flee, phone report, an officer's arrest).
---   * "hurt" (a brawling NPC's swing landed): a red flash; "down": citizens in hospital are not spawned.
+-- GwangalliFight (LocalScript, StarterPlayerScripts; owner: npc): the NPC side of 길거리 싸움 on this
+-- client (contract: ReplicatedStorage.GwangalliFightShared; server: GwangalliGameplay/Fight).
+-- NO UI and no attack input of its own: the player's combat system (its buttons, animations and
+-- hitboxes) reports a hit that LANDED on an NPC through LocalPlayer.GwangalliNPCHitAPI; the
+-- existing 어깨빵 and the talk card's 때리기 reach the same server code directly.
+--   * the server's answer plays here on the street pedestrian (client-side rigs): the fall (stagger /
+--     knockdown) or the KO (down for good, then taken away), the line, and what they do next (fight
+--     back = a brawl with real swings, flee, a phone report, an officer's arrest, cower) + the short
+--     memory (GwangalliStreetAPI "remember": the person stays wary / scared of you a while).
+--   * "down": citizens in hospital are not spawned.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
 
 local FS = require(ReplicatedStorage:WaitForChild("GwangalliFightShared"))
 local Bump: any = nil
@@ -107,260 +106,96 @@ local function bubble(adornee: Instance?, text: string?, dur: number?)
 end
 
 -------------------------------------------------------------------------------------------------
--- UI: the 👊 button
+-- hits IN (no UI here: the combat system owns buttons, hitboxes, HUD)
 -------------------------------------------------------------------------------------------------
-local gui = Instance.new("ScreenGui")
-gui.Name = "GwangalliFight"
-gui.ResetOnSpawn = false
-gui.ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
-gui.DisplayOrder = 30
-gui.Parent = playerGui
+-- LocalPlayer.GwangalliNPCHitAPI (BindableFunction), for the player's combat system on this client:
+--   Invoke("hit", { model = <an NPC Model the hitbox touched> | kind = "ped"|"npc", id = ..., attack =
+--     "punch" | "kick" | "shove" | "strong", power = 0..2 (1 = a normal punch) }) -> true when sent.
+--     Call it ONLY for a hit that landed (the hitbox touched the NPC). The server checks the reach
+--     again and decides damage / reaction; nothing happens for a miss.
+--   Invoke("resolve", model) -> { kind, id } for a Model the hitbox touched (a street pedestrian rig in
+--     Workspace.GwangalliStreetLife carries StreetId; a key NPC in Workspace.GwangalliNPCs NpcId).
+local lastHit = 0
 
-local BTN = if UserInputService.TouchEnabled then 64 else 56
-local button = Instance.new("TextButton")
-button.Name = "PunchButton"
-button.AnchorPoint = Vector2.new(1, 1)
-button.Size = UDim2.fromOffset(BTN, BTN)
-button.Position = UDim2.new(1, -240, 1, -24)
-button.BackgroundColor3 = Color3.fromRGB(15, 18, 31)
-button.BackgroundTransparency = 0.14
-button.AutoButtonColor = false
-button.Text = ""
-button.Visible = false
-button.Parent = gui
-do
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 18)
-	c.Parent = button
-	local st = Instance.new("UIStroke")
-	st.Color = Color3.fromRGB(255, 120, 60)
-	st.Thickness = 1.5
-	st.Transparency = 0.2
-	st.Parent = button
-	local g = Instance.new("TextLabel")
-	g.BackgroundTransparency = 1
-	g.AnchorPoint = Vector2.new(0.5, 0.5)
-	g.Position = UDim2.fromScale(0.5, 0.38)
-	g.Size = UDim2.fromScale(0.6, 0.42)
-	g.Font = Enum.Font.GothamBold
-	g.TextScaled = true
-	g.Text = "👊"
-	g.TextColor3 = Color3.new(1, 1, 1)
-	g.Parent = button
-	local cap = Instance.new("TextLabel")
-	cap.BackgroundTransparency = 1
-	cap.AnchorPoint = Vector2.new(0.5, 1)
-	cap.Position = UDim2.new(0.5, 0, 1, -5)
-	cap.Size = UDim2.new(1, -4, 0, 14)
-	cap.Font = Enum.Font.GothamBold
-	cap.TextSize = 12
-	cap.Text = if UserInputService.KeyboardEnabled then "주먹 (F)" else "주먹"
-	cap.TextColor3 = Color3.new(1, 1, 1)
-	cap.Parent = button
+local function resolve(model: Instance?): (string?, string?, Vector3?)
+	local m = model
+	while m and not m:IsA("Model") do
+		m = m.Parent
+	end
+	if not m then
+		return nil, nil, nil
+	end
+	local sid = m:GetAttribute("StreetId")
+	local r = m:FindFirstChild("HumanoidRootPart")
+	local pos = if r and r:IsA("BasePart") then r.Position else nil
+	if type(sid) == "string" then
+		return "ped", sid, pos
+	end
+	local nid = m:GetAttribute("NpcId")
+	local kind = m:GetAttribute("NpcKind")
+	if type(nid) == "string" and (kind == "key" or kind == "street") then
+		return "npc", nid, pos
+	end
+	return nil, nil, nil
 end
 
--- red flash when a swing lands on us
-local flash = Instance.new("Frame")
-flash.Name = "Hurt"
-flash.Size = UDim2.fromScale(1, 1)
-flash.BackgroundColor3 = Color3.fromRGB(200, 20, 30)
-flash.BackgroundTransparency = 1
-flash.BorderSizePixel = 0
-flash.ZIndex = 0
-flash.Parent = gui
-
--- left of the 어깨빵 button (GwangalliBump), or bottom right
-local function layout()
-	local bg = playerGui:FindFirstChild("GwangalliBump")
-	local bb = bg and bg:FindFirstChild("BumpButton")
-	if bb and bb:IsA("GuiObject") then
-		button.AnchorPoint = bb.AnchorPoint
-		button.Position = bb.Position - UDim2.fromOffset(BTN + 12, 0)
+local function pedPos(id: string): (Vector3?, string?)
+	local near = street("near", 40)
+	for _, e in (if type(near) == "table" then near else {}) do
+		if type(e) == "table" and e.id == id then
+			return entryPos(e), e.typeId
+		end
 	end
-end
-task.spawn(function()
-	for _ = 1, 20 do
-		layout()
-		task.wait(1)
-	end
-end)
-if workspace.CurrentCamera then
-	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-		task.delay(0.1, layout)
-	end)
+	return nil, nil
 end
 
--------------------------------------------------------------------------------------------------
--- HP bars over heads
--------------------------------------------------------------------------------------------------
-type Bar = { gui: BillboardGui, fill: Frame, num: TextLabel, untilT: number }
-local bars: { [string]: Bar } = {}
-
-local function showBar(id: string, adornee: BasePart?, hp: number, max: number, dmg: number, crit: boolean)
-	if not adornee then
-		return
+local function sendHit(spec: any): boolean
+	if not action or type(spec) ~= "table" then
+		return false
 	end
-	local b = bars[id]
-	if not b or not b.gui.Parent then
-		local bg = Instance.new("BillboardGui")
-		bg.Name = "FightHP_" .. id
-		bg.Size = UDim2.fromOffset(84, 30)
-		bg.StudsOffsetWorldSpace = Vector3.new(0, 4.2, 0)
-		bg.AlwaysOnTop = true
-		bg.MaxDistance = 80
-		bg.LightInfluence = 0
-		local back = Instance.new("Frame")
-		back.AnchorPoint = Vector2.new(0.5, 1)
-		back.Position = UDim2.new(0.5, 0, 1, 0)
-		back.Size = UDim2.new(1, 0, 0, 8)
-		back.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-		back.BorderSizePixel = 0
-		back.Parent = bg
-		local c = Instance.new("UICorner")
-		c.CornerRadius = UDim.new(0, 4)
-		c.Parent = back
-		local fill = Instance.new("Frame")
-		fill.Size = UDim2.fromScale(1, 1)
-		fill.BackgroundColor3 = Color3.fromRGB(80, 220, 110)
-		fill.BorderSizePixel = 0
-		fill.Parent = back
-		local c2 = Instance.new("UICorner")
-		c2.CornerRadius = UDim.new(0, 4)
-		c2.Parent = fill
-		local num = Instance.new("TextLabel")
-		num.BackgroundTransparency = 1
-		num.Size = UDim2.new(1, 0, 0, 20)
-		num.Font = Enum.Font.GothamBlack
-		num.TextSize = 18
-		num.TextStrokeTransparency = 0.3
-		num.TextColor3 = Color3.fromRGB(255, 230, 90)
-		num.Parent = bg
-		-- under the part itself (in the Workspace): a PlayerGui billboard adorned to a client-side rig
-		-- part was drawn at the screen corner on some renderers
-		bg.Parent = adornee
-		b = { gui = bg, fill = fill, num = num, untilT = 0 }
-		bars[id] = b
+	if os.clock() - lastHit < 0.12 then
+		return false -- (one swing = one hit, even if two hitbox parts touched)
 	end
-	b.gui.Adornee = adornee
-	if b.gui.Parent ~= adornee then
-		b.gui.Parent = adornee
+	local kind, id, pos = spec.kind, spec.id, nil
+	if typeof(spec.model) == "Instance" then
+		kind, id, pos = resolve(spec.model)
 	end
-	local k = math.clamp(hp / math.max(1, max), 0, 1)
-	b.fill.Size = UDim2.fromScale(k, 1)
-	b.fill.BackgroundColor3 = if k > 0.5 then Color3.fromRGB(80, 220, 110) elseif k > 0.25 then Color3.fromRGB(255, 190, 60) else Color3.fromRGB(240, 70, 60)
-	b.num.Text = (if crit then "치명타! " else "") .. "-" .. tostring(dmg)
-	b.num.TextColor3 = if crit then Color3.fromRGB(255, 90, 60) else Color3.fromRGB(255, 230, 90)
-	b.untilT = os.clock() + 3.5
+	if type(kind) ~= "string" or type(id) ~= "string" then
+		return false
+	end
+	local ptype = nil
+	if kind == "ped" then
+		local p2, t2 = pedPos(id)
+		pos = pos or p2
+		ptype = t2
+	else
+		local m = keyModel(id)
+		local r = m and m:FindFirstChild("HumanoidRootPart")
+		pos = pos or (r and r:IsA("BasePart") and r.Position or nil)
+	end
+	if not pos then
+		return false
+	end
+	lastHit = os.clock()
+	action:FireServer("punch", { kind = kind, id = id, pos = { pos.X, pos.Y, pos.Z }, ptype = ptype, attack = spec.attack, power = spec.power })
+	return true
 end
 
-RunService.Heartbeat:Connect(function()
-	local t = os.clock()
-	for id, b in bars do
-		if t > b.untilT or not b.gui.Adornee or not b.gui.Adornee.Parent then
-			b.gui:Destroy()
-			bars[id] = nil
-		end
+local hitApi = Instance.new("BindableFunction")
+hitApi.Name = "GwangalliNPCHitAPI"
+hitApi.OnInvoke = function(op: string, arg: any)
+	if op == "hit" then
+		return sendHit(arg)
+	elseif op == "resolve" then
+		local k, id = resolve(arg)
+		return if k then { kind = k, id = id } else nil
 	end
-end)
-
--------------------------------------------------------------------------------------------------
--- target + punch
--------------------------------------------------------------------------------------------------
-type Target = { kind: string, id: string, root: BasePart?, pos: Vector3, ptype: string?, d: number }
-local target: Target? = nil
-local lastPunch = 0
-
-local function scan(): Target?
-	local _, hum, root = character()
-	if not hum or not root or hum.Sit or hum.PlatformStand then
-		return nil
-	end
-	if player:GetAttribute("OnShift") or player:GetAttribute("InTaxi") or player:GetAttribute("LawCuffed") then
-		return nil
-	end
-	local pp = root.Position
-	local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
-	if look.Magnitude < 1e-3 then
-		return nil
-	end
-	look = look.Unit
-	local best: Target? = nil
-	local function consider(kind: string, id: string, r: BasePart?, ptype: string?, at: Vector3?)
-		local pos = at or (r and r.Position)
-		if not pos then
-			return
-		end
-		local to = Vector3.new(pos.X - pp.X, 0, pos.Z - pp.Z)
-		local d = to.Magnitude
-		if d > FS.RANGE or math.abs(pos.Y - pp.Y) > 5 then
-			return
-		end
-		if d > 0.4 and look:Dot(to.Unit) < 0.25 then
-			return
-		end
-		if not best or d < best.d then
-			best = { kind = kind, id = id, root = r, pos = pos, ptype = ptype, d = d }
-		end
-	end
-	local near = street("near", FS.RANGE + 1)
-	if type(near) == "table" then
-		for _, e in near do
-			if type(e) == "table" and type(e.id) == "string" and not e.down then
-				local at = entryPos(e)
-				if at then
-					consider("ped", e.id, nil, e.typeId, at)
-				end
-			end
-		end
-	end
-	local f = workspace:FindFirstChild("GwangalliNPCs")
-	if f then
-		for _, m in f:GetChildren() do
-			if m:IsA("Model") then
-				local id = m:GetAttribute("NpcId")
-				local kind = m:GetAttribute("NpcKind")
-				local r = m:FindFirstChild("HumanoidRootPart")
-				-- (Law officers / actors and shop customers are not key NPCs; officers are Law's)
-				if type(id) == "string" and (kind == "key" or kind == "street") and r and r:IsA("BasePart") and (r.Position - pp).Magnitude < FS.RANGE + 2 then
-					consider("npc", id, r, nil)
-				end
-			end
-		end
-	end
-	return best
+	return nil
 end
-
-local function punch()
-	local t = target
-	if not t or not action or os.clock() - lastPunch < FS.COOLDOWN then
-		return
-	end
-	local ch, _, root = character()
-	if not ch or not root then
-		return
-	end
-	lastPunch = os.clock()
-	if Bump and Bump.lungeCharacter then
-		local rel = root.CFrame:PointToObjectSpace(t.pos)
-		pcall(Bump.lungeCharacter, ch, rel.X >= 0)
-	end
-	local p = if t.root then t.root.Position else t.pos
-	action:FireServer("punch", { kind = t.kind, id = t.id, pos = { p.X, p.Y, p.Z }, ptype = t.ptype })
-	button.BackgroundTransparency = 0.55
-	task.delay(FS.COOLDOWN, function()
-		button.BackgroundTransparency = 0.14
-	end)
-end
-
-button.Activated:Connect(punch)
-UserInputService.InputBegan:Connect(function(input, processed)
-	if not processed and input.KeyCode == Enum.KeyCode.F then
-		punch()
-	end
-end)
+hitApi.Parent = player
 
 -------------------------------------------------------------------------------------------------
--- server answers
+-- server answers: the NPC's reaction (no UI: the fall / the line / what they do next)
 -------------------------------------------------------------------------------------------------
 local function onEvent(p: any)
 	if type(p) ~= "table" then
@@ -368,14 +203,12 @@ local function onEvent(p: any)
 	end
 	if p.kind == "hit" and type(p.id) == "string" then
 		local dx, dz = tonumber(p.dx) or 0, tonumber(p.dz) or -1
-		local adornee: BasePart? = nil
 		if p.target == "ped" then
 			if p.outcome == "ko" then
 				street("ko", p.id, dx, dz, p.ko or FS.KO_DOWN)
-			else
+			elseif p.outcome ~= "none" then
 				street("knock", p.id, dx, dz, p.outcome, if p.crit then "퍽!!" else "퍽!")
 			end
-			adornee = pedRoot(p.id)
 			if type(p.line) == "string" then
 				task.delay(0.35, function()
 					street("say", p.id, p.line, nil, 3)
@@ -383,22 +216,25 @@ local function onEvent(p: any)
 			end
 			if p.react == "fight" then
 				street("brawl", p.id, FS.BRAWL_S[1] + math.random() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]))
-			elseif p.react == "flee" or p.react == "report" or p.react == "arrest" then
+			elseif p.react == "flee" or p.react == "report" or p.react == "arrest" or p.react == "cower" or p.react == "warn" then
 				street("react", p.id, p.react)
 			end
+			street("remember", p.id, if p.react == "fight" or p.react == "warn" then "anger" else "fear", if p.outcome == "ko" then 3 else 1)
 		else
 			local m = keyModel(p.id)
-			local head = m and m:FindFirstChild("Head")
-			adornee = m and m:FindFirstChild("HumanoidRootPart") :: BasePart?
-			bubble(head, p.line, 3)
+			bubble(m and m:FindFirstChild("Head"), p.line, 3)
 		end
-		showBar(p.id, adornee, tonumber(p.hp) or 0, tonumber(p.max) or 100, tonumber(p.dmg) or 0, p.crit == true)
-		if Bump and Bump.shakeCamera then
-			pcall(Bump.shakeCamera, if p.crit or p.outcome == "ko" then 0.3 else 0.12, 0.2)
+	elseif p.kind == "remember" and type(p.id) == "string" then
+		street("remember", p.id, p.mood, 1)
+	elseif p.kind == "incident" and type(p.what) == "string" then
+		-- 생활콘텐츠 -> NPC: the street mind casts the people and plays it
+		local mapi = player:FindFirstChild("GwangalliMindAPI")
+		if mapi and mapi:IsA("BindableFunction") then
+			local at = if type(p.pos) == "table" then Vector3.new(p.pos[1], p.pos[2], p.pos[3]) else nil
+			pcall(function()
+				(mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
+			end)
 		end
-	elseif p.kind == "hurt" then
-		flash.BackgroundTransparency = 0.55
-		TweenService:Create(flash, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
 	elseif p.kind == "down" then
 		street("hospital", p.ids)
 	end
@@ -424,26 +260,11 @@ task.spawn(function()
 	end
 end)
 
--- 6 Hz target scan
-local acc = 0
-RunService.Heartbeat:Connect(function(dt)
-	acc += dt
-	if acc < 1 / 6 then
-		return
-	end
-	acc = 0
-	local ok, t = pcall(scan)
-	target = if ok then t else nil
-	local show = target ~= nil
-	if button.Visible ~= show then
-		button.Visible = show
-		if show then
-			layout()
-		end
-	end
-end)
-
--- debug hook (tests): LocalPlayer.GwangalliFightAPI:Invoke("punch") punches the current target
+-------------------------------------------------------------------------------------------------
+-- test harness only (workspace GwangalliStreetLifeDebug): LocalPlayer.GwangalliFightAPI
+--   "tp" {x,y,z} | "goto" id? / "*anon" | "gopunch" id (stand next to them, then one landed hit
+--   through the same path a combat system uses)
+-------------------------------------------------------------------------------------------------
 local debugQueue: { () -> () } = {}
 local api = Instance.new("BindableFunction")
 api.Name = "GwangalliFightAPI"
@@ -451,85 +272,56 @@ api.OnInvoke = function(op: string, arg: any)
 	if workspace:GetAttribute("GwangalliStreetLifeDebug") ~= true then
 		return nil
 	end
-	if op == "tp" and type(arg) == "table" then
-		-- test harness: move the local character (client-owned) to {x, y, z}
-		local _, _, root = character()
-		if root then
-			local cf = CFrame.new(arg[1], arg[2], arg[3])
-			table.insert(debugQueue, function()
-				player.Character:PivotTo(cf)
-				root.AssemblyLinearVelocity = Vector3.zero
-			end)
-		end
-		return root ~= nil
-	elseif op == "goto" then
-		-- stand 2.6 studs from the nearest street pedestrian (or `id`), facing them
-		local _, _, root = character()
+	local _, _, root = character()
+	if op == "tp" and type(arg) == "table" and root then
+		local cf = CFrame.new(arg[1], arg[2], arg[3])
+		table.insert(debugQueue, function()
+			player.Character:PivotTo(cf)
+			root.AssemblyLinearVelocity = Vector3.zero
+		end)
+		return true
+	elseif op == "goto" and root then
 		local near = street("near", 160)
-		local best, bd = nil, math.huge
-		local bestPos: Vector3? = nil
-		if root and type(near) == "table" then
-			for _, e in near do
-				local at = type(e) == "table" and entryPos(e)
-				local want = arg == nil or e.id == arg or (arg == "*anon" and string.match(tostring(e.id), "^x%d+$") ~= nil)
-				if at and not e.down and want then
-					local d = (at - root.Position).Magnitude
-					if d < bd then
-						best, bd, bestPos = e, d, at
-					end
+		local best, bd, bestPos = nil, math.huge, nil
+		for _, e in (if type(near) == "table" then near else {}) do
+			local at = type(e) == "table" and entryPos(e)
+			local want = arg == nil or e.id == arg or (arg == "*anon" and string.match(tostring(e.id), "^x%d+$") ~= nil)
+			if at and not e.down and want then
+				local d = (at - root.Position).Magnitude
+				if d < bd then
+					best, bd, bestPos = e, d, at
 				end
 			end
 		end
-		if not best or not root or not bestPos then
+		if not best or not bestPos then
 			return nil
 		end
-		local p = bestPos
+		local p = bestPos :: Vector3
 		local at = p + Vector3.new(2.6, 0, 0)
 		table.insert(debugQueue, function()
 			player.Character:PivotTo(CFrame.lookAt(at, Vector3.new(p.X, at.Y, p.Z)))
 			root.AssemblyLinearVelocity = Vector3.zero
 		end)
 		return best.id
-	elseif op == "target" then
-		local t = scan()
-		return t and { id = t.id, kind = t.kind, d = t.d } or nil
-	elseif op == "gopunch" then
-		-- move next to `arg` (a pedestrian id), let the move land, then punch whoever is in front
-		local near = street("near", 160)
-		local at: Vector3? = nil
-		for _, e in (if type(near) == "table" then near else {}) do
-			if type(e) == "table" and e.id == arg then
-				at = entryPos(e)
-			end
-		end
-		if not at then
+	elseif op == "gopunch" and type(arg) == "string" then
+		local p = pedPos(arg)
+		if not p then
 			return nil
 		end
-		local p = at :: Vector3
 		table.insert(debugQueue, function()
-			local _, _, root = character()
-			if not root then
+			local _, _, r = character()
+			if not r then
 				return
 			end
-			local stand = p + Vector3.new(2.4, 0, 0)
+			local stand = (p :: Vector3) + Vector3.new(2.4, 0, 0)
 			player.Character:PivotTo(CFrame.lookAt(stand, Vector3.new(p.X, stand.Y, p.Z)))
-			root.AssemblyLinearVelocity = Vector3.zero
+			r.AssemblyLinearVelocity = Vector3.zero
 			RunService.Heartbeat:Wait()
 			RunService.Heartbeat:Wait()
-			target = scan()
-			lastPunch = 0
-			punch()
+			lastHit = 0
+			sendHit({ kind = "ped", id = arg, attack = "punch", power = 1 })
 		end)
 		return true
-	elseif op == "punch" then
-		-- runs on this script's own thread (a FireServer from the caller's thread can be refused)
-		table.insert(debugQueue, function()
-			target = scan()
-			lastPunch = 0
-			punch()
-		end)
-		local t = scan()
-		return t and t.id or nil
 	end
 	return nil
 end
@@ -542,4 +334,3 @@ task.spawn(function()
 		end
 	end
 end)
-

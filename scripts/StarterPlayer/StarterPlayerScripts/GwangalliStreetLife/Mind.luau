@@ -674,6 +674,24 @@ handleAct = function(t: any, out: any)
 	elseif act == "report" then
 		finish("report")
 		Mind.report(a)
+	elseif act == "fight" and ctx.Crowd.api then
+		-- they hit back: a real scuffle (several swings that only land within reach)
+		finish("fight")
+		ctx.Crowd.api("brawl", a.id, 9 + rnd() * 5)
+		ctx.Crowd.api("remember", a.id, "anger", 2)
+	elseif act == "ko" and ctx.Crowd.api then
+		finish("ko")
+		local dx, dz = 0, -1
+		if pp then
+			local ddx, ddz = a.pos.X - pp.X, a.pos.Z - pp.Z
+			local dd = math.max(0.1, math.sqrt(ddx * ddx + ddz * ddz))
+			dx, dz = ddx / dd, ddz / dd
+		end
+		ctx.Crowd.api("ko", a.id, dx, dz, 26)
+	elseif act == "cower" and ctx.Crowd.api then
+		finish("flee")
+		ctx.Crowd.api("react", a.id, "cower")
+		ctx.Crowd.api("remember", a.id, "fear", 2)
 	elseif act == "shove" or act == "fight" then
 		if pp and a.hitPlayer then
 			local dx, dz = pp.X - a.pos.X, pp.Z - a.pos.Z
@@ -985,6 +1003,27 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 	end
 	local t = a.type
 	local standing = not (a.sitting or a.lying or a.sitGround or a.napping)
+	-- what you did to them a moment ago (short memory, GwangalliStreetAPI "remember"): you come
+	-- close again -> the angry ones glare and tell you off, the scared ones back away
+	local mem = a.memory
+	if mem and now < mem.untilT and d < 7.5 and now >= (a.memNext or 0) and standing then
+		a.memNext = now + 8
+		if mem.fear >= mem.anger then
+			face(a, "scared", 3)
+			if ctx.Crowd.canSay(now) then
+				sayNpc(a, pick({ "오, 오지 마세요!", "또 왜 와요…!", "저리 가요, 경찰 부를 거예요!", "(움찔한다)" }), 2.5)
+			end
+			Mind.flee(a, pp, 4)
+		else
+			face(a, "angry", 4)
+			lookAtPlayer(a, 3)
+			if ctx.Crowd.canSay(now) then
+				sayNpc(a, pick({ "또 너냐?", "아까 그 사람이네… 저리 가.", "한 번만 더 해 봐.", "눈 깔아라." }), 3)
+			end
+			gesture(a, "point")
+		end
+		return true
+	end
 	-- feelings first: people who are scared of you keep away, angry ones glare
 	local v = a.named and views[a.id]
 	if v and d < 11 and now - (a.moodAt or -1e9) > 14 and now - lastMood > 3 then
@@ -1757,6 +1796,7 @@ local function cOf(a: any): any
 	return a.c or { id = a.id, type = a.type, persona = if a.def and a.def.extra then "uni" else "uni", speech = "std" }
 end
 
+local sceneEnding: number? = nil -- test harness: force the next fight scene's ending
 local function playScene(a: any, b: any, key: string, lines: { any })
 	local now = os.clock()
 	local dur = 2 + #lines * 3.2
@@ -1815,6 +1855,46 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 			-- the people around stop and look, somebody calls it in (an officer comes to break it up)
 			release(a)
 			release(b)
+			-- not every argument turns into a fight: an apology, a bystander stepping in, or one of
+			-- them just walking off end it as often as a scuffle does
+			local ending = sceneEnding or rnd()
+			sceneEnding = nil
+			local scuffle = true
+			if ending < 0.2 then
+				sayNpc(b, pick({ "아 미안 미안, 내가 취했나 봐…", "됐다 됐어, 내가 잘못했다.", "에휴… 미안하다." }), 3)
+				task.delay(1.6, function()
+					if not a.gone then
+						sayNpc(a, pick({ "…그래, 됐다.", "다음부턴 조심해라.", "쳇, 알았어." }), 2.5)
+					end
+				end)
+				scuffle = false
+			elseif ending < 0.4 then
+				local peace
+				for _, o in ctx.Crowd.agents do
+					if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and not o.knock and flatDist(o.pos, a.pos) < 16 then
+						peace = o
+						break
+					end
+				end
+				if peace then
+					peace:lookAtPoint(a.pos + Vector3.new(0, 1.6, 0), 3, os.clock())
+					gesture(peace, "point")
+					sayNpc(peace, pick({ "아이고, 그만들 하세요!", "두 분 다 진정하세요~", "여기서 이러시면 안 돼요!" }), 3)
+					task.delay(1.8, function()
+						if not a.gone then
+							sayNpc(a, pick({ "…알았어요.", "에이, 기분 잡쳤네.", "흥." }), 2.5)
+						end
+					end)
+					scuffle = false
+				end
+			elseif ending < 0.55 then
+				sayNpc(b, pick({ "됐어, 상대 안 해!", "에이 씨, 간다 가.", "말이 안 통하네." }), 3)
+				if Mind.flee then
+					Mind.flee(b, a.pos, 4)
+				end
+				scuffle = false
+			end
+			if scuffle then
 			local rounds = 3 + math.floor(rnd() * 2)
 			local function round(i: number)
 				if a.gone or b.gone then
@@ -1867,6 +1947,7 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 				end)
 			end
 			round(1)
+			end
 		elseif key == "punk" and not b.gone then
 			face(b, "scared", 3)
 			release(b, true)
@@ -1884,6 +1965,85 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 			end
 		end
 	end)
+end
+
+-- 취객 시비 / a stranger following you: the person walks up and stays on you a while (the chase hook in
+-- Crowd runs it: lines every few seconds, a shove when he catches you unless noShove; keep = how
+-- close he comes)
+function Mind.startQuarrel(a: any, lines: any, opts: any?): boolean
+	local pp = playerPos()
+	if not a or a.gone or not pp or not a.startChase or a.knock or a.ko then
+		return false
+	end
+	local o = opts or {}
+	local now = os.clock()
+	a.quarrel = { untilT = now + (o.secs or 14), nextLine = now + 3, nextShove = if o.noShove then math.huge else now + 4, lines = lines, keep = o.keep }
+	a:startChase(now, pp)
+	local first = lines and lines.start
+	if first then
+		sayNpc(a, pick(first), 3.2)
+	end
+	return true
+end
+
+local function nearestAgent(pos: Vector3, maxD: number, filter: ((any) -> boolean)?): any?
+	local best, bd = nil, maxD
+	for _, a in ctx.Crowd.agents do
+		if not a.gone and not a.ctl and not a.knock and not a.ko and not a.companion and not a.clubGuest and a.mode ~= "talk" and (not filter or filter(a)) then
+			local d = flatDist(pos, a.pos)
+			if d < bd and d > 2.5 then
+				best, bd = a, d
+			end
+		end
+	end
+	return best
+end
+
+local INCIDENT_LINES = {
+	lost = { start = { "저기요… 혹시 광안리 해변이 어느 쪽이에요?", "실례지만 지하철역 가려면 어디로 가요?", "길을 잃었는데 좀 알려 주실 수 있어요?" }, follow = { "저기요~", "잠깐만요!" } },
+	help = { start = { "저기요! 도와주세요, 지갑을 잃어버렸어요…", "혹시 휴대폰 좀 빌려주실 수 있어요? 급해서요…", "저 좀 도와주실 수 있어요?" }, follow = { "제발요…", "잠깐만요!" } },
+	suspicious = { start = { "…", "(힐끔)" }, follow = { "…", "(힐끔힐끔)", "(따라온다)" } },
+}
+
+-- 생활콘텐츠 -> NPC: "an incident happened"; the NPC system casts and plays it.
+--   kind = "drunk_quarrel" | "stall_fight" | "street_fight" | "lost" | "help" | "suspicious"
+--   data = { pos = Vector3? (where, default: around the player), id = citizen/agent id? }
+function Mind.incident(kind: string, data: any?): boolean
+	local d = if type(data) == "table" then data else {}
+	local pp = playerPos()
+	local at = if typeof(d.pos) == "Vector3" then d.pos else pp
+	if not at then
+		return false
+	end
+	local okF, FS = pcall(require, ReplicatedStorage:FindFirstChild("GwangalliFightShared") :: any)
+	if kind == "drunk_quarrel" then
+		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45, function(x)
+			return x.type == "drunk"
+		end) or nearestAgent(at, 45)
+		if not a or not okF then
+			return false
+		end
+		a.type = "drunk"
+		return Mind.startQuarrel(a, FS.DRUNK_LINES)
+	elseif kind == "stall_fight" or kind == "street_fight" then
+		local a = nearestAgent(at, 40)
+		local b = a and nearestAgent(a.pos, 12, function(x)
+			return x ~= a
+		end)
+		local lines = M.scene("drunkfight", rnd)
+		if not a or not b or not lines then
+			return false
+		end
+		playScene(a, b, "drunkfight", lines)
+		return true
+	elseif INCIDENT_LINES[kind] then
+		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45)
+		if not a then
+			return false
+		end
+		return Mind.startQuarrel(a, INCIDENT_LINES[kind], { noShove = true, secs = if kind == "suspicious" then 22 else 10, keep = if kind == "suspicious" then 10 else 3.2 })
+	end
+	return false
 end
 
 local function sceneTick(now: number)
@@ -2235,6 +2395,9 @@ function Mind.start()
 				return views[(...)]
 			elseif method == "talking" then
 				return talk and talk.id or nil
+			elseif method == "incident" then
+				-- 생활콘텐츠 -> NPC (GwangalliFight relays the server's GwangalliNPCEvents)
+				return Mind.incident(...)
 			elseif method == "nearest" then
 				-- GwangalliLaw (소매치기): the closest pedestrian within reach and whether we stand behind them
 				local pp = playerPos()
@@ -2337,6 +2500,7 @@ function Mind.start()
 						end)
 						local a, b = list[1], list[2]
 						local lines = M.scene("drunkfight", rnd)
+						sceneEnding = tonumber(args[1])
 						if a and b and lines then
 							playScene(a, b, "drunkfight", lines)
 						end

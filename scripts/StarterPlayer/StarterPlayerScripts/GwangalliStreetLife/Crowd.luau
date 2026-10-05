@@ -429,7 +429,22 @@ function Crowd.api(method: any, ...: any): any
 		if not a.knock then
 			a:knockDown(tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
 		end
-		a.ko = { untilT = now + (tonumber(secs) or 25) }
+		a.ko = { untilT = now + (tonumber(secs) or 25), t0 = now }
+		-- at most 6 people down at once: the one down longest is taken away first (performance)
+		local down = {}
+		for _, o in agents do
+			if o.ko and not o.gone and not o.fadeAt then
+				table.insert(down, o)
+			end
+		end
+		if #down > 6 then
+			table.sort(down, function(x, y)
+				return x.ko.t0 < y.ko.t0
+			end)
+			for i = 1, #down - 6 do
+				Crowd.fadeOut(down[i], now)
+			end
+		end
 		if not a.knock then
 			Crowd.fadeOut(a, now) -- (could not fall where they stood: taken away at once)
 		end
@@ -480,6 +495,26 @@ function Crowd.api(method: any, ...: any): any
 		if not a.knock then
 			Crowd.playReact(a)
 		end
+		return true
+	elseif method == "remember" then
+		-- a short memory of what the player did to them (2 min): "anger" | "fear", weight adds up
+		local id, kind, w = ...
+		local a = byId[id]
+		if not a or a.gone then
+			return false
+		end
+		local now = os.clock()
+		local m = a.memory
+		if not m or now > m.untilT then
+			m = { anger = 0, fear = 0, untilT = 0 }
+			a.memory = m
+		end
+		if kind == "anger" then
+			m.anger += tonumber(w) or 1
+		else
+			m.fear += tonumber(w) or 1
+		end
+		m.untilT = now + 120
 		return true
 	elseif method == "hospital" then
 		Crowd.setHospital((...))
@@ -728,7 +763,19 @@ local function carReactions(now: number)
 							local side = cx * px + cz * pz
 							local s = if math.abs(side) < 0.3 then (if rnd() < 0.5 then 1 else -1) elseif side > 0 then 1 else -1
 							if sp > Config.CarFast and miss < 5.5 then
-								a:dive(now, px * s, pz * s, c.pos)
+								-- not everybody makes it out of the way of YOUR car: faster cars, drunks, people
+								-- on their phone / sitting / asleep are hit (GwangalliFight "carHit")
+								if c.key == "local" and now - (a.dodgeRollT or -1e9) > 4 then
+									a.dodgeRollT = now -- (one roll per close call)
+									local fail = math.clamp((sp - 12) / 70, 0, 0.45)
+									if a.type == "drunk" or a.sitting or a.napping or a.sitGround or (a.plan and a.plan.act == "phone") then
+										fail += 0.3
+									end
+									a.willBeHit = rnd() < fail
+								end
+								if not a.willBeHit then
+									a:dive(now, px * s, pz * s, c.pos)
+								end
 							elseif miss < 4 and not (a.sitting or a.lying or a.sitGround) then
 								-- a slow car: step aside and look
 								a:nudge(px * s * 2.6, pz * s * 2.6, ttc + 1.2, 7)
@@ -2565,9 +2612,18 @@ local function update(dt: number)
 				if carFast then
 					if d < 4.5 and a.mode ~= "dodge" and math.abs(a.pos.Y - pp.Y) < 8 then
 						local sp = P.speed
-						local px, pz = -P.vel.Z / sp, P.vel.X / sp
-						local s = if (dx * px + dz * pz) >= 0 then 1 else -1
-						a:dive(now, px * s, pz * s, pp)
+						if a.willBeHit and d < 3.8 and not a.knock and now - (a.carHitAt or -1e9) > 3 then
+							-- hit by the player's car: the fall right here (the server decides the rest)
+							a.carHitAt = now
+							a.willBeHit = false
+							local ux, uz = P.vel.X / sp, P.vel.Z / sp
+							a:knockDown(ux, uz, if sp < 15 then "stagger" else "knockdown", if sp > 35 then "쾅!!" else "퍽!")
+							Crowd.carHit(a, sp)
+						else
+							local px, pz = -P.vel.Z / sp, P.vel.X / sp
+							local s = if (dx * px + dz * pz) >= 0 then 1 else -1
+							a:dive(now, px * s, pz * s, pp)
+						end
 					end
 				elseif not seated and d < contact and math.abs(a.pos.Y - pp.Y) < 6 then
 					if now - a.bumpAt >= Config.BumpCooldown then
@@ -2660,6 +2716,14 @@ local function fpick(list: { string }?): string?
 	return list[1 + math.floor(rnd() * #list)]
 end
 
+-- the player's car hit this pedestrian (Agent already fell): the server weighs it (speed, the car)
+function Crowd.carHit(a: any, speed: number)
+	local fr = fightAction()
+	if fr then
+		fr:FireServer("carHit", { id = a.id, speed = speed, pos = { a.pos.X, a.pos.Y, a.pos.Z }, ptype = a.type })
+	end
+end
+
 function Crowd.playReact(a: any)
 	local kind = a.pendingReact
 	a.pendingReact = nil
@@ -2668,7 +2732,26 @@ function Crowd.playReact(a: any)
 	if not M or not kind or a.gone then
 		return
 	end
-	if kind == "flee" and pp and M.flee then
+	if kind == "warn" and pp then
+		-- squares up: looks at you, points, stays put a moment (the line came with the hit)
+		a:lookAtPoint(pp + Vector3.new(0, 1.6, 0), 4, os.clock())
+		Anim.flash(a.rig, "point", 1.2)
+		a.want, a.speed = 0, 0
+		a.pauseUntil = os.clock() + 2.5
+	elseif kind == "cower" and pp then
+		-- gives up: hands up / crouched a few seconds, then gets away
+		playPose(a, "cower", 3)
+		a.want, a.speed = 0, 0
+		a.pauseUntil = os.clock() + 3
+		task.delay(3, function()
+			if not a.gone and not a.knock and not a.ko and M.flee then
+				local p2 = P.pos
+				if p2 then
+					pcall(M.flee, a, p2, 7)
+				end
+			end
+		end)
+	elseif kind == "flee" and pp and M.flee then
 		pcall(M.flee, a, pp, 6 + rnd() * 3)
 	elseif kind == "report" and M.report then
 		pcall(M.report, a)
@@ -2751,7 +2834,7 @@ local function installFightHooks()
 					SocialUI.say(self, l, 2.8)
 				end
 			end
-			if d < 2.8 then
+			if d < (q.keep or 2.8) then
 				self.want, self.speed = 0, 0
 				if now >= q.nextShove then
 					q.nextShove = now + 5 + rnd() * 2
