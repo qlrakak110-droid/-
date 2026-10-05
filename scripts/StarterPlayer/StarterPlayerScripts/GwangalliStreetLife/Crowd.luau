@@ -376,7 +376,8 @@ function Crowd.api(method: any, ...: any): any
 				if dx * dx + dz * dz <= r * r then
 					-- down: already falling, or sitting / lying / napping (nobody shoulder-bumps a person on a bench or a towel)
 					local down = a.knock ~= nil or a.sitting == true or a.lying == true or a.sitGround == true or a.napping == true
-					table.insert(out, { id = a.id, name = (a.c and a.c.name) or a.id, typeId = a.type, root = a.rig.root, down = down, named = a.named })
+					-- x / y / z too: an Instance inside a returned table does not survive every Bindable bridge
+					table.insert(out, { id = a.id, name = (a.c and a.c.name) or a.id, typeId = a.type, root = a.rig.root, down = down, named = a.named, x = a.pos.X, y = a.pos.Y + (a.rig.ground or 3), z = a.pos.Z })
 				end
 			end
 		end

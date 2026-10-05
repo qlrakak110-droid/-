@@ -69,6 +69,33 @@ local function keyModel(id: string): Model?
 	return nil
 end
 
+-- a street pedestrian's rig root (client-side rigs in Workspace.GwangalliStreetLife, StreetId = id)
+local function pedRoot(id: string): BasePart?
+	local f = workspace:FindFirstChild("GwangalliStreetLife")
+	if not f then
+		return nil
+	end
+	for _, m in f:GetChildren() do
+		if m:GetAttribute("StreetId") == id then
+			local r = m:FindFirstChild("HumanoidRootPart")
+			return if r and r:IsA("BasePart") then r else nil
+		end
+	end
+	return nil
+end
+
+-- a "near" entry's position (root if it came through, else its numbers)
+local function entryPos(e: any): Vector3?
+	if typeof(e.root) == "Instance" and e.root:IsA("BasePart") then
+		return e.root.Position
+	end
+	local x, y, z = tonumber(e.x), tonumber(e.y), tonumber(e.z)
+	if x and y and z then
+		return Vector3.new(x, y, z)
+	end
+	return nil
+end
+
 local function bubble(adornee: Instance?, text: string?, dur: number?)
 	if not adornee or not text then
 		return
@@ -234,7 +261,7 @@ end)
 -------------------------------------------------------------------------------------------------
 -- target + punch
 -------------------------------------------------------------------------------------------------
-type Target = { kind: string, id: string, root: BasePart, pos: Vector3, ptype: string?, d: number }
+type Target = { kind: string, id: string, root: BasePart?, pos: Vector3, ptype: string?, d: number }
 local target: Target? = nil
 local lastPunch = 0
 
@@ -253,8 +280,11 @@ local function scan(): Target?
 	end
 	look = look.Unit
 	local best: Target? = nil
-	local function consider(kind: string, id: string, r: BasePart, ptype: string?)
-		local pos = r.Position
+	local function consider(kind: string, id: string, r: BasePart?, ptype: string?, at: Vector3?)
+		local pos = at or (r and r.Position)
+		if not pos then
+			return
+		end
 		local to = Vector3.new(pos.X - pp.X, 0, pos.Z - pp.Z)
 		local d = to.Magnitude
 		if d > FS.RANGE or math.abs(pos.Y - pp.Y) > 5 then
@@ -270,8 +300,11 @@ local function scan(): Target?
 	local near = street("near", FS.RANGE + 1)
 	if type(near) == "table" then
 		for _, e in near do
-			if type(e) == "table" and type(e.id) == "string" and typeof(e.root) == "Instance" and e.root:IsA("BasePart") and not e.down then
-				consider("ped", e.id, e.root, e.typeId)
+			if type(e) == "table" and type(e.id) == "string" and not e.down then
+				local at = entryPos(e)
+				if at then
+					consider("ped", e.id, nil, e.typeId, at)
+				end
 			end
 		end
 	end
@@ -306,7 +339,7 @@ local function punch()
 		local rel = root.CFrame:PointToObjectSpace(t.pos)
 		pcall(Bump.lungeCharacter, ch, rel.X >= 0)
 	end
-	local p = t.root.Position
+	local p = if t.root then t.root.Position else t.pos
 	action:FireServer("punch", { kind = t.kind, id = t.id, pos = { p.X, p.Y, p.Z }, ptype = t.ptype })
 	button.BackgroundTransparency = 0.55
 	task.delay(FS.COOLDOWN, function()
@@ -337,14 +370,7 @@ local function onEvent(p: any)
 			else
 				street("knock", p.id, dx, dz, p.outcome, if p.crit then "퍽!!" else "퍽!")
 			end
-			local near = street("near", 12)
-			if type(near) == "table" then
-				for _, e in near do
-					if type(e) == "table" and e.id == p.id and typeof(e.root) == "Instance" then
-						adornee = e.root
-					end
-				end
-			end
+			adornee = pedRoot(p.id)
 			if type(p.line) == "string" then
 				task.delay(0.35, function()
 					street("say", p.id, p.line, nil, 3)
@@ -413,22 +439,69 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- debug hook (tests): LocalPlayer.GwangalliFightAPI:Invoke("punch") punches the current target
+local debugQueue: { () -> () } = {}
 local api = Instance.new("BindableFunction")
 api.Name = "GwangalliFightAPI"
-api.OnInvoke = function(op: string)
+api.OnInvoke = function(op: string, arg: any)
 	if workspace:GetAttribute("GwangalliStreetLifeDebug") ~= true then
 		return nil
 	end
-	if op == "target" then
+	if op == "tp" and type(arg) == "table" then
+		-- test harness: move the local character (client-owned) to {x, y, z}
+		local _, _, root = character()
+		if root then
+			player.Character:PivotTo(CFrame.new(arg[1], arg[2], arg[3]))
+			root.AssemblyLinearVelocity = Vector3.zero
+		end
+		return root ~= nil
+	elseif op == "goto" then
+		-- stand 2.6 studs from the nearest street pedestrian (or `id`), facing them
+		local _, _, root = character()
+		local near = street("near", 160)
+		local best, bd = nil, math.huge
+		local bestPos: Vector3? = nil
+		if root and type(near) == "table" then
+			for _, e in near do
+				local at = type(e) == "table" and entryPos(e)
+				local want = arg == nil or e.id == arg or (arg == "*anon" and string.match(tostring(e.id), "^x%d+$") ~= nil)
+				if at and not e.down and want then
+					local d = (at - root.Position).Magnitude
+					if d < bd then
+						best, bd, bestPos = e, d, at
+					end
+				end
+			end
+		end
+		if not best or not root or not bestPos then
+			return nil
+		end
+		local p = bestPos
+		local at = p + Vector3.new(2.6, 0, 0)
+		player.Character:PivotTo(CFrame.lookAt(at, Vector3.new(p.X, at.Y, p.Z)))
+		root.AssemblyLinearVelocity = Vector3.zero
+		return best.id
+	elseif op == "target" then
 		local t = scan()
 		return t and { id = t.id, kind = t.kind, d = t.d } or nil
 	elseif op == "punch" then
-		target = scan()
-		lastPunch = 0
-		punch()
-		return target and target.id or nil
+		-- runs on this script's own thread (a FireServer from the caller's thread can be refused)
+		table.insert(debugQueue, function()
+			target = scan()
+			lastPunch = 0
+			punch()
+		end)
+		local t = scan()
+		return t and t.id or nil
 	end
 	return nil
 end
 api.Parent = player
+task.spawn(function()
+	while true do
+		task.wait(0.2)
+		while #debugQueue > 0 do
+			task.spawn(table.remove(debugQueue, 1))
+		end
+	end
+end)
 

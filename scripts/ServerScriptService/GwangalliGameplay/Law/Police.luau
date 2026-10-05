@@ -49,7 +49,7 @@ local seq = 0
 local carTemplate: Model? = nil
 local demoCar: any = nil -- test only (debugDemo)
 local carOffsetY = 2.6
-local CREW_SCALE = 0.88 -- officers' build scale: seated in a patrol car, the head stays under the roof
+local CREW_SCALE = 0.84 -- officers' build scale: seated in a patrol car (3.45 studs floor to roof) the cap stays under the roof
 local rng = Random.new()
 
 local function now(): number
@@ -705,8 +705,10 @@ local function findTemplate(): Model?
 		dz = wheel.Z + 1.15 -- behind the wheel (+Z = towards the back)
 	end
 	local fy = floorY or (-carOffsetY + 1.1)
-	-- sitting: the rig's root is ~2.75 studs (x scale) above the seat surface; the cushion is ~0.25 over the floor
-	local rootY = fy + 0.25 + 2.75 * CREW_SCALE
+	-- sitting (the R15 sit track bends the legs, the torso stays where the root puts it): thighs level
+	-- with the hips (1.0 below the root) and 1.0 thick -> the seat of the trousers is 1.5 x scale under
+	-- the root; just over the floor so cap + head (2.6 x scale above the root) stay under the roof
+	local rootY = fy + 0.1 + 1.5 * CREW_SCALE
 	seatOffsets = { Vector3.new(dx, rootY, dz), Vector3.new(-dx, rootY, dz) }
 	sillOffsets = { Vector3.new(dx * 1.9, fy, dz + 0.2), Vector3.new(-dx * 1.9, fy, dz + 0.2) }
 	local sideOut = carHalfW + 1.5
@@ -2221,7 +2223,8 @@ local function thinkCar(c: any)
 				break
 			end
 		end
-		if not playersNear(cp, 420) then
+		-- far from every player: retire (it starts far away on purpose: give it time to come closer)
+		if not playersNear(cp, 560) and now() - c.created > 20 then
 			removeCar(c)
 		end
 		return
