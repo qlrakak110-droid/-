@@ -930,12 +930,40 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 			local okF, fl = pcall(D.nearestLocation, graph, cp + dir * lead, { maxDist = 60 })
 			fromLoc = okF and fl or nil
 		end
+		local bestLen = math.huge
 		if fromLoc then
 			local okR, rp = pcall(D.route, graph, fromLoc, toLoc)
 			if okR and rp and #rp >= 2 then
 				pts = { cp, cp + dir * math.min(3, lead * 0.5) }
 				for _, q in rp do
 					table.insert(pts, q)
+				end
+				bestLen = D.polyLength(pts)
+			end
+		end
+		-- the target is behind (or the lanes only reach it the long way round): a police U-turn —
+		-- slow, a half circle over to the lane running the other way, then the route from there
+		local toT = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
+		local straight = toT.Magnitude
+		if straight > 1 and (toT.Unit:Dot(dir) < -0.15 or bestLen > straight * 2.2 + 120) then
+			local left = -D.rightOf(dir)
+			-- (braking distance first: the speed never drops in a jump)
+			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
+			local opp = headingLoc(a0 + left * 9, -dir, 16)
+			if opp then
+				local w = math.clamp((opp.point - a0):Dot(left), 4, 22)
+				local back = opp.point - dir * 2
+				local okU, ru = pcall(D.route, graph, opp, toLoc)
+				if okU and ru and #ru >= 2 then
+					local up = { cp, cp:Lerp(a0, 0.5), a0, a0 + dir * (w * 0.45) + left * (w * 0.35), a0 + dir * (w * 0.5) + left * (w * 0.75), a0 + dir * (w * 0.2) + left * w, back }
+					for _, q in ru do
+						table.insert(up, q)
+					end
+					local ulen = D.polyLength(up)
+					if ulen < bestLen then
+						pts = up
+						bestLen = ulen
+					end
 				end
 			end
 		end
@@ -1115,6 +1143,25 @@ local function boardOfficer(o: any, c: any)
 	return true
 end
 
+-- the place in the line of parked case cars: the lowest index nobody uses (cars are 16.6 long)
+local CAR_GAP = 19
+local function nextSlot(case: any?): number
+	if not case then
+		return 0
+	end
+	local used = {}
+	for _, c in case.cars do
+		if not c.gone and c.state ~= "leave" and c.slotIdx then
+			used[c.slotIdx] = true
+		end
+	end
+	local k = 0
+	while used[k] do
+		k += 1
+	end
+	return k
+end
+
 local function newCar(case: any?, pos: Vector3, role: string): any?
 	if #cars >= LS.MAX_CARS or not loadNav() or not D or not graph then
 		return nil
@@ -1127,8 +1174,8 @@ local function newCar(case: any?, pos: Vector3, role: string): any?
 	if not tpl then
 		return nil
 	end
-	local slotIdx = if case then #case.cars else 0
-	local path = spawnRoute(pos, 44 * (if case then LS.TIERS[math.max(1, case.stars)].carSpeed else 0.8), 9 + 13 * slotIdx)
+	local slotIdx = nextSlot(case)
+	local path = spawnRoute(pos, 44 * (if case then LS.TIERS[math.max(1, case.stars)].carSpeed else 0.8), 9 + CAR_GAP * slotIdx)
 	if not path then
 		return nil
 	end
@@ -1271,6 +1318,9 @@ local function tierOf(case: any): any
 end
 
 local function suspectInCar(player: Player): boolean
+	if Police.testInCar then
+		return true -- test only (Law debug "fakeCar"): the suspect counts as driving
+	end
 	local ch = player.Character
 	local h = ch and ch:FindFirstChildOfClass("Humanoid")
 	return h ~= nil and h.SeatPart ~= nil
@@ -2071,11 +2121,53 @@ local function processExits(c: any)
 	end
 end
 
+-- the free road ahead of a car: the nearest other patrol car / player in its lane (along the heading,
+-- within a lane's width of its line); math.huge when clear
+local function aheadGap(c: any, cp: Vector3, dir: Vector3): number
+	local best = math.huge
+	local right = D.rightOf(dir)
+	local function test(p: Vector3)
+		local d = Vector3.new(p.X - cp.X, 0, p.Z - cp.Z)
+		local along = d:Dot(dir)
+		if along > 0 and along < best and math.abs(d:Dot(right)) < 3.4 then
+			best = along
+		end
+	end
+	for _, o in cars do
+		if o ~= c and not o.gone and o.model and o.model.Parent then
+			test((carPos(o)))
+		end
+	end
+	for _, pl in Players:GetPlayers() do
+		local pp = Law.posOf(pl)
+		if pp and not (c.case and pl == c.case.player and c.state == "chase") then
+			test(pp)
+		end
+	end
+	return best
+end
+
+-- brake smoothly to stand `gap` short of what is ahead (keeps the car behind the one in front)
+local function yieldTo(c: any, cp: Vector3, dir: Vector3, gap: number)
+	local v = carSpeed(c)
+	local dist = math.max(0.5, gap - 11)
+	local okP, path = pcall(D.buildPath, { cp, cp + dir * (dist * 0.5), cp + dir * dist }, { cruise = math.max(v, 26), v0 = v, v1 = 0, heights = carHeights })
+	if okP and path then
+		setCarPath(c, path)
+	end
+	c.yieldUntil = now() + 1.2
+	c.needReplan = true
+end
+
 -- brake to a stop on the lane ahead (boxed-in suspect, a blocked road)
 local function stopPath(c: any): any?
 	local cp, dir = carPos(c)
 	local v = carSpeed(c)
 	local dist = math.max(2, v * v / (2 * 11) + 1)
+	local gap = aheadGap(c, cp, dir)
+	if gap < dist + 11 then
+		dist = math.max(0.5, gap - 11) -- (never into the back of the car in front)
+	end
 	local okP, path = pcall(D.buildPath, { cp, cp + dir * (dist * 0.5), cp + dir * dist }, { cruise = math.max(v, 26), v0 = v, v1 = 0, heights = carHeights })
 	return if okP then path else nil
 end
@@ -2143,6 +2235,18 @@ local function thinkCar(c: any)
 		c.model:SetAttribute("LawCarMoving", false)
 	end
 	processExits(c)
+	-- keep the distance to whatever is in the lane ahead (another patrol car, a player): brake
+	-- smoothly, then carry on (re-planned from where it stopped)
+	if c.path and not c.done and (c.state == "respond" or c.state == "chase" or c.state == "patrol") and now() >= (c.yieldUntil or 0) then
+		local cp2, dir2 = carPos(c)
+		local v = carSpeed(c)
+		if v > 5 then
+			local gap = aheadGap(c, cp2, dir2)
+			if gap < math.max(15, v * 0.9) then
+				yieldTo(c, cp2, dir2, gap)
+			end
+		end
+	end
 	if c.state == "leave" then
 		if c.done or now() > (c.leaveAt or now()) + 2 then
 			removeCar(c)
@@ -2190,7 +2294,9 @@ local function thinkCar(c: any)
 		for _, p in Players:GetPlayers() do
 			local s = Law.sess(p)
 			local pp = Law.posOf(p)
-			if s and pp and s.stars > 0 and not s.cuffed and not s.jail and flat(pp, cp) < LS.TIERS[s.stars].sight and losClear(cp + Vector3.new(0, 4, 0), pp + Vector3.new(0, 1.2, 0)) then
+			local existing = cases[p]
+			local enough = existing ~= nil and #existing.cars >= LS.TIERS[math.max(1, s and s.stars or 1)].cars + 1
+			if s and pp and s.stars > 0 and not s.cuffed and not s.jail and not enough and flat(pp, cp) < LS.TIERS[s.stars].sight and losClear(cp + Vector3.new(0, 4, 0), pp + Vector3.new(0, 1.2, 0)) then
 				local case = caseOf(p, true)
 				case.stars = s.stars
 				case.knownPos = pp
@@ -2199,10 +2305,10 @@ local function thinkCar(c: any)
 				c.role = "case"
 				c.case = case
 				c.state = "respond"
-				c.slotIdx = #case.cars
+				c.slotIdx = nextSlot(case)
 				table.insert(case.cars, c)
 				-- head for the suspect from where it is (smooth re-plan at the cruising speed)
-				local path = carRoute(c, pp, { cruise = 44 * LS.TIERS[math.max(1, s.stars)].carSpeed, v1 = 0, stopBack = 9 + 13 * c.slotIdx })
+				local path = carRoute(c, pp, { cruise = 44 * LS.TIERS[math.max(1, s.stars)].carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * c.slotIdx })
 				if path then
 					setCarPath(c, path)
 				end
@@ -2313,7 +2419,7 @@ local function thinkCar(c: any)
 			-- the crew gets out and the chase goes on on foot
 			local goal = pp or case.knownPos
 			if goal then
-				local path = carRoute(c, goal, { cruise = 40, v1 = 0, stopBack = 9 + 13 * (c.slotIdx or 0) })
+				local path = carRoute(c, goal, { cruise = 40, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
 				if path then
 					setCarPath(c, path)
 				end
@@ -2324,7 +2430,7 @@ local function thinkCar(c: any)
 			return
 		end
 		-- road chase: re-plan along the lanes every 1.2-2 s from where the car is, at its speed
-		if pp and now() >= c.nextPlan then
+		if pp and now() >= c.nextPlan and now() >= (c.yieldUntil or 0) then
 			c.nextPlan = now() + 1.2 + rnd() * 0.8
 			local goal = if c.seeing then pp else case.knownPos
 			if goal then
@@ -2374,15 +2480,23 @@ local function thinkCar(c: any)
 					return
 				end
 			end
+		elseif c.needReplan and case.knownPos and now() >= (c.yieldUntil or 0) then
+			-- it gave way to somebody: on to the spot again
+			c.needReplan = false
+			local path = carRoute(c, case.knownPos, { cruise = 44 * t.carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
+			if path then
+				setCarPath(c, path)
+				c.goal = case.knownPos
+			end
 		elseif not c.done and case.knownPos and now() >= c.nextPlan and flat(c.goal or case.knownPos, case.knownPos) > 35 then
 			c.nextPlan = now() + 2.5
-			local path = carRoute(c, case.knownPos, { cruise = 44 * t.carSpeed, v1 = 0, stopBack = 9 + 13 * (c.slotIdx or 0) })
+			local path = carRoute(c, case.knownPos, { cruise = 44 * t.carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
 			if path then
 				setCarPath(c, path)
 				c.goal = case.knownPos
 			end
 		end
-		if c.done then
+		if c.done and not c.needReplan then
 			if seatedCount(c) > 0 then
 				startExits(c, case.knownPos)
 			else

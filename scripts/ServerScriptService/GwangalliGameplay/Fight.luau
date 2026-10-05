@@ -252,6 +252,10 @@ local function onPunch(player: Player, p: any)
 	end
 	local typeId, c = typeOf(id, p.ptype)
 	local max = FS.maxHp(typeId)
+	local testHp = workspace:GetAttribute("GwangalliStreetLifeDebug") == true and tonumber(workspace:GetAttribute("GwangalliFightTestHp"))
+	if testHp and testHp > 0 then
+		max = testHp -- test only: a short fight to the KO
+	end
 	local tab = if isKey then keyHp else (function()
 		pedHp[player] = pedHp[player] or {}
 		return pedHp[player]

@@ -2319,6 +2319,54 @@ function Mind.start()
 						nextScene = 0
 						sceneTick(os.clock())
 					end)
+				elseif method == "fightscene" then
+					-- the two people nearest the player have it out (drunkfight)
+					return q(function()
+						local pp = playerPos()
+						if not pp then
+							return
+						end
+						local list = {}
+						for _, a in ctx.Crowd.agents do
+							if not a.gone and not a.ctl and not a.knock and not a.companion and not a.clubGuest and a.mode ~= "talk" then
+								table.insert(list, a)
+							end
+						end
+						table.sort(list, function(x, y)
+							return flatDist(pp, x.pos) < flatDist(pp, y.pos)
+						end)
+						local a, b = list[1], list[2]
+						local lines = M.scene("drunkfight", rnd)
+						if a and b and lines then
+							playScene(a, b, "drunkfight", lines)
+						end
+					end)
+				elseif method == "quarrel" then
+					-- the nearest person turns into a drunk and picks a quarrel right away
+					return q(function()
+						local pp = playerPos()
+						local best, bd = nil, math.huge
+						for _, a in ctx.Crowd.agents do
+							if pp and not a.gone and not a.ctl and not a.knock and not a.companion and not a.clubGuest then
+								local d = flatDist(pp, a.pos)
+								if d < bd and d > 2.5 then
+									best, bd = a, d
+								end
+							end
+						end
+						if not best or not pp then
+							return
+						end
+						best.type = "drunk"
+						local okF, FS = pcall(require, ReplicatedStorage:FindFirstChild("GwangalliFightShared") :: any)
+						if okF and FS and best.startChase then
+							local now = os.clock()
+							best.quarrel = { untilT = now + 14, nextLine = now + 3, nextShove = now + 4, lines = FS.DRUNK_LINES }
+							best:startChase(now, pp)
+							sayNpc(best, pick(FS.DRUNK_LINES.start), 3.2)
+							workspace:SetAttribute("GwangalliQuarrelId", best.id) -- (test harness)
+						end
+					end)
 				elseif method == "police" then
 					return q(function()
 						Mind.policeChoice(args[1])

@@ -235,11 +235,16 @@ local function showBar(id: string, adornee: BasePart?, hp: number, max: number, 
 		num.TextStrokeTransparency = 0.3
 		num.TextColor3 = Color3.fromRGB(255, 230, 90)
 		num.Parent = bg
-		bg.Parent = playerGui
+		-- under the part itself (in the Workspace): a PlayerGui billboard adorned to a client-side rig
+		-- part was drawn at the screen corner on some renderers
+		bg.Parent = adornee
 		b = { gui = bg, fill = fill, num = num, untilT = 0 }
 		bars[id] = b
 	end
 	b.gui.Adornee = adornee
+	if b.gui.Parent ~= adornee then
+		b.gui.Parent = adornee
+	end
 	local k = math.clamp(hp / math.max(1, max), 0, 1)
 	b.fill.Size = UDim2.fromScale(k, 1)
 	b.fill.BackgroundColor3 = if k > 0.5 then Color3.fromRGB(80, 220, 110) elseif k > 0.25 then Color3.fromRGB(255, 190, 60) else Color3.fromRGB(240, 70, 60)
@@ -450,8 +455,11 @@ api.OnInvoke = function(op: string, arg: any)
 		-- test harness: move the local character (client-owned) to {x, y, z}
 		local _, _, root = character()
 		if root then
-			player.Character:PivotTo(CFrame.new(arg[1], arg[2], arg[3]))
-			root.AssemblyLinearVelocity = Vector3.zero
+			local cf = CFrame.new(arg[1], arg[2], arg[3])
+			table.insert(debugQueue, function()
+				player.Character:PivotTo(cf)
+				root.AssemblyLinearVelocity = Vector3.zero
+			end)
 		end
 		return root ~= nil
 	elseif op == "goto" then
@@ -477,12 +485,42 @@ api.OnInvoke = function(op: string, arg: any)
 		end
 		local p = bestPos
 		local at = p + Vector3.new(2.6, 0, 0)
-		player.Character:PivotTo(CFrame.lookAt(at, Vector3.new(p.X, at.Y, p.Z)))
-		root.AssemblyLinearVelocity = Vector3.zero
+		table.insert(debugQueue, function()
+			player.Character:PivotTo(CFrame.lookAt(at, Vector3.new(p.X, at.Y, p.Z)))
+			root.AssemblyLinearVelocity = Vector3.zero
+		end)
 		return best.id
 	elseif op == "target" then
 		local t = scan()
 		return t and { id = t.id, kind = t.kind, d = t.d } or nil
+	elseif op == "gopunch" then
+		-- move next to `arg` (a pedestrian id), let the move land, then punch whoever is in front
+		local near = street("near", 160)
+		local at: Vector3? = nil
+		for _, e in (if type(near) == "table" then near else {}) do
+			if type(e) == "table" and e.id == arg then
+				at = entryPos(e)
+			end
+		end
+		if not at then
+			return nil
+		end
+		local p = at :: Vector3
+		table.insert(debugQueue, function()
+			local _, _, root = character()
+			if not root then
+				return
+			end
+			local stand = p + Vector3.new(2.4, 0, 0)
+			player.Character:PivotTo(CFrame.lookAt(stand, Vector3.new(p.X, stand.Y, p.Z)))
+			root.AssemblyLinearVelocity = Vector3.zero
+			RunService.Heartbeat:Wait()
+			RunService.Heartbeat:Wait()
+			target = scan()
+			lastPunch = 0
+			punch()
+		end)
+		return true
 	elseif op == "punch" then
 		-- runs on this script's own thread (a FireServer from the caller's thread can be refused)
 		table.insert(debugQueue, function()

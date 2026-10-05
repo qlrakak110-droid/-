@@ -766,6 +766,41 @@ Law.ops.debug = function(player, s, p)
 			Law.children.Police.dispatch(player, s, Law.posOf(player), "assault", "test")
 		end
 		return { ok = true, stars = s.stars }
+	elseif p.act == "fakeCar" and Law.children.Police then
+		Law.children.Police.testInCar = p.on == true
+		return { ok = true }
+	elseif p.act == "myCar" then
+		-- test only: a car for the player (seated), moved along / out of it from the test harness
+		local VA = game:GetService("ServerStorage"):FindFirstChild("GwangalliVehiclesAPI")
+		if not VA then
+			return { ok = false }
+		end
+		local op = tostring(p.op or "spawn")
+		if op == "spawn" then
+			task.spawn(function()
+				local okC, a, b = pcall(function()
+					return VA:Invoke("spawnOwned", player, { id = "test", kind = "sedan", color = Color3.fromRGB(40, 40, 48), colorId = "black", plate = "12가 3456", cond = 100, dirt = 0, label = "test" }, { near = Law.posOf(player), seat = true, force = true })
+				end)
+				workspace:SetAttribute("GwangalliTestCar", tostring(okC) .. "|" .. tostring(a) .. "|" .. tostring(b))
+			end)
+			return { ok = true }
+		end
+		local model = VA:Invoke("current", player)
+		if not model then
+			return { ok = false, err = "no car" }
+		end
+		if op == "move" then
+			local pv = model:GetPivot()
+			local dx, dz = tonumber(p.dx) or 0, tonumber(p.dz) or 0
+			local to = pv.Position + Vector3.new(dx, 0, dz)
+			local look = if math.abs(dx) + math.abs(dz) > 0.1 then Vector3.new(dx, 0, dz).Unit else pv.LookVector
+			model:PivotTo(CFrame.lookAt(to, to + look))
+			return { ok = true }
+		elseif op == "eject" then
+			VA:Invoke("eject", model)
+			return { ok = true }
+		end
+		return { ok = false }
 	elseif p.act == "carDemo" and Law.children.Police then
 		local pp = Law.posOf(player)
 		local off = Vector3.new(tonumber(p.dx) or 0, 0, tonumber(p.dz) or 0)

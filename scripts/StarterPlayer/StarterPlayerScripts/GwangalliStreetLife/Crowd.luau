@@ -423,6 +423,9 @@ function Crowd.api(method: any, ...: any): any
 		if a.chase then
 			a.chase = nil
 		end
+		if a.knock and a.knock.outcome ~= "knockdown" then
+			a.knock = nil -- staggering from the last punch: this one puts them on the ground
+		end
 		if not a.knock then
 			a:knockDown(tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
 		end
@@ -493,7 +496,7 @@ function Crowd.api(method: any, ...: any): any
 		return {
 			id = a.id, name = (a.c and a.c.name) or a.id, type = a.type, chatty = a.chatty, mode = a.mode, idleKind = a.idleKind, hasHead = a.rig.head ~= nil,
 			sitting = a.sitting == true, lying = a.lying == true, sitGround = a.sitGround == true, napping = a.napping == true,
-			knock = a.knock ~= nil, chase = a.chase ~= nil, chatState = a.chatState, near = a.near == true, onScreen = a.onScreen == true,
+			knock = a.knock ~= nil, chase = a.chase ~= nil, ko = a.ko ~= nil, brawl = a.brawl ~= nil, quarrel = a.quarrel ~= nil, chatState = a.chatState, near = a.near == true, onScreen = a.onScreen == true,
 			companion = a.companion ~= nil, leader = a.leader ~= nil, clubGuest = a.clubGuest == true, speed = a.speed, want = a.want,
 			wobble = a.wobble, walkPose = a.walkPose, walkSpeed = a.walkSpeed, baseWalkSpeed = a.baseWalkSpeed, x = a.pos.X, y = a.pos.Y, z = a.pos.Z,
 			rootX = rp and rp.X, rootY = rp and rp.Y, rootZ = rp and rp.Z,
