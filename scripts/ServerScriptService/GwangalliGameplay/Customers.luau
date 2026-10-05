@@ -383,7 +383,10 @@ local function buildRig(c: any): boolean
 	if c.citizenId then
 		m:SetAttribute("CitizenId", c.citizenId)
 	end
-	rig.root.CFrame = CFrame.new(c.pos + Vector3.new(0, c.ground, 0))
+	m:PivotTo(CFrame.new(c.pos + Vector3.new(0, c.ground, 0))) -- the whole rig (see Police.newOfficer)
+	pcall(function()
+		(m :: any).ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	end)
 	writeLeg(c, { c.pos }, 0)
 	m.Parent = npcFolder
 	return true

@@ -489,6 +489,10 @@ local function buildRig(id: string, hint: any?): (Model?, BasePart?, number)
 			p.Parent = rig.model
 		end
 	end
+	-- StreamingEnabled: the rig arrives whole (root + limbs together) or not at all
+	pcall(function()
+		(rig.model :: any).ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	end)
 	return rig.model, rig.root, rig.ground or 3
 end
 
@@ -545,7 +549,9 @@ local function newOfficer(at: Vector3, role: string, case: any?): any?
 	model:SetAttribute("NpcTalk", 0)
 	model:SetAttribute("LawOfficer", true)
 	model:SetAttribute("LawName", name)
-	root.CFrame = CFrame.new(at + Vector3.new(0, ground, 0))
+	-- the whole rig (PivotTo), never the root alone: the engine records each limb's offset from the root
+	-- when the rig enters the Workspace and limbs left at the build origin never follow (invisible NPC)
+	model:PivotTo(CFrame.new(at + Vector3.new(0, ground, 0)))
 	writeLeg(o)
 	model.Parent = npcFolder
 	table.insert(officers, o)
@@ -564,7 +570,7 @@ local function newActor(at: Vector3, id: string, hint: any, kind: string): any?
 	model:SetAttribute("NpcGround", ground)
 	model:SetAttribute("NpcAct", "idle")
 	model:SetAttribute("NpcYaw", 0)
-	root.CFrame = CFrame.new(at + Vector3.new(0, ground, 0))
+	model:PivotTo(CFrame.new(at + Vector3.new(0, ground, 0)))
 	writeLeg(o)
 	model.Parent = npcFolder
 	return o

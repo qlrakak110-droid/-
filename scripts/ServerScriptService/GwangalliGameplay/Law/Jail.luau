@@ -175,7 +175,10 @@ local function inmateRig(id: string, cf: CFrame, act: string, hint: any): any?
 	m:SetAttribute("NpcYaw", math.deg(yaw))
 	local p = cf.Position
 	m:SetAttribute("NpcLeg", string.format("%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,0", p.X, p.Y, p.Z, p.X, p.Y, p.Z, serverNow()))
-	rig.root.CFrame = cf + Vector3.new(0, g, 0)
+	m:PivotTo(cf + Vector3.new(0, g, 0)) -- the whole rig (see Police.newOfficer)
+	pcall(function()
+		(m :: any).ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	end)
 	local f = workspace:FindFirstChild("GwangalliNPCs")
 	m.Parent = f or workspace
 	return { model = m, root = rig.root, id = id }
@@ -280,7 +283,7 @@ local function build(): any
 		gr.model:SetAttribute("NpcAct", "clipboard")
 		gr.model:SetAttribute("NpcYaw", 180)
 		gr.model:SetAttribute("NpcLeg", string.format("%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,0", at.X, at.Y, at.Z, at.X, at.Y, at.Z, serverNow()))
-		gr.root.CFrame = CFrame.new(at + Vector3.new(0, g, 0)) * CFrame.Angles(0, math.rad(180), 0)
+		gr.model:PivotTo(CFrame.new(at + Vector3.new(0, g, 0)) * CFrame.Angles(0, math.rad(180), 0))
 		gr.model.Parent = workspace:FindFirstChild("GwangalliNPCs") or workspace
 		guard = { model = gr.model, root = gr.root, id = "jail_guard" }
 	end

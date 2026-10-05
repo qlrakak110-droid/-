@@ -160,7 +160,10 @@ local function npcRig(id: string, cf: CFrame, hint: any, act: string): any?
 	rig.model:SetAttribute("NpcAct", act)
 	rig.model:SetAttribute("NpcYaw", math.deg(yaw))
 	rig.model:SetAttribute("NpcLeg", string.format("%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,0", p.X, p.Y, p.Z, p.X, p.Y, p.Z, workspace:GetServerTimeNow()))
-	rig.root.CFrame = cf + Vector3.new(0, g, 0)
+	rig.model:PivotTo(cf + Vector3.new(0, g, 0)) -- the whole rig (see Police.newOfficer)
+	pcall(function()
+		(rig.model :: any).ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	end)
 	rig.model.Parent = workspace:FindFirstChild("GwangalliNPCs") or workspace
 	return { model = rig.model, root = rig.root, id = id }
 end
