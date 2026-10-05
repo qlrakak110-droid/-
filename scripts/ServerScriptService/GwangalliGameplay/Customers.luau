@@ -469,7 +469,7 @@ local function newCustomer(s: any, persona: string, groupId: string?): any?
 		label = p.label,
 		icon = p.icon,
 		walk = p.walk * (0.9 + rng:NextNumber() * 0.2),
-		memo = {},
+		memo = nil, -- set below: shared per store + person so a returning customer does not repeat himself
 		state = "enter",
 		pos = s.door,
 		group = groupId,
@@ -488,6 +488,9 @@ local function newCustomer(s: any, persona: string, groupId: string?): any?
 			c.name = Citizens.byId[id] and Citizens.byId[id].name or nil
 		end
 	end
+	local mkey = c.citizenId or persona
+	s.memo[mkey] = s.memo[mkey] or {}
+	c.memo = s.memo[mkey]
 	if not buildRig(c) then
 		warn("[GwangalliCustomers] rig build failed for " .. c.id)
 		return nil
