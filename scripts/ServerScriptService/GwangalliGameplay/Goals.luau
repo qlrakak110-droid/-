@@ -250,6 +250,22 @@ function Goals.onLoaded(player: Player)
 			send(player)
 		end
 	end)
+	-- the urgent goals (수배 / 유치장) update as soon as they change
+	local pending = false
+	for _, attr in { "GwangalliWanted", "LawJail", "PoliceChase" } do
+		player:GetAttributeChangedSignal(attr):Connect(function()
+			if pending then
+				return
+			end
+			pending = true
+			task.delay(0.5, function()
+				pending = false
+				if player.Parent then
+					send(player)
+				end
+			end)
+		end)
+	end
 end
 
 function Goals.init(context: any)

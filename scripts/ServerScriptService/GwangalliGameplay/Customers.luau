@@ -489,6 +489,7 @@ local function newCustomer(s: any, persona: string, groupId: string?): any?
 		end
 	end
 	if not buildRig(c) then
+		warn("[GwangalliCustomers] rig build failed for " .. c.id)
 		return nil
 	end
 	custs[c.id] = c
@@ -787,7 +788,10 @@ local function tick(dt: number)
 		if s.open and now() >= s.nextAt and #s.customers < s.spec.max then
 			local g = s.spec.gap
 			s.nextAt = now() + (g[1] + rng:NextNumber() * (g[2] - g[1])) * (if #s.customers == 0 then 0.6 else 1)
-			pcall(spawnArrival, s)
+			local ok, err = pcall(spawnArrival, s)
+			if not ok then
+				warn("[GwangalliCustomers] spawn: " .. tostring(err))
+			end
 		end
 		for _, c in table.clone(s.customers) do
 			local ok, err = pcall(stepCustomer, c)
@@ -877,6 +881,12 @@ function Customers.init(context: any)
 			return Customers.count(a)
 		elseif op == "registerSite" and type(a) == "string" and type(b) == "table" then
 			return addSite(a, b)
+		elseif op == "state" and sites[a] then
+			local st = sites[a]
+			return string.format("open=%s force=%s next=%.1f n=%d max=%s door=%s order=%s", tostring(st.open), tostring(st.force), st.nextAt - now(), #st.customers, tostring(st.spec.max), tostring(st.door), tostring(st.order))
+		elseif op == "spawnNow" and sites[a] then
+			local ok, err = pcall(spawnArrival, sites[a])
+			return tostring(ok) .. " " .. tostring(err) .. " n=" .. #sites[a].customers
 		elseif op == "setOpen" and sites[a] then
 			sites[a].force = b
 			return true

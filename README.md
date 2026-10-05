@@ -44,9 +44,16 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 
 클라이언트: `StarterPlayerScripts/GwangalliLaw.client.luau` (수배 카드·무전·검문 대화·체포 요약·유치장·👮 경찰 패널·🕶️ 뒷골목 패널·👛 소매치기 버튼·목표 지점 표시).
 
-## 3. 알바 시뮬레이션 (Work)
+## 3. 가게 손님 NPC (Customers) — 알바 시스템과 분리
 
-카페(기존) + 편의점·배달·퀵 + 손님 NPC + 숙련도 + 랜덤 상황 — `GwangalliGameplay/Work*.luau`, `GwangalliUnifiedWork*`.
+이 세션은 **손님의 행동만** 맡아요: 입장 → 줄 서기 → 말풍선 주문 → 인내심 막대 + 재촉 → 픽업 →
+칭찬 / 보통 / 불만 / 화내고 나가기. 성격: 평범·급한·취객·진상·학생(무리)·단골(동네 주민 → 호감도 반영).
+
+- `ReplicatedStorage/GwangalliCustomerShared.luau` — 성격·대사(같은 말 연속 금지)·가게 위치
+- `ServerScriptService/GwangalliGameplay/Customers.luau` — 손님 NPC (v0.3 `WorkOrders` 공개 함수만 사용)
+- 출근·급여·레벨·숙련도·미션·보상 = **알바 세션**. 빌드에는 v0.3 원본 알바 코드가 그대로 들어가요.
+  만들다 멈춘 알바 초안(편의점·배달·알바 HUD 등)은 `sessions/work/`에 보관 (빌드 제외) →
+  연결 방법은 `sessions/work/HANDOFF.md`.
 
 ## 4. 경제 · 목표
 
