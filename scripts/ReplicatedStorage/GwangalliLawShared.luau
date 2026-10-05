@@ -50,6 +50,7 @@ Law.CRIMES = {
 	threat = { stars = 1, sev = 1, fine = 30000, label = "협박", report = { 6, 14 } },
 	shove = { stars = 1, sev = 1, fine = 20000, label = "폭행 (밀침)", report = { 8, 18 } },
 	assault = { stars = 1, min = 1, sev = 2, fine = 50000, label = "폭행", report = { 4, 12 } },
+	kill = { stars = 2, min = 3, sev = 6, fine = 400000, label = "폭행치사 (사람이 쓰러짐)", report = { 1, 4 } },
 	assault_police = { stars = 2, min = 2, sev = 4, fine = 150000, label = "공무집행방해 (경찰 폭행)" },
 	bribe = { stars = 1, sev = 2, fine = 50000, label = "뇌물 공여" },
 	flee = { stars = 1, sev = 1, fine = 40000, label = "도주" },
@@ -90,7 +91,7 @@ Law.TIERS = {
 	[4] = { foot = 3, cars = 3, roadblocks = 1, checkpoint = true, sight = 78, fov = 150, react = 0.42, run = 17.0, burst = 2.8, repath = 0.8, wrongTurn = 0.07, hesitate = 0.07, search = 52, radio = 6, carSpeed = 1.45, label = "경찰 증원 · 검문 · 도로 차단" },
 	[5] = { foot = 4, cars = 4, roadblocks = 2, checkpoint = true, sight = 86, fov = 160, react = 0.32, run = 17.6, burst = 3.2, repath = 0.7, wrongTurn = 0.04, hesitate = 0.05, search = 62, radio = 8, carSpeed = 1.55, label = "특별 수사대 · 주요 도로 봉쇄" },
 }
-Law.MAX_OFFICERS = 14 -- server-wide NPC officers on foot
+Law.MAX_OFFICERS = 22 -- server-wide NPC officers (on foot + patrol car crews)
 Law.MAX_CARS = 8 -- server-wide patrol cars (incl. roadblock cars)
 Law.SPAWN_RING = { 70, 130 } -- studs from the reported spot, out of the suspect's sight
 Law.CAR_SPAWN = { 260, 460 } -- road distance up the lanes before the car appears

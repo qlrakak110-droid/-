@@ -471,7 +471,7 @@ do
  end
 end
 
-local FEATURE_MODULES = { "MiniGames", "Bank", "Relationships", "Health", "Bump", "Mind", "Law", "Goals", "Fuel", "Garage", "Interact", "Work", "Customers", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" } -- Relationships: 호감도 / 친구 (sets ctx.social; listens to Players itself). Living*: docs/living_city_contract.md §C (missing modules are skipped)
+local FEATURE_MODULES = { "MiniGames", "Bank", "Relationships", "Health", "Bump", "Mind", "Law", "Fight", "Goals", "Fuel", "Garage", "Interact", "Work", "Customers", "Shops", "Progress", "Transit", "Details", "LivingEconomy", "LivingAnchors", "LivingAccess", "LivingElevator", "LivingFixtures", "LivingHomes", "HomeDecor", "LivingShops" } -- Relationships: 호감도 / 친구 (sets ctx.social; listens to Players itself). Living*: docs/living_city_contract.md §C (missing modules are skipped)
 local features: { any } = {}
 for _, name in FEATURE_MODULES do
 	local m = (folder :: Instance):FindFirstChild(name)

@@ -410,6 +410,76 @@ function Crowd.api(method: any, ...: any): any
 		end
 		a:setPlan({ kind = "leave", act = "walk" }, now)
 		return true
+	elseif method == "ko" then
+		-- 길거리 싸움: they went down and stay down (GwangalliFight); then they are taken away
+		local id, dx, dz, secs = ...
+		local a = byId[id]
+		if not a or a.gone then
+			return false
+		end
+		local now = os.clock()
+		a.brawl, a.pendingReact, a.quarrel = nil, nil, nil
+		if a.chase then
+			a.chase = nil
+		end
+		if not a.knock then
+			a:knockDown(tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
+		end
+		a.ko = { untilT = now + (tonumber(secs) or 25) }
+		if not a.knock then
+			Crowd.fadeOut(a, now) -- (could not fall where they stood: taken away at once)
+		end
+		-- the people around see it: a scream, someone calls for help
+		local called = false
+		for _, o in agents do
+			if o ~= a and not o.gone and not o.knock and not o.ko then
+				local ox, oz = o.pos.X - a.pos.X, o.pos.Z - a.pos.Z
+				if ox * ox + oz * oz < 20 * 20 then
+					o:lookAtPoint(a.pos, 6, now)
+					if not called and ctx.Mind and ctx.Mind.report and not o.companion and not o.clubGuest then
+						called = true
+						pcall(ctx.Mind.report, o)
+					elseif ctx.Mind and ctx.Mind.flee and rnd() < 0.4 then
+						pcall(ctx.Mind.flee, o, a.pos, 4 + rnd() * 3)
+					end
+				end
+			end
+		end
+		return true
+	elseif method == "brawl" then
+		-- they fight back for a while (several swings, GwangalliFight "npcHit" for each that lands)
+		local id, secs = ...
+		local a = byId[id]
+		if not a or a.gone or a.ko then
+			return false
+		end
+		local now = os.clock()
+		a.brawl = { untilT = now + (tonumber(secs) or 10) }
+		a.pendingReact = nil
+		a.quarrel = nil
+		if not a.knock then
+			local pp = P.pos
+			if pp then
+				a:startChase(now, pp)
+			end
+		end
+		return true
+	elseif method == "react" then
+		-- after the hit: "flee" | "report" | "arrest" (played when they are back on their feet)
+		local id, kind = ...
+		local a = byId[id]
+		if not a or a.gone or a.ko then
+			return false
+		end
+		a.pendingReact = kind
+		a.quarrel = nil
+		if not a.knock then
+			Crowd.playReact(a)
+		end
+		return true
+	elseif method == "hospital" then
+		Crowd.setHospital((...))
+		return true
 	elseif method == "stats" then
 		return stats
 	elseif method == "info" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
@@ -1179,9 +1249,18 @@ local function settleAt(a: any, poi: number, plan: any, now: number)
 end
 
 -- a named citizen near the player (or nil when no spot fits)
+-- 길거리 싸움 (GwangalliFight): citizens who went down are in hospital (server "down" list, unix end)
+local hospital: { [string]: number } = {}
+function Crowd.setHospital(ids: any)
+	hospital = if type(ids) == "table" then ids else {}
+end
+
 local function spawnNamed(id: string, pp: Vector3, fill: boolean, now: number): any?
 	local c = Citizens.get(id)
 	if not c then
+		return nil
+	end
+	if (hospital[id] or 0) > os.time() then
 		return nil
 	end
 	local clock = ctx.clock()
@@ -1252,7 +1331,7 @@ end
 -- out of sight in a ring around the player whatever the roster says (they come from the 지구대)
 function Crowd.spawnResponder(id: string, pp: Vector3, now: number): any?
 	local c = Citizens and Citizens.get(id)
-	if not c or byId[id] then
+	if not c or byId[id] or (hospital[id] or 0) > os.time() then
 		return nil
 	end
 	local node = pickNode(pp, 40, 80, true, function(_i)
@@ -2525,6 +2604,219 @@ local function update(dt: number)
 	end
 end
 
+-------------------------------------------------------------------------------------------------
+-- 길거리 싸움 (GwangalliFight): KO (down for good, then taken away), the brawl (an NPC that fights
+-- back swings several times; every swing that lands goes to the server as "npcHit"), and the
+-- reaction after the hit (flee / report / arrest) once they are back on their feet
+-------------------------------------------------------------------------------------------------
+local FS: any = nil
+local fightRemote: RemoteEvent? = nil
+local function fightAction(): RemoteEvent?
+	if fightRemote and fightRemote.Parent then
+		return fightRemote
+	end
+	local f = ReplicatedStorage:FindFirstChild("GwangalliFight")
+	local a = f and f:FindFirstChild("Action")
+	fightRemote = if a and a:IsA("RemoteEvent") then a else nil
+	return fightRemote
+end
+
+-- a short pose TRACK ("GwPose_<name>": punch / shove / fight ...): renderers that only show tracks
+-- (not procedural joint poses) still see the swing; real Roblox plays nothing for an empty id
+local poseAnims: { [string]: Animation } = {}
+local function playPose(a: any, name: string, dur: number)
+	local model = a.rig and a.rig.model
+	local animator = model and model:FindFirstChildWhichIsA("Animator", true)
+	if not animator then
+		return
+	end
+	local anim = poseAnims[name]
+	if not anim then
+		anim = Instance.new("Animation")
+		anim.Name = "GwPose_" .. name
+		poseAnims[name] = anim
+	end
+	pcall(function()
+		local tr = (animator :: Animator):LoadAnimation(anim)
+		tr.Name = "GwPose_" .. name
+		tr:Play(0.08)
+		task.delay(dur, function()
+			pcall(function()
+				tr:Stop(0.15)
+				tr:Destroy()
+			end)
+		end)
+	end)
+end
+
+local function fpick(list: { string }?): string?
+	if not list or #list == 0 then
+		return nil
+	end
+	return list[1 + math.floor(rnd() * #list)]
+end
+
+function Crowd.playReact(a: any)
+	local kind = a.pendingReact
+	a.pendingReact = nil
+	local M = ctx.Mind
+	local pp = P.pos
+	if not M or not kind or a.gone then
+		return
+	end
+	if kind == "flee" and pp and M.flee then
+		pcall(M.flee, a, pp, 6 + rnd() * 3)
+	elseif kind == "report" and M.report then
+		pcall(M.report, a)
+	elseif kind == "arrest" and M.policeEncounter then
+		pcall(M.policeEncounter, a, true)
+	end
+end
+
+local function installFightHooks()
+	local okF, fsm = pcall(function()
+		return require(ReplicatedStorage:FindFirstChild("GwangalliFightShared") :: any)
+	end)
+	FS = if okF then fsm else nil
+	local Bump = ctx.BumpShared
+	local knockedAttr = (Bump and Bump.Attr and Bump.Attr.Knocked) or "GwangalliKnocked"
+	local baseStepKnock = Agent.stepKnock
+	Agent.stepKnock = function(self: any, dt: number, now: number)
+		local ko = self.ko
+		local kn = self.knock
+		if ko and kn then
+			-- KO: the timeline is held lying down (never the get-up) until they are taken away
+			local hold = ((Bump and Bump.KNOCK_DUR) or 2.4) - 0.15
+			if now - kn.t0 > hold then
+				kn.t0 = now - hold
+			end
+			if now >= ko.untilT and not self.fadeAt then
+				Crowd.fadeOut(self, now)
+			end
+		end
+		return baseStepKnock(self, dt, now)
+	end
+	local baseAfter = Agent.afterKnock
+	Agent.afterKnock = function(self: any, now: number)
+		if self.ko then
+			return
+		end
+		baseAfter(self, now)
+		if self.gone then
+			return
+		end
+		local b = self.brawl
+		if b and now < b.untilT then
+			local pp = P.pos
+			if pp and not self.chase then
+				self:startChase(now, pp)
+			end
+		elseif self.pendingReact then
+			Crowd.playReact(self)
+		end
+	end
+	local baseChase = Agent.chaseTick
+	Agent.chaseTick = function(self: any, now: number)
+		local q = self.quarrel
+		if q and not self.brawl then
+			-- 취객 시비: slow, swaying, a line every few seconds, a shove when he catches you
+			local chs = self.chase
+			local pp = P.pos
+			if not chs or not pp or now > q.untilT or Crowd.playerSeated() then
+				self.quarrel = nil
+				local l = fpick(q.lines and q.lines.calm)
+				if l then
+					SocialUI.say(self, l, 3)
+				end
+				if chs then
+					self:endChase(now, true)
+				end
+				return
+			end
+			chs.untilT = math.max(chs.untilT, q.untilT)
+			local dx, dz = pp.X - self.pos.X, pp.Z - self.pos.Z
+			local d = math.sqrt(dx * dx + dz * dz)
+			if d > 22 or math.abs(pp.Y - self.pos.Y) > 6 then
+				q.untilT = now -- you walked off: he gives up (calm line next tick)
+				return
+			end
+			if now >= q.nextLine then
+				q.nextLine = now + 3 + rnd() * 1.5
+				local l = fpick(q.lines and q.lines.follow)
+				if l then
+					SocialUI.say(self, l, 2.8)
+				end
+			end
+			if d < 2.8 then
+				self.want, self.speed = 0, 0
+				if now >= q.nextShove then
+					q.nextShove = now + 5 + rnd() * 2
+					Anim.flash(self.rig, "pointp", 0.5)
+					playPose(self, "shove", 0.6)
+					self:hitPlayer(dx / math.max(d, 0.05), dz / math.max(d, 0.05), "stagger", fpick(q.lines and q.lines.shove))
+				end
+				return
+			end
+			if now >= chs.retarget or self.mode ~= "walk" then
+				self:chaseStep(now, pp)
+			end
+			self.want = math.min(self.want or 0, 6.5) -- a drunk does not sprint
+			self:updateWalkAnim()
+			return
+		end
+		local b = self.brawl
+		if not b then
+			return baseChase(self, now)
+		end
+		local chs = self.chase
+		if not chs then
+			return
+		end
+		local pp = P.pos
+		if not pp or now > b.untilT or Crowd.playerSeated() then
+			self.brawl = nil
+			local l = FS and fpick(FS.LINES.brawl_end)
+			if l then
+				SocialUI.say(self, l, 3)
+			end
+			self:endChase(now, false)
+			return
+		end
+		chs.untilT = math.max(chs.untilT, b.untilT)
+		local dx, dz = pp.X - self.pos.X, pp.Z - self.pos.Z
+		local d = math.sqrt(dx * dx + dz * dz)
+		if d > 30 or math.abs(pp.Y - self.pos.Y) > 6 then
+			self.brawl = nil
+			self:endChase(now, false)
+			return
+		end
+		if d < ((FS and FS.NPC_REACH) or 3.4) then
+			-- squared up: a swing every second or so
+			self.want, self.speed = 0, 0
+			if now >= chs.nextHit then
+				chs.nextHit = now + 1.05 + rnd() * 0.6
+				Anim.flash(self.rig, "pointp", 0.5)
+				playPose(self, "punch", 0.55)
+				local ch = player.Character
+				if not (ch and ch:GetAttribute(knockedAttr)) then
+					local outcome = if rnd() < 0.22 then "knockdown" else "stagger"
+					local ux, uz = dx / math.max(d, 0.05), dz / math.max(d, 0.05)
+					self:hitPlayer(ux, uz, outcome, if rnd() < 0.5 and FS then fpick(FS.LINES.swing) else nil)
+					local fr = fightAction()
+					if fr then
+						fr:FireServer("npcHit", { id = self.id, pos = { self.pos.X, self.pos.Y, self.pos.Z } })
+					end
+				end
+			end
+			return
+		end
+		if now >= chs.retarget or self.mode ~= "walk" then
+			self:chaseStep(now, pp)
+		end
+		self:updateWalkAnim()
+	end
+end
+
 function Crowd.start(context: any)
 	ctx = context
 	W = ctx.World
@@ -2541,6 +2833,7 @@ function Crowd.start(context: any)
 	for i = 1, Config.Extras do
 		table.insert(extraFree, "x" .. i)
 	end
+	pcall(installFightHooks)
 	-- dance clips the player may play (the player's own dances are "dance" emotes of any id; the
 	-- default R15 ones are matched by id, others by track name)
 	local AL = ctx.AnimLib

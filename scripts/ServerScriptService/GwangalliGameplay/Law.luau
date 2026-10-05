@@ -756,11 +756,20 @@ Law.ops.debug = function(player, s, p)
 			s.sev = math.max(s.sev, 2)
 			s.fine = math.max(s.fine, 50000)
 		end
+		if Law.children.Police then
+			-- test only: the case is worked by patrol cars alone (watch a car drive in, park, get out)
+			Law.children.Police.testCarsOnly = p.carsOnly == true
+			Law.children.Police.testNoGrab = p.noGrab == true
+		end
 		Law.setStars(player, tonumber(p.n) or 0, "test")
 		if s.stars > 0 and Law.children.Police then
 			Law.children.Police.dispatch(player, s, Law.posOf(player), "assault", "test")
 		end
 		return { ok = true, stars = s.stars }
+	elseif p.act == "carDemo" and Law.children.Police then
+		local pp = Law.posOf(player)
+		local off = Vector3.new(tonumber(p.dx) or 0, 0, tonumber(p.dz) or 0)
+		return Law.children.Police.debugDemo(player, tostring(p.op or "spawn"), pp and (pp + off) or nil)
 	elseif p.act == "arrest" then
 		return { ok = Law.arrest(player, { by = "npc", forced = true }) }
 	elseif p.act == "xp" then

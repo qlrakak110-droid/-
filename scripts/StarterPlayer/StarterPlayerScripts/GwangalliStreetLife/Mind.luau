@@ -941,6 +941,7 @@ end
 -------------------------------------------------------------------------------------------------
 local lastPrank = -1e9
 local lastProvoke = -1e9
+local lastQuarrel = -1e9
 local lastMood = -1e9
 
 local function canAct(now: number, a: any): boolean
@@ -1063,6 +1064,25 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 			face(a, "smug", 3)
 			lookAtPlayer(a, 2)
 			a:approachPlayer(now, pp, 3, "approach")
+			return true
+		end
+	end
+	-- 취객 시비: late at night a drunk picks a quarrel — slurs at you, follows you around a while and
+	-- shoves you if you stay in his face; walk away and he gives up (Crowd's chase hook runs it)
+	if t == "drunk" and standing and d < 13 and d > 2.5 and now >= (a.nextQuarrel or 0) and now - lastQuarrel > 25 and pspeed < 14 and a.startChase then
+		a.nextQuarrel = now + 60 + rnd() * 60
+		local clock = ctx.clock()
+		local late = clock >= 21 or clock < 5
+		local FSm = ReplicatedStorage:FindFirstChild("GwangalliFightShared")
+		local okF, FS = pcall(require, FSm :: any)
+		if late and okF and FS and rnd() < 0.5 and canAct(now, a) then
+			lastQuarrel = now
+			stats.quarrels = (stats.quarrels or 0) + 1
+			face(a, "angry", 5)
+			lookAtPlayer(a, 3)
+			a.quarrel = { untilT = now + 10 + rnd() * 5, nextLine = now + 3.2, nextShove = now + 4.5, lines = FS.DRUNK_LINES }
+			a:startChase(now, pp)
+			sayNpc(a, pick(FS.DRUNK_LINES.start), 3.2)
 			return true
 		end
 	end
@@ -1791,12 +1811,62 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 	end
 	task.delay(delay + 0.6, function()
 		if key == "drunkfight" and not a.gone and not b.gone and a.ctl and b.ctl then
-			-- the argument ends in a shove (and the people around look)
-			local dx, dz = b.pos.X - a.pos.X, b.pos.Z - a.pos.Z
-			local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+			-- the argument turns into a scuffle: shoves both ways (3-4), the last one puts somebody down;
+			-- the people around stop and look, somebody calls it in (an officer comes to break it up)
+			release(a)
 			release(b)
-			b:knockDown(dx / dd, dz / dd, "stagger", pick(Social.PUK))
-			gesture(a, "point")
+			local rounds = 3 + math.floor(rnd() * 2)
+			local function round(i: number)
+				if a.gone or b.gone then
+					return
+				end
+				local hitter, target = if i % 2 == 1 then a else b, if i % 2 == 1 then b else a
+				local dx, dz = target.pos.X - hitter.pos.X, target.pos.Z - hitter.pos.Z
+				local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+				if dd > 5.5 then
+					return -- somebody walked off: it is over
+				end
+				hitter:lookAtPoint(target.pos + Vector3.new(0, 1.6, 0), 2, os.clock())
+				gesture(hitter, "point")
+				target:knockDown(dx / dd, dz / dd, if i == rounds then "knockdown" else "stagger", pick(Social.PUK))
+				for _, o in ctx.Crowd.agents do
+					if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and flatDist(o.pos, target.pos) < 16 then
+						o:lookAtPoint(target.pos + Vector3.new(0, 1.2, 0), 3, os.clock())
+					end
+				end
+				if i < rounds then
+					task.delay(1.5 + rnd() * 0.5, round, i + 1)
+					return
+				end
+				-- over: the winner gloats, a bystander phones it in
+				task.delay(1.2, function()
+					if not hitter.gone then
+						sayNpc(hitter, pick({ "어때! 덤벼 봐!", "술 깨면 사과해라!", "에잇, 다시는 보지 말자!" }), 3)
+					end
+					if rnd() < 0.6 then
+						local caller
+						for _, o in ctx.Crowd.agents do
+							if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and flatDist(o.pos, target.pos) < 18 then
+								caller = o
+								break
+							end
+						end
+						-- (only the phone call: Mind.report would report the PLAYER's own pending crime)
+						if caller and take(caller, { kind = "report", untilT = os.clock() + 5 }) then
+							hold(caller, target.pos, "phone")
+							task.delay(0.8, function()
+								sayNpc(caller, pick({ "여보세요, 112죠? 여기 싸움 났어요!", "경찰 좀 보내 주세요, 취객들이 싸워요!", "저기요, 경찰이죠? 사람이 맞고 있어요!" }), 3.5)
+							end)
+						end
+						local ff = ReplicatedStorage:FindFirstChild("GwangalliFight")
+						local act = ff and ff:FindFirstChild("Action")
+						if act and act:IsA("RemoteEvent") then
+							act:FireServer("npcFight", { pos = { target.pos.X, target.pos.Y, target.pos.Z }, a = a.id, b = b.id })
+						end
+					end
+				end)
+			end
+			round(1)
 		elseif key == "punk" and not b.gone then
 			face(b, "scared", 3)
 			release(b, true)
