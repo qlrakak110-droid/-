@@ -1338,6 +1338,16 @@ local function extraAct(navArea: string, clock: number, hype: number, clubD: num
 	if night then
 		return weighted({ "walk", 0.55 * w, "drink", 0.25, "shop", 0.12, "wait", 0.08 })
 	end
+	-- the city's day (owner: law / NPC life): 출근 + 카페 + 편의점 in the morning, 점심, 퇴근 + 저녁 식당 / 술집
+	if clock >= 7 and clock < 10 then
+		return weighted({ "walk", 0.55 * w, "cafe", 0.2, "shop", 0.15, "wait", 0.1 })
+	elseif clock >= 11.5 and clock < 14 then
+		return weighted({ "walk", 0.4 * w, "eat", 0.3, "cafe", 0.12, "shop", 0.12, "sit", 0.06 })
+	elseif clock >= 17.5 and clock < 22 then
+		return weighted({ "walk", 0.44 * w, "eat", 0.24, "drink", 0.16, "shop", 0.1, "wait", 0.06 })
+	elseif clock >= 22 or clock < 5 then
+		return weighted({ "walk", 0.5 * w, "drink", 0.32, "shop", 0.1, "wait", 0.08 })
+	end
 	return weighted({ "walk", 0.5 * w, "shop", 0.18, "eat", 0.13, "cafe", 0.08, "sit", 0.04, "wait", 0.1 })
 end
 
@@ -1492,7 +1502,10 @@ local function spawnExtra(pp: Vector3, fill: boolean, now: number, room: number,
 	end
 	local yaw = rnd() * math.pi * 2
 	local speed = speedFor(nil, act) * (if dog then 0.85 else 1)
-	local a = newAgent({ id = id, named = false, speed = speed, clubber = not dog and (clubby or (night and rnd() < hype * 0.5)), lure = clubby or (night and rnd() < 0.3), dog = dog }, spec, key, node, p, yaw)
+	-- late at night some passers-by have had a few too many (취객: the sway walk, the bumps, the lines)
+	local lateNight = clock >= 22 or clock < 4
+	local drunkNow = lateNight and not dog and not fill and rnd() < (if clubD < 380 then 0.14 else 0.2)
+	local a = newAgent({ id = id, named = false, speed = speed, clubber = not dog and (clubby or (night and rnd() < hype * 0.5)), lure = clubby or (night and rnd() < 0.3), dog = dog, type = if drunkNow then "drunk" else nil }, spec, key, node, p, yaw)
 	local allow = W.areaSet(EXTRA_ALLOW[navArea])
 	if act == "queue" then
 		-- first fill near the club: stand straight in the line

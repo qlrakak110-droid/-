@@ -1,0 +1,2043 @@
+-- GwangalliGameplay/Law/Police (server; owner: law): the NPC police of 광안지구대 — officers on foot,
+-- patrol cars, road closures and the idle patrol. GTA-like but deliberately imperfect.
+--
+--   CASE (one per wanted player): 신고 접수 (Law.report) -> dispatch: units appear out of the suspect's
+--   sight 70-130 studs from the REPORTED spot (cars ~300 studs up the road) and head for that spot —
+--   never for the live position (the dispatcher only knows what was reported or radioed). On arrival
+--   they search (random nav nodes 8-28 studs around the last known spot, looking around), and only a
+--   real SIGHTING (range + view cone + a raycast, a reaction delay before they "see" you) gives them
+--   the live position: 발견 -> "거기 서!" -> 추격 -> grab attempts -> 체포 (Law.arrest). A 1-star minor
+--   offence gets a stop order first ("멈추세요") and a ticket if you comply.
+--   IMPERFECT on purpose (TIERS tune it per star level): they lose you behind corners / in alleys (no
+--   line of sight = no live position; they run to where they last saw you, then search), they sometimes
+--   take a wrong branch at a junction ("어? 막다른 길이네"), they hesitate at alley steps / stairs /
+--   crossings, a grab can slip, cars sometimes pick the wrong side road. They are never omniscient and
+--   never as quick as a sprinting player at 1-2 stars, but get faster, sharper and more numerous with
+--   every star (reinforcements, several cars, road closures and 검문 at 4+).
+--   CARS: server-owned scenery clones of the map's Car_Police (anchored root + welds, light bar, siren)
+--   moved along the traffic lanes (TaxiDispatch). When the suspect drives, cars chase on the lanes,
+--   re-planning every couple of seconds; a car within reach of a stopped / crawling suspect car ends it.
+--   OFFICERS are anchored rigs in workspace.GwangalliNPCs (NpcId / NpcLeg / NpcAct ... = the
+--   GwangalliNPCClient contract): the server keeps an analytic position (polyline + speed + start time)
+--   and every client interpolates the walk.
+--   PATROL: with no case the city still has a few officers / cars around the players (more at night);
+--   they notice wanted players and NPC incidents (Law/City).
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CollectionService = game:GetService("CollectionService")
+
+local Police = {}
+
+local Law: any
+local ctx: any
+local LS: any
+local Nav: any = nil
+local dec: any = nil
+local D: any = nil -- TaxiDispatch (lane routing)
+local graph: any = nil
+local Looks: any = nil
+
+local npcFolder: Folder
+local carsFolder: Folder
+local officers: { any } = {}
+local cars: { any } = {}
+local blocks: { any } = {}
+local cases: { [Player]: any } = {}
+local seq = 0
+local carTemplate: Model? = nil
+local carOffsetY = 2.2
+local rng = Random.new()
+
+local function now(): number
+	return os.clock()
+end
+
+local function serverNow(): number
+	return workspace:GetServerTimeNow()
+end
+
+local function rnd(): number
+	return rng:NextNumber()
+end
+
+local function flat(a: Vector3, b: Vector3): number
+	local dx, dz = a.X - b.X, a.Z - b.Z
+	return math.sqrt(dx * dx + dz * dz)
+end
+
+local function pick(list: { string }?, last: string?): string
+	return LS.pick(list, rnd, last)
+end
+
+-------------------------------------------------------------------------------------------------
+-- Geometry
+-------------------------------------------------------------------------------------------------
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local lastFilter = 0
+
+local function refreshFilter()
+	if now() - lastFilter < 2 then
+		return
+	end
+	lastFilter = now()
+	local ex: { Instance } = { npcFolder, carsFolder }
+	for _, p in Players:GetPlayers() do
+		if p.Character then
+			table.insert(ex, p.Character)
+		end
+	end
+	for _, n in { "GwangalliStreetLife", "GwangalliTaxis", "GwangalliPlayerCars", "GwangalliWork_starbucks" } do
+		local f = workspace:FindFirstChild(n)
+		if f then
+			table.insert(ex, f)
+		end
+	end
+	rayParams.FilterDescendantsInstances = ex
+end
+
+local function groundAt(p: Vector3, fallback: number?): number
+	refreshFilter()
+	local ok, hit = pcall(function()
+		return workspace:Raycast(Vector3.new(p.X, p.Y + 8, p.Z), Vector3.new(0, -40, 0), rayParams)
+	end)
+	if ok and hit then
+		return hit.Position.Y
+	end
+	return fallback or p.Y
+end
+
+local function losClear(a: Vector3, b: Vector3): boolean
+	refreshFilter()
+	local dir = b - a
+	if dir.Magnitude < 1 then
+		return true
+	end
+	local ok, hit = pcall(function()
+		return workspace:Raycast(a, dir, rayParams)
+	end)
+	return ok and hit == nil
+end
+
+local function loadNav(): boolean
+	if dec then
+		return true
+	end
+	local N, d = Law.nav()
+	if not N or not d then
+		return false
+	end
+	Nav, dec = N, d
+	local tm = script.Parent and script.Parent.Parent and script.Parent.Parent:FindFirstChild("TaxiDispatch")
+	if tm and tm:IsA("ModuleScript") then
+		local ok, res = pcall(require, tm)
+		if ok and type(res) == "table" then
+			D = res
+			local okG, g = pcall(D.graph, Nav)
+			graph = if okG then g else nil
+		end
+	end
+	return true
+end
+
+local function nodePos(i: number): Vector3
+	return dec.pos[i]
+end
+
+-- feet points along the pedestrian graph from `from` to `to` (nil when no route)
+local function routePts(from: Vector3, to: Vector3, opts: any?): ({ Vector3 }?, { number }?)
+	if not loadNav() then
+		return nil, nil
+	end
+	local o = opts or {}
+	-- close and visible: straight there
+	if flat(from, to) < 26 and losClear(from + Vector3.new(0, 2.5, 0), to + Vector3.new(0, 2.5, 0)) then
+		return { from, to }, nil
+	end
+	local okA, a = pcall(Nav.nearest, from, 50)
+	local okB, b = pcall(Nav.nearest, to, 70)
+	if not (okA and okB and a and b) then
+		return nil, nil
+	end
+	local okR, nodes = pcall(Nav.route, a, b, false)
+	if not okR or type(nodes) ~= "table" or #nodes == 0 then
+		return nil, nil
+	end
+	-- a wrong turn: at an early junction take a branch off the route, then come back (opts.wrong chance)
+	if o.wrong and rnd() < o.wrong and #nodes >= 4 then
+		for k = 2, math.min(#nodes - 1, 7) do
+			local adj = dec.adj[nodes[k]]
+			if adj and #adj >= 6 then -- 3+ neighbours (pairs of node, edge)
+				local options = {}
+				for j = 1, #adj, 2 do
+					local nb = adj[j]
+					if nb ~= nodes[k - 1] and nb ~= nodes[k + 1] then
+						table.insert(options, nb)
+					end
+				end
+				if #options > 0 then
+					local wrongNode = options[rng:NextInteger(1, #options)]
+					-- go 1-2 nodes down the wrong branch
+					local far = wrongNode
+					local adj2 = dec.adj[wrongNode]
+					if adj2 and #adj2 >= 2 and rnd() < 0.6 then
+						local nb2 = adj2[1]
+						if nb2 ~= nodes[k] then
+							far = nb2
+						end
+					end
+					local okR2, back = pcall(Nav.route, far, b, false)
+					if okR2 and type(back) == "table" and #back > 0 then
+						local out = {}
+						for i = 1, k do
+							table.insert(out, nodes[i])
+						end
+						table.insert(out, wrongNode)
+						if far ~= wrongNode then
+							table.insert(out, far)
+						end
+						for i = 1, #back do
+							table.insert(out, back[i])
+						end
+						nodes = out
+						o.wrongAt = (k + (if far ~= wrongNode then 2 else 1))
+					end
+					break
+				end
+			end
+		end
+	end
+	local pts = { from }
+	for _, n in nodes do
+		table.insert(pts, nodePos(n))
+	end
+	if flat(pts[#pts], to) > 1.5 and flat(pts[#pts], to) < 30 then
+		table.insert(pts, to)
+	end
+	return pts, nodes
+end
+
+local function ringNode(center: Vector3, rMin: number, rMax: number, awayFrom: Vector3?): Vector3?
+	if not loadNav() then
+		return nil
+	end
+	for _ = 1, 14 do
+		local a = rnd() * math.pi * 2
+		local r = rMin + rnd() * (rMax - rMin)
+		local p = center + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+		local ok, n = pcall(Nav.nearest, p, 30)
+		if ok and n then
+			local q = nodePos(n)
+			if flat(q, center) >= rMin * 0.6 and (not awayFrom or flat(q, awayFrom) > 30) then
+				return q
+			end
+		end
+	end
+	return nil
+end
+
+-- a spawn spot rMin..rMax from `center`, on the nav graph, out of every player's sight
+local function hiddenSpot(center: Vector3, rMin: number, rMax: number): Vector3?
+	local best: Vector3? = nil
+	for _ = 1, 10 do
+		local q = ringNode(center, rMin, rMax, nil)
+		if q then
+			local seen = false
+			for _, p in Players:GetPlayers() do
+				local pp = Law.posOf(p)
+				if pp and flat(pp, q) < 160 and (flat(pp, q) < 35 or losClear(pp + Vector3.new(0, 4, 0), q + Vector3.new(0, 4, 0))) then
+					seen = true
+					break
+				end
+			end
+			if not seen then
+				return q
+			end
+			best = best or q
+		end
+	end
+	return best
+end
+
+-------------------------------------------------------------------------------------------------
+-- Officers (rigs + analytic motion)
+-------------------------------------------------------------------------------------------------
+local NAMES = { "김 순경", "이 경장", "박 순경", "최 경사", "정 순경", "강 경장", "조 순경", "윤 경사", "장 순경", "임 경위", "한 순경", "오 경장" }
+
+local function polyLen(pts: { Vector3 }): { number }
+	local cum = { 0 }
+	for i = 2, #pts do
+		cum[i] = cum[i - 1] + (pts[i] - pts[i - 1]).Magnitude
+	end
+	return cum
+end
+
+local function legPos(o: any, t: number): (Vector3, Vector3?)
+	local pts = o.path
+	if not pts or #pts == 0 then
+		return o.pos, nil
+	end
+	if #pts == 1 or o.speed <= 0 then
+		return pts[#pts], nil
+	end
+	local dist = math.max(0, (t - o.t0) * o.speed)
+	local cum = o.cum
+	local total = cum[#cum]
+	if dist >= total then
+		return pts[#pts], (pts[#pts] - pts[#pts - 1])
+	end
+	local lo = 1
+	for i = 2, #cum do
+		if cum[i] >= dist then
+			lo = i - 1
+			break
+		end
+	end
+	local seg = cum[lo + 1] - cum[lo]
+	local u = if seg > 1e-4 then (dist - cum[lo]) / seg else 1
+	return pts[lo]:Lerp(pts[lo + 1], u), (pts[lo + 1] - pts[lo])
+end
+
+local function writeLeg(o: any)
+	local m = o.model
+	if not m or not m.Parent then
+		return
+	end
+	local pts = o.path
+	if not pts or #pts < 2 or o.speed <= 0 then
+		local p = o.pos
+		m:SetAttribute("NpcLeg", string.format("%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,0", p.X, p.Y, p.Z, p.X, p.Y, p.Z, serverNow()))
+		return
+	end
+	local parts = table.create(#pts + 3)
+	parts[1] = "P"
+	parts[2] = string.format("%.2f", o.t0Server)
+	parts[3] = string.format("%.2f", o.speed)
+	for i, p in pts do
+		parts[i + 3] = string.format("%.1f,%.1f,%.1f", p.X, p.Y, p.Z)
+	end
+	m:SetAttribute("NpcLeg", table.concat(parts, ";"))
+end
+
+local function setAct(o: any, act: string)
+	if o.act ~= act and o.model then
+		o.act = act
+		o.model:SetAttribute("NpcAct", act)
+	end
+end
+
+local function faceTo(o: any, p: Vector3)
+	local d = p - o.pos
+	if Vector3.new(d.X, 0, d.Z).Magnitude > 0.2 then
+		local yaw = math.deg(math.atan2(-d.X, -d.Z))
+		o.yaw = yaw
+		if o.model then
+			o.model:SetAttribute("NpcYaw", yaw)
+		end
+	end
+end
+
+local function standAt(o: any, p: Vector3?)
+	o.pos = p or o.pos
+	o.path = nil
+	o.speed = 0
+	o.cum = nil
+	writeLeg(o)
+	setAct(o, o.idleAct or "idle")
+	if o.root then
+		o.root.CFrame = CFrame.new(o.pos + Vector3.new(0, o.ground, 0)) * CFrame.Angles(0, math.rad(o.yaw or 0), 0)
+	end
+end
+
+local function moveAlong(o: any, pts: { Vector3 }, speed: number)
+	if #pts < 2 then
+		standAt(o, pts[1])
+		return
+	end
+	o.path = pts
+	o.cum = polyLen(pts)
+	o.speed = speed
+	o.t0 = now()
+	o.t0Server = serverNow()
+	o.pos = pts[1]
+	writeLeg(o)
+	setAct(o, "idle") -- the client walks / runs the rig by the leg speed
+	if o.root then
+		o.root.CFrame = CFrame.new(pts[1] + Vector3.new(0, o.ground, 0))
+	end
+end
+
+local function arrived(o: any): boolean
+	if not o.path then
+		return true
+	end
+	return (now() - o.t0) * o.speed >= o.cum[#o.cum] - 0.05
+end
+
+-- speech bubble over the head (Workspace BillboardGui: every client renders it)
+local function say(o: any, text: string, seconds: number?)
+	if text == "" or not o.model or not o.model.Parent then
+		return
+	end
+	if text == o.lastLine and now() - (o.lastSayT or 0) < 12 then
+		return
+	end
+	o.lastLine = text
+	o.lastSayT = now()
+	local head = o.model:FindFirstChild("Head")
+	if not head then
+		return
+	end
+	local bb = o.bubble
+	if not bb or not bb.Parent then
+		bb = Instance.new("BillboardGui")
+		bb.Name = "LawSay"
+		bb.Size = UDim2.fromOffset(240, 46)
+		bb.StudsOffset = Vector3.new(0, 2.4, 0)
+		bb.AlwaysOnTop = true
+		bb.MaxDistance = 90
+		bb.LightInfluence = 0
+		local t = Instance.new("TextLabel")
+		t.Name = "Text"
+		t.Size = UDim2.fromScale(1, 1)
+		t.BackgroundColor3 = Color3.fromRGB(18, 28, 60)
+		t.BackgroundTransparency = 0.12
+		t.TextColor3 = Color3.fromRGB(235, 242, 255)
+		t.Font = Enum.Font.GothamBold
+		t.TextScaled = true
+		t.TextWrapped = true
+		local c = Instance.new("UICorner")
+		c.CornerRadius = UDim.new(0, 10)
+		c.Parent = t
+		local pad = Instance.new("UIPadding")
+		pad.PaddingLeft = UDim.new(0, 8)
+		pad.PaddingRight = UDim.new(0, 8)
+		pad.PaddingTop = UDim.new(0, 4)
+		pad.PaddingBottom = UDim.new(0, 4)
+		pad.Parent = t
+		local lim = Instance.new("UITextSizeConstraint")
+		lim.MaxTextSize = 18
+		lim.Parent = t
+		t.Parent = bb
+		bb.Adornee = head
+		bb.Parent = o.model
+		o.bubble = bb
+	end
+	local label = bb:FindFirstChild("Text") :: TextLabel
+	label.Text = "👮 " .. text
+	bb.Enabled = true
+	local stamp = now()
+	o.bubbleT = stamp
+	task.delay(seconds or 3.2, function()
+		if o.bubbleT == stamp and bb.Parent then
+			bb.Enabled = false
+		end
+	end)
+end
+Police.say = say
+
+local function emote(o: any, name: string)
+	if o.model then
+		seq += 1
+		o.model:SetAttribute("NpcEmote", name .. "#" .. seq .. "#" .. string.format("%.2f", serverNow()))
+	end
+end
+
+local function buildRig(id: string, hint: any?): (Model?, BasePart?, number)
+	if not Looks then
+		return nil, nil, 3
+	end
+	local ok, rig = pcall(function()
+		local spec = Looks.random(id, hint or { style = "police", body = if rnd() < 0.22 then "f" else "m", age = if rnd() < 0.7 then "adult" else "young" })
+		return Looks.build(spec, { name = (if hint then "Npc_" else "Police_") .. id, anchored = true, shadow = false })
+	end)
+	if not ok or type(rig) ~= "table" or not rig.model then
+		warn("[GwangalliLaw] rig failed: " .. tostring(rig))
+		return nil, nil, 3
+	end
+	-- police cap (a dark navy block with a gold badge) so officers read at a glance
+	local head = rig.parts and rig.parts.Head
+	if head and not hint then
+		local s = head.Size.X
+		local cap = Instance.new("Part")
+		cap.Name = "PoliceCap"
+		cap.Size = Vector3.new(s * 1.08, s * 0.32, s * 1.12)
+		cap.Color = Color3.fromRGB(24, 34, 70)
+		cap.Material = Enum.Material.SmoothPlastic
+		cap.CanCollide, cap.CanQuery, cap.CanTouch, cap.Massless, cap.CastShadow = false, false, false, true, false
+		cap.Anchored = false
+		cap.CFrame = head.CFrame * CFrame.new(0, s * 0.56, 0)
+		local brim = Instance.new("Part")
+		brim.Name = "PoliceBrim"
+		brim.Size = Vector3.new(s * 1.1, s * 0.08, s * 0.4)
+		brim.Color = Color3.fromRGB(14, 18, 34)
+		brim.CanCollide, brim.CanQuery, brim.CanTouch, brim.Massless, brim.CastShadow = false, false, false, true, false
+		brim.CFrame = head.CFrame * CFrame.new(0, s * 0.42, -s * 0.66)
+		local badge = Instance.new("Part")
+		badge.Name = "PoliceBadge"
+		badge.Size = Vector3.new(s * 0.24, s * 0.2, s * 0.06)
+		badge.Color = Color3.fromRGB(240, 196, 60)
+		badge.Material = Enum.Material.Neon
+		badge.CanCollide, badge.CanQuery, badge.CanTouch, badge.Massless, badge.CastShadow = false, false, false, true, false
+		badge.CFrame = head.CFrame * CFrame.new(0, s * 0.58, -s * 0.57)
+		for _, p in { cap, brim, badge } do
+			local w = Instance.new("WeldConstraint")
+			w.Part0 = head
+			w.Part1 = p
+			w.Parent = p
+			p.Parent = rig.model
+		end
+	end
+	return rig.model, rig.root, rig.ground or 3
+end
+
+local function newOfficer(at: Vector3, role: string, case: any?): any?
+	if #officers >= LS.MAX_OFFICERS then
+		return nil
+	end
+	seq += 1
+	local id = "police_" .. seq
+	local model, root, ground = buildRig(id)
+	if not model or not root then
+		return nil
+	end
+	local name = NAMES[(seq - 1) % #NAMES + 1]
+	local o = {
+		id = id,
+		name = name,
+		model = model,
+		root = root,
+		ground = ground,
+		pos = at,
+		yaw = 0,
+		path = nil,
+		speed = 0,
+		cum = nil,
+		t0 = now(),
+		t0Server = serverNow(),
+		role = role, -- "case" | "patrol" | "post" | "crew"
+		case = case,
+		state = "idle",
+		act = "",
+		nextThink = 0,
+		nextSight = 0,
+		nextRepath = 0,
+		pauseUntil = 0,
+		glimpse = nil,
+		seeing = false,
+		lastSeenPos = nil,
+		goalT = -1e9,
+		searchLeft = 0,
+		grabAt = 0,
+		burstUntil = 0,
+		burstReady = 0,
+		stopIssued = false,
+		created = now(),
+		incident = nil,
+	}
+	model:SetAttribute("NpcId", id)
+	model:SetAttribute("NpcKind", "police")
+	model:SetAttribute("NpcGround", ground)
+	model:SetAttribute("NpcAct", "idle")
+	model:SetAttribute("NpcYaw", 0)
+	model:SetAttribute("NpcLook", 0)
+	model:SetAttribute("NpcTalk", 0)
+	model:SetAttribute("LawOfficer", true)
+	model:SetAttribute("LawName", name)
+	root.CFrame = CFrame.new(at + Vector3.new(0, ground, 0))
+	writeLeg(o)
+	model.Parent = npcFolder
+	table.insert(officers, o)
+	return o
+end
+
+-- a non-police actor with the same motion contract (Law/City suspects / victims); not in `officers`
+local function newActor(at: Vector3, id: string, hint: any, kind: string): any?
+	local model, root, ground = buildRig(id, hint)
+	if not model or not root then
+		return nil
+	end
+	local o = { id = id, name = "", model = model, root = root, ground = ground, pos = at, yaw = 0, path = nil, speed = 0, cum = nil, t0 = now(), t0Server = serverNow(), act = "", role = kind }
+	model:SetAttribute("NpcId", id)
+	model:SetAttribute("NpcKind", kind)
+	model:SetAttribute("NpcGround", ground)
+	model:SetAttribute("NpcAct", "idle")
+	model:SetAttribute("NpcYaw", 0)
+	root.CFrame = CFrame.new(at + Vector3.new(0, ground, 0))
+	writeLeg(o)
+	model.Parent = npcFolder
+	return o
+end
+Police.newActor = newActor
+Police.moveAlong = moveAlong
+Police.setAct = setAct
+
+function Police.removeActor(o: any)
+	o.gone = true
+	if o.model then
+		o.model:Destroy()
+		o.model = nil
+	end
+end
+
+local function removeOfficer(o: any)
+	o.gone = true
+	if o.model then
+		o.model:Destroy()
+		o.model = nil
+	end
+	local i = table.find(officers, o)
+	if i then
+		table.remove(officers, i)
+	end
+	if o.case then
+		local j = table.find(o.case.units, o)
+		if j then
+			table.remove(o.case.units, j)
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- Patrol cars
+-------------------------------------------------------------------------------------------------
+local function findTemplate(): Model?
+	if carTemplate then
+		return carTemplate
+	end
+	local map = workspace:FindFirstChild("Gwangalli")
+	local roads = map and map:FindFirstChild("roads")
+	local parked = roads and roads:FindFirstChild("ParkedVehicles")
+	local src = parked and parked:FindFirstChild("Car_Police")
+
+	if not src then
+		return nil
+	end
+	local ok, clone = pcall(function()
+		return (src :: Model):Clone()
+	end)
+	if not ok or not clone then
+		return nil
+	end
+	for _, d in clone:GetDescendants() do
+		if d:IsA("ProximityPrompt") or d:IsA("Script") or d:IsA("LocalScript") or d:IsA("Sound") or d:IsA("Weld") or d:IsA("WeldConstraint") or d:IsA("Motor6D") then
+			d:Destroy()
+		elseif d:IsA("Seat") or d:IsA("VehicleSeat") then
+			pcall(function()
+				(d :: any).Disabled = true
+			end)
+		end
+	end
+	local okP, pv = pcall(function()
+		return (src :: Model):GetPivot()
+	end)
+	if okP then
+		local gy = groundAt(pv.Position - Vector3.new(0, 1, 0), pv.Position.Y - 2.4)
+		carOffsetY = math.clamp(pv.Position.Y - gy, 0.5, 5)
+	end
+	local root = Instance.new("Part")
+	root.Name = "CarRoot"
+	root.Size = Vector3.new(1, 1, 1)
+	root.Transparency = 1
+	root.Anchored = true
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.CFrame = clone:GetPivot()
+	root.Parent = clone
+	-- welded to the anchored root with fixed offsets (like the taxi): moving root.CFrame moves the car
+	for _, d in clone:GetDescendants() do
+		if d:IsA("BasePart") and d ~= root then
+			local w = Instance.new("Weld")
+			w.Name = "LawWeld"
+			w.Part0 = root
+			w.Part1 = d
+			w.C0 = root.CFrame:ToObjectSpace(d.CFrame)
+			w.C1 = CFrame.new()
+			w.Parent = d
+			d.Anchored = false
+			d.CanTouch = false
+			d.CanQuery = false
+			d.Massless = true
+		end
+		for _, tag in CollectionService:GetTags(d) do
+			CollectionService:RemoveTag(d, tag)
+		end
+	end
+	for _, tag in CollectionService:GetTags(clone) do
+		CollectionService:RemoveTag(clone, tag)
+	end
+	clone.PrimaryPart = root
+	clone:SetAttribute("VehicleKind", nil)
+	clone:SetAttribute("NoDrive", true)
+	carTemplate = clone
+	return clone
+end
+
+local function lightBar(car: Model)
+	local okB, cf, size = pcall(function()
+		return car:GetBoundingBox()
+	end)
+	local at = if okB then cf * CFrame.new(0, size.Y * 0.5 + 0.18, 0) else car:GetPivot() * CFrame.new(0, 2.5, 0)
+	local root = car.PrimaryPart
+	for _, spec in { { "LawLightR", { 255, 40, 50 }, -0.75 }, { "LawLightB", { 40, 90, 255 }, 0.75 } } do
+		local p = Instance.new("Part")
+		p.Name = spec[1]
+		p.Size = Vector3.new(1.3, 0.35, 0.6)
+		p.Material = Enum.Material.Neon
+		p.Color = Color3.fromRGB(spec[2][1], spec[2][2], spec[2][3])
+		p.CanCollide, p.CanQuery, p.CanTouch, p.CastShadow, p.Massless = false, false, false, false, true
+		p.Anchored = root == nil
+		p.CFrame = at * CFrame.new(spec[3], 0, 0)
+		local l = Instance.new("PointLight")
+		l.Color = p.Color
+		l.Range = 18
+		l.Brightness = 3
+		l.Parent = p
+		if root then
+			local w = Instance.new("Weld")
+			w.Part0 = root
+			w.Part1 = p
+			w.C0 = root.CFrame:ToObjectSpace(p.CFrame)
+			w.C1 = CFrame.new()
+			w.Parent = p
+		end
+		p.Parent = car
+	end
+end
+
+local function carHeights(q: Vector3): number?
+	return groundAt(Vector3.new(q.X, 9, q.Z), 6) + carOffsetY
+end
+
+local function setCarPath(c: any, path: any)
+	c.path = path
+	c.t0 = now()
+	c.done = false
+	c.model:SetAttribute("LawCarMoving", true)
+end
+
+local function carPos(c: any): (Vector3, Vector3)
+	if c.path and not c.done then
+		local t = math.min(now() - c.t0, c.path.total)
+		return D.sample(c.path.pts, c.path.times, t)
+	end
+	local cf = c.model:GetPivot()
+	return cf.Position, cf.LookVector
+end
+
+-- lanes from the car's spot (or `from` Loc) to the kerb nearest `pos`
+local function carRoute(c: any?, pos: Vector3, opts: any?): any?
+	if not D or not graph then
+		return nil
+	end
+	local o = opts or {}
+	local okL, toLoc = pcall(D.nearestLocation, graph, pos, { maxDist = 90, side = pos, kerbOnly = o.kerb ~= false })
+	if not okL or not toLoc then
+		okL, toLoc = pcall(D.nearestLocation, graph, pos, { maxDist = 150 })
+	end
+	if not okL or not toLoc then
+		return nil
+	end
+	local pts
+	if c then
+		local cp = carPos(c)
+		local okF, fromLoc = pcall(D.nearestLocation, graph, cp, { maxDist = 60 })
+		if okF and fromLoc then
+			local okR, rp = pcall(D.route, graph, fromLoc, toLoc)
+			if okR and rp and #rp >= 2 then
+				pts = rp
+				table.insert(pts, 1, cp)
+			end
+		end
+	else
+		local okA, ap = pcall(D.approach, graph, toLoc, LS.CAR_SPAWN[1] + rnd() * (LS.CAR_SPAWN[2] - LS.CAR_SPAWN[1]), 140)
+		if okA and ap and #ap >= 2 then
+			pts = ap
+		end
+	end
+	if not pts then
+		return nil
+	end
+	local okP, path = pcall(D.buildPath, pts, { cruise = (o.cruise or 40), v0 = o.v0 or 26, v1 = o.v1 or 0, pullOver = if o.kerb ~= false then { offset = 2.2, len = 24 } else nil, heights = carHeights })
+	return if okP then path else nil
+end
+
+local function newCar(case: any?, pos: Vector3, role: string): any?
+	if #cars >= LS.MAX_CARS or not loadNav() or not D or not graph then
+		return nil
+	end
+	local tpl = findTemplate()
+	if not tpl then
+		return nil
+	end
+	local path = carRoute(nil, pos, { cruise = 44 * (if case then LS.TIERS[math.max(1, case.stars)].carSpeed else 0.8), v0 = 30 })
+	if not path then
+		return nil
+	end
+	seq += 1
+	local car = tpl:Clone()
+	car.Name = "LawPatrolCar_" .. seq
+	car:SetAttribute("LawCar", true)
+	car:SetAttribute("LawSiren", case ~= nil)
+	car:SetAttribute("LawUnit", "광안" .. (10 + seq % 80))
+	local p0, d0 = D.sample(path.pts, path.times, 0)
+	;(car.PrimaryPart :: BasePart).CFrame = D.cframe(p0, d0)
+	lightBar(car)
+	local host = car.PrimaryPart
+	if host and case then
+		local snd = Instance.new("Sound")
+		snd.Name = "LawSiren"
+		snd.SoundId = "rbxassetid://5736468541"
+		snd.Looped = true
+		snd.Volume = 0.5
+		snd.RollOffMaxDistance = 260
+		snd.RollOffMinDistance = 18
+		snd.Parent = host
+		pcall(function()
+			snd:Play()
+		end)
+	end
+	car.Parent = carsFolder
+	local c = { id = "car_" .. seq, model = car, path = nil, t0 = now(), done = false, case = case, role = role, state = "respond", crew = {}, nextPlan = now() + 2.5, nextSight = 0, glimpse = nil, slowT = 0, created = now(), dismounted = false }
+	setCarPath(c, path)
+	table.insert(cars, c)
+	if case then
+		table.insert(case.cars, c)
+	end
+	return c
+end
+
+local function removeCar(c: any)
+	c.gone = true
+	for _, o in c.crew do
+		if not o.gone and o.state ~= "chase" then
+			removeOfficer(o)
+		end
+	end
+	if c.model then
+		c.model:Destroy()
+	end
+	local i = table.find(cars, c)
+	if i then
+		table.remove(cars, i)
+	end
+	if c.case then
+		local j = table.find(c.case.cars, c)
+		if j then
+			table.remove(c.case.cars, j)
+		end
+	end
+end
+
+local function carLeave(c: any)
+	c.state = "leave"
+	c.model:SetAttribute("LawSiren", false)
+	local s = c.model:FindFirstChild("LawSiren", true)
+	if s and s:IsA("Sound") then
+		pcall(function()
+			s:Stop()
+		end)
+	end
+	local cp = carPos(c)
+	local okL, loc = pcall(D.nearestLocation, graph, cp, { maxDist = 60 })
+	if okL and loc then
+		local okF, pts = pcall(D.forward, graph, loc, 260)
+		if okF and pts and #pts >= 2 then
+			local okP, path = pcall(D.buildPath, pts, { cruise = 34, v0 = 0, v1 = 30, pullOut = { offset = 2.2, len = 22 }, heights = carHeights })
+			if okP and path then
+				setCarPath(c, path)
+				c.leaveAt = now() + path.total
+				return
+			end
+		end
+	end
+	removeCar(c)
+end
+
+-------------------------------------------------------------------------------------------------
+-- Cases
+-------------------------------------------------------------------------------------------------
+local function caseOf(player: Player, create: boolean): any?
+	local c = cases[player]
+	if not c and create then
+		c = { player = player, units = {}, cars = {}, stars = 0, created = now(), knownPos = nil, knownT = -1e9, lastReinforce = now(), lastBlock = 0, stopBy = nil }
+		cases[player] = c
+	end
+	return c
+end
+
+local function tierOf(case: any): any
+	return LS.TIERS[math.clamp(case.stars, 1, 5)]
+end
+
+local function suspectInCar(player: Player): boolean
+	local ch = player.Character
+	local h = ch and ch:FindFirstChildOfClass("Humanoid")
+	return h ~= nil and h.SeatPart ~= nil
+end
+
+-- the suspect's speed (studs/s), tracked per tick
+local speeds: { [Player]: { p: Vector3, t: number, v: number } } = {}
+local function suspectSpeed(player: Player): number
+	local r = speeds[player]
+	return r and r.v or 0
+end
+
+local function trackSpeeds()
+	for _, p in Players:GetPlayers() do
+		local pos = Law.posOf(p)
+		if pos then
+			local r = speeds[p]
+			if r then
+				local dt = now() - r.t
+				if dt > 0.05 then
+					local v = flat(pos, r.p) / dt
+					r.v = r.v * 0.4 + v * 0.6
+					r.p, r.t = pos, now()
+				end
+			else
+				speeds[p] = { p = pos, t = now(), v = 0 }
+			end
+		end
+	end
+end
+
+local function assignGoal(o: any, pos: Vector3, speed: number, wrong: number?)
+	local pts = routePts(o.pos, pos, { wrong = wrong })
+	if pts then
+		moveAlong(o, pts, speed)
+	else
+		moveAlong(o, { o.pos, pos }, speed)
+	end
+	o.goal = pos
+end
+
+local function spawnFootUnits(case: any, n: number)
+	local t = tierOf(case)
+	for _ = 1, n do
+		local at = hiddenSpot(case.knownPos, LS.SPAWN_RING[1], LS.SPAWN_RING[2])
+		if not at then
+			return
+		end
+		local o = newOfficer(at, "case", case)
+		if not o then
+			return
+		end
+		table.insert(case.units, o)
+		o.state = "respond"
+		o.goalT = case.knownT
+		assignGoal(o, case.knownPos, 12.5 + case.stars * 0.6, t.wrongTurn)
+	end
+end
+
+local function spawnCars(case: any, n: number)
+	for _ = 1, n do
+		local c = newCar(case, case.knownPos, "case")
+		if not c then
+			return
+		end
+	end
+end
+
+-- bring the case's units up to the tier's numbers
+local function staff(case: any)
+	if not case.knownPos then
+		return
+	end
+	local t = tierOf(case)
+	local foot = 0
+	for _, o in case.units do
+		if not o.gone and o.state ~= "leave" and o.role == "case" then
+			foot += 1
+		end
+	end
+	local carsN = 0
+	for _, c in case.cars do
+		if not c.gone and c.state ~= "leave" and c.role == "case" then
+			carsN += 1
+		end
+	end
+	-- an idle patrol officer nearby joins first (the radio call)
+	if foot < t.foot then
+		for _, o in officers do
+			if foot >= t.foot then
+				break
+			end
+			if o.role == "patrol" and not o.gone and flat(o.pos, case.knownPos) < 170 then
+				o.role = "case"
+				o.case = case
+				o.state = "respond"
+				o.goalT = case.knownT
+				table.insert(case.units, o)
+				say(o, "무전 받았다, 출동한다!")
+				assignGoal(o, case.knownPos, 12.5 + case.stars * 0.6, t.wrongTurn)
+				foot += 1
+			end
+		end
+	end
+	if foot < t.foot then
+		spawnFootUnits(case, t.foot - foot)
+	end
+	if carsN < t.cars then
+		spawnCars(case, t.cars - carsN)
+	end
+end
+
+function Police.dispatch(player: Player, s: any, pos: Vector3?, kind: string?, by: string?)
+	if not loadNav() then
+		return
+	end
+	local case = caseOf(player, true)
+	case.stars = s.stars
+	case.knownPos = pos or s.knownPos or Law.posOf(player)
+	case.knownT = now()
+	case.kind = kind
+	case.searchCenter = case.knownPos
+	-- the dispatch line on the player's screen
+	local area = Law.areaName(case.knownPos)
+	local def = kind and LS.CRIMES[kind]
+	Law.push(player, { kind = "radio", text = LS.fill(pick(LS.LINES.dispatch), { area = area, crime = def and def.label or "사건" }) })
+	-- the units already on the case re-target after a short radio delay (1-2.5 s)
+	for _, o in case.units do
+		if not o.gone and o.state ~= "chase" and o.state ~= "stop" then
+			o.radioAt = now() + 1 + rnd() * 1.5
+		end
+	end
+	staff(case)
+end
+
+function Police.retier(player: Player, s: any, before: number, after: number)
+	local case = caseOf(player, false)
+	if not case then
+		return
+	end
+	case.stars = after
+	if after <= 0 then
+		Police.standDown(player, s, "lost")
+		return
+	end
+	if after > before then
+		staff(case)
+	end
+end
+
+function Police.standDown(player: Player, s: any, why: string)
+	local case = cases[player]
+	if not case then
+		return
+	end
+	cases[player] = nil
+	for _, o in table.clone(case.units) do
+		if not o.gone then
+			o.case = nil
+			o.state = "leave"
+			o.leaveAt = now() + 25
+			if why == "lost" then
+				say(o, pick(LS.LINES.give_up))
+			end
+			local away = ringNode(o.pos, 40, 80, Law.posOf(player))
+			if away then
+				assignGoal(o, away, 7.5, nil)
+			end
+		end
+	end
+	for _, c in table.clone(case.cars) do
+		if not c.gone then
+			c.case = nil
+			if why ~= "arrest" then
+				carLeave(c)
+			else
+				c.state = "hold" -- the arrest scene may use it for the transfer (Jail)
+				c.holdUntil = now() + 20
+			end
+		end
+	end
+	for _, b in table.clone(blocks) do
+		if b.case == case then
+			b.expire = now() + 4
+		end
+	end
+	if player.Parent then
+		player:SetAttribute(LS.Attr.Chase, false)
+	end
+end
+
+function Police.hunting(player: Player): boolean
+	local case = cases[player]
+	if not case then
+		return false
+	end
+	for _, o in case.units do
+		if not o.gone and o.state ~= "leave" then
+			return true
+		end
+	end
+	for _, c in case.cars do
+		if not c.gone and c.state ~= "leave" then
+			return true
+		end
+	end
+	return false
+end
+
+function Police.sees(player: Player): boolean
+	local pp = Law.posOf(player)
+	if not pp then
+		return false
+	end
+	for _, o in officers do
+		if not o.gone and flat(o.pos, pp) < 45 and losClear(o.pos + Vector3.new(0, 4.6, 0), pp + Vector3.new(0, 1.5, 0)) then
+			return true
+		end
+	end
+	return false
+end
+
+-- the nearest live officer (for the arrest scene / transport)
+function Police.nearestOfficer(pos: Vector3, maxDist: number): any?
+	local best, bd = nil, maxDist
+	for _, o in officers do
+		if not o.gone then
+			local d = flat(o.pos, pos)
+			if d < bd then
+				best, bd = o, d
+			end
+		end
+	end
+	return best
+end
+
+function Police.nearestCar(pos: Vector3, maxDist: number): any?
+	local best, bd = nil, maxDist
+	for _, c in cars do
+		if not c.gone and c.model and c.model.Parent then
+			local d = flat(carPos(c), pos)
+			if d < bd then
+				best, bd = c, d
+			end
+		end
+	end
+	return best
+end
+
+function Police.carModel(c: any): Model?
+	return c and c.model or nil
+end
+
+function Police.releaseCar(c: any)
+	if c and not c.gone then
+		carLeave(c)
+	end
+end
+
+function Police.surrender(player: Player, s: any)
+	local pp = Law.posOf(player)
+	if not pp then
+		return
+	end
+	local o = Police.nearestOfficer(pp, 40)
+	if o and o.case and o.case.player == player then
+		o.state = "cuffwalk"
+		say(o, "좋아요, 손 그대로 두세요.")
+		assignGoal(o, pp, 9, nil)
+	elseif o then
+		o.role = "case"
+		local case = caseOf(player, true)
+		o.case = case
+		table.insert(case.units, o)
+		o.state = "cuffwalk"
+		assignGoal(o, pp, 9, nil)
+	else
+		Law.push(player, { kind = "toast", text = "근처에 경찰이 없어요. 광안지구대에서 자수할 수도 있어요." })
+	end
+end
+
+function Police.stopAnswer(player: Player, s: any, choice: any): any
+	local case = cases[player]
+	local o = case and case.stopBy
+	if not o or o.gone or o.state ~= "stop" then
+		return { ok = false, err = "nostop" }
+	end
+	local pp = Law.posOf(player)
+	if not pp or flat(pp, o.pos) > 16 then
+		return { ok = false, err = "far" }
+	end
+	case.stopBy = nil
+	if choice == "comply" then
+		if Law.ticketable(player) then
+			say(o, pick(LS.LINES.ticket))
+			emote(o, "nod")
+			Law.ticket(player, o.name)
+			o.state = "leave"
+			o.leaveAt = now() + 20
+			return { ok = true, result = "ticket" }
+		end
+		say(o, pick(LS.LINES.grab))
+		Law.arrest(player, { by = "npc", officer = o, surrender = true })
+		return { ok = true, result = "arrest" }
+	elseif choice == "excuse" then
+		-- talking your way out: a small chance at 1 star (never twice in a row), else a ticket
+		if Law.ticketable(player) and rnd() < 0.3 and not case.excused then
+			case.excused = true
+			say(o, "흠… 이번만 봐드립니다. 조심하세요.")
+			Law.setStars(player, 0, "경찰이 이번엔 봐줬어요")
+			return { ok = true, result = "let_go" }
+		end
+		say(o, "변명은 됐고요.")
+		if Law.ticketable(player) then
+			Law.ticket(player, o.name)
+			return { ok = true, result = "ticket" }
+		end
+		Law.arrest(player, { by = "npc", officer = o })
+		return { ok = true, result = "arrest" }
+	end
+	-- flee
+	o.state = "chase"
+	o.stopIssued = true
+	say(o, pick(LS.LINES.chase))
+	Law.crime(player, "flee", { police = true, pos = pp })
+	return { ok = true, result = "flee" }
+end
+
+-------------------------------------------------------------------------------------------------
+-- Officer brain
+-------------------------------------------------------------------------------------------------
+local function facingOf(o: any): Vector3
+	local _, dir = legPos(o, now())
+	if dir and Vector3.new(dir.X, 0, dir.Z).Magnitude > 0.1 then
+		return Vector3.new(dir.X, 0, dir.Z).Unit
+	end
+	local yaw = math.rad(o.yaw or 0)
+	return Vector3.new(-math.sin(yaw), 0, -math.cos(yaw))
+end
+
+-- can officer `o` see `player` (range, cone, line of sight)
+local function canSee(o: any, player: Player, t: any): (boolean, Vector3?, number)
+	local root = Law.rootOf(player)
+	if not root then
+		return false, nil, math.huge
+	end
+	local pp = root.Position
+	local d = flat(o.pos, pp)
+	local range = t.sight * (if Law.isNight() then 0.85 else 1)
+	if d > range then
+		return false, pp, d
+	end
+	if d > 7 then
+		local f = facingOf(o)
+		local to = Vector3.new(pp.X - o.pos.X, 0, pp.Z - o.pos.Z)
+		if to.Magnitude > 0.1 then
+			local cosA = f:Dot(to.Unit)
+			if cosA < math.cos(math.rad(t.fov * 0.5)) then
+				return false, pp, d
+			end
+		end
+	end
+	local eye = o.pos + Vector3.new(0, 4.6, 0)
+	if not losClear(eye, pp + Vector3.new(0, 1.2, 0)) then
+		return false, pp, d
+	end
+	return true, pp, d
+end
+
+local function chaseSpeed(o: any, case: any, d: number): number
+	local t = tierOf(case)
+	local sv = suspectSpeed(case.player)
+	local f = ({ 0.86, 0.9, 0.94, 0.98, 1.02 })[math.clamp(case.stars, 1, 5)]
+	local v = math.clamp(sv * f, t.run, 28)
+	if d < 18 and now() >= o.burstReady then
+		o.burstUntil = now() + t.burst
+		o.burstReady = now() + 6
+	end
+	if now() < o.burstUntil then
+		v += 3.5
+	end
+	return v
+end
+
+local function thinkCase(o: any, case: any)
+	local player = case.player
+	if not player.Parent then
+		o.state = "leave"
+		return
+	end
+	local s = Law.sess(player)
+	if not s or s.stars <= 0 or s.cuffed or s.jail then
+		o.state = "leave"
+		return
+	end
+	local t = tierOf(case)
+	-- hesitation (an obstacle / the stairs / out of breath)
+	if now() < o.pauseUntil then
+		return
+	end
+	-- sight
+	local seeing, pp, d = false, nil, math.huge
+	if now() >= o.nextSight then
+		o.nextSight = now() + 0.35
+		local ok, p, dist = canSee(o, player, t)
+		pp, d = p, dist
+		if ok then
+			o.glimpse = o.glimpse or now()
+			if now() - o.glimpse >= t.react or dist < 9 then
+				seeing = true
+			end
+		else
+			o.glimpse = nil
+		end
+		o.seeing = seeing
+	else
+		seeing = o.seeing
+		pp = Law.posOf(player)
+		d = pp and flat(o.pos, pp) or math.huge
+	end
+	if seeing and pp then
+		local was = o.state
+		o.lastSeenPos = pp
+		o.lastSeenT = now()
+		Law.seen(player, pp, o.name)
+		case.knownPos = pp
+		case.knownT = now()
+		if was ~= "chase" and was ~= "stop" and was ~= "cuffwalk" then
+			o.state = "chase"
+			say(o, pick(LS.LINES.spot))
+			emote(o, "point_proc")
+			o.nextRepath = 0
+		end
+	end
+	-- radio: a newer sighting by another unit
+	if not seeing and o.radioAt and now() >= o.radioAt then
+		o.radioAt = nil
+		if case.knownT > o.goalT and case.knownPos then
+			o.goalT = case.knownT
+			o.state = "respond"
+			assignGoal(o, case.knownPos, 12.5 + case.stars * 0.6, t.wrongTurn)
+		end
+	end
+	if o.state == "cuffwalk" then
+		-- walking up to a surrendering suspect
+		if pp and d <= LS.GRAB_RANGE + 1 then
+			standAt(o, legPos(o, now()))
+			faceTo(o, pp)
+			say(o, pick(LS.LINES.grab))
+			Law.arrest(player, { by = "npc", officer = o, surrender = true })
+		elseif now() >= o.nextRepath and pp then
+			o.nextRepath = now() + 0.8
+			assignGoal(o, pp, 9, nil)
+		end
+		return
+	end
+	if o.state == "stop" then
+		if not pp then
+			return
+		end
+		faceTo(o, pp)
+		if d > 15 or now() - (o.stopT or now()) > LS.STOP_GRACE then
+			-- walked off / ignored the order
+			case.stopBy = nil
+			o.state = "chase"
+			o.stopIssued = true
+			say(o, pick(LS.LINES.chase))
+			Law.crime(player, "flee", { police = true, pos = pp })
+			Law.push(player, { kind = "stopEnd" })
+		end
+		return
+	end
+	if o.state == "chase" then
+		if seeing and pp then
+			-- stop order for a minor 1-star case
+			if not o.stopIssued and not case.stopBy and Law.ticketable(player) and d <= LS.ORDER_RANGE and suspectSpeed(player) < 12 and not suspectInCar(player) then
+				o.stopIssued = true
+				o.state = "stop"
+				o.stopT = now()
+				case.stopBy = o
+				standAt(o, legPos(o, now()))
+				faceTo(o, pp)
+				say(o, pick(LS.LINES.order), 4)
+				emote(o, "stop_hand")
+				Law.push(player, { kind = "stop", officer = o.name, grace = LS.STOP_GRACE, choices = {
+					{ id = "comply", label = "🙋 순순히 응하기" },
+					{ id = "excuse", label = "🤥 변명하기" },
+					{ id = "flee", label = "🏃 도망치기" },
+				} })
+				return
+			end
+			-- grab
+			if d <= LS.GRAB_RANGE and now() >= o.grabAt then
+				o.grabAt = now() + 1.2
+				local handsUp = now() - (s.handsUp or -1e9) < 6
+				local chance = if handsUp then 1 else LS.grabChance(case.stars, suspectSpeed(player), suspectInCar(player))
+				if rnd() < chance then
+					standAt(o, legPos(o, now()))
+					faceTo(o, pp)
+					say(o, pick(LS.LINES.grab))
+					Law.arrest(player, { by = "npc", officer = o, forced = not handsUp, surrender = handsUp })
+					return
+				end
+				say(o, pick(LS.LINES.grab_fail))
+				emote(o, "stagger")
+				o.pauseUntil = now() + 0.6 + rnd() * 0.6 -- the slip: a window to get away
+				standAt(o, legPos(o, now()))
+				Law.crime(player, "resist", { police = true, pos = pp, silent = true })
+				return
+			end
+			if now() >= o.nextRepath then
+				o.nextRepath = now() + t.repath * (0.8 + rnd() * 0.4)
+				local cur = legPos(o, now())
+				o.pos = cur
+				assignGoal(o, pp, chaseSpeed(o, case, d), nil)
+				if rnd() < 0.18 then
+					say(o, pick(LS.LINES.chase))
+				end
+			end
+			return
+		end
+		-- lost sight
+		if o.lastSeenT and now() - o.lastSeenT > 1.3 then
+			o.state = "lost"
+			local cur = legPos(o, now())
+			o.pos = cur
+			say(o, pick(LS.LINES.lost))
+			assignGoal(o, o.lastSeenPos or case.knownPos, 13 + case.stars * 0.5, t.wrongTurn)
+			o.goalT = now()
+		end
+		return
+	end
+	if o.state == "respond" or o.state == "lost" then
+		-- stairs / alleys: a stall now and then
+		if o.path and rnd() < t.hesitate * 0.08 then
+			o.pos = legPos(o, now())
+			o.pauseUntil = now() + 0.6 + rnd() * 0.8
+			standAt(o, o.pos)
+			if rnd() < 0.5 then
+				say(o, pick(LS.LINES.stumble))
+			end
+			o.resumeGoal = o.goal
+			return
+		end
+		if o.resumeGoal then
+			local g = o.resumeGoal
+			o.resumeGoal = nil
+			assignGoal(o, g, 12.5 + case.stars * 0.6, nil)
+			return
+		end
+		if arrived(o) then
+			local wasLost = o.state == "lost"
+			o.pos = legPos(o, now())
+			o.state = "search"
+			o.searchLeft = 3 + case.stars
+			o.searchCenter = case.knownPos or o.pos
+			say(o, pick(if wasLost then LS.LINES.search else LS.LINES.arrive))
+			standAt(o, o.pos)
+			emote(o, "look")
+			o.pauseUntil = now() + 1.2 + rnd() * 1.4
+		end
+		return
+	end
+	if o.state == "search" then
+		if arrived(o) then
+			o.pos = legPos(o, now())
+			if o.searchLeft <= 0 then
+				-- widen the search a little around the last known spot
+				o.searchLeft = 2 + case.stars
+				o.searchCenter = case.knownPos or o.pos
+			end
+			o.searchLeft -= 1
+			local q = ringNode(o.searchCenter or o.pos, 8, 28 + case.stars * 4, nil)
+			if q then
+				if rnd() < 0.3 then
+					say(o, pick(LS.LINES.search))
+				end
+				assignGoal(o, q, 7.5 + case.stars * 0.6, nil)
+				o.pauseUntil = now() + 0.4 + rnd() * 1.6
+			end
+		end
+	end
+end
+
+local function thinkPatrol(o: any)
+	-- a wanted player in sight joins the case
+	for _, p in Players:GetPlayers() do
+		local s = Law.sess(p)
+		if s and s.stars > 0 and not s.cuffed and not s.jail then
+			local ok, pp = canSee(o, p, LS.TIERS[s.stars])
+			if ok and pp then
+				local case = caseOf(p, true)
+				case.stars = s.stars
+				case.knownPos = pp
+				case.knownT = now()
+				o.role = "case"
+				o.case = case
+				table.insert(case.units, o)
+				o.state = "chase"
+				o.lastSeenPos = pp
+				o.lastSeenT = now()
+				say(o, pick(LS.LINES.spot))
+				Law.seen(p, pp, o.name)
+				return
+			end
+		end
+	end
+	if o.incident then
+		return -- Law/City drives incident responders
+	end
+	if arrived(o) and now() >= o.pauseUntil then
+		o.pos = legPos(o, now())
+		local q = ringNode(o.pos, 20, 55, nil)
+		if q then
+			assignGoal(o, q, 6.2, nil)
+		end
+		o.pauseUntil = now() + 2 + rnd() * 5
+	end
+end
+
+local function thinkOfficer(o: any)
+	if o.gone then
+		return
+	end
+	o.pos = legPos(o, now())
+	if o.state == "leave" then
+		local far = true
+		for _, p in Players:GetPlayers() do
+			local pp = Law.posOf(p)
+			if pp and flat(pp, o.pos) < 70 then
+				far = false
+				break
+			end
+		end
+		if far or now() > (o.leaveAt or now()) then
+			removeOfficer(o)
+		end
+		return
+	end
+	if o.role == "case" and o.case then
+		thinkCase(o, o.case)
+	elseif o.role == "patrol" then
+		thinkPatrol(o)
+	elseif o.role == "post" then
+		-- roadblock / checkpoint officers: look out for the case's suspect
+		local b = o.block
+		if b and b.case and b.case.player then
+			local t = tierOf(b.case)
+			local ok, pp = canSee(o, b.case.player, t)
+			if ok and pp then
+				Law.seen(b.case.player, pp, o.name)
+				if flat(pp, o.pos) < 30 and now() - (o.lastSayT or 0) > 5 then
+					say(o, pick(LS.LINES.roadblock))
+				end
+				-- a suspect on foot near the block: they leave the post and chase
+				if not suspectInCar(b.case.player) and flat(pp, o.pos) < 40 then
+					o.role = "case"
+					o.case = b.case
+					table.insert(b.case.units, o)
+					o.state = "chase"
+					o.lastSeenPos = pp
+					o.lastSeenT = now()
+				end
+			end
+		end
+	end
+	-- despawn stragglers far from everyone
+	if o.role ~= "post" then
+		local near = false
+		for _, p in Players:GetPlayers() do
+			local pp = Law.posOf(p)
+			if pp and flat(pp, o.pos) < LS.LOST_FAR + 60 then
+				near = true
+				break
+			end
+		end
+		if not near then
+			removeOfficer(o)
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- Car brain
+-------------------------------------------------------------------------------------------------
+local function dismount(c: any, case: any?, target: Vector3?)
+	if c.dismounted then
+		return
+	end
+	c.dismounted = true
+	local cf = c.model:GetPivot()
+	for i = 1, 2 do
+		local side = if i == 1 then -3.2 else 3.2
+		local at = (cf * CFrame.new(side, 0, 0)).Position
+		at = Vector3.new(at.X, groundAt(at, at.Y - carOffsetY), at.Z)
+		local o = newOfficer(at, if case then "case" else "patrol", case)
+		if o then
+			table.insert(c.crew, o)
+			o.car = c
+			if case then
+				table.insert(case.units, o)
+				o.state = "respond"
+				o.goalT = case.knownT
+				assignGoal(o, target or case.knownPos, 12 + case.stars * 0.6, tierOf(case).wrongTurn)
+			end
+		end
+	end
+end
+
+local function thinkCar(c: any)
+	if c.gone or not c.model or not c.model.Parent then
+		removeCar(c)
+		return
+	end
+	local cp, dir = carPos(c)
+	if c.path and not c.done and now() - c.t0 >= c.path.total then
+		c.done = true
+		c.model:SetAttribute("LawCarMoving", false)
+	end
+	if c.state == "leave" then
+		if c.done or now() > (c.leaveAt or now()) + 2 then
+			removeCar(c)
+		end
+		return
+	end
+	if c.state == "hold" then
+		if now() > (c.holdUntil or now()) then
+			carLeave(c)
+		end
+		return
+	end
+	if c.role == "patrol" then
+		-- cruising: a new random stretch when done; spot wanted players
+		if c.done and now() >= (c.nextPlan or 0) then
+			local okL, loc = pcall(D.nearestLocation, graph, cp, { maxDist = 60 })
+			if okL and loc then
+				local okF, pts = pcall(D.forward, graph, loc, 160 + rnd() * 200)
+				if okF and pts and #pts >= 2 then
+					local okP, path = pcall(D.buildPath, pts, { cruise = 30, v0 = 0, v1 = 0, heights = carHeights })
+					if okP and path then
+						setCarPath(c, path)
+					end
+				end
+			end
+			c.nextPlan = now() + 1
+		end
+		for _, p in Players:GetPlayers() do
+			local s = Law.sess(p)
+			local pp = Law.posOf(p)
+			if s and pp and s.stars > 0 and not s.cuffed and not s.jail and flat(pp, cp) < LS.TIERS[s.stars].sight and losClear(cp + Vector3.new(0, 4, 0), pp + Vector3.new(0, 1.2, 0)) then
+				local case = caseOf(p, true)
+				case.stars = s.stars
+				case.knownPos = pp
+				case.knownT = now()
+				Law.seen(p, pp, "순찰차")
+				c.role = "case"
+				c.case = case
+				c.state = "respond"
+				table.insert(case.cars, c)
+				c.model:SetAttribute("LawSiren", true)
+				c.nextPlan = 0
+				break
+			end
+		end
+		-- far from every player: retire
+		local near = false
+		for _, p in Players:GetPlayers() do
+			local pp = Law.posOf(p)
+			if pp and flat(pp, cp) < 420 then
+				near = true
+			end
+		end
+		if not near then
+			removeCar(c)
+		end
+		return
+	end
+	local case = c.case
+	if not case or not case.player.Parent then
+		carLeave(c)
+		return
+	end
+	local player = case.player
+	local s = Law.sess(player)
+	if not s or s.stars <= 0 or s.jail or s.cuffed then
+		carLeave(c)
+		return
+	end
+	local t = tierOf(case)
+	local inCar = suspectInCar(player)
+	local pp = Law.posOf(player)
+	-- sight from the car
+	if pp and now() >= c.nextSight then
+		c.nextSight = now() + 0.4
+		local d = flat(cp, pp)
+		if d < t.sight * 1.1 and losClear(cp + Vector3.new(0, 4.2, 0), pp + Vector3.new(0, 1.2, 0)) then
+			c.glimpse = c.glimpse or now()
+			if now() - c.glimpse >= t.react * 0.8 or d < 14 then
+				Law.seen(player, pp, "순찰차")
+				case.knownPos = pp
+				case.knownT = now()
+				c.seeing = true
+			end
+		else
+			c.glimpse = nil
+			c.seeing = false
+		end
+	end
+	if inCar and case.stars >= 2 then
+		-- road chase: re-plan along the lanes every couple of seconds (sometimes a wrong side road)
+		c.state = "chase"
+		if pp and now() >= c.nextPlan then
+			c.nextPlan = now() + 1.8 + rnd() * 1.2
+			local goal = if c.seeing then pp else case.knownPos
+			if goal then
+				local target = goal
+				if not c.seeing and rnd() < t.wrongTurn * 1.5 then
+					target = goal + Vector3.new((rnd() - 0.5) * 140, 0, (rnd() - 0.5) * 140)
+				end
+				local sv = math.max(suspectSpeed(player), 30)
+				local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v0 = 30, v1 = 20, kerb = false })
+				if path then
+					setCarPath(c, path)
+				end
+			end
+		end
+		-- boxed in: the suspect car crawls next to a patrol car -> the end of the chase
+		if pp and flat(cp, pp) < 13 and suspectSpeed(player) < 5 then
+			c.slowT += 0.25
+			if c.slowT > 1.6 then
+				c.slowT = 0
+				local o = Police.nearestOfficer(pp, 30)
+				if not o then
+					dismount(c, case, pp)
+				end
+				Law.arrest(player, { by = "npc", forced = true, car = c })
+			end
+		else
+			c.slowT = 0
+		end
+		return
+	end
+	-- suspect on foot (or 1 star): drive to the reported / last known spot and put the crew out
+	if c.state == "respond" or c.state == "chase" then
+		c.state = "respond"
+		if c.done then
+			if not c.dismounted then
+				dismount(c, case, case.knownPos)
+			elseif now() >= c.nextPlan and case.knownPos and flat(cp, case.knownPos) > 90 then
+				-- the search moved away: follow on the road and put the crew back out there
+				c.nextPlan = now() + 6
+				local path = carRoute(c, case.knownPos, { cruise = 36, v0 = 0, v1 = 0 })
+				if path then
+					setCarPath(c, path)
+				end
+			end
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- Road closures / checkpoints (4+ stars, a suspect in a car)
+-------------------------------------------------------------------------------------------------
+local function barrier(parent: Instance, cf: CFrame)
+	local p = Instance.new("Part")
+	p.Name = "LawBarrier"
+	p.Size = Vector3.new(7, 2.2, 0.8)
+	p.CFrame = cf
+	p.Anchored = true
+	p.Color = Color3.fromRGB(235, 235, 235)
+	p.Material = Enum.Material.SmoothPlastic
+	local stripe = Instance.new("Part")
+	stripe.Name = "Stripe"
+	stripe.Size = Vector3.new(7.02, 0.6, 0.82)
+	stripe.CFrame = cf * CFrame.new(0, 0.35, 0)
+	stripe.Anchored = true
+	stripe.CanCollide = false
+	stripe.Color = Color3.fromRGB(230, 60, 40)
+	stripe.Material = Enum.Material.Neon
+	stripe.Parent = p
+	p.Parent = parent
+end
+
+local function placeBlock(case: any, kind: string)
+	if not D or not graph or #cars >= LS.MAX_CARS then
+		return
+	end
+	local player = case.player
+	local pp = Law.posOf(player)
+	local root = Law.rootOf(player)
+	if not pp or not root then
+		return
+	end
+	local v = root.AssemblyLinearVelocity
+	local dir = Vector3.new(v.X, 0, v.Z)
+	if dir.Magnitude < 5 then
+		dir = root.CFrame.LookVector
+	end
+	dir = Vector3.new(dir.X, 0, dir.Z).Unit
+	local ahead = pp + dir * (150 + rnd() * 90)
+	local okL, loc = pcall(D.nearestLocation, graph, ahead, { maxDist = 70 })
+	if not okL or not loc or not loc.point then
+		return
+	end
+	local at = loc.point
+	local laneDir = D.edgeDir(graph, loc.edge)
+	local cf = D.cframe(Vector3.new(at.X, groundAt(at, 6), at.Z), laneDir)
+	local folder = Instance.new("Folder")
+	folder.Name = "LawRoadblock"
+	folder.Parent = carsFolder
+	-- a patrol car across the lane + barriers either side
+	local tpl = findTemplate()
+	if tpl then
+		local car = tpl:Clone()
+		car.Name = "LawBlockCar"
+		;(car.PrimaryPart :: BasePart).CFrame = cf * CFrame.new(0, carOffsetY, 0) * CFrame.Angles(0, math.rad(90), 0)
+		lightBar(car)
+		car.Parent = folder
+	end
+	if kind == "block" then
+		barrier(folder, cf * CFrame.new(-7, 1.1, 2))
+		barrier(folder, cf * CFrame.new(7, 1.1, 2))
+	end
+	local b = { case = case, folder = folder, pos = at, expire = now() + (if kind == "block" then 70 else 90), kind = kind, posts = {} }
+	for i = 1, 2 do
+		local spot = (cf * CFrame.new(if i == 1 then -4 else 4, 0, -5)).Position
+		local o = newOfficer(Vector3.new(spot.X, groundAt(spot, 6), spot.Z), "post", nil)
+		if o then
+			o.block = b
+			o.idleAct = "work"
+			faceTo(o, pp)
+			standAt(o, o.pos)
+			table.insert(b.posts, o)
+		end
+	end
+	table.insert(blocks, b)
+	Law.push(player, { kind = "radio", text = if kind == "block" then "무전: " .. Law.areaName(at) .. " 방면 도로 차단 완료." else "무전: " .. Law.areaName(at) .. " 검문 실시 중." })
+end
+
+local function blocksTick()
+	for i = #blocks, 1, -1 do
+		local b = blocks[i]
+		if now() > b.expire or not b.case or not b.case.player.Parent then
+			for _, o in b.posts do
+				if not o.gone and o.role == "post" then
+					removeOfficer(o)
+				end
+			end
+			if b.folder then
+				b.folder:Destroy()
+			end
+			table.remove(blocks, i)
+		end
+	end
+	for player, case in cases do
+		local t = tierOf(case)
+		if t.roadblocks > 0 and suspectInCar(player) and now() - case.lastBlock > 22 then
+			local n = 0
+			for _, b in blocks do
+				if b.case == case and b.kind == "block" then
+					n += 1
+				end
+			end
+			if n < t.roadblocks then
+				case.lastBlock = now()
+				placeBlock(case, "block")
+			end
+		elseif t.checkpoint and not suspectInCar(player) and now() - case.lastBlock > 40 then
+			case.lastBlock = now()
+			placeBlock(case, "check")
+		end
+		-- reinforcements when the case goes cold at 4+
+		if case.stars >= 4 and now() - case.knownT > 15 and now() - case.lastReinforce > 25 then
+			case.lastReinforce = now()
+			local foot = 0
+			for _, o in case.units do
+				if not o.gone then
+					foot += 1
+				end
+			end
+			if foot < t.foot * 2 and case.knownPos then
+				spawnFootUnits(case, 2)
+				Law.push(player, { kind = "radio", text = "무전: 지원 병력 투입, " .. Law.areaName(case.knownPos) .. " 일대 수색." })
+			end
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- Idle patrol (no case): a few units around the players, more at night
+-------------------------------------------------------------------------------------------------
+local nextPatrol = 0
+local function patrolTick()
+	if now() < nextPatrol then
+		return
+	end
+	nextPatrol = now() + 6
+	local plist = Players:GetPlayers()
+	if #plist == 0 then
+		return
+	end
+	local want = if Law.isNight() then LS.PATROL.night else LS.PATROL.day
+	local foot, carsN = 0, 0
+	for _, o in officers do
+		if o.role == "patrol" and not o.gone then
+			foot += 1
+		end
+	end
+	for _, c in cars do
+		if c.role == "patrol" and not c.gone then
+			carsN += 1
+		end
+	end
+	local anchor = plist[rng:NextInteger(1, #plist)]
+	local pp = Law.posOf(anchor)
+	if not pp then
+		return
+	end
+	-- a player in the 유치장 / inside does not need street patrols around them
+	if anchor:GetAttribute(LS.Attr.Jail) and (anchor:GetAttribute(LS.Attr.Jail) :: number) > 0 then
+		return
+	end
+	if foot < want.foot * math.min(2, #plist) then
+		local at = hiddenSpot(pp, 90, 150)
+		if at then
+			local o = newOfficer(at, "patrol", nil)
+			if o then
+				o.state = "patrol"
+				local q = ringNode(at, 20, 60, nil)
+				if q then
+					assignGoal(o, q, 6.2, nil)
+				end
+			end
+		end
+	end
+	if carsN < want.cars * math.min(2, #plist) and loadNav() and D and graph then
+		local c = newCar(nil, pp + Vector3.new((rnd() - 0.5) * 200, 0, (rnd() - 0.5) * 200), "patrol")
+		if c then
+			c.state = "patrol"
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- Tick (4 Hz from Law)
+-------------------------------------------------------------------------------------------------
+local carAcc = 0
+function Police.tick(dt: number)
+	if not loadNav() then
+		return
+	end
+	trackSpeeds()
+	for _, o in table.clone(officers) do
+		local ok, err = pcall(thinkOfficer, o)
+		if not ok then
+			warn("[GwangalliLaw] officer: " .. tostring(err))
+			removeOfficer(o)
+		end
+	end
+	for _, c in table.clone(cars) do
+		local ok, err = pcall(thinkCar, c)
+		if not ok then
+			warn("[GwangalliLaw] car: " .. tostring(err))
+			removeCar(c)
+		end
+	end
+	pcall(blocksTick)
+	pcall(patrolTick)
+	-- keep the case staffed (units lost / despawned)
+	for player, case in cases do
+		local s = Law.sess(player)
+		if not s or s.stars <= 0 then
+			Police.standDown(player, s, "lost")
+		elseif now() - (case.lastStaff or 0) > 8 then
+			case.lastStaff = now()
+			case.stars = s.stars
+			staff(case)
+		end
+	end
+	local _ = dt
+	carAcc += dt
+end
+
+-- cars move at ~12 Hz on their own loop (smooth enough for the clients; anchored, no physics)
+local function carMotionLoop()
+	while true do
+		task.wait(1 / 12)
+		for _, c in cars do
+			if c.path and not c.done and c.model and c.model.Parent then
+				local t = math.min(now() - c.t0, c.path.total)
+				local p, dir = D.sample(c.path.pts, c.path.times, t)
+				local root = c.model.PrimaryPart
+				if root and p == p then
+					root.CFrame = D.cframe(p, dir)
+				end
+			end
+		end
+	end
+end
+
+-- Law/City and Jail use these
+Police.newOfficer = newOfficer
+Police.removeOfficer = removeOfficer
+Police.assignGoal = assignGoal
+Police.standAt = standAt
+Police.faceTo = faceTo
+Police.emote = emote
+Police.legPos = legPos
+Police.arrived = arrived
+Police.ringNode = ringNode
+Police.hiddenSpot = hiddenSpot
+Police.groundAt = groundAt
+Police.losClear = losClear
+Police.carPos = carPos
+Police.newCar = newCar
+Police.carRoute = carRoute
+Police.setCarPath = setCarPath
+Police.officers = function()
+	return officers
+end
+Police.cars = function()
+	return cars
+end
+Police.cases = function()
+	return cases
+end
+
+function Police.onLeave(player: Player, s: any)
+	speeds[player] = nil
+	if cases[player] then
+		Police.standDown(player, s, "lost")
+	end
+end
+
+function Police.init(law: any, context: any)
+	Law = law
+	ctx = context
+	LS = Law.shared()
+	local lm = ReplicatedStorage:FindFirstChild("GwangalliNPCLooks")
+	if lm and lm:IsA("ModuleScript") then
+		local ok, res = pcall(require, lm)
+		if ok then
+			Looks = res
+		end
+	end
+	local f = workspace:FindFirstChild("GwangalliNPCs")
+	if not f then
+		f = Instance.new("Folder")
+		f.Name = "GwangalliNPCs"
+		f.Parent = workspace
+	end
+	npcFolder = f :: Folder
+	local cf = workspace:FindFirstChild("GwangalliLawCars")
+	if not cf then
+		cf = Instance.new("Folder")
+		cf.Name = "GwangalliLawCars"
+		cf.Parent = workspace
+	end
+	carsFolder = cf :: Folder
+	task.spawn(function()
+		loadNav()
+		if D then
+			carMotionLoop()
+		end
+	end)
+end
+
+return Police

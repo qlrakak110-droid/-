@@ -445,6 +445,12 @@ end
 -- Wanted / crime
 -------------------------------------------------------------------------------------------------
 local function setWanted(player: Player, sess: Sess, stars: number, why: string?)
+	if ctx and ctx.law then
+		-- GwangalliGameplay.Law owns the stars (server police, sight-based decay, arrests)
+		ctx.law.setStars(player, stars, why)
+		sess.state.wanted = ctx.law.stars(player)
+		return
+	end
 	stars = math.clamp(math.floor(stars), 0, M.WANTED_MAX)
 	local before = sess.state.wanted or 0
 	sess.state.wanted = stars
@@ -470,9 +476,15 @@ local function crime(player: Player, sess: Sess, key: string, victimId: string?,
 	sess.crimeKind = key
 	sess.reported = false
 	sess.state.crimes = (sess.state.crimes or 0) + 1
-	setWanted(player, sess, (sess.state.wanted or 0) + def.stars, def.label)
 	local victim = victimId and citizen(victimId)
 	local where = pos or rootPos(player)
+	if ctx and ctx.law then
+		-- the Law module decides the stars (reports, witnesses) and sends the police
+		ctx.law.crime(player, key, { pos = where, victim = victimId, victimName = victim and shortName(victimId) or nil, source = "mind", police = victim ~= nil and victim.type == "police" })
+		sess.state.wanted = ctx.law.stars(player)
+	else
+		setWanted(player, sess, (sess.state.wanted or 0) + def.stars, def.label)
+	end
 	push(player, { kind = "crime", crime = key, label = def.label, stars = sess.state.wanted, pos = where and { where.X, where.Y, where.Z } or nil, victim = victimId })
 	if victim then
 		addNews(string.format("아까 누가 %s한테 %s했대요! 무섭다…", shortName(victimId), def.label))
@@ -1059,6 +1071,13 @@ end
 -- the police -----------------------------------------------------------------------------------------
 ops.police = function(player, sess, p)
 	local op = Util.str(p.op, 12)
+	if ctx and ctx.law then
+		-- the server police (Law) run encounters; only an insult said to a street officer still counts
+		if op == "insult" then
+			crime(player, sess, "insult_police", Util.str(p.copId, 40), nil)
+		end
+		return { ok = false, err = "law" }
+	end
 	local stars = sess.state.wanted or 0
 	local copId = Util.str(p.copId, 40)
 	local fine = M.fineFor(math.max(1, stars))
@@ -1116,6 +1135,10 @@ end
 
 -- a witness phoned 112: only counts right after a real crime by this player
 ops.report = function(player, sess, p)
+	if ctx and ctx.law then
+		local pos = p and Util.vec and Util.vec(p.pos) or nil
+		return { ok = ctx.law.report(player, "witness", pos) == true }
+	end
 	if os.clock() - (sess.lastCrime or -1e9) > 45 then
 		return { ok = false }
 	end
@@ -1298,6 +1321,10 @@ local function textTick(player: Player, sess: Sess)
 end
 
 local function wantedTick(player: Player, sess: Sess)
+	if ctx and ctx.law then
+		sess.state.wanted = ctx.law.stars(player)
+		return -- decay is the Law module's (only while the police lose sight of you)
+	end
 	local stars = sess.state.wanted or 0
 	if stars <= 0 then
 		return
@@ -1386,7 +1413,9 @@ local function attach(player: Player)
 	end
 	sess.state = st
 	sess.ready = true
-	player:SetAttribute(M.Attr.Wanted, st.wanted or 0)
+	if not (ctx and ctx.law) then
+		player:SetAttribute(M.Attr.Wanted, st.wanted or 0)
+	end
 	player:SetAttribute(M.Attr.Busy, "")
 	player:SetAttribute(M.Attr.Ready, true)
 end

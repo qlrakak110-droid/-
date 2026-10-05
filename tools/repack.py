@@ -102,10 +102,14 @@ def rebuild(data, changes):
     new_records = []
     next_id = len(P.inst)
     edits = {}
+    pending = {}  # path -> new instance id (scripts added in this run can parent later ones)
     for path, cls, src in changes:
-        parent, sid = find_script(path, cls)
+        ppath = '/'.join(path.split('/')[:-1])
+        if ppath in pending:
+            parent, sid = pending[ppath], None
+        else:
+            parent, sid = find_script(path, cls)
         if parent is None:
-            # parent may be a script added in this run (nested modules): search pending
             raise SystemExit('parent missing for ' + path)
         if sid is not None:
             it = P.inst[sid]
@@ -115,7 +119,7 @@ def rebuild(data, changes):
         else:
             rec = enc_vi(sref(cls.encode())) + enc_vi(sref(path.split('/')[-1].encode())) + enc_vi(next_id - parent) + enc_vi(src_shape)
             rec += b'\x00\x06' + enc_vi(sref(src)) + b'\x00\x00'
-            new_records.append(rec); added.append(path); next_id += 1
+            new_records.append(rec); added.append(path); pending[path] = next_id; next_id += 1
     # serialise: header (strings), then everything from meta up to the instance count verbatim,
     # instance records (edited ones re-encoded), appended records, the tail.
     out = bytearray(data[:8])
