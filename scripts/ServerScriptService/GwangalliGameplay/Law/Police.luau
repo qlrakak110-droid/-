@@ -2439,7 +2439,9 @@ local function thinkCar(c: any)
 					target = goal + Vector3.new((rnd() - 0.5) * 140, 0, (rnd() - 0.5) * 140)
 				end
 				local sv = math.max(suspectSpeed(player), 30)
-				local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v1 = 20, kerb = false })
+				-- (the end of the road is short of the suspect, in this car's place in the line: several cars
+				-- closing in never pile onto one spot)
+				local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v1 = 12, kerb = false, stopBack = 12 + CAR_GAP * (c.slotIdx or 0) })
 				if path then
 					setCarPath(c, path)
 				end
@@ -2475,7 +2477,7 @@ local function thinkCar(c: any)
 			-- officers out; the suspect still sitting there in the car -> the arrest
 			if now() - c.boxedAt > 2.6 then
 				c.boxedAt = nil
-				if pp and flat(cp, pp) < 18 and suspectSpeed(player) < 6 then
+				if pp and flat(cp, pp) < 18 and suspectSpeed(player) < 6 and not Police.testNoGrab then
 					Law.arrest(player, { by = "npc", forced = true, car = c })
 					return
 				end
