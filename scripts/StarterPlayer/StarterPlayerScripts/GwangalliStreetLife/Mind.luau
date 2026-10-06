@@ -464,6 +464,9 @@ local function applyResult(res: any, intent: string?)
 		UI.setWanted(res.wanted)
 	end
 	local out = res.out
+	if type(out) == "table" and type(out.lines) == "table" then
+		stats.lastReply = table.concat(out.lines, " / ") .. " [" .. tostring(out.intent) .. "/" .. tostring(out.act) .. "]"
+	end
 	if not out then
 		return
 	end
@@ -2466,6 +2469,8 @@ function Mind.start()
 							a.moved = true
 						end
 					end)
+				elseif method == "lastreply" then
+					return stats.lastReply or ""
 				elseif method == "say" then
 					return q(function()
 						send({ text = args[1] })

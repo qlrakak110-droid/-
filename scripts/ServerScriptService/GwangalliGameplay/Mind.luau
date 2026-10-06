@@ -42,6 +42,8 @@ local G: any
 local Util: any
 local M: any -- GwangalliMindShared
 local Lines: any
+local Talk: any = nil -- child Talk: free conversation over the composer
+local Brain: any = nil -- child Brain: optional Claude replies (off unless set up)
 local Citizens: any
 local Social: any
 local Transit: any
@@ -633,7 +635,13 @@ ops.open = function(player, sess, p)
 	player:SetAttribute(M.Attr.Busy, id)
 	local env = envFor(player, id, sess)
 	if kind ~= "talk" then
-		local out = M.opener(c, rec, kind, env)
+		local out = nil
+		if Talk and (kind == "chatty" or kind == "friend") then
+			sess.talk.tc = {}
+			local ok, res = pcall(Talk.opener, c, rec, env, sess.talk.tc)
+			out = if ok then res else nil
+		end
+		out = out or M.opener(c, rec, kind, env)
 		applyOut(player, sess, id, rec, out, { noAff = true })
 		sess.talk.first = false
 		return answer(player, sess, id, out)
@@ -642,10 +650,10 @@ ops.open = function(player, sess, p)
 	return { ok = true, view = viewOf(player, sess, id), wanted = sess.state.wanted or 0 }
 end
 
-local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan: string): any
+-- one composer reply (no state applied yet): the "about" person, the number through Relationships
+local function ruleOut(player: Player, sess: Sess, id: string, req: any, chan: string, env: any): any
 	local c = citizen(id)
 	local rec = recOf(sess, id, true)
-	local env = envFor(player, id, sess)
 	if req.intent == "about" and type(req.other) == "string" and citizen(req.other) then
 		local oc = citizen(req.other)
 		local oa = nil
@@ -655,13 +663,8 @@ local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan:
 		env.other = { id = req.other, name = shortName(req.other), area = oa and Citizens.AREAS[oa] and Citizens.AREAS[oa].label or nil, friend = Citizens.areFriends(id, req.other) }
 		local _ = oc
 	end
-	local talk = sess.talk
-	req.first = talk ~= nil and talk.first == true
 	req.chan = chan
 	local out = M.respond(c, rec, req, env)
-	if talk then
-		talk.first = false
-	end
 	-- the number goes through Relationships (its contact list / texts / phone)
 	if out.act == "number" and social() then
 		if hasNumber(player, id) then
@@ -676,12 +679,133 @@ local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan:
 			end
 		end
 	end
+	return out
+end
+
+-- an appointment asked in words ("노래방 갈래?"): the same path as the meet menu
+local function inviteOut(player: Player, sess: Sess, id: string, rec: any, out: any, kind: string, env: any)
+	local c = citizen(id)
+	local inv = Social and Social.INVITES[kind]
+	if not c or not inv or not social() then
+		return
+	end
+	local mood = M.mood(c, rec, env.aff)
+	local reg = M.register(c, rec, env.aff)
+	local arch = M.archOf(c)
+	local key
+	if inv.adult and c.minor then
+		key = "minor"
+	elseif mood == "bad" or mood == "angry" or mood == "enemy" or mood == "scared" or rec.tr < 12 then
+		key = "no"
+	end
+	if key then
+		local l = M.pick(M.sub("meet_r", key, arch, reg), rec, now())
+		if l then
+			out.lines = { M.fill(l, { placeName = inv.dest or "광안리", kind = inv.label }) }
+		end
+		out.face = "wary"
+		return
+	end
+	local ok, res = pcall(social().handleChoice, player, id, "soc:inv:" .. kind, false)
+	if ok and type(res) == "table" and type(res.line) == "string" and res.line ~= "" then
+		out.lines = splitLines(res.line)
+		M.remember(rec, "meet", kind, now())
+		out.d.cl = (out.d.cl or 0) + 2
+		out.face = "smile"
+		out.emote = "nod"
+	end
+end
+
+local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan: string): any
+	local rec = recOf(sess, id, true)
+	local env = envFor(player, id, sess)
+	local talk = sess.talk
+	req.first = talk ~= nil and talk.first == true
+	local out = ruleOut(player, sess, id, req, chan, env)
+	if talk then
+		talk.first = false
+	end
 	applyOut(player, sess, id, rec, out, nil)
 	if out.act == "end" or out.act == "leave" then
 		sess.talk = nil
 		player:SetAttribute(M.Attr.Busy, "")
 	end
 	return answer(player, sess, id, out)
+end
+
+local function namesFor(id: string): { any }
+	local names = {}
+	for _, oid in Citizens.ORDER do
+		local oc = Citizens.byId[oid]
+		if oid ~= id and oc and not oc.key then
+			table.insert(names, { id = oid, name = oc.name, short = shortName(oid) })
+		end
+	end
+	return names
+end
+
+-- free text: GwangalliGameplay.Mind.Talk (context, facts, topics, places) over the composer;
+-- the optional Brain (Claude) answers first when it is set up and quick enough
+local function sayFree(player: Player, sess: Sess, id: string, text: string, chan: string): any
+	local c = citizen(id)
+	local rec = recOf(sess, id, true)
+	local env = envFor(player, id, sess)
+	local talk = if chan == "text" then nil else sess.talk
+	env.first = (talk ~= nil and talk.first == true) or (chan == "text" and (now() - (rec.lt or 0)) > 3600)
+	env.wanted = sess.state.wanted or 0
+	env.liveNews = liveNews()
+	local tc = if talk then talk.tc else sess.textCtx and sess.textCtx[id]
+	if not tc then
+		tc = {}
+		if talk then
+			talk.tc = tc
+		else
+			sess.textCtx = sess.textCtx or {}
+			sess.textCtx[id] = tc
+		end
+	end
+	local function rule(req: any): any
+		req.first = false
+		local e2 = table.clone(env)
+		e2.vars = {}
+		return ruleOut(player, sess, id, req, chan, e2)
+	end
+	local out = nil
+	if Brain and Brain.ready() then
+		out = Brain.reply(player, c, rec, text, env, tc, chan)
+	end
+	if not out then
+		local ok, res = pcall(Talk.say, c, rec, text, env, tc, rule, namesFor(id))
+		if ok and type(res) == "table" then
+			out = res
+		else
+			if not ok then
+				warn("[GwangalliMind] Talk.say: " .. tostring(res))
+			end
+			local it, slots = M.parse(text, namesFor(id))
+			out = rule({ text = text, intent = it, polite = slots.polite, item = slots.item, other = slots.other })
+		end
+	end
+	if talk then
+		talk.first = false
+	end
+	if out.invite then
+		inviteOut(player, sess, id, rec, out, out.invite, env)
+	end
+	-- the conversation as text (the Brain's context; the last turns are saved with the record)
+	rec.cv = if type(rec.cv) == "table" then rec.cv else {}
+	table.insert(rec.cv, { p = string.sub(text, 1, 140), n = string.sub(table.concat(out.lines, " "), 1, 200), t = now() })
+	while #rec.cv > 8 do
+		table.remove(rec.cv, 1)
+	end
+	applyOut(player, sess, id, rec, out, nil)
+	if out.act == "end" or out.act == "leave" or out.act == "flee" then
+		if talk then
+			sess.talk = nil
+			player:SetAttribute(M.Attr.Busy, "")
+		end
+	end
+	return answer(player, sess, id, out), out
 end
 
 ops.say = function(player, sess, p)
@@ -701,6 +825,9 @@ ops.say = function(player, sess, p)
 	end
 	local text = Util.str(p.text, 140)
 	local intent = Util.str(p.intent, 20)
+	if text and not intent and Talk then
+		return sayFree(player, sess, id, text, if remote then "call" else "talk")
+	end
 	local req = { text = text }
 	if text then
 		local names = {}
@@ -1035,7 +1162,18 @@ ops.text = function(player, sess, p)
 	end
 	req.intent = req.intent or "small"
 	table.insert(rec.txt, { f = "me", m = text or "…", t = now() })
-	local out, msg = textReply(player, sess, id, req)
+	local out, msg
+	if text and not (intent and M.INTENT_LABEL[intent]) and Talk then
+		local _, o = sayFree(player, sess, id, text, "text")
+		out = o
+		msg = table.concat(o.lines, " ")
+		table.insert(rec.txt, { f = "npc", m = msg, t = now() })
+		while #rec.txt > M.TXT_MAX do
+			table.remove(rec.txt, 1)
+		end
+	else
+		out, msg = textReply(player, sess, id, req)
+	end
 	return { ok = true, reply = msg, delay = 1.2 + math.random() * 2.2, out = { face = out.face, ask = out.ask, act = out.act }, view = viewOf(player, sess, id), thread = rec.txt }
 end
 
@@ -1388,7 +1526,8 @@ local function packState(st: any): any
 		npcs[id] = {
 			v = r.v, tr = r.tr, an = r.an, fe = r.fe, cl = r.cl, clPeak = r.clPeak, nm = r.nm, kn = r.kn, st = r.st,
 			tk = r.tk, lt = r.lt, fm = r.fm, mem = mem, gd = r.gd, gcl = r.gcl, hit = r.hit, ins = r.ins, help = r.help,
-			gifts = r.gifts, txt = txt, u = r.u, at = r.at, cd = { food = r.cd and r.cd.food or nil },
+			gifts = r.gifts, txt = txt, u = r.u, at = r.at, cd = { food = r.cd and r.cd.food or nil, bmOffer = r.cd and r.cd.bmOffer or nil },
+			pf = r.pf, bm = r.bm, cv = r.cv,
 		}
 	end
 	return { v = st.v, npcs = npcs, wanted = st.wanted, crimes = st.crimes, fines = st.fines, u = st.u }
@@ -1497,8 +1636,29 @@ function MindServer.init(context: any)
 	Util = ctx.Util
 	M = requireShared("GwangalliMindShared")
 	Lines = requireShared("GwangalliMindLines")
+	for _, name in { "Talk", "Brain" } do
+		local m = script:FindFirstChild(name)
+		if m and m:IsA("ModuleScript") then
+			local ok, res = pcall(require, m)
+			if ok and type(res) == "table" then
+				if name == "Talk" then
+					Talk = res
+				else
+					Brain = res
+				end
+			else
+				warn("[GwangalliMind] " .. name .. " failed to load: " .. tostring(res))
+			end
+		end
+	end
 	Citizens = requireShared("GwangalliCitizens")
 	Social = requireShared("GwangalliSocialShared")
+	if Talk then
+		Talk.init({ M = M, Citizens = Citizens })
+	end
+	if Brain then
+		Brain.init({ M = M, Citizens = Citizens, Talk = Talk, ctx = context })
+	end
 	Transit = requireShared("GwangalliTransitShared")
 	if not M or not Citizens or not Social or not Util then
 		warn("[GwangalliMind] shared modules missing; the NPC mind is off")
