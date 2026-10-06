@@ -544,6 +544,8 @@ function Crowd.api(method: any, ...: any): any
 		local pp = P.pos
 		local a = if type(id) == "string" and pp then (byId[id] or Crowd.spawnResponder(id, pp, os.clock())) else nil
 		return if a then { id = a.id, x = a.pos.X, y = a.pos.Y, z = a.pos.Z, delivery = a.delivery, mounted = a.mounted == true } else nil
+	elseif method == "friends" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
+		return if Crowd.Friends then Crowd.Friends.stats() else nil
 	elseif method == "delivery" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
 		return if Delivery then Delivery.stats() else nil
 	elseif method == "debug" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
@@ -2941,6 +2943,17 @@ function Crowd.start(context: any)
 		table.insert(extraFree, "x" .. i)
 	end
 	pcall(installFightHooks)
+	local fm = script.Parent:FindFirstChild("Friends")
+	if fm then
+		local okF, mod = pcall(require, fm)
+		if okF and type(mod) == "table" then
+			Crowd.Friends = mod
+			local okI, err = pcall(mod.init, ctx)
+			if not okI then
+				warn("[GwangalliStreetLife] Friends: " .. tostring(err))
+			end
+		end
+	end
 	local dm = script.Parent:FindFirstChild("Delivery")
 	if dm then
 		local okD, mod = pcall(require, dm)

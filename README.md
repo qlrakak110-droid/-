@@ -96,6 +96,30 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 - `Fuel.luau`: 내 차 연료(운전 거리만큼 감소, 0%면 시동 꺼짐) + SK 광안셀프주유소 주유.
 - 돈 쓰는 곳: 음식·옷·휴대폰 상점·집·차량·정비·세차·견인·연료·선물·벌금·보석금·범죄 장비·미니게임 등.
 
+## 5. NPC 자유 대화 — `GwangalliGameplay/Mind/Talk.luau` (+ 선택: `Mind/Brain.luau`)
+- 직접 입력한 문장을 절(문장 단위)로 나눠 읽음: 인사 + 내 얘기 + 질문을 한 번에 말해도 각각 대답.
+- 대화 맥락: NPC가 방금 한 질문의 대답("이름이 뭐예요?" → "민수야"), "너는?", "왜?", "진짜?", "뭐?", "ㅋㅋ", "나도!".
+- 플레이어 정보 기억(`rec.pf`, 저장됨): 이름·직업·나이·고향·좋아하는 것·기분·한 일 → 다음에 만나면 먼저 꺼냄.
+- 성격: NPC가 좋아하는 화제엔 신나고, 싫어하는 화제는 싫은 티 → 계속하면 거절·자리 뜸. 욕·같은 말 반복도 싫어함.
+- 존댓말 → 반말: 친해지면 "말 놓을까?" (NPC가 먼저 제안하기도 함). 점원은 근무 중이면 주문·계산·봉투·메뉴 얘기.
+- "노래방 갈래?"처럼 장소를 말하면 기존 약속 시스템(Relationships)으로 바로 약속. 번호·문자·호감도는 기존 그대로.
+- Claude 연결(선택, 실제 로블록스만): HTTP 허용 + Secrets `ANTHROPIC_API_KEY` → 일상 대화를 Claude가 캐릭터로 답함. 욕·협박·고백·번호는 항상 규칙 엔진.
+
+## 6. 배달 라이더 NPC — `GwangalliStreetLife/Delivery.luau`, `ReplicatedStorage/GwangalliRobShared.luau`
+- 라이더 8명(오토바이 6 · 도보 2): 배달 박스/가방, 오토바이 위에 앉아 빠르게 이동, 가게 앞에 잠깐(3.5~8초) 섰다가 다음 가게로.
+- 자유 대화 가능(배달 얘기, 긴 대화는 "콜 들어왔다!" 하고 떠남). 맞으면 놀라서 도망 / 신고 시도.
+- 총 위협(총 Tool 들고 바라보면, 또는 무기 시스템이 API "threat" 호출): 성격(nerve)에 따라 항복(손 듦) / 얼어붙음 / 도망 / 112 신고 시도.
+- 강탈 규칙(읽기 전용 데이터): 라이더 4.5~9만 원(항복하면 1.15배), 일반 행인 0.8~2.2만 원, 쓰러진(KO) NPC = 0원.
+  - 클라: 모델 속성 `GwRobbable / GwRobReward / GwRobState / GwRobDead`, `LocalPlayer.GwangalliNPCRobAPI` ("info" / "list" / "threat" / "robbed"), 이벤트 `GwangalliNPCRobEvents`.
+  - 서버: `ServerStorage.GwangalliNPCRobAPI` ("info", player, id) — HP/KO는 Fight 기준.
+  - 돈 지급·수배·경찰·성공 판정은 범죄 시스템 담당(여기서 안 만듦).
+
+## 7. 친구 퍼레이드 (Friend Avatar NPC) — `GwangalliFriendAvatars.server.luau`, `GwangalliStreetLife/Friends.luau`
+- 로블록스 친구 중 최대 8명의 실제 아바타를 서버가 불러와(캐시) 그 플레이어에게만 보이게 함(최대 6명 동시).
+- 저녁 만남의 광장(17~23.5시), 밤 클럽 앞(19~3시) 근처에 가면 행진 → 춤 → 다가가면 손 흔듦, 이름표 표시.
+- 친구 아바타는 그대로 사용, 나쁜 역할 금지(강탈·싸움·경찰·신고 대상 아님), 멀어지면 제거.
+- 에뮬레이터 테스트: `workspace:SetAttribute("GwangalliFriendAvatarTest", true)` (임시 이름 + 로스터 외형).
+
 ## 테스트 방법 (개발용)
 
 `workspace:SetAttribute("GwangalliStreetLifeDebug", true)` 일 때만 열리는 테스트 훅:
