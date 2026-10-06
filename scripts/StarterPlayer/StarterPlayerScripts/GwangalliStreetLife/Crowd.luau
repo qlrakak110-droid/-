@@ -544,6 +544,9 @@ function Crowd.api(method: any, ...: any): any
 		local pp = P.pos
 		local a = if type(id) == "string" and pp then (byId[id] or Crowd.spawnResponder(id, pp, os.clock())) else nil
 		return if a then { id = a.id, x = a.pos.X, y = a.pos.Y, z = a.pos.Z, delivery = a.delivery, mounted = a.mounted == true } else nil
+	elseif method == "chartest" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
+		local kind, id = ...
+		return if Crowd.Characters then Crowd.Characters.test(kind, id) else nil
 	elseif method == "friends" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
 		return if Crowd.Friends then Crowd.Friends.stats() else nil
 	elseif method == "delivery" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
@@ -2943,6 +2946,41 @@ function Crowd.start(context: any)
 		table.insert(extraFree, "x" .. i)
 	end
 	pcall(installFightHooks)
+	local cm = script.Parent:FindFirstChild("Characters")
+	if cm then
+		local okC, mod = pcall(require, cm)
+		if okC and type(mod) == "table" then
+			Crowd.Characters = mod
+			task.spawn(function()
+				local t0 = os.clock()
+				while not ctx.Mind and os.clock() - t0 < 60 do
+					task.wait(0.5)
+				end
+				local okI, err = pcall(mod.init, {
+					Mind = ctx.Mind,
+					api = Crowd.api,
+					agents = function(): { any }
+						return agents
+					end,
+					playerPos = function(): Vector3?
+						return P.pos
+					end,
+					playerSpeed = function(): number
+						return P.speed or 0
+					end,
+					fire = function(kind: string, payload: any)
+						local fr = fightAction()
+						if fr then
+							fr:FireServer(kind, payload)
+						end
+					end,
+				})
+				if not okI then
+					warn("[GwangalliStreetLife] Characters: " .. tostring(err))
+				end
+			end)
+		end
+	end
 	local fm = script.Parent:FindFirstChild("Friends")
 	if fm then
 		local okF, mod = pcall(require, fm)

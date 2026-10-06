@@ -536,6 +536,10 @@ local function send(spec: any)
 		sayPlayer(M.playerLine("ignore", false, playerVars(), rnd), 2.5)
 		local l = M.line(a.c, "ignore", { you = player.DisplayName })
 		finish("ignore")
+		-- 걸렁뱅이: walking off on him mostly ends in a fight (GwangalliStreetLife/Characters)
+		if t.kind == "punk" and Mind.punkIgnored and Mind.punkIgnored(a) then
+			return
+		end
 		if l then
 			task.delay(0.8, function()
 				sayNpc(a, l, 3.5)
@@ -989,7 +993,7 @@ local function canAct(now: number, a: any): boolean
 end
 
 -- 동네바보: pick a prank (each with its own odds); never the same one twice in a row
-local PRANKS = { { "bump", 3 }, { "block", 3 }, { "cut", 2 }, { "stare", 2 }, { "weird", 2 } }
+local PRANKS = { { "bump", 6 }, { "block", 3 }, { "cut", 2 }, { "stare", 2 }, { "weird", 2 } }
 local function choosePrank(a: any): string
 	local total = 0
 	for _, p in PRANKS do
@@ -1075,7 +1079,7 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 	end
 	-- 걸렁뱅이: stares, then throws a line in passing or walks up
 	if t == "punk" and standing and d < 15 and d > 2.5 and now >= (a.nextProvoke or 0) and now - lastProvoke > 18 and pspeed < 18 then
-		a.nextProvoke = now + 22 + rnd() * 30
+		a.nextProvoke = now + 15 + rnd() * 20
 		if rnd() < 0.7 and canAct(now, a) then
 			lastProvoke = now
 			stats.provokes += 1
@@ -1096,7 +1100,7 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 				if dd > 18 then
 					return
 				end
-				if rnd() < 0.42 or dd > 10 then
+				if rnd() < 0.25 or dd > 10 then
 					-- 지나가면서 툭: a line, a glare, nothing else
 					local env = { now = os.time(), aff = (views[a.id] and views[a.id].aff) or 0, you = player.DisplayName, rnd = rnd }
 					local out = M.opener(a.c, M.newRec(a.c, os.time()), "punk_toss", env)
@@ -1125,12 +1129,12 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 	-- 취객 시비: late at night a drunk picks a quarrel — slurs at you, follows you around a while and
 	-- shoves you if you stay in his face; walk away and he gives up (Crowd's chase hook runs it)
 	if t == "drunk" and standing and d < 13 and d > 2.5 and now >= (a.nextQuarrel or 0) and now - lastQuarrel > 25 and pspeed < 14 and a.startChase then
-		a.nextQuarrel = now + 60 + rnd() * 60
+		a.nextQuarrel = now + 40 + rnd() * 40
 		local clock = ctx.clock()
-		local late = clock >= 21 or clock < 5
+		local late = (clock >= 19 or clock < 5) or rnd() < 0.45 -- mostly at night, sometimes in the day
 		local FSm = ReplicatedStorage:FindFirstChild("GwangalliFightShared")
 		local okF, FS = pcall(require, FSm :: any)
-		if late and okF and FS and rnd() < 0.5 and canAct(now, a) then
+		if late and okF and FS and rnd() < 0.65 and canAct(now, a) then
 			lastQuarrel = now
 			stats.quarrels = (stats.quarrels or 0) + 1
 			face(a, "angry", 5)
@@ -1143,8 +1147,8 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 	end
 	-- 동네바보: pranks with a chance and a cooldown
 	if t == "fool" and standing and d < 16 and d > 2 and now >= (a.nextPrank or 0) and now - lastPrank > 14 and pspeed < 18 then
-		a.nextPrank = now + 25 + rnd() * 35
-		if rnd() < 0.6 and canAct(now, a) then
+		a.nextPrank = now + 14 + rnd() * 20
+		if rnd() < 0.8 and canAct(now, a) then
 			lastPrank = now
 			stats.pranks += 1
 			local kind = choosePrank(a)
@@ -2185,7 +2189,7 @@ function Mind.drive(a: any, now: number)
 		if now > ctl.untilT then
 			release(a)
 		end
-	elseif kind == "threat" then
+	elseif kind == "threat" or kind == "custom" then
 		-- a weapon pointed at them (GwangalliStreetLife/Delivery drives it: surrender / freeze / call)
 		if type(ctl.drive) == "function" then
 			ctl.drive(a, ctl, now, pp)

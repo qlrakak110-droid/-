@@ -558,6 +558,42 @@ local function onCarHit(player: Player, p: any)
 	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, outcome = if sp < 15 then "stagger" else "knockdown" }, true)
 end
 
+-- an NPC starts a fight with this player (a 걸렁뱅이 refused money, a drunk picked a quarrel):
+-- their swings may land for a while (each still checked by onNpcHit)
+function Fight.startBrawl(player: Player, id: string, secs: number?)
+	if type(id) ~= "string" or #id > 40 then
+		return false
+	end
+	brawls[player] = brawls[player] or {}
+	brawls[player][id] = { untilT = now() + (secs or (FS.BRAWL_S[1] + r() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]))), last = 0 }
+	return true
+end
+
+-- the client says a street NPC picked the fight: only the types that do that, close by, not too often
+local AGGRESSIVE = { drunk = true, punk = true, thug = true, violent = true, hothead = true }
+local lastStart: { [Player]: number } = {}
+local function onNpcStart(player: Player, p: any)
+	if type(p) ~= "table" or type(p.id) ~= "string" then
+		return
+	end
+	local t = now()
+	if t - (lastStart[player] or 0) < 6 then
+		return
+	end
+	local typeId, c = typeOf(p.id, p.ptype)
+	local arch = c and MindShared and MindShared.archOf and MindShared.archOf(c) or typeId
+	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] then
+		return
+	end
+	local root = rootOf(player)
+	local pos = unpackV(p.pos)
+	if not root or not pos or flat(pos, root.Position) > 12 then
+		return
+	end
+	lastStart[player] = t
+	Fight.startBrawl(player, p.id)
+end
+
 local function onAction(player: Player, kind: any, p: any)
 	local ok, err = pcall(function()
 		if kind == "carHit" then
@@ -568,6 +604,8 @@ local function onAction(player: Player, kind: any, p: any)
 			onNpcHit(player, p)
 		elseif kind == "npcFight" then
 			onNpcFight(player, p)
+		elseif kind == "npcStart" then
+			onNpcStart(player, p)
 		end
 	end)
 	if not ok then
@@ -583,6 +621,7 @@ function Fight.onLeave(player: Player)
 	koUntil[player] = nil
 	hitCount[player] = nil
 	robbed[player] = nil
+	lastStart[player] = nil
 end
 
 function Fight.onLoaded(player: Player)

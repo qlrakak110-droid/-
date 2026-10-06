@@ -590,6 +590,10 @@ local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: a
 	elseif rec.st == "enemy" and rec.an < 8 and rec.tr >= 35 then
 		rec.st = ""
 	end
+	-- they start a real scuffle (their swings may land: GwangalliGameplay.Fight checks every one)
+	if out.act == "fight" and ctx.fight and type(ctx.fight.startBrawl) == "function" then
+		pcall(ctx.fight.startBrawl, player, id)
+	end
 	if o.talk ~= false then
 		rec.tk = (rec.tk or 0) + 1
 		if (rec.fm or 0) == 0 then
@@ -642,6 +646,21 @@ ops.open = function(player, sess, p)
 			out = if ok then res else nil
 		end
 		out = out or M.opener(c, rec, kind, env)
+		-- 걸렁뱅이: the walk-up is a money demand (no money / no -> a fight)
+		if kind == "punk" and M.DEMAND and M.mood(c, rec, env.aff) ~= "good" then
+			local amount = M.DEMAND_AMOUNTS[math.random(#M.DEMAND_AMOUNTS)]
+			sess.talk.demand = { amount = amount, n = 1 }
+			local l = M.DEMAND.ask[math.random(#M.DEMAND.ask)]
+			table.insert(out.lines, M.voice(M.fill(l, { money = M.won(amount) }), "punk", math.random))
+			while #out.lines > 2 do
+				table.remove(out.lines, 1)
+			end
+			local chips = {}
+			for _, ch in M.DEMAND.chips do
+				table.insert(chips, ch)
+			end
+			out.ask = { kind = "demand", chips = chips }
+		end
 		applyOut(player, sess, id, rec, out, { noAff = true })
 		sess.talk.first = false
 		return answer(player, sess, id, out)
@@ -727,6 +746,73 @@ local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan:
 	end
 	applyOut(player, sess, id, rec, out, nil)
 	if out.act == "end" or out.act == "leave" then
+		sess.talk = nil
+		player:SetAttribute(M.Attr.Busy, "")
+	end
+	return answer(player, sess, id, out)
+end
+
+-- the reply to a 걸렁뱅이's money demand (nil = not about it)
+local function demandReply(player: Player, sess: Sess, id: string, text: string): any?
+	local talk = sess.talk
+	local dm = talk and talk.id == id and talk.demand
+	if not dm then
+		return nil
+	end
+	local c = citizen(id)
+	local rec = recOf(sess, id, true)
+	local env = envFor(player, id, sess)
+	local vars = { money = M.won(dm.amount) }
+	local s = string.lower(text)
+	local function has(w: string): boolean
+		return string.find(s, w, 1, true) ~= nil
+	end
+	local it = M.parse(text, nil)
+	local out = { lines = {}, d = { aff = 0, tr = 0, an = 0, fe = 0, cl = 0 }, mood = M.mood(c, rec, env.aff), stage = M.stage(rec, env.aff), reg = "c", intent = "small", mem = { k = "demand" } }
+	local function say(key: string)
+		local list = M.DEMAND[key]
+		table.insert(out.lines, M.voice(M.fill(list[math.random(#list)], vars), "punk", math.random))
+	end
+	local function fight(key: string)
+		say(key)
+		out.act = "fight"
+		out.face = "angry"
+		out.d.an = 30
+		talk.demand = nil
+	end
+	local pay = has("드릴") or has("줄게") or has("드려") or has("가져가") or has("여기") or has("옜다") or has("ㅇㅋ") or has("알겠") or has("💵") or it == "yes"
+	local no = has("없") or has("싫") or has("안 줘") or has("못 줘") or has("안줘") or has("꺼져") or it == "no"
+	if it == "insult" or it == "provoke" or it == "threaten" then
+		fight("insult")
+	elseif pay then
+		local d = ctx.Profiles and ctx.Profiles.get and ctx.Profiles.get(player)
+		if d and (d.cash or 0) >= dm.amount and ctx.ledger(player, "cash", -dm.amount, string.format("💸 %s에게 뜯김 (%s)", c.name, M.won(dm.amount)), false) then
+			say("paid")
+			out.act = "backoff"
+			out.face = "smug"
+			out.d.an = -15
+			talk.demand = nil
+			M.remember(rec, "money", dm.amount, now())
+		else
+			fight("nomoney")
+		end
+	elseif no then
+		fight("refuse")
+	elseif it == "apologize" and dm.n < 2 then
+		dm.n += 1
+		say("sorry")
+		out.ask = { kind = "demand", chips = M.DEMAND.chips }
+	else
+		dm.n += 1
+		if dm.n >= 3 then
+			fight("refuse")
+		else
+			say("again")
+			out.ask = { kind = "demand", chips = M.DEMAND.chips }
+		end
+	end
+	applyOut(player, sess, id, rec, out, { noAff = true, noCrime = true })
+	if out.act == "fight" or out.act == "backoff" then
 		sess.talk = nil
 		player:SetAttribute(M.Attr.Busy, "")
 	end
@@ -825,6 +911,12 @@ ops.say = function(player, sess, p)
 	end
 	local text = Util.str(p.text, 140)
 	local intent = Util.str(p.intent, 20)
+	if text and not intent then
+		local dr = demandReply(player, sess, id, text)
+		if dr then
+			return dr
+		end
+	end
 	if text and not intent and Talk then
 		return sayFree(player, sess, id, text, if remote then "call" else "talk")
 	end

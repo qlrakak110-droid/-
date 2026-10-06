@@ -796,7 +796,34 @@ local function firstCp(s: string): number?
 	return nil
 end
 
+-- 동네바보 맞춤법 (on purpose, 킹받게): common words misspelled, now and then a stray ㅋ
+local TYPO = {
+	{ "안녕하세요", "안녕하세여" }, { "안녕", "안뇽" }, { "했어", "햇어" }, { "있어", "잇어" }, { "없어", "업서" }, { "괜찮", "갠찬" },
+	{ "몰라", "몰랑" }, { "진짜", "진쨔" }, { "뭐", "머" }, { "그래", "구래" }, { "됐어", "됬어" }, { "돼", "되" }, { "왜", "외" },
+	{ "너무", "넘" }, { "친구", "칭구" }, { "좋아", "조아" }, { "재밌", "재밋" }, { "싫어", "시러" }, { "말이야", "마리야" },
+	{ "같아", "가타" }, { "맞아", "마자" }, { "있잖아", "잇자나" }, { "어디", "어듸" }, { "보고 싶", "보구 십" }, { "미안", "미아내" },
+	{ "아니야", "아니얌" }, { "바다", "빠다" }, { "먹었", "머겄" }, { "봤어", "바써" }, { "할래", "할랭" }, { "이거", "이고" },
+	{ "그렇지", "그치" }, { "알았어", "아라써" }, { "하지 마", "하지마" }, { "웃겨", "웃겨ㅋ" }, { "사랑해", "사랑행" },
+}
+function Mind.typo(s: string, rnd: (() -> number)?): string
+	local r = rnd or math.random
+	local out = s
+	for _, rule in TYPO do
+		if r() < 0.8 then
+			out = string.gsub(out, rule[1], rule[2])
+		end
+	end
+	out = string.gsub(out, "습니다", "슴다")
+	if r() < 0.35 and not string.find(out, "ㅋ$") then
+		out ..= " ㅋ"
+	end
+	return out
+end
+
 function Mind.voice(s: string, arch: string, rnd: (() -> number)?, upset: boolean?): string
+	if arch == "fool" then
+		s = Mind.typo(s, rnd)
+	end
 	local V = Lines and Lines.VOICE and Lines.VOICE[arch]
 	if not V or s == "" then
 		return s
@@ -1874,6 +1901,19 @@ function Mind.witnessLine(kind: string, rnd: (() -> number)?): string?
 end
 
 -- the chips the conversation bar offers right now (context-aware: stage, arch, pending question)
+-- 걸렁뱅이 돈 요구 (GwangalliGameplay.Mind: an approach turns into a demand; no money / no = a fight)
+Mind.DEMAND = {
+	ask = { "야, 너 돈 좀 있냐? {money}만 빌려 줘. 금방 갚을게 ㅋ", "형이 오늘 좀 급해서 그래. {money}만 줘 봐.", "지나가려면 통행료 내야지? {money}.", "{money}만 줘. 그럼 조용히 보내 줄게 ㅋ" },
+	again = { "돈 있냐고 묻잖아. 귀 먹었냐?", "말 돌리지 말고. {money}.", "어허, 대답 안 하네? {money} 내놔." },
+	paid = { "오~ 착하네 ㅋ 다음에도 부탁한다~", "ㅋㅋ 말 잘 듣네. 가 봐.", "그래 이래야 서로 편하지. 잘 가라~" },
+	nomoney = { "야, 없잖아? 장난하냐? 이리 와 봐.", "돈도 없으면서 뭘 준다는 거야? 맞자.", "주머니 털어도 안 나오네? 그럼 몸으로 때워야지." },
+	refuse = { "싫어? 이게 미쳤나. 한번 맞아 볼래?", "없다고? 그럼 맞아야지 ㅋ", "오냐, 오늘 제대로 걸렸다.", "돈 없으면 맞고 가는 거다." },
+	insult = { "뭐? 이게 진짜 죽고 싶나!", "말 다 했냐? 덤벼!" },
+	sorry = { "미안하면 돈으로 보여 줘야지?", "말로만? {money} 내놓으면 봐준다." },
+	chips = { "💵 여기요, 드릴게요", "돈 없어요", "싫은데요", "죄송해요…" },
+}
+Mind.DEMAND_AMOUNTS = { 5000, 10000, 10000, 20000 }
+
 Mind.CHIPS = {
 	{ id = "greet", label = "👋 인사" },
 	{ id = "ask", label = "❓ 질문", sub = { "how", "doing", "name", "age", "job", "food_q", "like_q", "hobby_q", "place_q", "news_q", "number" } },
