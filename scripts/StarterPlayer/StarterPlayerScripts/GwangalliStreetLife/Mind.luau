@@ -2008,7 +2008,7 @@ local INCIDENT_LINES = {
 -- 생활콘텐츠 -> NPC: "an incident happened"; the NPC system casts and plays it.
 --   kind = "drunk_quarrel" | "stall_fight" | "street_fight" | "lost" | "help" | "suspicious"
 --   data = { pos = Vector3? (where, default: around the player), id = citizen/agent id? }
-function Mind.incident(kind: string, data: any?): boolean
+local function incidentImpl(kind: string, data: any?): (boolean, string?)
 	local d = if type(data) == "table" then data else {}
 	local pp = playerPos()
 	local at = if typeof(d.pos) == "Vector3" then d.pos else pp
@@ -2024,7 +2024,7 @@ function Mind.incident(kind: string, data: any?): boolean
 			return false
 		end
 		a.type = "drunk"
-		return Mind.startQuarrel(a, FS.DRUNK_LINES)
+		return Mind.startQuarrel(a, FS.DRUNK_LINES), a.id
 	elseif kind == "stall_fight" or kind == "street_fight" then
 		local a = nearestAgent(at, 40)
 		local b = a and nearestAgent(a.pos, 12, function(x)
@@ -2035,15 +2035,23 @@ function Mind.incident(kind: string, data: any?): boolean
 			return false
 		end
 		playScene(a, b, "drunkfight", lines)
-		return true
+		return true, a.id .. "+" .. b.id
 	elseif INCIDENT_LINES[kind] then
 		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45)
 		if not a then
 			return false
 		end
-		return Mind.startQuarrel(a, INCIDENT_LINES[kind], { noShove = true, secs = if kind == "suspicious" then 22 else 10, keep = if kind == "suspicious" then 10 else 3.2 })
+		return Mind.startQuarrel(a, INCIDENT_LINES[kind], { noShove = true, secs = if kind == "suspicious" then 22 else 10, keep = if kind == "suspicious" then 10 else 3.2 }), a.id
 	end
-	return false
+	return false, nil
+end
+
+function Mind.incident(kind: string, data: any?): boolean
+	local ok, who = incidentImpl(kind, data)
+	if debugOn() then
+		workspace:SetAttribute("GwangalliIncidentResult", string.format("%s:%s:%s", tostring(kind), tostring(ok), tostring(who)))
+	end
+	return ok
 end
 
 local function sceneTick(now: number)

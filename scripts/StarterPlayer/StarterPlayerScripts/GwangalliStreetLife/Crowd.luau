@@ -2823,8 +2823,13 @@ local function installFightHooks()
 			chs.untilT = math.max(chs.untilT, q.untilT)
 			local dx, dz = pp.X - self.pos.X, pp.Z - self.pos.Z
 			local d = math.sqrt(dx * dx + dz * dz)
-			if d > 22 or math.abs(pp.Y - self.pos.Y) > 6 then
-				q.untilT = now -- you walked off: he gives up (calm line next tick)
+			-- you walked off (farther than when it started, by a margin): he gives up
+			q.giveUp = q.giveUp or math.max(24, d + 10)
+			if d < q.giveUp - 10 then
+				q.giveUp = math.max(24, d + 10)
+			end
+			if d > q.giveUp or math.abs(pp.Y - self.pos.Y) > 6 then
+				q.untilT = now
 				return
 			end
 			if now >= q.nextLine then

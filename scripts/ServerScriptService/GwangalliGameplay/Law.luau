@@ -766,6 +766,12 @@ Law.ops.debug = function(player, s, p)
 			Law.children.Police.dispatch(player, s, Law.posOf(player), "assault", "test")
 		end
 		return { ok = true, stars = s.stars }
+	elseif p.act == "crimes" then
+		local out = {}
+		for _, e in s.crimes do
+			table.insert(out, string.format("%s%s(%s)", e.kind, if e.reported then "*" else "", tostring(e.info and e.info.source)))
+		end
+		return { ok = true, stars = s.stars, crimes = table.concat(out, ",") }
 	elseif p.act == "incident" then
 		-- test only: a 생활콘텐츠-style trigger through the public NPC events API
 		local ev = game:GetService("ServerStorage"):FindFirstChild("GwangalliNPCEvents")
