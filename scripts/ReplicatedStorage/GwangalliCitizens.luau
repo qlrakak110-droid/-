@@ -259,6 +259,9 @@ Citizens.ACT_STYLE = {
 	home = { move = "post", idle = "idle", speed = 1, label = "집에 있는 중" },
 	sleep = { move = "post", idle = "idle", speed = 1, label = "자는 중" },
 	patrol = { move = "wander", idle = "look", speed = 0.95, label = "순찰 중" },
+	-- 배달 (delivery riders): shop / restaurant / cafe fronts one after another, a short stop at each
+	-- (GwangalliStreetLife/Delivery shortens the stop and puts scooter riders on their scooter)
+	deliver = { move = "spot", kinds = { "shop", "food", "cafe" }, idle = "phone", speed = 1, label = "배달 중" },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -1334,7 +1337,9 @@ Citizens.SCHEDULES = {
 	night = { { 0, "work", "work" }, { 4, "home", "sleep" }, { 13, "cafe", "cafe" }, { 15, "gym", "gym" }, { 17, "walk", "walk" }, { 19, "work", "work" } },
 	fisher = { { 0, "home", "sleep" }, { 3.5, "work", "work" }, { 10, "hoetown", "work" }, { 13, "home", "home" }, { 16, "millak_park", "walk" }, { 18, "hoetown", "drink" }, { 21, "home", "sleep" } },
 	taxi = { { 0, "club", "work" }, { 3, "station", "work" }, { 6, "home", "sleep" }, { 13, "plaza", "work" }, { 16, "station", "work" }, { 19, "gwangan_st", "work" }, { 21.5, "club", "work" } },
-	rider = { { 0, "home", "sleep" }, { 10, "millak_market", "work" }, { 12, "gwangan_st", "work" }, { 14, "beach_c", "work" }, { 16, "station", "work" }, { 18, "gwangan_st", "work" }, { 20, "beach_c", "work" }, { 22, "club", "work" }, { 23.5, "home", "home" } },
+	rider = { { 0, "home", "sleep" }, { 9.5, "millak_market", "deliver" }, { 11, "gwangan_st", "deliver" }, { 12.5, "beach_w", "deliver" }, { 14, "station", "deliver" }, { 15, "eat", "eat" }, { 16, "gs25", "deliver" }, { 17.5, "gwangan_st", "deliver" }, { 19, "beach_c", "deliver" }, { 20.5, "hoetown", "deliver" }, { 22, "club", "deliver" }, { 23.5, "home", "home" } },
+	rider_day = { { 0, "home", "sleep" }, { 8, "station", "deliver" }, { 9.5, "bread", "deliver" }, { 11, "beach_e", "deliver" }, { 12.5, "gwangan_st", "deliver" }, { 14, "cafe", "cafe" }, { 15, "millak_market", "deliver" }, { 16.5, "gs25", "deliver" }, { 18, "beach_w", "deliver" }, { 19.5, "home", "home" } },
+	rider_night = { { 0, "club", "deliver" }, { 2, "gwangan_st", "deliver" }, { 3.5, "home", "sleep" }, { 13, "cafe", "cafe" }, { 15, "gym", "gym" }, { 17, "eat", "eat" }, { 18, "hoetown", "deliver" }, { 19.5, "beach_c", "deliver" }, { 21, "gwangan_st", "deliver" }, { 22.5, "gs25", "deliver" } },
 	artist = { { 0, "home", "sleep" }, { 9, "cafe", "cafe" }, { 11, "fun", "paint" }, { 14, "beach_c", "busk" }, { 17, "plaza", "busk" }, { 20, "beach_c", "busk" }, { 22, "gwangan_st", "walk" }, { 23.5, "home", "home" } },
 	athlete = { { 0, "home", "sleep" }, { 5.5, "beach_c", "jog" }, { 8, "work", "work" }, { 12, "eat", "eat" }, { 13, "work", "work" }, { 18, "beach_c", "jog" }, { 20, "eat", "eat" }, { 22, "home", "home" } },
 	parent = { { 0, "home", "sleep" }, { 8, "school", "walk" }, { 9, "cafe", "cafe" }, { 11, "homeplus", "shop" }, { 13, "home", "home" }, { 15, "beach_c", "walk" }, { 17, "fun", "walk" }, { 19, "home", "home" } },
@@ -1636,12 +1641,45 @@ Citizens.LIST = {
 		sig = { "여자 기사라고 얕보면 안 된다, 내가 제일 빠르다 아이가!", "우리 딸도 니 또래다. 밥은 잘 챙기 무라." } },
 	{ id = "rider_hoon", name = "조성훈", age = 23, g = "m", persona = "rider", speech = "std", job = "배달 라이더 · 휴학생", home = "station", club = 0.5, social = 0.7,
 		topics = { "work", "games", "money" }, hate = { "art" }, love = { "vitamin", "game_card" }, like = { "cat:snack", "cat:game" }, dislike = { "cat:flower" }, bday = { 3, 19 },
-		look = { hair = "short", hc = "black", style = "rider", night = "streetnight", acc = "helmet", skin = 3 },
+		delivery = "scooter", nerve = 0.4,
+		look = { hair = "short", hc = "black", style = "rider", night = "streetnight", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 3 },
 		sig = { "돈 모아서 복학하는 게 목표야.", "배달 가다 너 보이면 손 흔들게!" } },
 	{ id = "rider_min", type = "violent", name = "남민석", age = 31, g = "m", persona = "rider", speech = "busan", job = "배달 라이더 5년 차", home = "suyeong_stn", club = 0.3, social = 0.55,
 		topics = { "money", "food", "baseball" }, hate = { "fashion" }, love = { "fishcake", "beer" }, like = { "cat:food", "cat:alcohol" }, dislike = { "cat:dessert" }, bday = { 10, 31 },
-		look = { hair = "twoblock", hc = "black", style = "rider", night = "jacket", acc = "helmet", skin = 4 },
+		delivery = "scooter", nerve = 0.8,
+		look = { hair = "twoblock", hc = "black", style = "rider", night = "jacket", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 4 },
 		sig = { "이 동네 지름길은 내가 다 안다 아이가.", "비 오는 날 배달은 전쟁이다." } },
+	-- 배달 라이더들 (delivery NPCs: street life; robbable, see GwangalliRobShared) -----------------
+	{ id = "rider_jiwoo", name = "백지우", age = 27, g = "f", persona = "rider", speech = "std", job = "배달 라이더 · 프리랜서 일러스트레이터", home = "station6", club = 0.3, social = 0.65,
+		delivery = "scooter", nerve = 0.55,
+		topics = { "art", "coffee", "work" }, hate = { "baseball" }, love = { "americano", "macaron" }, like = { "cat:coffee", "cat:dessert" }, dislike = { "cat:alcohol" }, bday = { 5, 2 },
+		look = { hair = "ponytail", hc = "brown", style = "rider", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 2 },
+		sig = { "신호 대기할 때 스케치 하나씩 해. 비밀이야 ㅎㅎ", "배달 끝나면 카페 가서 그림 그릴 거야." } },
+	{ id = "rider_dongsu", name = "오동수", age = 45, g = "m", persona = "rider", speech = "busan", job = "배달 라이더 · 두 아이 아빠", home = "suyeong_stn", club = 0, social = 0.75,
+		delivery = "scooter", nerve = 0.3,
+		topics = { "family", "baseball", "food" }, hate = { "club" }, love = { "tangerine", "cheer_towel" }, like = { "cat:fruit", "cat:food" }, dislike = { "perfume" }, bday = { 11, 9 },
+		look = { hair = "short", hc = "black", style = "rider", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 4, build = "broad" },
+		sig = { "우리 아들내미 학원비 벌러 나왔다 아이가.", "안전 운전이 제일이다, 니도 조심해라." } },
+	{ id = "rider_yena", name = "윤예나", age = 21, g = "f", persona = "rider", speech = "std", job = "도보 배달 · 대학생", home = "jwell", club = 0.5, social = 0.7,
+		sched = "rider_day", delivery = "walk", nerve = 0.25,
+		topics = { "music", "study", "food" }, hate = { "money" }, love = { "cake", "saltbread" }, like = { "cat:dessert", "cat:music" }, dislike = { "cat:flower" }, bday = { 2, 14 },
+		look = { hair = "long", hc = "brown", style = "rider", acc = "cap", gear = { "delivery_bag" }, skin = 1 },
+		sig = { "걸어서 배달하면 하루 이만 보는 기본이야 ㅋㅋ", "다리 튼튼해지는 알바, 추천은 안 해 ㅋㅋ" } },
+	{ id = "rider_taeho", name = "강태호", age = 34, g = "m", persona = "rider", speech = "busan", job = "배달 라이더 · 전직 복서", home = "suyeong_stn", club = 0.2, social = 0.5,
+		delivery = "scooter", nerve = 0.9,
+		topics = { "fitness", "money", "food" }, hate = { "fashion" }, love = { "vitamin", "beer" }, like = { "cat:food", "cat:alcohol" }, dislike = { "cat:dessert" }, bday = { 7, 21 },
+		look = { hair = "buzz", hc = "black", style = "rider", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 4, build = "broad" },
+		sig = { "링에서 내려왔어도 주먹은 아직 녹슬지 않았다.", "배달은 체력이다. 체력!" } },
+	{ id = "rider_seojin", name = "문서진", age = 20, g = "m", persona = "rider", speech = "std", job = "도보 배달 알바 · 재수생", home = "station", club = 0.1, social = 0.45,
+		sched = "rider_day", delivery = "walk", nerve = 0.15,
+		topics = { "study", "games", "food" }, hate = { "club" }, love = { "game_card", "tteokbokki" }, like = { "cat:snack", "cat:game" }, dislike = { "book" }, bday = { 9, 3 },
+		look = { hair = "short", hc = "black", style = "rider", acc = "cap", gear = { "delivery_bag" }, skin = 2 },
+		sig = { "공부하다 머리 식히려고 배달해요… 사실 돈 때문에요 ㅠ", "엄마한텐 독서실 간다고 했어요 ㅋㅋ" } },
+	{ id = "rider_gunwoo", name = "한건우", age = 28, g = "m", persona = "rider", speech = "std", job = "야간 배달 라이더", home = "station6", club = 0.6, social = 0.6,
+		sched = "rider_night", delivery = "scooter", nerve = 0.6,
+		topics = { "music", "games", "money" }, hate = { "study" }, love = { "game_card", "americano" }, like = { "cat:game", "cat:coffee" }, dislike = { "cat:flower" }, bday = { 12, 1 },
+		look = { hair = "twoblock", hc = "brown", style = "rider", acc = "helmet", gear = { "delivery_box", "scooter" }, skin = 3 },
+		sig = { "밤에 달리는 광안대교 뷰는 라이더만 아는 맛이야.", "새벽 배달은 족발이 반이야." } },
 	-- cooks -----------------------------------------------------------------------------------------
 	{ id = "chef_jung", name = "정실장님", fullName = "정민호", age = 36, g = "m", persona = "chef", speech = "busan", job = "민락회타운 횟집 실장", home = "hoetown", work = "hoetown", club = 0.2, social = 0.6,
 		topics = { "food", "sea", "work" }, hate = { "games" }, love = { "soju", "fishcake" }, like = { "cat:alcohol", "cat:food" }, dislike = { "cat:dessert" }, bday = { 1, 5 },
@@ -2015,6 +2053,12 @@ Citizens.CREWS = {
 	{ id = "road", name = "도로 위 동료들", kind = "coworkers", members = { "rider_hoon", "rider_min", "taxi_kim", "taxi_lee" },
 		slots = { { 15, 16, "gs25", "eat" } },
 		lines = { "오늘 콜 많네", "광안대교 또 막히더라", "잠깐 쉬었다 하자" } },
+	{ id = "riders", name = "배달 단톡방", kind = "coworkers", members = { "rider_dongsu", "rider_taeho", "rider_gunwoo" },
+		slots = { { 15, 16, "gwangan_st", "eat" } },
+		lines = { "오늘 콜 몇 개 했어?", "비 오면 배달료 오르는데 ㅋㅋ", "그 집 엘베 고장이더라" } },
+	{ id = "walkers", name = "도보 배달 동기", kind = "friends", members = { "rider_yena", "rider_seojin", "rider_jiwoo" },
+		slots = { { 12, 13, "hongmidang", "cafe" } },
+		lines = { "오늘 몇 보 걸었어?", "다리 아파 죽겠다 ㅋㅋ", "끝나고 떡볶이 먹자" } },
 	{ id = "market", name = "밀락 상인회", kind = "neighbors", members = { "market_ahn", "vendor_hotteok", "chef_jung" },
 		slots = { { 13, 14, "gwangan_st", "eat" } },
 		lines = { "요새 장사는 좀 되나?", "오늘 귤이 달다 아이가", "호떡 하나 더 무라" } },
@@ -3151,8 +3195,6 @@ function Citizens.introLine(id: string, friendId: string, vars: any?): string
 	return Citizens.fill(string.format(s, fI), vars)
 end
 
-local ROUGH_TYPES = { punk = true, thug = true, beggar = true, police = true, fool = true, drunk = true }
-
 -- All small-talk lines for a tier (1..5) and clock (unfilled; see Citizens.fill). met = you have met
 -- before (tier 1 then drops its "first time?" lines).
 function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean?): { string }
@@ -3168,15 +3210,10 @@ function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean
 	if P then
 		addAll(out, P.lines[tod][reg])
 	end
-	-- street types with their own voice (걸렁뱅이, 불량배, 노숙자, 경찰, 동네바보, 취객) keep to their persona
-	-- until they are close: the friendly generic lines ("같이 클럽 가실래요?") don't fit them
-	local rough = ROUGH_TYPES[c.type or ""] == true
-	if not rough or t >= 3 then
-		local TL = if met and t == 1 then Citizens.TIER_LINES_MET else Citizens.TIER_LINES[t]
-		addAll(out, TL[c.speech] or TL.std)
-		if c.speech == "busan" then
-			addAll(out, Citizens.BUSAN_LINES[tod][reg])
-		end
+	local TL = if met and t == 1 then Citizens.TIER_LINES_MET else Citizens.TIER_LINES[t]
+	addAll(out, TL[c.speech] or TL.std)
+	if c.speech == "busan" then
+		addAll(out, Citizens.BUSAN_LINES[tod][reg])
 	end
 	if t >= 3 then
 		addAll(out, c.sig)
@@ -3184,7 +3221,7 @@ function Citizens.linesFor(id: string, tier: number, clock: number, met: boolean
 	if t >= 2 and c.crews and #c.crews > 0 then
 		addAll(out, crewLinesOf(c)[reg]) -- their friends (by name), where the crew hangs out
 	end
-	if (tod == "evening" or tod == "night") and (c.club or 0) > 0 and not c.minor and not rough then
+	if (tod == "evening" or tod == "night") and (c.club or 0) > 0 and not c.minor then
 		local CL = Citizens.CLUB_LINES[reg]
 		addAll(out, CL[c.speech] or CL.std)
 	end

@@ -322,6 +322,14 @@ local TOPICS: { [string]: any } = {
 		why = PC({ "지나가면 다시 안 오는 순간이잖아요.|지나가면 다시 안 오는 순간이잖아." }),
 		where = PC({ "테라스타오션 쪽이 사진 잘 나와요.|테라스타오션 쪽이 사진 잘 나와." }),
 	},
+	delivery = {
+		label = "배달",
+		kw = { "배달", "라이더", "배민", "쿠팡이츠", "요기요", "콜 ", "주문 들어", "오토바이 타" },
+		ops = PC({ "점심이랑 저녁 피크 때는 진짜 전쟁이에요.|점심 저녁 피크 때는 진짜 전쟁이야.", "엘리베이터 없는 빌라 오 층 배달이 제일 무서워요 ㅋㅋ|엘베 없는 빌라 오 층이 제일 무서워 ㅋㅋ", "비 오는 날은 배달비가 올라서 좋긴 한데 위험해요.|비 오면 배달비 올라서 좋긴 한데 위험해.", "리뷰에 친절 기사님 달리면 하루가 행복해요.|리뷰에 친절 기사님 달리면 하루가 행복해." }),
+		ask = PC({ "배달 자주 시켜 먹어요?|배달 자주 시켜 먹어?" }),
+		why = PC({ "내 시간 내가 정해서 일할 수 있거든요.|내 시간 내가 정할 수 있거든." }),
+		where = PC({ "먹자골목 쪽이 콜이 제일 많아요.|먹자골목 쪽이 콜이 제일 많아." }),
+	},
 	-- street topics (nobody's roster topic: the archetype decides)
 	bridge = {
 		label = "광안대교",
@@ -391,7 +399,7 @@ local TOPICS: { [string]: any } = {
 		why = PC({ "못 자면 하루 종일 멍하거든요.|못 자면 하루 종일 멍하거든." }),
 	},
 }
-local TOPIC_ORDER = { "bridge", "police", "drink", "love", "pet", "movie", "car", "sleep", "busan", "baseball", "games", "club", "music", "photo", "coffee", "fitness", "fashion", "travel", "study", "work", "family", "art", "money", "sea", "food" }
+local TOPIC_ORDER = { "delivery", "bridge", "police", "drink", "love", "pet", "movie", "car", "sleep", "busan", "baseball", "games", "club", "music", "photo", "coffee", "fitness", "fashion", "travel", "study", "work", "family", "art", "money", "sea", "food" }
 -- archetypes that care about a street topic either way
 local ARCH_TOPIC = {
 	drunk = { love = { drink = true }, hate = { police = true } },
@@ -407,6 +415,7 @@ local ARCH_TOPIC = {
 	fool = { love = { pet = true, sea = true } },
 	clerk = { love = { coffee = true } },
 	parttimer = { hate = { work = true } },
+	rider = { love = { food = true, car = true, delivery = true } },
 }
 
 local function stanceOf(c: any, arch: string, topic: string): string
@@ -1836,6 +1845,20 @@ function Talk.finish(c: any, rec: any, env: any, tc: any, parts: { any }, mood: 
 	if out.ask and out.ask.kind then
 		tc.ask = out.ask.kind
 		tc.askN = tc.n
+	end
+	-- a rider on a run: a long chat ends with the next call
+	if arch == "rider" and (tc.n or 0) >= 6 and not out.act and Citizens and r() < 0.5 then
+		local act = nil
+		pcall(function()
+			local _, a = Citizens.whereNow(c.id, env.clock or 12)
+			act = a
+		end)
+		if act == "deliver" then
+			local bye = if reg == "c" then "아 콜 들어왔다! 나 가 볼게, 다음에 또 얘기하자!" else "아 콜 들어왔다! 저 가 볼게요, 다음에 또 얘기해요!"
+			table.insert(out.lines, bye)
+			out.act = "end"
+			out.emote = "wave"
+		end
 	end
 	while #out.lines > 3 do
 		table.remove(out.lines, 1)

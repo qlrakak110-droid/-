@@ -98,6 +98,7 @@ end
 -------------------------------------------------------------------------------------------------
 -- player state
 -------------------------------------------------------------------------------------------------
+local Delivery: any = nil -- GwangalliStreetLife/Delivery (배달 라이더 + rob state of street people)
 local P = { pos = nil :: Vector3?, vel = Vector3.zero, speed = 0, lastPos = nil :: Vector3?, lastT = 0, seat = nil :: BasePart?, look = Vector3.new(0, 0, -1) }
 
 local function samplePlayer(now: number)
@@ -537,6 +538,14 @@ function Crowd.api(method: any, ...: any): any
 			rootX = rp and rp.X, rootY = rp and rp.Y, rootZ = rp and rp.Z,
 			canChat = Crowd.canChat(os.clock()), talkingNow = SocialUI.talkingNow and SocialUI.talkingNow() or false,
 		}
+	elseif method == "spawnnamed" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
+		-- test harness only: put a named citizen out near the player (it then follows its own day)
+		local id = ...
+		local pp = P.pos
+		local a = if type(id) == "string" and pp then (byId[id] or Crowd.spawnResponder(id, pp, os.clock())) else nil
+		return if a then { id = a.id, x = a.pos.X, y = a.pos.Y, z = a.pos.Z, delivery = a.delivery, mounted = a.mounted == true } else nil
+	elseif method == "delivery" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
+		return if Delivery then Delivery.stats() else nil
 	elseif method == "debug" and workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
 		-- test harness only (tools/sim scenarios): retype the closest agent / a given id
 		local id, spec = ...
@@ -1250,6 +1259,9 @@ local function newAgent(def: any, spec: any, key: string, node: number?, pos: Ve
 	local rig = Pool.acquire(key, spec, def.name or def.id, cf)
 	local a = Agent.new(def, rig, node, pos, yaw)
 	register(a)
+	if Delivery then
+		pcall(Delivery.attach, a)
+	end
 	return a
 end
 
@@ -1723,6 +1735,9 @@ function Crowd.remove(a: any)
 		return
 	end
 	a.gone = true
+	if Delivery then
+		pcall(Delivery.detach, a)
+	end
 	if a.fadeAt then
 		a.fadeAt = nil
 		setFade(a, 0)
@@ -2926,6 +2941,39 @@ function Crowd.start(context: any)
 		table.insert(extraFree, "x" .. i)
 	end
 	pcall(installFightHooks)
+	local dm = script.Parent:FindFirstChild("Delivery")
+	if dm then
+		local okD, mod = pcall(require, dm)
+		if okD and type(mod) == "table" then
+			Delivery = mod
+			Crowd.Delivery = mod
+			task.spawn(function()
+				local t0 = os.clock()
+				while not ctx.Mind and os.clock() - t0 < 60 do
+					task.wait(0.5)
+				end
+				local okI, err = pcall(Delivery.init, ctx, {
+					Agent = Agent,
+					Mind = ctx.Mind,
+					playPose = playPose,
+					playerPos = function(): Vector3?
+						return P.pos
+					end,
+					playerLook = function(): Vector3
+						return P.look
+					end,
+					byId = function(): any
+						return byId
+					end,
+				})
+				if not okI then
+					warn("[GwangalliStreetLife] Delivery: " .. tostring(err))
+				end
+			end)
+		else
+			warn("[GwangalliStreetLife] Delivery failed to load: " .. tostring(mod))
+		end
+	end
 	-- dance clips the player may play (the player's own dances are "dance" emotes of any id; the
 	-- default R15 ones are matched by id, others by track name)
 	local AL = ctx.AnimLib

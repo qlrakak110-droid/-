@@ -321,6 +321,19 @@ local function release(a: any, leave: boolean?)
 	end
 end
 Mind.release = release
+Mind.take = take
+Mind.sayNpc = function(a: any, text: string, dur: number?)
+	sayNpc(a, text, dur)
+end
+Mind.face = function(a: any, expr: string?, dur: number?)
+	face(a, expr, dur)
+end
+Mind.hold = function(a: any, faceTo: Vector3?, pose: string?)
+	hold(a, faceTo, pose)
+end
+Mind.moveTo = function(a: any, p: Vector3, speed: number)
+	moveTo(a, p, speed)
+end
 
 -------------------------------------------------------------------------------------------------
 -- conversation sessions
@@ -2170,6 +2183,13 @@ function Mind.drive(a: any, now: number)
 			end
 		end
 		if now > ctl.untilT then
+			release(a)
+		end
+	elseif kind == "threat" then
+		-- a weapon pointed at them (GwangalliStreetLife/Delivery drives it: surrender / freeze / call)
+		if type(ctl.drive) == "function" then
+			ctl.drive(a, ctl, now, pp)
+		elseif now > (ctl.untilT or 0) then
 			release(a)
 		end
 	elseif kind == "scene" then

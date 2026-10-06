@@ -133,6 +133,7 @@ Mind.ARCH = {
 	rich = { label = "부자", warm = 0.35, temper = 0.45, brave = 0.4, humor = 0.3, greed = 0.1, pride = 0.95, chatty = 0.4, tr0 = 20 },
 	tourist = { label = "관광객", warm = 0.75, temper = 0.2, brave = 0.3, humor = 0.6, greed = 0.25, pride = 0.3, chatty = 0.75, tr0 = 35 },
 	elder = { label = "어르신", warm = 0.7, temper = 0.45, brave = 0.5, humor = 0.5, greed = 0.25, pride = 0.7, chatty = 0.7, tr0 = 35, banmal = true },
+	rider = { label = "배달 라이더", warm = 0.6, temper = 0.4, brave = 0.45, humor = 0.55, greed = 0.45, pride = 0.4, chatty = 0.5, tr0 = 30 },
 	hothead = { label = "성깔 있는 사람", warm = 0.25, temper = 0.95, brave = 0.8, humor = 0.2, greed = 0.4, pride = 0.8, chatty = 0.3, tr0 = 10, hostile = true },
 }
 
@@ -140,7 +141,7 @@ local TYPE_ARCH = { police = "police", beggar = "homeless", punk = "punk", thug 
 local PERSONA_ARCH = {
 	hs = "student", uni = "student", office = "office", dev = "office", tourist = "tourist", foreigner = "tourist",
 	grandma = "elder", grandpa = "elder", barista = "clerk", merchant = "clerk", chef = "clerk", clerk = "clerk",
-	police = "police", street = "homeless", punk = "punk", thug = "thug", rich = "rich",
+	police = "police", street = "homeless", punk = "punk", thug = "thug", rich = "rich", rider = "rider",
 }
 
 function Mind.archOf(c: any): string
@@ -171,6 +172,10 @@ function Mind.traits(c: any): any
 	if type(c) == "table" and isNum(c.social) then
 		t.warm = clamp01(t.warm * 0.6 + c.social * 0.4)
 		t.chatty = clamp01(t.chatty * 0.7 + c.social * 0.3)
+	end
+	-- the roster may pin someone's nerve (배달 라이더: who surrenders, who runs, who calls 112)
+	if type(c) == "table" and isNum(c.nerve) then
+		t.brave = clamp01(c.nerve)
 	end
 	t.tr0 = A.tr0 or 30
 	t.banmal = A.banmal == true

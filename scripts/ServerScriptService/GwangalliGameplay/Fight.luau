@@ -16,6 +16,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fight = {}
+local Rob: any = nil -- GwangalliRobShared (강탈 rules, read by the crime systems)
 
 local ctx: any
 local FS: any
@@ -172,6 +173,16 @@ local function decide(id: string, typeId: string, c: any, hpLeft: number, max: n
 		return "arrest"
 	end
 	local brave, temper, arch = personality(id, typeId, c)
+	if arch == "rider" and typeId ~= "violent" then
+		-- 배달 라이더: startled, they get away (on the scooter) or call; only the toughest hit back
+		if hpLeft <= max * 0.3 then
+			return if r() < 0.5 then "cower" else "flee"
+		end
+		if brave >= 0.85 and hits >= 2 and r() < 0.5 then
+			return "fight"
+		end
+		return if r() < 0.4 + (1 - brave) * 0.3 then "flee" else "report"
+	end
 	if hpLeft <= max * 0.3 then
 		-- beaten: give up, get away, or (the toughest) one last go
 		if brave > 0.75 and r() < 0.3 then
@@ -405,6 +416,33 @@ function Fight.applyHit(player: Player, p: any): any?
 	return onPunch(player, p, true)
 end
 
+-- the HP side of an NPC for this player: { hp, max, down } (down = KO now / in hospital)
+function Fight.state(player: Player?, id: string): any
+	local t = now()
+	local c = Citizens and Citizens.get and Citizens.get(id)
+	local isKey = c ~= nil and c.key == true
+	local rec = if isKey then keyHp[id] else (player and pedHp[player] and pedHp[player][id])
+	local down = (hospital[id] ~= nil and os.time() < hospital[id]) or (player ~= nil and koUntil[player] ~= nil and (koUntil[player][id] or 0) > t)
+	return { hp = rec and rec.hp or nil, max = rec and rec.max or nil, down = down == true }
+end
+
+-- 강탈 (robbery) rules (GwangalliRobShared): who may be robbed, for how much, nothing from the down
+local robbed: { [Player]: { [string]: number } } = {}
+function Fight.robInfo(player: Player?, id: string): any?
+	if not Rob or type(id) ~= "string" then
+		return nil
+	end
+	local c = Citizens and Citizens.get and Citizens.get(id)
+	local st = Fight.state(player, id)
+	local state = "ok"
+	if player and robbed[player] and (robbed[player][id] or 0) > now() then
+		state = "robbed"
+	end
+	local info = Rob.info(id, c, nil, state, st.down)
+	info.hp, info.max = st.hp, st.max
+	return info
+end
+
 local function onNpcHit(player: Player, p: any)
 	if type(p) ~= "table" or type(p.id) ~= "string" then
 		return
@@ -544,6 +582,7 @@ function Fight.onLeave(player: Player)
 	lastCrime[player] = nil
 	koUntil[player] = nil
 	hitCount[player] = nil
+	robbed[player] = nil
 end
 
 function Fight.onLoaded(player: Player)
@@ -569,6 +608,7 @@ function Fight.init(context: any)
 	FS = opt("GwangalliFightShared")
 	Citizens = opt("GwangalliCitizens")
 	MindShared = opt("GwangalliMindShared")
+	Rob = opt("GwangalliRobShared")
 	if not FS then
 		warn("[GwangalliFight] GwangalliFightShared missing: street fights off")
 		return
@@ -611,6 +651,32 @@ function Fight.init(context: any)
 		return nil
 	end
 	sapi.Parent = ServerStorage
+	-- ServerStorage.GwangalliNPCRobAPI: ("info", player, id) -> GwangalliRobShared info + hp / max;
+	-- ("robbed", player, id) -> marks them robbed (the crime system calls it after its own roll);
+	-- ("rules") -> Rob.KIND. No money / wanted / police here: that is the crime system's.
+	local oldR = ServerStorage:FindFirstChild("GwangalliNPCRobAPI")
+	if oldR then
+		oldR:Destroy()
+	end
+	local rapi = Instance.new("BindableFunction")
+	rapi.Name = "GwangalliNPCRobAPI"
+	rapi.OnInvoke = function(method: any, player: any, id: any): any
+		if method == "info" then
+			return Fight.robInfo(if typeof(player) == "Instance" and player:IsA("Player") then player else nil, id)
+		elseif method == "robbed" and typeof(player) == "Instance" and player:IsA("Player") and type(id) == "string" and Rob then
+			local info = Fight.robInfo(player, id)
+			if not info or not info.robbable then
+				return false
+			end
+			robbed[player] = robbed[player] or {}
+			robbed[player][id] = now() + Rob.ROBBED_COOLDOWN
+			return true
+		elseif method == "rules" then
+			return Rob and Rob.KIND or nil
+		end
+		return nil
+	end
+	rapi.Parent = ServerStorage
 	-- ServerStorage.GwangalliNPCEvents: 생활콘텐츠 (or any server system) says "an incident happened";
 	-- the NPC system on that player's client casts and plays it (GwangalliStreetLife Mind.incident):
 	--   Invoke("incident", player, kind, { pos = Vector3?, id = string? }) -> true when sent
