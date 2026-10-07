@@ -149,6 +149,13 @@ Looks.STYLES = {
 	shabby = { top = { { 120, 108, 92 }, { 96, 100, 86 }, { 132, 120, 110 } }, jacket = { { 84, 72, 60 }, { 70, 74, 66 } }, sleeve = "long", bottom = { { 82, 76, 66 }, { 70, 70, 74 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { { 60, 52, 44 } }, acc = { "tote" } },
 	punk = { top = { { 250, 80, 140 }, { 255, 206, 60 }, { 120, 220, 90 }, WHITE }, jacket = { BLACK, { 120, 30, 40 } }, sleeve = "long", bottom = { BLACK, JEANS[4] }, kind = { f = { "pants", "skirt" }, m = { "pants" } }, shoes = SNEAKER, acc = { "headphones", "sunglasses", "cap" } },
 	thug = { top = { BLACK, { 150, 26, 36 }, { 30, 30, 34 } }, trim = { WHITE, { 255, 206, 60 } }, sleeve = "long", bottom = { BLACK, { 40, 40, 46 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { WHITE, BLACK }, acc = { "cap", "sunglasses" } },
+	-- 특임대 / 119 / 병원 (Law/Swat, Law/Rescue, Law/Hospital)
+	swat = { top = { { 30, 32, 38 } }, sleeve = "long", bottom = { { 26, 28, 34 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { BLACK }, apron = { { 52, 56, 62 } }, acc = { "tac_helmet" } },
+	paramedic = { top = { { 236, 110, 40 } }, sleeve = "long", bottom = { { 28, 38, 72 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { BLACK }, apron = { { 214, 236, 60 } } },
+	doctor = { top = { { 176, 206, 232 }, { 200, 220, 210 } }, jacket = { WHITE }, sleeve = "long", bottom = { { 60, 70, 90 }, { 40, 44, 56 } }, kind = { f = { "pants", "skirt" }, m = { "pants" } }, shoes = { { 40, 34, 30 }, WHITE } },
+	nurse = { top = { { 150, 206, 214 } }, sleeve = "short", bottom = { { 150, 206, 214 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { WHITE } },
+	reception = { top = { WHITE }, jacket = { { 40, 70, 110 } }, sleeve = "long", bottom = { { 40, 70, 110 } }, kind = { f = { "skirt", "pants" }, m = { "pants" } }, shoes = { BLACK } },
+	gown = { top = { { 176, 200, 226 } }, sleeve = "short", bottom = { { 176, 200, 226 } }, kind = { f = { "pants" }, m = { "pants" } }, shoes = { { 230, 230, 230 } } },
 	luxe = { top = { { 246, 240, 228 }, WHITE, { 30, 30, 34 } }, jacket = { { 232, 220, 196 }, { 26, 26, 30 }, { 120, 24, 40 } }, trim = { { 214, 176, 90 } }, sleeve = "long", bottom = { { 236, 228, 212 }, { 26, 26, 30 } }, kind = { f = { "longskirt", "pants" }, m = { "pants" } }, shoes = { { 120, 70, 40 }, BLACK }, acc = { "sunglasses", "tote" } },
 }
 
@@ -761,6 +768,25 @@ local function dress(rig: any, spec: any)
 			for _, sx in { -1, 1 } do
 				acc("DeliveryStrap", Vector3.new(0.18, 1.5, 0.12), T(sx * 0.55 * w, 0.05, -0.52), { 30, 30, 34 }, torso)
 			end
+		elseif a == "tac_helmet" then
+			-- 특임대 helmet (dark, a little visor) + vest plate
+			acc("TacHelmet", Vector3.new(1.42, 0.86, 1.46), H(0, 0.5, 0.02), { 34, 38, 44 }, head)
+			acc("TacVisor", Vector3.new(1.2, 0.2, 0.2), H(0, 0.16, -0.68), { 20, 22, 26 }, head).Transparency = 0.25
+			acc("TacVest", Vector3.new(tw * 0.92, 1.3, 1.16), T(0, 0.05, 0), { 46, 50, 56 }, torso)
+			acc("TacPatch", Vector3.new(0.9, 0.24, 0.05), T(0, 0.35, 0.6), { 230, 230, 230 }, torso)
+		elseif a == "rifle" then
+			acc("Rifle", Vector3.new(0.2, 0.32, 2.3), rhc * CFrame.new(0.05 * s, 0.05 * s, -0.75 * s), { 24, 24, 28 }, parts.RightHand)
+			acc("RifleMag", Vector3.new(0.16, 0.42, 0.24), rhc * CFrame.new(0.05 * s, -0.25 * s, -0.55 * s), { 30, 30, 34 }, parts.RightHand)
+		elseif a == "kitbag" then
+			acc("KitBag", Vector3.new(1.2, 0.8, 0.55), T(0.5 * w, -1.0, 0.1), { 220, 60, 50 }, torso)
+			acc("KitCross", Vector3.new(0.32, 0.32, 0.06), T(0.5 * w, -0.95, -0.2), { 250, 250, 250 }, torso)
+		elseif a == "stethoscope" then
+			acc("Stetho", Vector3.new(0.9, 0.08, 0.08), T(0, 0.55, -0.55), { 40, 40, 44 }, torso)
+			acc("StethoBell", Vector3.new(0.2, 0.2, 0.08), T(0.2, -0.05, -0.56), { 190, 196, 204 }, torso)
+		elseif a == "clipboard" then
+			acc("Clipboard", Vector3.new(0.1, 0.9, 0.7), lhc * CFrame.new(0.4 * s, 0.3 * s, 0), { 200, 170, 120 }, parts.LeftHand)
+		elseif a == "bandage" then
+			acc("Bandage", Vector3.new(1.26, 0.26, 1.26), H(0, 0.32, 0), { 248, 248, 248 }, head)
 		elseif a == "delivery_box" or a == "scooter" then
 			-- built once below (the box rides on the scooter's rear rack)
 		elseif a == "stroller" then

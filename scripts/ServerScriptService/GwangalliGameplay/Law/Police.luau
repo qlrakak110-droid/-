@@ -447,14 +447,17 @@ local function emote(o: any, name: string)
 	end
 end
 
-local function buildRig(id: string, hint: any?): (Model?, BasePart?, number)
+local function buildRig(id: string, hint: any?, crewHint: any?): (Model?, BasePart?, number)
 	if not Looks then
 		return nil, nil, 3
 	end
 	local ok, rig = pcall(function()
-		local spec = Looks.random(id, hint or { style = "police", body = if rnd() < 0.22 then "f" else "m", age = if rnd() < 0.7 then "adult" else "young" })
+		local spec = Looks.random(id, hint or crewHint or { style = "police", body = if rnd() < 0.22 then "f" else "m", age = if rnd() < 0.7 then "adult" else "young" })
 		if not hint then
 			spec.scale = CREW_SCALE
+		end
+		if crewHint and type(crewHint.acc) == "table" then
+			spec.acc = table.clone(crewHint.acc) -- the unit's own gear (helmet, rifle, kit bag)
 		end
 		return Looks.build(spec, { name = (if hint then "Npc_" else "Police_") .. id, anchored = true, shadow = false })
 	end)
@@ -464,7 +467,7 @@ local function buildRig(id: string, hint: any?): (Model?, BasePart?, number)
 	end
 	-- police cap (a dark navy block with a gold badge) so officers read at a glance
 	local head = rig.parts and rig.parts.Head
-	if head and not hint then
+	if head and not hint and not crewHint then
 		local s = head.Size.X
 		local cap = Instance.new("Part")
 		cap.Name = "PoliceCap"
@@ -502,13 +505,13 @@ local function buildRig(id: string, hint: any?): (Model?, BasePart?, number)
 	return rig.model, rig.root, rig.ground or 3
 end
 
-local function newOfficer(at: Vector3, role: string, case: any?): any?
-	if #officers >= LS.MAX_OFFICERS then
+local function newOfficer(at: Vector3, role: string, case: any?, unit: any?): any?
+	if #officers >= LS.MAX_OFFICERS + (if unit and unit.extraCap then unit.extraCap else 0) then
 		return nil
 	end
 	seq += 1
-	local id = "police_" .. seq
-	local model, root, ground = buildRig(id)
+	local id = (if unit and unit.prefix then unit.prefix else "police_") .. seq
+	local model, root, ground = buildRig(id, nil, unit and unit.look)
 	if not model or not root then
 		return nil
 	end
@@ -553,8 +556,16 @@ local function newOfficer(at: Vector3, role: string, case: any?): any?
 	model:SetAttribute("NpcYaw", 0)
 	model:SetAttribute("NpcLook", 0)
 	model:SetAttribute("NpcTalk", 0)
-	model:SetAttribute("LawOfficer", true)
+	model:SetAttribute("LawOfficer", not (unit and unit.civil))
 	model:SetAttribute("LawName", name)
+	if unit then
+		-- 특임대 / 119: their own brains (Law/Swat, Law/Rescue) through Police.unitThink[kind]
+		o.unit = unit.kind
+		o.civil = unit.civil == true
+		o.name = if unit.names then unit.names[(seq - 1) % #unit.names + 1] else name
+		model:SetAttribute("NpcKind", unit.kind)
+		model:SetAttribute("LawName", o.name)
+	end
 	-- the whole rig (PivotTo), never the root alone: the engine records each limb's offset from the root
 	-- when the rig enters the Workspace and limbs left at the build origin never follow (invisible NPC)
 	model:PivotTo(CFrame.new(at + Vector3.new(0, ground, 0)))
@@ -636,15 +647,7 @@ local doorOffsets: { Vector3 } = {} -- just outside each front door, on the road
 local sillOffsets: { Vector3 } = {} -- in the door opening, at floor height (CarRoot space)
 local carHalfW = 3.6
 
-local function findTemplate(): Model?
-	if carTemplate then
-		return carTemplate
-	end
-	local map = workspace:FindFirstChild("Gwangalli")
-	local roads = map and map:FindFirstChild("roads")
-	local parked = roads and roads:FindFirstChild("ParkedVehicles")
-	local src = parked and parked:FindFirstChild("Car_Police")
-
+local function buildTemplate(src: Instance?): Model?
 	if not src then
 		return nil
 	end
@@ -796,8 +799,81 @@ local function findTemplate(): Model?
 	pcall(function()
 		(clone :: any).ModelStreamingMode = Enum.ModelStreamingMode.Persistent
 	end)
-	carTemplate = clone
 	return clone
+end
+
+-- car templates by kind: "police" (the map's Car_Police), "swat" (the same car, dark paint, four seats),
+-- "ambulance" (the hospital bay's Car_Ambulance, four seats). Each keeps its own seat / door geometry
+-- (c.T); the police one is also the module's default (seatOffsets ...).
+local templates: { [string]: any } = {}
+local function tplData(kind: string?): any?
+	kind = kind or "police"
+	local T = templates[kind]
+	if T then
+		return T
+	end
+	local map = workspace:FindFirstChild("Gwangalli")
+	local src = nil
+	if kind == "ambulance" then
+		local h = map and map:FindFirstChild("hospital")
+		local cl = h and h:FindFirstChild("광안 메디컬 의원")
+		local bay = cl and cl:FindFirstChild("AmbulanceBay")
+		src = bay and bay:FindFirstChild("Car_Ambulance")
+		if not src and map then
+			for _, d in map:GetDescendants() do
+				if d:IsA("Model") and d.Name == "Car_Ambulance" then
+					src = d
+					break
+				end
+			end
+		end
+	else
+		local roads = map and map:FindFirstChild("roads")
+		local parked = roads and roads:FindFirstChild("ParkedVehicles")
+		src = parked and parked:FindFirstChild("Car_Police")
+	end
+	-- the builder writes the module's geometry globals: keep the police ones as they were
+	local keep = { seatOffsets, sillOffsets, doorOffsets, carHalfW, carOffsetY }
+	local model = buildTemplate(src)
+	if not model then
+		return nil
+	end
+	T = { kind = kind, model = model, seats = seatOffsets, sills = sillOffsets, doors = doorOffsets, halfW = carHalfW, offY = carOffsetY, nSeats = 2 }
+	if kind ~= "police" then
+		-- the rear bench (+Z = towards the back) for the team / the crew
+		local back = Vector3.new(0, 0, 3.3)
+		T.seats = { T.seats[1], T.seats[2], T.seats[1] + back, T.seats[2] + back }
+		T.sills = { T.sills[1], T.sills[2], T.sills[1] + back, T.sills[2] + back }
+		T.doors = { T.doors[1], T.doors[2], T.doors[1] + back, T.doors[2] + back }
+		T.nSeats = 4
+	end
+	if kind == "swat" then
+		-- 특임대: charcoal body (the light bar and glass keep their colour)
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") and not d:GetAttribute("LawLamp") and d.Transparency < 0.3 then
+				local c = d.Color
+				if c.R + c.G + c.B > 1.6 or (c.B > 0.45 and c.B > c.R + 0.15) then
+					d.Color = Color3.fromRGB(34, 36, 42)
+				end
+			end
+		end
+	end
+	if kind ~= "police" then
+		seatOffsets, sillOffsets, doorOffsets, carHalfW, carOffsetY = keep[1], keep[2], keep[3], keep[4], keep[5]
+	else
+		carTemplate = model
+	end
+	templates[kind] = T
+	return T
+end
+
+local function findTemplate(): Model?
+	local T = tplData("police")
+	return T and T.model or nil
+end
+
+local function seatsOf(c: any): any
+	return (c and c.T) or templates.police or { seats = seatOffsets, sills = sillOffsets, doors = doorOffsets, halfW = carHalfW, offY = carOffsetY, nSeats = 2 }
 end
 
 local function carHeights(q: Vector3): number?
@@ -1034,7 +1110,7 @@ local function placeSeated(o: any)
 	if not c or not o.seated or not o.model then
 		return
 	end
-	local cf = carCF(c) * CFrame.new(seatOffsets[o.seated] or Vector3.zero)
+	local cf = carCF(c) * CFrame.new(seatsOf(c).seats[o.seated] or Vector3.zero)
 	o.model:PivotTo(cf)
 	o.pos = cf.Position - Vector3.new(0, o.ground, 0)
 end
@@ -1054,7 +1130,7 @@ local function seatOfficer(c: any, o: any, slot: number)
 			table.remove(o.case.units, i)
 		end
 	end
-	local off = seatOffsets[slot] or Vector3.zero
+	local off = seatsOf(c).seats[slot] or Vector3.zero
 	-- NpcSeat = "<car model name>|x,y,z": the client keeps the rig on the seat of the moving car
 	o.model:SetAttribute("NpcSeat", string.format("%s|%.2f,%.2f,%.2f", c.model.Name, off.X, off.Y, off.Z))
 	setAct(o, "sit")
@@ -1062,7 +1138,7 @@ local function seatOfficer(c: any, o: any, slot: number)
 end
 
 local function freeSlot(c: any): number?
-	for slot = 1, 2 do
+	for slot = 1, seatsOf(c).nSeats or 2 do
 		local used = false
 		for _, o in c.crew do
 			if not o.gone and (o.seated == slot or o.boardSlot == slot) then
@@ -1089,9 +1165,10 @@ end
 -- world points of a door (CarRoot space -> world, the road height under the door)
 local function doorWorld(c: any, slot: number): (Vector3, Vector3, Vector3)
 	local cf = carCF(c)
-	local seatFeet = (cf * CFrame.new((seatOffsets[slot] or Vector3.zero) - Vector3.new(0, 3 * CREW_SCALE, 0))).Position
-	local sill = (cf * CFrame.new(sillOffsets[slot] or Vector3.zero)).Position
-	local out = (cf * CFrame.new(doorOffsets[slot] or Vector3.new(carHalfW + 1.5, -carOffsetY, 0))).Position
+	local T = seatsOf(c)
+	local seatFeet = (cf * CFrame.new((T.seats[slot] or Vector3.zero) - Vector3.new(0, 3 * CREW_SCALE, 0))).Position
+	local sill = (cf * CFrame.new(T.sills[slot] or Vector3.zero)).Position
+	local out = (cf * CFrame.new(T.doors[slot] or Vector3.new(T.halfW + 1.5, -T.offY, 0))).Position
 	out = Vector3.new(out.X, groundAt(out, out.Y), out.Z)
 	return seatFeet, sill, out
 end
@@ -1163,15 +1240,16 @@ local function nextSlot(case: any?): number
 	return k
 end
 
-local function newCar(case: any?, pos: Vector3, role: string): any?
-	if #cars >= LS.MAX_CARS or not loadNav() or not D or not graph then
+local function newCar(case: any?, pos: Vector3, role: string, unit: any?): any?
+	if #cars >= LS.MAX_CARS + (if unit and unit.extraCars then unit.extraCars else 0) or not loadNav() or not D or not graph then
 		return nil
 	end
-	local wantCrew = if case then 2 else 1
-	if #officers + 1 > LS.MAX_OFFICERS then
+	local wantCrew = if unit and unit.crew then unit.crew elseif case then 2 else 1
+	if #officers + 1 > LS.MAX_OFFICERS + (if unit and unit.extraCap then unit.extraCap else 0) then
 		return nil -- never a car without a driver
 	end
-	local tpl = findTemplate()
+	local T = tplData(if unit and unit.car then unit.car else "police")
+	local tpl = T and T.model
 	if not tpl then
 		return nil
 	end
@@ -1185,7 +1263,10 @@ local function newCar(case: any?, pos: Vector3, role: string): any?
 	car.Name = "LawPatrolCar_" .. seq
 	car:SetAttribute("LawCar", true)
 	car:SetAttribute("LawSiren", case ~= nil)
-	car:SetAttribute("LawUnit", "광안" .. (10 + seq % 80))
+	car:SetAttribute("LawUnit", if unit and unit.label then unit.label .. " " .. (1 + seq % 9) else "광안" .. (10 + seq % 80))
+	if unit then
+		car:SetAttribute("LawCarKind", unit.kind)
+	end
 	local p0, d0 = D.sample(path.pts, path.times, 0)
 	-- the whole model (PivotTo): every welded part and lamp moves with the root before it is parented
 	car:PivotTo(D.cframe(p0, d0))
@@ -1204,7 +1285,7 @@ local function newCar(case: any?, pos: Vector3, role: string): any?
 		end)
 	end
 	car.Parent = carsFolder
-	local c = { id = "car_" .. seq, model = car, path = nil, t0 = now(), done = false, case = case, role = role, state = "respond", crew = {}, nextPlan = now() + 2.5, nextSight = 0, glimpse = nil, slowT = 0, created = now(), dismounted = false, goal = pos, slotIdx = slotIdx }
+	local c = { id = "car_" .. seq, model = car, path = nil, t0 = now(), done = false, case = case, role = role, state = "respond", crew = {}, nextPlan = now() + 2.5, nextSight = 0, glimpse = nil, slowT = 0, created = now(), dismounted = false, goal = pos, slotIdx = slotIdx, T = T, unit = unit and unit.kind or nil }
 	setCarPath(c, path)
 	table.insert(cars, c)
 	if case then
@@ -1215,7 +1296,7 @@ local function newCar(case: any?, pos: Vector3, role: string): any?
 		if #officers >= LS.MAX_OFFICERS then
 			break
 		end
-		local o = newOfficer(p0, if case then "case" else "patrol", case)
+		local o = newOfficer(p0, if case then "case" else "patrol", case, unit)
 		if o then
 			seatOfficer(c, o, slot)
 		end
@@ -1527,7 +1608,7 @@ function Police.sees(player: Player): boolean
 		return false
 	end
 	for _, o in officers do
-		if not o.gone and flat(o.pos, pp) < 45 and losClear(o.pos + Vector3.new(0, 4.6, 0), pp + Vector3.new(0, 1.5, 0)) then
+		if not o.gone and not o.civil and flat(o.pos, pp) < 45 and losClear(o.pos + Vector3.new(0, 4.6, 0), pp + Vector3.new(0, 1.5, 0)) then
 			return true
 		end
 	end
@@ -1538,7 +1619,7 @@ end
 function Police.nearestOfficer(pos: Vector3, maxDist: number): any?
 	local best, bd = nil, maxDist
 	for _, o in officers do
-		if not o.gone then
+		if not o.gone and not o.civil then
 			local d = flat(o.pos, pos)
 			if d < bd then
 				best, bd = o, d
@@ -1958,14 +2039,17 @@ local function thinkCrew(o: any)
 		return
 	end
 	if o.seated then
-		local cf = carCF(c) * CFrame.new(seatOffsets[o.seated] or Vector3.zero)
+		local cf = carCF(c) * CFrame.new(seatsOf(c).seats[o.seated] or Vector3.zero)
 		o.pos = cf.Position - Vector3.new(0, o.ground, 0)
 		return
 	end
 	if o.state == "exiting" then
 		if now() >= (o.exitDone or 0) then
 			local case = c.case
-			if case and case.player.Parent then
+			if o.unit and Police.unitThink[o.unit] then
+				o.role = o.unit
+				o.state = "deploy"
+			elseif case and case.player.Parent then
 				o.role = "case"
 				o.case = case
 				if not table.find(case.units, o) then
@@ -2025,6 +2109,13 @@ local function thinkOfficer(o: any)
 		return
 	end
 	o.pos = legPos(o, now())
+	if o.unit and o.role == o.unit and o.state ~= "leave" then
+		local f = Police.unitThink[o.unit]
+		if f then
+			f(o)
+			return
+		end
+	end
 	if o.state == "leave" then
 		-- officers who came by car walk back to it and ride off
 		local c = o.car
@@ -2230,6 +2321,13 @@ local function thinkCar(c: any)
 		processExits(c)
 		return
 	end
+	-- a unit car with its own driver brain (119 구급차: Law/Rescue) -> true = handled
+	if c.unit and Police.unitCarThink[c.unit] then
+		processExits(c)
+		if Police.unitCarThink[c.unit](c) then
+			return
+		end
+	end
 	local cp = carPos(c)
 	if c.path and not c.done and now() - c.t0 >= c.path.total then
 		c.done = true
@@ -2394,8 +2492,8 @@ local function thinkCar(c: any)
 				if not o.gone and o.state == "board" then
 					-- too slow: back to the foot chase
 					o.boardSlot, o.boardStep = nil, nil
-					o.role = "case"
-					o.state = "respond"
+					o.role = if o.unit then o.unit else "case"
+					o.state = if o.unit then "pursue" else "respond"
 					if not table.find(case.units, o) then
 						table.insert(case.units, o)
 					end
@@ -2817,7 +2915,30 @@ function Police.debugDemo(player: Player, op: string, pos: Vector3?): any
 end
 
 -- Law/City, Jail and Fight use these
+Police.unitCarThink = {} -- [unit kind] = function(c): boolean (true = this car is fully driven by the unit module)
+Police.unitThink = {} -- [unit kind] = function(o): the brain of a unit member on foot (Law/Swat, Law/Rescue)
 Police.newOfficer = newOfficer
+Police.canSee = canSee
+Police.tierOf = tierOf
+Police.boardOfficer = boardOfficer
+Police.startExits = startExits
+Police.carLeave = carLeave
+Police.removeCar = removeCar
+Police.suspectInCar = suspectInCar
+Police.suspectSpeed = suspectSpeed
+Police.caseOf = caseOf
+Police.ringNode = ringNode
+Police.routePts = routePts
+Police.tplData = tplData
+Police.CREW_SCALE = CREW_SCALE
+Police.setCarPath = setCarPath
+Police.clearCarPath = clearCarPath
+Police.carSpeed = carSpeed
+Police.seatedCount = seatedCount
+Police.boardingCount = boardingCount
+Police.driveAway = driveAway
+Police.exitOfficer = exitOfficer
+Police.doorWorld = doorWorld
 Police.removeOfficer = removeOfficer
 Police.assignGoal = assignGoal
 Police.standAt = standAt

@@ -115,6 +115,14 @@ local function typeOf(id: string, claimed: any): (string, any)
 	if c then
 		return c.type or "plain", c
 	end
+	-- server units (GwangalliGameplay/Law): 특임대 / police officers / 119 crews
+	if string.sub(id, 1, 5) == "swat_" then
+		return "swat", nil
+	elseif string.sub(id, 1, 7) == "police_" then
+		return "police", nil
+	elseif string.sub(id, 1, 4) == "ems_" then
+		return "plain", nil
+	end
 	if type(claimed) == "string" and FS.PED_TYPES[claimed] then
 		return claimed, nil
 	end
@@ -169,7 +177,7 @@ end
 
 -- what they do after this hit. hits = how many times this player hit them lately
 local function decide(id: string, typeId: string, c: any, hpLeft: number, max: number, hits: number): string
-	if typeId == "police" then
+	if typeId == "police" or typeId == "swat" then
 		return "arrest"
 	end
 	local brave, temper, arch = personality(id, typeId, c)
@@ -338,7 +346,7 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	hc.t = t
 	rec.hp -= dmg
 	rec.t = t
-	local police = typeId == "police"
+	local police = typeId == "police" or typeId == "swat"
 	local react
 	if isKey and rec.hp < FS.KEY_MIN_HP then
 		rec.hp = FS.KEY_MIN_HP
@@ -364,6 +372,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	if outcome == "ko" then
 		noteCrime(player, id, "kill", pos, c, police)
 		koUntil[player][id] = t + FS.KO_DOWN + 2
+		-- 119: somebody is down here (Law/Rescue sends an ambulance; it waits until the scene is safe)
+		if ctx.rescue and type(ctx.rescue.casualty) == "function" then
+			pcall(ctx.rescue.casualty, { pos = pos, id = id, kind = if isKey then "npc" else "ped", player = player })
+		end
 		if c then
 			hospital[id] = os.time() + FS.HOSPITAL_S
 			broadcastDown()

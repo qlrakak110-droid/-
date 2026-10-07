@@ -65,6 +65,10 @@ Law.CRIMES = {
 	contraband = { stars = 2, min = 2, sev = 3, fine = 120000, label = "불법 운송" },
 	-- organised crime (Law.BIG)
 	heist = { stars = 4, min = 4, sev = 6, fine = 500000, label = "특수절도 (금고)" },
+	-- big incidents (특임대 territory: Law/Swat). Other systems report them with Law.major / Law.crime.
+	bank_raid = { stars = 4, min = 4, sev = 7, fine = 800000, label = "은행 습격" },
+	casino_raid = { stars = 4, min = 4, sev = 7, fine = 800000, label = "카지노 습격" },
+	gunfight = { stars = 3, min = 4, sev = 6, fine = 600000, label = "대규모 총격전" },
 	car_ring = { stars = 3, min = 3, sev = 5, fine = 300000, label = "고급 차량 탈취" },
 	smuggling = { stars = 3, min = 3, sev = 5, fine = 300000, label = "밀수" },
 	turf = { stars = 3, min = 3, sev = 4, fine = 200000, label = "조직 간 충돌" },
@@ -91,6 +95,60 @@ Law.TIERS = {
 	[4] = { foot = 3, cars = 3, roadblocks = 1, checkpoint = true, sight = 78, fov = 150, react = 0.42, run = 17.0, burst = 2.8, repath = 0.8, wrongTurn = 0.07, hesitate = 0.07, search = 52, radio = 6, carSpeed = 1.45, label = "경찰 증원 · 검문 · 도로 차단" },
 	[5] = { foot = 4, cars = 4, roadblocks = 2, checkpoint = true, sight = 86, fov = 160, react = 0.32, run = 17.6, burst = 3.2, repath = 0.7, wrongTurn = 0.04, hesitate = 0.05, search = 62, radio = 8, carSpeed = 1.55, label = "특별 수사대 · 주요 도로 봉쇄" },
 }
+-- 특임대 (Law/Swat): only for big incidents. Tougher than the police but never a cheat: they know only
+-- what they (or the radio) saw, run a little slower than a sprinting player, shoot with a real miss
+-- chance, and a suspect who breaks line of sight / changes cars / gets far away really escapes.
+Law.SWAT = {
+	MIN_STARS = 4, -- a wanted level this high calls them too
+	MAJOR = { heist = true, bank_raid = true, casino_raid = true, gunfight = true },
+	MAJOR_HOLD = 300, -- s a big incident keeps them on the case
+	MAX_TEAMS = 2, -- server-wide (4 operators + a van each)
+	TEAM = 4,
+	HP = 320, -- the police 170
+	sight = 96, fov = 150, react = 0.22, -- quicker eyes than the 5-star police (86 / 160 / 0.32)
+	RUN = 15.4, BURST = 17.2, -- studs/s (the player runs 16, sprints 24): they keep pace, never fly
+	FIRE_RANGE = 55, FIRE_GAP = { 1.1, 1.7 },
+	DMG = { 7, 12 }, -- 진압용 고무탄: hurts, never kills (HP floor below)
+	HP_FLOOR = 10, STUN_HP = 25, STUN_S = 2.5, STUN_SPEED = 6,
+	HIT = { { 15, 0.62 }, { 30, 0.48 }, { 45, 0.32 }, { math.huge, 0.18 } }, -- base hit chance by distance
+	HIT_CAP = 0.7,
+	GRAB_MULT = 1.5,
+	SEARCH_S = 45, -- out of sight this long after the last sighting: they pull out (철수)
+	COVER_R = { 3, 9 },
+	LINES = {
+		deploy = { "특임대 진입! 산개!", "전원 하차, 포위한다!", "좌우로 갈라져서 들어간다!" },
+		spot = { "목표 확인! 무기 내려!", "특임대다! 엎드려!", "움직이지 마! 손 들어!" },
+		cover = { "엄호해!", "엄폐 후 사격!", "좌측 엄폐!" },
+		push = { "진압한다, 진입!", "지금이다, 덮쳐!", "제압해!" },
+		lost = { "목표 놓쳤다! 마지막 위치로!", "시야 상실, 수색 들어간다!" },
+		search = { "구역 수색!", "골목 확인!", "여기 없다, 다음 구역!" },
+		pullout = { "목표 이탈, 특임대 철수.", "수색 종료, 복귀한다." },
+		grab = { "제압 완료!", "엎드려! 수갑 채워!" },
+		car = { "차량으로 도주! 탑승해!", "차량 추격 개시!" },
+	},
+	NAMES = { "특임 1조장", "특임 대원 김", "특임 대원 이", "특임 대원 박", "특임 2조장", "특임 대원 최", "특임 대원 정", "특임 대원 한" },
+}
+
+-- 119 구급대 (Law/Rescue): casualties get an ambulance; it waits until the scene is safe
+Law.RESCUE = {
+	MAX_AMBULANCES = 2,
+	MERGE_R = 40, -- casualties this close are one call
+	SAFE_R = 55, -- no fight / wanted suspect / gunfire this close = safe
+	SAFE_HOLD = 5, -- s safe in a row before they go in
+	STAGE_BACK = 48, -- studs short of the scene while it is not safe
+	TREAT_S = { 6, 9 },
+	HOLD_KO_S = 150, -- a client-side casualty stays down this long once an ambulance is coming
+	NAMES = { "구급대원 서", "구급대원 윤", "구급대원 장", "구급대원 오" },
+	LINES = {
+		dispatch = { "119 구급대 출동합니다!", "부상자 발생, 구급차 출동!" },
+		wait = { "현장 위험, 경찰 확보될 때까지 대기!", "아직 싸움 중이다, 접근 금지!", "총성 들린다, 대기해!" },
+		go = { "현장 확보됐다, 들어간다!", "지금이다, 환자한테 가자!" },
+		treat = { "괜찮으세요? 119입니다!", "의식 확인! 들리세요?", "맥박 있다, 호흡 확인!", "출혈 압박할게요, 조금만 참으세요!" },
+		load = { "들것 가져와! 이송한다!", "하나 둘 셋, 올려!", "병원으로 갑니다, 조금만 버티세요!" },
+		arrive = { "응급 환자 도착했습니다!", "외상 환자예요, 처치실로!" },
+	},
+}
+
 Law.MAX_OFFICERS = 22 -- server-wide NPC officers (on foot + patrol car crews)
 Law.MAX_CARS = 8 -- server-wide patrol cars (incl. roadblock cars)
 Law.SPAWN_RING = { 70, 130 } -- studs from the reported spot, out of the suspect's sight

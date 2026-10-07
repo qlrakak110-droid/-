@@ -450,6 +450,10 @@ function Law.crime(player: Player, kind: string, info: any?): boolean
 	end
 	s.sev += def.sev or 1
 	s.fine = math.min(LS.FINE_CAP, s.fine + (def.fine or 0))
+	if LS.SWAT and LS.SWAT.MAJOR[kind] then
+		s.majorUntil = now() + LS.SWAT.MAJOR_HOLD -- 특임대 (Law/Swat)
+		s.majorKind = kind
+	end
 	Law.stat(player, "crimes")
 	if Law.children.Cop then
 		Law.children.Cop.onCrime(player, kind)
@@ -472,6 +476,14 @@ function Law.crime(player: Player, kind: string, info: any?): boolean
 		end
 	end
 	return true
+end
+
+-- a big incident (은행 / 카지노 습격, 대규모 총격전): the crime + the 특임대 (other systems call this)
+function Law.major(player: Player, kind: string, pos: Vector3?): boolean
+	if not (LS.SWAT and LS.SWAT.MAJOR[kind]) then
+		return false
+	end
+	return Law.crime(player, kind, { pos = pos, police = true })
 end
 
 -- a witness / victim called 112 (client street-life witnesses, key NPCs, Crimes)
@@ -990,7 +1002,7 @@ local function allow(player: Player): boolean
 	return true
 end
 
-local CHILDREN = { "Police", "Jail", "Cop", "Crimes", "City" }
+local CHILDREN = { "Police", "Jail", "Cop", "Crimes", "City", "Swat", "Rescue", "Hospital" }
 
 function Law.init(context: any)
 	ctx = context

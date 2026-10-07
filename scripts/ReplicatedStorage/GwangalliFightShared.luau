@@ -61,6 +61,7 @@ F.HP_BY_TYPE = {
 	beggar = 70,
 	drunk = 85,
 	police = 170,
+	swat = 320, -- 특임대 (GwangalliGameplay/Law/Swat)
 	elder = 60,
 	student = 85,
 	rich = 90,

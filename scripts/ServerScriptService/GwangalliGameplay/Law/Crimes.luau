@@ -90,7 +90,7 @@ local function watched(pos: Vector3, radius: number): number
 	local P = Law.children.Police
 	if P then
 		for _, o in P.officers() do
-			if not o.gone and flat(o.pos, pos) < radius and P.losClear(o.pos + Vector3.new(0, 4.6, 0), pos + Vector3.new(0, 2, 0)) then
+			if not o.gone and not o.civil and flat(o.pos, pos) < radius and P.losClear(o.pos + Vector3.new(0, 4.6, 0), pos + Vector3.new(0, 2, 0)) then
 				n += 1
 			end
 		end
