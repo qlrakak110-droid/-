@@ -266,17 +266,15 @@ Mind.REL_BANDS = {
 	{ at = 100, key = "best", label = "최고 관계" },
 }
 function Mind.relBand(rel: number): any
-	local band = Mind.REL_BANDS[1]
+	-- the nearest anchor of the scale (-45 = 싫어함, -60 = 적대적, 10 = 모르는 사이)
+	local best, bd = Mind.REL_BANDS[5], math.huge
 	for _, b in Mind.REL_BANDS do
-		if rel >= b.at then
-			band = b
+		local d = math.abs(rel - b.at)
+		if d < bd then
+			best, bd = b, d
 		end
 	end
-	-- (between -10 and 0 is still "wary"; 0..19 "stranger")
-	if rel < 0 and rel > -10 then
-		band = Mind.REL_BANDS[4]
-	end
-	return band
+	return best
 end
 
 function Mind.relOf(rec: any): number
