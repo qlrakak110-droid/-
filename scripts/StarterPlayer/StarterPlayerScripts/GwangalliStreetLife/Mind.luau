@@ -322,6 +322,11 @@ local function release(a: any, leave: boolean?)
 end
 Mind.release = release
 Mind.take = take
+Mind.street = function(id: string, ev: string, pos: Vector3?)
+	task.spawn(function()
+		invoke("street", { id = id, ev = ev, pos = if pos then pack(pos) else nil })
+	end)
+end
 Mind.sayNpc = function(a: any, text: string, dur: number?)
 	sayNpc(a, text, dur)
 end
@@ -684,6 +689,14 @@ handleAct = function(t: any, out: any)
 	local pp = playerPos()
 	if act == "end" then
 		finish("bye")
+	elseif act == "block" then
+		-- they won't talk to you now (GwangalliGameplay.Mind gate): a turned head, then they move on
+		face(a, "annoyed", 3)
+		gesture(a, "turn")
+		finish("leave")
+	elseif act == "ignore" or act == "brush" then
+		-- they never really stopped: back to their way at once
+		finish("leave")
 	elseif act == "leave" or act == "backoff" then
 		finish("leave")
 	elseif act == "flee" then
@@ -1044,8 +1057,62 @@ function Mind.react(a: any, now: number, pp: Vector3, d: number, pspeed: number)
 		end
 		return true
 	end
-	-- feelings first: people who are scared of you keep away, angry ones glare
+	-- the relation (-100..100) and their personality decide the street reaction (Mind.policy)
 	local v = a.named and views[a.id]
+	local ap = v and v.approach
+	if ap and standing and now >= (a.apNext or 0) and ctx.Crowd.canChat(now, a) then
+		local RL = M.REL_LINES
+		if ap == "flee" and d < 12 then
+			a.apNext = now + 10
+			face(a, "scared", 3)
+			sayNpc(a, pick(RL.scared), 2.5)
+			Mind.flee(a, pp, 5)
+			return true
+		elseif ap == "avoid" and d < 8 then
+			a.apNext = now + 12
+			if take(a, { kind = "flee", untilT = now + 4, from = pp }) then
+				local dx, dz = a.pos.X - pp.X, a.pos.Z - pp.Z
+				local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+				moveTo(a, Vector3.new(a.pos.X + dx / dd * 10, a.pos.Y, a.pos.Z + dz / dd * 10), 5.5)
+				if rnd() < 0.5 then
+					sayNpc(a, pick(RL.avoid), 2.2)
+				end
+				return true
+			end
+		elseif ap == "glare" and d < 9 then
+			a.apNext = now + 14
+			face(a, "angry", 3)
+			lookAtPlayer(a, 2.5)
+			sayNpc(a, pick(RL.glare), 2.2)
+		elseif (ap == "provoke" or ap == "hostile") and d < (if ap == "hostile" then 14 else 9) and d > 1.5 then
+			a.apNext = now + (if ap == "hostile" then 18 else 26)
+			face(a, "angry", 4)
+			lookAtPlayer(a, 3)
+			sayNpc(a, pick(if ap == "hostile" then RL.hostile else RL.provoke), 3)
+			gesture(a, "point")
+			if d < 4 and a.hitPlayer and rnd() < (if ap == "hostile" then 0.6 else 0.35) then
+				-- 밀치기
+				local dx, dz = pp.X - a.pos.X, pp.Z - a.pos.Z
+				local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+				a:hitPlayer(dx / dd, dz / dd, "stagger", nil)
+			elseif ap == "hostile" and Mind.startFight and rnd() < 0.35 then
+				Mind.startFight(a, "hostile")
+			elseif d >= 4 and a.approachPlayer and rnd() < 0.5 then
+				a:approachPlayer(now, pp, 2.5, "approach")
+			end
+			return true
+		elseif ap == "greet" and d < 11 and d > 2.5 and now - (a.greetAt or -1e9) > 240 then
+			a.apNext = now + 30
+			a.greetAt = now
+			local rel = v.rel or 0
+			local list = if v.npcMood == "DRUNK" then RL.greet_drunk elseif rel >= 50 then RL.greet_close elseif rel >= 20 then RL.greet_friendly else RL.greet_kind
+			face(a, "smile", 3)
+			lookAtPlayer(a, 2)
+			gesture(a, "wave")
+			sayNpc(a, pick(list), 2.8)
+		end
+	end
+	-- feelings first: people who are scared of you keep away, angry ones glare
 	if v and d < 11 and now - (a.moodAt or -1e9) > 14 and now - lastMood > 3 then
 		if v.disp == "scared" and standing then
 			a.moodAt = now

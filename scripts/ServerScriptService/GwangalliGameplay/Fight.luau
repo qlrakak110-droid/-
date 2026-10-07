@@ -176,11 +176,64 @@ local function personality(id: string, typeId: string, c: any): (number, number,
 end
 
 -- what they do after this hit. hits = how many times this player hit them lately
-local function decide(id: string, typeId: string, c: any, hpLeft: number, max: number, hits: number): string
+local GUN_WORDS = { "gun", "pistol", "rifle", "glock", "revolver", "shotgun", "smg", "uzi", "ak47", "m4", "deagle", "총", "권총", "소총", "엽총" }
+local function armed(player: Player?): boolean
+	local char = player and player.Character
+	local tool = char and char:FindFirstChildOfClass("Tool")
+	if not tool then
+		return false
+	end
+	local w = tool:GetAttribute("GwWeapon") or tool:GetAttribute("WeaponType")
+	if w == "gun" or tool:GetAttribute("IsGun") == true then
+		return true
+	end
+	local n = string.lower(tool.Name)
+	for _, word in GUN_WORDS do
+		if string.find(n, word, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+-- the situation around a hit: the player's gun, police close by, the relation (-100..100)
+local function situation(player: Player?, id: string, pos: Vector3?): any
+	local sit = { armed = armed(player), police = false, rel = 0 }
+	local L = law()
+	local P = L and L.children and L.children.Police
+	if P and pos and P.nearestOfficer then
+		local ok, o = pcall(P.nearestOfficer, pos, 35)
+		sit.police = ok and o ~= nil
+	end
+	if player and ctx.mind and type(ctx.mind.relOf) == "function" then
+		local ok, r = pcall(ctx.mind.relOf, player, id)
+		sit.rel = if ok and type(r) == "number" then r else 0
+	end
+	return sit
+end
+
+local function decide(id: string, typeId: string, c: any, hpLeft: number, max: number, hits: number, sit: any?): string
 	if typeId == "police" or typeId == "swat" then
 		return "arrest"
 	end
 	local brave, temper, arch = personality(id, typeId, c)
+	local s = sit or {}
+	local violent = typeId == "violent" or arch == "thug" or arch == "punk" or arch == "hothead"
+	-- a gun in the player's hand: even the hard ones mostly back off
+	if s.armed then
+		if violent and brave > 0.8 and r() < 0.25 then
+			return "fight"
+		end
+		return if r() < 0.5 then "flee" elseif r() < 0.6 then "cower" else "report"
+	end
+	-- the police right there: let them handle it (the hot-headed don't care)
+	if s.police and not (arch == "hothead" or arch == "thug") and r() < 0.7 then
+		return if violent then "warn" else "report"
+	end
+	-- an old grudge: hit back at once
+	if (s.rel or 0) <= -60 and (violent or temper > 0.6) and hpLeft > max * 0.3 then
+		return "fight"
+	end
 	if arch == "rider" and typeId ~= "violent" then
 		-- 배달 라이더: startled, they get away (on the scooter) or call; only the toughest hit back
 		if hpLeft <= max * 0.3 then
@@ -344,6 +397,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	end
 	hc.n += 1
 	hc.t = t
+	-- the relation (-100..100) of a named citizen with this player (GwangalliGameplay.Mind)
+	if c and ctx.mind and type(ctx.mind.event) == "function" and attack ~= "shove" then
+		pcall(ctx.mind.event, player, id, if attack == "car" then "hit" else "hit", if attack == "car" then 0.8 else 1)
+	end
 	rec.hp -= dmg
 	rec.t = t
 	local police = typeId == "police" or typeId == "swat"
@@ -357,7 +414,7 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		outcome = "ko"
 		react = "ko"
 	else
-		react = if p.noReact then "none" else decide(id, typeId, c, rec.hp, max, hc.n)
+		react = if p.noReact then "none" else decide(id, typeId, c, rec.hp, max, hc.n, situation(player, id, pos))
 		if attack == "car" and react == "fight" then
 			react = if r() < 0.6 then "warn" else "report" -- (nobody punches a car)
 		end

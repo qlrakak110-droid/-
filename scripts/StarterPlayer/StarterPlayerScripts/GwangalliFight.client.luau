@@ -202,6 +202,7 @@ local function onEvent(p: any)
 		return
 	end
 	if p.kind == "hit" and type(p.id) == "string" then
+		street("witness", p.id) -- 정의감 높은 사람들이 본다 (GwangalliStreetLife/Characters)
 		local dx, dz = tonumber(p.dx) or 0, tonumber(p.dz) or -1
 		if p.target == "ped" then
 			if p.outcome == "ko" then
@@ -235,6 +236,8 @@ local function onEvent(p: any)
 				(mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
 			end)
 		end
+	elseif p.kind == "gunfire" and type(p.pos) == "table" then
+		street("gunfire", p.pos[1], p.pos[2], p.pos[3])
 	elseif p.kind == "ems" and type(p.id) == "string" then
 		-- 119 (GwangalliGameplay/Law/Rescue): the casualty waits for the ambulance / is carried off
 		if p.phase == "dispatched" then

@@ -186,6 +186,301 @@ function Mind.traits(c: any): any
 end
 
 -------------------------------------------------------------------------------------------------
+-- PERSONALITY (10 values 0..1, per NPC): kind 친절함 · timid 소심함 · aggr 공격성 · wary 경계심 ·
+-- greed 욕심 · social 사교성 · patience 참을성 · fear 겁 · curious 호기심 · justice 정의감.
+-- The archetype gives the base (PERS_ARCH), the person's id a steady jitter, the roster overrides
+-- (c.nerve, c.social, c.pers = { key = value }). style flags read from it: violent / timid / cold
+-- (무뚝뚝 · 무관심) / kind / fearful / just. Street pedestrians without a roster entry use their
+-- crowd type ({ id, type }) and get the same steady personality every time.
+-------------------------------------------------------------------------------------------------
+Mind.PERS_KEYS = { "kind", "timid", "aggr", "wary", "greed", "social", "patience", "fear", "curious", "justice" }
+Mind.PERS_LABEL = { kind = "친절함", timid = "소심함", aggr = "공격성", wary = "경계심", greed = "욕심", social = "사교성", patience = "참을성", fear = "겁", curious = "호기심", justice = "정의감" }
+local PERS_ARCH = {
+	citizen = { kind = 0.6, timid = 0.4, aggr = 0.3, wary = 0.4, greed = 0.3, social = 0.5, patience = 0.6, fear = 0.45, curious = 0.5, justice = 0.5 },
+	student = { kind = 0.6, timid = 0.45, aggr = 0.3, wary = 0.3, greed = 0.4, social = 0.65, patience = 0.45, fear = 0.5, curious = 0.75, justice = 0.45 },
+	office = { kind = 0.5, timid = 0.4, aggr = 0.35, wary = 0.55, greed = 0.4, social = 0.4, patience = 0.5, fear = 0.45, curious = 0.35, justice = 0.55 },
+	police = { kind = 0.55, timid = 0.1, aggr = 0.4, wary = 0.7, greed = 0.05, social = 0.4, patience = 0.6, fear = 0.08, curious = 0.5, justice = 0.95 },
+	drunk = { kind = 0.6, timid = 0.15, aggr = 0.55, wary = 0.1, greed = 0.3, social = 0.9, patience = 0.2, fear = 0.3, curious = 0.6, justice = 0.3 },
+	homeless = { kind = 0.55, timid = 0.55, aggr = 0.2, wary = 0.55, greed = 0.85, social = 0.55, patience = 0.6, fear = 0.6, curious = 0.4, justice = 0.4 },
+	punk = { kind = 0.3, timid = 0.1, aggr = 0.7, wary = 0.3, greed = 0.75, social = 0.8, patience = 0.2, fear = 0.3, curious = 0.5, justice = 0.1 },
+	thug = { kind = 0.15, timid = 0.05, aggr = 0.9, wary = 0.5, greed = 0.8, social = 0.4, patience = 0.1, fear = 0.12, curious = 0.3, justice = 0.05 },
+	fool = { kind = 0.9, timid = 0.2, aggr = 0.15, wary = 0, greed = 0.2, social = 1, patience = 0.7, fear = 0.4, curious = 1, justice = 0.3 },
+	clerk = { kind = 0.7, timid = 0.45, aggr = 0.2, wary = 0.4, greed = 0.35, social = 0.6, patience = 0.65, fear = 0.55, curious = 0.45, justice = 0.55 },
+	parttimer = { kind = 0.6, timid = 0.45, aggr = 0.3, wary = 0.4, greed = 0.5, social = 0.55, patience = 0.4, fear = 0.55, curious = 0.5, justice = 0.45 },
+	rich = { kind = 0.35, timid = 0.35, aggr = 0.4, wary = 0.75, greed = 0.2, social = 0.3, patience = 0.35, fear = 0.5, curious = 0.3, justice = 0.4 },
+	tourist = { kind = 0.75, timid = 0.5, aggr = 0.15, wary = 0.3, greed = 0.25, social = 0.8, patience = 0.7, fear = 0.6, curious = 0.95, justice = 0.45 },
+	elder = { kind = 0.7, timid = 0.3, aggr = 0.35, wary = 0.55, greed = 0.25, social = 0.65, patience = 0.65, fear = 0.5, curious = 0.4, justice = 0.75 },
+	hothead = { kind = 0.25, timid = 0.05, aggr = 0.95, wary = 0.45, greed = 0.4, social = 0.3, patience = 0.05, fear = 0.15, curious = 0.3, justice = 0.2 },
+	rider = { kind = 0.6, timid = 0.4, aggr = 0.35, wary = 0.4, greed = 0.45, social = 0.5, patience = 0.45, fear = 0.5, curious = 0.45, justice = 0.45 },
+}
+Mind.PERS_ARCH = PERS_ARCH
+local persCache: { [string]: any } = {}
+function Mind.personality(c: any): any
+	local id = (type(c) == "table" and c.id) or "?"
+	local p = persCache[id]
+	if p then
+		return p
+	end
+	local t = Mind.traits(c)
+	local base = PERS_ARCH[t.arch] or PERS_ARCH.citizen
+	p = { arch = t.arch }
+	for i, k in Mind.PERS_KEYS do
+		p[k] = clamp01((base[k] or 0.5) + (hash01(id, 20 + i) - 0.5) * 0.24)
+	end
+	-- the old traits stay in step (they drive the talk composer already)
+	p.kind = clamp01(p.kind * 0.5 + t.warm * 0.5)
+	p.aggr = clamp01(p.aggr * 0.5 + t.temper * 0.5)
+	p.fear = clamp01(p.fear * 0.5 + (1 - t.brave) * 0.5)
+	p.social = clamp01(p.social * 0.5 + t.chatty * 0.5)
+	if type(c) == "table" and type(c.pers) == "table" then
+		for k, v in c.pers do
+			if isNum(v) then
+				p[k] = clamp01(v)
+			end
+		end
+	end
+	p.violent = p.aggr >= 0.68 and not t.authority
+	p.isTimid = p.timid >= 0.58 or p.fear >= 0.66
+	p.cold = p.social <= 0.34 and p.kind <= 0.5
+	p.isKind = p.kind >= 0.68
+	p.fearful = p.fear >= 0.62
+	p.just = p.justice >= 0.7
+	p.authority = t.authority
+	persCache[id] = p
+	return p
+end
+
+-------------------------------------------------------------------------------------------------
+-- RELATION (-100..100, per NPC per player: rec.rel). Not the same as 호감도 (Relationships' friendship
+-- progress 0..100): this is how they feel about you right now and it can go deep negative.
+-------------------------------------------------------------------------------------------------
+Mind.REL_BANDS = {
+	{ at = -100, key = "loathe", label = "극도로 싫어함" },
+	{ at = -70, key = "hostile", label = "적대적" },
+	{ at = -40, key = "dislike", label = "싫어함" },
+	{ at = -10, key = "wary", label = "경계" },
+	{ at = 0, key = "stranger", label = "모르는 사이" },
+	{ at = 20, key = "friendly", label = "조금 친함" },
+	{ at = 50, key = "close", label = "친한 사이" },
+	{ at = 80, key = "dear", label = "매우 친함" },
+	{ at = 100, key = "best", label = "최고 관계" },
+}
+function Mind.relBand(rel: number): any
+	local band = Mind.REL_BANDS[1]
+	for _, b in Mind.REL_BANDS do
+		if rel >= b.at then
+			band = b
+		end
+	end
+	-- (between -10 and 0 is still "wary"; 0..19 "stranger")
+	if rel < 0 and rel > -10 then
+		band = Mind.REL_BANDS[4]
+	end
+	return band
+end
+
+function Mind.relOf(rec: any): number
+	if type(rec) ~= "table" then
+		return 0
+	end
+	if not isNum(rec.rel) then
+		-- first read of an old record: from the feelings it already has
+		rec.rel = math.clamp(((rec.cl or 0) * 0.6 + ((rec.tr or 30) - 30) * 0.5) - (rec.an or 0) * 0.6 - (rec.hit or 0) * 25 - (rec.ins or 0) * 6, -100, 100)
+	end
+	return rec.rel
+end
+
+-- a change to the relation, scaled by who they are: kind people warm up faster, impatient ones
+-- sour faster; returns the applied change
+function Mind.relChange(c: any, rec: any, delta: number): number
+	if delta == 0 then
+		return 0
+	end
+	local p = Mind.personality(c)
+	local k = if delta > 0 then 0.6 + p.kind * 0.8 else 0.6 + (1 - p.patience) * 0.8
+	local cur = Mind.relOf(rec)
+	local new = math.clamp(cur + delta * k, -100, 100)
+	rec.rel = new
+	return new - cur
+end
+
+-- relation events (server Mind.event): base deltas before the personality scale
+Mind.REL_EVENT = {
+	greet = 1.5, talk_kind = 1, gift = 6, gift_love = 10, food = 5, help = 12, rescued = 40, visit = 1.5,
+	insult = -10, provoke = -8, threaten = -14, shove = -10, bump = -5, hit = -25, steal = -30, betrayal = -25,
+	chased = -6, pester = -3, interrupt = -2, witnessed = -15, robbed = -35, gun = -20,
+}
+
+-------------------------------------------------------------------------------------------------
+-- CURRENT MOOD of the NPC (not per player): NORMAL HAPPY ANGRY SCARED SAD ANNOYED NERVOUS DRUNK.
+-- From what they feel about you (an / fe), the hour (night drinkers), the weather, a steady daily
+-- mood per person and recent events the caller passes in env (env.recent = { scared = t, ... }).
+-------------------------------------------------------------------------------------------------
+function Mind.npcMood(c: any, rec: any?, env: any?): string
+	local e = env or {}
+	local t = Mind.traits(c)
+	local p = Mind.personality(c)
+	local now = e.now or os.time()
+	local clock = e.clock or 12
+	local id = (type(c) == "table" and c.id) or "?"
+	local day = math.floor(now / 86400)
+	if rec then
+		if (rec.fe or 0) >= 55 then
+			return "SCARED"
+		end
+		if (rec.an or 0) >= 60 then
+			return "ANGRY"
+		end
+		if (rec.an or 0) >= 28 then
+			return "ANNOYED"
+		end
+	end
+	if e.recent then
+		if e.recent.scared and now - e.recent.scared < 120 then
+			return "SCARED"
+		end
+		if e.recent.angry and now - e.recent.angry < 120 then
+			return "ANGRY"
+		end
+	end
+	if t.arch == "drunk" or ((clock >= 22 or clock < 4) and type(c) == "table" and (c.club or 0) >= 0.45 and hash01(id .. day, 7) < 0.5) then
+		return "DRUNK"
+	end
+	if (e.wanted or 0) >= 2 and not t.authority then
+		return "NERVOUS"
+	end
+	if (clock >= 23 or clock < 5) and p.isTimid then
+		return "NERVOUS"
+	end
+	local x = hash01(id .. "#" .. day, 3)
+	if e.weather == "rain" and x < 0.3 then
+		return "SAD"
+	end
+	if x < 0.07 then
+		return "SAD"
+	elseif x < 0.12 then
+		return "ANNOYED"
+	elseif x > 0.78 then
+		return "HAPPY"
+	end
+	if rec and Mind.relOf(rec) >= 50 then
+		return "HAPPY"
+	end
+	return "NORMAL"
+end
+
+-------------------------------------------------------------------------------------------------
+-- REACTION POLICY: what this person does with this player now. talk = how they answer
+-- ("normal" | "short" | "rough" | "block" | "ignore" | "brush" | "phone" | "busy"); approach = what
+-- they do when the player comes near on the street (nil | "greet" | "avoid" | "flee" | "provoke" |
+-- "hostile" | "glare"); blockS = how long a block lasts for this person.
+-------------------------------------------------------------------------------------------------
+function Mind.policy(c: any, rec: any, env: any?): any
+	local e = env or {}
+	local now = e.now or os.time()
+	local p = Mind.personality(c)
+	local rel = Mind.relOf(rec)
+	local mood = Mind.npcMood(c, rec, e)
+	local out = { talk = "normal", approach = nil, rel = rel, mood = mood, blockS = math.floor(60 + (1 - p.patience) * 240) }
+	if p.authority then
+		-- 경찰: the law first, not feelings (Law owns stops / arrests); only the tone changes
+		out.talk = if rel <= -40 then "short" else "normal"
+		return out
+	end
+	if (rec.blockUntil or 0) > now then
+		out.talk = "block"
+	end
+	if p.violent then
+		if rel <= -80 then
+			out.approach = "hostile"
+			out.talk = if out.talk == "block" then "block" else "rough"
+		elseif rel <= -60 then
+			out.approach = "provoke"
+			out.talk = if out.talk == "block" then "block" else "rough"
+		elseif rel <= -40 then
+			out.approach = "provoke"
+			out.talk = if out.talk == "block" then "block" else "rough"
+		elseif rel <= -20 then
+			out.approach = "glare"
+			out.talk = if out.talk == "block" then "block" else "rough"
+		end
+	elseif p.isTimid or p.fearful then
+		if rel <= -80 then
+			out.approach = "flee"
+			out.talk = "block"
+		elseif rel <= -60 then
+			out.approach = "avoid"
+			out.talk = "block"
+		elseif rel <= -40 then
+			out.approach = "avoid"
+			out.talk = if out.talk == "block" then "block" else "short"
+		elseif rel <= -20 then
+			out.talk = if out.talk == "block" then "block" else "short"
+		end
+	elseif p.cold then
+		if rel < -10 then
+			out.talk = if out.talk == "block" then "block" else "ignore"
+		elseif rel < 20 and out.talk == "normal" then
+			-- 무뚝뚝: at first they often don't stop for you
+			local x = hash01(tostring(c and c.id) .. math.floor(now / 90), 5)
+			out.talk = if x < 0.3 then "ignore" elseif x < 0.55 then "brush" elseif x < 0.7 then "phone" else "short"
+		end
+	else
+		if rel <= -60 then
+			out.talk = if out.talk == "block" then "block" else "block"
+			out.approach = "avoid"
+		elseif rel <= -30 then
+			out.talk = if out.talk == "block" then "block" else "short"
+		end
+	end
+	-- the mood of the moment on top
+	if out.talk == "normal" then
+		if mood == "ANGRY" or mood == "SAD" then
+			out.talk = "short"
+		elseif mood == "ANNOYED" and p.patience < 0.5 then
+			out.talk = if hash01(tostring(c and c.id) .. math.floor(now / 60), 9) < 0.5 then "busy" else "short"
+		elseif mood == "SCARED" then
+			out.talk = "short"
+			out.approach = out.approach or "avoid"
+		end
+	end
+	if mood == "DRUNK" and not out.approach then
+		local x = hash01(tostring(c and c.id) .. math.floor(now / 120), 11)
+		out.approach = if x < 0.3 then "greet" elseif x < 0.5 and p.aggr > 0.4 then "provoke" else nil
+	end
+	-- kind people (and anyone who likes you) say hello first
+	if not out.approach and (rel >= 20 or (p.isKind and rel >= 0)) and out.talk ~= "block" then
+		out.approach = "greet"
+	end
+	return out
+end
+
+-- lines by relation / personality / mood (the street hello, the brush-off, the block)
+Mind.REL_LINES = {
+	greet_close = { "어, 또 왔네?", "오늘은 뭐 하고 있었어?", "오랜만이다!", "왔어? 반가워 ㅎㅎ" },
+	greet_friendly = { "아, 안녕하세요!", "또 뵙네요 ㅎㅎ", "오늘 날씨 좋죠?" },
+	greet_kind = { "안녕하세요~", "좋은 하루 보내세요!", "어머, 안녕하세요 ㅎㅎ" },
+	greet_drunk = { "어이~ 친구! 딸꾹", "야 너 내 친구 하자~", "반갑다 반가워~ 히끅" },
+	low = { "왜 또 왔어요?", "저 좀 내버려 두세요.", "별로 얘기하고 싶지 않은데요.", "또 당신이에요?" },
+	block = { "할 말 없어요.", "저한테 말 걸지 마세요.", "좀 가세요.", "또 당신이에요?", "…(고개를 돌린다)" },
+	rough = { "뭘 봐?", "계속 그러면 진짜 화낸다.", "한 번 해보자는 거냐?", "말 걸지 마라.", "꺼져." },
+	scared = { "왜 이러세요?", "저한테 오지 마세요.", "경찰 부를 거예요.", "(뒷걸음질 친다)" },
+	short = { "네.", "아 네…", "그래요.", "글쎄요.", "음." },
+	ignore = { "…", "(못 들은 척 지나간다)", "(이어폰을 낀 채 지나간다)" },
+	brush = { "아 네네~ (지나가며)", "네? 아, 바빠서요! (걸어간다)", "다음에요~ (지나간다)" },
+	phone = { "(휴대폰을 보며) 네? 아… 네.", "(폰 보면서) 음, 그래요?", "(화면에서 눈을 안 떼며) 응…" },
+	busy = { "아 제가 지금 시간이 없어서요.", "죄송한데 지금 바빠요.", "나중에 얘기해요, 급해서." },
+	pester = { "그만 좀 하세요.", "아 진짜 왜 그래요?", "자꾸 말 걸지 마세요." },
+	avoid = { "(슬쩍 피한다)", "(시선을 피하며 돌아간다)", "…" },
+	glare = { "…뭘 봐.", "(노려본다)", "쳇." },
+	provoke = { "야, 너 아까부터 거슬린다?", "뭘 쳐다봐, 한판 할래?", "어이, 이리 와 봐.", "너 나랑 문제 있냐?" },
+	hostile = { "또 너냐? 오늘 끝장 보자.", "너 딱 걸렸다.", "여기 오지 말라 했지?" },
+	justice = { "뭐 하는 거예요?! 경찰 부를 거예요!", "사람을 왜 때려요?! 112죠?", "그만해요! 다 봤어요!" },
+	gun_flee = { "총이다!! 피해!!", "살려주세요!!", "총 든 사람 있어요!!" },
+	gun_stand = { "…진정해, 쏘지 마.", "그거 내려놓고 말로 해.", "알았어 알았어, 간다." },
+}
+
+-------------------------------------------------------------------------------------------------
 -- Records
 -------------------------------------------------------------------------------------------------
 function Mind.newRec(c: any, now: number): any

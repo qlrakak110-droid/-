@@ -251,6 +251,16 @@ local function fire(o: any, player: Player, pp: Vector3, d: number)
 	while #shots > 40 do
 		table.remove(shots, 1)
 	end
+	-- the street hears it (clients: people nearby scatter by personality)
+	if ctx.fight and type(ctx.fight.tell) == "function" and now() - (o.toldShot or 0) > 2 then
+		o.toldShot = now()
+		for _, pl in Players:GetPlayers() do
+			local q = Law.posOf(pl)
+			if q and flat(q, o.pos) < 160 then
+				pcall(ctx.fight.tell, pl, { kind = "gunfire", pos = { o.pos.X, o.pos.Y, o.pos.Z } })
+			end
+		end
+	end
 	P.faceTo(o, pp)
 	P.emote(o, "point_proc")
 	if not P.losClear(muzzle, aim) then

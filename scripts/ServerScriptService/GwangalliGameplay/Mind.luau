@@ -372,6 +372,10 @@ local function viewOf(player: Player, sess: Sess, id: string): any
 		number = hasNumber(player, id),
 		lover = rec ~= nil and rec.st == "lover",
 		talks = rec and rec.tk or 0,
+		rel = rec and math.floor(M.relOf(rec) + 0.5) or 0,
+		relLabel = M.relBand(rec and M.relOf(rec) or 0).label,
+		approach = rec and M.policy(c, rec, { now = now(), clock = clockNow() }).approach or nil,
+		npcMood = M.npcMood(c, rec, { now = now(), clock = clockNow(), weather = weatherNow() }),
 		last = rec and rec.lt or 0,
 		arch = t.arch,
 	}
@@ -537,11 +541,49 @@ local function splitLines(s: string?): { string }
 	return out
 end
 
+-- a relation event (Mind.REL_EVENT): the -100..100 relation changes by who they are; gifts then
+-- violence = betrayal; returns the new relation
+local function relEvent(rec: any, c: any, kind: string, mult: number?): number
+	local base = M.REL_EVENT[kind] or 0
+	if base == 0 then
+		return M.relOf(rec)
+	end
+	local t = now()
+	if kind == "hit" or kind == "robbed" then
+		local g = M.lastOf(rec, "gift")
+		if g and t - g.t < 900 then
+			M.relChange(c, rec, M.REL_EVENT.betrayal) -- 선물을 줬다가 공격하기
+		end
+	end
+	if kind == "visit" then
+		if t - (rec.cd.visit or 0) < 6 * 3600 then
+			return M.relOf(rec)
+		end
+		rec.cd.visit = t
+	end
+	M.relChange(c, rec, base * (mult or 1))
+	return M.relOf(rec)
+end
+
+local REL_INTENT = { insult = "insult", provoke = "provoke", threaten = "threaten", greet = "greet" }
 local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: any, opts: any?)
 	local o = opts or {}
 	local t = now()
 	local c = citizen(id)
 	M.apply(rec, out.d, t)
+	-- the relation (-100..100): the named intent, or the warmth / anger of the exchange
+	if c then
+		local ev = REL_INTENT[out.intent or ""]
+		if ev then
+			relEvent(rec, c, ev)
+		else
+			local dRel = (out.d and out.d.aff or 0) * 1.6 - math.max(0, out.d and out.d.an or 0) * 0.3
+			if dRel ~= 0 then
+				M.relChange(c, rec, math.clamp(dRel, -12, 8))
+			end
+		end
+		relEvent(rec, c, "visit")
+	end
 	-- 호감도 through Relationships
 	local da = out.d and out.d.aff or 0
 	if da > 0 and not o.noAff then
@@ -624,6 +666,76 @@ local function bucket(sess: Sess): boolean
 	return true
 end
 
+-- the relation gate: how this person takes being talked to right now (Mind.policy). phase "open"
+-- (the player starts a talk) / "say". Returns an answer (the talk is refused / brushed off) or nil.
+local GATE_ACT = { block = "block", ignore = "ignore", brush = "brush", busy = "end" }
+local function gate(player: Player, sess: Sess, id: string, rec: any, c: any, phase: string): any?
+	local t = now()
+	-- pestering: many openings / lines in a minute
+	rec.pest = rec.pest or {}
+	table.insert(rec.pest, t)
+	while #rec.pest > 0 and t - rec.pest[1] > 60 do
+		table.remove(rec.pest, 1)
+	end
+	local pers = M.personality(c)
+	local pol = M.policy(c, rec, { now = t, clock = clockNow(), weather = weatherNow(), wanted = sess.state.wanted or 0 })
+	local limit = math.floor(5 + pers.patience * 8 + pers.social * 4)
+	local key: string? = nil
+	if #rec.pest > limit and not pers.authority then
+		key = "pester"
+		rec.blockUntil = t + pol.blockS
+		relEvent(rec, c, "pester")
+		table.clear(rec.pest)
+	elseif pol.talk == "block" then
+		key = "block"
+	elseif phase == "open" and (pol.talk == "ignore" or pol.talk == "brush" or pol.talk == "busy") then
+		key = pol.talk
+	end
+	if phase == "open" and pol.talk == "phone" and sess.talk then
+		sess.talk.tone = "phone"
+	elseif sess.talk then
+		sess.talk.tone = pol.talk
+	end
+	if not key then
+		return nil
+	end
+	local list = M.REL_LINES[key] or M.REL_LINES.block
+	local line = list[math.random(#list)]
+	local out = { lines = { M.voice(line, M.archOf(c), math.random, true) }, d = { aff = 0, tr = 0, an = 0, fe = 0, cl = 0 }, mood = M.mood(c, rec, (affOf(player, id))), stage = M.stage(rec, (affOf(player, id))), intent = "small", face = if key == "block" or key == "pester" then "annoyed" else "neutral", emote = if key == "block" or key == "pester" or key == "ignore" then "turn" else nil, act = if key == "pester" then "block" else GATE_ACT[key] }
+	if key == "ignore" then
+		out.lines = { "…" }
+	end
+	sess.talk = nil
+	player:SetAttribute(M.Attr.Busy, "")
+	M.remember(rec, "talk", key, t)
+	markDirty(sess)
+	return answer(player, sess, id, out)
+end
+
+-- the tone of a normal reply (short / rough / phone)
+local function toned(out: any, tone: string?, c: any)
+	if not tone or tone == "normal" or #out.lines == 0 or out.act == "fight" then
+		return
+	end
+	if tone == "short" then
+		out.lines = { out.lines[#out.lines] }
+		if math.random() < 0.4 then
+			local l = M.REL_LINES.short
+			out.lines = { l[math.random(#l)] }
+		end
+		out.face = "neutral"
+	elseif tone == "rough" then
+		if math.random() < 0.45 then
+			local l = M.REL_LINES.rough
+			out.lines[1] = l[math.random(#l)]
+		end
+		out.face = "annoyed"
+	elseif tone == "phone" then
+		out.lines = { "(휴대폰을 보며) " .. out.lines[#out.lines] }
+		out.emote = "phone"
+	end
+end
+
 ops.open = function(player, sess, p)
 	local id = Util.str(p.id, 40)
 	local c = citizen(id)
@@ -637,6 +749,12 @@ ops.open = function(player, sess, p)
 	local kind = Util.str(p.kind, 20) or "talk"
 	sess.talk = { id = id, since = os.clock(), first = true, kind = kind, chan = "talk" }
 	player:SetAttribute(M.Attr.Busy, id)
+	if kind == "talk" then
+		local g = gate(player, sess, id, rec, c, "open")
+		if g then
+			return g
+		end
+	end
 	local env = envFor(player, id, sess)
 	if kind ~= "talk" then
 		local out = nil
@@ -835,6 +953,12 @@ end
 local function sayFree(player: Player, sess: Sess, id: string, text: string, chan: string): any
 	local c = citizen(id)
 	local rec = recOf(sess, id, true)
+	if chan ~= "text" then
+		local g = gate(player, sess, id, rec, c, "say")
+		if g then
+			return g, g.out
+		end
+	end
 	local env = envFor(player, id, sess)
 	local talk = if chan == "text" then nil else sess.talk
 	env.first = (talk ~= nil and talk.first == true) or (chan == "text" and (now() - (rec.lt or 0)) > 3600)
@@ -878,6 +1002,7 @@ local function sayFree(player: Player, sess: Sess, id: string, text: string, cha
 	if out.invite then
 		inviteOut(player, sess, id, rec, out, out.invite, env)
 	end
+	toned(out, talk and talk.tone, c)
 	-- the conversation as text (the Brain's context; the last turns are saved with the record)
 	rec.cv = if type(rec.cv) == "table" then rec.cv else {}
 	table.insert(rec.cv, { p = string.sub(text, 1, 140), n = string.sub(table.concat(out.lines, " "), 1, 200), t = now() })
@@ -941,6 +1066,12 @@ ops.say = function(player, sess, p)
 		req.item = Util.str(p.item, 20) or req.item
 	end
 	req.intent = req.intent or "small"
+	if not remote then
+		local g = gate(player, sess, id, recOf(sess, id, true), c, "say")
+		if g then
+			return g
+		end
+	end
 	return sayCommon(player, sess, id, req, if remote then "call" else "talk")
 end
 
@@ -1432,6 +1563,21 @@ ops.street = function(player, sess, p)
 		M.remember(rec, "scolded", 1, t)
 	elseif ev == "bumped_by" then
 		M.remember(rec, "bumped_by", 1, t)
+	elseif ev == "witnessed" then
+		-- 정의감: they saw you beat somebody up (no history needed); they may call it in
+		relEvent(rec, c, "witnessed")
+		M.apply(rec, { an = 12, tr = -8, fe = 6 }, t)
+		M.remember(rec, "witnessed", 1, t)
+		if ctx.law and type(ctx.law.report) == "function" and math.random() < 0.6 then
+			pcall(ctx.law.report, player, "witness", vec(p.pos))
+		end
+	elseif ev == "gun" then
+		relEvent(rec, c, "gun")
+		M.apply(rec, { fe = 30, an = 8, tr = -10 }, t)
+		M.remember(rec, "gun", 1, t)
+	elseif ev == "chased" then
+		relEvent(rec, c, "chased")
+		M.remember(rec, "chased", 1, t)
 	elseif ev == "helped" then
 		rec.help = (rec.help or 0) + 1
 		M.apply(rec, { tr = 4, cl = 2 }, t)
@@ -1446,6 +1592,28 @@ end
 -------------------------------------------------------------------------------------------------
 -- Hooks for the other modules (Bump: the player knocked somebody down)
 -------------------------------------------------------------------------------------------------
+-- the relation (-100..100) of NPC id with this player (GwangalliGameplay/Fight decides with it)
+function MindServer.relOf(player: Player, id: string): number
+	local sess = sessOf(player)
+	local rec = sess and recOf(sess, id, false)
+	return if rec then M.relOf(rec) else 0
+end
+
+-- other modules: something happened between this player and this NPC (hit / bump / steal /
+-- rescued / helped / witnessed / chased / gun / robbed)
+function MindServer.event(player: Player, id: string, kind: string, mult: number?): number?
+	local sess = sessOf(player)
+	local c = citizen(id)
+	if not sess or not c then
+		return nil
+	end
+	local rec = recOf(sess, id, true)
+	local r = relEvent(rec, c, kind, mult)
+	M.remember(rec, kind, mult or 1, now())
+	markDirty(sess)
+	return r
+end
+
 function MindServer.note(player: Player, id: string, kind: string, x: any)
 	local sess = sessOf(player)
 	local c = citizen(id)
@@ -1456,6 +1624,7 @@ function MindServer.note(player: Player, id: string, kind: string, x: any)
 	local t = now()
 	if kind == "bump" then
 		M.remember(rec, "bump", x, t)
+		relEvent(rec, c, "bump", if x == "knockdown" then 2 else 1)
 		-- the shove counts against their HP and they remember it a while (GwangalliGameplay/Fight);
 		-- 어깨빵 plays its own fall and reaction, so no second reaction / no 폭행 here
 		if ctx.fight and type(ctx.fight.applyHit) == "function" then
@@ -1619,7 +1788,7 @@ local function packState(st: any): any
 			v = r.v, tr = r.tr, an = r.an, fe = r.fe, cl = r.cl, clPeak = r.clPeak, nm = r.nm, kn = r.kn, st = r.st,
 			tk = r.tk, lt = r.lt, fm = r.fm, mem = mem, gd = r.gd, gcl = r.gcl, hit = r.hit, ins = r.ins, help = r.help,
 			gifts = r.gifts, txt = txt, u = r.u, at = r.at, cd = { food = r.cd and r.cd.food or nil, bmOffer = r.cd and r.cd.bmOffer or nil },
-			pf = r.pf, bm = r.bm, cv = r.cv,
+			pf = r.pf, bm = r.bm, cv = r.cv, rel = r.rel, blockUntil = r.blockUntil,
 		}
 	end
 	return { v = st.v, npcs = npcs, wanted = st.wanted, crimes = st.crimes, fines = st.fines, u = st.u }

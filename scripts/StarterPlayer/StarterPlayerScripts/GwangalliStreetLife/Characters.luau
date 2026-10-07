@@ -11,7 +11,13 @@
 -- brawl (Crowd.api "brawl").
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local MS: any = nil -- GwangalliMindShared (personality / lines)
+pcall(function()
+	MS = require(ReplicatedStorage:WaitForChild("GwangalliMindShared", 10) :: any)
+end)
 
 local Characters = {}
 
@@ -211,6 +217,164 @@ local function drunkTick(a: any, now: number, pp: Vector3)
 end
 
 -------------------------------------------------------------------------------------------------
+-- danger: a gun out, gunfire nearby, an assault seen (personality decides: run / stand / call / help)
+-------------------------------------------------------------------------------------------------
+local function persOf(a: any): any
+	if MS and MS.personality then
+		local ok, p = pcall(MS.personality, a.c or { id = a.id, type = a.type })
+		if ok and type(p) == "table" then
+			return p
+		end
+	end
+	return { fear = 0.5, aggr = 0.3, justice = 0.4, isTimid = false, fearful = false, violent = false, just = false }
+end
+
+local function rl(key: string): string
+	local L = MS and MS.REL_LINES and MS.REL_LINES[key]
+	return if L then pick(L) else "…"
+end
+
+local GUN_WORDS = { "gun", "pistol", "rifle", "glock", "revolver", "shotgun", "smg", "uzi", "ak47", "m4", "deagle", "총", "권총", "소총", "엽총", "기관총" }
+local function heldGun(char: Model?): boolean
+	if not char then
+		return false
+	end
+	if workspace:GetAttribute("GwangalliTestGun") == true then
+		return true
+	end
+	local tool = char:FindFirstChildOfClass("Tool")
+	if not tool then
+		return false
+	end
+	local w = tool:GetAttribute("GwWeapon") or tool:GetAttribute("WeaponType")
+	if w == "gun" or tool:GetAttribute("IsGun") == true or tool:GetAttribute("Gun") == true then
+		return true
+	end
+	local n = string.lower(tool.Name)
+	for _, word in GUN_WORDS do
+		if string.find(n, word, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
+local function runFrom(a: any, from: Vector3, dur: number)
+	if deps.Mind and deps.Mind.flee then
+		pcall(deps.Mind.flee, a, from, dur)
+	end
+end
+
+local function backOff(a: any, from: Vector3)
+	if not deps.Mind.take(a, { kind = "custom", untilT = os.clock() + 4, drive = function(ag: any, ctl: any, t: number)
+		if t > ctl.untilT then
+			deps.Mind.release(ag)
+		end
+	end }) then
+		return
+	end
+	local dx, dz = a.pos.X - from.X, a.pos.Z - from.Z
+	local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+	deps.Mind.moveTo(a, Vector3.new(a.pos.X + dx / dd * 7, a.pos.Y, a.pos.Z + dz / dd * 7), 4)
+end
+
+-- the player holds a gun close by (riders: GwangalliStreetLife/Delivery does theirs)
+local function gunTick(now: number, pp: Vector3)
+	if not heldGun(player.Character) then
+		return
+	end
+	for _, a in deps.agents() do
+		if not a.gone and not a.delivery and not a.ko and not a.knock and a.type ~= "police" and a.pos and flat(a.pos, pp) < 18 and now >= (a.gunNext or 0) then
+			a.gunNext = now + 9
+			local p = persOf(a)
+			if a.ctl and a.ctl.kind == "talk" then
+				-- (the talk ends: a gun is not small talk)
+				pcall(deps.Mind.release, a)
+			end
+			if (p.violent and not p.fearful and rnd() < 0.6) then
+				say(a, rl("gun_stand"), 2.6)
+				backOff(a, pp)
+			else
+				say(a, rl("gun_flee"), 2.4)
+				runFrom(a, pp, if p.fearful or p.isTimid then 8 else 5)
+			end
+			if a.named and deps.Mind.street then
+				deps.Mind.street(a.id, "gun", a.pos)
+			end
+		end
+	end
+end
+
+function Characters.gunfire(pos: Vector3)
+	local now = os.clock()
+	for _, a in deps.agents() do
+		if not a.gone and not a.ko and not a.knock and a.pos and flat(a.pos, pos) < 45 and now >= (a.shotNext or 0) and a.type ~= "police" then
+			a.shotNext = now + 6
+			local p = persOf(a)
+			local stays = p.violent and not p.fearful and rnd() < 0.4
+			if not stays then
+				if rnd() < 0.35 then
+					say(a, rl("gun_flee"), 2.2)
+				end
+				runFrom(a, pos, 6 + p.fear * 4)
+			end
+		end
+	end
+end
+
+-- the player hit someone: people with a sense of justice react (dislike, call, help the victim)
+function Characters.witness(victimId: string)
+	local victim = nil
+	for _, a in deps.agents() do
+		if a.id == victimId then
+			victim = a
+		end
+	end
+	if not victim or not victim.pos then
+		return
+	end
+	local n = 0
+	for _, a in deps.agents() do
+		if n >= 2 then
+			break
+		end
+		if a ~= victim and not a.gone and not a.ko and not a.knock and a.pos and flat(a.pos, victim.pos) < 22 and a.type ~= "police" and os.clock() >= (a.justNext or 0) then
+			local p = persOf(a)
+			if p.just then
+				n += 1
+				a.justNext = os.clock() + 30
+				say(a, rl("justice"), 3)
+				if a.named and deps.Mind.street then
+					deps.Mind.street(a.id, "witnessed", a.pos)
+				end
+				-- the braver ones go to the victim and help (kneel by them a while)
+				if p.fear < 0.45 and not victim.gone then
+					local vpos = victim.pos
+					deps.Mind.take(a, { kind = "custom", untilT = os.clock() + 12, drive = function(ag: any, ctl: any, t: number)
+						if t > ctl.untilT or victim.gone then
+							deps.Mind.release(ag)
+							return
+						end
+						if flat(ag.pos, vpos) > 2.2 then
+							if t >= (ctl.re or 0) then
+								ctl.re = t + 0.6
+								deps.Mind.moveTo(ag, vpos, 7)
+							end
+						elseif not ctl.helped then
+							ctl.helped = true
+							say(ag, pick({ "괜찮아요? 정신 차려요!", "많이 다쳤어요? 119 불러 줄게요!", "일어날 수 있겠어요?" }), 3)
+							ctl.untilT = t + 6
+						end
+					end })
+				elseif deps.Mind.report then
+					pcall(deps.Mind.report, a)
+				end
+			end
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
 -- step
 -------------------------------------------------------------------------------------------------
 local queued: { any } = {}
@@ -231,6 +395,7 @@ local function step()
 		return
 	end
 	local pspeed = deps.playerSpeed()
+	gunTick(now, pp)
 	for _, a in deps.agents() do
 		if not a.gone and a.pos and flat(a.pos, pp) < 70 then
 			local t = a.type

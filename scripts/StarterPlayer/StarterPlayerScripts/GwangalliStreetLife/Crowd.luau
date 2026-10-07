@@ -517,6 +517,18 @@ function Crowd.api(method: any, ...: any): any
 		end
 		m.untilT = now + 120
 		return true
+	elseif method == "gunfire" then
+		local x, y, z = ...
+		if Crowd.Characters and tonumber(x) then
+			Crowd.Characters.gunfire(Vector3.new(tonumber(x) :: number, tonumber(y) or 0, tonumber(z) or 0))
+		end
+		return true
+	elseif method == "witness" then
+		local id = ...
+		if Crowd.Characters and type(id) == "string" then
+			Crowd.Characters.witness(id)
+		end
+		return true
 	elseif method == "emshold" then
 		-- an ambulance is coming: the casualty stays down until it is picked up (or the time is up)
 		local id, secs = ...

@@ -1326,14 +1326,14 @@ Citizens.ERRANDS = {
 -------------------------------------------------------------------------------------------------
 Citizens.SCHEDULES = {
 	school = { { 0, "home", "sleep" }, { 7, "walk", "walk" }, { 7.75, "work", "study" }, { 16, "fun", "play" }, { 18, "eat", "eat" }, { 19.5, "walk", "walk" }, { 21.5, "home", "home" } },
-	uni = { { 0, "home", "sleep" }, { 9, "cafe", "cafe" }, { 11, "walk", "walk" }, { 13, "eat", "eat" }, { 14, "fun", "walk" }, { 17, "beach_c", "photo" }, { 19, "eat", "eat" }, { 21, "walk", "walk" }, { 23.5, "home", "home" } },
-	office = { { 0, "home", "sleep" }, { 7, "station", "walk" }, { 8, "work", "work" }, { 12, "eat", "eat" }, { 13, "work", "work" }, { 18.5, "walk", "walk" }, { 19.5, "eat", "drink" }, { 22, "home", "home" } },
+	uni = { { 0, "home", "sleep" }, { 9, "cafe", "cafe" }, { 11, "walk", "walk" }, { 13, "eat", "eat" }, { 14, "fun", "walk" }, { 17, "beach_c", "photo" }, { 19, "eat", "eat" }, { 21, "gwangan_st", "drink" }, { 23.5, "home", "home" } },
+	office = { { 0, "home", "sleep" }, { 7, "station", "walk" }, { 8, "work", "work" }, { 12, "eat", "eat" }, { 13, "work", "work" }, { 18.5, "walk", "walk" }, { 19.5, "gwangan_st", "drink" }, { 21.5, "hoetown", "drink" }, { 23.5, "home", "home" } },
 	surf = { { 0, "home", "sleep" }, { 5.5, "sup", "surf" }, { 9, "work", "surf" }, { 12, "eat", "eat" }, { 13, "beach_e", "sunbathe" }, { 16, "sup", "surf" }, { 18.5, "beach_c", "walk" }, { 20, "eat", "drink" }, { 23, "home", "home" } },
 	granny = { { 0, "home", "sleep" }, { 5.5, "millak_park", "walk" }, { 7, "work", "shop" }, { 10, "plaza", "sit" }, { 12, "home", "home" }, { 15, "beach_c", "sit" }, { 18, "home", "home" } },
 	grandpa = { { 0, "home", "sleep" }, { 5, "millak_park", "fish" }, { 9, "plaza", "sit" }, { 12, "eat", "eat" }, { 14, "beach_w", "walk" }, { 17, "plaza", "sit" }, { 19.5, "home", "home" } },
-	tourist = { { 0, "home", "sleep" }, { 8, "eat", "eat" }, { 10, "beach_c", "photo" }, { 12.5, "eat", "eat" }, { 14, "fun", "walk" }, { 17, "beach_c", "photo" }, { 19, "eat", "eat" }, { 20.5, "beach_c", "photo" }, { 23, "home", "home" } },
-	dayjob = { { 0, "home", "sleep" }, { 6, "walk", "walk" }, { 7, "work", "work" }, { 15, "cafe", "cafe" }, { 16.5, "walk", "walk" }, { 18, "eat", "eat" }, { 20, "fun", "walk" }, { 23, "home", "home" } },
-	latejob = { { 0, "home", "sleep" }, { 10, "cafe", "cafe" }, { 11, "walk", "walk" }, { 12, "work", "work" }, { 17, "eat", "eat" }, { 18, "work", "work" }, { 22, "fun", "walk" }, { 23.5, "home", "home" } },
+	tourist = { { 0, "home", "sleep" }, { 8, "eat", "eat" }, { 10, "beach_c", "photo" }, { 12.5, "eat", "eat" }, { 14, "fun", "walk" }, { 17, "beach_c", "photo" }, { 19, "eat", "eat" }, { 20.5, "beach_c", "photo" }, { 21.5, "hoetown", "drink" }, { 23.5, "home", "home" } },
+	dayjob = { { 0, "home", "sleep" }, { 6, "walk", "walk" }, { 7, "work", "work" }, { 15, "cafe", "cafe" }, { 16.5, "walk", "walk" }, { 18, "eat", "eat" }, { 20, "gwangan_st", "drink" }, { 22, "hoetown", "drink" }, { 23.5, "home", "home" } },
+	latejob = { { 0, "home", "sleep" }, { 10, "cafe", "cafe" }, { 11, "walk", "walk" }, { 12, "work", "work" }, { 17, "eat", "eat" }, { 18, "work", "work" }, { 22, "gwangan_st", "drink" }, { 23.75, "home", "home" } },
 	night = { { 0, "work", "work" }, { 4, "home", "sleep" }, { 13, "cafe", "cafe" }, { 15, "gym", "gym" }, { 17, "walk", "walk" }, { 19, "work", "work" } },
 	fisher = { { 0, "home", "sleep" }, { 3.5, "work", "work" }, { 10, "hoetown", "work" }, { 13, "home", "home" }, { 16, "millak_park", "walk" }, { 18, "hoetown", "drink" }, { 21, "home", "sleep" } },
 	taxi = { { 0, "club", "work" }, { 3, "station", "work" }, { 6, "home", "sleep" }, { 13, "plaza", "work" }, { 16, "station", "work" }, { 19, "gwangan_st", "work" }, { 21.5, "club", "work" } },
@@ -1344,8 +1344,8 @@ Citizens.SCHEDULES = {
 	athlete = { { 0, "home", "sleep" }, { 5.5, "beach_c", "jog" }, { 8, "work", "work" }, { 12, "eat", "eat" }, { 13, "work", "work" }, { 18, "beach_c", "jog" }, { 20, "eat", "eat" }, { 22, "home", "home" } },
 	parent = { { 0, "home", "sleep" }, { 8, "school", "walk" }, { 9, "cafe", "cafe" }, { 11, "homeplus", "shop" }, { 13, "home", "home" }, { 15, "beach_c", "walk" }, { 17, "fun", "walk" }, { 19, "home", "home" } },
 	merchant = { { 0, "home", "sleep" }, { 6, "work", "work" }, { 13, "eat", "eat" }, { 14, "work", "work" }, { 23, "home", "home" } },
-	dev = { { 0, "home", "sleep" }, { 9, "cafe", "work" }, { 12, "eat", "eat" }, { 13, "cafe", "work" }, { 17, "gym", "gym" }, { 19, "eat", "eat" }, { 20, "fun", "play" }, { 23.5, "home", "home" } },
-	party = { { 0, "home", "sleep" }, { 12, "cafe", "cafe" }, { 14, "fun", "walk" }, { 17, "beach_c", "walk" }, { 19, "eat", "eat" }, { 20.5, "gwangan_st", "walk" }, { 23, "home", "home" } },
+	dev = { { 0, "home", "sleep" }, { 9, "cafe", "work" }, { 12, "eat", "eat" }, { 13, "cafe", "work" }, { 17, "gym", "gym" }, { 19, "eat", "eat" }, { 20, "gwangan_st", "drink" }, { 22, "fun", "play" }, { 23.5, "home", "home" } },
+	party = { { 0, "home", "sleep" }, { 12, "cafe", "cafe" }, { 14, "fun", "walk" }, { 17, "beach_c", "walk" }, { 19, "eat", "eat" }, { 20.5, "gwangan_st", "drink" }, { 22.5, "hoetown", "drink" }, { 23.75, "home", "home" } },
 	influencer = { { 0, "home", "sleep" }, { 10, "cafe", "photo" }, { 12, "eat", "eat" }, { 14, "beach_c", "photo" }, { 16, "fun", "shop" }, { 18, "terrace", "photo" }, { 20, "eat", "eat" }, { 22, "gwangan_st", "walk" }, { 23.5, "home", "home" } },
 	-- npc_types: the typed citizens' own days, so every type (violent / fool / beggar / drunk) is out on
 	-- the street at every hour (the union of each type's 3-4 people covers 24 h; docs/NPC_TYPES.md)
