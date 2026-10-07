@@ -1611,6 +1611,8 @@ function MindServer.event(player: Player, id: string, kind: string, mult: number
 	local r = relEvent(rec, c, kind, mult)
 	M.remember(rec, kind, mult or 1, now())
 	markDirty(sess)
+	-- the street reactions (approach / glare / flee) read the client's view of this NPC
+	push(player, { kind = "view", id = id, view = viewOf(player, sess, id) })
 	return r
 end
 
