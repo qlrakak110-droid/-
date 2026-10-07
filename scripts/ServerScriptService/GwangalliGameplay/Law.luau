@@ -832,6 +832,36 @@ Law.ops.debug = function(player, s, p)
 	elseif p.act == "xp" then
 		Law.addCrimeXp(player, tonumber(p.n) or 100)
 		return { ok = true }
+	elseif p.act == "swat" then
+		-- test: a big incident now (the crime + the 특임대), or the team's state
+		if p.kind then
+			Law.major(player, p.kind, Law.posOf(player))
+		end
+		local S = Law.children.Swat
+		local t = S and S.teams()[player]
+		local out = {}
+		if t then
+			for _, o in t.ops do
+				table.insert(out, string.format("%s:%s:%s:%.0f", o.name, tostring(o.role), tostring(o.state), (Law.posOf(player) and Law.flat(o.pos, Law.posOf(player) :: Vector3)) or -1))
+			end
+			table.insert(out, "van=" .. tostring(t.van and t.van.state))
+		end
+		return { ok = true, team = t ~= nil, units = out }
+	elseif p.act == "rescue" then
+		local R = Law.children.Rescue
+		if p.casualty and R then
+			local pp = Law.posOf(player)
+			if pp then
+				R.casualty({ pos = pp + Vector3.new(4, 0, 0), id = p.id, kind = "ped", player = player })
+			end
+		end
+		return { ok = true, status = R and R.status() or nil }
+	elseif p.act == "hospital" then
+		local H = Law.children.Hospital
+		if p.dump and H then
+			return { ok = true, dump = H.dump(p.dump, p.z0, p.z1) }
+		end
+		return { ok = true, status = H and H.status() or nil }
 	elseif p.act == "units" then
 		local P = Law.children.Police
 		local out = {}

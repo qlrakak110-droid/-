@@ -123,6 +123,15 @@ local function losClear(a: Vector3, b: Vector3): boolean
 	return ok and hit == nil
 end
 
+-- the first thing on the line a -> b (tests / tools)
+local function rayHit(a: Vector3, b: Vector3): RaycastResult?
+	refreshFilter()
+	local ok, hit = pcall(function()
+		return workspace:Raycast(a, b - a, rayParams)
+	end)
+	return if ok then hit else nil
+end
+
 local function loadNav(): boolean
 	if dec then
 		return true
@@ -2931,6 +2940,7 @@ Police.ringNode = ringNode
 Police.routePts = routePts
 Police.tplData = tplData
 Police.CREW_SCALE = CREW_SCALE
+Police.rayHit = rayHit
 Police.setCarPath = setCarPath
 Police.clearCarPath = clearCarPath
 Police.carSpeed = carSpeed

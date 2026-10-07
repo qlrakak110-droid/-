@@ -235,6 +235,13 @@ local function onEvent(p: any)
 				(mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
 			end)
 		end
+	elseif p.kind == "ems" and type(p.id) == "string" then
+		-- 119 (GwangalliGameplay/Law/Rescue): the casualty waits for the ambulance / is carried off
+		if p.phase == "dispatched" then
+			street("emshold", p.id, tonumber(p.hold) or 150)
+		elseif p.phase == "pickup" then
+			street("emspickup", p.id)
+		end
 	elseif p.kind == "down" then
 		street("hospital", p.ids)
 	end

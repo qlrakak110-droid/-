@@ -517,6 +517,24 @@ function Crowd.api(method: any, ...: any): any
 		end
 		m.untilT = now + 120
 		return true
+	elseif method == "emshold" then
+		-- an ambulance is coming: the casualty stays down until it is picked up (or the time is up)
+		local id, secs = ...
+		local a = byId[id]
+		if a and a.ko and not a.gone then
+			a.ko.untilT = math.max(a.ko.untilT, os.clock() + (tonumber(secs) or 150))
+			a.ko.ems = true
+			return true
+		end
+		return false
+	elseif method == "emspickup" then
+		local id = ...
+		local a = byId[id]
+		if a and not a.gone then
+			Crowd.fadeOut(a, os.clock())
+			return true
+		end
+		return false
 	elseif method == "hospital" then
 		Crowd.setHospital((...))
 		return true

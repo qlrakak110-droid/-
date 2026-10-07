@@ -570,6 +570,27 @@ local function onCarHit(player: Player, p: any)
 	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, outcome = if sp < 15 then "stagger" else "knockdown" }, true)
 end
 
+-- a street fight going on near a point (Law/Rescue keeps the ambulance back)
+function Fight.fightingNear(pos: Vector3, r: number): boolean
+	local t = now()
+	for player, list in brawls do
+		local root = rootOf(player)
+		if root and flat(root.Position, pos) < r then
+			for _, b in list do
+				if t < b.untilT then
+					return true
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- tell one player's client about a casualty (119 phases)
+function Fight.tell(player: Player, payload: any)
+	send(player, payload)
+end
+
 -- an NPC starts a fight with this player (a 걸렁뱅이 refused money, a drunk picked a quarrel):
 -- their swings may land for a while (each still checked by onNpcHit)
 function Fight.startBrawl(player: Player, id: string, secs: number?)
