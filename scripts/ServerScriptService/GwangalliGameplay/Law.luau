@@ -844,7 +844,7 @@ Law.ops.debug = function(player, s, p)
 			for _, o in t.ops do
 				table.insert(out, string.format("%s:%s:%s:%.0f", o.name, tostring(o.role), tostring(o.state), (Law.posOf(player) and Law.flat(o.pos, Law.posOf(player) :: Vector3)) or -1))
 			end
-			table.insert(out, "van=" .. tostring(t.van and t.van.state))
+			table.insert(out, "van=" .. tostring(t.van and t.van.state) .. "/v" .. tostring(t.van and Law.children.Police.carSpeed and math.floor(Law.children.Police.carSpeed(t.van))) .. "/y" .. tostring(t.van and t.van.yields) .. "/" .. tostring(t.van and t.van.yieldWhy))
 		end
 		return { ok = true, team = t ~= nil, units = out }
 	elseif p.act == "rescue" then

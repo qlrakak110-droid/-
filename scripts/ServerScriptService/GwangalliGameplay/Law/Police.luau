@@ -2236,13 +2236,21 @@ local function aheadGap(c: any, cp: Vector3, dir: Vector3): number
 	end
 	for _, o in cars do
 		if o ~= c and not o.gone and o.model and o.model.Parent then
+			local b0 = best
 			test((carPos(o)))
+			if best < b0 then
+				c.yieldWhy = tostring(o.role) .. ":" .. tostring(o.state)
+			end
 		end
 	end
 	for _, pl in Players:GetPlayers() do
 		local pp = Law.posOf(pl)
 		if pp and not (c.case and pl == c.case.player and c.state == "chase") then
+			local b0 = best
 			test(pp)
+			if best < b0 then
+				c.yieldWhy = "player"
+			end
 		end
 	end
 	return best
@@ -2351,6 +2359,7 @@ local function thinkCar(c: any)
 		if v > 5 then
 			local gap = aheadGap(c, cp2, dir2)
 			if gap < math.max(15, v * 0.9) then
+				c.yields = (c.yields or 0) + 1
 				yieldTo(c, cp2, dir2, gap)
 			end
 		end

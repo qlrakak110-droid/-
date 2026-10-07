@@ -209,6 +209,12 @@ local function situation(player: Player?, id: string, pos: Vector3?): any
 		local ok, r = pcall(ctx.mind.relOf, player, id)
 		sit.rel = if ok and type(r) == "number" then r else 0
 	end
+	-- crew-mates out with them right now (friends back each other up)
+	sit.allies = 0
+	if Citizens and type(Citizens.companions) == "function" then
+		local ok, list = pcall(Citizens.companions, id, game:GetService("Lighting").ClockTime)
+		sit.allies = if ok and type(list) == "table" then #list else 0
+	end
 	return sit
 end
 
@@ -233,6 +239,16 @@ local function decide(id: string, typeId: string, c: any, hpLeft: number, max: n
 	-- an old grudge: hit back at once
 	if (s.rel or 0) <= -60 and (violent or temper > 0.6) and hpLeft > max * 0.3 then
 		return "fight"
+	end
+	-- friends right beside them: braver together (the timid still only warn)
+	if (s.allies or 0) >= 1 and hpLeft > max * 0.4 then
+		local push = math.min(2, s.allies) * 0.2
+		if brave + temper * 0.5 + push > 0.85 and r() < 0.5 + push then
+			return "fight"
+		end
+		if brave < 0.35 and r() < 0.5 then
+			return "warn"
+		end
 	end
 	if arch == "rider" and typeId ~= "violent" then
 		-- 배달 라이더: startled, they get away (on the scooter) or call; only the toughest hit back
