@@ -679,7 +679,7 @@ local function gate(player: Player, sess: Sess, id: string, rec: any, c: any, ph
 	end
 	local pers = M.personality(c)
 	local pol = M.policy(c, rec, { now = t, clock = clockNow(), weather = weatherNow(), wanted = sess.state.wanted or 0 })
-	local limit = math.floor(5 + pers.patience * 8 + pers.social * 4)
+	local limit = math.floor(4 + pers.patience * 4 + pers.social * 2)
 	local key: string? = nil
 	if #rec.pest > limit and not pers.authority then
 		key = "pester"
