@@ -862,6 +862,12 @@ Law.ops.debug = function(player, s, p)
 			return { ok = true, dump = H.dump(p.dump, p.z0, p.z1) }
 		end
 		return { ok = true, status = H and H.status() or nil }
+	elseif p.act == "rel" and type(p.id) == "string" and ctx.mind then
+		-- relation event(s) for one NPC: { id, kind = "hit", n = 3 }
+		for _ = 1, math.clamp(tonumber(p.n) or 1, 1, 10) do
+			ctx.mind.event(player, p.id, tostring(p.kind or "hit"), tonumber(p.mult))
+		end
+		return { ok = true, rel = ctx.mind.relOf(player, p.id) }
 	elseif p.act == "units" then
 		local P = Law.children.Police
 		local out = {}
