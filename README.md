@@ -149,6 +149,18 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 - 밤(저녁 이후)에는 직장인 · 대학생 · 관광객 등이 술집거리(광안 먹자골목 · 민락 회타운)나 클럽으로 이동.
 - 성능: 플레이어와 가까운 NPC만 자주 갱신, 멀면 느리게.
 
+## 12. 가게 점원 NPC — `GwangalliGameplay/ShopStaff.luau`
+- 맵의 가게(편의점 · 카페 · 빵집 · 식당 · 술집 · 약국 · 화장품 · 옷가게 · 미용실 · 호텔 프런트 · 마트 · PC방 · 부동산 · 은행 · 대여소 …)를 자동으로 찾아 카운터 뒤에 점원 1명.
+  - 카운터 찾기: PosBase / POS / OrderKiosk / FrontDesk / BackBar / BarCounter / Counter (가게 모델의 ShopFloor 기준). 카운터 없는 사무실·집은 제외.
+  - 이미 직원이 있는 곳(거리 가게 7곳 점원, PC방·볼링장·병원·정비소 직원, 키 NPC)과 알바 매장(스타벅스 광안리점 · GS25 광안리점)은 건너뜀.
+  - 거리 가게 7곳의 기존 점원(움직이지 않던 것)은 애니메이션 + 말 걸기 추가.
+- 가게 종류별 옷차림·동작(계산 · 닦기 · 컵 · 요리 · 타자 …), 가까이 가면 "어서 오세요~", "말 걸기"로 가게별 대사.
+- 성능: 플레이어 150스터드 안의 가게만 점원 생성(최대 36명), 멀어지면 제거.
+- 돈·주문·알바 로직은 없음(알바 세션 담당). 점원은 `workspace.GwangalliShopStaff`, 태그 `GwShopStaff`.
+
+## 13. 길거리 인원
+- 길거리 NPC 최대 50명(모든 품질 단계, 절전 모드 32명) — `GwangalliStreetLife/Config.luau` `Cap`.
+
 ## 테스트 방법 (개발용)
 
 `workspace:SetAttribute("GwangalliStreetLifeDebug", true)` 일 때만 열리는 테스트 훅:
