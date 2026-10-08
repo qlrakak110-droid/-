@@ -563,6 +563,11 @@ local function onTalk(s: any, player: Player)
 	s.nextAct = t + 6
 end
 
+local buildErr: string? = nil
+function ShopStaff.buildError(): string?
+	return buildErr
+end
+
 local function buildRig(s: any): boolean
 	if not Looks then
 		return false
@@ -577,6 +582,7 @@ local function buildRig(s: any): boolean
 		return Looks.build(spec, { name = "Staff_" .. s.id, anchored = true, shadow = false })
 	end)
 	if not ok or type(rig) ~= "table" or not rig.model then
+		buildErr = tostring(rig)
 		return false
 	end
 	local m = rig.model
@@ -681,6 +687,10 @@ local function playerSpots(): { Vector3 }
 end
 
 local nTicks = 0
+local lastErr: string? = nil
+function ShopStaff.lastError(): string?
+	return lastErr
+end
 function ShopStaff.ticks(): number
 	return nTicks
 end
@@ -791,7 +801,8 @@ function ShopStaff.init(context: any)
 		while true do
 			local ok2, err2 = pcall(tick)
 			if not ok2 then
-				warn("[GwangalliShopStaff] tick: " .. tostring(err2))
+				lastErr = tostring(err2)
+				warn("[GwangalliShopStaff] tick: " .. lastErr)
 			end
 			task.wait(1.5)
 		end

@@ -875,7 +875,7 @@ Law.ops.debug = function(player, s, p)
 				if string.find(s.name, p.find, 1, true) then
 					local f = s.pos + s.look * 5
 					local pp = Law.posOf(player)
-					return { ok = true, name = s.name, kind = s.kind.k, x = f.X, y = s.pos.Y + 3, z = f.Z, sx = s.pos.X, sy = s.pos.Y, sz = s.pos.Z, live = s.model ~= nil, dist = s.dist, real = pp and Law.flat(pp, s.pos), active = ctx.shopStaff.active(), ticks = ctx.shopStaff.ticks and ctx.shopStaff.ticks() }
+					return { ok = true, name = s.name, kind = s.kind.k, x = f.X, y = s.pos.Y + 3, z = f.Z, sx = s.pos.X, sy = s.pos.Y, sz = s.pos.Z, live = s.model ~= nil, dist = s.dist, real = pp and Law.flat(pp, s.pos), active = ctx.shopStaff.active(), ticks = ctx.shopStaff.ticks and ctx.shopStaff.ticks(), err = ctx.shopStaff.lastError and ctx.shopStaff.lastError(), buildErr = ctx.shopStaff.buildError and ctx.shopStaff.buildError() }
 				end
 			end
 			return { ok = false }
