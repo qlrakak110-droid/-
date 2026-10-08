@@ -135,7 +135,7 @@ local L = {
 		curt = { "기본적인 것들은 있다.", "돈은 있지?", "빨리 골라.", "괜히 문제 만들지 마." },
 		friendly = { "좋지. 기본적인 것들은 다 있다.", "골라 봐. 물건은 확실하다.", "천천히 봐." },
 		rough = { "...보기만 해. 돈 없으면 꺼지고.", "빨리 골라. 오래 못 기다린다.", "괜히 문제 만들지 마라. 경고다." },
-		mafia = { "기본 물건이야 당연히 있지.", "골라 봐. 너한텐 잘해 줄게.", "필요한 만큼 가져가." },
+		mafia = { "기본 물건이야 당연히 있지.", "골라 봐. 물건 상태는 보증한다.", "급할 거 없다. 보고 말해." },
 	},
 	special = {
 		mafia = { "너라면 위에 물건도 보여줄 수 있지.", "새 물건 들어왔다.", "일반 손님한테는 안 보여주는 거다.", "이건 아무한테나 안 꺼낸다. 조용히 봐." },
@@ -147,7 +147,7 @@ local L = {
 	pester = { "그만 좀 와. 장사 방해하지 마.", "자꾸 왔다 갔다 하지 마. 눈에 띈다.", "용건 없으면 얼쩡대지 마라." },
 	attacked_block = { "너 같은 놈한테 팔 물건 없어.", "아까 그 짓 해 놓고 뭘 바라?", "꺼져. 장사 끝났다." },
 	rumour_block = { "얘기 들었다. 너랑은 장사 안 해.", "소문 다 났다. 딴 데 가 봐.", "우리 쪽 사람 건드렸다며? 꺼져." },
-	police = { "오늘은 장사 안 한다.", "...짭새 있다. 오늘은 안 돼.", "지금은 안 돼. 눈 많다.", "오늘은 장사 안 한다. 가." },
+	police = { "오늘은 장사 안 한다.", "...짭새 있다. 오늘은 안 돼.", "지금은 안 돼. 눈 많다.", "근처에 짭새 깔렸다. 나중에 와." },
 	cop_player = { "...뭐야, 경찰이냐? 난 그냥 서 있는 거다.", "근무 중이면 볼일 없다.", "난 아무것도 모른다." },
 	armed = { "총 치워. 그 상태로 장사 안 한다.", "총 들고 와서 뭘 사겠다고? 치워.", "손에 든 거 내려놔. 얘기는 그다음이다." },
 	brawl = { "여기서 소란 피우지 마.", "시끄럽다. 오늘은 접는다.", "싸움판 옆에서 장사 안 한다." },
@@ -156,9 +156,9 @@ local L = {
 	notice = {
 		stranger = { "...볼일 있냐?", "뭘 봐.", "지나가는 거면 그냥 가.", "(힐끗 쳐다본다)" },
 		curt = { "또 왔네.", "볼일 있으면 말해.", "..." },
-		friendly = { "오, 왔네.", "어이.", "물건 들어왔다." },
-		rough = { "또 너냐.", "가까이 오지 마.", "..." },
-		mafia = { "형님 오셨네.", "어, 왔어?", "어이, 왔냐." },
+		friendly = { "오, 왔네.", "어이.", "어, 너냐." },
+		rough = { "눈에 띄지 마라.", "가까이 오지 마.", "..." },
+		mafia = { "형님 오셨네.", "어, 왔어?", "어, 이쪽이다." },
 	},
 	mutter = { "...", "(주변을 살핀다)", "오늘따라 조용하네.", "(폰을 확인한다)", "짭새는 안 보이고...", "장사가 영 시원찮네." },
 	ok_tail = { "조용히 보고 가.", "천천히 골라.", "빨리 보고 가." },
@@ -256,8 +256,10 @@ local function syncRec(player: Player, id: string, r: any)
 	r.synced = true
 	local s = type(prof.dealer) == "table" and prof.dealer[id]
 	if type(s) == "table" then
-		if not r.touched and type(s.rel) == "number" and s.rel == s.rel then
-			r.rel = math.clamp(s.rel, -100, 100)
+		if type(s.rel) == "number" and s.rel == s.rel then
+			local sv = math.clamp(s.rel, -100, 100)
+			-- in-memory changes made before the profile loaded stay as deltas on top of the saved value
+			r.rel = if r.touched then math.clamp(sv + (r.rel or 0), -100, 100) else sv
 			r.relT = now()
 		end
 		r.tradeBlockUntil = math.max(r.tradeBlockUntil, fromWall(s.tb))
@@ -275,6 +277,8 @@ local function syncRec(player: Player, id: string, r: any)
 	end
 end
 
+local relOf: (any) -> number
+
 local function saveRec(player: Player, id: string, r: any)
 	if r.gone or typeof(player) ~= "Instance" then
 		return
@@ -286,6 +290,7 @@ local function saveRec(player: Player, id: string, r: any)
 	if type(prof.dealer) ~= "table" then
 		prof.dealer = {}
 	end
+	relOf(r) -- (the healing earned on this server goes into the save)
 	local t = now()
 	prof.dealer[id] = {
 		rel = math.floor((r.rel or 0) * 10 + 0.5) / 10,
@@ -323,7 +328,7 @@ local function recOf(player: Player, id: string): any
 end
 
 -- the relation, after the slow healing of a bad one (no hit on this dealer for TRADE_BLOCK_S)
-local function relOf(rec: any): number
+function relOf(rec: any): number
 	local t = now()
 	local rel = (M and M.relOf(rec)) or rec.rel or 0
 	if rel < CFG.ROUGH_REL and (not rec.hitT or t - rec.hitT > CFG.TRADE_BLOCK_S) then
@@ -820,14 +825,13 @@ end
 -------------------------------------------------------------------------------------------------
 -- The shop side: cancel an open shop / a request in flight (the contract's WeaponShopCancel)
 -------------------------------------------------------------------------------------------------
+local releaseSlots: (Dealer, Player) -> ()
 local function cancelShop(player: Player, d: Dealer, reason: string, reqId: string?)
 	local tr = trading[player]
-	if tr and tr.dealer == d then
+	if tr and tr.dealer == d and (reqId == nil or tr.reqId == reqId) then
 		reqId = reqId or tr.reqId
 		trading[player] = nil
-	end
-	if d.tradingWith == player then
-		d.tradingWith = nil
+		releaseSlots(d, player)
 	end
 	if reqId and pending[reqId] then
 		pending[reqId].done = true
@@ -848,6 +852,28 @@ local function cancelShop(player: Player, d: Dealer, reason: string, reqId: stri
 		cancelEvent:Fire(player, info)
 	end
 	dbg("cancel", player.Name, d.id, reason, reqId)
+end
+
+-- the single 'who is he dealing with' slots: refilled from the other open talks / shops of this dealer
+function releaseSlots(d: Dealer, player: Player)
+	if d.talkingWith == player then
+		d.talkingWith = nil
+		for p, dl in dialogs do
+			if p ~= player and dl.dealer == d and p.Parent == Players then
+				d.talkingWith = p
+				break
+			end
+		end
+	end
+	if d.tradingWith == player then
+		d.tradingWith = nil
+		for p, tr in trading do
+			if p ~= player and tr.dealer == d and p.Parent == Players then
+				d.tradingWith = p
+				break
+			end
+		end
+	end
 end
 
 -- every shop / request of this dealer ends (danger, an attack, he runs)
@@ -905,9 +931,7 @@ local function closeSheet(player: Player, keepTrading: boolean?)
 	end
 	dialogs[player] = nil
 	local d = dlg.dealer
-	if d.talkingWith == player then
-		d.talkingWith = nil
-	end
+	releaseSlots(d, player)
 	-- a request still in flight for this sheet is dropped (the shop must not open for a closed talk)
 	if dlg.reqId and pending[dlg.reqId] and not keepTrading then
 		cancelShop(player, d, "closed", dlg.reqId)
@@ -1030,10 +1054,11 @@ local function openTalk(player: Player, d: Dealer)
 	setAct(d, "idle")
 	-- the crime / job side's word on this player (may take a moment)
 	local access = accessOf(player)
-	if dialogs[player] ~= dlg then
-		return
+	if dialogs[player] ~= dlg or dlg.closing then
+		return -- (a refusal from the tick is already on screen with its own close timer)
 	end
-	if d.state ~= "idle" then
+	local pp2 = posOf(player)
+	if d.state ~= "idle" or not pp2 or flat(pp2, curPos(d)) > CFG.TALK_R then
 		closeSheet(player)
 		return
 	end
@@ -1112,6 +1137,11 @@ local function finishRequest(reqId: string, ok: boolean, reason: string?)
 			endWith(player, dlg, dangerLine(danger or "brawl", rec), 3)
 			return
 		end
+		if armed(player) then
+			cancelShop(player, d, "busy", reqId)
+			endWith(player, dlg, pickLine(L.armed, rec), 3.4)
+			return
+		end
 		trading[player] = { dealer = d, t = now(), reqId = reqId }
 		d.tradingWith = player
 		relEvent(player, d.id, rec, "deal")
@@ -1138,6 +1168,10 @@ local function dispatch(player: Player, d: Dealer, dlg: any, req: any)
 		endWith(player, dlg, dangerLine(danger, rec), 3)
 		return
 	end
+	if armed(player) then
+		endWith(player, dlg, pickLine(L.armed, rec), 3.4)
+		return
+	end
 	if not systemReady() then
 		-- nobody listens: say so (no request goes out that nobody would answer)
 		task.delay(0.6, function()
@@ -1159,10 +1193,16 @@ local function dispatch(player: Player, d: Dealer, dlg: any, req: any)
 				finishRequest(reqId, false, "default")
 				return
 			end
-			if type(a) == "table" then
-				finishRequest(reqId, a.ok == true, a.reason)
-			elseif a ~= nil then
-				finishRequest(reqId, a == true, b)
+			if a == nil then
+				return -- (it answers later through result())
+			end
+			local accepted = if type(a) == "table" then a.ok == true else a == true
+			local reason = if type(a) == "table" then a.reason else b
+			if pending[reqId] then
+				finishRequest(reqId, accepted, if type(reason) == "string" then reason else nil)
+			elseif accepted and not (trading[player] and trading[player].reqId == reqId) then
+				-- a yes after the dealer gave up on it (timeout / closed / danger): the shop must close it
+				cancelShop(player, d, "expired", reqId)
 			end
 		end)
 	else
@@ -1586,6 +1626,11 @@ local function tickDealer(d: Dealer, t: number)
 		return
 	end
 	if d.state == "fighting" then
+		if not d.fightWith then
+			-- (a fight that ended without its own tail: home)
+			d.state = "returning"
+			goTo(d, d.home, CFG.WALK)
+		end
 		return
 	end
 	-- the law walks up / a fight starts: business is off (talks, requests in flight, open shops)
@@ -1721,7 +1766,7 @@ function WeaponDealer.result(player: Player, requestId: string, ok: boolean, rea
 	end
 	local pr = pending[requestId]
 	if not pr or pr.player ~= player then
-		if ok == true then
+		if ok == true and not (trading[player] and trading[player].reqId == requestId) then
 			-- an answer for a request that is over: the shop must close what it opened
 			local dealerId = string.match(requestId, "^(dealer_%d+)%-")
 			local d = dealerId and byId[dealerId]
@@ -1753,9 +1798,7 @@ function WeaponDealer.closed(player: Player)
 	local tr = trading[player]
 	if tr then
 		trading[player] = nil
-		if tr.dealer.tradingWith == player then
-			tr.dealer.tradingWith = nil
-		end
+		releaseSlots(tr.dealer, player)
 		local rec = recOf(player, tr.dealer.id)
 		say(tr.dealer, pickLine(if rec.boughtT >= tr.t then L.after_buy else L.after_look, rec), 2.8)
 	end
@@ -1885,9 +1928,7 @@ function WeaponDealer.onCharacter(player: Player, _char: Model)
 	local dlg = dialogs[player]
 	if dlg then
 		dialogs[player] = nil
-		if dlg.dealer.talkingWith == player then
-			dlg.dealer.talkingWith = nil
-		end
+		releaseSlots(dlg.dealer, player)
 		if dlg.reqId and pending[dlg.reqId] then
 			cancelShop(player, dlg.dealer, "respawn", dlg.reqId)
 		end
@@ -1915,14 +1956,13 @@ function WeaponDealer.onLeave(player: Player)
 	dialogs[player] = nil
 	trading[player] = nil
 	for _, d in dealers do
-		if d.talkingWith == player then
-			d.talkingWith = nil
-		end
-		if d.tradingWith == player then
-			d.tradingWith = nil
-		end
+		releaseSlots(d, player)
 		if d.fightWith == player then
 			stopFight(d)
+			if d.state == "fighting" then
+				d.state = "returning"
+				goTo(d, d.home, CFG.WALK)
+			end
 		end
 	end
 	-- save, then keep only the records worth remembering on this server (blocks, a bad relation)
@@ -1941,6 +1981,11 @@ function WeaponDealer.onLeave(player: Player)
 		end
 		for _, id in drop do
 			u[id] = nil
+		end
+		for _, r in u do
+			-- a rejoin reads the profile again (another server may have changed it meanwhile)
+			r.synced = false
+			r.touched = nil
 		end
 		if next(u) == nil then
 			recs[player.UserId] = nil

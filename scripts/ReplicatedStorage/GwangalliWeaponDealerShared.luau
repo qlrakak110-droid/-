@@ -32,6 +32,8 @@
 --   * on CANCEL close the shop UI for that player at once. Reasons: "attacked" (the player hit the dealer),
 --     "gunfire" (shots / SWAT / 총격전 nearby), "police" (an officer / police car / player cop right there),
 --     "brawl", "left" (walked away / left the game), "respawn", "timeout", "closed", "expired", "busy".
+--   * a CANCEL can arrive while request() is still running (timeout, danger, the talk closed): never open the
+--     UI for a requestId you have seen cancelled; a late yes for it is answered with another CANCEL "expired".
 --   * the mafia flag in the request is the dealer's best knowledge for its lines; decide the stock yourself.
 --
 -- REQUEST payload (req):
