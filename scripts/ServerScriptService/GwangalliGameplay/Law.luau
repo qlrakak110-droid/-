@@ -868,6 +868,20 @@ Law.ops.debug = function(player, s, p)
 			ctx.mind.event(player, p.id, tostring(p.kind or "hit"), tonumber(p.mult))
 		end
 		return { ok = true, rel = ctx.mind.relOf(player, p.id) }
+	elseif p.act == "shopstaff" and ctx.shopStaff then
+		local st = ctx.shopStaff.status()
+		local kinds = {}
+		for k, n in st.byKind do
+			table.insert(kinds, k .. "=" .. n)
+		end
+		local near = {}
+		local pp = Law.posOf(player)
+		for _, s in ctx.shopStaff.sites() do
+			if pp and s.dist and s.dist < 60 then
+				table.insert(near, string.format("%s|%s|%.0f|%s", s.name, s.kind.k, s.dist, tostring(s.model ~= nil)))
+			end
+		end
+		return { ok = true, sites = st.sites, active = st.active, scanned = st.scanned, kinds = table.concat(kinds, " "), near = table.concat(near, " ; ") }
 	elseif p.act == "units" then
 		local P = Law.children.Police
 		local out = {}
