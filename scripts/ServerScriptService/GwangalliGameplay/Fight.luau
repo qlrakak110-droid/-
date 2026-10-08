@@ -16,6 +16,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fight = {}
+Fight.hitHooks = {} :: { [string]: (Player, string, any) -> (string?, string?) } -- [NpcId prefix] = hook
 local Rob: any = nil -- GwangalliRobShared (강탈 rules, read by the crime systems)
 
 local ctx: any
@@ -438,6 +439,21 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	local d = pos - root.Position
 	local dl = math.max(0.05, Vector3.new(d.X, 0, d.Z).Magnitude)
 	local dx, dz = d.X / dl, d.Z / dl
+	-- a module that owns this NPC decides the reaction itself (Fight.hitHooks[id prefix], e.g. the
+	-- 총기상 of GwangalliGameplay/WeaponDealer): returns react?, line?
+	local hookLine: string? = nil
+	for prefix, hook in Fight.hitHooks do
+		if string.sub(id, 1, #prefix) == prefix and type(hook) == "function" then
+			local okH, hr, hl = pcall(hook, player, id, { hp = rec.hp, max = max, hits = hc.n, attack = attack, outcome = outcome, react = react, dx = dx, dz = dz, pos = pos })
+			if okH and type(hr) == "string" and react ~= "ko" then
+				react = hr
+			end
+			if okH and type(hl) == "string" then
+				hookLine = hl
+			end
+			break
+		end
+	end
 	-- the crime and the people who care (a shove the caller handles itself: no 폭행 here)
 	if not p.noCrime then
 		noteCrime(player, id, if attack == "car" then "reckless" elseif police then "assault_police" else "assault", pos, c, police)
@@ -481,7 +497,7 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	if isKey and NPC and type(NPC.knock) == "function" and type(p.outcome) ~= "string" then
 		pcall(NPC.knock, id, dx, dz, if outcome == "stagger" then "stagger" else "knockdown", player)
 	end
-	local line = pick(FS.LINES[react] or FS.LINES.hit)
+	local line = hookLine or pick(FS.LINES[react] or FS.LINES.hit)
 	dbg("hit", attack, id, typeId, "dmg", dmg, "hp", rec.hp, "/", max, outcome, react, "hits", hc.n)
 	local res = { kind = "hit", target = if isKey then "npc" else "ped", id = id, dmg = dmg, hp = math.floor(rec.hp + 0.5), max = max, outcome = outcome, react = react, line = line, crit = crit, dx = dx, dz = dz, ko = if outcome == "ko" then FS.KO_DOWN else nil, attack = attack }
 	if not (p.silent == true) then
