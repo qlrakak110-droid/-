@@ -1554,9 +1554,13 @@ function WeaponDealer.debug(player: Player, p: any): any
 		table.sort(ch)
 	end
 	local pp = posOf(player)
+	local front = d.home + Vector3.new(math.sin(math.rad(d.yaw)) * -4, 3, math.cos(math.rad(d.yaw)) * -4)
 	return {
 		ok = true,
 		id = d.id,
+		tx = front.X,
+		ty = front.Y,
+		tz = front.Z,
 		state = d.state,
 		rel = math.floor(relOf(rec) * 10 + 0.5) / 10,
 		tier = dlg and dlg.tier,
