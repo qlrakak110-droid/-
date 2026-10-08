@@ -371,7 +371,7 @@ local function scan()
 	-- 1) storefronts
 	for _, d in root:GetDescendants() do
 		n += 1
-		if n % 4000 == 0 then
+		if n % 1500 == 0 then
 			task.wait()
 		end
 		if d.Name == "ShopFloor" and d:IsA("BasePart") and d.Parent and d.Parent:IsA("Model") then
@@ -381,6 +381,7 @@ local function scan()
 				local a = bestAnchor(model)
 				if a and not staffed(a.Position) then
 					addSite(model.Name, model, a, d.Position.Y + d.Size.Y / 2)
+					task.wait() -- the probes are not free: one storefront per frame
 				end
 			end
 		end
@@ -389,7 +390,7 @@ local function scan()
 	n = 0
 	for _, d in root:GetDescendants() do
 		n += 1
-		if n % 4000 == 0 then
+		if n % 1500 == 0 then
 			task.wait()
 		end
 		if d:IsA("BasePart") and (LOOSE[d.Name] or CollectionService:HasTag(d, "ShopCounter")) then
@@ -414,6 +415,7 @@ local function scan()
 					nm = y.Name
 				end
 				addSite(nm, y or m, d, nil)
+				task.wait()
 			end
 		end
 	end
