@@ -150,6 +150,7 @@ local active = 0
 local npcFolder: Instance
 local serial = 0
 local scanned = false
+local why = { noAnchor = 0, staffed = 0, noSpot = 0, dup = 0 } -- scan rejects (debug)
 
 local function now(): number
 	return os.clock()
@@ -340,10 +341,12 @@ end
 local function addSite(name: string, model: Instance, anchor: BasePart, floorY: number?)
 	local feet, look = standSpot(model, anchor, floorY)
 	if not feet then
+		why.noSpot += 1
 		return
 	end
 	for _, s in sites do
 		if flat(s.pos, feet) < 6 and math.abs(s.pos.Y - feet.Y) < 6 then
+			why.dup += 1
 			return -- the same counter (two anchor parts)
 		end
 	end
@@ -383,7 +386,11 @@ local function scan()
 			if not seen[model] then
 				seen[model] = true
 				local a = bestAnchor(model)
-				if a and not staffed(a.Position) then
+				if not a then
+					why.noAnchor += 1
+				elseif staffed(a.Position) then
+					why.staffed += 1
+				else
 					addSite(model.Name, model, a, d.Position.Y + d.Size.Y / 2)
 				end
 			end
@@ -746,7 +753,7 @@ function ShopStaff.status(): any
 	for _, s in sites do
 		byKind[s.kind.k] = (byKind[s.kind.k] or 0) + 1
 	end
-	return { sites = #sites, active = active, byKind = byKind, scanned = scanned }
+	return { sites = #sites, active = active, byKind = byKind, scanned = scanned, why = why }
 end
 
 function ShopStaff.init(context: any)

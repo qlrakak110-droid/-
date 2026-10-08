@@ -285,6 +285,10 @@ api.OnInvoke = function(op: string, arg: any)
 	local _, _, root = character()
 	if op == "tp" and type(arg) == "table" and root then
 		local cf = CFrame.new(arg[1], arg[2], arg[3])
+		if tonumber(arg[4]) then
+			-- facing a point (x, z) at the same height
+			cf = CFrame.lookAt(cf.Position, Vector3.new(arg[4], arg[2], arg[5]))
+		end
 		table.insert(debugQueue, function()
 			player.Character:PivotTo(cf)
 			root.AssemblyLinearVelocity = Vector3.zero

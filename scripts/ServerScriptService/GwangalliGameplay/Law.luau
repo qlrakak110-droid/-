@@ -869,6 +869,16 @@ Law.ops.debug = function(player, s, p)
 		end
 		return { ok = true, rel = ctx.mind.relOf(player, p.id) }
 	elseif p.act == "shopstaff" and ctx.shopStaff then
+		if p.find then
+			-- the first site whose name contains p.find: where to stand to see them
+			for _, s in ctx.shopStaff.sites() do
+				if string.find(s.name, p.find, 1, true) then
+					local f = s.pos + s.look * 5
+					return { ok = true, name = s.name, kind = s.kind.k, x = f.X, y = s.pos.Y + 3, z = f.Z, sx = s.pos.X, sy = s.pos.Y, sz = s.pos.Z, live = s.model ~= nil }
+				end
+			end
+			return { ok = false }
+		end
 		local st = ctx.shopStaff.status()
 		local kinds = {}
 		for k, n in st.byKind do
@@ -881,6 +891,8 @@ Law.ops.debug = function(player, s, p)
 				table.insert(near, string.format("%s|%s|%.0f|%s", s.name, s.kind.k, s.dist, tostring(s.model ~= nil)))
 			end
 		end
+		local w = st.why or {}
+		table.insert(kinds, string.format("| noAnchor=%s staffed=%s noSpot=%s dup=%s", tostring(w.noAnchor), tostring(w.staffed), tostring(w.noSpot), tostring(w.dup)))
 		return { ok = true, sites = st.sites, active = st.active, scanned = st.scanned, kinds = table.concat(kinds, " "), near = table.concat(near, " ; ") }
 	elseif p.act == "units" then
 		local P = Law.children.Police
