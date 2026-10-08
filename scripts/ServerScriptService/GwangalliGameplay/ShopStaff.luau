@@ -680,7 +680,13 @@ local function playerSpots(): { Vector3 }
 	return out
 end
 
+local nTicks = 0
+function ShopStaff.ticks(): number
+	return nTicks
+end
+
 local function tick()
+	nTicks += 1
 	if not scanned then
 		return
 	end
