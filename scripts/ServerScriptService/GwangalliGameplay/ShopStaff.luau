@@ -170,10 +170,19 @@ local function flat(a: Vector3, b: Vector3): number
 	return math.sqrt(dx * dx + dz * dz)
 end
 
+-- short Latin keys ("CU", "PC", "KT", "BAR") match whole words only (PASCUCCI is no CU)
+local function hasKey(name: string, key: string): boolean
+	if #key <= 4 and string.match(key, "^[%w%-]+$") then
+		local esc = string.gsub(key, "%-", "%%-")
+		return string.find(name, "%f[%w]" .. esc .. "%f[%W]") ~= nil or string.find(name, "%f[%w]" .. esc .. "$") ~= nil
+	end
+	return string.find(name, key, 1, true) ~= nil
+end
+
 local function kindOf(name: string, anchorName: string?): any
 	for _, d in KINDS do
 		for _, key in d.keys do
-			if string.find(name, key, 1, true) then
+			if hasKey(name, key) then
 				return d
 			end
 		end
