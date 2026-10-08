@@ -893,7 +893,7 @@ Law.ops.debug = function(player, s, p)
 			end
 		end
 		local w = st.why or {}
-		table.insert(kinds, string.format("| noAnchor=%s staffed=%s noSpot=%s dup=%s", tostring(w.noAnchor), tostring(w.staffed), tostring(w.noSpot), tostring(w.dup)))
+		table.insert(kinds, string.format("| noAnchor=%s staffed=%s noSpot=%s dup=%s blockedTries=%s noFloorTries=%s", tostring(w.noAnchor), tostring(w.staffed), tostring(w.noSpot), tostring(w.dup), tostring(w.blocked), tostring(w.noFloor)))
 		return { ok = true, sites = st.sites, active = st.active, scanned = st.scanned, kinds = table.concat(kinds, " "), near = table.concat(near, " ; ") }
 	elseif p.act == "units" then
 		local P = Law.children.Police

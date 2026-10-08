@@ -278,6 +278,9 @@ local function standSpot(model: Instance, anchor: BasePart, floorY: number?): (V
 			if clear(feet, ignore) then
 				return feet, -d
 			end
+			why.blocked = (why.blocked or 0) + 1
+		else
+			why.noFloor = (why.noFloor or 0) + 1
 		end
 	end
 	return nil, nil
