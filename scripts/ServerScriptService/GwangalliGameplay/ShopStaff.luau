@@ -18,7 +18,8 @@
 --     20-40 s; "어서 오세요" once a minute when a player walks up to the counter; a ProximityPrompt
 --     "말 걸기" -> a short line from the shop kind's bank (greet / small talk / menu), facing the player.
 --   * BOUNDARY: no pay, no orders, no job logic (the 알바 session / Customers own those); no HUD.
---     The rigs use the NPC.luau attribute contract (NpcId / NpcKind "shop" / NpcGround / NpcAct /
+--     Rigs live in workspace.GwangalliShopStaff, tagged GwShopStaff (GwangalliNPCClient animates them)
+--     with the NPC.luau attribute contract (NpcId / NpcKind "shop" / NpcGround / NpcAct /
 --     NpcYaw / NpcLeg / NpcEmote) and GwangalliNPCLooks.
 --   API: ctx.shopStaff = ShopStaff; ShopStaff.sites() -> { site... }, ShopStaff.active() -> n,
 --   ShopStaff.status() (debug).
@@ -300,7 +301,8 @@ local function collectStaff()
 			table.insert(jobAt, d.Position)
 		end
 	end
-	for _, m in npcFolder:GetChildren() do
+	local keyFolder = workspace:FindFirstChild("GwangalliNPCs")
+	for _, m in (if keyFolder then keyFolder:GetChildren() else {}) do
 		local k = m:IsA("Model") and m:GetAttribute("NpcKind")
 		if k == "key" or (k == "street" and m:GetAttribute("NpcPost")) then
 			table.insert(staffAt, m:GetPivot().Position)
@@ -615,6 +617,7 @@ local function buildRig(s: any): boolean
 			onTalk(s, player)
 		end)
 	end
+	CollectionService:AddTag(m, "GwShopStaff")
 	m.Parent = npcFolder
 	s.nextAct = now() + rng:NextNumber(15, 35)
 	active += 1
@@ -654,6 +657,7 @@ local function adoptClerks()
 				m:SetAttribute("NpcGround", ground)
 				m:SetAttribute("NpcAct", tostring(m:GetAttribute("Act") or pick(kind.acts)))
 				m:SetAttribute("NpcYaw", yaw)
+				CollectionService:AddTag(m, "GwShopStaff")
 				local pr = Instance.new("ProximityPrompt")
 				pr.Name = "StaffTalk"
 				pr.ActionText = "말 걸기"
@@ -779,10 +783,11 @@ function ShopStaff.init(context: any)
 		local ok, res = pcall(require, m)
 		Looks = if ok then res else nil
 	end
-	local f = workspace:FindFirstChild("GwangalliNPCs")
+	-- their own folder: GwangalliNPCs is the key NPCs' (어깨빵 targets, NPC.luau lookups)
+	local f = workspace:FindFirstChild("GwangalliShopStaff")
 	if not f then
 		f = Instance.new("Folder")
-		f.Name = "GwangalliNPCs"
+		f.Name = "GwangalliShopStaff"
 		f.Parent = workspace
 	end
 	npcFolder = f

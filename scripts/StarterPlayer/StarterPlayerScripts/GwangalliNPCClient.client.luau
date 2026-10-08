@@ -1391,6 +1391,23 @@ task.spawn(function()
 	end
 end)
 
+-- shop staff (GwangalliGameplay/ShopStaff): tagged GwShopStaff, in workspace.GwangalliShopStaff or in
+-- the shop models themselves (the street shops' clerks) -- same contract, kept out of GwangalliNPCs
+task.spawn(function()
+	local CS = game:GetService("CollectionService")
+	CS:GetInstanceAddedSignal("GwShopStaff"):Connect(function(m)
+		task.defer(addModel, m)
+	end)
+	CS:GetInstanceRemovedSignal("GwShopStaff"):Connect(function(m)
+		if m:IsA("Model") then
+			removeRec(m)
+		end
+	end)
+	for _, m in CS:GetTagged("GwShopStaff") do
+		addModel(m)
+	end
+end)
+
 task.spawn(function()
 	local rf = ReplicatedStorage:WaitForChild("GwangalliRemotes", 60)
 	local d = rf and rf:WaitForChild("Dialog", 60)
