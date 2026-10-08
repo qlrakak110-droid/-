@@ -6,7 +6,7 @@ return {
 	-- street pedestrians around the player (named citizens first, anonymous passers-by fill up);
 	-- at night the cap shrinks away from the club: cap * (1 - 0.3 * hype) (GwangalliNight.streetCap),
 	-- blended by the distance to the club door between NightBlend[1] and NightBlend[2] studs
-	Cap = { low = 22, mid = 30, high = 40, saver = 14 },
+	Cap = { low = 50, mid = 50, high = 50, saver = 32 },
 	NightBlend = { 180, 320 },
 	-- spawn ring (studs from the player). Steady state spawns go ahead of the player's direction of
 	-- travel, off-screen or at least SpawnViewMin studs away when on screen; people despawn behind
