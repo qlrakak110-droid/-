@@ -201,6 +201,7 @@ local emoteSeq = 0
 local requestEvent: BindableEvent? = nil
 local cancelEvent: BindableEvent? = nil
 local lastCancel: string? = nil -- (debug)
+local fakeLog: string? = nil -- (debug: the fake shop's last call)
 
 local C = { id = "weapon_dealer", pers = PERS } -- the pseudo citizen for Mind.personality / relChange
 
@@ -1884,6 +1885,28 @@ function WeaponDealer.debug(player: Player, p: any): any
 		player:SetAttribute(p.name, p.value)
 	elseif p.op == "closed" then
 		WeaponDealer.closed(player)
+	elseif p.op == "fakeshop" then
+		-- a stand-in for the crime session's module API (debug only): yes / no, and the cancels it got
+		if p.on == false then
+			ctx.weaponShop = nil
+		else
+			local answer = p.answer
+			ctx.weaponShop = {
+				request = function(_pl, req)
+					fakeLog = "req:" .. tostring(req.offer) .. ":" .. tostring(req.mafia)
+					if answer == "async" then
+						return nil
+					end
+					return { ok = answer ~= "no", reason = if answer == "no" then "money" else nil }
+				end,
+				cancel = function(_pl, info)
+					fakeLog = "cancel:" .. tostring(info.reason)
+				end,
+				access = function(_pl)
+					return if p.mafia ~= nil then { mafia = p.mafia == true } else nil
+				end,
+			}
+		end
 	end
 	local dlg = dialogs[player]
 	local ch = {}
@@ -1916,6 +1939,7 @@ function WeaponDealer.debug(player: Player, p: any): any
 		mafia = (mafiaOf(player, nil)),
 		danger = (dangerAt(d.home, player)),
 		cancel = lastCancel,
+		fake = fakeLog,
 		act = d.o.act,
 	}
 end
