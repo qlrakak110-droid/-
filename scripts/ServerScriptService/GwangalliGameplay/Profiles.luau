@@ -306,6 +306,8 @@ local function sanitize(raw: any): any
 	if type(raw.law) == "table" then d.law = raw.law end
 	-- 연료 per owned car id (GwangalliGameplay.Fuel)
 	if type(raw.fuel) == "table" then d.fuel = raw.fuel end
+	-- 총기상 relations per dealer id (GwangalliGameplay.WeaponDealer sanitises its own slice)
+	if type(raw.dealer) == "table" then d.dealer = raw.dealer end
 	-- 전투·범죄·경찰 (GwangalliGameplay.Crime): 전과 / unpaid fines / last arrests only (the live wanted level never persists)
 	if type(raw.crime) == "table" then
 		local arrests = {}

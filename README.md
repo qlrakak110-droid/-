@@ -161,6 +161,24 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 ## 13. 길거리 인원
 - 길거리 NPC 최대 50명(모든 품질 단계, 절전 모드 32명) — `GwangalliStreetLife/Config.luau` `Cap`.
 
+## 14. 총기상 NPC — `GwangalliGameplay/WeaponDealer.luau`, 계약: `ReplicatedStorage/GwangalliWeaponDealerShared.luau`
+- 뒷골목 3곳(먹자골목 켄트호텔 뒤 · 스타벅스 뒤 · 호메르스 뒤)에 총기상(칼자국 · 박씨 · 까마귀). 검은 옷 · 선글라스 · 모자, 팔짱 · 망보기 · 폰.
+- **역할: 연결만.** 플레이어 감지 → 대화 → 거래 가능 여부 확인 요청 → 범죄 세션 WeaponShopSystem 호출 → (범죄 세션이) OpenWeaponShopUI.
+  가격 · 성능 · 구매 · 돈 차감 · 총기 지급은 **없음**(범죄 세션 담당).
+- 대화: [말 걸기] → "뭘 찾는데?" → 물건 좀 보여줘. / 그냥 지나가던 길이야. / 특별한 물건 있어? (기존 폰 대화창에 데이터만 보냄, UI 수정 없음)
+  - 일반 플레이어: 기본 물건만 연결("기본적인 것들은 있다." "돈은 있지?" "괜히 문제 만들지 마."). 특별한 물건을 물으면 기본 물건만 권함.
+  - 마피아: "너라면 위에 물건도 보여줄 수 있지." "새 물건 들어왔다." "일반 손님한테는 안 보여주는 거다." → special 요청.
+    마피아 여부는 범죄/직업 쪽에서 읽기만 함(WeaponShopSystem access → 직업 속성 → 범죄 레벨 조직 수습). 실제 물건은 WeaponShopSystem이 결정.
+- 성향: 경계심 높음 · 사교성 낮음 · 공격성 중간 · 겁 중간 · 낯선 사람에게 불친절. 호감도(총기상별, 저장됨):
+  높음 → 부드러운 말투 · 적극적 / 낮음 → 퉁명 · 특별 물건 거부 · 가끔 거래 거부 / 매우 낮음 → 대화 차단(시간이 지나면 조금씩 회복).
+- 위험: 경찰 · 특임대 · 경찰차 · 근무 중 경찰 플레이어가 가까우면 "오늘은 장사 안 한다." / 총격전 · 총소리 → 거래 중단, 숨었다가 조용해지면 복귀 /
+  싸움판 → 대화 중단 / 총 든 손님 → 거래 안 함. 열린 상점은 WeaponShopCancel로 취소 신호.
+- 공격당하면: 대화 · 거래 종료, 그 플레이어 5분 거래 차단(다른 총기상도 소문 듣고 2분 거부), 성격에 따라 반격(직접 주먹) 또는 도망. 어깨빵도 인식.
+- 같은 대사 반복 방지(상황 · 호감도 · 직업별 대사 풀, 15분 안에 같은 말 안 함).
+- 범죄 세션 연결 방법(둘 중 하나): `ctx.weaponShop = { request, access?, cancel? }` 또는 `ServerStorage.GwangalliWeaponShop`의
+  RequestWeaponShop / WeaponShopResult / WeaponShopCancel / WeaponShopClosed 이벤트 + 폴더 속성 Ready=true. 자세한 건 계약 파일 주석.
+- 총 시스템은 `ServerStorage.GwangalliGunfire`(BindableEvent: 위치)를 쏘면 총기상이 총소리에 반응.
+
 ## 테스트 방법 (개발용)
 
 `workspace:SetAttribute("GwangalliStreetLifeDebug", true)` 일 때만 열리는 테스트 훅:
