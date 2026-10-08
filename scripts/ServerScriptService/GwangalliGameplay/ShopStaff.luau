@@ -201,6 +201,17 @@ end
 local overlap = OverlapParams.new()
 overlap.FilterType = Enum.RaycastFilterType.Exclude
 
+-- the till itself (screens, card readers, the counter band) is not in the way of the one behind it
+local BITS = { "Pos", "POS", "Counter", "Display", "Screen", "Kiosk", "Panel", "Register", "Till", "Card", "Band", "Desk", "Bar" }
+local function counterBit(n: string): boolean
+	for _, b in BITS do
+		if string.find(n, b, 1, true) then
+			return true
+		end
+	end
+	return false
+end
+
 -- a standing spot is free: nothing solid at chest height (a 1.6 x 2.6 x 1.6 box)
 local function clear(p: Vector3, ignore: { Instance }): boolean
 	overlap.FilterDescendantsInstances = ignore
@@ -211,7 +222,7 @@ local function clear(p: Vector3, ignore: { Instance }): boolean
 		return true
 	end
 	for _, q in parts do
-		if q.CanCollide and q.Transparency < 0.95 then
+		if q.CanCollide and q.Transparency < 0.95 and not counterBit(q.Name) then
 			return false
 		end
 	end
@@ -258,9 +269,9 @@ local function standSpot(model: Instance, anchor: BasePart, floorY: number?): (V
 	local half = math.abs(cf.RightVector:Dot(dir)) * s.X + math.abs(cf.UpVector:Dot(dir)) * s.Y + math.abs(cf.LookVector:Dot(dir)) * s.Z
 	local ignore = { anchor }
 	local side = dir:Cross(Vector3.yAxis)
-	for _, off in { { 1, 0 }, { 1, 1.4 }, { 1, -1.4 }, { 1.4, 0 }, { -1, 0 } } do
+	for _, off in { { 1, 0, 1.7 }, { 1, 1.4, 1.7 }, { 1, -1.4, 1.7 }, { 1, 0, 2.6 }, { 1, 2.4, 2.4 }, { 1, -2.4, 2.4 }, { 1, 0, 3.6 }, { -1, 0, 1.7 } } do
 		local d = dir * off[1]
-		local p = a + d * (half + 1.7) + side * off[2]
+		local p = a + d * (half + off[3]) + side * off[2]
 		local fy = floorY or floorAt(p, a.Y + 1, { anchor, npcFolder })
 		if fy and math.abs(fy - (a.Y - s.Y)) < 9 then
 			local feet = Vector3.new(p.X, fy, p.Z)
