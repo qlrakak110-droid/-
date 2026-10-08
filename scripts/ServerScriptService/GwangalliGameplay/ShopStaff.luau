@@ -367,13 +367,17 @@ local function scan()
 	local root = workspace:FindFirstChild("Gwangalli") or workspace
 	collectStaff()
 	local seen: { [Instance]: boolean } = {}
-	local n = 0
+	-- a time budget per frame (the scan runs once, spread over a few frames)
+	local t0 = os.clock()
+	local function budget()
+		if os.clock() - t0 > 0.01 then
+			task.wait()
+			t0 = os.clock()
+		end
+	end
 	-- 1) storefronts
 	for _, d in root:GetDescendants() do
-		n += 1
-		if n % 1500 == 0 then
-			task.wait()
-		end
+		budget()
 		if d.Name == "ShopFloor" and d:IsA("BasePart") and d.Parent and d.Parent:IsA("Model") then
 			local model = d.Parent
 			if not seen[model] then
@@ -381,18 +385,14 @@ local function scan()
 				local a = bestAnchor(model)
 				if a and not staffed(a.Position) then
 					addSite(model.Name, model, a, d.Position.Y + d.Size.Y / 2)
-					task.wait() -- the probes are not free: one storefront per frame
 				end
 			end
 		end
 	end
+	print(string.format("[GwangalliShopStaff] storefronts: %d counters", #sites))
 	-- 2) landmark counters (not inside a storefront)
-	n = 0
 	for _, d in root:GetDescendants() do
-		n += 1
-		if n % 1500 == 0 then
-			task.wait()
-		end
+		budget()
 		if d:IsA("BasePart") and (LOOSE[d.Name] or CollectionService:HasTag(d, "ShopCounter")) then
 			local m = d:FindFirstAncestorWhichIsA("Model")
 			local inside = false
@@ -415,7 +415,6 @@ local function scan()
 					nm = y.Name
 				end
 				addSite(nm, y or m, d, nil)
-				task.wait()
 			end
 		end
 	end
