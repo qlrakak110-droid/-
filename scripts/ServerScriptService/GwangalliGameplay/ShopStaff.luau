@@ -283,6 +283,30 @@ local function standSpot(model: Instance, anchor: BasePart, floorY: number?): (V
 			why.noFloor = (why.noFloor or 0) + 1
 		end
 	end
+	-- small storefronts: the counter sits against a wall. Any free spot on the shop floor near it,
+	-- the door side last, facing the door
+	local fl = model:FindFirstChild("ShopFloor")
+	if fl and fl:IsA("BasePart") and floorY then
+		local fs = fl.Size / 2
+		local fc = fl.CFrame
+		for _, r in { 2.5, 4, 5.5, 7 } do
+			for i = 0, 11 do
+				local ang = (i / 12) * math.pi * 2
+				local p = Vector3.new(a.X + math.cos(ang) * r, floorY, a.Z + math.sin(ang) * r)
+				local lp = fc:PointToObjectSpace(p)
+				if math.abs(lp.X) < fs.X - 1 and math.abs(lp.Z) < fs.Z - 1 then
+					local towardDoor = front and (Vector3.new(front.X - p.X, 0, front.Z - p.Z).Magnitude < Vector3.new(front.X - a.X, 0, front.Z - a.Z).Magnitude - 1)
+					if not towardDoor and clear(p, ignore) then
+						local lookDir = if front then Vector3.new(front.X - p.X, 0, front.Z - p.Z) else Vector3.new(a.X - p.X, 0, a.Z - p.Z)
+						if lookDir.Magnitude < 0.1 then
+							lookDir = -dir
+						end
+						return p, lookDir.Unit
+					end
+				end
+			end
+		end
+	end
 	return nil, nil
 end
 
