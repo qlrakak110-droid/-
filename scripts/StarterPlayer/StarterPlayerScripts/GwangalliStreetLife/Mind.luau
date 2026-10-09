@@ -1594,6 +1594,11 @@ function Mind.onCrime(msg: any)
 			n += 1
 			local c = a.c or { id = a.id, type = a.type, persona = "uni" }
 			local kind = M.witness(c, sev, rnd)
+			if msg.car and (kind == "stop" or kind == "gang") then
+				-- a car hit somebody: nobody walks up to square up to a moving car (Mind "intervene" goes to
+				-- the player): the brave one calls 112, the tough ones watch
+				kind = if kind == "stop" then "report" else "watch"
+			end
 			task.delay(0.2 + rnd() * 0.9, function()
 				-- (meanwhile somebody else may have taken them: the KO bystander's call, a justice witness)
 				if not a.gone and not a.knock and (not a.ctl or a.ctl.kind == "watch") then

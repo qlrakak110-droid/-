@@ -78,6 +78,11 @@ return {
 	CarFast = 25,
 	CarTTC = 1.5,
 	CarReach = 40, -- studs (grows with the car's speed)
+	-- the player's own car below CarFast: most people step aside, a few do not (a light hit: a stagger;
+	-- 15+ studs/s: they go down); slower than CarCrawl a touch is nothing
+	CarSlowFail = 0.06,
+	CarSlowDistracted = 0.25, -- added for drunks / people on the phone / sitting / asleep
+	CarCrawl = 3,
 	DiveSpeed = { 14, 18 },
 	HornReach = 30,
 	-- the evening club pitch: at most one every LureCooldown s, the same person not again for

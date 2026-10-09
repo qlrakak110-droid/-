@@ -269,7 +269,7 @@ local function onEvent(p: any)
 		local mapi = player:FindFirstChild("GwangalliMindAPI")
 		if mapi and mapi:IsA("BindableFunction") then
 			pcall(function()
-				(mapi :: BindableFunction):Invoke("crime", { crime = p.crime, pos = p.pos, victim = p.victim })
+				(mapi :: BindableFunction):Invoke("crime", { crime = p.crime, pos = p.pos, victim = p.victim, car = p.car == true })
 			end)
 		end
 	elseif p.kind == "gunfire" and type(p.pos) == "table" then

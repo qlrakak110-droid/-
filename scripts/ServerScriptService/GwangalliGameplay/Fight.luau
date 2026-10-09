@@ -33,6 +33,7 @@ local Citizens: any
 local MindShared: any
 local NPC: any
 local BumpS: any -- GwangalliBumpShared (the fall / stagger timeline every client plays from NpcKnock)
+local VehS: any -- GwangalliVehiclesShared (the drive system's tag / attribute / part names)
 
 local remotes: { Action: RemoteEvent?, Event: RemoteEvent? } = {}
 
@@ -493,8 +494,9 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		local mr = model and (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
 		pos = if mr and mr:IsA("BasePart") then mr.Position else nil
 		-- the server copy of a walking key NPC can lag behind a little: the client's claim within reason
+		-- (a car hit on a rig: the server's own scan, where its NpcLeg walk has it now)
 		local claimed = unpackV(p.pos)
-		if pos and claimed and flat(pos, claimed) < 14 then
+		if pos and claimed and (carHit or flat(pos, claimed) < 14) then
 			pos = claimed
 		end
 	else
@@ -507,7 +509,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	-- a landed hit is close: anything farther is no hit at all (reach + client lag; a car hit: the bounds
 	-- onCarHit / the client check, the server copy of a moving car lags the client's contact point and
 	-- the driver sits higher than a walker's feet)
-	local reach = if carHit then 14 else FS.RANGE + 1.5
+	-- (p.reach: the car's own check - its speed / length - only server code passes a car hit)
+	local reach = if carHit then math.clamp(tonumber(p.reach) or 14, 14, 40) else FS.RANGE + 1.5
 	if not pos or flat(pos, root.Position) > reach or math.abs(pos.Y - root.Position.Y) > (if carHit then 8 else 6) then
 		send(player, { kind = "miss", reason = "far" })
 		return nil
@@ -612,6 +615,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		react = if p.noReact then "none" else decide(id, typeId, c, rec.hp, max, hc.n, situation(player, id, pos))
 		if attack == "car" and react == "fight" then
 			react = if r() < 0.6 then "warn" else "report" -- (nobody punches a car)
+		elseif attack == "car" and outcome == "stagger" and (react == "cower" or react == "flee") and r() < 0.5 then
+			react = "warn" -- (only bumped by a car: startled, then angry at the driver)
 		end
 		local forced = workspace:GetAttribute("GwangalliStreetLifeDebug") == true and workspace:GetAttribute("GwangalliFightTestReact")
 		if type(forced) == "string" and forced ~= "" and not p.noReact then
@@ -621,6 +626,12 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	local d = pos - root.Position
 	local dl = math.max(0.05, Vector3.new(d.X, 0, d.Z).Magnitude)
 	local dx, dz = d.X / dl, d.Z / dl
+	local cdx, cdz = tonumber(p.dx), tonumber(p.dz)
+	if carHit and cdx and cdz and cdx * cdx + cdz * cdz > 0.01 then
+		-- (a car hit: they fall the way the car pushed them, not away from the driver's seat)
+		local cl = math.sqrt(cdx * cdx + cdz * cdz)
+		dx, dz = cdx / cl, cdz / cl
+	end
 	-- a module that owns this NPC decides the reaction itself (Fight.hitHooks[id prefix], e.g. the
 	-- 총기상 of GwangalliGameplay/WeaponDealer): returns react?, line?
 	local hookLine: string? = nil
@@ -641,7 +652,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	-- the crime and the people who care (a shove the caller handles itself: no 폭행 here)
 	local crowdCrime: string? = nil
 	if not p.noCrime then
-		local kind = if attack == "car" then "reckless" elseif police then "assault_police" else "assault"
+		-- (a car into an officer: 경찰관 폭행 unless it only bumped him; the officer saw it either way)
+		local kind = if attack == "car" then (if police and outcome ~= "stagger" then "assault_police" else "reckless") elseif police then "assault_police" else "assault"
 		if noteCrime(player, id, kind, pos, c, police) then
 			crowdCrime = kind
 		end
@@ -652,7 +664,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	if crowdCrime then
 		-- the street crowd around saw it too, once per hit (a KO: as the kill) (GwangalliStreetLife
 		-- Mind.onCrime: flee / watch / film / call 112 by personality and severity; their call is Law.report)
-		send(player, { kind = "crime", crime = crowdCrime, pos = { pos.X, pos.Y, pos.Z }, victim = id })
+		-- (car = a traffic accident: nobody walks up to square up to a moving car)
+		send(player, { kind = "crime", crime = crowdCrime, pos = { pos.X, pos.Y, pos.Z }, victim = id, car = if attack == "car" then true else nil })
 	end
 	local brawlSecs: number? = nil
 	if outcome == "ko" then
@@ -724,7 +737,9 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 			model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", workspace:GetServerTimeNow(), dx, dz, "stagger"))
 		end
 	end
-	local line = hookLine or pick(FS.LINES[react] or FS.LINES.hit)
+	-- (a car hit: the car lines - 운전 똑바로 해요! / 차가 사람을 쳤어요! - not the punch ones)
+	local carBank = if attack == "car" then (FS.LINES["car_" .. react] or (if react ~= "ko" then FS.LINES.car_hit else nil)) else nil
+	local line = hookLine or pick(carBank or FS.LINES[react] or FS.LINES.hit)
 	dbg("hit", attack, id, typeId, "dmg", dmg, "hp", rec.hp, "/", max, outcome, react, "hits", hc.n)
 	local res = { kind = "hit", target = if isKey then "npc" else "ped", id = id, dmg = dmg, hp = math.floor(rec.hp + 0.5), max = max, outcome = outcome, react = react, line = line, crit = crit, dx = dx, dz = dz, ko = if outcome == "ko" then FS.KO_DOWN else nil, attack = attack, brawl = brawlSecs }
 	if not (p.silent == true) then
@@ -877,6 +892,38 @@ local function onNpcFight(player: Player, p: any)
 	end)
 end
 
+-- the driver's seat this player sits at: the engine's SeatPart (a VehicleSeat: the wheel; a
+-- passenger's Seat is nobody's hit, cf. Crimes.seatedCar), else a manual seating (base Cars.manualSit
+-- when Seat:Sit is refused: a SeatWeld and Humanoid.Sit, no SeatPart) = the car whose DriveDriver he is
+local function driverSeat(player: Player): BasePart?
+	local ch = player.Character
+	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+	local root = rootOf(player)
+	if not hum or not root then
+		return nil
+	end
+	local seat = hum.SeatPart
+	if seat then
+		return if seat:IsA("VehicleSeat") then seat else nil
+	end
+	if player:GetAttribute("InTaxi") then
+		return nil
+	end
+	local tag = (VehS and VehS.Tag) or "GwangalliDrivable"
+	local attr = (VehS and VehS.Attr and VehS.Attr.Driver) or "DriveDriver"
+	local seatName = (VehS and VehS.Parts and VehS.Parts.DriverSeat) or "DriveSeat"
+	for _, m in CollectionService:GetTagged(tag) do
+		if m:GetAttribute(attr) == player.UserId then
+			local s = m:FindFirstChild(seatName, true)
+			-- (sitting there now: not a driver attribute a moment behind the exit)
+			if s and s:IsA("VehicleSeat") and (s.Position - root.Position).Magnitude < 8 then
+				return s
+			end
+		end
+	end
+	return nil
+end
+
 -- a street pedestrian hit by this player's car (the client saw the contact): checked against the car
 -- the player really sits in and how fast it really goes
 local lastCarHit: { [Player]: number } = {}
@@ -884,19 +931,15 @@ local function onCarHit(player: Player, p: any)
 	if type(p) ~= "table" or type(p.id) ~= "string" then
 		return
 	end
-	local ch = player.Character
-	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-	local seat = hum and hum.SeatPart
+	local seat = driverSeat(player)
 	local root = rootOf(player)
 	local pos = unpackV(p.pos)
-	-- (the driver only: the wheel is the VehicleSeat, a passenger's Seat is nobody's hit, cf. Crimes.seatedCar)
-	if not seat or not seat:IsA("VehicleSeat") or not root or not pos or flat(pos, root.Position) > 14 then
+	if not seat or not root or not pos then
 		return
 	end
 	if now() - (lastCarHit[player] or 0) < 0.4 then
 		return
 	end
-	lastCarHit[player] = now()
 	local okV, vel = pcall(function()
 		return seat.AssemblyLinearVelocity
 	end)
@@ -904,10 +947,193 @@ local function onCarHit(player: Player, p: any)
 	local claimed = tonumber(p.speed) or 0
 	-- (physics speed when there is one; a client claim is never taken above it + a margin)
 	local sp = if real > 1 then math.min(claimed, real + 8) else math.min(claimed, 60)
-	if sp < 5 then
+	-- the contact was at the car on that client; the server copy of a car the driver owns trails it
+	-- (speed x latency): the faster, the farther it may be
+	local reach = math.max(14, 6 + sp * 0.25)
+	if sp < 5 or flat(pos, root.Position) > reach then
 		return
 	end
-	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, sn = p.sn, outcome = if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown" }, true)
+	lastCarHit[player] = now()
+	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, sn = p.sn, reach = reach, outcome = if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown" }, true)
+end
+
+-- where every client draws a server rig now: its NpcLeg walk (GwangalliNPCClient: "x0,y0,z0,x1,y1,
+-- z1,t0,dur" or "P;t0;speed;x,y,z;..." on the server clock), feet level. The server root of a walking
+-- rig is only written now and then (NPC.luau: once per arrival), so it is not where the rig is.
+-- (parsed once per NpcLeg string: the scan reads it a few times a second)
+type Leg = { s: string, poly: boolean, t0: number, speed: number, dur: number, pts: { Vector3 } }
+local legCache: { [Model]: Leg } = setmetatable({}, { __mode = "k" }) :: any
+local function legFeet(m: Model, t: number): Vector3?
+	local s = m:GetAttribute("NpcLeg")
+	if type(s) ~= "string" or s == "" then
+		return nil
+	end
+	local L = legCache[m]
+	if not L or L.s ~= s then
+		local pts = {}
+		local poly = string.sub(s, 1, 2) == "P;"
+		local t0, speed, dur = 0, 0, 0
+		if poly then
+			local parts = string.split(s, ";")
+			t0, speed = tonumber(parts[2]) or 0, tonumber(parts[3]) or 0
+			for i = 4, #parts do
+				local c = string.split(parts[i], ",")
+				local x, y, z = tonumber(c[1]), tonumber(c[2]), tonumber(c[3])
+				if x and y and z then
+					table.insert(pts, Vector3.new(x, y, z))
+				end
+			end
+		else
+			local c = string.split(s, ",")
+			local x0, y0, z0, x1, y1, z1 = tonumber(c[1]), tonumber(c[2]), tonumber(c[3]), tonumber(c[4]), tonumber(c[5]), tonumber(c[6])
+			t0, dur = tonumber(c[7]) or 0, tonumber(c[8]) or 0
+			if x0 and y0 and z0 and x1 and y1 and z1 then
+				pts = { Vector3.new(x0, y0, z0), Vector3.new(x1, y1, z1) }
+			end
+		end
+		L = { s = s, poly = poly, t0 = t0, speed = speed, dur = dur, pts = pts }
+		legCache[m] = L
+	end
+	local pts = L.pts
+	if #pts == 0 then
+		return nil
+	end
+	if not L.poly then
+		local u = if L.dur > 0 then math.clamp((t - L.t0) / L.dur, 0, 1) else 1
+		return if #pts >= 2 then pts[1]:Lerp(pts[2], u) else pts[1]
+	end
+	local left = math.max(0, (t - L.t0) * L.speed)
+	for i = 2, #pts do
+		local seg = (pts[i] - pts[i - 1]).Magnitude
+		if left <= seg then
+			return if seg > 1e-4 then pts[i - 1]:Lerp(pts[i], left / seg) else pts[i]
+		end
+		left -= seg
+	end
+	return pts[#pts]
+end
+
+-- a player's car runs into a server rig (key NPCs, shop / City actors, officers / 119 / 특임대 on foot
+-- ...): every driven GwangalliDrivable car is checked a few times a second against the rigs in the
+-- part of the street its body swept since the last check (a fast car cannot skip one), each hit then
+-- goes the way a pedestrian's does (onPunch "car": damage by speed, the fall everybody sees, the
+-- reaction / line, the crime, 119). Rigs riding in a car (NpcSeat), bodies (NpcDown), inmates, the
+-- player's own companion and 알바 / minigame rigs are never hit.
+local carNpcAt: { [string]: number } = {}
+local carPrev: { [Model]: { p: Vector3, t: number } } = setmetatable({}, { __mode = "k" }) :: any
+local carHalf: { [Model]: Vector2 } = setmetatable({}, { __mode = "k" }) :: any
+local function carScanTick()
+	local folder = workspace:FindFirstChild("GwangalliNPCs")
+	if not folder then
+		return
+	end
+	local A = VehS and VehS.Attr or {}
+	local tag = (VehS and VehS.Tag) or "GwangalliDrivable"
+	local baseName = (VehS and VehS.Parts and VehS.Parts.Base) or "DriveBase"
+	local t = now()
+	local rigs: { Instance }? = nil
+	local tServer = 0
+	for _, m in CollectionService:GetTagged(tag) do
+		local uid = m:GetAttribute(A.Driver or "DriveDriver")
+		if not m:IsA("Model") or type(uid) ~= "number" or uid == 0 or m:GetAttribute(A.Sleeping or "DriveSleeping") == true then
+			continue
+		end
+		local base = m:FindFirstChild(baseName)
+		local player = Players:GetPlayerByUserId(uid)
+		if not base or not base:IsA("BasePart") or not player then
+			continue
+		end
+		local bp = base.Position
+		local prev = carPrev[m]
+		local travel, dv = 0, Vector3.zero
+		local jumped = false
+		if prev then
+			local dt = t - prev.t
+			if dt > 0.02 and dt < 1.5 then
+				dv = Vector3.new(bp.X - prev.p.X, 0, bp.Z - prev.p.Z)
+				travel = dv.Magnitude
+				dv = dv / dt
+				-- (faster than any car (VS.Specs top ~131 studs/s): moved there - a respawn / tow / teleport)
+				jumped = travel / dt > 150
+			end
+			prev.p, prev.t = bp, t
+		else
+			carPrev[m] = { p = bp, t = t }
+		end
+		if jumped then
+			continue
+		end
+		travel = math.min(travel, 40)
+		local okV, vel = pcall(function()
+			return base.AssemblyLinearVelocity
+		end)
+		local v = if okV and typeof(vel) == "Vector3" then Vector3.new(vel.X, 0, vel.Z) else Vector3.zero
+		if v.Magnitude < 1 then
+			v = dv -- (no physics velocity here: how far it really went)
+		end
+		local sp = v.Magnitude
+		if sp < 8 or sp > 150 then
+			continue
+		end
+		local dir = v / sp
+		local half = carHalf[m]
+		if not half then
+			local okE, ext = pcall(function()
+				return m:GetExtentsSize()
+			end)
+			local L = if okE and typeof(ext) == "Vector3" then math.max(ext.X, ext.Z) else 14
+			local W = if okE and typeof(ext) == "Vector3" then math.min(ext.X, ext.Z) else 6
+			half = Vector2.new(math.clamp(L / 2, 3, 12), math.clamp(W / 2, 1.5, 5))
+			carHalf[m] = half
+		end
+		local halfL, halfW = half.X, half.Y
+		local companion = player:GetAttribute("GwangalliCompanion")
+		if not rigs then
+			rigs = folder:GetChildren()
+			tServer = workspace:GetServerTimeNow()
+		end
+		for _, r0 in rigs :: { Instance } do
+			if not r0:IsA("Model") then
+				continue
+			end
+			local rig = r0 :: Model
+			local id = rig:GetAttribute("NpcId")
+			if type(id) ~= "string" or id == "" or (carNpcAt[id] or -1e9) > t - 3 or id == companion then
+				continue
+			end
+			local seatAttr = rig:GetAttribute("NpcSeat")
+			if (seatAttr ~= nil and seatAttr ~= "") or rig:GetAttribute("NpcDown") ~= nil or rig:GetAttribute("NpcKind") == "inmate" then
+				continue
+			end
+			local mr = rig:FindFirstChild("HumanoidRootPart") or rig.PrimaryPart
+			if not mr or not mr:IsA("BasePart") or flat(mr.Position, bp) > 220 then
+				continue -- (far off: not even its leg is close)
+			end
+			local feet = legFeet(rig, tServer) or (mr.Position - Vector3.new(0, tonumber(rig:GetAttribute("NpcGround")) or 3, 0))
+			local rx, rz = feet.X - bp.X, feet.Z - bp.Z
+			if rx * rx + rz * rz > (halfL + travel + 4) ^ 2 or math.abs(feet.Y - bp.Y) > 6 then
+				continue
+			end
+			local along = rx * dir.X + rz * dir.Z
+			local lx, lz = rx - dir.X * along, rz - dir.Z * along
+			-- (inside the body now, just ahead of the bumper, or where the body passed since the last check)
+			if along <= halfL + 1.5 and along >= -halfL - travel and lx * lx + lz * lz <= (halfW + 1) ^ 2 then
+				if FS.foreign(id, rig) then
+					continue
+				end
+				carNpcAt[id] = t
+				local side = lx * -dir.Z + lz * dir.X -- (thrown a little to the side they stood on)
+				local sx, sz = -dir.Z * (if side >= 0 then 1 else -1), dir.X * (if side >= 0 then 1 else -1)
+				dbg("carScan", id, "hit by", player.Name, string.format("%.1f studs/s", sp))
+				onPunch(player, { kind = "npc", id = id, pos = { feet.X, feet.Y, feet.Z }, attack = "car", speed = math.min(sp, 120), reach = halfL + travel + 10, dx = dir.X + sx * 0.35, dz = dir.Z + sz * 0.35 }, true)
+			end
+		end
+	end
+	for id, at in carNpcAt do
+		if t - at > 10 then
+			carNpcAt[id] = nil
+		end
+	end
 end
 
 -- a street fight going on near a point (Law/Rescue keeps the ambulance back)
@@ -1031,6 +1257,7 @@ function Fight.onLeave(player: Player)
 	pedSn[player] = nil
 	robbed[player] = nil
 	lastStart[player] = nil
+	lastCarHit[player] = nil
 end
 
 function Fight.onLoaded(player: Player)
@@ -1058,6 +1285,7 @@ function Fight.init(context: any)
 	MindShared = opt("GwangalliMindShared")
 	Rob = opt("GwangalliRobShared")
 	BumpS = opt("GwangalliBumpShared")
+	VehS = opt("GwangalliVehiclesShared")
 	if not FS then
 		warn("[GwangalliFight] GwangalliFightShared missing: street fights off")
 		return
@@ -1085,6 +1313,17 @@ function Fight.init(context: any)
 	a.OnServerEvent:Connect(onAction)
 	folder.Parent = ReplicatedStorage
 	Players.PlayerRemoving:Connect(Fight.onLeave)
+	-- the server rigs a player's car runs into (carScanTick: ~5 Hz, next to nothing while nobody drives)
+	task.spawn(function()
+		while true do
+			task.wait(0.2)
+			local okS, errS = pcall(carScanTick)
+			if not okS then
+				warn("[GwangalliFight] carScan: " .. tostring(errS))
+				task.wait(5)
+			end
+		end
+	end)
 	-- ServerStorage.GwangalliNPCHitAPI, for a server-side combat system: Invoke("hit", player, { model =
 	-- <the NPC Model / a part of it the hitbox touched> | kind = "ped" | "npc", id, pos?, attack?, power? })
 	-- -> the hit result (nil = no hit). Only for a hit that LANDED; the reach is checked again here.

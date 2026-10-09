@@ -100,7 +100,52 @@ end
 -- player state
 -------------------------------------------------------------------------------------------------
 local Delivery: any = nil -- GwangalliStreetLife/Delivery (배달 라이더 + rob state of street people)
-local P = { pos = nil :: Vector3?, vel = Vector3.zero, speed = 0, lastPos = nil :: Vector3?, lastT = 0, seat = nil :: BasePart?, look = Vector3.new(0, 0, -1) }
+local P = { pos = nil :: Vector3?, vel = Vector3.zero, speed = 0, lastPos = nil :: Vector3?, lastT = 0, seat = nil :: BasePart?, look = Vector3.new(0, 0, -1), drive = false, manual = nil :: BasePart?, manualW = nil :: Instance?, manualNext = 0 }
+-- the car this player drives (its DriveDriver is our UserId: watchCar), for a manual seating
+local ownCar: Model? = nil
+
+-- a manual seating (base Cars.manualSit when Seat:Sit is refused - the phone emulator: a "SeatWeld"
+-- from the seat to the root, Humanoid.Sit, no SeatPart), else the driver's seat of our own car while
+-- the root is at it. Kept while the weld holds; looked for again at most every 0.5 s (no per-frame work)
+local function manualSeat(root: BasePart, hum: Humanoid, now: number): BasePart?
+	local s, w = P.manual, P.manualW
+	if s and s.Parent then
+		if w then
+			if w.Parent == s and (w :: any).Part1 == root then
+				return s
+			end
+		elseif now < P.manualNext then
+			return s -- (our own car's seat by its driver attribute: checked again every 0.5 s)
+		end
+	end
+	P.manual, P.manualW = nil, nil
+	if now < P.manualNext then
+		return nil
+	end
+	P.manualNext = now + 0.5
+	if hum.Sit then
+		local okJ, j = pcall(function()
+			for _, x in root:GetJoints() do
+				if x.Name == "SeatWeld" and x:IsA("Weld") and x.Part1 == root and x.Part0 and (x.Part0:IsA("Seat") or x.Part0:IsA("VehicleSeat")) then
+					return x
+				end
+			end
+			return nil
+		end)
+		if okJ and j then
+			P.manual, P.manualW = (j :: Weld).Part0, j
+			return P.manual
+		end
+	end
+	local car = ownCar
+	local ds = car and car.Parent and car:FindFirstChild("DriveSeat", true)
+	if ds and ds:IsA("BasePart") and (ds.Position - root.Position).Magnitude < 8 then
+		local w2 = ds:FindFirstChild("SeatWeld")
+		P.manual, P.manualW = ds, if w2 and (w2 :: any).Part1 == root then w2 else nil
+		return ds
+	end
+	return nil
+end
 
 local function samplePlayer(now: number)
 	local ch = player.Character
@@ -114,6 +159,9 @@ local function samplePlayer(now: number)
 				off = hum.HipHeight + root.Size.Y / 2
 			end
 			P.seat = hum.SeatPart or Crowd.debugSeat
+			if not P.seat then
+				P.seat = manualSeat(root, hum, now)
+			end
 		else
 			P.seat = Crowd.debugSeat
 		end
@@ -181,7 +229,10 @@ function Crowd.seatOf(plr: Player): BasePart?
 	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
 	local s = hum and hum.SeatPart
 	if not s and plr == player then
-		s = Crowd.debugSeat
+		s = Crowd.debugSeat or (if P.manual and P.manual.Parent then P.manual else nil)
+		if not s and P.seat and ownCar and P.seat:IsDescendantOf(ownCar) then
+			s = P.seat -- (our own car by its driver attribute)
+		end
 	end
 	return s
 end
@@ -398,6 +449,7 @@ function Crowd.api(method: any, ...: any): any
 		if not a or a.gone or type(text) ~= "string" then
 			return false
 		end
+		a.lastSayAt = os.clock() -- (the server's line after a car hit: the get-up line stays quiet)
 		SocialUI.say(a, text, tonumber(dur) or 3.5)
 		return true
 	elseif method == "leave" then
@@ -669,7 +721,7 @@ end
 -------------------------------------------------------------------------------------------------
 local driven: { [Model]: boolean } = {}
 local carLast: { [Model]: { p: Vector3, t: number, v: Vector3 } } = setmetatable({}, { __mode = "k" }) :: any
-local cars: { { pos: Vector3, vel: Vector3, speed: number, horn: boolean, key: any } } = {}
+local cars: { { pos: Vector3, vel: Vector3, speed: number, horn: boolean, key: any, drive: boolean? } } = {}
 local carOfSeat: { [Instance]: Model? } = setmetatable({}, { __mode = "k" }) :: any
 local HORN_BIT = 64
 
@@ -694,6 +746,27 @@ local function vehicleModel(seat: Instance): Model?
 	return first
 end
 
+-- the local player is at the wheel of the car he sits in (not a passenger, not a taxi / police car
+-- ride): only the driver's car rolls who fails to get out of the way (the server only takes the
+-- driver's hits: Fight.onCarHit)
+local function drivesNow(seat: BasePart?): boolean
+	if not seat then
+		return false
+	end
+	if Crowd.debugSeat ~= nil and seat == Crowd.debugSeat then
+		return true
+	end
+	if player:GetAttribute("InTaxi") == true or player:GetAttribute("LawCuffed") then
+		return false
+	end
+	if not seat:IsA("VehicleSeat") then
+		return false
+	end
+	local m = vehicleModel(seat)
+	local d = m and m:GetAttribute("DriveDriver")
+	return d == nil or d == player.UserId -- (a VehicleSeat outside the drive system: a test seat)
+end
+
 local function watchCar(inst: Instance)
 	if not inst:IsA("Model") then
 		return
@@ -705,6 +778,11 @@ local function watchCar(inst: Instance)
 			driven[m] = true
 		else
 			driven[m] = nil
+		end
+		if d == player.UserId then
+			ownCar = m
+		elseif ownCar == m then
+			ownCar = nil
 		end
 	end
 	m:GetAttributeChangedSignal("DriveDriver"):Connect(upd)
@@ -721,13 +799,14 @@ end
 
 local function refreshCars()
 	table.clear(cars)
+	P.drive = drivesNow(P.seat)
 	local pp = P.pos
 	if not pp then
 		return
 	end
 	if P.seat then
 		local m = vehicleModel(P.seat)
-		table.insert(cars, { pos = pp, vel = P.vel, speed = P.speed, horn = hornOn(m), key = "local" })
+		table.insert(cars, { pos = pp, vel = P.vel, speed = P.speed, horn = hornOn(m), key = "local", drive = P.drive })
 	end
 	-- taxis on their way (other players' rides, the local player's before boarding)
 	local tf = workspace:FindFirstChild("GwangalliTaxis")
@@ -821,21 +900,36 @@ local function carReactions(now: number)
 							if sp > Config.CarFast and miss < 5.5 then
 								-- not everybody makes it out of the way of YOUR car: faster cars, drunks, people
 								-- on their phone / sitting / asleep are hit (GwangalliFight "carHit")
-								if c.key == "local" and now - (a.dodgeRollT or -1e9) > 4 then
+								-- (only the driver's car: a passenger / taxi ride is nobody's hit, they all dive)
+								if c.key == "local" and c.drive and now - (a.dodgeRollT or -1e9) > 4 then
 									a.dodgeRollT = now -- (one roll per close call)
 									local fail = math.clamp((sp - 12) / 70, 0, 0.45)
 									if a.type == "drunk" or a.sitting or a.napping or a.sitGround or (a.plan and a.plan.act == "phone") then
 										fail += 0.3
 									end
 									a.willBeHit = rnd() < fail
+									a.willBeHitT = now
 								end
 								if not a.willBeHit then
 									a:dive(now, px * s, pz * s, c.pos)
 								end
-							elseif miss < 4 and not (a.sitting or a.lying or a.sitGround) then
-								-- a slow car: step aside and look
-								a:nudge(px * s * 2.6, pz * s * 2.6, ttc + 1.2, 7)
-								a:lookAtPoint(c.pos, 1.5, now)
+							elseif miss < 4 then
+								-- a slow car of the player's: most step aside, a few do not see it coming (a light
+								-- hit at the contact: a stagger; 15+ studs/s they go down)
+								if c.key == "local" and c.drive and now - (a.dodgeRollT or -1e9) > 4 then
+									a.dodgeRollT = now
+									local fail = Config.CarSlowFail or 0.06
+									if a.type == "drunk" or a.sitting or a.napping or a.sitGround or (a.plan and a.plan.act == "phone") then
+										fail += Config.CarSlowDistracted or 0.25
+									end
+									a.willBeHit = rnd() < fail
+									a.willBeHitT = now
+								end
+								if not a.willBeHit and not (a.sitting or a.lying or a.sitGround) then
+									-- step aside and look
+									a:nudge(px * s * 2.6, pz * s * 2.6, ttc + 1.2, 7)
+									a:lookAtPoint(c.pos, 1.5, now)
+								end
 							end
 						end
 					end
@@ -2676,19 +2770,41 @@ local function update(dt: number)
 				local d = math.sqrt(dx * dx + dz * dz)
 				a.dist = d
 				if carFast then
-					if d < 4.5 and a.mode ~= "dodge" and math.abs(a.pos.Y - pp.Y) < 8 then
+					if d < 4.5 and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 8 then
 						local sp = P.speed
-						if a.willBeHit and d < 3.8 and not a.knock and now - (a.carHitAt or -1e9) > 3 then
+						local ux, uz = P.vel.X / sp, P.vel.Z / sp
+						-- (the contact is the car's front, a little ahead of the driver's seat)
+						local bx, bz = dx - ux * 2.5, dz - uz * 2.5
+						local db = math.min(d, math.sqrt(bx * bx + bz * bz))
+						if P.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4 and db < 3.8 and now - (a.carHitAt or -1e9) > 3 then
 							-- hit by the player's car: the fall right here (the server decides the rest)
 							a.carHitAt = now
+							a.carHitSp = sp
 							a.willBeHit = false
-							local ux, uz = P.vel.X / sp, P.vel.Z / sp
-							Crowd.fightKnock(a, ux, uz, if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown", if sp > 35 then "쾅!!" else "퍽!")
-							Crowd.carHit(a, sp)
+							if Crowd.fightKnock(a, ux, uz, if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown", if sp > 35 then "쾅!!" else "퍽!", sp) then
+								a.carKnock = true
+								Crowd.carHit(a, sp)
+							end
 						else
 							local px, pz = -P.vel.Z / sp, P.vel.X / sp
 							local s = if (dx * px + dz * pz) >= 0 then 1 else -1
 							a:dive(now, px * s, pz * s, pp)
+						end
+					end
+				elseif seated and P.drive and P.speed > (Config.CarCrawl or 3) then
+					-- crawling at the wheel (3-10 studs/s): a touch staggers them (the server: a light
+					-- hit from 5 studs/s on)
+					if d < 3.4 and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 6 and now - (a.carHitAt or -1e9) > 3 then
+						local sp = P.speed
+						local ux, uz = P.vel.X / sp, P.vel.Z / sp
+						if dx * ux + dz * uz > -0.5 then
+							a.carHitAt = now
+							a.carHitSp = sp
+							a.willBeHit = false
+							if Crowd.fightKnock(a, ux, uz, "stagger", "툭!") then
+								a.carKnock = true
+								Crowd.carHit(a, sp)
+							end
 						end
 					end
 				elseif not seated and d < contact and math.abs(a.pos.Y - pp.Y) < 6 then
@@ -2806,7 +2922,8 @@ local function slideRoom(a: any, dx: number, dz: number, dist: number): number
 	return if okR and type(room) == "number" then room else 0
 end
 
-local function startSlide(a: any, dx: number, dz: number, dist: number, dur: number)
+-- hop = studs the body leaves the ground mid-slide (a car throws them: an arc, back down at the end)
+local function startSlide(a: any, dx: number, dz: number, dist: number, dur: number, hop: number?)
 	local kn = a.knock
 	local m = math.sqrt(dx * dx + dz * dz)
 	if not kn or dist <= 0 or m < 1e-3 then
@@ -2815,7 +2932,9 @@ local function startSlide(a: any, dx: number, dz: number, dist: number, dur: num
 	dx, dz = dx / m, dz / m
 	local room = slideRoom(a, dx, dz, dist)
 	if room > 0.1 then
-		kn.slide = { dx = dx, dz = dz, dist = room, done = 0, t0 = os.clock(), dur = dur }
+		-- (a new slide mid-arc keeps the ground they were thrown from)
+		local y0 = if kn.slide and kn.slide.y0 then kn.slide.y0 else a.pos.Y
+		kn.slide = { dx = dx, dz = dz, dist = room, done = 0, t0 = os.clock(), dur = dur, hop = hop, y0 = y0 }
 	end
 end
 
@@ -2839,7 +2958,8 @@ end
 -- moment longer). A hit while the last one still plays is not lost (a fast combo): a fresh jolt from the
 -- lean they are at, a stagger becomes a fall, somebody getting up goes down again, a body on the ground
 -- stays down a little longer
-function Crowd.fightKnock(a: any, dx: number, dz: number, outcome: string, puk: string?): boolean
+-- carSp = a car's speed (thrown: farther the faster, through the air a moment, longer on the ground)
+function Crowd.fightKnock(a: any, dx: number, dz: number, outcome: string, puk: string?, carSp: number?): boolean
 	local B = ctx.BumpShared
 	if not B or a.gone then
 		return false
@@ -2886,7 +3006,13 @@ function Crowd.fightKnock(a: any, dx: number, dz: number, outcome: string, puk: 
 	if a:knockDown(dx, dz, want, puk) == false or not a.knock then
 		return false
 	end
-	if outcome == "thrown" then
+	if outcome == "thrown" and carSp and carSp > 35 then
+		-- hit by a fast car: thrown along the car (an arc through the air, a scripted slide - no physics),
+		-- then a while on the ground
+		local over = carSp - 35
+		startSlide(a, dx, dz, math.clamp(5 + over * 0.15, 5, 11) + rnd() * 1.5, 0.6 + math.min(0.25, over * 0.01), math.min(1.6, 0.8 + over * 0.03) * (a.scale or 1))
+		a.knock.extra = 1.2 + math.min(1.8, over / 20)
+	elseif outcome == "thrown" then
 		-- knocked off the feet: a slide along the hit while falling, then a second longer on the ground
 		startSlide(a, dx, dz, 5 + rnd() * 3, 0.55)
 		a.knock.extra = 1.0
@@ -2970,9 +3096,11 @@ local function installFightHooks()
 				local u = math.clamp((now - sl.t0) / math.max(0.05, sl.dur), 0, 1)
 				local d = sl.dist * (1 - (1 - u) * (1 - u))
 				local step = d - sl.done
-				if step > 0 then
-					self.pos = Vector3.new(self.pos.X + sl.dx * step, self.pos.Y, self.pos.Z + sl.dz * step)
-					sl.done = d
+				-- (thrown: up and back down on the ground it left)
+				local y = if sl.hop then sl.y0 + math.sin(u * math.pi) * sl.hop else (sl.y0 or self.pos.Y)
+				if step > 0 or y ~= self.pos.Y then
+					self.pos = Vector3.new(self.pos.X + sl.dx * math.max(0, step), y, self.pos.Z + sl.dz * math.max(0, step))
+					sl.done = math.max(sl.done, d)
 				end
 				if u >= 1 then
 					kn.slide = nil
@@ -3015,9 +3143,61 @@ local function installFightHooks()
 		if self.ko then
 			return
 		end
-		baseAfter(self, now)
+		local kn = self.knock -- (the base clears it)
+		local hitT = self.carHitAt
+		local byCar = self.carKnock == true and hitT ~= nil and now - hitT < 8
+		self.carKnock = nil
+		if byCar then
+			-- back up after the player's car hit them: a car line, not a 어깨빵 one ("조심 좀 하세요!" /
+			-- the fool's "더 세게!"), and none when the server's line (GwangalliFight) was said already
+			local said = (self.lastSayAt or -1e9) > hitT
+			local bank = if kn and kn.outcome == "knockdown" then "car_hurt" else "car_warn"
+			local prevTL = rawget(self, "typeLine")
+			self.typeLine = function(s2: any, kind: string): string?
+				if kind == "bumped" or kind == "down" or kind == "beg" or kind == "mumble" then
+					return if said then nil else fpick(FS and FS.LINES and FS.LINES[bank])
+				end
+				return if prevTL then prevTL(s2, kind) else Agent.typeLine(s2, kind)
+			end
+			local okA, errA = pcall(baseAfter, self, now)
+			self.typeLine = prevTL
+			if not okA then
+				error(errA, 0)
+			end
+		else
+			baseAfter(self, now)
+		end
 		if self.gone then
 			return
+		end
+		if byCar and not self.brawl then
+			if kn and kn.outcome == "knockdown" and not self.hurt then
+				-- hurt (a car put them on the ground): they limp on slower a while, sit on the kerb a moment
+				local mult = (Bump and Bump.SLOW_MULT) or 0.55
+				local h = { walk = self.walkSpeed, wob = self.wobble == nil }
+				self.hurt = h
+				self.walkSpeed = self.walkSpeed * mult
+				if h.wob then
+					self.wobble = 0.18 -- (a limp: the Agent's sideways drift while walking)
+				end
+				if not self.pendingReact and not self.chase then
+					self:idleFor("groundsit", 3 + rnd() * 2, now, self.faceYaw)
+				end
+				task.delay(if (self.carHitSp or 0) > 35 then 30 else 20, function()
+					if self.hurt == h and not self.gone then
+						self.hurt = nil
+						if math.abs(self.walkSpeed - h.walk * mult) < 0.01 then
+							self.walkSpeed = h.walk -- (a type change since keeps its own speed)
+						end
+						if h.wob and self.wobble == 0.18 then
+							self.wobble = nil
+						end
+					end
+				end)
+			elseif not self.pendingReact and not self.chase then
+				-- only bumped: startled (the base flash), then angry at the driver (look, point, a beat)
+				self.pendingReact = "warn"
+			end
 		end
 		local b = self.brawl
 		if b and now < b.untilT then
