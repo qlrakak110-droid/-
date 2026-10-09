@@ -318,6 +318,8 @@ local function interact(a: any)
 		SocialUI.say(a, line, 3.5)
 		if how == nil or how == "greet" then
 			a:emote("greet")
+		elseif how == "cold" then
+			a:endTalk(now) -- (a brush-off: they keep walking, not standing there facing you)
 		end
 	end
 end

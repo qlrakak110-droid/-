@@ -22,6 +22,14 @@ local MS: any = nil -- GwangalliMindShared (personality / lines)
 pcall(function()
 	MS = require(ReplicatedStorage:WaitForChild("GwangalliMindShared", 10) :: any)
 end)
+local FS: any = nil -- GwangalliFightShared (the warn / fight lines, the drunk quarrel)
+pcall(function()
+	FS = require(ReplicatedStorage:WaitForChild("GwangalliFightShared", 10) :: any)
+end)
+local SOCIAL: any = nil -- GwangalliSocialShared (the crowd types' own lines)
+pcall(function()
+	SOCIAL = require(ReplicatedStorage:WaitForChild("GwangalliSocialShared", 10) :: any)
+end)
 
 local Characters = {}
 
@@ -43,8 +51,6 @@ local WITNESS = { "헐… 쟤 혼자 넘어졌어…", "동네바보 또 저런�
 local DRUNK_MORE = { "야 내 말 좀 들어 봐 어? 딸꾹", "내가 왕년에 말이야~ 이 동네 짱이었어!", "너 지금 나 무시하냐? 어?", "한잔 하자니까~ 왜 대답을 안 해", "어딜 가 이야기 아직 안 끝났어!", "너 나 알지? 모른다고? 딸꾹", "야 이리 와 봐, 이리 와 보라고~" }
 local DRUNK_FIGHT = { "이 자식이 말로 해선 안 되겠네! 딸꾹", "에잇 한 판 붙자 이거야~!", "오냐 오늘 끝장 보자!" }
 local PUNK_IGNORE = { "어딜 가? 말 씹냐?", "야 대답 안 하고 가? 이리 와.", "무시해? 오늘 제대로 걸렸다." }
-local FS_WARN = { "진짜 계속 할 거야?", "한 번 더 건드려 봐.", "어딜 감히…!", "너 지금 시비 거냐?" }
-local FS_FIGHT = { "너 오늘 제삿날이다!", "어쭈? 덤벼!", "한 판 붙자 이거지?", "가만 안 둬!" }
 local followTick: (any, number, number, Vector3, number) -> ()
 
 local function rnd(): number
@@ -57,6 +63,12 @@ end
 
 local function flat(a: Vector3, b: Vector3): number
 	return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
+end
+
+-- a GwangalliFightShared line (warn / fight)
+local function fsLine(key: string): string
+	local L = FS and FS.LINES and FS.LINES[key]
+	return if L and #L > 0 then pick(L) else "…"
 end
 
 local function say(a: any, text: string, dur: number?)
@@ -276,6 +288,9 @@ local function runFrom(a: any, from: Vector3, dur: number)
 end
 
 local function backOff(a: any, from: Vector3)
+	if a.ctl then
+		return -- (somebody else's control - a rider walking back to his scooter, a witness on the phone)
+	end
 	if not deps.Mind.take(a, { kind = "custom", untilT = os.clock() + 4, drive = function(ag: any, ctl: any, t: number)
 		if t > ctl.untilT then
 			deps.Mind.release(ag)
@@ -391,42 +406,36 @@ end
 -- beggar) and officers keep it.
 -------------------------------------------------------------------------------------------------
 local BUMP_SKIP = { fool = true, beggar = true, police = true }
-local DRUNK_OOPS = { "어이쿠~ 딸꾹, 미안미안~", "어어? 땅이 움직이네~ 히끅", "야 너 왜 거기 서 있어~ 딸꾹", "어허~ 길 좀 비켜 봐~ 히끅" }
 local TOUCHY_Q = nil -- the verbal quarrel of 예민한 사람 (no start line: the bump line said it)
 
 -- "kind" | "touchy" | "aggro" | "violent" | "timid" | "drunk" | "cold" | "playful" | "normal" (the
 -- base line) | nil (not handled here: the base reaction only)
+-- (somebody under another control - a.ctl: a rider walking back to his scooter or hands up, a witness
+-- on a 112 call, a fight they stepped into - keeps it: the base reaction only)
 function Characters.bumpKind(a: any): string?
-	if not deps or not a or a.gone or a.ko or a.brawl or a.quarrel or a.companion or a.clubGuest or a.mounted or a.riding or BUMP_SKIP[a.type] then
+	if not deps or not a or a.gone or a.ko or a.brawl or a.quarrel or a.ctl ~= nil or a.companion or a.clubGuest or a.mounted or a.riding or BUMP_SKIP[a.type] then
 		return nil
 	end
-	if a.type == "violent" or a.type == "thug" then
-		return "violent"
+	if not (MS and MS.bumpStyle) then
+		return nil -- (no shared personality here: the base reaction)
 	end
+	-- (GwangalliMindShared.bumpStyle: the same answer the server's memory of a named citizen's 어깨빵
+	-- reads, GwangalliGameplay/Fight; again = bumped by the player a moment ago or still remembering
+	-- something: no 괜찮아요 twice)
 	local v = a.named and deps.Mind and deps.Mind.view and deps.Mind.view(a.id)
-	if a.type == "drunk" or (v and v.npcMood == "DRUNK") then
-		return "drunk"
-	end
-	local p = persOf(a)
-	if p.violent then
-		return "aggro"
-	elseif p.isTimid or p.fearful then
-		return "timid"
-	elseif p.touchy then
-		return "touchy"
-	elseif p.isKind then
-		return "kind"
-	elseif p.playful then
-		return "playful"
-	elseif p.cold then
-		return "cold"
-	end
-	return "normal"
+	local now = os.clock()
+	local mem = a.memory
+	local again = (a.bumpLastAt ~= nil and now - a.bumpLastAt < 120) or (mem ~= nil and now < mem.untilT and (mem.anger or 0) + (mem.fear or 0) >= 1)
+	local okS, st = pcall(MS.bumpStyle, persOf(a), a.type, again, (v and v.npcMood == "DRUNK") == true)
+	return if okS and type(st) == "string" then st else nil
 end
 
 -- the line they say getting up after a 어깨빵 (in place of the base "조심 좀 하세요!"); nil = the base
 -- line, "" = none
 function Characters.bumpLine(a: any, kind: string, down: boolean): string?
+	if a.type ~= "plain" then
+		return nil -- (a type with its own bump lines - 부자, 걸렁뱅이 - keeps them; what follows is still theirs)
+	end
 	if kind == "kind" then
 		return rl(if down then "bump_kind_down" else "bump_kind")
 	elseif kind == "timid" then
@@ -438,8 +447,8 @@ function Characters.bumpLine(a: any, kind: string, down: boolean): string?
 		return if rnd() < 0.5 then rl("bump_cold") else ""
 	elseif kind == "playful" then
 		return rl("bump_playful")
-	elseif kind == "aggro" and a.type == "plain" then
-		return rl("bump_aggro") -- (a 걸렁뱅이 keeps his own "어쭈? 해보자는 거지?")
+	elseif kind == "aggro" then
+		return rl("bump_aggro")
 	end
 	return nil
 end
@@ -453,8 +462,24 @@ function Characters.drunkBump(a: any, pp: Vector3): boolean
 	local d = math.max(0.05, math.sqrt(dx * dx + dz * dz))
 	a.playerBumpAt = os.clock()
 	a:knockDown(dx / d, dz / d, "stagger", nil)
-	a:hitPlayer(-dx / d, -dz / d, "stagger", pick(DRUNK_OOPS))
+	-- (the drunk's own bump line, GwangalliSocialShared: their speech too)
+	local okL, oops = pcall(function()
+		return SOCIAL and SOCIAL.typeLine("drunk", "accident", a.c and a.c.speech)
+	end)
+	a:hitPlayer(-dx / d, -dz / d, "stagger", if okL and type(oops) == "string" then oops else nil)
 	return true
+end
+
+-- the walk-into line by personality; a crowd type with its own bump lines (부자, 걸렁뱅이) says one of
+-- those (Crowd keeps the base quip quiet for this reaction)
+local function walkLine(a: any, key: string): string
+	if a.type ~= "plain" and a.typeLine then
+		local okT, l = pcall(a.typeLine, a, "bumped")
+		if okT and type(l) == "string" and l ~= "" then
+			return l
+		end
+	end
+	return rl(key)
 end
 
 local function freeNow(a: any): boolean
@@ -481,6 +506,7 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 	end
 	run.n += 1
 	run.t = now
+	a.bumpLastAt = now -- (bumpKind: the next one within 2 min is not shrugged off)
 	local mem = a.memory
 	local rep = run.n >= 2 or (mem ~= nil and now < mem.untilT and (mem.anger or 0) >= 2)
 	local walk = how == "walk"
@@ -489,12 +515,12 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 	a.memNext = now + 6 -- (Mind.react's "또 너냐?" not on top of this one)
 	if kind == "kind" then
 		if walk and talkOk then
-			say(a, rl("bump_kind"), 2.5)
+			say(a, walkLine(a, "bump_kind"), 2.5)
 		end
 		M.face(a, "smile", 2.5)
 	elseif kind == "playful" then
 		if walk and talkOk then
-			say(a, rl("bump_playful"), 2.6)
+			say(a, walkLine(a, "bump_playful"), 2.6)
 		end
 		M.face(a, "laugh", 2.5)
 		if M.gesture then
@@ -502,13 +528,13 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 		end
 	elseif kind == "cold" then
 		if walk and talkOk and rnd() < 0.4 then
-			say(a, rl("bump_cold"), 2)
+			say(a, walkLine(a, "bump_cold"), 2)
 		end
 		a.lookUntil = now -- (not even a look)
 	elseif kind == "timid" then
 		remember = "fear"
 		if walk and talkOk then
-			say(a, rl("bump_timid"), 2.4)
+			say(a, walkLine(a, "bump_timid"), 2.4)
 		end
 		M.face(a, "scared", 3)
 		if walk then
@@ -524,7 +550,7 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 			M.lookAtPlayer(a, 3)
 		end
 		if walk and talkOk then
-			say(a, rl("touchy"), 2.8)
+			say(a, walkLine(a, "touchy"), 2.8)
 		end
 		-- 말싸움 maybe: a verbal quarrel (follows a few steps, no shove; walk off and it is over)
 		if playerFree() and d < 9 and (rep or rnd() < 0.3) and now >= (a.nextQuarrel or 0) and M.startQuarrel then
@@ -564,7 +590,7 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 					local l = if a.type ~= "plain" then a:typeLine("bumped") else nil
 					say(a, l or rl("bump_aggro"), 2.8)
 				else
-					say(a, pick(FS_WARN), 2.8)
+					say(a, fsLine("warn"), 2.8)
 				end
 				if dd < 4 and a.hitPlayer and rnd() < (if rep then 0.8 else 0.5) then
 					local ux, uz = (p2.X - a.pos.X) / math.max(dd, 0.05), (p2.Z - a.pos.Z) / math.max(dd, 0.05)
@@ -581,7 +607,7 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 				task.delay(if kind == "violent" and not walk then 1.6 else 1.4, function()
 					local p3 = deps.playerPos()
 					if p3 and freeNow(a) and not a.chase and playerFree() and flat(a.pos, p3) < 10 then
-						say(a, pick(FS_FIGHT), 2.6)
+						say(a, fsLine("fight"), 2.6)
 						Characters.startFight(a, "bump")
 					end
 				end)
@@ -603,7 +629,7 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 						if M.lookAtPlayer then
 							M.lookAtPlayer(a, 3)
 						end
-						say(a, pick(FS_WARN), 2.8)
+						say(a, fsLine("warn"), 2.8)
 					end
 				end)
 			end
@@ -612,9 +638,8 @@ function Characters.bumped(a: any, how: string, kind: string, now: number)
 		remember = "anger"
 		if playerFree() and d < 8 and now >= (a.nextQuarrel or 0) and now - (a.carHitAt or -1e9) > 4 and rnd() < 0.5 and M.startQuarrel then
 			a.nextQuarrel = now + 40 + rnd() * 40 -- (the same field Mind.react uses: the two do not stack)
-			local FSm = ReplicatedStorage:FindFirstChild("GwangalliFightShared")
-			local okF, FSx = pcall(require, FSm :: any)
-			if okF and FSx and FSx.DRUNK_LINES then
+			local FSx = FS
+			if FSx and FSx.DRUNK_LINES then
 				task.delay(0.8, function()
 					if freeNow(a) and not a.chase and playerFree() and M.startQuarrel(a, FSx.DRUNK_LINES, { secs = 10 + rnd() * 5 }) and a.quarrel then
 						a.quarrel.drunk = true -- (drunkTick runs it, the named DRUNK-mood ones too)

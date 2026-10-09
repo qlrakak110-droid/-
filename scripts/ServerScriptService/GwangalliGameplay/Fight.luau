@@ -758,19 +758,27 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		-- the caller plays the fall: only the short memory goes to the client (and a KO)
 		local mood: string? = if react == "fight" or react == "warn" then "anger" else "fear"
 		if react == "none" then
-			-- 어깨빵 (no reaction decided here): who they are decides what they remember - the timid
-			-- are scared of you, a kind one shrugs it off ("괜찮아요"), everyone else is angry (the
-			-- street re-approach: glare or back away)
-			local brave = personality(id, typeId, c)
-			local pv = nil
-			if MindShared and type(MindShared.personality) == "function" then
-				local okP, res = pcall(MindShared.personality, c or { id = id, type = typeId })
-				pv = if okP and type(res) == "table" then res else nil
+			-- 어깨빵 (no reaction decided here): what they remember follows how they took it - the same
+			-- GwangalliMindShared.bumpStyle the client's reaction read (GwangalliStreetLife/Characters):
+			-- the timid are scared of you, the kind / playful / cold shrug off the first one, everyone
+			-- else is angry (the street re-approach: glare or back away)
+			local st: string? = nil
+			if MindShared and type(MindShared.personality) == "function" and type(MindShared.bumpStyle) == "function" then
+				local drunk = false
+				if c and type(MindShared.npcMood) == "function" then
+					local okM, nm = pcall(MindShared.npcMood, c, nil, { now = os.time(), clock = game:GetService("Lighting").ClockTime })
+					drunk = okM and nm == "DRUNK"
+				end
+				local okS, res = pcall(function()
+					return MindShared.bumpStyle(MindShared.personality(c or { id = id, type = typeId }), typeId, hc.n >= 2, drunk)
+				end)
+				st = if okS and type(res) == "string" then res else nil
 			end
-			local tough = typeId == "violent" or (pv ~= nil and pv.violent == true)
-			local scared = (pv ~= nil and (pv.isTimid == true or pv.fearful == true)) or brave < 0.3
-			local shrug = pv ~= nil and pv.isKind == true and pv.touchy ~= true and outcome ~= "knockdown"
-			mood = if scared and not tough then "fear" elseif shrug and not tough then nil else "anger"
+			if st then
+				mood = MindShared.BUMP_MEMORY and MindShared.BUMP_MEMORY[st]
+			else
+				mood = if personality(id, typeId, c) < 0.3 then "fear" else "anger"
+			end
 		end
 		if mood then
 			send(player, { kind = "remember", id = id, mood = mood })
@@ -1269,7 +1277,10 @@ local function onNpcStart(player: Player, p: any)
 	-- (a citizen out drinking tonight - the DRUNK mood, GwangalliMindShared.npcMood - can turn a
 	-- quarrel into a scuffle like a drunk)
 	local hot = false
-	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and MindShared and type(MindShared.personality) == "function" then
+	-- (only a roster citizen or a crowd id x1..x999: a made-up id is nobody, and the personality caches
+	-- every id it is asked about)
+	local real = c ~= nil or string.match(p.id, "^x%d%d?%d?$") ~= nil
+	if real and not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and MindShared and type(MindShared.personality) == "function" then
 		local okP, pv = pcall(MindShared.personality, c or { id = p.id, type = typeId })
 		hot = okP and type(pv) == "table" and pv.violent == true
 		if not hot and p.why == "drunk" and c and type(MindShared.npcMood) == "function" then

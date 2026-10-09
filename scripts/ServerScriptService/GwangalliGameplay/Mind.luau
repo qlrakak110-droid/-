@@ -718,6 +718,19 @@ local function toned(out: any, tone: string?, c: any)
 	if not tone or tone == "normal" or type(out.lines) ~= "table" or #out.lines == 0 or out.act == "fight" then
 		return
 	end
+	if out.ask ~= nil then
+		-- a question back with chips (out.ask): the lines stay whole - a cut would drop the answer or
+		-- the question the chips answer; only the face / the phone show the tone
+		if tone == "rough" then
+			out.face = "annoyed"
+		elseif tone == "short" then
+			out.face = "neutral"
+		elseif tone == "phone" then
+			out.lines[1] = "(휴대폰을 보며) " .. out.lines[1]
+			out.emote = "phone"
+		end
+		return
+	end
 	if tone == "short" then
 		out.lines = { out.lines[#out.lines] }
 		if math.random() < 0.4 then

@@ -311,12 +311,42 @@ function Mind.personality(c: any): any
 	p.just = p.justice >= 0.7
 	p.authority = t.authority
 	-- 예민함: a short fuse and on guard, but not a brawler (violent) nor a coward (timid)
-	p.touchy = not p.violent and not p.isTimid and not t.authority and (p.patience <= 0.4 or (p.wary >= 0.6 and p.patience <= 0.5))
+	-- (not a drunk: his short fuse is the drink, the DRUNK mood / the drunk quarrel)
+	p.touchy = not p.violent and not p.isTimid and not t.authority and t.arch ~= "drunk" and (p.patience <= 0.4 or (p.wary >= 0.6 and p.patience <= 0.5))
 	-- 장난기: jokes back, likes a prank (not the hard ones)
 	p.playful = t.humor >= 0.7 and p.aggr < 0.6 and not t.authority
 	persCache[ck] = p
 	return p
 end
+
+-- 어깨빵 / walking into someone (spec 3, 10): how this person takes it - one answer for the street
+-- reaction (GwangalliStreetLife/Characters.bumpKind) and the short memory the server sends after a
+-- named citizen's 어깨빵 (GwangalliGameplay/Fight). -> "violent" | "drunk" | "aggro" | "timid" |
+-- "touchy" | "kind" | "playful" | "cold" | "normal". again = this player shoved them a moment ago
+-- already: the easy-going stop shrugging it off (밀침 -> 화남 -> 경계: normal, or timid when jumpy).
+-- drunk = in the DRUNK mood tonight (a named citizen out drinking)
+function Mind.bumpStyle(p: any, typeId: string?, again: boolean?, drunk: boolean?): string
+	if typeId == "violent" or typeId == "thug" then
+		return "violent"
+	end
+	if typeId == "drunk" or drunk then
+		return "drunk"
+	end
+	if p.violent then
+		return "aggro"
+	elseif p.isTimid or p.fearful then
+		return "timid"
+	elseif p.touchy then
+		return "touchy"
+	end
+	local s = if p.isKind then "kind" elseif p.playful then "playful" elseif p.cold then "cold" else "normal"
+	if again and s ~= "normal" then
+		s = if (p.fear or 0) >= 0.58 then "timid" else "normal"
+	end
+	return s
+end
+-- what a bump taken that way leaves in the short memory (nil: shrugged off)
+Mind.BUMP_MEMORY = { violent = "anger", drunk = "anger", aggro = "anger", touchy = "anger", normal = "anger", timid = "fear" }
 
 -------------------------------------------------------------------------------------------------
 -- RELATION (-100..100, per NPC per player: rec.rel). Not the same as 호감도 (Relationships' friendship
@@ -483,9 +513,13 @@ function Mind.policy(c: any, rec: any, env: any?): any
 		elseif rel <= -20 then
 			out.talk = if out.talk == "block" then "block" else "short"
 		end
-	elseif p.touchy then
-		-- 예민함: no fight, but a look that says it and short, sharp answers
-		if rel <= -40 then
+	elseif p.touchy and not p.cold then
+		-- 예민함: no fight, but a look that says it and short, sharp answers; one who hates you does not
+		-- talk at all (a 무뚝뚝 one stays cold: the brush-off below)
+		if rel <= -60 then
+			out.approach = "glare"
+			out.talk = "block"
+		elseif rel <= -40 then
 			out.approach = "glare"
 			out.talk = if out.talk == "block" then "block" else "rough"
 		elseif rel <= -10 then
@@ -2382,6 +2416,10 @@ function Mind.selfTest(rnd: (() -> number)?): { string }
 	end
 	if Mind.personality({ id = "x7", type = "drunk" }).arch ~= "drunk" then
 		table.insert(problems, "anon recycled id keeps a stale archetype")
+	end
+	-- (밀침 -> 화남: a kind one shrugs off the first shove only)
+	if Mind.bumpStyle({ isKind = true, fear = 0.3 }, "plain", false) ~= "kind" or Mind.bumpStyle({ isKind = true, fear = 0.3 }, "plain", true) ~= "normal" then
+		table.insert(problems, "bumpStyle: a kind person shrugs off every shove")
 	end
 	return problems
 end
