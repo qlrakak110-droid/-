@@ -70,8 +70,11 @@ function Characters.startFight(a: any, why: string?): boolean
 	if deps.Mind and deps.Mind.release and a.ctl then
 		pcall(deps.Mind.release, a)
 	end
-	deps.fire("npcStart", { id = a.id, ptype = a.type, pos = { a.pos.X, a.pos.Y, a.pos.Z }, why = why })
-	deps.api("brawl", a.id, 9 + rnd() * 5)
+	-- one window: the server counts the swings exactly as long as this brawl lasts (a refusal calls it
+	-- off here: GwangalliFight "brawlEnd")
+	local secs = 9 + rnd() * 5
+	deps.fire("npcStart", { id = a.id, ptype = a.type, pos = { a.pos.X, a.pos.Y, a.pos.Z }, why = why, secs = secs })
+	deps.api("brawl", a.id, secs)
 	deps.api("remember", a.id, "anger", 2)
 	return true
 end

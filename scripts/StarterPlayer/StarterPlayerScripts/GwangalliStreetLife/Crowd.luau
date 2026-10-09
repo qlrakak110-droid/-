@@ -56,6 +56,7 @@ local companions: { [Player]: any } = {}
 local hiddenKey: { [string]: { BasePart } } = {}
 local recent: { [string]: number } = {} -- id -> time it left (cooldown before it can come back)
 local extraFree: { string } = {}
+local spawnSn = 0 -- spawn serial: a reused anonymous id ("x12") is a new person (GwangalliFight "sn")
 local rng = Random.new()
 local function rnd(): number
 	return rng:NextNumber()
@@ -378,18 +379,19 @@ function Crowd.api(method: any, ...: any): any
 					-- down: already falling, or sitting / lying / napping (nobody shoulder-bumps a person on a bench or a towel)
 					local down = a.knock ~= nil or a.sitting == true or a.lying == true or a.sitGround == true or a.napping == true
 					-- x / y / z too: an Instance inside a returned table does not survive every Bindable bridge
-					table.insert(out, { id = a.id, name = (a.c and a.c.name) or a.id, typeId = a.type, root = a.rig.root, down = down, named = a.named, x = a.pos.X, y = a.pos.Y + (a.rig.ground or 3), z = a.pos.Z })
+					table.insert(out, { id = a.id, name = (a.c and a.c.name) or a.id, typeId = a.type, root = a.rig.root, down = down, named = a.named, x = a.pos.X, y = a.pos.Y + (a.rig.ground or 3), z = a.pos.Z, sn = a.sn })
 				end
 			end
 		end
 		return out
 	elseif method == "knock" then
+		-- a hit that landed: "stagger" | "knockdown" | "thrown", also mid-fall (a combo: Crowd.fightKnock)
 		local id, dx, dz, outcome, puk = ...
 		local a = byId[id]
 		if not a or a.gone then
 			return false
 		end
-		return a:knockDown(tonumber(dx) or 0, tonumber(dz) or -1, if outcome == "knockdown" then "knockdown" else "stagger", puk) ~= false
+		return Crowd.fightKnock(a, tonumber(dx) or 0, tonumber(dz) or -1, if outcome == "knockdown" or outcome == "thrown" then outcome else "stagger", puk)
 	elseif method == "say" then
 		local id, text, _typeId, dur = ...
 		local a = byId[id]
@@ -424,13 +426,15 @@ function Crowd.api(method: any, ...: any): any
 		if a.chase then
 			a.chase = nil
 		end
-		if a.knock and a.knock.outcome ~= "knockdown" then
-			a.knock = nil -- staggering from the last punch: this one puts them on the ground
+		if a.knock and (a.knock.outcome ~= "knockdown" or a.knock.phase == "getup") then
+			-- staggering from the last punch / getting up: this one puts them (back) on the ground
+			Crowd.fightKnock(a, tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
 		end
 		if not a.knock then
 			a:knockDown(tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
 		end
 		a.ko = { untilT = now + (tonumber(secs) or 25), t0 = now }
+		a.lying = true -- a body on the ground: no 말 걸기 / 인사하기 prompt (SocialUI), no emotes
 		-- at most 6 people down at once: the one down longest is taken away first (performance)
 		local down = {}
 		for _, o in agents do
@@ -467,14 +471,22 @@ function Crowd.api(method: any, ...: any): any
 		end
 		return true
 	elseif method == "brawl" then
-		-- they fight back for a while (several swings, GwangalliFight "npcHit" for each that lands)
-		local id, secs = ...
+		-- they fight back for a while (several swings, GwangalliFight "npcHit" for each that lands).
+		-- secs = the server's window (0 = called off); hpFrac = how hurt they are (0..1: slower, swaying)
+		local id, secs, hpFrac = ...
 		local a = byId[id]
 		if not a or a.gone or a.ko then
 			return false
 		end
 		local now = os.clock()
-		a.brawl = { untilT = now + (tonumber(secs) or 10) }
+		local s = tonumber(secs) or 10
+		if s <= 0 then
+			if a.brawl then
+				a.brawl.untilT = now -- (the next chase tick ends it: the brawl_end line)
+			end
+			return true
+		end
+		a.brawl = { untilT = now + s, hp = math.clamp(tonumber(hpFrac) or 1, 0, 1) }
 		a.pendingReact = nil
 		a.quarrel = nil
 		if not a.knock then
@@ -1286,7 +1298,10 @@ local function register(a: any)
 	table.insert(agents, a)
 	byId[a.id] = a
 	SocialUI.attach(a)
+	spawnSn += 1
+	a.sn = spawnSn
 	pcall(a.rig.model.SetAttribute, a.rig.model, "StreetId", a.id) -- 어깨빵 targeting (GwangalliBump)
+	pcall(a.rig.model.SetAttribute, a.rig.model, "StreetSn", a.sn) -- (GwangalliFight: which person)
 end
 
 local function newAgent(def: any, spec: any, key: string, node: number?, pos: Vector3, yaw: number): any
@@ -1785,6 +1800,7 @@ function Crowd.remove(a: any)
 	a.chatState = nil
 	a.napping = false
 	pcall(a.rig.model.SetAttribute, a.rig.model, "StreetId", nil)
+	pcall(a.rig.model.SetAttribute, a.rig.model, "StreetSn", nil)
 	Pool.release(a.rig)
 	if byId[a.id] == a then
 		byId[a.id] = nil
@@ -2667,7 +2683,7 @@ local function update(dt: number)
 							a.carHitAt = now
 							a.willBeHit = false
 							local ux, uz = P.vel.X / sp, P.vel.Z / sp
-							a:knockDown(ux, uz, if sp < 15 then "stagger" else "knockdown", if sp > 35 then "쾅!!" else "퍽!")
+							Crowd.fightKnock(a, ux, uz, if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown", if sp > 35 then "쾅!!" else "퍽!")
 							Crowd.carHit(a, sp)
 						else
 							local px, pz = -P.vel.Z / sp, P.vel.X / sp
@@ -2766,11 +2782,125 @@ local function fpick(list: { string }?): string?
 	return list[1 + math.floor(rnd() * #list)]
 end
 
+-- a hit pushes the body back: one ray at chest height, the slide stops a stud short of a wall / a car /
+-- a pole (no physics: a.pos slides during the fall, Agent.stepKnock below)
+local slideParams: RaycastParams? = nil
+local function slideRoom(a: any, dx: number, dz: number, dist: number): number
+	local okR, room = pcall(function()
+		local prm = slideParams or RaycastParams.new()
+		slideParams = prm
+		prm.FilterType = Enum.RaycastFilterType.Exclude
+		local ex = {}
+		local f = workspace:FindFirstChild("GwangalliStreetLife")
+		if f then
+			table.insert(ex, f)
+		end
+		local ch = player.Character
+		if ch then
+			table.insert(ex, ch)
+		end
+		prm.FilterDescendantsInstances = ex
+		local hit = workspace:Raycast(Vector3.new(a.pos.X, a.pos.Y + 2.2, a.pos.Z), Vector3.new(dx, 0, dz) * (dist + 1.2), prm)
+		return if hit then math.max(0, hit.Distance - 1.2) else dist
+	end)
+	return if okR and type(room) == "number" then room else 0
+end
+
+local function startSlide(a: any, dx: number, dz: number, dist: number, dur: number)
+	local kn = a.knock
+	local m = math.sqrt(dx * dx + dz * dz)
+	if not kn or dist <= 0 or m < 1e-3 then
+		return
+	end
+	dx, dz = dx / m, dz / m
+	local room = slideRoom(a, dx, dz, dist)
+	if room > 0.1 then
+		kn.slide = { dx = dx, dz = dz, dist = room, done = 0, t0 = os.clock(), dur = dur }
+	end
+end
+
+-- the fall's u (0..1 of FALL_DUR) at which BumpShared.knockPhase's fall reaches tilt k
+local function fallU(k: number): number
+	local want = math.sqrt(math.clamp(k, 0, 1))
+	local lo, hi = 0, 1
+	for _ = 1, 12 do
+		local u = (lo + hi) * 0.5
+		if u * u * (3 - 2 * u) < want then
+			lo = u
+		else
+			hi = u
+		end
+	end
+	return (lo + hi) * 0.5
+end
+
+-- a hit that landed on this pedestrian (GwangalliFight "knock", the talk card, a car): "stagger" (a jolt
+-- and a step back), "knockdown" (falls, gets up), "thrown" (falls and slides a few studs, held down a
+-- moment longer). A hit while the last one still plays is not lost (a fast combo): a fresh jolt from the
+-- lean they are at, a stagger becomes a fall, somebody getting up goes down again, a body on the ground
+-- stays down a little longer
+function Crowd.fightKnock(a: any, dx: number, dz: number, outcome: string, puk: string?): boolean
+	local B = ctx.BumpShared
+	if not B or a.gone then
+		return false
+	end
+	local want = if outcome == "knockdown" or outcome == "thrown" then "knockdown" else "stagger"
+	local kn = a.knock
+	local now = os.clock()
+	if kn and not a.ko then
+		local function pukSay()
+			if puk and a.rig.root and B.bubbles then
+				local pool = B.bubbles({ types = ctx.Social and ctx.Social.TYPES })
+				if pool then
+					pool:say(a.rig.root, puk, "plain", 1.2, 2.1 * (a.scale or 1) + 1.6)
+				end
+			end
+		end
+		if want == "knockdown" and kn.outcome == "stagger" then
+			a.knock = nil -- staggering from the last hit: this one puts them down (below)
+		elseif kn.outcome == "stagger" then
+			-- hit again mid-stagger: the jolt starts over from the lean they are at (no snap upright)
+			local k = math.clamp(kn.k or 0, 0, 1)
+			kn.t0 = now - (math.asin(k) / math.pi) * B.STAGGER_DUR
+			if k < 0.3 then
+				kn.dx, kn.dz = dx, dz
+			end
+			kn.phase = ""
+			Anim.setRestPose(a.rig, "stagger")
+			pukSay()
+			startSlide(a, dx, dz, 0.6, 0.3)
+			return true
+		elseif kn.phase == "getup" then
+			-- hit while getting up: down again, from the tilt they are at
+			kn.t0 = now - fallU(kn.k or 0) * B.FALL_DUR
+			kn.phase = ""
+			Anim.setRestPose(a.rig, "knock")
+			pukSay()
+			return true
+		else
+			-- on the ground: kept down a little longer
+			kn.t0 = math.max(kn.t0, now - B.FALL_DUR - 0.05)
+			return true
+		end
+	end
+	if a:knockDown(dx, dz, want, puk) == false or not a.knock then
+		return false
+	end
+	if outcome == "thrown" then
+		-- knocked off the feet: a slide along the hit while falling, then a second longer on the ground
+		startSlide(a, dx, dz, 5 + rnd() * 3, 0.55)
+		a.knock.extra = 1.0
+	else
+		startSlide(a, dx, dz, if want == "knockdown" then 1.2 else 0.8, if want == "knockdown" then 0.4 else 0.3)
+	end
+	return true
+end
+
 -- the player's car hit this pedestrian (Agent already fell): the server weighs it (speed, the car)
 function Crowd.carHit(a: any, speed: number)
 	local fr = fightAction()
 	if fr then
-		fr:FireServer("carHit", { id = a.id, speed = speed, pos = { a.pos.X, a.pos.Y, a.pos.Z }, ptype = a.type })
+		fr:FireServer("carHit", { id = a.id, speed = speed, pos = { a.pos.X, a.pos.Y, a.pos.Z }, ptype = a.type, sn = a.sn })
 	end
 end
 
@@ -2817,10 +2947,48 @@ local function installFightHooks()
 	FS = if okF then fsm else nil
 	local Bump = ctx.BumpShared
 	local knockedAttr = (Bump and Bump.Attr and Bump.Attr.Knocked) or "GwangalliKnocked"
+	-- a kick (brawl swing): the right leg up, the arms out for balance (a procedural flash pose)
+	if Anim.POSES and Anim.POSES.kick == nil then
+		local R = math.rad
+		Anim.POSES.kick = {
+			RightHip = CFrame.Angles(R(80), 0, 0),
+			RightKnee = CFrame.Angles(R(-18), 0, 0),
+			LeftHip = CFrame.Angles(R(-8), 0, 0),
+			Waist = CFrame.Angles(R(-10), 0, 0),
+			RightShoulder = CFrame.Angles(R(30), 0, R(40)),
+			LeftShoulder = CFrame.Angles(R(30), 0, R(-40)),
+		}
+	end
 	local baseStepKnock = Agent.stepKnock
 	Agent.stepKnock = function(self: any, dt: number, now: number)
 		local ko = self.ko
 		local kn = self.knock
+		if kn then
+			-- pushed back by the hit (a step; thrown: a few studs while falling), eased out
+			local sl = kn.slide
+			if sl then
+				local u = math.clamp((now - sl.t0) / math.max(0.05, sl.dur), 0, 1)
+				local d = sl.dist * (1 - (1 - u) * (1 - u))
+				local step = d - sl.done
+				if step > 0 then
+					self.pos = Vector3.new(self.pos.X + sl.dx * step, self.pos.Y, self.pos.Z + sl.dz * step)
+					sl.done = d
+				end
+				if u >= 1 then
+					kn.slide = nil
+				end
+			end
+			-- thrown: held on the ground a moment longer before the get-up
+			local extra = kn.extra
+			if extra and extra > 0 and not ko then
+				local over = now - kn.t0 - (((Bump and Bump.KNOCK_DUR) or 1.4) - 0.2)
+				if over > 0 then
+					local e = math.min(extra, over)
+					kn.t0 += e
+					kn.extra = extra - e
+				end
+			end
+		end
 		if ko and kn then
 			-- KO: the timeline is held lying down (never the get-up) until they are taken away
 			local hold = ((Bump and Bump.KNOCK_DUR) or 2.4) - 0.15
@@ -2832,6 +3000,15 @@ local function installFightHooks()
 			end
 		end
 		return baseStepKnock(self, dt, now)
+	end
+	-- a KO'd body stays "lying" (Agent:endIdle resets the flag while it is down): no talk prompt
+	-- (SocialUI filters a.lying), no emotes, the 어깨빵 / car passes skip it
+	local baseThink = Agent.think
+	Agent.think = function(self: any, now: number)
+		baseThink(self, now)
+		if self.ko and not self.gone then
+			self.lying = true
+		end
 	end
 	local baseAfter = Agent.afterKnock
 	Agent.afterKnock = function(self: any, now: number)
@@ -2848,8 +3025,16 @@ local function installFightHooks()
 			if pp and not self.chase then
 				self:startChase(now, pp)
 			end
-		elseif self.pendingReact then
-			Crowd.playReact(self)
+		else
+			if b then
+				self.brawl = nil -- (over while they were down)
+				if self.type ~= "drunk" and self.type ~= "fool" then
+					self.wobble = nil
+				end
+			end
+			if self.pendingReact then
+				Crowd.playReact(self)
+			end
 		end
 	end
 	local baseChase = Agent.chaseTick
@@ -2915,8 +3100,14 @@ local function installFightHooks()
 			return
 		end
 		local pp = P.pos
-		if not pp or now > b.untilT or Crowd.playerSeated() then
+		local function done()
 			self.brawl = nil
+			if self.type ~= "drunk" and self.type ~= "fool" then
+				self.wobble = nil -- (the hurt sway; drunks / fools sway anyway: think sets it again)
+			end
+		end
+		if not pp or now > b.untilT or Crowd.playerSeated() then
+			done()
 			local l = FS and fpick(FS.LINES.brawl_end)
 			if l then
 				SocialUI.say(self, l, 3)
@@ -2928,25 +3119,86 @@ local function installFightHooks()
 		local dx, dz = pp.X - self.pos.X, pp.Z - self.pos.Z
 		local d = math.sqrt(dx * dx + dz * dz)
 		if d > 30 or math.abs(pp.Y - self.pos.Y) > 6 then
-			self.brawl = nil
+			done()
 			self:endChase(now, false)
 			return
 		end
+		-- hurt (under 60 % HP, GwangalliFight hp / max): slower swings, a sway, catching the balance
+		local hf = b.hp or 1
+		local hurt = hf < 0.6
+		local drunk = self.type == "drunk"
 		if d < ((FS and FS.NPC_REACH) or 3.4) then
-			-- squared up: a swing every second or so
+			-- squared up: turn to the player (Agent.step turns toward faceYaw while not walking), then a
+			-- swing every second or so, only once facing them (a player behind him is not hit)
+			local ty = yawOf(dx, dz)
+			if self.mode == "walk" then
+				self.nav = nil
+				self:idleFor("idle", 1, now, ty)
+			else
+				self.faceYaw = ty
+				self.idleUntil = math.max(self.idleUntil or 0, now + 1)
+			end
+			self.nextSub = now + 5 -- (no phone / crossed arms while squared up)
 			self.want, self.speed = 0, 0
-			if now >= chs.nextHit then
-				chs.nextHit = now + 1.05 + rnd() * 0.6
-				Anim.flash(self.rig, "pointp", 0.5)
-				playPose(self, "punch", 0.55)
-				local ch = player.Character
-				if not (ch and ch:GetAttribute(knockedAttr)) then
-					local outcome = if rnd() < 0.22 then "knockdown" else "stagger"
-					local ux, uz = dx / math.max(d, 0.05), dz / math.max(d, 0.05)
-					self:hitPlayer(ux, uz, outcome, if rnd() < 0.5 and FS then fpick(FS.LINES.swing) else nil)
-					local fr = fightAction()
-					if fr then
-						fr:FireServer("npcHit", { id = self.id, pos = { self.pos.X, self.pos.Y, self.pos.Z } })
+			if hurt and chs.wobAt and now >= chs.wobAt then
+				chs.wobAt = nil
+				Anim.flash(self.rig, "stagger", 0.5)
+			end
+			local fdot = (-math.sin(self.yaw) * dx - math.cos(self.yaw) * dz) / math.max(d, 0.05)
+			if fdot >= 0.5 and now >= chs.nextHit then
+				-- (never faster than FS.NPC_SWING_GAP 0.9: the server drops those) a drunk swings at odd,
+				-- uneven gaps; hurt = up to about twice as slow
+				local gap = if drunk then 0.95 + rnd() * 1.65 else 1.05 + rnd() * 0.6
+				if hurt then
+					gap *= 1 + (0.6 - hf) * 2
+					chs.wobAt = now + 0.6
+				end
+				chs.nextHit = now + gap
+				local ux, uz = dx / math.max(d, 0.05), dz / math.max(d, 0.05)
+				if drunk and rnd() < 0.35 then
+					-- a drunk's wild swing that misses, or a lurch off balance: no hit at all
+					if rnd() < 0.5 then
+						Anim.flash(self.rig, "pointp", 0.5)
+						playPose(self, "punch", 0.55)
+					else
+						Anim.flash(self.rig, "stagger", 0.6)
+						chs.nextHit += 0.5
+					end
+					if rnd() < 0.5 and FS then
+						local l = fpick(FS.DRUNK_LINES.follow)
+						if l then
+							SocialUI.say(self, l, 1.8)
+						end
+					end
+				else
+					-- a punch, a shove (weaker, a stagger) or a kick (harder, more often a fall)
+					local k = rnd()
+					local atk = if k < 0.6 then "punch" elseif k < 0.85 then "shove" else "kick"
+					local outcome
+					if atk == "kick" then
+						Anim.flash(self.rig, "kick", 0.45)
+						playPose(self, "kick", 0.6)
+						outcome = if rnd() < 0.45 then "knockdown" else "stagger"
+					elseif atk == "shove" then
+						Anim.flash(self.rig, "pointp", 0.5)
+						playPose(self, "shove", 0.6)
+						outcome = "stagger"
+					else
+						Anim.flash(self.rig, "pointp", 0.5)
+						playPose(self, "punch", 0.55)
+						outcome = if rnd() < 0.22 then "knockdown" else "stagger"
+					end
+					local ch = player.Character
+					if not (ch and ch:GetAttribute(knockedAttr)) then
+						local line = nil
+						if rnd() < 0.5 and FS then
+							line = fpick(if atk == "shove" and drunk then FS.DRUNK_LINES.shove else FS.LINES.swing)
+						end
+						self:hitPlayer(ux, uz, outcome, line)
+						local fr = fightAction()
+						if fr then
+							fr:FireServer("npcHit", { id = self.id, pos = { self.pos.X, self.pos.Y, self.pos.Z }, attack = atk })
+						end
 					end
 				end
 			end
@@ -2954,6 +3206,11 @@ local function installFightHooks()
 		end
 		if now >= chs.retarget or self.mode ~= "walk" then
 			self:chaseStep(now, pp)
+		end
+		if hurt then
+			-- closing in hurt: slower, swaying (the Agent wobble drift while walking)
+			self.want = math.min(self.want or 0, ((Bump and Bump.VIOLENT and Bump.VIOLENT.chaseSpeed) or 11.5) * (0.55 + hf * 0.75))
+			self.wobble = (Bump and Bump.DRUNK and Bump.DRUNK.sway) or 0.3
 		end
 		self:updateWalkAnim()
 	end

@@ -313,7 +313,10 @@ local function onKnockAttr(rec: Rec)
 		return
 	end
 	local t0, dx, dz, outcome = BumpShared.decodeKnock(rec.model:GetAttribute("NpcKnock"))
-	if not t0 or math.abs(serverNow() - t0) > 6 then
+	-- (a body lying there for good, NpcDown = until when: also an old knock, e.g. streamed in late)
+	local du = rec.model:GetAttribute("NpcDown")
+	local down = type(du) == "number" and serverNow() < du
+	if not t0 or (math.abs(serverNow() - t0) > 6 and not down) then
 		return
 	end
 	(rec :: any).knock = { t0 = t0, dx = dx, dz = dz, outcome = outcome, phase = "" }
@@ -404,6 +407,9 @@ local function addModel(model: Instance)
 	readAttrs(rec)
 	rec.ctl:setAnimated(false) -- LOD turns it on when close
 	rec.animated = false
+	if type(model:GetAttribute("NpcDown")) == "number" then
+		onKnockAttr(rec) -- (a body that was already lying there when it streamed in)
+	end
 	table.insert(rec.conns, model.AttributeChanged:Connect(function(name: string)
 		if name == "NpcEmote" then
 			onEmoteAttr(rec)
@@ -551,7 +557,12 @@ local function update(rec: Rec, now: number, sNow: number)
 	end
 	local kn = (rec :: any).knock
 	if kn and BumpShared then
-		local phase, k = BumpShared.knockPhase(sNow - kn.t0, kn.outcome)
+		local tk = sNow - kn.t0
+		local du = rec.model:GetAttribute("NpcDown")
+		if type(du) == "number" and sNow < du then
+			tk = math.min(tk, BumpShared.KNOCK_DUR - 0.05) -- down for good (a Law unit at 0 HP): no get-up
+		end
+		local phase, k = BumpShared.knockPhase(tk, kn.outcome)
 		if phase == "done" then
 			(rec :: any).knock = nil
 			pcall(function()

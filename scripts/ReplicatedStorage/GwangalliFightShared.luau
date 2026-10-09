@@ -1,14 +1,24 @@
 -- GwangalliFightShared: the contract of 길거리 싸움 (street fights) on top of the NPC mind / 어깨빵 /
 -- Law systems. Pure data + pure functions (server and client).
 --
---   * PUNCH: the player's 👊 주먹 (button / F) on a street pedestrian (GwangalliStreetLife, client-side
---     rigs) or a key NPC (workspace.GwangalliNPCs). The SERVER (GwangalliGameplay/Fight) keeps every
---     NPC's HP, decides damage / outcome / reaction and records the crime with Law.
+--   * HITS IN: no button / key of its own. A hit that LANDED reaches the NPC side through the receiver:
+--     the player's combat system calls LocalPlayer.GwangalliNPCHitAPI:Invoke("hit", { model = <the
+--     touched NPC Model or part>, attack = "punch" | "kick" | "shove" | "strong", power }) (client) or
+--     ServerStorage.GwangalliNPCHitAPI:Invoke("hit", player, { model | kind, id, attack, power })
+--     (server); 어깨빵, the talk card's 때리기 and car hits call the same server code. Targets: street
+--     pedestrians (GwangalliStreetLife, client-side rigs, StreetId) and any server rig with an NpcId
+--     (workspace.GwangalliNPCs, shop staff tagged GwShopStaff). The SERVER (GwangalliGameplay/Fight)
+--     keeps every NPC's HP, decides damage / outcome / reaction and records the crime with Law; a
+--     combat system should not keep its own HP for these targets.
 --   * HP: by NPC type (HP_BY_TYPE). Regenerates slowly when left alone (REGEN per second after
 --     REGEN_DELAY). 0 HP = 쓰러짐 (KO): the person stays down (KO_DOWN s), witnesses call 119 / 112,
 --     then they are taken away (fade out). A named citizen who went down is 입원 (in hospital) for
 --     HOSPITAL_S seconds: not seen on the street until then. Key NPCs (shops, quests) never go below
---     KEY_MIN_HP: they are knocked down and report instead.
+--     KEY_MIN_HP: they are knocked down and report instead. Law units on foot (police / 특임대 / 119) do
+--     go down at 0 HP (NpcDown on the rig: lying there until the ambulance / the time takes them).
+--   * OUTCOME of a hit: "stagger" (a jolt, a step back) | "knockdown" (falls, gets up) | "thrown" (a
+--     car at speed / a critical strong blow: knocked off the feet and slides a few studs, scripted, no
+--     physics; key NPCs show it as a knockdown) | "ko".
 --   * REACTION (server): fight (they fight back: a real brawl, several swings, BRAWL_S s), flee,
 --     report (phone call: the police know at once), arrest (an officer), ko.
 --   * NPC SWINGS (client -> server "npcHit"): only from an NPC the server put in a brawl with this
@@ -19,13 +29,21 @@
 --     lines from DRUNK_LINES.
 --
 -- REMOTES (ReplicatedStorage.GwangalliFight): Action (RemoteEvent, client -> server):
---   "punch"    { kind = "ped" | "npc", id, pos = {x,y,z}, ptype? }   ptype = the pedestrian's crowd type
---   "npcHit"   { id, pos }                                           a brawling NPC's swing landed on you
+--   "punch"    { kind = "ped" | "npc", id, pos = {x,y,z}, ptype?, attack?, power?, sn? }   ptype = the
+--              pedestrian's crowd type, sn = its spawn serial (a reused anonymous id is a new person)
+--   "npcHit"   { id, pos, attack? }                                  a brawling NPC's swing landed on you
+--              (attack = "punch" | "shove" | "kick": ATTACK[attack].dmg scales PLAYER_DMG)
+--   "npcStart" { id, ptype, pos, why, secs }                         a street NPC picks a fight (secs = its
+--              brawl window, BRAWL_S; refused -> "brawlEnd")
 --   "npcFight" { pos, a, b }                                         an NPC fight seen (bystander report)
 -- Event (RemoteEvent, server -> client):
---   "hit"   { kind, id, dmg, hp, max, outcome = "stagger" | "knockdown" | "ko", react, line?, crit, dx, dz }
+--   "hit"   { kind, id, dmg, hp, max, outcome = "stagger" | "knockdown" | "thrown" | "ko", react, line?,
+--             crit, dx, dz, brawl? }                                  brawl = the fight-back window (s)
 --   "miss"  { reason }
---   "hurt"  { dmg, hp, by }                                           you took a swing
+--   "hurt"  { dmg, hp, by, attack?, dx?, dz?, outcome? }             you took a swing (outcome: a server
+--             rig's swing, the client plays the fall)
+--   "brawlEnd" { id }                                                 the server refused that NPC's fight
+--   "say"   { id, line }                                              a key NPC's bubble (after its fight)
 --   "down"  { ids = { id = untilUnix } }                             citizens in hospital (on join / change)
 
 local F = {}

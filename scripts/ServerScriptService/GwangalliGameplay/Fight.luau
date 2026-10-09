@@ -7,7 +7,13 @@
 --     personality, GwangalliMindShared.traits); the crime (Law: 폭행 once per victim and minute, 폭행치사
 --     for a KO, a phone report makes the police know at once); 호감도 (ctx.social.award "assault").
 --   * Clients only ask and play: the punch lunge, the fall / KO, the HP bar, the brawl.
---   * Key NPCs (shops, quests) never go below FightShared.KEY_MIN_HP and never stay down.
+--   * Key NPCs (shops, quests) never go below FightShared.KEY_MIN_HP and never stay down. The Law units
+--     on foot (police_ / swat_ / ems_) can: at 0 HP they go down and stay down (Law/Police.knocked,
+--     NpcDown) until the ambulance takes them / the time runs out.
+--   * Every hit gets a visible reaction: street pedestrians on this player's client, NPC.luau key NPCs
+--     (NPC.knock), a module's own NPC (Fight.hitHooks), any other rig in GwangalliNPCs / tagged
+--     GwShopStaff (NpcKnock stagger here). A key NPC that fights back swings at the player from the
+--     server (a few swings, each only within reach: keyFight).
 --   * A named citizen who went down is off the street for HOSPITAL_S ("down" event: clients skip them).
 --   * NPC swings ("npcHit") count only from an NPC this server put in a brawl with that player, close
 --     enough, not too often; they never take the player below PLAYER_MIN_HP.
@@ -27,7 +33,7 @@ local NPC: any
 
 local remotes: { Action: RemoteEvent?, Event: RemoteEvent? } = {}
 
-type HpRec = { hp: number, max: number, t: number }
+type HpRec = { hp: number, max: number, t: number, by: number? } -- t / by = the last hit, who (UserId)
 local pedHp: { [Player]: { [string]: HpRec } } = {} -- street pedestrians (per player: client-side people)
 local keyHp: { [string]: HpRec } = {} -- key NPCs (one world)
 local lastPunch: { [Player]: number } = {}
@@ -36,6 +42,8 @@ local lastCrime: { [Player]: { [string]: number } } = {}
 local hospital: { [string]: number } = {} -- citizen id -> os.time() when they are back
 local koUntil: { [Player]: { [string]: number } } = {}
 local hitCount: { [Player]: { [string]: { n: number, t: number } } } = {} -- short memory (2 min)
+local pedSn: { [Player]: { [string]: number } } = {} -- anonymous "x12": the spawn serial its HP belongs to
+local keyFights: { [string]: number } = {} -- key NPC id -> the running swing loop (Fight.keyFight)
 
 local rng = Random.new()
 local function r(): number
@@ -147,17 +155,31 @@ local function hpRec(tab: { [string]: HpRec }, id: string, max: number): HpRec
 	return rec
 end
 
+local CollectionService = game:GetService("CollectionService")
 local function keyModel(id: string): Model?
 	local f = workspace:FindFirstChild("GwangalliNPCs")
-	if not f then
-		return nil
-	end
-	for _, m in f:GetChildren() do
+	for _, m in (if f then f:GetChildren() else {}) do
 		if m:IsA("Model") and m:GetAttribute("NpcId") == id then
 			return m
 		end
 	end
+	-- shop staff (GwangalliGameplay/ShopStaff: workspace.GwangalliShopStaff or a clerk inside a shop model)
+	for _, m in CollectionService:GetTagged("GwShopStaff") do
+		if m:IsA("Model") and m:GetAttribute("NpcId") == id and m:IsDescendantOf(workspace) then
+			return m
+		end
+	end
 	return nil
+end
+
+-- the Law units on foot (Law/Police officers, Law/Swat 특임대, Law/Rescue 119): they can go down for good
+local function lawRigId(id: string): boolean
+	return string.sub(id, 1, 7) == "police_" or string.sub(id, 1, 5) == "swat_" or string.sub(id, 1, 4) == "ems_"
+end
+
+local function lawPolice(): any
+	local L = ctx and ctx.law
+	return L and L.children and L.children.Police
 end
 
 -- who they are decides what they do
@@ -269,6 +291,10 @@ local function decide(id: string, typeId: string, c: any, hpLeft: number, max: n
 		end
 		return if r() < 0.45 then "cower" else "flee"
 	end
+	-- hurt (30-60 %): ordinary people back off more often
+	if hpLeft <= max * 0.6 and not violent and r() < 0.35 then
+		return if r() < 0.5 then "warn" else "flee"
+	end
 	if typeId == "violent" or arch == "thug" or arch == "punk" or arch == "hothead" then
 		return "fight"
 	end
@@ -322,6 +348,79 @@ local function broadcastDown()
 	end
 end
 
+-- an NPC's swing landed on this player: FightShared damage by the attack kind (never below
+-- PLAYER_MIN_HP). outcome = the client still has to play the fall (a server-side swing); nil = the
+-- client already played it (a street brawler's own swing)
+local function hurtPlayer(player: Player, byId: string, atk: string, ux: number?, uz: number?, outcome: string?): boolean
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not hum or hum.Health <= 0 then
+		return false
+	end
+	local a = FS.ATTACK[atk]
+	local dmg = rng:NextInteger(FS.PLAYER_DMG[1], FS.PLAYER_DMG[2])
+	dmg = math.max(1, math.floor(dmg * (if a then a.dmg else 1) + 0.5))
+	local hp = math.max(FS.PLAYER_MIN_HP, hum.Health - dmg)
+	if hp < hum.Health then
+		hum.Health = hp
+	end
+	send(player, { kind = "hurt", dmg = dmg, hp = math.floor(hum.Health + 0.5), by = byId, attack = atk, dx = ux, dz = uz, outcome = outcome })
+	return true
+end
+
+-- a key NPC (a server rig: NPC.luau, shop staff, ...) fights back: up to 3 swings from where he stands
+-- (NPC.knock halted him and he faces the player while the player is close); each lands only within
+-- reach and at about the same height, a player who walks off is not chased
+local emoteSeq = 0
+local function keyEmote(id: string, model: Model?, name: string)
+	if NPC and type(NPC.state) == "function" and NPC.state(id) then
+		pcall(NPC.react, id, name)
+	elseif model then
+		emoteSeq += 1
+		model:SetAttribute("NpcEmote", name .. "#" .. emoteSeq .. "#" .. string.format("%.2f", workspace:GetServerTimeNow()))
+	end
+end
+
+local function keyFight(player: Player, id: string)
+	local seq = (keyFights[id] or 0) + 1
+	keyFights[id] = seq
+	task.spawn(function()
+		for _ = 1, 3 do
+			task.wait(1.1 + r() * 0.5)
+			if keyFights[id] ~= seq or not player.Parent then
+				return
+			end
+			local model = keyModel(id)
+			local mr = model and (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
+			local root = rootOf(player)
+			if not model or not mr or not mr:IsA("BasePart") or not root then
+				break
+			end
+			local st = NPC and type(NPC.state) == "function" and NPC.state(id)
+			if st and st.hidden then
+				break
+			end
+			local sp = if st and typeof(st.pos) == "Vector3" then st.pos else mr.Position
+			local here = Vector3.new(sp.X, mr.Position.Y, sp.Z)
+			local d = flat(root.Position, here)
+			dbg("keyFight", id, "swing at", string.format("%.1f", d))
+			if d > 9 or (tonumber(model:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow() then
+				break
+			end
+			keyEmote(id, model, if r() < 0.6 then "cb_jab" else "cb_hook")
+			if d <= FS.NPC_REACH + 1 and math.abs(root.Position.Y - here.Y) < 4 then
+				local dl = math.max(d, 0.05)
+				hurtPlayer(player, id, "punch", (root.Position.X - here.X) / dl, (root.Position.Z - here.Z) / dl, if r() < 0.2 then "knockdown" else "stagger")
+			end
+		end
+		if keyFights[id] == seq then
+			keyFights[id] = nil
+			if player.Parent then
+				send(player, { kind = "say", id = id, line = pick(FS.LINES.brawl_end) })
+			end
+		end
+	end)
+end
+
 -- one landed hit on an NPC. p = { kind = "ped" | "npc", id, pos?, ptype?, attack?, power? };
 -- trusted = called by server code that already checked the hit (어깨빵, the talk card's 때리기)
 local function onPunch(player: Player, p: any, trusted: boolean?): any?
@@ -371,6 +470,12 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		send(player, { kind = "miss", reason = "far" })
 		return nil
 	end
+	-- a Law unit on foot can go down for good (not one sitting in a car: that one is only knocked about)
+	local lawRig = isKey and lawRigId(id)
+	if lawRig and model and (tonumber(model:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow() then
+		return nil -- (down already: a body is not hit again)
+	end
+	local lawDown = lawRig and model ~= nil and model:GetAttribute("NpcSeat") == nil
 	if not isKey and not (Citizens and Citizens.get and Citizens.get(id)) and not string.match(id, "^x%d+$") then
 		return
 	end
@@ -378,6 +483,26 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		return -- (a client still showing somebody who went down)
 	end
 	koUntil[player] = koUntil[player] or {}
+	if not isKey and string.match(id, "^x%d+$") then
+		-- anonymous ids are reused (the crowd's free list): a new stranger (another spawn serial) or one
+		-- after the last KO is over starts fresh, not with the last one's HP / hits / KO window
+		local sn = tonumber(p.sn)
+		pedSn[player] = pedSn[player] or {}
+		local was = pedSn[player][id]
+		local ko = koUntil[player][id]
+		if (sn and was and was ~= sn) or (ko and ko <= t) then
+			if pedHp[player] then
+				pedHp[player][id] = nil
+			end
+			if hitCount[player] then
+				hitCount[player][id] = nil
+			end
+			koUntil[player][id] = nil
+		end
+		if sn then
+			pedSn[player][id] = sn
+		end
+	end
 	if not isKey and (koUntil[player][id] or 0) > t then
 		return -- already down
 	end
@@ -401,19 +526,20 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		local sp = math.clamp(tonumber(p.speed) or 0, 0, 120)
 		dmg = if sp < 15 then 6 + sp * 0.3 elseif sp < 35 then 20 + (sp - 15) * 1.5 else 60 + (sp - 35) * 2.5
 		crit = false
-		outcome = if sp < 15 then "stagger" else "knockdown"
+		outcome = if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown"
 	end
 	local at = FS.ATTACK[attack]
 	dmg = math.max(1, math.floor(dmg * at.dmg * math.clamp(tonumber(p.power) or 1, 0.3, 2) + 0.5))
 	if at.noCrit then
 		crit = false
 	end
-	if type(p.outcome) == "string" and (p.outcome == "stagger" or p.outcome == "knockdown") then
+	if type(p.outcome) == "string" and (p.outcome == "stagger" or p.outcome == "knockdown" or p.outcome == "thrown") then
 		outcome = p.outcome -- (the caller already played this fall, e.g. 어깨빵)
 	elseif at.knock == "stagger" and outcome == "knockdown" and not crit then
 		outcome = "stagger"
 	elseif at.knock == "knockdown" then
-		outcome = "knockdown"
+		-- a strong blow: down; a critical one throws them (a scripted slide, no physics)
+		outcome = if crit and attack == "strong" then "thrown" else "knockdown"
 	end
 	hitCount[player] = hitCount[player] or {}
 	local hc = hitCount[player][id]
@@ -429,9 +555,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	end
 	rec.hp -= dmg
 	rec.t = t
+	rec.by = player.UserId
 	local police = typeId == "police" or typeId == "swat"
 	local react
-	if isKey and rec.hp < FS.KEY_MIN_HP then
+	if isKey and not lawDown and rec.hp < FS.KEY_MIN_HP then
 		rec.hp = FS.KEY_MIN_HP
 		outcome = "knockdown"
 	end
@@ -444,6 +571,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		if attack == "car" and react == "fight" then
 			react = if r() < 0.6 then "warn" else "report" -- (nobody punches a car)
 		end
+		local forced = workspace:GetAttribute("GwangalliStreetLifeDebug") == true and workspace:GetAttribute("GwangalliFightTestReact")
+		if type(forced) == "string" and forced ~= "" and not p.noReact then
+			react = forced -- test only: this reaction
+		end
 	end
 	local d = pos - root.Position
 	local dl = math.max(0.05, Vector3.new(d.X, 0, d.Z).Magnitude)
@@ -451,8 +582,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	-- a module that owns this NPC decides the reaction itself (Fight.hitHooks[id prefix], e.g. the
 	-- 총기상 of GwangalliGameplay/WeaponDealer): returns react?, line?
 	local hookLine: string? = nil
+	local hooked = false
 	for prefix, hook in Fight.hitHooks do
 		if string.sub(id, 1, #prefix) == prefix and type(hook) == "function" then
+			hooked = true
 			local okH, hr, hl = pcall(hook, player, id, { hp = rec.hp, max = max, hits = hc.n, attack = attack, outcome = outcome, react = react, dx = dx, dz = dz, pos = pos })
 			if okH and type(hr) == "string" and react ~= "ko" then
 				react = hr
@@ -479,8 +612,23 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		-- Mind.onCrime: flee / watch / film / call 112 by personality and severity; their call is Law.report)
 		send(player, { kind = "crime", crime = crowdCrime, pos = { pos.X, pos.Y, pos.Z }, victim = id })
 	end
+	local brawlSecs: number? = nil
 	if outcome == "ko" then
 		koUntil[player][id] = t + FS.KO_DOWN + 2
+		if lawRig then
+			-- an officer / 특임대 / 119 crew member down: he lies there (out of every brain) until the
+			-- ambulance takes him or the time is up (Law/Police.knocked; Fight.tell "ems" holds / ends it)
+			local Pol = lawPolice()
+			local okD, downOk = false, false
+			if Pol and type(Pol.knocked) == "function" then
+				okD, downOk = pcall(Pol.knocked, id, dx, dz, FS.KO_DOWN + 14)
+			end
+			if not (okD and downOk == true) and model and model.Parent then
+				-- (not one of Police's units any more: at least the fall, everybody sees it)
+				model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", workspace:GetServerTimeNow(), dx, dz, "knockdown"))
+			end
+			keyHp[id] = nil
+		end
 		-- 119: somebody is down here (Law/Rescue sends an ambulance; it waits until the scene is safe)
 		if ctx.rescue and type(ctx.rescue.casualty) == "function" then
 			pcall(ctx.rescue.casualty, { pos = pos, id = id, kind = if isKey then "npc" else "ped", player = player })
@@ -501,19 +649,36 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 			end)
 		end
 	elseif react == "fight" then
-		brawls[player] = brawls[player] or {}
-		brawls[player][id] = { untilT = t + FS.BRAWL_S[1] + r() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]), last = 0 }
+		if isKey then
+			-- a server rig swings from the server (a module with its own hook fights back itself)
+			if not hooked and not lawRig then
+				keyFight(player, id)
+			end
+		else
+			-- the street brawl: one window, the client gets the same seconds (res.brawl)
+			brawlSecs = FS.BRAWL_S[1] + r() * (FS.BRAWL_S[2] - FS.BRAWL_S[1])
+			brawls[player] = brawls[player] or {}
+			brawls[player][id] = { untilT = t + (brawlSecs :: number), last = 0 }
+		end
 	end
 	if c then
 		award(player, id)
 	end
-	-- a key NPC falls for everybody (NpcKnock)
-	if isKey and NPC and type(NPC.knock) == "function" and type(p.outcome) ~= "string" then
-		pcall(NPC.knock, id, dx, dz, if outcome == "stagger" then "stagger" else "knockdown", player)
+	-- a key NPC falls for everybody (NpcKnock): NPC.luau's own, a hooked module's (it plays it itself),
+	-- else any other rig (Law units, Law/City actors, customers, shop staff) staggers here while its
+	-- brain keeps it moving (a downed Law unit: Police.knocked above)
+	if isKey and type(p.outcome) ~= "string" and not (lawRig and outcome == "ko") then
+		local okK, did = false, false
+		if NPC and type(NPC.knock) == "function" then
+			okK, did = pcall(NPC.knock, id, dx, dz, if outcome == "stagger" then "stagger" else "knockdown", player)
+		end
+		if not (okK and did == true) and not hooked and model and model.Parent then
+			model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", workspace:GetServerTimeNow(), dx, dz, "stagger"))
+		end
 	end
 	local line = hookLine or pick(FS.LINES[react] or FS.LINES.hit)
 	dbg("hit", attack, id, typeId, "dmg", dmg, "hp", rec.hp, "/", max, outcome, react, "hits", hc.n)
-	local res = { kind = "hit", target = if isKey then "npc" else "ped", id = id, dmg = dmg, hp = math.floor(rec.hp + 0.5), max = max, outcome = outcome, react = react, line = line, crit = crit, dx = dx, dz = dz, ko = if outcome == "ko" then FS.KO_DOWN else nil, attack = attack }
+	local res = { kind = "hit", target = if isKey then "npc" else "ped", id = id, dmg = dmg, hp = math.floor(rec.hp + 0.5), max = max, outcome = outcome, react = react, line = line, crit = crit, dx = dx, dz = dz, ko = if outcome == "ko" then FS.KO_DOWN else nil, attack = attack, brawl = brawlSecs }
 	if not (p.silent == true) then
 		send(player, res)
 	elseif not isKey then
@@ -531,14 +696,42 @@ function Fight.applyHit(player: Player, p: any): any?
 	return onPunch(player, p, true)
 end
 
--- the HP side of an NPC for this player: { hp, max, down } (down = KO now / in hospital)
+-- the combat side of an NPC for this player: { hp, max, down (KO now / in hospital / a Law unit lying
+-- there), fighting (a brawl with this player now), hits (by this player, last 2 min), lastBy (UserId of
+-- the last hit, any player for a key NPC), lastT (os.clock of it), rel (a named citizen's relation) }
 function Fight.state(player: Player?, id: string): any
+	if type(id) ~= "string" then
+		return { down = false, fighting = false, hits = 0 }
+	end
 	local t = now()
-	local c = Citizens and Citizens.get and Citizens.get(id)
-	local isKey = c ~= nil and c.key == true
-	local rec = if isKey then keyHp[id] else (player and pedHp[player] and pedHp[player][id])
+	-- (a key NPC's HP is in keyHp whatever kind of key it is: citizens, dealer_, police_, mg_ ...)
+	local rec = keyHp[id] or (player and pedHp[player] and pedHp[player][id])
 	local down = (hospital[id] ~= nil and os.time() < hospital[id]) or (player ~= nil and koUntil[player] ~= nil and (koUntil[player][id] or 0) > t)
-	return { hp = rec and rec.hp or nil, max = rec and rec.max or nil, down = down == true }
+	if not down and lawRigId(id) then
+		local m = keyModel(id)
+		down = m ~= nil and (tonumber(m:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow()
+	end
+	local hp = rec and rec.hp or nil
+	if rec and hp and t - rec.t > FS.REGEN_DELAY then
+		hp = math.min(rec.max, hp + (t - rec.t - FS.REGEN_DELAY) * FS.REGEN) -- (as the next hit will see it)
+	end
+	local b = player and brawls[player] and brawls[player][id]
+	local hc = player and hitCount[player] and hitCount[player][id]
+	local rel = nil
+	if player and ctx and ctx.mind and type(ctx.mind.relOf) == "function" and Citizens and Citizens.get and Citizens.get(id) then
+		local ok, v = pcall(ctx.mind.relOf, player, id)
+		rel = if ok and type(v) == "number" then v else nil
+	end
+	return {
+		hp = hp,
+		max = rec and rec.max or nil,
+		down = down == true,
+		fighting = (b ~= nil and t < b.untilT) or keyFights[id] ~= nil,
+		hits = if hc and t - hc.t <= 120 then hc.n else 0,
+		lastBy = rec and rec.by or nil,
+		lastT = rec and rec.t or nil,
+		rel = rel,
+	}
 end
 
 -- 강탈 (robbery) rules (GwangalliRobShared): who may be robbed, for how much, nothing from the down
@@ -572,20 +765,14 @@ local function onNpcHit(player: Player, p: any)
 	end
 	local root = rootOf(player)
 	local pos = unpackV(p.pos)
-	if not root or not pos or flat(pos, root.Position) > FS.NPC_REACH + 3 then
+	-- (pos = the NPC's feet on that client: within reach + lag, and at about the player's height)
+	if not root or not pos or flat(pos, root.Position) > FS.NPC_REACH + 3 or math.abs(pos.Y - root.Position.Y) > 8 then
 		return
 	end
 	b.last = t
-	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-	if not hum or hum.Health <= 0 then
-		return
-	end
-	local dmg = rng:NextInteger(FS.PLAYER_DMG[1], FS.PLAYER_DMG[2])
-	local hp = math.max(FS.PLAYER_MIN_HP, hum.Health - dmg)
-	if hp < hum.Health then
-		hum.Health = hp
-	end
-	send(player, { kind = "hurt", dmg = dmg, hp = math.floor(hum.Health + 0.5), by = p.id })
+	-- a punch / a shove (weaker) / a kick (harder): FightShared.ATTACK; the client played the fall
+	local atk = if p.attack == "shove" or p.attack == "kick" then p.attack else "punch"
+	hurtPlayer(player, p.id, atk, nil, nil, nil)
 end
 
 -- an NPC fight seen by a bystander: an officer walks over and breaks it up
@@ -672,7 +859,7 @@ local function onCarHit(player: Player, p: any)
 	if sp < 5 then
 		return
 	end
-	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, outcome = if sp < 15 then "stagger" else "knockdown" }, true)
+	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, sn = p.sn, outcome = if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown" }, true)
 end
 
 -- a street fight going on near a point (Law/Rescue keeps the ambulance back)
@@ -691,45 +878,80 @@ function Fight.fightingNear(pos: Vector3, r: number): boolean
 	return false
 end
 
--- tell one player's client about a casualty (119 phases)
+-- tell one player's client about a casualty (119 phases). The server side follows the same phases: a
+-- body an ambulance is coming for stays down (no new hits, no KO again) until it is carried off; a
+-- Law unit's body lies there that long, then it is gone (Law/Police.downHold)
 function Fight.tell(player: Player, payload: any)
+	if type(payload) == "table" and payload.kind == "ems" and type(payload.id) == "string" then
+		local id = payload.id
+		local hold = tonumber(payload.hold) or 150
+		if payload.phase == "dispatched" then
+			koUntil[player] = koUntil[player] or {}
+			local ku = koUntil[player][id]
+			if ku and ku > now() then
+				koUntil[player][id] = math.max(ku, now() + hold)
+			end
+		elseif payload.phase == "pickup" and koUntil[player] then
+			-- (an anonymous id is free again after this: the next one is a new stranger)
+			koUntil[player][id] = nil
+		end
+		if lawRigId(id) then
+			local Pol = lawPolice()
+			if Pol and type(Pol.downHold) == "function" then
+				pcall(Pol.downHold, id, if payload.phase == "pickup" then 0 else hold)
+			end
+		end
+	end
 	send(player, payload)
 end
 
 -- an NPC starts a fight with this player (a 걸렁뱅이 refused money, a drunk picked a quarrel):
 -- their swings may land for a while (each still checked by onNpcHit)
-function Fight.startBrawl(player: Player, id: string, secs: number?)
+-- -> the seconds it lasts (the client's brawl gets the same: one window), nil when refused
+function Fight.startBrawl(player: Player, id: string, secs: number?): number?
 	if type(id) ~= "string" or #id > 40 then
-		return false
+		return nil
 	end
+	local s = secs or (FS.BRAWL_S[1] + r() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]))
 	brawls[player] = brawls[player] or {}
-	brawls[player][id] = { untilT = now() + (secs or (FS.BRAWL_S[1] + r() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]))), last = 0 }
-	return true
+	brawls[player][id] = { untilT = now() + s, last = 0 }
+	return s
 end
 
--- the client says a street NPC picked the fight: only the types that do that, close by, not too often
+-- the client says a street NPC picked the fight: only the types that do that (or a named citizen who
+-- really hates this player), close by, not too often. The client's brawl runs the seconds it sent
+-- (one window); a refused one is called off on that client ("brawlEnd": no swings that do nothing)
 local AGGRESSIVE = { drunk = true, punk = true, thug = true, violent = true, hothead = true }
 local lastStart: { [Player]: number } = {}
 local function onNpcStart(player: Player, p: any)
-	if type(p) ~= "table" or type(p.id) ~= "string" then
+	if type(p) ~= "table" or type(p.id) ~= "string" or #p.id > 40 then
 		return
 	end
+	local function refuse()
+		send(player, { kind = "brawlEnd", id = p.id })
+	end
 	local t = now()
-	if t - (lastStart[player] or 0) < 6 then
-		return
+	if t - (lastStart[player] or 0) < 2 then
+		return refuse()
 	end
 	local typeId, c = typeOf(p.id, p.ptype)
 	local arch = c and MindShared and MindShared.archOf and MindShared.archOf(c) or typeId
-	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] then
-		return
+	local hostile = false
+	if p.why == "hostile" and c and ctx.mind and type(ctx.mind.relOf) == "function" then
+		local ok, rel = pcall(ctx.mind.relOf, player, p.id)
+		hostile = ok and type(rel) == "number" and rel <= -60
+	end
+	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile then
+		return refuse()
 	end
 	local root = rootOf(player)
 	local pos = unpackV(p.pos)
 	if not root or not pos or flat(pos, root.Position) > 12 then
-		return
+		return refuse()
 	end
 	lastStart[player] = t
-	Fight.startBrawl(player, p.id)
+	local secs = tonumber(p.secs)
+	Fight.startBrawl(player, p.id, if secs then math.clamp(secs, FS.BRAWL_S[1], FS.BRAWL_S[2]) else nil)
 end
 
 local function onAction(player: Player, kind: any, p: any)
@@ -758,6 +980,7 @@ function Fight.onLeave(player: Player)
 	lastCrime[player] = nil
 	koUntil[player] = nil
 	hitCount[player] = nil
+	pedSn[player] = nil
 	robbed[player] = nil
 	lastStart[player] = nil
 end
@@ -813,7 +1036,11 @@ function Fight.init(context: any)
 	a.OnServerEvent:Connect(onAction)
 	folder.Parent = ReplicatedStorage
 	Players.PlayerRemoving:Connect(Fight.onLeave)
-	-- ServerStorage.GwangalliNPCHitAPI: Invoke("hit", player, { kind, id, pos?, attack?, power? }) -> result
+	-- ServerStorage.GwangalliNPCHitAPI, for a server-side combat system: Invoke("hit", player, { model =
+	-- <the NPC Model / a part of it the hitbox touched> | kind = "ped" | "npc", id, pos?, attack?, power? })
+	-- -> the hit result (nil = no hit). Only for a hit that LANDED; the reach is checked again here.
+	-- (street pedestrians exist on the player's client only: their hits come in through the client's
+	-- LocalPlayer.GwangalliNPCHitAPI)
 	local ServerStorage = game:GetService("ServerStorage")
 	local old = ServerStorage:FindFirstChild("GwangalliNPCHitAPI")
 	if old then
@@ -822,7 +1049,22 @@ function Fight.init(context: any)
 	local sapi = Instance.new("BindableFunction")
 	sapi.Name = "GwangalliNPCHitAPI"
 	sapi.OnInvoke = function(op: any, pl: any, spec: any)
-		if op == "hit" and typeof(pl) == "Instance" and pl:IsA("Player") then
+		if op == "hit" and typeof(pl) == "Instance" and pl:IsA("Player") and type(spec) == "table" then
+			if typeof(spec.model) == "Instance" then
+				local m: Instance? = spec.model
+				while m and not (m:IsA("Model") and type(m:GetAttribute("NpcId")) == "string") do
+					m = m.Parent
+				end
+				if not m then
+					return nil
+				end
+				local mr = m:FindFirstChild("HumanoidRootPart") or (m :: Model).PrimaryPart
+				local s2 = table.clone(spec)
+				s2.model = nil
+				s2.kind, s2.id = "npc", m:GetAttribute("NpcId")
+				s2.pos = if mr and mr:IsA("BasePart") then { mr.Position.X, mr.Position.Y, mr.Position.Z } else nil
+				return Fight.applyHit(pl, s2)
+			end
 			return Fight.applyHit(pl, spec)
 		end
 		return nil

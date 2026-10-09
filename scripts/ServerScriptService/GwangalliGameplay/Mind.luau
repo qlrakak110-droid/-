@@ -634,7 +634,8 @@ local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: a
 	end
 	-- they start a real scuffle (their swings may land: GwangalliGameplay.Fight checks every one)
 	if out.act == "fight" and ctx.fight and type(ctx.fight.startBrawl) == "function" then
-		pcall(ctx.fight.startBrawl, player, id)
+		local okB, secs = pcall(ctx.fight.startBrawl, player, id)
+		out.brawl = if okB and type(secs) == "number" then secs else nil -- (the client's brawl: same window)
 	end
 	if o.talk ~= false then
 		rec.tk = (rec.tk or 0) + 1
@@ -647,7 +648,7 @@ local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: a
 end
 
 local function answer(player: Player, sess: Sess, id: string, out: any): any
-	return { ok = true, out = { lines = out.lines, face = out.face, emote = out.emote, act = out.act, ask = out.ask, mood = out.mood, stage = out.stage, intent = out.intent }, view = viewOf(player, sess, id), wanted = sess.state.wanted or 0 }
+	return { ok = true, out = { lines = out.lines, face = out.face, emote = out.emote, act = out.act, ask = out.ask, mood = out.mood, stage = out.stage, intent = out.intent, brawl = out.brawl }, view = viewOf(player, sess, id), wanted = sess.state.wanted or 0 }
 end
 
 -------------------------------------------------------------------------------------------------
@@ -736,11 +737,20 @@ local function toned(out: any, tone: string?, c: any)
 	end
 end
 
+-- a citizen who went down (Fight: KO -> hospital) does not talk / is not hit again
+local function isDown(id: string): boolean
+	local F = ctx.fight
+	return F ~= nil and type(F.inHospital) == "function" and F.inHospital(id) == true
+end
+
 ops.open = function(player, sess, p)
 	local id = Util.str(p.id, 40)
 	local c = citizen(id)
 	if not c or c.key then
 		return { ok = false, err = "nobody" }
+	end
+	if isDown(id) then
+		return { ok = false, err = "down" }
 	end
 	if not nearCitizen(player, id, p.pos) then
 		return { ok = false, err = "far" }
@@ -1083,6 +1093,9 @@ ops.act = function(player, sess, p)
 	if not c then
 		return { ok = false, err = "nobody" }
 	end
+	if isDown(id) then
+		return { ok = false, err = "down" }
+	end
 	if not nearCitizen(player, id, p.pos) then
 		return { ok = false, err = "far" }
 	end
@@ -1245,6 +1258,15 @@ ops.act = function(player, sess, p)
 			M.remember(rec, "meet", kind, now())
 		end
 	elseif act == "hit" then
+		-- the hit itself (HP, KO, the reaction by personality, 폭행 with Law, 호감도) is the street fight
+		-- module's, and only a hit that landed (its reach / state checks) counts; this card only words it
+		local fr = nil
+		if ctx.fight and type(ctx.fight.applyHit) == "function" then
+			fr = ctx.fight.applyHit(player, { kind = if c.key then "npc" else "ped", id = id, pos = p.pos, attack = "punch", silent = true })
+			if type(fr) ~= "table" then
+				return { ok = false, err = "miss" } -- (too far / down / the player can't fight now: nothing happened)
+			end
+		end
 		req.intent = "hit_r"
 		rec.hit = (rec.hit or 0) + 1
 		M.remember(rec, "hit", 1, now())
@@ -1262,9 +1284,6 @@ ops.act = function(player, sess, p)
 			req.outcome = "angry"
 		end
 		extra = { an = 40, fe = 20 + (1 - t.brave) * 40, tr = -30, cl = -5 }
-		-- the hit itself (HP, KO, the reaction by personality, 폭행 with Law, 호감도) is the street
-		-- fight module's; this card only words it
-		local fr = ctx.fight and type(ctx.fight.applyHit) == "function" and ctx.fight.applyHit(player, { kind = if c.key then "npc" else "ped", id = id, pos = p.pos, attack = "punch", silent = true })
 		if type(fr) == "table" then
 			req.fightReact = fr.react
 			if fr.react == "fight" then
@@ -1275,6 +1294,7 @@ ops.act = function(player, sess, p)
 				req.outcome = "angry"
 			end
 		else
+			-- (no street fight module at all: the card's own 폭행)
 			award(player, id, "assault")
 			crime(player, sess, if arch == "police" then "assault_police" else "assault", id, vec(p.pos))
 		end

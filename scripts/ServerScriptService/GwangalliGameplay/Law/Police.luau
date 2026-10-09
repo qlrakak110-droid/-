@@ -709,6 +709,97 @@ local function removeOfficer(o: any)
 	end
 end
 
+-- an officer / 특임대 / 119 crew member who went down (GwangalliGameplay/Fight: HP 0, Fight calls this):
+-- out of every brain and every officer loop at once (gone; the case's staffing sends somebody else),
+-- the body stays where he fell (NpcDown: every client keeps it lying, GwangalliNPCClient) until the
+-- ambulance carries him off (Fight.tell "ems" pickup -> downHold 0) or the time is up; then the rig goes
+local downed: { any } = {}
+function Police.knocked(id: string, dx: number, dz: number, downS: number): boolean
+	local o = nil
+	for _, x in officers do
+		if x.id == id and not x.gone then
+			o = x
+			break
+		end
+	end
+	if not o or not o.model or o.seated then
+		return false -- (one sitting in a car is not knocked out: Fight floors his HP)
+	end
+	local case = o.case
+	if case and case.stopBy == o and case.player then
+		case.stopBy = nil
+		Law.push(case.player, { kind = "stopEnd" })
+	end
+	if o.incident then
+		o.incident.officer = nil -- (Law/City lets the incident go on without him)
+		o.incident = nil
+	end
+	standAt(o, legPos(o, now()))
+	local m = o.model
+	m:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", serverNow(), dx or 0, dz or -1, "knockdown"))
+	m:SetAttribute("NpcDown", serverNow() + downS)
+	m:SetAttribute("NpcLook", 0)
+	m:SetAttribute("LawOfficer", false)
+	m:SetAttribute("LawState", "down")
+	if o.bubble then
+		o.bubble.Enabled = false -- (a body says nothing)
+	end
+	o.bubbleT = nil
+	o.gone = true
+	o.state = "down"
+	o.downUntil = now() + downS
+	local i = table.find(officers, o)
+	if i then
+		table.remove(officers, i)
+	end
+	if case then
+		local j = table.find(case.units, o)
+		if j then
+			table.remove(case.units, j)
+		end
+	end
+	table.insert(downed, o)
+	-- (performance: at most 6 bodies, the one down longest goes first)
+	if #downed > 6 then
+		local old = table.remove(downed, 1)
+		if old.model then
+			old.model:Destroy()
+			old.model = nil
+		end
+	end
+	return true
+end
+
+-- the ambulance is coming (secs: he lies there that long at most) / took him (0: gone now)
+function Police.downHold(id: string, secs: number)
+	for _, o in downed do
+		if o.id == id then
+			if secs <= 0 then
+				o.downUntil = now()
+			else
+				o.downUntil = math.max(o.downUntil, now() + secs)
+				if o.model then
+					o.model:SetAttribute("NpcDown", serverNow() + (o.downUntil - now()))
+				end
+			end
+			return
+		end
+	end
+end
+
+local function downedTick()
+	for i = #downed, 1, -1 do
+		local o = downed[i]
+		if now() >= o.downUntil then
+			table.remove(downed, i)
+			if o.model then
+				o.model:Destroy()
+				o.model = nil
+			end
+		end
+	end
+end
+
 local function assignGoal(o: any, pos: Vector3, speed: number, wrong: number?)
 	-- (feet on the floor: a goal from the suspect's root is ~3 studs up)
 	pos = feetAt(pos)
@@ -3195,6 +3286,9 @@ local function onOfficerHit(player: Player, id: string, info: any): (string?, st
 	if o.seated or not o.model then
 		return nil
 	end
+	if info and info.outcome == "ko" then
+		return nil, "" -- (he goes down: Fight -> Police.knocked; the others are on the attacker: violent)
+	end
 	o.model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", serverNow(), info and info.dx or 0, info and info.dz or -1, "stagger"))
 	o.pauseUntil = math.max(o.pauseUntil or 0, now() + 0.4)
 	if now() - (o.hitSayT or -1e9) > 3 then
@@ -3251,6 +3345,7 @@ function Police.tick(dt: number)
 		ctx.fight.hitHooks["police_"] = onOfficerHit
 	end
 	trackSpeeds()
+	pcall(downedTick)
 	for _, o in table.clone(officers) do
 		local ok, err = pcall(thinkOfficer, o)
 		if not ok then

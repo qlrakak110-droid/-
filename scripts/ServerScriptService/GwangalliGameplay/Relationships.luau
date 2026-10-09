@@ -1699,6 +1699,10 @@ actions.talk = function(player, sess, id, p)
 		pcall(ctx.openDialog, player, id, false) -- key NPCs have their own dialog (with the soc: menu)
 		return
 	end
+	-- somebody who went down in a fight (GwangalliGameplay/Fight: KO -> hospital) does not talk
+	if ctx.fight and type(ctx.fight.inHospital) == "function" and ctx.fight.inHospital(id) then
+		return
+	end
 	local ok, at = validateNear(player, sess, id, p.pos)
 	if not ok then
 		return

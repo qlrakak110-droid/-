@@ -643,6 +643,16 @@ function Mind.act(act: string, arg: any)
 		local inv = Social.INVITES[arg]
 		itemName = inv and inv.label or "약속"
 	end
+	if act == "hit" then
+		-- a hit lands only within reach (GwangalliFightShared.RANGE, as the server checks it): from farther
+		-- off nothing happens, the talk stays open (step in and tap again)
+		local okF, FS = pcall(require, ReplicatedStorage:FindFirstChild("GwangalliFightShared") :: any)
+		local reach = ((okF and type(FS) == "table" and FS.RANGE) or 5.6) + 0.8
+		if flatDist(pp, a.pos) > reach then
+			sayPlayer("(손이 안 닿는다…)", 1.6)
+			return
+		end
+	end
 	local bank = ACT_SAY[act]
 	local said = if act == "play" then (bank[arg] or "같이 놀자!") else (pick(bank) or "")
 	sayPlayer(M.fill(said, { item = itemName }))
@@ -710,7 +720,8 @@ handleAct = function(t: any, out: any)
 	elseif act == "fight" and ctx.Crowd.api then
 		-- they hit back: a real scuffle (several swings that only land within reach)
 		finish("fight")
-		ctx.Crowd.api("brawl", a.id, 9 + rnd() * 5)
+		-- (the server's brawl window: its swings count exactly that long)
+		ctx.Crowd.api("brawl", a.id, tonumber(out.brawl) or (9 + rnd() * 5))
 		ctx.Crowd.api("remember", a.id, "anger", 2)
 	elseif act == "ko" and ctx.Crowd.api then
 		finish("ko")
@@ -911,6 +922,9 @@ end
 function Mind.begin(a: any, kind: string?): boolean
 	if not ready or not a or a.gone or not a.named or not a.c or a.c.key then
 		return false
+	end
+	if a.ko then
+		return false -- (a body on the ground does not talk)
 	end
 	if talk and talk.a == a then
 		return true

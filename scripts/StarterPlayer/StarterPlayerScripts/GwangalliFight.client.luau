@@ -55,13 +55,17 @@ local function character(): (Model?, Humanoid?, BasePart?)
 	return nil, nil, nil
 end
 
+local CollectionService = game:GetService("CollectionService")
 local function keyModel(id: string): Model?
 	local f = workspace:FindFirstChild("GwangalliNPCs")
-	if not f then
-		return nil
-	end
-	for _, m in f:GetChildren() do
+	for _, m in (if f then f:GetChildren() else {}) do
 		if m:IsA("Model") and m:GetAttribute("NpcId") == id then
+			return m
+		end
+	end
+	-- shop staff (GwangalliGameplay/ShopStaff, tagged GwShopStaff)
+	for _, m in CollectionService:GetTagged("GwShopStaff") do
+		if m:IsA("Model") and m:GetAttribute("NpcId") == id and m:IsDescendantOf(workspace) then
 			return m
 		end
 	end
@@ -96,7 +100,7 @@ local function entryPos(e: any): Vector3?
 end
 
 local function bubble(adornee: Instance?, text: string?, dur: number?)
-	if not adornee or not text then
+	if not adornee or not text or text == "" then
 		return
 	end
 	local ev = player:FindFirstChild((Bump and Bump.BUBBLE_EVENT) or "GwangalliBubble")
@@ -114,39 +118,40 @@ end
 --     Call it ONLY for a hit that landed (the hitbox touched the NPC). The server checks the reach
 --     again and decides damage / reaction; nothing happens for a miss.
 --   Invoke("resolve", model) -> { kind, id } for a Model the hitbox touched (a street pedestrian rig in
---     Workspace.GwangalliStreetLife carries StreetId; a key NPC in Workspace.GwangalliNPCs NpcId).
+--     Workspace.GwangalliStreetLife carries StreetId; any server NPC rig an NpcId: key NPCs, police /
+--     특임대 / 119, Law actors, customers, shop staff; not the jail's inmates).
 local lastHit = 0
 
-local function resolve(model: Instance?): (string?, string?, Vector3?)
+local function resolve(model: Instance?): (string?, string?, Vector3?, number?)
 	local m = model
-	while m and not m:IsA("Model") do
+	-- (a hitbox may touch an accessory / tool inside the rig: up to the Model that carries the id)
+	while m and not (m:IsA("Model") and (m:GetAttribute("StreetId") ~= nil or m:GetAttribute("NpcId") ~= nil)) do
 		m = m.Parent
 	end
 	if not m then
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	end
 	local sid = m:GetAttribute("StreetId")
 	local r = m:FindFirstChild("HumanoidRootPart")
 	local pos = if r and r:IsA("BasePart") then r.Position else nil
 	if type(sid) == "string" then
-		return "ped", sid, pos
+		return "ped", sid, pos, tonumber(m:GetAttribute("StreetSn"))
 	end
 	local nid = m:GetAttribute("NpcId")
-	local kind = m:GetAttribute("NpcKind")
-	if type(nid) == "string" and (kind == "key" or kind == "street") then
-		return "npc", nid, pos
+	if type(nid) == "string" and m:GetAttribute("NpcKind") ~= "inmate" then
+		return "npc", nid, pos, nil
 	end
-	return nil, nil, nil
+	return nil, nil, nil, nil
 end
 
-local function pedPos(id: string): (Vector3?, string?)
+local function pedPos(id: string): (Vector3?, string?, number?)
 	local near = street("near", 40)
 	for _, e in (if type(near) == "table" then near else {}) do
 		if type(e) == "table" and e.id == id then
-			return entryPos(e), e.typeId
+			return entryPos(e), e.typeId, tonumber(e.sn)
 		end
 	end
-	return nil, nil
+	return nil, nil, nil
 end
 
 local function sendHit(spec: any): boolean
@@ -156,18 +161,19 @@ local function sendHit(spec: any): boolean
 	if os.clock() - lastHit < 0.12 then
 		return false -- (one swing = one hit, even if two hitbox parts touched)
 	end
-	local kind, id, pos = spec.kind, spec.id, nil
+	local kind, id, pos, sn = spec.kind, spec.id, nil, nil
 	if typeof(spec.model) == "Instance" then
-		kind, id, pos = resolve(spec.model)
+		kind, id, pos, sn = resolve(spec.model)
 	end
 	if type(kind) ~= "string" or type(id) ~= "string" then
 		return false
 	end
 	local ptype = nil
 	if kind == "ped" then
-		local p2, t2 = pedPos(id)
+		local p2, t2, s2 = pedPos(id)
 		pos = pos or p2
 		ptype = t2
+		sn = sn or s2
 	else
 		local m = keyModel(id)
 		local r = m and m:FindFirstChild("HumanoidRootPart")
@@ -177,7 +183,7 @@ local function sendHit(spec: any): boolean
 		return false
 	end
 	lastHit = os.clock()
-	action:FireServer("punch", { kind = kind, id = id, pos = { pos.X, pos.Y, pos.Z }, ptype = ptype, attack = spec.attack, power = spec.power })
+	action:FireServer("punch", { kind = kind, id = id, pos = { pos.X, pos.Y, pos.Z }, ptype = ptype, attack = spec.attack, power = spec.power, sn = sn })
 	return true
 end
 
@@ -207,7 +213,8 @@ local function onEvent(p: any)
 		if p.target == "ped" then
 			if p.outcome == "ko" then
 				street("ko", p.id, dx, dz, p.ko or FS.KO_DOWN)
-			elseif p.outcome ~= "none" then
+			elseif p.outcome ~= "none" and p.attack ~= "car" then
+				-- (a car hit already fell here when the car touched them: Crowd's contact pass)
 				street("knock", p.id, dx, dz, p.outcome, if p.crit then "퍽!!" else "퍽!")
 			end
 			if type(p.line) == "string" then
@@ -216,7 +223,9 @@ local function onEvent(p: any)
 				end)
 			end
 			if p.react == "fight" then
-				street("brawl", p.id, FS.BRAWL_S[1] + math.random() * (FS.BRAWL_S[2] - FS.BRAWL_S[1]))
+				-- the server's window (one brawl, not two different lengths) and how hurt they are
+				local hpFrac = (tonumber(p.hp) or 1) / math.max(1, tonumber(p.max) or 1)
+				street("brawl", p.id, tonumber(p.brawl) or FS.BRAWL_S[1], hpFrac)
 			elseif p.react == "flee" or p.react == "report" or p.react == "arrest" or p.react == "cower" or p.react == "warn" then
 				street("react", p.id, p.react)
 			end
@@ -227,6 +236,22 @@ local function onEvent(p: any)
 		end
 	elseif p.kind == "remember" and type(p.id) == "string" then
 		street("remember", p.id, p.mood, 1)
+	elseif p.kind == "hurt" and type(p.outcome) == "string" then
+		-- a server rig's swing landed (a key NPC fighting back): the fall here (the 어깨빵 motion); a
+		-- street brawler's own swing already played it on this client (no outcome then)
+		local ch, hum = character()
+		local knocked = (Bump and Bump.Attr and Bump.Attr.Knocked) or "GwangalliKnocked"
+		if Bump and ch and hum and not hum.Sit and not ch:GetAttribute(knocked) and type(Bump.knockCharacter) == "function" then
+			local okK, did = pcall(Bump.knockCharacter, ch, tonumber(p.dx) or 0, tonumber(p.dz) or 0, if p.outcome == "knockdown" then "knockdown" else "stagger", {})
+			if okK and did and type(Bump.shakeCamera) == "function" then
+				pcall(Bump.shakeCamera, if p.outcome == "knockdown" then 0.35 else 0.14, 0.4)
+			end
+		end
+	elseif p.kind == "brawlEnd" and type(p.id) == "string" then
+		street("brawl", p.id, 0) -- (the server did not take that fight: it is called off)
+	elseif p.kind == "say" and type(p.id) == "string" then
+		local m = keyModel(p.id)
+		bubble(m and m:FindFirstChild("Head"), p.line, 3)
 	elseif p.kind == "incident" and type(p.what) == "string" then
 		-- 생활콘텐츠 -> NPC: the street mind casts the people and plays it
 		local mapi = player:FindFirstChild("GwangalliMindAPI")
@@ -338,7 +363,44 @@ api.OnInvoke = function(op: string, arg: any)
 			RunService.Heartbeat:Wait()
 			RunService.Heartbeat:Wait()
 			lastHit = 0
-			sendHit({ kind = "ped", id = arg, attack = "punch", power = 1 })
+			-- through the receiver itself (what a combat system calls)
+			hitApi:Invoke("hit", { kind = "ped", id = arg, attack = "punch", power = 1 })
+		end)
+		return true
+	elseif op == "gopunchModel" and type(arg) == "table" and type(arg.id) == "string" then
+		-- the rig model the way a hitbox reports it (tests resolve too): a street pedestrian or a server rig;
+		-- arg = { id, attack?, power?, stay? } (stay = punch from where the player is)
+		local m: Model? = nil
+		local f = workspace:FindFirstChild("GwangalliStreetLife")
+		for _, x in (if f then f:GetChildren() else {}) do
+			if x:IsA("Model") and x:GetAttribute("StreetId") == arg.id then
+				m = x
+				break
+			end
+		end
+		m = m or keyModel(arg.id)
+		local mr = m and m:FindFirstChild("HumanoidRootPart")
+		if not m or not mr or not mr:IsA("BasePart") then
+			return nil
+		end
+		local model = m :: Model
+		local mroot = mr :: BasePart
+		table.insert(debugQueue, function()
+			local _, _, r = character()
+			if not r then
+				return
+			end
+			if not arg.stay then
+				local p = mroot.Position
+				local stand = p + Vector3.new(2.4, 0, 0)
+				player.Character:PivotTo(CFrame.lookAt(stand, Vector3.new(p.X, stand.Y, p.Z)))
+				r.AssemblyLinearVelocity = Vector3.zero
+				RunService.Heartbeat:Wait()
+				RunService.Heartbeat:Wait()
+			end
+			lastHit = 0
+			local part = model:FindFirstChild("Head") or mroot
+			hitApi:Invoke("hit", { model = part, attack = arg.attack or "punch", power = arg.power or 1 })
 		end)
 		return true
 	end
