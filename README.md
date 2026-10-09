@@ -71,13 +71,18 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 ### 길거리 싸움 (Fight)
 
 - `ReplicatedStorage/GwangalliFightShared.luau` (계약), `ServerScriptService/GwangalliGameplay/Fight.luau`, `StarterPlayerScripts/GwangalliFight.client.luau`
-- 👊 주먹 (어깨빵 왼쪽 버튼 / F키) → 서버가 NPC HP·치명타·넘어짐·**기절(HP 0)** 판정, 머리 위 HP바 + 데미지 숫자
-- 맞은 NPC 반응 (유형·성격): **반격**(실제로 여러 번 때리는 난투, 맞으면 플레이어 HP 감소 — 15 미만으로는 안 떨어짐) / **도망** / **신고**(전화 → 경찰이 바로 앎) / 경찰은 **체포**
-- 기절: 그 자리에 누워 있고 주변 사람이 112 신고·도망, 26초 뒤 실려 감. 이름 있는 시민은 10분간 "입원"(거리에 안 나옴). 범죄 `폭행치사`
-- 핵심 NPC(가게·퀘스트)는 기절하지 않음 (넘어지고 신고)
+- **자체 공격 버튼·HP바 없음 — 기존 공격이 들어오는 수신기.** 전투 시스템은 *실제로 맞은* 공격만 넘겨요:
+  - 클라이언트: `LocalPlayer.GwangalliNPCHitAPI:Invoke("hit", { model = <히트박스에 닿은 NPC 모델/파트>, attack = "punch"|"kick"|"shove"|"strong", power = 0..2 })` (`Invoke("resolve", model)` → `{ kind, id }`)
+  - 서버: `ServerStorage.GwangalliNPCHitAPI:Invoke("hit", player, { model | kind, id, attack, power })`
+  - 어깨빵·대화 카드 "때리기"·차량 충돌도 같은 서버 코드로 들어감. 서버가 거리(사거리)·높이를 다시 확인하고 빗나간 건 무시
+  - **NPC HP는 Fight가 가짐** (전투 시스템은 이 대상들의 HP를 따로 두지 말 것): 데미지·치명타·넘어짐/날아감·**기절(HP 0)**·반응·범죄(Law) 전부 서버 판정
+  - 대상: 거리 보행자(클라이언트 리그, `StreetId`)와 `NpcId`가 있는 서버 NPC 리그 (핵심 NPC·경찰·특임대·119·손님·가게 직원). 교도소 수감자, 알바·미니게임 리그는 제외 (`GwangalliFightShared.foreign`)
+- 맞은 NPC 반응 (유형·성격·HP): **반격**(실제로 여러 번 때리는 난투, 사거리 안·마주 볼 때만 맞음, 맞으면 플레이어 HP 감소 — 15 미만으로는 안 떨어짐) / **경고** / **도망** / **신고**(전화 → 경찰이 바로 앎) / 경찰은 **체포**. 핵심 NPC는 일어난 뒤에야 반격
+- 기절: 그 자리에 누워 있고 주변 사람이 112 신고·도망, 26초 뒤 실려 감 (119가 오면 실어 갈 때까지). 이름 있는 시민은 10분간 "입원"(거리에 안 나옴). 범죄 `폭행치사`
+- 핵심 NPC(가게·퀘스트)는 기절하지 않음 (넘어지고 신고). **걸어 다니는 경찰·특임대·119 대원은 HP 0이면 쓰러져** 모든 AI에서 빠지고, 119가 실어 가거나 시간이 다 될 때까지 누워 있음 (차 안에 앉은 대원은 쓰러지지 않음)
 - 밤 취객 시비 (따라오며 시비 대사, 가까이 있으면 밀침, 멀어지면 포기) · 취객 싸움은 3~4번 주고받다 한 명이 넘어지고 구경꾼이 신고하면 경찰이 와서 말림
 
-테스트 훅(디버그 모드 전용): Law `debug` — `carsOnly` / `noGrab` / `carDemo` / `fakeCar`, `GwangalliFightAPI` (goto / gopunch / tp), MindAPI `quarrel` / `fightscene`.
+테스트 훅(디버그 모드 전용): Law `debug` — `carsOnly` / `noGrab` / `carDemo` / `fakeCar`, `GwangalliFightAPI` (goto / gopunch / gopunchModel / tp), MindAPI `quarrel` / `fightscene`.
 
 ## 3. 가게 손님 NPC (Customers) — 알바 시스템과 분리
 

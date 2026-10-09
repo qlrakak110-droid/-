@@ -314,8 +314,7 @@ local function onKnockAttr(rec: Rec)
 	end
 	local t0, dx, dz, outcome = BumpShared.decodeKnock(rec.model:GetAttribute("NpcKnock"))
 	-- (a body lying there for good, NpcDown = until when: also an old knock, e.g. streamed in late)
-	local du = rec.model:GetAttribute("NpcDown")
-	local down = type(du) == "number" and serverNow() < du
+	local down = type(rec.model:GetAttribute("NpcDown")) == "number"
 	if not t0 or (math.abs(serverNow() - t0) > 6 and not down) then
 		return
 	end
@@ -558,9 +557,10 @@ local function update(rec: Rec, now: number, sNow: number)
 	local kn = (rec :: any).knock
 	if kn and BumpShared then
 		local tk = sNow - kn.t0
-		local du = rec.model:GetAttribute("NpcDown")
-		if type(du) == "number" and sNow < du then
-			tk = math.min(tk, BumpShared.KNOCK_DUR - 0.05) -- down for good (a Law unit at 0 HP): no get-up
+		-- down for good (a Law unit at 0 HP): no get-up, also once NpcDown ran out (the server removes
+		-- the rig itself; until its Destroy arrives the body stays lying)
+		if type(rec.model:GetAttribute("NpcDown")) == "number" then
+			tk = math.min(tk, BumpShared.KNOCK_DUR - 0.05)
 		end
 		local phase, k = BumpShared.knockPhase(tk, kn.outcome)
 		if phase == "done" then

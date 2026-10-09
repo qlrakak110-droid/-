@@ -648,7 +648,7 @@ local function applyOut(player: Player, sess: Sess, id: string, rec: any, out: a
 end
 
 local function answer(player: Player, sess: Sess, id: string, out: any): any
-	return { ok = true, out = { lines = out.lines, face = out.face, emote = out.emote, act = out.act, ask = out.ask, mood = out.mood, stage = out.stage, intent = out.intent, brawl = out.brawl }, view = viewOf(player, sess, id), wanted = sess.state.wanted or 0 }
+	return { ok = true, out = { lines = out.lines, face = out.face, emote = out.emote, act = out.act, ask = out.ask, mood = out.mood, stage = out.stage, intent = out.intent, brawl = out.brawl, hpFrac = out.hpFrac }, view = viewOf(player, sess, id), wanted = sess.state.wanted or 0 }
 end
 
 -------------------------------------------------------------------------------------------------
@@ -1286,6 +1286,8 @@ ops.act = function(player, sess, p)
 		extra = { an = 40, fe = 20 + (1 - t.brave) * 40, tr = -30, cl = -5 }
 		if type(fr) == "table" then
 			req.fightReact = fr.react
+			-- (how hurt they are: a brawl under 60 % is slower and sways, GwangalliStreetLife Crowd "brawl")
+			req.hpFrac = (tonumber(fr.hp) or 0) / math.max(1, tonumber(fr.max) or 1)
 			if fr.react == "fight" then
 				req.outcome = "fight"
 			elseif fr.react == "flee" or fr.react == "cower" or fr.react == "ko" then
@@ -1325,6 +1327,9 @@ ops.act = function(player, sess, p)
 		else
 			out.act = if req.outcome == "fight" then "fight" elseif req.outcome == "scared" then (if math.random() < 0.5 then "report" else "flee") elseif arch == "police" then "arrest" else "report"
 		end
+	end
+	if act == "hit" and req.hpFrac then
+		out.hpFrac = math.floor(req.hpFrac * 100 + 0.5) / 100
 	end
 	-- (a hit's report is already a 폭행 report: no extra 협박 for it)
 	applyOut(player, sess, id, rec, out, { noAff = true, noCrime = act == "hit" })

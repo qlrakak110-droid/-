@@ -12,8 +12,10 @@
 --     NpcDown) until the ambulance takes them / the time runs out.
 --   * Every hit gets a visible reaction: street pedestrians on this player's client, NPC.luau key NPCs
 --     (NPC.knock), a module's own NPC (Fight.hitHooks), any other rig in GwangalliNPCs / tagged
---     GwShopStaff (NpcKnock stagger here). A key NPC that fights back swings at the player from the
---     server (a few swings, each only within reach: keyFight).
+--     GwShopStaff (NpcKnock stagger here). An NPC.luau key NPC that fights back swings at the player
+--     from the server once he is back on his feet (a few swings, each only within reach and facing the
+--     player: keyFight); a rig another brain keeps walking warns instead. 알바 / minigame rigs
+--     (FightShared.foreign) are not hit at all.
 --   * A named citizen who went down is off the street for HOSPITAL_S ("down" event: clients skip them).
 --   * NPC swings ("npcHit") count only from an NPC this server put in a brawl with that player, close
 --     enough, not too often; they never take the player below PLAYER_MIN_HP.
@@ -30,6 +32,7 @@ local FS: any
 local Citizens: any
 local MindShared: any
 local NPC: any
+local BumpS: any -- GwangalliBumpShared (the fall / stagger timeline every client plays from NpcKnock)
 
 local remotes: { Action: RemoteEvent?, Event: RemoteEvent? } = {}
 
@@ -380,12 +383,35 @@ local function keyEmote(id: string, model: Model?, name: string)
 	end
 end
 
+-- seconds until the rig's current fall / stagger (NpcKnock, as every client plays it) is over, with a
+-- beat after it (a knockdown: NPC.luau's "shake" on getting up); 0 = he stands
+local function knockLeft(model: Model): number
+	local s = model:GetAttribute("NpcKnock")
+	if type(s) ~= "string" then
+		return 0
+	end
+	local parts = string.split(s, "|")
+	local t0 = tonumber(parts[1])
+	if not t0 then
+		return 0
+	end
+	local B = BumpS or {}
+	local dur = if parts[4] == "stagger" then (B.STAGGER_DUR or 0.9) + 0.3 else (B.KNOCK_DUR or 1.4) + (B.GETUP_DUR or 0.7) + 0.8
+	return math.max(0, t0 + dur - workspace:GetServerTimeNow())
+end
+
 local function keyFight(player: Player, id: string)
 	local seq = (keyFights[id] or 0) + 1
 	keyFights[id] = seq
 	task.spawn(function()
 		for _ = 1, 3 do
 			task.wait(1.1 + r() * 0.5)
+			-- (still on the ground / getting up / staggering from this hit or a later one: he swings after)
+			local m0 = keyModel(id)
+			local left = if m0 then knockLeft(m0) else 0
+			if left > 0 then
+				task.wait(left)
+			end
 			if keyFights[id] ~= seq or not player.Parent then
 				return
 			end
@@ -399,17 +425,29 @@ local function keyFight(player: Player, id: string)
 			if st and st.hidden then
 				break
 			end
+			-- (a player who sat down / got in a car is out of it)
+			local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+			if hum and (hum.Sit or hum.SeatPart) then
+				break
+			end
 			local sp = if st and typeof(st.pos) == "Vector3" then st.pos else mr.Position
 			local here = Vector3.new(sp.X, mr.Position.Y, sp.Z)
 			local d = flat(root.Position, here)
 			dbg("keyFight", id, "swing at", string.format("%.1f", d))
-			if d > 9 or (tonumber(model:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow() then
+			if d > 9 or model:GetAttribute("NpcDown") ~= nil then
 				break
+			end
+			-- only a swing he can see: facing the player (NpcYaw degrees, CFrame.Angles(0, rad(yaw), 0))
+			local yaw = if st and type(st.yaw) == "number" then st.yaw else tonumber(model:GetAttribute("NpcYaw"))
+			local dl = math.max(d, 0.05)
+			local ux, uz = (root.Position.X - here.X) / dl, (root.Position.Z - here.Z) / dl
+			if yaw and d > 0.5 and (-math.sin(math.rad(yaw)) * ux - math.cos(math.rad(yaw)) * uz) < 0.5 then
+				dbg("keyFight", id, "not facing: no swing")
+				continue
 			end
 			keyEmote(id, model, if r() < 0.6 then "cb_jab" else "cb_hook")
 			if d <= FS.NPC_REACH + 1 and math.abs(root.Position.Y - here.Y) < 4 then
-				local dl = math.max(d, 0.05)
-				hurtPlayer(player, id, "punch", (root.Position.X - here.X) / dl, (root.Position.Z - here.Z) / dl, if r() < 0.2 then "knockdown" else "stagger")
+				hurtPlayer(player, id, "punch", ux, uz, if r() < 0.2 then "knockdown" else "stagger")
 			end
 		end
 		if keyFights[id] == seq then
@@ -449,6 +487,9 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	local model: Model? = nil
 	if isKey then
 		model = keyModel(id)
+		if FS.foreign(id, model) then
+			return nil -- (a 알바 / minigame rig: not this system's)
+		end
 		local mr = model and (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
 		pos = if mr and mr:IsA("BasePart") then mr.Position else nil
 		-- the server copy of a walking key NPC can lag behind a little: the client's claim within reason
@@ -459,9 +500,10 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	else
 		pos = unpackV(p.pos)
 	end
-	if trusted and not pos then
+	if trusted and not pos and not isKey then
 		pos = root.Position + root.CFrame.LookVector * 2 -- (the caller checked the reach itself)
 	end
+	-- (a key NPC without his rig here - hidden, gone - is nobody to hit: pos stays nil, "far")
 	-- a landed hit is close: anything farther is no hit at all (reach + client lag; a car hit: the bounds
 	-- onCarHit / the client check, the server copy of a moving car lags the client's contact point and
 	-- the driver sits higher than a walker's feet)
@@ -472,8 +514,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	end
 	-- a Law unit on foot can go down for good (not one sitting in a car: that one is only knocked about)
 	local lawRig = isKey and lawRigId(id)
-	if lawRig and model and (tonumber(model:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow() then
-		return nil -- (down already: a body is not hit again)
+	if lawRig and model and model:GetAttribute("NpcDown") ~= nil then
+		return nil -- (down already: a body is not hit again, it never gets up)
 	end
 	local lawDown = lawRig and model ~= nil and model:GetAttribute("NpcSeat") == nil
 	if not isKey and not (Citizens and Citizens.get and Citizens.get(id)) and not string.match(id, "^x%d+$") then
@@ -586,7 +628,7 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	for prefix, hook in Fight.hitHooks do
 		if string.sub(id, 1, #prefix) == prefix and type(hook) == "function" then
 			hooked = true
-			local okH, hr, hl = pcall(hook, player, id, { hp = rec.hp, max = max, hits = hc.n, attack = attack, outcome = outcome, react = react, dx = dx, dz = dz, pos = pos })
+			local okH, hr, hl = pcall(hook, player, id, { hp = rec.hp, max = max, hits = hc.n, attack = attack, outcome = if outcome == "thrown" then "knockdown" else outcome, react = react, dx = dx, dz = dz, pos = pos })
 			if okH and type(hr) == "string" and react ~= "ko" then
 				react = hr
 			end
@@ -650,9 +692,15 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		end
 	elseif react == "fight" then
 		if isKey then
-			-- a server rig swings from the server (a module with its own hook fights back itself)
-			if not hooked and not lawRig then
-				keyFight(player, id)
+			-- a server rig swings from the server (a module with its own hook fights back itself); only an
+			-- NPC.luau one, whom NPC.knock halts and turns to the player: a rig some other brain keeps
+			-- walking (customers, shop staff, Law units / actors) only warns
+			if not hooked then
+				if not lawRig and NPC and type(NPC.state) == "function" and NPC.state(id) then
+					keyFight(player, id)
+				else
+					react = "warn"
+				end
 			end
 		else
 			-- the street brawl: one window, the client gets the same seconds (res.brawl)
@@ -709,7 +757,7 @@ function Fight.state(player: Player?, id: string): any
 	local down = (hospital[id] ~= nil and os.time() < hospital[id]) or (player ~= nil and koUntil[player] ~= nil and (koUntil[player][id] or 0) > t)
 	if not down and lawRigId(id) then
 		local m = keyModel(id)
-		down = m ~= nil and (tonumber(m:GetAttribute("NpcDown")) or 0) > workspace:GetServerTimeNow()
+		down = m ~= nil and m:GetAttribute("NpcDown") ~= nil
 	end
 	local hp = rec and rec.hp or nil
 	if rec and hp and t - rec.t > FS.REGEN_DELAY then
@@ -1009,6 +1057,7 @@ function Fight.init(context: any)
 	Citizens = opt("GwangalliCitizens")
 	MindShared = opt("GwangalliMindShared")
 	Rob = opt("GwangalliRobShared")
+	BumpS = opt("GwangalliBumpShared")
 	if not FS then
 		warn("[GwangalliFight] GwangalliFightShared missing: street fights off")
 		return
@@ -1055,14 +1104,19 @@ function Fight.init(context: any)
 				while m and not (m:IsA("Model") and type(m:GetAttribute("NpcId")) == "string") do
 					m = m.Parent
 				end
-				if not m then
+				-- (an NPC rig only: a root and a kind, not an inmate, not a 알바 / minigame rig or station)
+				local kind = m and m:GetAttribute("NpcKind")
+				if not m or m:GetAttribute("NpcId") == "" or type(kind) ~= "string" or kind == "inmate" or FS.foreign(m:GetAttribute("NpcId"), m) then
 					return nil
 				end
-				local mr = m:FindFirstChild("HumanoidRootPart") or (m :: Model).PrimaryPart
+				local mr = m:FindFirstChild("HumanoidRootPart")
+				if not mr or not mr:IsA("BasePart") then
+					return nil
+				end
 				local s2 = table.clone(spec)
 				s2.model = nil
 				s2.kind, s2.id = "npc", m:GetAttribute("NpcId")
-				s2.pos = if mr and mr:IsA("BasePart") then { mr.Position.X, mr.Position.Y, mr.Position.Z } else nil
+				s2.pos = { mr.Position.X, mr.Position.Y, mr.Position.Z }
 				return Fight.applyHit(pl, s2)
 			end
 			return Fight.applyHit(pl, spec)

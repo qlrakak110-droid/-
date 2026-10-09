@@ -7,7 +7,8 @@
 --     ServerStorage.GwangalliNPCHitAPI:Invoke("hit", player, { model | kind, id, attack, power })
 --     (server); 어깨빵, the talk card's 때리기 and car hits call the same server code. Targets: street
 --     pedestrians (GwangalliStreetLife, client-side rigs, StreetId) and any server rig with an NpcId
---     (workspace.GwangalliNPCs, shop staff tagged GwShopStaff). The SERVER (GwangalliGameplay/Fight)
+--     (workspace.GwangalliNPCs, shop staff tagged GwShopStaff), except the jail's inmates and the rigs
+--     of 알바 / minigames (F.foreign: they are not this system's). The SERVER (GwangalliGameplay/Fight)
 --     keeps every NPC's HP, decides damage / outcome / reaction and records the crime with Law; a
 --     combat system should not keep its own HP for these targets.
 --   * HP: by NPC type (HP_BY_TYPE). Regenerates slowly when left alone (REGEN per second after
@@ -93,6 +94,28 @@ F.PED_TYPES = { plain = true, violent = true, fool = true, beggar = true, drunk 
 
 function F.maxHp(typeId: string?): number
 	return F.HP_BY_TYPE[typeId or "plain"] or F.DEFAULT_HP
+end
+
+-- rigs of the systems this one must not drive (base 알바 JobWorld customers "shop_*" / JobDelivery
+-- recipients "recipient_*", MiniGames hosts "mg_*" and their stations): no hit, no HP, no reaction
+F.FOREIGN_PREFIX = { "shop_", "recipient_", "mg_" }
+F.FOREIGN_ATTR = { "ShopCustomer", "DeliveryFor", "MiniGameHost", "StationId" }
+function F.foreign(id: any, model: Instance?): boolean
+	if type(id) == "string" then
+		for _, p in F.FOREIGN_PREFIX do
+			if string.sub(id, 1, #p) == p then
+				return true
+			end
+		end
+	end
+	if model then
+		for _, a in F.FOREIGN_ATTR do
+			if model:GetAttribute(a) ~= nil then
+				return true
+			end
+		end
+	end
+	return false
 end
 
 -- damage + outcome for one punch. r = a function returning 0..1 (math.random on the server)

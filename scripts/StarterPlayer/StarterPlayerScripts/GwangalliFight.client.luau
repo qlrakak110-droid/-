@@ -119,7 +119,8 @@ end
 --     again and decides damage / reaction; nothing happens for a miss.
 --   Invoke("resolve", model) -> { kind, id } for a Model the hitbox touched (a street pedestrian rig in
 --     Workspace.GwangalliStreetLife carries StreetId; any server NPC rig an NpcId: key NPCs, police /
---     특임대 / 119, Law actors, customers, shop staff; not the jail's inmates).
+--     특임대 / 119, Law actors, customers, shop staff; not the jail's inmates, not the 알바 / minigame
+--     rigs: FightShared.foreign).
 local lastHit = 0
 
 local function resolve(model: Instance?): (string?, string?, Vector3?, number?)
@@ -138,7 +139,8 @@ local function resolve(model: Instance?): (string?, string?, Vector3?, number?)
 		return "ped", sid, pos, tonumber(m:GetAttribute("StreetSn"))
 	end
 	local nid = m:GetAttribute("NpcId")
-	if type(nid) == "string" and m:GetAttribute("NpcKind") ~= "inmate" then
+	-- (not the jail's inmates, not the 알바 / minigame rigs or stations: FS.foreign)
+	if type(nid) == "string" and nid ~= "" and m:GetAttribute("NpcKind") ~= "inmate" and not FS.foreign(nid, m) then
 		return "npc", nid, pos, nil
 	end
 	return nil, nil, nil, nil

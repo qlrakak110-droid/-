@@ -199,8 +199,15 @@ local function carThink(c: any): boolean
 		return true
 	end
 	if c.state == "parked" then
-		-- everybody back in after the patient is loaded: to the hospital
-		if inc.loaded and P.seatedCount(c) >= c.crewN and P.boardingCount(c) == 0 then
+		-- everybody still on his feet back in after the patient is loaded: to the hospital (a medic
+		-- knocked out on the scene is gone, Law/Police.knocked: a casualty himself, not waited for)
+		local crew = 0
+		for _, m in c.crew do
+			if not m.gone then
+				crew += 1
+			end
+		end
+		if inc.loaded and crew > 0 and P.seatedCount(c) >= math.min(crew, c.crewN or crew) and P.boardingCount(c) == 0 then
 			c.state = "transport_ems"
 			inc.phase = "transport"
 			c.model:SetAttribute("LawSiren", true)

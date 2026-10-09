@@ -652,6 +652,16 @@ function Mind.act(act: string, arg: any)
 			sayPlayer("(손이 안 닿는다…)", 1.6)
 			return
 		end
+		-- the server's other refusals (GwangalliGameplay/Fight canAct + the height): seated, on a shift,
+		-- in a taxi, cuffed / in jail, far above / below them -> no fall that is not a hit
+		local ch = player.Character
+		local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+		local root = ch and ch:FindFirstChild("HumanoidRootPart")
+		local busy = player:GetAttribute("OnShift") or player:GetAttribute("InTaxi") or player:GetAttribute("LawCuffed") or (tonumber(player:GetAttribute("LawJail")) or 0) > 0
+		if not hum or hum.Health <= 0 or hum.Sit or hum.SeatPart ~= nil or busy or (root and root:IsA("BasePart") and math.abs(a.pos.Y - root.Position.Y) > 6) then
+			sayPlayer("(지금은 손을 쓸 수 없다…)", 1.6)
+			return
+		end
 	end
 	local bank = ACT_SAY[act]
 	local said = if act == "play" then (bank[arg] or "같이 놀자!") else (pick(bank) or "")
@@ -666,6 +676,7 @@ function Mind.act(act: string, arg: any)
 		if a.mode == "talk" then
 			a:endTalk(os.clock())
 		end
+		t.hitAt = os.clock() -- (this fall is the hit's: the reply ends the talk, not the knock watch)
 		a:knockDown(dx / d, dz / d, outcome, pick(Social.PUK))
 		if BUMP and BUMP.shakeCamera then
 			pcall(BUMP.shakeCamera, 0.12, 0.25)
@@ -720,8 +731,8 @@ handleAct = function(t: any, out: any)
 	elseif act == "fight" and ctx.Crowd.api then
 		-- they hit back: a real scuffle (several swings that only land within reach)
 		finish("fight")
-		-- (the server's brawl window: its swings count exactly that long)
-		ctx.Crowd.api("brawl", a.id, tonumber(out.brawl) or (9 + rnd() * 5))
+		-- (the server's brawl window: its swings count exactly that long; hpFrac = how hurt they are)
+		ctx.Crowd.api("brawl", a.id, tonumber(out.brawl) or (9 + rnd() * 5), tonumber(out.hpFrac))
 		ctx.Crowd.api("remember", a.id, "anger", 2)
 	elseif act == "ko" and ctx.Crowd.api then
 		finish("ko")
@@ -2331,8 +2342,8 @@ local function watchdog(now: number)
 		local pp = playerPos()
 		if a.gone or not pp then
 			finish("gone")
-		elseif a.knock and t.kind ~= "hit" then
-			-- knocked over mid-conversation: it's over
+		elseif a.knock and t.kind ~= "hit" and not (t.hitAt and now - t.hitAt < 10) then
+			-- knocked over mid-conversation (not by the card's own 때리기: its reply plays out): it's over
 			if now - t.since > 1 then
 				finish("knock")
 			end
