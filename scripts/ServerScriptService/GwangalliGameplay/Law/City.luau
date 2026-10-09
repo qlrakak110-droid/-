@@ -234,6 +234,9 @@ function City.tick(dt: number)
 			continue
 		end
 		s.pos = Pol.legPos(s, now())
+		if Pol.syncRoot then
+			pcall(Pol.syncRoot, s) -- (a fleeing suspect's server copy follows the run: streaming)
+		end
 		if now() - inc.t > 180 and inc.state ~= "done" then
 			cleanup(inc)
 			continue

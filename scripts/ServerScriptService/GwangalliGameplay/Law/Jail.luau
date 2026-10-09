@@ -511,10 +511,83 @@ local function intoCell(player: Player, j: any)
 	end
 end
 
+-- the car for the ride: info.car, else the nearest police car with a live crew (not a 119 / 특임대
+-- car, not one already leaving / riding / recalling its crew); one with its crew seated is preferred
+local function rideCar(P: any, pp: Vector3?, info: any): any?
+	local car = info.car
+	if car and not car.gone and car.model and car.model.Parent then
+		return car
+	end
+	if not pp then
+		return nil
+	end
+	local best, bestScore = nil, math.huge
+	for _, c in P.cars() do
+		if not c.gone and not c.unit and c.model and c.model.Parent and c.state ~= "leave" and c.state ~= "transport" and c.state ~= "recall" and c.state ~= "demo" then
+			local live = false
+			for _, o in c.crew do
+				if not o.gone then
+					live = true
+					break
+				end
+			end
+			local d = Law.flat((P.carPos(c)), pp)
+			if live and d < 90 then
+				local score = d - (if P.seatedCount(c) > 0 then 40 else 0)
+				if score < bestScore then
+					best, bestScore = c, score
+				end
+			end
+		end
+	end
+	return best
+end
+
+-- the crew gets back in before the ride (the cuffed player watches them walk to the car): never a
+-- ride behind two empty front seats. nil = nobody could get in (the fade-only transfer then)
+local function crewIn(P: any, car: any, player: Player, j: any, info: any): any?
+	if P.seatedCount(car) > 0 then
+		return car
+	end
+	car.holdUntil = math.max(car.holdUntil or 0, now() + 15) -- (Police keeps a "hold" car standing)
+	for _, o in car.crew do
+		if not o.gone and not o.seated and o.state ~= "board" then
+			P.boardOfficer(o, car, 11)
+		end
+	end
+	local o = info.officer
+	if P.boardingCount(car) == 0 and o and not o.gone and not o.seated and not o.unit then
+		P.boardOfficer(o, car, 11)
+	end
+	local deadline = now() + 10
+	while now() < deadline and not car.gone and player.Parent and jailed[player] == j and P.boardingCount(car) > 0 do
+		task.wait(0.25)
+	end
+	-- stragglers walk off on foot (as the recall does)
+	for _, x in car.crew do
+		if not x.gone and x.state == "board" then
+			x.boardSlot, x.boardStep, x.car = nil, nil, nil
+			x.role = "patrol"
+			x.state = "leave"
+			x.leaveAt = now() + 30
+		end
+	end
+	if car.gone or P.seatedCount(car) == 0 then
+		return nil
+	end
+	return car
+end
+
 local function transport(player: Player, j: any, info: any)
 	local P = Police()
 	local pp = Law.posOf(player)
-	local car = info.car or (pp and P and P.nearestCar(pp, 90))
+	local car = P and rideCar(P, pp, info)
+	if car and P then
+		car = crewIn(P, car, player, j, info)
+	end
+	if not player.Parent or jailed[player] ~= j then
+		return
+	end
 	if car and car.model and car.model.Parent and P then
 		-- into the back seat, then a short drive toward the 지구대 before the fade
 		fade(player, true, 0.5, "🚓 경찰차에 태워지는 중…")

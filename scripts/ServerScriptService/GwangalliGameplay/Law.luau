@@ -408,6 +408,11 @@ function Law.seen(player: Player, pos: Vector3?, by: string?)
 		writeAttrs(player, s)
 		Law.push(player, { kind = "seen", by = by })
 	end
+	-- (radioed in: the NPC units get the area for a while too, also after a player cop's sighting)
+	local P = Law.children.Police
+	if P and P.radioRefresh then
+		P.radioRefresh(player, 6)
+	end
 end
 
 -------------------------------------------------------------------------------------------------
@@ -499,6 +504,19 @@ function Law.report(player: Player, by: string?, pos: Vector3?): boolean
 		end
 	end
 	if not best then
+		-- no new crime, but a fresh call from someone who sees the wanted suspect right now: the
+		-- dispatcher updates the units (Police.radioRefresh), at most every 8 s
+		local pp = Law.posOf(player)
+		if s.stars > 0 and not s.cuffed and not s.jail and pos and pp and Law.flat(pos, pp) < 50 and now() - (s.lastRecall or -1e9) > 8 then
+			s.lastRecall = now()
+			s.knownPos = pp
+			s.knownT = now()
+			local P = Law.children.Police
+			if P and P.radioRefresh then
+				P.radioRefresh(player)
+			end
+			return true
+		end
 		return false
 	end
 	for i, e in s.pending do

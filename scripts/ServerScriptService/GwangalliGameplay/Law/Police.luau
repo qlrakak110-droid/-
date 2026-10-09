@@ -2,8 +2,10 @@
 -- patrol cars, road closures and the idle patrol. GTA-like but deliberately imperfect.
 --
 --   CASE (one per wanted player): 신고 접수 (Law.report) -> dispatch: units appear out of the suspect's
---   sight 70-130 studs from the REPORTED spot (cars ~300 studs up the road) and head for that spot —
---   never for the live position (the dispatcher only knows what was reported or radioed). On arrival
+--   sight 70-130 studs from the REPORTED spot (cars ~300 studs up the road) and head for that spot.
+--   The dispatcher only knows what was reported or radioed: for a while after a report / a sighting /
+--   a fresh witness call it posts the suspect's AREA every few seconds (radioFix, LS.TIERS radio),
+--   then the units only have the last known spot (an unseen suspect still gets away). On arrival
 --   they search (random nav nodes 8-28 studs around the last known spot, looking around), and only a
 --   real SIGHTING (range + view cone + a raycast, a reaction delay before they "see" you) gives them
 --   the live position: 발견 -> "거기 서!" -> 추격 -> grab attempts -> 체포 (Law.arrest). A 1-star minor
@@ -109,6 +111,21 @@ local function groundAt(p: Vector3, fallback: number?): number
 		return hit.Position.Y
 	end
 	return fallback or p.Y
+end
+
+-- a walk goal on the floor: goals taken from a HumanoidRootPart (the suspect, Law.posOf) sit ~3 studs
+-- over it and the officer's feet would climb to that height. The ray starts just over the point (never
+-- an awning / a ceiling); a point already on the floor comes back unchanged, and a drop deeper than a
+-- jump is ignored (never under a floor the filter skips)
+local function feetAt(p: Vector3): Vector3
+	refreshFilter()
+	local ok, hit = pcall(function()
+		return workspace:Raycast(p + Vector3.new(0, 0.5, 0), Vector3.new(0, -9, 0), rayParams)
+	end)
+	if ok and hit and hit.Position.Y < p.Y - 0.3 then
+		return Vector3.new(p.X, hit.Position.Y, p.Z)
+	end
+	return p
 end
 
 local function losClear(a: Vector3, b: Vector3): boolean
@@ -249,27 +266,54 @@ local function ringNode(center: Vector3, rMin: number, rMax: number, awayFrom: V
 	return nil
 end
 
--- a spawn spot rMin..rMax from `center`, on the nav graph, out of every player's sight
-local function hiddenSpot(center: Vector3, rMin: number, rMax: number): Vector3?
-	local best: Vector3? = nil
-	for _ = 1, 10 do
-		local q = ringNode(center, rMin, rMax, nil)
-		if q then
-			local seen = false
-			for _, p in Players:GetPlayers() do
-				local pp = Law.posOf(p)
-				if pp and flat(pp, q) < 160 and (flat(pp, q) < 35 or losClear(pp + Vector3.new(0, 4, 0), q + Vector3.new(0, 4, 0))) then
-					seen = true
-					break
-				end
-			end
-			if not seen then
-				return q
-			end
-			best = best or q
+-- could any player see a figure standing at q? (within 160 studs: closer than 35 or a clear line)
+local function spotSeen(q: Vector3): boolean
+	for _, p in Players:GetPlayers() do
+		local pp = Law.posOf(p)
+		if pp and flat(pp, q) < 160 and (flat(pp, q) < 35 or losClear(pp + Vector3.new(0, 4, 0), q + Vector3.new(0, 4, 0))) then
+			return true
 		end
 	end
-	return best
+	return false
+end
+
+-- a car start / roadblock spot: at least minFlat from every player and out of their sight within losR
+local function unseenStart(p0: Vector3, minFlat: number, losR: number): (boolean, number, boolean)
+	local minD, seen = math.huge, false
+	for _, p in Players:GetPlayers() do
+		local pp = Law.posOf(p)
+		if pp then
+			local d = flat(pp, p0)
+			minD = math.min(minD, d)
+			if d < losR and losClear(pp + Vector3.new(0, 4.5, 0), p0 + Vector3.new(0, 2.5, 0)) then
+				seen = true
+			end
+		end
+	end
+	return minD >= minFlat and not seen, minD, seen
+end
+
+-- a spawn spot rMin..rMax from `center`, on the nav graph, out of every player's sight. Never a seen
+-- spot (nobody pops up in view): nil when every try is seen; `wide` = then a second ring just past the
+-- 160-stud seen radius (the unit walks in from farther away instead; kept inside the 220-stud
+-- straggler despawn radius, LOST_FAR + 60)
+local function hiddenSpot(center: Vector3, rMin: number, rMax: number, wide: boolean?): Vector3?
+	for _ = 1, 10 do
+		local q = ringNode(center, rMin, rMax, nil)
+		if q and not spotSeen(q) then
+			return q
+		end
+	end
+	if wide then
+		local r0 = math.max(rMax, 165)
+		for _ = 1, 6 do
+			local q = ringNode(center, r0, r0 + 35, nil)
+			if q and flat(q, center) <= r0 + 40 and not spotSeen(q) then
+				return q
+			end
+		end
+	end
+	return nil
 end
 
 -------------------------------------------------------------------------------------------------
@@ -359,6 +403,7 @@ local function standAt(o: any, p: Vector3?)
 	setAct(o, o.idleAct or "idle")
 	if o.model then
 		o.model:PivotTo(CFrame.new(o.pos + Vector3.new(0, o.ground, 0)) * CFrame.Angles(0, math.rad(o.yaw or 0), 0))
+		o.rootSyncT, o.rootSyncP = now(), o.pos
 	end
 end
 
@@ -377,6 +422,7 @@ local function moveAlong(o: any, pts: { Vector3 }, speed: number)
 	setAct(o, "idle") -- the client walks / runs the rig by the leg speed
 	if o.model then
 		o.model:PivotTo(CFrame.new(pts[1] + Vector3.new(0, o.ground, 0)) * CFrame.Angles(0, math.rad(o.yaw or 0), 0))
+		o.rootSyncT, o.rootSyncP = now(), pts[1]
 	end
 end
 
@@ -385,6 +431,27 @@ local function arrived(o: any): boolean
 		return true
 	end
 	return (now() - o.t0) * o.speed >= o.cum[#o.cum] - 0.05
+end
+
+-- StreamingEnabled: the server copy of a walking / running rig follows its leg at ~1 Hz (it used to stay
+-- at the leg start, up to 130 studs off), so it streams in where the officer really is and Fight's
+-- server-side reach check sees him there. Clients draw the walk every frame from NpcLeg as before.
+local function syncRoot(o: any)
+	if o.gone or o.seated or not o.path or o.speed <= 0 or not o.model or not o.model.Parent then
+		return
+	end
+	local t = now()
+	if t - (o.rootSyncT or 0) < 1 then
+		return
+	end
+	o.rootSyncT = t
+	local p, dir = legPos(o, t)
+	if o.rootSyncP and (p - o.rootSyncP).Magnitude < 2 then
+		return -- arrived / barely moved: nothing to send
+	end
+	o.rootSyncP = p
+	local yaw = if dir and Vector3.new(dir.X, 0, dir.Z).Magnitude > 0.05 then math.atan2(-dir.X, -dir.Z) else math.rad(o.yaw or 0)
+	o.model:PivotTo(CFrame.new(p + Vector3.new(0, o.ground, 0)) * CFrame.Angles(0, yaw, 0))
 end
 
 -- speech bubble over the head (Workspace BillboardGui: every client renders it)
@@ -555,6 +622,7 @@ local function newOfficer(at: Vector3, role: string, case: any?, unit: any?): an
 		burstUntil = 0,
 		burstReady = 0,
 		stopIssued = false,
+		orderGiven = false, -- the 2+ star "손 들어!" (one per officer)
 		created = now(),
 		incident = nil,
 	}
@@ -632,6 +700,8 @@ local function removeOfficer(o: any)
 end
 
 local function assignGoal(o: any, pos: Vector3, speed: number, wrong: number?)
+	-- (feet on the floor: a goal from the suspect's root is ~3 studs up)
+	pos = feetAt(pos)
 	-- from where the officer is right now (a stale position would make the new leg start with a jump)
 	o.pos = legPos(o, now())
 	local pts = routePts(o.pos, pos, { wrong = wrong })
@@ -895,6 +965,8 @@ local function setCarPath(c: any, path: any)
 	c.path = path
 	c.t0 = now()
 	c.done = false
+	-- a U-turn in this path: no route re-plan before the arc is through (carRoute's uturnT)
+	c.planHold = if path.uturnT then now() + path.uturnT else nil
 	c.serial = (c.serial or 0) + 1
 	local m = c.model
 	m:SetAttribute("LawPath", D.encode(path.pts, path.times))
@@ -1005,6 +1077,7 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 	end
 	local pts
 	local v0 = o.v0 or 26
+	local uturnLen: number? = nil -- the U-turn arc's length (cp -> the lane the other way) when one is taken
 	if c then
 		local cp, dir = carPos(c)
 		local v = carSpeed(c)
@@ -1049,6 +1122,7 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 					if ulen < bestLen then
 						pts = up
 						bestLen = ulen
+						uturnLen = D.polyLength({ up[1], up[2], up[3], up[4], up[5], up[6], up[7] })
 					end
 				end
 			end
@@ -1063,6 +1137,18 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		return nil
 	end
 	local okP, path = pcall(D.buildPath, pts, { cruise = (o.cruise or 40), v0 = v0, v1 = o.v1 or 0, pullOver = if o.kerb ~= false then { offset = 2.2, len = 24 } else nil, heights = carHeights })
+	if okP and path and uturnLen then
+		-- when the arc is done (setCarPath holds re-plans until then: a re-plan mid-arc would swing
+		-- the car back to the lane it is turning away from). 0.9: the smoothing shortens the arc a bit
+		local acc = 0
+		for i = 2, #path.pts do
+			acc += flat(path.pts[i - 1], path.pts[i])
+			if acc >= uturnLen * 0.9 then
+				path.uturnT = path.times[i] + 0.3
+				break
+			end
+		end
+	end
 	return if okP then path else nil
 end
 
@@ -1073,19 +1159,8 @@ local function spawnRoute(pos: Vector3, cruise: number, back: number?): any?
 		local want = if try == 1 then nil else ({ 420, 520, 330, 600 })[try - 1]
 		local path = carRoute(nil, pos, { cruise = cruise, v0 = 30, want = want, stopBack = back })
 		if path then
-			local p0 = path.pts[1]
-			local minD, seen = math.huge, false
-			for _, p in Players:GetPlayers() do
-				local pp = Law.posOf(p)
-				if pp then
-					local d = flat(pp, p0)
-					minD = math.min(minD, d)
-					if d < 360 and losClear(pp + Vector3.new(0, 4.5, 0), p0 + Vector3.new(0, 2.5, 0)) then
-						seen = true
-					end
-				end
-			end
-			if minD >= 220 and not seen then
+			local ok, minD, seen = unseenStart(path.pts[1], 220, 360)
+			if ok then
 				return path
 			end
 			local score = minD - (if seen then 400 else 0)
@@ -1124,6 +1199,16 @@ local function placeSeated(o: any)
 	o.pos = cf.Position - Vector3.new(0, o.ground, 0)
 end
 
+-- StreamingEnabled: a seated crew streams like its Persistent car (seen in the cabin from the car's
+-- first frame at any distance); back to Atomic (buildRig's mode) once on foot
+local function crewStreaming(o: any, seated: boolean)
+	if o.model then
+		pcall(function()
+			(o.model :: any).ModelStreamingMode = if seated then Enum.ModelStreamingMode.Persistent else Enum.ModelStreamingMode.Atomic
+		end)
+	end
+end
+
 local function seatOfficer(c: any, o: any, slot: number)
 	o.car = c
 	o.seated = slot
@@ -1142,6 +1227,7 @@ local function seatOfficer(c: any, o: any, slot: number)
 	local off = seatsOf(c).seats[slot] or Vector3.zero
 	-- NpcSeat = "<car model name>|x,y,z": the client keeps the rig on the seat of the moving car
 	o.model:SetAttribute("NpcSeat", string.format("%s|%.2f,%.2f,%.2f", c.model.Name, off.X, off.Y, off.Z))
+	crewStreaming(o, true)
 	setAct(o, "sit")
 	placeSeated(o)
 end
@@ -1196,16 +1282,25 @@ local function exitOfficer(o: any)
 	o.pos = seatFeet
 	moveAlong(o, { seatFeet, sill, out }, 3.2)
 	o.model:SetAttribute("NpcSeat", nil)
+	crewStreaming(o, false)
 	o.state = "exiting"
-	o.exitDone = now() + (flat(seatFeet, sill) + flat(sill, out)) / 3.2 + 0.45
-	faceTo(o, out + (out - seatFeet))
+	-- out of the door, then a look toward the suspect's last known spot (body + head) before the run
+	local case = c.case
+	local look = (case and case.knownPos) or c.dismountTarget
+	o.exitDone = now() + (flat(seatFeet, sill) + flat(sill, out)) / 3.2 + (if look then 0.8 + rnd() * 0.4 else 0.45)
+	faceTo(o, if look and flat(out, look) > 1.5 then look else out + (out - seatFeet))
+	if look and case and case.player then
+		o.model:SetAttribute("NpcLook", case.player.UserId)
+	end
 end
 
--- getting in: walk to the door, step in, sit (boarding officers keep their slot)
-local function boardOfficer(o: any, c: any)
+-- getting in: walk to the door, step in, sit (boarding officers keep their slot); speed = a run back
+-- to the car when the suspect drives off (default: a brisk walk)
+local function boardOfficer(o: any, c: any, speed: number?)
 	if o.state == "board" and o.car == c then
 		return true
 	end
+	o.boardSpeed = speed or 9.5
 	local slot = freeSlot(c)
 	if not slot then
 		return false
@@ -1224,7 +1319,7 @@ local function boardOfficer(o: any, c: any)
 		end
 	end
 	local _, _, out = doorWorld(c, slot)
-	assignGoal(o, out, 9.5, nil)
+	assignGoal(o, out, o.boardSpeed, nil)
 	o.boardStep = "walk"
 	o.boardT = now()
 	return true
@@ -1249,6 +1344,36 @@ local function nextSlot(case: any?): number
 	return k
 end
 
+-- the light bar (LawSiren: the client flashes the lamps) and the siren sound together; a patrol car
+-- (made without a case) gets its Sound when it joins one
+local function setSiren(model: Model, on: boolean)
+	model:SetAttribute("LawSiren", on)
+	local host = model.PrimaryPart
+	local snd = host and host:FindFirstChild("LawSiren")
+	if on and host and not snd then
+		local s = Instance.new("Sound")
+		s.Name = "LawSiren"
+		s.SoundId = "rbxassetid://5736468541"
+		s.Looped = true
+		s.Volume = 0.55
+		s.RollOffMaxDistance = 420
+		s.RollOffMinDistance = 24
+		s.Parent = host
+		snd = s
+	end
+	if snd and snd:IsA("Sound") then
+		pcall(function()
+			if on then
+				if not snd.IsPlaying then
+					snd:Play()
+				end
+			else
+				snd:Stop()
+			end
+		end)
+	end
+end
+
 local function newCar(case: any?, pos: Vector3, role: string, unit: any?): any?
 	if #cars >= LS.MAX_CARS + (if unit and unit.extraCars then unit.extraCars else 0) or not loadNav() or not D or not graph then
 		return nil
@@ -1271,7 +1396,6 @@ local function newCar(case: any?, pos: Vector3, role: string, unit: any?): any?
 	local car = tpl:Clone()
 	car.Name = "LawPatrolCar_" .. seq
 	car:SetAttribute("LawCar", true)
-	car:SetAttribute("LawSiren", case ~= nil)
 	car:SetAttribute("LawUnit", if unit and unit.label then unit.label .. " " .. (1 + seq % 9) else "광안" .. (10 + seq % 80))
 	if unit then
 		car:SetAttribute("LawCarKind", unit.kind)
@@ -1279,20 +1403,7 @@ local function newCar(case: any?, pos: Vector3, role: string, unit: any?): any?
 	local p0, d0 = D.sample(path.pts, path.times, 0)
 	-- the whole model (PivotTo): every welded part and lamp moves with the root before it is parented
 	car:PivotTo(D.cframe(p0, d0))
-	local host = car.PrimaryPart
-	if host and case then
-		local snd = Instance.new("Sound")
-		snd.Name = "LawSiren"
-		snd.SoundId = "rbxassetid://5736468541"
-		snd.Looped = true
-		snd.Volume = 0.55
-		snd.RollOffMaxDistance = 420
-		snd.RollOffMinDistance = 24
-		snd.Parent = host
-		pcall(function()
-			snd:Play()
-		end)
-	end
+	setSiren(car, case ~= nil)
 	car.Parent = carsFolder
 	local c = { id = "car_" .. seq, model = car, path = nil, t0 = now(), done = false, case = case, role = role, state = "respond", crew = {}, nextPlan = now() + 2.5, nextSight = 0, glimpse = nil, slowT = 0, created = now(), dismounted = false, goal = pos, slotIdx = slotIdx, T = T, unit = unit and unit.kind or nil }
 	setCarPath(c, path)
@@ -1339,13 +1450,7 @@ end
 
 local function driveAway(c: any)
 	c.state = "leave"
-	c.model:SetAttribute("LawSiren", false)
-	local s = c.model:FindFirstChild("LawSiren", true)
-	if s and s:IsA("Sound") then
-		pcall(function()
-			s:Stop()
-		end)
-	end
+	setSiren(c.model, false)
 	local cp, dir = carPos(c)
 	local loc = headingLoc(cp + dir * 6, dir, 30)
 	if not loc then
@@ -1386,7 +1491,7 @@ local function carLeave(c: any)
 	if out then
 		c.state = "recall"
 		c.recallUntil = now() + 20
-		c.model:SetAttribute("LawSiren", false)
+		setSiren(c.model, false)
 		return
 	end
 	driveAway(c)
@@ -1408,6 +1513,38 @@ local function tierOf(case: any): any
 	return LS.TIERS[math.clamp(case.stars, 1, 5)]
 end
 
+-- the dispatcher's position feed: for a while after a report / a sighting / a fresh witness call
+-- (case.radioUntil, LS.TIERS[*].radio) the units get the suspect's area every few seconds, not only
+-- the first reported spot. An area, not the exact spot (jitter), and never while out of that window
+-- (a suspect who stays unseen long enough still gets away)
+local function radioFix(case: any, player: Player)
+	if not case.radioUntil or now() >= case.radioUntil or now() < (case.nextRadio or 0) then
+		return
+	end
+	local t = tierOf(case)
+	case.nextRadio = now() + math.max(2, t.repath * 3)
+	local pp = Law.posOf(player)
+	if not pp or (case.knownPos and flat(pp, case.knownPos) < 20) then
+		return
+	end
+	local j = math.max(8, 30 - case.stars * 4)
+	case.knownPos = pp + Vector3.new((rnd() - 0.5) * j, 0, (rnd() - 0.5) * j)
+	case.knownT = now()
+	for _, o in case.units do
+		if not o.gone and not o.seeing and o.state ~= "chase" and o.state ~= "stop" and o.state ~= "cuffwalk" and not o.radioAt then
+			o.radioAt = now() + 1 + rnd() * 1.5
+		end
+	end
+end
+
+-- keep the dispatcher's feed open (secs; default: the tier's radio x3)
+function Police.radioRefresh(player: Player, secs: number?)
+	local case = cases[player]
+	if case then
+		case.radioUntil = math.max(case.radioUntil or 0, now() + (secs or tierOf(case).radio * 3))
+	end
+end
+
 local function suspectInCar(player: Player): boolean
 	if Police.testInCar then
 		return true -- test only (Law debug "fakeCar"): the suspect counts as driving
@@ -1417,11 +1554,27 @@ local function suspectInCar(player: Player): boolean
 	return h ~= nil and h.SeatPart ~= nil
 end
 
+-- a suspect who hit an officer: until when the officers go for the takedown (제압) instead of
+-- ordering / watching (Fight.hitHooks "police_" -> onOfficerHit)
+local violent: { [Player]: number } = {}
+local function isViolent(player: Player): boolean
+	return (violent[player] or 0) > now()
+end
+
 -- the suspect's speed (studs/s), tracked per tick
 local speeds: { [Player]: { p: Vector3, t: number, v: number } } = {}
 local function suspectSpeed(player: Player): number
 	local r = speeds[player]
 	return r and r.v or 0
+end
+
+-- a 1-star suspect seen driving off = 도주: +1 star, so staff() sends a patrol car and the road chase
+-- (2+ stars) can start. A cooldown, not a one-shot (the stars can decay back to 1 in the same case)
+local function carFlee(case: any, player: Player, pp: Vector3?)
+	if case.stars == 1 and suspectInCar(player) and suspectSpeed(player) > 12 and now() - (case.carFleeT or -1e9) > 45 then
+		case.carFleeT = now()
+		Law.crime(player, "flee", { police = true, pos = pp })
+	end
 end
 
 local function trackSpeeds()
@@ -1446,7 +1599,7 @@ end
 local function spawnFootUnits(case: any, n: number)
 	local t = tierOf(case)
 	for _ = 1, n do
-		local at = hiddenSpot(case.knownPos, LS.SPAWN_RING[1], LS.SPAWN_RING[2])
+		local at = hiddenSpot(case.knownPos, LS.SPAWN_RING[1], LS.SPAWN_RING[2], true)
 		if not at then
 			return
 		end
@@ -1522,6 +1675,8 @@ function Police.dispatch(player: Player, s: any, pos: Vector3?, kind: string?, b
 	case.stars = s.stars
 	case.knownPos = pos or s.knownPos or Law.posOf(player)
 	case.knownT = now()
+	-- the caller stays on the line for a while: the dispatcher keeps the units posted (radioFix)
+	case.radioUntil = math.max(case.radioUntil or 0, now() + tierOf(case).radio * 5)
 	case.kind = kind
 	case.searchCenter = case.knownPos
 	-- the dispatch line on the player's screen
@@ -1558,6 +1713,9 @@ function Police.standDown(player: Player, s: any, why: string)
 		return
 	end
 	cases[player] = nil
+	if why == "arrest" then
+		violent[player] = nil
+	end
 	for _, o in table.clone(case.units) do
 		if not o.gone then
 			o.case = nil
@@ -1670,6 +1828,9 @@ function Police.surrender(player: Player, s: any)
 		return
 	end
 	local o = Police.nearestOfficer(pp, 40)
+	if o then
+		o.cuffSurrender = nil -- (a real surrender: never a stale stop-answer flag)
+	end
 	if o and o.case and o.case.player == player then
 		o.state = "cuffwalk"
 		say(o, "좋아요, 손 그대로 두세요.")
@@ -1684,6 +1845,19 @@ function Police.surrender(player: Player, s: any)
 	else
 		Law.push(player, { kind = "toast", text = "근처에 경찰이 없어요. 광안지구대에서 자수할 수도 있어요." })
 	end
+end
+
+-- an answer that ends in handcuffs: the officer walks up first (thinkCase "cuffwalk" grabs at
+-- GRAB_RANGE + 1), never cuffs from where the stop order was given
+local function walkUpArrest(o: any, player: Player, pp: Vector3, surrender: boolean)
+	if flat(pp, legPos(o, now())) <= LS.GRAB_RANGE + 1 then
+		Law.arrest(player, { by = "npc", officer = o, surrender = surrender })
+		return
+	end
+	o.state = "cuffwalk"
+	o.cuffSurrender = surrender
+	o.nextRepath = now() + 0.8
+	assignGoal(o, pp, 9, nil)
 end
 
 function Police.stopAnswer(player: Player, s: any, choice: any): any
@@ -1707,7 +1881,7 @@ function Police.stopAnswer(player: Player, s: any, choice: any): any
 			return { ok = true, result = "ticket" }
 		end
 		say(o, pick(LS.LINES.grab))
-		Law.arrest(player, { by = "npc", officer = o, surrender = true })
+		walkUpArrest(o, player, pp, true)
 		return { ok = true, result = "arrest" }
 	elseif choice == "excuse" then
 		-- talking your way out: a small chance at 1 star (never twice in a row), else a ticket
@@ -1722,7 +1896,7 @@ function Police.stopAnswer(player: Player, s: any, choice: any): any
 			Law.ticket(player, o.name)
 			return { ok = true, result = "ticket" }
 		end
-		Law.arrest(player, { by = "npc", officer = o })
+		walkUpArrest(o, player, pp, false)
 		return { ok = true, result = "arrest" }
 	end
 	-- flee
@@ -1779,7 +1953,8 @@ local function chaseSpeed(o: any, case: any, d: number): number
 	local sv = suspectSpeed(case.player)
 	local f = ({ 0.86, 0.9, 0.94, 0.98, 1.02 })[math.clamp(case.stars, 1, 5)]
 	local v = math.clamp(sv * f, t.run, 28)
-	if d < 18 and now() >= o.burstReady then
+	-- (an officer was hit: no breather between bursts while they close in for the takedown)
+	if d < 18 and (now() >= o.burstReady or isViolent(case.player)) then
 		o.burstUntil = now() + t.burst
 		o.burstReady = now() + 6
 	end
@@ -1832,6 +2007,8 @@ local function thinkCase(o: any, case: any)
 		Law.seen(player, pp, o.name)
 		case.knownPos = pp
 		case.knownT = now()
+		case.radioUntil = math.max(case.radioUntil or 0, now() + t.radio * 2) -- (radioed in: the others follow)
+		carFlee(case, player, pp)
 		if was ~= "chase" and was ~= "stop" and was ~= "cuffwalk" then
 			o.state = "chase"
 			say(o, pick(LS.LINES.spot))
@@ -1849,12 +2026,22 @@ local function thinkCase(o: any, case: any)
 		end
 	end
 	if o.state == "cuffwalk" then
-		-- walking up to a surrendering suspect
+		-- walking up to a surrendering suspect (or one who answered the stop order: cuffSurrender)
 		if pp and d <= LS.GRAB_RANGE + 1 then
+			local surrender = o.cuffSurrender ~= false
+			o.cuffSurrender = nil
 			standAt(o, legPos(o, now()))
 			faceTo(o, pp)
 			say(o, pick(LS.LINES.grab))
-			Law.arrest(player, { by = "npc", officer = o, surrender = true })
+			Law.arrest(player, { by = "npc", officer = o, surrender = surrender })
+		elseif o.cuffSurrender ~= nil and pp and d > 15 then
+			-- answered the stop order, then ran for it
+			o.cuffSurrender = nil
+			o.state = "chase"
+			o.stopIssued = true
+			o.nextRepath = 0
+			say(o, pick(LS.LINES.chase))
+			Law.crime(player, "flee", { police = true, pos = pp })
 		elseif now() >= o.nextRepath and pp then
 			o.nextRepath = now() + 0.8
 			assignGoal(o, pp, 9, nil)
@@ -1866,6 +2053,19 @@ local function thinkCase(o: any, case: any)
 			return
 		end
 		faceTo(o, pp)
+		if isViolent(player) then
+			-- hit an officer during the stop: the stop is over, the takedown starts (no extra 도주)
+			if case.stopBy == o then
+				case.stopBy = nil
+				Law.push(player, { kind = "stopEnd" })
+			end
+			o.state = "chase"
+			o.stopIssued = true
+			o.orderGiven = true
+			o.nextRepath = 0
+			say(o, pick(LS.LINES.subdue), 3)
+			return
+		end
 		if d > 15 or now() - (o.stopT or now()) > LS.STOP_GRACE then
 			-- walked off / ignored the order
 			case.stopBy = nil
@@ -1896,18 +2096,62 @@ local function thinkCase(o: any, case: any)
 				} })
 				return
 			end
-			-- grab
-			if d <= LS.GRAB_RANGE and now() >= o.grabAt then
+			local violentNow = isViolent(player)
+			-- on foot, beyond a ticket: the order first ("손 들어!"), then a moment watching what the suspect
+			-- does (stops / hands up / runs) before any grab. One order per officer; the case-level
+			-- watchUntil keeps a crowd of officers from shouting at once. A suspect who hit an officer
+			-- gets no order (the takedown, below)
+			if not o.orderGiven and not violentNow and not Law.ticketable(player) and not suspectInCar(player) and d <= LS.ORDER_RANGE and now() >= (case.watchUntil or 0) then
+				o.orderGiven = true
+				case.watchUntil = now() + LS.ORDER_WATCH
+				case.watchBy = o
+				o.pos = legPos(o, now())
+				faceTo(o, pp)
+				say(o, pick(LS.LINES.order_hard), 3)
+				emote(o, "stop_hand")
+				assignGoal(o, pp, 7, nil) -- closes the last studs at a walk
+				return
+			end
+			if case.watchBy == o and case.watchUntil then
+				local handsUp = now() - (s.handsUp or -1e9) < 6
+				local v = suspectSpeed(player)
+				if now() < case.watchUntil and d <= 15 and v <= 12 and not handsUp and not violentNow then
+					if o.path and d <= LS.GRAB_RANGE + 1 then
+						standAt(o, legPos(o, now())) -- (never walks into the suspect while watching)
+						faceTo(o, pp)
+					end
+					return -- still watching (keeps the walk goal: no grab, no sprint re-path)
+				end
+				case.watchUntil, case.watchBy = nil, nil
+				if handsUp then
+					o.state = "cuffwalk"
+					o.cuffSurrender = true
+					o.nextRepath = now() + 0.8
+					say(o, "좋아, 손 그대로!")
+					assignGoal(o, pp, 9, nil)
+					return
+				elseif v < 3 then
+					o.grabAt = 0 -- stood still: the grab below (LS.grabChance = 1 under 3 studs/s)
+				else
+					say(o, pick(LS.LINES.chase)) -- ran: the chase re-paths at chase speed now
+					o.nextRepath = 0
+				end
+			end
+			-- grab (not while another officer's order is being watched)
+			if d <= LS.GRAB_RANGE and now() >= o.grabAt and now() >= (case.watchUntil or 0) then
 				o.grabAt = now() + 1.2
 				local handsUp = now() - (s.handsUp or -1e9) < 6
 				local chance = if handsUp then 1 else LS.grabChance(case.stars, suspectSpeed(player), suspectInCar(player))
+				if violentNow and not handsUp then
+					chance = math.max(chance, 0.7) -- 제압: hitting an officer up close ends on the ground
+				end
 				if Police.testNoGrab then
 					chance = 0 -- test only: watch the chase without it ending
 				end
 				if rnd() < chance then
 					standAt(o, legPos(o, now()))
 					faceTo(o, pp)
-					say(o, pick(LS.LINES.grab))
+					say(o, pick(if violentNow and not handsUp then LS.LINES.subdue else LS.LINES.grab))
 					Law.arrest(player, { by = "npc", officer = o, forced = not handsUp, surrender = handsUp })
 					return
 				end
@@ -1971,7 +2215,7 @@ local function thinkCase(o: any, case: any)
 			o.searchCenter = case.knownPos or o.pos
 			say(o, pick(if wasLost then LS.LINES.search else LS.LINES.arrive))
 			standAt(o, o.pos)
-			emote(o, "look")
+			setAct(o, "look") -- (the look_around act; an emote "look" does not exist)
 			o.pauseUntil = now() + 1.2 + rnd() * 1.4
 		end
 		return
@@ -2008,6 +2252,7 @@ local function thinkPatrol(o: any)
 				case.stars = s.stars
 				case.knownPos = pp
 				case.knownT = now()
+				case.radioUntil = math.max(case.radioUntil or 0, now() + LS.TIERS[s.stars].radio * 2)
 				o.role = "case"
 				o.case = case
 				table.insert(case.units, o)
@@ -2042,6 +2287,7 @@ local function thinkCrew(o: any)
 		if o.model then
 			o.model:SetAttribute("NpcSeat", nil)
 		end
+		crewStreaming(o, false)
 		o.role = if o.case then "case" else "patrol"
 		o.state = if o.case then "respond" else "leave"
 		o.leaveAt = now() + 30
@@ -2054,6 +2300,9 @@ local function thinkCrew(o: any)
 	end
 	if o.state == "exiting" then
 		if now() >= (o.exitDone or 0) then
+			if o.model then
+				o.model:SetAttribute("NpcLook", 0) -- (the look toward the suspect after the exit is over)
+			end
 			local case = c.case
 			if o.unit and Police.unitThink[o.unit] then
 				o.role = o.unit
@@ -2096,7 +2345,7 @@ local function thinkCrew(o: any)
 				-- re-aim at the door (the route ended short / the car moved a little)
 				o.boardRe = now()
 				o.pos = legPos(o, now())
-				assignGoal(o, out, 9.5, nil)
+				assignGoal(o, out, o.boardSpeed or 9.5, nil)
 			end
 		elseif o.boardStep == "in" and arrived(o) then
 			o.boardSlot = nil
@@ -2201,6 +2450,7 @@ end
 local function startExits(c: any, target: Vector3?)
 	c.state = "parked"
 	c.parkT = now()
+	c.boxedAt = nil -- (the boxed-in stop is over: the crew walks up and grabs, never the car alone)
 	c.dismountTarget = target
 	c.dismounted = true
 	local k = 0
@@ -2281,6 +2531,22 @@ local function stopPath(c: any): any?
 	return if okP then path else nil
 end
 
+-- a lane route that loops far round the block (one-way streets) to reach a spot close by is not worth
+-- driving (the dispatcher feed re-plans often): the car brakes to a stop where it is and the crew goes
+-- on foot, as for an alley. true = it stops (c.goal = target)
+local function detourStop(c: any, path: any, target: Vector3): boolean
+	local straight = flat((carPos(c)), target)
+	if straight >= 160 or (path.length or 0) <= straight * 4 + 300 then
+		return false
+	end
+	local sp = stopPath(c)
+	if sp then
+		setCarPath(c, sp)
+	end
+	c.goal = target
+	return true
+end
+
 local function boardingCount(c: any): number
 	local n = 0
 	for _, o in c.crew do
@@ -2289,6 +2555,20 @@ local function boardingCount(c: any): number
 		end
 	end
 	return n
+end
+
+-- nobody of the crew can get back in (chased too far off on foot): the car stays at the kerb, out of
+-- the case (staff() spawns a fresh, unseen car for the road chase on its next pass); the crew on foot
+-- keeps chasing and walks off when the case ends (the leave branch skips an abandoned car)
+local function strand(c: any, case: any)
+	c.state = "abandoned"
+	c.parkT = now()
+	setSiren(c.model, false)
+	local j = table.find(case.cars, c)
+	if j then
+		table.remove(case.cars, j)
+	end
+	case.lastStaff = 0
 end
 
 local function playersNear(p: Vector3, r: number): boolean
@@ -2418,6 +2698,7 @@ local function thinkCar(c: any)
 				case.stars = s.stars
 				case.knownPos = pp
 				case.knownT = now()
+				case.radioUntil = math.max(case.radioUntil or 0, now() + LS.TIERS[s.stars].radio * 2)
 				Law.seen(p, pp, "순찰차")
 				c.role = "case"
 				c.case = case
@@ -2426,7 +2707,7 @@ local function thinkCar(c: any)
 				table.insert(case.cars, c)
 				-- head for the suspect from where it is (smooth re-plan at the cruising speed)
 				local path = carRoute(c, pp, { cruise = 44 * LS.TIERS[math.max(1, s.stars)].carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * c.slotIdx })
-				if path then
+				if path and not detourStop(c, path, pp) then
 					setCarPath(c, path)
 				end
 				c.goal = pp
@@ -2435,13 +2716,7 @@ local function thinkCar(c: any)
 						o.case = case
 					end
 				end
-				c.model:SetAttribute("LawSiren", true)
-				local snd = c.model:FindFirstChild("LawSiren", true)
-				if snd and snd:IsA("Sound") then
-					pcall(function()
-						snd:Play()
-					end)
-				end
+				setSiren(c.model, true)
 				c.nextPlan = 0
 				break
 			end
@@ -2476,7 +2751,9 @@ local function thinkCar(c: any)
 				Law.seen(player, pp, "순찰차")
 				case.knownPos = pp
 				case.knownT = now()
+				case.radioUntil = math.max(case.radioUntil or 0, now() + t.radio * 2)
 				c.seeing = true
+				carFlee(case, player, pp)
 			end
 		else
 			c.glimpse = nil
@@ -2494,13 +2771,19 @@ local function thinkCar(c: any)
 	if c.state == "parked" then
 		-- the suspect drove off: the crew runs back, gets in, and the road chase starts
 		if roadChase and pp and flat(cp, pp) > 22 then
+			-- (at a run, from up to 150 studs; nobody able to get back in = the car is left behind)
+			local n = 0
 			for _, o in c.crew do
-				if not o.gone and not o.seated and o.state ~= "board" and o.state ~= "exiting" and o.state ~= "cuffwalk" and flat(o.pos, cp) < 80 then
-					boardOfficer(o, c)
+				if not o.gone and not o.seated and o.state ~= "board" and o.state ~= "exiting" and o.state ~= "cuffwalk" and flat(o.pos, cp) < 150 and boardOfficer(o, c, 13 + case.stars * 0.6) then
+					n += 1
 				end
 			end
-			c.state = "remount"
-			c.remountUntil = now() + 10
+			if n > 0 or seatedCount(c) > 0 then
+				c.state = "remount"
+				c.remountUntil = now() + 14
+			else
+				strand(c, case)
+			end
 		end
 		return
 	end
@@ -2524,20 +2807,26 @@ local function thinkCar(c: any)
 				c.state = "chase"
 				c.nextPlan = 0
 				c.dismounted = false
+				for _, o in c.crew do
+					o.exitAt = nil -- (whoever is still in stays in: nobody steps out of a car driving off)
+				end
 			else
-				c.state = "parked"
+				strand(c, case) -- (no parked <-> remount loop holding the case's car quota)
 			end
 		end
 		return
 	end
 	if c.state == "chase" then
 		if not roadChase then
+			if now() < (c.planHold or 0) then
+				return -- (finish the U-turn first, then pull over)
+			end
 			-- the suspect got out / went where no car can go: pull over at the kerb nearest them,
 			-- the crew gets out and the chase goes on on foot
 			local goal = pp or case.knownPos
 			if goal then
 				local path = carRoute(c, goal, { cruise = 40, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
-				if path then
+				if path and not detourStop(c, path, goal) then
 					setCarPath(c, path)
 				end
 				c.goal = goal
@@ -2547,13 +2836,29 @@ local function thinkCar(c: any)
 			return
 		end
 		-- road chase: re-plan along the lanes every 1.2-2 s from where the car is, at its speed
-		if pp and now() >= c.nextPlan and now() >= (c.yieldUntil or 0) then
+		-- (never mid U-turn: a re-plan on the arc would swing the car back to the lane it is leaving;
+		-- nor while it is still on its way to a last-seen spot it has nearly reached)
+		local nearLast = not c.seeing and c.path and not c.done and case.knownPos ~= nil and flat(cp, case.knownPos) < 30
+		if pp and now() >= c.nextPlan and now() >= (c.yieldUntil or 0) and now() >= (c.planHold or 0) and not nearLast then
 			c.nextPlan = now() + 1.2 + rnd() * 0.8
 			local goal = if c.seeing then pp else case.knownPos
 			if goal then
+				-- a wrong side street now and then while it does not see the suspect: kept for a few
+				-- seconds (not re-rolled each re-plan) and always ahead of the car, never a fake U-turn
 				local target = goal
-				if not c.seeing and rnd() < t.wrongTurn * 1.5 then
-					target = goal + Vector3.new((rnd() - 0.5) * 140, 0, (rnd() - 0.5) * 140)
+				if c.seeing then
+					c.wrongTarget = nil
+				elseif c.wrongTarget and now() < (c.wrongUntil or 0) then
+					target = c.wrongTarget
+				elseif rnd() < t.wrongTurn * 1.5 then
+					local _, hd = carPos(c)
+					local off = Vector3.new((rnd() - 0.5) * 140, 0, (rnd() - 0.5) * 140)
+					if off:Dot(hd) < 0 then
+						off -= hd * (2 * off:Dot(hd))
+					end
+					c.wrongTarget = goal + off
+					c.wrongUntil = now() + 5 + rnd() * 3
+					target = c.wrongTarget
 				end
 				local sv = math.max(suspectSpeed(player), 30)
 				-- (the end of the road is short of the suspect, in this car's place in the line: several cars
@@ -2576,6 +2881,7 @@ local function thinkCar(c: any)
 				c.state = "respond"
 				c.goal = pp
 				c.boxedAt = now()
+				c.needReplan = false -- (the stop replaces a pending give-way re-plan: brake, park, get out)
 				c.nextPlan = now() + 3
 			end
 		else
@@ -2591,26 +2897,23 @@ local function thinkCar(c: any)
 			return
 		end
 		if c.boxedAt then
-			-- officers out; the suspect still sitting there in the car -> the arrest
+			-- braking to a stop next to the boxed-in suspect: the crew gets out (startExits) and walks up
+			-- for the grab (warn / approach / grab); the car itself never arrests anybody
 			if now() - c.boxedAt > 2.6 then
-				c.boxedAt = nil
-				if pp and flat(cp, pp) < 18 and suspectSpeed(player) < 6 and not Police.testNoGrab then
-					Law.arrest(player, { by = "npc", forced = true, car = c })
-					return
-				end
+				c.boxedAt = nil -- (only held off the re-chase while the car stopped)
 			end
 		elseif c.needReplan and case.knownPos and now() >= (c.yieldUntil or 0) then
 			-- it gave way to somebody: on to the spot again
 			c.needReplan = false
 			local path = carRoute(c, case.knownPos, { cruise = 44 * t.carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
-			if path then
+			if path and not detourStop(c, path, case.knownPos) then
 				setCarPath(c, path)
 				c.goal = case.knownPos
 			end
-		elseif not c.done and case.knownPos and now() >= c.nextPlan and flat(c.goal or case.knownPos, case.knownPos) > 35 then
+		elseif not c.done and case.knownPos and now() >= c.nextPlan and now() >= (c.planHold or 0) and flat(c.goal or case.knownPos, case.knownPos) > 35 then
 			c.nextPlan = now() + 2.5
 			local path = carRoute(c, case.knownPos, { cruise = 44 * t.carSpeed, v1 = 0, stopBack = 9 + CAR_GAP * (c.slotIdx or 0) })
-			if path then
+			if path and not detourStop(c, path, case.knownPos) then
 				setCarPath(c, path)
 				c.goal = case.knownPos
 			end
@@ -2665,10 +2968,18 @@ local function placeBlock(case: any, kind: string)
 		dir = root.CFrame.LookVector
 	end
 	dir = Vector3.new(dir.X, 0, dir.Z).Unit
-	local ahead = pp + dir * (150 + rnd() * 90)
-	local okL, loc = pcall(D.nearestLocation, graph, ahead, { maxDist = 70 })
-	if not okL or not loc or not loc.point then
-		return
+	-- ahead on the suspect's road, but never set up in plain view (the car, the barriers and the two
+	-- post officers appear where nobody sees them: round a corner, or past the 360-stud sight check)
+	local loc = nil
+	for _, dist in { 260, 320, 400 } do
+		local okL, l = pcall(D.nearestLocation, graph, pp + dir * dist, { maxDist = 70 })
+		if okL and l and l.point and unseenStart(l.point, 220, 360) then
+			loc = l
+			break
+		end
+	end
+	if not loc then
+		return -- (blocksTick already stamped lastBlock: it tries again later)
 	end
 	local at = loc.point
 	local laneDir = D.edgeDir(graph, loc.edge)
@@ -2788,7 +3099,7 @@ local function patrolTick()
 		return
 	end
 	if foot < want.foot * math.min(2, #plist) and not Police.testCarsOnly then
-		local at = hiddenSpot(pp, 90, 150)
+		local at = hiddenSpot(pp, 90, 150) -- (nil when every spot is seen: no patrol this round)
 		if at then
 			local o = newOfficer(at, "patrol", nil)
 			if o then
@@ -2811,10 +3122,73 @@ end
 -------------------------------------------------------------------------------------------------
 -- Tick (4 Hz from Law)
 -------------------------------------------------------------------------------------------------
+-- a hit on an officer (GwangalliGameplay/Fight: Fight.hitHooks["police_"], called before Fight notes
+-- the 공무집행방해): he staggers, and once the case exists (deferred) he and the other officers stop
+-- ordering and go for the takedown (제압) for LS.SUBDUE_S. Returns nil: Fight keeps its "arrest" reaction
+local function onOfficerHit(player: Player, id: string, info: any): (string?, string?)
+	local o = nil
+	for _, x in officers do
+		if x.id == id and not x.gone then
+			o = x
+			break
+		end
+	end
+	if not o or o.civil or o.unit then
+		return nil -- (119 / 특임대: their own modules)
+	end
+	violent[player] = now() + LS.SUBDUE_S
+	o.hitT = now()
+	if o.seated or not o.model then
+		return nil
+	end
+	o.model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", serverNow(), info and info.dx or 0, info and info.dz or -1, "stagger"))
+	o.pauseUntil = math.max(o.pauseUntil or 0, now() + 0.4)
+	if now() - (o.hitSayT or -1e9) > 3 then
+		o.hitSayT = now()
+		say(o, pick(LS.LINES.subdue), 3)
+	end
+	task.defer(function()
+		local case = cases[player]
+		if not case or o.gone or o.seated or o.role == "crew" then
+			return
+		end
+		-- (another officer's stop order ends on his own next think: isViolent)
+		if case.stopBy == o then
+			case.stopBy = nil
+			Law.push(player, { kind = "stopEnd" })
+		end
+		if o.incident then
+			o.incident.officer = nil -- (Law/City lets the incident go on without him)
+			o.incident = nil
+		end
+		if o.case ~= case or o.role ~= "case" then
+			o.role = "case"
+			o.case = case
+			o.block = nil
+			if not table.find(case.units, o) then
+				table.insert(case.units, o)
+			end
+		end
+		o.state = "chase"
+		o.stopIssued = true
+		o.orderGiven = true
+		o.lastSeenPos = (info and info.pos) or Law.posOf(player)
+		o.lastSeenT = now()
+		o.seeing = true
+		o.nextRepath = 0
+	end)
+	return nil, "" -- (his own bubble already shows the line)
+end
+
 local carAcc = 0
+local hookSet = false
 function Police.tick(dt: number)
 	if not loadNav() then
 		return
+	end
+	if not hookSet and ctx and ctx.fight and type(ctx.fight.hitHooks) == "table" then
+		hookSet = true -- (Fight sets ctx.fight after Law is initialised)
+		ctx.fight.hitHooks["police_"] = onOfficerHit
 	end
 	trackSpeeds()
 	for _, o in table.clone(officers) do
@@ -2822,6 +3196,8 @@ function Police.tick(dt: number)
 		if not ok then
 			warn("[GwangalliLaw] officer: " .. tostring(err))
 			removeOfficer(o)
+		elseif not o.gone then
+			pcall(syncRoot, o)
 		end
 	end
 	for _, c in table.clone(cars) do
@@ -2838,10 +3214,15 @@ function Police.tick(dt: number)
 		local s = Law.sess(player)
 		if not s or s.stars <= 0 then
 			Police.standDown(player, s, "lost")
-		elseif now() - (case.lastStaff or 0) > 8 then
-			case.lastStaff = now()
-			case.stars = s.stars
-			staff(case)
+		else
+			if now() - (case.lastStaff or 0) > 8 then
+				case.lastStaff = now()
+				case.stars = s.stars
+				staff(case)
+			end
+			if not s.cuffed and not s.jail then
+				radioFix(case, player)
+			end
 		end
 	end
 	local _ = dt
@@ -2968,6 +3349,8 @@ Police.arrived = arrived
 Police.ringNode = ringNode
 Police.hiddenSpot = hiddenSpot
 Police.groundAt = groundAt
+Police.syncRoot = syncRoot
+Police.setSiren = setSiren
 Police.losClear = losClear
 Police.carPos = carPos
 Police.newCar = newCar
@@ -2985,6 +3368,7 @@ end
 
 function Police.onLeave(player: Player, s: any)
 	speeds[player] = nil
+	violent[player] = nil
 	if cases[player] then
 		Police.standDown(player, s, "lost")
 	end

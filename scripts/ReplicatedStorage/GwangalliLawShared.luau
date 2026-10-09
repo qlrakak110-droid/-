@@ -85,8 +85,9 @@ Law.CRIMES = {
 -- run (studs/s; the player runs 16, sprints 24), burst (extra speed when close, seconds), repath (s
 -- between route refreshes), wrongTurn (chance at a junction to take a wrong branch while chasing a
 -- last-seen spot), hesitate (chance to stall at an obstacle / alley step for 0.6-1.4 s), search
--- (seconds out of sight before a star drops), radio (seconds the dispatcher knows the exact position
--- after a fresh report: officers head for the reported spot, not the live position, once it expires).
+-- (seconds out of sight before a star drops), radio (dispatcher feed: for radio x5 s after a report,
+-- x2 after a sighting, x3 after a fresh witness call, the units get the suspect's area every few seconds;
+-- once it expires they only know the last reported / seen spot).
 -------------------------------------------------------------------------------------------------
 Law.TIERS = {
 	[1] = { foot = 2, cars = 0, roadblocks = 0, checkpoint = false, sight = 56, fov = 120, react = 0.9, run = 15.2, burst = 1.6, repath = 1.3, wrongTurn = 0.22, hesitate = 0.2, search = 26, radio = 3, carSpeed = 1.15, label = "근처 경찰 출동" },
@@ -154,9 +155,11 @@ Law.MAX_CARS = 8 -- server-wide patrol cars (incl. roadblock cars)
 Law.SPAWN_RING = { 70, 130 } -- studs from the reported spot, out of the suspect's sight
 Law.CAR_SPAWN = { 260, 460 } -- road distance up the lanes before the car appears
 Law.ORDER_RANGE = 10 -- "거기 서!" range
+Law.ORDER_WATCH = 1.3 -- s an officer watches the reaction to "손 들어!" (2+ stars, on foot) before any grab
 Law.GRAB_RANGE = 3.4 -- subdue attempt range
 Law.LOST_FAR = 160 -- an officer this far from the case and the suspect gives up and leaves
 Law.STOP_GRACE = 6 -- seconds a stopped (1-star) suspect has to comply before it counts as fleeing
+Law.SUBDUE_S = 20 -- s after hitting an officer: the officers go for the takedown (제압), no order / watch
 Law.ESCAPE_BONUS = { 1500, 3000, 6000, 12000, 25000 } -- nothing paid: only the progress metric / goals text
 Law.WANTED_FLOOR_DECAY = 0.35 -- multiplier on `search` once the police lost every trace (no officer near)
 
@@ -375,6 +378,8 @@ Law.LINES = {
 	grab_fail = { "놓쳤다!", "빠져나갔어!", "어딜!", "으악, 미끄러져…" },
 	grab = { "잡았다!", "꼼짝 마!", "손 뒤로!", "체포합니다." },
 	order = { "잠깐만요, 거기 서 보세요.", "신분증 좀 보여주시겠어요?", "멈추세요, 경찰입니다." },
+	order_hard = { "손 들어! 엎드려!", "움직이지 마! 손 보이게 해!", "그 자리에 서! 손 머리 위로!" },
+	subdue = { "경찰관 폭행 현행범, 제압한다!", "엎드려! 손 뒤로!", "저항하지 마! 제압해!" },
 	ticket = { "이번엔 경고와 벌금으로 끝내겠습니다.", "벌금 처리합니다. 조심하세요.", "다음엔 이렇게 안 끝나요." },
 	give_up = { "이번엔 놓쳤네… 복귀한다.", "무전: 수색 종료, 복귀합니다.", "다음에 보자." },
 	roadblock = { "검문 중입니다, 서행하세요!", "도로 통제 중!", "차 세워!" },
