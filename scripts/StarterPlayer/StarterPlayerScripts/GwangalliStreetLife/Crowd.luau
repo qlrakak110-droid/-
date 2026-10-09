@@ -1,12 +1,13 @@
 -- GwangalliStreetLife/Crowd: the pedestrian manager (client-side; every client simulates its own
 -- surroundings).
---   * SPAWNER (TickHz): keeps `cap` pedestrians around the player - GwangalliQuality low 12 / mid 18 /
---     high 25 (saver 6), shrinking away from the club at night (GwangalliNight.streetCap: cap * (1 -
+--   * SPAWNER (TickHz): keeps `cap` pedestrians around the player - Config.Cap: 50 on every
+--     GwangalliQuality tier (saver 20), shrinking away from the club at night (GwangalliNight.streetCap: cap * (1 -
 --     0.3 * hype), blended by the distance to the club door) and 0 outside while the player is inside
 --     CLUB OCEAN (the street is behind the walls; the club crowd is ClubCrowd's). Named citizens come
 --     first (GwangalliCitizens.candidates), anonymous passers-by fill up. Spawns go where a GTA crowd
 --     appears: ahead of the player's direction of travel, off-screen or at least SpawnViewMin studs
---     away when on screen, never on top of somebody else. Activity people START at their spot (a
+--     away when on screen, never on top of somebody else nor inside a car (parked map cars, player /
+--     police / taxi cars: carBlocked). Activity people START at their spot (a
 --     bench, a towel, a photo spot, a shop window, a bus stop) instead of walking there, and when too
 --     many of the people around are walking the next one is an activity person; by day a few people
 --     always lie on the towels when there is sand nearby. Some people walk out of the metro / a shop.
@@ -17,8 +18,12 @@
 --     through the door one by one; smokers stand at the hang-out ring.
 --   * EVENTS: the drone show (GwangalliDroneShowStart) turns the beach crowd toward the bay; a ring of
 --     listeners gathers at the busker (key NPC "busker", NpcAct guitar) and claps between songs; a
---     customer or two buys at the 붕어빵 cart (key NPC "bungeoppang"); people nearby film the player
---     dancing.
+--     customer or two buys at the 붕어빵 cart (key NPC "bungeoppang"); passers-by stop at the 포장마차
+--     carts (the Interact layer's, read only; busiest in the evening and at night); people nearby film
+--     the player dancing.
+--   * WHO IS OUT: anonymous passers-by dress for the hour (출퇴근 직장인, 등하교 학생, 낮 관광객 on the
+--     beach; nobody in a school uniform late at night); at night the beach / promenade has more
+--     couples, more of them hand in hand.
 --   * REACTIONS that need the whole crowd: fast cars (the player's own - Humanoid.SeatPart - or any
 --     driven GwangalliDrivable car) make the people in their path jump aside; a horn turns heads; the
 --     player walking into somebody (per-frame contact check); pedestrians keep apart (separation).
@@ -795,11 +800,13 @@ local function drivesNow(seat: BasePart?): boolean
 	return d == nil or d == player.UserId -- (a VehicleSeat outside the drive system: a test seat)
 end
 
+local drivables: { [Model]: boolean } = {} -- every GwangalliDrivable car (spawn safety: carBoxes)
 local function watchCar(inst: Instance)
 	if not inst:IsA("Model") then
 		return
 	end
 	local m = inst :: Model
+	drivables[m] = true
 	local function upd()
 		local d = m:GetAttribute("DriveDriver")
 		if type(d) == "number" and d ~= 0 and d ~= player.UserId then
@@ -906,6 +913,124 @@ function Crowd.carComing(p: Vector3, r: number): boolean
 		end
 	end
 	return false
+end
+
+-- spawn safety: nobody appears inside a car. The boxes of the cars around the player: parked map
+-- cars (Gwangalli.roads.ParkedVehicles, direct children with a VehicleKind; nested groups are
+-- templates), rigged cars (GwangalliDrivable: player cars, a parked car somebody got into), police
+-- cars and taxis. A model's box is measured once (GetBoundingBox walks every part) relative to one of
+-- its parts and follows that part afterwards; refreshed every 3 s (every 1 s while cars in range
+-- are still unmeasured; every tick during a fill), at most 6 new measurements each (16 in a fill)
+local staticCars: { [Model]: boolean } = {}
+local boxOf: { [Model]: any } = setmetatable({}, { __mode = "k" }) :: any
+local carBoxes: { any } = {}
+local boxSeen: { [Instance]: boolean } = {}
+local boxesAt = -1e9
+local boxesNext = 3
+local BOX_FOLDERS = { "GwangalliLawCars", "GwangalliTaxis", "GwangalliPlayerCars" }
+
+local function boxRef(m: Model): BasePart?
+	local r = m:FindFirstChild("DriveCollider") or m:FindFirstChild("DriveBase") or m.PrimaryPart
+	if r and r:IsA("BasePart") then
+		return r
+	end
+	return m:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function refreshCarBoxes(pp: Vector3, now: number, fill: boolean)
+	if not fill and now - boxesAt < boxesNext then
+		return -- (a fill - the join, a quick travel - spawns many people at once: every tick)
+	end
+	boxesAt = now
+	boxesNext = 3
+	table.clear(carBoxes)
+	table.clear(boxSeen)
+	local budget = if fill then 16 else 6
+	local function add(m: Instance)
+		if boxSeen[m] or not m:IsA("Model") or not m.Parent then
+			return
+		end
+		boxSeen[m] = true
+		local rec = boxOf[m :: Model]
+		if rec == false then
+			return
+		end
+		if not rec or not rec.ref.Parent then
+			local ref = boxRef(m :: Model)
+			if not ref then
+				return -- (not streamed in)
+			end
+			rec = { ref = ref }
+			boxOf[m :: Model] = rec
+		end
+		if flatDist(rec.ref.Position, pp) > 260 then
+			return
+		end
+		if not rec.half then
+			if budget <= 0 then
+				boxesNext = 1 -- (more to measure: again soon)
+				return
+			end
+			budget -= 1
+			local ok, cf, size = pcall(function()
+				return (m :: Model):GetBoundingBox()
+			end)
+			if not ok or typeof(cf) ~= "CFrame" or typeof(size) ~= "Vector3" or size.Magnitude > 80 then
+				boxOf[m :: Model] = false -- (not a car: a container / a scene)
+				return
+			end
+			rec.off = rec.ref.CFrame:ToObjectSpace(cf)
+			rec.half = size * 0.5
+			rec.r = math.max(size.X, size.Z) * 0.71 + 4
+		end
+		local cf = rec.ref.CFrame * rec.off
+		table.insert(carBoxes, { cf = cf, half = rec.half, x = cf.Position.X, z = cf.Position.Z, r = rec.r })
+	end
+	for m in staticCars do
+		if m.Parent then
+			pcall(add, m)
+		else
+			staticCars[m] = nil
+		end
+	end
+	for m in drivables do
+		if m.Parent then
+			pcall(add, m)
+		end
+	end
+	for _, n in BOX_FOLDERS do
+		local f = workspace:FindFirstChild(n)
+		if f then
+			for _, m in f:GetChildren() do
+				pcall(add, m)
+			end
+		end
+	end
+end
+
+-- p (a ground point) is inside / within pad studs of a car's box, or next to a moving car
+local function carBlocked(p: Vector3, pad: number): boolean
+	for _, b in carBoxes do
+		local dx, dz = p.X - b.x, p.Z - b.z
+		local rr = b.r + pad
+		if dx * dx + dz * dz < rr * rr then
+			local l = b.cf:PointToObjectSpace(p)
+			local h = b.half
+			if math.abs(l.X) < h.X + pad and math.abs(l.Z) < h.Z + pad and math.abs(l.Y) < h.Y + 4 then
+				return true
+			end
+		end
+	end
+	for _, c in cars do
+		if flatDist(c.pos, p) < 6 + pad and math.abs(c.pos.Y - p.Y) < 10 then
+			return true
+		end
+	end
+	return false
+end
+Crowd.carBlocked = carBlocked
+function Crowd.carBoxCount(): number
+	return #carBoxes
 end
 
 -- who has to get out of the way (tick rate; the per-frame contact check backs it up)
@@ -1398,7 +1523,8 @@ local function pickNode(pp: Vector3, minR: number, maxR: number, fill: boolean, 
 				end
 				if wt > 0 then
 					wt *= math.clamp(1.5 - d / maxR, 0.45, 1.15)
-					if occupied(p, 3) then
+					-- (3.5 around a car: a friend walks 3.1 studs beside the one who spawns)
+					if occupied(p, 3) or carBlocked(p, 3.5) then
 						wt = 0
 					end
 				end
@@ -1471,7 +1597,7 @@ local function ringPoi(pp: Vector3, minR: number, maxR: number, style: any, nigh
 		if poi then
 			local p = W.poiPos[poi]
 			local d = flatDist(p, pp)
-			if d >= minR * 0.85 and d <= maxR and spawnOK(p, pp, fill) and not occupied(p, 2.2) and (not within or within(p)) then
+			if d >= minR * 0.85 and d <= maxR and spawnOK(p, pp, fill) and not occupied(p, 2.2) and not carBlocked(p, 1) and (not within or within(p)) then
 				return poi
 			end
 		elseif not near or k > 2 then
@@ -1694,13 +1820,49 @@ local function takeExtraId(suffix: string): string?
 	return id
 end
 
-local function spawnMember(leader: any, side: number, back: number, night: boolean, now: number, hand: boolean?): any?
-	local suffix = if night then "#n" else "#d"
+-- who is out at this hour: a dress token for an anonymous passer-by (nil = the look's own mix).
+-- 출퇴근 직장인, 등하교 학생, 낮 관광객 on the beach side; late at night ("late") the look's own mix
+-- without the teens, so nobody wears a school uniform at 3 am
+local function dayDress(clock: number, navArea: string): string?
+	if clock >= 21 or clock < 6 then
+		return "late"
+	end
+	local u = rnd()
+	if ((clock >= 7 and clock < 9.5) or (clock >= 17.5 and clock < 19.5)) and u < 0.35 then
+		return "office"
+	end
+	if ((clock >= 7.3 and clock < 8.6) or (clock >= 15.5 and clock < 19)) and u >= 0.35 and u < 0.6 then
+		return "school"
+	end
+	if BEACH_AREAS[navArea] and clock >= 10 and clock < 18 and u >= 0.6 and u < 0.9 then
+		return "tourist"
+	end
+	return nil
+end
+
+-- the Looks.random hint for a dress token: style, age (the age is the id's own: a pooled rig is
+-- reused as it is for the same id + dress)
+local NO_DRESS = { jog = true, sunbathe = true, play = true, fish = true }
+local DRESS_AGES: { [string]: { string } } = { office = { "young", "young", "adult", "middle" }, school = { "teen" }, late = { "young", "young", "adult", "adult", "middle" } }
+local function dressHint(id: string, dress: string?): (string?, string?)
+	if not dress then
+		return nil, nil
+	end
+	local ages = DRESS_AGES[dress]
+	local age = if ages then ages[1 + (Looks.hash(id .. "#" .. dress) % #ages)] else nil
+	return (if dress == "late" then nil else dress), age
+end
+
+local function spawnMember(leader: any, side: number, back: number, night: boolean, now: number, hand: boolean?, dress: string?): any?
+	-- (friends out together dress alike: a school group, two office workers)
+	local dr = if night then nil else dress
+	local suffix = (if night then "#n" else "#d") .. (dr or "")
 	local id = takeExtraId(suffix)
 	if not id then
 		return nil
 	end
-	local spec = Looks.random(id, { night = night or nil })
+	local dStyle, dAge = dressHint(id, dr)
+	local spec = Looks.random(id, { night = night or nil, style = dStyle, age = dAge })
 	local key = id .. suffix
 	local rx, rz = math.cos(leader.yaw), -math.sin(leader.yaw)
 	local sw = Config.GroupSide
@@ -1806,13 +1968,19 @@ local function spawnExtra(pp: Vector3, fill: boolean, now: number, room: number,
 	local nightOutfit = clubby or (night and rnd() < 0.35)
 	-- somebody walking the dog (promenade, plazas, parks; daytime and early evening)
 	local dog = act == "walk" and not nightOutfit and DOG_AREAS[navArea] == true and clock >= 7 and clock < 21 and rnd() < Config.DogChance
-	-- one look per passer-by id and variant: day, night (club outfit), jogging or with a dog
-	local suffix = if nightOutfit then "#n" elseif act == "jog" then "#j" elseif dog then "#g" else "#d"
+	-- who is out at this hour (dressed for work / school / the beach; no school uniforms late at night)
+	local dress = if nightOutfit or act == "jog" then nil else dayDress(clock, navArea)
+	if (dress ~= "late" and NO_DRESS[act]) or (dog and (dress == "school" or dress == "office")) then
+		dress = nil -- (nobody sunbathes / plays / fishes / walks the dog in a school uniform or a suit)
+	end
+	-- one look per passer-by id and variant: day (+ the dress), night (club outfit), jogging or with a dog
+	local suffix = (if nightOutfit then "#n" elseif act == "jog" then "#j" elseif dog then "#g" else "#d") .. (dress or "")
 	local id = takeExtraId(suffix)
 	if not id then
 		return nil
 	end
-	local hint = { style = if act == "jog" then "sporty" else nil, night = if nightOutfit then true else nil, dog = if dog then true else nil }
+	local dStyle, dAge = dressHint(id, dress)
+	local hint = { style = if act == "jog" then "sporty" else dStyle, age = dAge, night = if nightOutfit then true else nil, dog = if dog then true else nil }
 	local spec = Looks.random(id, hint)
 	local key = id .. suffix
 	local p = W.pos[node]
@@ -1858,11 +2026,16 @@ local function spawnExtra(pp: Vector3, fill: boolean, now: number, room: number,
 	end
 	-- friends walking / hanging out together
 	local hangRing = a.plan and a.plan.kind == "hang" -- the smokers' ring: one spot each, no circles
-	if room >= 2 and not dog and not hangRing and act ~= "jog" and act ~= "sunbathe" and act ~= "fish" and act ~= "wait" and rnd() < (if act == "hangout" then 0.6 else Config.GroupChance) then
-		local couple = room < 3 or rnd() < 0.65
-		spawnMember(a, 1, 0, spec.night, now, couple and rnd() < Config.HoldHands)
+	-- (at night on the beach / promenade / plazas / parks, away from the club: more pairs, more of
+	-- them couples, more of those hand in hand)
+	local romantic = night and BEACH_AREAS[navArea] == true and clubD >= 380
+	local groupP = if act == "hangout" then 0.6 else Config.GroupChance * (if romantic then 1 + (Config.NightCoupleBoost or 0) * hype else 1)
+	if room >= 2 and not dog and not hangRing and act ~= "jog" and act ~= "sunbathe" and act ~= "fish" and act ~= "wait" and rnd() < groupP then
+		local couple = room < 3 or rnd() < (if romantic then 0.8 else 0.65)
+		local handP = if romantic then Config.HoldHands + ((Config.HoldHandsNight or Config.HoldHands) - Config.HoldHands) * hype else Config.HoldHands
+		spawnMember(a, 1, 0, spec.night, now, couple and rnd() < handP, dress)
 		if not couple then
-			spawnMember(a, -1, 0.3, spec.night, now)
+			spawnMember(a, -1, 0.3, spec.night, now, nil, dress)
 		end
 	end
 	return a
@@ -2199,7 +2372,7 @@ local function available(a: any): boolean
 	return true
 end
 
-local ev = { busker = nil :: string?, nextCustomer = 0, lastDance = -1e9, danceCheck = 0, droneOn = false }
+local ev = { busker = nil :: string?, nextCustomer = 0, nextCart = 0, lastDance = -1e9, danceCheck = 0, droneOn = false }
 local DANCE_IDS: { [string]: boolean } = {}
 local function streetCount(): number
 	local n = 0
@@ -2231,6 +2404,204 @@ function Crowd.spawnExtraNear(at: Vector3, now: number, minR: number?, maxR: num
 		return nil -- (came out of a shop / the metro elsewhere: just another passer-by)
 	end
 	return a
+end
+
+-- the 포장마차 carts (base Interact: models "포장마차 <name>" in Workspace.GwangalliInteract, a Counter
+-- tagged GwInteract with GwKind "food" / GwId "cart_*"; the cart's frame is at the ground, its
+-- LookVector the customer side). Read only; rescanned every 10 s (carts stream in and out)
+local carts: { { m: Model, cf: CFrame, id: string } } = {}
+local cartScan = -1e9
+local function cartFrames(now: number): { any }
+	if now - cartScan < 10 then
+		return carts
+	end
+	cartScan = now
+	table.clear(carts)
+	local f = workspace:FindFirstChild("GwangalliInteract")
+	if not f then
+		return carts
+	end
+	for _, m in f:GetChildren() do
+		if m:IsA("Model") and string.find(m.Name, "포장마차 ", 1, true) == 1 then
+			local c = m:FindFirstChild("Counter")
+			local id = c and c:GetAttribute("GwId")
+			if c and c:IsA("BasePart") and c:GetAttribute("GwKind") == "food" and type(id) == "string" and string.sub(id, 1, 5) == "cart_" then
+				-- Counter = frame * (0, 3.6, -0.15)
+				table.insert(carts, { m = m, cf = c.CFrame * CFrame.new(0, -3.6, 0.15), id = id })
+			end
+		end
+	end
+	return carts
+end
+
+-- the straight walk p -> q in the cart's frame misses its box (the body + counter, padded): slab test
+local function cartClear(cf: CFrame, p: Vector3, q: Vector3): boolean
+	local a, b = cf:PointToObjectSpace(p), cf:PointToObjectSpace(q)
+	local t0, t1 = 0, 1
+	for axis = 1, 2 do
+		local s0 = if axis == 1 then a.X else a.Z
+		local d = (if axis == 1 then b.X else b.Z) - s0
+		local h = if axis == 1 then 3.9 else 2.6
+		if math.abs(d) < 1e-6 then
+			if s0 < -h or s0 > h then
+				return true
+			end
+		else
+			local u0, u1 = (-h - s0) / d, (h - s0) / d
+			if u0 > u1 then
+				u0, u1 = u1, u0
+			end
+			t0, t1 = math.max(t0, u0), math.min(t1, u1)
+			if t0 > t1 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- a customer's walk up to the counter. Agent.goToSpot routes to the node nearest the spot, then
+-- goes to the spot - and on to that nearest node again (a route's goal point is followed by a hop
+-- to the nearest node), and the carts stand on the promenade's walkway: that node may be under or
+-- behind the cart. So the rest of the route becomes a list of points ending AT the spot, without the
+-- trailing nodes under / behind the cart (straight to the spot from the last one in front). False
+-- when the way still runs through the cart or over a road crossing (another customer is picked)
+local function cartApproach(a: any, cf: CFrame, spot: Vector3): boolean
+	local nav = a.nav
+	if not nav or a.mode ~= "walk" then
+		return false
+	end
+	local path = { a.pos }
+	if a.segB then
+		table.insert(path, a.segB)
+	end
+	local rest = {}
+	if nav.mode == "list" and nav.list then
+		local list, i0 = nav.list, nav.i or 2
+		local last = #list
+		while last >= i0 and not cartClear(cf, W.pos[list[last]], spot) do
+			last -= 1
+		end
+		for k = i0, last do
+			local e = list[k - 1] and W.edgeBetween(list[k - 1], list[k])
+			if e and W.isCrossingKind(W.edgeKind(e)) then
+				return false -- (a road on the way: the lights belong to the node walk)
+			end
+			table.insert(rest, W.pos[list[k]])
+		end
+	elseif nav.mode ~= "points" then
+		return false
+	end
+	table.insert(rest, spot)
+	for _, p in rest do
+		table.insert(path, p)
+	end
+	for k = 1, #path - 1 do
+		if not cartClear(cf, path[k], path[k + 1]) then
+			return false
+		end
+	end
+	a.nav = { mode = "points", pts = rest, i = 1 }
+	return true
+end
+
+-- a passer-by stops at the nearest 포장마차 for a snack (more of them in the evening and at night:
+-- 포장마차 손님). The usual "customer" plan (Agent): walk up, order facing the counter, walk on eating
+local function cartTick(now: number, pp: Vector3)
+	if now < ev.nextCart then
+		return
+	end
+	local clock = ctx.clock()
+	local evening = clock >= 17.5 or clock < 3
+	local every = if evening then Config.CartEveryEvening or { 6, 14 } else Config.CartEvery or { 16, 32 }
+	ev.nextCart = now + every[1] + rnd() * (every[2] - every[1])
+	if clock >= 3 and clock < 6 then
+		return
+	end
+	local cart, cd = nil, 110
+	for _, c in cartFrames(now) do
+		if c.m.Parent then
+			local d = flatDist(c.cf.Position, pp)
+			if d < cd then
+				cart, cd = c, d
+			end
+		end
+	end
+	if not cart then
+		return
+	end
+	local cp = cart.cf.Position
+	-- who is at this cart already (the side-by-side places along the 6.4-stud counter)
+	local taken = {}
+	local n = 0
+	for _, a in agents do
+		if not a.gone and a.plan and a.plan.kind == "customer" and a.plan.cart == cart.id then
+			n += 1
+			if a.plan.slot then
+				taken[a.plan.slot] = true
+			end
+		end
+	end
+	local maxN = if evening then (Config.CartCustomers and Config.CartCustomers.evening or 3) else (Config.CartCustomers and Config.CartCustomers.day or 1)
+	if n >= maxN then
+		return
+	end
+	local slot, spot = nil, nil
+	for _, k in { 0, -1, 1 } do
+		if not taken[k] then
+			local p = (cart.cf * CFrame.new(k * 2.1 + (rnd() - 0.5) * 0.5, 0, -3.8 - rnd() * 0.6)).Position
+			if not occupied(p, 1.4) then
+				slot, spot = k, p
+				break
+			end
+		end
+	end
+	if not spot then
+		return
+	end
+	local plan = { kind = "customer", act = "eat", spot = spot, face = Vector3.new(cp.X, spot.Y, cp.Z), cart = cart.id, slot = slot }
+	-- walkers close by (the same level first: the sand is below the promenade); the first one whose
+	-- way up to the counter stays clear of the cart takes the plan
+	local cands = {}
+	for _, a in agents do
+		if available(a) and a.mode == "walk" and (not a.named or a.plan.kind == "wander") and now - (a.cartAt or -1e9) > 150 then
+			local d = flatDist(a.pos, cp) + (if math.abs(a.pos.Y - cp.Y) > 3 then 20 else 0)
+			if d < 60 then
+				table.insert(cands, { a = a, d = d })
+			end
+		end
+	end
+	table.sort(cands, function(x, y)
+		return x.d < y.d
+	end)
+	local best = nil
+	local function try(a: any): boolean
+		local old = a.plan
+		plan.resume = old
+		a:setPlan(plan, now)
+		if cartApproach(a, cart.cf, spot) then
+			a.cartAt = now -- (not straight back for another one)
+			return true
+		end
+		a:setPlan(old, now) -- (no clear way up from this side: back to what they were doing)
+		return false
+	end
+	for i = 1, math.min(#cands, 3) do
+		if try(cands[i].a) then
+			best = cands[i].a
+			break
+		end
+	end
+	if not best and #cands == 0 and evening then
+		-- the evening crowd: somebody comes over from a path 22-45 studs away (out of the close view)
+		local a = Crowd.spawnExtraNear(cp, now, 22, 45)
+		if a and available(a) and a.mode == "walk" and try(a) then
+			best = a
+		end
+	end
+	if workspace:GetAttribute("GwangalliStreetLifeDebug") == true then
+		print(string.format("[StreetLifeEv] cart %s customers=%d/%d cands=%d best=%s d=%.0f", cart.id, n, maxN, #cands, if best then best.id else "-", cd))
+	end
 end
 
 local function eventsTick(now: number, pp: Vector3, cap: number)
@@ -2321,7 +2692,7 @@ local function eventsTick(now: number, pp: Vector3, cap: number)
 							local np = node and W.pos[node]
 							local camPos, look = camera()
 							local dp = np and flatDist(np, pp) or 0
-							if np and dp > 22 and (not onScreenPoint(np, camPos, look, 0.25) or dp > 40) and not occupied(np, 3) then
+							if np and dp > 22 and (not onScreenPoint(np, camPos, look, 0.25) or dp > 40) and not occupied(np, 3) and not carBlocked(np, 3.5) then
 								local a = spawnExtra(pp, false, now, 1, { atNode = node })
 								if a then
 									if math.abs(np.Y - bp.Y) > 2 then
@@ -2361,7 +2732,7 @@ local function eventsTick(now: number, pp: Vector3, cap: number)
 		if vp and act == "flip" and flatDist(vp, pp) < 120 then
 			local n = 0
 			for _, a in agents do
-				if not a.gone and a.plan and a.plan.kind == "customer" then
+				if not a.gone and a.plan and a.plan.kind == "customer" and a.plan.cart == nil then
 					n += 1
 				end
 			end
@@ -2385,6 +2756,8 @@ local function eventsTick(now: number, pp: Vector3, cap: number)
 			end
 		end
 	end
+	-- the 포장마차 carts
+	cartTick(now, pp)
 end
 
 -- the player dancing on the street: one or two people nearby stop and film / cheer
@@ -2553,6 +2926,7 @@ local function tick()
 	updateLOD()
 	SocialUI.update(now)
 	refreshCars()
+	refreshCarBoxes(pp, now, now < fillUntil)
 	carReactions(now)
 	lureTick(now)
 	local clock = ctx.clock()
@@ -3784,10 +4158,32 @@ function Crowd.start(context: any)
 	CollectionService:GetInstanceAddedSignal("GwangalliDrivable"):Connect(watchCar)
 	CollectionService:GetInstanceRemovedSignal("GwangalliDrivable"):Connect(function(inst)
 		driven[inst :: any] = nil
+		drivables[inst :: any] = nil
 	end)
 	for _, m in CollectionService:GetTagged("GwangalliDrivable") do
 		watchCar(m)
 	end
+	-- parked map cars (spawn safety: carBlocked). Direct children only (nested groups are templates)
+	task.spawn(function()
+		local root = workspace:WaitForChild("Gwangalli", 120)
+		local roads = root and root:WaitForChild("roads", 60)
+		local pv = roads and roads:WaitForChild("ParkedVehicles", 60)
+		if not pv then
+			return
+		end
+		local function addStatic(ch: Instance)
+			if ch:IsA("Model") and ch:GetAttribute("VehicleKind") ~= nil then
+				staticCars[ch :: Model] = true
+			end
+		end
+		pv.ChildAdded:Connect(addStatic)
+		pv.ChildRemoved:Connect(function(ch)
+			staticCars[ch :: any] = nil
+		end)
+		for _, ch in pv:GetChildren() do
+			addStatic(ch)
+		end
+	end)
 	local lastWarn = -1e9
 	local function report(where: string, err: any)
 		local t = os.clock()

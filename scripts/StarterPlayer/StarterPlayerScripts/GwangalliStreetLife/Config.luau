@@ -6,7 +6,9 @@ return {
 	-- street pedestrians around the player (named citizens first, anonymous passers-by fill up);
 	-- at night the cap shrinks away from the club: cap * (1 - 0.3 * hype) (GwangalliNight.streetCap),
 	-- blended by the distance to the club door between NightBlend[1] and NightBlend[2] studs
-	Cap = { low = 50, mid = 50, high = 50, saver = 32 },
+	-- (saver: GwangalliQuality's emergency brake for a phone stuck under ~22 fps on low - at or below
+	-- the last phone-tested low tier, 22)
+	Cap = { low = 50, mid = 50, high = 50, saver = 20 },
 	NightBlend = { 180, 320 },
 	-- spawn ring (studs from the player). Steady state spawns go ahead of the player's direction of
 	-- travel, off-screen or at least SpawnViewMin studs away when on screen; people despawn behind
@@ -50,12 +52,18 @@ return {
 	GroupChance = 0.3,
 	GroupSide = 3.1, -- studs between friends walking side by side (the rigs are ~4 studs wide)
 	HoldHands = 0.4, -- two-person groups that walk hand in hand
+	-- night on the beach / promenade / plazas / parks (away from the club): more pairs, more of them
+	-- couples, more hand in hand. GroupChance x (1 + NightCoupleBoost x hype); HoldHands blends to
+	-- HoldHandsNight with the night hype
+	NightCoupleBoost = 0.6,
+	HoldHandsNight = 0.7,
 	-- passers-by out for a walk who walk a dog (promenade / plazas / parks, 07-21 h)
 	DogChance = 0.16,
 	-- walkers who keep looking at the phone while walking (head down, a bit slower)
 	PhoneWalk = 0.22,
 	-- pooled rigs kept beyond the active ones (reused when the same person comes back)
 	PoolSpare = 10,
+	PoolSpareSaver = 4, -- idle rigs kept while GwangalliQuality's saver is on
 	-- walking speeds (studs/s): the default R15 walk animation matches ~6.4 studs/s, run ~12.8
 	WalkAnimSpeed = 6.4,
 	RunAnimSpeed = 12.8,
@@ -94,6 +102,12 @@ return {
 	DroneReach = 260, -- studs from the waterline: people there stop and watch the show
 	AudienceMax = { low = 3, mid = 4, high = 5, saver = 2 },
 	CustomersMax = 2,
+	-- 포장마차 carts (the Interact layer's street-food carts, read only): the nearest cart within 110
+	-- studs gets at most CartCustomers.day / .evening (17:30-03:00) customers at once; a new one is
+	-- sent every CartEvery / CartEveryEvening s (none 03-06 h)
+	CartCustomers = { day = 1, evening = 3 },
+	CartEvery = { 16, 32 },
+	CartEveryEvening = { 6, 14 },
 	-- anonymous passer-by ids (rig cache keys)
 	Extras = 60,
 	-- debug: Workspace attribute GwangalliStreetLifeDebug = true prints stats every DebugEvery s

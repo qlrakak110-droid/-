@@ -105,6 +105,10 @@ function Pool.release(rig: any)
 	rig.lastUsed = os.clock()
 	table.insert(idle, rig)
 	local spare = ctx.Config.PoolSpare or 10
+	-- (the weak-phone saver keeps fewer idle rigs: memory headroom)
+	if ctx.Quality and ctx.Quality.isSaver and ctx.Quality.isSaver() then
+		spare = ctx.Config.PoolSpareSaver or spare
+	end
 	while #idle > spare do
 		local old = table.remove(idle, 1)
 		if old then
