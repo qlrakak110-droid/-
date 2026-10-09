@@ -915,12 +915,16 @@ function Crowd.carComing(p: Vector3, r: number): boolean
 	return false
 end
 
--- spawn safety: nobody appears inside a car. The boxes of the cars around the player: parked map
--- cars (Gwangalli.roads.ParkedVehicles, direct children with a VehicleKind; nested groups are
--- templates), rigged cars (GwangalliDrivable: player cars, a parked car somebody got into), police
--- cars and taxis. A model's box is measured once (GetBoundingBox walks every part) relative to one of
--- its parts and follows that part afterwards; refreshed every 3 s (every 1 s while cars in range
--- are still unmeasured; every tick during a fill), at most 6 new measurements each (16 in a fill)
+-- spawn safety: nobody appears inside a car. The boxes of the cars around the player: static map
+-- cars (every outermost VehicleKind model in Gwangalli.roads.ParkedVehicles - its StreetScenes /
+-- DeliveryScooters groups too: TrafficCars clones those as templates but they stay on the map - and
+-- elsewhere in workspace.Gwangalli: food trucks, port / lot / forecourt cars; not roads.
+-- TrafficVehicles, which traffic hides and drives), rigged cars (GwangalliDrivable: player cars, a
+-- parked car somebody got into), police cars and taxis. A model's box is measured once
+-- (GetBoundingBox walks every part) relative to one of its parts and follows that part afterwards;
+-- refreshed every 3 s (every 1 s while cars in range are still unmeasured - meanwhile a generous
+-- box around that part stands in; every tick during a fill), at most 6 new measurements each (16 in
+-- a fill)
 local staticCars: { [Model]: boolean } = {}
 local boxOf: { [Model]: any } = setmetatable({}, { __mode = "k" }) :: any
 local carBoxes: { any } = {}
@@ -928,6 +932,7 @@ local boxSeen: { [Instance]: boolean } = {}
 local boxesAt = -1e9
 local boxesNext = 3
 local BOX_FOLDERS = { "GwangalliLawCars", "GwangalliTaxis", "GwangalliPlayerCars" }
+local UNMEASURED_HALF = Vector3.new(9, 4, 9)
 
 local function boxRef(m: Model): BasePart?
 	local r = m:FindFirstChild("DriveCollider") or m:FindFirstChild("DriveBase") or m.PrimaryPart
@@ -955,10 +960,14 @@ local function refreshCarBoxes(pp: Vector3, now: number, fill: boolean)
 		if rec == false then
 			return
 		end
-		if not rec or not rec.ref.Parent then
+		if not rec or not rec.ref or not rec.ref.Parent then
+			if rec and rec.miss and now - rec.miss < 10 then
+				return
+			end
 			local ref = boxRef(m :: Model)
 			if not ref then
-				return -- (not streamed in)
+				boxOf[m :: Model] = { miss = now } -- (not streamed in: look again in a while)
+				return
 			end
 			rec = { ref = ref }
 			boxOf[m :: Model] = rec
@@ -968,7 +977,9 @@ local function refreshCarBoxes(pp: Vector3, now: number, fill: boolean)
 		end
 		if not rec.half then
 			if budget <= 0 then
-				boxesNext = 1 -- (more to measure: again soon)
+				boxesNext = 1 -- (more to measure: again soon; till then a car-sized box around its part)
+				local cf = rec.ref.CFrame
+				table.insert(carBoxes, { cf = cf, half = UNMEASURED_HALF, x = cf.Position.X, z = cf.Position.Z, r = 13 })
 				return
 			end
 			budget -= 1
@@ -2359,6 +2370,11 @@ local function available(a: any): boolean
 	if a.gone or a.clubGuest or a.companion or a.leader or a.fadeAt then
 		return false
 	end
+	-- (Mind drives them - a witness running off, a scene, a talk - or they are in a fight: a chase, a
+	-- knock, KO, a brawl / quarrel. Their plan is still the old wander one; setPlan would undo it)
+	if a.ctl or a.chase or a.knock or a.ko or a.brawl or a.quarrel then
+		return false
+	end
 	if a.mode == "talk" or a.mode == "dodge" or a.mode == "follow" or a.mode == "member" then
 		return false
 	end
@@ -2387,14 +2403,15 @@ end
 -- one passer-by for an incident (GwangalliStreetLife/Mind.incident) on a path minR..maxR studs from at,
 -- when nobody fitting is there: the usual extra spawn (no friend group), never popping up in the
 -- player's close view, within the street cap (+1, like the busker's listener)
-function Crowd.spawnExtraNear(at: Vector3, now: number, minR: number?, maxR: number?): any?
+function Crowd.spawnExtraNear(at: Vector3, now: number, minR: number?, maxR: number?, maxP: number?): any?
 	local pp = P.pos
 	if not pp or streetCount() >= (Crowd.cap or tierVal(Config.Cap)) + 1 then
 		return nil
 	end
+	local far = maxP or 130 -- (studs from the player; inside the despawn radius or they go at once)
 	local node = pickNode(at, minR or 25, maxR or 60, true, function(i)
 		local p = W.pos[i]
-		if flatDist(p, pp) < 14 or flatDist(p, pp) > 130 or not spawnOK(p, pp, false) then
+		if flatDist(p, pp) < 14 or flatDist(p, pp) > far or not spawnOK(p, pp, false) then
 			return 0
 		end
 		return 1
@@ -2518,7 +2535,9 @@ local function cartTick(now: number, pp: Vector3)
 	if clock >= 3 and clock < 6 then
 		return
 	end
-	local cart, cd = nil, 110
+	-- (a cart near the despawn edge: its customers would be dropped off-screen on their way up)
+	local despawn = tierVal(Config.Despawn)
+	local cart, cd = nil, math.min(110, despawn - 10)
 	for _, c in cartFrames(now) do
 		if c.m.Parent then
 			local d = flatDist(c.cf.Position, pp)
@@ -2592,9 +2611,11 @@ local function cartTick(now: number, pp: Vector3)
 			break
 		end
 	end
-	if not best and #cands == 0 and evening then
-		-- the evening crowd: somebody comes over from a path 22-45 studs away (out of the close view)
-		local a = Crowd.spawnExtraNear(cp, now, 22, 45)
+	local saver = Quality and Quality.isSaver and Quality.isSaver()
+	if not best and #cands == 0 and evening and not saver and cd - 22 < despawn * 0.85 then
+		-- the evening crowd: somebody comes over from a path 22-45 studs away (out of the close view),
+		-- well inside the despawn radius (not the saver tier: no extra people there)
+		local a = Crowd.spawnExtraNear(cp, now, 22, 45, despawn * 0.85)
 		if a and available(a) and a.mode == "walk" and try(a) then
 			best = a
 		end
@@ -4163,25 +4184,70 @@ function Crowd.start(context: any)
 	for _, m in CollectionService:GetTagged("GwangalliDrivable") do
 		watchCar(m)
 	end
-	-- parked map cars (spawn safety: carBlocked). Direct children only (nested groups are templates)
+	-- static map cars (spawn safety: carBlocked; read only). ParkedVehicles with its nested groups
+	-- (StreetScenes / DeliveryScooters: live map cars, TrafficCars only clones them as templates),
+	-- followed as it changes; then one yielding pass over the rest of workspace.Gwangalli (food
+	-- trucks, port / lot / forecourt cars). Only the outermost VehicleKind model counts, and nothing
+	-- in roads.TrafficVehicles (traffic hides those and drives its own copies)
 	task.spawn(function()
 		local root = workspace:WaitForChild("Gwangalli", 120)
 		local roads = root and root:WaitForChild("roads", 60)
 		local pv = roads and roads:WaitForChild("ParkedVehicles", 60)
-		if not pv then
-			return
+		local function outerCar(d: Instance, top: Instance): boolean
+			if not d:IsA("Model") or d:GetAttribute("VehicleKind") == nil then
+				return false
+			end
+			local anc = d.Parent
+			while anc and anc ~= top do
+				if anc:IsA("Model") and anc:GetAttribute("VehicleKind") ~= nil then
+					return false
+				end
+				anc = anc.Parent
+			end
+			return true
 		end
-		local function addStatic(ch: Instance)
-			if ch:IsA("Model") and ch:GetAttribute("VehicleKind") ~= nil then
-				staticCars[ch :: Model] = true
+		if pv then
+			pv.DescendantAdded:Connect(function(d)
+				if outerCar(d, pv) then
+					staticCars[d :: Model] = true
+				end
+			end)
+			pv.DescendantRemoving:Connect(function(d)
+				staticCars[d :: any] = nil
+			end)
+			for _, d in pv:GetDescendants() do
+				if outerCar(d, pv) then
+					staticCars[d :: Model] = true
+				end
 			end
 		end
-		pv.ChildAdded:Connect(addStatic)
-		pv.ChildRemoved:Connect(function(ch)
-			staticCars[ch :: any] = nil
-		end)
-		for _, ch in pv:GetChildren() do
-			addStatic(ch)
+		if not root then
+			return
+		end
+		if not game:IsLoaded() then
+			game.Loaded:Wait()
+		end
+		local tv = roads and roads:FindFirstChild("TrafficVehicles")
+		-- (a walk instead of GetDescendants: no 300k-entry list on a phone; parts' children and the
+		-- insides of a car are never opened)
+		local stack: { Instance } = { root }
+		local seen = 0
+		while #stack > 0 do
+			local inst = table.remove(stack) :: Instance
+			for _, ch in inst:GetChildren() do
+				seen += 1
+				if ch ~= pv and ch ~= tv and not ch:IsA("BasePart") then
+					if ch:IsA("Model") and ch:GetAttribute("VehicleKind") ~= nil then
+						staticCars[ch :: Model] = true
+					elseif ch:IsA("Model") or ch:IsA("Folder") then
+						table.insert(stack, ch)
+					end
+				end
+			end
+			if seen > 2000 then
+				seen = 0
+				task.wait()
+			end
 		end
 	end)
 	local lastWarn = -1e9

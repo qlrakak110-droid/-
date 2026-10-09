@@ -188,7 +188,7 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 - 돈·주문·알바 로직은 없음(알바 세션 담당). 점원은 `workspace.GwangalliShopStaff`, 태그 `GwShopStaff`.
 
 ## 13. 길거리 인원
-- 길거리 NPC 최대 50명(모든 품질 단계, 절전 모드 32명) — `GwangalliStreetLife/Config.luau` `Cap`.
+- 길거리 NPC 최대 50명(모든 품질 단계, 절전 모드 20명·예비 리그 4개) — `GwangalliStreetLife/Config.luau` `Cap` / `PoolSpareSaver`.
 
 ## 14. 총기상 NPC — `GwangalliGameplay/WeaponDealer.luau`, 계약: `ReplicatedStorage/GwangalliWeaponDealerShared.luau`
 - 뒷골목 3곳(먹자골목 켄트호텔 뒤 · 스타벅스 뒤 · 호메르스 뒤)에 총기상(칼자국 · 박씨 · 까마귀). 검은 옷 · 선글라스 · 모자, 팔짱 · 망보기 · 폰.
