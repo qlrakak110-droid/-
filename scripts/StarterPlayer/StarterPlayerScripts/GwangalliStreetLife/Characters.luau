@@ -83,10 +83,7 @@ end
 
 -- a fight this NPC starts with the player (of = the person the player hit, for why "ally": a friend /
 -- a tough bystander taking the victim's side)
-function Characters.startFight(a: any, why: string?, of: string?): boolean
-	if not a or a.gone or a.ko or a.brawl then
-		return false
-	end
+local function startFightNow(a: any, why: string?, of: string?): boolean
 	if deps.Mind and deps.Mind.release and a.ctl then
 		pcall(deps.Mind.release, a)
 	end
@@ -97,6 +94,29 @@ function Characters.startFight(a: any, why: string?, of: string?): boolean
 	deps.api("brawl", a.id, secs)
 	deps.api("remember", a.id, "anger", 2)
 	return true
+end
+-- the server lets one ally in per player every 1.5 s (GwangalliFight onNpcStart): two friends, or a
+-- friend and a 불량배 witness, taking the victim's side join one after the other, not in the same beat
+local ALLY_GAP = 2
+local allyFree = 0
+function Characters.startFight(a: any, why: string?, of: string?): boolean
+	if not a or a.gone or a.ko or a.brawl then
+		return false
+	end
+	if why == "ally" then
+		local now = os.clock()
+		local waitT = allyFree - now
+		allyFree = math.max(allyFree, now) + ALLY_GAP
+		if waitT > 0 then
+			task.delay(waitT, function()
+				if not a.gone and not a.ko and not a.knock and not a.brawl then
+					startFightNow(a, why, of)
+				end
+			end)
+			return true
+		end
+	end
+	return startFightNow(a, why, of)
 end
 
 -------------------------------------------------------------------------------------------------
@@ -223,6 +243,9 @@ local function drunkTick(a: any, now: number, pp: Vector3)
 	if not q then
 		a.qT0, a.qDecided, a.qLines, a.qNext = nil, nil, nil, nil -- (every quarrel gets its own fight roll)
 		return
+	end
+	if q.incident then
+		return -- (a 생활콘텐츠 lost / help / suspicious one - a passer-by who had a few: never a 취객 시비)
 	end
 	a.qT0 = a.qT0 or now
 	a.qLines = a.qLines or 0
@@ -467,7 +490,9 @@ function Characters.witness(victimId: string, opts: any?)
 		if n >= 2 then
 			break
 		end
-		if a ~= victim and a ~= o.exclude and not a.gone and not a.ko and not a.knock and not a.brawl and a.pos and flat(a.pos, victim.pos) < 22 and a.type ~= "police" and os.clock() >= (a.justNext or 0) then
+		-- (not somebody busy: the player's talk partner, a fighter in another scene, a caller, a friend who
+		-- just took the victim's side, a companion / club guest)
+		if a ~= victim and a ~= o.exclude and not a.gone and not a.ko and not a.knock and not a.brawl and (not a.ctl or a.ctl.kind == "watch") and a.mode ~= "talk" and not a.companion and not a.clubGuest and a.pos and flat(a.pos, victim.pos) < 22 and a.type ~= "police" and os.clock() >= (a.justNext or 0) and os.clock() >= (a.allyNext or 0) then
 			local p = persOf(a)
 			if p.just then
 				n += 1
@@ -488,34 +513,19 @@ function Characters.witness(victimId: string, opts: any?)
 	end
 end
 
--- a scuffle among server rigs nearby (Law/City's 취객 싸움 and how it ends): the people around notice -
--- the timid step back, the righteous shout, the rest look (no call: the incident has its own report)
+-- a scuffle among server rigs nearby (Law/City's 취객 싸움 and how it ends): the people around react
+-- with the same menu as to a street-crowd scuffle (Mind.witnessAt, npc mode: step aside / watch / film
+-- / cheer / a phone call / step in - nobody reports the player, the incident has its own report). One
+-- roll per spot a while (the fight and its ending both tell the crowd)
+local commAt, commPos = -1e9, nil
 function Characters.commotion(pos: Vector3)
 	local now = os.clock()
-	local n = 0
-	for _, a in deps.agents() do
-		if n >= 4 then
-			break
-		end
-		if not busy(a) and a.type ~= "police" and a.pos and flat(a.pos, pos) < 30 and now >= (a.commNext or 0) then
-			n += 1
-			a.commNext = now + 20
-			local p = persOf(a)
-			if p.fearful or p.isTimid then
-				backOff(a, pos)
-				if rnd() < 0.4 then
-					say(a, pick({ "어머, 싸움 났나 봐…", "무서워라…" }), 2.4)
-				end
-			elseif p.just and rnd() < 0.5 then
-				a:lookAtPoint(pos + Vector3.new(0, 1.5, 0), 3, now)
-				say(a, pick({ "그만해요!", "저기요, 그만들 하세요!" }), 2.6)
-			else
-				a:lookAtPoint(pos + Vector3.new(0, 1.5, 0), 3, now)
-				if rnd() < 0.3 then
-					say(a, pick({ "헐…", "뭐야, 싸움이야?", "와… 장난 아니다" }), 2.4)
-				end
-			end
-		end
+	if commPos and now - commAt < 12 and flat(commPos, pos) < 20 then
+		return
+	end
+	commAt, commPos = now, pos
+	if deps.Mind and deps.Mind.witnessAt then
+		pcall(deps.Mind.witnessAt, pos, 2, { npc = {} })
 	end
 end
 

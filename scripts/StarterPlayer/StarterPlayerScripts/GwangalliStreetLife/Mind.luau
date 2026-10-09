@@ -2128,6 +2128,12 @@ local function releaseWhenUp(x: any, leave: boolean?, line: string?, tries: numb
 	if x.gone or not x.ctl or x.ctl.kind ~= "scene" then
 		return
 	end
+	if x.ko then
+		-- (knocked out: the body stays down until it is taken away - only the scene lets go of it, the
+		-- lying pose stays)
+		x.ctl = nil
+		return
+	end
 	if x.knock and (tries or 0) < 20 then
 		task.delay(0.4, releaseWhenUp, x, leave, line, (tries or 0) + 1)
 		return
@@ -2136,6 +2142,18 @@ local function releaseWhenUp(x: any, leave: boolean?, line: string?, tries: numb
 	if line then
 		sayNpc(x, line, 2.6)
 	end
+end
+
+-- the angry walk-off ending (not the scared Mind.flee sprint): a few steps away from the other one at a
+-- walk, scowling, then on their way (the flee ctl leaves at untilT)
+local function walkOff(who: any, from: Vector3)
+	if who.gone or who.knock or not take(who, { kind = "flee", untilT = os.clock() + 3 }) then
+		return
+	end
+	local away = Vector3.new(who.pos.X - from.X, 0, who.pos.Z - from.Z)
+	away = if away.Magnitude > 0.1 then away.Unit else Vector3.new(1, 0, 0)
+	face(who, "angry", 3)
+	moveTo(who, who.pos + away * 8, 5)
 end
 
 -- somebody close by who is free to step in (not in a scene / a talk / down)
@@ -2225,7 +2243,9 @@ local function scuffle(a: any, b: any, key: string, sc: any)
 		end
 	end
 	local function inScene(x: any): boolean
-		return not x.gone and x.ctl ~= nil and x.ctl.kind == "scene" and not x.brawl and not x.ko
+		-- (the player hit one of them - a knock of theirs, a reaction waiting: that one is out of it, the
+		-- reaction plays when they are up: Crowd.playReact)
+		return not x.gone and x.ctl ~= nil and x.ctl.kind == "scene" and not x.brawl and not x.ko and not x.pendingReact and not (x.knock and x.knock.byPlayer)
 	end
 	local function round(i: number, tries: number)
 		if over then
@@ -2356,9 +2376,7 @@ local function fightEnding(a: any, b: any, key: string, sc: any): boolean
 		release(a)
 		release(b)
 		sayNpc(b, pick(FL.walk), 3)
-		if Mind.flee then
-			Mind.flee(b, a.pos, 4)
-		end
+		walkOff(b, a.pos)
 		return false
 	end
 	scuffle(a, b, key, sc)
@@ -2382,9 +2400,7 @@ local function coupleEnding(a: any, b: any)
 		end)
 	elseif e < 0.8 then
 		sayNpc(a, pick({ "됐어, 혼자 가!", "말 걸지 마!" }), 2.8)
-		if Mind.flee then
-			Mind.flee(a, b.pos, 4)
-		end
+		walkOff(a, b.pos)
 		task.delay(1.2, function()
 			if not b.gone then
 				sayNpc(b, pick({ "야! 기다려!", "아 진짜… 자기야!" }), 2.6)
@@ -2406,10 +2422,13 @@ end
 
 -- 걸렁뱅이 + a passer-by: the money demand (돈 좀 있냐?) ends differently each time - hands it over,
 -- runs, refuses and gets shoved, or a bystander steps in; the other scenes keep the scared walk-off
-local function punkEnding(a: any, b: any, lines: { any })
+local function moneyScene(lines: { any }): boolean
 	local first = lines[1]
-	local isMoney = type(first) == "table" and type(first[2]) == "string" and string.find(first[2], "돈", 1, true) ~= nil
-	if not isMoney or a.gone then
+	return type(first) == "table" and type(first[2]) == "string" and string.find(first[2], "돈", 1, true) ~= nil
+end
+
+local function punkEnding(a: any, b: any, lines: { any })
+	if not moneyScene(lines) or a.gone then
 		face(b, "scared", 3)
 		release(b, true)
 		return
@@ -2474,6 +2493,11 @@ local function punkEnding(a: any, b: any, lines: { any })
 end
 
 local function playScene(a: any, b: any, key: string, lines: { any })
+	if key == "punk" and #lines > 2 and moneyScene(lines) then
+		-- (the 돈 좀 있냐? scene stops at "없는데요…": how it ends - hands it over, runs, refuses, a
+		-- bystander - is punkEnding's, not the script's own "쳇, 가라 가.")
+		lines = { lines[1], lines[2] }
+	end
 	local now = os.clock()
 	local dur = 2 + #lines * 3.2
 	if not take(a, { kind = "scene", untilT = now + dur, other = b, keep = true }) then
@@ -2529,9 +2553,10 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 		local keep = false -- (a scuffle keeps both in the scene: it releases them itself when it is over)
 		if FIGHT_LINES[key] and not a.gone and not b.gone and a.ctl and b.ctl and a.ctl.kind == "scene" and b.ctl.kind == "scene" then
 			keep = fightEnding(a, b, key, sc)
-		elseif key == "couplefight" and not a.gone and not b.gone and a.ctl and b.ctl then
+		elseif key == "couplefight" and not a.gone and not b.gone and a.ctl and b.ctl and a.ctl.kind == "scene" and b.ctl.kind == "scene" then
 			coupleEnding(a, b)
-		elseif key == "punk" and not b.gone then
+		elseif key == "punk" and not b.gone and b.ctl and b.ctl.kind == "scene" then
+			-- (not when the player's hit took the passer-by out of it: Crowd.playReact)
 			punkEnding(a, b, lines)
 		end
 		if not keep then
@@ -2701,6 +2726,15 @@ local function namedDrunk(at: Vector3): any?
 	return nil
 end
 
+-- who a street / 포장마차 fight can cast: not an officer on the beat, the 동네바보, a beggar or a rider;
+-- drinker = also made a drunk for it (makeDrunk is for good: no 불량배 / 걸렁뱅이 either)
+local function fightCast(x: any, drinker: boolean?): boolean
+	if x.type == "police" or x.type == "fool" or x.type == "beggar" or x.delivery then
+		return false
+	end
+	return not drinker or x.type == "drunk" or (x.type ~= "punk" and x.type ~= "thug")
+end
+
 local function makeDrunk(a: any)
 	if a.type == "drunk" then
 		return
@@ -2737,7 +2771,9 @@ local function incidentImpl(kind: string, data: any?): (boolean, string?)
 			a = namedDrunk(at) or castNear(at)
 			spawned = a ~= nil
 		end
-		a = a or nearestAgent(at, 45)
+		a = a or nearestAgent(at, 45, function(x)
+			return fightCast(x, true)
+		end)
 		if not a then
 			return false
 		end
@@ -2749,11 +2785,13 @@ local function incidentImpl(kind: string, data: any?): (boolean, string?)
 		local stall = kind == "stall_fight"
 		local a = (stall and nearestAgent(at, 40, function(x)
 			return x.type == "drunk"
-		end)) or nearestAgent(at, 40) or castNear(at)
+		end)) or nearestAgent(at, 40, function(x)
+			return fightCast(x, stall)
+		end) or castNear(at)
 		local b = a and (nearestAgent(a.pos, 12, function(x)
 			return x ~= a and (not stall or x.type == "drunk")
 		end) or nearestAgent(a.pos, 12, function(x)
-			return x ~= a
+			return x ~= a and fightCast(x, stall)
 		end) or castNear(a.pos, 4, 12))
 		local lines = M.scene("drunkfight", rnd)
 		if not a or not b or not lines then
@@ -2767,9 +2805,10 @@ local function incidentImpl(kind: string, data: any?): (boolean, string?)
 		return a.ctl ~= nil, a.id .. "+" .. b.id
 	elseif INCIDENT_LINES[kind] then
 		local spawned = false
-		-- (not the 동네바보 / an officer / a 불량배 asking the way or for help)
+		-- (not the 동네바보 / an officer / a 불량배 / a drunk asking the way or for help: a drunk's quarrel
+		-- turns into his 취객 시비, Characters.drunkTick skips an incident one)
 		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45, function(x)
-			return x.type ~= "fool" and x.type ~= "police" and x.type ~= "thug" and (kind == "suspicious" or x.type ~= "punk")
+			return x.type ~= "fool" and x.type ~= "police" and x.type ~= "thug" and x.type ~= "drunk" and (kind == "suspicious" or x.type ~= "punk")
 		end)
 		if not a then
 			a = castNear(at)

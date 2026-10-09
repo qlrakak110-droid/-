@@ -3125,10 +3125,15 @@ function Crowd.playReact(a: any)
 	if not M or not kind or a.gone then
 		return
 	end
+	if a.ctl and a.ctl.kind == "scene" and M.release then
+		-- (in an argument / a scuffle with another pedestrian: the player's hit takes them out of it -
+		-- Mind.flee does not take somebody another scene holds)
+		pcall(M.release, a)
+	end
 	if kind == "warn" and pp then
 		-- squares up: looks at you, points, stays put a moment (the line came with the hit)
 		a:lookAtPoint(pp + Vector3.new(0, 1.6, 0), 4, os.clock())
-		Anim.flash(a.rig, "point", 1.2)
+		Anim.flash(a.rig, "pointp", 1.2)
 		a.want, a.speed = 0, 0
 		a.pauseUntil = os.clock() + 2.5
 	elseif kind == "cower" and pp then
@@ -3427,7 +3432,12 @@ local function installFightHooks()
 		local c = self.dodgeFrom or self.pos
 		if p.violent or self.type == "punk" or self.type == "thug" then
 			self:lookAtPoint(c + Vector3.new(0, 1.6, 0), 3, now)
-			Anim.flash(self.rig, "point", 1.2)
+			-- (the point after the base startle, not over it)
+			task.delay(0.9, function()
+				if not self.gone and not self.knock and not self.ctl then
+					Anim.flash(self.rig, "pointp", 1.2)
+				end
+			end)
 			if M and M.face then
 				M.face(self, "angry", 3)
 			end

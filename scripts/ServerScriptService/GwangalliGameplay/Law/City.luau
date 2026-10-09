@@ -259,14 +259,21 @@ local function fightEnding(inc: any)
 	end
 	b.pos = Pol.legPos(b, now())
 	local r = rng:NextNumber()
-	local function apart(delay: number)
-		-- each walks off a different way; the incident is over (the officer, if any, goes back on patrol)
+	local function apart(delay: number, walked: any?)
+		-- each walks off a different way; the incident is over (the officer, if any, goes back on patrol).
+		-- walked = the one already on the way off (keeps that route)
 		task.delay(delay, function()
 			if incidents[inc.id] ~= inc then
 				return
 			end
+			-- (where they stand now: the walk-off one is somewhere along its route)
 			for _, x in { a, b } do
 				if not x.gone then
+					x.pos = Pol.legPos(x, now())
+				end
+			end
+			for _, x in { a, b } do
+				if not x.gone and x ~= walked then
 					local other = if x == a then b else a
 					local goal = Pol.ringNode(x.pos, 40, 80, other.pos)
 					if goal then
@@ -301,7 +308,7 @@ local function fightEnding(inc: any)
 				say(a, { "야! 어디 가!", "쳇, 겁쟁이." })
 			end
 		end)
-		apart(4)
+		apart(4, if goal then b else nil)
 	elseif r < 0.7 then
 		local vp = Pol.ringNode(a.pos, 4, 8, nil)
 		local v = vp and Pol.newActor(vp, inc.id .. "_p", { age = "adult" }, "victim")

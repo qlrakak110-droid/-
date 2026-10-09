@@ -81,6 +81,30 @@ python3 tools/repack.py 기준.html dist/새버전.html --label "버전 이름"
 - 기절: 그 자리에 누워 있고 주변 사람이 112 신고·도망, 26초 뒤 실려 감 (119가 오면 실어 갈 때까지). 이름 있는 시민은 10분간 "입원"(거리에 안 나옴). 범죄 `폭행치사`
 - 핵심 NPC(가게·퀘스트)는 기절하지 않음 (넘어지고 신고). **걸어 다니는 경찰·특임대·119 대원은 HP 0이면 쓰러져** 모든 AI에서 빠지고, 119가 실어 가거나 시간이 다 될 때까지 누워 있음 (차 안에 앉은 대원은 쓰러지지 않음)
 - 밤 취객 시비 (따라오며 시비 대사, 가까이 있으면 밀침, 멀어지면 포기) · 취객 싸움은 3~4번 주고받다 한 명이 넘어지고 구경꾼이 신고하면 경찰이 와서 말림
+- 차량과 보행자: 플레이어 차가 스치거나(피함) 치면 그 보행자가 성격대로 반응 (노려보기·손가락질·기억, 겁먹기). **NPC끼리의 차량 접촉은 범위 밖** (NPC 차량 교통이 필요한데, 기본 차량 시스템은 건드리지 않음)
+
+#### 생활콘텐츠 → NPC 사건 트리거
+
+생활콘텐츠(또는 다른 서버 시스템)는 "사건이 났다"는 신호만 보내고, 배역·연출은 NPC 시스템이 해요.
+코드 주석: `ServerScriptService/GwangalliGameplay/Fight.luau` 끝부분 `GwangalliNPCEvents` (이 내용과 맞춰 둘 것).
+
+- 호출 (서버 전용): `ServerStorage.GwangalliNPCEvents:Invoke("incident", player, kind, { pos = Vector3?, id = string? })` → `true`면 보냄
+  - `player = nil` + `pos` 필수: 장소 사건(포장마차·클럽 입구 등) → `pos` 120 스터드 안의 모든 플레이어에게 보냄, 한 명이라도 받으면 `true`
+  - `pos`: 생략하면 플레이어 주변. `id`: 특정 시민/행인 id (없으면 근처에서 고름)
+- `kind` 7가지
+  | kind | 동작 |
+  |---|---|
+  | `drunk_quarrel` | 취객 시비: 취객이 플레이어를 따라오며 시비 대사, 가까우면 밀침 (근처에 없으면 이름 있는 취객·행인이 걸어 들어옴) |
+  | `stall_fight` | 포장마차 싸움: 근처 술꾼 두 명이 말다툼 → 사과 / 말림 / 자리 뜨기 / 몸싸움 |
+  | `street_fight` | 길거리 싸움: 근처 행인 두 명, 같은 결말들 |
+  | `lost` | 길 잃은 사람이 다가와 길을 물음 (말 걸면 대답·감사) |
+  | `help` | 도움 요청 (말 걸면 감사, 이름 있는 시민은 기억) |
+  | `suspicious` | 수상한 사람이 따라옴 (말 걸면 들켜서 자리 뜸) |
+  | `police_chase` | 서버(Law/City)가 `pos`(없으면 플레이어 주변 시야 밖)에 소매치기를 세우고 경찰이 바로 쫓음 — 서버 리그라 주변 모두가 봄 |
+  - 싸움 배역: 경찰·동네바보·노숙자·배달 라이더는 안 뽑힘. `lost`/`help`/`suspicious`: 경찰·동네바보·불량배·취객은 안 뽑힘 (걸렁뱅이는 `suspicious`만)
+- 결과 확인: 플레이어 속성 `GwangalliIncidentLast` = `"kind:true"`(누군가 배역을 맡음) / `"kind:false"`(아무도 없음)
+- 주의: 거리 행인은 **클라이언트마다 따로** 시뮬레이션돼요 → `police_chase` 말고는 받은 플레이어 화면에서만 보임. 모두가 봐야 하면 `player = nil` + `pos`로 부르거나 플레이어마다 한 번씩 부를 것
+- 테스트: Law `debug` act `incident` (`kind=...`), 디버그 모드에선 `workspace.GwangalliIncidentResult` = `"kind:ok:agentId"`
 
 테스트 훅(디버그 모드 전용): Law `debug` — `carsOnly` / `noGrab` / `carDemo` / `fakeCar`, `GwangalliFightAPI` (goto / gopunch / gopunchModel / tp), MindAPI `quarrel` / `fightscene`.
 
