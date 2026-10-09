@@ -950,7 +950,16 @@ local function wantedTick(player: Player, s: any)
 				table.remove(s.pending, i)
 				report(player, s, e, "call")
 			elseif not e.due and now() - e.t > 60 then
-				table.remove(s.pending, i) -- nobody called it in (Law.report's window): it stays unreported
+				-- nobody called it in (Law.report's window): it stays unreported and leaves the case (Law.crime
+				-- put it on the episode; only while it is still this episode's entry)
+				table.remove(s.pending, i)
+				local k = table.find(s.crimes, e)
+				if k then
+					table.remove(s.crimes, k)
+					local def = LS.CRIMES[e.kind]
+					s.sev = math.max(0, s.sev - (def and def.sev or 1))
+					s.fine = math.max(0, s.fine - (def and def.fine or 0))
+				end
 			end
 		end
 	end

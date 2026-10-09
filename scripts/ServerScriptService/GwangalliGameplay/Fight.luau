@@ -291,24 +291,21 @@ local function decide(id: string, typeId: string, c: any, hpLeft: number, max: n
 	return if r() < 0.5 then "report" else "flee"
 end
 
-local function noteCrime(player: Player, id: string, kind: string, pos: Vector3, c: any, police: boolean)
+-- -> true when Law noted it (the caller tells the crowd, once per hit)
+local function noteCrime(player: Player, id: string, kind: string, pos: Vector3, c: any, police: boolean): boolean
 	local L = law()
 	if not L then
-		return
+		return false
 	end
 	lastCrime[player] = lastCrime[player] or {}
 	local key = id .. ":" .. kind
 	local last = lastCrime[player][key]
 	if kind ~= "kill" and last and now() - last < 60 then
-		return -- one 폭행 per victim and minute (a flurry of punches is one assault)
+		return false -- one 폭행 per victim and minute (a flurry of punches is one assault)
 	end
 	lastCrime[player][key] = now()
 	local ok, noted = pcall(L.crime, player, kind, { pos = pos, victim = id, victimName = c and c.name or nil, source = "fight", police = police })
-	if ok and noted == true then
-		-- the street crowd around saw it too (GwangalliStreetLife Mind.onCrime: flee / watch / film / call
-		-- 112 by personality and severity; their call is Law.report)
-		send(player, { kind = "crime", crime = kind, pos = { pos.X, pos.Y, pos.Z }, victim = id })
-	end
+	return ok and noted == true
 end
 
 local function award(player: Player, id: string)
@@ -397,7 +394,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	local rec = hpRec(tab, id, max)
 	local strength = tonumber(player:GetAttribute("Strength")) or tonumber(player:GetAttribute("GwStrength")) or 0
 	local dmg, crit, outcome = FS.roll(r, strength)
-	local attack = if type(p.attack) == "string" and FS.ATTACK[p.attack] then p.attack else "punch"
+	-- (a "car" attack only from onCarHit: a client's claim of one is a punch)
+	local attack = if type(p.attack) == "string" and FS.ATTACK[p.attack] and (p.attack ~= "car" or carHit) then p.attack else "punch"
 	if attack == "car" then
 		-- hit by a car: the speed is the damage (light / hurt / thrown)
 		local sp = math.clamp(tonumber(p.speed) or 0, 0, 120)
@@ -466,11 +464,22 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		end
 	end
 	-- the crime and the people who care (a shove the caller handles itself: no 폭행 here)
+	local crowdCrime: string? = nil
 	if not p.noCrime then
-		noteCrime(player, id, if attack == "car" then "reckless" elseif police then "assault_police" else "assault", pos, c, police)
+		local kind = if attack == "car" then "reckless" elseif police then "assault_police" else "assault"
+		if noteCrime(player, id, kind, pos, c, police) then
+			crowdCrime = kind
+		end
+	end
+	if outcome == "ko" and noteCrime(player, id, "kill", pos, c, police) then
+		crowdCrime = "kill"
+	end
+	if crowdCrime then
+		-- the street crowd around saw it too, once per hit (a KO: as the kill) (GwangalliStreetLife
+		-- Mind.onCrime: flee / watch / film / call 112 by personality and severity; their call is Law.report)
+		send(player, { kind = "crime", crime = crowdCrime, pos = { pos.X, pos.Y, pos.Z }, victim = id })
 	end
 	if outcome == "ko" then
-		noteCrime(player, id, "kill", pos, c, police)
 		koUntil[player][id] = t + FS.KO_DOWN + 2
 		-- 119: somebody is down here (Law/Rescue sends an ambulance; it waits until the scene is safe)
 		if ctx.rescue and type(ctx.rescue.casualty) == "function" then
@@ -645,7 +654,8 @@ local function onCarHit(player: Player, p: any)
 	local seat = hum and hum.SeatPart
 	local root = rootOf(player)
 	local pos = unpackV(p.pos)
-	if not seat or not root or not pos or flat(pos, root.Position) > 14 then
+	-- (the driver only: the wheel is the VehicleSeat, a passenger's Seat is nobody's hit, cf. Crimes.seatedCar)
+	if not seat or not seat:IsA("VehicleSeat") or not root or not pos or flat(pos, root.Position) > 14 then
 		return
 	end
 	if now() - (lastCarHit[player] or 0) < 0.4 then
