@@ -2174,6 +2174,10 @@ function Mind.scenePair(ca: any, cb: any, rel: any?, rnd: (() -> number)?): (str
 		return false, ca, cb
 	end
 	if rel and rel.couple then
+		-- (late at night a couple out drinking sometimes has it out on the street: 커플 싸움)
+		if rel.night and r() < 0.25 then
+			return "couplefight", ca, cb
+		end
 		return "couple", ca, cb
 	end
 	if A == "drunk" and B == "drunk" then
@@ -2229,8 +2233,23 @@ function Mind.scenePair(ca: any, cb: any, rel: any?, rnd: (() -> number)?): (str
 	return "strangers", ca, cb
 end
 
+-- scenes this module adds to GwangalliMindLines.SCENES ({who, text, emote?}; the client Mind plays
+-- them and rolls how they end): 커플 싸움, an argument after two people walked into each other
+Mind.EXTRA_SCENES = {
+	couplefight = {
+		{ { "a", "너 아까 그 사람 왜 쳐다봤어?" }, { "b", "내가 언제? 아 진짜 아니라고!" }, { "a", "거짓말하지 마!", "point" }, { "b", "하… 또 시작이네." } },
+		{ { "a", "연락 하나 하는 게 그렇게 어려워?" }, { "b", "바빴다고 몇 번을 말해!" }, { "a", "맨날 바빠? 나는 안 바빠?!" }, { "b", "목소리 좀 낮춰, 사람들 보잖아." } },
+		{ { "a", "오늘 무슨 날인지 알아?" }, { "b", "…어? 오늘 뭐였더라?" }, { "a", "진짜 너무하다. 100일이잖아!", "point" }, { "b", "아 미안, 미안해…" } },
+	},
+	bumpfight = {
+		{ { "a", "야, 어깨 치고 그냥 가?" }, { "b", "아 실수예요, 왜 그래요?" }, { "a", "실수? 사과부터 해야지!", "point" }, { "b", "아 진짜 별것도 아닌 걸로…" } },
+		{ { "a", "눈은 장식이에요? 앞 좀 보고 다녀요!" }, { "b", "그쪽이 갑자기 튀어나왔잖아요!" }, { "a", "뭐라고요?!", "point" }, { "b", "말 다 했어요?" } },
+		{ { "a", "아 씨, 뭐야! 사람 치고 다녀?" }, { "b", "길 좁은데 좀 부딪힐 수도 있지!" }, { "a", "이게 진짜…!", "point" }, { "b", "해 볼 거야?!" } },
+	},
+}
+
 function Mind.scene(key: string, rnd: (() -> number)?): { any }?
-	local list = Lines and Lines.SCENES[key]
+	local list = Mind.EXTRA_SCENES[key] or (Lines and Lines.SCENES[key])
 	if not list or #list == 0 then
 		return nil
 	end

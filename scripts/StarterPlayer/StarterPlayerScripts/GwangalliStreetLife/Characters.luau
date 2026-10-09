@@ -81,8 +81,9 @@ local function busy(a: any): boolean
 	return a.gone or a.ko or a.knock or a.ctl ~= nil or a.mode == "talk" or a.companion or a.clubGuest or a.brawl ~= nil or a.sitting or a.lying
 end
 
--- a fight this NPC starts with the player
-function Characters.startFight(a: any, why: string?): boolean
+-- a fight this NPC starts with the player (of = the person the player hit, for why "ally": a friend /
+-- a tough bystander taking the victim's side)
+function Characters.startFight(a: any, why: string?, of: string?): boolean
 	if not a or a.gone or a.ko or a.brawl then
 		return false
 	end
@@ -92,7 +93,7 @@ function Characters.startFight(a: any, why: string?): boolean
 	-- one window: the server counts the swings exactly as long as this brawl lasts (a refusal calls it
 	-- off here: GwangalliFight "brawlEnd")
 	local secs = 9 + rnd() * 5
-	deps.fire("npcStart", { id = a.id, ptype = a.type, pos = { a.pos.X, a.pos.Y, a.pos.Z }, why = why, secs = secs })
+	deps.fire("npcStart", { id = a.id, ptype = a.type, pos = { a.pos.X, a.pos.Y, a.pos.Z }, why = why, secs = secs, of = of })
 	deps.api("brawl", a.id, secs)
 	deps.api("remember", a.id, "anger", 2)
 	return true
@@ -101,7 +102,9 @@ end
 -------------------------------------------------------------------------------------------------
 -- 동네바보
 -------------------------------------------------------------------------------------------------
-local function foolBumpRun(f: any, now: number)
+local DRUNK_OOPS = { "어이쿠~ 딸꾹, 미안미안~", "어? 니가 와서 부딪혔지? 히끅", "아이고 땅이 움직이네~ 히끅", "어어… 미안하다~ 딸꾹" }
+-- drunk = a drunk swaying into somebody (slower, his own line) instead of the 동네바보's 어깨빵
+local function foolBumpRun(f: any, now: number, drunk: boolean?)
 	-- the nearest walking stranger within 15 studs: he walks right into them
 	local best, bd = nil, 15
 	for _, o in deps.agents() do
@@ -123,22 +126,22 @@ local function foolBumpRun(f: any, now: number)
 		end
 		local d = flat(target.pos, a.pos)
 		if d < 2.1 then
-			-- 어깨빵
+			-- 어깨빵: the victim's answer when they are back on their feet (Characters.npcBumped: a word, a
+			-- glare, or an argument that may become a fight - never aimed at the player)
 			local dx, dz = target.pos.X - a.pos.X, target.pos.Z - a.pos.Z
 			local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
-			pcall(target.knockDown, target, dx / dd, dz / dd, "stagger", nil)
-			say(a, pick(FOOL_BUMP), 2.8)
-			task.delay(0.9, function()
-				if not target.gone and not target.ko then
-					say(target, pick(BUMPED), 2.6)
-				end
-			end)
+			local okK, hit = pcall(target.knockDown, target, dx / dd, dz / dd, "stagger", nil)
+			if okK and hit and target.knock then
+				target.knock.byNpc = a
+				target.knock.bump = true
+			end
+			say(a, pick(if drunk then DRUNK_OOPS else FOOL_BUMP), 2.8)
 			deps.Mind.release(a)
 			return
 		end
 		if t >= (ctl.retarget or 0) then
 			ctl.retarget = t + 0.4
-			deps.Mind.moveTo(a, target.pos, 7.5)
+			deps.Mind.moveTo(a, target.pos, if drunk then 4.5 else 7.5)
 		end
 	end })
 	if not ok then
@@ -218,7 +221,7 @@ end
 local function drunkTick(a: any, now: number, pp: Vector3)
 	local q = a.quarrel
 	if not q then
-		a.qT0, a.qDecided = nil, nil -- (every quarrel gets its own fight roll)
+		a.qT0, a.qDecided, a.qLines, a.qNext = nil, nil, nil, nil -- (every quarrel gets its own fight roll)
 		return
 	end
 	a.qT0 = a.qT0 or now
@@ -302,6 +305,8 @@ local function backOff(a: any, from: Vector3)
 	local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
 	deps.Mind.moveTo(a, Vector3.new(a.pos.X + dx / dd * 7, a.pos.Y, a.pos.Z + dz / dd * 7), 4)
 end
+Characters.persOf = persOf
+Characters.backOff = backOff -- (Mind's witnesses: stepping out of the way of a scuffle)
 
 -- the player holds a gun close by (riders: GwangalliStreetLife/Delivery does theirs)
 local function gunTick(now: number, pp: Vector3)
@@ -347,56 +352,207 @@ function Characters.gunfire(pos: Vector3)
 	end
 end
 
--- the player hit someone: people with a sense of justice react (dislike, call, help the victim)
-function Characters.witness(victimId: string)
+-- a key NPC (a server rig in workspace.GwangalliNPCs) the player hit: where it stands (the helpers'
+-- goal; street pedestrians are agents)
+local function keyVictim(id: string): any?
+	local f = workspace:FindFirstChild("GwangalliNPCs")
+	for _, m in (if f then f:GetChildren() else {}) do
+		if m:IsA("Model") and m:GetAttribute("NpcId") == id then
+			local r = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+			if r and r:IsA("BasePart") then
+				return { id = id, pos = r.Position, gone = false, key = true }
+			end
+		end
+	end
+	return nil
+end
+
+-- walk over to the one who got hit and see to them (kneel by them a while)
+local function helpVictim(a: any, victim: any): boolean
+	local vpos = victim.pos
+	return deps.Mind.take(a, { kind = "custom", untilT = os.clock() + 12, drive = function(ag: any, ctl: any, t: number)
+		if t > ctl.untilT or victim.gone then
+			deps.Mind.release(ag)
+			return
+		end
+		if flat(ag.pos, vpos) > 2.2 then
+			if t >= (ctl.re or 0) then
+				ctl.re = t + 0.6
+				deps.Mind.moveTo(ag, vpos, 7)
+			end
+		elseif not ctl.helped then
+			ctl.helped = true
+			say(ag, pick({ "괜찮아요? 정신 차려요!", "많이 다쳤어요? 119 불러 줄게요!", "일어날 수 있겠어요?" }), 3)
+			ctl.untilT = t + 6
+		end
+	end })
+end
+
+local ALLY_LINES = { "야! 내 친구한테 뭐 하는 거야?!", "우리 애 건드렸냐?", "너 지금 누구 친 거야!", "뭐야 이 사람! 왜 때려요?!" }
+local ALLY_SCARED = { "꺄악! 왜 이래요!", "하지 마세요!! 누가 좀 도와주세요!", "으악… 도망가!" }
+
+-- the victim's own people (the friend / partner walking with them): a tough one takes their side for
+-- real (a brawl with the player: GwangalliFight "npcStart" why = ally), a timid one screams and runs,
+-- the others go to them. Only right after the hit (the group links still hold: the "witness" call
+-- comes before the knock)
+local function crewReact(victim: any, victimId: string)
+	local crew = {}
+	local L = victim.leader
+	if L and not L.gone then
+		table.insert(crew, L)
+		for _, m in (L.members or {}) do
+			table.insert(crew, m)
+		end
+	end
+	for _, m in (victim.members or {}) do
+		table.insert(crew, m)
+	end
+	local now = os.clock()
+	local pp = deps.playerPos()
+	local n = 0
+	for _, m in crew do
+		if n >= 2 then
+			break
+		end
+		if m ~= victim and not m.gone and not m.ko and not m.knock and not m.brawl and not m.companion and m.type ~= "police" and m.pos and flat(m.pos, victim.pos) < 15 and now >= (m.allyNext or 0) then
+			n += 1
+			m.allyNext = now + 20
+			if deps.detach then
+				pcall(deps.detach, m) -- (out of the group walk: they act on their own now)
+			end
+			local p = persOf(m)
+			if (p.violent or (not p.fearful and (p.fear or 0.5) < 0.35)) and rnd() < 0.6 and pp and flat(m.pos, pp) < 20 and not (deps.seated and deps.seated()) then
+				say(m, pick(ALLY_LINES), 2.8)
+				task.delay(0.5, function()
+					if not m.gone and not m.ko and not m.knock and not m.brawl then
+						Characters.startFight(m, "ally", victimId)
+					end
+				end)
+			elseif p.fearful or p.isTimid then
+				say(m, pick(ALLY_SCARED), 2.4)
+				runFrom(m, pp or victim.pos, 6)
+			else
+				say(m, pick({ "괜찮아?! 많이 다쳤어?", "야, 정신 차려!", "왜 이래요 진짜!" }), 2.6)
+				if not helpVictim(m, victim) and deps.Mind.report then
+					pcall(deps.Mind.report, m)
+				end
+			end
+		end
+	end
+end
+
+-- somebody was hit: people with a sense of justice react (dislike, call, help the victim), and the
+-- victim's friends take their side. opts = { car = a car hit (no squaring up), down = they went down
+-- (a key NPC: worth going over), npcFight = two NPCs fought (nobody blames / reports the player; the
+-- scene places its own call), exclude = the one who did it (not a helper) }
+function Characters.witness(victimId: string, opts: any?)
+	local o = opts or {}
 	local victim = nil
 	for _, a in deps.agents() do
 		if a.id == victimId then
 			victim = a
 		end
 	end
+	if not victim and not o.npcFight then
+		victim = keyVictim(victimId)
+	end
 	if not victim or not victim.pos then
 		return
+	end
+	if not o.npcFight and not o.car and not victim.key then
+		pcall(crewReact, victim, victimId)
 	end
 	local n = 0
 	for _, a in deps.agents() do
 		if n >= 2 then
 			break
 		end
-		if a ~= victim and not a.gone and not a.ko and not a.knock and a.pos and flat(a.pos, victim.pos) < 22 and a.type ~= "police" and os.clock() >= (a.justNext or 0) then
+		if a ~= victim and a ~= o.exclude and not a.gone and not a.ko and not a.knock and not a.brawl and a.pos and flat(a.pos, victim.pos) < 22 and a.type ~= "police" and os.clock() >= (a.justNext or 0) then
 			local p = persOf(a)
 			if p.just then
 				n += 1
 				a.justNext = os.clock() + 30
 				say(a, rl("justice"), 3)
-				if a.named and deps.Mind.street then
+				if a.named and deps.Mind.street and not o.npcFight then
 					deps.Mind.street(a.id, "witnessed", a.pos)
 				end
-				-- the braver ones go to the victim and help (kneel by them a while)
-				if p.fear < 0.45 and not victim.gone then
-					local vpos = victim.pos
-					deps.Mind.take(a, { kind = "custom", untilT = os.clock() + 12, drive = function(ag: any, ctl: any, t: number)
-						if t > ctl.untilT or victim.gone then
-							deps.Mind.release(ag)
-							return
-						end
-						if flat(ag.pos, vpos) > 2.2 then
-							if t >= (ctl.re or 0) then
-								ctl.re = t + 0.6
-								deps.Mind.moveTo(ag, vpos, 7)
-							end
-						elseif not ctl.helped then
-							ctl.helped = true
-							say(ag, pick({ "괜찮아요? 정신 차려요!", "많이 다쳤어요? 119 불러 줄게요!", "일어날 수 있겠어요?" }), 3)
-							ctl.untilT = t + 6
-						end
-					end })
-				elseif deps.Mind.report then
+				-- the braver ones go to the victim and help (kneel by them a while; a key NPC only when it
+				-- went down - one that keeps walking needs nobody kneeling where it stood)
+				if p.fear < 0.45 and not victim.gone and (not victim.key or o.down) then
+					helpVictim(a, victim)
+				elseif deps.Mind.report and not o.npcFight then
 					pcall(deps.Mind.report, a)
 				end
 			end
 		end
 	end
+end
+
+-- a scuffle among server rigs nearby (Law/City's 취객 싸움 and how it ends): the people around notice -
+-- the timid step back, the righteous shout, the rest look (no call: the incident has its own report)
+function Characters.commotion(pos: Vector3)
+	local now = os.clock()
+	local n = 0
+	for _, a in deps.agents() do
+		if n >= 4 then
+			break
+		end
+		if not busy(a) and a.type ~= "police" and a.pos and flat(a.pos, pos) < 30 and now >= (a.commNext or 0) then
+			n += 1
+			a.commNext = now + 20
+			local p = persOf(a)
+			if p.fearful or p.isTimid then
+				backOff(a, pos)
+				if rnd() < 0.4 then
+					say(a, pick({ "어머, 싸움 났나 봐…", "무서워라…" }), 2.4)
+				end
+			elseif p.just and rnd() < 0.5 then
+				a:lookAtPoint(pos + Vector3.new(0, 1.5, 0), 3, now)
+				say(a, pick({ "그만해요!", "저기요, 그만들 하세요!" }), 2.6)
+			else
+				a:lookAtPoint(pos + Vector3.new(0, 1.5, 0), 3, now)
+				if rnd() < 0.3 then
+					say(a, pick({ "헐…", "뭐야, 싸움이야?", "와… 장난 아니다" }), 2.4)
+				end
+			end
+		end
+	end
+end
+
+-- walked into by another pedestrian (the 동네바보 / a drunk swaying into them; Crowd's afterKnock when
+-- they are back up): who they are decides it - a hothead (or a touchy one, less often) has words and it
+-- may become a fight between the two (Mind.npcConflict: the scene endings), the timid flinch, the kind
+-- shrug it off, the rest snap at them. -> true when an argument started (the scene has them)
+local BUMPED_TIMID = { "앗, 죄송해요…!", "어머…", "(움찔)" }
+local BUMPED_DRUNK = { "아 술 냄새… 조심 좀 해요!", "취했으면 집에 가요!", "아 진짜, 똑바로 좀 걸어요!", "어휴, 아저씨 정신 차려요!" }
+function Characters.npcBumped(a: any, by: any, now: number): boolean
+	if not deps or a.gone or not by or by.gone then
+		return false
+	end
+	local p = persOf(a)
+	local M = deps.Mind
+	local hot = a.type == "violent" or a.type == "thug" or a.type == "punk" or (p.violent and not p.fearful)
+	if (hot or p.touchy) and M.npcConflict and now >= (a.conflictNext or 0) and rnd() < (if hot then 0.45 else 0.25) then
+		a.conflictNext = now + 60
+		local okC, started = pcall(M.npcConflict, a, by, "bump")
+		if okC and started then
+			return true
+		end
+	end
+	if p.fearful or p.isTimid then
+		say(a, pick(BUMPED_TIMID), 2.2)
+		if M.face then
+			M.face(a, "scared", 2.5)
+		end
+	elseif p.isKind and not hot then
+		say(a, rl("bump_kind"), 2.4)
+	else
+		say(a, pick(if by.type == "drunk" then BUMPED_DRUNK else BUMPED), 2.6)
+		if hot and M.face then
+			M.face(a, "angry", 3)
+		end
+	end
+	return false
 end
 
 -------------------------------------------------------------------------------------------------
@@ -741,6 +897,7 @@ end
 local queued: { any } = {}
 local lastT = os.clock()
 local nextFoolRun = 0
+local nextDrunkRun = 0
 local function step()
 	local now = os.clock()
 	local dt = math.min(0.5, now - lastT)
@@ -769,6 +926,14 @@ local function step()
 				end
 			elseif t == "drunk" or (a.quarrel and a.quarrel.drunk) then
 				drunkTick(a, now, pp)
+				-- now and then a drunk sways into a passer-by (who may not take it well: npcBumped)
+				if t == "drunk" and not a.quarrel and now >= nextDrunkRun and now >= (a.nextBumpRun or 0) and a.mode == "walk" and not busy(a) then
+					a.nextBumpRun = now + 40 + rnd() * 40
+					nextDrunkRun = now + 25
+					if rnd() < 0.5 then
+						foolBumpRun(a, now, true)
+					end
+				end
 			elseif flat(a.pos, pp) < 12 then
 				followTick(a, now, dt, pp, pspeed)
 			end
@@ -791,8 +956,8 @@ function Characters.test(kind: string, id: string): any
 	if kind == "foolfall" and pp then
 		foolFalls(a, pp)
 		return true
-	elseif kind == "bumprun" then
-		foolBumpRun(a, os.clock())
+	elseif kind == "bumprun" or kind == "drunkbump" then
+		foolBumpRun(a, os.clock(), kind == "drunkbump")
 		return a.ctl ~= nil
 	elseif kind == "fight" then
 		table.insert(queued, a) -- (run on the client thread: FireServer)

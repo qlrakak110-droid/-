@@ -413,6 +413,18 @@ function Crowd.noteChat(a: any, now: number)
 	chatting = a
 end
 
+-- a passer-by turned drunk for a 생활콘텐츠 incident (취객 시비 / 포장마차 싸움): the sway and the slow
+-- drunk walk too, the same as a drunk spawned as one (Agent.new)
+function Crowd.makeDrunk(a: any)
+	if a.gone then
+		return
+	end
+	a.type = "drunk"
+	a.wobble = nil
+	a.walkPose = "sway"
+	a.walkSpeed = (a.baseWalkSpeed or a.walkSpeed) * ((ctx.BumpShared and ctx.BumpShared.DRUNK and ctx.BumpShared.DRUNK.speed) or 0.62)
+end
+
 -- LocalPlayer.GwangalliStreetAPI (BindableFunction, published by the boot script): other client
 -- scripts (GwangalliBump) reach the pedestrians through it.
 function Crowd.api(method: any, ...: any): any
@@ -596,9 +608,18 @@ function Crowd.api(method: any, ...: any): any
 		end
 		return true
 	elseif method == "witness" then
-		local id = ...
+		-- attack = how the player hit them ("car": a traffic accident - nobody squares up to a car),
+		-- outcome = the server's (they went down: worth going over to a key NPC)
+		local id, attack, outcome = ...
 		if Crowd.Characters and type(id) == "string" then
-			Crowd.Characters.witness(id)
+			Crowd.Characters.witness(id, { car = attack == "car", down = outcome == "knockdown" or outcome == "thrown" or outcome == "ko" })
+		end
+		return true
+	elseif method == "commotion" then
+		-- a scuffle among server rigs (Law/City's 취객 싸움 and its endings): the people around notice
+		local x, y, z = ...
+		if Crowd.Characters and Crowd.Characters.commotion and tonumber(x) then
+			Crowd.Characters.commotion(Vector3.new(tonumber(x) :: number, tonumber(y) or 0, tonumber(z) or 0))
 		end
 		return true
 	elseif method == "emshold" then
@@ -673,14 +694,13 @@ function Crowd.api(method: any, ...: any): any
 			return nil
 		end
 		if type(spec.type) == "string" then
-			a.type = spec.type
-			a.wobble = nil
 			a.chase = nil
 			local base = a.baseWalkSpeed or a.walkSpeed
 			if spec.type == "drunk" then
-				a.walkPose = "sway"
-				a.walkSpeed = base * ((ctx.BumpShared and ctx.BumpShared.DRUNK.speed) or 0.62)
+				Crowd.makeDrunk(a)
 			else
+				a.type = spec.type
+				a.wobble = nil
 				a.walkSpeed = base
 				if a.walkPose == "sway" then
 					a.walkPose = nil
@@ -926,6 +946,7 @@ local function carReactions(now: number)
 								-- (a failed roll only holds for the driver's own car and only a while: any
 								-- other car - a taxi, another player's, our ride as a passenger - they dodge)
 								if not (c.key == "local" and c.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4) then
+									a.dodgeLocal = c.key == "local" and c.drive == true -- (the player's own driving: Agent.afterDodge)
 									a:dive(now, px * s, pz * s, c.pos)
 								end
 							elseif miss < 4 then
@@ -2190,6 +2211,28 @@ local function streetCount(): number
 	return n
 end
 
+-- one passer-by for an incident (GwangalliStreetLife/Mind.incident) on a path minR..maxR studs from at,
+-- when nobody fitting is there: the usual extra spawn (no friend group), never popping up in the
+-- player's close view, within the street cap (+1, like the busker's listener)
+function Crowd.spawnExtraNear(at: Vector3, now: number, minR: number?, maxR: number?): any?
+	local pp = P.pos
+	if not pp or streetCount() >= (Crowd.cap or tierVal(Config.Cap)) + 1 then
+		return nil
+	end
+	local node = pickNode(at, minR or 25, maxR or 60, true, function(i)
+		local p = W.pos[i]
+		if flatDist(p, pp) < 14 or flatDist(p, pp) > 130 or not spawnOK(p, pp, false) then
+			return 0
+		end
+		return 1
+	end)
+	local a = if node then spawnExtra(pp, false, now, 1, { atNode = node }) else nil
+	if a and flatDist(a.pos, at) > (maxR or 60) + 15 then
+		return nil -- (came out of a shop / the metro elsewhere: just another passer-by)
+	end
+	return a
+end
+
 local function eventsTick(now: number, pp: Vector3, cap: number)
 	-- the drone show: the beach crowd turns to the bay (a few at a time)
 	local left = Crowd.droneLeft(now)
@@ -2829,6 +2872,7 @@ local function update(dt: number)
 						elseif not doomed then
 							local px, pz = -P.vel.Z / sp, P.vel.X / sp
 							local s = if (dx * px + dz * pz) >= 0 then 1 else -1
+							a.dodgeLocal = P.drive == true
 							a:dive(now, px * s, pz * s, pp)
 						end
 					end
@@ -2931,6 +2975,8 @@ local function playPose(a: any, name: string, dur: number)
 		end)
 	end)
 end
+
+Crowd.playPose = playPose -- (GwangalliStreetLife/Mind: the shove / punch of an NPC-vs-NPC scuffle)
 
 local function fpick(list: { string }?): string?
 	if not list or #list == 0 then
@@ -3227,6 +3273,35 @@ local function installFightHooks()
 			return
 		end
 		local kn = self.knock -- (the base clears it)
+		local by = kn and kn.byNpc
+		if by and not kn.byPlayer and not self.brawl and not self.pendingReact then
+			-- another pedestrian put them off balance (a scuffle round, the 동네바보 / a drunk walking into
+			-- them, a shove): back up facing THAT one - not the base reaction (it turns to the player, says
+			-- a line at the player, and a violent one runs after the player who did nothing)
+			self.knock = nil
+			self.chase = nil
+			self.carKnock, self.playerBumpAt = nil, nil
+			Anim.setRestPose(self.rig, nil)
+			local face = if not by.gone then yawOf(by.pos.X - self.pos.X, by.pos.Z - self.pos.Z) else self.yaw
+			if self.ctl and ctx.Mind and ctx.Mind.hold then
+				-- (in a scene / held by the mind: stays put, facing the other one)
+				ctx.Mind.hold(self, by.pos, "")
+				return
+			end
+			self.node = W.nearest(self.pos, 40)
+			self.prev = nil
+			self.lookUntil = math.max(self.lookUntil or 0, now + 2.5)
+			local CH = Crowd.Characters
+			if kn.bump and not by.gone and CH and CH.npcBumped then
+				-- walked into: who they are decides it (a word, a glare, an argument that may turn into a fight)
+				local okB, started = pcall(CH.npcBumped, self, by, now)
+				if okB and started then
+					return
+				end
+			end
+			self:idleFor("idle", 1.4 + rnd(), now, face)
+			return
+		end
 		local hitT = self.carHitAt
 		local byCar = self.carKnock == true and hitT ~= nil and now - hitT < 8
 		self.carKnock = nil
@@ -3326,6 +3401,66 @@ local function installFightHooks()
 			elseif bk and not self.gone then
 				pcall(CH.bumped, self, "knock", bk, now)
 			end
+		end
+	end
+	-- jumped out of the way of the player's car (a near miss, Agent:dive): the base glare + startle + the
+	-- angry car line stay; then who they are decides what follows - a hothead points and remembers the
+	-- driver (and may have words once the player is out of the car), a timid one cowers, others only
+	-- remember it now and then (the street memory: the glare / "또 너냐?" when the player walks up later)
+	local baseAfterDodge = Agent.afterDodge
+	Agent.afterDodge = function(self: any, now: number)
+		local mine = self.dodgeLocal
+		self.dodgeLocal = nil
+		baseAfterDodge(self, now)
+		if not mine or self.gone or self.ctl or not self.id or self.knock then
+			return
+		end
+		local M = ctx.Mind
+		local CH = Crowd.Characters
+		local okP, p = false, nil
+		if CH and CH.persOf then
+			okP, p = pcall(CH.persOf, self)
+		end
+		if not okP or type(p) ~= "table" then
+			return
+		end
+		local c = self.dodgeFrom or self.pos
+		if p.violent or self.type == "punk" or self.type == "thug" then
+			self:lookAtPoint(c + Vector3.new(0, 1.6, 0), 3, now)
+			Anim.flash(self.rig, "point", 1.2)
+			if M and M.face then
+				M.face(self, "angry", 3)
+			end
+			Crowd.api("remember", self.id, "anger", 2)
+			if M and M.startQuarrel and rnd() < 0.35 then
+				-- (has words with the driver once he is out of the car close by; drives on = it is over)
+				local tries = 0
+				local function tryQuarrel()
+					tries += 1
+					local pp = P.pos
+					if self.gone or self.ctl or self.knock or self.chase or self.quarrel or not pp or flatDist(pp, self.pos) > 30 then
+						return
+					end
+					if Crowd.playerSeated() then
+						if tries < 8 then
+							task.delay(1.5, tryQuarrel)
+						end
+						return
+					end
+					if flatDist(pp, self.pos) < 18 then
+						M.startQuarrel(self, { start = { "야! 아까 그 차 너지?!", "운전 그따위로 할 거야?" }, follow = { "사람 죽일 뻔했잖아!", "운전 좀 똑바로 해!" }, calm = { "에휴… 조심 좀 해라." } }, { secs = 9, noShove = true })
+					end
+				end
+				task.delay(2.5, tryQuarrel)
+			end
+		elseif p.isTimid or p.fearful then
+			if M and M.face then
+				M.face(self, "scared", 3)
+			end
+			playPose(self, "cower", 1.4)
+			Crowd.api("remember", self.id, "fear", 1)
+		elseif rnd() < 0.4 then
+			Crowd.api("remember", self.id, "anger", 1)
 		end
 	end
 	local baseChase = Agent.chaseTick
@@ -3548,6 +3683,19 @@ function Crowd.start(context: any)
 					end,
 					seated = function(): boolean
 						return Crowd.playerSeated()
+					end,
+					-- out of a group walk (a friend acting on their own: helping, running, fighting)
+					detach = function(m: any)
+						if m.leader then
+							Crowd.detachMember(m)
+						end
+						if m.mode == "member" or (m.plan and m.plan.kind == "member") then
+							-- (like a dissolved group: their own walk from here, Crowd.dissolve)
+							m.mode = "walk"
+							m.node = W.nearest(m.pos, 40)
+							m.prev = nil
+							m:setPlan({ kind = "wander", act = "walk", center = m.pos, radius = 150 }, os.clock())
+						end
 					end,
 					canSay = function(t: number): boolean
 						return Crowd.canSay(t)

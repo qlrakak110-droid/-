@@ -210,7 +210,8 @@ local function onEvent(p: any)
 		return
 	end
 	if p.kind == "hit" and type(p.id) == "string" then
-		street("witness", p.id) -- 정의감 높은 사람들이 본다 (GwangalliStreetLife/Characters)
+		-- 정의감 높은 사람들이 본다, the victim's friends take their side (GwangalliStreetLife/Characters)
+		street("witness", p.id, p.attack, p.outcome)
 		local dx, dz = tonumber(p.dx) or 0, tonumber(p.dz) or -1
 		if p.target == "ped" then
 			if p.outcome == "ko" then
@@ -238,6 +239,10 @@ local function onEvent(p: any)
 		end
 	elseif p.kind == "remember" and type(p.id) == "string" then
 		street("remember", p.id, p.mood, 1)
+		if p.crime == true then
+			-- a hit the caller played itself (the talk card's 때리기): the same people react as to a punch
+			street("witness", p.id, nil, p.outcome)
+		end
 	elseif p.kind == "hurt" and type(p.outcome) == "string" then
 		-- a server rig's swing landed (a key NPC fighting back): the fall here (the 어깨빵 motion); a
 		-- street brawler's own swing already played it on this client (no outcome then)
@@ -259,9 +264,13 @@ local function onEvent(p: any)
 		local mapi = player:FindFirstChild("GwangalliMindAPI")
 		if mapi and mapi:IsA("BindableFunction") then
 			local at = if type(p.pos) == "table" then Vector3.new(p.pos[1], p.pos[2], p.pos[3]) else nil
-			pcall(function()
-				(mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
+			local okI, res = pcall(function()
+				return (mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
 			end)
+			-- (the outcome back to the server: was anybody cast - player attribute GwangalliIncidentLast)
+			if action then
+				action:FireServer("incidentDone", { kind = p.what, ok = okI and res == true })
+			end
 		end
 	elseif p.kind == "crime" and type(p.crime) == "string" then
 		-- a crime this module noted (a hit, a car hit, a KO): the street crowd around reacts by
@@ -274,6 +283,9 @@ local function onEvent(p: any)
 		end
 	elseif p.kind == "gunfire" and type(p.pos) == "table" then
 		street("gunfire", p.pos[1], p.pos[2], p.pos[3])
+	elseif p.kind == "commotion" and type(p.pos) == "table" then
+		-- a scuffle among server rigs (Law/City): the street crowd around notices
+		street("commotion", p.pos[1], p.pos[2], p.pos[3])
 	elseif p.kind == "ems" and type(p.id) == "string" then
 		-- 119 (GwangalliGameplay/Law/Rescue): the casualty waits for the ambulance / is carried off
 		if p.phase == "dispatched" then

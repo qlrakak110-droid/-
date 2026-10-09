@@ -781,7 +781,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 			end
 		end
 		if mood then
-			send(player, { kind = "remember", id = id, mood = mood })
+			-- (crime: a noted 폭행 - the street people around react as to a punch: GwangalliFight.client)
+			send(player, { kind = "remember", id = id, mood = mood, crime = if crowdCrime then true else nil, outcome = if crowdCrime then outcome else nil })
 		end
 		if outcome == "ko" then
 			send(player, { kind = "hit", target = "ped", id = id, outcome = "ko", react = "ko", dx = dx, dz = dz, ko = FS.KO_DOWN })
@@ -1254,6 +1255,7 @@ end
 -- (one window); a refused one is called off on that client ("brawlEnd": no swings that do nothing)
 local AGGRESSIVE = { drunk = true, punk = true, thug = true, violent = true, hothead = true }
 local lastStart: { [Player]: number } = {}
+local lastAllyStart: { [Player]: number } = {}
 local function onNpcStart(player: Player, p: any)
 	if type(p) ~= "table" or type(p.id) ~= "string" or #p.id > 40 then
 		return
@@ -1262,7 +1264,14 @@ local function onNpcStart(player: Player, p: any)
 		send(player, { kind = "brawlEnd", id = p.id })
 	end
 	local t = now()
-	if t - (lastStart[player] or 0) < 2 then
+	-- why = "ally": a friend of the person the player just hit (or a tough bystander) takes their side -
+	-- anyone may, while that hit is fresh (10 s); its own throttle, so two friends can both join
+	local ally = false
+	if p.why == "ally" and type(p.of) == "string" and p.of ~= p.id then
+		local hc = hitCount[player] and hitCount[player][p.of]
+		ally = hc ~= nil and t - hc.t < 10
+	end
+	if t - (if ally then (lastAllyStart[player] or 0) else (lastStart[player] or 0)) < (if ally then 1.5 else 2) then
 		return refuse()
 	end
 	local typeId, c = typeOf(p.id, p.ptype)
@@ -1288,15 +1297,20 @@ local function onNpcStart(player: Player, p: any)
 			hot = okM and nm == "DRUNK"
 		end
 	end
-	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and not hot then
+	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and not hot and not (ally and real and typeId ~= "police") then
 		return refuse()
 	end
 	local root = rootOf(player)
 	local pos = unpackV(p.pos)
-	if not root or not pos or flat(pos, root.Position) > 12 then
+	-- (an ally comes running from where the victim's group walked: a little farther)
+	if not root or not pos or flat(pos, root.Position) > (if ally then 22 else 12) then
 		return refuse()
 	end
-	lastStart[player] = t
+	if ally then
+		lastAllyStart[player] = t
+	else
+		lastStart[player] = t
+	end
 	local secs = tonumber(p.secs)
 	Fight.startBrawl(player, p.id, if secs then math.clamp(secs, FS.BRAWL_S[1], FS.BRAWL_S[2]) else nil)
 end
@@ -1313,6 +1327,9 @@ local function onAction(player: Player, kind: any, p: any)
 			onNpcFight(player, p)
 		elseif kind == "npcStart" then
 			onNpcStart(player, p)
+		elseif kind == "incidentDone" and type(p) == "table" and type(p.kind) == "string" and #p.kind <= 32 then
+			-- (the client's answer to a GwangalliNPCEvents incident: was somebody cast for it)
+			player:SetAttribute("GwangalliIncidentLast", p.kind .. ":" .. tostring(p.ok == true))
 		end
 	end)
 	if not ok then
@@ -1330,6 +1347,7 @@ function Fight.onLeave(player: Player)
 	pedSn[player] = nil
 	robbed[player] = nil
 	lastStart[player] = nil
+	lastAllyStart[player] = nil
 	lastCarHit[player] = nil
 end
 
@@ -1463,9 +1481,16 @@ function Fight.init(context: any)
 	end
 	rapi.Parent = ServerStorage
 	-- ServerStorage.GwangalliNPCEvents: 생활콘텐츠 (or any server system) says "an incident happened";
-	-- the NPC system on that player's client casts and plays it (GwangalliStreetLife Mind.incident):
+	-- the NPC system casts and plays it (it only sends the trigger; the NPCs do the rest):
 	--   Invoke("incident", player, kind, { pos = Vector3?, id = string? }) -> true when sent
-	--   kind = "drunk_quarrel" | "stall_fight" | "street_fight" | "lost" | "help" | "suspicious"
+	--   Invoke("incident", nil, kind, { pos = Vector3 }) -> sent to every player within 120 studs of pos
+	--     (a place's event: a stall, the club door); true when at least one got it
+	--   kind = "drunk_quarrel" | "stall_fight" | "street_fight" | "lost" | "help" | "suspicious": the
+	--     street crowd of that player's client plays it (GwangalliStreetLife Mind.incident: somebody near
+	--     pos, else somebody walks in); its outcome lands on the player attribute GwangalliIncidentLast
+	--     ("kind:true" / "kind:false", the client's "incidentDone")
+	--   kind = "police_chase": Law/City stages a thief near pos (or the player) who runs from an officer
+	--     at once (server rigs: everybody around sees the chase); true when staged
 	local oldE = ServerStorage:FindFirstChild("GwangalliNPCEvents")
 	if oldE then
 		oldE:Destroy()
@@ -1473,13 +1498,43 @@ function Fight.init(context: any)
 	local ev = Instance.new("BindableFunction")
 	ev.Name = "GwangalliNPCEvents"
 	ev.OnInvoke = function(op: any, pl: any, kind: any, data: any)
-		if op ~= "incident" or typeof(pl) ~= "Instance" or not pl:IsA("Player") or type(kind) ~= "string" then
+		if op ~= "incident" or type(kind) ~= "string" or #kind > 32 then
 			return false
 		end
+		local isPl = typeof(pl) == "Instance" and pl:IsA("Player")
 		local d = if type(data) == "table" then data else {}
-		local pos = if typeof(d.pos) == "Vector3" then { d.pos.X, d.pos.Y, d.pos.Z } else nil
-		send(pl, { kind = "incident", what = kind, pos = pos, id = if type(d.id) == "string" then d.id else nil })
-		return true
+		local at: Vector3? = if typeof(d.pos) == "Vector3" then d.pos else nil
+		if not isPl and (pl ~= nil or not at) then
+			return false
+		end
+		if kind == "police_chase" then
+			local L = law()
+			local C = L and L.children and L.children.City
+			if not C or type(C.stage) ~= "function" then
+				return false
+			end
+			-- (no pos: out of sight around the player, the thief runs from there)
+			local where = at or (if isPl and type(L.posOf) == "function" then L.posOf(pl) else nil)
+			if not where then
+				return false
+			end
+			local okS, sid = pcall(C.stage, "pickpocket", where, { chase = true, hidden = at == nil })
+			return okS and sid ~= nil
+		end
+		local msg = { kind = "incident", what = kind, pos = if at then { at.X, at.Y, at.Z } else nil, id = if type(d.id) == "string" then d.id else nil }
+		if isPl then
+			send(pl, msg)
+			return true
+		end
+		local any = false
+		for _, p2 in Players:GetPlayers() do
+			local r = rootOf(p2)
+			if r and at and flat(r.Position, at) < 120 then
+				send(p2, msg)
+				any = true
+			end
+		end
+		return any
 	end
 	ev.Parent = ServerStorage
 	ctx.fight = Fight

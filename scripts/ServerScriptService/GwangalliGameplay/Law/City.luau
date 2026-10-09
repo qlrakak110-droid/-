@@ -112,7 +112,27 @@ local function resolve(inc: any, by: string)
 	local _ = by
 end
 
-local function spawnIncident()
+-- the street crowd of each player close by notices a scuffle here (their own client's pedestrians:
+-- GwangalliFight "commotion" -> GwangalliStreetLife/Characters.commotion)
+local function tellCrowd(pos: Vector3)
+	local F = ctx and ctx.fight
+	if not F or type(F.tell) ~= "function" then
+		return
+	end
+	for _, p in Players:GetPlayers() do
+		local pp = Law.posOf(p)
+		if pp and flat(pp, pos) < 110 then -- (their crowd lives up to ~145 studs around them)
+			pcall(F.tell, p, { kind = "commotion", pos = { pos.X, pos.Y, pos.Z } })
+		end
+	end
+end
+
+local suspectFlee: (inc: any) -> ()
+
+-- forceKind / forcePos: a staged one (City.stage: 생활콘텐츠 -> GwangalliNPCEvents "police_chase");
+-- opts.chase = the suspect runs as soon as the officer is on it, opts.hidden = somewhere out of sight
+-- 40-90 studs from forcePos (not popping up next to the player). -> the incident id
+local function spawnIncident(forceKind: string?, forcePos: Vector3?, opts: any?): string?
 	local plist = {}
 	for _, p in Players:GetPlayers() do
 		local j = p:GetAttribute(LS.Attr.Jail)
@@ -121,26 +141,33 @@ local function spawnIncident()
 		end
 	end
 	if #plist == 0 then
-		return
+		return nil
 	end
 	local Pol = P()
 	if not Pol then
-		return
+		return nil
 	end
-	local anchor = plist[rng:NextInteger(1, #plist)]
-	local pp = Law.posOf(anchor) :: Vector3
-	local at = Pol.hiddenSpot(pp, 60, 130)
+	local at: Vector3?
+	if forcePos and opts and opts.hidden then
+		at = Pol.hiddenSpot(forcePos, 40, 90) -- (around the player: out of sight, then it comes his way)
+	elseif forcePos then
+		at = Pol.ringNode(forcePos, 2, 10, nil) or forcePos
+	else
+		local anchor = plist[rng:NextInteger(1, #plist)]
+		local pp = Law.posOf(anchor) :: Vector3
+		at = Pol.hiddenSpot(pp, 60, 130)
+	end
 	if not at then
-		return
+		return nil
 	end
-	local kind = weightedKind()
+	local kind = if forceKind and LS.INCIDENTS[forceKind] then forceKind else weightedKind()
 	local def = LS.INCIDENTS[kind]
 	seq += 1
 	local id = "inc_" .. seq
 	local inc = { id = id, kind = kind, pos = at, t = now(), state = "live", officer = nil, label = def.label, icon = def.icon }
 	inc.suspect = Pol.newActor(at, id, HINT[kind], "suspect")
 	if not inc.suspect then
-		return
+		return nil
 	end
 	inc.suspect.model:SetAttribute("LawSuspect", id)
 	if kind == "fight" then
@@ -150,6 +177,8 @@ local function spawnIncident()
 			Pol.faceTo(inc.suspect, at + Vector3.new(2.6, 0, 0.5))
 			Pol.setAct(inc.second, "idle")
 		end
+		-- not every one waits for the police: an apology, a walk-off or a passer-by may end it first
+		inc.endAt = now() + 8 + rng:NextNumber() * 7
 	elseif kind ~= "noise" then
 		local vp = Pol.ringNode(at, 4, 9, nil) or (at + Vector3.new(4, 0, 0))
 		inc.victim = Pol.newActor(vp, id .. "_v", { age = "adult" }, "victim")
@@ -166,7 +195,11 @@ local function spawnIncident()
 	if C then
 		C.addCall({ label = def.label, icon = def.icon, pos = at, npcId = id, npcName = "용의자 (" .. def.label .. ")" })
 	end
-	task.delay(4 + rng:NextNumber() * 6, function()
+	if kind == "fight" then
+		tellCrowd(at)
+	end
+	local chase = opts and opts.chase
+	task.delay(if chase then 0.3 else 4 + rng:NextNumber() * 6, function()
 		if incidents[id] ~= inc or inc.state ~= "live" then
 			return
 		end
@@ -189,11 +222,15 @@ local function spawnIncident()
 			inc.officer = best
 			Pol.say(best, "무전: " .. def.label .. " 출동합니다.")
 			Pol.assignGoal(best, at, 11, nil)
+			if chase then
+				suspectFlee(inc) -- (staged: he runs at once; City.tick plays the chase)
+			end
 		end
 	end)
+	return id
 end
 
-local function suspectFlee(inc: any)
+function suspectFlee(inc: any)
 	if inc.state ~= "live" or not inc.suspect or inc.suspect.gone then
 		return
 	end
@@ -209,6 +246,95 @@ local function suspectFlee(inc: any)
 		Pol.assignGoal(inc.suspect, away, 12.5, nil)
 		inc.fleeGoal = away
 	end
+end
+
+-- a 취객 싸움 that ends before the police get there: an apology, one walks off, or a passer-by talks
+-- them down (otherwise it stays live for the officer)
+local function fightEnding(inc: any)
+	inc.endAt = nil
+	local Pol = P()
+	local a, b = inc.suspect, inc.second
+	if not Pol or not a or a.gone or not b or b.gone then
+		return
+	end
+	b.pos = Pol.legPos(b, now())
+	local r = rng:NextNumber()
+	local function apart(delay: number)
+		-- each walks off a different way; the incident is over (the officer, if any, goes back on patrol)
+		task.delay(delay, function()
+			if incidents[inc.id] ~= inc then
+				return
+			end
+			for _, x in { a, b } do
+				if not x.gone then
+					local other = if x == a then b else a
+					local goal = Pol.ringNode(x.pos, 40, 80, other.pos)
+					if goal then
+						Pol.assignGoal(x, goal, 7, nil)
+					end
+				end
+			end
+		end)
+		inc.state = "done"
+		task.delay(12, function()
+			if incidents[inc.id] == inc then
+				cleanup(inc)
+			end
+		end)
+	end
+	if r < 0.3 then
+		say(b, { "아 미안 미안, 내가 취했나 봐…", "됐다 됐어, 내가 잘못했다.", "에휴… 미안하다." })
+		task.delay(1.6, function()
+			if not a.gone then
+				say(a, { "…그래, 됐다.", "다음부턴 조심해라.", "쳇, 알았어." })
+			end
+		end)
+		apart(3)
+	elseif r < 0.55 then
+		say(b, { "됐어, 상대 안 해!", "에이 씨, 간다 가.", "말이 안 통하네." })
+		local goal = Pol.ringNode(b.pos, 50, 90, a.pos)
+		if goal then
+			Pol.assignGoal(b, goal, 8, nil)
+		end
+		task.delay(2, function()
+			if not a.gone then
+				say(a, { "야! 어디 가!", "쳇, 겁쟁이." })
+			end
+		end)
+		apart(4)
+	elseif r < 0.7 then
+		local vp = Pol.ringNode(a.pos, 4, 8, nil)
+		local v = vp and Pol.newActor(vp, inc.id .. "_p", { age = "adult" }, "victim")
+		if not v then
+			return
+		end
+		inc.victim = v -- (cleanup removes the passer-by too)
+		Pol.faceTo(v, a.pos)
+		say(v, { "아이고, 그만들 하세요!", "두 분 다 진정하세요~", "여기서 이러시면 안 돼요!" })
+		Pol.emote(v, "point_proc")
+		task.delay(1.8, function()
+			if not a.gone then
+				say(a, { "…알았어요.", "에이, 기분 잡쳤네.", "흥." })
+			end
+		end)
+		apart(3.5)
+		tellCrowd(a.pos)
+	end
+	-- (else: it goes on until the officer gets there)
+end
+
+-- 생활콘텐츠 -> NPC (GwangalliFight's GwangalliNPCEvents "police_chase"): an incident of this kind
+-- staged near pos (opts.chase: the suspect runs from the officer at once). -> the id, nil when not
+function City.stage(kind: string, pos: Vector3?, opts: any?): string?
+	local n = 0
+	for _ in incidents do
+		n += 1
+	end
+	if n >= 4 then
+		return nil
+	end
+	local ok, id = pcall(spawnIncident, kind, pos, opts)
+	return if ok then id else nil
 end
 
 function City.tick(dt: number)
@@ -261,6 +387,8 @@ function City.tick(dt: number)
 			end
 			if near then
 				suspectFlee(inc)
+			elseif inc.endAt and now() >= inc.endAt then
+				fightEnding(inc)
 			elseif rng:NextNumber() < 0.03 then
 				say(s, LINES[inc.kind].suspect)
 				if inc.kind == "fight" and inc.second and not inc.second.gone then

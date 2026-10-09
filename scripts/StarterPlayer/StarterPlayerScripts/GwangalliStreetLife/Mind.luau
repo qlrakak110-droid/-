@@ -941,6 +941,10 @@ end
 
 -- open a conversation with a citizen agent. kind: who started it ("talk" = the player)
 function Mind.begin(a: any, kind: string?): boolean
+	if ready and a and not a.gone and a.quarrel and a.quarrel.incident and Mind.helpIncident then
+		-- (the lost tourist / the one asking for help: they answer in bubbles, no talk card)
+		return Mind.helpIncident(a)
+	end
 	if not ready or not a or a.gone or not a.named or not a.c or a.c.key then
 		return false
 	end
@@ -1302,6 +1306,15 @@ function Mind.hello(a: any): (string?, string?)
 	if not ready or not M or not a or a.gone then
 		return nil, nil
 	end
+	local q = a.quarrel
+	if q and q.incident and Mind.helpIncident then
+		-- (a 생활콘텐츠 incident's stranger - lost / asking for help / the one following you: the answer)
+		local ask = q.lines and q.lines.ask
+		local line = if ask then pick(ask) else "…"
+		if Mind.helpIncident(a, true) then
+			return line, "incident"
+		end
+	end
 	local now = os.clock()
 	local mem = a.memory
 	if mem and now < mem.untilT then
@@ -1613,9 +1626,62 @@ function Mind.report(a: any)
 	end)
 end
 
-local function witnessReact(a: any, kind: string, pos: Vector3, now: number)
+-- a passer-by phones in a fight between two other people (only the call: Mind.report would report the
+-- PLAYER's own pending crime); sc = the scene record (sc.called: the fight's end needs no second caller)
+local NPC_CALL = { "여보세요, 112죠? 여기 싸움 났어요!", "경찰 좀 보내 주세요, 사람들이 싸워요!", "저기요, 경찰이죠? 사람이 맞고 있어요!" }
+local function npcCall(a: any, pos: Vector3, sc: any?): boolean
+	if not take(a, { kind = "report", untilT = os.clock() + 5 }) then
+		return false
+	end
+	hold(a, pos, "phone")
+	face(a, "scared", 5)
+	task.delay(0.8, function()
+		sayNpc(a, pick(NPC_CALL), 3.5)
+	end)
+	if sc then
+		sc.called = true
+	end
+	return true
+end
+
+-- opts: { npc = the scene record of a fight between two NPCs (nobody reports / chases the player),
+-- sev = how bad it was (a shove or a car bump: some only step aside) }
+local function witnessReact(a: any, kind: string, pos: Vector3, now: number, opts: any?)
 	stats.witnesses += 1
+	local o = opts or {}
+	local sc = o.npc
+	if sc then
+		-- two other people fighting: a call is only a call, the police one watches, the tough ones egg
+		-- them on, the brave one walks over and steps in between them
+		if kind == "report" then
+			npcCall(a, pos, sc)
+			return
+		elseif kind == "police" then
+			kind = "watch"
+		elseif kind == "gang" then
+			kind = if rnd() < 0.5 then "cheer" else "watch"
+		elseif kind == "stop" then
+			if not take(a, { kind = "intervene", untilT = now + 8, at = pos, pair = sc }) then
+				return
+			end
+			face(a, "angry", 6)
+			sayNpc(a, pick({ "그만해요!", "두 분 다 진정하세요~", "야야, 그만들 해!" }), 3)
+			sc.stopper = sc.stopper or a
+			return
+		end
+	end
 	if kind == "flee" then
+		local CH = ctx.Crowd.Characters
+		if (o.sev or 3) <= 2 and rnd() < 0.5 and CH and CH.backOff and not a.ctl then
+			-- not that bad (a shove, a scuffle, a car bump): they only step out of the way and keep an eye on it
+			pcall(CH.backOff, a, pos)
+			face(a, "scared", 3)
+			a:lookAtPoint(pos + Vector3.new(0, 1.5, 0), 3, now)
+			if ctx.Crowd.canSay(now) and rnd() < 0.5 then
+				sayNpc(a, pick({ "어머, 뭐야…", "헐, 무서워…", "엮이지 말자…" }), 2.4)
+			end
+			return
+		end
 		Mind.flee(a, pos, 5 + rnd() * 3)
 		if ctx.Crowd.canSay(now) then
 			sayNpc(a, M.witnessLine("flee", rnd) or "꺄악!", 2.5)
@@ -1636,6 +1702,12 @@ local function witnessReact(a: any, kind: string, pos: Vector3, now: number)
 		end
 	elseif kind == "report" then
 		Mind.report(a)
+	elseif kind == "gang" and Mind.startFight and o.victim and not a.ctl and playerPos() and flatDist(a.pos, playerPos() :: Vector3) < 20 then
+		-- a tough one (불량배) takes the victim's side for real: a brawl with the player (GwangalliFight
+		-- "npcStart" why = ally: the server lets the swings land while the hit is fresh)
+		sayNpc(a, M.witnessLine("gang", rnd) or "우리 애 건드리지 마라.", 3)
+		face(a, "angry", 6)
+		pcall(Mind.startFight, a, "ally", o.victim)
 	elseif kind == "stop" or kind == "gang" then
 		if not take(a, { kind = "intervene", untilT = now + 6, at = pos, gang = kind == "gang" }) then
 			return
@@ -1647,18 +1719,17 @@ local function witnessReact(a: any, kind: string, pos: Vector3, now: number)
 	end
 end
 
-local CRIME_SEVERITY = { kill = 3, assault = 3, assault_police = 3, reckless = 2, shove = 2, threat = 2, bumps = 2, insult_police = 1, flee = 1, bribe = 1 }
-function Mind.onCrime(msg: any)
-	local pos = msg.pos and Vector3.new(msg.pos[1], msg.pos[2], msg.pos[3]) or playerPos()
-	if not pos then
-		return
-	end
-	local sev = CRIME_SEVERITY[msg.crime] or 2
-	local now = os.clock()
+-- the people within 42 studs of pos who see it (at most 7, the closer the likelier), each by personality
+-- (GwangalliMindShared.witness): flee / step aside / watch / film / cheer / call / step in / gang up.
+-- opts = { skip = {[id] = true} (the people in it), npc = a fight scene between two NPCs (see
+-- witnessReact), car = a traffic accident, victim = the id the player hit }
+local function witnessAt(pos: Vector3, sev: number, opts: any?)
+	local o = opts or {}
+	local skip = o.skip or {}
 	local n = 0
 	local list = {}
 	for _, a in ctx.Crowd.agents do
-		if not a.gone and a.id ~= msg.victim and not a.companion and not a.clubGuest and not a.knock and a.mode ~= "talk" and (not a.ctl or a.ctl.kind == "watch") then
+		if not a.gone and not skip[a.id] and not a.companion and not a.clubGuest and not a.knock and not a.ko and not a.brawl and a.mode ~= "talk" and (not a.ctl or a.ctl.kind == "watch") then
 			local d = flatDist(a.pos, pos)
 			if d < 42 then
 				table.insert(list, { a = a, d = d })
@@ -1668,6 +1739,7 @@ function Mind.onCrime(msg: any)
 	table.sort(list, function(x, y)
 		return x.d < y.d
 	end)
+	local wo = { npc = o.npc, sev = sev, victim = o.victim }
 	for _, e in list do
 		if n >= 7 then
 			break
@@ -1677,19 +1749,45 @@ function Mind.onCrime(msg: any)
 			n += 1
 			local c = a.c or { id = a.id, type = a.type, persona = "uni" }
 			local kind = M.witness(c, sev, rnd)
-			if msg.car and (kind == "stop" or kind == "gang") then
+			if o.car and (kind == "stop" or kind == "gang") then
 				-- a car hit somebody: nobody walks up to square up to a moving car (Mind "intervene" goes to
 				-- the player): the brave one calls 112, the tough ones watch
 				kind = if kind == "stop" then "report" else "watch"
 			end
-			task.delay(0.2 + rnd() * 0.9, function()
+			-- (not all at once: one by one as they notice)
+			task.delay(0.2 + n * 0.25 + rnd() * 0.7, function()
 				-- (meanwhile somebody else may have taken them: the KO bystander's call, a justice witness)
-				if not a.gone and not a.knock and (not a.ctl or a.ctl.kind == "watch") then
-					witnessReact(a, kind, pos, os.clock())
+				if not a.gone and not a.knock and not a.brawl and (not a.ctl or a.ctl.kind == "watch") then
+					witnessReact(a, kind, pos, os.clock(), wo)
 				end
 			end)
 		end
 	end
+	return n
+end
+Mind.witnessAt = witnessAt
+
+local CRIME_SEVERITY = { kill = 3, assault = 3, assault_police = 3, reckless = 2, shove = 2, threat = 2, bumps = 2, insult_police = 1, flee = 1, bribe = 1 }
+local crimeSeen: { [string]: number } = {}
+local crimeSeenN = 0
+function Mind.onCrime(msg: any)
+	local pos = msg.pos and Vector3.new(msg.pos[1], msg.pos[2], msg.pos[3]) or playerPos()
+	if not pos then
+		return
+	end
+	local sev = CRIME_SEVERITY[msg.crime] or 2
+	local now = os.clock()
+	-- (the same crime on the same person a moment ago: the crowd already reacted, no second roll)
+	local key = tostring(msg.victim or "") .. ":" .. tostring(msg.crime)
+	if now < (crimeSeen[key] or 0) then
+		return
+	end
+	crimeSeenN += 1
+	if crimeSeenN > 64 then
+		crimeSeen, crimeSeenN = {}, 1
+	end
+	crimeSeen[key] = now + 4
+	witnessAt(pos, sev, { skip = if type(msg.victim) == "string" then { [msg.victim] = true } else nil, car = msg.car, victim = if type(msg.victim) == "string" then msg.victim else nil })
 	if (msg.stars or 0) >= 1 then
 		task.delay(2.5, function()
 			Mind.dispatch(nil)
@@ -1998,6 +2096,383 @@ local function cOf(a: any): any
 end
 
 local sceneEnding: number? = nil -- test harness: force the next fight scene's ending
+-- the scenes that can turn into a scuffle (the endings below); their lines by what it was about
+local FIGHT_LINES = {
+	drunkfight = {
+		sorry = { "아 미안 미안, 내가 취했나 봐…", "됐다 됐어, 내가 잘못했다.", "에휴… 미안하다." },
+		accept = { "…그래, 됐다.", "다음부턴 조심해라.", "쳇, 알았어." },
+		walk = { "됐어, 상대 안 해!", "에이 씨, 간다 가.", "말이 안 통하네." },
+		gloat = { "어때! 덤벼 봐!", "술 깨면 사과해라!", "에잇, 다시는 보지 말자!" },
+	},
+	bumpfight = {
+		sorry = { "아 네네, 제가 미안해요.", "됐어요, 죄송합니다.", "에휴, 제가 못 봤어요. 미안합니다." },
+		accept = { "…다음부턴 앞 좀 보고 다녀요.", "됐어요, 가세요.", "쳇, 알았어요." },
+		walk = { "됐어요, 상대 안 해요.", "아 진짜 별꼴이네.", "말이 안 통하네." },
+		gloat = { "앞으로 똑바로 보고 다녀!", "어때! 덤벼 봐!", "다시는 부딪히지 마라!" },
+	},
+}
+local LOSER_UP = { "아이고 허리야…", "두고 보자…", "에이 씨… 아파라.", "…오늘은 내가 참는다." }
+
+local function dropScene(sc: any)
+	for i, s in scenes do
+		if s == sc then
+			table.remove(scenes, i)
+			break
+		end
+	end
+end
+
+-- a scene's people go back to their day once they are on their feet (release() mid-fall would reset
+-- the fall pose); line = what they say when they are up
+local function releaseWhenUp(x: any, leave: boolean?, line: string?, tries: number?)
+	if x.gone or not x.ctl or x.ctl.kind ~= "scene" then
+		return
+	end
+	if x.knock and (tries or 0) < 20 then
+		task.delay(0.4, releaseWhenUp, x, leave, line, (tries or 0) + 1)
+		return
+	end
+	release(x, leave)
+	if line then
+		sayNpc(x, line, 2.6)
+	end
+end
+
+-- somebody close by who is free to step in (not in a scene / a talk / down)
+local function peacemaker(a: any, b: any, r: number): any?
+	for _, o in ctx.Crowd.agents do
+		if o ~= a and o ~= b and not o.gone and o.near and not o.ctl and o.mode ~= "talk" and not o.knock and not o.ko and not o.brawl and not o.companion and not o.clubGuest and flatDist(o.pos, a.pos) < r then
+			return o
+		end
+	end
+	return nil
+end
+
+-- the ending "a bystander separates them": the two stay put glaring, the bystander walks in between
+-- them and talks them down, then each walks off its own way (the flee ctl leaves at untilT)
+local function separate(a: any, b: any): boolean
+	local peace = peacemaker(a, b, 16)
+	local mid = (a.pos + b.pos) / 2
+	if not peace or not take(peace, { kind = "watch", untilT = os.clock() + 7, at = mid }) then
+		return false
+	end
+	local ab = Vector3.new(b.pos.X - a.pos.X, 0, b.pos.Z - a.pos.Z)
+	local dir = if ab.Magnitude > 0.1 then ab.Unit else Vector3.new(1, 0, 0)
+	local side = Vector3.new(-dir.Z, 0, dir.X)
+	if (peace.pos - mid):Dot(side) < 0 then
+		side = -side
+	end
+	if take(a, { kind = "watch", untilT = os.clock() + 7, at = b.pos }) then
+		hold(a, b.pos, "")
+	end
+	if take(b, { kind = "watch", untilT = os.clock() + 7, at = a.pos }) then
+		hold(b, a.pos, "")
+	end
+	local stand = mid + side * 1.6
+	moveTo(peace, stand, 8)
+	task.delay(math.clamp(flatDist(peace.pos, stand) / 8, 0.5, 2.5), function()
+		if peace.gone or not peace.ctl then
+			return
+		end
+		hold(peace, mid, "")
+		gesture(peace, "point")
+		sayNpc(peace, pick({ "아이고, 그만들 하세요!", "두 분 다 진정하세요~", "여기서 이러시면 안 돼요!" }), 3)
+		task.delay(1.8, function()
+			if not a.gone then
+				sayNpc(a, pick({ "…알았어요.", "에이, 기분 잡쳤네.", "흥." }), 2.5)
+			end
+			task.delay(1.0, function()
+				-- pulled apart: each walks off the opposite way, then leaves
+				for _, p in { { a, -dir }, { b, dir } } do
+					local who, away = p[1], p[2]
+					if not who.gone and not who.knock and (not who.ctl or who.ctl.kind == "watch") and take(who, { kind = "flee", untilT = os.clock() + 2.5 }) then
+						moveTo(who, who.pos + away * 7, 5)
+					end
+				end
+				release(peace)
+			end)
+		end)
+	end)
+	return true
+end
+
+-- the argument turned into a scuffle: a shove, then punches both ways (3-4 rounds), the last one puts
+-- somebody down. They keep the scene ctl the whole time (no walking off mid-fight); the hitter closes
+-- the gap first. The people around react by who they are (witnessAt: npc mode), a brave one may step
+-- in and end it, somebody helps the one on the ground, somebody calls it in (an officer comes)
+local function scuffle(a: any, b: any, key: string, sc: any)
+	local FL = FIGHT_LINES[key] or FIGHT_LINES.drunkfight
+	local rounds = 3 + math.floor(rnd() * 2)
+	local untilT = os.clock() + rounds * 2.6 + 6
+	for _, x in { a, b } do
+		if x.ctl then
+			x.ctl.untilT = untilT
+		end
+	end
+	sc.untilT = untilT
+	sc.fight = true
+	local over = false
+	-- how = { [agent] = { leave = walk off, line = said once on their feet } }
+	local function stop(how: any?)
+		if over then
+			return
+		end
+		over = true
+		dropScene(sc)
+		for _, x in { a, b } do
+			local h = how and how[x]
+			releaseWhenUp(x, h and h.leave, h and h.line)
+		end
+	end
+	local function inScene(x: any): boolean
+		return not x.gone and x.ctl ~= nil and x.ctl.kind == "scene" and not x.brawl and not x.ko
+	end
+	local function round(i: number, tries: number)
+		if over then
+			return
+		end
+		if not inScene(a) or not inScene(b) then
+			-- somebody else has one of them now (the player hit them, a talk, a KO): over
+			return stop()
+		end
+		local hitter, target = if i % 2 == 1 then a else b, if i % 2 == 1 then b else a
+		-- a bystander walked in between them: it ends here, each goes off its own way
+		local st = sc.stopper
+		if st and not st.gone and st.ctl and st.ctl.pair == sc and flatDist(st.pos, (a.pos + b.pos) / 2) < 3.5 then
+			sayNpc(hitter, pick({ "에이, 됐다!", "놔 봐요, 놔 봐!", "…오늘은 봐준다." }), 2.5)
+			task.delay(1.4, function()
+				if not target.gone then
+					sayNpc(target, pick({ "흥, 두고 보자.", "에휴…", "쳇." }), 2.5)
+				end
+			end)
+			sc.broken = true
+			return stop({ [a] = { leave = true }, [b] = { leave = true } })
+		end
+		if hitter.knock or (target.knock and target.knock.outcome == "knockdown") then
+			-- (still on the ground from the last one: a beat later)
+			if tries < 6 then
+				task.delay(0.5, round, i, tries + 1)
+				return
+			end
+			return stop()
+		end
+		local dx, dz = target.pos.X - hitter.pos.X, target.pos.Z - hitter.pos.Z
+		local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+		if dd > 2.6 then
+			-- they argued a few steps apart: the hitter closes in first
+			if dd < 10 and tries < 5 then
+				moveTo(hitter, target.pos - Vector3.new(dx / dd, 0, dz / dd) * 1.8, 6)
+				task.delay(0.5, round, i, tries + 1)
+				return
+			end
+			sayNpc(hitter, pick({ "에이, 됐다!", "다음에 보자!" }), 2.5)
+			return stop({ [target] = { leave = true } })
+		end
+		hold(hitter, target.pos, "")
+		hitter:lookAtPoint(target.pos + Vector3.new(0, 1.6, 0), 2, os.clock())
+		Anim.flash(hitter.rig, "pointp", 0.5)
+		if ctx.Crowd.playPose then
+			pcall(ctx.Crowd.playPose, hitter, if i == 1 then "shove" else "punch", 0.6)
+		end
+		-- round 1 is the shove (a stagger), then punches, the last one a fall
+		local outcome = if i == rounds then "knockdown" else "stagger"
+		local puk = if i == 1 then pick({ "툭!", "밀지 마!" }) else pick(Social.PUK)
+		local okK = if ctx.Crowd.fightKnock then ctx.Crowd.fightKnock(target, dx / dd, dz / dd, outcome, puk) else target:knockDown(dx / dd, dz / dd, outcome, puk)
+		if okK ~= false and target.knock then
+			target.knock.byNpc = hitter -- (back up: they face the other one, nothing aimed at the player)
+		end
+		if i == 1 then
+			-- now it is a fight: the people around react by who they are (spec 9; nobody reports the player)
+			witnessAt(target.pos, 2, { skip = { [a.id] = true, [b.id] = true }, npc = sc })
+		end
+		for _, o in ctx.Crowd.agents do
+			if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and flatDist(o.pos, target.pos) < 16 then
+				o:lookAtPoint(target.pos + Vector3.new(0, 1.2, 0), 3, os.clock())
+			end
+		end
+		if i < rounds then
+			task.delay(1.5 + rnd() * 0.5, round, i + 1, 0)
+			return
+		end
+		-- over: the winner gloats, somebody helps the one on the ground, a bystander phones it in
+		task.delay(1.2, function()
+			if not hitter.gone then
+				sayNpc(hitter, pick(FL.gloat), 3)
+			end
+			local CH = ctx.Crowd.Characters
+			if CH and CH.witness and not target.gone then
+				pcall(CH.witness, target.id, { npcFight = true, exclude = hitter })
+			end
+			if sc.called or rnd() < 0.6 then
+				if not sc.called then
+					local caller
+					for _, o in ctx.Crowd.agents do
+						if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and not o.knock and flatDist(o.pos, target.pos) < 18 then
+							caller = o
+							break
+						end
+					end
+					if caller then
+						npcCall(caller, target.pos, sc)
+					end
+				end
+				local ff = ReplicatedStorage:FindFirstChild("GwangalliFight")
+				local act = ff and ff:FindFirstChild("Action")
+				if act and act:IsA("RemoteEvent") then
+					act:FireServer("npcFight", { pos = { target.pos.X, target.pos.Y, target.pos.Z }, a = a.id, b = b.id })
+				end
+			end
+			task.delay(1.0, function()
+				-- (the one on the ground gets up, says something, maybe walks off)
+				stop({ [target] = { leave = rnd() < 0.5, line = pick(LOSER_UP) } })
+			end)
+		end)
+	end
+	round(1, 0)
+end
+
+-- how an argument that could become a fight ends: an apology, a bystander separating them, one walking
+-- off, or a scuffle. -> true while it still runs (the scuffle releases them itself)
+local function fightEnding(a: any, b: any, key: string, sc: any): boolean
+	local FL = FIGHT_LINES[key] or FIGHT_LINES.drunkfight
+	local ending = sceneEnding or rnd()
+	sceneEnding = nil
+	if ending < 0.2 then
+		release(a)
+		release(b)
+		sayNpc(b, pick(FL.sorry), 3)
+		task.delay(1.6, function()
+			if not a.gone then
+				sayNpc(a, pick(FL.accept), 2.5)
+			end
+		end)
+		return false
+	elseif ending < 0.4 then
+		if separate(a, b) then
+			return false
+		end
+		-- (nobody close enough to step in: it goes on)
+	elseif ending < 0.55 then
+		release(a)
+		release(b)
+		sayNpc(b, pick(FL.walk), 3)
+		if Mind.flee then
+			Mind.flee(b, a.pos, 4)
+		end
+		return false
+	end
+	scuffle(a, b, key, sc)
+	return true
+end
+
+-- 커플 싸움: they make up, one storms off (the other calls after them), or a passer-by comments and
+-- they move on - never a fight or a call to the police
+local function coupleEnding(a: any, b: any)
+	release(a)
+	release(b)
+	local e = sceneEnding or rnd()
+	sceneEnding = nil
+	if e < 0.45 then
+		sayNpc(b, pick({ "미안해, 내가 잘못했어…", "알았어 알았어, 화 풀어." }), 3)
+		task.delay(1.6, function()
+			if not a.gone then
+				sayNpc(a, pick({ "…다음엔 진짜 안 봐준다.", "흥, 아이스크림 사.", "…알았어." }), 2.6)
+				face(a, "laugh", 2)
+			end
+		end)
+	elseif e < 0.8 then
+		sayNpc(a, pick({ "됐어, 혼자 가!", "말 걸지 마!" }), 2.8)
+		if Mind.flee then
+			Mind.flee(a, b.pos, 4)
+		end
+		task.delay(1.2, function()
+			if not b.gone then
+				sayNpc(b, pick({ "야! 기다려!", "아 진짜… 자기야!" }), 2.6)
+			end
+		end)
+	else
+		local peace = peacemaker(a, b, 14)
+		if peace then
+			peace:lookAtPoint(a.pos + Vector3.new(0, 1.6, 0), 3, os.clock())
+			sayNpc(peace, pick({ "어휴, 커플 싸움이네…", "연애 힘들다 ㅋㅋ", "저러다 또 화해하더라." }), 3)
+		end
+		task.delay(1.4, function()
+			if not b.gone then
+				sayNpc(b, "…가자, 사람들 본다.", 2.6)
+			end
+		end)
+	end
+end
+
+-- 걸렁뱅이 + a passer-by: the money demand (돈 좀 있냐?) ends differently each time - hands it over,
+-- runs, refuses and gets shoved, or a bystander steps in; the other scenes keep the scared walk-off
+local function punkEnding(a: any, b: any, lines: { any })
+	local first = lines[1]
+	local isMoney = type(first) == "table" and type(first[2]) == "string" and string.find(first[2], "돈", 1, true) ~= nil
+	if not isMoney or a.gone then
+		face(b, "scared", 3)
+		release(b, true)
+		return
+	end
+	local ending = sceneEnding or rnd()
+	sceneEnding = nil
+	release(a)
+	if ending < 0.5 then
+		-- hands it over (no real money moves between people on the street)
+		face(b, "scared", 3)
+		sayNpc(b, pick({ "…여기요, 이게 다예요.", "알았어요… 가져가세요.", "(주섬주섬 지갑을 꺼낸다)" }), 3)
+		task.delay(1.5, function()
+			if not a.gone then
+				sayNpc(a, pick({ "ㅋㅋ 착하네. 가 봐.", "진작 그럴 것이지.", "고맙다~ 또 보자 ㅋ" }), 2.5)
+			end
+		end)
+		release(b, true)
+	elseif ending < 0.75 then
+		release(b)
+		sayNpc(b, pick({ "으악, 저 바빠서요!", "죄, 죄송합니다!!", "엄마야…!" }), 2.5)
+		if Mind.flee then
+			Mind.flee(b, a.pos, 4)
+		end
+	elseif ending < 0.9 then
+		release(b)
+		sayNpc(b, pick({ "없다니까요!", "왜 이러세요, 진짜.", "싫은데요?" }), 2.5)
+		task.delay(1.2, function()
+			if a.gone or b.gone or a.ctl or b.ctl or b.knock then
+				return
+			end
+			local dx, dz = b.pos.X - a.pos.X, b.pos.Z - a.pos.Z
+			local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
+			if dd > 5.5 then
+				return
+			end
+			a:lookAtPoint(b.pos + Vector3.new(0, 1.6, 0), 2, os.clock())
+			Anim.flash(a.rig, "pointp", 0.5)
+			if ctx.Crowd.playPose then
+				pcall(ctx.Crowd.playPose, a, "shove", 0.6)
+			end
+			if b:knockDown(dx / dd, dz / dd, "stagger", pick(Social.PUK)) ~= false and b.knock then
+				b.knock.byNpc = a
+			end
+			sayNpc(a, pick({ "말 안 듣네?", "어디서 눈을 부라려!", "쳇, 운 좋은 줄 알아." }), 2.5)
+		end)
+	else
+		local peace = peacemaker(a, b, 16)
+		if peace then
+			peace:lookAtPoint(a.pos + Vector3.new(0, 1.6, 0), 3, os.clock())
+			gesture(peace, "point")
+			sayNpc(peace, pick({ "거기 뭐 하는 거예요! 경찰 부릅니다?", "학생 괴롭히지 마세요!", "아저씨, 그만하세요!" }), 3)
+			task.delay(1.8, function()
+				if not a.gone then
+					sayNpc(a, pick({ "쳇, 재수 없네.", "에이, 됐다 됐어.", "흥, 간다 가." }), 2.5)
+				end
+			end)
+		else
+			face(b, "scared", 3)
+		end
+		release(b, true)
+	end
+end
+
 local function playScene(a: any, b: any, key: string, lines: { any })
 	local now = os.clock()
 	local dur = 2 + #lines * 3.2
@@ -2051,121 +2526,45 @@ local function playScene(a: any, b: any, key: string, lines: { any })
 		delay += lineDur(v) * 0.9
 	end
 	task.delay(delay + 0.6, function()
-		if key == "drunkfight" and not a.gone and not b.gone and a.ctl and b.ctl then
-			-- the argument turns into a scuffle: shoves both ways (3-4), the last one puts somebody down;
-			-- the people around stop and look, somebody calls it in (an officer comes to break it up)
-			release(a)
-			release(b)
-			-- not every argument turns into a fight: an apology, a bystander stepping in, or one of
-			-- them just walking off end it as often as a scuffle does
-			local ending = sceneEnding or rnd()
-			sceneEnding = nil
-			local scuffle = true
-			if ending < 0.2 then
-				sayNpc(b, pick({ "아 미안 미안, 내가 취했나 봐…", "됐다 됐어, 내가 잘못했다.", "에휴… 미안하다." }), 3)
-				task.delay(1.6, function()
-					if not a.gone then
-						sayNpc(a, pick({ "…그래, 됐다.", "다음부턴 조심해라.", "쳇, 알았어." }), 2.5)
-					end
-				end)
-				scuffle = false
-			elseif ending < 0.4 then
-				local peace
-				for _, o in ctx.Crowd.agents do
-					if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and not o.knock and flatDist(o.pos, a.pos) < 16 then
-						peace = o
-						break
-					end
-				end
-				if peace then
-					peace:lookAtPoint(a.pos + Vector3.new(0, 1.6, 0), 3, os.clock())
-					gesture(peace, "point")
-					sayNpc(peace, pick({ "아이고, 그만들 하세요!", "두 분 다 진정하세요~", "여기서 이러시면 안 돼요!" }), 3)
-					task.delay(1.8, function()
-						if not a.gone then
-							sayNpc(a, pick({ "…알았어요.", "에이, 기분 잡쳤네.", "흥." }), 2.5)
-						end
-					end)
-					scuffle = false
-				end
-			elseif ending < 0.55 then
-				sayNpc(b, pick({ "됐어, 상대 안 해!", "에이 씨, 간다 가.", "말이 안 통하네." }), 3)
-				if Mind.flee then
-					Mind.flee(b, a.pos, 4)
-				end
-				scuffle = false
-			end
-			if scuffle then
-			local rounds = 3 + math.floor(rnd() * 2)
-			local function round(i: number)
-				if a.gone or b.gone then
-					return
-				end
-				local hitter, target = if i % 2 == 1 then a else b, if i % 2 == 1 then b else a
-				local dx, dz = target.pos.X - hitter.pos.X, target.pos.Z - hitter.pos.Z
-				local dd = math.max(0.1, math.sqrt(dx * dx + dz * dz))
-				if dd > 5.5 then
-					return -- somebody walked off: it is over
-				end
-				hitter:lookAtPoint(target.pos + Vector3.new(0, 1.6, 0), 2, os.clock())
-				gesture(hitter, "point")
-				target:knockDown(dx / dd, dz / dd, if i == rounds then "knockdown" else "stagger", pick(Social.PUK))
-				for _, o in ctx.Crowd.agents do
-					if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and flatDist(o.pos, target.pos) < 16 then
-						o:lookAtPoint(target.pos + Vector3.new(0, 1.2, 0), 3, os.clock())
-					end
-				end
-				if i < rounds then
-					task.delay(1.5 + rnd() * 0.5, round, i + 1)
-					return
-				end
-				-- over: the winner gloats, a bystander phones it in
-				task.delay(1.2, function()
-					if not hitter.gone then
-						sayNpc(hitter, pick({ "어때! 덤벼 봐!", "술 깨면 사과해라!", "에잇, 다시는 보지 말자!" }), 3)
-					end
-					if rnd() < 0.6 then
-						local caller
-						for _, o in ctx.Crowd.agents do
-							if o ~= a and o ~= b and not o.gone and not o.ctl and o.mode ~= "talk" and flatDist(o.pos, target.pos) < 18 then
-								caller = o
-								break
-							end
-						end
-						-- (only the phone call: Mind.report would report the PLAYER's own pending crime)
-						if caller and take(caller, { kind = "report", untilT = os.clock() + 5 }) then
-							hold(caller, target.pos, "phone")
-							task.delay(0.8, function()
-								sayNpc(caller, pick({ "여보세요, 112죠? 여기 싸움 났어요!", "경찰 좀 보내 주세요, 취객들이 싸워요!", "저기요, 경찰이죠? 사람이 맞고 있어요!" }), 3.5)
-							end)
-						end
-						local ff = ReplicatedStorage:FindFirstChild("GwangalliFight")
-						local act = ff and ff:FindFirstChild("Action")
-						if act and act:IsA("RemoteEvent") then
-							act:FireServer("npcFight", { pos = { target.pos.X, target.pos.Y, target.pos.Z }, a = a.id, b = b.id })
-						end
-					end
-				end)
-			end
-			round(1)
-			end
+		local keep = false -- (a scuffle keeps both in the scene: it releases them itself when it is over)
+		if FIGHT_LINES[key] and not a.gone and not b.gone and a.ctl and b.ctl and a.ctl.kind == "scene" and b.ctl.kind == "scene" then
+			keep = fightEnding(a, b, key, sc)
+		elseif key == "couplefight" and not a.gone and not b.gone and a.ctl and b.ctl then
+			coupleEnding(a, b)
 		elseif key == "punk" and not b.gone then
-			face(b, "scared", 3)
-			release(b, true)
+			punkEnding(a, b, lines)
 		end
-		if a.ctl and a.ctl.kind == "scene" then
-			release(a)
-		end
-		if b.ctl and b.ctl.kind == "scene" then
-			release(b)
-		end
-		for i, s in scenes do
-			if s == sc then
-				table.remove(scenes, i)
-				break
+		if not keep then
+			if a.ctl and a.ctl.kind == "scene" then
+				release(a)
 			end
+			if b.ctl and b.ctl.kind == "scene" then
+				release(b)
+			end
+			dropScene(sc)
 		end
 	end)
+end
+
+-- two pedestrians have it out (spec 8): a.bumped by b (the 동네바보 / a drunk walked into them), a
+-- quarrel between strangers. The same scene machinery as the street fights: an argument, then an
+-- apology, a bystander, a walk-off or a scuffle. -> true when it started
+function Mind.npcConflict(a: any, b: any, why: string?): boolean
+	if not ready or not a or not b or a == b or a.gone or b.gone or a.ctl or b.ctl or a.knock or b.knock or a.ko or b.ko or a.brawl or b.brawl or a.quarrel or b.quarrel then
+		return false
+	end
+	if #scenes >= 2 or (talk and (talk.a == a or talk.a == b)) then
+		return false
+	end
+	local key = if why == "bump" then "bumpfight" else "drunkfight"
+	local lines = M.scene(key, rnd) or M.scene("drunkfight", rnd)
+	if not lines then
+		return false
+	end
+	local now = os.clock()
+	a.sceneAt, b.sceneAt = now, now
+	playScene(a, b, key, lines)
+	return a.ctl ~= nil and a.ctl.kind == "scene"
 end
 
 -- 취객 시비 / a stranger following you: the person walks up and stays on you a while (the chase hook in
@@ -2200,15 +2599,124 @@ local function nearestAgent(pos: Vector3, maxD: number, filter: ((any) -> boolea
 	return best
 end
 
+-- calm = their line when it runs out (the quarrel's end), thanks / caught = their answer when the player
+-- talks to them (Mind.helpIncident), reply = the player's bubble then, ask = what they say to the tap
 local INCIDENT_LINES = {
-	lost = { start = { "저기요… 혹시 광안리 해변이 어느 쪽이에요?", "실례지만 지하철역 가려면 어디로 가요?", "길을 잃었는데 좀 알려 주실 수 있어요?" }, follow = { "저기요~", "잠깐만요!" } },
-	help = { start = { "저기요! 도와주세요, 지갑을 잃어버렸어요…", "혹시 휴대폰 좀 빌려주실 수 있어요? 급해서요…", "저 좀 도와주실 수 있어요?" }, follow = { "제발요…", "잠깐만요!" } },
-	suspicious = { start = { "…", "(힐끔)" }, follow = { "…", "(힐끔힐끔)", "(따라온다)" } },
+	lost = {
+		start = { "저기요… 혹시 광안리 해변이 어느 쪽이에요?", "실례지만 지하철역 가려면 어디로 가요?", "길을 잃었는데 좀 알려 주실 수 있어요?" },
+		follow = { "저기요~", "잠깐만요!" },
+		calm = { "아 저기구나… 혼자 찾아볼게요.", "아 찾았다!" },
+		ask = { "아, 아세요? 어느 쪽이에요?", "혹시 아시면 좀 알려 주세요!" },
+		reply = { "저쪽으로 쭉 가시면 돼요.", "저기 큰길 따라가세요." },
+		thanks = { "아 저쪽이구나! 감사합니다~", "덕분에 찾았어요, 고마워요!" },
+	},
+	help = {
+		start = { "저기요! 도와주세요, 지갑을 잃어버렸어요…", "혹시 휴대폰 좀 빌려주실 수 있어요? 급해서요…", "저 좀 도와주실 수 있어요?" },
+		follow = { "제발요…", "잠깐만요!" },
+		calm = { "…다른 분께 여쭤볼게요.", "휴… 어떻게든 해 볼게요." },
+		ask = { "정말요? 도와주실 거예요?", "아… 다행이다." },
+		reply = { "제가 도와드릴게요.", "괜찮아요? 같이 찾아봐요." },
+		thanks = { "정말 감사해요! 살았어요…", "고마워요, 복 받으실 거예요!" },
+	},
+	suspicious = {
+		start = { "…", "(힐끔)" },
+		follow = { "…", "(힐끔힐끔)", "(따라온다)" },
+		calm = { "(중얼중얼)…", "…쳇." },
+		ask = { "…뭐요?", "(움찔)" },
+		reply = { "저기요, 뭐 하세요?", "왜 자꾸 따라오세요?" },
+		caught = { "뭘 봐요…", "아무것도 아니에요.", "…가요, 가." },
+	},
 }
+
+-- the player talked to the person of a 생활콘텐츠 incident (lost / help / suspicious): the player's
+-- bubble, then their answer - thanks (a named citizen remembers the help: street "helped"), or the
+-- suspicious one is caught out and slinks off. saidAsk = their own line to the tap is already out
+function Mind.helpIncident(a: any, saidAsk: boolean?): boolean
+	local q = a and a.quarrel
+	local kind = q and q.incident
+	local L = kind and INCIDENT_LINES[kind]
+	if not L or a.gone or a.ko then
+		return false
+	end
+	local now = os.clock()
+	a.quarrel = nil
+	if a.chase then
+		a:endChase(now, true)
+	end
+	if not saidAsk and L.ask then
+		sayNpc(a, pick(L.ask), 2.4)
+	end
+	lookAtPlayer(a, 4)
+	task.delay(if saidAsk then 0.9 else 1.2, function()
+		sayPlayer(pick(L.reply) or "…", 2.5)
+	end)
+	task.delay(if saidAsk then 2.3 else 2.6, function()
+		if a.gone or a.ko or a.knock then
+			return
+		end
+		if kind == "suspicious" then
+			sayNpc(a, pick(L.caught), 3)
+			gesture(a, "turn")
+			a:setPlan({ kind = "leave", act = "walk" }, os.clock())
+		else
+			sayNpc(a, pick(L.thanks), 3.2)
+			face(a, "smile", 3)
+			gesture(a, "wave")
+			if a.named then
+				Mind.street(a.id, "helped", a.pos)
+			end
+		end
+	end)
+	stats.incidentHelped = (stats.incidentHelped or 0) + 1
+	return true
+end
+
+-- nobody fitting around: one walks in from off screen (Crowd's own spawn: the street cap holds)
+local function castNear(at: Vector3, minR: number?, maxR: number?): any?
+	local C = ctx.Crowd
+	if not C.spawnExtraNear then
+		return nil
+	end
+	local ok, a = pcall(C.spawnExtraNear, at, os.clock(), minR, maxR)
+	return if ok then a else nil
+end
+
+-- a named drunk citizen who is not out yet (the same spawn the police dispatch uses)
+local function namedDrunk(at: Vector3): any?
+	if not Citizens or type(Citizens.ofType) ~= "function" or not ctx.Crowd.spawnResponder then
+		return nil
+	end
+	local okL, ids = pcall(Citizens.ofType, "drunk")
+	if not okL or type(ids) ~= "table" then
+		return nil
+	end
+	for _, id in ids do
+		if not ctx.Crowd.byId[id] then
+			local ok, a = pcall(ctx.Crowd.spawnResponder, id, at, os.clock())
+			if ok and a then
+				return a
+			end
+		end
+	end
+	return nil
+end
+
+local function makeDrunk(a: any)
+	if a.type == "drunk" then
+		return
+	end
+	if ctx.Crowd.makeDrunk then
+		pcall(ctx.Crowd.makeDrunk, a)
+	else
+		a.type = "drunk"
+	end
+end
 
 -- 생활콘텐츠 -> NPC: "an incident happened"; the NPC system casts and plays it.
 --   kind = "drunk_quarrel" | "stall_fight" | "street_fight" | "lost" | "help" | "suspicious"
+--   ("police_chase" is staged on the server: GwangalliNPCEvents -> Law/City.stage)
 --   data = { pos = Vector3? (where, default: around the player), id = citizen/agent id? }
+--   Nobody fitting near pos: somebody is brought in (a named drunk / a passer-by from off screen)
 local function incidentImpl(kind: string, data: any?): (boolean, string?)
 	local d = if type(data) == "table" then data else {}
 	local pp = playerPos()
@@ -2218,31 +2726,63 @@ local function incidentImpl(kind: string, data: any?): (boolean, string?)
 	end
 	local okF, FS = pcall(require, ReplicatedStorage:FindFirstChild("GwangalliFightShared") :: any)
 	if kind == "drunk_quarrel" then
-		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45, function(x)
-			return x.type == "drunk"
-		end) or nearestAgent(at, 45)
-		if not a or not okF then
+		if not okF then
 			return false
 		end
-		a.type = "drunk"
-		return Mind.startQuarrel(a, FS.DRUNK_LINES), a.id
-	elseif kind == "stall_fight" or kind == "street_fight" then
-		local a = nearestAgent(at, 40)
-		local b = a and nearestAgent(a.pos, 12, function(x)
-			return x ~= a
+		local spawned = false
+		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45, function(x)
+			return x.type == "drunk"
 		end)
+		if not a then
+			a = namedDrunk(at) or castNear(at)
+			spawned = a ~= nil
+		end
+		a = a or nearestAgent(at, 45)
+		if not a then
+			return false
+		end
+		makeDrunk(a)
+		-- (brought in from 40-80 studs: time to walk over)
+		return Mind.startQuarrel(a, FS.DRUNK_LINES, { secs = if spawned then 22 else nil }), a.id
+	elseif kind == "stall_fight" or kind == "street_fight" then
+		-- (포장마차: the drinkers there - drunks first; the street: whoever is around)
+		local stall = kind == "stall_fight"
+		local a = (stall and nearestAgent(at, 40, function(x)
+			return x.type == "drunk"
+		end)) or nearestAgent(at, 40) or castNear(at)
+		local b = a and (nearestAgent(a.pos, 12, function(x)
+			return x ~= a and (not stall or x.type == "drunk")
+		end) or nearestAgent(a.pos, 12, function(x)
+			return x ~= a
+		end) or castNear(a.pos, 4, 12))
 		local lines = M.scene("drunkfight", rnd)
 		if not a or not b or not lines then
 			return false
 		end
+		if stall then
+			makeDrunk(a)
+			makeDrunk(b)
+		end
 		playScene(a, b, "drunkfight", lines)
-		return true, a.id .. "+" .. b.id
+		return a.ctl ~= nil, a.id .. "+" .. b.id
 	elseif INCIDENT_LINES[kind] then
-		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45)
+		local spawned = false
+		-- (not the 동네바보 / an officer / a 불량배 asking the way or for help)
+		local a = (d.id and ctx.Crowd.byId[d.id]) or nearestAgent(at, 45, function(x)
+			return x.type ~= "fool" and x.type ~= "police" and x.type ~= "thug" and (kind == "suspicious" or x.type ~= "punk")
+		end)
+		if not a then
+			a = castNear(at)
+			spawned = a ~= nil
+		end
 		if not a then
 			return false
 		end
-		return Mind.startQuarrel(a, INCIDENT_LINES[kind], { noShove = true, secs = if kind == "suspicious" then 22 else 10, keep = if kind == "suspicious" then 10 else 3.2 }), a.id
+		local ok = Mind.startQuarrel(a, INCIDENT_LINES[kind], { noShove = true, secs = (if kind == "suspicious" then 22 else 10) + (if spawned then 8 else 0), keep = if kind == "suspicious" then 10 else 3.2 })
+		if ok and a.quarrel then
+			a.quarrel.incident = kind -- (talking to them answers it: Mind.helpIncident)
+		end
+		return ok, a.id
 	end
 	return false, nil
 end
@@ -2283,10 +2823,12 @@ local function sceneTick(now: number)
 		end)
 		if b then
 			local ca, cb = cOf(a), cOf(b)
+			local clock = ctx.clock()
 			local rel = {
 				friends = a.named and b.named and Citizens and (Citizens.areFriends(a.id, b.id)) or (a.leader == b or b.leader == a),
 				couple = a.named and b.named and Citizens and Citizens.isCouple(a.id, b.id),
 				atWork = (a.plan and a.plan.act == "work") or (b.plan and b.plan.act == "work"),
+				night = clock >= 18 or clock < 4, -- (a couple out late may have it out: 커플 싸움)
 			}
 			local key, x, _y = M.scenePair(ca, cb, rel, rnd)
 			-- strangers only talk now and then (mostly people who know each other / have a reason)
@@ -2352,11 +2894,37 @@ function Mind.drive(a: any, now: number)
 			release(a)
 		end
 	elseif kind == "intervene" then
-		local d = flatDist(a.pos, pp)
-		if d > 3.2 and now - ctl.since < 4 then
+		-- (ctl.pair: two other people fighting - in between them, or to the one on the ground; else the
+		-- player)
+		local pair = ctl.pair
+		local goal = pp
+		local down = nil
+		if pair then
+			local A, B = pair.a, pair.b
+			down = (A and not A.gone and A.knock and A.knock.outcome == "knockdown" and A) or (B and not B.gone and B.knock and B.knock.outcome == "knockdown" and B) or nil
+			if down then
+				goal = down.pos
+			elseif A and not A.gone and B and not B.gone and not pair.broken then
+				goal = (A.pos + B.pos) / 2
+			elseif ctl.at then
+				goal = ctl.at
+			end
+		end
+		local d = flatDist(a.pos, goal)
+		if d > (if pair then 2.4 else 3.2) and now - ctl.since < (if pair then 6 else 4) then
 			if now >= (ctl.retarget or 0) then
 				ctl.retarget = now + 0.5
-				moveTo(a, pp, 9)
+				moveTo(a, goal, if pair then 7.5 else 9)
+			end
+		elseif pair then
+			hold(a, goal, "")
+			if down and not ctl.helped then
+				ctl.helped = true
+				sayNpc(a, pick({ "괜찮아요? 정신 차려요!", "일어날 수 있겠어요?", "많이 다쳤어요?" }), 3)
+				ctl.untilT = math.max(ctl.untilT, now + 5)
+			elseif not down and not ctl.spoke then
+				ctl.spoke = true
+				gesture(a, "point")
 			end
 		else
 			hold(a, pp, "")
@@ -2382,8 +2950,8 @@ function Mind.drive(a: any, now: number)
 		if o and not o.gone then
 			a.faceYaw = yawOf(o.pos.X - a.pos.X, o.pos.Z - a.pos.Z)
 		end
-		if now > ctl.untilT + 2 then
-			release(a)
+		if now > ctl.untilT + 2 and not a.knock then
+			release(a) -- (not mid-fall: release resets the pose)
 		end
 	else
 		release(a)
@@ -2725,10 +3293,15 @@ function Mind.start()
 							return flatDist(pp, x.pos) < flatDist(pp, y.pos)
 						end)
 						local a, b = list[1], list[2]
-						local lines = M.scene("drunkfight", rnd)
+						-- args[2] = the scene (drunkfight | bumpfight | couplefight | punk); args[3] = punk: which (2 = 돈 좀 있냐)
+						local key = if type(args[2]) == "string" then args[2] else "drunkfight"
+						local lines = M.scene(key, rnd)
+						if key == "punk" and type(args[3]) == "number" and L and L.SCENES and L.SCENES.punk then
+							lines = L.SCENES.punk[args[3]] or lines
+						end
 						sceneEnding = tonumber(args[1])
 						if a and b and lines then
-							playScene(a, b, "drunkfight", lines)
+							playScene(a, b, key, lines)
 						end
 					end)
 				elseif method == "quarrel" then
