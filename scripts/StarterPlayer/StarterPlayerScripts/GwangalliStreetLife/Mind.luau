@@ -356,7 +356,8 @@ local function hold(a: any, faceTo: Vector3?, pose: string?)
 end
 
 local function take(a: any, ctl: any): boolean
-	if not a or a.gone or a.knock or a.companion or a.clubGuest or a.riding or a.mode == "follow" or a.mode == "member" then
+	-- (a.ko: knocked out and lying there - no scene, flee or call takes a body)
+	if not a or a.gone or a.knock or a.ko or a.companion or a.clubGuest or a.riding or a.mode == "follow" or a.mode == "member" then
 		return false
 	end
 	if a.leader then
@@ -3409,7 +3410,8 @@ function Mind.start()
 						sceneTick(os.clock())
 					end)
 				elseif method == "fightscene" then
-					-- the two people nearest the player have it out (drunkfight)
+					-- the two people nearest the player have it out (drunkfight); not somebody squaring up to
+					-- the player right now (chase / brawl / quarrel: take() would drop that)
 					return q(function()
 						local pp = playerPos()
 						if not pp then
@@ -3417,7 +3419,7 @@ function Mind.start()
 						end
 						local list = {}
 						for _, a in ctx.Crowd.agents do
-							if not a.gone and not a.ctl and not a.knock and not a.companion and not a.clubGuest and a.mode ~= "talk" then
+							if not a.gone and not a.ctl and not a.knock and not a.ko and not a.companion and not a.clubGuest and a.mode ~= "talk" and not a.chase and not a.brawl and not a.quarrel then
 								table.insert(list, a)
 							end
 						end

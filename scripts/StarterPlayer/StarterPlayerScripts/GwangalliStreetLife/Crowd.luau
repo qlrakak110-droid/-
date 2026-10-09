@@ -503,6 +503,18 @@ function Crowd.api(method: any, ...: any): any
 		if a.chase then
 			a.chase = nil
 		end
+		-- (a scene / flee / call Mind was running for them ends here: a body on the ground says and does
+		-- nothing more. Only the control is dropped - release() would reset the fall pose; the scene
+		-- partner is let go properly instead of talking on to the body. A talk with the player is
+		-- Mind's own to end)
+		local ctl = a.ctl
+		if ctl and ctl.kind ~= "talk" then
+			a.ctl = nil
+			local o = ctl.other
+			if ctl.kind == "scene" and o and not o.gone and o.ctl and o.ctl.kind == "scene" and o.ctl.other == a and ctx.Mind and ctx.Mind.release then
+				pcall(ctx.Mind.release, o)
+			end
+		end
 		if a.knock and (a.knock.outcome ~= "knockdown" or a.knock.phase == "getup") then
 			-- staggering from the last punch / getting up: this one puts them (back) on the ground
 			Crowd.fightKnock(a, tonumber(dx) or 0, tonumber(dz) or -1, "knockdown", "퍽!!")
@@ -538,8 +550,10 @@ function Crowd.api(method: any, ...: any): any
 				if ox * ox + oz * oz < 20 * 20 then
 					o:lookAtPoint(a.pos, 6, now)
 					if not called and ctx.Mind and ctx.Mind.report and not o.companion and not o.clubGuest then
-						called = true
 						pcall(ctx.Mind.report, o)
+						-- (only a call that was made counts: somebody in a group / a ride cannot take
+						-- one, and the next person around phones instead)
+						called = o.ctl ~= nil and o.ctl.kind == "report"
 					elseif ctx.Mind and ctx.Mind.flee and rnd() < 0.4 then
 						pcall(ctx.Mind.flee, o, a.pos, 4 + rnd() * 3)
 					end

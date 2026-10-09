@@ -1202,6 +1202,24 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 			fromLoc = okF and fl or nil
 		end
 		local bestLen = math.huge
+		-- the spot is just ahead in this lane, short of where the lanes pick the car up (lead): brake
+		-- straight to it. A lane route from past the spot runs round the block, and that long way
+		-- round reads as "behind" below = a U-turn right behind the suspect it is closing on, then
+		-- another one back (the chase swinging to and fro)
+		local toA = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
+		local along = toA:Dot(dir)
+		-- road chase (kerb = false), closer already than its place in the line, the suspect still ahead:
+		-- the stop point is behind the car, and turning round for it would swing the car away from him -
+		-- it keeps its course (the current path) and the next re-plan goes on from there
+		local toP = Vector3.new(pos.X - cp.X, 0, pos.Z - cp.Z)
+		if o.kerb == false and along <= 0 and o.stopBack and toP.Magnitude > 0.5 and toP.Magnitude <= o.stopBack + 6 and toP.Unit:Dot(dir) > 0.3 then
+			return nil
+		end
+		if along > 0 and along <= lead + 2 and math.abs(toA:Dot(D.rightOf(dir))) < 4.5 then
+			pts = { cp, if along < 2 then cp + dir * 2 else toLoc.point }
+			bestLen = math.max(along, 2)
+			fromLoc = nil
+		end
 		if fromLoc then
 			local okR, rp = pcall(D.route, graph, fromLoc, toLoc)
 			if okR and rp and #rp >= 2 then
@@ -1217,7 +1235,8 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		local toT = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
 		local straight = toT.Magnitude
 		-- (o.noUTurn: a car that has just turned round goes the long way instead of swinging back again)
-		if straight > 1 and not o.noUTurn and (toT.Unit:Dot(dir) < -0.15 or bestLen > straight * 2.2 + 120) then
+		-- (never for a spot well ahead: turning round would point the car away from it)
+		if straight > 1 and not o.noUTurn and (toT.Unit:Dot(dir) < -0.15 or (bestLen > straight * 2.2 + 120 and toT.Unit:Dot(dir) < 0.5)) then
 			local left = -D.rightOf(dir)
 			-- (braking distance first: the speed never drops in a jump)
 			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
@@ -3045,7 +3064,10 @@ local function thinkCar(c: any)
 				local _, hd = carPos(c)
 				local toT = Vector3.new(target.X - cp.X, 0, target.Z - cp.Z)
 				if not (noUT and toT.Magnitude > 1 and toT.Unit:Dot(hd) < -0.15) then
-					local heading = if c.seeing and target == goal and suspectSpeed(player) > 8 then suspectDir(player) else nil
+					-- (the lane at the target: the suspect's way while seen; else, for a target ahead, the
+					-- car's own way - the nearest lane there can be the other carriageway, reached only by a
+					-- long loop, and that reads as a U-turn: away from the suspect, then back again)
+					local heading = if c.seeing and target == goal and suspectSpeed(player) > 8 then suspectDir(player) elseif toT.Magnitude > 1 and toT.Unit:Dot(hd) > 0.3 then hd else nil
 					local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v1 = 12, kerb = false, stopBack = 12 + CAR_GAP * (c.slotIdx or 0), noUTurn = noUT, heading = heading })
 					if path then
 						setCarPath(c, path)
