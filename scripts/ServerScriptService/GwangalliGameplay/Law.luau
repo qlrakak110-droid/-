@@ -426,6 +426,8 @@ local function report(player: Player, s: any, entry: any, by: string)
 		return
 	end
 	entry.reported = true
+	entry.by = by -- (who called it in: officer / victim / witness / call / fight ... - debug "crimes" shows it)
+	entry.reportedAt = now()
 	local target = math.max(s.stars + def.stars, def.min or 0)
 	s.knownPos = entry.pos or Law.posOf(player)
 	s.knownT = now()
@@ -806,7 +808,8 @@ Law.ops.debug = function(player, s, p)
 	elseif p.act == "crimes" then
 		local out = {}
 		for _, e in s.crimes do
-			table.insert(out, string.format("%s%s(%s)", e.kind, if e.reported then "*" else "", tostring(e.info and e.info.source)))
+			-- kind*(source/by): * = reported, by = who called it in (- = nobody yet)
+			table.insert(out, string.format("%s%s(%s/%s)", e.kind, if e.reported then "*" else "", tostring(e.info and e.info.source), tostring(e.by or "-")))
 		end
 		return { ok = true, stars = s.stars, crimes = table.concat(out, ",") }
 	elseif p.act == "incident" then

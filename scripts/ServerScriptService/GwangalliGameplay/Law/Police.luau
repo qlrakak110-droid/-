@@ -808,8 +808,11 @@ local function assignGoal(o: any, pos: Vector3, speed: number, wrong: number?)
 	local pts = routePts(o.pos, pos, { wrong = wrong })
 	if pts then
 		moveAlong(o, pts, speed)
-	else
+	elseif losClear(o.pos + Vector3.new(0, 2.5, 0), pos + Vector3.new(0, 2.5, 0)) then
 		moveAlong(o, { o.pos, pos }, speed)
+	else
+		-- no route and a wall in between: no straight walk through it (the next re-path tries again)
+		standAt(o, o.pos)
 	end
 	o.goal = pos
 end
@@ -1068,6 +1071,9 @@ local function setCarPath(c: any, path: any)
 	c.done = false
 	-- a U-turn in this path: no route re-plan before the arc is through (carRoute's uturnT)
 	c.planHold = if path.uturnT then now() + path.uturnT else nil
+	if path.uturnT then
+		c.lastUTurn = now()
+	end
 	c.serial = (c.serial or 0) + 1
 	local m = c.model
 	m:SetAttribute("LawPath", D.encode(path.pts, path.times))
@@ -1144,7 +1150,13 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		return nil
 	end
 	local o = opts or {}
-	local okL, toLoc = pcall(D.nearestLocation, graph, pos, { maxDist = 90, side = pos, kerbOnly = o.kerb ~= false })
+	-- (o.heading: a suspect driving along the road - the lane running his way, not the nearest one,
+	-- which can be the other carriageway: a route there means turning round, again and again)
+	local okL, toLoc = false, if o.heading then headingLoc(pos, o.heading, 20) else nil
+	okL = toLoc ~= nil
+	if not okL then
+		okL, toLoc = pcall(D.nearestLocation, graph, pos, { maxDist = 90, side = pos, kerbOnly = o.kerb ~= false })
+	end
 	if not okL or not toLoc then
 		okL, toLoc = pcall(D.nearestLocation, graph, pos, { maxDist = 150 })
 	end
@@ -1204,7 +1216,8 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		-- slow, a half circle over to the lane running the other way, then the route from there
 		local toT = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
 		local straight = toT.Magnitude
-		if straight > 1 and (toT.Unit:Dot(dir) < -0.15 or bestLen > straight * 2.2 + 120) then
+		-- (o.noUTurn: a car that has just turned round goes the long way instead of swinging back again)
+		if straight > 1 and not o.noUTurn and (toT.Unit:Dot(dir) < -0.15 or bestLen > straight * 2.2 + 120) then
 			local left = -D.rightOf(dir)
 			-- (braking distance first: the speed never drops in a jump)
 			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
@@ -1253,6 +1266,7 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 	return if okP then path else nil
 end
 
+local SPAWN_MIN = 140 -- studs: the closest a police / patrol car ever starts to a player
 -- a dispatch start far up the road and out of every player's sight (never in front of the player)
 -- (fallback: the farthest start nobody has a line on; a seen start only for a unit car, 119 /
 -- 특임대, which must come; police / patrol cars wait for staff()'s next pass instead)
@@ -1267,7 +1281,9 @@ local function spawnRoute(pos: Vector3, cruise: number, back: number?, allowSeen
 				return path
 			end
 			local score = minD - (if seen then 400 else 0)
-			if (allowSeen or not seen) and score > bestScore then
+			-- (a police / patrol car never starts right next to a player, seen or not: 140 studs at
+			-- least, else it waits for the next pass; a unit car - 119 / 특임대 - must come)
+			if (allowSeen or (not seen and minD >= SPAWN_MIN)) and score > bestScore then
 				best, bestScore = path, score
 			end
 		end
@@ -1430,6 +1446,7 @@ end
 
 -- the place in the line of parked case cars: the lowest index nobody uses (cars are 16.6 long)
 local CAR_GAP = 19
+local UTURN_GAP = 10 -- s: no second road-chase U-turn this soon after the last one
 local function nextSlot(case: any?): number
 	if not case then
 		return 0
@@ -1671,6 +1688,12 @@ local function suspectSpeed(player: Player): number
 	return r and r.v or 0
 end
 
+-- the flat direction the suspect last moved in (nil before the first move)
+local function suspectDir(player: Player): Vector3?
+	local r = speeds[player]
+	return r and r.dir or nil
+end
+
 -- a 1-star suspect seen driving off = 도주: +1 star, so staff() sends a patrol car and the road chase
 -- (2+ stars) can start. A cooldown, not a one-shot (the stars can decay back to 1 in the same case)
 local function carFlee(case: any, player: Player, pp: Vector3?)
@@ -1691,6 +1714,10 @@ local function trackSpeeds()
 				if dt > 0.05 then
 					local v = flat(pos, r.p) / dt
 					r.v = r.v * 0.4 + v * 0.6
+					local mv = Vector3.new(pos.X - r.p.X, 0, pos.Z - r.p.Z)
+					if mv.Magnitude > 0.5 then
+						r.dir = mv.Unit -- (which way the suspect is going: the lane the chase aims for)
+					end
 					r.p, r.t = pos, now()
 				end
 			else
@@ -3011,14 +3038,25 @@ local function thinkCar(c: any)
 				local sv = math.max(suspectSpeed(player), 30)
 				-- (the end of the road is short of the suspect, in this car's place in the line: several cars
 				-- closing in never pile onto one spot)
-				local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v1 = 12, kerb = false, stopBack = 12 + CAR_GAP * (c.slotIdx or 0) })
-				if path then
-					setCarPath(c, path)
+				-- (no second U-turn within UTURN_GAP s of the last: a car near a suspect who keeps
+				-- slipping behind it does not swing back and forth on the road; with the suspect behind it
+				-- again that soon it keeps its course for now - no turn, no detour round the block)
+				local noUT = now() - (c.lastUTurn or -1e9) < UTURN_GAP
+				local _, hd = carPos(c)
+				local toT = Vector3.new(target.X - cp.X, 0, target.Z - cp.Z)
+				if not (noUT and toT.Magnitude > 1 and toT.Unit:Dot(hd) < -0.15) then
+					local heading = if c.seeing and target == goal and suspectSpeed(player) > 8 then suspectDir(player) else nil
+					local path = carRoute(c, target, { cruise = math.clamp(sv * (0.82 + 0.05 * case.stars), 34, 62), v1 = 12, kerb = false, stopBack = 12 + CAR_GAP * (c.slotIdx or 0), noUTurn = noUT, heading = heading })
+					if path then
+						setCarPath(c, path)
+					end
 				end
 			end
 		end
-		-- boxed in: the suspect car crawls next to the patrol car -> brake, get out, arrest
-		if pp and flat(cp, pp) < 13 and suspectSpeed(player) < 5 then
+		-- boxed in: the suspect car crawls next to the patrol car -> brake, get out, arrest. Also a
+		-- suspect who pulled up within this car's place in the line (12 + a gap per car ahead of it):
+		-- that spot is behind the car now, and turning round to reach it swings the car to and fro
+		if pp and flat(cp, pp) < math.max(13, 24 + CAR_GAP * (c.slotIdx or 0)) and suspectSpeed(player) < 5 then
 			c.slowT += 0.25
 			if c.slowT > 1.6 then
 				c.slowT = 0

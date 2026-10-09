@@ -246,8 +246,81 @@ end
 -------------------------------------------------------------------------------------------------
 -- control helpers (a.ctl): movement primitives for agents this module drives
 -------------------------------------------------------------------------------------------------
+-- walls: a move off the walkway graph is a straight line and the rigs are anchored (nothing stops them),
+-- so one ray at chest height against the map's solid parts (CanCollide; not rigs, not the player) ends
+-- the line short of a wall. Returns the end point and whether a wall cut it.
+local WALL_SKIP = { "GwangalliStreetLife", "GwangalliNPCs", "GwangalliShopStaff" }
+local wallParams: any = nil
+local wallParamsAt = -1e9
+local function wallClip(from: Vector3, to: Vector3): (Vector3, boolean)
+	local dx, dz = to.X - from.X, to.Z - from.Z
+	local d = math.sqrt(dx * dx + dz * dz)
+	if d < 0.5 then
+		return to, false
+	end
+	local t = os.clock()
+	if t - wallParamsAt > 2 then
+		wallParamsAt = t
+		local okP, q = pcall(function()
+			local rp = RaycastParams.new()
+			rp.FilterType = Enum.RaycastFilterType.Exclude
+			rp.IgnoreWater = true
+			pcall(function()
+				rp.RespectCanCollide = true
+			end)
+			local ex = {}
+			for _, n in WALL_SKIP do
+				local f = workspace:FindFirstChild(n)
+				if f then
+					table.insert(ex, f)
+				end
+			end
+			if player.Character then
+				table.insert(ex, player.Character)
+			end
+			rp.FilterDescendantsInstances = ex
+			return rp
+		end)
+		wallParams = if okP then q else nil
+	end
+	if not wallParams then
+		return to, false
+	end
+	local o = Vector3.new(from.X, from.Y + 2.5, from.Z)
+	local okR, hit = pcall(workspace.Raycast, workspace, o, Vector3.new(dx, 0, dz), wallParams)
+	if not okR or not hit then
+		return to, false
+	end
+	local hx, hz = hit.Position.X - o.X, hit.Position.Z - o.Z
+	local k = math.max(0, math.sqrt(hx * hx + hz * hz) - 1.5) / d
+	return Vector3.new(from.X + dx * k, to.Y, from.Z + dz * k), true
+end
+Mind.wallClip = wallClip
+
 local function moveTo(a: any, p: Vector3, speed: number)
 	local target = Vector3.new(p.X, a.pos.Y, p.Z)
+	local clipped, blocked = wallClip(a.pos, target)
+	if blocked then
+		if flatDist(a.pos, clipped) < 2 then
+			-- the wall is right here: round it on the walkways (A*), at most once a second (meanwhile
+			-- that route stands); no way round: up to the wall, no further
+			local t = os.clock()
+			if a.nav and t - (a.wallRouteAt or -1e9) < 1 then
+				return
+			end
+			a.wallRouteAt = t
+			local spot = ctx.World.closestWalkable(p, a.pos.Y, 40, 0)
+			if spot and flatDist(spot, a.pos) > 2 then
+				a.faceYaw = nil
+				a.pauseUntil = 0
+				a.sitting, a.lying, a.napping = false, false, false
+				a:goToSpot(spot, t, speed)
+				a.moved = true
+				return
+			end
+		end
+		target = clipped
+	end
 	a.nav = { mode = "points", pts = { target }, i = 1 }
 	a.mode = "walk"
 	a.faceYaw = nil
@@ -1597,6 +1670,7 @@ end
 -------------------------------------------------------------------------------------------------
 -- flee / report / watch (witnesses, scared people)
 -------------------------------------------------------------------------------------------------
+local FLEE_TURNS = { math.rad(55), math.rad(-55), math.rad(100), math.rad(-100) }
 function Mind.flee(a: any, from: Vector3, dur: number)
 	if a.ctl and a.ctl.kind ~= "talk" then
 		return
@@ -1607,7 +1681,23 @@ function Mind.flee(a: any, from: Vector3, dur: number)
 	face(a, "scared", dur)
 	local dx, dz = a.pos.X - from.X, a.pos.Z - from.Z
 	local d = math.max(0.1, math.sqrt(dx * dx + dz * dz))
-	moveTo(a, Vector3.new(a.pos.X + dx / d * 24, a.pos.Y, a.pos.Z + dz / d * 24), 12 + rnd() * 3)
+	local ux, uz = dx / d, dz / d
+	local to = Vector3.new(a.pos.X + ux * 24, a.pos.Y, a.pos.Z + uz * 24)
+	local cut, blocked = wallClip(a.pos, to)
+	if blocked and flatDist(a.pos, cut) < 8 then
+		-- a wall behind them: off to the side, still away from the trouble (the clearest of four ways)
+		local bestD = flatDist(a.pos, cut)
+		for _, ang in FLEE_TURNS do
+			local c, sn = math.cos(ang), math.sin(ang)
+			local vx, vz = ux * c - uz * sn, ux * sn + uz * c
+			local q = wallClip(a.pos, Vector3.new(a.pos.X + vx * 24, a.pos.Y, a.pos.Z + vz * 24))
+			local qd = flatDist(a.pos, q)
+			if qd > bestD + 1 then
+				to, bestD = q, qd
+			end
+		end
+	end
+	moveTo(a, to, 12 + rnd() * 3)
 	Anim.flash(a.rig, "startle", 0.8)
 end
 
@@ -2355,8 +2445,11 @@ end
 -- off, or a scuffle. -> true while it still runs (the scuffle releases them itself)
 local function fightEnding(a: any, b: any, key: string, sc: any): boolean
 	local FL = FIGHT_LINES[key] or FIGHT_LINES.drunkfight
-	local ending = sceneEnding or rnd()
-	sceneEnding = nil
+	-- (test harness: sc.ending = this scene's forced ending; sceneEnding = the next scene's)
+	local ending = sc.ending or sceneEnding or rnd()
+	if not sc.ending then
+		sceneEnding = nil
+	end
 	if ending < 0.2 then
 		release(a)
 		release(b)
@@ -3338,9 +3431,17 @@ function Mind.start()
 						if key == "punk" and type(args[3]) == "number" and L and L.SCENES and L.SCENES.punk then
 							lines = L.SCENES.punk[args[3]] or lines
 						end
-						sceneEnding = tonumber(args[1])
+						-- (a fight scene keeps its own forced ending: an ambient scene ending first does not
+						-- take it; couple / punk scenes read the next-scene one)
+						local forced = tonumber(args[1])
+						sceneEnding = if key == "couplefight" or key == "punk" then forced else nil
 						if a and b and lines then
 							playScene(a, b, key, lines)
+							for _, sc in scenes do
+								if sc.a == a and sc.b == b then
+									sc.ending = forced
+								end
+							end
 						end
 					end)
 				elseif method == "quarrel" then

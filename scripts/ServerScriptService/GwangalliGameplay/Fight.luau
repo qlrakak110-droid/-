@@ -1337,6 +1337,62 @@ local function onAction(player: Player, kind: any, p: any)
 	end
 end
 
+-- 어깨빵 on a server rig the base Bump server drops (it routes roster citizens and anonymous x<n>
+-- only; the 총기상 has his own listener): Law units on foot (경찰 / 특임대 / 119), Law/City actors,
+-- customers. Base Crime handled the officers before Law replaced it (공무집행방해). The same landed
+-- shove as any other hit: HP, the stagger every client plays (NpcKnock / the officer's hit hook ->
+-- 제압), the reaction line; 경찰관 폭행 for an officer only (a shove on anybody else is no 폭행 here,
+-- like the talk card's shove), and the 퍽 + camera shake for the player (GwangalliBump "hit")
+local lastRigBump: { [Player]: number } = {}
+local function onRigBump(player: Player, kind: any, payload: any)
+	if kind ~= "bump" or type(payload) ~= "table" or payload.target ~= "npc" or type(payload.id) ~= "string" then
+		return
+	end
+	local id = payload.id
+	if #id > 40 or string.match(id, "^x%d+$") or string.sub(id, 1, 7) == "dealer_" then
+		return -- (base Bump / WeaponDealer)
+	end
+	if Citizens and ((type(Citizens.byId) == "table" and Citizens.byId[id]) or (type(Citizens.get) == "function" and Citizens.get(id))) then
+		return -- (a roster citizen: base Bump)
+	end
+	local m = keyModel(id)
+	-- (only the key NPC folder: the 어깨빵 button's targets; shop staff live elsewhere, untouchable)
+	if not m or m.Parent ~= workspace:FindFirstChild("GwangalliNPCs") or m:GetAttribute("NpcKind") == "inmate" or FS.foreign(id, m) or m:GetAttribute("NpcDown") ~= nil then
+		return
+	end
+	local t = now()
+	if t - (lastRigBump[player] or -1e9) < ((BumpS and BumpS.COOLDOWN) or 1.2) then
+		return
+	end
+	local root = rootOf(player)
+	local mr = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
+	if not root or not mr or not mr:IsA("BasePart") then
+		return
+	end
+	local here = mr.Position
+	local reach = ((BumpS and BumpS.RANGE) or 5.5) + ((BumpS and BumpS.RANGE_SLACK) or 2.5)
+	local d = flat(here, root.Position)
+	if d > reach or math.abs(here.Y - root.Position.Y) > 6 then
+		return
+	end
+	local lk = root.CFrame.LookVector
+	local fl = Vector3.new(lk.X, 0, lk.Z)
+	if d > 0.5 and fl.Magnitude > 0.01 and fl.Unit:Dot(Vector3.new(here.X - root.Position.X, 0, here.Z - root.Position.Z).Unit) < ((BumpS and BumpS.FACING) or 0.2) then
+		return
+	end
+	lastRigBump[player] = t
+	local police = string.sub(id, 1, 7) == "police_" or string.sub(id, 1, 5) == "swat_"
+	local res = onPunch(player, { kind = "npc", id = id, pos = { here.X, here.Y, here.Z }, attack = "shove", noCrime = not police }, true)
+	if type(res) ~= "table" then
+		return
+	end
+	local bf = BumpS and ReplicatedStorage:FindFirstChild(BumpS.Folder)
+	local be = bf and BumpS.Remote and bf:FindFirstChild(BumpS.Remote.Event)
+	if be and be:IsA("RemoteEvent") then
+		(be :: RemoteEvent):FireClient(player, { kind = "hit", target = "npc", id = id, outcome = if res.outcome == "stagger" then "stagger" else "knockdown", dx = res.dx, dz = res.dz, puk = "퍽!", typeId = if police then "police" else "plain" })
+	end
+end
+
 function Fight.onLeave(player: Player)
 	pedHp[player] = nil
 	lastPunch[player] = nil
@@ -1349,6 +1405,7 @@ function Fight.onLeave(player: Player)
 	lastStart[player] = nil
 	lastAllyStart[player] = nil
 	lastCarHit[player] = nil
+	lastRigBump[player] = nil
 end
 
 function Fight.onLoaded(player: Player)
@@ -1454,6 +1511,20 @@ function Fight.init(context: any)
 		return nil
 	end
 	sapi.Parent = ServerStorage
+	-- 어깨빵 on Law units / actors / customers (onRigBump; base Bump owns its own ids). GwangalliBump is a
+	-- feature module loaded before this one; wait a little in case its remotes come up late
+	task.spawn(function()
+		local bf = BumpS and (ReplicatedStorage:FindFirstChild(BumpS.Folder) or ReplicatedStorage:WaitForChild(BumpS.Folder, 15))
+		local ba = bf and BumpS.Remote and (bf:FindFirstChild(BumpS.Remote.Action) or bf:WaitForChild(BumpS.Remote.Action, 10))
+		if ba and ba:IsA("RemoteEvent") then
+			(ba :: RemoteEvent).OnServerEvent:Connect(function(player: Player, kind: any, payload: any)
+				local okB, errB = pcall(onRigBump, player, kind, payload)
+				if not okB then
+					warn("[GwangalliFight] rig bump: " .. tostring(errB))
+				end
+			end)
+		end
+	end)
 	-- ServerStorage.GwangalliNPCRobAPI: ("info", player, id) -> GwangalliRobShared info + hp / max;
 	-- ("robbed", player, id) -> marks them robbed (the crime system calls it after its own roll);
 	-- ("rules") -> Rob.KIND. No money / wanted / police here: that is the crime system's.

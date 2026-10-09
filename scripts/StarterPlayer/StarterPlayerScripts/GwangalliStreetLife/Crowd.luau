@@ -2833,8 +2833,24 @@ local function danceTick(now: number, pp: Vector3)
 	end
 end
 
-local stats = { frames = 0, cost = 0, worst = 0, moved = 0, spawned = 0, removed = 0, contacts = 0, dives = 0, sep = 0 }
+local stats = { frames = 0, cost = 0, worst = 0, moved = 0, spawned = 0, removed = 0, contacts = 0, dives = 0, sep = 0, errors = 0 }
 Crowd.stats = stats
+local lastWarn = -1e9
+local function report(where: string, err: any)
+	local t = os.clock()
+	if t - lastWarn > 10 then
+		lastWarn = t
+		warn("[GwangalliStreetLife] " .. where .. ": " .. tostring(err))
+	end
+end
+-- one stage of tick that throws is warned and counted; the rest of the tick (despawn, spawn) goes on
+local function guard(where: string, f: (...any) -> ...any, ...: any)
+	local ok, err = pcall(f, ...)
+	if not ok then
+		stats.errors += 1
+		report(where, err)
+	end
+end
 -------------------------------------------------------------------------------------------------
 -- separation: nobody stands in / walks through somebody else (tick rate, close agents only)
 -------------------------------------------------------------------------------------------------
@@ -2944,12 +2960,12 @@ local function tick()
 		end
 	end
 	lastTickPos = pp
-	updateLOD()
-	SocialUI.update(now)
-	refreshCars()
-	refreshCarBoxes(pp, now, now < fillUntil)
-	carReactions(now)
-	lureTick(now)
+	guard("lod", updateLOD)
+	guard("social", SocialUI.update, now)
+	guard("cars", refreshCars)
+	guard("carBoxes", refreshCarBoxes, pp, now, now < fillUntil)
+	guard("carReactions", carReactions, now)
+	guard("lure", lureTick, now)
 	local clock = ctx.clock()
 	local hype = Night.hype(clock)
 	local clubD = Night.clubDistance(pp)
@@ -3011,18 +3027,18 @@ local function tick()
 		end
 	end
 	-- companions
-	syncCompanions(now)
+	guard("companions", syncCompanions, now)
 	-- queue
-	Q.tick(now, hype)
+	guard("queue", Q.tick, now, hype)
 	-- pedestrians keep apart
-	separate(now)
+	guard("separate", separate, now)
 	-- events (drone show, busker, vendors) every 2 s; the dancing player every 1 s
 	if not inside then
 		if now - lastEvents >= 2 then
 			lastEvents = now
-			eventsTick(now, pp, cap)
+			guard("events", eventsTick, now, pp, cap)
 		end
-		danceTick(now, pp)
+		guard("dance", danceTick, now, pp)
 	end
 	-- spawn / trim
 	local count = streetCount()
@@ -3172,6 +3188,122 @@ local moveParts: { BasePart } = {}
 local moveCFs: { CFrame } = {}
 local lastN = 0
 
+-- one agent's frame (update): step, animate, the contact with the player / the player's car, fade,
+-- think. Its own pcall in update: one agent that throws is taken out (warned, counted in
+-- stats.errors) instead of stopping every agent after it and the frame's BulkMoveTo (the crowd froze).
+-- Frame values come through F (no closure per agent per frame). Returns true when it was removed.
+local F = { n = 0, dt = 0, now = 0, pp = nil :: Vector3?, camPos = Vector3.new(0, 0, 0), look = Vector3.new(0, 0, -1), offFreeze = 0, seated = false, carFast = false, contact = 0, bodyCF = nil :: CFrame?, bodyReach = 0, bodyHX = 0, bodyHZ = 0, bodyFZ = -1 }
+local function agentFrame(a: any): boolean
+	a.acc += F.dt
+	if a.acc >= a.interval then
+		local sdt = math.min(a.acc, 0.5)
+		a.acc = 0
+		a:step(sdt, F.now)
+		if a.moved then
+			a.moved = false
+			local cf = a:computeCFrame() -- (first: an error here leaves no half-written move entry)
+			F.n += 1
+			moveParts[F.n] = a.root
+			moveCFs[F.n] = cf
+		end
+	end
+	local st = a.rig.anim
+	-- a frozen (off-screen) agent that came into view starts its loop at once
+	if st and st.frozen and onScreenPoint(a.pos, F.camPos, F.look, 0.3) then
+		a.onScreen = true
+		Anim.freeze(a.rig, false)
+	elseif st and not st.frozen and not a.onScreen and a.dist > F.offFreeze then
+		-- (updateLOD freezes it at the next tick)
+	end
+	if a.near then
+		if st and not st.frozen then
+			Anim.step(a.rig, F.dt)
+			if a.rig.dogLegs then
+				Anim.dogStep(a.rig, F.dt, a.speed)
+			end
+		end
+	end
+	-- contact: the player (or the player's car) is right here
+	local pp, carFast, seated, now = F.pp, F.carFast, F.seated, F.now
+	local bodyCF, bodyReach, bodyHX, bodyHZ, bodyFZ = F.bodyCF, F.bodyReach, F.bodyHX, F.bodyHZ, F.bodyFZ
+	if pp and a.dist < (if carFast then 45 else 30) and not a.clubGuest and not a.companion then
+		local dx, dz = a.pos.X - pp.X, a.pos.Z - pp.Z
+		local d = math.sqrt(dx * dx + dz * dz)
+		a.dist = d
+		-- against the body box: touching = in it, at its side or just ahead of the leading end;
+		-- close = a step more (the last-moment dive)
+		local touch, close = false, false
+		if bodyCF and d < bodyReach then
+			local lp = bodyCF:PointToObjectSpace(Vector3.new(a.pos.X, bodyCF.Position.Y, a.pos.Z))
+			local lx, lz = math.abs(lp.X), lp.Z * bodyFZ
+			touch = lx <= bodyHX + 0.5 and lz >= -bodyHZ and lz <= bodyHZ + 0.8
+			close = lx <= bodyHX + 1.5 and lz >= -bodyHZ and lz <= bodyHZ + 3
+		end
+		if carFast then
+			if (d < 4.5 or close) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 8 then
+				local sp = P.speed
+				local ux, uz = P.vel.X / sp, P.vel.Z / sp
+				-- (the contact is the car's body; with no body box: its front, a little ahead of the
+				-- driver's seat)
+				local bx, bz = dx - ux * 2.5, dz - uz * 2.5
+				local hitNow = if bodyCF then touch else math.min(d, math.sqrt(bx * bx + bz * bz)) < 3.8
+				-- (one who failed to get out of the way does not dive at the last moment either)
+				local doomed = P.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4
+				if doomed and hitNow and now - (a.carHitAt or -1e9) > 3 then
+					-- hit by the player's car: the fall right here (the server decides the rest)
+					a.carHitAt = now
+					a.carHitSp = sp
+					a.willBeHit = false
+					if Crowd.fightKnock(a, ux, uz, if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown", if sp > 35 then "쾅!!" else "퍽!", sp) then
+						a.carKnock = true
+						Crowd.carHit(a, sp)
+					end
+				elseif not doomed then
+					local px, pz = -P.vel.Z / sp, P.vel.X / sp
+					local s = if (dx * px + dz * pz) >= 0 then 1 else -1
+					a.dodgeLocal = P.drive == true
+					a:dive(now, px * s, pz * s, pp)
+				end
+			end
+		elseif seated and P.drive and P.speed > (Config.CarCrawl or 3) then
+			-- crawling at the wheel (3-10 studs/s): a touch staggers them (the server: a light
+			-- hit from 5 studs/s on)
+			if (touch or d < 3.4) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 6 and now - (a.carHitAt or -1e9) > 3 then
+				local sp = P.speed
+				local ux, uz = P.vel.X / sp, P.vel.Z / sp
+				if (if bodyCF then touch else dx * ux + dz * uz > -0.5) then
+					a.carHitAt = now
+					a.carHitSp = sp
+					a.willBeHit = false
+					if Crowd.fightKnock(a, ux, uz, "stagger", "툭!") then
+						a.carKnock = true
+						Crowd.carHit(a, sp)
+					end
+				end
+			end
+		elseif not seated and d < F.contact and math.abs(a.pos.Y - pp.Y) < 6 then
+			if now - a.bumpAt >= Config.BumpCooldown then
+				stats.contacts += 1
+			end
+			a:bump(now, pp)
+		end
+	end
+	-- fading out (somebody the player could see leaving)
+	if a.fadeAt then
+		local kf = (now - a.fadeAt) / 0.5
+		if kf >= 1 then
+			Crowd.remove(a)
+			return true
+		else
+			setFade(a, kf)
+		end
+	elseif F.now >= a.nextThink then
+		a.nextThink = now + (if a.near or a.chase then 0.2 else 0.9) + rnd() * 0.1
+		a:think(now)
+	end
+	return false
+end
+
 local function update(dt: number)
 	local t0 = os.clock()
 	local now = t0
@@ -3197,118 +3329,35 @@ local function update(dt: number)
 		local ox, oz = cf.Position.X - pp.X, cf.Position.Z - pp.Z
 		bodyReach = math.sqrt(ox * ox + oz * oz) + math.sqrt(bodyHX * bodyHX + bodyHZ * bodyHZ) + 3.5
 	end
-	local n = 0
+	F.n, F.dt, F.now, F.pp, F.camPos, F.look, F.offFreeze = 0, dt, now, pp, camPos, look, offFreeze
+	F.seated, F.carFast, F.contact = seated, carFast, contact
+	F.bodyCF, F.bodyReach, F.bodyHX, F.bodyHZ, F.bodyFZ = bodyCF, bodyReach, bodyHX, bodyHZ, bodyFZ
 	local i = 1
 	while i <= #agents do
 		local a = agents[i]
 		i += 1
 		if a and not a.gone then
-			a.acc += dt
-			if a.acc >= a.interval then
-				local sdt = math.min(a.acc, 0.5)
-				a.acc = 0
-				a:step(sdt, now)
-				if a.moved then
-					a.moved = false
-					n += 1
-					moveParts[n] = a.root
-					moveCFs[n] = a:computeCFrame()
+			local mark = F.n
+			local ok, res = pcall(agentFrame, a)
+			if not ok then
+				-- (this one broke: out of the crowd - the rig back to the pool - the others go on)
+				F.n = mark
+				stats.errors += 1
+				report("agent " .. tostring(a.id), res)
+				if not pcall(Crowd.remove, a) then
+					a.gone = true
 				end
-			end
-			local st = a.rig.anim
-			-- a frozen (off-screen) agent that came into view starts its loop at once
-			if st and st.frozen and onScreenPoint(a.pos, camPos, look, 0.3) then
-				a.onScreen = true
-				Anim.freeze(a.rig, false)
-			elseif st and not st.frozen and not a.onScreen and a.dist > offFreeze then
-				-- (updateLOD freezes it at the next tick)
-			end
-			if a.near then
-				if st and not st.frozen then
-					Anim.step(a.rig, dt)
-					if a.rig.dogLegs then
-						Anim.dogStep(a.rig, dt, a.speed)
-					end
+				local k = table.find(agents, a)
+				if k then
+					table.remove(agents, k)
 				end
-			end
-			-- contact: the player (or the player's car) is right here
-			if pp and a.dist < (if carFast then 45 else 30) and not a.clubGuest and not a.companion then
-				local dx, dz = a.pos.X - pp.X, a.pos.Z - pp.Z
-				local d = math.sqrt(dx * dx + dz * dz)
-				a.dist = d
-				-- against the body box: touching = in it, at its side or just ahead of the leading end;
-				-- close = a step more (the last-moment dive)
-				local touch, close = false, false
-				if bodyCF and d < bodyReach then
-					local lp = bodyCF:PointToObjectSpace(Vector3.new(a.pos.X, bodyCF.Position.Y, a.pos.Z))
-					local lx, lz = math.abs(lp.X), lp.Z * bodyFZ
-					touch = lx <= bodyHX + 0.5 and lz >= -bodyHZ and lz <= bodyHZ + 0.8
-					close = lx <= bodyHX + 1.5 and lz >= -bodyHZ and lz <= bodyHZ + 3
-				end
-				if carFast then
-					if (d < 4.5 or close) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 8 then
-						local sp = P.speed
-						local ux, uz = P.vel.X / sp, P.vel.Z / sp
-						-- (the contact is the car's body; with no body box: its front, a little ahead of the
-						-- driver's seat)
-						local bx, bz = dx - ux * 2.5, dz - uz * 2.5
-						local hitNow = if bodyCF then touch else math.min(d, math.sqrt(bx * bx + bz * bz)) < 3.8
-						-- (one who failed to get out of the way does not dive at the last moment either)
-						local doomed = P.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4
-						if doomed and hitNow and now - (a.carHitAt or -1e9) > 3 then
-							-- hit by the player's car: the fall right here (the server decides the rest)
-							a.carHitAt = now
-							a.carHitSp = sp
-							a.willBeHit = false
-							if Crowd.fightKnock(a, ux, uz, if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown", if sp > 35 then "쾅!!" else "퍽!", sp) then
-								a.carKnock = true
-								Crowd.carHit(a, sp)
-							end
-						elseif not doomed then
-							local px, pz = -P.vel.Z / sp, P.vel.X / sp
-							local s = if (dx * px + dz * pz) >= 0 then 1 else -1
-							a.dodgeLocal = P.drive == true
-							a:dive(now, px * s, pz * s, pp)
-						end
-					end
-				elseif seated and P.drive and P.speed > (Config.CarCrawl or 3) then
-					-- crawling at the wheel (3-10 studs/s): a touch staggers them (the server: a light
-					-- hit from 5 studs/s on)
-					if (touch or d < 3.4) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 6 and now - (a.carHitAt or -1e9) > 3 then
-						local sp = P.speed
-						local ux, uz = P.vel.X / sp, P.vel.Z / sp
-						if (if bodyCF then touch else dx * ux + dz * uz > -0.5) then
-							a.carHitAt = now
-							a.carHitSp = sp
-							a.willBeHit = false
-							if Crowd.fightKnock(a, ux, uz, "stagger", "툭!") then
-								a.carKnock = true
-								Crowd.carHit(a, sp)
-							end
-						end
-					end
-				elseif not seated and d < contact and math.abs(a.pos.Y - pp.Y) < 6 then
-					if now - a.bumpAt >= Config.BumpCooldown then
-						stats.contacts += 1
-					end
-					a:bump(now, pp)
-				end
-			end
-			-- fading out (somebody the player could see leaving)
-			if a.fadeAt then
-				local kf = (now - a.fadeAt) / 0.5
-				if kf >= 1 then
-					Crowd.remove(a)
-					i -= 1
-				else
-					setFade(a, kf)
-				end
-			elseif now >= a.nextThink then
-				a.nextThink = now + (if a.near or a.chase then 0.2 else 0.9) + rnd() * 0.1
-				a:think(now)
+				i = math.max(1, i - 1)
+			elseif res then
+				i -= 1
 			end
 		end
 	end
+	local n = F.n
 	for k = n + 1, lastN do
 		moveParts[k] = nil
 		moveCFs[k] = nil
@@ -3868,6 +3917,30 @@ local function installFightHooks()
 			Crowd.api("remember", self.id, "anger", 1)
 		end
 	end
+	-- the chase aims straight at the player (base chaseStep): a wall in between stops the line short of
+	-- it (Mind.wallClip), and right at the wall they go round on the walkways for a moment (A*)
+	local baseChaseStep = Agent.chaseStep
+	Agent.chaseStep = function(self: any, now: number, pp: Vector3)
+		baseChaseStep(self, now, pp)
+		local clip = ctx.Mind and ctx.Mind.wallClip
+		if not clip or not self.chase then
+			return
+		end
+		local cut, blocked = clip(self.pos, Vector3.new(pp.X, self.pos.Y, pp.Z))
+		if not blocked then
+			return
+		end
+		if flatDist(self.pos, cut) < 2 then
+			local spot = W.closestWalkable(pp, self.pos.Y, 40, 0)
+			if spot and flatDist(spot, self.pos) > 2 then
+				self:goToSpot(spot, now, self.want)
+				self.chase.retarget = now + 1.2
+			end
+		else
+			self.nav = { mode = "points", pts = { cut }, i = 1 }
+			self:segTo(cut, nil, nil)
+		end
+	end
 	local baseChase = Agent.chaseTick
 	Agent.chaseTick = function(self: any, now: number)
 		local q = self.quarrel
@@ -4250,14 +4323,6 @@ function Crowd.start(context: any)
 			end
 		end
 	end)
-	local lastWarn = -1e9
-	local function report(where: string, err: any)
-		local t = os.clock()
-		if t - lastWarn > 10 then
-			lastWarn = t
-			warn("[GwangalliStreetLife] " .. where .. ": " .. tostring(err))
-		end
-	end
 	RunService.Heartbeat:Connect(function(dt)
 		local ok, err = pcall(update, dt)
 		if not ok then
