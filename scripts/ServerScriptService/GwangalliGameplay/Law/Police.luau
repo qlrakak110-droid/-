@@ -1234,9 +1234,24 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		-- slow, a half circle over to the lane running the other way, then the route from there
 		local toT = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
 		local straight = toT.Magnitude
+		local fwd = if straight > 0.1 then toT.Unit:Dot(dir) else 0
+		local noTurn = false
+		if straight > 1 and fwd > 0.8 and straight < 110 and bestLen > straight * 2.2 + 120 and math.abs(toT:Dot(D.rightOf(dir))) < 14 and losClear(cp + Vector3.new(0, 2.5, 0), toLoc.point + Vector3.new(0, 2.5, 0)) then
+			-- the spot is up the road but in the next lane, and the lanes only get there round the block:
+			-- over into that lane on the way (a lane change), not a loop of the town
+			pts = { cp, cp + dir * math.min(3, lead * 0.5), toLoc.point }
+			bestLen = straight
+		elseif o.heading and fwd < -0.15 and straight < 60 and o.heading:Dot(dir) > 0.5 then
+			-- it overtook a suspect driving its way (he is just behind): brake along the lane and let him
+			-- by - turning round in front of him would point the car away, then back again
+			local bd = math.clamp(v * v / 22, 4, 30)
+			pts = { cp, cp + dir * bd }
+			bestLen = bd
+			noTurn = true
+		end
 		-- (o.noUTurn: a car that has just turned round goes the long way instead of swinging back again)
 		-- (never for a spot well ahead: turning round would point the car away from it)
-		if straight > 1 and not o.noUTurn and (toT.Unit:Dot(dir) < -0.15 or (bestLen > straight * 2.2 + 120 and toT.Unit:Dot(dir) < 0.5)) then
+		if straight > 1 and not o.noUTurn and not noTurn and (fwd < -0.15 or (bestLen > straight * 2.2 + 120 and fwd < 0.5)) then
 			local left = -D.rightOf(dir)
 			-- (braking distance first: the speed never drops in a jump)
 			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
@@ -2939,6 +2954,10 @@ local function thinkCar(c: any)
 				Law.seen(player, pp, "순찰차")
 				case.knownPos = pp
 				case.knownT = now()
+				-- (seen driving: which way and how fast - where he will be a moment later, below)
+				local sv = suspectSpeed(player)
+				case.knownDir = if inCar and sv > 8 then suspectDir(player) else nil
+				case.knownV, case.knownDirT = sv, case.knownT
 				case.radioUntil = math.max(case.radioUntil or 0, now() + t.radio * 2)
 				c.seeing = true
 				carFlee(case, player, pp)
@@ -3036,6 +3055,11 @@ local function thinkCar(c: any)
 		if pp and now() >= c.nextPlan and now() >= (c.yieldUntil or 0) and now() >= (c.planHold or 0) and not nearLast then
 			c.nextPlan = now() + 1.2 + rnd() * 0.8
 			local goal = if c.seeing then pp else case.knownPos
+			if goal and not c.seeing and case.knownDir and case.knownDirT == case.knownT then
+				-- out of sight, last seen driving: on up the road the way he was going, not back to the
+				-- spot where he was seen (the car may be past it already: a U-turn for an empty road)
+				goal += case.knownDir * math.min((case.knownV or 20) * (now() - case.knownT), 160)
+			end
 			if goal then
 				-- a wrong side street now and then while it does not see the suspect: kept for a few
 				-- seconds (not re-rolled each re-plan) and always ahead of the car, never a fake U-turn
