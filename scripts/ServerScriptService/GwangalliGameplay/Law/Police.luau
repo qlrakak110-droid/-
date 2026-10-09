@@ -266,6 +266,16 @@ local function ringNode(center: Vector3, rMin: number, rMax: number, awayFrom: V
 	return nil
 end
 
+local function playersNear(p: Vector3, r: number): boolean
+	for _, pl in Players:GetPlayers() do
+		local pp = Law.posOf(pl)
+		if pp and flat(pp, p) < r then
+			return true
+		end
+	end
+	return false
+end
+
 -- could any player see a figure standing at q? (within 160 studs: closer than 35 or a clear line)
 local function spotSeen(q: Vector3): boolean
 	for _, p in Players:GetPlayers() do
@@ -295,8 +305,8 @@ end
 
 -- a spawn spot rMin..rMax from `center`, on the nav graph, out of every player's sight. Never a seen
 -- spot (nobody pops up in view): nil when every try is seen; `wide` = then a second ring just past the
--- 160-stud seen radius (the unit walks in from farther away instead; kept inside the 220-stud
--- straggler despawn radius, LOST_FAR + 60)
+-- 160-stud seen radius (the unit walks in from farther away instead; within LOST_FAR + 50 of a
+-- player: the straggler despawn, LOST_FAR + 60, is measured from the players, not from `center`)
 local function hiddenSpot(center: Vector3, rMin: number, rMax: number, wide: boolean?): Vector3?
 	for _ = 1, 10 do
 		local q = ringNode(center, rMin, rMax, nil)
@@ -308,7 +318,7 @@ local function hiddenSpot(center: Vector3, rMin: number, rMax: number, wide: boo
 		local r0 = math.max(rMax, 165)
 		for _ = 1, 6 do
 			local q = ringNode(center, r0, r0 + 35, nil)
-			if q and flat(q, center) <= r0 + 40 and not spotSeen(q) then
+			if q and flat(q, center) <= r0 + 40 and playersNear(q, LS.LOST_FAR + 50) and not spotSeen(q) then
 				return q
 			end
 		end
@@ -1153,7 +1163,9 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 end
 
 -- a dispatch start far up the road and out of every player's sight (never in front of the player)
-local function spawnRoute(pos: Vector3, cruise: number, back: number?): any?
+-- (fallback: the farthest start nobody has a line on; a seen start only for a unit car, 119 /
+-- 특임대, which must come; police / patrol cars wait for staff()'s next pass instead)
+local function spawnRoute(pos: Vector3, cruise: number, back: number?, allowSeen: boolean?): any?
 	local best, bestScore = nil, -math.huge
 	for try = 1, 5 do
 		local want = if try == 1 then nil else ({ 420, 520, 330, 600 })[try - 1]
@@ -1164,7 +1176,7 @@ local function spawnRoute(pos: Vector3, cruise: number, back: number?): any?
 				return path
 			end
 			local score = minD - (if seen then 400 else 0)
-			if score > bestScore then
+			if (allowSeen or not seen) and score > bestScore then
 				best, bestScore = path, score
 			end
 		end
@@ -1388,7 +1400,7 @@ local function newCar(case: any?, pos: Vector3, role: string, unit: any?): any?
 		return nil
 	end
 	local slotIdx = nextSlot(case)
-	local path = spawnRoute(pos, 44 * (if case then LS.TIERS[math.max(1, case.stars)].carSpeed else 0.8), 9 + CAR_GAP * slotIdx)
+	local path = spawnRoute(pos, 44 * (if case then LS.TIERS[math.max(1, case.stars)].carSpeed else 0.8), 9 + CAR_GAP * slotIdx, unit ~= nil)
 	if not path then
 		return nil
 	end
@@ -1571,7 +1583,8 @@ end
 -- a 1-star suspect seen driving off = 도주: +1 star, so staff() sends a patrol car and the road chase
 -- (2+ stars) can start. A cooldown, not a one-shot (the stars can decay back to 1 in the same case)
 local function carFlee(case: any, player: Player, pp: Vector3?)
-	if case.stars == 1 and suspectInCar(player) and suspectSpeed(player) > 12 and now() - (case.carFleeT or -1e9) > 45 then
+	-- (not while an officer's stop order is open: the stop branch counts that flight itself)
+	if case.stars == 1 and case.stopBy == nil and suspectInCar(player) and suspectSpeed(player) > 12 and now() - (case.carFleeT or -1e9) > 45 then
 		case.carFleeT = now()
 		Law.crime(player, "flee", { police = true, pos = pp })
 	end
@@ -1903,7 +1916,9 @@ function Police.stopAnswer(player: Player, s: any, choice: any): any
 	o.state = "chase"
 	o.stopIssued = true
 	say(o, pick(LS.LINES.chase))
-	Law.crime(player, "flee", { police = true, pos = pp })
+	if now() - (case.carFleeT or -1e9) > 10 then
+		Law.crime(player, "flee", { police = true, pos = pp })
+	end
 	return { ok = true, result = "flee" }
 end
 
@@ -2002,6 +2017,7 @@ local function thinkCase(o: any, case: any)
 	end
 	if seeing and pp then
 		local was = o.state
+		o.radioAt = nil -- (a pending dispatcher update is stale once the officer sees the suspect)
 		o.lastSeenPos = pp
 		o.lastSeenT = now()
 		Law.seen(player, pp, o.name)
@@ -2017,7 +2033,7 @@ local function thinkCase(o: any, case: any)
 		end
 	end
 	-- radio: a newer sighting by another unit
-	if not seeing and o.radioAt and now() >= o.radioAt then
+	if not seeing and o.radioAt and now() >= o.radioAt and o.state ~= "chase" and o.state ~= "stop" and o.state ~= "cuffwalk" then
 		o.radioAt = nil
 		if case.knownT > o.goalT and case.knownPos then
 			o.goalT = case.knownT
@@ -2041,7 +2057,9 @@ local function thinkCase(o: any, case: any)
 			o.stopIssued = true
 			o.nextRepath = 0
 			say(o, pick(LS.LINES.chase))
-			Law.crime(player, "flee", { police = true, pos = pp })
+			if now() - (case.carFleeT or -1e9) > 10 then -- (a drive-off carFlee already counted is one 도주)
+				Law.crime(player, "flee", { police = true, pos = pp })
+			end
 		elseif now() >= o.nextRepath and pp then
 			o.nextRepath = now() + 0.8
 			assignGoal(o, pp, 9, nil)
@@ -2101,8 +2119,9 @@ local function thinkCase(o: any, case: any)
 			-- does (stops / hands up / runs) before any grab. One order per officer; the case-level
 			-- watchUntil keeps a crowd of officers from shouting at once. A suspect who hit an officer
 			-- gets no order (the takedown, below)
-			if not o.orderGiven and not violentNow and not Law.ticketable(player) and not suspectInCar(player) and d <= LS.ORDER_RANGE and now() >= (case.watchUntil or 0) then
+			if not o.orderGiven and not violentNow and not Law.ticketable(player) and not suspectInCar(player) and d <= LS.ORDER_RANGE and now() >= (case.watchUntil or 0) and now() - (case.orderT or -1e9) >= 8 then
 				o.orderGiven = true
+				case.orderT = now() -- (one order per encounter: the others do not shout it again in turn)
 				case.watchUntil = now() + LS.ORDER_WATCH
 				case.watchBy = o
 				o.pos = legPos(o, now())
@@ -2142,8 +2161,8 @@ local function thinkCase(o: any, case: any)
 				o.grabAt = now() + 1.2
 				local handsUp = now() - (s.handsUp or -1e9) < 6
 				local chance = if handsUp then 1 else LS.grabChance(case.stars, suspectSpeed(player), suspectInCar(player))
-				if violentNow and not handsUp then
-					chance = math.max(chance, 0.7) -- 제압: hitting an officer up close ends on the ground
+				if violentNow and not handsUp and not suspectInCar(player) then
+					chance = math.max(chance, 0.7) -- 제압: hitting an officer up close ends on the ground (on foot)
 				end
 				if Police.testNoGrab then
 					chance = 0 -- test only: watch the chase without it ending
@@ -2255,7 +2274,9 @@ local function thinkPatrol(o: any)
 				case.radioUntil = math.max(case.radioUntil or 0, now() + LS.TIERS[s.stars].radio * 2)
 				o.role = "case"
 				o.case = case
-				table.insert(case.units, o)
+				if not table.find(case.units, o) then
+					table.insert(case.units, o)
+				end
 				o.state = "chase"
 				o.lastSeenPos = pp
 				o.lastSeenT = now()
@@ -2531,6 +2552,42 @@ local function stopPath(c: any): any?
 	return if okP then path else nil
 end
 
+-- brake to a stop from full respond / chase speed: along the lane ahead, ending at the kerb (never a
+-- 100+ stud straight line through a bend or a T junction); straight (stopPath) only from a crawl or
+-- close behind the car in front
+local function laneStopPath(c: any): any?
+	local cp, dir = carPos(c)
+	local v = carSpeed(c)
+	local need = v * v / 22 + 8
+	if v < 12 or aheadGap(c, cp, dir) < need + 11 then
+		return stopPath(c)
+	end
+	local loc = headingLoc(cp + dir * math.clamp(v * 0.6, 5, 22), dir, 26)
+	if not loc then
+		return nil
+	end
+	local okF, fwd = pcall(D.forward, graph, loc, need)
+	if not okF or not fwd or #fwd < 2 then
+		return nil
+	end
+	table.insert(fwd, 1, cp)
+	-- (cut at the braking distance: D.forward runs on to the end of the edge)
+	local pts, acc = { fwd[1] }, 0
+	for i = 2, #fwd do
+		local seg = flat(fwd[i - 1], fwd[i])
+		if acc + seg >= need then
+			if seg > 1e-3 then
+				table.insert(pts, fwd[i - 1]:Lerp(fwd[i], (need - acc) / seg))
+			end
+			break
+		end
+		acc += seg
+		table.insert(pts, fwd[i])
+	end
+	local okP, path = pcall(D.buildPath, pts, { cruise = math.max(v, 26), v0 = v, v1 = 0, pullOver = { offset = 2.2, len = 24 }, heights = carHeights })
+	return if okP then path else nil
+end
+
 -- a lane route that loops far round the block (one-way streets) to reach a spot close by is not worth
 -- driving (the dispatcher feed re-plans often): the car brakes to a stop where it is and the crew goes
 -- on foot, as for an alley. true = it stops (c.goal = target)
@@ -2539,10 +2596,11 @@ local function detourStop(c: any, path: any, target: Vector3): boolean
 	if straight >= 160 or (path.length or 0) <= straight * 4 + 300 then
 		return false
 	end
-	local sp = stopPath(c)
-	if sp then
-		setCarPath(c, sp)
+	local sp = laneStopPath(c)
+	if not sp then
+		return false -- (no brake along the lane: the long route is driven after all)
 	end
+	setCarPath(c, sp)
 	c.goal = target
 	return true
 end
@@ -2569,16 +2627,6 @@ local function strand(c: any, case: any)
 		table.remove(case.cars, j)
 	end
 	case.lastStaff = 0
-end
-
-local function playersNear(p: Vector3, r: number): boolean
-	for _, pl in Players:GetPlayers() do
-		local pp = Law.posOf(pl)
-		if pp and flat(pp, p) < r then
-			return true
-		end
-	end
-	return false
 end
 
 -- cruising (no case): the next stretch is planned just before this one ends, at the current speed
@@ -2771,14 +2819,20 @@ local function thinkCar(c: any)
 	if c.state == "parked" then
 		-- the suspect drove off: the crew runs back, gets in, and the road chase starts
 		if roadChase and pp and flat(cp, pp) > 22 then
-			-- (at a run, from up to 150 studs; nobody able to get back in = the car is left behind)
+			-- (at a run, from up to 150 studs; nobody able to get back in = the car is left behind.
+			-- Crew still stepping out are waited for: they can run back once they are out)
+			for _, o in c.crew do
+				if not o.gone and o.state == "exiting" then
+					return
+				end
+			end
 			local n = 0
 			for _, o in c.crew do
 				if not o.gone and not o.seated and o.state ~= "board" and o.state ~= "exiting" and o.state ~= "cuffwalk" and flat(o.pos, cp) < 150 and boardOfficer(o, c, 13 + case.stars * 0.6) then
 					n += 1
 				end
 			end
-			if n > 0 or seatedCount(c) > 0 then
+			if n > 0 or seatedCount(c) > 0 or boardingCount(c) > 0 then
 				c.state = "remount"
 				c.remountUntil = now() + 14
 			else
@@ -3172,8 +3226,14 @@ local function onOfficerHit(player: Player, id: string, info: any): (string?, st
 		o.state = "chase"
 		o.stopIssued = true
 		o.orderGiven = true
-		o.lastSeenPos = (info and info.pos) or Law.posOf(player)
+		-- (where the attacker is: info.pos is the hit officer's own spot)
+		local ap = Law.posOf(player) or (info and info.pos)
+		o.lastSeenPos = ap
 		o.lastSeenT = now()
+		if ap then
+			case.knownPos = ap
+			case.knownT = now()
+		end
 		o.seeing = true
 		o.nextRepath = 0
 	end)
@@ -3356,6 +3416,7 @@ Police.carPos = carPos
 Police.newCar = newCar
 Police.carRoute = carRoute
 Police.setCarPath = setCarPath
+Police.laneStopPath = laneStopPath -- (tests: the lane brake of detourStop)
 Police.officers = function()
 	return officers
 end

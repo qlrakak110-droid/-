@@ -512,8 +512,9 @@ local function intoCell(player: Player, j: any)
 end
 
 -- the car for the ride: info.car, else the nearest police car with a live crew (not a 119 / 특임대
--- car, not one already leaving / riding / recalling its crew); one with its crew seated is preferred
-local function rideCar(P: any, pp: Vector3?, info: any): any?
+-- car, not one already leaving / riding / recalling its crew, not one on another player's case); one
+-- with its crew seated is preferred
+local function rideCar(P: any, pp: Vector3?, info: any, player: Player): any?
 	local car = info.car
 	if car and not car.gone and car.model and car.model.Parent then
 		return car
@@ -523,7 +524,7 @@ local function rideCar(P: any, pp: Vector3?, info: any): any?
 	end
 	local best, bestScore = nil, math.huge
 	for _, c in P.cars() do
-		if not c.gone and not c.unit and c.model and c.model.Parent and c.state ~= "leave" and c.state ~= "transport" and c.state ~= "recall" and c.state ~= "demo" then
+		if not c.gone and not c.unit and c.model and c.model.Parent and c.state ~= "leave" and c.state ~= "transport" and c.state ~= "recall" and c.state ~= "demo" and not (c.case ~= nil and c.case.player ~= player) then
 			local live = false
 			for _, o in c.crew do
 				if not o.gone then
@@ -581,7 +582,7 @@ end
 local function transport(player: Player, j: any, info: any)
 	local P = Police()
 	local pp = Law.posOf(player)
-	local car = P and rideCar(P, pp, info)
+	local car = P and rideCar(P, pp, info, player)
 	if car and P then
 		car = crewIn(P, car, player, j, info)
 	end

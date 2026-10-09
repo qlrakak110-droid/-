@@ -610,7 +610,8 @@ local function onNpcFight(player: Player, p: any)
 				break
 			end
 		end
-		if o.gone then
+		-- (punched on the way / joined a case meanwhile: Police owns him now, no break-up beat)
+		if o.gone or o.state ~= "fightcall" then
 			return
 		end
 		Pol.faceTo(o, pos)
@@ -619,7 +620,7 @@ local function onNpcFight(player: Player, p: any)
 		end
 		send(player, { kind = "breakup", pos = { pos.X, pos.Y, pos.Z } })
 		task.wait(6)
-		if not o.gone then
+		if not o.gone and o.state == "fightcall" then
 			o.role = "patrol"
 			o.state = "patrol"
 			o.pauseUntil = now() + 4
