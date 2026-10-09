@@ -715,7 +715,7 @@ end
 
 -- the tone of a normal reply (short / rough / phone)
 local function toned(out: any, tone: string?, c: any)
-	if not tone or tone == "normal" or #out.lines == 0 or out.act == "fight" then
+	if not tone or tone == "normal" or type(out.lines) ~= "table" or #out.lines == 0 or out.act == "fight" then
 		return
 	end
 	if tone == "short" then
@@ -871,6 +871,11 @@ local function sayCommon(player: Player, sess: Sess, id: string, req: any, chan:
 	local out = ruleOut(player, sess, id, req, chan, env)
 	if talk then
 		talk.first = false
+	end
+	-- the relation / personality tone (gate: short / rough / phone) on chip replies too, as on typed
+	-- ones (sayFree); not on the number exchange (the line from Relationships)
+	if out.act ~= "number" then
+		toned(out, talk and talk.tone, citizen(id))
 	end
 	applyOut(player, sess, id, rec, out, nil)
 	if out.act == "end" or out.act == "leave" then
@@ -1221,7 +1226,7 @@ ops.act = function(player, sess, p)
 			extra = { cl = 2 }
 			pcall(ctx.addStats, player, { happiness = 1, popularity = 1 }, nil, true)
 		elseif kind == "prank" then
-			local likes = arch == "fool" or arch == "student" or arch == "punk" or arch == "drunk" or (env.aff >= 50 and t.humor > 0.4)
+			local likes = arch == "fool" or arch == "student" or arch == "punk" or arch == "drunk" or M.personality(c).playful == true or (env.aff >= 50 and t.humor > 0.4)
 			req.outcome = if likes then "prank" else "prank_bad"
 			if likes then
 				award(player, id, "play", 1.5)
@@ -1658,7 +1663,11 @@ function MindServer.note(player: Player, id: string, kind: string, x: any)
 			pcall(ctx.fight.applyHit, player, { kind = if c.key then "npc" else "ped", id = id, attack = "shove", outcome = x, silent = true, noCrime = true, noReact = true })
 		end
 		local tr = M.traits(c)
-		M.apply(rec, { an = (if x == "knockdown" then 18 else 8) + tr.temper * 10, fe = (if x == "knockdown" then 10 else 3) * (1 - tr.brave), tr = -3 }, t)
+		-- who they are: a kind person shrugs most of it off, a timid one is more scared than angry
+		local pz = M.personality(c)
+		local anK = if pz.isKind and not pz.touchy then 0.4 elseif pz.isTimid or pz.fearful then 0.6 else 1
+		local feK = if pz.isTimid or pz.fearful then 2 else 1
+		M.apply(rec, { an = ((if x == "knockdown" then 18 else 8) + tr.temper * 10) * anK, fe = (if x == "knockdown" then 10 else 3) * (1 - tr.brave) * feK, tr = -3 }, t)
 		-- a run of knockdowns on people is trouble with the police
 		if x == "knockdown" then
 			table.insert(sess.bumps, os.clock())
@@ -1676,6 +1685,9 @@ function MindServer.note(player: Player, id: string, kind: string, x: any)
 				table.clear(sess.bumps)
 			end
 		end
+		-- the street reactions (approach / glare / flee) read the client's view of this NPC: fresh now,
+		-- not at the next talk
+		push(player, { kind = "view", id = id, view = viewOf(player, sess, id) })
 	end
 	markDirty(sess)
 end

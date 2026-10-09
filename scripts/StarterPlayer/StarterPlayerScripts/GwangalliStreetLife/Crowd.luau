@@ -442,7 +442,15 @@ function Crowd.api(method: any, ...: any): any
 		if not a or a.gone then
 			return false
 		end
-		return Crowd.fightKnock(a, tonumber(dx) or 0, tonumber(dz) or -1, if outcome == "knockdown" or outcome == "thrown" then outcome else "stagger", puk)
+		local ok = Crowd.fightKnock(a, tonumber(dx) or 0, tonumber(dz) or -1, if outcome == "knockdown" or outcome == "thrown" then outcome else "stagger", puk)
+		local pp = P.pos
+		if ok and a.knock and pp and (a.pos - pp).Magnitude < 12 and os.clock() - (a.giFoolBump or -1e9) > 0.5 then
+			-- the player's 어깨빵 / punch (not a car, an NPC fight: those call knockDown directly; not 만복이
+			-- running through people, GwangalliInteractClient/Peds): back on their feet, who they are
+			-- decides what they do (Characters.bumped, when no punch reaction is pending)
+			a.knock.byPlayer = true
+		end
+		return ok
 	elseif method == "say" then
 		local id, text, _typeId, dur = ...
 		local a = byId[id]
@@ -3171,6 +3179,48 @@ local function installFightHooks()
 			self.lying = true
 		end
 	end
+	-- walking into someone (the contact pass): who they are decides the line and what follows
+	-- (Characters.bumped); the base nudge / startle stay, its quip is swapped
+	local baseBump = Agent.bump
+	local baseQuip = Agent.quip
+	Agent.quip = function(self: any, kind: string, chance: number)
+		if kind == "bump" and self.quietBump then
+			return
+		end
+		return baseQuip(self, kind, chance)
+	end
+	Agent.bump = function(self: any, now: number, pp: Vector3)
+		local CH = Crowd.Characters
+		local bk = nil
+		if CH and CH.bumpKind and not self.knock and now - self.bumpAt >= Config.BumpCooldown and self.mode ~= "dodge" and self.mode ~= "talk" then
+			local okK, k = pcall(CH.bumpKind, self)
+			bk = if okK then k else nil
+		end
+		if bk == "drunk" and self.type ~= "drunk" and CH.drunkBump then
+			-- a named citizen in the DRUNK mood: sways into you like a drunk (then may pick a quarrel)
+			local prevAt = self.bumpAt
+			self.bumpAt = now
+			local okD, did = pcall(CH.drunkBump, self, pp)
+			if okD and did then
+				return
+			end
+			self.bumpAt = prevAt
+		end
+		local before = self.bumpAt
+		self.quietBump = bk ~= nil and bk ~= "violent" and bk ~= "drunk" and bk ~= "normal"
+		local okB, errB = pcall(baseBump, self, now, pp)
+		self.quietBump = nil
+		if not okB then
+			error(errB, 0)
+		end
+		if self.bumpAt == now and before ~= now and not self.gone then
+			if self.type == "drunk" then
+				self.playerBumpAt = now -- (the base drunk branch: a stagger for both; the get-up decides)
+			elseif bk and bk ~= "drunk" and bk ~= "normal" and not self.knock then
+				pcall(CH.bumped, self, "walk", bk, now)
+			end
+		end
+	end
 	local baseAfter = Agent.afterKnock
 	Agent.afterKnock = function(self: any, now: number)
 		if self.ko then
@@ -3180,7 +3230,33 @@ local function installFightHooks()
 		local hitT = self.carHitAt
 		local byCar = self.carKnock == true and hitT ~= nil and now - hitT < 8
 		self.carKnock = nil
-		if byCar then
+		-- the player's 어깨빵 (no punch reaction waiting): the personality reaction
+		local CH = Crowd.Characters
+		local bk = nil
+		if not byCar and CH and CH.bumpKind and not self.brawl and not self.pendingReact and ((kn and kn.byPlayer) or now - (self.playerBumpAt or -1e9) < 5) then
+			local okK, k = pcall(CH.bumpKind, self)
+			bk = if okK then k else nil
+		end
+		self.playerBumpAt = nil
+		if bk and not byCar then
+			local okL, line = pcall(CH.bumpLine, self, bk, kn ~= nil and kn.outcome == "knockdown")
+			if okL and line ~= nil then
+				local prevTL = rawget(self, "typeLine")
+				self.typeLine = function(s2: any, kind: string): string?
+					if kind == "bumped" or kind == "down" or kind == "mumble" then
+						return if line == "" then nil else line
+					end
+					return if prevTL then prevTL(s2, kind) else Agent.typeLine(s2, kind)
+				end
+				local okA, errA = pcall(baseAfter, self, now)
+				self.typeLine = prevTL
+				if not okA then
+					error(errA, 0)
+				end
+			else
+				baseAfter(self, now)
+			end
+		elseif byCar then
 			-- back up after the player's car hit them: a car line, not a 어깨빵 one ("조심 좀 하세요!" /
 			-- the fool's "더 세게!"), and none when the server's line (GwangalliFight) was said already
 			local said = (self.lastSayAt or -1e9) > hitT
@@ -3247,6 +3323,8 @@ local function installFightHooks()
 			end
 			if self.pendingReact then
 				Crowd.playReact(self)
+			elseif bk and not self.gone then
+				pcall(CH.bumped, self, "knock", bk, now)
 			end
 		end
 	end
@@ -3467,6 +3545,12 @@ function Crowd.start(context: any)
 					end,
 					playerSpeed = function(): number
 						return P.speed or 0
+					end,
+					seated = function(): boolean
+						return Crowd.playerSeated()
+					end,
+					canSay = function(t: number): boolean
+						return Crowd.canSay(t)
 					end,
 					fire = function(kind: string, payload: any)
 						local fr = fightAction()

@@ -756,7 +756,25 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 		send(player, res)
 	elseif not isKey then
 		-- the caller plays the fall: only the short memory goes to the client (and a KO)
-		send(player, { kind = "remember", id = id, mood = if react == "fight" or react == "warn" or react == "none" then "anger" else "fear" })
+		local mood: string? = if react == "fight" or react == "warn" then "anger" else "fear"
+		if react == "none" then
+			-- 어깨빵 (no reaction decided here): who they are decides what they remember - the timid
+			-- are scared of you, a kind one shrugs it off ("괜찮아요"), everyone else is angry (the
+			-- street re-approach: glare or back away)
+			local brave = personality(id, typeId, c)
+			local pv = nil
+			if MindShared and type(MindShared.personality) == "function" then
+				local okP, res = pcall(MindShared.personality, c or { id = id, type = typeId })
+				pv = if okP and type(res) == "table" then res else nil
+			end
+			local tough = typeId == "violent" or (pv ~= nil and pv.violent == true)
+			local scared = (pv ~= nil and (pv.isTimid == true or pv.fearful == true)) or brave < 0.3
+			local shrug = pv ~= nil and pv.isKind == true and pv.touchy ~= true and outcome ~= "knockdown"
+			mood = if scared and not tough then "fear" elseif shrug and not tough then nil else "anger"
+		end
+		if mood then
+			send(player, { kind = "remember", id = id, mood = mood })
+		end
 		if outcome == "ko" then
 			send(player, { kind = "hit", target = "ped", id = id, outcome = "ko", react = "ko", dx = dx, dz = dz, ko = FS.KO_DOWN })
 		end
@@ -1246,7 +1264,20 @@ local function onNpcStart(player: Player, p: any)
 		local ok, rel = pcall(ctx.mind.relOf, player, p.id)
 		hostile = ok and type(rel) == "number" and rel <= -60
 	end
-	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile then
+	-- (a street personality that is violent - a hot-tempered passer-by, GwangalliMindShared - picks
+	-- fights too: the same shared personality the client's bump reaction read)
+	-- (a citizen out drinking tonight - the DRUNK mood, GwangalliMindShared.npcMood - can turn a
+	-- quarrel into a scuffle like a drunk)
+	local hot = false
+	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and MindShared and type(MindShared.personality) == "function" then
+		local okP, pv = pcall(MindShared.personality, c or { id = p.id, type = typeId })
+		hot = okP and type(pv) == "table" and pv.violent == true
+		if not hot and p.why == "drunk" and c and type(MindShared.npcMood) == "function" then
+			local okM, nm = pcall(MindShared.npcMood, c, nil, { now = os.time(), clock = game:GetService("Lighting").ClockTime })
+			hot = okM and nm == "DRUNK"
+		end
+	end
+	if not AGGRESSIVE[typeId] and not AGGRESSIVE[arch] and not hostile and not hot then
 		return refuse()
 	end
 	local root = rootOf(player)

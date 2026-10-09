@@ -155,11 +155,60 @@ function Mind.archOf(c: any): string
 	return a
 end
 
+-- a roster citizen is cached by id; an anonymous passer-by (x<n>: Crowd recycles the id, it may come
+-- back as a drunk) by id + crowd type + persona, so a new life of the same id gets its own archetype
+local function anonOf(c: any): boolean
+	return type(c) == "table" and c.name == nil and type(c.id) == "string" and string.match(c.id, "^x%d+$") ~= nil
+end
+local function cacheKey(c: any): string
+	local id = (type(c) == "table" and c.id) or "?"
+	if anonOf(c) then
+		return id .. "|" .. tostring(c.type or "") .. "|" .. tostring(c.persona or "")
+	end
+	return id
+end
+Mind.isAnon = anonOf
+
+-- anonymous passers-by: one steady temperament per id (spec 3: 평범함 · 친절함 · 겁 많음 · 공격적 ·
+-- 예민함 · 무관심함 · 장난기 · 정의감; 취함 is the crowd type "drunk"); weights sum to 1
+local ANON_TEMPER_W = { { "normal", 0.4 }, { "kind", 0.12 }, { "timid", 0.12 }, { "hothead", 0.08 }, { "touchy", 0.1 }, { "cold", 0.08 }, { "just", 0.05 }, { "playful", 0.05 } }
+local ANON_TEMPER = {
+	kind = { kind = 0.25, social = 0.1, patience = 0.1 },
+	timid = { timid = 0.3, fear = 0.3, aggr = -0.1 },
+	hothead = { aggr = 0.45, patience = -0.3, fear = -0.2, kind = -0.15 },
+	touchy = { aggr = 0.12, patience = -0.3, wary = 0.25 },
+	cold = { social = -0.3, kind = -0.25, curious = -0.2 },
+	just = { justice = 0.35, fear = -0.15 },
+	playful = { social = 0.2, patience = 0.1, curious = 0.2 },
+}
+local function mul32(a: number, b: number): number
+	local al, ah = a % 65536, a // 65536
+	return ((al * (b // 65536) + ah * (b % 65536)) % 65536 * 65536 + al * (b % 65536)) % 4294967296
+end
+local function anonTemper(id: string): string
+	-- (an avalanche over the id hash: x1..x60 are near-identical strings, the plain hash clumps them)
+	local h = hash(id .. "#90")
+	h = mul32(bit32.bxor(h, bit32.rshift(h, 16)), 0x85ebca6b)
+	h = mul32(bit32.bxor(h, bit32.rshift(h, 13)), 0xc2b2ae35)
+	local x = bit32.bxor(h, bit32.rshift(h, 16)) / 4294967296
+	for _, e in ANON_TEMPER_W do
+		x -= e[2]
+		if x < 0 then
+			return e[1]
+		end
+	end
+	return "normal"
+end
+Mind.anonTemper = anonTemper
+-- (the traits the talk composer and GwangalliGameplay/Fight read follow the temperament too)
+local ANON_TRAIT = { hothead = { brave = 0.2, temper = 0.3 }, just = { brave = 0.2 }, timid = { brave = -0.25 }, touchy = { temper = 0.15 }, kind = { warm = 0.15 }, cold = { warm = -0.15, chatty = -0.2 }, playful = { humor = 0.3 } }
+
 -- the archetype's traits jittered per person (deterministic), warmth from the roster's `social`
 local traitCache: { [string]: any } = {}
 function Mind.traits(c: any): any
 	local id = (type(c) == "table" and c.id) or "?"
-	local t = traitCache[id]
+	local ck = cacheKey(c)
+	local t = traitCache[ck]
 	if t then
 		return t
 	end
@@ -177,11 +226,16 @@ function Mind.traits(c: any): any
 	if type(c) == "table" and isNum(c.nerve) then
 		t.brave = clamp01(c.nerve)
 	end
+	if anonOf(c) then
+		for k, v in ANON_TRAIT[anonTemper(id)] or {} do
+			t[k] = clamp01(t[k] + v)
+		end
+	end
 	t.tr0 = A.tr0 or 30
 	t.banmal = A.banmal == true
 	t.hostile = A.hostile == true
 	t.authority = A.authority == true
-	traitCache[id] = t
+	traitCache[ck] = t
 	return t
 end
 
@@ -190,8 +244,9 @@ end
 -- greed 욕심 · social 사교성 · patience 참을성 · fear 겁 · curious 호기심 · justice 정의감.
 -- The archetype gives the base (PERS_ARCH), the person's id a steady jitter, the roster overrides
 -- (c.nerve, c.social, c.pers = { key = value }). style flags read from it: violent / timid / cold
--- (무뚝뚝 · 무관심) / kind / fearful / just. Street pedestrians without a roster entry use their
--- crowd type ({ id, type }) and get the same steady personality every time.
+-- (무뚝뚝 · 무관심) / kind / fearful / just / touchy (예민함: short fuse, on guard) / playful (장난기).
+-- Street pedestrians without a roster entry use their crowd type ({ id, type }) plus a steady
+-- temperament from the id (p.temperament) and get the same personality every time.
 -------------------------------------------------------------------------------------------------
 Mind.PERS_KEYS = { "kind", "timid", "aggr", "wary", "greed", "social", "patience", "fear", "curious", "justice" }
 Mind.PERS_LABEL = { kind = "친절함", timid = "소심함", aggr = "공격성", wary = "경계심", greed = "욕심", social = "사교성", patience = "참을성", fear = "겁", curious = "호기심", justice = "정의감" }
@@ -217,7 +272,8 @@ Mind.PERS_ARCH = PERS_ARCH
 local persCache: { [string]: any } = {}
 function Mind.personality(c: any): any
 	local id = (type(c) == "table" and c.id) or "?"
-	local p = persCache[id]
+	local ck = cacheKey(c)
+	local p = persCache[ck]
 	if p then
 		return p
 	end
@@ -232,6 +288,14 @@ function Mind.personality(c: any): any
 	p.aggr = clamp01(p.aggr * 0.5 + t.temper * 0.5)
 	p.fear = clamp01(p.fear * 0.5 + (1 - t.brave) * 0.5)
 	p.social = clamp01(p.social * 0.5 + t.chatty * 0.5)
+	if anonOf(c) then
+		-- no roster entry to make them someone: the id's temperament (not one shared street AI)
+		local tm = anonTemper(id)
+		for k, v in ANON_TEMPER[tm] or {} do
+			p[k] = clamp01(p[k] + v)
+		end
+		p.temperament = tm
+	end
 	if type(c) == "table" and type(c.pers) == "table" then
 		for k, v in c.pers do
 			if isNum(v) then
@@ -246,7 +310,11 @@ function Mind.personality(c: any): any
 	p.fearful = p.fear >= 0.62
 	p.just = p.justice >= 0.7
 	p.authority = t.authority
-	persCache[id] = p
+	-- 예민함: a short fuse and on guard, but not a brawler (violent) nor a coward (timid)
+	p.touchy = not p.violent and not p.isTimid and not t.authority and (p.patience <= 0.4 or (p.wary >= 0.6 and p.patience <= 0.5))
+	-- 장난기: jokes back, likes a prank (not the hard ones)
+	p.playful = t.humor >= 0.7 and p.aggr < 0.6 and not t.authority
+	persCache[ck] = p
 	return p
 end
 
@@ -356,8 +424,8 @@ function Mind.npcMood(c: any, rec: any?, env: any?): string
 	end
 	if x < 0.07 then
 		return "SAD"
-	elseif x < 0.12 then
-		return "ANNOYED"
+	elseif x < (if p.touchy then 0.25 else 0.12) then
+		return "ANNOYED" -- (예민한 사람: more days on edge)
 	elseif x > 0.78 then
 		return "HAPPY"
 	end
@@ -415,6 +483,15 @@ function Mind.policy(c: any, rec: any, env: any?): any
 		elseif rel <= -20 then
 			out.talk = if out.talk == "block" then "block" else "short"
 		end
+	elseif p.touchy then
+		-- 예민함: no fight, but a look that says it and short, sharp answers
+		if rel <= -40 then
+			out.approach = "glare"
+			out.talk = if out.talk == "block" then "block" else "rough"
+		elseif rel <= -10 then
+			out.approach = "glare"
+			out.talk = if out.talk == "block" then "block" else "short"
+		end
 	elseif p.cold then
 		if rel < -10 then
 			out.talk = if out.talk == "block" then "block" else "ignore"
@@ -435,7 +512,7 @@ function Mind.policy(c: any, rec: any, env: any?): any
 	if out.talk == "normal" then
 		if mood == "ANGRY" or mood == "SAD" then
 			out.talk = "short"
-		elseif mood == "ANNOYED" and p.patience < 0.5 then
+		elseif mood == "ANNOYED" and (p.patience < 0.5 or p.touchy) then
 			out.talk = if hash01(tostring(c and c.id) .. math.floor(now / 60), 9) < 0.5 then "busy" else "short"
 		elseif mood == "SCARED" then
 			out.talk = "short"
@@ -476,6 +553,22 @@ Mind.REL_LINES = {
 	justice = { "뭐 하는 거예요?! 경찰 부를 거예요!", "사람을 왜 때려요?! 112죠?", "그만해요! 다 봤어요!" },
 	gun_flee = { "총이다!! 피해!!", "살려주세요!!", "총 든 사람 있어요!!" },
 	gun_stand = { "…진정해, 쏘지 마.", "그거 내려놓고 말로 해.", "알았어 알았어, 간다." },
+	-- 예민함 (a glare on the street, after a bump)
+	touchy = { "아 진짜, 앞 좀 보고 다니세요.", "…하, 짜증나네.", "뭐예요? 사과도 안 해요?", "(눈을 가늘게 뜨고 쳐다본다)" },
+	-- 어깨빵 / walking into them, by personality (GwangalliStreetLife/Characters.bumped)
+	bump_kind = { "괜찮아요~", "아 괜찮아요 ㅎㅎ", "조심하세요~", "앗, 괜찮아요!" },
+	bump_kind_down = { "아야… 괜찮아요, 괜찮아요.", "괜찮아요~ 저도 앞을 못 봤네요 ㅎㅎ", "으쌰… 괜찮아요, 신경 쓰지 마세요." },
+	bump_timid = { "히익… 죄, 죄송해요…!", "어, 어어… (움찔하며 물러난다)", "저, 저한테 왜 그러세요…", "(겁먹고 뒷걸음질 친다)" },
+	bump_cold = { "…", "(쳐다보지도 않고 지나간다)", "(어깨를 털고 간다)", "…네." },
+	bump_playful = { "어깨빵? ㅋㅋ 저도 한 대!", "아이고 ㅋㅋ 일부러 그런 거죠?", "오~ 힘 좋은데요? ㅋㅋ", "ㅋㅋㅋ 깜짝이야, 술래잡기예요?" },
+	bump_aggro = { "야, 너 지금 일부러 쳤냐?", "어깨 펴고 다니네? 이리 와 봐.", "뭐야 이 새끼? 사과 안 해?", "한 번 더 쳐 봐, 어?" },
+	bump_touchy = {
+		start = { "아 진짜 뭐예요?", "눈은 어디 두고 다녀요?", "사과도 안 해요?" },
+		follow = { "아니 사과는 하셔야죠.", "그냥 가시게요?", "어이없네 진짜…", "저기요, 말 안 들려요?" },
+		calm = { "…됐어요, 말을 말자.", "하… 오늘 일진 참.", "(한숨 쉬며 돌아선다)" },
+	},
+	-- someone keeps walking right behind them (GwangalliStreetLife/Characters follow check)
+	followed = { "왜 자꾸 따라와요?", "저 아세요?", "저 따라오시는 거 맞죠? 그만하세요.", "볼일 없으시면 가던 길 가세요." },
 }
 
 -------------------------------------------------------------------------------------------------
@@ -1646,7 +1739,7 @@ function Mind.respond(c: any, rec: any, req: any, env: any): any
 			out.d.cl = 0.5
 		end
 	elseif intent == "joke" then
-		local good = mood == "good" or mood == "lover" or (mood == "neutral" and r() < t.humor)
+		local good = mood == "good" or mood == "lover" or (mood == "neutral" and r() < (if Mind.personality(c).playful then 0.9 else t.humor))
 		main = Mind.pick(Mind.bank(arch, "joke", if good and mood ~= "lover" then "good" else mood, reg), rec, now, r)
 		if good then
 			out.d.aff = 2
@@ -2276,6 +2369,19 @@ function Mind.selfTest(rnd: (() -> number)?): { string }
 				end
 			end
 		end
+	end
+	-- the street personalities (spec 3): 예민함 / 장난기 exist, anonymous passers-by differ
+	local touchy, playful = 0, 0
+	for i = 1, 60 do
+		local p = Mind.personality({ id = "x" .. i, type = "plain" })
+		touchy += if p.touchy then 1 else 0
+		playful += if p.playful then 1 else 0
+	end
+	if touchy == 0 or playful == 0 then
+		table.insert(problems, string.format("anon personalities: touchy %d playful %d", touchy, playful))
+	end
+	if Mind.personality({ id = "x7", type = "drunk" }).arch ~= "drunk" then
+		table.insert(problems, "anon recycled id keeps a stale archetype")
 	end
 	return problems
 end

@@ -324,7 +324,11 @@ Mind.release = release
 Mind.take = take
 Mind.street = function(id: string, ev: string, pos: Vector3?)
 	task.spawn(function()
-		invoke("street", { id = id, ev = ev, pos = if pos then pack(pos) else nil })
+		local res = invoke("street", { id = id, ev = ev, pos = if pos then pack(pos) else nil })
+		-- (the relation changed: the street reactions read the fresh view)
+		if type(res) == "table" and type(res.view) == "table" then
+			setView(id, res.view)
+		end
 	end)
 end
 Mind.sayNpc = function(a: any, text: string, dur: number?)
@@ -338,6 +342,12 @@ Mind.hold = function(a: any, faceTo: Vector3?, pose: string?)
 end
 Mind.moveTo = function(a: any, p: Vector3, speed: number)
 	moveTo(a, p, speed)
+end
+Mind.gesture = function(a: any, emote: string?)
+	gesture(a, emote)
+end
+Mind.lookAtPlayer = function(a: any, dur: number)
+	lookAtPlayer(a, dur)
 end
 
 -------------------------------------------------------------------------------------------------
@@ -1280,6 +1290,79 @@ function Mind.kindFor(a: any): string
 		return "friend"
 	end
 	return "chatty"
+end
+
+-- 인사하기 on an anonymous passer-by (SocialUI): what they say back depends on what you did to them a
+-- moment ago (the short memory), who they are (GwangalliMindShared.personality / policy: the cold ones
+-- brush you off, the annoyed are busy) and the hour / weather / place. -> line, how ("greet" | "scared"
+-- | "angry" | "cold"); nil = the old canned hello
+local HELLO_SCARED = { "저한테 왜 그러세요?", "경찰 부를 거예요.", "오, 오지 마세요!", "(움찔한다)" }
+local HELLO_ANGRY = { "뭐 하는 거예요?", "왜 자꾸 따라와요?", "그만하세요.", "한 번 더 건드려봐." }
+function Mind.hello(a: any): (string?, string?)
+	if not ready or not M or not a or a.gone then
+		return nil, nil
+	end
+	local now = os.clock()
+	local mem = a.memory
+	if mem and now < mem.untilT then
+		a.memNext = now + 8 -- (Mind.react: not the same reaction again right after)
+		if mem.fear >= mem.anger then
+			face(a, "scared", 3)
+			local pp = playerPos()
+			task.delay(1.2, function()
+				if not a.gone and not a.knock then
+					Mind.flee(a, playerPos() or pp or a.pos, 3)
+				end
+			end)
+			return pick(HELLO_SCARED), "scared"
+		end
+		face(a, "angry", 3)
+		lookAtPlayer(a, 2)
+		gesture(a, "point")
+		return pick(HELLO_ANGRY), "angry"
+	end
+	local c = a.c or { id = a.id, type = a.type }
+	local t = os.time()
+	local clock = ctx.clock()
+	local weather = ReplicatedStorage:GetAttribute("GwWeather")
+	local rec = M.newRec(c, t)
+	local pol = M.policy(c, rec, { now = t, clock = clock, weather = if type(weather) == "string" then weather else "clear", wanted = player:GetAttribute(M.Attr.Wanted) or 0 })
+	local RL = M.REL_LINES
+	if pol.talk ~= "normal" and RL[pol.talk] then
+		-- 무뚝뚝 / 바쁨 / 짜증: a brush-off, not a smile
+		face(a, if pol.talk == "short" or pol.talk == "busy" then "annoyed" else nil, 2.5)
+		return pick(RL[pol.talk]), "cold"
+	end
+	local nm = pol.mood
+	local mood = if nm == "HAPPY" or nm == "DRUNK" then "good" elseif nm == "SAD" or nm == "ANNOYED" or nm == "NERVOUS" then "bad" elseif nm == "SCARED" then "scared" else M.mood(c, rec, 0)
+	local reg = M.register(c, rec, 0)
+	local arch = M.archOf(c)
+	local s = M.pick(M.bank(arch, "greet", mood, reg), nil, t, rnd)
+	if not s then
+		return nil, nil
+	end
+	local todKo = if clock >= 5 and clock < 11 then "아침" elseif clock >= 11 and clock < 17 then "오후" elseif clock >= 17 and clock < 21.5 then "저녁" else "밤"
+	s = M.voice(M.fill(s, { you = player.DisplayName, tod = todKo }), arch, rnd)
+	local TL = M.Lines and M.Lines.TAIL
+	if TL and rnd() < 0.4 then
+		local keys = { if clock >= 5 and clock < 11 then "morning" elseif clock >= 11 and clock < 17 then "day" elseif clock >= 17 and clock < 21.5 then "evening" else "night" }
+		if weather == "rain" or weather == "cloudy" or weather == "clear" then
+			table.insert(keys, weather)
+		end
+		local area = a.plan and a.plan.area
+		if type(area) == "string" and string.find(area, "beach", 1, true) then
+			table.insert(keys, "beach")
+		end
+		local e = TL[keys[1 + math.floor(rnd() * #keys)]]
+		local list = e and (e[reg] or e.p)
+		if type(list) == "table" and #list > 0 then
+			s = s .. " " .. pick(list)
+		end
+	end
+	if mood == "good" then
+		face(a, "smile", 3)
+	end
+	return s, "greet"
 end
 
 -------------------------------------------------------------------------------------------------

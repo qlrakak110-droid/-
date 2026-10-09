@@ -7,6 +7,10 @@
 --     scuffle when the player stays in his face — he talks a LOT first (lines every ~2 s).
 --   * 걸렁뱅이 (punk): walks up and demands money (GwangalliGameplay.Mind: no money / no = a fight);
 --     ignoring him (closing the talk) mostly ends in a fight too.
+--   * 어깨빵 / walking into someone (Characters.bumped): who they are decides it - 친절 "괜찮아요",
+--     예민 annoyed + a look + maybe an argument, 공격적 시비 / a shove / maybe a fight, 겁 많음 backs off
+--     and runs, 취함 sways and may pick a quarrel, 무관심 walks on, 장난기 laughs it off.
+--   * someone keeps walking right behind them (followTick): "왜 자꾸 따라와요?" by personality.
 -- A fight = GwangalliFight "npcStart" (the server lets that NPC's swings land a while) + the crowd
 -- brawl (Crowd.api "brawl").
 
@@ -39,6 +43,9 @@ local WITNESS = { "헐… 쟤 혼자 넘어졌어…", "동네바보 또 저런�
 local DRUNK_MORE = { "야 내 말 좀 들어 봐 어? 딸꾹", "내가 왕년에 말이야~ 이 동네 짱이었어!", "너 지금 나 무시하냐? 어?", "한잔 하자니까~ 왜 대답을 안 해", "어딜 가 이야기 아직 안 끝났어!", "너 나 알지? 모른다고? 딸꾹", "야 이리 와 봐, 이리 와 보라고~" }
 local DRUNK_FIGHT = { "이 자식이 말로 해선 안 되겠네! 딸꾹", "에잇 한 판 붙자 이거야~!", "오냐 오늘 끝장 보자!" }
 local PUNK_IGNORE = { "어딜 가? 말 씹냐?", "야 대답 안 하고 가? 이리 와.", "무시해? 오늘 제대로 걸렸다." }
+local FS_WARN = { "진짜 계속 할 거야?", "한 번 더 건드려 봐.", "어딜 감히…!", "너 지금 시비 거냐?" }
+local FS_FIGHT = { "너 오늘 제삿날이다!", "어쭈? 덤벼!", "한 판 붙자 이거지?", "가만 안 둬!" }
+local followTick: (any, number, number, Vector3, number) -> ()
 
 local function rnd(): number
 	return math.random()
@@ -199,7 +206,7 @@ end
 local function drunkTick(a: any, now: number, pp: Vector3)
 	local q = a.quarrel
 	if not q then
-		a.qT0 = nil
+		a.qT0, a.qDecided = nil, nil -- (every quarrel gets its own fight roll)
 		return
 	end
 	a.qT0 = a.qT0 or now
@@ -378,6 +385,332 @@ function Characters.witness(victimId: string)
 end
 
 -------------------------------------------------------------------------------------------------
+-- 어깨빵 / walking into someone: what they do depends on who they are (spec 3; the shared personality
+-- GwangalliMindShared.personality, the same one Mind / Fight read). Crowd calls in: bumpKind before
+-- the base reaction (to swap its line), bumped after it. Types with their own base reaction (fool /
+-- beggar) and officers keep it.
+-------------------------------------------------------------------------------------------------
+local BUMP_SKIP = { fool = true, beggar = true, police = true }
+local DRUNK_OOPS = { "어이쿠~ 딸꾹, 미안미안~", "어어? 땅이 움직이네~ 히끅", "야 너 왜 거기 서 있어~ 딸꾹", "어허~ 길 좀 비켜 봐~ 히끅" }
+local TOUCHY_Q = nil -- the verbal quarrel of 예민한 사람 (no start line: the bump line said it)
+
+-- "kind" | "touchy" | "aggro" | "violent" | "timid" | "drunk" | "cold" | "playful" | "normal" (the
+-- base line) | nil (not handled here: the base reaction only)
+function Characters.bumpKind(a: any): string?
+	if not deps or not a or a.gone or a.ko or a.brawl or a.quarrel or a.companion or a.clubGuest or a.mounted or a.riding or BUMP_SKIP[a.type] then
+		return nil
+	end
+	if a.type == "violent" or a.type == "thug" then
+		return "violent"
+	end
+	local v = a.named and deps.Mind and deps.Mind.view and deps.Mind.view(a.id)
+	if a.type == "drunk" or (v and v.npcMood == "DRUNK") then
+		return "drunk"
+	end
+	local p = persOf(a)
+	if p.violent then
+		return "aggro"
+	elseif p.isTimid or p.fearful then
+		return "timid"
+	elseif p.touchy then
+		return "touchy"
+	elseif p.isKind then
+		return "kind"
+	elseif p.playful then
+		return "playful"
+	elseif p.cold then
+		return "cold"
+	end
+	return "normal"
+end
+
+-- the line they say getting up after a 어깨빵 (in place of the base "조심 좀 하세요!"); nil = the base
+-- line, "" = none
+function Characters.bumpLine(a: any, kind: string, down: boolean): string?
+	if kind == "kind" then
+		return rl(if down then "bump_kind_down" else "bump_kind")
+	elseif kind == "timid" then
+		return rl("bump_timid")
+	elseif kind == "touchy" then
+		local L = MS and MS.REL_LINES and MS.REL_LINES.bump_touchy
+		return if L then pick(L.start) else rl("touchy")
+	elseif kind == "cold" then
+		return if rnd() < 0.5 then rl("bump_cold") else ""
+	elseif kind == "playful" then
+		return rl("bump_playful")
+	elseif kind == "aggro" and a.type == "plain" then
+		return rl("bump_aggro") -- (a 걸렁뱅이 keeps his own "어쭈? 해보자는 거지?")
+	end
+	return nil
+end
+
+-- 취한 사람 in the DRUNK mood (a named citizen, not the drunk type): sways into you like a drunk
+function Characters.drunkBump(a: any, pp: Vector3): boolean
+	if not deps or a.sitting or a.lying or a.sitGround or a.napping or not a.knockDown or not a.hitPlayer then
+		return false
+	end
+	local dx, dz = a.pos.X - pp.X, a.pos.Z - pp.Z
+	local d = math.max(0.05, math.sqrt(dx * dx + dz * dz))
+	a.playerBumpAt = os.clock()
+	a:knockDown(dx / d, dz / d, "stagger", nil)
+	a:hitPlayer(-dx / d, -dz / d, "stagger", pick(DRUNK_OOPS))
+	return true
+end
+
+local function freeNow(a: any): boolean
+	return not (a.gone or a.ko or a.knock or a.brawl or a.ctl or a.mode == "talk")
+end
+
+local function playerFree(): boolean
+	return not (deps.seated and deps.seated())
+end
+
+-- after the base reaction: how = "walk" (walked into them) | "knock" (a 어깨빵 put them down / made
+-- them stagger, back on their feet now)
+function Characters.bumped(a: any, how: string, kind: string, now: number)
+	local pp = deps and deps.playerPos()
+	local M = deps and deps.Mind
+	if not pp or not M or a.gone or a.ko then
+		return
+	end
+	local d = flat(a.pos, pp)
+	local run = a.bumpRun
+	if not run or now - run.t > 20 then
+		run = { n = 0, t = now }
+		a.bumpRun = run
+	end
+	run.n += 1
+	run.t = now
+	local mem = a.memory
+	local rep = run.n >= 2 or (mem ~= nil and now < mem.untilT and (mem.anger or 0) >= 2)
+	local walk = how == "walk"
+	local talkOk = not walk or (deps.canSay == nil or deps.canSay(now))
+	local remember: string? = nil
+	a.memNext = now + 6 -- (Mind.react's "또 너냐?" not on top of this one)
+	if kind == "kind" then
+		if walk and talkOk then
+			say(a, rl("bump_kind"), 2.5)
+		end
+		M.face(a, "smile", 2.5)
+	elseif kind == "playful" then
+		if walk and talkOk then
+			say(a, rl("bump_playful"), 2.6)
+		end
+		M.face(a, "laugh", 2.5)
+		if M.gesture then
+			M.gesture(a, "laugh")
+		end
+	elseif kind == "cold" then
+		if walk and talkOk and rnd() < 0.4 then
+			say(a, rl("bump_cold"), 2)
+		end
+		a.lookUntil = now -- (not even a look)
+	elseif kind == "timid" then
+		remember = "fear"
+		if walk and talkOk then
+			say(a, rl("bump_timid"), 2.4)
+		end
+		M.face(a, "scared", 3)
+		if walk then
+			backOff(a, pp)
+		else
+			runFrom(a, pp, 5)
+		end
+	elseif kind == "touchy" then
+		remember = "anger"
+		M.face(a, "annoyed", 4)
+		a.lookUntil = now + 3.5
+		if M.lookAtPlayer then
+			M.lookAtPlayer(a, 3)
+		end
+		if walk and talkOk then
+			say(a, rl("touchy"), 2.8)
+		end
+		-- 말싸움 maybe: a verbal quarrel (follows a few steps, no shove; walk off and it is over)
+		if playerFree() and d < 9 and (rep or rnd() < 0.3) and now >= (a.nextQuarrel or 0) and M.startQuarrel then
+			a.nextQuarrel = now + 40
+			local L = MS and MS.REL_LINES and MS.REL_LINES.bump_touchy
+			TOUCHY_Q = TOUCHY_Q or (L and { follow = L.follow, calm = L.calm })
+			task.delay(1.8, function()
+				if freeNow(a) and not a.chase and playerFree() and TOUCHY_Q then
+					M.startQuarrel(a, TOUCHY_Q, { secs = 7 + rnd() * 3, noShove = true, keep = 3.5 })
+				end
+			end)
+		end
+	elseif kind == "aggro" or kind == "violent" then
+		remember = "anger"
+		M.face(a, "angry", 4)
+		a.lookUntil = now + 3
+		if kind == "violent" and a.type == "thug" and not walk and not a.chase and playerFree() and d > 6 and d < 32 and a.startChase then
+			-- (the base runs after you only for the violent type; a 불량배 too)
+			a:startChase(now, pp)
+		end
+		-- 시비 -> 밀치기 -> 싸움 maybe (a violent type's hard bump-back comes from the server: no shove)
+		task.delay(if walk then 0.6 else 1.2, function()
+			local p2 = deps.playerPos()
+			if not p2 or not freeNow(a) or not playerFree() then
+				return
+			end
+			local dd = flat(a.pos, p2)
+			if dd > 12 then
+				return
+			end
+			a.lookUntil = os.clock() + 3
+			if M.gesture then
+				M.gesture(a, "point")
+			end
+			if kind == "aggro" then
+				if walk then
+					local l = if a.type ~= "plain" then a:typeLine("bumped") else nil
+					say(a, l or rl("bump_aggro"), 2.8)
+				else
+					say(a, pick(FS_WARN), 2.8)
+				end
+				if dd < 4 and a.hitPlayer and rnd() < (if rep then 0.8 else 0.5) then
+					local ux, uz = (p2.X - a.pos.X) / math.max(dd, 0.05), (p2.Z - a.pos.Z) / math.max(dd, 0.05)
+					a:hitPlayer(ux, uz, "stagger", nil)
+				end
+			elseif walk and dd < 4 and a.hitPlayer and rnd() < 0.4 then
+				local ux, uz = (p2.X - a.pos.X) / math.max(dd, 0.05), (p2.Z - a.pos.Z) / math.max(dd, 0.05)
+				a:hitPlayer(ux, uz, "stagger", nil)
+			end
+			local chance = if kind == "aggro" then (if rep then 0.7 else 0.35) else (if rep then 0.6 else 0.3)
+			-- (one fight over a bump in a while: after it they walk on, a brush in passing is not round two)
+			if os.clock() >= (a.bumpFightAt or -1e9) + 45 and rnd() < chance then
+				a.bumpFightAt = os.clock()
+				task.delay(if kind == "violent" and not walk then 1.6 else 1.4, function()
+					local p3 = deps.playerPos()
+					if p3 and freeNow(a) and not a.chase and playerFree() and flat(a.pos, p3) < 10 then
+						say(a, pick(FS_FIGHT), 2.6)
+						Characters.startFight(a, "bump")
+					end
+				end)
+			end
+		end)
+	elseif kind == "normal" then
+		-- 평범함: the base scold line; shoved again and again (the short memory) they call it in or square up
+		if not walk then
+			remember = "anger"
+			if rep and mem ~= nil and (mem.anger or 0) >= 2 then
+				task.delay(0.6, function()
+					if not freeNow(a) then
+						return
+					end
+					if rnd() < 0.5 and M.report then
+						M.report(a)
+					else
+						M.face(a, "angry", 3)
+						if M.lookAtPlayer then
+							M.lookAtPlayer(a, 3)
+						end
+						say(a, pick(FS_WARN), 2.8)
+					end
+				end)
+			end
+		end
+	elseif kind == "drunk" then
+		remember = "anger"
+		if playerFree() and d < 8 and now >= (a.nextQuarrel or 0) and now - (a.carHitAt or -1e9) > 4 and rnd() < 0.5 and M.startQuarrel then
+			a.nextQuarrel = now + 40 + rnd() * 40 -- (the same field Mind.react uses: the two do not stack)
+			local FSm = ReplicatedStorage:FindFirstChild("GwangalliFightShared")
+			local okF, FSx = pcall(require, FSm :: any)
+			if okF and FSx and FSx.DRUNK_LINES then
+				task.delay(0.8, function()
+					if freeNow(a) and not a.chase and playerFree() and M.startQuarrel(a, FSx.DRUNK_LINES, { secs = 10 + rnd() * 5 }) and a.quarrel then
+						a.quarrel.drunk = true -- (drunkTick runs it, the named DRUNK-mood ones too)
+						a.qDecided, a.qT0 = nil, nil
+					end
+				end)
+			end
+		end
+	end
+	if remember then
+		-- the short memory (anonymous: only here; a named citizen's 어깨빵 comes back from the server as
+		-- "remember", a walk-into does not)
+		if not a.named or walk then
+			deps.api("remember", a.id, remember, 1)
+		end
+		if a.named and walk and M.street then
+			M.street(a.id, "bumped_by", a.pos)
+		end
+	end
+end
+
+-------------------------------------------------------------------------------------------------
+-- following someone: keep walking right behind a person a few seconds and they say something
+-------------------------------------------------------------------------------------------------
+local FOLLOW_SKIP = { fool = true, drunk = true, punk = true, police = true, thug = true, beggar = true }
+local FOLLOW_KIND = { "저기, 혹시 길 찾으세요?", "저한테 볼일 있으세요?", "어… 저 따라오시는 거예요?" }
+local FOLLOW_AGAIN = { "계속 따라오시면 진짜 경찰 불러요!", "아 진짜 왜 이래요?! 따라오지 마세요!", "그만 좀 따라와요, 무섭게!" }
+function followTick(a: any, now: number, dt: number, pp: Vector3, pspeed: number)
+	if FOLLOW_SKIP[a.type] or a.mounted or a.riding or a.leader or a.mode ~= "walk" or busy(a) or (a.speed or 0) < 1 or not playerFree() then
+		a.folAcc = if a.folAcc then math.max(0, a.folAcc - dt) else nil
+		return
+	end
+	local d = flat(a.pos, pp)
+	-- close behind them while they walk (not in front: that is walking toward them)
+	local fx, fz = -math.sin(a.yaw or 0), -math.cos(a.yaw or 0)
+	local behind = ((pp.X - a.pos.X) * fx + (pp.Z - a.pos.Z) * fz) < 0.5 * d
+	if d < 6.5 and pspeed > 2.5 and behind then
+		a.folAcc = (a.folAcc or 0) + dt
+	else
+		a.folAcc = math.max(0, (a.folAcc or 0) - dt * 0.5)
+	end
+	if a.folAcc < 5 or now < (a.folNext or 0) or (deps.canSay and not deps.canSay(now)) then
+		return
+	end
+	a.folAcc, a.folNext = 0, now + 20
+	local again = now - (a.folLast or -1e9) < 60
+	a.folLast = now
+	a.memNext = now + 8
+	local p = persOf(a)
+	local M = deps.Mind
+	local mood = "anger"
+	if p.fearful or p.isTimid then
+		mood = "fear"
+		say(a, if again then pick(FOLLOW_AGAIN) else rl("scared"), 2.6)
+		runFrom(a, pp, if again then 7 else 5)
+	elseif p.violent then
+		say(a, rl("provoke"), 2.8)
+		if M.face then
+			M.face(a, "angry", 3)
+		end
+		if d < 5 and now >= (a.bumpFightAt or -1e9) + 45 and rnd() < (if again then 0.6 else 0.3) then
+			a.bumpFightAt = now
+			task.delay(1.2, function()
+				if freeNow(a) then
+					Characters.startFight(a, "followed")
+				end
+			end)
+		end
+	elseif p.cold and not again then
+		say(a, rl("ignore"), 2) -- (no stop: they walk on)
+	elseif p.isKind and not again then
+		mood = "fear"
+		say(a, pick(FOLLOW_KIND), 2.8)
+		if M.lookAtPlayer then
+			M.lookAtPlayer(a, 2)
+		end
+	else
+		say(a, if again then pick(FOLLOW_AGAIN) else rl("followed"), 2.8)
+		if M.face then
+			M.face(a, if again then "scared" else "annoyed", 3)
+		end
+		if M.lookAtPlayer then
+			M.lookAtPlayer(a, 2.5)
+		end
+		if again then
+			mood = "fear"
+			runFrom(a, pp, 4)
+		end
+	end
+	if a.named and M.street then
+		M.street(a.id, "chased", a.pos)
+	end
+	deps.api("remember", a.id, mood, 1)
+end
+
+-------------------------------------------------------------------------------------------------
 -- step
 -------------------------------------------------------------------------------------------------
 local queued: { any } = {}
@@ -409,8 +742,10 @@ local function step()
 					nextFoolRun = now + 5
 					foolBumpRun(a, now)
 				end
-			elseif t == "drunk" then
+			elseif t == "drunk" or (a.quarrel and a.quarrel.drunk) then
 				drunkTick(a, now, pp)
+			elseif flat(a.pos, pp) < 12 then
+				followTick(a, now, dt, pp, pspeed)
 			end
 		end
 	end
