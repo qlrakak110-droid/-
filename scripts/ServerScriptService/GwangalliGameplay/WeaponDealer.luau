@@ -1738,8 +1738,10 @@ local function onAttacked(player: Player, d: Dealer, info: any?): (string, strin
 	if shove then
 		fightChance *= 0.6
 	end
+	-- (hit by a car - Fight's server car scan: nobody squares up to a car, he gets away like from a gun)
+	local byCar = info ~= nil and info.attack == "car"
 	local react
-	if armed(player) or hurt or d.state == "hiding" or d.state == "fleeing" or d.state == "returning" then
+	if byCar or armed(player) or hurt or d.state == "hiding" or d.state == "fleeing" or d.state == "returning" then
 		react = "flee"
 	elseif (d.state == "fighting" and d.fightWith == player) or rnd() < fightChance then
 		react = "fight"

@@ -2479,6 +2479,9 @@ local function thinkOfficer(o: any)
 		return
 	end
 	o.pos = legPos(o, now())
+	if now() < (o.knockUntil or 0) then
+		return -- (knocked down: lying there / getting up, knockOfficer)
+	end
 	if o.unit and o.role == o.unit and o.state ~= "leave" then
 		local f = Police.unitThink[o.unit]
 		if f then
@@ -3267,9 +3270,47 @@ end
 -------------------------------------------------------------------------------------------------
 -- Tick (4 Hz from Law)
 -------------------------------------------------------------------------------------------------
+-- a hit on an officer on foot, every client plays it (NpcKnock, GwangalliNPCClient): a stagger (a beat's
+-- pause), or - a car hit harder than a bump - a fall: he stops where he is and no brain moves him until
+-- he is up again (thinkOfficer: knockUntil), so the body does not slide along the ground
+local knockHold: number? = nil -- s on the ground + getting up (GwangalliBumpShared), read once
+local function knockOfficer(o: any, dx: number, dz: number, fall: string)
+	if fall == "knockdown" then
+		if not knockHold then
+			local okB, B = pcall(function()
+				local m = ReplicatedStorage:FindFirstChild("GwangalliBumpShared")
+				return if m and m:IsA("ModuleScript") then require(m) :: any else nil
+			end)
+			local bs = if okB and type(B) == "table" then B else {}
+			knockHold = (tonumber(bs.KNOCK_DUR) or 1.4) + (tonumber(bs.GETUP_DUR) or 0.7) + 0.3
+		end
+		standAt(o, legPos(o, now()))
+		o.knockUntil = now() + (knockHold :: number)
+	else
+		o.pauseUntil = math.max(o.pauseUntil or 0, now() + 0.4)
+	end
+	o.model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", serverNow(), dx, dz, fall))
+end
+
+-- a car hit harder than a bump on a Law unit no hook of his own takes (Law/Swat 특임대, Law/Rescue 119
+-- crew on foot - GwangalliGameplay/Fight): he falls and is held for it. false = not one of ours here
+function Police.knockdown(id: string, dx: number, dz: number): boolean
+	for _, o in officers do
+		if o.id == id and not o.gone then
+			if o.seated or o.role == "crew" or not o.model then
+				return false
+			end
+			knockOfficer(o, dx or 0, dz or -1, "knockdown")
+			return true
+		end
+	end
+	return false
+end
+
 -- a hit on an officer (GwangalliGameplay/Fight: Fight.hitHooks["police_"], called before Fight notes
--- the 공무집행방해): he staggers, and once the case exists (deferred) he and the other officers stop
--- ordering and go for the takedown (제압) for LS.SUBDUE_S. Returns nil: Fight keeps its "arrest" reaction
+-- the 공무집행방해): he staggers (a car harder than a bump: he falls), and once the case exists
+-- (deferred) he and the other officers stop ordering and go for the takedown (제압) for LS.SUBDUE_S.
+-- Returns nil: Fight keeps its "arrest" reaction
 local function onOfficerHit(player: Player, id: string, info: any): (string?, string?)
 	local o = nil
 	for _, x in officers do
@@ -3289,8 +3330,9 @@ local function onOfficerHit(player: Player, id: string, info: any): (string?, st
 	if info and info.outcome == "ko" then
 		return nil, "" -- (he goes down: Fight -> Police.knocked; the others are on the attacker: violent)
 	end
-	o.model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", serverNow(), info and info.dx or 0, info and info.dz or -1, "stagger"))
-	o.pauseUntil = math.max(o.pauseUntil or 0, now() + 0.4)
+	-- (Fight passes a thrown car hit as "knockdown"; a KO went down above)
+	local fall = if info and info.attack == "car" and info.outcome == "knockdown" and o.role ~= "crew" then "knockdown" else "stagger"
+	knockOfficer(o, info and info.dx or 0, info and info.dz or -1, fall)
 	if now() - (o.hitSayT or -1e9) > 3 then
 		o.hitSayT = now()
 		say(o, pick(LS.LINES.subdue), 3)

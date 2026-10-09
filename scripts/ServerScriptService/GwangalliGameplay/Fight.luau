@@ -734,7 +734,17 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 			okK, did = pcall(NPC.knock, id, dx, dz, if outcome == "stagger" then "stagger" else "knockdown", player)
 		end
 		if not (okK and did == true) and not hooked and model and model.Parent then
-			model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", workspace:GetServerTimeNow(), dx, dz, "stagger"))
+			-- (a car harder than a bump into a Law unit on foot - 특임대, 119: Law/Police holds him for the
+			-- fall; a rig some other brain keeps walking only staggers)
+			local fell = false
+			local Pol = if lawRig and attack == "car" and outcome ~= "stagger" then lawPolice() else nil
+			if Pol and type(Pol.knockdown) == "function" then
+				local okF, res = pcall(Pol.knockdown, id, dx, dz)
+				fell = okF and res == true
+			end
+			if not fell then
+				model:SetAttribute("NpcKnock", string.format("%.2f|%.3f|%.3f|%s", workspace:GetServerTimeNow(), dx, dz, "stagger"))
+			end
 		end
 	end
 	-- (a car hit: the car lines - 운전 똑바로 해요! / 차가 사람을 쳤어요! - not the punch ones)
@@ -926,9 +936,12 @@ end
 
 -- a street pedestrian hit by this player's car (the client saw the contact): checked against the car
 -- the player really sits in and how fast it really goes
-local lastCarHit: { [Player]: number } = {}
+-- (per victim: a car through a couple / a group hits each of them in the same frame; at most
+-- CAR_HITS_PER_S of them a second per player, so a client cannot flood it)
+local CAR_HITS_PER_S = 6
+local lastCarHit: { [Player]: { at: { [string]: number }, w: number, n: number } } = {}
 local function onCarHit(player: Player, p: any)
-	if type(p) ~= "table" or type(p.id) ~= "string" then
+	if type(p) ~= "table" or type(p.id) ~= "string" or #p.id > 40 then
 		return
 	end
 	local seat = driverSeat(player)
@@ -937,7 +950,24 @@ local function onCarHit(player: Player, p: any)
 	if not seat or not root or not pos then
 		return
 	end
-	if now() - (lastCarHit[player] or 0) < 0.4 then
+	local t = now()
+	local hits = lastCarHit[player]
+	if not hits then
+		hits = { at = {}, w = t, n = 0 }
+		lastCarHit[player] = hits
+	end
+	if t - (hits.at[p.id] or -1e9) < 0.4 then
+		return
+	end
+	if t - hits.w >= 1 then
+		hits.w, hits.n = t, 0
+		for k, at in hits.at do
+			if t - at > 2 then
+				hits.at[k] = nil -- (only the last moments are kept)
+			end
+		end
+	end
+	if hits.n >= CAR_HITS_PER_S then
 		return
 	end
 	local okV, vel = pcall(function()
@@ -953,7 +983,8 @@ local function onCarHit(player: Player, p: any)
 	if sp < 5 or flat(pos, root.Position) > reach then
 		return
 	end
-	lastCarHit[player] = now()
+	hits.at[p.id] = t
+	hits.n += 1
 	onPunch(player, { kind = "ped", id = p.id, pos = p.pos, ptype = p.ptype, attack = "car", speed = sp, sn = p.sn, reach = reach, outcome = if sp < 15 then "stagger" elseif sp < 35 then "knockdown" else "thrown" }, true)
 end
 

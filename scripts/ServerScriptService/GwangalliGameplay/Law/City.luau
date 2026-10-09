@@ -269,7 +269,9 @@ function City.tick(dt: number)
 				end
 			end
 		end
-		if o then
+		if o and now() < (o.knockUntil or 0) then
+			-- (a car knocked him down: Law/Police holds him until he is up again)
+		elseif o then
 			o.pos = Pol.legPos(o, now())
 			local d = flat(o.pos, s.pos)
 			if inc.state == "flee" then

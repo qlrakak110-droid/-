@@ -100,7 +100,7 @@ end
 -- player state
 -------------------------------------------------------------------------------------------------
 local Delivery: any = nil -- GwangalliStreetLife/Delivery (배달 라이더 + rob state of street people)
-local P = { pos = nil :: Vector3?, vel = Vector3.zero, speed = 0, lastPos = nil :: Vector3?, lastT = 0, seat = nil :: BasePart?, look = Vector3.new(0, 0, -1), drive = false, manual = nil :: BasePart?, manualW = nil :: Instance?, manualNext = 0 }
+local P = { pos = nil :: Vector3?, vel = Vector3.zero, speed = 0, lastPos = nil :: Vector3?, lastT = 0, seat = nil :: BasePart?, look = Vector3.new(0, 0, -1), drive = false, manual = nil :: BasePart?, manualW = nil :: Instance?, manualNext = 0, body = nil :: BasePart? }
 -- the car this player drives (its DriveDriver is our UserId: watchCar), for a manual seating
 local ownCar: Model? = nil
 
@@ -800,12 +800,17 @@ end
 local function refreshCars()
 	table.clear(cars)
 	P.drive = drivesNow(P.seat)
+	P.body = nil
 	local pp = P.pos
 	if not pp then
 		return
 	end
 	if P.seat then
 		local m = vehicleModel(P.seat)
+		-- the rigged car's body box (base GwangalliVehicles/Rig: DriveCollider, x across / z along):
+		-- the per-frame contact is wherever the body is, not only around the driver's seat
+		local body = m and m:FindFirstChild("DriveCollider")
+		P.body = if body and body:IsA("BasePart") then body else nil
 		table.insert(cars, { pos = pp, vel = P.vel, speed = P.speed, horn = hornOn(m), key = "local", drive = P.drive })
 	end
 	-- taxis on their way (other players' rides, the local player's before boarding)
@@ -910,7 +915,9 @@ local function carReactions(now: number)
 									a.willBeHit = rnd() < fail
 									a.willBeHitT = now
 								end
-								if not a.willBeHit then
+								-- (a failed roll only holds for the driver's own car and only a while: any
+								-- other car - a taxi, another player's, our ride as a passenger - they dodge)
+								if not (c.key == "local" and c.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4) then
 									a:dive(now, px * s, pz * s, c.pos)
 								end
 							elseif miss < 4 then
@@ -925,7 +932,7 @@ local function carReactions(now: number)
 									a.willBeHit = rnd() < fail
 									a.willBeHitT = now
 								end
-								if not a.willBeHit and not (a.sitting or a.lying or a.sitGround) then
+								if not (c.key == "local" and c.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4) and not (a.sitting or a.lying or a.sitGround) then
 									-- step aside and look
 									a:nudge(px * s * 2.6, pz * s * 2.6, ttc + 1.2, 7)
 									a:lookAtPoint(c.pos, 1.5, now)
@@ -2730,6 +2737,20 @@ local function update(dt: number)
 	local seated = P.seat ~= nil
 	local carFast = seated and P.speed > 10
 	local contact = Config.ContactDist
+	-- the car's body this frame (refreshCars: P.body); lz below is measured toward its leading end
+	-- (-Z is its front; reversing: the back)
+	local body = P.body
+	local bodyCF: CFrame? = nil
+	local bodyHX, bodyHZ, bodyFZ, bodyReach = 0, 0, -1, 0
+	if seated and pp and body and body.Parent and P.speed > (Config.CarCrawl or 3) then
+		local cf = body.CFrame
+		local sz = body.Size
+		bodyCF = cf
+		bodyHX, bodyHZ = sz.X / 2, sz.Z / 2
+		bodyFZ = if cf:VectorToObjectSpace(P.vel).Z > 0 then 1 else -1
+		local ox, oz = cf.Position.X - pp.X, cf.Position.Z - pp.Z
+		bodyReach = math.sqrt(ox * ox + oz * oz) + math.sqrt(bodyHX * bodyHX + bodyHZ * bodyHZ) + 3.5
+	end
 	local n = 0
 	local i = 1
 	while i <= #agents do
@@ -2769,14 +2790,26 @@ local function update(dt: number)
 				local dx, dz = a.pos.X - pp.X, a.pos.Z - pp.Z
 				local d = math.sqrt(dx * dx + dz * dz)
 				a.dist = d
+				-- against the body box: touching = in it, at its side or just ahead of the leading end;
+				-- close = a step more (the last-moment dive)
+				local touch, close = false, false
+				if bodyCF and d < bodyReach then
+					local lp = bodyCF:PointToObjectSpace(Vector3.new(a.pos.X, bodyCF.Position.Y, a.pos.Z))
+					local lx, lz = math.abs(lp.X), lp.Z * bodyFZ
+					touch = lx <= bodyHX + 0.5 and lz >= -bodyHZ and lz <= bodyHZ + 0.8
+					close = lx <= bodyHX + 1.5 and lz >= -bodyHZ and lz <= bodyHZ + 3
+				end
 				if carFast then
-					if d < 4.5 and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 8 then
+					if (d < 4.5 or close) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 8 then
 						local sp = P.speed
 						local ux, uz = P.vel.X / sp, P.vel.Z / sp
-						-- (the contact is the car's front, a little ahead of the driver's seat)
+						-- (the contact is the car's body; with no body box: its front, a little ahead of the
+						-- driver's seat)
 						local bx, bz = dx - ux * 2.5, dz - uz * 2.5
-						local db = math.min(d, math.sqrt(bx * bx + bz * bz))
-						if P.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4 and db < 3.8 and now - (a.carHitAt or -1e9) > 3 then
+						local hitNow = if bodyCF then touch else math.min(d, math.sqrt(bx * bx + bz * bz)) < 3.8
+						-- (one who failed to get out of the way does not dive at the last moment either)
+						local doomed = P.drive and a.willBeHit and now - (a.willBeHitT or -1e9) < 4
+						if doomed and hitNow and now - (a.carHitAt or -1e9) > 3 then
 							-- hit by the player's car: the fall right here (the server decides the rest)
 							a.carHitAt = now
 							a.carHitSp = sp
@@ -2785,7 +2818,7 @@ local function update(dt: number)
 								a.carKnock = true
 								Crowd.carHit(a, sp)
 							end
-						else
+						elseif not doomed then
 							local px, pz = -P.vel.Z / sp, P.vel.X / sp
 							local s = if (dx * px + dz * pz) >= 0 then 1 else -1
 							a:dive(now, px * s, pz * s, pp)
@@ -2794,10 +2827,10 @@ local function update(dt: number)
 				elseif seated and P.drive and P.speed > (Config.CarCrawl or 3) then
 					-- crawling at the wheel (3-10 studs/s): a touch staggers them (the server: a light
 					-- hit from 5 studs/s on)
-					if d < 3.4 and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 6 and now - (a.carHitAt or -1e9) > 3 then
+					if (touch or d < 3.4) and a.mode ~= "dodge" and not a.knock and math.abs(a.pos.Y - pp.Y) < 6 and now - (a.carHitAt or -1e9) > 3 then
 						local sp = P.speed
 						local ux, uz = P.vel.X / sp, P.vel.Z / sp
-						if dx * ux + dz * uz > -0.5 then
+						if (if bodyCF then touch else dx * ux + dz * uz > -0.5) then
 							a.carHitAt = now
 							a.carHitSp = sp
 							a.willBeHit = false
