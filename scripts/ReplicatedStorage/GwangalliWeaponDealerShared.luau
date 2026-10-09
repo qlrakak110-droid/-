@@ -19,7 +19,7 @@
 --   2) instances in ServerStorage.GwangalliWeaponShop (Folder; the dealer makes the folder and the events):
 --        RequestWeaponShop  BindableEvent    dealer -> shop: (player, req)
 --        WeaponShopResult   BindableEvent    shop -> dealer: (player, requestId, ok, reason?)
---        WeaponShopCancel   BindableEvent    dealer -> shop: (player, { requestId?, dealerId, reason })
+--        WeaponShopCancel   BindableEvent    dealer -> shop: (player, { requestId, dealerId, reason })
 --        WeaponShopClosed   BindableEvent    shop -> dealer: (player)   the shop UI was closed by the player
 --        Folder attribute   Ready = true     the shop system sets it once it listens (without it the dealer
 --                                            says "물건이 없다" and sends NO request)
@@ -29,7 +29,9 @@
 --   * open OpenWeaponShopUI only for a request it accepted (request() returned ok, or it called result(.., true));
 --     an accepted request the dealer no longer wants (the talk closed meanwhile) comes back as a CANCEL
 --     (reason "expired") — close the UI then.
---   * on CANCEL close the shop UI for that player at once. Reasons: "attacked" (the player hit the dealer),
+--   * on CANCEL close the shop UI only if the UI open for this player was opened for info.requestId; a CANCEL
+--     for any other requestId only marks that id dead (never open it later) and must not touch the shop that is
+--     open now. Reasons: "attacked" (the player hit the dealer),
 --     "gunfire" (shots / SWAT / 총격전 nearby), "police" (an officer / police car / player cop right there),
 --     "brawl", "left" (walked away / left the game), "respawn", "timeout", "closed", "expired", "busy".
 --   * a CANCEL can arrive while request() is still running (timeout, danger, the talk closed): never open the

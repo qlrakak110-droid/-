@@ -165,6 +165,8 @@ local L = {
 	},
 	mutter = { "...", "(주변을 살핀다)", "오늘따라 조용하네.", "(폰을 확인한다)", "짭새는 안 보이고...", "장사가 영 시원찮네." },
 	ok_tail = { "조용히 보고 가.", "천천히 골라.", "빨리 보고 가." },
+	wait = { "잠깐. 확인해 볼게.", "(폰을 확인한다)", "...기다려 봐.", "잠깐만. 물건 있나 보자." },
+	back_attack = { "...갔나.", "(주변을 살핀다)", "...미친놈." },
 	already = { "보고 있잖아. 천천히 골라.", "골랐으면 말해.", "아직 보는 중이잖아." },
 	after_buy = { "탈 없게 써라.", "조용히 다녀.", "어디서 샀는지는 잊어라." },
 	after_look = { "다 봤으면 가 봐.", "필요한 거 생기면 또 와.", "구경만 할 거면 다음엔 그냥 가." },
@@ -698,6 +700,28 @@ local function goTo(d: Dealer, p: Vector3, speed: number)
 	end
 end
 
+-- a short leg straight to p when he can see it (the nav graph would take him down the car alley)
+local function walkTo(d: Dealer, p: Vector3, speed: number)
+	local cur = curPos(d)
+	if P and type(P.moveAlong) == "function" and flat(cur, p) <= 48 then
+		local up = Vector3.new(0, 2.5, 0)
+		local clear = true
+		if type(P.losClear) == "function" then
+			local ok, c = pcall(P.losClear, cur + up, p + up)
+			clear = not ok or c
+		end
+		if clear then
+			d.o.pos = cur
+			local ok = pcall(P.moveAlong, d.o, { cur, p }, speed)
+			if ok then
+				d.o.goal = p
+				return
+			end
+		end
+	end
+	goTo(d, p, speed)
+end
+
 local function arrived(d: Dealer): boolean
 	if P and type(P.arrived) == "function" then
 		local ok, a = pcall(P.arrived, d.o)
@@ -952,6 +976,7 @@ local function sendSheet(player: Player, dlg: any, text: string, choices: { any 
 	dlg.lastSent = now()
 	dlg.lastText = text
 	dlg.lastChoices = choices
+	dlg.origin = posOf(player) -- (the client closes the sheet by itself 24 studs from here)
 	local Rm = ctx.remotes and ctx.remotes.Dialog
 	if Rm and player.Parent == Players then
 		Rm:FireClient(player, {
@@ -966,14 +991,35 @@ local function sendSheet(player: Player, dlg: any, text: string, choices: { any 
 	end
 end
 
+-- another module's dialog is (probably) on this player's screen now: our closes must not hide it
+local function otherSheet(player: Player, dlg: any?): boolean
+	if dlg and dlg.replaced then
+		return true
+	end
+	local B = ctx and ctx.bump
+	if B and type(B.hasDialog) == "function" then
+		local ok, has = pcall(B.hasDialog, player)
+		if ok and has then
+			return true
+		end
+	end
+	return false
+end
+
 local function closeSheet(player: Player, keepTrading: boolean?, reason: string?, silent: boolean?)
 	local dlg = dialogs[player]
 	if not dlg then
 		return
 	end
+	silent = silent or otherSheet(player, dlg)
 	dialogs[player] = nil
 	local d = dlg.dealer
 	releaseSlots(d, player)
+	if player.Parent == Players then
+		local rN = recOf(player, d.id)
+		rN.noticeT = now()
+		rN.noticeArmed = false
+	end
 	-- a request still in flight for this sheet is dropped (the shop must not open for a closed talk)
 	if dlg.reqId and pending[dlg.reqId] and not keepTrading then
 		cancelShop(player, d, reason or "closed", dlg.reqId)
@@ -992,6 +1038,11 @@ end
 
 -- a final line in the sheet (only 닫기), closing by itself a moment later
 local function endWith(player: Player, dlg: any, text: string, secs: number?)
+	if otherSheet(player, dlg) then
+		say(dlg.dealer, text, 3)
+		closeSheet(player, nil, nil, true)
+		return
+	end
 	sendSheet(player, dlg, text, nil)
 	say(dlg.dealer, text, 3)
 	dlg.closing = true
@@ -1084,6 +1135,11 @@ local function openTalk(player: Player, d: Dealer)
 	local pp = posOf(player)
 	if not pp or flat(pp, curPos(d)) > CFG.TALK_R then
 		return
+	end
+	do
+		local rN = recOf(player, d.id)
+		rN.noticeT = now()
+		rN.noticeArmed = false -- (talking to him counts as having been noticed)
 	end
 	local trOpen = trading[player]
 	if trOpen and trOpen.dealer == d then
@@ -1210,7 +1266,8 @@ local function finishRequest(reqId: string, ok: boolean, reason: string?)
 			rec.dealT = now()
 			relEvent(player, d.id, rec, "deal")
 		end
-		say(d, dlg.offerLine or pickLine(L.ok_tail, rec), 3.2)
+		local pool = (dlg.offer == "special" and L.special.mafia) or (L[dlg.offer or "basic"] and L[dlg.offer or "basic"][dlg.tier]) or L.basic.curt
+		say(d, pickLine(pool, rec), 3.4)
 	else
 		local list = L.reason[reason or "default"] or L.reason.default
 		endWith(player, dlg, pickLine(list, rec), 3.4)
@@ -1229,6 +1286,10 @@ local function dispatch(player: Player, d: Dealer, dlg: any, req: any)
 	local danger = dangerAt(d.home, player)
 	if danger then
 		endWith(player, dlg, dangerLine(danger, rec), 3)
+		return
+	end
+	if now() < (d.policeUntil or 0) then
+		endWith(player, dlg, pickLine(L.police, rec), 3)
 		return
 	end
 	if armed(player) then
@@ -1309,12 +1370,10 @@ local function requestShop(player: Player, d: Dealer, dlg: any, offer: string)
 		at = os.time(),
 	}
 	dlg.step = "wait"
-	-- the offer line (normal / mafia) gets a moment on the sheet before the shop takes over
-	local pool = (offer == "special" and L.special.mafia) or (L[offer] and L[offer][dlg.tier]) or L.basic.curt
-	local line = pickLine(pool, rec)
-	dlg.offerLine = line
+	dlg.offer = offer
+	-- a neutral line while the shop answers (the normal / mafia offer line comes with the yes)
+	local line = pickLine(L.wait, rec)
 	sendSheet(player, dlg, line, nil)
-	say(d, line, 3)
 	local beat = math.clamp(0.5 + (utf8.len(line) or 10) * 0.05, 0.9, 1.6)
 	task.delay(beat, function()
 		local ok, err = pcall(dispatch, player, d, dlg, req)
@@ -1361,6 +1420,10 @@ local function onChoice(player: Player, dlg: any, choiceId: string)
 		endWith(player, dlg, dangerLine(danger, rec), 3.2)
 		return
 	end
+	if now() < (d.policeUntil or 0) then
+		endWith(player, dlg, pickLine(L.police, rec), 3.2)
+		return
+	end
 	if armed(player) then
 		endWith(player, dlg, pickLine(L.armed, rec), 3.4)
 		return
@@ -1398,10 +1461,20 @@ local function onChoice(player: Player, dlg: any, choiceId: string)
 		})
 		return
 	end
-	-- show
-	if tier == "rough" and rnd() < 0.5 then
-		endWith(player, dlg, pickLine(L.rough_refuse, rec), 3.2)
-		return
+	-- show (rough: one roll per visit window, so asking again does not flip it)
+	if tier == "rough" then
+		local t = now()
+		if (rec.roughNoUntil or 0) <= t and (rec.roughYesUntil or 0) <= t then
+			if rnd() < 0.5 then
+				rec.roughNoUntil = t + 60 + (1 - PERS.patience) * 240
+			else
+				rec.roughYesUntil = t + 120
+			end
+		end
+		if t < (rec.roughNoUntil or 0) then
+			endWith(player, dlg, pickLine(L.rough_refuse, rec), 3.2)
+			return
+		end
 	end
 	if not systemReady() then
 		endWith(player, dlg, pickLine(L.none, rec), 3.4)
@@ -1501,6 +1574,8 @@ end
 
 local function hide(d: Dealer, why: string, from: Vector3?)
 	local t = now()
+	d.leftFor = "gunfire"
+	d.fledFrom = nil
 	d.scaredAt = t
 	d.scaredUntil = t + CFG.HIDE_QUIET_S
 	if d.state == "hiding" or d.state == "fleeing" then
@@ -1527,12 +1602,15 @@ local function hide(d: Dealer, why: string, from: Vector3?)
 		spot = d.home + away.Unit * 35
 	end
 	d.hideSpot = spot
-	goTo(d, spot, CFG.RUN)
+	walkTo(d, spot, CFG.RUN)
 	dbg("hide", d.id, why)
 end
 
-local function flee(d: Dealer, from: Vector3?)
+local function flee(d: Dealer, from: Vector3?, by: Player?)
 	stopFight(d)
+	d.leftFor = "attack"
+	d.fledFrom = by
+	d.fledAt = now()
 	d.state = "fleeing"
 	d.scaredAt = now()
 	d.scaredUntil = now() + 35
@@ -1549,7 +1627,7 @@ local function flee(d: Dealer, from: Vector3?)
 		spot = d.home + (if away.Magnitude > 0.1 then away.Unit else Vector3.new(0, 0, 1)) * 40
 	end
 	d.hideSpot = spot
-	goTo(d, spot, CFG.RUN)
+	walkTo(d, spot, CFG.RUN)
 end
 
 -- his own swings while he fights back (FightShared damage; never below PLAYER_MIN_HP)
@@ -1612,7 +1690,7 @@ local function fightBack(d: Dealer, player: Player)
 			end
 			stopFight(d)
 			d.state = "returning"
-			goTo(d, d.home, CFG.WALK)
+			walkTo(d, d.home, CFG.WALK)
 		end
 	end)
 end
@@ -1622,20 +1700,26 @@ local function onAttacked(player: Player, d: Dealer, info: any?): (string, strin
 	local t = now()
 	local rec = recOf(player, d.id)
 	local shove = info and info.attack == "shove"
-	rec.hits += 1
+	-- one scuffle is one attack: more punches inside it only keep the block going
+	local cont = (rec.hitT and t - rec.hitT < 10) or d.fightWith == player or ((d.state == "fleeing" or d.state == "hiding") and d.fledFrom == player)
 	rec.hitT = t
-	relEvent(nil, nil, rec, "hit", if shove then 0.4 else 1)
 	rec.tradeBlockUntil = math.max(rec.tradeBlockUntil, t + CFG.TRADE_BLOCK_S)
-	saveRec(player, d.id, rec)
-	-- word gets around: the other dealers are colder and refuse this player for a while
-	for _, o in dealers do
-		if o ~= d then
-			local r2 = recOf(player, o.id)
-			relEvent(nil, nil, r2, "provoke", if shove then 0.3 else 0.8)
-			r2.rumourUntil = math.max(r2.rumourUntil, t + CFG.RUMOUR_BLOCK_S)
-			saveRec(player, o.id, r2)
+	if cont then
+		relEvent(nil, nil, rec, "hit", 0.15)
+	else
+		rec.hits += 1
+		relEvent(nil, nil, rec, "hit", if shove then 0.4 else 1)
+		-- word gets around: the other dealers are colder and refuse this player for a while
+		for _, o in dealers do
+			if o ~= d then
+				local r2 = recOf(player, o.id)
+				relEvent(nil, nil, r2, "provoke", if shove then 0.3 else 0.8)
+				r2.rumourUntil = math.max(r2.rumourUntil, t + CFG.RUMOUR_BLOCK_S)
+				saveRec(player, o.id, r2)
+			end
 		end
 	end
+	saveRec(player, d.id, rec)
 	-- the attacker's talk / request / shop with him ends ("attacked" with the request id)
 	if dialogs[player] and dialogs[player].dealer == d then
 		closeSheet(player, nil, "attacked")
@@ -1663,10 +1747,24 @@ local function onAttacked(player: Player, d: Dealer, info: any?): (string, strin
 		react = "flee"
 	end
 	local line
+	local quiet = cont and now() - (d.lastHitLine or 0) < 2.8 -- (no new shout on every punch)
+	local others = false
+	for p2, dl in dialogs do
+		if dl.dealer == d and p2 ~= player then
+			others = true
+		end
+	end
+	for p2, tr in trading do
+		if tr.dealer == d and p2 ~= player then
+			others = true
+		end
+	end
 	if react == "fight" then
 		line = pickLine(L.fight, rec)
 		-- the other customers: business is over for now
-		endTalksWith(d, pickLine(L.brawl, d.amb), "brawl")
+		if others then
+			endTalksWith(d, pickLine(L.brawl, d.amb), "brawl")
+		end
 		if d.state == "fighting" and d.fightWith == player then
 			d.fightUntil = now() + 5
 		else
@@ -1675,10 +1773,17 @@ local function onAttacked(player: Player, d: Dealer, info: any?): (string, strin
 		end
 	else
 		line = pickLine(L.flee, rec)
-		endTalksWith(d, pickLine(L.brawl, d.amb), "brawl") -- (the other customers did nothing)
-		flee(d, pp)
+		if others then
+			endTalksWith(d, pickLine(L.brawl, d.amb), "brawl") -- (the other customers did nothing)
+		end
+		if d.state ~= "fleeing" then
+			flee(d, pp, player)
+		end
 	end
-	say(d, line, 2.6)
+	if not quiet then
+		d.lastHitLine = now()
+		say(d, line, 2.6)
+	end
 	dbg("attacked", player.Name, d.id, react, "rel", relOf(rec))
 	return react, line
 end
@@ -1702,9 +1807,16 @@ local function tickDealer(d: Dealer, t: number)
 		return
 	end
 	if d.state == "hiding" or d.state == "fleeing" then
+		-- after an attack: not back while the attacker hangs around his corner (at most 150 s)
+		if d.leftFor == "attack" and d.fledFrom and d.fledFrom.Parent == Players then
+			local ap = posOf(d.fledFrom)
+			if ap and flat(ap, d.home) < 20 and t - (d.fledAt or t) < 150 then
+				d.scaredUntil = math.max(d.scaredUntil or 0, t + 5)
+			end
+		end
 		if t > (d.scaredUntil or 0) and arrived(d) then
 			d.state = "returning"
-			goTo(d, d.home, CFG.WALK)
+			walkTo(d, d.home, CFG.WALK)
 		end
 		return
 	end
@@ -1714,8 +1826,9 @@ local function tickDealer(d: Dealer, t: number)
 			standHome(d)
 			setPrompt(d, true)
 			if now() - (d.lastSay or 0) > 20 then
-				say(d, pickLine(L.back, d.amb), 2.6)
+				say(d, pickLine(if d.leftFor == "attack" then L.back_attack else L.back, d.amb), 2.6)
 			end
+			d.leftFor, d.fledFrom = nil, nil
 		end
 		return
 	end
@@ -1723,7 +1836,7 @@ local function tickDealer(d: Dealer, t: number)
 		if not d.fightWith then
 			-- (a fight that ended without its own tail: home)
 			d.state = "returning"
-			goTo(d, d.home, CFG.WALK)
+			walkTo(d, d.home, CFG.WALK)
 		end
 		return
 	end
@@ -1771,13 +1884,20 @@ local function tickDealer(d: Dealer, t: number)
 	else
 		d.policeSince = nil
 	end
+	if t < (d.policeUntil or 0) then
+		lyingLow = true -- (no idle chatter / greetings while new customers are still turned away)
+	end
 	-- open sheets: walked off / idle too long
 	for player, dlg in dialogs do
 		if dlg.dealer == d then
 			local pp = posOf(player)
 			local limit = if dlg.step == "wait" or dlg.step == "checking" or dlg.step == "opening" then CFG.WAIT_CLOSE_S else CFG.IDLE_CLOSE_S
-			if player.Parent ~= Players or not pp or flat(pp, curPos(d)) > CFG.TALK_R then
-				closeSheet(player, nil, "left", true) -- (the client sheet closes itself when he walks off)
+			if player.Parent ~= Players or not pp then
+				closeSheet(player, nil, "left", true)
+			elseif flat(pp, curPos(d)) > CFG.TALK_R then
+				-- the client hides the sheet by itself 24 studs from where it was last shown; before that, tell it
+				local gone = dlg.origin and (pp - dlg.origin).Magnitude > 23
+				closeSheet(player, nil, "left", gone)
 			elseif t - (dlg.lastSent or dlg.opened) > limit then
 				closeSheet(player)
 			elseif pp and d.talkingWith == player then
@@ -1811,12 +1931,20 @@ local function tickDealer(d: Dealer, t: number)
 		end
 	end
 	if not talking then
+		d.away = d.away or {}
 		for _, pl in Players:GetPlayers() do
 			local pp = posOf(pl)
 			local hum = pl.Character and pl.Character:FindFirstChildOfClass("Humanoid")
-			if pp and not (hum and hum.SeatPart) and flat(pp, d.home) < CFG.NOTICE_R and math.abs(pp.Y - d.home.Y) < 8 then
+			if not pp or flat(pp, d.home) > CFG.NOTICE_R + 4 then
+				d.away[pl] = true -- (left his corner: the next walk-up is a new arrival)
+			elseif not (hum and hum.SeatPart) and flat(pp, d.home) < CFG.NOTICE_R and math.abs(pp.Y - d.home.Y) < 8 then
 				local rec = recOf(pl, d.id)
-				if t - rec.noticeT > CFG.NOTICE_COOLDOWN and t - (d.lastSay or 0) > 6 then
+				if d.away[pl] then
+					d.away[pl] = nil
+					rec.noticeArmed = true
+				end
+				if rec.noticeArmed ~= false and t - rec.noticeT > CFG.NOTICE_COOLDOWN and t - (d.lastSay or 0) > 6 then
+					rec.noticeArmed = false
 					rec.noticeT = t
 					local tier = tierOf(rec, (mafiaOf(pl, nil)))
 					faceTo(d, pp)
@@ -1943,6 +2071,8 @@ function WeaponDealer.closed(player: Player)
 		trading[player] = nil
 		releaseSlots(tr.dealer, player)
 		local rec = recOf(player, tr.dealer.id)
+		rec.noticeT = now()
+		rec.noticeArmed = false
 		say(tr.dealer, pickLine(if rec.boughtT >= tr.t then L.after_buy else L.after_look, rec), 2.8)
 	end
 	return true
@@ -2123,11 +2253,17 @@ function WeaponDealer.onLeave(player: Player)
 	trading[player] = nil
 	for _, d in dealers do
 		releaseSlots(d, player)
+		if d.away then
+			d.away[player] = nil
+		end
+		if d.fledFrom == player then
+			d.fledFrom = nil
+		end
 		if d.fightWith == player then
 			stopFight(d)
 			if d.state == "fighting" then
 				d.state = "returning"
-				goTo(d, d.home, CFG.WALK)
+				walkTo(d, d.home, CFG.WALK)
 			end
 		end
 	end
@@ -2254,6 +2390,7 @@ function WeaponDealer.init(context: any)
 			end
 			if type(payload) == "table" and type(payload.npcId) == "string" and payload.npcId ~= dlg.dealer.id then
 				-- another module's dialog replaced our sheet on the client: end ours without a client close
+				dlg.replaced = true
 				closeSheet(player, nil, "closed", true)
 				return
 			end
