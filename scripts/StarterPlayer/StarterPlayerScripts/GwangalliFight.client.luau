@@ -236,6 +236,15 @@ local function onEvent(p: any)
 				(mapi :: BindableFunction):Invoke("incident", p.what, { pos = at, id = p.id })
 			end)
 		end
+	elseif p.kind == "crime" and type(p.crime) == "string" then
+		-- a crime this module noted (a hit, a car hit, a KO): the street crowd around reacts by
+		-- personality (GwangalliStreetLife Mind.onCrime; a witness who calls 112 reports it)
+		local mapi = player:FindFirstChild("GwangalliMindAPI")
+		if mapi and mapi:IsA("BindableFunction") then
+			pcall(function()
+				(mapi :: BindableFunction):Invoke("crime", { crime = p.crime, pos = p.pos, victim = p.victim })
+			end)
+		end
 	elseif p.kind == "gunfire" and type(p.pos) == "table" then
 		street("gunfire", p.pos[1], p.pos[2], p.pos[3])
 	elseif p.kind == "ems" and type(p.id) == "string" then

@@ -92,20 +92,21 @@ local function law(): any
 	return ctx and ctx.law
 end
 
--- the player may fight: alive, not cuffed / in jail / riding / working a shift
-local function canAct(player: Player): (boolean, string?)
+-- the player may fight: alive, not cuffed / in jail / riding / working a shift. inCar = the player's own
+-- car hit somebody (onCarHit checked the driver's seat): sitting at the wheel, even on a shift, counts
+local function canAct(player: Player, inCar: boolean?): (boolean, string?)
 	local ch = player.Character
 	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
 	if not hum or hum.Health <= 0 then
 		return false, "dead"
 	end
-	if hum.Sit or hum.SeatPart then
+	if not inCar and (hum.Sit or hum.SeatPart) then
 		return false, "seated"
 	end
 	if player:GetAttribute("LawCuffed") or ((player:GetAttribute("LawJail") or 0) :: number) > 0 then
 		return false, "cuffed"
 	end
-	if player:GetAttribute("OnShift") or player:GetAttribute("InTaxi") then
+	if player:GetAttribute("InTaxi") or (not inCar and player:GetAttribute("OnShift")) then
 		return false, "busy"
 	end
 	return true, nil
@@ -302,7 +303,12 @@ local function noteCrime(player: Player, id: string, kind: string, pos: Vector3,
 		return -- one 폭행 per victim and minute (a flurry of punches is one assault)
 	end
 	lastCrime[player][key] = now()
-	pcall(L.crime, player, kind, { pos = pos, victim = id, victimName = c and c.name or nil, source = "fight", police = police })
+	local ok, noted = pcall(L.crime, player, kind, { pos = pos, victim = id, victimName = c and c.name or nil, source = "fight", police = police })
+	if ok and noted == true then
+		-- the street crowd around saw it too (GwangalliStreetLife Mind.onCrime: flee / watch / film / call
+		-- 112 by personality and severity; their call is Law.report)
+		send(player, { kind = "crime", crime = kind, pos = { pos.X, pos.Y, pos.Z }, victim = id })
+	end
 end
 
 local function award(player: Player, id: string)
@@ -325,7 +331,9 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	if type(p) ~= "table" or type(p.id) ~= "string" or #p.id > 40 then
 		return nil
 	end
-	local ok, why = canAct(player)
+	-- (only server code may claim a car hit: onCarHit checked the seat and the speed)
+	local carHit = trusted == true and p.attack == "car"
+	local ok, why = canAct(player, carHit)
 	if not ok then
 		send(player, { kind = "miss", reason = why })
 		return nil
@@ -358,8 +366,11 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 	if trusted and not pos then
 		pos = root.Position + root.CFrame.LookVector * 2 -- (the caller checked the reach itself)
 	end
-	-- a landed hit is close: anything farther is no hit at all (reach + client lag)
-	if not pos or flat(pos, root.Position) > FS.RANGE + 1.5 or math.abs(pos.Y - root.Position.Y) > 6 then
+	-- a landed hit is close: anything farther is no hit at all (reach + client lag; a car hit: the bounds
+	-- onCarHit / the client check, the server copy of a moving car lags the client's contact point and
+	-- the driver sits higher than a walker's feet)
+	local reach = if carHit then 14 else FS.RANGE + 1.5
+	if not pos or flat(pos, root.Position) > reach or math.abs(pos.Y - root.Position.Y) > (if carHit then 8 else 6) then
 		send(player, { kind = "miss", reason = "far" })
 		return nil
 	end
@@ -469,14 +480,8 @@ local function onPunch(player: Player, p: any, trusted: boolean?): any?
 			hospital[id] = os.time() + FS.HOSPITAL_S
 			broadcastDown()
 		end
-		local L = law()
-		if L then
-			task.delay(2.5, function()
-				if player.Parent then
-					pcall(L.report, player, "witness", pos)
-				end
-			end)
-		end
+		-- (no call of its own: the people around who saw it call (the crowd's KO bystander, the justice
+		-- witnesses, Mind.onCrime via noteCrime), else the kill's chance of an unseen caller (Law.crime))
 	elseif react == "report" then
 		local L = law()
 		if L then

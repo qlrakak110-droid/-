@@ -1539,7 +1539,7 @@ local function witnessReact(a: any, kind: string, pos: Vector3, now: number)
 	end
 end
 
-local CRIME_SEVERITY = { assault = 3, assault_police = 3, shove = 2, threat = 2, bumps = 2, insult_police = 1, flee = 1, bribe = 1 }
+local CRIME_SEVERITY = { kill = 3, assault = 3, assault_police = 3, reckless = 2, shove = 2, threat = 2, bumps = 2, insult_police = 1, flee = 1, bribe = 1 }
 function Mind.onCrime(msg: any)
 	local pos = msg.pos and Vector3.new(msg.pos[1], msg.pos[2], msg.pos[3]) or playerPos()
 	if not pos then
@@ -1570,7 +1570,8 @@ function Mind.onCrime(msg: any)
 			local c = a.c or { id = a.id, type = a.type, persona = "uni" }
 			local kind = M.witness(c, sev, rnd)
 			task.delay(0.2 + rnd() * 0.9, function()
-				if not a.gone then
+				-- (meanwhile somebody else may have taken them: the KO bystander's call, a justice witness)
+				if not a.gone and not a.knock and (not a.ctl or a.ctl.kind == "watch") then
 					witnessReact(a, kind, pos, os.clock())
 				end
 			end)
@@ -2500,6 +2501,14 @@ function Mind.start()
 			elseif method == "incident" then
 				-- 생활콘텐츠 -> NPC (GwangalliFight relays the server's GwangalliNPCEvents)
 				return Mind.incident(...)
+			elseif method == "crime" then
+				-- a crime from the fight path (GwangalliFight relays it): the witnesses around react
+				local msg = ...
+				if type(msg) == "table" and type(msg.crime) == "string" then
+					Mind.onCrime(msg)
+					return true
+				end
+				return false
 			elseif method == "nearest" then
 				-- GwangalliLaw (소매치기): the closest pedestrian within reach and whether we stand behind them
 				local pp = playerPos()

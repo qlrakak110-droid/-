@@ -7,8 +7,10 @@
 --     shoves, hits, bribes, bumps; GwangalliGameplay.Mind routes its own crime() here), the petty /
 --     organised crimes (Crimes), the driving watch (stolen cars, ramming a patrol car). A crime the
 --     police did not see waits for a REPORT (신고): a witness on a client (MindTalk "report" -> Law.report),
---     the victim, or the automatic call after LS.CRIMES[kind].report seconds. Only a reported crime adds
---     stars and dispatches the police (to where it happened — not to where the suspect is now).
+--     the victim, or the automatic call after LS.CRIMES[kind].report seconds — for the street kinds only
+--     with the chance LS.CRIMES[kind].call (somebody out of sight phoned it in), so a crime nobody saw
+--     may never be reported (dropped after Law.report's 60 s window). Only a reported crime adds stars
+--     and dispatches the police (to where it happened — not to where the suspect is now).
 --   * WANTED: stars 0..5 with the attributes in LS.Attr (GwangalliWanted for the HUDs + the legacy
 --     Wanted / PoliceChase / Arrested mirrors that Housing / GwangalliTravel read). Stars only drop while
 --     no officer (NPC or player cop) has seen the suspect for TIERS[stars].search seconds (faster when the
@@ -471,10 +473,15 @@ function Law.crime(player: Player, kind: string, info: any?): boolean
 		local lo, hi = def.report[1], def.report[2]
 		-- at night fewer people call at once; a crowd calls sooner (the client witnesses call Law.report)
 		local delay = lo + math.random() * (hi - lo)
+		local call = def.call -- (nil = somebody always calls in the end)
 		if Law.isNight() then
 			delay *= 1.2
+			call = call and call * 0.8
 		end
-		entry.due = now() + delay
+		-- the call from out of sight is only a chance: without it a witness or the victim must report it
+		if not call or math.random() < call then
+			entry.due = now() + delay
+		end
 		table.insert(s.pending, entry)
 		if not info.silent then
 			Law.push(player, { kind = "toast", text = "👀 누가 봤을지도 몰라요… (" .. def.label .. ")" })
@@ -942,6 +949,8 @@ local function wantedTick(player: Player, s: any)
 			if e.due and now() >= e.due then
 				table.remove(s.pending, i)
 				report(player, s, e, "call")
+			elseif not e.due and now() - e.t > 60 then
+				table.remove(s.pending, i) -- nobody called it in (Law.report's window): it stays unreported
 			end
 		end
 	end

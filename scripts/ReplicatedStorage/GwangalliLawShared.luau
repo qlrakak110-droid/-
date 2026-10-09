@@ -41,22 +41,25 @@ Law.MAX_STARS = 5
 -------------------------------------------------------------------------------------------------
 -- Crimes. stars = added to the current level (capped), min = the level is at least this,
 -- report = needs a witness / victim report before the police know (seconds until the call when nobody
--- reports earlier: {min, max}; nil = the police know at once, e.g. an officer was hit), sev = severity
--- points for the sentence, fine = 원 added to the episode's fine, label = 전과 text.
+-- reports earlier: {min, max}; nil = the police know at once, e.g. an officer was hit), call = the chance
+-- that somebody out of sight (a window above, a passer-by round the corner) phones it in after that delay
+-- (x0.8 at night; nil = always). When that roll fails only a real witness or the victim reports it
+-- (Law.report, within 60 s) — a crime nobody saw may stay unreported. sev = severity points for the
+-- sentence, fine = 원 added to the episode's fine, label = 전과 text.
 -------------------------------------------------------------------------------------------------
 Law.CRIMES = {
 	-- street (the Mind conversation / bumps)
 	insult_police = { stars = 1, sev = 1, fine = 20000, label = "공무원 모욕" },
-	threat = { stars = 1, sev = 1, fine = 30000, label = "협박", report = { 6, 14 } },
-	shove = { stars = 1, sev = 1, fine = 20000, label = "폭행 (밀침)", report = { 8, 18 } },
-	assault = { stars = 1, min = 1, sev = 2, fine = 50000, label = "폭행", report = { 4, 12 } },
-	kill = { stars = 2, min = 3, sev = 6, fine = 400000, label = "폭행치사 (사람이 쓰러짐)", report = { 1, 4 } },
+	threat = { stars = 1, sev = 1, fine = 30000, label = "협박", report = { 6, 14 }, call = 0.3 },
+	shove = { stars = 1, sev = 1, fine = 20000, label = "폭행 (밀침)", report = { 8, 18 }, call = 0.35 },
+	assault = { stars = 1, min = 1, sev = 2, fine = 50000, label = "폭행", report = { 4, 12 }, call = 0.6 },
+	kill = { stars = 2, min = 3, sev = 6, fine = 400000, label = "폭행치사 (사람이 쓰러짐)", report = { 1, 4 }, call = 0.85 },
 	assault_police = { stars = 2, min = 2, sev = 4, fine = 150000, label = "공무집행방해 (경찰 폭행)" },
 	bribe = { stars = 1, sev = 2, fine = 50000, label = "뇌물 공여" },
 	flee = { stars = 1, sev = 1, fine = 40000, label = "도주" },
 	resist = { stars = 1, sev = 2, fine = 60000, label = "체포 불응" },
-	bumps = { stars = 1, sev = 1, fine = 20000, label = "난동", report = { 6, 16 } },
-	-- petty crimes (Law.SMALL)
+	bumps = { stars = 1, sev = 1, fine = 20000, label = "난동", report = { 6, 16 }, call = 0.4 },
+	-- petty crimes (Law.SMALL): no call chance here, Crimes rolls its own (CCTV, noticed afterwards)
 	shoplift = { stars = 1, sev = 1, fine = 30000, label = "절도 (편의점)", report = { 3, 10 } },
 	pickpocket = { stars = 1, sev = 1, fine = 40000, label = "소매치기", report = { 5, 14 } },
 	bike_theft = { stars = 1, sev = 1, fine = 30000, label = "자전거 절도", report = { 10, 24 } },
@@ -73,7 +76,7 @@ Law.CRIMES = {
 	smuggling = { stars = 3, min = 3, sev = 5, fine = 300000, label = "밀수" },
 	turf = { stars = 3, min = 3, sev = 4, fine = 200000, label = "조직 간 충돌" },
 	-- driving
-	reckless = { stars = 1, sev = 1, fine = 30000, label = "난폭 운전", report = { 6, 14 } },
+	reckless = { stars = 1, sev = 1, fine = 30000, label = "난폭 운전", report = { 6, 14 }, call = 0.45 },
 	ram_police = { stars = 2, min = 2, sev = 3, fine = 150000, label = "경찰차 충돌" },
 }
 
