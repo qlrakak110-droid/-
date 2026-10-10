@@ -1235,12 +1235,16 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		local toT = Vector3.new(toLoc.point.X - cp.X, 0, toLoc.point.Z - cp.Z)
 		local straight = toT.Magnitude
 		local fwd = if straight > 0.1 then toT.Unit:Dot(dir) else 0
+		-- (the target itself - the suspect, a spot - well up the road ahead of the car)
+		local posAhead = toP.Magnitude > 1 and toP.Unit:Dot(dir) > 0.8
 		local noTurn = false
-		if straight > 1 and fwd > 0.8 and straight < 110 and bestLen > straight * 2.2 + 120 and math.abs(toT:Dot(D.rightOf(dir))) < 14 and losClear(cp + Vector3.new(0, 2.5, 0), toLoc.point + Vector3.new(0, 2.5, 0)) then
+		if straight > 1 and (fwd > 0.8 or (posAhead and fwd > 0)) and straight < 110 and bestLen > straight * 2.2 + 120 and math.abs(toT:Dot(D.rightOf(dir))) < 14 and losClear(cp + Vector3.new(0, 2.5, 0), toLoc.point + Vector3.new(0, 2.5, 0)) then
 			-- the spot is up the road but in the next lane, and the lanes only get there round the block:
-			-- over into that lane on the way (a lane change), not a loop of the town
-			pts = { cp, cp + dir * math.min(3, lead * 0.5), toLoc.point }
-			bestLen = straight
+			-- over into that lane on the way (a lane change), not a loop of the town. A spot close by
+			-- is met a little further up that lane: the change stays gentle at speed
+			local ext = math.max(0, lead + 10 - fwd * straight)
+			pts = { cp, cp + dir * math.min(3, lead * 0.5), toLoc.point + dir * ext }
+			bestLen = straight + ext
 		elseif o.heading and fwd < -0.15 and straight < 60 and o.heading:Dot(dir) > 0.5 then
 			-- it overtook a suspect driving its way (he is just behind): brake along the lane and let him
 			-- by - turning round in front of him would point the car away, then back again
@@ -1251,7 +1255,7 @@ local function carRoute(c: any?, pos: Vector3, opts: any?): any?
 		end
 		-- (o.noUTurn: a car that has just turned round goes the long way instead of swinging back again)
 		-- (never for a spot well ahead: turning round would point the car away from it)
-		if straight > 1 and not o.noUTurn and not noTurn and (fwd < -0.15 or (bestLen > straight * 2.2 + 120 and fwd < 0.5)) then
+		if straight > 1 and not o.noUTurn and not noTurn and (fwd < -0.15 or (bestLen > straight * 2.2 + 120 and fwd < 0.5 and not posAhead)) then
 			local left = -D.rightOf(dir)
 			-- (braking distance first: the speed never drops in a jump)
 			local a0 = cp + dir * math.clamp(v * v / 22, 3, 60)
@@ -2954,10 +2958,6 @@ local function thinkCar(c: any)
 				Law.seen(player, pp, "순찰차")
 				case.knownPos = pp
 				case.knownT = now()
-				-- (seen driving: which way and how fast - where he will be a moment later, below)
-				local sv = suspectSpeed(player)
-				case.knownDir = if inCar and sv > 8 then suspectDir(player) else nil
-				case.knownV, case.knownDirT = sv, case.knownT
 				case.radioUntil = math.max(case.radioUntil or 0, now() + t.radio * 2)
 				c.seeing = true
 				carFlee(case, player, pp)
@@ -2966,6 +2966,14 @@ local function thinkCar(c: any)
 			c.glimpse = nil
 			c.seeing = false
 		end
+	end
+	-- a new sighting (this car, another unit, the radio): which way and how fast he was driving then -
+	-- where he will be a moment later, for the road chase below
+	if case.knownT and case.dirAtT ~= case.knownT then
+		case.dirAtT = case.knownT
+		local sv = suspectSpeed(player)
+		case.knownDir = if inCar and sv > 8 then suspectDir(player) else nil
+		case.knownV = sv
 	end
 	-- where can a car not follow? (no driving lane within 28 studs of the suspect: an alley, the
 	-- beach, a park, a building)
@@ -3055,10 +3063,10 @@ local function thinkCar(c: any)
 		if pp and now() >= c.nextPlan and now() >= (c.yieldUntil or 0) and now() >= (c.planHold or 0) and not nearLast then
 			c.nextPlan = now() + 1.2 + rnd() * 0.8
 			local goal = if c.seeing then pp else case.knownPos
-			if goal and not c.seeing and case.knownDir and case.knownDirT == case.knownT then
+			if goal and not c.seeing and case.knownDir and case.dirAtT == case.knownT then
 				-- out of sight, last seen driving: on up the road the way he was going, not back to the
 				-- spot where he was seen (the car may be past it already: a U-turn for an empty road)
-				goal += case.knownDir * math.min((case.knownV or 20) * (now() - case.knownT), 160)
+				goal += case.knownDir * math.min((case.knownV or 20) * (now() - case.knownT), 260)
 			end
 			if goal then
 				-- a wrong side street now and then while it does not see the suspect: kept for a few
