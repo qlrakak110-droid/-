@@ -1357,7 +1357,8 @@ local function onRigBump(player: Player, kind: any, payload: any)
 	end
 	local m = keyModel(id)
 	-- (only the key NPC folder: the 어깨빵 button's targets; shop staff live elsewhere, untouchable)
-	if not m or m.Parent ~= workspace:FindFirstChild("GwangalliNPCs") or m:GetAttribute("NpcKind") == "inmate" or FS.foreign(id, m) or m:GetAttribute("NpcDown") ~= nil then
+	-- (nobody is shoulder-bumped through a car body: a crew member in a patrol car seat, NpcSeat)
+	if not m or m.Parent ~= workspace:FindFirstChild("GwangalliNPCs") or m:GetAttribute("NpcKind") == "inmate" or FS.foreign(id, m) or m:GetAttribute("NpcDown") ~= nil or m:GetAttribute("NpcSeat") ~= nil then
 		return
 	end
 	local t = now()

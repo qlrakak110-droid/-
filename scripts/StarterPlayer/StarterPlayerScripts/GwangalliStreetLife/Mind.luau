@@ -301,22 +301,32 @@ local function moveTo(a: any, p: Vector3, speed: number)
 	local target = Vector3.new(p.X, a.pos.Y, p.Z)
 	local clipped, blocked = wallClip(a.pos, target)
 	if blocked then
+		local t = os.clock()
+		-- a way round the wall under way (A*, started here): it stands while the line is still blocked,
+		-- however far from the wall it has gone - a straight line to the clipped point would only walk
+		-- them back to the wall, again and again
+		if a.wallRoute and a.nav == a.wallRoute and t - (a.wallRouteAt or -1e9) < 8 then
+			return
+		end
 		if flatDist(a.pos, clipped) < 2 then
-			-- the wall is right here: round it on the walkways (A*), at most once a second (meanwhile
+			-- the wall is right here: round it on the walkways (A*), at most one try a second (meanwhile
 			-- that route stands); no way round: up to the wall, no further
-			local t = os.clock()
-			if a.nav and t - (a.wallRouteAt or -1e9) < 1 then
+			if a.nav and t - (a.wallTryAt or -1e9) < 1 then
 				return
 			end
-			a.wallRouteAt = t
+			a.wallTryAt = t
 			local spot = ctx.World.closestWalkable(p, a.pos.Y, 40, 0)
 			if spot and flatDist(spot, a.pos) > 2 then
 				a.faceYaw = nil
 				a.pauseUntil = 0
 				a.sitting, a.lying, a.napping = false, false, false
 				a:goToSpot(spot, t, speed)
-				a.moved = true
-				return
+				if a.nav and a.nav.mode == "list" then
+					a.wallRoute, a.wallRouteAt = a.nav, t
+					a.moved = true
+					return
+				end
+				-- (no walkway route: goToSpot's straight fallback would run through the wall - no)
 			end
 		end
 		target = clipped
@@ -1703,17 +1713,26 @@ function Mind.flee(a: any, from: Vector3, dur: number)
 end
 
 function Mind.report(a: any)
-	if not take(a, { kind = "report", untilT = os.clock() + 5 }) then
+	local ctl = { kind = "report", untilT = os.clock() + 5 }
+	if not take(a, ctl) then
 		return
 	end
 	local pp = playerPos()
 	hold(a, pp, "phone")
 	face(a, "scared", 5)
+	-- (still on that call: knocked out / gone / taken over meanwhile = no line, no report)
+	local function onCall(): boolean
+		return a.ctl == ctl and not a.ko and not a.gone
+	end
 	task.delay(0.8, function()
-		sayNpc(a, M.witnessLine("report", rnd) or "112죠? 여기 사람이…", 4)
+		if onCall() then
+			sayNpc(a, M.witnessLine("report", rnd) or "112죠? 여기 사람이…", 4)
+		end
 	end)
 	task.delay(2.4, function()
-		invoke("report", { id = a.id, pos = pack(a.pos) })
+		if onCall() then
+			invoke("report", { id = a.id, pos = pack(a.pos) })
+		end
 	end)
 end
 
@@ -1721,13 +1740,16 @@ end
 -- PLAYER's own pending crime); sc = the scene record (sc.called: the fight's end needs no second caller)
 local NPC_CALL = { "여보세요, 112죠? 여기 싸움 났어요!", "경찰 좀 보내 주세요, 사람들이 싸워요!", "저기요, 경찰이죠? 사람이 맞고 있어요!" }
 local function npcCall(a: any, pos: Vector3, sc: any?): boolean
-	if not take(a, { kind = "report", untilT = os.clock() + 5 }) then
+	local ctl = { kind = "report", untilT = os.clock() + 5 }
+	if not take(a, ctl) then
 		return false
 	end
 	hold(a, pos, "phone")
 	face(a, "scared", 5)
 	task.delay(0.8, function()
-		sayNpc(a, pick(NPC_CALL), 3.5)
+		if a.ctl == ctl and not a.ko and not a.gone then
+			sayNpc(a, pick(NPC_CALL), 3.5)
+		end
 	end)
 	if sc then
 		sc.called = true

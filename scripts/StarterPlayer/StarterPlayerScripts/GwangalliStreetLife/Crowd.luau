@@ -3932,15 +3932,26 @@ local function installFightHooks()
 		end
 	end
 	-- the chase aims straight at the player (base chaseStep): a wall in between stops the line short of
-	-- it (Mind.wallClip), and right at the wall they go round on the walkways for a moment (A*)
+	-- it (Mind.wallClip), and right at the wall they go round on the walkways (A*). That way round stands
+	-- while the line to the player is still blocked (a straight line again would walk them back to the
+	-- wall, and round, and back); it ends when the line is clear or the route is walked
 	local baseChaseStep = Agent.chaseStep
 	Agent.chaseStep = function(self: any, now: number, pp: Vector3)
-		baseChaseStep(self, now, pp)
 		local clip = ctx.Mind and ctx.Mind.wallClip
+		local to = Vector3.new(pp.X, self.pos.Y, pp.Z)
+		if clip and self.chase and self.wallNav and self.nav == self.wallNav and now - (self.wallNavT or -1e9) < 8 then
+			local _, still = clip(self.pos, to)
+			if still then
+				self.chase.retarget = now + 0.35
+				return
+			end
+		end
+		self.wallNav = nil
+		baseChaseStep(self, now, pp)
 		if not clip or not self.chase then
 			return
 		end
-		local cut, blocked = clip(self.pos, Vector3.new(pp.X, self.pos.Y, pp.Z))
+		local cut, blocked = clip(self.pos, to)
 		if not blocked then
 			return
 		end
@@ -3948,12 +3959,16 @@ local function installFightHooks()
 			local spot = W.closestWalkable(pp, self.pos.Y, 40, 0)
 			if spot and flatDist(spot, self.pos) > 2 then
 				self:goToSpot(spot, now, self.want)
-				self.chase.retarget = now + 1.2
+				if self.nav and self.nav.mode == "list" then
+					self.wallNav, self.wallNavT = self.nav, now
+					self.chase.retarget = now + 1.2
+					return
+				end
 			end
-		else
-			self.nav = { mode = "points", pts = { cut }, i = 1 }
-			self:segTo(cut, nil, nil)
 		end
+		-- (no walkway route round it - goToSpot's straight fallback would run through the wall: up to it)
+		self.nav = { mode = "points", pts = { cut }, i = 1 }
+		self:segTo(cut, nil, nil)
 	end
 	local baseChase = Agent.chaseTick
 	Agent.chaseTick = function(self: any, now: number)
