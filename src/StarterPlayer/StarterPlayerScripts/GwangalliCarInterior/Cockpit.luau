@@ -325,7 +325,7 @@ local function displays(K: any, F: any, P: any, S: any): any
 	elseif kind == "flush" then
 		-- G80: 대시 위쪽 가운데에 낮고 넓게 박힌 화면 (가죽 둔덕이 감쌈)
 		ccf = CFrame.new(cx + toC * 0.12, top + ch / 2 - 0.06, face - 0.28) * CFrame.Angles(math.rad(-8), 0, 0)
-		K:rbox("CenterCowl", Vector3.new(cw + 0.22, ch * 0.62, 0.44), 0.12, ccf * CFrame.new(0, -ch * 0.2, -0.17), P.soft)
+		K:rbox("CenterCowl", Vector3.new(cw + 0.22, ch * 0.62, 0.44), 0.12, ccf * CFrame.new(0, -ch * 0.2, -0.26), P.soft)
 		K:panel("CenterBack", cw - 0.06, ch - 0.06, 0.1, 0.08, ccf * CFrame.new(0, 0, -0.07), P.hard)
 	elseif kind == "stack" then
 		ccf = CFrame.new(cx, top - ch / 2 + 0.02, face + 0.12) * CFrame.Angles(math.rad(-10), 0, 0)

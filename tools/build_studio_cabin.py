@@ -6,6 +6,7 @@
   * tools/patch_car_glass.py 의 유리 패치 전부 (studio/car_glass.js + 차량 모델 연결)
   * engine/bridge.luau  : 실사 차체 스킨(carskin)이 GwSkinKeep 속성이 있는 모델(CabinAAA)은 숨기지 않음
   * js/render3d.js      : Luau 실내가 켜져 있으면(window.GWCabinLuau) 스킨 자체의 단순 좌석 메시는 숨김
+  * js/taxi_model.js    : 실사 스킨의 실내 플라스틱(도어 안쪽 · 대시)도 실내 그룹으로 보내 같이 숨김
   * 엔진이 뜬 뒤 src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior 트리(LocalScript + ModuleScript)를
     PlayerScripts 에 넣음 (tools/build_studio.py 의 미니게임 주입과 같은 방식) -> 실제 로블록스와 같은 코드가 돎
 """
@@ -25,6 +26,10 @@ CABIN_HOOKS = [
     ("js/render3d.js", "skin seats off with Luau cabin",
      "if (slot.model.interior) slot.model.interior.visible = car.dist < 45;",
      "if (slot.model.interior) slot.model.interior.visible = car.dist < 45 && !root.GWCabinLuau; " + MARK),
+    # 실사 스킨의 실내 플라스틱(도어 안쪽 · 대시)도 실내 그룹으로: Luau 실내가 있으면 같이 숨김
+    ("js/taxi_model.js", "skin interior plastic with Luau cabin",
+     "if(/interior|leather|fabric|carpet|alcantara|screen|seat/i.test(pc.r+' '+pc.n))interior.add(pivot);",
+     "if(/interior|leather|fabric|carpet|alcantara|screen|seat/i.test(pc.r+' '+pc.n)||(pc.r==='int_plastic'&&typeof window!=='undefined'&&window.GWCabinLuau))interior.add(pivot);/*" + MARK.strip('/*') + "*/"),
 ]
 
 
