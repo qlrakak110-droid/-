@@ -16,7 +16,7 @@ function Gauges.dial(K: any, frame: CFrame, r: number, opt: any): any
 	local L = opt.look
 	local analog = opt.analog == true
 	if analog then
-		K:ring("GaugeBezel", frame * CFrame.new(0, 0, 0.012), r + 0.022, 0.03, 20, L.bezel)
+		K:ring("GaugeBezel", frame * CFrame.new(0, 0, 0.012), r + 0.018, 0.018, 14, L.bezel)
 	else
 		K:ring("GaugeArc", frame * CFrame.new(0, 0, 0.004), r, 0.016, 18, L.ring, A1, A0)
 	end

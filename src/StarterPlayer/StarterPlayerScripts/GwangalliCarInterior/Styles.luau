@@ -61,8 +61,8 @@ LIST.sonata_taxi = {
 	brand = "hyundai",
 	wheel = { spokes = "vee4", hub = Vector3.new(0.5, 0.4, 0.18), sideTrim = true, lowerTrim = "satin", paddles = false },
 	cluster = { kind = "analog", hood = "slim", w = 1.22, h = 0.44, speedMax = 260, rpmMax = 8 },
-	center = { kind = "float", w = 0.86, h = 0.36 },
-	sCurve = true,
+	center = { kind = "float", w = 0.64, h = 0.37 }, -- 8" 디스플레이 오디오 (약 5:3, 단독 플로팅)
+	sCurve = false, -- S자 연결은 12.3" 디지털 계기판 + 10.25" 패키지 전용
 	vents = "twin_h",
 	sideVent = "slim",
 	climate = "knurl",

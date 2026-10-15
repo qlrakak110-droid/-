@@ -93,6 +93,10 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), W * CFrame.new(0, hy, -0.05), P.hard)
 		if kind == "three" then
 			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, W * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
+		elseif kind == "vee4" then
+			-- 쏘나타 DN8: 공 모양 돔이 아니라 납작한 둥근 사각 패드 (앞에서 본 모서리 r 0.13) + 얕은 크라운
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, W * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X - 0.04, hub.Y - 0.04, 0.09), W * CFrame.new(0, hy, 0.105), P.wheelHub)
 		else
 			K:ell("Airbag", hub, W * CFrame.new(0, hy, 0.06), P.wheelHub)
 		end
@@ -133,11 +137,21 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 				local t = math.rad(-90 + s * spread)
 				local a = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0)).Position
 				local b = (W * CFrame.new(math.cos(t) * (R - 0.03), math.sin(t) * (R - 0.03), -0.01)).Position
-				K:seg("LowerSpoke", a, b, 0.08, P.hard)
-				if ws.lowerTrim then
-					local a2 = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0.04)).Position
-					local b2 = (W * CFrame.new(math.cos(t) * (R - 0.08), math.sin(t) * (R - 0.08), 0.03)).Position
-					K:seg("LowerSpokeTrim", a2, b2, 0.032, if ws.lowerTrim == "gloss" then P.gloss else P.satin)
+				if kind == "vee4" then
+					-- 쏘나타: 막대가 아니라 납작한 판 스포크 (폭 0.12 · 두께 0.06, 긴 모서리 둥글게) + 가운데 새틴 띠
+					local zA = W.ZVector
+					local yv = zA:Cross(b - a).Unit
+					local spf = CFrame.fromMatrix((a + b) / 2, yv:Cross(zA), yv, zA)
+					local sl = (b - a).Magnitude
+					K:rbox("LowerSpoke", Vector3.new(sl + 0.02, 0.12, 0.06), 0.028, spf, P.hard)
+					K:box("LowerSpokeTrim", Vector3.new(sl - 0.12, 0.024, 0.01), spf * CFrame.new(0.03, 0, 0.032), P.satin)
+				else
+					K:seg("LowerSpoke", a, b, 0.08, P.hard)
+					if ws.lowerTrim then
+						local a2 = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0.04)).Position
+						local b2 = (W * CFrame.new(math.cos(t) * (R - 0.08), math.sin(t) * (R - 0.08), 0.03)).Position
+						K:seg("LowerSpokeTrim", a2, b2, 0.032, if ws.lowerTrim == "gloss" then P.gloss else P.satin)
+					end
 				end
 			end
 		end
@@ -161,7 +175,7 @@ end
 
 ---------------------------------------------------------------------------------------------- 계기판 내용
 local function gaugeLook(P: any): any
-	return { mark = P.gaugeMark, red = P.gaugeRed, ring = P.gaugeRing, needle = P.needle, cap = P.needleCap, bezel = P.chrome }
+	return { mark = P.gaugeMark, red = P.gaugeRed, ring = P.gaugeRing, needle = P.needle, cap = P.needleCap, bezel = P.satin }
 end
 
 -- 유리(cf, +Z = 운전자 쪽) 앞에 두 게이지 + 숫자 + 방향지시 + 정보
@@ -280,7 +294,12 @@ local function displays(K: any, F: any, P: any, S: any): any
 			K:panel("ClusterFoot", w * 0.45, footH, 0.16, 0.06, CFrame.new(cl.X, top - 0.06 + footH / 2, zS - 0.08), P.hard)
 		end
 	else
-		K:panel("ClusterBack", w + 0.12, h + 0.1, 0.42, 0.12, clCF * CFrame.new(0, 0.02, -0.22), P.hard)
+		if hoodKind == "slim" then
+			-- 쏘나타: 각진 상자 대신 둥근 포드 (앞 끝은 베젤 바로 뒤, 뒤쪽 절반은 대시 속)
+			K:ell("ClusterBack", Vector3.new(w + 0.14, h + 0.14, 0.7), clCF * CFrame.new(0, 0.02, -0.37), P.soft)
+		else
+			K:panel("ClusterBack", w + 0.12, h + 0.1, 0.42, 0.12, clCF * CFrame.new(0, 0.02, -0.22), P.hard)
+		end
 		K:panel("ClusterBezel", w + 0.06, h + 0.06, 0.03, 0.07, clCF * CFrame.new(0, 0, -0.012), P.gloss)
 		-- 차양: 납작한 타원체 돔 (앞 끝이 유리 위로 살짝 나옴) + 양옆으로 내려오는 둥근 볼
 		local deep = hoodKind == "deep"
@@ -293,7 +312,9 @@ local function displays(K: any, F: any, P: any, S: any): any
 			K:box("ClusterHoodStitch", Vector3.new(hw * 0.8, 0.008, 0.008), hoodCF * CFrame.new(0, hh * 0.32, hd * 0.36), P.stitch)
 		end
 		for _, s in { -1, 1 } do
-			K:ell("ClusterCheek", Vector3.new(0.1, h * (if deep then 1.15 else 0.8), hd * 0.7), clCF * CFrame.new(s * (hw / 2 - 0.05), h * (if deep then 0.05 else 0.15), -hd * 0.3), P.soft)
+			if not (S.sCurve and s == toC) then -- 쏘나타: 화면 쪽 볼은 S자 드롭이 대신
+				K:ell("ClusterCheek", Vector3.new(0.1, h * (if deep then 1.15 else 0.8), hd * 0.7), clCF * CFrame.new(s * (hw / 2 - 0.05), h * (if deep then 0.05 else 0.15), -hd * 0.3), P.soft)
+			end
 		end
 	end
 	K:box("ClusterGlass", Vector3.new(w, h, 0.02), clCF, if C.kind == "analog" then P.dialBack else P.screen)
@@ -306,21 +327,19 @@ local function displays(K: any, F: any, P: any, S: any): any
 	if kind == "float" then
 		local minX = cl.X + toC * (w / 2 + cw / 2 + 0.14)
 		local x = if toC > 0 then math.max(nv.X, minX) else math.min(nv.X, minX)
-		ccf = CFrame.new(x, top + ch / 2 + 0.05, face - 0.06) * CFrame.Angles(0, F.side * math.rad(6), 0) * CFrame.Angles(math.rad(-6), 0, 0)
-		K:panel("CenterBack", cw - 0.1, ch - 0.08, 0.14, 0.1, ccf * CFrame.new(0, 0, -0.09), P.hard)
-		K:panel("CenterNeck", cw * 0.55, 0.14, 0.18, 0.06, ccf * CFrame.new(0, -ch / 2 - 0.02, -0.1), P.hard)
 		if S.sCurve then
-			-- 쏘나타: 계기판 차양 끝에서 화면 테두리로 흘러내리는 S자 띠
-			local a = (clCF * CFrame.new(toC * (w / 2 + 0.08), h / 2 + 0.06, -0.06)).Position
-			local b = (ccf * CFrame.new(-toC * (cw / 2 + 0.02), ch * 0.25, -0.03)).Position
-			local prev = a
-			for i = 1, 5 do
-				local t = i / 5
-				local st = t * t * (3 - 2 * t)
-				local p = Vector3.new(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * st, a.Z + (b.Z - a.Z) * t)
-				K:seg("SCurve", prev, p, 0.07, P.soft, 0.03)
-				prev = p
-			end
+			-- 쏘나타 DN8: 화면을 계기판과 같은 면 · 같은 높이에 (아래쪽이 대시에 묻힌 반통합 받침, 목 없음).
+			-- S자 테두리: 차양 오른쪽 끝이 두 화면 사이로 흘러내리고(드롭) 화면 아래 광택 턱으로 이어짐
+			ccf = CFrame.new(x, yS + (h - ch) / 2 + 0.08, zS - 0.02) * CFrame.Angles(0, F.side * math.rad(6), 0) * tilt
+			K:panel("CenterBack", cw - 0.1, ch - 0.08, 0.14, 0.1, ccf * CFrame.new(0, 0, -0.09), P.hard)
+			local gx = cl.X + toC * (w / 2 + 0.07)
+			K:ell("SCurveDrop", Vector3.new(0.13, h + 0.12, 0.24), CFrame.new(gx, yS + 0.03, zS - 0.12) * tilt, P.soft)
+			K:ell("SCurveChin", Vector3.new(cw + 0.16, 0.08, 0.24), ccf * CFrame.new(-toC * 0.04, -ch / 2 - 0.03, -0.08), P.gloss)
+		else
+			-- 단독 플로팅 화면 (쏘나타 택시 8"): 대시 위 받침
+			ccf = CFrame.new(x, top + ch / 2 + 0.05, face - 0.06) * CFrame.Angles(0, F.side * math.rad(6), 0) * CFrame.Angles(math.rad(-6), 0, 0)
+			K:panel("CenterBack", cw - 0.1, ch - 0.08, 0.14, 0.1, ccf * CFrame.new(0, 0, -0.09), P.hard)
+			K:panel("CenterNeck", cw * 0.55, 0.14, 0.18, 0.06, ccf * CFrame.new(0, -ch / 2 - 0.02, -0.1), P.hard)
 		end
 	elseif kind == "flush" then
 		-- G80: 대시 위쪽 가운데에 낮고 넓게 박힌 화면 (가죽 둔덕이 감쌈)
@@ -354,7 +373,10 @@ function Cockpit.build(K: any, F: any, P: any)
 		K:slab("HudWindow", 0.62, 0.3, 0.02, 0.08, CFrame.new(W.Position.X, F.dashTop + 0.012, F.dashFace - 0.75), P.gloss)
 	end
 	if S.startButton then
-		local sb = CFrame.new(W.Position.X - F.side * (F.wheel.R + 0.32), F.dashMidY + 0.05, F.dashFace + 0.03)
+		-- 센터 스택(반폭 ~0.65 + 테두리) 바깥, 크롬 라인 아래 대시 아랫면(대시 면보다 0.08 안쪽)에 붙임
+		local scx = if F.console then F.console.x else 0
+		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - 0.86)
+		local sb = CFrame.new(W.Position.X - F.side * off, F.dashMidY - 0.12, F.dashFace - 0.06)
 		K:cyl("StartRing", 0.04, 0.2, sb * ROT_X_TO_Z, P.chrome)
 		K:cyl("StartButton", 0.05, 0.15, sb * CFrame.new(0, 0, 0.012) * ROT_X_TO_Z, P.startBtn)
 	end

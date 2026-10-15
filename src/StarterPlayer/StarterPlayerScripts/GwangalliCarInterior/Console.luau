@@ -26,14 +26,20 @@ end
 -- 크롬 링 버튼 (위를 봄)
 local function ringButton(K: any, P: any, cf: CFrame, d: number, lit: boolean)
 	K:cyl("ShiftRing", 0.03, d, cf * ROT_X_TO_Y, P.chrome)
-	K:cyl("ShiftButton", 0.04, d - 0.03, cf * CFrame.new(0, 0.012, 0) * ROT_X_TO_Y, if lit then P.buttonLit else P.button)
+	K:cyl("ShiftButton", 0.04, d - 0.03, cf * CFrame.new(0, 0.012, 0) * ROT_X_TO_Y, P.button)
+	if lit then
+		-- 선택된 단: 버튼 전체가 아니라 앞쪽 작은 표시등만
+		K:box("ShiftLed", Vector3.new(0.03, 0.006, 0.018), cf * CFrame.new(0, 0.033, -(d / 2 - 0.035)), P.buttonLit)
+	end
 end
 
 local function cupholders(K: any, P: any, x: number, y: number, z: number, along: boolean)
 	for _, s in { -1, 1 } do
 		local c = if along then CFrame.new(x, y, z + s * 0.17) else CFrame.new(x + s * 0.19, y, z)
-		K:cyl("CupholderRing", 0.03, 0.31, c * ROT_X_TO_Y, P.chrome)
-		K:cyl("Cupholder", 0.035, 0.27, c * CFrame.new(0, 0.005, 0) * ROT_X_TO_Y, P.duct)
+		-- 어두운 테두리 + 얇은 새틴 립 + 검은 안쪽 (밝은 크롬 원판은 위에서 보면 하얀 핫플레이트처럼 보임)
+		K:cyl("CupholderRing", 0.03, 0.31, c * ROT_X_TO_Y, P.hardDark)
+		K:cyl("CupholderLip", 0.033, 0.287, c * CFrame.new(0, 0.002, 0) * ROT_X_TO_Y, P.satin)
+		K:cyl("Cupholder", 0.035, 0.265, c * CFrame.new(0, 0.005, 0) * ROT_X_TO_Y, P.duct)
 	end
 end
 
@@ -109,10 +115,22 @@ function Console.build(K: any, F: any, P: any)
 	local L = math.max(0.8, zA - zU)
 	local deckMid = zU + L / 2
 	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.hard)
-	-- 무선 충전 패드
+	-- 무선 충전 패드 (개인택시: 그 자리에 카드결제기)
 	local pz = zU + 0.26
-	K:slab("ChargePad", 0.6, 0.32, 0.025, 0.07, CFrame.new(x, topY + 0.045, pz), P.rubber)
-	K:box("ChargeIcon", Vector3.new(0.05, 0.01, 0.07), CFrame.new(x, topY + 0.06, pz), P.markWhite)
+	if S.key == "sonata_taxi" and F.kind ~= "police" then
+		-- 카드결제기: 20° 세운 작은 검은 단말기 (위 LCD · 키패드 3줄 · 카드 태그 표시) + 앞쪽 받침
+		local tc = CFrame.new(x, topY + 0.075, pz + 0.04) * CFrame.Angles(math.rad(-70), 0, 0)
+		K:box("TerminalStand", Vector3.new(0.16, 0.07, 0.12), CFrame.new(x, topY + 0.06, pz - 0.07), P.hardDark)
+		K:panel("CardTerminal", 0.26, 0.36, 0.08, 0.05, tc, P.hardDark)
+		K:box("TerminalLcd", Vector3.new(0.19, 0.1, 0.006), tc * CFrame.new(0, 0.1, 0.042), P.lcd)
+		for i = 0, 2 do
+			K:box("TerminalKeys", Vector3.new(0.18, 0.035, 0.01), tc * CFrame.new(0, -0.01 - i * 0.05, 0.042), P.button)
+		end
+		K:box("TerminalTap", Vector3.new(0.07, 0.012, 0.004), tc * CFrame.new(0, -0.15, 0.043), P.markWhite)
+	else
+		K:slab("ChargePad", 0.6, 0.32, 0.025, 0.07, CFrame.new(x, topY + 0.045, pz), P.rubber)
+		K:box("ChargeIcon", Vector3.new(0.05, 0.01, 0.07), CFrame.new(x, topY + 0.06, pz), P.markWhite)
+	end
 
 	-- 변속기 ------------------------------------------------------------------------------------------
 	local kind: string = S.shifter
@@ -135,18 +153,21 @@ function Console.build(K: any, F: any, P: any)
 		K:slab("EPB", 0.12, 0.17, 0.04, 0.03, CFrame.new(x + side * 0.02, top + 0.01, ry), P.button)
 		K:slab("AutoHold", 0.12, 0.1, 0.04, 0.03, CFrame.new(x + side * 0.2, top + 0.01, ry), P.button)
 	elseif kind == "lever" then
-		-- 택시 · 순찰차: 6단 레버 (가죽 부츠 + 노브 + 시프트 락 버튼 + 게이트 표시)
+		-- 택시 · 순찰차: 6단 레버. 가죽 부츠가 노브 밑까지 감싸 막대가 안 보이고(조이스틱 X), 세로로 긴 가죽 노브 +
+		-- 뒤쪽 새틴 띠 + 운전석 쪽 시프트 락 버튼, 부츠 밑 새틴 칼라, 운전석 쪽 P R N D 표시 (주차 중 P 만 켜짐)
 		local gz = zU + L * 0.42
 		local b = CFrame.new(x, top, gz)
 		K:slab("GatePlate", 0.42, 0.6, 0.03, 0.12, b, P.gloss)
 		for i = 0, 3 do
-			K:box("GateMark", Vector3.new(0.04, 0.006, 0.03), b * CFrame.new(-0.15, 0.02, -0.19 + i * 0.12), P.markWhite)
+			K:box("GateMark", Vector3.new(0.04, 0.006, 0.03), b * CFrame.new(side * 0.18, 0.02, -0.19 + i * 0.12), if i == 0 then P.markWhite else P.button)
 		end
-		K:ell("ShiftBoot", Vector3.new(0.26, 0.16, 0.3), b * CFrame.new(0.02, 0.04, 0), P.leather)
-		K:seg("ShiftStick", b.Position + Vector3.new(0.02, 0.06, 0), b.Position + Vector3.new(0.02, 0.36, 0.04), 0.06, P.hard)
-		K:ell("ShiftKnob", Vector3.new(0.17, 0.22, 0.21), b * CFrame.new(0.02, 0.43, 0.05), P.leather)
-		K:cyl("ShiftKnobBand", 0.03, 0.17, b * CFrame.new(0.02, 0.36, 0.05) * ROT_X_TO_Y, P.chrome)
-		K:box("ShiftLock", Vector3.new(0.05, 0.05, 0.05), b * CFrame.new(-0.06, 0.45, 0.04), P.satin)
+		K:cyl("BootCollar", 0.016, 0.32, b * CFrame.new(0.02, 0.022, 0.01) * ROT_X_TO_Y, P.satin)
+		K:ell("ShiftBoot", Vector3.new(0.26, 0.22, 0.3), b * CFrame.new(0.02, 0.07, 0.01), P.leather)
+		K:ell("ShiftBootNeck", Vector3.new(0.13, 0.28, 0.15), b * CFrame.new(0.02, 0.2, 0.03), P.leather)
+		local kn = b * CFrame.new(0.02, 0.4, 0.05) * CFrame.Angles(math.rad(8), 0, 0)
+		K:ell("ShiftKnob", Vector3.new(0.15, 0.27, 0.2), kn, P.leather)
+		K:box("ShiftKnobSpine", Vector3.new(0.035, 0.12, 0.016), kn * CFrame.new(0, 0.02, 0.095), P.satin)
+		K:box("ShiftLock", Vector3.new(0.03, 0.06, 0.06), kn * CFrame.new(side * 0.072, 0.02, 0), P.satin)
 		cupholders(K, P, x, top - 0.01, gz + 0.5, false)
 		K:slab("EPB", 0.12, 0.17, 0.04, 0.03, CFrame.new(x + side * 0.2, top + 0.01, gz - 0.4), P.button)
 		K:slab("AutoHold", 0.12, 0.1, 0.04, 0.03, CFrame.new(x - side * 0.2, top + 0.01, gz - 0.4), P.button)

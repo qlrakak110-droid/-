@@ -5,6 +5,8 @@
 -- 헤드라이너 + 둥근 가장자리, 오버헤드 콘솔(맵램프 · SOS), 손잡이, 선바이저(화장 거울 커버), 룸미러(자동 감광),
 -- 바닥 매트, 알루미늄 페달 + 고무 띠 + 풋레스트.
 
+local Gauges = require(script.Parent:WaitForChild("Gauges"))
+
 local Trim = {}
 
 local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean, armDepth: number)
@@ -38,8 +40,10 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	-- 대시에서 이어지는 가니시
 	local AZ = CFrame.Angles(0, math.pi / 2, 0)
 	local g: string = S.garnish
+	-- 쏘나타: 대시의 새틴 라인 · 앰비언트와 같은 높이로 문까지 끊김 없이
+	local lineY = if g == "line" then math.clamp((F.dashMidY :: number) + 0.1, upY0 + 0.06, y1 - 0.08) else upY0 + 0.1
 	if g == "line" then
-		K:cyl("DoorTrimBand", len - 0.4, 0.03, CFrame.new(x + inward * 0.06, upY0 + 0.1, zc) * AZ, P.trim)
+		K:cyl("DoorTrimBand", len - 0.4, 0.03, CFrame.new(x + inward * 0.06, lineY, zc) * AZ, P.trim)
 	elseif g == "wood" then
 		K:zbox("DoorTrimBand", Vector3.new(0.05, 0.16, len - 0.4), 0.024, CFrame.new(x + inward * 0.05, upY0 + 0.1, zc), P.trim)
 		K:cyl("DoorChrome", len - 0.42, 0.016, CFrame.new(x + inward * 0.07, upY0 + 0.0, zc) * AZ, P.chrome)
@@ -52,10 +56,17 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 		K:zbox("DoorWood", Vector3.new(0.04, 0.08, len - 0.5), 0.019, CFrame.new(x + inward * 0.05, upY0 - 0.0, zc), P.wood)
 	end
 	if P.ambient then
-		K:cyl("DoorAmbient", len - 0.6, 0.02, CFrame.new(x + inward * 0.07, upY0 + 0.03, zc) * AZ, P.ambient)
+		K:cyl("DoorAmbient", len - 0.6, 0.02, CFrame.new(x + inward * 0.07, if g == "line" then lineY - 0.045 else upY0 + 0.03, zc) * AZ, P.ambient)
 	end
 	-- 팔걸이 + 창문 스위치
-	local armY = y0 + lowH + 0.02
+	-- 팔걸이: 그 문 쪽 좌석 쿠션 위 0.5 (팔꿈치 높이)
+	local cushTop = y0 + lowH
+	for _, s in (if front then F.front else F.rear) do
+		if s.w >= 2.6 or (s.x < 0) == (side < 0) then
+			cushTop = s.cush.Y + s.cushSize.Y / 2
+		end
+	end
+	local armY = math.clamp(cushTop + 0.5, y0 + lowH + 0.02, math.max(y0 + lowH + 0.02, y1 - 0.62))
 	local armZ = zc + len * 0.08
 	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, armDepth), 0.06, CFrame.new(x + inward * (0.02 + armDepth / 2), armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
 	local sw = CFrame.new(x + inward * (0.02 + armDepth / 2), armY + 0.075, armZ - len * 0.14)
@@ -65,14 +76,14 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	end
 	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
 	local hz = if front then math.max(z0 + 0.42, (F.dashFace :: number) + 0.35) else z0 + 0.42
-	local hy = armY + 0.42
+	local hy = armY + 0.45
 	K:ell("HandleCup", Vector3.new(0.06, 0.18, 0.46), CFrame.new(x + inward * 0.055, hy, hz), P.duct)
 	K:capsule("DoorHandle", Vector3.new(x + inward * 0.085, hy + 0.01, hz - 0.14), Vector3.new(x + inward * 0.085, hy + 0.01, hz + 0.14), 0.05, P.chrome)
 	K:box("LockTab", Vector3.new(0.05, 0.05, 0.08), CFrame.new(x + inward * 0.09, hy, hz + 0.27), P.button)
 	-- IMS 시트 메모리 (1 · 2 · SET, 운전석 문)
 	if driver and (S.key == "sonata" or S.key == "g80") then
 		for i = 0, 2 do
-			K:box("ImsButton", Vector3.new(0.03, 0.045, 0.07), CFrame.new(x + inward * 0.08, hy - 0.14, hz - 0.1 + i * 0.09), P.alloy)
+			K:box("ImsButton", Vector3.new(0.03, 0.045, 0.07), CFrame.new(x + inward * 0.08, hy - 0.24, hz - 0.1 + i * 0.09), P.alloy)
 		end
 	end
 	if plastic then
@@ -166,6 +177,17 @@ function Trim.build(K: any, F: any, P: any)
 	K:seg("MirrorStem", Vector3.new(mp.X, roofY + 0.02, hi.Z + 0.05), mp + Vector3.new(0, 0.08, -0.04), 0.06, P.hardDark)
 	K:rbox("MirrorBody", Vector3.new(0.86, 0.25, 0.1), 0.06, mcf, P.hardDark)
 	K:box("MirrorGlass", Vector3.new(0.78, 0.18, 0.01), mcf * CFrame.new(0, 0, 0.055), P.mirror)
+	-- 개인택시 룸미러 일체형 미터기 (순찰차 제외): 거울 조수석 쪽 절반에 빨간 LED 요금 + 초록 상태등,
+	-- 거울 아래 가장자리에 빈차 · 주행 · 할증 · 지불 버튼
+	if F.style.key == "sonata_taxi" and F.kind ~= "police" then
+		local mm = mcf * CFrame.new(-F.side * 0.17, -0.025, 0.062)
+		K:box("MeterWindow", Vector3.new(0.32, 0.1, 0.004), mm, P.meterGlass)
+		Gauges.digits(K, mm * CFrame.new(-F.side * 0.03, 0, 0.004), 4, 0.06, P.ledRed, "4800")
+		K:box("MeterLed", Vector3.new(0.03, 0.03, 0.006), mm * CFrame.new(F.side * 0.12, 0, 0.004), P.ledGreen)
+		for i = 0, 3 do
+			K:box("MeterKey", Vector3.new(0.07, 0.025, 0.05), mcf * CFrame.new(-0.27 + i * 0.18, -0.13, 0.02), P.button)
+		end
+	end
 
 	-- 바닥 매트 + 페달 ---------------------------------------------------------------------------------------
 	local floor: number = F.floorY

@@ -229,26 +229,36 @@ function Dash.build(K: any, F: any, P: any)
 		end
 		local x0, x1 = cx + toC * 0.78, toC * (half - 0.25)
 		K:panel("DashPanel", math.abs(x1 - x0), 0.22, 0.03, 0.09, CFrame.new((x0 + x1) / 2, ly - 0.2, face + 0.01), P.panel)
-		-- 화면 바로 아래 가로 송풍구 2 + 가운데 비상등
-		local vy = top - 0.24
+		-- 화면 바로 아래 가로 송풍구 2 + 가운데 비상등 (화면 턱 아래로, 가리지 않게)
+		local vy = math.min(top - 0.24, scrY - ch / 2 - 0.19)
 		for _, s in { -1, 1 } do
-			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.31, vy, face + 0.01), 0.48, 0.1)
+			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.28, vy, face + 0.01), 0.44, 0.1)
 		end
-		K:box("Hazard", Vector3.new(0.09, 0.09, 0.04), CFrame.new(cx, vy, face + 0.03), P.hazard)
+		K:box("Hazard", Vector3.new(0.09, 0.07, 0.04), CFrame.new(cx, vy, face + 0.03), P.hazard)
 		-- 끝 송풍구 (날개 끝, 크롬 라인 위)
 		for _, s in { -1, 1 } do
 			vent(K, P, "SideVent", CFrame.new(s * (half - 0.38), ly + 0.17, face + 0.01), 0.46, 0.12)
 		end
-		-- 좁은 스택: AVN 단축키 + 작은 노브 2 -> 공조 띠
-		local sy0, sy1 = conTop, vy - 0.08
-		K:panel("StackBack", 1.28, sy1 - sy0, 0.08, 0.12, CFrame.new(cx, (sy0 + sy1) / 2, face + 0.0), P.gloss)
+		-- 스택 둘레는 대시와 같은 소프트 패드: 위(AVN · 공조 폭 1.3) -> 아래는 콘솔 폭으로 좁아짐. 광택은 키 · 공조 띠만
 		local ky = vy - 0.17
+		local cyc = ky - 0.2
+		local sTop, sMid = vy - 0.08, cyc - 0.13
+		K:panel("StackBack", 1.3, sTop - sMid, 0.06, 0.1, CFrame.new(cx, (sTop + sMid) / 2, face), P.soft)
+		if sMid > conTop then
+			local lw = (if con then math.min(con.w, 1.15) else 0.9) + 0.06
+			K:panel("StackLower", lw, sMid - conTop + 0.06, 0.06, 0.08, CFrame.new(cx, (sMid + conTop) / 2 + 0.03, face - 0.005), P.soft)
+		end
 		K:panel("AvnKeys", 1.0, 0.1, 0.04, 0.045, CFrame.new(cx, ky, face + 0.05), P.gloss)
+		K:cyl("AvnTrim", 1.04, 0.016, CFrame.new(cx, ky - 0.062, face + 0.05), P.satin)
 		buttonRow(K, P, CFrame.new(cx, ky, face + 0.06), 6, 0.11, 0.03, nil)
 		for _, s in { -1, 1 } do
-			K:cyl("AvnKnob", 0.05, 0.08, CFrame.new(cx + s * 0.56, ky, face + 0.09) * ROT_X_TO_Z, P.alloy)
+			-- 전원 · 볼륨(왼쪽) / 튜닝(오른쪽): 스택 면에 붙은 검은 노브 + 새틴 링 + 흰 표시선
+			local kc = CFrame.new(cx + s * 0.56, ky, face + 0.04)
+			K:cyl("AvnKnobRing", 0.03, 0.11, kc * CFrame.new(0, 0, 0.015) * ROT_X_TO_Z, P.satin)
+			K:cyl("AvnKnob", 0.06, 0.085, kc * CFrame.new(0, 0, 0.045) * ROT_X_TO_Z, P.hardDark)
+			K:box("AvnKnobMark", Vector3.new(0.01, 0.026, 0.006), kc * CFrame.new(0, 0.022, 0.077), P.markWhite)
 		end
-		climate(K, F, P, S, cx, ky - 0.2, face + 0.07)
+		climate(K, F, P, S, cx, cyc, face + 0.07)
 	elseif g == "wood" then
 		-- G80: 전폭 헤어라인 송풍구 (크롬 립) -> 앰비언트 -> 넓은 우드 띠 -> 아래 매달린 공조
 		local sy = top - 0.2
@@ -407,6 +417,23 @@ function Dash.build(K: any, F: any, P: any)
 		K:rbox("Radio", Vector3.new(0.4, 0.14, 0.24), 0.04, rc, P.hardDark)
 		K:box("RadioFace", Vector3.new(0.16, 0.06, 0.01), rc * CFrame.new(-0.08, 0.02, 0.125), P.lcd)
 		K:rbox("RadioMic", Vector3.new(0.07, 0.22, 0.12), 0.03, CFrame.new(cx + toC * 0.95, mid - 0.38, face + 0.16), P.hardDark)
+	end
+	if S.key == "sonata_taxi" and F.kind ~= "police" then
+		-- 개인택시 (순찰차 제외): 빈차표시등 + 운수종사자 자격증명
+		local wsL: Vector3, wsH: Vector3 = F.wsLow, F.wsHigh
+		local slope = (wsH.Y - wsL.Y) / math.max(0.01, wsH.Z - wsL.Z)
+		-- 빈차등: 조수석 쪽 앞유리 바로 아래 대시 위, 빨간 LED "빈차" 면이 밖(-Z)을 봄 (안에서는 검은 뒷면 + 빨간 빛)
+		local zs = math.min(face - 0.3, wsL.Z + (top + 0.34 - wsL.Y) / math.max(0.05, slope))
+		local vc = CFrame.new(toC * 1.45, top + 0.087, zs)
+		K:rbox("VacancySign", Vector3.new(0.64, 0.17, 0.09), 0.035, vc, P.hardDark)
+		K:box("VacancyLed", Vector3.new(0.56, 0.11, 0.01), vc * CFrame.new(0, 0, -0.047), P.ledRed)
+		Screens.plate(K, "VacancyText", vc * CFrame.new(0, 0, -0.058) * CFrame.Angles(0, math.pi, 0), 0.5, 0.1, { "빈차" }, Color3.fromRGB(255, 236, 230), true)
+		-- 운수종사자 자격증명: 조수석 대시 앞면, 크롬 라인 바로 위 (뒷자리 승객 쪽을 봄)
+		local idc = CFrame.new(toC * 1.3, mid + 0.2, face + 0.006)
+		K:panel("DriverIdFrame", 0.38, 0.17, 0.012, 0.025, idc, P.gloss)
+		K:box("DriverIdCard", Vector3.new(0.34, 0.13, 0.004), idc * CFrame.new(0, 0, 0.007), P.card)
+		K:box("DriverIdPhoto", Vector3.new(0.075, 0.095, 0.003), idc * CFrame.new(-0.11, 0, 0.0095), P.cardPhoto)
+		Screens.plate(K, "DriverIdText", idc * CFrame.new(0.045, 0, 0.012), 0.22, 0.1, { "운수종사자 자격증명", "개인택시" }, Color3.fromRGB(28, 36, 52), true)
 	end
 	if S.shifter == "dash_pod" then
 		-- 쏠라티: 운전자 오른쪽 무릎 옆 대시 기어 포드 + 짧은 부츠 + 검은 노브

@@ -168,6 +168,9 @@ local function palette(F: any): any
 		lampAmber = { c = rgb(230, 150, 30), m = SP },
 		ledRed = { c = rgb(255, 40, 40), m = M.Neon },
 		ledGreen = { c = rgb(60, 255, 110), m = M.Neon },
+		card = { c = rgb(222, 226, 232), m = SP },
+		cardPhoto = { c = rgb(96, 104, 118), m = SP },
+		meterGlass = { c = rgb(16, 5, 5), m = SP, r = 0.1 },
 	}
 end
 
@@ -280,14 +283,35 @@ local function steerMotors(model: Model): { Motor6D }
 	return out
 end
 
+-- 이름이 달라 REPLACES 에 없는 옛 실내 파트도, 새 핸들 원판 · 대시 앞면 부피 안에 있으면 숨김
+-- (택시 미터 · 경찰 장비처럼 게임 기능이 붙은 파트는 이름으로 유지)
+local KEEP = { "Taxi", "Meter", "Police", "Siren", "Radio" }
+local function insideNew(cab: any, p: Instance): boolean
+	if not p:IsA("BasePart") then
+		return false
+	end
+	for _, k in KEEP do
+		if string.find(p.Name, k, 1, true) then
+			return false
+		end
+	end
+	local F = cab.fit
+	local lp = cab.base.CFrame:PointToObjectSpace((p :: BasePart).Position)
+	local w = F.wheel.cf:PointToObjectSpace(lp)
+	if math.abs(w.Z) < 0.3 and Vector2.new(w.X, w.Y).Magnitude < F.wheel.R + 0.06 then
+		return true
+	end
+	return math.abs(lp.X) < F.halfIn and lp.Y > F.dashBottom - 0.15 and lp.Y < F.dashTop + 0.5 and lp.Z > F.dashFront + 0.1 and lp.Z < F.dashFace + 0.35
+end
+
 local function hideOld(cab: any, d: Instance)
-	if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
+	if d:IsA("BasePart") and (REPLACES[d.Name] or insideNew(cab, d)) and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
 		if cab.hidden[d] == nil then
 			cab.hidden[d] = d.Transparency
 			d:SetAttribute("GwCabinT", d.Transparency) -- 복제되어도 원래 값을 알 수 있게
 		end
 		d.Transparency = 1
-	elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] and cab.guis[d] == nil then
+	elseif d:IsA("SurfaceGui") and d.Parent and (REPLACES[d.Parent.Name] or insideNew(cab, d.Parent)) and cab.guis[d] == nil then
 		-- 옛 화면 글자: 보이는 거리를 0 으로 + 안의 글자 · 판을 Visible = false (Enabled 를 다루는 DetailLOD 와 겹치지 않고,
 		-- 게임 스크립트가 글자를 계속 바꿔도 오류 없음). 복제되어도 원래 값을 알 수 있게 속성으로도 남김
 		local g = d :: SurfaceGui
