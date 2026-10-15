@@ -14,6 +14,7 @@
 -- GwangalliWorld/DetailLOD 가 차 실내(LOD = "near")를 LocalTransparencyModifier 로 켜고 끄기 때문에 그 값은 건드리지
 -- 않고, 옛 화면 SurfaceGui 는 MaxDistance 로 끕니다 (DetailLOD 가 Enabled 를 되돌려도 안 보이게).
 
+local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -34,7 +35,8 @@ local player = Players.LocalPlayer
 local CFG = {
 	buildRadius = 52, -- 이 안의 가까운 차부터 실내 생성
 	dropRadius = 72, -- 이 밖으로 나가면 실내 제거
-	maxCabins = 3, -- 동시에 유지할 실내 수 (+ 내가 탄 차)
+	maxCabins = 3, -- 동시에 유지할 실내 수 (+ 내가 탄 차). 스크립트 속성 MaxCabins 로 바꿀 수 있음
+	tintRadius = 180, -- 이 안에 들어온 차부터 유리 틴팅 (한 번만)
 	liveRadius = 34, -- 이 안이면 핸들·계기판 실시간
 	scanBatch = 2500, -- 처음 맵 스캔: 프레임당 인스턴스 수
 	steerRatio = 14, -- 앞바퀴 각도 x 조향비 = 핸들 각도
@@ -49,6 +51,7 @@ type Rec = {
 	failed: string?,
 	failedAt: number,
 	tinted: boolean,
+	moving: boolean, -- 고정(Anchored)인데 CFrame 으로 움직이는 차 (클라이언트 교통 등) -> 용접 방식
 }
 
 local cars: { [Model]: Rec } = {}
@@ -112,14 +115,16 @@ local function track(m: Instance)
 	if not CFG.kinds[kind] then
 		return
 	end
-	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false }
+	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false }
 	cars[m] = rec
-	task.defer(function()
-		if m.Parent then
-			Glass.tint(m)
-			rec.tinted = true
-		end
-	end)
+end
+
+-- 차 찾기 1: 서버가 붙이는 태그 (GwangalliEnvironment discovery: 가장 바깥 LOD = "near" 모델 = 차의 Interior 에 "NearLOD").
+-- 맵 전체를 훑지 않아서 가볍고, 스트리밍으로 들어오는 차도 태그 신호로 잡힙니다.
+local function fromInterior(inst: Instance)
+	if inst.Name == "Interior" and inst.Parent and inst.Parent:IsA("Model") then
+		track(inst.Parent)
+	end
 end
 
 local function scan()
@@ -145,6 +150,12 @@ local function scan()
 	end
 end
 
+for _, inst in CollectionService:GetTagged("NearLOD") do
+	fromInterior(inst)
+end
+CollectionService:GetInstanceAddedSignal("NearLOD"):Connect(fromInterior)
+
+-- 차 찾기 2: 새로 생기는 차 (내 차 호출, 택시 등)
 Workspace.DescendantAdded:Connect(function(d)
 	if d:IsA("Model") then
 		task.defer(function()
@@ -216,7 +227,9 @@ local function buildCabin(rec: Rec)
 		local folder = Instance.new("Model")
 		folder.Name = "CabinAAA"
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
-		local K = Kit.new(F.base, folder)
+		-- 주차된(고정) 차는 용접 없이 고정 파트로: 가장 가볍고(물리 어셈블리를 건드리지 않음) 실제 로블록스에서도 싸요
+		local anchored = F.base.Anchored and not rec.moving
+		local K = Kit.new(F.base, folder, anchored)
 		local cockpit = Cockpit.build(K, F, P)
 		Dash.build(K, F, P)
 		Console.build(K, F, P)
@@ -251,6 +264,8 @@ local function buildCabin(rec: Rec)
 			hidden = hidden,
 			guis = guis,
 			ambient = ambient,
+			anchored = anchored,
+			builtCF = F.base.CFrame,
 			motors = steerMotors(rec.model),
 			steer = 0,
 			lastScreen = 0,
@@ -314,8 +329,18 @@ local function lodStep()
 		end
 		if base then
 			local d = math.min((base.Position - cp).Magnitude, (base.Position - rp).Magnitude)
+			if not rec.tinted and d < CFG.tintRadius then
+				rec.tinted = true
+				Glass.tint(m)
+			end
 			if rec == mine then
 				d = 0
+			end
+			local cab = rec.cabin
+			if cab and cab.anchored and (not base.Anchored or (base.Position - cab.builtCF.Position).Magnitude > 0.05) then
+				-- 고정 실내를 만든 뒤 차가 풀리거나(타서 운전 시작) 움직이면 용접 방식으로 다시
+				rec.moving = rec.moving or base.Anchored
+				destroyCabin(rec)
 			end
 			if rec.cabin and d > CFG.dropRadius then
 				destroyCabin(rec)
@@ -331,8 +356,9 @@ local function lodStep()
 		script:SetAttribute("Nearest", string.format("%s %.0f", list[1].rec.model.Name, list[1].d))
 	end
 	-- 가까운 순으로 maxCabins 개만 유지
+	local maxC = tonumber(script:GetAttribute("MaxCabins")) or CFG.maxCabins
 	for i, e in list do
-		if i > CFG.maxCabins + (if mine then 1 else 0) then
+		if i > maxC + (if mine then 1 else 0) then
 			if e.rec.cabin and e.rec ~= mine then
 				destroyCabin(e.rec)
 			end
@@ -407,7 +433,11 @@ RunService.RenderStepped:Connect(function()
 		if math.abs(angle - cab.steer) > 0.002 then
 			cab.steer = angle
 			local ck = cab.cockpit
-			ck.wheelWeld.C0 = ck.wheelCF * CFrame.Angles(0, 0, angle)
+			if ck.wheelWeld then
+				ck.wheelWeld.C0 = ck.wheelCF * CFrame.Angles(0, 0, angle)
+			else
+				ck.wheelPivot.CFrame = base.CFrame * ck.wheelCF * CFrame.Angles(0, 0, angle)
+			end
 		end
 		-- 계기판 10 Hz
 		if now - cab.lastScreen > 0.1 then
@@ -424,7 +454,14 @@ end)
 
 ---------------------------------------------------------------------------------------------------- 시작
 task.spawn(function()
-	scan()
+	-- 태그가 없는 빌드(서버 discovery 가 꺼진 place)에서만 맵을 나눠서 훑음
+	local t0 = os.clock()
+	while next(cars) == nil and os.clock() - t0 < 20 do
+		task.wait(1)
+	end
+	if next(cars) == nil then
+		scan()
+	end
 	local n = 0
 	for _ in cars do
 		n += 1

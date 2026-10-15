@@ -1,7 +1,8 @@
 --!strict
 -- GwangalliCarInterior/Kit: 파트 조립 도구. 모든 좌표는 차체 프레임(Underbody) 기준 스터드:
--- +X = 오른쪽, +Y = 위, -Z = 앞 (Roblox 차량 규약). 파트는 전부 클라이언트 로컬, 질량 없음, 충돌·쿼리·터치 없음,
--- Weld 로 차체(또는 회전 피벗)에 붙습니다. 차가 주차 중(Anchored)이면 그대로 서 있고 운전 중이면 같이 움직입니다.
+-- +X = 오른쪽, +Y = 위, -Z = 앞 (Roblox 차량 규약). 파트는 전부 클라이언트 로컬, 질량 없음, 충돌·쿼리·터치 없음.
+-- 두 가지 방식: anchored = true (주차된 차: 파트를 고정만 하고 용접 없음 -> 가장 가벼움) / false (움직이는 차:
+-- 차체에 Weld). 회전하는 핸들은 피벗 파트에 붙고, 피벗만 움직이면 됩니다.
 --   box / wedge / cyl / ball / ell(타원체: SpecialMesh Sphere) / seg(두 점 사이 원통) / ring(원환: 원통 n개)
 --   rbox(모서리가 둥근 상자) / pivot(회전 피벗: 핸들) / slats(송풍구 날개)
 
@@ -12,9 +13,10 @@ Kit.__index = Kit
 
 local DEFAULT_COLOR = Color3.fromRGB(30, 30, 32)
 
-function Kit.new(base: BasePart, parent: Instance)
+function Kit.new(base: BasePart, parent: Instance, anchored: boolean?)
 	local self = setmetatable({}, Kit)
 	self.base = base
+	self.anchored = anchored == true
 	self.parent = parent
 	self.count = 0
 	self.budget = 70 -- 프레임당 생성 수 (그 이상이면 다음 프레임으로 양보)
@@ -58,13 +60,17 @@ function Kit:make(class: string, name: string, size: Vector3, lcf: CFrame, look:
 	apply(p, look)
 	p.Size = size
 	p.CFrame = self.base.CFrame * lcf
-	local w = Instance.new("Weld")
-	w.Name = "CabinWeld"
-	w.Part0 = self.attach
-	w.Part1 = p
-	w.C0 = self.attachCF:Inverse() * lcf
-	w.C1 = CFrame.new()
-	w.Parent = p
+	if self.anchored and self.attach == self.base then
+		p.Anchored = true
+	else
+		local w = Instance.new("Weld")
+		w.Name = "CabinWeld"
+		w.Part0 = self.attach
+		w.Part1 = p
+		w.C0 = self.attachCF:Inverse() * lcf
+		w.C1 = CFrame.new()
+		w.Parent = p
+	end
 	p.Parent = self.parent
 	table.insert(self.parts, p)
 	self:tick()
@@ -153,19 +159,26 @@ function Kit:rbox(name: string, size: Vector3, r: number, lcf: CFrame, look: any
 	return out
 end
 
--- 회전 피벗: 이후 fn 안에서 만든 파트는 피벗에 붙습니다 (핸들처럼 통째로 돌릴 부품)
-function Kit:pivot(name: string, lcf: CFrame, fn: () -> ()): (BasePart, Weld)
+-- 회전 피벗: 이후 fn 안에서 만든 파트는 피벗에 붙습니다 (핸들처럼 통째로 돌릴 부품).
+-- 반환: 피벗, 차체와의 Weld (고정 방식이면 nil: 피벗 CFrame 을 직접 바꿉니다)
+function Kit:pivot(name: string, lcf: CFrame, fn: () -> ()): (BasePart, Weld?)
 	local p = Instance.new("Part")
 	p.Name = name
 	apply(p, { t = 1 })
 	p.Size = Vector3.new(0.1, 0.1, 0.1)
 	p.CFrame = self.base.CFrame * lcf
-	local w = Instance.new("Weld")
-	w.Name = "PivotWeld"
-	w.Part0 = self.base
-	w.Part1 = p
-	w.C0 = lcf
-	w.Parent = p
+	local w: Weld? = nil
+	if self.anchored then
+		p.Anchored = true
+	else
+		local wl = Instance.new("Weld")
+		wl.Name = "PivotWeld"
+		wl.Part0 = self.base
+		wl.Part1 = p
+		wl.C0 = lcf
+		wl.Parent = p
+		w = wl
+	end
 	p.Parent = self.parent
 	local prevA, prevCF = self.attach, self.attachCF
 	self.attach, self.attachCF = p, lcf

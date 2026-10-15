@@ -33,12 +33,16 @@ def main():
         raise SystemExit(__doc__)
     src_html, out_html = sys.argv[1], sys.argv[2]
     html, report = pcg.patch(open(src_html, encoding="utf-8").read(), extra_hooks=CABIN_HOOKS)
-    tree = walk(os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior"))
+    tree = walk(os.environ.get("CABIN_SRC") or os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior"))
     code = BUILD + "local t = " + to_luau(tree) + '''
 local ps; Sched.runIn(Env.serverCtx, function() ps = S.player and S.player:FindFirstChildOfClass("PlayerScripts") end)
 if not ps then return "no PlayerScripts" end
 if ps:FindFirstChild("GwangalliCarInterior") then return "already" end
-put(t, ps) return "ok"'''
+put(t, ps)
+-- 임시 스튜디오(브라우저 엔진, wasm 메모리 2 GB)에서는 실내를 한 대(+ 내가 탄 차)만 유지
+local sc = ps:FindFirstChild("GwangalliCarInterior")
+if sc then sc:SetAttribute("MaxCabins", 1) end
+return "ok"'''
     js = '''<script>
 /* 차량 AAA 실내 + 틴팅 유리: GwangalliCarInterior (Luau) 를 실행 중인 place 에 넣음 (tools/build_studio_cabin.py) */
 (function () {
