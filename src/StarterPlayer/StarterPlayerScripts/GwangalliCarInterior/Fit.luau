@@ -194,6 +194,12 @@ function Fit.run(model: Model): (any?, string?)
 		if pt then
 			doorZ1 = math.min(doorZ1, U:PointToObjectSpace(pt.Position).Z - pt.Size.Z / 2 - 0.05)
 		end
+		-- 도어 트림 파트가 없는 밴(쏠라티): 차체 CabDoor 위 끝(= 옆 유리 아래 끝)까지 문 안쪽을 덮음
+		local cd = first({ "CabDoor" }, body)
+		if cd then
+			local lc, sz = localBox(U, cd)
+			F.trimY0, F.trimY1 = F.floorY, lc.Position.Y + sz.Y / 2 - 0.04
+		end
 	end
 	F.doorZ0, F.doorZ1 = doorZ0, doorZ1
 	local bp = first({ "BPillar" }, body)
@@ -348,6 +354,18 @@ function Fit.run(model: Model): (any?, string?)
 		wood = colorOf({ "WoodBand", "ConsoleWood" }, Color3.fromRGB(70, 50, 38)),
 	}
 	F.seatFabric = (by.SeatCushion and by.SeatCushion[1] and by.SeatCushion[1].Material == Enum.Material.Fabric) or false
+	-- 구급차: Headliner 없이 격벽 뒤 환자실 Ceiling 만 있음 -> 운전석 천장 = 차체 CabHeader 아랫면
+	if F.linerZ0 and F.linerZ0 > F.doorZ1 - 0.2 then
+		local hd = first({ "CabHeader" }, body)
+		if hd then
+			local lc, sz = localBox(U, hd)
+			local wl: Vector3, wh: Vector3 = F.wsLow, F.wsHigh
+			F.roofY = lc.Position.Y - sz.Y / 2
+			-- 앞유리가 천장 높이와 만나는 z
+			local zWs = wl.Z + (F.roofY - wl.Y) * (wh.Z - wl.Z) / math.max(0.01, wh.Y - wl.Y)
+			F.linerZ0, F.linerZ1 = math.max(zWs, lc.Position.Z - sz.Z / 2), F.doorZ1
+		end
+	end
 	return F, nil
 end
 

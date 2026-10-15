@@ -50,7 +50,8 @@ local function lowTray(K: any, F: any, P: any)
 	-- 레이: 스택 발치 낮은 트레이 + 컵홀더 2 (사이 바닥은 비어 있음)
 	local con = F.console
 	local y = if con then con.top else F.floorY + 0.4
-	local z = if con then math.max(con.z0, F.dashFace) + 0.32 else F.dashFace + 0.32
+	-- 레이: 트레이 앞 끝을 StackFoot 뒤 면(dashFace + 0.17)에 붙임
+	local z = if F.style.key == "ray" then F.dashFace + 0.42 elseif con then math.max(con.z0, F.dashFace) + 0.32 else F.dashFace + 0.32
 	local x = if con then con.x else 0
 	K:zbox("LowTray", Vector3.new(0.72, 0.16, 0.5), 0.07, CFrame.new(x, y - 0.06, z), P.hard)
 	cupholders(K, P, x, y + 0.03, z, false)
@@ -71,13 +72,26 @@ local function manualLever(K: any, F: any, P: any)
 	local x = seat.x + toC * (math.min(seat.w, 1.85) / 2 + 0.2)
 	local z = seat.z - seat.cushSize.Z / 2 - 0.3
 	local floor: number = F.floorY
-	local a = Vector3.new(x, floor + 0.08, z)
+	local a = Vector3.new(x, floor + 0.04, z)
 	local b = Vector3.new(x - toC * 0.06, floor + 1.25, z + 0.28)
-	K:ell("ShiftBoot", Vector3.new(0.34, 0.26, 0.34), CFrame.new(a + Vector3.new(0, 0.06, 0)), P.rubber)
-	K:ell("ShiftBootTop", Vector3.new(0.16, 0.14, 0.16), CFrame.new(a + Vector3.new(0, 0.2, 0.03)), P.rubber)
-	K:seg("ShiftStick", a + Vector3.new(0, 0.2, 0.03), b, 0.05, P.metalDark)
-	K:ball("ShiftKnob", 0.18, CFrame.new(b + Vector3.new(0, 0.05, 0.02)), P.hardDark)
-	K:box("ShiftPattern", Vector3.new(0.09, 0.006, 0.07), CFrame.new(b + Vector3.new(0, 0.14, 0.02)), P.markWhite)
+	local dir = (b - a).Unit
+	-- 바닥 트림판(위에서 보면 둥근 사각) + 아래가 넓은 4단 주름 고무 부츠 + 긴 검은 레버 + 서양배 노브
+	K:slab("ShiftPlate", 0.46, 0.46, 0.03, 0.1, CFrame.new(a.X, floor + 0.03, a.Z), P.hardDark)
+	for i = 0, 3 do
+		local d = 0.36 - i * 0.065
+		K:ell("ShiftBoot", Vector3.new(d, 0.11, d), CFrame.new(a + dir * (0.05 + i * 0.085)), P.rubber)
+	end
+	K:seg("ShiftStick", a + dir * 0.3, b, 0.045, P.metalDark)
+	local kc = b + Vector3.new(0, 0.06, 0.02)
+	K:ell("ShiftKnob", Vector3.new(0.17, 0.2, 0.18), CFrame.new(kc), P.hardDark)
+	-- 노브 위 5단 무늬: 작은 광택 원판 + 가는 회색 선 4 (빛나는 흰 사각형 대신)
+	local cap = CFrame.new(kc + Vector3.new(0, 0.094, 0))
+	K:cyl("ShiftCap", 0.012, 0.08, cap * CFrame.Angles(0, 0, math.pi / 2), P.gloss)
+	local ink = { c = Color3.fromRGB(170, 174, 180), m = Enum.Material.SmoothPlastic }
+	for _, px in { -0.022, 0, 0.022 } do
+		K:box("ShiftPattern", Vector3.new(0.006, 0.004, 0.045), cap * CFrame.new(px, 0.007, 0), ink)
+	end
+	K:box("ShiftPattern", Vector3.new(0.05, 0.004, 0.006), cap * CFrame.new(0, 0.007, 0), ink)
 end
 
 function Console.build(K: any, F: any, P: any)

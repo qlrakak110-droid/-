@@ -110,6 +110,11 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 			-- 쏘나타 DN8: 공 모양 돔이 아니라 납작한 둥근 사각 패드 (앞에서 본 모서리 r 0.13) + 얕은 크라운
 			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, W * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
 			K:ell("AirbagCrown", Vector3.new(hub.X - 0.04, hub.Y - 0.04, 0.09), W * CFrame.new(0, hy, 0.105), P.wheelHub)
+		elseif ws.pad == "trap" then
+			-- 쏠라티 (싼타페 DM 계열): 위가 넓은 둥근 사다리꼴 패드 (위 0.52 / 아래 0.41) + 얕은 크라운 (앞 z 0.15, 엠블럼 0.152)
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.6, hub.X), 0.11, W * CFrame.new(0, hy + hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.55, hub.X * 0.78), 0.1, W * CFrame.new(0, hy - hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X - 0.08, hub.Y - 0.06, 0.09), W * CFrame.new(0, hy + 0.01, 0.105), P.wheelHub)
 		else
 			K:ell("Airbag", hub, W * CFrame.new(0, hy, 0.06), P.wheelHub)
 		end
@@ -160,18 +165,20 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 					K:box("LowerSpokeTrim", Vector3.new(d.Magnitude - 0.1, 0.032, 0.012), bc * CFrame.new(0, 0, 0.027), if ws.lowerTrim == "gloss" then P.gloss else P.satin)
 				end
 			elseif kind == "vee4" or kind == "u4" then
-				local spread = if kind == "vee4" then 32 else 10
+				local spread = if kind == "vee4" then 32 else (ws.lowerSpread or 10)
 				local t = math.rad(-90 + s * spread)
-				local a = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0)).Position
+				local a = (W * CFrame.new(s * (if ws.flatLower then 0.1 else 0.075), hy - hub.Y * 0.42, 0)).Position
 				local b = (W * CFrame.new(math.cos(t) * (R - 0.03), math.sin(t) * (R - 0.03), -0.01)).Position
-				if kind == "vee4" then
+				if kind == "vee4" or ws.flatLower then
 					-- 쏘나타: 막대가 아니라 납작한 판 스포크 (폭 0.12 · 두께 0.06, 긴 모서리 둥글게) + 가운데 새틴 띠
 					local zA = W.ZVector
 					local yv = zA:Cross(b - a).Unit
 					local spf = CFrame.fromMatrix((a + b) / 2, yv:Cross(zA), yv, zA)
 					local sl = (b - a).Magnitude
-					K:rbox("LowerSpoke", Vector3.new(sl + 0.02, 0.12, 0.06), 0.028, spf, P.hard)
-					K:box("LowerSpokeTrim", Vector3.new(sl - 0.12, 0.024, 0.01), spf * CFrame.new(0.03, 0, 0.032), P.satin)
+					K:rbox("LowerSpoke", Vector3.new(sl + 0.02, if kind == "vee4" then 0.12 else 0.1, 0.06), 0.028, spf, P.hard)
+					if kind == "vee4" then
+						K:box("LowerSpokeTrim", Vector3.new(sl - 0.12, 0.024, 0.01), spf * CFrame.new(0.03, 0, 0.032), P.satin)
+					end
 				elseif S.key == "tucson" then
 					-- 투싼: 가까이 붙은 납작한 아래 스포크 두 개 + 운전자 쪽 새틴 띠
 					local cfL = CFrame.lookAt((a + b) / 2, b, W.ZVector)
@@ -191,8 +198,9 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		if kind == "three" then
 			-- 레이: 아래 스포크 하나 + 하이글로시 가니시
 			local y0, y1 = hy - hub.Y * 0.45, -(R - 0.03)
-			K:panel("LowerSpoke", 0.16, y0 - y1, 0.07, 0.06, W * CFrame.new(0, (y0 + y1) / 2, 0), P.hard)
-			K:panel("LowerSpokeTrim", 0.11, y0 - y1 - 0.06, 0.02, 0.04, W * CFrame.new(0, (y0 + y1) / 2, 0.04), P.gloss)
+			-- 레이 2022: 넓은 아래 스포크 + 넓은 하이글로시 가니시
+			K:panel("LowerSpoke", 0.26, y0 - y1, 0.07, 0.08, W * CFrame.new(0, (y0 + y1) / 2, 0), P.hard)
+			K:panel("LowerSpokeTrim", 0.19, y0 - y1 - 0.08, 0.02, 0.05, W * CFrame.new(0, (y0 + y1) / 2 - 0.01, 0.04), P.gloss)
 		elseif kind == "two" then
 			-- G80: 아래가 비어 있고 허브가 아래로 조금 불룩
 			K:ell("HubChin", Vector3.new(hub.X * 0.55, hub.Y * 0.5, hub.Z * 0.85), W * CFrame.new(0, hy - hub.Y * 0.36, 0.04), P.wheelHub)
@@ -327,7 +335,7 @@ local function displays(K: any, F: any, P: any, S: any): any
 			K:panel("ClusterFoot", w * 0.45, footH, 0.16, 0.06, CFrame.new(cl.X, top - 0.06 + footH / 2, zS - 0.08), P.hard)
 		end
 	else
-		if hoodKind == "slim" then
+		if hoodKind == "slim" or C.cowl then
 			-- 쏘나타: 각진 상자 대신 둥근 포드 (앞 끝은 베젤 바로 뒤, 뒤쪽 절반은 대시 속)
 			K:ell("ClusterBack", Vector3.new(w + 0.14, h + 0.14, 0.7), clCF * CFrame.new(0, 0.02, -0.37), P.soft)
 		else
@@ -344,8 +352,12 @@ local function displays(K: any, F: any, P: any, S: any): any
 		if hoodKind ~= "deep" then
 			K:box("ClusterHoodStitch", Vector3.new(hw * 0.8, 0.008, 0.008), hoodCF * CFrame.new(0, hh * 0.32, hd * 0.36), P.stitch)
 		end
+		if C.cowl then
+			-- 레이: 귀처럼 튀는 볼 2개 대신 차양 폭의 둥근 비너클 껍데기 하나 (앞 끝 = 유리 면 0.03 뒤, 위 끝 < 차양 위)
+			K:ell("ClusterCowl", Vector3.new(hw, h + 0.2, hd), clCF * CFrame.new(0, 0.06, -0.34), P.soft)
+		end
 		for _, s in { -1, 1 } do
-			if not (S.sCurve and s == toC) then -- 쏘나타: 화면 쪽 볼은 S자 드롭이 대신
+			if not (S.sCurve and s == toC) and not C.cowl then -- 쏘나타: 화면 쪽 볼은 S자 드롭이 대신
 				K:ell("ClusterCheek", Vector3.new(0.1, h * (if deep then 1.15 else 0.8), hd * 0.7), clCF * CFrame.new(s * (hw / 2 - 0.05), h * (if deep then 0.05 else 0.15), -hd * 0.3), P.soft)
 			end
 		end
@@ -383,9 +395,14 @@ local function displays(K: any, F: any, P: any, S: any): any
 	elseif kind == "stack" then
 		ccf = CFrame.new(cx, top - ch / 2 + 0.02, face + 0.12) * CFrame.Angles(math.rad(-10), 0, 0)
 	elseif kind == "pod" then
-		ccf = CFrame.new(cx, top - ch / 2 - 0.06, face + 0.17) * CFrame.Angles(math.rad(-8), 0, 0)
+		-- 레이: 포드 면(face + 0.175)이 수직이라 화면도 수직, 면보다 0.025 앞 (기울이면 위쪽 절반이 포드 속에 묻힘)
+		ccf = CFrame.new(cx, top - ch / 2 - 0.06, face + 0.19)
 	else -- fascia
-		ccf = CFrame.new(cx, math.min(F.dashMidY + 0.42, top - ch / 2 - 0.25), face + 0.1) * CFrame.Angles(math.rad(-10), 0, 0)
+		-- 포터: 페시아 앞면(face + 0.09)보다 확실히 앞으로 (-10° 숙임에 화면 윗부분이 페시아에 묻히지 않게)
+		-- 쏠라티: 수직 스택 (기울기 0, face + 0.13) → 화면 뒤 은색 프레임 전체가 스택 면 앞에 보임
+		local up = S.vents == "trap_v"
+		local fz = if S.key == "porter" then 0.15 elseif up then 0.13 else 0.1
+		ccf = CFrame.new(cx, math.min(F.dashMidY + 0.42, top - ch / 2 - 0.25), face + fz) * CFrame.Angles(math.rad(if up then 0 else -10), 0, 0)
 	end
 	K:panel("NavBezel", cw + 0.06, ch + 0.06, 0.04, 0.05, ccf * CFrame.new(0, 0, -0.02), P.gloss)
 	K:box("NavGlass", Vector3.new(cw, ch, 0.02), ccf, P.screen)
@@ -402,6 +419,8 @@ function Cockpit.build(K: any, F: any, P: any)
 	local pivot, weld = wheel(K, F, P, S)
 	out.wheelPivot, out.wheelWeld, out.wheelCF = pivot, weld, F.wheel.cf
 	out.screens = displays(K, F, P, S)
+	-- 수동: 포터 5단 (바닥 레버) · 쏠라티 6단 (대시 포드)
+	out.manual = if S.shifter == "manual" then 5 elseif S.shifter == "dash_pod" then 6 else nil
 	local W: CFrame = F.wheel.cf
 	if S.hud then
 		K:slab("HudWindow", 0.62, 0.3, 0.02, 0.08, CFrame.new(W.Position.X, F.dashTop + 0.012, F.dashFace - 0.75), P.gloss)
@@ -409,7 +428,9 @@ function Cockpit.build(K: any, F: any, P: any)
 	if S.startButton and S.shifter ~= "dial" then -- 카니발: 콘솔 충전 패드 옆 (Console)
 		-- 센터 스택(반폭 ~0.65 + 테두리) 바깥, 크롬 라인 아래 대시 아랫면(대시 면보다 0.08 안쪽)에 붙임
 		local scx = if F.console then F.console.x else 0
-		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - 0.86)
+		-- 투싼: 스택(폭 화면 + 0.5) 옆으로 흘러내리는 새틴 두 줄보다 바깥
+		local clear = if S.garnish == "waterfall" then ((F.centerW or 1) + 0.5) / 2 + 0.23 else 0.86
+		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - clear)
 		local sb = CFrame.new(W.Position.X - F.side * off, F.dashMidY - 0.12, F.dashFace - 0.06)
 		K:cyl("StartRing", 0.04, 0.2, sb * ROT_X_TO_Z, P.chrome)
 		K:cyl("StartButton", 0.05, 0.15, sb * CFrame.new(0, 0, 0.012) * ROT_X_TO_Z, if S.brand == "genesis" then P.gloss else P.startBtn)
@@ -434,7 +455,18 @@ function Cockpit.live(ck: any, state: any, k: number, slow: boolean)
 	if c.speedNum then
 		Gauges.show(c.speedNum, tostring(math.floor(math.abs(state.kmh) + 0.5)))
 	end
-	Gauges.show(c.gear, state.gear)
+	local gear: string = state.gear
+	if ck.manual then
+		-- 수동(포터 · 쏠라티): P / D 대신 N · 속도로 고른 단수 (15 · 30 · 50 · 70 · 90 km/h 마다 한 단), R 은 그대로
+		if gear == "D" then
+			local v = math.abs(state.kmh)
+			local n = if v < 15 then 1 elseif v < 30 then 2 elseif v < 50 then 3 elseif v < 70 then 4 elseif v < 90 then 5 else 6
+			gear = tostring(math.min(n, ck.manual))
+		elseif gear ~= "R" then
+			gear = "N"
+		end
+	end
+	Gauges.show(c.gear, gear)
 	-- 방향지시: 켜짐 = 밝은 Neon, 꺼짐 = 어두운 초록 (투명도 대신 재질로: Neon 은 반투명이어도 빛나 보임)
 	for _, pair in { { c.turnL, state.turnL }, { c.turnR, state.turnR } } do
 		local on = pair[2] == true
