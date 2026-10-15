@@ -25,12 +25,12 @@ function Lights.build(K: any, F: any, P: any): any
 	for _, p in K.parts do
 		local n = p.Name
 		if n == "DomeLamp" then
-			table.insert(L.dome, light("PointLight", p, WARM, 1.1, 8))
+			table.insert(L.dome, light("PointLight", p, WARM, 0.7, 7))
 			table.insert(L.lenses, p)
 		elseif n == "MapLamp" then
-			local s = light("SpotLight", p, WARM, 1.6, 7) :: SpotLight
+			local s = light("SpotLight", p, WARM, 0.8, 6) :: SpotLight
 			s.Face = Enum.NormalId.Bottom
-			s.Angle = 75
+			s.Angle = 60
 			table.insert(L.dome, s)
 			table.insert(L.lenses, p)
 		elseif n == "NavGlass" or n == "ClusterGlass" then
