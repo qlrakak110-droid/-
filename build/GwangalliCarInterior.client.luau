@@ -10,6 +10,7 @@
 --   Trim     도어 트림·필러·헤드라이너·오버헤드 콘솔·선바이저·룸미러·매트·페달
 --   Styles   차종별 실제 실내 사양 (쏘나타 DN8 · 택시 · G80 · 투싼 · 레이 · 카니발 · 포터 · 쏠라티 119)
 --   Gauges   실물 계기판 (눈금 · 링 · 회전 바늘 · 7세그먼트 숫자), Screens 지도 · 글자판
+--   Lights   실내등 (밤: 앰비언트 발밑 조명 · 화면 빛, 정차 중: 천장등 · 맵램프)
 -- 성능: 카메라 근처 차 3대 + 내가 탄 차만 실내를 만들고(차당 약 400 파트, 프레임당 70개씩), 멀어지면 지웁니다.
 -- 기존 Interior 파트는 지우지 않고 이 클라이언트에서만 Transparency = 1 로 숨깁니다 (좌석 Seat·스크립트 영향 없음).
 -- GwangalliWorld/DetailLOD 가 차 실내(LOD = "near")를 LocalTransparencyModifier 로 켜고 끄기 때문에 그 값은 건드리지
@@ -1897,6 +1898,97 @@ return Kit
 
 end
 
+__defs["Lights"] = function()
+-- GwangalliCarInterior/Lights: 실내등.
+--   밤   앰비언트 발밑 조명 (차종 앰비언트 색, 앞 · 뒤 발밑) + 계기판 · 내비 화면 빛 (화면 앞으로 은은하게)
+--   정차 내가 탄 차가 밤에 서 있으면 천장 실내등 + 맵램프 2개가 켜지고 렌즈가 빛남 (달리면 꺼짐)
+-- 전부 그림자 없는 작은 Point / Spot / SurfaceLight 라서 가볍고, 실내가 있는 차(최대 3~4대)에만 생깁니다.
+
+local Lights = {}
+
+local WARM = Color3.fromRGB(255, 232, 200)
+local SCREEN = Color3.fromRGB(170, 200, 255)
+
+local function light(class: string, parent: Instance, color: Color3, brightness: number, range: number): Light
+	local l = Instance.new(class) :: Light
+	l.Color = color
+	l.Brightness = brightness;
+	(l :: any).Range = range
+	l.Shadows = false
+	l.Enabled = false
+	l.Parent = parent
+	return l
+end
+
+function Lights.build(K: any, F: any, P: any): any
+	local L: any = { ambient = {}, dome = {}, screen = {}, lenses = {}, state = "" }
+	for _, p in K.parts do
+		local n = p.Name
+		if n == "DomeLamp" then
+			table.insert(L.dome, light("PointLight", p, WARM, 1.1, 8))
+			table.insert(L.lenses, p)
+		elseif n == "MapLamp" then
+			local s = light("SpotLight", p, WARM, 1.6, 7) :: SpotLight
+			s.Face = Enum.NormalId.Bottom
+			s.Angle = 75
+			table.insert(L.dome, s)
+			table.insert(L.lenses, p)
+		elseif n == "NavGlass" or n == "ClusterGlass" then
+			local s = light("SurfaceLight", p, SCREEN, 0.35, 3) :: SurfaceLight
+			s.Face = Enum.NormalId.Back
+			s.Angle = 110
+			table.insert(L.screen, s)
+		end
+	end
+	-- 앰비언트 발밑 조명 (앰비언트가 있는 차종)
+	if P.ambient then
+		local floor: number = F.floorY
+		local spots = {}
+		for _, s in F.front do
+			table.insert(spots, Vector3.new(s.x, floor + 0.45, F.dashFace + 0.35))
+		end
+		for _, s in F.rear do
+			table.insert(spots, Vector3.new(s.x, floor + 0.35, s.z - s.cushSize.Z / 2 - 0.4))
+		end
+		for _, v in spots do
+			local a = K:box("FootLight", Vector3.new(0.1, 0.1, 0.1), CFrame.new(v), { t = 1 })
+			table.insert(L.ambient, light("PointLight", a, P.accentColor, 0.9, 4.5))
+		end
+	end
+	return L
+end
+
+-- night: 밤이고 실내가 보이는 거리, dome: 내가 탄 차가 밤에 서 있음
+function Lights.set(L: any, night: boolean, dome: boolean)
+	local key = (if night then "n" else "d") .. (if dome then "1" else "0")
+	if L.state == key then
+		return
+	end
+	L.state = key
+	for _, l in L.ambient do
+		l.Enabled = night
+	end
+	for _, l in L.screen do
+		l.Enabled = night
+	end
+	for _, l in L.dome do
+		l.Enabled = dome
+	end
+	for _, p in L.lenses do
+		if dome then
+			p.Material = Enum.Material.Neon
+			p.Color = WARM
+		else
+			p.Material = Enum.Material.SmoothPlastic
+			p.Color = Color3.fromRGB(176, 174, 166)
+		end
+	end
+end
+
+return Lights
+
+end
+
 __defs["Screens"] = function()
 -- GwangalliCarInterior/Screens: 화면 내용. 그림(지도 · 바다 · 도로 · 광안대교 · 경로 · 상단 바 · 독 아이콘 · 막대)은
 -- 유리 바로 앞 얇은 Neon 파트로, 글자는 투명한 글자판 파트의 SurfaceGui 로 만듭니다. 그래서 로블록스에서는
@@ -2882,6 +2974,7 @@ local Console = __require("Console")
 local Seats = __require("Seats")
 local Trim = __require("Trim")
 local Styles = __require("Styles")
+local Lights = __require("Lights")
 
 local player = Players.LocalPlayer
 
@@ -3190,6 +3283,7 @@ local function buildCabin(rec: Rec)
 		Console.build(K, F, P)
 		Seats.build(K, F, P)
 		Trim.build(K, F, P)
+		local lights = Lights.build(K, F, P)
 		if not rec.model.Parent or cars[rec.model] ~= rec then
 			folder:Destroy()
 			return
@@ -3207,6 +3301,7 @@ local function buildCabin(rec: Rec)
 			base = F.base,
 			interior = F.interior,
 			cockpit = cockpit,
+			lights = lights,
 			hidden = {},
 			guis = {},
 			conns = {},
@@ -3427,6 +3522,9 @@ RunService.RenderStepped:Connect(function(dt: number)
 				p.Transparency = if night then 0.1 else 0.55
 			end
 		end
+		-- 실내등: 밤 = 앰비언트 발밑 · 화면 빛, 내가 탄 차가 서 있으면 천장등 · 맵램프 (속성 DomeLights = 미리보기용 강제 켜기)
+		local stopped = rec == mine and base.AssemblyLinearVelocity.Magnitude < 1.5
+		Lights.set(cab.lights, night and (near or rec == mine), night and (stopped or script:GetAttribute("DomeLights") == true))
 		if not near then
 			continue
 		end
@@ -3462,7 +3560,7 @@ RunService.RenderStepped:Connect(function(dt: number)
 		local spd = math.abs(kmh)
 		local rpm = if not running then 0 elseif spd < 0.5 then 780 else 900 + (spd % 40) / 40 * 3600 + math.min(spd, 40) * 18
 		local tl, tr = false, false
-		if slow then
+		if slow and running then
 			tl, tr = turnState(rec.model, base)
 		end
 		Cockpit.live(cab.cockpit, { kmh = kmh, rpm = rpm, gear = gear, turnL = tl, turnR = tr }, math.min(1, dt * 8), slow)
