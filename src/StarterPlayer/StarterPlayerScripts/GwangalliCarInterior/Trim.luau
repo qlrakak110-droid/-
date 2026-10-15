@@ -184,8 +184,24 @@ function Trim.build(K: any, F: any, P: any)
 	table.sort(ped, function(a: Vector3, b: Vector3)
 		return math.abs(a.X) > math.abs(b.X)
 	end)
-	-- 바깥쪽 = 브레이크, 안쪽 = 가속 (좌핸들)
-	local brake, gas = ped[1], ped[2]
+	-- 좌핸들 기준 바깥 -> 안쪽: (클러치) · 브레이크 · 가속. 페달 파트가 없는 차(포터 · 쏠라티)는 운전석 앞에 만듦
+	if #ped == 0 then
+		local wx = F.wheel.c.X
+		local pz = F.dashFace + 0.25
+		local py = F.floorY + 0.38
+		if F.style.shifter == "manual" or F.style.shifter == "dash_pod" then
+			table.insert(ped, Vector3.new(wx + F.side * 0.38, py, pz))
+		end
+		table.insert(ped, Vector3.new(wx, py, pz))
+		table.insert(ped, Vector3.new(wx - F.side * 0.4, py, pz))
+	end
+	local gas, brake = ped[#ped], ped[#ped - 1]
+	for i = 1, #ped - 2 do
+		-- 클러치: 브레이크와 같은 패드
+		local c = CFrame.new(ped[i]) * CFrame.Angles(math.rad(-25), 0, 0)
+		K:panel("ClutchPedal", 0.36, 0.28, 0.04, 0.08, c, P.alloy)
+		K:seg("PedalArm", ped[i] + Vector3.new(0, 0.1, -0.05), ped[i] + Vector3.new(0, 0.62, -0.32), 0.05, P.metalDark)
+	end
 	if brake then
 		local c = CFrame.new(brake) * CFrame.Angles(math.rad(-25), 0, 0)
 		K:panel("BrakePedal", 0.44, 0.3, 0.04, 0.08, c, P.alloy)

@@ -179,8 +179,14 @@ function Fit.run(model: Model): (any?, string?)
 	end
 	local doorZ0, doorZ1 = c.Z - 1.2, c.Z + 5
 	if #trims > 0 then
+		-- 문마다 DoorTrim 이 따로 있으면 전체 범위로
+		doorZ0, doorZ1 = math.huge, -math.huge
+		for _, t in trims do
+			local lc, sz = localBox(U, t)
+			doorZ0 = math.min(doorZ0, lc.Position.Z - sz.Z / 2)
+			doorZ1 = math.max(doorZ1, lc.Position.Z + sz.Z / 2)
+		end
 		local lc, sz = localBox(U, trims[1])
-		doorZ0, doorZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
 		F.trimY0, F.trimY1 = lc.Position.Y - sz.Y / 2, lc.Position.Y + sz.Y / 2
 	end
 	if #trims == 0 then
@@ -301,7 +307,7 @@ function Fit.run(model: Model): (any?, string?)
 	if #seats > 0 then
 		local z0 = seats[1].z
 		for _, s in seats do
-			if s.z < z0 + 1.0 and s.w < 2.6 then
+			if s.z < z0 + 1.0 then
 				table.insert(front, s)
 			else
 				table.insert(rear, s)

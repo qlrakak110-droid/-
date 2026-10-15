@@ -332,7 +332,7 @@ local function displays(K: any, F: any, P: any, S: any): any
 	elseif kind == "pod" then
 		ccf = CFrame.new(cx, top - ch / 2 - 0.06, face + 0.17) * CFrame.Angles(math.rad(-8), 0, 0)
 	else -- fascia
-		ccf = CFrame.new(cx, F.dashMidY + 0.42, face + 0.1) * CFrame.Angles(math.rad(-10), 0, 0)
+		ccf = CFrame.new(cx, math.min(F.dashMidY + 0.42, top - ch / 2 - 0.25), face + 0.1) * CFrame.Angles(math.rad(-10), 0, 0)
 	end
 	K:panel("NavBezel", cw + 0.06, ch + 0.06, 0.04, 0.05, ccf * CFrame.new(0, 0, -0.02), P.gloss)
 	K:box("NavGlass", Vector3.new(cw, ch, 0.02), ccf, P.screen)

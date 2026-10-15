@@ -77,9 +77,12 @@ local function body(K: any, F: any, P: any, S: any)
 	local lowerH = upperY0 - bottom
 	K:box("DashLower", Vector3.new(width, lowerH, face - front - 0.08), CFrame.new(0, bottom + lowerH / 2, (front + face - 0.08) / 2), P.lower)
 	K:cyl("DashLowerRoll", width, 0.22, CFrame.new(0, bottom + 0.11, face - 0.19), P.lower)
-	local upH = top - upperY0
+	-- 위 패드: 앞 모서리를 반지름 0.13 롤로 둥글게 (롤이 대시 면보다 튀어나오지 않게 면 안쪽에 둠)
+	local rr = 0.13
+	local upH = top - rr - upperY0
 	K:box("DashUpper", Vector3.new(width, upH, face - uf), CFrame.new(0, upperY0 + upH / 2, (uf + face) / 2), P.soft)
-	K:cyl("DashRoll", width, 0.26, CFrame.new(0, top - 0.13, face), P.soft)
+	K:box("DashUpper", Vector3.new(width, rr, face - rr - uf), CFrame.new(0, top - rr / 2, (uf + face - rr) / 2), P.soft)
+	K:cyl("DashRoll", width, rr * 2, CFrame.new(0, top - rr, face - rr), P.soft)
 	-- 문 쪽 양끝도 둥글게 (세로 롤 + 위 모서리 공)
 	for _, s in { -1, 1 } do
 		local ex = s * (half - 0.14)
@@ -87,14 +90,15 @@ local function body(K: any, F: any, P: any, S: any)
 		K:ball("DashEndRoll", 0.26, CFrame.new(ex, top - 0.13, face - 0.1), P.soft)
 	end
 	if S.trimMat ~= "plastic" then
-		K:box("DashStitch", Vector3.new(width - 0.1, 0.01, 0.01), CFrame.new(0, top - 0.02, face + 0.07), P.stitch)
+		K:box("DashStitch", Vector3.new(width - 0.1, 0.01, 0.01), CFrame.new(0, top - rr + rr * 0.72, face - rr + rr * 0.72), P.stitch)
 	end
 	local zA, zB = zTop + 0.06, face - 0.12
 	if zB - zA > 0.1 then
 		K:box("DashDeck", Vector3.new(width, 0.08, zB - zA), CFrame.new(0, top - 0.04, (zA + zB) / 2), P.soft)
-		if ws.Y < top - 0.05 then
+		if ws.Y < top - 0.05 and zA - ws.Z > 0.03 then
+			-- 앞유리 아래 끝 ~ 상판 앞 끝 사이 틈: 앞이 낮고 뒤가 높은 경사로 덮기
 			local h = top - ws.Y
-			K:wedge("DashSlope", Vector3.new(width, h, math.max(0.2, zB - zA) * 0.5), CFrame.new(0, ws.Y + h / 2, zA + (zB - zA) * 0.25), P.soft)
+			K:wedge("DashSlope", Vector3.new(width, h, zA - ws.Z), CFrame.new(0, ws.Y + h / 2, (ws.Z + zA) / 2), P.soft)
 		end
 		for i = -3, 3 do
 			K:box("DefrostSlot", Vector3.new(0.34, 0.012, 0.05), CFrame.new(i * 0.55, top + 0.002, zA + 0.25), P.hardDark)
@@ -123,8 +127,8 @@ local function body(K: any, F: any, P: any, S: any)
 	-- A필러 트림 (헤드라이너 천, 앞유리 안쪽으로)
 	local wsHalf = (F.wsW or width) / 2
 	local nOut = (hiW - ws):Cross(Vector3.xAxis).Unit
-	if nOut.Y < 0 then
-		nOut = -nOut
+	if nOut.Z > 1e-4 or (math.abs(nOut.Z) <= 1e-4 and nOut.Y < 0) then
+		nOut = -nOut -- 바깥 = 앞(-Z) · 위
 	end
 	for _, s in { -1, 1 } do
 		local a = Vector3.new(s * (wsHalf - 0.1), ws.Y, ws.Z) - nOut * 0.12

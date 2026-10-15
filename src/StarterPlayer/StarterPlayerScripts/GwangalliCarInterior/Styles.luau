@@ -318,17 +318,17 @@ local MATCH: { { string } } = {
 	{ "투싼", "tucson" },
 	{ "nx4", "tucson" },
 	{ "%f[%w]ray%f[%W]", "ray" },
-	{ "레이", "ray" },
+	{ "레이", "ray", "kor" },
 	{ "carnival", "carnival" },
 	{ "카니발", "carnival" },
 	{ "ka4", "carnival" },
-	{ "porter", "porter" },
-	{ "포터", "porter" },
+	{ "%f[%w]porter%f[%W]", "porter" },
+	{ "포터", "porter", "kor" },
 	{ "solati", "solati" },
 	{ "쏠라티", "solati" },
 	{ "솔라티", "solati" },
 	{ "h350", "solati" },
-	{ "119", "solati" },
+	{ "%f[%d]119%f[%D]", "solati" },
 	{ "ambulance", "solati" },
 	{ "구급", "solati" },
 }
@@ -346,13 +346,31 @@ local KIND: { [string]: string } = {
 	ambulance = "solati",
 }
 
+-- 한글 낱말 경계: 앞뒤가 문자열 끝이거나 한글이 아닌 글자 ("기아 레이" O, "플레이어" · "트레이" · "서포터" X)
+local function korWord(low: string, word: string): boolean
+	local i = 1
+	while true do
+		local a, b = string.find(low, word, i, true)
+		if not a then
+			return false
+		end
+		local prev = if a > 1 then string.byte(low, a - 1) else nil
+		local nxt = if b < #low then string.byte(low, b + 1) else nil
+		if (prev == nil or prev < 0x80) and (nxt == nil or nxt < 0x80) then
+			return true
+		end
+		i = b + 1
+	end
+end
+
 local function byName(s: string?): string?
 	if type(s) ~= "string" or s == "" then
 		return nil
 	end
 	local low = string.lower(s)
 	for _, m in MATCH do
-		if string.find(low, m[1]) then
+		local hit = if m[3] == "kor" then korWord(low, m[1]) else string.find(low, m[1]) ~= nil
+		if hit then
 			return m[2]
 		end
 	end

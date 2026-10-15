@@ -61,7 +61,14 @@ return "ok"'''
     }
     if (!(window.GW && GW.engine && GW.engine.running)) { console.warn('[CarInterior] engine not running; not injected'); return; }
     await wait(1500);
-    try { console.log('[CarInterior] inject:', await GW.engine.eval(code)); } catch (e) { console.error('[CarInterior] inject failed', e); }
+    // 플레이어(PlayerScripts)가 아직 없으면 생길 때까지 다시 시도 (느린 기기에서 로딩이 길 때)
+    for (var k = 0; k < 180; k++) {
+      var r;
+      try { r = await GW.engine.eval(code); } catch (e) { console.error('[CarInterior] inject failed', e); return; }
+      if (r !== 'no PlayerScripts') { console.log('[CarInterior] inject:', r); return; }
+      await wait(1000);
+    }
+    console.warn('[CarInterior] no PlayerScripts; not injected');
   }
   run();
 })();

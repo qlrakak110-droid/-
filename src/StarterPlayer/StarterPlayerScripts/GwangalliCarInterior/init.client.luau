@@ -180,7 +180,11 @@ local function track(m: Instance)
 		return
 	end
 	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false, still = 0, intN = -1 }
-	-- 실내가 있던 차에서 복제된 모델(교통 시스템 템플릿)은 숨김 값을 원래대로
+	-- 실내가 있던 차에서 복제된 모델(교통 시스템 템플릿)은 숨김 값을 원래대로 + 따라온 옛 실내 제거
+	local old = m:FindFirstChild("CabinAAA")
+	if old then
+		old:Destroy()
+	end
 	local int = m:FindFirstChild("Interior")
 	if int then
 		for _, d in int:GetDescendants() do
@@ -188,6 +192,15 @@ local function track(m: Instance)
 			if type(t) == "number" and d:IsA("BasePart") then
 				d.Transparency = t
 				d:SetAttribute("GwCabinT", nil)
+			end
+			local md = d:GetAttribute("GwCabinMD")
+			if type(md) == "number" and d:IsA("SurfaceGui") then
+				d.MaxDistance = md
+				if d:GetAttribute("GwCabinAdNil") == true then
+					d.Adornee = nil
+				end
+				d:SetAttribute("GwCabinMD", nil)
+				d:SetAttribute("GwCabinAdNil", nil)
 			end
 		end
 	end
@@ -277,12 +290,16 @@ local function hideOld(cab: any, d: Instance)
 		-- 옛 화면 글자: 보이는 거리를 0 으로 + 땅 밑 빈 파트에 붙여 둠 (Enabled 를 다루는 DetailLOD 와 겹치지 않게)
 		local g = d :: SurfaceGui
 		cab.guis[g] = { g.MaxDistance, g.Adornee }
+		-- 복제되어도 원래 값을 알 수 있게
+		g:SetAttribute("GwCabinMD", g.MaxDistance)
+		g:SetAttribute("GwCabinAdNil", g.Adornee == nil)
 		g.MaxDistance = 0.01
 		g.Adornee = cab.sink
 		-- 품질 설정 등이 MaxDistance 를 되돌리면 다시 끔
 		table.insert(cab.conns, g:GetPropertyChangedSignal("MaxDistance"):Connect(function()
 			if g.MaxDistance ~= 0.01 and cab.alive then
 				cab.guis[g][1] = g.MaxDistance
+				g:SetAttribute("GwCabinMD", g.MaxDistance)
 				g.MaxDistance = 0.01
 			end
 		end))
@@ -309,6 +326,8 @@ local function destroyCabin(rec: Rec)
 		if g.Parent then
 			g.MaxDistance = old[1]
 			g.Adornee = old[2]
+			g:SetAttribute("GwCabinMD", nil)
+			g:SetAttribute("GwCabinAdNil", nil)
 		end
 	end
 	cab.folder:Destroy()
@@ -334,6 +353,7 @@ local function buildCabin(rec: Rec)
 		local P = palette(F)
 		local folder = Instance.new("Model")
 		folder.Name = "CabinAAA"
+		folder.Archivable = false -- 차가 복제되어도(교통 · 리그) 따라가지 않게
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
 		folder.Parent = rec.model -- 먼저 넣어서 70개씩 나눠 들어감 (한 프레임에 몰리지 않게)
 		building_folder = folder
