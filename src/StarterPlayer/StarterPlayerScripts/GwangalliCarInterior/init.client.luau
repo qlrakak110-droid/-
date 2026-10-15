@@ -375,6 +375,9 @@ local function destroyCabin(rec: Rec)
 		end
 	end
 	cab.folder:Destroy()
+	if rec.model.Parent then
+		rec.model:SetAttribute("GwCabinParts", nil) -- 다시 만드는 동안 지난 파트 수가 남지 않게
+	end
 end
 
 destroyCabinRef = destroyCabin

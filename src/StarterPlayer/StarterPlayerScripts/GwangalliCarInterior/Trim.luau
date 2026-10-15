@@ -240,12 +240,22 @@ function Trim.build(K: any, F: any, P: any)
 	if fz1 - fz0 > 0.5 then
 		K:box("CabinCarpet", Vector3.new(half * 2 - 0.06, 0.04, fz1 - fz0), CFrame.new(0, floor + 0.005, (fz0 + fz1) / 2), if porter then P.rubber else P.carpet)
 	end
-	if porter then
-		-- 캡오버 발 공간: 대시 아래 앞벽(토보드)까지 고무 바닥으로 막음 (원래 CabCarpet 는 숨겨져 땅이 보임)
+	do
+		-- 대시 아래 발 공간: 앞벽(토보드)까지 바닥 + 양옆 킥 패널 (원래 카펫은 숨겨져 있어 그대로면 땅이 보임,
+		-- 포터처럼 문이 대시 면에서 시작하는 캡오버는 옆도 뚫려 보임). 포터는 고무 바닥
 		local zf: number = F.dashFront + 0.04
 		local th: number = F.dashBottom - floor
-		K:box("ToeFloor", Vector3.new(half * 2 - 0.06, 0.04, fz0 - zf), CFrame.new(0, floor + 0.005, (zf + fz0) / 2), P.rubber)
-		K:box("ToeBoard", Vector3.new(half * 2 - 0.06, th, 0.06), CFrame.new(0, floor + th / 2, zf + 0.03), P.hardDark)
+		if fz0 - zf > 0.05 then
+			K:box("ToeFloor", Vector3.new(half * 2 - 0.06, 0.04, fz0 - zf), CFrame.new(0, floor + 0.005, (zf + fz0) / 2), if porter then P.rubber else P.carpet)
+		end
+		if th > 0.1 then
+			K:box("ToeBoard", Vector3.new(half * 2 - 0.06, th, 0.06), CFrame.new(0, floor + th / 2, zf + 0.03), if porter then P.hardDark else P.carpet)
+			local kz1: number = math.max(zf + 0.2, (F.doorZ0 :: number) + 0.1)
+			local kh = th + 0.08
+			for _, sx in { -1, 1 } do
+				K:zbox("KickPanel", Vector3.new(0.06, kh, kz1 - zf), 0.025, CFrame.new(sx * (half - 0.05), floor + kh / 2, (zf + kz1) / 2), P.lower)
+			end
+		end
 	end
 	for _, s in F.front do
 		K:box("FloorMat", Vector3.new(math.min(s.w, 1.7) - 0.1, 0.03, 1.6), CFrame.new(s.x, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.85), P.mat)

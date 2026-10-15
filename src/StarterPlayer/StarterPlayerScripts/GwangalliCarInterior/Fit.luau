@@ -146,6 +146,31 @@ function Fit.run(model: Model): (any?, string?)
 		R = (sum / #pts) / math.cos(math.pi / 8) -- 팔각형 조각 중심 -> 꼭짓점 반지름
 	end
 	F.wheel = { c = c, R = math.clamp(R, 0.45, 0.8), cf = CFrame.fromMatrix(c, right, up, axis) }
+	-- 원래 허브 · 배지 · 스포크가 핸들 면에서 운전자 쪽(+Z)으로 얼마나 나와 있는지: 새 패드 · 스포크를 그 바로 앞에 둠
+	-- (숨긴 원래 파트가 새 핸들을 뚫고 보이지 않게)
+	local wcf: CFrame = F.wheel.cf
+	local function frontOf(names: { string }): number?
+		local zmax: number? = nil
+		for _, n in names do
+			for _, p in by[n] or {} do
+				local lc = wcf:ToObjectSpace(U:ToObjectSpace(p.CFrame))
+				if Vector2.new(lc.Position.X, lc.Position.Y).Magnitude < F.wheel.R + 0.1 and math.abs(lc.Position.Z) < 0.5 then
+					local h = p.Size / 2
+					for _, sx in { -1, 1 } do
+						for _, sy in { -1, 1 } do
+							for _, sz in { -1, 1 } do
+								local z = (lc * Vector3.new(sx * h.X, sy * h.Y, sz * h.Z)).Z
+								zmax = if zmax then math.max(zmax, z) else z
+							end
+						end
+					end
+				end
+			end
+		end
+		return zmax
+	end
+	F.wheel.hubFront = frontOf({ "WheelBadge", "WheelHub", "HornPad" })
+	F.wheel.spokeFront = frontOf({ "WheelSpoke" })
 	F.side = if c.X < 0 then -1 else 1 -- 운전석 쪽 (좌핸들 = -X)
 
 	-- 2) 실내 폭 / 바닥 / 천장 -------------------------------------------------------------------------

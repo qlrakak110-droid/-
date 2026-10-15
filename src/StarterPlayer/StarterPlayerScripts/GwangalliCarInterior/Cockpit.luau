@@ -89,43 +89,50 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 			return 1 + grip * math.cos(t) ^ 2
 		end)
 		local hy = -0.03
+		-- 원래 허브 · 배지가 새 패드 앞면보다 앞이면 허브 묶음(껍데기 · 패드 · 엠블럼)을 그만큼 앞으로, 원래 가로 스포크도 같은 식
+		local wf = F.wheel
+		local padFront = if kind == "two" then 0.115 else 0.15
+		local hubPush = math.clamp((wf.hubFront or 0) + 0.012 - padFront, 0, 0.12)
+		local spokePush = math.clamp((wf.spokeFront or 0) + 0.008 - 0.0375, 0, 0.05)
+		local WH = W * CFrame.new(0, 0, hubPush)
+		local WS = W * CFrame.new(0, 0, spokePush)
 		-- 허브 껍데기 + 에어백 패드
-		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), W * CFrame.new(0, hy, -0.05), P.hard)
+		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), WH * CFrame.new(0, hy, -0.05), P.hard)
 		if kind == "three" then
-			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, W * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
+			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, WH * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
 		elseif S.key == "tucson" then
 			-- 투싼 NX4: 앞면이 평평한 가로로 넓은 둥근 사다리꼴 패드 (넓은 위 + 좁은 턱), 앞면이 엠블럼 면과 맞음
 			local pz = 0.06 + hub.Z / 2 - hub.Z * 0.35
-			K:panel("Airbag", hub.X * 0.92, hub.Y * 0.62, hub.Z * 0.7, 0.1, W * CFrame.new(0, hy + hub.Y * 0.14, pz), P.wheelHub)
-			K:panel("AirbagChin", hub.X * 0.62, hub.Y * 0.5, hub.Z * 0.7, 0.08, W * CFrame.new(0, hy - hub.Y * 0.2, pz - 0.004), P.wheelHub)
+			K:panel("Airbag", hub.X * 0.92, hub.Y * 0.62, hub.Z * 0.7, 0.1, WH * CFrame.new(0, hy + hub.Y * 0.14, pz), P.wheelHub)
+			K:panel("AirbagChin", hub.X * 0.62, hub.Y * 0.5, hub.Z * 0.7, 0.08, WH * CFrame.new(0, hy - hub.Y * 0.2, pz - 0.004), P.wheelHub)
 		elseif kind == "two" then
 			-- G80 RG3: 가로로 넓은 알약(스타디움)형 납작한 패드 + 얕은 크라운 (달걀형 돔 X)
-			K:panel("Airbag", hub.X, hub.Y, hub.Z * 0.55, hub.Y / 2 - 0.004, W * CFrame.new(0, hy, 0.03), P.wheelHub)
-			K:ell("AirbagCrown", Vector3.new(hub.X * 0.86, hub.Y * 0.78, 0.07), W * CFrame.new(0, hy, 0.03 + hub.Z * 0.275), P.wheelHub)
+			K:panel("Airbag", hub.X, hub.Y, hub.Z * 0.55, hub.Y / 2 - 0.004, WH * CFrame.new(0, hy, 0.03), P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X * 0.86, hub.Y * 0.78, 0.07), WH * CFrame.new(0, hy, 0.03 + hub.Z * 0.275), P.wheelHub)
 		elseif ws.hubShape == "trap" then
 			-- 카니발 KA4: 가로로 넓은 둥근 사다리꼴 패드 (위 폭 0.6 · 아래 턱 폭 0.42), 앞면 평평 (엠블럼 바로 뒤)
-			K:panel("Airbag", hub.X, hub.Y * 0.72, hub.Z, 0.11, W * CFrame.new(0, hy + hub.Y * 0.1, 0.06), P.wheelHub)
-			K:panel("AirbagChin", hub.X * 0.7, hub.Y * 0.5, hub.Z * 0.9, 0.08, W * CFrame.new(0, hy - hub.Y * 0.2, 0.055), P.wheelHub)
+			K:panel("Airbag", hub.X, hub.Y * 0.72, hub.Z, 0.11, WH * CFrame.new(0, hy + hub.Y * 0.1, 0.06), P.wheelHub)
+			K:panel("AirbagChin", hub.X * 0.7, hub.Y * 0.5, hub.Z * 0.9, 0.08, WH * CFrame.new(0, hy - hub.Y * 0.2, 0.055), P.wheelHub)
 		elseif kind == "vee4" then
 			-- 쏘나타 DN8: 공 모양 돔이 아니라 납작한 둥근 사각 패드 (앞에서 본 모서리 r 0.13) + 얕은 크라운
-			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, W * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
-			K:ell("AirbagCrown", Vector3.new(hub.X - 0.04, hub.Y - 0.04, 0.09), W * CFrame.new(0, hy, 0.105), P.wheelHub)
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, WH * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X - 0.04, hub.Y - 0.04, 0.09), WH * CFrame.new(0, hy, 0.105), P.wheelHub)
 		elseif ws.pad == "trap" then
 			-- 쏠라티 (싼타페 DM 계열): 위가 넓은 둥근 사다리꼴 패드 (위 0.52 / 아래 0.41) + 얕은 크라운 (앞 z 0.15, 엠블럼 0.152)
-			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.6, hub.X), 0.11, W * CFrame.new(0, hy + hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
-			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.55, hub.X * 0.78), 0.1, W * CFrame.new(0, hy - hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
-			K:ell("AirbagCrown", Vector3.new(hub.X - 0.08, hub.Y - 0.06, 0.09), W * CFrame.new(0, hy + 0.01, 0.105), P.wheelHub)
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.6, hub.X), 0.11, WH * CFrame.new(0, hy + hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:rbox("Airbag", Vector3.new(0.1, hub.Y * 0.55, hub.X * 0.78), 0.1, WH * CFrame.new(0, hy - hub.Y * 0.2, 0.05) * ROT_X_TO_Z, P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X - 0.08, hub.Y - 0.06, 0.09), WH * CFrame.new(0, hy + 0.01, 0.105), P.wheelHub)
 		else
-			K:ell("Airbag", hub, W * CFrame.new(0, hy, 0.06), P.wheelHub)
+			K:ell("Airbag", hub, WH * CFrame.new(0, hy, 0.06), P.wheelHub)
 		end
 		-- 좌우 스포크 (허브 -> 림, 약간 아래로) + 버튼
 		local ang = if kind == "bus2" then math.rad(-15) elseif kind == "two" then math.rad(-8) else math.rad(-4)
-		local th = if kind == "two" then 0.2 elseif kind == "bus2" then 0.19 else 0.15
+		local th = if kind == "two" then 0.2 elseif kind == "bus2" then 0.19 else 0.16
 		local x0, x1 = hub.X * 0.4, R - 0.03
 		local len = x1 - x0
 		local mid = (x0 + x1) / 2
 		for _, s in { -1, 1 } do
-			local sp = W * CFrame.new(s * mid * math.cos(ang), hy + mid * math.sin(ang), 0) * CFrame.Angles(0, 0, s * ang)
+			local sp = WS * CFrame.new(s * mid * math.cos(ang), hy + mid * math.sin(ang), 0) * CFrame.Angles(0, 0, s * ang)
 			K:rbox("Spoke", Vector3.new(len, th, 0.075), 0.035, sp, P.hard)
 			if ws.sideTrim then
 				-- 쏘나타: 스포크 위아래를 감싸는 새틴 크롬 (요크 느낌)
@@ -203,9 +210,9 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 			K:panel("LowerSpokeTrim", 0.19, y0 - y1 - 0.08, 0.02, 0.05, W * CFrame.new(0, (y0 + y1) / 2 - 0.01, 0.04), P.gloss)
 		elseif kind == "two" then
 			-- G80: 아래가 비어 있고 허브가 아래로 조금 불룩
-			K:ell("HubChin", Vector3.new(hub.X * 0.55, hub.Y * 0.5, hub.Z * 0.85), W * CFrame.new(0, hy - hub.Y * 0.36, 0.04), P.wheelHub)
+			K:ell("HubChin", Vector3.new(hub.X * 0.55, hub.Y * 0.5, hub.Z * 0.85), WH * CFrame.new(0, hy - hub.Y * 0.36, 0.04), P.wheelHub)
 		end
-		emblem(K, P, S.brand, W * CFrame.new(0, hy + 0.005, if kind == "two" then 0.03 + hub.Z * 0.275 + 0.037 else 0.06 + hub.Z / 2 + 0.002))
+		emblem(K, P, S.brand, WH * CFrame.new(0, hy + 0.005, if kind == "two" then 0.03 + hub.Z * 0.275 + 0.037 else 0.06 + hub.Z / 2 + 0.002))
 		if ws.paddles then
 			for _, s in { -1, 1 } do
 				K:panel("Paddle", 0.07, 0.24, 0.025, 0.03, W * CFrame.new(s * (R - 0.12), 0.02, -0.11) * CFrame.Angles(0, 0, math.rad(s * 8)), P.paddle)
