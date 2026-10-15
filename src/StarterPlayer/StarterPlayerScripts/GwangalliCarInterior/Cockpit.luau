@@ -93,6 +93,15 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), W * CFrame.new(0, hy, -0.05), P.hard)
 		if kind == "three" then
 			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, W * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
+		elseif S.key == "tucson" then
+			-- 투싼 NX4: 앞면이 평평한 가로로 넓은 둥근 사다리꼴 패드 (넓은 위 + 좁은 턱), 앞면이 엠블럼 면과 맞음
+			local pz = 0.06 + hub.Z / 2 - hub.Z * 0.35
+			K:panel("Airbag", hub.X * 0.92, hub.Y * 0.62, hub.Z * 0.7, 0.1, W * CFrame.new(0, hy + hub.Y * 0.14, pz), P.wheelHub)
+			K:panel("AirbagChin", hub.X * 0.62, hub.Y * 0.5, hub.Z * 0.7, 0.08, W * CFrame.new(0, hy - hub.Y * 0.2, pz - 0.004), P.wheelHub)
+		elseif kind == "two" then
+			-- G80 RG3: 가로로 넓은 알약(스타디움)형 납작한 패드 + 얕은 크라운 (달걀형 돔 X)
+			K:panel("Airbag", hub.X, hub.Y, hub.Z * 0.55, hub.Y / 2 - 0.004, W * CFrame.new(0, hy, 0.03), P.wheelHub)
+			K:ell("AirbagCrown", Vector3.new(hub.X * 0.86, hub.Y * 0.78, 0.07), W * CFrame.new(0, hy, 0.03 + hub.Z * 0.275), P.wheelHub)
 		elseif ws.hubShape == "trap" then
 			-- 카니발 KA4: 가로로 넓은 둥근 사다리꼴 패드 (위 폭 0.6 · 아래 턱 폭 0.42), 앞면 평평 (엠블럼 바로 뒤)
 			K:panel("Airbag", hub.X, hub.Y * 0.72, hub.Z, 0.11, W * CFrame.new(0, hy + hub.Y * 0.1, 0.06), P.wheelHub)
@@ -163,6 +172,12 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 					local sl = (b - a).Magnitude
 					K:rbox("LowerSpoke", Vector3.new(sl + 0.02, 0.12, 0.06), 0.028, spf, P.hard)
 					K:box("LowerSpokeTrim", Vector3.new(sl - 0.12, 0.024, 0.01), spf * CFrame.new(0.03, 0, 0.032), P.satin)
+				elseif S.key == "tucson" then
+					-- 투싼: 가까이 붙은 납작한 아래 스포크 두 개 + 운전자 쪽 새틴 띠
+					local cfL = CFrame.lookAt((a + b) / 2, b, W.ZVector)
+					local lenL = (b - a).Magnitude
+					K:box("LowerSpoke", Vector3.new(0.09, 0.05, lenL + 0.04), cfL, P.hard)
+					K:box("LowerSpokeTrim", Vector3.new(0.05, 0.012, lenL - 0.1), cfL * CFrame.new(0, 0.027, 0.03), P.satin)
 				else
 					K:seg("LowerSpoke", a, b, 0.08, P.hard)
 					if ws.lowerTrim then
@@ -182,7 +197,7 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 			-- G80: 아래가 비어 있고 허브가 아래로 조금 불룩
 			K:ell("HubChin", Vector3.new(hub.X * 0.55, hub.Y * 0.5, hub.Z * 0.85), W * CFrame.new(0, hy - hub.Y * 0.36, 0.04), P.wheelHub)
 		end
-		emblem(K, P, S.brand, W * CFrame.new(0, hy + 0.005, 0.06 + hub.Z / 2 + 0.002))
+		emblem(K, P, S.brand, W * CFrame.new(0, hy + 0.005, if kind == "two" then 0.03 + hub.Z * 0.275 + 0.037 else 0.06 + hub.Z / 2 + 0.002))
 		if ws.paddles then
 			for _, s in { -1, 1 } do
 				K:panel("Paddle", 0.07, 0.24, 0.025, 0.03, W * CFrame.new(s * (R - 0.12), 0.02, -0.11) * CFrame.Angles(0, 0, math.rad(s * 8)), P.paddle)
@@ -361,9 +376,10 @@ local function displays(K: any, F: any, P: any, S: any): any
 		end
 	elseif kind == "flush" then
 		-- G80: 대시 위쪽 가운데에 낮고 넓게 박힌 화면 (가죽 둔덕이 감쌈)
-		ccf = CFrame.new(cx + toC * 0.12, top + ch / 2 - 0.06, face - 0.28) * CFrame.Angles(math.rad(-8), 0, 0)
-		K:rbox("CenterCowl", Vector3.new(cw + 0.22, ch * 0.62, 0.44), 0.12, ccf * CFrame.new(0, -ch * 0.2, -0.26), P.soft)
-		K:panel("CenterBack", cw - 0.06, ch - 0.06, 0.1, 0.08, ccf * CFrame.new(0, 0, -0.07), P.hard)
+		-- G80 RG3: 대시 면과 거의 같은 면에 박힌 초광폭 화면. 유리 아래 끝(top - 0.12)은 헤어라인 송풍구 위 립 바로 위,
+		-- 뒤는 얕은 가죽 하우징만 (앞유리 밑에 얹힌 태블릿 X)
+		ccf = CFrame.new(cx + toC * 0.16, top - 0.12 + ch / 2, face + 0.05) * CFrame.Angles(math.rad(-3), 0, 0)
+		K:panel("CenterHousing", cw + 0.1, ch + 0.04, 0.1, 0.1, ccf * CFrame.new(0, 0, -0.07), P.soft)
 	elseif kind == "stack" then
 		ccf = CFrame.new(cx, top - ch / 2 + 0.02, face + 0.12) * CFrame.Angles(math.rad(-10), 0, 0)
 	elseif kind == "pod" then
@@ -396,7 +412,7 @@ function Cockpit.build(K: any, F: any, P: any)
 		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - 0.86)
 		local sb = CFrame.new(W.Position.X - F.side * off, F.dashMidY - 0.12, F.dashFace - 0.06)
 		K:cyl("StartRing", 0.04, 0.2, sb * ROT_X_TO_Z, P.chrome)
-		K:cyl("StartButton", 0.05, 0.15, sb * CFrame.new(0, 0, 0.012) * ROT_X_TO_Z, P.startBtn)
+		K:cyl("StartButton", 0.05, 0.15, sb * CFrame.new(0, 0, 0.012) * ROT_X_TO_Z, if S.brand == "genesis" then P.gloss else P.startBtn)
 	end
 	return out
 end

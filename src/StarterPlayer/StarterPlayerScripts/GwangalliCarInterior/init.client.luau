@@ -118,6 +118,7 @@ local function palette(F: any): any
 		panel = { c = lighten(dash, 0.1), m = SP },
 		gloss = { c = rgb(7, 7, 9), m = SP, r = 0.12 },
 		glossMatte = { c = rgb(7, 7, 9), m = SP, r = 0.05 },
+		aluKey = { c = rgb(104, 106, 110), m = M.Metal },
 		screen = { c = rgb(4, 6, 10), m = M.Glass, r = 0.06 },
 		lcd = { c = rgb(10, 18, 28), m = SP, r = 0.05 },
 		dialFace = { c = rgb(14, 15, 18), m = SP },
@@ -647,11 +648,14 @@ RunService.RenderStepped:Connect(function(dt: number)
 			continue
 		end
 		local near = rec == mine or (base.Position - cp).Magnitude < CFG.liveRadius
-		-- 앰비언트: 밤에 밝게
+		-- 앰비언트: 밤에만 빛남. 낮에는 Neon 이 아닌 어두운 같은 색 선 (낮에 형광등 막대처럼 보이지 않게)
 		if cab.night ~= night then
 			cab.night = night
+			local acc: Color3 = cab.fit.style.colors.ambient
 			for _, p in cab.ambient do
-				p.Transparency = if night then 0.1 else 0.55
+				p.Material = if night then Enum.Material.Neon else Enum.Material.SmoothPlastic
+				p.Color = if night then acc else acc:Lerp(Color3.new(0, 0, 0), 0.6)
+				p.Transparency = if night then 0.1 else 0
 			end
 		end
 		-- 실내등: 밤 = 앰비언트 발밑 · 화면 빛, 내가 탄 차가 서 있으면 천장등 · 맵램프 (속성 DomeLights = 미리보기용 강제 켜기)

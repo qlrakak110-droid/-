@@ -42,11 +42,14 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	local g: string = S.garnish
 	-- 쏘나타: 대시의 새틴 라인 · 앰비언트와 같은 높이로 문까지 끊김 없이
 	local lineY = if g == "line" then math.clamp((F.dashMidY :: number) + 0.1, upY0 + 0.06, y1 - 0.08) else upY0 + 0.1
+	-- G80: 대시 우드 띠 가운데 높이 (Dash: sy = top - 0.2, wy = sy - 0.2)
+	local woodY = math.clamp((F.dashTop :: number) - 0.4, upY0 + 0.12, math.max(upY0 + 0.12, y1 - 0.3))
 	if g == "line" then
 		K:cyl("DoorTrimBand", len - 0.4, 0.03, CFrame.new(x + inward * 0.06, lineY, zc) * AZ, P.trim)
 	elseif g == "wood" then
-		K:zbox("DoorTrimBand", Vector3.new(0.05, 0.16, len - 0.4), 0.024, CFrame.new(x + inward * 0.05, upY0 + 0.1, zc), P.trim)
-		K:cyl("DoorChrome", len - 0.42, 0.016, CFrame.new(x + inward * 0.07, upY0 + 0.0, zc) * AZ, P.chrome)
+		-- 우드 띠(0.24) + 위 크롬 립(송풍구 아래 립 높이)이 대시에서 문으로 끊김 없이
+		K:zbox("DoorTrimBand", Vector3.new(0.05, 0.24, len - 0.4), 0.024, CFrame.new(x + inward * 0.05, woodY, zc), P.trim)
+		K:cyl("DoorChrome", len - 0.42, 0.016, CFrame.new(x + inward * 0.07, woodY + 0.165, zc) * AZ, P.chrome)
 	elseif g == "waterfall" then
 		for i = 0, 1 do
 			K:cyl("DoorTrimBand", len - 0.4, 0.026, CFrame.new(x + inward * 0.06, upY0 + 0.14 - i * 0.08, zc) * AZ, P.trim)
@@ -56,7 +59,7 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 		K:zbox("DoorWood", Vector3.new(0.04, 0.08, len - 0.5), 0.019, CFrame.new(x + inward * 0.05, upY0 - 0.0, zc), P.wood)
 	end
 	if P.ambient then
-		K:cyl("DoorAmbient", len - 0.6, 0.02, CFrame.new(x + inward * 0.07, if g == "line" then lineY - 0.045 else upY0 + 0.03, zc) * AZ, P.ambient)
+		K:cyl("DoorAmbient", len - 0.6, 0.02, CFrame.new(x + inward * 0.07, if g == "line" then lineY - 0.045 elseif g == "wood" then woodY + 0.13 else upY0 + 0.03, zc) * AZ, P.ambient)
 	end
 	-- 팔걸이 + 창문 스위치
 	-- 팔걸이: 그 문 쪽 좌석 쿠션 위 0.5 (팔꿈치 높이)
@@ -91,7 +94,9 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 		K:zbox("PullGrip", Vector3.new(0.12, 0.1, 0.5), 0.045, CFrame.new(x + inward * 0.1, armY + 0.2, armZ), P.hard)
 	end
 	-- 원형 스피커 (문 아래 앞쪽): 보스 / 렉시콘 메탈 메쉬 / 크렐 배지 / 일반 + 맵포켓
-	local sp = CFrame.new(x + inward * 0.06, y0 + lowH * 0.55, z0 + 0.5)
+	-- 앞문 스피커는 대시 뒤 문 앞쪽 아래 (조수석 발밑으로 나가지 않게)
+	local spz = if front and not plastic then math.max(z0 + 0.5, (F.dashFace :: number) + 0.38) else z0 + 0.5
+	local sp = CFrame.new(x + inward * 0.06, y0 + lowH * 0.6, spz)
 	local spk: string = S.speaker
 	K:cyl("SpeakerRing", 0.03, 0.6, sp, if spk == "plain" then P.hard else P.chrome)
 	K:cyl("SpeakerGrille", 0.035, 0.54, sp * CFrame.new(inward * 0.005, 0, 0), if spk == "lexicon" then P.mesh else P.grille)
@@ -145,11 +150,12 @@ function Trim.build(K: any, F: any, P: any)
 			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (lh - 0.12), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
 		end
 		local oc = CFrame.new(0, roofY - 0.06, lz0 + 0.45)
-		K:rbox("OverheadConsole", Vector3.new(0.78, 0.12, 0.5), 0.05, oc, P.hard)
+		-- 아래에서 보면 네 모서리가 둥근 판 + 면에 묻힌 타원 렌즈 · 둥근 SOS (튀어나온 흰 타일 X)
+		K:slab("OverheadConsole", 0.78, 0.5, 0.12, 0.16, oc, P.hard)
 		for _, s in { -1, 1 } do
-			K:box("MapLamp", Vector3.new(0.2, 0.02, 0.12), oc * CFrame.new(s * 0.22, -0.065, 0.02), P.lampLens)
+			K:ell("MapLamp", Vector3.new(0.2, 0.024, 0.13), oc * CFrame.new(s * 0.22, -0.06, 0.02), P.lampLens)
 		end
-		K:box("SOS", Vector3.new(0.08, 0.02, 0.05), oc * CFrame.new(0, -0.065, 0.15), P.hazard)
+		K:cyl("SOS", 0.016, 0.065, oc * CFrame.new(0, -0.064, 0.15) * CFrame.Angles(0, 0, math.pi / 2), P.hazard)
 		K:box("RoofSwitch", Vector3.new(0.14, 0.02, 0.06), oc * CFrame.new(0, -0.065, -0.12), P.button)
 		if F.style.key == "carnival" then
 			-- 파워 슬라이딩 도어 좌 · 우 + 파워 테일게이트 (맵램프 앞 · 사이)
@@ -175,7 +181,7 @@ function Trim.build(K: any, F: any, P: any)
 	for _, s in { -1, 1 } do
 		local v = CFrame.new(s * 1.15, roofY - 0.06, hi.Z + 0.42)
 		K:rbox("SunVisor", Vector3.new(1.18, 0.06, 0.6), 0.03, v, P.fabric)
-		K:box("VanityCover", Vector3.new(0.5, 0.012, 0.26), v * CFrame.new(-s * 0.1, -0.035, 0.04), P.hard)
+		K:box("VanityCover", Vector3.new(0.5, 0.012, 0.26), v * CFrame.new(-s * 0.1, -0.035, 0.04), P.pillar)
 		K:cyl("VisorRod", 0.4, 0.04, v * CFrame.new(s * 0.62, 0.0, -0.22) * CFrame.Angles(0, math.pi / 2, 0), P.hard)
 	end
 	local mp: Vector3 = F.mirror or Vector3.new(0, roofY - 0.3, hi.Z + 0.35)

@@ -120,10 +120,16 @@ local function body(K: any, F: any, P: any, S: any)
 	local gBot = math.max(bottom + 0.06, gTop - 0.46)
 	local gh = gTop - gBot
 	local gy = (gTop + gBot) / 2
-	for _, e in { { 0, gh / 2, gw, 0.012 }, { 0, -gh / 2, gw, 0.012 }, { gw / 2, 0, 0.012, gh }, { -gw / 2, 0, 0.012, gh } } do
-		K:box("GloveGap", Vector3.new(e[3], e[4], 0.01), CFrame.new(gx + e[1], gy + e[2], face - 0.075), P.hardDark)
+	if S.garnish == "waterfall" then
+		-- 투싼: 아래층에 묻힌 매끈한 뚜껑(둥근 모서리, 서랍 틀 X) + 새틴 라인 밑 검은 손잡이 홈
+		K:panel("GloveLid", gw, gh, 0.03, 0.07, CFrame.new(gx, gy, face - 0.065), P.lower)
+		K:box("GlovePull", Vector3.new(0.3, 0.04, 0.02), CFrame.new(gx, gTop - 0.05, face - 0.04), P.hardDark)
+	else
+		for _, e in { { 0, gh / 2, gw, 0.012 }, { 0, -gh / 2, gw, 0.012 }, { gw / 2, 0, 0.012, gh }, { -gw / 2, 0, 0.012, gh } } do
+			K:box("GloveGap", Vector3.new(e[3], e[4], 0.01), CFrame.new(gx + e[1], gy + e[2], face - 0.075), P.hardDark)
+		end
+		K:box("GloveHandle", Vector3.new(0.3, 0.035, 0.03), CFrame.new(gx, gy + gh / 2 - 0.08, face - 0.07), P.satin)
 	end
-	K:box("GloveHandle", Vector3.new(0.3, 0.035, 0.03), CFrame.new(gx, gy + gh / 2 - 0.08, face - 0.07), P.satin)
 	-- A필러 트림 (헤드라이너 천, 앞유리 안쪽으로)
 	local wsHalf = (F.wsW or width) / 2
 	local nOut = (hiW - ws):Cross(Vector3.xAxis).Unit
@@ -131,9 +137,13 @@ local function body(K: any, F: any, P: any, S: any)
 		nOut = -nOut -- 바깥 = 앞(-Z) · 위
 	end
 	for _, s in { -1, 1 } do
-		local a = Vector3.new(s * (wsHalf - 0.1), ws.Y, ws.Z) - nOut * 0.12
-		local b = Vector3.new(s * (wsHalf - 0.24), hiW.Y, hiW.Z) - nOut * 0.12
-		K:seg("APillarTrim", a, b, 0.15, P.pillar)
+		local a = Vector3.new(s * (wsHalf - 0.1), ws.Y, ws.Z) - nOut * 0.17
+		local b = Vector3.new(s * (wsHalf - 0.24), hiW.Y, hiW.Z) - nOut * 0.17
+		-- 넓고 납작한 천 트림 (둥근 막대 X): 앞유리와 나란히, 바깥 끝은 문 유리 쪽으로 30° 접힘
+		local along = (b - a).Unit
+		local wx = (Vector3.xAxis - along * along.X).Unit
+		local cf = CFrame.fromMatrix((a + b) / 2, wx, along:Cross(wx), along) * CFrame.Angles(0, 0, -s * math.rad(30))
+		K:zbox("APillarTrim", Vector3.new(0.34, 0.09, (b - a).Magnitude + 0.1), 0.044, cf, P.pillar)
 	end
 end
 
@@ -176,8 +186,9 @@ local function climate(K: any, F: any, P: any, S: any, cx: number, y: number, z:
 		K:panel("ClimateTouch", 1.02, 0.2, 0.025, 0.07, cf, P.gloss)
 		temps(K, P, cf * CFrame.new(0, 0.03, 0.015), 0.4, 0.06)
 		for i = -3, 3 do
-			K:box("TouchIcon", Vector3.new(0.045, 0.03, 0.004), cf * CFrame.new(i * 0.1, -0.055, 0.014), P.markWhite)
+			K:box("TouchIcon", Vector3.new(if i == 0 then 0.08 else 0.04, 0.012, 0.004), cf * CFrame.new(i * 0.11, -0.06, 0.014), P.markWhite)
 		end
+		K:box("TouchDivider", Vector3.new(0.86, 0.004, 0.004), cf * CFrame.new(0, -0.032, 0.014), P.button)
 		Screens.climate(K, cf * CFrame.new(0, 0.03, 0.016), 0.4, 0.05, P.accentColor)
 	elseif kind == "touch_knobs" then
 		-- 카니발: 광택 터치 공조 패널 + 작은 노브 2
@@ -262,8 +273,11 @@ function Dash.build(K: any, F: any, P: any)
 	elseif g == "wood" then
 		-- G80: 전폭 헤어라인 송풍구 (크롬 립) -> 앰비언트 -> 넓은 우드 띠 -> 아래 매달린 공조
 		local sy = top - 0.2
-		K:panel("HairlineVent", width - 0.3, 0.05, 0.06, 0.024, CFrame.new(0, sy, face + 0.0), P.duct)
-		K:cyl("HairlineLip", width - 0.32, 0.016, CFrame.new(0, sy - 0.035, face + 0.02), P.chrome)
+		-- 슬롯 앞면을 대시 면에 맞춰 안으로 들어간 검은 틈 + 위 · 아래 크롬 립 2줄 = 한 줄 헤어라인 송풍구
+		K:panel("HairlineVent", width - 0.3, 0.05, 0.06, 0.024, CFrame.new(0, sy, face - 0.028), P.duct)
+		for _, ly in { sy + 0.035, sy - 0.035 } do
+			K:cyl("HairlineLip", width - 0.32, 0.016, CFrame.new(0, ly, face + 0.012), P.chrome)
+		end
 		for _, x in { cx - 0.35, cx + 0.35, -(half - 0.55), half - 0.55 } do
 			K:box("VentTab", Vector3.new(0.06, 0.035, 0.03), CFrame.new(x, sy, face + 0.025), P.satin)
 		end
@@ -282,21 +296,32 @@ function Dash.build(K: any, F: any, P: any)
 	elseif g == "waterfall" then
 		-- 투싼: 피아노 블랙 세로 스택 (화면 + 양옆 세로 송풍구 + 터치 공조)
 		local sw = cw + 0.5
+		local conW: number = if con then math.min(con.w, 1.15) else 0.9
+		local yJ = mid + 0.1 -- 여기서 스택이 콘솔 폭으로 좁아짐 (위 새틴 라인 바로 아래)
 		local sy0, sy1 = conTop - 0.02, top + 0.04
-		K:panel("CentreStack", sw, sy1 - sy0, 0.12, 0.14, CFrame.new(cx, (sy0 + sy1) / 2, face + 0.04), P.gloss)
+		K:panel("CentreStack", sw, sy1 - yJ, 0.12, 0.14, CFrame.new(cx, (yJ + sy1) / 2, face + 0.04), P.gloss)
+		K:panel("CentreStackLow", conW - 0.13, yJ + 0.1 - sy0, 0.11, 0.06, CFrame.new(cx, (yJ + 0.1 + sy0) / 2, face + 0.035), P.gloss)
 		for _, s in { -1, 1 } do
 			vent(K, P, "StackVent", CFrame.new(cx + s * (cw / 2 + 0.13), scrY, face + 0.11), 0.13, ch * 0.95, true, { frame = P.gloss, duct = P.duct, slat = P.hard, knob = P.satin })
 		end
 		climate(K, F, P, S, cx, scrY - ch / 2 - 0.17, face + 0.115)
-		-- 새틴 두 줄: 문 -> 대시 -> 스택 양옆으로 흘러내림
+		-- 새틴 두 줄: 문 -> 대시 -> 스택 옆에서 S자로 안쪽 · 아래로 흘러 콘솔 윗모서리로 합류 (워터폴)
+		local zf, ze = face + 0.014, face - 0.067
 		for i, ly in { mid + 0.13, mid + 0.05 } do
 			for _, s in { -1, 1 } do
 				local xin = cx + s * (sw / 2 + 0.04 + (i - 1) * 0.06)
 				local xout = s * (half - 0.06)
-				-- 둥근 새틴 막대 + 꺾이는 곳은 공으로
-				K:cyl("Garnish", math.abs(xout - xin), 0.026, CFrame.new((xin + xout) / 2, ly, face + 0.014), P.trim)
-				K:seg("Garnish", Vector3.new(xin, ly, face + 0.014), Vector3.new(xin, conTop, face + 0.014), 0.026, P.trim)
-				K:ball("Garnish", 0.026, CFrame.new(xin, ly, face + 0.014), P.trim)
+				K:cyl("Garnish", math.abs(xout - xin), 0.026, CFrame.new((xin + xout) / 2, ly, zf), P.trim)
+				K:ball("Garnish", 0.026, CFrame.new(xin, ly, zf), P.trim)
+				local xe, ye = cx + s * (conW / 2 - 0.035), conTop + 0.04
+				local prev = Vector3.new(xin, ly, zf)
+				for k = 1, 5 do
+					local t = k / 5
+					local st = t * t * (3 - 2 * t)
+					local p = Vector3.new(xin + (xe - xin) * st, ly + (ye - ly) * t, zf + (ze - zf) * st)
+					K:seg("Garnish", prev, p, 0.026, P.trim, 0.02)
+					prev = p
+				end
 			end
 		end
 		if amb then

@@ -16,9 +16,12 @@ local ROT_X_TO_Y = CFrame.Angles(0, 0, math.pi / 2) -- 원통 축(X)을 위(+Y)�
 -- 세로 널링 다이얼 (cf = 바닥 가운데, +Y 위)
 local function vknurl(K: any, P: any, cf: CFrame, d: number, h: number, n: number, topLook: any)
 	K:cyl("Dial", h, d, cf * CFrame.new(0, h / 2, 0) * ROT_X_TO_Y, P.alloy)
+	-- 얕고 촘촘한 널링 (톱니바퀴처럼 보이지 않게)
+	local tw = math.min(0.014, math.pi * d / n * 0.45)
+	local rr = d / 2 - 0.001
 	for i = 1, n do
 		local a = (i / n) * math.pi * 2
-		K:box("Knurl", Vector3.new(0.016, h * 0.84, 0.014), cf * CFrame.new(math.cos(a) * d / 2, h / 2, math.sin(a) * d / 2) * CFrame.Angles(0, -a, 0), P.chrome)
+		K:box("Knurl", Vector3.new(0.01, h * 0.84, tw), cf * CFrame.new(math.cos(a) * rr, h / 2, math.sin(a) * rr) * CFrame.Angles(0, -a, 0), P.chrome)
 	end
 	K:cyl("DialTop", 0.014, d * 0.84, cf * CFrame.new(0, h + 0.004, 0) * ROT_X_TO_Y, topLook)
 end
@@ -117,7 +120,15 @@ function Console.build(K: any, F: any, P: any)
 	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.hard)
 	-- 무선 충전 패드 (개인택시: 그 자리에 카드결제기)
 	local pz = zU + 0.26
-	if S.key == "sonata_taxi" and F.kind ~= "police" then
+	if S.shifter == "buttons_row" then
+		-- 투싼 NX4: 공조 패널 밑 스택 아래에 기대 선 무선 충전 트레이 (35°)
+		local tz = F.dashFace + 0.09
+		local tc = CFrame.new(x, topY + 0.145, tz + 0.15)
+		K:wedge("ChargeTray", Vector3.new(0.64, 0.21, 0.3), tc * CFrame.Angles(0, math.pi, 0), P.gloss)
+		local pc = tc * CFrame.Angles(math.rad(35), 0, 0) * CFrame.new(0, 0.012, 0)
+		K:slab("ChargePad", 0.54, 0.3, 0.02, 0.06, pc, P.rubber)
+		K:box("ChargeIcon", Vector3.new(0.05, 0.008, 0.07), pc * CFrame.new(0, 0.012, 0), P.markWhite)
+	elseif S.key == "sonata_taxi" and F.kind ~= "police" then
 		-- 카드결제기: 20° 세운 작은 검은 단말기 (위 LCD · 키패드 3줄 · 카드 태그 표시) + 앞쪽 받침
 		local tc = CFrame.new(x, topY + 0.075, pz + 0.04) * CFrame.Angles(math.rad(-70), 0, 0)
 		K:box("TerminalStand", Vector3.new(0.16, 0.07, 0.12), CFrame.new(x, topY + 0.06, pz - 0.07), P.hardDark)
@@ -175,11 +186,12 @@ function Console.build(K: any, F: any, P: any)
 		-- G80: 우드 인레이 + 크롬 변속 다이얼(앞) + 조그 다이얼(뒤), 알루미늄 키
 		local gz = zU + L * 0.4
 		K:slab("ConsoleWood", w - 0.18, L * 0.62, 0.02, 0.09, CFrame.new(x, top - 0.005, gz + 0.1), P.trim)
-		vknurl(K, P, CFrame.new(x, top, gz), 0.27, 0.13, 14, P.gloss)
+		vknurl(K, P, CFrame.new(x, top, gz), 0.27, 0.13, 24, P.gloss)
 		K:cyl("ShiftDialRing", 0.02, 0.33, CFrame.new(x, top + 0.005, gz) * ROT_X_TO_Y, P.chrome)
-		vknurl(K, P, CFrame.new(x, top, gz + 0.42), 0.23, 0.08, 12, P.screen)
+		vknurl(K, P, CFrame.new(x, top, gz + 0.42), 0.23, 0.08, 20, P.screen)
 		for _, k in { { -0.24, -0.08 }, { 0.24, -0.08 }, { -0.24, 0.16 }, { 0.24, 0.16 }, { -0.22, 0.42 }, { 0.22, 0.42 } } do
-			K:box("AluKey", Vector3.new(0.12, 0.03, 0.07), CFrame.new(x + k[1], top + 0.01, gz + k[2]), P.alloy)
+			-- 우드 면에서 0.011 만 솟은 납작한 렌즈형 알루미늄 키 (1파트, 모서리 없음)
+			K:ell("AluKey", Vector3.new(0.11, 0.022, 0.062), CFrame.new(x + k[1], top + 0.005, gz + k[2]), P.aluKey)
 		end
 		-- 덮개 컵홀더 (우드 슬라이딩 뚜껑)
 		local cz = gz + 0.82
@@ -198,8 +210,9 @@ function Console.build(K: any, F: any, P: any)
 		end
 		cupholders(K, P, x, top - 0.01, gz + 0.62, false)
 		-- 대시에서 흘러내린 새틴 두 줄이 콘솔 위 양옆을 따라 뒤로
+		local g0, g1 = F.dashFace - 0.067, zA - 0.05 -- 대시 라인이 내려앉은 곳 -> 팔걸이
 		for _, s in { -1, 1 } do
-			K:cyl("Garnish", L - 0.1, 0.026, CFrame.new(x + s * (w / 2 - 0.035), topY + 0.04, deckMid) * CFrame.Angles(0, math.pi / 2, 0), P.trim)
+			K:cyl("Garnish", g1 - g0, 0.026, CFrame.new(x + s * (w / 2 - 0.035), topY + 0.04, (g0 + g1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.trim)
 		end
 	else -- dial (카니발)
 		local gz = zU + L * 0.42

@@ -10,12 +10,23 @@ local Seats = {}
 local ROT_X_TO_Y = CFrame.Angles(0, 0, math.pi / 2)
 
 local function quilt(K: any, frame: CFrame, w: number, h: number, look: any)
-	-- 다이아몬드 퀼팅 (대각선 스티치 두 방향)
-	local n = 3
+	-- 다이아몬드 퀼팅: 두 방향 대각선 스티치를 인서트 사각형(w × h) 안으로 잘라서 (볼스터 · 좌석 밖으로 삐져나오지 않게)
+	local ang = math.rad(35)
+	local ux, uy = math.sin(ang), math.cos(ang)
+	local pitch = w / 3.5
+	local n = math.ceil((w / 2 + (h / 2) * ux / uy) / pitch)
 	for i = -n, n do
-		local off = i * w / (n + 1)
+		local off = i * pitch
 		for _, s in { -1, 1 } do
-			K:box("Quilt", Vector3.new(0.008, h * 1.2, 0.006), frame * CFrame.new(off, 0, 0) * CFrame.Angles(0, 0, s * math.rad(35)), look)
+			local dx = s * ux
+			-- 선 (off, 0) + t·(dx, uy) 를 |x| <= w/2, |y| <= h/2 로 자름
+			local ta, tb = (-w / 2 - off) / dx, (w / 2 - off) / dx
+			local t0 = math.max(-(h / 2) / uy, math.min(ta, tb))
+			local t1 = math.min((h / 2) / uy, math.max(ta, tb))
+			if t1 - t0 > 0.05 then
+				local tm = (t0 + t1) / 2
+				K:box("Quilt", Vector3.new(0.008, t1 - t0, 0.006), frame * CFrame.new(off + tm * dx, tm * uy, 0) * CFrame.Angles(0, 0, -s * ang), look)
+			end
 		end
 	end
 end
