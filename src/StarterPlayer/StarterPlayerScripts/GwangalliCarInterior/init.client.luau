@@ -132,6 +132,7 @@ local function palette(F: any): any
 		pillar = { c = darken(C.liner, 0.38), m = M.Fabric },
 		rubber = { c = rgb(20, 20, 22), m = M.Rubber },
 		mat = { c = rgb(24, 24, 26), m = M.Carpet },
+		carpet = { c = darken(C.lower or dash, 0.25), m = M.Carpet },
 		duct = { c = rgb(6, 6, 7), m = SP },
 		button = { c = rgb(34, 36, 40), m = SP, r = 0.04 },
 		buttonLit = { c = rgb(225, 236, 255), m = M.Neon, t = 0.35 },

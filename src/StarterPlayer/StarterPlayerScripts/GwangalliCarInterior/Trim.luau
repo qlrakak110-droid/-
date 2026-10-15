@@ -196,8 +196,13 @@ function Trim.build(K: any, F: any, P: any)
 		end
 	end
 
-	-- 바닥 매트 + 페달 ---------------------------------------------------------------------------------------
+	-- 바닥 카펫(실내 전체, 어두운 니들펠트) + 매트 + 페달 ------------------------------------------------------
 	local floor: number = F.floorY
+	local fz0: number = F.dashFace - 0.05
+	local fz1: number = F.doorZ1
+	if fz1 - fz0 > 0.5 then
+		K:box("CabinCarpet", Vector3.new(half * 2 - 0.06, 0.04, fz1 - fz0), CFrame.new(0, floor + 0.005, (fz0 + fz1) / 2), P.carpet)
+	end
 	for _, s in F.front do
 		K:box("FloorMat", Vector3.new(math.min(s.w, 1.7) - 0.1, 0.03, 1.6), CFrame.new(s.x, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.85), P.mat)
 		K:box("MatPiping", Vector3.new(math.min(s.w, 1.7) - 0.05, 0.035, 0.035), CFrame.new(s.x, floor + 0.018, s.z - s.cushSize.Z / 2 - 0.05), P.stitch)
@@ -252,6 +257,6 @@ function Trim.build(K: any, F: any, P: any)
 	return {}
 end
 
-Trim.REPLACES = { "DoorTrim", "DoorTrimUpper", "Armrest", "AmbientDoor", "SpeakerGrille", "Headliner", "SunVisor", "RearViewMirror", "Pedal", "FloorMat" }
+Trim.REPLACES = { "DoorTrim", "DoorTrimUpper", "Armrest", "AmbientDoor", "SpeakerGrille", "Headliner", "SunVisor", "RearViewMirror", "Pedal", "FloorMat", "Carpet", "CabCarpet" }
 
 return Trim
