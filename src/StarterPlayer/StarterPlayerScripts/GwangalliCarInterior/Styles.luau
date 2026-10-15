@@ -198,7 +198,7 @@ LIST.carnival = {
 	key = "carnival",
 	label = "Kia Carnival (KA4)",
 	brand = "kia",
-	wheel = { spokes = "u4", hub = Vector3.new(0.6, 0.38, 0.18), sideTrim = false, lowerTrim = "gloss", paddles = true },
+	wheel = { spokes = "u4", hub = Vector3.new(0.6, 0.38, 0.18), sideTrim = false, lowerTrim = "gloss", paddles = true, hubShape = "trap", lowerV = true, icons = true },
 	cluster = { kind = "digital", hood = "brow", w = 1.22, h = 0.44, speedMax = 260, rpmMax = 8 },
 	center = { kind = "joined", w = 1.22, h = 0.44 },
 	vents = "garnish",
@@ -209,6 +209,7 @@ LIST.carnival = {
 	garnish = "metal_wood",
 	speaker = "krell",
 	seat = { insert = "hstitch", bolster = 0.9, captains = true },
+	consoleAmbient = false, -- 무드등은 크래시패드 · 도어 라인에만
 	hud = false,
 	startButton = true,
 	ambient = true,

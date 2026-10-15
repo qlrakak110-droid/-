@@ -116,7 +116,7 @@ local function body(K: any, F: any, P: any, S: any)
 	local gIn = math.abs(cx) + 1.02
 	local gw = math.clamp((half - 0.12) - gIn, 0.6, 1.25)
 	local gx = -ds * (gIn + gw / 2)
-	local gTop = mid - 0.1
+	local gTop = if S.garnish == "metal_wood" then mid - 0.24 else mid - 0.1 -- 카니발: 내려간 우드 띠 밑으로
 	local gBot = math.max(bottom + 0.06, gTop - 0.46)
 	local gh = gTop - gBot
 	local gy = (gTop + gBot) / 2
@@ -306,29 +306,37 @@ function Dash.build(K: any, F: any, P: any)
 		K:panel("SlotVent", 0.5, 0.05, 0.04, 0.024, CFrame.new(ds * (half - 0.38), mid + 0.24, face + 0.005), P.duct)
 		K:panel("SlotVent", half - sw / 2 - 0.3, 0.045, 0.04, 0.022, CFrame.new(toC * (half + sw / 2) / 2, mid + 0.24, face + 0.005), P.duct)
 	elseif g == "metal_wood" then
-		-- 카니발: 화면 아래 금속 가니시 띠(슬롯 송풍구 2 + 비상등, 양끝 슬롯) + 우드그레인 띠 + 터치 띠 2단
+		-- 카니발 KA4: 화면 바로 아래 금속 띠(슬롯 송풍구 2 + 비상등, 양끝 슬롯) -> 우드 띠(가운데 인포 터치 띠) -> 공조 터치 띠
+		-- 띠 윗면(my + 0.065)이 시선상 화면 아래 끝보다 아래여야 송풍구가 보임
 		local scrBottom = math.min(F.clusterBottom or top, scrY - ch / 2)
-		local my = math.min(top - 0.22, scrBottom - 0.1)
-		K:rbox("MetalBand", Vector3.new(width - 0.12, 0.15, 0.05), 0.024, CFrame.new(0, my, face + 0.01), P.trim)
+		local my = math.min(top - 0.405, scrBottom - 0.21)
+		K:rbox("MetalBand", Vector3.new(width - 0.12, 0.13, 0.05), 0.024, CFrame.new(0, my, face + 0.01), P.trim)
 		for _, s in { -1, 1 } do
-			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.34, my, face + 0.03), 0.5, 0.065)
-			vent(K, P, "SideVent", CFrame.new(s * (half - 0.42), my, face + 0.03), 0.5, 0.065)
+			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.34, my, face + 0.03), 0.5, 0.06)
+			vent(K, P, "SideVent", CFrame.new(s * (half - 0.42), my, face + 0.03), 0.5, 0.06)
 		end
 		K:box("Hazard", Vector3.new(0.08, 0.06, 0.04), CFrame.new(cx, my, face + 0.04), P.hazard)
-		local wy = my - 0.15
-		K:rbox("WoodBand", Vector3.new(width - 0.2, 0.13, 0.05), 0.024, CFrame.new(0, wy, face + 0.006), P.wood)
+		local wy = my - 0.115
+		K:rbox("WoodBand", Vector3.new(width - 0.2, 0.1, 0.05), 0.022, CFrame.new(0, wy, face + 0.006), P.wood)
 		if amb then
-			K:cyl("DashAmbient", width - 0.3, 0.016, CFrame.new(0, my - 0.083, face + 0.03), amb)
+			K:cyl("DashAmbient", width - 0.3, 0.016, CFrame.new(0, my - 0.065, face + 0.03), amb)
 		end
-		local iy = wy - 0.13
-		K:panel("InfoTouch", 1.0, 0.1, 0.03, 0.045, CFrame.new(cx, iy, face + 0.04), P.gloss)
+		-- 센터 페시아 몸체 (콘솔 윗면 ~ 우드 띠 윗면): 띠들이 0.08 들어간 하단 대시 면 앞에 떠 보이지 않게
+		local fy0, fy1 = conTop, wy + 0.05
+		if fy1 - fy0 > 0.05 then
+			K:panel("StackBack", 1.24, fy1 - fy0, 0.12, 0.06, CFrame.new(cx, (fy0 + fy1) / 2, face - 0.03), P.hard)
+		end
+		-- 인포테인먼트 터치 띠: 우드 띠 가운데 (양끝 볼륨 · 튠 노브)
+		local iy = wy
+		K:panel("InfoTouch", 1.0, 0.08, 0.03, 0.035, CFrame.new(cx, iy, face + 0.04), P.gloss)
 		for _, s in { -1, 1 } do
-			K:cyl("InfoKnob", 0.05, 0.09, CFrame.new(cx + s * 0.42, iy, face + 0.07) * ROT_X_TO_Z, P.alloy)
+			K:cyl("InfoKnob", 0.05, 0.08, CFrame.new(cx + s * 0.42, iy, face + 0.07) * ROT_X_TO_Z, P.alloy)
 		end
 		for i = -2, 2 do
 			K:box("TouchIcon", Vector3.new(0.04, 0.024, 0.004), CFrame.new(cx + i * 0.12, iy, face + 0.057), P.markWhite)
 		end
-		climate(K, F, P, S, cx, math.max(conTop + 0.1, iy - 0.15), face + 0.05)
+		-- 공조 터치 띠: 인포 띠 아래 0.01 틈, 콘솔 윗면 위
+		climate(K, F, P, S, cx, math.max(conTop + 0.115, iy - 0.125), face + 0.05)
 	else
 		-- 레이 · 포터 · 쏠라티: 가니시 없이 센터 스택(포드 / 페시아)
 		local vk: string = S.vents

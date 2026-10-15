@@ -116,6 +116,7 @@ local function palette(F: any): any
 		hardDark = { c = darken(dash, 0.5), m = SP },
 		panel = { c = lighten(dash, 0.1), m = SP },
 		gloss = { c = rgb(7, 7, 9), m = SP, r = 0.12 },
+		glossMatte = { c = rgb(7, 7, 9), m = SP, r = 0.05 },
 		screen = { c = rgb(4, 6, 10), m = M.Glass, r = 0.06 },
 		lcd = { c = rgb(10, 18, 28), m = SP, r = 0.05 },
 		dialFace = { c = rgb(14, 15, 18), m = SP },

@@ -93,6 +93,10 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), W * CFrame.new(0, hy, -0.05), P.hard)
 		if kind == "three" then
 			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, W * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
+		elseif ws.hubShape == "trap" then
+			-- 카니발 KA4: 가로로 넓은 둥근 사다리꼴 패드 (위 폭 0.6 · 아래 턱 폭 0.42), 앞면 평평 (엠블럼 바로 뒤)
+			K:panel("Airbag", hub.X, hub.Y * 0.72, hub.Z, 0.11, W * CFrame.new(0, hy + hub.Y * 0.1, 0.06), P.wheelHub)
+			K:panel("AirbagChin", hub.X * 0.7, hub.Y * 0.5, hub.Z * 0.9, 0.08, W * CFrame.new(0, hy - hub.Y * 0.2, 0.055), P.wheelHub)
 		elseif kind == "vee4" then
 			-- 쏘나타 DN8: 공 모양 돔이 아니라 납작한 둥근 사각 패드 (앞에서 본 모서리 r 0.13) + 얕은 크라운
 			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, W * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
@@ -129,10 +133,24 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 					local bx = -0.05 + (i % 2) * 0.1
 					local by = 0.03 - math.floor(i / 2) * 0.06
 					K:box("Button", Vector3.new(0.065, 0.035, 0.012), pan * CFrame.new(bx, by, 0.014), P.button)
+					if ws.icons then
+						K:box("ButtonIcon", Vector3.new(0.026, 0.009, 0.004), pan * CFrame.new(bx, by, 0.022), P.markWhite)
+					end
 				end
 			end
 			-- 아래쪽 두 스포크: 쏘나타는 5시·7시로 벌어진 역V, 투싼·카니발·쏠라티는 6시 쪽으로 붙은 U
-			if kind == "vee4" or kind == "u4" then
+			if ws.lowerV then
+				-- 카니발 KA4: 허브 턱 양끝에서 6시 림(±4°)으로 모이는 납작한 V 블레이드 + 하이글로시 인레이
+				local a2 = Vector2.new(s * 0.13, hy - hub.Y * 0.42)
+				local t = math.rad(-90 + s * 4)
+				local b2 = Vector2.new(math.cos(t) * (R - 0.03), math.sin(t) * (R - 0.03))
+				local d = b2 - a2
+				local bc = W * CFrame.new((a2.X + b2.X) / 2, (a2.Y + b2.Y) / 2, -0.01) * CFrame.Angles(0, 0, math.atan2(d.Y, d.X))
+				K:rbox("LowerSpoke", Vector3.new(d.Magnitude, 0.085, 0.05), 0.022, bc, P.hard)
+				if ws.lowerTrim then
+					K:box("LowerSpokeTrim", Vector3.new(d.Magnitude - 0.1, 0.032, 0.012), bc * CFrame.new(0, 0, 0.027), if ws.lowerTrim == "gloss" then P.gloss else P.satin)
+				end
+			elseif kind == "vee4" or kind == "u4" then
 				local spread = if kind == "vee4" then 32 else 10
 				local t = math.rad(-90 + s * spread)
 				local a = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0)).Position
@@ -372,7 +390,7 @@ function Cockpit.build(K: any, F: any, P: any)
 	if S.hud then
 		K:slab("HudWindow", 0.62, 0.3, 0.02, 0.08, CFrame.new(W.Position.X, F.dashTop + 0.012, F.dashFace - 0.75), P.gloss)
 	end
-	if S.startButton then
+	if S.startButton and S.shifter ~= "dial" then -- 카니발: 콘솔 충전 패드 옆 (Console)
 		-- 센터 스택(반폭 ~0.65 + 테두리) 바깥, 크롬 라인 아래 대시 아랫면(대시 면보다 0.08 안쪽)에 붙임
 		local scx = if F.console then F.console.x else 0
 		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - 0.86)

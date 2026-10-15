@@ -122,6 +122,10 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		K:ell("HubShell", Vector3.new(hub.X + 0.06, hub.Y + 0.05, 0.22), W * CFrame.new(0, hy, -0.05), P.hard)
 		if kind == "three" then
 			K:rbox("Airbag", Vector3.new(hub.Z, hub.Y, hub.X), 0.1, W * CFrame.new(0, hy, 0.06) * ROT_X_TO_Z, P.wheelHub)
+		elseif ws.hubShape == "trap" then
+			-- 카니발 KA4: 가로로 넓은 둥근 사다리꼴 패드 (위 폭 0.6 · 아래 턱 폭 0.42), 앞면 평평 (엠블럼 바로 뒤)
+			K:panel("Airbag", hub.X, hub.Y * 0.72, hub.Z, 0.11, W * CFrame.new(0, hy + hub.Y * 0.1, 0.06), P.wheelHub)
+			K:panel("AirbagChin", hub.X * 0.7, hub.Y * 0.5, hub.Z * 0.9, 0.08, W * CFrame.new(0, hy - hub.Y * 0.2, 0.055), P.wheelHub)
 		elseif kind == "vee4" then
 			-- 쏘나타 DN8: 공 모양 돔이 아니라 납작한 둥근 사각 패드 (앞에서 본 모서리 r 0.13) + 얕은 크라운
 			K:rbox("Airbag", Vector3.new(0.1, hub.Y, hub.X), 0.13, W * CFrame.new(0, hy, 0.05) * ROT_X_TO_Z, P.wheelHub)
@@ -158,10 +162,24 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 					local bx = -0.05 + (i % 2) * 0.1
 					local by = 0.03 - math.floor(i / 2) * 0.06
 					K:box("Button", Vector3.new(0.065, 0.035, 0.012), pan * CFrame.new(bx, by, 0.014), P.button)
+					if ws.icons then
+						K:box("ButtonIcon", Vector3.new(0.026, 0.009, 0.004), pan * CFrame.new(bx, by, 0.022), P.markWhite)
+					end
 				end
 			end
 			-- 아래쪽 두 스포크: 쏘나타는 5시·7시로 벌어진 역V, 투싼·카니발·쏠라티는 6시 쪽으로 붙은 U
-			if kind == "vee4" or kind == "u4" then
+			if ws.lowerV then
+				-- 카니발 KA4: 허브 턱 양끝에서 6시 림(±4°)으로 모이는 납작한 V 블레이드 + 하이글로시 인레이
+				local a2 = Vector2.new(s * 0.13, hy - hub.Y * 0.42)
+				local t = math.rad(-90 + s * 4)
+				local b2 = Vector2.new(math.cos(t) * (R - 0.03), math.sin(t) * (R - 0.03))
+				local d = b2 - a2
+				local bc = W * CFrame.new((a2.X + b2.X) / 2, (a2.Y + b2.Y) / 2, -0.01) * CFrame.Angles(0, 0, math.atan2(d.Y, d.X))
+				K:rbox("LowerSpoke", Vector3.new(d.Magnitude, 0.085, 0.05), 0.022, bc, P.hard)
+				if ws.lowerTrim then
+					K:box("LowerSpokeTrim", Vector3.new(d.Magnitude - 0.1, 0.032, 0.012), bc * CFrame.new(0, 0, 0.027), if ws.lowerTrim == "gloss" then P.gloss else P.satin)
+				end
+			elseif kind == "vee4" or kind == "u4" then
 				local spread = if kind == "vee4" then 32 else 10
 				local t = math.rad(-90 + s * spread)
 				local a = (W * CFrame.new(s * 0.075, hy - hub.Y * 0.42, 0)).Position
@@ -401,7 +419,7 @@ function Cockpit.build(K: any, F: any, P: any)
 	if S.hud then
 		K:slab("HudWindow", 0.62, 0.3, 0.02, 0.08, CFrame.new(W.Position.X, F.dashTop + 0.012, F.dashFace - 0.75), P.gloss)
 	end
-	if S.startButton then
+	if S.startButton and S.shifter ~= "dial" then -- 카니발: 콘솔 충전 패드 옆 (Console)
 		-- 센터 스택(반폭 ~0.65 + 테두리) 바깥, 크롬 라인 아래 대시 아랫면(대시 면보다 0.08 안쪽)에 붙임
 		local scx = if F.console then F.console.x else 0
 		local off = math.min(F.wheel.R + 0.32, math.abs(scx - W.Position.X) - 0.86)
@@ -554,7 +572,7 @@ function Console.build(K: any, F: any, P: any)
 	for _, s in { -1, 1 } do
 		K:rbox("ConsoleSide", Vector3.new(len - 0.1, h * 0.62, 0.08), 0.035, CFrame.new(x + s * (w / 2 - 0.02), floor + h * 0.55, (z0 + z1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.soft)
 		K:box("ConsoleStitch", Vector3.new(0.01, 0.01, len - 0.2), CFrame.new(x + s * (w / 2 + 0.022), floor + h * 0.84, (z0 + z1) / 2), P.stitch)
-		if P.ambient then
+		if P.ambient and S.consoleAmbient ~= false then
 			K:cyl("ConsoleAmbient", len * 0.5, 0.02, CFrame.new(x + s * (w / 2 + 0.02), topY - 0.05, z0 + len * 0.35) * CFrame.Angles(0, math.pi / 2, 0), P.ambient)
 		end
 	end
@@ -653,13 +671,22 @@ function Console.build(K: any, F: any, P: any)
 		end
 	else -- dial (카니발)
 		local gz = zU + L * 0.42
-		K:slab("DialPlate", w - 0.2, 0.62, 0.03, 0.14, CFrame.new(x, top, gz), P.gloss)
+		if S.startButton then
+			-- 시동 버튼: 무선 충전 패드(폭 0.6) 운전석 쪽 옆
+			local sb = CFrame.new(x + side * 0.385, top + 0.012, pz)
+			K:cyl("StartRing", 0.03, 0.13, sb * ROT_X_TO_Y, P.chrome)
+			K:cyl("StartButton", 0.04, 0.1, sb * CFrame.new(0, 0.012, 0) * ROT_X_TO_Y, P.hardDark)
+		end
+		-- KA4: 다이얼 · 버튼 · 컵홀더를 피아노 블랙 판 한 장 + 새틴 테두리가 감쌈
+		local pc = CFrame.new(x, top, gz + 0.32)
+		K:slab("DialPlateRim", w - 0.12, 1.34, 0.02, 0.15, pc * CFrame.new(0, -0.006, 0), P.satin)
+		K:slab("DialPlate", w - 0.16, 1.3, 0.03, 0.14, pc, P.glossMatte)
 		vknurl(K, P, CFrame.new(x, top, gz), 0.26, 0.1, 14, P.gloss)
 		K:cyl("DialP", 0.03, 0.08, CFrame.new(x, top + 0.115, gz) * ROT_X_TO_Y, P.satin)
 		for _, k in { { -0.28, -0.18 }, { 0.28, -0.18 }, { -0.28, 0.0 }, { 0.28, 0.0 }, { -0.28, 0.18 }, { 0.28, 0.18 } } do
 			K:box("DialKey", Vector3.new(0.1, 0.03, 0.1), CFrame.new(x + k[1], top + 0.015, gz + k[2]), P.button)
 		end
-		cupholders(K, P, x, top - 0.01, gz + 0.62, false)
+		cupholders(K, P, x, top + 0.002, gz + 0.62, false)
 	end
 
 	-- 팔걸이 -------------------------------------------------------------------------------------------
@@ -808,7 +835,7 @@ local function body(K: any, F: any, P: any, S: any)
 	local gIn = math.abs(cx) + 1.02
 	local gw = math.clamp((half - 0.12) - gIn, 0.6, 1.25)
 	local gx = -ds * (gIn + gw / 2)
-	local gTop = mid - 0.1
+	local gTop = if S.garnish == "metal_wood" then mid - 0.24 else mid - 0.1 -- 카니발: 내려간 우드 띠 밑으로
 	local gBot = math.max(bottom + 0.06, gTop - 0.46)
 	local gh = gTop - gBot
 	local gy = (gTop + gBot) / 2
@@ -998,29 +1025,37 @@ function Dash.build(K: any, F: any, P: any)
 		K:panel("SlotVent", 0.5, 0.05, 0.04, 0.024, CFrame.new(ds * (half - 0.38), mid + 0.24, face + 0.005), P.duct)
 		K:panel("SlotVent", half - sw / 2 - 0.3, 0.045, 0.04, 0.022, CFrame.new(toC * (half + sw / 2) / 2, mid + 0.24, face + 0.005), P.duct)
 	elseif g == "metal_wood" then
-		-- 카니발: 화면 아래 금속 가니시 띠(슬롯 송풍구 2 + 비상등, 양끝 슬롯) + 우드그레인 띠 + 터치 띠 2단
+		-- 카니발 KA4: 화면 바로 아래 금속 띠(슬롯 송풍구 2 + 비상등, 양끝 슬롯) -> 우드 띠(가운데 인포 터치 띠) -> 공조 터치 띠
+		-- 띠 윗면(my + 0.065)이 시선상 화면 아래 끝보다 아래여야 송풍구가 보임
 		local scrBottom = math.min(F.clusterBottom or top, scrY - ch / 2)
-		local my = math.min(top - 0.22, scrBottom - 0.1)
-		K:rbox("MetalBand", Vector3.new(width - 0.12, 0.15, 0.05), 0.024, CFrame.new(0, my, face + 0.01), P.trim)
+		local my = math.min(top - 0.405, scrBottom - 0.21)
+		K:rbox("MetalBand", Vector3.new(width - 0.12, 0.13, 0.05), 0.024, CFrame.new(0, my, face + 0.01), P.trim)
 		for _, s in { -1, 1 } do
-			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.34, my, face + 0.03), 0.5, 0.065)
-			vent(K, P, "SideVent", CFrame.new(s * (half - 0.42), my, face + 0.03), 0.5, 0.065)
+			vent(K, P, "CentreVent", CFrame.new(cx + s * 0.34, my, face + 0.03), 0.5, 0.06)
+			vent(K, P, "SideVent", CFrame.new(s * (half - 0.42), my, face + 0.03), 0.5, 0.06)
 		end
 		K:box("Hazard", Vector3.new(0.08, 0.06, 0.04), CFrame.new(cx, my, face + 0.04), P.hazard)
-		local wy = my - 0.15
-		K:rbox("WoodBand", Vector3.new(width - 0.2, 0.13, 0.05), 0.024, CFrame.new(0, wy, face + 0.006), P.wood)
+		local wy = my - 0.115
+		K:rbox("WoodBand", Vector3.new(width - 0.2, 0.1, 0.05), 0.022, CFrame.new(0, wy, face + 0.006), P.wood)
 		if amb then
-			K:cyl("DashAmbient", width - 0.3, 0.016, CFrame.new(0, my - 0.083, face + 0.03), amb)
+			K:cyl("DashAmbient", width - 0.3, 0.016, CFrame.new(0, my - 0.065, face + 0.03), amb)
 		end
-		local iy = wy - 0.13
-		K:panel("InfoTouch", 1.0, 0.1, 0.03, 0.045, CFrame.new(cx, iy, face + 0.04), P.gloss)
+		-- 센터 페시아 몸체 (콘솔 윗면 ~ 우드 띠 윗면): 띠들이 0.08 들어간 하단 대시 면 앞에 떠 보이지 않게
+		local fy0, fy1 = conTop, wy + 0.05
+		if fy1 - fy0 > 0.05 then
+			K:panel("StackBack", 1.24, fy1 - fy0, 0.12, 0.06, CFrame.new(cx, (fy0 + fy1) / 2, face - 0.03), P.hard)
+		end
+		-- 인포테인먼트 터치 띠: 우드 띠 가운데 (양끝 볼륨 · 튠 노브)
+		local iy = wy
+		K:panel("InfoTouch", 1.0, 0.08, 0.03, 0.035, CFrame.new(cx, iy, face + 0.04), P.gloss)
 		for _, s in { -1, 1 } do
-			K:cyl("InfoKnob", 0.05, 0.09, CFrame.new(cx + s * 0.42, iy, face + 0.07) * ROT_X_TO_Z, P.alloy)
+			K:cyl("InfoKnob", 0.05, 0.08, CFrame.new(cx + s * 0.42, iy, face + 0.07) * ROT_X_TO_Z, P.alloy)
 		end
 		for i = -2, 2 do
 			K:box("TouchIcon", Vector3.new(0.04, 0.024, 0.004), CFrame.new(cx + i * 0.12, iy, face + 0.057), P.markWhite)
 		end
-		climate(K, F, P, S, cx, math.max(conTop + 0.1, iy - 0.15), face + 0.05)
+		-- 공조 터치 띠: 인포 띠 아래 0.01 틈, 콘솔 윗면 위
+		climate(K, F, P, S, cx, math.max(conTop + 0.115, iy - 0.125), face + 0.05)
 	else
 		-- 레이 · 포터 · 쏠라티: 가니시 없이 센터 스택(포드 / 페시아)
 		local vk: string = S.vents
@@ -2648,7 +2683,7 @@ LIST.carnival = {
 	key = "carnival",
 	label = "Kia Carnival (KA4)",
 	brand = "kia",
-	wheel = { spokes = "u4", hub = Vector3.new(0.6, 0.38, 0.18), sideTrim = false, lowerTrim = "gloss", paddles = true },
+	wheel = { spokes = "u4", hub = Vector3.new(0.6, 0.38, 0.18), sideTrim = false, lowerTrim = "gloss", paddles = true, hubShape = "trap", lowerV = true, icons = true },
 	cluster = { kind = "digital", hood = "brow", w = 1.22, h = 0.44, speedMax = 260, rpmMax = 8 },
 	center = { kind = "joined", w = 1.22, h = 0.44 },
 	vents = "garnish",
@@ -2659,6 +2694,7 @@ LIST.carnival = {
 	garnish = "metal_wood",
 	speaker = "krell",
 	seat = { insert = "hstitch", bolster = 0.9, captains = true },
+	consoleAmbient = false, -- 무드등은 크래시패드 · 도어 라인에만
 	hud = false,
 	startButton = true,
 	ambient = true,
@@ -2998,6 +3034,13 @@ function Trim.build(K: any, F: any, P: any)
 		end
 		K:box("SOS", Vector3.new(0.08, 0.02, 0.05), oc * CFrame.new(0, -0.065, 0.15), P.hazard)
 		K:box("RoofSwitch", Vector3.new(0.14, 0.02, 0.06), oc * CFrame.new(0, -0.065, -0.12), P.button)
+		if F.style.key == "carnival" then
+			-- 파워 슬라이딩 도어 좌 · 우 + 파워 테일게이트 (맵램프 앞 · 사이)
+			for _, s in { -1, 1 } do
+				K:box("SlideDoorSwitch", Vector3.new(0.1, 0.02, 0.07), oc * CFrame.new(s * 0.24, -0.065, -0.16), P.button)
+			end
+			K:box("TailgateSwitch", Vector3.new(0.1, 0.02, 0.07), oc * CFrame.new(0, -0.065, 0.04), P.button)
+		end
 		-- 실내등 (뒤)
 		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6), P.lampLens)
 		-- 손잡이 (조수석 + 뒤 양쪽)
@@ -3199,6 +3242,7 @@ local function palette(F: any): any
 		hardDark = { c = darken(dash, 0.5), m = SP },
 		panel = { c = lighten(dash, 0.1), m = SP },
 		gloss = { c = rgb(7, 7, 9), m = SP, r = 0.12 },
+		glossMatte = { c = rgb(7, 7, 9), m = SP, r = 0.05 },
 		screen = { c = rgb(4, 6, 10), m = M.Glass, r = 0.06 },
 		lcd = { c = rgb(10, 18, 28), m = SP, r = 0.05 },
 		dialFace = { c = rgb(14, 15, 18), m = SP },

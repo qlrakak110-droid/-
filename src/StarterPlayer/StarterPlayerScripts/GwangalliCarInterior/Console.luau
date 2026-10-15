@@ -104,7 +104,7 @@ function Console.build(K: any, F: any, P: any)
 	for _, s in { -1, 1 } do
 		K:rbox("ConsoleSide", Vector3.new(len - 0.1, h * 0.62, 0.08), 0.035, CFrame.new(x + s * (w / 2 - 0.02), floor + h * 0.55, (z0 + z1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.soft)
 		K:box("ConsoleStitch", Vector3.new(0.01, 0.01, len - 0.2), CFrame.new(x + s * (w / 2 + 0.022), floor + h * 0.84, (z0 + z1) / 2), P.stitch)
-		if P.ambient then
+		if P.ambient and S.consoleAmbient ~= false then
 			K:cyl("ConsoleAmbient", len * 0.5, 0.02, CFrame.new(x + s * (w / 2 + 0.02), topY - 0.05, z0 + len * 0.35) * CFrame.Angles(0, math.pi / 2, 0), P.ambient)
 		end
 	end
@@ -203,13 +203,22 @@ function Console.build(K: any, F: any, P: any)
 		end
 	else -- dial (카니발)
 		local gz = zU + L * 0.42
-		K:slab("DialPlate", w - 0.2, 0.62, 0.03, 0.14, CFrame.new(x, top, gz), P.gloss)
+		if S.startButton then
+			-- 시동 버튼: 무선 충전 패드(폭 0.6) 운전석 쪽 옆
+			local sb = CFrame.new(x + side * 0.385, top + 0.012, pz)
+			K:cyl("StartRing", 0.03, 0.13, sb * ROT_X_TO_Y, P.chrome)
+			K:cyl("StartButton", 0.04, 0.1, sb * CFrame.new(0, 0.012, 0) * ROT_X_TO_Y, P.hardDark)
+		end
+		-- KA4: 다이얼 · 버튼 · 컵홀더를 피아노 블랙 판 한 장 + 새틴 테두리가 감쌈
+		local pc = CFrame.new(x, top, gz + 0.32)
+		K:slab("DialPlateRim", w - 0.12, 1.34, 0.02, 0.15, pc * CFrame.new(0, -0.006, 0), P.satin)
+		K:slab("DialPlate", w - 0.16, 1.3, 0.03, 0.14, pc, P.glossMatte)
 		vknurl(K, P, CFrame.new(x, top, gz), 0.26, 0.1, 14, P.gloss)
 		K:cyl("DialP", 0.03, 0.08, CFrame.new(x, top + 0.115, gz) * ROT_X_TO_Y, P.satin)
 		for _, k in { { -0.28, -0.18 }, { 0.28, -0.18 }, { -0.28, 0.0 }, { 0.28, 0.0 }, { -0.28, 0.18 }, { 0.28, 0.18 } } do
 			K:box("DialKey", Vector3.new(0.1, 0.03, 0.1), CFrame.new(x + k[1], top + 0.015, gz + k[2]), P.button)
 		end
-		cupholders(K, P, x, top - 0.01, gz + 0.62, false)
+		cupholders(K, P, x, top + 0.002, gz + 0.62, false)
 	end
 
 	-- 팔걸이 -------------------------------------------------------------------------------------------

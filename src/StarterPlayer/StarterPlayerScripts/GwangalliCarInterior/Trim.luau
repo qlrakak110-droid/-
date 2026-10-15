@@ -151,6 +151,13 @@ function Trim.build(K: any, F: any, P: any)
 		end
 		K:box("SOS", Vector3.new(0.08, 0.02, 0.05), oc * CFrame.new(0, -0.065, 0.15), P.hazard)
 		K:box("RoofSwitch", Vector3.new(0.14, 0.02, 0.06), oc * CFrame.new(0, -0.065, -0.12), P.button)
+		if F.style.key == "carnival" then
+			-- 파워 슬라이딩 도어 좌 · 우 + 파워 테일게이트 (맵램프 앞 · 사이)
+			for _, s in { -1, 1 } do
+				K:box("SlideDoorSwitch", Vector3.new(0.1, 0.02, 0.07), oc * CFrame.new(s * 0.24, -0.065, -0.16), P.button)
+			end
+			K:box("TailgateSwitch", Vector3.new(0.1, 0.02, 0.07), oc * CFrame.new(0, -0.065, 0.04), P.button)
+		end
 		-- 실내등 (뒤)
 		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6), P.lampLens)
 		-- 손잡이 (조수석 + 뒤 양쪽)
