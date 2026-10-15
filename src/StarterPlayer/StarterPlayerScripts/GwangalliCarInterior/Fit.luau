@@ -345,4 +345,29 @@ function Fit.run(model: Model): (any?, string?)
 	return F, nil
 end
 
+-- 디버그용 요약 (스크립트 속성 Debug = true 일 때 차 모델의 GwCabinFit 속성으로)
+function Fit.summary(F: any): string
+	local function v(p: Vector3?): string
+		return if p then string.format("(%.2f,%.2f,%.2f)", p.X, p.Y, p.Z) else "nil"
+	end
+	local t = {
+		string.format("half=%.2f floor=%.2f roof=%.2f side=%d", F.halfIn, F.floorY, F.roofY, F.side),
+		string.format("dash face=%.2f front=%.2f top=%.2f mid=%.2f bot=%.2f w=%.2f", F.dashFace, F.dashFront, F.dashTop, F.dashMidY, F.dashBottom, F.dashW),
+		"ws=" .. v(F.wsLow) .. v(F.wsHigh) .. string.format(" wsW=%.2f", F.wsW or 0),
+		"wheel=" .. v(F.wheel.c) .. string.format(" R=%.2f", F.wheel.R) .. " axis=" .. v(F.wheel.cf.LookVector),
+		"cluster=" .. v(F.cluster) .. " nav=" .. v(F.nav) .. string.format(" navW=%.2f", F.navWide),
+		if F.console then string.format("console x=%.2f z=%.2f..%.2f top=%.2f w=%.2f", F.console.x, F.console.z0, F.console.z1, F.console.top, F.console.w) else "console=nil",
+		if F.consoleArm then string.format("arm z=%.2f..%.2f top=%.2f w=%.2f", F.consoleArm.z0, F.consoleArm.z1, F.consoleArm.top, F.consoleArm.w) else "arm=nil",
+		string.format("door z=%.2f..%.2f bZ=%s trimY=%s..%s liner=%s..%s lh=%s", F.doorZ0, F.doorZ1, tostring(F.bZ), tostring(F.trimY0), tostring(F.trimY1), tostring(F.linerZ0), tostring(F.linerZ1), tostring(F.linerHalf)),
+	}
+	for _, s in F.front do
+		table.insert(t, string.format("front x=%.2f z=%.2f w=%.2f cush=%s size=%s", s.x, s.z, s.w, v(s.cush), v(s.cushSize)))
+	end
+	for _, s in F.rear do
+		table.insert(t, string.format("rear x=%.2f z=%.2f w=%.2f cush=%s size=%s", s.x, s.z, s.w, v(s.cush), v(s.cushSize)))
+	end
+	table.insert(t, string.format("pedals=%d mirror=%s fw=%.2f wood=%s rotary=%s lever=%s taxi=%s", #F.pedals, v(F.mirror), F.firewallZ, tostring(F.wood), tostring(F.rotary), tostring(F.lever), tostring(F.taxi)))
+	return table.concat(t, "\n")
+end
+
 return Fit

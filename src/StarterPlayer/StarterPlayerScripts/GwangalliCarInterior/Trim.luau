@@ -1,6 +1,7 @@
 --!strict
--- GwangalliCarInterior/Trim: 도어 트림(앞·뒤 문마다: 하단 패널, 가죽 중단 + 스티치, 우드/알루미늄 띠, 앰비언트,
--- 팔걸이 + 창문 스위치, 손잡이 컵 + 크롬 도어 핸들, 원형 스피커 + 크롬 링, 맵포켓, 창틀 롤), B·C 필러 트림,
+-- GwangalliCarInterior/Trim: 도어 트림(앞·뒤 문마다: 모서리가 둥근 하단 · 중단(가죽 + 스티치) · 상단 패널, 차종별 가니시
+-- (쏘나타 새틴 라인 · G80 우드 띠 · 투싼 새틴 두 줄 · 카니발 금속 띠), 앰비언트, 팔걸이 + 창문 스위치, IMS 메모리 버튼,
+-- 손잡이 컵 + 캡슐형 크롬 핸들, 원형 스피커(보스 · 렉시콘 메탈 메쉬 · 크렐 배지), 맵포켓, 창틀 롤), B·C 필러 트림,
 -- 헤드라이너 + 둥근 가장자리, 오버헤드 콘솔(맵램프 · SOS), 손잡이, 선바이저(화장 거울 커버), 룸미러(자동 감광),
 -- 바닥 매트, 알루미늄 페달 + 고무 띠 + 풋레스트.
 
@@ -18,40 +19,75 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	local zc = (z0 + z1) / 2
 	local inward = -side
 	-- 하단 / 중단 / 상단
+	local S = F.style
+	local plastic = S.trimMat == "plastic" or S.garnish == "none"
 	local lowH = (y1 - y0) * 0.42
-	K:box("DoorLower", Vector3.new(0.1, lowH, len - 0.06), CFrame.new(x, y0 + lowH / 2, zc), P.hard)
+	K:zbox("DoorLower", Vector3.new(0.1, lowH, len - 0.06), 0.045, CFrame.new(x, y0 + lowH / 2, zc), P.hard)
 	local midY = y0 + lowH + 0.24
-	K:box("DoorSoft", Vector3.new(0.08, 0.46, len - 0.2), CFrame.new(x + inward * 0.03, midY, zc), P.doorSoft)
-	K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.075, midY + 0.2, zc), P.stitch)
-	K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.075, midY - 0.2, zc), P.stitch)
+	K:zbox("DoorSoft", Vector3.new(0.09, 0.46, len - 0.2), 0.042, CFrame.new(x + inward * 0.03, midY, zc), P.doorSoft)
+	if not plastic then
+		K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.077, midY + 0.2, zc), P.stitch)
+		K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.077, midY - 0.2, zc), P.stitch)
+	end
 	local upY0 = midY + 0.23
 	local upH = y1 - upY0
 	if upH > 0.05 then
-		K:box("DoorUpper", Vector3.new(0.09, upH, len - 0.08), CFrame.new(x, upY0 + upH / 2, zc), P.soft)
+		K:zbox("DoorUpper", Vector3.new(0.09, upH, len - 0.08), math.min(0.044, upH / 2 - 0.005), CFrame.new(x, upY0 + upH / 2, zc), P.soft)
 	end
 	K:cyl("DoorSill", len - 0.1, 0.14, CFrame.new(x + inward * 0.01, y1 - 0.02, zc) * CFrame.Angles(0, math.pi / 2, 0), P.soft)
-	K:box("DoorTrimBand", Vector3.new(0.04, 0.09, len - 0.4), CFrame.new(x + inward * 0.06, upY0 + 0.1, zc), P.trim)
-	K:box("DoorAmbient", Vector3.new(0.02, 0.02, len - 0.6), CFrame.new(x + inward * 0.07, upY0 + 0.03, zc), P.ambient)
+	-- 대시에서 이어지는 가니시
+	local AZ = CFrame.Angles(0, math.pi / 2, 0)
+	local g: string = S.garnish
+	if g == "line" then
+		K:cyl("DoorTrimBand", len - 0.4, 0.03, CFrame.new(x + inward * 0.06, upY0 + 0.1, zc) * AZ, P.trim)
+	elseif g == "wood" then
+		K:zbox("DoorTrimBand", Vector3.new(0.05, 0.16, len - 0.4), 0.024, CFrame.new(x + inward * 0.05, upY0 + 0.1, zc), P.trim)
+		K:cyl("DoorChrome", len - 0.42, 0.016, CFrame.new(x + inward * 0.07, upY0 + 0.0, zc) * AZ, P.chrome)
+	elseif g == "waterfall" then
+		for i = 0, 1 do
+			K:cyl("DoorTrimBand", len - 0.4, 0.026, CFrame.new(x + inward * 0.06, upY0 + 0.14 - i * 0.08, zc) * AZ, P.trim)
+		end
+	elseif g == "metal_wood" then
+		K:zbox("DoorTrimBand", Vector3.new(0.04, 0.1, len - 0.4), 0.019, CFrame.new(x + inward * 0.05, upY0 + 0.1, zc), P.trim)
+		K:zbox("DoorWood", Vector3.new(0.04, 0.08, len - 0.5), 0.019, CFrame.new(x + inward * 0.05, upY0 - 0.0, zc), P.wood)
+	end
+	if P.ambient then
+		K:cyl("DoorAmbient", len - 0.6, 0.02, CFrame.new(x + inward * 0.07, upY0 + 0.03, zc) * AZ, P.ambient)
+	end
 	-- 팔걸이 + 창문 스위치
 	local armY = y0 + lowH + 0.02
 	local armZ = zc + len * 0.08
 	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, armDepth), 0.06, CFrame.new(x + inward * (0.02 + armDepth / 2), armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
 	local sw = CFrame.new(x + inward * (0.02 + armDepth / 2), armY + 0.075, armZ - len * 0.14)
-	K:box("WindowSwitches", Vector3.new(0.2, 0.025, if driver then 0.48 else 0.2), sw, P.gloss)
+	K:slab("WindowSwitches", 0.2, if driver then 0.5 else 0.22, 0.025, 0.06, sw, P.gloss)
 	for i = 0, (if driver then 3 else 0) do
-		K:box("WindowSwitch", Vector3.new(0.08, 0.03, 0.07), sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
+		K:slab("WindowSwitch", 0.08, 0.07, 0.03, 0.02, sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
 	end
 	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
 	local hz = if front then math.max(z0 + 0.42, (F.dashFace :: number) + 0.35) else z0 + 0.42
 	local hy = armY + 0.42
-	K:box("HandleCup", Vector3.new(0.05, 0.16, 0.42), CFrame.new(x + inward * 0.06, hy, hz), P.duct)
-	K:box("DoorHandle", Vector3.new(0.05, 0.05, 0.32), CFrame.new(x + inward * 0.09, hy + 0.01, hz), P.chrome)
-	K:box("LockTab", Vector3.new(0.05, 0.05, 0.07), CFrame.new(x + inward * 0.09, hy, hz + 0.26), P.button)
-	-- 원형 스피커 (문 아래 앞쪽) + 맵포켓
+	K:ell("HandleCup", Vector3.new(0.06, 0.18, 0.46), CFrame.new(x + inward * 0.055, hy, hz), P.duct)
+	K:capsule("DoorHandle", Vector3.new(x + inward * 0.085, hy + 0.01, hz - 0.14), Vector3.new(x + inward * 0.085, hy + 0.01, hz + 0.14), 0.05, P.chrome)
+	K:slab("LockTab", 0.05, 0.08, 0.05, 0.02, CFrame.new(x + inward * 0.09, hy, hz + 0.27), P.button)
+	-- IMS 시트 메모리 (1 · 2 · SET, 운전석 문)
+	if driver and (S.key == "sonata" or S.key == "g80") then
+		for i = 0, 2 do
+			K:slab("ImsButton", 0.045, 0.07, 0.03, 0.018, CFrame.new(x + inward * 0.08, hy - 0.14, hz - 0.1 + i * 0.09), P.alloy)
+		end
+	end
+	if plastic then
+		-- 상용차: 크게 성형된 당김 손잡이
+		K:zbox("PullGrip", Vector3.new(0.12, 0.1, 0.5), 0.045, CFrame.new(x + inward * 0.1, armY + 0.2, armZ), P.hard)
+	end
+	-- 원형 스피커 (문 아래 앞쪽): 보스 / 렉시콘 메탈 메쉬 / 크렐 배지 / 일반 + 맵포켓
 	local sp = CFrame.new(x + inward * 0.06, y0 + lowH * 0.55, z0 + 0.5)
-	K:cyl("SpeakerRing", 0.03, 0.58, sp, P.chrome)
-	K:cyl("SpeakerGrille", 0.035, 0.52, sp * CFrame.new(inward * 0.005, 0, 0), P.grille)
-	K:box("MapPocket", Vector3.new(0.12, 0.2, len * 0.45), CFrame.new(x + inward * 0.07, y0 + 0.2, zc + len * 0.12), P.hardDark)
+	local spk: string = S.speaker
+	K:cyl("SpeakerRing", 0.03, 0.6, sp, if spk == "plain" then P.hard else P.chrome)
+	K:cyl("SpeakerGrille", 0.035, 0.54, sp * CFrame.new(inward * 0.005, 0, 0), if spk == "lexicon" then P.mesh else P.grille)
+	if spk ~= "plain" then
+		K:slab("SpeakerBadge", 0.03, 0.12, 0.012, 0.01, sp * CFrame.new(inward * 0.026, -0.2, 0) * CFrame.Angles(0, 0, math.pi / 2), P.satin)
+	end
+	K:zbox("MapPocket", Vector3.new(0.13, 0.22, len * 0.45), 0.05, CFrame.new(x + inward * 0.07, y0 + 0.2, zc + len * 0.12), P.hardDark)
 	-- 바닥 쪽 반사등
 	K:box("DoorReflector", Vector3.new(0.03, 0.05, 0.2), CFrame.new(x + inward * 0.06, y0 + 0.06, z1 - 0.25), P.reflector)
 end
@@ -152,18 +188,18 @@ function Trim.build(K: any, F: any, P: any)
 	local brake, gas = ped[1], ped[2]
 	if brake then
 		local c = CFrame.new(brake) * CFrame.Angles(math.rad(-25), 0, 0)
-		K:box("BrakePedal", Vector3.new(0.44, 0.3, 0.04), c, P.alloy)
+		K:panel("BrakePedal", 0.44, 0.3, 0.04, 0.08, c, P.alloy)
 		for i = -1, 1 do
 			K:box("PedalRubber", Vector3.new(0.36, 0.035, 0.02), c * CFrame.new(0, i * 0.08, 0.025), P.rubber)
 		end
 		K:seg("PedalArm", brake + Vector3.new(0, 0.1, -0.05), brake + Vector3.new(0, 0.62, -0.32), 0.05, P.metalDark)
 		-- 풋레스트
 		local fx = brake.X + F.side * 0.55
-		K:box("FootRest", Vector3.new(0.3, 0.5, 0.04), CFrame.new(fx, floor + 0.35, brake.Z - 0.1) * CFrame.Angles(math.rad(-40), 0, 0), P.alloy)
+		K:panel("FootRest", 0.3, 0.5, 0.04, 0.08, CFrame.new(fx, floor + 0.35, brake.Z - 0.1) * CFrame.Angles(math.rad(-40), 0, 0), P.alloy)
 	end
 	if gas then
 		local c = CFrame.new(gas + Vector3.new(0, -0.05, 0)) * CFrame.Angles(math.rad(-35), 0, 0)
-		K:box("GasPedal", Vector3.new(0.26, 0.6, 0.04), c, P.alloy)
+		K:panel("GasPedal", 0.26, 0.6, 0.04, 0.07, c, P.alloy)
 		for i = -2, 2 do
 			K:box("PedalRubber", Vector3.new(0.035, 0.5, 0.02), c * CFrame.new(i * 0.05, 0, 0.025), P.rubber)
 		end

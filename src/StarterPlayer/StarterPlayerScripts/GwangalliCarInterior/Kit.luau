@@ -159,6 +159,29 @@ function Kit:rbox(name: string, size: Vector3, r: number, lcf: CFrame, look: any
 	return out
 end
 
+-- 앞에서 보면 네 모서리가 둥근 판 (보는 방향 = cf 의 +Z): 폭 w, 높이 h, 두께 d, 모서리 반지름 r
+-- (화면 베젤 · 송풍구 테두리 · 센터 스택 · 공조 패널 · 페달)
+function Kit:panel(name: string, w: number, h: number, d: number, r: number, cf: CFrame, look: any?)
+	return self:rbox(name, Vector3.new(d, h, w), math.min(r, w / 2 - 0.002, h / 2 - 0.002), cf * CFrame.Angles(0, -math.pi / 2, 0), look)
+end
+
+-- 위에서 보면 네 모서리가 둥근 판 (수평 판: 콘솔 상판 · 충전 패드 · 트레이): 폭 w(X), 길이 len(Z), 두께 t
+function Kit:slab(name: string, w: number, len: number, t: number, r: number, cf: CFrame, look: any?)
+	return self:rbox(name, Vector3.new(t, w, len), math.min(r, w / 2 - 0.002, len / 2 - 0.002), cf * CFrame.Angles(0, 0, math.pi / 2), look)
+end
+
+-- 길이 방향(Z)으로 긴 상자의 긴 모서리 4개를 둥글게 (콘솔 몸체 · 도어 패널 · 팔걸이)
+function Kit:zbox(name: string, size: Vector3, r: number, cf: CFrame, look: any?)
+	return self:rbox(name, Vector3.new(size.Z, size.Y, size.X), r, cf * CFrame.Angles(0, math.pi / 2, 0), look)
+end
+
+-- 캡슐 (두 점 사이 원통 + 양끝 공): 손잡이 · 레버 · 크롬 라인 끝
+function Kit:capsule(name: string, a: Vector3, b: Vector3, d: number, look: any?)
+	self:seg(name, a, b, d, look)
+	self:ball(name, d, CFrame.new(a), look)
+	self:ball(name, d, CFrame.new(b), look)
+end
+
 -- 회전 피벗: 이후 fn 안에서 만든 파트는 피벗에 붙습니다 (핸들처럼 통째로 돌릴 부품).
 -- 반환: 피벗, 차체와의 Weld (고정 방식이면 nil: 피벗 CFrame 을 직접 바꿉니다)
 function Kit:pivot(name: string, lcf: CFrame, fn: () -> ()): (BasePart, Weld?)
@@ -187,20 +210,21 @@ function Kit:pivot(name: string, lcf: CFrame, fn: () -> ()): (BasePart, Weld?)
 	return p, w
 end
 
--- 송풍구: frame 중심, 폭 w, 높이 h; 테두리(크롬) + 안쪽 어두운 덕트 + 가로 날개 n 개 + 조절 노브
+-- 송풍구: frame 중심, 폭 w, 높이 h; 모서리가 둥근 테두리(크롬) + 둥근 안쪽 덕트 + 가로 날개 n 개 + 조절 노브
 function Kit:vent(name: string, frame: CFrame, w: number, h: number, look: any, n: number?)
 	local th = 0.035
-	self:box(name .. "Duct", Vector3.new(w, h, 0.08), frame * CFrame.new(0, 0, -0.03), look.duct)
-	self:box(name .. "Rim", Vector3.new(w + 2 * th, th, 0.06), frame * CFrame.new(0, h / 2 + th / 2, 0), look.frame)
-	self:box(name .. "Rim", Vector3.new(w + 2 * th, th, 0.06), frame * CFrame.new(0, -h / 2 - th / 2, 0), look.frame)
-	self:box(name .. "Rim", Vector3.new(th, h, 0.06), frame * CFrame.new(w / 2 + th / 2, 0, 0), look.frame)
-	self:box(name .. "Rim", Vector3.new(th, h, 0.06), frame * CFrame.new(-w / 2 - th / 2, 0, 0), look.frame)
+	local r = math.min(w, h) * 0.38
+	self:panel(name .. "Rim", w + 2 * th, h + 2 * th, 0.05, r + th, frame * CFrame.new(0, 0, -0.01), look.frame)
+	self:panel(name .. "Duct", w, h, 0.05, r, frame * CFrame.new(0, 0, 0.0), look.duct)
 	local k = n or 4
 	for i = 1, k do
 		local y = -h / 2 + h * (i - 0.5) / k
-		self:box(name .. "Slat", Vector3.new(w - 0.02, 0.022, 0.07), frame * CFrame.new(0, y, 0.005) * CFrame.Angles(math.rad(-12), 0, 0), look.slat)
+		-- 둥근 덕트 안에 들어가도록 위아래 날개는 짧게
+		local edge = math.abs(y) / (h / 2)
+		local sw = (w - 0.03) * (if edge > 0.6 then 1 - (edge - 0.6) * 0.6 else 1)
+		self:cyl(name .. "Slat", sw, 0.024, frame * CFrame.new(0, y, 0.03), look.slat)
 	end
-	self:box(name .. "Knob", Vector3.new(0.07, 0.05, 0.05), frame * CFrame.new(0, 0, 0.04), look.knob)
+	self:cyl(name .. "Knob", 0.07, 0.045, frame * CFrame.new(0, 0, 0.05), look.knob)
 end
 
 return Kit

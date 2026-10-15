@@ -8,7 +8,8 @@
 --   Console  센터 콘솔·변속기(버튼/다이얼/레버)·컵홀더·무선충전·팔걸이·뒷좌석 송풍구
 --   Seats    앞좌석(볼스터·퀼팅·헤드레스트·벨트) + 뒷좌석 3인 벤치
 --   Trim     도어 트림·필러·헤드라이너·오버헤드 콘솔·선바이저·룸미러·매트·페달
---   Screens  계기판(속도·RPM 바늘)·내비·공조 화면 (SurfaceGui), 타는 차는 실시간 갱신
+--   Styles   차종별 실제 실내 사양 (쏘나타 DN8 · 택시 · G80 · 투싼 · 레이 · 카니발 · 포터 · 쏠라티 119)
+--   Gauges   실물 계기판 (눈금 · 링 · 회전 바늘 · 7세그먼트 숫자), Screens 지도 · 글자판
 -- 성능: 카메라 근처 차 3대 + 내가 탄 차만 실내를 만들고(차당 약 400 파트, 프레임당 70개씩), 멀어지면 지웁니다.
 -- 기존 Interior 파트는 지우지 않고 이 클라이언트에서만 Transparency = 1 로 숨깁니다 (좌석 Seat·스크립트 영향 없음).
 -- GwangalliWorld/DetailLOD 가 차 실내(LOD = "near")를 LocalTransparencyModifier 로 켜고 끄기 때문에 그 값은 건드리지
@@ -30,7 +31,7 @@ local Dash = require(script:WaitForChild("Dash"))
 local Console = require(script:WaitForChild("Console"))
 local Seats = require(script:WaitForChild("Seats"))
 local Trim = require(script:WaitForChild("Trim"))
-local Screens = require(script:WaitForChild("Screens"))
+local Styles = require(script:WaitForChild("Styles"))
 
 local player = Players.LocalPlayer
 
@@ -75,6 +76,7 @@ type Rec = {
 local cars: { [Model]: Rec } = {}
 
 ---------------------------------------------------------------------------------------------------- 팔레트
+-- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic + 약한 반사 (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임)
 local M = Enum.Material
 local function lighten(c: Color3, k: number): Color3
 	return c:Lerp(Color3.new(1, 1, 1), k)
@@ -82,45 +84,87 @@ end
 local function darken(c: Color3, k: number): Color3
 	return c:Lerp(Color3.new(0, 0, 0), k)
 end
+local function rgb(r: number, g: number, b: number): Color3
+	return Color3.fromRGB(r, g, b)
+end
 local function palette(F: any): any
-	local C = F.colors
-	local lux = F.kind == "luxury"
+	local S = F.style
+	local C = S.colors
 	local seat: Color3 = C.seat
 	local dash: Color3 = C.dash
+	local accent: Color3 = C.ambient
+	local SP = M.SmoothPlastic
+	local trim = if S.trimMat == "wood"
+		then { c = C.trim, m = M.Wood }
+		elseif S.trimMat == "alu" then { c = C.trim, m = M.Metal, r = 0.05 }
+		elseif S.trimMat == "black" then { c = C.trim, m = SP, r = 0.15 }
+		else { c = C.trim, m = SP }
 	return {
-		leather = { c = seat, m = M.Leather, shadow = true },
-		leatherInsert = { c = if lux then lighten(seat, 0.06) else darken(seat, 0.22), m = M.Leather },
-		fabricSeat = { c = seat, m = M.Fabric, shadow = true },
-		wheelLeather = { c = if lux then darken(seat, 0.25) else Color3.fromRGB(24, 24, 26), m = M.Leather },
-		wheelHub = { c = Color3.fromRGB(28, 28, 31), m = M.Leather },
-		soft = { c = lighten(dash, 0.05), m = M.Leather, shadow = true },
-		doorSoft = { c = C.trim, m = M.Leather },
-		hard = { c = dash, m = M.SmoothPlastic },
-		hardDark = { c = darken(dash, 0.5), m = M.SmoothPlastic },
-		gloss = { c = Color3.fromRGB(7, 7, 9), m = M.SmoothPlastic, r = 0.12 },
-		screen = { c = Color3.fromRGB(3, 4, 6), m = M.Glass, r = 0.05 },
-		satin = { c = Color3.fromRGB(150, 153, 158), m = M.Metal },
-		chrome = { c = Color3.fromRGB(208, 211, 216), m = M.Metal, r = 0.3 },
-		alloy = { c = Color3.fromRGB(176, 179, 184), m = M.Metal },
-		metalDark = { c = Color3.fromRGB(58, 60, 64), m = M.Metal },
-		trim = if F.wood then { c = C.wood, m = M.Wood } else { c = Color3.fromRGB(112, 115, 120), m = M.Metal },
-		stitch = { c = lighten(seat, if lux then 0.55 else 0.32), m = M.SmoothPlastic },
+		leather = { c = seat, m = SP, r = 0.02, shadow = true },
+		leatherInsert = { c = C.insert or darken(seat, 0.18), m = SP, r = 0.01 },
+		fabricSeat = { c = C.insert or lighten(seat, 0.05), m = M.Fabric },
+		fabricSide = { c = seat, m = SP, shadow = true },
+		wheelLeather = { c = C.wheel, m = SP, r = 0.03 },
+		wheelHub = { c = lighten(C.wheel, 0.05), m = SP, r = 0.02 },
+		soft = { c = lighten(dash, 0.04), m = SP, r = 0.01, shadow = true },
+		lower = { c = C.lower or dash, m = SP },
+		doorSoft = { c = C.door or lighten(dash, 0.07), m = SP, r = 0.01 },
+		hard = { c = dash, m = SP },
+		hardDark = { c = darken(dash, 0.5), m = SP },
+		panel = { c = lighten(dash, 0.1), m = SP },
+		gloss = { c = rgb(7, 7, 9), m = SP, r = 0.12 },
+		screen = { c = rgb(4, 6, 10), m = M.Glass, r = 0.06 },
+		lcd = { c = rgb(10, 18, 28), m = SP, r = 0.05 },
+		dialFace = { c = rgb(14, 15, 18), m = SP },
+		dialBack = { c = rgb(8, 9, 11), m = SP, r = 0.04 },
+		satin = { c = rgb(150, 153, 158), m = M.Metal },
+		chrome = { c = rgb(184, 188, 194), m = M.Metal, r = 0.14 },
+		alloy = { c = rgb(176, 179, 184), m = M.Metal },
+		metalDark = { c = rgb(58, 60, 64), m = M.Metal },
+		trim = trim,
+		wood = { c = C.wood or rgb(74, 58, 46), m = M.Wood },
+		stitch = { c = C.stitch, m = SP },
 		fabric = { c = C.liner, m = M.Fabric },
-		rubber = { c = Color3.fromRGB(20, 20, 22), m = M.Rubber },
-		mat = { c = Color3.fromRGB(24, 24, 26), m = M.Carpet },
-		duct = { c = Color3.fromRGB(6, 6, 7), m = M.SmoothPlastic },
-		button = { c = Color3.fromRGB(34, 36, 40), m = M.SmoothPlastic },
-		buttonLit = { c = Color3.fromRGB(225, 236, 255), m = M.Neon, t = 0.35 },
-		hazard = { c = Color3.fromRGB(196, 28, 28), m = M.SmoothPlastic },
-		startBtn = { c = Color3.fromRGB(170, 22, 24), m = M.SmoothPlastic, r = 0.08 },
-		paddle = { c = Color3.fromRGB(72, 74, 78), m = M.Metal },
-		grille = { c = Color3.fromRGB(16, 16, 18), m = M.DiamondPlate },
-		reflector = { c = Color3.fromRGB(200, 30, 20), m = M.Neon, t = 0.5 },
-		lampLens = { c = Color3.fromRGB(236, 233, 222), m = M.Glass, t = 0.15 },
-		mirror = { c = Color3.fromRGB(190, 198, 206), m = M.Glass, r = 0.75 },
-		belt = { c = Color3.fromRGB(20, 20, 22), m = M.Fabric },
-		ambient = { c = C.accent, m = M.Neon, t = 0.45 },
-		accentColor = C.accent,
+		pillar = { c = darken(C.liner, 0.38), m = M.Fabric },
+		rubber = { c = rgb(20, 20, 22), m = M.Rubber },
+		mat = { c = rgb(24, 24, 26), m = M.Carpet },
+		duct = { c = rgb(6, 6, 7), m = SP },
+		button = { c = rgb(34, 36, 40), m = SP, r = 0.04 },
+		buttonLit = { c = rgb(225, 236, 255), m = M.Neon, t = 0.35 },
+		hazard = { c = rgb(196, 28, 28), m = SP },
+		startBtn = { c = rgb(170, 22, 24), m = SP, r = 0.08 },
+		paddle = { c = rgb(72, 74, 78), m = M.Metal },
+		grille = { c = rgb(16, 16, 18), m = M.DiamondPlate },
+		mesh = { c = rgb(120, 124, 130), m = M.DiamondPlate },
+		reflector = { c = rgb(200, 30, 20), m = M.Neon, t = 0.5 },
+		lampLens = { c = rgb(176, 174, 166), m = SP, r = 0.05 },
+		mirror = { c = rgb(34, 38, 44), m = M.Glass, r = 0.22 },
+		belt = { c = rgb(20, 20, 22), m = M.Fabric },
+		ambient = if S.ambient then { c = accent, m = M.Neon, t = 0.45 } else nil,
+		accentColor = accent,
+		-- 계기판 · 화면 (빛나는 부분)
+		seg = { c = rgb(236, 242, 250), m = M.Neon, t = 0.05 },
+		segAccent = { c = accent, m = M.Neon },
+		turn = { c = rgb(60, 255, 110), m = M.Neon, t = 0.86 },
+		gaugeMark = { c = rgb(222, 230, 240), m = M.Neon, t = 0.1 },
+		gaugeRed = { c = rgb(255, 58, 48), m = M.Neon },
+		gaugeRing = { c = accent, m = M.Neon, t = 0.15 },
+		needle = { c = rgb(255, 92, 36), m = M.Neon },
+		needleCap = { c = rgb(28, 30, 34), m = SP, r = 0.1 },
+		markWhite = { c = rgb(215, 222, 232), m = M.Neon, t = 0.35 },
+		mapUI = { c = rgb(14, 18, 25), m = M.Neon },
+		mapIcon = { c = rgb(58, 72, 92), m = M.Neon },
+		mapLand = { c = rgb(30, 37, 47), m = M.Neon },
+		mapSea = { c = rgb(16, 46, 84), m = M.Neon },
+		mapBeach = { c = rgb(120, 104, 72), m = M.Neon },
+		mapBridge = { c = rgb(190, 196, 206), m = M.Neon },
+		mapRoad = { c = rgb(78, 90, 106), m = M.Neon },
+		mapRoute = { c = accent, m = M.Neon },
+		mapMe = { c = rgb(255, 255, 255), m = M.Neon },
+		lampBlue = { c = rgb(40, 90, 230), m = SP },
+		lampAmber = { c = rgb(230, 150, 30), m = SP },
+		ledRed = { c = rgb(255, 40, 40), m = M.Neon },
+		ledGreen = { c = rgb(60, 255, 110), m = M.Neon },
 	}
 end
 
@@ -276,6 +320,11 @@ local function buildCabin(rec: Rec)
 			rec.failedAt = os.clock()
 			rec.model:SetAttribute("GwCabinError", why)
 			return
+		end
+		F.style = Styles.resolve(rec.model, F.kind)
+		rec.model:SetAttribute("GwCabinStyle", F.style.key)
+		if script:GetAttribute("Debug") == true then
+			rec.model:SetAttribute("GwCabinFit", Fit.summary(F))
 		end
 		local P = palette(F)
 		local folder = Instance.new("Model")
@@ -505,7 +554,7 @@ local function turnState(model: Model, base: BasePart): (boolean, boolean)
 	return l, r
 end
 
-RunService.RenderStepped:Connect(function()
+RunService.RenderStepped:Connect(function(dt: number)
 	local cam = Workspace.CurrentCamera
 	if not cam then
 		return
@@ -552,16 +601,21 @@ RunService.RenderStepped:Connect(function()
 				ck.wheelPivot.CFrame = base.CFrame * ck.wheelCF * CFrame.Angles(0, 0, angle)
 			end
 		end
-		-- 계기판 10 Hz
-		if now - cab.lastScreen > 0.1 then
+		-- 계기판: 바늘은 매 프레임 부드럽게, 숫자 · 방향지시 · 시계는 10 Hz. 주차된 차는 시동 꺼짐 (P, 0 rpm)
+		local slow = now - cab.lastScreen > 0.1
+		if slow then
 			cab.lastScreen = now
-			local v = base.AssemblyLinearVelocity:Dot(base.CFrame.LookVector)
-			local kmh = v * 1.08 -- 1 stud = 0.3 m
-			local gear = if rec == mine then (if kmh < -0.8 then "R" elseif math.abs(kmh) < 0.5 then "N" else "D") else "P"
-			local rpm = if gear == "P" or gear == "N" then 780 else 900 + (math.abs(kmh) % 40) / 40 * 3600 + math.min(math.abs(kmh), 40) * 18
-			local tl, tr = turnState(rec.model, base)
-			Screens.update(cab.cockpit.screens, { kmh = kmh, rpm = rpm, gear = gear, turnL = tl, turnR = tr })
 		end
+		local running = rec == mine
+		local kmh = if running then base.AssemblyLinearVelocity:Dot(base.CFrame.LookVector) * 1.08 else 0 -- 1 stud = 0.3 m
+		local gear = if running then (if kmh < -0.8 then "R" else "D") else "P"
+		local spd = math.abs(kmh)
+		local rpm = if not running then 0 elseif spd < 0.5 then 780 else 900 + (spd % 40) / 40 * 3600 + math.min(spd, 40) * 18
+		local tl, tr = false, false
+		if slow then
+			tl, tr = turnState(rec.model, base)
+		end
+		Cockpit.live(cab.cockpit, { kmh = kmh, rpm = rpm, gear = gear, turnL = tl, turnR = tr }, math.min(1, dt * 8), slow)
 	end
 end)
 

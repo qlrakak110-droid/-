@@ -1,8 +1,9 @@
 --!strict
--- GwangalliCarInterior/Seats: 좌석. 앞좌석 = 레일 + 받침 + 쿠션(가운데 인서트 + 양옆 볼스터 + 앞 롤) + 13° 기울어진
--- 등받이(인서트 · 볼스터 · 어깨 롤 · 뒤판 · 맵포켓) + 크롬 기둥 헤드레스트 + 옆면 파워시트 스위치 + 안전벨트 · 버클.
--- 고급차(제네시스)는 인서트에 다이아몬드 퀼팅. 뒷좌석 = 3인 벤치(바깥 두 자리 볼스터) + 등받이 3분할 +
--- 헤드레스트 3 + 가운데 팔걸이.
+-- GwangalliCarInterior/Seats: 좌석 (차종별 인서트 · 볼스터, Styles 참고). 앞좌석 = 레일 + 받침 + 쿠션(가운데 인서트 +
+-- 양옆 볼스터 + 앞 롤) + 13° 기울어진 등받이(인서트 · 볼스터 · 어깨 롤 · 뒤판 · 맵포켓) + 크롬 기둥 헤드레스트 + 옆면
+-- 파워시트 스위치 + 안전벨트 · 버클. 인서트: perf(쏘나타 세로 스티치) · quilt(G80 다이아몬드 퀼팅 나파) · hstitch(투싼 ·
+-- 카니발 가로 섹션) · plain(레이) · fabric(택시 · 포터 · 쏠라티 천). 카니발 2열 = VIP 캡틴 시트(윙 헤드레스트 · 양쪽
+-- 팔걸이 · 레그레스트), 쏠라티 = 안쪽 접이식 팔걸이. 뒷좌석 = 3인 벤치 + 등받이 3분할 + 헤드레스트 3 + 가운데 팔걸이.
 
 local Seats = {}
 
@@ -10,7 +11,7 @@ local ROT_X_TO_Y = CFrame.Angles(0, 0, math.pi / 2)
 
 local function quilt(K: any, frame: CFrame, w: number, h: number, look: any)
 	-- 다이아몬드 퀼팅 (대각선 스티치 두 방향)
-	local n = 4
+	local n = 3
 	for i = -n, n do
 		local off = i * w / (n + 1)
 		for _, s in { -1, 1 } do
@@ -25,23 +26,26 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	local cushTop = s.cush.Y + cs.Y / 2
 	local zR = s.z + cs.Z / 2 -- 뒤 끝
 	local floor: number = F.floorY
-	local lux = F.kind == "luxury"
-	local seatLook = P.leather
-	local insertLook = if F.seatFabric then P.fabricSeat else P.leatherInsert
+	local st = F.style.seat
+	local ins: string = st.insert
+	local lux = ins == "quilt"
+	local bol: number = st.bolster or 1
+	local seatLook = if ins == "fabric" then P.fabricSide else P.leather
+	local insertLook = if ins == "fabric" then P.fabricSeat else P.leatherInsert
 
 	-- 레일 + 받침
 	for _, sx in { -0.32, 0.32 } do
 		K:box("SeatRail", Vector3.new(0.07, 0.06, cs.Z + 0.4), CFrame.new(x + sx * w, floor + 0.04, s.z), P.metalDark)
 	end
 	local baseH = math.max(0.1, cushTop - 0.3 - floor)
-	K:box("SeatBase", Vector3.new(w * 0.78, baseH, cs.Z * 0.8), CFrame.new(x, floor + baseH / 2 + 0.05, s.z + 0.05), P.hardDark)
+	K:zbox("SeatBase", Vector3.new(w * 0.78, baseH, cs.Z * 0.8), math.min(0.08, baseH / 2 - 0.01), CFrame.new(x, floor + baseH / 2 + 0.05, s.z + 0.05), P.hardDark)
 	-- 옆 덮개 + 파워시트 스위치 (바깥쪽)
 	local out = if x < 0 then -1 else 1
 	if not s.inner then
 		local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
-		K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
-		K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
-		K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+		K:zbox("SeatShield", Vector3.new(0.07, 0.3, cs.Z * 0.9), 0.034, shield, P.hard)
+		K:capsule("SeatSwitch", (shield * CFrame.new(out * 0.045, 0.02, -0.24)).Position, (shield * CFrame.new(out * 0.045, 0.02, 0.02)).Position, 0.045, P.satin)
+		K:capsule("SeatSwitch", (shield * CFrame.new(out * 0.045, -0.02, 0.16)).Position, (shield * CFrame.new(out * 0.045, 0.1, 0.16)).Position, 0.04, P.satin)
 	end
 
 	-- 쿠션
@@ -50,10 +54,16 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	K:box("CushionInsert", Vector3.new(w * 0.5, 0.04, cs.Z * 0.72), pan * CFrame.new(0, 0.12, 0.04), insertLook)
 	if lux then
 		quilt(K, pan * CFrame.new(0, 0.143, 0.04) * CFrame.Angles(math.rad(90), 0, 0), w * 0.5, cs.Z * 0.6, P.stitch)
+	elseif ins == "hstitch" then
+		for i = -1, 1 do
+			K:box("CushionStitch", Vector3.new(w * 0.48, 0.008, 0.01), pan * CFrame.new(0, 0.142, 0.04 + i * cs.Z * 0.2), P.stitch)
+		end
 	end
 	for _, sx in { -1, 1 } do
-		K:ell("CushionBolster", Vector3.new(0.34, 0.3, cs.Z * 0.96), pan * CFrame.new(sx * (w / 2 - 0.2), 0.08, 0.02), seatLook)
-		K:box("CushionStitch", Vector3.new(0.01, 0.01, cs.Z * 0.72), pan * CFrame.new(sx * (w * 0.25 + 0.01), 0.142, 0.04), P.stitch)
+		K:ell("CushionBolster", Vector3.new(0.34 * bol + 0.06, 0.18 + 0.12 * bol, cs.Z * 0.96), pan * CFrame.new(sx * (w / 2 - 0.2), 0.04 + 0.04 * bol, 0.02), seatLook)
+		if ins ~= "plain" then
+			K:box("CushionStitch", Vector3.new(0.01, 0.01, cs.Z * 0.72), pan * CFrame.new(sx * (w * 0.25 + 0.01), 0.142, 0.04), P.stitch)
+		end
 	end
 	K:cyl("CushionRoll", w - 0.2, 0.26, pan * CFrame.new(0, 0.0, -cs.Z / 2 + 0.1), seatLook)
 
@@ -66,14 +76,31 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	K:box("BackInsert", Vector3.new(w * 0.5, H * 0.66, 0.04), backC * CFrame.new(0, -0.08, -0.16), insertLook)
 	if lux then
 		quilt(K, backC * CFrame.new(0, -0.08, -0.185), w * 0.5, H * 0.56, P.stitch)
+	elseif ins == "hstitch" then
+		for i = -2, 2 do
+			K:box("BackStitch", Vector3.new(w * 0.48, 0.01, 0.008), backC * CFrame.new(0, -0.08 + i * H * 0.12, -0.186), P.stitch)
+		end
 	end
 	for _, sx in { -1, 1 } do
-		K:ell("BackBolster", Vector3.new(0.36, H * 0.82, 0.42), backC * CFrame.new(sx * (w / 2 - 0.2), -0.06, -0.1), seatLook)
-		K:box("BackStitch", Vector3.new(0.01, H * 0.66, 0.01), backC * CFrame.new(sx * (w * 0.25 + 0.01), -0.08, -0.185), P.stitch)
+		K:ell("BackBolster", Vector3.new(0.3 + 0.08 * bol, H * 0.82, 0.3 + 0.14 * bol), backC * CFrame.new(sx * (w / 2 - 0.2), -0.06, -0.06 - 0.05 * bol), seatLook)
+		if ins ~= "plain" then
+			K:box("BackStitch", Vector3.new(0.01, H * 0.66, 0.01), backC * CFrame.new(sx * (w * 0.25 + 0.01), -0.08, -0.185), P.stitch)
+		end
 	end
 	K:ell("BackShoulder", Vector3.new(w - 0.2, 0.3, 0.34), backC * CFrame.new(0, H / 2 - 0.12, 0), seatLook)
-	K:box("BackPanel", Vector3.new(w - 0.32, H * 0.8, 0.04), backC * CFrame.new(0, -0.05, 0.17), P.hard)
-	K:box("MapPocket", Vector3.new(w - 0.5, H * 0.3, 0.035), backC * CFrame.new(0, -H * 0.24, 0.2), P.hardDark)
+	-- 뒤판 (등받이 뒤를 감싸는 둥근 판) + 맵포켓
+	K:panel("BackPanel", w - 0.3, H * 0.84, 0.05, 0.16, backC * CFrame.new(0, -0.05, 0.17), P.hard)
+	K:panel("MapPocket", w - 0.5, H * 0.3, 0.035, 0.08, backC * CFrame.new(0, -H * 0.24, 0.205), P.hardDark)
+	-- 안쪽 접이식 팔걸이 (쏠라티 운전석) / 캡틴 시트 양쪽 팔걸이 + 레그레스트 (카니발 2열)
+	if st.armrest and not s.rear then
+		K:rbox("SeatArmrest", Vector3.new(0.72, 0.16, 0.14), 0.06, CFrame.new(x - out * (w / 2 + 0.06), cushTop + 0.32, s.z + 0.05) * CFrame.Angles(0, math.pi / 2, 0), seatLook)
+	end
+	if st.captains and s.rear then
+		for _, sx in { -1, 1 } do
+			K:rbox("CaptainArmrest", Vector3.new(cs.Z * 0.8, 0.16, 0.18), 0.07, CFrame.new(x + sx * (w / 2 + 0.05), cushTop + 0.34, s.z + 0.1) * CFrame.Angles(0, math.pi / 2, 0), seatLook)
+		end
+		K:rbox("LegRest", Vector3.new(w * 0.62, 0.1, 0.5), 0.05, CFrame.new(x, cushTop - 0.32, s.z - cs.Z / 2 - 0.02) * CFrame.Angles(math.rad(80), 0, 0), seatLook)
+	end
 
 	-- 헤드레스트 -------------------------------------------------------------------------------------------
 	local headTop = backC * CFrame.new(0, H / 2 + 0.08, 0.02)
@@ -81,6 +108,12 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	local hcf = CFrame.new(Vector3.new(x, math.max(hp.Y, headTop.Position.Y + 0.3), headTop.Position.Z + 0.02)) * CFrame.Angles(math.rad(13), 0, 0)
 	K:rbox("Headrest", Vector3.new(0.92, 0.5, 0.26), 0.12, hcf, seatLook)
 	K:ell("HeadrestPad", Vector3.new(0.78, 0.38, 0.16), hcf * CFrame.new(0, 0, -0.1), insertLook)
+	if st.captains and s.rear then
+		-- VIP 윙 헤드레스트 (양옆 날개)
+		for _, sx in { -1, 1 } do
+			K:ell("HeadrestWing", Vector3.new(0.16, 0.42, 0.3), hcf * CFrame.new(sx * 0.48, -0.02, -0.06) * CFrame.Angles(0, sx * math.rad(-20), 0), seatLook)
+		end
+	end
 	for _, sx in { -0.22, 0.22 } do
 		local a = (headTop * CFrame.new(sx, -0.06, 0)).Position
 		local b = (hcf * CFrame.new(sx, -0.24, 0)).Position
@@ -127,11 +160,12 @@ local function rearBench(K: any, F: any, P: any, s: any)
 	local cushTop = s.cush.Y + cs.Y / 2
 	local zR = s.z + cs.Z / 2
 	local floor: number = F.floorY
-	local seatLook = P.leather
-	local insertLook = if F.seatFabric then P.fabricSeat else P.leatherInsert
+	local ins: string = F.style.seat.insert
+	local seatLook = if ins == "fabric" then P.fabricSide else P.leather
+	local insertLook = if ins == "fabric" then P.fabricSeat else P.leatherInsert
 	-- 받침
 	local baseH = math.max(0.1, cushTop - 0.25 - floor)
-	K:box("BenchBase", Vector3.new(W - 0.1, baseH, cs.Z * 0.85), CFrame.new(s.x, floor + baseH / 2, s.z + 0.05), P.hardDark)
+	K:zbox("BenchBase", Vector3.new(W - 0.1, baseH, cs.Z * 0.85), math.min(0.08, baseH / 2 - 0.01), CFrame.new(s.x, floor + baseH / 2, s.z + 0.05), P.hardDark)
 	-- 3 자리 쿠션
 	local seatW = W / 3
 	for i = -1, 1 do
