@@ -90,7 +90,7 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	K:ell("BackShoulder", Vector3.new(w - 0.2, 0.3, 0.34), backC * CFrame.new(0, H / 2 - 0.12, 0), seatLook)
 	-- 뒤판 (등받이 뒤를 감싸는 둥근 판) + 맵포켓
 	K:panel("BackPanel", w - 0.3, H * 0.84, 0.05, 0.16, backC * CFrame.new(0, -0.05, 0.17), P.hard)
-	K:panel("MapPocket", w - 0.5, H * 0.3, 0.035, 0.08, backC * CFrame.new(0, -H * 0.24, 0.205), P.hardDark)
+	K:box("MapPocket", Vector3.new(w - 0.5, H * 0.3, 0.035), backC * CFrame.new(0, -H * 0.24, 0.205), P.hardDark)
 	-- 안쪽 접이식 팔걸이 (쏠라티 운전석) / 캡틴 시트 양쪽 팔걸이 + 레그레스트 (카니발 2열)
 	if st.armrest and not s.rear then
 		K:rbox("SeatArmrest", Vector3.new(0.72, 0.16, 0.14), 0.06, CFrame.new(x - out * (w / 2 + 0.06), cushTop + 0.32, s.z + 0.05) * CFrame.Angles(0, math.pi / 2, 0), seatLook)

@@ -61,14 +61,14 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	local sw = CFrame.new(x + inward * (0.02 + armDepth / 2), armY + 0.075, armZ - len * 0.14)
 	K:slab("WindowSwitches", 0.2, if driver then 0.5 else 0.22, 0.025, 0.06, sw, P.gloss)
 	for i = 0, (if driver then 3 else 0) do
-		K:slab("WindowSwitch", 0.08, 0.07, 0.03, 0.02, sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
+		K:box("WindowSwitch", Vector3.new(0.08, 0.03, 0.07), sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
 	end
 	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
 	local hz = if front then math.max(z0 + 0.42, (F.dashFace :: number) + 0.35) else z0 + 0.42
 	local hy = armY + 0.42
 	K:ell("HandleCup", Vector3.new(0.06, 0.18, 0.46), CFrame.new(x + inward * 0.055, hy, hz), P.duct)
 	K:capsule("DoorHandle", Vector3.new(x + inward * 0.085, hy + 0.01, hz - 0.14), Vector3.new(x + inward * 0.085, hy + 0.01, hz + 0.14), 0.05, P.chrome)
-	K:slab("LockTab", 0.05, 0.08, 0.05, 0.02, CFrame.new(x + inward * 0.09, hy, hz + 0.27), P.button)
+	K:box("LockTab", Vector3.new(0.05, 0.05, 0.08), CFrame.new(x + inward * 0.09, hy, hz + 0.27), P.button)
 	-- IMS 시트 메모리 (1 · 2 · SET, 운전석 문)
 	if driver and (S.key == "sonata" or S.key == "g80") then
 		for i = 0, 2 do
