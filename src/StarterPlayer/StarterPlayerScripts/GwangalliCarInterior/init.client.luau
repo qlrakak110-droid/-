@@ -10,7 +10,9 @@
 --   Trim     도어 트림·필러·헤드라이너·오버헤드 콘솔·선바이저·룸미러·매트·페달
 --   Screens  계기판(속도·RPM 바늘)·내비·공조 화면 (SurfaceGui), 타는 차는 실시간 갱신
 -- 성능: 카메라 근처 차 3대 + 내가 탄 차만 실내를 만들고(차당 약 400 파트, 프레임당 70개씩), 멀어지면 지웁니다.
--- 기존 Interior 파트는 지우지 않고 LocalTransparencyModifier 로만 숨깁니다 (좌석 Seat·스크립트 영향 없음).
+-- 기존 Interior 파트는 지우지 않고 이 클라이언트에서만 Transparency = 1 로 숨깁니다 (좌석 Seat·스크립트 영향 없음).
+-- GwangalliWorld/DetailLOD 가 차 실내(LOD = "near")를 LocalTransparencyModifier 로 켜고 끄기 때문에 그 값은 건드리지
+-- 않고, 옛 화면 SurfaceGui 는 MaxDistance 로 끕니다 (DetailLOD 가 Enabled 를 되돌려도 안 보이게).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -45,6 +47,7 @@ type Rec = {
 	cabin: any?,
 	building: boolean,
 	failed: string?,
+	failedAt: number,
 	tinted: boolean,
 }
 
@@ -109,7 +112,7 @@ local function track(m: Instance)
 	if not CFG.kinds[kind] then
 		return
 	end
-	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, tinted = false }
+	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false }
 	cars[m] = rec
 	task.defer(function()
 		if m.Parent then
@@ -187,12 +190,12 @@ local function destroyCabin(rec: Rec)
 	rec.cabin = nil
 	for p, old in cab.hidden do
 		if p.Parent then
-			p.LocalTransparencyModifier = old
+			p.Transparency = old
 		end
 	end
 	for g, old in cab.guis do
 		if g.Parent then
-			g.Enabled = old
+			g.MaxDistance = old
 		end
 	end
 	cab.folder:Destroy()
@@ -200,10 +203,12 @@ end
 
 local function buildCabin(rec: Rec)
 	rec.building = true
+	rec.failed = nil
 	local ok, err = pcall(function()
 		local F, why = Fit.run(rec.model)
 		if not F then
 			rec.failed = why
+			rec.failedAt = os.clock()
 			rec.model:SetAttribute("GwCabinError", why)
 			return
 		end
@@ -221,15 +226,15 @@ local function buildCabin(rec: Rec)
 			folder:Destroy()
 			return
 		end
-		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음)
+		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만)
 		local hidden, guis = {}, {}
 		for _, d in F.interior:GetDescendants() do
 			if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
-				hidden[d] = d.LocalTransparencyModifier
-				d.LocalTransparencyModifier = 1
+				hidden[d] = d.Transparency
+				d.Transparency = 1
 			elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] then
-				guis[d] = d.Enabled
-				d.Enabled = false
+				guis[d] = d.MaxDistance
+				d.MaxDistance = 0.01
 			end
 		end
 		local ambient = {}
@@ -255,6 +260,7 @@ local function buildCabin(rec: Rec)
 	end)
 	if not ok then
 		rec.failed = tostring(err)
+		rec.failedAt = os.clock()
 		rec.model:SetAttribute("GwCabinError", tostring(err))
 		warn("[CarInterior] " .. rec.model:GetFullName() .. ": " .. tostring(err))
 	elseif rec.cabin then
@@ -313,7 +319,7 @@ local function lodStep()
 			end
 			if rec.cabin and d > CFG.dropRadius then
 				destroyCabin(rec)
-			elseif d < CFG.buildRadius and not rec.failed then
+			elseif d < CFG.buildRadius and (not rec.failed or os.clock() - rec.failedAt > 8) then
 				table.insert(list, { rec = rec, d = d })
 			end
 		end
@@ -321,6 +327,9 @@ local function lodStep()
 	table.sort(list, function(a, b)
 		return a.d < b.d
 	end)
+	if list[1] then
+		script:SetAttribute("Nearest", string.format("%s %.0f", list[1].rec.model.Name, list[1].d))
+	end
 	-- 가까운 순으로 maxCabins 개만 유지
 	for i, e in list do
 		if i > CFG.maxCabins + (if mine then 1 else 0) then
