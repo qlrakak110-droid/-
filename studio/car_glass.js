@@ -4,8 +4,9 @@
  *   GWCarGlass.material(role)        outside pass (FrontSide). role: 'glass' | 'glass_dark' (privacy glass)
  *   GWCarGlass.inner(role)           inside pass (BackSide) for the cabin view; add the inner mesh BEFORE the outer one
  *                                    (same position -> three's stable sort draws far windows' insides first)
- *   GWCarGlass.both(role)            one DoubleSide pass (meshes without a consistent outward winding)
- *   GWCarGlass.prepare(geo, role)    per-window data (attribute cgw = VLT, shade band y0, y1): windows are the connected
+ *   GWCarGlass.both(role)            DoubleSide (three r147 draws a transparent DoubleSide material as a BackSide pass
+ *                                    then a FrontSide pass = inside + outside, for meshes built in one piece)
+ *   GWCarGlass.prepare(geo, role, o) per-window data (attribute cgw = VLT, shade band y0, y1): windows are the connected
  *                                    islands of the mesh; the windshield (front-facing island in the front half, -Z = front)
  *                                    gets a lighter tint and a dark band at the top, every other window the privacy tint
  *   GWCarGlass.lowMaterial()         opaque gloss-black glass for the instanced far LOD (one draw call for all far cars)
@@ -64,7 +65,9 @@ uniform float cgGlintMax;
 uniform float cgCity;
 uniform vec3 cgCabin;
 uniform float cgNightU;
-float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
+uniform float cgAlphaPow;
+// small multiplier: keeps fractional bits on mediump (fp16) phones
+float cgHash( float n ) { return fract( sin( n ) * 43.7585453 ); }
 `;
   // runs where Roblox glass would compute outgoingLight; sets outgoingLight (premultiplied) and diffuseColor.a
   const FRAG_MAIN = `
@@ -72,17 +75,28 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
 	vec3 cgN = normal; // faces the viewer (three flips it on back faces)
 	vec3 cgV = geometry.viewDir;
 	float cgNV = clamp( dot( cgN, cgV ), 1e-3, 1.0 );
-	float cgF = 0.04 + 0.96 * pow( 1.0 - cgNV, 5.0 );
+	float cgP5 = pow( 1.0 - cgNV, 5.0 );
+	float cgF = 0.04 + 0.96 * cgP5; // physical (transmission)
+	float cgF0r = 0.04 * cgReflGain;
+	float cgFr = cgF0r + ( 1.0 - cgF0r ) * cgP5; // coated glass reflection, still <= 1 at grazing
+	// inside = the BackSide pass (three r147 flips the winding for BackSide, so gl_FrontFacing stays true there)
+#if defined( FLIP_SIDED )
+	bool cgIn = true;
+#elif defined( DOUBLE_SIDED )
 	bool cgIn = ! gl_FrontFacing;
+#else
+	bool cgIn = false;
+#endif
 	// per-window tint, dark shade band at the top of the windshield
 	float cgT0 = vCgw.x > 0.0 ? vCgw.x : cgVlt;
-	float cgWs = step( 0.4, cgT0 );
+	float cgWs = step( 0.3, cgT0 );
 	if ( vCgw.z > vCgw.y ) cgT0 = mix( cgT0, min( cgT0, ${TINT.band.toFixed(3)} ), smoothstep( vCgw.y, vCgw.z, vCgY ) );
 	if ( cgIn ) cgT0 = pow( cgT0, cgInsideExp );
 	// longer path through the tint at grazing angles (refraction n = 1.52), two air/glass interfaces
 	float cgCosT = sqrt( max( 1.0 - ( 1.0 - cgNV * cgNV ) / 2.3104, 0.04 ) );
 	float cgTr = pow( cgT0, 1.0 / cgCosT ) * ( 1.0 - cgF ) * ( 1.0 - cgF );
-	float cgA = clamp( 1.0 - cgTr, 0.0, 1.0 );
+	// direct (no post) path blends in sRGB: transmittance T on linear light ~ T^(1/2.2) on sRGB values
+	float cgA = clamp( 1.0 - pow( cgTr, cgAlphaPow ), 0.0, 1.0 );
 	vec3 cgRw = inverseTransformDirection( reflect( - cgV, cgN ), viewMatrix );
 #ifdef CG_RBX
 	float cgNight = max( cgNightU, 1.0 - smoothstep( 0.015, 0.09, dot( rbxSkyZen, vec3( 0.2126, 0.7152, 0.0722 ) ) ) );
@@ -110,10 +124,12 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
 		vec2 cgWin = vec2( fract( cgPhi ) * 7.0, cgRw.y * 80.0 );
 		float cgLit = step( 0.68, cgHash( floor( cgWin.x ) * 3.1 + floor( cgWin.y ) * 17.7 + cgB * 1.3 ) );
 		cgLit *= step( 0.3, fract( cgWin.x ) ) * step( 0.35, fract( cgWin.y ) );
-		cgLit *= 1.0 - smoothstep( 0.25, 0.6, fwidth( cgWin.y ) ); // fade the window grid out where it would alias
+		float cgDPhi = 9.0 * length( fwidth( cgRw.xz ) ) / max( length( cgRw.xz ), 1e-3 );
+		float cgGridAa = 1.0 - smoothstep( 0.25, 0.6, max( fwidth( cgWin.y ), cgDPhi * 7.0 ) );
+		cgLit *= cgGridAa; // fade the window grid out where it would alias
 		// day: sunlit / shaded facades (brightness per building, faint window rows); night: dark blocks, lit windows
 		float cgFacade = 0.35 + 0.55 * cgHash( cgB * 3.7 + 9.1 );
-		float cgRows = 1.0 - 0.25 * step( 0.55, fract( cgWin.y ) ) * ( 1.0 - smoothstep( 0.25, 0.6, fwidth( cgWin.y ) ) );
+		float cgRows = 1.0 - 0.25 * step( 0.55, fract( cgWin.y ) ) * cgGridAa;
 		vec3 cgDay = cgSky * cgFacade * cgRows * vec3( 1.0, 0.97, 0.93 );
 		vec3 cgCityCol = mix( cgDay, vec3( 0.004, 0.005, 0.008 ), cgNight ) + cgLit * cgNight * vec3( 1.0, 0.7, 0.4 ) * 0.45;
 	#ifdef CG_RBX
@@ -123,7 +139,7 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
 	#endif
 		vec3 cgEnv = mix( cgSky, cgCityCol, cgM * cgCity );
 		cgEnv = mix( cgEnv, cgRoad, smoothstep( - 0.01, - 0.1, cgRw.y ) );
-		cgRefl = cgF * cgEnv * cgReflGain;
+		cgRefl = cgFr * cgEnv;
 	} else {
 		// inside: the glass mirrors the dim cabin (dashboard / seats below, headliner above), never the sky
 	#ifdef CG_RBX
@@ -134,9 +150,11 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
 		vec3 cgCab = cgCabin * cgAmb * mix( 0.45, 1.0, smoothstep( 0.1, - 0.45, cgRw.y ) );
 		// instrument / navigation screens glowing in the lower windshield at night
 		cgCab += cgWs * cgNight * vec3( 0.03, 0.07, 0.14 ) * smoothstep( - 0.1, - 0.6, cgRw.y );
-		cgRefl = cgF * cgCab * cgReflGain;
+		cgRefl = cgFr * cgCab;
 	}
-	vec3 cgGlint = min( reflectedLight.directSpecular, vec3( cgGlintMax ) );
+	// cap the sun / lamp glint but keep its hue (coloured street lamps stay coloured in the bloom)
+	vec3 cgG = reflectedLight.directSpecular;
+	vec3 cgGlint = cgG * min( 1.0, cgGlintMax / max( max( cgG.r, cgG.g ), max( cgG.b, 1e-4 ) ) );
 	outgoingLight = totalDiffuse * cgA * 0.5 + cgRefl + cgGlint;
 	diffuseColor.a = cgA;
 }
@@ -164,6 +182,7 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
     cgCity: { value: CFG.city },
     cgCabin: { value: new THREE.Vector3(CFG.cabin[0], CFG.cabin[1], CFG.cabin[2]) },
     cgNightU: { value: 0 },
+    cgAlphaPow: { value: 1 },
   };
 
   const cache = new Map();
@@ -195,6 +214,7 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
     };
     const bk = hasBase && baseKey ? String(baseKey.call(m)) : '';
     m.customProgramCacheKey = function () { return 'gwcarglass1|' + tag + '|' + bk; };
+    m.onBeforeRender = function (renderer) { shared.cgAlphaPow.value = renderer.getRenderTarget() === null ? 1 / 2.2 : 1; };
     m.userData.gwCarGlass = { role, inner: tag === 'in', uniforms };
     m.needsUpdate = true;
     cache.set(key, m);
@@ -202,10 +222,20 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
   }
 
   // per-window data: connected islands of the glass mesh -> windshield (lighter + shade band) / everything else (privacy)
-  function prepare(geo, role) {
+  // o.constant: every vertex gets the role's privacy tint (meshes without a windshield);
+  // o.front = +1 for models whose front is +Z (legacy CarSkinModel), default -1 (Roblox / taxi_model)
+  function prepare(geo, role, o) {
     if (!geo || !geo.attributes || !geo.attributes.position || geo.userData.cgPrepared) return geo;
     geo.userData.cgPrepared = true;
+    o = o || {};
     const pos = geo.attributes.position, idx = geo.index, nv = pos.count;
+    if (o.constant) {
+      const a = new Float32Array(nv * 3), v = role === 'glass_dark' ? TINT.glass_dark : TINT.glass;
+      for (let i = 0; i < nv; i++) a[i * 3] = v;
+      geo.setAttribute('cgw', new THREE.BufferAttribute(a, 3));
+      return geo;
+    }
+    const fs = o.front === 1 ? -1 : 1; // flip Z so the rules below always see the front as -Z
     const nt = idx ? idx.count : nv;
     const at = (i) => (idx ? idx.getX(i) : i);
     const par = new Int32Array(nv);
@@ -216,7 +246,7 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
       par[b] = a; par[find(c)] = a;
     }
     let z0 = Infinity, z1 = -Infinity;
-    for (let i = 0; i < nv; i++) { const z = pos.getZ(i); if (z < z0) z0 = z; if (z > z1) z1 = z; }
+    for (let i = 0; i < nv; i++) { const z = fs * pos.getZ(i); if (z < z0) z0 = z; if (z > z1) z1 = z; }
     const zMid = (z0 + z1) / 2;
     const isl = new Map(); // root -> [nx, ny, nz, area, cz*area, minY, maxY]
     const A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), U = new THREE.Vector3(), V = new THREE.Vector3();
@@ -227,7 +257,7 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
       const r = find(at(t));
       let s = isl.get(r);
       if (!s) { s = [0, 0, 0, 0, 0, Infinity, -Infinity]; isl.set(r, s); }
-      s[0] += U.x / 2; s[1] += U.y / 2; s[2] += U.z / 2; s[3] += area; s[4] += ((A.z + B.z + C.z) / 3) * area;
+      s[0] += U.x / 2; s[1] += U.y / 2; s[2] += fs * U.z / 2; s[3] += area; s[4] += fs * ((A.z + B.z + C.z) / 3) * area;
       s[5] = Math.min(s[5], A.y, B.y, C.y); s[6] = Math.max(s[6], A.y, B.y, C.y);
     }
     const base = role === 'glass_dark' ? TINT.glass_dark : TINT.glass;
@@ -251,6 +281,20 @@ float cgHash( float n ) { return fract( sin( n ) * 43758.5453123 ); }
     low = new THREE.MeshStandardMaterial({ color: 0x07090c, metalness: 0, roughness: 0.06 });
     low.name = 'gw:carglass:low';
     try { if (G && G.adopt) G.adopt(low); } catch (e) { /* lighting adopt optional */ }
+    if (low.userData.rbxAdopted) {
+      // low tier (no IBL): the same analytic Fresnel sky as the near glass, so the far LOD does not pop to flat black
+      const base = low.onBeforeCompile, bk = low.customProgramCacheKey;
+      const LOWSKY = '#ifndef USE_ENVMAP\n\t{ vec3 cgV = normalize( vViewPosition ); float cgF = 0.06 + 0.94 * pow( 1.0 - clamp( dot( normal, cgV ), 0.0, 1.0 ), 5.0 );\n'
+        + '\t  outgoingLight += cgF * rbxSkyGrad( inverseTransformDirection( reflect( - cgV, normal ), viewMatrix ) ) * rbxEnvSpec * mix( 0.15, 1.0, rbxSV ); }\n#endif\n';
+      low.onBeforeCompile = function (shader, renderer) {
+        base.call(this, shader, renderer);
+        const at = shader.fragmentShader.indexOf('#ifdef RBX_GLASS\n\toutgoingLight = rbxAtmos(');
+        if (at >= 0) shader.fragmentShader = shader.fragmentShader.slice(0, at) + LOWSKY + shader.fragmentShader.slice(at);
+      };
+      const k0 = String(bk.call(low));
+      low.customProgramCacheKey = function () { return 'gwcarglass-low|' + k0; };
+      low.needsUpdate = true;
+    }
     low.userData.gwCarGlassLow = true;
     return low;
   }

@@ -34,6 +34,12 @@ HOOKS = [
     ("js/carskin_model.js", "legacy glass material",
      "glass: adopt(new THREE.MeshPhysicalMaterial({ color: 0x1b2630, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false })),",
      "glass: " + MARK + " root.GWCarGlass ? root.GWCarGlass.both('glass') : adopt(new THREE.MeshPhysicalMaterial({ color: 0x1b2630, metalness: 0, roughness: 0.05, transparent: true, opacity: 0.4, side: THREE.DoubleSide, depthWrite: false })),"),
+    ("js/carskin_model.js", "legacy glass window data",
+     "const ghMesh = gh.build({ paint, glass: hi ? MAT.glass : MAT.trimGloss, trim: MAT.trimGloss }, ['paint', 'trim', 'glass']);",
+     "const ghMesh = gh.build({ paint, glass: hi ? MAT.glass : MAT.trimGloss, trim: MAT.trimGloss }, ['paint', 'trim', 'glass']); " + MARK + " if (hi && root.GWCarGlass) root.GWCarGlass.prepare(ghMesh.geometry, 'glass', { constant: true });"),
+    ("js/carskin_model.js", "legacy door glass data",
+     "const g = gm.build({ glass: MAT.glass }, ['glass']); g.renderOrder = 2; pivot.add(g);",
+     "const g = gm.build({ glass: MAT.glass }, ['glass']); g.renderOrder = 2; pivot.add(g); " + MARK + " if (root.GWCarGlass) root.GWCarGlass.prepare(g.geometry, 'glass', { constant: true });"),
     ("js/carskin_model.js", "LOD glass bucket",
      "const out = { paint: [], dark: [], lamp: [] };",
      "const out = { paint: [], dark: [], lamp: [], glass: [] }; " + MARK + " const cgl = root.GWCarGlass;"),
@@ -82,11 +88,9 @@ def write_pack(order, files):
     return raw, gz, base64.b64encode(gz).decode("ascii")
 
 
-def main():
-    if len(sys.argv) != 3:
-        raise SystemExit(__doc__)
-    src, dst = sys.argv[1], sys.argv[2]
-    html = open(src, encoding="utf-8").read()
+def patch(html, extra_hooks=(), extra_modules=()):
+    """Applies the glass module + HOOKS (+ extra_hooks / extra_modules [(path, bytes, before)]) to a studio HTML string.
+    Returns (html, report). Raises SystemExit naming every hook that does not match (nothing is changed then)."""
     mm = re.search(r'(<script id="gw-manifest" type="application/json">)(.*?)(</script>)', html, re.S)
     if not mm:
         raise SystemExit("gw-manifest not found")
@@ -95,42 +99,55 @@ def main():
 
     module = open(os.path.join(ROOT, "studio", "car_glass.js"), encoding="utf-8").read().encode("utf-8")
     report = []
-    if MODULE not in files:
-        order.append(MODULE)
-        report.append("+ " + MODULE)
-    elif files[MODULE] != module:
-        report.append("~ " + MODULE + " (updated)")
-    files[MODULE] = module
+    mods = manifest.get("modules") or []
+    for path, data, before in [(MODULE, module, "js/carskin_model.js")] + list(extra_modules):
+        if path not in files:
+            order.append(path)
+            report.append("+ " + path)
+        elif files[path] != data:
+            report.append("~ " + path + " (updated)")
+        files[path] = data
+        if path.endswith(".js") and path not in mods:
+            at = mods.index(before) if before in mods else (mods.index("js/taxi_model.js") if "js/taxi_model.js" in mods else len(mods))
+            mods.insert(at, path)
+    manifest["modules"] = mods
 
+    # hooks a different patcher revision already applied (their text differs): refuse instead of patching twice
+    prev = set((manifest.get("carGlass") or {}).get("hooks") or [])
     missing = []
-    for fn, name, anchor, repl in HOOKS:
+    for fn, name, anchor, repl in list(HOOKS) + list(extra_hooks):
         if fn not in files:
             missing.append("%s: %s (file missing)" % (fn, name)); continue
         text = files[fn].decode("utf-8")
         if repl in text:
             report.append("= %s: %s (already patched)" % (fn, name)); continue
+        if name in prev:
+            missing.append("%s: %s (applied by a different patcher version - start from the unpatched studio build)" % (fn, name)); continue
         n = text.count(anchor)
         if n != 1:
             missing.append("%s: %s (anchor found %d times)" % (fn, name, n)); continue
         files[fn] = text.replace(anchor, repl).encode("utf-8")
         report.append("+ %s: %s" % (fn, name))
     if missing:
-        raise SystemExit("patch_car_glass: these hooks do not match this studio build (nothing written):\n  " + "\n  ".join(missing))
+        raise SystemExit("these hooks do not match this studio build (nothing written):\n  " + "\n  ".join(missing))
 
-    mods = manifest.get("modules") or []
-    if MODULE not in mods:
-        at = mods.index("js/carskin_model.js") if "js/carskin_model.js" in mods else (mods.index("js/taxi_model.js") if "js/taxi_model.js" in mods else len(mods))
-        mods.insert(at, MODULE)
-        manifest["modules"] = mods
     raw, gz, b64 = write_pack(order, files)
     core = manifest.setdefault("packs", {}).setdefault("core", {})
     core.update({"raw": len(raw), "gz": len(gz), "files": order})
-    manifest["carGlass"] = {"version": 1, "module": MODULE, "hooks": [h[1] for h in HOOKS]}
+    manifest["carGlass"] = {"version": 2, "module": MODULE, "hooks": sorted(prev | {h[1] for h in list(HOOKS) + list(extra_hooks)})}
 
     mj = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     html = html[:m.start(2)] + b64 + html[m.end(2):]
     mm = re.search(r'(<script id="gw-manifest" type="application/json">)(.*?)(</script>)', html, re.S)
     html = html[:mm.start(2)] + mj + html[mm.end(2):]
+    return html, report
+
+
+def main():
+    if len(sys.argv) != 3:
+        raise SystemExit(__doc__)
+    src, dst = sys.argv[1], sys.argv[2]
+    html, report = patch(open(src, encoding="utf-8").read())
     open(dst, "w", encoding="utf-8").write(html)
     print("\n".join(report))
     print(dst, os.path.getsize(dst), "bytes")

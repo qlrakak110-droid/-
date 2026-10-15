@@ -6,6 +6,7 @@
   build/MiniGames_ReplicatedStorage.rbxmx  -> drop into ReplicatedStorage
   build/MiniGames_Server.rbxmx             -> drop into ServerScriptService.GwangalliGameplay (the Folder)
   build/MiniGames_StarterPlayerScripts.rbxmx -> drop into StarterPlayer.StarterPlayerScripts
+  build/CarInterior_StarterPlayerScripts.rbxmx -> drop into StarterPlayer.StarterPlayerScripts (차량 AAA 실내 + 틴팅 유리)
 Layout rules (same as Rojo): a folder with init.luau is a ModuleScript (init.server.luau -> Script,
 init.client.luau -> LocalScript) whose children are the other files; a folder without init is a
 Folder; x.luau -> ModuleScript, x.server.luau -> Script, x.client.luau -> LocalScript.
@@ -77,6 +78,7 @@ def main():
     write("MiniGames_ReplicatedStorage.rbxmx", walk(os.path.join(ROOT, "src/ReplicatedStorage/GwangalliMiniGamesShared")))
     write("MiniGames_Server.rbxmx", walk(os.path.join(ROOT, "src/ServerScriptService/GwangalliGameplay/MiniGames")))
     write("MiniGames_StarterPlayerScripts.rbxmx", walk(os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames")))
+    write("CarInterior_StarterPlayerScripts.rbxmx", walk(os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior")))
 
 
 if __name__ == "__main__":

@@ -22,7 +22,8 @@
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
         "$ignoreUnknownInstances": true,
-        "GwangalliMiniGames": { "$path": "src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames" }
+        "GwangalliMiniGames": { "$path": "src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames" },
+        "GwangalliCarInterior": { "$path": "src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior" }
       }
     }
   }

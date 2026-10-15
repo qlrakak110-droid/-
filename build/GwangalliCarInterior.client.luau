@@ -1,0 +1,2000 @@
+--!nocheck
+-- GwangalliCarInterior (LocalScript, StarterPlayerScripts): AAA급 차량 실내 + 검은 반투명 틴팅 유리.
+-- 메쉬 업로드 없이 파트로만 만들고, 전부 이 클라이언트에만 생깁니다 (서버·네트워크 부담 없음).
+--   Glass    맵의 모든 차 유리를 틴팅 (앞유리 스모크 / 옆·뒤 검은 틴팅 + 반사)
+--   Fit      기존 Interior 파트(핸들 림·대시·좌석·도어 트림…)에서 차마다 실내 치수를 읽음
+--   Cockpit  핸들(실시간 조향 회전)·컬럼·레버·파노라믹 디스플레이(계기판+내비)·차양·HUD·시동 버튼
+--   Dash     대시보드·송풍구·트림 띠·앰비언트·공조·글로브박스·A필러
+--   Console  센터 콘솔·변속기(버튼/다이얼/레버)·컵홀더·무선충전·팔걸이·뒷좌석 송풍구
+--   Seats    앞좌석(볼스터·퀼팅·헤드레스트·벨트) + 뒷좌석 3인 벤치
+--   Trim     도어 트림·필러·헤드라이너·오버헤드 콘솔·선바이저·룸미러·매트·페달
+--   Screens  계기판(속도·RPM 바늘)·내비·공조 화면 (SurfaceGui), 타는 차는 실시간 갱신
+-- 성능: 카메라 근처 차 3대 + 내가 탄 차만 실내를 만들고(차당 약 400 파트, 프레임당 70개씩), 멀어지면 지웁니다.
+-- 기존 Interior 파트는 지우지 않고 LocalTransparencyModifier 로만 숨깁니다 (좌석 Seat·스크립트 영향 없음).
+-- (한 파일 버전: tools/bundle_luau.py 가 GwangalliCarInterior 폴더를 묶은 것. StarterPlayerScripts 에 LocalScript 로 넣으세요)
+
+local __defs, __cache = {}, {}
+local function __require(name)
+	local v = __cache[name]
+	if v == nil then
+		v = __defs[name]()
+		__cache[name] = v
+	end
+	return v
+end
+
+__defs["Cockpit"] = function()
+-- GwangalliCarInterior/Cockpit: 운전석 앞. 핸들(가죽 림 36조각 · 3시/9시 그립 · 에어백 커버 · 엠블럼 · 스포크 버튼 ·
+-- 패들시프트, 피벗째 회전), 스티어링 컬럼 · 슈라우드 · 레버, 파노라믹 디스플레이(계기판 + 내비 한 장의 유리),
+-- 계기판 차양, HUD 창, 시동 버튼.
+
+local Screens = __require("Screens")
+
+local Cockpit = {}
+
+local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0) -- 원통 축(X)을 프레임의 +Z 로
+
+function Cockpit.build(K: any, F: any, P: any)
+	local W: CFrame = F.wheel.cf
+	local R: number = F.wheel.R
+	local sport = F.kind == "luxury" or F.kind == "sedan" or F.kind == "police" or F.kind == "taxi"
+	local out: any = {}
+
+	-- 스티어링 컬럼 (고정) ------------------------------------------------------------------------------
+	local colA = (W * CFrame.new(0, -0.03, -0.14)).Position
+	local colB = (W * CFrame.new(0, -0.1, -0.95)).Position
+	K:seg("SteeringColumn", colA, colB, 0.18, P.hard)
+	local shroud = W * CFrame.new(0, -0.13, -0.5) * CFrame.Angles(0, math.pi / 2, 0)
+	K:rbox("ColumnShroud", Vector3.new(0.62, 0.24, 0.36), 0.09, shroud, P.soft)
+	-- 방향지시 / 와이퍼 레버
+	for _, s in { -1, 1 } do
+		local a = (W * CFrame.new(s * 0.16, -0.09, -0.3)).Position
+		local b = (W * CFrame.new(s * (R + 0.02), -0.16, -0.22)).Position
+		K:seg("Stalk", a, b, 0.045, P.hard)
+		K:ell("StalkTip", Vector3.new(0.13, 0.065, 0.065), CFrame.lookAt(b, a) * CFrame.Angles(0, math.pi / 2, 0), P.hard)
+	end
+
+	-- 핸들 (피벗째 회전) ---------------------------------------------------------------------------------
+	local pivot, weld = K:pivot("SteeringPivot", W, function()
+		-- 림: 3시·9시 그립이 두꺼운 가죽 원환
+		K:ring("WheelRim", W, R, 0.125, 36, P.wheelLeather, nil, nil, function(t: number)
+			return 1 + 0.16 * math.cos(t) ^ 2
+		end)
+		-- 림 안쪽 장식 링 (운전자 쪽에서 보이는 은색 띠, 위쪽 반원)
+		K:ring("RimTrim", W * CFrame.new(0, 0, 0.035), R - 0.075, 0.025, 14, P.satin, math.rad(30), math.rad(150))
+		-- 허브 + 에어백 커버 + 엠블럼
+		K:cyl("HubBody", 0.18, 0.46, W * CFrame.new(0, -0.03, -0.03) * ROT_X_TO_Z, P.hard)
+		K:ell("Airbag", Vector3.new(0.52, 0.42, 0.18), W * CFrame.new(0, -0.03, 0.07), P.wheelHub)
+		K:ell("AirbagSeam", Vector3.new(0.4, 0.3, 0.02), W * CFrame.new(0, -0.03, 0.155), P.hardDark)
+		if F.kind == "luxury" then
+			K:box("WingL", Vector3.new(0.12, 0.022, 0.012), W * CFrame.new(-0.08, -0.01, 0.168) * CFrame.Angles(0, 0, math.rad(8)), P.chrome)
+			K:box("WingR", Vector3.new(0.12, 0.022, 0.012), W * CFrame.new(0.08, -0.01, 0.168) * CFrame.Angles(0, 0, math.rad(-8)), P.chrome)
+			K:ell("Crest", Vector3.new(0.05, 0.06, 0.014), W * CFrame.new(0, -0.01, 0.17), P.chrome)
+		else
+			K:ell("Emblem", Vector3.new(0.16, 0.09, 0.016), W * CFrame.new(0, -0.02, 0.165), P.chrome)
+			K:ell("EmblemInner", Vector3.new(0.12, 0.06, 0.012), W * CFrame.new(0, -0.02, 0.17), P.hardDark)
+		end
+		-- 좌우 스포크 + 은색 띠 + 버튼 패널
+		for _, s in { -1, 1 } do
+			local len = R - 0.24
+			local cx = s * (0.22 + len / 2)
+			local sp = W * CFrame.new(cx, -0.06, 0.02) * CFrame.Angles(0, 0, math.rad(s * -5))
+			K:box("Spoke", Vector3.new(len + 0.06, 0.17, 0.07), sp, P.hard)
+			K:box("SpokeTrim", Vector3.new(len, 0.024, 0.02), sp * CFrame.new(0, -0.075, 0.035), P.satin)
+			local pan = W * CFrame.new(s * 0.33, -0.04, 0.06)
+			K:box("ButtonPanel", Vector3.new(0.19, 0.12, 0.02), pan, P.gloss)
+			for i = 0, 3 do
+				local bx = -0.055 + (i % 2) * 0.11
+				local by = 0.028 - math.floor(i / 2) * 0.056
+				K:box("Button", Vector3.new(0.07, 0.036, 0.012), pan * CFrame.new(bx, by, 0.014), P.button)
+			end
+			-- 아래쪽 스포크
+			local a = (W * CFrame.new(s * 0.07, -0.2, 0.0)).Position
+			local ang = math.rad(-90 + s * 30)
+			local b = (W * CFrame.new(math.cos(ang) * (R - 0.04), math.sin(ang) * (R - 0.04), -0.01)).Position
+			K:seg("LowerSpoke", a, b, 0.075, P.hard)
+			if sport then
+				K:box("Paddle", Vector3.new(0.06, 0.26, 0.025), W * CFrame.new(s * (R - 0.1), 0.03, -0.1) * CFrame.Angles(0, 0, math.rad(s * 8)), P.paddle)
+			end
+		end
+	end)
+	out.wheelPivot, out.wheelWeld, out.wheelCF = pivot, weld, W
+
+	-- 파노라믹 디스플레이 ---------------------------------------------------------------------------------
+	local cl: Vector3 = F.cluster
+	local nv: Vector3 = F.nav
+	local commercial = F.kind == "truck" or F.kind == "ambulance"
+	local yS = cl.Y + 0.03
+	local zS = math.max(cl.Z, F.dashFace + 0.05)
+	local tilt = CFrame.Angles(math.rad(-9), 0, 0)
+	local accent: Color3 = P.accentColor
+	local screens: any = {}
+	if not commercial and math.abs(nv.X - cl.X) < 2.4 then
+		local xL = cl.X - 0.78
+		local xR = math.max(nv.X + math.max(F.navWide, 1.25) / 2 + 0.06, cl.X + 0.85)
+		if F.side > 0 then -- 우핸들: 거울상
+			xL, xR = math.min(nv.X - math.max(F.navWide, 1.25) / 2 - 0.06, cl.X - 0.85), cl.X + 0.78
+		end
+		local midX = (xL + xR) / 2
+		local base = CFrame.new(midX, yS, zS) * tilt
+		K:box("DisplayBezel", Vector3.new(xR - xL, 0.56, 0.07), base, P.gloss)
+		K:box("DisplayEdge", Vector3.new(xR - xL - 0.02, 0.018, 0.02), base * CFrame.new(0, -0.27, 0.04), P.satin)
+		K:box("DisplayBack", Vector3.new(xR - xL - 0.1, 0.42, 0.12), base * CFrame.new(0, 0, -0.09), P.hard)
+		local clW = 1.36
+		local clPart = K:box("ClusterGlass", Vector3.new(clW, 0.46, 0.02), base * CFrame.new(cl.X - midX, 0, 0.045), P.screen)
+		local nvW = (xR - xL) - clW - 0.12
+		local nvX = if F.side < 0 then (xR - 0.04 - nvW / 2) else (xL + 0.04 + nvW / 2)
+		local nvPart = K:box("NavGlass", Vector3.new(nvW, 0.46, 0.02), base * CFrame.new(nvX - midX, 0, 0.045), P.screen)
+		screens.cluster = Screens.cluster(clPart, accent, F.kind)
+		screens.nav = Screens.nav(nvPart, accent)
+		-- 계기판 차양 (부드러운 가죽 + 둥근 앞 끝)
+		local hood = CFrame.new(cl.X, yS + 0.31, zS - 0.12) * CFrame.Angles(math.rad(-6), 0, 0)
+		K:box("ClusterHood", Vector3.new(clW + 0.2, 0.05, 0.46), hood, P.soft)
+		K:cyl("ClusterHoodLip", clW + 0.2, 0.09, hood * CFrame.new(0, -0.01, 0.23), P.soft)
+		K:box("ClusterHoodStitch", Vector3.new(clW + 0.1, 0.008, 0.008), hood * CFrame.new(0, 0.03, 0.21), P.stitch)
+	else
+		-- 상용차: 계기판 + 태블릿형 화면 따로
+		local clPart = K:box("ClusterGlass", Vector3.new(1.1, 0.42, 0.02), CFrame.new(cl.X, yS, zS + 0.04) * tilt, P.screen)
+		K:box("ClusterBezel", Vector3.new(1.2, 0.5, 0.06), CFrame.new(cl.X, yS, zS) * tilt, P.gloss)
+		K:box("ClusterHood", Vector3.new(1.3, 0.05, 0.42), CFrame.new(cl.X, yS + 0.28, zS - 0.1) * CFrame.Angles(math.rad(-6), 0, 0), P.soft)
+		screens.cluster = Screens.cluster(clPart, accent, F.kind)
+		local nvPart = K:box("NavGlass", Vector3.new(1.2, 0.5, 0.02), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace) + 0.04) * tilt, P.screen)
+		K:box("NavBezel", Vector3.new(1.3, 0.58, 0.06), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace)) * tilt, P.gloss)
+		screens.nav = Screens.nav(nvPart, accent)
+	end
+	out.screens = screens
+
+	-- HUD 투사 창 + 시동 버튼 --------------------------------------------------------------------------------
+	if not commercial then
+		K:box("HudWindow", Vector3.new(0.62, 0.02, 0.3), CFrame.new(W.Position.X, F.dashTop + 0.012, F.dashFace - 0.75), P.gloss)
+	end
+	local sb = CFrame.new(W.Position.X - F.side * (R + 0.32), F.dashMidY + 0.05, F.dashFace + 0.03)
+	K:cyl("StartRing", 0.04, 0.2, sb * ROT_X_TO_Z, P.chrome)
+	K:cyl("StartButton", 0.05, 0.15, sb * CFrame.new(0, 0, 0.012) * ROT_X_TO_Z, P.startBtn)
+	return out
+end
+
+return Cockpit
+
+end
+
+__defs["Console"] = function()
+-- GwangalliCarInterior/Console: 센터 콘솔. 가죽 옆판 + 스티치, 피아노 블랙 상판, 변속기(쏘나타·택시: 버튼식
+-- P/R/N/D, 제네시스: 크롬 다이얼 + 조그 다이얼, SUV·밴·소형·트럭: 가죽 부츠 레버), 주행 모드 다이얼, 전자식
+-- 주차 브레이크 · 오토홀드, 무선 충전 패드, 컵홀더 2 (크롬 링), 팔걸이 (둥근 가죽 + 스티치), 뒷좌석 송풍구.
+
+local Console = {}
+
+local ROT_X_TO_Y = CFrame.Angles(0, 0, math.pi / 2) -- 원통 축(X)을 위(+Y)로
+
+function Console.build(K: any, F: any, P: any)
+	local con = F.console
+	if not con then
+		return {}
+	end
+	local x: number = con.x
+	local z0: number, z1: number = con.z0, con.z1
+	local topY: number = con.top
+	local w: number = math.min(con.w, 1.15)
+	local floor: number = F.floorY
+	local h = topY - floor
+	local len = z1 - z0
+	-- 몸체 + 옆판
+	K:box("ConsoleBody", Vector3.new(w - 0.1, h, len), CFrame.new(x, floor + h / 2, (z0 + z1) / 2), P.hard)
+	for _, s in { -1, 1 } do
+		K:rbox("ConsoleSide", Vector3.new(len - 0.1, h * 0.62, 0.08), 0.03, CFrame.new(x + s * (w / 2 - 0.02), floor + h * 0.55, (z0 + z1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.soft)
+		K:box("ConsoleStitch", Vector3.new(0.01, 0.01, len - 0.2), CFrame.new(x + s * (w / 2 + 0.022), floor + h * 0.84, (z0 + z1) / 2), P.stitch)
+		K:box("ConsoleAmbient", Vector3.new(0.012, 0.02, len * 0.55), CFrame.new(x + s * (w / 2 + 0.02), topY - 0.05, z0 + len * 0.33), P.ambient)
+	end
+	-- 상판 (앞쪽 60 %): 피아노 블랙 + 은색 테두리
+	local deckLen = len * 0.58
+	local dz = z0 + deckLen / 2
+	K:box("ConsoleDeck", Vector3.new(w - 0.06, 0.04, deckLen), CFrame.new(x, topY + 0.02, dz), P.gloss)
+	K:box("DeckEdge", Vector3.new(w - 0.02, 0.025, 0.03), CFrame.new(x, topY + 0.03, z0 + 0.02), P.satin)
+
+	-- 변속기 -------------------------------------------------------------------------------------------
+	local gz = z0 + deckLen * 0.42
+	local gx = x - F.side * 0.12
+	if F.rotary or F.kind == "luxury" then
+		local d = CFrame.new(gx, topY + 0.08, gz)
+		K:cyl("ShiftDialRing", 0.05, 0.38, d * ROT_X_TO_Y, P.satin)
+		K:cyl("ShiftDial", 0.14, 0.3, d * CFrame.new(0, 0.07, 0) * ROT_X_TO_Y, P.chrome)
+		K:cyl("ShiftDialTop", 0.02, 0.24, d * CFrame.new(0, 0.145, 0) * ROT_X_TO_Y, P.gloss)
+		K:cyl("JogDial", 0.08, 0.22, CFrame.new(gx, topY + 0.07, gz + 0.42) * ROT_X_TO_Y, P.chrome)
+	elseif F.lever or F.kind == "suv" or F.kind == "van" or F.kind == "compact" or F.kind == "truck" or F.kind == "ambulance" then
+		local b = CFrame.new(gx, topY + 0.04, gz)
+		K:ell("ShiftBoot", Vector3.new(0.3, 0.16, 0.32), b, P.leather)
+		K:seg("ShiftStick", b.Position, b.Position + Vector3.new(0, 0.32, 0.03), 0.06, P.hard)
+		K:ell("ShiftKnob", Vector3.new(0.17, 0.2, 0.2), b * CFrame.new(0, 0.38, 0.03), P.leather)
+		K:ell("ShiftKnobTop", Vector3.new(0.12, 0.03, 0.14), b * CFrame.new(0, 0.47, 0.03), P.chrome)
+	else
+		-- 버튼식 변속 (쏘나타 DN8): 세로로 P R N D
+		local b = CFrame.new(gx, topY + 0.05, gz)
+		K:box("ShiftPanel", Vector3.new(0.3, 0.05, 0.6), b, P.satin)
+		local names = { "P", "R", "N", "D" }
+		for i = 1, 4 do
+			K:box("ShiftButton" .. names[i], Vector3.new(0.22, 0.05, 0.11), b * CFrame.new(0, 0.035, -0.24 + (i - 1) * 0.16), if i == 1 then P.buttonLit else P.button)
+		end
+	end
+	-- 주행 모드 다이얼 · 주차 브레이크 · 오토홀드
+	local mx = x + F.side * 0.2
+	K:cyl("DriveMode", 0.06, 0.17, CFrame.new(mx, topY + 0.06, gz) * ROT_X_TO_Y, P.satin)
+	K:box("EPB", Vector3.new(0.1, 0.04, 0.16), CFrame.new(mx, topY + 0.045, gz + 0.24), P.button)
+	K:box("AutoHold", Vector3.new(0.1, 0.04, 0.1), CFrame.new(mx, topY + 0.045, gz + 0.42), P.button)
+	-- 무선 충전 패드
+	local pz = z0 + 0.22
+	K:box("ChargePad", Vector3.new(0.62, 0.025, 0.32), CFrame.new(x, topY + 0.035, pz), P.rubber)
+	K:box("ChargeIcon", Vector3.new(0.05, 0.01, 0.07), CFrame.new(x, topY + 0.05, pz), P.ambient)
+	-- 컵홀더 2
+	local cz = z0 + deckLen * 0.85
+	for _, s in { -1, 1 } do
+		local c = CFrame.new(x + s * 0.2, topY + 0.03, cz)
+		K:cyl("CupholderRing", 0.03, 0.31, c * ROT_X_TO_Y, P.chrome)
+		K:cyl("Cupholder", 0.035, 0.27, c * CFrame.new(0, 0.005, 0) * ROT_X_TO_Y, P.duct)
+	end
+
+	-- 팔걸이 -------------------------------------------------------------------------------------------
+	local arm = F.consoleArm
+	local a0: number = if arm then arm.z0 else z0 + len * 0.62
+	local a1: number = if arm then arm.z1 else z1
+	local aTop: number = if arm then arm.top else topY + 0.2
+	local aw: number = if arm then math.min(arm.w, w) else w
+	local alen = a1 - a0
+	K:rbox("Armrest", Vector3.new(alen, 0.2, aw - 0.04), 0.09, CFrame.new(x, aTop - 0.1, (a0 + a1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
+	K:box("ArmrestStitch", Vector3.new(0.01, 0.008, alen - 0.12), CFrame.new(x - aw * 0.3, aTop + 0.002, (a0 + a1) / 2), P.stitch)
+	K:box("ArmrestStitch", Vector3.new(0.01, 0.008, alen - 0.12), CFrame.new(x + aw * 0.3, aTop + 0.002, (a0 + a1) / 2), P.stitch)
+	-- 뒤쪽: 뒷좌석 송풍구 + USB
+	if F.rear and #F.rear > 0 then
+		local ventLook = { frame = P.satin, duct = P.duct, slat = P.hard, knob = P.satin }
+		for _, s in { -1, 1 } do
+			K:vent("RearVent", CFrame.new(x + s * 0.17, floor + h * 0.62, z1 + 0.01) * CFrame.Angles(0, 0, 0), 0.22, 0.12, ventLook, 2)
+		end
+		K:box("RearUSB", Vector3.new(0.3, 0.06, 0.02), CFrame.new(x, floor + h * 0.38, z1 + 0.01), P.gloss)
+	end
+	return {}
+end
+
+Console.REPLACES = { "CentreConsole", "ConsoleTray", "ConsoleWood", "Cupholder", "ConsoleArmrest", "GearDial", "JogDial", "ShiftBoot", "GearLever", "GearKnob", "GearGate", "ColumnShifter", "RotaryShifter", "Shifter", "ShiftKnob", "FloorConsole" }
+
+return Console
+
+end
+
+__defs["Dash"] = function()
+-- GwangalliCarInterior/Dash: 대시보드. 소프트 가죽 상단 + 둥근 앞 모서리 + 앞유리까지 덮는 상판, 하단 패널,
+-- 무릎 패널, 우드/알루미늄 트림 띠 + 크롬 라인 + 앰비언트 라이트, 송풍구(가운데 2 + 양끝 2, 크롬 테두리 · 날개),
+-- 공조 패널(화면 + 다이얼 + 버튼 줄 + 비상등), 센터 스택 → 콘솔 연결, 글로브박스, 성에 제거 슬롯,
+-- 트위터 스피커, A필러 트림.
+
+local Screens = __require("Screens")
+
+local Dash = {}
+
+local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0)
+
+function Dash.build(K: any, F: any, P: any)
+	local half: number = F.halfIn
+	local width = half * 2 - 0.04
+	local face: number = F.dashFace
+	local front: number = F.dashFront
+	local top: number = F.dashTop
+	local mid: number = F.dashMidY
+	local bottom: number = F.dashBottom
+	local commercial = F.kind == "truck" or F.kind == "ambulance"
+
+	-- 몸체 --------------------------------------------------------------------------------------------
+	local upperY0 = mid + 0.12
+	local lowerH = upperY0 - bottom
+	K:box("DashLower", Vector3.new(width, lowerH, face - front - 0.08), CFrame.new(0, bottom + lowerH / 2, (front + face - 0.08) / 2), P.hard)
+	local upH = top - upperY0
+	K:box("DashUpper", Vector3.new(width, upH, face - front), CFrame.new(0, upperY0 + upH / 2, (front + face) / 2), P.soft)
+	-- 둥근 앞 모서리 (실내 쪽) + 스티치
+	K:cyl("DashRoll", width, 0.26, CFrame.new(0, top - 0.13, face), P.soft)
+	K:box("DashStitch", Vector3.new(width - 0.1, 0.01, 0.01), CFrame.new(0, top - 0.02, face + 0.07), P.stitch)
+	-- 상판: 대시 위에서 앞유리 아래 끝까지
+	local ws: Vector3 = F.wsLow
+	local zA, zB = math.min(ws.Z, front), face - 0.12
+	if zB - zA > 0.1 then
+		K:box("DashDeck", Vector3.new(width, 0.08, zB - zA), CFrame.new(0, top - 0.04, (zA + zB) / 2), P.soft)
+		if ws.Y < top - 0.05 then
+			-- 앞유리 아래가 더 낮으면 경사로 덮기
+			local h = top - ws.Y
+			K:wedge("DashSlope", Vector3.new(width, h, math.max(0.2, zB - zA) * 0.5), CFrame.new(0, ws.Y + h / 2, zA + (zB - zA) * 0.25), P.soft)
+		end
+		-- 성에 제거 슬롯 + 트위터
+		for i = -3, 3 do
+			K:box("DefrostSlot", Vector3.new(0.34, 0.012, 0.05), CFrame.new(i * 0.55, top + 0.002, zA + 0.25), P.hardDark)
+		end
+		for _, s in { -1, 1 } do
+			K:ell("Tweeter", Vector3.new(0.3, 0.025, 0.2), CFrame.new(s * (half - 0.45), top + 0.006, zA + 0.32), P.grille)
+		end
+	end
+	-- 무릎 패널 (운전석 쪽), 글로브박스 (조수석 쪽)
+	local ds = F.side
+	K:box("KneePanel", Vector3.new(1.45, 0.42, 0.12), CFrame.new(ds * 1.15, bottom - 0.12, face - 0.22) * CFrame.Angles(math.rad(-12), 0, 0), P.soft)
+	local gx = -ds * 1.3
+	local gy = mid - 0.18
+	local gw, gh = 1.25, 0.46
+	for _, e in { { 0, gh / 2, gw, 0.012 }, { 0, -gh / 2, gw, 0.012 }, { gw / 2, 0, 0.012, gh }, { -gw / 2, 0, 0.012, gh } } do
+		K:box("GloveGap", Vector3.new(e[3], e[4], 0.01), CFrame.new(gx + e[1], gy + e[2], face - 0.075), P.hardDark)
+	end
+	K:box("GloveHandle", Vector3.new(0.3, 0.035, 0.03), CFrame.new(gx, gy + gh / 2 - 0.08, face - 0.07), P.satin)
+
+	-- 트림 띠 + 크롬 + 앰비언트 ---------------------------------------------------------------------------
+	local bandY = mid + 0.02
+	K:box("DashTrimBand", Vector3.new(width - 0.12, 0.17, 0.05), CFrame.new(0, bandY, face + 0.0), P.trim)
+	K:box("DashChromeLine", Vector3.new(width - 0.12, 0.02, 0.03), CFrame.new(0, bandY + 0.095, face + 0.01), P.chrome)
+	K:box("DashAmbient", Vector3.new(width - 0.3, 0.022, 0.025), CFrame.new(0, bandY - 0.1, face + 0.01), P.ambient)
+
+	-- 송풍구 ------------------------------------------------------------------------------------------
+	local ventLook = { frame = P.chrome, duct = P.duct, slat = P.hard, knob = P.satin }
+	local vy = bandY + 0.24
+	local nvX: number = if commercial then 0 else (F.nav :: Vector3).X
+	local cx = if math.abs(nvX) < 1 then nvX else 0
+	for _, s in { -1, 1 } do
+		K:vent("CentreVent", CFrame.new(cx + s * 0.36, vy, face + 0.0), 0.56, 0.13, ventLook, 3)
+		K:vent("SideVent", CFrame.new(s * (half - 0.36), vy, face + 0.0), 0.4, 0.2, ventLook, 4)
+	end
+
+	-- 공조 패널 + 센터 스택 --------------------------------------------------------------------------------
+	local cpY = bandY - 0.36
+	local panel = K:box("ClimateGlass", Vector3.new(1.3, 0.34, 0.03), CFrame.new(cx, cpY, face + 0.06) * CFrame.Angles(math.rad(-6), 0, 0), P.screen)
+	Screens.climate(panel, P.accentColor)
+	K:box("ClimateBezel", Vector3.new(1.42, 0.44, 0.05), CFrame.new(cx, cpY, face + 0.035) * CFrame.Angles(math.rad(-6), 0, 0), P.gloss)
+	for _, s in { -1, 1 } do
+		local kc = CFrame.new(cx + s * 0.86, cpY, face + 0.06)
+		K:cyl("ClimateKnob", 0.1, 0.22, kc * ROT_X_TO_Z, P.chrome)
+		K:cyl("ClimateKnobCap", 0.03, 0.17, kc * CFrame.new(0, 0, 0.05) * ROT_X_TO_Z, P.gloss)
+	end
+	for i = 0, 5 do
+		K:box("StackButton", Vector3.new(0.17, 0.07, 0.04), CFrame.new(cx - 0.47 + i * 0.188, cpY - 0.3, face + 0.06), if i == 2 then P.hazard else P.button)
+	end
+	-- 센터 스택 아래: 콘솔 앞쪽까지 이어지는 경사 판
+	local con = F.console
+	if con then
+		local y0 = cpY - 0.4
+		local h = y0 - con.top
+		if h > 0.12 then
+			local zc0, zc1 = face - 0.15, con.z0 + 0.35
+			local depth = math.max(0.3, zc1 - zc0)
+			-- 웨지: 실내 쪽(+Z)이 높음 -> 뒤집어서 대시 쪽이 높게
+			K:wedge("StackSlope", Vector3.new(math.min(con.w, 1.1), h, depth), CFrame.new(cx, con.top + h / 2, zc0 + depth / 2) * CFrame.Angles(0, math.pi, 0), P.hard)
+			K:box("StackTray", Vector3.new(0.7, 0.03, 0.4), CFrame.new(cx, con.top + 0.05, zc0 + depth * 0.62), P.rubber)
+		end
+	end
+
+	-- A필러 트림 (천) -----------------------------------------------------------------------------------
+	local hi: Vector3 = F.wsHigh
+	local wsHalf = (F.wsW or width) / 2
+	for _, s in { -1, 1 } do
+		local a = Vector3.new(s * (wsHalf + 0.05), ws.Y + 0.05, ws.Z + 0.05)
+		local b = Vector3.new(s * (wsHalf - 0.05), hi.Y - 0.08, hi.Z + 0.05)
+		K:seg("APillarTrim", a, b, 0.22, P.fabric)
+	end
+	return {}
+end
+
+Dash.REPLACES = { "Dash", "DashTop", "DashUpper", "DashLower", "VentBand", "VentSlot", "DashChrome", "WoodBand", "AmbientStrip", "ClimatePanel", "TempKnob", "ClimateKnob", "ClusterScreen", "ClusterHood", "NavScreen", "FloatingScreen", "Screen", "CentrePanel", "VerticalVent", "CornerVent", "Glovebox", "DashSpeaker", "StartButton", "SquareVent", "RadioPanel", "StackFrame", "TabletMount", "TabletScreen", "Gauges" }
+
+return Dash
+
+end
+
+__defs["Fit"] = function()
+-- GwangalliCarInterior/Fit: 기존 차 모델(build/kit/vehicles 규약)의 Interior 파트에서 실내 치수를 읽습니다.
+-- 이름 우선 (WheelRim / WheelHub / Dash / DashTop / ClusterScreen / NavScreen / CentreConsole / SeatCushion /
+-- SeatBack / Headrest / DoorTrim / Headliner / Carpet / Firewall / Pedal / RearViewMirror / SunVisor + 차체의
+-- Windshield / BPillar), 없는 값은 차 크기에서 추정. 결과는 전부 차체(Underbody) 프레임 기준.
+-- 읽기만 합니다 (아무것도 바꾸지 않음).
+
+local Fit = {}
+
+-- seat = { cush, cushSize, back?, backSize?, head?, x, z, y, w } (차체 기준)
+
+local function localBox(U: CFrame, p: BasePart): (CFrame, Vector3)
+	return U:ToObjectSpace(p.CFrame), p.Size
+end
+
+local function frameOf(model: Model): BasePart?
+	local u = model:FindFirstChild("Underbody", true)
+	if u and u:IsA("BasePart") then
+		return u
+	end
+	local c = model:FindFirstChild("Chassis", true)
+	if c and c:IsA("BasePart") then
+		return c
+	end
+	return nil
+end
+Fit.frameOf = frameOf
+
+local function avg(list: { Vector3 }): Vector3
+	local s = Vector3.zero
+	for _, v in list do
+		s += v
+	end
+	return s / math.max(1, #list)
+end
+
+function Fit.run(model: Model): (any?, string?)
+	local base = frameOf(model)
+	if not base then
+		return nil, "no Underbody/Chassis"
+	end
+	local interior = model:FindFirstChild("Interior")
+	if not interior then
+		return nil, "no Interior"
+	end
+	local U = base.CFrame
+	local by: { [string]: { BasePart } } = {}
+	for _, d in interior:GetDescendants() do
+		if d:IsA("BasePart") then
+			local t = by[d.Name]
+			if not t then
+				t = {}
+				by[d.Name] = t
+			end
+			table.insert(t, d)
+		end
+	end
+	local body: { [string]: { BasePart } } = {}
+	for _, d in model:GetChildren() do
+		if d:IsA("BasePart") then
+			local t = body[d.Name]
+			if not t then
+				t = {}
+				body[d.Name] = t
+			end
+			table.insert(t, d)
+		end
+	end
+	local function first(names: { string }, src: { [string]: { BasePart } }?): BasePart?
+		for _, n in names do
+			local t = (src or by)[n]
+			if t and t[1] then
+				return t[1]
+			end
+		end
+		return nil
+	end
+	local F: any = { model = model, base = base, kind = model:GetAttribute("VehicleKind") or "sedan", interior = interior }
+
+	-- 1) 핸들 -------------------------------------------------------------------------------------
+	local rims = by.WheelRim or {}
+	local hub = first({ "WheelHub" })
+	if #rims < 3 and not hub then
+		return nil, "no steering wheel anchors"
+	end
+	local pts = {}
+	for _, r in rims do
+		table.insert(pts, U:PointToObjectSpace(r.Position))
+	end
+	local c = if #pts > 0 then avg(pts) else U:PointToObjectSpace((hub :: BasePart).Position)
+	local up, axis
+	if #pts >= 6 then
+		-- 림 조각 중 가장 높은 것 - 가장 낮은 것 = 핸들 평면의 위쪽
+		local hi, lo = pts[1], pts[1]
+		local left, right = pts[1], pts[1]
+		for _, p in pts do
+			if p.Y > hi.Y then
+				hi = p
+			end
+			if p.Y < lo.Y then
+				lo = p
+			end
+			if p.X < left.X then
+				left = p
+			end
+			if p.X > right.X then
+				right = p
+			end
+		end
+		-- 같은 높이의 조각이 둘씩 있으니 평균
+		local function meanNear(sel: Vector3, key: string): Vector3
+			local acc = {}
+			for _, p in pts do
+				if math.abs((p :: any)[key] - (sel :: any)[key]) < 0.06 then
+					table.insert(acc, p)
+				end
+			end
+			return avg(acc)
+		end
+		hi, lo = meanNear(hi, "Y"), meanNear(lo, "Y")
+		left, right = meanNear(left, "X"), meanNear(right, "X")
+		up = (hi - lo).Unit
+		local rx = (right - left).Unit
+		axis = rx:Cross(up).Unit -- 운전자 쪽 (+Z 쪽)
+		if axis.Z < 0 then
+			axis = -axis
+		end
+	elseif hub then
+		local hcf = U:ToObjectSpace(hub.CFrame)
+		axis = hcf.LookVector
+		if axis.Z < 0 then
+			axis = -axis
+		end
+		up = hcf.UpVector
+	else
+		axis, up = Vector3.new(0, 0.4, 0.92).Unit, Vector3.new(0, 0.92, -0.4).Unit
+	end
+	local right = up:Cross(axis).Unit
+	up = axis:Cross(right).Unit
+	local R = 0.6
+	if #pts >= 6 then
+		local sum = 0
+		for _, p in pts do
+			sum += (p - c).Magnitude
+		end
+		R = (sum / #pts) / math.cos(math.pi / 8) -- 팔각형 조각 중심 -> 꼭짓점 반지름
+	end
+	F.wheel = { c = c, R = math.clamp(R, 0.45, 0.8), cf = CFrame.fromMatrix(c, right, up, axis) }
+	F.side = if c.X < 0 then -1 else 1 -- 운전석 쪽 (좌핸들 = -X)
+
+	-- 2) 실내 폭 / 바닥 / 천장 -------------------------------------------------------------------------
+	local trims = by.DoorTrim or {}
+	local halfIn = 2.5
+	if #trims > 0 then
+		local s = 0
+		for _, t in trims do
+			local lc, sz = localBox(U, t)
+			s += math.abs(lc.Position.X) - sz.X / 2
+		end
+		halfIn = s / #trims
+	end
+	F.halfIn = halfIn
+	local carpet = first({ "Carpet", "CabCarpet", "Floor" })
+	F.floorY = if carpet then U:PointToObjectSpace(carpet.Position).Y + carpet.Size.Y / 2 else c.Y - 1.9
+	local liner = first({ "Headliner", "Ceiling" })
+	if liner then
+		local lc, sz = localBox(U, liner)
+		F.roofY = lc.Position.Y - sz.Y / 2
+		F.linerZ0, F.linerZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
+	else
+		F.roofY = c.Y + 1.6
+	end
+	local doorZ0, doorZ1 = c.Z - 1.2, c.Z + 5
+	if #trims > 0 then
+		local lc, sz = localBox(U, trims[1])
+		doorZ0, doorZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
+		F.trimY0, F.trimY1 = lc.Position.Y - sz.Y / 2, lc.Position.Y + sz.Y / 2
+	end
+	F.doorZ0, F.doorZ1 = doorZ0, doorZ1
+	local bp = first({ "BPillar" }, body)
+	F.bZ = if bp then U:PointToObjectSpace(bp.Position).Z else nil
+
+	-- 3) 대시보드 / 앞유리 -------------------------------------------------------------------------------
+	local dash = first({ "Dash", "DashUpper", "DashLower" })
+	if dash then
+		local lc, sz = localBox(U, dash)
+		F.dashFace = lc.Position.Z + sz.Z / 2 -- 실내 쪽 면
+		F.dashFront = lc.Position.Z - sz.Z / 2
+		F.dashMidY = lc.Position.Y
+		F.dashBottom = lc.Position.Y - sz.Y / 2
+		F.dashW = sz.X
+	else
+		F.dashFace = c.Z - 0.65
+		F.dashFront = c.Z - 1.9
+		F.dashMidY = c.Y - 0.25
+		F.dashBottom = c.Y - 0.75
+		F.dashW = halfIn * 2
+	end
+	for _, n in { "DashLower" } do
+		local p = first({ n })
+		if p then
+			local lc, sz = localBox(U, p)
+			F.dashBottom = math.min(F.dashBottom, lc.Position.Y - sz.Y / 2)
+		end
+	end
+	local top = first({ "DashTop" })
+	if top then
+		local lc, sz = localBox(U, top)
+		F.dashTop = lc.Position.Y + sz.Y / 2
+	else
+		F.dashTop = (F.dashMidY :: number) + 0.55
+	end
+	local ws = first({ "Windshield" }, body)
+	if ws then
+		local lc, sz = localBox(U, ws)
+		local e1 = lc * Vector3.new(0, 0, sz.Z / 2)
+		local e2 = lc * Vector3.new(0, 0, -sz.Z / 2)
+		if sz.Y > sz.Z then -- 세워진 앞유리 (트럭): Y 축이 길이
+			e1 = lc * Vector3.new(0, sz.Y / 2, 0)
+			e2 = lc * Vector3.new(0, -sz.Y / 2, 0)
+		end
+		local lo, hi = if e1.Y < e2.Y then e1 else e2, if e1.Y < e2.Y then e2 else e1
+		F.wsLow, F.wsHigh, F.wsW = lo, hi, sz.X
+	else
+		F.wsLow = Vector3.new(0, F.dashTop, F.dashFront)
+		F.wsHigh = Vector3.new(0, F.roofY, c.Z)
+		F.wsW = F.dashW
+	end
+
+	-- 4) 화면 / 콘솔 ----------------------------------------------------------------------------------
+	local cl = first({ "ClusterScreen", "Gauges" })
+	F.cluster = if cl then U:PointToObjectSpace(cl.Position) else Vector3.new(c.X, F.dashTop + 0.12, F.dashFace + 0.2)
+	local nav = first({ "NavScreen", "FloatingScreen", "Screen", "TabletScreen" })
+	F.nav = if nav then U:PointToObjectSpace(nav.Position) else Vector3.new(0, F.cluster.Y, F.cluster.Z + 0.1)
+	F.navWide = nav and nav.Size.X or 1.3
+	local con = first({ "CentreConsole", "FloorConsole" })
+	if con then
+		local lc, sz = localBox(U, con)
+		F.console = { x = lc.Position.X, z0 = lc.Position.Z - sz.Z / 2, z1 = lc.Position.Z + sz.Z / 2, top = lc.Position.Y + sz.Y / 2, w = sz.X }
+	end
+	local arm = first({ "ConsoleArmrest" })
+	if arm then
+		local lc, sz = localBox(U, arm)
+		F.consoleArm = { z0 = lc.Position.Z - sz.Z / 2, z1 = lc.Position.Z + sz.Z / 2, top = lc.Position.Y + sz.Y / 2, w = sz.X }
+	end
+	F.wood = by.WoodBand ~= nil or by.ConsoleWood ~= nil
+	F.rotary = by.GearDial ~= nil or by.RotaryShifter ~= nil
+	F.lever = by.GearLever ~= nil or by.GearKnob ~= nil
+	F.taxi = by.TaxiMeter ~= nil
+
+	-- 5) 좌석 ------------------------------------------------------------------------------------------
+	local cush = by.SeatCushion or {}
+	local backs = by.SeatBack or {}
+	local heads = by.Headrest or {}
+	local seats: { any } = {}
+	for _, s in cush do
+		local lc, sz = localBox(U, s)
+		local p = lc.Position
+		local rec: any = { cush = p, cushSize = sz, x = p.X, z = p.Z, y = p.Y, w = sz.X }
+		-- 같은 x 근처의 등받이 / 헤드레스트
+		local bestB, bd = nil, math.huge
+		for _, b in backs do
+			local bl = U:PointToObjectSpace(b.Position)
+			local dd = math.abs(bl.X - p.X) + math.abs(bl.Z - p.Z) * 0.3
+			if bl.Z > p.Z - 0.2 and dd < bd then
+				bd, bestB = dd, b
+			end
+		end
+		if bestB then
+			local bl, bs = localBox(U, bestB)
+			rec.back, rec.backSize = bl.Position, bs
+		end
+		local bestH, hd = nil, math.huge
+		for _, h in heads do
+			local hl = U:PointToObjectSpace(h.Position)
+			local dd = math.abs(hl.X - p.X) + math.abs(hl.Z - p.Z) * 0.3
+			if hl.Z > p.Z and dd < hd then
+				hd, bestH = dd, hl
+			end
+		end
+		rec.head = bestH
+		table.insert(seats, rec)
+	end
+	table.sort(seats, function(a, b)
+		return a.z < b.z
+	end)
+	local front, rear = {}, {}
+	if #seats > 0 then
+		local z0 = seats[1].z
+		for _, s in seats do
+			if s.z < z0 + 1.0 and s.w < 2.6 then
+				table.insert(front, s)
+			else
+				table.insert(rear, s)
+			end
+		end
+	end
+	F.front, F.rear = front, rear
+	-- 뒷좌석 헤드레스트 위치 (벤치는 하나로 되어 있음)
+	F.rearHeads = {}
+	for _, h in heads do
+		local hl = U:PointToObjectSpace(h.Position)
+		if #front > 0 and hl.Z > front[1].z + 2.2 then
+			table.insert(F.rearHeads, hl)
+		end
+	end
+
+	-- 6) 기타 -----------------------------------------------------------------------------------------
+	F.pedals = {}
+	for _, p in by.Pedal or {} do
+		table.insert(F.pedals, U:PointToObjectSpace(p.Position))
+	end
+	local mir = first({ "RearViewMirror" })
+	F.mirror = if mir then U:PointToObjectSpace(mir.Position) else nil
+	local fw = first({ "Firewall" })
+	F.firewallZ = if fw then U:PointToObjectSpace(fw.Position).Z else F.dashFront
+
+	-- 7) 색 (차마다 원래 실내 색을 살림) --------------------------------------------------------------------
+	local function colorOf(names: { string }, fallback: Color3): Color3
+		local p = first(names)
+		return if p then p.Color else fallback
+	end
+	F.colors = {
+		seat = colorOf({ "SeatCushion", "SeatBack" }, Color3.fromRGB(30, 30, 32)),
+		dash = colorOf({ "DashUpper", "Dash" }, Color3.fromRGB(26, 26, 28)),
+		trim = colorOf({ "DoorTrim" }, Color3.fromRGB(30, 30, 32)),
+		liner = colorOf({ "Headliner", "Ceiling" }, Color3.fromRGB(150, 150, 152)),
+		accent = colorOf({ "AmbientStrip", "AmbientDoor" }, Color3.fromRGB(110, 170, 255)),
+		wood = colorOf({ "WoodBand", "ConsoleWood" }, Color3.fromRGB(70, 50, 38)),
+	}
+	F.seatFabric = (by.SeatCushion and by.SeatCushion[1] and by.SeatCushion[1].Material == Enum.Material.Fabric) or false
+	return F, nil
+end
+
+return Fit
+
+end
+
+__defs["Glass"] = function()
+-- GwangalliCarInterior/Glass: 차 유리를 검은 반투명 틴팅 + 반사로 (클라이언트 로컬, 서버·다른 플레이어에 영향 없음).
+--   앞유리: 스모크 (Transparency 0.55, Reflectance 0.16) — 운전 시야 확보
+--   옆·뒤·쿼터 유리: 검은 틴팅 (Transparency 0.3, Reflectance 0.24) — 밖에서 실내가 거의 안 보임
+-- 운전석 시점에서는 GwangalliDrive 카메라가 유리 LocalTransparencyModifier 를 올려 조금 더 맑게 보입니다.
+
+local Glass = {}
+
+local ROLE: { [string]: string } = {
+	Windshield = "ws",
+	FrontGlass = "ws",
+	RearGlass = "rear",
+	RearWindow = "rear",
+	BackGlass = "rear",
+	SideGlass = "side",
+	QuarterGlass = "side",
+	DoorGlass = "side",
+	CabGlass = "side",
+	SideWindow = "side",
+	Window = "side",
+}
+
+Glass.LOOK = {
+	ws = { color = Color3.fromRGB(18, 22, 27), transparency = 0.55, reflectance = 0.16 },
+	side = { color = Color3.fromRGB(8, 10, 13), transparency = 0.3, reflectance = 0.24 },
+	rear = { color = Color3.fromRGB(8, 10, 13), transparency = 0.3, reflectance = 0.24 },
+}
+
+function Glass.roleOf(p: BasePart): string?
+	local r = ROLE[p.Name]
+	if not r and p:GetAttribute("Glass") == true then
+		r = if p:GetAttribute("Windshield") == true then "ws" else "side"
+	end
+	return r
+end
+
+-- 차 한 대의 유리를 틴팅. 반환: 바꾼 개수
+function Glass.tint(model: Model): number
+	local n = 0
+	for _, d in model:GetDescendants() do
+		if d:IsA("BasePart") and d.Parent and d.Parent.Name ~= "CabinAAA" then
+			local role = Glass.roleOf(d)
+			-- 원래 반투명한 유리만 (주차장 블록 차의 불투명 앞유리 웨지는 그대로)
+			if role and d.Transparency > 0.05 and d.Transparency < 0.95 and d:GetAttribute("GwTinted") ~= true then
+				local look = Glass.LOOK[role]
+				d.Material = Enum.Material.Glass
+				d.Color = look.color
+				d.Transparency = look.transparency
+				d.Reflectance = look.reflectance
+				d.CastShadow = false
+				d:SetAttribute("GwTinted", true)
+				n += 1
+			end
+		end
+	end
+	return n
+end
+
+return Glass
+
+end
+
+__defs["Kit"] = function()
+-- GwangalliCarInterior/Kit: 파트 조립 도구. 모든 좌표는 차체 프레임(Underbody) 기준 스터드:
+-- +X = 오른쪽, +Y = 위, -Z = 앞 (Roblox 차량 규약). 파트는 전부 클라이언트 로컬, 질량 없음, 충돌·쿼리·터치 없음,
+-- Weld 로 차체(또는 회전 피벗)에 붙습니다. 차가 주차 중(Anchored)이면 그대로 서 있고 운전 중이면 같이 움직입니다.
+--   box / wedge / cyl / ball / ell(타원체: SpecialMesh Sphere) / seg(두 점 사이 원통) / ring(원환: 원통 n개)
+--   rbox(모서리가 둥근 상자) / pivot(회전 피벗: 핸들) / slats(송풍구 날개)
+
+local Kit = {}
+Kit.__index = Kit
+
+-- look = { c: Color3?, m: Enum.Material?, t: number? (Transparency), r: number? (Reflectance), shadow: boolean? }
+
+local DEFAULT_COLOR = Color3.fromRGB(30, 30, 32)
+
+function Kit.new(base: BasePart, parent: Instance)
+	local self = setmetatable({}, Kit)
+	self.base = base
+	self.parent = parent
+	self.count = 0
+	self.budget = 70 -- 프레임당 생성 수 (그 이상이면 다음 프레임으로 양보)
+	self.attach = base -- 지금 붙일 대상 (pivot 안에서 만들 때 바뀜)
+	self.attachCF = CFrame.new() -- attach 의 차체 기준 CFrame
+	self.parts = {} :: { BasePart }
+	return self
+end
+
+-- 프레임 양보 (빌드 코루틴 안에서만)
+function Kit:tick()
+	self.count += 1
+	if self.count % self.budget == 0 then
+		task.wait()
+	end
+end
+
+local function apply(p: BasePart, look: any?)
+	local l: any = look or {}
+	p.Anchored = false
+	p.CanCollide = false
+	p.CanQuery = false
+	p.CanTouch = false
+	p.Massless = true
+	p.CastShadow = l.shadow == true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.Color = l.c or DEFAULT_COLOR
+	p.Material = l.m or Enum.Material.SmoothPlastic
+	p.Transparency = l.t or 0
+	p.Reflectance = l.r or 0
+end
+
+-- lcf: 차체 기준 CFrame. 파트를 만들고 현재 attach 에 용접.
+function Kit:make(class: string, name: string, size: Vector3, lcf: CFrame, look: any?, shape: Enum.PartType?): BasePart
+	local p = Instance.new(class) :: BasePart
+	if shape then
+		(p :: Part).Shape = shape
+	end
+	p.Name = name
+	apply(p, look)
+	p.Size = size
+	p.CFrame = self.base.CFrame * lcf
+	local w = Instance.new("Weld")
+	w.Name = "CabinWeld"
+	w.Part0 = self.attach
+	w.Part1 = p
+	w.C0 = self.attachCF:Inverse() * lcf
+	w.C1 = CFrame.new()
+	w.Parent = p
+	p.Parent = self.parent
+	table.insert(self.parts, p)
+	self:tick()
+	return p
+end
+
+function Kit:box(name: string, size: Vector3, lcf: CFrame, look: any?): BasePart
+	return self:make("Part", name, size, lcf, look)
+end
+
+function Kit:wedge(name: string, size: Vector3, lcf: CFrame, look: any?): BasePart
+	return self:make("WedgePart", name, size, lcf, look)
+end
+
+-- 원통: 축 = lcf 의 X 축 (Roblox Cylinder 규약). len = 길이, d = 지름
+function Kit:cyl(name: string, len: number, d: number, lcf: CFrame, look: any?): BasePart
+	return self:make("Part", name, Vector3.new(len, d, d), lcf, look, Enum.PartType.Cylinder)
+end
+
+function Kit:ball(name: string, d: number, lcf: CFrame, look: any?): BasePart
+	return self:make("Part", name, Vector3.new(d, d, d), lcf, look, Enum.PartType.Ball)
+end
+
+-- 타원체 (쿠션·볼스터·헤드레스트·에어백 커버): SpecialMesh Sphere 는 파트 크기에 맞춰 늘어납니다
+function Kit:ell(name: string, size: Vector3, lcf: CFrame, look: any?): BasePart
+	local p = self:make("Part", name, size, lcf, look)
+	local m = Instance.new("SpecialMesh")
+	m.MeshType = Enum.MeshType.Sphere
+	m.Parent = p
+	return p
+end
+
+-- 두 점 a, b (차체 기준) 사이 원통
+function Kit:seg(name: string, a: Vector3, b: Vector3, d: number, look: any?, extra: number?): BasePart?
+	local v = b - a
+	local len = v.Magnitude
+	if len < 1e-3 then
+		return nil
+	end
+	local mid = (a + b) / 2
+	local x = v / len
+	local up = if math.abs(x.Y) < 0.95 then Vector3.yAxis else Vector3.xAxis
+	local z = x:Cross(up).Unit
+	local y = z:Cross(x).Unit
+	return self:cyl(name, len + (extra or 0), d, CFrame.fromMatrix(mid, x, y, z), look)
+end
+
+-- 원환 (핸들 림·송풍구 테두리·스피커 링): frame 의 XY 평면, 반지름 R, 단면 지름 d, n 조각, a0..a1 (라디안)
+function Kit:ring(name: string, frame: CFrame, R: number, d: number, n: number, look: any?, a0: number?, a1: number?, fat: ((number) -> number)?)
+	local s0, s1 = a0 or 0, a1 or math.pi * 2
+	local full = math.abs((s1 - s0) - math.pi * 2) < 1e-3
+	local out = {}
+	for i = 0, n - 1 do
+		local t0 = s0 + (s1 - s0) * i / n
+		local t1 = s0 + (s1 - s0) * (i + 1) / n
+		local pa = frame * Vector3.new(math.cos(t0) * R, math.sin(t0) * R, 0)
+		local pb = frame * Vector3.new(math.cos(t1) * R, math.sin(t1) * R, 0)
+		local dd = if fat then d * fat((t0 + t1) / 2) else d
+		local p = self:seg(name, pa, pb, dd, look, dd * 0.42)
+		if p then
+			table.insert(out, p)
+		end
+	end
+	if not full then
+		-- 열린 호의 끝은 둥글게
+		self:ball(name, d, CFrame.new(frame * Vector3.new(math.cos(s0) * R, math.sin(s0) * R, 0)), look)
+		self:ball(name, d, CFrame.new(frame * Vector3.new(math.cos(s1) * R, math.sin(s1) * R, 0)), look)
+	end
+	return out
+end
+
+-- 모서리가 둥근 상자 (lcf 의 X 축 방향 4개 모서리를 반지름 r 로): 상자 2개 + 원통 4개
+function Kit:rbox(name: string, size: Vector3, r: number, lcf: CFrame, look: any?)
+	r = math.min(r, size.Y / 2 - 1e-3, size.Z / 2 - 1e-3)
+	if r <= 0.01 then
+		return { self:box(name, size, lcf, look) }
+	end
+	local out = {}
+	table.insert(out, self:box(name, Vector3.new(size.X, size.Y - 2 * r, size.Z), lcf, look))
+	table.insert(out, self:box(name, Vector3.new(size.X, size.Y, size.Z - 2 * r), lcf, look))
+	for _, sy in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			table.insert(out, self:cyl(name, size.X, 2 * r, lcf * CFrame.new(0, sy * (size.Y / 2 - r), sz * (size.Z / 2 - r)), look))
+		end
+	end
+	return out
+end
+
+-- 회전 피벗: 이후 fn 안에서 만든 파트는 피벗에 붙습니다 (핸들처럼 통째로 돌릴 부품)
+function Kit:pivot(name: string, lcf: CFrame, fn: () -> ()): (BasePart, Weld)
+	local p = Instance.new("Part")
+	p.Name = name
+	apply(p, { t = 1 })
+	p.Size = Vector3.new(0.1, 0.1, 0.1)
+	p.CFrame = self.base.CFrame * lcf
+	local w = Instance.new("Weld")
+	w.Name = "PivotWeld"
+	w.Part0 = self.base
+	w.Part1 = p
+	w.C0 = lcf
+	w.Parent = p
+	p.Parent = self.parent
+	local prevA, prevCF = self.attach, self.attachCF
+	self.attach, self.attachCF = p, lcf
+	fn()
+	self.attach, self.attachCF = prevA, prevCF
+	return p, w
+end
+
+-- 송풍구: frame 중심, 폭 w, 높이 h; 테두리(크롬) + 안쪽 어두운 덕트 + 가로 날개 n 개 + 조절 노브
+function Kit:vent(name: string, frame: CFrame, w: number, h: number, look: any, n: number?)
+	local th = 0.035
+	self:box(name .. "Duct", Vector3.new(w, h, 0.08), frame * CFrame.new(0, 0, -0.03), look.duct)
+	self:box(name .. "Rim", Vector3.new(w + 2 * th, th, 0.06), frame * CFrame.new(0, h / 2 + th / 2, 0), look.frame)
+	self:box(name .. "Rim", Vector3.new(w + 2 * th, th, 0.06), frame * CFrame.new(0, -h / 2 - th / 2, 0), look.frame)
+	self:box(name .. "Rim", Vector3.new(th, h, 0.06), frame * CFrame.new(w / 2 + th / 2, 0, 0), look.frame)
+	self:box(name .. "Rim", Vector3.new(th, h, 0.06), frame * CFrame.new(-w / 2 - th / 2, 0, 0), look.frame)
+	local k = n or 4
+	for i = 1, k do
+		local y = -h / 2 + h * (i - 0.5) / k
+		self:box(name .. "Slat", Vector3.new(w - 0.02, 0.022, 0.07), frame * CFrame.new(0, y, 0.005) * CFrame.Angles(math.rad(-12), 0, 0), look.slat)
+	end
+	self:box(name .. "Knob", Vector3.new(0.07, 0.05, 0.05), frame * CFrame.new(0, 0, 0.04), look.knob)
+end
+
+return Kit
+
+end
+
+__defs["Screens"] = function()
+-- GwangalliCarInterior/Screens: 화면 (SurfaceGui). 디지털 계기판(속도·RPM 원형 게이지 + 바늘, 기어, 방향지시,
+-- 연료·수온, 시계·기온), 내비게이션(광안리 지도 + 경로 + 상단 바 + 하단 독), 공조 패널.
+-- 모든 화면은 파트의 Back(+Z) 면 = 운전자 쪽에 붙습니다. Screens.update(screens, state) 로 살아 움직입니다.
+
+local Lighting = game:GetService("Lighting")
+
+local Screens = {}
+
+local function gui(part: BasePart, pps: number, bg: Color3): (SurfaceGui, Frame)
+	local sg = Instance.new("SurfaceGui")
+	sg.Name = "Screen"
+	sg.Face = Enum.NormalId.Back
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	sg.PixelsPerStud = pps
+	sg.LightInfluence = 0
+	sg.Brightness = 1.6
+	sg.ClipsDescendants = true
+	local root = Instance.new("Frame")
+	root.Name = "Face"
+	root.Size = UDim2.fromScale(1, 1)
+	root.BackgroundColor3 = bg
+	root.BorderSizePixel = 0
+	root.Parent = sg
+	sg.Parent = part
+	return sg, root
+end
+
+local function frame(parent: Instance, name: string, pos: UDim2, size: UDim2, color: Color3, transp: number?, z: number?): Frame
+	local f = Instance.new("Frame")
+	f.Name = name
+	f.AnchorPoint = Vector2.new(0.5, 0.5)
+	f.Position = pos
+	f.Size = size
+	f.BackgroundColor3 = color
+	f.BackgroundTransparency = transp or 0
+	f.BorderSizePixel = 0
+	f.ZIndex = z or 1
+	f.Parent = parent
+	return f
+end
+
+local function label(parent: Instance, name: string, text: string, pos: UDim2, size: UDim2, color: Color3, font: Enum.Font?, z: number?): TextLabel
+	local t = Instance.new("TextLabel")
+	t.Name = name
+	t.AnchorPoint = Vector2.new(0.5, 0.5)
+	t.Position = pos
+	t.Size = size
+	t.BackgroundTransparency = 1
+	t.Text = text
+	t.TextScaled = true
+	t.Font = font or Enum.Font.GothamMedium
+	t.TextColor3 = color
+	t.ZIndex = z or 3
+	t.Parent = parent
+	return t
+end
+
+local function round(f: GuiObject, r: number?)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(r or 1, 0)
+	c.Parent = f
+end
+
+local function stroke(f: GuiObject, color: Color3, th: number, tr: number?)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = th
+	s.Transparency = tr or 0
+	s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	s.Parent = f
+end
+
+local function gradient(f: GuiObject, a: Color3, b: Color3, rot: number)
+	local g = Instance.new("UIGradient")
+	g.Color = ColorSequence.new(a, b)
+	g.Rotation = rot
+	g.Parent = f
+end
+
+-- 원형 게이지: 눈금 + 바늘 (바늘은 회전하는 Frame; 회전 중심 = 게이지 중심이 되도록 길이 2배 프레임의 반만 보이게)
+local function dial(parent: Frame, cx: number, cy: number, dpx: number, accent: Color3, ticks: number, redFrom: number?): Frame
+	local d = frame(parent, "Dial", UDim2.new(cx, 0, cy, 0), UDim2.fromOffset(dpx, dpx), Color3.fromRGB(10, 13, 18), 0.05, 2)
+	round(d)
+	stroke(d, accent, math.max(2, dpx * 0.018), 0.15)
+	gradient(d, Color3.fromRGB(26, 32, 42), Color3.fromRGB(6, 8, 12), 90)
+	for i = 0, ticks do
+		local a = math.rad(-225 + 270 * i / ticks)
+		local major = i % 2 == 0
+		local r = dpx * 0.42
+		local t = frame(d, "Tick", UDim2.new(0.5, math.cos(a) * r, 0.5, math.sin(a) * r), UDim2.fromOffset(if major then dpx * 0.07 else dpx * 0.04, math.max(1, dpx * 0.012)), if redFrom and i / ticks >= redFrom then Color3.fromRGB(255, 70, 60) else Color3.fromRGB(190, 205, 222), 0, 3)
+		t.Rotation = math.deg(a)
+	end
+	-- 바늘: 중심을 지나는 프레임, 바깥쪽 절반만 색 (UIGradient 투명도로 안쪽 절반을 숨김)
+	local needle = frame(d, "Needle", UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(dpx * 0.82, math.max(2, dpx * 0.022)), Color3.fromRGB(255, 96, 40), 0, 4)
+	local g = Instance.new("UIGradient")
+	g.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.499, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 0) })
+	g.Parent = needle
+	needle.Rotation = -225
+	local cap = frame(d, "Cap", UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(dpx * 0.1, dpx * 0.1), Color3.fromRGB(40, 46, 56), 0, 5)
+	round(cap)
+	return d
+end
+
+-- 디지털 계기판 ---------------------------------------------------------------------------------------
+function Screens.cluster(part: BasePart, accent: Color3, kind: string)
+	local _, root = gui(part, 260, Color3.fromRGB(4, 6, 10))
+	gradient(root, Color3.fromRGB(14, 20, 30), Color3.fromRGB(2, 3, 6), 90)
+	local W, H = part.Size.X * 260, part.Size.Y * 260
+	local dpx = H * 0.86
+	local speed = dial(root, 0.2, 0.52, dpx, accent, 12, nil)
+	local rpm = dial(root, 0.8, 0.52, dpx, accent, 8, 0.75)
+	local spd = label(speed, "Speed", "0", UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.5, 0.26), Color3.fromRGB(240, 246, 255), Enum.Font.GothamBold, 6)
+	label(speed, "Unit", "km/h", UDim2.fromScale(0.5, 0.68), UDim2.fromScale(0.36, 0.1), Color3.fromRGB(140, 160, 185), nil, 6)
+	label(rpm, "Unit", "x1000 rpm", UDim2.fromScale(0.5, 0.68), UDim2.fromScale(0.5, 0.1), Color3.fromRGB(140, 160, 185), nil, 6)
+	-- 가운데 정보
+	local mid = frame(root, "Info", UDim2.fromScale(0.5, 0.52), UDim2.fromOffset(W * 0.34, H * 0.82), Color3.fromRGB(0, 0, 0), 1, 2)
+	local clock = label(mid, "Clock", "14:00", UDim2.fromScale(0.5, 0.1), UDim2.fromScale(0.5, 0.14), Color3.fromRGB(220, 230, 240))
+	local temp = label(mid, "Temp", "24°C", UDim2.fromScale(0.5, 0.24), UDim2.fromScale(0.3, 0.1), Color3.fromRGB(140, 160, 185))
+	local gears = {}
+	local i = 0
+	for _, g in { "P", "R", "N", "D" } do
+		gears[g] = label(mid, "Gear" .. g, g, UDim2.fromScale(0.2 + 0.2 * i, 0.5), UDim2.fromScale(0.16, 0.22), Color3.fromRGB(90, 100, 115), Enum.Font.GothamBold)
+		i += 1
+	end
+	local turnL = label(mid, "TurnL", "◀", UDim2.fromScale(0.08, 0.1), UDim2.fromScale(0.14, 0.16), Color3.fromRGB(40, 70, 45))
+	local turnR = label(mid, "TurnR", "▶", UDim2.fromScale(0.92, 0.1), UDim2.fromScale(0.14, 0.16), Color3.fromRGB(40, 70, 45))
+	local odo = label(mid, "Odo", "ODO 12,480 km", UDim2.fromScale(0.5, 0.78), UDim2.fromScale(0.8, 0.09), Color3.fromRGB(120, 135, 155))
+	-- 연료 / 수온 바
+	local function bar(name: string, y: number, fill: number, col: Color3): Frame
+		local b = frame(mid, name, UDim2.fromScale(0.5, y), UDim2.fromScale(0.78, 0.035), Color3.fromRGB(30, 36, 46), 0, 3)
+		round(b)
+		local f = frame(b, "Fill", UDim2.fromScale(fill / 2, 0.5), UDim2.fromScale(fill, 1), col, 0, 4)
+		round(f)
+		return f
+	end
+	bar("Fuel", 0.9, 0.72, accent)
+	bar("Coolant", 0.96, 0.5, Color3.fromRGB(120, 200, 255))
+	local brand = if kind == "luxury" then "GENESIS" else "HYUNDAI"
+	label(root, "Brand", brand, UDim2.fromScale(0.5, 0.06), UDim2.fromScale(0.12, 0.07), Color3.fromRGB(70, 80, 95))
+	return {
+		speedNeedle = speed:FindFirstChild("Needle") :: Frame,
+		rpmNeedle = rpm:FindFirstChild("Needle") :: Frame,
+		speed = spd,
+		gears = gears,
+		clock = clock,
+		temp = temp,
+		turnL = turnL,
+		turnR = turnR,
+		odo = odo,
+		accent = accent,
+	}
+end
+
+-- 내비게이션 (광안리) --------------------------------------------------------------------------------------
+function Screens.nav(part: BasePart, accent: Color3)
+	local _, root = gui(part, 220, Color3.fromRGB(16, 22, 30))
+	local map = frame(root, "Map", UDim2.fromScale(0.5, 0.52), UDim2.fromScale(1, 0.76), Color3.fromRGB(26, 33, 42), 0, 1)
+	-- 바다 (광안리 앞바다) + 해변 + 도로 + 광안대교
+	frame(map, "Sea", UDim2.fromScale(0.5, 0.86), UDim2.fromScale(1.1, 0.4), Color3.fromRGB(14, 40, 70), 0, 1)
+	frame(map, "Beach", UDim2.fromScale(0.5, 0.66), UDim2.fromScale(1.1, 0.06), Color3.fromRGB(150, 130, 90), 0.4, 2)
+	local roads = {
+		{ 0.5, 0.58, 1.2, 0.035, 0 },
+		{ 0.3, 0.3, 0.9, 0.025, -18 },
+		{ 0.72, 0.32, 0.028, 0.7, 8 },
+		{ 0.18, 0.4, 0.02, 0.7, -4 },
+		{ 0.55, 0.15, 0.9, 0.02, 4 },
+	}
+	for _, r in roads do
+		local f = frame(map, "Road", UDim2.fromScale(r[1], r[2]), UDim2.fromScale(r[3], r[4]), Color3.fromRGB(70, 80, 94), 0, 2)
+		f.Rotation = r[5]
+	end
+	local bridge = frame(map, "Bridge", UDim2.fromScale(0.62, 0.86), UDim2.fromScale(0.95, 0.03), Color3.fromRGB(200, 205, 215), 0.1, 3)
+	bridge.Rotation = -8
+	local route = frame(map, "Route", UDim2.fromScale(0.42, 0.58), UDim2.fromScale(0.62, 0.05), accent, 0, 4)
+	round(route)
+	local route2 = frame(map, "Route", UDim2.fromScale(0.72, 0.44), UDim2.fromScale(0.05, 0.32), accent, 0, 4)
+	round(route2)
+	local me = frame(map, "Me", UDim2.fromScale(0.2, 0.58), UDim2.fromOffset(18, 18), Color3.fromRGB(255, 255, 255), 0, 6)
+	me.Rotation = 45
+	stroke(me, accent, 3)
+	-- 상단 안내 바
+	local top = frame(root, "Top", UDim2.fromScale(0.5, 0.07), UDim2.fromScale(1, 0.14), Color3.fromRGB(8, 12, 18), 0.05, 5)
+	label(top, "Turn", "↱ 300m", UDim2.fromScale(0.12, 0.5), UDim2.fromScale(0.2, 0.8), Color3.fromRGB(255, 255, 255), Enum.Font.GothamBold, 6)
+	label(top, "Road", "광안해변로 → 광안대교", UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.5, 0.7), Color3.fromRGB(210, 225, 240), nil, 6)
+	local clock = label(top, "Clock", "14:00", UDim2.fromScale(0.9, 0.5), UDim2.fromScale(0.14, 0.7), Color3.fromRGB(210, 225, 240), nil, 6)
+	-- 하단 독
+	local dock = frame(root, "Dock", UDim2.fromScale(0.5, 0.95), UDim2.fromScale(1, 0.1), Color3.fromRGB(8, 12, 18), 0.05, 5)
+	local icons = { "⌂", "♪", "☎", "❄", "⚙" }
+	for k, ic in icons do
+		local b = frame(dock, "Icon", UDim2.fromScale(0.1 + 0.2 * (k - 1), 0.5), UDim2.fromOffset(26, 26), Color3.fromRGB(34, 44, 58), 0, 6)
+		round(b, 0.3)
+		label(b, "Glyph", ic, UDim2.fromScale(0.5, 0.5), UDim2.fromScale(0.8, 0.8), Color3.fromRGB(200, 215, 230), nil, 7)
+	end
+	label(map, "Eta", "도착 14:12 · 2.1km", UDim2.fromScale(0.82, 0.08), UDim2.fromScale(0.32, 0.09), Color3.fromRGB(220, 230, 240), nil, 6)
+	return { clock = clock }
+end
+
+-- 공조 패널 ---------------------------------------------------------------------------------------------
+function Screens.climate(part: BasePart, accent: Color3)
+	local _, root = gui(part, 220, Color3.fromRGB(6, 8, 11))
+	label(root, "L", "22.0°", UDim2.fromScale(0.13, 0.5), UDim2.fromScale(0.2, 0.6), Color3.fromRGB(230, 238, 248), Enum.Font.GothamBold)
+	label(root, "Auto", "AUTO  ❄  A/C", UDim2.fromScale(0.5, 0.32), UDim2.fromScale(0.4, 0.3), accent)
+	for i = 1, 7 do
+		local f = frame(root, "Fan", UDim2.fromScale(0.32 + i * 0.045, 0.72), UDim2.fromScale(0.03, 0.08 + i * 0.03), if i <= 3 then accent else Color3.fromRGB(50, 60, 72), 0, 2)
+		f.AnchorPoint = Vector2.new(0.5, 1)
+		f.Position = UDim2.fromScale(0.32 + i * 0.045, 0.85)
+	end
+	label(root, "R", "22.0°", UDim2.fromScale(0.87, 0.5), UDim2.fromScale(0.2, 0.6), Color3.fromRGB(230, 238, 248), Enum.Font.GothamBold)
+	return {}
+end
+
+local GEAR_ON = Color3.fromRGB(255, 255, 255)
+local GEAR_OFF = Color3.fromRGB(80, 90, 105)
+
+-- state = { kmh, rpm, gear, turnL, turnR }
+function Screens.update(s: any, state: any)
+	local c = s.cluster
+	if c then
+		local kmh = math.abs(state.kmh or 0)
+		c.speed.Text = tostring(math.floor(kmh + 0.5))
+		c.speedNeedle.Rotation = -225 + 270 * math.clamp(kmh / 240, 0, 1)
+		c.rpmNeedle.Rotation = -225 + 270 * math.clamp((state.rpm or 800) / 8000, 0, 1)
+		for g, l in c.gears do
+			l.TextColor3 = if g == state.gear then GEAR_ON else GEAR_OFF
+		end
+		c.turnL.TextColor3 = if state.turnL then Color3.fromRGB(60, 255, 110) else Color3.fromRGB(40, 70, 45)
+		c.turnR.TextColor3 = if state.turnR then Color3.fromRGB(60, 255, 110) else Color3.fromRGB(40, 70, 45)
+	end
+	local t = Lighting.ClockTime
+	local hh, mm = math.floor(t), math.floor((t % 1) * 60)
+	local txt = string.format("%02d:%02d", hh, mm)
+	if c then
+		c.clock.Text = txt
+	end
+	if s.nav then
+		s.nav.clock.Text = txt
+	end
+end
+
+return Screens
+
+end
+
+__defs["Seats"] = function()
+-- GwangalliCarInterior/Seats: 좌석. 앞좌석 = 레일 + 받침 + 쿠션(가운데 인서트 + 양옆 볼스터 + 앞 롤) + 13° 기울어진
+-- 등받이(인서트 · 볼스터 · 어깨 롤 · 뒤판 · 맵포켓) + 크롬 기둥 헤드레스트 + 옆면 파워시트 스위치 + 안전벨트 · 버클.
+-- 고급차(제네시스)는 인서트에 다이아몬드 퀼팅. 뒷좌석 = 3인 벤치(바깥 두 자리 볼스터) + 등받이 3분할 +
+-- 헤드레스트 3 + 가운데 팔걸이.
+
+local Seats = {}
+
+local ROT_X_TO_Y = CFrame.Angles(0, 0, math.pi / 2)
+
+local function quilt(K: any, frame: CFrame, w: number, h: number, look: any)
+	-- 다이아몬드 퀼팅 (대각선 스티치 두 방향)
+	local n = 4
+	for i = -n, n do
+		local off = i * w / (n + 1)
+		for _, s in { -1, 1 } do
+			K:box("Quilt", Vector3.new(0.008, h * 1.2, 0.006), frame * CFrame.new(off, 0, 0) * CFrame.Angles(0, 0, s * math.rad(35)), look)
+		end
+	end
+end
+
+local function frontSeat(K: any, F: any, P: any, s: any)
+	local x, w = s.x, math.min(s.w, 1.85)
+	local cs: Vector3 = s.cushSize
+	local cushTop = s.cush.Y + cs.Y / 2
+	local zR = s.z + cs.Z / 2 -- 뒤 끝
+	local floor: number = F.floorY
+	local lux = F.kind == "luxury"
+	local seatLook = P.leather
+	local insertLook = if F.seatFabric then P.fabricSeat else P.leatherInsert
+
+	-- 레일 + 받침
+	for _, sx in { -0.32, 0.32 } do
+		K:box("SeatRail", Vector3.new(0.07, 0.06, cs.Z + 0.4), CFrame.new(x + sx * w, floor + 0.04, s.z), P.metalDark)
+	end
+	local baseH = math.max(0.1, cushTop - 0.3 - floor)
+	K:box("SeatBase", Vector3.new(w * 0.78, baseH, cs.Z * 0.8), CFrame.new(x, floor + baseH / 2 + 0.05, s.z + 0.05), P.hardDark)
+	-- 옆 덮개 + 파워시트 스위치 (바깥쪽)
+	local out = if x < 0 then -1 else 1
+	local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
+	K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
+	K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
+	K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+
+	-- 쿠션
+	local pan = CFrame.new(x, cushTop - 0.14, s.z)
+	K:rbox("CushionPan", Vector3.new(w - 0.14, 0.24, cs.Z - 0.05), 0.1, pan, seatLook)
+	K:box("CushionInsert", Vector3.new(w * 0.5, 0.04, cs.Z * 0.72), pan * CFrame.new(0, 0.12, 0.04), insertLook)
+	if lux then
+		quilt(K, pan * CFrame.new(0, 0.143, 0.04) * CFrame.Angles(math.rad(90), 0, 0), w * 0.5, cs.Z * 0.6, P.stitch)
+	end
+	for _, sx in { -1, 1 } do
+		K:ell("CushionBolster", Vector3.new(0.34, 0.3, cs.Z * 0.96), pan * CFrame.new(sx * (w / 2 - 0.2), 0.08, 0.02), seatLook)
+		K:box("CushionStitch", Vector3.new(0.01, 0.01, cs.Z * 0.72), pan * CFrame.new(sx * (w * 0.25 + 0.01), 0.142, 0.04), P.stitch)
+	end
+	K:cyl("CushionRoll", w - 0.2, 0.26, pan * CFrame.new(0, 0.0, -cs.Z / 2 + 0.1), seatLook)
+
+	-- 등받이 (13° 뒤로) -------------------------------------------------------------------------------------
+	local bs: Vector3 = s.backSize or Vector3.new(w, 2.0, 0.45)
+	local H = math.max(1.7, bs.Y)
+	local hinge = CFrame.new(x, cushTop - 0.05, zR - 0.12) * CFrame.Angles(math.rad(13), 0, 0)
+	local backC = hinge * CFrame.new(0, H / 2, 0.05)
+	K:rbox("BackCore", Vector3.new(H, w - 0.2, 0.3), 0.12, backC * ROT_X_TO_Y, seatLook)
+	K:box("BackInsert", Vector3.new(w * 0.5, H * 0.66, 0.04), backC * CFrame.new(0, -0.08, -0.16), insertLook)
+	if lux then
+		quilt(K, backC * CFrame.new(0, -0.08, -0.185), w * 0.5, H * 0.56, P.stitch)
+	end
+	for _, sx in { -1, 1 } do
+		K:ell("BackBolster", Vector3.new(0.36, H * 0.82, 0.42), backC * CFrame.new(sx * (w / 2 - 0.2), -0.06, -0.1), seatLook)
+		K:box("BackStitch", Vector3.new(0.01, H * 0.66, 0.01), backC * CFrame.new(sx * (w * 0.25 + 0.01), -0.08, -0.185), P.stitch)
+	end
+	K:ell("BackShoulder", Vector3.new(w - 0.2, 0.3, 0.34), backC * CFrame.new(0, H / 2 - 0.12, 0), seatLook)
+	K:box("BackPanel", Vector3.new(w - 0.32, H * 0.8, 0.04), backC * CFrame.new(0, -0.05, 0.17), P.hard)
+	K:box("MapPocket", Vector3.new(w - 0.5, H * 0.3, 0.035), backC * CFrame.new(0, -H * 0.24, 0.2), P.hardDark)
+
+	-- 헤드레스트 -------------------------------------------------------------------------------------------
+	local headTop = backC * CFrame.new(0, H / 2 + 0.08, 0.02)
+	local hp: Vector3 = s.head or headTop.Position + Vector3.new(0, 0.32, 0)
+	local hcf = CFrame.new(Vector3.new(x, math.max(hp.Y, headTop.Position.Y + 0.3), headTop.Position.Z + 0.02)) * CFrame.Angles(math.rad(13), 0, 0)
+	K:rbox("Headrest", Vector3.new(0.92, 0.5, 0.26), 0.12, hcf, seatLook)
+	K:ell("HeadrestPad", Vector3.new(0.78, 0.38, 0.16), hcf * CFrame.new(0, 0, -0.1), insertLook)
+	for _, sx in { -0.22, 0.22 } do
+		local a = (headTop * CFrame.new(sx, -0.06, 0)).Position
+		local b = (hcf * CFrame.new(sx, -0.24, 0)).Position
+		K:seg("HeadrestPost", a, b, 0.045, P.chrome)
+	end
+
+	-- 안전벨트 (B필러를 따라 내려옴) + 버클 ----------------------------------------------------------------------
+	local half: number = F.halfIn
+	local bz = (F.bZ or zR + 0.2) + 0.12
+	local top = Vector3.new(out * (half - 0.08), F.roofY - 0.55, bz)
+	local low = Vector3.new(out * (half - 0.06), cushTop + 0.1, bz + 0.25)
+	local v = top - low
+	local zAxis = v.Unit
+	local xAxis = (Vector3.xAxis - zAxis * Vector3.xAxis:Dot(zAxis)).Unit
+	K:box("SeatBelt", Vector3.new(0.02, 0.17, v.Magnitude), CFrame.fromMatrix((top + low) / 2, xAxis, zAxis:Cross(xAxis), zAxis), P.belt)
+	K:box("BeltAnchor", Vector3.new(0.04, 0.12, 0.22), CFrame.new(top), P.hardDark)
+	local buckle = CFrame.new(x - out * (w / 2 + 0.06), cushTop + 0.05, zR - 0.2) * CFrame.Angles(math.rad(-20), 0, 0)
+	K:box("Buckle", Vector3.new(0.09, 0.22, 0.06), buckle, P.hardDark)
+	K:box("BuckleRelease", Vector3.new(0.06, 0.03, 0.02), buckle * CFrame.new(0, 0.08, -0.03), P.hazard)
+end
+
+local function rearBench(K: any, F: any, P: any, s: any)
+	local cs: Vector3 = s.cushSize
+	local W = cs.X
+	local cushTop = s.cush.Y + cs.Y / 2
+	local zR = s.z + cs.Z / 2
+	local floor: number = F.floorY
+	local seatLook = P.leather
+	local insertLook = if F.seatFabric then P.fabricSeat else P.leatherInsert
+	-- 받침
+	local baseH = math.max(0.1, cushTop - 0.25 - floor)
+	K:box("BenchBase", Vector3.new(W - 0.1, baseH, cs.Z * 0.85), CFrame.new(s.x, floor + baseH / 2, s.z + 0.05), P.hardDark)
+	-- 3 자리 쿠션
+	local seatW = W / 3
+	for i = -1, 1 do
+		local cx = s.x + i * seatW
+		local pan = CFrame.new(cx, cushTop - 0.13, s.z)
+		K:rbox("BenchPan", Vector3.new(seatW - 0.04, 0.24, cs.Z - 0.05), 0.1, pan, seatLook)
+		K:box("BenchInsert", Vector3.new(seatW * 0.62, 0.04, cs.Z * 0.7), pan * CFrame.new(0, 0.12, 0.05), insertLook)
+		if i ~= 0 then
+			K:ell("BenchBolster", Vector3.new(0.3, 0.24, cs.Z * 0.92), pan * CFrame.new(i * (seatW / 2 - 0.12), 0.07, 0.02), seatLook)
+		end
+		K:cyl("BenchRoll", seatW - 0.12, 0.24, pan * CFrame.new(0, 0, -cs.Z / 2 + 0.1), seatLook)
+	end
+	-- 등받이 (18°)
+	local bs: Vector3 = s.backSize or Vector3.new(W, 1.8, 0.45)
+	local H = math.max(1.5, bs.Y)
+	local hinge = CFrame.new(s.x, cushTop - 0.05, zR - 0.1) * CFrame.Angles(math.rad(18), 0, 0)
+	for i = -1, 1 do
+		local bc = hinge * CFrame.new(i * seatW, H / 2, 0.06)
+		K:rbox("BenchBack", Vector3.new(H, seatW - 0.05, 0.3), 0.11, bc * ROT_X_TO_Y, seatLook)
+		K:box("BenchBackInsert", Vector3.new(seatW * 0.6, H * 0.62, 0.04), bc * CFrame.new(0, -0.1, -0.16), insertLook)
+		K:ell("BenchShoulder", Vector3.new(seatW - 0.1, 0.26, 0.32), bc * CFrame.new(0, H / 2 - 0.1, 0), seatLook)
+	end
+	-- 가운데 팔걸이 (접힌 상태: 등받이 면에 보이는 경계)
+	local mid = hinge * CFrame.new(0, H * 0.32, -0.12)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(-0.3, 0, -0.06), P.hardDark)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(0.3, 0, -0.06), P.hardDark)
+	-- 헤드레스트 3
+	local heads = F.rearHeads or {}
+	local xs = {}
+	for _, h in heads do
+		table.insert(xs, h)
+	end
+	if #xs < 2 then
+		xs = { Vector3.new(s.x - seatW, 0, 0), Vector3.new(s.x + seatW, 0, 0) }
+	end
+	table.insert(xs, Vector3.new(s.x, 0, 0))
+	for k, hp in xs do
+		local topC = hinge * CFrame.new(hp.X - s.x, H + 0.05, 0.06)
+		local small = k == #xs
+		local hc = topC * CFrame.new(0, if small then 0.18 else 0.24, 0)
+		K:rbox("RearHeadrest", Vector3.new(if small then 0.62 else 0.82, if small then 0.3 else 0.42, 0.24), 0.1, hc, seatLook)
+		for _, sx in { -0.18, 0.18 } do
+			K:seg("RearHeadPost", (topC * CFrame.new(sx * (if small then 0.7 else 1), -0.05, 0)).Position, (hc * CFrame.new(sx * (if small then 0.7 else 1), -0.12, 0)).Position, 0.04, P.chrome)
+		end
+	end
+end
+
+function Seats.build(K: any, F: any, P: any)
+	for _, s in F.front do
+		frontSeat(K, F, P, s)
+	end
+	for _, s in F.rear do
+		if s.w >= 2.6 then
+			rearBench(K, F, P, s)
+		end
+	end
+	return {}
+end
+
+Seats.REPLACES = { "SeatCushion", "SeatBack", "SeatInsert", "Headrest", "SeatBase", "SeatSupport", "RearBench" }
+
+return Seats
+
+end
+
+__defs["Trim"] = function()
+-- GwangalliCarInterior/Trim: 도어 트림(앞·뒤 문마다: 하단 패널, 가죽 중단 + 스티치, 우드/알루미늄 띠, 앰비언트,
+-- 팔걸이 + 창문 스위치, 손잡이 컵 + 크롬 도어 핸들, 원형 스피커 + 크롬 링, 맵포켓, 창틀 롤), B·C 필러 트림,
+-- 헤드라이너 + 둥근 가장자리, 오버헤드 콘솔(맵램프 · SOS), 손잡이, 선바이저(화장 거울 커버), 룸미러(자동 감광),
+-- 바닥 매트, 알루미늄 페달 + 고무 띠 + 풋레스트.
+
+local Trim = {}
+
+local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0)
+local ROT_X_TO_SIDE = CFrame.new() -- 원통 축 X = 차 옆 방향 그대로
+
+local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean)
+	local half: number = F.halfIn
+	local x = side * (half + 0.02)
+	local y0: number = F.trimY0 or F.floorY
+	local y1: number = F.trimY1 or (F.floorY + 2.2)
+	local len = z1 - z0
+	if len < 0.8 then
+		return
+	end
+	local zc = (z0 + z1) / 2
+	local inward = -side
+	-- 하단 / 중단 / 상단
+	local lowH = (y1 - y0) * 0.42
+	K:box("DoorLower", Vector3.new(0.1, lowH, len - 0.06), CFrame.new(x, y0 + lowH / 2, zc), P.hard)
+	local midY = y0 + lowH + 0.24
+	K:box("DoorSoft", Vector3.new(0.08, 0.46, len - 0.2), CFrame.new(x + inward * 0.03, midY, zc), P.doorSoft)
+	K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.075, midY + 0.2, zc), P.stitch)
+	K:box("DoorStitch", Vector3.new(0.01, 0.01, len - 0.3), CFrame.new(x + inward * 0.075, midY - 0.2, zc), P.stitch)
+	local upY0 = midY + 0.23
+	local upH = y1 - upY0
+	if upH > 0.05 then
+		K:box("DoorUpper", Vector3.new(0.09, upH, len - 0.08), CFrame.new(x, upY0 + upH / 2, zc), P.soft)
+	end
+	K:cyl("DoorSill", len - 0.1, 0.14, CFrame.new(x + inward * 0.01, y1 - 0.02, zc) * CFrame.Angles(0, math.pi / 2, 0), P.soft)
+	K:box("DoorTrimBand", Vector3.new(0.04, 0.09, len - 0.4), CFrame.new(x + inward * 0.06, upY0 + 0.1, zc), P.trim)
+	K:box("DoorAmbient", Vector3.new(0.02, 0.02, len - 0.6), CFrame.new(x + inward * 0.07, upY0 + 0.03, zc), P.ambient)
+	-- 팔걸이 + 창문 스위치
+	local armY = y0 + lowH + 0.02
+	local armZ = zc + len * 0.08
+	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, 0.36), 0.06, CFrame.new(x + inward * 0.2, armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
+	local sw = CFrame.new(x + inward * 0.25, armY + 0.075, armZ - len * 0.14)
+	K:box("WindowSwitches", Vector3.new(0.2, 0.025, if driver then 0.48 else 0.2), sw, P.gloss)
+	for i = 0, (if driver then 3 else 0) do
+		K:box("WindowSwitch", Vector3.new(0.08, 0.03, 0.07), sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
+	end
+	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
+	local hz = z0 + 0.42
+	local hy = armY + 0.42
+	K:box("HandleCup", Vector3.new(0.05, 0.16, 0.42), CFrame.new(x + inward * 0.06, hy, hz), P.duct)
+	K:box("DoorHandle", Vector3.new(0.05, 0.05, 0.32), CFrame.new(x + inward * 0.09, hy + 0.01, hz), P.chrome)
+	K:box("LockTab", Vector3.new(0.05, 0.05, 0.07), CFrame.new(x + inward * 0.09, hy, hz + 0.26), P.button)
+	-- 원형 스피커 (문 아래 앞쪽) + 맵포켓
+	local sp = CFrame.new(x + inward * 0.06, y0 + lowH * 0.55, z0 + 0.5)
+	K:cyl("SpeakerRing", 0.03, 0.58, sp, P.chrome)
+	K:cyl("SpeakerGrille", 0.035, 0.52, sp * CFrame.new(inward * 0.005, 0, 0), P.grille)
+	K:box("MapPocket", Vector3.new(0.12, 0.2, len * 0.45), CFrame.new(x + inward * 0.07, y0 + 0.2, zc + len * 0.12), P.hardDark)
+	-- 바닥 쪽 반사등
+	K:box("DoorReflector", Vector3.new(0.03, 0.05, 0.2), CFrame.new(x + inward * 0.06, y0 + 0.06, z1 - 0.25), P.reflector)
+end
+
+function Trim.build(K: any, F: any, P: any)
+	local half: number = F.halfIn
+	local commercial = F.kind == "truck" or F.kind == "ambulance"
+	-- 문 ---------------------------------------------------------------------------------------------
+	local z0: number, z1: number = F.doorZ0, F.doorZ1
+	local bz: number? = F.bZ
+	local split = if bz and bz > z0 + 1 and bz < z1 - 0.8 then bz else nil
+	for _, side in { -1, 1 } do
+		local driver = side == F.side
+		if split then
+			doorCard(K, F, P, side, z0 + 0.05, split - 0.08, true, driver)
+			if not commercial then
+				doorCard(K, F, P, side, split + 0.08, z1 - 0.05, false, false)
+			end
+			-- B필러 트림
+			local y1: number = F.trimY1 or (F.floorY + 2.2)
+			local ph = F.roofY - y1
+			if ph > 0.2 then
+				K:box("BPillarTrim", Vector3.new(0.14, ph, 0.5), CFrame.new(side * (half - 0.02), y1 + ph / 2, split), P.fabric)
+			end
+		else
+			doorCard(K, F, P, side, z0 + 0.05, z1 - 0.05, true, driver)
+		end
+	end
+
+	-- 헤드라이너 + 둥근 가장자리 + 오버헤드 콘솔 ----------------------------------------------------------------
+	local roofY: number = F.roofY
+	local lz0: number = F.linerZ0 or (F.wsHigh :: Vector3).Z
+	local lz1: number = F.linerZ1 or z1
+	local llen = lz1 - lz0
+	if llen > 0.5 then
+		K:box("Headliner", Vector3.new(half * 2 - 0.1, 0.06, llen), CFrame.new(0, roofY + 0.02, (lz0 + lz1) / 2), P.fabric)
+		for _, s in { -1, 1 } do
+			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (half - 0.1), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
+		end
+		local oc = CFrame.new(0, roofY - 0.06, lz0 + 0.45)
+		K:rbox("OverheadConsole", Vector3.new(0.78, 0.12, 0.5), 0.05, oc, P.hard)
+		for _, s in { -1, 1 } do
+			K:box("MapLamp", Vector3.new(0.2, 0.02, 0.12), oc * CFrame.new(s * 0.22, -0.065, 0.02), P.lampLens)
+		end
+		K:box("SOS", Vector3.new(0.08, 0.02, 0.05), oc * CFrame.new(0, -0.065, 0.15), P.hazard)
+		K:box("RoofSwitch", Vector3.new(0.14, 0.02, 0.06), oc * CFrame.new(0, -0.065, -0.12), P.button)
+		-- 실내등 (뒤)
+		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6), P.lampLens)
+		-- 손잡이 (조수석 + 뒤 양쪽)
+		for _, g in { { -F.side, lz0 + 0.9 }, { -1, lz0 + llen * 0.7 }, { 1, lz0 + llen * 0.7 } } do
+			local gx = g[1] * (half - 0.14)
+			local gz = g[2]
+			K:seg("GrabHandle", Vector3.new(gx, roofY - 0.04, gz - 0.28), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), 0.05, P.hard)
+			K:seg("GrabHandle", Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz + 0.2), 0.05, P.hard)
+			K:seg("GrabHandle", Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz + 0.2), Vector3.new(gx, roofY - 0.04, gz + 0.28), 0.05, P.hard)
+		end
+	end
+
+	-- 선바이저 + 룸미러 --------------------------------------------------------------------------------------
+	local hi: Vector3 = F.wsHigh
+	for _, s in { -1, 1 } do
+		local v = CFrame.new(s * 1.15, roofY - 0.06, hi.Z + 0.42)
+		K:rbox("SunVisor", Vector3.new(1.18, 0.06, 0.6), 0.03, v, P.fabric)
+		K:box("VanityCover", Vector3.new(0.5, 0.012, 0.26), v * CFrame.new(-s * 0.1, -0.035, 0.04), P.hard)
+		K:cyl("VisorRod", 0.4, 0.04, v * CFrame.new(s * 0.62, 0.0, -0.22) * CFrame.Angles(0, math.pi / 2, 0), P.hard)
+	end
+	local mp: Vector3 = F.mirror or Vector3.new(0, roofY - 0.3, hi.Z + 0.35)
+	local mcf = CFrame.new(mp) * CFrame.Angles(math.rad(-8), 0, 0)
+	K:seg("MirrorStem", Vector3.new(mp.X, roofY + 0.02, hi.Z + 0.05), mp + Vector3.new(0, 0.08, -0.04), 0.06, P.hardDark)
+	K:rbox("MirrorBody", Vector3.new(0.86, 0.25, 0.1), 0.06, mcf, P.hardDark)
+	K:box("MirrorGlass", Vector3.new(0.78, 0.18, 0.01), mcf * CFrame.new(0, 0, 0.055), P.mirror)
+
+	-- 바닥 매트 + 페달 ---------------------------------------------------------------------------------------
+	local floor: number = F.floorY
+	for _, s in F.front do
+		K:box("FloorMat", Vector3.new(math.min(s.w, 1.7) - 0.1, 0.03, 1.6), CFrame.new(s.x, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.85), P.mat)
+		K:box("MatPiping", Vector3.new(math.min(s.w, 1.7) - 0.05, 0.035, 0.035), CFrame.new(s.x, floor + 0.018, s.z - s.cushSize.Z / 2 - 0.05), P.stitch)
+	end
+	for _, s in F.rear do
+		if s.w >= 2.6 then
+			for _, sx in { -1, 1 } do
+				K:box("FloorMat", Vector3.new(1.5, 0.03, 1.1), CFrame.new(s.x + sx * s.w / 3, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.6), P.mat)
+			end
+		end
+	end
+	local ped = F.pedals or {}
+	table.sort(ped, function(a: Vector3, b: Vector3)
+		return math.abs(a.X) > math.abs(b.X)
+	end)
+	-- 바깥쪽 = 브레이크, 안쪽 = 가속 (좌핸들)
+	local brake, gas = ped[1], ped[2]
+	if brake then
+		local c = CFrame.new(brake) * CFrame.Angles(math.rad(-25), 0, 0)
+		K:box("BrakePedal", Vector3.new(0.44, 0.3, 0.04), c, P.alloy)
+		for i = -1, 1 do
+			K:box("PedalRubber", Vector3.new(0.36, 0.035, 0.02), c * CFrame.new(0, i * 0.08, 0.025), P.rubber)
+		end
+		K:seg("PedalArm", brake + Vector3.new(0, 0.1, -0.05), brake + Vector3.new(0, 0.62, -0.32), 0.05, P.metalDark)
+		-- 풋레스트
+		local fx = brake.X + F.side * 0.55
+		K:box("FootRest", Vector3.new(0.3, 0.5, 0.04), CFrame.new(fx, floor + 0.35, brake.Z - 0.1) * CFrame.Angles(math.rad(-40), 0, 0), P.alloy)
+	end
+	if gas then
+		local c = CFrame.new(gas + Vector3.new(0, -0.05, 0)) * CFrame.Angles(math.rad(-35), 0, 0)
+		K:box("GasPedal", Vector3.new(0.26, 0.6, 0.04), c, P.alloy)
+		for i = -2, 2 do
+			K:box("PedalRubber", Vector3.new(0.035, 0.5, 0.02), c * CFrame.new(i * 0.05, 0, 0.025), P.rubber)
+		end
+	end
+	return {}
+end
+
+Trim.REPLACES = { "DoorTrim", "DoorTrimUpper", "Armrest", "AmbientDoor", "SpeakerGrille", "Headliner", "SunVisor", "RearViewMirror", "Pedal", "FloorMat" }
+
+return Trim
+
+end
+
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
+local Kit = __require("Kit")
+local Fit = __require("Fit")
+local Glass = __require("Glass")
+local Cockpit = __require("Cockpit")
+local Dash = __require("Dash")
+local Console = __require("Console")
+local Seats = __require("Seats")
+local Trim = __require("Trim")
+local Screens = __require("Screens")
+
+local player = Players.LocalPlayer
+
+local CFG = {
+	buildRadius = 52, -- 이 안의 가까운 차부터 실내 생성
+	dropRadius = 72, -- 이 밖으로 나가면 실내 제거
+	maxCabins = 3, -- 동시에 유지할 실내 수 (+ 내가 탄 차)
+	liveRadius = 34, -- 이 안이면 핸들·계기판 실시간
+	scanBatch = 2500, -- 처음 맵 스캔: 프레임당 인스턴스 수
+	steerRatio = 14, -- 앞바퀴 각도 x 조향비 = 핸들 각도
+	kinds = { sedan = true, taxi = true, taxi_service = true, police = true, luxury = true, suv = true, compact = true, van = true, truck = true, ambulance = true },
+}
+
+type Rec = {
+	model: Model,
+	base: BasePart?,
+	cabin: any?,
+	building: boolean,
+	failed: string?,
+	tinted: boolean,
+}
+
+local cars: { [Model]: Rec } = {}
+
+---------------------------------------------------------------------------------------------------- 팔레트
+local M = Enum.Material
+local function lighten(c: Color3, k: number): Color3
+	return c:Lerp(Color3.new(1, 1, 1), k)
+end
+local function darken(c: Color3, k: number): Color3
+	return c:Lerp(Color3.new(0, 0, 0), k)
+end
+local function palette(F: any): any
+	local C = F.colors
+	local lux = F.kind == "luxury"
+	local seat: Color3 = C.seat
+	local dash: Color3 = C.dash
+	return {
+		leather = { c = seat, m = M.Leather, shadow = true },
+		leatherInsert = { c = if lux then lighten(seat, 0.06) else darken(seat, 0.22), m = M.Leather },
+		fabricSeat = { c = seat, m = M.Fabric, shadow = true },
+		wheelLeather = { c = if lux then darken(seat, 0.25) else Color3.fromRGB(24, 24, 26), m = M.Leather },
+		wheelHub = { c = Color3.fromRGB(28, 28, 31), m = M.Leather },
+		soft = { c = lighten(dash, 0.05), m = M.Leather, shadow = true },
+		doorSoft = { c = C.trim, m = M.Leather },
+		hard = { c = dash, m = M.SmoothPlastic },
+		hardDark = { c = darken(dash, 0.5), m = M.SmoothPlastic },
+		gloss = { c = Color3.fromRGB(7, 7, 9), m = M.SmoothPlastic, r = 0.12 },
+		screen = { c = Color3.fromRGB(3, 4, 6), m = M.Glass, r = 0.05 },
+		satin = { c = Color3.fromRGB(150, 153, 158), m = M.Metal },
+		chrome = { c = Color3.fromRGB(208, 211, 216), m = M.Metal, r = 0.3 },
+		alloy = { c = Color3.fromRGB(176, 179, 184), m = M.Metal },
+		metalDark = { c = Color3.fromRGB(58, 60, 64), m = M.Metal },
+		trim = if F.wood then { c = C.wood, m = M.Wood } else { c = Color3.fromRGB(112, 115, 120), m = M.Metal },
+		stitch = { c = lighten(seat, if lux then 0.55 else 0.32), m = M.SmoothPlastic },
+		fabric = { c = C.liner, m = M.Fabric },
+		rubber = { c = Color3.fromRGB(20, 20, 22), m = M.Rubber },
+		mat = { c = Color3.fromRGB(24, 24, 26), m = M.Carpet },
+		duct = { c = Color3.fromRGB(6, 6, 7), m = M.SmoothPlastic },
+		button = { c = Color3.fromRGB(34, 36, 40), m = M.SmoothPlastic },
+		buttonLit = { c = Color3.fromRGB(225, 236, 255), m = M.Neon, t = 0.35 },
+		hazard = { c = Color3.fromRGB(196, 28, 28), m = M.SmoothPlastic },
+		startBtn = { c = Color3.fromRGB(170, 22, 24), m = M.SmoothPlastic, r = 0.08 },
+		paddle = { c = Color3.fromRGB(72, 74, 78), m = M.Metal },
+		grille = { c = Color3.fromRGB(16, 16, 18), m = M.DiamondPlate },
+		reflector = { c = Color3.fromRGB(200, 30, 20), m = M.Neon, t = 0.5 },
+		lampLens = { c = Color3.fromRGB(236, 233, 222), m = M.Glass, t = 0.15 },
+		mirror = { c = Color3.fromRGB(190, 198, 206), m = M.Glass, r = 0.75 },
+		belt = { c = Color3.fromRGB(20, 20, 22), m = M.Fabric },
+		ambient = { c = C.accent, m = M.Neon, t = 0.45 },
+		accentColor = C.accent,
+	}
+end
+
+---------------------------------------------------------------------------------------------------- 차 찾기
+local function track(m: Instance)
+	if not m:IsA("Model") or cars[m] then
+		return
+	end
+	local kind = m:GetAttribute("VehicleKind")
+	if not CFG.kinds[kind] then
+		return
+	end
+	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, tinted = false }
+	cars[m] = rec
+	task.defer(function()
+		if m.Parent then
+			Glass.tint(m)
+			rec.tinted = true
+		end
+	end)
+end
+
+local function scan()
+	local stack: { Instance } = { Workspace }
+	local n = 0
+	while #stack > 0 do
+		local node = table.remove(stack) :: Instance
+		for _, c in node:GetChildren() do
+			n += 1
+			if c:IsA("Model") then
+				if c:GetAttribute("VehicleKind") ~= nil then
+					track(c)
+				else
+					table.insert(stack, c)
+				end
+			elseif c:IsA("Folder") then
+				table.insert(stack, c)
+			end
+			if n % CFG.scanBatch == 0 then
+				task.wait()
+			end
+		end
+	end
+end
+
+Workspace.DescendantAdded:Connect(function(d)
+	if d:IsA("Model") then
+		task.defer(function()
+			if d.Parent and d:GetAttribute("VehicleKind") ~= nil then
+				track(d)
+			end
+		end)
+	elseif d:IsA("BasePart") and Glass.roleOf(d) then
+		-- 나중에 붙는 유리 (문 열고 닫기 리빌드 등)
+		local m = d:FindFirstAncestorWhichIsA("Model")
+		while m and not cars[m] do
+			m = m.Parent and m.Parent:FindFirstAncestorWhichIsA("Model")
+		end
+		if m then
+			task.defer(Glass.tint, m)
+		end
+	end
+end)
+
+---------------------------------------------------------------------------------------------------- 실내 만들기 / 지우기
+local REPLACES: { [string]: boolean } = { WheelRim = true, WheelHub = true, WheelSpoke = true, WheelBadge = true, WingBadge = true }
+for _, list in { Dash.REPLACES, Console.REPLACES, Seats.REPLACES, Trim.REPLACES } do
+	for _, n in list do
+		REPLACES[n] = true
+	end
+end
+
+local function steerMotors(model: Model): { Motor6D }
+	local out = {}
+	for _, d in model:GetDescendants() do
+		if d:IsA("Motor6D") and d.Part1 and string.find(d.Part1.Name, "^DriveHub") and d.C0.Position.Z < 0 then
+			table.insert(out, d)
+		end
+	end
+	return out
+end
+
+local function destroyCabin(rec: Rec)
+	local cab = rec.cabin
+	if not cab then
+		return
+	end
+	rec.cabin = nil
+	for p, old in cab.hidden do
+		if p.Parent then
+			p.LocalTransparencyModifier = old
+		end
+	end
+	for g, old in cab.guis do
+		if g.Parent then
+			g.Enabled = old
+		end
+	end
+	cab.folder:Destroy()
+end
+
+local function buildCabin(rec: Rec)
+	rec.building = true
+	local ok, err = pcall(function()
+		local F, why = Fit.run(rec.model)
+		if not F then
+			rec.failed = why
+			rec.model:SetAttribute("GwCabinError", why)
+			return
+		end
+		local P = palette(F)
+		local folder = Instance.new("Model")
+		folder.Name = "CabinAAA"
+		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
+		local K = Kit.new(F.base, folder)
+		local cockpit = Cockpit.build(K, F, P)
+		Dash.build(K, F, P)
+		Console.build(K, F, P)
+		Seats.build(K, F, P)
+		Trim.build(K, F, P)
+		if not rec.model.Parent or cars[rec.model] ~= rec then
+			folder:Destroy()
+			return
+		end
+		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음)
+		local hidden, guis = {}, {}
+		for _, d in F.interior:GetDescendants() do
+			if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
+				hidden[d] = d.LocalTransparencyModifier
+				d.LocalTransparencyModifier = 1
+			elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] then
+				guis[d] = d.Enabled
+				d.Enabled = false
+			end
+		end
+		local ambient = {}
+		for _, p in K.parts do
+			if string.find(p.Name, "Ambient") then
+				table.insert(ambient, p)
+			end
+		end
+		folder.Parent = rec.model
+		rec.cabin = {
+			folder = folder,
+			fit = F,
+			cockpit = cockpit,
+			hidden = hidden,
+			guis = guis,
+			ambient = ambient,
+			motors = steerMotors(rec.model),
+			steer = 0,
+			lastScreen = 0,
+			night = nil,
+			parts = #K.parts,
+		}
+	end)
+	if not ok then
+		rec.failed = tostring(err)
+		rec.model:SetAttribute("GwCabinError", tostring(err))
+		warn("[CarInterior] " .. rec.model:GetFullName() .. ": " .. tostring(err))
+	elseif rec.cabin then
+		rec.model:SetAttribute("GwCabinParts", rec.cabin.parts)
+	end
+	rec.building = false
+end
+
+---------------------------------------------------------------------------------------------------- 내가 탄 차
+local function myCar(): Rec?
+	local ch = player.Character
+	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+	local seat = hum and hum.SeatPart
+	if not seat then
+		return nil
+	end
+	local node: Instance? = seat
+	while node and node ~= Workspace do
+		if node:IsA("Model") and cars[node :: Model] then
+			return cars[node :: Model]
+		end
+		node = node.Parent
+	end
+	return nil
+end
+
+---------------------------------------------------------------------------------------------------- LOD 루프
+local building = false
+local function lodStep()
+	local cam = Workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local cp = cam.CFrame.Position
+	-- 카메라와 내 캐릭터 중 가까운 쪽 기준 (카메라를 멀리 돌려도 옆 차 실내가 사라지지 않게)
+	local ch = player.Character
+	local root = ch and ch:FindFirstChild("HumanoidRootPart")
+	local rp = if root and root:IsA("BasePart") then root.Position else cp
+	local mine = myCar()
+	local list = {}
+	for m, rec in cars do
+		if not m.Parent then
+			destroyCabin(rec)
+			cars[m] = nil
+			continue
+		end
+		local base = rec.base
+		if not base or not base.Parent then
+			rec.base = Fit.frameOf(m)
+			base = rec.base
+		end
+		if base then
+			local d = math.min((base.Position - cp).Magnitude, (base.Position - rp).Magnitude)
+			if rec == mine then
+				d = 0
+			end
+			if rec.cabin and d > CFG.dropRadius then
+				destroyCabin(rec)
+			elseif d < CFG.buildRadius and not rec.failed then
+				table.insert(list, { rec = rec, d = d })
+			end
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.d < b.d
+	end)
+	-- 가까운 순으로 maxCabins 개만 유지
+	for i, e in list do
+		if i > CFG.maxCabins + (if mine then 1 else 0) then
+			if e.rec.cabin and e.rec ~= mine then
+				destroyCabin(e.rec)
+			end
+		elseif not e.rec.cabin and not e.rec.building and not building then
+			building = true
+			task.spawn(function()
+				buildCabin(e.rec)
+				building = false
+			end)
+		end
+	end
+end
+
+---------------------------------------------------------------------------------------------------- 실시간 (핸들 · 계기판 · 앰비언트)
+local function isNight(): boolean
+	local t = Lighting.ClockTime
+	return t >= 18.25 or t < 5.75
+end
+
+local function turnState(model: Model, base: BasePart): (boolean, boolean)
+	local l, r = false, false
+	for _, d in model:GetChildren() do
+		if d:IsA("BasePart") and d.Name == "Repeater" and d.Material == Enum.Material.Neon then
+			if base.CFrame:PointToObjectSpace(d.Position).X < 0 then
+				l = true
+			else
+				r = true
+			end
+		end
+	end
+	return l, r
+end
+
+RunService.RenderStepped:Connect(function()
+	local cam = Workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local cp = cam.CFrame.Position
+	local now = os.clock()
+	local night = isNight()
+	local mine = myCar()
+	for _, rec in cars do
+		local cab = rec.cabin
+		local base = rec.base
+		if not cab or not base then
+			continue
+		end
+		local near = rec == mine or (base.Position - cp).Magnitude < CFG.liveRadius
+		-- 앰비언트: 밤에 밝게
+		if cab.night ~= night then
+			cab.night = night
+			for _, p in cab.ambient do
+				p.Transparency = if night then 0.1 else 0.55
+			end
+		end
+		if not near then
+			continue
+		end
+		-- 핸들: 앞바퀴 조향 모터의 실제 각도 x 조향비
+		local yaw = 0
+		for _, m in cab.motors do
+			if m.Parent then
+				local _, ry = m.Transform:ToOrientation()
+				yaw += ry
+			end
+		end
+		if #cab.motors > 0 then
+			yaw /= #cab.motors
+		end
+		local angle = math.clamp(-yaw * CFG.steerRatio, -7.5, 7.5)
+		if math.abs(angle - cab.steer) > 0.002 then
+			cab.steer = angle
+			local ck = cab.cockpit
+			ck.wheelWeld.C0 = ck.wheelCF * CFrame.Angles(0, 0, angle)
+		end
+		-- 계기판 10 Hz
+		if now - cab.lastScreen > 0.1 then
+			cab.lastScreen = now
+			local v = base.AssemblyLinearVelocity:Dot(base.CFrame.LookVector)
+			local kmh = v * 1.08 -- 1 stud = 0.3 m
+			local gear = if rec == mine then (if kmh < -0.8 then "R" elseif math.abs(kmh) < 0.5 then "N" else "D") else "P"
+			local rpm = if gear == "P" or gear == "N" then 780 else 900 + (math.abs(kmh) % 40) / 40 * 3600 + math.min(math.abs(kmh), 40) * 18
+			local tl, tr = turnState(rec.model, base)
+			Screens.update(cab.cockpit.screens, { kmh = kmh, rpm = rpm, gear = gear, turnL = tl, turnR = tr })
+		end
+	end
+end)
+
+---------------------------------------------------------------------------------------------------- 시작
+task.spawn(function()
+	scan()
+	local n = 0
+	for _ in cars do
+		n += 1
+	end
+	print(string.format("[CarInterior] ready: %d cars (tinted glass, AAA cabins near the camera)", n))
+	while true do
+		local ok, err = pcall(lodStep)
+		if not ok then
+			warn("[CarInterior] " .. tostring(err))
+		end
+		local nc = 0
+		for _, rec in cars do
+			if rec.cabin then
+				nc += 1
+			end
+		end
+		script:SetAttribute("Cabins", nc)
+		task.wait(0.35)
+	end
+end)
