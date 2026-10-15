@@ -4043,7 +4043,9 @@ function Trim.build(K: any, F: any, P: any)
 			K:box("TailgateSwitch", Vector3.new(0.1, 0.02, 0.07), oc * CFrame.new(0, -0.065, 0.04), P.button)
 		end
 		-- 실내등 (뒤)
-		local dl = CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6)
+		-- 실내등: 오버헤드 콘솔 뒤 (짧은 캡 천장에서 콘솔이 뒤로 밀리면 실내등도 그 뒤로, 천장 끝 안쪽)
+		local dlz = math.min(math.max(lz0 + llen * 0.6, ocz + 0.45), lz1 - 0.15)
+		local dl = CFrame.new(0, roofY - 0.01, dlz)
 		if F.style.key == "porter" then
 			-- 포터: 회색 사각 하우징 + 렌즈 + 3단 스위치
 			K:rbox("DomeHousing", Vector3.new(0.56, 0.05, 0.32), 0.022, dl * CFrame.new(0, -0.005, 0), P.hard)
