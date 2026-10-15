@@ -78,7 +78,8 @@ type Rec = {
 local cars: { [Model]: Rec } = {}
 
 ---------------------------------------------------------------------------------------------------- 팔레트
--- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic + 약한 반사 (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임)
+-- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임).
+-- 실내 파트는 그림자를 드리우지 않음 (지붕 · 차체가 이미 실내에 그림자를 드리우고, 큰 면의 그림자 계단 현상도 없앰)
 local M = Enum.Material
 local function lighten(c: Color3, k: number): Color3
 	return c:Lerp(Color3.new(1, 1, 1), k)
@@ -102,13 +103,13 @@ local function palette(F: any): any
 		elseif S.trimMat == "black" then { c = C.trim, m = SP, r = 0.15 }
 		else { c = C.trim, m = SP }
 	return {
-		leather = { c = seat, m = SP, shadow = true },
+		leather = { c = seat, m = SP },
 		leatherInsert = { c = C.insert or darken(seat, 0.18), m = SP },
 		fabricSeat = { c = C.insert or lighten(seat, 0.05), m = M.Fabric },
-		fabricSide = { c = seat, m = SP, shadow = true },
+		fabricSide = { c = seat, m = SP },
 		wheelLeather = { c = C.wheel, m = SP },
 		wheelHub = { c = lighten(C.wheel, 0.05), m = SP },
-		soft = { c = lighten(dash, 0.04), m = SP, shadow = true },
+		soft = { c = lighten(dash, 0.04), m = SP },
 		lower = { c = C.lower or dash, m = SP },
 		doorSoft = { c = C.door or lighten(dash, 0.07), m = SP },
 		hard = { c = dash, m = SP },

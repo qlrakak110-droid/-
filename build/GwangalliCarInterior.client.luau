@@ -586,7 +586,7 @@ function Console.build(K: any, F: any, P: any)
 		K:cyl("ShiftDialRing", 0.02, 0.33, CFrame.new(x, top + 0.005, gz) * ROT_X_TO_Y, P.chrome)
 		vknurl(K, P, CFrame.new(x, top, gz + 0.42), 0.23, 0.08, 12, P.screen)
 		for _, k in { { -0.24, -0.08 }, { 0.24, -0.08 }, { -0.24, 0.16 }, { 0.24, 0.16 }, { -0.22, 0.42 }, { 0.22, 0.42 } } do
-			K:slab("AluKey", 0.12, 0.07, 0.03, 0.025, CFrame.new(x + k[1], top + 0.01, gz + k[2]), P.alloy)
+			K:box("AluKey", Vector3.new(0.12, 0.03, 0.07), CFrame.new(x + k[1], top + 0.01, gz + k[2]), P.alloy)
 		end
 		-- 덮개 컵홀더 (우드 슬라이딩 뚜껑)
 		local cz = gz + 0.82
@@ -614,7 +614,7 @@ function Console.build(K: any, F: any, P: any)
 		vknurl(K, P, CFrame.new(x, top, gz), 0.26, 0.1, 14, P.gloss)
 		K:cyl("DialP", 0.03, 0.08, CFrame.new(x, top + 0.115, gz) * ROT_X_TO_Y, P.satin)
 		for _, k in { { -0.28, -0.18 }, { 0.28, -0.18 }, { -0.28, 0.0 }, { 0.28, 0.0 }, { -0.28, 0.18 }, { 0.28, 0.18 } } do
-			K:slab("DialKey", 0.1, 0.1, 0.03, 0.03, CFrame.new(x + k[1], top + 0.015, gz + k[2]), P.button)
+			K:box("DialKey", Vector3.new(0.1, 0.03, 0.1), CFrame.new(x + k[1], top + 0.015, gz + k[2]), P.button)
 		end
 		cupholders(K, P, x, top - 0.01, gz + 0.62, false)
 	end
@@ -3068,7 +3068,8 @@ type Rec = {
 local cars: { [Model]: Rec } = {}
 
 ---------------------------------------------------------------------------------------------------- 팔레트
--- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic + 약한 반사 (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임)
+-- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임).
+-- 실내 파트는 그림자를 드리우지 않음 (지붕 · 차체가 이미 실내에 그림자를 드리우고, 큰 면의 그림자 계단 현상도 없앰)
 local M = Enum.Material
 local function lighten(c: Color3, k: number): Color3
 	return c:Lerp(Color3.new(1, 1, 1), k)
@@ -3092,13 +3093,13 @@ local function palette(F: any): any
 		elseif S.trimMat == "black" then { c = C.trim, m = SP, r = 0.15 }
 		else { c = C.trim, m = SP }
 	return {
-		leather = { c = seat, m = SP, shadow = true },
+		leather = { c = seat, m = SP },
 		leatherInsert = { c = C.insert or darken(seat, 0.18), m = SP },
 		fabricSeat = { c = C.insert or lighten(seat, 0.05), m = M.Fabric },
-		fabricSide = { c = seat, m = SP, shadow = true },
+		fabricSide = { c = seat, m = SP },
 		wheelLeather = { c = C.wheel, m = SP },
 		wheelHub = { c = lighten(C.wheel, 0.05), m = SP },
-		soft = { c = lighten(dash, 0.04), m = SP, shadow = true },
+		soft = { c = lighten(dash, 0.04), m = SP },
 		lower = { c = C.lower or dash, m = SP },
 		doorSoft = { c = C.door or lighten(dash, 0.07), m = SP },
 		hard = { c = dash, m = SP },
