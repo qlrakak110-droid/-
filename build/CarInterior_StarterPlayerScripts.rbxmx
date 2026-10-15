@@ -20,6 +20,8 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Kit = require(script:WaitForChild("Kit"))
 local Fit = require(script:WaitForChild("Fit"))
 local Glass = require(script:WaitForChild("Glass"))
@@ -31,6 +33,18 @@ local Trim = require(script:WaitForChild("Trim"))
 local Screens = require(script:WaitForChild("Screens"))
 
 local player = Players.LocalPlayer
+
+-- 그래픽 품질 단계 (GwangalliQuality 가 있으면): 저사양 폰은 실내 1대, 절전 모드는 0대
+local Quality: any = nil
+task.spawn(function()
+	local m = ReplicatedStorage:WaitForChild("GwangalliQuality", 10)
+	if m and m:IsA("ModuleScript") then
+		local ok, q = pcall(require, m)
+		if ok and type(q) == "table" and type(q.pick) == "function" then
+			Quality = q
+		end
+	end
+end)
 
 local CFG = {
 	buildRadius = 52, -- 이 안의 가까운 차부터 실내 생성
@@ -52,6 +66,10 @@ type Rec = {
 	failedAt: number,
 	tinted: boolean,
 	moving: boolean, -- 고정(Anchored)인데 CFrame 으로 움직이는 차 (클라이언트 교통 등) -> 용접 방식
+	lastPos: Vector3?,
+	lastT: number?,
+	still: number, -- 연속으로 멈춰 있던 LOD 단계 수 (지나가는 차에는 실내를 만들지 않음)
+	intN: number, -- Interior 자손 수 (스트리밍이 끝났는지)
 }
 
 local cars: { [Model]: Rec } = {}
@@ -115,7 +133,18 @@ local function track(m: Instance)
 	if not CFG.kinds[kind] then
 		return
 	end
-	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false }
+	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false, still = 0, intN = -1 }
+	-- 실내가 있던 차에서 복제된 모델(교통 시스템 템플릿)은 숨김 값을 원래대로
+	local int = m:FindFirstChild("Interior")
+	if int then
+		for _, d in int:GetDescendants() do
+			local t = d:GetAttribute("GwCabinT")
+			if type(t) == "number" and d:IsA("BasePart") then
+				d.Transparency = t
+				d:SetAttribute("GwCabinT", nil)
+			end
+		end
+	end
 	cars[m] = rec
 end
 
@@ -163,14 +192,12 @@ Workspace.DescendantAdded:Connect(function(d)
 				track(d)
 			end
 		end)
-	elseif d:IsA("BasePart") and Glass.roleOf(d) then
-		-- 나중에 붙는 유리 (문 열고 닫기 리빌드 등)
-		local m = d:FindFirstAncestorWhichIsA("Model")
-		while m and not cars[m] do
-			m = m.Parent and m.Parent:FindFirstAncestorWhichIsA("Model")
-		end
-		if m then
-			task.defer(Glass.tint, m)
+	elseif Glass.NAMES[d.Name] then
+		-- 나중에 붙는 유리 (스트리밍 / 문 리빌드): 그 유리 한 장만
+		local p = d.Parent
+		local rec = p and (cars[p :: any] or (p.Parent and cars[p.Parent :: any]))
+		if rec and rec.tinted then
+			task.defer(Glass.tintOne, d)
 		end
 	end
 end)
@@ -193,15 +220,41 @@ local function steerMotors(model: Model): { Motor6D }
 	return out
 end
 
+local function hideOld(cab: any, d: Instance)
+	if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
+		if cab.hidden[d] == nil then
+			cab.hidden[d] = d.Transparency
+			d:SetAttribute("GwCabinT", d.Transparency) -- 복제되어도 원래 값을 알 수 있게
+		end
+		d.Transparency = 1
+	elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] and cab.guis[d] == nil then
+		local g = d :: SurfaceGui
+		cab.guis[g] = g.MaxDistance
+		g.MaxDistance = 0.01
+		-- 품질 설정 등이 MaxDistance 를 되돌리면 다시 끔
+		table.insert(cab.conns, g:GetPropertyChangedSignal("MaxDistance"):Connect(function()
+			if g.MaxDistance ~= 0.01 and cab.alive then
+				cab.guis[g] = g.MaxDistance
+				g.MaxDistance = 0.01
+			end
+		end))
+	end
+end
+
 local function destroyCabin(rec: Rec)
 	local cab = rec.cabin
 	if not cab then
 		return
 	end
 	rec.cabin = nil
+	cab.alive = false
+	for _, c in cab.conns do
+		c:Disconnect()
+	end
 	for p, old in cab.hidden do
 		if p.Parent then
 			p.Transparency = old
+			p:SetAttribute("GwCabinT", nil)
 		end
 	end
 	for g, old in cab.guis do
@@ -215,6 +268,7 @@ end
 local function buildCabin(rec: Rec)
 	rec.building = true
 	rec.failed = nil
+	local building_folder: Instance? = nil
 	local ok, err = pcall(function()
 		local F, why = Fit.run(rec.model)
 		if not F then
@@ -227,6 +281,8 @@ local function buildCabin(rec: Rec)
 		local folder = Instance.new("Model")
 		folder.Name = "CabinAAA"
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
+		folder.Parent = rec.model -- 먼저 넣어서 70개씩 나눠 들어감 (한 프레임에 몰리지 않게)
+		building_folder = folder
 		-- 주차된(고정) 차는 용접 없이 고정 파트로: 가장 가볍고(물리 어셈블리를 건드리지 않음) 실제 로블록스에서도 싸요
 		local anchored = F.base.Anchored and not rec.moving
 		local K = Kit.new(F.base, folder, anchored)
@@ -239,30 +295,22 @@ local function buildCabin(rec: Rec)
 			folder:Destroy()
 			return
 		end
-		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만)
-		local hidden, guis = {}, {}
-		for _, d in F.interior:GetDescendants() do
-			if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
-				hidden[d] = d.Transparency
-				d.Transparency = 1
-			elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] then
-				guis[d] = d.MaxDistance
-				d.MaxDistance = 0.01
-			end
-		end
 		local ambient = {}
 		for _, p in K.parts do
 			if string.find(p.Name, "Ambient") then
 				table.insert(ambient, p)
 			end
 		end
-		folder.Parent = rec.model
-		rec.cabin = {
+		local cab: any = {
+			alive = true,
 			folder = folder,
 			fit = F,
+			base = F.base,
+			interior = F.interior,
 			cockpit = cockpit,
-			hidden = hidden,
-			guis = guis,
+			hidden = {},
+			guis = {},
+			conns = {},
 			ambient = ambient,
 			anchored = anchored,
 			builtCF = F.base.CFrame,
@@ -272,8 +320,21 @@ local function buildCabin(rec: Rec)
 			night = nil,
 			parts = #K.parts,
 		}
+		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만) + 나중에 들어오는 파트도
+		for _, d in F.interior:GetDescendants() do
+			hideOld(cab, d)
+		end
+		table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
+			if cab.alive then
+				hideOld(cab, d)
+			end
+		end))
+		rec.cabin = cab
 	end)
 	if not ok then
+		if building_folder then
+			building_folder:Destroy()
+		end
 		rec.failed = tostring(err)
 		rec.failedAt = os.clock()
 		rec.model:SetAttribute("GwCabinError", tostring(err))
@@ -304,6 +365,21 @@ end
 
 ---------------------------------------------------------------------------------------------------- LOD 루프
 local building = false
+local lastRp: Vector3?, lastT = nil, 0
+local function maxCabins(): number
+	local a = tonumber(script:GetAttribute("MaxCabins"))
+	if a then
+		return a
+	end
+	if Quality then
+		local ok, v = pcall(Quality.pick, { low = 1, mid = 2, high = CFG.maxCabins, saver = 0 })
+		if ok and type(v) == "number" then
+			return v
+		end
+	end
+	return CFG.maxCabins
+end
+
 local function lodStep()
 	local cam = Workspace.CurrentCamera
 	if not cam then
@@ -314,6 +390,14 @@ local function lodStep()
 	local ch = player.Character
 	local root = ch and ch:FindFirstChild("HumanoidRootPart")
 	local rp = if root and root:IsA("BasePart") then root.Position else cp
+	local fp = script:GetAttribute("FocusPoint") -- 디버그 / 미리보기: 이 위치도 '내 위치'로 취급
+	if typeof(fp) == "Vector3" then
+		rp = fp
+	end
+	local t = os.clock()
+	-- 빠르게 지나가는 중이면(차를 몰고 달릴 때) 길가 차 실내는 새로 만들지 않음
+	local camV = if lastRp and t > lastT then (rp - lastRp).Magnitude / (t - lastT) else 0
+	lastRp, lastT = rp, t
 	local mine = myCar()
 	local list = {}
 	for m, rec in cars do
@@ -322,31 +406,60 @@ local function lodStep()
 			cars[m] = nil
 			continue
 		end
+		-- 클라이언트 교통이 숨긴 정적 차 (TrafficCars 가 복제본을 대신 몰고 다님)
+		local hs = m:GetAttribute("GwHideState")
+		if hs == "hidden" or hs == "mixed" then
+			destroyCabin(rec)
+			continue
+		end
 		local base = rec.base
-		if not base or not base.Parent then
+		if not base or not base.Parent or not base:IsDescendantOf(m) then
 			rec.base = Fit.frameOf(m)
 			base = rec.base
 		end
+		local cab = rec.cabin
+		if cab and (cab.base ~= base or not cab.interior.Parent or cab.interior.Parent ~= m) then
+			-- 탈 때 서버가 Interior 를 새로 복제했거나(Rig) 차체 파트가 바뀜: 다음 단계에 다시 만듦
+			destroyCabin(rec)
+			cab = nil
+		elseif cab and #cab.motors == 0 then
+			cab.motors = steerMotors(m) -- 조향 모터는 서버가 리그를 만들 때 생김
+		end
 		if base then
-			local d = math.min((base.Position - cp).Magnitude, (base.Position - rp).Magnitude)
+			local p = base.Position
+			local d = math.min((p - cp).Magnitude, (p - rp).Magnitude)
+			local v = if rec.lastPos and rec.lastT and t > rec.lastT then (p - rec.lastPos).Magnitude / (t - rec.lastT) else 0
+			rec.lastPos, rec.lastT = p, t
+			rec.still = if v < 8 then rec.still + 1 else 0
+			if rec == mine then
+				d = 0
+			end
 			if not rec.tinted and d < CFG.tintRadius then
 				rec.tinted = true
 				Glass.tint(m)
 			end
-			if rec == mine then
-				d = 0
-			end
-			local cab = rec.cabin
-			if cab and cab.anchored and (not base.Anchored or (base.Position - cab.builtCF.Position).Magnitude > 0.05) then
+			if cab and cab.anchored and (not base.Anchored or (p - cab.builtCF.Position).Magnitude > 0.05) then
 				-- 고정 실내를 만든 뒤 차가 풀리거나(타서 운전 시작) 움직이면 용접 방식으로 다시
 				rec.moving = rec.moving or base.Anchored
 				destroyCabin(rec)
+				cab = nil
 			end
-			if rec.cabin and d > CFG.dropRadius then
+			if cab and d > CFG.dropRadius then
 				destroyCabin(rec)
-			elseif d < CFG.buildRadius and (not rec.failed or os.clock() - rec.failedAt > 8) then
-				table.insert(list, { rec = rec, d = d })
+				cab = nil
 			end
+			-- 스트리밍 중인 Interior 는 다 들어온 뒤에 (자손 수가 두 번 연속 같을 때)
+			local int = m:FindFirstChild("Interior")
+			local n = if int then #int:GetDescendants() else 0
+			local settled = n > 0 and n == rec.intN
+			rec.intN = n
+			local canBuild = rec == mine or (settled and rec.still >= 2 and camV < 25)
+			if cab or (d < CFG.buildRadius and canBuild and (not rec.failed or t - rec.failedAt > 8)) then
+				-- 이미 있는 실내는 순위 다툼에서 8 스터드 이득 (3·4등이 엎치락뒤치락해도 다시 만들지 않게)
+				table.insert(list, { rec = rec, d = if cab then d - 8 else d })
+			end
+		elseif cab then
+			destroyCabin(rec) -- 차체 파트가 스트리밍으로 빠짐
 		end
 	end
 	table.sort(list, function(a, b)
@@ -356,7 +469,7 @@ local function lodStep()
 		script:SetAttribute("Nearest", string.format("%s %.0f", list[1].rec.model.Name, list[1].d))
 	end
 	-- 가까운 순으로 maxCabins 개만 유지
-	local maxC = tonumber(script:GetAttribute("MaxCabins")) or CFG.maxCabins
+	local maxC = maxCabins()
 	for i, e in list do
 		if i > maxC + (if mine then 1 else 0) then
 			if e.rec.cabin and e.rec ~= mine then
@@ -381,7 +494,7 @@ end
 local function turnState(model: Model, base: BasePart): (boolean, boolean)
 	local l, r = false, false
 	for _, d in model:GetChildren() do
-		if d:IsA("BasePart") and d.Name == "Repeater" and d.Material == Enum.Material.Neon then
+		if d:IsA("BasePart") and (d.Name == "Repeater" or d.Name == "TurnLamp") and d.Material == Enum.Material.Neon then
 			if base.CFrame:PointToObjectSpace(d.Position).X < 0 then
 				l = true
 			else
@@ -429,7 +542,7 @@ RunService.RenderStepped:Connect(function()
 		if #cab.motors > 0 then
 			yaw /= #cab.motors
 		end
-		local angle = math.clamp(-yaw * CFG.steerRatio, -7.5, 7.5)
+		local angle = math.clamp(yaw * CFG.steerRatio, -7.5, 7.5)
 		if math.abs(angle - cab.steer) > 0.002 then
 			cab.steer = angle
 			local ck = cab.cockpit
@@ -564,15 +677,15 @@ function Cockpit.build(K: any, F: any, P: any)
 	local nv: Vector3 = F.nav
 	local commercial = F.kind == "truck" or F.kind == "ambulance"
 	local yS = cl.Y + 0.03
-	local zS = math.max(cl.Z, F.dashFace + 0.05)
+	local zS = math.max(cl.Z, F.dashFace + 0.15)
 	local tilt = CFrame.Angles(math.rad(-9), 0, 0)
 	local accent: Color3 = P.accentColor
 	local screens: any = {}
 	if not commercial and math.abs(nv.X - cl.X) < 2.4 then
-		local xL = cl.X - 0.78
+		local xL = cl.X - 0.72
 		local xR = math.max(nv.X + math.max(F.navWide, 1.25) / 2 + 0.06, cl.X + 0.85)
 		if F.side > 0 then -- 우핸들: 거울상
-			xL, xR = math.min(nv.X - math.max(F.navWide, 1.25) / 2 - 0.06, cl.X - 0.85), cl.X + 0.78
+			xL, xR = math.min(nv.X - math.max(F.navWide, 1.25) / 2 - 0.06, cl.X - 0.85), cl.X + 0.72
 		end
 		local midX = (xL + xR) / 2
 		local base = CFrame.new(midX, yS, zS) * tilt
@@ -592,10 +705,11 @@ function Cockpit.build(K: any, F: any, P: any)
 		K:cyl("ClusterHoodLip", clW + 0.2, 0.09, hood * CFrame.new(0, -0.01, 0.23), P.soft)
 		K:box("ClusterHoodStitch", Vector3.new(clW + 0.1, 0.008, 0.008), hood * CFrame.new(0, 0.03, 0.21), P.stitch)
 	else
-		-- 상용차: 계기판 + 태블릿형 화면 따로
-		local clPart = K:box("ClusterGlass", Vector3.new(1.1, 0.42, 0.02), CFrame.new(cl.X, yS, zS + 0.04) * tilt, P.screen)
-		K:box("ClusterBezel", Vector3.new(1.2, 0.5, 0.06), CFrame.new(cl.X, yS, zS) * tilt, P.gloss)
-		K:box("ClusterHood", Vector3.new(1.3, 0.05, 0.42), CFrame.new(cl.X, yS + 0.28, zS - 0.1) * CFrame.Angles(math.rad(-6), 0, 0), P.soft)
+		-- 상용차: 계기판 + 태블릿형 화면 따로 (계기판은 대시 위로)
+		local yC = math.max(yS, F.dashTop + 0.23)
+		local clPart = K:box("ClusterGlass", Vector3.new(1.1, 0.42, 0.02), CFrame.new(cl.X, yC, zS + 0.04) * tilt, P.screen)
+		K:box("ClusterBezel", Vector3.new(1.2, 0.5, 0.06), CFrame.new(cl.X, yC, zS) * tilt, P.gloss)
+		K:box("ClusterHood", Vector3.new(1.3, 0.05, 0.42), CFrame.new(cl.X, yC + 0.28, zS - 0.1) * CFrame.Angles(math.rad(-6), 0, 0), P.soft)
 		screens.cluster = Screens.cluster(clPart, accent, F.kind)
 		local nvPart = K:box("NavGlass", Vector3.new(1.2, 0.5, 0.02), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace) + 0.04) * tilt, P.screen)
 		K:box("NavBezel", Vector3.new(1.3, 0.58, 0.06), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace)) * tilt, P.gloss)
@@ -736,17 +850,21 @@ function Dash.build(K: any, F: any, P: any)
 	local commercial = F.kind == "truck" or F.kind == "ambulance"
 
 	-- 몸체 --------------------------------------------------------------------------------------------
+	-- 앞유리 안쪽 면이 대시 윗면 높이에서 지나는 z (그보다 앞으로는 아무것도 나가지 않게)
+	local ws: Vector3 = F.wsLow
+	local hiW: Vector3 = F.wsHigh
+	local zTop = ws.Z + math.max(0, top - ws.Y) * (hiW.Z - ws.Z) / math.max(0.01, hiW.Y - ws.Y)
+	local uf = math.max(front, zTop + 0.06)
 	local upperY0 = mid + 0.12
 	local lowerH = upperY0 - bottom
 	K:box("DashLower", Vector3.new(width, lowerH, face - front - 0.08), CFrame.new(0, bottom + lowerH / 2, (front + face - 0.08) / 2), P.hard)
 	local upH = top - upperY0
-	K:box("DashUpper", Vector3.new(width, upH, face - front), CFrame.new(0, upperY0 + upH / 2, (front + face) / 2), P.soft)
+	K:box("DashUpper", Vector3.new(width, upH, face - uf), CFrame.new(0, upperY0 + upH / 2, (uf + face) / 2), P.soft)
 	-- 둥근 앞 모서리 (실내 쪽) + 스티치
 	K:cyl("DashRoll", width, 0.26, CFrame.new(0, top - 0.13, face), P.soft)
 	K:box("DashStitch", Vector3.new(width - 0.1, 0.01, 0.01), CFrame.new(0, top - 0.02, face + 0.07), P.stitch)
-	-- 상판: 대시 위에서 앞유리 아래 끝까지
-	local ws: Vector3 = F.wsLow
-	local zA, zB = math.min(ws.Z, front), face - 0.12
+	-- 상판: 대시 위에서 앞유리 바로 뒤까지
+	local zA, zB = zTop + 0.06, face - 0.12
 	if zB - zA > 0.1 then
 		K:box("DashDeck", Vector3.new(width, 0.08, zB - zA), CFrame.new(0, top - 0.04, (zA + zB) / 2), P.soft)
 		if ws.Y < top - 0.05 then
@@ -762,12 +880,17 @@ function Dash.build(K: any, F: any, P: any)
 			K:ell("Tweeter", Vector3.new(0.3, 0.025, 0.2), CFrame.new(s * (half - 0.45), top + 0.006, zA + 0.32), P.grille)
 		end
 	end
-	-- 무릎 패널 (운전석 쪽), 글로브박스 (조수석 쪽)
+	-- 무릎 패널 (운전석 쪽), 글로브박스 (조수석 쪽, 공조 다이얼과 겹치지 않게 트림 띠 아래에)
 	local ds = F.side
+	local cx = if F.console then F.console.x else 0
 	K:box("KneePanel", Vector3.new(1.45, 0.42, 0.12), CFrame.new(ds * 1.15, bottom - 0.12, face - 0.22) * CFrame.Angles(math.rad(-12), 0, 0), P.soft)
-	local gx = -ds * 1.3
-	local gy = mid - 0.18
-	local gw, gh = 1.25, 0.46
+	local gIn = math.abs(cx) + 1.02
+	local gw = math.clamp((half - 0.12) - gIn, 0.6, 1.25)
+	local gx = -ds * (gIn + gw / 2)
+	local gTop = mid - 0.1
+	local gBot = math.max(bottom + 0.06, gTop - 0.46)
+	local gh = gTop - gBot
+	local gy = (gTop + gBot) / 2
 	for _, e in { { 0, gh / 2, gw, 0.012 }, { 0, -gh / 2, gw, 0.012 }, { gw / 2, 0, 0.012, gh }, { -gw / 2, 0, 0.012, gh } } do
 		K:box("GloveGap", Vector3.new(e[3], e[4], 0.01), CFrame.new(gx + e[1], gy + e[2], face - 0.075), P.hardDark)
 	end
@@ -782,25 +905,35 @@ function Dash.build(K: any, F: any, P: any)
 	-- 송풍구 ------------------------------------------------------------------------------------------
 	local ventLook = { frame = P.chrome, duct = P.duct, slat = P.hard, knob = P.satin }
 	local vy = bandY + 0.24
-	local nvX: number = if commercial then 0 else (F.nav :: Vector3).X
-	local cx = if math.abs(nvX) < 1 then nvX else 0
 	for _, s in { -1, 1 } do
 		K:vent("CentreVent", CFrame.new(cx + s * 0.36, vy, face + 0.0), 0.56, 0.13, ventLook, 3)
 		K:vent("SideVent", CFrame.new(s * (half - 0.36), vy, face + 0.0), 0.4, 0.2, ventLook, 4)
 	end
 
-	-- 공조 패널 + 센터 스택 --------------------------------------------------------------------------------
-	local cpY = bandY - 0.36
-	local panel = K:box("ClimateGlass", Vector3.new(1.3, 0.34, 0.03), CFrame.new(cx, cpY, face + 0.06) * CFrame.Angles(math.rad(-6), 0, 0), P.screen)
+	-- 공조 패널 + 센터 스택 (콘솔 윗면과 트림 띠 사이에 맞춤) ---------------------------------------------------
+	local lo = math.max(bottom, if F.console then F.console.top + 0.04 else bottom)
+	local hiY = bandY - 0.115
+	local ph = math.min(0.34, hiY - lo - 0.12)
+	local cpY = (lo + hiY) / 2
+	local tall = ph < 0.2
+	if tall then
+		ph = 0.3
+		cpY = lo + 0.2 -- 투싼·카니발: 스택이 콘솔 위에 서 있음 (트림 띠 앞으로)
+	end
+	local pz = if tall then face + 0.09 else face + 0.06
+	local panel = K:box("ClimateGlass", Vector3.new(1.3, ph, 0.03), CFrame.new(cx, cpY, pz) * CFrame.Angles(math.rad(-6), 0, 0), P.screen)
 	Screens.climate(panel, P.accentColor)
-	K:box("ClimateBezel", Vector3.new(1.42, 0.44, 0.05), CFrame.new(cx, cpY, face + 0.035) * CFrame.Angles(math.rad(-6), 0, 0), P.gloss)
+	K:box("ClimateBezel", Vector3.new(1.42, ph + 0.1, 0.05), CFrame.new(cx, cpY, pz - 0.025) * CFrame.Angles(math.rad(-6), 0, 0), P.gloss)
 	for _, s in { -1, 1 } do
-		local kc = CFrame.new(cx + s * 0.86, cpY, face + 0.06)
+		local kc = CFrame.new(cx + s * 0.86, cpY, if tall then face + 0.075 else face + 0.06)
 		K:cyl("ClimateKnob", 0.1, 0.22, kc * ROT_X_TO_Z, P.chrome)
 		K:cyl("ClimateKnobCap", 0.03, 0.17, kc * CFrame.new(0, 0, 0.05) * ROT_X_TO_Z, P.gloss)
 	end
-	for i = 0, 5 do
-		K:box("StackButton", Vector3.new(0.17, 0.07, 0.04), CFrame.new(cx - 0.47 + i * 0.188, cpY - 0.3, face + 0.06), if i == 2 then P.hazard else P.button)
+	local btnY = cpY - ph / 2 - 0.1
+	if btnY - 0.035 >= lo then
+		for i = 0, 5 do
+			K:box("StackButton", Vector3.new(0.17, 0.07, 0.04), CFrame.new(cx - 0.47 + i * 0.188, btnY, pz), if i == 2 then P.hazard else P.button)
+		end
 	end
 	-- 센터 스택 아래: 콘솔 앞쪽까지 이어지는 경사 판
 	local con = F.console
@@ -817,12 +950,15 @@ function Dash.build(K: any, F: any, P: any)
 	end
 
 	-- A필러 트림 (천) -----------------------------------------------------------------------------------
-	local hi: Vector3 = F.wsHigh
 	local wsHalf = (F.wsW or width) / 2
+	local nOut = (hiW - ws):Cross(Vector3.xAxis).Unit -- 앞유리 바깥쪽 법선
+	if nOut.Y < 0 then
+		nOut = -nOut
+	end
 	for _, s in { -1, 1 } do
-		local a = Vector3.new(s * (wsHalf + 0.05), ws.Y + 0.05, ws.Z + 0.05)
-		local b = Vector3.new(s * (wsHalf - 0.05), hi.Y - 0.08, hi.Z + 0.05)
-		K:seg("APillarTrim", a, b, 0.22, P.fabric)
+		local a = Vector3.new(s * (wsHalf - 0.1), ws.Y, ws.Z) - nOut * 0.15
+		local b = Vector3.new(s * (wsHalf - 0.26), hiW.Y, hiW.Z) - nOut * 0.15
+		K:seg("APillarTrim", a, b, 0.2, P.fabric)
 	end
 	return {}
 end
@@ -991,6 +1127,12 @@ function Fit.run(model: Model): (any?, string?)
 		end
 		halfIn = s / #trims
 	end
+	if #trims == 0 then
+		-- 도어 트림이 없는 차(솔라티 등): 대시 / 바닥 폭으로
+		local dsh = first({ "Dash", "DashUpper", "DashLower" })
+		local flr = first({ "Carpet", "CabCarpet", "Floor" })
+		halfIn = (dsh and dsh.Size.X / 2 - 0.02) or (flr and flr.Size.X / 2 - 0.02) or 2.5
+	end
 	F.halfIn = halfIn
 	local carpet = first({ "Carpet", "CabCarpet", "Floor" })
 	F.floorY = if carpet then U:PointToObjectSpace(carpet.Position).Y + carpet.Size.Y / 2 else c.Y - 1.9
@@ -999,6 +1141,7 @@ function Fit.run(model: Model): (any?, string?)
 		local lc, sz = localBox(U, liner)
 		F.roofY = lc.Position.Y - sz.Y / 2
 		F.linerZ0, F.linerZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
+		F.linerHalf = sz.X / 2
 	else
 		F.roofY = c.Y + 1.6
 	end
@@ -1007,6 +1150,12 @@ function Fit.run(model: Model): (any?, string?)
 		local lc, sz = localBox(U, trims[1])
 		doorZ0, doorZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
 		F.trimY0, F.trimY1 = lc.Position.Y - sz.Y / 2, lc.Position.Y + sz.Y / 2
+	end
+	if #trims == 0 then
+		local pt = first({ "Partition" })
+		if pt then
+			doorZ1 = math.min(doorZ1, U:PointToObjectSpace(pt.Position).Z - pt.Size.Z / 2 - 0.05)
+		end
 	end
 	F.doorZ0, F.doorZ1 = doorZ0, doorZ1
 	local bp = first({ "BPillar" }, body)
@@ -1187,6 +1336,8 @@ local ROLE: { [string]: string } = {
 	Window = "side",
 }
 
+Glass.NAMES = ROLE
+
 Glass.LOOK = {
 	ws = { color = Color3.fromRGB(18, 22, 27), transparency = 0.55, reflectance = 0.16 },
 	side = { color = Color3.fromRGB(8, 10, 13), transparency = 0.3, reflectance = 0.24 },
@@ -1201,21 +1352,31 @@ function Glass.roleOf(p: BasePart): string?
 	return r
 end
 
+-- 유리 한 장 틴팅 (원래 반투명한 유리만: 주차장 블록 차의 불투명 앞유리 웨지는 그대로)
+function Glass.tintOne(d: Instance): boolean
+	if not d:IsA("BasePart") or not d.Parent or d.Parent.Name == "CabinAAA" then
+		return false
+	end
+	local role = Glass.roleOf(d)
+	if role and d.Transparency > 0.05 and d.Transparency < 0.95 and d:GetAttribute("GwTinted") ~= true then
+		local look = Glass.LOOK[role]
+		d.Material = Enum.Material.Glass
+		d.Color = look.color
+		d.Transparency = look.transparency
+		d.Reflectance = look.reflectance
+		d.CastShadow = false
+		d:SetAttribute("GwTinted", true)
+		return true
+	end
+	return false
+end
+
 -- 차 한 대의 유리를 틴팅. 반환: 바꾼 개수
 function Glass.tint(model: Model): number
 	local n = 0
 	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d.Parent and d.Parent.Name ~= "CabinAAA" then
-			local role = Glass.roleOf(d)
-			-- 원래 반투명한 유리만 (주차장 블록 차의 불투명 앞유리 웨지는 그대로)
-			if role and d.Transparency > 0.05 and d.Transparency < 0.95 and d:GetAttribute("GwTinted") ~= true then
-				local look = Glass.LOOK[role]
-				d.Material = Enum.Material.Glass
-				d.Color = look.color
-				d.Transparency = look.transparency
-				d.Reflectance = look.reflectance
-				d.CastShadow = false
-				d:SetAttribute("GwTinted", true)
+		if ROLE[d.Name] or d:GetAttribute("Glass") == true then
+			if Glass.tintOne(d) then
 				n += 1
 			end
 		end
@@ -1710,10 +1871,12 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	K:box("SeatBase", Vector3.new(w * 0.78, baseH, cs.Z * 0.8), CFrame.new(x, floor + baseH / 2 + 0.05, s.z + 0.05), P.hardDark)
 	-- 옆 덮개 + 파워시트 스위치 (바깥쪽)
 	local out = if x < 0 then -1 else 1
-	local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
-	K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
-	K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
-	K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+	if not s.inner then
+		local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
+		K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
+		K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
+		K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+	end
 
 	-- 쿠션
 	local pan = CFrame.new(x, cushTop - 0.14, s.z)
@@ -1758,17 +1921,36 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 		K:seg("HeadrestPost", a, b, 0.045, P.chrome)
 	end
 
-	-- 안전벨트 (B필러를 따라 내려옴) + 버클 ----------------------------------------------------------------------
+	-- 안전벨트 (B필러 트림 바로 앞을 따라 내려옴) + 버클 ---------------------------------------------------------------
+	if s.inner then
+		return -- 3인 벤치의 가운데 자리
+	end
 	local half: number = F.halfIn
-	local bz = (F.bZ or zR + 0.2) + 0.12
-	local top = Vector3.new(out * (half - 0.08), F.roofY - 0.55, bz)
-	local low = Vector3.new(out * (half - 0.06), cushTop + 0.1, bz + 0.25)
-	local v = top - low
-	local zAxis = v.Unit
-	local xAxis = (Vector3.xAxis - zAxis * Vector3.xAxis:Dot(zAxis)).Unit
-	K:box("SeatBelt", Vector3.new(0.02, 0.17, v.Magnitude), CFrame.fromMatrix((top + low) / 2, xAxis, zAxis:Cross(xAxis), zAxis), P.belt)
-	K:box("BeltAnchor", Vector3.new(0.04, 0.12, 0.22), CFrame.new(top), P.hardDark)
-	local buckle = CFrame.new(x - out * (w / 2 + 0.06), cushTop + 0.05, zR - 0.2) * CFrame.Angles(math.rad(-20), 0, 0)
+	if not s.rear then
+		local bz = F.bZ or (zR + 0.2)
+		local lh: number = F.linerHalf or (half - 0.2)
+		local y1: number = F.trimY1 or (F.floorY + 2.2)
+		local ty = F.roofY - 0.55
+		local tx = (half - 0.08) + (lh - half) * math.clamp((ty - y1) / math.max(0.01, F.roofY - y1), 0, 1) - 0.095
+		local top = Vector3.new(out * tx, ty, bz)
+		local low = Vector3.new(out * (half - 0.1), cushTop + 0.1, bz - 0.3)
+		local v = top - low
+		local zAxis = v.Unit
+		local xAxis = (Vector3.xAxis - zAxis * Vector3.xAxis:Dot(zAxis)).Unit
+		K:box("SeatBelt", Vector3.new(0.02, 0.17, v.Magnitude), CFrame.fromMatrix((top + low) / 2, xAxis, zAxis:Cross(xAxis), zAxis), P.belt)
+		K:box("BeltAnchor", Vector3.new(0.04, 0.12, 0.22), CFrame.new(top), P.hardDark)
+	end
+	-- 버클: 콘솔 안에 묻히지 않게 좌석 쪽 콘솔 옆면으로
+	local bkx, bky, bkz = x - out * (w / 2 + 0.06), cushTop + 0.05, zR - 0.2
+	local con = F.console
+	if con and bkz > con.z0 and bkz < con.z1 then
+		local cw = math.min(con.w, 1.15)
+		if math.abs(bkx - con.x) < cw / 2 + 0.05 then
+			bkx = con.x + out * (cw / 2 - 0.05)
+			bky = math.max(bky, con.top + 0.12)
+		end
+	end
+	local buckle = CFrame.new(bkx, bky, bkz) * CFrame.Angles(math.rad(-20), 0, 0)
 	K:box("Buckle", Vector3.new(0.09, 0.22, 0.06), buckle, P.hardDark)
 	K:box("BuckleRelease", Vector3.new(0.06, 0.03, 0.02), buckle * CFrame.new(0, 0.08, -0.03), P.hazard)
 end
@@ -1807,9 +1989,9 @@ local function rearBench(K: any, F: any, P: any, s: any)
 		K:ell("BenchShoulder", Vector3.new(seatW - 0.1, 0.26, 0.32), bc * CFrame.new(0, H / 2 - 0.1, 0), seatLook)
 	end
 	-- 가운데 팔걸이 (접힌 상태: 등받이 면에 보이는 경계)
-	local mid = hinge * CFrame.new(0, H * 0.32, -0.12)
-	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(-0.3, 0, -0.06), P.hardDark)
-	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(0.3, 0, -0.06), P.hardDark)
+	local mid = hinge * CFrame.new(0, H * 0.32, 0)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(-0.3, 0, -0.125), P.hardDark)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(0.3, 0, -0.125), P.hardDark)
 	-- 헤드레스트 3
 	local heads = F.rearHeads or {}
 	local xs = {}
@@ -1833,17 +2015,33 @@ end
 
 function Seats.build(K: any, F: any, P: any)
 	for _, s in F.front do
-		frontSeat(K, F, P, s)
+		if s.w > 2.0 then
+			-- 트럭 조수석 2인 벤치: 두 자리로
+			local hw = s.w / 2
+			for _, dx in { -hw / 2, hw / 2 } do
+				local p = table.clone(s)
+				p.x, p.w, p.head = s.x + dx, hw, nil
+				p.inner = math.abs(p.x) < math.abs(s.x)
+				frontSeat(K, F, P, p)
+			end
+		else
+			frontSeat(K, F, P, s)
+		end
 	end
 	for _, s in F.rear do
 		if s.w >= 2.6 then
 			rearBench(K, F, P, s)
+		else
+			-- 카니발 2열 독립 시트 (캡틴 체어)
+			local c = table.clone(s)
+			c.rear = true
+			frontSeat(K, F, P, c)
 		end
 	end
 	return {}
 end
 
-Seats.REPLACES = { "SeatCushion", "SeatBack", "SeatInsert", "Headrest", "SeatBase", "SeatSupport", "RearBench" }
+Seats.REPLACES = { "SeatCushion", "SeatBack", "SeatInsert", "SeatPiping", "Headrest", "SeatBase", "SeatSupport", "RearBench" }
 
 return Seats
 ]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX0000003E"><Properties><string name="Name">Trim</string><ProtectedString name="Source"><![CDATA[--!strict
@@ -1854,10 +2052,7 @@ return Seats
 
 local Trim = {}
 
-local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0)
-local ROT_X_TO_SIDE = CFrame.new() -- 원통 축 X = 차 옆 방향 그대로
-
-local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean)
+local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean, armDepth: number)
 	local half: number = F.halfIn
 	local x = side * (half + 0.02)
 	local y0: number = F.trimY0 or F.floorY
@@ -1886,14 +2081,14 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	-- 팔걸이 + 창문 스위치
 	local armY = y0 + lowH + 0.02
 	local armZ = zc + len * 0.08
-	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, 0.36), 0.06, CFrame.new(x + inward * 0.2, armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
-	local sw = CFrame.new(x + inward * 0.25, armY + 0.075, armZ - len * 0.14)
+	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, armDepth), 0.06, CFrame.new(x + inward * (0.02 + armDepth / 2), armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
+	local sw = CFrame.new(x + inward * (0.02 + armDepth / 2), armY + 0.075, armZ - len * 0.14)
 	K:box("WindowSwitches", Vector3.new(0.2, 0.025, if driver then 0.48 else 0.2), sw, P.gloss)
 	for i = 0, (if driver then 3 else 0) do
 		K:box("WindowSwitch", Vector3.new(0.08, 0.03, 0.07), sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
 	end
 	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
-	local hz = z0 + 0.42
+	local hz = if front then math.max(z0 + 0.42, (F.dashFace :: number) + 0.35) else z0 + 0.42
 	local hy = armY + 0.42
 	K:box("HandleCup", Vector3.new(0.05, 0.16, 0.42), CFrame.new(x + inward * 0.06, hy, hz), P.duct)
 	K:box("DoorHandle", Vector3.new(0.05, 0.05, 0.32), CFrame.new(x + inward * 0.09, hy + 0.01, hz), P.chrome)
@@ -1914,21 +2109,27 @@ function Trim.build(K: any, F: any, P: any)
 	local z0: number, z1: number = F.doorZ0, F.doorZ1
 	local bz: number? = F.bZ
 	local split = if bz and bz > z0 + 1 and bz < z1 - 0.8 then bz else nil
+	local lh: number = F.linerHalf or (half - 0.2)
+	-- 도어 팔걸이 깊이: 앞좌석 옆면과 겹치지 않게 (레이처럼 좁은 차)
+	local outerSeat = 0
+	for _, s in F.front do
+		outerSeat = math.max(outerSeat, math.abs(s.x) + math.min(s.w, 1.85) / 2 + 0.06)
+	end
+	local armDepth = math.clamp(half - outerSeat - 0.02, 0.15, 0.36)
 	for _, side in { -1, 1 } do
 		local driver = side == F.side
 		if split then
-			doorCard(K, F, P, side, z0 + 0.05, split - 0.08, true, driver)
+			doorCard(K, F, P, side, z0 + 0.05, split - 0.08, true, driver, armDepth)
 			if not commercial then
-				doorCard(K, F, P, side, split + 0.08, z1 - 0.05, false, false)
+				doorCard(K, F, P, side, split + 0.08, z1 - 0.05, false, false, armDepth)
 			end
-			-- B필러 트림
+			-- B필러 트림 (창틀에서 지붕 안쪽까지 기울어짐)
 			local y1: number = F.trimY1 or (F.floorY + 2.2)
-			local ph = F.roofY - y1
-			if ph > 0.2 then
-				K:box("BPillarTrim", Vector3.new(0.14, ph, 0.5), CFrame.new(side * (half - 0.02), y1 + ph / 2, split), P.fabric)
+			if F.roofY - y1 > 0.2 then
+				K:seg("BPillarTrim", Vector3.new(side * (half - 0.08), y1, split), Vector3.new(side * (lh - 0.08), F.roofY, split), 0.16, P.fabric)
 			end
 		else
-			doorCard(K, F, P, side, z0 + 0.05, z1 - 0.05, true, driver)
+			doorCard(K, F, P, side, z0 + 0.05, z1 - 0.05, true, driver, armDepth)
 		end
 	end
 
@@ -1938,9 +2139,9 @@ function Trim.build(K: any, F: any, P: any)
 	local lz1: number = F.linerZ1 or z1
 	local llen = lz1 - lz0
 	if llen > 0.5 then
-		K:box("Headliner", Vector3.new(half * 2 - 0.1, 0.06, llen), CFrame.new(0, roofY + 0.02, (lz0 + lz1) / 2), P.fabric)
+		K:box("Headliner", Vector3.new(lh * 2, 0.06, llen), CFrame.new(0, roofY + 0.02, (lz0 + lz1) / 2), P.fabric)
 		for _, s in { -1, 1 } do
-			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (half - 0.1), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
+			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (lh - 0.12), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
 		end
 		local oc = CFrame.new(0, roofY - 0.06, lz0 + 0.45)
 		K:rbox("OverheadConsole", Vector3.new(0.78, 0.12, 0.5), 0.05, oc, P.hard)
@@ -1953,7 +2154,7 @@ function Trim.build(K: any, F: any, P: any)
 		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6), P.lampLens)
 		-- 손잡이 (조수석 + 뒤 양쪽)
 		for _, g in { { -F.side, lz0 + 0.9 }, { -1, lz0 + llen * 0.7 }, { 1, lz0 + llen * 0.7 } } do
-			local gx = g[1] * (half - 0.14)
+			local gx = g[1] * (lh - 0.1)
 			local gz = g[2]
 			K:seg("GrabHandle", Vector3.new(gx, roofY - 0.04, gz - 0.28), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), 0.05, P.hard)
 			K:seg("GrabHandle", Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz + 0.2), 0.05, P.hard)
@@ -1970,7 +2171,8 @@ function Trim.build(K: any, F: any, P: any)
 		K:cyl("VisorRod", 0.4, 0.04, v * CFrame.new(s * 0.62, 0.0, -0.22) * CFrame.Angles(0, math.pi / 2, 0), P.hard)
 	end
 	local mp: Vector3 = F.mirror or Vector3.new(0, roofY - 0.3, hi.Z + 0.35)
-	local mcf = CFrame.new(mp) * CFrame.Angles(math.rad(-8), 0, 0)
+	-- 운전자 쪽으로 살짝 돌리고 아래로 숙임
+	local mcf = CFrame.new(mp) * CFrame.Angles(math.rad(6), math.rad(15) * F.side, 0)
 	K:seg("MirrorStem", Vector3.new(mp.X, roofY + 0.02, hi.Z + 0.05), mp + Vector3.new(0, 0.08, -0.04), 0.06, P.hardDark)
 	K:rbox("MirrorBody", Vector3.new(0.86, 0.25, 0.1), 0.06, mcf, P.hardDark)
 	K:box("MirrorGlass", Vector3.new(0.78, 0.18, 0.01), mcf * CFrame.new(0, 0, 0.055), P.mirror)

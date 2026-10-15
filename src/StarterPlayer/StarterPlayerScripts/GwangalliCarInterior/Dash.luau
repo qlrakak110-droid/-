@@ -21,17 +21,21 @@ function Dash.build(K: any, F: any, P: any)
 	local commercial = F.kind == "truck" or F.kind == "ambulance"
 
 	-- 몸체 --------------------------------------------------------------------------------------------
+	-- 앞유리 안쪽 면이 대시 윗면 높이에서 지나는 z (그보다 앞으로는 아무것도 나가지 않게)
+	local ws: Vector3 = F.wsLow
+	local hiW: Vector3 = F.wsHigh
+	local zTop = ws.Z + math.max(0, top - ws.Y) * (hiW.Z - ws.Z) / math.max(0.01, hiW.Y - ws.Y)
+	local uf = math.max(front, zTop + 0.06)
 	local upperY0 = mid + 0.12
 	local lowerH = upperY0 - bottom
 	K:box("DashLower", Vector3.new(width, lowerH, face - front - 0.08), CFrame.new(0, bottom + lowerH / 2, (front + face - 0.08) / 2), P.hard)
 	local upH = top - upperY0
-	K:box("DashUpper", Vector3.new(width, upH, face - front), CFrame.new(0, upperY0 + upH / 2, (front + face) / 2), P.soft)
+	K:box("DashUpper", Vector3.new(width, upH, face - uf), CFrame.new(0, upperY0 + upH / 2, (uf + face) / 2), P.soft)
 	-- 둥근 앞 모서리 (실내 쪽) + 스티치
 	K:cyl("DashRoll", width, 0.26, CFrame.new(0, top - 0.13, face), P.soft)
 	K:box("DashStitch", Vector3.new(width - 0.1, 0.01, 0.01), CFrame.new(0, top - 0.02, face + 0.07), P.stitch)
-	-- 상판: 대시 위에서 앞유리 아래 끝까지
-	local ws: Vector3 = F.wsLow
-	local zA, zB = math.min(ws.Z, front), face - 0.12
+	-- 상판: 대시 위에서 앞유리 바로 뒤까지
+	local zA, zB = zTop + 0.06, face - 0.12
 	if zB - zA > 0.1 then
 		K:box("DashDeck", Vector3.new(width, 0.08, zB - zA), CFrame.new(0, top - 0.04, (zA + zB) / 2), P.soft)
 		if ws.Y < top - 0.05 then
@@ -47,12 +51,17 @@ function Dash.build(K: any, F: any, P: any)
 			K:ell("Tweeter", Vector3.new(0.3, 0.025, 0.2), CFrame.new(s * (half - 0.45), top + 0.006, zA + 0.32), P.grille)
 		end
 	end
-	-- 무릎 패널 (운전석 쪽), 글로브박스 (조수석 쪽)
+	-- 무릎 패널 (운전석 쪽), 글로브박스 (조수석 쪽, 공조 다이얼과 겹치지 않게 트림 띠 아래에)
 	local ds = F.side
+	local cx = if F.console then F.console.x else 0
 	K:box("KneePanel", Vector3.new(1.45, 0.42, 0.12), CFrame.new(ds * 1.15, bottom - 0.12, face - 0.22) * CFrame.Angles(math.rad(-12), 0, 0), P.soft)
-	local gx = -ds * 1.3
-	local gy = mid - 0.18
-	local gw, gh = 1.25, 0.46
+	local gIn = math.abs(cx) + 1.02
+	local gw = math.clamp((half - 0.12) - gIn, 0.6, 1.25)
+	local gx = -ds * (gIn + gw / 2)
+	local gTop = mid - 0.1
+	local gBot = math.max(bottom + 0.06, gTop - 0.46)
+	local gh = gTop - gBot
+	local gy = (gTop + gBot) / 2
 	for _, e in { { 0, gh / 2, gw, 0.012 }, { 0, -gh / 2, gw, 0.012 }, { gw / 2, 0, 0.012, gh }, { -gw / 2, 0, 0.012, gh } } do
 		K:box("GloveGap", Vector3.new(e[3], e[4], 0.01), CFrame.new(gx + e[1], gy + e[2], face - 0.075), P.hardDark)
 	end
@@ -67,25 +76,35 @@ function Dash.build(K: any, F: any, P: any)
 	-- 송풍구 ------------------------------------------------------------------------------------------
 	local ventLook = { frame = P.chrome, duct = P.duct, slat = P.hard, knob = P.satin }
 	local vy = bandY + 0.24
-	local nvX: number = if commercial then 0 else (F.nav :: Vector3).X
-	local cx = if math.abs(nvX) < 1 then nvX else 0
 	for _, s in { -1, 1 } do
 		K:vent("CentreVent", CFrame.new(cx + s * 0.36, vy, face + 0.0), 0.56, 0.13, ventLook, 3)
 		K:vent("SideVent", CFrame.new(s * (half - 0.36), vy, face + 0.0), 0.4, 0.2, ventLook, 4)
 	end
 
-	-- 공조 패널 + 센터 스택 --------------------------------------------------------------------------------
-	local cpY = bandY - 0.36
-	local panel = K:box("ClimateGlass", Vector3.new(1.3, 0.34, 0.03), CFrame.new(cx, cpY, face + 0.06) * CFrame.Angles(math.rad(-6), 0, 0), P.screen)
+	-- 공조 패널 + 센터 스택 (콘솔 윗면과 트림 띠 사이에 맞춤) ---------------------------------------------------
+	local lo = math.max(bottom, if F.console then F.console.top + 0.04 else bottom)
+	local hiY = bandY - 0.115
+	local ph = math.min(0.34, hiY - lo - 0.12)
+	local cpY = (lo + hiY) / 2
+	local tall = ph < 0.2
+	if tall then
+		ph = 0.3
+		cpY = lo + 0.2 -- 투싼·카니발: 스택이 콘솔 위에 서 있음 (트림 띠 앞으로)
+	end
+	local pz = if tall then face + 0.09 else face + 0.06
+	local panel = K:box("ClimateGlass", Vector3.new(1.3, ph, 0.03), CFrame.new(cx, cpY, pz) * CFrame.Angles(math.rad(-6), 0, 0), P.screen)
 	Screens.climate(panel, P.accentColor)
-	K:box("ClimateBezel", Vector3.new(1.42, 0.44, 0.05), CFrame.new(cx, cpY, face + 0.035) * CFrame.Angles(math.rad(-6), 0, 0), P.gloss)
+	K:box("ClimateBezel", Vector3.new(1.42, ph + 0.1, 0.05), CFrame.new(cx, cpY, pz - 0.025) * CFrame.Angles(math.rad(-6), 0, 0), P.gloss)
 	for _, s in { -1, 1 } do
-		local kc = CFrame.new(cx + s * 0.86, cpY, face + 0.06)
+		local kc = CFrame.new(cx + s * 0.86, cpY, if tall then face + 0.075 else face + 0.06)
 		K:cyl("ClimateKnob", 0.1, 0.22, kc * ROT_X_TO_Z, P.chrome)
 		K:cyl("ClimateKnobCap", 0.03, 0.17, kc * CFrame.new(0, 0, 0.05) * ROT_X_TO_Z, P.gloss)
 	end
-	for i = 0, 5 do
-		K:box("StackButton", Vector3.new(0.17, 0.07, 0.04), CFrame.new(cx - 0.47 + i * 0.188, cpY - 0.3, face + 0.06), if i == 2 then P.hazard else P.button)
+	local btnY = cpY - ph / 2 - 0.1
+	if btnY - 0.035 >= lo then
+		for i = 0, 5 do
+			K:box("StackButton", Vector3.new(0.17, 0.07, 0.04), CFrame.new(cx - 0.47 + i * 0.188, btnY, pz), if i == 2 then P.hazard else P.button)
+		end
 	end
 	-- 센터 스택 아래: 콘솔 앞쪽까지 이어지는 경사 판
 	local con = F.console
@@ -102,12 +121,15 @@ function Dash.build(K: any, F: any, P: any)
 	end
 
 	-- A필러 트림 (천) -----------------------------------------------------------------------------------
-	local hi: Vector3 = F.wsHigh
 	local wsHalf = (F.wsW or width) / 2
+	local nOut = (hiW - ws):Cross(Vector3.xAxis).Unit -- 앞유리 바깥쪽 법선
+	if nOut.Y < 0 then
+		nOut = -nOut
+	end
 	for _, s in { -1, 1 } do
-		local a = Vector3.new(s * (wsHalf + 0.05), ws.Y + 0.05, ws.Z + 0.05)
-		local b = Vector3.new(s * (wsHalf - 0.05), hi.Y - 0.08, hi.Z + 0.05)
-		K:seg("APillarTrim", a, b, 0.22, P.fabric)
+		local a = Vector3.new(s * (wsHalf - 0.1), ws.Y, ws.Z) - nOut * 0.15
+		local b = Vector3.new(s * (wsHalf - 0.26), hiW.Y, hiW.Z) - nOut * 0.15
+		K:seg("APillarTrim", a, b, 0.2, P.fabric)
 	end
 	return {}
 end

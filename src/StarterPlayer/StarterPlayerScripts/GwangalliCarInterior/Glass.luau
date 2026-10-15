@@ -20,6 +20,8 @@ local ROLE: { [string]: string } = {
 	Window = "side",
 }
 
+Glass.NAMES = ROLE
+
 Glass.LOOK = {
 	ws = { color = Color3.fromRGB(18, 22, 27), transparency = 0.55, reflectance = 0.16 },
 	side = { color = Color3.fromRGB(8, 10, 13), transparency = 0.3, reflectance = 0.24 },
@@ -34,21 +36,31 @@ function Glass.roleOf(p: BasePart): string?
 	return r
 end
 
+-- 유리 한 장 틴팅 (원래 반투명한 유리만: 주차장 블록 차의 불투명 앞유리 웨지는 그대로)
+function Glass.tintOne(d: Instance): boolean
+	if not d:IsA("BasePart") or not d.Parent or d.Parent.Name == "CabinAAA" then
+		return false
+	end
+	local role = Glass.roleOf(d)
+	if role and d.Transparency > 0.05 and d.Transparency < 0.95 and d:GetAttribute("GwTinted") ~= true then
+		local look = Glass.LOOK[role]
+		d.Material = Enum.Material.Glass
+		d.Color = look.color
+		d.Transparency = look.transparency
+		d.Reflectance = look.reflectance
+		d.CastShadow = false
+		d:SetAttribute("GwTinted", true)
+		return true
+	end
+	return false
+end
+
 -- 차 한 대의 유리를 틴팅. 반환: 바꾼 개수
 function Glass.tint(model: Model): number
 	local n = 0
 	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d.Parent and d.Parent.Name ~= "CabinAAA" then
-			local role = Glass.roleOf(d)
-			-- 원래 반투명한 유리만 (주차장 블록 차의 불투명 앞유리 웨지는 그대로)
-			if role and d.Transparency > 0.05 and d.Transparency < 0.95 and d:GetAttribute("GwTinted") ~= true then
-				local look = Glass.LOOK[role]
-				d.Material = Enum.Material.Glass
-				d.Color = look.color
-				d.Transparency = look.transparency
-				d.Reflectance = look.reflectance
-				d.CastShadow = false
-				d:SetAttribute("GwTinted", true)
+		if ROLE[d.Name] or d:GetAttribute("Glass") == true then
+			if Glass.tintOne(d) then
 				n += 1
 			end
 		end

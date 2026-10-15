@@ -80,15 +80,15 @@ function Cockpit.build(K: any, F: any, P: any)
 	local nv: Vector3 = F.nav
 	local commercial = F.kind == "truck" or F.kind == "ambulance"
 	local yS = cl.Y + 0.03
-	local zS = math.max(cl.Z, F.dashFace + 0.05)
+	local zS = math.max(cl.Z, F.dashFace + 0.15)
 	local tilt = CFrame.Angles(math.rad(-9), 0, 0)
 	local accent: Color3 = P.accentColor
 	local screens: any = {}
 	if not commercial and math.abs(nv.X - cl.X) < 2.4 then
-		local xL = cl.X - 0.78
+		local xL = cl.X - 0.72
 		local xR = math.max(nv.X + math.max(F.navWide, 1.25) / 2 + 0.06, cl.X + 0.85)
 		if F.side > 0 then -- 우핸들: 거울상
-			xL, xR = math.min(nv.X - math.max(F.navWide, 1.25) / 2 - 0.06, cl.X - 0.85), cl.X + 0.78
+			xL, xR = math.min(nv.X - math.max(F.navWide, 1.25) / 2 - 0.06, cl.X - 0.85), cl.X + 0.72
 		end
 		local midX = (xL + xR) / 2
 		local base = CFrame.new(midX, yS, zS) * tilt
@@ -108,10 +108,11 @@ function Cockpit.build(K: any, F: any, P: any)
 		K:cyl("ClusterHoodLip", clW + 0.2, 0.09, hood * CFrame.new(0, -0.01, 0.23), P.soft)
 		K:box("ClusterHoodStitch", Vector3.new(clW + 0.1, 0.008, 0.008), hood * CFrame.new(0, 0.03, 0.21), P.stitch)
 	else
-		-- 상용차: 계기판 + 태블릿형 화면 따로
-		local clPart = K:box("ClusterGlass", Vector3.new(1.1, 0.42, 0.02), CFrame.new(cl.X, yS, zS + 0.04) * tilt, P.screen)
-		K:box("ClusterBezel", Vector3.new(1.2, 0.5, 0.06), CFrame.new(cl.X, yS, zS) * tilt, P.gloss)
-		K:box("ClusterHood", Vector3.new(1.3, 0.05, 0.42), CFrame.new(cl.X, yS + 0.28, zS - 0.1) * CFrame.Angles(math.rad(-6), 0, 0), P.soft)
+		-- 상용차: 계기판 + 태블릿형 화면 따로 (계기판은 대시 위로)
+		local yC = math.max(yS, F.dashTop + 0.23)
+		local clPart = K:box("ClusterGlass", Vector3.new(1.1, 0.42, 0.02), CFrame.new(cl.X, yC, zS + 0.04) * tilt, P.screen)
+		K:box("ClusterBezel", Vector3.new(1.2, 0.5, 0.06), CFrame.new(cl.X, yC, zS) * tilt, P.gloss)
+		K:box("ClusterHood", Vector3.new(1.3, 0.05, 0.42), CFrame.new(cl.X, yC + 0.28, zS - 0.1) * CFrame.Angles(math.rad(-6), 0, 0), P.soft)
 		screens.cluster = Screens.cluster(clPart, accent, F.kind)
 		local nvPart = K:box("NavGlass", Vector3.new(1.2, 0.5, 0.02), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace) + 0.04) * tilt, P.screen)
 		K:box("NavBezel", Vector3.new(1.3, 0.58, 0.06), CFrame.new(nv.X, nv.Y, math.max(nv.Z, F.dashFace)) * tilt, P.gloss)

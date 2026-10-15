@@ -37,10 +37,12 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 	K:box("SeatBase", Vector3.new(w * 0.78, baseH, cs.Z * 0.8), CFrame.new(x, floor + baseH / 2 + 0.05, s.z + 0.05), P.hardDark)
 	-- 옆 덮개 + 파워시트 스위치 (바깥쪽)
 	local out = if x < 0 then -1 else 1
-	local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
-	K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
-	K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
-	K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+	if not s.inner then
+		local shield = CFrame.new(x + out * (w / 2 + 0.02), cushTop - 0.32, s.z)
+		K:box("SeatShield", Vector3.new(0.06, 0.3, cs.Z * 0.9), shield, P.hard)
+		K:box("SeatSwitch", Vector3.new(0.03, 0.06, 0.32), shield * CFrame.new(out * 0.04, 0.02, -0.1), P.satin)
+		K:box("SeatSwitch", Vector3.new(0.03, 0.12, 0.06), shield * CFrame.new(out * 0.04, 0.04, 0.16), P.satin)
+	end
 
 	-- 쿠션
 	local pan = CFrame.new(x, cushTop - 0.14, s.z)
@@ -85,17 +87,36 @@ local function frontSeat(K: any, F: any, P: any, s: any)
 		K:seg("HeadrestPost", a, b, 0.045, P.chrome)
 	end
 
-	-- 안전벨트 (B필러를 따라 내려옴) + 버클 ----------------------------------------------------------------------
+	-- 안전벨트 (B필러 트림 바로 앞을 따라 내려옴) + 버클 ---------------------------------------------------------------
+	if s.inner then
+		return -- 3인 벤치의 가운데 자리
+	end
 	local half: number = F.halfIn
-	local bz = (F.bZ or zR + 0.2) + 0.12
-	local top = Vector3.new(out * (half - 0.08), F.roofY - 0.55, bz)
-	local low = Vector3.new(out * (half - 0.06), cushTop + 0.1, bz + 0.25)
-	local v = top - low
-	local zAxis = v.Unit
-	local xAxis = (Vector3.xAxis - zAxis * Vector3.xAxis:Dot(zAxis)).Unit
-	K:box("SeatBelt", Vector3.new(0.02, 0.17, v.Magnitude), CFrame.fromMatrix((top + low) / 2, xAxis, zAxis:Cross(xAxis), zAxis), P.belt)
-	K:box("BeltAnchor", Vector3.new(0.04, 0.12, 0.22), CFrame.new(top), P.hardDark)
-	local buckle = CFrame.new(x - out * (w / 2 + 0.06), cushTop + 0.05, zR - 0.2) * CFrame.Angles(math.rad(-20), 0, 0)
+	if not s.rear then
+		local bz = F.bZ or (zR + 0.2)
+		local lh: number = F.linerHalf or (half - 0.2)
+		local y1: number = F.trimY1 or (F.floorY + 2.2)
+		local ty = F.roofY - 0.55
+		local tx = (half - 0.08) + (lh - half) * math.clamp((ty - y1) / math.max(0.01, F.roofY - y1), 0, 1) - 0.095
+		local top = Vector3.new(out * tx, ty, bz)
+		local low = Vector3.new(out * (half - 0.1), cushTop + 0.1, bz - 0.3)
+		local v = top - low
+		local zAxis = v.Unit
+		local xAxis = (Vector3.xAxis - zAxis * Vector3.xAxis:Dot(zAxis)).Unit
+		K:box("SeatBelt", Vector3.new(0.02, 0.17, v.Magnitude), CFrame.fromMatrix((top + low) / 2, xAxis, zAxis:Cross(xAxis), zAxis), P.belt)
+		K:box("BeltAnchor", Vector3.new(0.04, 0.12, 0.22), CFrame.new(top), P.hardDark)
+	end
+	-- 버클: 콘솔 안에 묻히지 않게 좌석 쪽 콘솔 옆면으로
+	local bkx, bky, bkz = x - out * (w / 2 + 0.06), cushTop + 0.05, zR - 0.2
+	local con = F.console
+	if con and bkz > con.z0 and bkz < con.z1 then
+		local cw = math.min(con.w, 1.15)
+		if math.abs(bkx - con.x) < cw / 2 + 0.05 then
+			bkx = con.x + out * (cw / 2 - 0.05)
+			bky = math.max(bky, con.top + 0.12)
+		end
+	end
+	local buckle = CFrame.new(bkx, bky, bkz) * CFrame.Angles(math.rad(-20), 0, 0)
 	K:box("Buckle", Vector3.new(0.09, 0.22, 0.06), buckle, P.hardDark)
 	K:box("BuckleRelease", Vector3.new(0.06, 0.03, 0.02), buckle * CFrame.new(0, 0.08, -0.03), P.hazard)
 end
@@ -134,9 +155,9 @@ local function rearBench(K: any, F: any, P: any, s: any)
 		K:ell("BenchShoulder", Vector3.new(seatW - 0.1, 0.26, 0.32), bc * CFrame.new(0, H / 2 - 0.1, 0), seatLook)
 	end
 	-- 가운데 팔걸이 (접힌 상태: 등받이 면에 보이는 경계)
-	local mid = hinge * CFrame.new(0, H * 0.32, -0.12)
-	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(-0.3, 0, -0.06), P.hardDark)
-	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(0.3, 0, -0.06), P.hardDark)
+	local mid = hinge * CFrame.new(0, H * 0.32, 0)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(-0.3, 0, -0.125), P.hardDark)
+	K:box("ArmrestSeam", Vector3.new(0.012, H * 0.5, 0.01), mid * CFrame.new(0.3, 0, -0.125), P.hardDark)
 	-- 헤드레스트 3
 	local heads = F.rearHeads or {}
 	local xs = {}
@@ -160,16 +181,32 @@ end
 
 function Seats.build(K: any, F: any, P: any)
 	for _, s in F.front do
-		frontSeat(K, F, P, s)
+		if s.w > 2.0 then
+			-- 트럭 조수석 2인 벤치: 두 자리로
+			local hw = s.w / 2
+			for _, dx in { -hw / 2, hw / 2 } do
+				local p = table.clone(s)
+				p.x, p.w, p.head = s.x + dx, hw, nil
+				p.inner = math.abs(p.x) < math.abs(s.x)
+				frontSeat(K, F, P, p)
+			end
+		else
+			frontSeat(K, F, P, s)
+		end
 	end
 	for _, s in F.rear do
 		if s.w >= 2.6 then
 			rearBench(K, F, P, s)
+		else
+			-- 카니발 2열 독립 시트 (캡틴 체어)
+			local c = table.clone(s)
+			c.rear = true
+			frontSeat(K, F, P, c)
 		end
 	end
 	return {}
 end
 
-Seats.REPLACES = { "SeatCushion", "SeatBack", "SeatInsert", "Headrest", "SeatBase", "SeatSupport", "RearBench" }
+Seats.REPLACES = { "SeatCushion", "SeatBack", "SeatInsert", "SeatPiping", "Headrest", "SeatBase", "SeatSupport", "RearBench" }
 
 return Seats

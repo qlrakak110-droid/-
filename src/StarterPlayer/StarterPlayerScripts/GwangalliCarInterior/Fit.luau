@@ -159,6 +159,12 @@ function Fit.run(model: Model): (any?, string?)
 		end
 		halfIn = s / #trims
 	end
+	if #trims == 0 then
+		-- 도어 트림이 없는 차(솔라티 등): 대시 / 바닥 폭으로
+		local dsh = first({ "Dash", "DashUpper", "DashLower" })
+		local flr = first({ "Carpet", "CabCarpet", "Floor" })
+		halfIn = (dsh and dsh.Size.X / 2 - 0.02) or (flr and flr.Size.X / 2 - 0.02) or 2.5
+	end
 	F.halfIn = halfIn
 	local carpet = first({ "Carpet", "CabCarpet", "Floor" })
 	F.floorY = if carpet then U:PointToObjectSpace(carpet.Position).Y + carpet.Size.Y / 2 else c.Y - 1.9
@@ -167,6 +173,7 @@ function Fit.run(model: Model): (any?, string?)
 		local lc, sz = localBox(U, liner)
 		F.roofY = lc.Position.Y - sz.Y / 2
 		F.linerZ0, F.linerZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
+		F.linerHalf = sz.X / 2
 	else
 		F.roofY = c.Y + 1.6
 	end
@@ -175,6 +182,12 @@ function Fit.run(model: Model): (any?, string?)
 		local lc, sz = localBox(U, trims[1])
 		doorZ0, doorZ1 = lc.Position.Z - sz.Z / 2, lc.Position.Z + sz.Z / 2
 		F.trimY0, F.trimY1 = lc.Position.Y - sz.Y / 2, lc.Position.Y + sz.Y / 2
+	end
+	if #trims == 0 then
+		local pt = first({ "Partition" })
+		if pt then
+			doorZ1 = math.min(doorZ1, U:PointToObjectSpace(pt.Position).Z - pt.Size.Z / 2 - 0.05)
+		end
 	end
 	F.doorZ0, F.doorZ1 = doorZ0, doorZ1
 	local bp = first({ "BPillar" }, body)

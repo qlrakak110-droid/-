@@ -20,6 +20,8 @@ local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local Kit = require(script:WaitForChild("Kit"))
 local Fit = require(script:WaitForChild("Fit"))
 local Glass = require(script:WaitForChild("Glass"))
@@ -31,6 +33,18 @@ local Trim = require(script:WaitForChild("Trim"))
 local Screens = require(script:WaitForChild("Screens"))
 
 local player = Players.LocalPlayer
+
+-- 그래픽 품질 단계 (GwangalliQuality 가 있으면): 저사양 폰은 실내 1대, 절전 모드는 0대
+local Quality: any = nil
+task.spawn(function()
+	local m = ReplicatedStorage:WaitForChild("GwangalliQuality", 10)
+	if m and m:IsA("ModuleScript") then
+		local ok, q = pcall(require, m)
+		if ok and type(q) == "table" and type(q.pick) == "function" then
+			Quality = q
+		end
+	end
+end)
 
 local CFG = {
 	buildRadius = 52, -- 이 안의 가까운 차부터 실내 생성
@@ -52,6 +66,10 @@ type Rec = {
 	failedAt: number,
 	tinted: boolean,
 	moving: boolean, -- 고정(Anchored)인데 CFrame 으로 움직이는 차 (클라이언트 교통 등) -> 용접 방식
+	lastPos: Vector3?,
+	lastT: number?,
+	still: number, -- 연속으로 멈춰 있던 LOD 단계 수 (지나가는 차에는 실내를 만들지 않음)
+	intN: number, -- Interior 자손 수 (스트리밍이 끝났는지)
 }
 
 local cars: { [Model]: Rec } = {}
@@ -115,7 +133,18 @@ local function track(m: Instance)
 	if not CFG.kinds[kind] then
 		return
 	end
-	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false }
+	local rec: Rec = { model = m, base = Fit.frameOf(m), cabin = nil, building = false, failed = nil, failedAt = 0, tinted = false, moving = false, still = 0, intN = -1 }
+	-- 실내가 있던 차에서 복제된 모델(교통 시스템 템플릿)은 숨김 값을 원래대로
+	local int = m:FindFirstChild("Interior")
+	if int then
+		for _, d in int:GetDescendants() do
+			local t = d:GetAttribute("GwCabinT")
+			if type(t) == "number" and d:IsA("BasePart") then
+				d.Transparency = t
+				d:SetAttribute("GwCabinT", nil)
+			end
+		end
+	end
 	cars[m] = rec
 end
 
@@ -163,14 +192,12 @@ Workspace.DescendantAdded:Connect(function(d)
 				track(d)
 			end
 		end)
-	elseif d:IsA("BasePart") and Glass.roleOf(d) then
-		-- 나중에 붙는 유리 (문 열고 닫기 리빌드 등)
-		local m = d:FindFirstAncestorWhichIsA("Model")
-		while m and not cars[m] do
-			m = m.Parent and m.Parent:FindFirstAncestorWhichIsA("Model")
-		end
-		if m then
-			task.defer(Glass.tint, m)
+	elseif Glass.NAMES[d.Name] then
+		-- 나중에 붙는 유리 (스트리밍 / 문 리빌드): 그 유리 한 장만
+		local p = d.Parent
+		local rec = p and (cars[p :: any] or (p.Parent and cars[p.Parent :: any]))
+		if rec and rec.tinted then
+			task.defer(Glass.tintOne, d)
 		end
 	end
 end)
@@ -193,15 +220,41 @@ local function steerMotors(model: Model): { Motor6D }
 	return out
 end
 
+local function hideOld(cab: any, d: Instance)
+	if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
+		if cab.hidden[d] == nil then
+			cab.hidden[d] = d.Transparency
+			d:SetAttribute("GwCabinT", d.Transparency) -- 복제되어도 원래 값을 알 수 있게
+		end
+		d.Transparency = 1
+	elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] and cab.guis[d] == nil then
+		local g = d :: SurfaceGui
+		cab.guis[g] = g.MaxDistance
+		g.MaxDistance = 0.01
+		-- 품질 설정 등이 MaxDistance 를 되돌리면 다시 끔
+		table.insert(cab.conns, g:GetPropertyChangedSignal("MaxDistance"):Connect(function()
+			if g.MaxDistance ~= 0.01 and cab.alive then
+				cab.guis[g] = g.MaxDistance
+				g.MaxDistance = 0.01
+			end
+		end))
+	end
+end
+
 local function destroyCabin(rec: Rec)
 	local cab = rec.cabin
 	if not cab then
 		return
 	end
 	rec.cabin = nil
+	cab.alive = false
+	for _, c in cab.conns do
+		c:Disconnect()
+	end
 	for p, old in cab.hidden do
 		if p.Parent then
 			p.Transparency = old
+			p:SetAttribute("GwCabinT", nil)
 		end
 	end
 	for g, old in cab.guis do
@@ -215,6 +268,7 @@ end
 local function buildCabin(rec: Rec)
 	rec.building = true
 	rec.failed = nil
+	local building_folder: Instance? = nil
 	local ok, err = pcall(function()
 		local F, why = Fit.run(rec.model)
 		if not F then
@@ -227,6 +281,8 @@ local function buildCabin(rec: Rec)
 		local folder = Instance.new("Model")
 		folder.Name = "CabinAAA"
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
+		folder.Parent = rec.model -- 먼저 넣어서 70개씩 나눠 들어감 (한 프레임에 몰리지 않게)
+		building_folder = folder
 		-- 주차된(고정) 차는 용접 없이 고정 파트로: 가장 가볍고(물리 어셈블리를 건드리지 않음) 실제 로블록스에서도 싸요
 		local anchored = F.base.Anchored and not rec.moving
 		local K = Kit.new(F.base, folder, anchored)
@@ -239,30 +295,22 @@ local function buildCabin(rec: Rec)
 			folder:Destroy()
 			return
 		end
-		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만)
-		local hidden, guis = {}, {}
-		for _, d in F.interior:GetDescendants() do
-			if d:IsA("BasePart") and REPLACES[d.Name] and not d:IsA("Seat") and not d:IsA("VehicleSeat") then
-				hidden[d] = d.Transparency
-				d.Transparency = 1
-			elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] then
-				guis[d] = d.MaxDistance
-				d.MaxDistance = 0.01
-			end
-		end
 		local ambient = {}
 		for _, p in K.parts do
 			if string.find(p.Name, "Ambient") then
 				table.insert(ambient, p)
 			end
 		end
-		folder.Parent = rec.model
-		rec.cabin = {
+		local cab: any = {
+			alive = true,
 			folder = folder,
 			fit = F,
+			base = F.base,
+			interior = F.interior,
 			cockpit = cockpit,
-			hidden = hidden,
-			guis = guis,
+			hidden = {},
+			guis = {},
+			conns = {},
 			ambient = ambient,
 			anchored = anchored,
 			builtCF = F.base.CFrame,
@@ -272,8 +320,21 @@ local function buildCabin(rec: Rec)
 			night = nil,
 			parts = #K.parts,
 		}
+		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만) + 나중에 들어오는 파트도
+		for _, d in F.interior:GetDescendants() do
+			hideOld(cab, d)
+		end
+		table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
+			if cab.alive then
+				hideOld(cab, d)
+			end
+		end))
+		rec.cabin = cab
 	end)
 	if not ok then
+		if building_folder then
+			building_folder:Destroy()
+		end
 		rec.failed = tostring(err)
 		rec.failedAt = os.clock()
 		rec.model:SetAttribute("GwCabinError", tostring(err))
@@ -304,6 +365,21 @@ end
 
 ---------------------------------------------------------------------------------------------------- LOD 루프
 local building = false
+local lastRp: Vector3?, lastT = nil, 0
+local function maxCabins(): number
+	local a = tonumber(script:GetAttribute("MaxCabins"))
+	if a then
+		return a
+	end
+	if Quality then
+		local ok, v = pcall(Quality.pick, { low = 1, mid = 2, high = CFG.maxCabins, saver = 0 })
+		if ok and type(v) == "number" then
+			return v
+		end
+	end
+	return CFG.maxCabins
+end
+
 local function lodStep()
 	local cam = Workspace.CurrentCamera
 	if not cam then
@@ -314,6 +390,14 @@ local function lodStep()
 	local ch = player.Character
 	local root = ch and ch:FindFirstChild("HumanoidRootPart")
 	local rp = if root and root:IsA("BasePart") then root.Position else cp
+	local fp = script:GetAttribute("FocusPoint") -- 디버그 / 미리보기: 이 위치도 '내 위치'로 취급
+	if typeof(fp) == "Vector3" then
+		rp = fp
+	end
+	local t = os.clock()
+	-- 빠르게 지나가는 중이면(차를 몰고 달릴 때) 길가 차 실내는 새로 만들지 않음
+	local camV = if lastRp and t > lastT then (rp - lastRp).Magnitude / (t - lastT) else 0
+	lastRp, lastT = rp, t
 	local mine = myCar()
 	local list = {}
 	for m, rec in cars do
@@ -322,31 +406,60 @@ local function lodStep()
 			cars[m] = nil
 			continue
 		end
+		-- 클라이언트 교통이 숨긴 정적 차 (TrafficCars 가 복제본을 대신 몰고 다님)
+		local hs = m:GetAttribute("GwHideState")
+		if hs == "hidden" or hs == "mixed" then
+			destroyCabin(rec)
+			continue
+		end
 		local base = rec.base
-		if not base or not base.Parent then
+		if not base or not base.Parent or not base:IsDescendantOf(m) then
 			rec.base = Fit.frameOf(m)
 			base = rec.base
 		end
+		local cab = rec.cabin
+		if cab and (cab.base ~= base or not cab.interior.Parent or cab.interior.Parent ~= m) then
+			-- 탈 때 서버가 Interior 를 새로 복제했거나(Rig) 차체 파트가 바뀜: 다음 단계에 다시 만듦
+			destroyCabin(rec)
+			cab = nil
+		elseif cab and #cab.motors == 0 then
+			cab.motors = steerMotors(m) -- 조향 모터는 서버가 리그를 만들 때 생김
+		end
 		if base then
-			local d = math.min((base.Position - cp).Magnitude, (base.Position - rp).Magnitude)
+			local p = base.Position
+			local d = math.min((p - cp).Magnitude, (p - rp).Magnitude)
+			local v = if rec.lastPos and rec.lastT and t > rec.lastT then (p - rec.lastPos).Magnitude / (t - rec.lastT) else 0
+			rec.lastPos, rec.lastT = p, t
+			rec.still = if v < 8 then rec.still + 1 else 0
+			if rec == mine then
+				d = 0
+			end
 			if not rec.tinted and d < CFG.tintRadius then
 				rec.tinted = true
 				Glass.tint(m)
 			end
-			if rec == mine then
-				d = 0
-			end
-			local cab = rec.cabin
-			if cab and cab.anchored and (not base.Anchored or (base.Position - cab.builtCF.Position).Magnitude > 0.05) then
+			if cab and cab.anchored and (not base.Anchored or (p - cab.builtCF.Position).Magnitude > 0.05) then
 				-- 고정 실내를 만든 뒤 차가 풀리거나(타서 운전 시작) 움직이면 용접 방식으로 다시
 				rec.moving = rec.moving or base.Anchored
 				destroyCabin(rec)
+				cab = nil
 			end
-			if rec.cabin and d > CFG.dropRadius then
+			if cab and d > CFG.dropRadius then
 				destroyCabin(rec)
-			elseif d < CFG.buildRadius and (not rec.failed or os.clock() - rec.failedAt > 8) then
-				table.insert(list, { rec = rec, d = d })
+				cab = nil
 			end
+			-- 스트리밍 중인 Interior 는 다 들어온 뒤에 (자손 수가 두 번 연속 같을 때)
+			local int = m:FindFirstChild("Interior")
+			local n = if int then #int:GetDescendants() else 0
+			local settled = n > 0 and n == rec.intN
+			rec.intN = n
+			local canBuild = rec == mine or (settled and rec.still >= 2 and camV < 25)
+			if cab or (d < CFG.buildRadius and canBuild and (not rec.failed or t - rec.failedAt > 8)) then
+				-- 이미 있는 실내는 순위 다툼에서 8 스터드 이득 (3·4등이 엎치락뒤치락해도 다시 만들지 않게)
+				table.insert(list, { rec = rec, d = if cab then d - 8 else d })
+			end
+		elseif cab then
+			destroyCabin(rec) -- 차체 파트가 스트리밍으로 빠짐
 		end
 	end
 	table.sort(list, function(a, b)
@@ -356,7 +469,7 @@ local function lodStep()
 		script:SetAttribute("Nearest", string.format("%s %.0f", list[1].rec.model.Name, list[1].d))
 	end
 	-- 가까운 순으로 maxCabins 개만 유지
-	local maxC = tonumber(script:GetAttribute("MaxCabins")) or CFG.maxCabins
+	local maxC = maxCabins()
 	for i, e in list do
 		if i > maxC + (if mine then 1 else 0) then
 			if e.rec.cabin and e.rec ~= mine then
@@ -381,7 +494,7 @@ end
 local function turnState(model: Model, base: BasePart): (boolean, boolean)
 	local l, r = false, false
 	for _, d in model:GetChildren() do
-		if d:IsA("BasePart") and d.Name == "Repeater" and d.Material == Enum.Material.Neon then
+		if d:IsA("BasePart") and (d.Name == "Repeater" or d.Name == "TurnLamp") and d.Material == Enum.Material.Neon then
 			if base.CFrame:PointToObjectSpace(d.Position).X < 0 then
 				l = true
 			else
@@ -429,7 +542,7 @@ RunService.RenderStepped:Connect(function()
 		if #cab.motors > 0 then
 			yaw /= #cab.motors
 		end
-		local angle = math.clamp(-yaw * CFG.steerRatio, -7.5, 7.5)
+		local angle = math.clamp(yaw * CFG.steerRatio, -7.5, 7.5)
 		if math.abs(angle - cab.steer) > 0.002 then
 			cab.steer = angle
 			local ck = cab.cockpit

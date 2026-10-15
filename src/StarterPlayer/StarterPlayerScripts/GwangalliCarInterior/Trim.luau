@@ -6,10 +6,7 @@
 
 local Trim = {}
 
-local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0)
-local ROT_X_TO_SIDE = CFrame.new() -- 원통 축 X = 차 옆 방향 그대로
-
-local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean)
+local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: number, front: boolean, driver: boolean, armDepth: number)
 	local half: number = F.halfIn
 	local x = side * (half + 0.02)
 	local y0: number = F.trimY0 or F.floorY
@@ -38,14 +35,14 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	-- 팔걸이 + 창문 스위치
 	local armY = y0 + lowH + 0.02
 	local armZ = zc + len * 0.08
-	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, 0.36), 0.06, CFrame.new(x + inward * 0.2, armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
-	local sw = CFrame.new(x + inward * 0.25, armY + 0.075, armZ - len * 0.14)
+	K:rbox("DoorArmrest", Vector3.new(len * 0.55, 0.13, armDepth), 0.06, CFrame.new(x + inward * (0.02 + armDepth / 2), armY, armZ) * CFrame.Angles(0, math.pi / 2, 0), P.leather)
+	local sw = CFrame.new(x + inward * (0.02 + armDepth / 2), armY + 0.075, armZ - len * 0.14)
 	K:box("WindowSwitches", Vector3.new(0.2, 0.025, if driver then 0.48 else 0.2), sw, P.gloss)
 	for i = 0, (if driver then 3 else 0) do
 		K:box("WindowSwitch", Vector3.new(0.08, 0.03, 0.07), sw * CFrame.new(0, 0.02, (if driver then -0.16 else 0) + i * 0.105), P.button)
 	end
 	-- 손잡이 컵 + 크롬 핸들 (문 앞쪽)
-	local hz = z0 + 0.42
+	local hz = if front then math.max(z0 + 0.42, (F.dashFace :: number) + 0.35) else z0 + 0.42
 	local hy = armY + 0.42
 	K:box("HandleCup", Vector3.new(0.05, 0.16, 0.42), CFrame.new(x + inward * 0.06, hy, hz), P.duct)
 	K:box("DoorHandle", Vector3.new(0.05, 0.05, 0.32), CFrame.new(x + inward * 0.09, hy + 0.01, hz), P.chrome)
@@ -66,21 +63,27 @@ function Trim.build(K: any, F: any, P: any)
 	local z0: number, z1: number = F.doorZ0, F.doorZ1
 	local bz: number? = F.bZ
 	local split = if bz and bz > z0 + 1 and bz < z1 - 0.8 then bz else nil
+	local lh: number = F.linerHalf or (half - 0.2)
+	-- 도어 팔걸이 깊이: 앞좌석 옆면과 겹치지 않게 (레이처럼 좁은 차)
+	local outerSeat = 0
+	for _, s in F.front do
+		outerSeat = math.max(outerSeat, math.abs(s.x) + math.min(s.w, 1.85) / 2 + 0.06)
+	end
+	local armDepth = math.clamp(half - outerSeat - 0.02, 0.15, 0.36)
 	for _, side in { -1, 1 } do
 		local driver = side == F.side
 		if split then
-			doorCard(K, F, P, side, z0 + 0.05, split - 0.08, true, driver)
+			doorCard(K, F, P, side, z0 + 0.05, split - 0.08, true, driver, armDepth)
 			if not commercial then
-				doorCard(K, F, P, side, split + 0.08, z1 - 0.05, false, false)
+				doorCard(K, F, P, side, split + 0.08, z1 - 0.05, false, false, armDepth)
 			end
-			-- B필러 트림
+			-- B필러 트림 (창틀에서 지붕 안쪽까지 기울어짐)
 			local y1: number = F.trimY1 or (F.floorY + 2.2)
-			local ph = F.roofY - y1
-			if ph > 0.2 then
-				K:box("BPillarTrim", Vector3.new(0.14, ph, 0.5), CFrame.new(side * (half - 0.02), y1 + ph / 2, split), P.fabric)
+			if F.roofY - y1 > 0.2 then
+				K:seg("BPillarTrim", Vector3.new(side * (half - 0.08), y1, split), Vector3.new(side * (lh - 0.08), F.roofY, split), 0.16, P.fabric)
 			end
 		else
-			doorCard(K, F, P, side, z0 + 0.05, z1 - 0.05, true, driver)
+			doorCard(K, F, P, side, z0 + 0.05, z1 - 0.05, true, driver, armDepth)
 		end
 	end
 
@@ -90,9 +93,9 @@ function Trim.build(K: any, F: any, P: any)
 	local lz1: number = F.linerZ1 or z1
 	local llen = lz1 - lz0
 	if llen > 0.5 then
-		K:box("Headliner", Vector3.new(half * 2 - 0.1, 0.06, llen), CFrame.new(0, roofY + 0.02, (lz0 + lz1) / 2), P.fabric)
+		K:box("Headliner", Vector3.new(lh * 2, 0.06, llen), CFrame.new(0, roofY + 0.02, (lz0 + lz1) / 2), P.fabric)
 		for _, s in { -1, 1 } do
-			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (half - 0.1), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
+			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (lh - 0.12), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
 		end
 		local oc = CFrame.new(0, roofY - 0.06, lz0 + 0.45)
 		K:rbox("OverheadConsole", Vector3.new(0.78, 0.12, 0.5), 0.05, oc, P.hard)
@@ -105,7 +108,7 @@ function Trim.build(K: any, F: any, P: any)
 		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), CFrame.new(0, roofY - 0.01, lz0 + llen * 0.6), P.lampLens)
 		-- 손잡이 (조수석 + 뒤 양쪽)
 		for _, g in { { -F.side, lz0 + 0.9 }, { -1, lz0 + llen * 0.7 }, { 1, lz0 + llen * 0.7 } } do
-			local gx = g[1] * (half - 0.14)
+			local gx = g[1] * (lh - 0.1)
 			local gz = g[2]
 			K:seg("GrabHandle", Vector3.new(gx, roofY - 0.04, gz - 0.28), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), 0.05, P.hard)
 			K:seg("GrabHandle", Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz + 0.2), 0.05, P.hard)
@@ -122,7 +125,8 @@ function Trim.build(K: any, F: any, P: any)
 		K:cyl("VisorRod", 0.4, 0.04, v * CFrame.new(s * 0.62, 0.0, -0.22) * CFrame.Angles(0, math.pi / 2, 0), P.hard)
 	end
 	local mp: Vector3 = F.mirror or Vector3.new(0, roofY - 0.3, hi.Z + 0.35)
-	local mcf = CFrame.new(mp) * CFrame.Angles(math.rad(-8), 0, 0)
+	-- 운전자 쪽으로 살짝 돌리고 아래로 숙임
+	local mcf = CFrame.new(mp) * CFrame.Angles(math.rad(6), math.rad(15) * F.side, 0)
 	K:seg("MirrorStem", Vector3.new(mp.X, roofY + 0.02, hi.Z + 0.05), mp + Vector3.new(0, 0.08, -0.04), 0.06, P.hardDark)
 	K:rbox("MirrorBody", Vector3.new(0.86, 0.25, 0.1), 0.06, mcf, P.hardDark)
 	K:box("MirrorGlass", Vector3.new(0.78, 0.18, 0.01), mcf * CFrame.new(0, 0, 0.055), P.mirror)
