@@ -102,15 +102,15 @@ local function palette(F: any): any
 		elseif S.trimMat == "black" then { c = C.trim, m = SP, r = 0.15 }
 		else { c = C.trim, m = SP }
 	return {
-		leather = { c = seat, m = SP, r = 0.02, shadow = true },
-		leatherInsert = { c = C.insert or darken(seat, 0.18), m = SP, r = 0.01 },
+		leather = { c = seat, m = SP, shadow = true },
+		leatherInsert = { c = C.insert or darken(seat, 0.18), m = SP },
 		fabricSeat = { c = C.insert or lighten(seat, 0.05), m = M.Fabric },
 		fabricSide = { c = seat, m = SP, shadow = true },
-		wheelLeather = { c = C.wheel, m = SP, r = 0.03 },
-		wheelHub = { c = lighten(C.wheel, 0.05), m = SP, r = 0.02 },
-		soft = { c = lighten(dash, 0.04), m = SP, r = 0.01, shadow = true },
+		wheelLeather = { c = C.wheel, m = SP },
+		wheelHub = { c = lighten(C.wheel, 0.05), m = SP },
+		soft = { c = lighten(dash, 0.04), m = SP, shadow = true },
 		lower = { c = C.lower or dash, m = SP },
-		doorSoft = { c = C.door or lighten(dash, 0.07), m = SP, r = 0.01 },
+		doorSoft = { c = C.door or lighten(dash, 0.07), m = SP },
 		hard = { c = dash, m = SP },
 		hardDark = { c = darken(dash, 0.5), m = SP },
 		panel = { c = lighten(dash, 0.1), m = SP },
