@@ -171,6 +171,13 @@ function Fit.run(model: Model): (any?, string?)
 	end
 	F.wheel.hubFront = frontOf({ "WheelBadge", "WheelHub", "HornPad" })
 	F.wheel.spokeFront = frontOf({ "WheelSpoke" })
+	-- 원래 가로 스포크 막대 (높이 · 두께): 새 좌우 스포크가 같은 높이로 덮게
+	for _, p in by.WheelSpoke or {} do
+		local lc = wcf:ToObjectSpace(U:ToObjectSpace(p.CFrame))
+		if math.abs(lc.RightVector.X) > 0.95 and p.Size.X > 0.6 and (not F.wheel.spokeBar or p.Size.X > F.wheel.spokeBar.len) then
+			F.wheel.spokeBar = { y = lc.Position.Y, h = p.Size.Y, len = p.Size.X }
+		end
+	end
 	F.side = if c.X < 0 then -1 else 1 -- 운전석 쪽 (좌핸들 = -X)
 
 	-- 2) 실내 폭 / 바닥 / 천장 -------------------------------------------------------------------------

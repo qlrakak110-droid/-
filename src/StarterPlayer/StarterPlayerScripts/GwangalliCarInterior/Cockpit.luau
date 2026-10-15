@@ -91,8 +91,9 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		local hy = -0.03
 		-- 원래 허브 · 배지가 새 패드 앞면보다 앞이면 허브 묶음(껍데기 · 패드 · 엠블럼)을 그만큼 앞으로, 원래 가로 스포크도 같은 식
 		local wf = F.wheel
-		local padFront = if kind == "two" then 0.115 else 0.15
-		local hubPush = math.clamp((wf.hubFront or 0) + 0.012 - padFront, 0, 0.12)
+		-- 패드의 평평한 앞면 (크라운 제외) + 여유 0.04 (임시 스튜디오는 원래 배지 글자를 면 0.03 앞에 그림)
+		local padFront = if kind == "two" then 0.08 elseif kind == "vee4" or ws.pad == "trap" then 0.1 else 0.06 + hub.Z / 2
+		local hubPush = math.clamp((wf.hubFront or 0) + 0.04 - padFront, 0, 0.12)
 		local spokePush = math.clamp((wf.spokeFront or 0) + 0.008 - 0.0375, 0, 0.05)
 		local WH = W * CFrame.new(0, 0, hubPush)
 		local WS = W * CFrame.new(0, 0, spokePush)
@@ -128,11 +129,17 @@ local function wheel(K: any, F: any, P: any, S: any): (BasePart, Weld?)
 		-- 좌우 스포크 (허브 -> 림, 약간 아래로) + 버튼
 		local ang = if kind == "bus2" then math.rad(-15) elseif kind == "two" then math.rad(-8) else math.rad(-4)
 		local th = if kind == "two" then 0.2 elseif kind == "bus2" then 0.19 else 0.16
+		local sy0 = hy
+		local bar = wf.spokeBar
+		if bar and kind ~= "two" and kind ~= "bus2" then
+			-- 원래 가로 스포크 막대가 있으면 같은 높이 · 수평으로 (기울면 막대 위 끝이 새 스포크 위로 보임)
+			ang, sy0, th = 0, bar.y, math.max(th, bar.h + 0.02)
+		end
 		local x0, x1 = hub.X * 0.4, R - 0.03
 		local len = x1 - x0
 		local mid = (x0 + x1) / 2
 		for _, s in { -1, 1 } do
-			local sp = WS * CFrame.new(s * mid * math.cos(ang), hy + mid * math.sin(ang), 0) * CFrame.Angles(0, 0, s * ang)
+			local sp = WS * CFrame.new(s * mid * math.cos(ang), sy0 + mid * math.sin(ang), 0) * CFrame.Angles(0, 0, s * ang)
 			K:rbox("Spoke", Vector3.new(len, th, 0.075), 0.035, sp, P.hard)
 			if ws.sideTrim then
 				-- 쏘나타: 스포크 위아래를 감싸는 새틴 크롬 (요크 느낌)
