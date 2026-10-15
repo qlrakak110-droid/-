@@ -3187,11 +3187,11 @@ local function track(m: Instance)
 			local md = d:GetAttribute("GwCabinMD")
 			if type(md) == "number" and d:IsA("SurfaceGui") then
 				d.MaxDistance = md
-				if d:GetAttribute("GwCabinAdNil") == true then
-					d.Adornee = nil
-				end
 				d:SetAttribute("GwCabinMD", nil)
-				d:SetAttribute("GwCabinAdNil", nil)
+			end
+			if d:GetAttribute("GwCabinV") == true and d:IsA("GuiObject") then
+				d.Visible = true
+				d:SetAttribute("GwCabinV", nil)
 			end
 		end
 	end
@@ -3253,7 +3253,7 @@ Workspace.DescendantAdded:Connect(function(d)
 end)
 
 ---------------------------------------------------------------------------------------------------- 실내 만들기 / 지우기
-local REPLACES: { [string]: boolean } = { WheelRim = true, WheelHub = true, WheelSpoke = true, WheelBadge = true, WingBadge = true }
+local REPLACES: { [string]: boolean } = { WheelRim = true, WheelHub = true, WheelSpoke = true, WheelBadge = true, WingBadge = true, KiaLogo = true }
 for _, list in { Dash.REPLACES, Console.REPLACES, Seats.REPLACES, Trim.REPLACES } do
 	for _, n in list do
 		REPLACES[n] = true
@@ -3278,14 +3278,19 @@ local function hideOld(cab: any, d: Instance)
 		end
 		d.Transparency = 1
 	elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] and cab.guis[d] == nil then
-		-- 옛 화면 글자: 보이는 거리를 0 으로 + 땅 밑 빈 파트에 붙여 둠 (Enabled 를 다루는 DetailLOD 와 겹치지 않게)
+		-- 옛 화면 글자: 보이는 거리를 0 으로 + 안의 글자 · 판을 Visible = false (Enabled 를 다루는 DetailLOD 와 겹치지 않고,
+		-- 게임 스크립트가 글자를 계속 바꿔도 오류 없음). 복제되어도 원래 값을 알 수 있게 속성으로도 남김
 		local g = d :: SurfaceGui
-		cab.guis[g] = { g.MaxDistance, g.Adornee }
-		-- 복제되어도 원래 값을 알 수 있게
+		cab.guis[g] = { g.MaxDistance }
 		g:SetAttribute("GwCabinMD", g.MaxDistance)
-		g:SetAttribute("GwCabinAdNil", g.Adornee == nil)
 		g.MaxDistance = 0.01
-		g.Adornee = cab.sink
+		for _, e in g:GetDescendants() do
+			if e:IsA("GuiObject") and e.Visible then
+				cab.guiVis[e] = true
+				e:SetAttribute("GwCabinV", true)
+				e.Visible = false
+			end
+		end
 		-- 품질 설정 등이 MaxDistance 를 되돌리면 다시 끔
 		table.insert(cab.conns, g:GetPropertyChangedSignal("MaxDistance"):Connect(function()
 			if g.MaxDistance ~= 0.01 and cab.alive then
@@ -3316,9 +3321,13 @@ local function destroyCabin(rec: Rec)
 	for g, old in cab.guis do
 		if g.Parent then
 			g.MaxDistance = old[1]
-			g.Adornee = old[2]
 			g:SetAttribute("GwCabinMD", nil)
-			g:SetAttribute("GwCabinAdNil", nil)
+		end
+	end
+	for e in cab.guiVis do
+		if e.Parent then
+			e.Visible = true
+			e:SetAttribute("GwCabinV", nil)
 		end
 	end
 	cab.folder:Destroy()
@@ -3357,17 +3366,6 @@ local function buildCabin(rec: Rec)
 		Seats.build(K, F, P)
 		Trim.build(K, F, P)
 		local lights = Lights.build(K, F, P)
-		-- 옛 화면 SurfaceGui 를 붙여 둘 땅 밑 빈 파트
-		local sink = Instance.new("Part")
-		sink.Name = "GuiSink"
-		sink.Anchored = true
-		sink.CanCollide = false
-		sink.CanQuery = false
-		sink.CanTouch = false
-		sink.Transparency = 1
-		sink.Size = Vector3.new(0.2, 0.2, 0.2)
-		sink.CFrame = F.base.CFrame * CFrame.new(0, -300, 0)
-		sink.Parent = folder
 		if not rec.model.Parent or cars[rec.model] ~= rec then
 			folder:Destroy()
 			return
@@ -3386,7 +3384,7 @@ local function buildCabin(rec: Rec)
 			interior = F.interior,
 			cockpit = cockpit,
 			lights = lights,
-			sink = sink,
+			guiVis = {},
 			hidden = {},
 			guis = {},
 			conns = {},
