@@ -72,7 +72,7 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 	-- IMS 시트 메모리 (1 · 2 · SET, 운전석 문)
 	if driver and (S.key == "sonata" or S.key == "g80") then
 		for i = 0, 2 do
-			K:slab("ImsButton", 0.045, 0.07, 0.03, 0.018, CFrame.new(x + inward * 0.08, hy - 0.14, hz - 0.1 + i * 0.09), P.alloy)
+			K:box("ImsButton", Vector3.new(0.03, 0.045, 0.07), CFrame.new(x + inward * 0.08, hy - 0.14, hz - 0.1 + i * 0.09), P.alloy)
 		end
 	end
 	if plastic then

@@ -34,7 +34,7 @@ function Lights.build(K: any, F: any, P: any): any
 			table.insert(L.dome, s)
 			table.insert(L.lenses, p)
 		elseif n == "NavGlass" or n == "ClusterGlass" then
-			local s = light("SurfaceLight", p, SCREEN, 0.35, 3) :: SurfaceLight
+			local s = light("SurfaceLight", p, SCREEN, 0.6, 4) :: SurfaceLight
 			s.Face = Enum.NormalId.Back
 			s.Angle = 110
 			table.insert(L.screen, s)
