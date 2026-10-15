@@ -76,6 +76,7 @@ type Rec = {
 }
 
 local cars: { [Model]: Rec } = {}
+local destroyCabinRef: (Rec) -> () = function() end
 
 ---------------------------------------------------------------------------------------------------- 팔레트
 -- 차종 스타일(Styles)의 실제 색. 가죽은 SmoothPlastic (Leather 재질 무늬는 가까이서 파충류 비늘처럼 보임).
@@ -211,6 +212,12 @@ local function track(m: Instance)
 		end
 	end
 	cars[m] = rec
+	-- 실내 스타일을 바꾸면(InteriorStyle 속성) 다음 단계에 새 스타일로 다시 만듦
+	m:GetAttributeChangedSignal("InteriorStyle"):Connect(function()
+		if cars[m] == rec then
+			destroyCabinRef(rec)
+		end
+	end)
 end
 
 -- 차 찾기 1: 서버가 붙이는 태그 (GwangalliEnvironment discovery: 가장 바깥 LOD = "near" 모델 = 차의 Interior 에 "NearLOD").
@@ -368,6 +375,8 @@ local function destroyCabin(rec: Rec)
 	end
 	cab.folder:Destroy()
 end
+
+destroyCabinRef = destroyCabin
 
 local function buildCabin(rec: Rec)
 	rec.building = true
@@ -600,6 +609,10 @@ end
 
 ---------------------------------------------------------------------------------------------------- 실시간 (핸들 · 계기판 · 앰비언트)
 local function isNight(): boolean
+	local ov = script:GetAttribute("NightOverride") -- 미리보기 / 디버그
+	if type(ov) == "boolean" then
+		return ov
+	end
 	local t = Lighting.ClockTime
 	return t >= 18.25 or t < 5.75
 end
