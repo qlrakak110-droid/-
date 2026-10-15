@@ -532,7 +532,7 @@ function Console.build(K: any, F: any, P: any)
 	local zA: number = if arm then arm.z0 else z0 + len * 0.62
 	local L = math.max(0.8, zA - zU)
 	local deckMid = zU + L / 2
-	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.gloss)
+	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.hard)
 	-- 무선 충전 패드
 	local pz = zU + 0.26
 	K:slab("ChargePad", 0.6, 0.32, 0.025, 0.07, CFrame.new(x, topY + 0.045, pz), P.rubber)
@@ -545,7 +545,8 @@ function Console.build(K: any, F: any, P: any)
 		-- 쏘나타: 운전석 쪽 세로열 P R N D + 손바닥 받침 / 조수석 쪽 컵홀더 2 (앞뒤로)
 		local gx = x + side * 0.2
 		local gz = zU + L * 0.42
-		K:slab("ShiftPanel", 0.3, 0.74, 0.03, 0.12, CFrame.new(gx, top, gz), P.satin)
+		K:slab("ShiftPanelRim", 0.31, 0.75, 0.025, 0.12, CFrame.new(gx, top - 0.004, gz), P.satin)
+		K:slab("ShiftPanel", 0.27, 0.71, 0.03, 0.1, CFrame.new(gx, top, gz), P.gloss)
 		local names = { "P", "R", "N", "D" }
 		for i = 1, 4 do
 			ringButton(K, P, CFrame.new(gx, top + 0.02, gz - 0.255 + (i - 1) * 0.17), 0.14, names[i] == "P")
@@ -3215,13 +3216,15 @@ local function hideOld(cab: any, d: Instance)
 		end
 		d.Transparency = 1
 	elseif d:IsA("SurfaceGui") and d.Parent and REPLACES[d.Parent.Name] and cab.guis[d] == nil then
+		-- 옛 화면 글자: 보이는 거리를 0 으로 + 땅 밑 빈 파트에 붙여 둠 (Enabled 를 다루는 DetailLOD 와 겹치지 않게)
 		local g = d :: SurfaceGui
-		cab.guis[g] = g.MaxDistance
+		cab.guis[g] = { g.MaxDistance, g.Adornee }
 		g.MaxDistance = 0.01
+		g.Adornee = cab.sink
 		-- 품질 설정 등이 MaxDistance 를 되돌리면 다시 끔
 		table.insert(cab.conns, g:GetPropertyChangedSignal("MaxDistance"):Connect(function()
 			if g.MaxDistance ~= 0.01 and cab.alive then
-				cab.guis[g] = g.MaxDistance
+				cab.guis[g][1] = g.MaxDistance
 				g.MaxDistance = 0.01
 			end
 		end))
@@ -3246,7 +3249,8 @@ local function destroyCabin(rec: Rec)
 	end
 	for g, old in cab.guis do
 		if g.Parent then
-			g.MaxDistance = old
+			g.MaxDistance = old[1]
+			g.Adornee = old[2]
 		end
 	end
 	cab.folder:Destroy()
@@ -3284,6 +3288,17 @@ local function buildCabin(rec: Rec)
 		Seats.build(K, F, P)
 		Trim.build(K, F, P)
 		local lights = Lights.build(K, F, P)
+		-- 옛 화면 SurfaceGui 를 붙여 둘 땅 밑 빈 파트
+		local sink = Instance.new("Part")
+		sink.Name = "GuiSink"
+		sink.Anchored = true
+		sink.CanCollide = false
+		sink.CanQuery = false
+		sink.CanTouch = false
+		sink.Transparency = 1
+		sink.Size = Vector3.new(0.2, 0.2, 0.2)
+		sink.CFrame = F.base.CFrame * CFrame.new(0, -300, 0)
+		sink.Parent = folder
 		if not rec.model.Parent or cars[rec.model] ~= rec then
 			folder:Destroy()
 			return
@@ -3302,6 +3317,7 @@ local function buildCabin(rec: Rec)
 			interior = F.interior,
 			cockpit = cockpit,
 			lights = lights,
+			sink = sink,
 			hidden = {},
 			guis = {},
 			conns = {},

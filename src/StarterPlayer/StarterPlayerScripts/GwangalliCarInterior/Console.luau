@@ -108,7 +108,7 @@ function Console.build(K: any, F: any, P: any)
 	local zA: number = if arm then arm.z0 else z0 + len * 0.62
 	local L = math.max(0.8, zA - zU)
 	local deckMid = zU + L / 2
-	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.gloss)
+	K:slab("ConsoleDeck", w - 0.06, L, 0.04, 0.1, CFrame.new(x, topY + 0.02, deckMid), if S.shifter == "dial_wood" then P.soft else P.hard)
 	-- 무선 충전 패드
 	local pz = zU + 0.26
 	K:slab("ChargePad", 0.6, 0.32, 0.025, 0.07, CFrame.new(x, topY + 0.045, pz), P.rubber)
@@ -121,7 +121,8 @@ function Console.build(K: any, F: any, P: any)
 		-- 쏘나타: 운전석 쪽 세로열 P R N D + 손바닥 받침 / 조수석 쪽 컵홀더 2 (앞뒤로)
 		local gx = x + side * 0.2
 		local gz = zU + L * 0.42
-		K:slab("ShiftPanel", 0.3, 0.74, 0.03, 0.12, CFrame.new(gx, top, gz), P.satin)
+		K:slab("ShiftPanelRim", 0.31, 0.75, 0.025, 0.12, CFrame.new(gx, top - 0.004, gz), P.satin)
+		K:slab("ShiftPanel", 0.27, 0.71, 0.03, 0.1, CFrame.new(gx, top, gz), P.gloss)
 		local names = { "P", "R", "N", "D" }
 		for i = 1, 4 do
 			ringButton(K, P, CFrame.new(gx, top + 0.02, gz - 0.255 + (i - 1) * 0.17), 0.14, names[i] == "P")
