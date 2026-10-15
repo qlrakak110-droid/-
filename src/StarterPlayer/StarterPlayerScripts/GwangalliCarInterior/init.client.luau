@@ -147,7 +147,7 @@ local function palette(F: any): any
 		-- 계기판 · 화면 (빛나는 부분)
 		seg = { c = rgb(236, 242, 250), m = M.Neon, t = 0.05 },
 		segAccent = { c = accent, m = M.Neon },
-		turn = { c = rgb(60, 255, 110), m = M.Neon, t = 0.86 },
+		turn = { c = rgb(16, 46, 26), m = SP },
 		gaugeMark = { c = rgb(222, 230, 240), m = M.Neon, t = 0.1 },
 		gaugeRed = { c = rgb(255, 58, 48), m = M.Neon },
 		gaugeRing = { c = accent, m = M.Neon, t = 0.15 },

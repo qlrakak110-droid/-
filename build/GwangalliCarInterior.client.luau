@@ -392,7 +392,8 @@ end
 
 ---------------------------------------------------------------------------------------------- 실시간
 -- state = { kmh, rpm, gear, turnL, turnR }, k = 바늘이 따라가는 비율 (0..1)
-local TURN_OFF = 0.86
+local TURN_ON = Color3.fromRGB(60, 255, 110)
+local TURN_OFF = Color3.fromRGB(16, 46, 26)
 function Cockpit.live(ck: any, state: any, k: number, slow: boolean)
 	local c = ck.screens and ck.screens.cluster
 	if not c then
@@ -407,11 +408,14 @@ function Cockpit.live(ck: any, state: any, k: number, slow: boolean)
 		Gauges.show(c.speedNum, tostring(math.floor(math.abs(state.kmh) + 0.5)))
 	end
 	Gauges.show(c.gear, state.gear)
+	-- 방향지시: 켜짐 = 밝은 Neon, 꺼짐 = 어두운 초록 (투명도 대신 재질로: Neon 은 반투명이어도 빛나 보임)
 	for _, pair in { { c.turnL, state.turnL }, { c.turnR, state.turnR } } do
-		local tr = if pair[2] then 0 else TURN_OFF
+		local on = pair[2] == true
 		for _, p in pair[1] do
-			if p.Transparency ~= tr then
-				p.Transparency = tr
+			local m = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
+			if p.Material ~= m then
+				p.Material = m
+				p.Color = if on then TURN_ON else TURN_OFF
 			end
 		end
 	end
@@ -3133,7 +3137,7 @@ local function palette(F: any): any
 		-- 계기판 · 화면 (빛나는 부분)
 		seg = { c = rgb(236, 242, 250), m = M.Neon, t = 0.05 },
 		segAccent = { c = accent, m = M.Neon },
-		turn = { c = rgb(60, 255, 110), m = M.Neon, t = 0.86 },
+		turn = { c = rgb(16, 46, 26), m = SP },
 		gaugeMark = { c = rgb(222, 230, 240), m = M.Neon, t = 0.1 },
 		gaugeRed = { c = rgb(255, 58, 48), m = M.Neon },
 		gaugeRing = { c = accent, m = M.Neon, t = 0.15 },
