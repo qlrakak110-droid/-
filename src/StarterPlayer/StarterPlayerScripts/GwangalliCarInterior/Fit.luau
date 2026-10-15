@@ -396,6 +396,7 @@ function Fit.run(model: Model): (any?, string?)
 			-- 앞유리가 천장 높이와 만나는 z
 			local zWs = wl.Z + (F.roofY - wl.Y) * (wh.Z - wl.Z) / math.max(0.01, wh.Y - wl.Y)
 			F.linerZ0, F.linerZ1 = math.max(zWs, lc.Position.Z - sz.Z / 2), F.doorZ1
+			F.cabRoof = true -- 운전석 칸만 덮는 짧은 천장 (뒷좌석 손잡이 없음, 오버헤드 콘솔은 룸미러 뒤)
 		end
 	end
 	return F, nil

@@ -2466,6 +2466,7 @@ function Fit.run(model: Model): (any?, string?)
 			-- 앞유리가 천장 높이와 만나는 z
 			local zWs = wl.Z + (F.roofY - wl.Y) * (wh.Z - wl.Z) / math.max(0.01, wh.Y - wl.Y)
 			F.linerZ0, F.linerZ1 = math.max(zWs, lc.Position.Z - sz.Z / 2), F.doorZ1
+			F.cabRoof = true -- 운전석 칸만 덮는 짧은 천장 (뒷좌석 손잡이 없음, 오버헤드 콘솔은 룸미러 뒤)
 		end
 	end
 	return F, nil
@@ -3419,7 +3420,7 @@ function Seats.build(K: any, F: any, P: any)
 		local zf = s0.z - cs.Z / 2 + 0.08
 		local zb = (F.doorZ1 :: number) - 0.02
 		local h = top - F.floorY
-		local w = F.halfIn * 2 - 0.12
+		local w = (F.halfIn - 0.2) * 2 -- 문 맵포켓(안쪽 면 halfIn - 0.115)과 겹치지 않게
 		K:rbox("SeatRiser", Vector3.new(w, h, zb - zf), 0.09, CFrame.new(0, F.floorY + h / 2, (zf + zb) / 2), P.hard)
 		K:box("RiserKick", Vector3.new(w - 0.1, 0.1, 0.02), CFrame.new(0, F.floorY + 0.07, zf - 0.005), P.rubber)
 	end
@@ -3949,6 +3950,7 @@ local function doorCard(K: any, F: any, P: any, side: number, z0: number, z1: nu
 		-- 팔걸이가 띠 아래면 손잡이 컵(±0.09)과 IMS 가 띠 위에 오게
 		hy = math.max(hy, bandHi + (if g == "line" then 0.11 else 0.18))
 	end
+	hy = math.min(hy, y1 - 0.2) -- 창틀 롤(DoorSill) 아래
 	K:ell("HandleCup", Vector3.new(0.06, 0.18, 0.46), CFrame.new(x + inward * 0.055, hy, hz), P.duct)
 	K:capsule("DoorHandle", Vector3.new(x + inward * 0.085, hy + 0.01, hz - 0.14), Vector3.new(x + inward * 0.085, hy + 0.01, hz + 0.14), 0.05, P.chrome)
 	K:box("LockTab", Vector3.new(0.05, 0.05, 0.08), CFrame.new(x + inward * 0.09, hy, hz + 0.27), P.button)
@@ -4018,7 +4020,12 @@ function Trim.build(K: any, F: any, P: any)
 		for _, s in { -1, 1 } do
 			K:cyl("HeadlinerEdge", llen, 0.24, CFrame.new(s * (lh - 0.12), roofY - 0.02, (lz0 + lz1) / 2) * CFrame.Angles(0, math.pi / 2, 0), P.fabric)
 		end
-		local oc = CFrame.new(0, roofY - 0.06, lz0 + 0.45)
+		local ocz = lz0 + 0.45
+		local mz: number = if F.mirror then (F.mirror :: Vector3).Z else (F.wsHigh :: Vector3).Z + 0.35
+		if F.cabRoof and math.abs(ocz - mz) < 0.45 then
+			ocz = mz + 0.5 -- 짧은 캡 천장(쏠라티): 콘솔이 룸미러 · 미러 기둥을 삼키지 않게 뒤로
+		end
+		local oc = CFrame.new(0, roofY - 0.06, ocz)
 		if F.style.key ~= "porter" then -- 포터: 오버헤드 콘솔 · 맵램프 · SOS 없음 (지붕 가운데 실내등 하나)
 			-- 아래에서 보면 네 모서리가 둥근 판 + 면에 묻힌 타원 렌즈 · 둥근 SOS (튀어나온 흰 타일 X)
 			K:slab("OverheadConsole", 0.78, 0.5, 0.12, 0.16, oc, P.hard)
@@ -4045,7 +4052,8 @@ function Trim.build(K: any, F: any, P: any)
 		end
 		K:box("DomeLamp", Vector3.new(0.4, 0.02, 0.2), dl, P.lampLens)
 		-- 손잡이 (조수석 + 뒤 양쪽)
-		for _, g in { { -F.side, lz0 + 0.9 }, { -1, lz0 + llen * 0.7 }, { 1, lz0 + llen * 0.7 } } do
+		local grabs = if F.cabRoof then { { -F.side, lz0 + 0.9 } } else { { -F.side, lz0 + 0.9 }, { -1, lz0 + llen * 0.7 }, { 1, lz0 + llen * 0.7 } }
+		for _, g in grabs do
 			local gx = g[1] * (lh - 0.1)
 			local gz = g[2]
 			K:seg("GrabHandle", Vector3.new(gx, roofY - 0.04, gz - 0.28), Vector3.new(gx - g[1] * 0.06, roofY - 0.16, gz - 0.2), 0.05, P.hard)
@@ -4158,7 +4166,7 @@ function Trim.build(K: any, F: any, P: any)
 	end
 	if F.style.key == "ray" and brake then
 		-- 레이: 발 주차 브레이크 (핸드브레이크 없음) - 풋레스트 위, 대시 아래 왼쪽 끝
-		local pb = brake + Vector3.new(F.side * 0.5, 0.42, -0.12)
+		local pb = brake + Vector3.new(F.side * 0.55, 0.06, -0.08) -- 브레이크 왼쪽, 대시 아랫면 밑
 		K:panel("ParkBrakePedal", 0.22, 0.15, 0.04, 0.05, CFrame.new(pb) * CFrame.Angles(math.rad(-30), 0, 0), P.rubber)
 		K:seg("PedalArm", pb + Vector3.new(0, 0.06, -0.04), pb + Vector3.new(0, 0.45, -0.32), 0.045, P.metalDark)
 	end

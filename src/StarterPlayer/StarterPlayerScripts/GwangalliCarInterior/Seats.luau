@@ -265,7 +265,7 @@ function Seats.build(K: any, F: any, P: any)
 		local zf = s0.z - cs.Z / 2 + 0.08
 		local zb = (F.doorZ1 :: number) - 0.02
 		local h = top - F.floorY
-		local w = F.halfIn * 2 - 0.12
+		local w = (F.halfIn - 0.2) * 2 -- 문 맵포켓(안쪽 면 halfIn - 0.115)과 겹치지 않게
 		K:rbox("SeatRiser", Vector3.new(w, h, zb - zf), 0.09, CFrame.new(0, F.floorY + h / 2, (zf + zb) / 2), P.hard)
 		K:box("RiserKick", Vector3.new(w - 0.1, 0.1, 0.02), CFrame.new(0, F.floorY + 0.07, zf - 0.005), P.rubber)
 	end
