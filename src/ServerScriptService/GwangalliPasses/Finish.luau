@@ -150,19 +150,21 @@ function Finish.start(c: any): boolean
 	ctx = c
 	P, Config, Util, Lines = c.P, c.Config, c.Util, c.P.Lines
 	KoFx = P.mod("KoFx")
-	c.Data.loaded:Connect(function(player: Player)
-		player:SetAttribute(P.Attr.KoFx, current(player))
-	end)
-	c.Ownership.onChanged(function(player: Player, key: string, owned: boolean)
-		if key ~= "Flex" then
-			return
-		end
-		if owned and ctx.Data.get(player).ko == nil then
+	local function ensureDefault(player: Player)
+		if owns(player) and ctx.Data.isLoaded(player) and ctx.Data.get(player).ko == nil then
 			ctx.Data.update(player, function(prof)
 				prof.ko = Config.KOFX.DEFAULT
 			end)
 		end
 		player:SetAttribute(P.Attr.KoFx, current(player))
+	end
+	c.Data.onLoaded(function(player: Player)
+		ensureDefault(player)
+	end)
+	c.Ownership.onChanged(function(player: Player, key: string)
+		if key == "Flex" then
+			ensureDefault(player)
+		end
 	end)
 	Players.PlayerRemoving:Connect(function(p: Player)
 		lastBy[p] = nil

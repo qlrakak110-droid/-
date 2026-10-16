@@ -63,7 +63,9 @@ local function load(player: Player)
 	profiles[player] = defaults()
 	if not store then
 		st.loaded = true
-		loadedEv:Fire(player, profiles[player])
+		task.defer(function()
+			loadedEv:Fire(player, profiles[player])
+		end)
 		return
 	end
 	for i = 1, Config.DATA.RETRIES do
@@ -124,6 +126,16 @@ end
 
 function Data.get(player: Player): any
 	return profiles[player] or defaults()
+end
+
+-- fn(player, profile) for every player whose profile is (or becomes) loaded, including those loaded already
+function Data.onLoaded(fn: (Player, any) -> ())
+	loadedEv.Event:Connect(fn)
+	for p, st in state do
+		if st.loaded and p.Parent == Players then
+			task.spawn(fn, p, profiles[p])
+		end
+	end
 end
 
 function Data.isLoaded(player: Player): boolean

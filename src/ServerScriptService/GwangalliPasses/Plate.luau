@@ -274,7 +274,7 @@ function Plate.start(c: any)
 	P, Config, Util, Lines = c.P, c.Config, c.Util, c.P.Lines
 	Plates = P.mod("Plates")
 	GS = Util.requireShared(ReplicatedStorage, "GwangalliGarageShared", 90)
-	c.Data.loaded:Connect(function(player: Player)
+	c.Data.onLoaded(function(player: Player)
 		pushAttrs(player)
 		-- the saved plate is claimed again for this server (another player may not take it meanwhile)
 		local text = c.Data.get(player).plate.text

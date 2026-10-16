@@ -116,19 +116,23 @@ function NeonName.start(c: any)
 		join(p)
 	end
 	Players.PlayerAdded:Connect(join)
-	c.Data.loaded:Connect(function(player: Player)
-		push(player)
-	end)
-	c.Ownership.onChanged(function(player: Player, key: string, owned: boolean)
-		if key ~= "Flex" then
-			return
-		end
-		-- first grant: switch the neon on with the default palette (one can turn it off in 꾸미기)
-		if owned and ctx.Data.get(player).neon == nil then
+	-- first grant: the neon starts on with the default palette (it can be turned off in 꾸미기)
+	local function ensureDefault(player: Player)
+		if owns(player) and ctx.Data.isLoaded(player) and ctx.Data.get(player).neon == nil then
 			ctx.Data.update(player, function(prof)
 				prof.neon = Config.NEON.DEFAULT
 			end)
 		end
+	end
+	c.Data.onLoaded(function(player: Player)
+		ensureDefault(player)
+		push(player)
+	end)
+	c.Ownership.onChanged(function(player: Player, key: string)
+		if key ~= "Flex" then
+			return
+		end
+		ensureDefault(player)
 		push(player)
 	end)
 end
