@@ -277,7 +277,7 @@ local function dueNow(v: any): number
 	end
 	if v.step == "pay_go" then
 		local rows = S.Billing.rows(v.plan, v.c, C, v.opPaid)
-		return S.Billing.summary(rows, C).due
+		return S.Billing.summary(rows, C).dueNew
 	elseif v.step == "iv" and (v.plan.extra or 0) > 0 then
 		return v.plan.extra
 	end
@@ -981,12 +981,13 @@ local function opPay(player: Player, p: any): any
 		return fail("paid")
 	end
 	local due = bill and bill.sum.due or 0
-	local ourDebt = v.plan and v.plan.op == nil and (v.c and v.c.debt or 0) > 0
+	local oldDebt = bill and bill.sum.oldDebt or 0
 	if action == "defer" then
-		if due > 0 then
-			Bridge.addDebt(player, due)
-			Store.addMirrorDebt(player, due)
-			v.deferred = (v.deferred or 0) + due
+		local new = bill and bill.sum.dueNew or 0
+		if new > 0 then
+			Bridge.addDebt(player, new)
+			Store.addMirrorDebt(player, new)
+			v.deferred = (v.deferred or 0) + new
 		end
 		v.paid = true
 	else
@@ -1002,9 +1003,9 @@ local function opPay(player: Player, p: any): any
 			end
 			v.extraPaid = (v.extraPaid or 0) + due
 			v.payMethod = method
-			if ourDebt then
+			if oldDebt > 0 then
 				-- our bill carried the old 미납금 row: it is settled now
-				Bridge.setDebt(player, math.max(0, Bridge.debt(player) - (v.c.debt or 0)))
+				Bridge.setDebt(player, math.max(0, Bridge.debt(player) - oldDebt))
 			end
 		end
 		v.paid = true

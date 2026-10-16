@@ -196,14 +196,14 @@ function Billing.rows(plan: any, c: any, cfg: any, opPaid: number?): { any }
 		table.insert(rows, { label = "원내 약제비 (3일분)", amount = pharm, cover = "급여", paid = paidOp })
 		local debtPaid = if paidOp then math.max(0, (opPaid :: number) - fee) else debtBefore
 		if debtPaid > 0 then
-			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp })
+			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp, debt = true })
 		end
 	elseif plan.op == "vitamin" then
 		local fee = math.max(0, math.floor(tonumber(c.vitaminFee) or 0))
 		table.insert(rows, { label = (c.vitaminName or "영양주사") .. " (비급여)", amount = fee, cover = "비급여", paid = paidOp })
 		local debtPaid = if paidOp then math.max(0, (opPaid :: number) - fee) else debtBefore
 		if debtPaid > 0 then
-			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp })
+			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp, debt = true })
 		end
 	elseif plan.counsel then
 		table.insert(rows, { label = if c.revisit then "진찰료 (재진)" else "진찰료 (초진)", amount = base, cover = "급여", paid = false })
@@ -217,10 +217,10 @@ function Billing.rows(plan: any, c: any, cfg: any, opPaid: number?): { any }
 		table.insert(rows, { label = "일반 건강검진 (비급여)", amount = fee, cover = "비급여", paid = paidOp })
 		local debtPaid = if paidOp then math.max(0, (opPaid :: number) - fee) else debtBefore
 		if debtPaid > 0 then
-			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp })
+			table.insert(rows, { label = "지난 미납 진료비", amount = debtPaid, cover = "기타", paid = paidOp, debt = true })
 		end
 	elseif plan.ward then
-		table.insert(rows, { label = "응급 진료비 (구급차 이송) 미납금", amount = debtBefore, cover = "기타", paid = false })
+		table.insert(rows, { label = "응급 진료비 (구급차 이송) 미납금", amount = debtBefore, cover = "기타", paid = false, debt = true })
 	end
 	-- our own extras (paid at the 수납 window)
 	if plan.op ~= nil and (plan.extra or 0) > 0 then
@@ -228,14 +228,14 @@ function Billing.rows(plan: any, c: any, cfg: any, opPaid: number?): { any }
 	end
 	-- 미납금 on our own bills (Health ops collect it themselves)
 	if plan.op == nil and not plan.ward and debtBefore > 0 then
-		table.insert(rows, { label = "지난 미납 진료비", amount = debtBefore, cover = "기타", paid = false })
+		table.insert(rows, { label = "지난 미납 진료비", amount = debtBefore, cover = "기타", paid = false, debt = true })
 	end
 	return rows
 end
 
 function Billing.summary(rows: { any }, cfg: any): any
 	local ratio = cfg.Fees.InsurerRatio or (7 / 3)
-	local selfTotal, insurer, nonCovered, other, paid, due = 0, 0, 0, 0, 0, 0
+	local selfTotal, insurer, nonCovered, other, paid, due, oldDebt = 0, 0, 0, 0, 0, 0, 0
 	for _, r in rows do
 		local a = math.max(0, math.floor(r.amount or 0))
 		if r.cover == "급여" then
@@ -250,6 +250,9 @@ function Billing.summary(rows: { any }, cfg: any): any
 			paid += a
 		else
 			due += a
+			if r.debt then
+				oldDebt += a
+			end
 		end
 	end
 	return {
@@ -260,7 +263,9 @@ function Billing.summary(rows: { any }, cfg: any): any
 		patient = selfTotal + nonCovered + other, -- 환자 부담 총액
 		grand = selfTotal + insurer + nonCovered + other, -- 진료비 총액
 		paid = paid, -- 이미 낸 금액 (Health 처치 때 결제됨)
-		due = due, -- 지금 낼 금액
+		due = due, -- 지금 낼 금액 (지난 미납금 포함)
+		dueNew = due - oldDebt, -- 이번 진료로 새로 생긴 금액 (떠나면 미납금이 되는 몫)
+		oldDebt = oldDebt, -- 이번 영수증에 함께 청구된 지난 미납금 (d.health.debt 에 이미 있음)
 	}
 end
 
