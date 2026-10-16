@@ -1137,7 +1137,7 @@ local function buildShowroom(K: any, V: any)
 		lab.Text = frames[1][1]
 		screenCycle(K, lab, nil, frames, 5)
 		if mid then -- 저사양 (불빛 4 개) 에서는 차 스포트에 양보
-			D.light(scr, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 12, Brightness = 0.6, Angle = 110, Color = C(150, 180, 255) })
+			D.light(scr, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 16, Brightness = 0.85, Angle = 120, Color = C(190, 205, 255) })
 		end
 	end)
 
@@ -1246,7 +1246,7 @@ local function buildShowroom(K: any, V: any)
 		for _, t in tts do
 			local lens = lightFor[t] or lightBack[t]
 			if lens and lit < 6 then
-				D.light(lens, "SpotLight", { Face = Enum.NormalId.Front, Range = 28, Angle = 56, Brightness = 1.8, Color = C(255, 238, 220) })
+				D.light(lens, "SpotLight", { Face = Enum.NormalId.Front, Range = 30, Angle = 60, Brightness = 2.2, Color = C(255, 240, 226) })
 				lit += 1
 			end
 		end
@@ -1764,7 +1764,16 @@ local function buildShowroom(K: any, V: any)
 		local fpcf = D.wallPf("right", fz, 2.1)
 		if spot(G, fpcf * CF(0, 0, 0.05), V3(2.45, 6.2, 2.1), 0, "fridge") then
 			propGroup(G, "fridge", V3(RB.x1 - 2.2, 0, fz - 1.3), V3(RB.x1, 6.2, fz + 1.3), function()
+				local nl0 = #K.lights
 				local out = Props.showcaseFridge(K, G.B * fpcf, { doors = 1, h = 6.0, d = 2.0, header = "음료 · 무료 시음", headerBg = NAVY })
+				-- 냉장고 안 작은 SurfaceLight (Range 6) 는 빼고 네온 램프만: 불빛 1 개를 라운지 펜던트에 양보 (밤에 라운지가 너무 어두움)
+				for i = #K.lights, nl0 + 1, -1 do
+					local l = K.lights[i]
+					if l and l.Parent and l.Parent.Name == "FridgeLamp" then
+						l:Destroy()
+						table.remove(K.lights, i)
+					end
+				end
 				for _, m in out.doors do
 					local hinge = m:GetAttribute("Hinge")
 					if typeof(hinge) == "Vector3" then
@@ -1777,7 +1786,7 @@ local function buildShowroom(K: any, V: any)
 		if ct then
 			for i = -1, 1 do
 				local px = ct.c.X + i * 2.1
-				local bulb = Props.pendant(K, G.B * V3(px, yC, ct.c.Z), 4.6, { shade = "dome", dia = 1.3, look = Look.blackMetal, light = (i == 0), range = 14, bright = 0.8 })
+				local bulb = Props.pendant(K, G.B * V3(px, yC, ct.c.Z), 4.6, { shade = "dome", dia = 1.3, look = Look.blackMetal, light = (i == 0), range = 18, bright = 1.1 })
 				local _ = bulb
 			end
 		end

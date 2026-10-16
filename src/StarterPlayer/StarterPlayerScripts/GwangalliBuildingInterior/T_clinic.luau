@@ -6134,6 +6134,15 @@ BUILD.lounge = function(K: any, V: any)
 		end
 	end)
 	-- 벽: 식단표 · 이용 안내 · 포스터 -------------------------------------------------------------------------------------
+	-- 맵 '조용히 쉬어 가세요' 판은 방 가운데 허공에 떠서 천장을 뚫고 있음 -> 숨기고 천장에 매단 양면 안내판으로
+	step(K, "quietsign", function()
+		local q = V:first("Sign_조용히 쉬어 가세요")
+		if q then
+			hideRec(K, q)
+			local yaw = if math.abs(q.size.X) >= math.abs(q.size.Z) then 0 else PI / 2
+			hangSign(K, q.c.X, q.c.Z, 5.2, 1.3, V.H - 2.6, yaw, "조용히 쉬어 가세요 · 휴대폰은 진동으로", "보호자 휴게실 · LOUNGE", { bg = MINT_L })
+		end
+	end)
 	step(K, "walls", function()
 		local d = wallSpot(K, "right", 6.0, 3.6, 7.0, wallU("right", Vector3.new(0, 0, -3.0)), 0.6)
 		if d then
