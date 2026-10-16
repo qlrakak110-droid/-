@@ -669,3 +669,525 @@ local function parcel(C: any, pcf: CFrame, s: Vector3, txt: string)
 		C:plate("ParcelBarcode", 0.3, 0.12, 0.005, pcf * CF(s.X * 0.28, s.Y * 0.3, s.Z / 2), lk(30, 30, 30))
 	end
 end
+
+--=================================================================================================================
+-- 주방 ---------------------------------------------------------------------------------------------------------------
+--=================================================================================================================
+-- 조리대 한 줄 (run) 틀: 원점 = 조리대 가운데의 벽면 바닥, +Z = 조리대 앞 (사람 쪽), +X = 조리대를 볼 때 오른쪽.
+-- 그 안에서 z = 0 벽 ~ zf 하부장 문짝 면 ~ zt 상판 앞 끝, y = 바닥 위.
+
+-- 등급별 주방 마감
+local function kitchenStyle(ti: number, base: Color3, top: Color3): any
+	local st: any = {}
+	if ti >= 5 then
+		st.front = col(shade(base, 0.02), M.Wood)
+		st.carcass = col(shade(base, -0.25), M.Wood)
+		st.handle = "bar"
+		st.handleL = LK.bronze
+		st.top = col(top, M.Marble)
+		st.kick = lk(40, 36, 32)
+		st.gap = 0.035
+	elseif ti == 4 then
+		st.front = col(base, M.SmoothPlastic)
+		st.carcass = col(shade(base, -0.12))
+		st.handle = "bar"
+		st.handleL = LK.brushed
+		st.top = col(top, M.Marble)
+		st.kick = lk(196, 194, 190)
+		st.gap = 0.03
+	elseif ti == 3 then
+		st.front = col(base, M.SmoothPlastic)
+		st.carcass = col(shade(base, -0.15))
+		st.handle = "groove"
+		st.handleL = LK.gunmetal
+		st.top = col(top, M.Marble)
+		st.kick = lk(60, 60, 62)
+		st.gap = 0.03
+	else
+		st.front = col(base, M.SmoothPlastic, { r = 0.05 })
+		st.carcass = col(shade(base, -0.12))
+		st.handle = "lip"
+		st.handleL = LK.alu
+		st.top = col(top, M.Marble)
+		st.kick = lk(70, 70, 72)
+		st.gap = 0.03
+	end
+	return st
+end
+
+-- 문짝 (하부장 · 상부장 공통): x0..x1, y0..y1, 면 z (zf), 손잡이 위치 hp = "top" | "bottom" | "left" | "right" | "drawer"
+local function cabinetFront(C: any, st: any, name: string, x0: number, x1: number, y0: number, y1: number, zf: number, hp: string): BasePart
+	local g = st.gap
+	local w, h = x1 - x0 - g, y1 - y0 - g
+	local cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+	local door = C:box(name, V3(w, h, 0.07), CF(cx, cy, zf + 0.035), st.front)
+	local hl = st.handleL
+	if st.handle == "bar" then
+		if hp == "drawer" then
+			local hw = math.min(w * 0.6, 2.2)
+			C:box("Handle", V3(hw, 0.05, 0.05), CF(cx, y1 - g - 0.14, zf + 0.12), hl)
+			for _, s in { -1, 1 } do
+				C:box("HandleFoot", V3(0.04, 0.04, 0.06), CF(cx + s * (hw / 2 - 0.08), y1 - g - 0.14, zf + 0.085), hl)
+			end
+		else
+			local hx = if hp == "left" then x0 + g + 0.14 else x1 - g - 0.14
+			local hh = math.min(h * 0.55, 1.6)
+			local hy = if hp == "bottom" then y0 + g + hh / 2 + 0.15 elseif hp == "top" then y1 - g - hh / 2 - 0.15 else cy
+			C:box("Handle", V3(0.05, hh, 0.05), CF(hx, hy, zf + 0.12), hl)
+			for _, s in { -1, 1 } do
+				C:box("HandleFoot", V3(0.04, 0.04, 0.06), CF(hx, hy + s * (hh / 2 - 0.06), zf + 0.085), hl)
+			end
+		end
+	elseif st.handle == "groove" then
+		-- 손잡이 없는 J 홈: 윗변(하부) · 아랫변(상부) 의 어두운 홈
+		local gy = if hp == "bottom" then y0 + g / 2 + 0.03 else y1 - g / 2 - 0.03
+		C:box("HandleGroove", V3(w, 0.06, 0.02), CF(cx, gy, zf + 0.071), lk(40, 40, 42))
+		C:box("Handle", V3(w * 0.96, 0.02, 0.04), CF(cx, gy + (if hp == "bottom" then -0.03 else 0.03), zf + 0.075), hl)
+	else
+		-- 알루미늄 립 손잡이 (문짝 위 · 아래 끝)
+		local ly = if hp == "bottom" then y0 + g / 2 + 0.02 else y1 - g / 2 - 0.02
+		C:box("Handle", V3(math.min(w * 0.5, 1.2), 0.05, 0.1), CF(cx, ly, zf + 0.09), hl)
+	end
+	return door
+end
+
+-- 하부장 모듈 나누기: segs = { {a, b} } (x), specials = { {a, b, kind} } -> 모듈 목록 { a, b, kind }
+local function splitModules(segs: { any }, specials: { any }): { any }
+	local mods = {}
+	for _, s in segs do
+		local cuts = {}
+		for _, sp in specials do
+			local a, b = math.max(sp.a, s.a), math.min(sp.b, s.b)
+			if b - a > 0.4 then
+				table.insert(cuts, { a = a, b = b, kind = sp.kind })
+			end
+		end
+		table.sort(cuts, function(p, q)
+			return p.a < q.a
+		end)
+		local cur = s.a
+		local function fill(a: number, b: number)
+			local w = b - a
+			if w < 0.05 then
+				return
+			elseif w < 0.75 then
+				table.insert(mods, { a = a, b = b, kind = "filler" })
+				return
+			end
+			local n = math.max(1, math.ceil(w / 2.05))
+			for i = 1, n do
+				table.insert(mods, { a = a + w * (i - 1) / n, b = a + w * i / n, kind = "door" })
+			end
+		end
+		for _, c in cuts do
+			if c.a > cur then
+				fill(cur, c.a)
+			end
+			table.insert(mods, c)
+			cur = math.max(cur, c.b)
+		end
+		if s.b > cur then
+			fill(cur, s.b)
+		end
+	end
+	table.sort(mods, function(p, q)
+		return p.a < q.a
+	end)
+	return mods
+end
+
+-- 하부장 + 상판 + 개수대 + 인덕션 (run 틀). info = 찾은 맵 파트
+local function kitchenBase(C: any, st: any, info: any)
+	local zf = info.zf -- 하부장 문짝 면
+	local zt = info.zt -- 상판 앞 끝
+	local ytop = info.ytop -- 상판 윗면
+	local ybot = ytop - 0.14
+	local kick = info.kickH
+	local segs = {}
+	for _, r in info.base do
+		local mn, mx = C:bb(r)
+		table.insert(segs, { a = mn.X, b = mx.X })
+	end
+	table.sort(segs, function(p, q)
+		return p.a < q.a
+	end)
+	-- 특수 모듈
+	local specials = {}
+	if info.sinkBB then
+		local mn, mx = info.sinkBB[1], info.sinkBB[2]
+		local c, w = (mn.X + mx.X) / 2, math.clamp(mx.X - mn.X + 0.5, 2.2, 3.1)
+		table.insert(specials, { a = c - w / 2, b = c + w / 2, kind = "sink" })
+		info.sinkMod = { a = c - w / 2, b = c + w / 2 }
+		-- 식기세척기 (아파트 · 펜트하우스): 개수대 옆, 인덕션 반대쪽
+		if C.ti >= 4 then
+			local hobC = if info.hobBB then (info.hobBB[1].X + info.hobBB[2].X) / 2 else c - 10
+			local side = if hobC < c then 1 else -1
+			local a = if side > 0 then c + w / 2 else c - w / 2 - 2.14
+			local b = a + 2.14
+			for _, s in segs do
+				if a >= s.a - 0.01 and b <= s.b + 0.01 then
+					table.insert(specials, { a = a, b = b, kind = "dw" })
+					info.dw = { a = a, b = b }
+					break
+				end
+			end
+		end
+	end
+	if info.hobBB then
+		local mn, mx = info.hobBB[1], info.hobBB[2]
+		local c, w = (mn.X + mx.X) / 2, math.clamp(mx.X - mn.X + 0.3, 1.7, 3.4)
+		table.insert(specials, { a = c - w / 2, b = c + w / 2, kind = if C.ti >= 5 then "oven" else "hob" })
+	end
+	local mods = splitModules(segs, specials)
+	-- 수저 서랍 하나 (인덕션 옆 문 모듈)
+	local drawerMod = nil
+	for i, m in mods do
+		if m.kind == "door" and m.b - m.a > 1.2 and m.b - m.a < 2.4 then
+			local nb = mods[i - 1]
+			local na = mods[i + 1]
+			if (nb and (nb.kind == "hob" or nb.kind == "oven")) or (na and (na.kind == "hob" or na.kind == "oven")) then
+				m.kind = "drawers"
+				drawerMod = m
+				break
+			end
+		end
+	end
+	if not drawerMod then
+		for _, m in mods do
+			if m.kind == "door" and m.b - m.a > 1.2 then
+				m.kind = "drawers"
+				drawerMod = m
+				break
+			end
+		end
+	end
+	-- 몸통 (문짝 뒤): 세그먼트마다 하나
+	for _, s in segs do
+		C:box("CabCarcass", V3(s.b - s.a, ybot - kick, zf - 0.02), CF((s.a + s.b) / 2, kick + (ybot - kick) / 2, (zf - 0.02) / 2), st.carcass)
+		-- 걸레받이 (안으로 들어간 킥)
+		C:box("CabKick", V3(s.b - s.a, kick, 0.06), CF((s.a + s.b) / 2, kick / 2, zf - 0.28), st.kick)
+		C:box("CabKickShadow", V3(s.b - s.a, kick, zf - 0.34), CF((s.a + s.b) / 2, kick / 2, (zf - 0.34) / 2), lk(30, 30, 32))
+	end
+	local yb = kick + 0.02
+	local yband = ybot - 0.44 -- 서랍 띠 아래
+	local doorIdx = 0
+	for _, m in mods do
+		local a, b = m.a, m.b
+		if m.kind == "filler" then
+			cabinetFront(C, { gap = st.gap, front = st.front, handle = "none", handleL = st.handleL }, "CabFiller", a, b, yb, ybot - 0.01, zf, "top")
+		elseif m.kind == "sink" then
+			-- 개수대 하부장: 위 가짜 서랍판 + 양문
+			local mid = (a + b) / 2
+			C:box("SinkFalseFront", V3(b - a - st.gap, ybot - yband - st.gap, 0.07), CF(mid, (yband + ybot) / 2, zf + 0.035), st.front)
+			cabinetFront(C, st, "CabDoor", a, mid, yb, yband, zf, "right")
+			cabinetFront(C, st, "CabDoor", mid, b, yb, yband, zf, "left")
+		elseif m.kind == "dw" then
+			-- 빌트인 식기세척기: 통문짝 + 위 조작부
+			local w = b - a - st.gap
+			C:box("DWPanel", V3(w, ybot - yb - st.gap, 0.07), CF((a + b) / 2, (yb + ybot) / 2, zf + 0.035), st.front)
+			C:box("DWControl", V3(w - 0.1, 0.12, 0.02), CF((a + b) / 2, ybot - 0.12, zf + 0.075), LK.black)
+			if C.hi then
+				C:label("DWDisplay", 0.5, 0.09, CF((a + b) / 2 + w * 0.25, ybot - 0.12, zf + 0.087), "1:28", C3(120, 220, 255), nil, { glow = 1 })
+				for i = 0, 3 do
+					C:disc("DWButton", 0.06, 0.01, CF((a + b) / 2 - w * 0.3 + i * 0.14, ybot - 0.12, zf + 0.088) * ANG(PI / 2, 0, 0), LK.steelDark)
+				end
+			end
+			if st.handle == "bar" then
+				C:box("Handle", V3(math.min(w * 0.6, 1.4), 0.05, 0.05), CF((a + b) / 2, ybot - 0.32, zf + 0.12), st.handleL)
+			end
+		elseif m.kind == "hob" or m.kind == "drawers" then
+			-- 서랍 3단 (냄비 서랍 / 수저 서랍)
+			local hs = { yb, yb + (yband - yb) * 0.5, yband, ybot }
+			for i = 1, 3 do
+				local f = cabinetFront(C, st, "CabDrawer", a, b, hs[i], hs[i + 1], zf, "drawer")
+				if i == 3 and m == drawerMod then
+					info.cutleryFront = { a = a, b = b, y0 = hs[3], y1 = hs[4], part = f }
+				end
+			end
+		elseif m.kind == "oven" then
+			-- 빌트인 오븐 (인덕션 아래) + 위 서랍
+			local w = b - a - st.gap
+			cabinetFront(C, st, "CabDrawer", a, b, yband, ybot, zf, "drawer")
+			local oy0, oy1 = yb + 0.2, yband - 0.02
+			C:box("OvenFrame", V3(w, oy1 - oy0, 0.08), CF((a + b) / 2, (oy0 + oy1) / 2, zf + 0.04), LK.black)
+			C:box("OvenGlass", V3(w - 0.3, (oy1 - oy0) * 0.62, 0.02), CF((a + b) / 2, oy0 + (oy1 - oy0) * 0.4, zf + 0.09), LK.glassSmoke)
+			C:box("OvenHandleBar", V3(w * 0.8, 0.06, 0.06), CF((a + b) / 2, oy1 - 0.2, zf + 0.16), LK.steel)
+			C:box("OvenControl", V3(w - 0.2, 0.18, 0.02), CF((a + b) / 2, oy1 - 0.06, zf + 0.09), LK.steelDark)
+			if C.hi then
+				C:label("OvenDisplay", 0.5, 0.12, CF((a + b) / 2, oy1 - 0.06, zf + 0.1), "180°", C3(255, 170, 80), nil, { glow = 1 })
+			end
+			cabinetFront(C, st, "CabDrawer", a, b, yb, oy0, zf, "drawer")
+		else
+			doorIdx += 1
+			cabinetFront(C, st, "CabDoor", a, b, yb, yband, zf, if doorIdx % 2 == 0 then "left" else "right")
+			cabinetFront(C, st, "CabDrawer", a, b, yband, ybot, zf, "drawer")
+		end
+	end
+	info.mods = mods
+	-- 상판: 개수대 구멍 둘레 조각 + 앞 모서리
+	local topA, topB = math.huge, -math.huge
+	for _, r in info.tops do
+		local mn, mx = C:bb(r)
+		topA = math.min(topA, mn.X)
+		topB = math.max(topB, mx.X)
+	end
+	local zr = 0
+	local function topPiece(a: number, b: number, z0: number, z1: number)
+		if b - a > 0.01 and z1 - z0 > 0.01 then
+			C:box("CounterSlab", V3(b - a, 0.14, z1 - z0), CF((a + b) / 2, ybot + 0.07, (z0 + z1) / 2), st.top)
+		end
+	end
+	if info.sinkBB then
+		local mn, mx = info.sinkBB[1], info.sinkBB[2]
+		local ca, cb = mn.X + 0.08, mx.X - 0.08
+		local cz0, cz1 = math.max(mn.Z + 0.08, 0.35), math.min(mx.Z - 0.08, zt - 0.3)
+		info.bowl = { a = ca, b = cb, z0 = cz0, z1 = cz1 }
+		topPiece(topA, ca, zr, zt)
+		topPiece(cb, topB, zr, zt)
+		topPiece(ca, cb, zr, cz0)
+		topPiece(ca, cb, cz1, zt)
+	else
+		topPiece(topA, topB, zr, zt)
+	end
+	C:box("CounterEdge", V3(topB - topA, 0.03, 0.02), CF((topA + topB) / 2, ybot + 0.015, zt + 0.005), col(shade(st.top.c, -0.12), st.top.m))
+	info.topA, info.topB = topA, topB
+end
+
+-- 언더싱크 볼 + 수전 + 물 (상호작용)
+local function kitchenSink(C: any, st: any, info: any)
+	local bw = info.bowl
+	if not bw then
+		return
+	end
+	local ytop = info.ytop
+	local depth = 0.72
+	local yb = ytop - 0.14 - depth + 0.14
+	local cx, cz = (bw.a + bw.b) / 2, (bw.z0 + bw.z1) / 2
+	local w, d = bw.b - bw.a, bw.z1 - bw.z0
+	local s = LK.steel
+	C:box("SinkBowlFloor", V3(w, 0.03, d), CF(cx, yb, cz), s)
+	C:box("SinkBowlWall", V3(w, depth, 0.03), CF(cx, yb + depth / 2, bw.z0), s)
+	C:box("SinkBowlWall", V3(w, depth, 0.03), CF(cx, yb + depth / 2, bw.z1), s)
+	C:box("SinkBowlWall", V3(0.03, depth, d), CF(bw.a, yb + depth / 2, cz), s)
+	C:box("SinkBowlWall", V3(0.03, depth, d), CF(bw.b, yb + depth / 2, cz), s)
+	C:disc("SinkDrain", 0.36, 0.02, CF(cx + w * 0.22, yb + 0.02, cz), LK.steelDark)
+	C:disc("SinkDrainBasket", 0.26, 0.025, CF(cx + w * 0.22, yb + 0.025, cz), LK.brushed)
+	-- 개수대 안 이야기: 담가 둔 국그릇 + 숟가락, 배수구 거름망
+	if C.hi then
+		C:vcyl("SoakBowl", 0.26, 0.6, CF(cx - w * 0.18, yb + 0.14, cz + 0.05), LK.ceramic)
+		C:disc("SoakWater", 0.52, 0.01, CF(cx - w * 0.18, yb + 0.24, cz + 0.05), LK.water)
+		C:bar("SoakSpoon", V3(cx - w * 0.18 + 0.1, yb + 0.26, cz + 0.05), V3(cx - w * 0.18 + 0.42, yb + 0.42, cz + 0.2), 0.04, 0.02, LK.steel)
+	end
+	-- 수전 (풀다운 구즈넥): 맵 Faucet 자리
+	local fx, fz = cx, math.max(0.18, bw.z0 - 0.22)
+	if info.faucetBB then
+		local mn, mx = info.faucetBB[1], info.faucetBB[2]
+		fx, fz = (mn.X + mx.X) / 2, math.clamp((mn.Z + mx.Z) / 2, 0.15, bw.z0 - 0.12)
+	end
+	local fl = if C.ti >= 5 then LK.gunmetal elseif C.ti == 3 then lk(40, 40, 42, M.Metal) else LK.chrome
+	C:disc("FaucetBase", 0.26, 0.04, CF(fx, ytop + 0.02, fz), fl)
+	local riseH = if C.ti >= 3 then 1.55 else 1.05
+	C:vcyl("FaucetBody", riseH, 0.14, CF(fx, ytop + riseH / 2, fz), fl)
+	local R = 0.34
+	C:ring("FaucetNeck", CF(fx, ytop + riseH, fz + R) * ANG(0, PI / 2, 0), R, 0.12, 6, fl, 0, PI)
+	local hx, hy, hz = fx, ytop + riseH - 0.12, fz + 2 * R
+	C:vcyl("FaucetSprayHead", 0.3, 0.15, CF(hx, hy, hz), fl)
+	C:disc("FaucetAerator", 0.11, 0.02, CF(hx, hy - 0.16, hz), LK.steelDark)
+	local lever = C:box("FaucetHandle", V3(0.06, 0.06, 0.34), CF(fx + 0.1, ytop + riseH * 0.45, fz + 0.12) * ANG(math.rad(-20), 0, 0), fl)
+	C:vcyl("FaucetLeverHub", 0.12, 0.12, CF(fx + 0.1, ytop + riseH * 0.45 - 0.06, fz), fl)
+	-- 세제 디스펜서 (상판 매립)
+	if C.ti >= 4 then
+		C:disc("SoapPumpBase", 0.14, 0.02, CF(cx + w / 2 - 0.25, ytop + 0.01, fz), fl)
+		C:vcyl("SoapPumpNeck", 0.22, 0.06, CF(cx + w / 2 - 0.25, ytop + 0.11, fz), fl)
+		C:box("SoapPumpSpout", V3(0.05, 0.04, 0.16), CF(cx + w / 2 - 0.25, ytop + 0.22, fz + 0.06), fl)
+	end
+	-- 물줄기
+	local stream = C:vcyl("FaucetWater", hy - 0.17 - (yb + 0.02), 0.07, CF(hx, (hy - 0.17 + yb + 0.02) / 2, hz), { c = C3(210, 236, 248), m = M.Glass, t = 1, r = 0.1 })
+	local splash = C:disc("FaucetSplash", 0.3, 0.015, CF(hx, yb + 0.03, hz), { c = C3(230, 246, 252), m = M.Glass, t = 1 })
+	C:toggle(lever, {
+		object = "싱크대 수전",
+		onText = "물 잠그기",
+		offText = "물 틀기",
+		state = false,
+		on = function(on: boolean)
+			setVis({ stream }, if on then 0.35 else 1)
+			setVis({ splash }, if on then 0.5 else 1)
+		end,
+	})
+	info.faucet = V3(fx, ytop, fz)
+end
+
+-- 인덕션 (유리 상판 + 화구 링 + 터치 조작부) + 올려 둔 냄비
+local function kitchenHob(C: any, st: any, info: any)
+	local hb = info.hobBB
+	if not hb then
+		return
+	end
+	local mn, mx = hb[1], hb[2]
+	local ytop = info.ytop
+	local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+	local w, d = mx.X - mn.X, mx.Z - mn.Z
+	C:box("HobGlass", V3(w, 0.035, d), CF(cx, ytop + 0.018, cz), LK.glassBlack)
+	C:box("HobFrame", V3(w + 0.04, 0.03, d + 0.04), CF(cx, ytop + 0.012, cz), LK.steelDark)
+	local rings = info.rings
+	if #rings == 0 then
+		local n = if w > 2.6 then 3 else 2
+		for i = 1, n do
+			table.insert(rings, V3(mn.X + w * (i - 0.5) / n, 0, cz - 0.1))
+		end
+	end
+	local zoneOn: { BasePart } = {}
+	for i, p in rings do
+		local dia = if i == 1 and #rings >= 3 then 0.9 else 0.72
+		C:disc("HobZoneLine", dia, 0.004, CF(p.X, ytop + 0.037, p.Z), lk(120, 120, 124))
+		C:disc("HobZone", dia - 0.05, 0.005, CF(p.X, ytop + 0.038, p.Z), LK.glassBlack)
+		local glow = C:disc("HobZoneGlow", dia * 0.62, 0.004, CF(p.X, ytop + 0.0385, p.Z), lk(70, 24, 20))
+		table.insert(zoneOn, glow)
+	end
+	-- 터치 조작부
+	local fz = mx.Z - 0.12
+	C:box("HobTouchBar", V3(w * 0.7, 0.002, 0.12), CF(cx, ytop + 0.0365, fz), lk(60, 60, 64))
+	if C.hi then
+		for i = 0, 5 do
+			C:box("HobTouchKey", V3(0.07, 0.002, 0.07), CF(cx - w * 0.3 + i * w * 0.12, ytop + 0.038, fz), lk(200, 200, 204, M.Neon, { t = 0.4 }))
+		end
+		C:box("HobPowerLED", V3(0.06, 0.002, 0.06), CF(cx + w * 0.42, ytop + 0.038, fz), lk(255, 60, 40, M.Neon))
+	end
+	info.hobZones = zoneOn
+	info.rings = rings
+end
+
+-- 슬림 후드 (상부장 아래) + 상호작용 (조명 · 팬)
+local function kitchenHood(C: any, st: any, info: any)
+	local hb = info.hoodBB
+	if not hb then
+		return
+	end
+	local mn, mx = hb[1], hb[2]
+	local cx = (mn.X + mx.X) / 2
+	local w = mx.X - mn.X
+	local d = mx.Z
+	local y0, y1 = mn.Y, mx.Y
+	local body = if C.ti >= 3 then LK.black else LK.steel
+	C:box("HoodBody", V3(w, y1 - y0, d - 0.02), CF(cx, (y0 + y1) / 2, d / 2), body)
+	-- 앞 가림판 (당겨 쓰는 슬라이드 바이저)
+	C:box("HoodVisor", V3(w, 0.22, 0.12), CF(cx, y0 + 0.11, d + 0.04), if C.ti >= 3 then LK.glassBlack else LK.brushed)
+	-- 아랫면: 필터 2장 (줄무늬) + 램프 2
+	local lamps: { BasePart } = {}
+	for i, f in { -0.25, 0.25 } do
+		local fxp = cx + f * w
+		C:box("HoodFilter", V3(w * 0.42, 0.02, d * 0.66), CF(fxp, y0 - 0.005, d * 0.4), LK.brushed)
+		if C.hi then
+			for j = -2, 2 do
+				C:box("HoodFilterSlot", V3(w * 0.38, 0.022, 0.025), CF(fxp, y0 - 0.006, d * 0.4 + j * d * 0.11), LK.steelDark)
+			end
+		end
+		local lamp = C:box("HoodLamp", V3(0.28, 0.025, 0.28), CF(cx + (i - 1.5) * w * 0.9, y0 - 0.008, d * 0.82), LK.ledOff)
+		table.insert(lamps, lamp)
+	end
+	-- 버튼
+	local btnZ = d + 0.105
+	local btn = C:box("HoodButton", V3(0.16, 0.06, 0.02), CF(cx + w * 0.38, y0 + 0.11, btnZ), LK.steelDark)
+	C:box("HoodButton", V3(0.16, 0.06, 0.02), CF(cx + w * 0.28, y0 + 0.11, btnZ), LK.steelDark)
+	C:box("HoodButton", V3(0.16, 0.06, 0.02), CF(cx + w * 0.18, y0 + 0.11, btnZ), LK.steelDark)
+	local led = C:box("HoodLED", V3(0.04, 0.04, 0.01), CF(cx + w * 0.46, y0 + 0.11, btnZ), lk(60, 60, 60))
+	local lightObj: Light? = nil
+	C:toggle(btn, {
+		object = "레인지 후드",
+		onText = "후드 끄기",
+		offText = "후드 켜기",
+		state = false,
+		on = function(on: boolean)
+			setGlow(lamps, on, C3(255, 238, 214), C3(220, 220, 214))
+			setGlow({ led }, on, C3(80, 220, 255), C3(60, 60, 60))
+			if on and not lightObj and lamps[1].Parent then
+				lightObj = C:light(lamps[1], "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 0.9, Angle = 110, Color = C3(255, 232, 205) })
+			end
+			if lightObj then
+				lightObj.Enabled = on
+			end
+			for _, z in info.hobZones or {} do
+				-- 후드를 켜면 앞 화구 하나에 불 (요리 중)
+				if z == (info.hobZones or {})[1] then
+					setGlow({ z }, on, C3(255, 70, 40), C3(70, 24, 20))
+				end
+			end
+		end,
+	})
+end
+
+-- 상부장 (문짝 · 하부 LED 그대로) + 문 하나 열리는 수납장 (안에 그릇)
+local function kitchenUpper(C: any, st: any, info: any)
+	local uppers = {}
+	for _, r in info.upper do
+		local mn, mx = C:bb(r)
+		table.insert(uppers, { mn = mn, mx = mx, hood = r.name == "HoodCabinet" })
+	end
+	table.sort(uppers, function(p, q)
+		return p.mn.X < q.mn.X
+	end)
+	local opened = false
+	for _, u in uppers do
+		local mn, mx = u.mn, u.mx
+		local zf = mx.Z
+		local w = mx.X - mn.X
+		local n = math.max(1, math.floor(w / 1.45 + 0.5))
+		local y0, y1 = mn.Y, mx.Y
+		for i = 1, n do
+			local a = mn.X + w * (i - 1) / n
+			local b = mn.X + w * i / n
+			local hp = if C.ti >= 4 then (if i % 2 == 1 then "right" else "left") else "bottom"
+			if st.handle == "bar" then
+				hp = if i % 2 == 1 then "right" else "left"
+			end
+			-- 개수대 위 수납장 하나는 열림: 몸통을 속 빈 상자로
+			local canOpen = not opened and not u.hood and info.bowl and a < info.bowl.b + 1.5 and b > info.bowl.a - 1.5 and (b - a) > 1.0 and (b - a) < 2.4 and C.ti >= 2
+			if canOpen then
+				opened = true
+				local t = 0.05
+				local cx = (a + b) / 2
+				C:box("UpperBack", V3(b - a, y1 - y0, t), CF(cx, (y0 + y1) / 2, t / 2), st.carcass)
+				C:box("UpperSide", V3(t, y1 - y0, zf - t), CF(a + t / 2, (y0 + y1) / 2, (zf + t) / 2), st.carcass)
+				C:box("UpperSide", V3(t, y1 - y0, zf - t), CF(b - t / 2, (y0 + y1) / 2, (zf + t) / 2), st.carcass)
+				C:box("UpperBottom", V3(b - a, t, zf), CF(cx, y0 + t / 2, zf / 2), st.carcass)
+				C:box("UpperTop", V3(b - a, t, zf), CF(cx, y1 - t / 2, zf / 2), st.carcass)
+				local inner = lk(244, 244, 240)
+				local sh = { y0 + (y1 - y0) * 0.36, y0 + (y1 - y0) * 0.68 }
+				for _, sy in sh do
+					C:box("UpperShelf", V3(b - a - 2 * t, 0.04, zf - t - 0.04), CF(cx, sy, (zf + t) / 2), lk(232, 232, 228, M.Glass, { t = 0.2 }))
+				end
+				-- 안: 아래칸 접시 탑 · 공기 · 국그릇, 가운데 컵 · 유리잔, 위칸 밀폐용기
+				local bw = b - a - 0.2
+				local y = y0 + t
+				for k = 0, 5 do
+					C:disc("CabPlate", 0.8, 0.04, CF(a + 0.6, y + 0.03 + k * 0.05, zf * 0.48), LK.ceramic)
+				end
+				for k = 0, 2 do
+					C:vcyl("CabRiceBowl", 0.24, 0.42, CF(a + 1.25, y + 0.12 + k * 0.17, zf * 0.48), lk(244, 240, 232))
+				end
+				if bw > 1.4 then
+					C:vcyl("CabSoupBowl", 0.26, 0.5, CF(b - 0.4, y + 0.13, zf * 0.48), lk(236, 232, 224))
+				end
+				for k = 0, 2 do
+					local gx = a + 0.3 + k * (bw / 3)
+					C:vcyl("CabGlass", 0.4, 0.24, CF(gx, sh[1] + 0.22, zf * 0.42), LK.glassClear)
+					C:vcyl("CabMug", 0.34, 0.26, CF(gx + 0.2, sh[1] + 0.19, zf * 0.7), col(({ C3(250, 250, 248), C3(120, 160, 200), C3(230, 200, 120) })[k + 1]))
+				end
+				for k = 0, 1 do
+					C:box("CabContainer", V3(0.5, 0.3, 0.5), CF(a + 0.4 + k * 0.6, sh[2] + 0.17, zf * 0.5), lk(232, 240, 244, M.Glass, { t = 0.4 }))
+					C:box("CabContainerLid", V3(0.52, 0.05, 0.52), CF(a + 0.4 + k * 0.6, sh[2] + 0.345, zf * 0.5), lk(70, 130, 200, M.Plastic))
+				end
+				-- 문짝 (경첩 = 바깥쪽 모서리)
+				local hingeX = if hp == "left" then b else a
+				local m = C:group("UpperCabinetDoor", function()
+					cabinetFront(C, st, "UpperDoor", a, b, y0, y1, zf, hp)
+				end)
+				local sign = if hingeX == a then -1 else 1
+				C:swing(m, V3(hingeX, (y0 + y1) / 2, zf), V3(0, 1, 0), sign * math.rad(100), { object = "그릇 수납장", openText = "열기", closeText = "닫기" })
+			else
+				cabinetFront(C, st, "UpperDoor", a, b, y0, y1, zf, hp)
+			end
+		end
+		C:box("UpperCarcass", V3(w, y1 - y0 - 0.02, zf - 0.02), CF((mn.X + mx.X) / 2, (y0 + y1) / 2, (zf - 0.02) / 2), st.carcass)
+	end
+end

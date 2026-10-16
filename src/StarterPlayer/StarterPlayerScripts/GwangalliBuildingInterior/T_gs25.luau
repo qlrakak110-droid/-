@@ -1721,10 +1721,23 @@ local function productLabels(ctx: any)
 	if #plinths == 0 then
 		return
 	end
-	local budget = math.max(0, 1580 - #K.parts)
+	local budget = math.max(0, 1600 - #K.parts)
 	local n = 0
 	local labelCols = { WHITE, rgb(250, 230, 120), rgb(240, 240, 236), rgb(30, 30, 34) }
-	for _, e in all(ctx, "Product") do
+	-- 가슴 높이 줄 (바닥 3.1) 먼저, 남으면 눈높이 줄 (4.4)
+	local prods = all(ctx, "Product")
+	local order = {}
+	for _, e in prods do
+		if math.abs(e.mn.Y - 3.1) < 0.2 then
+			table.insert(order, e)
+		end
+	end
+	for _, e in prods do
+		if math.abs(e.mn.Y - 4.43) < 0.2 then
+			table.insert(order, e)
+		end
+	end
+	for _, e in order do
 		if n >= budget then
 			break
 		end
@@ -1734,7 +1747,7 @@ local function productLabels(ctx: any)
 				g = p
 			end
 		end
-		if g and math.abs(e.mn.Y - 2.95) < 0.3 then
+		if g then
 			local gc = (g.mn.X + g.mx.X) / 2
 			local side = if e.c.X < gc then -1 else 1
 			local xf = if side < 0 then e.mn.X else e.mx.X
