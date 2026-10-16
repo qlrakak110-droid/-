@@ -371,7 +371,7 @@ end
 Shared.OPS = {
 	"hello", "buy", "reserve", "reserveNo", "cancel", "first", "start", "stop", "restart", "pause",
 	"set", "privacy", "invite", "kick", "knock", "leave", "mic", "micAnswer", "hits", "voice",
-	"voiceStatus", "cheer", "fav", "settings", "rank", "nearby",
+	"voiceStatus", "cheer", "fav", "settings", "nearby", "knockAnswer", "balance",
 }
 
 return Shared
