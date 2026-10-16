@@ -323,6 +323,61 @@ local function wallFree(K: any, wn: string, u: number, w: number, y0: number, y1
 	return true
 end
 
+-- 점 p 에 가까운 벽부터 (각 벽마다 p 의 u 를 선호 위치로) 벽 부착물 자리
+local function spotNear(K: any, walls: { string }, w: number, y0: number, y1: number, p: Vector3, accept: ((CFrame, string) -> boolean)?, depth: number?): (string?, CFrame?)
+	local V = K.V
+	local order = {}
+	for _, wn in walls do
+		local _, dist = V:wallCoord(wn, p)
+		table.insert(order, { wn = wn, d = math.abs(dist) })
+	end
+	table.sort(order, function(a, b)
+		return a.d < b.d
+	end)
+	for _, o in order do
+		local u = V:wallCoord(o.wn, p)
+		local wn, d = wallItemSpot(K, { o.wn }, w, y0, y1, u, accept, depth)
+		if wn and d then
+			return wn, d
+		end
+	end
+	return nil, nil
+end
+
+-- 벽지 · 벽 마감 (y0..y1, 빈 구간마다 얇은 판). rail = 위아래 몰딩 look
+local function wallSkin(K: any, walls: { string }, y0: number, y1: number, look: any, rail: any?, off: number?)
+	local V = K.V
+	K:free(function()
+		for _, wn in walls do
+			for _, s in V:spans(wn, y0, y1, 0.12) do
+				local len = s[2] - s[1]
+				K:plate("WallSkin", len, y1 - y0, 0.015, V:wall(wn, (s[1] + s[2]) / 2, (y0 + y1) / 2, off or 0.006), look)
+				if rail then
+					K:plate("WallRail", len, 0.1, 0.06, V:wall(wn, (s[1] + s[2]) / 2, y0 + 0.05, 0.006), rail)
+				end
+			end
+		end
+	end)
+end
+
+-- 천장 둘레 간접조명 (몰딩 아래 LED 줄)
+local function coveLED(K: any, walls: { string }, c: Color3, withLight: boolean?)
+	local V = K.V
+	local first = true
+	K:free(function()
+		for _, wn in walls do
+			local wall = V.walls[wn]
+			local y = V.H - 0.32
+			K:plate("CoveSoffit", wall.b - wall.a - 0.1, 0.1, 0.42, V:wall(wn, (wall.a + wall.b) / 2, y - 0.08, 0.0), lk(C(240, 238, 232)))
+			local s = K:bar("CoveLED", V:wall(wn, wall.a + 0.2, y + 0.02, 0.36).Position, V:wall(wn, wall.b - 0.2, y + 0.02, 0.36).Position, 0.06, 0.05, Look.neon(c))
+			if s and withLight and first then
+				K:light(s, "SurfaceLight", { Face = Enum.NormalId.Top, Range = 8, Brightness = 0.5, Angle = 150, Color = c })
+				first = false
+			end
+		end
+	end)
+end
+
 -- 프롬프트를 둘 수 있는 첫 파트에
 local function promptOn(K: any, parts: { BasePart? }, spec: any): ProximityPrompt?
 	for _, p in parts do
@@ -495,7 +550,8 @@ local function hydrant(K: any, dcf: CFrame)
 end
 
 -- 우산 비닐 포장기 (비 오는 날 한국 건물 입구 필수품)
-local function umbrellaBagger(K: any, pcf: CFrame)
+local function umbrellaBagger(K: any, pcf: CFrame, side: number?)
+	local sd = side or 1
 	K:box("UmbBase", V3(1.2, 0.12, 0.8), pcf * CF(0, 0.06, 0), Look.steel)
 	K:box("UmbBody", V3(1.1, 2.6, 0.7), pcf * CF(0, 1.42, 0), Look.steel)
 	K:box("UmbTop", V3(1.16, 0.12, 0.76), pcf * CF(0, 2.78, 0), Look.darkAlu)
@@ -504,8 +560,8 @@ local function umbrellaBagger(K: any, pcf: CFrame)
 	txt(K, "UmbLabel", 0.9, 0.5, pcf * CF(0, 1.1, 0.352), "우산 비닐 커버\n위에서 꽂고 빼세요", C(30, 60, 120), C(240, 244, 248), { font = F.GothamBold, d = 0.01 })
 	if not lo(K) then
 		for i, c in { C(40, 60, 120), C(140, 40, 40) } do
-			K:seg("UmbStick", (pcf * CF(-0.75, 0.0, 0.1 * i)).Position, (pcf * CF(-0.85, 2.7, 0.1 * i)).Position, 0.06, Look.chrome)
-			K:ell("UmbCanopy", V3(0.3, 2.0, 0.3), pcf * CF(-0.8, 1.5, 0.1 * i), lk(c, M.Fabric))
+			K:seg("UmbStick", (pcf * CF(sd * 0.75, 0.0, 0.1 * i)).Position, (pcf * CF(sd * 0.82, 2.7, 0.1 * i)).Position, 0.06, Look.chrome)
+			K:ell("UmbCanopy", V3(0.3, 2.0, 0.3), pcf * CF(sd * 0.8, 1.5, 0.1 * i), lk(c, M.Fabric))
 		end
 	end
 end
@@ -767,7 +823,7 @@ function T.style(V: any): any
 			chair = false, stool = {}, table = false, counter = { front = "marble", frontL = th.front, topL = th.top },
 			floor = { look = th.floor, tile = 3.0, grout = lk(darker(th.floor.c, 0.18)) },
 			ceiling = { skin = lk(C(244, 242, 236), M.Plaster), crown = lk(C(236, 232, 224)) }, base = lk(darker(th.stone.c, 0.35), M.Slate),
-			lower = { kind = "tile", h = 3.6, look = th.stone, grout = lk(darker(th.stone.c, 0.15)), tw = 2.4, th = 1.2, walls = { "left", "right" } },
+			lower = { kind = "tile", h = 3.6, look = th.stone, grout = lk(darker(th.stone.c, 0.15)), tw = 2.4, th = 1.2, walls = { "left", "right", "back" } },
 			lights = { kind = "downlight", n = 4, color = Look.warmLight, glow = Look.lampWarm },
 			pendant = { shade = "globe" }, plants = { "olive", "ficus", "monstera" },
 			mat = { look = lk(C(48, 46, 44), M.Fabric), text = string.upper(V.name or "WELCOME") }, cctv = true, clock = false, license = true, skip = skip,
@@ -861,30 +917,48 @@ local function hotelDesk(K: any, V: any, th: any, rng: () -> number): any?
 			K:box("DeskBody", fp.size + V3(-0.02, 0, -0.02), CF(fp.c), lk(darker(th.front.c, 0.06), th.front.m))
 			local fh = y1 - y0
 			local dd = d * CF(0, y0, 0)
-			if th.key == "oak" then
-				local n = math.max(6, math.floor(len / (if lo(K) then 0.6 else 0.32)))
-				local pw = len / n
-				for i = 1, n do
-					K:cyl("DeskFlute", fh - 0.3, pw * 0.92, dd * CF(-len / 2 + pw * (i - 0.5), 0.15 + (fh - 0.3) / 2, 0.0) * ANG(0, 0, PI / 2), th.front)
-				end
-			else
-				K:plate("DeskFace", len, fh - 0.3, 0.03, dd * CF(0, 0.15 + (fh - 0.3) / 2, 0), th.front)
-				-- 결 (대리석 베인 · 슬레이트 줄)
-				for i = 1, (if lo(K) then 2 else 5) do
-					local w = len * (0.25 + rng() * 0.4)
-					K:plate("DeskVein", w, 0.02 + rng() * 0.02, 0.035, dd * CF(-len / 2 + w / 2 + rng() * (len - w), 0.4 + rng() * (fh - 0.8), 0) * ANG(0, 0, (rng() - 0.5) * 0.5), th.vein)
-				end
-				if th.key == "dark" then
-					for _, u in { -len / 3, 0, len / 3 } do
-						K:plate("DeskInlay", 0.05, fh - 0.3, 0.04, dd * CF(u, 0.15 + (fh - 0.3) / 2, 0), th.trim)
+			local ph = fh - 0.3
+			-- 가운데: 백라이트 오닉스 판 (호텔 프런트 대표 마감) / 양옆: 테마 마감
+			local ow = math.min(len * 0.34, 2.6)
+			local sideW = (len - ow) / 2 - 0.08
+			for _, sgn in { -1, 1 } do
+				local cu = sgn * (ow / 2 + 0.08 + sideW / 2)
+				if th.key == "oak" then
+					local n = math.max(3, math.floor(sideW / (if lo(K) then 0.6 else 0.3)))
+					local pw = sideW / n
+					for i = 1, n do
+						K:cyl("DeskFlute", ph, pw * 0.92, dd * CF(cu - sideW / 2 + pw * (i - 0.5), 0.15 + ph / 2, 0.0) * ANG(0, 0, PI / 2), th.front)
 					end
+				else
+					K:plate("DeskFace", sideW, ph, 0.03, dd * CF(cu, 0.15 + ph / 2, 0), th.front)
+					if th.key == "marble" then
+						-- 북매치 대리석 결 (좌우 대칭 사선)
+						for k = 1, (if lo(K) then 1 else 3) do
+							local vy = 0.5 + k * ph / 4
+							K:plate("DeskVein", sideW * 1.02, 0.025, 0.035, dd * CF(cu, vy, 0) * ANG(0, 0, -sgn * (0.22 + k * 0.05)), th.vein)
+						end
+					else
+						for k = 1, 2 do
+							K:plate("DeskInlay", 0.04, ph, 0.04, dd * CF(cu - sideW / 2 + sideW * k / 3, 0.15 + ph / 2, 0), th.trim)
+						end
+					end
+				end
+				-- 판 사이 금속 세로 띠
+				K:plate("DeskJoint", 0.07, ph, 0.05, dd * CF(sgn * (ow / 2 + 0.04), 0.15 + ph / 2, 0), th.trim)
+			end
+			K:plate("DeskOnyx", ow, ph, 0.03, dd * CF(0, 0.15 + ph / 2, 0), lk(C(236, 184, 110), M.Neon, { t = 0.45 }))
+			K:plate("DeskOnyxBack", ow, ph, 0.02, dd * CF(0, 0.15 + ph / 2, -0.01), lk(C(120, 70, 30)))
+			if not lo(K) then
+				for k = 1, 4 do
+					K:plate("DeskOnyxVein", ow * 0.98, 0.05 + (k % 2) * 0.04, 0.035, dd * CF(0, 0.5 + k * ph / 5.2, 0.002) * ANG(0, 0, (k % 2 - 0.5) * 0.35), lk(C(160, 100, 50), M.Glass, { t = 0.3 }))
 				end
 			end
 			-- 위아래 금속 띠
 			K:plate("DeskTrimTop", len, 0.08, 0.05, dd * CF(0, fh - 0.12, 0), th.trim)
 			K:plate("DeskTrimBot", len, 0.12, 0.05, dd * CF(0, 0.08, 0), th.trim)
-			-- 'RECEPTION' 금속 글자
-			metalText(K, "DeskSign", dd * CF(0, fh * 0.58, 0.04), math.min(len * 0.5, 3.4), 0.42, "RECEPTION  ·  프런트", th.trim.c, F.GothamMedium)
+			-- 'RECEPTION' 금속 글자 (오닉스 위)
+			metalText(K, "DeskSign", dd * CF(0, fh * 0.62, 0.02), ow * 0.86, 0.34, "RECEPTION", darker(th.trim.c, 0.45), F.GothamMedium)
+			txt(K, "DeskSignKo", ow * 0.5, 0.24, dd * CF(0, fh * 0.62 - 0.36, 0.07), "프런트", darker(th.trim.c, 0.45), nil, { font = F.GothamBold })
 			hideRec(K, fp)
 		end
 		if tk then
@@ -1082,9 +1156,21 @@ end
 local function loungeChair(K: any, V: any, ch: any, th: any): (Vector3?, any?)
 	local s = ch.seat
 	local backR = nil
+	local parts = table.clone(ch.parts)
 	for _, r in ch.parts do
 		if r.name == "Back" or r.name == "ChairBack" or r.name == "Backrest" then
 			backR = r
+		end
+	end
+	-- Scan 의 의자 묶음에 'Back' 이름은 없음: 좌판 옆 1.6 안의 Back 을 직접 찾음
+	if not backR then
+		for _, r in V.byName.Back or {} do
+			local d = r.c - s.c
+			if math.abs(d.X) < 1.8 and math.abs(d.Z) < 1.8 and r.min.Y < s.max.Y + 0.5 then
+				backR = r
+				table.insert(parts, r)
+				break
+			end
 		end
 	end
 	local face = ch.face
@@ -1093,7 +1179,7 @@ local function loungeChair(K: any, V: any, ch: any, th: any): (Vector3?, any?)
 	end
 	-- 전체 범위
 	local mn, mx = s.min, s.max
-	for _, r in ch.parts do
+	for _, r in parts do
 		mn, mx = mn:Min(r.min), mx:Max(r.max)
 	end
 	local c = (mn + mx) / 2
@@ -1135,7 +1221,7 @@ local function loungeChair(K: any, V: any, ch: any, th: any): (Vector3?, any?)
 			K:ell("LoungePillow", V3(0.8, 0.75, 0.26), pcf * CF(sl.X + sw * 0.22, topY + 0.42, -d / 2 + 0.95) * ANG(-0.25, 0.25, 0.12), lk(th.accent, M.Fabric))
 		end
 	end)
-	for _, r in ch.parts do
+	for _, r in parts do
 		hideRec(K, r)
 	end
 	K:reserve(mn - V3(0.2, 0, 0.2), mx + V3(0.2, 0, 0.2), "chair")
@@ -1165,7 +1251,9 @@ local function bridgeArt(K: any, dcf: CFrame, w: number, h: number, frameL: any)
 		local bht = ih * (0.12 + ((i * 37) % 11) / 30)
 		K:plate("ArtTower", bwid, bht, 0.015, inner * CF(bx + i * iw * 0.05, -ih / 2 + ih * 0.4 + bht / 2, 0.002), lk(C(26, 26, 40)))
 		if hi(K) then
-			K:plate("ArtWindow", bwid * 0.5, bht * 0.7, 0.016, inner * CF(bx + i * iw * 0.05, -ih / 2 + ih * 0.4 + bht / 2, 0.003), lk(C(255, 210, 140), M.Neon, { t = 0.75 }))
+			for k = 1, 3 do
+				K:plate("ArtWindow", bwid * 0.6, 0.022, 0.016, inner * CF(bx + i * iw * 0.05, -ih / 2 + ih * 0.4 + bht * (0.25 * k), 0.003), lk(C(255, 206, 140), M.Neon, { t = 0.6 }))
+			end
 		end
 	end
 	-- 다리: 상판 (약간 아치)
@@ -1201,7 +1289,7 @@ local function bridgeArt(K: any, dcf: CFrame, w: number, h: number, frameL: any)
 		local x = x0 + (x1 - x0) * i / segs
 		local p = (inner * CF(x, cableY(x), 0.03)).Position
 		if prev then
-			local s = K:seg("ArtCableLED", prev, p, 0.05, Look.neon(C(120, 170, 255)))
+			local s = K:seg("ArtCableLED", prev, p, 0.035, Look.neon(C(120, 170, 255)))
 			if s then
 				table.insert(leds, s)
 			end
@@ -1262,6 +1350,7 @@ local function hotelLounge(K: any, V: any, th: any, rng: () -> number): any
 	end
 	-- 의자 묶음 중심 · 방향 (같은 방향 의자들)
 	local face = groups[1].face
+	out.face = face
 	local mn, mx = groups[1].box.min, groups[1].box.max
 	for _, g in groups do
 		mn, mx = mn:Min(g.box.min), mx:Max(g.box.max)
@@ -1546,6 +1635,11 @@ local function buildHotel(K: any, V: any, S: any)
 	local th = hotelTheme(V)
 	local rng = mkRng(V.key or V.name)
 	local desk = nil
+	step(K, "skin", function()
+		local wp = if th.key == "dark" then lk(C(150, 138, 124), M.Fabric) elseif th.key == "oak" then lk(C(228, 222, 208), M.Fabric) else lk(C(216, 208, 194), M.Fabric)
+		wallSkin(K, { "left", "right", "back" }, 3.6, V.H - 0.02, wp, th.trim)
+		coveLED(K, { "left", "right" }, C(255, 214, 170), true)
+	end)
 	step(K, "desk", function()
 		desk = hotelDesk(K, V, th, rng)
 	end)
@@ -1589,14 +1683,25 @@ local function buildHotel(K: any, V: any, S: any)
 			mn = if mn then mn:Min(ch.seat.min) else ch.seat.min
 			mx = if mx then mx:Max(ch.seat.max) else ch.seat.max
 		end
-		local p: Vector3
+		local cands = {}
 		if mn and mx then
-			p = (mn + mx) / 2 + V3(2.2, 0, 0)
-		else
-			p = V3((V.x0 + V.x1) / 2, 0, (V.z0 + V.z1) / 2 + 0.5)
+			local c = (mn + mx) / 2
+			local f = if V.chairs[1] then V.chairs[1].face else V3(1, 0, 0)
+			if lounge and lounge.face then
+				f = lounge.face
+			end
+			for _, k in { 3.2, 2.6, 3.8, 2.0 } do
+				table.insert(cands, c + f * k)
+			end
 		end
-		if V.H >= 9.5 and Common.ceilFree(K, p.X, p.Z, 1.2) then
-			ringChandelier(K, V, p, math.min(4.2, V.W * 0.2), th)
+		table.insert(cands, V3((V.x0 + V.x1) / 2 - V.W * 0.25, 0, (V.z0 + V.z1) / 2 + 0.5))
+		if V.H >= 9.5 then
+			for _, p in cands do
+				if Common.ceilFree(K, p.X, p.Z, 0.7) then
+					ringChandelier(K, V, p, math.min(4.2, V.W * 0.2), th)
+					break
+				end
+			end
 		end
 	end)
 	-- 객실 요금 사이니지 (데스크 옆, 입구 쪽)
@@ -1618,17 +1723,21 @@ local function buildHotel(K: any, V: any, S: any)
 	end)
 	-- 짐 카트 · 브로슈어 랙 · 우산 비닐 · 화분
 	step(K, "cart", function()
-		local cands = {}
-		for _, z in { 1.5, 0.5, 2.5, -0.5, 3.0 } do
-			table.insert(cands, V3(V.x1 - 1.2, 0, z))
-			table.insert(cands, V3(V.x0 + 1.2, 0, z))
+		local d = V.door
+		local pref = if d then V3(d.x, 0, V.z1 - 3) else V3(0, 0, V.z1 - 3)
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 3.3, 1.9, 5.1, pref, 0.05, "cart")
+		if not (wn and pcf) then
+			-- 벽에 못 붙이면 입구 옆 빈 바닥
+			local cands = {}
+			for _, x in { -1, 1 } do
+				for _, z in { 3.4, 2.6, 1.6 } do
+					table.insert(cands, V3((if d then d.x else 0) + x * ((if d then d.w / 2 else 2.4) + 4.2), 0, math.min(z, V.z1 - 3.6)))
+				end
+			end
+			pcf = floorSpot(K, cands, V3(3.3, 5.1, 1.9), V3(0, 0, 1), 0.05, "cart")
 		end
-		if desk then
-			table.insert(cands, 1, V3(desk.max.X + 1.6, 0, desk.c.Z + 0.5))
-		end
-		local pcf = floorSpot(K, cands, V3(1.8, 5.1, 3.2), V3(-1, 0, 0), 0.1, "cart")
 		if pcf then
-			luggageCart(K, pcf, th)
+			luggageCart(K, pcf * ANG(0, PI / 2, 0), th)
 		end
 	end)
 	step(K, "brochure", function()
@@ -1643,9 +1752,9 @@ local function buildHotel(K: any, V: any, S: any)
 			return
 		end
 		local cands = { V3(d.x - d.w / 2 - 2.9, 0, V.z1 - 1.0), V3(d.x + d.w / 2 + 2.9, 0, V.z1 - 1.0), V3(d.x - d.w / 2 - 2.9, 0, V.z1 - 2.6), V3(d.x + d.w / 2 + 2.9, 0, V.z1 - 2.6) }
-		local pcf = floorSpot(K, cands, V3(1.4, 3.0, 1.0), V3(0, 0, -1), 0.05, "umbrella")
+		local pcf = floorSpot(K, cands, V3(2.4, 3.0, 1.0), V3(0, 0, 1), 0.05, "umbrella")
 		if pcf then
-			umbrellaBagger(K, pcf)
+			umbrellaBagger(K, pcf, if pcf.Position.X < d.x then -1 else 1)
 		end
 	end)
 	step(K, "plants", function()
@@ -1659,17 +1768,19 @@ local function buildHotel(K: any, V: any, S: any)
 	end)
 	-- 벽: 층별 안내 · 와이파이 · 관광 포스터 · 비상구
 	step(K, "walls", function()
-		local wn, d = wallItemSpot(K, { "back", "left", "right" }, 2.2, 3.6, 6.8, -V.W / 2 + 3)
+		local els = V.byName.ElevatorDoor
+		local ep = if els and els[1] then els[1].c else V3(0, 0, V.z0)
+		local wn, d = spotNear(K, { "back", "left", "right" }, 2.2, 3.6, 6.8, ep + V3(-4, 0, 0))
 		if wn and d then
 			K:plate("DirBoard", 2.2, 3.2, 0.08, d, lk(darker(th.wallBack.c, 0.1)))
 			txt(K, "DirTitle", 1.9, 0.4, d * CF(0, 1.3, 0.09), "FLOOR GUIDE  층별 안내", th.accent, nil, { font = F.GothamBold })
 			txt(K, "DirBody", 1.9, 2.3, d * CF(0, -0.2, 0.09), "R   루프탑 바 · 인피니티 풀\n16F  스카이 라운지\n3-15F  객실 ROOMS\n2F  조식 레스토랑 · 피트니스\n1F  로비 · 프런트 · 편의점\nB1  주차장 PARKING", lighter(th.accent, 0.5), nil, { font = F.GothamMedium, align = "Left" })
 		end
-		local wn2, d2 = wallItemSpot(K, { "right", "left", "back" }, 1.6, 4.0, 6.2, V.D / 2 - 3)
+		local wn2, d2 = spotNear(K, { "right", "left", "back" }, 1.6, 4.0, 6.2, V3(V.x1, 0, 1))
 		if wn2 and d2 then
 			Props.frame(K, d2, 1.5, 2.0, { frame = th.trim, text = "광안리 해변\n도보 1분\n\nBEACH 1 MIN\n\n체크아웃 후\n짐 보관 무료", fg = C(30, 50, 80), bg = C(238, 242, 244), border = 0.06 })
 		end
-		local wn3, d3 = wallItemSpot(K, { "left", "right" }, 1.7, 7.2, 7.9, V.D / 2 - 1.5)
+		local wn3, d3 = spotNear(K, { "left", "right" }, 1.7, math.min(7.2, V.H - 1.4), math.min(7.9, V.H - 0.7), V3(V.x0, 0, V.z1 - 2))
 		if wn3 and d3 then
 			exitSign(K, d3)
 		end

@@ -182,7 +182,7 @@ function Fx.update(_dt: number)
 		point.Range = 16
 		spot.Color = hsv(hue + 0.5, 0.6, 1)
 		spot.Brightness = if hot then 3 else 1.6
-		ballAnchor.CFrame = CFrame.new(ballAnchor.Position) * CFrame.Angles(0, t * 0.8, 0) * CFrame.Angles(math.rad(-65 + 20 * math.sin(t * 0.9)), 0, 0)
+		ballAnchor.CFrame = CFrame.new(ballAnchor.CFrame.Position) * CFrame.Angles(0, t * 0.8, 0) * CFrame.Angles(math.rad(-65 + 20 * math.sin(t * 0.9)), 0, 0)
 		for i, b in beams do
 			b.beam.Enabled = hot
 			if hot then

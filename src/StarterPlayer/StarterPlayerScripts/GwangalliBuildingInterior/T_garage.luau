@@ -2106,8 +2106,8 @@ local function buildShowroom(K: any, V: any)
 		D.plate("PriceBoardFrame", pw + 0.24, ph + 0.24, 0.12, pdcf, L.alu)
 		D.plate("PriceBoardFace", pw, ph, 0.14, pdcf, lk(C(250, 250, 246)))
 		D.label("PriceBoardTitle", pw, 0.72, pdcf * CF(0, ph / 2 - 0.36, 0.14), "차량 가격표 (원)", WHITE, NAVY, { d = 0.01, font = Enum.Font.GothamBlack })
-		local colX = { -pw / 2 + pw * 0.2, -pw / 2 + pw * 0.56, -pw / 2 + pw * 0.83 }
-		local colW = { pw * 0.36, pw * 0.34, pw * 0.3 }
+		local colX = { -pw / 2 + pw * 0.165, -pw / 2 + pw * 0.5, -pw / 2 + pw * 0.835 }
+		local colW = { pw * 0.33, pw * 0.335, pw * 0.335 }
 		local hy = ph / 2 - 0.72 - 0.22
 		for ci, hd in { "차종", "신차", "중고" } do
 			D.label("PriceColHead", colW[ci] - 0.08, 0.34, pdcf * CF(colX[ci], hy, 0.145), hd, C(90, 96, 108), C(226, 230, 236), { d = 0.005, font = Enum.Font.GothamBold })
