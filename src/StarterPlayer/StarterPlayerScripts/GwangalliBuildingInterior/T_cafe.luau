@@ -4693,6 +4693,88 @@ local function floorIslands(K: any, V: any, B: any, ctx: any)
 	end
 end
 
+-- X배너 (입구 쪽 옆벽 앞): 엑스자 받침 + 세로 현수막 (로고 · 음료/디저트 그림 · 신메뉴 · 가격)
+local function xBanner(K: any, pcf: CFrame, B: any)
+	if not room(K, 16) then
+		return
+	end
+	local h = 5.0
+	for _, sx in { -1, 1 } do
+		K:seg("XBannerLeg", (pcf * CF(sx * 0.55, 0.02, 0.35)).Position, (pcf * CF(-sx * 0.55, 0.02, -0.35)).Position, 0.06, Look.alu)
+	end
+	K:box("XBannerHub", V3(0.14, 0.1, 0.14), pcf * CF(0, 0.06, 0), Look.darkAlu)
+	K:seg("XBannerPole", (pcf * CF(0, 0.1, -0.05)).Position, (pcf * CF(0, h + 0.15, -0.05)).Position, 0.05, Look.alu)
+	for _, sx in { -1, 1 } do
+		K:seg("XBannerArm", (pcf * CF(0, 0.5, -0.05)).Position, (pcf * CF(sx * 0.82, 0.32, -0.03)).Position, 0.035, Look.alu)
+		K:seg("XBannerArm", (pcf * CF(0, h - 0.4, -0.05)).Position, (pcf * CF(sx * 0.82, h + 0.12, -0.03)).Position, 0.035, Look.alu)
+	end
+	local face = pcf * CF(0, 0.3 + (h - 0.2) / 2, 0)
+	K:box("XBanner", V3(1.7, h - 0.2, 0.02), face, lk(B.paper or rgb(255, 255, 255)))
+	K:plate("XBannerTop", 1.7, 1.0, 0.012, face * CF(0, (h - 0.2) / 2 - 0.5, 0.01), lk(B.c1))
+	K:text("XBannerLogo", 1.5, 0.5, face * CF(0, (h - 0.2) / 2 - 0.5, 0.025), B.logo or B.title, { fg = onColor(B.c1), font = F.FredokaOne, d = 0.003 })
+	local kinds = { tanghulu = "strawberry", waffle = "strawberry", churros = "choco", hotteok = "latte", bingsu = "strawberry" }
+	glyph(K, face * CF(0, 0.25, 0.022), 1.4, kinds[B.key] or "latte")
+	K:text("XBannerNew", 1.0, 0.32, face * CF(0, -0.75, 0.022), B.promo[1], { fg = rgb(255, 255, 255), bg = rgb(230, 60, 80), font = F.GothamBlack, d = 0.003 })
+	K:text("XBannerName", 1.55, 0.42, face * CF(0, -1.2, 0.022), B.promo[2], { fg = B.ink, font = F.GothamBlack, d = 0.003 })
+	K:text("XBannerPrice", 1.3, 0.36, face * CF(0, -1.65, 0.022), B.promo[3] .. "원", { fg = dk(B.c1, 0.3), font = F.GothamBlack, d = 0.003 })
+end
+
+-- 큰 아이스크림 콘 조형물 (젤라또 가게 입구 옆)
+local function coneStatue(K: any, pcf: CFrame, B: any)
+	if not room(K, 14) then
+		return
+	end
+	K:disc("ConeBase", 1.3, 0.16, pcf * CF(0, 0.08, 0), Look.white)
+	K:vcyl("ConePost", 0.5, 0.25, pcf * CF(0, 0.4, 0), Look.chrome)
+	-- 콘: 아래로 갈수록 좁은 원통 6단 + 와플 무늬 띠
+	for k = 0, 5 do
+		local dia = 0.22 + k * 0.17
+		K:vcyl("ConeWafer", 0.36, dia, pcf * CF(0, 0.82 + k * 0.34, 0), lk(rgb(214, 160, 90), M.Sand))
+	end
+	K:ring("ConeBand", pcf * CF(0, 2.0, 0) * ANG(PI / 2, 0, 0), 0.5, 0.06, 10, lk(rgb(176, 120, 60)))
+	local cols = { lt(B.c3 or rgb(250, 180, 190), 0.2), rgb(250, 246, 236), rgb(120, 76, 50) }
+	K:ball("ConeScoop", 1.25, pcf * CF(0, 3.1, 0), lk(cols[1]))
+	K:ball("ConeScoop", 1.05, pcf * CF(0.05, 3.85, 0.05), lk(cols[2]))
+	K:ball("ConeCherry", 0.3, pcf * CF(0.1, 4.45, 0.1), lk(rgb(220, 30, 50)))
+	K:seg("ConeStem", (pcf * CF(0.1, 4.55, 0.1)).Position, (pcf * CF(0.2, 4.8, 0.05)).Position, 0.04, lk(rgb(60, 100, 40)))
+end
+
+local function dessertFloor(K: any, V: any, B: any, ctx: any)
+	if not (B.key == "waffle" or B.key == "churros" or B.key == "tanghulu" or B.key == "bingsu" or B.key == "hotteok") then
+		return
+	end
+	-- 입구 안쪽 양옆 (창가 keep 띠 z1 - 1.8 보다 안쪽), 입구 쪽(+Z)으로 30도 돌려 들어오는 손님이 보게
+	local function find(size: Vector3, first: number): CFrame?
+		for _, sx in { first, -first } do
+			for _, dz in { 2.9, 3.6, 4.4, 5.2 } do
+				for _, dx in { 1.3, 2.0, 2.8, 3.6 } do
+					local x = if sx > 0 then V.x1 - dx else V.x0 + dx
+					local p = V3(x, 0, V.z1 - dz)
+					local dir = (V3(0, 0, 1) + V3(-sx * 0.6, 0, 0)).Unit
+					local pcf = CFrame.lookAt(p, p - dir)
+					if spotX(K, pcf, size, 0.15, "sign") then
+						return pcf
+					end
+				end
+			end
+		end
+		return nil
+	end
+	local first = if (B.seed % 2) == 0 then 1 else -1
+	local pb = find(V3(1.9, 5.3, 1.3), first)
+	if pb then
+		xBanner(K, pb, B)
+		table.insert(ctx.placed, "xbanner" .. ctx.where(pb))
+	end
+	if B.key ~= "hotteok" then
+		local pc = find(V3(1.4, 4.9, 1.4), -first)
+		if pc then
+			coneStatue(K, pc, B)
+			table.insert(ctx.placed, "cone" .. ctx.where(pc))
+		end
+	end
+end
+
 -- 스타벅스: 계산대 뒤 맵 GreenTileWall (거의 검은 초록) -> 같은 자리 광택 그린 서브웨이 타일 + 줄눈 + 황동 몰딩
 local function starbucksTiles(K: any, V: any)
 	for _, r in V.byName.GreenTileWall or {} do
@@ -4812,6 +4894,7 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 	end
 	ctx.fillN = n
 	floorIslands(K, V, B, ctx)
+	dessertFloor(K, V, B, ctx)
 end
 
 -- 짓기 ------------------------------------------------------------------------------------------------------

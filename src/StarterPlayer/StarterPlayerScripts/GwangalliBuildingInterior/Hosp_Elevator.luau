@@ -399,6 +399,10 @@ function E.build(K: any, env: any)
 		end
 		st.calls[f] = true
 		lightRings()
+		-- 다른 층을 누르면 문이 열려 있던 시간을 줄여 곧 닫힘 (실제 승강기처럼 약 2 초 뒤)
+		if st.mode == "open" then
+			st.tOpen = math.min(st.tOpen, os.clock() - 2.2)
+		end
 	end
 	local function nextTarget(): number?
 		local best, bd = nil, 1e9
