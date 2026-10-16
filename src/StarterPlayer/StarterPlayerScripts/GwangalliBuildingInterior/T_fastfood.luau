@@ -1513,8 +1513,9 @@ local function tablePendants(ctx: any, o: any)
 			local placed = false
 			for _, dz in { 0, 0.5, -0.5, 0.9, -0.9 } do
 				local zz = math.clamp(z + dz, t.min.Z + 0.2, t.max.Z - 0.2)
-				if Common.ceilFree(K, x, zz, 0.55) then
-					local drop = math.clamp(V.H - 6.6, 1.6, 3.6)
+				local drop = math.clamp(V.H - 6.6, 1.6, 3.6)
+				local r0 = (o.dia or 1.15) / 2 + 0.1
+				if Common.ceilFree(K, x, zz, 0.55) and not K:hitsKeep(V3(x - r0, V.H - drop - 0.4, zz - r0), V3(x + r0, V.H, zz + r0)) then
 					local withLight = nLight < (o.lights or 1) and #K.lights < (V.maxLights or 8) - 2
 					K:free(function()
 						Props.pendant(K, V3(x, V.H, zz), drop, { shade = o.shade or "dome", dia = o.dia or 1.15, look = o.look, glow = o.glow, light = withLight, range = 12, bright = 0.6 })
@@ -3090,6 +3091,28 @@ local function subwayBuild(ctx: any)
 				},
 			})
 		end
+	end
+	-- 샌드위치 사진 메뉴 띠 (흰 벽 위쪽)
+	local sd, fw = wallSpotFit(ctx, { "left", "right", "back" }, { 9.6, 7.8, 6.3, 4.4, 3.5 }, 7.0, 8.95, 0)
+	if sd then
+		local items = {
+			{ "에그마요", "5,900", artSandwich(0, 0.22, 0.6) },
+			{ "이탈리안 비엠티", "7,400", artSandwich(0, 0.22, 0.6) },
+			{ "써브웨이 클럽", "7,900", artSandwich(0, 0.22, 0.6) },
+			{ "스테이크 & 치즈", "8,900", artSandwich(0, 0.22, 0.6) },
+			{ "로티세리 치킨", "7,900", artSandwich(0, 0.22, 0.6) },
+			{ "쉬림프", "8,200", artSandwich(0, 0.22, 0.6) },
+		}
+		local n = math.clamp(math.floor((fw - 0.3) / 1.4), 2, 6)
+		while #items > n do
+			table.remove(items)
+		end
+		-- 재료 색 바꿔 메뉴마다 다르게
+		local meat = { rgb(240, 236, 210), rgb(200, 90, 80), rgb(236, 170, 150), rgb(150, 90, 60), rgb(220, 170, 110), rgb(250, 160, 120) }
+		for i, it in items do
+			it[3][2][6] = meat[i]
+		end
+		photoStrip(ctx, sd, fw - 0.3, 1.8, items, { priceC = rgb(0, 120, 56), frame = L.of(0, 100, 50) })
 	end
 	-- 칩 랙 (계산대 근처 손님 쪽) + 음료 냉장고는 맵 것
 	local cp = floorSpot(ctx, { walls = { "right", "left", "back" }, w = 1.6, h = 4.6, d = 1.0, pref = { right = "back", left = "back" }, front = 0.8 })

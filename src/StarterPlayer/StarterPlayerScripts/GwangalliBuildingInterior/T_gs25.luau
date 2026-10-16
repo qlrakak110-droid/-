@@ -478,72 +478,117 @@ local function cigaretteWall(ctx: any)
 	hideName(ctx, "CigarettePacks")
 	local x0, x1 = cab.mn.X + 0.38, cab.mx.X - 0.45
 	local zf = cab.mx.Z -- 캐비닛 앞면 (+Z)
+	-- 계산대 뒤 장비가 캐비닛 아래쪽 앞을 가림 (스티머 · 커피머신 · 직원 전자레인지): 그 앞은 비움
+	local obst = {}
+	for _, nm in { "SteamerGlass", "SteamerHeader", "CoffeeMachine", "StaffMicrowave", "HotBar" } do
+		for _, e in all(ctx, nm) do
+			table.insert(obst, { e.mn.X - 0.06, e.mx.X + 0.06, e.mx.Y + 0.04 })
+		end
+	end
+	-- 줄 y 에서 [a, b] 를 장애물 피한 구간들로
+	local function freeSpans(a: number, b: number, y: number): { { number } }
+		local cuts = {}
+		for _, o in obst do
+			if o[3] > y then
+				table.insert(cuts, o)
+			end
+		end
+		table.sort(cuts, function(p, q)
+			return p[1] < q[1]
+		end)
+		local out = {}
+		local cur = a
+		for _, c in cuts do
+			if c[1] > cur then
+				table.insert(out, { cur, math.min(c[1], b) })
+			end
+			cur = math.max(cur, c[2])
+		end
+		if cur < b then
+			table.insert(out, { cur, b })
+		end
+		local res = {}
+		for _, sp in out do
+			if sp[2] - sp[1] > 0.45 then
+				table.insert(res, sp)
+			end
+		end
+		return res
+	end
 	local brands = {
-		{ rgb(250, 250, 250), rgb(40, 90, 170), "에쎄" },
-		{ rgb(250, 250, 250), rgb(200, 30, 36), "말보로" },
-		{ rgb(244, 240, 230), rgb(196, 160, 80), "골드" },
-		{ rgb(110, 60, 150), rgb(250, 250, 250), "레종" },
-		{ rgb(30, 60, 140), rgb(240, 240, 240), "디스" },
-		{ rgb(250, 250, 250), rgb(28, 40, 80), "던힐" },
-		{ rgb(150, 196, 230), rgb(250, 250, 250), "메비우스" },
-		{ rgb(24, 24, 26), rgb(196, 160, 80), "보헴" },
-		{ rgb(250, 250, 250), rgb(230, 120, 30), "더원" },
-		{ rgb(236, 200, 60), rgb(120, 70, 30), "카멜" },
+		{ rgb(250, 250, 250), "에쎄" }, { rgb(244, 240, 230), "골드" }, { rgb(110, 60, 150), "레종" }, { rgb(30, 60, 140), "디스" },
+		{ rgb(250, 250, 250), "던힐" }, { rgb(150, 196, 230), "메비우스" }, { rgb(24, 24, 26), "보헴" }, { rgb(250, 120, 40), "더원" },
+		{ rgb(200, 30, 36), "말보로" }, { rgb(236, 200, 60), "카멜" },
 	}
 	local warn = { rgb(70, 52, 48), rgb(96, 40, 36), rgb(54, 60, 66), rgb(120, 90, 70) }
 	local xe = x1 - 1.75 -- 오른쪽 1.75 = 전자담배 칸
 	local pitch = 0.5
-	local n = math.floor((xe - x0) / pitch)
 	local prices = {}
 	for r = 0, 5 do
 		local y = 4.45 + r * 0.8
-		-- 선반 (아크릴) + 앞 턱 + 가격표 띠
-		Q:box("CigShelf", V3(x1 - x0 + 0.2, 0.05, 0.36), CF((x0 + x1) / 2, y - 0.025, zf + 0.2), lk(rgb(236, 238, 240), M.SmoothPlastic, { t = 0.1 }))
-		Q:box("CigLip", V3(x1 - x0 + 0.2, 0.14, 0.03), CF((x0 + x1) / 2, y + 0.05, zf + 0.39), lk(rgb(220, 230, 236), M.Glass, { t = 0.55 }))
-		table.clear(prices)
-		for i = 0, n - 1 do
-			local b = brands[(i * 3 + r * 7) % #brands + 1]
-			local x = x0 + pitch * (i + 0.5)
-			local c = CF(x, y + 0.3, zf + 0.16)
-			Q:box("CigPack", V3(0.4, 0.6, 0.2), c, lk(b[1]))
-			Q:box("CigPackWarn", V3(0.4, 0.17, 0.205), c * CF(0, 0.21, 0), lk(warn[(i + r) % #warn + 1]))
-			table.insert(prices, if (i + r) % 5 == 0 then "4,800" else "4,500")
+		for _, sp in freeSpans(x0, x1, y) do
+			local a, b = sp[1], sp[2]
+			-- 선반 (아크릴) + 앞 턱
+			Q:box("CigShelf", V3(b - a, 0.05, 0.36), CF((a + b) / 2, y - 0.025, zf + 0.2), lk(rgb(236, 238, 240), M.SmoothPlastic, { t = 0.1 }))
+			Q:box("CigLip", V3(b - a, 0.14, 0.03), CF((a + b) / 2, y + 0.05, zf + 0.39), lk(rgb(220, 230, 236), M.Glass, { t = 0.55 }))
+			-- 일반 담배
+			local ra, rb = a, math.min(b, xe)
+			if rb - ra > 0.45 then
+				local n = math.floor((rb - ra) / pitch)
+				local x00 = ra + ((rb - ra) - n * pitch) / 2
+				table.clear(prices)
+				for i = 0, n - 1 do
+					local k = math.floor((x00 + i * pitch) * 2 + 0.5)
+					local br = brands[(k * 3 + r * 7) % #brands + 1]
+					local c = CF(x00 + pitch * (i + 0.5), y + 0.3, zf + 0.16)
+					Q:box("CigPack", V3(0.4, 0.6, 0.2), c, lk(br[1]))
+					Q:box("CigPackWarn", V3(0.4, 0.17, 0.205), c * CF(0, 0.21, 0), lk(warn[(k + r) % #warn + 1]))
+					table.insert(prices, if (k + r) % 5 == 0 then "4,800" else "4,500")
+				end
+				txt(ctx, "CigPrice", rb - ra, 0.13, fc(V3((ra + rb) / 2, y - 0.09, zf + 0.405), ZA), table.concat(prices, "   "), INK, rgb(252, 252, 250), { font = F.GothamBold, d = 0.01 })
+			end
+			-- 전자담배 칸
+			local ea, eb = math.max(a, xe + 0.1), b
+			if eb - ea > 0.45 then
+				local label = "라이터 500원"
+				if r >= 4 then
+					local devs = { { rgb(236, 238, 240), rgb(40, 110, 160) }, { rgb(30, 40, 70), rgb(240, 240, 240) }, { rgb(150, 154, 160), rgb(250, 250, 250) } }
+					local j = 0
+					while ea + 0.27 + j * 0.55 + 0.25 <= eb do
+						local d = devs[(j + r) % 3 + 1]
+						local c = CF(ea + 0.27 + j * 0.55, y + 0.33, zf + 0.17)
+						Q:box("ECigBox", V3(0.5, 0.66, 0.24), c, lk(d[1]))
+						Q:box("ECigBoxStripe", V3(0.5, 0.1, 0.245), c * CF(0, -0.12, 0), lk(d[2]))
+						j += 1
+					end
+					label = "일루마 · 글로 · 릴 기기 문의"
+				elseif r >= 1 then
+					local sticks = { rgb(236, 160, 40), rgb(40, 170, 160), rgb(120, 70, 160), rgb(230, 220, 70), rgb(60, 120, 200), rgb(90, 170, 90) }
+					local j = 0
+					while ea + 0.16 + j * 0.33 + 0.14 <= eb do
+						local c = CF(ea + 0.16 + j * 0.33, y + 0.24, zf + 0.15)
+						Q:box("StickPack", V3(0.28, 0.48, 0.18), c, lk(WHITE))
+						Q:box("StickPackColor", V3(0.28, 0.24, 0.185), c * CF(0, -0.06, 0), lk(sticks[(j + r * 2) % #sticks + 1]))
+						j += 1
+					end
+					label = "테리아 · 네오 · 핏 4,800"
+				else
+					local lc = { RED, YEL, rgb(40, 160, 70), rgb(40, 110, 220), rgb(240, 110, 170), rgb(250, 140, 30), rgb(120, 70, 190) }
+					local j = 0
+					while ea + 0.08 + j * 0.16 + 0.06 <= eb do
+						Q:box("Lighter", V3(0.12, 0.42, 0.08), CF(ea + 0.08 + j * 0.16, y + 0.21, zf + 0.15), lk(lc[j % #lc + 1], M.SmoothPlastic, { t = 0.15 }))
+						Q:box("LighterCap", V3(0.12, 0.06, 0.08), CF(ea + 0.08 + j * 0.16, y + 0.45, zf + 0.15), L_CHROME)
+						j += 1
+					end
+				end
+				txt(ctx, "CigPrice", eb - ea, 0.13, fc(V3((ea + eb) / 2, y - 0.09, zf + 0.405), ZA), label, INK, rgb(252, 252, 250), { font = F.GothamBold, d = 0.01 })
+			end
 		end
-		txt(ctx, "CigPrice", xe - x0, 0.13, fc(V3((x0 + xe) / 2, y - 0.09, zf + 0.405), ZA), table.concat(prices, "   "), INK, rgb(252, 252, 250), { font = F.GothamBold, d = 0.01 })
-		-- 전자담배 칸
-		local ex = xe + 0.1
-		if r >= 4 then
-			-- 기기 상자 (일루마 · 글로 · 릴)
-			local devs = { { rgb(236, 238, 240), rgb(40, 110, 160) }, { rgb(30, 40, 70), rgb(240, 240, 240) }, { rgb(150, 154, 160), rgb(250, 250, 250) } }
-			for j = 0, 2 do
-				local d = devs[(j + r) % 3 + 1]
-				local c = CF(ex + 0.27 + j * 0.55, y + 0.33, zf + 0.17)
-				Q:box("ECigBox", V3(0.5, 0.66, 0.24), c, lk(d[1]))
-				Q:box("ECigBoxStripe", V3(0.5, 0.1, 0.245), c * CF(0, -0.12, 0), lk(d[2]))
-			end
-		elseif r >= 1 then
-			local sticks = { rgb(236, 160, 40), rgb(40, 170, 160), rgb(120, 70, 160), rgb(230, 220, 70), rgb(60, 120, 200), rgb(90, 170, 90) }
-			for j = 0, 4 do
-				local c = CF(ex + 0.16 + j * 0.33, y + 0.24, zf + 0.15)
-				Q:box("StickPack", V3(0.28, 0.48, 0.18), c, lk(WHITE))
-				Q:box("StickPackColor", V3(0.28, 0.24, 0.185), c * CF(0, -0.06, 0), lk(sticks[(j + r * 2) % #sticks + 1]))
-			end
-		else
-			-- 라이터 줄
-			local lc = { RED, YEL, rgb(40, 160, 70), rgb(40, 110, 220), rgb(240, 110, 170), rgb(250, 140, 30), rgb(120, 70, 190) }
-			for j = 0, 9 do
-				Q:box("Lighter", V3(0.12, 0.42, 0.08), CF(ex + 0.08 + j * 0.16, y + 0.21, zf + 0.15), lk(lc[j % #lc + 1], M.SmoothPlastic, { t = 0.15 }))
-				Q:box("LighterCap", V3(0.12, 0.06, 0.08), CF(ex + 0.08 + j * 0.16, y + 0.45, zf + 0.15), L_CHROME)
-			end
-		end
-		txt(ctx, "CigPrice", 1.6, 0.13, fc(V3(ex + 0.82, y - 0.09, zf + 0.405), ZA), if r >= 4 then "기기 문의" elseif r >= 1 then "4,800   4,800   4,800" else "라이터 500원", INK, rgb(252, 252, 250), { font = F.GothamBold, d = 0.01 })
 	end
 	-- 칸막이 (일반 / 전자담배) + 위 LED 조명
-	Q:box("CigDivider", V3(0.05, 4.9, 0.4), CF(xe + 0.05, 6.75, zf + 0.2), lk(rgb(30, 30, 34)))
+	Q:box("CigDivider", V3(0.05, 3.3, 0.4), CF(xe + 0.05, 7.55, zf + 0.2), lk(rgb(30, 30, 34)))
 	local led = Q:box("CigLED", V3(x1 - x0, 0.05, 0.08), CF((x0 + x1) / 2, 9.22, zf + 0.35), Look.lampCool)
 	Q:light(led, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 0.55, Angle = 110, Color = Look.coolLight })
-	-- 담배장 아래 안내 (신분증)
-	txt(ctx, "CigNotice", 3.2, 0.24, fc(V3(x1 - 1.6, 4.27, zf + 0.42), ZA), "만 19세 미만 판매 금지 · 신분증 확인", WHITE, RED, { font = F.GothamBold, d = 0.01 })
 end
 
 -- 카페25 머신 (맵 CoffeeMachine 자리, 계산대 뒤)
@@ -559,19 +604,23 @@ local function cafe25(ctx: any)
 	local cx, cz, y0 = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2, mn.Y
 	local base = CF(cx, y0, cz) -- +Z = 손님 쪽
 	local body = lk(rgb(34, 36, 40), M.Metal)
-	Q:box("Cafe25Body", V3(w - 0.1, 2.15, d - 0.2), base * CF(0, 1.1, -0.1), body)
+	-- 담배장 앞면 (z) 보다 앞에서 시작 (맵 커피머신은 캐비닛에 박혀 있었음)
+	local cabE = one(ctx, "CigaretteCabinet")
+	local zBack = math.max(mn.Z, if cabE then cabE.mx.Z + 0.05 else mn.Z)
+	local dd = mx.Z - 0.15 - zBack
+	local bz = (zBack + mx.Z - 0.15) / 2 - cz
+	Q:box("Cafe25Body", V3(w - 0.1, 2.15, dd), base * CF(0, 1.1, bz), body)
 	for _, sx in { -1, 1 } do
-		Q:box("Cafe25Side", V3(0.05, 2.15, d - 0.25), base * CF(sx * (w / 2 - 0.05), 1.1, -0.1), Look.brushed)
+		Q:box("Cafe25Side", V3(0.05, 2.15, dd - 0.05), base * CF(sx * (w / 2 - 0.05), 1.1, bz), Look.brushed)
 	end
 	-- 원두 호퍼 2 (투명 + 원두)
 	for j, hx in { -0.45, 0.45 } do
-		Q:box("Cafe25Hopper", V3(0.8, 0.5, 0.9), base * CF(hx, 2.45, -0.3), { c = rgb(220, 230, 236), m = M.Glass, t = 0.55 })
-		Q:box("Cafe25Beans", V3(0.72, if j == 1 then 0.34 else 0.22, 0.82), base * CF(hx, if j == 1 then 2.37 else 2.31, -0.3), lk(rgb(80, 48, 30), M.Sand))
-		Q:box("Cafe25HopperLid", V3(0.84, 0.06, 0.94), base * CF(hx, 2.73, -0.3), Look.plasticBlack)
+		Q:box("Cafe25Hopper", V3(0.8, 0.5, 0.7), base * CF(hx, 2.45, bz), { c = rgb(220, 230, 236), m = M.Glass, t = 0.55 })
+		Q:box("Cafe25Beans", V3(0.72, if j == 1 then 0.34 else 0.22, 0.62), base * CF(hx, if j == 1 then 2.37 else 2.31, bz), lk(rgb(80, 48, 30), M.Sand))
+		Q:box("Cafe25HopperLid", V3(0.84, 0.06, 0.74), base * CF(hx, 2.73, bz), Look.plasticBlack)
 	end
 	-- 앞면: 화면 + 로고 + 추출부 + 컵 받침
-	local fz = cz + d / 2 - 0.2 + (d - 0.2) / 2 - (d - 0.2) / 2 -- 앞면 z (몸체 앞)
-	fz = (base * CF(0, 0, -0.1 + (d - 0.2) / 2)).Position.Z
+	local fz = mx.Z - 0.15 -- 앞면 z (몸체 앞)
 	local front = fc(V3(cx, y0, fz), ZA)
 	Q:plate("Cafe25Bezel", 1.05, 0.72, 0.03, front * CF(0.35, 1.72, 0), Look.plasticBlack)
 	local scr = Q:plate("Cafe25Screen", 0.92, 0.6, 0.02, front * CF(0.35, 1.72, 0.03), lk(rgb(20, 60, 110), M.Neon, { t = 0.25 }))
@@ -587,7 +636,7 @@ local function cafe25(ctx: any)
 	Q:vcyl("Cafe25Cup", 0.62, 0.42, front * CF(0, 0.47, 0.26), lk(rgb(248, 246, 240)))
 	Q:vcyl("Cafe25CupSleeve", 0.24, 0.44, front * CF(0, 0.45, 0.26), lk(rgb(150, 100, 60), M.Cardboard))
 	-- 컵 쌓기 (위)
-	Q:vcyl("Cafe25CupStack", 0.5, 0.36, base * CF(0.9 - w / 2 + 0.2, 2.45, 0.3), lk(rgb(248, 246, 240)))
+
 	Interact.screenLoop(K, scr, scrLabel, {
 		{ text = "아메리카노\nHOT 1,200원", c = rgb(20, 60, 110) },
 		{ text = "아이스 아메리카노\nICE 1,500원", c = rgb(16, 80, 120) },
@@ -1099,6 +1148,14 @@ local function chillerDress(ctx: any)
 			table.insert(rails, r)
 		end
 	end
+	local ci = one(ctx, "Station_chiller_items")
+	if ci then
+		for i = #rails, 1, -1 do
+			if math.abs(rails[i].c.Y - ci.c.Y) < 0.6 then
+				table.remove(rails, i)
+			end
+		end
+	end
 	local list = { "삼각김밥 1,300 · 1,500", "김밥 3,200 · 3,500", "샌드위치 3,400 · 햄버거 3,900", "도시락 4,900 · 5,900", "샐러드 4,500 · 디저트 3,200" }
 	-- 레일 앞면에 붙는 얇은 띠 (선반 물건 자리 · 직원 스탠드 자리는 그대로)
 	ctx.Q:free(function()
@@ -1144,7 +1201,7 @@ local function freezer(ctx: any)
 	end)
 	txt(ctx, "FreezerTemp", 0.7, 0.24, pcfF * CF(w / 2 - 0.6, h - 1.05, d / 2 + 0.01), "-18°C", rgb(120, 220, 255), rgb(10, 20, 30), { font = F.GothamBold, d = 0.01, glow = 1.3 })
 	for _, dr in case.doors do
-		swingB(ctx, dr.model, dr.hingeB, dr.side * -1.45, { object = "냉동고", openText = "문 열기", closeText = "문 닫기", sound = "rbxasset://sounds/clickfast.wav" })
+		swingB(ctx, dr.model, dr.hingeB, dr.side * 1.45, { object = "냉동고", openText = "문 열기", closeText = "문 닫기", sound = "rbxasset://sounds/clickfast.wav" })
 	end
 end
 
@@ -1228,7 +1285,7 @@ local function atmBooth(ctx: any)
 	-- 수수료 안내 (화면 옆) + 거울
 	local front = mn.X - 0.01
 	txt(ctx, "ATMFee", 0.75, 0.9, fc(V3(front, 4.9, mx.Z - 0.45), -XA), "수수료\n영업시간 내\n1,000원", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.01 })
-	Q:ell("ATMMirror", V3(0.6, 0.6, 0.14), fc(V3(front + 0.02, 6.05, (mn.Z + mx.Z) / 2), -XA), { c = rgb(210, 220, 226), m = M.Glass, r = 0.5, t = 0.05 })
+	Q:ell("ATMMirror", V3(0.6, 0.6, 0.14), fc(V3(front - 0.08, 6.05, (mn.Z + mx.Z) / 2), -XA), { c = rgb(210, 220, 226), m = M.Glass, r = 0.5, t = 0.05 })
 	Q:box("ATMFloorMat", V3(1.8, 0.04, mx.Z - mn.Z - 0.4), CF(mn.X - 1.0, 0.02, (mn.Z + mx.Z) / 2), lk(rgb(46, 48, 52), M.Rubber))
 end
 
@@ -1255,7 +1312,7 @@ local function hotStation(ctx: any)
 	end
 	Q:plate("HotNosing", zlen, 0.08, 0.06, fd(3.36, (cab.mn.Z + cab.mx.Z) / 2), L_STEEL)
 	-- 사용 안내 스티커
-	txt(ctx, "MicroGuide", 2.2, 0.38, fd(2.9, cab.mn.Z + 2.4) * CF(0, 0, 0.04), "도시락 1분30초 · 삼각김밥 20초\n금속 용기 X", INK, rgb(255, 240, 160), { font = F.GothamBold, d = 0.01 })
+	txt(ctx, "MicroGuide", 2.2, 0.38, fd(2.9, cab.mn.Z + 3.25) * CF(0, 0, 0.04), "도시락 1분30초 · 삼각김밥 20초\n금속 용기 X", INK, rgb(255, 240, 160), { font = F.GothamBold, d = 0.01 })
 	-- 국물 싱크 (맵 SoupSink 판 둘레 테 + 거름망)
 	local ss = one(ctx, "SoupSink")
 	if ss then
@@ -1412,7 +1469,7 @@ local function frontZone(ctx: any)
 	local icf = one(ctx, "IceCreamFreezer")
 	local baseZ = if icf then icf.c.Z else 20.5
 	local pz = baseZ + 1.0
-	local pcfP = pf(V3(5.0, 0, pz), ZA)
+	local pcfP = pf(V3(5.0, 0, pz), -ZA) -- 정면 = 진열대 쪽
 	if spotB(ctx, pcfP, V3(5.6, 3.2, 2.8), 0) then
 		Q:box("PromoTableTop", V3(5.6, 0.12, 2.8), pcfP * CF(0, 2.3, 0), lk(rgb(240, 240, 236)))
 		Q:box("PromoSkirt", V3(5.5, 2.2, 2.7), pcfP * CF(0, 1.12, 0), L_BLUE)
@@ -1445,19 +1502,19 @@ local function frontZone(ctx: any)
 		txt(ctx, "PromoPOP", 1.4, 0.7, pcfP * CF(0, 3.95, -0.9), "2+1\n골라 담기", RED, YEL, { font = F.GothamBlack, d = 0.03 })
 	end
 	-- 생수 2L 6입 묶음 (팔레트처럼 쌓기)
-	local pcfW = pf(V3(11.2, 0, pz + 0.2), ZA)
+	local pcfW = pf(V3(11.2, 0, pz + 0.2), -ZA)
 	if spotB(ctx, pcfW, V3(2.4, 2.8, 2.0), 0) then
 		Q:box("WaterPallet", V3(2.4, 0.3, 2.0), pcfW * CF(0, 0.15, 0), lk(rgb(40, 90, 160), M.Plastic))
 		for i = 0, 7 do
 			local c = pcfW * CF((i % 2) * 1.15 - 0.575, 0.3 + (i // 4) * 1.15 + 0.55, ((i // 2) % 2) * 0.95 - 0.475)
-			Q:box("Water6", V3(1.1, 1.1, 0.9), c, { c = rgb(200, 226, 242), m = M.Glass, t = 0.35, r = 0.1 })
+			Q:box("Water6", V3(1.1, 1.1, 0.9), c, { c = rgb(206, 228, 242), m = M.Glass, t = 0.18, r = 0.1 })
 			Q:box("Water6Band", V3(1.12, 0.28, 0.92), c * CF(0, 0.15, 0), lk(rgb(30, 110, 200)))
 			Q:box("Water6Handle", V3(0.5, 0.04, 0.1), c * CF(0, 0.57, 0), lk(WHITE))
 		end
 		txt(ctx, "WaterPrice", 1.4, 0.55, pcfW * CF(0, 2.0, 1.02), "생수 2L × 6\n5,900원", RED, WHITE, { font = F.GothamBlack, d = 0.02 })
 	end
 	-- X 배너
-	local pcfX = pf(V3(15.6, 0, pz + 1.6), ZA)
+	local pcfX = pf(V3(15.6, 0, pz + 1.6), V3(-0.5, 0, -1).Unit)
 	if spotB(ctx, pcfX, V3(2.1, 5.6, 0.8), 0) then
 		Q:seg("XBannerLeg", pcfX * V3(-0.8, 0, 0.3), pcfX * V3(0, 1.0, 0), 0.05, Look.blackMetal)
 		Q:seg("XBannerLeg", pcfX * V3(0.8, 0, 0.3), pcfX * V3(0, 1.0, 0), 0.05, Look.blackMetal)
@@ -1777,9 +1834,8 @@ local function racks(ctx: any)
 			for _, z in zs do
 				Q:box("RackUpright", V3(0.28, H, 0.28), CF(x, H / 2, z), up)
 				Q:box("RackFootPlate", V3(0.45, 0.05, 0.45), CF(x, 0.025, z), lk(rgb(40, 44, 50), M.Metal))
-				for yy = 0.6, H - 0.4, 0.9 do
-					Q:box("RackHoles", V3(0.29, 0.05, 0.06), CF(x, yy, z + (if z < (g.z0 + g.z1) / 2 then 0.12 else -0.12)), lk(rgb(16, 40, 90), M.Metal))
-				end
+				-- 앞면 타공 줄 (구멍 대신 어두운 홈 띠)
+				Q:box("RackHoles", V3(0.1, H - 0.6, 0.02), CF(x, H / 2, z + (if z < (g.z0 + g.z1) / 2 then -0.145 else 0.145)), lk(rgb(16, 40, 90), M.DiamondPlate))
 			end
 			-- 옆 프레임: 가로대 + 대각 가새
 			for _, yy in { 0.4, H - 0.3 } do
@@ -2016,8 +2072,8 @@ local function staffDesk(ctx: any)
 	Interact.screenLoop(K, pdaScr, nil, { { c = rgb(40, 140, 200) }, { c = rgb(40, 170, 120) }, { c = rgb(40, 140, 200) }, { c = rgb(230, 150, 40) } }, 2.5)
 	Q:box("Keyboard", V3(1.4, 0.06, 0.45), onTop(cx, mx.Z - 0.55) * CF(0, 0.03, 0), lk(rgb(36, 38, 42)))
 	Q:box("Mouse", V3(0.16, 0.06, 0.26), onTop(cx + 1.0, mx.Z - 0.55) * CF(0, 0.03, 0), lk(rgb(36, 38, 42)))
-	Q:box("DocTray", V3(0.9, 0.25, 0.7), onTop(mx.X - 0.6, mn.Z + 0.9) * CF(0, 0.125, 0), lk(rgb(60, 64, 70)))
-	Q:box("DocPaper", V3(0.8, 0.1, 0.6), onTop(mx.X - 0.6, mn.Z + 0.9) * CF(0, 0.24, 0), Look.paper)
+	Q:box("DocTray", V3(0.9, 0.25, 0.7), onTop(mn.X + 0.6, mn.Z + 0.6) * CF(0, 0.125, 0), lk(rgb(60, 64, 70)))
+	Q:box("DocPaper", V3(0.8, 0.1, 0.6), onTop(mn.X + 0.6, mn.Z + 0.6) * CF(0, 0.24, 0), Look.paper)
 	Q:box("Binder", V3(0.25, 1.0, 0.8), onTop(mx.X - 0.25, mx.Z - 1.3) * CF(0, 0.5, 0), lk(GS_BLUE))
 	Q:box("Binder", V3(0.25, 1.0, 0.8), onTop(mx.X - 0.52, mx.Z - 1.3) * CF(0, 0.5, 0), lk(RED))
 	Q:vcyl("Mug", 0.3, 0.26, onTop(mn.X + 1.3, mx.Z - 0.45) * CF(0, 0.15, 0), lk(WHITE))
@@ -2084,7 +2140,7 @@ local function lockers(ctx: any)
 				txt(ctx, "LockerName", 0.55, 0.2, fc((c * CF(0, h / 2 - 0.5, -0.05)).Position, -ZA), string.format("%02d", i), INK, nil, { font = F.GothamBold, d = 0.004 })
 			end)
 			if i % 2 == 1 then
-				swingB(ctx, model, V3(mn.X + 0.03, 0, fz - 0.03), -1.6, { object = "직원 사물함", openText = "열기", closeText = "닫기" })
+				swingB(ctx, model, V3(mn.X + 0.03, 0, fz - 0.03), 1.6, { object = "직원 사물함", openText = "열기", closeText = "닫기" })
 			end
 		end)
 	end
@@ -2404,9 +2460,8 @@ local function floorStock(ctx: any)
 	local tape = lk(rgb(250, 200, 0), M.SmoothPlastic)
 	Q:free(function()
 		-- 통로 선 (문 앞 -> 창고 가운데)
-		for _, z in { 7.6, 3.0 } do
-			Q:box("FloorTape", V3(18.0, 0.02, 0.18), CF(-12.0, 0.012, z), tape)
-		end
+		Q:box("FloorTape", V3(16.0, 0.02, 0.18), CF(-13.0, 0.012, 7.4), tape)
+		Q:box("FloorTape", V3(10.0, 0.02, 0.18), CF(-16.0, 0.012, 4.2), tape)
 		-- 랙 앞 경고선 (노랑 · 검정)
 		local decks = all(ctx, "RackDeck")
 		local zf = -7.6

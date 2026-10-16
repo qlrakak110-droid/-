@@ -1119,6 +1119,12 @@ local function hangSign(K: any, x: number, z: number, w: number, h: number, yBot
 	if K:hitsKeep(mnW, mxW) then
 		return false
 	end
+	-- 다른 매단 POP 와 1.5 이상 떨어지게
+	for _, sb in K.stSignBoxes or {} do
+		if K.overlap(mn - V3(1.5, 0, 1.5), mx + V3(1.5, 0, 1.5), sb.min, sb.max, 0) then
+			return false
+		end
+	end
 	-- 와이어 윗점이 에어컨 · 조명 · CCTV 위에 걸리지 않게 (T-bar 사이는 괜찮음)
 	for _, sx in { -1, 1 } do
 		local a = (cf * CF(sx * w * 0.38, h / 2, 0)).Position
@@ -1161,7 +1167,7 @@ end
 
 -- 매다는 POP: 자리가 막히면 조금씩 옮겨 봄
 local function hangSignNear(K: any, x: number, z: number, w: number, h: number, yBot: number, rotY: number, front: string, back: string?, bg: Color3, fg: Color3, edge: Color3?): boolean
-	for _, o in { V3(0, 0, 0), V3(0.8, 0, 0), V3(-0.8, 0, 0), V3(0, 0, 0.9), V3(0, 0, -0.9), V3(1.6, 0, 0), V3(-1.6, 0, 0), V3(0, 0, 1.8), V3(0, 0, -1.8), V3(1.2, 0, 1.2), V3(-1.2, 0, -1.2) } do
+	for _, o in { V3(0, 0, 0), V3(0.8, 0, 0), V3(-0.8, 0, 0), V3(0, 0, 0.9), V3(0, 0, -0.9), V3(1.6, 0, 0), V3(-1.6, 0, 0), V3(0, 0, 1.8), V3(0, 0, -1.8), V3(1.2, 0, 1.2), V3(-1.2, 0, -1.2), V3(0, 0, 2.8), V3(0, 0, -2.8), V3(2.4, 0, 0), V3(-2.4, 0, 0), V3(0, 0, 3.6), V3(0, 0, -3.6) } do
 		if hangSign(K, x + o.X, z + o.Z, w, h, yBot, rotY, front, back, bg, fg, edge) then
 			return true
 		end
@@ -1588,8 +1594,8 @@ local function walkIn(K: any, V: any, surfs: { any }, B: any, rng: () -> number,
 	local face = s0.cf.ZVector
 	for _, dm in V.byName.DoorMullion or {} do
 		if dm.c.X > mn.X - 0.6 and dm.c.X < mx.X + 0.6 and dm.c.Z > mn.Z - 0.8 and dm.c.Z < mx.Z + 0.8 then
-			local half = if math.abs(face.Z) > 0.5 then dm.size.Z / 2 else dm.size.X / 2
-			local q = dm.c - face * (half + 0.05)
+			local halfT = if math.abs(face.Z) > 0.5 then dm.size.Z / 2 else dm.size.X / 2
+			local q = dm.c - face * (halfT + 0.05)
 			K:box("StFridgeLED", V3(0.05, dm.size.Y - 0.3, 0.05), CF(q.X, dm.c.Y, q.Z), L_FREE(Look.lampCool))
 		end
 	end
@@ -2331,6 +2337,21 @@ local function buildCvs(K: any, V: any, S: any, brand: string)
 	end)
 	step(K, "goods", function()
 		used += runFill(K, goodsBudget(K, V))
+	end)
+	-- 선반 날개 POP (NEW · 1+1 · 할인) 몇 개
+	step(K, "wobblers", function()
+		local wr = mkRng(V.key .. "wob")
+		local n = 0
+		local texts = { { "NEW", B.main }, { "1+1", B.promo1 }, { "할인", B.promo1 }, { B.pb, B.main } }
+		K:free(function()
+			for _, su in surfs do
+				if n < 4 and not su.fridge and su.rail and su.level == 2 and wr() < 0.6 then
+					n += 1
+					local t = texts[(n - 1) % #texts + 1]
+					wobbler(K, su, (wr() - 0.5) * (su.len - 1.2), t[1], t[2], WHITE)
+				end
+			end
+		end)
 	end)
 	note(K, string.format("cvs %s goods parts=%d surfaces=%d", brand, used, #surfs))
 end
@@ -3637,6 +3658,20 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 						placed += 1
 						break
 					end
+				end
+			end
+		end)
+		step(K, "popstand", function()
+			local d = V.door
+			if d then
+				local cands = {}
+				for _, dx in { 5.2, -5.2, 6.0, -6.0 } do
+					table.insert(cands, V3(d.x + dx, 0, V.z1 - 3.0))
+					table.insert(cands, V3(d.x + dx, 0, V.z1 - 4.2))
+				end
+				local pcf = floorSpot(K, cands, V3(1.6, 5.2, 1.1), V3(0, 0, 1), 0.2, "pop")
+				if pcf then
+					popStand(K, pcf, "환절기 건강", "감기약 · 비타민\n약사 상담 무료", PH.main, WHITE)
 				end
 			end
 		end)

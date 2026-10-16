@@ -65,6 +65,12 @@ local function lk(c: Color3, m: Enum.Material?, extra: { [string]: any }?): { [s
 	end
 	return t
 end
+-- 바탕색 위에서 잘 읽히는 글자색
+local function onColor(c: Color3): Color3
+	local lum = c.R * 0.3 + c.G * 0.59 + c.B * 0.11
+	return if lum > 0.7 then dk(c, 0.78) else rgb(255, 255, 255)
+end
+
 local function glassL(c: Color3?, t: number?): { [string]: any }
 	return { c = c or rgb(226, 236, 238), m = M.Glass, t = t or 0.55, r = 0.12 }
 end
@@ -86,6 +92,19 @@ end
 local function topCF(p: Vector3, up: Vector3): CFrame
 	local x = up:Cross(Vector3.yAxis).Unit
 	return CFrame.fromMatrix(p, x, up, Vector3.yAxis)
+end
+
+-- 긴 자리 찾기 루프 안에서 프레임 양보 (Kit:tick 과 같은 시간 분할, 파트 수는 안 셈)
+local function breathe(K: any)
+	if K.sliceT and os.clock() - K.sliceT > (K.slice or 0.0025) then
+		task.wait()
+		K.sliceT = os.clock()
+	end
+end
+
+-- 남은 파트 예산 (복합 소품은 통째로 짓거나 통째로 건너뜀)
+local function room(K: any, n: number): boolean
+	return #K.parts + n <= (K.maxParts or 2600) - 24
 end
 
 local function hi(K: any): boolean
@@ -171,6 +190,7 @@ local function wallFind(K: any, walls: { string }, w: number, y0: number, y1: nu
 			return math.abs(a - pu) < math.abs(b - pu)
 		end)
 		for _, cu in cands do
+			breathe(K)
 			local dcf = V:wall(wn, cu, (y0 + y1) / 2, 0)
 			if not pred or pred(dcf, wn, cu) then
 				useWall(K, wn, cu - w / 2 - 0.15, cu + w / 2 + 0.15, y0, y1)
@@ -249,6 +269,7 @@ local function floorFind(K: any, walls: { string }, w: number, d: number, h: num
 				return math.abs(a - pu) < math.abs(b - pu)
 			end)
 			for _, cu in cands do
+				breathe(K)
 				if not wallBlocked(K, wn, cu - w / 2, cu + w / 2, 0, o.wallH or h) then
 					local pcf = V:wall(wn, cu, 0, d / 2 + 0.06)
 					if (not o.pred or o.pred(pcf, wn, cu)) and (o.behindOK or not behindService(K, pcf, V3(w, h, d))) and spotX(K, pcf, V3(w, h, d), o.pad or 0.08, o.kind) then
@@ -311,6 +332,7 @@ local function counterSpot(K: any, g: any, w: number, d: number, h: number, side
 		return math.abs(a - pu) < math.abs(b - pu)
 	end)
 	for _, c in cands do
+		breathe(K)
 		local p = if alongX then V3(c, y, fixed) else V3(fixed, y, c)
 		local pcf = facing(p, n)
 		if spotX(K, pcf, V3(w, h, d), pad or 0.04) then
@@ -442,6 +464,16 @@ local function brandKey(V: any): string
 	local menu = V.menu or ""
 	local function has(s: string): boolean
 		return string.find(n, s, 1, true) ~= nil
+	end
+	-- 프랜차이즈 이름이 먼저 (분류가 dessert 로 와도 카페 브랜드)
+	if has("STARBUCKS") or has("스타벅스") then
+		return "starbucks"
+	end
+	if has("PASCUCCI") then
+		return "pascucci"
+	end
+	if has("TWOSOME") then
+		return "twosome"
 	end
 	if V.type == "dessert" then
 		if V:has("ClawBase") > 0 then
@@ -894,6 +926,9 @@ end
 
 -- 메뉴판. st = { kind, bg, fg, acc, frame, font, tfont, icons, sub }. 반환 얼굴 파트
 local function menuPanel(K: any, dcf: CFrame, w: number, h: number, title: string?, items: { any }, st: any): BasePart?
+	if not room(K, 30) then
+		return nil
+	end
 	local kind = st.kind or "lightbox"
 	local bg: Color3, fg: Color3, acc: Color3 = st.bg, st.fg, st.acc
 	local lit = kind == "lightbox" or kind == "tv"
@@ -1027,6 +1062,9 @@ end
 -- 스피커 한 쌍 + 앰프 (BGM 바꾸기 + 이퀄라이저 깜빡임)
 local PLAYLIST = { "Lo-fi Beach Jazz", "City Pop 1984", "Bossa Nova Café", "K-Indie Acoustic", "Rainy Day Piano", "광안리 Sunset Mix", "OFF" }
 local function speaker(K: any, dcf: CFrame)
+	if not room(K, 5) then
+		return
+	end
 	K:plate("SpeakerMount", 0.3, 0.3, 0.12, dcf * CF(0, 0.2, 0), Look.blackMetal)
 	K:plate("SpeakerBox", 0.62, 0.98, 0.5, dcf * CF(0, 0, 0.12), Look.of(28, 28, 30, Enum.Material.SmoothPlastic))
 	wdisc(K, "SpeakerWoofer", 0.42, 0.03, dcf * CF(0, -0.15, 0.62), Look.of(50, 50, 54, Enum.Material.Fabric))
@@ -1084,6 +1122,9 @@ end
 
 -- 안내 보드 (코르크 + 꽂힌 종이 3장: 와이파이 · 영업시간 · 결제 안내)
 local function infoBoard(K: any, dcf: CFrame, B: any)
+	if not room(K, 14) then
+		return
+	end
 	local w, h = 1.9, 2.3
 	K:plate("InfoBoardFrame", w + 0.14, h + 0.14, 0.06, dcf, Look.oak)
 	K:plate("InfoBoardCork", w, h, 0.07, dcf, lk(rgb(178, 136, 92), M.Sand))
@@ -1098,6 +1139,9 @@ end
 
 -- 벽 그림 --------------------------------------------------------------------------------------------
 local function artPiece(K: any, dcf: CFrame, w: number, h: number, kind: string, B: any, idx: number)
+	if not room(K, 34) then
+		return
+	end
 	local seed = B.seed + idx * 17
 	local frameL = if B.key == "haute" or B.key == "lounge" or B.key == "pascucci" then Look.goldMetal elseif B.key == "scandi" or B.key == "terracotta" or B.key == "bakery" then Look.oak else Look.blackMetal
 	local mat = Look.paper
@@ -1343,6 +1387,9 @@ end
 
 -- 냉장 쇼케이스 (케이크 · 디저트, 세로형 유리문). 반환 문 Model, 경첩(월드)
 local function cakeFridge(K: any, pcf: CFrame, w: number, B: any, title: string): (Model?, Vector3?)
+	if not room(K, 130) then
+		return nil, nil
+	end
 	local d, h = 2.0, 6.2
 	local body = lk(B.c2 or rgb(40, 36, 34), M.Metal)
 	K:box("CakeFridgeBase", V3(w, 1.5, d), pcf * CF(0, 0.75, 0), body)
@@ -1413,6 +1460,9 @@ end
 
 -- 음료 냉장고 (유리문 1칸: 생수 · 주스 · 우유 · 콜드브루 · 샌드위치). 반환 문 Model, 경첩(월드)
 local function drinkFridge(K: any, pcf: CFrame, w: number, B: any, header: string): (Model?, Vector3?)
+	if not room(K, 120) then
+		return nil, nil
+	end
 	local d, h = 2.0, 6.4
 	local body = lk(rgb(38, 38, 42), M.Metal)
 	K:box("FridgeBack", V3(w, h, 0.1), pcf * CF(0, h / 2, -d / 2 + 0.05), body)
@@ -1421,7 +1471,7 @@ local function drinkFridge(K: any, pcf: CFrame, w: number, B: any, header: strin
 	end
 	K:box("FridgeTop", V3(w, 0.75, d), pcf * CF(0, h - 0.375, 0), body)
 	K:box("FridgeBottom", V3(w, 0.62, d), pcf * CF(0, 0.31, 0), body)
-	K:text("FridgeHeader", w - 0.24, 0.5, faceCF((pcf * CF(0, h - 0.375, d / 2 + 0.01)).Position, pcf.ZVector), header, { fg = B.ink, bg = B.c1, glow = 1.1, font = F.GothamBlack, d = 0.01 })
+	K:text("FridgeHeader", w - 0.24, 0.5, faceCF((pcf * CF(0, h - 0.375, d / 2 + 0.01)).Position, pcf.ZVector), header, { fg = onColor(B.c1), bg = B.c1, glow = 1.1, font = F.GothamBlack, d = 0.01 })
 	K:plate("FridgeGrille", w - 0.5, 0.3, 0.02, faceCF((pcf * CF(0, 0.3, d / 2 + 0.01)).Position, pcf.ZVector), lk(rgb(64, 64, 68), M.DiamondPlate))
 	local ih = h - 1.37
 	local iy = 0.62 + ih / 2
@@ -1511,7 +1561,7 @@ local function cookCart(K: any, pcf: CFrame, w: number, kind: string, B: any)
 		K:box("CartDoor", V3(w / 2 - 0.15, h - 0.8, 0.03), pcf * CF(k * w / 4, 0.4 + (h - 0.8) / 2, d / 2 + 0.015), lk(rgb(190, 192, 196), M.Metal))
 		K:box("CartHandle", V3(0.5, 0.06, 0.06), pcf * CF(k * w / 4, h - 0.6, d / 2 + 0.06), Look.chrome)
 	end
-	K:text("CartLabel", w * 0.7, 0.36, faceCF((pcf * CF(0, 1.0, d / 2 + 0.035)).Position, pcf.ZVector), if kind == "hotteok" then "부산 명물 씨앗호떡" else "갓 튀긴 츄러스", { fg = rgb(255, 255, 255), bg = B.c1, d = 0.02, font = F.GothamBlack })
+	K:text("CartLabel", w * 0.7, 0.36, faceCF((pcf * CF(0, 1.0, d / 2 + 0.035)).Position, pcf.ZVector), if kind == "hotteok" then "부산 명물 씨앗호떡" else "갓 튀긴 츄러스", { fg = onColor(B.c1), bg = B.c1, d = 0.02, font = F.GothamBlack })
 	local y = h
 	if kind == "hotteok" then
 		-- 철판 + 굽는 호떡 6 + 누르개 + 기름병 + 씨앗 통
@@ -1619,6 +1669,9 @@ end
 
 -- 생두 자루 (팔레트 위 마대)
 local function beanSacks(K: any, pcf: CFrame, w: number)
+	if not room(K, 20) then
+		return
+	end
 	K:box("PalletTop", V3(w, 0.12, 1.7), pcf * CF(0, 0.42, 0), Look.pine)
 	for k = -1, 1 do
 		K:box("PalletBlock", V3(w, 0.3, 0.22), pcf * CF(0, 0.18, k * 0.7), Look.pine)
@@ -1968,10 +2021,13 @@ end
 local function fruitStand(K: any, pcf: CFrame, w: number, B: any)
 	local d = 2.2
 	local wood = Look.pine
-	for _, sx in { -1, 1 } do
-		K:box("FruitStandSide", V3(0.12, 2.6, d), pcf * CF(sx * (w / 2 - 0.06), 1.3, 0), Look.walnut)
-	end
 	local tiers = { { 0.55, 0.55 }, { 1.35, 0.0 }, { 2.15, -0.55 } }
+	-- 계단형 옆판 (앞이 낮고 뒤가 높음)
+	for _, sx in { -1, 1 } do
+		for _, t in tiers do
+			K:box("FruitStandSide", V3(0.12, t[1] + 0.08, 0.6), pcf * CF(sx * (w / 2 - 0.06), (t[1] + 0.08) / 2, t[2]), Look.walnut)
+		end
+	end
 	local kinds = { { "strawberry", "생딸기 500g", "9,900" }, { "grape", "샤인머스캣 1송이", "12,000" }, { "mandarin", "제주 귤 1kg", "6,900" }, { "blueberry", "블루베리 200g", "7,900" }, { "kiwi", "골드키위 5입", "6,500" }, { "tomato", "대추방울토마토", "5,900" } }
 	local idx = 0
 	for _, t in tiers do
@@ -2009,7 +2065,7 @@ local function fruitStand(K: any, pcf: CFrame, w: number, B: any)
 			K:text("FruitCard", cw * 0.8, 0.26, cardP, info[2] .. "  " .. info[3], { fg = rgb(40, 30, 20), bg = rgb(255, 250, 236), d = 0.01, font = F.GothamBold })
 		end
 	end
-	K:text("FruitStandHead", w - 0.3, 0.36, faceCF((pcf * CF(0, 2.75, -0.45)).Position, pcf.ZVector), "오늘 들어온 생과일", { fg = rgb(255, 255, 255), bg = B.c1, d = 0.04, font = F.GothamBlack })
+	K:text("FruitStandHead", w - 0.3, 0.36, faceCF((pcf * CF(0, 2.75, -0.45)).Position, pcf.ZVector), "오늘 들어온 생과일", { fg = onColor(B.c1), bg = B.c1, d = 0.04, font = F.GothamBlack })
 end
 
 -- 인형 (곰 · 토끼 · 병아리): c 중심, s 크기, face = 앞 방향
@@ -2041,11 +2097,14 @@ end
 
 -- 아이스크림 냉동고 (유리 뚜껑 + 속 상자들 + 할인 띠). 반환 뚜껑 파트
 local function freezerChest(K: any, pcf: CFrame, w: number, B: any, title: string): BasePart
+	if not room(K, 60) then
+		return nil :: any
+	end
 	local d, h = 1.7, 2.7
 	K:box("FreezerBody", V3(w, h - 0.3, d), pcf * CF(0, 0.3 + (h - 0.3) / 2, 0), Look.white)
 	K:box("FreezerKick", V3(w - 0.1, 0.3, d - 0.1), pcf * CF(0, 0.15, 0), Look.grey)
 	K:box("FreezerStripe", V3(w + 0.01, 0.45, d + 0.01), pcf * CF(0, h - 0.6, 0), lk(B.c1))
-	K:text("FreezerTitle", w * 0.8, 0.36, faceCF((pcf * CF(0, h - 0.6, d / 2 + 0.01)).Position, pcf.ZVector), title, { fg = rgb(255, 255, 255), font = F.GothamBlack, d = 0.01 })
+	K:text("FreezerTitle", w * 0.8, 0.36, faceCF((pcf * CF(0, h - 0.6, d / 2 + 0.01)).Position, pcf.ZVector), title, { fg = onColor(B.c1), font = F.GothamBlack, d = 0.01 })
 	K:text("FreezerPrice", w * 0.7, 0.5, faceCF((pcf * CF(0, 1.2, d / 2 + 0.01)).Position, pcf.ZVector), "아이스크림 전 품목 50%\n파인트 16,000", { fg = rgb(220, 30, 40), bg = rgb(255, 250, 236), font = F.GothamBold, d = 0.02 })
 	K:box("FreezerInner", V3(w - 0.2, 0.05, d - 0.2), pcf * CF(0, h - 0.4, 0), lk(rgb(220, 236, 244)))
 	local cols = { rgb(250, 200, 210), rgb(160, 210, 250), rgb(250, 230, 150), rgb(200, 240, 200), rgb(110, 70, 50), rgb(250, 250, 244) }
@@ -2092,6 +2151,9 @@ end
 
 -- 화면 (TV 메뉴 · 프로모): 프레임 순환
 local function promoScreen(K: any, dcf: CFrame, w: number, frames: { any })
+	if not room(K, 4) then
+		return
+	end
 	local h = w * 9 / 16
 	K:plate("ScreenMount", w * 0.3, h * 0.3, 0.1, dcf, Look.blackMetal)
 	K:plate("ScreenBody", w + 0.1, h + 0.1, 0.12, dcf * CF(0, 0, 0.1), Look.black)
@@ -2110,6 +2172,9 @@ end
 
 -- 덕트 (스파이럴 원형 덕트 + 행거 + 디퓨저): 천장 아래 z 줄을 따라 빈 구간만
 local function ducts(K: any, V: any)
+	if not room(K, 80) then
+		return
+	end
 	local dia = 1.1
 	local y = V.H - 0.95
 	local best, bz = -1, nil
@@ -2189,6 +2254,9 @@ end
 
 -- 행잉 화분 (천장 줄 + 화분 + 늘어진 잎)
 local function hangingPlant(K: any, x: number, z: number, drop: number)
+	if not room(K, 28) then
+		return
+	end
 	local V = K.V
 	local y = V.H - drop
 	K:free(function()
@@ -2355,12 +2423,15 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		local wn, pcf = floorFind(K, { "back", "left", "right" }, 3.9, 2.9, 5.7, { back = V.x0 + 4.0 - ctx.cx, left = uOf(V, "left", 0, V.z0 + 3), right = uOf(V, "right", 0, V.z0 + 3) }, { pad = 0.1 })
 		if wn and pcf then
 			mark("roaster", pcf)
-			local R = roaster(K, pcf, B)
+			if room(K, 70) then
+				local R = roaster(K, pcf, B)
+			end
 			ctx.roaster = R
 			if feat.sacks then
-				local wn2, pcf2 = floorFind(K, { wn, "left", "right" }, 2.6, 1.8, 2.0, uOf(V, wn, (pcf.Position.X), pcf.Position.Z) + 3.6, { pad = 0.05 })
+				local wn2, pcf2 = floorFind(K, { wn, "left", "right" }, 2.3, 1.8, 2.0, uOf(V, wn, (pcf.Position.X), pcf.Position.Z) + 3.3, { pad = 0.03, behindOK = true })
 				if wn2 and pcf2 then
-					beanSacks(K, pcf2, 2.4)
+					mark("sacks", pcf2)
+					beanSacks(K, pcf2, 2.2)
 				end
 			end
 		end
@@ -2369,14 +2440,18 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		local wn, pcf = floorFind(K, { pickSide, other }, 4.2, 2.6, 6.0, pref, { pad = 0.1 })
 		if wn and pcf then
 			mark("oven", pcf)
-			ctx.oven = deckOven(K, pcf, 4.2)
+			if room(K, 90) then
+				ctx.oven = deckOven(K, pcf, 4.2)
+			end
 		end
 	end
 	if feat.cart then
 		local wn, pcf = floorFind(K, { pickSide, other, "back" }, 3.4, 1.9, 4.6, pref, { pad = 0.1 })
 		if wn and pcf then
 			mark("cart", pcf)
-			cookCart(K, pcf, 3.4, feat.cart, B)
+			if room(K, 60) then
+				cookCart(K, pcf, 3.4, feat.cart, B)
+			end
 		end
 	end
 	if feat.selfbar then
@@ -2384,7 +2459,9 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		local wn, pcf = floorFind(K, { pickSide, other }, w, 1.5, 4.6, pref, { pad = 0.08 })
 		if wn and pcf then
 			mark("selfbar", pcf)
-			selfBar(K, pcf, w, B)
+			if room(K, 50) then
+				selfBar(K, pcf, w, B)
+			end
 		end
 	end
 	if feat.fridge and not small then
@@ -2411,7 +2488,9 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		local wn, pcf = floorFind(K, { other, pickSide }, 3.2, 1.1, 5.8, pref, { pad = 0.06 })
 		if wn and pcf then
 			mark("md", pcf)
-			mdShelf(K, pcf, 3.2, 5.4, B)
+			if room(K, 90) then
+				mdShelf(K, pcf, 3.2, 5.4, B)
+			end
 		end
 	end
 	if feat.freezer then
@@ -2466,7 +2545,9 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 					if not done and spotX(K, pcf, V3(3.6, 2.9, 2.3), 0.8) then
 						done = true
 						mark("fruit", pcf)
-						fruitStand(K, pcf, 3.6, B)
+						if room(K, 170) then
+							fruitStand(K, pcf, 3.6, B)
+						end
 					end
 				end
 			end
@@ -2806,7 +2887,7 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 			for k = 1, nf - 1 do
 				K:plate("CasePanelGroove", 0.03, cb.size.Y - 0.6, 0.035, front * CF(-w / 2 + w * k / nf, 0.35 + (cb.size.Y - 0.4) / 2, 0), lk(dk(panelL.c, 0.2)))
 			end
-			K:text("CaseLabel", math.min(w * 0.6, 3.4), 0.36, front * CF(0, 1.35, 0.035), if B.type == "dessert" then "GELATO · 매일 아침 직접 만듭니다" elseif B.type == "bakery" then "오늘 구운 디저트" else "BAKERY & DESSERT", { fg = if (panelL.c.R * 0.3 + panelL.c.G * 0.59 + panelL.c.B * 0.11) > 0.62 then dk(panelL.c, 0.7) else rgb(250, 246, 236), font = F.GothamBold, d = 0.01 })
+			K:text("CaseLabel", math.min(w * 0.6, 3.4), 0.36, front * CF(0, 1.35, 0.035), if B.type == "dessert" then "GELATO · 매일 아침 직접 만듭니다" elseif B.type == "bakery" then "오늘 구운 디저트" else "BAKERY & DESSERT", { fg = if (panelL.c.R * 0.3 + panelL.c.G * 0.59 + panelL.c.B * 0.11) > 0.8 then dk(panelL.c, 0.7) else rgb(250, 246, 236), font = F.GothamBold, d = 0.01 })
 			if cg and cg.size.Y < 1.6 then
 				-- 낮은 젤라또 진열장: 맵의 빛 판(CaseLight) 대신 유리 상판 + 뒤쪽 LED 바
 				for _, cl in V.byName.CaseLight or {} do
@@ -2856,6 +2937,9 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	local i = 0
 	for _, r in V.byName.Jar or {} do
 		i += 1
+		if not room(K, 6) then
+			break
+		end
 		Scan.hide(K.hidden, r.part)
 		local pcf = facing(V3(r.c.X, r.min.Y, r.c.Z), V3(0, 0, 1))
 		local kind = (i + seed) % 5
@@ -2884,6 +2968,9 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	i = 0
 	for _, r in V.byName.Cup or {} do
 		i += 1
+		if not room(K, 16) then
+			break
+		end
 		Scan.hide(K.hidden, r.part)
 		local pcf = facing(V3(r.c.X, r.min.Y, r.c.Z), V3(0, 0, 1))
 		local kind = (i + seed) % 5
@@ -2934,6 +3021,9 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	local shelves = V.byName.BreadShelf or {}
 	for _, r in V.byName.Bread or {} do
 		i += 1
+		if not room(K, 16) then
+			break
+		end
 		Scan.hide(K.hidden, r.part)
 		local sh = nil
 		for _, s in shelves do
@@ -2986,7 +3076,7 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 		K:free(function()
 			K:box("GelatoPan", r.size, CF(r.c), Look.steel)
 			K:box("GelatoSurface", V3(r.size.X - 0.08, 0.03, r.size.Z - 0.08), CF(r.c.X, top - 0.005, r.c.Z), lk(fl[2]))
-			K:ell("GelatoMound", V3(r.size.X * 0.82, 0.2, r.size.Z * 0.7), CF(r.c.X, top - 0.03, r.c.Z - 0.05), lk(fl[2]))
+			K:ell("GelatoMound", V3(r.size.X * 0.82, 0.24, r.size.Z * 0.7), CF(r.c.X, top - 0.03, r.c.Z - 0.05), lk(fl[2]))
 			K:ell("GelatoWave", V3(r.size.X * 0.5, 0.14, r.size.Z * 0.3), CF(r.c.X + 0.1, top + 0.01, r.c.Z + 0.25) * ANG(0, 0.3, 0), lk(dk(fl[2], 0.08)))
 			if i % 2 == 1 then
 				K:box("GelatoSpade", V3(0.16, 0.02, 0.32), CF(r.c.X - 0.15, top + 0.06, r.c.Z - 0.3) * ANG(0.5, 0, 0), Look.chrome)
@@ -3037,6 +3127,9 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	local pal = { rgb(250, 190, 210), rgb(250, 230, 160), rgb(180, 220, 250), rgb(210, 180, 140), rgb(250, 250, 246), rgb(200, 240, 200), rgb(230, 200, 250) }
 	for _, r in V.byName.Plush or {} do
 		i += 1
+		if not room(K, 8) then
+			break
+		end
 		Scan.hide(K.hidden, r.part)
 		local face = V3(0, 0, 1)
 		local best = math.huge
@@ -3846,8 +3939,19 @@ local function sofaOverlay(K: any, ch: any, done: { [any]: boolean }, B: any)
 	local fab = lk(B.sofa or rgb(176, 156, 136), M.Fabric)
 	local dark = lk(dk(fab.c, 0.16), M.Fabric)
 	local s = ch.seat
+	-- 소파 몸통 부품 (Scan 묶음 반경 밖에 걸친 팔걸이 · 등받이까지)
+	local list = table.clone(ch.parts)
+	local SOFA = { Backrest = true, Arm = true, Base = true, Plinth = true, SofaBack = true, SofaArm = true, SofaBase = true }
+	for _, r in K.V.parts do
+		if SOFA[r.name] and not done[r] and r.min.Y < ch.top + 3 then
+			local d = (r.c - s.c) * V3(1, 0, 1)
+			if d.Magnitude < 4.6 then
+				table.insert(list, r)
+			end
+		end
+	end
 	K:free(function()
-		for _, r in ch.parts do
+		for _, r in list do
 			if not done[r] then
 				done[r] = true
 				local nm = r.name

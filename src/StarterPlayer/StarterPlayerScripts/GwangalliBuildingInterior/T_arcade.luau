@@ -94,6 +94,19 @@ local function wdisc(K: any, name: string, dia: number, t: number, dcf: CFrame, 
 	return K:disc(name, dia, t, dcf * CF(0, 0, t / 2) * ANG(PI / 2, 0, 0), look)
 end
 
+-- 바닥에 누운 화살표 (cf: 수평 프레임, 화살 끝 = -Z): 쐐기 2 (이등변 머리) + 몸통. 반환 파트 목록
+local function arrowGlyph(K: any, cf: CFrame, w: number, len: number, look: any): { BasePart }
+	local hd = len * 0.55
+	local hw = w / 2
+	local t = 0.03
+	local out = {}
+	local head = cf * CF(0, 0, -len / 2 + hd / 2)
+	table.insert(out, K:wedge("ArrowHeadL", V3(t, hw, hd), head * CF(-hw / 2, 0, 0) * ANG(0, 0, PI / 2), look))
+	table.insert(out, K:wedge("ArrowHeadR", V3(t, hw, hd), head * CF(hw / 2, 0, 0) * ANG(0, 0, -PI / 2), look))
+	table.insert(out, K:box("ArrowShaft", V3(w * 0.38, t, len - hd), cf * CF(0, 0, len / 2 - (len - hd) / 2), look))
+	return out
+end
+
 -- 정렬 프레임 · 벽 ----------------------------------------------------------------------------------------
 local FLOORS = { SpaceCarpet = true, ShopFloor = true, LobbyFloor = true, Floor_Arcade = true }
 local FRONTS = { ShopWindow = true, Window = true, ShopGlass = true, Door = true, GlassDoor = true }
@@ -266,16 +279,20 @@ local function place(R: any, pcf: CFrame, size: Vector3, pad: number?, kind: str
 	if amn.X < R.x0 - 0.05 or amx.X > R.x1 + 0.05 or amn.Z < R.z0 - 0.05 or amx.Z > R.z1 + 0.05 then
 		return false
 	end
-	if K:hitsKeep(mn, mx) then
+	local hk = K:hitsKeep(mn, mx)
+	if hk then
+		R.why = "keep " .. hk
 		return false
 	end
 	for _, s in V.solid do
 		if not K.hidden[s.part] and not (s.size.Y < 0.15 and s.max.Y < 0.2) and Kit.overlap(mn, mx, s.min, s.max, 0.04) then
+			R.why = "map " .. s.name
 			return false
 		end
 	end
 	for _, r in K.reserved do
 		if Kit.overlap(mn, mx, r.min, r.max, 0.02) then
+			R.why = "reserved " .. tostring(r.kind)
 			return false
 		end
 	end
@@ -583,9 +600,10 @@ local function danceMachine(K: any, pcf: CFrame, o: any): any
 			local g = {}
 			if c[4] then
 				-- 대각선 화살표: 머리 (쐐기 2) + 몸통
-				local ar = cc * CF(0, 0.035, 0) * ANG(0, c[4], 0)
-				table.insert(g, K:wedge("DanceArrowHead", V3(0.02, 0.36, 0.3), ar * CF(0.16, 0, -0.15) * ANG(0, 0, PI / 2) * ANG(0, PI / 2, 0), nl(c[3])))
-				table.insert(g, K:box("DanceArrowShaft", V3(0.16, 0.02, 0.36), ar * CF(0, 0, 0.12), nl(c[3])))
+				local ar = cc * CF(0, 0.04, 0) * ANG(0, c[4], 0)
+				for _, gp in arrowGlyph(K, ar, 0.62, 0.7, nl(c[3])) do
+					table.insert(g, gp)
+				end
 			else
 				table.insert(g, K:box("DanceArrowCenter", V3(0.5, 0.02, 0.5), cc * CF(0, 0.035, 0) * ANG(0, PI / 4, 0), nl(c[3])))
 			end
@@ -962,7 +980,7 @@ local function clawOverlay(K: any, R: any, g: any, idx: number): { BasePart }
 			local dmn, dmx = abox(R, door)
 			local u = (dc - cc):Dot(V3(dir.Z, 0, -dir.X)) -- 기계 프레임 x (오른쪽 +)
 			local s = math.max(dmx.Y - dmn.Y, 0.6)
-			local x = -u
+			local x = u
 			local y = (dmn.Y + dmx.Y) / 2
 			local z = hd + 0.03
 			K:box("ClawChuteFrame", V3(s + 0.24, 0.1, 0.06), mf * CF(x, y + s / 2 + 0.07, z), Look.chrome)
@@ -1069,17 +1087,17 @@ local function racingOverlay(K: any, R: any, g: any, i: number)
 	K:free(function()
 		-- 날개 (등받이 양옆, 앞으로 꺾임)
 		for _, sx in { -1, 1 } do
-			K:box("RaceBolster", V3(0.35, bmx.Y - bmn.Y - 0.2, 0.6), mf * CF(sx * (bw / 2 + 0.12), (bmn.Y + bmx.Y) / 2, -0.25) * ANG(0, sx * 0.35, 0), lk(dk(col, 0.15), M.Leather))
+			K:box("RaceBolster", V3(0.35, bmx.Y - bmn.Y - 0.2, 0.7), mf * CF(sx * (bw / 2 + 0.1), (bmn.Y + bmx.Y) / 2, 0.3) * ANG(0, -sx * 0.35, 0), lk(dk(col, 0.15), M.Leather))
 		end
 		K:rbox("RaceHeadrest", V3(bw - 0.3, 0.7, 0.5), 0.2, mf * CF(0, bmx.Y + 0.38, 0.05), lk(dk(col, 0.1), M.Leather))
 		K:box("RaceHeadrestLogo", V3(0.9, 0.22, 0.02), mf * CF(0, bmx.Y + 0.4, -0.21) * ANG(0, PI, 0), lk(WHITE))
 		-- 기어 레버 (오른쪽 옆)
 		local gx = bw / 2 + 0.85
-		K:box("RaceShiftBase", V3(0.5, 0.9, 0.6), mf * CF(-gx, 0.75, -1.4), lk(rgb(30, 30, 34)))
-		K:seg("RaceShiftLever", (mf * CF(-gx, 1.2, -1.4)).Position, (mf * CF(-gx, 2.1, -1.5)).Position, 0.08, Look.chrome)
-		K:ball("RaceShiftKnob", 0.26, mf * CF(-gx, 2.15, -1.5), lk(rgb(20, 20, 20)))
+		K:box("RaceShiftBase", V3(0.5, 0.9, 0.6), mf * CF(-gx, 0.75, 1.6), lk(rgb(30, 30, 34)))
+		K:seg("RaceShiftLever", (mf * CF(-gx, 1.2, 1.6)).Position, (mf * CF(-gx, 2.1, 1.7)).Position, 0.08, Look.chrome)
+		K:ball("RaceShiftKnob", 0.26, mf * CF(-gx, 2.15, 1.7), lk(rgb(20, 20, 20)))
 		-- 화면 옆 스피커
-		local ff = R.A * CFrame.lookAt(V3(sc.X, 0, sc.Z), V3(sc.X, 0, sc.Z) + dir)
+		local ff = R.A * CFrame.lookAt(V3(sc.X, 0, sc.Z), V3(sc.X, 0, sc.Z) - dir)
 		local hd = if dir.X ~= 0 then (smx.X - smn.X) / 2 else (smx.Z - smn.Z) / 2
 		local hw = if dir.X ~= 0 then (smx.Z - smn.Z) / 2 else (smx.X - smn.X) / 2
 		for _, sx in { -1, 1 } do
@@ -1138,9 +1156,7 @@ local function danceArrows(K: any, R: any, g: any): { any }
 					local ar = R.A * CFrame.lookAt(V3(pc.X, pmx.Y + 0.02, pc.Z), V3(pc.X, pmx.Y + 0.02, pc.Z) + d.Unit)
 					local col = r.part.Color
 					K:free(function()
-						local head = K:wedge("DanceArrowHead", V3(0.03, 0.42, 0.5), ar * CF(0, 0, -0.18) * ANG(PI / 2, 0, 0) * ANG(0, 0, 0), nl(lt(col, 0.5)))
-						local shaft = K:box("DanceArrowShaft", V3(0.22, 0.03, 0.4), ar * CF(0, 0, 0.22), nl(lt(col, 0.5)))
-						table.insert(out, { head, shaft })
+						table.insert(out, arrowGlyph(K, ar * CF(0, 0.015, 0), 0.8, 0.95, nl(lt(col, 0.55))))
 					end)
 				end
 			end
@@ -1204,7 +1220,7 @@ end
 local function placeMachine(R: any, x: number, z: number, yaw: number, size: Vector3, pad: number, fn: (CFrame) -> any): any
 	local pcf = at(R, x, z, yaw)
 	if not place(R, pcf, size, pad, "machine") then
-		R.K:note(string.format("machine spot busy @ %.1f,%.1f", x, z))
+		R.K:note(string.format("machine spot busy @ %.1f,%.1f (%s)", x, z, tostring(R.why)))
 		return nil
 	end
 	local ok, res = pcall(fn, pcf)
@@ -1223,7 +1239,7 @@ local function footprint(R: any, x: number, z: number, yaw: number, w: number, h
 	local q = R.A:PointToObjectSpace(c.Position)
 	local d = dFront + dBack
 	if not place(R, R.A * CF(q.X, 0, q.Z) * ANG(0, yaw, 0), V3(math.max(0.2, w - 0.14), h, math.max(0.2, d - 0.14)), pad, "machine") then
-		R.K:note(string.format("machine spot busy @ %.1f,%.1f", x, z))
+		R.K:note(string.format("machine spot busy @ %.1f,%.1f (%s)", x, z, tostring(R.why)))
 		return nil
 	end
 	local ok, res = pcall(fn, at(R, x, z, yaw))
@@ -1523,7 +1539,7 @@ local function hallMachines(K: any, R: any): any
 	-- PRIZE 존 (입구 오른쪽 창가): 경품 기계 4 (앞 = -z)
 	local kinds = { { "key", "KEY MASTER", rgb(255, 200, 40) }, { "cut", "가위 자르기", rgb(255, 80, 160) }, { "key", "럭키 박스", rgb(80, 220, 255) }, { "cut", "선물 뽑기", rgb(120, 255, 120) } }
 	for i, k in kinds do
-		local m = footprint(R, 21.5 + (i - 1) * 3.12, 32.9, PI, 2.95, 6.6, 1.45, 1.5, 0, function(p)
+		local m = footprint(R, 21.9 + (i - 1) * 3.1, 32.9, PI, 2.95, 6.6, 1.45, 1.5, 0, function(p)
 			return prizeMachine(K, p, { kind = k[1], title = k[2], accent = k[3] }, i * 3)
 		end)
 		if m then
@@ -2020,7 +2036,7 @@ local function buildPhoto(K: any, V: any, S: any)
 		K:free(function()
 			local c = (cmn + cmx) / 2
 			local w, d, h = cmx.X - cmn.X, cmx.Z - cmn.Z, cmx.Y
-			K:box("PhotoCounterTop", V3(w + 0.2, 0.14, d + 0.2), at(R, c.X, c.Z, 0, h + 0.07), lk(rgb(250, 248, 246), M.Marble))
+			K:box("PhotoCounterTop", V3(w + 0.16, 0.08, d + 0.16), at(R, c.X, c.Z, 0, h + 0.04), lk(rgb(250, 248, 246), M.Marble))
 			local n = math.floor(w / 0.3)
 			for i = 0, n - 1 do
 				K:cyl("PhotoCounterFlute", h - 0.4, 0.28, at(R, cmn.X + 0.15 + i * (w - 0.3) / math.max(1, n - 1), cmx.Z + 0.08, 0, 0.3 + (h - 0.4) / 2) * ANG(0, 0, PI / 2), lk(rgb(255, 170, 205)))
@@ -2032,7 +2048,7 @@ local function buildPhoto(K: any, V: any, S: any)
 			local led = K:box("PhotoCounterLED", V3(w, 0.05, 0.04), at(R, c.X, cmx.Z + 0.14, 0, h - 0.06), nl(rgb(255, 200, 220)))
 			K:light(led, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 5, Brightness = 0.5, Angle = 120, Color = rgb(255, 210, 230) })
 			-- 카운터 위: 카드 단말 · 액자 진열 · 투명 케이스 · 안내 스탠드 (손님 쪽 가장자리, 가운데 비움)
-			local top = h + 0.14
+			local top = h + 0.08
 			Props.cardTerminal(K, at(R, cmx.X - 0.5, cmx.Z - 0.45, 0, top))
 			for j = 0, 2 do
 				local fx = cmn.X + 0.45 + j * 0.55

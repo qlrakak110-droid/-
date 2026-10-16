@@ -583,9 +583,9 @@ THEMES.fuzzy = {
 	counterTop = L.of(236, 232, 226, M.Marble),
 	led = rgb(255, 90, 180),
 	floor = { look = L.of(40, 38, 42, M.Marble), tile = 2.5, grout = L.of(150, 120, 70) },
-	lower = { kind = "paint", h = 3.6, look = L.of(40, 30, 46), cap = L.goldMetal, walls = { "left", "right", "back" } },
-	feature = nil,
-	paint = L.of(32, 26, 40),
+	lower = { kind = "paint", h = 3.6, look = L.of(30, 52, 50), cap = L.goldMetal, walls = { "left", "right", "back" } },
+	feature = { wall = "left", look = L.of(70, 40, 74, M.Fabric) },
+	paint = L.of(58, 36, 64),
 	ceil = L.of(20, 18, 22),
 	pendant = { shade = "globe", look = L.of(240, 206, 226, M.Glass, { t = 0.3 }) },
 	tablePendant = "globe",
@@ -1800,47 +1800,60 @@ end
 local function tvSet(c: any)
 	local K, V, th = c.K, c.V, c.th
 	local tv = V:first("TV")
-	if not tv then
-		return
-	end
 	local wn: string? = nil
-	if tv.min.Z - V.z0 < 0.6 then
-		wn = "back"
-	elseif V.x1 - tv.max.X < 0.6 then
-		wn = "right"
-	elseif tv.min.X - V.x0 < 0.6 then
-		wn = "left"
+	local u, w, h, yc = 0, 4.4, 2.48, 6.9
+	if tv then
+		if tv.min.Z - V.z0 < 0.6 then
+			wn = "back"
+		elseif V.x1 - tv.max.X < 0.6 then
+			wn = "right"
+		elseif tv.min.X - V.x0 < 0.6 then
+			wn = "left"
+		end
 	end
-	if not wn then
-		return
+	if tv and wn then
+		u = (V:wallCoord(wn, tv.c))
+		w = if wn == "back" then tv.size.X else tv.size.Z
+		h = tv.size.Y
+		yc = tv.c.Y
+		hideRec(K, tv)
+		for _, r in V.byName.TVScreen or {} do
+			hideRec(K, r)
+		end
+		claim(K, wn, u - w / 2 - 0.3, u + w / 2 + 0.3, tv.min.Y - 1.0, tv.max.Y + 0.2)
+	else
+		-- 맵에 TV 가 없는 펍: 손님 쪽 벽에 새로 (사운드바 프롬프트가 설 자리)
+		if V.H < 8.4 then
+			return
+		end
+		local function okTV(wn2: string, uu: number, _w: number): boolean
+			return promptOK(K, (V:wall(wn2, uu, 5.25, 0.3)).Position) and reachable(K, wn2, uu)
+		end
+		local w2, u2 = findWall(K, { "back", "right", "left" }, 4.8, 4.8, 5.0, math.min(V.H - 0.4, 8.6), V3(0, 0, V.z0), 0.8, okTV)
+		if not w2 or not u2 then
+			return
+		end
+		wn, u = w2, u2
+		yc = math.min(V.H - 0.6, 8.6) - h / 2 - 0.1
 	end
-	local u = (V:wallCoord(wn, tv.c))
-	local w = if wn == "back" then tv.size.X else tv.size.Z
-	local h = tv.size.Y
-	hideRec(K, tv)
-	for _, r in V.byName.TVScreen or {} do
-		hideRec(K, r)
-	end
-	claim(K, wn, u - w / 2 - 0.3, u + w / 2 + 0.3, tv.min.Y - 1.0, tv.max.Y + 0.2)
-	local dcf = V:wall(wn, u, tv.c.Y, 0)
+	local dcf = V:wall(wn :: string, u, yc, 0)
 	local sw, sh = w - 0.14, h - 0.14
 	local z = 0.24
-	K.freeDepth += 1 -- 맵 TV 와 같은 자리 덮어씌우기
-	K:plate("TVMount", w * 0.3, h * 0.3, 0.1, dcf, L.blackMetal)
-	K:plate("TVBody", w, h, 0.14, dcf * CF(0, 0, 0.1), L.of(18, 18, 20))
-	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01 })
-	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.01) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.005 })
+	-- 맵 TV 와 같은 자리 덮어씌우기 (free)
+	K:plate("TVMount", w * 0.3, h * 0.3, 0.1, dcf, L.with(L.blackMetal, { free = true }))
+	K:plate("TVBody", w, h, 0.14, dcf * CF(0, 0, 0.1), L.of(18, 18, 20, nil, { free = true }))
+	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01, free = true })
+	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.01) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.005, free = true })
 	local stripes = {}
 	for k = 1, 3 do
-		local p = K:text("TVStripe", sw / 7, sh, dcf * CF(-sw / 2 + sw * (2 * k - 0.5) / 7, 0, z + 0.008), "", { bg = rgb(44, 136, 60), glow = 1.0, d = 0.004 })
+		local p = K:text("TVStripe", sw / 7, sh, dcf * CF(-sw / 2 + sw * (2 * k - 0.5) / 7, 0, z + 0.008), "", { bg = rgb(44, 136, 60), glow = 1.0, d = 0.004, free = true })
 		table.insert(stripes, p)
 	end
-	local _, bug = K:text("TVBug", sw * 0.4, sh * 0.17, dcf * CF(-sw * 0.27, sh * 0.37, z + 0.014), "", { fg = rgb(255, 255, 255), bg = rgb(16, 28, 70), glow = 1.1, d = 0.005, font = F.GothamBold })
-	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.014), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.005, font = F.GothamBlack })
-	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.014), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.005, font = F.GothamMedium })
-	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.014), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.004, font = F.GothamBlack })
-	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.05, 0.24), L.chrome)
-	K.freeDepth -= 1
+	local _, bug = K:text("TVBug", sw * 0.4, sh * 0.17, dcf * CF(-sw * 0.27, sh * 0.37, z + 0.014), "", { fg = rgb(255, 255, 255), bg = rgb(16, 28, 70), glow = 1.1, d = 0.005, font = F.GothamBold, free = true })
+	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.014), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.005, font = F.GothamBlack, free = true })
+	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.014), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.005, font = F.GothamMedium, free = true })
+	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.014), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.004, font = F.GothamBlack, free = true })
+	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.05, 0.24), L.with(L.chrome, { free = true }))
 	-- 사운드바 (상호작용 손잡이; 문 앞 keep 에 걸리면 생략하고 TV 에 붙임)
 	local bar = tvBody
 	if clearAt(K, dcf * CF(0, -h / 2 - 0.36, 0.2), V3(w * 0.66, 0.42, 0.34)) then
@@ -1912,7 +1925,7 @@ local function tvSet(c: any)
 			end
 		end
 	end)
-	c.tv = { wall = wn, u = u, w = w }
+	c.tv = { wall = wn :: string, u = u, w = w }
 end
 
 -- 8) 탭 리스트 보드 + (뒷벽이면) 아래 맥주 쿨러 · 잔 선반 ---------------------------------------------------
