@@ -304,6 +304,8 @@ function T.style(V: any): any
 	end
 	S.sk = sk
 	S.signs = signs
+	-- 벽시계는 우리가 (Common 시계는 맵 Sign_ 메뉴판과 겹칠 때가 있어서: 간판을 피하는 wallSpot 으로 따로)
+	S.clock = false
 	return S
 end
 
@@ -4320,7 +4322,7 @@ local function restockFridges(ctx: any): number
 					-- 가격표 (선반 앞)
 					if not ctx.low and bi % 2 == 1 then
 						local pp = if ax == "X" then V3(doorA + 0.3 * dir, b.min.Y + 0.06, b.c.Z) else V3(b.c.X, b.min.Y + 0.06, doorA + 0.3 * dir)
-						K:box("FfFridgeTag", V3(0.34, 0.12, 0.02), CF(pp) * face, pl(rgb(255, 230, 60)))
+						K:box("FfFridgeTag", V3(0.26, 0.09, 0.02), CF(pp) * face, pl(rgb(255, 230, 60)))
 					end
 					Scan.hide(K.hidden, b.part)
 					n += 1
@@ -4329,7 +4331,11 @@ local function restockFridges(ctx: any): number
 			-- 뒤판: 눈부신 네온 판 -> 밝은 무광 판 + 양옆 LED
 			if glowRec then
 				local g = glowRec
-				K:box("FfFridgeBackPanel", g.size, CF(g.c), L.of(214, 222, 228, M.SmoothPlastic))
+				K:box("FfFridgeBackPanel", g.size, CF(g.c), L.of(226, 232, 238, M.SmoothPlastic))
+				-- 문 안쪽 위 LED 바 + 아래로 비추는 빛 (안이 어둡지 않게)
+				local tp = if ax == "X" then V3(doorA + 0.35 * dir, g.c.Y + g.size.Y / 2 - 0.25, g.c.Z) else V3(g.c.X, g.c.Y + g.size.Y / 2 - 0.25, doorA + 0.35 * dir)
+				local bar = K:box("FfFridgeLEDTop", if ax == "X" then V3(0.06, 0.05, axv(g.size, ox) - 0.3) else V3(axv(g.size, ox) - 0.3, 0.05, 0.06), CF(tp), neon(rgb(236, 246, 255)))
+				K:light(bar, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 0.9, Angle = 150, Color = L.coolLight })
 				local w = axv(g.size, ox)
 				for s = -1, 1, 2 do
 					local o = s * (w / 2 - 0.06)
@@ -4430,7 +4436,7 @@ local function restockSupplies(ctx: any)
 			local fc = c * face
 			K:box("FfRamenBox", fs - V3(0.02, 0.02, 0.02), fc, L.of(214, 30, 26, M.Cardboard))
 			K:box("FfRamenBand", V3(fs.X - 0.01, fs.Y * 0.2, fs.Z - 0.01), fc * CF(0, fs.Y * 0.3, 0), L.of(24, 20, 20, M.Cardboard))
-			K:text("FfRamenText", fs.X * 0.8, fs.Y * 0.44, fc * CF(0, -fs.Y * 0.12, fs.Z / 2), "辛라면\n5입", { fg = WHITE, font = F.GothamBlack, d = 0.005 })
+			K:text("FfRamenText", fs.X * 0.8, fs.Y * 0.44, fc * CF(0, -fs.Y * 0.12, fs.Z / 2), "얼큰라면\n5개입", { fg = WHITE, font = F.GothamBlack, d = 0.005 })
 			Scan.hide(K.hidden, r.part)
 		end
 		-- 치킨 포장 상자 더미 (흰 상자 + 빨강 띠 + 뚜껑 상호)
@@ -4441,6 +4447,11 @@ local function restockSupplies(ctx: any)
 			K:box("FfChickenBoxBand", V3(s.X - 0.02, s.Y * 0.36, s.Z - 0.02), c * CF(0, -s.Y * 0.12, 0), L.of(196, 30, 34, M.Cardboard))
 			K:box("FfChickenBoxVent", V3(s.X * 0.5, 0.02, 0.1), c * CF(0, s.Y / 2 - 0.005, s.Z * 0.3), L.of(120, 20, 24))
 			K:text("FfChickenBoxLid", s.X * 0.8, s.Z * 0.42, c * CF(0, s.Y / 2 - 0.01, -s.Z * 0.05) * ANG(-PI / 2, 0, 0), (if has(nm, "치킨") then nm else "치킨") .. "\n바삭하게 튀겼닭!", { fg = rgb(196, 30, 34), font = F.GothamBlack, d = 0.004 })
+			-- 옆면 상호 (방 쪽)
+			local toC = V3(-r.c.X, 0, -r.c.Z)
+			local face = if math.abs(toC.Z) > math.abs(toC.X) then (if toC.Z > 0 then CFrame.identity else ANG(0, PI, 0)) else (if toC.X > 0 then ANG(0, PI / 2, 0) else ANG(0, -PI / 2, 0))
+			local half = if math.abs(toC.Z) > math.abs(toC.X) then s.Z / 2 else s.X / 2
+			K:text("FfChickenBoxSide", math.min(s.X, s.Z) * 0.7, s.Y * 0.3, c * face * CF(0, -s.Y * 0.12, half - 0.005), if has(nm, "치킨") then nm else "CHICKEN", { fg = WHITE, font = F.GothamBlack, d = 0.004 })
 			Scan.hide(K.hidden, r.part)
 		end
 		-- 치킨무 통 (흰 원통 + 반투명 뚜껑 + 라벨)
@@ -4452,6 +4463,16 @@ local function restockSupplies(ctx: any)
 			K:vcyl("FfRadishCubes", 0.04, d * 0.86, base * CF(0, s.Y * 0.8, 0), pl(rgb(250, 248, 220)))
 			K:vcyl("FfRadishLid", s.Y * 0.12, d, base * CF(0, s.Y * 0.88, 0), { c = rgb(236, 240, 236), m = M.Glass, t = 0.4 })
 			K:vcyl("FfRadishLabel", s.Y * 0.26, d * 0.96 + 0.012, base * CF(0, s.Y * 0.4, 0), pl(rgb(60, 160, 90)))
+			Scan.hide(K.hidden, r.part)
+		end
+		-- 물티슈 상자 (흰 상자 + 파랑 띠 + 뽑는 구멍)
+		for _, r in V.byName.WetWipeBox or {} do
+			local s = r.size
+			local c = CF(r.c)
+			K:box("FfWipeBox", s - V3(0.02, 0.02, 0.02), c, pl(rgb(250, 250, 250)))
+			K:box("FfWipeBand", V3(s.X - 0.01, s.Y * 0.36, s.Z - 0.01), c * CF(0, -s.Y * 0.1, 0), pl(rgb(60, 140, 220)))
+			K:box("FfWipeSlot", V3(s.X * 0.5, 0.02, 0.08), c * CF(0, s.Y / 2 - 0.005, 0), pl(rgb(40, 90, 160)))
+			K:ell("FfWipeSheet", V3(0.2, 0.12, 0.12), c * CF(0, s.Y / 2 + 0.04, 0), pl(rgb(252, 252, 252)))
 			Scan.hide(K.hidden, r.part)
 		end
 		-- 정수기 (흰 몸체 · 검정 유리 조작부 · 크롬 코크 · 물받이)
@@ -4583,6 +4604,27 @@ local function selfCabinetOverlay(ctx: any): number
 	return made
 end
 
+-- 벽시계: 간판 · 장식을 피한 빈 벽 (높이 7.6 -> 6.4 순), 게임 시각으로 도는 바늘
+local function placeClock(ctx: any)
+	local K, V = ctx.K, ctx.V
+	if V:has("ClockFace") > 0 or V:has("ClockRim") > 0 or V:has("Clock") > 0 then
+		return -- 맵에 이미 시계
+	end
+	local hs = { math.min(V.H - 1.4, 7.6), 6.4 }
+	for _, h in hs do
+		local missBefore = ctx.miss
+		local d = wallSpot(ctx, { "back", "left", "right" }, 1.6, h - 0.8, h + 0.8, 0)
+		ctx.miss = missBefore
+		if d then
+			local hr, mn = Props.clock(K, d, 1.4, nil)
+			if hr and mn then
+				Interact.clock(K, hr, mn, d, 1.4)
+			end
+			return
+		end
+	end
+end
+
 local FF_DUMP = false -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
 	if FF_DUMP then
@@ -4627,6 +4669,7 @@ function T.build(K: any, V: any, S: any)
 		local nb = restockBarBottles(ctx)
 		restockSupplies(ctx)
 		selfCabinetOverlay(ctx)
+		placeClock(ctx)
 		if nf + nb > 0 then
 			K:note(string.format("ff restock: fridge %d, bar %d", nf, nb))
 		end
