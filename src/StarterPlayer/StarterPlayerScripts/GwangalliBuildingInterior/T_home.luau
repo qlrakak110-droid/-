@@ -4271,7 +4271,7 @@ function C:interactions()
 			local dir = (b - a)
 			local look = if dir.Magnitude > 0.01 then dir.Unit else V3(0, 0, 1)
 			local home: CFrame = rb.home
-			local off = self.V.cf * CFrame.lookAt(pos, pos + look) * home:Inverse()
+			local off = self.V.cf * CFrame.lookAt(pos, pos + look) * home:Inverse() * self.V.cf:Inverse()
 			for p, cf in base do
 				if p.Parent then
 					p.CFrame = off * cf

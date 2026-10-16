@@ -2091,6 +2091,9 @@ local function staffDesk(ctx: any)
 	Q:box("Binder", V3(0.25, 1.0, 0.8), onTop(mx.X - 0.52, mx.Z - 1.3) * CF(0, 0.5, 0), lk(RED))
 	Q:vcyl("Mug", 0.3, 0.26, onTop(mn.X + 1.3, mx.Z - 0.45) * CF(0, 0.15, 0), lk(WHITE))
 	Q:box("Calculator", V3(0.4, 0.05, 0.55), onTop(cx - 1.1, mx.Z - 0.55) * CF(0, 0.025, 0), lk(rgb(60, 60, 64)))
+	-- 점포 PC 본체 (책상 아래)
+	Q:box("StorePC", V3(0.7, 1.6, 1.4), CF(mx.X - 1.25, 0.8, (mn.Z + mx.Z) / 2 - 0.4), lk(rgb(36, 38, 42)))
+	Q:box("StorePCLed", V3(0.04, 0.04, 0.02), CF(mx.X - 1.25, 1.4, (mn.Z + mx.Z) / 2 + 0.31), Look.ledBlue)
 	-- 책상 앞판 (다리 사이 가림판)
 	Q:box("DeskModesty", V3(mx.X - mn.X - 0.4, 1.6, 0.05), CF(cx, top - 1.2, mn.Z + 0.3), lk(rgb(140, 112, 84), M.Wood))
 	-- 폐기 바구니 (책상 옆)
@@ -2322,6 +2325,24 @@ local function cagesAndPiles(ctx: any)
 		for k = 0, 2 do
 			carton(ctx, cageP * CF(0, 0.3 + k * 1.25, 0), V3(1.9, 1.2, 2.3), ({ "새우깡 20입", "신라면 40입", "햇반 × 24" })[k + 1], ({ rgb(220, 120, 20), RED, rgb(40, 140, 70) })[k + 1], k + 3)
 		end
+	end
+	-- 입고 팔레트 (랩 감은 음료 박스) · 창고 가운데 비어 있던 자리
+	local palP = CF(6.0, 0, -3.4)
+	if spotB(ctx, palP, V3(3.4, 3.4, 2.8), 0.2) then
+		Q:box("Pallet", V3(3.2, 0.12, 2.6), palP * CF(0, 0.38, 0), lk(rgb(176, 140, 96), M.WoodPlanks))
+		for k = -1, 1 do
+			Q:box("PalletBlock", V3(3.2, 0.32, 0.4), palP * CF(0, 0.16, k * 1.1), lk(rgb(150, 116, 80), M.Wood))
+		end
+		local cols = { RED, rgb(30, 110, 200), rgb(30, 110, 200), RED }
+		for lyr = 0, 1 do
+			for i = 0, 3 do
+				local c = palP * CF(-0.8 + (i % 2) * 1.6, 0.44 + lyr * 1.25, -0.65 + (i // 2) * 1.3)
+				Q:box("PalletCase", V3(1.55, 1.2, 1.25), c * CF(0, 0.6, 0), lk(cols[(i + lyr) % 4 + 1], M.Cardboard))
+				Q:plate("PalletCaseLabel", 1.0, 0.36, 0.01, c * CF(0, 0.7, 0.625), lk(WHITE))
+			end
+		end
+		Q:box("ShrinkWrap", V3(3.24, 2.5, 2.64), palP * CF(0, 1.69, 0), { c = rgb(230, 240, 246), m = M.Glass, t = 0.7, r = 0.2 })
+		txt(ctx, "PalletTag", 1.2, 0.5, palP * CF(0, 2.4, 1.33), "입고 10/16\n음료 48 BOX", INK, rgb(255, 245, 160), { font = F.GothamBold, d = 0.01 })
 	end
 	local milkP = CF(xw + 1.3, 0, 4.0)
 	if spotB(ctx, milkP, V3(2.0, 2.2, 1.6), 0) then

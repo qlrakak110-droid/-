@@ -405,6 +405,40 @@ function Ctx:clear(cf: CFrame, size: Vector3, mode: string, pad: number?): boole
 	end
 	return true
 end
+-- (디버그) clear 가 실패한 까닭
+function Ctx:why(cf: CFrame, size: Vector3, mode: string): string
+	local mn, mx = laabb(self.cf * cf, size)
+	local k = self:hitsKeep(mn, mx, mode)
+	if k then
+		return "keep " .. k
+	end
+	for _, s in self.V.solid do
+		if not self.K.hidden[s.part] and overlap(mn, mx, s.min, s.max, 0.03) then
+			return "solid " .. s.name
+		end
+	end
+	for _, s in self.V.wallItems do
+		if not self.K.hidden[s.part] and overlap(mn, mx, s.min, s.max, 0.03) then
+			return "wallItem " .. s.name
+		end
+	end
+	for _, s in self:priorBoxes() do
+		if overlap(mn, mx, s.min, s.max, 0.02) then
+			return "prior"
+		end
+	end
+	for _, r in self.K.reserved do
+		if overlap(mn, mx, r.min, r.max, 0.02) then
+			return "kitreserved"
+		end
+	end
+	for _, r in self.K.hwRes or {} do
+		if overlap(mn, mx, r.min, r.max, 0.01) then
+			return "hwres"
+		end
+	end
+	return "?"
+end
 -- 자리 예약 (C 로컬 상자)
 function Ctx:reserve(cf: CFrame, size: Vector3)
 	local K = self.K
@@ -1819,6 +1853,9 @@ local function topSpot(C: any, info: any, w: number, d: number, h: number, targe
 			table.insert(info.busy, { x - w / 2, x + w / 2, z - d / 2, z + d / 2 })
 			return CF(x, ytop, z)
 		end
+		if ok and C.K.hwDebug then
+			C.K:note(string.format("topSpot clear fail x=%.2f w=%.2f why=%s", x, w, tostring(C:why(cf, V3(w, h, d), "top"))))
+		end
 	end
 	return nil
 end
@@ -2269,6 +2306,13 @@ end
 local function kitchenClutter(info: any)
 	local C = info.C
 	local ti = C.ti
+	if C.K.hwDebug then
+		local t = {}
+		for _, b in info.busy do
+			table.insert(t, string.format("[%.1f,%.1f z%.1f,%.1f]", b[1], b[2], b[3] or -1, b[4] or 99))
+		end
+		C.K:note(string.format("run top %.2f..%.2f zt=%.2f busy %s", info.topA, info.topB, info.zt, table.concat(t, " ")))
+	end
 	local sinkC = if info.bowl then (info.bowl.a + info.bowl.b) / 2 else 0
 	local hobC = if info.hobBB then (info.hobBB[1].X + info.hobBB[2].X) / 2 else sinkC + 4
 	local away = if hobC < sinkC then 1 else -1 -- 개수대에서 인덕션 반대쪽
@@ -4313,6 +4357,7 @@ function HomeWet.build(K: any, V: any, S: any)
 	K.hwPrior = nil
 	K.hwRes = K.hwRes or {}
 	K.hwLights = 0
+	K.hwDebug = V.hwDebug
 	-- 집에는 가게 앵커(문 · 전자레인지 ...) 6.5 규칙 대신 HomeInteract 거리 규칙 (Ctx:promptOK)
 	local savedHosts = K.hostPts
 	K.hostPts = {}
