@@ -245,6 +245,20 @@ local function layout()
 	if not r or not s or not gui then
 		return
 	end
+	local g = gui :: ScreenGui
+	local pg = if mode == "phone" and ctx.PhoneHook then ctx.PhoneHook.phoneGui() else nil
+	if pg then
+		-- the same coordinate space as the phone (its inset settings)
+		g.IgnoreGuiInset = pg.IgnoreGuiInset
+		pcall(function()
+			(g :: any).ScreenInsets = (pg :: any).ScreenInsets
+		end)
+	else
+		g.IgnoreGuiInset = false
+		pcall(function()
+			(g :: any).ScreenInsets = Enum.ScreenInsets.CoreUISafeInsets
+		end)
+	end
 	if mode == "phone" then
 		local pos, size = phoneRect()
 		if not pos or not size or size.X < 50 then
@@ -262,14 +276,11 @@ local function layout()
 	else
 		local cam = workspace.CurrentCamera
 		local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
-		local w, h = 360, math.clamp(vp.Y * 0.86, 420, 660)
-		local scale = math.min(vp.X * 0.94 / w, vp.Y * 0.9 / h, 1.35)
-		scale = math.max(scale, 0.55)
+		local scale = math.clamp(math.min(vp.X * 0.94 / 360, vp.Y * 0.9 / 560), 0.55, 1.35)
 		s.Scale = scale
 		r.AnchorPoint = Vector2.new(0.5, 0.5)
 		r.Position = UDim2.fromScale(0.5, 0.5)
-		r.Size = UDim2.fromOffset(w, h / scale * math.min(scale, 1))
-		r.Size = UDim2.fromOffset(w, math.floor(h))
+		r.Size = UDim2.fromOffset(360, math.floor(math.min(660, vp.Y * 0.9 / scale)))
 		if rootCorner then
 			rootCorner.CornerRadius = UDim.new(0, 22)
 		end
@@ -360,7 +371,8 @@ function Hub.open(m: string?, tab: string?)
 		end
 	end)
 	bindBack(true)
-	if GuiService:IsTenFootInterface() or Players.LocalPlayer:GetAttribute("GwGamepad") then
+	local last = game:GetService("UserInputService"):GetLastInputType()
+	if GuiService:IsTenFootInterface() or last == Enum.UserInputType.Gamepad1 then
 		local first = seg and seg.frame and seg.frame:FindFirstChildWhichIsA("TextButton")
 		if first then
 			GuiService.SelectedObject = first

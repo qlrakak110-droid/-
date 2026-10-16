@@ -3727,6 +3727,47 @@ local function stepCeiling(K: any, V: any, B: any, ctx: any)
 end
 
 -- 8) 유형 특수: 로스터 · 오븐 · 탕후루 · 아일랜드 · 집게 (바닥 단계에서 정한 자리)
+-- 쟁반 스테이션 (맵 TrayStation = 호스트 앵커): 같은 자세 · 같은 윗면의 원목 캐비닛 리스킨 후 원본 숨김.
+--   앞면: 쟁반이 꽂힌 칸 (쟁반 모서리 줄) + 문짝 2 + 손잡이 + 걸레받이, 위: 대리석 상판, 앞 띠에 "쟁반 · 집게"
+local function trayStationSkin(K: any, V: any, B: any, r: any)
+	if not room(K, 30) then
+		return
+	end
+	local d = V3((V.x0 + V.x1) / 2, 0, (V.z0 + V.z1) / 2) - r.c
+	local fwd = if math.abs(d.X) > math.abs(d.Z) then V3(math.sign(d.X), 0, 0) else V3(0, 0, math.sign(d.Z))
+	local depth = math.abs(fwd.X) * r.size.X + math.abs(fwd.Z) * r.size.Z
+	local width = math.abs(fwd.Z) * r.size.X + math.abs(fwd.X) * r.size.Z
+	local h = r.size.Y
+	local y0 = r.min.Y
+	local front = faceCF(V3(r.c.X, y0, r.c.Z) + fwd * (depth / 2), fwd)
+	local wood = if B.type == "bakery" then Look.oak elseif B.key == "tanghulu" then lk(rgb(240, 236, 232)) else lk(lt(B.c1, 0.35))
+	local edge = lk(dk((wood :: any).c, 0.2), (wood :: any).m)
+	K:free(function()
+		K:box("TrayBody", V3(width, h - 0.1, depth - 0.04), front * CF(0, (h - 0.1) / 2, -(depth - 0.04) / 2 - 0.04), wood)
+		K:box("TrayTop", V3(width, 0.1, depth), front * CF(0, h - 0.05, -depth / 2), Look.marbleWhite)
+		K:plate("TrayKick", width - 0.1, 0.3, 0.02, front * CF(0, 0.15, -0.04), Look.black)
+		-- 쟁반 칸 (위쪽 40%)
+		local cubH = h * 0.38
+		local cy = h - 0.1 - 0.1 - cubH / 2
+		K:plate("TrayCubby", width - 0.3, cubH, 0.01, front * CF(0, cy, -0.04), lk(dk((wood :: any).c, 0.55)))
+		local n = math.max(4, math.floor(cubH / 0.13))
+		for k = 1, n do
+			local col = if k % 2 == 0 then rgb(120, 80, 50) else rgb(140, 96, 60)
+			K:plate("TrayEdge", width - 0.42, 0.05, 0.03, front * CF(0, cy - cubH / 2 + k * cubH / (n + 1), -0.04), lk(col))
+		end
+		-- 문짝 2 + 손잡이
+		local doorH = h - 0.3 - cubH - 0.35
+		for _, sx in { -1, 1 } do
+			local dc = front * CF(sx * width / 4, 0.3 + 0.05 + doorH / 2, -0.04)
+			K:plate("TrayDoor", width / 2 - 0.12, doorH, 0.03, dc, edge)
+			K:plate("TrayDoorInset", width / 2 - 0.4, doorH - 0.3, 0.035, dc, wood)
+			K:plate("TrayDoorHandle", 0.06, 0.5, 0.06, dc * CF(-sx * (width / 4 - 0.22), 0.1, 0), Look.brass)
+		end
+		K:text("TraySign", math.min(width - 0.3, 2.2), 0.22, front * CF(0, h - 0.1 - 0.06, -0.035), if B.type == "bakery" then "쟁반 · 집게 TRAY & TONGS" else "쟁반 · 스푼 · 냅킨", { fg = rgb(60, 40, 30), d = 0.005, font = F.GothamBold })
+	end)
+	Scan.hide(K.hidden, r.part)
+end
+
 local function stepSpecial(K: any, V: any, B: any, ctx: any)
 	local R = ctx.roaster
 	if R and R.panel and R.panel.Parent then
@@ -3866,6 +3907,7 @@ local function stepSpecial(K: any, V: any, B: any, ctx: any)
 				K:text("TongSign", 1.8, 0.3, dcf * CF(0, 0.52, 0.04), if B.type == "bakery" then "쟁반과 집게를 이용해 주세요" else "쟁반 · 스푼은 이곳에", { fg = rgb(60, 40, 30), bg = rgb(252, 246, 232), d = 0.02, font = F.GothamBold })
 			end
 		end
+		trayStationSkin(K, V, B, ts)
 	end
 end
 

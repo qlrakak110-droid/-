@@ -624,7 +624,8 @@ local function ceilingKit(K: any, V: any, o: any?)
 	local gx, gz = tbarGrid(V)
 	local xs, mx = halfLines(gx, V.x0, V.x1, 2.04)
 	local zs, mz = halfLines(gz, V.z0, V.z1, 2.04)
-	local barL = lk(206, 206, 202, M.Metal)
+	-- 도장 T-bar (흰 소부 도장). 맵 TBar 는 Metal 이라 어둡게 보여서 조금 큰 흰 덮개로 감쌈 (숨기지 않음)
+	local barL = lk(234, 234, 230, M.SmoothPlastic)
 	local vd = oo.void -- { x0, z0, x1, z1 } 천장 구멍 (계단)
 	-- 구간 a..b 에서 구멍 [c, d] 빼기
 	local function cut(a: number, b: number, c: number?, d: number?): { { number } }
@@ -652,16 +653,33 @@ local function ceilingKit(K: any, V: any, o: any?)
 		else
 			K:box("CeilingSkin", V3(V.W - 0.04, 0.02, V.D - 0.04), CF(0, H - 0.018, 0), skinL)
 		end
+		-- 맵 TBar 덮개: 방 안쪽 구간만 잘라서
+		local cover = { c = C3(234, 234, 230), m = M.SmoothPlastic, free = true }
+		for _, d in V.model:GetDescendants() do
+			if d.Name == "TBar" and d:IsA("BasePart") then
+				local l = V.cf:ToObjectSpace(d.CFrame)
+				if math.abs(l.Y - H) < 0.8 then
+					local mn, mxp = K.laabb(l, d.Size)
+					local a0, a1 = math.max(mn.X, V.x0 + 0.04), math.min(mxp.X, V.x1 - 0.04)
+					local b0, b1 = math.max(mn.Z, V.z0 + 0.04), math.min(mxp.Z, V.z1 - 0.04)
+					if a1 > a0 + 0.05 and b1 > b0 + 0.05 then
+						local y0 = mn.Y - 0.015
+						local y1 = math.min(mxp.Y, H - 0.02)
+						K:box("CeilingTBarCover", V3(a1 - a0 + 0.04, y1 - y0, b1 - b0 + 0.04), CF((a0 + a1) / 2, (y0 + y1) / 2, (b0 + b1) / 2), cover)
+					end
+				end
+			end
+		end
 		for _, x in mx do
 			local inV = vd and x > vd[1] and x < vd[3]
 			for _, sz in cut(V.z0 + 0.04, V.z1 - 0.04, if inV then vd[2] else nil, if inV then vd[4] else nil) do
-				K:box("CeilingTBar", V3(0.18, 0.08, sz[2] - sz[1]), CF(x, H - 0.05, (sz[1] + sz[2]) / 2), barL)
+				K:box("CeilingTBar", V3(0.2, 0.07, sz[2] - sz[1]), CF(x, H - 0.055, (sz[1] + sz[2]) / 2), barL)
 			end
 		end
 		for _, z in mz do
 			local inV = vd and z > vd[2] and z < vd[4]
 			for _, sx in cut(V.x0 + 0.04, V.x1 - 0.04, if inV then vd[1] else nil, if inV then vd[3] else nil) do
-				K:box("CeilingTBar", V3(sx[2] - sx[1], 0.08, 0.18), CF((sx[1] + sx[2]) / 2, H - 0.05, z), barL)
+				K:box("CeilingTBar", V3(sx[2] - sx[1], 0.07, 0.2), CF((sx[1] + sx[2]) / 2, H - 0.055, z), barL)
 			end
 		end
 	end)
@@ -1643,7 +1661,7 @@ local function examCouch(K: any, V: any, seat: any, o: any?): (CFrame, number, n
 	return bf, L, W
 end
 
--- 침대 둘레 U 커튼 (침대 틀 bf, 길이 L, 폭 W). side 쪽 열린 상태: 양쪽 레일은 발 쪽 모서리에 모임
+-- 침대 둘레 U 커튼 (침대 틀 bf, 길이 L, 폭 W). 걷은 상태: 두 폭 모두 머리 쪽(벽)에 모임
 local function bedCurtains(K: any, bf: CFrame, L: number, W: number, o: any?): { any }
 	local oo: any = o or {}
 	local gx = W / 2 + (oo.gapX or 1.3)
@@ -1654,14 +1672,19 @@ local function bedCurtains(K: any, bf: CFrame, L: number, W: number, o: any?): {
 	end
 	local runs = {}
 	local f0 = oo.f0 or 0.12
-	if oo.left ~= false then
-		table.insert(runs, curtainRun(K, if oo.revLeft then { p(-gx, headZ), p(-gx, footZ) } else { p(-gx, footZ), p(-gx, headZ) }, f0, oo))
-	end
-	if oo.right ~= false then
-		table.insert(runs, curtainRun(K, if oo.revRight then { p(gx, headZ), p(gx, footZ) } else { p(gx, footZ), p(gx, headZ) }, f0, oo))
-	end
-	if oo.foot ~= false then
-		table.insert(runs, curtainRun(K, if oo.revFoot then { p(gx - 0.1, footZ), p(-gx + 0.1, footZ) } else { p(-gx + 0.1, footZ), p(gx - 0.1, footZ) }, f0, oo))
+	-- U 레일 커튼 두 폭: 머리 쪽(벽)에서 출발해 발치 가운데에서 만남. 걷으면 머리 쪽 벽에 모여서
+	-- 방 가운데에 기둥처럼 서지 않음 (실제 병실 커튼 주차 위치)
+	local L0, R0, F = p(-gx, headZ), p(gx, headZ), footZ
+	local hasL, hasR, hasF = oo.left ~= false, oo.right ~= false, oo.foot ~= false
+	if hasL and hasR then
+		table.insert(runs, curtainRun(K, if hasF then { L0, p(-gx, F), p(-0.05, F) } else { L0, p(-gx, F) }, f0, oo))
+		table.insert(runs, curtainRun(K, if hasF then { R0, p(gx, F), p(0.05, F) } else { R0, p(gx, F) }, f0, oo))
+	elseif hasL then
+		table.insert(runs, curtainRun(K, if hasF then { L0, p(-gx, F), p(gx - 0.1, F) } else { L0, p(-gx, F) }, f0, oo))
+	elseif hasR then
+		table.insert(runs, curtainRun(K, if hasF then { R0, p(gx, F), p(-gx + 0.1, F) } else { R0, p(gx, F) }, f0, oo))
+	elseif hasF then
+		table.insert(runs, curtainRun(K, { p(-gx + 0.1, F), p(gx - 0.1, F) }, f0, oo))
 	end
 	return runs
 end

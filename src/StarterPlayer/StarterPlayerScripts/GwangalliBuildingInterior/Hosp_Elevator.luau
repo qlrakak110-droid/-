@@ -158,7 +158,7 @@ local function penthouse(K: any)
 	Lib.wall(K, "PentRoof", -36.50, top, 33.00, -27.70, top + 0.35, zb + 0.40, LK.concrete)
 	Lib.wall(K, "PentInnerCeil", LIFT.x0, top - 0.3, LIFT.front, LIFT.x1, top, zb, LK.white)
 	K:free(function()
-		Lib.ab(K, "PentCoping", -36.60, top + 0.35, 32.90, -27.60, top + 0.50, zb + 0.50, Look.of(70, 74, 78, M.Metal))
+		Lib.ab(K, "PentCoping", -36.60, top + 0.35, 32.90, -27.60, top + 0.50, zb + 0.40, Look.of(70, 74, 78, M.Metal))
 		if K.detail ~= "low" then
 			-- 기계실 루버 (양 옆)
 			for i = 0, 5 do
