@@ -61,7 +61,9 @@ local function txt(parent: Instance, props: { [string]: any }): TextLabel
 		Text = "",
 	}
 	for k, v in props do
-		p[k] = v
+		if k ~= "stroke" and k ~= "strokeT" then
+			p[k] = v
+		end
 	end
 	local l = new("TextLabel", p, parent)
 	if props.stroke ~= false then
