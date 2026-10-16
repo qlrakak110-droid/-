@@ -3115,6 +3115,904 @@ function C:slotOverlays()
 	end
 end
 
+-------------------------------------------------------------------------------------------------
+-- 방 소품 리스킨 (템플릿 Props 모델: 같은 자리 · 같은 크기, 원본은 숨김)
+-------------------------------------------------------------------------------------------------
+-- 이름으로 이 방 소품 모델 찾기 (Props / Fixtures 아래)
+function C:propModels(name: string): { Instance }
+	local out = {}
+	if not self.model then
+		return out
+	end
+	for _, d in self.model:GetDescendants() do
+		if d.Name == name and (d:IsA("Model") or d:IsA("BasePart")) then
+			local p: Vector3
+			if d:IsA("BasePart") then
+				p = self.V.cf:PointToObjectSpace(d.Position)
+			else
+				local cf = (d :: Model):GetBoundingBox()
+				p = self.V.cf:PointToObjectSpace(cf.Position)
+			end
+			if self:mine(V3(p.X, math.max(0.5, math.min(p.Y, 1.5)), p.Z)) then
+				table.insert(out, d)
+			end
+		end
+	end
+	return out
+end
+-- 이 방 파트 이름별
+function C:ownNamed(...: string): { any }
+	local set = {}
+	for _, n in { ... } do
+		set[n] = true
+	end
+	local out = {}
+	for _, r in self.own do
+		if set[r.name] then
+			table.insert(out, r)
+		end
+	end
+	return out
+end
+
+-- 벽걸이 에어컨 (part rec = WallAC 본체). 배관 덮개 · 드레인 호스 · 리모컨 거치대
+function C:wallAC(r: any, extra: any?)
+	local K = self.K
+	local p: BasePart = r.part
+	local dcf = self:wallFace(p)
+	if not dcf then
+		return
+	end
+	local w = math.max(p.Size.X, p.Size.Z)
+	local h = p.Size.Y
+	local d = math.min(p.Size.X, p.Size.Z)
+	local cy = self.V.cf:PointToObjectSpace(p.Position).Y
+	local base = CFrame.fromMatrix(V3(dcf.Position.X, cy, dcf.Position.Z), dcf.XVector, YA, dcf.ZVector)
+	local body = lk(246, 246, 244)
+	K:free(function()
+		K:rbox("HomeACBody", V3(w, h - 0.04, d - 0.04), 0.16, base * CF(0, 0, d / 2), body)
+		K:box("HomeACFront", V3(w - 0.08, h * 0.62, 0.02), base * CF(0, h * 0.12, d - 0.01), lk(250, 250, 250))
+		local vane = K:box("HomeACVane", V3(w - 0.3, 0.06, 0.26), base * CF(0, -h / 2 + 0.12, d - 0.12) * ANG(math.rad(25), 0, 0), lk(232, 232, 230))
+		K:box("HomeACOutlet", V3(w - 0.25, 0.12, 0.3), base * CF(0, -h / 2 + 0.1, d / 2 + 0.1), lk(70, 72, 76))
+		K:box("HomeACDisplay", V3(0.5, 0.12, 0.01), base * CF(w / 2 - 0.55, -h * 0.05, d + 0.002), lk(30, 30, 34))
+		local led = K:box("HomeACLED", V3(0.16, 0.05, 0.01), base * CF(w / 2 - 0.55, -h * 0.05, d + 0.006), L.neon(c3(80, 200, 255)))
+		K:box("HomeACBrand", V3(0.36, 0.05, 0.005), base * CF(-w / 2 + 0.5, h * 0.25, d + 0.003), lk(170, 172, 176, M.Metal))
+		-- 배관 (왼쪽으로 벽 속) + 드레인 호스
+		K:box("HomeACPipeCover", V3(0.28, 0.22, 0.24), base * CF(-w / 2 - 0.14, -h / 2 + 0.2, 0.12), body)
+		self.acVanes = { vane }
+		self.acLED = led
+	end)
+	self:hide(p)
+	for _, q in (p.Parent and p.Parent:GetDescendants() or {}) do
+		if q:IsA("BasePart") and (q.Name == "ACLouver" or q.Name == "ACLED") then
+			self:hide(q)
+		end
+	end
+	-- 리모컨 거치대 (스위치 근처 벽)
+	local _, _, rd = self:wallSpot(0.35, 3.9, 4.6, 0.12, { score = function(s, u, cfm)
+		return (cfm.Position - dcf.Position).Magnitude
+	end })
+	if rd then
+		K:free(function()
+			K:box("HomeRemoteHolder", V3(0.3, 0.6, 0.1), rd * CF(0, 0, 0.05), L.white)
+			K:slab("HomeACRemote", 0.22, 0.12, 0.62, 0.05, rd * CF(0, 0.08, 0.13) * ANG(PI / 2, 0, 0), lk(244, 244, 242))
+			K:box("HomeACRemoteLCD", V3(0.14, 0.14, 0.01), rd * CF(0, 0.22, 0.19), lk(160, 200, 190))
+		end)
+	end
+end
+
+-- 옷 (옷걸이 + 어깨 + 몸판). pcf: 걸이 고리 아래 점, +X = 옷 폭 방향, +Z = 옷 앞
+local function garment(K: any, pcf: CFrame, w: number, len: number, look: any, kind: string?)
+	K:seg("HomeHangerHook", (pcf * CF(0, 0.22, 0)).Position, (pcf * CF(0, 0.02, 0)).Position, 0.025, L.chrome)
+	K:bar("HomeHangerL", (pcf * CF(0, 0.02, 0)).Position, (pcf * CF(-w * 0.45, -0.22, 0)).Position, 0.05, 0.04, L.walnut)
+	K:bar("HomeHangerR", (pcf * CF(0, 0.02, 0)).Position, (pcf * CF(w * 0.45, -0.22, 0)).Position, 0.05, 0.04, L.walnut)
+	if kind == "pants" then
+		K:box("HomePantsBar", V3(w * 0.85, 0.04, 0.04), pcf * CF(0, -0.22, 0), L.walnut)
+		K:box("HomePants", V3(w * 0.42, len, 0.12), pcf * CF(0, -0.22 - len / 2, 0), look)
+		return
+	end
+	K:ell("HomeGarmentShoulder", V3(w * 0.95, 0.3, 0.26), pcf * CF(0, -0.24, 0), look)
+	K:box("HomeGarmentBody", V3(w * 0.82, len, 0.2), pcf * CF(0, -0.3 - len / 2, 0), look)
+	if kind ~= "dress" then
+		for _, sx in { -1, 1 } do
+			K:box("HomeGarmentSleeve", V3(0.2, len * 0.8, 0.18), pcf * CF(sx * w * 0.47, -0.34 - len * 0.4, 0) * ANG(0, 0, sx * 0.06), tint(look, 0.04))
+		end
+	end
+	if kind == "shirt" then
+		K:box("HomeGarmentPlacket", V3(0.05, len * 0.9, 0.21), pcf * CF(0, -0.3 - len * 0.45, 0.005), tint(look, -0.1))
+		K:box("HomeGarmentCollar", V3(w * 0.3, 0.12, 0.22), pcf * CF(0, -0.18, 0.01), tint(look, -0.06))
+	end
+end
+T.garment = garment
+
+-- 옷걸이 봉 + 옷들: rail = 봉 rec (원통, 방 로컬), clothes = rec 목록 (원래 옷: 색 · 길이)
+function C:clothesRail(railRec: any, clothes: { any }, opts: any?)
+	local K = self.K
+	local o: any = opts or {}
+	local mn, mx = railRec.min, railRec.max
+	local alongX = (mx.X - mn.X) >= (mx.Z - mn.Z)
+	local a = if alongX then V3(mn.X, railRec.c.Y, railRec.c.Z) else V3(railRec.c.X, railRec.c.Y, mn.Z)
+	local b = if alongX then V3(mx.X, railRec.c.Y, railRec.c.Z) else V3(railRec.c.X, railRec.c.Y, mx.Z)
+	K:free(function()
+		K:seg("HomeRail", a, b, 0.1, L.chrome)
+		local dir = (b - a).Unit
+		-- 옷: 봉 방향으로 줄지어, 옷 면은 봉과 직각
+		local n = #clothes
+		local kinds = { "shirt", "coat", "shirt", "pants", "dress", "shirt", "coat" }
+		for i, c in clothes do
+			local t = (i - 0.5) / n
+			local p = a:Lerp(b, t)
+			local len = math.clamp(c.size.Y - 0.35, 1.2, 3.4)
+			local w = math.clamp(math.max(c.size.X, c.size.Z), 1.0, 1.5)
+			local pcf = CFrame.fromMatrix(p, dir:Cross(YA) * -1, YA, dir) -- +X = 봉과 직각
+			local look = { c = c.part.Color, m = M.Fabric }
+			garment(K, pcf * ANG(0, (rnd(self.seed, i) - 0.5) * 0.25, 0), w, len, look, if len > 2.6 then (if i % 2 == 0 then "coat" else "dress") else kinds[(i + self.seed) % #kinds + 1])
+			self:hide(c.part)
+		end
+	end)
+	self:hide(railRec.part)
+end
+
+-- 투명 플라스틱 서랍장 (rec = 본체 상자)
+function C:plasticDrawers(r: any)
+	local K = self.K
+	local F, info = propFrame(self, r.part)
+	local x0, x1, y1, z0, z1 = info.min.X, info.max.X, info.max.Y, info.min.Z, info.max.Z
+	local n = 4
+	K:free(function()
+		boxF(K, "HomeDrawerFrame", F, V3(x0, 0.08, z0), V3(x1, y1, z1 - 0.06), lk(246, 246, 244))
+		for _, sx in { x0 + 0.06, x1 - 0.06 } do
+			K:box("HomeDrawerCaster", V3(0.12, 0.08, 0.12), F * CF(sx, 0.04, z1 - 0.2), lk(40, 40, 42))
+			K:box("HomeDrawerCaster", V3(0.12, 0.08, 0.12), F * CF(sx, 0.04, z0 + 0.2), lk(40, 40, 42))
+		end
+		local hh = (y1 - 0.2) / n
+		local cols = { c3(220, 60, 60), c3(60, 90, 160), c3(240, 230, 210), c3(70, 70, 76) }
+		for i = 1, n do
+			local yc = 0.12 + hh * (i - 0.5)
+			K:box("HomeDrawerFront", V3(x1 - x0 - 0.1, hh - 0.06, 0.04), F * CF((x0 + x1) / 2, yc, z1 - 0.03), { c = c3(240, 244, 246), m = M.Glass, t = 0.45 })
+			K:box("HomeDrawerContent", V3(x1 - x0 - 0.3, hh - 0.25, 0.04), F * CF((x0 + x1) / 2, yc - 0.03, z1 - 0.12), { c = cols[(i + self.seed) % #cols + 1], m = M.Fabric })
+			K:box("HomeDrawerGrip", V3((x1 - x0) * 0.4, 0.06, 0.05), F * CF((x0 + x1) / 2, yc + hh / 2 - 0.1, z1 + 0.0), lk(250, 250, 250))
+		end
+		boxF(K, "HomeDrawerTop", F, V3(x0 - 0.02, y1 - 0.04, z0), V3(x1 + 0.02, y1 + 0.02, z1 - 0.02), lk(250, 250, 248))
+	end)
+	self:hide(r.part)
+	return F, info
+end
+
+-- 날개형 빨래 건조대 + 빨래 (원래 건조대 자리 상자)
+function C:dryingRack(mn: Vector3, mx: Vector3, parts: { BasePart }, laundryCols: { Color3 })
+	local K = self.K
+	local alongX = (mx.X - mn.X) >= (mx.Z - mn.Z)
+	local c = (mn + mx) / 2
+	local len = if alongX then mx.X - mn.X else mx.Z - mn.Z
+	local wid = math.max(0.9, if alongX then mx.Z - mn.Z else mx.X - mn.X)
+	local F = CF(c.X, 0, c.Z) * (if alongX then CFrame.new() else ANG(0, PI / 2, 0))
+	local top = math.max(2.6, mx.Y)
+	local rl = lk(224, 226, 230, M.Metal)
+	K:free(function()
+		-- X 다리 (양 끝)
+		for _, sx in { -1, 1 } do
+			local x = sx * (len / 2 - 0.05)
+			K:seg("HomeRackLeg", F * V3(x, 0.02, -wid / 2), F * V3(x, top, wid / 2 - 0.1), 0.06, rl)
+			K:seg("HomeRackLeg", F * V3(x, 0.02, wid / 2), F * V3(x, top, -wid / 2 + 0.1), 0.06, rl)
+			K:ball("HomeRackFoot", 0.08, F * CF(x, 0.03, -wid / 2), L.rubber)
+			K:ball("HomeRackFoot", 0.08, F * CF(x, 0.03, wid / 2), L.rubber)
+		end
+		-- 윗 가로대 3 + 날개 (펼친 쪽)
+		for i = -1, 1 do
+			K:seg("HomeRackBar", F * V3(-len / 2, top, i * wid * 0.32), F * V3(len / 2, top, i * wid * 0.32), 0.05, rl)
+		end
+		for _, sz in { -1, 1 } do
+			K:seg("HomeRackWing", F * V3(-len / 2, top, sz * wid * 0.32), F * V3(-len / 2, top - 0.9, sz * (wid * 0.32 + 0.55)), 0.04, rl)
+			K:seg("HomeRackWing", F * V3(len / 2, top, sz * wid * 0.32), F * V3(len / 2, top - 0.9, sz * (wid * 0.32 + 0.55)), 0.04, rl)
+			K:seg("HomeRackWingBar", F * V3(-len / 2, top - 0.9, sz * (wid * 0.32 + 0.55)), F * V3(len / 2, top - 0.9, sz * (wid * 0.32 + 0.55)), 0.04, rl)
+		end
+		-- 빨래: 수건 · 티셔츠 · 양말 (가로대에 걸침)
+		local x = -len / 2 + 0.4
+		local i = 0
+		while x < len / 2 - 0.3 do
+			i += 1
+			local col = laundryCols[(i - 1) % #laundryCols + 1]
+			local kind = i % 3
+			local zz = ((i % 3) - 1) * wid * 0.32
+			if kind == 0 then
+				K:box("HomeLaundryTowel", V3(0.75, 1.2, 0.04), F * CF(x, top - 0.6, zz + 0.03), { c = col, m = M.Fabric })
+				K:box("HomeLaundryTowelBand", V3(0.75, 0.08, 0.045), F * CF(x, top - 1.05, zz + 0.03), { c = col:Lerp(Color3.new(0, 0, 0), 0.2), m = M.Fabric })
+				x += 0.85
+			elseif kind == 1 then
+				K:box("HomeLaundryShirt", V3(0.85, 0.95, 0.04), F * CF(x, top - 0.5, zz + 0.03), { c = col, m = M.Fabric })
+				K:box("HomeLaundrySleeve", V3(1.2, 0.25, 0.04), F * CF(x, top - 0.15, zz + 0.03), { c = col, m = M.Fabric })
+				x += 0.95
+			else
+				for j = 0, 1 do
+					K:box("HomeLaundrySock", V3(0.16, 0.5, 0.04), F * CF(x + j * 0.22, top - 0.25, zz + 0.03), { c = col, m = M.Fabric })
+					K:box("HomeLaundrySockClip", V3(0.08, 0.08, 0.06), F * CF(x + j * 0.22, top + 0.02, zz + 0.03), lk(90, 200, 230))
+				end
+				x += 0.5
+			end
+		end
+	end)
+	for _, p in parts do
+		self:hide(p)
+	end
+end
+
+-- 소형 냉장고 (body rec · door rec)
+function C:miniFridge(body: any, door: any?)
+	local K = self.K
+	local F, info = propFrame(self, body.part)
+	local x0, x1, y1, z0, z1 = info.min.X, info.max.X, info.max.Y, info.min.Z, info.max.Z
+	if door then
+		local dmn, dmx = laabb(self.V.cf:ToObjectSpace(door.part.CFrame), door.part.Size)
+		local _ = dmn
+		z1 = math.max(z1, (F:PointToObjectSpace((dmx + dmn) / 2)).Z + door.part.Size.Z * 0.5)
+	end
+	local fl = withC(L.white, body.part.Color)
+	K:free(function()
+		K:rbox("HomeFridgeBody", V3(x1 - x0, y1 - 0.08, z1 - z0 - 0.16), 0.06, F * CF((x0 + x1) / 2, 0.08 + (y1 - 0.08) / 2, (z0 + z1 - 0.16) / 2), fl)
+		K:rbox("HomeFridgeDoor", V3(x1 - x0 - 0.04, y1 - 0.14, 0.14), 0.05, F * CF((x0 + x1) / 2, 0.08 + (y1 - 0.08) / 2, z1 - 0.08), tint(fl, -0.02))
+		K:box("HomeFridgeGasket", V3(x1 - x0 - 0.06, y1 - 0.16, 0.02), F * CF((x0 + x1) / 2, 0.08 + (y1 - 0.08) / 2, z1 - 0.16), lk(200, 200, 198))
+		K:box("HomeFridgeHandle", V3(0.08, 0.6, 0.06), F * CF(x1 - 0.18, y1 * 0.62, z1 + 0.02), lk(200, 202, 206, M.Metal))
+		K:box("HomeFridgeBadge", V3(0.3, 0.06, 0.005), F * CF((x0 + x1) / 2, y1 - 0.25, z1 + 0.002), lk(160, 162, 166, M.Metal))
+		for _, sx in { x0 + 0.15, x1 - 0.15 } do
+			K:box("HomeFridgeFoot", V3(0.14, 0.08, 0.14), F * CF(sx, 0.04, z1 - 0.3), lk(40, 40, 42))
+		end
+		-- 냉장고 자석 + 전단지 (배달 쿠폰)
+		K:box("HomeFridgeMagnet", V3(0.22, 0.22, 0.03), F * CF(x0 + 0.35, y1 * 0.7, z1 + 0.012), lk(240, 120, 40))
+		K:box("HomeFridgeFlyer", V3(0.5, 0.7, 0.008), F * CF(x0 + 0.42, y1 * 0.45, z1 + 0.006) * ANG(0, 0, 0.05), lk(250, 248, 236))
+		K:text("HomeFridgeFlyerText", 0.44, 0.5, F * CF(x0 + 0.42, y1 * 0.45, z1 + 0.011) * ANG(0, 0, 0.05), "치킨\n배달\n☎ 051", { fg = c3(200, 40, 30), font = Enum.Font.GothamBold, d = 0.004, free = true })
+	end)
+	self:hide(body.part)
+	if door then
+		self:hide(door.part)
+	end
+	for _, q in (body.part.Parent and body.part.Parent:GetDescendants() or {}) do
+		if q:IsA("BasePart") and (q.Name == "DoorGap" or q.Name == "Handle") then
+			self:hide(q)
+		end
+	end
+	return F, info
+end
+
+-- 전자레인지 (rec), 전기포트 (base rec, body rec)
+function C:microwave(r: any, doorRec: any?)
+	local K = self.K
+	local F, info = propFrame(self, r.part)
+	local x0, x1, y0, y1, z0, z1 = info.min.X, info.max.X, info.min.Y, info.max.Y, info.min.Z, info.max.Z
+	local bl = withC(L.white, r.part.Color)
+	K:free(function()
+		K:rbox("HomeMicrowave", V3(x1 - x0, y1 - y0, z1 - z0), 0.05, F * CF((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), bl)
+		local dw = (x1 - x0) * 0.68
+		K:box("HomeMicrowaveDoor", V3(dw, (y1 - y0) - 0.14, 0.04), F * CF(x0 + dw / 2 + 0.05, (y0 + y1) / 2, z1 + 0.01), lk(40, 42, 46))
+		K:box("HomeMicrowaveWindow", V3(dw - 0.3, (y1 - y0) - 0.36, 0.01), F * CF(x0 + dw / 2 + 0.05, (y0 + y1) / 2, z1 + 0.035), { c = c3(20, 22, 26), m = M.Glass, r = 0.2 })
+		K:box("HomeMicrowaveHandle", V3(0.06, (y1 - y0) - 0.3, 0.06), F * CF(x0 + dw, (y0 + y1) / 2, z1 + 0.05), lk(210, 212, 216, M.Metal))
+		local px = x1 - (x1 - x0 - dw) / 2
+		K:box("HomeMicrowavePanel", V3((x1 - x0 - dw) - 0.1, (y1 - y0) - 0.14, 0.02), F * CF(px, (y0 + y1) / 2, z1 + 0.005), lk(230, 230, 228))
+		K:box("HomeMicrowaveLCD", V3(0.28, 0.1, 0.01), F * CF(px, y1 - 0.18, z1 + 0.018), lk(30, 34, 30))
+		K:text("HomeMicrowaveTime", 0.26, 0.09, F * CF(px, y1 - 0.18, z1 + 0.024), "12:30", { fg = c3(110, 230, 140), glow = 1.3, font = Enum.Font.Code, d = 0.004, free = true })
+		K:cyl("HomeMicrowaveDial", 0.05, 0.22, F * CF(px, (y0 + y1) / 2 - 0.08, z1 + 0.03) * ANG(0, PI / 2, 0), lk(200, 200, 200))
+		for i = 0, 2 do
+			K:box("HomeMicrowaveBtn", V3(0.08, 0.05, 0.015), F * CF(px - 0.1 + i * 0.1, y0 + 0.14, z1 + 0.02), lk(180, 180, 182))
+		end
+	end)
+	self:hide(r.part)
+	if doorRec then
+		self:hide(doorRec.part)
+	end
+end
+function C:kettle(baseRec: any?, bodyRec: any)
+	local K = self.K
+	local c = bodyRec.c
+	local y0 = if baseRec then baseRec.min.Y else bodyRec.min.Y
+	local F = CF(c.X, y0, c.Z)
+	K:free(function()
+		K:disc("HomeKettleBase", 0.6, 0.07, F * CF(0, 0.035, 0), lk(40, 40, 44))
+		K:vcyl("HomeKettleBody", 0.62, 0.48, F * CF(0, 0.07 + 0.31, 0), lk(206, 208, 212, M.Metal))
+		K:disc("HomeKettleLid", 0.38, 0.05, F * CF(0, 0.72, 0), lk(40, 40, 44))
+		K:box("HomeKettleHandle", V3(0.08, 0.5, 0.1), F * CF(-0.3, 0.42, 0), lk(40, 40, 44))
+		K:bar("HomeKettleHandleTop", F * V3(-0.3, 0.66, 0), F * V3(-0.18, 0.7, 0), 0.08, 0.06, lk(40, 40, 44))
+		K:wedge("HomeKettleSpout", V3(0.12, 0.14, 0.2), F * CF(0.27, 0.62, 0) * ANG(0, -PI / 2, 0), lk(206, 208, 212, M.Metal))
+		K:box("HomeKettleWindow", V3(0.08, 0.36, 0.02), F * CF(0.12, 0.38, 0.23), { c = c3(170, 210, 230), m = M.Glass, t = 0.3 })
+		K:box("HomeKettleLED", V3(0.05, 0.03, 0.01), F * CF(-0.3, 0.2, 0.06), L.neon(c3(80, 160, 255)))
+	end)
+	if baseRec then
+		self:hide(baseRec.part)
+	end
+	self:hide(bodyRec.part)
+end
+
+-- 롤 블라인드 (BlindRoll + Blind). 상호작용: 올리고 내리기
+function C:rollBlind(roll: any, blind: any)
+	local K = self.K
+	local rp: BasePart = roll.part
+	local bp: BasePart = blind.part
+	local dcf = self:wallFace(bp)
+	local w = math.max(roll.size.X, roll.size.Z)
+	local top = roll.c.Y
+	local lc = self.V.cf:ToObjectSpace(bp.CFrame)
+	local n = if dcf then dcf.ZVector else lc.ZVector
+	n = V3(n.X, 0, n.Z).Unit
+	local face = faceCF(V3(roll.c.X, top, roll.c.Z), n)
+	local fabricL = { c = bp.Color, m = M.Fabric }
+	local downLen = math.max(0.6, top - blind.min.Y)
+	local fullLen = math.max(downLen, top - (self.sillY or (top - 2.2)))
+	local parts = {}
+	K:free(function()
+		K:box("HomeBlindCassette", V3(w + 0.1, 0.32, 0.3), face * CF(0, 0, -0.02), lk(246, 244, 240))
+		K:box("HomeBlindEndCap", V3(0.06, 0.34, 0.32), face * CF(-w / 2 - 0.07, 0, -0.02), lk(220, 220, 218))
+		K:box("HomeBlindEndCap", V3(0.06, 0.34, 0.32), face * CF(w / 2 + 0.07, 0, -0.02), lk(220, 220, 218))
+		local cloth = K:box("HomeBlindCloth", V3(w - 0.05, downLen, 0.02), face * CF(0, -0.16 - downLen / 2, -0.06), fabricL)
+		local barP = K:box("HomeBlindBar", V3(w - 0.03, 0.08, 0.06), face * CF(0, -0.16 - downLen, -0.06), lk(236, 236, 232))
+		local chain = K:box("HomeBlindChain", V3(0.03, 1.6, 0.03), face * CF(w / 2 - 0.1, -0.16 - 0.8, 0.04), lk(230, 230, 230))
+		parts = { cloth = cloth, bar = barP, chain = chain }
+	end)
+	self:hide(rp)
+	self:hide(bp)
+	self.blind = { parts = parts, face = face, w = w, down = downLen, full = fullLen, state = "part" }
+end
+
+-- 협탁 (상자 + 서랍 선) : 원목 협탁 + 서랍 손잡이 + 스탠드 받침 (갓은 테마 파트라 그대로)
+function C:nightstand(r: any)
+	local K = self.K
+	local F, info = propFrame(self, r.part)
+	local x0, x1, y1, z0, z1 = info.min.X, info.max.X, info.max.Y, info.min.Z, info.max.Z
+	local wl = if r.part.Material == M.Wood then from({ color = r.part.Color }, L.oak, M.Wood) else withC(L.white, r.part.Color)
+	K:free(function()
+		boxF(K, "HomeNightstandBody", F, V3(x0 + 0.03, 0.35, z0), V3(x1 - 0.03, y1 - 0.08, z1 - 0.03), wl)
+		K:slab("HomeNightstandTop", x1 - x0, z1 - z0, 0.08, 0.04, F * CF((x0 + x1) / 2, y1 - 0.04, (z0 + z1) / 2), wl)
+		for _, sx in { x0 + 0.12, x1 - 0.12 } do
+			for _, sz in { z0 + 0.12, z1 - 0.12 } do
+				K:seg("HomeNightstandLeg", F * V3(sx, 0.36, sz), F * V3(sx + (if sx < 0 then -0.03 else 0.03), 0.02, sz + (if sz < 0 then -0.03 else 0.03)), 0.09, tint(wl, 0.1))
+			end
+		end
+		local hh = (y1 - 0.45) / 2
+		for i = 1, 2 do
+			local yc = 0.38 + hh * (i - 0.5)
+			K:box("HomeNightstandDrawer", V3(x1 - x0 - 0.12, hh - 0.05, 0.03), F * CF((x0 + x1) / 2, yc, z1 - 0.015), tint(wl, -0.03))
+			K:box("HomeNightstandPull", V3(0.3, 0.04, 0.04), F * CF((x0 + x1) / 2, yc, z1 + 0.01), L.brass)
+		end
+	end)
+	self:hide(r.part)
+	return F, info
+end
+
+-- 붙박이장 / 옷장 (본체 rec): 문짝 · 손잡이 · 몰딩 · 걸레받이
+function C:wardrobe(r: any, doors: number?)
+	local K = self.K
+	local F, info = propFrame(self, r.part)
+	local x0, x1, y1, z0, z1 = info.min.X, info.max.X, info.max.Y, info.min.Z, info.max.Z
+	local wl = withC(L.white, r.part.Color)
+	local n = doors or math.max(2, math.floor((x1 - x0) / 1.5 + 0.5))
+	local dw = (x1 - x0 - 0.08) / n
+	local h = math.min(y1, self.H) - 0.02
+	K:free(function()
+		boxF(K, "HomeWardrobeBody", F, V3(x0, 0.3, z0), V3(x1, h, z1 - 0.05), wl)
+		boxF(K, "HomeWardrobeKick", F, V3(x0 + 0.05, 0, z0 + 0.05), V3(x1 - 0.05, 0.3, z1 - 0.12), lk(40, 40, 42))
+		for i = 1, n do
+			local xc = x0 + 0.04 + dw * (i - 0.5)
+			K:box("HomeWardrobeDoor", V3(dw - 0.03, h - 0.36, 0.05), F * CF(xc, 0.3 + (h - 0.3) / 2, z1 - 0.025), tint(wl, -0.02))
+			local hx = if i % 2 == 1 then xc + dw / 2 - 0.16 else xc - dw / 2 + 0.16
+			K:box("HomeWardrobeHandle", V3(0.05, 1.6, 0.05), F * CF(hx, 3.9, z1 + 0.03), lk(60, 60, 64, M.Metal))
+		end
+		if self.lux <= 3 then
+			K:box("HomeWardrobeCrown", V3(x1 - x0 + 0.06, 0.12, 0.08), F * CF((x0 + x1) / 2, h - 0.06, z1 - 0.02), tint(wl, 0.04))
+		end
+	end)
+	self:hide(r.part)
+	for _, q in (r.part.Parent and r.part.Parent:GetDescendants() or {}) do
+		if q:IsA("BasePart") and (q.Name == "DoorSeam" or q.Name == "Handle") then
+			self:hide(q)
+		end
+	end
+	return F, info
+end
+
+-------------------------------------------------------------------------------------------------
+-- 자리 찾기 도우미 (바닥: 벽에 등 대고 / 벽: 높이 범위)
+-------------------------------------------------------------------------------------------------
+-- 벽에 등을 대는 바닥 소품 자리: 반환 pcf (+Z = 방 쪽), seg
+function C:floorAlongWall(w: number, d: number, h: number, opts: any?): (CFrame?, any?)
+	local o: any = opts or {}
+	local best, bs, bseg = nil, math.huge, nil
+	for _, s in self.segs do
+		if s.bot > 0.25 or s.top < math.min(h, 3) or s.len < w + 0.3 then
+			continue
+		end
+		if o.filter and not o.filter(s) then
+			continue
+		end
+		local u = w / 2 + 0.15
+		while u <= s.len - w / 2 - 0.15 do
+			local center = s.p0 + s.t * u + s.n * ((o.gap or 0.08) + d / 2)
+			local pcf = CFrame.fromMatrix(V3(center.X, 0, center.Z), s.t, YA, s.n)
+			local score = if o.score then o.score(pcf, s) else 0
+			if score < bs then
+				-- 미리 검사 (예약 없이)
+				local c = pcf * CF(0, h / 2, 0)
+				local mn, mx = laabb(c, V3(w, h, d))
+				local ok = true
+				for _, q in { V3(mn.X, 0.5, mn.Z), V3(mx.X, 0.5, mn.Z), V3(mn.X, 0.5, mx.Z), V3(mx.X, 0.5, mx.Z) } do
+					if not self:mine(q) or self:insideWall(q) then
+						ok = false
+						break
+					end
+				end
+				if ok and self:boxFree(mn, mx, { allKeep = true }) then
+					local wallHit = false
+					for _, wl in self.walls do
+						if boxHit(mn, mx, wl.mn, wl.mx, 0.01) then
+							wallHit = true
+							break
+						end
+					end
+					if not wallHit then
+						best, bs, bseg = pcf, score, s
+					end
+				end
+			end
+			u += o.step or 0.35
+		end
+	end
+	if best and self:floorSpot(best, V3(w, h, d), o.pad) then
+		return best, bseg
+	end
+	return nil, nil
+end
+
+-- 자유 바닥 자리 (후보 점 목록 중 처음 되는 곳)
+function C:floorAt(cands: { CFrame }, size: Vector3, pad: number?): CFrame?
+	for _, pcf in cands do
+		if self:floorSpot(pcf, size, pad) then
+			return pcf
+		end
+	end
+	return nil
+end
+
+-- 어떤 점에서 가까울수록 좋은 점수
+local function near(p: Vector3): (CFrame, any) -> number
+	return function(pcf: CFrame)
+		return (pcf.Position - V3(p.X, 0, p.Z)).Magnitude
+	end
+end
+local function far(p: Vector3): (CFrame, any) -> number
+	return function(pcf: CFrame)
+		return -(pcf.Position - V3(p.X, 0, p.Z)).Magnitude
+	end
+end
+T.near, T.far = near, far
+
+-------------------------------------------------------------------------------------------------
+-- 생활 소품 (바닥 · 벽 · 가구 위)
+-------------------------------------------------------------------------------------------------
+local P = {}
+T.P = P
+
+-- 멀티탭 + 플러그 3개 + 전선 (pcf 바닥)
+function P.powerStrip(K: any, pcf: CFrame, look: any?)
+	local l = look or lk(244, 244, 240)
+	K:rbox("HomePowerStrip", V3(1.1, 0.16, 0.3), 0.05, pcf * CF(0, 0.08, 0), l)
+	for i = 0, 3 do
+		K:box("HomePowerStripSwitch", V3(0.1, 0.02, 0.1), pcf * CF(-0.42 + i * 0.27, 0.165, -0.08), L.neon(c3(255, 80, 60), 0.25))
+		K:cyl("HomePowerStripSocket", 0.012, 0.14, pcf * CF(-0.42 + i * 0.27, 0.166, 0.06) * ANG(0, 0, PI / 2), lk(220, 220, 216))
+	end
+	for i = 0, 1 do
+		K:box("HomePowerStripPlug", V3(0.13, 0.16, 0.14), pcf * CF(-0.42 + i * 0.27, 0.24, 0.06), lk(30, 30, 32))
+		K:seg("HomePowerStripCord", pcf * V3(-0.42 + i * 0.27, 0.3, 0.06), pcf * V3(-0.6 - i * 0.4, 0.03, 0.6 + i * 0.3), 0.035, lk(30, 30, 32))
+	end
+	K:seg("HomePowerStripCord", pcf * V3(0.55, 0.06, 0), pcf * V3(0.85, 0.03, -0.25), 0.04, l)
+end
+-- 휴지통 (페달식 / 원형)
+function P.trashBin(K: any, pcf: CFrame, look: any?)
+	local l = look or lk(236, 236, 232)
+	K:vcyl("HomeTrashBin", 1.15, 0.85, pcf * CF(0, 0.575, 0), l)
+	K:vcyl("HomeTrashLid", 0.08, 0.88, pcf * CF(0, 1.19, 0), tint(l, 0.08))
+	K:vcyl("HomeTrashBag", 0.08, 0.8, pcf * CF(0, 1.14, 0), lk(80, 84, 90, M.Fabric))
+	K:box("HomeTrashPedal", V3(0.25, 0.05, 0.16), pcf * CF(0, 0.06, 0.46), lk(80, 80, 84))
+end
+-- 빨래 바구니
+function P.laundryBasket(K: any, pcf: CFrame, cols: { Color3 })
+	K:rbox("HomeBasket", V3(1.4, 1.2, 1.0), 0.12, pcf * CF(0, 0.6, 0), { c = c3(200, 214, 226), m = M.Plastic })
+	for i = 1, 4 do
+		K:box("HomeBasketSlot", V3(0.9, 0.06, 0.01), pcf * CF(0, 0.3 + i * 0.18, 0.5), lk(170, 186, 200))
+	end
+	for i, c in cols do
+		K:ell("HomeBasketLaundry", V3(0.8, 0.35, 0.6), pcf * CF((i - 2) * 0.3, 1.15 + i * 0.04, (i % 2) * 0.15 - 0.08) * ANG(0, i, 0.2), { c = c, m = M.Fabric })
+	end
+end
+-- 소화기 (바닥 받침 + 본체)
+function P.extinguisher(K: any, pcf: CFrame)
+	K:box("HomeExtStand", V3(0.75, 0.1, 0.75), pcf * CF(0, 0.05, 0), lk(190, 30, 30))
+	K:vcyl("HomeExtBody", 1.35, 0.55, pcf * CF(0, 0.1 + 0.675, 0), lk(206, 24, 28))
+	K:ell("HomeExtDome", V3(0.55, 0.26, 0.55), pcf * CF(0, 1.45, 0), lk(206, 24, 28))
+	K:vcyl("HomeExtValve", 0.14, 0.18, pcf * CF(0, 1.62, 0), lk(40, 40, 42))
+	K:box("HomeExtHandle", V3(0.45, 0.05, 0.1), pcf * CF(0.07, 1.74, 0) * ANG(0, 0, -0.2), lk(40, 40, 42))
+	K:ball("HomeExtGauge", 0.15, pcf * CF(0, 1.63, 0.1), L.white)
+	K:seg("HomeExtHose", pcf * V3(-0.06, 1.62, -0.08), pcf * V3(-0.26, 0.5, -0.27), 0.07, lk(30, 30, 32))
+	K:text("HomeExtLabel", 0.4, 0.46, pcf * CF(0, 0.9, 0.28), "소화기\nABC 3.3kg", { fg = c3(255, 255, 255), bg = c3(40, 40, 40), d = 0.01, free = true })
+end
+-- 슬리퍼 한 켤레 (바닥)
+function P.slippers(K: any, pcf: CFrame, col: Color3)
+	for _, sx in { -0.22, 0.22 } do
+		K:slab("HomeSlipperSole", 0.38, 0.92, 0.07, 0.17, pcf * CF(sx, 0.035, 0) * ANG(0, sx * 0.3, 0), lk(40, 40, 44, M.Rubber))
+		K:ell("HomeSlipperStrap", V3(0.4, 0.22, 0.38), pcf * CF(sx, 0.1, 0.18) * ANG(0, sx * 0.3, 0), { c = col, m = M.Fabric })
+	end
+end
+-- 백팩 (바닥에 세워 둠)
+function P.backpack(K: any, pcf: CFrame, col: Color3)
+	K:rbox("HomeBackpack", V3(1.1, 1.5, 0.6), 0.22, pcf * CF(0, 0.75, 0) * ANG(math.rad(-6), 0, 0), { c = col, m = M.Fabric })
+	K:rbox("HomeBackpackPocket", V3(0.8, 0.6, 0.2), 0.1, pcf * CF(0, 0.5, 0.33) * ANG(math.rad(-6), 0, 0), { c = col:Lerp(Color3.new(0, 0, 0), 0.15), m = M.Fabric })
+	K:box("HomeBackpackZip", V3(0.7, 0.03, 0.03), pcf * CF(0, 0.82, 0.43) * ANG(math.rad(-6), 0, 0), lk(30, 30, 30))
+	K:ring("HomeBackpackHandle", pcf * CF(0, 1.52, -0.05) * ANG(0, 0, 0), 0.15, 0.05, 5, lk(30, 30, 30), 0, PI)
+end
+-- 벽 달력 (dcf 벽 표면)
+function P.calendar(K: any, dcf: CFrame, month: string?)
+	K:box("HomeCalendar", V3(1.1, 1.5, 0.02), dcf * CF(0, 0, 0.01), lk(252, 252, 250))
+	K:box("HomeCalendarPhoto", V3(1.0, 0.6, 0.005), dcf * CF(0, 0.38, 0.023), lk(120, 170, 200))
+	K:box("HomeCalendarPhotoSea", V3(1.0, 0.25, 0.006), dcf * CF(0, 0.2, 0.024), lk(60, 110, 160))
+	K:text("HomeCalendarMonth", 0.8, 0.16, dcf * CF(0, -0.03, 0.022), month or "10월 OCTOBER", { fg = c3(40, 40, 50), d = 0.004, free = true })
+	for r = 0, 3 do
+		for c = 0, 6 do
+			local red = c == 0
+			K:box("HomeCalendarDay", V3(0.1, 0.07, 0.004), dcf * CF(-0.42 + c * 0.14, -0.2 - r * 0.13, 0.024), if red then lk(220, 60, 60) else lk(60, 60, 66))
+		end
+	end
+	K:ring("HomeCalendarCircle", dcf * CF(-0.14, -0.33, 0.027), 0.07, 0.015, 6, lk(220, 40, 40))
+	K:box("HomeCalendarNail", V3(0.04, 0.04, 0.05), dcf * CF(0, 0.78, 0.02), L.chrome)
+end
+-- 벽시계 (실제 게임 시각으로 돔)
+function P.wallClock(C_: any, dcf: CFrame, dia: number, look: any?)
+	local K = C_.K
+	local hr, mn = Props.clock(K, dcf, dia, { frame = look or L.blackMetal })
+	Interact.clock(K, hr, mn, dcf, dia)
+end
+-- 피난안내도 (아크릴 판)
+function P.evacuation(K: any, dcf: CFrame)
+	K:box("HomeEvacPlate", V3(1.2, 0.85, 0.03), dcf * CF(0, 0, 0.015), { c = c3(250, 250, 248), m = M.Glass, t = 0.1 })
+	K:text("HomeEvacTitle", 1.0, 0.14, dcf * CF(0, 0.32, 0.034), "피난안내도 · 현위치 ●", { fg = c3(20, 120, 60), d = 0.004, free = true })
+	K:box("HomeEvacMap", V3(0.9, 0.5, 0.005), dcf * CF(0, -0.07, 0.034), lk(230, 236, 230))
+	for i = 0, 5 do
+		K:box("HomeEvacRoom", V3(0.12, 0.16, 0.006), dcf * CF(-0.36 + i * 0.145, 0.04, 0.036), lk(200, 210, 200))
+	end
+	K:box("HomeEvacArrow", V3(0.6, 0.04, 0.006), dcf * CF(0, -0.12, 0.037), lk(30, 160, 70))
+	K:ball("HomeEvacHere", 0.06, dcf * CF(-0.18, 0.02, 0.04), L.ledRed)
+end
+-- 액자 여러 개 (가족사진)
+function P.photoCluster(C_: any, dcf: CFrame, n: number, seed: number)
+	local K = C_.K
+	local layout = { { 0, 0, 1.4, 1.0 }, { -1.15, 0.15, 0.7, 0.9 }, { 1.05, -0.1, 0.6, 0.8 }, { -1.0, -0.75, 0.6, 0.45 }, { 0.9, 0.62, 0.5, 0.4 } }
+	for i = 1, math.min(n, #layout) do
+		local l = layout[i]
+		local f = artFrame(K, dcf * CF(l[1], l[2], 0), l[3], l[4], { frame = if i % 2 == 0 then L.walnut else lk(246, 246, 244), border = 0.06, depth = 0.06, mat = lk(250, 250, 248) })
+		local iw, ih = l[3] - 0.24, l[4] - 0.24
+		K:box("HomePhotoImg", V3(iw, ih, 0.006), f * CF(0, 0, 0.003), { c = c3(150 + math.floor(rnd(seed, i) * 60), 160, 175), m = M.SmoothPlastic })
+		K:box("HomePhotoSky", V3(iw, ih * 0.4, 0.007), f * CF(0, ih * 0.3, 0.004), lk(160, 200, 230))
+		-- 사람 실루엣 2
+		for j = -1, 1, 2 do
+			K:ell("HomePhotoPerson", V3(iw * 0.18, ih * 0.5, 0.004), f * CF(j * iw * 0.14, -ih * 0.12, 0.008), lk(70 + j * 10, 60, 60))
+			K:ball("HomePhotoHead", math.min(iw, ih) * 0.14, f * CF(j * iw * 0.14, ih * 0.18, 0.008), lk(230, 200, 180))
+		end
+	end
+end
+-- 로봇청소기 + 충전 도크 (pcf 바닥, +Z 방 쪽). 반환 { robot parts, led }
+function P.robotVacuum(K: any, pcf: CFrame): any
+	K:rbox("HomeRobotDock", V3(0.75, 0.65, 0.35), 0.08, pcf * CF(0, 0.325, -0.1), lk(50, 52, 56))
+	local dockLed = K:box("HomeRobotDockLED", V3(0.2, 0.04, 0.01), pcf * CF(0, 0.55, 0.08), L.neon(c3(90, 220, 180)))
+	local parts = {}
+	local rc = pcf * CF(0, 0, 0.55)
+	table.insert(parts, K:vcyl("HomeRobot", 0.28, 1.05, rc * CF(0, 0.16, 0), lk(246, 246, 244)))
+	table.insert(parts, K:vcyl("HomeRobotBumper", 0.14, 1.07, rc * CF(0, 0.09, 0), lk(60, 62, 66)))
+	table.insert(parts, K:vcyl("HomeRobotLidar", 0.09, 0.28, rc * CF(0, 0.35, -0.15), lk(40, 40, 44)))
+	table.insert(parts, K:box("HomeRobotButton", V3(0.14, 0.01, 0.06), rc * CF(0, 0.305, 0.18), L.neon(c3(90, 220, 180))))
+	return { parts = parts, dockLed = dockLed, home = rc }
+end
+-- 큰 거울 (벽에 기대 세운 전신거울: pcf 바닥, 등이 벽)
+function P.leanMirror(K: any, pcf: CFrame, h: number, look: any?)
+	local fr = look or L.walnut
+	local tilt = ANG(math.rad(-6), 0, 0)
+	local c = pcf * CF(0, 0, 0.32) * tilt
+	K:box("HomeMirrorFrame", V3(1.6, h, 0.12), c * CF(0, h / 2, 0), fr)
+	K:box("HomeMirrorGlass", V3(1.4, h - 0.2, 0.02), c * CF(0, h / 2, 0.065), L.mirror)
+end
+-- 가습기
+function P.humidifier(K: any, pcf: CFrame)
+	K:vcyl("HomeHumidBody", 0.9, 0.7, pcf * CF(0, 0.45, 0), lk(246, 246, 244))
+	K:vcyl("HomeHumidTank", 0.4, 0.62, pcf * CF(0, 0.8, 0), { c = c3(200, 226, 240), m = M.Glass, t = 0.35 })
+	K:vcyl("HomeHumidTop", 0.08, 0.5, pcf * CF(0, 1.04, 0), lk(246, 246, 244))
+	K:box("HomeHumidLED", V3(0.12, 0.04, 0.01), pcf * CF(0, 0.3, 0.35), L.neon(c3(80, 160, 255)))
+end
+T.P = P
+
+-------------------------------------------------------------------------------------------------
+-- 방별 생활 소품 · 붙박이 · 상호작용
+-------------------------------------------------------------------------------------------------
+local ROOM: { [string]: (any) -> () } = {}
+
+-- 공통: 이 방 소품 리스킨 (이름이 있으면)
+function C:commonReskins()
+	-- 벽걸이 에어컨
+	for _, r in self:ownNamed("WallAC") do
+		pcall(function()
+			self:wallAC(r)
+		end)
+	end
+	-- 협탁 (갓은 테마 조명이라 그대로, 받침 · 기둥만)
+	for _, r in self:ownNamed("Nightstand") do
+		pcall(function()
+			self:nightstand(r)
+			-- 같은 모델의 스탠드 받침 · 기둥
+			for _, q in (r.part.Parent and r.part.Parent:GetDescendants() or {}) do
+				if q:IsA("BasePart") and (q.Name == "LampBase" or q.Name == "LampStem") then
+					local lp = self.V.cf:PointToObjectSpace(q.Position)
+					if math.abs(lp.X - r.c.X) < 1.2 and math.abs(lp.Z - r.c.Z) < 1.2 then
+						local K = self.K
+						K:free(function()
+							if q.Name == "LampBase" then
+								K:disc("HomeLampBase", math.max(q.Size.Y, q.Size.Z), 0.1, CF(lp.X, r.max.Y + 0.05, lp.Z), L.brass)
+								K:ell("HomeLampBody", V3(0.5, 0.55, 0.5), CF(lp.X, r.max.Y + 0.35, lp.Z), lk(236, 230, 218, M.Marble))
+							else
+								K:vcyl("HomeLampStem", q.Size.X * 0.7, 0.06, CF(lp.X, lp.Y + 0.15, lp.Z), L.brass)
+							end
+						end)
+						self:hide(q)
+					end
+				end
+			end
+		end)
+	end
+end
+
+-- 고시원 1인실 ----------------------------------------------------------------------------------
+ROOM["goshiwon:main"] = function(Cx: any)
+	local K = Cx.K
+	local hi = K.detail ~= "low"
+	-- 냉장고 + 전자레인지 + 포트 + 컵
+	local fb = Cx:ownNamed("FridgeBody")[1]
+	if fb then
+		Cx:miniFridge(fb, Cx:ownNamed("FridgeDoor")[1])
+	end
+	local mw = Cx:ownNamed("Microwave")[1]
+	if mw then
+		Cx:microwave(mw, Cx:ownNamed("MicrowaveDoor")[1])
+	end
+	local kt = Cx:ownNamed("Kettle")[1]
+	if kt then
+		Cx:kettle(Cx:ownNamed("KettleBase")[1], kt)
+	end
+	for _, cup in Cx:ownNamed("Cup") do
+		mug(K, CF(cup.c.X, cup.min.Y, cup.c.Z), lk(236, 236, 232))
+		Cx:hide(cup.part)
+	end
+	-- 행거 + 옷
+	local rail = Cx:ownNamed("HangerRail")[1]
+	if rail then
+		Cx:clothesRail(rail, Cx:ownNamed("Clothes"))
+		for _, b in Cx:ownNamed("RailBracket") do
+			K:free(function()
+				K:box("HomeRailBracket", V3(b.size.X, 0.36, b.size.Z), CF(b.c), L.chrome)
+			end)
+			Cx:hide(b.part)
+		end
+	end
+	-- 플라스틱 서랍장 (+ 위: 휴지 · 로션 · 거울 · 빗)
+	local dr = Cx:ownNamed("Drawers")[1]
+	if dr then
+		local F, info = Cx:plasticDrawers(dr)
+		for _, q in Cx:ownNamed("DrawerLine") do
+			if math.abs(q.c.X - dr.c.X) < 1 and math.abs(q.c.Z - dr.c.Z) < 2 then
+				Cx:hide(q.part)
+			end
+		end
+		if hi then
+			local y = info.max.Y + 0.02
+			local zc = (info.min.Z + info.max.Z) / 2
+			K:free(function()
+				K:rbox("HomeTissueBox", V3(0.9, 0.36, 0.5), 0.06, F * CF(info.min.X + 0.6, y + 0.18, zc), lk(250, 250, 246))
+				K:ell("HomeTissue", V3(0.3, 0.22, 0.2), F * CF(info.min.X + 0.6, y + 0.4, zc), lk(252, 252, 252))
+				K:vcyl("HomeLotion", 0.6, 0.22, F * CF(info.max.X - 0.3, y + 0.3, zc - 0.3), lk(240, 210, 220))
+				K:vcyl("HomeLotionPump", 0.12, 0.08, F * CF(info.max.X - 0.3, y + 0.66, zc - 0.3), lk(250, 250, 250))
+				K:vcyl("HomeSkinToner", 0.48, 0.2, F * CF(info.max.X - 0.6, y + 0.24, zc - 0.1), L.glass(c3(200, 230, 240), 0.2))
+				K:box("HomeHairBrush", V3(0.14, 0.05, 0.8), F * CF(info.max.X - 0.35, y + 0.03, zc + 0.5) * ANG(0, 0.4, 0), lk(30, 30, 34))
+				K:slab("HomeStandMirror", 0.6, 0.06, 0.75, 0.25, F * CF(info.min.X + 0.5, y + 0.45, zc + 0.9) * ANG(math.rad(80), 0, 0), lk(240, 240, 238))
+			end)
+		end
+	end
+	-- 빨래 건조대
+	local rackParts = {}
+	local rmn, rmx = V3(math.huge, math.huge, math.huge), V3(-math.huge, -math.huge, -math.huge)
+	for _, r in Cx:ownNamed("RackLeg", "RackBar", "Laundry") do
+		table.insert(rackParts, r.part)
+		rmn, rmx = rmn:Min(r.min), rmx:Max(r.max)
+	end
+	if #rackParts > 0 then
+		Cx:dryingRack(rmn, rmx, rackParts, { c3(240, 240, 236), c3(70, 90, 140), c3(230, 160, 170), c3(40, 40, 44) })
+	end
+	-- 라면 상자 (멀티팩) + 컵라면
+	local boxes = Cx:ownNamed("RamenBox")
+	for i, b in boxes do
+		local F = CF(b.c.X, b.min.Y, b.c.Z)
+		K:free(function()
+			K:box("HomeRamenCarton", V3(b.size.X, b.size.Y - 0.02, b.size.Z), F * CF(0, b.size.Y / 2, 0), lk(196, 52, 40, M.Cardboard))
+			K:box("HomeRamenCartonFlap", V3(b.size.X + 0.01, 0.04, b.size.Z * 0.5), F * CF(0, b.size.Y - 0.01, 0), lk(176, 44, 34, M.Cardboard))
+			-- 상자 앞 글자: 방 쪽 면 (가까운 쪽 +Z 가정 대신 넓은 면 두 쪽)
+			for _, sz in { -1, 1 } do
+				K:text("HomeRamenLabel", b.size.X * 0.86, b.size.Y * 0.5, CFrame.fromMatrix((F * CF(0, b.size.Y * 0.5, sz * (b.size.Z / 2 + 0.006))).Position, V3(sz, 0, 0), YA, V3(0, 0, sz)), if i == 1 then "얼큰 라면\n5개입 ×8" else "짜장 라면\n4개입 ×8", { fg = c3(255, 240, 210), bg = c3(176, 36, 30), d = 0.006, free = true, font = Enum.Font.GothamBlack })
+			end
+		end)
+		Cx:hide(b.part)
+	end
+	for _, b in Cx:ownNamed("RamenBand") do
+		Cx:hide(b.part)
+	end
+	for _, cn in Cx:ownNamed("CupNoodle") do
+		local inShelf = cn.part.Parent and cn.part.Parent.Parent and cn.part.Parent.Parent.Name == "Furniture"
+		if not inShelf and cn.min.Y < 3 then
+			K:free(function()
+				K:vcyl("HomeCupNoodle", 0.38, 0.38, CF(cn.c.X, cn.min.Y + 0.19, cn.c.Z), { c = cn.part.Color, m = M.SmoothPlastic })
+				K:vcyl("HomeCupNoodleTop", 0.04, 0.42, CF(cn.c.X, cn.min.Y + 0.38, cn.c.Z), lk(240, 236, 226))
+				K:vcyl("HomeCupNoodleBand", 0.1, 0.39, CF(cn.c.X, cn.min.Y + 0.2, cn.c.Z), lk(250, 246, 236))
+			end)
+			Cx:hide(cn.part)
+		end
+	end
+	-- 롤 블라인드
+	local roll, blind = Cx:ownNamed("BlindRoll")[1], Cx:ownNamed("Blind")[1]
+	if roll and blind then
+		for _, s in Cx:ownNamed("Sill") do
+			Cx.sillY = s.max.Y
+		end
+		Cx:rollBlind(roll, blind)
+	end
+	-- 바닥: 멀티탭 (책상 아래 콘센트 쪽) · 소화기 · 슬리퍼 · 백팩 · 휴지통
+	local ps = Cx:ownNamed("PowerStrip")[1]
+	if ps then
+		K:free(function()
+			P.powerStrip(K, CF(ps.c.X, 0, ps.c.Z) * ANG(0, if ps.size.X > ps.size.Z then 0 else PI / 2, 0))
+		end)
+		Cx:hide(ps.part)
+	end
+	local doorP = Cx:floorCenter() + V3(0, 0, 4)
+	for _, it in Cx.interacts do
+		if it.kind == "door" then
+			doorP = it.p
+		end
+	end
+	local pcf = Cx:floorAlongWall(0.8, 0.8, 1.8, { score = near(doorP) })
+	if pcf then
+		K:free(function()
+			P.extinguisher(K, pcf)
+		end)
+	end
+	local bed = nil
+	for _, sl in Cx.slots do
+		if sl:GetAttribute("Category") == "bed" then
+			bed = sl
+		end
+	end
+	if bed then
+		local b = bed:FindFirstChild("SlotBase") :: BasePart?
+		if b then
+			local bp = Cx.V.cf:PointToObjectSpace(b.Position)
+			local spot = Cx:floorAt({ CF(bp.X + 2.0, 0, bp.Z + 2.2), CF(bp.X + 2.0, 0, bp.Z + 1.2), CF(bp.X + 1.9, 0, bp.Z - 0.5) }, V3(0.9, 0.2, 1.0), 0.02)
+			if spot then
+				K:free(function()
+					P.slippers(K, spot * ANG(0, 0.3, 0), c3(60, 100, 180))
+				end)
+			end
+		end
+	end
+	local bp2 = Cx:floorAlongWall(1.2, 0.7, 1.6, { score = near(Cx:floorCenter() + V3(1, 0, 2)) })
+	if bp2 then
+		K:free(function()
+			P.backpack(K, bp2, c3(40, 44, 52))
+		end)
+	end
+	-- 벽: 달력 · 피난안내도
+	local _, _, cal = Cx:wallSpot(1.2, 4.0, 5.6, 0.12, { score = near(Cx:floorCenter()) })
+	if cal then
+		K:free(function()
+			P.calendar(K, cal)
+		end)
+	end
+	local _, _, ev = Cx:wallSpot(1.3, 4.6, 5.6, 0.1, { score = near(doorP) })
+	if ev then
+		K:free(function()
+			P.evacuation(K, ev)
+		end)
+	end
+end
+
+-- 원룸 -------------------------------------------------------------------------------------------
+ROOM["oneroom:main"] = function(Cx: any)
+	local K = Cx.K
+	local hi = K.detail ~= "low"
+	for _, r in Cx:ownNamed("Wardrobe") do
+		pcall(function()
+			Cx:wardrobe(r, 3)
+		end)
+	end
+	-- 협탁 위: 휴대폰 충전 · 안경 · 물컵 · 책
+	for _, r in Cx:ownNamed("Nightstand") do
+		local F, info = propFrame(Cx, r.part)
+		local y = info.max.Y
+		K:free(function()
+			phone(K, F * CF(info.min.X + 0.35, y, (info.min.Z + info.max.Z) / 2 + 0.25) * ANG(0, 0.4, 0), true)
+			K:seg("HomeChargeCable", F * V3(info.min.X + 0.35, y + 0.02, info.min.Z + 0.3), F * V3(info.min.X + 0.1, y + 0.01, info.min.Z + 0.05), 0.03, lk(240, 240, 240))
+			K:vcyl("HomeWaterGlass", 0.4, 0.22, F * CF(info.max.X - 0.3, y + 0.2, info.max.Z - 0.35), L.glass(c3(220, 236, 240), 0.55))
+		end)
+		break
+	end
+	-- 바닥: 빨래 건조대 (창가) · 빨래 바구니 · 휴지통 · 전신 거울 · 슬리퍼
+	local win = nil
+	for _, it in Cx.interacts do
+		if it.kind == "window" then
+			win = it.p
+		end
+	end
+	local doorP = Cx:floorCenter() + V3(0, 0, 5)
+	for _, it in Cx.interacts do
+		if it.kind == "door" then
+			doorP = it.p
+		end
+	end
+	local mirror = Cx:floorAlongWall(1.7, 0.6, 5.5, { score = near(doorP) })
+	if mirror then
+		K:free(function()
+			P.leanMirror(K, mirror, 5.2, lk(236, 232, 224))
+		end)
+	end
+	local bas = Cx:floorAlongWall(1.5, 1.1, 1.6, { score = near(Cx:floorCenter() + V3(6, 0, 0)) })
+	if bas then
+		K:free(function()
+			P.laundryBasket(K, bas, { c3(240, 240, 236), c3(60, 80, 130), c3(200, 120, 130) })
+		end)
+	end
+	local tb = Cx:floorAlongWall(0.95, 0.95, 1.3, { score = near(doorP) })
+	if tb then
+		K:free(function()
+			P.trashBin(K, tb)
+		end)
+	end
+	-- TV 옆 멀티탭
+	for _, sl in Cx.slots do
+		if sl:GetAttribute("Category") == "tv" then
+			local b = sl:FindFirstChild("SlotBase") :: BasePart?
+			if b then
+				local bp = Cx.V.cf:PointToObjectSpace(b.Position)
+				local spot = Cx:floorAt({ CF(bp.X - 0.3, 0, bp.Z + 2.3), CF(bp.X - 0.3, 0, bp.Z - 2.3), CF(bp.X - 1.2, 0, bp.Z + 2.2) }, V3(1.2, 0.3, 0.4), 0)
+				if spot then
+					K:free(function()
+						P.powerStrip(K, spot)
+					end)
+				end
+			end
+		end
+	end
+	-- 벽: 시계 · 달력
+	local _, _, ck = Cx:wallSpot(1.4, 5.6, 7.0, 0.2, { score = near(Cx:floorCenter() + V3(0, 0, -6)) })
+	if ck then
+		K:free(function()
+			P.wallClock(Cx, ck, 1.2, lk(240, 240, 236))
+		end)
+	end
+	if hi then
+		local _, _, cal = Cx:wallSpot(1.2, 4.2, 5.8, 0.12, { score = near(doorP) })
+		if cal then
+			K:free(function()
+				P.calendar(K, cal)
+			end)
+		end
+	end
+end
+
+function C:roomDress()
+	self:commonReskins()
+	local fn = ROOM[self.tier .. ":" .. self.room] or ROOM[self.room]
+	if fn then
+		fn(self)
+	end
+end
+
 T.C = C
 
 -------------------------------------------------------------------------------------------------
@@ -3151,6 +4049,8 @@ function T.build(K: any, V: any, S: any)
 		if not ok3 then
 			K:note("HomeWet error: " .. tostring(err))
 		end
+	else
+		step("room", function(c) c:roomDress() end)
 	end
 end
 

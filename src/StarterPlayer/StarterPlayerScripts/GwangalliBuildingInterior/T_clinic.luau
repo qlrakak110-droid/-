@@ -4183,7 +4183,7 @@ local function wardBathroom(K: any, x0: number, x1: number, z0: number, z1: numb
 end
 
 -- 가로 블라인드 (창 앞, 반쯤 내림) + 올리기/내리기
-local function blinds(K: any, x0: number, x1: number, z: number, yTop: number, yLow: number, object: string)
+local function blinds(K: any, x0: number, x1: number, z: number, yTop: number, yLow: number, object: string?)
 	local slats = {}
 	local n = math.floor((yTop - yLow) / 0.22)
 	local w = x1 - x0
@@ -4205,7 +4205,7 @@ local function blinds(K: any, x0: number, x1: number, z: number, yTop: number, y
 		base[i] = s.CFrame
 	end
 	local tab = slats[#slats]
-	if not tab then
+	if not tab or not object then
 		return
 	end
 	return Interact.toggle(K, tab, {
@@ -4667,6 +4667,9 @@ BUILD.nurse = function(K: any, V: any)
 		K:rbox("LabelPrinter", V3(0.9, 0.7, 1.1), 0.1, lp * CF(0, 0.35, 0) * ANG(0, PI / 2, 0), lk(60, 64, 70, M.Plastic))
 		K:box("GloveBoxW", V3(0.9, 0.45, 0.5), tp * CF(-1.5, 0.225, 0.2), lk(246, 246, 244))
 		K:box("GloveBoxWBand", V3(0.91, 0.12, 0.51), tp * CF(-1.5, 0.35, 0.2), col(C3(90, 140, 220)))
+	end)
+	step(K, "blind", function()
+		blinds(K, V.x0 + 0.3, V.x1 - 0.3, V.z0 + 0.45, V.H - 0.5, 5.2, nil)
 	end)
 	-- 응급 카트 (빨강) · 린넨 카트 · 휠체어 --------------------------------------------------------------------------------
 	step(K, "carts", function()

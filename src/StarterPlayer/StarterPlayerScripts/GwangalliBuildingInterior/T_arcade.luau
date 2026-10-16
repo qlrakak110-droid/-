@@ -1532,7 +1532,7 @@ local function airHockey(K: any, R: any)
 		end
 		for _, sz in { -1, 1 } do
 			local z = if sz < 0 then mn.Z - 0.02 else mx.Z + 0.02
-			local d = R.A * CFrame.fromMatrix(V3(c.X, 0, z), V3(-sz, 0, 0), Vector3.yAxis, V3(0, 0, sz))
+			local d = R.A * CFrame.fromMatrix(V3(c.X, 0, z), V3(sz, 0, 0), Vector3.yAxis, V3(0, 0, sz))
 			K:plate("HockeyCoinBox", 1.0, 0.8, 0.12, d * CF(1.6, 1.3, 0), lk(rgb(30, 30, 34)))
 			K:plate("HockeyCoinSlot", 0.06, 0.24, 0.02, d * CF(1.6, 1.4, 0.12), nl(rgb(255, 70, 40)))
 			txt(K, "HockeyPrice", 0.9, 0.22, d * CF(1.6, 1.05, 0.13), "1,000원", WHITE, nil, F.GothamBold)
@@ -1625,6 +1625,25 @@ local function hallMachines(K: any, R: any): any
 			table.insert(made.kiddie, m)
 		end
 	end
+	-- 포토존 (입구 왼쪽, 인형뽑기 섬 옆): 네온 하트 액자 판 (앞 = +x 입구 통로 쪽)
+	made.photo = footprint(R, -9.0, 22.4, PI / 2, 5.6, 6.6, 0.4, 0.4, 0, function(p)
+		K:box("PhotoZoneWall", V3(5.6, 6.4, 0.3), p * CF(0, 3.2, -0.1), lk(rgb(40, 20, 70)))
+		K:box("PhotoZoneFoot", V3(5.8, 0.25, 1.2), p * CF(0, 0.125, 0.3), lk(rgb(30, 30, 34)))
+		for j = 0, 4 do
+			K:plate("PhotoZoneStripe", 5.4, 0.9, 0.02, p * CF(0, 1.0 + j * 1.15, 0.05), lk(hsv(0.78 + j * 0.05, 0.55, 0.55 + j * 0.06)))
+		end
+		local f = p * CF(0, 3.3, 0.08)
+		for _, e in { { 0, 2.3, 4.6, 0.12 }, { 0, -2.3, 4.6, 0.12 }, { -2.3, 0, 0.12, 4.7 }, { 2.3, 0, 0.12, 4.7 } } do
+			K:plate("PhotoZoneNeon", e[3], e[4], 0.06, f * CF(e[1], e[2], 0), nl(rgb(255, 90, 190)))
+		end
+		txt(K, "PhotoZoneText", 4.2, 1.2, f * CF(0, 1.2, 0.07), "광안 게임랜드 ♥", rgb(255, 230, 250), nil, F.FredokaOne, 2.0)
+		txt(K, "PhotoZoneSub", 4.0, 0.5, f * CF(0, -1.7, 0.07), "PHOTO ZONE · #광안리오락실", rgb(120, 230, 255), nil, F.GothamBlack, 1.6)
+		for j = 0, 5 do
+			K:plate("PhotoZoneStar", 0.32, 0.32, 0.04, f * CF(-1.8 + j * 0.72, (j % 2) * 0.6 - 0.2, 0.06) * ANG(0, 0, PI / 4), nl(CARPET_COLS[j % #CARPET_COLS + 1]))
+		end
+		txt(K, "PhotoZoneFloor", 2.6, 0.9, topCF((p * CF(0, 0.03, 2.2)).Position, (p * CF(0, 0, -1)).Position - (p * CF(0, 0, 0)).Position), "♥ 여기 서서 찰칵!", rgb(255, 120, 200), nil, F.GothamBlack, nil, { free = true })
+		return true
+	end)
 	-- 휴게 존 (오른벽 뒤쪽)
 	footprint(R, R.x1 - 0.62, -23.4, -PI / 2, 1.2, 4.0, 0.62, 0.7, 0, function(p)
 		purifier(K, p)
@@ -1961,7 +1980,7 @@ local function photoBooth(K: any, R: any, x0: number, x1: number, z0: number, z1
 		K:plate("BoothLogoBack", x1 - x0 - 0.4, 0.9, 0.04, hd, lk(rgb(255, 228, 238)))
 		txt(K, "BoothLogo", x1 - x0 - 0.8, 0.72, hd * CF(0, 0, 0.05), "찰칵 PHOTO ♥", rgb(255, 70, 140), nil, F.FredokaOne, 1.8)
 		-- 옆면 (방 쪽 +x): 샘플 사진 스트립 + 가격
-		local sd = R.A * CFrame.fromMatrix(V3(x1 + 0.03, 0, (z0 + z1) / 2), V3(0, 0, 1), Vector3.yAxis, V3(1, 0, 0))
+		local sd = R.A * CFrame.fromMatrix(V3(x1 + 0.03, 0, (z0 + z1) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0))
 		txt(K, "BoothSidePrice", 2.8, 1.0, sd * CF(0, 6.0, 0), "4컷 4,000원\n6컷 5,000원", rgb(255, 80, 140), rgb(255, 245, 250), F.GothamBlack)
 		for j = 0, 3 do
 			local sx = -1.65 + j * 1.1
@@ -2621,7 +2640,7 @@ local function buildBowArcade(K: any, V: any, S: any)
 			for _, z in { z0 + 0.05, z1 - 0.05 } do
 				K:box("GZBoothCornerNeon", V3(0.08, H - 0.2, 0.08), at(R, x1 + 0.03, z, 0, H / 2), nl(rgb(255, 90, 170)))
 			end
-			local hd = R.A * CFrame.fromMatrix(V3(x1 + 0.03, 0, (oa + ob) / 2), V3(0, 0, 1), Vector3.yAxis, V3(1, 0, 0))
+			local hd = R.A * CFrame.fromMatrix(V3(x1 + 0.03, 0, (oa + ob) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0))
 			txt(K, "GZBoothNeon", ob - oa + 0.4, 0.75, hd * CF(0, 7.15, 0.02), "♥ PHOTO ♥", rgb(255, 90, 170), nil, F.FredokaOne, 2.0)
 			for j, c in { rgb(255, 220, 80), rgb(120, 220, 255), rgb(255, 140, 200) } do
 				K:plate("GZBoothSticker", 0.4, 0.4, 0.02, hd * CF(-(ob - oa) / 2 - 0.5, 3.0 + j * 0.7, 0.02) * ANG(0, 0, PI / 4), lk(c))
@@ -2651,7 +2670,7 @@ local function buildBowArcade(K: any, V: any, S: any)
 			K:box("GZBoothFloor", V3(x1 - x0 - 0.3, 0.04, z1 - z0 - 0.3), at(R, (x0 + x1) / 2, (z0 + z1) / 2, 0, 0.03), lk(rgb(240, 236, 240)))
 			K:box("GZBoothRail", V3(0.1, 0.1, ob - oa + 0.2), at(R, x1 + 0.08, (oa + ob) / 2, 0, 6.5), Look.chrome)
 			-- 결제 화면 (앞면 왼쪽 판)
-			local kd = R.A * CFrame.fromMatrix(V3(x1 + 0.02, 0, (z0 + oa) / 2), V3(0, 0, 1), Vector3.yAxis, V3(1, 0, 0))
+			local kd = R.A * CFrame.fromMatrix(V3(x1 + 0.02, 0, (z0 + oa) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0))
 			local ks = K:plate("GZBoothKiosk", 0.9, 1.2, 0.05, kd * CF(0, 4.2, 0), { c = rgb(255, 190, 210), m = M.Neon, t = 0.05 })
 			txt(K, "GZBoothKioskText", 0.8, 1.0, kd * CF(0, 4.2, 0.06), "카드\n결제\n4,000원", rgb(120, 30, 70), nil, F.GothamBold, 1.1)
 			K:plate("GZBoothCardSlot", 0.6, 0.08, 0.04, kd * CF(0, 3.4, 0), nl(rgb(60, 220, 120)))
@@ -2695,7 +2714,7 @@ local function buildBowArcade(K: any, V: any, S: any)
 			end
 			for _, sz in { -1, 1 } do
 				local z = if sz < 0 then mn.Z - 0.02 else mx.Z + 0.02
-				local d = R.A * CFrame.fromMatrix(V3(c.X, 0, z), V3(-sz, 0, 0), Vector3.yAxis, V3(0, 0, sz))
+				local d = R.A * CFrame.fromMatrix(V3(c.X, 0, z), V3(sz, 0, 0), Vector3.yAxis, V3(0, 0, sz))
 				K:plate("GZHockeyCoin", 0.9, 0.7, 0.1, d * CF(1.5, 1.3, 0), lk(rgb(30, 30, 34)))
 				K:plate("GZHockeySlot", 0.06, 0.22, 0.02, d * CF(1.5, 1.4, 0.1), nl(rgb(255, 70, 40)))
 				txt(K, "GZHockeyPrice", 0.8, 0.2, d * CF(1.5, 1.08, 0.11), "1,000원", WHITE, nil, F.GothamBold)

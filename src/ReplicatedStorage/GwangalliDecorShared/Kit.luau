@@ -69,6 +69,12 @@ function Kit:mx(slot: string, rgb: { number }, t: number, mat: string?): Paint
 	return { rgb = Palette.mix(p.rgb, rgb, t), mat = mat or p.mat, slot = p.slot }
 end
 
+-- any paint (slot key or literal) scaled by f
+function Kit:shp(p: any, f: number): Paint
+	local pp = paintOf(self, p)
+	return { rgb = Palette.shade(pp.rgb, f), mat = pp.mat, slot = pp.slot }
+end
+
 -- the slot's colour with another material (a leather sofa's piping in metal ...)
 function Kit:as(slot: string, mat: string): Paint
 	local p = paintOf(self, slot)
@@ -121,7 +127,7 @@ function Kit:box(name: string, sx: number, sy: number, sz: number, x: number, y:
 	return addPart(self, name, "Block", sx, sy, sz, x, y, z, paint, o)
 end
 
--- cylinder of length l and diameter dia along axis "x" | "y" | "z"
+-- cylinder of length l and diameter dia along axis "x" | "y" | "z" (opts rx ry rz tilt it about its centre)
 function Kit:cyl(name: string, l: number, dia: number, x: number, y: number, z: number, axis: string, paint: any, o: any?): number
 	local oo: any = {}
 	if o then
@@ -129,18 +135,15 @@ function Kit:cyl(name: string, l: number, dia: number, x: number, y: number, z: 
 			oo[k2] = v
 		end
 	end
-	local base = CFrame.new(x, y, z)
-	if axis == "y" then
-		base *= CFrame.Angles(0, 0, rad(90))
-	elseif axis == "z" then
-		base *= CFrame.Angles(0, rad(90), 0)
-	end
+	local rotAxis = if axis == "y" then CFrame.Angles(0, 0, rad(90)) elseif axis == "z" then CFrame.Angles(0, rad(90), 0) else CFrame.new()
+	local tilt = CFrame.new()
 	if oo.rx or oo.ry or oo.rz then
-		-- tilt applied in the item frame around the cylinder centre
-		base = CFrame.new(x, y, z) * CFrame.Angles(rad(oo.rx or 0), rad(oo.ry or 0), rad(oo.rz or 0)) * (CFrame.new(x, y, z):Inverse() * base)
+		tilt = CFrame.Angles(rad(oo.rx or 0), rad(oo.ry or 0), rad(oo.rz or 0))
 		oo.rx, oo.ry, oo.rz = nil, nil, nil
 	end
-	oo.cf = base
+	if not oo.cf then
+		oo.cf = CFrame.new(x, y, z) * tilt * rotAxis
+	end
 	return addPart(self, name, "Cylinder", l, dia, dia, x, y, z, paint, oo)
 end
 
@@ -256,7 +259,7 @@ function Kit:foliage(cx: number, cy: number, cz: number, r: number, n: number, p
 		local rr = r * (0.35 + 0.65 * ((i * 0.618) % 1)) * sp
 		local y = cy + (((i * 0.37) % 1) - 0.4) * r * 1.1
 		local dia = r * (0.75 + ((i * 0.29) % 1) * 0.6)
-		local tint = if i % 3 == 0 then self:sh(if type(paint) == "string" then paint else "leaf", 1.12) else paint
+		local tint = if i % 3 == 0 then self:shp(paint, 1.12) else paint
 		self:ball("Leaf", dia, cx + math.cos(a) * rr, y, cz + math.sin(a) * rr, tint)
 	end
 end
@@ -268,7 +271,7 @@ function Kit:leaves(cx: number, cy: number, cz: number, len: number, n: number, 
 		local tilt = 25 + (i % 3) * 14
 		local ar = math.rad(a)
 		local lx, lz = math.sin(ar) * len * 0.45, math.cos(ar) * len * 0.45
-		self:box("Leaf", len * 0.55, 0.04, len, cx + lx, cy + (i % 3) * 0.25, cz + lz, if i % 2 == 0 then paint else self:sh(if type(paint) == "string" then paint else "leaf", 0.88), { rx = tilt, ry = a })
+		self:box("Leaf", len * 0.55, 0.04, len, cx + lx, cy + (i % 3) * 0.25, cz + lz, if i % 2 == 0 then paint else self:shp(paint, 0.88), { rx = tilt, ry = a })
 		self:box("Stem", 0.05, 0.05, len * 0.6, cx + lx * 0.4, cy - 0.3 + (i % 3) * 0.2, cz + lz * 0.4, self:lit({ 70, 110, 60 }, "plastic"), { rx = tilt + 10, ry = a })
 	end
 end
@@ -277,11 +280,11 @@ end
 function Kit:pot(x: number, z: number, dia: number, h: number, paint: any, round: boolean?): number
 	if round == false then
 		self:box("Pot", dia, h, dia, x, h / 2, z, paint, { solid = true })
-		self:box("Rim", dia + 0.08, 0.1, dia + 0.08, x, h - 0.05, z, self:sh(if type(paint) == "string" then paint else "pot", 0.92))
+		self:box("Rim", dia + 0.08, 0.1, dia + 0.08, x, h - 0.05, z, self:shp(paint, 0.92))
 		self:box("Soil", dia - 0.12, 0.06, dia - 0.12, x, h - 0.06, z, self:lit({ 70, 52, 38 }, "slate"))
 	else
 		self:cyl("Pot", h, dia, x, h / 2, z, "y", paint, { solid = true })
-		self:cyl("Rim", 0.12, dia + 0.1, x, h - 0.06, z, "y", self:sh(if type(paint) == "string" then paint else "pot", 0.92))
+		self:cyl("Rim", 0.12, dia + 0.1, x, h - 0.06, z, "y", self:shp(paint, 0.92))
 		self:cyl("Soil", 0.06, dia - 0.12, x, h - 0.05, z, "y", self:lit({ 70, 52, 38 }, "slate"))
 	end
 	return h
