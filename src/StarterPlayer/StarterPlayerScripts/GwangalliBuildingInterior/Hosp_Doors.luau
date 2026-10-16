@@ -189,7 +189,6 @@ local function corridorPlates(K: any)
 	namePlate(-16.4, 19.8, -9.82, 1, 2.8, 1.2, "202호 입원실 · 2인실", "박*진")
 	namePlate(-17.8, 19.7, -4.42, -1, 3.6, 1.4, "건강검진센터 · Health Check-up", "접수 08:30 ~ 17:00")
 	namePlate(41.7, 19.7, -4.42, -1, 2.8, 1.0, "휴게실 LOUNGE", "자판기 · 정수기 · TV")
-	namePlate(27.9, 9.6, -2.42, -1, 2.8, 1.0, "주사실 · 처치실", "Injection · Treatment")
 	-- 대기 환자 모니터 (진료실 앞)
 	local mf = Lib.face(-16.4, 5.2, -5.82, 0, 1)
 	K:plate("WaitMonitorBody", 2.1, 1.3, 0.12, mf, LK.black)
@@ -319,7 +318,7 @@ local function stairDoor2F(K: any, env: any)
 	Lib.exitSign(K, Lib.face((x0 + x1) / 2, y + 7.92, 38.94, 0, -1), 1.6, "🏃 비상구", "door")
 	Lib.tx(K, "StairDoorPlate", 0.7, 1.4, Lib.face(-3.75, y + 4.6, 38.94, 0, -1), "비상\n계단\n·\n옥상\nRF ↑", C.WHITE, C.GREEN_EXIT, { font = Lib.FONT_K })
 	local hinge = Geo.W(x1, 0, 38.74)
-	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.YVector, rad(18), { tOpen = 0.25, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadIn", collide = { leaf } })
+	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.YVector, rad(-18), { tOpen = 0.25, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadIn", collide = { leaf } })
 	if portal then
 		portal.registerDoor("stair", "hall", Geo.ROOMS.stair.hallDoor, function(a: number)
 			mv:set(a)
@@ -353,11 +352,10 @@ local function roofDoor(K: any, env: any)
 		Lib.ab(K, "RoofCanopy", 35.8, y + 7.40, -4.0, 40.4, y + 7.60, -2.22, Look.of(236, 236, 232))
 		Lib.ab(K, "RoofCanopyLamp", 37.6, y + 7.36, -3.4, 38.7, y + 7.40, -2.8, Look.neon(C3(255, 236, 200)))
 	end)
-	local leaf: BasePart? = nil
 	local bar: BasePart? = nil
 	local g = K:group("RoofDoorLeaf", function()
 		K:free(function()
-			leaf = Lib.ab(K, "RoofDoorLeaf", 36.55, y, -2.40, 39.70, y + 6.95, -2.25, Look.of(130, 136, 140, M.Metal))
+			Lib.ab(K, "RoofDoorLeaf", 36.55, y, -2.40, 39.70, y + 6.95, -2.25, Look.of(130, 136, 140, M.Metal))
 			bar = K:box("RoofDoorPull", V3(0.14, 1.6, 0.14), CF(36.95, y + 3.8, -2.55), LK.chrome)
 			for _, hy in { 3.1, 4.5 } do
 				K:seg("RoofDoorPullLeg", V3(36.95, y + hy, -2.40), V3(36.95, y + hy, -2.55), 0.08, LK.chrome)
@@ -367,7 +365,7 @@ local function roofDoor(K: any, env: any)
 	end)
 	Lib.exitSign(K, Lib.face(38.12, y + 8.05, -2.20, 0, -1), 1.6, "🏃 비상구 · 계단", "door")
 	local hinge = Geo.W(39.70, 0, -2.40)
-	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.YVector, rad(18), { tOpen = 0.25, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadIn" })
+	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.YVector, rad(-18), { tOpen = 0.25, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadIn" })
 	if portal then
 		portal.registerDoor("stair", "roof", Geo.ROOMS.stair.roofDoor, function(a: number)
 			mv:set(a)
@@ -385,7 +383,6 @@ local function roofDoor(K: any, env: any)
 			end,
 		})
 	end
-	local _ = leaf
 end
 
 function D.build(K: any, env: any)

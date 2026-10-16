@@ -650,15 +650,18 @@ local function promptWallSpot(ctx: any, walls: { string }, w: number, y0: number
 end
 
 -- 프롬프트가 꼭 되는 벽 자리만 (안 되면 nil 이고 자리도 안 잡음)
-local function promptSpotStrict(ctx: any, walls: { string }, w: number, y0: number, y1: number): (CFrame?, string?)
+-- edges = 프롬프트를 붙일 수 있는 부품의 가로 위치들 (가운데 기준, 예: TV 버튼 = ±(w/2-0.25)); 하나라도 되면 OK
+local function promptSpotStrict(ctx: any, walls: { string }, w: number, y0: number, y1: number, edges: { number }?): (CFrame?, string?)
 	local K = ctx.K
 	for _, iv in promptIntervals(ctx, walls) do
 		local mid = (iv[2] + iv[3]) / 2
 		local missBefore = ctx.miss
 		local dcf, wn = wallSpot(ctx, { iv[1] }, w, y0, y1, mid)
 		if dcf then
-			if Interact.canPrompt(K, dcf.Position) then
-				return dcf, wn
+			for _, ex in edges or { 0 } do
+				if Interact.canPrompt(K, (dcf * CF(ex, 0, 0.4)).Position) then
+					return dcf, wn
+				end
 			end
 			table.remove(K.wallUsed, #K.wallUsed)
 		end
@@ -2387,7 +2390,7 @@ local function chickenBuild(ctx: any)
 	if V:has("TVBezel") == 0 and V:has("TV") == 0 then
 		local tvw = if V.D > 14 then 3.6 else 3.0
 		local th = tvw * 9 / 16 + 0.3
-		local d = promptWallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.25, 6.25 + th)
+		local d = promptSpotStrict(ctx, { "left", "right", "back" }, tvw + 0.3, 6.25, 6.25 + th, { 0, -tvw / 2 + 0.25, tvw / 2 - 0.25 })
 		if not d then
 			d = wallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.25, 6.25 + th, 0)
 		end
@@ -2395,8 +2398,15 @@ local function chickenBuild(ctx: any)
 			tvSet(ctx, d, tvw, baseballChannels(), "TV")
 		end
 	end
-	local nd = promptWallSpot(ctx, { "right", "left", "back" }, 3.6, 6.6, 8.2)
-	local nw = 3.2
+	-- 네온: 프롬프트 되는 자리 (위 -> 눈높이 순, 큰 것 -> 작은 것), 없으면 아무 빈 벽
+	local nd, nw = nil, 3.2
+	for _, c in { { 3.6, 6.6, 8.2 }, { 2.6, 6.6, 8.2 }, { 3.6, 4.2, 5.6 }, { 2.6, 4.2, 5.6 } } do
+		nd = promptSpotStrict(ctx, { "right", "left", "back" }, c[1], c[2], c[3], { 0, -c[1] / 2 + 0.2, c[1] / 2 - 0.2 })
+		if nd then
+			nw = c[1] - 0.4
+			break
+		end
+	end
 	if not nd then
 		local fw
 		nd, fw = wallSpotFit(ctx, { "right", "left", "back" }, { 3.6, 2.6 }, 6.6, 8.2, 0)
