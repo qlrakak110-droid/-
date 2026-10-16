@@ -178,6 +178,11 @@ local function hits(p: Player, a: any): any
 		if st < note.t - Score.LIVE_SLACK or st > note.t + Score.STALE then
 			continue
 		end
+		-- the claimed offset must fit the arrival time (press -> batch -> network): no replaying old notes
+		local lag = st - note.t - dt
+		if lag < -0.3 or lag > 1.6 * rate then
+			continue
+		end
 		local j = Score.judge(dt / rate)
 		if not j then
 			continue

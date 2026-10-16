@@ -695,7 +695,10 @@ local function buildDialog()
 	Ui.corner(avatar, 30)
 	local avStroke = Ui.stroke(avatar, Col.teal, 2, 0)
 	local name = Ui.text(root, { Name = "Who", Text = "", Font = F.black, TextSize = 15, TextColor3 = Col.tealDD, Position = UDim2.fromOffset(74, 0), Size = UDim2.new(1, -74, 0, 20), ZIndex = 41 })
-	local body = Ui.text(root, {
+	-- text + choices stacked under the name (the avatar is placed absolutely on the left)
+	local holder = new("Frame", { Name = "Stack", BackgroundTransparency = 1, Position = UDim2.fromOffset(74, 22), Size = UDim2.new(1, -74, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 41 }, root)
+	Ui.list(holder, "v", 10)
+	local body = Ui.text(holder, {
 		Name = "Text",
 		Text = "",
 		Font = F.med,
@@ -703,29 +706,16 @@ local function buildDialog()
 		TextColor3 = Col.ink,
 		TextWrapped = true,
 		TextYAlignment = Enum.TextYAlignment.Top,
-		Position = UDim2.fromOffset(74, 24),
-		Size = UDim2.new(1, -74, 0, 46),
+		Size = UDim2.new(1, 0, 0, 24),
 		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 1,
 		ZIndex = 41,
 	})
-	local choices = new("Frame", { Name = "Choices", BackgroundTransparency = 1, Position = UDim2.fromOffset(74, 0), Size = UDim2.new(1, -74, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 41 }, root)
+	local choices = new("Frame", { Name = "Choices", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, ZIndex = 41 }, holder)
 	local cl = Ui.list(choices, "h", 8, Enum.HorizontalAlignment.Left)
-	cl.Wraps = true
-	local layout = new("UIListLayout", { FillDirection = Enum.FillDirection.Vertical, Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, nil)
-	layout:Destroy()
-	-- stack the text and the choices under the name (manual: avatar is absolute)
-	local holder = new("Frame", { Name = "Stack", BackgroundTransparency = 1, Position = UDim2.fromOffset(74, 22), Size = UDim2.new(1, -74, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, ZIndex = 41 }, root)
-	Ui.list(holder, "v", 10)
-	body.Parent = holder
-	body.Position = UDim2.new()
-	body.Size = UDim2.new(1, 0, 0, 24)
-	body.LayoutOrder = 1
-	choices.Parent = holder
-	choices.Position = UDim2.new()
-	choices.Size = UDim2.new(1, 0, 0, 0)
-	choices.LayoutOrder = 2
-	local minH = new("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 62), ZIndex = 40 }, root)
-	local _ = minH
+	pcall(function()
+		(cl :: any).Wraps = true
+	end)
 	Ui.onLayout(function()
 		local W = Ui.size()
 		root.Size = UDim2.fromOffset(math.min(720, W - 20), 0)

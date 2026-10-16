@@ -1056,7 +1056,7 @@ local function hotelDesk(K: any, V: any, th: any, rng: () -> number): any?
 		if not lo(K) then
 			paperStack(K, at(0.1, back + 0.05), 0.7, 0.95, 4)
 			K:box("PassportScanner", V3(0.8, 0.12, 0.6), at(w / 2 - 2.0, back) * CF(0, 0.06, 0), Look.black)
-			K:plate("PassportGlass", 0.6, 0.4, 0.005, CFrame.fromMatrix((at(w / 2 - 2.0, back) * CF(0, 0.125, 0)).Position, sd:Cross(Vector3.yAxis), -sd, Vector3.yAxis) * ANG(-PI / 2, 0, 0), lk(C(120, 200, 140), M.Neon, { t = 0.5 }))
+			K:box("PassportGlass", V3(0.6, 0.01, 0.4), at(w / 2 - 2.0, back) * CF(0, 0.125, 0), lk(C(120, 200, 140), M.Neon, { t = 0.5 }))
 		end
 	end
 	-- 데스크 뒤 직원 공간 예약 (ShopStaff 가 직원을 세움: 새 바닥 소품 금지)
