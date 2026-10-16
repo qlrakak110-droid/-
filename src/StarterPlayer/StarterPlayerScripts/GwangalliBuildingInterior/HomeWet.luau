@@ -2375,7 +2375,6 @@ local function kitchenFloor(K: any, V: any, runs: { any })
 		local x = (if s < 0 then main.topA else main.topB) + s * 0.75
 		table.insert(cands, CF(x, 0, 0.62))
 		table.insert(cands, CF(x + s * 0.4, 0, 0.62))
-		table.insert(cands, CF((if s < 0 then main.topA else main.topB) - s * 0.7, 0, main.zt + 0.62))
 	end
 	for _, cf in cands do
 		local food = C.ti >= 2
@@ -2583,7 +2582,7 @@ local function toilet(C: any, st: any, recs: { any })
 	local axis = pcf:VectorToWorldSpace(V3(1, 0, 0))
 	C:swing(m, hingeP, axis, math.rad(-98), { object = "변기 뚜껑", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 	C:reserve(pcf * CF(0, 1.3, D / 2 + 0.1), V3(W + 0.5, 2.8, D + 0.3))
-	return pcf, W, D, f
+	return { pcf = pcf, W = W, D = D, f = f, tankTop = ty0 + tankH * 0.82 + 0.1 }
 end
 
 -- 세면대 (하부장 · 상판 · 볼 · 수전) + 거울 수납장
@@ -3202,6 +3201,140 @@ local function bathCeiling(C: any)
 	end
 end
 
+-- 점 p (C 로컬) 에서 가장 가까운 벽면의 표시면 틀 (maxd 안), 없으면 nil
+local function wallAt(C: any, p: Vector3, maxd: number): (CFrame?, string?)
+	local cands = {
+		{ "left", p.X - C.x0, CFrame.fromMatrix(V3(C.x0, p.Y, p.Z), V3(0, 0, -1), V3(0, 1, 0), V3(1, 0, 0)) },
+		{ "right", C.x1 - p.X, CFrame.fromMatrix(V3(C.x1, p.Y, p.Z), V3(0, 0, 1), V3(0, 1, 0), V3(-1, 0, 0)) },
+		{ "back", p.Z - C.z0, CFrame.fromMatrix(V3(p.X, p.Y, C.z0), V3(1, 0, 0), V3(0, 1, 0), V3(0, 0, 1)) },
+		{ "front", C.z1 - p.Z, CFrame.fromMatrix(V3(p.X, p.Y, C.z1), V3(-1, 0, 0), V3(0, 1, 0), V3(0, 0, -1)) },
+	}
+	table.sort(cands, function(a, b)
+		return a[2] < b[2]
+	end)
+	if cands[1][2] <= maxd then
+		return cands[1][3], cands[1][1]
+	end
+	return nil, nil
+end
+
+-- 휴지걸이 (선반형) · 수건 선반 · 변기솔 · 욕실화 · 발매트 · 빨래바구니 · 드라이기 · 가운
+local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
+	local ti = C.ti
+	local metal = st.metal
+	if tinfo then
+		local pcf, W, D = tinfo.pcf, tinfo.W, tinfo.D
+		-- 휴지걸이: 변기 옆 벽 (없으면 뒷벽 탱크 옆)
+		local done = false
+		for _, sx in { 1, -1 } do
+			if done then
+				break
+			end
+			local p = pcf * V3(sx * (W / 2 + 0.45), 2.4, D * 0.6)
+			local dcf = wallAt(C, p, 1.3)
+			if not dcf then
+				dcf = wallAt(C, pcf * V3(sx * (W / 2 + 0.55), 2.4, 0.05), 0.3)
+			end
+			if dcf and C:claim(dcf * CF(0, 0, 0.2), V3(0.7, 0.7, 0.4), "wall") then
+				done = true
+				C:plate("PaperHolderPlate", 0.66, 0.12, 0.03, dcf * CF(0, 0.22, 0), metal)
+				C:box("PaperHolderShelf", V3(0.66, 0.04, 0.42), dcf * CF(0, 0.26, 0.22), metal)
+				C:cyl("PaperRoll", 0.44, 0.42, dcf * CF(0, -0.04, 0.24), LK.paper)
+				C:box("PaperTail", V3(0.4, 0.3, 0.01), dcf * CF(0, -0.32, 0.45), LK.paper)
+				if ti >= 2 then
+					-- 선반 위 휴대폰
+					C:box("PhoneOnShelf", V3(0.26, 0.03, 0.5), dcf * CF(0.05, 0.295, 0.22) * ANG(0, 0.2, 0), LK.black)
+				end
+			end
+		end
+		-- 변기 위 수건 선반 (2 단, 접은 수건)
+		if ti >= 2 then
+			local y0 = math.max(tinfo.tankTop + 1.2, 4.3)
+			local sw = math.min(W + 0.3, 2.0)
+			local dcf = pcf * CF(0, y0, 0)
+			if y0 + 1.6 < C.H - 0.2 and C:claim(dcf * CF(0, 0.8, 0.35), V3(sw, 1.7, 0.7), "wall") then
+				for j, dy in { 0, 0.85 } do
+					C:box("TowelShelf", V3(sw, 0.05, 0.62), dcf * CF(0, dy, 0.31), if ti >= 4 then st.cab else lk(240, 240, 236, M.Plastic))
+					C:box("TowelShelfRail", V3(sw, 0.04, 0.04), dcf * CF(0, dy + 0.18, 0.6), metal)
+					local n = if j == 1 then 3 else 2
+					for k = 0, 1 do
+						local h = towelStack(C, dcf * CF(-sw * 0.22 + k * sw * 0.44, dy + 0.025, 0.3), sw * 0.38, 0.52, n, if k == 0 then st.towel else { st.towel[#st.towel], st.towel[1] })
+						local _ = h
+					end
+				end
+				for _, sx in { -1, 1 } do
+					C:box("TowelShelfBracket", V3(0.05, 0.3, 0.5), dcf * CF(sx * (sw / 2 - 0.05), -0.15, 0.28), metal)
+				end
+			end
+		end
+		-- 변기솔 (바닥)
+		if not C.V.decorPlus then
+			for _, sx in { -1, 1 } do
+				local bcf = pcf * CF(sx * (W / 2 + 0.3), 0, 0.3)
+				if C:claim(bcf * CF(0, 0.5, 0), V3(0.36, 1.0, 0.36), "floor") then
+					C:vcyl("ToiletBrushPot", 0.5, 0.32, bcf * CF(0, 0.25, 0), if ti >= 4 then lk(236, 236, 232) else lk(220, 228, 236, M.Plastic))
+					C:vcyl("ToiletBrushHandle", 0.6, 0.06, bcf * CF(0, 0.75, 0), if ti >= 4 then metal else LK.white)
+					C:ball("ToiletBrushKnob", 0.1, bcf * CF(0, 1.06, 0), if ti >= 4 then metal else LK.white)
+					break
+				end
+			end
+		end
+	end
+	if C.V.decorPlus then
+		return
+	end
+	-- 욕실화 (문 안쪽, 앞코가 욕실 쪽)
+	local dx = doorX or 0
+	for _, dz in { 0.75, 1.1 } do
+		local cf = CF(dx, 0.09, C.z1 - dz)
+		if C:claim(cf, V3(1.0, 0.18, 0.95), "mat") then
+			local sc = if ti >= 5 then lk(236, 232, 224, M.Rubber) elseif ti == 4 then lk(120, 150, 170, M.Rubber) else lk(90, 150, 210, M.Rubber)
+			for _, sx in { -1, 1 } do
+				C:rbox("BathSlipperSole", V3(0.4, 0.12, 0.92), 0.12, CF(dx + sx * 0.24, 0.06, C.z1 - dz) * ANG(0, PI + sx * 0.08, 0), sc)
+				C:rbox("BathSlipperStrap", V3(0.42, 0.18, 0.36), 0.08, CF(dx + sx * 0.24, 0.16, C.z1 - dz - 0.22) * ANG(0, PI + sx * 0.08, 0), sc)
+				if C.hi then
+					for k = 0, 3 do
+						C:box("BathSlipperHole", V3(0.05, 0.19, 0.05), CF(dx + sx * 0.24 + (k % 2 - 0.5) * 0.14, 0.16, C.z1 - dz - 0.16 - math.floor(k / 2) * 0.12), lk(40, 50, 60))
+					end
+				end
+			end
+			break
+		end
+	end
+	-- 빨래바구니 (아파트 · 펜트하우스 · 오피스텔) · 체중계 (아파트)
+	if ti >= 3 then
+		local spots = { V3(C.x0 + 0.65, 0, C.z1 - 0.65), V3(C.x1 - 0.65, 0, C.z1 - 0.65), V3(C.x0 + 0.65, 0, 0), V3(C.x1 - 0.65, 0, 0) }
+		for _, p in spots do
+			local cf = CF(p.X, 0.8, p.Z)
+			if C:claim(cf, V3(1.0, 1.6, 1.0), "floor", 0.05) then
+				local bl = if ti >= 5 then lk(200, 186, 160, M.Fabric) else lk(190, 156, 104, M.Fabric)
+				C:vcyl("LaundryBasket", 1.4, 0.95, CF(p.X, 0.7, p.Z), bl)
+				C:vcyl("LaundryBasketRim", 0.08, 1.0, CF(p.X, 1.4, p.Z), lk(150, 120, 80, M.Fabric))
+				C:ell("LaundryPile", V3(0.85, 0.4, 0.85), CF(p.X, 1.42, p.Z), lk(120, 150, 190, M.Fabric))
+				C:box("LaundryShirt", V3(0.7, 0.05, 0.4), CF(p.X + 0.2, 1.5, p.Z + 0.25) * ANG(0.3, 0.6, 0.5), lk(240, 240, 236, M.Fabric))
+				break
+			end
+		end
+	end
+	if ti == 4 then
+		local cf = CF(C.x1 - 1.0, 0.06, C.z1 - 1.6)
+		if C:claim(cf, V3(0.95, 0.12, 0.95), "mat") then
+			C:slab("BathScale", 0.9, 0.9, 0.1, 0.12, cf, lk(240, 240, 238, M.Glass, { t = 0.1 }))
+			C:box("BathScaleLCD", V3(0.3, 0.012, 0.12), cf * CF(0, 0.055, -0.3), lk(40, 60, 70))
+		end
+	end
+	-- 가운 걸이 (펜트하우스, 문 옆 벽)
+	if ti >= 5 then
+		local dcf = wallAt(C, V3(dx + 1.6, 5.4, C.z1 - 0.2), 0.5)
+		if dcf and C:claim(dcf * CF(0, -1.2, 0.3), V3(1.2, 3.2, 0.6), "wall") then
+			C:box("RobeHook", V3(0.08, 0.08, 0.2), dcf * CF(0, 0, 0.1), LK.brass)
+			C:ell("RobeShoulder", V3(1.0, 0.5, 0.42), dcf * CF(0, -0.3, 0.26), LK.fabricW)
+			C:box("RobeBody", V3(0.95, 2.6, 0.36), dcf * CF(0, -1.65, 0.24), LK.fabricW)
+			C:box("RobeBelt", V3(0.97, 0.12, 0.4), dcf * CF(0, -1.4, 0.25), lk(232, 228, 220, M.Fabric))
+		end
+	end
+end
+
 -- 욕실 한 칸
 local function bathCell(K: any, V: any, fl: any, idx: number)
 	-- 안쪽 면: 타일 벽까지 줄임
@@ -3267,7 +3400,7 @@ local function bathCell(K: any, V: any, fl: any, idx: number)
 			bathCeiling(C)
 		end },
 		{ "toilet", function()
-			toilet(C, st, bathFind(C, { "ToiletTank", "ToiletBowl", "ToiletBase", "FlushButton" }))
+			C.toiletInfo = toilet(C, st, bathFind(C, { "ToiletTank", "ToiletBowl", "ToiletBase", "FlushButton" }))
 		end },
 		{ "vanity", function()
 			local cab = bathFind(C, { "VanityCabinet" })[1]
@@ -3307,6 +3440,15 @@ local function bathCell(K: any, V: any, fl: any, idx: number)
 			for _, r in bathFind(C, { "VentFan" }) do
 				ventFan(C, r)
 			end
+		end },
+		{ "extras", function()
+			local dx = 0
+			local th = C:first({ "ThresholdBath" }, 0.8) or C:first({ "DoorLeaf" }, 0.8)
+			if th then
+				local a, b = C:bb(th)
+				dx = math.clamp((a.X + b.X) / 2, C.x0 + 0.6, C.x1 - 0.6)
+			end
+			bathExtras(C, st, C.toiletInfo, dx)
 		end },
 	}
 	for _, s in steps do
@@ -3550,7 +3692,7 @@ local function shoeCabinet(C: any)
 			P:label("FlyerText", 0.5, 0.7, CF(cx + 0.05, y + 0.012, zf * 0.55) * ANG(0, 0.25, 0) * upCF(V3(), V3(0, 0, -1)), "치킨 1+1\n광안점", C3(200, 30, 30), nil, { wrap = true })
 		end
 	end
-	C:reserve(P.cf:ToObjectSpace(P.cf) * CF(), V3()) -- (형식상)
+	P:reserve(CF((a + b) / 2) * CF(0, 0, 0.1), b - a + V3(0.1, 0, 0.3))
 end
 
 -- 바닥 신발 리스킨 (맵 Shoe 한 짝마다) + 슬리퍼

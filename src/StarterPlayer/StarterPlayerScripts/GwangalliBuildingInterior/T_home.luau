@@ -446,7 +446,7 @@ function C:wallSpot(w: number, y0: number, y1: number, dep: number, opts: any?):
 			local cfm = self:segCF(s, u, (y0 + y1) / 2, dep / 2)
 			local mn, mx = laabb(cfm, V3(w, y1 - y0, dep))
 			local score = if o.score then o.score(s, u, cfm) else 0
-			if score < bs and self:boxFree(mn, mx, o) then
+			if score < bs and self:boxFree(mn, mx, o) and (not o.accept or o.accept(cfm)) then
 				best, bu, bs = s, u, score
 			end
 			u += stepU
@@ -553,7 +553,7 @@ function C:promptOk(lp: Vector3): boolean
 	for _, it in self.interacts do
 		local p: BasePart = it.part
 		local rel = p.CFrame:PointToObjectSpace(self.V.cf * lp)
-		local h = p.Size / 2 + V3(2.2, 1.2, 2.2)
+		local h = p.Size / 2 + V3(1.3, 0.8, 1.3)
 		if math.abs(rel.X) < h.X and math.abs(rel.Y) < h.Y and math.abs(rel.Z) < h.Z then
 			return false
 		end
@@ -2608,7 +2608,7 @@ SLOT.lamp = function(C_: any, info: any): boolean?
 		glow = K:vcyl("HomeLampBulb", sh * 0.6, sd * 0.5, F * CF(shade.c.X, shade.c.Y, shade.c.Z), L.lampWarm)
 	end
 	local l = C_:light(glow, "PointLight", { Range = 11, Brightness = 0.55, Color = c3(255, 206, 150) })
-	info.lamp = { glow = glow, light = l }
+	info.lamp = { glow = glow, light = l, base = (F * CF(bx, 0, bz)).Position }
 	C_.lamps = C_.lamps or {}
 	table.insert(C_.lamps, info.lamp)
 	return true
@@ -3570,14 +3570,17 @@ function C:floorAt(cands: { CFrame }, size: Vector3, pad: number?): CFrame?
 end
 
 -- 어떤 점에서 가까울수록 좋은 점수
-local function near(p: Vector3): (CFrame, any) -> number
-	return function(pcf: CFrame)
-		return (pcf.Position - V3(p.X, 0, p.Z)).Magnitude
+-- (바닥: score(pcf, seg) / 벽: score(seg, u, dcf) 둘 다 받음)
+local function near(p: Vector3): (any, any?, any?) -> number
+	return function(a: any, _b: any?, c: any?)
+		local cf: CFrame = if typeof(a) == "CFrame" then a else c
+		return (V3(cf.Position.X, 0, cf.Position.Z) - V3(p.X, 0, p.Z)).Magnitude
 	end
 end
-local function far(p: Vector3): (CFrame, any) -> number
-	return function(pcf: CFrame)
-		return -(pcf.Position - V3(p.X, 0, p.Z)).Magnitude
+local function far(p: Vector3): (any, any?, any?) -> number
+	local f = near(p)
+	return function(a: any, b: any?, c: any?)
+		return -f(a, b, c)
 	end
 end
 T.near, T.far = near, far
@@ -3589,9 +3592,9 @@ local P = {}
 T.P = P
 
 -- 멀티탭 + 플러그 3개 + 전선 (pcf 바닥)
-function P.powerStrip(K: any, pcf: CFrame, look: any?)
+function P.powerStrip(K: any, pcf: CFrame, look: any?): BasePart
 	local l = look or lk(244, 244, 240)
-	K:rbox("HomePowerStrip", V3(1.1, 0.16, 0.3), 0.05, pcf * CF(0, 0.08, 0), l)
+	local main = K:rbox("HomePowerStrip", V3(1.1, 0.16, 0.3), 0.05, pcf * CF(0, 0.08, 0), l)[1]
 	for i = 0, 3 do
 		K:box("HomePowerStripSwitch", V3(0.1, 0.02, 0.1), pcf * CF(-0.42 + i * 0.27, 0.165, -0.08), L.neon(c3(255, 80, 60), 0.25))
 		K:cyl("HomePowerStripSocket", 0.012, 0.14, pcf * CF(-0.42 + i * 0.27, 0.166, 0.06) * ANG(0, 0, PI / 2), lk(220, 220, 216))
@@ -3601,6 +3604,7 @@ function P.powerStrip(K: any, pcf: CFrame, look: any?)
 		K:seg("HomePowerStripCord", pcf * V3(-0.42 + i * 0.27, 0.3, 0.06), pcf * V3(-0.6 - i * 0.4, 0.03, 0.6 + i * 0.3), 0.035, lk(30, 30, 32))
 	end
 	K:seg("HomePowerStripCord", pcf * V3(0.55, 0.06, 0), pcf * V3(0.85, 0.03, -0.25), 0.04, l)
+	return main
 end
 -- 휴지통 (페달식 / 원형)
 function P.trashBin(K: any, pcf: CFrame, look: any?)
@@ -3780,7 +3784,9 @@ ROOM["goshiwon:main"] = function(Cx: any)
 		Cx:kettle(Cx:ownNamed("KettleBase")[1], kt)
 	end
 	for _, cup in Cx:ownNamed("Cup") do
-		mug(K, CF(cup.c.X, cup.min.Y, cup.c.Z), lk(236, 236, 232))
+		K:free(function()
+			mug(K, CF(cup.c.X, cup.min.Y, cup.c.Z), lk(236, 236, 232))
+		end)
 		Cx:hide(cup.part)
 	end
 	-- 행거 + 옷
@@ -3867,7 +3873,7 @@ ROOM["goshiwon:main"] = function(Cx: any)
 	local ps = Cx:ownNamed("PowerStrip")[1]
 	if ps then
 		K:free(function()
-			P.powerStrip(K, CF(ps.c.X, 0, ps.c.Z) * ANG(0, if ps.size.X > ps.size.Z then 0 else PI / 2, 0))
+			Cx.powerStrip = P.powerStrip(K, CF(ps.c.X, 0, ps.c.Z) * ANG(0, if ps.size.X > ps.size.Z then 0 else PI / 2, 0))
 		end)
 		Cx:hide(ps.part)
 	end
@@ -4013,6 +4019,285 @@ function C:roomDress()
 	end
 end
 
+-------------------------------------------------------------------------------------------------
+-- 상호작용 (이 클라이언트 전용, R 키) — 서버 집 행동(잠 · 앉기 · TV · 냉장고 · 옷장 · 샤워 · 창밖)과 겹치지 않는 것
+-------------------------------------------------------------------------------------------------
+local function tween(p: Instance, t: number, props: any)
+	local ok = pcall(function()
+		TweenService:Create(p, TweenInfo.new(t, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), props):Play()
+	end)
+	if not ok then
+		for k, v in props do
+			(p :: any)[k] = v
+		end
+	end
+end
+
+-- 벽 스위치 + 토글 (스위치 판을 벽 빈 자리에 새로 달고 프롬프트)
+function C:wallToggle(object: string, near_: Vector3, state: boolean, onText: string, offText: string, on: (boolean) -> (), opts: any?): ProximityPrompt?
+	local o: any = opts or {}
+	local K = self.K
+	local _, _, dcf = self:wallSpot(o.w or 0.4, 3.95, 4.45, 0.12, {
+		score = near(near_),
+		accept = function(cfm: CFrame)
+			return self:promptOk(cfm.Position)
+		end,
+	})
+	if not dcf then
+		return nil
+	end
+	local plate: BasePart? = nil
+	K:free(function()
+		plate = switchPlate(self, dcf, o.w or 0.4, 1, "HomeSwitchPlate")
+		if o.label then
+			K:text("HomeSwitchLabel", 0.5, 0.12, dcf * CF(0, 0.33, 0.01), o.label, { fg = c3(90, 90, 96), d = 0.004, free = true, font = Enum.Font.GothamMedium })
+		end
+	end)
+	return self:withPrompt(plate, function()
+		return Interact.toggle(K, plate :: BasePart, { object = object, state = state, onText = onText, offText = offText, on = on })
+	end)
+end
+
+function C:interactions()
+	local K = self.K
+	local fc = self:floorCenter()
+	-- 1) 커튼 (전동 / 수동): 열기 · 닫기
+	for i, cur in self.curtains or {} do
+		if i > 1 then
+			break
+		end
+		local at = (cur.at :: CFrame).Position
+		self:wallToggle(if self.lux >= 3 then "전동 커튼" else "커튼", at, true, "커튼 닫기", "커튼 열기", function(open: boolean)
+			for _, p in cur.open do
+				if p.Parent then
+					tween(p, 0.9, { Transparency = if open then (cur.t[p] or 0) else 1 })
+				end
+			end
+			for _, p in cur.closed do
+				if p.Parent then
+					tween(p, 0.9, { Transparency = if open then 1 else (cur.t[p] or 0) })
+				end
+			end
+		end, { label = if self.lux >= 3 then "커튼" else nil })
+	end
+	-- 2) 스탠드 조명
+	for _, lamp in self.lamps or {} do
+		local g: BasePart = lamp.glow
+		if g and g.Parent then
+			local col = g.Color
+			-- 갓 근처에 서버 프롬프트가 있으면 전선 중간 발 스위치에
+			local target: BasePart = g
+			if not self:promptOk(self.V.cf:PointToObjectSpace(g.Position)) and lamp.base then
+				local bp: Vector3 = lamp.base
+				for k = 0, 7 do
+					local a = k * PI / 4
+					local q = bp + V3(math.cos(a) * 1.5, 0, math.sin(a) * 1.5)
+					local smn, smx = V3(q.X - 0.2, 0, q.Z - 0.2), V3(q.X + 0.2, 0.12, q.Z + 0.2)
+					if self:promptOk(V3(q.X, 0.06, q.Z)) and self:mine(V3(q.X, 0.5, q.Z)) and not self:insideWall(V3(q.X, 0.5, q.Z)) and self:boxFree(smn, smx, { noKeep = true }) then
+						self:use(smn, smx)
+						local sw: BasePart? = nil
+						K:free(function()
+							K:seg("HomeLampCord", V3(bp.X, 0.03, bp.Z), V3(q.X, 0.03, q.Z), 0.035, lk(30, 30, 32))
+							sw = K:rbox("HomeFootSwitch", V3(0.3, 0.1, 0.22), 0.04, CF(q.X, 0.05, q.Z) * ANG(0, a, 0), lk(30, 30, 32))[1]
+						end)
+						if sw then
+							target = sw
+						end
+						break
+					end
+				end
+			end
+			self:withPrompt(target, function()
+				return Interact.toggle(K, target, { object = "스탠드", state = true, onText = "끄기", offText = "켜기", on = function(st: boolean)
+					g.Material = if st then M.Neon else M.SmoothPlastic
+					g.Color = if st then col else col:Lerp(c3(140, 136, 128), 0.6)
+					if lamp.light then
+						lamp.light.Enabled = st
+					end
+				end })
+			end)
+		end
+	end
+	-- 3) 롤 블라인드 (고시원 · 서재)
+	if self.blind then
+		local b = self.blind
+		local cloth: BasePart, bar: BasePart = b.parts.cloth, b.parts.bar
+		local function set(len: number)
+			if cloth and cloth.Parent then
+				tween(cloth, 1.0, { Size = V3(cloth.Size.X, len, cloth.Size.Z), CFrame = self.V.cf * (b.face * CF(0, -0.16 - len / 2, -0.06)) })
+			end
+			if bar and bar.Parent then
+				tween(bar, 1.0, { CFrame = self.V.cf * (b.face * CF(0, -0.16 - len, -0.06)) })
+			end
+		end
+		local target = b.parts.chain
+		local pr = self:withPrompt(target, function()
+			return Interact.cycle(K, target, { "up", "down", "part" }, { action = "블라인드 올리기/내리기", object = "롤 블라인드", on = function(_i, st)
+				set(if st == "up" then 0.35 elseif st == "down" then b.full else b.down)
+			end })
+		end)
+		if not pr then
+			self:wallToggle("롤 블라인드", (b.face :: CFrame).Position, true, "블라인드 내리기", "블라인드 올리기", function(up: boolean)
+				set(if up then b.down else b.full)
+			end)
+		end
+	end
+	-- 4) 선풍기 (날개 회전)
+	if self.fan then
+		local f = self.fan
+		local spinning = false
+		local base = {}
+		for _, p in f.blades do
+			base[p] = p.CFrame
+		end
+		local ang = 0
+		Interact.anim(K, function(_t, dt)
+			if not spinning then
+				return
+			end
+			ang += dt * 18
+			local rot = CFrame.new(f.center) * CFrame.fromAxisAngle(f.axis, ang) * CFrame.new(-f.center)
+			for p, cf in base do
+				if p.Parent then
+					p.CFrame = rot * cf
+				end
+			end
+		end)
+		local tgt = f.blades[#f.blades]
+		local pr = self:withPrompt(tgt, function()
+			return Interact.toggle(K, tgt, { object = "선풍기", state = false, onText = "끄기", offText = "켜기", on = function(st: boolean)
+				spinning = st
+			end })
+		end)
+		if not pr then
+			self.fanSpin = function(st: boolean)
+				spinning = st
+			end
+		end
+	end
+	-- 4-1) 책상 아래 멀티탭: 모니터 · 선풍기 전원
+	if self.powerStrip and (self.fanSpin or self.monitorScreen) then
+		local scr: BasePart? = self.monitorScreen
+		local lab: TextLabel? = self.monitorText
+		local scrC = if scr then scr.Color else nil
+		self:withPrompt(self.powerStrip, function()
+			return Interact.toggle(K, self.powerStrip, { object = "멀티탭 (모니터 · 선풍기)", state = true, onText = "전원 끄기", offText = "전원 켜기", on = function(st: boolean)
+				if self.fanSpin then
+					self.fanSpin(st)
+				end
+				if scr and scr.Parent then
+					scr.Color = if st then (scrC :: Color3) else c3(8, 8, 10)
+				end
+				if lab and lab.Parent then
+					local g = lab.Parent :: any
+					if g and g:IsA("SurfaceGui") then
+						g.Enabled = st
+					end
+				end
+			end })
+		end)
+		if self.fanSpin then
+			self.fanSpin(true)
+		end
+	end
+	-- 5) 공기청정기 모드 (색 · 글자)
+	if self.purifier and self.purifier.led then
+		local pu = self.purifier
+		local modes = { { "좋음", c3(60, 140, 255) }, { "보통", c3(60, 210, 120) }, { "나쁨", c3(255, 170, 40) }, { "수면", c3(120, 90, 200) } }
+		self:withPrompt(pu.led, function()
+			return Interact.cycle(K, pu.led, modes, { action = "모드 바꾸기", object = "공기청정기", on = function(_i, m)
+				pu.led.Color = m[2]
+				if pu.label then
+					pu.label.Text = m[1]
+					pu.label.TextColor3 = m[2]
+				end
+			end })
+		end)
+	end
+	-- 6) 에어컨 (날개 열고 닫기 + LED)
+	if self.acVanes and #self.acVanes > 0 then
+		local vanes = self.acVanes
+		local base = {}
+		for _, v in vanes do
+			base[v] = v.CFrame
+		end
+		local led = self.acLED
+		local function apply(st: boolean)
+			for v, cf in base do
+				if v.Parent then
+					tween(v, 0.8, { CFrame = cf * ANG(if st then math.rad(-35) else 0, 0, 0) })
+				end
+			end
+			if led and led.Parent then
+				led.Color = if st then c3(80, 200, 255) else c3(60, 60, 60)
+				led.Material = if st then M.Neon else M.SmoothPlastic
+			end
+		end
+		local at = if self.acAt then self.acAt else (vanes[1].Position and self.V.cf:PointToObjectSpace(vanes[1].Position)) or fc
+		self:wallToggle("에어컨", at, false, "에어컨 끄기", "에어컨 켜기", apply, { label = "냉방" })
+	end
+	-- 7) 로봇청소기 (청소 시작: 바닥을 한 바퀴 돌고 도크로)
+	if self.robot then
+		local rb = self.robot
+		local base = {}
+		for _, p in rb.parts do
+			base[p] = p.CFrame
+		end
+		local running = false
+		local t0 = 0
+		local path = rb.path or {}
+		Interact.anim(K, function(t)
+			if not running or #path < 2 then
+				return
+			end
+			local u = (t - t0) / 26
+			if u >= 1 then
+				running = false
+				for p, cf in base do
+					if p.Parent then
+						p.CFrame = cf
+					end
+				end
+				if rb.dockLed and rb.dockLed.Parent then
+					rb.dockLed.Color = c3(90, 220, 180)
+				end
+				return
+			end
+			local seg = u * (#path - 1)
+			local i = math.floor(seg) + 1
+			local f = seg - math.floor(seg)
+			local a, b = path[i], path[math.min(#path, i + 1)]
+			local pos = a:Lerp(b, f)
+			local dir = (b - a)
+			local look = if dir.Magnitude > 0.01 then dir.Unit else V3(0, 0, 1)
+			local home: CFrame = rb.home
+			local off = self.V.cf * CFrame.lookAt(pos, pos + look) * home:Inverse()
+			for p, cf in base do
+				if p.Parent then
+					p.CFrame = off * cf
+				end
+			end
+		end)
+		local btn = rb.parts[#rb.parts]
+		self:withPrompt(btn, function()
+			return Interact.prompt(K, btn, { action = "청소 시작", object = "로봇청소기", fn = function()
+				if running then
+					return
+				end
+				running = true
+				t0 = os.clock()
+				if rb.dockLed and rb.dockLed.Parent then
+					rb.dockLed.Color = c3(255, 170, 40)
+				end
+			end })
+		end)
+	end
+	-- 8) 방 전용 (벽난로 등)
+	for _, f in self.extraInteract or {} do
+		pcall(f)
+	end
+end
+
 T.C = C
 
 -------------------------------------------------------------------------------------------------
@@ -4051,6 +4336,7 @@ function T.build(K: any, V: any, S: any)
 		end
 	else
 		step("room", function(c) c:roomDress() end)
+		step("interact", function(c) c:interactions() end)
 	end
 end
 

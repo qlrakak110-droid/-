@@ -2128,6 +2128,21 @@ local function neonFeature(c: any)
 	})
 end
 
+-- 키 큰 소품이 TV · 보드 앞을 가리나 (벽 앞 3 스터드 상자)
+local function blocksView(c: any, pcf: CFrame, size: Vector3): boolean
+	local V = c.V
+	local mn, mx = laabb(pcf * CF(0, size.Y / 2, 0), size)
+	for _, it in { c.tv, c.board } do
+		if it and it.wall and V.walls[it.wall] then
+			local vmn, vmx = laabb(V:wall(it.wall, it.u, 5.5, 1.6), V3(it.w + 0.8, 5.0, 3.2))
+			if overlap(mn, mx, vmn, vmx) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- 11) 다트 머신 (벽에 세움, 앞 2.4m 던지는 선) + 게임 애니메이션 -----------------------------------------------------
 local function dartMachine(c: any)
 	local K, V, th = c.K, c.V, c.th
@@ -2139,6 +2154,9 @@ local function dartMachine(c: any)
 		return
 	end
 	local function test(pcf: CFrame, _wn: string, _u: number): boolean
+		if blocksView(c, pcf, size) then
+			return false
+		end
 		-- 프롬프트 자리 + 던지는 길 (앞 7.6) 에 가구 없음
 		local lp = (pcf * CF(0.5, 2.3, size.Z / 2 + 0.2)).Position
 		if not promptOK(K, lp) then
@@ -2354,8 +2372,11 @@ local function keg(K: any, base: CFrame, cap: Color3)
 	K:vcyl("KegCap", 0.04, 0.4, base * CF(0, kh - 0.12, 0), { c = cap })
 end
 
-local function okFront(V: any): any
+local function okFront(V: any, c: any?, size: Vector3?): any
 	return function(pcf: CFrame, _wn: string, _u: number): boolean
+		if c and size and blocksView(c, pcf, size) then
+			return false
+		end
 		return not behindCounter(V, pcf.Position)
 	end
 end
@@ -2371,13 +2392,13 @@ local function tanks(c: any)
 	local near = V3((V.x0 + V.x1) / 2 + V.W * 0.25, 0, V.z0)
 	local size = V3(2 * dia + 0.5, H + 0.6, dia + 0.3)
 	local spots = {}
-	local pcf = floorOnWall(K, walls, size, near, 0.15, okFront(V))
+	local pcf = floorOnWall(K, walls, size, near, 0.15, okFront(V, c, size))
 	if pcf then
 		table.insert(spots, { pcf, 2 })
 	else
 		size = V3(dia + 0.4, H + 0.6, dia + 0.3)
 		for _ = 1, 2 do
-			local p1 = floorOnWall(K, walls, size, near, 0.15, okFront(V))
+			local p1 = floorOnWall(K, walls, size, near, 0.15, okFront(V, c, size))
 			if p1 then
 				table.insert(spots, { p1, 1 })
 			end

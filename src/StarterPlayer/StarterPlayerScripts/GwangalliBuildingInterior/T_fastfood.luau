@@ -2876,6 +2876,18 @@ local function burgerBuild(ctx: any)
 		end
 	end
 	wallMural(ctx, { "left", "right", "back" }, if taco then "TACOS & BEER" else "HANDMADE BURGER", if taco then "광안리 타코 · 매일 굽는 또르띠야" else "매일 아침 굽는 번 · 100% 소고기 패티", P.gold, P.ink)
+	if V.W > 22 then
+		-- 넓은 가게: 뒷벽 빈 곳에 두 번째 레터링 + 세트 라이트박스
+		wallMural(ctx, { "back" }, if taco then "GWANGALLI TAQUERIA" else "SMASH · GRILL · SHAKE", "광안리 바다 앞 수제버거", P.accent, P.ink)
+		local lb2 = wallSpot(ctx, { "back", "left", "right" }, 7.4, 4.0, 6.3, 0)
+		if lb2 then
+			burgerLightboxes(ctx, lb2, 7.2, {
+				{ "치즈 프라이", "5,900", bg = rgb(40, 20, 16) },
+				{ "어니언 링", "5,500", bg = rgb(40, 20, 16) },
+				{ "밀크쉐이크", pSh, bg = rgb(40, 20, 16) },
+			})
+		end
+	end
 	infoSet(ctx, {
 		origin = if taco then { "소고기 : 호주산", "닭고기 : 국내산", "돼지고기 : 국내산", "쌀 : 국내산" } else { "소고기(패티) : 호주산", "돼지고기(베이컨) : 미국산", "닭고기 : 국내산", "감자 : 미국산" },
 		hours = if has(ctx.signs, "24 HOURS") then "OPEN 24 HOURS\n연중무휴" else "영업시간\n10:30 - 22:00",

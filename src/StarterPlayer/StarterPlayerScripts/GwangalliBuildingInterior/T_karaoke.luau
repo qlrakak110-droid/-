@@ -492,7 +492,7 @@ local function boothBuild(K: any, V: any, S: any)
 	local accR = first("AccentWall")
 	local fabric: Color3 = if accR then accR.part.Color else rgb(30, 42, 120)
 	local baseR = first("Base")
-	local leather: Color3 = lt(if baseR then baseR.part.Color else rgb(130, 26, 30), 0.06)
+	local leather: Color3 = lt(if baseR then baseR.part.Color else rgb(130, 26, 30), 0.12)
 	local zBack = if accR then accR.max.Z else V.z0
 	local cw = first("CorridorWall")
 	local zFront = if cw then cw.min.Z else V.z1
@@ -521,6 +521,7 @@ local function boothBuild(K: any, V: any, S: any)
 				K:box("TableBand", V3(s.X - 0.02, 0.06, s.Z - 0.02), CF(c.X, tb.max.Y - 0.06, c.Z), CHROME)
 				local p = K:box("TableLEDLine", V3(s.X + 0.0, 0.05, s.Z + 0.0), CF(c.X, 0.42, c.Z), neon(theme))
 				table.insert(st.leds, { p = p, c = theme })
+				addLight(K, st, p, "PointLight", { Range = 8, Brightness = 0.6, Color = theme })
 				hideRec(K, tb)
 			end
 			if tt then
@@ -999,7 +1000,6 @@ local function boothBuild(K: any, V: any, S: any)
 					K:box("WallLedgeEdge", V3(0.03, 0.12, bk.b - bk.a), CF(if sd < 0 then x0 + 0.615 else x1 - 0.615, ly + 0.06, (bk.a + bk.b) / 2), CHROME)
 					local led = K:box("WallLedgeLED", V3(0.05, 0.04, bk.b - bk.a - 0.3), CF(if sd < 0 then x0 + 0.08 else x1 - 0.08, ly + 0.14, (bk.a + bk.b) / 2), neon(theme))
 					table.insert(st.leds, { p = led, c = theme })
-					addLight(K, st, led, "SurfaceLight", { Face = Enum.NormalId.Top, Range = 7, Brightness = 0.5, Angle = 120, Color = theme })
 				end
 				-- 디퓨저 (TV 쪽: 천장 스피커 앞 ~ 소파 앞)
 				local da = spkZ
@@ -1344,13 +1344,17 @@ local function boothBuild(K: any, V: any, S: any)
 					addLight(K, st, can, "SpotLight", { Face = Enum.NormalId.Right, Range = 14, Brightness = 1.4, Angle = 40, Color = theme }, true)
 				end
 			end
+			-- 은은한 전체 조명 (천장 가운데, 테마색이 살짝 섞인 흰빛)
+			local amb = K:disc("BoothAmbientLens", 0.5, 0.03, CF(0, H - 0.02, zFront - 4.4), lk(rgb(30, 30, 34), M.Metal))
+			Common.useCeil(K, 0, zFront - 4.4)
+			addLight(K, st, amb, "PointLight", { Range = 17, Brightness = 0.45, Color = lt(theme, 0.65) })
 			-- 다운라이트 2 (양쪽 소파 위, 은은한 3000K)
 			for k, p in { V3(x0 + 2.2, 0, -0.5), V3(x1 - 2.2, 0, 0.6) } do
 				if Common.ceilFree(K, p.X, p.Z, 0.5) then
 					K:disc("BoothDownTrim", 0.6, 0.04, CF(p.X, H - 0.02, p.Z), lk(rgb(30, 30, 34), M.Metal))
 					local lens = K:disc("BoothDownLens", 0.4, 0.03, CF(p.X, H - 0.04, p.Z), Look.lampWarm)
 					table.insert(st.leds, { p = lens, c = (Look.lampWarm :: any).c })
-					addLight(K, st, lens, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 12, Brightness = 0.55, Angle = 70, Color = Look.warmLight })
+					addLight(K, st, lens, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 13, Brightness = 1.0, Angle = 80, Color = Look.warmLight })
 					Common.useCeil(K, p.X, p.Z)
 				end
 				local _ = k
@@ -2521,6 +2525,15 @@ local function corridorBuild(K: any, V: any, S: any)
 							K:text("PosterFoot", 1.85, 0.2, d0 * CF(0, -1.4, 0.185), "광안 코인노래연습장 · 2026", { fg = rgb(200, 200, 210), glow = 1.0, font = F.GothamMedium, d = 0.004 })
 							local e = K:plate("PosterLED", 2.26, 0.05, 0.17, d0 * CF(0, 1.73, 0), neon(if sd < 0 then PINK else CYAN))
 							table.insert(st.leds, { p = e, c = if sd < 0 then PINK else CYAN })
+							-- 포스터 조명 (벽 팔 + 헤드)
+							local arm0 = wcf(sd, zc, 7.95, 0.0)
+							K:plate("PosterLampPlate", 0.3, 0.2, 0.04, arm0, lk(rgb(20, 20, 24), M.Metal))
+							K:seg("PosterLampArm", arm0 * V3(0, 0, 0.04), arm0 * V3(0, 0.12, 0.62), 0.05, lk(rgb(20, 20, 24), M.Metal))
+							K:cyl("PosterLampHead", 0.9, 0.16, arm0 * CF(0, 0.1, 0.66) * ANG(0, 0, math.rad(-12)), lk(rgb(20, 20, 24), M.Metal))
+							K:box("PosterLampLens", V3(0.82, 0.02, 0.08), arm0 * CF(0, 0.02, 0.66), Look.lampWarm)
+							if posterI % 3 == 0 then
+								K:text("CorrSticker", 1.0, 0.36, wcf(sd, zc, 3.5, 0.02), if posterI % 2 == 0 then "금연 · NO SMOKING" else "CCTV 녹화 중", { fg = WHITE, bg = rgb(190, 30, 40), font = F.GothamBlack, d = 0.02 })
+							end
 						end
 					end
 				end
