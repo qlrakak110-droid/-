@@ -2569,6 +2569,111 @@ local function wallU(wn: string, p: Vector3): number
 end
 
 -- 건강 포스터 세트 (제목, 본문, 띠색)
+-- 맵 표지판 rec 의 벽 표면 dcf (판 뒷면 = 벽면). 숨기고 같은 자리에 다시 그릴 때
+local function signDcf(K: any, r: any, wn: string): CFrame
+	local V = K.V
+	local d = V:wall(wn, wallU(wn, r.c), r.c.Y, 0)
+	local _, dist = V:wallCoord(wn, r.c)
+	return d * CF(0, 0, math.max(0, dist - 0.05))
+end
+
+-- dcf 평면 위 두 점 (x0,y0) -> (x1,y1) 사이 가는 띠 (지시선 · 테두리 · 사선)
+local function stroke(K: any, name: string, dcf: CFrame, x0: number, y0: number, x1: number, y1: number, wid: number, z: number, look: any)
+	local dx, dy = x1 - x0, y1 - y0
+	local len = math.sqrt(dx * dx + dy * dy)
+	if len < 1e-3 then
+		return
+	end
+	K:box(name, V3(len, wid, 0.012), dcf * CF((x0 + x1) / 2, (y0 + y1) / 2, z) * ANG(0, 0, math.atan2(dy, dx)), look)
+end
+
+-- 금연구역 표지 (국민건강증진법 표준형: 흰 판 + 빨간 테 + 담배 금지 원 + 글) w x h, dcf = 벽면
+local function noSmokingSign(K: any, dcf: CFrame, w: number, h: number)
+	local red = col(C3(214, 34, 40))
+	K:plate("NoSmokePlate", w, h, 0.05, dcf, lk(250, 250, 248, M.SmoothPlastic))
+	local b = 0.09
+	K:plate("NoSmokeRim", w, b, 0.06, dcf * CF(0, h / 2 - b / 2, 0), red)
+	K:plate("NoSmokeRim", w, b, 0.06, dcf * CF(0, -h / 2 + b / 2, 0), red)
+	K:plate("NoSmokeRim", b, h - 2 * b, 0.06, dcf * CF(-w / 2 + b / 2, 0, 0), red)
+	K:plate("NoSmokeRim", b, h - 2 * b, 0.06, dcf * CF(w / 2 - b / 2, 0, 0), red)
+	-- 담배 그림 + 금지 원
+	local R = math.min(h * 0.3, w * 0.16)
+	local cx = -w / 2 + b + 0.25 + R
+	local ic = dcf * CF(cx, 0.05, 0)
+	K:plate("NoSmokeCigOutline", R * 1.3, R * 0.3, 0.062, ic * CF(0.05, 0, 0), lk(60, 62, 66))
+	K:plate("NoSmokeCig", R * 0.95, R * 0.22, 0.066, ic * CF(-0.1 * R + 0.05, 0, 0), lk(250, 250, 250))
+	K:plate("NoSmokeFilter", R * 0.3, R * 0.22, 0.066, ic * CF(R * 0.5 + 0.05, 0, 0), lk(222, 146, 60))
+	K:plate("NoSmokeEmber", R * 0.06, R * 0.22, 0.066, ic * CF(-R * 0.6 + 0.05, 0, 0), col(C3(240, 90, 40)))
+	K:ell("NoSmokeSmoke", V3(R * 0.22, R * 0.3, 0.02), ic * CF(-R * 0.62, R * 0.32, 0.06), lk(150, 152, 156))
+	K:ell("NoSmokeSmoke", V3(R * 0.18, R * 0.26, 0.02), ic * CF(-R * 0.5, R * 0.58, 0.06), lk(170, 172, 176))
+	K:ring("NoSmokeRing", ic * CF(0, 0, 0.08), R, R * 0.17, 22, red)
+	stroke(K, "NoSmokeSlash", ic, -R * 0.7, R * 0.7, R * 0.7, -R * 0.7, R * 0.17, 0.085, red)
+	-- 글
+	local tx0 = cx + R + 0.2
+	local tw = w / 2 - b - 0.15 - tx0
+	local mid = tx0 + tw / 2
+	tx(K, "NoSmokeTitle", tw, h * 0.3, dcf * CF(mid, h * 0.2, 0.056), "금연구역", C3(214, 34, 40), nil, { font = FONT_K })
+	tx(K, "NoSmokeEn", tw, h * 0.11, dcf * CF(mid, -h * 0.02, 0.056), "NO SMOKING AREA", INK, nil, { font = FONT_B })
+	tx(K, "NoSmokeLaw", tw, h * 0.28, dcf * CF(mid, -h * 0.27, 0.056), "이 건물 전체가 금연구역입니다 (전자담배 포함)\n국민건강증진법 · 위반 시 과태료 10만 원", GREY_T, nil, { font = FONT_M })
+end
+
+-- 인체 내부 장기 해부도 (벽 액자 안 판, w x h, dcf = 판 뒷면): 몸 실루엣 + 장기 + 지시선 + 이름
+local function anatomyChart(K: any, dcf: CFrame, w: number, h: number)
+	K:plate("AnatomyBoard", w, h, 0.05, dcf, lk(250, 248, 240, M.SmoothPlastic))
+	local bh = h * 0.12
+	K:plate("AnatomyBand", w, bh, 0.055, dcf * CF(0, h / 2 - bh / 2, 0), col(TEAL))
+	tx(K, "AnatomyTitle", w * 0.9, bh * 0.8, dcf * CF(0, h / 2 - bh / 2, 0.056), "인체의 주요 장기 · HUMAN ANATOMY", WHITE, nil, { font = FONT_K })
+	local s = (h - bh - 0.3) / 3.9 -- 몸 높이 3.9 단위
+	local bx = -w * 0.2
+	local by = -bh / 2 - 0.1 + 0.15 * s
+	local function P(x: number, y: number): CFrame
+		return dcf * CF(bx + x * s, by + y * s, 0)
+	end
+	local skin = lk(240, 208, 186, M.SmoothPlastic)
+	local z1, z2, z3 = 0.06, 0.07, 0.08
+	K:ell("AnatomyHead", V3(0.66 * s, 0.82 * s, 0.02), P(0, 1.5) * CF(0, 0, z1), skin)
+	K:box("AnatomyNeck", V3(0.3 * s, 0.3 * s, 0.02), P(0, 1.02) * CF(0, 0, z1), skin)
+	K:ell("AnatomyShoulders", V3(1.75 * s, 0.5 * s, 0.02), P(0, 0.8) * CF(0, 0, z1), skin)
+	K:box("AnatomyChest", V3(1.4 * s, 1.3 * s, 0.02), P(0, 0.2) * CF(0, 0, z1), skin)
+	K:box("AnatomyBelly", V3(1.24 * s, 1.0 * s, 0.02), P(0, -0.9) * CF(0, 0, z1), skin)
+	K:ell("AnatomyHip", V3(1.36 * s, 0.62 * s, 0.02), P(0, -1.45) * CF(0, 0, z1), skin)
+	for _, sx in { -1, 1 } do
+		K:box("AnatomyLeg", V3(0.5 * s, 0.6 * s, 0.02), P(sx * 0.33, -1.85) * CF(0, 0, z1), skin)
+		stroke(K, "AnatomyArm", P(0, 0), sx * 0.8 * s, 0.68 * s, sx * 0.95 * s, -0.5 * s, 0.3 * s, z1, skin)
+		stroke(K, "AnatomyArm", P(0, 0), sx * 0.95 * s, -0.5 * s, sx * 1.02 * s, -1.45 * s, 0.25 * s, z1, skin)
+	end
+	-- 장기 (이름, 그림 중심 x, y, 크기 w, h, 색, 지시선 시작 x)
+	local organs = {
+		{ "뇌", 0, 1.62, 0.52, 0.44, C3(232, 172, 178), 0.2 },
+		{ "기관지 · 폐", 0.36, 0.22, 0.5, 0.95, C3(226, 128, 140), 0.55 },
+		{ "심장", 0.1, -0.02, 0.36, 0.42, C3(196, 30, 44), 0.22 },
+		{ "간", -0.24, -0.58, 0.86, 0.42, C3(132, 48, 40), 0.1 },
+		{ "위", 0.33, -0.66, 0.5, 0.36, C3(232, 150, 128), 0.55 },
+		{ "신장 (콩팥)", 0.45, -0.96, 0.18, 0.3, C3(150, 40, 52), 0.52 },
+		{ "소장 · 대장", 0, -1.18, 0.7, 0.48, C3(236, 172, 150), 0.42 },
+		{ "방광", 0, -1.56, 0.3, 0.22, C3(230, 196, 120), 0.17 },
+	}
+	K:box("AnatomyTrachea", V3(0.09 * s, 0.5 * s, 0.02), P(0, 0.85) * CF(0, 0, z2), lk(220, 196, 186))
+	K:ell("AnatomyLung", V3(0.5 * s, 0.95 * s, 0.02), P(-0.36, 0.22) * CF(0, 0, z2), lk(226, 128, 140))
+	K:ell("AnatomyKidney", V3(0.18 * s, 0.3 * s, 0.02), P(-0.45, -0.96) * CF(0, 0, z2), lk(150, 40, 52))
+	-- 대장 (소장 둘레 ㄷ 자 띠)
+	local colon = lk(204, 130, 104)
+	stroke(K, "AnatomyColon", P(0, 0), -0.46 * s, -0.86 * s, -0.46 * s, -1.44 * s, 0.13 * s, z2, colon)
+	stroke(K, "AnatomyColon", P(0, 0), 0.46 * s, -0.86 * s, 0.46 * s, -1.44 * s, 0.13 * s, z2, colon)
+	stroke(K, "AnatomyColon", P(0, 0), -0.52 * s, -0.86 * s, 0.52 * s, -0.86 * s, 0.13 * s, z2, colon)
+	local lx = w * 0.06
+	for i, o in organs do
+		local zz = if o[1] == "심장" then z3 else z2 + 0.005
+		K:ell("AnatomyOrgan", V3(o[4] * s, o[5] * s, 0.02), P(o[2], o[3]) * CF(0, 0, zz), col(o[6]))
+		-- 이름 줄 (오른쪽 칸 고르게)
+		local ly = h / 2 - bh - 0.3 - (i - 0.5) * ((h - bh - 0.5) / #organs)
+		local ox, oy = bx + (o[2] + o[7]) * s, by + o[3] * s
+		stroke(K, "AnatomyLeader", dcf, ox, oy, lx, ly, 0.022, 0.085, lk(90, 96, 102))
+		K:disc("AnatomyDot", 0.07, 0.01, dcf * CF(ox, oy, 0.09) * ANG(PI / 2, 0, 0), lk(60, 64, 70))
+		tx(K, "AnatomyLabel", w / 2 - lx - 0.15, 0.3, dcf * CF((lx + w / 2) / 2 + 0.02, ly, 0.056), string.format("%d  %s", i, o[1]), INK, nil, { font = FONT_B, align = "Left" })
+	end
+end
+
 local HEALTH_POSTERS = {
 	{ "2026-2027 독감 예방접종", "생후 6개월 ~ 13세 · 임신부 · 65세 이상\n무료 접종 (국가예방접종)\n일반 성인 4가 40,000원\n접종 후 20~30분 대기", C3(30, 110, 190) },
 	{ "국가건강검진 2026", "올해 대상 : 짝수년도 출생자\n일반검진 · 암검진 무료\n건강보험공단 문자 확인\n예약 문의 2층 검진센터", TEAL },
@@ -2826,6 +2931,14 @@ BUILD.waiting = function(K: any, V: any)
 			sanitizerWall(K, d2)
 		end
 		hangSign(K, V.x1 - 1.5, -3.5, 4.4, 1.0, 7.8, PI / 2, "대기실 · WAITING", "대기실 · WAITING")
+		-- 맵 '금연' 빨간 판 -> 표준 금연구역 표지 (같은 자리, 실제 크기에 가깝게)
+		local sm = V:first("Sign_금연")
+		if sm then
+			hideRec(K, sm)
+			K:free(function()
+				noSmokingSign(K, signDcf(K, sm, "back"), 3.6, 2.3)
+			end)
+		end
 		-- 유리 시트지 띠
 		K:free(function()
 			K:box("GlassFilmBand", V3(V.W - 0.6, 0.9, 0.01), CF(0, 4.4, V.z1 - 0.02), { c = C3(230, 238, 238), m = M.Glass, t = 0.35 })
@@ -3383,6 +3496,13 @@ BUILD.consult = function(K: any, V: any)
 		for _, n in { "Sign_전문의 자격", "Sign_의사 면허증", "Sign_인체 해부도" } do
 			local r = V:first(n)
 			if r then
+				if n == "Sign_인체 해부도" then
+					-- 글자만 있던 판 -> 실제 해부도 그림 (몸 실루엣 · 장기 · 지시선 · 이름)
+					hideRec(K, r)
+					K:free(function()
+						anatomyChart(K, signDcf(K, r, "front"), math.max(r.size.X, r.size.Z), r.size.Y)
+					end)
+				end
 				frameAround(K, r, "front", lk(160, 130, 90, M.Wood))
 			end
 		end

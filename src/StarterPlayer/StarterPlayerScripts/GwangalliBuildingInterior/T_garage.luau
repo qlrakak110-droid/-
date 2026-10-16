@@ -108,7 +108,9 @@ local function note(K: any, s: string)
 end
 
 local function step(K: any, name: string, fn: () -> ())
+	local n0 = #K.parts
 	local ok, err = pcall(fn)
+	note(K, "DBGSTEP " .. name .. " " .. tostring(#K.parts - n0))
 	if not ok then
 		note(K, name .. " error: " .. tostring(err))
 	end
