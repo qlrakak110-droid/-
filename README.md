@@ -229,7 +229,7 @@ node tools/harness.js <repo> <초> tools/test_bot.luau   # studio.html 이 tools
 3. **Rojo**: `default.project.json` 에 매핑되어 있음
 
 ### 임시 스튜디오(HTML) 버전
-`dist/Gwangalli_Studio_v5_CarInterior.html`: 위 Luau 코드가 실제로 돌아가는 미리보기입니다. 아래 JS 틴팅 유리 셰이더도 들어 있습니다.
+`dist/Gwangalli_Studio_v7_CarInterior.html`: 위 Luau 코드가 실제로 돌아가는 미리보기입니다. 아래 JS 틴팅 유리 셰이더도 들어 있습니다.
 다시 만들기: `python3 tools/build_studio_cabin.py <스튜디오.html> dist/<출력>.html`
 유리 패치와 같은 방식이라 스튜디오 버전과 관계없이 적용됩니다. 연결 지점이 다르면 아무것도 쓰지 않고 알려 줍니다.
 
@@ -258,5 +258,5 @@ node tools/harness.js <repo> <초> tools/test_bot.luau   # studio.html 이 tools
 ```
 python3 tools/patch_car_glass.py <스튜디오.html> dist/<출력>.html
 ```
-이 패치는 `dist/Gwangalli_Studio_v5_CarInterior.html` 에 실내와 함께 들어 있습니다. 새 버전 HTML에도
+이 패치는 `dist/Gwangalli_Studio_v7_CarInterior.html` 에 실내와 함께 들어 있습니다. 새 버전 HTML에도
 같은 명령으로 그대로 적용할 수 있습니다 (차량 모델 파일을 통째로 복사하지 않으므로 새 버전의 수정이 보존됨).
