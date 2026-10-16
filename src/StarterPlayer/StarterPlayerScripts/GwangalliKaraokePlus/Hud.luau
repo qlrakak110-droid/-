@@ -6,7 +6,6 @@
 --   * shortcuts inside a room: B / ButtonY 노래책, N / ButtonL1 리모컨, T / ButtonR1 탬버린
 --   * HideGwangalliHUD on our ScreenGui while I sing or a sheet is open
 
-local Players = game:GetService("Players")
 local ContextActionService = game:GetService("ContextActionService")
 local HttpService = game:GetService("HttpService")
 
@@ -16,7 +15,6 @@ local K: any
 local S: any
 local Kit: any
 local Rooms: any
-local player = Players.LocalPlayer
 
 local bar: Frame
 local barBtns: { [string]: TextButton } = {}
@@ -31,7 +29,6 @@ local knockCard: Frame
 local pay: any
 local payRows: Frame
 local payBalance: TextLabel
-local payRoom: any = nil
 local lastFx: { [string]: number } = {}
 local bannerUntil = 0
 local bound = false
@@ -97,7 +94,6 @@ local function rid(): string
 end
 
 function Hud.openPay(v: any)
-	payRoom = v
 	pay.title.Text = string.format("🪙 ROOM %s · 동전 · 지폐 넣기", v.name)
 	pay.sub.Text = if v.renter == 0 then "결제하면 이 방을 잡아요 · 같이 온 친구도 함께 들어와요" else string.format("남은 곡 %s곡 · 같이 내기도 돼요", if v.unlimited then "∞" else tostring(v.credits))
 	for _, c in payRows:GetChildren() do

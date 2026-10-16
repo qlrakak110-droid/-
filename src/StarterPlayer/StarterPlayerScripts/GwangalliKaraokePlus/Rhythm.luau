@@ -5,7 +5,6 @@
 --     and sent in batches {i, dt} to the server, which judges again (authoritative);
 --   * 목소리 모드: a live mic level meter ("마이크를 가까이 · 가사 색을 따라 불러요").
 
-local Players = game:GetService("Players")
 local ContextActionService = game:GetService("ContextActionService")
 
 local Rhythm = {}
@@ -13,11 +12,9 @@ local Rhythm = {}
 local K: any
 local S: any
 local Kit: any
-local player = Players.LocalPlayer
 
 local hud: Frame
 local lane: Frame
-local hitLine: Frame
 local noteFrames: { Frame } = {}
 local tapBtn: TextButton
 local meter: Frame
@@ -246,7 +243,7 @@ function Rhythm.init(k: any)
 	for r = 0, 2 do
 		Kit.new("Frame", { BackgroundColor3 = Kit.C.card3, BackgroundTransparency = 0.6, BorderSizePixel = 0, Position = UDim2.fromOffset(12, 24 + r * 26), Size = UDim2.new(1, -24, 0, 2), ZIndex = 10 }, lane)
 	end
-	hitLine = Kit.new("Frame", { BackgroundColor3 = Kit.C.gold, BorderSizePixel = 0, Position = UDim2.fromOffset(HIT_X + 10, 8), Size = UDim2.fromOffset(4, LANE_H - 16), ZIndex = 12 }, lane)
+	Kit.new("Frame", { BackgroundColor3 = Kit.C.gold, BorderSizePixel = 0, Position = UDim2.fromOffset(HIT_X + 10, 8), Size = UDim2.fromOffset(4, LANE_H - 16), ZIndex = 12 }, lane)
 	for i = 1, 24 do
 		local f = Kit.new("Frame", { BackgroundColor3 = Kit.C.cyan, Size = UDim2.fromOffset(20, 20), Visible = false, ZIndex = 13 }, lane)
 		Kit.corner(f, 10)

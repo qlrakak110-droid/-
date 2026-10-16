@@ -18,7 +18,6 @@ local CollectionService = game:GetService("CollectionService")
 local Bridge = {}
 
 local S: any
-local ctxK: any
 local life: any = nil -- VenueLife once ready
 local lifeTried = false
 local inflight: { [Player]: boolean } = {}
@@ -452,7 +451,6 @@ function Bridge.waitLegacy(panels: { BasePart }, timeout: number): boolean
 end
 
 function Bridge.init(k: any)
-	ctxK = k
 	S = k.S
 	connectLife()
 	Players.PlayerRemoving:Connect(function(p)

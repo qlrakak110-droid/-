@@ -31,7 +31,6 @@ local lite: { [number]: any } = {}
 local acc = 0
 local lastState = ""
 local scoreT0 = 0
-local stateT0 = 0
 local judgeT = -math.huge
 local mine: any = nil
 local mineSerial = -1
@@ -812,7 +811,6 @@ function TV.update(dt: number)
 			chipsFor = ""
 		end
 		lastState = stName
-		stateT0 = t
 	end
 	local st = Rooms.songTime(v, now) - (K.Band.localDelay or 0)
 	-- background scene
