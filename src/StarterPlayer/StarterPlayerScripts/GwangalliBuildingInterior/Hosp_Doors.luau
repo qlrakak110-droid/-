@@ -9,10 +9,9 @@
 
 local Players = game:GetService("Players")
 
-local here = script.Parent
-local Lib = require(here:WaitForChild("Hosp_Lib"))
-local Look = require(here:WaitForChild("Look"))
-local Interact = require(here:WaitForChild("Interact"))
+local Lib = require(script.Parent:WaitForChild("Hosp_Lib"))
+local Look = require(script.Parent:WaitForChild("Look"))
+local Interact = require(script.Parent:WaitForChild("Interact"))
 
 local D = {}
 

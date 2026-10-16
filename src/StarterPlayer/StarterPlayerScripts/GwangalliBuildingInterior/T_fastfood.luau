@@ -3820,6 +3820,10 @@ local function bunsikBuild(ctx: any)
 	local sw0 = math.min(12.4, math.max(V.D - 5.5, V.W - 6))
 	if sw0 > 5 then
 		local sd, fw = wallSpotFit(ctx, { "right", "left", "back" }, { sw0 + 0.3, 9.3, 6.3 }, 7.0, 8.95, 0)
+		if not sd and V.H > 9.4 then
+			-- 조리대 위 선반 물건이 7 높이까지 올라오는 가게: 조금 더 높은 띠
+			sd, fw = wallSpotFit(ctx, { "left", "right", "back" }, { sw0 + 0.3, 9.3, 6.3 }, 7.25, 9.2, 0)
+		end
 		local sw = fw - 0.3
 		if sd and sw > 4.5 then
 			local items = {

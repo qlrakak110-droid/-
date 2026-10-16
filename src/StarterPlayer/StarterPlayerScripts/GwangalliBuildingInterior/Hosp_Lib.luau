@@ -11,12 +11,11 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
-local here = script.Parent
-local Kit = require(here:WaitForChild("Kit"))
-local Look = require(here:WaitForChild("Look"))
-local Interact = require(here:WaitForChild("Interact"))
-local Scan = require(here:WaitForChild("Scan"))
-local Geo = require(here:WaitForChild("Hosp_Geo"))
+local Kit = require(script.Parent:WaitForChild("Kit"))
+local Look = require(script.Parent:WaitForChild("Look"))
+local Interact = require(script.Parent:WaitForChild("Interact"))
+local Scan = require(script.Parent:WaitForChild("Scan"))
+local Geo = require(script.Parent:WaitForChild("Hosp_Geo"))
 
 local Lib = {}
 Lib.Kit, Lib.Look, Lib.Interact, Lib.Scan, Lib.Geo = Kit, Look, Interact, Scan, Geo

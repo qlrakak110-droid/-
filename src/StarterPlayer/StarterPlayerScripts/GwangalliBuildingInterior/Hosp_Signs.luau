@@ -6,9 +6,8 @@
 --   * 1F 후면 홀 층별 안내 보조판 (엘리베이터 · 화장실 · 직원 휴게실 · 창고 · 비상구 방향)
 -- 피난구 유도등 · 문 명판은 문을 만드는 모듈이 같이 그림 (Hosp_Doors · Hosp_Exits · Hosp_Elevator · Hosp_Rooms).
 
-local here = script.Parent
-local Lib = require(here:WaitForChild("Hosp_Lib"))
-local Look = require(here:WaitForChild("Look"))
+local Lib = require(script.Parent:WaitForChild("Hosp_Lib"))
+local Look = require(script.Parent:WaitForChild("Look"))
 
 local S = {}
 

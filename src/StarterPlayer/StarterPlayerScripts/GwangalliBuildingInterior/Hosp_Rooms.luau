@@ -6,11 +6,10 @@
 --   stair  비상계단: 2F ↔ RF 계단 (실제로 걸어 올라감), 층 표시 그래픽, 피난구 유도등, 벽등
 -- 좌표: 병원 프레임 HF, 방 바닥 y = -50 (월드 약 -43.1). K.doorFx[side] = fn(alpha) (문 살짝 열림 연출).
 
-local here = script.Parent
-local Lib = require(here:WaitForChild("Hosp_Lib"))
-local Look = require(here:WaitForChild("Look"))
-local Props = require(here:WaitForChild("Props"))
-local Interact = require(here:WaitForChild("Interact"))
+local Lib = require(script.Parent:WaitForChild("Hosp_Lib"))
+local Look = require(script.Parent:WaitForChild("Look"))
+local Props = require(script.Parent:WaitForChild("Props"))
+local Interact = require(script.Parent:WaitForChild("Interact"))
 
 local Rooms = {}
 

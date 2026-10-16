@@ -7,8 +7,7 @@
 --   * 아무도 안 쓰는 방은 문에서 30 스터드 멀어지고 20 초 뒤 치움
 -- API: new(env) → { registerDoor, unregisterDoors, go, back, inside, bail, clear, reset, tick, sec, status, buildRoom, destroy }
 
-local here = script.Parent
-local Lib = require(here:WaitForChild("Hosp_Lib"))
+local Lib = require(script.Parent:WaitForChild("Hosp_Lib"))
 
 local Portal = {}
 
@@ -28,7 +27,7 @@ function Portal.new(env: any): any
 
 	local function rooms_mod(): any
 		if not Rooms then
-			Rooms = require(here:WaitForChild("Hosp_Rooms") :: ModuleScript)
+			Rooms = require(script.Parent:WaitForChild("Hosp_Rooms"))
 		end
 		return Rooms
 	end

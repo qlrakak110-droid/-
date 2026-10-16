@@ -10,10 +10,9 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local here = script.Parent
 -- 다른 방 빌더(T_clinic 등)가 비워 둘 공간: yield 전에 바로 등록 (Scan · Hosp_Geo 는 같은 폴더에 이미 있음)
-local Scan = require(here:WaitForChild("Scan")) :: any
-local Geo = require(here:WaitForChild("Hosp_Geo")) :: any
+local Scan = require(script.Parent:WaitForChild("Scan")) :: any
+local Geo = require(script.Parent:WaitForChild("Hosp_Geo")) :: any
 for _, k in Geo.KEEPS do
 	Scan.addWorldKeep(k.min, k.max, k.kind)
 end
@@ -55,8 +54,38 @@ local function validateFrame(Lib: any): boolean
 	return true
 end
 
+-- 형제 모듈 (정적 require: Rojo · 미리보기 번들러 모두 같은 규약)
+local LOADERS: { [string]: () -> any } = {
+	Hosp_Lib = function()
+		return require(script.Parent:WaitForChild("Hosp_Lib"))
+	end,
+	Hosp_UI = function()
+		return require(script.Parent:WaitForChild("Hosp_UI"))
+	end,
+	Hosp_Portal = function()
+		return require(script.Parent:WaitForChild("Hosp_Portal"))
+	end,
+	Hosp_Exits = function()
+		return require(script.Parent:WaitForChild("Hosp_Exits"))
+	end,
+	Hosp_Elevator = function()
+		return require(script.Parent:WaitForChild("Hosp_Elevator"))
+	end,
+	Hosp_Restroom = function()
+		return require(script.Parent:WaitForChild("Hosp_Restroom"))
+	end,
+	Hosp_Doors = function()
+		return require(script.Parent:WaitForChild("Hosp_Doors"))
+	end,
+	Hosp_Signs = function()
+		return require(script.Parent:WaitForChild("Hosp_Signs"))
+	end,
+	Hosp_Roof = function()
+		return require(script.Parent:WaitForChild("Hosp_Roof"))
+	end,
+}
 local function req(name: string): any
-	return require(here:WaitForChild(name, 10) :: ModuleScript)
+	return LOADERS[name]()
 end
 
 local function buildZone(z: string)

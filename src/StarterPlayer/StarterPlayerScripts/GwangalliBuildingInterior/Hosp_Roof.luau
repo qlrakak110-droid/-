@@ -11,11 +11,10 @@ local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local ContextActionService = game:GetService("ContextActionService")
 
-local here = script.Parent
-local Lib = require(here:WaitForChild("Hosp_Lib"))
-local Look = require(here:WaitForChild("Look"))
-local Props = require(here:WaitForChild("Props"))
-local Interact = require(here:WaitForChild("Interact"))
+local Lib = require(script.Parent:WaitForChild("Hosp_Lib"))
+local Look = require(script.Parent:WaitForChild("Look"))
+local Props = require(script.Parent:WaitForChild("Props"))
+local Interact = require(script.Parent:WaitForChild("Interact"))
 
 local RF = {}
 
