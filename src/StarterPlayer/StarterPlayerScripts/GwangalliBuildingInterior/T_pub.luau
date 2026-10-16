@@ -991,7 +991,7 @@ end
 -- 보드 (탭 리스트 · 안주 · 칵테일) -------------------------------------------------------------------------
 local BOARD = {
 	chalk = { face = L.of(36, 42, 40, M.Slate), frame = wood(86, 58, 38), fg = rgb(236, 234, 222), acc = rgb(250, 214, 110), dim = rgb(176, 186, 180), font = F.PermanentMarker, titleFont = F.PermanentMarker, glow = 1.0 },
-	digital = { face = L.of(14, 16, 20, M.Glass, { r = 0.1 }), frame = L.of(24, 24, 26, M.Metal), fg = rgb(246, 246, 246), acc = rgb(255, 196, 60), dim = rgb(150, 170, 190), font = F.GothamMedium, titleFont = F.GothamBlack, glow = 1.3 },
+	digital = { face = L.of(14, 16, 20, M.SmoothPlastic, { r = 0.02 }), frame = L.of(24, 24, 26, M.Metal), fg = rgb(246, 246, 246), acc = rgb(255, 196, 60), dim = rgb(150, 170, 190), font = F.GothamMedium, titleFont = F.GothamBlack, glow = 1.3 },
 	brass = { face = L.of(18, 16, 20), frame = L.goldMetal, fg = rgb(246, 236, 214), acc = rgb(222, 184, 104), dim = rgb(190, 170, 150), font = F.GothamMedium, titleFont = F.Oswald, glow = 1.15 },
 }
 
