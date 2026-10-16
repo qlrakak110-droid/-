@@ -1660,11 +1660,17 @@ local function buildShowroom(K: any, V: any)
 		local tv = G.byName.LoungeTV and G.byName.LoungeTV[1]
 		if tv then
 			local cx, cy = tv.c.X, tv.c.Y
-			local w, h = tv.size.X, tv.size.Y
+			local w, h = tv.max.X - tv.min.X, tv.max.Y - tv.min.Y
+			-- 베젤 깊이 = 벽 ~ TV 앞면 (+0.04): 화면 둘레를 감싸 큰 검은 판이 아니라 벽걸이 TV 로 보이게
+			local dep = math.max(0.26, tv.max.Z - RB.z0 + 0.04)
 			for _, s in { -1, 1 } do
-				D.plate("TVBezel", w + 0.24, 0.12, 0.26, D.wall("back", cx, cy + s * (h / 2 + 0.06), 0.0), L.black)
-				D.plate("TVBezel", 0.12, h, 0.26, D.wall("back", cx + s * (w / 2 + 0.06), cy, 0.0), L.black)
+				D.plate("TVBezel", w + 0.36, 0.18, dep, D.wall("back", cx, cy + s * (h / 2 + 0.09), 0.0), lk(C(24, 25, 28), M.Metal))
+				D.plate("TVBezel", 0.18, h, dep, D.wall("back", cx + s * (w / 2 + 0.09), cy, 0.0), lk(C(24, 25, 28), M.Metal))
 			end
+			D.box("TVLogo", V3(0.5, 0.06, 0.02), CF(cx, tv.min.Y - 0.09, RB.z0 + dep + 0.01), L.alu)
+			D.box("TVPowerLED", V3(0.06, 0.04, 0.02), CF(cx + w / 2 - 0.4, tv.min.Y - 0.09, RB.z0 + dep + 0.01), lk(C(255, 60, 40), M.Neon))
+			-- 뒤 백라이트 (벽에 번지는 간접광)
+			D.plate("TVBackGlow", w + 0.9, h + 0.7, 0.02, D.wall("back", cx, cy, 0.01), lk(C(255, 170, 110), M.Neon, { t = 0.82 }))
 			D.rbox("Soundbar", V3(4.6, 0.32, 0.4), 0.12, CF(cx, cy - h / 2 - 0.5, RB.z0 + 0.42), L.black)
 		end
 	end)
@@ -1966,7 +1972,81 @@ local function buildShowroom(K: any, V: any)
 					Props.row(K, G.B * (bp * CF(0, 0.12 + i * 0.95, 0.05)), 2.2, "books", { colors = cols, seed = 3 + i })
 				end
 			end)
-			D.label("KidsSign", 2.6, 0.8, D.wall("right", (kz0 + kz1) / 2, 4.2, 0.02), "키즈존 KIDS", C(240, 110, 60), C(255, 250, 236), { d = 0.03, font = Enum.Font.FredokaOne })
+			-- 키즈존 벽: 파스텔 벽화 (도로 · 구름 · 꼬마 자동차) + 큰 간판
+			local kzc = (kz0 + kz1) / 2
+			local mw = math.min(5.2, kz1 - kz0 - 0.2)
+			local mc = D.wall("right", kzc, 3.55, 0.0)
+			D.plate("KidsMural", mw, 2.5, 0.05, mc, lk(C(206, 234, 248)))
+			D.plate("KidsMuralGrass", mw, 0.6, 0.06, mc * CF(0, -0.95, 0), lk(C(150, 214, 140)))
+			D.plate("KidsMuralRoad", mw, 0.22, 0.065, mc * CF(0, -0.75, 0), lk(C(90, 96, 110)))
+			for k = 0, 3 do
+				D.plate("KidsMuralRoadDash", 0.4, 0.04, 0.07, mc * CF(-mw / 2 + 0.6 + k * (mw - 1.2) / 3, -0.75, 0), lk(C(250, 240, 200)))
+			end
+			for k, cl in { { -1.6, 0.75, 0.9 }, { 0.6, 0.95, 0.7 }, { 1.9, 0.6, 0.55 } } do
+				local cc = mc * CF(cl[1], cl[2], 0.06)
+				D.plate("KidsCloud", cl[3], cl[3] * 0.42, 0.02, cc, lk(WHITE))
+				D.plate("KidsCloud", cl[3] * 0.55, cl[3] * 0.32, 0.02, cc * CF(-cl[3] * 0.12, cl[3] * 0.2, 0), lk(WHITE))
+				local _ = k
+			end
+			D.plate("KidsSun", 0.55, 0.55, 0.02, mc * CF(-mw / 2 + 0.5, 0.8, 0.06), lk(C(255, 206, 70)))
+			for k, cc in { { -1.1, C(240, 90, 80) }, { 0.9, C(70, 140, 230) } } do
+				local carC = mc * CF(cc[1], -0.48, 0.08)
+				D.plate("KidsMuralCar", 1.0, 0.32, 0.02, carC, lk(cc[2]))
+				D.plate("KidsMuralCarTop", 0.55, 0.24, 0.02, carC * CF(-0.05, 0.26, 0), lk(cc[2]))
+				D.plate("KidsMuralCarWin", 0.4, 0.14, 0.022, carC * CF(-0.05, 0.27, 0.002), lk(C(220, 240, 255)))
+				for _, wx in { -0.3, 0.3 } do
+					D.cyl("KidsMuralWheel", 0.03, 0.24, carC * CF(wx, -0.17, 0.01) * ANG(0, PI / 2, 0), lk(C(40, 40, 44)))
+				end
+				local _ = k
+			end
+			D.label("KidsSign", 3.6, 0.9, D.wall("right", kzc, 5.35, 0.03), "키즈존 KIDS", C(240, 110, 60), C(255, 250, 236), { d = 0.04, font = Enum.Font.FredokaOne })
+			D.label("KidsRule", 3.0, 0.5, D.wall("right", kzc, 2.05, 0.06), "보호자와 함께 · 신발 벗고 놀아요", C(60, 90, 140), C(255, 250, 236), { d = 0.01, font = Enum.Font.GothamBold })
+			-- 낮은 소프트 울타리 (안쪽 두 면, 통로 쪽 입구는 열어 둠)
+			local fenceL = lk(C(250, 214, 110), M.Plastic)
+			local fz = kz0 + 0.12
+			for i = 0, 3 do
+				local x = kx0 + 0.15 + i * (kx1 - kx0 - 0.3) / 3
+				D.vcyl("KidsFencePost", 1.3, 0.22, CF(x, y0 + 0.65, fz), lk(C(110, 190, 240), M.Plastic))
+				D.ball("KidsFenceCap", 0.3, CF(x, y0 + 1.36, fz), lk(C(240, 120, 140), M.Plastic))
+			end
+			D.box("KidsFenceRail", V3(kx1 - kx0 - 0.3, 0.16, 0.12), CF((kx0 + kx1) / 2, y0 + 1.1, fz), fenceL)
+			D.box("KidsFenceRail", V3(kx1 - kx0 - 0.3, 0.16, 0.12), CF((kx0 + kx1) / 2, y0 + 0.5, fz), fenceL)
+			local fx = kx0 + 0.12
+			local fzA, fzB = kz0 + 0.15, kz1 - 2.2
+			if fzB - fzA > 0.8 then
+				for _, z in { fzA, fzB } do
+					D.vcyl("KidsFencePost", 1.3, 0.22, CF(fx, y0 + 0.65, z), lk(C(110, 190, 240), M.Plastic))
+					D.ball("KidsFenceCap", 0.3, CF(fx, y0 + 1.36, z), lk(C(240, 120, 140), M.Plastic))
+				end
+				for _, yy in { 0.5, 1.1 } do
+					D.box("KidsFenceRail", V3(0.12, 0.16, fzB - fzA), CF(fx, y0 + yy, (fzA + fzB) / 2), fenceL)
+				end
+			end
+		end
+		-- 출고 고객 포토월 (가격표와 키즈존 사이)
+		local pwz = (12.9 + kz0) / 2
+		local pww = math.min(4.8, kz0 - 12.9 - 0.4)
+		if pww > 2.4 then
+			local pwc = D.wall("right", pwz, 5.8, 0.0)
+			D.plate("PhotoWallBoard", pww, 4.6, 0.05, pwc, lk(C(250, 248, 244)))
+			D.label("PhotoWallHead", pww - 0.2, 0.6, pwc * CF(0, 1.95, 0.06), "출고 고객님 감사합니다 ♥", NAVY, nil, { d = 0.01, clear = true, font = Enum.Font.GothamBlack })
+			local sky = { C(150, 200, 236), C(240, 200, 150), C(170, 210, 230), C(236, 170, 150), C(180, 214, 190), C(200, 190, 230) }
+			local cars = { C(240, 240, 236), C(40, 42, 46), C(196, 34, 30), C(150, 156, 162), C(30, 70, 140), C(200, 220, 210) }
+			local captions = { "김○○님 · 큐비", "박○○님 · SUV", "이○○님 · 세단", "최○○님 · 트럭", "정○○님 · 밴", "강○○님 · 플래그십" }
+			local pw, ph = (pww - 0.5) / 3, 1.55
+			for i = 0, 5 do
+				local cx = -pww / 2 + 0.25 + pw * ((i % 3) + 0.5)
+				local cy = 0.85 - (i // 3) * 1.75
+				local fc = pwc * CF(cx, cy, 0.06) * ANG(0, 0, ((i * 37) % 7 - 3) * 0.012)
+				D.plate("PhotoFrame", pw - 0.12, ph, 0.02, fc, lk(WHITE))
+				D.plate("PhotoSky", pw - 0.28, ph * 0.5, 0.025, fc * CF(0, ph * 0.13, 0), lk(sky[i + 1]))
+				D.plate("PhotoGround", pw - 0.28, ph * 0.16, 0.025, fc * CF(0, -ph * 0.2, 0), lk(C(120, 124, 128)))
+				D.plate("PhotoCar", pw * 0.5, ph * 0.14, 0.03, fc * CF(0.05, -ph * 0.08, 0), lk(cars[i + 1]))
+				D.plate("PhotoCarTop", pw * 0.28, ph * 0.1, 0.03, fc * CF(0.02, ph * 0.03, 0), lk(cars[i + 1]))
+				D.plate("PhotoPerson", pw * 0.1, ph * 0.3, 0.03, fc * CF(-pw * 0.33, -ph * 0.05, 0), lk(C(60, 64, 80)))
+				D.label("PhotoCaption", pw - 0.2, ph * 0.18, fc * CF(0, -ph * 0.38, 0.02), captions[i + 1], INK, nil, { d = 0.003, clear = true })
+				D.ball("PhotoPin", 0.1, fc * CF(0, ph / 2 - 0.05, 0.04), lk(({ C(220, 50, 50), C(40, 110, 210), C(240, 190, 30) })[i % 3 + 1]))
+			end
 		end
 	end)
 

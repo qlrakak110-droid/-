@@ -569,9 +569,7 @@ local function enter(r: any, p: Player)
 	if r.renter then
 		local a = Rooms.allowed(r, p)
 		if a == true then
-			if r.privacy == "open" then
-				allowUid(r, p.UserId)
-			end
+			allowUid(r, p.UserId)
 			journeyOpen(r, p)
 		else
 			r.intruders[p] = now()
@@ -609,10 +607,10 @@ function Rooms.membership()
 			end
 		end
 		if found ~= cur then
+			playerRoom[p] = found
 			if cur then
 				leave(cur, p)
 			end
-			playerRoom[p] = found
 			if found then
 				enter(found, p)
 			end
@@ -628,9 +626,7 @@ function Rooms.membership()
 			local a = Rooms.allowed(r, p)
 			if a == true then
 				r.intruders[p] = nil
-				if r.privacy == "open" then
-					allowUid(r, p.UserId)
-				end
+				allowUid(r, p.UserId)
 				journeyOpen(r, p)
 			elseif a == false or t - since > 6 then
 				if C.PushOutIntruders and t - since >= C.IntruderGrace then
@@ -984,10 +980,10 @@ function Rooms.init(k: any)
 
 	Players.PlayerRemoving:Connect(function(p)
 		local r = playerRoom[p]
+		playerRoom[p] = nil
 		if r then
 			leave(r, p)
 		end
-		playerRoom[p] = nil
 		ridCache[p] = nil
 		journeyOpened[p] = nil
 		knockAt[p] = nil

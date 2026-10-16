@@ -813,6 +813,26 @@ local function pickTheme(V: any): any
 end
 T.pickTheme = pickTheme
 
+-- 탭 핸들 약자: 테마에 없으면 스타일(영문)에서
+local ABBR = {
+	{ "DOUBLE IPA", "DIPA" }, { "HAZY", "HAZY" }, { "IPA", "IPA" }, { "PILS", "PILS" }, { "LAGER", "LAGER" }, { "STOUT", "STOUT" },
+	{ "PORTER", "PORTER" }, { "SOUR", "SOUR" }, { "SAISON", "SAISON" }, { "GOSE", "GOSE" }, { "WEIZEN", "WEISS" }, { "WHEAT", "WEISS" },
+	{ "WIT", "WIT" }, { "AMBER", "AMBER" }, { "RED", "RED" }, { "QUAD", "QUAD" }, { "TRIPEL", "TRIPEL" }, { "PALE", "PALE" },
+	{ "CIDER", "CIDER" }, { "HIGHBALL", "HIGH" }, { "DARK", "DARK" },
+}
+local function tapAbbr(t: any): string
+	if t[6] then
+		return t[6]
+	end
+	local st = string.upper(tostring(t[2] or ""))
+	for _, a in ABBR do
+		if string.find(st, a[1], 1, true) then
+			return a[2]
+		end
+	end
+	return "ALE"
+end
+
 -- 술병 · 맥주병 · 캔 --------------------------------------------------------------------------------------
 local GLASS = {
 	rgb(150, 86, 30), -- 앰버 (위스키 · 럼)
@@ -894,6 +914,67 @@ local function beerCan(K: any, base: CFrame, c: Color3, band: Color3, detail: st
 		K:vcyl("BeerCanBand", 0.12, 0.214, base * CF(0, 0.27, 0), { c = band })
 	end
 end
+
+local function growler(K: any, base: CFrame, gc: Color3, lab: Color3, capL: any, detail: string)
+	local gl = { c = gc, m = M.Glass, t = 0.08, r = 0.12 }
+	K:vcyl("Growler", 0.44, 0.46, base * CF(0, 0.22, 0), gl)
+	K:ell("GrowlerShoulder", V3(0.46, 0.36, 0.46), base * CF(0, 0.44, 0), gl)
+	K:vcyl("GrowlerNeck", 0.16, 0.15, base * CF(0, 0.66, 0), gl)
+	K:vcyl("GrowlerCap", 0.08, 0.18, base * CF(0, 0.77, 0), capL)
+	K:box("GrowlerLabel", V3(0.27, 0.2, 0.02), base * CF(0, 0.24, 0.226), { c = lab, m = M.SmoothPlastic })
+	if detail ~= "low" then
+		K:ring("GrowlerHandle", base * CF(0.2, 0.5, 0), 0.09, 0.05, 3, gl, -PI / 2, PI / 2)
+	end
+end
+
+local function standHandle(K: any, base: CFrame, col: Color3, txt: string?, detail: string)
+	K:vcyl("HandleStand", 0.05, 0.24, base * CF(0, 0.025, 0), L.blackMetal)
+	K:vcyl("HandleFerrule", 0.14, 0.11, base * CF(0, 0.12, 0), L.chrome)
+	K:box("HandleBody", V3(0.2, 0.7, 0.13), base * CF(0, 0.54, 0), { c = col, m = M.SmoothPlastic })
+	K:box("HandleCap", V3(0.22, 0.04, 0.15), base * CF(0, 0.91, 0), L.black)
+	if txt and detail == "high" then
+		K:text("HandleLabel", 0.16, 0.4, base * CF(0, 0.56, 0.066), txt, { fg = if col.R + col.G + col.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
+	end
+end
+
+local function sixPack(K: any, base: CFrame, col: Color3, gc: Color3, detail: string)
+	K:box("SixPack", V3(0.64, 0.34, 0.42), base * CF(0, 0.17, 0), { c = col, m = M.SmoothPlastic })
+	K:box("SixPackHandle", V3(0.07, 0.26, 0.4), base * CF(0, 0.47, 0), { c = col, m = M.SmoothPlastic })
+	K:box("SixPackBand", V3(0.645, 0.1, 0.425), base * CF(0, 0.22, 0), L.of(30, 30, 32))
+	for _, x in { -0.2, 0.2 } do
+		for _, z in { -0.1, 0.1 } do
+			if detail ~= "low" or z > 0 then
+				K:vcyl("SixPackNeck", 0.28, 0.09, base * CF(x, 0.48, z), { c = gc, m = M.Glass, t = 0.08 })
+				K:vcyl("SixPackCap", 0.03, 0.1, base * CF(x, 0.635, z), L.goldMetal)
+			end
+		end
+	end
+end
+
+local function trophy(K: any, base: CFrame, detail: string)
+	K:box("TrophyBase", V3(0.32, 0.14, 0.3), base * CF(0, 0.07, 0), L.of(28, 26, 26))
+	K:box("TrophyPlate", V3(0.22, 0.07, 0.01), base * CF(0, 0.07, 0.152), L.goldMetal)
+	K:vcyl("TrophyStem", 0.2, 0.07, base * CF(0, 0.24, 0), L.goldMetal)
+	K:ell("TrophyCup", V3(0.34, 0.32, 0.34), base * CF(0, 0.46, 0), L.goldMetal)
+	K:vcyl("TrophyRim", 0.04, 0.35, base * CF(0, 0.58, 0), L.goldMetal)
+	if detail ~= "low" then
+		for _, sx in { -1, 1 } do
+			K:ring("TrophyHandle", base * CF(sx * 0.19, 0.48, 0) * ANG(0, 0, 0), 0.07, 0.035, 3, L.goldMetal, if sx > 0 then -PI / 2 else PI / 2, if sx > 0 then PI / 2 else PI * 1.5)
+		end
+	end
+end
+
+local function shaker(K: any, base: CFrame)
+	K:vcyl("Shaker", 0.42, 0.2, base * CF(0, 0.21, 0), L.chrome)
+	K:vcyl("ShakerTop", 0.14, 0.16, base * CF(0, 0.49, 0), L.chrome)
+	K:vcyl("ShakerCap", 0.06, 0.09, base * CF(0, 0.59, 0), L.chrome)
+end
+
+local CAN_COLS = {
+	rgb(232, 120, 30), rgb(40, 150, 170), rgb(222, 196, 60), rgb(196, 40, 52), rgb(60, 120, 70), rgb(240, 236, 226),
+	rgb(36, 50, 110), rgb(150, 70, 160), rgb(250, 160, 170), rgb(28, 28, 30), rgb(120, 190, 90), rgb(250, 210, 120),
+}
+local HANDLE_TXT = { "IPA", "LAGER", "STOUT", "SOUR", "PILS", "APA", "PORTER", "WEISS", "DIPA", "GOSE", "RED", "SAISON" }
 
 -- 네온 관 (dcf 평면 위 폴리라인, 단위 s) --------------------------------------------------------------------
 local function nline(K: any, dcf: CFrame, pts: { { number } }, s: number, z: number, d: number, look: any, out: { BasePart })
@@ -1694,7 +1775,7 @@ local function backBar(c: any)
 						K:box("TapWallHandle", V3(0.18, hh, 0.11), CF(x, yF + 0.17 + hh / 2, zw + 0.88), { c = hc, m = M.SmoothPlastic })
 						K:box("TapWallHandleCap", V3(0.2, 0.03, 0.13), CF(x, yF + 0.17 + hh + 0.015, zw + 0.88), L.black)
 						if detail == "high" then
-							K:text("TapWallHandleLabel", 0.15, hh * 0.6, CF(x, yF + 0.17 + hh * 0.52, zw + 0.94), tap[6] or "ALE", { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
+							K:text("TapWallHandleLabel", 0.15, hh * 0.6, CF(x, yF + 0.17 + hh * 0.52, zw + 0.94), tapAbbr(tap), { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
 						end
 					end
 					-- 칸 번호 띠 (01-07 ...)
@@ -1705,6 +1786,35 @@ local function backBar(c: any)
 				K:box("BackBarShelf", V3(sw + 0.04, 0.07, 0.86), CF(bcx, y - 0.035, zw + 0.06 + 0.43), { c = rgb(200, 226, 230), m = M.Glass, t = 0.35, r = 0.1 })
 				K:cyl("BackBarRail", sw + 0.04, 0.05, CF(bcx, y + 0.24, zw + 0.86), th.trim)
 				K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.82), L.neon(th.shelfLED))
+				if th.tapWall then
+					-- 탭하우스 병 판매 칸: 473ml 캔 · 500ml 병 · 그라울러 (테이크아웃)
+					local kinds = if si % 2 == 0 then { "can", "can", "bottle", "can", "can", "bottle" } else { "growler", "can", "can", "growler", "can", "can" }
+					local wid = { can = 0.3, bottle = 0.3, growler = 0.6 }
+					local items, usedW, k = {}, 0, 0
+					while k < 40 do
+						k += 1
+						local kd = kinds[(k + bi + seed) % #kinds + 1]
+						if usedW + wid[kd] > sw - 0.1 then
+							break
+						end
+						table.insert(items, { kd, usedW + wid[kd] / 2 })
+						usedW += wid[kd]
+					end
+					for q, it in items do
+						idx += 1
+						local px = bcx - usedW / 2 + it[2]
+						local pc = CF(px, y, zw + 0.5)
+						local tp = th.taps[(idx + seed) % #th.taps + 1]
+						if it[1] == "can" then
+							beerCan(K, pc * ANG(0, (rnd(seed, idx) - 0.5) * 0.6, 0), CAN_COLS[(idx * 5 + seed) % #CAN_COLS + 1], if q % 2 == 0 then rgb(250, 250, 246) else rgb(24, 24, 26), detail)
+						elseif it[1] == "bottle" then
+							beerBottle(K, pc, if q % 3 == 0 then rgb(40, 96, 56) else rgb(110, 60, 24), LABELS[(idx + seed) % #LABELS + 1], detail)
+						else
+							growler(K, pc * ANG(0, -0.4, 0), rgb(110, 60, 24), tp[7] or tp[5], L.black, detail)
+						end
+					end
+					continue
+				end
 				local m = math.max(1, math.floor(sw / (if K.detail == "high" then 0.56 else 0.7)))
 				for j = 1, m do
 					idx += 1
@@ -1892,7 +2002,7 @@ local function tapTower(c: any)
 			local bodyH = ht - hb - 0.34
 			K:box("TapHandleBody", V3(0.2, bodyH, 0.12), tc * CF(hp.X, hb + 0.32 + bodyH / 2, hz), { c = hc, m = M.SmoothPlastic })
 			K:box("TapHandleCap", V3(0.22, 0.03, 0.14), tc * CF(hp.X, ht - 0.015, hz), L.black)
-			local _, tl = K:text("TapHandleLabel", 0.17, bodyH * 0.62, tc * CF(hp.X, hb + 0.32 + bodyH * 0.55, hz + 0.06), tap[6] or "ALE", { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.005 })
+			local _, tl = K:text("TapHandleLabel", 0.17, bodyH * 0.62, tc * CF(hp.X, hb + 0.32 + bodyH * 0.55, hz + 0.06), tapAbbr(tap), { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.005 })
 			table.insert(labels, tl)
 		end
 		if tray then
@@ -3203,67 +3313,6 @@ end
 
 -- 15c) 높은 선반 (천장 아래 빈 벽 띠): 크래프트 펍은 캔 · 그라울러 · 탭 핸들 · 식스팩 컬렉션,
 --      칵테일 바는 빈 술병 · 셰이커, 스포츠 펍은 캔 · 트로피. 선반 앞 아래 은은한 LED (네온 파트, 불빛 예산 안 씀)
-local function growler(K: any, base: CFrame, gc: Color3, lab: Color3, capL: any, detail: string)
-	local gl = { c = gc, m = M.Glass, t = 0.08, r = 0.12 }
-	K:vcyl("Growler", 0.44, 0.46, base * CF(0, 0.22, 0), gl)
-	K:ell("GrowlerShoulder", V3(0.46, 0.36, 0.46), base * CF(0, 0.44, 0), gl)
-	K:vcyl("GrowlerNeck", 0.16, 0.15, base * CF(0, 0.66, 0), gl)
-	K:vcyl("GrowlerCap", 0.08, 0.18, base * CF(0, 0.77, 0), capL)
-	K:box("GrowlerLabel", V3(0.27, 0.2, 0.02), base * CF(0, 0.24, 0.226), { c = lab, m = M.SmoothPlastic })
-	if detail ~= "low" then
-		K:ring("GrowlerHandle", base * CF(0.2, 0.5, 0), 0.09, 0.05, 3, gl, -PI / 2, PI / 2)
-	end
-end
-
-local function standHandle(K: any, base: CFrame, col: Color3, txt: string?, detail: string)
-	K:vcyl("HandleStand", 0.05, 0.24, base * CF(0, 0.025, 0), L.blackMetal)
-	K:vcyl("HandleFerrule", 0.14, 0.11, base * CF(0, 0.12, 0), L.chrome)
-	K:box("HandleBody", V3(0.2, 0.7, 0.13), base * CF(0, 0.54, 0), { c = col, m = M.SmoothPlastic })
-	K:box("HandleCap", V3(0.22, 0.04, 0.15), base * CF(0, 0.91, 0), L.black)
-	if txt and detail == "high" then
-		K:text("HandleLabel", 0.16, 0.4, base * CF(0, 0.56, 0.066), txt, { fg = if col.R + col.G + col.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
-	end
-end
-
-local function sixPack(K: any, base: CFrame, col: Color3, gc: Color3, detail: string)
-	K:box("SixPack", V3(0.64, 0.34, 0.42), base * CF(0, 0.17, 0), { c = col, m = M.SmoothPlastic })
-	K:box("SixPackHandle", V3(0.07, 0.26, 0.4), base * CF(0, 0.47, 0), { c = col, m = M.SmoothPlastic })
-	K:box("SixPackBand", V3(0.645, 0.1, 0.425), base * CF(0, 0.22, 0), L.of(30, 30, 32))
-	for _, x in { -0.2, 0.2 } do
-		for _, z in { -0.1, 0.1 } do
-			if detail ~= "low" or z > 0 then
-				K:vcyl("SixPackNeck", 0.28, 0.09, base * CF(x, 0.48, z), { c = gc, m = M.Glass, t = 0.08 })
-				K:vcyl("SixPackCap", 0.03, 0.1, base * CF(x, 0.635, z), L.goldMetal)
-			end
-		end
-	end
-end
-
-local function trophy(K: any, base: CFrame, detail: string)
-	K:box("TrophyBase", V3(0.32, 0.14, 0.3), base * CF(0, 0.07, 0), L.of(28, 26, 26))
-	K:box("TrophyPlate", V3(0.22, 0.07, 0.01), base * CF(0, 0.07, 0.152), L.goldMetal)
-	K:vcyl("TrophyStem", 0.2, 0.07, base * CF(0, 0.24, 0), L.goldMetal)
-	K:ell("TrophyCup", V3(0.34, 0.32, 0.34), base * CF(0, 0.46, 0), L.goldMetal)
-	K:vcyl("TrophyRim", 0.04, 0.35, base * CF(0, 0.58, 0), L.goldMetal)
-	if detail ~= "low" then
-		for _, sx in { -1, 1 } do
-			K:ring("TrophyHandle", base * CF(sx * 0.19, 0.48, 0) * ANG(0, 0, 0), 0.07, 0.035, 3, L.goldMetal, if sx > 0 then -PI / 2 else PI / 2, if sx > 0 then PI / 2 else PI * 1.5)
-		end
-	end
-end
-
-local function shaker(K: any, base: CFrame)
-	K:vcyl("Shaker", 0.42, 0.2, base * CF(0, 0.21, 0), L.chrome)
-	K:vcyl("ShakerTop", 0.14, 0.16, base * CF(0, 0.49, 0), L.chrome)
-	K:vcyl("ShakerCap", 0.06, 0.09, base * CF(0, 0.59, 0), L.chrome)
-end
-
-local CAN_COLS = {
-	rgb(232, 120, 30), rgb(40, 150, 170), rgb(222, 196, 60), rgb(196, 40, 52), rgb(60, 120, 70), rgb(240, 236, 226),
-	rgb(36, 50, 110), rgb(150, 70, 160), rgb(250, 160, 170), rgb(28, 28, 30), rgb(120, 190, 90), rgb(250, 210, 120),
-}
-local HANDLE_TXT = { "IPA", "LAGER", "STOUT", "SOUR", "PILS", "APA", "PORTER", "WEISS", "DIPA", "GOSE", "RED", "SAISON" }
-
 local function highLedge(c: any)
 	local K, V, th = c.K, c.V, c.th
 	if V.H < 9.3 or not budget(K, 140) then

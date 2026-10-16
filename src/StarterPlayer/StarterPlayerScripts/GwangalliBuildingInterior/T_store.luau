@@ -3811,7 +3811,7 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 		end
 	end)
 	step(K, "goods", function()
-		used += runFill(K, goodsBudget(K, V))
+		used += runFill(K, goodsBudget(K, V, 1.45))
 	end)
 	note(K, string.format("pharmacy %s goods parts=%d surfaces=%d", sub, used, #surfs))
 end
