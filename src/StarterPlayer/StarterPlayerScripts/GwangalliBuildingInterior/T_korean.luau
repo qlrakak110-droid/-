@@ -1262,6 +1262,8 @@ local function steam(c: any, srcs: { any }, n: number?)
 	return puffs
 end
 
+local norenAt: (any, CFrame, number, number, string) -> ()
+
 local function norenOver(c: any, r: any, txt: string)
 	local K, th = c.K, c.th
 	local w, h = math.max(r.size.X, r.size.Z), r.size.Y
@@ -1271,6 +1273,13 @@ local function norenOver(c: any, r: any, txt: string)
 	local ux = if alongX then V3(n.Z, 0, 0) else V3(0, 0, -n.X)
 	local front = r.c + n * (math.min(r.size.X, r.size.Z) / 2)
 	local d = CFrame.fromMatrix(front, ux, Vector3.yAxis, n)
+	norenAt(c, d, w, h, txt)
+	hideRec(K, r)
+end
+
+-- 노렌 한 벌 (d = 천 앞면 가운데 dcf, 폭 w, 높이 h): 봉 + 갈라진 천 두 장 + 단 + 글자
+norenAt = function(c: any, d: CFrame, w: number, h: number, txt: string)
+	local K, th = c.K, c.th
 	local fab = col(th.norenC, M.Fabric)
 	local gap = 0.06
 	local pw = (w - gap) / 2
@@ -1290,28 +1299,23 @@ local function norenOver(c: any, r: any, txt: string)
 			end
 		end
 	end)
-	hideRec(K, r)
 end
 
-local function passOver(c: any)
+-- 주방 패스 안쪽 그림 (타일 · 조리대 · 솥 윗부분 · 그릇 선반 · 국자 · 김 · 테). kp = 덮어씌울 맵 KitchenPass (없으면 벽에 판)
+local function passView(c: any, a: number, b: number, y0: number, y1: number, zf: number, norenBottom: number, kp: any?)
 	local K, V, th = c.K, c.V, c.th
-	local kp = V:first("KitchenPass")
-	if kp then
-		local a, b, y0, y1 = kp.min.X, kp.max.X, kp.min.Y, kp.max.Y
-		local w, h = b - a, y1 - y0
-		local zf = kp.max.Z
-		local u = (a + b) / 2
-		local face = CFrame.fromMatrix(V3(u, (y0 + y1) / 2, zf), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
-		c.pass = { a = a, b = b, y0 = y0, y1 = y1, z = zf, face = face }
-		local norenBottom = y1
-		for _, r in V.byName.Noren or {} do
-			if r.c.X > a - 1 and r.c.X < b + 1 then
-				norenBottom = math.min(norenBottom, r.min.Y)
-			end
-		end
+	local w, h = b - a, y1 - y0
+	local u = (a + b) / 2
+	local face = CFrame.fromMatrix(V3(u, (y0 + y1) / 2, zf), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
+	c.pass = { a = a, b = b, y0 = y0, y1 = y1, z = zf, face = face }
+	do
 		K:free(function()
 			-- 주방 안쪽 벽 (같은 자리 · 크기) : 흰 타일 + 줄눈
-			K:box("PassBack", kp.size, CF(kp.c), th.passTile)
+			if kp then
+				K:box("PassBack", kp.size, CF(kp.c), th.passTile)
+			else
+				K:plate("PassBack", w, h, 0.06, face * CF(0, 0, -0.06), th.passTile)
+			end
 			local tile = 0.5
 			for yy = y0 + tile, y1 - 0.05, tile do
 				K:plate("PassGrout", w, 0.025, 0.006, face * CF(0, yy - (y0 + y1) / 2, 0), L.of(180, 178, 172))
@@ -1363,7 +1367,26 @@ local function passOver(c: any)
 			local lamp = K:plate("PassLampLED", w - 0.4, 0.05, 0.05, face * CF(0, sy + 0.12 - (y0 + y1) / 2, 0.05), L.lampNeutral)
 			K:light(lamp, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.7, Angle = 120, Color = L.neutralLight })
 			c.passSteam = steam(c, srcs, 2)
+			-- 주문표 레일 (테 위) + 주방 표지
+			K:plate("TicketRail", math.min(w - 0.6, 3.2), 0.08, 0.1, face * CF(0, h / 2 + 0.22, 0), L.chrome)
+			for i = 1, 4 do
+				K:plate("OrderSlip", 0.32, 0.42, 0.012, face * CF(-1.2 + i * 0.48, h / 2 + 0.0, 0.11) * ANG(0, 0, (i % 2 - 0.5) * 0.08), L.paper)
+			end
 		end)
+	end
+end
+
+local function passOver(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local kp = V:first("KitchenPass")
+	if kp then
+		local norenBottom = kp.max.Y
+		for _, r in V.byName.Noren or {} do
+			if r.c.X > kp.min.X - 1 and r.c.X < kp.max.X + 1 then
+				norenBottom = math.min(norenBottom, r.min.Y)
+			end
+		end
+		passView(c, kp.min.X, kp.max.X, kp.min.Y, kp.max.Y, kp.max.Z, norenBottom, kp)
 		hideRec(K, kp)
 	end
 	local pl = V:first("PassLedge")
@@ -1388,6 +1411,40 @@ local function passOver(c: any)
 	for i, r in nlist do
 		norenOver(c, r, th.noren[((i - 1) % #th.noren) + 1])
 	end
+end
+
+-- 패스가 없는 가게 (주방 창이 없는 맵): 뒷벽에 주방 창 (타일 안쪽 그림 + 스테인리스 받침 + 노렌)
+local function fakePass(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if c.pass or #V.counters > 0 or V:has("KitchenPass") > 0 or V:has("PassCounter") > 0 then
+		return
+	end
+	local y0 = 3.5
+	local y1 = math.min(V.H - 2.75, 5.6)
+	if y1 - y0 < 1.5 then
+		return
+	end
+	local wn, u, w = findWall(K, { "back" }, 4.6, 6.0, y0 - 0.5, y1 + 0.5, V3(-3, 0, V.z0), 0.6, function(_wn: string, uu: number, ww: number)
+		local mn, mx = V3(uu - ww / 2, y0 - 0.45, V.z0), V3(uu + ww / 2, y0 - 0.05, V.z0 + 1.0)
+		return K:hitsKeep(mn, mx) == nil
+	end)
+	if not wn or not u or not w then
+		return
+	end
+	local ww = w - 0.5
+	local a, b = u - ww / 2, u + ww / 2
+	local zf = V.z0 + 0.06
+	local nh = math.min(0.75, (y1 - y0) * 0.38)
+	passView(c, a, b, y0, y1, zf, y1 - nh)
+	-- 받침 (스테인리스 선반) + 노렌
+	K:box("FakePassLedge", V3(ww + 0.4, 0.16, 0.95), CF(u, y0 - 0.08, V.z0 + 0.475), L.steel)
+	K:box("FakePassLip", V3(ww + 0.4, 0.22, 0.05), CF(u, y0 - 0.1, V.z0 + 0.95), L.chrome)
+	for _, sx in { -1, 1 } do
+		K:bar("FakePassBracket", V3(u + sx * (ww / 2 - 0.3), y0 - 0.7, V.z0 + 0.03), V3(u + sx * (ww / 2 - 0.3), y0 - 0.16, V.z0 + 0.8), 0.07, 0.07, L.chrome)
+	end
+	local d = CFrame.fromMatrix(V3(u, y1 - nh / 2, zf + 0.06), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
+	norenAt(c, d, ww, nh, th.noren[1] .. " " .. (th.noren[2] or ""))
+	at(K, "fakepass", wn, u)
 end
 
 -- 라멘 카운터 (BarUpstand · 양념 · 뒷벽 하부장 · 후드 · 등) ------------------------------------------------------
@@ -2093,7 +2150,7 @@ local function selfBarProp(c: any)
 	local sy = 5.0
 	if not usedHit(K, wn, u - w / 2, u + w / 2, sy, sy + 1.4) then
 		local d = V:wall(wn, u, sy + 0.45, 0)
-		K:text("SelfSign", math.min(3.2, w - 0.6), 0.7, d, th.selfSign, { fg = WHITE, bg = rgb(200, 40, 36), font = F.GothamBlack, d = 0.06 })
+		K:text("SelfSign", math.min(3.2, w - 0.6), 0.7, d, th.selfSign, { fg = WHITE, bg = rgb(150, 26, 24), font = F.GothamBlack, d = 0.06 })
 		K:text("SelfSub", math.min(3.6, w - 0.4), 0.55, d * CF(0, -0.7, 0), th.selfSub, { fg = rgb(40, 40, 44), bg = rgb(252, 250, 244), font = F.GothamBold, d = 0.04 })
 		claim(K, wn, u - w / 2, u + w / 2, sy - 0.4, sy + 1.4)
 	end
@@ -2618,6 +2675,7 @@ function T.build(K: any, V: any, S: any)
 		return
 	end
 	step("pass", passOver)
+	step("fakepass", fakePass)
 	step("bar", barOver)
 	step("mapsigns", mapSignClaims)
 	local f = th.feat or {}
