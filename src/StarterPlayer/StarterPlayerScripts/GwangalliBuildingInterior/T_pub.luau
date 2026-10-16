@@ -1763,7 +1763,7 @@ local function backBar(c: any)
 						end
 					end
 					K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.92), L.neon(th.shelfLED))
-					local nt = math.max(3, math.floor(sw / 0.37))
+					local nt = math.max(3, math.floor(sw / (if detail == "low" then 0.52 else 0.37)))
 					for j = 1, nt do
 						idx += 1
 						local x = bx0 + sw * (j - 0.5) / nt
@@ -1772,10 +1772,14 @@ local function backBar(c: any)
 						K:cyl("TapWallShank", 0.4, 0.09, CF(x, yF, zw + 0.62) * ANG(0, PI / 2, 0), L.chrome)
 						K:cyl("TapWallFaucet", 0.22, 0.14, CF(x, yF, zw + 0.86) * ANG(0, PI / 2, 0), L.chrome)
 						K:vcyl("TapWallSpout", 0.2, 0.07, CF(x, yF - 0.15, zw + 0.92), L.chrome)
-						K:vcyl("TapWallFerrule", 0.1, 0.1, CF(x, yF + 0.12, zw + 0.88), L.chrome)
+						if detail ~= "low" then
+							K:vcyl("TapWallFerrule", 0.1, 0.1, CF(x, yF + 0.12, zw + 0.88), L.chrome)
+						end
 						local hh = math.min(0.62, clear - (yF - y) - 0.36)
 						K:box("TapWallHandle", V3(0.18, hh, 0.11), CF(x, yF + 0.17 + hh / 2, zw + 0.88), { c = hc, m = M.SmoothPlastic })
-						K:box("TapWallHandleCap", V3(0.2, 0.03, 0.13), CF(x, yF + 0.17 + hh + 0.015, zw + 0.88), L.black)
+						if detail ~= "low" then
+							K:box("TapWallHandleCap", V3(0.2, 0.03, 0.13), CF(x, yF + 0.17 + hh + 0.015, zw + 0.88), L.black)
+						end
 						if detail == "high" then
 							K:text("TapWallHandleLabel", 0.15, hh * 0.6, CF(x, yF + 0.17 + hh * 0.52, zw + 0.94), tapAbbr(tap), { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
 						end
@@ -1788,6 +1792,9 @@ local function backBar(c: any)
 				K:box("BackBarShelf", V3(sw + 0.04, 0.07, 0.86), CF(bcx, y - 0.035, zw + 0.06 + 0.43), { c = rgb(200, 226, 230), m = M.Glass, t = 0.35, r = 0.1 })
 				K:cyl("BackBarRail", sw + 0.04, 0.05, CF(bcx, y + 0.24, zw + 0.86), th.trim)
 				K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.82), L.neon(th.shelfLED))
+				if th.tapWall and detail == "low" and si > 2 then
+					continue
+				end
 				if th.tapWall then
 					-- 탭하우스 병 판매 칸: 473ml 캔 · 500ml 병 · 그라울러 (테이크아웃)
 					local kinds = if si % 2 == 0 then { "can", "can", "bottle", "can", "can", "bottle" } else { "growler", "can", "can", "growler", "can", "can" }
@@ -1817,7 +1824,7 @@ local function backBar(c: any)
 					end
 					continue
 				end
-				local m = math.max(1, math.floor(sw / (if K.detail == "high" then 0.56 else 0.7)))
+				local m = math.max(1, math.floor(sw / (if K.detail == "high" then 0.56 elseif K.detail == "mid" then 0.7 else 0.95)))
 				for j = 1, m do
 					idx += 1
 					local bx = bx0 + sw * (j - 0.5) / m + (rnd(seed, idx) - 0.5) * 0.06
@@ -3616,13 +3623,13 @@ function T.build(K: any, V: any, S: any)
 		{ "jukebox", jukebox },
 		{ "kegs", kegs },
 		{ "food", foodBoard },
+		{ "counter", counterProps },
+		{ "decor", wallDecor },
 		{ "pendants", tablePendants },
 		{ "ducts", ducts },
 		{ "festoon", festoon },
 		{ "glassrack", glassRack },
 		{ "disco", disco },
-		{ "counter", counterProps },
-		{ "decor", wallDecor },
 		{ "sconces", sconces },
 		{ "cove", coveLED },
 		{ "ledge", highLedge },

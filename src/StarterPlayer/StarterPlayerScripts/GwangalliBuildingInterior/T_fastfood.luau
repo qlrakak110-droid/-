@@ -1889,6 +1889,16 @@ local function kioskOverlay(ctx: any, brand: string, accent: Color3, tiles: { Co
 			K:text("FfKioskNFC", 0.36, 0.2, base * CF(w * 0.2, py, fz + 0.01), "IC · NFC", { fg = rgb(120, 220, 255), bg = rgb(20, 24, 30), glow = 1.2, font = F.GothamBold, d = 0.01 })
 			K:box("FfKioskReceipt", V3(0.5, 0.04, 0.02), base * CF(0, py - 0.45, fz + 0.01), L.of(20, 20, 22))
 			K:text("FfKioskReceiptLbl", 0.6, 0.12, base * CF(0, py - 0.58, fz + 0.005), "영수증", { fg = rgb(200, 200, 200), font = F.GothamBold, d = 0.004 })
+			-- 뒷면: 밝은 서비스 커버 · 통풍 슬롯 · 안내 스티커 · 전원선
+			local bk = base * ANG(0, PI, 0)
+			K:plate("FfKioskBackCover", w - 0.26, h * 0.62, 0.012, bk * CF(0, h * 0.52, fz - 0.01), L.of(86, 88, 94, M.Metal))
+			if not ctx.low then
+				for i = 0, 4 do
+					K:plate("FfKioskVent", w * 0.5, 0.04, 0.008, bk * CF(0, h * 0.78 - i * 0.12, fz), L.of(30, 30, 34))
+				end
+				K:text("FfKioskBackSticker", w * 0.6, 0.32, bk * CF(0, h * 0.42, fz + 0.002), "셀프 주문 키오스크\n주문은 앞 화면에서", { fg = rgb(40, 40, 44), bg = rgb(236, 236, 232), font = F.GothamBold, d = 0.004 })
+				K:seg("FfKioskCable", (bk * CF(w * 0.3, 0.6, fz + 0.03)).Position, (bk * CF(w * 0.3, 0.03, fz + 0.3)).Position, 0.06, L.black)
+			end
 		end)
 		Scan.hide(K.hidden, r.part)
 	end
