@@ -21,6 +21,7 @@ local Workspace = game:GetService("Workspace")
 local Scan = require(script:WaitForChild("Scan"))
 local Build = require(script:WaitForChild("Build"))
 local Venues = require(script:WaitForChild("Venues"))
+local Homes = require(script:WaitForChild("Homes"))
 
 local player = Players.LocalPlayer
 
@@ -86,8 +87,9 @@ root.Parent = Workspace
 -- 후보 매장 ----------------------------------------------------------------------------------------
 type Rec = {
 	model: Model,
-	spec: any?, -- 큰 시설의 방 (Venues): Scan.fitRoom 용 spec
+	spec: any?, -- 큰 시설의 방 (Venues) · 집의 방 (Homes): Scan.fitRoom 용 spec
 	room: any?,
+	home: boolean?,
 	center: Vector3?,
 	half: Vector3?,
 	built: any?,
@@ -246,6 +248,25 @@ task.spawn(function()
 	end
 end)
 
+-- 생활 게임 집 (방문 · 내 집): 집에 들어가 있을 때 (y 900 이상 대역) 방마다 후보
+local function homeScan()
+	for _, f in Homes.find() do
+		local spec = f.spec
+		if not recs[spec.key] then
+			local rec: Rec = { model = f.model, spec = spec, room = nil, building = false, failedAt = -1e9, nParts = 0, conns = {} }
+			rec.home = true
+			local half = Vector3.new(spec.size.X / 2, 6, spec.size.Z / 2)
+			rec.center = spec.cf.Position + Vector3.new(0, 4, 0)
+			-- 월드 축 상자 (방 프레임이 돌아가 있으면 X/Z 를 바꿈)
+			if math.abs(spec.cf.LookVector.X) > 0.7 then
+				half = Vector3.new(half.Z, half.Y, half.X)
+			end
+			rec.half = half
+			recs[spec.key] = rec
+		end
+	end
+end
+
 -- 거리 계산용 바닥 상자
 local function boxOf(rec: Rec): (Vector3?, Vector3?)
 	if rec.center then
@@ -323,7 +344,9 @@ local function build(rec: Rec)
 		local V, why
 		if rec.spec then
 			V, why = Scan.fitRoom(rec.model, rec.spec)
-			if V then
+			if V and rec.home then
+				Homes.post(V, rec.model)
+			elseif V then
 				Venues.post(V, rec.room)
 			end
 		else
@@ -385,6 +408,7 @@ local function focus(): Vector3?
 end
 
 local lastAnnex = 0
+local lastHome = 0
 local function step()
 	if script:GetAttribute("Enabled") == false then
 		for _, a in table.clone(active) do
@@ -399,6 +423,10 @@ local function step()
 	if pos.Y > 2500 and os.clock() - lastAnnex > 2 then
 		lastAnnex = os.clock()
 		annexScan(pos)
+	end
+	if pos.Y > 900 and os.clock() - lastHome > 3 then
+		lastHome = os.clock()
+		pcall(homeScan)
 	end
 	local maxV = limits()
 	-- 지우기: 멀어졌거나 모델이 사라졌거나 (스트리밍으로) 크게 바뀐 매장
