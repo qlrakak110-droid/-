@@ -983,7 +983,8 @@ function Lib.teleport(lcf: CFrame): boolean
 		flat = V3(0, 0, -1)
 	end
 	local p = target.Position + V3(0, up + 0.05, 0)
-	ch:PivotTo(CFrame.lookAt(p, p + flat.Unit))
+	-- HumanoidRootPart 를 옮기면 관절로 이어진 몸 전체가 같이 옮겨짐 (캐릭터 물리 = 이 클라이언트 소유)
+	hrp.CFrame = CFrame.lookAt(p, p + flat.Unit)
 	hrp.AssemblyLinearVelocity = Vector3.zero
 	hrp.AssemblyAngularVelocity = Vector3.zero
 	if cam and off then

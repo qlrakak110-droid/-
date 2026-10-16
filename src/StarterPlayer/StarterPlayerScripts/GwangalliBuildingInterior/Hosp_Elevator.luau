@@ -423,9 +423,9 @@ function E.build(K: any, env: any)
 		local riding = inCabin()
 		local function shift()
 			if riding then
-				local hrp, _, ch = Lib.localRoot()
-				if hrp and ch then
-					ch:PivotTo(ch:GetPivot() + V3(0, dy, 0))
+				local hrp = Lib.localRoot()
+				if hrp then
+					hrp.CFrame = hrp.CFrame + V3(0, dy, 0)
 					local cam = Workspace.CurrentCamera
 					if cam then
 						cam.CFrame = cam.CFrame + V3(0, dy, 0)
