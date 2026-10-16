@@ -747,8 +747,36 @@ THEMES.bat = extend(THEMES.sunset, {
 	mat = "BEER BAT",
 })
 
+-- 간판 이름 (모델 이름이 SideShop 같은 일반 이름일 때: 가장 큰 Sign_ 글자)
+local GENERIC_SIGN = { "화장실", "OPEN", "BREAK", "TODAY", "영업", "메  뉴", "MENU", "EXIT", "비상구", "CLOSE" }
+local function shopName(V: any): string
+	local best, area = nil, 0
+	for _, r in V.parts or {} do
+		if string.sub(r.name, 1, 5) == "Sign_" then
+			local t = string.sub(r.name, 6)
+			local generic = false
+			for _, g in GENERIC_SIGN do
+				if string.find(string.upper(t), g, 1, true) then
+					generic = true
+				end
+			end
+			local a = math.max(r.size.X, r.size.Z) * r.size.Y
+			if not generic and #t > 1 and a > area then
+				best, area = t, a
+			end
+		end
+	end
+	local nm = tostring(V.name or "")
+	if best and (nm == "" or nm == "SideShop" or string.find(nm, "Shop", 1, true) or string.find(nm, "Annex", 1, true)) then
+		return best
+	end
+	return if nm ~= "" then nm else (best or "PUB")
+end
+T.shopName = shopName
+
 local function pickTheme(V: any): any
-	local n = string.upper(V.name or "")
+	local nameStr = shopName(V)
+	local n = string.upper(nameStr)
 	local function has(s: string): boolean
 		return string.find(n, s, 1, true) ~= nil
 	end
@@ -769,15 +797,15 @@ local function pickTheme(V: any): any
 	elseif has("BEER BAT") then
 		return THEMES.bat
 	elseif has("SUNSET") then
-		local t = extend(THEMES.sunset, { brand = V.name })
+		local t = extend(THEMES.sunset, { brand = nameStr })
 		if has("ROOFTOP") then
 			t.crown = "SUNSET ROOFTOP  ·  BAR & LOUNGE"
 		end
 		return t
 	elseif V.menu == "craft" then
-		return extend(THEMES.tap, { brand = V.name, crown = tostring(V.name) .. "  ·  CRAFT BEER" })
+		return extend(THEMES.tap, { brand = nameStr, crown = nameStr .. "  ·  CRAFT BEER" })
 	end
-	return extend(THEMES.sunset, { brand = V.name, crown = tostring(V.name) .. "  ·  PUB" })
+	return extend(THEMES.sunset, { brand = nameStr, crown = nameStr .. "  ·  PUB" })
 end
 T.pickTheme = pickTheme
 
@@ -2818,7 +2846,13 @@ local function wallDecor(c: any)
 	-- 포스터 (남는 벽)
 	local targets = { V3(V.x0, 0, 0), V3(V.x1, 0, V.z0 + 3), V3(0, 0, V.z0), V3(V.x0, 0, V.z1 - 4), V3(V.x1, 0, V.z1 - 4) }
 	local np = 0
-	for i, kind in th.posters or {} do
+	-- 같은 테마 매장끼리 다르게: 포스터 순서를 매장 키로 돌림
+	local plist = {}
+	local src = th.posters or {}
+	for i = 1, #src do
+		plist[i] = src[(i + seed) % #src + 1]
+	end
+	for i, kind in plist do
 		if not budget(K, 30) then
 			break
 		end
@@ -2854,7 +2888,7 @@ local function wallDecor(c: any)
 	do
 		local wn, u = findWall(K, { "back", "left", "right" }, 1.3, 1.3, 4.6, 6.4, nearC, 0.8)
 		if wn and u then
-			Props.license(K, V:wall(wn, u, 5.5, 0.06), V.name)
+			Props.license(K, V:wall(wn, u, 5.5, 0.06), shopName(V))
 		end
 	end
 	-- 입구 안내판 (영업시간 · 19세 · 와이파이 · 음주운전)

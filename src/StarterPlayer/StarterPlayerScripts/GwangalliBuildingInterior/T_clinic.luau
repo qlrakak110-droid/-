@@ -870,7 +870,7 @@ end
 local function exitSign(K: any, dcf: CFrame, w: number?, arrow: string?)
 	local ww = w or 2.2
 	K:plate("ExitSignBox", ww, ww * 0.42, 0.18, dcf, lk(236, 236, 232))
-	local p = K:plate("ExitSignLamp", ww - 0.14, ww * 0.42 - 0.14, 0.03, dcf * CF(0, 0, 0.18), col(GREEN_EXIT, M.Neon))
+	local p = K:plate("ExitSignFace", ww - 0.14, ww * 0.42 - 0.14, 0.03, dcf * CF(0, 0, 0.18), col(GREEN_EXIT, M.Neon))
 	tx(K, "ExitSignText", ww - 0.3, ww * 0.3, dcf * CF(0, 0, 0.215), "비상구  " .. (arrow or "🏃→"), WHITE, nil, { glow = 1.4, font = FONT_K })
 	return p
 end
@@ -1657,17 +1657,26 @@ end
 
 -- 자동 혈압계 (책상형 본체 + 팔 넣는 통 + 화면). pcf = 받침 위 (+Z 환자 쪽). 반환 { screen label, cuff ring part }
 local function bpMachine(K: any, pcf: CFrame): (TextLabel, BasePart)
-	K:rbox("BPBody", V3(2.4, 1.7, 1.8), 0.25, pcf * CF(0, 0.85, -0.2) * ANG(0, PI / 2, 0), lk(244, 246, 246, M.Plastic))
-	K:box("BPBodyBand", V3(2.42, 0.16, 1.82), pcf * CF(0, 1.5, -0.2), col(TEAL, M.Plastic))
-	local ring = K:cyl("BPCuffTunnel", 1.0, 1.05, pcf * CF(-0.5, 0.75, 0.25) * ANG(0, PI / 2, 0), lk(60, 66, 72, M.Plastic))
-	K:cyl("BPCuffInner", 1.02, 0.8, pcf * CF(-0.5, 0.75, 0.26) * ANG(0, PI / 2, 0), lk(30, 34, 38, M.Fabric))
-	local sc = pcf * CF(0.55, 1.15, 0.72) * ANG(math.rad(-25), 0, 0)
-	K:box("BPScreenBezel", V3(0.95, 0.75, 0.06), sc, LK.black)
-	local _, lab = tx(K, "BPScreen", 0.85, 0.65, sc * CF(0, 0, 0.031), "SYS ---\nDIA ---\n맥박 --", C3(40, 255, 160), C3(8, 24, 20), { glow = 1.3, d = 0.01, font = FONT_B })
-	K:disc("BPStart", 0.28, 0.06, pcf * CF(0.55, 0.62, 0.72) * ANG(PI / 2 - math.rad(25), 0, 0), col(C3(40, 200, 120), M.Neon))
-	K:box("BPPrinter", V3(0.5, 0.06, 0.08), pcf * CF(0.55, 1.62, 0.25), LK.black)
-	K:box("BPReceipt", V3(0.36, 0.02, 0.35), pcf * CF(0.55, 1.66, 0.38) * ANG(math.rad(25), 0, 0), Look.paper)
-	tx(K, "BPLabel", 1.4, 0.24, pcf * CF(0, 1.32, 0.71), "자동 혈압계", TEAL_D, nil, { d = 0.01, font = FONT_K })
+	local white = lk(246, 246, 244, M.Plastic)
+	K:rbox("BPBase", V3(2.8, 0.9, 2.0), 0.2, pcf * CF(0, 0.45, -0.2) * ANG(0, PI / 2, 0), white)
+	K:box("BPBaseBand", V3(2.82, 0.12, 2.02), pcf * CF(0, 0.2, -0.2), col(TEAL, M.Plastic))
+	-- 팔 넣는 통 (사용자 쪽으로 기울어진 원통)
+	local tc = pcf * CF(-0.55, 1.5, -0.15) * ANG(math.rad(18), 0, 0)
+	local ring = K:cyl("BPCuffTunnel", 1.9, 1.5, tc * ANG(0, PI / 2, 0), white)
+	K:cyl("BPCuffMouth", 0.12, 1.56, tc * CF(0, 0, 0.95) * ANG(0, PI / 2, 0), col(TEAL, M.Plastic))
+	K:cyl("BPCuffInner", 0.05, 1.18, tc * CF(0, 0, 0.99) * ANG(0, PI / 2, 0), lk(196, 204, 210, M.Plastic))
+	K:cyl("BPCuffLiner", 0.04, 0.9, tc * CF(0, 0, 0.7) * ANG(0, PI / 2, 0), lk(70, 90, 120, M.Fabric))
+	K:box("BPElbowRest", V3(0.9, 0.12, 0.9), pcf * CF(-0.55, 0.96, 0.75), lk(70, 90, 120, M.Leather))
+	-- 화면 · 시작 버튼 · 프린터
+	local sc = pcf * CF(0.75, 1.35, 0.35) * ANG(math.rad(-35), 0, 0)
+	K:box("BPScreenBody", V3(1.1, 0.95, 0.25), sc * CF(0, 0, -0.1), white)
+	K:box("BPScreenBezel", V3(0.95, 0.75, 0.05), sc * CF(0, 0.05, 0.03), LK.black)
+	local _, lab = tx(K, "BPScreen", 0.85, 0.65, sc * CF(0, 0.05, 0.056), "SYS ---\nDIA ---\n맥박 --", C3(40, 255, 160), C3(8, 24, 20), { glow = 1.3, d = 0.01, font = FONT_B })
+	K:disc("BPStart", 0.3, 0.07, pcf * CF(0.75, 0.95, 0.8) * ANG(PI / 2, 0, 0), col(C3(40, 200, 120), M.Neon))
+	tx(K, "BPStartLabel", 0.5, 0.14, pcf * CF(0.75, 0.72, 0.81), "시작", WHITE, nil, { d = 0.005 })
+	K:box("BPPrinter", V3(0.5, 0.06, 0.06), pcf * CF(0.75, 0.6, 0.81), LK.black)
+	K:box("BPReceipt", V3(0.36, 0.3, 0.01), pcf * CF(0.75, 0.42, 0.82), Look.paper)
+	tx(K, "BPLabel", 1.6, 0.22, pcf * CF(0, 0.5, 0.81), "자동 혈압계 · 팔을 끝까지 넣으세요", TEAL_D, nil, { d = 0.005, font = FONT_B })
 	return lab, ring
 end
 
@@ -5104,12 +5113,12 @@ local function eyeChart(K: any, dcf: CFrame, w: number, h: number): ({ number },
 	local ys = {}
 	local y = h / 2 - 0.65
 	for i, r in rows do
-		local rh = math.max(0.14, 0.62 - (i - 1) * 0.042)
+		local rh = math.max(0.12, 0.48 - (i - 1) * 0.034)
 		y -= rh / 2
 		tx(K, "EyeChartRow", w * 0.66, rh, dcf * CF(-w * 0.1, y, 0.075), r[1], INK, nil, { font = FONT_B })
 		tx(K, "EyeChartVal", w * 0.16, math.min(0.22, rh), dcf * CF(w * 0.38, y, 0.075), string.format("%.1f", r[2]), RED, nil, { font = FONT_M })
 		table.insert(ys, y)
-		y -= rh / 2 + 0.06
+		y -= rh / 2 + 0.03
 	end
 	local _, res = tx(K, "EyeChartResult", w * 0.9, 0.3, dcf * CF(0, -h / 2 + 0.25, 0.075), "", C3(0, 110, 100), nil, { font = FONT_B })
 	return ys, res
