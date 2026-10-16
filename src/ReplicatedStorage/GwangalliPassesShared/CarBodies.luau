@@ -174,7 +174,7 @@ function CarBodies.build(key: string, paint: Color3, glow: Color3): Model
 	local tx = W / 2 - 0.62 -- tyre centre x (inset under the fenders)
 
 	-- floor / tub ---------------------------------------------------------------------------------
-	slab(m, "Underbody", W - 1.1, 0.42, 0.78, -hz + 0.7, hz - 0.7, 0, TRIM)
+	slab(m, "Underbody", W - 1.1, 0.55, 0.86, -hz + 0.7, hz - 0.7, 0, TRIM)
 	slab(m, "BodySide", W, 0.66, D.belt, fF1, fR0, 0, paint) -- door section (the paint reference)
 	slab(m, "NoseSection", W - 0.15, 0.6, D.noseY, -hz + 0.25, fF0, 0, paint)
 	slab(m, "TailSection", W - 0.1, 0.72, D.deckY - 0.15, fR1, hz - 0.15, 0, paint)
@@ -188,13 +188,13 @@ function CarBodies.build(key: string, paint: Color3, glow: Color3): Model
 		slab(m, "ArchLinerF", D.wF + 0.45, D.dF - 0.05, D.dF + 0.1, fF0 + 0.05, fF1 - 0.05, s * (W / 2 - (D.wF + 0.45) / 2 - 0.04), TRIM)
 		slab(m, "ArchLinerR", D.wR + 0.5, D.dR - 0.05, D.dR + 0.1, fR0 + 0.05, fR1 - 0.05, s * (W / 2 - (D.wR + 0.5) / 2 - 0.04), TRIM)
 		-- side skirt (carbon) + side intake ahead of the rear wheel
-		slab(m, "SideSkirt", 0.18, 0.5, 0.86, fF1 + 0.1, fR0 - 0.1, s * (W / 2 + 0.03), CARBON)
+		slab(m, "SideSkirt", 0.18, 0.6, 0.9, fF1 + 0.1, fR0 - 0.1, s * (W / 2 + 0.03), CARBON)
 		slab(m, "SideIntake", 0.12, 1.05, D.belt - 0.35, fR0 - 2.1, fR0 - 0.25, s * (W / 2 + 0.02), TRIM)
 	end
 
 	-- nose / hood -----------------------------------------------------------------------------------
 	rampUp(m, "Hood", W - 0.6, D.noseY, D.belt + 0.08, -hz + 0.35, D.wsBase, 0, paint)
-	slab(m, "Splitter", W - 0.3, 0.42, 0.5, -hz - 0.25, -hz + 0.9, 0, CARBON)
+	slab(m, "Splitter", W - 0.3, 0.55, 0.62, -hz - 0.25, -hz + 0.9, 0, CARBON)
 	slab(m, "Grille", W * 0.56, 0.62, 1.12, -hz - 0.04, -hz + 0.1, 0, TRIM)
 	if key == "super" then
 		rampUp(m, "HoodBulge", 1.6, D.belt - 0.15, D.belt + 0.22, -hz + 2.2, D.wsBase - 0.2, 0, paint)
@@ -245,7 +245,7 @@ function CarBodies.build(key: string, paint: Color3, glow: Color3): Model
 	end
 	slab(m, "RearPanel", W - 0.4, 0.62, 1.15, hz - 0.3, hz + 0.02, 0, TRIM)
 	for i = -2, 2 do
-		slab(m, "Diffuser", 0.08, 0.45, 0.95, hz - 1.2, hz + 0.1, i * 0.85, CARBON)
+		slab(m, "Diffuser", 0.08, 0.56, 0.98, hz - 1.2, hz + 0.1, i * 0.85, CARBON)
 	end
 	local nEx = D.exhaust
 	for i = 1, nEx do
@@ -269,7 +269,7 @@ function CarBodies.build(key: string, paint: Color3, glow: Color3): Model
 		wheel(m, s * tx, D.zF, D.dF, D.wF, D.rim)
 		wheel(m, s * (tx + (D.wR - D.wF) / 2), D.zR, D.dR, D.wR, D.rim)
 	end
-	underglow(m, W / 2 - 0.55, fF1 + 0.2, fR0 - 0.2, 0.36, glow)
+	underglow(m, W / 2 - 0.55, fF1 + 0.2, fR0 - 0.2, 0.58, glow)
 
 	-- interior (near LOD): two bucket seats, dash, wheel ring, tunnel, floor ------------------------
 	local int = Instance.new("Model")
@@ -355,12 +355,19 @@ function CarBodies.frameOf(model: Model): (CFrame, Vector3)
 	local minV = Vector3.new(math.huge, math.huge, math.huge)
 	local maxV = -minV
 	for _, d in model:GetDescendants() do
-		if d:IsA("BasePart") and d.Transparency < 1 then
-			local l = cf0:PointToObjectSpace(d.Position)
+		if d:IsA("BasePart") and d.Transparency < 1 and not inInterior(d, model) then
+			-- the part's 8 corners in the car frame (an exact box, rotated parts included)
+			local rel = cf0:ToObjectSpace(d.CFrame)
 			local h = d.Size / 2
-			local r = math.max(h.X, h.Z) * 0.5
-			minV = Vector3.new(math.min(minV.X, l.X - r), math.min(minV.Y, l.Y - h.Y), math.min(minV.Z, l.Z - r))
-			maxV = Vector3.new(math.max(maxV.X, l.X + r), math.max(maxV.Y, l.Y + h.Y), math.max(maxV.Z, l.Z + r))
+			for _, sx in { -1, 1 } do
+				for _, sy in { -1, 1 } do
+					for _, sz in { -1, 1 } do
+						local l = rel * Vector3.new(sx * h.X, sy * h.Y, sz * h.Z)
+						minV = Vector3.new(math.min(minV.X, l.X), math.min(minV.Y, l.Y), math.min(minV.Z, l.Z))
+						maxV = Vector3.new(math.max(maxV.X, l.X), math.max(maxV.Y, l.Y), math.max(maxV.Z, l.Z))
+					end
+				end
+			end
 		end
 	end
 	if minV.X == math.huge then
@@ -417,10 +424,10 @@ function CarBodies.kitVip(model: Model, glow: Color3)
 	t.TextColor3 = Color3.fromRGB(40, 28, 6)
 	t.Parent = g
 	for _, s in { -1, 1 } do
-		local strip = kitPart(kit, frame, "GlowStrip", Vector3.new(0.14, 0.1, ext.Z * 1.0), s * (ext.X - 0.65), 0.34, 0, glow)
+		local strip = kitPart(kit, frame, "GlowStrip", Vector3.new(0.14, 0.1, ext.Z * 0.95), s * (ext.X - 0.75), 0.55, 0, glow)
 		neon(strip)
 	end
-	local core = kitPart(kit, frame, "GlowCore", Vector3.new(0.4, 0.2, 0.4), 0, 0.3, 0, glow)
+	local core = kitPart(kit, frame, "GlowCore", Vector3.new(0.4, 0.2, 0.4), 0, 0.5, 0, glow)
 	core.Transparency = 1
 	local l = Instance.new("PointLight")
 	l.Name = "GlowLight"

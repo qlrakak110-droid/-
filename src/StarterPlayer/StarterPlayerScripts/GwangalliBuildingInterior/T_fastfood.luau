@@ -4786,7 +4786,11 @@ local function fillWalls(ctx: any): number
 	local n = 0
 	local pick = ctx.rand(#pool) - 1
 	local missBefore = ctx.miss
-	for _, band in { { 5.5, 7.5 }, { 3.9, 5.5 } } do
+	local bands = { { 5.5, 7.5 }, { 4.6, 6.35 }, { 3.9, 5.5 } }
+	if V.H > 9.4 then
+		table.insert(bands, { 6.6, 8.7 })
+	end
+	for _, band in bands do
 		for _, wn in { "left", "right", "back" } do
 			for _ = 1, 2 do
 				if n >= maxN then
