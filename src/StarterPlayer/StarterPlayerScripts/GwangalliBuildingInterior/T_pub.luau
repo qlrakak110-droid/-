@@ -3186,6 +3186,17 @@ function T.build(K: any, V: any, S: any)
 		end
 	end
 	K:note("pub parts +" .. tostring(#K.parts - n0) .. " (" .. table.concat(counts, " ") .. ")")
+	-- PROBE_BEGIN
+	for _, wn in { "left", "right", "back" } do
+		for _, band in { { 4.4, 7.8 }, { 7.9, 9.4 }, { 2.0, 4.2 } } do
+			local out = {}
+			for _, g in freeSpans(K, wn, band[1], band[2], 0.8) do
+				table.insert(out, string.format("%.1f..%.1f", g[1], g[2]))
+			end
+			K:note("PROBE " .. wn .. " y" .. band[1] .. "-" .. band[2] .. ": " .. table.concat(out, " "))
+		end
+	end
+	-- PROBE_END
 end
 
 return T
