@@ -4034,6 +4034,383 @@ BUILD.backhall = function(K: any, V: any)
 	K.clinicCommon = { clock = true }
 end
 
+-- 침대 머리 쪽 헤드월 유닛 (산소 · 석션 · 콘센트 · 조명 · 호출). pcf = 유닛 앞면 가운데 바닥 (+Z 침대 쪽)
+local function headwall(K: any, pcf: CFrame, w: number, h: number, label: string)
+	K:box("HeadwallPanel", V3(w, h, 0.35), pcf * CF(0, h / 2, -0.175), lk(244, 244, 240))
+	K:box("HeadwallWood", V3(w, 1.2, 0.37), pcf * CF(0, 2.6, -0.17), lk(196, 166, 126, M.Wood))
+	K:box("HeadwallRail", V3(w - 0.2, 0.7, 0.2), pcf * CF(0, h - 0.9, 0.08), lk(230, 232, 232, M.Plastic))
+	local lamp = K:box("HeadwallLamp", V3(w - 0.6, 0.06, 0.12), pcf * CF(0, h - 1.2, 0.12), col(C3(255, 240, 214), M.Neon))
+	-- 산소 (초록) · 석션 (노랑) 아울렛 + 유량계
+	local oc = pcf * CF(-w / 2 + 0.6, h - 0.9, 0.2)
+	K:plate("O2Outlet", 0.42, 0.42, 0.06, oc, col(C3(40, 160, 80), M.Plastic))
+	tx(K, "O2Label", 0.36, 0.14, oc * CF(0, 0.3, 0.02), "O₂", WHITE, C3(40, 160, 80), { d = 0.005 })
+	K:vcyl("O2Flowmeter", 0.7, 0.18, oc * CF(0, -0.55, 0.25), { c = C3(220, 240, 230), m = M.Glass, t = 0.35 })
+	K:ball("O2Ball", 0.1, oc * CF(0, -0.45, 0.25), col(C3(240, 240, 240)))
+	K:vcyl("O2Humidifier", 0.5, 0.32, oc * CF(0, -1.1, 0.28), { c = C3(210, 236, 246), m = M.Glass, t = 0.4 })
+	local sc = pcf * CF(-w / 2 + 1.25, h - 0.9, 0.2)
+	K:plate("SuctionOutlet", 0.42, 0.42, 0.06, sc, col(C3(240, 200, 40), M.Plastic))
+	K:vcyl("SuctionCanister", 0.8, 0.45, sc * CF(0, -0.8, 0.3), { c = C3(236, 240, 242), m = M.Glass, t = 0.35 })
+	K:vcyl("SuctionLid", 0.08, 0.48, sc * CF(0, -0.36, 0.3), lk(60, 120, 200, M.Plastic))
+	for k = 0, 1 do
+		local pc = pcf * CF(w / 2 - 0.55 - k * 0.5, h - 0.9, 0.18)
+		K:plate("PowerOutlet", 0.36, 0.42, 0.04, pc, lk(250, 250, 250, M.Plastic))
+		K:disc("PowerSocket", 0.18, 0.02, pc * CF(0, 0, 0.05) * ANG(PI / 2, 0, 0), lk(220, 220, 216))
+	end
+	-- 간호사 호출 (빨간 버튼 + 줄)
+	local cc = pcf * CF(w / 2 - 1.6, h - 0.9, 0.2)
+	K:plate("NurseCallPlate", 0.5, 0.5, 0.05, cc, lk(250, 250, 250, M.Plastic))
+	K:disc("NurseCallBtn", 0.26, 0.06, cc * CF(0, 0, 0.07) * ANG(PI / 2, 0, 0), col(C3(220, 40, 40), M.Neon))
+	K:seg("NurseCallCord", (cc * CF(0, -0.25, 0.1)).Position, (cc * CF(0.2, -2.2, 0.6)).Position, 0.04, lk(240, 240, 240, M.Plastic))
+	K:box("NurseCallPendant", V3(0.25, 0.5, 0.16), cc * CF(0.2, -2.45, 0.6), lk(240, 240, 240, M.Plastic))
+	-- 환자 명패
+	tx(K, "PatientCard", 1.4, 0.55, pcf * CF(0, 3.35, 0.01), label, INK, C3(250, 250, 246), { font = FONT_M, d = 0.01 })
+	return lamp
+end
+
+-- 오버베드 테이블 (pcf 바닥, +Z = 침대 쪽)
+local function overbedTable(K: any, pcf: CFrame, top: number?)
+	local tp = top or 3.2
+	K:box("OBTBase", V3(0.25, 0.15, 2.2), pcf * CF(-1.0, 0.25, 0), lk(200, 204, 206, M.Metal))
+	K:box("OBTBase2", V3(1.4, 0.15, 0.25), pcf * CF(-0.4, 0.25, -1.0), lk(200, 204, 206, M.Metal))
+	for _, z in { -1.0, 1.0 } do
+		K:ball("OBTCaster", 0.2, pcf * CF(-1.0, 0.1, z), LK.black)
+	end
+	K:ball("OBTCaster", 0.2, pcf * CF(0.2, 0.1, -1.0), LK.black)
+	K:box("OBTColumn", V3(0.2, tp - 0.3, 0.2), pcf * CF(-1.0, 0.3 + (tp - 0.3) / 2, -0.9), LK.chrome)
+	K:box("OBTTop", V3(2.6, 0.12, 1.3), pcf * CF(0, tp, -0.3), lk(196, 166, 126, M.Wood))
+	K:box("OBTEdge", V3(2.62, 0.06, 1.32), pcf * CF(0, tp - 0.08, -0.3), lk(230, 232, 232, M.Plastic))
+	-- 환자식 식판 (죽 · 반찬 · 물)
+	K:box("MealTray", V3(1.5, 0.08, 0.95), pcf * CF(0.2, tp + 0.1, -0.3), lk(250, 244, 230, M.Plastic))
+	K:vcyl("MealBowl", 0.25, 0.5, pcf * CF(-0.15, tp + 0.26, -0.3), lk(250, 250, 250))
+	K:disc("MealPorridge", 0.42, 0.02, pcf * CF(-0.15, tp + 0.38, -0.3), lk(244, 232, 200))
+	K:vcyl("MealSide", 0.12, 0.3, pcf * CF(0.45, tp + 0.2, -0.5), lk(250, 250, 250))
+	K:disc("MealKimchi", 0.24, 0.02, pcf * CF(0.45, tp + 0.27, -0.5), col(C3(200, 60, 40)))
+	K:vcyl("MealSide", 0.12, 0.3, pcf * CF(0.45, tp + 0.2, -0.1), lk(250, 250, 250))
+	K:disc("MealVeg", 0.24, 0.02, pcf * CF(0.45, tp + 0.27, -0.1), col(C3(90, 150, 60)))
+	K:box("MealSpoon", V3(0.06, 0.02, 0.6), pcf * CF(0.75, tp + 0.15, -0.3), LK.chrome)
+end
+
+-- 보호자 간이침대 (접이식 비닐 소파베드), pcf 바닥, 길이 방향 = Z
+local function guardianBed(K: any, pcf: CFrame)
+	local vl = lk(46, 62, 92, M.Leather)
+	K:box("GBFrame", V3(2.4, 0.12, 6.0), pcf * CF(0, 1.0, 0), lk(170, 176, 182, M.Metal))
+	for _, sz in { -2.7, 2.7 } do
+		for _, sx in { -1.0, 1.0 } do
+			K:seg("GBLeg", pcf * V3(sx, 0.95, sz), pcf * V3(sx, 0.05, sz), 0.1, lk(170, 176, 182, M.Metal))
+		end
+	end
+	for i = 0, 2 do
+		K:slab("GBCushion", 2.4, 1.95, 0.45, 0.15, pcf * CF(0, 1.3, -2.0 + i * 2.0), vl)
+	end
+	K:box("GBBlanket", V3(2.3, 0.2, 1.2), pcf * CF(0, 1.62, 2.2), lk(230, 210, 160, M.Fabric))
+	K:ell("GBPillow", V3(1.4, 0.3, 0.8), pcf * CF(0, 1.66, -2.4), lk(250, 250, 250, M.Fabric))
+end
+
+-- 병실 화장실 (칸막이 + 문 + 변기 · 세면대 · 손잡이 · 비상벨). 반환 문 Model, 경첩
+local function wardBathroom(K: any, x0: number, x1: number, z0: number, z1: number, doorSide: string, doorU: number)
+	local V = K.V
+	local H = V.H
+	local t = 0.4
+	-- 칸막이: doorSide = "x" (x = xEdge 벽에 문) — 칸 안쪽은 (x0..x1, z0..z1)
+	local xEdge = if doorSide == "xmin" then x0 else x1
+	local dz0, dz1 = doorU - 1.6, doorU + 1.6
+	local doorInfo
+	K:free(function()
+		local inner = col(C3(236, 240, 240), M.SmoothPlastic)
+		-- z0 쪽 벽 (침대 방향)
+		K:box("BathWall", V3(x1 - x0, H, t), CF((x0 + x1) / 2, H / 2, z0), lk(242, 242, 238))
+		-- 문 쪽 벽 (구멍)
+		local function wz(a: number, b: number, y0: number, y1: number)
+			if b - a > 0.05 then
+				K:box("BathWall", V3(t, y1 - y0, b - a), CF(xEdge, (y0 + y1) / 2, (a + b) / 2), lk(242, 242, 238))
+			end
+		end
+		wz(z0 - t / 2, dz0, 0, H)
+		wz(dz1, z1, 0, H)
+		wz(dz0, dz1, 7.0, H)
+		K:box("BathJamb", V3(t + 0.1, 7.0, 0.14), CF(xEdge, 3.5, dz0), LK.alu)
+		K:box("BathJamb", V3(t + 0.1, 7.0, 0.14), CF(xEdge, 3.5, dz1), LK.alu)
+		K:box("BathHead", V3(t + 0.1, 0.14, dz1 - dz0 + 0.14), CF(xEdge, 7.0, doorU), LK.alu)
+		-- 안쪽: 타일 벽 · 바닥
+		K:box("BathFloor", V3(x1 - x0 - t, 0.03, z1 - z0 - t), CF((x0 + x1) / 2, 0.025, (z0 + z1) / 2), lk(196, 200, 204, M.CeramicTiles))
+		-- 변기 (안쪽 벽 쪽)
+		local tx0 = if doorSide == "xmin" then x1 - 1.8 else x0 + 1.8
+		local tz = z1 - 1.2
+		local tcf = CF(tx0, 0, tz) * ANG(0, PI, 0)
+		K:box("ToiletTank", V3(1.5, 1.4, 0.6), tcf * CF(0, 2.4, -0.8), lk(250, 250, 250))
+		K:box("ToiletBase", V3(0.9, 1.3, 1.2), tcf * CF(0, 0.65, 0), lk(250, 250, 250))
+		K:ell("ToiletBowl", V3(1.3, 0.5, 1.7), tcf * CF(0, 1.35, 0.15), lk(250, 250, 250))
+		K:ell("ToiletSeat", V3(1.35, 0.12, 1.75), tcf * CF(0, 1.62, 0.15), lk(240, 240, 238))
+		K:box("ToiletLid", V3(1.3, 1.3, 0.1), tcf * CF(0, 2.3, -0.48), lk(244, 244, 242))
+		-- 안전 손잡이 (변기 옆 L 자) · 비상벨
+		local gx = tx0 + (if doorSide == "xmin" then 1.2 else -1.2)
+		K:seg("GrabBar", Vector3.new(gx, 2.4, tz - 1.0), Vector3.new(gx, 2.4, tz + 0.8), 0.14, LK.chrome)
+		K:seg("GrabBar", Vector3.new(gx, 2.4, tz - 1.0), Vector3.new(gx, 4.4, tz - 1.0), 0.14, LK.chrome)
+		K:box("BathCallBox", V3(0.1, 0.5, 0.4), CF(gx + (if doorSide == "xmin" then 0.4 else -0.4), 3.6, tz + 0.6), col(C3(220, 40, 40)))
+		K:seg("BathCallCord", Vector3.new(gx, 3.4, tz + 0.6), Vector3.new(gx, 0.8, tz + 0.6), 0.04, col(C3(220, 40, 40)))
+		-- 세면대 + 거울
+		local sx = (x0 + x1) / 2 + (if doorSide == "xmin" then 0.6 else -0.6)
+		K:box("BathBasin", V3(1.6, 0.4, 1.1), CF(sx, 2.7, z0 + t / 2 + 0.55), lk(250, 250, 250))
+		K:vcyl("BathTap", 0.4, 0.1, CF(sx, 3.1, z0 + t / 2 + 0.2), LK.chrome)
+		K:box("BathMirror", V3(1.6, 1.8, 0.04), CF(sx, 4.6, z0 + t / 2 + 0.03), Look.mirror)
+		K:box("BathLamp", V3(1.2, 0.06, 0.4), CF((x0 + x1) / 2, H - 0.05, (z0 + z1) / 2), col(C3(255, 244, 226), M.Neon))
+		-- 문 바깥 표지
+		local sgn = if doorSide == "xmin" then -1 else 1
+		tx(K, "BathSign", 1.6, 0.5, faceCF(Vector3.new(xEdge + sgn * (t / 2 + 0.02), 7.6, doorU), Vector3.new(sgn, 0, 0)), "화장실 · WC", WHITE, TEAL, { font = FONT_K, free = true })
+		doorInfo = { x = xEdge, z0 = dz0, z1 = dz1, sgn = sgn }
+		_ = inner
+	end)
+	local m = K:group("BathDoor", function()
+		K:free(function()
+			local zc = (dz0 + dz1) / 2
+			K:box("BathDoorLeaf", V3(0.14, 6.85, dz1 - dz0 - 0.12), CF(xEdge, 3.45, zc), lk(236, 232, 224, M.SmoothPlastic))
+			K:box("BathDoorHandle", V3(0.3, 0.12, 0.5), CF(xEdge + doorInfo.sgn * 0.12, 3.4, dz1 - 0.55), LK.chrome)
+			K:box("BathDoorLouver", V3(0.15, 0.5, (dz1 - dz0) * 0.6), CF(xEdge, 0.6, zc), lk(200, 196, 188))
+			tx(K, "BathDoorStatus", 0.8, 0.25, faceCF(Vector3.new(xEdge + doorInfo.sgn * 0.09, 4.4, dz1 - 0.55), Vector3.new(doorInfo.sgn, 0, 0)), "비어 있음", C3(40, 160, 80), WHITE, { d = 0.01, free = true })
+		end)
+	end)
+	local hinge = (K.cf * CF(xEdge, 0, dz0 + 0.06)).Position
+	return m, hinge, doorInfo
+end
+
+-- 가로 블라인드 (창 앞, 반쯤 내림) + 올리기/내리기
+local function blinds(K: any, x0: number, x1: number, z: number, yTop: number, yLow: number, object: string)
+	local slats = {}
+	local n = math.floor((yTop - yLow) / 0.22)
+	local w = x1 - x0
+	local cx = (x0 + x1) / 2
+	K:free(function()
+		K:box("BlindHeadrail", V3(w, 0.3, 0.5), CF(cx, yTop + 0.15, z), lk(240, 240, 238, M.Metal))
+		for i = 1, n do
+			local s = K:box("BlindSlat", V3(w - 0.1, 0.03, 0.42), CF(cx, yTop - i * 0.22, z) * ANG(math.rad(-25), 0, 0), lk(236, 238, 236, M.Metal))
+			table.insert(slats, s)
+		end
+		local br = K:box("BlindBottomRail", V3(w - 0.1, 0.08, 0.45), CF(cx, yTop - n * 0.22 - 0.1, z), lk(220, 222, 222, M.Metal))
+		table.insert(slats, br)
+		for _, x in { x0 + 1.0, x1 - 1.0 } do
+			K:seg("BlindCord", Vector3.new(x, yTop, z + 0.26), Vector3.new(x, yTop - n * 0.22 - 1.2, z + 0.26), 0.03, lk(240, 240, 240))
+		end
+	end)
+	local base = {}
+	for i, s in slats do
+		base[i] = s.CFrame
+	end
+	local tab = slats[#slats]
+	if not tab then
+		return
+	end
+	return Interact.toggle(K, tab, {
+		object = object,
+		state = false,
+		onText = "블라인드 내리기",
+		offText = "블라인드 올리기",
+		sound = "rbxasset://sounds/swoosh.wav",
+		on = function(up: boolean)
+			for i, s in slats do
+				if s.Parent then
+					local target = if up then base[i] + K.cf.UpVector * ((i / #slats) * (yTop - yLow) * 0.92) else base[i]
+					TweenService:Create(s, TweenInfo.new(0.8, Enum.EasingStyle.Quad), { CFrame = target }):Play()
+				end
+			end
+		end,
+	})
+end
+
+-- 2F 입원실 201 · 202 -----------------------------------------------------------------------------------------------
+BUILD.ward = function(K: any, V: any)
+	local is201 = V.room == "ward201"
+	local roomNo = if is201 then "201" else "202"
+	-- 문 (구멍) 위치: Door_입원실 모델의 Jamb
+	local jx = {}
+	for _, r in V.byName.Jamb or {} do
+		local p = r.part.Parent
+		if p and string.find(p.Name, "입원실") then
+			table.insert(jx, r.c.X)
+		end
+	end
+	table.sort(jx)
+	local doorX = if #jx >= 2 then (jx[1] + jx[#jx]) / 2 else (if is201 then -17.3 else 16.6)
+	local doorLeft = doorX < 0
+	-- 침대
+	local seats = {}
+	for _, r in V.byName.BedSeat or {} do
+		table.insert(seats, r)
+	end
+	table.sort(seats, function(a, b)
+		return a.c.X < b.c.X
+	end)
+	local avoid = {}
+	for _, s in seats do
+		local bf, L, W = bedFrame(V, s)
+		local c = bf.Position
+		table.insert(avoid, { c.X - W / 2 - 1.8, c.Z - L / 2 - 1.8, c.X + W / 2 + 1.8, c.Z + L / 2 + 1.2 })
+	end
+	step(K, "ceiling", function()
+		ceilingKit(K, V, { lights = 5, avoid = avoid })
+	end)
+	step(K, "floor", function()
+		floorKit(K, V, { look = lk(206, 182, 148, M.WoodPlanks), grout = lk(160, 136, 104), tile = 1.4, plank = true })
+		baseKit(K, V, { "back", "left", "right", "front" })
+	end)
+	local labels = if is201 then { "201-1  김*수 님\n담당 김선생 · 낙상주의", "201-2  이*희 님\n담당 김선생 · 금식" } else { "202-1  박*민 님\n담당 김선생", "202-2  최*영 님\n담당 김선생 · 알레르기" }
+	local nCurtain = 0
+	for i, seat in seats do
+		step(K, "bed" .. i, function()
+			local bf, L, W = hospitalBed(K, V, seat, { chart = labels[i], blanket = if i == 1 then lk(150, 196, 214, M.Fabric) else lk(196, 220, 170, M.Fabric), remoteSide = if seat.c.X < 0 then 1 else -1 })
+			local bc = bf.Position
+			-- 헤드월 유닛 (머리 뒤)
+			local hw = bf * CF(0, 0, L / 2 + 1.05) * ANG(0, PI, 0)
+			if K:spot(hw * CF(0, 0, -0.2), V3(W + 1.6, 6.8, 0.6), 0) then
+				K:free(function()
+					headwall(K, hw, W + 1.6, 6.8, labels[i])
+				end)
+			end
+			-- 링거 (맵 자리)
+			local iv = nearest(V, "IVPole", seat.c, 8)
+			if iv then
+				for _, q in siblings(V, iv) do
+					if q.name == "IVPole" or q.name == "IVBag" or q.name == "IVLine" or q.name == "IVBase" then
+						hideRec(K, q)
+					end
+				end
+				K:free(function()
+					local drip = ivPole(K, CF(iv.c.X, 0, iv.c.Z), { pump = i == 2, to = (bf * CF(W / 2 - 0.3, seat.max.Y + 0.1, 0.6)).Position })
+					dripAnim(K, drip)
+				end)
+			end
+			-- 사물함 (맵 자리, 냉장 칸)
+			local lc = nearest(V, "BedsideCabinet", seat.c, 8)
+			if lc then
+				for _, q in siblings(V, lc) do
+					if q.name == "BedsideCabinet" or q.name == "BedsideTop" or q.name == "WaterCup" then
+						hideRec(K, q)
+					end
+				end
+				K:free(function()
+					local face = if lc.c.X < seat.c.X then Vector3.xAxis else -Vector3.xAxis
+					bedLocker(K, faceCF(Vector3.new(lc.c.X, 0, lc.c.Z), face), 1.9, 1.9, 2.8, { fridge = true })
+				end)
+			end
+			-- 오버베드 테이블 (사물함 반대쪽 옆에 세워 둠)
+			local side = if lc and lc.c.X > seat.c.X then -1 else 1
+			local ob = bf * CF(side * (W / 2 + 1.6), 0, -1.6) * ANG(0, -side * PI / 2, 0)
+			if K:spot(ob, V3(2.7, 3.4, 2.4), 0) then
+				overbedTable(K, ob, 3.1)
+			end
+			-- 개인 TV (팔걸이 모니터, 침대 옆 위)
+			local tvb = bf * CF(-side * (W / 2 + 0.55), 0, L / 2 - 0.2)
+			K:free(function()
+				K:seg("BedTVArm", (tvb * CF(0, 6.0, 0.4)).Position, (tvb * CF(0, 5.4, -1.6)).Position, 0.12, LK.alu)
+				local tc = tvb * CF(0, 5.2, -1.7) * ANG(0, -side * 0.5, 0) * ANG(math.rad(-12), 0, 0)
+				K:box("BedTV", V3(1.6, 1.0, 0.12), tc, lk(30, 30, 34, M.Plastic))
+				tx(K, "BedTVScreen", 1.45, 0.85, tc * CF(0, 0, 0.065), "카드 TV\n채널 11 · 뉴스", C3(220, 230, 240), C3(20, 40, 70), { glow = 1.0, d = 0.005, free = true })
+			end)
+			-- U 커튼 (발 쪽에 모음)
+			local runs = bedCurtains(K, bf, L, W, { gapX = 1.3, headExt = 0.4 })
+			if runs[1] then
+				nCurtain += 1
+				curtainToggle(K, runs, runs[1].tab, string.format("%s-%d 침대 커튼", roomNo, i), 0.12)
+			end
+			-- 보호자 간이침대 (바깥쪽)
+			local gx = if seat.c.X < 0 then V.x0 + 2.2 else V.x1 - 2.2
+			local gp = CF(gx, 0, bc.Z - 0.5)
+			if math.abs(gx - bc.X) > W / 2 + 3.6 and K:spot(gp, V3(2.6, 2.0, 6.2), 0) then
+				guardianBed(K, gp)
+			end
+		end)
+	end
+	-- 방문객 의자 (Seat, 자리 그대로)
+	step(K, "chairs", function()
+		for _, ch in V.chairs do
+			if ch.seat.name == "Seat" then
+				hideList(K, ch.parts)
+				K:free(function()
+					armChair(K, faceCF(Vector3.new(ch.c.X, 0, ch.c.Z), ch.face), ch.top, LK.vinylMint)
+				end)
+			end
+		end
+	end)
+	-- 옷장 (맵 자리) -------------------------------------------------------------------------------------------
+	step(K, "wardrobe", function()
+		local wr = V:first("Wardrobe")
+		if not wr then
+			return
+		end
+		hideNames(K, { "Wardrobe", "WardrobeSeam" })
+		local pcf, w, d, h = recFrame(wr, Vector3.xAxis)
+		K:free(function()
+			K:box("WardrobeBody", V3(w, h, d), pcf * CF(0, h / 2, 0), lk(232, 220, 200, M.Wood))
+			for k = 0, 1 do
+				local x = -w / 4 + k * w / 2
+				K:plate("WardrobeDoor", w / 2 - 0.08, h - 0.4, 0.04, pcf * CF(x, h / 2, d / 2), lk(214, 190, 150, M.Wood))
+				K:plate("WardrobePull", 0.08, 1.4, 0.06, pcf * CF(x + (if k == 0 then w / 4 - 0.3 else -w / 4 + 0.3), h / 2, d / 2 + 0.04), LK.chrome)
+				tx(K, "WardrobeNo", 0.9, 0.35, pcf * CF(x, h - 0.6, d / 2 + 0.045), string.format("%s-%d", roomNo, k + 1), INK, WHITE, { d = 0.005 })
+			end
+			K:box("WardrobeKick", V3(w - 0.1, 0.3, d - 0.1), pcf * CF(0, 0.15, -0.05), lk(70, 74, 78))
+		end)
+	end)
+	-- 화장실 (방 구석 칸막이) ---------------------------------------------------------------------------------------
+	step(K, "bath", function()
+		local x0, x1, z0, z1, side
+		if is201 then
+			x0, x1, z0, z1, side = 15.2, V.x1, 6.4, V.z1, "xmin"
+		else
+			local wr = V:first("Wardrobe")
+			local wx = if wr then wr.max.X + 0.3 else V.x0 + 3
+			x0, x1, z0, z1, side = wx, wx + 6.8, 6.4, V.z1, "xmax"
+		end
+		local okSpot = K:spot(CF((x0 + x1) / 2, 0, (z0 + z1) / 2), V3(x1 - x0 - 0.2, 2, z1 - z0 - 0.2), 0)
+		if not okSpot then
+			note(K, "ward bath: spot blocked")
+		end
+		-- 화장실 벽면은 공통 부착물이 쓰지 않게
+		wallUse(K, "front", -x1 - 0.3, -x0 + 0.3, 0, V.H)
+		if x1 >= V.x1 - 0.5 then
+			wallUse(K, "right", z0 - 0.3, z1 + 0.3, 0, V.H)
+		end
+		local m, hinge, info = wardBathroom(K, x0, x1, z0, z1, side, (z0 + z1) / 2 + 0.6)
+		if m and hinge and info then
+			Interact.swing(K, m, hinge, Vector3.yAxis, info.sgn * math.rad(95), { object = "병실 화장실", openText = "문 열기", closeText = "문 닫기" })
+		end
+		-- 맵 휴지통 · 호출판이 칸 안에 들면 숨김
+		for _, n in { "Bin", "CallPanel" } do
+			for _, r in V.byName[n] or {} do
+				if r.c.X > x0 - 0.2 and r.c.X < x1 + 0.2 and r.c.Z > z0 - 0.2 then
+					hideRec(K, r)
+				end
+			end
+		end
+		Common.useCeil(K, (x0 + x1) / 2, (z0 + z1) / 2)
+	end)
+	-- 블라인드 (창 앞) ----------------------------------------------------------------------------------------------
+	step(K, "blind", function()
+		hideNames(K, { "Blind", "BlindBox" })
+		blinds(K, V.x0 + 0.3, V.x1 - 0.3, V.z0 + 0.45, V.H - 0.5, 4.6, "병실 블라인드")
+	end)
+	-- 세면대 · 손 소독 · 병실 안내 --------------------------------------------------------------------------------------
+	step(K, "front", function()
+		local su = wallU("front", Vector3.new(if doorLeft then 4.8 else -4.8, 0, 0))
+		local sk = wallFloorNear(K, "front", su, 3.4, 2.2, 3.0, 3, 0)
+		if sk then
+			sinkUnit(K, sk, 3.4, 2.2, 3.0, {})
+		end
+		local du = wallU("front", Vector3.new(doorX + (if doorLeft then 3.2 else -3.2), 0, 0))
+		local d = wallSpot(K, "front", 1.0, 3.6, 5.0, du, 0.6)
+		if d then
+			sanitizerWall(K, d)
+		end
+		local d2 = wallSpot(K, "front", 3.4, 4.8, 7.4, du + (if doorLeft then -2.6 else 2.6), 0.5)
+		if d2 then
+			poster(K, d2, 3.2, 2.5, "입원실 " .. roomNo .. " · 2인실", "면회  평일 18:00~20:00\n주말 10:00~12:00 · 18:00~20:00\n보호자 1인 상주 · 출입 시 손 소독", WHITE, INK, TEAL, WHITE, 0.24)
+		end
+		local d3 = wallSpot(K, "left", 3.0, 4.6, 7.0, 0, 0.6)
+		if d3 then
+			poster(K, d3, 2.8, 2.2, "낙상 예방 수칙", "침대 난간 올리기\n일어날 때 천천히\n밤에는 보호자와 함께\n미끄럼 방지 신발", WHITE, INK, C3(230, 140, 30), WHITE, 0.24)
+		end
+	end)
+	K.clinicCommon = { clock = true }
+end
+
 -- 공통 마감 (방마다 끝에) ------------------------------------------------------------------------------------
 local PLANTS = { "monstera", "ficus", "snake", "olive" }
 
@@ -4071,7 +4448,7 @@ function T.build(K: any, V: any, S: any)
 	K.cf = V2.cf
 	-- 프롬프트 금지 지점: 기본 + 병원 서버 프롬프트 앵커 (접수대 · 진료). DeskBell 은 이 시설에 서버 앵커가 없어 뺌
 	local hp = {}
-	for _, n in { "WaterPurifier", "Bin", "TrashBin", "WorkDesk", "FrontDesk", "HospitalPrompt_desk", "HospitalPrompt_doctor" } do
+	for _, n in { "WaterPurifier", "WorkDesk", "FrontDesk", "HospitalPrompt_desk", "HospitalPrompt_doctor" } do
 		for _, r in V2.byName[n] or {} do
 			table.insert(hp, r.c)
 		end

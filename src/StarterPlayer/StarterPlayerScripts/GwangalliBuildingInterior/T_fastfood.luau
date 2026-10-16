@@ -3213,12 +3213,12 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 		K:cyl("FfSkewer", 1.2, 0.04, sk * CF(0, 0.45, 0) * ANG(0, 0, PI / 2), L.of(214, 182, 130, M.Wood))
 		if i % 4 == 0 then
 			-- 긴 막대 어묵
-			K:cyl("FfEomukStick", 0.62, 0.15, sk * CF(0, 0.12, 0) * ANG(0, 0, PI / 2), L.of(214, 160, 100))
+			K:cyl("FfEomukStick", 0.7, 0.2, sk * CF(0, 0.18, 0) * ANG(0, 0, PI / 2), L.of(214, 160, 100))
 		else
 			-- 지그재그로 접어 꽂은 납작 어묵 3겹
 			for k = 0, 2 do
 				local c = if k % 2 == 0 then L.of(220, 172, 112) else L.of(204, 152, 94)
-				K:ell("FfEomuk", V3(0.4, 0.22, 0.13), sk * CF((k % 2 - 0.5) * 0.08, -0.02 + k * 0.16, 0), c)
+				K:ell("FfEomuk", V3(0.52, 0.3, 0.17), sk * CF((k % 2 - 0.5) * 0.1, 0.0 + k * 0.2, 0), c)
 			end
 		end
 	end

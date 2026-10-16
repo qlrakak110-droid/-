@@ -2518,9 +2518,20 @@ local function buildLobby(K: any, V: any, S: any)
 		K:free(function()
 			K:disc("LobbyDownTrim", 0.8, 0.04, at(R, p[1], p[2], 0, p[3] - 0.02), Look.white)
 			local lens = K:disc("LobbyDownLens", 0.58, 0.03, at(R, p[1], p[2], 0, p[3] - 0.035), Look.lampNeutral)
-			K:light(lens, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 14, Brightness = 0.9, Angle = 80, Color = Look.neutralLight })
+			K:light(lens, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = 1.2, Angle = 90, Color = Look.neutralLight })
 		end)
 	end
+	-- 계단 위 라인 조명 (긴 LED 바 2줄)
+	K:free(function()
+		local lz0, lz1 = R.z0 + 1.0, (if #steps > 0 then steps[1].mx.Z else R.z0 + 10) - 0.4
+		for i, x in { R.cx - 1.6, R.cx + 1.6 } do
+			K:box("StairLineHousing", V3(0.36, 0.08, lz1 - lz0 + 0.1), at(R, x, (lz0 + lz1) / 2, 0, ceilHigh - 0.04), Look.alu)
+			local ln = K:box("StairLineLight", V3(0.26, 0.04, lz1 - lz0), at(R, x, (lz0 + lz1) / 2, 0, ceilHigh - 0.09), Look.lampNeutral)
+			if i == 1 then
+				K:light(ln, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = 1.1, Angle = 140, Color = Look.neutralLight })
+			end
+		end
+	end)
 	K:free(function()
 		K:disc("SmokeDetector", 0.55, 0.14, at(R, R.cx - 1.2, R.z0 + 6.0, 0, ceilHigh - 0.07), Look.white)
 		K:disc("SmokeDetector", 0.55, 0.14, at(R, R.cx - 1.2, R.z1 - 5.0, 0, ceilLow - 0.07), Look.white)

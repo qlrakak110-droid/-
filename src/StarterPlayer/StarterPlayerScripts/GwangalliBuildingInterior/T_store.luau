@@ -318,6 +318,17 @@ local function addHostEstimates(K: any, V: any, kind: string)
 	end
 end
 
+-- 벽 부착물 앞 (depth 만큼) 에 우리 바닥 소품이 서 있지 않은가 (모형 · 화면이 가려지지 않게)
+local function frontClear(K: any, dcf: CFrame, w: number, h: number, depth: number): boolean
+	local mn, mx = K.laabb(dcf * CF(0, 0, depth / 2 + 0.1), V3(w, h, depth))
+	for _, r in K.reserved do
+		if r.kind ~= "front" and K.overlap(mn, mx, r.min, r.max, 0.02) then
+			return false
+		end
+	end
+	return true
+end
+
 -- 프롬프트를 둘 수 있는 자리인가 (맵 서버 앵커 6.5 밖, 다른 프롬프트 2.5 밖)
 local function promptOk(K: any, lp: Vector3): boolean
 	return Interact.canPrompt(K, lp)
@@ -3296,7 +3307,7 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 			end)
 			step(K, "bridge", function()
 				local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 5.6, 5.0, 7.6, 0, function(d: CFrame): boolean
-					return promptOk(K, (d * CF(-2.0, 0, 0)).Position) or promptOk(K, (d * CF(2.0, 0, 0)).Position) or promptOk(K, d.Position)
+					return frontClear(K, d, 5.6, 2.6, 2.0) and (promptOk(K, (d * CF(-2.0, 0, 0)).Position) or promptOk(K, (d * CF(2.0, 0, 0)).Position) or promptOk(K, d.Position))
 				end)
 				if wn and dcf then
 					bridgeModel(K, dcf * CF(0, 0, 0.04), 5.2)

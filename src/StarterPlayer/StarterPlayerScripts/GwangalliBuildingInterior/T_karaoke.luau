@@ -1148,6 +1148,10 @@ local function boothBuild(K: any, V: any, S: any)
 				table.insert(st.buttons, b)
 				K:text("LightPanelKeyText", 0.4, 0.11, fcf(px, 5.2 - i * 0.19, 0.115), MODES[i], { fg = WHITE, font = F.GothamBold, d = 0.004 })
 			end
+			-- 호출 버튼 (인터폰)
+			K:plate("CallPlate", 0.5, 0.6, 0.05, fcf(px, 4.05, 0.0), lk(rgb(236, 236, 232)))
+			wdisc(K, "CallButton", 0.24, 0.06, fcf(px, 4.12, 0.05), lk(rgb(220, 30, 40)))
+			K:text("CallLabel", 0.44, 0.1, fcf(px, 3.86, 0.055), "호출 · 비상", { fg = rgb(30, 30, 36), font = F.GothamBold, d = 0.004 })
 		end)
 		-- 코인기 (동전 · 지폐 투입 + 남은 시간): 밖의 KaraokePanel 바로 뒤
 		local cx = px - 1.4
@@ -1703,7 +1707,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 		if disp then
 			front = math.min(front, disp.min.X)
 		end
-		front -= 0.08
+		front -= 0.25
 		local back = xR - 0.02
 		local depth = back - front
 		local w = mx.Z - mn.Z + 0.12
@@ -1741,7 +1745,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 				{ rgb(240, 240, 240), "pet", "1,000" }, { rgb(40, 160, 70), "can", "1,400" }, { rgb(250, 120, 30), "pet", "1,800" },
 				{ rgb(120, 60, 30), "can", "1,500" }, { rgb(230, 230, 240), "can", "1,300" }, { rgb(200, 40, 140), "pet", "1,700" },
 			}
-			local px = wf - 0.12
+			local px = wf - 0.16
 			for rI = 0, rows - 1 do
 				local y = wy0 + rI * rh + 0.1
 				K:box("VendShelf", V3(0.3, 0.04, wz1 - wz0), CF(wf - 0.15, y - 0.02, (wz0 + wz1) / 2), lk(rgb(200, 204, 210), M.Metal))
@@ -1807,7 +1811,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 				K:box("SideTableCatalog", V3(0.7, 0.12, 0.9), pcf * CF(-0.2, 2.1, -0.1) * ANG(0, 0.3, 0), lk(rgb(88, 22, 168)))
 			end
 			-- 왼쪽 끝 큰 화분
-			local px, pz = sofaR.min.X - 1.4, sofaR.min.Z - 0.8
+			local px, pz = sofaR.min.X - 1.4, math.min(sofaR.min.Z - 0.8, 9.3)
 			local pp = CF(px, 0, pz)
 			if K:spot(pp, V3(1.6, 4.6, 1.6), 0.05) then
 				Props.floorPlant(K, pp, { kind = "snake", h = 4.4, dia = 1.3, pot = lk(rgb(30, 30, 34), M.Concrete) })
@@ -1884,15 +1888,15 @@ local function lobbyBuild(K: any, V: any, S: any)
 					K:bar("StaffWorktopBracket", V3(fx, wtY - 0.9, z), V3(wtFront - 0.2, wtY - 0.16, z), 0.08, 0.08, CHROME)
 				end
 				-- 위 열린 선반 2단 + 상자
-				for _, sy in { 4.55, 5.75 } do
+				for _, sy in { 4.55, 5.6 } do
 					K:box("StaffShelf", V3(fx - mn.X - 0.1, 0.08, w - 0.2), CF((mn.X + fx) / 2, sy, zc), carcass)
 				end
 				local boxes = { { rgb(240, 240, 236), "마이크 커버" }, { rgb(30, 30, 30), "AA 건전지" }, { rgb(80, 170, 220), "물티슈" }, { rgb(240, 200, 60), "탬버린" } }
 				for k, b in boxes do
 					local z = mn.Z + 0.6 + (k - 1) * ((w - 1.2) / (#boxes - 1))
-					local y = if k % 2 == 0 then 5.79 else 4.59
-					K:box("StaffBox", V3(1.0, 0.8, 1.1), CF(fx - 0.6, y + 0.4, z), lk(b[1], M.Cardboard))
-					K:text("StaffBoxLabel", 0.9, 0.3, faceCF(V3(fx - 0.1 + 0.001, y + 0.45, z), V3(1, 0, 0)), b[2], { fg = if k == 2 then WHITE else rgb(30, 30, 30), font = F.GothamBold, d = 0.004 })
+					local y = if k % 2 == 0 then 5.64 else 4.59
+					K:box("StaffBox", V3(1.0, 0.68, 1.1), CF(fx - 0.6, y + 0.34, z), lk(b[1], M.Cardboard))
+					K:text("StaffBoxLabel", 0.9, 0.28, faceCF(V3(fx - 0.1 + 0.001, y + 0.36, z), V3(1, 0, 0)), b[2], { fg = if k == 2 then WHITE else rgb(30, 30, 30), font = F.GothamBold, d = 0.004 })
 				end
 				K:text("StaffOnly", 1.8, 0.36, faceCF(V3(fx + 0.02, h - 0.35, zc), V3(1, 0, 0)), "STAFF ONLY", { fg = WHITE, bg = rgb(200, 30, 40), font = F.GothamBlack, d = 0.02 })
 			end)
@@ -1910,7 +1914,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 				K:free(function()
 					K:rbox("SterBody", V3(sh, smx.X - smn.X + 0.04, sw + 0.04), 0.08, CF(sc) * ANG(0, 0, PI / 2), lk(rgb(240, 240, 244)))
 					K:plate("SterWindowFrame", sw - 0.2, sh - 0.7, 0.03, f0 * CF(0, -0.2, 0), lk(rgb(30, 30, 36)))
-					uv = K:plate("SterUVLamp", sw - 0.36, sh - 0.86, 0.02, f0 * CF(0, -0.2, 0.0), lk(rgb(120, 70, 220), M.Neon, { t = 0.35 }))
+					uv = K:plate("SterUVLamp", sw - 0.36, sh - 0.86, 0.02, f0 * CF(0, -0.2, 0.03), lk(rgb(120, 70, 220), M.Neon, { t = 0.35 }))
 					for k = 0, 3 do
 						local z = -sw / 2 + 0.4 + k * (sw - 0.8) / 3
 						K:seg("SterMic", (f0 * CF(z, 0.25, 0.06)).Position, (f0 * CF(z, -0.6, 0.06)).Position, 0.16, lk(rgb(40, 40, 46)))
@@ -2106,7 +2110,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 	-- 10) 방 현황판 (실시간: Booth_NN 의 KRenter) ---------------------------------------------------------------
 	step(K, "status", function()
 		local arch = first("ArchLintel")
-		local bx = (if arch then arch.min.X else -6.1) - 1.75
+		local bx = (if arch then arch.min.X else -6.1) - 1.95
 		local y0, y1 = 3.6, 8.7
 		local f0 = faceCF(V3(bx, 0, zB + 0.02), V3(0, 0, 1))
 		local rows = {}
@@ -2330,7 +2334,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 		-- 왼벽 앞쪽
 		Props.frame(K, wcf("L", zN, 6.4, 0.02), 1.4, 1.9, { frame = Look.goldMetal, text = "노래연습장업\n등록증\n\n광안 코인노래연습장\n\n부산광역시 수영구청장", fg = rgb(40, 40, 40), textH = 0.92, border = 0.07, depth = 0.05 })
 		K:text("YouthNotice", 1.9, 1.15, wcf("L", zN, 4.35, 0.02), "청소년 출입시간 안내\n09:00 ~ 22:00\n(보호자 동반 시 제외)", { fg = rgb(30, 30, 36), bg = rgb(255, 236, 120), font = F.GothamBold, d = 0.03 })
-		K:text("CCTVNotice", 1.2, 0.5, wcf("L", zN - 1.8, 4.2, 0.02), "CCTV 녹화 중\n24시간 무인 운영", { fg = WHITE, bg = rgb(190, 30, 40), font = F.GothamBlack, d = 0.03 })
+		K:text("CCTVNotice", 1.3, 0.5, wcf("L", zN, 3.42, 0.02), "CCTV 녹화 중 · 24시간 무인", { fg = WHITE, bg = rgb(190, 30, 40), font = F.GothamBlack, d = 0.03 })
 		-- 오른벽: 가격 간판 아래 요금 변경 안내
 		local sign = nil
 		for _, r in V.parts do
@@ -2355,7 +2359,7 @@ local function lobbyBuild(K: any, V: any, S: any)
 		K:free(function()
 			if guide then
 				local gx = (guide.min.X + guide.max.X) / 2
-				K:text("GuideUpdate", guide.max.X - guide.min.X, 0.7, wcf("B", gx, math.max(2.3, guide.min.Y - 0.5), 0.09), "※ 지금은 시간제 운영 (30분 500원)\n방 잡기 = 복도 문 옆 패널", { fg = rgb(20, 20, 26), bg = rgb(255, 230, 90), font = F.GothamBold, d = 0.02 })
+				K:text("GuideUpdate", guide.max.X - guide.min.X, 0.7, wcf("B", gx, math.max(2.3, guide.min.Y - 0.5), 0.13), "※ 지금은 시간제 운영 (30분 500원)\n방 잡기 = 복도 문 옆 패널", { fg = rgb(20, 20, 26), bg = rgb(255, 230, 90), font = F.GothamBold, d = 0.02 })
 			end
 			local arch = first("ArchLintel")
 			local ex = (if arch then arch.max.X else 6.1) + 2.2

@@ -1008,19 +1008,28 @@ local function listBoard(K: any, dcf: CFrame, w: number, h: number, style: strin
 	for i, r in rows do
 		local yc = y - rh * (i - 0.5)
 		local x0 = -w / 2 + 0.22
+		local dotW = 0
 		if r[5] then
 			wdisc(K, "BoardDot", rh * 0.46, 0.02, dcf * CF(x0 + rh * 0.23, yc, 0), 0.06, { c = r[5], m = M.SmoothPlastic })
-			x0 += rh * 0.62
+			dotW = rh * 0.62
 		end
-		local nameW = if hasMid then w * 0.4 else w * 0.62
+		x0 += dotW
+		-- 열: 이름 | 스타일 | ABV | 가격 (가격은 오른쪽 끝 정렬)
+		local priceW = w * 0.15
+		local abvW = w * 0.09
+		local priceR = w / 2 - 0.22
+		local abvR = priceR - priceW - 0.1
+		local nameW = if hasMid then w * 0.38 else (priceR - priceW - 0.15) - x0
 		K:text("BoardItem", nameW, rh * 0.6, dcf * CF(x0 + nameW / 2, yc, z), r[1], { fg = st.fg, glow = st.glow, align = "Left", font = st.font, d = 0.01 })
 		if r[2] then
-			K:text("BoardStyle", w * 0.24, rh * 0.44, dcf * CF(-w / 2 + 0.22 + rh * 0.62 + nameW + 0.1 + w * 0.12, yc, z), r[2], { fg = st.dim, glow = st.glow, align = "Left", font = st.font, d = 0.01 })
+			local sx0 = x0 + nameW + 0.08
+			local sw = math.max(0.4, (abvR - abvW - 0.08) - sx0)
+			K:text("BoardStyle", sw, rh * 0.42, dcf * CF(sx0 + sw / 2, yc, z), r[2], { fg = st.dim, glow = st.glow, align = "Left", font = st.font, d = 0.01 })
 		end
 		if r[3] and r[3] ~= "" then
-			K:text("BoardABV", w * 0.1, rh * 0.48, dcf * CF(w / 2 - 0.22 - w * 0.17 - 0.1 - w * 0.05, yc, z), r[3], { fg = st.dim, glow = st.glow, align = "Right", font = st.font, d = 0.01 })
+			K:text("BoardABV", abvW, rh * 0.46, dcf * CF(abvR - abvW / 2, yc, z), r[3], { fg = st.dim, glow = st.glow, align = "Right", font = st.font, d = 0.01 })
 		end
-		K:text("BoardPrice", w * 0.17, rh * 0.58, dcf * CF(w / 2 - 0.22 - w * 0.085, yc, z), r[4], { fg = acc, glow = st.glow, align = "Right", font = F.GothamBold, d = 0.01 })
+		K:text("BoardPrice", priceW, rh * 0.58, dcf * CF(priceR - priceW / 2, yc, z), r[4], { fg = acc, glow = st.glow, align = "Right", font = F.GothamBold, d = 0.01 })
 	end
 	if foot then
 		K:text("BoardFoot", w * 0.9, footH, dcf * CF(0, -h / 2 + 0.12 + footH / 2, z), foot, { fg = st.dim, glow = st.glow, font = st.font, d = 0.01 })
