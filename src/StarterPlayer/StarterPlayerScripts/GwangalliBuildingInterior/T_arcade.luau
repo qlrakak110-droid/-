@@ -351,7 +351,7 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, o: any)
 	if o.tag then
 		txt(K, "PosterTag", w * 0.5, h * 0.07, dcf * CF(-w * 0.2, -h * 0.46, 0.04), o.tag, rgb(230, 230, 230), nil, F.Gotham)
 	end
-	K:plate("PosterAcrylic", w + 0.06, h + 0.06, 0.02, dcf * CF(0, 0, 0.05), gl(rgb(240, 244, 248), 0.9))
+	K:plate("PosterEdge", w + 0.08, h + 0.08, 0.02, dcf * CF(0, 0, -0.005), Look.alu)
 end
 
 -- 안내문 (흰 판 + 색 머리띠 + 본문): dcf, w, h, title, body, head 색
@@ -789,7 +789,9 @@ local function gachaStack(K: any, pcf: CFrame, themes: { any }, seed: number): a
 		local u = pcf * CF(0, y0, 0)
 		K:box("GachaFrame", V3(1.7, 2.2, 1.6), u * CF(0, 1.1, 0), lk(lt(col, 0.1)))
 		-- 위 반: 투명 창 + 캡슐
-		K:box("GachaWindow", V3(1.36, 0.95, 0.05), u * CF(0, 1.62, 0.81), gl(rgb(240, 246, 250), 0.7))
+		K:box("GachaInner", V3(1.36, 0.95, 0.04), u * CF(0, 1.62, 0.4), lk(rgb(250, 250, 248)))
+		K:box("GachaWindow", V3(1.36, 0.95, 0.05), u * CF(0, 1.62, 0.81), gl(rgb(240, 246, 250), 0.85))
+		K:box("GachaWindowRim", V3(1.5, 0.08, 0.06), u * CF(0, 2.13, 0.82), Look.chrome)
 		for j = 0, (if lowD(K) then 2 else 3) do
 			local cc = CARPET_COLS[(seed + lvl * 5 + j) % #CARPET_COLS + 1]
 			K:ball("GachaCapsule", 0.38, u * CF(-0.48 + (j % 3) * 0.48, 1.33 + (j // 3) * 0.36, 0.55 - (j % 2) * 0.15), lk(cc))
@@ -2613,6 +2615,17 @@ local function buildBowArcade(K: any, V: any, S: any)
 			K:box("GZBoothFront", V3(0.16, H, z1 - ob), at(R, x1 - 0.08, (ob + z1) / 2, 0, H / 2), white)
 			K:box("GZBoothHeader", V3(0.16, H - 6.6, ob - oa), at(R, x1 - 0.08, (oa + ob) / 2, 0, 6.6 + (H - 6.6) / 2), white)
 			K:box("GZBoothBand", V3(0.04, 0.4, z1 - z0), at(R, x1 + 0.02, (z0 + z1) / 2, 0, 0.6), lk(rgb(255, 120, 170)))
+			-- 앞면 장식: 아래 핑크 판 · 모서리 네온 · 위 'PHOTO' 네온 · 별 스티커
+			K:box("GZBoothFrontPink", V3(0.03, 2.4, oa - z0 - 0.1), at(R, x1 + 0.025, (z0 + oa) / 2, 0, 1.7), lk(rgb(255, 196, 220)))
+			K:box("GZBoothFrontPink", V3(0.03, 2.4, z1 - ob - 0.1), at(R, x1 + 0.025, (ob + z1) / 2, 0, 1.7), lk(rgb(255, 196, 220)))
+			for _, z in { z0 + 0.05, z1 - 0.05 } do
+				K:box("GZBoothCornerNeon", V3(0.08, H - 0.2, 0.08), at(R, x1 + 0.03, z, 0, H / 2), nl(rgb(255, 90, 170)))
+			end
+			local hd = R.A * CFrame.fromMatrix(V3(x1 + 0.03, 0, (oa + ob) / 2), V3(0, 0, 1), Vector3.yAxis, V3(1, 0, 0))
+			txt(K, "GZBoothNeon", ob - oa + 0.4, 0.75, hd * CF(0, 7.15, 0.02), "♥ PHOTO ♥", rgb(255, 90, 170), nil, F.FredokaOne, 2.0)
+			for j, c in { rgb(255, 220, 80), rgb(120, 220, 255), rgb(255, 140, 200) } do
+				K:plate("GZBoothSticker", 0.4, 0.4, 0.02, hd * CF(-(ob - oa) / 2 - 0.5, 3.0 + j * 0.7, 0.02) * ANG(0, 0, PI / 4), lk(c))
+			end
 			K:box("GZBoothBand", V3(x1 - x0, 0.4, 0.04), at(R, (x0 + x1) / 2, z0 - 0.02, 0, 0.6), lk(rgb(255, 120, 170)))
 			-- 옆면 (방 안쪽 z0 면): 가격 · 샘플
 			local sd = R.A * CFrame.fromMatrix(V3((x0 + x1) / 2, 0, z0 - 0.03), V3(-1, 0, 0), Vector3.yAxis, V3(0, 0, -1))
@@ -2698,7 +2711,20 @@ local function buildBowArcade(K: any, V: any, S: any)
 		local tl = lk(rgb(26, 26, 30), M.Metal)
 		for _, z in { z0, z1 } do
 			K:box("GZTruss", V3(x1 - x0, 0.5, 0.5), at(R, (x0 + x1) / 2, z, 0, y), tl)
-			K:box("GZTrussLED", V3(x1 - x0, 0.1, 0.12), at(R, (x0 + x1) / 2, z, 0, y - 0.3), nl(rgb(255, 60, 170)))
+			local led = K:box("GZTrussLED", V3(x1 - x0, 0.1, 0.12), at(R, (x0 + x1) / 2, z, 0, y - 0.3), nl(rgb(255, 60, 170)))
+			K:light(led, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = 0.7, Angle = 150, Color = rgb(255, 150, 210) })
+		end
+		-- 가운데 매달린 LED 사각 등 (에어하키 위)
+		local hk = V:first("HockeyBody")
+		if hk then
+			local c = acen(R, hk)
+			K:box("GZHockeyLamp", V3(4.0, 0.3, 5.5), at(R, c.X, c.Z, 0, 9.0), lk(rgb(26, 26, 30), M.Metal))
+			local lp = K:box("GZHockeyLampFace", V3(3.7, 0.04, 5.2), at(R, c.X, c.Z, 0, 8.84), Look.lampCool)
+			K:light(lp, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 12, Brightness = 1.0, Angle = 110, Color = Look.coolLight })
+			for _, sx in { -1.6, 1.6 } do
+				K:seg("GZHockeyLampRod", ap(R, c.X + sx, 9.15, c.Z), ap(R, c.X + sx, 12.35, c.Z), 0.05, Look.steel)
+			end
+			txt(K, "GZHockeyLampSign", 3.6, 0.28, R.A * CFrame.fromMatrix(V3(c.X, 9.0, c.Z + 2.76), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1)), "AIR HOCKEY · 2인 1,000원", rgb(80, 230, 255), nil, F.GothamBlack, 1.4)
 		end
 		for _, x in { x0, x1 } do
 			K:box("GZTruss", V3(0.5, 0.5, z1 - z0), at(R, x, (z0 + z1) / 2, 0, y), tl)

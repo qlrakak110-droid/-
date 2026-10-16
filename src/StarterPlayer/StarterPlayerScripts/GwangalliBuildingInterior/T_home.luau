@@ -1367,6 +1367,1754 @@ function C:windows()
 	end
 end
 
+-------------------------------------------------------------------------------------------------
+-- 가구 슬롯 덮어씌우기: 기본 가구(Default=true)를 같은 자리 · 같은 높이의 실제 가구로
+--   info (analyze, F 공간: +Z = 가구 정면, -Z = 등 · 벽 쪽, y = 바닥 위 높이)
+-------------------------------------------------------------------------------------------------
+local SLOT: { [string]: (any, any) -> boolean? } = {}
+local BACK = {
+	bed = { "Headboard" }, sofa = { "SofaBack" }, desk = { "Monitor", "ModestyPanel", "MonitorArm" }, chair = { "ChairBack" },
+	tv = { "TV" }, shelf = { "ShelfBack" }, curtain = { "CurtainRail" }, art = { "ArtFrame", "CorkFrame" },
+}
+-- 원래 색을 이어받은 재질
+local function from(r: any?, base: any, mat: Enum.Material?): any
+	if not r then
+		return base
+	end
+	return Look.with(base, { c = r.color, m = mat or base.m })
+end
+local function fab(r: any?, def: Color3?): any
+	return { c = (r and r.color) or def or c3(200, 196, 188), m = M.Fabric }
+end
+
+-- 둥근 쿠션 (F 공간 박스 mn..mx, 앞뒤 모서리 r 로 둥글게)
+local function cushion(K: any, F: CFrame, mn: Vector3, mx: Vector3, r: number, look: any, name: string?, tilt: number?): { BasePart }
+	local c = (mn + mx) / 2
+	local s = mx - mn
+	return K:rbox(name or "HomeCushion", V3(s.X, s.Y, s.Z), math.min(r, s.Y / 2 - 0.01, s.Z / 2 - 0.01), F * CF(c) * ANG(tilt or 0, 0, 0), look)
+end
+-- 옆으로 둥근 쿠션 (좌우 모서리 둥글게: 팔걸이)
+local function cushionZ(K: any, F: CFrame, mn: Vector3, mx: Vector3, r: number, look: any, name: string?): { BasePart }
+	local c = (mn + mx) / 2
+	local s = mx - mn
+	return K:rbox(name or "HomeArm", V3(s.Z, s.Y, s.X), math.min(r, s.Y / 2 - 0.01, s.X / 2 - 0.01), F * CF(c) * ANG(0, PI / 2, 0), look)
+end
+local function boxF(K: any, name: string, F: CFrame, mn: Vector3, mx: Vector3, look: any): BasePart
+	return K:box(name, mx - mn, F * CF((mn + mx) / 2), look)
+end
+
+-- 침대 ------------------------------------------------------------------------------------------
+SLOT.bed = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local mat, frame, head = first(info, "Mattress"), first(info, "BedFrame"), first(info, "Headboard")
+	local duvet, throw, fold = first(info, "Duvet"), first(info, "BedThrow"), first(info, "DuvetFold")
+	if not (mat and frame) then
+		return false
+	end
+	local item = tostring(info.item)
+	local x0, x1, z0, z1 = frame.min.X, frame.max.X, frame.min.Z, frame.max.Z
+	local mt, ft = mat.max.Y, frame.max.Y
+	local hz = if head then head.max.Z else z0
+	local style = if string.find(item, "goshiwon") then "drawer" elseif string.find(item, "platform") then "platform" elseif string.find(item, "king") then "wing" elseif string.find(item, "upholstered") then "uph" else "legs"
+	local frameL = if frame.mat == M.Fabric then fab(frame) else from(frame, L.oak, M.Wood)
+	local sheet = lk(246, 245, 240, M.Fabric)
+	local duvL = fab(duvet, c3(240, 238, 232))
+	local hi = K.detail ~= "low"
+	-- 열린 쪽 (벽이 아닌 쪽)
+	local function openSide(sx: number): boolean
+		local q = (F * CF(if sx > 0 then x1 + 0.7 else x0 - 0.7, 1, (z0 + z1) / 2)).Position
+		return C_:mine(V3(q.X, 0.5, q.Z)) and not C_:insideWall(q)
+	end
+	-- 1) 프레임
+	if style == "drawer" then
+		boxF(K, "HomeBedPlinth", F, V3(x0 + 0.12, 0, hz + 0.12), V3(x1 - 0.12, 0.26, z1 - 0.12), lk(34, 32, 30))
+		boxF(K, "HomeBedFrame", F, V3(x0, 0.26, hz), V3(x1, ft, z1), frameL)
+		for _, sx in { -1, 1 } do
+			if openSide(sx) then
+				local xf = if sx > 0 then x1 else x0
+				local n = 2
+				local len = (z1 - hz - 0.3) / n
+				for i = 1, n do
+					local zc = hz + 0.15 + len * (i - 0.5)
+					local dcf = F * CF(xf + sx * 0.012, (0.26 + ft) / 2, zc) * ANG(0, sx * PI / 2, 0)
+					K:box("HomeBedDrawer", V3(len - 0.06, ft - 0.36, 0.03), dcf, tint(frameL, -0.04))
+					K:box("HomeBedDrawerPull", V3(len * 0.42, 0.06, 0.03), dcf * CF(0, (ft - 0.36) / 2 - 0.1, 0.02), lk(70, 62, 54))
+				end
+			end
+		end
+	elseif style == "platform" then
+		boxF(K, "HomeBedPlinth", F, V3(x0 + 0.3, 0, hz + 0.3), V3(x1 - 0.3, 0.18, z1 - 0.3), lk(30, 30, 32))
+		K:slab("HomeBedPlatform", x1 - x0, z1 - hz, ft - 0.18, 0.12, F * CF((x0 + x1) / 2, (ft + 0.18) / 2, (hz + z1) / 2), frameL)
+		boxF(K, "HomeBedPlatformLED", F, V3(x0 + 0.32, 0.17, z1 - 0.34), V3(x1 - 0.32, 0.2, z1 - 0.3), L.neon(c3(255, 200, 150), 0.2))
+	else
+		local legH = if style == "legs" then 0.55 else 0.32
+		local legL = if style == "legs" then tint(frameL, 0.08) else lk(40, 38, 36, M.Metal)
+		for _, sx in { -1, 1 } do
+			for _, zz in { hz + 0.25, z1 - 0.25 } do
+				local x = if sx > 0 then x1 - 0.25 else x0 + 0.25
+				if style == "legs" then
+					K:box("HomeBedLeg", V3(0.2, legH, 0.2), F * CF(x, legH / 2, zz), legL)
+				else
+					K:vcyl("HomeBedLeg", legH, 0.14, F * CF(x, legH / 2, zz), legL)
+				end
+			end
+		end
+		if style == "legs" then
+			-- 원목 사이드 레일 + 발판
+			for _, sx in { -1, 1 } do
+				local x = if sx > 0 then x1 - 0.09 else x0 + 0.09
+				boxF(K, "HomeBedRail", F, V3(x - 0.09, legH, hz), V3(x + 0.09, ft, z1), frameL)
+			end
+			boxF(K, "HomeBedFootRail", F, V3(x0, legH, z1 - 0.18), V3(x1, ft + 0.08, z1), frameL)
+			boxF(K, "HomeBedSlatBase", F, V3(x0 + 0.18, legH + 0.1, hz), V3(x1 - 0.18, ft - 0.1, z1 - 0.18), lk(60, 52, 44))
+		else
+			K:slab("HomeBedFrame", x1 - x0, z1 - hz, ft - legH, 0.18, F * CF((x0 + x1) / 2, (ft + legH) / 2, (hz + z1) / 2), frameL)
+			if hi then
+				K:slab("HomeBedFrameWelt", x1 - x0 + 0.02, z1 - hz + 0.02, 0.03, 0.19, F * CF((x0 + x1) / 2, ft - 0.03, (hz + z1) / 2), tint(frameL, 0.12))
+			end
+		end
+	end
+	-- 2) 매트리스 (+ 퀼팅 띠) · 침대 시트
+	local mx0, mx1 = x0 + (if style == "legs" then 0.1 else 0.06), x1 - (if style == "legs" then 0.1 else 0.06)
+	local mz0, mz1 = hz + 0.04, z1 - (if style == "legs" then 0.2 else 0.08)
+	local mb = ft - 0.1
+	K:slab("HomeMattress", mx1 - mx0, mz1 - mz0, mt - mb, 0.2, F * CF((mx0 + mx1) / 2, (mt + mb) / 2, (mz0 + mz1) / 2), sheet)
+	if hi then
+		K:slab("HomeMattressBand", mx1 - mx0 + 0.02, mz1 - mz0 + 0.02, 0.05, 0.21, F * CF((mx0 + mx1) / 2, mb + 0.1, (mz0 + mz1) / 2), lk(214, 212, 206, M.Fabric))
+	end
+	-- 3) 이불 (윗판 + 옆으로 늘어진 자락 + 발치 자락) · 접힌 끝단
+	local dz0 = if duvet then math.max(duvet.min.Z, mz0 + 1.2) else mz0 + 1.8
+	local dtop = if duvet then math.min(duvet.max.Y, mt + 0.3) else mt + 0.22
+	local dw = (mx1 - mx0) + 0.18
+	local dcx = (mx0 + mx1) / 2
+	local dlen = (z1 + 0.04) - dz0
+	K:slab("HomeDuvet", dw, dlen, 0.24, 0.12, F * CF(dcx, dtop - 0.12, dz0 + dlen / 2), duvL)
+	local drop = math.max(0.35, dtop - ft + 0.05)
+	for _, sx in { -1, 1 } do
+		if openSide(sx) or style ~= "drawer" then
+			local x = dcx + sx * (dw / 2 - 0.035)
+			K:box("HomeDuvetSide", V3(0.07, drop, dlen - 0.1), F * CF(x, dtop - drop / 2 - 0.04, dz0 + dlen / 2), duvL)
+			K:cyl("HomeDuvetRoll", dlen - 0.12, 0.2, F * CF(x - sx * 0.05, dtop - 0.12, dz0 + dlen / 2) * ANG(0, PI / 2, 0), duvL)
+		end
+	end
+	K:box("HomeDuvetFoot", V3(dw - 0.1, drop, 0.07), F * CF(dcx, dtop - drop / 2 - 0.04, z1 + 0.04), duvL)
+	K:cyl("HomeDuvetFold", dw - 0.04, 0.26, F * CF(dcx, dtop - 0.1, dz0 + 0.05), from(fold, sheet, M.Fabric))
+	if hi then
+		for i = 1, 3 do
+			local rz = dz0 + 0.6 + (dlen - 1.2) * (i - 0.5) / 3
+			local rx = dcx + (rnd(C_.seed, i) - 0.5) * dw * 0.4
+			K:ell("HomeDuvetWrinkle", V3(dw * (0.35 + rnd(C_.seed, i + 4) * 0.2), 0.08, 0.28), F * CF(rx, dtop - 0.005, rz) * ANG(0, (rnd(C_.seed, i + 9) - 0.5) * 0.6, 0), duvL)
+		end
+	end
+	-- 4) 무릎 담요 (발치에 걸쳐서)
+	if throw then
+		local tz = math.clamp(throw.c.Z, dz0 + 0.8, z1 - 0.7)
+		local tl = fab(throw)
+		K:box("HomeThrow", V3(dw + 0.04, 0.07, 1.15), F * CF(dcx, dtop + 0.03, tz) * ANG(0, 0.03, 0), tl)
+		for _, sx in { -1, 1 } do
+			if openSide(sx) or style ~= "drawer" then
+				K:box("HomeThrowDrop", V3(0.06, drop * 0.9, 1.1), F * CF(dcx + sx * (dw / 2 + 0.03), dtop - drop * 0.45, tz), tl)
+			end
+		end
+		if hi then
+			K:box("HomeThrowStripe", V3(dw + 0.06, 0.075, 0.08), F * CF(dcx, dtop + 0.032, tz - 0.4), tint(tl, 0.25))
+			K:box("HomeThrowStripe", V3(dw + 0.06, 0.075, 0.08), F * CF(dcx, dtop + 0.032, tz + 0.4), tint(tl, 0.25))
+		end
+	end
+	-- 5) 베개 (원래 자리) + 고급 등급 장식 쿠션
+	local pillows = all(info, "Pillow")
+	for i, p in pillows do
+		local pw = math.min(p.size.X, (mx1 - mx0) / math.max(1, #pillows) - 0.1)
+		local pd = math.min(p.size.Z, 1.25)
+		local py = mt + 0.22
+		K:ell("HomePillow", V3(pw, 0.44, pd), F * CF(p.c.X, py, math.max(p.c.Z, hz + pd / 2 + 0.05)) * ANG(math.rad(-6), (i - 1.5) * 0.06, 0), sheet)
+		if hi then
+			K:ell("HomePillowSeam", V3(pw + 0.04, 0.06, pd + 0.04), F * CF(p.c.X, py, math.max(p.c.Z, hz + pd / 2 + 0.05)) * ANG(math.rad(-6), (i - 1.5) * 0.06, 0), lk(232, 230, 224, M.Fabric))
+		end
+	end
+	if C_.lux >= 4 and #pillows >= 2 then
+		local cz = hz + 0.45
+		K:rbox("HomeEuroSham", V3(math.min(2.2, (mx1 - mx0) * 0.42), 1.5, 0.35), 0.15, F * CF(dcx - (mx1 - mx0) * 0.24, mt + 0.75, cz) * ANG(math.rad(-12), 0, 0), tint(duvL, 0.08))
+		K:rbox("HomeEuroSham", V3(math.min(2.2, (mx1 - mx0) * 0.42), 1.5, 0.35), 0.15, F * CF(dcx + (mx1 - mx0) * 0.24, mt + 0.75, cz) * ANG(math.rad(-12), 0, 0), tint(duvL, 0.08))
+		K:rbox("HomeCushionAccent", V3(1.2, 0.8, 0.3), 0.12, F * CF(dcx, mt + 0.48, hz + 1.25) * ANG(math.rad(-18), 0, 0), if throw then fab(throw) else lk(150, 120, 90, M.Fabric))
+	end
+	-- 6) 헤드보드
+	if head then
+		local hx0, hx1, hy0, hy1, hz0, hz1 = head.min.X, head.max.X, head.min.Y, head.max.Y, head.min.Z, head.max.Z
+		local hL = if head.mat == M.Fabric then fab(head) else from(head, L.oak, M.Wood)
+		local hw = hx1 - hx0
+		if style == "uph" or style == "wing" then
+			local n = math.max(4, math.floor(hw / 0.55))
+			local cw = hw / n
+			boxF(K, "HomeHeadboardBack", F, V3(hx0, math.max(hy0, 0.3), hz0), V3(hx1, hy1, hz0 + 0.12), tint(hL, 0.1))
+			for i = 1, n do
+				local x = hx0 + cw * (i - 0.5)
+				K:rbox("HomeHeadboardChannel", V3(hy1 - math.max(hy0, 0.3) - 0.1, cw - 0.03, 0.24), 0.11, F * CF(x, (hy1 + math.max(hy0, 0.3)) / 2, hz0 + 0.18) * ANG(0, 0, PI / 2), hL)
+			end
+			K:cyl("HomeHeadboardTop", hw, 0.3, F * CF((hx0 + hx1) / 2, hy1 - 0.1, hz0 + 0.16), hL)
+			if style == "wing" then
+				for _, sx in { -1, 1 } do
+					local x = if sx > 0 then hx1 + 0.05 else hx0 - 0.05
+					K:rbox("HomeHeadboardWing", V3(0.3, hy1 - 0.4, 0.9), 0.12, F * CF(x, (hy1 + 0.4) / 2, hz0 + 0.4) * ANG(0, sx * 0.25, 0), hL)
+				end
+			end
+		elseif style == "platform" then
+			boxF(K, "HomeHeadboard", F, V3(hx0, ft, hz0), V3(hx1, hy1, hz1), tint(hL, 0.05))
+			local n = 3
+			for i = 1, n do
+				local x = hx0 + hw * (i - 0.5) / n
+				K:rbox("HomeHeadboardPad", V3(hw / n - 0.08, hy1 - ft - 0.25, 0.16), 0.08, F * CF(x, (hy1 + ft) / 2, hz1 + 0.06), hL)
+			end
+		else
+			boxF(K, "HomeHeadboard", F, V3(hx0, hy0, hz0), V3(hx1, hy1 - 0.12, hz1), hL)
+			K:cyl("HomeHeadboardCap", hw, hz1 - hz0 + 0.04, F * CF((hx0 + hx1) / 2, hy1 - 0.12, (hz0 + hz1) / 2), hL)
+			if hi then
+				for _, sx in { -1, 1 } do
+					K:box("HomeHeadboardInset", V3(hw / 2 - 0.35, (hy1 - hy0) * 0.42, 0.02), F * CF((hx0 + hx1) / 2 + sx * hw / 4, hy0 + (hy1 - hy0) * 0.62, hz1 + 0.006), tint(hL, 0.07))
+				end
+			end
+		end
+	end
+	return true
+end
+
+-- 소파 ------------------------------------------------------------------------------------------
+SLOT.sofa = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local base, back = first(info, "SofaBase"), first(info, "SofaBack")
+	if not base then
+		return false
+	end
+	local item = tostring(info.item)
+	local boucle = string.find(item, "boucle") ~= nil
+	local fl = fab(base)
+	if boucle then
+		fl = { c = base.color, m = M.Fabric }
+	end
+	local seats = all(info, "SeatCushion", "Seat")
+	local arms = all(info, "SofaArm")
+	local backs = all(info, "BackCushion")
+	local legs = all(info, "SofaLeg")
+	local pillows = all(info, "ThrowPillow")
+	local chaise = first(info, "Chaise")
+	local x0, x1, z0, z1 = base.min.X, base.max.X, base.min.Z, base.max.Z
+	local legH = base.min.Y
+	local seatTop = base.max.Y + 0.4
+	for _, s in seats do
+		seatTop = math.max(seatTop, s.max.Y)
+	end
+	if seatTop > base.max.Y + 0.9 then
+		seatTop = base.max.Y + 0.5
+	end
+	local hi = K.detail ~= "low"
+	-- 프레임 (좌판 받침)
+	K:rbox("HomeSofaBase", V3(x1 - x0, base.max.Y - legH, z1 - z0), if boucle then 0.22 else 0.08, F * CF((x0 + x1) / 2, (base.max.Y + legH) / 2, (z0 + z1) / 2), fl)
+	if boucle then
+		boxF(K, "HomeSofaPlinth", F, V3(x0 + 0.25, 0, z0 + 0.25), V3(x1 - 0.25, legH + 0.02, z1 - 0.25), lk(36, 34, 32))
+	end
+	-- 등받이 프레임
+	if back then
+		local by1 = back.max.Y
+		K:rbox("HomeSofaBack", V3(back.size.X, by1 - back.min.Y - 0.08, back.size.Z), if boucle then 0.3 else 0.12, F * CF(back.c.X, (by1 + back.min.Y - 0.08) / 2, back.c.Z), fl)
+		if boucle then
+			K:cyl("HomeSofaBackRoll", back.size.X - 0.1, back.size.Z + 0.1, F * CF(back.c.X, by1 - 0.2, back.c.Z), fl)
+		end
+	end
+	-- 좌석 쿠션 (사이 틈 + 파이핑)
+	local seatFront = z1
+	for _, s in seats do
+		local mn = V3(s.min.X + 0.03, base.max.Y - 0.02, s.min.Z)
+		local mx = V3(s.max.X - 0.03, seatTop, math.min(z1 + 0.04, s.max.Z + 0.04))
+		cushion(K, F, mn, mx, if boucle then 0.22 else 0.12, fl, "HomeSofaSeat")
+		if hi and not boucle then
+			K:cyl("HomeSofaPiping", (mx.X - mn.X) - 0.08, 0.05, F * CF((mn.X + mx.X) / 2, mx.Y - 0.1, mx.Z - 0.04), tint(fl, 0.15))
+		end
+		seatFront = math.max(seatFront, mx.Z)
+	end
+	if chaise then
+		local mn = V3(chaise.min.X + 0.03, legH, chaise.min.Z)
+		local mx = V3(chaise.max.X - 0.03, chaise.max.Y, chaise.max.Z)
+		cushion(K, F, mn, mx, 0.16, fl, "HomeSofaChaise")
+		for _, sx in { mn.X + 0.2, mx.X - 0.2 } do
+			K:box("HomeSofaLeg", V3(0.14, legH, 0.14), F * CF(sx, legH / 2, mx.Z - 0.25), lk(60, 44, 32, M.Wood))
+		end
+	end
+	-- 등 쿠션 (뒤로 10도)
+	for i, b in backs do
+		local mn = V3(b.min.X + 0.04, seatTop - 0.05, b.min.Z - 0.05)
+		local mx = V3(b.max.X - 0.04, b.max.Y + 0.15, b.max.Z + 0.08)
+		cushion(K, F, mn, mx, 0.2, fl, "HomeSofaBackCushion", math.rad(-9))
+		local _ = i
+	end
+	-- 팔걸이
+	for _, a in arms do
+		local mn = V3(a.min.X, legH, a.min.Z)
+		local mx = V3(a.max.X, a.max.Y, a.max.Z)
+		cushionZ(K, F, mn, mx, if boucle then 0.28 else 0.16, fl, "HomeSofaArm")
+		if hi and not boucle then
+			K:cyl("HomeSofaArmPiping", 0.05, (mx.Z - mn.Z) - 0.1, F * CF((mn.X + mx.X) / 2, mx.Y - 0.12, mx.Z - 0.02) * ANG(0, 0, PI / 2), tint(fl, 0.15))
+		end
+	end
+	-- 다리
+	if not boucle then
+		local legL = if #legs > 0 and legs[1].mat == M.Wood then from(legs[1], L.walnut, M.Wood) else lk(40, 40, 42, M.Metal)
+		for _, l in legs do
+			K:seg("HomeSofaLeg", F * V3(l.c.X, legH, l.c.Z), F * V3(l.c.X + (if l.c.X > (x0 + x1) / 2 then 0.06 else -0.06), 0.02, l.c.Z + (if l.c.Z > (z0 + z1) / 2 then 0.05 else -0.05)), 0.14, legL)
+			K:disc("HomeSofaGlide", 0.12, 0.02, F * CF(l.c.X, 0.01, l.c.Z), L.rubber)
+		end
+	end
+	-- 쿠션 (모서리 둥글고 가운데 오목: 두 겹)
+	for i, p in pillows do
+		local pl = fab(p)
+		local w = math.min(1.35, p.size.X)
+		local cfp = F * CF(p.c.X, seatTop + 0.62, math.max(p.c.Z, (back and back.max.Z or z0) + 0.32)) * ANG(math.rad(-14), (i % 2 == 0) and 0.18 or -0.18, (i % 2 == 0) and 0.08 or -0.08)
+		K:rbox("HomeThrowPillow", V3(w, 1.15, 0.34), 0.16, cfp, pl)
+		if hi then
+			K:rbox("HomeThrowPillowFace", V3(w - 0.3, 0.85, 0.38), 0.14, cfp, tint(pl, -0.04))
+		end
+	end
+	-- 거실 쿠션 위 니트 블랭킷 (고급 등급 · 팔걸이 위)
+	if C_.lux >= 3 and #arms > 0 and hi then
+		local a = arms[1]
+		local bl = if C_.lux >= 5 then lk(196, 182, 160, M.Fabric) else lk(176, 168, 156, M.Fabric)
+		K:box("HomeSofaBlanket", V3(a.size.X + 0.25, 0.08, 1.2), F * CF(a.c.X, a.max.Y + 0.04, a.c.Z + 0.3), bl)
+		K:box("HomeSofaBlanketDrop", V3(0.07, 1.0, 1.1), F * CF(a.c.X + (if a.c.X > 0 then 1 else -1) * (a.size.X / 2 + 0.12), a.max.Y - 0.5, a.c.Z + 0.3), bl)
+	end
+	return true
+end
+
+-- 의자 ------------------------------------------------------------------------------------------
+-- 사무용 의자 (pcf: 바닥, +Z = 앉은 사람이 보는 쪽), top = 좌판 윗면
+local function officeChair(C_: any, pcf: CFrame, top: number, o: any)
+	local K = C_.K
+	local frame = o.frame or lk(36, 36, 40)
+	local seatL = o.seat or lk(50, 52, 58, M.Fabric)
+	local mesh = o.mesh
+	local leather = o.leather
+	local hi = K.detail ~= "low"
+	-- 5발 받침 + 바퀴
+	K:vcyl("HomeChairHub", 0.18, 0.34, pcf * CF(0, 0.33, 0), frame)
+	for i = 0, 4 do
+		local a = i * 2 * PI / 5 + PI / 2
+		local tip = pcf * V3(math.cos(a) * 0.95, 0.24, math.sin(a) * 0.95)
+		K:seg("HomeChairStar", pcf * V3(0, 0.32, 0), tip, 0.12, frame)
+		if hi then
+			K:ball("HomeChairCaster", 0.2, CF(tip - V3(0, 0.14, 0)), lk(30, 30, 32))
+			K:box("HomeChairCasterFork", V3(0.08, 0.1, 0.12), CF(tip - V3(0, 0.04, 0)), frame)
+		end
+	end
+	K:vcyl("HomeChairGasLift", top - 0.75, 0.16, pcf * CF(0, 0.33 + (top - 0.75) / 2, 0), L.chrome)
+	K:vcyl("HomeChairGasCover", 0.5, 0.22, pcf * CF(0, 0.6, 0), frame)
+	K:box("HomeChairMech", V3(0.7, 0.16, 0.6), pcf * CF(0, top - 0.36, 0), frame)
+	if hi then
+		K:box("HomeChairLever", V3(0.45, 0.04, 0.05), pcf * CF(0.45, top - 0.38, 0.2), frame)
+		K:ball("HomeChairLeverKnob", 0.08, pcf * CF(0.68, top - 0.38, 0.2), frame)
+	end
+	-- 좌판
+	K:slab("HomeChairSeat", 1.65, 1.6, 0.26, 0.28, pcf * CF(0, top - 0.13, 0.02), seatL)
+	K:cyl("HomeChairSeatFront", 1.5, 0.22, pcf * CF(0, top - 0.12, 0.78), seatL)
+	-- 등받이 (메쉬 프레임 / 가죽)
+	local bcf = pcf * CF(0, top + 0.1, -0.78) * ANG(math.rad(-10), 0, 0)
+	K:box("HomeChairSpine", V3(0.2, 0.9, 0.12), pcf * CF(0, top - 0.2, -0.78) * ANG(math.rad(-25), 0, 0), frame)
+	if leather then
+		K:rbox("HomeChairBack", V3(1.55, 2.1, 0.3), 0.14, bcf * CF(0, 1.05, 0), seatL)
+		if hi then
+			for i = 1, 3 do
+				K:box("HomeChairBackStitch", V3(1.35, 0.025, 0.02), bcf * CF(0, 0.45 + i * 0.42, 0.16), tint(seatL, 0.25))
+			end
+			K:rbox("HomeChairHead", V3(1.1, 0.5, 0.32), 0.14, bcf * CF(0, 2.3, 0.02), seatL)
+		end
+	else
+		K:panel("HomeChairBackFrame", 1.5, 1.95, 0.08, 0.3, bcf * CF(0, 1.05, -0.04), frame)
+		K:panel("HomeChairBackMesh", 1.36, 1.8, 0.03, 0.25, bcf * CF(0, 1.05, 0.04), mesh or { c = c3(40, 42, 48), m = M.Fabric, t = 0.25 })
+		if hi then
+			K:box("HomeChairLumbar", V3(1.2, 0.28, 0.08), bcf * CF(0, 0.55, 0.09), frame)
+		end
+	end
+	-- 팔걸이
+	for _, sx in { -1, 1 } do
+		K:box("HomeChairArmPost", V3(0.1, 0.75, 0.14), pcf * CF(sx * 0.9, top + 0.12, -0.05), frame)
+		K:rbox("HomeChairArmPad", V3(0.22, 0.1, 0.85), 0.04, pcf * CF(sx * 0.9, top + 0.52, 0.02), lk(30, 30, 32))
+	end
+end
+T.officeChair = officeChair
+
+-- 라운지 체어 (월넛 셸 + 가죽 쿠션 + 회전 받침)
+local function loungeChair(C_: any, pcf: CFrame, top: number, o: any)
+	local K = C_.K
+	local shell = o.shell or L.walnut
+	local cushionL = o.cushion or L.leatherBlack
+	K:disc("HomeLoungeBase", 1.6, 0.06, pcf * CF(0, 0.05, 0), lk(30, 30, 32, M.Metal))
+	for i = 0, 4 do
+		local a = i * 2 * PI / 5
+		K:seg("HomeLoungeFoot", pcf * V3(0, 0.14, 0), pcf * V3(math.cos(a) * 0.85, 0.05, math.sin(a) * 0.85), 0.12, lk(30, 30, 32, M.Metal))
+	end
+	K:vcyl("HomeLoungeStem", top - 0.75, 0.18, pcf * CF(0, 0.14 + (top - 0.75) / 2, 0), lk(30, 30, 32, M.Metal))
+	-- 좌판 셸 + 쿠션
+	K:slab("HomeLoungeSeatShell", 2.1, 2.0, 0.14, 0.4, pcf * CF(0, top - 0.42, 0.05) * ANG(math.rad(-6), 0, 0), shell)
+	K:slab("HomeLoungeSeatCushion", 1.95, 1.85, 0.3, 0.35, pcf * CF(0, top - 0.17, 0.05) * ANG(math.rad(-6), 0, 0), cushionL)
+	-- 등 (두 단) + 팔걸이
+	local bcf = pcf * CF(0, top - 0.2, -0.95) * ANG(math.rad(-16), 0, 0)
+	K:panel("HomeLoungeBackShell", 2.1, 1.5, 0.12, 0.4, bcf * CF(0, 0.75, -0.14), shell)
+	K:rbox("HomeLoungeBackCushion", V3(1.9, 1.35, 0.28), 0.14, bcf * CF(0, 0.75, 0.04), cushionL)
+	K:panel("HomeLoungeHeadShell", 1.8, 0.9, 0.12, 0.35, bcf * CF(0, 1.95, -0.14), shell)
+	K:rbox("HomeLoungeHeadCushion", V3(1.6, 0.75, 0.26), 0.12, bcf * CF(0, 1.95, 0.04), cushionL)
+	for _, sx in { -1, 1 } do
+		K:rbox("HomeLoungeArm", V3(0.3, 0.16, 1.4), 0.07, pcf * CF(sx * 1.0, top + 0.45, -0.05) * ANG(math.rad(-4), 0, 0), cushionL)
+		K:box("HomeLoungeArmPost", V3(0.08, 0.5, 0.1), pcf * CF(sx * 1.0, top + 0.18, -0.15), lk(30, 30, 32, M.Metal))
+	end
+end
+
+SLOT.chair = function(C_: any, info: any): boolean?
+	local seat = first(info, "Seat")
+	local item = tostring(info.item)
+	local K, F = C_.K, info.F
+	if string.find(item, "lounge") then
+		local cushionR = first(info, "LoungeSeat", "LoungeCushion", "Cushion")
+		local top = if seat then seat.max.Y elseif cushionR then cushionR.max.Y else 1.9
+		local c = if seat then V3(seat.c.X, 0, seat.c.Z) else V3((info.min.X + info.max.X) / 2, 0, (info.min.Z + info.max.Z) / 2)
+		loungeChair(C_, F * CF(c), top, { shell = L.walnut, cushion = if cushionR then from(cushionR, L.leatherBlack, M.Leather) else L.leatherBlack })
+		return true
+	end
+	if not seat then
+		return false
+	end
+	local top = seat.max.Y
+	local seatL = from(seat, lk(50, 52, 58), if string.find(item, "leather") then M.Leather else M.Fabric)
+	officeChair(C_, F * CF(seat.c.X, 0, seat.c.Z), top, {
+		seat = seatL,
+		leather = string.find(item, "leather") ~= nil,
+		frame = if string.find(item, "study") then lk(40, 40, 44) else lk(32, 32, 36),
+		mesh = { c = seatL.c, m = M.Fabric, t = 0.2 },
+	})
+	return true
+end
+
+-- 테이블 세트 · 테이블 ------------------------------------------------------------------------------
+-- 테이블 세트 안의 의자 (Seat + ChairBack): 같은 좌판 높이 · 방향
+local function setChairs(C_: any, info: any, style: string, o: any)
+	local K, F = C_.K, info.F
+	local backs = all(info, "ChairBack")
+	for _, s in all(info, "Seat") do
+		local best, bd = nil, 2.2
+		for _, b in backs do
+			local d = (V3(b.c.X, 0, b.c.Z) - V3(s.c.X, 0, s.c.Z)).Magnitude
+			if d < bd then
+				best, bd = b, d
+			end
+		end
+		local top = s.max.Y
+		local c = V3(s.c.X, 0, s.c.Z)
+		if style == "bar" then
+			-- 바 스툴 (원판 좌석, 위아래로 세운 원통 파트)
+			Props.stool(K, F * CF(c), { seatTop = top, dia = math.max(s.size.X, s.size.Z, 1.2), style = "bar", frame = o.stoolFrame or L.blackMetal, seat = o.stoolSeat or from(s, L.leatherCream, M.Leather) })
+			continue
+		end
+		local face = V3(0, 0, 1)
+		if best then
+			local d = V3(s.c.X - best.c.X, 0, s.c.Z - best.c.Z)
+			if d.Magnitude > 0.05 then
+				face = d.Unit
+			end
+		end
+		local pcf = F * CFrame.lookAt(c, c - face)
+		local w = math.clamp(math.min(s.size.X, s.size.Z) + 0.05, 1.3, 1.8)
+		local backH = if best then math.clamp(best.max.Y - top, 1.2, 2.6) else 1.8
+		Props.chair(K, pcf, { seatTop = top, w = w, d = w, backH = backH, style = style, frame = o.frame, seat = o.seat or from(s, L.fabricBeige, M.Fabric), back = o.back, detail = if K.detail == "high" then nil else K.detail })
+	end
+end
+
+local function roundTop(K: any, F: CFrame, c: Vector3, dia: number, y: number, th: number, look: any, name: string?)
+	K:disc(name or "HomeTableTop", dia, th, F * CF(c.X, y - th / 2, c.Z), look)
+	K:disc("HomeTableTopEdge", dia - 0.04, 0.03, F * CF(c.X, y - th - 0.015, c.Z), tint(look, 0.15))
+end
+
+SLOT.table = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local item = tostring(info.item)
+	local tops = all(info, "TableTop", "BarTableTop")
+	if #tops == 0 then
+		return false
+	end
+	local hi = K.detail ~= "low"
+	for _, t in tops do
+		local y = t.max.Y
+		local c = t.c
+		local round = t.part:IsA("Part") and (t.part :: Part).Shape == Enum.PartType.Cylinder
+		local topL
+		if t.mat == M.Marble then
+			topL = from(t, L.marbleWhite, M.Marble)
+		elseif t.mat == M.Limestone then
+			topL = { c = t.color, m = M.Limestone }
+		elseif t.mat == M.Slate then
+			topL = { c = t.color, m = M.Slate }
+		else
+			topL = from(t, L.oak, M.Wood)
+		end
+		if round then
+			local dia = math.max(t.size.X, t.size.Z)
+			roundTop(K, F, c, dia, y, 0.12, topL)
+			if string.find(item, "travertine") then
+				-- 트래버틴 원통 받침 (통짜 돌) + 홈 줄
+				local baseD = dia * 0.5
+				K:vcyl("HomeTableDrum", y - 0.14, baseD, F * CF(c.X, (y - 0.14) / 2, c.Z), topL)
+				if hi then
+					for i = 1, 3 do
+						K:vcyl("HomeTableDrumGroove", 0.03, baseD + 0.02, F * CF(c.X, (y - 0.14) * i / 4, c.Z), tint(topL, 0.12))
+					end
+				end
+			elseif string.find(item, "cafe") then
+				-- 비스트로: 주물 받침 + 기둥
+				K:vcyl("HomeTableColumn", y - 0.3, 0.2, F * CF(c.X, (y - 0.3) / 2 + 0.1, c.Z), L.blackMetal)
+				for i = 0, 3 do
+					local a = i * PI / 2 + PI / 4
+					K:seg("HomeTableFoot", F * V3(c.X, 0.12, c.Z), F * V3(c.X + math.cos(a) * 0.85, 0.04, c.Z + math.sin(a) * 0.85), 0.12, L.blackMetal)
+				end
+				K:disc("HomeTableHub", 0.5, 0.1, F * CF(c.X, y - 0.2, c.Z), L.blackMetal)
+			else
+				-- 튤립 받침 (원판 + 원뿔 기둥)
+				local baseD = math.min(dia * 0.6, 1.5)
+				K:disc("HomeTableFoot", baseD, 0.08, F * CF(c.X, 0.04, c.Z), lk(30, 30, 32, M.Metal))
+				local n = 5
+				for i = 1, n do
+					local yy = 0.08 + (y - 0.2) * (i - 0.5) / n
+					local d = 0.18 + 0.18 * math.abs(i - n / 2 - 0.5) / n
+					K:vcyl("HomeTableStem", (y - 0.2) / n + 0.01, d, F * CF(c.X, yy, c.Z), lk(30, 30, 32, M.Metal))
+				end
+			end
+		else
+			local w, l = t.size.X, t.size.Z
+			local th = if y > 2 then 0.14 else 0.12
+			K:slab("HomeTableTop", w, l, th, 0.08, F * CF(c.X, y - th / 2, c.Z), topL)
+			if hi then
+				K:slab("HomeTableTopEdge", w - 0.06, l - 0.06, 0.04, 0.08, F * CF(c.X, y - th - 0.02, c.Z), tint(topL, 0.18))
+			end
+			local legL = lk(30, 30, 32, M.Metal)
+			local tlegs = all(info, "TableLeg")
+			local shelf = first(info, "TableShelf")
+			if string.find(item, "bartable") then
+				local leg = first(info, "BarTableLeg")
+				K:box("HomeBarTableColumn", V3(0.24, y - 0.3, 0.6), F * CF(c.X, (y - 0.3) / 2 + 0.1, c.Z), legL)
+				K:slab("HomeBarTableFoot", 2.2, 1.3, 0.08, 0.2, F * CF(c.X, 0.04, c.Z), legL)
+				K:box("HomeBarTableBrace", V3(1.2, 0.08, 0.5), F * CF(c.X, y - 0.22, c.Z), legL)
+				local _ = leg
+			elseif #tlegs >= 2 and tlegs[1].size.Z > 1.2 or (#tlegs >= 2 and tlegs[1].size.X > 1.2) then
+				-- 판 다리 (썰매형 철제 프레임)
+				for _, lg in tlegs do
+					local alongZ = lg.size.Z >= lg.size.X
+					local ll = if alongZ then lg.size.Z else lg.size.X
+					local x, z = lg.c.X, lg.c.Z
+					for _, sgn in { -1, 1 } do
+						local off = sgn * (ll / 2 - 0.08)
+						local px, pz = if alongZ then x else x + off, if alongZ then z + off else z
+						K:box("HomeTableLegPost", V3(0.14, y - th, 0.14), F * CF(px, (y - th) / 2, pz), legL)
+					end
+					K:box("HomeTableLegBar", if alongZ then V3(0.14, 0.14, ll) else V3(ll, 0.14, 0.14), F * CF(x, 0.07, z), legL)
+					K:box("HomeTableLegBar", if alongZ then V3(0.12, 0.12, ll) else V3(ll, 0.12, 0.12), F * CF(x, y - th - 0.06, z), legL)
+				end
+			else
+				local woodLeg = from(t, L.oak, M.Wood)
+				local useWood = t.mat == M.Wood and not shelf
+				local lgL = if useWood then tint(woodLeg, 0.05) else legL
+				for _, sx in { -1, 1 } do
+					for _, sz in { -1, 1 } do
+						local px, pz = c.X + sx * (w / 2 - 0.22), c.Z + sz * (l / 2 - 0.22)
+						if useWood then
+							K:seg("HomeTableLeg", F * V3(px, y - th, pz), F * V3(px + sx * 0.08, 0.02, pz + sz * 0.08), 0.18, lgL)
+						else
+							K:box("HomeTableLeg", V3(0.12, y - th, 0.12), F * CF(px, (y - th) / 2, pz), lgL)
+						end
+					end
+				end
+				if shelf then
+					K:slab("HomeTableShelf", shelf.size.X, shelf.size.Z, 0.08, 0.06, F * CF(shelf.c.X, shelf.c.Y, shelf.c.Z), topL)
+					-- 아래 칸 잡지 · 리모컨 바구니
+					if hi then
+						K:box("HomeMagazine", V3(0.9, 0.04, 1.2), F * CF(shelf.c.X - 0.8, shelf.max.Y + 0.02, shelf.c.Z) * ANG(0, 0.15, 0), lk(220, 214, 200))
+						K:box("HomeMagazine", V3(0.85, 0.04, 1.15), F * CF(shelf.c.X - 0.75, shelf.max.Y + 0.06, shelf.c.Z) * ANG(0, -0.1, 0), lk(60, 90, 120))
+						K:rbox("HomeBasket", V3(1.0, 0.45, 0.8), 0.08, F * CF(shelf.c.X + 0.8, shelf.max.Y + 0.23, shelf.c.Z), L.rattan)
+					end
+				end
+			end
+		end
+	end
+	-- 세트 의자
+	if #all(info, "Seat") > 0 then
+		if string.find(item, "cafe") then
+			setChairs(C_, info, "bentwood", { frame = lk(150, 118, 84, M.Wood), seat = lk(150, 118, 84, M.Wood) })
+		elseif string.find(item, "bartable") then
+			setChairs(C_, info, "bar", { stoolFrame = L.blackMetal })
+		elseif string.find(item, "marble") then
+			setChairs(C_, info, "padded", { frame = L.walnut, seat = lk(206, 196, 180, M.Leather), back = lk(206, 196, 180, M.Leather) })
+		else
+			setChairs(C_, info, "padded", { frame = lk(176, 140, 100, M.Wood), seat = lk(214, 206, 190, M.Fabric) })
+		end
+	end
+	return true
+end
+
+-- 책상 ------------------------------------------------------------------------------------------
+-- 모니터 (pcf = 받침 바닥, +Z = 화면 쪽). 반환: 화면 파트, 화면 글자
+local function monitor(C_: any, pcf: CFrame, sw: number, sh: number, o: any?): (BasePart, TextLabel?)
+	local K = C_.K
+	local oo: any = o or {}
+	local body = oo.body or lk(28, 28, 30)
+	K:slab("HomeMonitorFoot", 0.9, 0.55, 0.05, 0.12, pcf * CF(0, 0.025, -0.05), body)
+	K:box("HomeMonitorNeck", V3(0.12, sh * 0.55 + 0.3, 0.08), pcf * CF(0, 0.05 + (sh * 0.55 + 0.3) / 2, -0.2), body)
+	local scf = pcf * CF(0, 0.35 + sh / 2 + 0.05, -0.12) * ANG(math.rad(-4), 0, 0)
+	K:box("HomeMonitorBack", V3(sw * 0.5, sh * 0.5, 0.12), scf * CF(0, 0, -0.1), body)
+	K:box("HomeMonitorBezel", V3(sw + 0.06, sh + 0.06, 0.05), scf, body)
+	local scr = K:box("HomeMonitorScreen", V3(sw, sh, 0.01), scf * CF(0, 0, 0.03), L.screen(c3(16, 20, 28)))
+	local label = nil
+	if oo.text then
+		local _, t = K:text("HomeMonitorText", sw * 0.92, sh * 0.86, scf * CF(0, 0, 0.036), oo.text, { fg = oo.fg or c3(200, 230, 255), bg = oo.bg or c3(24, 34, 52), glow = 1.1, font = Enum.Font.Code, wrap = true, align = "Left" })
+		label = t
+	end
+	K:box("HomeMonitorLED", V3(0.04, 0.02, 0.01), scf * CF(sw / 2 - 0.12, -sh / 2 - 0.015, 0.03), L.neon(c3(255, 255, 255)))
+	return scr, label
+end
+T.monitor = monitor
+
+local function keyboard(K: any, pcf: CFrame, look: any?)
+	local kl = look or lk(38, 38, 42)
+	K:box("HomeKeyboard", V3(1.5, 0.05, 0.48), pcf * CF(0, 0.025, 0) * ANG(math.rad(3), 0, 0), kl)
+	if K.detail == "high" then
+		for i = 0, 3 do
+			K:box("HomeKeyRow", V3(1.38, 0.02, 0.07), pcf * CF(0, 0.06 + i * 0.004, -0.16 + i * 0.105) * ANG(math.rad(3), 0, 0), lk(60, 60, 66))
+		end
+		K:box("HomeKeySpace", V3(0.6, 0.02, 0.06), pcf * CF(-0.1, 0.07, 0.2), lk(60, 60, 66))
+	end
+end
+local function mouse(K: any, pcf: CFrame)
+	K:box("HomeMousePad", V3(0.9, 0.02, 0.75), pcf * CF(0, 0.01, 0), lk(44, 46, 52, M.Fabric))
+	K:ell("HomeMouse", V3(0.2, 0.09, 0.32), pcf * CF(0, 0.06, 0), lk(30, 30, 34))
+end
+local function mug(K: any, pcf: CFrame, look: any?)
+	local ml = look or lk(240, 238, 232)
+	K:vcyl("HomeMug", 0.34, 0.28, pcf * CF(0, 0.17, 0), ml)
+	K:vcyl("HomeMugCoffee", 0.02, 0.24, pcf * CF(0, 0.3, 0), lk(70, 44, 30))
+	K:ring("HomeMugHandle", pcf * CF(0.17, 0.18, 0) * ANG(0, 0, 0), 0.08, 0.04, 5, ml, -PI / 2, PI / 2)
+end
+local function penCup(K: any, pcf: CFrame)
+	K:vcyl("HomePenCup", 0.4, 0.26, pcf * CF(0, 0.2, 0), lk(60, 62, 66, M.Metal))
+	local cols = { c3(30, 60, 160), c3(200, 40, 40), c3(30, 30, 30), c3(240, 200, 40) }
+	for i = 1, 4 do
+		local a = i * 1.6
+		K:seg("HomePen", pcf * V3(math.cos(a) * 0.05, 0.25, math.sin(a) * 0.05), pcf * V3(math.cos(a) * 0.1, 0.72, math.sin(a) * 0.1), 0.04, { c = cols[i], m = M.SmoothPlastic })
+	end
+end
+local function phone(K: any, pcf: CFrame, up: boolean?)
+	K:slab("HomePhone", 0.3, 0.6, 0.03, 0.05, pcf * CF(0, 0.015, 0), lk(26, 26, 30))
+	if up then
+		K:box("HomePhoneScreen", V3(0.26, 0.004, 0.54), pcf * CF(0, 0.032, 0), L.neon(c3(60, 90, 140), 0.4))
+	end
+end
+local function bookStack(K: any, pcf: CFrame, n: number, seed: number)
+	local cols = { c3(40, 70, 120), c3(170, 50, 46), c3(230, 220, 190), c3(60, 110, 80), c3(30, 30, 34), c3(200, 160, 70) }
+	local y = 0
+	for i = 1, n do
+		local h = 0.1 + rnd(seed, i) * 0.08
+		local w = 0.8 + rnd(seed, i + 3) * 0.35
+		K:box("HomeBook", V3(w, h, 0.6 + rnd(seed, i + 7) * 0.2), pcf * CF(0, y + h / 2, 0) * ANG(0, (rnd(seed, i + 11) - 0.5) * 0.3, 0), { c = cols[(i + seed) % #cols + 1], m = M.SmoothPlastic })
+		y += h
+	end
+end
+T.mug, T.penCup, T.phone, T.bookStack, T.keyboard, T.mouse = mug, penCup, phone, bookStack, keyboard, mouse
+
+SLOT.desk = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local top = first(info, "DeskTop")
+	if not top then
+		return false
+	end
+	local item = tostring(info.item)
+	local y = top.max.Y
+	local topL = from(top, L.oak, M.Wood)
+	local exec = string.find(item, "executive") ~= nil
+	local builtin = string.find(item, "builtin") ~= nil
+	local hi = K.detail ~= "low"
+	local x0, x1, z0, z1 = top.min.X, top.max.X, top.min.Z, top.max.Z
+	local th = if exec then 0.16 else 0.1
+	K:slab("HomeDeskTop", x1 - x0, z1 - z0, th, 0.04, F * CF((x0 + x1) / 2, y - th / 2, (z0 + z1) / 2), topL)
+	K:box("HomeDeskEdge", V3(x1 - x0 - 0.04, 0.03, 0.03), F * CF((x0 + x1) / 2, y - th - 0.015, z1 - 0.02), tint(topL, 0.2))
+	-- 다리
+	for _, lg in all(info, "DeskLeg") do
+		if lg.mat == M.Metal and not builtin then
+			local legL = lk(34, 34, 38, M.Metal)
+			for _, sz in { -1, 1 } do
+				K:box("HomeDeskLegPost", V3(0.12, y - th, 0.12), F * CF(lg.c.X, (y - th) / 2, lg.c.Z + sz * (lg.size.Z / 2 - 0.1)), legL)
+			end
+			K:box("HomeDeskLegFoot", V3(0.14, 0.08, lg.size.Z), F * CF(lg.c.X, 0.04, lg.c.Z), legL)
+			K:box("HomeDeskLegTop", V3(0.12, 0.1, lg.size.Z - 0.1), F * CF(lg.c.X, y - th - 0.05, lg.c.Z), legL)
+			K:disc("HomeDeskGlide", 0.12, 0.02, F * CF(lg.c.X, 0.005, lg.c.Z + lg.size.Z / 2 - 0.1), L.rubber)
+		else
+			boxF(K, "HomeDeskSide", F, V3(lg.min.X, 0, z0 + 0.02), V3(lg.max.X, y - th, z1 - 0.02), topL)
+		end
+	end
+	if exec then
+		-- 임원용: 양쪽 서랍장 + 가죽 데스크 매트
+		boxF(K, "HomeDeskModesty", F, V3(x0 + 0.4, 0.6, z0 + 0.1), V3(x1 - 0.4, y - th, z0 + 0.2), topL)
+	end
+	local mp = first(info, "ModestyPanel")
+	if mp and not exec then
+		boxF(K, "HomeDeskModesty", F, mp.min, mp.max, lk(40, 40, 44, M.Metal))
+		if hi then
+			for i = 1, 6 do
+				K:box("HomeDeskModestySlot", V3((mp.size.X - 0.4) / 6 - 0.08, 0.06, 0.01), F * CF(mp.min.X + 0.2 + (mp.size.X - 0.4) * (i - 0.5) / 6, mp.c.Y, mp.max.Z + 0.006), lk(20, 20, 22))
+			end
+		end
+	end
+	-- 서랍장 (서랍 3단 + 손잡이)
+	for _, du in all(info, "DrawerUnit") do
+		local dl = if du.color.R > 0.85 then lk(240, 238, 234) else from(du, L.oak, M.Wood)
+		boxF(K, "HomeDeskDrawerBody", F, V3(du.min.X, 0.12, du.min.Z), V3(du.max.X, du.max.Y, du.max.Z - 0.03), dl)
+		local n = 3
+		local hh = (du.max.Y - 0.18) / n
+		for i = 1, n do
+			local yc = 0.15 + hh * (i - 0.5)
+			K:box("HomeDeskDrawer", V3(du.size.X - 0.06, hh - 0.04, 0.04), F * CF(du.c.X, yc, du.max.Z - 0.01), tint(dl, -0.03))
+			K:box("HomeDeskDrawerPull", V3(du.size.X * 0.4, 0.04, 0.05), F * CF(du.c.X, yc + hh / 2 - 0.12, du.max.Z + 0.02), if exec then L.brass else lk(60, 60, 64, M.Metal))
+		end
+		for _, sx in { -1, 1 } do
+			K:ball("HomeDeskCaster", 0.12, F * CF(du.c.X + sx * (du.size.X / 2 - 0.12), 0.06, du.c.Z), lk(30, 30, 32))
+		end
+	end
+	-- 모니터 (원래 자리) · 노트북 · 키보드 · 마우스 · 스탠드
+	local mon = first(info, "Monitor")
+	if mon then
+		local scr = first(info, "MonitorScreen") or mon
+		local texts = {
+			goshiwon = "9급 공무원 기출 2025\n- 행정법 3회독\n- 한국사 오답노트\nD-87",
+			oneroom = "광안리 맛집 정리.xlsx\n민락 회센터 · 밀면\n돼지국밥 · 조개구이",
+			officetel = "def deploy():\n  build()\n  test()\n# 13:40 회의",
+			apartment = "가계부 10월\n관리비 31만\n아이 학원비\n적금 50만",
+			penthouse = "KOSPI 2,6xx ▲\n포트폴리오 리밸런싱\n부산 미팅 15:00",
+		}
+		local scrP, lab = monitor(C_, F * CF(mon.c.X, y, math.max(z0 + 0.45, mon.c.Z - 0.15)), math.min(scr.size.X, 2.4), math.min(scr.size.Y, 1.35), { text = texts[C_.tier] or texts.oneroom })
+		C_.monitorScreen, C_.monitorText = scrP, lab
+	end
+	local kb = first(info, "Keyboard")
+	if kb then
+		keyboard(K, F * CF(kb.c.X, y, kb.c.Z))
+	end
+	local ms = first(info, "Mouse")
+	if ms then
+		mouse(K, F * CF(ms.c.X + (if ms.c.X > (kb and kb.c.X or 0) then 0.2 else -0.2), y, ms.c.Z))
+	end
+	local lb = first(info, "LaptopBase")
+	if lb then
+		K:slab("HomeLaptopBase", lb.size.X, lb.size.Z, 0.05, 0.04, F * CF(lb.c.X, y + 0.025, lb.c.Z), lk(186, 188, 192, M.Metal))
+		local lid = F * CF(lb.c.X, y + 0.05, lb.min.Z + 0.02) * ANG(math.rad(-12), 0, 0)
+		K:box("HomeLaptopLid", V3(lb.size.X, 0.9, 0.04), lid * CF(0, 0.45, 0), lk(186, 188, 192, M.Metal))
+		K:box("HomeLaptopScreen", V3(lb.size.X - 0.1, 0.8, 0.01), lid * CF(0, 0.45, 0.025), L.neon(c3(70, 110, 160), 0.35))
+		K:box("HomeLaptopKeys", V3(lb.size.X - 0.2, 0.01, lb.size.Z * 0.45), F * CF(lb.c.X, y + 0.055, lb.c.Z - 0.08), lk(40, 40, 44))
+	end
+	local lh = first(info, "LampHead")
+	local lf = first(info, "LampFoot")
+	if lh and lf then
+		-- 스탠드: 원래 머리 자리 (원래 PointLight 가 그대로 비춤)
+		local base = F * CF(lf.c.X, y, lf.c.Z)
+		K:disc("HomeDeskLampBase", 0.55, 0.06, base * CF(0, 0.03, 0), lk(30, 30, 32, M.Metal))
+		local j1 = (base * CF(0, 0.08, 0)).Position
+		local headP = (F * CF(lh.c.X, lh.c.Y + 0.08, lh.c.Z)).Position
+		local elbow = (j1 + headP) / 2 + V3(0, 0.45, 0) + (F.LookVector * 0.25)
+		K:seg("HomeDeskLampArm", j1, elbow, 0.06, lk(30, 30, 32, M.Metal))
+		K:seg("HomeDeskLampArm", elbow, headP, 0.06, lk(30, 30, 32, M.Metal))
+		K:ball("HomeDeskLampJoint", 0.1, CF(elbow), lk(30, 30, 32, M.Metal))
+		local hcf = CFrame.lookAt(headP, headP - YA * 0.8 + F.LookVector * 0.3)
+		K:cyl("HomeDeskLampShade", 0.45, 0.42, hcf * CF(0, 0, -0.18) * ANG(0, PI / 2, 0), lk(30, 30, 32, M.Metal))
+		K:disc("HomeDeskLampBulb", 0.34, 0.02, hcf * CF(0, 0, -0.41) * ANG(PI / 2, 0, 0), L.lampWarm)
+	end
+	-- 책상 위 생활 소품
+	if hi then
+		local left = x0 + 0.5
+		local right = x1 - 0.5
+		local kbx = if kb then kb.c.X else (x0 + x1) / 2
+		local items = 0
+		local function freeAt(x: number, z: number, r: number): boolean
+			for _, rr in info.all do
+				if rr.max.Y > y - 0.02 and math.abs(rr.c.X - x) < rr.size.X / 2 + r and math.abs(rr.c.Z - z) < rr.size.Z / 2 + r then
+					return false
+				end
+			end
+			return true
+		end
+		local spots = { { right - 0.1, z0 + 0.45 }, { left + 0.1, z1 - 0.55 }, { right - 0.25, z1 - 0.45 }, { left + 0.35, z0 + 0.5 } }
+		for i, sp in spots do
+			if freeAt(sp[1], sp[2], 0.3) and math.abs(sp[1] - kbx) > 1.1 then
+				local p = F * CF(sp[1], y, sp[2])
+				if i == 1 then
+					penCup(K, p)
+				elseif i == 2 then
+					mug(K, p * ANG(0, 0.6, 0), if C_.lux >= 4 then lk(250, 248, 242) else lk(200, 220, 236))
+				elseif i == 3 then
+					phone(K, p * ANG(0, 0.3, 0), true)
+				else
+					bookStack(K, p, if C_.tier == "goshiwon" then 4 else 2, C_.seed)
+				end
+				items += 1
+			end
+		end
+		if C_.tier == "goshiwon" or C_.tier == "oneroom" then
+			-- 모니터 옆 포스트잇
+			if mon then
+				for i = 1, 3 do
+					K:box("HomePostIt", V3(0.3, 0.3, 0.01), F * CF(mon.c.X + (mon.size.X / 2 + 0.05) * (if i == 3 then -1 else 1), y + 1.0 + i * 0.32, math.max(z0 + 0.45, mon.c.Z - 0.15) - 0.06) * ANG(0, 0, (i - 2) * 0.12), { c = ({ c3(255, 236, 120), c3(255, 180, 200), c3(170, 220, 255) })[i], m = M.SmoothPlastic })
+				end
+			end
+		end
+	end
+	return true
+end
+
+-- TV · 거실장 -------------------------------------------------------------------------------------
+-- TV 테두리 (화면 파트 TVScreen 은 그대로 보이게 두고 둘레만): scr = info rec (F 공간)
+local function tvBezel(C_: any, F: CFrame, scr: any, o: any)
+	local K = C_.K
+	local w, h = scr.size.X, scr.size.Y
+	local fz = scr.max.Z
+	local c = scr.c
+	local body = o.body or lk(22, 22, 24)
+	local bz = o.bezel or 0.05
+	local depth = o.depth or 0.1
+	-- 뒷판 + 뒤 불룩한 부분
+	K:box("HomeTVBack", V3(w + 2 * bz, h + 2 * bz, depth), F * CF(c.X, c.Y, scr.min.Z - depth / 2 + 0.005), body)
+	K:box("HomeTVHump", V3(w * 0.55, h * 0.5, 0.14), F * CF(c.X, c.Y - h * 0.08, scr.min.Z - depth - 0.07), body)
+	-- 테두리 (화면 앞면보다 살짝 앞)
+	for _, sy in { -1, 1 } do
+		K:box("HomeTVBezel", V3(w + 2 * bz, bz, 0.04), F * CF(c.X, c.Y + sy * (h / 2 + bz / 2), fz - 0.015), o.frame or body)
+	end
+	for _, sx in { -1, 1 } do
+		K:box("HomeTVBezel", V3(bz, h, 0.04), F * CF(c.X + sx * (w / 2 + bz / 2), c.Y, fz - 0.015), o.frame or body)
+	end
+	if not o.frame then
+		K:box("HomeTVLogo", V3(0.28, 0.025, 0.005), F * CF(c.X, c.Y - h / 2 - bz / 2, fz + 0.006), lk(150, 150, 154, M.Metal))
+		K:box("HomeTVStandbyLED", V3(0.03, 0.015, 0.005), F * CF(c.X + w / 2 - 0.2, c.Y - h / 2 - bz / 2, fz + 0.006), L.neon(c3(255, 60, 40), 0.3))
+	end
+	return w, h
+end
+
+local function setTop(C_: any, F: CFrame, x: number, y: number, z: number, kind: string)
+	local K = C_.K
+	if kind == "stb" then
+		K:slab("HomeSetTopBox", 1.0, 0.7, 0.14, 0.06, F * CF(x, y + 0.07, z), lk(30, 30, 34))
+		K:box("HomeSetTopLED", V3(0.2, 0.04, 0.01), F * CF(x + 0.3, y + 0.08, z + 0.35), L.neon(c3(60, 220, 120)))
+	elseif kind == "router" then
+		K:box("HomeRouter", V3(0.8, 0.14, 0.55), F * CF(x, y + 0.07, z), lk(240, 240, 238))
+		for i = -1, 1, 2 do
+			K:seg("HomeRouterAntenna", F * V3(x + i * 0.3, y + 0.14, z - 0.22), F * V3(x + i * 0.34, y + 0.75, z - 0.26), 0.05, lk(230, 230, 228))
+		end
+		for i = 0, 3 do
+			K:box("HomeRouterLED", V3(0.03, 0.02, 0.01), F * CF(x - 0.25 + i * 0.12, y + 0.08, z + 0.28), L.neon(c3(80, 220, 255)))
+		end
+	elseif kind == "remote" then
+		K:slab("HomeRemote", 0.2, 0.75, 0.05, 0.08, F * CF(x, y + 0.025, z) * ANG(0, 0.35, 0), lk(30, 30, 32))
+		K:box("HomeRemoteRed", V3(0.06, 0.012, 0.06), F * CF(x, y + 0.055, z) * ANG(0, 0.35, 0) * CF(0, 0, -0.28), L.ledRed)
+	elseif kind == "console" then
+		K:rbox("HomeConsole", V3(0.4, 1.3, 1.0), 0.08, F * CF(x, y + 0.65, z), lk(244, 244, 246))
+		K:box("HomeConsoleCore", V3(0.26, 1.2, 0.9), F * CF(x, y + 0.65, z), lk(28, 28, 32))
+		K:box("HomeConsoleLED", V3(0.02, 0.4, 0.01), F * CF(x + 0.1, y + 0.65, z + 0.5), L.neon(c3(80, 160, 255)))
+	end
+end
+
+SLOT.tv = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local scr = first(info, "TVScreen", "Screen")
+	if not scr then
+		return false
+	end
+	local item = tostring(info.item)
+	local frameTV = string.find(item, "frame") ~= nil
+	local cab = first(info, "TVCabinet")
+	local hi = K.detail ~= "low"
+	local w, h = tvBezel(C_, F, scr, { frame = if frameTV then lk(214, 200, 176, M.Wood) else nil, bezel = if frameTV then 0.2 else 0.045, depth = if frameTV then 0.12 else 0.09 })
+	local onCab = string.find(item, "cabinet") ~= nil
+	if onCab and cab then
+		-- 스탠드 다리
+		for _, sx in { -1, 1 } do
+			K:wedge("HomeTVFoot", V3(0.12, 0.5, 0.7), F * CF(scr.c.X + sx * w * 0.38, cab.max.Y + 0.25, scr.c.Z + 0.1), lk(28, 28, 30))
+		end
+	else
+		-- 벽걸이 브래킷 (뒤)
+		K:box("HomeTVMount", V3(w * 0.4, h * 0.35, 0.06), F * CF(scr.c.X, scr.c.Y, scr.min.Z - 0.12), lk(40, 40, 44, M.Metal))
+		-- 벽 속으로 숨긴 전선 대신 몰딩 (오피스텔 이하)
+		if cab and C_.lux <= 3 then
+			K:box("HomeCableCover", V3(0.16, scr.min.Y - cab.max.Y, 0.05), F * CF(scr.c.X + w * 0.2, (scr.min.Y + cab.max.Y) / 2, scr.min.Z - 0.1), lk(240, 240, 238))
+		end
+	end
+	if cab then
+		local cl = if cab.color.R > 0.8 then lk(240, 238, 234) else from(cab, L.walnut, M.Wood)
+		local x0, x1, z0, z1 = cab.min.X, cab.max.X, cab.min.Z, cab.max.Z
+		local y1 = cab.max.Y
+		boxF(K, "HomeTVCabKick", F, V3(x0 + 0.1, 0, z0 + 0.1), V3(x1 - 0.1, 0.3, z1 - 0.12), lk(30, 30, 32))
+		boxF(K, "HomeTVCabBody", F, V3(x0, 0.3, z0), V3(x1, y1 - 0.06, z1 - 0.02), cl)
+		K:slab("HomeTVCabTop", x1 - x0 + 0.04, z1 - z0 + 0.03, 0.06, 0.03, F * CF((x0 + x1) / 2, y1 - 0.03, (z0 + z1) / 2), if C_.lux >= 4 then L.marbleWhite else cl)
+		local n = math.max(2, math.floor((x1 - x0) / 1.8))
+		local fw = (x1 - x0) / n
+		for i = 1, n do
+			local xc = x0 + fw * (i - 0.5)
+			local center = (i == math.ceil(n / 2)) and n >= 3
+			K:box(if center then "HomeTVCabOpen" else "HomeTVCabDoor", V3(fw - 0.05, y1 - 0.42, 0.03), F * CF(xc, (0.32 + y1 - 0.08) / 2, z1 - 0.005), if center then lk(40, 38, 36) else tint(cl, -0.03))
+			if not center then
+				K:box("HomeTVCabPull", V3(fw * 0.5, 0.03, 0.03), F * CF(xc, y1 - 0.18, z1 + 0.012), lk(70, 66, 60, M.Metal))
+			end
+		end
+		-- 위: 셋톱박스 · 공유기 · 리모컨 (+ 게임기)
+		local cz = (z0 + z1) / 2
+		if hi then
+			setTop(C_, F, x0 + 0.7, y1, cz, "stb")
+			setTop(C_, F, x1 - 0.6, y1, cz - 0.1, "remote")
+			if C_.lux <= 3 then
+				setTop(C_, F, x1 - 1.4, y1, cz - 0.05, "router")
+			end
+			if C_.tier == "officetel" or C_.tier == "apartment" then
+				setTop(C_, F, x0 + 1.8, y1, cz, "console")
+			end
+			if C_.lux >= 4 then
+				-- 디퓨저 + 작은 화분
+				K:vcyl("HomeDiffuser", 0.45, 0.28, F * CF(x1 - 1.2, y1 + 0.225, cz + 0.1), L.glass(c3(170, 120, 80), 0.35))
+				for i = 0, 4 do
+					K:seg("HomeDiffuserReed", F * V3(x1 - 1.2, y1 + 0.4, cz + 0.1), F * V3(x1 - 1.2 + math.cos(i * 1.3) * 0.25, y1 + 1.15, cz + 0.1 + math.sin(i * 1.3) * 0.2), 0.025, L.darkWood)
+				end
+			end
+		end
+		-- 사운드바 (원래 자리)
+		local sb = first(info, "Soundbar")
+		if sb then
+			K:rbox("HomeSoundbar", V3(sb.size.X, 0.24, 0.42), 0.1, F * CF(sb.c.X, y1 + 0.12, sb.c.Z + 0.02), lk(34, 34, 36))
+			K:box("HomeSoundbarGrille", V3(sb.size.X - 0.2, 0.18, 0.02), F * CF(sb.c.X, y1 + 0.12, sb.c.Z + 0.24), lk(52, 52, 56, M.Fabric))
+			K:box("HomeSoundbarLED", V3(0.12, 0.02, 0.01), F * CF(sb.c.X + sb.size.X / 2 - 0.3, y1 + 0.07, sb.c.Z + 0.25), L.neon(c3(255, 255, 255), 0.3))
+		end
+	end
+	-- 프레임 TV: 아래 콘솔 대신 바닥 스탠드 없음 · 액자 모드 그림 (꺼져 있을 때만 보이게 화면 앞 얇게는 안 함)
+	return true
+end
+
+-- 책장 · 선반 ------------------------------------------------------------------------------------
+local BOOK_COLS = {
+	c3(36, 58, 96), c3(150, 44, 40), c3(226, 214, 186), c3(54, 96, 72), c3(28, 28, 32), c3(196, 150, 64),
+	c3(236, 236, 230), c3(110, 70, 110), c3(80, 120, 150), c3(200, 96, 60), c3(160, 160, 150), c3(90, 60, 44),
+}
+-- 책 한 줄: F 공간 x0..x1, 선반 윗면 y, 앞 z, 최대 높이 hmax, 깊이 dep. 기울어진 책 · 책 받침 포함
+local function bookRow(C_: any, F: CFrame, x0: number, x1: number, y: number, zf: number, hmax: number, dep: number, seed: number, o: any?): number
+	local K = C_.K
+	local oo: any = o or {}
+	local x = x0
+	local i = 0
+	local n = 0
+	local lowDetail = K.detail == "low"
+	while x < x1 - 0.12 and n < (oo.max or 40) do
+		i += 1
+		local r = rnd(seed, i)
+		local t = 0.1 + rnd(seed, i + 50) * 0.12
+		if lowDetail then
+			t = t * 2.2
+		end
+		local h = math.min(hmax - 0.06, 0.7 + r * 0.5)
+		local d = math.min(dep - 0.05, 0.55 + rnd(seed, i + 90) * 0.25)
+		if x + t > x1 then
+			break
+		end
+		local col = BOOK_COLS[(seed + i * 7) % #BOOK_COLS + 1]
+		local lean = 0
+		if not oo.straight and r > 0.9 and x + t + 0.3 < x1 then
+			lean = 0.22
+		end
+		local cx = x + t / 2
+		local cf = F * CF(cx + (if lean > 0 then math.sin(lean) * h / 2 else 0), y + h / 2 * math.cos(lean), zf - d / 2) * ANG(0, 0, -lean)
+		K:box("HomeBookSpine", V3(t, h, d), cf, { c = col, m = M.SmoothPlastic })
+		if not lowDetail and r > 0.45 then
+			K:box("HomeBookBand", V3(t + 0.004, 0.04, 0.01), cf * CF(0, h * 0.3, d / 2), { c = col:Lerp(Color3.new(1, 1, 1), 0.55), m = M.SmoothPlastic })
+		end
+		x += t + (if lean > 0 then h * math.sin(lean) + 0.02 else 0.005)
+		n += 1
+	end
+	return x
+end
+T.bookRow = bookRow
+
+-- 선반 칸 위 장식: kind = "plant" | "frame" | "box" | "vase" | "noodle" | "jar" | "cactus" | "trophy"
+local function shelfDeco(C_: any, F: CFrame, x: number, y: number, z: number, kind: string, hmax: number, seed: number)
+	local K = C_.K
+	local hh = math.min(hmax - 0.05, 1.0)
+	if kind == "plant" then
+		Props.potPlant(K, F * CF(x, y, z), 0.42, math.min(hh - 0.35, 0.65), { pot = lk(236, 232, 224, M.Concrete) })
+	elseif kind == "cactus" then
+		K:vcyl("HomeCactusPot", 0.32, 0.36, F * CF(x, y + 0.16, z), L.terracotta)
+		K:disc("HomeCactusSoil", 0.32, 0.02, F * CF(x, y + 0.31, z), L.soil)
+		K:ell("HomeCactus", V3(0.22, math.min(0.55, hh - 0.35), 0.22), F * CF(x, y + 0.32 + math.min(0.55, hh - 0.35) / 2, z), lk(70, 120, 66, M.Grass))
+		K:ell("HomeCactusArm", V3(0.12, 0.22, 0.12), F * CF(x + 0.12, y + 0.55, z), lk(70, 120, 66, M.Grass))
+	elseif kind == "frame" then
+		local w, h = 0.7, math.min(0.9, hh - 0.05)
+		local cf = F * CF(x, y + h / 2, z - 0.1) * ANG(math.rad(-8), (rnd(seed, 3) - 0.5) * 0.4, 0)
+		K:box("HomePhotoFrame", V3(w, h, 0.05), cf, if rnd(seed, 5) > 0.5 then L.walnut else lk(240, 240, 236))
+		K:box("HomePhoto", V3(w - 0.14, h - 0.14, 0.01), cf * CF(0, 0, 0.026), { c = c3(120 + math.floor(rnd(seed, 7) * 90), 140, 170), m = M.SmoothPlastic })
+		K:box("HomePhotoSky", V3(w - 0.14, (h - 0.14) * 0.45, 0.012), cf * CF(0, (h - 0.14) * 0.27, 0.026), lk(150, 190, 220))
+	elseif kind == "box" then
+		local h = math.min(0.8, hh - 0.05)
+		K:rbox("HomeStorageBox", V3(1.0, h, 0.85), 0.04, F * CF(x, y + h / 2, z - 0.45), { c = ({ c3(200, 190, 170), c3(90, 96, 104), c3(230, 226, 216) })[seed % 3 + 1], m = M.Fabric })
+		K:box("HomeStorageLabel", V3(0.4, 0.16, 0.01), F * CF(x, y + h * 0.6, z + 0.0), lk(250, 250, 246))
+	elseif kind == "vase" then
+		local h = math.min(0.95, hh - 0.05)
+		K:vcyl("HomeVase", h * 0.75, 0.38, F * CF(x, y + h * 0.375, z - 0.3), { c = ({ c3(232, 228, 218), c3(60, 62, 66), c3(180, 140, 100) })[seed % 3 + 1], m = M.SmoothPlastic })
+		K:ell("HomeVaseNeck", V3(0.28, 0.2, 0.28), F * CF(x, y + h * 0.78, z - 0.3), { c = c3(232, 228, 218), m = M.SmoothPlastic })
+	elseif kind == "noodle" then
+		for i = 0, 2 do
+			local cx = x + (i - 1) * 0.42
+			K:vcyl("HomeCupNoodle", 0.38, 0.36, F * CF(cx, y + 0.19, z - 0.3), { c = if i == 1 then c3(230, 120, 30) else c3(206, 40, 36), m = M.SmoothPlastic })
+			K:disc("HomeCupNoodleLid", 0.37, 0.02, F * CF(cx, y + 0.385, z - 0.3), lk(240, 236, 226))
+			K:box("HomeCupNoodleBand", V3(0.37, 0.1, 0.01), F * CF(cx, y + 0.2, z - 0.12), lk(250, 246, 236))
+		end
+	elseif kind == "jar" then
+		K:vcyl("HomeJar", 0.5, 0.36, F * CF(x, y + 0.25, z - 0.3), L.glass(c3(230, 236, 236), 0.4))
+		K:vcyl("HomeJarFill", 0.3, 0.3, F * CF(x, y + 0.17, z - 0.3), lk(150, 100, 60))
+		K:vcyl("HomeJarLid", 0.06, 0.37, F * CF(x, y + 0.53, z - 0.3), L.walnut)
+	elseif kind == "trophy" then
+		K:box("HomeTrophyBase", V3(0.32, 0.12, 0.26), F * CF(x, y + 0.06, z - 0.3), L.walnut)
+		K:vcyl("HomeTrophyStem", 0.25, 0.06, F * CF(x, y + 0.24, z - 0.3), L.goldMetal)
+		K:ell("HomeTrophyCup", V3(0.3, 0.26, 0.3), F * CF(x, y + 0.48, z - 0.3), L.goldMetal)
+	end
+end
+
+SLOT.shelf = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local boards = all(info, "ShelfBoard")
+	local sides = all(info, "ShelfSide")
+	local backP = first(info, "ShelfBack")
+	if #boards == 0 then
+		return false
+	end
+	table.sort(boards, function(a, b)
+		return a.c.Y < b.c.Y
+	end)
+	local item = tostring(info.item)
+	local wood = boards[1].mat == M.Wood and boards[1].color.R < 0.75
+	local bl = if wood then from(boards[1], L.walnut, M.Wood) elseif boards[1].color.R > 0.85 then lk(242, 240, 236) else from(boards[1], L.oak, M.Wood)
+	local seed = C_.seed + hash(item)
+	-- 벽 선반 (한 장): 받침 철물 + 소품
+	if #sides == 0 then
+		local b = boards[1]
+		K:slab("HomeWallShelf", b.size.X, b.size.Z, 0.12, 0.03, F * CF(b.c.X, b.c.Y, b.c.Z), from(b, L.oak, M.Wood))
+		for _, br in all(info, "Bracket") do
+			K:box("HomeShelfBracketV", V3(0.08, 0.45, 0.04), F * CF(br.c.X, b.min.Y - 0.22, b.min.Z + 0.02), L.blackMetal)
+			K:wedge("HomeShelfBracketW", V3(0.05, 0.4, b.size.Z * 0.7), F * CF(br.c.X, b.min.Y - 0.2, b.min.Z + b.size.Z * 0.35) * ANG(0, PI, 0), L.blackMetal)
+		end
+		local y = b.max.Y
+		local x0, x1 = b.min.X + 0.12, b.max.X - 0.12
+		local zf = b.max.Z - 0.05
+		-- 왼쪽: 책, 가운데: 컵라면, 오른쪽: 선인장
+		local xe = bookRow(C_, F, x0, x0 + (x1 - x0) * 0.38, y, zf, 1.1, b.size.Z, seed, { max = 10 })
+		K:box("HomeBookend", V3(0.06, 0.5, 0.5), F * CF(xe + 0.04, y + 0.25, zf - 0.3), L.blackMetal)
+		shelfDeco(C_, F, x0 + (x1 - x0) * 0.62, y, zf, "noodle", 1.2, seed)
+		shelfDeco(C_, F, x1 - 0.25, y, zf, "cactus", 1.2, seed)
+		return true
+	end
+	-- 책장: 옆판 · 뒤판 · 선반 판
+	local sx0, sx1 = math.huge, -math.huge
+	for _, s in sides do
+		boxF(K, "HomeShelfSide", F, s.min, s.max, bl)
+		sx0, sx1 = math.min(sx0, s.max.X), math.max(sx1, s.min.X)
+	end
+	if backP then
+		boxF(K, "HomeShelfBack", F, backP.min, backP.max, tint(bl, 0.06))
+	end
+	local zf = info.max.Z
+	for _, b in boards do
+		boxF(K, "HomeShelfBoard", F, V3(sx0, b.min.Y, b.min.Z), V3(sx1, b.max.Y, zf - 0.02), bl)
+		if K.detail == "high" then
+			K:box("HomeShelfEdge", V3(sx1 - sx0, b.size.Y, 0.02), F * CF((sx0 + sx1) / 2, b.c.Y, zf - 0.01), tint(bl, 0.08))
+		end
+	end
+	-- 칸마다 내용 (책 줄 · 눕힌 책 · 장식)
+	local kinds = if C_.tier == "penthouse" then { "vase", "books", "frame", "books", "trophy", "books", "vase" } elseif C_.tier == "apartment" then { "box", "books", "books", "frame", "books", "plant" } else { "books", "plant", "books", "frame" }
+	for i = 1, #boards - 1 do
+		local b = boards[i]
+		local gap = boards[i + 1].min.Y - b.max.Y
+		local y = b.max.Y
+		if gap < 0.6 then
+			continue
+		end
+		local kind = kinds[(i - 1) % #kinds + 1]
+		local x0, x1 = sx0 + 0.08, sx1 - 0.08
+		local dep = zf - b.min.Z
+		if kind == "books" then
+			local xe = bookRow(C_, F, x0, x0 + (x1 - x0) * (0.55 + rnd(seed, i) * 0.3), y, zf - 0.08, gap, dep, seed + i * 13)
+			if xe < x1 - 0.9 then
+				bookStack(K, F * CF((xe + x1) / 2, y, zf - 0.45), 3, seed + i)
+			end
+		else
+			local xe = bookRow(C_, F, x0, x0 + (x1 - x0) * 0.35, y, zf - 0.08, gap, dep, seed + i * 17, { max = 8 })
+			shelfDeco(C_, F, (xe + x1) / 2 + 0.1, y, zf - 0.05, kind, gap, seed + i)
+		end
+	end
+	-- 맨 위 판 위 (낮은 것만)
+	local topB = boards[#boards]
+	if topB.max.Y < 6.2 and C_.tier ~= "penthouse" then
+		shelfDeco(C_, F, (sx0 + sx1) / 2 + 0.4, topB.max.Y, zf - 0.05, if C_.tier == "apartment" then "box" else "plant", 1.0, seed + 99)
+	end
+	return true
+end
+
+-- 커튼 ------------------------------------------------------------------------------------------
+-- 주름 커튼 한 폭 (F 공간 x0..x1, y0..y1, z 중심) : 세운 원통 주름 + 머리 테이프 + 밑단
+local function pleatPanel(K: any, F: CFrame, x0: number, x1: number, y0: number, y1: number, z: number, look: any, pitch: number, name: string?): { BasePart }
+	local out = {}
+	local w = x1 - x0
+	local n = math.max(3, math.floor(w / pitch + 0.5))
+	local d = w / n * 1.3
+	local h = y1 - y0 - 0.22
+	for i = 1, n do
+		local x = x0 + w * (i - 0.5) / n
+		local zz = z + (if i % 2 == 0 then 0.06 else -0.06)
+		table.insert(out, K:vcyl(name or "HomeCurtainPleat", h, d, F * CF(x, y0 + h / 2, zz), if i % 2 == 0 then look else tint(look, 0.07)))
+	end
+	table.insert(out, K:box("HomeCurtainHeader", V3(w, 0.24, d * 0.7), F * CF((x0 + x1) / 2, y1 - 0.12, z), tint(look, -0.04)))
+	table.insert(out, K:box("HomeCurtainHem", V3(w, 0.12, d * 0.85), F * CF((x0 + x1) / 2, y0 + 0.06, z), tint(look, 0.06)))
+	return out
+end
+
+SLOT.curtain = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local panels = all(info, "Curtain")
+	local rail = first(info, "CurtainRail")
+	local sheer = first(info, "Sheer")
+	if #panels == 0 then
+		return false
+	end
+	local item = tostring(info.item)
+	local look = fab(panels[1])
+	local blackout = string.find(item, "blackout") ~= nil
+	local hi = K.detail ~= "low"
+	local pitch = if K.detail == "low" then 0.6 elseif blackout then 0.38 else 0.3
+	local ry = if rail then rail.max.Y else panels[1].max.Y + 0.1
+	local rx0 = if rail then rail.min.X else info.min.X
+	local rx1 = if rail then rail.max.X else info.max.X
+	local rz = if rail then rail.c.Z else panels[1].c.Z - 0.2
+	-- 레일 / 봉
+	if C_.lux <= 2 then
+		K:cyl("HomeCurtainRod", rx1 - rx0, 0.1, F * CF((rx0 + rx1) / 2, ry - 0.08, rz + 0.1), L.blackMetal)
+		for _, sx in { -1, 1 } do
+			K:ball("HomeCurtainFinial", 0.2, F * CF(if sx > 0 then rx1 + 0.06 else rx0 - 0.06, ry - 0.08, rz + 0.1), L.blackMetal)
+			K:box("HomeCurtainBracket", V3(0.08, 0.2, 0.4), F * CF(if sx > 0 then rx1 - 0.35 else rx0 + 0.35, ry - 0.02, rz - 0.05), L.blackMetal)
+		end
+	else
+		K:box("HomeCurtainTrack", V3(rx1 - rx0, 0.12, 0.22), F * CF((rx0 + rx1) / 2, ry - 0.06, rz), lk(236, 236, 234, M.Metal))
+		if C_.lux >= 3 then
+			K:box("HomeCurtainMotor", V3(0.5, 0.22, 0.26), F * CF(rx1 - 0.4, ry - 0.17, rz), lk(236, 236, 234))
+		end
+		-- 커튼 박스 (천장 가까이 레일이 있으면)
+		local wp = (C_.V.cf * (F * CF((rx0 + rx1) / 2, ry, rz))).Position
+		local lp = C_.V.cf:PointToObjectSpace(wp)
+		local ch = C_:ceilAt(lp.X, lp.Z)
+		if ch - ry < 0.9 and C_.lux >= 4 then
+			K:box("HomeCurtainBox", V3(rx1 - rx0 + 0.4, ch - ry + 0.45, 0.06), F * CF((rx0 + rx1) / 2, (ch + ry - 0.45) / 2, rz + 0.55), L.white)
+			K:box("HomeCurtainBoxSoffit", V3(rx1 - rx0 + 0.4, 0.05, 0.6), F * CF((rx0 + rx1) / 2, ch - 0.025, rz + 0.25), L.white)
+		end
+	end
+	-- 속커튼 (쉬폰): 반투명 + 세로 주름
+	local sheerParts = {}
+	if sheer then
+		local sl = { c = sheer.color, m = M.Fabric, t = 0.58 }
+		table.insert(sheerParts, K:box("HomeSheer", V3(sheer.size.X, sheer.size.Y, 0.03), F * CF(sheer.c.X, sheer.c.Y, sheer.c.Z), sl))
+		if hi then
+			local n = math.floor(sheer.size.X / 0.55)
+			for i = 1, n do
+				local x = sheer.min.X + sheer.size.X * (i - 0.5) / n
+				table.insert(sheerParts, K:vcyl("HomeSheerFold", sheer.size.Y - 0.1, 0.12, F * CF(x, sheer.c.Y, sheer.c.Z + (if i % 2 == 0 then 0.04 else -0.03)), { c = sheer.color, m = M.Fabric, t = 0.66 }))
+			end
+		end
+	end
+	-- 열린 상태: 양옆에 모인 커튼 (원래 자리)
+	local openParts = {}
+	for _, p in panels do
+		local w = math.max(p.size.X, 1.2)
+		for _, q in pleatPanel(K, F, p.c.X - w / 2, p.c.X + w / 2, p.min.Y, math.min(ry - 0.1, p.max.Y + 0.05), p.c.Z, look, pitch) do
+			table.insert(openParts, q)
+		end
+		-- 커튼 끈 (타이백)
+		if hi and C_.lux <= 3 and not blackout then
+			table.insert(openParts, K:box("HomeCurtainTie", V3(w + 0.06, 0.12, 0.35), F * CF(p.c.X, p.min.Y + (p.max.Y - p.min.Y) * 0.42, p.c.Z + 0.04), tint(look, 0.12)))
+		end
+	end
+	-- 닫힌 상태 (처음엔 투명): 창 전체를 덮는 두 폭
+	local closedParts = {}
+	local cmid = (rx0 + rx1) / 2
+	local y0 = panels[1].min.Y
+	local y1 = math.min(ry - 0.1, panels[1].max.Y + 0.05)
+	local cz = panels[1].c.Z
+	for _, side in { { rx0 + 0.05, cmid - 0.02 }, { cmid + 0.02, rx1 - 0.05 } } do
+		for _, q in pleatPanel(K, F, side[1], side[2], y0, y1, cz, look, if K.detail == "low" then 0.9 else 0.55, "HomeCurtainClosed") do
+			table.insert(closedParts, q)
+		end
+	end
+	local store = {}
+	for _, q in closedParts do
+		store[q] = q.Transparency
+		q.Transparency = 1
+	end
+	for _, q in openParts do
+		store[q] = q.Transparency
+	end
+	info.curtain = { open = openParts, closed = closedParts, t = store, at = F * CF(rx1, (y0 + y1) / 2, cz) }
+	C_.curtains = C_.curtains or {}
+	table.insert(C_.curtains, info.curtain)
+	return true
+end
+
+-- 조명 (스탠드) -------------------------------------------------------------------------------------
+SLOT.lamp = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local shade = first(info, "LampShade")
+	local base = first(info, "LampBase")
+	if not shade then
+		return false
+	end
+	local item = tostring(info.item)
+	local arc = string.find(item, "arc") ~= nil
+	local brass = string.find(item, "brass") ~= nil or not arc
+	local poleL = if brass then L.brass else lk(40, 40, 42, M.Metal)
+	local bx, bz = if base then base.c.X else shade.c.X, if base then base.c.Z else shade.c.Z
+	local glow
+	if arc then
+		-- 대리석 받침 + 아치 + 돔 갓 (정면 쪽으로 휨)
+		K:box("HomeLampMarble", V3(0.8, 0.45, 0.8), F * CF(bx, 0.225, bz), L.marbleWhite)
+		local pts = {}
+		local topY = shade.c.Y + 0.9
+		local reach = 1.25
+		for i = 0, 7 do
+			local t = i / 7
+			local a = t * PI * 0.62
+			table.insert(pts, F * V3(bx, 0.45 + (topY - 0.45) * math.sin(math.min(PI / 2, a * 1.25)) , bz + reach * (1 - math.cos(a)) ))
+		end
+		for i = 1, #pts - 1 do
+			K:seg("HomeLampArc", pts[i], pts[i + 1], 0.09, poleL, 0.04)
+		end
+		local tip = pts[#pts]
+		K:seg("HomeLampDrop", tip, tip - V3(0, 0.5, 0), 0.04, L.black)
+		local scf = CF(tip - V3(0, 0.75, 0))
+		K:ell("HomeLampDome", V3(1.25, 0.8, 1.25), scf, if brass then L.brass else lk(40, 40, 42, M.Metal))
+		glow = K:disc("HomeLampDiffuser", 1.05, 0.03, scf * CF(0, -0.28, 0), L.lampWarm)
+	else
+		K:disc("HomeLampBase", 0.95, 0.08, F * CF(bx, 0.04, bz), lk(30, 30, 32, M.Metal))
+		K:disc("HomeLampBaseCap", 0.5, 0.06, F * CF(bx, 0.11, bz), poleL)
+		local top = shade.min.Y + 0.15
+		K:vcyl("HomeLampPole", top - 0.12, 0.08, F * CF(bx, 0.12 + (top - 0.12) / 2, bz), poleL)
+		K:vcyl("HomeLampKnob", 0.08, 0.12, F * CF(bx, top * 0.55, bz), poleL)
+		local sd = math.max(shade.size.X, shade.size.Z)
+		local sh = shade.size.Y
+		K:vcyl("HomeLampShade", sh, sd, F * CF(shade.c.X, shade.c.Y, shade.c.Z), { c = c3(246, 236, 214), m = M.Fabric, t = 0.15 })
+		K:vcyl("HomeLampShadeTrim", 0.04, sd + 0.02, F * CF(shade.c.X, shade.max.Y - 0.02, shade.c.Z), poleL)
+		K:vcyl("HomeLampShadeTrim", 0.04, sd + 0.02, F * CF(shade.c.X, shade.min.Y + 0.02, shade.c.Z), poleL)
+		glow = K:vcyl("HomeLampBulb", sh * 0.6, sd * 0.5, F * CF(shade.c.X, shade.c.Y, shade.c.Z), L.lampWarm)
+	end
+	local l = C_:light(glow, "PointLight", { Range = 11, Brightness = 0.55, Color = c3(255, 206, 150) })
+	info.lamp = { glow = glow, light = l }
+	C_.lamps = C_.lamps or {}
+	table.insert(C_.lamps, info.lamp)
+	return true
+end
+
+-- 식물 ------------------------------------------------------------------------------------------
+SLOT.plant = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local pot = first(info, "Pot")
+	if not pot then
+		return false
+	end
+	local item = tostring(info.item)
+	local kind = if string.find(item, "monstera") then "monstera" elseif string.find(item, "olive") then "olive" elseif string.find(item, "sansev") then "snake" elseif string.find(item, "ficus") then "ficus" else "monstera"
+	local pl = { c = pot.color, m = if pot.mat == M.Slate then M.Concrete else pot.mat }
+	if pot.color.R < 0.35 then
+		pl = { c = pot.color, m = M.Slate }
+	end
+	local dia = math.max(pot.size.X, pot.size.Z)
+	local h = info.max.Y
+	-- 받침 접시 + 화분 (Props.floorPlant)
+	K:disc("HomePlantSaucer", dia + 0.15, 0.06, F * CF(pot.c.X, 0.03, pot.c.Z), tint(pl, 0.1))
+	Props.floorPlant(K, F * CF(pot.c.X, 0.06, pot.c.Z), { kind = kind, h = h - 0.1, dia = dia, pot = pl })
+	if K.detail == "high" then
+		for i = 1, 5 do
+			local a = i * 1.25 + C_.seed
+			K:ball("HomePebble", 0.1 + rnd(C_.seed, i) * 0.06, F * CF(pot.c.X + math.cos(a) * dia * 0.32, dia * 0.9 - 0.02, pot.c.Z + math.sin(a) * dia * 0.32), lk(214, 210, 200, M.Slate))
+		end
+	end
+	return true
+end
+
+-- 러그 ------------------------------------------------------------------------------------------
+SLOT.rug = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local rug = first(info, "Rug")
+	if not rug then
+		return false
+	end
+	local item = tostring(info.item)
+	local col = rug.color
+	local field = { c = col, m = M.Fabric }
+	local border = { c = col:Lerp(Color3.new(0, 0, 0), 0.22), m = M.Fabric }
+	local round = rug.part:IsA("Part") and (rug.part :: Part).Shape == Enum.PartType.Cylinder
+	local t = rug.size.Y
+	if round then
+		local d = math.max(rug.size.X, rug.size.Z)
+		K:disc("HomeRugBorder", d, t, F * CF(rug.c.X, t / 2, rug.c.Z), border)
+		K:disc("HomeRugField", d - 0.5, t + 0.006, F * CF(rug.c.X, (t + 0.006) / 2, rug.c.Z), field)
+		K:disc("HomeRugRing", d - 1.2, t + 0.008, F * CF(rug.c.X, (t + 0.008) / 2, rug.c.Z), { c = col:Lerp(Color3.new(1, 1, 1), 0.12), m = M.Fabric })
+		K:disc("HomeRugCenter", d - 1.45, t + 0.01, F * CF(rug.c.X, (t + 0.01) / 2, rug.c.Z), field)
+		return true
+	end
+	local w, l = rug.size.X, rug.size.Z
+	local b = math.min(0.45, math.min(w, l) * 0.07)
+	K:box("HomeRugField", V3(w - 2 * b, t, l - 2 * b), F * CF(rug.c.X, t / 2, rug.c.Z), field)
+	K:box("HomeRugBorder", V3(w, t, b), F * CF(rug.c.X, t / 2, rug.min.Z + b / 2), border)
+	K:box("HomeRugBorder", V3(w, t, b), F * CF(rug.c.X, t / 2, rug.max.Z - b / 2), border)
+	K:box("HomeRugBorder", V3(b, t, l - 2 * b), F * CF(rug.min.X + b / 2, t / 2, rug.c.Z), border)
+	K:box("HomeRugBorder", V3(b, t, l - 2 * b), F * CF(rug.max.X - b / 2, t / 2, rug.c.Z), border)
+	if K.detail ~= "low" then
+		if string.find(item, "silk") then
+			-- 대리석 무늬 실크 러그: 비스듬한 결
+			for i = 1, 6 do
+				local zz = rug.min.Z + l * (i - 0.5) / 6
+				K:box("HomeRugVein", V3(w * 0.7, 0.004, 0.08), F * CF(rug.c.X + (rnd(C_.seed, i) - 0.5) * w * 0.2, t + 0.002, zz) * ANG(0, (rnd(C_.seed, i + 3) - 0.5) * 0.5, 0), { c = col:Lerp(Color3.new(1, 1, 1), 0.25), m = M.Fabric })
+			end
+		else
+			-- 울 러그: 안쪽 테 + 격자 결
+			K:box("HomeRugInner", V3(w - 2 * b - 0.5, 0.004, 0.06), F * CF(rug.c.X, t + 0.002, rug.min.Z + b + 0.25), border)
+			K:box("HomeRugInner", V3(w - 2 * b - 0.5, 0.004, 0.06), F * CF(rug.c.X, t + 0.002, rug.max.Z - b - 0.25), border)
+			K:box("HomeRugInner", V3(0.06, 0.004, l - 2 * b - 0.5), F * CF(rug.min.X + b + 0.25, t + 0.002, rug.c.Z), border)
+			K:box("HomeRugInner", V3(0.06, 0.004, l - 2 * b - 0.5), F * CF(rug.max.X - b - 0.25, t + 0.002, rug.c.Z), border)
+		end
+		-- 짧은 변 술 (프린지)
+		local short = if w < l then "x" else "z"
+		for _, sgn in { -1, 1 } do
+			if short == "x" then
+				K:box("HomeRugFringe", V3(w - 0.1, 0.02, 0.22), F * CF(rug.c.X, 0.012, rug.c.Z + sgn * (l / 2 + 0.11)), { c = c3(236, 230, 214), m = M.Fabric })
+			else
+				K:box("HomeRugFringe", V3(0.22, 0.02, l - 0.1), F * CF(rug.c.X + sgn * (w / 2 + 0.11), 0.012, rug.c.Z), { c = c3(236, 230, 214), m = M.Fabric })
+			end
+		end
+	end
+	return true
+end
+
+-- 그림 · 액자 -------------------------------------------------------------------------------------
+-- 액자 틀 + 캔버스 (dcf: 벽 표면 위 가운데, +Z = 보는 쪽) 반환: 그림 면 dcf (캔버스 앞면)
+local function artFrame(K: any, dcf: CFrame, w: number, h: number, o: any): CFrame
+	local fr = o.frame or L.walnut
+	local b = o.border or 0.1
+	local dep = o.depth or 0.12
+	if o.gallery then
+		-- 갤러리 랩 캔버스 (틀 없음, 두꺼운 캔버스)
+		K:box("HomeCanvasEdge", V3(w, h, dep), dcf * CF(0, 0, dep / 2), o.edge or lk(236, 232, 222, M.Fabric))
+		return dcf * CF(0, 0, dep + 0.002)
+	end
+	K:box("HomeArtBack", V3(w - 0.04, h - 0.04, dep * 0.4), dcf * CF(0, 0, dep * 0.2), lk(60, 56, 52))
+	for _, sy in { -1, 1 } do
+		K:box("HomeArtFrame", V3(w, b, dep), dcf * CF(0, sy * (h / 2 - b / 2), dep / 2), fr)
+	end
+	for _, sx in { -1, 1 } do
+		K:box("HomeArtFrame", V3(b, h - 2 * b, dep), dcf * CF(sx * (w / 2 - b / 2), 0, dep / 2), fr)
+	end
+	local mat = o.mat
+	if mat then
+		K:box("HomeArtMat", V3(w - 2 * b, h - 2 * b, 0.01), dcf * CF(0, 0, dep * 0.45), mat)
+	end
+	return dcf * CF(0, 0, dep * 0.45 + 0.012)
+end
+T.artFrame = artFrame
+
+-- 그림 구성 (면 dcf, 폭 w, 높이 h): kind = "warm" | "sea" | "bridge" | "abstract" | "pair"
+local function artPaint(K: any, f: CFrame, w: number, h: number, kind: string, seed: number, cols: { Color3 })
+	local function blk(name: string, x: number, y: number, bw: number, bh: number, c: Color3, rot: number?, z: number?)
+		K:box(name, V3(bw, bh, 0.008), f * CF(x * w / 2, y * h / 2, (z or 0) + 0.004) * ANG(0, 0, rot or 0), { c = c, m = M.SmoothPlastic })
+	end
+	if kind == "sea" then
+		blk("HomePaintSky", 0, 0.45, w, h * 0.55, c3(170, 200, 222))
+		blk("HomePaintSkyGlow", 0, 0.12, w, h * 0.12, c3(238, 214, 190), 0, 0.001)
+		blk("HomePaintSea", 0, -0.35, w, h * 0.42, c3(46, 96, 140), 0, 0.001)
+		blk("HomePaintSeaLight", 0.1, -0.18, w * 0.7, h * 0.05, c3(120, 170, 200), 0, 0.002)
+		blk("HomePaintSand", 0, -0.86, w, h * 0.14, c3(226, 206, 168), 0, 0.002)
+		K:disc("HomePaintSun", h * 0.16, 0.01, f * CF(w * 0.22, h * 0.2, 0.008) * ANG(PI / 2, 0, 0), { c = c3(250, 238, 210), m = M.SmoothPlastic })
+		for i = 1, 4 do
+			blk("HomePaintWave", (rnd(seed, i) - 0.5) * 1.4, -0.3 - i * 0.12, w * (0.15 + rnd(seed, i + 5) * 0.2), h * 0.012, c3(240, 246, 250), (rnd(seed, i + 9) - 0.5) * 0.1, 0.003)
+		end
+	elseif kind == "bridge" then
+		blk("HomePaintNight", 0, 0.25, w, h * 0.5, c3(16, 22, 46))
+		blk("HomePaintSea", 0, -0.5, w, h * 0.5, c3(10, 18, 34), 0, 0.001)
+		-- 광안대교: 상판 + 주탑 2 + 케이블 + 조명 점
+		blk("HomeBridgeDeck", 0, -0.05, w, h * 0.025, c3(200, 210, 230), 0, 0.003)
+		for _, sx in { -0.35, 0.35 } do
+			blk("HomeBridgeTower", sx, 0.12, w * 0.012, h * 0.4, c3(190, 200, 225), 0, 0.003)
+			for j = 1, 4 do
+				local dx = j * 0.07
+				blk("HomeBridgeCable", sx - dx / 2, 0.12 - j * 0.02, w * dx * 0.5 * 2.2, h * 0.004, c3(150, 170, 220), math.rad(18 + j * 4), 0.002)
+				blk("HomeBridgeCable", sx + dx / 2, 0.12 - j * 0.02, w * dx * 0.5 * 2.2, h * 0.004, c3(150, 170, 220), -math.rad(18 + j * 4), 0.002)
+			end
+		end
+		for i = 1, 9 do
+			local x = -0.9 + i * 0.18
+			blk("HomeBridgeLight", x, -0.05, w * 0.01, h * 0.012, ({ c3(120, 200, 255), c3(255, 120, 200), c3(140, 255, 160) })[i % 3 + 1], 0, 0.005)
+			blk("HomeBridgeReflect", x, -0.35, w * 0.006, h * 0.22, c3(60, 90, 150), 0, 0.002)
+		end
+	elseif kind == "abstract" then
+		blk("HomePaintGround", 0, 0, w, h, cols[1] or c3(232, 226, 214))
+		K:ell("HomePaintForm", V3(w * 0.42, h * 0.62, 0.01), f * CF(-w * 0.18, h * 0.05, 0.006), { c = cols[2] or c3(40, 70, 110), m = M.SmoothPlastic })
+		K:ell("HomePaintForm", V3(w * 0.3, h * 0.45, 0.01), f * CF(w * 0.2, -h * 0.12, 0.008), { c = cols[3] or c3(196, 120, 80), m = M.SmoothPlastic })
+		K:ell("HomePaintForm", V3(w * 0.16, h * 0.2, 0.01), f * CF(w * 0.3, h * 0.28, 0.01), { c = c3(214, 180, 110), m = M.SmoothPlastic })
+		for i = 1, 5 do
+			blk("HomePaintStroke", (rnd(seed, i) - 0.5) * 1.5, (rnd(seed, i + 7) - 0.5) * 1.5, w * 0.25, h * 0.012, c3(30, 30, 32), (rnd(seed, i + 3) - 0.5) * 2, 0.012)
+		end
+	else -- warm
+		blk("HomePaintGround", 0, 0, w, h, cols[1] or c3(236, 230, 218))
+		K:ell("HomePaintArch", V3(w * 0.4, h * 0.75, 0.01), f * CF(-w * 0.15, -h * 0.12, 0.006), { c = cols[2] or c3(200, 120, 80), m = M.SmoothPlastic })
+		blk("HomePaintArchCut", -0.3, -0.62, w * 0.42, h * 0.3, cols[1] or c3(236, 230, 218), 0, 0.007)
+		K:disc("HomePaintSunDot", h * 0.28, 0.01, f * CF(w * 0.22, h * 0.18, 0.008) * ANG(PI / 2, 0, 0), { c = cols[3] or c3(60, 80, 120), m = M.SmoothPlastic })
+		blk("HomePaintLine", 0.1, -0.55, w * 0.7, h * 0.02, c3(120, 90, 60), 0, 0.009)
+	end
+end
+T.artPaint = artPaint
+
+SLOT.art = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local item = tostring(info.item)
+	local cork = first(info, "CorkFrame")
+	local frame = first(info, "ArtFrame")
+	local canvas = first(info, "Canvas")
+	local hi = K.detail ~= "low"
+	if cork then
+		local w, h = cork.size.X, cork.size.Y
+		local back = cork.min.Z
+		local dcf = F * CF(cork.c.X, cork.c.Y, back)
+		local f = artFrame(K, dcf, w, h, { frame = from(cork, L.oak, M.Wood), border = 0.1, depth = 0.1, mat = lk(196, 150, 100, M.Fabric) })
+		-- 메모 · 사진 · 달력 · 압정
+		local memoC = { c3(255, 236, 120), c3(255, 186, 200), c3(170, 220, 255), c3(250, 250, 246), c3(190, 240, 170) }
+		local texts = { "월세 25일", "토익 6/14", "택배 101호", "편의점\n18~24시", "엄마 생신" }
+		for i = 1, 5 do
+			local x = (rnd(C_.seed, i) - 0.5) * (w - 0.9)
+			local y = (rnd(C_.seed, i + 10) - 0.5) * (h - 0.8)
+			local rot = (rnd(C_.seed, i + 20) - 0.5) * 0.3
+			local mcf = f * CF(x, y, 0) * ANG(0, 0, rot)
+			K:box("HomeMemo", V3(0.6, 0.6, 0.01), mcf * CF(0, 0, 0.005), { c = memoC[i], m = M.SmoothPlastic })
+			if hi then
+				K:text("HomeMemoText", 0.5, 0.4, mcf * CF(0, -0.03, 0.011), texts[i], { fg = c3(40, 40, 60), font = Enum.Font.Gotham, d = 0.005, free = true })
+			end
+			K:ball("HomePushPin", 0.08, mcf * CF(0, 0.24, 0.04), { c = ({ c3(220, 40, 40), c3(40, 120, 220), c3(250, 200, 40) })[i % 3 + 1], m = M.SmoothPlastic })
+		end
+		-- 네컷 사진
+		local pcf = f * CF(w / 2 - 0.45, 0.1, 0) * ANG(0, 0, 0.08)
+		K:box("HomePhotoStrip", V3(0.32, 1.25, 0.01), pcf * CF(0, 0, 0.006), lk(30, 30, 34))
+		for j = 0, 3 do
+			K:box("HomePhotoStripCell", V3(0.26, 0.26, 0.01), pcf * CF(0, 0.45 - j * 0.3, 0.012), lk(200 - j * 20, 170, 150 + j * 15))
+		end
+		return true
+	end
+	if not (frame or canvas) then
+		return false
+	end
+	local ref = frame or canvas
+	local w, h = ref.size.X, ref.size.Y
+	local dcf = F * CF(ref.c.X, ref.c.Y, ref.min.Z)
+	local cols = {}
+	if canvas then
+		table.insert(cols, canvas.color)
+	end
+	for _, p in all(info, "Paint") do
+		table.insert(cols, p.color)
+	end
+	if string.find(item, "pair") then
+		-- 두 폭 (딥틱)
+		local gw = (w - 0.3) / 2
+		for i, sx in { -1, 1 } do
+			local d = dcf * CF(sx * (gw / 2 + 0.15), 0, 0)
+			local f = artFrame(K, d, gw, h, { frame = from(frame, L.oak, M.Wood), border = 0.08, mat = lk(246, 244, 238) })
+			artPaint(K, f, gw - 0.5, h - 0.5, "warm", C_.seed + i, { c3(236, 230, 218), cols[i + 1] or c3(200, 120, 80), cols[4 - i] or c3(60, 80, 120) })
+		end
+		return true
+	end
+	local kind = if string.find(item, "sea") then "sea" elseif string.find(item, "bridge") then "bridge" elseif string.find(item, "large") then "abstract" else "warm"
+	local gallery = kind == "abstract"
+	local f = artFrame(K, dcf, w, h, { frame = if kind == "bridge" then lk(26, 26, 28, M.Metal) else from(frame, L.oak, M.Wood), border = if kind == "bridge" then 0.06 else 0.1, gallery = gallery, mat = if kind == "bridge" then lk(250, 250, 248) else nil })
+	local inset = if gallery then 0 elseif kind == "bridge" then 0.5 else 0.22
+	artPaint(K, f, w - inset * 2, h - inset * 2, kind, C_.seed, cols)
+	-- 큰 그림: 위에 그림 조명 (불빛 없이 네온)
+	if (gallery or kind == "bridge") and C_.lux >= 5 then
+		local lcf = dcf * CF(0, h / 2 + 0.3, 0)
+		K:box("HomePictureLightArm", V3(0.06, 0.3, 0.45), lcf * CF(0, 0, 0.22), L.brass)
+		K:cyl("HomePictureLight", math.min(w * 0.5, 3), 0.18, lcf * CF(0, -0.08, 0.45), L.brass)
+		K:box("HomePictureLightLED", V3(math.min(w * 0.5, 3) - 0.1, 0.02, 0.08), lcf * CF(0, -0.18, 0.45), L.neon(c3(255, 226, 180), 0.2))
+	end
+	return true
+end
+
+-- 가전 (공기청정기 · 스탠드 에어컨 · 선풍기) -----------------------------------------------------------
+SLOT.appliance = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local item = tostring(info.item)
+	local hi = K.detail ~= "low"
+	local pur = first(info, "AirPurifier")
+	local ac = first(info, "StandAC")
+	local fanBase = first(info, "FanBase")
+	if pur then
+		local bl = withC(L.plasticWhite, pur.color)
+		local w, d, h = pur.size.X, pur.size.Z, pur.size.Y + 0.08
+		K:rbox("HomePurifierBody", V3(w, h - 0.1, d), 0.14, F * CF(pur.c.X, 0.08 + (h - 0.1) / 2, pur.c.Z), bl)
+		K:slab("HomePurifierFoot", w - 0.1, d - 0.1, 0.08, 0.1, F * CF(pur.c.X, 0.04, pur.c.Z), lk(200, 200, 198))
+		K:disc("HomePurifierTop", math.min(w, d) - 0.12, 0.04, F * CF(pur.c.X, h - 0.01, pur.c.Z), lk(180, 184, 188))
+		for i = 1, 3 do
+			K:vcyl("HomePurifierGrille", 0.042, (math.min(w, d) - 0.12) * (1 - i * 0.22), F * CF(pur.c.X, h + 0.005, pur.c.Z), lk(120, 124, 128))
+		end
+		-- 앞면 360 흡입구 결 · 상태 LED 링 · 공기질 표시
+		if hi then
+			for i = 1, 6 do
+				K:box("HomePurifierSlot", V3(w - 0.3, 0.025, 0.01), F * CF(pur.c.X, 0.4 + i * 0.22, pur.max.Z + 0.002), lk(214, 214, 212))
+			end
+		end
+		local led = K:box("HomePurifierLED", V3(0.5, 0.05, 0.01), F * CF(pur.c.X, h - 0.45, pur.max.Z + 0.004), L.neon(c3(60, 140, 255)))
+		local _, lab = K:text("HomePurifierAQ", 0.4, 0.14, F * CF(pur.c.X, h - 0.3, pur.max.Z + 0.006) * ANG(0, 0, 0), "좋음", { fg = c3(60, 140, 255), glow = 1.2, d = 0.005, free = true })
+		info.purifier = { led = led, label = lab }
+		C_.purifier = info.purifier
+		return true
+	end
+	if ac then
+		local bl = withC(L.plasticWhite, ac.color)
+		local w, d, h = ac.size.X, ac.size.Z, ac.max.Y
+		K:rbox("HomeStandACBody", V3(w, h - 0.12, d), 0.2, F * CF(ac.c.X, 0.12 + (h - 0.12) / 2, ac.c.Z), bl)
+		K:slab("HomeStandACBase", w - 0.1, d - 0.1, 0.12, 0.12, F * CF(ac.c.X, 0.06, ac.c.Z), lk(70, 72, 76))
+		-- 무풍 패널 (작은 구멍 띠) + 둥근 송풍구 + 디스플레이
+		local fz = ac.max.Z + 0.003
+		K:box("HomeStandACPanel", V3(w - 0.24, h * 0.42, 0.01), F * CF(ac.c.X, h * 0.72, fz), lk(222, 224, 226))
+		if hi then
+			for i = 1, 8 do
+				K:box("HomeStandACHoles", V3(w - 0.34, 0.012, 0.012), F * CF(ac.c.X, h * 0.53 + i * h * 0.045, fz + 0.006), lk(200, 202, 206))
+			end
+		end
+		K:cyl("HomeStandACFanRing", 0.03, w * 0.62, F * CF(ac.c.X, h * 0.82, fz + 0.01) * ANG(0, PI / 2, 0), lk(186, 190, 194))
+		K:cyl("HomeStandACFan", 0.02, w * 0.5, F * CF(ac.c.X, h * 0.82, fz + 0.02) * ANG(0, PI / 2, 0), lk(60, 62, 66))
+		K:box("HomeStandACDisplay", V3(0.42, 0.16, 0.01), F * CF(ac.c.X, h * 0.45, fz + 0.002), lk(30, 30, 34))
+		K:text("HomeStandACTemp", 0.36, 0.13, F * CF(ac.c.X, h * 0.45, fz + 0.008), "24°", { fg = c3(80, 200, 255), glow = 1.4, d = 0.004, free = true })
+		return true
+	end
+	if fanBase then
+		local motor = first(info, "FanMotor")
+		local guard = first(info, "FanGuard")
+		local pole = first(info, "FanPole")
+		local bc = F * CF(fanBase.c.X, fanBase.min.Y, fanBase.c.Z)
+		K:disc("HomeFanBase", 0.95, 0.12, bc * CF(0, 0.06, 0), lk(240, 240, 236))
+		K:disc("HomeFanButtons", 0.4, 0.03, bc * CF(0, 0.13, 0.22), lk(160, 200, 230))
+		local topY = if motor then motor.c.Y else fanBase.min.Y + 1.2
+		K:vcyl("HomeFanPole", topY - fanBase.min.Y - 0.12, 0.12, bc * CF(0, (topY - fanBase.min.Y) / 2, 0), lk(240, 240, 236))
+		local hc = F * CF(fanBase.c.X, topY, fanBase.c.Z)
+		K:ell("HomeFanMotor", V3(0.42, 0.42, 0.5), hc * CF(0, 0, -0.1), lk(240, 240, 236))
+		local gd = if guard then math.max(guard.size.X, guard.size.Y) else 1.4
+		local gcf = hc * CF(0, 0, 0.25)
+		local rings = K:ring("HomeFanGuard", gcf, gd / 2, 0.04, 14, lk(230, 232, 236))
+		K:ring("HomeFanGuardInner", gcf * CF(0, 0, 0.04), gd / 4, 0.03, 10, lk(230, 232, 236))
+		local blades = {}
+		for i = 0, 2 do
+			table.insert(blades, K:ell("HomeFanBlade", V3(gd * 0.42, 0.26, 0.03), gcf * CF(0, 0, -0.04) * ANG(0, 0, i * 2 * PI / 3) * CF(gd * 0.2, 0, 0), { c = c3(170, 210, 240), m = M.SmoothPlastic, t = 0.2 }))
+		end
+		table.insert(blades, K:disc("HomeFanHub", 0.2, 0.08, gcf * CF(0, 0, -0.04) * ANG(PI / 2, 0, 0), lk(200, 210, 220)))
+		info.fan = { blades = blades, center = (C_.V.cf * gcf).Position, axis = (C_.V.cf * gcf).LookVector }
+		C_.fan = info.fan
+		local _ = rings
+		return true
+	end
+	return false
+end
+
+-- 장식 스탠드 (사이드 테이블 + 화병 + 책) ---------------------------------------------------------------
+SLOT.deco = function(C_: any, info: any): boolean?
+	local K, F = C_.K, info.F
+	local top = first(info, "StandTop")
+	if not top then
+		return false
+	end
+	local y = top.max.Y
+	local tl = from(top, L.walnut, M.Wood)
+	K:disc("HomeSideTableTop", math.max(top.size.X, top.size.Z), 0.1, F * CF(top.c.X, y - 0.05, top.c.Z), tl)
+	K:disc("HomeSideTableEdge", math.max(top.size.X, top.size.Z) - 0.06, 0.03, F * CF(top.c.X, y - 0.115, top.c.Z), tint(tl, 0.2))
+	K:vcyl("HomeSideTableStem", y - 0.18, 0.1, F * CF(top.c.X, (y - 0.18) / 2 + 0.05, top.c.Z), L.blackMetal)
+	K:disc("HomeSideTableFoot", 0.85, 0.05, F * CF(top.c.X, 0.025, top.c.Z), L.blackMetal)
+	local vase = first(info, "Vase")
+	local vx, vz = if vase then vase.c.X else top.c.X + 0.2, if vase then vase.c.Z else top.c.Z
+	local vl = if vase then withC(L.white, vase.color) else L.white
+	K:vcyl("HomeDecoVase", 0.55, 0.36, F * CF(vx, y + 0.275, vz), vl)
+	K:ell("HomeDecoVaseShoulder", V3(0.36, 0.2, 0.36), F * CF(vx, y + 0.56, vz), vl)
+	K:vcyl("HomeDecoVaseNeck", 0.16, 0.16, F * CF(vx, y + 0.7, vz), vl)
+	-- 유칼립투스 가지
+	for i = 0, 4 do
+		local a = i * 1.26 + 0.3
+		local tip = F * V3(vx + math.cos(a) * 0.3, y + 1.35 + rnd(C_.seed, i) * 0.3, vz + math.sin(a) * 0.25)
+		K:seg("HomeDecoStem", F * V3(vx, y + 0.72, vz), tip, 0.025, lk(90, 110, 80))
+		for j = 1, 3 do
+			local p = (F * V3(vx, y + 0.72, vz)):Lerp(tip, 0.35 + j * 0.2)
+			K:ell("HomeDecoLeaf", V3(0.14, 0.04, 0.12), CF(p) * ANG(0, a + j, 0.4), lk(120, 150, 130, M.Grass))
+		end
+	end
+	-- 책 두 권 + 향초
+	local books = all(info, "Book")
+	if #books > 0 then
+		local b = books[1]
+		bookStack(K, F * CF(b.c.X, y, b.c.Z), 2, C_.seed + 3)
+		K:vcyl("HomeCandle", 0.22, 0.2, F * CF(b.c.X, y + 0.3, b.c.Z), lk(244, 238, 226))
+		K:vcyl("HomeCandleWick", 0.04, 0.02, F * CF(b.c.X, y + 0.43, b.c.Z), lk(30, 30, 30))
+	end
+	return true
+end
+
+-- 슬롯 하나 짓기 (기본 가구만: 산 가구(Variant)는 그대로 둠) --------------------------------------------
+local function defaultPiece(slot: Instance): Model?
+	for _, ch in slot:GetChildren() do
+		if ch:IsA("Model") and ch:GetAttribute("Variant") == nil and (ch:GetAttribute("Default") == true or ch.Name == "Furniture") then
+			return ch
+		end
+	end
+	return nil
+end
+
+function C:overlaySlot(slot: Model)
+	local K = self.K
+	self.slotRec = self.slotRec or {}
+	local piece = defaultPiece(slot)
+	if not piece then
+		return
+	end
+	local cat = tostring(slot:GetAttribute("Category") or "")
+	local fn = SLOT[cat]
+	if not fn then
+		return
+	end
+	local F = slotFrame(self, slot, piece, BACK[cat])
+	if not F then
+		return
+	end
+	local info = analyze(self, F, piece)
+	info.item = piece:GetAttribute("ItemId") or slot:GetAttribute("DefaultItem")
+	info.cat = cat
+	info.slot = slot
+	local lights0 = self.lightsMine
+	local nParts0 = #K.parts
+	local ok, res = false, nil
+	local g = K:group("HomeSlot_" .. tostring(slot:GetAttribute("SlotId") or slot.Name), function()
+		K:free(function()
+			ok, res = pcall(fn, self, info)
+		end)
+	end)
+	if not ok or res == false then
+		if not ok then
+			K:note("slot " .. cat .. " " .. tostring(info.item) .. " error: " .. tostring(res))
+		end
+		g:Destroy()
+		self.lightsMine = lights0
+		return
+	end
+	-- 기본 가구 숨김 (화면 · 테마 파트 · 프롬프트 붙은 파트는 그대로)
+	local hidden = {}
+	for _, d in piece:GetDescendants() do
+		if d:IsA("BasePart") and not keepVisible(d) and d.Transparency < 0.99 then
+			if not K.hidden[d] then
+				self:hide(d)
+				table.insert(hidden, d)
+			end
+		end
+	end
+	local mn, mx = laabb(F * CF((info.min + info.max) / 2), info.max - info.min)
+	self:use(mn, mx)
+	self.slotRec[slot] = { group = g, hidden = hidden, lights = self.lightsMine - lights0, info = info, parts = #K.parts - nParts0 }
+end
+
+-- 슬롯 가구가 바뀌면 (서버가 사고 · 돌리고 · 되돌림) 그 슬롯만 다시
+function C:rebuildSlot(slot: Model)
+	local K = self.K
+	local rec = self.slotRec and self.slotRec[slot]
+	if rec then
+		if rec.group then
+			rec.group:Destroy()
+		end
+		for _, p in rec.hidden do
+			local h = K.hidden[p]
+			if h then
+				Scan.restore({ [p] = h })
+				K.hidden[p] = nil
+			end
+		end
+		self.lightsMine = math.max(0, self.lightsMine - (rec.lights or 0))
+		self.slotRec[slot] = nil
+	end
+	-- 지운 파트 · 불빛 목록 정리
+	local keepP = {}
+	for _, p in K.parts do
+		if p.Parent then
+			table.insert(keepP, p)
+		end
+	end
+	K.parts = keepP
+	local keepL = {}
+	for _, l in K.lights do
+		if l.Parent then
+			table.insert(keepL, l)
+		end
+	end
+	K.lights = keepL
+	self:overlaySlot(slot)
+	K:finish()
+end
+
+function C:slotOverlays()
+	local K = self.K
+	for _, slot in self.slots do
+		local base = slot:FindFirstChild("SlotBase") or slot.PrimaryPart
+		if not (base and base:IsA("BasePart")) then
+			continue
+		end
+		local lp = self.V.cf:PointToObjectSpace(base.Position)
+		local cat = slot:GetAttribute("Category")
+		local probe = V3(lp.X, math.max(lp.Y, 0) + 0.5, lp.Z)
+		if cat == "art" or cat == "curtain" then
+			-- 벽에 붙은 슬롯: 방 안쪽으로 조금
+			local F = nil
+			local piece = defaultPiece(slot)
+			if piece then
+				F = slotFrame(self, slot, piece, BACK[cat])
+			end
+			if F then
+				local p = (F * CF(0, 0, 0.9)).Position
+				probe = V3(p.X, math.max(lp.Y, 0) + 0.5, p.Z)
+			end
+		end
+		if not self:mine(probe) then
+			continue
+		end
+		local ok, err = pcall(function()
+			self:overlaySlot(slot)
+		end)
+		if not ok then
+			K:note("slot error " .. slot.Name .. ": " .. tostring(err))
+		end
+		-- 바뀌면 다시 짓기 (0.4초 모아서)
+		K.conns = K.conns or {}
+		local pending = false
+		local function changed()
+			if pending then
+				return
+			end
+			pending = true
+			task.delay(0.4, function()
+				pending = false
+				if slot.Parent then
+					local ok2, e2 = pcall(function()
+						self:rebuildSlot(slot)
+					end)
+					if not ok2 then
+						warn("[GwangalliBuildingInterior] home slot rebuild: " .. tostring(e2))
+					end
+				end
+			end)
+		end
+		table.insert(K.conns, slot.ChildAdded:Connect(changed))
+		table.insert(K.conns, slot.ChildRemoved:Connect(changed))
+	end
+end
+
 T.C = C
 
 -------------------------------------------------------------------------------------------------
@@ -1397,6 +3145,7 @@ function T.build(K: any, V: any, S: any)
 	step("fixtures", function(c) c:fixtures() end)
 	step("ceiling", function(c) c:ceilingKit() end)
 	step("windows", function(c) c:windows() end)
+	step("slots", function(c) c:slotOverlays() end)
 	if HomeWet.rooms[V.room] then
 		local ok3, err = pcall(HomeWet.build, K, V, S)
 		if not ok3 then

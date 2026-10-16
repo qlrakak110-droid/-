@@ -1014,6 +1014,21 @@ local function ceilingBeams(ctx: any, axis: string, n: number, look: any, depth:
 	end
 end
 
+-- 벽 글씨 (페인트 레터링 슈퍼그래픽): 남은 빈 벽 윗부분을 채움
+local function wallMural(ctx: any, walls: { string }, line1: string, line2: string?, c: Color3, c2: Color3?)
+	local K = ctx.K
+	local dcf, w = wallSpotFit(ctx, walls, { 8.0, 6.2, 4.6 }, 6.4, 8.9, 0)
+	if not dcf then
+		return
+	end
+	local tw = w - 0.6
+	K:text("FfMural", tw, 1.2, dcf * CF(0, 0.45, 0.012), line1, { fg = c, font = F.GothamBlack, d = 0.006, free = true })
+	K:plate("FfMuralRule", tw * 0.8, 0.07, 0.012, dcf * CF(0, -0.25, 0.012), pl(c2 or c))
+	if line2 then
+		K:text("FfMural2", tw * 0.8, 0.5, dcf * CF(0, -0.68, 0.012), line2, { fg = c2 or c, font = F.GothamBold, d = 0.006, free = true })
+	end
+end
+
 -- 종이 · 아크릴 안내문 (한 판 + 글자)
 local function notice(ctx: any, dcf: CFrame, w: number, h: number, text: string, o: any?)
 	local K = ctx.K
@@ -2491,6 +2506,7 @@ local function chickenBuild(ctx: any)
 			})
 		end
 	end
+	wallMural(ctx, { "left", "right", "back" }, if tong then "옛날 그 맛 그대로" else "CHICKEN & BEER", if tong then "가마솥에 튀긴 시장 통닭" else "바삭하게 · 시원하게 · 광안리에서", P.accent, P.ink)
 	infoSet(ctx, {
 		origin = { "닭고기 : 국내산", "쌀(치킨무 제외) : 국내산", "배추김치 : 국내산", "치킨무(무) : 국내산", "감자 : 미국산" },
 		hours = if has(ctx.signs, "01:00") then "영업시간\n11:00 - 01:00" else "영업시간\n16:00 - 02:00",
@@ -2859,6 +2875,7 @@ local function burgerBuild(ctx: any)
 			burger3D(K, at * CF(0, 0, -0.05), 0.95)
 		end
 	end
+	wallMural(ctx, { "left", "right", "back" }, if taco then "TACOS & BEER" else "HANDMADE BURGER", if taco then "광안리 타코 · 매일 굽는 또르띠야" else "매일 아침 굽는 번 · 100% 소고기 패티", P.gold, P.ink)
 	infoSet(ctx, {
 		origin = if taco then { "소고기 : 호주산", "닭고기 : 국내산", "돼지고기 : 국내산", "쌀 : 국내산" } else { "소고기(패티) : 호주산", "돼지고기(베이컨) : 미국산", "닭고기 : 국내산", "감자 : 미국산" },
 		hours = if has(ctx.signs, "24 HOURS") then "OPEN 24 HOURS\n연중무휴" else "영업시간\n10:30 - 22:00",
@@ -3758,6 +3775,7 @@ local function bunsikBuild(ctx: any)
 		end
 	end
 	snackPosters(ctx)
+	wallMural(ctx, { "left", "right", "back" }, "떡볶이는 사랑입니다", "1998년부터 같은 맛 · 매일 아침 뽑는 쌀떡", P.accent, P.ink)
 	infoSet(ctx, {
 		origin = { "쌀 : 국내산", "떡(쌀) : 국내산", "어묵(연육) : 수입산", "순대(돼지 창자) : 국내산", "배추김치 : 국내산", "고춧가루 : 국내산" },
 		hours = "영업시간\n10:00 - 22:00",

@@ -1385,7 +1385,8 @@ local PH = { main = C(10, 138, 58), dark = C(10, 70, 40), sub = C(0, 150, 200), 
 
 -- 매장 상품 파트 예산 (넓이 비례, 남은 파트 여유 안에서)
 local function goodsBudget(K: any, V: any, mul: number?): number
-	local b = math.clamp(V.W * V.D * 1.5 * (mul or 1), 300, 950)
+	local cap = if V.W * V.D > 900 then 1200 else 950 -- 대형 매장 (올리브영 본점급) 은 진열이 비어 보이지 않게 조금 더
+	local b = math.clamp(V.W * V.D * 1.5 * (mul or 1), 300, cap)
 	local room = (K.maxParts or 2600) - #K.parts - 520
 	return math.max(160, math.min(b, room))
 end
@@ -3288,6 +3289,17 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 				end
 			end)
 		else
+			step(K, "bridge", function()
+				local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 5.6, 5.0, 7.6, 0, function(d: CFrame): boolean
+					return frontClear(K, d, 5.6, 2.6, 2.0) and (promptOk(K, (d * CF(-2.0, 0, 0)).Position) or promptOk(K, (d * CF(2.0, 0, 0)).Position) or promptOk(K, d.Position))
+				end)
+				if wn and dcf then
+					bridgeModel(K, dcf * CF(0, 0, 0.04), 5.2)
+					-- 모형 앞은 비워 둠 (회전 진열대 등이 가리지 않게)
+					local fmn, fmx = K.laabb(dcf * CF(0, 0, 0.9), V3(5.6, 0.1, 1.8))
+					K:reserve(V3(fmn.X, 0, fmn.Z), V3(fmx.X, 7.6, fmx.Z), "wallfront")
+				end
+			end)
 			step(K, "spinner", function()
 				local cands = {}
 				for gx = V.x0 + 1.6, V.x1 - 1.6, 0.5 do
@@ -3303,14 +3315,6 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 				end)
 				if pcf then
 					spinRack(K, pcf, "postcard", "엽서 회전 진열대")
-				end
-			end)
-			step(K, "bridge", function()
-				local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 5.6, 5.0, 7.6, 0, function(d: CFrame): boolean
-					return frontClear(K, d, 5.6, 2.6, 2.0) and (promptOk(K, (d * CF(-2.0, 0, 0)).Position) or promptOk(K, (d * CF(2.0, 0, 0)).Position) or promptOk(K, d.Position))
-				end)
-				if wn and dcf then
-					bridgeModel(K, dcf * CF(0, 0, 0.04), 5.2)
 				end
 			end)
 		end

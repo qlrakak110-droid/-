@@ -1235,6 +1235,16 @@ local function frontSelfBar(K: any, V: any)
 		K:box("NapkinBox", V3(0.5, 0.36, 0.34), at * CF(0.12, 0.18, 0), lk(rgb(240, 238, 232)))
 		K:box("NapkinTissue", V3(0.2, 0.1, 0.12), at * CF(0.12, 0.41, 0), Look.paper)
 		K:box("WetTissue", V3(0.3, 0.22, 0.42), at * CF(-0.25, 0.11, 0), lk(rgb(60, 160, 220)))
+		-- 수저통 (나무젓가락 · 포크)
+		local ct = at * CF(0.12, 0.0, -0.05) * CF(0, 0, 0)
+		local _ = ct
+		local hc = (at * CF(-0.05, 0, 0.22)).Position
+		K:vcyl("CutleryCup", 0.4, 0.26, CF(hc + V3(0, 0.2, 0)), Look.steel)
+		for j = 0, 4 do
+			local a2 = j * 1.26
+			local tip = hc + V3(math.cos(a2) * 0.06, 0.62 + (j % 2) * 0.06, math.sin(a2) * 0.06)
+			K:seg("Chopstick", hc + V3(math.cos(a2) * 0.04, 0.05, math.sin(a2) * 0.04), tip, 0.035, if j % 2 == 0 then Look.birch else Look.white)
+		end
 		notice(K, W(K, "left", -(zA + 1.0), 7.5, 0), 1.6, 1.3, "셀프바 이용 안내", "다 드신 컵라면은\n국물은 싱크에 · 용기는 분리수거\n감사합니다 :)", rgb(0, 150, 200))
 		-- SELF BAR 네온 (맵 Sign_셀프바 위)
 		local sb = recs(V, "Sign_셀프바 · 물 · 얼음")[1]
@@ -2646,6 +2656,34 @@ local function backBuild(K: any, V: any)
 			local d = W(K, "back", px1 + 0.3 + bw * 1.5, 4.6, 0.02)
 			K:text("RecycleSign", 3.0, 0.5, d, "분리수거 · 컵라면 국물은 셀프바 싱크에", { fg = WHITE, bg = rgb(0, 130, 80), font = F.GothamBold, d = 0.03 })
 		end)
+	end
+	-- 명예의 전당 · 와이파이 (자판기와 화장실 사이 뒷벽)
+	if wallFree(K, "back", 2.0, 6.6, 2.0, 9.6) then
+		K:free(function()
+			local d = W(K, "back", 4.3, 5.6, 0.02)
+			K:plate("FameFrame", 4.2, 3.4, 0.12, d, Look.goldMetal)
+			K:plate("FameFace", 3.9, 3.1, 0.14, d, lk(rgb(16, 14, 22)))
+			K:text("FameTitle", 3.4, 0.55, d * CF(0, 1.15, 0.145), "명예의 전당 HALL OF FAME", { fg = rgb(255, 210, 90), glow = 1.6, font = F.GothamBlack })
+			K:plate("FameRule", 3.4, 0.04, 0.15, d * CF(0, 0.8, 0), neon(rgb(255, 200, 80)))
+			K:text("FameBody", 3.5, 2.0, d * CF(0, -0.3, 0.145), "시즌 2 우승 · 광안리 클랜\n준우승 · 민락동 FC\n나이트 레이서 최고 기록 · 좌석 17\n최다 이용 회원 · 1,284시간", { fg = WHITE, glow = 1.2, font = F.GothamBold })
+			for _, sx in { -1.7, 1.7 } do
+				K:ell("FameStar", V3(0.3, 0.3, 0.06), d * CF(sx, 1.15, 0.16), neon(rgb(255, 210, 90)))
+			end
+			local wd = W(K, "back", 4.3, 8.4, 0.02)
+			K:plate("WifiBack", 3.6, 0.9, 0.05, wd, lk(rgb(14, 14, 18)))
+			K:text("WifiText", 3.4, 0.7, wd * CF(0, 0, 0.055), "WiFi  GWANGALLI_PC_5G  ·  비번은 카운터", { fg = C.cyan, glow = 1.6, font = F.GothamBold })
+		end)
+		useWall(K, "back", 2.0, 6.6, 2.0, 9.6)
+	end
+	-- 커플석 리뉴얼 안내 A보드 (외부 간판의 '커플석' 이야기)
+	local ab = facing(V3(3.6, 0, zb + 3.2), V3(-0.3, 0, 1).Unit)
+	if spotN(K, ab, V3(2.0, 3.4, 1.4), 0, "aboard") then
+		local tilt = math.rad(12)
+		local fr = ab * CF(0, 1.6, 0.35) * ANG(-tilt, 0, 0)
+		K:box("ABoardFace", V3(1.8, 3.2, 0.08), fr, Look.blackMetal)
+		K:box("ABoardBack", V3(1.8, 3.2, 0.08), ab * CF(0, 1.6, -0.35) * ANG(tilt, 0, 0), Look.blackMetal)
+		K:text("ABoardText", 1.55, 2.6, fr * CF(0, 0, 0.045), "커플석\n리뉴얼 중\n\n11월 오픈 예정\n2인 소파 · 32인치 듀얼", { fg = WHITE, bg = rgb(30, 30, 36), font = F.GothamBold, d = 0.01 })
+		K:plate("ABoardTape", 1.9, 0.18, 0.012, fr * CF(0, 0.9, 0.05) * ANG(0, 0, 0.35), lk(rgb(250, 200, 30)))
 	end
 	-- 비상구 문틀 + 유도 + 소화기 (맵 소화기 숨기고 같은 자리)
 	K:free(function()

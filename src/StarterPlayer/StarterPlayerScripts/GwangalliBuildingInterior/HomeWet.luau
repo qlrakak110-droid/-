@@ -221,6 +221,17 @@ end
 function Ctx:group(name: string, fn: () -> ()): Model
 	return self.K:group(name, fn)
 end
+-- 이 틀 안의 작은 틀 (벽에 붙은 물건 등): pcf 는 C 로컬
+function Ctx:sub(pcf: CFrame): any
+	local S = setmetatable({}, Ctx) :: any
+	for k, v in self do
+		S[k] = v
+	end
+	S.cf = self.cf * pcf
+	S.wcf = self.K.cf * S.cf
+	S.bounded = false
+	return S
+end
 -- 불빛 (방마다 MAX_LIGHTS 까지)
 function Ctx:light(p: BasePart, kind: string, props: { [string]: any }): Light?
 	local K = self.K
@@ -451,7 +462,8 @@ function Ctx:promptOK(part: BasePart): boolean
 			local cx = math.clamp(lp.X, k.min.X, k.max.X)
 			local cz = math.clamp(lp.Z, k.min.Z, k.max.Z)
 			local cy = math.clamp(lp.Y, k.min.Y, k.max.Y)
-			if (V3(cx, cy, cz) - lp).Magnitude < (if pointSmall(k) then 2.6 else 1.4) then
+			if (V3(cx, cy, cz) - lp).Magnitude < (if pointSmall(k) then 1.2 else 0.5) then
+				self.K:note(string.format("homewet prompt near HomeInteract: %s at %.1f,%.1f,%.1f box %.1f,%.1f,%.1f..%.1f,%.1f,%.1f", part.Name, lp.X, lp.Y, lp.Z, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
 				return false
 			end
 		end
@@ -1142,59 +1154,58 @@ local function kitchenUpper(C: any, st: any, info: any)
 		for i = 1, n do
 			local a = mn.X + w * (i - 1) / n
 			local b = mn.X + w * i / n
-			local hp = if C.ti >= 4 then (if i % 2 == 1 then "right" else "left") else "bottom"
-			if st.handle == "bar" then
-				hp = if i % 2 == 1 then "right" else "left"
-			end
-			-- 개수대 위 수납장 하나는 열림: 몸통을 속 빈 상자로
-			local canOpen = not opened and not u.hood and info.bowl and a < info.bowl.b + 1.5 and b > info.bowl.a - 1.5 and (b - a) > 1.0 and (b - a) < 2.4 and C.ti >= 2
+			local hp = if st.handle == "bar" then (if i % 2 == 1 then "right" else "left") else "bottom"
+			-- 개수대 근처 수납장 하나는 열림: 몸통을 속 빈 상자로 + 그릇
+			local canOpen = not opened and not u.hood and info.bowl ~= nil and a < info.bowl.b + 2.0 and b > info.bowl.a - 2.0 and (b - a) > 1.1 and (b - a) < 2.4
 			if canOpen then
 				opened = true
 				local t = 0.05
 				local cx = (a + b) / 2
-				C:box("UpperBack", V3(b - a, y1 - y0, t), CF(cx, (y0 + y1) / 2, t / 2), st.carcass)
+				local cw = b - a
+				C:box("UpperBack", V3(cw, y1 - y0, t), CF(cx, (y0 + y1) / 2, t / 2), st.carcass)
 				C:box("UpperSide", V3(t, y1 - y0, zf - t), CF(a + t / 2, (y0 + y1) / 2, (zf + t) / 2), st.carcass)
 				C:box("UpperSide", V3(t, y1 - y0, zf - t), CF(b - t / 2, (y0 + y1) / 2, (zf + t) / 2), st.carcass)
-				C:box("UpperBottom", V3(b - a, t, zf), CF(cx, y0 + t / 2, zf / 2), st.carcass)
-				C:box("UpperTop", V3(b - a, t, zf), CF(cx, y1 - t / 2, zf / 2), st.carcass)
-				local inner = lk(244, 244, 240)
+				C:box("UpperBottom", V3(cw, t, zf), CF(cx, y0 + t / 2, zf / 2), st.carcass)
+				C:box("UpperTop", V3(cw, t, zf), CF(cx, y1 - t / 2, zf / 2), st.carcass)
 				local sh = { y0 + (y1 - y0) * 0.36, y0 + (y1 - y0) * 0.68 }
 				for _, sy in sh do
-					C:box("UpperShelf", V3(b - a - 2 * t, 0.04, zf - t - 0.04), CF(cx, sy, (zf + t) / 2), lk(232, 232, 228, M.Glass, { t = 0.2 }))
+					C:box("UpperShelf", V3(cw - 2 * t, 0.04, zf - t - 0.04), CF(cx, sy, (zf + t) / 2), lk(232, 236, 236, M.Glass, { t = 0.25 }))
 				end
-				-- 안: 아래칸 접시 탑 · 공기 · 국그릇, 가운데 컵 · 유리잔, 위칸 밀폐용기
-				local bw = b - a - 0.2
+				-- 안: 아래칸 접시 탑 · 공기, 가운데 유리잔 · 머그, 위칸 밀폐용기
 				local y = y0 + t
+				local pd = math.min(0.76, cw * 0.5)
 				for k = 0, 5 do
-					C:disc("CabPlate", 0.8, 0.04, CF(a + 0.6, y + 0.03 + k * 0.05, zf * 0.48), LK.ceramic)
+					C:disc("CabPlate", pd, 0.04, CF(a + t + 0.06 + pd / 2, y + 0.03 + k * 0.05, zf * 0.48), LK.ceramic)
 				end
 				for k = 0, 2 do
-					C:vcyl("CabRiceBowl", 0.24, 0.42, CF(a + 1.25, y + 0.12 + k * 0.17, zf * 0.48), lk(244, 240, 232))
+					C:vcyl("CabRiceBowl", 0.24, 0.4, CF(b - t - 0.28, y + 0.12 + k * 0.17, zf * 0.45), lk(244, 240, 232))
 				end
-				if bw > 1.4 then
-					C:vcyl("CabSoupBowl", 0.26, 0.5, CF(b - 0.4, y + 0.13, zf * 0.48), lk(236, 232, 224))
-				end
-				for k = 0, 2 do
-					local gx = a + 0.3 + k * (bw / 3)
-					C:vcyl("CabGlass", 0.4, 0.24, CF(gx, sh[1] + 0.22, zf * 0.42), LK.glassClear)
-					C:vcyl("CabMug", 0.34, 0.26, CF(gx + 0.2, sh[1] + 0.19, zf * 0.7), col(({ C3(250, 250, 248), C3(120, 160, 200), C3(230, 200, 120) })[k + 1]))
+				local ng = math.max(2, math.floor((cw - 0.2) / 0.42))
+				for k = 0, ng - 1 do
+					local gx = a + t + 0.22 + k * ((cw - 2 * t - 0.44) / math.max(1, ng - 1))
+					if k % 2 == 0 then
+						C:vcyl("CabGlass", 0.42, 0.24, CF(gx, sh[1] + 0.23, zf * 0.4), LK.glassClear)
+					else
+						C:vcyl("CabMug", 0.34, 0.26, CF(gx, sh[1] + 0.19, zf * 0.55), col(({ C3(250, 250, 248), C3(120, 160, 200), C3(230, 200, 120) })[(k % 3) + 1]))
+					end
 				end
 				for k = 0, 1 do
-					C:box("CabContainer", V3(0.5, 0.3, 0.5), CF(a + 0.4 + k * 0.6, sh[2] + 0.17, zf * 0.5), lk(232, 240, 244, M.Glass, { t = 0.4 }))
-					C:box("CabContainerLid", V3(0.52, 0.05, 0.52), CF(a + 0.4 + k * 0.6, sh[2] + 0.345, zf * 0.5), lk(70, 130, 200, M.Plastic))
+					local bx = a + t + 0.3 + k * (cw - 2 * t - 0.6)
+					C:box("CabContainer", V3(0.5, 0.3, 0.5), CF(bx, sh[2] + 0.17, zf * 0.5), lk(232, 240, 244, M.Glass, { t = 0.4 }))
+					C:box("CabContainerLid", V3(0.52, 0.05, 0.52), CF(bx, sh[2] + 0.345, zf * 0.5), lk(70, 130, 200, M.Plastic))
 				end
-				-- 문짝 (경첩 = 바깥쪽 모서리)
+				-- 문짝 (경첩 = 손잡이 반대쪽 모서리)
 				local hingeX = if hp == "left" then b else a
 				local m = C:group("UpperCabinetDoor", function()
 					cabinetFront(C, st, "UpperDoor", a, b, y0, y1, zf, hp)
 				end)
 				local sign = if hingeX == a then -1 else 1
-				C:swing(m, V3(hingeX, (y0 + y1) / 2, zf), V3(0, 1, 0), sign * math.rad(100), { object = "그릇 수납장", openText = "열기", closeText = "닫기" })
+				C:swing(m, V3(hingeX, (y0 + y1) / 2, zf + 0.035), V3(0, 1, 0), sign * math.rad(100), { object = "그릇 수납장", openText = "열기", closeText = "닫기" })
 			else
+				C:box("UpperCarcass", V3(b - a, y1 - y0 - 0.02, zf - 0.02), CF((a + b) / 2, (y0 + y1) / 2, (zf - 0.02) / 2), st.carcass)
 				cabinetFront(C, st, "UpperDoor", a, b, y0, y1, zf, hp)
 			end
 		end
-		C:box("UpperCarcass", V3(w, y1 - y0 - 0.02, zf - 0.02), CF((mn.X + mx.X) / 2, (y0 + y1) / 2, (zf - 0.02) / 2), st.carcass)
 	end
 end
 
@@ -1779,15 +1790,11 @@ local function topSpot(C: any, info: any, w: number, d: number, h: number, targe
 	end
 	local tries = {}
 	for _, t in targets do
-		for k = 0, 10 do
+		for k = 0, 12 do
 			for _, s in { 1, -1 } do
 				table.insert(tries, math.clamp(t + s * k * 0.25, lo, hi))
 			end
 		end
-	end
-	local yclear = (info.upperY or (ytop + 3)) - ytop - 0.05
-	if h > yclear and not back then
-		return nil
 	end
 	for _, x in tries do
 		local cf = CF(x, ytop + h / 2 + 0.01, z)
@@ -1796,6 +1803,15 @@ local function topSpot(C: any, info: any, w: number, d: number, h: number, targe
 			if x + w / 2 > b[1] and x - w / 2 < b[2] and z + d / 2 > (b[3] or -1) and z - d / 2 < (b[4] or 99) then
 				ok = false
 				break
+			end
+		end
+		-- 상부장 아래 높이 (상부장 깊이 안쪽만)
+		if ok then
+			for _, u in info.upperX or {} do
+				if x + w / 2 > u[1] and x - w / 2 < u[2] and z - d / 2 < u[4] and ytop + h > u[3] - 0.05 then
+					ok = false
+					break
+				end
 			end
 		end
 		if ok and C:clear(cf, V3(w, h, d), "top") then
@@ -2177,9 +2193,17 @@ local function kitchenRun(K: any, V: any, top: any, idx: number, H: number): any
 	info.zf = zf
 	info.kickH = info.kickH or 0.35
 	info.upperY = nil
+	info.upperX = {}
 	for _, r in info.upper do
-		local mn = C:bb(r)
+		local mn, mx = C:bb(r)
 		info.upperY = math.min(info.upperY or 99, mn.Y)
+		table.insert(info.upperX, { mn.X, mx.X, mn.Y, mx.Z })
+	end
+	for _, r in V.byName.RangeHood or {} do
+		local mn, mx = C:bb(r)
+		if mx.Z > -0.3 and mn.Z < info.zt and mx.X > tmn.X and mn.X < tmx.X then
+			table.insert(info.upperX, { mn.X, mx.X, mn.Y, mx.Z })
+		end
 	end
 	local baseC = info.base[1].part.Color
 	local st = kitchenStyle(C.ti, baseC, top.part.Color)
@@ -2416,10 +2440,912 @@ local function kitchen(K: any, V: any)
 end
 
 --=================================================================================================================
+-- 욕실 --------------------------------------------------------------------------------------------------------------
+--=================================================================================================================
+-- FloorBath 마다 한 칸. 틀: 원점 = 욕실 바닥 가운데, +Z = 욕실 문 (문턱) 쪽, 벽 안쪽 면 = 타일 벽.
+
+-- 이 칸 안 맵 파트 (이름 목록)
+local function bathFind(C: any, names: { string }): { any }
+	local out = {}
+	for _, r in C:find(names, 0.15) do
+		if not C:taken(r) then
+			table.insert(out, r)
+		end
+	end
+	return out
+end
+
+-- 물건이 붙은 벽 (C 로컬 bb 가 가장 가까운 벽): 벽 이름, 벽에서 나오는 방향
+local function nearestWall(C: any, mn: Vector3, mx: Vector3): (string, Vector3)
+	local d = {
+		{ "back", mn.Z - C.z0, V3(0, 0, 1) },
+		{ "front", C.z1 - mx.Z, V3(0, 0, -1) },
+		{ "left", mn.X - C.x0, V3(1, 0, 0) },
+		{ "right", C.x1 - mx.X, V3(-1, 0, 0) },
+	}
+	table.sort(d, function(a, b)
+		return a[2] < b[2]
+	end)
+	return d[1][1], d[1][3]
+end
+-- 벽에 붙은 물건 틀: 원점 = 물건 가운데 앞 벽면 바닥, +Z = 벽에서 나오는 쪽
+local function wallObjCF(C: any, mn: Vector3, mx: Vector3, side: string?, n: Vector3?): (CFrame, number, number)
+	local sd, nn = side, n
+	if not sd or not nn then
+		sd, nn = nearestWall(C, mn, mx)
+	end
+	local c = (mn + mx) / 2
+	local wp: Vector3
+	if sd == "back" then
+		wp = V3(c.X, 0, C.z0)
+	elseif sd == "front" then
+		wp = V3(c.X, 0, C.z1)
+	elseif sd == "left" then
+		wp = V3(C.x0, 0, c.Z)
+	else
+		wp = V3(C.x1, 0, c.Z)
+	end
+	local cf = CFrame.fromMatrix(wp, V3(0, 1, 0):Cross(nn :: Vector3), V3(0, 1, 0), nn :: Vector3)
+	local w = math.abs((nn :: Vector3).Z) * (mx.X - mn.X) + math.abs((nn :: Vector3).X) * (mx.Z - mn.Z)
+	local d = math.abs((nn :: Vector3).Z) * (mx.Z - mn.Z) + math.abs((nn :: Vector3).X) * (mx.X - mn.X)
+	return cf, w, d
+end
+
+-- 등급별 욕실 마감 색
+local function bathStyle(ti: number): any
+	local st: any = {}
+	st.cab = if ti >= 5 then lk(96, 66, 46, M.Wood) elseif ti == 3 then lk(60, 60, 62) elseif ti == 4 then lk(236, 232, 226) else LK.gloss
+	st.top = if ti >= 5 then lk(236, 232, 226, M.Marble) elseif ti == 3 then lk(70, 70, 72, M.Marble) else lk(242, 240, 236, M.Marble)
+	st.metal = if ti >= 5 then LK.gunmetal elseif ti == 3 then lk(46, 46, 48, M.Metal) else LK.chrome
+	st.handle = if ti >= 5 then LK.brass else LK.brushed
+	st.towel = if ti >= 5 then { C3(240, 236, 228), C3(214, 206, 192) } elseif ti == 4 then { C3(246, 246, 244), C3(170, 196, 214), C3(232, 214, 200) } else { C3(244, 244, 242), C3(120, 160, 200), C3(240, 196, 200), C3(250, 226, 150) }
+	return st
+end
+
+-- 비데 변기 (맵 Toilet* 자리) + 뚜껑 여닫기
+local function toilet(C: any, st: any, recs: { any })
+	local tank, bowl = nil, nil
+	for _, r in recs do
+		if r.name == "ToiletTank" then
+			tank = r
+		elseif r.name == "ToiletBowl" then
+			bowl = r
+		end
+	end
+	if not tank or not bowl then
+		return
+	end
+	local mn, mx = unionBB(C, recs)
+	if not mn or not mx then
+		return
+	end
+	local tmn, tmx = C:bb(tank)
+	local bmn, bmx = C:bb(bowl)
+	-- 앞 = 물탱크 -> 변기 방향
+	local tc, bc = (tmn + tmx) / 2, (bmn + bmx) / 2
+	local dv = bc - tc
+	local f = if math.abs(dv.X) > math.abs(dv.Z) then V3(if dv.X > 0 then 1 else -1, 0, 0) else V3(0, 0, if dv.Z > 0 then 1 else -1)
+	local backP: Vector3
+	local W, D: number, number
+	if math.abs(f.X) > 0.5 then
+		backP = V3(if f.X > 0 then mn.X else mx.X, 0, (mn.Z + mx.Z) / 2)
+		W, D = mx.Z - mn.Z, mx.X - mn.X
+	else
+		backP = V3((mn.X + mx.X) / 2, 0, if f.Z > 0 then mn.Z else mx.Z)
+		W, D = mx.X - mn.X, mx.Z - mn.Z
+	end
+	local pcf = CFrame.fromMatrix(backP, V3(0, 1, 0):Cross(f), V3(0, 1, 0), f)
+	C:hideAll(recs)
+	local seatY = bmx.Y
+	local tankD = math.abs(f.X) * (tmx.X - tmn.X) + math.abs(f.Z) * (tmx.Z - tmn.Z)
+	local tankW = math.abs(f.Z) * (tmx.X - tmn.X) + math.abs(f.X) * (tmx.Z - tmn.Z)
+	local tankH = tmx.Y - tmn.Y
+	local por = LK.porcelain
+	-- 물탱크 (낮은 원피스형)
+	local ty0 = tmn.Y
+	C:slab("ToiletTankBody", tankW * 0.98, tankD * 0.92, tankH * 0.82, 0.12, pcf * CF(0, ty0 + tankH * 0.41, tankD * 0.48), por)
+	C:slab("ToiletTankLid", tankW, tankD, 0.1, 0.12, pcf * CF(0, ty0 + tankH * 0.82 + 0.05, tankD * 0.5), por)
+	C:disc("ToiletFlush", 0.32, 0.03, pcf * CF(0, ty0 + tankH * 0.82 + 0.115, tankD * 0.5), LK.chrome)
+	C:box("ToiletFlushSplit", V3(0.02, 0.035, 0.3), pcf * CF(0, ty0 + tankH * 0.82 + 0.12, tankD * 0.5), LK.steelDark)
+	-- 몸통 (트랩 받침) + 볼
+	local bw = math.min(W * 0.9, 1.35)
+	local bowlLen = D - tankD * 0.6
+	C:slab("ToiletPedestal", bw * 0.62, bowlLen * 0.62, seatY - 0.25, 0.22, pcf * CF(0, (seatY - 0.25) / 2, tankD * 0.6 + bowlLen * 0.36), por)
+	C:ell("ToiletBowlBody", V3(bw, 0.6, bowlLen * 0.98), pcf * CF(0, seatY - 0.32, tankD * 0.55 + bowlLen * 0.48), por)
+	C:box("ToiletBowlNeck", V3(bw * 0.7, 0.5, tankD * 0.6), pcf * CF(0, seatY - 0.3, tankD * 0.75), por)
+	-- 비데 본체 (뒤) + 시트 + 뚜껑
+	local bidet = C.ti >= 2
+	local seatL = if bidet then lk(250, 250, 248, M.SmoothPlastic, { r = 0.04 }) else por
+	if bidet then
+		C:rbox("BidetBody", V3(bw * 1.02, 0.24, 0.5), 0.08, pcf * CF(0, seatY + 0.1, tankD + 0.18), seatL)
+		-- 오른쪽 조작부 (앉은 사람 오른쪽 = -X)
+		C:rbox("BidetPanel", V3(0.18, 0.2, 0.85), 0.06, pcf * CF(-(bw / 2 + 0.1), seatY + 0.08, tankD + 0.55), seatL)
+		if C.hi then
+			local bcol = { C3(60, 140, 220), C3(230, 110, 150), C3(220, 50, 50), C3(120, 200, 120) }
+			for i, c in bcol do
+				C:disc("BidetButton", 0.08, 0.02, pcf * CF(-(bw / 2 + 0.1), seatY + 0.19, tankD + 0.3 + i * 0.13), col(c))
+			end
+			C:box("BidetLED", V3(0.03, 0.03, 0.08), pcf * CF(-(bw / 2 + 0.02), seatY + 0.12, tankD + 0.95), lk(80, 200, 255, M.Neon))
+			-- 전원선 · 급수 호스 (벽으로)
+			C:seg("BidetCord", (pcf * CF(-bw / 2 + 0.1, seatY + 0.02, tankD + 0.05)).Position, (pcf * CF(-bw / 2 - 0.25, 1.15, 0.05)).Position, 0.03, LK.white)
+			C:plate("BidetOutlet", 0.3, 0.42, 0.04, pcf * CF(-bw / 2 - 0.3, 1.15, 0.0), LK.white)
+		end
+	end
+	C:seg("ToiletSupplyHose", (pcf * CF(bw * 0.3, 0.75, 0.04)).Position, (pcf * CF(bw * 0.32, ty0 + 0.1, tankD * 0.3)).Position, 0.05, LK.chrome)
+	C:cyl("ToiletAngleValve", 0.14, 0.12, pcf * CF(bw * 0.3, 0.75, 0.07) * ANG(0, PI / 2, 0), LK.chrome)
+	C:ell("ToiletSeat", V3(bw * 0.98, 0.1, bowlLen * 0.9), pcf * CF(0, seatY + 0.03, tankD * 0.62 + bowlLen * 0.44), seatL)
+	-- 뚜껑 (닫힘) = 여닫기 대상
+	local hingeZ = tankD + 0.36
+	local m = C:group("ToiletLid", function()
+		C:ell("ToiletLidHandle", V3(bw * 0.96, 0.1, bowlLen * 0.86), pcf * CF(0, seatY + 0.12, tankD * 0.62 + bowlLen * 0.43), seatL)
+	end)
+	local hingeP = pcf * V3(0, seatY + 0.14, hingeZ)
+	local axis = pcf:VectorToWorldSpace(V3(1, 0, 0))
+	C:swing(m, hingeP, axis, math.rad(-98), { object = "변기 뚜껑", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
+	C:reserve(pcf * CF(0, 1.3, D / 2 + 0.1), V3(W + 0.5, 2.8, D + 0.3))
+	return pcf, W, D, f
+end
+
+-- 세면대 (하부장 · 상판 · 볼 · 수전) + 거울 수납장
+local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, faucets: { any }, spouts: { any }, mirror: any?)
+	local ref = cab or topR or basins[1]
+	if not ref then
+		return
+	end
+	local list = {}
+	for _, r in { cab, topR } do
+		if r then
+			table.insert(list, r)
+		end
+	end
+	for _, r in basins do
+		table.insert(list, r)
+	end
+	local mn, mx = unionBB(C, list)
+	if not mn or not mx then
+		return
+	end
+	local side, n = nearestWall(C, mn, mx)
+	local pcf, W, Dd = wallObjCF(C, mn, mx, side, n)
+	local P = C:sub(pcf)
+	local function lbb(r: any): (Vector3, Vector3)
+		local a, b = C:bb(r)
+		local la, lb = laabb(pcf:ToObjectSpace(CF((a + b) / 2)), b - a)
+		return la, lb
+	end
+	C:hideAll(list)
+	for _, r in faucets do
+		C:hide(r)
+	end
+	for _, r in spouts do
+		C:hide(r)
+	end
+	local metal = st.metal
+	local topY = 0
+	local depth = Dd
+	if cab then
+		local a, b = lbb(cab)
+		local cw = b.X - a.X
+		local cy0, cy1 = a.Y, b.Y
+		depth = b.Z
+		P:box("VanityBody", V3(cw - 0.02, cy1 - cy0, b.Z - 0.03), CF((a.X + b.X) / 2, (cy0 + cy1) / 2, (b.Z - 0.03) / 2), st.cab)
+		local nd = if cw > 2.6 then 3 else 2
+		for i = 1, nd do
+			local x0 = a.X + cw * (i - 1) / nd
+			local x1 = a.X + cw * i / nd
+			P:box("VanityDoor", V3(x1 - x0 - 0.04, cy1 - cy0 - 0.06, 0.05), CF((x0 + x1) / 2, (cy0 + cy1) / 2, b.Z - 0.005), st.cab)
+			if C.ti >= 4 then
+				P:box("VanityHandle", V3(math.min(0.8, (x1 - x0) * 0.6), 0.04, 0.05), CF((x0 + x1) / 2, cy1 - 0.16, b.Z + 0.045), st.handle)
+			else
+				P:box("VanityHandle", V3(0.05, 0.3, 0.05), CF(if i % 2 == 1 then x1 - 0.12 else x0 + 0.12, (cy0 + cy1) / 2 + 0.2, b.Z + 0.045), st.handle)
+			end
+		end
+		-- 아래 배수 트랩 (벽걸이형 하부장)
+		P:seg("VanityTrap", CF((a.X + b.X) / 2, cy0 - 0.02, b.Z * 0.4).Position, CF((a.X + b.X) / 2, cy0 - 0.45, b.Z * 0.4).Position, 0.1, metal)
+		P:seg("VanityTrapArm", CF((a.X + b.X) / 2, cy0 - 0.45, b.Z * 0.4).Position, CF((a.X + b.X) / 2, cy0 - 0.45, 0.02).Position, 0.1, metal)
+		P:disc("VanityTrapRose", 0.22, 0.03, CF((a.X + b.X) / 2, cy0 - 0.45, 0.015) * ANG(PI / 2, 0, 0), metal)
+		topY = cy1
+	end
+	if topR then
+		local a, b = lbb(topR)
+		P:box("VanityTopSlab", V3(b.X - a.X, b.Y - a.Y, b.Z - a.Z), CF((a.X + b.X) / 2, (a.Y + b.Y) / 2, (a.Z + b.Z) / 2), st.top)
+		P:box("VanityTopEdge", V3(b.X - a.X, b.Y - a.Y + 0.01, 0.02), CF((a.X + b.X) / 2, (a.Y + b.Y) / 2, b.Z + 0.005), col(shade(st.top.c, -0.08), st.top.m))
+		topY = b.Y
+		depth = b.Z
+	end
+	-- 볼 (탑볼형)
+	local basinCs = {}
+	for i, r in basins do
+		local a, b = lbb(r)
+		local bw, bd, bh = b.X - a.X, b.Z - a.Z, b.Y - a.Y
+		local cx, cz = (a.X + b.X) / 2, (a.Z + b.Z) / 2
+		local y0 = a.Y
+		if C.ti <= 1 then
+			-- 고시원 미니 세면대 (벽걸이 반원)
+			P:slab("BasinBody", bw, bd, bh, math.min(bw, bd) * 0.3, CF(cx, y0 + bh / 2, cz), LK.porcelain)
+			P:ell("BasinInner", V3(bw * 0.8, bh * 0.7, bd * 0.7), CF(cx, y0 + bh * 0.85, cz), lk(226, 230, 232))
+			P:box("BasinBracket", V3(bw * 0.6, 0.3, 0.08), CF(cx, y0 - 0.15, 0.04), metal)
+			P:seg("BasinTrap", CF(cx, y0, cz).Position, CF(cx, y0 - 0.7, 0.05).Position, 0.08, metal)
+		else
+			P:slab("BasinBody", bw, bd, bh, math.min(bw, bd) * 0.22, CF(cx, y0 + bh / 2, cz), LK.porcelain)
+			P:slab("BasinInner", bw - 0.12, bd - 0.12, 0.02, math.min(bw, bd) * 0.18, CF(cx, y0 + bh - 0.005, cz), lk(236, 238, 238))
+			P:ell("BasinBowl", V3(bw * 0.8, bh * 1.1, bd * 0.76), CF(cx, y0 + bh * 0.6, cz), lk(226, 230, 232))
+		end
+		P:disc("BasinDrain", 0.12, 0.02, CF(cx, y0 + bh * 0.18, cz), metal)
+		table.insert(basinCs, { cx = cx, cz = cz, top = y0 + bh, back = a.Z, y0 = y0 })
+	end
+	-- 수전 (맵 Faucet 자리, 볼마다) + 물 (상호작용: 첫 수전)
+	local firstLever: BasePart? = nil
+	local streams: { BasePart } = {}
+	for i, r in faucets do
+		local a, b = lbb(r)
+		local fx, fz = (a.X + b.X) / 2, (a.Z + b.Z) / 2
+		local fy = a.Y
+		local bc = basinCs[1]
+		for _, q in basinCs do
+			if math.abs(q.cx - fx) < math.abs(bc.cx - fx) then
+				bc = q
+			end
+		end
+		local h = math.max(0.5, (bc and bc.top or fy) + 0.45 - fy)
+		P:disc("FaucetBase", 0.2, 0.03, CF(fx, fy + 0.015, fz), metal)
+		P:vcyl("FaucetBody", h, 0.12, CF(fx, fy + h / 2, fz), metal)
+		local spoutLen = math.max(0.3, (if bc then bc.cz else fz + 0.4) - fz)
+		P:cyl("FaucetSpout", spoutLen, 0.08, CF(fx, fy + h - 0.06, fz + spoutLen / 2) * ANG(0, PI / 2, 0), metal)
+		local lever = P:box("FaucetLever", V3(0.05, 0.04, 0.32), CF(fx, fy + h + 0.08, fz - 0.06) * ANG(math.rad(18), 0, 0), metal)
+		P:vcyl("FaucetCap", 0.08, 0.13, CF(fx, fy + h + 0.03, fz), metal)
+		local by = if bc then bc.y0 + 0.08 else fy - 0.3
+		local wy0, wy1 = by, fy + h - 0.1
+		table.insert(streams, P:vcyl("FaucetWater", wy1 - wy0, 0.06, CF(fx, (wy0 + wy1) / 2, fz + spoutLen - 0.02), { c = C3(214, 238, 248), m = M.Glass, t = 1 }))
+		if not firstLever then
+			firstLever = lever
+		end
+		local _ = i
+	end
+	if firstLever then
+		P:toggle(firstLever, {
+			object = "세면대 수전",
+			onText = "물 잠그기",
+			offText = "물 틀기",
+			state = false,
+			on = function(on: boolean)
+				setVis(streams, if on then 0.35 else 1)
+			end,
+		})
+	end
+	-- 세면대 위 소품
+	if topR or cab then
+		local a, b = lbb(topR or cab)
+		local items = {}
+		local free = {}
+		-- 볼과 수전 사이 빈 칸 찾기 (x 구간)
+		local occ = {}
+		for _, q in basinCs do
+			table.insert(occ, { q.cx - 0.85, q.cx + 0.85 })
+		end
+		table.sort(occ, function(p, q)
+			return p[1] < q[1]
+		end)
+		local cur = a.X + 0.1
+		for _, o in occ do
+			if o[1] - cur > 0.35 then
+				table.insert(free, { cur, o[1] })
+			end
+			cur = math.max(cur, o[2])
+		end
+		if b.X - 0.1 - cur > 0.35 then
+			table.insert(free, { cur, b.X - 0.1 })
+		end
+		local y = topY
+		local zb = 0.3
+		local k = 0
+		for _, fr in free do
+			local x = (fr[1] + fr[2]) / 2
+			local wspan = fr[2] - fr[1]
+			k += 1
+			if k == 1 then
+				-- 칫솔컵 + 칫솔 2 + 치약
+				P:vcyl("ToothCup", 0.36, 0.26, CF(x, y + 0.18, zb), col(st.towel[2] or C3(170, 196, 214), M.SmoothPlastic, { r = 0.05 }))
+				for j = 0, 1 do
+					P:seg("Toothbrush", V3(x - 0.04 + j * 0.08, y + 0.2, zb), V3(x - 0.08 + j * 0.16, y + 0.68, zb + 0.04), 0.035, col(({ C3(60, 140, 220), C3(240, 120, 150) })[j + 1], M.Plastic))
+					P:box("ToothbrushHead", V3(0.05, 0.12, 0.06), CF(x - 0.08 + j * 0.16, y + 0.7, zb + 0.06), LK.white)
+				end
+				if wspan > 0.7 then
+					P:box("ToothpasteTube", V3(0.14, 0.06, 0.6), CF(x + 0.3, y + 0.03, zb + 0.15) * ANG(0, 0.3, 0), lk(250, 250, 250))
+					P:box("ToothpasteCap", V3(0.08, 0.07, 0.1), CF(x + 0.3 - 0.09, y + 0.035, zb + 0.15 - 0.28) * ANG(0, 0.3, 0), lk(60, 140, 220))
+				end
+			elseif k == 2 then
+				bottle(P, CF(x - 0.12, y, zb), 0.7, 0.26, col(if C.ti >= 5 then C3(70, 60, 50) else C3(250, 250, 248), M.SmoothPlastic, { r = 0.05 }), if C.ti >= 5 then LK.brass else LK.chrome, C3(240, 236, 226), "핸드워시", { pump = true })
+				if wspan > 0.7 then
+					bottle(P, CF(x + 0.2, y, zb + 0.05), 0.55, 0.2, col(C3(220, 236, 244), M.SmoothPlastic), LK.white, C3(120, 180, 210), "", nil)
+				end
+			end
+			table.insert(items, x)
+		end
+		-- 펜트하우스: 손 수건 쟁반
+		if C.ti >= 5 and #free >= 1 then
+			local fr = free[#free]
+			local x = (fr[1] + fr[2]) / 2
+			if k < 3 then
+				P:slab("VanityTray", 0.8, 0.5, 0.04, 0.06, CF(x, y + 0.02, zb + 0.35), lk(40, 36, 32, M.Marble))
+				towelStack(P, CF(x, y + 0.04, zb + 0.35), 0.6, 0.4, 2, st.towel)
+			end
+		end
+	end
+	-- 거울 (수납장)
+	if mirror then
+		local a, b = lbb(mirror)
+		C:hide(mirror)
+		local mw, mh = b.X - a.X, b.Y - a.Y
+		local mcx, mcy = (a.X + b.X) / 2, (a.Y + b.Y) / 2
+		if C.ti >= 2 and C.ti <= 4 then
+			-- 슬라이딩 대신 여닫이 거울 수납장 (깊이 0.42)
+			local dz = 0.42
+			P:box("MirrorCabBack", V3(mw, mh, 0.04), CF(mcx, mcy, 0.02), lk(244, 244, 240))
+			P:box("MirrorCabSide", V3(0.04, mh, dz), CF(a.X + 0.02, mcy, dz / 2), st.cab)
+			P:box("MirrorCabSide", V3(0.04, mh, dz), CF(b.X - 0.02, mcy, dz / 2), st.cab)
+			P:box("MirrorCabTop", V3(mw, 0.04, dz), CF(mcx, b.Y - 0.02, dz / 2), st.cab)
+			P:box("MirrorCabBottom", V3(mw, 0.04, dz), CF(mcx, a.Y + 0.02, dz / 2), st.cab)
+			for _, sy in { a.Y + mh * 0.36, a.Y + mh * 0.68 } do
+				P:box("MirrorCabShelf", V3(mw - 0.08, 0.03, dz - 0.06), CF(mcx, sy, dz / 2), lk(230, 236, 236, M.Glass, { t = 0.3 }))
+			end
+			-- 안: 로션 · 스킨 · 면봉 통 · 면도기 · 연고
+			local inner = { { -0.3, 0.36, 0.42, 0.18, C3(240, 220, 200) }, { -0.05, 0.36, 0.5, 0.2, C3(200, 230, 240) }, { 0.22, 0.36, 0.34, 0.24, C3(250, 250, 250) }, { -0.2, 0.68, 0.3, 0.2, C3(230, 180, 190) }, { 0.15, 0.68, 0.4, 0.18, C3(180, 210, 160) } }
+			for _, it in inner do
+				local ix = mcx + it[1] * mw
+				if math.abs(it[1] * mw) < mw / 2 - 0.15 then
+					P:vcyl("CabinetToiletry", it[3], it[4], CF(ix, a.Y + mh * it[2] + 0.015 + it[3] / 2, dz * 0.45), col(it[5], M.SmoothPlastic, { r = 0.04 }))
+				end
+			end
+			local hinge = if side == "left" or side == "back" then a.X else b.X
+			local dm = P:group("MirrorCabinetDoor", function()
+				P:box("MirrorDoorFrame", V3(mw, mh, 0.05), CF(mcx, mcy, dz + 0.025), st.cab)
+				P:box("MirrorDoorHandle", V3(mw - 0.06, mh - 0.06, 0.02), CF(mcx, mcy, dz + 0.06), LK.mirror)
+			end)
+			P:swing(dm, V3(hinge, mcy, dz + 0.05), V3(0, 1, 0), (if hinge == a.X then -1 else 1) * math.rad(95), { object = "거울 수납장", openText = "열기", closeText = "닫기" })
+			-- 아래 조명 (세면대 비춤)
+			local lp = P:box("MirrorCabLight", V3(mw * 0.7, 0.02, 0.06), CF(mcx, a.Y - 0.015, dz * 0.6), lk(255, 244, 228, M.Neon))
+			P:light(lp, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.5, Angle = 120, Color = C3(255, 236, 214) })
+		else
+			-- 고시원: 작은 거울 + 테 / 펜트하우스: 큰 간접조명 거울
+			P:box("MirrorGlass", V3(mw, mh, 0.03), CF(mcx, mcy, 0.06), LK.mirror)
+			if C.ti >= 5 then
+				P:box("MirrorBacker", V3(mw - 0.3, mh - 0.3, 0.04), CF(mcx, mcy, 0.02), LK.black)
+				local glow = P:box("MirrorHalo", V3(mw - 0.2, 0.04, 0.03), CF(mcx, a.Y + 0.12, 0.03), lk(255, 236, 210, M.Neon))
+				P:box("MirrorHalo", V3(mw - 0.2, 0.04, 0.03), CF(mcx, b.Y - 0.12, 0.03), lk(255, 236, 210, M.Neon))
+				P:light(glow, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 6, Brightness = 0.45, Angle = 140, Color = C3(255, 236, 214) })
+			else
+				for _, e in { { mw, 0.05, 0, mh / 2 }, { mw, 0.05, 0, -mh / 2 }, { 0.05, mh, mw / 2, 0 }, { 0.05, mh, -mw / 2, 0 } } do
+					P:box("MirrorFrameBar", V3(e[1] + 0.05, e[2] + 0.05, 0.05), CF(mcx + e[3], mcy + e[4], 0.065), lk(210, 212, 214, M.Plastic))
+				end
+				P:box("MirrorShelf", V3(mw, 0.05, 0.3), CF(mcx, a.Y - 0.08, 0.15), lk(236, 236, 232, M.Plastic, { t = 0.2 }))
+				P:vcyl("ToothCup", 0.32, 0.24, CF(mcx - mw * 0.25, a.Y - 0.055 + 0.16, 0.17), col(C3(250, 196, 210)))
+				P:seg("Toothbrush", V3(mcx - mw * 0.25, a.Y + 0.05, 0.17), V3(mcx - mw * 0.28, a.Y + 0.48, 0.2), 0.035, lk(60, 160, 220, M.Plastic))
+				P:box("RazorHandle", V3(0.05, 0.03, 0.4), CF(mcx + mw * 0.2, a.Y - 0.04, 0.17), lk(60, 120, 200, M.Plastic))
+			end
+		end
+	end
+	C:reserve(pcf * CF(0, 2.5, depth / 2), V3(W + 0.2, 5, depth + 0.2))
+end
+
+-- 샤워 수전 세트 (레인 샤워 + 핸드 샤워 + 슬라이드 바 + 바 수전) + 선반 (샴푸 · 이태리타올)
+local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: Vector3?, glassMx: Vector3?)
+	local riser, head, mixer, drain, arm = nil, nil, nil, nil, nil
+	for _, r in recs do
+		if r.name == "ShowerRiser" then
+			riser = r
+		elseif r.name == "RainHead" or r.name == "ShowerHead" then
+			head = r
+		elseif r.name == "Mixer" then
+			mixer = r
+		elseif r.name == "Drain" then
+			drain = r
+		elseif r.name == "ShowerArm" then
+			arm = r
+		end
+	end
+	local metal = st.metal
+	if not riser then
+		return
+	end
+	local rmn, rmx = C:bb(riser)
+	local side, n = nearestWall(C, rmn, rmx)
+	local pcf, _, _ = wallObjCF(C, rmn, rmx, side, n)
+	local P = C:sub(pcf)
+	local function lp(r: any): (Vector3, Vector3)
+		local a, b = C:bb(r)
+		return laabb(pcf:ToObjectSpace(CF((a + b) / 2)), b - a)
+	end
+	for _, r in recs do
+		if r.name ~= "Drain" then
+			C:hide(r)
+		end
+	end
+	local ra, rb = lp(riser)
+	local topY = rb.Y
+	local my = if mixer then (select(1, lp(mixer)).Y + select(2, lp(mixer)).Y) / 2 else 3.4
+	-- 바 수전 (수평 원통 + 손잡이 둘)
+	P:cyl("ShowerMixerBar", 1.0, 0.16, CF(0, my, 0.14), metal)
+	for _, s in { -1, 1 } do
+		P:cyl("ShowerMixerKnob", 0.12, 0.24, CF(s * 0.56, my, 0.14), metal)
+		P:box("ShowerMixerWallPlate", V3(0.08, 0.26, 0.04), CF(s * 0.35, my, 0.02), metal)
+		P:cyl("ShowerMixerArm", 0.1, 0.08, CF(s * 0.35, my, 0.07) * ANG(0, PI / 2, 0), metal)
+	end
+	if C.hi then
+		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-0.62, my + 0.12, 0.14), lk(220, 50, 50))
+		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-0.62, my - 0.12, 0.14), lk(50, 120, 220))
+	end
+	-- 세로관 (레인 샤워 기둥)
+	local colY1 = math.min(topY, C.H - 0.4)
+	P:vcyl("ShowerColumn", colY1 - my, 0.1, CF(0.3, (my + colY1) / 2, 0.14), metal)
+	-- 레인 샤워 헤드 (맵 RainHead 자리 쪽)
+	local hz = 0.75
+	if head then
+		local a, b = lp(head)
+		hz = math.clamp((a.Z + b.Z) / 2, 0.5, 1.2)
+	end
+	P:cyl("ShowerArm", hz, 0.08, CF(0.3, colY1, 0.14 + hz / 2) * ANG(0, PI / 2, 0), metal)
+	local hd = if C.ti >= 4 then 1.0 elseif C.ti <= 1 then 0.5 else 0.8
+	P:disc("ShowerRainHead", hd, 0.06, CF(0.3, colY1 - 0.05, 0.14 + hz), metal)
+	P:disc("ShowerRainFace", hd - 0.06, 0.01, CF(0.3, colY1 - 0.085, 0.14 + hz), lk(60, 62, 66))
+	-- 핸드 샤워 + 슬라이드 바 + 호스
+	local sbY0, sbY1 = my + 0.5, math.min(colY1 - 0.6, my + 2.8)
+	P:vcyl("ShowerSlideBar", sbY1 - sbY0, 0.06, CF(-0.3, (sbY0 + sbY1) / 2, 0.1), metal)
+	P:box("ShowerSlideBracket", V3(0.12, 0.12, 0.14), CF(-0.3, sbY0 + (sbY1 - sbY0) * 0.6, 0.12), metal)
+	local hh = CF(-0.3, sbY0 + (sbY1 - sbY0) * 0.6 + 0.05, 0.24) * ANG(math.rad(-25), 0, 0)
+	P:vcyl("HandShowerGrip", 0.55, 0.09, hh * CF(0, -0.2, 0), metal)
+	P:disc("HandShowerHead", 0.26, 0.08, hh * CF(0, 0.12, 0.04) * ANG(math.rad(-60), 0, 0), metal)
+	local hoseA = V3(-0.3, sbY0 + (sbY1 - sbY0) * 0.6 - 0.45, 0.24)
+	local hoseB = V3(-0.1, my - 0.5, 0.32)
+	local hoseC = V3(0, my - 0.05, 0.14)
+	P:seg("ShowerHose", hoseA, hoseB, 0.05, LK.steel)
+	P:seg("ShowerHose", hoseB, hoseC, 0.05, LK.steel)
+	-- 배수구 (사각 스테인리스)
+	if drain then
+		local a, b = C:bb(drain)
+		C:hide(drain)
+		local c = (a + b) / 2
+		P:box("FloorDrainGrate", V3(0.5, 0.02, 0.5), CF(c.X, b.Y - 0.01, c.Z), LK.brushed)
+		if C.hi then
+			for k = -2, 2 do
+				P:box("FloorDrainSlot", V3(0.4, 0.022, 0.03), CF(c.X, b.Y - 0.009, c.Z + k * 0.08), LK.steelDark)
+			end
+		end
+	end
+	-- 샤워 선반 (벽 모서리): 수전 반대쪽 벽 끝
+	local shelfX = 1.1
+	if trays[1] then
+		local a, b = lp(trays[1])
+		shelfX = if math.abs(a.X) > math.abs(b.X) then a.X + 0.45 else b.X - 0.45
+	end
+	local ok1 = math.abs(shelfX) > 0.7
+	if ok1 then
+		local sw = 0.8
+		for j, sy in { 4.1, 4.95 } do
+			P:box("ShowerCaddyShelf", V3(sw, 0.04, 0.42), CF(shelfX, sy, 0.23), metal)
+			P:box("ShowerCaddyLip", V3(sw, 0.1, 0.02), CF(shelfX, sy + 0.05, 0.43), metal)
+			P:box("ShowerCaddyBack", V3(0.04, 1.0, 0.04), CF(shelfX + (if shelfX > 0 then sw / 2 - 0.05 else -sw / 2 + 0.05), 4.5, 0.03), metal)
+			if j == 1 then
+				bottle(P, CF(shelfX - 0.2, sy + 0.02, 0.22), 0.85, 0.26, lk(40, 60, 110, M.SmoothPlastic, { r = 0.05 }), LK.black, C3(240, 240, 236), "샴푸", { pump = true })
+				bottle(P, CF(shelfX + 0.15, sy + 0.02, 0.22), 0.78, 0.24, lk(236, 170, 190, M.SmoothPlastic, { r = 0.05 }), LK.white, C3(250, 240, 244), "린스", { pump = true })
+			else
+				bottle(P, CF(shelfX - 0.18, sy + 0.02, 0.22), 0.7, 0.24, lk(250, 250, 246, M.SmoothPlastic, { r = 0.05 }), lk(80, 160, 120), C3(200, 230, 210), "바디워시", { pump = true })
+				P:box("SoapBar", V3(0.3, 0.1, 0.2), CF(shelfX + 0.18, sy + 0.07, 0.24), lk(240, 236, 200))
+			end
+		end
+		-- 이태리타올 (초록 때밀이) · 샤워볼
+		local hx = shelfX + (if shelfX > 0 then -sw / 2 + 0.1 else sw / 2 - 0.1)
+		P:box("ScrubTowelHook", V3(0.05, 0.05, 0.12), CF(hx, 3.85, 0.08), metal)
+		P:box("ItalyTowel", V3(0.34, 0.6, 0.03), CF(hx, 3.5, 0.15), lk(56, 140, 70, M.Fabric))
+		P:ball("ShowerPuff", 0.36, CF(hx + (if shelfX > 0 then 0.32 else -0.32), 3.6, 0.2), lk(240, 150, 180, M.Fabric))
+	end
+end
+
+-- 욕조 (맵 Tub* 자리) + 물 + 수전 + 고무 오리
+local function bathtub(C: any, st: any, recs: { any })
+	local mn, mx = unionBB(C, recs)
+	if not mn or not mx then
+		return
+	end
+	local water, glass, mixer = nil, nil, nil
+	for _, r in recs do
+		if r.name == "Water" then
+			water = r
+		elseif r.name == "TubGlass" then
+			glass = r
+		elseif r.name == "TubMixer" then
+			mixer = r
+		end
+	end
+	local list = {}
+	for _, r in recs do
+		if r.name ~= "TubGlass" then
+			table.insert(list, r)
+		end
+	end
+	C:hideAll(list)
+	local rimY = 0
+	for _, r in recs do
+		if r.name == "TubWall" then
+			local _, b = C:bb(r)
+			rimY = math.max(rimY, b.Y)
+		end
+	end
+	if rimY == 0 then
+		rimY = mx.Y
+	end
+	local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+	local w, d = mx.X - mn.X, mx.Z - mn.Z
+	local acr = lk(250, 250, 248, M.SmoothPlastic, { r = 0.06 })
+	-- 앞치마 (몸통) + 테 + 안쪽
+	C:box("TubApron", V3(w, rimY - 0.15, d), CF(cx, (rimY - 0.15) / 2, cz), acr)
+	C:slab("TubRim", w, d, 0.15, 0.08, CF(cx, rimY - 0.075, cz), acr)
+	C:slab("TubInner", w - 0.5, d - 0.5, 0.02, 0.35, CF(cx, rimY + 0.002, cz), lk(236, 240, 242))
+	local wy = rimY - 0.35
+	if water then
+		local _, b = C:bb(water)
+		wy = math.min(b.Y, rimY - 0.08)
+	end
+	C:slab("TubWater", w - 0.52, d - 0.52, 0.02, 0.33, CF(cx, wy, cz), LK.water)
+	-- 고무 오리 (가족 아파트)
+	if C.ti == 4 then
+		C:ell("RubberDuck", V3(0.3, 0.24, 0.36), CF(cx + w * 0.15, wy + 0.1, cz), lk(250, 210, 40))
+		C:ball("RubberDuckHead", 0.2, CF(cx + w * 0.15, wy + 0.3, cz + 0.12), lk(250, 210, 40))
+		C:wedge("RubberDuckBeak", V3(0.08, 0.05, 0.1), CF(cx + w * 0.15, wy + 0.29, cz + 0.25), lk(240, 120, 30))
+	end
+	-- 수전 (벽)
+	if mixer then
+		local a, b = C:bb(mixer)
+		C:hide(mixer)
+		local c = (a + b) / 2
+		local side, n = nearestWall(C, a, b)
+		local pcf = wallObjCF(C, a, b, side, n)
+		local P = C:sub(pcf)
+		local lc = pcf:PointToObjectSpace(c)
+		P:cyl("TubMixerBody", 0.7, 0.14, CF(lc.X, lc.Y, 0.12), st.metal)
+		P:box("TubSpout", V3(0.1, 0.08, 0.5), CF(lc.X, lc.Y - 0.2, 0.3), st.metal)
+		for _, s in { -1, 1 } do
+			P:cyl("TubMixerKnob", 0.1, 0.2, CF(lc.X + s * 0.4, lc.Y, 0.12), st.metal)
+		end
+	end
+	-- 욕조 옆 테두리 위: 입욕제 병
+	bottle(C, CF(mn.X + 0.35, rimY, mn.Z + 0.3), 0.55, 0.2, lk(200, 160, 220, M.Glass, { t = 0.3 }), LK.white, C3(240, 230, 250), "", nil)
+	local _ = glass
+end
+
+-- 수건걸이 + 수건 (맵 TowelBar · Towel 자리)
+local TOWEL_TEXT = { "광안2동 새마을금고\n창립 50주년", "제17회 수영구청장배\n배드민턴대회", "축 개업 광안리 횟집", "2025 광안초 총동문회", "부산 불꽃축제 기념" }
+local function towelBar(C: any, st: any, bar: any, towels: { any })
+	local a, b = C:bb(bar)
+	local side, n = nearestWall(C, a, b)
+	local pcf, w = wallObjCF(C, a, b, side, n)
+	local P = C:sub(pcf)
+	local la, lb = laabb(pcf:ToObjectSpace(CF((a + b) / 2)), b - a)
+	C:hide(bar)
+	for _, t in towels do
+		C:hide(t)
+	end
+	local y = (la.Y + lb.Y) / 2
+	local bx = (la.X + lb.X) / 2
+	local bw = lb.X - la.X
+	P:cyl("TowelBarRod", bw - 0.1, 0.07, CF(bx, y, 0.22) * ANG(0, 0, 0), st.metal)
+	for _, s in { -1, 1 } do
+		P:disc("TowelBarRose", 0.16, 0.04, CF(bx + s * (bw / 2 - 0.05), y, 0.02) * ANG(PI / 2, 0, 0), st.metal)
+		P:cyl("TowelBarPost", 0.2, 0.06, CF(bx + s * (bw / 2 - 0.05), y, 0.12) * ANG(0, PI / 2, 0), st.metal)
+	end
+	if #towels > 0 then
+		local ta, tb = laabb(pcf:ToObjectSpace(CF((C:bb(towels[1])))), V3())
+		local _ = ta
+		local _2 = tb
+		local tw = math.min(bw - 0.3, 1.5)
+		local txt = if C.ti <= 4 then TOWEL_TEXT[math.floor(C.rnd() * #TOWEL_TEXT) + 1] else nil
+		hangingTowel(P, CF(bx, y, 0.06), tw, 1.35, col(st.towel[1], M.Fabric), if C.ti <= 4 then (st.towel[2] or C3(120, 160, 200)) else C3(200, 190, 170), txt)
+	end
+	local _ = w
+end
+
+-- 환풍기 (천장 그릴 + 돌아가는 날개) + 상호작용
+local function ventFan(C: any, rec: any)
+	local a, b = C:bb(rec)
+	C:hide(rec)
+	local c = (a + b) / 2
+	local y = b.Y
+	local s = math.max(0.7, math.max(b.X - a.X, b.Z - a.Z))
+	C:box("VentFrame", V3(s + 0.1, 0.05, s + 0.1), CF(c.X, y - 0.025, c.Z), LK.abs)
+	C:box("VentHole", V3(s - 0.1, 0.02, s - 0.1), CF(c.X, y - 0.04, c.Z), lk(40, 40, 42))
+	local blades: { BasePart } = {}
+	for i = 0, 3 do
+		local an = i * PI / 2
+		table.insert(blades, C:box("VentBlade", V3(s * 0.38, 0.015, 0.1), CF(c.X, y - 0.035, c.Z) * ANG(0, an, 0) * CF(s * 0.2, 0, 0) * ANG(0.4, 0, 0), lk(200, 200, 196)))
+	end
+	local slats = 5
+	for i = 1, slats do
+		C:box("VentLouver", V3(s, 0.04, 0.03), CF(c.X, y - 0.06, c.Z - s / 2 + i * s / (slats + 1)), LK.abs)
+	end
+	local running = false
+	C:toggle(C:box("VentPullHandle", V3(0.15, 0.02, 0.15), CF(c.X, y - 0.085, c.Z), LK.abs), {
+		object = "욕실 환풍기",
+		onText = "환풍기 끄기",
+		offText = "환풍기 켜기",
+		state = false,
+		on = function(on: boolean)
+			running = on
+		end,
+	})
+	local base = {}
+	for _, p in blades do
+		table.insert(base, p.CFrame)
+	end
+	local center = C:world(V3(c.X, y - 0.035, c.Z))
+	local axis = C:wvec(V3(0, 1, 0))
+	local ang = 0
+	Interact.anim(C.K, function(_t: number, dt: number)
+		if not running then
+			return
+		end
+		ang += dt * 14
+		local rot = CFrame.new(center) * CFrame.fromAxisAngle(axis, ang) * CFrame.new(-center)
+		for i, p in blades do
+			if p.Parent then
+				p.CFrame = rot * base[i]
+			end
+		end
+	end)
+end
+
+-- 타일 벽 줄눈 (맵 TileWall 의 안쪽 면마다)
+local function bathGrout(C: any, ti: number)
+	local walls = C:find({ "TileWall" }, 0.25)
+	local cx, cz = (C.x0 + C.x1) / 2, (C.z0 + C.z1) / 2
+	local n = 0
+	for _, r in walls do
+		local a, b = C:bb(r)
+		local s = b - a
+		if s.Y < 0.8 then
+			continue
+		end
+		local marble = r.part.Material == M.Marble
+		local tw, th = if marble then 4.28 else 2.14, if marble then 2.14 else 1.07
+		if ti <= 1 then
+			tw, th = 1.8, 99
+		end
+		local gc = shade(r.part.Color, if marble then -0.06 else -0.14)
+		local dcf: CFrame?, w, h = nil, 0, s.Y
+		if s.X < s.Z then
+			-- 옆벽 (x 면)
+			local face = if (a.X + b.X) / 2 < cx then b.X else a.X
+			local nrm = if (a.X + b.X) / 2 < cx then V3(1, 0, 0) else V3(-1, 0, 0)
+			if s.Z < 0.3 then
+				continue
+			end
+			dcf = CFrame.fromMatrix(V3(face, (a.Y + b.Y) / 2, (a.Z + b.Z) / 2), V3(0, 1, 0):Cross(nrm) * -1, V3(0, 1, 0), nrm)
+			w = s.Z
+		else
+			local face = if (a.Z + b.Z) / 2 < cz then b.Z else a.Z
+			local nrm = if (a.Z + b.Z) / 2 < cz then V3(0, 0, 1) else V3(0, 0, -1)
+			if s.X < 0.3 then
+				continue
+			end
+			dcf = CFrame.fromMatrix(V3((a.X + b.X) / 2, (a.Y + b.Y) / 2, face), V3(0, 1, 0):Cross(nrm) * -1, V3(0, 1, 0), nrm)
+			w = s.X
+		end
+		if dcf then
+			-- 줄눈은 바닥 기준 격자에 맞춤 (조각마다 어긋나지 않게)
+			local y0 = a.Y
+			local look = col(gc, M.SmoothPlastic)
+			for j = 1, 12 do
+				local y = j * th
+				if y > y0 + 0.05 and y < b.Y - 0.05 then
+					C:plate("Grout", w, 0.025, 0.006, dcf * CF(0, y - (a.Y + b.Y) / 2, 0.001), look)
+					n += 1
+				end
+			end
+			local ux = (dcf :: CFrame).XVector
+			local origin = (dcf :: CFrame).Position
+			local u0 = -w / 2
+			-- 벽 좌표 기준 고정 간격 (방 모서리에서)
+			local ref = if math.abs(ux.X) > 0.5 then (if ux.X > 0 then C.x0 else -C.x1) else (if ux.Z > 0 then C.z0 else -C.z1)
+			local start = (if math.abs(ux.X) > 0.5 then origin.X * ux.X else origin.Z * ux.Z) + u0
+			local k0 = math.ceil((start - ref) / tw + 0.001)
+			for k = k0, k0 + 20 do
+				local u = ref + k * tw - (start - u0)
+				if u > -w / 2 + 0.05 and u < w / 2 - 0.05 then
+					C:plate("Grout", 0.025, h, 0.006, dcf * CF(u, 0, 0.001), look)
+					n += 1
+				elseif u >= w / 2 then
+					break
+				end
+			end
+		end
+	end
+	-- 바닥 줄눈 (300 각)
+	local fl = C:first({ "FloorBath" }, 0.3)
+	if fl and ti >= 2 then
+		local fy = select(2, C:bb(fl)).Y
+		local t = if fl.part.Material == M.Marble then 2.14 else 1.07
+		local look = col(shade(fl.part.Color, 0.16), M.SmoothPlastic)
+		local i = 1
+		while C.x0 + i * t < C.x1 - 0.05 do
+			C:box("FloorGrout", V3(0.025, 0.006, C.D), CF(C.x0 + i * t, fy + 0.003, (C.z0 + C.z1) / 2), look)
+			i += 1
+		end
+		i = 1
+		while C.z0 + i * t < C.z1 - 0.05 do
+			C:box("FloorGrout", V3(C.W, 0.006, 0.025), CF((C.x0 + C.x1) / 2, fy + 0.003, C.z0 + i * t), look)
+			i += 1
+		end
+	end
+	return n
+end
+
+-- 천장재 줄 + 점검구
+local function bathCeiling(C: any)
+	local y = C.H - 0.004
+	local look = lk(206, 206, 202)
+	local along = C.W >= C.D
+	local span = if along then C.D else C.W
+	local k = math.floor(span / 1.0)
+	for i = 1, k do
+		local t = -span / 2 + i * span / (k + 1)
+		if along then
+			C:box("CeilingSeam", V3(C.W, 0.008, 0.03), CF((C.x0 + C.x1) / 2, y, (C.z0 + C.z1) / 2 + t), look)
+		else
+			C:box("CeilingSeam", V3(0.03, 0.008, C.D), CF((C.x0 + C.x1) / 2 + t, y, (C.z0 + C.z1) / 2), look)
+		end
+	end
+	-- 점검구 (구석)
+	if C.W > 2.6 and C.D > 2.6 then
+		local hx, hz = C.x0 + 1.1, C.z0 + 1.1
+		for _, e in { { 1.6, 0.06, 0, -0.8 }, { 1.6, 0.06, 0, 0.8 }, { 0.06, 1.6, -0.8, 0 }, { 0.06, 1.6, 0.8, 0 } } do
+			C:box("CeilingHatch", V3(e[1], 0.012, e[2]), CF(hx + 0.4 + e[3], y - 0.004, hz + 0.4 + e[4]), lk(220, 220, 216))
+		end
+	end
+end
+
+-- 욕실 한 칸
+local function bathCell(K: any, V: any, fl: any, idx: number)
+	-- 안쪽 면: 타일 벽까지 줄임
+	local x0, x1, z0, z1 = fl.min.X, fl.max.X, fl.min.Z, fl.max.Z
+	local cx0, cz0 = (x0 + x1) / 2, (z0 + z1) / 2
+	for _, r in V.byName.TileWall or {} do
+		local s = r.size
+		if r.c.X > x0 - 0.3 and r.c.X < x1 + 0.3 and r.c.Z > z0 - 0.3 and r.c.Z < z1 + 0.3 then
+			if s.X < 0.3 and s.Z > 0.3 then
+				if r.c.X < cx0 then
+					x0 = math.max(x0, r.max.X)
+				else
+					x1 = math.min(x1, r.min.X)
+				end
+			elseif s.Z < 0.3 and s.X > 0.3 then
+				if r.c.Z < cz0 then
+					z0 = math.max(z0, r.max.Z)
+				else
+					z1 = math.min(z1, r.min.Z)
+				end
+			end
+		end
+	end
+	-- 문 쪽: 문턱 · 문짝
+	local cx, cz = (x0 + x1) / 2, (z0 + z1) / 2
+	local best, bd = nil, math.huge
+	for _, nm in { "ThresholdBath", "DoorLeaf", "DoorJamb" } do
+		for _, r in V.byName[nm] or {} do
+			local px = math.clamp(r.c.X, x0, x1)
+			local pz = math.clamp(r.c.Z, z0, z1)
+			local d = V3(r.c.X - px, 0, r.c.Z - pz).Magnitude
+			if d < 1.2 and d < bd then
+				best, bd = r, d
+			end
+		end
+		if best then
+			break
+		end
+	end
+	local n = V3(0, 0, 1)
+	if best then
+		local dx = (best.c.X - cx) / math.max(0.1, (x1 - x0) / 2)
+		local dz = (best.c.Z - cz) / math.max(0.1, (z1 - z0) / 2)
+		if math.abs(dx) > math.abs(dz) then
+			n = V3(if dx > 0 then 1 else -1, 0, 0)
+		else
+			n = V3(0, 0, if dz > 0 then 1 else -1)
+		end
+	end
+	local fy = fl.max.Y
+	local cf = CFrame.fromMatrix(V3(cx, fy, cz), V3(0, 1, 0):Cross(n), V3(0, 1, 0), n)
+	local hw = (math.abs(n.Z) * (x1 - x0) + math.abs(n.X) * (z1 - z0)) / 2
+	local hd = (math.abs(n.X) * (x1 - x0) + math.abs(n.Z) * (z1 - z0)) / 2
+	local H = ceilingAt(V, cx, cz, (x1 - x0) / 2, (z1 - z0) / 2) - fy
+	local C = newCtx(K, V, cf, -hw, hw, -hd, hd, H, "bath" .. idx)
+	C.bounded = true
+	local st = bathStyle(C.ti)
+	local steps = {
+		{ "grout", function()
+			bathGrout(C, C.ti)
+		end },
+		{ "ceiling", function()
+			bathCeiling(C)
+		end },
+		{ "toilet", function()
+			toilet(C, st, bathFind(C, { "ToiletTank", "ToiletBowl", "ToiletBase", "FlushButton" }))
+		end },
+		{ "vanity", function()
+			local cab = bathFind(C, { "VanityCabinet" })[1]
+			local top = bathFind(C, { "VanityTop" })[1]
+			local basins = bathFind(C, { "Basin" })
+			for _, r in bathFind(C, { "BasinBowl" }) do
+				C:hide(r)
+			end
+			vanity(C, st, cab, top, basins, bathFind(C, { "Faucet" }), bathFind(C, { "Spout" }), bathFind(C, { "Mirror" })[1])
+		end },
+		{ "shower", function()
+			shower(C, st, bathFind(C, { "ShowerRiser", "ShowerArm", "RainHead", "ShowerHead", "Mixer", "Drain" }), bathFind(C, { "ShowerTray" }))
+			for _, h in bathFind(C, { "ShowerHandle" }) do
+				local a, b = C:bb(h)
+				C:hide(h)
+				C:box("ShowerPullHandle", V3(b.X - a.X + 0.02, b.Y - a.Y, b.Z - a.Z + 0.02), CF((a + b) / 2), st.metal)
+			end
+		end },
+		{ "tub", function()
+			local tub = bathFind(C, { "TubWall", "TubFloor", "Water", "TubMixer", "TubGlass" })
+			if #tub > 0 then
+				bathtub(C, st, tub)
+			end
+		end },
+		{ "towels", function()
+			for _, bar in bathFind(C, { "TowelBar" }) do
+				local ts = {}
+				for _, t in bathFind(C, { "Towel" }) do
+					if (t.c - bar.c).Magnitude < 1.8 then
+						table.insert(ts, t)
+					end
+				end
+				towelBar(C, st, bar, ts)
+			end
+		end },
+		{ "vent", function()
+			for _, r in bathFind(C, { "VentFan" }) do
+				ventFan(C, r)
+			end
+		end },
+	}
+	for _, s in steps do
+		local ok, err = pcall(s[2])
+		if not ok then
+			K:note("homewet bath." .. s[1] .. ": " .. tostring(err))
+		end
+	end
+	return C, st
+end
+
+local function bath(K: any, V: any)
+	local floors = {}
+	for _, r in V.byName.FloorBath or {} do
+		if r.size.X > 1.5 and r.size.Z > 1.5 then
+			table.insert(floors, r)
+		end
+	end
+	if #floors == 0 then
+		for _, r in V.parts do
+			if r.part:GetAttribute("Room") == "bath" and r.part:GetAttribute("Surface") == "floor" then
+				table.insert(floors, r)
+			end
+		end
+	end
+	for i, fl in floors do
+		local ok, err = pcall(bathCell, K, V, fl, i)
+		if not ok then
+			K:note("homewet bath cell: " .. tostring(err))
+		end
+	end
+end
+
+--=================================================================================================================
 -- 진입점 ------------------------------------------------------------------------------------------------------------
 --=================================================================================================================
 local BUILDERS: { [string]: (any, any) -> () } = {
 	kitchen = kitchen,
+	bath = bath,
 }
 
 function HomeWet.build(K: any, V: any, S: any)

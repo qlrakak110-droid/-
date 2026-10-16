@@ -42,6 +42,17 @@ local XA, YA, ZA = Vector3.xAxis, Vector3.yAxis, Vector3.zAxis
 local NAVY = C(30, 36, 48)
 local ORANGE = C(232, 86, 30)
 
+-- 태그 확인 (Instance:HasTag, 안 되면 CollectionService)
+local function hasTag(inst: Instance, tag: string): boolean
+	local ok, v = pcall(function()
+		return inst:HasTag(tag)
+	end)
+	if ok then
+		return v == true
+	end
+	return CollectionService:HasTag(inst, tag)
+end
+
 local function lk(c: Color3, m: Enum.Material?, extra: { [string]: any }?): any
 	local t: any = { c = c, m = m or M.SmoothPlastic }
 	if extra then
@@ -379,6 +390,24 @@ local function spot(G: any, pcf: CFrame, size: Vector3, pad: number?, kind: stri
 	end
 	reserveB(G, mn, mx, kind or "prop")
 	return true
+end
+
+-- 후보 자리 중 첫 빈 자리 (pcf 목록)
+local function firstSpot(G: any, cands: { CFrame }, size: Vector3, pad: number?, kind: string, ignore: { [any]: boolean }?): CFrame?
+	local p = pad or 0
+	for _, pcf in cands do
+		local mn, mx = laabb(pcf * CF(0, size.Y / 2, 0), size + V3(2 * p, 0, 2 * p))
+		if clear(G, mn, mx, ignore) then
+			reserveB(G, mn, mx, kind)
+			return pcf
+		end
+	end
+	do
+		local mn, mx = laabb(cands[1] * CF(0, size.Y / 2, 0), size + V3(2 * p, 0, 2 * p))
+		local _, why = clear(G, mn, mx, ignore)
+		note(G.K, "skip " .. kind .. " (no free spot; first: " .. tostring(why) .. ")")
+	end
+	return nil
 end
 
 -- 소품 묶음 기록 (나중에 생긴 쇼룸 차와 겹치면 통째로 지움)
@@ -727,7 +756,7 @@ local function addServerPrompts(G: any)
 		end
 	end
 	for _, r in G.parts do
-		if string.sub(r.name, 1, 12) == "GarageDesk_" or r.name == "PriceCard" or CollectionService:HasTag(r.part, "GaragePrompt") or CollectionService:HasTag(r.part, "GarageDesk") then
+		if string.sub(r.name, 1, 12) == "GarageDesk_" or r.name == "PriceCard" or hasTag(r.part, "GaragePrompt") or hasTag(r.part, "GarageDesk") then
 			table.insert(K.hostPts, V.cf:PointToObjectSpace(r.part.Position))
 		end
 	end
@@ -846,7 +875,7 @@ local function buildShowroom(K: any, V: any)
 	-- 4.1 계약 구역 ---------------------------------------------------------------------------------
 	local tts = {}
 	for _, r in G.parts do
-		if r.name == "Turntable" or CollectionService:HasTag(r.part, "GarageTurntable") then
+		if r.name == "Turntable" or hasTag(r.part, "GarageTurntable") then
 			local kind = r.part:GetAttribute("GarageKind")
 			local rad = math.max(r.size.X, r.size.Z) / 2
 			table.insert(tts, { x = r.c.X, z = r.c.Z, r = math.max(8.75, rad + 0.25), kind = kind })
@@ -854,7 +883,7 @@ local function buildShowroom(K: any, V: any)
 	end
 	-- 차 종류: 턴테이블 속성이 없으면 가까운 GarageDisplayCar 의 GarageKind
 	for _, d in V.model:GetDescendants() do
-		if d:IsA("Model") and CollectionService:HasTag(d, "GarageDisplayCar") then
+		if d:IsA("Model") and hasTag(d, "GarageDisplayCar") then
 			local ok, cf = pcall(function()
 				return (d :: Model):GetPivot()
 			end)
@@ -2084,7 +2113,7 @@ local function buildBayImpl(K: any, V: any): any
 	-- 리프트: 안전선 쌍(리프트 구역) + 리프트 모델 상자 + 진입로
 	local lifts = {}
 	for _, d in V.model:GetDescendants() do
-		if d:IsA("Model") and CollectionService:HasTag(d, "GarageLift") then
+		if d:IsA("Model") and hasTag(d, "GarageLift") then
 			local mn, mx = V3(math.huge, math.huge, math.huge), V3(-math.huge, -math.huge, -math.huge)
 			for _, q in d:GetDescendants() do
 				if q:IsA("BasePart") then
@@ -2117,7 +2146,7 @@ local function buildBayImpl(K: any, V: any): any
 		keep(G, V3(b.x0 - 0.2, 0.1, b.z1), V3(b.x1 + 0.2, 9.5, RB.z1 + 2), "liftPath")
 	end
 	for _, l in lifts do
-		keep(G, l.min - V3(0.8, 0, 0.8), l.max + V3(0.8, 0.5, 0.8), "lift")
+		keep(G, l.min - V3(0.4, 0, 0.4), l.max + V3(0.4, 0.5, 0.4), "lift")
 	end
 	table.sort(bays, function(a, b)
 		return a.x0 < b.x0
@@ -2685,7 +2714,7 @@ local function buildBayImpl(K: any, V: any): any
 		}
 		local pbz = (17.8 + math.min(23.2, RB.z1 - 1.8)) / 2 - 0.5
 		local pdcf = D.wall("right", pbz, 7.9, 0.0)
-		Props.menuBoard(K, G.B * pdcf, 6.8, 4.6, "정비 요금표 · 광안 오토 서비스", items, { cols = 1, bg = C(248, 248, 244), fg = INK, accent = C(200, 60, 24), glow = false, frame = L.navy, rowH = 0.36 })
+		Props.menuBoard(K, G.B * pdcf, 6.8, 4.6, "정비 요금표 · 광안 오토 서비스", items, { cols = 2, bg = C(248, 248, 244), fg = INK, accent = C(200, 60, 24), glow = false, frame = L.navy, rowH = 0.6 })
 		local strip = D.plate("PriceBoardLight", 6.6, 0.08, 0.3, pdcf * CF(0, 2.5, 0.0), Look.lampNeutral)
 		D.light(strip, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 8, Brightness = 0.8, Angle = 120, Color = Look.neutralLight })
 	end)
@@ -2774,9 +2803,10 @@ local function buildBayImpl(K: any, V: any): any
 			safetySign(D, D.wall("left", -2.5 + (i - 1) * 1.15 - 0.6, 3.25, 0.02), 1.0, 1.2, s[1], s[2])
 		end
 		-- 이동식 LED 작업등 (리프트 1 옆, 켜기/끄기)
-		local wl = pf(RB.x0 + 1.3, y0, 10.0, 90)
-		if spot(G, wl, V3(1.6, 5.4, 1.6), 0, "workLight") then
-			propGroup(G, "workLight", V3(RB.x0, 0, 9.2), V3(RB.x0 + 2.2, 5.4, 10.8), function()
+		local wl0 = firstSpot(G, { pf(RB.x0 + 0.85, y0, 10.0, 90), pf(RB.x0 + 0.85, y0, 12.5, 90), pf(RB.x0 + 0.85, y0, -4.5, 90), pf(RB.x0 + 0.85, y0, -6.5, 90) }, V3(1.6, 5.4, 1.6), 0, "workLight")
+		local wl = wl0 or CF()
+		if wl0 then
+			propGroup(G, "workLight", V3(RB.x0, 0, wl.Z - 0.9), V3(RB.x0 + 2.2, 5.4, wl.Z + 0.9), function()
 				for i = 0, 2 do
 					local a = i * 2 * PI / 3
 					D.seg("TripodLeg", (wl * CF(0, 2.0, 0)).Position, (wl * CF(math.cos(a) * 0.75, 0.02, math.sin(a) * 0.75)).Position, 0.07, L.black)
@@ -2901,8 +2931,10 @@ local function buildBayImpl(K: any, V: any): any
 			end)
 		end
 		-- 플로어 잭 + 잭 스탠드 2
-		local jp = pf((b1.x0 + b1.x1) / 2 + 2.6, y0, b1.z0 - 2.4, 15)
-		if spot(G, jp, V3(1.3, 1.0, 3.2), 0.1, "floorJack") then
+		local jcx = (b1.x0 + b1.x1) / 2
+		local jp0 = firstSpot(G, { pf(jcx + 2.6, y0, b1.z0 - 3.4, 15), pf(jcx + 2.6, y0, b1.z0 - 5.0, 15), pf(jcx + 4.4, y0, b1.z0 - 6.0, 20), pf(jcx - 5.0, y0, b1.z0 - 7.0, 10) }, V3(1.3, 1.0, 3.2), 0.1, "floorJack")
+		local jp = jp0 or CF()
+		if jp0 then
 			propGroup(G, "floorJack", V3(jp.X - 1.6, 0, jp.Z - 2.2), V3(jp.X + 1.6, 3.4, jp.Z + 1.8), function()
 				D.box("JackFrame", V3(1.0, 0.5, 2.6), jp * CF(0, 0.4, 0), lk(C(200, 30, 30), M.Metal))
 				D.cyl("JackSaddle", 0.12, 0.6, jp * CF(0, 0.75, 1.2) * ANG(0, 0, PI / 2), L.darkAlu)
@@ -3095,7 +3127,710 @@ local function buildBayImpl(K: any, V: any): any
 end
 buildBay = buildBayImpl
 
--- WASH_HERE
+---------------------------------------------------------------------------------------------------
+-- 6. 자동세차장 (문형 자동세차 1 베이): 결제 키오스크 · 신호등 · 드라이어 아치 · 프리워시 · 드라잉존 · 진공청소기 · 매트 세척기
+---------------------------------------------------------------------------------------------------
+local function buildWashImpl(K: any, V: any): any
+	local G = newCtx(K, V, "carwash")
+	local D = draw(G)
+	local RB = G.RB
+	local hi = K.detail == "high"
+	local mid = K.detail ~= "low"
+	local y0, yR = RB.y0, RB.y1
+	note(K, string.format("wash frame=%s bounds x %.2f..%.2f z %.2f..%.2f roof %.2f", G.frameFrom, RB.x0, RB.x1, RB.z0, RB.z1, yR))
+
+	-- 6.1 계약 구역: 갠트리 이동 구간 · 세차 존 · 진입/출차로 · 결제 앵커 ------------------------------------------------
+	local gantry: Model? = nil
+	for _, d in V.model:GetDescendants() do
+		if d:IsA("Model") and hasTag(d, "GarageWashGantry") then
+			gantry = d :: Model
+		end
+	end
+	local gmn, gmx = V3(-11.0, 0, -20.4), V3(11.0, 12.44, -17.6)
+	local travelB = V3(0, 0, 35.0)
+	local gparts: { [string]: BasePart } = {}
+	if gantry then
+		gmn, gmx = V3(math.huge, math.huge, math.huge), V3(-math.huge, -math.huge, -math.huge)
+		for _, q in gantry:GetDescendants() do
+			if q:IsA("BasePart") then
+				local a, b = laabb(G.Binv * V.cf:ToObjectSpace(q.CFrame), q.Size)
+				gmn, gmx = gmn:Min(a), gmx:Max(b)
+				gparts[q.Name] = gparts[q.Name] or q
+			end
+		end
+		local off = gantry:GetAttribute("TravelOffset")
+		if typeof(off) == "Vector3" then
+			travelB = G.Binv.Rotation * V.cf:VectorToObjectSpace(off)
+		end
+	end
+	note(K, string.format("gantry %s travel %.2f,%.2f,%.2f box z %.2f..%.2f", tostring(gantry and gantry.Name), travelB.X, travelB.Y, travelB.Z, gmn.Z, gmx.Z))
+	local env0 = gmn:Min(gmn + travelB) - V3(0.3, 0, 0.3)
+	local env1 = gmx:Max(gmx + travelB) + V3(0.3, 0.5, 0.3)
+	keep(G, V3(env0.X, 0.1, env0.Z), V3(env1.X, env1.Y, env1.Z), "gantry")
+	local zone = G.byName.GarageZone_wash and G.byName.GarageZone_wash[1]
+	local zx0, zx1 = -6.5, 6.5
+	if zone then
+		zx0, zx1 = zone.min.X, zone.max.X
+		keep(G, zone.min - V3(0.2, 0.3, 0.2), zone.max + V3(0.2, 0.3, 0.2), "zone")
+	end
+	keep(G, V3(zx0 - 0.2, 0.1, (zone and zone.max.Z or 19) - 1), V3(zx1 + 0.2, 8.6, RB.z1 + 3), "entryPath")
+	keep(G, V3(zx0 - 0.2, 0.1, RB.z0 - 6), V3(zx1 + 0.2, 8.0, env0.Z + 0.5), "exitPath")
+	for _, r in G.byName.GarageDesk_wash or {} do
+		keep(G, r.min - V3(0.25, 0, 0.2), r.max + V3(0.25, 2, 0.2), "payDesk")
+	end
+	addServerPrompts(G)
+	local leftX = env0.X -- 왼쪽 옆 통로 안쪽 끝 (갠트리 바깥)
+	local rightX = env1.X
+
+	-- 6.2 바닥: 젖은 물웅덩이 · 배수로 · 차선 글자 · 진입 가이드 레일 · 보행 주의선 ------------------------------------------------
+	step(K, "floor", function()
+		local wet = { c = C(150, 170, 182), m = M.Glass, t = 0.6, r = 0.35 }
+		local rng = mkRng(11)
+		for _, p in { { -2.5, -16.5, 3.5 }, { 3.0, -18.8, 2.6 }, { -4.0, -6.0, 2.0 }, { 2.2, 6.5, 2.8 }, { -1.5, 14.0, 1.8 }, { 5.0, -22.0, 2.2 } } do
+			D.cyl("WetPuddle", 0.006, p[3] * (0.8 + rng() * 0.4), CF(p[1], y0 + 0.004, p[2]) * ANG(0, rng() * PI, PI / 2), wet)
+		end
+		D.box("WetSheen", V3(zx1 - zx0 + 6, 0.004, env1.Z - env0.Z), CF((zx0 + zx1) / 2, y0 + 0.002, (env0.Z + env1.Z) / 2), { c = C(170, 186, 196), m = M.Glass, t = 0.82, r = 0.25 })
+		for _, tz in { RB.z1 - 4.6, env0.Z - 0.6 } do
+			D.box("TrenchFrame", V3(RB.x1 - RB.x0 - 1.0, 0.012, 0.9), CF((RB.x0 + RB.x1) / 2, y0 + 0.006, tz), lk(C(70, 72, 76), M.Metal))
+			D.box("TrenchGrate", V3(RB.x1 - RB.x0 - 1.2, 0.014, 0.66), CF((RB.x0 + RB.x1) / 2, y0 + 0.01, tz), lk(C(60, 62, 66), M.DiamondPlate))
+			if mid then
+				for i = 1, 22 do
+					local x = RB.x0 + 0.6 + (RB.x1 - RB.x0 - 1.2) * i / 23
+					D.box("TrenchSlot", V3(0.06, 0.016, 0.5), CF(x, y0 + 0.013, tz), lk(C(20, 22, 24)))
+				end
+			end
+		end
+		-- 차선 글자 (운전자가 -Z 쪽으로 진입하며 읽음)
+		local sl = G.byName.WashStopLine and G.byName.WashStopLine[1]
+		local slz = sl and sl.c.Z or -10.68
+		D.label("StopText", 6.0, 1.2, floorCF(V3(0, y0 + 0.06, slz + 1.4), -ZA), "정지선  STOP", WHITE, nil, { d = 0.004, font = Enum.Font.GothamBlack })
+		for _, az in { 13.0, 5.0 } do
+			D.label("LaneArrow", 2.0, 2.6, floorCF(V3(0, y0 + 0.02, az), -ZA), "▲", C(236, 236, 230), nil, { d = 0.004, font = Enum.Font.GothamBlack })
+		end
+		D.label("LaneEntryText", 7.0, 1.0, floorCF(V3(0, y0 + 0.02, RB.z1 - 2.4), -ZA), "세차 진입 · 서행 5km/h", C(240, 210, 60), nil, { d = 0.004, font = Enum.Font.GothamBlack })
+		-- 옆 통로 경계 (노랑) + 보행 주의
+		for _, x in { leftX - 0.12, rightX + 0.12 } do
+			D.box("WalkEdgeLine", V3(0.18, 0.006, RB.z1 - RB.z0 - 1.0), CF(x, y0 + 0.005, (RB.z0 + RB.z1) / 2), L.yellow)
+		end
+		D.label("WalkText", 1.6, 4.0, floorCF(V3((RB.x0 + leftX) / 2, y0 + 0.012, 6.0), -ZA), "보행\n주의", C(240, 200, 40), nil, { d = 0.004, font = Enum.Font.GothamBlack })
+		-- 진입 바퀴 가이드 레일 (왼쪽 바퀴, 낮은 철제 채널)
+		local gz0, gz1 = (zone and zone.max.Z or 19.0) + 0.4, RB.z1 - 0.4
+		for _, gx in { -3.45, -1.95 } do
+			D.box("WheelGuide", V3(0.14, 0.14, gz1 - gz0), CF(gx, y0 + 0.07, (gz0 + gz1) / 2), lk(C(240, 196, 30), M.Metal))
+		end
+		for _, s in { -1, 1 } do
+			local gx = if s < 0 then -3.45 else -1.95
+			D.bar("WheelGuideFlare", V3(gx, y0 + 0.07, gz1), V3(gx + s * 0.7, y0 + 0.07, gz1 + 0.35), 0.14, 0.14, lk(C(240, 196, 30), M.Metal))
+		end
+	end)
+
+	-- 6.3 벽: 흰 타일 + 스테인리스 캡, 유리 멀리언, 안내 표지 -------------------------------------------------------------
+	step(K, "walls", function()
+		local wallTop = 3.84
+		for _, r in G.byName.WashWall or {} do
+			wallTop = math.max(wallTop, r.max.Y)
+		end
+		for _, w in { "left", "right" } do
+			local s0, s1 = RB.z0 + 0.6, RB.z1 - 1.0
+			local len = s1 - s0
+			local m = (s0 + s1) / 2
+			D.plate("WashTile", len, wallTop - 0.05, 0.02, D.wall(w, m, (wallTop - 0.05) / 2, 0.004), L.tile)
+			for _, yy in { 1.0, 2.0, 3.0 } do
+				D.plate("WashGrout", len, 0.04, 0.025, D.wall(w, m, yy, 0.004), L.grout)
+			end
+			local n = math.floor(len / 2)
+			for i = 1, n - 1 do
+				D.plate("WashGrout", 0.04, wallTop - 0.05, 0.025, D.wall(w, s0 + len * i / n, (wallTop - 0.05) / 2, 0.004), L.grout)
+			end
+			D.plate("WashTileBand", len, 0.3, 0.03, D.wall(w, m, 0.55, 0.004), lk(C(40, 110, 190), M.CeramicTiles))
+			D.plate("WashWallCap", len, 0.1, 0.18, D.wall(w, m, wallTop + 0.03, -0.02), L.steel)
+			-- 유리 멀리언
+			local gm = 8
+			for i = 0, gm do
+				D.plate("WashMullion", 0.16, 8.5, 0.2, D.wall(w, s0 + len * i / gm, wallTop + 4.3, -0.08), L.alu)
+			end
+			D.plate("WashGlassRail", len, 0.2, 0.22, D.wall(w, m, 12.35, -0.08), L.alu)
+		end
+		-- 운전자 쪽 (왼쪽) 안내 표지
+		local guides = {
+			{ 15.6, "① 천천히 진입", "녹색선 안쪽으로 서행" },
+			{ 9.4, "② 사이드미러 접기", "안테나 · 루프박스 확인" },
+			{ 3.2, "③ 정지선에서 정지", "기어 P · 사이드브레이크" },
+			{ -3.0, "④ 세차 중 이동 금지", "창문 · 선루프 닫기" },
+		}
+		for _, g in guides do
+			local dc = D.wall("left", g[1], 5.1, 0.03)
+			D.plate("GuideSign", 3.6, 1.5, 0.04, dc, lk(C(250, 250, 248)))
+			D.plate("GuideSignBand", 0.3, 1.5, 0.05, dc * CF(-1.65, 0, 0), lk(C(40, 120, 210)))
+			D.label("GuideSignTitle", 3.1, 0.62, dc * CF(0.12, 0.33, 0.05), g[2], C(20, 60, 140), nil, { d = 0.005, font = Enum.Font.GothamBlack })
+			D.label("GuideSignSub", 3.1, 0.42, dc * CF(0.12, -0.35, 0.05), g[3], INK, nil, { d = 0.005 })
+		end
+		D.label("ExitSign", 3.4, 1.0, CFrame.fromMatrix(V3(0, 12.2, RB.z0 + 0.6), XA, YA, ZA), "출구  EXIT  ➜", WHITE, C(20, 150, 80), { d = 0.06, font = Enum.Font.GothamBlack })
+	end)
+
+	-- 6.4 결제 키오스크 (서버 '세차하기' 앵커 바로 앞 · 장식) + 요금표 -----------------------------------------------------
+	step(K, "kiosk", function()
+		local desk = G.byName.GarageDesk_wash and G.byName.GarageDesk_wash[1]
+		local kz1 = if desk then desk.min.Z - 0.3 else 20.1
+		local kz0 = math.max(env1.Z + 0.1, kz1 - 2.2)
+		local ix0, ix1 = RB.x0, math.min(leftX - 0.1, RB.x0 + 2.1)
+		local ip = pf((ix0 + ix1) / 2, y0, (kz0 + kz1) / 2, 0)
+		if spot(G, ip, V3(ix1 - ix0, 5.6, kz1 - kz0), 0, "kiosk") then
+			propGroup(G, "kiosk", V3(ix0, 0, kz0), V3(ix1, 5.6, kz1), function()
+				-- 연석 아일랜드 (노랑/검정 모서리)
+				D.box("KioskIsland", V3(ix1 - ix0, 0.42, kz1 - kz0), ip * CF(0, 0.21, 0), lk(C(170, 168, 162), M.Concrete))
+				for k = 0, 3 do
+					D.box("IslandStripe", V3(0.02, 0.42, (kz1 - kz0) / 4 - 0.02), CF(ix1 + 0.005, y0 + 0.21, kz0 + (kz1 - kz0) * (k + 0.5) / 4), if k % 2 == 0 then L.yellow else L.black)
+				end
+				local kp = CF((ix0 + ix1) / 2 + 0.1, y0 + 0.42, (kz0 + kz1) / 2) * ANG(0, math.rad(72), 0)
+				D.box("KioskPlinth", V3(1.3, 0.3, 1.0), kp * CF(0, 0.15, 0), L.steel)
+				D.rbox("KioskBody", V3(1.2, 4.0, 0.9), 0.12, kp * CF(0, 2.3, 0), lk(C(30, 90, 170)))
+				D.box("KioskFace", V3(1.0, 3.6, 0.04), kp * CF(0, 2.35, 0.46), lk(C(244, 246, 248)))
+				D.box("KioskHood", V3(1.4, 0.35, 1.2), kp * CF(0, 4.45, 0.1), lk(C(30, 90, 170)))
+				D.label("KioskHoodText", 1.3, 0.3, kp * CF(0, 4.45, 0.71), "결제 PAY", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBlack })
+				local scrCF = kp * CF(0, 3.55, 0.49) * ANG(math.rad(-8), 0, 0)
+				D.box("KioskBezel", V3(0.92, 0.72, 0.05), scrCF, L.black)
+				local sp, lab = D.label("KioskScreen", 0.84, 0.64, scrCF * CF(0, 0, 0.03), "", WHITE, C(20, 70, 150), { d = 0.005, glow = 1.3 })
+				local frames = {
+					{ "광안 오토 자동세차\n코스를 선택하세요", C(20, 70, 150) },
+					{ "기본 5,000원\n폼 7,000원 · 왁스 10,000원", C(20, 90, 120) },
+					{ "카드를 넣어주세요\nIC · 삼성페이 · 현금", C(30, 40, 60) },
+					{ "결제 완료\n녹색 신호에 진입하세요", C(20, 110, 60) },
+				}
+				lab.Text = frames[1][1]
+				screenCycle(K, lab, nil, frames, 3.5)
+				D.light(sp, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 6, Brightness = 0.6, Angle = 100, Color = C(140, 190, 255) })
+				-- 코스 버튼 · 카드 슬롯 · 현금 · 영수증 · 키패드 · 인터폰 · 카메라
+				for i, col in { C(40, 160, 80), C(240, 180, 30), C(220, 60, 50) } do
+					D.cyl("CourseButton", 0.06, 0.24, kp * CF(-0.3 + (i - 1) * 0.3, 3.0, 0.49) * ANG(0, PI / 2, 0), lk(col, M.Neon))
+				end
+				D.box("CardSlot", V3(0.4, 0.06, 0.05), kp * CF(-0.2, 2.65, 0.49), L.black)
+				D.box("CashSlot", V3(0.5, 0.08, 0.05), kp * CF(0.15, 2.35, 0.49), L.black)
+				D.box("ReceiptSlot", V3(0.35, 0.05, 0.05), kp * CF(0.25, 2.05, 0.49), L.black)
+				for r = 0, 2 do
+					for c = 0, 2 do
+						D.box("KioskKey", V3(0.1, 0.08, 0.04), kp * CF(-0.32 + c * 0.13, 2.4 - r * 0.12, 0.49), lk(C(200, 204, 210), M.Metal))
+					end
+				end
+				D.cyl("IntercomGrille", 0.04, 0.3, kp * CF(0, 1.6, 0.49) * ANG(0, PI / 2, 0), lk(C(120, 124, 128), M.Metal))
+				D.label("IntercomText", 0.6, 0.16, kp * CF(0, 1.3, 0.49), "호출 · 문의", INK, nil, { d = 0.005 })
+				D.ball("KioskCamera", 0.16, kp * CF(0, 4.15, 0.48), lk(C(20, 20, 22), M.Glass))
+				D.box("CoinTray", V3(0.45, 0.12, 0.2), kp * CF(0, 1.0, 0.52), L.steel)
+			end)
+		end
+		-- 요금표 (왼쪽 유리면, 진입 차량이 보는 높이)
+		local pz = ((desk and desk.c.Z or 21.4) + kz0) / 2 + 0.4
+		local items = {
+			{ "기본 세차", "5,000" }, { "폼 세차 (거품)", "7,000" }, { "프리미엄 왁스", "10,000" }, { "하부 세차 추가", "+2,000" },
+			{ "셀프 진공청소기 4분", "1,000" }, { "매트 세척", "1,000" },
+		}
+		Props.menuBoard(K, G.B * D.wall("left", pz, 6.6, -0.05), 4.6, 3.6, "자동세차 요금 (원)", items, { cols = 1, bg = C(250, 250, 248), fg = INK, accent = C(30, 90, 170), glow = false, frame = L.alu, rowH = 0.45 })
+	end)
+
+	-- 6.5 진입 신호등 (전진 / 정지 / 후진) : 갠트리 움직임 · 존 안의 차를 읽어 스스로 바뀜 ---------------------------------------
+	step(K, "signal", function()
+		local sl = G.byName.WashStopLine and G.byName.WashStopLine[1]
+		local sz = (sl and sl.c.Z or -10.68) - 2.4
+		local sx = (RB.x0 + leftX) / 2
+		local sp = pf(sx, y0, sz, 0)
+		if not spot(G, sp, V3(1.2, 7.8, 1.2), 0, "signal") then
+			return
+		end
+		D.box("SignalBase", V3(0.7, 0.12, 0.7), sp * CF(0, 0.06, 0), L.darkAlu)
+		D.vcyl("SignalPole", 7.4, 0.24, sp * CF(0, 3.8, 0), lk(C(70, 74, 80), M.Metal))
+		local yaw = math.deg(math.atan2(-2.7 - sx, 0 - sz))
+		local hp = CF(sx, y0 + 5.8, sz) * ANG(0, math.rad(yaw), 0) * CF(0, 0, 0.18)
+		D.box("SignalHead", V3(1.2, 3.3, 0.5), hp, lk(C(26, 28, 32), M.Metal))
+		D.box("SignalBackplate", V3(1.5, 3.6, 0.06), hp * CF(0, 0, -0.27), L.black)
+		local defs = { { "정지", C(255, 50, 40), 1.05 }, { "전진", C(40, 230, 110), 0.0 }, { "후진", C(255, 170, 30), -1.05 } }
+		local lamps = {}
+		for _, d in defs do
+			local lc = hp * CF(0, d[3], 0.26)
+			D.cyl("SignalVisor", 0.35, 0.95, lc * CF(0, 0.05, 0.18) * ANG(0, PI / 2, 0), L.black)
+			local lamp = D.cyl("SignalLamp", 0.06, 0.8, lc * ANG(0, PI / 2, 0), lk(darker(d[2], 0.7)))
+			D.label("SignalLampText", 0.7, 0.3, lc * CF(0, 0, 0.05), d[1], WHITE, nil, { d = 0.005 })
+			table.insert(lamps, { p = lamp, on = d[2], off = darker(d[2], 0.72) })
+		end
+		local bp = hp * CF(0, -2.15, 0.05)
+		D.box("SignalBoard", V3(1.6, 0.8, 0.3), bp, L.black)
+		local _, msg = D.label("SignalBoardText", 1.5, 0.66, bp * CF(0, 0, 0.16), "진입하세요", C(80, 255, 140), C(8, 10, 12), { d = 0.005, glow = 1.5 })
+		local glow = D.light(lamps[2].p, "PointLight", { Range = 9, Brightness = 0.8, Color = lamps[2].on })
+		local function set(idx: number, text: string, col: Color3)
+			for i, l in lamps do
+				if l.p.Parent then
+					l.p.Color = if i == idx then l.on else l.off
+					l.p.Material = if i == idx then M.Neon else M.SmoothPlastic
+				end
+			end
+			msg.Text = text
+			msg.TextColor3 = col
+			if glow then
+				glow.Color = lamps[idx].on
+			end
+		end
+		set(2, "↑ 전진 · 천천히 진입", C(80, 255, 140))
+		-- 상태: 갠트리가 홈에서 움직이면 세차 중 (정지, 깜빡임) → 돌아오면 6 초간 세차 완료 (전진 출차) → 평소엔 존 안 차 유무
+		local beam = gparts.GantryBeam
+		local home = beam and beam.Position
+		local lastMove, lastScan, carIn = -100, -100, false
+		local params: OverlapParams? = nil
+		pcall(function()
+			local p = OverlapParams.new()
+			p.FilterType = Enum.RaycastFilterType.Exclude
+			p.FilterDescendantsInstances = { V.model, K.root }
+			params = p
+		end)
+		local zp: BasePart? = zone and zone.part or nil
+		Interact.anim(K, function(t: number)
+			local moving = false
+			if beam and home and beam.Parent then
+				moving = (beam.Position - home).Magnitude > 0.3
+			end
+			if moving then
+				lastMove = t
+				if math.floor(t * 2) % 2 == 0 then
+					set(1, "세차 중 · 정지", C(255, 90, 70))
+				else
+					set(1, "브레이크 · 기어 P", C(255, 200, 80))
+				end
+				return
+			end
+			if t - lastMove < 6 then
+				set(2, "세차 완료 · 전진 출차", C(80, 255, 140))
+				return
+			end
+			if zp and params and t - lastScan > 1 then
+				lastScan = t
+				carIn = false
+				pcall(function()
+					for _, q in workspace:GetPartBoundsInBox((zp :: BasePart).CFrame, (zp :: BasePart).Size, params :: OverlapParams) do
+						local m = q:FindFirstAncestorWhichIsA("Model")
+						if m and m:FindFirstChildWhichIsA("VehicleSeat", true) then
+							carIn = true
+							break
+						end
+					end
+				end)
+			end
+			if carIn then
+				set(1, "정지 · 결제 후 세차", C(255, 90, 70))
+			else
+				set(2, "↑ 전진 · 천천히 진입", C(80, 255, 140))
+			end
+		end)
+	end)
+
+	-- 6.6 드라이어 아치 (출구, 갠트리 이동 구간 밖) ---------------------------------------------------------------------
+	step(K, "dryer", function()
+		local az0, az1 = RB.z0 + 0.45, math.min(RB.z0 + 2.0, env0.Z - 0.6)
+		if az1 - az0 < 0.9 then
+			return
+		end
+		local az = (az0 + az1) / 2
+		local dep = az1 - az0
+		local body = lk(C(236, 238, 240))
+		local blue = lk(C(30, 100, 190))
+		local cols = {}
+		for _, s in { -1, 1 } do
+			local x0 = if s < 0 then RB.x0 + 0.1 else rightX + 0.25
+			local x1 = if s < 0 then leftX - 0.25 else RB.x1 - 0.1
+			local cx = (x0 + x1) / 2
+			local w = x1 - x0
+			if w > 0.6 then
+				D.box("DryerColumn", V3(w, 9.0, dep), CF(cx, y0 + 4.5, az), body)
+				D.box("DryerColumnStripe", V3(w + 0.02, 0.5, dep + 0.02), CF(cx, y0 + 6.0, az), blue)
+				for k = 0, 4 do
+					D.box("DryerSideSlot", V3(0.06, 0.9, dep * 0.6), CF(cx - s * (w / 2 + 0.02), y0 + 1.2 + k * 1.0, az), L.black)
+				end
+				table.insert(cols, cx)
+			end
+		end
+		if #cols == 2 then
+			D.box("DryerBeam", V3(RB.x1 - RB.x0 - 0.2, 1.2, dep), CF((RB.x0 + RB.x1) / 2, y0 + 9.6, az), body)
+			D.box("DryerBeamStripe", V3(RB.x1 - RB.x0 - 0.2, 0.25, dep + 0.02), CF((RB.x0 + RB.x1) / 2, y0 + 9.25, az), blue)
+			for _, x in { -3.2, 3.2 } do
+				D.cyl("BlowerHousing", 1.2, 1.7, CF(x, y0 + 10.9, az) * ANG(0, PI / 2, 0), body)
+				D.disc("BlowerCap", 1.1, 0.12, CF(x, y0 + 11.85, az), lk(C(60, 64, 70), M.Metal))
+				D.wedge("DryerNozzle", V3(3.4, 1.0, 1.0), CF(x, y0 + 8.55, az + 0.2) * ANG(0, PI, 0), lk(C(60, 64, 70), M.Plastic))
+				D.box("DryerNozzleSlot", V3(3.0, 0.08, 0.5), CF(x, y0 + 8.08, az + 0.35), L.black)
+			end
+			D.label("DryerText", 5.0, 0.7, CFrame.fromMatrix(V3(0, y0 + 9.65, az + dep / 2 + 0.01), XA, YA, ZA), "DRY  ·  건조", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBlack })
+			D.label("DryerTextBack", 5.0, 0.7, CFrame.fromMatrix(V3(0, y0 + 9.65, az - dep / 2 - 0.01), -XA, YA, -ZA), "광안 오토 WASH", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBlack })
+		end
+	end)
+
+	-- 6.7 오른쪽 통로: 프리워시 폼건 스테이션 · 제어반 + 약품 · 왼쪽 드라잉존 타월 랙 ---------------------------------------------
+	step(K, "sideStrips", function()
+		-- 폼건 (진입 쪽 오른쪽)
+		local fz0, fz1 = math.max(RB.z0 + 2, env1.Z - 4.6), env1.Z - 0.3
+		local fx0 = rightX + 0.15
+		local fpcf = D.wallPf("right", (fz0 + fz1) / 2, RB.x1 - fx0)
+		if RB.x1 - fx0 > 0.8 and spot(G, fpcf, V3(fz1 - fz0, 4.4, RB.x1 - fx0), 0, "foamLance") then
+			propGroup(G, "foamLance", V3(fx0, 0, fz0), V3(RB.x1, 4.4, fz1), function()
+				local w = fz1 - fz0
+				local dep = RB.x1 - fx0
+				D.box("PumpBox", V3(1.8, 1.6, math.min(0.9, dep)), fpcf * CF(-w / 2 + 1.1, 2.6, -dep / 2 + 0.45), L.stainless)
+				D.label("PumpLabel", 1.6, 0.36, fpcf * CF(-w / 2 + 1.1, 3.05, -dep / 2 + 0.92), "고압 프리워시", WHITE, C(30, 90, 170), { d = 0.01 })
+				D.disc("PumpGauge", 0.38, 0.06, fpcf * CF(-w / 2 + 1.5, 2.3, -dep / 2 + 0.92) * ANG(PI / 2, 0, 0), L.white)
+				D.cyl("HoseReelWall", 0.5, 1.3, fpcf * CF(0.2, 2.7, -dep / 2 + 0.3) * ANG(0, PI / 2, 0), lk(C(30, 90, 170), M.Plastic))
+				D.ring("LanceHoseCoil", fpcf * CF(0.2, 2.7, -dep / 2 + 0.56), 0.55, 0.09, 12, L.black)
+				-- 폼건 (홀스터에 걸린 랜스)
+				local gp = fpcf * CF(w / 2 - 0.8, 2.5, -dep / 2 + 0.35)
+				D.box("LanceHolster", V3(0.5, 0.5, 0.3), gp, L.darkAlu)
+				D.seg("LanceWand", (gp * CF(0, 0.2, 0.2)).Position, (gp * CF(0.2, -1.6, 0.55)).Position, 0.08, L.steel)
+				D.box("LanceGun", V3(0.18, 0.5, 0.3), gp * CF(0, 0.45, 0.25), lk(C(220, 50, 40), M.Plastic))
+				local tip = gp * CF(0.2, -1.7, 0.6)
+				local nozzle = D.vcyl("FoamCannon", 0.5, 0.36, gp * CF(0.05, 0.95, 0.3), { c = C(230, 240, 245), m = M.Glass, t = 0.3 })
+				local foam = {}
+				for i = 0, 5 do
+					local f = D.ell("FoamSpray", V3(0.5 + i * 0.12, 0.35 + i * 0.1, 0.5 + i * 0.12), tip * CF(0.05 * i, -0.15 - i * 0.18, 0.12 * i), { c = WHITE, m = M.SmoothPlastic, t = 1 })
+					table.insert(foam, f)
+				end
+				safetySign(D, D.wall("right", (fz0 + fz1) / 2 + 1.0, 5.2, 0.03), 1.6, 1.3, "warn", "고압 분사 주의")
+				local on = false
+				prompt(G, nozzle, {
+					action = "폼건 분사",
+					object = "프리워시 폼건",
+					fn = function(_n: number, pr: ProximityPrompt)
+						on = not on
+						for i, f in foam do
+							if f.Parent then
+								f.Transparency = if on then 0.15 + i * 0.1 else 1
+							end
+						end
+						pr.ActionText = if on then "분사 멈추기" else "폼건 분사"
+					end,
+				})
+			end)
+		end
+		-- 제어반 + 약품 드럼 (출구 쪽 오른쪽, 갠트리 옆)
+		local cz0, cz1 = env0.Z + 0.6, env0.Z + 5.2
+		local cpcf = D.wallPf("right", (cz0 + cz1) / 2, RB.x1 - fx0)
+		if RB.x1 - fx0 > 0.8 and spot(G, cpcf, V3(cz1 - cz0, 6.0, RB.x1 - fx0), 0, "washControl") then
+			propGroup(G, "washControl", V3(fx0, 0, cz0), V3(RB.x1, 6, cz1), function()
+				local dep = RB.x1 - fx0
+				local w = cz1 - cz0
+				local cab = fpcf and cpcf * CF(-w / 2 + 1.0, 0, -dep / 2 + 0.45)
+				D.box("ControlCabinet", V3(1.8, 5.0, 0.9), cab * CF(0, 2.5, 0), lk(C(200, 204, 208), M.Metal))
+				D.box("ControlDoorLine", V3(0.03, 4.8, 0.02), cab * CF(0, 2.5, 0.46), lk(C(140, 144, 148)))
+				D.box("ControlWindow", V3(0.8, 0.9, 0.02), cab * CF(-0.4, 3.6, 0.46), { c = C(30, 40, 50), m = M.Glass, t = 0.2 })
+				for k = 0, 3 do
+					D.box("PLCLight", V3(0.08, 0.08, 0.02), cab * CF(-0.65 + k * 0.17, 3.4, 0.47), lk(({ C(40, 230, 110), C(40, 230, 110), C(255, 170, 30), C(255, 60, 40) })[k + 1], M.Neon))
+				end
+				D.cyl("ControlEStop", 0.12, 0.34, cab * CF(0.45, 3.0, 0.5) * ANG(0, PI / 2, 0), lk(C(220, 30, 30)))
+				D.box("ControlEStopRing", V3(0.5, 0.5, 0.04), cab * CF(0.45, 3.0, 0.46), L.yellow)
+				D.vcyl("ControlBeacon", 0.4, 0.3, cab * CF(0, 5.2, 0), lk(C(255, 170, 30), M.Neon, { t = 0.2 }))
+				D.label("ControlLabel", 1.6, 0.36, cab * CF(0, 4.6, 0.46), "세차기 제어반", INK, C(250, 250, 246), { d = 0.01 })
+				safetySign(D, cab * CF(0.45, 2.0, 0.46), 0.9, 1.0, "warn", "감전 주의")
+				local drums = { { "샴푸", C(40, 110, 200) }, { "폼", C(240, 240, 236) }, { "왁스", C(240, 190, 30) } }
+				for i, d in drums do
+					local dp = cpcf * CF(-w / 2 + 2.4 + (i - 1) * 0.85, 0, -dep / 2 + 0.45)
+					D.rbox("ChemDrum", V3(0.7, 1.3, 0.6), 0.08, dp * CF(0, 0.65, 0), lk(d[2], M.Plastic))
+					D.vcyl("ChemCap", 0.12, 0.22, dp * CF(0.15, 1.36, 0), L.black)
+					D.seg("ChemTube", (dp * CF(0.15, 1.4, 0)).Position, (dp * CF(0.15, 3.6, -0.3)).Position, 0.05, { c = C(230, 236, 240), m = M.Glass, t = 0.3 })
+					D.label("ChemLabel", 0.6, 0.3, dp * CF(0, 0.8, 0.31), d[1], INK, C(250, 250, 246), { d = 0.005 })
+				end
+				D.seg("ChemManifold", (cpcf * CF(-w / 2 + 2.4, 3.6, -dep / 2 + 0.15)).Position, (cpcf * CF(-w / 2 + 4.3, 3.6, -dep / 2 + 0.15)).Position, 0.12, L.steel)
+				D.seg("ChemRiser", (cpcf * CF(-w / 2 + 4.3, 3.6, -dep / 2 + 0.15)).Position, (cpcf * CF(-w / 2 + 4.3, yR - 0.3, -dep / 2 + 0.15)).Position, 0.12, L.steel)
+			end)
+		end
+		-- 드라잉존 타월 랙 (출구 쪽 왼쪽)
+		local tz1 = env0.Z - 0.15
+		local tz0 = math.max(RB.z0 + 2.2, tz1 - 2.2)
+		local tx1 = leftX - 0.15
+		local tpcf = D.wallPf("left", (tz0 + tz1) / 2, tx1 - RB.x0)
+		if tz1 - tz0 > 1.2 and spot(G, tpcf, V3(tz1 - tz0, 3.8, tx1 - RB.x0), 0, "towels") then
+			propGroup(G, "towels", V3(RB.x0, 0, tz0), V3(tx1, 3.8, tz1), function()
+				local w = tz1 - tz0
+				for _, s in { -1, 1 } do
+					D.box("TowelRackPost", V3(0.1, 3.4, 0.1), tpcf * CF(s * (w / 2 - 0.15), 1.7, 0), L.steel)
+					D.box("TowelRackFoot", V3(0.1, 0.06, 0.8), tpcf * CF(s * (w / 2 - 0.15), 0.03, 0), L.steel)
+				end
+				D.box("TowelRackBar", V3(w - 0.2, 0.08, 0.08), tpcf * CF(0, 3.3, 0), L.steel)
+				local tcols = { C(40, 110, 210), C(240, 120, 40), C(60, 170, 110), C(220, 60, 90), C(250, 250, 246) }
+				local n = math.max(3, math.floor((w - 0.4) / 0.36))
+				for i = 0, n - 1 do
+					local x = -w / 2 + 0.3 + i * (w - 0.6) / math.max(1, n - 1)
+					D.box("Towel", V3(0.32, 1.3, 0.1), tpcf * CF(x, 2.65, 0.06) * ANG(0, 0, (i % 2 - 0.5) * 0.06), lk(tcols[i % #tcols + 1], M.Fabric))
+				end
+				D.vcyl("TowelBin", 1.0, 0.9, tpcf * CF(0, 0.5, 0.0), lk(C(60, 64, 70), M.Plastic))
+				D.label("TowelBinLabel", 0.8, 0.3, tpcf * CF(0, 0.6, 0.46), "사용 타월", WHITE, nil, { d = 0.005 })
+			end)
+			D.label("DryZoneSign", 3.4, 0.9, D.wall("left", (tz0 + tz1) / 2, 5.4, 0.03), "드라잉존 · 셀프 타월", WHITE, C(30, 90, 170), { d = 0.03, font = Enum.Font.GothamBlack })
+		end
+	end)
+
+	-- 6.8 천장: 방수 LED 등기구 3 줄 (맵 판 대신) + 지붕 리브 ------------------------------------------------------------
+	step(K, "ceiling", function()
+		local lit = 0
+		hideNamed(G, "LightPanel")
+		local rows = { (RB.x0 + leftX) / 2, 0, (rightX + RB.x1) / 2 }
+		for ri, x in rows do
+			for k = 0, 3 do
+				local z = RB.z0 + 4 + k * (RB.z1 - RB.z0 - 8) / 3
+				local a, b = V3(x, yR, z - 2.4), V3(x, yR, z + 2.4)
+				local dif = linearLED(D, a, b, 0.8, { drop = 0.2, housing = lk(C(200, 204, 208), M.Metal), glow = Look.lampCool })
+				if dif and (k == 1 or k == 2) and lit < 3 and (ri == 2 or k == 1) then
+					D.light(dif, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = 0.9, Angle = 140, Color = Look.coolLight })
+					lit += 1
+				end
+			end
+		end
+		local nrib = if hi then 14 else 7
+		for i = 0, nrib - 1 do
+			local z = RB.z0 + 1 + i * (RB.z1 - RB.z0 - 2) / (nrib - 1)
+			D.box("RoofRib", V3(RB.x1 - RB.x0 + 0.4, 0.12, 0.2), CF((RB.x0 + RB.x1) / 2, yR - 0.06, z), lk(C(206, 210, 214), M.Metal))
+		end
+	end)
+
+	-- 6.9 갠트리 디테일 (갠트리 · 브러시를 매 프레임 따라감): 브러시 천 스트립 · 분사 노즐 · 다리 패널 · 앞 LED ----------------------
+	step(K, "gantryDetail", function()
+		if not gantry then
+			return
+		end
+		local follow = {}
+		local function att(ref: BasePart?, list: { BasePart })
+			if not ref then
+				return
+			end
+			for _, p in list do
+				if p and p.Parent then
+					table.insert(follow, { p = p, ref = ref, off = ref.CFrame:ToObjectSpace(p.CFrame) })
+				end
+			end
+		end
+		local function grab(fn: () -> ()): { BasePart }
+			local i0 = #K.parts
+			fn()
+			local out = {}
+			for i = i0 + 1, #K.parts do
+				table.insert(out, K.parts[i])
+			end
+			return out
+		end
+		-- 브러시 천 스트립 (브러시 파트 로컬: 축 = X)
+		for _, nm in { "BrushL", "BrushR", "BrushTop" } do
+			local br = gparts[nm]
+			if br then
+				local len = br.Size.X
+				local rad = math.min(br.Size.Y, br.Size.Z) / 2
+				local base = G.Binv * V.cf:ToObjectSpace(br.CFrame)
+				local col = br.Color
+				local n = if hi then 14 else 8
+				local list = grab(function()
+					for i = 0, n - 1 do
+						local a = i * 2 * PI / n
+						local c = if i % 2 == 0 then col:Lerp(WHITE, 0.25) else col:Lerp(C(0, 0, 0), 0.15)
+						D.box("BrushStrip", V3(len - 0.2, 0.08, 0.55), base * ANG(a, 0, 0) * CF(0, rad + 0.02, 0), lk(c, M.Fabric))
+					end
+				end)
+				att(br, list)
+			end
+		end
+		-- 분사 바 노즐 + 폼 아치 (빔 / 분사 바)
+		local sb = gparts.SprayBar
+		if sb then
+			local base = G.Binv * V.cf:ToObjectSpace(sb.CFrame)
+			local len = sb.Size.X
+			local list = grab(function()
+				local n = if hi then 12 else 7
+				for i = 0, n - 1 do
+					local x = -len / 2 + 0.5 + i * (len - 1) / (n - 1)
+					D.vcyl("SprayNozzle", 0.25, 0.12, base * CF(x, -0.3, 0.1), Look.brass)
+					D.box("SprayNozzleTip", V3(0.1, 0.06, 0.18), base * CF(x, -0.46, 0.14), L.black)
+				end
+			end)
+			att(sb, list)
+		end
+		local beamP = gparts.GantryBeam
+		if beamP then
+			local base = G.Binv * V.cf:ToObjectSpace(beamP.CFrame)
+			local bz = beamP.Size.Z / 2
+			local list = grab(function()
+				D.box("GantryLEDPanel", V3(6.0, 0.9, 0.06), base * CF(0, 0, bz + 0.04), L.black)
+				D.label("GantryLEDText", 5.8, 0.75, base * CF(0, 0, bz + 0.08), "광안 오토 WASH  ·  세차 중 이동 금지", C(255, 200, 80), nil, { d = 0.005, glow = 1.4, font = Enum.Font.GothamBold })
+				D.box("GantryBeamStripe", V3(beamP.Size.X, 0.18, 0.04), base * CF(0, -0.55, bz + 0.03), lk(C(40, 120, 210)))
+				D.box("GantryBeamStripe", V3(beamP.Size.X, 0.18, 0.04), base * CF(0, -0.55, -bz - 0.03), lk(C(40, 120, 210)))
+			end)
+			att(beamP, list)
+		end
+		for _, leg in gantry:GetDescendants() do
+			if leg:IsA("BasePart") and leg.Name == "GantryLeg" then
+				local base = G.Binv * V.cf:ToObjectSpace(leg.CFrame)
+				local sx = if base.Position.X < 0 then 1 else -1 -- 안쪽
+				local h = leg.Size.Y
+				local list = grab(function()
+					-- 안쪽 면: 세로 분사 파이프 + 노즐
+					D.vcyl("SidePipe", h - 1.6, 0.14, base * CF(sx * (leg.Size.X / 2 + 0.1), 0.2, 0.6), L.steel)
+					for k = 0, 5 do
+						D.box("SideNozzle", V3(0.16, 0.1, 0.1), base * CF(sx * (leg.Size.X / 2 + 0.2), -h / 2 + 1.4 + k * 1.4, 0.6), Look.brass)
+					end
+					-- 바깥 면: 조작 패널 · 경고등 · 휠 커버
+					D.box("LegPanel", V3(0.06, 1.6, 1.4), base * CF(-sx * (leg.Size.X / 2 + 0.03), 0.8, 0), lk(C(236, 238, 240)))
+					D.box("LegPanelScreen", V3(0.02, 0.5, 0.8), base * CF(-sx * (leg.Size.X / 2 + 0.07), 1.2, 0), lk(C(40, 120, 210), M.Neon, { t = 0.2 }))
+					D.box("LegEStop", V3(0.1, 0.25, 0.25), base * CF(-sx * (leg.Size.X / 2 + 0.08), 0.5, 0.3), lk(C(220, 30, 30)))
+					D.box("LegWheelCover", V3(leg.Size.X + 0.2, 0.6, leg.Size.Z + 0.3), base * CF(0, -h / 2 + 0.3, 0), lk(C(50, 54, 60), M.Metal))
+					D.label("LegBadge", 1.4, 0.4, base * CF(0, h / 2 - 1.2, leg.Size.Z / 2 + 0.01), "GW WASH", WHITE, nil, { d = 0.005, font = Enum.Font.GothamBlack })
+				end)
+				att(leg, list)
+			end
+		end
+		if #follow == 0 then
+			return
+		end
+		local refs = {}
+		local seen = {}
+		for _, f in follow do
+			if not seen[f.ref] then
+				seen[f.ref] = true
+				table.insert(refs, { p = f.ref, last = f.ref.CFrame })
+			end
+		end
+		K.conns = K.conns or {}
+		table.insert(K.conns, RunService.RenderStepped:Connect(function()
+			local changed = false
+			for _, r in refs do
+				local cf = r.p.CFrame
+				if cf ~= r.last then
+					r.last = cf
+					changed = true
+				end
+			end
+			if not changed then
+				return
+			end
+			local parts, cfs = {}, {}
+			for _, f in follow do
+				if f.p.Parent then
+					table.insert(parts, f.p)
+					table.insert(cfs, f.ref.CFrame * f.off)
+				end
+			end
+			local ok = pcall(function()
+				workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+			end)
+			if not ok then
+				for i, p in parts do
+					p.CFrame = cfs[i]
+				end
+			end
+		end))
+	end)
+
+	-- 6.10 출구 뒤: 셀프 진공청소기 (맵 상자 대신) · 매트 세척기 ------------------------------------------------------
+	step(K, "vacuum", function()
+		local vs = G.byName.VacuumStation and G.byName.VacuumStation[1]
+		local gy = if vs then vs.min.Y else y0 - 0.12
+		local saved = RB.z0
+		RB.z0 = saved - 7
+		local vx, vz = 11.26, -27.48
+		if vs then
+			vx, vz = vs.c.X, vs.c.Z
+			hideRec(G, vs)
+			hideNamed(G, "VacuumHose")
+		end
+		local ign: { [any]: boolean } = {}
+		if vs then
+			ign[vs.part] = true
+		end
+		for _, r in G.byName.VacuumHose or {} do
+			ign[r.part] = true
+		end
+		local vp = pf(vx, gy, vz, 180)
+		if spot(G, vp, V3(2.6, 7.0, 2.2), 0, "vacuum", ign) then
+			propGroup(G, "vacuum", V3(vx - 1.3, 0, vz - 1.1), V3(vx + 1.3, 7, vz + 1.1), function()
+				D.box("VacPad", V3(2.6, 0.12, 2.2), vp * CF(0, 0.06, 0), lk(C(170, 168, 162), M.Concrete))
+				D.vcyl("VacBody", 3.2, 1.5, vp * CF(0, 1.72, 0), L.stainless)
+				D.vcyl("VacBand", 0.4, 1.54, vp * CF(0, 1.0, 0), lk(C(240, 196, 30)))
+				D.vcyl("VacHead", 1.0, 1.7, vp * CF(0, 3.8, 0), lk(C(240, 196, 30)))
+				D.vcyl("VacTopCap", 0.15, 1.75, vp * CF(0, 4.35, 0), lk(C(40, 42, 46)))
+				local pnl = vp * CF(0, 3.8, 0.86)
+				D.box("VacPanel", V3(0.9, 0.7, 0.04), pnl, L.black)
+				local _, vlab = D.label("VacScreen", 0.7, 0.3, pnl * CF(0, 0.12, 0.03), "1,000원 · 4분", C(255, 120, 60), C(10, 10, 12), { d = 0.005, glow = 1.4, font = Enum.Font.RobotoMono })
+				D.box("VacCardReader", V3(0.3, 0.2, 0.05), pnl * CF(-0.2, -0.2, 0.03), lk(C(60, 62, 66)))
+				D.box("VacCoinSlot", V3(0.06, 0.2, 0.05), pnl * CF(0.25, -0.2, 0.03), L.chrome)
+				local btn = D.cyl("VacButton", 0.06, 0.22, pnl * CF(0.05, -0.2, 0.05) * ANG(0, PI / 2, 0), lk(C(40, 200, 90), M.Neon))
+				D.label("VacSign", 1.6, 0.45, vp * CF(0, 2.6, 0.78), "셀프 진공청소기", INK, C(250, 250, 246), { d = 0.01 })
+				-- 회전 붐 + 호스 2
+				D.vcyl("VacBoomPost", 2.2, 0.22, vp * CF(0, 5.4, 0), L.steel)
+				D.seg("VacBoom", (vp * CF(0, 6.4, 0)).Position, (vp * CF(3.6, 6.4, 0.4)).Position, 0.18, L.steel)
+				for k, ox in { 1.6, 3.4 } do
+					local top = vp * CF(ox, 6.3, 0.2 * k)
+					D.box("VacHoseClip", V3(0.25, 0.25, 0.25), top, L.black)
+					D.seg("VacHose", top.Position, (vp * CF(ox * 0.6, 3.0, 1.0)).Position, 0.22, lk(C(30, 32, 34), M.Rubber))
+					D.seg("VacHose", (vp * CF(ox * 0.6, 3.0, 1.0)).Position, (vp * CF(0.45 * (k * 2 - 3), 2.0, 0.9)).Position, 0.22, lk(C(30, 32, 34), M.Rubber))
+					D.box("VacNozzle", V3(0.2, 0.7, 0.2), vp * CF(0.45 * (k * 2 - 3), 1.8, 0.95), L.black)
+				end
+				local on = false
+				prompt(G, btn, {
+					action = "청소기 켜기",
+					object = "셀프 진공청소기 (구경용)",
+					fn = function(_n: number, pr: ProximityPrompt)
+						on = not on
+						vlab.Text = if on then "작동 중 · 3:59" else "1,000원 · 4분"
+						btn.Color = if on then C(255, 70, 50) else C(40, 200, 90)
+						pr.ActionText = if on then "청소기 끄기" else "청소기 켜기"
+					end,
+				})
+			end)
+		end
+		-- 매트 세척기 (진공청소기 옆)
+		local mx = vx - 3.15
+		local mp = pf(mx, gy, vz, 180)
+		if spot(G, mp, V3(1.95, 3.8, 2.2), 0, "matWasher", ign) then
+			propGroup(G, "matWasher", V3(mx - 1.2, 0, vz - 1.1), V3(mx + 1.2, 3.8, vz + 1.1), function()
+				D.box("MatPad", V3(2.4, 0.12, 2.2), mp * CF(0, 0.06, 0), lk(C(170, 168, 162), M.Concrete))
+				D.box("MatWasherBody", V3(2.2, 3.0, 1.6), mp * CF(0, 1.62, -0.1), lk(C(236, 238, 240)))
+				D.box("MatWasherTop", V3(2.3, 0.2, 1.7), mp * CF(0, 3.2, -0.1), lk(C(30, 100, 190)))
+				D.box("MatSlot", V3(1.8, 0.06, 0.25), mp * CF(0, 3.31, 0.2), L.black)
+				D.box("MatWindow", V3(1.6, 1.0, 0.04), mp * CF(0, 2.0, 0.71), { c = C(40, 50, 60), m = M.Glass, t = 0.35 })
+				local rollers = {}
+				for k = 0, 1 do
+					table.insert(rollers, D.cyl("MatRoller", 1.5, 0.45, mp * CF(0, 1.75 + k * 0.5, 0.45), lk(if k == 0 then C(40, 110, 210) else C(230, 70, 50), M.Fabric)))
+				end
+				D.box("MatOutTray", V3(1.9, 0.08, 0.7), mp * CF(0, 0.75, 0.95) * ANG(math.rad(15), 0, 0), L.steel)
+				D.label("MatSign", 1.9, 0.5, mp * CF(0, 2.8, 0.71), "매트 세척 1,000원", WHITE, C(30, 100, 190), { d = 0.01 })
+				local btn = D.cyl("MatButton", 0.06, 0.26, mp * CF(0.8, 1.2, 0.72) * ANG(0, PI / 2, 0), lk(C(40, 200, 90), M.Neon))
+				-- 매트 걸이
+				local hp = mp * CF(-1.6, 0, 0.2)
+				D.box("MatHangerPost", V3(0.12, 3.6, 0.12), hp * CF(0, 1.8, 0), L.steel)
+				D.box("MatHangerBar", V3(0.1, 0.1, 1.4), hp * CF(0, 3.5, 0), L.steel)
+				for k = 0, 1 do
+					D.box("HangingMat", V3(0.06, 1.8, 1.0), hp * CF(0.08 + k * 0.08, 2.5, -0.3 + k * 0.6), lk(if k == 0 then C(30, 30, 32) else C(70, 60, 50), M.Rubber))
+				end
+				local spinning = false
+				local rcf = {}
+				for _, r in rollers do
+					table.insert(rcf, r.CFrame)
+				end
+				Interact.anim(K, function(t: number)
+					if not spinning then
+						return
+					end
+					for i, r in rollers do
+						if r.Parent then
+							r.CFrame = rcf[i] * CFrame.Angles(t * 6 * (if i == 1 then 1 else -1), 0, 0)
+						end
+					end
+				end)
+				prompt(G, btn, {
+					action = "세척기 돌리기",
+					object = "매트 세척기 (구경용)",
+					fn = function(_n: number, pr: ProximityPrompt)
+						spinning = not spinning
+						btn.Color = if spinning then C(255, 70, 50) else C(40, 200, 90)
+						pr.ActionText = if spinning then "세척기 멈추기" else "세척기 돌리기"
+					end,
+				})
+			end)
+		end
+		local lampPart = D.vcyl("ExitLampPost", 0.2, 0.2, CF(vx - 1.6, yR - 0.2, RB.z0 + 5.8), L.darkAlu)
+		local _ = lampPart
+		RB.z0 = saved
+	end)
+	return G
+end
+buildWash = buildWashImpl
 
 function T.style(V: any): any
 	-- 공통 마감 · 리스킨 전부 끔: 이 건물은 V 프레임과 1.9 도 어긋나 우리 B 프레임에서 직접 지음

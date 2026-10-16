@@ -15,7 +15,11 @@
 --   5) 뒷벽 메뉴판 (라이트박스 / 칠판 / 펠트 레터보드 / 브라스) + 로고 + 프로모 띠
 --   6) 옆벽: 액자 · 네온(켜기/끄기) · 안내문 (와이파이 · 영업시간 · 카드결제 · 원산지 · 위생등급) · 선반 · 스피커(BGM 바꾸기) · TV
 --   7) 천장: 덕트 · 레일 조명 · 픽업 전광판 · 행잉 화분 · LED 띠
--- 스타벅스 광안리점: 바리스타 잡 시스템 → 카운터 위 · 카운터 리스킨 · 커피 머신 스킨은 하지 않음.
+-- 상호작용 (클라이언트 전용, 서버 행동과 안 겹침): 네온사인 켜기/끄기 · 매장 BGM 바꾸기 (이퀄라이저 LED) ·
+--   음료 냉장고 / 케이크 쇼케이스 문 여닫기 · 커피 로스터 가동 (드럼 창 · 냉각 날개 회전) · 인형뽑기방 LED 모드 ·
+--   아이스크림 냉동고 뚜껑. 애니메이션: 픽업 전광판 번호 · TV 프로모 · 오븐 불빛 · 벽시계.
+-- 예산: room(K, n) 으로 복합 소품을 통째로 짓거나 건너뜀 (저사양 1300 파트에서도 반쪽 소품 없음).
+-- 스타벅스 광안리점: 바리스타 잡 시스템 → 카운터 위 · 카운터 리스킨 · 커피 머신 스킨 · 바닥 소품은 하지 않음.
 
 local Look = require(script.Parent:WaitForChild("Look"))
 local Props = require(script.Parent:WaitForChild("Props"))
@@ -630,7 +634,7 @@ local function brandOf(V: any): any
 		B.sofa = rgb(196, 150, 150)
 		B.logoFg = rgb(190, 150, 86)
 		B.casePanel = lk(rgb(240, 230, 218))
-		B.wall = { back = lk(rgb(238, 212, 206), M.Plaster) }
+		B.wall = { back = lk(rgb(246, 228, 224), M.Plaster) }
 		feat.cake, feat.md, feat.mirror, feat.flowers = true, false, true, true
 	elseif key == "busan" then
 		B.title, B.logo, B.slogan = nm, "051", "GWANGALLI · BUSAN"
@@ -674,6 +678,7 @@ local function brandOf(V: any): any
 		B.cup = rgb(255, 236, 240)
 		feat = { freezer = true, plants = 1, gelato = true, fridge = true, cart = if key ~= "waffle" then key else nil }
 		B.feat = feat
+		B.wall = { back = lk(rgb(252, 234, 238), M.Plaster), left = lk(rgb(250, 248, 243), M.Plaster), right = lk(rgb(250, 248, 243), M.Plaster) }
 	elseif key == "tanghulu" then
 		B.title, B.logo, B.slogan = nm, "탕후루", "바삭 달콤 과일 탕후루"
 		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(222, 40, 60), rgb(60, 20, 24), rgb(255, 210, 60), rgb(255, 248, 244), rgb(70, 20, 26)

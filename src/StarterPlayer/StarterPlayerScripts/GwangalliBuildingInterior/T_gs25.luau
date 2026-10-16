@@ -2264,27 +2264,27 @@ local function cagesAndPiles(ctx: any)
 	local Q = ctx.Q
 	local function rollCage(c: CFrame, w: number, d: number, h: number)
 		local fr = lk(rgb(170, 174, 178), M.Metal)
-		Q:box("CageBase", V3(w, 0.2, d), c * CF(0, 0.35, 0), lk(rgb(120, 124, 128), M.Metal))
+		Q:box("CageBase", V3(w, 0.1, d), c * CF(0, 0.25, 0), lk(rgb(120, 124, 128), M.Metal))
 		for _, sx in { -1, 1 } do
 			for _, sz in { -1, 1 } do
-				Q:ball("CageWheel", 0.3, c * CF(sx * (w / 2 - 0.2), 0.15, sz * (d / 2 - 0.2)), lk(rgb(30, 30, 32), M.Rubber))
+				Q:ball("CageWheel", 0.22, c * CF(sx * (w / 2 - 0.2), 0.11, sz * (d / 2 - 0.2)), lk(rgb(30, 30, 32), M.Rubber))
 			end
 		end
 		-- 옆 3면 (그물: 기둥 + 가로대)
 		for _, sx in { -1, 1 } do
-			Q:box("CagePost", V3(0.08, h, 0.08), c * CF(sx * (w / 2 - 0.04), 0.45 + h / 2, -d / 2 + 0.04), fr)
-			Q:box("CagePost", V3(0.08, h, 0.08), c * CF(sx * (w / 2 - 0.04), 0.45 + h / 2, d / 2 - 0.04), fr)
+			Q:box("CagePost", V3(0.08, h, 0.08), c * CF(sx * (w / 2 - 0.04), 0.3 + h / 2, -d / 2 + 0.04), fr)
+			Q:box("CagePost", V3(0.08, h, 0.08), c * CF(sx * (w / 2 - 0.04), 0.3 + h / 2, d / 2 - 0.04), fr)
 			for k = 1, 5 do
-				Q:box("CageBar", V3(0.04, 0.04, d), c * CF(sx * (w / 2 - 0.04), 0.45 + k * h / 6, 0), fr)
+				Q:box("CageBar", V3(0.04, 0.04, d), c * CF(sx * (w / 2 - 0.04), 0.3 + k * h / 6, 0), fr)
 			end
 		end
 		for k = 1, 5 do
-			Q:box("CageBar", V3(w, 0.04, 0.04), c * CF(0, 0.45 + k * h / 6, -d / 2 + 0.04), fr)
+			Q:box("CageBar", V3(w, 0.04, 0.04), c * CF(0, 0.3 + k * h / 6, -d / 2 + 0.04), fr)
 		end
 		for k = 1, 4 do
-			Q:box("CageWire", V3(0.03, h, 0.03), c * CF(-w / 2 + k * w / 5, 0.45 + h / 2, -d / 2 + 0.04), fr)
+			Q:box("CageWire", V3(0.03, h, 0.03), c * CF(-w / 2 + k * w / 5, 0.3 + h / 2, -d / 2 + 0.04), fr)
 		end
-		Q:box("CageTop", V3(w, 0.06, 0.06), c * CF(0, 0.45 + h, -d / 2 + 0.04), fr)
+		Q:box("CageTop", V3(w, 0.06, 0.06), c * CF(0, 0.3 + h, -d / 2 + 0.04), fr)
 	end
 	local rc = one(ctx, "RollCage")
 	if rc then
@@ -2293,8 +2293,10 @@ local function cagesAndPiles(ctx: any)
 		Q:free(function()
 			rollCage(c, rc.s.X, rc.s.Z, rc.s.Y - 0.5)
 			-- 도시락 배송 트레이 (위)
+			local cb = one(ctx, "CageBoxes")
+			local ty = if cb then cb.mx.Y else 3.2
 			for k = 0, 2 do
-				Q:box("BentoTray", V3(rc.s.X - 0.6, 0.3, rc.s.Z - 0.6), c * CF(0, rc.s.Y + 0.15 + k * 0.32, 0), lk(rgb(30, 110, 190), M.Plastic))
+				Q:box("BentoTray", V3(rc.s.X - 0.7, 0.3, rc.s.Z - 0.7), c * CF(0, ty + 0.16 + k * 0.32, 0), lk(rgb(30, 110, 190), M.Plastic))
 			end
 		end)
 	end
@@ -2318,7 +2320,7 @@ local function cagesAndPiles(ctx: any)
 	if spotB(ctx, cageP, V3(2.6, 6.0, 3.0), 0) then
 		rollCage(cageP * ANG(0, PI / 2, 0), 3.0, 2.6, 5.0)
 		for k = 0, 2 do
-			carton(ctx, cageP * CF(0, 0.45 + k * 1.25, 0), V3(1.9, 1.2, 2.3), ({ "새우깡 20입", "신라면 40입", "햇반 × 24" })[k + 1], ({ rgb(220, 120, 20), RED, rgb(40, 140, 70) })[k + 1], k + 3)
+			carton(ctx, cageP * CF(0, 0.3 + k * 1.25, 0), V3(1.9, 1.2, 2.3), ({ "새우깡 20입", "신라면 40입", "햇반 × 24" })[k + 1], ({ rgb(220, 120, 20), RED, rgb(40, 140, 70) })[k + 1], k + 3)
 		end
 	end
 	local milkP = CF(xw + 1.3, 0, 4.0)
