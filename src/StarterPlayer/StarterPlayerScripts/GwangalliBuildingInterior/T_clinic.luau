@@ -2031,12 +2031,12 @@ local function dentalChair(K: any, pcf: CFrame): BasePart
 	K:box("DentPedestal", V3(1.2, 1.3, 1.4), pcf * CF(0, 0.85, -0.4), body)
 	K:box("DentSeatFrame", V3(2.0, 0.3, 2.4), pcf * CF(0, 1.65, 0), body)
 	K:slab("DentSeat", 2.1, 2.3, 0.4, 0.15, pcf * CF(0, 2.0, 0.1), vin)
-	local bk = pcf * CF(0, 2.0, -1.1) * ANG(math.rad(-58), 0, 0)
-	K:slab("DentBack", 2.0, 0.4, 3.0, 0.15, bk * CF(0, 0.1, -1.5), vin)
-	K:slab("DentHead", 1.1, 0.35, 0.9, 0.12, bk * CF(0, 0.15, -3.4), vin)
-	local lg = pcf * CF(0, 2.0, 1.2) * ANG(math.rad(-22), 0, 0)
-	K:slab("DentLeg", 2.0, 0.35, 2.4, 0.12, lg * CF(0, 0, 1.2), vin)
-	K:box("DentFootPlate", V3(1.6, 0.6, 0.12), lg * CF(0, 0.1, 2.45), body)
+	local bk = pcf * CF(0, 2.05, -1.05) * ANG(math.rad(58), 0, 0)
+	K:slab("DentBack", 2.0, 3.0, 0.4, 0.15, bk * CF(0, 0.05, -1.5), vin)
+	K:slab("DentHead", 1.1, 0.9, 0.35, 0.12, bk * CF(0, 0.1, -3.4), vin)
+	local lg = pcf * CF(0, 2.0, 1.2) * ANG(math.rad(22), 0, 0)
+	K:slab("DentLeg", 2.0, 2.4, 0.35, 0.12, lg * CF(0, 0, 1.2), vin)
+	K:box("DentFootPlate", V3(1.6, 0.6, 0.12), lg * CF(0, -0.1, 2.45), body)
 	for _, sx in { -1, 1 } do
 		K:box("DentArm", V3(0.3, 0.2, 1.6), pcf * CF(sx * 1.15, 2.7, -0.1), body)
 		K:box("DentArmPost", V3(0.15, 0.6, 0.15), pcf * CF(sx * 1.15, 2.35, -0.7), LK.alu)
@@ -4709,15 +4709,15 @@ local function sofa2(K: any, pcf: CFrame, w: number, seatL: any, frameL: any?)
 	local d = 2.5
 	K:box("SofaBase", V3(w, 0.9, d), pcf * CF(0, 0.75, 0), seatL)
 	for _, sx in { -1, 1 } do
-		K:slab("SofaArm", 0.5, 1.0, d, 0.12, pcf * CF(sx * (w / 2 - 0.25), 1.7, 0), seatL)
+		K:slab("SofaArm", 0.5, d, 1.0, 0.12, pcf * CF(sx * (w / 2 - 0.25), 1.7, 0), seatL)
 		K:box("SofaFoot", V3(0.25, 0.3, 0.25), pcf * CF(sx * (w / 2 - 0.4), 0.15, d / 2 - 0.35), fl)
 		K:box("SofaFoot", V3(0.25, 0.3, 0.25), pcf * CF(sx * (w / 2 - 0.4), 0.15, -d / 2 + 0.35), fl)
 	end
 	local inner = w - 1.0
 	for k = 0, 1 do
 		local x = -inner / 4 + k * inner / 2
-		K:slab("SofaCushion", inner / 2 - 0.06, 0.4, d - 0.6, 0.12, pcf * CF(x, 1.4, 0.2), seatL)
-		K:slab("SofaBackCushion", inner / 2 - 0.06, 1.6, 0.55, 0.15, pcf * CF(x, 2.2, -d / 2 + 0.4) * ANG(math.rad(-8), 0, 0), seatL)
+		K:slab("SofaCushion", inner / 2 - 0.06, d - 0.6, 0.4, 0.12, pcf * CF(x, 1.4, 0.2), seatL)
+		K:slab("SofaBackCushion", inner / 2 - 0.06, 0.55, 1.6, 0.15, pcf * CF(x, 2.35, -d / 2 + 0.55) * ANG(math.rad(-8), 0, 0), seatL)
 	end
 	K:box("SofaBack", V3(w, 2.3, 0.3), pcf * CF(0, 1.95, -d / 2 + 0.15), seatL)
 end

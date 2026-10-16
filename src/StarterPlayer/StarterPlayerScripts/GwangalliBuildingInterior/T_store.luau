@@ -1192,8 +1192,8 @@ local function didScreen(K: any, dcf: CFrame, w: number, frames: { any }, object
 	K:plate("StDIDMount", w * 0.3, h * 0.3, 0.1, dcf, Look.blackMetal)
 	K:plate("StDIDBezel", w + 0.14, h + 0.14, 0.12, dcf * CF(0, 0, 0.1), frameL or Look.black)
 	-- 화면 = 불투명 배경 글자판 (밝기 1.3): 화면 색 · 글자를 같이 바꿈
-	local scr, label = txt(K, "StDIDScreen", w, h, dcf * CF(0, 0, 0.22), frames[1].text, WHITE, frames[1].c, { glow = 1.3, font = Enum.Font.GothamBlack, d = 0.02 })
-	K:plate("StDIDGlass", w, h, 0.005, dcf * CF(0, 0, 0.243), { c = C(220, 230, 240), m = M.Glass, t = 0.9, r = 0.25 })
+	local scr, label = txt(K, "StDIDScreen", w, h, dcf * CF(0, 0, 0.22), frames[1].text, WHITE, frames[1].c, { glow = 1.1, font = Enum.Font.GothamBlack, d = 0.02 })
+	K:plate("StDIDGlass", w, h, 0.005, dcf * CF(0, 0, 0.243), { c = C(220, 230, 240), m = M.Glass, t = 0.97, r = 0.06 })
 	K:plate("StDIDLed", 0.06, 0.06, 0.01, dcf * CF(w / 2 - 0.05, -h / 2 - 0.04, 0.225), Look.ledGreen)
 	local idx = 0
 	local last = -1
@@ -3748,33 +3748,6 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 				K:plate("StCrossV", 0.42, 1.3, 0.08, d, Look.neon(C(30, 200, 90)))
 			end
 		end)
-		step(K, "medbin", function()
-			local door = V.door
-			local prefer = if door then V3(door.x, 0, door.z - 7) else nil
-			local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.5, 1.0, 3.0, prefer, 0.15, "medbin", function(c: CFrame): boolean
-				return promptOk(K, (c * CF(0, 1.8, 0.5)).Position)
-			end)
-			if wn and pcf then
-				medBin(K, pcf * CF(0, 0, -0.05))
-				local mn, mx = K.laabb(pcf * CF(0, 1.2, 1.3), V3(1.5, 2.4, 1.6))
-				K:reserve(mn, mx, "front")
-			else
-				-- 벽이 다 찼으면 앞 유리 안쪽 (높이 2.8 < 창 keep 3.4), 방 안을 보게
-				local cands = {}
-				for _, dx in { 0.9, 1.7, 2.5, 3.3 } do
-					table.insert(cands, V3(V.x1 - dx, 0, V.z1 - 0.62))
-					table.insert(cands, V3(V.x0 + dx, 0, V.z1 - 0.62))
-				end
-				local fp = floorSpot(K, cands, V3(1.4, 3.0, 1.0), V3(0, 0, -1), 0.1, "medbin", function(p: Vector3): boolean
-					return promptOk(K, p + V3(0, 1.8, -0.5))
-				end)
-				if fp then
-					medBin(K, fp)
-				else
-					note(K, "no medbin spot")
-				end
-			end
-		end)
 		step(K, "leaflets", function()
 			local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 1.8, 3.4, 5.5, 2)
 			if wn and dcf then
@@ -3790,6 +3763,24 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 			end
 		end)
 	end
+	-- 폐의약품 수거함: 벽 앞 빈 자리 (프롬프트 둘 수 있는 곳 우선), 없으면 생략
+	step(K, "medbin", function()
+		local door = V.door
+		local prefer = if door then V3(door.x, 0, door.z - 7) else nil
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.5, 1.0, 3.0, prefer, 0.15, "medbin", function(c: CFrame): boolean
+			return promptOk(K, (c * CF(0, 1.8, 0.5)).Position)
+		end)
+		if not (wn and pcf) and not gw then
+			wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.5, 1.0, 3.0, prefer, 0.15, "medbin")
+		end
+		if wn and pcf then
+			medBin(K, pcf * CF(0, 0, -0.05))
+			local mn, mx = K.laabb(pcf * CF(0, 1.2, 1.3), V3(1.5, 2.4, 1.6))
+			K:reserve(mn, mx, "front")
+		else
+			note(K, "no medbin spot")
+		end
+	end)
 	step(K, "hang", function()
 		local n = 0
 		for _, s in surfs do
@@ -4205,7 +4196,15 @@ function T.build(K: any, V: any, S: any)
 			for _, r in V.byName.WallRack or {} do
 				top = math.max(top, r.max.Y)
 			end
-			if top > 0 then
+			if top == 0 and sub == "souvenir" then
+				-- 벽 진열장이 없는 기념품 가게 (빵 · 과자 선물 위주): 낮은 벽 선반 위 넓은 벽에 라이트박스 여러 개
+				local nm = tostring(V.name or "BUSAN")
+				n = lightboxes(K, V, { "back", "left", "right" }, math.min(6.2, V.H - 3.2), V.H - 0.6, {
+					{ title = nm, sub = "부산 여행 기념 빵 · 어묵 · 씨앗호떡 선물세트", bg = C(16, 30, 70), fg = WHITE, fg2 = C(255, 200, 80), band = C(220, 50, 60) },
+					{ title = "광안대교 · 해운대 · 감천마을", sub = "부산 풍경 굿즈 · 엽서 · 마그넷 · 키링", bg = C(244, 238, 226), fg = C(16, 30, 70), fg2 = C(200, 40, 50), band = C(16, 30, 70) },
+					{ title = "TAX FREE · 선물 포장", sub = "외국인 즉시 환급 · 쇼핑백 · 보냉 포장 무료", bg = C(200, 40, 50), fg = WHITE, band = WHITE },
+				}, 3, 11)
+			elseif top > 0 then
 				n = lightboxes(K, V, { "back" }, top + 0.25, V.H - 0.35, if sub == "beach" then {
 					{ title = "광안리 BEACH SHOP", sub = "튜브 · 파라솔 · 돗자리 대여 · 선케어 · 물놀이 용품", bg = C(20, 70, 140), fg = WHITE, fg2 = C(255, 214, 90), band = C(255, 214, 90) },
 				} else {

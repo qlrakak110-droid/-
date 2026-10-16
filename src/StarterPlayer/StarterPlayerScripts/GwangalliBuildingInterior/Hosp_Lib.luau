@@ -765,6 +765,11 @@ function Lib.sfx(part: Instance?, id: string, o: any?): Sound?
 	return s
 end
 
+-- 위치 없는 소리 (화면 전환 · UI)
+function Lib.sfx2d(id: string, o: any?): Sound?
+	return Lib.sfx(game:GetService("SoundService"), id, o)
+end
+
 -- 소리 n 번 (간격 gap)
 function Lib.beeps(part: Instance?, id: string, n: number, gap: number, o: any?)
 	task.spawn(function()

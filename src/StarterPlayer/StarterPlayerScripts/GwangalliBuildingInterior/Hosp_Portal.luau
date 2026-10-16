@@ -141,7 +141,7 @@ function Portal.new(env: any): any
 		busy = true
 		task.spawn(function()
 			crack(id, side, 1)
-			Lib.sfx(env.folder:FindFirstChildWhichIsA("BasePart", true), SND.click, { vol = 0.3, speed = 0.7 })
+			Lib.sfx2d(SND.click, { vol = 0.3, speed = 0.7 })
 			UI.fade(true, 0.22, spec.label)
 			local ready = ensure(id, 3.0)
 			local ok2 = Lib.canTravel()
@@ -162,10 +162,7 @@ function Portal.new(env: any): any
 			crack(id, side, 0)
 			task.wait(0.15)
 			roomDoor(id, if side == "roof" then "roof" else "hall", 0)
-			local r = rooms[id]
-			if r and r.K then
-				Lib.sfx(r.K.folder:FindFirstChildWhichIsA("BasePart", true), SND.thunk, { vol = 0.4, speed = 0.7 })
-			end
+			Lib.sfx2d(SND.thunk, { vol = 0.4, speed = 0.7 })
 			UI.fade(false, 0.35)
 			UI.toast(spec.label, 1.8)
 			busy = false
@@ -190,6 +187,7 @@ function Portal.new(env: any): any
 			roomDoor(id, side, 0)
 			task.wait(0.15)
 			crack(id, side, 0)
+			Lib.sfx2d(SND.thunk, { vol = 0.35, speed = 0.75 })
 			UI.fade(false, 0.35)
 			busy = false
 			local r = rooms[id]
