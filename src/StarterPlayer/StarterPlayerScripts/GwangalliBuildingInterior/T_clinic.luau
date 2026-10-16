@@ -4286,6 +4286,37 @@ local function guardianBed(K: any, pcf: CFrame)
 	K:ell("GBPillow", V3(1.4, 0.3, 0.8), pcf * CF(0, 1.66, -2.4), lk(250, 250, 250, M.Fabric))
 end
 
+-- 2인용 비닐 소파 (보호자 · 면회), pcf 바닥, +Z = 앉는 쪽 앞
+local function sofa2(K: any, pcf: CFrame, w: number, seatL: any, frameL: any?)
+	local fl = frameL or lk(70, 74, 80, M.Metal)
+	local d = 2.5
+	K:box("SofaBase", V3(w, 0.9, d), pcf * CF(0, 0.75, 0), seatL)
+	for _, sx in { -1, 1 } do
+		K:slab("SofaArm", 0.5, 1.0, d, 0.12, pcf * CF(sx * (w / 2 - 0.25), 1.7, 0), seatL)
+		K:box("SofaFoot", V3(0.25, 0.3, 0.25), pcf * CF(sx * (w / 2 - 0.4), 0.15, d / 2 - 0.35), fl)
+		K:box("SofaFoot", V3(0.25, 0.3, 0.25), pcf * CF(sx * (w / 2 - 0.4), 0.15, -d / 2 + 0.35), fl)
+	end
+	local inner = w - 1.0
+	for k = 0, 1 do
+		local x = -inner / 4 + k * inner / 2
+		K:slab("SofaCushion", inner / 2 - 0.06, 0.4, d - 0.6, 0.12, pcf * CF(x, 1.4, 0.2), seatL)
+		K:slab("SofaBackCushion", inner / 2 - 0.06, 1.6, 0.55, 0.15, pcf * CF(x, 2.2, -d / 2 + 0.4) * ANG(math.rad(-8), 0, 0), seatL)
+	end
+	K:box("SofaBack", V3(w, 2.3, 0.3), pcf * CF(0, 1.95, -d / 2 + 0.15), seatL)
+end
+
+-- 병실 냉장고 (소형 1도어), pcf 바닥 +Z = 문
+local function smallFridge(K: any, pcf: CFrame, w: number, d: number, h: number)
+	K:box("FridgeBody", V3(w, h - 0.1, d - 0.05), pcf * CF(0, 0.1 + (h - 0.1) / 2, -0.03), lk(236, 238, 238, M.Plastic))
+	K:plate("FridgeDoor", w - 0.04, h - 0.2, 0.06, pcf * CF(0, 0.15 + (h - 0.2) / 2, d / 2 - 0.02), lk(246, 247, 247, M.Plastic))
+	K:plate("FridgeHandle", 0.1, 1.0, 0.1, pcf * CF(w / 2 - 0.25, h - 0.9, d / 2 + 0.06), LK.darkAlu)
+	K:box("FridgeKick", V3(w - 0.1, 0.1, d - 0.2), pcf * CF(0, 0.05, 0), LK.black)
+	tx(K, "FridgeLabel", w - 0.4, 0.42, pcf * CF(0, h - 0.45, d / 2 + 0.045), "공용 냉장고\n이름 · 날짜 적어 주세요", INK, C3(255, 246, 196), { d = 0.005 })
+	K:box("FridgeTopBox", V3(1.0, 0.5, 0.8), pcf * CF(-0.25, h + 0.25, 0), lk(250, 250, 248))
+	K:box("FridgeTopBoxPuff", V3(0.3, 0.1, 0.2), pcf * CF(-0.25, h + 0.55, 0), Look.paper)
+	K:vcyl("FridgeThermos", 0.9, 0.36, pcf * CF(0.45, h + 0.45, 0.05), lk(190, 60, 60, M.Metal))
+end
+
 -- 병실 화장실 (칸막이 + 문 + 변기 · 세면대 · 손잡이 · 비상벨). 반환 문 Model, 경첩
 local function wardBathroom(K: any, x0: number, x1: number, z0: number, z1: number, doorSide: string, doorU: number)
 	local V = K.V
@@ -4590,6 +4621,60 @@ BUILD.ward = function(K: any, V: any)
 		local d3 = wallSpot(K, "left", 3.0, 4.6, 7.0, 0, 0.6)
 		if d3 then
 			poster(K, d3, 2.8, 2.2, "낙상 예방 수칙", "침대 난간 올리기\n일어날 때 천천히\n밤에는 보호자와 함께\n미끄럼 방지 신발", WHITE, INK, C3(230, 140, 30), WHITE, 0.24)
+		end
+	end)
+	-- 보호자 소파 (창가, 두 침대 사이) + 협탁 + 화분 ---------------------------------------------------------------
+	step(K, "guardian", function()
+		local xs = {}
+		for _, sd in seats do
+			table.insert(xs, sd.c.X)
+		end
+		local cx = if #xs >= 2 then (xs[1] + xs[#xs]) / 2 else 0
+		local z = V.z0 + 1.6 + 1.25
+		for _, dx in { 0, -1.5, 1.5, -3, 3 } do
+			local pc = CF(cx + dx, 0, z)
+			if K:spot(pc, V3(5.6, 3.2, 2.6), 0.1) then
+				K:free(function()
+					sofa2(K, pc, 5.4, lk(120, 150, 160, M.Leather))
+					K:ell("SofaPillow", V3(1.2, 1.0, 0.35), pc * CF(-1.4, 2.0, -0.55) * ANG(math.rad(-12), 0, math.rad(8)), lk(236, 226, 200, M.Fabric))
+					K:box("SofaBlanket", V3(1.7, 0.18, 1.6), pc * CF(1.3, 1.7, 0.2), lk(214, 120, 96, M.Fabric))
+				end)
+				local st = pc * CF(3.85, 0, 0.2)
+				if K:spot(st, V3(1.6, 2.2, 1.6), 0) then
+					K:free(function()
+						K:vcyl("SideTableTop", 0.12, 1.5, st * CF(0, 2.0, 0), lk(196, 166, 126, M.Wood))
+						K:vcyl("SideTableLeg", 1.95, 0.16, st * CF(0, 1.0, 0), LK.darkAlu)
+						K:disc("SideTableFoot", 1.0, 0.06, st * CF(0, 0.03, 0), LK.darkAlu)
+						K:vcyl("FruitBasket", 0.3, 0.9, st * CF(-0.1, 2.21, 0.1), lk(190, 150, 96, M.Fabric))
+						for k, c in { C3(220, 60, 40), C3(240, 170, 40), C3(220, 60, 40), C3(120, 170, 60) } do
+							K:ball("Fruit", 0.32, st * CF(-0.35 + (k % 2) * 0.35, 2.48, -0.05 + math.floor((k - 1) / 2) * 0.3), col(c, M.SmoothPlastic))
+						end
+						K:vcyl("Thermos", 0.8, 0.3, st * CF(0.45, 2.46, -0.3), lk(60, 120, 170, M.Metal))
+					end)
+				end
+				local pl = pc * CF(-3.75, 0, -0.3)
+				if K:spot(pl, V3(1.4, 4.6, 1.4), 0) then
+					K:free(function()
+						Props.floorPlant(K, pl, { kind = "snake", h = 3.6, dia = 1.2 })
+					end)
+				end
+				break
+			end
+		end
+		-- 공용 냉장고 · 분리 휴지통 (앞벽, 세면대 반대편)
+		local fu = wallU("front", Vector3.new(if doorLeft then 10.5 else -9.5, 0, 0))
+		local fcf = wallFloorNear(K, "front", fu, 2.2, 2.2, 3.6, 4, 0)
+		if fcf then
+			K:free(function()
+				smallFridge(K, fcf, 2.2, 2.2, 3.6)
+			end)
+			local bcf = wallFloorNear(K, "front", fu + (if doorLeft then 2.4 else -2.4), 2.4, 1.2, 2.0, 2, 0)
+			if bcf then
+				K:free(function()
+					pedalBin(K, bcf * CF(-0.6, 0, 0), 1.8, "일반")
+					pedalBin(K, bcf * CF(0.6, 0, 0), 1.8, "재활용")
+				end)
+			end
 		end
 	end)
 	K.clinicCommon = { clock = true }

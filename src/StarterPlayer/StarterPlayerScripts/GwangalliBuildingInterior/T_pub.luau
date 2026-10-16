@@ -2952,6 +2952,29 @@ local function wallDecor(c: any)
 			signPlate(K, V:wall(wn, u, 4.6 + s[2] / 2 + 0.1, 0.06), s[1], s[2], s[3], s[4], s[5], s[6])
 		end
 	end
+	-- 금연구역 표지 (국민건강증진법: 모든 음식점 · 주점 실내 전체 금연)
+	do
+		local wn, u, yc = nil, nil, 5.4
+		for _, band in { { 4.5, 6.3 }, { 6.1, 7.9 }, { 2.4, 4.2 } } do
+			wn, u = findWall(K, { "left", "right", "back" }, 1.3, 1.3, band[1], band[2], V3(0, 0, V.z1 - 4), 0.8)
+			if wn and u then
+				yc = (band[1] + band[2]) / 2
+				break
+			end
+		end
+		if wn and u then
+			local d = V:wall(wn, u, yc, 0.06)
+			K:plate("NoSmokeBoard", 1.2, 1.6, 0.03, d, L.of(250, 250, 248))
+			K:plate("NoSmokeBand", 1.2, 0.36, 0.035, d * CF(0, -0.62, 0), L.of(200, 30, 36))
+			local ic = d * CF(0, 0.22, 0.035)
+			K:ring("NoSmokeRing", ic, 0.36, 0.08, if K.detail == "low" then 8 else 12, L.of(210, 30, 36))
+			K:box("NoSmokeCig", V3(0.5, 0.1, 0.02), ic * CF(-0.04, 0, 0.0), L.of(240, 240, 236))
+			K:box("NoSmokeTip", V3(0.12, 0.1, 0.022), ic * CF(0.25, 0, 0.0), L.of(230, 150, 60))
+			K:box("NoSmokeSlash", V3(0.78, 0.08, 0.025), ic * CF(0, 0, 0.012) * ANG(0, 0, -PI / 4), L.of(210, 30, 36))
+			K:text("NoSmokeText", 1.1, 0.3, d * CF(0, -0.28, 0.035), "금연구역", { fg = rgb(200, 30, 36), font = F.GothamBlack, d = 0.004 })
+			K:text("NoSmokeFine", 1.1, 0.28, d * CF(0, -0.62, 0.037), "전 구역 금연 · 위반 시\n과태료 10만원", { fg = rgb(255, 255, 255), font = F.GothamBold, d = 0.004 })
+		end
+	end
 	-- 원산지 표시판 (안주 파는 펍: 카운터 근처, 법정 표시)
 	do
 		local wn, u = findWall(K, { "back", "left", "right" }, 1.6, 1.6, 3.9, 5.5, nearC, 0.8)

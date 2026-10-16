@@ -3925,8 +3925,53 @@ local function equipSkins(K: any, V: any, kind: string, sub: string)
 	end)
 end
 
--- 윗벽 라이트박스 (진열장 위 빈 벽): walls 의 y0..y1 빈 구간마다 하나씩, list 를 차례로
-local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: number, list: { any }, maxN: number?): number
+-- 벽 wn 의 y0..y1 에서 정말 빈 u 구간: V:spans (가구 · 문 · keep) 에서 맵 간판 · 머리판 (shell 이라 spans 가 안 보는 것)과
+-- 우리 벽 부착물 (K.wallUsed) 을 더 뺌
+local function freeIntervals(K: any, V: any, wn: string, y0: number, y1: number): { { number } }
+	local cuts = {}
+	for _, r in V.parts do
+		local nm = r.name
+		if (string.sub(nm, 1, 5) == "Sign_" or not STRUCT[nm]) and r.part.Transparency < 0.99 and r.max.Y > y0 and r.min.Y < y1 then
+			local umin, umax, dmin = math.huge, -math.huge, math.huge
+			for _, x in { r.min.X, r.max.X } do
+				for _, z in { r.min.Z, r.max.Z } do
+					local u, dd = V:wallCoord(wn, V3(x, 0, z))
+					umin, umax, dmin = math.min(umin, u), math.max(umax, u), math.min(dmin, dd)
+				end
+			end
+			if dmin < 1.2 and dmin > -0.6 then
+				table.insert(cuts, { umin - 0.3, umax + 0.3 })
+			end
+		end
+	end
+	for _, u in K.wallUsed or {} do
+		if u.w == wn and u.y0 < y1 and u.y1 > y0 then
+			table.insert(cuts, { u.a - 0.2, u.b + 0.2 })
+		end
+	end
+	table.sort(cuts, function(p, q)
+		return p[1] < q[1]
+	end)
+	local out = {}
+	for _, sp in V:spans(wn, y0, y1, 1.0) do
+		local cur = sp[1]
+		for _, c in cuts do
+			if c[2] > cur and c[1] < sp[2] then
+				if c[1] > cur then
+					table.insert(out, { cur, c[1] })
+				end
+				cur = math.max(cur, c[2])
+			end
+		end
+		if sp[2] > cur then
+			table.insert(out, { cur, sp[2] })
+		end
+	end
+	return out
+end
+
+-- 윗벽 라이트박스 (진열장 위 빈 벽): walls 의 y0..y1 빈 구간마다 (긴 구간은 여러 개), list 를 차례로
+local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: number, list: { any }, maxN: number?, maxW: number?): number
 	local n = 0
 	local idx = (hashStr(V.key) % #list)
 	local h = math.min(2.6, y1 - y0)
@@ -3934,44 +3979,49 @@ local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: num
 		return 0
 	end
 	local yc = y0 + h / 2
+	local MW = maxW or 14
 	for _, wn in walls do
-		for _, sp in V:spans(wn, y0, y0 + h, 1.0) do
-			if n >= (maxN or 6) then
-				return n
-			end
+		for _, sp in freeIntervals(K, V, wn, y0, y0 + h) do
 			local len = sp[2] - sp[1]
-			if len >= 4.5 then
-				local w = math.min(len - 0.6, 14)
-				local u = (sp[1] + sp[2]) / 2
-				if not wallBusy(K, wn, u - w / 2, u + w / 2, y0, y0 + h) then
-					local dcf = V:wall(wn, u, yc, 0.02)
-					local mn, mx = K.laabb(dcf * CF(0, 0, 0.12), V3(w, h, 0.24))
-					if not mapBlocked(K, mn, mx) then
-						idx += 1
-						local it = list[(idx - 1) % #list + 1]
-						K:free(function()
-							K:plate("StLbFrame", w, h, 0.16, dcf, lk(C(214, 216, 218), M.Metal))
-							txt(K, "StLbFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.16), "", it.fg, it.bg, { d = 0.01, glow = 1.05 })
-							local tw = if it.side then w * 0.62 else w * 0.9
-							local tx = if it.side then -w * 0.17 else 0
-							txt(K, "StLbTitle", tw, h * 0.42, dcf * CF(tx, h * 0.14, 0.175), it.title, it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBlack })
-							txt(K, "StLbSub", tw * 0.9, h * 0.2, dcf * CF(tx, -h * 0.24, 0.175), it.sub, it.fg2 or it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBold })
-							if it.band then
-								K:plate("StLbBand", w - 0.16, 0.12, 0.012, dcf * CF(0, -h / 2 + 0.2, 0.17), lk(it.band))
-							end
-							if it.side then
-								-- 오른쪽: 큰 상품 실루엣 (선크림 튜브 · 앰플 병) = 사진 대신 입체 판
-								local sx = w / 2 - w * 0.17
-								local sc = it.sideC or C(250, 250, 250)
-								K:plate("StLbHero", 0.7, h * 0.62, 0.03, dcf * CF(sx - 0.55, -h * 0.04, 0.17), lk(sc))
-								K:plate("StLbHeroCap", 0.46, h * 0.16, 0.035, dcf * CF(sx - 0.55, h * 0.35, 0.17), lk(darker(sc, 0.5)))
-								K:plate("StLbHero2", 0.5, h * 0.48, 0.03, dcf * CF(sx + 0.45, -h * 0.11, 0.17), lk(it.sideC2 or lighter(it.bg, 0.5)))
-								K:plate("StLbHero2Cap", 0.24, h * 0.14, 0.035, dcf * CF(sx + 0.45, h * 0.2, 0.17), lk(C(40, 40, 40)))
-							end
-						end)
-						addWallUsed(K, wn, u - w / 2, u + w / 2, y0, y0 + h)
-						n += 1
-					end
+			if len < 4.5 then
+				continue
+			end
+			local k = math.max(1, math.ceil((len - 0.6) / (MW + 0.8)))
+			local seg = len / k
+			for j = 1, k do
+				if n >= (maxN or 6) then
+					return n
+				end
+				local w = math.min(seg - 0.8, MW)
+				local u = sp[1] + seg * (j - 0.5)
+				local dcf = V:wall(wn, u, yc, 0.02)
+				local mn, mx = K.laabb(dcf * CF(0, 0, 0.12), V3(w, h, 0.24))
+				if w >= 3.6 and not mapBlocked(K, mn, mx) and not K:hitsKeep(mn, mx) then
+					idx += 1
+					local it = list[(idx - 1) % #list + 1]
+					K:free(function()
+						K:plate("StLbFrame", w, h, 0.16, dcf, lk(C(214, 216, 218), M.Metal))
+						txt(K, "StLbFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.16), "", it.fg, it.bg, { d = 0.01, glow = 1.05 })
+						local side = it.side and w >= 7
+						local tw = if side then w * 0.62 else w * 0.9
+						local tx = if side then -w * 0.17 else 0
+						txt(K, "StLbTitle", tw, h * 0.42, dcf * CF(tx, h * 0.14, 0.175), it.title, it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBlack })
+						txt(K, "StLbSub", tw * 0.9, h * 0.2, dcf * CF(tx, -h * 0.24, 0.175), it.sub, it.fg2 or it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBold })
+						if it.band then
+							K:plate("StLbBand", w - 0.16, 0.12, 0.012, dcf * CF(0, -h / 2 + 0.2, 0.17), lk(it.band))
+						end
+						if side then
+							-- 오른쪽: 큰 상품 실루엣 (튜브 · 앰플 병) = 사진 대신 입체 판
+							local sx = w / 2 - w * 0.17
+							local sc = it.sideC or C(250, 250, 248)
+							K:plate("StLbHero", 0.7, h * 0.62, 0.03, dcf * CF(sx - 0.55, -h * 0.04, 0.17), lk(sc))
+							K:plate("StLbHeroCap", 0.46, h * 0.16, 0.035, dcf * CF(sx - 0.55, h * 0.35, 0.17), lk(darker(sc, 0.5)))
+							K:plate("StLbHero2", 0.5, h * 0.48, 0.03, dcf * CF(sx + 0.45, -h * 0.11, 0.17), lk(it.sideC2 or lighter(it.bg, 0.5)))
+							K:plate("StLbHero2Cap", 0.24, h * 0.14, 0.035, dcf * CF(sx + 0.45, h * 0.2, 0.17), lk(C(40, 40, 40)))
+						end
+					end)
+					addWallUsed(K, wn, u - w / 2, u + w / 2, y0, y0 + h)
+					n += 1
 				end
 			end
 		end

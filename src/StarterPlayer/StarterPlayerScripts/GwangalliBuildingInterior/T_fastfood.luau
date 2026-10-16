@@ -4110,6 +4110,13 @@ function T.build(K: any, V: any, S: any)
 		end
 	end
 	local ctx = ctxNew(K, V, S)
+	if FF_DUMP then
+		local ivs = {}
+		for _, iv in promptIntervals(ctx, { "back", "left", "right", "front" }) do
+			table.insert(ivs, string.format("%s[%.1f..%.1f]", iv[1], iv[2], iv[3]))
+		end
+		K:note("PIV " .. table.concat(ivs, " "))
+	end
 	local ok, err = pcall(setupZones, ctx)
 	if not ok then
 		K:note("ff zones error: " .. tostring(err))
