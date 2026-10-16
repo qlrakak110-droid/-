@@ -615,6 +615,9 @@ local function brandOf(V: any): any
 		B.neon = { "STARBUCKS COFFEE", rgb(220, 250, 230), F.GothamBold }
 		B.art = "coffee"
 		B.noCounter = true
+		-- 벽: 계산대 뒤 짙은 월넛 패널 대신 따뜻한 원목 · 옆벽 크림 플라스터 (맵의 검은 벽이 너무 어두움)
+		B.wall = { back = lk(rgb(112, 80, 54), M.Wood), left = lk(rgb(232, 222, 204), M.Plaster), right = lk(rgb(232, 222, 204), M.Plaster) }
+		B.wifi, B.pw, B.hours = "Starbucks_WiFi", "앱에서 연결", "매일 07:00 - 23:00"
 		feat.pickup, feat.selfbar, feat.md, feat.plants = false, false, false, 0
 	elseif key == "roastery" then
 		B.title, B.logo, B.slogan = nm, "LAB", "SPECIALTY COFFEE ROASTERS"
@@ -817,7 +820,8 @@ function T.style(V: any): any
 		S.chair = { style = "padded", frame = Look.darkWood, seat = Look.leatherBrown }
 		S.table = { top = Look.walnut, base = Look.blackMetal, barStyle = "steel" }
 		S.counter = false
-		S.lower = { kind = "louver", h = 3.4, look = Look.walnut, back = Look.darkWood, walls = { "left", "right" } }
+		S.floor = { look = lk(rgb(168, 128, 92), M.WoodPlanks), tile = 0 }
+		S.lower = { kind = "louver", h = 3.4, look = lk(rgb(136, 98, 66), M.Wood), back = Look.darkWood, walls = { "left", "right" } }
 		S.pendant = { shade = "dome", look = lk(rgb(30, 57, 50), M.Metal) }
 	elseif k == "roastery" or k == "concrete" then
 		S.chair = { style = "shell", frame = Look.blackMetal, seat = Look.plywood }

@@ -839,6 +839,26 @@ function TV.update(dt: number)
 	end
 end
 
+-- one-line summary of what the TV shows (studio tests)
+function TV.debug(): string
+	local vis = {}
+	for _, n in { "idle", "ready", "title", "sing", "score" } do
+		if L[n] and L[n].Visible then
+			table.insert(vis, n)
+		end
+	end
+	local lines = {}
+	if lyr then
+		for s = 1, 2 do
+			local sl = lyr.slots[s]
+			if sl.frame.Visible then
+				table.insert(lines, string.format("%d:%s(%.0f/%.0f)", s, sl.base.Text, sl.clip.Size.X.Offset, sl.w))
+			end
+		end
+	end
+	return string.format("enabled=%s adornee=%s layers=%s scene=%s big=%s ready=%s title=%s score=%s/%s lyrics=%s inter=%s", tostring(gui.Enabled), tostring(gui.Adornee and gui.Adornee:GetFullName()), table.concat(vis, ","), tostring(bg and bg.scene), L.idleBig.Text, L.readyBig.Text, L.tTitle.Text, L.scoreNum.Text, L.scoreGrade.Text, table.concat(lines, " | "), tostring(L.inter.Visible))
+end
+
 function TV.setLyricSize(name: string)
 	if lyr then
 		lyr.setSize(name)

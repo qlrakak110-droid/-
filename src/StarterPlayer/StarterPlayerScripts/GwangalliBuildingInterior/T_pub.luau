@@ -2259,12 +2259,19 @@ local function tapBoard(c: any)
 	end
 	listBoard(K, dcf, w - 0.4, h, th.board, th.boardTitle, th.boardSub, rows, th.boardFoot, nil)
 	-- 보드 조명 (위에서 비추는 갤러리 램프 2)
+	-- 테이블 펜던트 불빛이 더 필요한 넓은 홀이면 양보
+	local boardLit = th.cove ~= nil or #V.tables > 1 or #K.lights >= (V.maxLights or 8) - 3
 	for _, sx in { -0.3, 0.3 } do
 		local base = dcf * CF((w - 0.4) * sx, h / 2 + 0.3, -0.06)
 		K:box("BoardLampMount", V3(0.18, 0.18, 0.06), base * CF(0, 0, 0.03), L.blackMetal)
 		K:box("BoardLampArm", V3(0.06, 0.06, 0.62), base * CF(0, 0, 0.33), L.blackMetal)
 		K:cyl("BoardLampHead", 0.5, 0.18, base * CF(0, -0.06, 0.66), L.blackMetal)
-		K:box("BoardLampLens", V3(0.44, 0.02, 0.08), base * CF(0, -0.16, 0.66), L.lampWarm)
+		local lens = K:box("BoardLampLens", V3(0.44, 0.02, 0.08), base * CF(0, -0.16, 0.66), L.lampWarm)
+		-- 메뉴판 갤러리 조명 (불빛 예산이 넉넉할 때 하나만): 아래로 보드를 비춤
+		if not boardLit and lens then
+			local li = K:light(lens, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 1.1, Angle = 110, Color = rgb(255, 214, 160) })
+			boardLit = li ~= nil
+		end
 	end
 	c.board = { wall = wn, u = u, w = w }
 	-- 뒷벽 카운터 뒤면: 아래 언더카운터 쿨러 + 잔 선반 (깊이 1.0)
@@ -2775,7 +2782,7 @@ local function tablePendants(c: any)
 			local x, z = cx + o[1], cz + o[2]
 			local drop = math.min(2.1 + o[3], maxDrop)
 			if Common.ceilFree(K, x, z, 0.3) and clearAt(K, CF(x, V.H - drop / 2, z), V3(1.0, drop + 0.1, 1.0)) then
-				local light = k == 1 and lit < 2 and #K.lights < (V.maxLights or 8) - 1
+				local light = k == 1 and lit < 3 and #K.lights < (V.maxLights or 8) - (if th.cove then 1 else 0)
 				Props.pendant(K, V3(x, V.H, z), drop, { shade = th.tablePendant or "bulb", dia = if th.tablePendant == "bulb" then 0.9 else 0.8, look = th.pendant and th.pendant.look, light = light, range = 14, bright = 0.95 })
 				Common.useCeil(K, x, z)
 				if light then

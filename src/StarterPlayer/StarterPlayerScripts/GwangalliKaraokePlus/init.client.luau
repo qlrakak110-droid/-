@@ -99,6 +99,65 @@ RunService.RenderStepped:Connect(function(dt)
 	end
 end)
 
+-- studio test hook: with the script attribute Debug = true, KPDebug = "req <op> <json>" | "ui book" |
+-- "ui remote" | "ui pay" | "ui close" | "state" | "tap" runs through the same paths as the UI and writes
+-- the answer to KPDebugOut (the server validates everything as usual).
+script:GetAttributeChangedSignal("KPDebug"):Connect(function()
+	if script:GetAttribute("Debug") ~= true then
+		return
+	end
+	local cmd = script:GetAttribute("KPDebug")
+	if type(cmd) ~= "string" or cmd == "" then
+		return
+	end
+	task.spawn(function()
+		local out = "?"
+		local ok, err = pcall(function()
+			local op, rest = string.match(cmd, "^req (%S+)%s*(.*)$")
+			local v = K.Rooms.current()
+			if op then
+				out = S.encode(K.Net.request(op, S.decode(rest) or {}))
+			elseif cmd == "ui book" then
+				K.Book.open()
+				out = "ok"
+			elseif cmd == "ui remote" then
+				K.Remote.open()
+				out = "ok"
+			elseif cmd == "ui pay" then
+				if v then
+					K.Hud.openPay(v)
+				end
+				out = "ok"
+			elseif cmd == "ui close" then
+				K.Kit.closeAll()
+				out = "ok"
+			elseif cmd == "tap" then
+				K.Rhythm.tap()
+				out = "ok"
+			elseif cmd == "autotap" and v and v.chart then
+				-- presses every note of the current song on time (exercises the whole scoring path)
+				local serial = v.serial
+				task.spawn(function()
+					for _, n in v.chart.taps do
+						while v.serial == serial and v.state == "play" and K.Rooms.songTime(v, S.now()) < n.t do
+							task.wait()
+						end
+						if v.serial ~= serial or v.state ~= "play" then
+							return
+						end
+						K.Rhythm.tap()
+					end
+				end)
+				out = "started " .. #v.chart.taps
+			elseif cmd == "state" then
+				local st = if v and v.clock then K.Rooms.songTime(v, S.now()) else 0
+				out = string.format("room=%s state=%s renter=%s credits=%s queue=%d song=%s st=%.2f mics=%s singer=%s | %s", tostring(v and v.no), tostring(v and v.state), tostring(v and v.renter), tostring(v and v.credits), if v then #(v.queue or {}) else 0, tostring(v and v.songId), st, S.encode(v and v.mics or {}), tostring(v and K.Rooms.isSinger(v)), K.TV.debug())
+			end
+		end)
+		script:SetAttribute("KPDebugOut", if ok then out else "ERR " .. tostring(err))
+	end)
+end)
+
 player.CharacterAdded:Connect(function()
 	-- sheets stay usable after respawn (the ScreenGui does not reset); nothing else to rebuild
 	K.Kit.closeAll()
