@@ -3079,6 +3079,20 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 		local info = breadList[(i + seed) % #breadList + 1]
 		local pcf = facing(V3(r.c.X, y, if sh then (sh.min.Z + sh.max.Z) / 2 + 0.1 else r.c.Z), V3(0, 0, 1))
 		local bw = 1.55
+		if B.key == "hotteok" and sh and sh.c.Y > 3.5 then
+			-- 호떡집 윗선반: 씨앗호떡 믹스 선물세트 · 꿀 단지 (포장 상품)
+			local red = if i % 2 == 0 then rgb(196, 52, 46) else rgb(232, 168, 48)
+			K:box("GiftBox", V3(1.1, 0.42, 0.72), pcf * CF(-0.15, 0.21, -0.05), lk(red))
+			K:box("GiftBand", V3(1.12, 0.1, 0.74), pcf * CF(-0.15, 0.3, -0.05), lk(rgb(240, 214, 140), M.Metal))
+			K:box("GiftBox", V3(1.0, 0.38, 0.66), pcf * CF(-0.12, 0.61, -0.08) * ANG(0, 0.08, 0), lk(dk(red, 0.1)))
+			K:text("GiftLabel", 0.9, 0.24, pcf * CF(-0.15, 0.15, 0.315), "부산 씨앗호떡 믹스", { fg = rgb(255, 250, 236), d = 0.005, font = F.GothamBold })
+			K:vcyl("HoneyJar", 0.42, 0.32, pcf * CF(0.55, 0.21, 0.05), lk(rgb(220, 150, 40), M.Glass, { t = 0.2 }))
+			K:vcyl("HoneyJarLid", 0.08, 0.34, pcf * CF(0.55, 0.46, 0.05), lk(rgb(240, 214, 140), M.Metal))
+			if sh then
+				tag(K, faceCF(V3(r.c.X, sh.c.Y, sh.max.Z + 0.012), V3(0, 0, 1)), 0.95, math.min(0.22, sh.size.Y + 0.02), "선물세트 12,000")
+			end
+			continue
+		end
 		basket(K, pcf, bw, 1.1, if i % 2 == 0 then Look.rattan else Look.of(150, 110, 70, Enum.Material.Wood))
 		local kind = info[3]
 		local cnt = if kind == "baguette" or kind == "garlic" then 2 elseif kind == "loaf" then 1 else 3
