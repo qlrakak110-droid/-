@@ -1181,7 +1181,7 @@ local function buildShowroom(K: any, V: any)
 		for _, t in tts do
 			local lens = lightFor[t] or lightBack[t]
 			if lens and lit < 6 then
-				D.light(lens, "SpotLight", { Face = Enum.NormalId.Front, Range = 26, Angle = 48, Brightness = 1.5, Color = C(255, 236, 214) })
+				D.light(lens, "SpotLight", { Face = Enum.NormalId.Front, Range = 28, Angle = 56, Brightness = 1.8, Color = C(255, 238, 220) })
 				lit += 1
 			end
 		end

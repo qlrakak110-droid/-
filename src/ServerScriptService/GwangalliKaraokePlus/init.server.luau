@@ -99,6 +99,11 @@ K.Net.handle("hello", "ui", function(player: Player, _a: any)
 	}
 end)
 
+K.Net.handle("balance", "ui", function(player: Player, _a: any)
+	local cash, bank = K.Bridge.balance(player)
+	return { ok = true, cash = cash, bank = bank, economy = cash ~= nil }
+end)
+
 local panels = K.Rooms.panels()
 if #panels == 0 then
 	warn("[GwangalliKaraokePlus] no KaraokeRoom booths found (Config.VenueModelNames); the add-on idles")

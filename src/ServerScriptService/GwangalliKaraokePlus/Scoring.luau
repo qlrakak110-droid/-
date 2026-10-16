@@ -316,7 +316,9 @@ local function cheer(p: Player, a: any): any
 			local st = S.songTime(r.clock, now())
 			local beat = r.chart.beat
 			local rate = math.max(r.clock.rate, 0.5)
-			local seen = {}
+			-- each half-beat slot counts once per player (monotonic), so repeats cannot farm the meter
+			s.lastBeat = s.lastBeat or {}
+			local lastSlot = s.lastBeat[p.UserId] or -math.huge
 			for idx, bt in a.beats do
 				if idx > 8 then
 					break
@@ -326,14 +328,15 @@ local function cheer(p: Player, a: any): any
 					continue
 				end
 				local slotKey = math.floor(v / (beat / 2) + 0.5)
-				if seen[slotKey] then
+				if slotKey <= lastSlot then
 					continue
 				end
-				seen[slotKey] = true
+				lastSlot = slotKey
 				if math.abs(Score.beatOffset(beat, v)) <= Score.BEAT_WIN * rate then
 					onBeat += 1
 				end
 			end
+			s.lastBeat[p.UserId] = lastSlot
 			if onBeat > 0 then
 				s.cheer[p.UserId] = (s.cheer[p.UserId] or 0) + onBeat
 				s.onBeat += onBeat
