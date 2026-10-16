@@ -1246,10 +1246,19 @@ local function buildShowroom(K: any, V: any)
 		local k = 0
 		for i = 1, #colsX - 1 do
 			local ax = (colsX[i] + colsX[i + 1]) / 2
-			for _, rz in rowsZ do
-				local mn, mx = V3(ax - bw / 2 - 0.2, yb, rz - 0.3), V3(ax + bw / 2 + 0.2, yC - 0.05, rz + 0.3)
-				local ok = clear(G, mn, mx) and ceilFree(ax - bw / 2 - 0.2, ax + bw / 2 + 0.2, rz - 0.3, rz + 0.3)
-				if ok then
+			for _, rz0 in rowsZ do
+				-- 천장 에어컨 · 감지기를 피해 줄 방향으로 조금씩 옮겨 봄
+				local rz, okC, okF, why = rz0, false, false, nil
+				for _, dz in { 0, 2.2, -2.2, 3.6, -3.6, 5.0 } do
+					rz = rz0 + dz
+					local mn, mx = V3(ax - bw / 2 - 0.2, yb, rz - 0.3), V3(ax + bw / 2 + 0.2, yC - 0.05, rz + 0.3)
+					okC, why = clear(G, mn, mx)
+					okF = ceilFree(ax - bw / 2 - 0.2, ax + bw / 2 + 0.2, rz - 0.3, rz + 0.3)
+					if okC and okF then
+						break
+					end
+				end
+				if okC and okF then
 					k += 1
 					local m = msgs[(k - 1) % #msgs + 1]
 					local yc = yb + bh / 2
@@ -1271,7 +1280,7 @@ local function buildShowroom(K: any, V: any)
 					end
 					table.insert(ceilUsed, { ax - bw / 2 - 0.3, ax + bw / 2 + 0.3, rz - 0.4, rz + 0.4 })
 				else
-					note(K, string.format("skip banner %.1f %.1f", ax, rz))
+					note(K, string.format("skip banner %.1f %.1f (%s)", ax, rz, if okC then "ceiling" else tostring(why)))
 				end
 			end
 		end
@@ -3914,12 +3923,24 @@ local function buildWashImpl(K: any, V: any): any
 				local base = G.Binv * V.cf:ToObjectSpace(br.CFrame)
 				local col = br.Color
 				-- 천 브러시: 축에서 바깥으로 뻗은 얇은 천 날개 (회전 방향으로 살짝 휘어 털처럼 보이게) + 양 끝 허브 캡
-				local n = if hi then 22 else 12
+				-- 실제 천 브러시처럼: 축 방향으로 링(띠) 단위로 나뉜 천 스트립, 링마다 색 (본색 / 흰색 섞인 연한 색) 번갈아,
+				-- 스트립마다 기울기 · 길이 조금씩 달리해 보풀처럼
+				local n = if hi then 16 else 10
+				local rings = if hi then 5 else 3
+				local seg = (len - 0.35) / rings
+				local light = col:Lerp(WHITE, 0.55)
+				local dark = col:Lerp(C(0, 0, 0), 0.18)
 				local list = grab(function()
-					for i = 0, n - 1 do
-						local a = i * 2 * PI / n
-						local c = if i % 3 == 0 then col:Lerp(WHITE, 0.3) elseif i % 3 == 1 then col else col:Lerp(C(0, 0, 0), 0.2)
-						D.box("BrushFin", V3(len - 0.35, 0.62, 0.07), base * ANG(a, 0, 0) * CF(0, rad + 0.12, 0) * ANG(0.42, 0, 0), lk(c, M.Fabric))
+					for rI = 0, rings - 1 do
+						local xo = -(len - 0.35) / 2 + seg * (rI + 0.5)
+						local rc = if rI % 2 == 0 then col else light
+						for i = 0, n - 1 do
+							local a = (i + (rI % 2) * 0.5) * 2 * PI / n
+							local ext = 0.55 + ((i * 7 + rI * 3) % 5) * 0.05
+							local tilt = 0.32 + ((i * 5 + rI) % 4) * 0.06
+							local c = if i % 4 == 0 then rc:Lerp(WHITE, 0.25) elseif i % 4 == 2 then dark else rc
+							D.box("BrushFin", V3(seg - 0.06, ext, 0.07), base * CF(xo, 0, 0) * ANG(a, 0, 0) * CF(0, rad - 0.15 + ext / 2, 0) * ANG(tilt, 0, 0), lk(c, M.Fabric))
+						end
 					end
 					for _, s in { -1, 1 } do
 						D.cyl("BrushHub", 0.12, rad * 1.1, base * CF(s * (len / 2 - 0.05), 0, 0), lk(C(60, 64, 70), M.Metal))
