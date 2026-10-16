@@ -1802,10 +1802,10 @@ local function hallStations(K: any, V: any, st: { any })
 				end
 				-- 좌석 번호판 (칸막이 위, 자리 쪽을 봄)
 				local fz = dv.c.Z + n.Z * 0.075
-				local pd = faceCF(V3(bc.X, topY + 0.34, fz), n)
+				local pd = faceCF(V3(bc.X, topY + 0.31, fz), n)
 				K:text("SeatNumber", 1.05, 0.62, pd * CF(0, 0, -0.07), string.format("%02d", s.num), { fg = z.c, bg = rgb(14, 14, 18), glow = 1.7, font = F.Michroma, d = 0.14 })
 				if detail ~= "low" then
-					local ul = K:box("SeatNumberLED", V3(1.05, 0.04, 0.14), CF(bc.X, topY + 0.67, fz), neon(z.c))
+					local ul = K:box("SeatNumberLED", V3(1.05, 0.04, 0.14), CF(bc.X, topY + 0.64, fz), neon(z.c))
 					table.insert(P.rgb, { p = ul, c = z.c, x = bc.X, z = fz })
 				end
 				-- 호출 버튼 판 (헤드셋 반대쪽, 칸막이 면)
