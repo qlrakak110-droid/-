@@ -482,7 +482,7 @@ local CATS: { [string]: any } = {
 	sweets = { low = { "snackBox", "choco" }, mid = { "candy", "choco", "snackBox" }, top = { "candy", "pringles" } },
 	drinkRoom = { low = { "water2l", "pet" }, mid = { "pet", "can", "water" }, top = { "can", "cupCoffee" } },
 	-- 냉장고 문 칸 (세로 한 칸 = 한 범주)
-	dairy = { low = { "milk" }, mid = { "milk", "banana", "yogurt" }, top = { "yogurt", "banana", "cupCoffee" } },
+	dairy = { low = { "milk" }, mid = { "milk", "milk", "yogurt", "banana" }, top = { "yogurt", "banana", "cupCoffee", "milk" } },
 	coffee = { low = { "pet", "cupCoffee" }, mid = { "cupCoffee", "can" }, top = { "cupCoffee", "can" } },
 	soda = { low = { "pet" }, mid = { "pet", "can" }, top = { "can", "tallcan" } },
 	waterF = { low = { "water2l" }, mid = { "water", "pet" }, top = { "water", "can" } },
@@ -1151,8 +1151,8 @@ local function hangSign(K: any, x: number, z: number, w: number, h: number, yBot
 		K:box("StHangEdge", V3(w + 0.04, 0.1, 0.08), cf * CF(0, h / 2 - 0.05, 0), lk(edge))
 		K:box("StHangEdge", V3(w + 0.04, 0.1, 0.08), cf * CF(0, -h / 2 + 0.05, 0), lk(edge))
 	end
-	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, 0.031), front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01 })
-	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, -0.031) * ANG(0, PI, 0), back or front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01 })
+	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, 0.031), front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01, glow = 1.05 })
+	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, -0.031) * ANG(0, PI, 0), back or front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01, glow = 1.05 })
 	Common.useCeil(K, x, z)
 	return true
 end

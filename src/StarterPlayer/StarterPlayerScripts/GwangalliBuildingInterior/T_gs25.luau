@@ -357,11 +357,8 @@ local function barStool(ctx: any, p: Vector3, top: number)
 	Q:disc("StoolBase", 1.2, 0.07, base * CF(0, 0.035, 0), L_CHROME)
 	Q:vcyl("StoolPost", top - 0.35, 0.18, base * CF(0, (top - 0.35) / 2 + 0.05, 0), L_CHROME)
 	Q:vcyl("StoolGas", 0.5, 0.26, base * CF(0, top - 0.6, 0), Look.blackMetal)
-	Q:ring("StoolFootRing", base * CF(0, top * 0.38, 0) * ANG(PI / 2, 0, 0), 0.5, 0.07, 8, L_CHROME)
-	for i = 0, 2 do
-		local a = i * 2 * PI / 3 + 0.3
-		Q:seg("StoolSpoke", base * V3(0, top * 0.38, 0), base * V3(math.cos(a) * 0.5, top * 0.38, math.sin(a) * 0.5), 0.05, L_CHROME)
-	end
+	Q:ring("StoolFootRing", base * CF(0, top * 0.38, 0) * ANG(PI / 2, 0, 0), 0.5, 0.07, 6, L_CHROME)
+	Q:seg("StoolSpoke", base * V3(-0.5, top * 0.38, 0), base * V3(0.5, top * 0.38, 0), 0.05, L_CHROME)
 	Q:disc("StoolSeat", 1.25, 0.24, base * CF(0, top - 0.12, 0), lk(rgb(30, 32, 36), M.Leather))
 	Q:disc("StoolPiping", 1.28, 0.04, base * CF(0, top - 0.2, 0), lk(GS_BLUE, M.Leather))
 end
@@ -443,7 +440,7 @@ local function packRow(ctx: any, at: CFrame, w: number, items: { any }, seed: nu
 			Q:vcyl("IceCup", h, iw * 0.9, c * CF(0, h / 2, 0.1), { c = rgb(226, 240, 248), m = M.Glass, t = 0.35 })
 			Q:disc("IceCupLid", iw * 0.92, 0.03, c * CF(0, h + 0.01, 0.1), lk(it.c))
 		elseif it.kind == "bag" then
-			Q:rbox("FrozenBag", V3(iw, h, dd), 0.08, c * CF(0, h / 2, 0) * ANG(0, PI / 2, 0), lk(it.c))
+			Q:box("FrozenBag", V3(iw, h, dd), c * CF(0, h / 2, 0), lk(it.c, M.SmoothPlastic, { r = 0.06 }))
 			Q:plate("FrozenBagLabel", iw * 0.7, h * 0.4, 0.01, c * CF(0, h * 0.55, dd / 2), lk(it.c2 or WHITE))
 		else
 			Q:box("PackBox", V3(iw, h, dd), c * CF(0, h / 2, 0), lk(it.c))
@@ -495,7 +492,7 @@ local function cigaretteWall(ctx: any)
 	}
 	local warn = { rgb(70, 52, 48), rgb(96, 40, 36), rgb(54, 60, 66), rgb(120, 90, 70) }
 	local xe = x1 - 1.75 -- 오른쪽 1.75 = 전자담배 칸
-	local pitch = 0.47
+	local pitch = 0.5
 	local n = math.floor((xe - x0) / pitch)
 	local prices = {}
 	for r = 0, 5 do
@@ -510,7 +507,6 @@ local function cigaretteWall(ctx: any)
 			local c = CF(x, y + 0.3, zf + 0.16)
 			Q:box("CigPack", V3(0.4, 0.6, 0.2), c, lk(b[1]))
 			Q:box("CigPackWarn", V3(0.4, 0.17, 0.205), c * CF(0, 0.21, 0), lk(warn[(i + r) % #warn + 1]))
-			Q:box("CigPackBand", V3(0.4, 0.07, 0.205), c * CF(0, -0.02, 0), lk(b[2]))
 			table.insert(prices, if (i + r) % 5 == 0 then "4,800" else "4,500")
 		end
 		txt(ctx, "CigPrice", xe - x0, 0.13, fc(V3((x0 + xe) / 2, y - 0.09, zf + 0.405), ZA), table.concat(prices, "   "), INK, rgb(252, 252, 250), { font = F.GothamBold, d = 0.01 })
@@ -715,7 +711,7 @@ local function counterFront(ctx: any)
 						Q:vcyl("XylitolBottle", 0.42, 0.2, CF(x, y + 0.23, z0 + 0.25), lk(c))
 						Q:vcyl("XylitolCap", 0.06, 0.21, CF(x, y + 0.47, z0 + 0.25), L_WHITEP)
 					else
-						Q:rbox("JellyBag", V3(0.22, 0.42, 0.08), 0.04, CF(x, y + 0.23, z0 + 0.3), lk(c, M.SmoothPlastic, { r = 0.1 }))
+						Q:box("JellyBag", V3(0.22, 0.42, 0.08), CF(x, y + 0.23, z0 + 0.3), lk(c, M.SmoothPlastic, { r = 0.1 }))
 					end
 				end
 			end
@@ -775,7 +771,7 @@ local function parcelShelf(ctx: any)
 				break
 			end
 			if (t + j) % 3 == 0 then
-				Q:rbox("ParcelPoly", V3(b[1], 0.3, b[3] + 0.1), 0.08, pcfS * CF(x + b[1] / 2, y + 0.18, 0), lk(rgb(250, 214, 40)))
+				Q:box("ParcelPoly", V3(b[1], 0.3, b[3] + 0.1), pcfS * CF(x + b[1] / 2, y + 0.18, 0), lk(rgb(250, 214, 40)))
 			else
 				carton(ctx, pcfS * CF(x + b[1] / 2, y + 0.025, 0), V3(b[1], b[2], b[3]), nil, nil, t * 3 + j)
 				Q:plate("ParcelLabel", b[1] * 0.6, b[2] * 0.4, 0.01, pcfS * CF(x + b[1] / 2, y + 0.025 + b[2] * 0.5, b[3] / 2), lk(WHITE))
@@ -981,14 +977,16 @@ local function gondolas(ctx: any)
 		-- 받침 띠
 		for _, sx in { -1, 1 } do
 			local x = if sx < 0 then mn.X else mx.X
-			Q:plate("PlinthKick", mx.Z - mn.Z, 0.26, 0.02, fc(V3(x, 0.15, (mn.Z + mx.Z) / 2), V3(sx, 0, 0)), L_BLUE)
+			Q:free(function()
+				Q:plate("PlinthKick", mx.Z - mn.Z, 0.26, 0.02, fc(V3(x, 0.15, (mn.Z + mx.Z) / 2), V3(sx, 0, 0)), L_BLUE)
+			end)
 		end
 		-- 엔드캡 위 POP (앞 끝, +Z)
 		local cx = (mn.X + mx.X) / 2
 		local txts = { "이번 주 행사\n1+1", "이번 주 행사\n2+1", "음료 2+1\n골라 담기" }
 		local pz = mx.Z - 0.15
 		for _, sx in { -1, 1 } do
-			Q:box("POPPole", V3(0.05, 1.0, 0.05), CF(cx + sx * 1.2, 6.95, pz), L_CHROME)
+			Q:box("POPPole", V3(0.05, 0.85, 0.05), CF(cx + sx * 1.2, 7.03, pz), L_CHROME)
 		end
 		Q:box("POPCard", V3(2.9, 1.15, 0.05), CF(cx, 7.45, pz), lk(YEL))
 		txt(ctx, "POPText", 2.7, 1.0, fc(V3(cx, 7.45, pz + 0.025), ZA), txts[gi] or "행사", RED, nil, { font = F.GothamBlack, d = 0.01 })
@@ -1027,8 +1025,7 @@ local function gondolas(ctx: any)
 				if not keepHit(ctx, bmn, bmx) then
 					local d = fc(V3(xf, yc, z), nrm)
 					Q:plate("ESL", 0.38, 0.26, 0.03, d, lk(rgb(236, 238, 236)))
-					Q:plate("ESLScreen", 0.3, 0.16, 0.01, d * CF(0, 0.02, 0.03), lk(rgb(196, 200, 190)))
-					n += 2
+					n += 1
 					-- 꼬리표 (쇼카드, 통로 쪽으로 튀어나옴): 레일마다 몇 개
 					if (k + ri) % 4 == 0 then
 						local tg = tags[(k + ri) % #tags + 1]
@@ -1103,13 +1100,16 @@ local function chillerDress(ctx: any)
 		end
 	end
 	local list = { "삼각김밥 1,300 · 1,500", "김밥 3,200 · 3,500", "샌드위치 3,400 · 햄버거 3,900", "도시락 4,900 · 5,900", "샐러드 4,500 · 디저트 3,200" }
-	for i, r in rails do
-		local d = fc(V3(r.mx.X, r.c.Y, r.c.Z), XA)
-		txt(ctx, "ChillerPrice", r.s.Z - 1.0, 0.24, d * CF(0, 0, 0.005), list[(i - 1) % #list + 1], INK, rgb(252, 252, 248), { font = F.GothamBold, d = 0.01 })
-		if i % 2 == 0 then
-			txt(ctx, "ChillerSale", 0.9, 0.5, d * CF(r.s.Z / 2 - 1.0, 0.35, 0.02), "유통기한\n임박 30%", WHITE, RED, { font = F.GothamBlack, d = 0.01 })
+	-- 레일 앞면에 붙는 얇은 띠 (선반 물건 자리 · 직원 스탠드 자리는 그대로)
+	ctx.Q:free(function()
+		for i, r in rails do
+			local d = fc(V3(r.mx.X, r.c.Y, r.c.Z), XA)
+			txt(ctx, "ChillerPrice", r.s.Z - 1.0, 0.24, d * CF(0, 0, 0.005), list[(i - 1) % #list + 1], INK, rgb(252, 252, 248), { font = F.GothamBold, d = 0.01 })
+			if i % 2 == 0 then
+				txt(ctx, "ChillerSale", 0.9, 0.5, d * CF(r.s.Z / 2 - 1.0, 0.35, 0.02), "유통기한\n임박 30%", WHITE, RED, { font = F.GothamBlack, d = 0.01 })
+			end
 		end
-	end
+	end)
 end
 
 -- 냉동고 (뒤쪽 오른쪽 구석, 문 여닫기)
@@ -1176,7 +1176,7 @@ local function pegWall(ctx: any)
 		local i = 0
 		while x < len / 2 - 1.2 do
 			i += 1
-			Q:rbox("TissuePack", V3(1.1, 0.8, 0.85), 0.12, basePcf * CF(x + 0.55, 1.6, 0) * ANG(0, PI / 2, 0), lk(cols[i % 3 + 1], M.SmoothPlastic))
+			Q:box("TissuePack", V3(1.1, 0.8, 0.85), basePcf * CF(x + 0.55, 1.6, 0), lk(cols[i % 3 + 1], M.SmoothPlastic))
 			Q:plate("TissuePackLabel", 0.6, 0.3, 0.01, basePcf * CF(x + 0.55, 1.65, 0.43), lk(if i % 2 == 0 then rgb(40, 120, 200) else rgb(240, 120, 160)))
 			x += 1.25
 		end
@@ -1355,6 +1355,9 @@ local function windowFilm(ctx: any)
 	for i, e in panes do
 		local xg = e.mn.X - 0.01
 		local d = fc(V3(xg, 4.7, e.c.Z), -XA)
+		if keepHit(ctx, V3(xg - 0.05, 4.5, e.mn.Z), V3(xg, 4.9, e.mx.Z)) then
+			continue
+		end
 		Q:plate("WindowBand", e.s.Z - 0.3, 0.3, 0.01, d, lk(rgb(240, 246, 250), M.SmoothPlastic, { t = 0.3 }))
 		txt(ctx, "WindowBandText", e.s.Z - 0.6, 0.22, d * CF(0, 0, 0.012), "GS25      GS25      GS25", GS_BLUE, nil, { font = F.GothamBlack, d = 0.005 })
 		if i == 4 or i == 5 then
@@ -1368,6 +1371,9 @@ local function windowFilm(ctx: any)
 		if e.s.X > 4 then
 			local zg = e.mn.Z - 0.01
 			local d = fc(V3(e.c.X, 3.0, zg), -ZA)
+			if keepHit(ctx, V3(e.mn.X, 2.75, zg - 0.05), V3(e.mx.X, 3.25, zg)) then
+				continue
+			end
 			Q:plate("FrontBand", e.s.X - 0.3, 0.42, 0.01, d, lk(GS_BLUE, M.SmoothPlastic, { t = 0.1 }))
 			txt(ctx, "FrontBandText", e.s.X - 0.8, 0.3, d * CF(0, 0, 0.012), "GS25 광안리점 · 24시간 영업", WHITE, nil, { font = F.GothamBold, d = 0.005 })
 		end
@@ -1416,7 +1422,7 @@ local function frontZone(ctx: any)
 		local groups = {
 			{ -1.8, function(c: CFrame)
 				for i = 0, 5 do
-					Q:rbox("RamenMulti", V3(1.1, 0.42, 0.75), 0.12, c * CF((i % 2) * 1.15 - 0.57, 0.21 + (i // 2) * 0.43, 0) * ANG(0, PI / 2, 0), lk(if i % 3 == 2 then rgb(240, 160, 30) else RED))
+					Q:box("RamenMulti", V3(1.1, 0.42, 0.75), c * CF((i % 2) * 1.15 - 0.57, 0.21 + (i // 2) * 0.43, 0), lk(if i % 3 == 2 then rgb(240, 160, 30) else RED))
 				end
 			end },
 			{ 0.2, function(c: CFrame)
@@ -1568,7 +1574,7 @@ local function breadRack(ctx: any)
 		for i = 0, 4 do
 			local bc = breadCols[(i + t) % #breadCols + 1]
 			local c = pcfR * CF(-w / 2 + 0.42 + i * 0.68, y + 0.2, 0.1)
-			Q:rbox("BreadBag", V3(0.6, 0.34, 0.9), 0.12, c * ANG(0, PI / 2, 0), { c = bc[1], m = M.SmoothPlastic, r = 0.08 })
+			Q:box("BreadBag", V3(0.62, 0.36, 0.95), c, { c = bc[1], m = M.SmoothPlastic, r = 0.08 })
 			Q:plate("BreadLabel", 0.4, 0.16, 0.01, c * CF(0, 0.05, 0.45), lk(bc[2]))
 		end
 		txt(ctx, "BreadPrice", w - 0.4, 0.12, pcfR * CF(0, y - 0.04, d / 2 - 0.03), "크림빵 1,500 · 단팥빵 1,500 · 카스테라 2,200 · 롤케이크 3,500", INK, rgb(252, 252, 248), { font = F.GothamBold, d = 0.01 })
@@ -1651,6 +1657,49 @@ local function floorSales(ctx: any)
 	end
 end
 
+-- 진열대 눈높이 줄 상품에 포장 라벨 (맵 Product 상자 앞면에 얇은 띠: 덮지 않고 붙임)
+local function productLabels(ctx: any)
+	local Q, K = ctx.Q, ctx.K
+	local plinths = all(ctx, "Plinth")
+	if #plinths == 0 then
+		return
+	end
+	local budget = math.max(0, 1580 - #K.parts)
+	local n = 0
+	local labelCols = { WHITE, rgb(250, 230, 120), rgb(240, 240, 236), rgb(30, 30, 34) }
+	for _, e in all(ctx, "Product") do
+		if n >= budget then
+			break
+		end
+		local g = nil
+		for _, p in plinths do
+			if e.c.X > p.mn.X - 0.2 and e.c.X < p.mx.X + 0.2 and e.c.Z > p.mn.Z and e.c.Z < p.mx.Z then
+				g = p
+			end
+		end
+		if g and math.abs(e.mn.Y - 2.95) < 0.3 then
+			local gc = (g.mn.X + g.mx.X) / 2
+			local side = if e.c.X < gc then -1 else 1
+			local xf = if side < 0 then e.mn.X else e.mx.X
+			local h = e.s.Y
+			local w = e.s.Z
+			local col = e.r.part.Color
+			local lum = col.R * 0.3 + col.G * 0.59 + col.B * 0.11
+			local lc = if lum > 0.62 then labelCols[(math.floor(e.c.Z * 3) % 2) + 3 + (if lum > 0.8 then 1 else 0) - 1] else labelCols[(math.floor(e.c.Z * 5) % 2) + 1]
+			if lum > 0.62 then
+				lc = if math.floor(e.c.Z * 3) % 2 == 0 then GS_BLUE else RED
+			end
+			local yc = e.mn.Y + h * 0.56
+			local bmn = V3(xf - 0.03, yc - h * 0.2, e.c.Z - w * 0.4)
+			local bmx = V3(xf + 0.03, yc + h * 0.2, e.c.Z + w * 0.4)
+			if not keepHit(ctx, bmn, bmx) then
+				Q:plate("ProductLabel", w * 0.78, h * 0.34, 0.012, fc(V3(xf, yc, e.c.Z), V3(side, 0, 0)), lk(lc))
+				n += 1
+			end
+		end
+	end
+end
+
 local function buildSales(K: any, V: any, S: any)
 	local ctx = newCtx(K, V)
 	local steps = {
@@ -1677,6 +1726,7 @@ local function buildSales(K: any, V: any, S: any)
 		{ "front", frontZone },
 		{ "bread", breadRack },
 		{ "fire", fireCorner },
+		{ "labels", productLabels },
 	}
 	for _, st in steps do
 		local n0 = #K.parts

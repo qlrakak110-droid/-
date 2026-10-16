@@ -564,6 +564,7 @@ function Scan.fitRoom(model: Instance, spec: any): (any?, string?)
 	V.key = spec.key or string.format("%s#%s@%d,%d", model.Name, tostring(spec.room or "room"), math.floor(frame.X + 0.5), math.floor(frame.Z + 0.5))
 	V.kind = spec.kind or "venue"
 	V.room = spec.room
+	V.tier = spec.tier
 	V.roomBox = true
 	V.noBin = true
 	V.noDoorGuess = spec.noDoorGuess
@@ -846,6 +847,20 @@ function Scan.keepouts(V: any)
 	for _, n in V.npcs do
 		V:addKeep(n.min - Vector3.new(2, 0, 2), n.max + Vector3.new(2, 0.5, 2), "npc")
 	end
+	-- 8) 다른 시스템이 맡은 월드 공간 (Scan.addWorldKeep: 병원 화장실 · 엘리베이터 문 · 응급실 출입문 ...)
+	for _, w in Scan.worldKeeps do
+		local c = (w.min + w.max) / 2
+		local mn, mx = laabb(V.cf:ToObjectSpace(CFrame.new(c)), w.max - w.min)
+		if mx.X > V.x0 - 1 and mn.X < V.x1 + 1 and mx.Z > V.z0 - 1 and mn.Z < V.z1 + 1 and mx.Y > -1 and mn.Y < (V.H or 12) + 1 then
+			V:addKeep(mn, mx, w.kind)
+		end
+	end
+end
+
+-- 월드 AABB 를 모든 매장 · 방 fit 의 비울 공간으로 등록 (다른 모듈이 실제 구조물을 세우는 곳)
+Scan.worldKeeps = {} :: { { min: Vector3, max: Vector3, kind: string } }
+function Scan.addWorldKeep(mn: Vector3, mx: Vector3, kind: string?)
+	table.insert(Scan.worldKeeps, { min = mn:Min(mx), max = mx:Max(mn), kind = kind or "facility" })
 end
 
 -- 숨기기 (R3) -------------------------------------------------------------------------------------

@@ -504,6 +504,26 @@ RunService.Heartbeat:Connect(function(dt)
 	animT = 0
 end)
 
+-- 시설 애드온 (같은 폴더의 ModuleScript, 있으면): 매장 실내와 따로 도는 큰 시설 기능 (병원 문 · 엘리베이터 · 화장실 ...)
+--   모듈은 start(ctx) 를 내보냄. ctx = { root, focus, limits, dbg, script, Scan }
+local ADDONS = { "HospitalPlus", "Reskin" }
+for _, nm in ADDONS do
+	local m = script:FindFirstChild(nm)
+	if m and m:IsA("ModuleScript") then
+		task.spawn(function()
+			local ok, err = pcall(function()
+				local A = require(m) :: any
+				if type(A) == "table" and type(A.start) == "function" then
+					A.start({ root = root, focus = focus, limits = limits, dbg = dbg, script = script, Scan = Scan })
+				end
+			end)
+			if not ok then
+				warn("[GwangalliBuildingInterior] " .. nm .. ": " .. tostring(err))
+			end
+		end)
+	end
+end
+
 task.spawn(function()
 	while true do
 		local ok, err = pcall(step)
