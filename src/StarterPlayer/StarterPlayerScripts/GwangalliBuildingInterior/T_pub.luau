@@ -588,8 +588,8 @@ THEMES.fuzzy = {
 	lower = { kind = "paint", h = 3.6, look = L.of(40, 24, 44), cap = L.goldMetal, walls = { "left", "right", "back" } },
 	feature = { wall = "left", look = L.of(70, 40, 74, M.Fabric) },
 	cove = rgb(255, 96, 196),
-	paint = L.of(58, 36, 64),
-	ceil = L.of(20, 18, 22),
+	paint = L.of(82, 46, 88),
+	ceil = L.of(24, 20, 28),
 	pendant = { shade = "globe", look = L.of(240, 206, 226, M.Glass, { t = 0.3 }) },
 	tablePendant = "globe",
 	neonC = rgb(255, 80, 180),
@@ -3190,7 +3190,7 @@ local function coveLED(c: any)
 					K:box("CoveTrim", V3(len, 0.16, 0.12), d * CF(0, 0.02, 0.06), th.dark)
 					local strip = K:box("CoveLED", V3(len - 0.1, 0.05, 0.05), d * CF(0, -0.08, 0.1), L.neon(th.cove))
 					if not lit and wn == litWall and len > 5 then
-						local li = K:light(strip, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 12, Brightness = 0.8, Angle = 150, Color = th.cove })
+						local li = K:light(strip, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 14, Brightness = 1.25, Angle = 160, Color = th.cove })
 						if li then
 							lit = true
 						end
