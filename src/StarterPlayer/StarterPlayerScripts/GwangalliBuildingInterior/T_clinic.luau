@@ -4263,6 +4263,35 @@ BUILD.treat = function(K: any, V: any)
 				break
 			end
 		end
+		-- 앞벽 안내 · 일정판 · 장갑 · 손 소독
+		local p1 = wallSpot(K, "front", 3.2, 4.2, 8.0, wallU("front", Vector3.new(-20.0, 0, 0)), 0.6)
+		if p1 then
+			poster(K, p1, 3.0, 3.6, "주사 후 주의사항", "주사 부위 5분간 눌러 주세요\n문지르지 마세요\n샤워 · 목욕은 1시간 뒤\n붓거나 열나면 바로 연락", WHITE, INK, TEAL, WHITE, 0.2)
+		end
+		local p2 = wallSpot(K, "front", 3.0, 4.2, 7.6, wallU("front", Vector3.new(-8.0, 0, 0)), 0.6)
+		if p2 then
+			poster(K, p2, 2.8, 3.2, "환자 확인 2가지", "처치 · 주사 전에\n성함과 생년월일을\n꼭 말씀해 주세요\n(환자안전 수칙)", WHITE, INK, C3(30, 110, 190), WHITE, 0.22)
+		end
+		local p3 = wallSpot(K, "front", 4.6, 3.6, 7.4, wallU("front", Vector3.new(-2.0, 0, 0)), 0.6)
+		if p3 then
+			K:plate("TxBoardFrame", 4.6, 3.6, 0.08, p3, lk(200, 204, 206, M.Metal))
+			K:plate("TxBoardFace", 4.4, 3.4, 0.1, p3, lk(250, 250, 248, M.SmoothPlastic))
+			K:plate("TxBoardBand", 4.4, 0.55, 0.11, p3 * CF(0, 1.42, 0), col(TEAL))
+			tx(K, "TxBoardTitle", 4.0, 0.42, p3 * CF(0, 1.42, 0.115), "오늘의 처치 · 수액 일정", WHITE, nil, { font = FONT_K })
+			tx(K, "TxBoardBody", 4.1, 2.5, p3 * CF(0, -0.3, 0.11), "09:30  김*수 · 수액 (1번)\n10:10  이*희 · 드레싱\n11:00  박*민 · 근육주사\n14:00  최*영 · 영양수액 (2번)", C3(30, 60, 140), nil, { font = FONT_M, align = "Left" })
+			K:box("TxBoardTray", V3(3.6, 0.1, 0.3), p3 * CF(0, -1.8, 0.15), lk(200, 204, 206, M.Metal))
+			for k, c in { C3(30, 60, 140), C3(200, 40, 44), INK } do
+				K:box("TxMarker", V3(0.5, 0.1, 0.1), p3 * CF(-1.0 + k * 0.6, -1.7, 0.2), col(c, M.Plastic))
+			end
+		end
+		local g = wallSpot(K, "front", 2.4, 4.6, 5.6, wallU("front", Vector3.new(-11.2, 0, 0)), 0.4)
+		if g then
+			gloveHolder(K, g, 3)
+		end
+		local sz = wallSpot(K, "front", 1.0, 3.6, 5.0, wallU("front", Vector3.new(4.4, 0, 0)), 0.6)
+		if sz then
+			sanitizerWall(K, sz)
+		end
 		local seats = {}
 		for _, r in V.byName.BedSeat or {} do
 			table.insert(seats, r)

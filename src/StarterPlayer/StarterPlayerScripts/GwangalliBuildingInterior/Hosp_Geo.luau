@@ -237,14 +237,15 @@ Geo.TEX = {
 }
 
 -- 영역 예산 (high / mid / low): parts, lights
+-- (오프라인 측정: high 129 / 166 / 404 / 195 / 35 / 478 / 방 최대 396 개 + 여유)
 Geo.BUDGET = {
-	exits = { high = 170, mid = 150, low = 110, lights = 2 },
-	lift = { high = 330, mid = 300, low = 230, lights = 1 },
-	hall1 = { high = 340, mid = 280, low = 190, lights = 2 },
-	doors = { high = 200, mid = 170, low = 120, lights = 0 },
-	level2 = { high = 140, mid = 110, low = 80, lights = 0 },
-	roof = { high = 520, mid = 320, low = 160, lights = 2 },
-	portal = { high = 360, mid = 310, low = 210, lights = 2 },
+	exits = { high = 160, mid = 150, low = 130, lights = 2 },
+	lift = { high = 200, mid = 200, low = 150, lights = 1 },
+	hall1 = { high = 440, mid = 420, low = 300, lights = 2 },
+	doors = { high = 230, mid = 230, low = 200, lights = 0 },
+	level2 = { high = 60, mid = 60, low = 40, lights = 0 },
+	roof = { high = 520, mid = 400, low = 180, lights = 2 },
+	portal = { high = 430, mid = 390, low = 260, lights = 2 },
 }
 
 return Geo

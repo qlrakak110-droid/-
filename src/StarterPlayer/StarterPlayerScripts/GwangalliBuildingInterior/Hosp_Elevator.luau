@@ -535,7 +535,7 @@ function E.build(K: any, env: any)
 	end
 	-- 카 안 "층 선택" 프롬프트 (조작반 보이기/숨기기)
 	if cab.copPart then
-		Interact.prompt(K, cab.copPart, {
+		Lib.promptAny(K, cab.copPart, {
 			action = "층 선택",
 			object = "엘리베이터",
 			sound = SND.click,

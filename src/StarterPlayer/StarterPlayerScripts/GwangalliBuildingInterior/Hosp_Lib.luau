@@ -841,6 +841,18 @@ function Lib.particles(part: BasePart?, kind: string, dur: number): ParticleEmit
 	return e
 end
 
+-- 프롬프트 (같은 구역의 다른 프롬프트와 2.5 간격 검사를 건너뜀: 벽 양쪽 · 카 안팎처럼 서로 안 보이는 쌍)
+function Lib.promptAny(K: any, part: BasePart, spec: any): ProximityPrompt?
+	local saved = K.promptAt
+	K.promptAt = {}
+	local pr = Interact.prompt(K, part, spec)
+	for _, p in K.promptAt do
+		table.insert(saved, p)
+	end
+	K.promptAt = saved
+	return pr
+end
+
 -- 앉기 (이 클라이언트에서만) ---------------------------------------------------------------------------
 
 -- pcfW: 좌판 윗면 가운데 (월드), +Z = 앉은 사람이 보는 쪽

@@ -287,7 +287,6 @@ local function stall(K: any, spec: any): any
 			Lib.sfx(knob, SND.click, { vol = 0.35, speed = 0.6 })
 		end,
 	})
-	st.mover:set(spec.rest or 0, true)
 	local function setLocked(v: boolean)
 		st.locked = v
 		if indicator then
@@ -320,6 +319,7 @@ local function stall(K: any, spec: any): any
 			st.prompt.Enabled = false
 		end
 	end
+	st.mover:set(spec.rest or 0, true) -- 프롬프트 간격은 닫힌 자리 기준
 	-- 10 Hz: 안에 있으면 프롬프트, 잠기지 않았으면 다가갈 때 열림
 	Interact.anim(K, function()
 		local me = Lib.me()
@@ -423,7 +423,8 @@ local function babyStation(K: any, wallX: number, n: number, z0: number, z1: num
 	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.ZVector, rad(90) * -n, { tOpen = 0.6, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadInOut" })
 	local open = false
 	if deck then
-		Interact.prompt(K, deck, {
+		-- 남/여 교환대는 칸막이 벽 양쪽 (서로 안 보임): 간격 검사 생략
+		Lib.promptAny(K, deck, {
 			action = "기저귀 교환대 펼치기",
 			object = "기저귀 교환대",
 			sound = SND.click,

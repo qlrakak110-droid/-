@@ -327,8 +327,11 @@ function RF.build(K: any, env: any)
 			Lib.seatPrompt(K, anchor, sp, b[3] :: string)
 		end
 	end
-	-- 5) 퍼걸러
+	-- 5) 퍼걸러 (저사양: 생략)
 	K:free(function()
+		if low then
+			return
+		end
 		for _, p in { { -46, 8 }, { -46, 20 }, { -32, 8 }, { -32, 20 } } do
 			Lib.solid(Lib.ab(K, "PergolaPost", p[1] - 0.3, Y + 0.3, p[2] - 0.3, p[1] + 0.3, 33.1, p[2] + 0.3, LK.darkWood), true)
 		end
@@ -340,8 +343,8 @@ function RF.build(K: any, env: any)
 			Lib.ab(K, "PergolaRafter", x - 0.125, 33.4, 7.25, x + 0.125, 33.9, 20.75, LK.darkWood)
 		end
 	end)
-	-- 6) 원형 테이블 + 의자 4 씩
-	for _, tp in { { -42.0, 14.0 }, { -36.0, 14.0 } } do
+	-- 6) 원형 테이블 + 의자 4 씩 (저사양: 생략)
+	for _, tp in (if low then {} else { { -42.0, 14.0 }, { -36.0, 14.0 } }) :: { { number } } do
 		local x, z = tp[1], tp[2]
 		K:free(function()
 			Lib.solid(K:disc("TableTop", 3.2, 0.12, CF(x, Y + 0.3 + 2.55, z), LK.teak), true)
@@ -395,6 +398,9 @@ function RF.build(K: any, env: any)
 		Lib.tx(K, "FenceSign", 2.8, 0.6, Lib.face((x0 + x1) / 2, Y + 2.6, z0 - 0.04, 0, -1), gateLabel, C.WHITE, C.RED, { font = Lib.FONT_B })
 	end
 	K:free(function()
+		if low then
+			return
+		end
 		fence(-14.0, 16.5, -5.5, 25.5, "기계실 · 관계자 외 출입금지")
 		fence(-18.5, -19.0, -5.0, -12.5, "기계실 · 관계자 외 출입금지")
 	end)
@@ -413,7 +419,7 @@ function RF.build(K: any, env: any)
 	noSmoke(35.0, -6.6, 0)
 	-- 10) 볼라드 조명 (보행로)
 	local bollards = {}
-	for i = 0, 7 do
+	for i = 0, (if low then -1 else 7) do
 		local x = 32.0 - i * 9.0
 		local bz = -6.0
 		K:vcyl("Bollard", 1.2, 0.35, CF(x, Y + 0.6, bz), Look.of(60, 62, 66, M.Metal))

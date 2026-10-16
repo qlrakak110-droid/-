@@ -4799,6 +4799,71 @@ local function fillWalls(ctx: any): number
 	return n
 end
 
+-- 넓은 분식집: 홀 위에 줄로 매단 양면 안내판 (천장 조명 · 에어컨 · 맵 매단 것 · 우리 위쪽 파트와 안 겹치게)
+local function hangingBoards(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	if ctx.low or V.W * V.D < 500 or V.H < 9 then
+		return 0
+	end
+	local P = ctx.pal
+	local bw, bh = 3.4, 0.95
+	local y = V.H - 1.55
+	local function clear(x: number, z: number): boolean
+		yieldMaybe(K)
+		local mn = V3(x - bw / 2 - 0.6, y - bh / 2 - 0.3, z - 0.8)
+		local mx = V3(x + bw / 2 + 0.6, V.H + 0.1, z + 0.8)
+		for _, r in V.parts do
+			if r.name ~= "TBar" and r.name ~= "ShopCeiling" and r.name ~= "Ceiling" and not (r.shell and not r.door) and r.max.Y > mn.Y and ov(r.min, r.max, mn, mx, 0) then
+				return false
+			end
+		end
+		for _, p in K.parts do
+			if p.Parent and p:IsA("BasePart") then
+				local a, b = laabb(K.cf:ToObjectSpace(p.CFrame), p.Size)
+				if b.Y > mn.Y - 0.2 and ov(a, b, mn, mx, 0) then
+					return false
+				end
+			end
+		end
+		return true
+	end
+	local texts = {
+		{ "매운맛 도전!", "1단계 순한맛 ~ 5단계 지옥맛", "포장 · 배달 환영", "전화 주문 051-753-4500" },
+		{ "떡튀순 세트 " .. priceIn(ctx.signs or "", "떡튀순", "9,000") .. "원", "떡볶이 + 모둠튀김 + 순대", "카드 · 페이 결제 OK", "현금영수증 발행 가능" },
+	}
+	local n = 0
+	local zs = { { V.z0 + V.D * 0.34, V.z0 + V.D * 0.42, V.z0 + V.D * 0.28 }, { V.z0 + V.D * 0.62, V.z0 + V.D * 0.55, V.z0 + V.D * 0.7 } }
+	local xs = { -V.W * 0.18, V.W * 0.18, 0, -V.W * 0.3, V.W * 0.3 }
+	for zi, zl in zs do
+		for _, z in zl do
+			for _, x in xs do
+			if n < zi and clear(x, z) then
+				n += 1
+				local t = texts[n]
+				local c = CF(x, y, z)
+				K:box("FfHangBoardRim", V3(bw + 0.12, bh + 0.12, 0.06), c, pl(P.gold))
+				K:box("FfHangBoard", V3(bw, bh, 0.1), c, pl(P.accent))
+				for side = 0, 1 do
+					local d = c * ANG(0, side * PI, 0) * CF(0, 0, 0.051)
+					K:text("FfHangBoardTitle", bw - 0.2, bh * 0.5, d * CF(0, bh * 0.18, 0), if side == 0 then t[1] else t[3], { fg = WHITE, font = F.GothamBlack, d = 0.004 })
+					K:text("FfHangBoardSub", bw - 0.3, bh * 0.28, d * CF(0, -bh * 0.26, 0), if side == 0 then t[2] else t[4], { fg = rgb(255, 230, 120), font = F.GothamBold, d = 0.004 })
+				end
+				for _, sx in { -1, 1 } do
+					local px = x + sx * (bw / 2 - 0.3)
+					K:seg("FfHangWire", V3(px, y + bh / 2 + 0.06, z), V3(px, V.H - 0.02, z), 0.025, L.steel)
+					K:box("FfHangClip", V3(0.14, 0.06, 0.14), CF(px, V.H - 0.03, z), L.steel)
+				end
+				break
+			end
+			end
+			if n >= zi then
+				break
+			end
+		end
+	end
+	return n
+end
+
 -- 벽시계: 간판 · 장식을 피한 빈 벽 (높이 7.6 -> 6.4 순), 게임 시각으로 도는 바늘
 local function placeClock(ctx: any)
 	local K, V = ctx.K, ctx.V
@@ -4845,6 +4910,12 @@ function T.build(K: any, V: any, S: any)
 		restockSupplies(ctx)
 		selfCabinetOverlay(ctx)
 		placeClock(ctx)
+		if ctx.sk == "bunsik" then
+			local nh = hangingBoards(ctx)
+			if nh > 0 then
+				K:note("ff hanging boards: " .. nh)
+			end
+		end
 		local nfw = fillWalls(ctx)
 		if nfw > 0 then
 			K:note("ff fill posters: " .. nfw)

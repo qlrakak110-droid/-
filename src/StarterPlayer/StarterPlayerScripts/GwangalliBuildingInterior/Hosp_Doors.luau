@@ -178,8 +178,9 @@ local function corridorPlates(K: any)
 	local low = K.detail == "low"
 	local function namePlate(x: number, y: number, z: number, n: number, w: number, h: number, title: string, sub: string)
 		local f = Lib.face(x, y, z, 0, n)
-		K:plate("RoomPlate", w, h, 0.05, f, LK.teal)
-		K:plate("RoomPlateBand", w, 0.08, 0.06, f * CF(0, h / 2 - 0.04, 0), Look.of(196, 232, 226))
+		-- 벽에 붙은 얇은 판: NPC 통로 keep 과 겹쳐도 됨 (free)
+		K:plate("RoomPlate", w, h, 0.05, f, Look.with(LK.teal, { free = true }))
+		K:plate("RoomPlateBand", w, 0.08, 0.06, f * CF(0, h / 2 - 0.04, 0), Look.of(196, 232, 226, nil, { free = true }))
 		Lib.tx(K, "RoomPlateTitle", w * 0.92, h * 0.5, f * CF(0, h * 0.14, 0.055), title, C.WHITE, nil, { font = Lib.FONT_K })
 		Lib.tx(K, "RoomPlateSub", w * 0.92, h * 0.3, f * CF(0, -h * 0.26, 0.055), sub, Color3.fromRGB(214, 240, 236), nil, { font = Lib.FONT_M })
 	end
@@ -190,8 +191,8 @@ local function corridorPlates(K: any)
 	namePlate(41.7, 19.7, -4.42, -1, 2.8, 1.0, "휴게실 LOUNGE", "자판기 · 정수기 · TV")
 	-- 대기 환자 모니터 (진료실 앞)
 	local mf = Lib.face(-16.4, 5.2, -5.82, 0, 1)
-	K:plate("WaitMonitorBody", 2.1, 1.3, 0.12, mf, LK.black)
-	local scr = K:plate("WaitMonitorScreen", 1.96, 1.16, 0.02, mf * CF(0, 0, 0.12), Look.of(18, 40, 60, M.Neon, { t = 0.1 }))
+	K:plate("WaitMonitorBody", 2.1, 1.3, 0.12, mf, Look.with(LK.black, { free = true }))
+	local scr = K:plate("WaitMonitorScreen", 1.96, 1.16, 0.02, mf * CF(0, 0, 0.12), Look.of(18, 40, 60, M.Neon, { t = 0.1, free = true }))
 	local _, lab = Lib.tx(K, "WaitMonitorText", 1.9, 1.08, mf * CF(0, 0, 0.145), "", C.WHITE, nil, { glow = 1.2, font = Lib.FONT_B })
 	Interact.screenLoop(K, scr, lab, {
 		{ text = "진료 대기\n1  김*수\n2  이*영\n3  박*민" },

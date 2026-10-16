@@ -301,7 +301,7 @@ local function fireExit(K: any, env: any)
 		end })
 	end
 	if lever then
-		Interact.prompt(K, lever, { action = "문 열기", object = "비상구", sound = false, fn = function()
+		Lib.promptAny(K, lever, { action = "문 열기", object = "비상구", sound = false, fn = function()
 			openDoor(false)
 		end })
 	end
