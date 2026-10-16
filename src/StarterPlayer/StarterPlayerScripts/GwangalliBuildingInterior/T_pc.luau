@@ -47,8 +47,8 @@ local C = {
 	white = rgb(246, 246, 250),
 	ink = rgb(26, 26, 30),
 	panel = rgb(30, 31, 36),
-	felt = rgb(38, 39, 45),
-	felt2 = rgb(50, 52, 59),
+	felt = rgb(62, 64, 72),
+	felt2 = rgb(48, 52, 66),
 	exitGreen = rgb(0, 150, 80),
 }
 
