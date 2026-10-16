@@ -4480,6 +4480,81 @@ local function restockSupplies(ctx: any)
 	end)
 end
 
+-- 셀프 코너 수납장 (맵 SelfCabinet): 같은 범위 덮개 + 여닫는 두 문 + 안쪽 비품 (냅킨 · 물티슈 · 치킨무 컵 · 비닐봉투)
+local function selfCabinetOverlay(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	local made = 0
+	for _, r in V.byName.SelfCabinet or {} do
+		local s = r.size
+		-- 정면 = 방 가운데 쪽 (가까운 벽의 반대)
+		local dx = math.min(math.abs(r.c.X - V.x0), math.abs(r.c.X - V.x1))
+		local dz = math.abs(r.c.Z - V.z0)
+		local face, fw, fd
+		if dx < dz then
+			face = if r.c.X > 0 then ANG(0, -PI / 2, 0) else ANG(0, PI / 2, 0)
+			fw, fd = s.Z, s.X
+		else
+			face = CFrame.identity
+			fw, fd = s.X, s.Z
+		end
+		local h = s.Y
+		local pcf = CF(r.c.X, r.min.Y, r.c.Z) * face
+		local wood = L.of(150, 104, 64, M.Wood)
+		local inner = L.of(236, 232, 224, M.SmoothPlastic)
+		local doors = {}
+		K:free(function()
+			-- 몸통 (속이 빈 상자): 옆판 · 뒤판 · 바닥 · 천판 밑 · 가운데 칸막이 · 선반
+			local t = 0.08
+			K:box("FfSelfCabSide", V3(t, h - 0.3, fd), pcf * CF(-fw / 2 + t / 2, 0.3 + (h - 0.3) / 2, 0), wood)
+			K:box("FfSelfCabSide", V3(t, h - 0.3, fd), pcf * CF(fw / 2 - t / 2, 0.3 + (h - 0.3) / 2, 0), wood)
+			K:box("FfSelfCabBack", V3(fw - 2 * t, h - 0.3, t), pcf * CF(0, 0.3 + (h - 0.3) / 2, -fd / 2 + t / 2), inner)
+			K:box("FfSelfCabFloor", V3(fw - 2 * t, t, fd - t), pcf * CF(0, 0.3 + t / 2, t / 2), inner)
+			K:box("FfSelfCabCeil", V3(fw - 2 * t, t, fd - t), pcf * CF(0, h - t / 2, t / 2), inner)
+			K:box("FfSelfCabMid", V3(t, h - 0.3 - 2 * t, fd - t - 0.1), pcf * CF(0, 0.3 + (h - 0.3) / 2, -0.05 + t / 2), inner)
+			local shelfY = 0.3 + (h - 0.3) * 0.52
+			K:box("FfSelfCabShelf", V3(fw - 2 * t, 0.05, fd - t - 0.12), pcf * CF(0, shelfY, -0.02), inner)
+			K:box("FfSelfCabKick", V3(fw - 0.1, 0.3, fd - 0.12), pcf * CF(0, 0.15, -0.06), L.black)
+			-- 안쪽 비품
+			local hw = fw / 4
+			local y1 = 0.3 + t
+			-- 아래 왼쪽: 물티슈 상자 묶음
+			for i = 0, 2 do
+				K:box("FfSpareWipes", V3(hw * 1.4, 0.24, 0.5), pcf * CF(-hw, y1 + 0.12 + i * 0.25, -fd / 2 + 0.4), pl(if i % 2 == 0 then rgb(250, 250, 250) else rgb(120, 190, 240)))
+			end
+			-- 아래 오른쪽: 비닐봉투 롤 · 냅킨 박스
+			K:cyl("FfBagRoll", hw * 1.3, 0.5, pcf * CF(hw, y1 + 0.25, -fd / 2 + 0.45), pl(rgb(240, 240, 236), M.Plastic))
+			K:box("FfNapkinCase", V3(hw * 1.4, 0.6, 0.6), pcf * CF(hw, y1 + 0.8, -fd / 2 + 0.45), L.of(196, 156, 110, M.Cardboard))
+			-- 위 칸: 치킨무 일회용 컵 탑 · 젓가락 묶음 · 소스 컵
+			for i = -1, 1 do
+				K:vcyl("FfRadishCupStack", 0.7, 0.3, pcf * CF(-hw + i * 0.34, shelfY + 0.38, -fd / 2 + 0.4), { c = rgb(246, 246, 244), m = M.Glass, t = 0.3 })
+			end
+			K:box("FfChopstickPack", V3(hw * 1.2, 0.18, 0.4), pcf * CF(hw, shelfY + 0.12, -fd / 2 + 0.4), pl(rgb(232, 210, 160)))
+			K:box("FfSauceCups", V3(hw * 1.0, 0.3, 0.4), pcf * CF(hw, shelfY + 0.38, -fd / 2 + 0.4), pl(rgb(250, 250, 250)))
+			-- 문 두 짝 (바깥 모서리 경첩)
+			for i = 1, 2 do
+				local left = i == 1
+				local dw = fw / 2 - 0.02
+				local cx = if left then -fw / 4 else fw / 4
+				local zf = fd / 2 - 0.03
+				local m = K:group("FfSelfCabDoor_" .. i, function()
+					local c = pcf * CF(cx, 0.3 + (h - 0.3) / 2, zf)
+					K:box("FfSelfCabDoorFrame", V3(dw, h - 0.34, 0.06), c, wood)
+					K:box("FfSelfCabDoorPanel", V3(dw - 0.3, h - 0.7, 0.02), c * CF(0, 0, 0.035), L.of(170, 122, 78, M.Wood))
+					K:box("FfSelfCabDoorHandle", V3(0.06, 0.5, 0.06), c * CF(if left then dw / 2 - 0.16 else -dw / 2 + 0.16, h * 0.18, 0.07), L.blackMetal)
+				end)
+				local hx = if left then -fw / 2 + 0.02 else fw / 2 - 0.02
+				table.insert(doors, { model = m, hinge = (K.cf * pcf * CF(hx, 0, zf)).Position, angle = if left then -1.6 else 1.6 })
+			end
+			K:text("FfSelfCabLabel", math.min(1.8, fw * 0.5), 0.26, pcf * CF(0, h - 0.32, fd / 2 + 0.06), "셀프 비품 · 냅킨 · 물티슈", { fg = rgb(60, 40, 24), bg = rgb(246, 236, 210), font = F.GothamBold, d = 0.01 })
+		end)
+		Scan.hide(K.hidden, r.part)
+		if swingDoors(ctx, doors, "셀프 수납장") then
+			made += 1
+		end
+	end
+	return made
+end
+
 local FF_DUMP = false -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
 	if FF_DUMP then
@@ -4523,6 +4598,7 @@ function T.build(K: any, V: any, S: any)
 		local nf = restockFridges(ctx)
 		local nb = restockBarBottles(ctx)
 		restockSupplies(ctx)
+		selfCabinetOverlay(ctx)
 		if nf + nb > 0 then
 			K:note(string.format("ff restock: fridge %d, bar %d", nf, nb))
 		end
