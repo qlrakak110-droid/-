@@ -396,6 +396,28 @@ local function promptOkAt(K: any, lp: Vector3): boolean
 	return Interact.canPrompt(K, lp)
 end
 
+-- 프롬프트용 작은 벽 조작판 (프롬프트를 둘 수 있는 벽 자리). 반환: 판 파트
+local function promptPanel(K: any, walls: { string }, label: string, prefer: Vector3?, look: any?): BasePart?
+	local accept = function(d: CFrame): boolean
+		return Interact.canPrompt(K, (d * CF(0, 0, 0.15)).Position)
+	end
+	local wn, d
+	if prefer then
+		wn, d = spotNear(K, walls, 0.8, 3.9, 4.9, prefer, accept, 0.2)
+	else
+		wn, d = wallItemSpot(K, walls, 0.8, 3.9, 4.9, nil, accept, 0.2)
+	end
+	if not (wn and d) then
+		return nil
+	end
+	local base = d * CF(0, 0.05, 0)
+	local p = K:plate("CtrlPanel", 0.62, 0.86, 0.07, base, look or Look.white)
+	K:disc("CtrlPanelKnob", 0.3, 0.08, base * CF(0, 0.12, 0.1) * ANG(PI / 2, 0, 0), Look.grey)
+	K:plate("CtrlPanelLED", 0.06, 0.06, 0.08, base * CF(0.2, 0.32, 0.03), Look.ledGreen)
+	txt(K, "CtrlPanelText", 0.56, 0.16, base * CF(0, -0.27, 0.075), label, INK, nil, { font = F.GothamBold })
+	return p
+end
+
 -- 후보 점들 중 첫 성공 (pcf 정면 face)
 local function floorSpot(K: any, cands: { Vector3 }, size: Vector3, face: Vector3, pad: number?, kind: string?): CFrame?
 	for _, p in cands do
@@ -1479,7 +1501,10 @@ local function hotelLounge(K: any, V: any, th: any, rng: () -> number): any
 			local dcf = V:wall(wn, wu, ay, 0.02)
 			K:free(function()
 				out.art = bridgeArt(K, dcf, aw, ah, th.trim)
-				out.artFrame = K:plate("ArtHit", 0.4, 0.4, 0.02, dcf * CF(-aw / 2 + 0.4, -ah / 2 + 0.3, 0.18), { c = C(0, 0, 0), t = 1 })
+				out.artHits = {}
+				for _, fx in { 0, -0.3, 0.3, -0.45, 0.45 } do
+					table.insert(out.artHits, K:plate("ArtHit", 0.4, 0.4, 0.02, dcf * CF(aw * fx, -ah / 2 + 0.3, 0.18), { c = C(0, 0, 0), t = 1 }))
+				end
 				-- 아트 조명 (위 픽처 라이트)
 				K:box("PictureLightArm", V3(0.1, 0.1, 0.5), dcf * CF(0, ah / 2 + 0.25, 0.25), th.trim)
 				local pl = K:cyl("PictureLightLED", aw * 0.4, 0.16, dcf * CF(0, ah / 2 + 0.25, 0.5), Look.lampWarm)
@@ -1648,12 +1673,13 @@ local function hotelInteract(K: any, V: any, lounge: any)
 		local modes = {
 			{ "블루 라이트", C(120, 170, 255) }, { "레인보우 쇼", C(255, 120, 200) }, { "골드 나이트", C(255, 200, 110) }, { "드론쇼 화이트", C(240, 246, 255) }, { "끄기", nil },
 		}
-		local hit = lounge.artFrame or lounge.art[1]
+		local hits = table.clone(lounge.artHits or {})
+		table.insert(hits, lounge.art[1])
 		local base = {}
 		for _, p in lounge.art do
 			table.insert(base, { p = p, t = p.Transparency })
 		end
-		promptOn(K, { hit, lounge.art[#lounge.art] }, {
+		promptOn(K, hits, {
 			action = "조명 모드 바꾸기",
 			object = "광안대교 야경 아트",
 			fn = function(n)
@@ -1838,10 +1864,12 @@ local function buildHotel(K: any, V: any, S: any)
 			plantAt(K, pcfAt(p, V3(0, 0, 1)), pickR(rng, { "olive", "ficus", "monstera" }), math.min(6.5, V.H * 0.5), 1.4, lk(C(60, 58, 56), M.Concrete))
 		end
 	end)
+	step(K, "interact", function()
+		hotelInteract(K, V, lounge)
+	end)
 	-- 큰 벽 소품 뒤 작은 벽 부착물 (스위치 · 콘센트 · 등록증 ...)
 	step(K, "fixtures", function()
 		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
 	end)
 	-- 벽: 층별 안내 · 와이파이 · 관광 포스터 · 비상구
 	step(K, "walls", function()
@@ -1862,8 +1890,8 @@ local function buildHotel(K: any, V: any, S: any)
 			exitSign(K, d3)
 		end
 	end)
-	step(K, "interact", function()
-		hotelInteract(K, V, lounge)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 end
 
@@ -1945,7 +1973,9 @@ local function buildMotel(K: any, V: any, S: any)
 	-- 무인 키오스크 (바닥)
 	local kioskScreen, kioskLab = nil, nil
 	step(K, "kiosk", function()
-		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.8, 1.3, 5.6, V3(0, 0, V.z0 + 3), 0.05, "kiosk")
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.8, 1.3, 5.6, V3(0, 0, V.z0 + 3), 0.05, "kiosk", function(pc: CFrame)
+			return Interact.canPrompt(K, (pc * CF(0, 3.5, 0.4)).Position)
+		end)
 		if not wn or not pcf then
 			return
 		end
@@ -2007,10 +2037,6 @@ local function buildMotel(K: any, V: any, S: any)
 	step(K, "elevator", function()
 		elevatorHall(K, V, nil, "motel")
 	end)
-	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
-	end)
 	step(K, "interact", function()
 		if kioskScreen and kioskLab then
 			local screens = {
@@ -2025,9 +2051,9 @@ local function buildMotel(K: any, V: any, S: any)
 				end
 			end })
 		end
-		if #leds > 0 then
+		local target = if #leds > 0 then promptPanel(K, { "left", "right", "back" }, "MOOD", V3(0, 0, V.z0 + 2), lk(C(40, 34, 40))) else nil
+		if target then
 			local cols = { C(220, 60, 120), C(140, 80, 255), C(60, 160, 255), C(255, 170, 90) }
-			local target = leds[#leds]
 			Interact.cycle(K, target, cols, { action = "무드 조명 바꾸기", object = "로비 무드등", on = function(_i, c)
 				for _, p in leds do
 					if p.Parent then
@@ -2041,6 +2067,12 @@ local function buildMotel(K: any, V: any, S: any)
 				end
 			end })
 		end
+	end)
+	step(K, "fixtures", function()
+		Common.fixtures(K, V, S)
+	end)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 end
 
@@ -2241,6 +2273,19 @@ local function buildResidence(K: any, V: any, S: any)
 			local wn, pcf = wallFloorSpot(K, { "right", "left", "back" }, w, 1.4, h, V3(V.x1, 0, V.z0 + 3), 0.05, "locker")
 			if wn and pcf then
 				lockerScreen, lockerLab, lockerDoor, lockerHinge = parcelLocker(K, pcf, w, h, rng)
+				if lockerScreen and lockerLab then
+					local screens = {
+						"택배 찾기\n\n동·호수를\n입력하세요", "101동 1203호\n\n보관 중 2건\n12번 · 27번", "비밀번호\n\n● ● ● ●\n\n확인", "택배 맡기기\n\n기사님 전용\n바코드 스캔",
+					}
+					Interact.cycle(K, lockerScreen, screens, { action = "화면 누르기", object = "무인택배함", on = function(_i, s2)
+						if lockerLab and lockerLab.Parent then
+							lockerLab.Text = s2
+						end
+					end })
+				end
+				if lockerDoor and lockerHinge then
+					Interact.swing(K, lockerDoor, lockerHinge, K.cf.UpVector, -1.6, { object = "택배함 큰 칸", openText = "칸 열어 보기", closeText = "닫기" })
+				end
 				break
 			end
 		end
@@ -2327,24 +2372,7 @@ local function buildResidence(K: any, V: any, S: any)
 			plantAt(K, pcfAt(p, V3(0, 0, 1)), pickR(rng, { "snake", "ficus", "bamboo" }), math.min(5.5, V.H * 0.55), 1.3, lk(C(70, 70, 72), M.Concrete))
 		end
 	end)
-	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
-	end)
 	step(K, "interact", function()
-		if lockerScreen and lockerLab then
-			local screens = {
-				"택배 찾기\n\n동·호수를\n입력하세요", "101동 1203호\n\n보관 중 2건\n12번 · 27번", "비밀번호\n\n● ● ● ●\n\n확인", "택배 맡기기\n\n기사님 전용\n바코드 스캔",
-			}
-			Interact.cycle(K, lockerScreen, screens, { action = "화면 누르기", object = "무인택배함", on = function(_i, s)
-				if lockerLab and lockerLab.Parent then
-					lockerLab.Text = s
-				end
-			end })
-		end
-		if lockerDoor and lockerHinge then
-			Interact.swing(K, lockerDoor, lockerHinge, (K.cf * CFrame.new()).UpVector, -1.6, { object = "택배함 큰 칸", openText = "칸 열어 보기", closeText = "닫기" })
-		end
 		if icBtn and icLab then
 			local busy = false
 			Interact.prompt(K, icBtn, { action = "경비실 호출", object = "공동현관 인터폰", fn = function()
@@ -2368,6 +2396,12 @@ local function buildResidence(K: any, V: any, S: any)
 				end)
 			end })
 		end
+	end)
+	step(K, "fixtures", function()
+		Common.fixtures(K, V, S)
+	end)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 	_ = metal
 	_ = eh
@@ -2736,10 +2770,6 @@ local function buildRealty(K: any, V: any, S: any)
 			txt(K, "RealtyName", w, 0.7, d3 * CF(0, 0, 0.02), name, C(24, 50, 100), nil, { font = F.GothamBlack })
 		end
 	end)
-	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
-	end)
 	step(K, "interact", function()
 		if tvScr and tvLab then
 			local slides = {}
@@ -2778,6 +2808,12 @@ local function buildRealty(K: any, V: any, S: any)
 				end)
 			end })
 		end
+	end)
+	step(K, "fixtures", function()
+		Common.fixtures(K, V, S)
+	end)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 	_ = desks
 end
@@ -3183,10 +3219,6 @@ local function buildLaundry(K: any, V: any, S: any)
 		end
 		plantAt(K, pcfAt(V3(V.x1 - 0.9, 0, V.z1 - 1.0), V3(0, 0, 1)), "snake", 3.4, 1.0, lk(C(236, 234, 228), M.Concrete))
 	end)
-	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
-	end)
 	step(K, "interact", function()
 		-- 1) 컨베이어 돌리기 (벽 조작함)
 		if conv and convBox then
@@ -3245,6 +3277,12 @@ local function buildLaundry(K: any, V: any, S: any)
 				end
 			end })
 		end
+	end)
+	step(K, "fixtures", function()
+		Common.fixtures(K, V, S)
+	end)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 	_ = sewLamp
 end
@@ -3404,11 +3442,6 @@ local function buildOffice(K: any, V: any, S: any)
 			tvLab = lab
 		end
 	end)
-	step(K, "fixtures", function()
-		S.clock = true
-		Common.fixtures(K, V, S)
-		ensureSwitch(K, V)
-	end)
 	step(K, "interact", function()
 		if tvScr and tvLab then
 			local slides = {}
@@ -3421,6 +3454,13 @@ local function buildOffice(K: any, V: any, S: any)
 				end
 			end })
 		end
+	end)
+	step(K, "fixtures", function()
+		S.clock = true
+		Common.fixtures(K, V, S)
+	end)
+	step(K, "switch", function()
+		ensureSwitch(K, V)
 	end)
 end
 
