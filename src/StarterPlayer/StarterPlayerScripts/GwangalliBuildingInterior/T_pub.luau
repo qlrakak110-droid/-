@@ -3061,7 +3061,16 @@ local function wallDecor(c: any)
 	do
 		local wn, u = findWall(K, { "back", "left", "right" }, 1.3, 1.3, 4.6, 6.4, nearC, 0.8)
 		if wn and u then
+			local n0 = #K.parts
 			Props.license(K, V:wall(wn, u, 5.5, 0.06), shopName(V))
+			-- 액자 유리 반사 낮춤 (비스듬히 보면 증서 글씨가 회색 유리에 덮임)
+			for k = n0 + 1, #K.parts do
+				local gp = K.parts[k]
+				if gp and gp.Name == "FrameGlass" then
+					gp.Reflectance = 0.03
+					gp.Transparency = 0.95
+				end
+			end
 		end
 	end
 	-- 입구 안내판 (영업시간 · 19세 · 와이파이 · 음주운전)

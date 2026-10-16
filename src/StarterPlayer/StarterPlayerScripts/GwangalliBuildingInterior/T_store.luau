@@ -1385,7 +1385,7 @@ local PH = { main = C(10, 138, 58), dark = C(10, 70, 40), sub = C(0, 150, 200), 
 
 -- 매장 상품 파트 예산 (넓이 비례, 남은 파트 여유 안에서)
 local function goodsBudget(K: any, V: any, mul: number?): number
-	local cap = if V.W * V.D > 900 then 1200 else 950 -- 대형 매장 (올리브영 본점급) 은 진열이 비어 보이지 않게 조금 더
+	local cap = if V.W * V.D > 900 then 1450 else 950 -- 대형 매장 (올리브영 본점급) 은 진열이 비어 보이지 않게 조금 더
 	local b = math.clamp(V.W * V.D * 1.5 * (mul or 1), 300, cap)
 	local room = (K.maxParts or 2600) - #K.parts - 520
 	return math.max(160, math.min(b, room))
@@ -2870,7 +2870,8 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 				K:free(function()
 					K:plate("StHeaderSkin", w, hd.size.Y, 0.02, dcfAt(p, face), lk(OY.white))
 					K:plate("StHeaderLine", w, 0.08, 0.03, dcfAt(p - V3(0, hd.size.Y / 2 - 0.04, 0), face), lk(OY.main))
-					txt(K, "StHeaderText", w * 0.6, hd.size.Y * 0.7, dcfAt(p, face) * CF(0, 0.02, 0.03), names[(i - 1) % #names + 1], OY.dark, nil, { font = Enum.Font.GothamBlack })
+					-- 뒤에서 불이 들어오는 흰 머리판 (검은 글자)
+					txt(K, "StHeaderText", w - 0.1, hd.size.Y - 0.14, dcfAt(p + V3(0, 0.03, 0), face) * CF(0, 0, 0.02), names[(i - 1) % #names + 1], OY.dark, OY.white, { d = 0.006, glow = 1.0, font = Enum.Font.GothamBlack })
 				end)
 			end
 			local promos = { { "올영세일", "최대 70% · 10.24 ~ 10.30" }, { "오늘의 특가", "오특 단 하루 특가" }, { "1+1", "선크림 · 마스크팩" }, { "NEW", "올리브영 단독 런칭" } }
@@ -4005,8 +4006,8 @@ local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: num
 						local side = it.side and w >= 7
 						local tw = if side then w * 0.62 else w * 0.9
 						local tx = if side then -w * 0.17 else 0
-						txt(K, "StLbTitle", tw, h * 0.42, dcf * CF(tx, h * 0.14, 0.175), it.title, it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBlack })
-						txt(K, "StLbSub", tw * 0.9, h * 0.2, dcf * CF(tx, -h * 0.24, 0.175), it.sub, it.fg2 or it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBold })
+						txt(K, "StLbTitle", tw, h * 0.42, dcf * CF(tx, h * 0.14, 0.17), it.title, it.fg, it.bg, { d = 0.006, glow = 1.05, font = Enum.Font.GothamBlack })
+						txt(K, "StLbSub", tw * 0.9, h * 0.2, dcf * CF(tx, -h * 0.22, 0.17), it.sub, it.fg2 or it.fg, it.bg, { d = 0.006, glow = 1.05, font = Enum.Font.GothamBold })
 						if it.band then
 							K:plate("StLbBand", w - 0.16, 0.12, 0.012, dcf * CF(0, -h / 2 + 0.2, 0.17), lk(it.band))
 						end
@@ -4116,7 +4117,7 @@ function T.build(K: any, V: any, S: any)
 				{ title = "올영세일", sub = "10.24 - 10.30 · 최대 70% · 올리브영 단독 기획", bg = OY.main, fg = OY.dark, side = true, sideC = C(250, 250, 248), sideC2 = C(255, 214, 90) },
 				{ title = "OLIVE YOUNG 광안리점", sub = "K-BEAUTY · TAX FREE 외국인 즉시 환급", bg = OY.white, fg = OY.dark, fg2 = C(90, 120, 20), band = OY.main },
 				{ title = "올리브영 어워즈 2026", sub = "스킨케어 · 메이크업 · 헤어 부문 1위 모음", bg = C(32, 36, 32), fg = WHITE, fg2 = OY.main, side = true, sideC = C(240, 190, 200), sideC2 = C(200, 230, 250) },
-				{ title = "오늘드림", sub = "주문 후 3시간 내 도착 · 광안리점 픽업", bg = OY.sub, fg = WHITE, band = WHITE },
+				{ title = "오늘드림", sub = "주문 후 3시간 내 도착 · 광안리점 픽업", bg = C(238, 70, 146), fg = WHITE, band = WHITE },
 			}, 6)
 		elseif kind == "retail" and (sub == "souvenir" or sub == "beach") then
 			local top = 0

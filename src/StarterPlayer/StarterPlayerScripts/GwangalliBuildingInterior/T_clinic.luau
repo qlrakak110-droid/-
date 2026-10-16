@@ -2023,6 +2023,73 @@ local function wasteCart(K: any, pcf: CFrame)
 	K:plate("WasteBio", 0.6, 0.6, 0.02, pcf * CF(0.8, 2.5, d / 2 + 0.01), col(C3(200, 30, 30)))
 end
 
+-- 구강 검진 유닛체어 (pcf 바닥, +Z = 발 쪽). 반환: 무영등 머리 (켜기/끄기용)
+local function dentalChair(K: any, pcf: CFrame): BasePart
+	local vin = lk(70, 160, 170, M.Leather)
+	local body = lk(240, 242, 242, M.Plastic)
+	K:box("DentBase", V3(2.2, 0.2, 3.6), pcf * CF(0, 0.1, 0), body)
+	K:box("DentPedestal", V3(1.2, 1.3, 1.4), pcf * CF(0, 0.85, -0.4), body)
+	K:box("DentSeatFrame", V3(2.0, 0.3, 2.4), pcf * CF(0, 1.65, 0), body)
+	K:slab("DentSeat", 2.1, 2.3, 0.4, 0.15, pcf * CF(0, 2.0, 0.1), vin)
+	local bk = pcf * CF(0, 2.0, -1.1) * ANG(math.rad(-58), 0, 0)
+	K:slab("DentBack", 2.0, 0.4, 3.0, 0.15, bk * CF(0, 0.1, -1.5), vin)
+	K:slab("DentHead", 1.1, 0.35, 0.9, 0.12, bk * CF(0, 0.15, -3.4), vin)
+	local lg = pcf * CF(0, 2.0, 1.2) * ANG(math.rad(-22), 0, 0)
+	K:slab("DentLeg", 2.0, 0.35, 2.4, 0.12, lg * CF(0, 0, 1.2), vin)
+	K:box("DentFootPlate", V3(1.6, 0.6, 0.12), lg * CF(0, 0.1, 2.45), body)
+	for _, sx in { -1, 1 } do
+		K:box("DentArm", V3(0.3, 0.2, 1.6), pcf * CF(sx * 1.15, 2.7, -0.1), body)
+		K:box("DentArmPost", V3(0.15, 0.6, 0.15), pcf * CF(sx * 1.15, 2.35, -0.7), LK.alu)
+	end
+	-- 타구대 (컵 · 물대) 오른쪽
+	local sp = pcf * CF(1.9, 0, -1.2)
+	K:box("DentSpitCol", V3(0.6, 3.6, 0.6), sp * CF(0, 1.8, 0), body)
+	K:vcyl("DentSpitBowl", 0.35, 1.0, sp * CF(0.1, 3.7, 0.25), lk(250, 250, 250, M.SmoothPlastic))
+	K:disc("DentSpitWater", 0.7, 0.02, sp * CF(0.1, 3.86, 0.25), { c = C3(180, 220, 240), m = M.Glass, t = 0.3 })
+	K:vcyl("DentCup", 0.4, 0.3, sp * CF(-0.25, 3.8, 0.4), col(C3(240, 200, 220), M.Plastic))
+	-- 기구 트레이 (왼쪽 팔)
+	local tr = pcf * CF(-1.9, 0, 0.2)
+	K:vcyl("DentTrayPole", 3.4, 0.2, tr * CF(0, 1.7, 0), LK.alu)
+	K:box("DentTray", V3(1.6, 0.12, 1.0), tr * CF(0.2, 3.5, 0.1), body)
+	for k = 0, 3 do
+		K:seg("DentHandpiece", (tr * CF(-0.4 + k * 0.28, 3.62, -0.3)).Position, (tr * CF(-0.4 + k * 0.28, 3.65, 0.4)).Position, 0.08, ({ LK.chrome, LK.chrome, lk(60, 64, 70), LK.chrome })[k + 1])
+	end
+	K:box("DentMirrorPack", V3(0.5, 0.04, 0.8), tr * CF(0.6, 3.58, 0.2), lk(230, 240, 250, M.Plastic))
+	-- 무영등 (기둥 + 팔 + 머리)
+	local lp = pcf * CF(-1.6, 0, -2.4)
+	K:vcyl("DentLightPole", 6.6, 0.25, lp * CF(0, 3.3, 0), body)
+	K:disc("DentLightFoot", 1.0, 0.12, lp * CF(0, 0.06, 0), body)
+	local hd = pcf * CF(0, 5.6, -0.9)
+	K:seg("DentLightArm", (lp * CF(0, 6.5, 0)).Position, (hd * CF(0, 0.5, -0.4)).Position, 0.18, body)
+	K:ell("DentLightHead", V3(1.4, 0.45, 0.8), hd, body)
+	local glow = K:box("DentLightGlow", V3(1.1, 0.05, 0.5), hd * CF(0, -0.22, 0), col(C3(255, 250, 230), M.Neon))
+	return glow
+end
+
+-- 체성분 분석기 (인바디형), pcf 바닥 +Z = 사람 서는 앞. 반환: 화면 라벨, 버튼 파트
+local function inbody(K: any, pcf: CFrame): (TextLabel?, BasePart)
+	local body = lk(236, 238, 240, M.Plastic)
+	K:box("IBPlatform", V3(1.8, 0.3, 2.1), pcf * CF(0, 0.15, 0.2), body)
+	for _, sx in { -0.45, 0.45 } do
+		for _, sz in { 0.6, -0.15 } do
+			K:box("IBFootElectrode", V3(0.55, 0.03, 0.5), pcf * CF(sx, 0.31, sz), LK.chrome)
+		end
+	end
+	K:box("IBColumn", V3(0.7, 3.6, 0.5), pcf * CF(0, 2.1, -0.75), body)
+	local hd = pcf * CF(0, 4.15, -0.55) * ANG(math.rad(-25), 0, 0)
+	K:box("IBHead", V3(1.7, 0.9, 0.6), hd, body)
+	K:box("IBScreenBezel", V3(1.1, 0.7, 0.05), hd * CF(0, 0.02, 0.3), LK.black)
+	local _, lab = tx(K, "IBScreen", 1.0, 0.62, hd * CF(0, 0.02, 0.33), "InBody\n올라서서 손잡이를\n잡아 주세요", C3(220, 240, 255), C3(10, 40, 80), { glow = 1.2, d = 0.005 })
+	local btn = K:box("IBButton", V3(0.25, 0.12, 0.12), hd * CF(0.65, -0.25, 0.3), col(C3(40, 160, 90), M.Neon))
+	for _, sx in { -1, 1 } do
+		local g = hd * CF(sx * 0.95, -0.15, 0.1)
+		K:box("IBHandle", V3(0.22, 0.75, 0.22), g * CF(sx * 0.1, -0.1, 0.1), LK.chrome)
+		K:seg("IBCable", (g * CF(sx * 0.1, -0.5, 0.1)).Position, (pcf * CF(sx * 0.5, 2.6, -0.55)).Position, 0.05, LK.black)
+	end
+	tx(K, "IBLabel", 1.2, 0.3, pcf * CF(0, 2.3, -0.49), "체성분 분석기", TEAL_D, nil, { d = 0.005, font = FONT_B })
+	return lab, btn
+end
+
 -- 상호작용 공통 -----------------------------------------------------------------------------------------------
 local function ding(part: BasePart)
 	Interact.click(part, "rbxasset://sounds/electronicpingshort.wav")
@@ -6179,6 +6246,77 @@ BUILD.checkup = function(K: any, V: any)
 		end
 	end)
 	-- 단계 매단 안내판 · 포스터 ------------------------------------------------------------------------------------------
+	-- 오른쪽 가운데 빈 곳: ⑩ 체성분 · ⑪ 구강 검진 (낮은 칸막이 코너) ------------------------------------------------------
+	step(K, "dental", function()
+		local cx, cz = 9.6, -3.4
+		local box = CF(cx, 0, cz)
+		if not K:spot(box, V3(8.6, 6.4, 7.6), 0) then
+			note(K, "dental: no spot")
+			return
+		end
+		-- 뒤 · 옆 칸막이 (높이 6, 위는 트임)
+		local pl = { look = lk(232, 238, 236, M.SmoothPlastic), h = 6.0, t = 0.3 }
+		partition(K, Vector3.new(cx - 4.2, 0, cz - 3.7), Vector3.new(cx + 4.2, 0, cz - 3.7), nil, pl)
+		partition(K, Vector3.new(cx + 4.2, 0, cz - 3.55), Vector3.new(cx + 4.2, 0, cz + 2.0), nil, pl)
+		K:free(function()
+			K:box("DentPartCap", V3(8.6, 0.12, 0.4), CF(cx, 6.06, cz - 3.7), col(TEAL))
+			K:box("DentPartCap", V3(0.4, 0.12, 5.7), CF(cx + 4.2, 6.06, cz - 0.8), col(TEAL))
+			local glow = dentalChair(K, CF(cx - 0.3, 0, cz - 0.4))
+			local stp = CF(cx - 2.6, 0, cz - 2.3)
+			rollStool(K, stp, 2.0, LK.vinylTeal)
+			-- 벽 쪽 수납장 + 소독기
+			local cb = CF(cx + 3.25, 0, cz - 1.0) * ANG(0, -PI / 2, 0)
+			K:box("DentCab", V3(3.0, 3.0, 1.4), cb * CF(0, 1.5, 0), lk(246, 246, 244, M.SmoothPlastic))
+			K:box("DentCabTop", V3(3.1, 0.1, 1.5), cb * CF(0, 3.05, 0), lk(220, 222, 220, M.Marble))
+			for k = 0, 2 do
+				K:plate("DentCabDrawer", 0.9, 2.7, 0.03, cb * CF(-1.0 + k, 1.5, 0.71), lk(236, 240, 240, M.SmoothPlastic))
+				K:plate("DentCabPull", 0.5, 0.06, 0.05, cb * CF(-1.0 + k, 2.6, 0.74), LK.chrome)
+			end
+			K:box("UVSterilizer", V3(1.2, 0.8, 0.8), cb * CF(-0.6, 3.5, -0.1), lk(250, 250, 250, M.Plastic))
+			K:box("UVSterilizerWin", V3(0.9, 0.45, 0.02), cb * CF(-0.6, 3.55, 0.31), col(C3(150, 110, 230), M.Neon, { t = 0.2 }))
+			K:vcyl("DentMouthwash", 0.6, 0.3, cb * CF(0.6, 3.4, 0), col(C3(60, 170, 200), M.Glass, { t = 0.2 }))
+			K:box("DentGloveBox", V3(0.8, 0.4, 0.45), cb * CF(1.2, 3.3, 0), lk(250, 250, 250))
+			-- 칸막이 안쪽면: 구강 위생 포스터
+			local pd = faceCF(Vector3.new(cx - 0.6, 4.4, cz - 3.54), Vector3.zAxis)
+			poster(K, pd, 3.2, 2.6, "구강 검진 안내", "치아 · 잇몸 상태 확인 (무료)\n검진 후 양치 · 치실 상담\n스케일링 연 1회 보험 적용\n이 시린 곳 있으면 말씀해 주세요", WHITE, INK, C3(60, 150, 200), WHITE, 0.22)
+			_ = glow
+		end)
+		hangSign(K, cx, cz + 3.0, 4.6, 0.9, V.H - 1.7, 0, "⑪ 구강 검진", "⑪ 구강 검진")
+		-- ⑩ 체성분 (칸막이 앞, 열린 쪽)
+		local ib = CF(cx + 2.4, 0, cz + 5.6)
+		if K:spot(ib, V3(2.4, 5.0, 2.8), 0) then
+			local lab, btn
+			K:free(function()
+				lab, btn = inbody(K, ib)
+				K:box("IBMat", V3(2.6, 0.02, 1.4), ib * CF(0, 0.01, 1.9), lk(60, 64, 70, M.Rubber))
+				K:box("IBShoeTray", V3(1.6, 0.25, 0.9), ib * CF(-2.0, 0.12, 1.2), lk(200, 204, 206, M.Plastic))
+				tx(K, "IBShoeNote", 1.6, 0.3, ib * CF(-2.0, 0.4, 1.66), "양말 벗고 올라가세요", INK, WHITE, { d = 0.005 })
+			end)
+			hangSign(K, cx + 2.4, cz + 7.4, 3.8, 0.9, V.H - 1.7, 0, "⑩ 체성분", "⑩ 체성분")
+			if lab and btn then
+				local busy = false
+				local rr = rng("inbody")
+				Interact.prompt(K, btn, {
+					action = "체성분 측정",
+					object = "체성분 분석기",
+					fn = function()
+						if busy then
+							return
+						end
+						busy = true
+						lab.Text = "측정 중...\n움직이지 마세요"
+						task.delay(2.5, function()
+							local w = 58 + math.floor(rr() * 260) / 10
+							local m = 24 + math.floor(rr() * 120) / 10
+							local f = 12 + math.floor(rr() * 140) / 10
+							lab.Text = string.format("체중 %.1f kg\n골격근량 %.1f kg\n체지방률 %.1f %%", w, m, f)
+							busy = false
+						end)
+					end,
+				})
+			end
+		end
+	end)
 	step(K, "signs", function()
 		hangSign(K, -13.0, 13.4, 4.0, 0.9, V.H - 1.4, 0, "① 접수", "① 접수")
 		hangSign(K, -21.0, 2.0, 4.6, 0.9, V.H - 1.4, PI / 2, "② 탈의 · 사물함", "② 탈의 · 사물함")

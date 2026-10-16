@@ -3294,7 +3294,7 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 	local K = ctx.K
 	local rnd = ctx.rand
 	local hh = h or 0.7
-	K:box("FfTankBody", V3(w, hh, d), base * CF(0, hh / 2, 0), L.of(178, 176, 170, M.Metal, { r = 0.04 }))
+	K:box("FfTankBody", V3(w, hh, d), base * CF(0, hh / 2, 0), L.of(196, 194, 188, M.Metal))
 	K:box("FfTankBroth", V3(w - 0.1, 0.03, d - 0.1), base * CF(0, hh - 0.06, 0), { c = rgb(196, 146, 74), m = M.SmoothPlastic, r = 0.04 })
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, d / 2), L.chrome)
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, -d / 2), L.chrome)
@@ -3955,9 +3955,14 @@ local function odengTrough(ctx: any)
 	local cz = g.min.Z + 0.12 + dd / 2
 	local y = g.y
 	K:free(function()
-		local base = CF(cx, y - 0.6, cz)
+		-- 바에 묻힌 스테인리스 통 (테두리만 0.3 위로): 국물 · 꼬치가 보이게
+		local base = CF(cx, y - 0.4, cz)
 		eomukTank(ctx, base, len, dd, 0.7)
-		K:box("FfTroughLip", V3(len + 0.2, 0.04, dd + 0.2), CF(cx, y + 0.11, cz), L.chrome)
+		local lw = 0.1
+		for _, sz in { -1, 1 } do
+			K:box("FfTroughLip", V3(len + 0.2, 0.04, lw), CF(cx, y + 0.32, cz + sz * (dd / 2 + 0.05)), L.chrome)
+			K:box("FfTroughLip", V3(lw, 0.04, dd + 0.2), CF(cx + sz * (len / 2 + 0.05), y + 0.32, cz), L.chrome)
+		end
 	end)
 end
 
@@ -4379,7 +4384,9 @@ local function restockBarBottles(ctx: any): number
 				continue
 			end
 			i += 1
-			local def = DRINK[set[(i * 7 + math.floor(b.c.X * 3)) % #set + 1]]
+			-- 이웃한 두 병씩 같은 술 (가로 1.25 칸 + 선반 높이로 묶음)
+			local grp = math.floor((b.c.X + b.c.Z) / 1.25) + math.floor(b.min.Y * 2) * 3
+			local def = DRINK[set[grp % #set + 1]]
 			if def.kind == "can" then
 				def = DRINK.soju
 			end
@@ -4635,28 +4642,8 @@ local function placeClock(ctx: any)
 	end
 end
 
-local FF_DUMP = false -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
-	if FF_DUMP then
-		local agg = {}
-		for _, r in V.parts do
-			if not Scan.SHELL[r.name] and r.c.Y > -0.5 and r.c.Y < V.H + 0.5 and math.abs(r.c.X) < V.W / 2 + 0.5 and r.c.Z > V.z0 - 0.5 and r.c.Z < V.z1 + 0.5 then
-				table.insert(agg, string.format("%s(%.1f,%.1f,%.1f|%.1fx%.1fx%.1f)", r.name, r.c.X, r.c.Y, r.c.Z, r.size.X, r.size.Y, r.size.Z))
-			end
-		end
-		table.sort(agg)
-		for i = 1, #agg, 6 do
-			K:note("DUMP " .. table.concat(agg, " ", i, math.min(#agg, i + 5)))
-		end
-	end
 	local ctx = ctxNew(K, V, S)
-	if FF_DUMP then
-		local ivs = {}
-		for _, iv in promptIntervals(ctx, { "back", "left", "right", "front" }) do
-			table.insert(ivs, string.format("%s[%.1f..%.1f]", iv[1], iv[2], iv[3]))
-		end
-		K:note("PIV " .. table.concat(ivs, " "))
-	end
 	local ok, err = pcall(setupZones, ctx)
 	if not ok then
 		K:note("ff zones error: " .. tostring(err))
@@ -4690,6 +4677,26 @@ function T.build(K: any, V: any, S: any)
 	K:note(string.format("ff %s/%s: +%d parts, toggles %d", ctx.sk, ctx.pal.key or "?", #K.parts - t0, ctx.toggles))
 	if ctx.miss then
 		K:note("ff miss:" .. string.sub(ctx.miss, 1, 200))
+	end
+	do -- TMPDBG
+		for _, wn in { "left", "right", "back" } do
+			local t = {}
+			for _, sp in spans(ctx, wn, 4.5, 7.0, 1.0) do
+				table.insert(t, string.format("[%.1f..%.1f]", sp[1], sp[2]))
+			end
+			local u = {}
+			for _, q in K.wallUsed or {} do
+				if q.w == wn and q.y1 > 4.5 and q.y0 < 7.0 then
+					table.insert(u, string.format("(%.1f..%.1f@%.1f-%.1f)", q.a, q.b, q.y0, q.y1))
+				end
+			end
+			K:note("TMPDBG " .. wn .. " spans " .. table.concat(t, " ") .. " used " .. table.concat(u, " "))
+		end
+		local kk = {}
+		for _, k in V.keep do
+			table.insert(kk, string.format("%s(%.1f,%.1f,%.1f..%.1f,%.1f,%.1f)", k.kind, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
+		end
+		K:note("TMPDBG keep " .. table.concat(kk, " "))
 	end
 end
 
