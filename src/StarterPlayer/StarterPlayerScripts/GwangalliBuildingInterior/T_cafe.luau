@@ -4105,7 +4105,7 @@ local function mailboxSkin(K: any, V: any, r: any)
 	local front = faceCF(V3(r.c.X, r.min.Y, r.c.Z) + fwd * (depth / 2), fwd)
 	K:free(function()
 		-- 몸통 (앞면 0.05 안쪽, 문짝이 원래 앞면까지)
-		K:box("MailBody", V3(width, hgt, depth - 0.05), front * CF(0, hgt / 2, -(depth - 0.05) / 2 - 0.05), Look.brushed)
+		K:box("MailBody", V3(width, hgt, depth - 0.05), front * CF(0, hgt / 2, -(depth - 0.05) / 2 - 0.05), lk(rgb(178, 182, 188), M.SmoothPlastic, { r = 0.12 }))
 		K:plate("MailTop", width, 0.08, 0.05, front * CF(0, hgt - 0.04, -0.05), Look.chrome)
 		K:plate("MailKick", width - 0.04, 0.4, 0.05, front * CF(0, 0.2, -0.05), Look.charcoal)
 		local cols = math.clamp(math.floor(width / 0.95), 3, 9)
@@ -4118,7 +4118,7 @@ local function mailboxSkin(K: any, V: any, r: any)
 				local x = -width / 2 + 0.1 + cw * (cx - 0.5)
 				local y = 0.55 + rh * (ry - 0.5)
 				local door = front * CF(x, y, -0.05)
-				K:plate("MailDoor", cw - 0.06, rh - 0.06, 0.04, door, lk(rgb(196, 198, 202), M.Metal, { r = 0.06 }))
+				K:plate("MailDoor", cw - 0.06, rh - 0.06, 0.04, door, lk(rgb(214, 216, 220), M.SmoothPlastic, { r = 0.1 }))
 				if hi(K) or (cx + ry) % 2 == 0 then
 					K:plate("MailSlot", (cw - 0.06) * 0.62, 0.05, 0.045, door * CF(0, rh * 0.28, 0), Look.charcoal)
 				end
@@ -4137,6 +4137,20 @@ end
 local function stepLobby(K: any, V: any, B: any, ctx: any)
 	for _, r in V.byName.Mailboxes or {} do
 		mailboxSkin(K, V, r)
+	end
+	-- 맵 매입등(Downlight, 빛 없음) 위에 빛나는 원판 + 불빛 몇 개 (로비가 너무 어둡지 않게)
+	local nl = 0
+	for _, r in V.byName.Downlight or {} do
+		if nl < 3 and #K.lights < (V.maxLights or 8) - 1 then
+			local disc
+			K:free(function()
+				disc = K:disc("DownlightGlow", math.max(r.size.X, r.size.Z) * 0.8, 0.04, CF(r.c.X, r.min.Y - 0.01, r.c.Z), Look.lampWarm)
+			end)
+			if disc then
+				K:light(disc, "PointLight", { Range = 13, Brightness = 0.7, Color = rgb(255, 228, 190) })
+				nl += 1
+			end
+		end
 	end
 	-- 엘리베이터 벽 (ElevatorHead 가 붙은 벽)
 	local heads = V.byName.ElevatorHead or {}
