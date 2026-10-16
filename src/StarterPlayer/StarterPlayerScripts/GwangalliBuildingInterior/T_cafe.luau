@@ -4143,6 +4143,9 @@ end
 --   우편함 (맵 Mailboxes 같은 자세 스테인리스 리스킨: 호수 문 · 투입구 · 번호) · 층별 안내판 · 엘리베이터 안내판 ·
 --   15F 카페 입간판 · 콘솔 테이블 (화병 · 메뉴 카드) · 관리사무소 게시판
 local function mailboxSkin(K: any, V: any, r: any)
+	if not room(K, 120) then
+		return
+	end
 	local lines = {}
 	for _, q in V.byName.MailboxLine or {} do
 		table.insert(lines, q)
