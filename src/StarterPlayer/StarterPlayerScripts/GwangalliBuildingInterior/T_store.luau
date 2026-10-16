@@ -2682,6 +2682,56 @@ local function displayTable(K: any, V: any, kind: string, rng: () -> number)
 	end
 end
 
+-- 맵에 진열 테이블이 없는 기념품 가게 (빵 · 과자 선물 위주): 빈 바닥 가운데에 2단 원목 선물세트 테이블 하나
+local function giftTable(K: any, V: any, rng: () -> number): boolean
+	if V:has("DisplayTable") > 0 or V.W < 18 then
+		return false
+	end
+	local w, d, h = 4.8, 2.4, 2.9
+	local cands = {}
+	local cz = (V.z0 + V.z1) / 2
+	for gx = V.x0 + 4, V.x1 - 4, 1.0 do
+		for _, dz in { -1.2, -0.8, -1.6, 0.8, 1.6, 2.4 } do
+			table.insert(cands, V3(gx, 0, cz + dz))
+		end
+	end
+	local px = V.x0 + V.W * 0.3
+	table.sort(cands, function(a, b)
+		return math.abs(a.X - px) + math.abs(a.Z - cz) < math.abs(b.X - px) + math.abs(b.Z - cz)
+	end)
+	local pcf = floorSpot(K, cands, V3(w, h, d), V3(0, 0, 1), 1.1, "gifttable")
+	if not pcf then
+		return false
+	end
+	local top = 2.75
+	K:box("StGTTop", V3(w, 0.14, d), pcf * CF(0, top - 0.07, 0), Look.oak)
+	K:box("StGTApron", V3(w - 0.2, 0.3, d - 0.2), pcf * CF(0, top - 0.29, 0), Look.walnut)
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:box("StGTLeg", V3(0.18, top - 0.14, 0.18), pcf * CF(sx * (w / 2 - 0.2), (top - 0.14) / 2, sz * (d / 2 - 0.2)), Look.walnut)
+		end
+	end
+	K:box("StGTShelf", V3(w - 0.3, 0.1, d - 0.3), pcf * CF(0, 0.5, 0), Look.oak)
+	for i = 0, 2 do
+		K:box("StGTStock", V3(1.3, 0.62, d - 0.6), pcf * CF(-w / 2 + 0.95 + i * (w - 1.9) / 2, 0.86, 0), Look.kraft)
+		K:plate("StGTStockLabel", 0.7, 0.24, 0.01, pcf * CF(-w / 2 + 0.95 + i * (w - 1.9) / 2, 0.9, (d - 0.6) / 2), lk(C(250, 250, 248)))
+	end
+	-- 가운데 단 (계단식 진열): 뒤쪽이 높게
+	K:box("StGTRiser", V3(w - 0.8, 0.5, 0.8), pcf * CF(0, top + 0.25, 0), Look.lightOak)
+	K:free(function()
+		local f1 = { cf = pcf * CF(0, top, d / 2 - 0.05), len = w - 0.4, depth = d / 2 - 0.5, clear = 1.4, rail = false, level = 2, levels = 3 }
+		fillSurf(K, f1, "busan", rng, {}, { back = false, facing = 1 })
+		local f2 = { cf = pcf * ANG(0, PI, 0) * CF(0, top, d / 2 - 0.05), len = w - 0.4, depth = d / 2 - 0.5, clear = 1.4, rail = false, level = 1, levels = 3 }
+		fillSurf(K, f2, "busan", rng, {}, { back = false, facing = 1 })
+		local f3 = { cf = pcf * CF(0, top + 0.5, 0.4), len = w - 1.0, depth = 0.7, clear = 1.0, rail = false, level = 3, levels = 3 }
+		fillSurf(K, f3, "gift", rng, {}, { back = false, facing = 1 })
+	end)
+	txt(K, "StGTSign", 1.9, 0.62, pcf * CF(0, top - 0.3, d / 2 + 0.01), "부산 기념 선물세트\n12,000 ~ 35,000원", WHITE, C(30, 60, 120), { d = 0.02, font = Enum.Font.GothamBold })
+	txt(K, "StGTPop", 1.0, 0.7, pcf * CF(w / 2 - 0.7, top + 1.15, 0.2), "BEST\n선물 1위", C(30, 60, 120), C(255, 214, 90), { d = 0.04, font = Enum.Font.GothamBlack })
+	K:box("StGTPopStem", V3(0.06, 0.6, 0.06), pcf * CF(w / 2 - 0.7, top + 0.5, 0.18), Look.chrome)
+	return true
+end
+
 -- 기념품 · 비치 벽 (맵 WallRack 앞면의 Goods 자리): 유공보드 + 걸이 상품 + 선반
 local function goodsWall(K: any, V: any, kind: string, rng: () -> number)
 	local wr = V:first("WallRack")
@@ -3153,6 +3203,9 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 		end)
 		step(K, "table", function()
 			displayTable(K, V, sub, rng)
+			if not beach and giftTable(K, V, rng) then
+				note(K, "gift table")
+			end
 		end)
 		step(K, "cashier", function()
 			for _, g in V.counters do

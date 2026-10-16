@@ -3,15 +3,12 @@
 -- rows "38262 | 민락동 치킨송 / 바삭즈 · 댄스 · 1:08 · ★★☆ · 혼성 | [예약] [♥]", a detail panel with lyric
 -- preview, 내 최고 점수, [우선예약] [듀엣 예약]. Opened from the lobby catalog stand it is read-only.
 
-local Players = game:GetService("Players")
-
 local Book = {}
 
 local K: any
 local S: any
 local Kit: any
 local Rooms: any
-local player = Players.LocalPlayer
 
 local sheet: any
 local search: TextBox
@@ -318,7 +315,6 @@ function Book.init(k: any)
 		search.Text = ""
 	end })
 	local pending = false
-	search:GetPropertyChangedSignal("Text").Changed:Connect(function() end)
 	search:GetPropertyChangedSignal("Text"):Connect(function()
 		if #search.Text > 24 then
 			search.Text = string.sub(search.Text, 1, 24)
