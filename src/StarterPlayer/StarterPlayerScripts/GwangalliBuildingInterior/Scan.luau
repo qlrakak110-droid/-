@@ -295,6 +295,89 @@ local function isDoorModel(m: Instance): boolean
 	return m:IsA("Model") and (m.Name == "AutoDoor" or string.sub(m.Name, 1, 9) == "AutoDoor_" or CollectionService:HasTag(m, "AutoDoor"))
 end
 
+-- fit 공통 뒷부분: 역할 분류 · NPC · 출입문 · 묶음 · 비울 공간 · 벽 정보
+local function finishFit(V: any, model: Instance, frame: CFrame, doorsM: { Model }): (any?, string?)
+	-- 역할: 가구 · 천장 · 벽 부착 · 문 · 포인트
+	local inside = function(r): boolean
+		return r.c.X > V.x0 - 0.3 and r.c.X < V.x1 + 0.3 and r.c.Z > V.z0 - 0.3 and r.c.Z < V.z1 + 0.3
+	end
+	for _, r in V.parts do
+		local p: BasePart = r.part
+		local anc = p.Parent
+		local isDoorLeaf = DOORS[r.name] or (anc ~= nil and isDoorModel(anc))
+		r.door = isDoorLeaf
+		if isPoint(r.name) or CollectionService:HasTag(p, "GwShopPoint") or CollectionService:HasTag(p, "GwShopSpot") or CollectionService:HasTag(p, "GwJobStation") then
+			r.point = true
+			table.insert(V.points, r)
+		elseif r.shell or isDoorLeaf then
+			-- 쉘
+		elseif inside(r) and p.Transparency < 0.99 then
+			local nearWall = math.min(r.min.X - V.x0, V.x1 - r.max.X, r.min.Z - V.z0) < 1.4
+			if r.min.Y > V.H - 3.2 and r.min.Y > 4.5 then
+				table.insert(V.hang, r)
+			elseif r.min.Y > 2.2 and nearWall and r.size.Y < 6 then
+				table.insert(V.wallItems, r)
+			elseif r.size.X * r.size.Z > 0.02 or r.size.Y > 0.5 then
+				table.insert(V.solid, r)
+			end
+		end
+	end
+	-- NPC 모형 (Humanoid · 이름)
+	for _, d in (V.npcScope or model):GetDescendants() do
+		if d:IsA("Model") and (d:FindFirstChildOfClass("Humanoid") or CollectionService:HasTag(d, "GwShopClerk") or d.Name == "VenueStaff" or d.Name == "Staff") then
+			local cf, s = d:GetBoundingBox()
+			local lc = frame:ToObjectSpace(cf)
+			local mn, mx = laabb(lc, s)
+			if not V.roomBox or (lc.X > V.x0 - 2 and lc.X < V.x1 + 2 and lc.Z > V.z0 - 2 and lc.Z < V.z1 + 2 and lc.Y > -2 and lc.Y < V.H + 2) then
+				table.insert(V.npcs, { model = d, min = mn, max = mx })
+			end
+		end
+	end
+
+	-- 출입문
+	for _, dm in doorsM do
+		local cf, s = dm:GetBoundingBox()
+		local mn, mx = laabb(frame:ToObjectSpace(cf), s)
+		table.insert(V.doors, { model = dm, x = (mn.X + mx.X) / 2, z = (mn.Z + mx.Z) / 2, w = math.max(mx.X - mn.X, mx.Z - mn.Z), min = mn, max = mx, auto = true })
+	end
+	if #V.doors == 0 then
+		for _, r in V.parts do
+			if (r.name == "Door" or r.name == "GlassDoor" or r.name == "ShopDoor" or r.name == "LobbyDoor" or r.name == "EntranceDoor") and r.size.Y > 5 then
+				table.insert(V.doors, { x = r.c.X, z = r.c.Z, w = math.max(r.size.X, r.size.Z), min = r.min, max = r.max })
+			end
+		end
+	end
+	local best = nil
+	for _, d in V.doors do
+		if d.z > 0 and (not best or d.z > best.z) then
+			best = d
+		end
+	end
+	V.door = best or V.doors[1]
+	if not V.door and V.doorSpec then
+		local d = V.doorSpec
+		V.door = { x = d.x, z = d.z, w = d.w or 5, min = Vector3.new(d.x - (d.w or 5) / 2, 0, d.z - 0.2), max = Vector3.new(d.x + (d.w or 5) / 2, 8, d.z + 0.2), guessed = true }
+		table.insert(V.doors, V.door)
+	end
+	if not V.door and not V.noDoorGuess then
+		-- 자동문이 없는 매장 (GwShop · 셔터 · 개방형 포차): 앞면 가운데를 입구로 보고 비워 둠
+		local w = math.clamp(V.W * 0.35, 4.8, 9)
+		V.door = { x = (V.x0 + V.x1) / 2, z = V.z1, w = w, min = Vector3.new(-w / 2, 0, V.z1 - 0.2), max = Vector3.new(w / 2, 8, V.z1 + 0.2), guessed = true }
+		table.insert(V.doors, V.door)
+	end
+
+	Scan.families(V)
+	Scan.keepouts(V)
+	-- 벽 정보
+	V.walls = {
+		back = { len = V.W, a = V.x0 - (V.x0 + V.x1) / 2, b = V.x1 - (V.x0 + V.x1) / 2, n = WALL_AXES.back.n },
+		front = { len = V.W, a = -(V.x1 - (V.x0 + V.x1) / 2), b = -(V.x0 - (V.x0 + V.x1) / 2), n = WALL_AXES.front.n },
+		left = { len = V.D, a = -(V.z1 - (V.z0 + V.z1) / 2), b = -(V.z0 - (V.z0 + V.z1) / 2), n = WALL_AXES.left.n },
+		right = { len = V.D, a = V.z0 - (V.z0 + V.z1) / 2, b = V.z1 - (V.z0 + V.z1) / 2, n = WALL_AXES.right.n },
+	}
+	return V, nil
+end
+
 -- 한 매장 맞추기 -------------------------------------------------------------------------------------
 function Scan.fit(model: Model, opts: any?): (any?, string?)
 	local o: any = opts or {}
@@ -461,78 +544,72 @@ function Scan.fit(model: Model, opts: any?): (any?, string?)
 	end
 	V.counts = counts
 
-	-- 역할: 가구 · 천장 · 벽 부착 · 문 · 포인트
-	local inside = function(r): boolean
-		return r.c.X > V.x0 - 0.3 and r.c.X < V.x1 + 0.3 and r.c.Z > V.z0 - 0.3 and r.c.Z < V.z1 + 0.3
-	end
-	for _, r in V.parts do
-		local p: BasePart = r.part
-		local anc = p.Parent
-		local isDoorLeaf = DOORS[r.name] or (anc ~= nil and isDoorModel(anc))
-		r.door = isDoorLeaf
-		if isPoint(r.name) or CollectionService:HasTag(p, "GwShopPoint") or CollectionService:HasTag(p, "GwShopSpot") or CollectionService:HasTag(p, "GwJobStation") then
-			r.point = true
-			table.insert(V.points, r)
-		elseif r.shell or isDoorLeaf then
-			-- 쉘
-		elseif inside(r) and p.Transparency < 0.99 then
-			local nearWall = math.min(r.min.X - V.x0, V.x1 - r.max.X, r.min.Z - V.z0) < 1.4
-			if r.min.Y > V.H - 3.2 and r.min.Y > 4.5 then
-				table.insert(V.hang, r)
-			elseif r.min.Y > 2.2 and nearWall and r.size.Y < 6 then
-				table.insert(V.wallItems, r)
-			elseif r.size.X * r.size.Z > 0.02 or r.size.Y > 0.5 then
-				table.insert(V.solid, r)
+	return finishFit(V, model, frame, doorsM)
+end
+
+
+-- 큰 시설의 방 하나 맞추기 (ShopFloor 가 없는 PC방 · 노래방 · 편의점 본점 · 볼링장 층 ...).
+-- spec = { cf (방 바닥 윗면 가운데, -Z = 뒷벽 쪽, +Z = 입구 쪽), size = Vector3(W, H, D) 안쪽 크기,
+--   type, name, key, room (방 이름), kind ("venue"), margin (상자 밖 포함 여유, 기본 0.6), door = { x, z, w } (로컬, 선택),
+--   noDoorGuess (true = 입구를 추측하지 않음), parts = { BasePart }? (기본: model 자손 중 상자 안) }
+function Scan.fitRoom(model: Instance, spec: any): (any?, string?)
+	local frame: CFrame = spec.cf
+	local W, H, D = spec.size.X, spec.size.Y, spec.size.Z
+	local m = spec.margin or 0.6
+	local V: any = setmetatable({}, Vm)
+	V.model = model
+	V.name = spec.name or (model:GetAttribute("DisplayName") :: any) or model.Name
+	V.cf = frame
+	V.slFrame = frame
+	V.key = spec.key or string.format("%s#%s@%d,%d", model.Name, tostring(spec.room or "room"), math.floor(frame.X + 0.5), math.floor(frame.Z + 0.5))
+	V.kind = spec.kind or "venue"
+	V.room = spec.room
+	V.roomBox = true
+	V.noBin = true
+	V.noDoorGuess = spec.noDoorGuess
+	V.doorSpec = spec.door
+	V.keep, V.parts, V.byName, V.solid, V.hang, V.wallItems, V.points, V.npcs, V.doors = {}, {}, {}, {}, {}, {}, {}, {}, {}
+	V.x0, V.x1, V.z0, V.z1 = -W / 2, W / 2, -D / 2, D / 2
+	V.H, V.ceil, V.W, V.D = H, H, W, D
+	V.type, V.menu = spec.type, spec.menu
+	local counts: { [string]: number } = {}
+	local doorsM: { Model } = {}
+	local list = spec.parts
+	if not list then
+		list = {}
+		for _, d in model:GetDescendants() do
+			if d:IsA("BasePart") then
+				table.insert(list, d)
+			elseif isDoorModel(d) then
+				local p = frame:PointToObjectSpace(d:GetPivot().Position)
+				if p.X > V.x0 - 2 and p.X < V.x1 + 2 and p.Z > V.z0 - 2 and p.Z < V.z1 + 2 then
+					table.insert(doorsM, d :: Model)
+				end
 			end
 		end
 	end
-	-- NPC 모형 (Humanoid · 이름)
-	for _, d in model:GetDescendants() do
-		if d:IsA("Model") and (d:FindFirstChildOfClass("Humanoid") or CollectionService:HasTag(d, "GwShopClerk") or d.Name == "VenueStaff" or d.Name == "Staff") then
-			local cf, s = d:GetBoundingBox()
-			local lc = frame:ToObjectSpace(cf)
-			local mn, mx = laabb(lc, s)
-			table.insert(V.npcs, { model = d, min = mn, max = mx })
-		end
-	end
-
-	-- 출입문
-	for _, dm in doorsM do
-		local cf, s = dm:GetBoundingBox()
-		local mn, mx = laabb(frame:ToObjectSpace(cf), s)
-		table.insert(V.doors, { model = dm, x = (mn.X + mx.X) / 2, z = (mn.Z + mx.Z) / 2, w = math.max(mx.X - mn.X, mx.Z - mn.Z), min = mn, max = mx, auto = true })
-	end
-	if #V.doors == 0 then
-		for _, r in V.parts do
-			if (r.name == "Door" or r.name == "GlassDoor" or r.name == "ShopDoor" or r.name == "LobbyDoor" or r.name == "EntranceDoor") and r.size.Y > 5 then
-				table.insert(V.doors, { x = r.c.X, z = r.c.Z, w = math.max(r.size.X, r.size.Z), min = r.min, max = r.max })
+	for _, p in list do
+		local lcf = frame:ToObjectSpace(p.CFrame)
+		local c = lcf.Position
+		if c.X > V.x0 - m and c.X < V.x1 + m and c.Z > V.z0 - m and c.Z < V.z1 + m and c.Y > -1.5 and c.Y < H + 1.5 then
+			local mn, mx = laabb(lcf, p.Size)
+			local rec = { part = p, name = p.Name, min = mn, max = mx, c = (mn + mx) / 2, size = mx - mn, lcf = lcf }
+			rec.shell = SHELL[p.Name] == true or string.sub(p.Name, 1, 5) == "Sign_" or string.sub(p.Name, 1, 6) == "Awning"
+				or (mx.X - mn.X > W * 0.8 and mx.Y - mn.Y < 0.8) or (mx.Z - mn.Z > D * 0.8 and mx.Y - mn.Y < 0.8)
+				or (mx.Y - mn.Y > H * 0.7 and (mx.X - mn.X > W * 0.6 or mx.Z - mn.Z > D * 0.6))
+			table.insert(V.parts, rec)
+			local l = V.byName[p.Name]
+			if not l then
+				l = {}
+				V.byName[p.Name] = l
 			end
+			table.insert(l, rec)
+			counts[p.Name] = (counts[p.Name] or 0) + 1
 		end
 	end
-	local best = nil
-	for _, d in V.doors do
-		if d.z > 0 and (not best or d.z > best.z) then
-			best = d
-		end
-	end
-	V.door = best or V.doors[1]
-	if not V.door then
-		-- 자동문이 없는 매장 (GwShop · 셔터 · 개방형 포차): 앞면 가운데를 입구로 보고 비워 둠
-		local w = math.clamp(V.W * 0.35, 4.8, 9)
-		V.door = { x = (V.x0 + V.x1) / 2, z = V.z1, w = w, min = Vector3.new(-w / 2, 0, V.z1 - 0.2), max = Vector3.new(w / 2, 8, V.z1 + 0.2), guessed = true }
-		table.insert(V.doors, V.door)
-	end
-
-	Scan.families(V)
-	Scan.keepouts(V)
-	-- 벽 정보
-	V.walls = {
-		back = { len = V.W, a = V.x0 - (V.x0 + V.x1) / 2, b = V.x1 - (V.x0 + V.x1) / 2, n = WALL_AXES.back.n },
-		front = { len = V.W, a = -(V.x1 - (V.x0 + V.x1) / 2), b = -(V.x0 - (V.x0 + V.x1) / 2), n = WALL_AXES.front.n },
-		left = { len = V.D, a = -(V.z1 - (V.z0 + V.z1) / 2), b = -(V.z0 - (V.z0 + V.z1) / 2), n = WALL_AXES.left.n },
-		right = { len = V.D, a = V.z0 - (V.z0 + V.z1) / 2, b = V.z1 - (V.z0 + V.z1) / 2, n = WALL_AXES.right.n },
-	}
-	return V, nil
+	V.counts = counts
+	V.npcScope = spec.npcScope or model
+	return finishFit(V, model, frame, doorsM)
 end
 
 -- 리스킨용 묶음 -------------------------------------------------------------------------------------
@@ -755,7 +832,7 @@ function Scan.keepouts(V: any)
 	-- 5) 앞 유리 안쪽 띠: 낮게만 (시트지 · 포스터가 보이게)
 	V:addKeep(Vector3.new(V.x0 - 1, 3.4, V.z1 - 1.8), Vector3.new(V.x1 + 1, H, V.z1 + 0.5), "window")
 	-- 6) ShopLife 쓰레기통 · 정수기 예정 자리 (Scan.freeSpot 과 같은 계산, ShopLife 프레임 +Z 쪽)
-	if not V:first("Bin") and not V:first("TrashBin") then
+	if not V.noBin and not V:first("Bin") and not V:first("TrashBin") then
 		for _, f in { 0.38, -0.38 } do
 			local w = V.slFrame * CFrame.new(V.W * f, 0, V.D / 2 - 0.9)
 			local l = V.cf:PointToObjectSpace(w.Position)

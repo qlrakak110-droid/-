@@ -39,6 +39,8 @@ def main():
     src_html, out_html = sys.argv[1], sys.argv[2]
     html, report = pcg.patch(open(src_html, encoding="utf-8").read(), extra_hooks=CABIN_HOOKS)
     tree = walk(os.environ.get("CABIN_SRC") or os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliCarInterior"))
+    bdir = os.environ.get("BLD_SRC") or os.path.join(ROOT, "src/StarterPlayer/StarterPlayerScripts/GwangalliBuildingInterior")
+    btree = walk(bdir) if os.path.isdir(bdir) else None
     code = BUILD + "local t = " + to_luau(tree) + '''
 local ps; Sched.runIn(Env.serverCtx, function() ps = S.player and S.player:FindFirstChildOfClass("PlayerScripts") end)
 if not ps then return "no PlayerScripts" end
@@ -48,11 +50,23 @@ put(t, ps)
 local sc = ps:FindFirstChild("GwangalliCarInterior")
 if sc then sc:SetAttribute("MaxCabins", 1) end
 return "ok"'''
+    # 건물 실내 (GwangalliBuildingInterior): 같은 방식으로 PlayerScripts 에 넣고, 임시 스튜디오에서는 매장 1곳만 유지
+    bcode = None
+    if btree:
+        bcode = BUILD + "local t = " + to_luau(btree) + '''
+local ps; Sched.runIn(Env.serverCtx, function() ps = S.player and S.player:FindFirstChildOfClass("PlayerScripts") end)
+if not ps then return "no PlayerScripts" end
+if ps:FindFirstChild("GwangalliBuildingInterior") then return "already" end
+put(t, ps)
+local sc = ps:FindFirstChild("GwangalliBuildingInterior")
+if sc then sc:SetAttribute("MaxVenues", 1) end
+return "ok"'''
     js = '''<script>
 /* 차량 AAA 실내 + 틴팅 유리: GwangalliCarInterior (Luau) 를 실행 중인 place 에 넣음 (tools/build_studio_cabin.py) */
 (function () {
   window.GWCabinLuau = true;
   var code = %s;
+  var bcode = %s;
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   async function run() {
     for (var i = 0; i < 600; i++) {
@@ -65,15 +79,19 @@ return "ok"'''
     for (var k = 0; k < 180; k++) {
       var r;
       try { r = await GW.engine.eval(code); } catch (e) { console.error('[CarInterior] inject failed', e); return; }
-      if (r !== 'no PlayerScripts') { console.log('[CarInterior] inject:', r); return; }
+      if (r !== 'no PlayerScripts') { console.log('[CarInterior] inject:', r); break; }
       await wait(1000);
+    }
+    if (bcode) {
+      try { console.log('[BuildingInterior] inject:', await GW.engine.eval(bcode)); } catch (e) { console.error('[BuildingInterior] inject failed', e); }
+      return;
     }
     console.warn('[CarInterior] no PlayerScripts; not injected');
   }
   run();
 })();
 </script>
-''' % json.dumps(code, ensure_ascii=False).replace("</", "<\\/")
+''' % (json.dumps(code, ensure_ascii=False).replace("</", "<\\/"), json.dumps(bcode, ensure_ascii=False).replace("</", "<\\/"))
     i = html.rfind("</body>")
     html = html[:i] + js + html[i:] if i >= 0 else html + js
     open(out_html, "w", encoding="utf-8").write(html)

@@ -20,6 +20,7 @@ local Workspace = game:GetService("Workspace")
 
 local Scan = require(script:WaitForChild("Scan"))
 local Build = require(script:WaitForChild("Build"))
+local Venues = require(script:WaitForChild("Venues"))
 
 local player = Players.LocalPlayer
 
@@ -85,6 +86,8 @@ root.Parent = Workspace
 -- 후보 매장 ----------------------------------------------------------------------------------------
 type Rec = {
 	model: Model,
+	spec: any?, -- 큰 시설의 방 (Venues): Scan.fitRoom 용 spec
+	room: any?,
 	center: Vector3?,
 	half: Vector3?,
 	built: any?,
@@ -95,7 +98,7 @@ type Rec = {
 	nParts: number,
 	conns: { RBXScriptConnection },
 }
-local recs: { [Model]: Rec } = {}
+local recs: { [any]: Rec } = {} -- 매장: Model 키, 큰 시설의 방: spec.key 문자열 키
 local SKIP_ROOTS = { "club", "bowling", "garage", "hospital", "homes", "npcnav", "zones" }
 
 local function skipped(m: Instance): boolean
@@ -223,6 +226,26 @@ local function annexScan(pos: Vector3)
 	end
 end
 
+-- 큰 시설 (PC방 · 노래방 · GS25 본점 · 딜리버리 ...): 방마다 후보 하나 (스트리밍으로 늦게 오면 다음 검사 때)
+local function venueScan()
+	for _, f in Venues.find() do
+		local spec = Venues.spec(f.model, f.venue, f.room)
+		if not recs[spec.key] and not skipped(f.model) then
+			local r = f.room
+			local rec: Rec = { model = f.model, spec = spec, room = r, building = false, failedAt = -1e9, nParts = 0, conns = {} }
+			rec.center = r.center + Vector3.new(0, 4, 0)
+			rec.half = Vector3.new(r.size.X / 2, 6, r.size.Z / 2)
+			recs[spec.key] = rec
+		end
+	end
+end
+task.spawn(function()
+	for _ = 1, 40 do
+		pcall(venueScan)
+		task.wait(6)
+	end
+end)
+
 -- 거리 계산용 바닥 상자
 local function boxOf(rec: Rec): (Vector3?, Vector3?)
 	if rec.center then
@@ -297,7 +320,15 @@ local function build(rec: Rec)
 				end
 			end
 		end
-		local V, why = Scan.fit(rec.model)
+		local V, why
+		if rec.spec then
+			V, why = Scan.fitRoom(rec.model, rec.spec)
+			if V then
+				Venues.post(V, rec.room)
+			end
+		else
+			V, why = Scan.fit(rec.model)
+		end
 		if not V then
 			error(why or "fit failed", 0)
 		end
@@ -387,8 +418,8 @@ local function step()
 	-- 가장 가까운 후보 찾기
 	local best, bd = nil, CFG.buildR
 	local now = os.clock()
-	for m, rec in recs do
-		if not m.Parent then
+	for _, rec in recs do
+		if not rec.model.Parent then
 			continue
 		end
 		if rec.built or rec.building then
