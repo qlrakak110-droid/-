@@ -3782,6 +3782,258 @@ BUILD.treat = function(K: any, V: any)
 	K.clinicCommon = { clock = false }
 end
 
+-- 게시판 (코르크 + 공지문), dcf. 반환 공지 TextLabel (넘겨보기)
+local function bulletinBoard(K: any, dcf: CFrame, w: number, h: number, title: string, notes: { { string } }): TextLabel?
+	K:plate("BoardFrame", w + 0.2, h + 0.2, 0.08, dcf, lk(120, 96, 70, M.Wood))
+	K:plate("BoardCork", w, h, 0.1, dcf, lk(176, 136, 96, M.Fabric))
+	K:plate("BoardHeader", w, 0.6, 0.11, dcf * CF(0, h / 2 - 0.3, 0), col(TEAL))
+	tx(K, "BoardTitle", w - 0.4, 0.45, dcf * CF(0, h / 2 - 0.3, 0.115), title, WHITE, nil, { font = FONT_K })
+	local n = #notes
+	local cols = math.min(4, n)
+	local nw = (w - 0.4) / cols - 0.25
+	local lab
+	for i, nt in notes do
+		local cx = -w / 2 + 0.2 + ((i - 1) % cols + 0.5) * (w - 0.4) / cols
+		local cy = -0.4 - (((i - 1) // cols) * 1.6)
+		local pc = dcf * CF(cx, cy + h / 2 - 1.6, 0.1) * ANG(0, 0, ((i * 7) % 5 - 2) * 0.02)
+		local _, l = tx(K, "BoardNote", nw, 1.5, pc, nt[1], INK, nt[2] and C3(255, 248, 190) or C3(250, 250, 246), { font = FONT_M, d = 0.01 })
+		K:ball("BoardPin", 0.1, pc * CF(0, 0.65, 0.03), col(({ C3(220, 40, 40), C3(40, 120, 220), C3(40, 170, 80) })[(i - 1) % 3 + 1]))
+		if i == 1 then
+			lab = l
+		end
+	end
+	return lab
+end
+
+-- 1F 후면 홀 (계단 · 엘리베이터 · 화장실 · 비상구) --------------------------------------------------------------------
+BUILD.backhall = function(K: any, V: any)
+	local steps = V.byName.Step or {}
+	local sx0, sx1, sz0, sz1 = math.huge, -math.huge, math.huge, -math.huge
+	for _, r in steps do
+		sx0 = math.min(sx0, r.min.X)
+		sx1 = math.max(sx1, r.max.X)
+		sz0 = math.min(sz0, r.min.Z)
+		sz1 = math.max(sz1, r.max.Z)
+	end
+	step(K, "ceiling", function()
+		local vd = if #steps > 0 then { sx0 + 6, sz0 - 0.6, sx1 + 0.6, sz1 + 0.6 } else nil
+		ceilingKit(K, V, { lights = 7, void = vd, every = 3 })
+	end)
+	step(K, "floor", function()
+		floorKit(K, V, { look = lk(228, 226, 220, M.Marble), grout = lk(190, 188, 182), tile = 2.04 })
+		baseKit(K, V, { "back", "left", "right", "front" })
+		lowerWall(K, V, { "back", "front" }, 3.0)
+		-- 바닥 유도선 (초록 = 비상구)
+		K:free(function()
+			K:box("FloorGuideGreen", V3(30, 0.025, 0.4), CF(V.x0 + 16, 0.016, 6.6), col(GREEN_EXIT))
+			for i = 0, 5 do
+				tx(K, "FloorGuideArrow", 1.6, 0.36, CFrame.fromMatrix(Vector3.new(V.x0 + 4 + i * 5, 0.03, 6.6), Vector3.xAxis, -Vector3.zAxis, Vector3.yAxis), "◀ 비상구", WHITE, nil, { d = 0.005, free = true })
+			end
+		end)
+	end)
+	-- 계단: 디딤판 미끄럼방지 · 옆판 (스트링거) -------------------------------------------------------------
+	step(K, "stairs", function()
+		if #steps == 0 then
+			return
+		end
+		table.sort(steps, function(a, b)
+			return a.max.Y < b.max.Y
+		end)
+		local zA, zB = sz0 + 0.08, sz1 - 0.08
+		local zc, zw = (zA + zB) / 2, zB - zA
+		K:free(function()
+			for _, r in steps do
+				local y = r.max.Y
+				if y < V.H - 0.2 then
+					local x = r.min.X
+					K:box("StairNosing", V3(0.3, 0.05, zw), CF(x + 0.15, y + 0.02, zc), lk(60, 62, 66, M.Rubber))
+					K:box("StairNosingLine", V3(0.06, 0.055, zw), CF(x + 0.05, y + 0.022, zc), col(C3(250, 200, 40)))
+					K:box("StairTread", V3(r.size.X - 0.3, 0.02, zw), CF(x + 0.3 + (r.size.X - 0.3) / 2, y + 0.008, zc), lk(206, 204, 198, M.Granite))
+				end
+			end
+			-- 옆판: 경사 띠 (양쪽)
+			local first, last = steps[1], steps[#steps]
+			local a = Vector3.new(first.min.X, first.max.Y - 0.6, 0)
+			local b = Vector3.new(last.max.X, last.max.Y - 0.6, 0)
+			for _, z in { sz0 - 0.06, sz1 + 0.06 } do
+				K:bar("StairStringer", Vector3.new(a.X, a.Y, z), Vector3.new(b.X, b.Y, z), 0.1, 1.2, lk(236, 236, 232))
+				K:bar("StairStringerLine", Vector3.new(a.X, a.Y + 0.62, z), Vector3.new(b.X, b.Y + 0.62, z), 0.12, 0.08, col(TEAL))
+			end
+		end)
+		-- 계단 아래 안내
+		local d = faceCF(Vector3.new(sx0 - 0.4, 5.4, (sz0 + sz1) / 2), -Vector3.xAxis)
+		K:free(function()
+			K:box("StairSignPost", V3(0.16, 4.8, 0.16), CF(sx0 - 1.0, 2.4, sz1 - 0.6), lk(70, 74, 78, M.Metal))
+			K:box("StairSignFoot", V3(1.0, 0.1, 1.0), CF(sx0 - 1.0, 0.05, sz1 - 0.6), lk(70, 74, 78, M.Metal))
+			roomSign(K, faceCF(Vector3.new(sx0 - 1.1, 5.2, sz1 - 0.6), -Vector3.xAxis), 3.0, 1.4, "2F  ↑", "입원실 · 건강검진 · 휴게실", {})
+		end)
+		_ = d
+	end)
+	-- 벤치 (연결 의자) ------------------------------------------------------------------------------------------
+	step(K, "bench", function()
+		local g = {}
+		for _, ch in V.chairs do
+			if ch.seat.name == "BenchSeat" then
+				table.insert(g, ch)
+			end
+		end
+		beamChairs(K, g, { seat = LK.vinylTeal })
+	end)
+	-- 비상구 · 소화전 · 대피도 ----------------------------------------------------------------------------------
+	step(K, "exit", function()
+		local es = V:first("ExitSign")
+		if es then
+			hideRec(K, es)
+			K:free(function()
+				local d = faceCF(Vector3.new(V.x0 + 0.01, es.c.Y, es.c.Z), Vector3.xAxis)
+				local lamp = exitSign(K, d, 2.6, "→")
+				K:light(lamp, "SurfaceLight", { Face = Enum.NormalId.Back, Range = 6, Brightness = 0.5, Angle = 120, Color = GREEN_EXIT })
+			end)
+		end
+		local d2 = wallSpot(K, "left", 2.8, 1.9, 6.3, wallU("left", Vector3.new(0, 0, -5.4)), 0.8)
+		if d2 then
+			hydrantBox(K, d2)
+		end
+		local d3 = wallSpot(K, "front", 4.6, 4.2, 7.6, wallU("front", Vector3.new(-40, 0, 0)), 0.6)
+		if d3 then
+			K:plate("EvacFrame", 4.4, 3.2, 0.06, d3, lk(200, 204, 206, M.Metal))
+			K:plate("EvacMap", 4.2, 3.0, 0.07, d3, lk(250, 250, 246))
+			tx(K, "EvacTitle", 4.0, 0.4, d3 * CF(0, 1.25, 0.075), "피난 안내도 · 1층", RED, nil, { font = FONT_K })
+			-- 간단한 평면 (방 상자 + 경로)
+			local rooms = { { -1.3, 0.3, 1.0, 0.9 }, { 0.1, 0.3, 1.2, 0.9 }, { 1.4, 0.3, 1.0, 0.9 }, { -1.3, -0.75, 1.6, 0.7 }, { 0.6, -0.75, 1.6, 0.7 } }
+			for _, rm in rooms do
+				K:plate("EvacRoom", rm[3], rm[4], 0.075, d3 * CF(rm[1], rm[2], 0.002), lk(220, 232, 240))
+			end
+			K:plate("EvacRoute", 3.6, 0.08, 0.08, d3 * CF(0, -0.25, 0.004), col(GREEN_EXIT))
+			K:plate("EvacRoute2", 0.08, 0.9, 0.08, d3 * CF(-1.8, -0.7, 0.004), col(GREEN_EXIT))
+			K:ball("EvacHere", 0.18, d3 * CF(0.4, -0.25, 0.1), col(RED))
+			tx(K, "EvacHereLabel", 1.0, 0.22, d3 * CF(0.4, -0.05, 0.08), "현 위치", RED, nil, { d = 0.005 })
+		end
+	end)
+	-- 게시판 (복도 쪽 벽) -----------------------------------------------------------------------------------
+	step(K, "board", function()
+		local d = wallSpot(K, "front", 9.0, 3.6, 8.2, wallU("front", Vector3.new(34, 0, 0)), 0.6)
+		if not d then
+			note(K, "board: no wall")
+			return
+		end
+		local notes = {
+			{ "병원 소식\n\n10월 독감 예방접종\n시작 (평일 09~18시)", true },
+			{ "주차 안내\n\n진료 고객 2시간 무료\n접수창구 등록", false },
+			{ "채용 공고\n\n병동 간호사 (3교대)\n방사선사 1명", true },
+			{ "분실물 보관\n\n안경 · 우산 · 이어폰\n접수창구 문의", false },
+			{ "금연 구역\n\n병원 건물 · 주차장\n전 구역 금연", false },
+			{ "자원봉사 모집\n\n안내 · 길찾기 도우미\n주 1회 2시간", true },
+			{ "건강강좌\n\n당뇨 바로 알기\n10/24(토) 11시 2층", false },
+			{ "의료급여 · 실손보험\n\n서류 발급 안내\n진료비 영수증 · 세부내역서", false },
+		}
+		local lab = bulletinBoard(K, d, 9.0, 4.4, "광안 메디컬 게시판", notes)
+		if lab then
+			local pages = {
+				"병원 소식\n\n10월 독감 예방접종\n시작 (평일 09~18시)",
+				"병원 소식\n\n11월 3일 (화)\n오후 2시 휴진 (전산 점검)",
+				"병원 소식\n\n건강검진 결과 상담\n2층 검진센터 예약",
+			}
+			local i = 1
+			local notePart = lab.Parent and (lab.Parent :: any).Parent
+			Interact.prompt(K, notePart, {
+				action = "공지 넘겨 보기",
+				object = "게시판",
+				sound = "rbxasset://sounds/swoosh.wav",
+				fn = function()
+					i = i % #pages + 1
+					lab.Text = pages[i]
+				end,
+			})
+		end
+	end)
+	-- 정수기 (물 받기) · 휠체어 보관 · 층별 안내 · 화장실 표지 ----------------------------------------------------
+	step(K, "amenity", function()
+		local pp, u = wallFloorNear(K, "front", wallU("front", Vector3.new(-30, 0, 0)), 2.8, 1.8, 4.8, 4, 0)
+		if pp then
+			local btn = purifier(K, pp, { h = 4.6 })
+			local cupL = { c = C3(250, 250, 250), m = M.SmoothPlastic, t = 1 }
+			local cup = K:vcyl("WaterCup", 0.5, 0.36, pp * CF(0, 1.25, 1.0), cupL)
+			local water = K:vcyl("WaterInCup", 0.02, 0.3, pp * CF(0, 1.02, 1.0), { c = C3(160, 210, 255), m = M.Glass, t = 1 })
+			local c0, w0 = cup.CFrame, water.CFrame
+			local busy = false
+			Interact.prompt(K, btn, {
+				action = "물 받기",
+				object = "정수기",
+				sound = "rbxasset://sounds/electronicpingshort.wav",
+				fn = function()
+					if busy then
+						return
+					end
+					busy = true
+					cup.Transparency = 0
+					water.Transparency = 0.3
+					water.Size = V3(0.02, 0.3, 0.3)
+					water.CFrame = w0
+					TweenService:Create(water, TweenInfo.new(1.6), { Size = V3(0.4, 0.3, 0.3), CFrame = w0 * CF(0.19, 0, 0) }):Play()
+					task.delay(5, function()
+						if cup.Parent then
+							cup.Transparency = 1
+							water.Transparency = 1
+						end
+						busy = false
+					end)
+					_ = c0
+				end,
+			})
+			_ = u
+		end
+		-- 휠체어 보관 (STAFF ONLY 문 왼쪽)
+		local n = 0
+		for _, x in { 4.8, 7.0 } do
+			local wc = floorAt(K, x, V.z0 + 2.0, 0, 2.2, 3.2, 3.8, 0)
+			if wc then
+				wheelchair(K, wc)
+				n += 1
+			end
+		end
+		if n > 0 then
+			local d = wallSpot(K, "back", 3.6, 4.6, 5.8, 5.9, 0.4)
+			if d then
+				K:plate("WheelSign", 3.4, 1.0, 0.05, d, col(NAVY))
+				tx(K, "WheelSignText", 3.2, 0.85, d * CF(0, 0, 0.055), "♿ 휠체어 보관 · 자유롭게 이용하세요", WHITE, nil, { font = FONT_B })
+			end
+		end
+		-- 엘리베이터 옆 층별 안내
+		local d2 = wallSpot(K, "back", 3.6, 3.8, 8.4, 38.6, 0.5)
+		if d2 then
+			K:plate("FloorDirFrame", 3.4, 4.4, 0.06, d2, lk(70, 74, 78, M.Metal))
+			K:plate("FloorDirFace", 3.2, 4.2, 0.07, d2, lk(250, 250, 248))
+			K:plate("FloorDirBand", 3.2, 0.6, 0.075, d2 * CF(0, 1.8, 0), col(TEAL))
+			tx(K, "FloorDirTitle", 3.0, 0.45, d2 * CF(0, 1.8, 0.08), "층별 안내", WHITE, nil, { font = FONT_K })
+			tx(K, "FloorDirR", 3.0, 0.8, d2 * CF(0, 1.0, 0.08), "R   옥상 (관계자 외 출입금지)", GREY_T, nil, { font = FONT_M, align = "Left" })
+			tx(K, "FloorDir2", 3.0, 1.0, d2 * CF(0, 0.1, 0.08), "2F  입원실 201·202 · 간호사실\n      건강검진센터 · 휴게실", INK, nil, { font = FONT_B, align = "Left" })
+			tx(K, "FloorDir1", 3.0, 1.0, d2 * CF(0, -1.2, 0.08), "1F  접수 · 진료실 · 주사실\n      약국 · 화장실", TEAL_D, nil, { font = FONT_B, align = "Left" })
+		end
+		-- 화장실 앞 매단 표지 · 손 소독제
+		hangSign(K, 51.0, -4.6, 6.0, 1.0, 7.8, 0, "🚹 남자 화장실    여자 화장실 🚺", "🚹 남자 화장실    여자 화장실 🚺", { bg = WHITE, fg = NAVY, band = NAVY })
+		local d3 = wallSpot(K, "back", 1.0, 3.4, 4.8, 57.6, 0.6)
+		if d3 then
+			sanitizerWall(K, d3)
+		end
+		hangSign(K, -14.0, 6.9, 5.0, 1.0, 7.8, PI / 2, "← 접수 · 진료실 · 약국", "엘리베이터 · 화장실 →")
+		hangSign(K, -40.0, 3.0, 4.0, 1.0, 7.8, PI / 2, "← 비상구", "← 비상구", { bg = GREEN_EXIT, fg = WHITE, band = darker(GREEN_EXIT, 0.3) })
+	end)
+	-- 손잡이 (복도 쪽 벽 · 바깥벽 문 사이) · 코너 보호대 ---------------------------------------------------------------
+	step(K, "rails", function()
+		handrailSpans(K, "front", 2.9, 3)
+		handrailSpans(K, "back", 2.9, 4)
+		K:free(function()
+			for _, x in { -12.0, 0.4 } do
+				for _, sd in { -1, 1 } do
+					K:box("CornerGuard", V3(0.12, 4.5, 0.6), CF(x + sd * 0.0, 2.6, V.z1 - 0.3), lk(200, 204, 206, M.Plastic))
+				end
+			end
+		end)
+	end)
+	K.clinicCommon = { clock = true }
+end
+
 -- 공통 마감 (방마다 끝에) ------------------------------------------------------------------------------------
 local PLANTS = { "monstera", "ficus", "snake", "olive" }
 

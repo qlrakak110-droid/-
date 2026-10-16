@@ -1191,3 +1191,316 @@ local function kitchenUpper(C: any, st: any, info: any)
 		C:box("UpperCarcass", V3(w, y1 - y0 - 0.02, zf - 0.02), CF((mn.X + mx.X) / 2, (y0 + y1) / 2, (zf - 0.02) / 2), st.carcass)
 	end
 end
+
+-- 가전 리스킨 -------------------------------------------------------------------------------------------------------
+-- 냉장고 (맵 FridgeBody / FridgeDoor 자리 그대로). kind = "single" | "sbs" (양문형 4도어) | "kimchi" | "column" (빌트인)
+local function fridgeReskin(C: any, mn: Vector3, mx: Vector3, doorZ: number, kind: string, base: Color3, info: any): any
+	local w, h = mx.X - mn.X, mx.Y - mn.Y
+	local cx = (mn.X + mx.X) / 2
+	local d = doorZ - mn.Z
+	local body = col(base, if kind == "column" then M.Wood else M.SmoothPlastic, { r = if kind == "column" then 0 else 0.06 })
+	local doorL = col(shade(base, 0.03), body.m, { r = body.r })
+	C:slab("FridgeShell", w - 0.02, d - 0.06, h, 0.06, CF(cx, mn.Y + h / 2, mn.Z + (d - 0.06) / 2), body)
+	local zf = doorZ
+	local g = 0.03
+	local out: any = { face = zf + 0.1, doors = {} }
+	local function door(x0: number, x1: number, y0: number, y1: number, hx: number?)
+		local p = C:box("FridgeDoorPanel", V3(x1 - x0 - g, y1 - y0 - g, 0.12), CF((x0 + x1) / 2, (y0 + y1) / 2, zf + 0.04), doorL)
+		table.insert(out.doors, { x0 = x0, x1 = x1, y0 = y0, y1 = y1 })
+		if hx then
+			-- 매립 손잡이 홈 (세로)
+			local hh = math.min(1.6, (y1 - y0) * 0.6)
+			local hy = if y1 - y0 > 3 then y0 + (y1 - y0) * 0.45 else (y0 + y1) / 2
+			if kind == "column" then
+				C:box("FridgeHandle", V3(0.06, math.min(4, (y1 - y0) * 0.7), 0.06), CF(hx, (y0 + y1) / 2, zf + 0.17), info.handleL or LK.bronze)
+			else
+				C:box("FridgeHandle", V3(0.07, hh, 0.04), CF(hx, hy, zf + 0.115), LK.brushed)
+			end
+		end
+		return p
+	end
+	local y0, y1 = mn.Y + 0.02, mx.Y - 0.02
+	if kind == "sbs" then
+		-- 위 양문 (프렌치) + 아래 서랍 둘
+		local split = mn.Y + h * 0.4
+		door(mn.X, cx, split, y1, cx - 0.12)
+		door(cx, mx.X, split, y1, cx + 0.12)
+		door(mn.X, cx, y0, split, nil)
+		door(cx, mx.X, y0, split, nil)
+		C:box("FridgeDrawerLip", V3(w * 0.4, 0.05, 0.05), CF(mn.X + w * 0.25, split - 0.12, zf + 0.12), LK.brushed)
+		C:box("FridgeDrawerLip", V3(w * 0.4, 0.05, 0.05), CF(mn.X + w * 0.75, split - 0.12, zf + 0.12), LK.brushed)
+		-- 디스플레이 (온도)
+		C:box("FridgeDisplay", V3(0.5, 0.36, 0.01), CF(mn.X + w * 0.25, mn.Y + h * 0.72, zf + 0.105), LK.glassBlack)
+		if C.hi then
+			C:label("FridgeDisplayText", 0.44, 0.3, CF(mn.X + w * 0.25, mn.Y + h * 0.72, zf + 0.112), "냉장 3°C\n냉동 -19°C", C3(150, 220, 255), nil, { glow = 1, wrap = true })
+		end
+	elseif kind == "kimchi" then
+		-- 스탠드형 김치냉장고: 위 문 + 서랍 셋
+		local cuts = { y0, mn.Y + h * 0.22, mn.Y + h * 0.42, mn.Y + h * 0.62, y1 }
+		for i = 1, 4 do
+			door(mn.X, mx.X, cuts[i], cuts[i + 1], nil)
+			C:box("KimchiLip", V3(w * 0.7, 0.05, 0.05), CF(cx, cuts[i + 1] - 0.14, zf + 0.12), LK.brushed)
+		end
+		C:box("KimchiPanel", V3(0.7, 0.32, 0.01), CF(cx, mn.Y + h * 0.82, zf + 0.105), LK.glassBlack)
+		if C.hi then
+			C:label("KimchiPanelText", 0.66, 0.28, CF(cx, mn.Y + h * 0.82, zf + 0.112), "김치 표준\n-1.0°C", C3(140, 230, 170), nil, { glow = 1, wrap = true })
+			C:label("KimchiBrand", 0.8, 0.12, CF(cx, mn.Y + h * 0.95, zf + 0.104), "김치플러스", C3(150, 150, 150), nil, { font = FONT_M })
+		end
+	elseif kind == "column" then
+		door(mn.X, mx.X, y0, y1, mn.X + 0.3)
+	else
+		-- 2 도어 (위 냉동 · 아래 냉장)
+		local split = mn.Y + h * 0.63
+		door(mn.X, mx.X, split, y1, mn.X + 0.18)
+		door(mn.X, mx.X, y0, split, mn.X + 0.18)
+	end
+	if kind ~= "column" then
+		C:box("FridgeKick", V3(w - 0.1, 0.14, 0.04), CF(cx, mn.Y + 0.07, zf - 0.05), LK.charcoal)
+	end
+	out.mn, out.mx = mn, mx
+	return out
+end
+
+-- 냉장고 문 자석 · 메모 · 배달 쿠폰 · 달력 (이야기)
+local function fridgeDeco(C: any, fr: any, ti: number)
+	if not C.hi or not fr or #fr.doors == 0 then
+		return
+	end
+	local dd = fr.doors[1]
+	for _, dr in fr.doors do
+		if (dr.y1 - dr.y0) > (dd.y1 - dd.y0) then
+			dd = dr
+		end
+	end
+	local z = fr.face + 0.005
+	local cx = (dd.x0 + dd.x1) / 2
+	local w = dd.x1 - dd.x0
+	local items = {}
+	if ti <= 3 then
+		items = {
+			{ "치킨 1588-0000\n쿠폰 10장 = 1마리", C3(255, 214, 64), C3(150, 30, 20), 0.55, 0.42 },
+			{ "중화요리 짜장 6,000", C3(220, 40, 40), C3(255, 255, 255), 0.5, 0.36 },
+			{ "관리비 25일 자동이체", C3(255, 250, 210), C3(60, 60, 60), 0.5, 0.42 },
+		}
+	else
+		items = {
+			{ "가족 사진", C3(240, 236, 228), C3(80, 80, 80), 0.62, 0.48 },
+			{ "피아노 화·목 4시\n분리수거 수요일", C3(255, 248, 200), C3(60, 60, 60), 0.56, 0.5 },
+			{ "2026 10월", C3(250, 250, 250), C3(200, 40, 40), 0.7, 0.8 },
+		}
+	end
+	local ys = { dd.y0 + (dd.y1 - dd.y0) * 0.78, dd.y0 + (dd.y1 - dd.y0) * 0.6, dd.y0 + (dd.y1 - dd.y0) * 0.42 }
+	for i, it in items do
+		local x = cx + (if i % 2 == 0 then w * 0.18 else -w * 0.12)
+		local y = ys[i]
+		local dcf = CF(x, y, z) * ANG(0, 0, (C.rnd() - 0.5) * 0.12)
+		if it[1] == "가족 사진" then
+			C:plate("FridgePhoto", it[4], it[5], 0.01, dcf, lk(250, 250, 248))
+			C:plate("FridgePhotoImg", it[4] - 0.08, it[5] - 0.14, 0.012, dcf * CF(0, 0.03, 0), lk(120, 170, 200))
+			C:plate("FridgePhotoImg", it[4] - 0.08, (it[5] - 0.14) * 0.4, 0.013, dcf * CF(0, -0.07, 0), lk(220, 196, 150))
+			C:ell("FridgePhotoFace", V3(0.12, 0.14, 0.01), dcf * CF(-0.1, 0.06, 0.014), lk(236, 200, 170))
+			C:ell("FridgePhotoFace", V3(0.12, 0.14, 0.01), dcf * CF(0.1, 0.05, 0.014), lk(236, 200, 170))
+		elseif it[1] == "2026 10월" then
+			C:plate("FridgeCalendar", it[4], it[5], 0.01, dcf, lk(250, 250, 248))
+			C:label("FridgeCalTitle", it[4] * 0.9, 0.14, dcf * CF(0, it[5] / 2 - 0.1, 0.012), "2026  10", it[3], nil)
+			for r = 0, 4 do
+				for c = 0, 6 do
+					C:plate("FridgeCalDay", 0.06, 0.06, 0.003, dcf * CF(-0.27 + c * 0.09, 0.15 - r * 0.11, 0.011), if c == 0 then lk(230, 120, 110) else lk(200, 200, 200))
+				end
+			end
+			C:ell("FridgeCalCircle", V3(0.12, 0.12, 0.004), dcf * CF(0.0, 0.04, 0.014), lk(230, 60, 60))
+		else
+			C:label("FridgeMemo", it[4], it[5], dcf, it[1], it[3], it[2], { wrap = true, font = FONT_M })
+		end
+		C:disc("FridgeMagnet", 0.12, 0.05, dcf * CF(0, it[5] / 2 - 0.05, 0.03) * ANG(PI / 2, 0, 0), col(({ C3(230, 60, 60), C3(60, 140, 220), C3(250, 200, 40) })[i]))
+	end
+end
+
+-- 전자레인지 (맵 Microwave 자리)
+local function microwave(C: any, mn: Vector3, mx: Vector3, ti: number)
+	local w, h, d = mx.X - mn.X, mx.Y - mn.Y, mx.Z - mn.Z
+	local cx, cy = (mn.X + mx.X) / 2, (mn.Y + mx.Y) / 2
+	local bodyL = if ti >= 4 then LK.black else LK.white
+	C:slab("MicrowaveBody", w, d, h, 0.05, CF(cx, cy, mn.Z + d / 2), bodyL)
+	local zf = mx.Z
+	local dw = w * 0.72
+	C:box("MicrowaveDoor", V3(dw, h - 0.1, 0.04), CF(mn.X + dw / 2 + 0.04, cy, zf + 0.02), LK.black)
+	C:box("MicrowaveWindow", V3(dw - 0.22, h - 0.32, 0.01), CF(mn.X + dw / 2 + 0.04, cy, zf + 0.045), lk(40, 36, 30, M.Glass, { t = 0.15 }))
+	C:box("MicrowaveHandle", V3(0.05, h - 0.3, 0.06), CF(mn.X + dw - 0.05, cy, zf + 0.07), LK.steelDark)
+	local px = mn.X + dw + (w - dw) / 2 + 0.02
+	C:box("MicrowavePanel", V3(w - dw - 0.08, h - 0.1, 0.02), CF(px, cy, zf + 0.01), LK.charcoal)
+	C:label("MicrowaveClock", (w - dw) * 0.7, 0.14, CF(px, mx.Y - 0.22, zf + 0.022), "12:30", C3(120, 230, 160), C3(16, 20, 18), { glow = 1 })
+	if C.hi then
+		C:disc("MicrowaveKnob", 0.2, 0.06, CF(px, cy - 0.12, zf + 0.04) * ANG(PI / 2, 0, 0), LK.steel)
+		C:box("MicrowaveStart", V3(0.2, 0.08, 0.02), CF(px, mn.Y + 0.18, zf + 0.025), lk(60, 160, 90))
+	end
+	for _, s in { -1, 1 } do
+		C:vcyl("MicrowaveFoot", 0.03, 0.08, CF(cx + s * w * 0.4, mn.Y + 0.015, mn.Z + d * 0.5), LK.rubber)
+	end
+end
+
+-- 전기밥솥 (쿠쿠 스타일, 맵 RiceCooker 자리) + 상호작용 (취사)
+local function riceCooker(C: any, mn: Vector3, mx: Vector3, ti: number)
+	local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+	local y = mn.Y
+	local w = math.min(mx.X - mn.X, mx.Z - mn.Z) * 0.98
+	local h = math.min(0.85, mx.Y - mn.Y)
+	local bodyC = if ti >= 4 then C3(236, 234, 230) else C3(244, 242, 238)
+	local accent = if ti >= 4 then C3(140, 116, 92) else C3(200, 36, 40)
+	C:vcyl("CookerBody", h * 0.66, w, CF(cx, y + h * 0.33, cz), col(bodyC, M.SmoothPlastic, { r = 0.06 }))
+	C:vcyl("CookerBand", 0.06, w + 0.01, CF(cx, y + h * 0.66, cz), col(accent))
+	C:ell("CookerLid", V3(w, h * 0.5, w), CF(cx, y + h * 0.66, cz), col(bodyC, M.SmoothPlastic, { r = 0.06 }))
+	C:vcyl("CookerSteamCap", 0.07, 0.16, CF(cx, y + h * 0.9, cz - w * 0.12), LK.charcoal)
+	C:box("CookerHandle", V3(w * 0.5, 0.06, 0.1), CF(cx, y + h * 0.93, cz + w * 0.05), col(shade(bodyC, -0.1)))
+	-- 앞 조작부 (C 로컬 +Z = 사람 쪽)
+	local pz = cz + w / 2 + 0.005
+	C:box("CookerPanel", V3(w * 0.5, 0.22, 0.03), CF(cx, y + h * 0.45, pz) * ANG(math.rad(-12), 0, 0), LK.black)
+	local _, lbl = C:label("CookerDisplay", w * 0.44, 0.15, CF(cx, y + h * 0.47, pz + 0.02) * ANG(math.rad(-12), 0, 0), "백미 · 보온 08", C3(150, 210, 255), nil, { glow = 1 })
+	C:box("CookerLatch", V3(0.22, 0.08, 0.05), CF(cx, y + h * 0.7, pz + 0.01), col(accent))
+	-- 주걱 꽂이 (옆)
+	C:box("PaddleHolder", V3(0.06, 0.3, 0.12), CF(cx + w / 2 + 0.03, y + h * 0.45, cz), col(shade(bodyC, -0.08)))
+	C:box("RicePaddle", V3(0.03, 0.42, 0.14), CF(cx + w / 2 + 0.07, y + h * 0.55, cz), LK.white)
+	-- 김 (취사 중일 때만)
+	local steam: { BasePart } = {}
+	for i = 1, 3 do
+		table.insert(steam, C:ell("CookerSteam", V3(0.16 + i * 0.06, 0.2, 0.16 + i * 0.06), CF(cx, y + h * 0.95 + i * 0.22, cz - w * 0.12), { c = C3(250, 250, 250), m = M.SmoothPlastic, t = 1 }))
+	end
+	local cooking = false
+	C:toggle(C:box("CookerButton", V3(0.14, 0.05, 0.02), CF(cx, y + h * 0.35, pz + 0.025) * ANG(math.rad(-12), 0, 0), lk(220, 60, 50)), {
+		object = "전기밥솥",
+		onText = "취사 취소",
+		offText = "취사 시작",
+		state = false,
+		on = function(on: boolean)
+			cooking = on
+			lbl.Text = if on then "백미 취사 중 · 32분" else "백미 · 보온 08"
+			if not on then
+				setVis(steam, 1)
+			end
+		end,
+	})
+	local t0 = 0
+	Interact.anim(C.K, function(t: number)
+		if not cooking then
+			return
+		end
+		t0 = t
+		for i, s in steam do
+			if s.Parent then
+				local ph = (t * 0.6 + i / 3) % 1
+				s.Transparency = 0.55 + ph * 0.4
+			end
+		end
+	end)
+	local _ = t0
+end
+
+-- 전기포트 (맵 Kettle 자리)
+local function kettle(C: any, mn: Vector3, mx: Vector3, ti: number)
+	local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+	local y = mn.Y
+	local d = math.min(mx.X - mn.X, mx.Z - mn.Z)
+	local body = if ti >= 4 then lk(236, 234, 228, M.SmoothPlastic, { r = 0.05 }) elseif ti == 3 then lk(40, 40, 42, M.Metal) else LK.steel
+	C:disc("KettleBase", d + 0.04, 0.07, CF(cx, y + 0.035, cz), LK.black)
+	C:vcyl("KettleBody", 0.5, d * 0.9, CF(cx, y + 0.07 + 0.25, cz), body)
+	C:ell("KettleTop", V3(d * 0.9, 0.16, d * 0.9), CF(cx, y + 0.57, cz), body)
+	C:vcyl("KettleLidKnob", 0.05, 0.12, CF(cx, y + 0.66, cz), LK.black)
+	C:bar("KettleHandle", V3(cx, y + 0.62, cz - d * 0.42), V3(cx, y + 0.2, cz - d * 0.52), 0.07, 0.1, LK.black)
+	C:wedge("KettleSpout", V3(0.12, 0.14, 0.16), CF(cx, y + 0.55, cz + d * 0.48) * ANG(0, PI, 0), body)
+	C:box("KettleWindow", V3(0.06, 0.32, 0.02), CF(cx + d * 0.32, y + 0.32, cz + d * 0.3) * ANG(0, math.rad(45), 0), LK.glassSmoke)
+end
+
+-- 드럼세탁기 (싱크대 하부 빌트인, 맵 Washer 자리) + 상호작용 (세탁 시작 → 드럼 회전)
+local function washer(C: any, mn: Vector3, mx: Vector3, zf: number, ti: number)
+	local w, h = mx.X - mn.X, mx.Y - mn.Y
+	local cx = (mn.X + mx.X) / 2
+	local body = LK.white
+	C:box("WasherBody", V3(w - 0.04, h - 0.02, zf - mn.Z - 0.04), CF(cx, mn.Y + h / 2, mn.Z + (zf - mn.Z) / 2 - 0.02), lk(232, 232, 228))
+	C:box("WasherFront", V3(w - 0.04, h - 0.04, 0.05), CF(cx, mn.Y + h / 2, zf), body)
+	local dr = math.min(w, h) * 0.66
+	local dy = mn.Y + h * 0.43
+	local dz = zf + 0.03
+	C:ring("WasherDoorRing", CF(cx, dy, dz + 0.04), dr / 2, 0.14, 14, LK.chrome)
+	C:disc("WasherDoorGlass", dr - 0.1, 0.04, CF(cx, dy, dz + 0.05) * ANG(PI / 2, 0, 0), lk(60, 70, 80, M.Glass, { t = 0.35, r = 0.2 }))
+	C:disc("WasherDrum", dr - 0.14, 0.02, CF(cx, dy, dz - 0.06) * ANG(PI / 2, 0, 0), LK.steel)
+	-- 드럼 안 빨래 (돌아감)
+	local laundry: { BasePart } = {}
+	local lcols = { C3(80, 110, 170), C3(240, 240, 236), C3(200, 80, 90), C3(90, 90, 96) }
+	for i = 1, 4 do
+		local a = i * PI / 2
+		table.insert(laundry, C:ell("WasherLaundry", V3(0.36, 0.3, 0.05), CF(cx + math.cos(a) * dr * 0.2, dy + math.sin(a) * dr * 0.2 - 0.05, dz - 0.03), col(lcols[i], M.Fabric)))
+	end
+	C:box("WasherDoorHandle", V3(0.06, 0.32, 0.06), CF(cx + dr / 2 - 0.04, dy, dz + 0.1), LK.chrome)
+	-- 위 조작부: 세제 서랍 · 다이얼 · 표시창
+	local py = mx.Y - 0.2
+	C:box("WasherDetergent", V3(w * 0.32, 0.26, 0.03), CF(mn.X + w * 0.2, py, zf + 0.04), lk(240, 240, 236))
+	C:box("WasherDetergentPull", V3(w * 0.2, 0.04, 0.03), CF(mn.X + w * 0.2, py - 0.08, zf + 0.06), LK.absGrey)
+	C:disc("WasherDial", 0.26, 0.06, CF(cx + w * 0.05, py, zf + 0.05) * ANG(PI / 2, 0, 0), LK.chrome)
+	local _, disp = C:label("WasherDisplay", w * 0.24, 0.14, CF(mn.X + w * 0.78, py, zf + 0.03), "표준 0:39", C3(255, 190, 90), C3(20, 18, 16), { glow = 1 })
+	local btn = C:box("WasherStart", V3(0.14, 0.1, 0.03), CF(mn.X + w * 0.78, py - 0.16, zf + 0.04), lk(80, 80, 84))
+	local running = false
+	C:toggle(btn, {
+		object = "드럼세탁기",
+		onText = "세탁 멈춤",
+		offText = "세탁 시작",
+		state = false,
+		on = function(on: boolean)
+			running = on
+			disp.Text = if on then "세탁 중 0:38" else "표준 0:39"
+		end,
+	})
+	local base = {}
+	for _, p in laundry do
+		table.insert(base, p.CFrame)
+	end
+	local center = C:world(V3(cx, dy, dz))
+	local axis = C:wvec(V3(0, 0, 1))
+	local ang = 0
+	Interact.anim(C.K, function(_t: number, dt: number)
+		if not running then
+			return
+		end
+		ang += dt * 5
+		local rot = CFrame.new(center) * CFrame.fromAxisAngle(axis, ang) * CFrame.new(-center)
+		for i, p in laundry do
+			if p.Parent then
+				p.CFrame = rot * base[i]
+			end
+		end
+	end)
+end
+
+-- 타일 줄눈 (면 위 격자): dcf = 면 가운데 (+Z = 보는 쪽), w x h, 타일 tw x th, 색
+local function groutGrid(C: any, dcf: CFrame, w: number, h: number, tw: number, th: number, c: Color3, stagger: boolean?)
+	local look = col(c, M.SmoothPlastic)
+	local ny = math.floor(h / th + 0.001)
+	for j = 1, ny do
+		local y = -h / 2 + j * th
+		if y < h / 2 - 0.05 then
+			C:plate("Grout", w, 0.025, 0.006, dcf * CF(0, y, 0), look)
+		end
+	end
+	local nx = math.floor(w / tw + 0.001)
+	if stagger then
+		for j = 0, ny do
+			local y0 = -h / 2 + j * th
+			local y1 = math.min(h / 2, y0 + th)
+			if y1 - y0 > 0.05 then
+				local off = if j % 2 == 1 then tw / 2 else 0
+				for i = 0, nx do
+					local x = -w / 2 + off + i * tw
+					if x > -w / 2 + 0.05 and x < w / 2 - 0.05 then
+						C:plate("Grout", 0.025, y1 - y0, 0.006, dcf * CF(x, (y0 + y1) / 2, 0), look)
+					end
+				end
+			end
+		end
+	else
+		for i = 1, nx do
+			local x = -w / 2 + i * tw
+			if x < w / 2 - 0.05 then
+				C:plate("Grout", 0.025, h, 0.006, dcf * CF(x, 0, 0), look)
+			end
+		end
+	end
+end

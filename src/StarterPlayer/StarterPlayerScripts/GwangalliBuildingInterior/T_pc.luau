@@ -447,7 +447,10 @@ local function hangSign(K: any, c: Vector3, n: Vector3, w: number, h: number, fr
 	local oo: any = o or {}
 	local x = YA:Cross(n).Unit
 	local base = CFrame.fromMatrix(c, x, YA, n)
-	K:box("HangSignBox", V3(w, h, 0.3), base, lk(oo.bg or rgb(16, 16, 20)))
+	local box = K:box("HangSignBox", V3(w, h, 0.3), base, lk(oo.bg or rgb(16, 16, 20)))
+	if oo.light then
+		K:light(box, "PointLight", { Range = oo.range or 11, Brightness = oo.bright or 0.45, Color = edge })
+	end
 	K:box("HangSignEdge", V3(w + 0.04, 0.06, 0.34), base * CF(0, h / 2 - 0.03, 0), neon(edge))
 	K:box("HangSignEdge", V3(w + 0.04, 0.06, 0.34), base * CF(0, -h / 2 + 0.03, 0), neon(edge))
 	local l1, l2
@@ -1868,7 +1871,7 @@ local function hallRows(K: any, V: any)
 		local n0 = (i - 1) * 8 + 1
 		local label = string.format("%s열 · %s  %02d–%02d", row, z.name, n0, n0 + 7)
 		-- 행잉 존 사인 (칸막이 위, 앞뒤 두 면)
-		local l1, l2 = hangSign(K, V3(d.c.X, 8.15, d.c.Z), V3(0, 0, 1), 7.4, 1.25, label, label, WHITE, z.c, { font = F.GothamBlack })
+		local l1, l2 = hangSign(K, V3(d.c.X, 8.15, d.c.Z), V3(0, 0, 1), 7.4, 1.25, label, label, WHITE, z.c, { font = F.GothamBlack, light = true, range = 12, bright = 0.4 })
 		local _ = l1
 		local _2 = l2
 		-- 존 사인 아래 RGB 막대 등록
@@ -2802,12 +2805,16 @@ function T.build(K: any, V: any, S: any)
 		-- 실시간 좌석 현황 · 주문 현황 · 라면 김 · 타이머
 		local pcs = pcModels(V)
 		local P = K.pc
+		local lastSeat = -100
 		Interact.anim(K, function(tt)
-			local used = usedSeats(pcs)
-			local tot = math.max(#pcs, 48)
-			for _, s in P.seatLabels or {} do
-				if s.l.Parent then
-					s.l.Text = string.format(s.fmt, used, tot - used)
+			if tt - lastSeat >= 2 then
+				lastSeat = tt
+				local used = usedSeats(pcs)
+				local tot = math.max(#pcs, 48)
+				for _, s in P.seatLabels or {} do
+					if s.l.Parent then
+						s.l.Text = string.format(s.fmt, used, tot - used)
+					end
 				end
 			end
 			for _, tm in P.timers or {} do

@@ -963,6 +963,410 @@ function C:trims()
 	end)
 end
 
+
+-------------------------------------------------------------------------------------------------
+-- 공통 마감 2: 스위치 · 콘센트 · 문 · 천장 설비 · 창 철물
+-------------------------------------------------------------------------------------------------
+-- 벽에 붙은 얇은 파트(스위치 · 콘센트 · 판)의 방 쪽 표면 dcf
+function C:wallFace(p: BasePart): CFrame?
+	local lc = self.V.cf:ToObjectSpace(p.CFrame)
+	local axes = { { lc.ZVector, p.Size.Z }, { lc.XVector, p.Size.X } }
+	table.sort(axes, function(a, b)
+		return a[2] < b[2]
+	end)
+	local ax: Vector3 = axes[1][1]
+	local th: number = axes[1][2]
+	for _, sgn in { 1, -1 } do
+		local n = ax * sgn
+		n = V3(n.X, 0, n.Z)
+		if n.Magnitude > 0.5 then
+			n = n.Unit
+			local q = lc.Position + n * (th / 2 + 0.3)
+			if not self:insideWall(V3(q.X, q.Y, q.Z)) and self:mine(V3(q.X, 0.5, q.Z)) then
+				local back = lc.Position - n * (th / 2)
+				return faceCF(back, n)
+			end
+		end
+	end
+	return nil
+end
+
+local function switchPlate(C_: any, dcf: CFrame, w: number, n: number, name: string?): BasePart
+	local K, pal = C_.K, C_.pal
+	local h = 0.46
+	local plate = K:box(name or "HomeSwitchPlate", V3(w, h, 0.045), dcf * CF(0, 0, 0.0225), pal.plate)
+	K:box("HomeSwitchFrame", V3(w - 0.06, h - 0.06, 0.02), dcf * CF(0, 0, 0.055), tint(pal.plate, 0.04))
+	local rw = (w - 0.1) / n
+	for i = 1, n do
+		local x = -w / 2 + 0.05 + rw * (i - 0.5)
+		K:box("HomeSwitchRocker", V3(rw - 0.025, h - 0.12, 0.03), dcf * CF(x, 0, 0.07) * ANG(math.rad(-3), 0, 0), pal.rocker)
+		K:box("HomeSwitchLED", V3(0.03, 0.03, 0.012), dcf * CF(x, -h / 2 + 0.1, 0.09), L.neon(c3(255, 150, 60)))
+	end
+	return plate
+end
+T.switchPlate = switchPlate
+
+local function outletPlate(C_: any, dcf: CFrame, w: number?, plugs: number?): BasePart
+	local K, pal = C_.K, C_.pal
+	local ww = w or 0.46
+	local n = plugs or 2
+	local plate = K:box("HomeOutletPlate", V3(ww, 0.3, 0.045), dcf * CF(0, 0, 0.0225), pal.plate)
+	for i = 1, n do
+		local x = -ww / 2 + ww * (i - 0.5) / n
+		K:cyl("HomeOutletSocket", 0.03, 0.17, dcf * CF(x, 0, 0.05) * ANG(0, PI / 2, 0), tint(pal.plate, 0.05))
+		for _, sx in { -0.035, 0.035 } do
+			K:box("HomeOutletPin", V3(0.018, 0.018, 0.012), dcf * CF(x + sx, 0, 0.068), lk(40, 40, 42))
+		end
+		K:box("HomeOutletGround", V3(0.02, 0.05, 0.01), dcf * CF(x, 0.075, 0.066), L.brushed)
+	end
+	return plate
+end
+T.outletPlate = outletPlate
+
+-- 플러그 + 전선 (콘센트 dcf 에서 바닥 쪽으로)
+local function plugCable(C_: any, dcf: CFrame, toward: Vector3?, look: any?)
+	local K = C_.K
+	local cl = look or lk(236, 236, 232)
+	K:box("HomePlug", V3(0.12, 0.16, 0.14), dcf * CF(-0.11, 0, 0.12), cl)
+	local a = (dcf * CF(-0.11, -0.08, 0.14)).Position
+	local b = V3(a.X, 0.03, a.Z) + (dcf.ZVector * 0.06)
+	K:seg("HomeCable", a, b, 0.035, cl)
+	if toward then
+		K:seg("HomeCable", b, V3(toward.X, 0.03, toward.Z), 0.035, cl)
+	end
+end
+T.plugCable = plugCable
+
+function C:fixtures()
+	local K, V = self.K, self.V
+	K:free(function()
+		-- 기존 스위치 · 콘센트 리스킨
+		for _, r in self.own do
+			local p: BasePart = r.part
+			if p.Name == "Switch" or p.Name == "Outlet" then
+				local dcf = self:wallFace(p)
+				if dcf then
+					local w = math.max(p.Size.X, p.Size.Z)
+					if math.min(p.Size.X, p.Size.Z) > 0.2 then
+						w = math.max(p.Size.X, p.Size.Z)
+					end
+					local wide = if p.Size.Z <= 0.08 then p.Size.X else p.Size.Z
+					if p.Name == "Switch" then
+						local n = if wide >= 0.65 then 3 elseif wide >= 0.5 then 2 else 1
+						local plate = switchPlate(self, dcf, math.max(0.3, wide + 0.04), n)
+						self.switches = self.switches or {}
+						table.insert(self.switches, plate)
+					else
+						outletPlate(self, dcf, math.max(0.42, wide + 0.04), 2)
+					end
+					self:hide(p)
+					local mn, mx = laabb(dcf * CF(0, 0, 0.1), V3(w + 0.4, 0.6, 0.3))
+					self:use(mn, mx)
+				end
+			elseif p.Name == "SmokeDetector" then
+				local h = self:ceilAt(r.c.X, r.c.Z)
+				self:smoke(r.c.X, r.c.Z, h)
+				self:hide(p)
+				self:useCeil(r.c.X, r.c.Z, 0.5)
+			elseif p.Name == "Sprinkler" then
+				local h = self:ceilAt(r.c.X, r.c.Z)
+				self:sprinkler(r.c.X, r.c.Z, h)
+				self:hide(p)
+				self:useCeil(r.c.X, r.c.Z, 0.35)
+			end
+		end
+	end)
+	self:doors()
+end
+
+function C:smoke(x: number, z: number, h: number)
+	local K = self.K
+	K:disc("HomeSmokeBase", 0.56, 0.03, CF(x, h - 0.015, z), L.white)
+	K:disc("HomeSmokeBody", 0.48, 0.1, CF(x, h - 0.08, z), lk(246, 246, 244))
+	K:disc("HomeSmokeVent", 0.5, 0.025, CF(x, h - 0.09, z), lk(214, 214, 212))
+	K:disc("HomeSmokeCap", 0.3, 0.04, CF(x, h - 0.145, z), lk(250, 250, 248))
+	K:disc("HomeSmokeLED", 0.04, 0.012, CF(x + 0.14, h - 0.135, z), L.ledRed)
+end
+function C:sprinkler(x: number, z: number, h: number)
+	local K = self.K
+	K:disc("HomeSprinklerCup", 0.34, 0.025, CF(x, h - 0.012, z), L.white)
+	K:vcyl("HomeSprinklerBody", 0.12, 0.09, CF(x, h - 0.08, z), L.brass)
+	K:vcyl("HomeSprinklerBulb", 0.08, 0.035, CF(x, h - 0.15, z), L.neon(c3(220, 40, 30), 0.2))
+	K:disc("HomeSprinklerDeflector", 0.2, 0.015, CF(x, h - 0.2, z), L.brass)
+end
+
+-- 문: 경첩 · 말굽 도어스토퍼 · 문짝 홈 · 문선 몰딩
+function C:doors()
+	local K = self.K
+	if not self.model then
+		return
+	end
+	local cf: CFrame = self.V.cf
+	for _, d in self.model:GetDescendants() do
+		if not (d:IsA("Model") and d.Name == "Door") then
+			continue
+		end
+		local leaf = d:FindFirstChild("DoorLeaf")
+		if not (leaf and leaf:IsA("BasePart")) then
+			continue
+		end
+		if leaf.Material == M.Metal then
+			continue -- 현관 철문 (HomeWet 몫)
+		end
+		local lc = cf:ToObjectSpace(leaf.CFrame)
+		if not self:mine(V3(lc.Position.X, 0.5, lc.Position.Z)) then
+			continue
+		end
+		-- 경첩 쪽: 문틀(DoorJamb)에 가까운 끝
+		local ends = { lc * V3(leaf.Size.X / 2, 0, 0), lc * V3(-leaf.Size.X / 2, 0, 0) }
+		local hingeI, bd = 1, math.huge
+		for i, e in ends do
+			for _, j in d:GetChildren() do
+				if j:IsA("BasePart") and j.Name == "DoorJamb" then
+					local jp = cf:PointToObjectSpace(j.Position)
+					local dd = (V3(jp.X, 0, jp.Z) - V3(e.X, 0, e.Z)).Magnitude
+					if dd < bd then
+						hingeI, bd = i, dd
+					end
+				end
+			end
+		end
+		local sx = if hingeI == 1 then 1 else -1
+		local hh = leaf.Size.Y
+		local yb = lc.Position.Y - hh / 2
+		K:free(function()
+			for _, fy in { 0.12, 0.5, 0.88 } do
+				local hp = lc * CF(sx * (leaf.Size.X / 2 + 0.02), -hh / 2 + hh * fy, 0)
+				K:vcyl("HomeHinge", 0.36, 0.09, hp, self.pal.hinge)
+				K:vcyl("HomeHingeCap", 0.04, 0.1, hp * CF(0, 0.2, 0), self.pal.hinge)
+			end
+			-- 말굽 도어스토퍼 (문 아래 손잡이 쪽, 양면 중 방 쪽)
+			local free = lc * CF(-sx * (leaf.Size.X / 2 - 0.35), -hh / 2, 0)
+			for _, side in { 1, -1 } do
+				local sp = free * CF(0, 0, side * (leaf.Size.Z / 2 + 0.06))
+				if self:mine(V3(sp.Position.X, 0.5, sp.Position.Z)) then
+					K:box("HomeDoorStopBase", V3(0.22, 0.32, 0.08), sp * CF(0, 0.28, 0), self.pal.hinge)
+					K:box("HomeDoorStopArm", V3(0.12, 0.2, 0.1), sp * CF(0, 0.12, side * 0.05), self.pal.hinge)
+					K:box("HomeDoorStopFoot", V3(0.16, 0.04, 0.14), sp * CF(0, 0.02, side * 0.06), L.rubber)
+					break
+				end
+			end
+			-- 문짝 홈 (ABS 문: 가로 홈 3줄, 양면)
+			if self.lux <= 4 and leaf.Material ~= M.Glass then
+				for _, side in { 1, -1 } do
+					for _, fy in { 0.28, 0.5, 0.72 } do
+						K:box("HomeDoorGroove", V3(leaf.Size.X - 0.5, 0.025, 0.01), lc * CF(0, -hh / 2 + hh * fy, side * (leaf.Size.Z / 2 + 0.004)), tint(withC(L.white, leaf.Color), 0.08))
+					end
+				end
+			end
+			local _ = yb
+		end)
+		-- 문선 몰딩 (이 방 쪽 문선에 바깥 테 · 안쪽 비드)
+		for _, cs in d:GetChildren() do
+			if cs:IsA("BasePart") and cs.Name == "Casing" then
+				local cc = cf:ToObjectSpace(cs.CFrame)
+				local q = cc.Position
+				local dcf = self:wallFace(cs)
+				if dcf and self:mine(V3(q.X, 0.5, q.Z) + dcf.ZVector * 0.3) then
+					local vertical = cs.Size.Y > math.max(cs.Size.X, cs.Size.Z)
+					local long = if vertical then cs.Size.Y else math.max(cs.Size.X, cs.Size.Z)
+					local wide = if vertical then math.max(cs.Size.X, cs.Size.Z) else cs.Size.Y
+					local th = math.min(cs.Size.X, cs.Size.Z)
+					local col = withC(L.white, cs.Color)
+					K:free(function()
+						local c = dcf * CF(0, 0, th)
+						if vertical then
+							K:box("HomeCasingBand", V3(0.05, long, 0.04), c * CF(0, 0, 0.02) * CF(0, 0, 0), tint(col, 0.04))
+							K:box("HomeCasingEdge", V3(0.04, long, 0.03), c * CF(0, 0, 0.015) * CF((wide / 2 - 0.02) * 1, 0, 0), tint(col, 0.1))
+						else
+							K:box("HomeCasingBand", V3(long, 0.05, 0.04), c * CF(0, 0, 0.02), tint(col, 0.04))
+						end
+					end)
+				end
+			end
+		end
+	end
+end
+
+local function cf_point(V: any, wp: Vector3): Vector3
+	local p = V.cf:PointToObjectSpace(wp)
+	return V3(p.X, math.max(p.Y, 0.5), p.Z)
+end
+
+-- 천장 설비 보충: 감지기 · 스프링클러 · (등급별) 시스템 에어컨 · 라인 디퓨저
+function C:ceilingKit()
+	local K, V = self.K, self.V
+	local fc = self:floorCenter()
+	local hasSmoke, hasSprk, hasAC = false, false, false
+	for _, r in self.own do
+		if r.name == "SmokeDetector" then
+			hasSmoke = true
+		elseif r.name == "Sprinkler" then
+			hasSprk = true
+		elseif r.name == "CeilingAC" or r.name == "WallAC" or r.name == "StandAC" or r.name == "ACOutdoor" then
+			hasAC = true
+		end
+	end
+	for _, sl in self.slots do
+		local cat = sl:GetAttribute("Category")
+		local id = sl:GetAttribute("SlotId")
+		if (cat == "appliance" and id == "aircon") then
+			local b = sl:FindFirstChild("SlotBase")
+			if b and b:IsA("BasePart") and self:mine(cf_point(V, b.Position)) then
+				hasAC = true
+			end
+		end
+	end
+	-- 이 방 바닥 상자 (가장 큰 바닥)
+	local bx0, bx1, bz0, bz1 = V.x0, V.x1, V.z0, V.z1
+	local function tryAt(fx: number, fz: number, r: number, fn: (number, number, number) -> ()): boolean
+		for k = 0, 6 do
+			local x = fc.X + (bx1 - bx0) * fx * (1 - k * 0.12) + (if k % 2 == 1 then 0.7 else -0.4) * (k // 2)
+			local z = fc.Z + (bz1 - bz0) * fz * (1 - k * 0.12) + (if k % 3 == 1 then 0.6 else 0) * (k // 2)
+			if self:ceilFree(x, z, r) then
+				local h = self:ceilAt(x, z)
+				K:free(function()
+					fn(x, z, h)
+				end)
+				self:useCeil(x, z, r)
+				return true
+			end
+		end
+		return false
+	end
+	if not hasSmoke then
+		tryAt(0.12, -0.08, 0.5, function(x, z, h)
+			self:smoke(x, z, h)
+		end)
+	end
+	if not hasSprk and self.tier ~= "oneroom" then
+		local area = (bx1 - bx0) * (bz1 - bz0)
+		local n = math.clamp(math.floor(area / 70) + 1, 1, 4)
+		local spots = { { -0.22, -0.2 }, { 0.22, 0.22 }, { 0.22, -0.22 }, { -0.22, 0.22 } }
+		for i = 1, n do
+			tryAt(spots[i][1], spots[i][2], 0.4, function(x, z, h)
+				self:sprinkler(x, z, h)
+			end)
+		end
+	end
+	-- 시스템 에어컨 (오피스텔 · 아파트 거실 · 펜트하우스): 에어컨이 없는 방만
+	if not hasAC and (self.tier == "officetel" or self.tier == "apartment" or self.tier == "penthouse") and self.room ~= "dress" and self.room ~= "main" then
+		local h = self:ceilAt(fc.X, fc.Z)
+		if self.tier == "penthouse" and h > 11 then
+			return -- 복층 높은 천장: 창가 바닥 매립 (없음)
+		end
+		tryAt(0.0, -0.18, 1.4, function(x, z, hh)
+			self:cassette(x, z, hh, if self.tier == "apartment" and self.room == "living" then 4 else 1)
+		end)
+	end
+end
+
+
+-- 천장형 에어컨 (n = 4 방향 카세트 | 1 방향 슬림)
+function C:cassette(x: number, z: number, h: number, n: number)
+	local K = self.K
+	local body = lk(246, 246, 244)
+	local grille = lk(226, 228, 228)
+	local vanes = {}
+	if n >= 4 then
+		local s = 2.6
+		K:box("HomeACPanel", V3(s, 0.1, s), CF(x, h - 0.05, z), body)
+		K:box("HomeACGrille", V3(s * 0.48, 0.02, s * 0.48), CF(x, h - 0.11, z), grille)
+		for i = 1, 6 do
+			K:box("HomeACGrilleBar", V3(s * 0.46, 0.012, 0.02), CF(x, h - 0.122, z - s * 0.22 + i * s * 0.063), lk(200, 202, 204))
+		end
+		for k = 0, 3 do
+			local a = k * PI / 2
+			local p = CF(x, h - 0.1, z) * ANG(0, a, 0) * CF(0, 0, s * 0.36)
+			table.insert(vanes, K:box("HomeACVane", V3(s * 0.62, 0.03, 0.22), p * ANG(math.rad(-20), 0, 0), lk(236, 236, 234)))
+			K:box("HomeACSlot", V3(s * 0.66, 0.012, 0.3), p * CF(0, -0.002, 0), lk(60, 62, 66))
+		end
+		K:box("HomeACLED", V3(0.12, 0.012, 0.04), CF(x + s * 0.4, h - 0.11, z + s * 0.44), L.neon(c3(80, 200, 255)))
+	else
+		local w, d = 3.4, 1.2
+		K:box("HomeACPanel", V3(w, 0.1, d), CF(x, h - 0.05, z), body)
+		K:box("HomeACGrille", V3(w * 0.8, 0.02, d * 0.36), CF(x, h - 0.11, z - d * 0.2), grille)
+		K:box("HomeACSlot", V3(w * 0.86, 0.012, d * 0.3), CF(x, h - 0.112, z + d * 0.22), lk(60, 62, 66))
+		table.insert(vanes, K:box("HomeACVane", V3(w * 0.84, 0.03, d * 0.26), CF(x, h - 0.12, z + d * 0.22) * ANG(math.rad(-15), 0, 0), lk(236, 236, 234)))
+		K:box("HomeACLED", V3(0.12, 0.012, 0.04), CF(x + w * 0.4, h - 0.11, z - d * 0.4), L.neon(c3(80, 200, 255)))
+	end
+	self.acVanes = vanes
+	self.acAt = V3(x, h, z)
+end
+
+-- 창 철물: 크리센트 잠금 · 손잡이 · 방충망 (미닫이 창만)
+function C:windows()
+	local K = self.K
+	if not self.model then
+		return
+	end
+	local cf: CFrame = self.V.cf
+	for _, w in self.model:GetDescendants() do
+		if not (w:IsA("Model") and (w.Name == "Window" or w.Name == "VerandaWindow")) then
+			continue
+		end
+		local glass = {}
+		local mn, mx = V3(math.huge, math.huge, math.huge), V3(-math.huge, -math.huge, -math.huge)
+		for _, p in w:GetDescendants() do
+			if p:IsA("BasePart") then
+				local a, b = laabb(cf:ToObjectSpace(p.CFrame), p.Size)
+				mn, mx = mn:Min(a), mx:Max(b)
+				if p.Name == "WindowGlass" then
+					table.insert(glass, { a = a, b = b })
+				end
+			end
+		end
+		if #glass < 2 then
+			continue
+		end
+		local c = (mn + mx) / 2
+		local alongX = (mx.X - mn.X) >= (mx.Z - mn.Z)
+		-- 방 쪽 법선
+		local n = nil
+		for _, cand in (if alongX then { V3(0, 0, 1), V3(0, 0, -1) } else { V3(1, 0, 0), V3(-1, 0, 0) }) do
+			local q = c + cand * ((if alongX then mx.Z - mn.Z else mx.X - mn.X) / 2 + 0.6)
+			if self:mine(V3(q.X, 0.5, q.Z)) then
+				n = cand
+			end
+		end
+		if not n then
+			continue
+		end
+		local half = (if alongX then mx.Z - mn.Z else mx.X - mn.X) / 2
+		-- 가장 안쪽 유리면
+		local face = c + n * (half - 0.02)
+		local inner = -math.huge
+		for _, g in glass do
+			local gc = (g.a + g.b) / 2
+			local d = (gc - c):Dot(n)
+			inner = math.max(inner, d)
+		end
+		local f = faceCF(V3(c.X, c.Y, c.Z) + n * (inner + 0.05), n)
+		local width = if alongX then mx.X - mn.X else mx.Z - mn.Z
+		local height = mx.Y - mn.Y
+		K:free(function()
+			-- 가운데 만나는 창살에 크리센트 + 양쪽 손잡이
+			K:box("HomeCrescentBase", V3(0.22, 0.12, 0.05), f * CF(0, 0, 0.03), L.white)
+			K:box("HomeCrescentLever", V3(0.26, 0.05, 0.05), f * CF(0.03, 0.03, 0.07) * ANG(0, 0, math.rad(-12)), L.chrome)
+			for _, sx in { -1, 1 } do
+				K:box("HomeSashGrip", V3(0.06, 0.6, 0.05), f * CF(sx * (width / 2 - 0.45), 0, 0.03), lk(214, 216, 218))
+			end
+			-- 방충망 (오른쪽 반, 바깥 레일)
+			if self.tier ~= "penthouse" then
+				local sf = faceCF(c - n * (half - 0.12), n)
+				local sw, sh = width / 2 - 0.25, height - 0.6
+				K:box("HomeScreenMesh", V3(sw, sh, 0.02), sf * CF(width / 4, 0, 0), { c = c3(60, 64, 68), m = M.Fabric, t = 0.62 })
+				for _, sy in { -1, 1 } do
+					K:box("HomeScreenFrame", V3(sw, 0.08, 0.05), sf * CF(width / 4, sy * sh / 2, 0), lk(196, 198, 200, M.Metal))
+				end
+				for _, sx in { -1, 1 } do
+					K:box("HomeScreenFrame", V3(0.08, sh, 0.05), sf * CF(width / 4 + sx * sw / 2, 0, 0), lk(196, 198, 200, M.Metal))
+				end
+			end
+		end)
+	end
+end
+
 T.C = C
 
 -------------------------------------------------------------------------------------------------
@@ -990,6 +1394,9 @@ function T.build(K: any, V: any, S: any)
 	end
 	K:note(string.format("home %s/%s H=%.1f (box %.1f) segs=%d walls=%d floors=%d", Cx.tier, Cx.room, Cx.H, Cx.Hbox, #Cx.segs, #Cx.walls, #Cx.floors))
 	step("trims", function(c) c:trims() end)
+	step("fixtures", function(c) c:fixtures() end)
+	step("ceiling", function(c) c:ceilingKit() end)
+	step("windows", function(c) c:windows() end)
 	if HomeWet.rooms[V.room] then
 		local ok3, err = pcall(HomeWet.build, K, V, S)
 		if not ok3 then
