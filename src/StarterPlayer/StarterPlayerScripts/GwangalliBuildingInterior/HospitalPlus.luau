@@ -330,7 +330,8 @@ function M.start(ctx: any)
 			end
 		end))
 	end
-	-- 개발용 콘솔: script 속성 HospDebug = "status" | "zones" | "me" | "lift" | "call 2" | "go staff hall" | "back staff hall"
+	-- 개발용 콘솔: script 속성 HospDebug = "status" | "zones" | "probe" | "me" | "lift" | "call 2" | "go staff hall" |
+	--   "back staff hall" | "tp x y z [lx lz]" | "walk x y z" | "anchor 0|1" (좌표는 병원 로컬)
 	-- 결과는 HospDebugOut 속성 (이 클라이언트 안에서만 바꿀 수 있는 속성)
 	if ctx.script then
 		table.insert(s.conns, ctx.script:GetAttributeChangedSignal("HospDebug"):Connect(function()
@@ -435,6 +436,28 @@ function M.debug(cmd: string): string
 			L.call(tonumber(w[2]) or 1)
 		end
 		return "called"
+	elseif op == "tp" then
+		-- tp x y z [lookX lookZ] (병원 로컬 좌표, 발 위치)
+		local x, y, z = tonumber(w[2]) or 0, tonumber(w[3]) or 0, tonumber(w[4]) or 0
+		local lx, lz = tonumber(w[5]) or x, tonumber(w[6]) or (z - 1)
+		local hrp = s.Lib.localRoot()
+		if hrp then
+			hrp.Anchored = false
+		end
+		s.Lib.teleport(CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(lx, y, lz)))
+		return "tp"
+	elseif op == "walk" then
+		local _, hum = s.Lib.localRoot()
+		if hum then
+			hum:MoveTo(Geo.W(tonumber(w[2]) or 0, tonumber(w[3]) or 0, tonumber(w[4]) or 0))
+		end
+		return "walk"
+	elseif op == "anchor" then
+		local hrp = s.Lib.localRoot()
+		if hrp then
+			hrp.Anchored = w[2] == "1"
+		end
+		return "anchor " .. tostring(w[2])
 	elseif op == "go" or op == "back" then
 		local P = s.hub.portal
 		if not P then

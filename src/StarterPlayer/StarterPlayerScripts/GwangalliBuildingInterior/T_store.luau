@@ -1076,7 +1076,7 @@ local function runFill(K: any, budget: number): number
 end
 
 -- GwShop: 원래 Product 상자 안쪽만 (같은 범위) 작은 실제 상품 여러 개로 다시 만들기
-local function fillInside(K: any, r: any, front: Vector3, catName: string, rng: () -> number, lv: number): number
+local function fillInside(K: any, r: any, front: Vector3, catName: string, rng: () -> number, lv: number, clear: number?): number
 	local alongX = math.abs(front.Z) > math.abs(front.X)
 	local len = if alongX then r.size.X else r.size.Z
 	local dep = if alongX then r.size.Z else r.size.X
@@ -1092,9 +1092,14 @@ local function fillInside(K: any, r: any, front: Vector3, catName: string, rng: 
 	local lab: Color3? = if sku.lab then pick(rng, sku.lab) else nil
 	local used = 0
 	local hh = math.min(h, sku.h * 1.15)
+	-- 상자류는 위 선반까지 여유가 있으면 2~3단으로 쌓아 (실제 약국 진열처럼) 칸이 비어 보이지 않게
+	local sn = 1
+	if clear and sku.stack and (sku.k == "box" or sku.k == "medbox") then
+		sn = math.clamp(math.floor((clear - 0.25) / (hh + 0.02)), 1, sku.stack + 1)
+	end
 	for i = 1, n do
 		local base = cf * CF(-len / 2 + w * (i - 0.5), 0.005, -dep / 2)
-		used += item(K, base, setmetatable({ w = w * 0.92, d = dep * 0.95 }, { __index = sku }), col, lab, hh, lv)
+		used += item(K, base, setmetatable({ w = w * 0.92, d = dep * 0.95, stackN = sn }, { __index = sku }), col, lab, hh * sn, lv)
 	end
 	return used
 end
@@ -3601,7 +3606,7 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 					local front = if best then best.cf.ZVector else awayFromWall(V, r)
 					front = V3(math.round(front.X), 0, math.round(front.Z))
 					local cats = { "otc", "otc", "supplement", "otc" }
-					used += fillInside(K, r, front, cats[(math.floor(r.c.Z / 5) % #cats) + 1], mkRng(V.key .. "p" .. i), if K.detail == "low" then 1 else 2)
+					used += fillInside(K, r, front, cats[(math.floor(r.c.Z / 5) % #cats) + 1], mkRng(V.key .. "p" .. i), if K.detail == "low" then 1 else 2, if best then best.clear else nil)
 					Scan.hide(K.hidden, r.part)
 					hidden += 1
 				end
@@ -3637,12 +3642,12 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 					local cur = -su.len / 2 + 0.1
 					local ivs = {}
 					for _, o in occ do
-						if o[1] - cur > 0.7 then
+						if o[1] - cur > 0.5 then
 							table.insert(ivs, { cur, o[1] })
 						end
 						cur = math.max(cur, o[2])
 					end
-					if su.len / 2 - 0.1 - cur > 0.7 then
+					if su.len / 2 - 0.1 - cur > 0.5 then
 						table.insert(ivs, { cur, su.len / 2 - 0.1 })
 					end
 					for gi, iv in ivs do

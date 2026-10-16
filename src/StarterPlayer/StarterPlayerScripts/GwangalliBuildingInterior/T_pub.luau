@@ -1203,8 +1203,8 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, kind: string, t
 	for k = #K.parts, math.max(1, #K.parts - 2), -1 do
 		local gp = K.parts[k]
 		if gp and gp.Name == "FrameGlass" then
-			gp.Reflectance = 0.03
-			gp.Transparency = 0.93
+			gp.Reflectance = 0
+			gp.Transparency = 1
 			break
 		end
 	end
@@ -1722,7 +1722,8 @@ local function backBar(c: any)
 		-- 스모크 거울
 		-- 거울 뒤 불투명 판 (밝은 맵 벽이 유리 너머로 비쳐 하얗게 뜨지 않게)
 		K:box("BackBarMirrorBacking", V3(W - 0.06, yTop - yb, 0.02), CF(cx, (yb + yTop) / 2, zw + 0.0), L.of(22, 20, 18))
-		K:box("BackBarMirror", V3(W - 0.06, yTop - yb, 0.04), CF(cx, (yb + yTop) / 2, zw + 0.03), th.mirror)
+		-- 스모크 거울: 매끈한 판 + 반사 (Glass 판은 밤에 창문처럼 켜지는 렌더러가 있어 피함)
+		K:box("BackBarMirror", V3(W - 0.06, yTop - yb, 0.04), CF(cx, (yb + yTop) / 2, zw + 0.03), L.with(th.mirror, { m = M.SmoothPlastic, r = math.min(0.28, th.mirror.r or 0.25) }))
 		-- 기둥 (원목 + 황동 띠)
 		for i = 0, nb do
 			local x = math.clamp(x0 + bw * i, x0 + 0.16, x1 - 0.16)
@@ -3202,8 +3203,8 @@ local function wallDecor(c: any)
 			for k = n0 + 1, #K.parts do
 				local gp = K.parts[k]
 				if gp and gp.Name == "FrameGlass" then
-					gp.Reflectance = 0.03
-					gp.Transparency = 0.95
+					gp.Reflectance = 0
+					gp.Transparency = 1
 				end
 			end
 		end
