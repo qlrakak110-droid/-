@@ -1664,13 +1664,15 @@ local function buildShowroom(K: any, V: any)
 			-- 베젤 깊이 = 벽 ~ TV 앞면 (+0.04): 화면 둘레를 감싸 큰 검은 판이 아니라 벽걸이 TV 로 보이게
 			local dep = math.max(0.26, tv.max.Z - RB.z0 + 0.04)
 			for _, s in { -1, 1 } do
-				D.plate("TVBezel", w + 0.36, 0.18, dep, D.wall("back", cx, cy + s * (h / 2 + 0.09), 0.0), lk(C(24, 25, 28), M.Metal))
-				D.plate("TVBezel", 0.18, h, dep, D.wall("back", cx + s * (w / 2 + 0.09), cy, 0.0), lk(C(24, 25, 28), M.Metal))
+				D.plate("TVBezel", w + 0.36, 0.18, dep, D.wall("back", cx, cy + s * (h / 2 + 0.09), 0.0), lk(C(62, 64, 70), M.Metal, { r = 0.2 }))
+				D.plate("TVBezel", 0.18, h, dep, D.wall("back", cx + s * (w / 2 + 0.09), cy, 0.0), lk(C(62, 64, 70), M.Metal, { r = 0.2 }))
+				D.plate("TVBezelEdge", w + 0.04, 0.03, dep + 0.01, D.wall("back", cx, cy + s * (h / 2 + 0.015), 0.0), L.chrome)
+				D.plate("TVBezelEdge", 0.03, h + 0.04, dep + 0.01, D.wall("back", cx + s * (w / 2 + 0.015), cy, 0.0), L.chrome)
 			end
 			D.box("TVLogo", V3(0.5, 0.06, 0.02), CF(cx, tv.min.Y - 0.09, RB.z0 + dep + 0.01), L.alu)
 			D.box("TVPowerLED", V3(0.06, 0.04, 0.02), CF(cx + w / 2 - 0.4, tv.min.Y - 0.09, RB.z0 + dep + 0.01), lk(C(255, 60, 40), M.Neon))
 			-- 뒤 백라이트 (벽에 번지는 간접광)
-			D.plate("TVBackGlow", w + 0.9, h + 0.7, 0.02, D.wall("back", cx, cy, 0.01), lk(C(255, 170, 110), M.Neon, { t = 0.82 }))
+			D.plate("TVBackGlow", w + 0.7, h + 0.55, 0.02, D.wall("back", cx, cy, 0.19), lk(C(255, 176, 120), M.Neon, { t = 0.78 }))
 			D.rbox("Soundbar", V3(4.6, 0.32, 0.4), 0.12, CF(cx, cy - h / 2 - 0.5, RB.z0 + 0.42), L.black)
 		end
 	end)
