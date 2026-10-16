@@ -449,7 +449,7 @@ function Hud.init(k: any)
 	info = Kit.text(Kit.gui, { Name = "RoomInfo", Text = "", Font = Kit.F.bold, TextSize = 13, TextColor3 = Kit.C.sub, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -86), Size = UDim2.fromOffset(520, 20), TextXAlignment = Enum.TextXAlignment.Center, Visible = false, ZIndex = 5 })
 	info.TextStrokeTransparency = 0.6
 	-- banner
-	banner = Kit.new("Frame", { Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(520, 62), BackgroundColor3 = Kit.C.glass, BackgroundTransparency = 0.08, Visible = false, ZIndex = 25 }, Kit.gui)
+	banner = Kit.new("Frame", { Name = "Banner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 78), Size = UDim2.fromOffset(520, 62), BackgroundColor3 = Kit.C.glass, BackgroundTransparency = 0.08, Visible = false, ZIndex = 25 }, Kit.gui)
 	Kit.corner(banner, 18)
 	Kit.stroke(banner, Kit.C.magenta, 1.5, 0.4)
 	bannerTitle = Kit.text(banner, { Text = "", Font = Kit.F.black, TextSize = 17, Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -32, 0, 24), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 26, TextTruncate = Enum.TextTruncate.AtEnd })

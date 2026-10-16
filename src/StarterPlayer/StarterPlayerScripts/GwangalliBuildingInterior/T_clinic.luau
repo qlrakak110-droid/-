@@ -3981,6 +3981,64 @@ BUILD.pharmacy = function(K: any, V: any)
 	end)
 	-- 계산대: 직원 쪽 수납 + 손님 쪽 앞판 --------------------------------------------------------------
 	-- 검수 · 포장대 (투약구 쪽) + 입고 대차 (서랍장 쪽) ---------------------------------------------------------------
+	-- 마약류 저장 금고 (마약류관리법: 이중 잠금 철제 금고) + 조제 대기 바구니 선반 -------------------------------------------
+	step(K, "safe", function()
+		local sp = wallFloorNear(K, "back", wallU("back", Vector3.new(22.6, 0, V.z0)), 2.4, 2.0, 3.6, 6, 0)
+			or wallFloorNear(K, "right", wallU("right", Vector3.new(V.x1, 0, 6.0)), 2.4, 2.0, 3.6, 3, 0)
+			or wallFloorNear(K, "back", wallU("back", Vector3.new(-20.0, 0, V.z0)), 2.4, 2.0, 3.6, 6, 0)
+		if sp then
+			local steel = lk(84, 90, 96, M.Metal)
+			K:box("SafeBody", V3(2.4, 3.4, 2.0), sp * CF(0, 1.8, 0), steel)
+			K:box("SafePlinth", V3(2.3, 0.1, 1.9), sp * CF(0, 0.05, 0), lk(40, 42, 46))
+			K:box("SafeDoor", V3(2.1, 3.0, 0.08), sp * CF(0, 1.8, 1.02), lk(98, 104, 110, M.Metal))
+			K:box("SafeHinge", V3(0.1, 2.6, 0.12), sp * CF(-1.08, 1.8, 1.02), lk(60, 64, 68, M.Metal))
+			K:disc("SafeDial", 0.5, 0.08, sp * CF(0.3, 2.5, 1.1) * ANG(PI / 2, 0, 0), LK.chrome)
+			K:disc("SafeDialCap", 0.2, 0.06, sp * CF(0.3, 2.5, 1.15) * ANG(PI / 2, 0, 0), lk(40, 42, 46))
+			for _, y in { 2.0, 1.4 } do
+				K:disc("SafeKeyLock", 0.22, 0.08, sp * CF(0.65, y, 1.1) * ANG(PI / 2, 0, 0), lk(212, 180, 90, M.Metal))
+				K:box("SafeKeySlot", V3(0.04, 0.12, 0.02), sp * CF(0.65, y, 1.15), LK.black)
+			end
+			K:box("SafeHandle", V3(0.12, 0.9, 0.12), sp * CF(0.75, 1.7, 1.2), LK.chrome)
+			tx(K, "SafeLabel", 1.7, 0.42, sp * CF(-0.15, 3.05, 1.065), "마약류 저장시설\n이중 잠금 · 관계자 외 개폐 금지", WHITE, C3(190, 30, 36), { font = FONT_B, d = 0.01 })
+			K:box("SafeLedger", V3(1.0, 0.18, 1.3), sp * CF(-0.4, 3.59, 0.2), col(C3(40, 70, 130)))
+			tx(K, "SafeLedgerText", 0.9, 0.12, sp * CF(-0.4, 3.59, 0.86), "마약류 관리대장", WHITE, nil, { d = 0.004 })
+		end
+		-- 조제 대기 바구니 선반: 처방전 + 약봉투 담긴 색 바구니 (환자별)
+		local rc = nil
+		for _, q in { { -4.0, 5.2 }, { -9.0, 5.2 }, { 0.5, 6.0 }, { -16.0, 5.0 } } do
+			local c = at(q[1], q[2], 0)
+			if K:spot(c, V3(4.0, 4.4, 1.5), 0.5) then
+				rc = c
+				break
+			end
+		end
+		if rc then
+			local wire = lk(206, 210, 214, M.Metal)
+			for _, sx in { -1, 1 } do
+				for _, sz in { -1, 1 } do
+					K:box("BasketRackPost", V3(0.1, 4.3, 0.1), rc * CF(sx * 1.92, 2.15, sz * 0.66), wire)
+				end
+			end
+			local cols = { C3(60, 130, 210), C3(70, 170, 110), C3(230, 110, 150), C3(240, 190, 60) }
+			local r = rng(3609)
+			for k = 0, 2 do
+				local y = 0.5 + k * 1.35
+				K:box("BasketRackShelf", V3(3.9, 0.06, 1.4), rc * CF(0, y, 0), wire)
+				for b = 0, 3 do
+					local bc = rc * CF(-1.44 + b * 0.96, y + 0.03, 0)
+					local c = cols[(b + k) % 4 + 1]
+					K:box("RxBasket", V3(0.86, 0.5, 1.2), bc * CF(0, 0.25, 0), col(c, M.Plastic))
+					K:box("RxBasketIn", V3(0.74, 0.02, 1.08), bc * CF(0, 0.12, 0), lk(250, 250, 248))
+					if r() < 0.8 then
+						K:box("RxBag", V3(0.6, 0.6, 0.06), bc * CF(0, 0.5, 0.2) * ANG(math.rad(-8), 0, 0), lk(250, 250, 246))
+						K:box("RxBagBand", V3(0.6, 0.1, 0.065), bc * CF(0, 0.68, 0.2) * ANG(math.rad(-8), 0, 0), col(TEAL))
+						K:box("RxSheet", V3(0.62, 0.7, 0.02), bc * CF(0.02, 0.6, -0.3) * ANG(math.rad(6), 0, 0), Look.paper)
+					end
+				end
+			end
+			tx(K, "BasketRackLabel", 3.6, 0.32, rc * CF(0, 4.2, 0.7), "조제 완료 · 복약지도 대기 (번호순)", WHITE, TEAL_D, { font = FONT_B, d = 0.01 })
+		end
+	end)
 	step(K, "packing", function()
 		local placed = false
 		for _, x in { 9.0, 11.0, 7.0, 13.0 } do
