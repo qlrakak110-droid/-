@@ -1094,6 +1094,15 @@ local function buildShowroom(K: any, V: any)
 		return true
 	end
 	step(K, "ceilingLights", function()
+		for _, t in tts do
+			note(K, string.format("DBG tt %.2f %.2f r%.2f %s", t.x, t.z, t.r, tostring(t.kind)))
+		end
+		for _, r in G.byName.PriceCard or {} do
+			note(K, string.format("DBG card %.2f %.2f", r.c.X, r.c.Z))
+		end
+		for _, r in G.byName.LightPanel or {} do
+			note(K, string.format("DBG led %.2f..%.2f %.2f..%.2f", r.min.X, r.max.X, r.min.Z, r.max.Z))
+		end
 		for _, r in hideNamed(G, "LightPanel") do
 			local alongX = r.size.X >= r.size.Z
 			local y = yC
