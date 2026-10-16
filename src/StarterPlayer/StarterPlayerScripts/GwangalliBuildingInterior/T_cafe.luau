@@ -4193,6 +4193,16 @@ end
 local function stepLobby(K: any, V: any, B: any, ctx: any)
 	for _, r in V.byName.Mailboxes or {} do
 		mailboxSkin(K, V, r)
+		-- 우편함 뒤 벽 (1 스터드 틈) 은 안 보이니 벽 부착물 자리에서 뺌
+		for _, wn in { "left", "right", "back" } do
+			if V.walls[wn] then
+				local ua, da = V:wallCoord(wn, r.min)
+				local ub, db = V:wallCoord(wn, r.max)
+				if math.min(da, db) < 2.5 then
+					useWall(K, wn, math.min(ua, ub) - 0.3, math.max(ua, ub) + 0.3, 0, r.max.Y + 0.2)
+				end
+			end
+		end
 	end
 	-- 맵 매입등(Downlight, 빛 없음) 위에 빛나는 원판 + 불빛 몇 개 (로비가 너무 어둡지 않게)
 	local nl = 0
