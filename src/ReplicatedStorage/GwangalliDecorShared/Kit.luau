@@ -276,18 +276,19 @@ function Kit:leaves(cx: number, cy: number, cz: number, len: number, n: number, 
 	end
 end
 
--- pot with rim + soil; returns the soil top height
-function Kit:pot(x: number, z: number, dia: number, h: number, paint: any, round: boolean?): number
+-- pot with rim + soil standing on y0 (default 0); returns the soil top height
+function Kit:pot(x: number, z: number, dia: number, h: number, paint: any, round: boolean?, y0: number?): number
+	local b = y0 or 0
 	if round == false then
-		self:box("Pot", dia, h, dia, x, h / 2, z, paint, { solid = true })
-		self:box("Rim", dia + 0.08, 0.1, dia + 0.08, x, h - 0.05, z, self:shp(paint, 0.92))
-		self:box("Soil", dia - 0.12, 0.06, dia - 0.12, x, h - 0.06, z, self:lit({ 70, 52, 38 }, "slate"))
+		self:box("Pot", dia, h, dia, x, b + h / 2, z, paint, { solid = true })
+		self:box("Rim", dia + 0.08, 0.1, dia + 0.08, x, b + h - 0.05, z, self:shp(paint, 0.92))
+		self:box("Soil", dia - 0.12, 0.06, dia - 0.12, x, b + h - 0.06, z, self:lit({ 70, 52, 38 }, "slate"))
 	else
-		self:cyl("Pot", h, dia, x, h / 2, z, "y", paint, { solid = true })
-		self:cyl("Rim", 0.12, dia + 0.1, x, h - 0.06, z, "y", self:shp(paint, 0.92))
-		self:cyl("Soil", 0.06, dia - 0.12, x, h - 0.05, z, "y", self:lit({ 70, 52, 38 }, "slate"))
+		self:cyl("Pot", h, dia, x, b + h / 2, z, "y", paint, { solid = true })
+		self:cyl("Rim", 0.12, dia + 0.1, x, b + h - 0.06, z, "y", self:shp(paint, 0.92))
+		self:cyl("Soil", 0.06, dia - 0.12, x, b + h - 0.05, z, "y", self:lit({ 70, 52, 38 }, "slate"))
 	end
-	return h
+	return b + h
 end
 
 -- picture frame on a wall (back at +Z = D/2): outer w x h, centred at (x, y), depth d

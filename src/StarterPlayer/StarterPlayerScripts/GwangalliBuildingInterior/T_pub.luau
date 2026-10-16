@@ -1450,9 +1450,12 @@ end
 local function chairsOver(c: any)
 	local K, V, th = c.K, c.V, c.th
 	local used = c.usedChairs or {}
-	local cs = th.chair or { style = "bentwood", frame = th.dark, seat = th.mid }
+	local cs = th.chair or { style = "padded", frame = L.blackMetal, seat = th.seat }
 	local n = #V.chairs
 	local detail = K.detail
+	if n > 4 then
+		detail = "mid"
+	end
 	if n * 30 > K.maxParts * 0.4 then
 		detail = if n * 22 > K.maxParts * 0.4 then "low" else "mid"
 	end
@@ -1677,7 +1680,7 @@ local function shelfBar(c: any)
 	local zf = (sh.min.Z + sh.max.Z) / 2
 	local cap = { L.goldMetal, L.black, L.chrome }
 	local mix = th.bottleMix or { "square", "round" }
-	local n = math.floor((sh.size.X - 0.4) / 0.5)
+	local n = math.min(26, math.floor((sh.size.X - 0.4) / 0.62))
 	for i = 1, n do
 		local x = sh.min.X + 0.2 + (sh.size.X - 0.4) * (i - 0.5) / n
 		local h = 0.85 + rnd(c.seed, i) * 0.35
@@ -1999,7 +2002,7 @@ local function tapBoard(c: any)
 		local size = V3(bw, 3.0, 1.0)
 		local pcf = V:wall("back", u, 0, 0.5 + 0.06)
 		local mn, mx = laabb(pcf * CF(0, 1.5, 0), size)
-		if mapClear(V, mn, mx) and K:spot(pcf, size, 0.02, "cooler") then
+		if behindCounter(V, (pcf * CF(0, 0, 1.2)).Position) and mapClear(V, mn, mx) and K:spot(pcf, size, 0.02, "cooler") then
 			claim(K, "back", u - bw / 2 - 0.1, u + bw / 2 + 0.1, 0, 3.1)
 			local nd = math.max(2, math.floor(bw / 2.0 + 0.5))
 			local dw = bw / nd
@@ -2597,7 +2600,7 @@ local function festoon(c: any)
 	end
 	local function line(a: Vector3, b: Vector3, sag: number)
 		local len = (b - a).Magnitude
-		local n = math.max(3, math.floor(len / 2.2))
+		local n = math.max(3, math.floor(len / (if len > 30 then 2.8 else 2.2)))
 		local pts = {}
 		for i = 0, n do
 			local t = i / n

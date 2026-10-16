@@ -213,6 +213,15 @@ local function newCtx(K: any, V: any): any
 	return self
 end
 
+-- 시간 분할 (빌드 코루틴 안: 긴 검색 루프가 한 프레임을 오래 잡지 않게)
+function C:yield()
+	local now = os.clock()
+	if now - (self._yt or 0) > 0.004 then
+		task.wait()
+		self._yt = os.clock()
+	end
+end
+
 -- 점 p(로컬)의 바닥이 어느 방인가: 그 점 아래 가장 높은 바닥, 같으면 작은 바닥
 function C:roomAt(p: Vector3): string?
 	local best, bt, ba = nil, -math.huge, math.huge
@@ -275,6 +284,7 @@ end
 function C:buildSegments()
 	self.segs = {}
 	for _, w in self.walls do
+		self:yield()
 		local mn, mx = w.mn, w.mx
 		local py = math.clamp((math.max(mn.Y, 0.2) + math.min(mx.Y, self.H - 0.2)) / 2, 0.2, self.H - 0.2)
 		if mx.Y < 0.3 or mn.Y > self.H + 0.5 then
@@ -443,6 +453,7 @@ function C:wallSpot(w: number, y0: number, y1: number, dep: number, opts: any?):
 		end
 		local stepU = o.step or 0.35
 		local u = margin + w / 2
+		self:yield()
 		while u <= s.len - margin - w / 2 + 1e-3 do
 			local cfm = self:segCF(s, u, (y0 + y1) / 2, dep / 2)
 			local mn, mx = laabb(cfm, V3(w, y1 - y0, dep))
@@ -3575,6 +3586,7 @@ function C:floorAlongWall(w: number, d: number, h: number, opts: any?): (CFrame?
 			continue
 		end
 		local u = w / 2 + 0.15
+		self:yield()
 		while u <= s.len - w / 2 - 0.15 do
 			local center = s.p0 + s.t * u + s.n * ((o.gap or 0.08) + d / 2)
 			local pcf = CFrame.fromMatrix(V3(center.X, 0, center.Z), s.t, YA, s.n)
@@ -3794,9 +3806,48 @@ function C:commonReskins()
 		end)
 	end
 	-- 협탁 (갓은 테마 조명이라 그대로, 받침 · 기둥만)
-	for _, r in self:ownNamed("Nightstand") do
+	for ni, r in self:ownNamed("Nightstand") do
 		pcall(function()
-			self:nightstand(r)
+			local F, info = self:nightstand(r)
+			for _, q in self:ownNamed("DrawerLine") do
+				if math.abs(q.c.X - r.c.X) < r.size.X / 2 + 0.1 and math.abs(q.c.Z - r.c.Z) < r.size.Z / 2 + 0.1 and q.c.Y < r.max.Y then
+					self:hide(q.part)
+				end
+			end
+			-- 협탁 위 생활 소품 (스탠드 피해서 앞쪽 양 모서리)
+			local lampX = nil
+			for _, q in self:ownNamed("LampBase") do
+				if math.abs(q.c.X - r.c.X) < r.size.X / 2 and math.abs(q.c.Z - r.c.Z) < r.size.Z / 2 then
+					lampX = F:PointToObjectSpace(q.c).X
+				end
+			end
+			local K = self.K
+			local y = info.max.Y
+			local x0, x1, z1 = info.min.X, info.max.X, info.max.Z
+			local leftFree = not lampX or lampX > (x0 + x1) / 2 - 0.1
+			local rightFree = not lampX or lampX < (x0 + x1) / 2 + 0.1
+			K:free(function()
+				local px = if leftFree then x0 + 0.3 else x1 - 0.3
+				phone(K, F * CF(px, y, z1 - 0.38) * ANG(0, 0.35, 0), self.lux >= 3)
+				K:seg("HomeChargeCable", F * V3(px, y + 0.02, z1 - 0.68), F * V3(px - 0.05, y + 0.01, info.min.Z + 0.05), 0.025, lk(240, 240, 240))
+				local ox = if rightFree then x1 - 0.3 else x0 + 0.3
+				if ni % 2 == 1 then
+					if self.lux >= 4 then
+						K:box("HomeNSTray", V3(0.55, 0.03, 0.4), F * CF(ox, y + 0.015, z1 - 0.35), L.brass)
+						K:vcyl("HomeNSWatch", 0.05, 0.22, F * CF(ox - 0.1, y + 0.055, z1 - 0.35), L.goldMetal)
+						K:vcyl("HomeNSRing", 0.03, 0.08, F * CF(ox + 0.12, y + 0.045, z1 - 0.3), L.goldMetal)
+					else
+						K:vcyl("HomeWaterGlass", 0.38, 0.2, F * CF(ox, y + 0.19, z1 - 0.32), L.glass(c3(220, 236, 240), 0.55))
+						K:vcyl("HomeWater", 0.25, 0.17, F * CF(ox, y + 0.14, z1 - 0.32), L.glass(c3(190, 220, 236), 0.35))
+					end
+				else
+					-- 디지털 알람시계 / 안경 + 책
+					K:rbox("HomeAlarmClock", V3(0.5, 0.26, 0.2), 0.05, F * CF(ox, y + 0.13, z1 - 0.3), lk(40, 40, 44))
+					K:text("HomeAlarmTime", 0.42, 0.16, F * CF(ox, y + 0.14, z1 - 0.195), "07:00", { fg = c3(255, 90, 70), glow = 1.4, font = Enum.Font.Code, d = 0.004, free = true })
+				end
+			end)
+			local _ = ni
+
 			-- 같은 모델의 스탠드 받침 · 기둥
 			for _, q in (r.part.Parent and r.part.Parent:GetDescendants() or {}) do
 				if q:IsA("BasePart") and (q.Name == "LampBase" or q.Name == "LampStem") then
@@ -3989,17 +4040,6 @@ ROOM["oneroom:main"] = function(Cx: any)
 		pcall(function()
 			Cx:wardrobe(r, 3)
 		end)
-	end
-	-- 협탁 위: 휴대폰 충전 · 안경 · 물컵 · 책
-	for _, r in Cx:ownNamed("Nightstand") do
-		local F, info = propFrame(Cx, r.part)
-		local y = info.max.Y
-		K:free(function()
-			phone(K, F * CF(info.min.X + 0.35, y, (info.min.Z + info.max.Z) / 2 + 0.25) * ANG(0, 0.4, 0), true)
-			K:seg("HomeChargeCable", F * V3(info.min.X + 0.35, y + 0.02, info.min.Z + 0.3), F * V3(info.min.X + 0.1, y + 0.01, info.min.Z + 0.05), 0.03, lk(240, 240, 240))
-			K:vcyl("HomeWaterGlass", 0.4, 0.22, F * CF(info.max.X - 0.3, y + 0.2, info.max.Z - 0.35), L.glass(c3(220, 236, 240), 0.55))
-		end)
-		break
 	end
 	-- 바닥: 빨래 건조대 (창가) · 빨래 바구니 · 휴지통 · 전신 거울 · 슬리퍼
 	local win = nil

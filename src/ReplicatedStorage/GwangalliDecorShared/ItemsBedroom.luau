@@ -77,9 +77,10 @@ return function(D: any)
 	-- 저상형 LED 침대 -------------------------------------------------------------------------------
 	D.item({
 		id = "bd_platform_led", cat = "bedroom", name = "저상형 플랫폼 침대 (LED)", price = 980000, decor = 6, style = "modern", place = "floor",
-		size = { 5.2, 2.6, 7.0 }, tags = { "침대", "저상형", "LED" }, light = "warm",
+		size = { 7.4, 2.6, 7.0 }, tags = { "침대", "저상형", "LED" }, light = "warm",
 		slots = { S("body", "프레임", "charcoal", { "fabric", "leather", "wood", "gloss" }), S("duvet", "이불", "lightgrey", BEDDING) },
-		build = function(k, W, H, Dp)
+		build = function(k, W0, H, Dp)
+			local W = W0 - 2.2
 			k:box("Plinth", W - 0.6, 0.12, Dp - 0.8, 0, 0.06, -0.1, k:lit({ 24, 24, 26 }))
 			local led = k:box("LEDStrip", W - 0.5, 0.05, Dp - 0.7, 0, 0.1, -0.1, "light", { glow = true })
 			k:light(led, 7, 0.6)

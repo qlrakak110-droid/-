@@ -1136,7 +1136,7 @@ local function kitchenHob(C: any, st: any, info: any)
 		local dia = if i == 1 and #rings >= 3 then 0.9 else 0.72
 		C:disc("HobZoneLine", dia, 0.004, CF(p.X, ytop + 0.037, p.Z), lk(120, 120, 124))
 		C:disc("HobZone", dia - 0.05, 0.005, CF(p.X, ytop + 0.038, p.Z), LK.glassBlack)
-		local glow = C:disc("HobZoneGlow", dia * 0.62, 0.004, CF(p.X, ytop + 0.0385, p.Z), lk(70, 24, 20))
+		local glow = C:disc("HobZoneGlow", dia * 0.62, 0.004, CF(p.X, ytop + 0.0385, p.Z), lk(20, 18, 20, M.SmoothPlastic, { t = 1 }))
 		table.insert(zoneOn, glow)
 	end
 	-- 터치 조작부
@@ -1203,8 +1203,9 @@ local function kitchenHood(C: any, st: any, info: any)
 			end
 			for _, z in info.hobZones or {} do
 				-- 후드를 켜면 앞 화구 하나에 불 (요리 중)
-				if z == (info.hobZones or {})[1] then
-					setGlow({ z }, on, C3(255, 70, 40), C3(70, 24, 20))
+				if z == (info.hobZones or {})[1] and z.Parent then
+					setGlow({ z }, on, C3(255, 70, 40), C3(20, 18, 20))
+					z.Transparency = if on then 0.15 else 1
 				end
 			end
 		end,
@@ -1514,8 +1515,9 @@ local function washer(C: any, mn: Vector3, mx: Vector3, zf: number, ti: number)
 	local dr = math.min(w, h) * 0.66
 	local dy = mn.Y + h * 0.43
 	local dz = zf + 0.03
-	C:ring("WasherDoorRing", CF(cx, dy, dz + 0.04), dr / 2, 0.14, 14, LK.chrome)
-	C:disc("WasherDoorGlass", dr - 0.1, 0.04, CF(cx, dy, dz + 0.05) * ANG(PI / 2, 0, 0), lk(60, 70, 80, M.Glass, { t = 0.35, r = 0.2 }))
+	C:disc("WasherDoorRim", dr + 0.08, 0.06, CF(cx, dy, dz + 0.03) * ANG(PI / 2, 0, 0), lk(214, 216, 220, M.Metal, { r = 0.2 }))
+	C:disc("WasherDoorRimInner", dr - 0.12, 0.065, CF(cx, dy, dz + 0.035) * ANG(PI / 2, 0, 0), lk(60, 62, 66))
+	C:disc("WasherDoorGlass", dr - 0.2, 0.07, CF(cx, dy, dz + 0.04) * ANG(PI / 2, 0, 0), lk(40, 48, 58, M.Glass, { t = 0.3, r = 0.25 }))
 	C:disc("WasherDrum", dr - 0.14, 0.02, CF(cx, dy, dz - 0.06) * ANG(PI / 2, 0, 0), LK.steel)
 	-- 드럼 안 빨래 (돌아감)
 	local laundry: { BasePart } = {}
