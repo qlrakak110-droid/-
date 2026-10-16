@@ -445,19 +445,48 @@ end
 ---------------------------------------------------------------------------------------------------
 -- 2. 그리기 (B 프레임 래퍼)
 ---------------------------------------------------------------------------------------------------
+-- 저사양 (모바일: maxParts 1300) 에서 빼는 아주 작은 장식 파트 이름 (반환값을 쓰지 않는 것만)
+local LOW_CULL: { [string]: boolean } = {
+	PanelSeam = true, WallJoint = true, TyreGroove = true, ToolHook = true, SprinklerDrop = true, SprinklerHead = true,
+	SprinklerRose = true, SprinklerBody = true, TrackEndCap = true, DeskFlute = true, PartBoxStripe = true, FluidCap = true,
+	OilJugHandle = true, OilJugCap = true, PostHatchStripe = true, SlatGroove = true, AirPipeClip = true, TrenchSlot = true,
+	BannerRodCap = true, BannerCableMount = true, PostHazardStripe = true,
+}
+
 local function draw(G: any): any
 	local K, B = G.K, G.B
 	local D: any = {}
+	local low = K.detail == "low"
+	local function culled(n: string): BasePart?
+		if low and LOW_CULL[n] then
+			local p = Instance.new("Part")
+			p.Name = n
+			return p
+		end
+		return nil
+	end
 	function D.box(n: string, s: Vector3, cf: CFrame, l: any?): BasePart
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:box(n, s, B * cf, l)
 	end
 	function D.wedge(n: string, s: Vector3, cf: CFrame, l: any?): BasePart
 		return K:wedge(n, s, B * cf, l)
 	end
 	function D.cyl(n: string, len: number, d: number, cf: CFrame, l: any?): BasePart
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:cyl(n, len, d, B * cf, l)
 	end
 	function D.vcyl(n: string, h: number, d: number, cf: CFrame, l: any?): BasePart
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:vcyl(n, h, d, B * cf, l)
 	end
 	function D.ball(n: string, d: number, cf: CFrame, l: any?): BasePart
@@ -467,6 +496,10 @@ local function draw(G: any): any
 		return K:ell(n, s, B * cf, l)
 	end
 	function D.seg(n: string, a: Vector3, b: Vector3, d: number, l: any?, ex: number?): BasePart?
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:seg(n, B * a, B * b, d, l, ex)
 	end
 	function D.bar(n: string, a: Vector3, b: Vector3, w: number, h: number, l: any?): BasePart?
@@ -485,9 +518,17 @@ local function draw(G: any): any
 		return K:panel(n, w, h, d, r, B * dcf, l)
 	end
 	function D.disc(n: string, dia: number, t: number, cf: CFrame, l: any?): BasePart
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:disc(n, dia, t, B * cf, l)
 	end
 	function D.plate(n: string, w: number, h: number, d: number, dcf: CFrame, l: any?): BasePart
+		local c = culled(n)
+		if c then
+			return c
+		end
 		return K:plate(n, w, h, d, B * dcf, l)
 	end
 	function D.text(n: string, w: number, h: number, dcf: CFrame, s: string, o: any?): (BasePart, TextLabel)
@@ -2706,6 +2747,124 @@ local function buildBayImpl(K: any, V: any): any
 		end
 	end)
 
+	-- 5.8 리프트 디테일 (정적 파트에만: 기둥 · 모터 · 상단 바), 셔터 레일 · 스위치 ----------------------------------------
+	step(K, "lifts", function()
+		for _, r in G.byName.LiftPost or {} do
+			local fz = r.max.Z + 0.01
+			D.box("PostHazard", V3(r.size.X + 0.02, 1.1, 0.03), CF(r.c.X, 0.9, fz), L.yellow)
+			for k = -1, 1 do
+				D.box("PostHazardStripe", V3(0.22, 1.25, 0.035), CF(r.c.X + k * 0.42, 0.9, fz + 0.005) * ANG(0, 0, math.rad(35)), L.black)
+			end
+			D.label("PostCap", 1.1, 0.5, CFrame.fromMatrix(V3(r.c.X, 6.2, fz + 0.02), XA, YA, ZA), "3.5 TON", WHITE, C(30, 30, 34), { d = 0.01, font = Enum.Font.GothamBlack })
+			D.box("PostLockLadder", V3(0.22, 9.5, 0.04), CF(r.c.X, 6.0, r.min.Z - 0.02), lk(C(60, 60, 64), M.Metal))
+		end
+		for _, r in G.byName.LiftMotor or {} do
+			local fz = r.max.Z + 0.01
+			D.box("LiftControl", V3(0.9, 1.0, 0.25), CF(r.c.X, r.min.Y - 0.6, fz + 0.1), lk(C(230, 230, 226), M.Metal))
+			D.cyl("LiftUp", 0.06, 0.2, CF(r.c.X - 0.2, r.min.Y - 0.45, fz + 0.24) * ANG(0, PI / 2, 0), lk(C(40, 170, 80)))
+			D.cyl("LiftDown", 0.06, 0.2, CF(r.c.X + 0.2, r.min.Y - 0.45, fz + 0.24) * ANG(0, PI / 2, 0), lk(C(240, 190, 30)))
+			D.cyl("LiftStop", 0.12, 0.3, CF(r.c.X, r.min.Y - 0.85, fz + 0.27) * ANG(0, PI / 2, 0), lk(C(220, 30, 30)))
+			D.seg("LiftHydHose", V3(r.c.X, r.max.Y, r.c.Z), V3(r.c.X - 0.6, 13.2, r.c.Z), 0.1, L.black)
+		end
+		for _, r in G.byName.LiftTopBar or {} do
+			D.label("LiftTopBarLabel", 5.0, 0.5, CFrame.fromMatrix(V3(r.c.X, r.c.Y, r.max.Z + 0.01), XA, YA, ZA), "2주식 리프트 · 3.5 TON", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBold })
+		end
+		-- 셔터 가이드 레일 + 개폐 스위치
+		for _, r in G.byName.BayColumn or {} do
+			for _, sx in { -1, 1 } do
+				local x = if sx < 0 then r.min.X - 0.12 else r.max.X + 0.12
+				if x > RB.x0 and x < RB.x1 then
+					D.box("ShutterGuide", V3(0.24, 11.2, 0.5), CF(x, 5.6, r.c.Z - 0.1), lk(C(150, 154, 158), M.Metal))
+				end
+			end
+			if math.abs(r.c.X) < 3 then
+				local sc = CFrame.fromMatrix(V3(r.c.X, 4.6, r.min.Z - 0.02), -XA, YA, -ZA)
+				D.plate("ShutterSwitch", 0.6, 1.0, 0.2, sc, lk(C(230, 230, 226)))
+				for k, col in { C(40, 170, 80), C(220, 30, 30), C(240, 190, 30) } do
+					D.cyl("ShutterButton", 0.06, 0.18, sc * CF(0, 0.3 - (k - 1) * 0.3, 0.23) * ANG(0, PI / 2, 0), lk(col))
+				end
+				D.label("ShutterLabel", 0.6, 0.18, sc * CF(0, 0.6, 0.21), "셔터", INK, C(250, 250, 246), { d = 0.005 })
+			end
+		end
+	end)
+
+	-- 5.9 천장: 하이베이 LED · 배튼 조명 (맵 판 대신) · 퍼린 · 스프링클러 배관 · 에어 호스 릴 · 오일 릴 · 리프트 번호판 -----------------
+	step(K, "ceiling", function()
+		local lit = 0
+		local hbx = { (bays[1].x0 + bays[1].x1) / 2, (laneX0 + laneX1) / 2 - 1.6, ((bays[2] or bays[1]).x0 + (bays[2] or bays[1]).x1) / 2 }
+		for ti, tz in trussZ do
+			for xi, x in hbx do
+				local top = V3(x, trussY, tz)
+				D.seg("HighBayChain", top, top - V3(0, 0.8, 0), 0.05, lk(C(150, 150, 154), M.Metal))
+				D.box("HighBayDriver", V3(0.5, 0.25, 0.5), CF(top - V3(0, 0.95, 0)), lk(C(60, 62, 66), M.Metal))
+				D.disc("HighBaySink", 1.5, 0.35, CF(top - V3(0, 1.25, 0)), lk(C(50, 52, 56), M.Metal))
+				local lens = D.disc("HighBayLens", 1.32, 0.04, CF(top - V3(0, 1.44, 0)), Look.lampCool)
+				local want = (xi ~= 2 and ti ~= 2) or (xi == 2 and ti == 1) or (ti == 2 and xi ~= 2)
+				if want and lit < 5 then
+					D.light(lens, "PointLight", { Range = 26, Brightness = 0.9, Color = Look.coolLight })
+					lit += 1
+				end
+			end
+		end
+		for _, r in hideNamed(G, "LightPanel") do
+			local a, b = V3(r.min.X, r.max.Y + 0.02, r.c.Z), V3(r.max.X, r.max.Y + 0.02, r.c.Z)
+			linearLED(D, a + V3(0, 0.15, 0), b + V3(0, 0.15, 0), 1.0, { drop = 0.16, glow = Look.lampCool })
+			for _, p in { a, b } do
+				local q = p + (if p == a then V3(0.4, 0, 0) else V3(-0.4, 0, 0))
+				D.seg("BattenWire", q + V3(0, 0.15, 0), V3(q.X, yR, q.Z), 0.03, lk(C(160, 160, 164), M.Metal))
+			end
+		end
+		-- 퍼린 · 지붕 단열재 면
+		D.box("RoofLiner", V3(RB.x1 - RB.x0 - 0.1, 0.03, RB.z1 - RB.z0 + 0.8), CF((RB.x0 + RB.x1) / 2, yR - 0.02, (RB.z0 + RB.z1) / 2 + 0.4), lk(C(232, 232, 228), M.Fabric))
+		for i = -2, 2 do
+			D.box("Purlin", V3(0.25, 0.5, RB.z1 - RB.z0 + 0.8), CF(i * 9.2, yR - 0.29, (RB.z0 + RB.z1) / 2 + 0.4), lk(C(70, 78, 90), M.Metal))
+		end
+		-- 스프링클러 배관 2 줄 + 헤드
+		for _, sz in { -7.0, 7.0 } do
+			D.seg("SprinklerMain", V3(RB.x0 + 0.5, yR - 0.75, sz), V3(RB.x1 - 0.5, yR - 0.75, sz), 0.2, lk(C(196, 30, 30), M.Metal))
+			for x = RB.x0 + 3.0, RB.x1 - 2.0, 6.0 do
+				D.seg("SprinklerDrop", V3(x, yR - 0.75, sz), V3(x, yR - 1.15, sz), 0.08, lk(C(196, 30, 30), M.Metal))
+				D.disc("SprinklerHead", 0.22, 0.05, CF(x, yR - 1.2, sz), Look.brass)
+			end
+		end
+		-- 에어 호스 릴 (트러스, 가운데 통로 위)
+		local ax = G.airX or (laneX0 + laneX1) / 2 + 1.8
+		for i, tz in trussZ do
+			if i >= 2 then
+				local rc = CF(ax, trussY - 0.75, tz)
+				D.box("ReelBracket", V3(0.2, 0.4, 0.9), rc * CF(0, 0.5, 0), L.darkAlu)
+				D.cyl("HoseReelBody", 0.6, 1.4, rc, lk(C(240, 190, 30), M.Plastic))
+				D.cyl("HoseReelHub", 0.65, 0.5, rc, lk(C(40, 42, 46), M.Metal))
+				D.seg("HoseDrop", (rc * CF(0, -0.6, 0.2)).Position, V3(ax + 0.1, 9.0, tz + 0.4), 0.08, lk(C(240, 190, 30), M.Rubber))
+				D.box("HoseBallStop", V3(0.25, 0.25, 0.25), CF(ax + 0.1, 9.0, tz + 0.4), L.black)
+				D.seg("AirGun", V3(ax + 0.1, 8.9, tz + 0.4), V3(ax + 0.1, 8.3, tz + 0.55), 0.12, lk(C(200, 40, 36), M.Plastic))
+			end
+		end
+		-- 오일 디스펜서 릴 4 (뒤 트러스)
+		local rz = trussZ[1]
+		local reels = { { "엔진오일", C(30, 30, 32) }, { "ATF", C(196, 30, 30) }, { "기어오일", C(40, 90, 180) }, { "에어", C(240, 190, 30) } }
+		local rx0 = ((bays[2] or bays[1]).x0 + (bays[2] or bays[1]).x1) / 2 - 3.6
+		D.box("ReelRail", V3(6.4, 0.2, 0.5), CF(rx0 + 2.1, trussY - 0.1, rz), L.darkAlu)
+		for i, r in reels do
+			local x = rx0 + (i - 1) * 1.4
+			local rc = CF(x, trussY - 0.75, rz)
+			D.cyl("OilReel", 0.5, 1.1, rc, lk(r[2], M.Metal))
+			D.seg("OilHose", (rc * CF(0, -0.5, 0.15)).Position, V3(x, 10.2, rz + 0.3), 0.07, L.black)
+			D.box("OilNozzle", V3(0.18, 0.5, 0.3), CF(x, 9.95, rz + 0.3), lk(r[2], M.Metal))
+			if mid then
+				D.label("OilReelTag", 1.2, 0.3, CFrame.fromMatrix(V3(x, trussY - 1.45, rz + 0.3), XA, YA, ZA), r[1], WHITE, r[2], { d = 0.01 })
+			end
+		end
+		-- 리프트 번호판 (앞 트러스에 매달림)
+		local fz = trussZ[#trussZ]
+		for i, b in bays do
+			local x = (b.x0 + b.x1) / 2
+			for _, sx in { -1, 1 } do
+				D.seg("BaySignWire", V3(x + sx * 1.2, trussY, fz), V3(x + sx * 1.2, 13.4, fz), 0.03, lk(C(160, 160, 164), M.Metal))
+			end
+			D.label("BaySign", 3.2, 1.0, CFrame.fromMatrix(V3(x, 12.9, fz + 0.05), XA, YA, ZA), (if i == 1 then "1" else "2") .. "번 리프트", WHITE, NAVY, { d = 0.08, font = Enum.Font.GothamBlack })
+		end
+	end)
 	-- 5.5 오른쪽 벽: 오일 선반 (맵 상자 대신) · 얼라인먼트 · 타이어 탈착기 · 휠 밸런서 · 질소 · 타이어 랙 · 접수 카운터 + 요금표 --------
 	step(K, "rightWall", function()
 		local os = G.byName.OilShelf and G.byName.OilShelf[1]
@@ -2723,7 +2882,9 @@ local function buildBayImpl(K: any, V: any): any
 			for i = 0, n - 1 do
 				local x = -w / 2 + 0.55 + i * 0.78
 				local k = (i // 2) % #oilCols + 1
-				oilJug(D, pcf * CF(x, ys[2], 0.15), oilCols[k], oilNames[k], hi and i % 2 == 0)
+				if mid or i % 2 == 0 then
+					oilJug(D, pcf * CF(x, ys[2], 0.15), oilCols[k], oilNames[k], hi and i % 2 == 0)
+				end
 			end
 			-- 1L 병 (브레이크액 · 부동액 · 워셔액)
 			local bcols = { C(240, 240, 236), C(60, 180, 80), C(230, 90, 140), C(60, 130, 230) }
@@ -3280,124 +3441,6 @@ local function buildBayImpl(K: any, V: any): any
 		end
 	end)
 
-	-- 5.8 리프트 디테일 (정적 파트에만: 기둥 · 모터 · 상단 바), 셔터 레일 · 스위치 ----------------------------------------
-	step(K, "lifts", function()
-		for _, r in G.byName.LiftPost or {} do
-			local fz = r.max.Z + 0.01
-			D.box("PostHazard", V3(r.size.X + 0.02, 1.1, 0.03), CF(r.c.X, 0.9, fz), L.yellow)
-			for k = -1, 1 do
-				D.box("PostHazardStripe", V3(0.22, 1.25, 0.035), CF(r.c.X + k * 0.42, 0.9, fz + 0.005) * ANG(0, 0, math.rad(35)), L.black)
-			end
-			D.label("PostCap", 1.1, 0.5, CFrame.fromMatrix(V3(r.c.X, 6.2, fz + 0.02), XA, YA, ZA), "3.5 TON", WHITE, C(30, 30, 34), { d = 0.01, font = Enum.Font.GothamBlack })
-			D.box("PostLockLadder", V3(0.22, 9.5, 0.04), CF(r.c.X, 6.0, r.min.Z - 0.02), lk(C(60, 60, 64), M.Metal))
-		end
-		for _, r in G.byName.LiftMotor or {} do
-			local fz = r.max.Z + 0.01
-			D.box("LiftControl", V3(0.9, 1.0, 0.25), CF(r.c.X, r.min.Y - 0.6, fz + 0.1), lk(C(230, 230, 226), M.Metal))
-			D.cyl("LiftUp", 0.06, 0.2, CF(r.c.X - 0.2, r.min.Y - 0.45, fz + 0.24) * ANG(0, PI / 2, 0), lk(C(40, 170, 80)))
-			D.cyl("LiftDown", 0.06, 0.2, CF(r.c.X + 0.2, r.min.Y - 0.45, fz + 0.24) * ANG(0, PI / 2, 0), lk(C(240, 190, 30)))
-			D.cyl("LiftStop", 0.12, 0.3, CF(r.c.X, r.min.Y - 0.85, fz + 0.27) * ANG(0, PI / 2, 0), lk(C(220, 30, 30)))
-			D.seg("LiftHydHose", V3(r.c.X, r.max.Y, r.c.Z), V3(r.c.X - 0.6, 13.2, r.c.Z), 0.1, L.black)
-		end
-		for _, r in G.byName.LiftTopBar or {} do
-			D.label("LiftTopBarLabel", 5.0, 0.5, CFrame.fromMatrix(V3(r.c.X, r.c.Y, r.max.Z + 0.01), XA, YA, ZA), "2주식 리프트 · 3.5 TON", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBold })
-		end
-		-- 셔터 가이드 레일 + 개폐 스위치
-		for _, r in G.byName.BayColumn or {} do
-			for _, sx in { -1, 1 } do
-				local x = if sx < 0 then r.min.X - 0.12 else r.max.X + 0.12
-				if x > RB.x0 and x < RB.x1 then
-					D.box("ShutterGuide", V3(0.24, 11.2, 0.5), CF(x, 5.6, r.c.Z - 0.1), lk(C(150, 154, 158), M.Metal))
-				end
-			end
-			if math.abs(r.c.X) < 3 then
-				local sc = CFrame.fromMatrix(V3(r.c.X, 4.6, r.min.Z - 0.02), -XA, YA, -ZA)
-				D.plate("ShutterSwitch", 0.6, 1.0, 0.2, sc, lk(C(230, 230, 226)))
-				for k, col in { C(40, 170, 80), C(220, 30, 30), C(240, 190, 30) } do
-					D.cyl("ShutterButton", 0.06, 0.18, sc * CF(0, 0.3 - (k - 1) * 0.3, 0.23) * ANG(0, PI / 2, 0), lk(col))
-				end
-				D.label("ShutterLabel", 0.6, 0.18, sc * CF(0, 0.6, 0.21), "셔터", INK, C(250, 250, 246), { d = 0.005 })
-			end
-		end
-	end)
-
-	-- 5.9 천장: 하이베이 LED · 배튼 조명 (맵 판 대신) · 퍼린 · 스프링클러 배관 · 에어 호스 릴 · 오일 릴 · 리프트 번호판 -----------------
-	step(K, "ceiling", function()
-		local lit = 0
-		local hbx = { (bays[1].x0 + bays[1].x1) / 2, (laneX0 + laneX1) / 2 - 1.6, ((bays[2] or bays[1]).x0 + (bays[2] or bays[1]).x1) / 2 }
-		for ti, tz in trussZ do
-			for xi, x in hbx do
-				local top = V3(x, trussY, tz)
-				D.seg("HighBayChain", top, top - V3(0, 0.8, 0), 0.05, lk(C(150, 150, 154), M.Metal))
-				D.box("HighBayDriver", V3(0.5, 0.25, 0.5), CF(top - V3(0, 0.95, 0)), lk(C(60, 62, 66), M.Metal))
-				D.disc("HighBaySink", 1.5, 0.35, CF(top - V3(0, 1.25, 0)), lk(C(50, 52, 56), M.Metal))
-				local lens = D.disc("HighBayLens", 1.32, 0.04, CF(top - V3(0, 1.44, 0)), Look.lampCool)
-				local want = (xi ~= 2 and ti ~= 2) or (xi == 2 and ti == 1) or (ti == 2 and xi ~= 2)
-				if want and lit < 5 then
-					D.light(lens, "PointLight", { Range = 26, Brightness = 0.9, Color = Look.coolLight })
-					lit += 1
-				end
-			end
-		end
-		for _, r in hideNamed(G, "LightPanel") do
-			local a, b = V3(r.min.X, r.max.Y + 0.02, r.c.Z), V3(r.max.X, r.max.Y + 0.02, r.c.Z)
-			linearLED(D, a + V3(0, 0.15, 0), b + V3(0, 0.15, 0), 1.0, { drop = 0.16, glow = Look.lampCool })
-			for _, p in { a, b } do
-				local q = p + (if p == a then V3(0.4, 0, 0) else V3(-0.4, 0, 0))
-				D.seg("BattenWire", q + V3(0, 0.15, 0), V3(q.X, yR, q.Z), 0.03, lk(C(160, 160, 164), M.Metal))
-			end
-		end
-		-- 퍼린 · 지붕 단열재 면
-		D.box("RoofLiner", V3(RB.x1 - RB.x0 - 0.1, 0.03, RB.z1 - RB.z0 + 0.8), CF((RB.x0 + RB.x1) / 2, yR - 0.02, (RB.z0 + RB.z1) / 2 + 0.4), lk(C(232, 232, 228), M.Fabric))
-		for i = -2, 2 do
-			D.box("Purlin", V3(0.25, 0.5, RB.z1 - RB.z0 + 0.8), CF(i * 9.2, yR - 0.29, (RB.z0 + RB.z1) / 2 + 0.4), lk(C(70, 78, 90), M.Metal))
-		end
-		-- 스프링클러 배관 2 줄 + 헤드
-		for _, sz in { -7.0, 7.0 } do
-			D.seg("SprinklerMain", V3(RB.x0 + 0.5, yR - 0.75, sz), V3(RB.x1 - 0.5, yR - 0.75, sz), 0.2, lk(C(196, 30, 30), M.Metal))
-			for x = RB.x0 + 3.0, RB.x1 - 2.0, 6.0 do
-				D.seg("SprinklerDrop", V3(x, yR - 0.75, sz), V3(x, yR - 1.15, sz), 0.08, lk(C(196, 30, 30), M.Metal))
-				D.disc("SprinklerHead", 0.22, 0.05, CF(x, yR - 1.2, sz), Look.brass)
-			end
-		end
-		-- 에어 호스 릴 (트러스, 가운데 통로 위)
-		local ax = G.airX or (laneX0 + laneX1) / 2 + 1.8
-		for i, tz in trussZ do
-			if i >= 2 then
-				local rc = CF(ax, trussY - 0.75, tz)
-				D.box("ReelBracket", V3(0.2, 0.4, 0.9), rc * CF(0, 0.5, 0), L.darkAlu)
-				D.cyl("HoseReelBody", 0.6, 1.4, rc, lk(C(240, 190, 30), M.Plastic))
-				D.cyl("HoseReelHub", 0.65, 0.5, rc, lk(C(40, 42, 46), M.Metal))
-				D.seg("HoseDrop", (rc * CF(0, -0.6, 0.2)).Position, V3(ax + 0.1, 9.0, tz + 0.4), 0.08, lk(C(240, 190, 30), M.Rubber))
-				D.box("HoseBallStop", V3(0.25, 0.25, 0.25), CF(ax + 0.1, 9.0, tz + 0.4), L.black)
-				D.seg("AirGun", V3(ax + 0.1, 8.9, tz + 0.4), V3(ax + 0.1, 8.3, tz + 0.55), 0.12, lk(C(200, 40, 36), M.Plastic))
-			end
-		end
-		-- 오일 디스펜서 릴 4 (뒤 트러스)
-		local rz = trussZ[1]
-		local reels = { { "엔진오일", C(30, 30, 32) }, { "ATF", C(196, 30, 30) }, { "기어오일", C(40, 90, 180) }, { "에어", C(240, 190, 30) } }
-		local rx0 = ((bays[2] or bays[1]).x0 + (bays[2] or bays[1]).x1) / 2 - 3.6
-		D.box("ReelRail", V3(6.4, 0.2, 0.5), CF(rx0 + 2.1, trussY - 0.1, rz), L.darkAlu)
-		for i, r in reels do
-			local x = rx0 + (i - 1) * 1.4
-			local rc = CF(x, trussY - 0.75, rz)
-			D.cyl("OilReel", 0.5, 1.1, rc, lk(r[2], M.Metal))
-			D.seg("OilHose", (rc * CF(0, -0.5, 0.15)).Position, V3(x, 10.2, rz + 0.3), 0.07, L.black)
-			D.box("OilNozzle", V3(0.18, 0.5, 0.3), CF(x, 9.95, rz + 0.3), lk(r[2], M.Metal))
-			if mid then
-				D.label("OilReelTag", 1.2, 0.3, CFrame.fromMatrix(V3(x, trussY - 1.45, rz + 0.3), XA, YA, ZA), r[1], WHITE, r[2], { d = 0.01 })
-			end
-		end
-		-- 리프트 번호판 (앞 트러스에 매달림)
-		local fz = trussZ[#trussZ]
-		for i, b in bays do
-			local x = (b.x0 + b.x1) / 2
-			for _, sx in { -1, 1 } do
-				D.seg("BaySignWire", V3(x + sx * 1.2, trussY, fz), V3(x + sx * 1.2, 13.4, fz), 0.03, lk(C(160, 160, 164), M.Metal))
-			end
-			D.label("BaySign", 3.2, 1.0, CFrame.fromMatrix(V3(x, 12.9, fz + 0.05), XA, YA, ZA), (if i == 1 then "1" else "2") .. "번 리프트", WHITE, NAVY, { d = 0.08, font = Enum.Font.GothamBlack })
-		end
-	end)
 	return G
 end
 buildBay = buildBayImpl
