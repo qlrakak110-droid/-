@@ -3302,6 +3302,20 @@ local function buildWashImpl(K: any, V: any): any
 			D.label("GuideSignSub", 3.1, 0.42, dc * CF(0.12, -0.35, 0.05), g[3], INK, nil, { d = 0.005 })
 		end
 		D.label("ExitSign", 3.4, 1.0, CFrame.fromMatrix(V3(0, 12.2, RB.z0 + 0.6), XA, YA, ZA), "출구  EXIT  ➜", WHITE, C(20, 150, 80), { d = 0.06, font = Enum.Font.GothamBlack })
+		-- 오른쪽 유리면: 세차 코스 라이트박스 2
+		local promos = {
+			{ 5.5, "폼 세차 7,000원\n풍성한 거품 · 부드러운 브러시", C(30, 110, 200) },
+			{ -2.5, "프리미엄 왁스 10,000원\n발수 코팅 · 광택 UP", C(20, 140, 120) },
+		}
+		for _, pr in promos do
+			local dc = D.wall("right", pr[1], 6.0, -0.05)
+			D.plate("CourseBox", 4.6, 2.6, 0.25, dc, L.darkAlu)
+			local face = D.label("CourseBoxFace", 4.4, 2.4, dc * CF(0, 0, 0.25), pr[2], WHITE, pr[3], { d = 0.02, glow = 1.15, font = Enum.Font.GothamBlack })
+			local _ = face
+			for k = 0, 2 do
+				D.ball("CourseBubble", 0.4 + k * 0.15, dc * CF(1.6 - k * 0.45, 0.75 - k * 0.2, 0.32), { c = C(230, 245, 255), m = M.Glass, t = 0.35 })
+			end
+		end
 	end)
 
 	-- 6.4 결제 키오스크 (서버 '세차하기' 앵커 바로 앞 · 장식) + 요금표 -----------------------------------------------------
