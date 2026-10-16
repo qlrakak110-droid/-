@@ -946,11 +946,11 @@ local function hotelDesk(K: any, V: any, th: any, rng: () -> number): any?
 				-- 판 사이 금속 세로 띠
 				K:plate("DeskJoint", 0.07, ph, 0.05, dd * CF(sgn * (ow / 2 + 0.04), 0.15 + ph / 2, 0), th.trim)
 			end
-			K:plate("DeskOnyx", ow, ph, 0.03, dd * CF(0, 0.15 + ph / 2, 0), lk(C(236, 184, 110), M.Neon, { t = 0.45 }))
-			K:plate("DeskOnyxBack", ow, ph, 0.02, dd * CF(0, 0.15 + ph / 2, -0.01), lk(C(120, 70, 30)))
+			K:plate("DeskOnyx", ow, ph, 0.03, dd * CF(0, 0.15 + ph / 2, 0), lk(C(232, 206, 168), M.Neon, { t = 0.62 }))
+			K:plate("DeskOnyxBack", ow, ph, 0.02, dd * CF(0, 0.15 + ph / 2, -0.01), lk(C(150, 110, 70)))
 			if not lo(K) then
-				for k = 1, 4 do
-					K:plate("DeskOnyxVein", ow * 0.98, 0.05 + (k % 2) * 0.04, 0.035, dd * CF(0, 0.5 + k * ph / 5.2, 0.002) * ANG(0, 0, (k % 2 - 0.5) * 0.35), lk(C(160, 100, 50), M.Glass, { t = 0.3 }))
+				for k = 1, 3 do
+					K:plate("DeskOnyxVein", ow * 0.98, 0.025, 0.034, dd * CF(0, 0.4 + k * ph / 4, 0.002) * ANG(0, 0, (k % 2 - 0.5) * 0.18), lk(C(190, 150, 100), M.Glass, { t = 0.45 }))
 				end
 			end
 			-- 위아래 금속 띠
@@ -1218,7 +1218,7 @@ local function loungeChair(K: any, V: any, ch: any, th: any): (Vector3?, any?)
 		K:rbox("LoungeBack", V3(w - 0.3, 2.65, 0.5), 0.2, pcf * CF(0, 0.32 + 2.65 / 2, -d / 2 + 0.25) * ANG(-0.08, 0, 0), fab)
 		K:rbox("LoungeBackCushion", V3(sw - 0.1, 1.15, 0.36), 0.16, pcf * CF(sl.X, topY + 0.62, -d / 2 + 0.66) * ANG(-0.16, 0, 0), lk(lighter(fab.c, 0.06), fab.m))
 		if not lo(K) then
-			K:ell("LoungePillow", V3(0.8, 0.75, 0.26), pcf * CF(sl.X + sw * 0.22, topY + 0.42, -d / 2 + 0.95) * ANG(-0.25, 0.25, 0.12), lk(th.accent, M.Fabric))
+			K:rbox("LoungePillow", V3(0.22, 0.72, 0.82), 0.1, pcf * CF(sl.X + sw * 0.22, topY + 0.42, -d / 2 + 0.95) * ANG(-0.3, 0.3, 0.1) * ANG(0, PI / 2, 0), lk(lighter(th.rug.c, 0.25), M.Fabric))
 		end
 	end)
 	for _, r in parts do
@@ -1422,9 +1422,18 @@ local function hotelLounge(K: any, V: any, th: any, rng: () -> number): any
 		end
 	end
 	-- 플로어 램프: 라운지 모서리
-	local corner = c + side * ((if math.abs(side.X) > 0.5 then mx.X - mn.X else mx.Z - mn.Z) / 2 + 1.0) - face * 0.2
-	local pcfL = pcfAt(V3(corner.X, 0, corner.Z), face)
-	if claim(K, pcfL, V3(1.4, 5.6, 1.4), 0, "lounge") or claim(K, pcfAt(V3(c.X - side.X * ((mx - mn).Magnitude / 2 + 0.6), 0, c.Z - side.Z * ((mx - mn).Magnitude / 2 + 0.6)), face), V3(1.4, 5.6, 1.4), 0, "lounge") then
+	local half = (if math.abs(side.X) > 0.5 then mx.X - mn.X else mx.Z - mn.Z) / 2 + 0.95
+	local pcfL = nil
+	for _, sg in { -1, 1 } do
+		for _, k in { 0, 0.5, -0.5 } do
+			local p = c + side * (sg * half) - face * k
+			local pc = pcfAt(V3(p.X, 0, p.Z), face)
+			if not pcfL and Interact.canPrompt(K, V3(p.X, 4.75, p.Z)) and claim(K, pc, V3(1.4, 5.6, 1.4), 0, "lounge") then
+				pcfL = pc
+			end
+		end
+	end
+	if pcfL then
 		K:disc("FloorLampBase", 1.0, 0.1, pcfL * CF(0, 0.05, 0), th.trim)
 		K:vcyl("FloorLampPole", 4.4, 0.08, pcfL * CF(0, 2.3, 0), th.trim)
 		K:vcyl("FloorLampShade", 1.0, 1.15, pcfL * CF(0, 4.9, 0), lk(C(244, 236, 220), M.Fabric, { t = 0.15 }))
@@ -1636,7 +1645,7 @@ local function buildHotel(K: any, V: any, S: any)
 	local rng = mkRng(V.key or V.name)
 	local desk = nil
 	step(K, "skin", function()
-		local wp = if th.key == "dark" then lk(C(150, 138, 124), M.Fabric) elseif th.key == "oak" then lk(C(228, 222, 208), M.Fabric) else lk(C(216, 208, 194), M.Fabric)
+		local wp = if th.key == "dark" then lk(C(196, 186, 172), M.Fabric) elseif th.key == "oak" then lk(C(228, 222, 208), M.Fabric) else lk(C(216, 208, 194), M.Fabric)
 		wallSkin(K, { "left", "right", "back" }, 3.6, V.H - 0.02, wp, th.trim)
 		coveLED(K, { "left", "right" }, C(255, 214, 170), true)
 	end)
