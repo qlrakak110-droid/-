@@ -656,7 +656,7 @@ local function buildSalon(K: any, V: any, S: any)
 				local bk = CF(p.X - 0.15, h + 0.04 * j - 0.01, p.Z + 0.05) * ANG(0, 0.3 * j - 0.4, 0)
 				K:box("StyleBook", V3(0.8, 0.04, 1.05), bk, lk(cols[j]))
 			end
-			K:text("StyleBookCover", 0.6, 0.3, topCF(V3(p.X - 0.15, h + 0.135, p.Z + 0.05), V3(0, 0, -1)), "HAIR\nSTYLE 2026", rgb(250, 244, 236), nil, { font = F.GothamBlack, d = 0.005 })
+			txt(K, "StyleBookCover", 0.6, 0.3, topCF(V3(p.X - 0.15, h + 0.135, p.Z + 0.05), V3(0, 0, -1)), "HAIR\nSTYLE 2026", rgb(250, 244, 236), nil, F.GothamBlack, nil, { d = 0.005 })
 			K:vcyl("Diffuser", 0.4, 0.26, CF(p.X + 0.45, h + 0.2, p.Z - 0.35), gl(rgb(200, 170, 120), 0.35))
 			for j = 0, 4 do
 				local a = j * PI * 2 / 5
