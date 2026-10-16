@@ -2799,6 +2799,62 @@ BUILD.consult = function(K: any, V: any)
 		if K:spot(stp, V3(1.6, 2.0, 1.6), 0) then
 			rollStool(K, stp, 1.9, LK.vinylNavy)
 		end
+		-- 칸막이 안쪽면 (x = xp, +X 향): 소모품 장 · 검사복 걸이 · 안내문 · 탈의 바구니
+		local fx = xp + 0.24
+		local cab = CF(fx + 0.8, 0, bz - 2.6) * ANG(0, PI / 2, 0)
+		if K:spot(cab, V3(4.0, 3.2, 1.6), 0) then
+			K:free(function()
+				K:box("UsCabBody", V3(4.0, 3.0, 1.5), cab * CF(0, 1.65, 0), lk(246, 246, 244, M.SmoothPlastic))
+				K:box("UsCabKick", V3(3.9, 0.15, 1.4), cab * CF(0, 0.075, -0.02), lk(120, 128, 132))
+				K:box("UsCabTop", V3(4.1, 0.1, 1.6), cab * CF(0, 3.2, 0), lk(220, 222, 220, M.Marble))
+				for k = 0, 1 do
+					local x = -1.0 + k * 2.0
+					K:plate("UsCabDoor", 1.94, 2.7, 0.03, cab * CF(x, 1.6, 0.76), lk(236, 240, 240, M.SmoothPlastic))
+					K:plate("UsCabPull", 0.07, 0.8, 0.05, cab * CF(x + (if k == 0 then 0.8 else -0.8), 2.2, 0.79), LK.chrome)
+				end
+				local t = cab * CF(0, 3.25, 0)
+				for k = 0, 3 do
+					K:box("UsTowelStack", V3(0.9, 0.22, 0.7), t * CF(-1.4, 0.11 + k * 0.22, 0.1), lk(150 + k % 2 * 70, 196 + k % 2 * 30, 214, M.Fabric))
+				end
+				for k = 0, 2 do
+					K:vcyl("UsGelBottle", 0.7, 0.24, t * CF(-0.3 + k * 0.32, 0.35, 0.3), col(C3(90, 160, 230), M.Plastic))
+					K:vcyl("UsGelCap", 0.12, 0.14, t * CF(-0.3 + k * 0.32, 0.76, 0.3), LK.white)
+				end
+				K:box("UsGloveBox", V3(0.9, 0.45, 0.5), t * CF(0.9, 0.225, 0.2), lk(250, 250, 250))
+				K:box("UsGloveBoxBand", V3(0.92, 0.12, 0.52), t * CF(0.9, 0.3, 0.2), col(C3(60, 120, 200)))
+				K:box("UsWipes", V3(0.7, 0.3, 0.45), t * CF(1.6, 0.15, 0.1), lk(230, 244, 250))
+				K:box("UsShelf", V3(4.0, 0.1, 0.9), cab * CF(0, 6.0, -0.3), lk(196, 166, 126, M.Wood))
+				for k = 0, 1 do
+					K:box("UsShelfBracket", V3(0.08, 0.5, 0.7), cab * CF(-1.6 + k * 3.2, 5.7, -0.4), LK.alu)
+				end
+				for k = 0, 4 do
+					K:box("UsGownFolded", V3(0.7, 0.18, 0.6), cab * CF(-1.4 + k * 0.7, 6.14, -0.25), lk(150, 186, 220, M.Fabric))
+				end
+				tx(K, "UsShelfLabel", 1.8, 0.28, cab * CF(0, 5.82, 0.16), "검사복 · 수건", INK, WHITE, { font = FONT_M, d = 0.01 })
+			end)
+		end
+		local hk = faceCF(Vector3.new(fx, 5.4, bz + 4.1), Vector3.xAxis)
+		K:free(function()
+			K:plate("UsHookRail", 3.0, 0.3, 0.08, hk, lk(196, 166, 126, M.Wood))
+			for k = 0, 2 do
+				K:seg("UsHook", (hk * CF(-1.0 + k, 0, 0.05)).Position, (hk * CF(-1.0 + k, 0.15, 0.4)).Position, 0.06, LK.chrome)
+			end
+			K:box("UsGownHang", V3(1.1, 2.4, 0.18), hk * CF(-1.0, -1.25, 0.32), lk(150, 186, 220, M.Fabric))
+			K:box("UsBagHang", V3(0.8, 1.0, 0.3), hk * CF(1.0, -0.6, 0.3), lk(60, 64, 70, M.Fabric))
+			tx(K, "UsHookNote", 2.4, 0.5, hk * CF(0, 0.6, 0.02), "상의는 걸어 두시고\n검사복으로 갈아입어 주세요", INK, WHITE, { d = 0.01 })
+		end)
+		local pg = faceCF(Vector3.new(fx, 4.6, bz + 1.0), Vector3.xAxis)
+		if pg then
+			poster(K, pg, 2.8, 3.4, "초음파 검사 전 확인", "8시간 금식 했나요?\n복부 노출 · 젤이 차가울 수 있어요\n숨 참으세요 안내에 맞춰 주세요\n검사 후 젤은 수건으로 닦기", WHITE, INK, TEAL, WHITE, 0.22)
+		end
+		local bk = CF(fx + 0.9, 0, bz + 4.3) * ANG(0, PI / 2, 0)
+		if K:spot(bk, V3(1.4, 2.4, 1.4), 0) then
+			K:free(function()
+				K:vcyl("UsBasketStool", 1.5, 1.1, bk * CF(0, 0.75, 0), lk(196, 166, 126, M.Wood))
+				K:box("UsBasket", V3(1.2, 0.5, 0.9), bk * CF(0, 1.75, 0), lk(220, 200, 160, M.Fabric))
+				K:box("UsBasketCloth", V3(0.9, 0.2, 0.6), bk * CF(0, 2.05, 0), lk(60, 70, 90, M.Fabric))
+			end)
+		end
 		-- 환자용 모니터 (벽, 침대에서 보임)
 		local pm = wallSpot(K, "right", 3.2, 5.0, 7.2, wallU("right", Vector3.new(0, 0, bz)), 0.6)
 		if pm then

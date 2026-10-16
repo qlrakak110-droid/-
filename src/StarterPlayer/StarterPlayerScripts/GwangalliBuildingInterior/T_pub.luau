@@ -367,6 +367,7 @@ THEMES.monk = {
 
 THEMES.wave = {
 	key = "wave",
+	tapWall = true,
 	brand = "WILD WAVE",
 	crown = "WILD WAVE  ·  SURF BREWING  ·  BUSAN",
 	font = F.Bangers,
@@ -434,6 +435,7 @@ THEMES.wave = {
 
 THEMES.tap = {
 	key = "tap",
+	tapWall = true,
 	brand = "광안 탭하우스",
 	crown = "GWANGAN TAP HOUSE  ·  20 TAPS",
 	font = F.Oswald,
@@ -1648,6 +1650,42 @@ local function backBar(c: any)
 				local bx1 = x0 + bw * bi - 0.2
 				local bcx = (bx0 + bx1) / 2
 				local sw = bx1 - bx0
+				if th.tapWall and si == 1 and clear > 1.45 then
+					-- 탭 월 (맨 아래 칸): 스테인리스 판 + 파우셋 줄 + 핸들 + 물받이 (20 TAPS 탭하우스)
+					local steel = L.of(168, 172, 178, M.Metal, { r = 0.18 })
+					local yF = y + math.min(0.85, clear - 0.95)
+					K:box("TapWallPanel", V3(sw + 0.04, clear + 0.08, 0.06), CF(bcx, y + clear / 2, zw + 0.3), steel)
+					K:box("TapWallManifold", V3(sw - 0.1, 0.16, 0.12), CF(bcx, yF, zw + 0.39), L.chrome)
+					K:box("TapWallTrough", V3(sw + 0.04, 0.12, 0.62), CF(bcx, y - 0.0, zw + 0.64), steel)
+					K:box("TapWallGrate", V3(sw - 0.08, 0.014, 0.5), CF(bcx, y + 0.066, zw + 0.64), L.of(40, 40, 42, M.Metal))
+					if K.detail ~= "low" then
+						for k = 1, 4 do
+							K:box("TapWallGrateBar", V3(sw - 0.1, 0.016, 0.03), CF(bcx, y + 0.07, zw + 0.44 + k * 0.08), L.chrome)
+						end
+					end
+					K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.92), L.neon(th.shelfLED))
+					local nt = math.max(3, math.floor(sw / 0.37))
+					for j = 1, nt do
+						idx += 1
+						local x = bx0 + sw * (j - 0.5) / nt
+						local tap = th.taps[(idx + seed) % #th.taps + 1]
+						local hc = tap[7] or tap[5]
+						K:cyl("TapWallShank", 0.4, 0.09, CF(x, yF, zw + 0.62) * ANG(0, PI / 2, 0), L.chrome)
+						K:cyl("TapWallFaucet", 0.22, 0.14, CF(x, yF, zw + 0.86) * ANG(0, PI / 2, 0), L.chrome)
+						K:vcyl("TapWallSpout", 0.2, 0.07, CF(x, yF - 0.15, zw + 0.92), L.chrome)
+						K:vcyl("TapWallFerrule", 0.1, 0.1, CF(x, yF + 0.12, zw + 0.88), L.chrome)
+						local hh = math.min(0.62, clear - (yF - y) - 0.36)
+						K:box("TapWallHandle", V3(0.18, hh, 0.11), CF(x, yF + 0.17 + hh / 2, zw + 0.88), { c = hc, m = M.SmoothPlastic })
+						K:box("TapWallHandleCap", V3(0.2, 0.03, 0.13), CF(x, yF + 0.17 + hh + 0.015, zw + 0.88), L.black)
+						if detail == "high" then
+							K:text("TapWallHandleLabel", 0.15, hh * 0.6, CF(x, yF + 0.17 + hh * 0.52, zw + 0.94), tap[6] or "ALE", { fg = if hc.R + hc.G + hc.B > 1.8 then rgb(30, 30, 30) else rgb(250, 250, 246), font = F.GothamBlack, d = 0.004 })
+						end
+					end
+					-- 칸 번호 띠 (01-07 ...)
+					local first = (bi - 1) * nt + 1
+					K:text("TapWallNumbers", sw - 0.1, 0.14, CF(bcx, yF - 0.34, zw + 0.335), string.format("TAP %02d – %02d", first, first + nt - 1), { fg = rgb(40, 40, 44), font = F.GothamBold, d = 0.004 })
+					continue
+				end
 				K:box("BackBarShelf", V3(sw + 0.04, 0.07, 0.86), CF(bcx, y - 0.035, zw + 0.06 + 0.43), { c = rgb(200, 226, 230), m = M.Glass, t = 0.35, r = 0.1 })
 				K:cyl("BackBarRail", sw + 0.04, 0.05, CF(bcx, y + 0.24, zw + 0.86), th.trim)
 				K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.82), L.neon(th.shelfLED))
@@ -1893,6 +1931,20 @@ local function tvSet(c: any)
 	K:plate("TVBody", w, h, 0.14, dcf * CF(0, 0, 0.1), L.of(18, 18, 20, nil, { free = true }))
 	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01, free = true })
 	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.01) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.005, free = true })
+	-- 내야 (흙 다이아몬드 안 잔디 + 베이스 3 + 마운드): 야구 중계 화면처럼
+	local field = {}
+	do
+		local fc = dcf * CF(0, -sh * 0.2, z + 0.02)
+		local g = K:text("TVInfield", sh * 0.27, sh * 0.27, fc * ANG(0, 0, PI / 4), "", { bg = rgb(40, 128, 58), glow = 1.0, d = 0.004, free = true })
+		table.insert(field, g)
+		local bs = sh * 0.035
+		for _, bp in { { -0.255, 0 }, { 0.255, 0 }, { 0, 0.255 } } do
+			local b0 = K:text("TVBase", bs, bs, dcf * CF(bp[1] * sh, -sh * 0.2 + bp[2] * sh, z + 0.028) * ANG(0, 0, PI / 4), "", { bg = rgb(246, 246, 240), glow = 1.1, d = 0.003, free = true })
+			table.insert(field, b0)
+		end
+		local mound = K:text("TVMound", sh * 0.06, sh * 0.06, fc * CF(0, 0, 0.008), "", { bg = rgb(176, 116, 70), glow = 1.0, d = 0.003, free = true })
+		table.insert(field, mound)
+	end
 	local stripes = {}
 	for k = 1, 3 do
 		local p = K:text("TVStripe", sw / 7, sh, dcf * CF(-sw / 2 + sw * (2 * k - 0.5) / 7, 0, z + 0.008), "", { bg = rgb(44, 136, 60), glow = 1.0, d = 0.004, free = true })
@@ -1927,6 +1979,14 @@ local function tvSet(c: any)
 		for _, p in dirt:GetChildren() do
 			if p:IsA("SurfaceGui") then
 				p.Enabled = ch.dirt
+			end
+		end
+		for _, f in field do
+			f.Transparency = if ch.dirt then 0 else 1
+			for _, p in f:GetChildren() do
+				if p:IsA("SurfaceGui") then
+					p.Enabled = ch.dirt
+				end
 			end
 		end
 		for _, s in stripes do

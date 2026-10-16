@@ -4095,6 +4095,373 @@ local function odengBuild(ctx: any)
 end
 
 -- build ----------------------------------------------------------------------------------------------
+-- 맵 소품 재진열 ----------------------------------------------------------------------------------
+-- 맵의 단순 원통 병 · 네온 뒤판 · 상자 · 통을 같은 자리 · 같은 범위 안의 진짜 같은 상품으로 (원본 숨김, 장식 파트만).
+-- FridgeDoor (게임플레이 냉장고 문) 는 그대로 두고 안쪽만 바꿈.
+local DRINK: { [string]: any } = {
+	cola = { kind = "can", c = rgb(196, 14, 28), band = WHITE },
+	cider = { kind = "can", c = rgb(24, 140, 72), band = WHITE },
+	pepsi = { kind = "can", c = rgb(18, 58, 160), band = rgb(222, 30, 40) },
+	milkis = { kind = "can", c = rgb(236, 240, 246), band = rgb(40, 110, 200) },
+	grape = { kind = "can", c = rgb(104, 40, 120), band = rgb(240, 200, 60) },
+	hite = { kind = "can", c = rgb(30, 70, 160), band = rgb(236, 236, 236) },
+	soju = { kind = "soju", c = rgb(64, 150, 84), label = WHITE, band = rgb(30, 80, 170), cap = rgb(40, 110, 60) },
+	soju2 = { kind = "soju", c = rgb(64, 150, 84), label = rgb(238, 246, 238), band = rgb(30, 130, 70), cap = rgb(40, 110, 60) },
+	beer = { kind = "beer", c = rgb(96, 54, 22), label = rgb(30, 70, 160), band = WHITE, cap = rgb(196, 196, 196) },
+	beer2 = { kind = "beer", c = rgb(44, 100, 52), label = rgb(20, 84, 40), band = rgb(230, 200, 120), cap = rgb(196, 196, 196) },
+	petCola = { kind = "pet", c = rgb(56, 24, 14), label = rgb(196, 14, 28), cap = rgb(196, 14, 28) },
+	petCider = { kind = "pet", c = rgb(200, 232, 204), label = rgb(24, 140, 72), cap = rgb(24, 140, 72) },
+	water = { kind = "pet", c = rgb(220, 236, 246), label = rgb(40, 120, 210), cap = rgb(40, 120, 210), slim = true },
+	coolpis = { kind = "carton", c = rgb(250, 164, 176), label = rgb(255, 222, 96) },
+	coolpis2 = { kind = "carton", c = rgb(252, 226, 116), label = rgb(240, 120, 40) },
+	sake = { kind = "sake", c = rgb(92, 60, 24), label = rgb(246, 242, 230), band = rgb(190, 30, 30), cap = rgb(200, 170, 90) },
+	sake2 = { kind = "sake", c = rgb(40, 76, 50), label = rgb(246, 242, 230), band = rgb(20, 20, 20), cap = rgb(30, 30, 30) },
+	cheongju = { kind = "sake", c = rgb(226, 232, 230), label = rgb(196, 30, 36), band = rgb(240, 210, 120), cap = rgb(196, 30, 36), clear = true },
+	whisky = { kind = "square", c = rgb(176, 96, 30), label = rgb(240, 232, 210), band = rgb(30, 30, 30), cap = rgb(30, 30, 30) },
+	maehwa = { kind = "soju", c = rgb(170, 214, 190), label = rgb(250, 240, 246), band = rgb(220, 90, 140), cap = rgb(230, 230, 230) },
+}
+
+-- 음료 하나: base = 바닥 가운데 (+Z = 정면), maxH = 높이 한도. 반환 = 실제 높이
+local function drink(K: any, base: CFrame, def: any, maxH: number, detail: boolean): number
+	local kind = def.kind
+	local function glassL(c: Color3, clear: boolean?): any
+		return { c = c, m = M.Glass, t = if clear then 0.45 else 0.18, r = 0.1 }
+	end
+	if kind == "can" then
+		local h, d = math.min(0.42, maxH), 0.22
+		K:vcyl("FfCan", h, d, base * CF(0, h / 2, 0), { c = def.c, m = M.Metal, r = 0.15 })
+		if detail then
+			K:vcyl("FfCanTop", 0.03, d * 0.84, base * CF(0, h + 0.015, 0), L.alu)
+			K:vcyl("FfCanBand", h * 0.22, d + 0.008, base * CF(0, h * 0.55, 0), pl(def.band))
+		end
+		return h
+	elseif kind == "carton" then
+		local h = math.min(0.86, maxH)
+		local w = 0.3
+		K:box("FfCarton", V3(w, h * 0.86, w), base * CF(0, h * 0.43, 0), pl(def.c))
+		K:wedge("FfCartonTop", V3(w, h * 0.12, w / 2), base * CF(0, h * 0.86 + h * 0.06, w / 4), pl(light(def.c, 0.3)))
+		K:wedge("FfCartonTop", V3(w, h * 0.12, w / 2), base * CF(0, h * 0.86 + h * 0.06, -w / 4) * ANG(0, PI, 0), pl(light(def.c, 0.3)))
+		if detail then
+			K:box("FfCartonLabel", V3(w * 0.8, h * 0.3, 0.02), base * CF(0, h * 0.42, w / 2 + 0.01), pl(def.label))
+			K:ball("FfCartonFruit", w * 0.36, base * CF(0, h * 0.42, w / 2 + 0.03), pl(if def.label == rgb(255, 222, 96) then rgb(250, 140, 100) else rgb(250, 200, 60)))
+		end
+		return h
+	elseif kind == "square" then
+		local h = math.min(1.0, maxH)
+		local w = 0.3
+		K:box("FfBottle", V3(w, h * 0.62, w * 0.7), base * CF(0, h * 0.31, 0), glassL(def.c))
+		K:vcyl("FfBottleNeck", h * 0.22, 0.1, base * CF(0, h * 0.62 + h * 0.11, 0), glassL(def.c))
+		K:vcyl("FfBottleCap", h * 0.1, 0.12, base * CF(0, h * 0.89, 0), pl(def.cap, M.Metal))
+		K:box("FfBottleLabel", V3(w * 0.84, h * 0.24, 0.02), base * CF(0, h * 0.3, w * 0.35 + 0.01), pl(def.label))
+		if detail then
+			K:box("FfBottleBand", V3(w * 0.84, h * 0.05, 0.022), base * CF(0, h * 0.44, w * 0.35 + 0.012), pl(def.band))
+		end
+		return h
+	end
+	-- 둥근 병: soju (0.78) · beer (0.86) · pet (1.0) · sake (1.15)
+	local H = if kind == "soju" then 0.78 elseif kind == "beer" then 0.86 elseif kind == "pet" then (if def.slim then 0.92 else 1.02) else 1.15
+	local D = if kind == "soju" then 0.26 elseif kind == "beer" then 0.27 elseif kind == "pet" then (if def.slim then 0.28 else 0.34) else 0.32
+	local k = math.min(1, maxH / H)
+	H *= k
+	local body = H * (if kind == "pet" then 0.7 else 0.6)
+	local gl = if kind == "pet" then { c = def.c, m = M.Glass, t = if def.slim then 0.5 else 0.12, r = 0.15 } else glassL(def.c, def.clear)
+	K:vcyl("FfBottle", body, D, base * CF(0, body / 2, 0), gl)
+	K:ell("FfBottleShoulder", V3(D, H * 0.16, D), base * CF(0, body, 0), gl)
+	local neckH = H - body - H * 0.06
+	K:vcyl("FfBottleNeck", neckH, D * 0.4, base * CF(0, body + neckH / 2, 0), gl)
+	K:vcyl("FfBottleCap", H * 0.06, D * 0.44, base * CF(0, H - H * 0.03, 0), pl(def.cap, if kind == "pet" then M.Plastic else M.Metal))
+	K:vcyl("FfBottleLabel", body * (if kind == "sake" then 0.5 else 0.36), D + 0.012, base * CF(0, body * (if kind == "sake" then 0.5 else 0.45), 0), pl(def.label))
+	if detail and def.band then
+		K:vcyl("FfBottleBand", body * 0.08, D + 0.016, base * CF(0, body * (if kind == "sake" then 0.66 else 0.56), 0), pl(def.band))
+	end
+	return H
+end
+
+-- 축 성분 꺼내기 / 넣기
+local function axv(v: Vector3, ax: string): number
+	return if ax == "X" then v.X else v.Z
+end
+
+-- 맵 냉장고 (FridgeDoor + FridgeGlow + WireShelf + Bottle) 속 다시 채우기
+local function restockFridges(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	local n = 0
+	local bottles = V.byName.Bottle or {}
+	local used: { [any]: boolean } = {}
+	local sk = ctx.sk
+	local plans: { { string } }
+	if sk == "chicken" or sk == "tongdak" then
+		plans = { { "cola", "cider" }, { "soju", "soju2" }, { "beer", "beer2" }, { "petCola", "petCider" } }
+	elseif sk == "bunsik" or sk == "odeng" then
+		plans = { { "cola", "cider", "milkis" }, { "coolpis", "coolpis2" }, { "petCider", "petCola" }, { "water" } }
+	else
+		plans = { { "cola", "pepsi", "cider" }, { "milkis", "grape" }, { "petCola", "petCider" }, { "water" } }
+	end
+	for _, dr in V.byName.FridgeDoor or {} do
+		local ax = if dr.size.X < dr.size.Z then "X" else "Z"
+		local ox = if ax == "X" then "Z" else "X"
+		local doorA = axv(dr.c, ax)
+		local half = axv(dr.size, ox) / 2
+		-- 깊이 방향 = 문 -> 뒤판(FridgeGlow)
+		local dir = 0
+		local glowRec: any = nil
+		for _, g in V.byName.FridgeGlow or {} do
+			if math.abs(axv(g.c, ox) - axv(dr.c, ox)) < half and math.abs(axv(g.c, ax) - doorA) < 5 then
+				dir = if axv(g.c, ax) > doorA then 1 else -1
+				glowRec = g
+			end
+		end
+		if dir == 0 then
+			continue
+		end
+		local depthLimit = if glowRec then math.abs(axv(glowRec.c, ax) - doorA) - axv(glowRec.size, ax) / 2 else 3
+		-- 선반별로 병 모으기
+		local shelves: { [number]: { any } } = {}
+		local ys = {}
+		for _, b in bottles do
+			if used[b] then
+				continue
+			end
+			local da = (axv(b.c, ax) - doorA) * dir
+			if da > 0 and da < depthLimit and math.abs(axv(b.c, ox) - axv(dr.c, ox)) < half then
+				local yk = math.floor(b.min.Y * 2 + 0.5)
+				if not shelves[yk] then
+					shelves[yk] = {}
+					table.insert(ys, yk)
+				end
+				table.insert(shelves[yk], b)
+				used[b] = true
+			end
+		end
+		table.sort(ys, function(a, b)
+			return a > b
+		end)
+		-- 정면 (+Z) = 문 쪽: 회전
+		local face = if ax == "X" then (if dir > 0 then ANG(0, -PI / 2, 0) else ANG(0, PI / 2, 0)) else (if dir > 0 then CFrame.identity else ANG(0, PI, 0))
+		local rowsN = if ctx.low then 1 else 2
+		K:free(function()
+			for si, yk in ys do
+				local plan = plans[math.min(si, #plans)]
+				local list = shelves[yk]
+				table.sort(list, function(a, b)
+					return axv(a.c, ox) < axv(b.c, ox)
+				end)
+				local gap = 1.5
+				for _, other in ys do
+					if other < yk then
+						gap = math.min(gap, (yk - other) / 2)
+					end
+				end
+				for bi, b in list do
+					local def = DRINK[plan[(bi - 1) % #plan + 1]]
+					local maxH = math.max(0.5, gap - 0.16)
+					local da0 = (axv(b.c, ax) - doorA) * dir
+					for r = 0, rowsN - 1 do
+						local da = da0 + r * 0.44
+						if da + 0.2 > depthLimit then
+							break
+						end
+						local pa = doorA + da * dir
+						local p = if ax == "X" then V3(pa, b.min.Y, b.c.Z) else V3(b.c.X, b.min.Y, pa)
+						local base = CF(p) * face
+						if def.kind == "can" then
+							for s = -1, 1, 2 do
+								drink(K, base * CF(s * 0.135, 0, 0), def, maxH, r == 0 and not ctx.low)
+							end
+						else
+							drink(K, base, def, maxH, r == 0 and not ctx.low)
+						end
+					end
+					-- 가격표 (선반 앞)
+					if not ctx.low and bi % 2 == 1 then
+						local pp = if ax == "X" then V3(doorA + 0.3 * dir, b.min.Y + 0.06, b.c.Z) else V3(b.c.X, b.min.Y + 0.06, doorA + 0.3 * dir)
+						K:box("FfFridgeTag", V3(0.34, 0.12, 0.02), CF(pp) * face, pl(rgb(255, 230, 60)))
+					end
+					Scan.hide(K.hidden, b.part)
+					n += 1
+				end
+			end
+			-- 뒤판: 눈부신 네온 판 -> 밝은 무광 판 + 양옆 LED
+			if glowRec then
+				local g = glowRec
+				K:box("FfFridgeBackPanel", g.size, CF(g.c), L.of(214, 222, 228, M.SmoothPlastic))
+				local w = axv(g.size, ox)
+				for s = -1, 1, 2 do
+					local o = s * (w / 2 - 0.06)
+					local front = -dir * (axv(g.size, ax) / 2 + 0.02)
+					local p = if ax == "X" then V3(g.c.X + front, g.c.Y, g.c.Z + o) else V3(g.c.X + o, g.c.Y, g.c.Z + front)
+					K:box("FfFridgeLED", if ax == "X" then V3(0.04, g.size.Y - 0.2, 0.06) else V3(0.06, g.size.Y - 0.2, 0.04), CF(p), neon(rgb(236, 246, 255)))
+				end
+				Scan.hide(K.hidden, g.part)
+			end
+		end)
+	end
+	return n
+end
+
+-- 바 뒤 선반 병 (맵 Bottle 이 냉장고 밖에 있는 것): 같은 자리 · 같은 높이 안에서 진짜 술병으로
+local function restockBarBottles(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	local n = 0
+	local set: { string }
+	if ctx.sk == "odeng" then
+		set = { "sake", "soju", "cheongju", "soju2", "sake2", "maehwa", "whisky", "soju", "beer" }
+	elseif ctx.sk == "chicken" or ctx.sk == "tongdak" then
+		set = { "soju", "beer", "soju2", "beer2", "maehwa" }
+	else
+		set = { "soju", "cola", "cider" }
+	end
+	local i = 0
+	K:free(function()
+		for _, b in V.byName.Bottle or {} do
+			if not b.part or K.hidden[b.part] then
+				continue
+			end
+			i += 1
+			local def = DRINK[set[(i * 7 + math.floor(b.c.X * 3)) % #set + 1]]
+			if def.kind == "can" then
+				def = DRINK.soju
+			end
+			-- 정면 = 방 가운데 쪽 (뒷벽 선반이면 +Z)
+			local toC = V3(-b.c.X, 0, -b.c.Z)
+			local face = if math.abs(toC.Z) > math.abs(toC.X) then (if toC.Z > 0 then CFrame.identity else ANG(0, PI, 0)) else (if toC.X > 0 then ANG(0, PI / 2, 0) else ANG(0, -PI / 2, 0))
+			drink(K, CF(b.c.X, b.min.Y, b.c.Z) * face, def, b.size.Y + 0.12, not ctx.low)
+			Scan.hide(K.hidden, b.part)
+			n += 1
+		end
+	end)
+	return n
+end
+
+-- 공급품 통 · 라면 상자 · 포장 상자 · 치킨무 통 · 물티슈 · 국물통 · 정수기 (같은 범위 덮개)
+local function restockSupplies(ctx: any)
+	local K, V = ctx.K, ctx.V
+	local nm = V.name or ""
+	K:free(function()
+		-- 주방 선반 통 (원통 0.9): 고추장 통 · 물엿 · 육수 냄비 · 일회용 용기
+		local si = 0
+		for _, r in V.byName.SupplyTub or {} do
+			si += 1
+			local s = r.size
+			local base = CF(r.c.X, r.min.Y, r.c.Z)
+			local d = math.min(s.X, s.Z)
+			local kind = si % 4
+			if kind == 1 then
+				-- 태양초 고추장 통 (빨강 통 + 뚜껑 + 라벨)
+				K:vcyl("FfGochujang", s.Y * 0.84, d * 0.94, base * CF(0, s.Y * 0.42, 0), pl(rgb(190, 30, 26), M.Plastic))
+				K:vcyl("FfGochujangLid", s.Y * 0.14, d, base * CF(0, s.Y * 0.91, 0), pl(rgb(200, 36, 30), M.Plastic))
+				K:vcyl("FfGochujangLabel", s.Y * 0.36, d * 0.94 + 0.012, base * CF(0, s.Y * 0.42, 0), pl(rgb(250, 214, 60)))
+			elseif kind == 2 then
+				-- 물엿 · 올리고당 통 (반투명 호박색 + 손잡이)
+				K:box("FfSyrup", V3(d * 0.8, s.Y * 0.8, d * 0.6), base * CF(0, s.Y * 0.4, 0), { c = rgb(224, 160, 60), m = M.Glass, t = 0.25, r = 0.1 })
+				K:vcyl("FfSyrupCap", s.Y * 0.12, d * 0.3, base * CF(-d * 0.18, s.Y * 0.86, 0), pl(rgb(230, 230, 230), M.Plastic))
+				K:box("FfSyrupHandle", V3(d * 0.12, s.Y * 0.4, d * 0.24), base * CF(d * 0.3, s.Y * 0.72, 0), { c = rgb(224, 160, 60), m = M.Glass, t = 0.25 })
+				K:box("FfSyrupLabel", V3(d * 0.6, s.Y * 0.3, 0.02), base * CF(0, s.Y * 0.4, d * 0.3 + 0.01), pl(rgb(246, 240, 226)))
+			elseif kind == 3 then
+				-- 스테인리스 육수 냄비 (손잡이 + 뚜껑)
+				K:vcyl("FfStockPot", s.Y * 0.7, d * 0.92, base * CF(0, s.Y * 0.35, 0), L.of(200, 204, 208, M.Metal, { r = 0.15 }))
+				K:vcyl("FfStockLid", 0.05, d * 0.94, base * CF(0, s.Y * 0.72, 0), L.of(186, 190, 194, M.Metal))
+				K:vcyl("FfStockKnob", 0.08, 0.16, base * CF(0, s.Y * 0.78, 0), L.black)
+				for k = -1, 1, 2 do
+					K:box("FfStockHandle", V3(0.1, 0.06, 0.2), base * CF(k * (d * 0.46 + 0.04), s.Y * 0.6, 0), L.of(186, 190, 194, M.Metal))
+				end
+			else
+				-- 일회용 포장 용기 묶음 (흰 그릇 탑 + 비닐)
+				local nb = math.max(4, math.floor(s.Y / 0.14))
+				for k = 1, nb do
+					K:vcyl("FfTakeoutBowl", 0.1, d * (0.8 + 0.08 * (k % 2)), base * CF(0, (k - 0.5) * (s.Y * 0.9 / nb), 0), pl(rgb(246, 246, 242), M.Plastic))
+				end
+				K:vcyl("FfTakeoutWrap", s.Y * 0.9, d * 0.92, base * CF(0, s.Y * 0.45, 0), { c = rgb(236, 240, 244), m = M.Glass, t = 0.7 })
+			end
+			Scan.hide(K.hidden, r.part)
+		end
+		-- 라면 상자 (빨강 · 검정 띠 · 辛)
+		for _, r in V.byName.RamenPack or {} do
+			local s = r.size
+			local c = CF(r.c)
+			local toC = V3(-r.c.X, 0, -r.c.Z)
+			local face = if math.abs(toC.Z) > math.abs(toC.X) then (if toC.Z > 0 then CFrame.identity else ANG(0, PI, 0)) else (if toC.X > 0 then ANG(0, PI / 2, 0) else ANG(0, -PI / 2, 0))
+			local fs = if math.abs(toC.Z) > math.abs(toC.X) then V3(s.X, s.Y, s.Z) else V3(s.Z, s.Y, s.X)
+			local fc = c * face
+			K:box("FfRamenBox", fs - V3(0.02, 0.02, 0.02), fc, L.of(214, 30, 26, M.Cardboard))
+			K:box("FfRamenBand", V3(fs.X - 0.01, fs.Y * 0.2, fs.Z - 0.01), fc * CF(0, fs.Y * 0.3, 0), L.of(24, 20, 20, M.Cardboard))
+			K:text("FfRamenText", fs.X * 0.8, fs.Y * 0.44, fc * CF(0, -fs.Y * 0.12, fs.Z / 2), "辛라면\n5입", { fg = WHITE, font = F.GothamBlack, d = 0.005 })
+			Scan.hide(K.hidden, r.part)
+		end
+		-- 치킨 포장 상자 더미 (흰 상자 + 빨강 띠 + 뚜껑 상호)
+		for _, r in V.byName.BoxStack or {} do
+			local s = r.size
+			local c = CF(r.c)
+			K:box("FfChickenBox", s - V3(0.04, 0.02, 0.04), c, L.of(246, 242, 232, M.Cardboard))
+			K:box("FfChickenBoxBand", V3(s.X - 0.02, s.Y * 0.36, s.Z - 0.02), c * CF(0, -s.Y * 0.12, 0), L.of(196, 30, 34, M.Cardboard))
+			K:box("FfChickenBoxVent", V3(s.X * 0.5, 0.02, 0.1), c * CF(0, s.Y / 2 - 0.005, s.Z * 0.3), L.of(120, 20, 24))
+			K:text("FfChickenBoxLid", s.X * 0.8, s.Z * 0.42, c * CF(0, s.Y / 2 - 0.01, -s.Z * 0.05) * ANG(-PI / 2, 0, 0), (if has(nm, "치킨") then nm else "치킨") .. "\n바삭하게 튀겼닭!", { fg = rgb(196, 30, 34), font = F.GothamBlack, d = 0.004 })
+			Scan.hide(K.hidden, r.part)
+		end
+		-- 치킨무 통 (흰 원통 + 반투명 뚜껑 + 라벨)
+		for _, r in V.byName.RadishTub or {} do
+			local s = r.size
+			local base = CF(r.c.X, r.min.Y, r.c.Z)
+			local d = math.min(s.X, s.Z)
+			K:vcyl("FfRadishTub", s.Y * 0.82, d * 0.96, base * CF(0, s.Y * 0.41, 0), pl(rgb(246, 246, 242), M.Plastic))
+			K:vcyl("FfRadishCubes", 0.04, d * 0.86, base * CF(0, s.Y * 0.8, 0), pl(rgb(250, 248, 220)))
+			K:vcyl("FfRadishLid", s.Y * 0.12, d, base * CF(0, s.Y * 0.88, 0), { c = rgb(236, 240, 236), m = M.Glass, t = 0.4 })
+			K:vcyl("FfRadishLabel", s.Y * 0.26, d * 0.96 + 0.012, base * CF(0, s.Y * 0.4, 0), pl(rgb(60, 160, 90)))
+			Scan.hide(K.hidden, r.part)
+		end
+		-- 정수기 (흰 몸체 · 검정 유리 조작부 · 크롬 코크 · 물받이)
+		for _, r in V.byName.Purifier or {} do
+			local s = r.size
+			local pnl: any = nil
+			for _, q in V.byName.PurifierPanel or {} do
+				if (q.c - r.c).Magnitude < 2 then
+					pnl = q
+				end
+			end
+			if not pnl then
+				continue
+			end
+			local dv = pnl.c - r.c
+			local face = if math.abs(dv.Z) > math.abs(dv.X) then (if dv.Z > 0 then CFrame.identity else ANG(0, PI, 0)) else (if dv.X > 0 then ANG(0, PI / 2, 0) else ANG(0, -PI / 2, 0))
+			local fs = if math.abs(dv.Z) > math.abs(dv.X) then s else V3(s.Z, s.Y, s.X)
+			local c = CF(r.c) * face
+			local white = L.of(246, 246, 244, M.SmoothPlastic, { r = 0.1 })
+			K:box("FfPurifierBody", fs - V3(0.06, 0, 0.06), c, white)
+			for _, sx in { -1, 1 } do
+				K:vcyl("FfPurifierEdge", fs.Y, 0.12, c * CF(sx * (fs.X / 2 - 0.06), 0, fs.Z / 2 - 0.06), white)
+			end
+			K:box("FfPurifierTop", V3(fs.X - 0.1, 0.06, fs.Z - 0.1), c * CF(0, fs.Y / 2 - 0.03, 0), L.of(220, 222, 224))
+			K:box("FfPurifierFace", V3(fs.X * 0.62, fs.Y * 0.3, 0.03), c * CF(0, fs.Y * 0.2, fs.Z / 2), L.of(20, 22, 26, M.Glass, { r = 0.2 }))
+			K:box("FfPurifierLed", V3(0.12, 0.05, 0.01), c * CF(-fs.X * 0.16, fs.Y * 0.26, fs.Z / 2 + 0.02), neon(rgb(255, 70, 50)))
+			K:box("FfPurifierLed", V3(0.12, 0.05, 0.01), c * CF(0, fs.Y * 0.26, fs.Z / 2 + 0.02), neon(rgb(70, 170, 255)))
+			K:box("FfPurifierLed", V3(0.12, 0.05, 0.01), c * CF(fs.X * 0.16, fs.Y * 0.26, fs.Z / 2 + 0.02), neon(rgb(230, 240, 255)))
+			K:text("FfPurifierLabel", fs.X * 0.58, 0.14, c * CF(0, fs.Y * 0.12, fs.Z / 2 + 0.02), "온수 · 냉수 · 정수", { fg = rgb(220, 224, 230), font = F.GothamMedium, d = 0.003 })
+			K:box("FfPurifierRecess", V3(fs.X * 0.5, fs.Y * 0.3, 0.04), c * CF(0, -fs.Y * 0.16, fs.Z / 2 - 0.01), L.of(200, 202, 204))
+			K:box("FfPurifierTap", V3(0.1, 0.18, 0.12), c * CF(0, -fs.Y * 0.04, fs.Z / 2 + 0.06), L.chrome)
+			K:box("FfPurifierTray", V3(fs.X * 0.46, 0.05, 0.3), c * CF(0, -fs.Y / 2 + 0.03, fs.Z / 2 + 0.1), L.of(150, 154, 160, M.DiamondPlate))
+			Scan.hide(K.hidden, r.part)
+			Scan.hide(K.hidden, pnl.part)
+			for _, q in V.byName.Tap or {} do
+				if (q.c - r.c).Magnitude < 2 then
+					Scan.hide(K.hidden, q.part)
+				end
+			end
+		end
+		-- 국물통 (어묵 국물 셀프): 스테인리스 보온통 + 뚜껑 손잡이 + 라벨
+		for _, r in V.byName.BrothUrn or {} do
+			local s = r.size
+			local base = CF(r.c.X, r.min.Y, r.c.Z)
+			local d = math.min(s.X, s.Z)
+			K:vcyl("FfUrnBody", s.Y * 0.86, d * 0.96, base * CF(0, s.Y * 0.43, 0), L.of(206, 210, 214, M.Metal, { r = 0.2 }))
+			K:vcyl("FfUrnBand", 0.06, d * 0.98, base * CF(0, s.Y * 0.1, 0), L.of(150, 154, 158, M.Metal))
+			K:vcyl("FfUrnLid", s.Y * 0.08, d * 0.9, base * CF(0, s.Y * 0.9, 0), L.of(186, 190, 194, M.Metal))
+			K:vcyl("FfUrnKnob", s.Y * 0.06, 0.2, base * CF(0, s.Y * 0.97, 0), L.black)
+			K:vcyl("FfUrnLabel", s.Y * 0.2, d * 0.96 + 0.012, base * CF(0, s.Y * 0.56, 0), pl(rgb(214, 38, 34)))
+			Scan.hide(K.hidden, r.part)
+		end
+	end)
+end
+
 local FF_DUMP = true -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
 	if FF_DUMP then
@@ -4132,6 +4499,18 @@ function T.build(K: any, V: any, S: any)
 	local ok2, err2 = pcall(fn, ctx)
 	if not ok2 then
 		K:note("ff build error: " .. tostring(err2))
+	end
+	-- 맵 소품 재진열 (냉장고 속 · 바 선반 병 · 통 · 상자 · 정수기)
+	local ok3, err3 = pcall(function()
+		local nf = restockFridges(ctx)
+		local nb = restockBarBottles(ctx)
+		restockSupplies(ctx)
+		if nf + nb > 0 then
+			K:note(string.format("ff restock: fridge %d, bar %d", nf, nb))
+		end
+	end)
+	if not ok3 then
+		K:note("ff restock error: " .. tostring(err3))
 	end
 	K:note(string.format("ff %s/%s: +%d parts, toggles %d", ctx.sk, ctx.pal.key or "?", #K.parts - t0, ctx.toggles))
 	if ctx.miss then
