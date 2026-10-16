@@ -33,6 +33,40 @@ Venues.LIST = {
 		{ room = "booth07", type = "kbooth", center = Vector3.new(2.17, 6.85, 323.0), size = Vector3.new(17.45, 11.1, 11.6), face = "+X" },
 		{ room = "booth08", type = "kbooth", center = Vector3.new(2.17, 6.85, 335.0), size = Vector3.new(17.45, 11.1, 11.6), face = "+X" },
 	} },
+	{ group = "arcade", name = "광안 게임랜드", rooms = {
+		{ room = "hall", type = "arcade", center = Vector3.new(-340.3, 6.8, 444.4), size = Vector3.new(74.6, 11.2, 78.6), face = "+X", door = { x = -302.6, z = 433.1, w = 12.5 } },
+		{ room = "lobby", type = "stairlobby", center = Vector3.new(-312.9, 6.8, 399.5), size = Vector3.new(21.8, 11.2, 9.6), face = "+X" },
+		{ room = "photo", type = "photo", center = Vector3.new(-307.2, 6.8, 387.0), size = Vector3.new(10.2, 9.7, 12.1), face = "+X", door = { x = -301.7, z = 390.2, w = 4.8 } },
+	} },
+	{ group = "bowling", name = "실내", rooms = {
+		{ room = "lobby", type = "bowlobby", center = Vector3.new(297.6, 6.75, 456.2), size = Vector3.new(88.0, 21.9, 26.0), face = "+Z", door = { x = 264.8, z = 469.6, w = 12.0 }, name = "광안 락볼링클럽" },
+		{ room = "gamezone", type = "bowarcade", center = Vector3.new(242.6, 6.75, 457.2), size = Vector3.new(22.0, 21.9, 26.0), face = "+Z", name = "락볼링 오락코너" },
+		{ room = "lounge", type = "bowlounge", center = Vector3.new(264.2, 6.75, 419.6), size = Vector3.new(40.4, 21.9, 48.5), face = "+Z", noDoorGuess = true, name = "락볼링 라운지" },
+		{ room = "bar", type = "bowbar", center = Vector3.new(237.4, 6.75, 422.1), size = Vector3.new(12.1, 21.9, 36.4), face = "+X", noDoorGuess = true, name = "ROCK & BOWL BAR" },
+		{ room = "snack", type = "bowsnack", center = Vector3.new(257.0, 6.75, 382.5), size = Vector3.new(52.0, 21.9, 27.0), face = "+Z", noDoorGuess = true, name = "ROCK & BOWL 분식" },
+		{ room = "wc_m", type = "restroom", center = Vector3.new(242.3, 6.75, 362.2), size = Vector3.new(22.5, 10.85, 10.9), face = "+X", door = { x = 253.7, z = 363.7, w = 3.5 }, name = "남자 화장실" },
+		{ room = "wc_f", type = "restroom", center = Vector3.new(242.2, 6.75, 350.2), size = Vector3.new(22.4, 10.85, 10.9), face = "+X", door = { x = 253.6, z = 348.2, w = 3.5 }, name = "여자 화장실" },
+		{ room = "office", type = "office", center = Vector3.new(241.8, 6.75, 336.3), size = Vector3.new(22.8, 10.85, 14.7), face = "+X", door = { x = 253.6, z = 338.0, w = 3.5 }, name = "사무실 · 창고" },
+		{ room = "corridor", type = "corridor", center = Vector3.new(268.7, 6.75, 348.9), size = Vector3.new(28.5, 21.9, 40.2), face = "+Z", noDoorGuess = true, name = "락볼링 복도" },
+		{ room = "elevhall", type = "elevhall", center = Vector3.new(348.2, 6.75, 457.0), size = Vector3.new(13.2, 11.9, 21.2), face = "+Z", name = "2~4층 엘리베이터 홀" },
+	} },
+	{ group = "bowling", name = "상층_2F-4F", rooms = {
+		{ room = "billiards", type = "billiards", center = Vector3.new(282.8, 30.08, 442.45), size = Vector3.new(101.2, 9.5, 52.5), face = "+X", door = { x = 333.9, z = 459.5, w = 4.0 }, name = "광안 당구클럽" },
+		{ room = "salon", type = "salon", center = Vector3.new(314.2, 41.0, 442.45), size = Vector3.new(38.4, 9.55, 52.5), face = "+X", name = "헤어살롱 (3F)" },
+		{ room = "select", type = "clothing", center = Vector3.new(263.3, 41.0, 442.45), size = Vector3.new(62.2, 9.55, 52.5), face = "+X", noDoorGuess = true, name = "GWANGAN SELECT SHOP" },
+		{ room = "gym", type = "gym", center = Vector3.new(282.8, 52.0, 442.45), size = Vector3.new(101.2, 9.95, 52.5), face = "+X", name = "광안 휘트니스 24" },
+		{ room = "hall2", type = "elevhall", center = Vector3.new(344.2, 30.08, 457.3), size = Vector3.new(21.2, 9.5, 20.8), face = "-X", noDoorGuess = true, name = "2F 엘리베이터 홀" },
+		{ room = "hall3", type = "elevhall", center = Vector3.new(344.2, 41.0, 457.3), size = Vector3.new(21.2, 9.55, 20.8), face = "-X", noDoorGuess = true, name = "3F 엘리베이터 홀" },
+		{ room = "hall4", type = "elevhall", center = Vector3.new(344.2, 52.0, 457.3), size = Vector3.new(21.2, 9.95, 20.8), face = "-X", noDoorGuess = true, name = "4F 엘리베이터 홀" },
+	} },
+	{ group = "club", name = "CLUB OCEAN 광안", rooms = {
+		{ room = "lounge2f", type = "clublounge", center = Vector3.new(-199.1, 33.9, 401.8), size = Vector3.new(42.6, 13.0, 172.6), face = "+Z", noDoorGuess = true, name = "OCEAN SKY LOUNGE" },
+		{ room = "rooftop", type = "rooftop", center = Vector3.new(-143.9, 34.1, 290.6), size = Vector3.new(147.8, 12.0, 54.2), face = "-X", noDoorGuess = true, name = "OCEAN ROOFTOP" },
+		{ room = "hiphop", type = "hiphop", center = Vector3.new(-121.4, 7.0, 289.5), size = Vector3.new(70.7, 15.5, 50.1), face = "-X", noDoorGuess = true, name = "ROOM 2 · HIP-HOP" },
+		{ room = "corridor", type = "corridor", center = Vector3.new(-167.0, 7.0, 302.2), size = Vector3.new(18.1, 10.5, 76.3), face = "+Z", noDoorGuess = true, name = "CLUB OCEAN 복도" },
+		{ room = "wc_f", type = "restroom", center = Vector3.new(-196.8, 7.0, 280.3), size = Vector3.new(41.3, 10.5, 19.6), face = "+X", noDoorGuess = true, name = "여자 화장실" },
+		{ room = "wc_m", type = "restroom", center = Vector3.new(-197.0, 7.0, 301.8), size = Vector3.new(41.3, 10.5, 20.6), face = "+X", noDoorGuess = true, name = "남자 화장실" },
+	} },
 }
 
 local FACE = { ["+X"] = Vector3.new(1, 0, 0), ["-X"] = Vector3.new(-1, 0, 0), ["+Z"] = Vector3.new(0, 0, 1), ["-Z"] = Vector3.new(0, 0, -1) }

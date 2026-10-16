@@ -20,6 +20,17 @@ local MODULES = {
 	require(script.Parent:WaitForChild("T_store")),
 	require(script.Parent:WaitForChild("T_service")),
 	require(script.Parent:WaitForChild("T_style")),
+	-- 큰 시설의 방 (Venues)
+	require(script.Parent:WaitForChild("T_pc")),
+	require(script.Parent:WaitForChild("T_karaoke")),
+	require(script.Parent:WaitForChild("T_gs25")),
+	require(script.Parent:WaitForChild("T_delivery")),
+	require(script.Parent:WaitForChild("T_arcade")),
+	require(script.Parent:WaitForChild("T_bowling")),
+	require(script.Parent:WaitForChild("T_billiards")),
+	require(script.Parent:WaitForChild("T_gym")), -- T_style 의 gym 보다 뒤 (덮어씀)
+	require(script.Parent:WaitForChild("T_club")),
+	require(script.Parent:WaitForChild("T_facility")),
 }
 local BY_TYPE: { [string]: any } = {}
 for _, m in MODULES do
@@ -32,6 +43,10 @@ Build.BY_TYPE = BY_TYPE
 -- 유형을 모르는 매장: 깔끔한 기본 마감만
 local GENERIC = {
 	style = function(V: any): any
+		if V.kind == "venue" then
+			-- 전용 모듈이 없는 큰 시설의 방: 기존 가구는 그대로, 천장 설비만
+			return { chair = false, stool = false, table = false, counter = false, base = false, lower = false, mat = false, clock = false, license = false, cctv = false, ceiling = {}, lights = { kind = "none" }, skip = { upgrades = true, fixtures = true } }
+		end
 		return {
 			chair = { style = "padded", frame = Look.blackMetal, seat = Look.fabricGrey },
 			stool = {},

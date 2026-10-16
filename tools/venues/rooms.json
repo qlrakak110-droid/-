@@ -1,32 +1,869 @@
 {
-  "_doc": "Big venues of the 광안리 map (rooms that have no ShopFloor). center = floor-top centre (world), size = [X, height, Z] world-axis extents, face = world direction of the room's entrance side (-Z|+Z|-X|+X). pivot = expected model pivot (if the map moves, rooms move with it). keepPts / lanes = extra gameplay keep-outs (world). Generated into src/.../GwangalliBuildingInterior/Venues.luau by tools/venues/gen_venues.py",
-  "venues": [
-    {"group": "convenience", "name": "GS25 광안리점", "rooms": [
-      {"room": "sales", "type": "gs25", "center": [-336.12, 7.0, 284.47], "size": [55.32, 11.0, 45.41], "face": "+X", "door": [-311.7, 302.0, 6],
-       "lanes": [[-299.69,302.15,-311.69,301.92],[-311.69,301.92,-319.44,299.28],[-319.44,299.28,-319.23,288.03],[-319.23,288.03,-319.07,279.53],[-319.07,279.53,-318.88,269.28],[-319.44,299.28,-316.93,304.23],[-316.93,304.23,-319.84,304.77],[-319.84,304.77,-322.84,304.72],[-322.84,304.72,-329.04,304.40],[-319.23,288.03,-355.42,287.36]]},
-      {"room": "stock", "type": "stockroom", "center": [-375.36, 7.0, 283.73], "size": [23.22, 11.0, 44.81], "face": "+X", "door": [-364.12, 303.15, 3.6]}
-    ]},
-    {"group": "delivery", "name": "광안 딜리버리", "rooms": [
-      {"room": "office", "type": "delivery", "center": [-325.68, 6.8, 341.67], "size": [32.36, 11.2, 46.98], "face": "+X", "door": [-309.8, 342.0, 6.6]},
-      {"room": "warehouse", "type": "warehouse", "center": [-364.52, 6.8, 340.95], "size": [47.05, 11.2, 47.25], "face": "+X", "door": [-341.0, 340.4, 14],
-       "lanes": [[-341.0,340.4,-383.96,342.58],[-383.96,342.58,-388.0,342.5]]}
-    ]},
-    {"group": "pcbang", "name": "광안 PC방", "rooms": [
-      {"room": "front", "type": "pcbang", "center": [118.6, 6.85, 279.3], "size": [59.0, 11.1, 22.4], "face": "-Z"},
-      {"room": "hall", "type": "pchall", "center": [118.6, 6.85, 318.0], "size": [59.0, 11.1, 55.0], "face": "-Z", "noDoorGuess": true},
-      {"room": "back", "type": "pcback", "center": [118.6, 6.85, 355.3], "size": [59.0, 11.1, 20.6], "face": "-Z", "noDoorGuess": true}
-    ]},
-    {"group": "karaoke", "name": "광안 코인노래연습장", "rooms": [
-      {"room": "lobby", "type": "karaoke", "center": [17.2, 6.85, 280.65], "size": [47.6, 11.1, 24.3], "face": "-Z"},
-      {"room": "corridor", "type": "kcorridor", "center": [17.3, 6.85, 317.0], "size": [12.0, 11.1, 48.0], "face": "-Z", "noDoorGuess": true},
-      {"room": "booth01", "type": "kbooth", "center": [32.35, 6.85, 299.0], "size": [17.3, 11.1, 11.6], "face": "-X"},
-      {"room": "booth02", "type": "kbooth", "center": [32.35, 6.85, 311.0], "size": [17.3, 11.1, 11.6], "face": "-X"},
-      {"room": "booth03", "type": "kbooth", "center": [32.35, 6.85, 323.0], "size": [17.3, 11.1, 11.6], "face": "-X"},
-      {"room": "booth04", "type": "kbooth", "center": [32.35, 6.85, 335.0], "size": [17.3, 11.1, 11.6], "face": "-X"},
-      {"room": "booth05", "type": "kbooth", "center": [2.17, 6.85, 299.0], "size": [17.45, 11.1, 11.6], "face": "+X"},
-      {"room": "booth06", "type": "kbooth", "center": [2.17, 6.85, 311.0], "size": [17.45, 11.1, 11.6], "face": "+X"},
-      {"room": "booth07", "type": "kbooth", "center": [2.17, 6.85, 323.0], "size": [17.45, 11.1, 11.6], "face": "+X"},
-      {"room": "booth08", "type": "kbooth", "center": [2.17, 6.85, 335.0], "size": [17.45, 11.1, 11.6], "face": "+X"}
-    ]}
-  ]
+ "_doc": "Big venues of the 광안리 map (rooms that have no ShopFloor). center = floor-top centre (world), size = [X, height, Z] world-axis extents, face = world direction of the room's entrance side (-Z|+Z|-X|+X). pivot = expected model pivot (if the map moves, rooms move with it). keepPts / lanes = extra gameplay keep-outs (world). Generated into src/.../GwangalliBuildingInterior/Venues.luau by tools/venues/gen_venues.py",
+ "venues": [
+  {
+   "group": "convenience",
+   "name": "GS25 광안리점",
+   "rooms": [
+    {
+     "room": "sales",
+     "type": "gs25",
+     "center": [
+      -336.12,
+      7.0,
+      284.47
+     ],
+     "size": [
+      55.32,
+      11.0,
+      45.41
+     ],
+     "face": "+X",
+     "door": [
+      -311.7,
+      302.0,
+      6
+     ],
+     "lanes": [
+      [
+       -299.69,
+       302.15,
+       -311.69,
+       301.92
+      ],
+      [
+       -311.69,
+       301.92,
+       -319.44,
+       299.28
+      ],
+      [
+       -319.44,
+       299.28,
+       -319.23,
+       288.03
+      ],
+      [
+       -319.23,
+       288.03,
+       -319.07,
+       279.53
+      ],
+      [
+       -319.07,
+       279.53,
+       -318.88,
+       269.28
+      ],
+      [
+       -319.44,
+       299.28,
+       -316.93,
+       304.23
+      ],
+      [
+       -316.93,
+       304.23,
+       -319.84,
+       304.77
+      ],
+      [
+       -319.84,
+       304.77,
+       -322.84,
+       304.72
+      ],
+      [
+       -322.84,
+       304.72,
+       -329.04,
+       304.4
+      ],
+      [
+       -319.23,
+       288.03,
+       -355.42,
+       287.36
+      ]
+     ]
+    },
+    {
+     "room": "stock",
+     "type": "stockroom",
+     "center": [
+      -375.36,
+      7.0,
+      283.73
+     ],
+     "size": [
+      23.22,
+      11.0,
+      44.81
+     ],
+     "face": "+X",
+     "door": [
+      -364.12,
+      303.15,
+      3.6
+     ]
+    }
+   ]
+  },
+  {
+   "group": "delivery",
+   "name": "광안 딜리버리",
+   "rooms": [
+    {
+     "room": "office",
+     "type": "delivery",
+     "center": [
+      -325.68,
+      6.8,
+      341.67
+     ],
+     "size": [
+      32.36,
+      11.2,
+      46.98
+     ],
+     "face": "+X",
+     "door": [
+      -309.8,
+      342.0,
+      6.6
+     ]
+    },
+    {
+     "room": "warehouse",
+     "type": "warehouse",
+     "center": [
+      -364.52,
+      6.8,
+      340.95
+     ],
+     "size": [
+      47.05,
+      11.2,
+      47.25
+     ],
+     "face": "+X",
+     "door": [
+      -341.0,
+      340.4,
+      14
+     ],
+     "lanes": [
+      [
+       -341.0,
+       340.4,
+       -383.96,
+       342.58
+      ],
+      [
+       -383.96,
+       342.58,
+       -388.0,
+       342.5
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "group": "pcbang",
+   "name": "광안 PC방",
+   "rooms": [
+    {
+     "room": "front",
+     "type": "pcbang",
+     "center": [
+      118.6,
+      6.85,
+      279.3
+     ],
+     "size": [
+      59.0,
+      11.1,
+      22.4
+     ],
+     "face": "-Z"
+    },
+    {
+     "room": "hall",
+     "type": "pchall",
+     "center": [
+      118.6,
+      6.85,
+      318.0
+     ],
+     "size": [
+      59.0,
+      11.1,
+      55.0
+     ],
+     "face": "-Z",
+     "noDoorGuess": true
+    },
+    {
+     "room": "back",
+     "type": "pcback",
+     "center": [
+      118.6,
+      6.85,
+      355.3
+     ],
+     "size": [
+      59.0,
+      11.1,
+      20.6
+     ],
+     "face": "-Z",
+     "noDoorGuess": true
+    }
+   ]
+  },
+  {
+   "group": "karaoke",
+   "name": "광안 코인노래연습장",
+   "rooms": [
+    {
+     "room": "lobby",
+     "type": "karaoke",
+     "center": [
+      17.2,
+      6.85,
+      280.65
+     ],
+     "size": [
+      47.6,
+      11.1,
+      24.3
+     ],
+     "face": "-Z"
+    },
+    {
+     "room": "corridor",
+     "type": "kcorridor",
+     "center": [
+      17.3,
+      6.85,
+      317.0
+     ],
+     "size": [
+      12.0,
+      11.1,
+      48.0
+     ],
+     "face": "-Z",
+     "noDoorGuess": true
+    },
+    {
+     "room": "booth01",
+     "type": "kbooth",
+     "center": [
+      32.35,
+      6.85,
+      299.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "face": "-X"
+    },
+    {
+     "room": "booth02",
+     "type": "kbooth",
+     "center": [
+      32.35,
+      6.85,
+      311.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "face": "-X"
+    },
+    {
+     "room": "booth03",
+     "type": "kbooth",
+     "center": [
+      32.35,
+      6.85,
+      323.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "face": "-X"
+    },
+    {
+     "room": "booth04",
+     "type": "kbooth",
+     "center": [
+      32.35,
+      6.85,
+      335.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "face": "-X"
+    },
+    {
+     "room": "booth05",
+     "type": "kbooth",
+     "center": [
+      2.17,
+      6.85,
+      299.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "face": "+X"
+    },
+    {
+     "room": "booth06",
+     "type": "kbooth",
+     "center": [
+      2.17,
+      6.85,
+      311.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "face": "+X"
+    },
+    {
+     "room": "booth07",
+     "type": "kbooth",
+     "center": [
+      2.17,
+      6.85,
+      323.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "face": "+X"
+    },
+    {
+     "room": "booth08",
+     "type": "kbooth",
+     "center": [
+      2.17,
+      6.85,
+      335.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "face": "+X"
+    }
+   ]
+  },
+  {
+   "group": "arcade",
+   "name": "광안 게임랜드",
+   "rooms": [
+    {
+     "room": "hall",
+     "type": "arcade",
+     "center": [
+      -340.3,
+      6.8,
+      444.4
+     ],
+     "size": [
+      74.6,
+      11.2,
+      78.6
+     ],
+     "face": "+X",
+     "door": [
+      -302.6,
+      433.1,
+      12.5
+     ]
+    },
+    {
+     "room": "lobby",
+     "type": "stairlobby",
+     "center": [
+      -312.9,
+      6.8,
+      399.5
+     ],
+     "size": [
+      21.8,
+      11.2,
+      9.6
+     ],
+     "face": "+X"
+    },
+    {
+     "room": "photo",
+     "type": "photo",
+     "center": [
+      -307.2,
+      6.8,
+      387.0
+     ],
+     "size": [
+      10.2,
+      9.7,
+      12.1
+     ],
+     "face": "+X",
+     "door": [
+      -301.7,
+      390.2,
+      4.8
+     ]
+    }
+   ]
+  },
+  {
+   "group": "bowling",
+   "name": "실내",
+   "rooms": [
+    {
+     "room": "lobby",
+     "type": "bowlobby",
+     "center": [
+      297.6,
+      6.75,
+      456.2
+     ],
+     "size": [
+      88.0,
+      21.9,
+      26.0
+     ],
+     "face": "+Z",
+     "door": [
+      264.8,
+      469.6,
+      12
+     ],
+     "name": "광안 락볼링클럽"
+    },
+    {
+     "room": "gamezone",
+     "type": "bowarcade",
+     "center": [
+      242.6,
+      6.75,
+      457.2
+     ],
+     "size": [
+      22.0,
+      21.9,
+      26.0
+     ],
+     "face": "+Z",
+     "name": "락볼링 오락코너"
+    },
+    {
+     "room": "lounge",
+     "type": "bowlounge",
+     "center": [
+      264.2,
+      6.75,
+      419.6
+     ],
+     "size": [
+      40.4,
+      21.9,
+      48.5
+     ],
+     "face": "+Z",
+     "noDoorGuess": true,
+     "name": "락볼링 라운지"
+    },
+    {
+     "room": "bar",
+     "type": "bowbar",
+     "center": [
+      237.4,
+      6.75,
+      422.1
+     ],
+     "size": [
+      12.1,
+      21.9,
+      36.4
+     ],
+     "face": "+X",
+     "noDoorGuess": true,
+     "name": "ROCK & BOWL BAR"
+    },
+    {
+     "room": "snack",
+     "type": "bowsnack",
+     "center": [
+      257.0,
+      6.75,
+      382.5
+     ],
+     "size": [
+      52.0,
+      21.9,
+      27.0
+     ],
+     "face": "+Z",
+     "noDoorGuess": true,
+     "name": "ROCK & BOWL 분식"
+    },
+    {
+     "room": "wc_m",
+     "type": "restroom",
+     "center": [
+      242.3,
+      6.75,
+      362.2
+     ],
+     "size": [
+      22.5,
+      10.85,
+      10.9
+     ],
+     "face": "+X",
+     "door": [
+      253.7,
+      363.7,
+      3.5
+     ],
+     "name": "남자 화장실"
+    },
+    {
+     "room": "wc_f",
+     "type": "restroom",
+     "center": [
+      242.2,
+      6.75,
+      350.2
+     ],
+     "size": [
+      22.4,
+      10.85,
+      10.9
+     ],
+     "face": "+X",
+     "door": [
+      253.6,
+      348.2,
+      3.5
+     ],
+     "name": "여자 화장실"
+    },
+    {
+     "room": "office",
+     "type": "office",
+     "center": [
+      241.8,
+      6.75,
+      336.3
+     ],
+     "size": [
+      22.8,
+      10.85,
+      14.7
+     ],
+     "face": "+X",
+     "door": [
+      253.6,
+      338.0,
+      3.5
+     ],
+     "name": "사무실 · 창고"
+    },
+    {
+     "room": "corridor",
+     "type": "corridor",
+     "center": [
+      268.7,
+      6.75,
+      348.9
+     ],
+     "size": [
+      28.5,
+      21.9,
+      40.2
+     ],
+     "face": "+Z",
+     "noDoorGuess": true,
+     "name": "락볼링 복도"
+    },
+    {
+     "room": "elevhall",
+     "type": "elevhall",
+     "center": [
+      348.2,
+      6.75,
+      457.0
+     ],
+     "size": [
+      13.2,
+      11.9,
+      21.2
+     ],
+     "face": "+Z",
+     "name": "2~4층 엘리베이터 홀"
+    }
+   ]
+  },
+  {
+   "group": "bowling",
+   "name": "상층_2F-4F",
+   "rooms": [
+    {
+     "room": "billiards",
+     "type": "billiards",
+     "center": [
+      282.8,
+      30.08,
+      442.45
+     ],
+     "size": [
+      101.2,
+      9.5,
+      52.5
+     ],
+     "face": "+X",
+     "door": [
+      333.9,
+      459.5,
+      4
+     ],
+     "name": "광안 당구클럽"
+    },
+    {
+     "room": "salon",
+     "type": "salon",
+     "center": [
+      314.2,
+      41.0,
+      442.45
+     ],
+     "size": [
+      38.4,
+      9.55,
+      52.5
+     ],
+     "face": "+X",
+     "name": "헤어살롱 (3F)"
+    },
+    {
+     "room": "select",
+     "type": "clothing",
+     "center": [
+      263.3,
+      41.0,
+      442.45
+     ],
+     "size": [
+      62.2,
+      9.55,
+      52.5
+     ],
+     "face": "+X",
+     "noDoorGuess": true,
+     "name": "GWANGAN SELECT SHOP"
+    },
+    {
+     "room": "gym",
+     "type": "gym",
+     "center": [
+      282.8,
+      52.0,
+      442.45
+     ],
+     "size": [
+      101.2,
+      9.95,
+      52.5
+     ],
+     "face": "+X",
+     "name": "광안 휘트니스 24"
+    },
+    {
+     "room": "hall2",
+     "type": "elevhall",
+     "center": [
+      344.2,
+      30.08,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.5,
+      20.8
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "2F 엘리베이터 홀"
+    },
+    {
+     "room": "hall3",
+     "type": "elevhall",
+     "center": [
+      344.2,
+      41.0,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.55,
+      20.8
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "3F 엘리베이터 홀"
+    },
+    {
+     "room": "hall4",
+     "type": "elevhall",
+     "center": [
+      344.2,
+      52.0,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.95,
+      20.8
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "4F 엘리베이터 홀"
+    }
+   ]
+  },
+  {
+   "group": "club",
+   "name": "CLUB OCEAN 광안",
+   "rooms": [
+    {
+     "room": "lounge2f",
+     "type": "clublounge",
+     "center": [
+      -199.1,
+      33.9,
+      401.8
+     ],
+     "size": [
+      42.6,
+      13.0,
+      172.6
+     ],
+     "face": "+Z",
+     "noDoorGuess": true,
+     "name": "OCEAN SKY LOUNGE"
+    },
+    {
+     "room": "rooftop",
+     "type": "rooftop",
+     "center": [
+      -143.9,
+      34.1,
+      290.6
+     ],
+     "size": [
+      147.8,
+      12.0,
+      54.2
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "OCEAN ROOFTOP"
+    },
+    {
+     "room": "hiphop",
+     "type": "hiphop",
+     "center": [
+      -121.4,
+      7.0,
+      289.5
+     ],
+     "size": [
+      70.7,
+      15.5,
+      50.1
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "ROOM 2 · HIP-HOP"
+    },
+    {
+     "room": "corridor",
+     "type": "corridor",
+     "center": [
+      -167.0,
+      7.0,
+      302.2
+     ],
+     "size": [
+      18.1,
+      10.5,
+      76.3
+     ],
+     "face": "+Z",
+     "noDoorGuess": true,
+     "name": "CLUB OCEAN 복도"
+    },
+    {
+     "room": "wc_f",
+     "type": "restroom",
+     "center": [
+      -196.8,
+      7.0,
+      280.3
+     ],
+     "size": [
+      41.3,
+      10.5,
+      19.6
+     ],
+     "face": "+X",
+     "noDoorGuess": true,
+     "name": "여자 화장실"
+    },
+    {
+     "room": "wc_m",
+     "type": "restroom",
+     "center": [
+      -197.0,
+      7.0,
+      301.8
+     ],
+     "size": [
+      41.3,
+      10.5,
+      20.6
+     ],
+     "face": "+X",
+     "noDoorGuess": true,
+     "name": "남자 화장실"
+    }
+   ]
+  }
+ ]
 }
