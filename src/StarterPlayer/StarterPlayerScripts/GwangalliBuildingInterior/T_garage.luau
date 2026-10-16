@@ -3812,35 +3812,106 @@ local function buildWashImpl(K: any, V: any): any
 		local vp = pf(vx, gy, vz, 180)
 		if spot(G, vp, V3(2.6, 7.0, 2.2), 0, "vacuum", ign) then
 			propGroup(G, "vacuum", V3(vx - 1.3, 0, vz - 1.1), V3(vx + 1.3, 7, vz + 1.1), function()
+				-- 패드 + 노랑 차막이 연석
 				D.box("VacPad", V3(2.6, 0.12, 2.2), vp * CF(0, 0.06, 0), lk(C(170, 168, 162), M.Concrete))
-				D.vcyl("VacBody", 3.2, 1.5, vp * CF(0, 1.72, 0), L.stainless)
-				D.vcyl("VacBand", 0.4, 1.54, vp * CF(0, 1.0, 0), lk(C(240, 196, 30)))
-				D.vcyl("VacHead", 1.0, 1.7, vp * CF(0, 3.8, 0), lk(C(240, 196, 30)))
-				D.vcyl("VacTopCap", 0.15, 1.75, vp * CF(0, 4.35, 0), lk(C(40, 42, 46)))
-				local pnl = vp * CF(0, 3.8, 0.86)
-				D.box("VacPanel", V3(0.9, 0.7, 0.04), pnl, L.black)
-				local _, vlab = D.label("VacScreen", 0.7, 0.3, pnl * CF(0, 0.12, 0.03), "1,000원 · 4분", C(255, 120, 60), C(10, 10, 12), { d = 0.005, glow = 1.4, font = Enum.Font.RobotoMono })
-				D.box("VacCardReader", V3(0.3, 0.2, 0.05), pnl * CF(-0.2, -0.2, 0.03), lk(C(60, 62, 66)))
-				D.box("VacCoinSlot", V3(0.06, 0.2, 0.05), pnl * CF(0.25, -0.2, 0.03), L.chrome)
-				local btn = D.cyl("VacButton", 0.06, 0.22, pnl * CF(0.05, -0.2, 0.05) * ANG(0, PI / 2, 0), lk(C(40, 200, 90), M.Neon))
-				D.label("VacSign", 1.6, 0.45, vp * CF(0, 2.6, 0.78), "셀프 진공청소기", INK, C(250, 250, 246), { d = 0.01 })
-				-- 회전 붐 + 호스 2
-				D.vcyl("VacBoomPost", 2.2, 0.22, vp * CF(0, 5.4, 0), L.steel)
-				D.seg("VacBoom", (vp * CF(0, 6.4, 0)).Position, (vp * CF(3.6, 6.4, 0.4)).Position, 0.18, L.steel)
-				for k, ox in { 1.6, 3.4 } do
-					local top = vp * CF(ox, 6.3, 0.2 * k)
-					D.box("VacHoseClip", V3(0.25, 0.25, 0.25), top, L.black)
-					D.seg("VacHose", top.Position, (vp * CF(ox * 0.6, 3.0, 1.0)).Position, 0.22, lk(C(30, 32, 34), M.Rubber))
-					D.seg("VacHose", (vp * CF(ox * 0.6, 3.0, 1.0)).Position, (vp * CF(0.45 * (k * 2 - 3), 2.0, 0.9)).Position, 0.22, lk(C(30, 32, 34), M.Rubber))
-					D.box("VacNozzle", V3(0.2, 0.7, 0.2), vp * CF(0.45 * (k * 2 - 3), 1.8, 0.95), L.black)
+				D.box("VacCurb", V3(2.4, 0.3, 0.3), vp * CF(0, 0.27, 0.92), L.yellow)
+				for k = 0, 3 do
+					D.box("VacCurbStripe", V3(0.3, 0.31, 0.31), vp * CF(-0.9 + k * 0.6, 0.27, 0.92), L.black)
 				end
+				-- 스테인리스 본체 (둥근 모서리) + 브랜드 머리
+				local body = vp * CF(0, 0.12, -0.15)
+				D.rbox("VacCabinet", V3(1.9, 3.5, 1.3), 0.12, body * CF(0, 1.75, 0), L.stainless)
+				D.box("VacKick", V3(1.92, 0.3, 1.32), body * CF(0, 0.15, 0), lk(C(40, 42, 46), M.Metal))
+				D.box("VacSeam", V3(0.02, 2.6, 0.02), body * CF(0, 1.9, 0.66), lk(C(140, 144, 150)))
+				D.rbox("VacCrown", V3(2.05, 0.75, 1.42), 0.1, body * CF(0, 3.85, 0), lk(C(240, 196, 30)))
+				D.box("VacCrownBand", V3(2.07, 0.12, 1.44), body * CF(0, 3.5, 0), lk(C(30, 90, 170)))
+				D.label("VacCrownText", 1.9, 0.6, body * CF(0, 3.85, 0.72), "VACUUM · 셀프 진공", INK, nil, { d = 0.005, clear = true, font = Enum.Font.GothamBlack })
+				D.label("VacCrownTextB", 1.9, 0.6, body * CF(0, 3.85, -0.72) * ANG(0, PI, 0), "광안 오토 WASH", INK, nil, { d = 0.005, clear = true, font = Enum.Font.GothamBlack })
+				-- 조작판: LED 시간 · 카드 · 지폐 · 동전 · 시작 버튼 · 사용법
+				local pnl = body * CF(0, 2.6, 0.66)
+				D.box("VacPanel", V3(1.5, 1.3, 0.04), pnl, lk(C(30, 32, 36)))
+				local _, vlab = D.label("VacScreen", 0.9, 0.34, pnl * CF(-0.18, 0.38, 0.03), "1,000원 · 4분", C(255, 120, 60), C(10, 10, 12), { d = 0.005, glow = 1.4, font = Enum.Font.RobotoMono })
+				D.box("VacCardReader", V3(0.36, 0.42, 0.06), pnl * CF(0.5, 0.3, 0.04), lk(C(60, 62, 66)))
+				D.box("VacCardLED", V3(0.24, 0.05, 0.02), pnl * CF(0.5, 0.44, 0.08), lk(C(40, 200, 90), M.Neon))
+				D.label("VacCardText", 0.32, 0.14, pnl * CF(0.5, 0.2, 0.08), "카드 · 페이", WHITE, nil, { d = 0.003 })
+				D.box("VacBillSlot", V3(0.6, 0.08, 0.06), pnl * CF(-0.25, 0.02, 0.04), L.chrome)
+				D.label("VacBillText", 0.6, 0.12, pnl * CF(-0.25, -0.1, 0.03), "지폐 1,000원", WHITE, nil, { d = 0.003 })
+				D.box("VacCoinSlot", V3(0.06, 0.22, 0.06), pnl * CF(0.25, -0.05, 0.04), L.chrome)
+				D.label("VacCoinText", 0.34, 0.12, pnl * CF(0.5, -0.05, 0.03), "500원", WHITE, nil, { d = 0.003 })
+				local btn = D.cyl("VacButton", 0.08, 0.3, pnl * CF(-0.4, -0.38, 0.06) * ANG(0, PI / 2, 0), lk(C(40, 200, 90), M.Neon))
+				D.label("VacButtonText", 0.5, 0.14, pnl * CF(0.15, -0.38, 0.03), "시작 / 정지", WHITE, nil, { d = 0.003 })
+				D.box("VacCoinReturn", V3(0.3, 0.2, 0.12), pnl * CF(0.5, -0.45, 0.06), L.chrome)
+				D.label("VacHowTo", 1.5, 0.75, body * CF(0, 1.4, 0.665), "① 결제  ② 시작 버튼\n③ 사용 후 호스 걸기\n유리 · 액체 흡입 금지", INK, C(250, 250, 246), { d = 0.005 })
+				D.label("VacPhone", 1.5, 0.22, body * CF(0, 0.75, 0.665), "고장 문의 051-752-0000", INK, C(240, 196, 30), { d = 0.005 })
+				-- 옆면: 노즐 홀더 2 · 호스 걸이
+				for _, s in { -1, 1 } do
+					local sp = body * CF(s * 0.97, 2.2, 0.2)
+					D.box("NozzleHolster", V3(0.12, 0.6, 0.3), sp, lk(C(40, 42, 46), M.Plastic))
+					D.box("VacNozzleStored", V3(0.14, 0.9, 0.14), sp * CF(s * 0.12, -0.2, 0) * ANG(0, 0, s * 0.12), lk(C(30, 32, 34), M.Plastic))
+					D.box("VacNozzleTip", V3(0.08, 0.3, 0.32), sp * CF(s * 0.14, -0.75, 0), lk(C(30, 32, 34), M.Plastic))
+				end
+				-- 상부 회전 붐 + 처진 호스 2 (곡선)
+				local post0 = body * CF(0, 4.22, -0.2)
+				D.vcyl("VacBoomPost", 2.0, 0.24, post0 * CF(0, 1.0, 0), L.steel)
+				D.vcyl("VacSwivel", 0.3, 0.42, post0 * CF(0, 2.0, 0), lk(C(40, 42, 46), M.Metal))
+				local bA = (post0 * CF(0, 2.05, 0)).Position
+				local bB = (post0 * CF(3.4, 2.05, 0.3)).Position
+				D.seg("VacBoom", bA, bB, 0.2, L.steel)
+				D.seg("VacBoomStay", (post0 * CF(0, 1.1, 0)).Position, (post0 * CF(1.8, 2.0, 0.16)).Position, 0.08, L.steel)
+				D.box("VacBoomEnd", V3(0.3, 0.3, 0.3), post0 * CF(3.45, 2.05, 0.3), lk(C(240, 196, 30)))
+				local function hose(a: Vector3, c: Vector3, b: Vector3, n: number)
+					local prev = a
+					for i = 1, n do
+						local t = i / n
+						local p = a * (1 - t) * (1 - t) + c * 2 * t * (1 - t) + b * t * t
+						D.seg("VacHose", prev, p, 0.24, lk(C(34, 36, 40), M.Rubber))
+						if hi and i < n then
+							D.ball("VacHoseCuff", 0.27, CF(p), lk(C(24, 26, 28), M.Rubber))
+						end
+						prev = p
+					end
+				end
+				for k, ox in { 1.6, 3.3 } do
+					local top = (post0 * CF(ox, 2.0, 0.15 * k)).Position
+					D.box("VacHoseClip", V3(0.26, 0.26, 0.26), CF(top - Vector3.yAxis * 0.1), L.black)
+					local s = if k == 1 then -1 else 1
+					local endP = (body * CF(s * 1.1, 1.3, 0.75)).Position
+					local mid = (post0 * CF(ox * 0.5, -1.0, 1.4)).Position
+					hose(top - Vector3.yAxis * 0.2, mid, endP, if hi then 7 else 4)
+					D.seg("VacWand", endP, (body * CF(s * 1.2, 0.35, 0.95)).Position, 0.14, L.steel)
+					D.box("VacFloorNozzle", V3(0.5, 0.1, 0.22), body * CF(s * 1.2, 0.3, 1.0), lk(C(30, 32, 34), M.Plastic))
+				end
+				-- 옆 쓰레기통
+				local tb = vp * CF(1.05, 0.12, 0.55)
+				D.vcyl("VacTrash", 1.3, 0.62, tb * CF(0, 0.65, 0), lk(C(60, 120, 70), M.Plastic))
+				D.vcyl("VacTrashLid", 0.12, 0.66, tb * CF(0, 1.36, 0), lk(C(40, 90, 50), M.Plastic))
+				D.label("VacTrashText", 0.5, 0.2, tb * CF(0, 0.9, 0.315), "쓰레기", WHITE, nil, { d = 0.003 })
 				local on = false
+				local t0 = 0
+				Interact.anim(K, function(t: number)
+					if not on then
+						return
+					end
+					if t0 == 0 then
+						t0 = t
+					end
+					local left = math.max(0, 240 - (t - t0))
+					if vlab.Parent then
+						vlab.Text = string.format("작동 중 %d:%02d", left // 60, math.floor(left % 60))
+					end
+					if left <= 0 then
+						on = false
+					end
+				end)
 				prompt(G, btn, {
 					action = "청소기 켜기",
 					object = "셀프 진공청소기 (구경용)",
 					fn = function(_n: number, pr: ProximityPrompt)
 						on = not on
-						vlab.Text = if on then "작동 중 · 3:59" else "1,000원 · 4분"
+						t0 = 0
+						if not on then
+							vlab.Text = "1,000원 · 4분"
+						end
 						btn.Color = if on then C(255, 70, 50) else C(40, 200, 90)
 						pr.ActionText = if on then "청소기 끄기" else "청소기 켜기"
 					end,

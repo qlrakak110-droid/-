@@ -647,6 +647,24 @@ local function promptWallSpot(ctx: any, walls: { string }, w: number, y0: number
 	return nil, nil
 end
 
+-- 프롬프트가 꼭 되는 벽 자리만 (안 되면 nil 이고 자리도 안 잡음)
+local function promptSpotStrict(ctx: any, walls: { string }, w: number, y0: number, y1: number): (CFrame?, string?)
+	local K = ctx.K
+	for _, iv in promptIntervals(ctx, walls) do
+		local mid = (iv[2] + iv[3]) / 2
+		local missBefore = ctx.miss
+		local dcf, wn = wallSpot(ctx, { iv[1] }, w, y0, y1, mid)
+		if dcf then
+			if Interact.canPrompt(K, dcf.Position) then
+				return dcf, wn
+			end
+			table.remove(K.wallUsed, #K.wallUsed)
+		end
+		ctx.miss = missBefore
+	end
+	return nil, nil
+end
+
 -- 폭 후보를 차례로 (큰 것부터): 반환 dcf, 고른 폭
 local function wallSpotFit(ctx: any, walls: { string }, ws: { number }, y0: number, y1: number, prefer: number?): (CFrame?, number)
 	for _, w in ws do
