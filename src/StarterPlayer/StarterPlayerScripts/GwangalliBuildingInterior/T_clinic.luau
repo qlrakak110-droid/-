@@ -1950,6 +1950,79 @@ local function cart(K: any, pcf: CFrame, w: number, d: number, h: number, kind: 
 	end
 end
 
+-- 이동식 침대 (스트레처카), pcf 바닥, 길이 방향 = Z (+Z = 머리)
+local function stretcher(K: any, pcf: CFrame)
+	local fr = LK.steel
+	local top = 2.6
+	K:box("StrBase", V3(1.8, 0.25, 5.6), pcf * CF(0, 0.75, 0), lk(200, 204, 206, M.Metal))
+	for _, sz in { -2.4, 2.4 } do
+		K:box("StrColumn", V3(0.9, 1.4, 0.5), pcf * CF(0, 1.55, sz * 0.55), lk(232, 234, 234, M.Plastic))
+		for _, sx in { -0.75, 0.75 } do
+			K:ball("StrWheel", 0.42, pcf * CF(sx, 0.21, sz), LK.black)
+			K:box("StrFork", V3(0.12, 0.35, 0.12), pcf * CF(sx, 0.5, sz), LK.darkAlu)
+		end
+	end
+	K:box("StrDeck", V3(2.3, 0.2, 6.6), pcf * CF(0, top - 0.3, 0), lk(220, 224, 226, M.Metal))
+	K:slab("StrMattress", 2.2, 6.4, 0.4, 0.15, pcf * CF(0, top, 0), lk(40, 64, 110, M.Leather))
+	local bk = pcf * CF(0, top + 0.1, 2.0) * ANG(math.rad(-20), 0, 0)
+	K:slab("StrBackrest", 2.2, 2.4, 0.4, 0.15, bk * CF(0, 0.2, 0.2), lk(40, 64, 110, M.Leather))
+	K:box("StrSheet", V3(2.15, 0.03, 4.0), pcf * CF(0, top + 0.21, -1.0), lk(250, 250, 248, M.Fabric))
+	K:box("StrBlanket", V3(2.0, 0.35, 1.2), pcf * CF(0, top + 0.38, -2.5), lk(150, 196, 214, M.Fabric))
+	K:ell("StrPillow", V3(1.4, 0.35, 0.8), bk * CF(0, 0.55, 0.6), lk(250, 250, 250, M.Fabric))
+	for _, sx in { -1, 1 } do
+		-- 접은 사이드 레일
+		K:bar("StrRail", pcf * V3(sx * 1.2, top - 0.05, -2.4), pcf * V3(sx * 1.2, top - 0.05, 1.6), 0.1, 0.25, fr)
+		for _, z in { -2.2, 1.4 } do
+			K:box("StrRailPost", V3(0.08, 0.35, 0.08), pcf * CF(sx * 1.2, top - 0.3, z), fr)
+		end
+	end
+	K:bar("StrPushBar", pcf * V3(-1.0, top + 0.9, 3.45), pcf * V3(1.0, top + 0.9, 3.45), 0.12, 0.12, fr)
+	for _, sx in { -1.0, 1.0 } do
+		K:seg("StrPushPost", pcf * V3(sx, top - 0.2, 3.3), pcf * V3(sx, top + 0.9, 3.45), 0.1, fr)
+	end
+	K:vcyl("StrIVSocket", 0.6, 0.18, pcf * CF(1.05, top + 0.1, 3.2), fr)
+	K:vcyl("StrO2Tank", 2.6, 0.5, pcf * CF(0, 1.35, -1.6) * ANG(PI / 2, 0, 0), col(C3(40, 150, 80), M.Metal))
+	K:vcyl("StrO2Valve", 0.3, 0.25, pcf * CF(0, 1.35, -0.2) * ANG(PI / 2, 0, 0), LK.chrome)
+	tx(K, "StrTag", 1.0, 0.35, pcf * CF(1.16, top - 0.35, 0) * ANG(0, PI / 2, 0), "1F 주사실", INK, WHITE, { d = 0.01, font = FONT_M })
+end
+
+-- 린넨 카트 (천 자루 + 위 선반 개 놓은 시트), pcf 바닥 +Z = 앞
+local function linenCart(K: any, pcf: CFrame)
+	local fr = LK.steel
+	local w, d, h = 2.4, 1.8, 3.6
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:vcyl("LinenPost", h - 0.35, 0.1, pcf * CF(sx * (w / 2 - 0.08), 0.35 + (h - 0.35) / 2, sz * (d / 2 - 0.08)), fr)
+			K:ball("LinenWheel", 0.3, pcf * CF(sx * (w / 2 - 0.15), 0.15, sz * (d / 2 - 0.15)), LK.black)
+		end
+	end
+	K:box("LinenBag", V3(w - 0.25, 1.9, d - 0.25), pcf * CF(0, 1.5, 0), lk(60, 110, 160, M.Fabric))
+	K:box("LinenBagHem", V3(w - 0.15, 0.2, d - 0.15), pcf * CF(0, 2.45, 0), lk(50, 90, 130, M.Fabric))
+	K:box("LinenDirty", V3(w - 0.6, 0.4, d - 0.6), pcf * CF(0, 2.5, 0), lk(240, 240, 236, M.Fabric))
+	K:box("LinenShelf", V3(w, 0.07, d), pcf * CF(0, h - 0.05, 0), fr)
+	for k = 0, 2 do
+		K:box("LinenFolded", V3(1.0, 0.3, 0.8), pcf * CF(-0.55, h + 0.15 + k * 0.3, 0), lk(250, 250, 248, M.Fabric))
+		K:box("LinenFoldedBlue", V3(0.9, 0.3, 0.8), pcf * CF(0.6, h + 0.15 + k * 0.3, 0), lk(150, 196, 214, M.Fabric))
+	end
+	tx(K, "LinenTag", 1.6, 0.4, pcf * CF(0, 1.3, d / 2 - 0.12), "세탁물 · 린넨", WHITE, nil, { d = 0.005, font = FONT_B })
+end
+
+-- 의료폐기물 운반 카트 (노란 밀폐 상자), pcf 바닥 +Z = 앞
+local function wasteCart(K: any, pcf: CFrame)
+	local w, d, h = 2.6, 1.9, 3.0
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:ball("WasteWheel", 0.35, pcf * CF(sx * (w / 2 - 0.25), 0.18, sz * (d / 2 - 0.25)), LK.black)
+		end
+	end
+	K:box("WasteBody", V3(w, h - 0.45, d), pcf * CF(0, 0.35 + (h - 0.45) / 2, 0), col(C3(240, 196, 40), M.Plastic))
+	K:box("WasteLid", V3(w + 0.1, 0.2, d + 0.1), pcf * CF(0, h, 0), col(C3(220, 170, 30), M.Plastic))
+	K:box("WasteLock", V3(0.3, 0.3, 0.12), pcf * CF(0, h - 0.3, d / 2 + 0.05), LK.darkAlu)
+	K:bar("WasteHandle", pcf * V3(-w / 2 + 0.2, h + 0.2, -d / 2 - 0.2), pcf * V3(w / 2 - 0.2, h + 0.2, -d / 2 - 0.2), 0.1, 0.1, LK.steel)
+	tx(K, "WasteLabel", 2.2, 1.1, pcf * CF(0, 1.6, d / 2 + 0.01), "의료폐기물 전용\n운반 용기 · 관계자 외 취급 금지", C3(200, 30, 30), C3(255, 236, 160), { d = 0.01, font = FONT_B })
+	K:plate("WasteBio", 0.6, 0.6, 0.02, pcf * CF(0.8, 2.5, d / 2 + 0.01), col(C3(200, 30, 30)))
+end
+
 -- 상호작용 공통 -----------------------------------------------------------------------------------------------
 local function ding(part: BasePart)
 	Interact.click(part, "rbxasset://sounds/electronicpingshort.wav")
@@ -4264,6 +4337,35 @@ BUILD.backhall = function(K: any, V: any)
 		end
 		hangSign(K, -14.0, 6.9, 5.0, 1.0, 7.8, PI / 2, "← 접수 · 진료실 · 약국", "엘리베이터 · 화장실 →")
 		hangSign(K, -40.0, 3.0, 4.0, 1.0, 7.8, PI / 2, "← 비상구", "← 비상구", { bg = GREEN_EXIT, fg = WHITE, band = darker(GREEN_EXIT, 0.3) })
+	end)
+	-- 비상구 쪽 빈 복도: 이동식 침대 · 린넨 카트 · 의료폐기물 카트 (뒷벽에 붙여 세워 둠) ---------------------------
+	step(K, "parking", function()
+		for _, x in { -44.0, -46.0, -42.0 } do
+			local pc = floorAt(K, x, V.z0 + 1.75, PI / 2, 2.6, 7.4, 4.2, 0)
+			if pc then
+				stretcher(K, pc)
+				break
+			end
+		end
+		for _, x in { -52.5, -51.0, -54.0 } do
+			local pc = floorAt(K, x, V.z0 + 1.2, 0, 2.6, 2.0, 4.6, 0)
+			if pc then
+				linenCart(K, pc)
+				break
+			end
+		end
+		for _, x in { -36.0, -34.5, -37.5 } do
+			local pc = floorAt(K, x, V.z0 + 1.3, 0, 2.8, 2.4, 3.4, 0)
+			if pc then
+				wasteCart(K, pc)
+				break
+			end
+		end
+		local d = wallSpot(K, "back", 4.0, 5.4, 6.6, -44.0, 0.5)
+		if d then
+			K:plate("ParkSign", 3.8, 1.0, 0.05, d, col(TEAL))
+			tx(K, "ParkSignText", 3.6, 0.85, d * CF(0, 0, 0.055), "이송 장비 대기 구역 · 통로 확보", WHITE, nil, { font = FONT_B })
+		end
 	end)
 	-- 손잡이 (복도 쪽 벽 · 바깥벽 문 사이) · 코너 보호대 ---------------------------------------------------------------
 	step(K, "rails", function()

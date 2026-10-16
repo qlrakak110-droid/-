@@ -1346,7 +1346,7 @@ local function wallFan(ctx: any, dcf: CFrame, o: any?)
 end
 
 -- 여러 문짝을 한 프롬프트로 여닫기 (냉장고 2~3칸)
-local function swingDoors(ctx: any, doors: { any }, object: string)
+local function swingDoors(ctx: any, doors: { any }, object: string, extra: { BasePart }?)
 	local K = ctx.K
 	local recs = {}
 	local handle: BasePart? = nil
@@ -1368,6 +1368,13 @@ local function swingDoors(ctx: any, doors: { any }, object: string)
 				if not handle and string.find(q.p.Name, "Frame") and Interact.canPrompt(K, K.cf:PointToObjectSpace(q.p.Position)) then
 					handle = q.p
 				end
+			end
+		end
+	end
+	if not handle then
+		for _, q in extra or {} do
+			if not handle and q.Parent and Interact.canPrompt(K, K.cf:PointToObjectSpace(q.Position)) then
+				handle = q
 			end
 		end
 	end
@@ -2396,6 +2403,18 @@ local function chickenBuild(ctx: any)
 	if nd then
 		chimaekNeon(ctx, nd, nw, if tong then "옛날통닭" elseif nw < 3 then "치맥" else "치킨 & 맥주", rgb(255, 120, 170), rgb(255, 200, 60))
 	end
+	-- 옛날통닭: 벽걸이 선풍기 (좌우 회전, 프롬프트 되면 켜기/끄기)
+	if tong then
+		for i = 1, 2 do
+			local fd = promptSpotStrict(ctx, { "left", "right", "back" }, 1.6, 6.9, 8.5)
+			if not fd then
+				fd = wallSpot(ctx, { if i == 1 then "right" else "left", if i == 1 then "left" else "right" }, 1.6, 6.9, 8.5, (i * 2 - 3) * 2)
+			end
+			if fd then
+				wallFan(ctx, fd * CF(0, 0.4, 0))
+			end
+		end
+	end
 	-- 바닥 소품: 음료 냉장고 · 생맥주 스테이션 · 셀프 코너 · 포장 박스 랙
 	placeFridge(ctx, { header = "시원한 음료 · 주류", headerBg = P.accent, items = CHICKEN_DRINKS, brand = "SHOWCASE" })
 	local bw = if V.W > 22 then 3.6 else 3.2
@@ -3112,6 +3131,14 @@ local function subwayBuild(ctx: any)
 			{ "메뉴", g, { { "e", -0.18, -0.05, 0.6, 0.3, rgb(214, 160, 92) }, { "e", -0.18, 0.0, 0.58, 0.08, rgb(100, 180, 60) } }, "오늘의 써브  ·  에그마요 5,900", "Sub of the Day" },
 			{ "쿠키", P.accent, { { "e", -0.2, -0.05, 0.26, 0.4, rgb(150, 100, 60) }, { "e", 0.18, -0.05, 0.26, 0.4, rgb(110, 70, 40) } }, "갓 구운 쿠키 3개 4,500", "초코칩 · 화이트 마카다미아" },
 		}, "메뉴 화면")
+	end
+	-- 프롬프트 되는 빈 벽: 초록 · 노랑 네온 (켜기/끄기)
+	local snd = promptSpotStrict(ctx, { "back", "left", "right" }, 3.4, 6.4, 7.9)
+	if snd then
+		neonSign(ctx, snd, 3.0, 1.0, "FRESH · 매일 굽는 빵", P.accent, {
+			object = "네온사인",
+			shapes = { { -1.45, -0.62, 1.45, -0.62, rgb(80, 220, 120) } },
+		})
 	end
 	-- 초록 벽 큰 글자 + 노란 화살표
 	local sg = wallSpot(ctx, { "right", "left" }, 7.0, 7.0, 9.6, 0)
@@ -4502,12 +4529,13 @@ local function selfCabinetOverlay(ctx: any): number
 		local wood = L.of(150, 104, 64, M.Wood)
 		local inner = L.of(236, 232, 224, M.SmoothPlastic)
 		local doors = {}
+		local extra = {}
 		K:free(function()
 			-- 몸통 (속이 빈 상자): 옆판 · 뒤판 · 바닥 · 천판 밑 · 가운데 칸막이 · 선반
 			local t = 0.08
 			K:box("FfSelfCabSide", V3(t, h - 0.3, fd), pcf * CF(-fw / 2 + t / 2, 0.3 + (h - 0.3) / 2, 0), wood)
 			K:box("FfSelfCabSide", V3(t, h - 0.3, fd), pcf * CF(fw / 2 - t / 2, 0.3 + (h - 0.3) / 2, 0), wood)
-			K:box("FfSelfCabBack", V3(fw - 2 * t, h - 0.3, t), pcf * CF(0, 0.3 + (h - 0.3) / 2, -fd / 2 + t / 2), inner)
+			table.insert(extra, K:box("FfSelfCabBack", V3(fw - 2 * t, h - 0.3, t), pcf * CF(0, 0.3 + (h - 0.3) / 2, -fd / 2 + t / 2), inner))
 			K:box("FfSelfCabFloor", V3(fw - 2 * t, t, fd - t), pcf * CF(0, 0.3 + t / 2, t / 2), inner)
 			K:box("FfSelfCabCeil", V3(fw - 2 * t, t, fd - t), pcf * CF(0, h - t / 2, t / 2), inner)
 			K:box("FfSelfCabMid", V3(t, h - 0.3 - 2 * t, fd - t - 0.1), pcf * CF(0, 0.3 + (h - 0.3) / 2, -0.05 + t / 2), inner)
@@ -4548,7 +4576,7 @@ local function selfCabinetOverlay(ctx: any): number
 			K:text("FfSelfCabLabel", math.min(1.8, fw * 0.5), 0.26, pcf * CF(0, h - 0.32, fd / 2 + 0.06), "셀프 비품 · 냅킨 · 물티슈", { fg = rgb(60, 40, 24), bg = rgb(246, 236, 210), font = F.GothamBold, d = 0.01 })
 		end)
 		Scan.hide(K.hidden, r.part)
-		if swingDoors(ctx, doors, "셀프 수납장") then
+		if swingDoors(ctx, doors, "셀프 수납장", extra) then
 			made += 1
 		end
 	end
