@@ -1,0 +1,76 @@
+# GwangalliPasses_Phone.patch  (선택 사항 / OPTIONAL)
+#
+# 적용 위치: Studio 탐색기 > StarterPlayer > StarterPlayerScripts > GwangalliPhone (폴더) > Phone (ModuleScript)
+# 하는 일: 폰 하단 독(Dock)에 "👑 VIP" 앱을 정식 앱으로 넣습니다 (독 칸 4개 -> 5개, 칸 너비 자동 계산).
+#          VIP 아이콘을 누르면 폰이 LocalPlayer.GwangalliPassesOpen 이벤트만 쏘고, 화면은 GwangalliPasses 애드온이 그립니다.
+# 안 넣어도 됩니다: 패치가 없으면 애드온이 실행 중에 같은 자리(독 5번째 칸)에 아이콘을 직접 붙입니다.
+# 적용 방법: 아래 + 줄을 Phone 스크립트의 같은 위치에 붙여 넣고 - 줄은 지웁니다 (줄 번호는 v7 기준).
+#   1) APP_META 표 끝에 vip 항목 추가   2) DOCK_APPS 에 "vip" 추가   3) 독 칸 수 4 -> #DOCK_APPS (2곳)
+#   4) Phone.launch 맨 앞에 launcher 처리   5) Phone.start 맨 앞에 PhoneNative 표시
+# 되돌리기: 이 다섯 군데만 원래대로 돌리면 끝 (애드온은 자동으로 런타임 아이콘 방식으로 돌아갑니다).
+#
+--- a/GwangalliPhone/Phone.luau	2026-10-16 14:30:01.593110243 +0000
++++ b/GwangalliPhone/Phone.luau	2026-10-16 14:30:01.673149377 +0000
+@@ -81,9 +81,12 @@
+ 	-- R$: the Robux store (every game pass on sale; Apps/Robux, ReplicatedStorage.GwangalliStore). Icon: K.Glyph "robux"
+ 	-- (a banknote with wings)
+ 	robux = { title = "R$", glyph = "💸", c1 = Color3.fromRGB(110, 232, 150), c2 = Color3.fromRGB(22, 150, 92), module = "Robux", server = false },
++	-- [GwangalliPasses] VIP: the pass add-on's own app (StarterPlayerScripts.GwangalliPasses draws it over the phone
++	-- screen); the phone only fires LocalPlayer.GwangalliPassesOpen
++	vip = { title = "VIP", glyph = "👑", c1 = Color3.fromRGB(255, 194, 71), c2 = Color3.fromRGB(255, 79, 163), launcher = "GwangalliPassesOpen", server = false },
+ }
+ local GRID_APPS = { "people", "together", "jobs", "realty", "taxi", "shop", "robux", "profile", "camera", "settings" }
+-local DOCK_APPS = { "call", "messages", "map", "bank" }
++local DOCK_APPS = { "call", "messages", "map", "bank", "vip" } -- [GwangalliPasses] + vip
+ local KIND_APP = { message = "messages", taxi = "taxi", money = "bank", pay = "bank", stat = "profile", job = "jobs", home = "realty", quest = "messages" }
+ 
+ local apps: { [string]: any } = {}
+@@ -774,7 +777,7 @@
+ 		SortOrder = Enum.SortOrder.LayoutOrder,
+ 		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+ 		VerticalAlignment = Enum.VerticalAlignment.Center,
+-		FillDirectionMaxCells = 4,
++		FillDirectionMaxCells = #DOCK_APPS, -- [GwangalliPasses] was 4
+ 	}, dock)
+ 	for i, id in DOCK_APPS do
+ 		appIcon(dock, id, i, false)
+@@ -1045,7 +1048,7 @@
+ 	gridLayout.CellPadding = UDim2.fromOffset(0, rowGap)
+ 	gridLayout.FillDirectionMaxCells = cols
+ 	gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+-	dockLayout.CellSize = UDim2.fromOffset(math.floor((innerW - 8) / 4), dockH - 6)
++	dockLayout.CellSize = UDim2.fromOffset(math.floor((innerW - 8) / #DOCK_APPS), dockH - 6) -- [GwangalliPasses] was / 4
+ 
+ 	-- widget row: clock + job + rent (short); job + rent under the hero clock (tall)
+ 	widgetRow.Position = UDim2.fromOffset(side, wy)
+@@ -1531,6 +1534,16 @@
+ 	if not APP_META[id] then
+ 		return
+ 	end
++	-- [GwangalliPasses] an app run by another script: hand it the tap and stay on the home screen
++	if APP_META[id].launcher then
++		local ev = player:FindFirstChild(APP_META[id].launcher)
++		if ev and ev:IsA("BindableEvent") then
++			ev:Fire(args)
++		else
++			Phone.toast({ app = id, title = APP_META[id].title, body = "앱을 준비 중이에요", kind = "info" })
++		end
++		return
++	end
+ 	if not ensureBuilt(id) then
+ 		Phone.toast({ app = id, title = APP_META[id].title, body = "앱을 열 수 없어요", kind = "error" })
+ 		return
+@@ -1773,6 +1786,13 @@
+ -- Start
+ ---------------------------------------------------------------------------------------------------------
+ function Phone.start()
++	-- [GwangalliPasses] the VIP icon is native here: the add-on must not inject its own dock copy
++	do
++		local sh = game:GetService("ReplicatedStorage"):FindFirstChild("GwangalliPassesShared")
++		if sh then
++			sh:SetAttribute("PhoneNative", true)
++		end
++	end
+ 	playerGui = player:WaitForChild("PlayerGui", 30) :: PlayerGui
+ 	if not playerGui then
+ 		warn("[GwangalliPhone] PlayerGui missing")

@@ -193,6 +193,9 @@ local function hook(g: ScreenGui)
 		end
 		local layout = dock:FindFirstChildOfClass("UIGridLayout")
 		dock:WaitForChild("App_bank", 10)
+		if nativeMode() or dock:FindFirstChild("App_vip") then
+			return -- the patched phone has its own VIP dock app
+		end
 		makeIcon(dock)
 		if layout then
 			lastOurWidth = -1
@@ -218,7 +221,18 @@ end
 function PhoneHook.start(c: any)
 	ctx = c
 	P, K = c.P, c.K
-	local pg = Players.LocalPlayer:WaitForChild("PlayerGui")
+	-- the patched phone's native VIP app fires this (patches/GwangalliPasses_Phone.patch)
+	local lp = Players.LocalPlayer
+	local ev = lp:FindFirstChild("GwangalliPassesOpen")
+	if not (ev and ev:IsA("BindableEvent")) then
+		ev = Instance.new("BindableEvent")
+		ev.Name = "GwangalliPassesOpen"
+		ev.Parent = lp
+	end
+	(ev :: BindableEvent).Event:Connect(function(tab: any)
+		ctx.Hub.open("phone", if type(tab) == "string" then tab else nil)
+	end)
+	local pg = lp:WaitForChild("PlayerGui")
 	local function consider(g: Instance)
 		if g.Name == "GwangalliPhone" and g:IsA("ScreenGui") and g ~= phoneGui then
 			hook(g)
