@@ -2550,6 +2550,59 @@ BUILD.lobby = function(K: any, V: any)
 		end
 	end)
 	-- 층별 안내판: 공중에 떠 있던 판에 받침 기둥 --------------------------------------------------
+	-- 무인 수납기 (실손보험 간편 청구 · 처방전 재발급) + 창구 앞 바닥 대기선 ----------------------------------
+	step(K, "selfpay", function()
+		local pc = nil
+		for _, z in { 3.5, 1.5, 5.5, 7.0 } do
+			local c = at(V.x1 - 1.3, z, -PI / 2)
+			if K:spot(c, V3(2.0, 5.4, 1.5), 0.4) then
+				pc = c
+				break
+			end
+		end
+		if pc then
+			local white = lk(246, 247, 246, M.Plastic)
+			K:box("PayKioskBase", V3(2.0, 0.14, 1.5), pc * CF(0, 0.07, 0), lk(70, 74, 80, M.Plastic))
+			K:box("PayKioskBody", V3(1.8, 4.6, 1.0), pc * CF(0, 0.14 + 2.3, -0.1), white)
+			for _, sx in { -1, 1 } do
+				K:box("PayKioskSide", V3(0.06, 4.6, 1.02), pc * CF(sx * 0.91, 0.14 + 2.3, -0.1), col(TEAL, M.Plastic))
+			end
+			K:box("PayKioskHead", V3(1.8, 0.6, 1.04), pc * CF(0, 5.04, -0.1), col(TEAL, M.Plastic))
+			tx(K, "PayKioskHeadText", 1.7, 0.45, pc * CF(0, 5.04, 0.425), "무인 수납 · 서류 발급", WHITE, nil, { font = FONT_K })
+			-- 기울어진 터치 화면
+			local sc = pc * CF(0, 3.55, 0.42) * ANG(math.rad(-12), 0, 0)
+			K:box("PayKioskBezel", V3(1.5, 1.7, 0.08), sc, lk(30, 32, 36))
+			tx(K, "PayKioskScreen", 1.36, 1.56, sc * CF(0, 0, 0.045), "광안 메디컬 의원\n\n수납하실 분은\n접수증 바코드를\n찍어 주세요\n\n[ 수납 ]  [ 처방전 ]\n[ 실손보험 서류 ]", C3(20, 60, 70), C3(226, 244, 242), { font = FONT_B, d = 0.01 })
+			-- 카드 단말 · 바코드 스캐너 · 영수증 출구 · 서류 출구
+			K:box("PayKioskCardBox", V3(0.9, 0.5, 0.25), pc * CF(-0.3, 2.35, 0.48), lk(40, 44, 48))
+			K:box("PayKioskCardSlot", V3(0.6, 0.04, 0.05), pc * CF(-0.3, 2.45, 0.61), LK.black)
+			K:box("PayKioskCardLED", V3(0.12, 0.06, 0.02), pc * CF(-0.62, 2.22, 0.61), col(C3(60, 220, 120), M.Neon))
+			K:box("PayKioskScanner", V3(0.5, 0.4, 0.2), pc * CF(0.5, 2.35, 0.45), lk(40, 44, 48))
+			K:box("PayKioskScanGlass", V3(0.36, 0.2, 0.02), pc * CF(0.5, 2.38, 0.56), col(C3(220, 60, 60), M.Neon, { t = 0.3 }))
+			K:box("PayKioskReceipt", V3(0.7, 0.06, 0.06), pc * CF(-0.3, 1.8, 0.41), LK.black)
+			K:box("PayKioskReceiptPaper", V3(0.5, 0.25, 0.01), pc * CF(-0.3, 1.66, 0.43), Look.paper)
+			K:box("PayKioskDocSlot", V3(1.2, 0.08, 0.1), pc * CF(0, 1.1, 0.41), LK.black)
+			tx(K, "PayKioskDocLabel", 1.2, 0.22, pc * CF(0, 0.85, 0.405), "영수증 · 처방전 · 진료비 세부내역서", GREY_T, nil, { font = FONT_M, d = 0.005 })
+			tx(K, "PayKioskCardLabel", 0.9, 0.18, pc * CF(-0.3, 2.72, 0.405), "IC 카드 · 삼성페이", GREY_T, nil, { font = FONT_M, d = 0.005 })
+		end
+		-- 창구 앞 대기선 스티커 (바닥에 붙은 얇은 판)
+		local fp = V:first("FrontPanel")
+		if fp then
+			local x0, x1 = fp.min.X, fp.max.X
+			local len = x1 - x0
+			local zq = fp.max.Z + 2.4
+			K:free(function()
+				for _, u in { -len / 3, 0, len / 3 } do
+					local x = (x0 + x1) / 2 + u + 2.2
+					K:box("QueueLine", V3(2.6, 0.012, 0.14), CF(x, 0.008, zq), col(C3(250, 200, 40)))
+					for _, sx in { -1, 1 } do
+						K:ell("QueueFoot", V3(0.3, 0.012, 0.62), CF(x + sx * 0.3, 0.009, zq + 0.75), col(C3(250, 200, 40)))
+					end
+					tx(K, "QueueText", 2.4, 0.4, CF(x, 0.016, zq - 0.4) * ANG(-PI / 2, 0, 0), "이 선에서 기다려 주세요", C3(60, 50, 10), C3(250, 214, 80), { font = FONT_B, d = 0.004 })
+				end
+			end)
+		end
+	end)
 	step(K, "directory", function()
 		local s = V:first("Sign_층별 안내")
 		if not s then
