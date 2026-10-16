@@ -272,7 +272,7 @@ function T.style(V: any): any
 		}
 		S.pal = P
 	else
-		local P = SNACK_PAL[seed % #SNACK_PAL + 1]
+		local P = if gw then SNACK_PAL[1] else SNACK_PAL[seed % #SNACK_PAL + 1]
 		S = {
 			chair = { style = "padded", frame = L.chrome, seat = P.seat, back = P.seat },
 			stool = { style = "cushion", frame = L.chrome, seat = P.seat },
@@ -611,6 +611,17 @@ local function promptWallSpot(ctx: any, walls: { string }, w: number, y0: number
 		end
 	end
 	return nil, nil
+end
+
+-- 폭 후보를 차례로 (큰 것부터): 반환 dcf, 고른 폭
+local function wallSpotFit(ctx: any, walls: { string }, ws: { number }, y0: number, y1: number, prefer: number?): (CFrame?, number)
+	for _, w in ws do
+		local d = wallSpot(ctx, walls, w, y0, y1, prefer)
+		if d then
+			return d, w
+		end
+	end
+	return nil, 0
 end
 
 -- 2D 그림 (포스터 · 라이트박스 위 색 블록): items = { { "e"|"b", x, y, w, h, Color3, rot?, mat? } } (dcf 기준 스터드)
@@ -954,6 +965,16 @@ local function ceilingBeams(ctx: any, axis: string, n: number, look: any, depth:
 				local m = (sg[1] + sg[2]) / 2
 				local cf = if axis == "x" then CF(m, y, c) else CF(c, y, m)
 				K:box("FfBeam", if axis == "x" then V3(len, dep, 0.36) else V3(0.36, dep, len), cf, look)
+				-- 펜던트 · 조명이 보를 뚫지 않게 천장 사용 기록
+				local t = sg[1]
+				while t <= sg[2] do
+					if axis == "x" then
+						Common.useCeil(K, t, c)
+					else
+						Common.useCeil(K, c, t)
+					end
+					t += 0.6
+				end
 			end
 		end
 	end
@@ -1020,6 +1041,15 @@ local function tvSet(ctx: any, dcf: CFrame, w: number, chans: { any }, objName: 
 	K:plate("FfTVMount", w * 0.3, h * 0.3, 0.12, dcf, L.blackMetal)
 	K:plate("FfTVBody", w + 0.14, h + 0.14, 0.14, dcf * CF(0, 0, 0.12), L.black)
 	K:plate("FfTVLogo", 0.24, 0.04, 0.01, dcf * CF(0, -h / 2 - 0.035, 0.265), L.chrome)
+	if not ctx.low then
+		-- 전원 · HDMI 케이블 (벽 몰딩 덮개로 내려가 콘센트로)
+		K:plate("FfTVCableCover", 0.12, 1.4, 0.05, dcf * CF(w * 0.2, -h / 2 - 0.7, 0), L.of(236, 236, 232))
+		K:plate("FfTVOutlet", 0.3, 0.4, 0.04, dcf * CF(w * 0.2, -h / 2 - 1.55, 0), L.white)
+		K:plate("FfSettopShelf", 0.9, 0.05, 0.46, dcf * CF(-w * 0.3, -h / 2 - 0.4, 0), L.of(30, 30, 32, M.Glass, { t = 0.3 }))
+		K:plate("FfSettopBracket", 0.06, 0.25, 0.04, dcf * CF(-w * 0.3, -h / 2 - 0.53, 0), L.blackMetal)
+		K:plate("FfSettopBox", 0.7, 0.16, 0.38, dcf * CF(-w * 0.3, -h / 2 - 0.295, 0.02), L.of(30, 30, 32))
+		K:plate("FfSettopLed", 0.05, 0.03, 0.01, dcf * CF(-w * 0.3 + 0.25, -h / 2 - 0.295, 0.4), L.ledGreen)
+	end
 	if not ctx.low then
 		K:disc("FfTVLed", 0.04, 0.01, dcf * CF(w / 2 - 0.1, -h / 2 - 0.04, 0.265) * ANG(PI / 2, 0, 0), L.ledRed)
 	end
@@ -1263,6 +1293,15 @@ local function swingDoors(ctx: any, doors: { any }, object: string)
 			end
 		end
 		table.insert(recs, { parts = parts, hinge = d.hinge, angle = d.angle })
+	end
+	if not handle then
+		for _, r in recs do
+			for _, q in r.parts do
+				if not handle and string.find(q.p.Name, "Frame") and Interact.canPrompt(K, K.cf:PointToObjectSpace(q.p.Position)) then
+					handle = q.p
+				end
+			end
+		end
 	end
 	if not handle or not (handle :: BasePart).Parent then
 		return nil
@@ -1882,12 +1921,23 @@ local function beerStation(ctx: any, pcf: CFrame, w: number)
 	local top = cabinet(ctx, pcf, w, h, d, L.of(60, 62, 66, M.Metal), L.of(196, 200, 204, M.Metal, { r = 0.1 }), { doors = 2 })
 	-- 왼쪽 잔 냉동고 유리문 (성에 낀 잔)
 	local gx = -w / 2 + 0.75
-	K:plate("FfFrosterGlass", 1.2, 1.8, 0.03, pcf * CF(gx, 1.4, d / 2 - 0.01), { c = rgb(220, 236, 244), m = M.Glass, t = 0.45, r = 0.15 })
-	K:plate("FfFrosterInner", 1.1, 1.7, 0.02, pcf * CF(gx, 1.4, d / 2 - 0.08), L.of(236, 244, 250))
+	local door = K:group("FfFrosterDoor", function()
+		K:plate("FfFrosterGlass", 1.2, 1.8, 0.03, pcf * CF(gx, 1.4, d / 2 + 0.1), { c = rgb(220, 236, 244), m = M.Glass, t = 0.5, r = 0.15 })
+		K:plate("FfFrosterFrame", 1.26, 0.08, 0.16, pcf * CF(gx, 2.31, d / 2 - 0.03), L.of(40, 42, 46, M.Metal))
+		K:plate("FfFrosterFrame", 1.26, 0.08, 0.16, pcf * CF(gx, 0.49, d / 2 - 0.03), L.of(40, 42, 46, M.Metal))
+		K:plate("FfFrosterFrame", 0.08, 1.74, 0.16, pcf * CF(gx - 0.59, 1.4, d / 2 - 0.03), L.of(40, 42, 46, M.Metal))
+		K:plate("FfFrosterFrame", 0.08, 1.74, 0.16, pcf * CF(gx + 0.59, 1.4, d / 2 - 0.03), L.of(40, 42, 46, M.Metal))
+		K:plate("FfFrosterHandle", 0.06, 0.9, 0.08, pcf * CF(gx + 0.48, 1.4, d / 2 + 0.13), L.chrome)
+	end)
+	K:plate("FfFrosterInner", 1.1, 1.7, 0.01, pcf * CF(gx, 1.4, d / 2 - 0.055), L.of(230, 242, 250))
+	local hp = door:FindFirstChild("FfFrosterHandle") :: BasePart?
+	if hp and hp.Parent and pickAnchor(K, { hp }) then
+		Interact.swing(K, door, (K.cf * pcf * CF(gx - 0.6, 0, d / 2)).Position, K.cf.UpVector, -1.5, { object = "잔 냉동고", openText = "문 열기", closeText = "문 닫기" })
+	end
 	if not ctx.low then
 		for row = 0, 1 do
 			for i = -1, 1 do
-				K:vcyl("FfFrostMug", 0.44, 0.26, pcf * CF(gx + i * 0.34, 0.8 + row * 0.8, d / 2 - 0.35), { c = rgb(236, 244, 248), m = M.Glass, t = 0.3 })
+				K:vcyl("FfFrostMug", 0.44, 0.24, pcf * CF(gx + i * 0.34, 0.8 + row * 0.8, d / 2 - 0.05), { c = rgb(240, 246, 250), m = M.Glass, t = 0.25 })
 			end
 		end
 	end
@@ -2089,6 +2139,79 @@ local function baseballChannels(): { any }
 	}
 end
 
+-- 주방 튀김기 · 후드 (맵 Fryer / Hood 자리 그대로 스테인리스 덮개: GwShop 주방 창으로 보임)
+local function fryerOverlay(ctx: any)
+	local K, V = ctx.K, ctx.V
+	local steel = L.of(196, 200, 204, M.Metal, { r = 0.1 })
+	for _, r in V.byName.Fryer or {} do
+		local w, h, d = r.size.X, r.size.Y, r.size.Z
+		-- 정면 = 방(+Z) 쪽
+		local base = CF(r.c.X, r.min.Y, r.c.Z)
+		K:free(function()
+			K:box("FfFryerBody", V3(w, h - 0.12, d), base * CF(0, (h - 0.12) / 2, 0), steel)
+			K:box("FfFryerTop", V3(w, 0.12, d), base * CF(0, h - 0.06, 0), L.of(170, 174, 178, M.Metal))
+			K:box("FfFryerKick", V3(w - 0.1, 0.4, 0.04), base * CF(0, 0.2, d / 2 + 0.01), L.black)
+			K:box("FfFryerPanel", V3(w - 0.2, 0.7, 0.04), base * CF(0, h - 0.55, d / 2 + 0.01), L.of(40, 42, 46))
+			for i = -1, 1 do
+				K:cyl("FfFryerKnob", 0.08, 0.22, base * CF(i * w * 0.25, h - 0.55, d / 2 + 0.06) * ANG(0, PI / 2, 0), L.black)
+			end
+			K:box("FfFryerLed", V3(0.08, 0.08, 0.02), base * CF(w / 2 - 0.25, h - 0.42, d / 2 + 0.04), neon(rgb(255, 60, 40)))
+			K:box("FfFryerLed", V3(0.08, 0.08, 0.02), base * CF(w / 2 - 0.4, h - 0.42, d / 2 + 0.04), neon(rgb(60, 230, 120)))
+			K:box("FfFryerDoorGap", V3(0.03, h - 1.4, 0.02), base * CF(0, (h - 1.4) / 2 + 0.45, d / 2 + 0.01), L.of(90, 92, 96))
+			K:text("FfFryerLabel", w * 0.5, 0.18, base * CF(0, h - 1.05, d / 2 + 0.02), "가스 튀김기 · 18L", { fg = rgb(40, 40, 40), bg = rgb(230, 232, 234), d = 0.005, font = F.GothamBold })
+		end)
+		Scan.hide(K.hidden, r.part)
+	end
+	for _, r in V.byName.FryerOil or {} do
+		K:free(function()
+			K:box("FfFryerOil", r.size, CF(r.c), { c = rgb(214, 150, 40), m = M.Glass, t = 0.12, r = 0.2 })
+			K:box("FfFryerRim", V3(r.size.X + 0.1, 0.06, 0.06), CF(r.c.X, r.max.Y, r.max.Z + 0.03), L.chrome)
+			K:box("FfFryerRim", V3(r.size.X + 0.1, 0.06, 0.06), CF(r.c.X, r.max.Y, r.min.Z - 0.03), L.chrome)
+		end)
+		Scan.hide(K.hidden, r.part)
+	end
+	for _, r in V.byName.FryBasket or {} do
+		K:free(function()
+			local c = CF(r.c)
+			K:box("FfBasketMesh", r.size - V3(0.04, 0.04, 0.04), c, { c = rgb(170, 174, 178), m = M.DiamondPlate, t = 0.25 })
+			K:box("FfBasketRim", V3(r.size.X, 0.05, 0.05), c * CF(0, r.size.Y / 2 - 0.03, r.size.Z / 2), L.chrome)
+			K:box("FfBasketRim", V3(r.size.X, 0.05, 0.05), c * CF(0, r.size.Y / 2 - 0.03, -r.size.Z / 2), L.chrome)
+			K:box("FfBasketRim", V3(0.05, 0.05, r.size.Z), c * CF(r.size.X / 2, r.size.Y / 2 - 0.03, 0), L.chrome)
+			K:box("FfBasketRim", V3(0.05, 0.05, r.size.Z), c * CF(-r.size.X / 2, r.size.Y / 2 - 0.03, 0), L.chrome)
+			-- 튀김 중인 치킨 몇 조각
+			for i = 0, 2 do
+				K:ell("FfFryingChicken", V3(0.3, 0.2, 0.26), c * CF((i - 1) * 0.26, 0.12, (i % 2) * 0.2 - 0.1), L.of(206, 140, 56))
+			end
+		end)
+		Scan.hide(K.hidden, r.part)
+	end
+	for _, r in V.byName.BasketHandle or {} do
+		K:free(function()
+			K:box("FfBasketHandle", r.size, CF(r.c), L.of(30, 30, 32, M.Rubber))
+		end)
+		Scan.hide(K.hidden, r.part)
+	end
+	for _, r in V.byName.Hood or {} do
+		K:free(function()
+			local c = CF(r.c)
+			K:box("FfHoodBox", V3(r.size.X, r.size.Y * 0.55, r.size.Z), c * CF(0, r.size.Y * 0.225, 0), steel)
+			K:wedge("FfHoodSlope", V3(r.size.X, r.size.Y * 0.45, 0.5), c * CF(0, -r.size.Y * 0.275, r.size.Z / 2 - 0.25) * ANG(0, PI, 0), steel)
+			K:box("FfHoodBack", V3(r.size.X, r.size.Y * 0.45, r.size.Z - 0.5), c * CF(0, -r.size.Y * 0.275, -0.25), L.of(150, 154, 158, M.Metal))
+			local n = math.max(3, math.floor(r.size.X / 1.0))
+			for i = 1, n do
+				K:box("FfHoodFilter", V3(r.size.X / n - 0.1, 0.03, r.size.Z - 0.7), c * CF(-r.size.X / 2 + (i - 0.5) * r.size.X / n, -r.size.Y / 2 + 0.03, -0.2), L.of(120, 124, 128, M.DiamondPlate))
+			end
+			K:box("FfHoodLamp", V3(r.size.X - 0.6, 0.04, 0.12), c * CF(0, -r.size.Y / 2 + 0.02, r.size.Z / 2 - 0.35), neon(rgb(255, 236, 200)))
+		end)
+		Scan.hide(K.hidden, r.part)
+	end
+	for _, nm in { "HoodFilter", "FryerDial" } do
+		for _, r in V.byName[nm] or {} do
+			Scan.hide(K.hidden, r.part)
+		end
+	end
+end
+
 local function chickenBuild(ctx: any)
 	local K, V, S = ctx.K, ctx.V, ctx.S
 	local P = ctx.pal
@@ -2117,12 +2240,42 @@ local function chickenBuild(ctx: any)
 	passDress(ctx, { trim = L.steel, header = "hood", hoodText = if tong then "옛날통닭 · 주방" else "PICK UP · 포장", hoodFg = P.gold, hoodLook = L.of(40, 40, 42, M.Metal), utensil = "basket" })
 	menuSignDress(ctx, pl(dark(P.accent, 0.35)), P.gold)
 	kioskOverlay(ctx, nm, P.accent, { rgb(200, 122, 44), rgb(170, 40, 24), rgb(222, 150, 66), rgb(236, 168, 30), rgb(200, 30, 36), rgb(250, 196, 40) })
+	fryerOverlay(ctx)
+	-- 상호작용 벽 장식 먼저 (프롬프트 되는 자리를 차지하게): TV (야구) · 네온
+	if V:has("TVBezel") == 0 and V:has("TV") == 0 then
+		local tvw = if V.D > 14 then 3.6 else 3.0
+		local th = tvw * 9 / 16 + 0.3
+		local d = promptWallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.0, 6.0 + th)
+		if not d then
+			d = wallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.0, 6.0 + th, 0)
+		end
+		if d then
+			tvSet(ctx, d, tvw, baseballChannels(), "TV")
+		end
+	end
+	local nd = promptWallSpot(ctx, { "right", "left", "back" }, 3.6, 6.6, 8.2)
+	local nw = 3.2
+	if not nd then
+		local fw
+		nd, fw = wallSpotFit(ctx, { "right", "left", "back" }, { 3.6, 2.6 }, 6.6, 8.2, 0)
+		nw = fw - 0.4
+	end
+	if nd then
+		chimaekNeon(ctx, nd, nw, if tong then "옛날통닭" elseif nw < 3 then "치맥" else "치킨 & 맥주", rgb(255, 120, 170), rgb(255, 200, 60))
+	end
 	-- 바닥 소품: 음료 냉장고 · 생맥주 스테이션 · 셀프 코너 · 포장 박스 랙
 	placeFridge(ctx, { header = "시원한 음료 · 주류", headerBg = P.accent, items = CHICKEN_DRINKS, brand = "SHOWCASE" })
 	local bw = if V.W > 22 then 3.6 else 3.2
-	local bpcf = floorSpot(ctx, { walls = { "back", "left", "right" }, w = bw, h = 4.8, d = 1.5, pref = { back = "left", left = "back", right = "back" }, front = 1.0, above = 2.8 })
+	local bpcf, bwn, bu = floorSpot(ctx, { walls = { "back", "left", "right" }, w = bw, h = 4.8, d = 1.5, pref = { back = "left", left = "back", right = "back" }, front = 1.0 })
+	if bpcf and bwn and bu and not wallBusy(K, bwn, bu - 1.4, bu + 1.4, 5.3, 7.5) and #spans(ctx, bwn, 5.3, 7.5, 1.0) > 0 then
+		markWall(K, bwn, bu - 1.4, bu + 1.4, 5.3, 7.5)
+	else
+		bwn = nil
+	end
 	if bpcf then
 		beerStation(ctx, bpcf, bw)
+	end
+	if bpcf and bwn then
 		-- 위 벽: 생맥주 포스터
 		local wc = bpcf * CF(0, 0, -0.75 - 0.06)
 		poster(ctx, wc * CF(0, 6.4, 0), 2.6, 2.0, {
@@ -2146,25 +2299,6 @@ local function chickenBuild(ctx: any)
 	end
 	-- 테이블 위 펜던트
 	tablePendants(ctx, { shade = "dome", look = if tong then L.of(44, 96, 66, M.SmoothPlastic, { r = 0.05 }) else (S.pendant and S.pendant.look), lights = 2, dia = 1.2 })
-	-- 벽: TV (야구) · 네온 · 포스터 · 메뉴 사진 · 안내
-	if V:has("TVBezel") == 0 and V:has("TV") == 0 then
-		local tvw = if V.D > 14 then 3.6 else 3.0
-		local th = tvw * 9 / 16 + 0.3
-		local d = promptWallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.0, 6.0 + th)
-		if not d then
-			d = wallSpot(ctx, { "left", "right", "back" }, tvw + 0.3, 6.0, 6.0 + th, 0)
-		end
-		if d then
-			tvSet(ctx, d, tvw, baseballChannels(), "TV")
-		end
-	end
-	local nd = promptWallSpot(ctx, { "right", "left", "back" }, 3.6, 6.6, 8.2)
-	if not nd then
-		nd = wallSpot(ctx, { "right", "left", "back" }, 3.6, 6.6, 8.2, 0)
-	end
-	if nd then
-		chimaekNeon(ctx, nd, 3.2, if tong then "옛날통닭" else "치킨 & 맥주", rgb(255, 120, 170), rgb(255, 200, 60))
-	end
 	-- 사진 메뉴 띠 (옆벽 위쪽 라이트박스)
 	local sw = math.min(9.6, V.D - 5.5, V.W - 4)
 	if sw > 5 then
@@ -2185,32 +2319,34 @@ local function chickenBuild(ctx: any)
 			photoStrip(ctx, sd, sw, 1.8, items, { priceC = P.accent })
 		end
 	end
-	-- 큰 음식 포스터 2 (후라이드 · 양념)
-	local p1 = wallSpot(ctx, { "left", "right" }, 2.6, 3.9, 7.0, -2)
+	-- 큰 음식 포스터 2 (후라이드 · 양념): 자리가 좁으면 작은 판
+	local p1, w1 = wallSpotFit(ctx, { "left", "right" }, { 2.6, 2.0 }, 3.9, 7.0, -2)
 	if p1 then
-		poster(ctx, p1, 2.4, 3.0, {
+		local k = (w1 - 0.2) / 2.4
+		poster(ctx, p1, 2.4 * k, 3.0 * k, {
 			bg = P.accent,
 			frame = L.blackMetal,
 			glass = true,
-			art = artChicken(0, -0.1, 1.25),
+			art = artChicken(0, -0.1 * k, 1.25 * k),
 			texts = {
-				{ "바삭한", 0, 1.05, 1.6, 0.36, WHITE, F.GothamBold },
-				{ "후라이드", 0, 0.68, 2.0, 0.5, P.gold, F.GothamBlack },
-				{ pF .. "원", 0, -1.05, 1.6, 0.42, WHITE, F.GothamBlack },
+				{ "바삭한", 0, 1.05 * k, 1.6 * k, 0.36 * k, WHITE, F.GothamBold },
+				{ "후라이드", 0, 0.68 * k, 2.0 * k, 0.5 * k, P.gold, F.GothamBlack },
+				{ pF .. "원", 0, -1.05 * k, 1.6 * k, 0.42 * k, WHITE, F.GothamBlack },
 			},
 		})
 	end
-	local p2 = wallSpot(ctx, { "right", "left" }, 2.6, 3.9, 7.0, 2)
+	local p2, w2 = wallSpotFit(ctx, { "right", "left", "back" }, { 2.6, 2.0 }, 3.9, 7.0, 2)
 	if p2 then
-		poster(ctx, p2, 2.4, 3.0, {
+		local k = (w2 - 0.2) / 2.4
+		poster(ctx, p2, 2.4 * k, 3.0 * k, {
 			bg = rgb(250, 236, 200),
 			frame = L.blackMetal,
 			glass = true,
-			art = artYangnyeom(0, -0.1, 1.25),
+			art = artYangnyeom(0, -0.1 * k, 1.25 * k),
 			texts = {
-				{ "달콤 매콤", 0, 1.05, 1.7, 0.34, rgb(120, 30, 20), F.GothamBold },
-				{ "양념치킨", 0, 0.68, 2.0, 0.5, rgb(190, 30, 24), F.GothamBlack },
-				{ pY .. "원", 0, -1.05, 1.6, 0.42, rgb(60, 30, 20), F.GothamBlack },
+				{ "달콤 매콤", 0, 1.05 * k, 1.7 * k, 0.34 * k, rgb(120, 30, 20), F.GothamBold },
+				{ "양념치킨", 0, 0.68 * k, 2.0 * k, 0.5 * k, rgb(190, 30, 24), F.GothamBlack },
+				{ pY .. "원", 0, -1.05 * k, 1.6 * k, 0.42 * k, rgb(60, 30, 20), F.GothamBlack },
 			},
 		})
 	end
@@ -2220,11 +2356,19 @@ local function chickenBuild(ctx: any)
 		poster(ctx, p3, 2.0, 1.9, {
 			bg = P.gold,
 			frame = false,
-			texts = {
-				{ "치킨은 살 안 쪄요", 0, 0.42, 1.8, 0.36, rgb(40, 24, 10), F.GothamBlack },
-				{ "살은 내가 쪄요", 0, 0.0, 1.8, 0.36, rgb(40, 24, 10), F.GothamBlack },
-				{ "오늘도 1인 1닭", 0, -0.5, 1.6, 0.3, P.accent, F.GothamBold },
-			},
+			texts = (function()
+				local sl = ({
+					{ "치킨은 살 안 쪄요", "살은 내가 쪄요", "오늘도 1인 1닭" },
+					{ "치킨 먹을 이유?", "오늘이니까!", "치맥은 국룰" },
+					{ "치킨은", "언제나 옳다", "반반 무 많이" },
+					{ "야구 볼 땐", "치킨에 맥주", "롯데 화이팅!" },
+				})[ctx.rand(4)]
+				return {
+					{ sl[1], 0, 0.42, 1.8, 0.36, rgb(40, 24, 10), F.GothamBlack },
+					{ sl[2], 0, 0.0, 1.8, 0.36, rgb(40, 24, 10), F.GothamBlack },
+					{ sl[3], 0, -0.5, 1.6, 0.3, P.accent, F.GothamBold },
+				}
+			end)(),
 		})
 	end
 	-- 메뉴 사진 줄 (작은 액자 3: 후라이드 · 양념 · 반반)
@@ -2389,13 +2533,14 @@ local function burgerLightboxes(ctx: any, dcf: CFrame, w: number, combos: { any 
 	local n = #combos
 	local pw = (w - 0.2 * (n - 1)) / n
 	local ph = 2.0
+	local k = math.min(1, pw / 2.3)
 	for i, cb in combos do
 		local c = dcf * CF(-w / 2 + pw / 2 + (i - 1) * (pw + 0.2), 0, 0)
-		local a = artBurger(-0.35 * pw / 2.2, 0.05, 0.85)
-		for _, q in artFries(0.42 * pw / 2.2, 0.0, 0.7) do
+		local a = artBurger(-0.35 * pw / 2.2, 0.05, 0.85 * k)
+		for _, q in artFries(0.36 * pw / 2.2, 0.0, 0.7 * k) do
 			table.insert(a, q)
 		end
-		for _, q in artCola(0.78 * pw / 2.2, 0.02, 0.6) do
+		for _, q in artCola(0.74 * pw / 2.2, 0.02, 0.6 * k) do
 			table.insert(a, q)
 		end
 		poster(ctx, c, pw, ph, {
@@ -2542,7 +2687,10 @@ local function burgerBuild(ctx: any)
 	if lb then
 		burgerLightboxes(ctx, lb, lbw, combos)
 	end
-	local nd = wallSpot(ctx, { "right", "left", "back" }, 4.0, 5.2, 7.6, 0)
+	local nd = promptWallSpot(ctx, { "right", "left", "back" }, 4.0, 5.2, 7.6)
+	if not nd then
+		nd = wallSpot(ctx, { "right", "left", "back" }, 4.0, 5.2, 7.6, 0)
+	end
 	if nd then
 		local s = 0.7
 		local x0 = -1.45
@@ -2690,19 +2838,36 @@ end
 local function sneezeGuard(ctx: any)
 	local K, V = ctx.K, ctx.V
 	for _, r in V.byName.SneezeGuard or {} do
+		-- 가드가 올라간 카운터 (뒷모서리 = 직원 쪽)
+		local g = nil
+		for _, c in V.counters do
+			if r.c.X > c.min.X - 0.5 and r.c.X < c.max.X + 0.5 and r.c.Z > c.min.Z - 0.5 and r.c.Z < c.max.Z + 0.5 then
+				g = c
+			end
+		end
+		local topY = if g then g.y else r.min.Y - 1.3
+		local zb = if g then g.min.Z + 0.12 else r.min.Z
+		local zf = r.max.Z
+		local w = r.size.X
+		local yTop = r.max.Y + 0.25
 		K:free(function()
-			local y = r.c.Y
-			local w = r.size.X
-			-- 기울어진 유리 (손님 쪽으로 내려옴) + 크롬 기둥
-			local gcf = CF(r.c.X, y, r.c.Z) * ANG(math.rad(-18), 0, 0)
-			K:box("FfGuardGlass", V3(w, 0.04, r.size.Z), gcf, { c = rgb(220, 236, 240), m = M.Glass, t = 0.72, r = 0.18 })
-			K:box("FfGuardTop", V3(w, 0.04, 0.5), CF(r.c.X, y + 0.28, r.min.Z + 0.2), L.of(220, 224, 228, M.Metal))
-			K:box("FfGuardLED", V3(w - 0.2, 0.03, 0.06), CF(r.c.X, y + 0.25, r.min.Z + 0.2), neon(rgb(255, 244, 220)))
+			-- 직원 쪽 기둥 + 위 선반 (조명) + 손님 쪽으로 기울어 내려오는 유리
 			local n = math.max(2, math.floor(w / 3.2))
 			for i = 0, n do
 				local x = r.min.X + w * i / n
-				K:vcyl("FfGuardPost", y + 0.3 - 3.05, 0.08, CF(x, 3.05 + (y + 0.3 - 3.05) / 2, r.min.Z + 0.2), L.chrome)
+				K:vcyl("FfGuardPost", yTop - topY, 0.08, CF(x, topY + (yTop - topY) / 2, zb), L.chrome)
+				K:bar("FfGuardArm", V3(x, yTop, zb), V3(x, yTop, zb + 0.9), 0.05, 0.05, L.chrome)
 			end
+			K:box("FfGuardShelf", V3(w + 0.1, 0.05, 1.0), CF(r.c.X, yTop + 0.03, zb + 0.5), { c = rgb(220, 236, 240), m = M.Glass, t = 0.55, r = 0.2 })
+			K:box("FfGuardLED", V3(w - 0.2, 0.03, 0.08), CF(r.c.X, yTop - 0.02, zb + 0.85), neon(rgb(255, 244, 220)))
+			local a = V3(r.c.X, yTop, zb + 0.95)
+			local b = V3(r.c.X, math.max(topY + 0.95, r.min.Y - 0.25), zf)
+			local mid = (a + b) / 2
+			local dir = (b - a).Unit
+			local len = (b - a).Magnitude
+			local cf = CFrame.lookAt(mid, mid + dir) 
+			K:box("FfGuardGlass", V3(w, 0.04, len), cf * ANG(PI / 2, 0, 0) * ANG(-PI / 2, 0, 0), { c = rgb(220, 236, 240), m = M.Glass, t = 0.72, r = 0.18 })
+			K:box("FfGuardEdge", V3(w, 0.05, 0.05), CF(b), L.chrome)
 		end)
 		Scan.hide(K.hidden, r.part)
 	end
@@ -2776,6 +2941,25 @@ local function subwayBuild(ctx: any)
 	end
 	-- 뒷벽 메뉴판 3개 (Sign_) 뒤 액자 + 아래 노란 LED
 	menuSignDress(ctx, L.of(30, 34, 32), P.accent)
+	local tvd = promptWallSpot(ctx, { "left", "right", "back" }, 3.4, 6.2, 8.3)
+	if not tvd then
+		tvd = wallSpot(ctx, { "left", "right" }, 3.4, 6.2, 8.3, 6)
+	end
+	if tvd then
+		tvSet(ctx, tvd, 3.0, {
+			{ "메뉴", g, { { "e", -0.18, -0.05, 0.6, 0.3, rgb(214, 160, 92) }, { "e", -0.18, 0.0, 0.58, 0.08, rgb(100, 180, 60) } }, "오늘의 써브  ·  에그마요 5,900", "Sub of the Day" },
+			{ "쿠키", P.accent, { { "e", -0.2, -0.05, 0.26, 0.4, rgb(150, 100, 60) }, { "e", 0.18, -0.05, 0.26, 0.4, rgb(110, 70, 40) } }, "갓 구운 쿠키 3개 4,500", "초코칩 · 화이트 마카다미아" },
+		}, "메뉴 화면")
+	end
+	-- 초록 벽 큰 글자 + 노란 화살표
+	local sg = wallSpot(ctx, { "right", "left" }, 7.0, 7.0, 9.6, 0)
+	if sg then
+		K:text("FfSubLogo", 6.0, 1.5, sg * CF(0, 0.45, 0.02), "SUBWAY", { fg = WHITE, font = F.GothamBlack, d = 0.04 })
+		K:text("FfSubSlogan", 5.0, 0.5, sg * CF(0, -0.75, 0.02), "신선한 재료를 매일 아침 준비합니다", { fg = P.accent, font = F.GothamBold, d = 0.02 })
+		for _, sx in { -1, 1 } do
+			K:plate("FfSubArrow", 0.9, 0.16, 0.04, sg * CF(sx * 3.2, 0.45, 0.02) * ANG(0, 0, sx * 0.5), pl(P.accent))
+		end
+	end
 	-- 주문 방법 5단계 포스터 (써브웨이 대표 안내)
 	local st = wallSpot(ctx, { "left", "right" }, 5.4, 4.2, 7.0, 0)
 	if st then
@@ -2792,15 +2976,6 @@ local function subwayBuild(ctx: any)
 			end
 		end
 		K:text("FfStepsFoot", 4.8, 0.3, st * CF(0, -0.98, 0.045), "15cm " .. priceIn(ctx.signs, "15cm", "6,900") .. "  ·  30cm " .. priceIn(ctx.signs, "30cm", "11,900"), { fg = rgb(60, 60, 60), font = F.GothamBold, d = 0.01 })
-	end
-	-- 초록 벽 큰 글자 + 노란 화살표
-	local sg = wallSpot(ctx, { "right", "left" }, 7.0, 5.6, 8.6, 0)
-	if sg then
-		K:text("FfSubLogo", 6.0, 1.5, sg * CF(0, 0.45, 0.02), "SUBWAY", { fg = WHITE, font = F.GothamBlack, d = 0.04 })
-		K:text("FfSubSlogan", 5.0, 0.5, sg * CF(0, -0.75, 0.02), "신선한 재료를 매일 아침 준비합니다", { fg = P.accent, font = F.GothamBold, d = 0.02 })
-		for _, sx in { -1, 1 } do
-			K:plate("FfSubArrow", 0.9, 0.16, 0.04, sg * CF(sx * 3.2, 0.45, 0.02) * ANG(0, 0, sx * 0.5), pl(P.accent))
-		end
 	end
 	-- 샌드위치 사진 포스터 2
 	for i, pr in { { "이탈리안 비엠티", "15cm 7,400" }, { "로티세리 바비큐 치킨", "15cm 7,900" } } do
@@ -2827,13 +3002,6 @@ local function subwayBuild(ctx: any)
 	local sp = floorSpot(ctx, { walls = { "left", "right", "back" }, w = 3.4, h = 5.6, d = 1.6, pref = { left = "front", right = "front" }, front = 1.0 })
 	if sp then
 		sodaStation(ctx, sp, 3.4)
-	end
-	local tvd = wallSpot(ctx, { "left", "right" }, 3.4, 6.2, 8.3, 6)
-	if tvd then
-		tvSet(ctx, tvd, 3.0, {
-			{ "메뉴", g, { { "e", -0.18, -0.05, 0.6, 0.3, rgb(214, 160, 92) }, { "e", -0.18, 0.0, 0.58, 0.08, rgb(100, 180, 60) } }, "오늘의 써브  ·  에그마요 5,900", "Sub of the Day" },
-			{ "쿠키", P.accent, { { "e", -0.2, -0.05, 0.26, 0.4, rgb(150, 100, 60) }, { "e", 0.18, -0.05, 0.26, 0.4, rgb(110, 70, 40) } }, "갓 구운 쿠키 3개 4,500", "초코칩 · 화이트 마카다미아" },
-		}, "메뉴 화면")
 	end
 	infoSet(ctx, {
 		origin = { "닭고기 : 국내산", "돼지고기(햄 · 베이컨) : 미국산", "소고기 : 호주산", "계란 : 국내산" },
@@ -3134,53 +3302,64 @@ local function danmujiSelf(ctx: any, pcf: CFrame, w: number)
 		K:vcyl("FfWaterCap", 0.1, 0.16, b * CF(0, 0.8, 0), L.of(40, 120, 220, M.Plastic))
 	end
 	K:vcyl("FfPaperCups", 0.6, 0.24, pcf * CF(0.2, top + 0.3, 0.3), L.of(250, 250, 246))
-	-- 벽에 컵 소독기 (UV 자외선 · 한국 식당 필수품)
+	-- 벽에 컵 소독기 (UV 자외선 · 한국 식당 필수품): 스테인리스 틀 + 보라빛 유리문 + 안의 컵 선반
 	local wc = pcf * CF(0, 0, -d / 2 - 0.06)
-	local uv = wc * CF(w / 2 - 0.8, h + 1.3, 0)
-	K:plate("FfUVBody", 1.3, 1.6, 0.6, uv, L.of(240, 240, 236))
-	K:plate("FfUVGlass", 1.1, 1.2, 0.03, uv * CF(0, -0.1, 0.6), { c = rgb(150, 120, 240), m = M.Glass, t = 0.4 })
-	K:plate("FfUVGlow", 1.0, 0.05, 0.02, uv * CF(0, 0.45, 0.56), neon(rgb(160, 120, 255)))
+	local uv = wc * CF(w / 2 - 0.8, h + 1.5, 0)
+	local st = L.of(196, 200, 204, M.Metal, { r = 0.1 })
+	K:plate("FfUVBack", 1.3, 1.5, 0.06, uv, st)
+	K:plate("FfUVSide", 0.06, 1.5, 0.62, uv * CF(-0.62, 0, 0), st)
+	K:plate("FfUVSide", 0.06, 1.5, 0.62, uv * CF(0.62, 0, 0), st)
+	K:plate("FfUVTop", 1.3, 0.12, 0.62, uv * CF(0, 0.69, 0), st)
+	K:plate("FfUVBottom", 1.3, 0.12, 0.62, uv * CF(0, -0.69, 0), st)
+	K:plate("FfUVShelf", 1.18, 0.04, 0.5, uv * CF(0, -0.05, 0.06), L.chrome)
+	K:plate("FfUVGlow", 1.1, 0.04, 0.03, uv * CF(0, 0.58, 0.1), neon(rgb(150, 110, 255)))
 	if not ctx.low then
-		for i = 0, 2 do
-			K:vcyl("FfUVCup", 0.36, 0.26, uv * CF(-0.35 + i * 0.35, -0.35, 0.3), L.steel)
+		for row = 0, 1 do
+			for i = 0, 2 do
+				K:vcyl("FfUVCup", 0.34, 0.24, uv * CF(-0.38 + i * 0.38, -0.45 + row * 0.42, 0.3), L.steel)
+			end
 		end
 	end
-	K:text("FfUVLabel", 1.1, 0.2, uv * CF(0, 0.65, 0.605), "컵 소독기 · UV", { fg = rgb(60, 60, 70), font = F.GothamBold, d = 0.004 })
+	K:plate("FfUVGlass", 1.18, 1.26, 0.03, uv * CF(0, 0, 0.6), { c = rgb(160, 130, 255), m = M.Glass, t = 0.55, r = 0.15 })
+	K:plate("FfUVHandle", 0.5, 0.06, 0.06, uv * CF(0, 0.5, 0.63), L.chrome)
+	K:text("FfUVLabel", 1.0, 0.16, uv * CF(0, -0.62, 0.63), "자외선 컵 소독기", { fg = rgb(40, 40, 50), bg = rgb(236, 238, 240), font = F.GothamBold, d = 0.004 })
 end
 
 -- 분식 벽 포스터 묶음
 local function snackPosters(ctx: any)
 	local P = ctx.pal
 	local pT = priceIn(ctx.signs, "떡볶이", "4,500")
-	local p1 = wallSpot(ctx, { "left", "right" }, 2.6, 3.9, 6.9, -2)
+	local p1, w1 = wallSpotFit(ctx, { "left", "right", "back" }, { 2.6, 2.0 }, 3.9, 6.9, -2)
 	if p1 then
-		poster(ctx, p1, 2.4, 2.9, {
+		local k = (w1 - 0.2) / 2.4
+		poster(ctx, p1, 2.4 * k, 2.9 * k, {
 			bg = P.accent,
 			frame = L.of(250, 250, 250),
 			glass = true,
-			art = artTteok(0, -0.05, 1.3),
+			art = artTteok(0, -0.05 * k, 1.3 * k),
 			texts = {
-				{ "국물 떡볶이", 0, 1.0, 2.0, 0.44, WHITE, F.GothamBlack },
-				{ "매일 직접 만든 양념장", 0, 0.62, 1.9, 0.24, rgb(255, 230, 160), F.GothamBold },
-				{ "1인분 " .. pT .. "원", 0, -1.02, 1.8, 0.38, P.gold, F.GothamBlack },
+				{ "국물 떡볶이", 0, 1.0 * k, 2.0 * k, 0.44 * k, WHITE, F.GothamBlack },
+				{ "매일 직접 만든 양념장", 0, 0.62 * k, 1.9 * k, 0.24 * k, rgb(255, 230, 160), F.GothamBold },
+				{ "1인분 " .. pT .. "원", 0, -1.02 * k, 1.8 * k, 0.38 * k, P.gold, F.GothamBlack },
 			},
 		})
 	end
-	local p2 = wallSpot(ctx, { "right", "left" }, 2.6, 3.9, 6.9, 2)
+	local p2, w2 = wallSpotFit(ctx, { "right", "left", "back" }, { 2.6, 2.0 }, 3.9, 6.9, 2)
 	if p2 then
-		local a = artTteok(-0.5, 0.15, 0.8)
-		for _, q in artGimbap(0.4, -0.25, 0.8) do
+		local k = (w2 - 0.2) / 2.4
+		local a = artTteok(-0.5 * k, 0.15 * k, 0.8 * k)
+		for _, q in artGimbap(0.4 * k, -0.25 * k, 0.8 * k) do
 			table.insert(a, q)
 		end
-		poster(ctx, p2, 2.4, 2.9, {
+		poster(ctx, p2, 2.4 * k, 2.9 * k, {
 			bg = rgb(255, 236, 170),
 			frame = L.of(250, 250, 250),
 			glass = true,
 			art = a,
 			texts = {
-				{ "떡튀순 세트", 0, 1.02, 2.0, 0.44, rgb(190, 30, 24), F.GothamBlack },
-				{ "떡볶이 + 튀김 + 순대", 0, 0.62, 1.9, 0.26, rgb(60, 40, 20), F.GothamBold },
-				{ "12,000원", 0, -1.02, 1.6, 0.4, rgb(190, 30, 24), F.GothamBlack },
+				{ "떡튀순 세트", 0, 1.02 * k, 2.0 * k, 0.44 * k, rgb(190, 30, 24), F.GothamBlack },
+				{ "떡볶이 + 튀김 + 순대", 0, 0.62 * k, 1.9 * k, 0.26 * k, rgb(60, 40, 20), F.GothamBold },
+				{ "12,000원", 0, -1.02 * k, 1.6 * k, 0.4 * k, rgb(190, 30, 24), F.GothamBlack },
 			},
 		})
 	end
@@ -3212,6 +3391,15 @@ local function bunsikBuild(ctx: any)
 	end
 	passDress(ctx, { trim = L.steel, header = "noren", norenText = { "분", "식", "주", "방" }, norenColor = if P.key == "mint" then rgb(30, 120, 100) else rgb(30, 40, 90), utensil = "ladle" })
 	menuSignDress(ctx, pl(P.wall2), nil)
+	for i = 1, 2 do
+		local fd = if i == 1 then promptWallSpot(ctx, { "left", "right", "back" }, 1.6, 6.9, 8.5) else nil
+		if not fd then
+			fd = wallSpot(ctx, { if i == 1 then "left" else "right", if i == 1 then "right" else "left" }, 1.6, 6.9, 8.5, (i * 2 - 3) * 1.5)
+		end
+		if fd then
+			wallFan(ctx, fd * CF(0, 0.4, 0))
+		end
+	end
 	local gwStation = V:has("Pan") > 0 or V:has("EomukTank") > 0
 	local stationRec: any = nil
 	if gwStation then
@@ -3308,23 +3496,58 @@ local function bunsikBuild(ctx: any)
 			Interact.swing(K, st.lid, st.hinge, (K.cf.RightVector :: Vector3), -1.1, { object = "순대 찜기", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 		end
 	end
+	-- 음료 냉장고 (콜라 · 사이다 · 쿨피스)
+	if not ctx.gw then
+		placeFridge(ctx, { walls = { "back", "right", "left" }, pref = { back = "right", right = "back", left = "back" }, header = "음료수 · 쿨피스", headerBg = P.accent, items = {
+			{ rgb(200, 24, 32), "can", rgb(200, 24, 32) },
+			{ rgb(40, 150, 70), "can" },
+			{ rgb(250, 160, 190), "pet", rgb(250, 120, 160) },
+			{ rgb(236, 120, 30), "can" },
+			{ rgb(200, 230, 240), "pet", rgb(40, 120, 210) },
+			{ rgb(250, 230, 120), "can" },
+		}, brand = "SHOWCASE" })
+	end
 	-- 셀프 단무지 · 물 (옆벽 앞쪽)
 	local dp = floorSpot(ctx, { walls = { "left", "right", "back" }, w = 2.4, h = 5.2, d = 1.2, pref = { left = "back", right = "back" }, front = 1.0 })
 	if dp then
 		danmujiSelf(ctx, dp, 2.4)
 	end
 	-- 벽: 선풍기 2 · TV · 포스터 · 안내
-	for i = 1, 2 do
-		local fd = wallSpot(ctx, { if i == 1 then "left" else "right", if i == 1 then "right" else "left" }, 1.6, 6.9, 8.5, (i * 2 - 3) * 1.5)
-		if fd then
-			wallFan(ctx, fd * CF(0, 0.4, 0))
+	-- 사진 메뉴 띠 (옆벽 위)
+	local sw0 = math.min(12.4, V.D - 5.5, V.W - 4)
+	if sw0 > 5 then
+		local sd, fw = wallSpotFit(ctx, { "right", "left", "back" }, { sw0 + 0.3, 9.3, 6.3 }, 7.0, 8.95, 0)
+		local sw = fw - 0.3
+		if sd and sw > 4.5 then
+			local items = {
+				{ "떡볶이", pT, artTteok(0, 0.2, 0.6) },
+				{ "순대", "5,000", artSundae(0, 0.2, 0.6) },
+				{ "모듬튀김", "4,000", artTwigim(0, 0.2, 0.6) },
+				{ "김밥", pG, artGimbap(0, 0.2, 0.55) },
+				{ "어묵", pE, artEomuk(0, 0.2, 0.6) },
+				{ "라볶이", "6,500", artNoodle(0, 0.2, 0.55, rgb(196, 50, 28), nil) },
+				{ "쫄면", "7,000", artNoodle(0, 0.2, 0.55, rgb(220, 90, 50), rgb(90, 170, 60)) },
+				{ "라면", "4,500", artNoodle(0, 0.2, 0.55, rgb(200, 90, 40), rgb(250, 230, 120)) },
+			}
+			local n = math.clamp(math.floor(sw / 1.5), 3, 8)
+			while #items > n do
+				table.remove(items)
+			end
+			photoStrip(ctx, sd, sw, 1.8, items, { priceC = P.accent, frame = pl(dark(P.wall2, 0.1)) })
 		end
 	end
 	if V:has("TV") == 0 and V:has("MonitorScreen") == 0 then
 		local d = wallSpot(ctx, { "left", "right", "back" }, 3.4, 6.2, 8.3, 4)
 		if d then
 			tvSet(ctx, d, 3.0, {
-				{ "예능", rgb(240, 150, 40), { { "e", -0.2, -0.1, 0.3, 0.5, rgb(250, 220, 180) }, { "e", 0.2, -0.1, 0.3, 0.5, rgb(240, 200, 170) } }, "놀면 뭐하니? 분식 특집", "토요일 저녁 6시 25분" },
+				{ "예능", rgb(90, 60, 150), {
+					{ "b", 0, -0.05, 1.0, 0.5, rgb(240, 120, 160) },
+					{ "e", -0.22, 0.0, 0.16, 0.26, rgb(250, 214, 180) },
+					{ "b", -0.22, -0.2, 0.2, 0.2, rgb(40, 90, 200) },
+					{ "e", 0.18, 0.0, 0.16, 0.26, rgb(240, 200, 170) },
+					{ "b", 0.18, -0.2, 0.2, 0.2, rgb(250, 200, 40) },
+					{ "b", 0, -0.36, 0.8, 0.12, rgb(255, 230, 40) },
+				}, "분식 먹방 대결!", "떡볶이 10인분 도전 ㅋㅋㅋ" },
 				{ "드라마", rgb(60, 50, 90), { { "e", 0, -0.05, 0.3, 0.6, rgb(230, 200, 180) } }, "주말 드라마 · 부산 사나이", "본방 사수!" },
 				{ "뉴스", rgb(20, 46, 110), { { "b", 0, -0.42, 1.0, 0.12, rgb(200, 24, 32) } }, "부산 날씨  맑음 22°C", "광안리 불꽃축제 11월 8일 개최" },
 			}, "TV")
@@ -3554,6 +3777,22 @@ local function odengBuild(ctx: any)
 		K:plate("FfBarrelLabel", 0.8, 0.9, 0.02, b * CF(0, 1.0, 0.75), L.of(246, 240, 226))
 		K:text("FfBarrelText", 0.7, 0.8, b * CF(0, 1.0, 0.775), "大\n吟醸", { fg = rgb(30, 20, 14), font = F.GothamBlack, d = 0.004 })
 	end
+	-- 사케 · 소주 냉장고 + 네온 (손님이 닿는 자리에 상호작용)
+	placeFridge(ctx, { walls = { "left", "right", "back" }, pref = { left = "back", right = "back" }, header = "사케 · 소주 · 맥주", headerBg = rgb(40, 30, 26), headerFg = P.gold, items = {
+		{ rgb(40, 80, 50), "bottle", rgb(246, 240, 226) },
+		{ rgb(90, 50, 30), "bottle", rgb(246, 240, 226) },
+		{ rgb(36, 110, 50), "soju", rgb(240, 250, 240) },
+		{ rgb(60, 120, 40), "bottle", rgb(30, 110, 40) },
+		{ rgb(30, 70, 170), "can" },
+		{ rgb(236, 230, 214), "bottle", rgb(180, 30, 24) },
+	}, brand = "SAKE" })
+	local nd = promptWallSpot(ctx, { "left", "right", "back" }, 3.4, 6.4, 7.8)
+	if not nd then
+		nd = wallSpot(ctx, { "left", "right", "back" }, 3.4, 6.4, 7.8, 0)
+	end
+	if nd then
+		neonSign(ctx, nd, 3.0, 1.0, "오뎅 · 사케", rgb(255, 150, 90), { object = "네온사인" })
+	end
 	-- 레트로 소주 포스터 · 안내
 	local p1 = wallSpot(ctx, { "left", "right", "back" }, 2.2, 3.9, 6.6, -4)
 	if p1 then
@@ -3614,6 +3853,12 @@ function T.build(K: any, V: any, S: any)
 		K:note("ff zones error: " .. tostring(err))
 	end
 	local t0 = #K.parts
+	-- 벽 아랫단 마감 (타일 · 루버) 뒤 바탕: 콘센트 · 소화기 등으로 끊긴 틈에 맨 벽이 보이지 않게
+	if S.lower and not ctx.gw then
+		local lw = S.lower
+		local base = if lw.kind == "louver" then (lw.back or L.charcoal) else (lw.grout or L.of(150, 148, 144))
+		pcall(upperPaint, ctx, lw.walls or { "left", "right" }, 0.42, base, lw.h)
+	end
 	local fn = if ctx.sk == "chicken" or ctx.sk == "tongdak" then chickenBuild elseif ctx.sk == "sub" then subwayBuild elseif ctx.sk == "burger" or ctx.sk == "taco" then burgerBuild elseif ctx.sk == "odeng" then odengBuild else bunsikBuild
 	local ok2, err2 = pcall(fn, ctx)
 	if not ok2 then

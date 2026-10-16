@@ -131,7 +131,17 @@ function Homes.post(V: any, model: Instance)
 			local lc = V.cf:ToObjectSpace(d.CFrame)
 			local mn, mx = laabb(lc, d.Size + Vector3.new(0.6, 0.4, 0.6))
 			V:addKeep(mn, mx, "point")
+		elseif d:IsA("Model") and (CollectionService:HasTag(d, "GwDecorItem") or (d.Parent and d.Parent.Name == "DecorPlus")) then
+			-- 인테리어 모드(GwangalliDecorPlus)로 플레이어가 직접 놓은 가구
+			local cf, s = d:GetBoundingBox()
+			local mn, mx = laabb(V.cf:ToObjectSpace(cf), s + Vector3.new(0.4, 0.2, 0.4))
+			V:addKeep(mn, mx, "slot")
 		end
+	end
+	-- 플레이어가 자유 배치로 꾸미는 집: 가구 · 소품은 플레이어 몫이라 바닥 위 소품은 만들지 않음 (천장 · 벽 마감만)
+	local dp = model:FindFirstChild("DecorPlus")
+	if dp and #dp:GetChildren() > 0 then
+		V.decorPlus = true
 	end
 end
 

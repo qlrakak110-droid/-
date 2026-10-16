@@ -316,10 +316,12 @@ end
 -- 프롬프트 붙일 벽 자리: 여러 높이 띠를 차례로
 local function promptSpot(K: any, walls: { string }, w: number, bands: { { number } }, prefer: any?): (string?, CFrame?, number?)
 	local pred = promptOK(K, w / 2)
-	for _, b in bands do
-		local wn, dcf, u = wallFind(K, walls, w, b[1], b[2], prefer, pred)
-		if wn then
-			return wn, dcf, u
+	for _, wl in walls do
+		for _, b in bands do
+			local wn, dcf, u = wallFind(K, { wl }, w, b[1], b[2], prefer, pred)
+			if wn then
+				return wn, dcf, u
+			end
 		end
 	end
 	return nil, nil, nil
@@ -370,6 +372,15 @@ MENUS.indie = {
 	{ "COFFEE", { { "아메리카노", "4,500", "americano" }, { "카페라떼", "5,000", "latte" }, { "바닐라빈라떼", "5,500", "vanilla" }, { "플랫화이트", "5,500", "latte" }, { "아인슈페너", "6,000" }, { "핸드드립", "6,500" } } },
 	{ "NON-COFFEE", { { "말차라떼", "6,000", "matcha" }, { "딸기라떼", "6,500", "strawberry" }, { "자몽에이드", "6,000", "grapefruit" }, { "얼그레이 밀크티", "6,000", "tea" }, { "레몬 진저티", "5,500" } } },
 	{ "BAKE", { { "소금빵", "3,800" }, { "바스크 치즈케이크", "7,000" }, { "휘낭시에", "3,000" }, { "스콘", "3,500" }, { "크로플", "5,500" } } },
+}
+MENUS.indie2 = {
+	{ "COFFEE", { { "아메리카노", "4,800", "americano" }, { "카페라떼", "5,300", "latte" }, { "크림라떼", "6,000", "vanilla" }, { "흑당라떼", "6,000", "choco" }, { "콜드브루", "5,500" }, { "디카페인 +500", "" } } },
+	{ "TEA · ADE", { { "청귤에이드", "6,500", "ade" }, { "자몽허니블랙티", "6,000", "grapefruit" }, { "유자민트티", "5,800", "tea" }, { "말차라떼", "6,300", "matcha" }, { "딸기우유", "6,500", "strawberry" } } },
+	{ "DESSERT", { { "크로플", "5,800" }, { "티라미수", "7,000" }, { "레몬 파운드", "4,500" }, { "버터바", "4,000" }, { "스모어 쿠키", "4,200" } } },
+}
+MENUS.indie3 = {
+	{ "COFFEE", { { "에스프레소", "4,000", "americano" }, { "아메리카노", "4,500", "americano" }, { "라떼", "5,000", "latte" }, { "오트라떼", "5,800", "latte" }, { "아포가토", "6,500" }, { "핸드드립", "7,000" } } },
+	{ "SIGNATURE", { { "바다 크림커피", "6,500", "vanilla" }, { "피스타치오 라떼", "6,800", "matcha" }, { "선셋 에이드", "6,800", "grapefruit" }, { "밀크티", "6,000", "tea" }, { "바닐라빈 쉐이크", "7,000", "vanilla" } } },
 }
 MENUS.bakery = {
 	{ "오늘의 빵", { { "소금빵", "3,500" }, { "크루아상", "4,200" }, { "단팥빵", "2,800" }, { "소보로", "2,800" }, { "우유식빵", "5,500" }, { "바게트", "4,500" }, { "고로케", "3,000" }, { "마늘바게트", "5,000" } } },
@@ -542,7 +553,7 @@ local function brandOf(V: any): any
 		B.neon = { "STARBUCKS COFFEE", rgb(220, 250, 230), F.GothamBold }
 		B.art = "coffee"
 		B.noCounter = true
-		feat.pickup, feat.selfbar = false, true
+		feat.pickup, feat.selfbar, feat.md, feat.plants = false, false, false, 0
 	elseif key == "roastery" then
 		B.title, B.logo, B.slogan = nm, "LAB", "SPECIALTY COFFEE ROASTERS"
 		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(28, 28, 30), rgb(18, 18, 18), rgb(214, 120, 52), rgb(236, 232, 224), rgb(24, 24, 24)
@@ -550,7 +561,7 @@ local function brandOf(V: any): any
 		B.menus = MENUS.roastery
 		B.neon = { "ROASTING IN PROGRESS", rgb(255, 140, 60), F.Oswald }
 		B.art, B.wifi, B.pw, B.hours = "coffee", "LAB149_GUEST", "roast149", "매일 09:00 - 22:00 · 로스팅 화 · 금"
-		B.wall = { left = lk(rgb(142, 76, 58), M.Brick), right = lk(rgb(150, 148, 144), M.Concrete) }
+		B.wall = { left = lk(rgb(168, 98, 76), M.Brick), right = lk(rgb(160, 158, 154), M.Concrete), back = lk(rgb(176, 174, 170), M.Concrete) }
 		B.promo = { "THIS WEEK", "에티오피아 게뎁 내추럴", "7,500" }
 		feat.roaster, feat.ducts, feat.track, feat.sacks, feat.drip = true, true, true, true, true
 	elseif key == "haute" then
@@ -636,8 +647,13 @@ local function brandOf(V: any): any
 		B.feat = feat
 	else
 		-- 인디 카페 팔레트
+		if string.sub(nm, 1, 8) == "SideShop" then
+			local names = { "BEACH COFFEE", "바다 커피", "COFFEE STAND", "SURF COFFEE", "카페 파도", "GWANGAN BREW" }
+			nm = names[seed % #names + 1]
+		end
 		B.title, B.logo = nm, nm
-		B.menus = MENUS.indie
+		local mv = { MENUS.indie, MENUS.indie2, MENUS.indie3 }
+		B.menus = mv[seed % #mv + 1]
 		if key == "scandi" then
 			B.c1, B.c2, B.c3, B.paper, B.ink = rgb(156, 176, 150), rgb(48, 52, 46), rgb(214, 186, 140), rgb(248, 246, 240), rgb(40, 42, 38)
 			B.menuKind, B.menuBg, B.menuFg, B.menuAcc = "felt", rgb(36, 38, 36), rgb(244, 244, 238), rgb(214, 220, 190)
@@ -1205,8 +1221,8 @@ local function selfBar(K: any, pcf: CFrame, w: number, B: any)
 		K:vcyl("SleeveStack", 0.42, 0.34, pcf * CF(lx, y + 0.21, -0.35), Look.kraft)
 	end
 	-- 뒤판 + 안내
-	K:plate("SelfBarSplash", w, 0.9, 0.04, pcf * CF(0, y + 0.45, -d / 2 + 0.0) * CF(0, 0, -0.06), lk(dk(topL.c, 0.06), topL.m))
-	K:text("SelfBarSign", w * 0.8, 0.34, pcf * CF(0, y + 0.66, -d / 2 + 0.0), "SELF BAR  빨대 · 냅킨 · 시럽", { fg = B.ink, bg = B.paper, d = 0.02, font = F.GothamBold })
+	K:plate("SelfBarSplash", w, 1.45, 0.04, pcf * CF(0, y + 0.725, -d / 2 + 0.0) * CF(0, 0, -0.06), lk(dk(topL.c, 0.06), topL.m))
+	K:text("SelfBarSign", w * 0.8, 0.32, pcf * CF(0, y + 1.22, -d / 2 + 0.0), "SELF BAR  빨대 · 냅킨 · 시럽", { fg = B.ink, bg = B.paper, d = 0.02, font = F.GothamBold })
 	K:text("SelfBarSink", 0.9, 0.18, pcf * CF(sx, y + 0.28, -d / 2 + 0.01), "남은 음료 · 얼음 버리는 곳", { fg = rgb(255, 255, 255), bg = rgb(50, 120, 200), d = 0.01, font = F.GothamBold })
 end
 
@@ -1516,7 +1532,7 @@ end
 -- 데크 오븐 3단 (스테인리스 + 창 안쪽 빵 + 온도 표시)
 local function deckOven(K: any, pcf: CFrame, w: number): any
 	local d = 2.5
-	local steel = Look.steel
+	local steel = lk(rgb(196, 198, 200), M.SmoothPlastic, { r = 0.05 })
 	local out: any = { glows = {} }
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
@@ -1528,7 +1544,7 @@ local function deckOven(K: any, pcf: CFrame, w: number): any
 		K:box("OvenSheetPan", V3(w - 0.5, 0.04, d - 0.6), pcf * CF(0, 0.45 + k * 0.18, 0), Look.alu)
 	end
 	K:box("OvenBody", V3(w, 4.0, d), pcf * CF(0, 1.1 + 2.0, 0), steel)
-	K:box("OvenHood", V3(w + 0.1, 0.7, d + 0.2), pcf * CF(0, 5.45, 0.08), Look.brushed)
+	K:box("OvenHood", V3(w + 0.1, 0.7, d + 0.2), pcf * CF(0, 5.45, 0.08), lk(rgb(176, 178, 182), M.SmoothPlastic, { r = 0.05 }))
 	K:box("OvenHoodLip", V3(w + 0.12, 0.1, 0.1), pcf * CF(0, 5.1, d / 2 + 0.16), Look.brushed)
 	local dw = w - 1.1
 	for k = 0, 2 do
@@ -1602,7 +1618,7 @@ end
 
 -- 바구니 (등나무 테 + 유산지)
 local function basket(K: any, pcf: CFrame, w: number, d: number, look: any)
-	K:slab("BasketBase", w, d, 0.06, 0.1, pcf * CF(0, 0.03, 0), look)
+	K:box("BasketBase", V3(w, 0.06, d), pcf * CF(0, 0.03, 0), look)
 	K:box("BasketRim", V3(w, 0.16, 0.06), pcf * CF(0, 0.1, d / 2 - 0.03), look)
 	K:box("BasketRim", V3(w, 0.16, 0.06), pcf * CF(0, 0.1, -d / 2 + 0.03), look)
 	K:box("BasketRim", V3(0.06, 0.16, d - 0.12), pcf * CF(w / 2 - 0.03, 0.1, 0), look)
@@ -2196,7 +2212,7 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 	end
 	if feat.selfbar then
 		local w = if small then 2.6 else 3.4
-		local wn, pcf = floorFind(K, { pickSide, other }, w, 1.5, 4.1, pref, { pad = 0.08 })
+		local wn, pcf = floorFind(K, { pickSide, other }, w, 1.5, 4.6, pref, { pad = 0.08 })
 		if wn and pcf then
 			mark("selfbar", pcf)
 			selfBar(K, pcf, w, B)
@@ -2370,6 +2386,18 @@ local function stepCounters(K: any, V: any, B: any, ctx: any)
 				dripStation(K, pcf)
 			end
 		end
+		-- 픽업 쪽 안쪽: 포장 봉투 · 컵 캐리어
+		if not lowD(K) then
+			local pk = counterSpot(K, g, 1.3, 0.5, 0.95, "back", ctx.pickU)
+			if pk then
+				for k = 0, 1 do
+					local c = pk * CF(-0.32 + k * 0.62, 0, 0)
+					K:box("TakeoutBag", V3(0.5, 0.72, 0.3), c * CF(0, 0.36, 0), Look.kraft)
+					K:box("TakeoutBagFold", V3(0.52, 0.08, 0.32), c * CF(0, 0.74, 0), lk(rgb(170, 134, 90), M.Cardboard))
+					K:plate("TakeoutBagLogo", 0.3, 0.2, 0.01, c * CF(0, 0.4, 0.15), lk(B.c1))
+				end
+			end
+		end
 		-- 직원 쪽: 컵 · 피처 · 넉박스
 		if ctx.esp[1] then
 			local eu = if ctx.alongX then ctx.esp[1].c.X else ctx.esp[1].c.Z
@@ -2535,6 +2563,16 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 				K:plate("CasePanelGroove", 0.03, cb.size.Y - 0.6, 0.035, front * CF(-w / 2 + w * k / nf, 0.35 + (cb.size.Y - 0.4) / 2, 0), lk(dk(panelL.c, 0.2)))
 			end
 			K:text("CaseLabel", math.min(w * 0.6, 3.4), 0.36, front * CF(0, 1.35, 0.035), if B.type == "dessert" then "GELATO · 매일 아침 직접 만듭니다" elseif B.type == "bakery" then "오늘 구운 디저트" else "BAKERY & DESSERT", { fg = if B.type == "dessert" then rgb(255, 255, 255) else rgb(236, 226, 206), font = F.GothamBold, d = 0.01 })
+			if cg and cg.size.Y < 1.6 then
+				-- 낮은 젤라또 진열장: 맵의 빛 판(CaseLight) 대신 유리 상판 + 뒤쪽 LED 바
+				for _, cl in V.byName.CaseLight or {} do
+					if cl.c.X >= cg.min.X - 0.2 and cl.c.X <= cg.max.X + 0.2 and math.abs(cl.c.Z - cg.c.Z) < 1.5 then
+						Scan.hide(K.hidden, cl.part)
+					end
+				end
+				K:box("CaseGlassTop", V3(cg.size.X - 0.08, 0.04, cg.size.Z * 0.62), CF(cg.c.X, cg.max.Y - 0.02, cg.c.Z - cn.Z * cg.size.Z * 0.18), glassL(rgb(226, 238, 240), 0.72))
+				K:box("CaseLEDBar", V3(cg.size.X - 0.1, 0.08, 0.1), CF(cg.c.X, cg.max.Y - 0.06, if cn.Z > 0 then cg.min.Z + 0.08 else cg.max.Z - 0.08), Look.lampNeutral)
+			end
 			if cg then
 				local gfz = if cn.Z > 0 then cg.max.Z else cg.min.Z
 				local gbz = if cn.Z > 0 then cg.min.Z else cg.max.Z
@@ -2612,9 +2650,15 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 				K:vcyl("PintLid", 0.06, 0.38, pcf * CF((k - 1) * 0.4, 0.45, 0), lk(fl[2]))
 			end
 		elseif kind == 1 then
-			K:box("ConeHolder", V3(0.9, 0.3, 0.5), pcf * CF(0, 0.15, 0), Look.walnut)
+			K:box("ConeHolder", V3(0.95, 0.32, 0.45), pcf * CF(0, 0.16, 0), Look.walnut)
+			local cone = lk(rgb(214, 160, 90), M.Sand)
 			for k = 0, 2 do
-				K:wedge("ConeStack", V3(0.24, 0.6, 0.24), pcf * CF((k - 1) * 0.28, 0.6, 0) * ANG(PI, 0, 0), lk(rgb(214, 160, 90)))
+				local c = pcf * CF((k - 1) * 0.3, 0.32, 0)
+				K:vcyl("ConeTip", 0.14, 0.08, c * CF(0, 0.07, 0), cone)
+				K:vcyl("ConeBody", 0.16, 0.16, c * CF(0, 0.2, 0), cone)
+				K:vcyl("ConeBody", 0.16, 0.23, c * CF(0, 0.34, 0), cone)
+				K:vcyl("ConeRim", 0.1, 0.28, c * CF(0, 0.46, 0), lk(rgb(200, 146, 80), M.Sand))
+				K:vcyl("ConeStackTop", 0.14, 0.27, c * CF(0, 0.57, 0), lk(rgb(220, 170, 100), M.Sand))
 			end
 		elseif kind == 2 then
 			for k = 0, 1 do
@@ -2629,7 +2673,11 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 			end
 		else
 			for k = 0, 1 do
-				K:vcyl("PaperCupStack", 0.8, 0.34, pcf * CF((k - 0.5) * 0.42, 0.4, 0), lk(if k == 0 then B.cup else rgb(250, 250, 248)))
+				local c = pcf * CF((k - 0.5) * 0.42, 0, 0)
+				K:vcyl("PaperCupStack", 0.7, 0.3, c * CF(0, 0.35, 0), lk(if k == 0 then B.cup else rgb(250, 250, 248)))
+				for j = 1, 3 do
+					K:vcyl("PaperCupRim", 0.03, 0.34, c * CF(0, 0.2 * j + 0.08, 0), lk(dk(if k == 0 then B.cup else rgb(250, 250, 248), 0.12)))
+				end
 			end
 		end
 	end
@@ -2655,7 +2703,7 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 		for k = 1, cnt do
 			local ox = (k - (cnt + 1) / 2) * (if cnt == 2 then 0.0 else 0.45)
 			local oz = if cnt == 2 then (k - 1.5) * 0.32 else (k % 2) * 0.12 - 0.06
-			bread(K, pcf * CF(ox, 0.08, oz) * ANG(0, (k - 2) * 0.2, 0), kind, if kind == "baguette" or kind == "garlic" then 1.05 else 1.25)
+			bread(K, pcf * CF(ox, 0.08, oz) * ANG(0, (k - 2) * 0.2, 0), kind, if kind == "baguette" or kind == "garlic" then 1.05 elseif kind == "loaf" or kind == "ciabatta" then 1.25 else 1.05)
 		end
 		if sh then
 			local dcf = faceCF(V3(r.c.X, sh.c.Y, sh.max.Z + 0.012), V3(0, 0, 1))
@@ -2670,7 +2718,8 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 			local nb = math.max(2, math.floor(s.size.X / 4))
 			for k = 0, nb do
 				local x = s.min.X + 0.2 + (s.size.X - 0.4) * k / nb
-				K:bar("BreadShelfBracket", V3(x, s.min.Y - 0.55, s.min.Z + 0.02), V3(x, s.min.Y - 0.02, s.max.Z - 0.2), 0.08, 0.06, Look.blackMetal)
+				K:box("BreadShelfBracket", V3(0.06, 0.5, 0.04), CF(x, s.min.Y - 0.25, s.min.Z + 0.03), Look.blackMetal)
+				K:box("BreadShelfBracket", V3(0.06, 0.06, s.size.Z - 0.35), CF(x, s.min.Y - 0.03, s.min.Z + (s.size.Z - 0.35) / 2 + 0.05), Look.blackMetal)
 			end
 			if s.c.Y > 3.5 then
 				local led = K:box("BreadShelfLED", V3(s.size.X - 0.4, 0.04, 0.06), CF(s.c.X, s.min.Y - 0.03, fz - 0.25), Look.lampWarm)
@@ -2977,9 +3026,9 @@ local function stepSideWalls(K: any, V: any, B: any, ctx: any)
 		end
 	end
 	-- BGM 앰프 + 스피커
-	local wn, dcf = promptSpot(K, { "left", "right", "back" }, 1.6, { { 3.85, 4.75 }, { 4.9, 5.8 }, { 3.3, 4.2 } }, frontU)
+	local wn, dcf = promptSpot(K, { "left", "right", "back" }, 1.6, { { 3.85, 4.75 }, { 4.9, 5.8 }, { 5.45, 6.35 } }, frontU)
 	if not wn then
-		wn, dcf = promptSpot(K, { "left", "right", "back" }, 1.15, { { 3.85, 4.75 }, { 4.9, 5.8 } }, frontU)
+		wn, dcf = promptSpot(K, { "left", "right", "back" }, 1.15, { { 3.85, 4.75 }, { 4.9, 5.8 }, { 5.45, 6.35 } }, frontU)
 	end
 	if wn and dcf then
 		musicPanel(K, dcf, B, false)
@@ -3387,6 +3436,16 @@ local function stepSpecial(K: any, V: any, B: any, ctx: any)
 	end
 end
 
+-- keep 에 닿되 통로(aisle)뿐인가? (기존 가구 발자국 안에 붙이는 작은 부착물은 통로 keep 을 허용)
+local function onlyAisle(K: any, mn: Vector3, mx: Vector3): boolean
+	for _, k in K.V.keep do
+		if Kit.overlap(mn, mx, k.min, k.max, 0.04) and k.kind ~= "aisle" then
+			return false
+		end
+	end
+	return true
+end
+
 -- 창가 바: 발받침 레일 + 바 아래 콘센트 박스 (USB)
 local function stepBars(K: any, V: any, B: any, ctx: any)
 	for _, t in V.tables do
@@ -3401,17 +3460,33 @@ local function stepBars(K: any, V: any, B: any, ctx: any)
 			local zf = if side < 0 then t.min.Z else t.max.Z
 			local n = V3(0, 0, side)
 			-- 발받침 레일
-			local zr = zf - side * 0.22
-			local x0, x1 = t.min.X + 0.35, t.max.X - 0.35
-			local mn, mx = V3(x0, 0.0, zr - 0.1), V3(x1, 0.86, zr + 0.1)
-			if not K:hitsKeep(mn, mx) then
-				K:seg("FootRail", V3(x0, 0.78, zr), V3(x1, 0.78, zr), 0.12, Look.chrome)
-				local nb = math.max(2, math.floor((x1 - x0) / 3.5) + 1)
-				for k = 0, nb - 1 do
-					local x = x0 + 0.3 + (x1 - x0 - 0.6) * k / math.max(1, nb - 1)
-					K:seg("FootRailPost", V3(x, 0.02, zr), V3(x, 0.78, zr), 0.08, Look.chrome)
-					K:disc("FootRailFoot", 0.24, 0.03, CF(x, 0.015, zr), Look.chrome)
+			local zr = zf + side * 0.18
+			-- 문 · 좌석 keep 을 피한 가장 긴 구간
+			local bestA, bestB, curA = 0, 0, nil
+			local xs = t.min.X + 0.35
+			while xs <= t.max.X - 0.35 + 1e-6 do
+				local ok = onlyAisle(K, V3(xs - 0.15, 0.0, zr - 0.1), V3(xs + 0.15, 0.86, zr + 0.1))
+				if ok then
+					curA = curA or xs
+					if xs - curA > bestB - bestA then
+						bestA, bestB = curA, xs
+					end
+				else
+					curA = nil
 				end
+				xs += 0.25
+			end
+			local x0, x1 = bestA, bestB
+			if x1 - x0 >= 2.0 then
+				K:free(function()
+					K:seg("FootRail", V3(x0, 0.78, zr), V3(x1, 0.78, zr), 0.12, Look.chrome)
+					local nb = math.max(2, math.floor((x1 - x0) / 3.5) + 1)
+					for k = 0, nb - 1 do
+						local x = x0 + 0.3 + (x1 - x0 - 0.6) * k / math.max(1, nb - 1)
+						K:seg("FootRailPost", V3(x, 0.02, zr), V3(x, 0.78, zr), 0.08, Look.chrome)
+						K:disc("FootRailFoot", 0.24, 0.03, CF(x, 0.015, zr), Look.chrome)
+					end
+				end)
 			end
 			-- 콘센트 (2.6 간격)
 			local y = t.y - 0.34
@@ -3420,7 +3495,8 @@ local function stepBars(K: any, V: any, B: any, ctx: any)
 				local x = t.min.X + (t.max.X - t.min.X) * (k - 0.5) / nb
 				local c = V3(x, y, zf - side * 0.1)
 				local bmn, bmx = c - V3(0.3, 0.13, 0.1), c + V3(0.3, 0.13, 0.1)
-				if not K:hitsKeep(bmn, bmx) then
+				if onlyAisle(K, bmn, bmx) then
+					K.freeDepth += 1
 					K:box("OutletBox", V3(0.56, 0.24, 0.16), CF(c), Look.white)
 					local dcf = faceCF(c + n * 0.081, n)
 					for j = -1, 1 do
@@ -3428,9 +3504,10 @@ local function stepBars(K: any, V: any, B: any, ctx: any)
 							K:plate("OutletUSB", 0.1, 0.05, 0.01, dcf * CF(0.18, 0.03, 0), Look.black)
 							K:plate("OutletUSB", 0.1, 0.05, 0.01, dcf * CF(0.18, -0.05, 0), Look.black)
 						else
-							wdisc(K, "OutletSocket", 0.14, 0.01, dcf * CF(j * 0.05 - 0.05 + (j + 1) * 0.0, 0, 0) * CF(if j == -1 then -0.1 else 0.04, 0, 0), Look.offWhite)
+							wdisc(K, "OutletSocket", 0.14, 0.01, dcf * CF(if j == -1 then -0.15 else -0.01, 0, 0), Look.offWhite)
 						end
 					end
+					K.freeDepth -= 1
 				end
 			end
 		end

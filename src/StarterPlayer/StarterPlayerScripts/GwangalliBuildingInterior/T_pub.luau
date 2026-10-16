@@ -939,10 +939,10 @@ end
 
 -- 네온사인 묶음: 아크릴 뒤판 + 스탠드오프 + 아이콘 + 글자. store = { parts, labels, lights }
 local function neonSign(K: any, dcf: CFrame, w: number, h: number, th: any, icon: string?, text: string, c: Color3, c2: Color3, store: any)
-	K:panel("NeonBacker", w, h, 0.05, math.min(0.3, h * 0.2), dcf, { c = rgb(16, 16, 20), m = M.Glass, t = 0.3, r = 0.12 })
+	K:panel("NeonBacker", w, h, 0.05, math.min(0.3, h * 0.2), dcf, { c = rgb(14, 14, 18), m = M.SmoothPlastic, r = 0.06 })
 	for _, sx in { -1, 1 } do
 		for _, sy in { -1, 1 } do
-			K:cyl("NeonStandoff", 0.1, 0.08, dcf * CF(sx * (w / 2 - 0.22), sy * (h / 2 - 0.18), 0.04) * ANG(0, PI / 2, 0), L.chrome)
+			K:cyl("NeonStandoff", 0.17, 0.08, dcf * CF(sx * (w / 2 - 0.22), sy * (h / 2 - 0.18), 0.0) * ANG(0, PI / 2, 0), L.chrome)
 		end
 	end
 	local iconW = if icon then math.min(h * 0.92, w * 0.4) else 0
@@ -1602,7 +1602,7 @@ local function backBar(c: any)
 				K:box("BackBarShelf", V3(sw + 0.04, 0.07, 0.86), CF(bcx, y - 0.035, zw + 0.06 + 0.43), { c = rgb(200, 226, 230), m = M.Glass, t = 0.35, r = 0.1 })
 				K:cyl("BackBarRail", sw + 0.04, 0.05, CF(bcx, y + 0.24, zw + 0.86), th.trim)
 				K:box("BackBarLED", V3(sw - 0.1, 0.03, 0.04), CF(bcx, y - 0.09, zw + 0.82), L.neon(th.shelfLED))
-				local m = math.max(1, math.floor(sw / 0.5))
+				local m = math.max(1, math.floor(sw / (if K.detail == "high" then 0.56 else 0.7)))
 				for j = 1, m do
 					idx += 1
 					local bx = bx0 + sw * (j - 0.5) / m + (rnd(seed, idx) - 0.5) * 0.06
@@ -1643,9 +1643,14 @@ local function shelfBar(c: any)
 	local n = math.floor((sh.size.X - 0.4) / 0.5)
 	for i = 1, n do
 		local x = sh.min.X + 0.2 + (sh.size.X - 0.4) * (i - 0.5) / n
-		bottle(K, CF(x, y, zf), 0.85 + rnd(c.seed, i) * 0.35, mix[(i + c.seed) % #mix + 1], GLASS[(i * 5 + c.seed) % #GLASS + 1], LABELS[i % #LABELS + 1], cap[i % #cap + 1], K.detail)
+		local h = 0.85 + rnd(c.seed, i) * 0.35
+		if clearAt(K, CF(x, y + h / 2, zf), V3(0.45, h, 0.45)) then
+			bottle(K, CF(x, y, zf), h, mix[(i + c.seed) % #mix + 1], GLASS[(i * 5 + c.seed) % #GLASS + 1], LABELS[i % #LABELS + 1], cap[i % #cap + 1], K.detail)
+		end
 	end
-	Props.ledStrip(K, V3(sh.min.X + 0.2, y - 0.25, sh.max.Z - 0.1), V3(sh.max.X - 0.2, y - 0.25, sh.max.Z - 0.1), th.shelfLED)
+	K:free(function()
+		Props.ledStrip(K, V3(sh.min.X + 0.2, sh.min.Y - 0.03, sh.max.Z - 0.1), V3(sh.max.X - 0.2, sh.min.Y - 0.03, sh.max.Z - 0.1), th.shelfLED)
+	end)
 end
 
 -- 5) 탭 타워 (맵 TapPost · TapBar · TapHandle · DripTray 와 같은 자리 · 같은 윗면) --------------------------------
@@ -1820,6 +1825,7 @@ local function tvSet(c: any)
 	local dcf = V:wall(wn, u, tv.c.Y, 0)
 	local sw, sh = w - 0.14, h - 0.14
 	local z = 0.24
+	K.freeDepth += 1 -- 맵 TV 와 같은 자리 덮어씌우기
 	K:plate("TVMount", w * 0.3, h * 0.3, 0.1, dcf, L.blackMetal)
 	K:plate("TVBody", w, h, 0.14, dcf * CF(0, 0, 0.1), L.of(18, 18, 20))
 	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01 })
@@ -1833,12 +1839,16 @@ local function tvSet(c: any)
 	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.014), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.005, font = F.GothamBlack })
 	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.014), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.005, font = F.GothamMedium })
 	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.014), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.004, font = F.GothamBlack })
-	K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.05, 0.24), L.chrome)
-	-- 사운드바 (상호작용 손잡이)
-	local bar = K:box("TVSoundbar", V3(w * 0.66, 0.26, 0.3), dcf * CF(0, -h / 2 - 0.42, 0.2), L.of(26, 26, 28))
-	K:box("TVSoundbarGrille", V3(w * 0.62, 0.18, 0.02), dcf * CF(0, -h / 2 - 0.42, 0.36), L.of(50, 50, 54, M.Fabric))
-	K:box("TVSoundbarLED", V3(0.08, 0.04, 0.02), dcf * CF(w * 0.28, -h / 2 - 0.5, 0.37), L.ledGreen)
-	K:seg("TVCable", (dcf * CF(w * 0.2, -h / 2, 0.08)).Position, (dcf * CF(w * 0.2, -h / 2 - 0.3, 0.08)).Position, 0.04, L.black)
+	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.05, 0.24), L.chrome)
+	K.freeDepth -= 1
+	-- 사운드바 (상호작용 손잡이; 문 앞 keep 에 걸리면 생략하고 TV 에 붙임)
+	local bar = tvBody
+	if clearAt(K, dcf * CF(0, -h / 2 - 0.36, 0.2), V3(w * 0.66, 0.42, 0.34)) then
+		bar = K:box("TVSoundbar", V3(w * 0.66, 0.26, 0.34), dcf * CF(0, -h / 2 - 0.42, 0.19), L.of(26, 26, 28))
+		K:box("TVSoundbarGrille", V3(w * 0.62, 0.18, 0.02), dcf * CF(0, -h / 2 - 0.42, 0.36), L.of(50, 50, 54, M.Fabric))
+		K:box("TVSoundbarLED", V3(0.08, 0.04, 0.02), dcf * CF(w * 0.28, -h / 2 - 0.5, 0.37), L.ledGreen)
+		K:seg("TVCable", (dcf * CF(w * 0.2, -h / 2, 0.08)).Position, (dcf * CF(w * 0.2, -h / 2 - 0.3, 0.08)).Position, 0.04, L.black)
+	end
 	local channels = {
 		{ bg = rgb(36, 118, 54), dirt = true, stripes = false, live = true, logo = "SPORTS 1", bug = "롯데  3 : 2  두산\n▲ 7회  2사 1 · 2루", ticker = "KBO 리그 생중계 · 사직야구장 22,990석 매진" },
 		{ bg = rgb(34, 124, 52), dirt = false, stripes = true, live = true, logo = "SPORTS 2", bug = "토트넘  1 - 0  첼시\n후반  72:14", ticker = "프리미어리그 9라운드 · 하이라이트는 경기 후 바로" },
@@ -1926,10 +1936,11 @@ local function tapBoard(c: any)
 	listBoard(K, dcf, w - 0.4, h, th.board, th.boardTitle, th.boardSub, rows, th.boardFoot, nil)
 	-- 보드 조명 (위에서 비추는 갤러리 램프 2)
 	for _, sx in { -0.3, 0.3 } do
-		local base = dcf * CF((w - 0.4) * sx, h / 2 + 0.3, 0.05)
-		K:box("BoardLampArm", V3(0.06, 0.06, 0.55), base * CF(0, 0, 0.27), L.blackMetal)
-		K:cyl("BoardLampHead", 0.5, 0.18, base * CF(0, -0.06, 0.6), L.blackMetal)
-		K:box("BoardLampLens", V3(0.44, 0.02, 0.08), base * CF(0, -0.16, 0.6), L.lampWarm)
+		local base = dcf * CF((w - 0.4) * sx, h / 2 + 0.3, -0.06)
+		K:box("BoardLampMount", V3(0.18, 0.18, 0.06), base * CF(0, 0, 0.03), L.blackMetal)
+		K:box("BoardLampArm", V3(0.06, 0.06, 0.62), base * CF(0, 0, 0.33), L.blackMetal)
+		K:cyl("BoardLampHead", 0.5, 0.18, base * CF(0, -0.06, 0.66), L.blackMetal)
+		K:box("BoardLampLens", V3(0.44, 0.02, 0.08), base * CF(0, -0.16, 0.66), L.lampWarm)
 	end
 	c.board = { wall = wn, u = u, w = w }
 	-- 뒷벽 카운터 뒤면: 아래 언더카운터 쿨러 + 잔 선반 (깊이 1.0)
@@ -2117,7 +2128,7 @@ local function dartMachine(c: any)
 	end
 	local _ = reachable
 	do
-		local lmn, lmx = laabb(pcf * CF(0, 1.5, size.Z / 2 + 3.9), V3(2.0, 3.0, 7.4))
+		local lmn, lmx = laabb(pcf * CF(0, 1.5, size.Z / 2 + 4.6), V3(2.4, 3.0, 9.0))
 		K:reserve(lmn, lmx, "dartlane")
 	end
 	local accent = th.neon2 or rgb(60, 160, 255)
@@ -2270,6 +2281,14 @@ local function briteTank(K: any, pcf: CFrame, dia: number, H: number, label: str
 	if detail == "high" then
 		K:box("TankWeld", V3(0.02, bodyH, 0.02), pcf * CF(-r * 0.7, legH + 0.55 + bodyH / 2, r * 0.71), L.of(160, 164, 168, M.Metal))
 	end
+	-- 온도 · 압력 컨트롤러 (글리콜 냉각)
+	local cx = -0.55
+	local cz = math.sqrt(math.max(0.01, r * r - cx * cx))
+	local ctl = K:box("TankController", V3(0.52, 0.7, 0.16), pcf * CF(cx, 4.35, cz + 0.07), L.of(232, 232, 228))
+	local _, lcd = K:text("TankControllerLCD", 0.42, 0.3, pcf * CF(cx, 4.45, cz + 0.152), "", { fg = rgb(120, 255, 160), bg = rgb(10, 20, 14), glow = 1.3, d = 0.005, font = F.Arcade })
+	K:box("TankControllerLED", V3(0.06, 0.06, 0.02), pcf * CF(cx + 0.15, 4.12, cz + 0.155), L.ledGreen)
+	K:seg("TankControllerCable", (pcf * CF(cx, 4.0, cz + 0.05)).Position, (pcf * CF(cx, 3.2, cz + 0.02)).Position, 0.03, L.black)
+	return ctl, lcd
 end
 
 local function keg(K: any, base: CFrame, cap: Color3)
@@ -2285,60 +2304,98 @@ local function keg(K: any, base: CFrame, cap: Color3)
 	K:vcyl("KegCap", 0.04, 0.4, base * CF(0, kh - 0.12, 0), { c = cap })
 end
 
-local function brewery(c: any)
+local function okFront(V: any): any
+	return function(pcf: CFrame, _wn: string, _u: number): boolean
+		return not behindCounter(V, pcf.Position)
+	end
+end
+
+local function tanks(c: any)
 	local K, V, th = c.K, c.V, c.th
-	if not th.tanks and not th.kegs then
+	if not th.tanks or V.H < 8.6 or not budget(K, 80) then
 		return
 	end
 	local H = math.min(V.H - 0.7, 8.8)
 	local dia = 2.3
-	local tankAt: Vector3? = nil
-	-- 손님 자리에서 보이는 곳 (카운터 안쪽 · 다트 길 제외)
-	local function okTank(pcf: CFrame, _wn: string, _u: number): boolean
-		return not behindCounter(V, pcf.Position)
+	local walls = { "back", "left", "right" }
+	local near = V3((V.x0 + V.x1) / 2 + V.W * 0.25, 0, V.z0)
+	local size = V3(2 * dia + 0.5, H + 0.6, dia + 0.3)
+	local spots = {}
+	local pcf = floorOnWall(K, walls, size, near, 0.15, okFront(V))
+	if pcf then
+		table.insert(spots, { pcf, 2 })
+	else
+		size = V3(dia + 0.4, H + 0.6, dia + 0.3)
+		for _ = 1, 2 do
+			local p1 = floorOnWall(K, walls, size, near, 0.15, okFront(V))
+			if p1 then
+				table.insert(spots, { p1, 1 })
+			end
+		end
 	end
-	if th.tanks and V.H >= 8.6 and budget(K, 80) then
-		local walls = { "back", "left", "right" }
-		local near = V3((V.x0 + V.x1) / 2 + V.W * 0.25, 0, V.z0)
-		local size = V3(2 * dia + 0.5, H + 0.6, dia + 0.3)
-		local spots = {}
-		local pcf = floorOnWall(K, walls, size, near, 0.15, okTank)
-		if pcf then
-			table.insert(spots, { pcf, 2 })
+	if #spots == 0 then
+		K:note("tanks: no spot")
+		return
+	end
+	local k = 0
+	local ctls = {}
+	for _, sp in spots do
+		local scf, n = sp[1], sp[2]
+		for i = 1, n do
+			k += 1
+			local x = if n == 2 then (i - 1.5) * (dia + 0.35) else 0
+			local b = th.taps[(k % #th.taps) + 1]
+			local ctl, lcd = briteTank(K, scf * CF(x, 0, 0), dia, H, string.format("BRITE TANK 0%d\n%s · 1,000L", k, b[1]), K.detail)
+			table.insert(ctls, { ctl, lcd, k, b })
+		end
+		K:box("TankDrain", V3(n * (dia + 0.35) - 0.3, 0.03, 0.4), scf * CF(0, 0.015, dia / 2 + 0.25), L.of(120, 124, 128, M.DiamondPlate))
+	end
+	c.tankAt = spots[1][1].Position
+	-- 컨트롤러 화면: 첫 탱크는 손님이 눌러 볼 수 있음 (온도 · 압력 · 탄산 · 출고)
+	local prompted = false
+	for _, t in ctls do
+		local ctl, lcd, num, b = t[1], t[2], t[3], t[4]
+		local pages = {
+			string.format("T%02d %s\n 2.0°C  1.1bar", num, b[6] or "ALE"),
+			string.format("CO2 %.1f vol\nSET 2.6 vol", 2.4 + num * 0.1),
+			"STATUS\nSERVING TODAY",
+			string.format("BATCH #%d\nABV %s", 210 + num * 7, b[3] or "5.0%"),
+		}
+		lcd.Text = pages[1]
+		if not prompted and ctl.Parent and promptOK(K, (K.cf:ToObjectSpace(ctl.CFrame)).Position) then
+			prompted = true
+			Interact.cycle(K, ctl, pages, {
+				action = "탱크 상태 보기",
+				object = "브라이트 탱크 " .. tostring(num),
+				on = function(_i: number, txt: string)
+					lcd.Text = txt
+				end,
+			})
 		else
-			size = V3(dia + 0.4, H + 0.6, dia + 0.3)
-			for _ = 1, 2 do
-				local p1 = floorOnWall(K, walls, size, near, 0.15, okTank)
-				if p1 then
-					table.insert(spots, { p1, 1 })
+			local cur = 0
+			Interact.anim(K, function(tt: number)
+				local pg = math.floor(tt / 5 + num) % #pages + 1
+				if pg ~= cur then
+					cur = pg
+					lcd.Text = pages[pg]
 				end
-			end
-		end
-		local k = 0
-		for _, sp in spots do
-			local scf, n = sp[1], sp[2]
-			for i = 1, n do
-				k += 1
-				local x = if n == 2 then (i - 1.5) * (dia + 0.35) else 0
-				local b = th.taps[(k % #th.taps) + 1]
-				briteTank(K, scf * CF(x, 0, 0), dia, H, string.format("BRITE TANK 0%d\n%s · 1,000L", k, b[1]), K.detail)
-			end
-			K:box("TankDrain", V3(n * (dia + 0.35) - 0.3, 0.03, 0.4), scf * CF(0, 0.015, dia / 2 + 0.25), L.of(120, 124, 128, M.DiamondPlate))
-			tankAt = tankAt or scf.Position
-		end
-		if #spots == 0 then
-			K:note("tanks: no spot")
+			end)
 		end
 	end
-	if th.kegs and budget(K, 30) then
-		local size = V3(2.9, 2.0, 1.45)
-		local pcf = floorOnWall(K, { "back", "left", "right" }, size, tankAt or V3(V.x1, 0, V.z0), 0.1, okTank)
-		if pcf then
-			local caps = { rgb(200, 40, 40), rgb(40, 120, 200), rgb(240, 190, 40) }
-			keg(K, pcf * CF(-0.72, 0, 0), caps[1])
-			keg(K, pcf * CF(0.72, 0, 0), caps[2])
-			K:text("KegTag", 0.6, 0.34, pcf * CF(-0.72, 1.05, 0.66), "IPA\n20L", { fg = rgb(30, 30, 30), bg = rgb(250, 236, 200), d = 0.01, font = F.GothamBlack })
-		end
+end
+
+local function kegs(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if not th.kegs or not budget(K, 30) then
+		return
+	end
+	local size = V3(2.9, 2.0, 1.45)
+	local pcf = floorOnWall(K, { "back", "left", "right" }, size, c.tankAt or V3(V.x1, 0, V.z0), 0.1, okFront(V))
+	if pcf then
+		local caps = { rgb(200, 40, 40), rgb(40, 120, 200), rgb(240, 190, 40) }
+		keg(K, pcf * CF(-0.72, 0, 0), caps[1])
+		keg(K, pcf * CF(0.72, 0, 0), caps[2])
+		K:text("KegTag", 0.6, 0.34, pcf * CF(-0.72, 1.05, 0.66), "IPA\n20L", { fg = rgb(30, 30, 30), bg = rgb(250, 236, 200), d = 0.01, font = F.GothamBlack })
 	end
 end
 
@@ -2358,10 +2415,10 @@ local function tablePendants(c: any)
 		local offs = if (t.max.X - t.min.X) * (t.max.Z - t.min.Z) > 7 then { { -0.55, 0.2, 0 }, { 0.5, -0.25, 0.35 } } else { { -0.32, 0.12, 0 }, { 0.3, -0.18, 0.4 }, { 0.02, 0.36, 0.2 } }
 		for k, o in offs do
 			local x, z = cx + o[1], cz + o[2]
-			if Common.ceilFree(K, x, z, 0.3) then
-				local drop = math.min(2.1 + o[3], maxDrop)
+			local drop = math.min(2.1 + o[3], maxDrop)
+			if Common.ceilFree(K, x, z, 0.3) and clearAt(K, CF(x, V.H - drop / 2, z), V3(1.0, drop + 0.1, 1.0)) then
 				local light = k == 1 and lit < 2 and #K.lights < (V.maxLights or 8) - 1
-				Props.pendant(K, V3(x, V.H, z), drop, { shade = th.tablePendant or "bulb", dia = if th.tablePendant == "bulb" then 0.9 else 0.8, look = th.pendant and th.pendant.look, light = light, range = 12, bright = 0.75 })
+				Props.pendant(K, V3(x, V.H, z), drop, { shade = th.tablePendant or "bulb", dia = if th.tablePendant == "bulb" then 0.9 else 0.8, look = th.pendant and th.pendant.look, light = light, range = 14, bright = 0.95 })
 				Common.useCeil(K, x, z)
 				if light then
 					lit += 1
@@ -2606,6 +2663,27 @@ local function counterProps(c: any)
 				end
 			end
 		end
+		-- 상판 앞 모서리 황동 띠 + 스툴 사이 가방 고리 (카운터 면에 붙임)
+		local body = g.body or g.top
+		if g.top and body then
+			local tz = if custZ > 0 then g.top.max.Z else g.top.min.Z
+			local bz = if custZ > 0 then body.max.Z else body.min.Z
+			local tw = g.top.max.X - g.top.min.X
+			K:free(function()
+				K:box("CounterBrassEdge", V3(tw + 0.02, 0.05, 0.03), CF((g.top.min.X + g.top.max.X) / 2, g.y - 0.075, tz + custZ * 0.035), th.trim)
+				local xs = {}
+				for i = 1, #stoolX - 1 do
+					table.insert(xs, (stoolX[i] + stoolX[i + 1]) / 2)
+				end
+				if K.detail ~= "low" then
+					for _, hx in xs do
+						local fz = bz + custZ * 0.06
+						K:box("BagHookPlate", V3(0.16, 0.22, 0.03), CF(hx, g.y - 0.55, fz), th.trim)
+						K:bar("BagHook", V3(hx, g.y - 0.6, fz), V3(hx, g.y - 0.72, fz + custZ * 0.18), 0.05, 0.05, th.trim)
+					end
+				end
+			end)
+		end
 		if gi > 1 then
 			continue
 		end
@@ -2637,7 +2715,10 @@ local function counterProps(c: any)
 			elseif used == 2 then
 				-- 해피아워 텐트 카드
 				for _, sd in { -1, 1 } do
-					K:text("TentCard", 0.6, 0.5, pc * CF(0, 0.24, sd * 0.09) * ANG(sd * 0.32, if sd > 0 then 0 else PI, 0), "HAPPY HOUR\n17:00 – 19:00\n생맥주 1,000원 ↓", { fg = rgb(30, 30, 30), bg = rgb(250, 240, 214), d = 0.01, font = F.GothamBlack })
+					local n = V3(0, 0.31, sd * 0.95)
+					local upv = V3(0, 0.95, -sd * 0.31)
+					local pos = (pc * CF(0, 0.24, sd * 0.09)).Position
+					K:text("TentCard", 0.6, 0.5, CFrame.fromMatrix(pos, upv:Cross(n).Unit, upv, n), "HAPPY HOUR\n17:00 – 19:00\n생맥주 1,000원 ↓", { fg = rgb(30, 30, 30), bg = rgb(250, 240, 214), d = 0.01, font = F.GothamBlack })
 				end
 			elseif used == 3 then
 				-- 간편결제 안내 스탠드
@@ -2652,9 +2733,10 @@ local function counterProps(c: any)
 			end
 		end
 		-- 카운터 열린 끝: STAFF ONLY (끝면에 붙임)
-		local endX = g.max.X
+		local eb = g.body or g
+		local endX = eb.max.X
 		K:free(function()
-			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.02, 2.4, (g.min.Z + g.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), bg = rgb(170, 30, 30), d = 0.01, font = F.GothamBlack })
+			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.015, 2.4, (eb.min.Z + eb.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), bg = rgb(170, 30, 30), d = 0.01, font = F.GothamBlack })
 		end)
 	end
 end
@@ -2675,7 +2757,9 @@ local function wallDecor(c: any)
 				local x = -(w - 0.6) / 2 + (w - 0.6) * (i - 0.5) / n
 				local tp = th.taps[(i + seed) % #th.taps + 1]
 				local pc = top * CF(x, 0, -0.05)
-				if i % 2 == 0 then
+				if th.key == "fuzzy" or th.key == "party" then
+					bottle(K, pc, 0.75 + rnd(seed, i) * 0.25, (th.bottleMix or { "round" })[(i % #(th.bottleMix or { 1 })) + 1], GLASS[(i * 3 + seed) % #GLASS + 1], LABELS[i % #LABELS + 1], L.goldMetal, K.detail)
+				elseif i % 2 == 0 then
 					beerCan(K, pc, tp[7] or tp[5], rgb(250, 250, 246), K.detail)
 				else
 					beerBottle(K, pc, if i % 3 == 0 then rgb(40, 96, 56) else rgb(110, 60, 24), LABELS[(i + seed) % #LABELS + 1], K.detail)
@@ -2775,6 +2859,41 @@ local function wallDecor(c: any)
 	local _ = np
 end
 
+-- 15b) 벽 조명 (황동 브래킷 + 유리 갓 + 에디슨 전구; 불빛 예산 대신 빛나는 전구로)
+local function sconces(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if not budget(K, 30) then
+		return
+	end
+	for _, wn in { "left", "right" } do
+		local w = V.walls[wn]
+		local n = 0
+		local u = w.a + 3.0
+		while u < w.b - 2.0 and n < 3 do
+			local ok = false
+			for _, sp in freeSpans(K, wn, 6.3, 7.5, 0.8) do
+				if u - 0.4 > sp[1] and u + 0.4 < sp[2] then
+					ok = true
+				end
+			end
+			local p = V:wall(wn, u, 0, 1.0).Position
+			if ok and p.Z < V.z1 - 2.2 then
+				claim(K, wn, u - 0.6, u + 0.6, 6.3, 7.5)
+				local d = V:wall(wn, u, 6.9, 0.05)
+				K:plate("SconcePlate", 0.22, 0.36, 0.05, d, th.trim)
+				K:bar("SconceArm", (d * CF(0, 0, 0.04)).Position, (d * CF(0, 0.12, 0.42)).Position, 0.05, 0.05, th.trim)
+				K:vcyl("SconceCup", 0.12, 0.16, d * CF(0, 0.16, 0.44), th.trim)
+				K:ell("SconceBulb", V3(0.2, 0.28, 0.2), d * CF(0, 0.34, 0.44), L.lampWarm)
+				K:vcyl("SconceShade", 0.36, 0.42, d * CF(0, 0.42, 0.44), { c = rgb(240, 214, 170), m = M.Glass, t = 0.45 })
+				n += 1
+				u += 6.0
+			else
+				u += 1.0
+			end
+		end
+	end
+end
+
 -- 16) 주크박스 (벽걸이 디지털 주크박스, 곡 바꾸기) --------------------------------------------------------------
 local function jukebox(c: any)
 	local K, V, th = c.K, c.V, c.th
@@ -2847,7 +2966,7 @@ end
 
 local function barrels(c: any)
 	local K, V, th = c.K, c.V, c.th
-	if not budget(K, 40) then
+	if not budget(K, 40) or th.key == "fuzzy" or th.key == "party" then
 		return
 	end
 	local cands = {}
@@ -2871,10 +2990,19 @@ local function barrels(c: any)
 		if n >= maxN then
 			break
 		end
-		if not behindCounter(V, p) then
+		local nearSeat = false
+		for _, list in { V.stools, V.chairs } do
+			for _, st in list do
+				local d = st.seat.c - p
+				if V3(d.X, 0, d.Z).Magnitude < 3.0 then
+					nearSeat = true
+				end
+			end
+		end
+		if not behindCounter(V, p) and not nearSeat then
 			local pcf = CF(p)
 			local mn, mx = laabb(pcf * CF(0, 1.6, 0), V3(4.6, 3.2, 4.6))
-			if mapClear(V, mn, mx) and K:spot(pcf, V3(2.6, 3.1, 2.6), 1.0, "barrel") then
+			if mapClear(V, mn, mx) and K:spot(pcf, V3(2.6, 3.1, 2.6), 1.3, "barrel") then
 				barrelTable(K, pcf, th)
 				n += 1
 			end
@@ -2895,7 +3023,7 @@ local function plants(c: any)
 		local h = math.clamp(V.H * 0.5, 4, 5.4)
 		local pcf = CF(p)
 		local kind = kinds[(i + c.seed) % #kinds + 1]
-		local spread = if kind == "monstera" or kind == "bamboo" then 3.4 else 2.0
+		local spread = if kind == "monstera" then 6.2 elseif kind == "snake" then 1.4 else 2.6
 		local mn, mx = laabb(pcf * CF(0, h / 2, 0), V3(1.8, h, 1.8))
 		if mapClear(V, mn, mx) and clearAt(K, pcf * CF(0, h * 0.62, 0), V3(spread, h * 0.7, spread)) and K:spot(pcf, V3(1.8, h, 1.8), 0.1, "plant") then
 			Props.floorPlant(K, pcf, { kind = kind, h = h, dia = 1.4, pot = L.of(52, 50, 48, M.Concrete) })
@@ -2949,9 +3077,10 @@ function T.build(K: any, V: any, S: any)
 		{ "tv", tvSet },
 		{ "board", tapBoard },
 		{ "dart", dartMachine },
+		{ "tanks", tanks },
 		{ "neon", neonFeature },
 		{ "jukebox", jukebox },
-		{ "brewery", brewery },
+		{ "kegs", kegs },
 		{ "food", foodBoard },
 		{ "pendants", tablePendants },
 		{ "ducts", ducts },
@@ -2960,15 +3089,23 @@ function T.build(K: any, V: any, S: any)
 		{ "disco", disco },
 		{ "counter", counterProps },
 		{ "decor", wallDecor },
+		{ "sconces", sconces },
 		{ "plants", plants },
 		{ "barrels", barrels },
 	}
+	local counts = {}
+	local n0 = #K.parts
 	for _, st in steps do
+		local before = #K.parts
 		local ok, err = pcall(st[2], c)
 		if not ok then
 			K:note("pub." .. st[1] .. " error: " .. tostring(err))
 		end
+		if #K.parts - before > 0 then
+			table.insert(counts, st[1] .. "=" .. tostring(#K.parts - before))
+		end
 	end
+	K:note("pub parts +" .. tostring(#K.parts - n0) .. " (" .. table.concat(counts, " ") .. ")")
 end
 
 return T
