@@ -3231,93 +3231,93 @@ local function highLedge(c: any)
 	local idx = seed % #pat
 	-- 첫 단: 선반 8.05 (포스터 위) · 둘째 단: 그 아래에 다른 벽 물건이 있으면 8.5 (천장 바로 아래)
 	for _, lv in { { 8.05, 7.56 }, { 8.5, 7.98 } } do
-	local yS, yBand = lv[1], lv[2]
-	if yS + 1.3 > V.H then
-		continue
-	end
-	for _, wn in { "left", "right", "back" } do
-		if placed >= maxN then
-			break
+		local yS, yBand = lv[1], lv[2]
+		if yS + 1.3 > V.H then
+			continue
 		end
-		-- 덕트 끝이 닿는 자리는 비움
-		local excl = nil
-		if c.duct and wn ~= "back" then
-			local du = V:wallCoord(wn, V3(if wn == "left" then V.x0 else V.x1, 0, c.duct.z))
-			excl = { du - 0.9, du + 0.9 }
-		end
-		local spans = {}
-		for _, sp in freeSpans(K, wn, yBand, math.min(V.H - 0.3, yS + 1.15), 0.8) do
-			if excl and sp[1] < excl[2] and sp[2] > excl[1] then
-				table.insert(spans, { sp[1], excl[1] })
-				table.insert(spans, { excl[2], sp[2] })
-			else
-				table.insert(spans, sp)
-			end
-		end
-		table.sort(spans, function(a, b)
-			return (a[2] - a[1]) > (b[2] - b[1])
-		end)
-		for _, sp in spans do
-			if placed >= maxN or not budget(K, 90) then
+		for _, wn in { "left", "right", "back" } do
+			if placed >= maxN then
 				break
 			end
-			local len = math.min(sp[2] - sp[1] - 0.5, if V.W > 30 then 9.5 else 7.0)
-			if len < 2.6 then
-				continue
+			-- 덕트 끝이 닿는 자리는 비움
+			local excl = nil
+			if c.duct and wn ~= "back" then
+				local du = V:wallCoord(wn, V3(if wn == "left" then V.x0 else V.x1, 0, c.duct.z))
+				excl = { du - 0.9, du + 0.9 }
 			end
-			local u = (sp[1] + sp[2]) / 2
-			local dcf = V:wall(wn, u, yS, 0.02)
-			local mn, mx = laabb(dcf * CF(0, 0.35, dep / 2), V3(len, 1.8, dep))
-			if K:hitsKeep(mn, mx) then
-				continue
+			local spans = {}
+			for _, sp in freeSpans(K, wn, yBand, math.min(V.H - 0.3, yS + 1.15), 0.8) do
+				if excl and sp[1] < excl[2] and sp[2] > excl[1] then
+					table.insert(spans, { sp[1], excl[1] })
+					table.insert(spans, { excl[2], sp[2] })
+				else
+					table.insert(spans, sp)
+				end
 			end
-			claim(K, wn, u - len / 2 - 0.2, u + len / 2 + 0.2, yBand - 0.2, V.H)
-			placed += 1
-			local top = Props.shelf(K, dcf, len, { depth = dep, look = th.mid, bracket = L.blackMetal, thick = 0.12 })
-			if detail ~= "low" then
-				K:box("LedgeLip", V3(len, 0.05, 0.04), dcf * CF(0, 0.08, dep - 0.02), th.trim)
-				K:box("LedgeLED", V3(len - 0.4, 0.025, 0.04), dcf * CF(0, -0.075, dep - 0.08), L.neon(ledC))
-			end
-			-- 물건 채우기 (가운데 정렬)
-			local items = {}
-			local used = 0
-			local guard = 0
-			while guard < 80 do
-				guard += 1
-				idx += 1
-				local kind = pat[(idx % #pat) + 1]
-				local w = WID[kind]
-				if used + w > len - 0.3 then
+			table.sort(spans, function(a, b)
+				return (a[2] - a[1]) > (b[2] - b[1])
+			end)
+			for _, sp in spans do
+				if placed >= maxN or not budget(K, 90) then
 					break
 				end
-				table.insert(items, { kind, used + w / 2 })
-				used += w
-			end
-			local x0 = -used / 2
-			for i, it in items do
-				local kind, xm = it[1], it[2]
-				local r1 = rnd(seed, idx * 7 + i)
-				local pc = top * CF(x0 + xm, 0, -0.02 + (r1 - 0.5) * 0.06)
-				local col = CAN_COLS[(math.floor(r1 * 97) + i) % #CAN_COLS + 1]
-				if kind == "can" then
-					beerCan(K, pc * ANG(0, (r1 - 0.5) * 0.8, 0), col, if r1 > 0.5 then rgb(250, 250, 246) else rgb(24, 24, 26), detail)
-				elseif kind == "growler" then
-					growler(K, pc * ANG(0, -0.3, 0), if r1 > 0.6 then rgb(40, 34, 30) else rgb(110, 60, 24), LABELS[(i + seed) % #LABELS + 1], if r1 > 0.5 then L.black else L.goldMetal, detail)
-				elseif kind == "handle" then
-					standHandle(K, pc, col, HANDLE_TXT[(math.floor(r1 * 53) + i) % #HANDLE_TXT + 1], detail)
-				elseif kind == "sixpack" then
-					sixPack(K, pc, if r1 > 0.5 then rgb(170, 128, 84) else col, rgb(110, 60, 24), detail)
-				elseif kind == "trophy" then
-					trophy(K, pc, detail)
-				elseif kind == "shaker" then
-					shaker(K, pc)
-				else
-					local mix = th.bottleMix or { "round", "square", "wine" }
-					bottle(K, pc, 0.78 + r1 * 0.22, mix[(i + seed) % #mix + 1], GLASS[(i * 3 + seed) % #GLASS + 1], LABELS[i % #LABELS + 1], L.goldMetal, detail)
+				local len = math.min(sp[2] - sp[1] - 0.5, if V.W > 30 then 9.5 else 7.0)
+				if len < 2.6 then
+					continue
+				end
+				local u = (sp[1] + sp[2]) / 2
+				local dcf = V:wall(wn, u, yS, 0.02)
+				local mn, mx = laabb(dcf * CF(0, 0.35, dep / 2), V3(len, 1.8, dep))
+				if K:hitsKeep(mn, mx) then
+					continue
+				end
+				claim(K, wn, u - len / 2 - 0.2, u + len / 2 + 0.2, yBand - 0.2, V.H)
+				placed += 1
+				local top = Props.shelf(K, dcf, len, { depth = dep, look = th.mid, bracket = L.blackMetal, thick = 0.12 })
+				if detail ~= "low" then
+					K:box("LedgeLip", V3(len, 0.05, 0.04), dcf * CF(0, 0.08, dep - 0.02), th.trim)
+					K:box("LedgeLED", V3(len - 0.4, 0.025, 0.04), dcf * CF(0, -0.075, dep - 0.08), L.neon(ledC))
+				end
+				-- 물건 채우기 (가운데 정렬)
+				local items = {}
+				local used = 0
+				local guard = 0
+				while guard < 80 do
+					guard += 1
+					idx += 1
+					local kind = pat[(idx % #pat) + 1]
+					local w = WID[kind]
+					if used + w > len - 0.3 then
+						break
+					end
+					table.insert(items, { kind, used + w / 2 })
+					used += w
+				end
+				local x0 = -used / 2
+				for i, it in items do
+					local kind, xm = it[1], it[2]
+					local r1 = rnd(seed, idx * 7 + i)
+					local pc = top * CF(x0 + xm, 0, -0.02 + (r1 - 0.5) * 0.06)
+					local col = CAN_COLS[(math.floor(r1 * 97) + i) % #CAN_COLS + 1]
+					if kind == "can" then
+						beerCan(K, pc * ANG(0, (r1 - 0.5) * 0.8, 0), col, if r1 > 0.5 then rgb(250, 250, 246) else rgb(24, 24, 26), detail)
+					elseif kind == "growler" then
+						growler(K, pc * ANG(0, -0.3, 0), if r1 > 0.6 then rgb(40, 34, 30) else rgb(110, 60, 24), LABELS[(i + seed) % #LABELS + 1], if r1 > 0.5 then L.black else L.goldMetal, detail)
+					elseif kind == "handle" then
+						standHandle(K, pc, col, HANDLE_TXT[(math.floor(r1 * 53) + i) % #HANDLE_TXT + 1], detail)
+					elseif kind == "sixpack" then
+						sixPack(K, pc, if r1 > 0.5 then rgb(170, 128, 84) else col, rgb(110, 60, 24), detail)
+					elseif kind == "trophy" then
+						trophy(K, pc, detail)
+					elseif kind == "shaker" then
+						shaker(K, pc)
+					else
+						local mix = th.bottleMix or { "round", "square", "wine" }
+						bottle(K, pc, 0.78 + r1 * 0.22, mix[(i + seed) % #mix + 1], GLASS[(i * 3 + seed) % #GLASS + 1], LABELS[i % #LABELS + 1], L.goldMetal, detail)
+					end
 				end
 			end
 		end
-	end
 	end
 end
 
