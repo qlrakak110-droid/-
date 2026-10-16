@@ -2040,7 +2040,13 @@ local function tapBoard(c: any)
 			for j = 1, ng do
 				local gx = -(bw - 0.6) / 2 + (bw - 0.6) * (j - 0.5) / ng
 				for row = 0, 1 do
-					K:vcyl("PintGlass", 0.48, 0.26, pcf * CF(gx, 3.015 + 0.24, -0.17 + row * 0.34), { c = rgb(226, 236, 238), m = M.Glass, t = 0.55, r = 0.15 })
+					-- 엎어 둔 노닉 파인트 잔 (입구가 아래, 두꺼운 바닥이 위)
+					local gp = pcf * CF(gx + row * 0.1, 3.015, -0.17 + row * 0.34)
+					K:vcyl("PintGlass", 0.44, 0.26, gp * CF(0, 0.22, 0), { c = rgb(232, 240, 242), m = M.Glass, t = 0.62, r = 0.04 })
+					if K.detail ~= "low" then
+						K:vcyl("PintBulge", 0.06, 0.285, gp * CF(0, 0.12, 0), { c = rgb(232, 240, 242), m = M.Glass, t = 0.55, r = 0.04 })
+						K:vcyl("PintBase", 0.05, 0.22, gp * CF(0, 0.465, 0), { c = rgb(214, 228, 230), m = M.Glass, t = 0.3, r = 0.04 })
+					end
 				end
 			end
 		end
@@ -2334,8 +2340,15 @@ local function briteTank(K: any, pcf: CFrame, dia: number, H: number, label: str
 	K:vcyl("TankBody", bodyH, dia, pcf * CF(0, legH + 0.55 + bodyH / 2, 0), steel)
 	local topY = legH + 0.55 + bodyH
 	K:ell("TankTop", V3(dia, 0.9, dia), pcf * CF(0, topY, 0), steel)
+	-- 글리콜 냉각 재킷 (살짝 다른 결의 띠 + 위아래 용접선)
 	for _, f in { 0.22, 0.68 } do
-		K:vcyl("TankJacket", bodyH * 0.24, dia + 0.04, pcf * CF(0, legH + 0.55 + bodyH * f, 0), L.of(128, 132, 138, M.DiamondPlate))
+		local jy = legH + 0.55 + bodyH * f
+		K:vcyl("TankJacket", bodyH * 0.24, dia + 0.03, pcf * CF(0, jy, 0), L.of(176, 180, 186, M.Metal, { r = 0.16 }))
+		if detail ~= "low" then
+			for _, sy in { -1, 1 } do
+				K:vcyl("TankJacketSeam", 0.04, dia + 0.06, pcf * CF(0, jy + sy * bodyH * 0.12, 0), L.of(118, 122, 128, M.Metal))
+			end
+		end
 	end
 	-- 맨홀 (앞 아래)
 	local mh = pcf * CF(0, legH + 0.55 + 0.75, r - 0.03)

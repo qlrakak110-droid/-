@@ -3744,6 +3744,242 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 end
 
 ---------------------------------------------------------------------------------------------------
+-- 8b. 장비 리스킨 (POS · 전자레인지 · 온수기) + 윗벽 라이트박스
+--   맵의 PosBase · Microwave · HotWater 는 게임플레이 앵커라 크기 · 자리를 그대로 덮어씌운 뒤에만 숨김 (R3).
+--   본체는 원래 AABB 와 정확히 같은 범위, 앞면 디테일은 그 범위 안 마지막 0.02 에 들어감.
+---------------------------------------------------------------------------------------------------
+
+-- 기록 r 의 AABB 를 정면 face 기준 소품 프레임으로: pcf (바닥 가운데, +Z = 정면), 폭 w, 깊이 d, 높이 h
+local function recFrame(r: any, face: Vector3): (CFrame, number, number, number)
+	local sx, sz = r.max.X - r.min.X, r.max.Z - r.min.Z
+	local fz = math.abs(face.Z) > 0.5
+	local w = if fz then sx else sz
+	local d = if fz then sz else sx
+	local p = V3((r.min.X + r.max.X) / 2, r.min.Y, (r.min.Z + r.max.Z) / 2)
+	return pcfAt(p, face), w, d, r.max.Y - r.min.Y
+end
+
+local function axisDir(v: Vector3): Vector3
+	if math.abs(v.X) > math.abs(v.Z) then
+		return V3(if v.X >= 0 then 1 else -1, 0, 0)
+	end
+	return V3(0, 0, if v.Z >= 0 then 1 else -1)
+end
+
+-- 업소용 전자레인지 (스테인리스 몸체 · 검은 유리창 문 · 오른쪽 조작부)
+local function microwaveSkin(K: any, V: any, r: any, door: any?, i: number)
+	local face = awayFromWall(V, r)
+	if door then
+		face = axisDir(door.c - r.c)
+	end
+	local pcf, w, d, h = recFrame(r, face)
+	local body = if i % 2 == 1 then Look.steel else lk(C(236, 236, 232))
+	local fr = pcf * CF(0, 0, d / 2 - 0.02)
+	local hi = K.detail == "high"
+	K:free(function()
+		K:box("StMwBody", V3(w, h, d - 0.02), pcf * CF(0, h / 2, -0.01), body)
+		-- 문 (창 + 테두리) · 손잡이 홈
+		local dw = w * 0.7
+		local dx = -w / 2 + dw / 2 + 0.03
+		K:plate("StMwDoor", dw, h - 0.08, 0.012, fr * CF(dx, h / 2, 0), lk(C(44, 46, 50), M.SmoothPlastic, { r = 0.1 }))
+		K:plate("StMwWindow", dw - 0.22, h - 0.3, 0.018, fr * CF(dx - 0.03, h / 2, 0), lk(C(18, 20, 24), M.Glass, { r = 0.3 }))
+		K:plate("StMwHandle", 0.06, h * 0.56, 0.02, fr * CF(dx + dw / 2 - 0.08, h / 2, 0), Look.chrome)
+		-- 조작부: 표시창 + 버튼
+		local px = w / 2 - (w - dw - 0.06) / 2 - 0.02
+		local pw = w - dw - 0.1
+		K:plate("StMwPanel", pw, h - 0.08, 0.012, fr * CF(px, h / 2, 0), lk(C(26, 26, 28)))
+		K:plate("StMwDisplay", pw * 0.78, 0.12, 0.018, fr * CF(px, h - 0.2, 0), Look.neon(C(110, 230, 255)))
+		if hi then
+			for row = 0, 2 do
+				for col = 0, 1 do
+					K:plate("StMwKey", pw * 0.3, 0.07, 0.016, fr * CF(px - pw * 0.2 + col * pw * 0.4, h - 0.38 - row * 0.12, 0), lk(if row == 2 and col == 1 then C(60, 170, 90) else C(150, 152, 156)))
+				end
+			end
+			K:plate("StMwStart", pw * 0.7, 0.1, 0.016, fr * CF(px, 0.16, 0), lk(C(220, 50, 50)))
+		end
+		-- 안내 스티커 (문 위 가장자리)
+		txt(K, "StMwSticker", dw * 0.62, 0.12, fr * CF(dx, h - 0.06, 0.019), "업소용 1000W · 금속 용기 금지", INK, C(250, 220, 60), { d = 0.002, font = Enum.Font.GothamBold })
+	end)
+end
+
+-- 온수기 (흰 몸체 · 위 표시창 · 빨간 버튼 · 실제로 파인 물 받는 칸 + 노즐 + 물받이)
+local function hotWaterSkin(K: any, V: any, r: any)
+	local face = awayFromWall(V, r)
+	local pcf, w, d, h = recFrame(r, face)
+	local bodyL = lk(C(240, 240, 238))
+	local edgeL = Look.steel
+	local a0, a1 = h * 0.2, h * 0.56 -- 칸 아래 · 위
+	local fz = d / 2 - 0.02 -- 앞면 (디테일 0.02 는 이 앞)
+	local rd = 0.32 -- 칸 깊이
+	local fr = pcf * CF(0, 0, fz)
+	K:free(function()
+		-- 뒤 몸통 + 앞 블록들 (가운데 칸이 비게)
+		K:box("StHwBack", V3(w, h - 0.05, d - 0.02 - rd), pcf * CF(0, (h - 0.05) / 2, -d / 2 + (d - 0.02 - rd) / 2), bodyL)
+		K:box("StHwBase", V3(w, a0, rd), pcf * CF(0, a0 / 2, fz - rd / 2), bodyL)
+		K:box("StHwTop", V3(w, h - 0.05 - a1, rd), pcf * CF(0, a1 + (h - 0.05 - a1) / 2, fz - rd / 2), bodyL)
+		for sx = -1, 1, 2 do
+			K:box("StHwSide", V3(0.14, a1 - a0, rd), pcf * CF(sx * (w / 2 - 0.07), (a0 + a1) / 2, fz - rd / 2), bodyL)
+		end
+		K:box("StHwLid", V3(w - 0.04, 0.05, d - 0.06), pcf * CF(0, h - 0.025, -0.01), edgeL)
+		-- 칸 안: 어두운 뒷면 · 노즐 · 물받이 격자
+		K:plate("StHwNiche", w - 0.28, a1 - a0, 0.01, pcf * CF(0, (a0 + a1) / 2, fz - rd), lk(C(60, 62, 66)))
+		K:vcyl("StHwNozzle", 0.14, 0.09, pcf * CF(0, a1 - 0.07, fz - rd / 2), Look.chrome)
+		K:box("StHwTray", V3(w - 0.3, 0.04, rd - 0.04), pcf * CF(0, a0 + 0.02, fz - rd / 2 + 0.01), lk(C(150, 152, 156), M.DiamondPlate))
+		-- 앞면: 표시창 · 버튼 · 경고
+		txt(K, "StHwDisplay", w * 0.66, 0.2, fr * CF(0, h * 0.86, 0), "온수 98℃", C(255, 90, 70), C(20, 20, 22), { d = 0.016, glow = 1.2, font = Enum.Font.GothamBlack })
+		K:cyl("StHwButton", 0.018, 0.24, fr * CF(0, h * 0.7, 0.009) * ANG(0, PI / 2, 0), lk(C(220, 36, 40)))
+		txt(K, "StHwWarn", w * 0.8, 0.22, fr * CF(0, a0 * 0.55, 0), "뜨거운 물 주의\n컵라면 · 차 전용", INK, C(250, 210, 40), { d = 0.012, font = Enum.Font.GothamBold })
+	end)
+end
+
+-- POS (맵 PosBase 는 같은 범위로 덮고, 엉성한 화면 뒤판 · 손님 표시창은 숨긴 뒤 기울어진 터치 모니터 + 손님 화면으로)
+local function posSkin(K: any, V: any, kind: string, sub: string)
+	local B = BRANDS[sub] or nil
+	local brandName = if B then B.name elseif kind == "pharmacy" then "약국" elseif sub == "cosmetics" then "OLIVE YOUNG" else tostring(V.name or "")
+	local accent = if B then B.main elseif kind == "pharmacy" then PH.main elseif sub == "cosmetics" then OY.main else C(30, 80, 160)
+	for _, pb in V.byName.PosBase or {} do
+		local sb, cd = nil, nil
+		for _, r in V.byName.PosScreenBack or {} do
+			local dv = r.c - pb.c
+			if V3(dv.X, 0, dv.Z).Magnitude < 1.0 then
+				sb = r
+			end
+		end
+		if not sb then
+			continue
+		end
+		for _, r in V.byName.CustomerDisplay or {} do
+			local dv = r.c - sb.c
+			if V3(dv.X, 0, dv.Z).Magnitude < 0.8 then
+				cd = r
+			end
+		end
+		local g = nil
+		for _, c in V.counters do
+			if pb.c.X >= c.min.X - 0.3 and pb.c.X <= c.max.X + 0.3 and pb.c.Z >= c.min.Z - 0.6 and pb.c.Z <= c.max.Z + 0.6 then
+				g = c
+			end
+		end
+		local cust = if g then counterFace(V, g) else V3(0, 0, 1)
+		if cd then
+			local dv = cd.c - sb.c
+			if math.abs(dv.X) + math.abs(dv.Z) > 0.03 then
+				cust = axisDir(dv)
+			end
+		end
+		local pcf, w, d, h = recFrame(pb, cust)
+		local dark = lk(C(38, 40, 44))
+		local sbz = pcf:PointToObjectSpace(sb.c).Z
+		local my = sb.c.Y - pb.min.Y
+		local tilt = 0.22
+		K:free(function()
+			-- 본체 (PosBase 와 같은 범위): 아래 금전함 + 위 덮개
+			K:box("StPosBody", V3(w, h, d - 0.02), pcf * CF(0, h / 2, 0.01), dark)
+			local sf = pcf * CF(0, 0, -d / 2 + 0.02) * ANG(0, PI, 0) -- 직원 쪽 면
+			K:plate("StPosDrawer", w - 0.12, h * 0.56, 0.016, sf * CF(0, h * 0.34, 0), lk(C(54, 56, 60)))
+			K:plate("StPosDrawerLip", w * 0.4, 0.04, 0.02, sf * CF(0, h * 0.6, 0), Look.chrome)
+			K:plate("StPosKey", 0.08, 0.08, 0.02, sf * CF(w / 2 - 0.2, h * 0.36, 0), Look.chrome)
+			-- 모니터 받침
+			K:box("StPosFoot", V3(0.6, 0.04, 0.46), pcf * CF(0, h + 0.02, sbz), lk(C(30, 30, 32)))
+			K:box("StPosNeck", V3(0.18, math.max(0.1, my - h - 0.3), 0.1), pcf * CF(0, h + math.max(0.1, my - h - 0.3) / 2, sbz - 0.02), Look.darkAlu)
+			-- 직원용 터치 모니터 (직원 쪽을 보고 뒤로 기움)
+			local mc = pcf * CF(0, my, sbz) * ANG(0, PI, 0) * ANG(-tilt, 0, 0)
+			K:box("StPosBezel", V3(1.42, 0.98, 0.1), mc * CF(0, 0, -0.05), lk(C(22, 22, 24)))
+			txt(K, "StPosScreen", 1.3, 0.86, mc, brandName .. "  POS\n상품 0개 · 합계 0원\n[ 카드 ]  [ 현금 ]  [ 간편결제 ]", C(30, 40, 60), C(232, 240, 250), { d = 0.008, glow = 1.1, font = Enum.Font.GothamBold })
+			-- 손님 쪽 표시창 (모니터 뒤판)
+			local bc = mc * CF(0, 0, -0.1) * ANG(0, PI, 0)
+			txt(K, "StPosCustomer", 0.96, 0.56, bc * CF(0, 0.08, 0), "결제 금액\n0원", WHITE, accent, { d = 0.008, glow = 1.1, font = Enum.Font.GothamBlack })
+			K:plate("StPosLogoBar", 0.96, 0.12, 0.008, bc * CF(0, -0.32, 0), lk(C(240, 240, 240)))
+		end)
+		Scan.hide(K.hidden, pb.part)
+		Scan.hide(K.hidden, sb.part)
+		if cd then
+			Scan.hide(K.hidden, cd.part)
+		end
+	end
+end
+
+local function equipSkins(K: any, V: any, kind: string, sub: string)
+	step(K, "pos", function()
+		posSkin(K, V, kind, sub)
+	end)
+	step(K, "microwave", function()
+		for i, r in V.byName.Microwave or {} do
+			local door = nil
+			for _, dr in V.byName.MicrowaveDoor or {} do
+				local dv = dr.c - r.c
+				if V3(dv.X, 0, dv.Z).Magnitude < 1.0 and math.abs(dv.Y) < 0.4 then
+					door = dr
+				end
+			end
+			microwaveSkin(K, V, r, door, i)
+			Scan.hide(K.hidden, r.part)
+			if door then
+				Scan.hide(K.hidden, door.part)
+			end
+		end
+		for _, r in V.byName.HotWater or {} do
+			hotWaterSkin(K, V, r)
+			Scan.hide(K.hidden, r.part)
+		end
+	end)
+end
+
+-- 윗벽 라이트박스 (진열장 위 빈 벽): walls 의 y0..y1 빈 구간마다 하나씩, list 를 차례로
+local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: number, list: { any }, maxN: number?): number
+	local n = 0
+	local idx = (hashStr(V.key) % #list)
+	local h = math.min(2.6, y1 - y0)
+	if h < 1.2 then
+		return 0
+	end
+	local yc = y0 + h / 2
+	for _, wn in walls do
+		for _, sp in V:spans(wn, y0, y0 + h, 1.0) do
+			if n >= (maxN or 6) then
+				return n
+			end
+			local len = sp[2] - sp[1]
+			if len >= 4.5 then
+				local w = math.min(len - 0.6, 14)
+				local u = (sp[1] + sp[2]) / 2
+				if not wallBusy(K, wn, u - w / 2, u + w / 2, y0, y0 + h) then
+					local dcf = V:wall(wn, u, yc, 0.02)
+					local mn, mx = K.laabb(dcf * CF(0, 0, 0.12), V3(w, h, 0.24))
+					if not mapBlocked(K, mn, mx) then
+						idx += 1
+						local it = list[(idx - 1) % #list + 1]
+						K:free(function()
+							K:plate("StLbFrame", w, h, 0.16, dcf, lk(C(214, 216, 218), M.Metal))
+							txt(K, "StLbFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.16), "", it.fg, it.bg, { d = 0.01, glow = 1.05 })
+							local tw = if it.side then w * 0.62 else w * 0.9
+							local tx = if it.side then -w * 0.17 else 0
+							txt(K, "StLbTitle", tw, h * 0.42, dcf * CF(tx, h * 0.14, 0.175), it.title, it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBlack })
+							txt(K, "StLbSub", tw * 0.9, h * 0.2, dcf * CF(tx, -h * 0.24, 0.175), it.sub, it.fg2 or it.fg, nil, { d = 0.005, glow = 1.05, font = Enum.Font.GothamBold })
+							if it.band then
+								K:plate("StLbBand", w - 0.16, 0.12, 0.012, dcf * CF(0, -h / 2 + 0.2, 0.17), lk(it.band))
+							end
+							if it.side then
+								-- 오른쪽: 큰 상품 실루엣 (선크림 튜브 · 앰플 병) = 사진 대신 입체 판
+								local sx = w / 2 - w * 0.17
+								local sc = it.sideC or C(250, 250, 250)
+								K:plate("StLbHero", 0.7, h * 0.62, 0.03, dcf * CF(sx - 0.55, -h * 0.04, 0.17), lk(sc))
+								K:plate("StLbHeroCap", 0.46, h * 0.16, 0.035, dcf * CF(sx - 0.55, h * 0.35, 0.17), lk(darker(sc, 0.5)))
+								K:plate("StLbHero2", 0.5, h * 0.48, 0.03, dcf * CF(sx + 0.45, -h * 0.11, 0.17), lk(it.sideC2 or lighter(it.bg, 0.5)))
+								K:plate("StLbHero2Cap", 0.24, h * 0.14, 0.035, dcf * CF(sx + 0.45, h * 0.2, 0.17), lk(C(40, 40, 40)))
+							end
+						end)
+						addWallUsed(K, wn, u - w / 2, u + w / 2, y0, y0 + h)
+						n += 1
+					end
+				end
+			end
+		end
+	end
+	return n
+end
+
+---------------------------------------------------------------------------------------------------
 -- 9. 스타일 · 빌드 입구
 ---------------------------------------------------------------------------------------------------
 
@@ -3821,6 +4057,34 @@ function T.build(K: any, V: any, S: any)
 	end
 	-- 미뤄 둔 공통 벽 부착물 (스위치 · 콘센트 · 온도조절기 · 비상벨 · 사업자등록증 · 시계): 우리 진열대를 피함
 	fixturesNow(K, V, S)
+	-- 장비 리스킨 (계산대 소품 자리 계산이 끝난 뒤: 맵 POS 화면 뒤판을 숨기기 전에 피해 놓았음)
+	equipSkins(K, V, kind, sub)
+	step(K, "lightbox", function()
+		local n = 0
+		if kind == "retail" and sub == "cosmetics" then
+			n = lightboxes(K, V, { "back", "left", "right" }, 7.3, V.H - 0.45, {
+				{ title = "올영세일", sub = "10.24 - 10.30 · 최대 70% · 올리브영 단독 기획", bg = OY.main, fg = OY.dark, side = true, sideC = C(250, 250, 248), sideC2 = C(255, 214, 90) },
+				{ title = "OLIVE YOUNG 광안리점", sub = "K-BEAUTY · TAX FREE 외국인 즉시 환급", bg = OY.white, fg = OY.dark, fg2 = C(90, 120, 20), band = OY.main },
+				{ title = "올리브영 어워즈 2026", sub = "스킨케어 · 메이크업 · 헤어 부문 1위 모음", bg = C(32, 36, 32), fg = WHITE, fg2 = OY.main, side = true, sideC = C(240, 190, 200), sideC2 = C(200, 230, 250) },
+				{ title = "오늘드림", sub = "주문 후 3시간 내 도착 · 광안리점 픽업", bg = OY.sub, fg = WHITE, band = WHITE },
+			}, 6)
+		elseif kind == "retail" and (sub == "souvenir" or sub == "beach") then
+			local top = 0
+			for _, r in V.byName.WallRack or {} do
+				top = math.max(top, r.max.Y)
+			end
+			if top > 0 then
+				n = lightboxes(K, V, { "back" }, top + 0.25, V.H - 0.35, if sub == "beach" then {
+					{ title = "광안리 BEACH SHOP", sub = "튜브 · 파라솔 · 돗자리 대여 · 선케어 · 물놀이 용품", bg = C(20, 70, 140), fg = WHITE, fg2 = C(255, 214, 90), band = C(255, 214, 90) },
+				} else {
+					{ title = "BUSAN · 광안리 GWANGALLI", sub = "부산 여행 기념품 · 광안대교 굿즈 · 엽서 · 티셔츠", bg = C(16, 30, 70), fg = WHITE, fg2 = C(255, 200, 80), band = C(220, 50, 60) },
+				}, 1)
+			end
+		end
+		if n > 0 then
+			note(K, "lightboxes " .. n)
+		end
+	end)
 end
 
 return T

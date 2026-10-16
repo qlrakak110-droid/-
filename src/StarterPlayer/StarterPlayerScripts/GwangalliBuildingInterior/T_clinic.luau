@@ -4197,8 +4197,26 @@ BUILD.backhall = function(K: any, V: any)
 end
 
 -- 침대 머리 쪽 헤드월 유닛 (산소 · 석션 · 콘센트 · 조명 · 호출). pcf = 유닛 앞면 가운데 바닥 (+Z 침대 쪽)
-local function headwall(K: any, pcf: CFrame, w: number, h: number, label: string)
-	K:box("HeadwallPanel", V3(w, h, 0.35), pcf * CF(0, h / 2, -0.175), lk(244, 244, 240))
+local function headwall(K: any, pcf: CFrame, w: number, h: number, label: string, full: number?)
+	if full and full > h then
+		-- 방 가운데 선 침대 머리 칸막이 (바닥~천장, 뒷면 마감 · 모서리 보호대 · 위 간접등)
+		local th = 0.55
+		K:box("HeadwallPanel", V3(w, full, th), pcf * CF(0, full / 2, -th / 2), lk(244, 244, 240))
+		K:plate("HeadwallBack", w - 0.1, full - 0.6, 0.03, pcf * CF(0, 0.3 + (full - 0.6) / 2, -th - 0.015) * ANG(0, PI, 0), lk(214, 190, 150, M.Wood))
+		K:plate("HeadwallBackKick", w - 0.1, 0.5, 0.04, pcf * CF(0, 0.25, -th - 0.02) * ANG(0, PI, 0), lk(120, 128, 132, M.SmoothPlastic))
+		for _, sx in { -1, 1 } do
+			K:box("HeadwallGuard", V3(0.12, full - 0.6, th + 0.1), pcf * CF(sx * (w / 2 + 0.06), 0.3 + (full - 0.6) / 2, -th / 2), lk(206, 210, 210, M.Plastic))
+			K:box("HeadwallGuardKick", V3(0.14, 0.3, th + 0.12), pcf * CF(sx * (w / 2 + 0.07), 0.15, -th / 2), lk(120, 128, 132, M.SmoothPlastic))
+		end
+		K:box("HeadwallCove", V3(w, 0.35, 0.5), pcf * CF(0, full - 0.9, 0.25), lk(250, 250, 248, M.SmoothPlastic))
+		K:box("HeadwallCoveGlow", V3(w - 0.3, 0.05, 0.3), pcf * CF(0, full - 0.7, 0.3), col(C3(255, 236, 205), M.Neon))
+		K:box("HeadwallTop", V3(w + 0.3, 0.1, th + 0.2), pcf * CF(0, full - 0.05, -th / 2), lk(230, 232, 232, M.Plastic))
+		-- 뒷면: 손 소독 · 병상 번호
+		sanitizerWall(K, pcf * CF(w / 2 - 0.9, 3.6, -th - 0.03) * ANG(0, PI, 0))
+		tx(K, "HeadwallBackNo", 1.6, 0.6, pcf * CF(0, 6.2, -th - 0.04) * ANG(0, PI, 0), string.split(label, "  ")[1] or label, WHITE, TEAL, { font = FONT_B, d = 0.01 })
+	else
+		K:box("HeadwallPanel", V3(w, h, 0.35), pcf * CF(0, h / 2, -0.175), lk(244, 244, 240))
+	end
 	K:box("HeadwallWood", V3(w, 1.2, 0.37), pcf * CF(0, 2.6, -0.17), lk(196, 166, 126, M.Wood))
 	K:box("HeadwallRail", V3(w - 0.2, 0.7, 0.2), pcf * CF(0, h - 0.9, 0.08), lk(230, 232, 232, M.Plastic))
 	local lamp = K:box("HeadwallLamp", V3(w - 0.6, 0.06, 0.12), pcf * CF(0, h - 1.2, 0.12), col(C3(255, 240, 214), M.Neon))
@@ -4422,7 +4440,11 @@ BUILD.ward = function(K: any, V: any)
 			local bc = bf.Position
 			-- 헤드월 유닛 (머리 뒤)
 			local hw = bf * CF(0, 0, L / 2 + 1.05) * ANG(0, PI, 0)
-			if K:spot(hw * CF(0, 0, -0.2), V3(W + 1.6, 6.8, 0.6), 0) then
+			if K:spot(hw * CF(0, 0, -0.3), V3(W + 1.8, V.H - 0.2, 0.8), 0) then
+				K:free(function()
+					headwall(K, hw, W + 1.6, 6.8, labels[i], V.H - 0.02)
+				end)
+			elseif K:spot(hw * CF(0, 0, -0.2), V3(W + 1.6, 6.8, 0.6), 0) then
 				K:free(function()
 					headwall(K, hw, W + 1.6, 6.8, labels[i])
 				end)
