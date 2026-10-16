@@ -6454,7 +6454,7 @@ BUILD.checkup = function(K: any, V: any)
 		K:free(function()
 			K:box("DentPartCap", V3(8.6, 0.12, 0.4), CF(cx, 6.06, cz - 3.7), col(TEAL))
 			K:box("DentPartCap", V3(0.4, 0.12, 5.7), CF(cx + 4.2, 6.06, cz - 0.8), col(TEAL))
-			local glow = dentalChair(K, CF(cx - 0.3, 0, cz - 0.4))
+			dentalChair(K, CF(cx - 0.3, 0, cz - 0.4))
 			local stp = CF(cx - 2.6, 0, cz - 2.3)
 			rollStool(K, stp, 2.0, LK.vinylTeal)
 			-- 벽 쪽 수납장 + 소독기
@@ -6472,7 +6472,6 @@ BUILD.checkup = function(K: any, V: any)
 			-- 칸막이 안쪽면: 구강 위생 포스터
 			local pd = faceCF(Vector3.new(cx - 0.6, 4.4, cz - 3.54), Vector3.zAxis)
 			poster(K, pd, 3.2, 2.6, "구강 검진 안내", "치아 · 잇몸 상태 확인 (무료)\n검진 후 양치 · 치실 상담\n스케일링 연 1회 보험 적용\n이 시린 곳 있으면 말씀해 주세요", WHITE, INK, C3(60, 150, 200), WHITE, 0.22)
-			_ = glow
 		end)
 		hangSign(K, cx, cz + 3.0, 4.6, 0.9, V.H - 1.7, 0, "⑪ 구강 검진", "⑪ 구강 검진")
 		-- ⑩ 체성분 (칸막이 앞, 열린 쪽)

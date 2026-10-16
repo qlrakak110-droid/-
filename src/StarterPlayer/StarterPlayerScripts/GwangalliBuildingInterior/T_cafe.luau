@@ -1750,10 +1750,14 @@ local BREADS = {
 }
 local function bread(K: any, pcf: CFrame, kind: string, s: number)
 	if kind == "hotteok" or kind == "hotteokg" then
+		-- 두 장 겹친 호떡: 살짝 볼록한 반죽 + 가운데 캐러멜 자국 + 위 장 갈라진 틈의 씨앗
+		local dough = if kind == "hotteokg" then rgb(150, 160, 84) else rgb(214, 150, 70)
 		for k = 0, 1 do
-			K:disc("Hotteok", 0.46 * s, 0.07 * s, pcf * CF(k * 0.08 * s, 0.035 * s + k * 0.075 * s, 0), lk(if kind == "hotteokg" then rgb(150, 160, 80) else rgb(206, 140, 60)))
-			K:disc("HotteokSeeds", 0.24 * s, 0.072 * s, pcf * CF(k * 0.08 * s, 0.036 * s + k * 0.075 * s, 0), lk(rgb(120, 84, 50), M.Pebble))
+			local c = pcf * CF(k * 0.07 * s, 0.045 * s + k * 0.085 * s, -k * 0.03 * s)
+			K:ell("Hotteok", V3(0.46, 0.09, 0.46) * s, c, lk(dough))
+			K:ell("HotteokCrisp", V3(0.3, 0.05, 0.28) * s, c * CF(0.02 * s, 0.026 * s, 0), lk(dk(dough, 0.18)))
 		end
+		K:ell("HotteokSeeds", V3(0.16, 0.03, 0.08) * s, pcf * CF(0.09 * s, 0.18 * s, -0.03 * s) * ANG(0, 0.4, 0), lk(rgb(126, 88, 52), M.Pebble))
 	elseif kind == "salt" then
 		K:ell("Bread", V3(0.6, 0.28, 0.36) * s, pcf * CF(0, 0.13 * s, 0), lk(rgb(216, 154, 72)))
 		K:ell("BreadGloss", V3(0.46, 0.1, 0.26) * s, pcf * CF(0, 0.24 * s, 0), lk(rgb(186, 112, 44), M.SmoothPlastic, { r = 0.06 }))
@@ -1840,6 +1844,10 @@ local function pastry(K: any, pcf: CFrame, kind: string, s: number)
 		K:ell("Scone", V3(0.4, 0.24, 0.4) * s, pcf * CF(0, 0.11 * s, 0), lk(rgb(220, 176, 110), M.Sand))
 	end
 end
+local HOTTEOK_CASE = {
+	{ "씨앗호떡", "2,000", "hotteok" }, { "꿀호떡", "1,500", "hotteok" }, { "녹차씨앗호떡", "2,500", "hotteokg" }, { "치즈호떡", "2,500", "hotteok" },
+	{ "찹쌀호떡 6입 포장", "9,000", "hotteok" },
+}
 local PASTRIES = {
 	{ "크루아상", "4,200", "croissant" }, { "블루베리 머핀", "3,800", "muffin" }, { "마카롱", "3,000", "macaron" }, { "딸기 케이크", "7,500", "cake" },
 	{ "초코칩 쿠키", "2,800", "cookie" }, { "휘낭시에", "3,000", "financier" }, { "소금빵", "3,800", "salt" }, { "스콘", "3,500", "scone" },
@@ -2896,7 +2904,7 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 			for k = 1, nf - 1 do
 				K:plate("CasePanelGroove", 0.03, cb.size.Y - 0.6, 0.035, front * CF(-w / 2 + w * k / nf, 0.35 + (cb.size.Y - 0.4) / 2, 0), lk(dk(panelL.c, 0.2)))
 			end
-			K:text("CaseLabel", math.min(w * 0.6, 3.4), 0.36, front * CF(0, 1.35, 0.035), if B.type == "dessert" then "GELATO · 매일 아침 직접 만듭니다" elseif B.type == "bakery" then "오늘 구운 디저트" else "BAKERY & DESSERT", { fg = if (panelL.c.R * 0.3 + panelL.c.G * 0.59 + panelL.c.B * 0.11) > 0.8 then dk(panelL.c, 0.7) else rgb(250, 246, 236), font = F.GothamBold, d = 0.01 })
+			K:text("CaseLabel", math.min(w * 0.6, 3.4), 0.36, front * CF(0, 1.35, 0.035), if B.key == "hotteok" then "씨앗호떡 · 주문 즉시 구워 드립니다" elseif B.key == "churros" then "GELATO · CHURROS 매일 직접 만듭니다" elseif B.key == "bingsu" then "국산 팥 · 우유 눈꽃빙수" elseif B.type == "dessert" then "GELATO · 매일 아침 직접 만듭니다" elseif B.type == "bakery" then "오늘 구운 디저트" else "BAKERY & DESSERT", { fg = if (panelL.c.R * 0.3 + panelL.c.G * 0.59 + panelL.c.B * 0.11) > 0.8 then dk(panelL.c, 0.7) else rgb(250, 246, 236), font = F.GothamBold, d = 0.01 })
 			if cg and cg.size.Y < 1.6 then
 				-- 낮은 젤라또 진열장: 맵의 빛 판(CaseLight) 대신 유리 상판 + 뒤쪽 LED 바
 				for _, cl in V.byName.CaseLight or {} do
@@ -2925,7 +2933,7 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 		for _, pr in V.byName.Pastry or {} do
 			if pr.c.X >= cb.min.X - 0.1 and pr.c.X <= cb.max.X + 0.1 and pr.c.Z >= cb.min.Z - 0.4 and pr.c.Z <= cb.max.Z + 0.4 and room(K, 10) then
 				k += 1
-				local info = PASTRIES[(k + B.seed) % #PASTRIES + 1]
+				local info = if B.key == "hotteok" then HOTTEOK_CASE[(k + B.seed) % #HOTTEOK_CASE + 1] else PASTRIES[(k + B.seed) % #PASTRIES + 1]
 				local pcf = facing(V3(pr.c.X, pr.min.Y, pr.c.Z), cn)
 				Scan.hide(K.hidden, pr.part)
 				K:free(function()
@@ -4350,11 +4358,21 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 				idx += 1
 				-- 긴 벽 (8+): 브랜드 벽화 1 회, 그 외 갤러리
 				if not muralDone and len >= 8.5 and MURAL[B.key] and V.H >= 9.4 then
-					local w = math.min(len - 1.0, 9.5)
 					local top = math.min(V.H - 1.0, 8.4)
 					local mh = math.min(3.6, top - 3.7)
-					if mh >= 2.6 and #fillSpans(K, V, wn, 3.7, top, wn == "back") > 0 then
-						brandMural(K, V, B, wn, (a + b) / 2, w, top - mh, top)
+					local placedM = false
+					if mh >= 2.6 then
+						-- 벽화 높이 띠 전체가 비어 있는 부분 (메뉴판 · 간판 아래로 들어가지 않게)
+						for _, t in fillSpans(K, V, wn, top - mh - 0.15, top + 0.15, wn == "back") do
+							local lo, hi2 = math.max(a, t[1]), math.min(b, t[2])
+							if hi2 - lo >= 7.6 then
+								brandMural(K, V, B, wn, (lo + hi2) / 2, math.min(hi2 - lo - 0.9, 9.5), top - mh, top)
+								placedM = true
+								break
+							end
+						end
+					end
+					if placedM then
 						muralDone = true
 						n += 1
 						continue
@@ -4388,7 +4406,7 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 	end
 	-- 윗벽 브랜드 문구 (뒷벽 손님 쪽 · 높은 천장)
 	if V.H >= 9.6 then
-		for _, s in fillSpans(K, V, "back", 7.3, math.min(V.H - 0.6, 9.4), true) do
+		for _, s in fillSpans(K, V, "back", 7.3, math.min(V.H - 0.6, 9.4), false) do
 			local len = s[2] - s[1]
 			if len >= 6 and room(K, 4) then
 				local w = math.min(len - 1, 9)

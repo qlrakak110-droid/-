@@ -44,11 +44,12 @@ function S.build(K: any, _env: any)
 		local d = Lib.face(Geo.LIFT.x1, 5.6, 36.2, 1, 0)
 		K:plate("HallGuideBack", 4.4, 3.4, 0.05, d, Look.of(250, 250, 248))
 		Lib.tx(K, "HallGuideTitle", 4.2, 0.6, d * CF(0, 1.35, 0.055), "1F 후면 홀 안내", C.WHITE, C.TEAL, { font = Lib.FONT_K })
+		-- 이 판을 보는 사람은 서쪽을 봄: 엘리베이터 문은 오른쪽 모퉁이, 화장실은 앞쪽 끝, 나머지는 뒤쪽
 		local rows = {
-			{ "🛗 엘리베이터", "← 바로 옆" },
-			{ "🚻 화장실", "← 서쪽 끝" },
-			{ "🔒 직원 휴게실 · 창고", "→ 뒷벽" },
-			{ "🏃 비상구 · 2F 계단", "→ 동쪽" },
+			{ "🛗 엘리베이터", "모퉁이 →" },
+			{ "🚻 화장실", "↑ 서쪽 끝" },
+			{ "🔒 직원 휴게실 · 창고", "↓ 뒤쪽 뒷벽" },
+			{ "🏃 비상구 · 2F 계단", "↓ 뒤쪽 동쪽" },
 		}
 		for i, r in rows do
 			local ry = 0.6 - (i - 1) * 0.62

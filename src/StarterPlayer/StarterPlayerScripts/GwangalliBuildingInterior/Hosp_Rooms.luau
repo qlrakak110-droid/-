@@ -683,7 +683,7 @@ function Rooms.stair(K: any, env: any, P: any)
 	Lib.tx(K, "FloorGraphicMid", 4.0, 1.4, Lib.face(-5.7, yMid + 4.4, z1, 0, -1), "RF ↑ 옥상", C.WHITE, C.TEAL, { font = Lib.FONT_K })
 	Lib.tx(K, "FloorGraphicRF", 2.6, 2.6, Lib.face(x1, yTop + 4.0, -21.8, -1, 0), "RF\n옥상", C.WHITE, C.TEAL, { font = Lib.FONT_K })
 	Lib.tx(K, "RoofDoorNote", 3.0, 0.5, Lib.face(-3.4, yTop + 8.9, z0, 0, 1), "옥상 출입문 · 비상시 자동 개방", C.WHITE, C.RED, { font = Lib.FONT_B })
-	Lib.exitSign(K, Lib.face(-5.7, yMid + 2.0, z1, 0, -1), 1.2, "← 🏃", "path")
+	Lib.exitSign(K, Lib.face(-5.7, yMid + 2.0, z1, 0, -1), 1.2, "🏃 → 2F", "path") -- 북쪽 벽을 보면 서쪽(아래 계단)이 오른쪽
 	-- 소화기
 	K:vcyl("StairExtinguisher", 1.5, 0.5, CF(-9.5, y + 0.85, -23.4), Look.of(214, 36, 36))
 	Lib.tx(K, "StairExtLabel", 0.8, 0.3, Lib.face(x0, y + 2.3, -23.4, 1, 0), "소화기", C.WHITE, C.RED, { font = Lib.FONT_K })

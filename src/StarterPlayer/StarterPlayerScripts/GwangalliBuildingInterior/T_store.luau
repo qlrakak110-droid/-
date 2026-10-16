@@ -4074,7 +4074,7 @@ local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: num
 					local it = list[(idx - 1) % #list + 1]
 					K:free(function()
 						K:plate("StLbFrame", w, h, 0.16, dcf, lk(C(214, 216, 218), M.Metal))
-						txt(K, "StLbFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.16), "", it.fg, it.bg, { d = 0.01, glow = 1.05 })
+						txt(K, "StLbFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.16), " ", it.fg, it.bg, { d = 0.01, glow = 1.05 })
 						local side = it.side and w >= 7
 						local tw = if side then w * 0.62 else w * 0.9
 						local tx = if side then -w * 0.17 else 0

@@ -366,7 +366,7 @@ local function landingPassage(K: any)
 	end)
 	-- 안내
 	Lib.plate(K, "PassSignCorridor", 2.8, 1.2, Lib.face(-2.2, 19.6, -4.42, 0, -1), "계단 · 비상구\n옥상 정원 RF ↑", { bg = C.GREEN_EXIT, fg = C.WHITE })
-	Lib.plate(K, "PassSignLanding", 2.8, 1.2, Lib.face(-2.2, 19.6, -3.82, 0, 1), "복도 · 입원실 · 간호사실\n검진센터 →", { bg = C.TEAL, fg = C.WHITE })
+	Lib.plate(K, "PassSignLanding", 2.8, 1.2, Lib.face(-2.2, 19.6, -3.82, 0, 1), "← 복도 · 입원실\n간호사실 · 검진센터", { bg = C.TEAL, fg = C.WHITE })
 	-- 복도 매달린 피난구 유도등 (양면)
 	K:free(function()
 		local c = CF(-5.8, 22.05, -6.2)

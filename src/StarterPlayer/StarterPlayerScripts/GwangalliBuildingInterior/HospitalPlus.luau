@@ -98,7 +98,8 @@ local function buildZone(z: string)
 	if type(mod.ready) == "function" then
 		local ok, r = pcall(mod.ready, s.env)
 		if not ok or not r then
-			return -- 맵 부품이 아직 스트리밍 안 됨: 다음에 다시
+			s.notReady[z] = os.clock() -- 맵 부품이 아직 스트리밍 안 됨: 2 초 뒤 다시, 그동안 다른 구역부터
+			return
 		end
 	end
 	local K = Lib.zone(z, s.folder, Geo.BUDGET[z], s.quality)
@@ -190,7 +191,7 @@ local function directorTick()
 			return
 		end
 		for _, z in ORDER do
-			if not s.zones[z] and want(z, d, p, inPortal) then
+			if not s.zones[z] and want(z, d, p, inPortal) and os.clock() - (s.notReady[z] or -1e9) > 2 then
 				s.building = true
 				task.spawn(function()
 					buildZone(z)
@@ -265,6 +266,7 @@ local function makeState(ctx: any): any
 		zones = {},
 		mods = {},
 		building = false,
+		notReady = {},
 		frameOk = false,
 		animAcc = 0,
 		secAcc = 0,
@@ -328,6 +330,18 @@ function M.start(ctx: any)
 			end
 		end))
 	end
+	-- 개발용 콘솔: script 속성 HospDebug = "status" | "zones" | "me" | "lift" | "call 2" | "go staff hall" | "back staff hall"
+	-- 결과는 HospDebugOut 속성 (이 클라이언트 안에서만 바꿀 수 있는 속성)
+	if ctx.script then
+		table.insert(s.conns, ctx.script:GetAttributeChangedSignal("HospDebug"):Connect(function()
+			local cmd = ctx.script:GetAttribute("HospDebug")
+			if type(cmd) ~= "string" or cmd == "" then
+				return
+			end
+			local ok, out = pcall(M.debug, cmd)
+			ctx.script:SetAttribute("HospDebugOut", (if ok then "" else "ERR ") .. tostring(out))
+		end))
+	end
 	task.spawn(function()
 		while state == s do
 			local ok, err = pcall(directorTick)
@@ -381,6 +395,48 @@ function M.status(): string
 	end
 	table.insert(out, "total=" .. total)
 	return table.concat(out, " ")
+end
+
+function M.debug(cmd: string): string
+	local s = state
+	if not s then
+		return "stopped"
+	end
+	local w = string.split(cmd, " ")
+	local op = w[1]
+	if op == "status" then
+		return M.status()
+	elseif op == "zones" then
+		local t = {}
+		for z, K in s.zones do
+			table.insert(t, string.format("%s:%d", z, #K.parts))
+		end
+		return table.concat(t, ",")
+	elseif op == "me" then
+		local me = s.Lib.me()
+		return if me then string.format("%.2f,%.2f,%.2f", me.X, me.Y, me.Z) else "none"
+	elseif op == "lift" then
+		local L = s.hub.lift
+		if not L then
+			return "no lift"
+		end
+		local st = L.state()
+		return string.format("floor=%d mode=%s calls=%s%s%s", st.floor, st.mode, tostring(st.calls[1] or false), tostring(st.calls[2] or false), tostring(st.calls[3] or false))
+	elseif op == "call" then
+		local L = s.hub.lift
+		if L then
+			L.call(tonumber(w[2]) or 1)
+		end
+		return "called"
+	elseif op == "go" or op == "back" then
+		local P = s.hub.portal
+		if not P then
+			return "no portal"
+		end
+		P[op](w[2] or "staff", w[3] or "hall")
+		return op .. " " .. tostring(w[2])
+	end
+	return "unknown " .. op
 end
 
 -- 오프라인 미리보기: 모든 구역 + 숨은 방 3 개를 한 번에 (UI · 루프 없음). 반환: { [zone] = K }

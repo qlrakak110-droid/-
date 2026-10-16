@@ -3985,24 +3985,18 @@ local function buildWashImpl(K: any, V: any): any
 						prev = p
 					end
 				end
-				for k, ox in { 1.7, 3.3 } do
-					local top = (post0 * CF(-ox, 1.95, 0.15 * k)).Position
-					D.box("VacHoseClip", V3(0.26, 0.3, 0.26), CF(top), L.black)
-					if k == 1 then
-						-- 붐에서 U 자로 처져 본체 옆 걸이로 돌아온 호스 (사용 후 걸어 둔 모양)
-						local endP = (body * CF(-0.98, 2.9, -0.3)).Position
-						local ctl = (post0 * CF(-ox * 0.9, -5.0, 0.9)).Position
-						hose(top - Vector3.yAxis * 0.15, ctl, endP, if hi then 8 else 5)
-						D.box("VacHoseHook", V3(0.36, 0.14, 0.3), body * CF(-1.1, 2.85, -0.3), lk(C(40, 42, 46), M.Metal))
-					else
-						-- 붐 끝에서 늘어진 호스 + 노즐 (차 쪽으로)
-						local endP = (post0 * CF(-ox - 0.2, -2.6, 0.9)).Position
-						local ctl = (post0 * CF(-ox - 0.4, -0.6, 0.3)).Position
-						hose(top - Vector3.yAxis * 0.15, ctl, endP, if hi then 6 else 4)
-						local tip = endP - Vector3.yAxis * 1.1
-						D.seg("VacWand", endP, tip, 0.15, L.steel)
-						D.box("VacCrevice", V3(0.12, 0.45, 0.24), CF(tip - Vector3.yAxis * 0.2), lk(C(30, 32, 34), M.Plastic))
-					end
+				-- 본체 위에서 붐을 따라가는 호스 (붐 아래 클립) → 붐 중간 · 끝에서 늘어진 호스 2 + 노즐
+				D.seg("VacHoseRun", (body * CF(-0.3, 3.95, -0.35)).Position, (post0 * CF(-0.25, 1.75, -0.12)).Position, 0.24, lk(C(34, 36, 40), M.Rubber))
+				D.seg("VacHoseRun", (post0 * CF(-0.25, 1.75, -0.12)).Position, (post0 * CF(-3.2, 1.78, 0.16)).Position, 0.22, lk(C(34, 36, 40), M.Rubber))
+				for k, ox in { 1.8, 3.35 } do
+					local top = (post0 * CF(-ox, 1.8, 0.02 + 0.13 * ox / 3.35)).Position
+					D.box("VacHoseClip", V3(0.28, 0.34, 0.3), CF(top + Vector3.yAxis * 0.1), L.black)
+					local endP = (post0 * CF(-ox - 0.25 * k, -2.5 + k * 0.2, 0.5 + k * 0.45)).Position
+					local ctl = (post0 * CF(-ox + 0.35, -1.2, 0.0)).Position
+					hose(top, ctl, endP, if hi then 7 else 4)
+					local tip = endP - Vector3.yAxis * 1.0 + Vector3.zAxis * 0.0
+					D.seg("VacWand", endP, tip, 0.15, L.steel)
+					D.box("VacCrevice", V3(0.12, 0.45, 0.24), CF(tip - Vector3.yAxis * 0.2), lk(C(30, 32, 34), M.Plastic))
 				end
 				-- 옆 쓰레기통
 				local tb = vp * CF(1.05, 0.12, 0.55)
