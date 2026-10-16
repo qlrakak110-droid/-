@@ -893,7 +893,7 @@ function Props.showcaseFridge(K: any, pcf: CFrame, o: any?)
 	local innerH = h - 1.2
 	K:box("FridgeInner", V3(w - 0.3, innerH, 0.05), pcf * CF(0, 0.55 + innerH / 2, -d / 2 + 0.25), Look.white)
 	local glowP = K:box("FridgeLamp", V3(w - 0.4, 0.06, 0.1), pcf * CF(0, 0.55 + innerH - 0.08, d / 2 - 0.35), Look.lampCool)
-	K:light(glowP, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.8, Angle = 130, Color = Look.coolLight })
+	if pick(o, "light", true) then K:light(glowP, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.8, Angle = 130, Color = Look.coolLight }) end
 	local shelves = pick(o, "shelves", 5)
 	local colorsB = { Color3.fromRGB(196, 30, 40), Color3.fromRGB(40, 120, 60), Color3.fromRGB(250, 200, 40), Color3.fromRGB(30, 70, 160), Color3.fromRGB(230, 120, 30), Color3.fromRGB(240, 240, 240) }
 	for i = 1, shelves do

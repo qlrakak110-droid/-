@@ -314,6 +314,8 @@ local function writeBoard()
 		t = S.now(),
 	}
 	st:SetAttribute("Board", S.encode(board))
+	-- for the facility layer (door lamp / monitors): the consult room is in use
+	st:SetAttribute("ConsultBusy", room.entry ~= nil)
 	local cooking, ready = {}, {}
 	for _, r in rxCooking do
 		table.insert(cooking, r.n)

@@ -83,6 +83,43 @@ if not ok or res ~= true then
 	return
 end
 
+-- owner / test hook (server only, like GwangalliHealthAPI): ServerStorage.GwangalliClinicAPI
+--   Invoke("invoke", player, op, payload) -> reply   (the same router + checks as the RemoteFunction)
+--   Invoke("visit", player) -> VisitView?   Invoke("health", player) -> health view   Invoke("cancel", player)
+do
+	local ServerStorage = game:GetService("ServerStorage")
+	local api = ServerStorage:FindFirstChild("GwangalliClinicAPI")
+	if api and not api:IsA("BindableFunction") then
+		api:Destroy()
+		api = nil
+	end
+	if not api then
+		api = Instance.new("BindableFunction")
+		api.Name = "GwangalliClinicAPI"
+		api.Parent = ServerStorage
+	end
+	(api :: BindableFunction).OnInvoke = function(op: any, player: any, a: any, b: any)
+		if typeof(player) ~= "Instance" or not player:IsA("Player") then
+			return { ok = false, message = "player required" }
+		end
+		if op == "invoke" then
+			return K.Net.invoke(player, a, b)
+		elseif op == "visit" then
+			local v = K.Visit.get(player)
+			return if v then K.Visit.view(v) else nil
+		elseif op == "health" then
+			return K.Patient.view(player)
+		elseif op == "cancel" then
+			local v = K.Visit.get(player)
+			if v then
+				K.Visit.finish(v, "cancel")
+			end
+			return { ok = true }
+		end
+		return { ok = false, message = "unknown op " .. tostring(op) }
+	end
+end
+
 -- everything is up: switch the legacy prompts off and tell the clients
 local okT, errT = pcall(K.Bridge.takeOverLegacy, K.Site.venue)
 if not okT then

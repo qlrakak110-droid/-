@@ -3,6 +3,7 @@
 --   ClinicEvent    RemoteEvent      server -> one client { kind = ..., ... }
 -- Every op has a rate class (token bucket per player, Config.Rate), payloads must be tables, ops are
 -- whitelisted, and handler errors are caught and answered with a Korean message.
+-- Net.invoke(player, op, payload) runs the same router from server code (tests / other add-ons).
 
 local Players = game:GetService("Players")
 
@@ -100,6 +101,11 @@ local function dispatch(player: Player, op: any, payload: any): any
 		return { ok = res == true }
 	end
 	return res
+end
+
+-- server-side entry with the same validation (other server add-ons / automated tests)
+function Net.invoke(player: Player, op: string, payload: any?): any
+	return dispatch(player, op, payload or {})
 end
 
 function Net.create(k: any)

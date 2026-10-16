@@ -292,7 +292,9 @@ function Ui.card(parent: Instance, props: { [string]: any }?): Frame
 	}
 	if props then
 		for k, v in props do
-			p[k] = v
+			if k ~= "radius" then
+				p[k] = v
+			end
 		end
 	end
 	local f = new("Frame", p, parent)

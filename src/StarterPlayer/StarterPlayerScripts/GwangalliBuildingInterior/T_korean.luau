@@ -376,6 +376,7 @@ THEMES.haejang = extend(THEMES.gukbap, {
 	hours = { "영업시간", "새벽 05:00 - 밤 10:00", "매주 월요일 휴무" },
 	broth = rgb(150, 58, 30),
 	toppings = { "seonji", "onion" },
+	photoKinds = { "seonji", "bone", "seonji", "haejang", "gukbap" },
 	posters = {
 		{ title = "선지해장국", sub = "한우 선지 · 우거지 듬뿍", bg = rgb(110, 24, 20), fg = rgb(255, 240, 220), acc = rgb(255, 200, 80), kind = "seonji" },
 		{ title = "속풀이 뼈해장국", sub = "푹 고아 살이 쏙쏙", bg = rgb(40, 28, 22), fg = rgb(255, 236, 200), acc = rgb(230, 80, 40), kind = "bone" },
@@ -429,6 +430,7 @@ THEMES.milmyeon = extend(THEMES.gukbap, {
 	broth = rgb(170, 120, 70),
 	bowl = rgb(200, 204, 210), -- 스테인리스 대접
 	toppings = { "milmyeon" },
+	photoKinds = { "milmyeon", "bibim", "milmyeon", "milmyeon", "milmyeon" },
 	feat = { selfbar = true, fridge = true, tv = true, fan = true, cash = true, press = true, calendar = true },
 	posters = {
 		{ title = "살얼음 물밀면", sub = "한약재 사골 육수 + 쫄깃한 면", bg = rgb(20, 70, 120), fg = rgb(240, 250, 255), acc = rgb(140, 220, 255), kind = "milmyeon" },
@@ -458,6 +460,7 @@ THEMES.kalguksu = extend(THEMES.gukbap, {
 	hours = { "영업시간", "10:00 - 21:00", "매주 화요일 휴무" },
 	broth = rgb(214, 200, 168),
 	toppings = { "clam", "zucchini" },
+	photoKinds = { "kal", "kal", "kal", "kal", "kal" },
 	feat = { selfbar = true, fridge = true, tv = true, fan = true, cash = true, dough = true, calendar = true },
 	posters = {
 		{ title = "해물칼국수", sub = "바지락 · 새우 · 오징어 듬뿍", bg = rgb(36, 60, 70), fg = rgb(240, 248, 250), acc = rgb(255, 200, 90), kind = "kal" },
@@ -496,9 +499,10 @@ THEMES.ramen = extend(BASE_THEME, {
 	table = { top = wood(196, 156, 108), edge = wood(90, 60, 40), base = L.blackMetal, style = "pedestal" },
 	counter = { front = "wood", frontL = wood(84, 56, 36), topL = L.of(226, 196, 150, M.Wood), kickL = L.black, led = rgb(255, 200, 140) },
 	floor = { look = L.of(70, 68, 66, M.Slate), tile = 2.0, grout = L.of(50, 48, 46) },
-	lower = { kind = "louver", h = 4.2, look = wood(110, 76, 48), back = L.of(40, 30, 24), pitch = 0.5, walls = { "left", "right", "back" } },
+	lower = { kind = "louver", h = 3.8, look = wood(176, 134, 90), back = L.of(60, 44, 32), pitch = 0.5, walls = { "left", "right", "back" } },
 	base = L.of(30, 26, 22),
-	ceiling = { skin = L.of(46, 42, 40, M.SmoothPlastic) },
+	ceiling = { skin = L.of(226, 216, 198, M.WoodPlanks) },
+	lights = { kind = "downlight", n = 6, color = rgb(255, 214, 170), glow = L.lampWarm },
 	passTile = L.of(214, 210, 200, M.CeramicTiles),
 	fridgeHeader = "BEER · SAKE · 음료",
 	tagsOn = true,
@@ -559,6 +563,7 @@ THEMES.chinese = extend(BASE_THEME, {
 	broth = rgb(170, 40, 24),
 	bowl = rgb(236, 232, 224),
 	toppings = { "jjamppong" },
+	photoKinds = { "jjamppong", "jjamppong", "jjamppong", "jjamppong", "tangsuyuk" },
 	feat = { fridge = true, tv = true, cash = true, lanterns = true, cat = true, calendar = true, fan = true },
 	posters = {
 		{ title = "불맛 짬뽕", sub = "해물 듬뿍 · 직접 볶은 고추기름", bg = rgb(150, 20, 20), fg = rgb(255, 236, 190), acc = rgb(255, 200, 60), kind = "jjamppong" },
@@ -1076,6 +1081,8 @@ local function bowlArt(c: any, dcf: CFrame, dia: number, kind: string?, broth: C
 	local K, th = c.K, c.th
 	local z = z0 or 0
 	local k = kind or th.key
+	local alias: { [string]: string } = { kalguksu = "kal", chinese = "jjamppong", bistro = "pasta" }
+	k = alias[k] or k
 	local bc = bowlC or th.bowl
 	local br = broth or th.broth
 	wdisc(K, "ArtShadow", dia * 1.04, 0.01, dcf * CF(dia * 0.05, -dia * 0.05, 0), z, col(rgb(14, 10, 8)))
@@ -1526,6 +1533,7 @@ local function barOver(c: any)
 		if hy1 - hy0 > 1.4 then
 			local z1 = math.min(g.min.Z - 0.1, V.z0 + 2.4)
 			hoodOver(c, g.min.X, g.max.X, V.z0 + 0.02, z1, hy0, hy1)
+			claim(K, "back", g.min.X - 0.2, g.max.X + 0.2, hy0 - 0.2, V.H)
 			c.hood = { x0 = g.min.X, x1 = g.max.X, z1 = z1, y0 = hy0, y1 = hy1 }
 		end
 	end
@@ -1866,7 +1874,8 @@ local function wallFan(c: any, dcf: CFrame)
 		end
 	end)
 	-- 줄 스위치 (아래로 늘어진 끈 + 손잡이) : 프롬프트 자리
-	local pull = dcf * CF(0.22, -0.9, 0.12)
+	local drop = math.max(0.9, dcf.Position.Y - 5.0)
+	local pull = dcf * CF(0.22, -drop, 0.12)
 	K:seg("FanCord", (dcf * CF(0.22, -0.3, 0.12)).Position, pull.Position, 0.025, L.of(200, 200, 196))
 	local knob = K:ball("FanPullKnob", 0.14, pull, plastic)
 	return state, knob
@@ -2097,7 +2106,7 @@ local function potProp(c: any)
 	-- 거리에서 김이 보이게 앞 유리 쪽 옆벽 우선 (창 keep 은 3.4 위만)
 	local near = V3(V.x0 + 2, 0, V.z1 - 3)
 	local pcf, wn, u = placeOnWall(c, { "left", "right", "back" }, size, near, function(p: CFrame)
-		return promptOK(K, (p * CF(0, 1.6, 1.4)).Position)
+		return promptOK(K, (p * CF(-size.X / 2 + 0.3, 0.75, 0.95)).Position)
 	end)
 	if not pcf then
 		size = V3(2.0, 3.2, 2.0)
@@ -2146,7 +2155,7 @@ local function cashProp(c: any)
 		return
 	end
 	-- 입구 가까운 옆벽, 벽과 직원 자리 1.6 띄움 (계산대 + 뒤 공간을 한 번에 예약)
-	local size = V3(3.0, 3.6, 3.1)
+	local size = V3(2.6, 3.6, 2.7)
 	local near = V3(if V.door and V.door.x > 0 then V.x0 else V.x1, 0, V.z1 - 3)
 	local pcf = placeOnWall(c, { "right", "left" }, size, near, function(p: CFrame)
 		return p.Position.Z > (V.z0 + V.z1) / 2 - 1
@@ -2157,7 +2166,7 @@ local function cashProp(c: any)
 	if not pcf then
 		return
 	end
-	cashDesk(c, pcf * CF(0, 0, 0.75), 3.0, 1.5)
+	cashDesk(c, pcf * CF(0, 0, 0.6), 2.6, 1.4)
 	at(K, "cash", nil, nil, pcf.Position)
 	-- 뒤 벽 : 사업자등록증 · 원산지 (Common 은 카운터 없으면 안 붙임)
 	c.cash = pcf
@@ -2205,28 +2214,102 @@ local function ticketProp(c: any)
 end
 
 -- 벽 꾸미기 ------------------------------------------------------------------------------------------------
-local function menuWall(c: any)
-	local K, V, th = c.K, c.V, c.th
-	-- 패스 위 뒷벽이 1순위 (없으면 넓은 벽)
-	local y1 = V.H - 0.45
-	local y0 = math.max(if c.pass then c.pass.y1 + 0.3 else 0, if c.hood then 0 else 0)
-	local ok = false
-	if c.pass and y1 - y0 >= 1.8 then
-		local near = V3((c.pass.a + c.pass.b) / 2 + 1.5, 0, V.z0)
-		local wn, u, w = findWall(K, { "back" }, 5.5, math.min(11, V.W * 0.5), y0, y1, near, 0.6)
-		if wn and u and w then
-			local h = math.min(y1 - y0, 2.9)
-			menuBoard(c, V:wall(wn, u, y0 + h / 2 + 0.05, 0), w - 0.4, h - 0.2, th.menuTitle, th.menu, th.menuStyle, th.title)
-			ok = true
+-- 지도 간판 (StreetSigns 의 Sign_메뉴 · Sign_화장실 ...) 자리를 벽에서 비움: 실제 게임에서는 주변 Sign_* 파트를 읽고,
+-- 못 읽으면 StreetShops 표준 자리 (뒷벽 가운데 14 x 1.8, 높이 H-1.6 · 화장실 문 위 5.6) 를 씀
+local function mapSignClaims(c: any)
+	local K, V = c.K, c.V
+	local found = 0
+	local function add(mn: Vector3, mx: Vector3)
+		if mx.X > V.x0 - 0.6 and mn.X < V.x1 + 0.6 and mx.Z > V.z0 - 0.6 and mn.Z < V.z1 + 0.6 and mx.Y > 0.5 and mn.Y < V.H then
+			for _, wn in { "back", "left", "right" } do
+				local u0, d0 = V:wallCoord(wn, mn)
+				local u1, d1 = V:wallCoord(wn, mx)
+				if math.min(d0, d1) < 0.8 then
+					claim(K, wn, math.min(u0, u1) - 0.25, math.max(u0, u1) + 0.25, mn.Y - 0.2, mx.Y + 0.2)
+					found += 1
+				end
+			end
 		end
 	end
-	if not ok then
-		local yy0 = math.max(4.6, V.H - 4.0)
-		local wn, u, w = findWall(K, { "back", "right", "left" }, 5.0, math.min(10, V.W * 0.45), yy0, y1, V3(0, 0, V.z0), 0.6)
-		if wn and u and w then
-			local h = math.min(y1 - yy0, 3.0)
-			menuBoard(c, V:wall(wn, u, yy0 + h / 2 + 0.05, 0), w - 0.4, h - 0.2, th.menuTitle, th.menu, th.menuStyle, th.title)
+	for _, r in V.parts do
+		if string.sub(r.name, 1, 5) == "Sign_" then
+			add(r.min, r.max)
 		end
+	end
+	local inside = found
+	local scope: Instance? = V.model and V.model.Parent
+	if scope and scope ~= workspace and scope:IsA("Model") then
+		local n = 0
+		for _, d in scope:GetDescendants() do
+			n += 1
+			if n > 6000 then
+				break
+			end
+			if d:IsA("BasePart") and string.sub(d.Name, 1, 5) == "Sign_" and not d:IsDescendantOf(V.model) then
+				local lc = V.cf:ToObjectSpace(d.CFrame)
+				local mn, mx = laabb(lc, d.Size)
+				add(mn, mx)
+			end
+		end
+	end
+	found -= inside
+	if found == 0 and V.kind == "street" then
+		claim(K, "back", -7.3, 7.3, V.H - 2.65, V.H - 0.4)
+		for _, r in V.byName.DoorCasing or {} do
+			if r.c.Z - V.z0 < 0.5 then
+				claim(K, "back", r.c.X - 1.2, r.c.X + 1.2, 5.15, 6.05)
+			end
+		end
+	end
+end
+
+-- 사진 메뉴판 한 장 (그릇 사진 + 이름 + 가격)
+local function photoMenu(c: any, dcf: CFrame, w: number, h: number, name: string, price: string, kind: string?)
+	local K, th = c.K, c.th
+	K:plate("PhotoMenuFrame", w + 0.1, h + 0.1, 0.06, dcf, L.of(30, 30, 32, M.Metal))
+	K:plate("PhotoMenuBg", w, h, 0.07, dcf, col(rgb(44, 30, 24)))
+	local dia = math.min(w * 0.72, h * 0.62)
+	bowlArt(c, dcf * CF(0, h / 2 - dia / 2 - 0.12, 0), dia, kind, nil, nil, 0.07)
+	K:text("PhotoMenuName", w * 0.9, h * 0.17, dcf * CF(0, -h / 2 + h * 0.22, 0.075), name, { fg = WHITE, font = F.GothamBlack })
+	K:text("PhotoMenuPrice", w * 0.8, h * 0.13, dcf * CF(0, -h / 2 + h * 0.08, 0.075), price .. "원", { fg = rgb(255, 210, 80), font = F.GothamBold })
+end
+
+local function photoRow(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if V.H >= 9 and th.key ~= "bistro" then
+		local ph = 2.3
+		local py0 = V.H - 0.4 - ph
+		local n = math.min(5, #th.menu)
+		local kinds = th.photoKinds or {}
+		for _, want in { 5, 4, 3 } do
+			local need = want * 2.2
+			local pwn, pu, pw = findWall(K, { "left", "right", "back" }, need, need, py0 - 0.1, V.H - 0.3, V3(0, 0, V.z0), 0.6)
+			if pwn and pu and pw then
+				local each = pw / want
+				for i = 1, want do
+					local it = th.menu[i]
+					local d = V:wall(pwn, pu - pw / 2 + each * (i - 0.5), py0 + ph / 2, 0)
+					photoMenu(c, d, each - 0.25, ph, it[1], it[2], kinds[i])
+				end
+				at(K, "photomenu", pwn, pu)
+				break
+			end
+		end
+		n = n
+	end
+end
+
+local function menuWall(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local y1 = V.H - 0.45
+	local yy0 = math.max(5.45, V.H - 4.4)
+	local maxW = math.min(7.2, V.W * 0.4)
+	local near = if c.pass then V3((c.pass.a + c.pass.b) / 2, 0, V.z0) else V3(0, 0, V.z0)
+	local wn, u, w = findWall(K, { "back", "left", "right" }, 4.6, maxW, yy0, y1, near, 0.6)
+	if wn and u and w then
+		local h = math.min(y1 - yy0, 3.8)
+		menuBoard(c, V:wall(wn, u, y1 - h / 2 - 0.05, 0), w - 0.4, h - 0.25, th.menuTitle, th.menu, th.menuStyle, th.shop)
+		at(K, "menu", wn, u)
 	end
 	-- 라멘: 후드 앞면에 나무 메뉴패
 	if c.hood and th.tagsOn then
@@ -2270,15 +2353,6 @@ local function infoSigns(c: any)
 		K:plate("NoSmokeBar", 0.62, 0.07, 0.012, d * CF(0, 0.18, 0.05) * ANG(0, 0, -0.78), L.of(210, 30, 30))
 		K:text("NoSmokeText", 1.0, 0.36, d * CF(0, -0.38, 0.035), "금연구역\n위반 시 과태료 10만원", { fg = rgb(40, 40, 44), font = F.GothamBold })
 	end
-	-- 화장실 안내 (화장실 문 위)
-	for _, r in V.byName.DoorCasing or {} do
-		local dz = r.c.Z - V.z0
-		if dz < 0.5 and r.max.Y + 1.0 < V.H then
-			local d = V:wall("back", r.c.X, r.max.Y + 0.45, 0)
-			K:text("RestroomSign", 2.2, 0.55, d, "화장실  TOILET", { fg = WHITE, bg = rgb(40, 70, 120), font = F.GothamBold, d = 0.05 })
-			claim(K, "back", r.c.X - 1.2, r.c.X + 1.2, r.max.Y, r.max.Y + 1)
-		end
-	end
 	-- 평상 안내
 	if c.platform then
 		local pf = c.platform
@@ -2303,19 +2377,28 @@ end
 local function tvProp(c: any)
 	local K, V = c.K, c.V
 	local w = if V.W > 30 then 3.6 else 3.0
-	local y = math.min(V.H - 1.4, 7.6)
-	local wn, u = findWall(K, { "left", "right" }, w + 0.4, w + 0.4, y - 1.2, y + 1.2, V3(V.x0, 0, V.z1 - 4), 1.2, function(wn: string, uu: number)
-		return promptOK(K, V:wall(wn, uu, y, 0.6).Position)
+	local h = w * 9 / 16
+	local y = math.min(V.H - 0.6 - h / 2 - 0.3, 8.0)
+	local ry = 4.7
+	local wn, u = findWall(K, { "left", "right", "back" }, w + 0.4, w + 0.4, y - h / 2 - 0.3, y + h / 2 + 0.2, V3(V.x0, 0, V.z1 - 4), 1.2, function(wn: string, uu: number)
+		return promptOK(K, V:wall(wn, uu + w / 2 - 0.2, ry, 0.3).Position) and not usedHit(K, wn, uu + w / 2 - 0.5, uu + w / 2 + 0.1, ry - 0.5, ry + 0.5)
 	end)
 	if not wn or not u then
 		return
 	end
 	local p, lab, chans = tvSet(c, V:wall(wn, u, y, 0), w)
 	at(K, "tv", wn, u)
+	-- 리모컨 거치대 (손 닿는 높이)
+	local rd = V:wall(wn, u + w / 2 - 0.2, ry, 0)
+	claim(K, wn, u + w / 2 - 0.55, u + w / 2 + 0.15, ry - 0.5, ry + 0.5)
+	K:plate("RemoteHolder", 0.42, 0.62, 0.16, rd, L.plasticWhite)
+	local remote = K:box("TVRemote", V3(0.2, 0.62, 0.08), rd * CF(0, 0.12, 0.13) * ANG(math.rad(-6), 0, 0), L.black)
+	K:plate("TVRemoteBtn", 0.08, 0.06, 0.01, rd * CF(0, 0.36, 0.17), L.ledRed)
+	K:text("RemoteLabel", 0.42, 0.14, rd * CF(0, -0.22, 0.16), "TV", { fg = rgb(60, 60, 64), font = F.GothamBold })
 	if p and lab then
-		Interact.cycle(K, p, chans, {
+		Interact.cycle(K, remote, chans, {
 			action = "채널 돌리기",
-			object = "TV",
+			object = "TV 리모컨",
 			on = function(_i: number, ch: any)
 				lab.Text = ch.text
 				lab.BackgroundColor3 = ch.bg
@@ -2330,12 +2413,13 @@ local function fanProp(c: any)
 	local K, V = c.K, c.V
 	local y = math.min(V.H - 1.3, 7.8)
 	local wn, u = findWall(K, { "right", "left", "back" }, 1.8, 1.8, y - 1.0, y + 0.8, V3(V.x1, 0, 0), 1.4, function(wn: string, uu: number)
-		return promptOK(K, V:wall(wn, uu, y - 0.9, 0.2).Position)
+		return promptOK(K, V:wall(wn, uu + 0.22, 5.0, 0.2).Position) and not usedHit(K, wn, uu - 0.1, uu + 0.5, 4.8, y - 1.0)
 	end)
 	if not wn or not u then
 		return
 	end
 	local st, knob = wallFan(c, V:wall(wn, u, y, 0))
+	claim(K, wn, u - 0.1, u + 0.5, 4.8, y)
 	at(K, "fan", wn, u)
 	Interact.toggle(K, knob, {
 		object = "벽걸이 선풍기",
@@ -2397,7 +2481,13 @@ local function lanternsProp(c: any)
 		local up = c.upstand
 		local n = math.max(2, math.floor(up.size.X / 3.4))
 		for i = 1, n do
-			table.insert(spots, V3(up.min.X + up.size.X * (i - 0.5) / n, V.H, up.c.Z + 1.2))
+			local x = up.min.X + up.size.X * (i - 0.5) / n
+			for _, dz in { 1.0, 0.6, 1.5, 2.2 } do
+				if Common.ceilFree(K, x, up.c.Z + dz, 0.6) then
+					table.insert(spots, V3(x, V.H, up.c.Z + dz))
+					break
+				end
+			end
 		end
 	else
 		for _, t in V.tables do
@@ -2523,24 +2613,26 @@ function T.build(K: any, V: any, S: any)
 	step("tables", tablesOver)
 	step("platform", platformOver)
 	if V.kind == "gwshop" then
+		step("mapsigns", mapSignClaims)
 		step("gwshop", gwshopDecor)
 		return
 	end
 	step("pass", passOver)
 	step("bar", barOver)
+	step("mapsigns", mapSignClaims)
 	local f = th.feat or {}
 	-- 바닥 소품 (벽 자리를 먼저 잡음)
 	if f.fridge then
 		step("fridge", fridgeProp)
 	end
-	if f.pot then
-		step("pot", potProp)
+	if f.cash then
+		step("cash", cashProp)
 	end
 	if f.selfbar then
 		step("selfbar", selfBarProp)
 	end
-	if f.cash then
-		step("cash", cashProp)
+	if f.pot then
+		step("pot", potProp)
 	end
 	if f.press then
 		step("press", pressProp)
@@ -2557,9 +2649,8 @@ function T.build(K: any, V: any, S: any)
 	if f.bistro then
 		step("bistro", bistroProp)
 	end
-	-- 벽
+	-- 벽 (높은 것 먼저: 메뉴판 · TV · 선풍기 · 시계, 그다음 눈높이 안내판 · 포스터)
 	step("menu", menuWall)
-	step("signs", infoSigns)
 	if f.tv then
 		step("tv", tvProp)
 	end
@@ -2567,6 +2658,8 @@ function T.build(K: any, V: any, S: any)
 		step("fan", fanProp)
 	end
 	step("clock", clockProp)
+	step("photomenu", photoRow)
+	step("signs", infoSigns)
 	if f.calendar then
 		step("calendar", calendarProp)
 	end

@@ -529,8 +529,8 @@ local function run(greet: string?)
 			local kind = v.exams[idx]
 			local def = S.Medical.EXAMS[kind]
 			Ui.say("doctor", def and def.say or "진찰할게요.", { hold = 3 })
-			local game = GAMES[kind]
-			local res = if game then game(token) else exam(kind, token)
+			local mini = GAMES[kind]
+			local res = if mini then mini(token) else exam(kind, token)
 			if not res then
 				return
 			end

@@ -28,7 +28,7 @@ local Bridge = {}
 
 local S: any
 local C: any
-local K: any
+local _K: any
 
 local folder: Instance? = nil
 local HealthMod: any = nil
@@ -653,7 +653,7 @@ function Bridge.takeOverLegacy(venue: Instance?)
 end
 
 function Bridge.init(k: any)
-	K = k
+	_K = k
 	S = k.S
 	C = S.Config
 	Players.PlayerRemoving:Connect(function(p)

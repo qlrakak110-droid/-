@@ -121,7 +121,9 @@ function Kit:spot(lcf: CFrame, size: Vector3, pad: number?, kind: string?): bool
 	local c = lcf * CFrame.new(0, size.Y / 2, 0)
 	local mn, mx = laabb(c, size + Vector3.new(2 * (pad or 0), 0, 2 * (pad or 0)))
 	local V = self.V
-	if mn.X < V.x0 - 0.05 or mx.X > V.x1 + 0.05 or mn.Z < V.z0 - 0.05 or mx.Z > V.z1 + 0.05 then
+	-- 방 경계는 여유(pad) 없는 실제 크기로 봄 (벽에 붙이는 소품이 pad 때문에 늘 실패하지 않게)
+	local bmn, bmx = laabb(c, size)
+	if bmn.X < V.x0 - 0.05 or bmx.X > V.x1 + 0.05 or bmn.Z < V.z0 - 0.05 or bmx.Z > V.z1 + 0.05 then
 		return false
 	end
 	if self:hitsKeep(mn, mx) then

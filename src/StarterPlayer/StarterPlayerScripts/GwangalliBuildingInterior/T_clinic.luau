@@ -2553,10 +2553,30 @@ BUILD.lobby = function(K: any, V: any)
 	-- 무인 수납기 (실손보험 간편 청구 · 처방전 재발급) + 창구 앞 바닥 대기선 ----------------------------------
 	step(K, "selfpay", function()
 		local pc = nil
-		for _, z in { 3.5, 1.5, 5.5, 7.0 } do
+		-- 1순위: 번호표 키오스크 옆 (같은 방향, 나란히) -> 2순위: 오른벽 빈 구간
+		local kr = V:first("TicketKiosk")
+		if kr then
+			for _, dx in { -2.8, 2.8, -5.4 } do
+				local c = CF(kr.c.X, 0, kr.c.Z) * CF(dx, 0, -0.1)
+				if K:spot(c, V3(2.0, 5.4, 1.5), 0.3) then
+					pc = c
+					break
+				end
+			end
+		end
+		for _, z in (if pc then {} else { V.z0 + 1.7, V.z0 + 2.6, 10.6, 11.4, -3.4 }) do
+			-- 벽에 붙은 리플렛 꽂이 · AED · 포스터 앞을 가리지 않게 벽 사용 구간도 확인
+			local u = z -- 오른벽 u = z (wallU 는 이 아래에 정의됨)
 			local c = at(V.x1 - 1.3, z, -PI / 2)
-			if K:spot(c, V3(2.0, 5.4, 1.5), 0.4) then
+			local clear = true
+			for _, used in K.wallUsed or {} do
+				if used.w == "right" and used.a < u + 1.2 and used.b > u - 1.2 and used.y0 < 5.6 and used.y1 > 0.2 then
+					clear = false
+				end
+			end
+			if clear and K:spot(c, V3(2.0, 5.4, 1.5), 0.4) then
 				pc = c
+				wallUse(K, "right", u - 1.2, u + 1.2, 0, 5.6)
 				break
 			end
 		end
@@ -6140,7 +6160,7 @@ BUILD.lounge = function(K: any, V: any)
 		if q then
 			hideRec(K, q)
 			local yaw = if math.abs(q.size.X) >= math.abs(q.size.Z) then 0 else PI / 2
-			hangSign(K, q.c.X, q.c.Z, 5.2, 1.3, V.H - 2.6, yaw, "조용히 쉬어 가세요 · 휴대폰은 진동으로", "보호자 휴게실 · LOUNGE", { bg = MINT_L })
+			hangSign(K, q.c.X, q.c.Z, 5.2, 1.3, V.H - 2.6, yaw, "조용히 쉬어 가세요", "휴대폰은 진동으로 · 통화는 복도에서", { bg = MINT_L })
 		end
 	end)
 	step(K, "walls", function()

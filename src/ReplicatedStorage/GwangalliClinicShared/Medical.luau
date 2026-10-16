@@ -167,7 +167,7 @@ function Medical.HEALTHY(fatigue: number): any
 			symptoms = { "tired", "shoulder", "eyes" },
 			exams = { "bp", "temp" },
 			tired = true,
-			find = string.format("피로도가 %d이에요. 아직 병은 아니지만 이대로 계속 일하면 탈 나요.", math.floor(f + 0.5)),
+			find = string.format("지금 피로도는 %d. 아직 병은 아니지만 이대로 계속 일하면 탈 나요.", math.floor(f + 0.5)),
 		}
 	elseif f >= 25 then
 		return {
@@ -232,8 +232,8 @@ function Medical.vitals(seed: number, fatigue: number, kindId: string?): any
 	local ill = k ~= nil
 	local temp = if k then k.temp else 36.4 + f * 0.003
 	temp += (r() - 0.5) * 0.3
-	local sys = 112 + f * 0.28 + (if ill then 8 else 0) + (r() - 0.5) * 6
-	local dia = 72 + f * 0.16 + (if ill then 4 else 0) + (r() - 0.5) * 4
+	local sys = 110 + f * 0.16 + (if ill then 6 else 0) + (r() - 0.5) * 6
+	local dia = 70 + f * 0.12 + (if ill then 3 else 0) + (r() - 0.5) * 4
 	local pulse = 66 + f * 0.24 + (if k then k.pulseAdd else 0) + (r() - 0.5) * 6
 	local spo2 = if k then k.spo2 else (if f >= 90 then 97 else 98)
 	return {
@@ -271,6 +271,19 @@ end
 -------------------------------------------------------------------------------------------------
 -- 원인 · 권장 조치 (실제 상태에서)
 -------------------------------------------------------------------------------------------------
+-- Korean particle by the last syllable's final consonant (받침): josa("감기", "이에요", "예요") -> "감기예요"
+function Medical.josa(word: string, withBatchim: string, without: string): string
+	local last = nil
+	for _, c in utf8.codes(word) do
+		last = c
+	end
+	if last and last >= 0xAC00 and last <= 0xD7A3 then
+		return word .. (if (last - 0xAC00) % 28 ~= 0 then withBatchim else without)
+	end
+	return word .. without
+end
+local josa = Medical.josa
+
 local function dur(sec: number): string
 	local m = math.floor((tonumber(sec) or 0) / 60)
 	if m < 1 then
@@ -297,9 +310,9 @@ function Medical.cause(info: any): string
 	local workLine
 	if job and work >= 60 then
 		if night >= 60 then
-			workLine = string.format("최근 %s%s를 쉬지 않고 %s (그중 밤샘 %s) 하셨어요.", where, job, dur(work), dur(night))
+			workLine = string.format("최근 %s%s 쉬지 않고 %s (그중 밤샘 %s) 하셨어요.", where, josa(job, "을", "를"), dur(work), dur(night))
 		else
-			workLine = string.format("최근 %s%s를 쉬지 않고 %s 하셨어요.", where, job, dur(work))
+			workLine = string.format("최근 %s%s 쉬지 않고 %s 하셨어요.", where, josa(job, "을", "를"), dur(work))
 		end
 	elseif work >= 60 then
 		workLine = string.format("최근 쉬지 않고 %s 일하셨어요.", dur(work))
@@ -314,14 +327,14 @@ function Medical.cause(info: any): string
 			gastritis = "끼니를 거르고 일만 하면서 스트레스까지 겹쳐 위가 헐었어요.",
 			burnout = "피로도가 한계까지 차서 몸도 마음도 다 타 버린 상태예요.",
 		})[k] or "과로로 면역력이 떨어진 상태예요."
-		local head = string.format("과로로 인한 %s이에요. 피로도가 %d까지 쌓였어요.", info.kindName or "질병", f)
+		local head = string.format("과로로 인한 %s. 피로도가 %d까지 쌓였어요.", josa(info.kindName or "질병", "이에요", "예요"), f)
 		if workLine then
 			return string.format("알바를 너무 오래 하셨네요… %s %s %s", workLine, head, tail)
 		end
 		return string.format("%s %s", head, tail)
 	end
 	if f >= 75 then
-		return string.format("%s피로도가 %d이에요. 80을 넘긴 채로 일하면 질병 위험(지금 %d%%)이 빠르게 쌓여요.", if workLine then workLine .. " " else "", f, math.floor(tonumber(info.riskPct) or 0))
+		return string.format("%s지금 피로도는 %d. 80을 넘긴 채로 일하면 질병 위험(지금 %d%%)이 빠르게 쌓여요.", if workLine then workLine .. " " else "", f, math.floor(tonumber(info.riskPct) or 0))
 	elseif f >= 50 then
 		return string.format("%s피로도 %d. 급여가 30%% 깎이는 구간이에요. 쉬어 가며 일하세요.", if workLine then workLine .. " " else "", f)
 	elseif f >= 25 then

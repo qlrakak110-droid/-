@@ -465,6 +465,58 @@ function Screens.init(c: any)
 		end
 		renderAll()
 	end)
+	-- 간호사 호출 lamps (ward call panels): a red glow + chime for everyone nearby
+	st.AttributeChanged:Connect(function(attr: string)
+		local anchorName = string.match(attr, "^Lamp_(.+)$")
+		if not anchorName then
+			return
+		end
+		local a = ctx.anchor(anchorName)
+		local p0 = ctx.rootPos()
+		if not a then
+			return
+		end
+		local lamp = Instance.new("Part")
+		lamp.Name = "NurseLamp"
+		lamp.Shape = Enum.PartType.Ball
+		lamp.Size = Vector3.new(0.45, 0.45, 0.45)
+		lamp.Material = Enum.Material.Neon
+		lamp.Color = Color3.fromRGB(255, 70, 60)
+		lamp.Anchored = true
+		lamp.CanCollide = false
+		lamp.CanTouch = false
+		lamp.CanQuery = false
+		lamp.CFrame = CFrame.new(a.Position + Vector3.new(0, 0.9, 0))
+		local light = Instance.new("PointLight")
+		light.Color = Color3.fromRGB(255, 80, 70)
+		light.Range = 8
+		light.Brightness = 2
+		light.Parent = lamp
+		lamp.Parent = ctx.Tracker.localFolder()
+		if p0 and (p0 - a.Position).Magnitude < 40 then
+			local snd = Instance.new("Sound")
+			snd.SoundId = C.Sounds.Ding
+			snd.Volume = 0.6
+			snd.PlaybackSpeed = 1.25
+			snd.RollOffMaxDistance = 45
+			snd.Parent = lamp
+			snd:Play()
+			task.delay(0.35, function()
+				if snd.Parent then
+					snd.PlaybackSpeed = 1.0
+					snd:Play()
+				end
+			end)
+		end
+		task.spawn(function()
+			local t0 = os.clock()
+			while os.clock() - t0 < 8 and lamp.Parent do
+				lamp.Transparency = if math.floor((os.clock() - t0) * 3) % 2 == 0 then 0 else 0.6
+				task.wait(0.1)
+			end
+			lamp:Destroy()
+		end)
+	end)
 	do
 		local c0 = S.decode(st:GetAttribute("Call"))
 		lastSeq = c0 and c0.seq or 0

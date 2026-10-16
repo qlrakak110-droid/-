@@ -171,6 +171,19 @@ local function panelAt(K: any, V: any, dcf: CFrame, w: number, h: number, look: 
 	return K:plate("CtrlPanel", w, h, 0.06, dcf, look)
 end
 
+-- 벽 구간 사용 기록 (Common.wallSpot 이 그 자리를 피하게): u 범위 a..b, 높이 y0..y1
+local function useWall(K: any, wall: string, a: number, b: number, y0: number, y1: number)
+	K.wallUsed = K.wallUsed or {}
+	table.insert(K.wallUsed, { w = wall, a = math.min(a, b) - 0.2, b = math.max(a, b) + 0.2, y0 = y0, y1 = y1 })
+end
+-- 맵 파트 레코드가 덮는 벽 구간 기록
+local function useWallRec(K: any, V: any, r: any, pad: number?)
+	local wall = nearestWall(V, r.c)
+	local a = V:wallCoord(wall, r.min)
+	local b = V:wallCoord(wall, r.max)
+	useWall(K, wall, math.min(a, b) - (pad or 0), math.max(a, b) + (pad or 0), r.min.Y, r.max.Y)
+end
+
 -- 공용 소품 ------------------------------------------------------------------------------------------
 
 -- 액자 포스터 (색 블록 그림 + 제목)
@@ -423,8 +436,9 @@ local function salonStation(K: any, V: any, wall: string, u: number, idx: number
 		-- 미용 가운 (반대쪽 벽 고리)
 		local cape = wcf(V, wall, u - side - 0.05, 6.1, 0.0)
 		K:box("CapeHook", V3(0.1, 0.1, 0.3), cape * CF(0, 0, 0.15), brass)
-		K:wedge("Cape", V3(1.2, 2.7, 0.08), cape * CF(0, -1.35, 0.22) * ANG(0, PI, 0), lk(SALON.ink, M.Fabric))
-		K:box("CapeNeck", V3(0.5, 0.12, 0.1), cape * CF(0, -0.02, 0.22), lk(SALON.ink, M.Fabric))
+		K:wedge("Cape", V3(0.95, 2.2, 0.06), cape * CF(0, -1.12, 0.2) * ANG(0, PI, 0), lk(rgb(58, 54, 60), M.Fabric))
+		K:box("CapeNeck", V3(0.42, 0.12, 0.1), cape * CF(0, -0.02, 0.22), lk(rgb(58, 54, 60), M.Fabric))
+		K:box("CapeLogo", V3(0.3, 0.06, 0.01), cape * CF(0, -0.9, 0.235), lk(SALON.pink))
 	end)
 	local _ = seed
 end
@@ -617,6 +631,7 @@ local function buildSalon(K: any, V: any, S: any)
 		local probe = s.c + f * 6
 		local wall = nearestWall(V, V3(math.clamp(probe.X, V.x0 + 0.1, V.x1 - 0.1), 0, math.clamp(probe.Z, V.z0 + 0.1, V.z1 - 0.1)))
 		local u = V:wallCoord(wall, s.c)
+		useWall(K, wall, u - 3.0, u + 2.6, 0, 8.4)
 		local ok, err = pcall(salonStation, K, V, wall, u, i, seed)
 		if not ok then
 			K:note("station error: " .. tostring(err))
@@ -841,6 +856,7 @@ local function buildSalon(K: any, V: any, S: any)
 		local u = (ra + rb) / 2
 		local pcf = wcf(V, rw, u, 0, 0)
 		if K:spot(pcf * CF(0, 0, 0.6), V3(len, 7, 1.2), 0.05) then
+			useWall(K, rw, u - len / 2, u + len / 2, 0, 7.6)
 			local cab = lk(SALON.cream)
 			K:box("RetailCabinet", V3(len, 2.6, 1.2), pcf * CF(0, 1.3, 0.6), cab)
 			K:box("RetailKick", V3(len - 0.1, 0.2, 1.1), pcf * CF(0, 0.1, 0.55), Look.blackMetal)
@@ -1055,20 +1071,25 @@ local function buildSalon(K: any, V: any, S: any)
 			K:box("HeaterLCD", V3(0.5, 0.3, 0.01), pcf * CF(0, 3.75, -0.38) * ANG(0, PI, 0), lk(rgb(40, 160, 220), M.Neon))
 			txt(K, "HeaterLCDText", 0.46, 0.26, pcf * CF(0, 3.75, -0.39) * ANG(0, PI, 0), "15:00\n60°C", WHITE, nil, F.Arcade, 1.4)
 			local head = pcf * CF(0, headY, reach)
-			for _, p in K:ring("HeaterRing", head * ANG(PI / 2, 0, 0), 1.0, 0.24, 14, lk(rgb(236, 236, 234))) do
+			for _, p in K:ring("HeaterRing", head * ANG(PI / 2, 0, 0), 1.05, 0.16, 12, lk(rgb(196, 198, 202), M.Metal)) do
 				table.insert(ringParts, p)
 			end
-			for i = 0, 5 do
-				local a = i * PI * 2 / 6
-				local lp = head * CF(math.cos(a) * 1.0, -0.14, math.sin(a) * 1.0)
-				local lamp = K:disc("HeaterLamp", 0.36, 0.06, lp, lk(rgb(120, 60, 40)))
+			-- 열 램프 포드 4 (안쪽 아래를 향함)
+			for i = 0, 3 do
+				local a = i * PI / 2 + PI / 4
+				local pp = head * CF(math.cos(a) * 1.05, -0.05, math.sin(a) * 1.05)
+				local aim = CFrame.lookAt(pp.Position, (head * CF(0, -1.0, 0)).Position)
+				local hous = K:cyl("HeaterPod", 0.5, 0.36, aim * CF(0, 0, -0.1) * ANG(0, PI / 2, 0), lk(rgb(236, 236, 234)))
+				local lamp = K:disc("HeaterLamp", 0.28, 0.03, aim * CF(0, 0, -0.36) * ANG(PI / 2, 0, 0), lk(rgb(150, 80, 50), M.Neon))
 				table.insert(lamps, lamp)
+				table.insert(ringParts, hous)
 				table.insert(ringParts, lamp)
 			end
-			K:disc("HeaterHubCap", 0.5, 0.12, head * CF(0, 0.12, 0), lk(rgb(236, 236, 234)))
-			for i = 0, 2 do
-				local a = i * PI * 2 / 3
-				local sp = K:bar("HeaterSpoke", (head * CF(0, 0.12, 0)).Position, (head * CF(math.cos(a) * 0.95, 0.05, math.sin(a) * 0.95)).Position, 0.08, 0.06, lk(rgb(200, 200, 200)))
+			local hub = K:disc("HeaterHubCap", 0.55, 0.16, head * CF(0, 0.1, 0), lk(rgb(236, 236, 234)))
+			table.insert(ringParts, hub)
+			for i = 0, 3 do
+				local a = i * PI / 2 + PI / 4
+				local sp = K:bar("HeaterSpoke", (head * CF(0, 0.1, 0)).Position, (head * CF(math.cos(a) * 1.0, 0.0, math.sin(a) * 1.0)).Position, 0.08, 0.06, lk(rgb(200, 200, 204), M.Metal))
 				if sp then
 					table.insert(ringParts, sp)
 				end
@@ -1350,7 +1371,7 @@ function T.style(V: any): any
 			mat = { look = Look.of(60, 52, 54, M.Fabric), text = "물결 HAIR" },
 			ceiling = { crown = Look.white },
 			pendant = { shade = "dome", look = Look.of(190, 156, 96, M.Metal, { r = 0.12 }), dia = 1.3 },
-			plants = { "olive", "monstera" },
+			plants = { "monstera" },
 			lights = { kind = "downlight", n = 6, color = Look.warmLight, glow = Look.lampWarm },
 		}
 	end
