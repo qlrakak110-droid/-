@@ -32,6 +32,7 @@ local payBalance: TextLabel
 local lastFx: { [string]: number } = {}
 local bannerUntil = 0
 local bound = false
+local closeBound = false
 local mode = ""
 
 -------------------------------------------------------------------------------------------------
@@ -379,7 +380,22 @@ function Hud.update(_dt: number)
 	if banner.Visible and os.clock() > bannerUntil then
 		banner.Visible = false
 	end
-	local hide = m == "singer" or Kit.anyOpen()
+	-- gamepad B closes an open sheet
+	local open = Kit.anyOpen()
+	if open ~= closeBound then
+		closeBound = open
+		if open then
+			ContextActionService:BindAction("GwKP_Close", function(_, st)
+				if st == Enum.UserInputState.Begin then
+					Kit.closeAll()
+				end
+				return Enum.ContextActionResult.Sink
+			end, false, Enum.KeyCode.ButtonB)
+		else
+			ContextActionService:UnbindAction("GwKP_Close")
+		end
+	end
+	local hide = m == "singer" or open
 	if Kit.gui:GetAttribute("HideGwangalliHUD") ~= hide then
 		Kit.gui:SetAttribute("HideGwangalliHUD", hide)
 	end

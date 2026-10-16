@@ -208,10 +208,10 @@ local function bottle(K: any, pcf: CFrame, kind: string, h: number, c: Color3, c
 		K:vcyl("ProdJarLid", h * 0.25, d * 1.02, pcf * CF(0, h * 0.875, 0), lk(capC, M.SmoothPlastic, { r = 0.1 }))
 	else
 		local bh = if kind == "pump" then h * 0.72 elseif kind == "spray" then h * 0.68 else h * 0.8
-		if kind == "tall" then
-			K:vcyl("ProdBottle", bh, d, pcf * CF(0, bh / 2, 0), lk(c, M.SmoothPlastic, { r = 0.05 }))
+		if kind == "tall" or kind == "pump" then
+			K:vcyl("ProdBottle", bh, d * (if kind == "pump" then 0.8 else 1), pcf * CF(0, bh / 2, 0), lk(c, M.SmoothPlastic, { r = 0.05 }))
 		else
-			K:rbox("ProdBottle", V3(d * 0.62, bh, d), d * 0.2, pcf * CF(0, bh / 2, 0) * ANG(0, PI / 2, 0), lk(c, M.SmoothPlastic, { r = 0.05 }))
+			K:box("ProdBottle", V3(d, bh, d * 0.62), pcf * CF(0, bh / 2, 0), lk(c, M.SmoothPlastic, { r = 0.05 }))
 		end
 		if kind == "pump" then
 			K:vcyl("ProdPumpCollar", h * 0.06, d * 0.42, pcf * CF(0, bh + h * 0.03, 0), lk(capC))
@@ -224,9 +224,10 @@ local function bottle(K: any, pcf: CFrame, kind: string, h: number, c: Color3, c
 		else
 			K:vcyl("ProdCap", h * 0.14, d * 0.4, pcf * CF(0, bh + h * 0.07, 0), lk(capC))
 		end
-		if label then
-			local lw = if kind == "tall" then d * 0.7 else d * 0.5
-			K:box("ProdLabel", V3(lw, bh * 0.42, 0.01), pcf * CF(0, bh * 0.45, d / 2 + 0.004), lk(label))
+		if label and not lowD(K) then
+			local lw = if kind == "tall" or kind == "pump" then d * 0.55 else d * 0.7
+			local lz = if kind == "tall" then d / 2 elseif kind == "pump" then d * 0.4 else d * 0.31
+			K:box("ProdLabel", V3(lw, bh * 0.42, 0.01), pcf * CF(0, bh * 0.45, lz + 0.004), lk(label))
 		end
 	end
 end
@@ -235,7 +236,7 @@ end
 local function towelStack(K: any, pcf: CFrame, w: number, d: number, n: number, c: Color3)
 	for i = 1, n do
 		local y = (i - 0.5) * 0.17
-		K:rbox("Towel", V3(w, 0.15, d), 0.06, pcf * CF((rnd(i, 3) - 0.5) * 0.05, y, 0), lk(if i % 2 == 0 then dk(c, 0.04) else c, M.Fabric))
+		K:box("Towel", V3(w, 0.15, d), pcf * CF((rnd(i, 3) - 0.5) * 0.05, y, 0), lk(if i % 2 == 0 then dk(c, 0.05) else c, M.Fabric))
 	end
 end
 -- 말아 둔 수건 (축 = pcf X)

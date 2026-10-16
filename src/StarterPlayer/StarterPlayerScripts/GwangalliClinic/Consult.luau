@@ -551,9 +551,26 @@ local function run(greet: string?)
 			task.wait(1.2)
 			showDx(v, token)
 		end
-		-- wait until the step changes (plan chosen) or the visit ends
+		-- wait until the step changes (plan chosen) or the visit ends; a closed sheet leaves a way back
+		local reopen: TextButton? = nil
 		while alive(token) do
 			task.wait(0.25)
+			local cv = ctx.visit
+			if cv and cv.plans and not dxSheet.isOpen and not planSheet.isOpen then
+				if not reopen or not reopen.Parent then
+					local body = openPanel("진료실 · " .. C.Doctor.name)
+					reopen = Ui.btn(body, { text = "📋 치료 계획 보기", style = "primary", size = UDim2.new(0.8, 0, 0, 56), pos = UDim2.new(0.5, 0, 0.5, 0), anchor = Vector2.new(0.5, 0.5), textSize = 17, onClick = function()
+						panel.Visible = false
+						local nv = ctx.visit
+						if nv and nv.step == "consult" then
+							showPlans(nv, token)
+						end
+					end })
+				end
+				panel.Visible = true
+			elseif reopen and (dxSheet.isOpen or planSheet.isOpen) then
+				panel.Visible = false
+			end
 		end
 	end)
 	if not ok then
