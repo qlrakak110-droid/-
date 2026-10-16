@@ -6,8 +6,6 @@
 --   stair  비상계단: 2F ↔ RF 계단 (실제로 걸어 올라감), 층 표시 그래픽, 피난구 유도등, 벽등
 -- 좌표: 병원 프레임 HF, 방 바닥 y = -50 (월드 약 -43.1). K.doorFx[side] = fn(alpha) (문 살짝 열림 연출).
 
-local Lighting = game:GetService("Lighting")
-
 local here = script.Parent
 local Lib = require(here:WaitForChild("Hosp_Lib"))
 local Look = require(here:WaitForChild("Look"))
@@ -158,14 +156,9 @@ function Rooms.staff(K: any, env: any, P: any)
 					Lib.ab(K, "LockerScrub", -22.41, ya + 0.6, zc - 0.45, -22.36, yb - 0.4, zc + 0.45, Look.of(40, 150, 140, M.Fabric))
 				end)
 				local g = K:group("LockerDoor" .. n, function()
-					K:free(function()
-						door()
-						-- 프롬프트 붙일 손잡이 이름
-						local hnd = K:box("LockerHandleGrip", V3(0.08, 0.3, 0.1), CF(-22.20, yc, zb - 0.25), Look.chrome)
-						local _ = hnd
-					end)
+					K:free(door)
 				end)
-				Interact.swing(K, g, Geo.W(-22.30, 0, za), Geo.HF.YVector, rad(-100), { object = string.format("사물함 %02d", n), openText = "사물함 열기", closeText = "사물함 닫기" })
+				Interact.swing(K, g, Geo.W(-22.30, 0, za), Geo.HF.YVector, rad(100), { object = string.format("사물함 %02d", n), openText = "사물함 열기", closeText = "사물함 닫기" })
 			else
 				K:free(door)
 			end
@@ -452,16 +445,8 @@ local function shelfBay(K: any, axis: string, a0: number, a1: number, d0: number
 			end)
 			if not low or si == 2 then
 				-- 앞면 라벨
-				local fx, fz
-				if axis == "x" then
-					fx = if nx > 0 then d1 - 0.15 + 0.005 else d0 + 0.15 - 0.005
-					fz = ca
-				else
-					fx = ca
-					fz = if nz > 0 then d1 - 0.15 + 0.005 else d0 + 0.15 - 0.005
-				end
-				local fcf = Lib.face(fx, F + h + 0.06 + bh * 0.55, fz, nx, nz)
-				-- 상자 앞면은 d0+0.15+dd 쪽
+				-- 상자 앞면 (보는 쪽)
+				local fcf: CFrame
 				if axis == "x" then
 					fcf = Lib.face(if nx > 0 then d0 + 0.15 + dd + 0.002 else d0 + 0.15 - 0.002, F + h + 0.06 + bh * 0.55, ca, nx, nz)
 				else
@@ -539,23 +524,22 @@ function Rooms.store(K: any, env: any, P: any)
 		end
 		Lib.ab(K, "CartHamper", cx1 + 0.05, y + 1.0, cz0 + 0.1, cx1 + 1.25, y + 3.4, cz1 - 0.1, Look.of(70, 90, 120, M.Fabric))
 	end)
-	Lib.wall(K, "CartCollider", -24.0, y, 8.0, -20.1, y + 3.6, 9.6, { c = Color3.new(1, 1, 1), t = 1 })
+	Lib.guard(K, "CartCollider", -24.0, y, 8.0, -20.1, y + 3.6, 9.6)
 	-- 접힌 휠체어 2
 	if not low then
-		foldedWheelchair(K, CF(-15.9, y, 3.4) * ANG(0, PI / 2, 0))
-		foldedWheelchair(K, CF(-15.9, y, 4.7) * ANG(0, PI / 2, 0))
+		foldedWheelchair(K, CF(-16.2, y, 3.4) * ANG(0, PI / 2, 0))
+		foldedWheelchair(K, CF(-16.2, y, 4.7) * ANG(0, PI / 2, 0))
 	end
 	-- 산소통 3 + 체인 + 표지
-	for i, cx in { -29.0, -27.9, -26.8 } do
+	for _, cx in { -29.0, -27.9, -26.8 } do
 		K:vcyl("O2Cylinder", 4.0, 0.85, CF(cx, y + 2.0, 2.5), Look.of(40, 120, 70, M.Metal))
 		K:ball("O2Shoulder", 0.85, CF(cx, y + 4.0, 2.5), Look.white)
 		K:vcyl("O2Valve", 0.45, 0.25, CF(cx, y + 4.55, 2.5), Look.brass)
 		if not low then
 			K:box("O2Tag", V3(0.3, 0.4, 0.02), CF(cx, y + 3.0, 2.06), Look.white)
 		end
-		local _ = i
 	end
-	Lib.wall(K, "O2Collider", -29.5, y, 2.07, -26.3, y + 4.6, 2.95, { c = Color3.new(1, 1, 1), t = 1 })
+	Lib.guard(K, "O2Collider", -29.5, y, 2.07, -26.3, y + 4.6, 2.95)
 	K:seg("O2Chain", V3(-29.6, y + 3.2, 2.05), V3(-26.2, y + 3.2, 2.05), 0.06, Look.steel)
 	K:box("O2Bracket", V3(3.8, 0.3, 0.12), CF(-27.9, y + 3.2, 2.06), Look.of(100, 104, 108, M.Metal))
 	Lib.tx(K, "O2Sign", 2.6, 0.7, Lib.face(-27.9, y + 6.0, z0, 0, 1), "산소 O₂ · 화기엄금", C.WHITE, C.RED, { font = Lib.FONT_K })
@@ -569,7 +553,7 @@ function Rooms.store(K: any, env: any, P: any)
 		end
 	end
 	if not low then
-		local lcf = CF(-25.6, y, 12.0)
+		local lcf = CF(-25.6, y, 11.1)
 		for _, sx in { -0.6, 0.6 } do
 			K:seg("LadderRail", (lcf * CF(sx, 0, -0.6)).Position, (lcf * CF(sx * 0.7, 4.0, 0)).Position, 0.1, Look.alu)
 			K:seg("LadderRail", (lcf * CF(sx, 0, 0.6)).Position, (lcf * CF(sx * 0.7, 4.0, 0)).Position, 0.1, Look.alu)
@@ -582,7 +566,7 @@ function Rooms.store(K: any, env: any, P: any)
 	local cb = Lib.face(x0, y + 4.6, 2.9, 1, 0)
 	local clip = K:plate("Clipboard", 1.0, 1.4, 0.05, cb, Look.of(120, 90, 60, M.Wood))
 	Lib.tx(K, "ClipboardText", 0.86, 1.1, cb * CF(0, -0.05, 0.055), "재고 점검표\n10/16\n거즈 42\n주사기 3cc 120\n수액세트 36\nKF94 400\n장갑 M 12박스", C.INK, C.WHITE, { font = Lib.FONT_M })
-	K:box("ClipboardClip", V3(0.14, 0.12, 0.5), (Geo.HF:Inverse() * Geo.HF) * CF(x0 + 0.12, y + 5.25, 2.9), Look.chrome)
+	K:box("ClipboardClip", V3(0.14, 0.12, 0.5), CF(x0 + 0.12, y + 5.25, 2.9), Look.chrome)
 	Interact.prompt(K, clip, { action = "재고 확인", object = "재고 점검표", fn = function()
 		UI.toast("거즈 42 · 주사기 3cc 120 · 수액세트 36 · KF94 400 · 장갑 M 12박스 (10/16 점검 · 간호부 박선생)", 4)
 	end })
@@ -660,19 +644,24 @@ function Rooms.stair(K: any, env: any, P: any)
 		Lib.ab(K, "TopRailGlass", -5.48, yTop + 1.2, -24.0, -5.42, yTop + 3.1, -19.5, Look.glass(Color3.fromRGB(200, 220, 226), 0.5))
 		K:seg("TopRailBar", V3(-5.45, yTop + 3.2, -24.0), V3(-5.45, yTop + 3.2, -19.5), 0.16, Look.steel)
 	end)
-	Lib.wall(K, "TopRailGuard", -5.6, yTop, -24.0, -5.4, yTop + 6.0, -19.5, { c = Color3.new(1, 1, 1), t = 1 })
+	Lib.guard(K, "TopRailGuard", -5.6, yTop, -24.0, -5.4, yTop + 6.0, -19.5)
+	-- 계단 2 서쪽 끝 (아래로 떨어지지 않게): 보이는 난간 + 보이지 않는 막이
+	Lib.guard(K, "Flight2Guard", -5.6, yMid, -19.5, -5.4, yTop + 4.0, -11.5)
+	K:free(function()
+		K:seg("Flight2Rail", V3(-5.5, yMid + 3.0, -11.5), V3(-5.5, yTop + 3.0, -19.5), 0.16, Look.steel)
+		if not low then
+			for k = 0, 8 do
+				local zz = -11.5 - k
+				local tp = yMid + RISE * k
+				K:seg("Baluster", V3(-5.5, tp, zz), V3(-5.5, tp + 3.0, zz), 0.08, Look.steel)
+			end
+		end
+	end)
 	-- 손잡이 (벽 쪽 + 두 계단 사이)
 	K:free(function()
 		K:seg("Handrail", V3(-9.85, y + 3.0, -19.5), V3(-9.85, yMid + 3.0, -11.5), 0.16, Look.steel)
 		K:seg("Handrail", V3(-1.55, yMid + 3.0, -11.5), V3(-1.55, yTop + 3.0, -19.5), 0.16, Look.steel)
 		K:seg("Handrail", V3(-6.05, y + 3.0, -19.5), V3(-6.05, yMid + 3.0, -11.5), 0.16, Look.steel)
-		if not low then
-			for k = 0, 8 do
-				local zz = -19.5 + k
-				local tp = y + RISE * k
-				K:seg("Baluster", V3(-6.05, tp, zz), V3(-6.05, tp + 3.0, zz), 0.08, Look.steel)
-			end
-		end
 	end)
 	-- 문 2 (남쪽 벽): 아래 = 2F, 위 = RF
 	local d1, lever1 = roomDoorLeaf(K, "StairDoorBottom", -9.7, -6.3, z0, y, 7.2, Look.of(214, 210, 198, M.Metal), true)
@@ -708,7 +697,6 @@ function Rooms.stair(K: any, env: any, P: any)
 	local l2 = bulkhead(Lib.face(x1, yTop + 6.0, -22.0, -1, 0))
 	K:light(l1, "PointLight", { Range = 14, Brightness = 0.9, Color = Look.neutralLight })
 	K:light(l2, "PointLight", { Range = 14, Brightness = 0.9, Color = Look.neutralLight })
-	local _ = Lighting
 end
 
 return Rooms

@@ -147,6 +147,14 @@ function Lib.wall(K: any, name: string, x0: number, y0: number, z0: number, x1: 
 	return Lib.solid(Lib.ab(K, name, x0, y0, z0, x1, y1, z1, l), collide)
 end
 
+-- 보이지 않는 막이 (난간 · 가구 충돌): 충돌만, 카메라 쿼리 · 그림자 없음
+function Lib.guard(K: any, name: string, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): BasePart
+	local p = Lib.ab(K, name, x0, y0, z0, x1, y1, z1, { c = Color3.new(1, 1, 1), t = 1, free = true, collide = true })
+	p.CanQuery = false
+	p.CastShadow = false
+	return p
+end
+
 -- 표시면 프레임: 점 p 에서 수평 법선 (nx, nz) 쪽을 보는 dcf (+Z = 보는 사람 쪽)
 function Lib.face(x: number, y: number, z: number, nx: number, nz: number): CFrame
 	local p = V3(x, y, z)

@@ -5758,7 +5758,7 @@ BUILD.lounge = function(K: any, V: any)
 		end
 		-- 공용 테이블 (콘센트 · 스탠드 · 노트북 · 신문)
 		local tc = CF(2.0, 0, -11.4)
-		if K:spot(tc, V3(9.4, 3.4, 3.6), 0) then
+		if K:spot(tc, V3(9.2, 3.4, 3.2), 0) then
 			local tp = 3.0
 			K:free(function()
 				K:box("CommonTop", V3(9.0, 0.18, 3.2), tc * CF(0, tp - 0.09, 0), lk(196, 166, 126, M.Wood))
@@ -5798,8 +5798,8 @@ BUILD.lounge = function(K: any, V: any)
 			for i, x in { -2.6, 2.0, -0.3, 4.3 } do
 				for _, side in { -1, 1 } do
 					if (i + (if side > 0 then 1 else 0)) % 2 == 0 or i <= 2 then
-						local cp = tc * CF(x, 0, side * 2.25) * (if side > 0 then ANG(0, PI, 0) else CF())
-						if K:spot(cp, V3(1.7, 3.8, 1.7), 0) then
+						local cp = tc * CF(x, 0, side * 2.45) * (if side > 0 then ANG(0, PI, 0) else CF())
+						if K:spot(cp, V3(1.6, 3.8, 1.5), 0) then
 							K:free(function()
 								Props.chair(K, cp, { style = "shell", seatTop = 1.9, w = 1.6 })
 							end)

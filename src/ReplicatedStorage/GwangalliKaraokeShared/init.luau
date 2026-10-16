@@ -34,8 +34,7 @@ Shared.Config = {
 	Enabled = true, -- false: 애드온 전체를 끕니다 (기존 노래방 그대로)
 	TakeOverLegacy = true, -- 기존 VenueKaraoke 의 "방 잡기" 프롬프트를 끄고 이 애드온이 방을 운영합니다
 	-- 요금: "credits" = 동전 곡 수 (1곡 500원 · 4곡 1,000원, 건물 안내판과 같음)
-	--       "legacy"  = 기존 시간제 대여 (VenueKaraoke 가 받는 30분 500원) 를 그대로 쓰고 곡은 무료
-	--       "free"    = 모든 곡 무료
+	--       "free"    = 방 잡기 무료 · 곡 무제한 (이벤트용)
 	Billing = "credits",
 	FreeWhenNoEconomy = true, -- 돈 시스템(GwangalliGameplayAPI)이 없으면 무료 체험으로 운영
 	VenueModelNames = { "광안 코인노래연습장" }, -- KaraokeRoom 부스를 찾을 매장 모델 이름
@@ -62,6 +61,12 @@ Shared.Config = {
 	AllowedMax = 12, -- 방에 들어올 수 있는 인원 (방장 포함)
 	DefaultPrivacy = "friends", -- "lock" 잠금(노크) · "friends" 로블록스 친구만 · "open" 누구나
 	PushOutIntruders = true, -- 잠긴 방에 들어온 다른 손님을 문 밖으로 안내
+	IntruderGrace = 1.5, -- 허락 없이 들어온 손님을 안내하기까지(초)
+	KnockCooldown = 8, -- 노크 간격(초)
+	MicReturnGrace = 3, -- 마이크를 들고 방 밖에 이만큼 있으면 제자리로
+	MicOfferTTL = 10, -- 마이크 건네기 제안 유효 시간(초)
+	AutoStartDelay = 1.2, -- 예약 후 (재생 중인 곡이 없으면) 자동 시작까지(초)
+	PanelReach = 12, -- 방 밖에서 결제 · 노크할 수 있는 패널과의 거리
 	TempoMin = -4, TempoMax = 4, TempoStep = 0.05, -- 템포 단계 (1단계 = 5%)
 	KeyMin = -6, KeyMax = 6, -- 키 (반음)
 	EchoMax = 5, EchoDefault = 3, -- 마이크 에코 단계 0..5
