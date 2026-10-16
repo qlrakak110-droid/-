@@ -10,7 +10,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
 local sharedModule = ReplicatedStorage:WaitForChild("GwangalliKaraokeShared", 60)
 if not (sharedModule and sharedModule:IsA("ModuleScript")) then
@@ -118,38 +117,39 @@ end
 K.Bridge.takeOver(panels)
 K.Bridge.findLED(K.Rooms.venues())
 
--- loops: 10 Hz playback, 2 Hz membership, 1 Hz mics / vibe
-local acc10, acc2, acc1 = 0, 0, 0
-RunService.Heartbeat:Connect(function(dt)
-	acc10 += dt
-	acc2 += dt
-	acc1 += dt
-	if acc10 >= 0.1 then
-		acc10 = 0
-		for _, r in K.Rooms.list() do
-			local ok, err = pcall(K.Playback.step, r)
+-- loops: 10 Hz playback, 2 Hz membership, 1 Hz mics / vibe (task loops: each step is pcall'd)
+local function loop(period: number, fn: (number) -> ())
+	task.spawn(function()
+		local last = os.clock()
+		while true do
+			task.wait(period)
+			local t = os.clock()
+			local ok, err = pcall(fn, t - last)
+			last = t
 			if not ok then
-				warn("[GwangalliKaraokePlus] playback step:", err)
+				warn("[GwangalliKaraokePlus] loop:", err)
 			end
 		end
-	end
-	if acc2 >= 0.5 then
-		acc2 = 0
-		local ok, err = pcall(K.Rooms.membership)
+	end)
+end
+loop(0.1, function()
+	for _, r in K.Rooms.list() do
+		local ok, err = pcall(K.Playback.step, r)
 		if not ok then
-			warn("[GwangalliKaraokePlus] membership:", err)
+			warn("[GwangalliKaraokePlus] playback step:", err)
 		end
 	end
-	if acc1 >= 1 then
-		local step = acc1
-		acc1 = 0
-		pcall(K.Mics.step)
-		for _, r in K.Rooms.list() do
-			K.Scoring.decayVibe(r, step)
-			if r.tambUntil > 0 and S.now() > r.tambUntil then
-				r.tambUntil = 0
-				K.Rooms.publish(r)
-			end
+end)
+loop(0.5, function()
+	K.Rooms.membership()
+end)
+loop(1, function(step)
+	K.Mics.step()
+	for _, r in K.Rooms.list() do
+		K.Scoring.decayVibe(r, step)
+		if r.tambUntil > 0 and S.now() > r.tambUntil then
+			r.tambUntil = 0
+			K.Rooms.publish(r)
 		end
 	end
 end)

@@ -81,7 +81,7 @@ end
 -- number pad
 -------------------------------------------------------------------------------------------------
 local function refreshLed()
-	local shown = digits .. string.rep("_", 5 - #digits)
+	local shown = digits .. string.rep("-", 5 - #digits)
 	led.Text = shown
 	if #digits == 5 then
 		local s = S.Songs.byNo[tonumber(digits) :: number]
@@ -309,7 +309,7 @@ function Remote.init(k: any)
 	local ledBox = Kit.new("Frame", { BackgroundColor3 = Color3.fromRGB(10, 14, 10), Size = UDim2.new(1, 0, 0, 70), LayoutOrder = 1, ZIndex = 23 }, pad)
 	Kit.corner(ledBox, 12)
 	Kit.stroke(ledBox, Kit.C.green, 1, 0.6)
-	led = Kit.text(ledBox, { Text = "_____", Font = Enum.Font.Code, TextSize = 38, TextColor3 = Color3.fromRGB(120, 255, 140), Size = UDim2.new(1, 0, 0, 44), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 24 })
+	led = Kit.text(ledBox, { Text = "-----", Font = Kit.F.black, TextSize = 36, TextColor3 = Color3.fromRGB(120, 255, 140), Size = UDim2.new(1, 0, 0, 44), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 24 })
 	ledSub = Kit.text(ledBox, { Text = "", Font = Kit.F.bold, TextSize = 13, TextColor3 = Kit.C.sub, Position = UDim2.fromOffset(0, 44), Size = UDim2.new(1, 0, 0, 20), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 24, TextTruncate = Enum.TextTruncate.AtEnd })
 	local grid = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4 * 52), LayoutOrder = 2, ZIndex = 23 }, pad)
 	Kit.new("UIGridLayout", { CellSize = UDim2.new(1 / 3, -6, 0, 46), CellPadding = UDim2.fromOffset(8, 6), SortOrder = Enum.SortOrder.LayoutOrder }, grid)

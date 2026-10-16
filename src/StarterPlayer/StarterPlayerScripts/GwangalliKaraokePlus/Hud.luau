@@ -74,7 +74,8 @@ function Hud.micToggle()
 	else
 		K.Net.call("mic", { room = v.no, action = "grab" }, function(res)
 			if res.ok then
-				Kit.toast(string.format("🎤 무선 마이크 %d", res.slot or 1), "예약한 곡이 나오면 이 마이크로 불러요", "success")
+				local body = if K.Mic.live then "에코 마이크 연결! 가사 색을 따라 불러요" else "음성 채팅이 꺼져 있어 ♪ 박자 버튼으로 채점해요 (음성 채팅을 켜면 에코 마이크)"
+				Kit.toast(string.format("🎤 무선 마이크 %d", res.slot or 1), body, "success")
 			end
 		end)
 	end

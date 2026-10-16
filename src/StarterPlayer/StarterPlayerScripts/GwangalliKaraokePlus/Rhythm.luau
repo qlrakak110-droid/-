@@ -177,7 +177,8 @@ function Rhythm.update(_dt: number)
 	lane.Visible = not voice
 	tapBtn.Visible = not voice
 	meter.Visible = voice
-	hintLbl.Text = if voice then "🎤 마이크를 가까이 · 가사 색을 따라 불러요" elseif Kit.touch() then "♪ 노트가 선에 닿을 때 박자 버튼!" else "♪ 노트가 선에 닿을 때 F · K (패드 R2)"
+	local how = if Kit.touch() then "노트가 선에 닿을 때 ♪ 박자 버튼!" else "노트가 선에 닿을 때 F · K (패드 R2)"
+	hintLbl.Text = if voice then "🎤 마이크를 가까이 · 가사 색을 따라 불러요" elseif not K.Mic.hasDevice() then "음성 채팅이 꺼져 있어 박자 모드로 채점해요 · " .. how else how
 	bind(not voice)
 	-- lyric strip
 	local li = S.Chart.lineAt(c, st)

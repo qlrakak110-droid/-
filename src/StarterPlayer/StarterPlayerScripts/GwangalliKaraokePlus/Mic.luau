@@ -213,6 +213,10 @@ function Mic.update(dt: number)
 	sample(v, st, level)
 end
 
+function Mic.hasDevice(): boolean
+	return device ~= nil
+end
+
 -- 처음부터: measurements restart with the song
 function Mic.reset()
 	session = nil

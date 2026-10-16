@@ -49,6 +49,17 @@ local function new(class: string, props: { [string]: any }, parent: Instance?): 
 	return i
 end
 
+-- SurfaceGui with the newer properties set defensively (older engines / test runtimes)
+local function surface(props: { [string]: any }): SurfaceGui
+	local sg = Instance.new("SurfaceGui")
+	for k, v in props do
+		pcall(function()
+			(sg :: any)[k] = v
+		end)
+	end
+	return sg
+end
+
 local function txt(parent: Instance, props: { [string]: any }): TextLabel
 	local p: { [string]: any } = {
 		BackgroundTransparency = 1,
@@ -692,7 +703,7 @@ local function liteFor(v: any): any?
 	if l then
 		l.gui:Destroy()
 	end
-	local sg = new("SurfaceGui", {
+	local sg = surface({
 		Name = "GwKP_TVLite_" .. v.name,
 		Adornee = scr,
 		Face = faceOf(scr),
@@ -872,7 +883,7 @@ function TV.init(k: any)
 	S, Kit, Rooms = k.S, k.Kit, k.Rooms
 	Lyrics = k.Lyrics
 	Background = k.Background
-	gui = new("SurfaceGui", {
+	gui = surface({
 		Name = S.NAMES.TV,
 		Face = Enum.NormalId.Back,
 		SizingMode = Enum.SurfaceGuiSizingMode.FixedSize,

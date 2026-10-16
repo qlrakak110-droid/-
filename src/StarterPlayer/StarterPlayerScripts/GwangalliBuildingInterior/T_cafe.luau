@@ -4147,17 +4147,13 @@ local function mailboxSkin(K: any, V: any, r: any)
 	for _, q in V.byName.MailboxLine or {} do
 		table.insert(lines, q)
 	end
-	-- 앞면 방향: 줄 무늬(MailboxLine)가 있는 쪽, 없으면 방 가운데 쪽
+	-- 앞면 방향: 방 가운데 쪽 (맵의 줄 무늬는 벽 쪽 1 스터드 틈을 보고 있어 손님이 못 봄)
 	local lc = r.lcf
 	local sz = r.part.Size
-	local fwd: Vector3
-	if #lines > 0 then
-		local d = lines[1].c - r.c
-		fwd = if math.abs(d.X) > math.abs(d.Z) then V3(math.sign(d.X), 0, 0) else V3(0, 0, math.sign(d.Z))
-	else
-		local d = V3((V.x0 + V.x1) / 2, 0, (V.z0 + V.z1) / 2) - r.c
-		fwd = if math.abs(d.X) > math.abs(d.Z) then V3(math.sign(d.X), 0, 0) else V3(0, 0, math.sign(d.Z))
-	end
+	local dd = V3((V.x0 + V.x1) / 2, 0, (V.z0 + V.z1) / 2) - r.c
+	local fwd: Vector3 = if math.abs(dd.X) * r.size.Z > math.abs(dd.Z) * r.size.X then V3(math.sign(dd.X), 0, 0) else V3(0, 0, math.sign(dd.Z))
+	local _ = lc
+	local _2 = sz
 	-- 앞면 기준 크기: 폭(앞에서 본 가로) · 깊이
 	local depth = math.abs(fwd.X) * r.size.X + math.abs(fwd.Z) * r.size.Z
 	local width = math.abs(fwd.Z) * r.size.X + math.abs(fwd.X) * r.size.Z
@@ -4245,9 +4241,10 @@ local function stepLobby(K: any, V: any, B: any, ctx: any)
 	end
 	-- 층별 안내판
 	local mid = if #eu > 0 then (eu[1] + eu[#eu]) / 2 else 0
-	local wd, dd = wallFind(K, { ewall, "left", "right" }, 2.4, 3.5, 6.6, { [ewall] = mid + (if mid > 0 then -4.5 else 4.5) })
+	-- (로비 벽 앞 1 스터드 틈에 선 우편함 뒤로 숨지 않게 depth 3)
+	local wd, dd = wallFind(K, { ewall, "left", "right" }, 2.4, 3.5, 6.6, { [ewall] = mid + (if mid > 0 then -4.5 else 4.5) }, nil, 3.0)
 	if not wd then
-		wd, dd = wallFind(K, { "left", "right", "back" }, 2.4, 3.5, 6.6, 0)
+		wd, dd = wallFind(K, { "left", "right", "back" }, 2.4, 3.5, 6.6, 0, nil, 3.0)
 	end
 	if wd and dd and room(K, 8) then
 		K:plate("DirFrame", 2.3, 3.0, 0.06, dd, Look.brass)
@@ -4257,7 +4254,7 @@ local function stepLobby(K: any, V: any, B: any, ctx: any)
 		K:plate("DirRule", 1.9, 0.02, 0.09, dd * CF(0, 0.9, 0), lk(rgb(214, 186, 126)))
 	end
 	-- 15F 카페 액자 포스터 (메뉴 + 뷰)
-	local wp, dp = wallFind(K, { "left", "right", ewall }, 2.3, 3.6, 6.7, 0)
+	local wp, dp = wallFind(K, { "left", "right", ewall }, 2.3, 3.6, 6.7, 0, nil, 3.0)
 	if wp and dp and room(K, 12) then
 		K:plate("CafePosterFrame", 2.2, 3.0, 0.06, dp, Look.blackMetal)
 		K:plate("CafePosterFace", 2.04, 2.84, 0.07, dp, lk(rgb(246, 242, 234)))
@@ -4271,13 +4268,20 @@ local function stepLobby(K: any, V: any, B: any, ctx: any)
 		K:text("CafePosterMenu", 1.8, 0.8, dp * CF(0, -0.95, 0.085), "아메리카노 6,500 · 카페라떼 7,000\n181 시그니처 라떼 8,000\n광안대교 야경 창가석 · 매일 10:00 - 23:00", { fg = rgb(60, 54, 48), font = F.GothamMedium, d = 0.004 })
 	end
 	-- 바닥: 15F 카페 입간판 · 콘솔 테이블
-	for _, cand in { { ewall, mid - 3.2 }, { ewall, mid + 3.2 }, { "left", 0 }, { "right", 0 } } do
+	-- 엘리베이터 문 앞은 비움: 옆벽 (엘리베이터 벽 쪽 끝) 에 세움
+	local sideCands = {}
+	for _, wn in { "left", "right" } do
+		if V.walls[wn] and wn ~= ewall then
+			for _, du in { 2.2, 3.2, 4.2, 5.2 } do
+				table.insert(sideCands, { wn, uOf(V, wn, 0, V.z0 + du) })
+			end
+		end
+	end
+	for _, cand in sideCands do
 		local wn = cand[1]
 		if V.walls[wn] then
-			local dcf = V:wall(wn, cand[2], 0, 1.4)
-			local p = dcf.Position
-			local pcf = CFrame.lookAt(V3(p.X, 0, p.Z), V3(p.X, 0, p.Z) + dcf.ZVector)
-			if K:spot(pcf, V3(1.9, 3.6, 1.3), 0.1, "sign") then
+			local pcf = V:wall(wn, cand[2], 0, 0.9)
+			if spotX(K, pcf, V3(1.9, 3.6, 1.0), 0.3, "sign") then
 				local cf = pcf * CF(0, 0, 0)
 				K:box("StandBase", V3(1.6, 0.12, 0.9), cf * CF(0, 0.06, 0), Look.blackMetal)
 				K:seg("StandPole", (cf * CF(0, 0.12, 0)).Position, (cf * CF(0, 1.2, 0)).Position, 0.08, Look.blackMetal)
@@ -4289,7 +4293,7 @@ local function stepLobby(K: any, V: any, B: any, ctx: any)
 		end
 	end
 	for _, wn in { "left", "right", ewall } do
-		local wf, pcf = floorFind(K, { wn }, 2.6, 0.9, 2.7, 0, { pad = 0.05, wallH = 2.8 })
+		local wf, pcf = floorFind(K, { wn }, 2.6, 0.9, 2.7, 0, { pad = 0.6, wallH = 2.8 })
 		if wf and pcf and room(K, 16) then
 			K:box("ConsoleTop", V3(2.6, 0.1, 0.9), pcf * CF(0, 2.55, 0), Look.walnut)
 			K:box("ConsoleApron", V3(2.5, 0.25, 0.8), pcf * CF(0, 2.37, 0), Look.walnut)
