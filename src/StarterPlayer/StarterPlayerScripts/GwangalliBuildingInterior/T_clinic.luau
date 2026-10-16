@@ -806,11 +806,24 @@ local function paintWalls(K: any, V: any, look: any?, o: any?): number
 	local faces = {}
 	local others = {}
 	local root = K.root
-	for _, p in V.model:GetDescendants() do
+	-- 맵 껍데기 (외벽 PartyWall · 2층 창) 는 '광안 메디컬 의원 (건물)' 같은 형제 모델에 따로 있음 -> 같이 훑음
+	local pool = V.model:GetDescendants()
+	local par = V.model.Parent
+	if par then
+		local base = V.model.Name
+		for _, sib in par:GetChildren() do
+			if sib ~= V.model and sib:IsA("Model") and string.sub(sib.Name, 1, #base) == base then
+				for _, d in sib:GetDescendants() do
+					table.insert(pool, d)
+				end
+			end
+		end
+	end
+	for _, p in pool do
 		if p:IsA("BasePart") and not (root and p:IsDescendantOf(root)) then
 			local mn, mx = Scan.laabb(V.cf:ToObjectSpace(p.CFrame), p.Size)
 			if mx.Y > y0 and mn.Y < y1 and mx.X > V.x0 - 1.2 and mn.X < V.x1 + 1.2 and mx.Z > V.z0 - 1.2 and mn.Z < V.z1 + 1.2 then
-				local isWall = string.find(p.Name, "Wall", 1, true) ~= nil
+				local isWall = (string.find(p.Name, "Wall", 1, true) ~= nil or p.Name == "GroundSide")
 					and (p.Material == Enum.Material.Plaster or p.Material == Enum.Material.Concrete)
 					and p.Transparency < 0.05
 				if isWall then

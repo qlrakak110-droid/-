@@ -4095,7 +4095,20 @@ local function odengBuild(ctx: any)
 end
 
 -- build ----------------------------------------------------------------------------------------------
+local FF_DUMP = true -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
+	if FF_DUMP then
+		local agg = {}
+		for _, r in V.parts do
+			if not Scan.SHELL[r.name] and r.c.Y > -0.5 and r.c.Y < V.H + 0.5 and math.abs(r.c.X) < V.W / 2 + 0.5 and r.c.Z > V.z0 - 0.5 and r.c.Z < V.z1 + 0.5 then
+				table.insert(agg, string.format("%s(%.1f,%.1f,%.1f|%.1fx%.1fx%.1f)", r.name, r.c.X, r.c.Y, r.c.Z, r.size.X, r.size.Y, r.size.Z))
+			end
+		end
+		table.sort(agg)
+		for i = 1, #agg, 6 do
+			K:note("DUMP " .. table.concat(agg, " ", i, math.min(#agg, i + 5)))
+		end
+	end
 	local ctx = ctxNew(K, V, S)
 	local ok, err = pcall(setupZones, ctx)
 	if not ok then
