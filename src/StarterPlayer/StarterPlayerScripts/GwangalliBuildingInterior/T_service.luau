@@ -2343,7 +2343,7 @@ local function buildResidence(K: any, V: any, S: any)
 	local icScreen, icLab, icBtn = nil, nil, nil
 	step(K, "intercom", function()
 		local wn, d = spotNear(K, { "left", "right" }, 1.3, 3.6, 5.6, V3(0, 0, V.z1 - 4), function(dc: CFrame)
-			return Interact.canPrompt(K, dc.Position)
+			return Interact.canPrompt(K, (dc * CF(0, -0.8, 0.15)).Position)
 		end, 0.2)
 		if wn and d then
 			icScreen, icLab, icBtn = intercom(K, d * CF(0, 0.05, 0))
@@ -2451,7 +2451,22 @@ local LISTINGS = {
 }
 local DEAL_COL = { ["매매"] = C(200, 40, 50), ["전세"] = C(30, 90, 180), ["월세"] = C(30, 140, 80), ["임대"] = C(220, 130, 30) }
 
-local function listingBoard(K: any, dcf: CFrame, w: number, h: number, rng: () -> number)
+local function listingBoard(K: any, dcf: CFrame, w: number, h: number, rng: () -> number): (BasePart?, TextLabel?)
+	local feat, featLab = nil, nil
+	if w >= 5.0 then
+		-- 오른쪽 1/3: 오늘의 추천 매물 (큰 카드, 넘기기 상호작용)
+		local fw = math.min(2.4, w * 0.34)
+		local fd = dcf * CF(w / 2 - fw / 2, 0, 0)
+		K:plate("ListFeatBack", fw, h, 0.08, fd, lk(C(24, 50, 100)))
+		txt(K, "ListFeatTitle", fw * 0.86, 0.36, fd * CF(0, h / 2 - 0.35, 0.09), "오늘의 추천", C(255, 214, 90), nil, { font = F.GothamBlack })
+		feat = K:plate("ListFeatCard", fw - 0.24, h - 0.9, 0.02, fd * CF(0, -0.25, 0.08), Look.paper)
+		local L = LISTINGS[1]
+		local _, lab = txt(K, "ListFeatText", fw - 0.4, h - 1.1, fd * CF(0, -0.25, 0.105), L[1] .. "\n\n" .. L[2] .. "\n\n" .. L[3], C(24, 50, 100), nil, { font = F.GothamBold })
+		featLab = lab
+		K:plate("ListFeatPhoto", fw - 0.5, 0.06, 0.03, fd * CF(0, -h / 2 + 0.55, 0.09), lk(C(210, 40, 50)))
+		w = w - fw - 0.1
+		dcf = dcf * CF(-(fw + 0.1) / 2, 0, 0)
+	end
 	K:plate("ListBoard", w, h, 0.08, dcf, lk(C(244, 244, 240)))
 	K:plate("ListFrame", w + 0.12, h + 0.12, 0.06, dcf * CF(0, 0, -0.03), Look.alu)
 	local hh = 0.62
@@ -2488,6 +2503,7 @@ local function listingBoard(K: any, dcf: CFrame, w: number, h: number, rng: () -
 			K:ball("ListPin", 0.08, card * CF(0, chgt / 2 - 0.05, 0.03), lk(pickR(rng, { C(220, 40, 40), C(40, 120, 220), C(240, 200, 40) })))
 		end
 	end
+	return feat, featLab
 end
 
 -- 수영구 지도 (해안선 · 광안대교 · 동 이름 · 매물 핀)
@@ -2677,7 +2693,7 @@ local function buildRealty(K: any, V: any, S: any)
 	end)
 	-- 매물판 (가장 넓은 벽 자리, 입구에서 보이게)
 	step(K, "listing", function()
-		local w = math.min(7.5, V.W * 0.32)
+		local w = math.min(8.0, V.W * 0.36)
 		local top = math.min(V.H - 0.6, 7.3)
 		local wn, d = wallItemSpot(K, { "back" }, w, 3.4, top, 0)
 		if not wn then
@@ -2685,7 +2701,19 @@ local function buildRealty(K: any, V: any, S: any)
 			w = w * 0.7
 		end
 		if wn and d then
-			listingBoard(K, d, w, top - 3.6, rng)
+			local feat, featLab = listingBoard(K, d, w, top - 3.6, rng)
+			if feat and featLab then
+				local slides = {}
+				for i = 1, #LISTINGS do
+					local L = LISTINGS[(i * 7) % #LISTINGS + 1]
+					table.insert(slides, L[1] .. "\n\n" .. L[2] .. "\n\n" .. L[3])
+				end
+				Interact.cycle(K, feat, slides, { action = "매물 넘기기", object = "오늘의 추천 매물", on = function(_i, s2)
+					if featLab and featLab.Parent then
+						featLab.Text = s2
+					end
+				end })
+			end
 		end
 	end)
 	-- 수영구 지도
@@ -2726,6 +2754,9 @@ local function buildRealty(K: any, V: any, S: any)
 		local wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.4, 4.0, 6.4, 0, function(dc: CFrame)
 			return Interact.canPrompt(K, (dc * CF(0, 0, 0.3)).Position)
 		end)
+		if not wn then
+			wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.4, 4.0, 6.4, 0)
+		end
 		if wn and d then
 			tvScr = Props.tv(K, d * CF(0, 0, 0), 3.2, { on = true, screen = C(16, 40, 80) })
 			local _, lab = txt(K, "TvListing", 2.9, 1.6, d * CF(0, 0, 0.27), "오늘의 추천 매물\n민락 더샵 102㎡\n매매 13억 8,000", WHITE, nil, { font = F.GothamBold, glow = 1.2 })
@@ -2777,11 +2808,18 @@ local function buildRealty(K: any, V: any, S: any)
 				local L = LISTINGS[(i * 4) % #LISTINGS + 1]
 				table.insert(slides, "오늘의 추천 매물  " .. i .. "/6\n" .. string.gsub(L[2], "\n", " · ") .. "\n" .. L[1] .. "  " .. L[3])
 			end
-			Interact.cycle(K, tvScr, slides, { action = "매물 넘기기", object = "매물 안내 TV", on = function(_i, s)
+			local pr = Interact.cycle(K, tvScr, slides, { action = "화면 넘기기", object = "매물 안내 TV", on = function(_i, s)
 				if tvLab and tvLab.Parent then
 					tvLab.Text = s
 				end
 			end })
+			if not pr then
+				local frames = {}
+				for _, sl in slides do
+					table.insert(frames, { text = sl })
+				end
+				Interact.screenLoop(K, nil, tvLab, frames, 6)
+			end
 		end
 		if paperOut then
 			local base = paperOut.CFrame
@@ -2934,58 +2972,85 @@ local function conveyor(K: any, V: any, xa: number, xb: number, zc: number, R: n
 	return st
 end
 
--- 다림질대 + 스팀다리미 + 보일러. pcf 바닥 가운데, +Z = 일하는 사람 쪽. 반환: 스팀 파트들 · 다리미
-local function pressStation(K: any, V: any, pcf: CFrame, w: number): ({ BasePart }, BasePart?)
+-- 다림질대 + 스팀다리미 + 보일러. pcf 바닥 가운데, +Z = 일하는 사람 쪽, w 길이, dep 깊이. 반환: 스팀 파트들 · 다리미
+local function pressStation(K: any, V: any, pcf: CFrame, w: number, dep: number): ({ BasePart }, BasePart?)
 	local steel = Look.steel
 	local h = 2.95
+	local lz = dep / 2 - 0.15
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
-			K:box("PressLeg", V3(0.12, h - 0.3, 0.12), pcf * CF(sx * (w / 2 - 0.2), (h - 0.3) / 2, sz * 0.55), steel)
+			K:box("PressLeg", V3(0.12, h - 0.3, 0.12), pcf * CF(sx * (w / 2 - 0.2), (h - 0.3) / 2, sz * lz), steel)
 		end
 	end
-	K:box("PressShelf", V3(w - 0.3, 0.06, 1.2), pcf * CF(0, 0.6, 0), steel)
-	K:box("PressVacuum", V3(1.2, 1.0, 1.0), pcf * CF(-w / 2 + 0.9, 1.15, 0), lk(C(70, 110, 160), M.Metal))
-	K:box("PressFrame", V3(w, 0.16, 1.4), pcf * CF(0, h - 0.38, 0), steel)
-	K:rbox("PressBoard", V3(w - 0.1, 0.24, 1.36), 0.1, pcf * CF(0, h - 0.18, 0), lk(C(196, 200, 204), M.Fabric))
-	K:box("PressCover", V3(w - 0.4, 0.02, 1.2), pcf * CF(0, h - 0.05, 0), lk(C(170, 180, 196), M.Fabric))
+	K:box("PressShelf", V3(w - 0.3, 0.06, dep - 0.2), pcf * CF(0, 0.6, 0), steel)
+	K:box("PressVacuum", V3(1.2, 1.0, dep - 0.3), pcf * CF(-w / 2 + 0.9, 1.15, 0), lk(C(70, 110, 160), M.Metal))
+	txt(K, "PressVacuumLabel", 0.8, 0.22, CFrame.fromMatrix((pcf * CF(-w / 2 + 0.9, 1.3, dep / 2 - 0.14)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector), "VACUUM", WHITE, nil, { font = F.GothamBold })
+	K:box("PressFrame", V3(w, 0.16, dep), pcf * CF(0, h - 0.38, 0), steel)
+	K:rbox("PressBoard", V3(w - 0.1, 0.24, dep - 0.04), 0.1, pcf * CF(0, h - 0.18, 0), lk(C(196, 200, 204), M.Fabric))
+	K:box("PressCover", V3(w - 0.4, 0.02, dep - 0.2), pcf * CF(0, h - 0.05, 0), lk(C(170, 180, 196), M.Fabric))
 	-- 소매 다림판 (끝)
-	K:ell("PressBuck", V3(1.4, 0.3, 0.6), pcf * CF(w / 2 - 0.2, h + 0.15, -0.3), lk(C(196, 200, 204), M.Fabric))
-	-- 다리미 받침 + 다리미
-	K:box("IronRest", V3(0.7, 0.04, 0.45), pcf * CF(w / 2 - 0.9, h - 0.03, 0.35), lk(C(40, 40, 44), M.Rubber))
-	local iron = K:box("SteamIron", V3(0.42, 0.24, 0.72), pcf * CF(w / 2 - 0.9, h + 0.1, 0.35), lk(C(220, 222, 226), M.Metal))
-	K:wedge("SteamIronNose", V3(0.42, 0.24, 0.3), pcf * CF(w / 2 - 0.9, h + 0.1, 0.86) * ANG(0, PI, 0), lk(C(220, 222, 226), M.Metal))
-	K:box("SteamIronHandle", V3(0.14, 0.12, 0.55), pcf * CF(w / 2 - 0.9, h + 0.38, 0.38), Look.black)
-	K:box("SteamIronPost", V3(0.1, 0.18, 0.08), pcf * CF(w / 2 - 0.9, h + 0.27, 0.15), Look.black)
-	-- 스프링 붐 (뒤쪽 기둥 + 팔) + 코드
-	local poleTop = math.min(V.H - 0.4, 6.8)
-	K:seg("PressBoomPole", (pcf * CF(w / 2 - 0.25, h - 0.3, -0.6)).Position, (pcf * CF(w / 2 - 0.25, poleTop, -0.6)).Position, 0.1, steel)
-	K:seg("PressBoomArm", (pcf * CF(w / 2 - 0.25, poleTop, -0.6)).Position, (pcf * CF(w / 2 - 0.9, poleTop, 0.35)).Position, 0.08, steel)
+	K:ell("PressBuck", V3(1.3, 0.3, 0.5), pcf * CF(w / 2 - 0.25, h + 0.15, -dep / 2 + 0.3), lk(C(196, 200, 204), M.Fabric))
+	-- 다리미 받침 + 다리미 (앞쪽)
+	local ix, iz = w / 2 - 1.1, dep / 2 - 0.42
+	K:box("IronRest", V3(0.7, 0.04, 0.45), pcf * CF(ix, h - 0.03, iz), lk(C(40, 40, 44), M.Rubber))
+	local iron = K:box("SteamIron", V3(0.42, 0.24, 0.6), pcf * CF(ix, h + 0.1, iz - 0.05), lk(C(220, 222, 226), M.Metal))
+	K:wedge("SteamIronNose", V3(0.42, 0.24, 0.24), pcf * CF(ix, h + 0.1, iz - 0.47), lk(C(220, 222, 226), M.Metal))
+	K:box("SteamIronHandle", V3(0.14, 0.12, 0.5), pcf * CF(ix, h + 0.38, iz - 0.02), Look.black)
+	K:box("SteamIronPost", V3(0.1, 0.18, 0.08), pcf * CF(ix, h + 0.27, iz + 0.2), Look.black)
+	-- 천장 스프링 밸런서 + 코드
+	local topY = V.H - 0.05
+	K:box("PressBalancer", V3(0.4, 0.4, 0.4), pcf * CF(ix, topY - 0.25, iz), lk(C(230, 120, 30), M.Metal))
+	K:seg("PressBalancerRod", (pcf * CF(ix, topY, iz)).Position, (pcf * CF(ix, topY - 0.1, iz)).Position, 0.06, steel)
+	local springTop = topY - 0.5
 	if not lo(K) then
-		for i = 0, 5 do
-			K:ring("PressSpring", pcf * CF(w / 2 - 0.9, poleTop - 0.3 - i * 0.12, 0.35) * ANG(PI / 2, 0, 0), 0.08, 0.03, 6, Look.chrome)
+		for i = 0, 4 do
+			K:ring("PressSpring", pcf * CF(ix, springTop - i * 0.14, iz) * ANG(PI / 2, 0, 0), 0.09, 0.03, 6, Look.chrome)
 		end
 	end
-	K:seg("PressCord", (pcf * CF(w / 2 - 0.9, poleTop - 1.0, 0.35)).Position, (pcf * CF(w / 2 - 0.9, h + 0.45, 0.3)).Position, 0.04, Look.black)
+	K:seg("PressCord", (pcf * CF(ix, springTop - 0.7, iz)).Position, (pcf * CF(ix, h + 0.45, iz + 0.15)).Position, 0.04, Look.black)
+	K:seg("PressHose", (pcf * CF(ix, springTop - 0.7, iz)).Position, (pcf * CF(ix + 0.05, h + 0.42, iz + 0.2)).Position, 0.05, lk(C(220, 60, 40), M.Rubber))
 	-- 옆 보일러
-	local bx = pcf * CF(-w / 2 - 0.65, 0, -0.1)
-	K:vcyl("BoilerTank", 2.2, 1.0, bx * CF(0, 1.25, 0), lk(C(214, 216, 218), M.Metal))
-	K:ell("BoilerDome", V3(1.0, 0.4, 1.0), bx * CF(0, 2.35, 0), lk(C(214, 216, 218), M.Metal))
-	K:box("BoilerBase", V3(1.1, 0.14, 1.1), bx * CF(0, 0.07, 0), Look.charcoal)
-	K:disc("BoilerGauge", 0.36, 0.06, bx * CF(0, 1.9, 0.52) * ANG(PI / 2, 0, 0), Look.white)
-	K:disc("BoilerGaugeRim", 0.4, 0.05, bx * CF(0, 1.9, 0.5) * ANG(PI / 2, 0, 0), Look.chrome)
-	K:plate("BoilerNeedle", 0.02, 0.14, 0.01, CFrame.fromMatrix((bx * CF(0, 1.93, 0.56)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector) * ANG(0, 0, -0.6), Look.ledRed)
-	K:seg("BoilerPipe", (bx * CF(0.3, 2.3, 0)).Position, (pcf * CF(-w / 2 + 0.3, h - 0.4, -0.5)).Position, 0.08, Look.brass)
-	txt(K, "BoilerLabel", 0.7, 0.3, CFrame.fromMatrix((bx * CF(0, 1.2, 0.505)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector), "스팀 보일러", C(40, 40, 44), C(250, 220, 60), { font = F.GothamBold, d = 0.01 })
+	local bx = pcf * CF(-w / 2 - 0.6, 0, 0)
+	local bd = math.min(1.0, dep - 0.05)
+	K:vcyl("BoilerTank", 2.2, bd, bx * CF(0, 1.25, 0), lk(C(214, 216, 218), M.Metal))
+	K:ell("BoilerDome", V3(bd, 0.4, bd), bx * CF(0, 2.35, 0), lk(C(214, 216, 218), M.Metal))
+	K:box("BoilerBase", V3(bd + 0.1, 0.14, bd + 0.1), bx * CF(0, 0.07, 0), Look.charcoal)
+	K:disc("BoilerGauge", 0.36, 0.06, bx * CF(0, 1.9, bd / 2 + 0.02) * ANG(PI / 2, 0, 0), Look.white)
+	K:disc("BoilerGaugeRim", 0.4, 0.05, bx * CF(0, 1.9, bd / 2) * ANG(PI / 2, 0, 0), Look.chrome)
+	K:plate("BoilerNeedle", 0.02, 0.14, 0.01, CFrame.fromMatrix((bx * CF(0, 1.93, bd / 2 + 0.06)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector) * ANG(0, 0, -0.6), Look.ledRed)
+	K:seg("BoilerPipe", (bx * CF(0.3, 2.3, 0)).Position, (pcf * CF(-w / 2 + 0.3, h - 0.4, -dep / 2 + 0.2)).Position, 0.08, Look.brass)
+	txt(K, "BoilerLabel", 0.7, 0.3, CFrame.fromMatrix((bx * CF(0, 1.2, bd / 2 + 0.005)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector), "스팀 보일러", C(40, 40, 44), C(250, 220, 60), { font = F.GothamBold, d = 0.01 })
 	-- 다림질 중인 셔츠
-	K:box("PressShirt", V3(1.6, 0.04, 1.0), pcf * CF(-0.3, h - 0.02, 0) * ANG(0, 0.1, 0), lk(C(236, 240, 248)))
-	K:box("PressShirtSleeve", V3(0.9, 0.035, 0.32), pcf * CF(0.6, h - 0.02, 0.38) * ANG(0, -0.4, 0), lk(C(236, 240, 248)))
+	K:box("PressShirt", V3(1.6, 0.04, dep - 0.4), pcf * CF(-0.4, h - 0.02, 0) * ANG(0, 0.08, 0), lk(C(236, 240, 248)))
+	K:box("PressShirtSleeve", V3(0.9, 0.035, 0.3), pcf * CF(0.45, h - 0.02, dep / 2 - 0.3) * ANG(0, -0.3, 0), lk(C(236, 240, 248)))
 	-- 스팀 (숨김 상태로 만들고 상호작용 때 보임)
 	local steam = {}
 	for i = 1, 3 do
-		local p = K:ell("SteamPuff", V3(0.5 + i * 0.15, 0.4 + i * 0.12, 0.5 + i * 0.15), pcf * CF(w / 2 - 0.9 + (i - 2) * 0.12, h + 0.25 + i * 0.32, 0.6), { c = C(250, 250, 252), m = M.SmoothPlastic, t = 1 })
+		local p = K:ell("SteamPuff", V3(0.4 + i * 0.12, 0.35 + i * 0.1, 0.4 + i * 0.1), pcf * CF(ix + (i - 2) * 0.12, h + 0.25 + i * 0.3, iz - 0.35), { c = C(250, 250, 252), m = M.SmoothPlastic, t = 1 })
 		table.insert(steam, p)
 	end
 	return steam, iron
+end
+
+-- 바퀴 달린 옷 행거 (양쪽 기둥 + 위 봉, 옷은 봉과 직각). pcf 정면 +Z, len 길이 (X)
+local function garmentRack(K: any, pcf: CFrame, len: number, railY: number, rng: () -> number, tagged: boolean)
+	for _, sx in { -1, 1 } do
+		local x = sx * (len / 2 - 0.1)
+		K:box("RackFoot", V3(0.12, 0.12, 1.3), pcf * CF(x, 0.2, 0), Look.chrome)
+		for _, sz in { -1, 1 } do
+			K:ball("RackCaster", 0.22, pcf * CF(x, 0.11, sz * 0.55), Look.black)
+		end
+		K:seg("RackPost", (pcf * CF(x, 0.25, 0)).Position, (pcf * CF(x, railY + 0.1, 0)).Position, 0.1, Look.chrome)
+	end
+	K:seg("RackRail", (pcf * CF(-len / 2 + 0.1, railY, 0)).Position, (pcf * CF(len / 2 - 0.1, railY, 0)).Position, 0.09, Look.chrome)
+	local n = math.floor((len - 0.4) / (if lo(K) then 0.55 else 0.36))
+	for i = 1, n do
+		local g = GARMENTS[math.floor(rng() * #GARMENTS) + 1]
+		local col = g.cols[math.floor(rng() * #g.cols) + 1]
+		local x = -len / 2 + 0.2 + (i - 0.5) * ((len - 0.4) / n)
+		local gg = { kind = g.kind, len = math.min(g.len, railY - 2.4), w = 1.2, t = g.t }
+		garment(K, pcf * CF(x, railY, 0) * ANG(0, PI / 2, 0), gg, col, tagged and i % 2 == 0)
+	end
 end
 
 -- 수선 코너: 미싱 테이블 + 실 걸이 + 스탠드
@@ -3063,43 +3128,84 @@ local function buildLaundry(K: any, V: any, S: any)
 	local rng = mkRng(V.key or V.name)
 	local name = V.name or "세탁소"
 	local navy = C(24, 50, 110)
+	local cx = (V.x0 + V.x1) / 2
 	step(K, "skin", function()
 		wallSkin(K, { "left", "right", "back" }, 3.0, V.H - 0.02, lk(C(240, 244, 246), M.Plaster), lk(C(70, 110, 160)))
 	end)
-	-- 컨베이어: 문 · 테이블에서 먼 뒷벽 구간
-	local conv = nil
-	local convBox = nil
+	-- 1) 다림질대: 뒷벽 가운데 (문 앞 현관 keep 뒤 얕은 자리) — 들어오면 바로 보이는 작업대
+	local steam, iron = nil, nil
+	local pressU = nil
+	step(K, "press", function()
+		local dep = 1.12
+		for _, w in { 4.2, 3.4, 2.8 } do
+			local cands = {}
+			for _, dx in { 0, 0.6, -0.6, 1.2, -1.2, 2.0, -2.0 } do
+				table.insert(cands, V3(cx + dx, 0, V.z0 + dep / 2 + 0.04))
+			end
+			local pcf = floorSpot(K, cands, V3(w + 1.3, 3.4, dep), V3(0, 0, 1), 0.0, "press")
+			if pcf then
+				steam, iron = pressStation(K, V, pcf * CF(0.6, 0, 0), w, dep)
+				pressU = pcf.Position.X - cx
+				-- 일하는 자리 (앞) 비움
+				K:reserve((pcf * CF(-(w + 1.3) / 2, 0, dep / 2)).Position, (pcf * CF((w + 1.3) / 2, 6, dep / 2 + 1.6)).Position:Max((pcf * CF(-(w + 1.3) / 2, 0, dep / 2)).Position), "front")
+				break
+			end
+		end
+		if not iron then
+			note(K, "press: no room")
+		end
+	end)
+	-- 2) 요금표: 다림질대 위 뒷벽 (없으면 다른 벽)
+	step(K, "prices", function()
+		local w = math.min(5.6, V.W * 0.28)
+		local y0, y1 = 4.1, math.min(V.H - 0.5, 7.4)
+		local wn, d = wallItemSpot(K, { "back" }, w, y0, y1, pressU or 0)
+		if not wn then
+			wn, d = wallItemSpot(K, { "back", "left", "right" }, w, y0, y1, 0)
+		end
+		if wn and d then
+			Props.menuBoard(K, d, w, y1 - y0 - 0.2, name .. "  세탁 요금표", {
+				{ "와이셔츠", "2,000" }, { "바지 · 스커트", "4,000" }, { "블라우스", "4,000" }, { "니트 · 스웨터", "5,000" }, { "원피스", "7,000" }, { "정장 상하", "9,000" },
+				{ "코트", "12,000" }, { "패딩 점퍼", "15,000~" }, { "운동화", "6,000" }, { "이불 (극세사)", "15,000~" }, { "바지 기장 수선", "7,000" }, { "지퍼 교체", "10,000" },
+			}, { cols = 2, bg = C(250, 250, 248), fg = navy, accent = C(210, 40, 50), glow = 0.45, frame = lk(navy), rowH = 0.42 })
+		end
+	end)
+	-- 3) 회전 컨베이어: 문 keep 바깥 ~ 옆벽, 맵 테이블이 없는 쪽
+	local conv, convBox = nil, nil
 	step(K, "conveyor", function()
 		local depth = math.min(3.5, V.D - 2.0)
-		local R = math.clamp((depth - 1.4) / 2, 0.75, 1.0)
+		local R = math.clamp((depth - 1.45) / 2, 0.7, 1.0)
 		local railY = math.min(V.H - 1.2, 6.7)
 		local best = nil
+		local d = V.door
 		for _, side in { 1, -1 } do
-			-- 문 keep 바깥 ~ 옆벽 사이
-			local d = V.door
-			local inner = if d then (if side > 0 then d.x + d.w / 2 + 2.15 else d.x - d.w / 2 - 2.15) else 0
+			local inner = if d then (if side > 0 then d.x + d.w / 2 + 2.15 else d.x - d.w / 2 - 2.15) else cx
 			local outer = if side > 0 then V.x1 - 0.25 else V.x0 + 0.25
 			local a, b = math.min(inner, outer), math.max(inner, outer)
-			-- 겹치는 맵 가구 피해서 줄이기
-			for _, sd in V.solid do
-				if sd.min.Z < V.z0 + depth and sd.max.Y > 0.2 then
-					if side > 0 and sd.min.X > a and sd.min.X < b then
-						b = math.min(b, sd.min.X - 0.2)
-					elseif side < 0 and sd.max.X < b and sd.max.X > a then
-						a = math.max(a, sd.max.X + 0.2)
+			local function cut(mn: Vector3, mx: Vector3)
+				if mn.Z < V.z0 + depth + 0.2 and mx.X > a and mn.X < b then
+					if side > 0 then
+						b = math.min(b, mn.X - 0.3)
+					else
+						a = math.max(a, mx.X + 0.3)
 					end
+				end
+			end
+			for _, sd in V.solid do
+				if not K.hidden[sd.part] and sd.max.Y > 0.2 then
+					cut(sd.min, sd.max)
 				end
 			end
 			for _, t in V.tables do
-				if t.min.Z < V.z0 + depth + 0.2 then
-					if side > 0 and t.min.X > a and t.min.X < b then
-						b = math.min(b, t.min.X - 0.3)
-					elseif side < 0 and t.max.X < b and t.max.X > a then
-						a = math.max(a, t.max.X + 0.3)
-					end
+				cut(t.min, t.max)
+			end
+			for _, r in K.reserved do
+				if r.kind ~= "front" then
+					cut(r.min, r.max)
 				end
 			end
-			if b - a >= 2 * R + 1.6 and (not best or b - a > best[2] - best[1]) then
+			b = math.min(b, a + 7.5)
+			if b - a >= 2 * R + 1.8 and (not best or b - a > best[2] - best[1]) then
 				best = { a, b }
 			end
 		end
@@ -3109,48 +3215,43 @@ local function buildLaundry(K: any, V: any, S: any)
 		end
 		local a, b = best[1], best[2]
 		local zc = V.z0 + 0.72 + R
-		local mn, mx = V3(a, 2.6, V.z0), V3(b, V.H, zc + R + 0.75)
-		if K:hitsKeep(mn, mx) then
-			-- 앞쪽 keep 이 걸리면 폭을 줄임
-			note(K, "conveyor: keep hit, shrinking")
-			R = 0.75
-			zc = V.z0 + 0.72 + R
-			mx = V3(b, V.H, zc + R + 0.75)
-		end
-		K:reserve(V3(a, 0, V.z0), mx, "conveyor")
+		K:reserve(V3(a, 0, V.z0), V3(b, V.H, zc + R + 0.75), "conveyor")
 		convBox = { a = a, b = b, zc = zc, R = R }
 		conv = conveyor(K, V, a + R + 0.1, b - R - 0.1, zc, R, railY, rng)
 	end)
-	-- 다림질대: 맵 테이블 뒤 (직원 쪽) 또는 다른 자리
-	local steam, iron = nil, nil
-	step(K, "press", function()
-		local cands = {}
-		for _, t in V.tables do
-			local c = (t.min + t.max) / 2
-			table.insert(cands, V3(c.X, 0, V.z0 + 0.8))
-			table.insert(cands, V3(c.X + 0.6, 0, V.z0 + 0.8))
-			table.insert(cands, V3(c.X - 0.6, 0, V.z0 + 0.8))
-		end
-		for _, x in { -0.3, 0.3, -0.15, 0.15 } do
-			table.insert(cands, V3(V.x0 + V.W * (0.5 + x), 0, V.z0 + 0.8))
-		end
-		local pcf = floorSpot(K, cands, V3(5.4, 3.4, 1.5), V3(0, 0, 1), 0.0, "press")
-		if pcf then
-			steam, iron = pressStation(K, V, pcf * CF(0.6, 0, 0), 3.4)
-		else
-			note(K, "press: no room")
+	-- 4) 완성품 행거 (맵 테이블 뒤 = 직원 쪽, 남는 뒷벽)
+	step(K, "rack", function()
+		local railY = math.min(V.H - 1.4, 6.3)
+		for _, len in { 4.6, 3.6, 2.6 } do
+			local cands = {}
+			for _, t in V.tables do
+				local c = (t.min + t.max) / 2
+				for _, dx in { 0, 0.8, -0.8, 1.6, -1.6 } do
+					table.insert(cands, V3(c.X + dx, 0, V.z0 + 0.72))
+				end
+			end
+			for _, f in { -0.36, 0.36, -0.28, 0.28 } do
+				table.insert(cands, V3(cx + V.W * f, 0, V.z0 + 0.72))
+			end
+			local pcf = floorSpot(K, cands, V3(len, railY + 0.3, 1.42), V3(0, 0, 1), 0.0, "rack")
+			if pcf then
+				garmentRack(K, pcf, len, railY, rng, not lo(K))
+				break
+			end
 		end
 	end)
-	-- 수선 코너
-	local sewLamp, sewBulb = nil, nil
+	-- 5) 수선 코너 (옆벽 우선)
+	local sewBulb = nil
 	step(K, "sewing", function()
-		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 3.0, 2.6, 4.0, V3(V.x0, 0, V.z0), 0.05, "sew")
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 3.0, 1.45, 4.0, V3(V.x0, 0, V.z0), 0.05, "sew")
 		if wn and pcf then
-			local tp = pcf * CF(0, 0, -2.6 / 2 + 0.7)
-			sewLamp, sewBulb = sewingCorner(K, tp, rng)
-			Props.stool(K, pcf * CF(0, 0, 0.75), { style = "wood", seatTop = 2.0, dia = 1.0 })
-			local wall = V:wall(wn, 0, 0, 0)
-			_ = wall
+			local tp = pcf * CF(0, 0, -1.45 / 2 + 0.7)
+			local _, b = sewingCorner(K, tp, rng)
+			sewBulb = b
+			local stp = pcf * CF(0.2, 0, 1.3)
+			if claim(K, stp, V3(1.1, 2.2, 1.1), 0, "stool") then
+				Props.stool(K, stp, { style = "wood", seatTop = 2.0, dia = 1.0 })
+			end
 			local u = V:wallCoord(wn, pcf.Position)
 			if wallFree(K, wn, u, 2.4, 4.0, 5.8, 0.3) then
 				threadRack(K, V:wall(wn, u, 4.9, 0.01), 2.2, 1.6, rng)
@@ -3158,41 +3259,77 @@ local function buildLaundry(K: any, V: any, S: any)
 			if wallFree(K, wn, u, 1.6, 6.0, 7.0, 0.3) then
 				txt(K, "SewSign", 1.5, 0.6, V:wall(wn, u, 6.5, 0.02), "수 선", WHITE, C(200, 40, 50), { font = F.GothamBlack, d = 0.06 })
 			end
+			if sewBulb then
+				Interact.toggle(K, sewBulb, { object = "미싱 스탠드", onText = "스탠드 끄기", offText = "스탠드 켜기", state = true, on = function(on: boolean)
+					if sewBulb and sewBulb.Parent then
+						sewBulb.Material = if on then M.Neon else M.SmoothPlastic
+						sewBulb.Color = if on then C(255, 240, 220) else C(120, 120, 120)
+					end
+				end })
+			end
 		end
 	end)
-	-- 요금표 (입구 맞은편 뒷벽 가운데)
-	step(K, "prices", function()
-		local w = math.min(6.2, V.W * 0.3)
-		local y0, y1 = 3.6, math.min(V.H - 0.5, 7.3)
-		local wn, d = wallItemSpot(K, { "back" }, w, y0, y1, 0)
-		if wn and d then
-			Props.menuBoard(K, d, w, y1 - y0 - 0.2, name .. "  세탁 요금표", {
-				{ "와이셔츠", "2,000" }, { "바지 · 스커트", "4,000" }, { "블라우스", "4,000" }, { "니트 · 스웨터", "5,000" }, { "원피스", "7,000" }, { "정장 상하", "9,000" },
-				{ "코트", "12,000" }, { "패딩 점퍼", "15,000~" }, { "운동화", "6,000" }, { "이불 (극세사)", "15,000~" }, { "바지 기장 수선", "7,000" }, { "지퍼 교체", "10,000" },
-			}, { cols = 2, bg = C(250, 250, 248), fg = navy, accent = C(210, 40, 50), glow = 0.4, frame = lk(navy) })
+	-- 6) 상호작용: 컨베이어 조작함 · 스팀
+	step(K, "interact", function()
+		if conv and convBox then
+			local panel = nil
+			local xs = { convBox.a - 0.6, convBox.b + 0.6, convBox.a - 1.2, convBox.b + 1.2, convBox.a - 1.9 }
+			for _, x in xs do
+				if not panel and x > V.x0 + 0.5 and x < V.x1 - 0.5 then
+					local u = x - cx
+					local p = V:wall("back", u, 4.4, 0.15).Position
+					if Interact.canPrompt(K, p) and wallFree(K, "back", u, 0.8, 3.7, 5.1, 0.3) then
+						local d = V:wall("back", u, 4.4, 0.0)
+						K:free(function()
+							panel = K:plate("ConveyorPanel", 0.7, 1.0, 0.25, d, lk(C(220, 222, 224), M.Metal))
+							K:disc("ConveyorBtnGo", 0.18, 0.05, d * CF(0, 0.2, 0.27) * ANG(PI / 2, 0, 0), Look.ledGreen)
+							K:disc("ConveyorBtnStop", 0.18, 0.05, d * CF(0, -0.1, 0.27) * ANG(PI / 2, 0, 0), Look.ledRed)
+							txt(K, "ConveyorPanelText", 0.6, 0.2, d * CF(0, -0.36, 0.26), "컨베이어", INK, nil, { font = F.GothamBold })
+						end)
+					end
+				end
+			end
+			if not panel then
+				panel = promptPanel(K, { "back", "left", "right" }, "컨베이어", V3(convBox.a, 0, V.z0))
+			end
+			if panel then
+				Interact.prompt(K, panel, { action = "컨베이어 돌리기", object = "옷 컨베이어", fn = function()
+					conv.until_ = conv.clock + 6
+				end, sound = "rbxasset://sounds/clickfast.wav" })
+			else
+				note(K, "conveyor panel: no prompt spot")
+			end
+		end
+		if steam and iron then
+			promptOn(K, { iron, steam[3] }, { action = "스팀 분사", object = "스팀다리미", fn = function()
+				for i, p in steam do
+					task.delay(i * 0.12, function()
+						if p.Parent then
+							p.Transparency = 0.45
+						end
+						task.delay(1.4, function()
+							if p.Parent then
+								p.Transparency = 1
+							end
+						end)
+					end)
+				end
+			end })
 		end
 	end)
-	-- 찾아가실 옷 레일 (뒷벽 가운데 얕은 자리, 요금표 아래)
-	step(K, "pickup", function()
-		local w = math.min(4.4, V.W * 0.2)
-		local wn, d = wallItemSpot(K, { "back", "left", "right" }, w, 0.6, 3.5, V.W / 6, nil, 0.9)
-		if wn and d then
-			pickupRail(K, d * CF(0, 3.3 - 2.05, 0), w, rng)
-			txt(K, "PickupSign", w * 0.6, 0.3, d * CF(0, 1.5, 0.02), "완성품 · 찾아가실 옷", WHITE, navy, { font = F.GothamBold, d = 0.03 })
-		end
-	end)
-	-- 세제 · 옷걸이 선반 (높이)
+	-- 7) 선반 (세제 · 옷걸이 묶음 · 비닐 롤)
 	step(K, "shelf", function()
 		local wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.0, 5.9, 7.0, 0)
 		if wn and d then
 			local at = Props.shelf(K, d * CF(0, -0.4, 0), 3.0, { depth = 0.9, look = Look.white })
-			Props.row(K, at, 1.6, "bottles", { colors = { C(40, 110, 200), C(240, 240, 240), C(60, 180, 120), C(240, 140, 40) }, seed = 3, n = 4 })
+			Props.row(K, at * CF(-0.6, 0, 0), 1.6, "bottles", { colors = { C(40, 110, 200), C(240, 240, 240), C(60, 180, 120), C(240, 140, 40) }, seed = 3, n = 4 })
 			for i = 0, 3 do
-				K:box("HangerBundle", V3(0.9, 0.5, 0.06), at * CF(0.9, 0.25, -0.2 + i * 0.1), lk(C(200, 202, 206), M.Metal))
+				K:box("HangerBundle", V3(0.8, 0.45, 0.05), at * CF(0.95, 0.24, -0.25 + i * 0.12), lk(C(200, 202, 206), M.Metal))
 			end
+			K:cyl("PlasticRoll", 1.1, 0.4, at * CF(0.9, 0.2, 0.15) * ANG(0, 0, 0), lk(C(230, 236, 240), M.Glass, { t = 0.3 }))
 		end
 	end)
-	-- 벽 안내 (보관 기간 · 카드 · 오늘 맡기면 모레)
+	-- 8) 안내문 (보관 기간 · 영업시간 · 운동화)
 	step(K, "notices", function()
 		local wn, d = wallItemSpot(K, { "left", "right", "back" }, 1.3, 3.6, 5.4, 0)
 		if wn and d then
@@ -3207,7 +3344,7 @@ local function buildLaundry(K: any, V: any, S: any)
 			txt(K, "SneakerSign", 2.3, 0.7, d3 * CF(0, 0, 0.02), "운동화 · 이불 · 명품 세탁\n오늘 맡기면 모레 완성", navy, C(250, 236, 120), { font = F.GothamBold, d = 0.05 })
 		end
 	end)
-	-- 세탁 바구니 · 화분
+	-- 9) 바닥: 세탁물 바구니 · 화분
 	step(K, "floor", function()
 		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.4, 1.2, 1.8, V3(V.x0, 0, V.z1 - 3), 0.05, "basket")
 		if wn and pcf then
@@ -3219,72 +3356,12 @@ local function buildLaundry(K: any, V: any, S: any)
 		end
 		plantAt(K, pcfAt(V3(V.x1 - 0.9, 0, V.z1 - 1.0), V3(0, 0, 1)), "snake", 3.4, 1.0, lk(C(236, 234, 228), M.Concrete))
 	end)
-	step(K, "interact", function()
-		-- 1) 컨베이어 돌리기 (벽 조작함)
-		if conv and convBox then
-			local cands = {}
-			for _, u0 in { convBox.a - 0.7, convBox.b + 0.7, convBox.a - 1.6, convBox.b + 1.6 } do
-				table.insert(cands, u0)
-			end
-			local panel = nil
-			for _, x in cands do
-				if not panel and x > V.x0 + 0.5 and x < V.x1 - 0.5 then
-					local u = x - (V.x0 + V.x1) / 2
-					local p = V:wall("back", u, 4.4, 0.1).Position
-					if Interact.canPrompt(K, p) and wallFree(K, "back", u, 0.8, 3.7, 5.1, 0.3) then
-						local d = V:wall("back", u, 4.4, 0.0)
-						K:free(function()
-							panel = K:plate("ConveyorPanel", 0.7, 1.0, 0.25, d, lk(C(220, 222, 224), M.Metal))
-							K:disc("ConveyorBtnGo", 0.18, 0.05, d * CF(0, 0.2, 0.27) * ANG(PI / 2, 0, 0), Look.ledGreen)
-							K:disc("ConveyorBtnStop", 0.18, 0.05, d * CF(0, -0.1, 0.27) * ANG(PI / 2, 0, 0), Look.ledRed)
-							txt(K, "ConveyorPanelText", 0.6, 0.2, d * CF(0, -0.36, 0.26), "컨베이어", INK, nil, { font = F.GothamBold })
-						end)
-					end
-				end
-			end
-			if panel then
-				Interact.prompt(K, panel, { action = "컨베이어 돌리기", object = "옷 컨베이어", fn = function()
-					conv.until_ = conv.clock + 6
-				end, sound = "rbxasset://sounds/clickfast.wav" })
-			else
-				note(K, "conveyor panel: no prompt spot")
-			end
-		end
-		-- 2) 스팀 분사
-		if steam and iron then
-			local pr = promptOn(K, { iron, steam[3] }, { action = "스팀 분사", object = "스팀다리미", fn = function()
-				for i, p in steam do
-					task.delay(i * 0.12, function()
-						if p.Parent then
-							p.Transparency = 0.45
-						end
-						task.delay(1.4, function()
-							if p.Parent then
-								p.Transparency = 1
-							end
-						end)
-					end)
-				end
-			end })
-			_ = pr
-		end
-		-- 3) 미싱 스탠드
-		if sewBulb then
-			Interact.toggle(K, sewBulb, { object = "미싱 스탠드", onText = "스탠드 끄기", offText = "스탠드 켜기", state = true, on = function(on: boolean)
-				if sewBulb and sewBulb.Parent then
-					sewBulb.Material = if on then M.Neon else M.SmoothPlastic
-					sewBulb.Color = if on then C(255, 240, 220) else C(120, 120, 120)
-				end
-			end })
-		end
-	end)
 	step(K, "fixtures", function()
 		Common.fixtures(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)
 	end)
-	_ = sewLamp
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -3436,6 +3513,9 @@ local function buildOffice(K: any, V: any, S: any)
 		local wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.4, 4.2, 6.6, 0, function(dc: CFrame)
 			return Interact.canPrompt(K, (dc * CF(0, 0, 0.3)).Position)
 		end)
+		if not wn then
+			wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.4, 4.2, 6.6, 0)
+		end
 		if wn and d then
 			tvScr = Props.tv(K, d, 3.2, { on = true, screen = darker(cfg.color, 0.5) })
 			local _, lab = txt(K, "OfficeTvText", 2.9, 1.6, d * CF(0, 0, 0.27), cfg.board .. "\n" .. cfg.sheets[1][1] .. "\n" .. string.gsub(cfg.sheets[1][2], "\n", " · "), WHITE, nil, { font = F.GothamBold, glow = 1.2 })
@@ -3448,11 +3528,18 @@ local function buildOffice(K: any, V: any, S: any)
 			for _, sh in cfg.sheets do
 				table.insert(slides, cfg.board .. "\n" .. sh[1] .. "\n" .. string.gsub(sh[2], "\n", " · "))
 			end
-			Interact.cycle(K, tvScr, slides, { action = "안내 넘기기", object = cfg.sub .. " 안내 TV", on = function(_i, s)
+			local pr = Interact.cycle(K, tvScr, slides, { action = "안내 넘기기", object = cfg.sub .. " 안내 TV", on = function(_i, s)
 				if tvLab and tvLab.Parent then
 					tvLab.Text = s
 				end
 			end })
+			if not pr then
+				local frames = {}
+				for _, sl in slides do
+					table.insert(frames, { text = sl })
+				end
+				Interact.screenLoop(K, nil, tvLab, frames, 6)
+			end
 		end
 	end)
 	step(K, "fixtures", function()
