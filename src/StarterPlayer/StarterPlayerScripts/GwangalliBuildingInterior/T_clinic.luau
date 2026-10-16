@@ -6564,6 +6564,32 @@ function T.build(K: any, V: any, S: any)
 		table.insert(hp, (t.min + t.max) / 2)
 	end
 	K.hostPts = hp
+	-- 형제 껍데기 모델의 옆벽 창 (PartyWall 창) 은 V:spans 가 모름 -> 벽 소품이 덮지 않게 사용 구간으로 등록
+	pcall(function()
+		local par = V2.model and V2.model.Parent
+		if not par then
+			return
+		end
+		local base = V2.model.Name
+		for _, sib in par:GetChildren() do
+			if sib ~= V2.model and sib:IsA("Model") and string.sub(sib.Name, 1, #base) == base then
+				for _, w in sib:GetDescendants() do
+					if w:IsA("BasePart") and (w.Name == "Window" or w.Material == Enum.Material.Glass) then
+						local mn, mx = Scan.laabb(V2.cf:ToObjectSpace(w.CFrame), w.Size)
+						if mx.Y > 0 and mn.Y < V2.H and mx.X > V2.x0 - 1.5 and mn.X < V2.x1 + 1.5 and mx.Z > V2.z0 - 1.5 and mn.Z < V2.z1 + 1.5 then
+							for wn, _ in V2.walls do
+								local ua, da = V2:wallCoord(wn, Vector3.new(mn.X, 0, mn.Z))
+								local ub, db = V2:wallCoord(wn, Vector3.new(mx.X, 0, mx.Z))
+								if math.abs(da) < 1.2 and math.abs(db) < 1.2 then
+									wallUse(K, wn, math.min(ua, ub) - 0.3, math.max(ua, ub) + 0.3, mn.Y - 0.3, mx.Y + 0.3)
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
 	local room = V.room or ""
 	local key = if string.sub(room, 1, 4) == "ward" then "ward" else room
 	local fn = BUILD[key] or BUILD[ROOM_OF_TYPE[V.type or ""] or ""]
