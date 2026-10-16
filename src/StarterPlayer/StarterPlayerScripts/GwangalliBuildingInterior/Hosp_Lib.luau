@@ -116,6 +116,20 @@ function Lib.ab(K: any, name: string, x0: number, y0: number, z0: number, x1: nu
 	return K:box(name, mx - mn, CF((mn + mx) / 2), look)
 end
 
+-- 잠깐 쓰는 효과 파트 (예산 · 목록에 안 들어감, 구역 폴더 아래)
+function Lib.temp(K: any, name: string, size: Vector3, lcf: CFrame, look: any?, shape: Enum.PartType?): BasePart
+	local p = Instance.new("Part")
+	if shape then
+		p.Shape = shape
+	end
+	p.Name = name
+	Kit.apply(p, look)
+	p.Size = size
+	p.CFrame = K.cf * lcf
+	p.Parent = K.folder
+	return p
+end
+
 -- 실제로 막는 구조물: 이 클라이언트에서 충돌 + 카메라 쿼리 + 그림자, keep 검사 생략
 function Lib.solid(p: BasePart, collide: boolean?): BasePart
 	if p.Parent then

@@ -3374,7 +3374,7 @@ local function buildWashImpl(K: any, V: any): any
 			{ "기본 세차", "5,000" }, { "폼 세차 (거품)", "7,000" }, { "프리미엄 왁스", "10,000" }, { "하부 세차 추가", "+2,000" },
 			{ "셀프 진공청소기 4분", "1,000" }, { "매트 세척", "1,000" },
 		}
-		priceBoard(D, D.wall("left", pz, 6.6, -0.05), 4.6, 3.6, "자동세차 요금 (원)", items, { accent = C(30, 90, 170) })
+		priceBoard(D, D.wall("left", pz, 7.35, -0.05), 4.6, 3.6, "자동세차 요금 (원)", items, { accent = C(30, 90, 170) })
 	end)
 
 	-- 6.5 진입 신호등 (전진 / 정지 / 후진) : 갠트리 움직임 · 존 안의 차를 읽어 스스로 바뀜 ---------------------------------------
@@ -3685,12 +3685,16 @@ local function buildWashImpl(K: any, V: any): any
 				local rad = math.min(br.Size.Y, br.Size.Z) / 2
 				local base = G.Binv * V.cf:ToObjectSpace(br.CFrame)
 				local col = br.Color
-				local n = if hi then 14 else 8
+				-- 천 브러시: 축에서 바깥으로 뻗은 얇은 천 날개 (회전 방향으로 살짝 휘어 털처럼 보이게) + 양 끝 허브 캡
+				local n = if hi then 22 else 12
 				local list = grab(function()
 					for i = 0, n - 1 do
 						local a = i * 2 * PI / n
-						local c = if i % 2 == 0 then col:Lerp(WHITE, 0.25) else col:Lerp(C(0, 0, 0), 0.15)
-						D.box("BrushStrip", V3(len - 0.2, 0.08, 0.55), base * ANG(a, 0, 0) * CF(0, rad + 0.02, 0), lk(c, M.Fabric))
+						local c = if i % 3 == 0 then col:Lerp(WHITE, 0.3) elseif i % 3 == 1 then col else col:Lerp(C(0, 0, 0), 0.2)
+						D.box("BrushFin", V3(len - 0.35, 0.62, 0.07), base * ANG(a, 0, 0) * CF(0, rad + 0.12, 0) * ANG(0.42, 0, 0), lk(c, M.Fabric))
+					end
+					for _, s in { -1, 1 } do
+						D.cyl("BrushHub", 0.12, rad * 1.1, base * CF(s * (len / 2 - 0.05), 0, 0), lk(C(60, 64, 70), M.Metal))
 					end
 				end)
 				att(br, list)

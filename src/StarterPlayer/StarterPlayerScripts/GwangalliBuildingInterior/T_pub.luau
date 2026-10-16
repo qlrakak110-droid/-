@@ -1708,6 +1708,72 @@ local function backBar(c: any)
 	c.backBar = { x0 = x0, x1 = x1, yTop = yTop }
 end
 
+-- 4a) 백바 하부장 윗면 앞쪽 (선반 앞 0.6 띠): 칵테일 바는 바텐더 도구 (비터스 · 셰이커 · 지거 · 시트러스),
+--     맥주 펍은 얼음 버킷 병맥주. 깊이는 하부장 안 (직원 통로에 안 나옴)
+local function backTop(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local cab = V:first("BackBarCabinet")
+	if not cab or not c.backBar or not budget(K, 60) then
+		return
+	end
+	local y = cab.max.Y
+	local zc = cab.max.Z - 0.4
+	local detail = K.detail
+	local cocktail = th.key == "fuzzy" or th.key == "party"
+	local function ok(x: number, w: number, h: number): boolean
+		return clearAt(K, CF(x, y + h / 2 + 0.01, zc), V3(w, h, 0.5))
+	end
+	if cocktail then
+		local x0 = cab.min.X + 1.5
+		if ok(x0 + 0.7, 1.7, 0.5) then
+			K:box("BarToolMat", V3(1.6, 0.03, 0.46), CF(x0 + 0.7, y + 0.015, zc), L.rubber)
+			-- 비터스 4 (작은 갈색병 + 큰 흰 라벨 + 대셔 뚜껑)
+			for k = 0, 3 do
+				local bp = CF(x0 + k * 0.17, y + 0.03, zc - 0.1)
+				K:vcyl("Bitters", 0.26, 0.12, bp * CF(0, 0.13, 0), { c = rgb(84, 46, 20), m = M.Glass, t = 0.1 })
+				K:vcyl("BittersLabel", 0.16, 0.128, bp * CF(0, 0.13, 0), { c = if k % 2 == 0 then rgb(240, 236, 220) else rgb(220, 196, 120) })
+				K:vcyl("BittersDasher", 0.08, 0.06, bp * CF(0, 0.3, 0), L.chrome)
+			end
+			-- 셰이커 (보스턴 틴 2: 하나는 엎어 둠) · 지거 2 · 바 스푼
+			K:vcyl("ShakerTin", 0.4, 0.22, CF(x0 + 0.8, y + 0.23, zc - 0.06), L.chrome)
+			K:vcyl("ShakerTinSmall", 0.3, 0.18, CF(x0 + 1.06, y + 0.18, zc - 0.04), L.chrome)
+			for k = 0, 1 do
+				local jp = CF(x0 + 1.3 + k * 0.16, y + 0.03, zc + 0.08)
+				K:vcyl("JiggerBase", 0.1, 0.1, jp * CF(0, 0.05, 0), L.goldMetal)
+				K:vcyl("JiggerCup", 0.1, 0.13, jp * CF(0, 0.15, 0), L.goldMetal)
+			end
+			K:seg("BarSpoon", V3(x0 + 0.3, y + 0.04, zc + 0.12), V3(x0 + 1.05, y + 0.04, zc + 0.16), 0.025, L.chrome)
+			-- 시트러스 트레이 (레몬 · 라임 반쪽)
+			K:box("CitrusTray", V3(0.62, 0.05, 0.3), CF(x0 + 1.75, y + 0.025, zc - 0.02), L.of(240, 240, 238))
+			if detail ~= "low" then
+				for k = 0, 5 do
+					K:ell("Citrus", V3(0.16, 0.1, 0.16), CF(x0 + 1.52 + (k % 3) * 0.17, y + 0.09, zc - 0.09 + (k // 3) * 0.14), { c = if k < 3 then rgb(246, 214, 60) else rgb(120, 180, 60), m = M.SmoothPlastic })
+				end
+			end
+		end
+	end
+	-- 얼음 버킷 병맥주 (스테인리스 버킷 + 얼음 + 병 목 3)
+	local bx = cab.max.X - 1.4
+	if ok(bx, 0.6, 0.6) then
+		local bp = CF(bx, y, zc)
+		K:vcyl("IceBucket", 0.42, 0.5, bp * CF(0, 0.21, 0), L.of(186, 190, 196, M.Metal, { r = 0.2 }))
+		K:vcyl("IceBucketRim", 0.05, 0.54, bp * CF(0, 0.41, 0), L.chrome)
+		K:ell("IceBucketIce", V3(0.44, 0.12, 0.44), bp * CF(0, 0.4, 0), { c = rgb(228, 240, 246), m = M.Ice })
+		local gcs = if cocktail then { rgb(40, 96, 56), rgb(226, 234, 236), rgb(40, 96, 56) } else { rgb(110, 60, 24), rgb(40, 96, 56), rgb(110, 60, 24) }
+		for k = 1, 3 do
+			local a = k * 2.1
+			local np = bp * CF(math.cos(a) * 0.11, 0.48, math.sin(a) * 0.11) * ANG(math.sin(a) * 0.15, 0, math.cos(a) * 0.15)
+			K:vcyl("IceBucketNeck", 0.26, 0.09, np, { c = gcs[k], m = M.Glass, t = 0.1 })
+			K:vcyl("IceBucketCap", 0.03, 0.1, np * CF(0, 0.14, 0), L.goldMetal)
+		end
+		if detail ~= "low" then
+			for _, sx in { -1, 1 } do
+				K:ring("IceBucketHandle", bp * CF(sx * 0.27, 0.3, 0) * ANG(0, PI / 2, 0), 0.06, 0.03, 3, L.chrome, -PI / 2, PI / 2)
+			end
+		end
+	end
+end
+
 -- 4b) 카페형 매장 (WallShelf + Jar): 병 판매 선반으로
 local function shelfBar(c: any)
 	local K, V, th = c.K, c.V, c.th
@@ -3431,6 +3497,7 @@ function T.build(K: any, V: any, S: any)
 		{ "banquette", banquettes },
 		{ "chairs", chairsOver },
 		{ "backbar", backBar },
+		{ "backtop", backTop },
 		{ "shelfbar", shelfBar },
 		{ "tap", tapTower },
 		{ "rail", footRail },

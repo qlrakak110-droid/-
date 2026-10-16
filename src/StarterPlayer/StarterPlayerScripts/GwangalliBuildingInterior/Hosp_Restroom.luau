@@ -144,13 +144,13 @@ local function toilet(K: any, cx: number): (BasePart, BasePart)
 		K:box("ToiletLid", V3(1.35, 1.90, 0.10), CF(cx, 2.55, 38.12) * ANG(rad(-8), 0, 0), LK.porcelain)
 	end
 	-- 플러시 밸브 (벽 매입 배관 + 레버)
-	K:vcyl("FlushPipe", 1.75, 0.16, CF(cx, 2.43, 38.55), LK.chrome)
-	K:cyl("FlushValve", 0.6, 0.34, CF(cx, 3.40, 38.50) * ANG(0, PI / 2, 0), LK.chrome)
+	K:vcyl("FlushPipe", 1.75, 0.16, CF(cx - 0.12, 2.36, 38.50), LK.chrome)
+	K:cyl("FlushValve", 0.6, 0.34, CF(cx, 3.40, 38.50), LK.chrome)
 	if not low then
-		K:vcyl("FlushStop", 0.5, 0.14, CF(cx, 3.40, 38.62), LK.chrome)
-		K:cyl("FlushBend", 0.3, 0.16, CF(cx, 1.50, 38.45) * ANG(0, PI / 2, 0), LK.chrome)
+		K:cyl("FlushStop", 0.3, 0.14, CF(cx - 0.12, 3.40, 38.62) * ANG(0, PI / 2, 0), LK.chrome)
+		K:cyl("FlushBend", 0.4, 0.16, CF(cx - 0.12, 1.50, 38.30) * ANG(0, PI / 2, 0), LK.chrome)
 	end
-	local lever = K:box("FlushLever", V3(0.55, 0.08, 0.08), CF(cx + 0.32, 3.40, 38.36), LK.chrome)
+	local lever = K:bar("FlushLever", V3(cx + 0.34, 3.40, 38.42), V3(cx + 0.36, 3.33, 37.92), 0.08, 0.08, LK.chrome) :: BasePart
 	return lever, water
 end
 
@@ -204,10 +204,7 @@ local function washFx(K: any, spout: BasePart, x: number)
 	if not spout.Parent then
 		return
 	end
-	local stream = K:make("Part", "WaterStream", V3(0.79, 0.08, 0.08), CF(x, 3.42, 28.20) * ANG(0, 0, PI / 2), LK.stream, Enum.PartType.Cylinder)
-	if stream.Parent == nil then
-		stream.Parent = K.folder
-	end
+	local stream = Lib.temp(K, "WaterStream", V3(0.79, 0.08, 0.08), CF(x, 3.42, 28.20) * ANG(0, 0, PI / 2), LK.stream, Enum.PartType.Cylinder)
 	Lib.particles(stream, "water", 3)
 	local s = Lib.sfx(spout, SND.water, { vol = 0.25, speed = 1.4, loop = true, dur = 3.0 })
 	task.delay(3.0, function()
@@ -394,7 +391,7 @@ local function entranceDoor(K: any, id: string, x0: number, x1: number, hingeX: 
 	Interact.anim(K, function(t)
 		local near = false
 		for _, a in Lib.actors() do
-			if a.kind ~= "npc" and math.abs(a.l.X - cx) < 1.8 + (x1 - x0) / 2 - 1.5 and a.l.Z > 24.5 and a.l.Z < 30.0 and a.l.Y > -1 and a.l.Y < 8 then
+			if a.kind ~= "npc" and math.abs(a.l.X - cx) < 1.8 and a.l.Z > 24.5 and a.l.Z < 30.0 and a.l.Y > -1 and a.l.Y < 8 then
 				near = true
 			end
 		end
@@ -419,12 +416,12 @@ local function babyStation(K: any, wallX: number, n: number, z0: number, z1: num
 	local g = K:group("BabyDeck", function()
 		-- 접힌 판 (경첩 = 아래쪽, x = bx, y 2.9)
 		deck = Lib.ab(K, "BabyDeckPanel", bx, 2.90, z0 + 0.05, bx + n * 0.10, 4.50, z1 - 0.05, LK.white)
-		Lib.ab(K, "BabyDeckRim", bx + n * 0.10, 2.90, z0 + 0.05, bx + n * 0.16, 3.04, z1 - 0.05, Look.of(0, 128, 118))
+		Lib.ab(K, "BabyDeckRim", bx + n * 0.10, 4.36, z0 + 0.05, bx + n * 0.16, 4.50, z1 - 0.05, Look.of(0, 128, 118))
 		Lib.tx(K, "BabyLabel", 1.7, 0.42, Lib.face(bx + n * 0.105, 3.95, zc, n, 0), "🚼 기저귀 교환대 · 최대 15kg", C.TEAL_D, nil, { font = Lib.FONT_B })
 		K:box("BabyStrap", V3(0.04, 0.12, 1.2), CF(bx + n * 0.11, 3.35, zc), Look.of(40, 120, 110, M.Fabric))
 	end)
 	local hinge = Geo.W(bx, 2.90, zc)
-	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.ZVector, rad(90) * n, { tOpen = 0.6, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadInOut" })
+	local mv = Lib.Swinger(K, Lib.partsOf(g), hinge, Geo.HF.ZVector, rad(90) * -n, { tOpen = 0.6, tClose = 0.6, easeOpen = "quadOut", easeClose = "quadInOut" })
 	local open = false
 	if deck then
 		Interact.prompt(K, deck, {
@@ -519,7 +516,6 @@ end
 function R.build(K: any, env: any)
 	local UI = env.UI
 	local low = K.detail == "low"
-	local high = K.detail == "high"
 	-- 1) 맵 가짜 문 숨김 (모두 충돌 없음)
 	local function backZone(): Instance?
 		return Lib.child(Lib.hospital(), { "1F", "BackZone" })
@@ -576,9 +572,8 @@ function R.build(K: any, env: any)
 	-- 3) 천장 + 동작 감지 조명
 	local roomW = newRoom(K, env, "W", { -59.29, -47.90, 27.30, 38.78 })
 	local roomM = newRoom(K, env, "M", { -47.60, -36.20, 27.30, 38.78 })
-	roomW.glow = ceilingKit(K, -59.29, -47.90, { { -56.0, 30.8 }, { -51.5, 30.8 }, { -55.0, 36.0 }, { -51.6, 36.0 } }, { -55.5, 36.0 }, { -50.0, 28.6 })
-	roomM.glow = ceilingKit(K, -47.60, -36.20, { { -44.5, 30.8 }, { -39.0, 30.8 }, { -44.9, 36.0 } }, { -38.6, 37.5 }, { -45.6, 28.6 })
-	-- 그릴과 겹치는 3 번째 조명 대신: 여자 칸 위 2 개만 쓰도록 조정 (그릴 자리 -55.5, 36.0 근처)
+	roomW.glow = ceilingKit(K, -59.29, -47.90, { { -56.0, 30.8 }, { -51.5, 30.8 }, { -57.4, 36.0 }, { -51.8, 36.2 } }, { -55.5, 36.0 }, { -50.0, 28.6 })
+	roomM.glow = ceilingKit(K, -47.60, -36.20, { { -44.5, 30.8 }, { -39.0, 30.8 }, { -45.0, 36.0 } }, { -38.6, 37.5 }, { -45.6, 28.6 })
 	motionLights(K, roomW)
 	motionLights(K, roomM)
 
@@ -587,7 +582,6 @@ function R.build(K: any, env: any)
 	entranceDoor(K, "M", -47.05, -44.15, -47.05, -1, false)
 
 	-- 5) 여자 화장실 ---------------------------------------------------------------------------------
-	local HPL = solidLook(LK.hpl)
 	Lib.wall(K, "StallFront", -59.25, 0.45, 33.00, -58.30, 6.85, 33.12, LK.hpl)
 	Lib.wall(K, "StallFront", -54.90, 0.45, 33.00, -53.90, 6.85, 33.12, LK.hpl)
 	Lib.wall(K, "StallPartition", -53.96, 0.45, 33.12, -53.84, 6.85, 38.74, LK.hpl)
@@ -604,7 +598,6 @@ function R.build(K: any, env: any)
 			Lib.ab(K, "StallFoot", -49.8, 0.10, z - 0.1, -49.6, 0.45, z + 0.1, LK.steel)
 		end
 	end)
-	local _ = HPL
 	stall(K, {
 		id = "W1",
 		x0 = -58.275,
@@ -772,7 +765,7 @@ function R.build(K: any, env: any)
 	end
 	K:plate("MirrorLED", 6.5, 0.08, 0.05, Lib.face(-40.15, 7.59, 27.34, 0, 1), LK.led)
 	local dryM, ledM = dryer(K, Lib.face(-36.24, 4.30, 30.60, -1, 0))
-	towel(K, Lib.face(-36.24, 4.70, 32.10, -1, 0), V3(-36.8, 0, 33.2))
+	towel(K, Lib.face(-36.24, 4.70, 32.10, -1, 0), V3(-36.8, 0, 32.1))
 	babyStation(K, -47.60, 1, 30.50, 32.40)
 
 	-- 7) 홀 쪽 안내 · 안전
@@ -913,7 +906,6 @@ function R.build(K: any, env: any)
 			end
 		end)
 	end
-	local _h = high
 end
 
 -- 맵 1F 후면 홀이 스트리밍 됐을 때만

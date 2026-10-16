@@ -4462,7 +4462,7 @@ local function restockSupplies(ctx: any)
 	end)
 end
 
-local FF_DUMP = true -- DEBUG (remove)
+local FF_DUMP = false -- DEBUG (remove)
 function T.build(K: any, V: any, S: any)
 	if FF_DUMP then
 		local agg = {}

@@ -3104,6 +3104,34 @@ BUILD.consult = function(K: any, V: any)
 		end
 	end)
 	-- 판독 라이트박스 (복도 쪽 벽) · 표지 액자 -------------------------------------------------
+	-- 앞벽 아래: 보호자 의자 2 · 옷걸이 스탠드 ---------------------------------------------------------------
+	step(K, "guest", function()
+		for _, x in { -10.5, -12.0, -9.0, -13.5 } do
+			local pc = CF(x, 0, V.z1 - 1.25) * ANG(0, PI, 0)
+			if K:spot(pc, V3(4.2, 3.6, 2.2), 0) then
+				K:free(function()
+					armChair(K, pc * CF(-1.0, 0, 0), 1.9, LK.vinylMint, LK.alu)
+					armChair(K, pc * CF(1.0, 0, 0), 1.9, LK.vinylMint, LK.alu)
+					K:box("GuestBag", V3(1.0, 0.8, 0.45), pc * CF(1.0, 2.2, 0.1), lk(150, 96, 70, M.Leather))
+				end)
+				local cs = pc * CF(-3.4, 0, 0.2)
+				if K:spot(cs, V3(1.6, 6.0, 1.6), 0) then
+					K:free(function()
+						K:disc("CoatBase", 1.4, 0.12, cs * CF(0, 0.06, 0), LK.darkAlu)
+						K:vcyl("CoatPole", 5.8, 0.16, cs * CF(0, 3.0, 0), LK.darkAlu)
+						for k = 0, 3 do
+							local a = k * PI / 2 + 0.4
+							K:seg("CoatHook", (cs * CF(0, 5.6, 0)).Position, (cs * CF(math.cos(a) * 0.5, 5.9, math.sin(a) * 0.5)).Position, 0.06, LK.darkAlu)
+						end
+						K:box("WhiteCoat", V3(1.2, 3.4, 0.35), cs * CF(0, 4.0, 0.3) * ANG(0, 0.3, 0), lk(250, 250, 248, M.Fabric))
+						K:box("WhiteCoatTag", V3(0.3, 0.12, 0.02), cs * CF(-0.25, 5.2, 0.5) * ANG(0, 0.3, 0), col(TEAL))
+						K:seg("Stethoscope", (cs * CF(0.4, 5.6, 0.1)).Position, (cs * CF(0.5, 4.3, 0.35)).Position, 0.06, lk(30, 30, 34, M.Rubber))
+					end)
+				end
+				break
+			end
+		end
+	end)
 	step(K, "lightbox", function()
 		local d = wallSpot(K, "front", 4.4, 4.2, 7.6, wallU("front", Vector3.new(-2.0, 0, 0)), 0.5)
 		if not d then

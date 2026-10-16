@@ -183,7 +183,6 @@ function UI.toast(text: string, t: number?)
 	local info = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 	TweenService:Create(f, info, { BackgroundTransparency = 0.15 }):Play()
 	TweenService:Create(l, info, { TextTransparency = 0 }):Play()
-	f:FindFirstChild("Accent")
 	task.delay(t or 2.6, function()
 		if seq ~= toastSeq or not f.Parent then
 			return
