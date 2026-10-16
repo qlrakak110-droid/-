@@ -1094,15 +1094,6 @@ local function buildShowroom(K: any, V: any)
 		return true
 	end
 	step(K, "ceilingLights", function()
-		for _, t in tts do
-			note(K, string.format("DBG tt %.2f %.2f r%.2f %s", t.x, t.z, t.r, tostring(t.kind)))
-		end
-		for _, r in G.byName.PriceCard or {} do
-			note(K, string.format("DBG card %.2f %.2f", r.c.X, r.c.Z))
-		end
-		for _, r in G.byName.LightPanel or {} do
-			note(K, string.format("DBG led %.2f..%.2f %.2f..%.2f", r.min.X, r.max.X, r.min.Z, r.max.Z))
-		end
 		for _, r in hideNamed(G, "LightPanel") do
 			local alongX = r.size.X >= r.size.Z
 			local y = yC
@@ -1223,6 +1214,67 @@ local function buildShowroom(K: any, V: any)
 		local dcf = D.wall("back", -22.2, 11.6, 0.0)
 		local hr, mn = Props.clock(K, G.B * dcf, 1.5, { frame = L.darkAlu })
 		Interact.clock(K, hr, mn, G.B * dcf, 1.5)
+	end)
+	-- 4.5b 통로 위 행잉 배너 (양면 천 배너, 턴테이블 반경 밖 통로 위 8.2 이상)
+	step(K, "aisleBanners", function()
+		if #tts < 4 then
+			return
+		end
+		local colsX, rowsZ = {}, {}
+		local function addU(list: { number }, v: number)
+			for _, u in list do
+				if math.abs(u - v) < 3 then
+					return
+				end
+			end
+			table.insert(list, v)
+		end
+		for _, t in tts do
+			addU(colsX, t.x)
+			addU(rowsZ, t.z)
+		end
+		table.sort(colsX)
+		table.sort(rowsZ)
+		local msgs = {
+			{ "인증 중고차", "성능점검 · 1년 2만km 보증", NAVY, ORANGE },
+			{ "시승 무료", "60초 체험 · 가격 카드에서 신청", ORANGE, NAVY },
+			{ "할부 OK", "선수금 30% · 10일 분할", C(24, 96, 150), WHITE },
+			{ "GWANGAN AUTO", "2026 광안리 쇼룸", C(26, 28, 34), ORANGE },
+		}
+		local bw, bh = 4.2, 4.0
+		local yb = math.max(8.3, yC - 1.0 - bh)
+		local k = 0
+		for i = 1, #colsX - 1 do
+			local ax = (colsX[i] + colsX[i + 1]) / 2
+			for _, rz in rowsZ do
+				local mn, mx = V3(ax - bw / 2 - 0.2, yb, rz - 0.3), V3(ax + bw / 2 + 0.2, yC - 0.05, rz + 0.3)
+				local ok = clear(G, mn, mx) and ceilFree(ax - bw / 2 - 0.2, ax + bw / 2 + 0.2, rz - 0.3, rz + 0.3)
+				if ok then
+					k += 1
+					local m = msgs[(k - 1) % #msgs + 1]
+					local yc = yb + bh / 2
+					local cf = CF(ax, yc, rz)
+					D.box("BannerRod", V3(bw + 0.3, 0.12, 0.12), cf * CF(0, bh / 2 + 0.06, 0), L.alu)
+					D.box("BannerWeight", V3(bw + 0.1, 0.1, 0.1), cf * CF(0, -bh / 2 - 0.05, 0), L.darkAlu)
+					for _, sx in { -1, 1 } do
+						D.cyl("BannerRodCap", 0.14, 0.18, cf * CF(sx * (bw / 2 + 0.16), bh / 2 + 0.06, 0), L.darkAlu)
+						D.seg("BannerCable", V3(ax + sx * (bw / 2 - 0.2), yb + bh + 0.12, rz), V3(ax + sx * (bw / 2 - 0.2), yC - 0.02, rz), 0.03, L.steel)
+						D.disc("BannerCableMount", 0.22, 0.04, CF(ax + sx * (bw / 2 - 0.2), yC - 0.02, rz), L.alu)
+					end
+					D.box("BannerCloth", V3(bw, bh, 0.04), cf, lk(m[3], M.Fabric))
+					for _, side in { 1, -1 } do
+						local fcf = cf * CF(0, 0, side * 0.021) * (if side > 0 then CFrame.new() else ANG(0, PI, 0))
+						D.box("BannerStripe", V3(bw, 0.16, 0.01), fcf * CF(0, -bh / 2 + 0.55, 0.005), lk(m[4], M.Fabric))
+						D.label("BannerHead", bw - 0.5, 1.2, fcf * CF(0, 0.75, 0.0), m[1], WHITE, nil, { d = 0.006, font = Enum.Font.GothamBlack, clear = true })
+						D.label("BannerSub", bw - 0.6, 0.55, fcf * CF(0, -0.45, 0.0), m[2], C(236, 236, 232), nil, { d = 0.006, font = Enum.Font.GothamBold, clear = true })
+						D.label("BannerBrand", bw - 1.6, 0.32, fcf * CF(0, -bh / 2 + 0.25, 0.0), "광안 오토", m[4], nil, { d = 0.006, font = Enum.Font.GothamBold, clear = true })
+					end
+					table.insert(ceilUsed, { ax - bw / 2 - 0.3, ax + bw / 2 + 0.3, rz - 0.4, rz + 0.4 })
+				else
+					note(K, string.format("skip banner %.1f %.1f", ax, rz))
+				end
+			end
+		end
 	end)
 
 	-- 4.6 상담 데스크 (맵 DeskBody / DeskTop 정확히 덮기) + 데스크 소품 + 뒤 벽 --------------------------------------------
@@ -1868,6 +1920,38 @@ local function buildShowroom(K: any, V: any)
 		D.plate("LeftWallBand", 22, 1.2, 0.05, D.wall("left", -2.0, 11.2, 0.0), L.navyMatte)
 		D.plate("LeftWallBandLine", 22, 0.06, 0.06, D.wall("left", -2.0, 10.5, 0.0), L.orangeNeon)
 		D.label("LeftWallGraphic", 20, 0.8, D.wall("left", -2.0, 11.2, 0.05), "SINCE 2008  ·  광안리 바닷가 옆 믿을 수 있는 자동차 매장", C(236, 236, 230), nil, { d = 0.01, font = Enum.Font.GothamBold })
+		-- 캠페인 라이트박스 (점검기록부 · 컬러 보드 위 빈 벽): 파트로 만든 차 실루엣 + 속도선 + 문구
+		do
+			local lb = D.wall("left", -4.5, 8.75, 0.0)
+			local lw, lh = 12.0, 2.6
+			D.plate("CampaignBox", lw + 0.2, lh + 0.2, 0.25, lb, L.darkAlu)
+			D.label("CampaignFace", lw, lh, lb * CF(0, 0, 0.25), "", WHITE, C(14, 24, 46), { d = 0.02, glow = 1.0 })
+			for _, sy in { -1, 1 } do
+				D.plate("CampaignEdgeLED", lw, 0.05, 0.03, lb * CF(0, sy * (lh / 2 - 0.06), 0.27), L.orangeNeon)
+			end
+			local o = 0.28
+			local cx, cy = -3.0, -0.25
+			local paint = lk(C(232, 234, 236), M.SmoothPlastic, { r = 0.25 })
+			D.panel("AdCarBody", 4.6, 0.6, 0.05, 0.22, lb * CF(cx, cy, o), paint)
+			D.panel("AdCarCabin", 2.5, 0.55, 0.05, 0.24, lb * CF(cx - 0.15, cy + 0.5, o), paint)
+			D.panel("AdCarGlass", 2.2, 0.36, 0.02, 0.16, lb * CF(cx - 0.15, cy + 0.52, o + 0.05), lk(C(30, 40, 58), M.Glass, { r = 0.3 }))
+			D.plate("AdCarPillar", 0.1, 0.38, 0.02, lb * CF(cx - 0.05, cy + 0.52, o + 0.07), paint)
+			D.plate("AdCarHeadlight", 0.42, 0.09, 0.02, lb * CF(cx + 2.12, cy + 0.12, o + 0.05), Look.neon(C(220, 240, 255)))
+			D.plate("AdCarTail", 0.24, 0.1, 0.02, lb * CF(cx - 2.2, cy + 0.12, o + 0.05), Look.neon(C(255, 50, 40)))
+			D.plate("AdCarLine", 3.6, 0.03, 0.02, lb * CF(cx, cy - 0.02, o + 0.05), lk(C(150, 156, 164), M.Metal))
+			for _, wx in { cx - 1.45, cx + 1.4 } do
+				local wcf = lb * CF(wx, cy - 0.32, o + 0.06) * ANG(0, PI / 2, 0)
+				D.cyl("AdCarWheel", 0.06, 0.74, wcf, L.black)
+				D.cyl("AdCarRim", 0.08, 0.42, wcf * CF(0, 0, 0), L.rim)
+			end
+			D.plate("AdCarFloor", 5.6, 0.04, 0.02, lb * CF(cx, cy - 0.72, o), Look.lampNeutral)
+			for i, len in { 1.6, 2.3, 1.2 } do
+				D.plate("AdSpeedLine", len, 0.05, 0.02, lb * CF(cx - 2.6 - len / 2, cy + 0.42 - i * 0.22, o), L.orangeNeon)
+			end
+			D.label("CampaignHead", 5.2, 1.0, lb * CF(3.0, 0.45, o), "인증 중고차의 기준", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBlack, clear = true })
+			D.label("CampaignSub", 5.2, 0.55, lb * CF(3.0, -0.4, o), "성능점검 · 1년 2만km 보증 · 할부 OK", C(255, 170, 120), nil, { d = 0.01, font = Enum.Font.GothamBold, clear = true })
+			D.label("CampaignBrand", 2.4, 0.32, lb * CF(4.3, -1.0, o), "GWANGAN AUTO", C(200, 206, 216), nil, { d = 0.01, font = Enum.Font.GothamBold, clear = true })
+		end
 		-- 소화전 위 비상벨 · 스위치 옆 안내 (맵 스위치 피함)
 		Props.fireBell(K, G.B * D.wall("left", 17.6, 4.6, 0.0))
 		-- 용품 쇼케이스 (왼쪽 벽 앞쪽)
@@ -1938,12 +2022,33 @@ local function buildShowroom(K: any, V: any)
 		-- 중고차 시세표
 		local cat = catalog()
 		local order = { "compact", "sedan", "suv", "truck", "van", "luxury" }
-		local items = {}
-		for _, k in order do
-			local e = cat[k] or CATALOG_FALLBACK[k]
-			table.insert(items, { e.label or k, "신차 " .. fmtWon(e.new or 0) .. " / 중고 " .. fmtWon(e.used or 0) })
+		-- 차량 가격표: 차종 | 신차 | 중고 3 칸 (한 칸에 두 값을 넣으면 글자가 너무 작아짐)
+		local pdcf = D.wall("right", 9.6, 5.6, 0.0)
+		local pw, ph = 6.4, 4.4
+		D.plate("PriceBoardFrame", pw + 0.24, ph + 0.24, 0.12, pdcf, L.alu)
+		D.plate("PriceBoardFace", pw, ph, 0.14, pdcf, lk(C(250, 250, 246)))
+		D.label("PriceBoardTitle", pw, 0.72, pdcf * CF(0, ph / 2 - 0.36, 0.14), "차량 가격표 (원)", WHITE, NAVY, { d = 0.01, font = Enum.Font.GothamBlack })
+		local colX = { -pw / 2 + pw * 0.2, -pw / 2 + pw * 0.56, -pw / 2 + pw * 0.83 }
+		local colW = { pw * 0.36, pw * 0.34, pw * 0.3 }
+		local hy = ph / 2 - 0.72 - 0.22
+		for ci, hd in { "차종", "신차", "중고" } do
+			D.label("PriceColHead", colW[ci] - 0.08, 0.34, pdcf * CF(colX[ci], hy, 0.145), hd, C(90, 96, 108), C(226, 230, 236), { d = 0.005, font = Enum.Font.GothamBold })
 		end
-		priceBoard(D, D.wall("right", 9.6, 5.6, 0.0), 6.4, 4.4, "차량 가격표 (원)", items, { accent = NAVY })
+		local nrow = #order
+		local rh = (ph - 0.72 - 0.44 - 0.12) / nrow
+		for i, k in order do
+			local e = cat[k] or CATALOG_FALLBACK[k]
+			local y = hy - 0.17 - rh * (i - 0.5)
+			local bg = if i % 2 == 1 then C(250, 250, 246) else C(236, 238, 242)
+			D.label("PriceRowName", colW[1] - 0.08, rh * 0.84, pdcf * CF(colX[1], y, 0.145), e.label or k, INK, bg, { d = 0.005, font = Enum.Font.GothamBold })
+			D.label("PriceRowPrice", colW[2] - 0.08, rh * 0.84, pdcf * CF(colX[2], y, 0.145), fmtWon(e.new or 0), NAVY, bg, { d = 0.005, font = Enum.Font.GothamBlack })
+			D.label("PriceRowPrice", colW[3] - 0.08, rh * 0.84, pdcf * CF(colX[3], y, 0.145), fmtWon(e.used or 0), C(200, 70, 28), bg, { d = 0.005, font = Enum.Font.GothamBlack })
+		end
+		for ci = 1, 2 do
+			local x = (colX[ci] + colW[ci] / 2 + colX[ci + 1] - colW[ci + 1] / 2) / 2
+			D.plate("PriceBoardDivider", 0.03, ph - 0.9, 0.16, pdcf * CF(x, -0.4, 0), lk(C(200, 202, 206)))
+		end
+		D.label("PriceBoardFoot", pw - 0.3, 0.26, pdcf * CF(0, -ph / 2 - 0.3, 0.02), "부가세 포함 · 할부 · 렌트 상담은 데스크에서", C(90, 96, 108), nil, { d = 0.01, font = Enum.Font.GothamMedium })
 		D.plate("RightWallBand", 22, 1.2, 0.05, D.wall("right", -1.0, 11.2, 0.0), L.navyMatte)
 		D.plate("RightWallBandLine", 22, 0.06, 0.06, D.wall("right", -1.0, 10.5, 0.0), L.orangeNeon)
 		D.label("RightWallGraphic", 20, 0.8, D.wall("right", -1.0, 11.2, 0.05), "신차 · 중고차 · 렌트 · 정비 · 세차  ONE STOP", C(236, 236, 230), nil, { d = 0.01, font = Enum.Font.GothamBold })
@@ -2074,7 +2179,7 @@ local function buildShowroom(K: any, V: any)
 			end
 			if card then
 				local placed = false
-				for _, dx in { 3.3, -3.3, 6.9, -6.9 } do
+				for _, dx in { 3.3, -3.3, 6.9, -6.9, 7.5, -7.5 } do
 					if not placed then
 						local sx, sz = card.c.X + dx, card.c.Z + 0.35
 						local p = pf(sx, y0, sz, 0)

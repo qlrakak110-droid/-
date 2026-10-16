@@ -606,6 +606,8 @@ local function brandOf(V: any): any
 		B.menus = MENUS.pascucci
 		B.neon = { "Pascucci", rgb(255, 220, 170), F.Garamond }
 		B.art = "coffee"
+		-- 이탈리안 카페: 따뜻한 베이지 회벽 (맵의 흰 벽이 넓은 매장에서 회색으로 죽어 보임)
+		B.wall = { back = lk(rgb(236, 224, 206), M.Plaster), left = lk(rgb(236, 224, 206), M.Plaster), right = lk(rgb(236, 224, 206), M.Plaster) }
 		feat.fridge = true
 	elseif key == "starbucks" then
 		B.title, B.logo, B.slogan = "STARBUCKS", "STARBUCKS", "광안리점"

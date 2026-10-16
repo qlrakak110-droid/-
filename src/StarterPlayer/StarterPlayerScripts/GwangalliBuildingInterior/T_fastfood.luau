@@ -15,6 +15,14 @@
 --   * 상호작용은 프롬프트가 되는 자리(Interact.canPrompt: 서버 앵커 6.5 스터드 밖)를 먼저 차지하도록 먼저 놓음:
 --     치킨 = TV 채널 · 네온 켜기 · 잔 냉동고 문 · 음료 냉장고 문, 버거 = TV · 네온 · 주크박스 곡 · 냉장고 문,
 --     분식 = 선풍기 켜기 · 순대 찜기 뚜껑 · TV, 오뎅바 = 네온 · 사케 냉장고 문. 자리가 없으면 화면은 저절로 순환.
+--     promptSpotStrict = 프롬프트가 꼭 되는 벽 자리만 (TV 버튼 · 네온 모서리 같은 부착 부품 위치까지 검사).
+--   * 마무리 단계 (모든 유형, T.build 끝):
+--     restockFridges / restockBarBottles = 맵의 단순 원통 Bottle 을 같은 자리의 캔 · 소주 · 맥주 · 페트 · 쿨피스 · 사케로,
+--       눈부신 FridgeGlow 네온 판은 무광 뒤판 + LED 로 (FridgeDoor 는 그대로).
+--     restockSupplies = SupplyTub · RamenPack · BoxStack · RadishTub · WetWipeBox · Purifier · BrothUrn 같은 범위 덮개.
+--     selfCabinetOverlay = 맵 SelfCabinet 을 여닫는 두 문 + 안쪽 비품으로 (프롬프트).
+--     placeClock (Common 시계 대신: 맵 간판을 피함) · hangingBoards (넓은 분식 홀 천장 양면 안내판) ·
+--     fillWalls (남은 빈 벽에 유형별 액자 포스터 2~4장).
 
 local Look = require(script.Parent:WaitForChild("Look"))
 local Props = require(script.Parent:WaitForChild("Props"))
