@@ -550,6 +550,23 @@ local function halfLines(lines: { number }, a: number, b: number, pitch: number)
 	return all, mids
 end
 
+-- 천장 아래 빈 자리? (맵 T-bar · 숨긴 LightPanel 은 무시: Common.ceilFree 는 T-bar 를 막힘으로 봄)
+local CEIL_SKIP = { LightPanel = true, TBar = true, CeilingBoard = true, Ceiling = true }
+local function ceilOK(K: any, x: number, z: number, r: number): boolean
+	local V = K.V
+	for _, h in V.hang do
+		if not CEIL_SKIP[h.name] and h.max.Y > V.H - 1.2 and x > h.min.X - r and x < h.max.X + r and z > h.min.Z - r and z < h.max.Z + r then
+			return false
+		end
+	end
+	for _, q in K.ceilUsed or {} do
+		if math.abs(q.X - x) < r * 2 and math.abs(q.Z - z) < r * 2 then
+			return false
+		end
+	end
+	return true
+end
+
 -- 천장 마감. o.skin (텍스 look), o.every (평판등 간격 칸 수, 기본 3), o.lights (붙일 불빛 수), o.bright, o.range,
 -- o.avoid = { {x0,z0,x1,z1} } 평판등을 피할 xz 구간, o.hideMap (맵 LightPanel 숨김, 기본 true)
 local function ceilingKit(K: any, V: any, o: any?)
@@ -593,7 +610,7 @@ local function ceilingKit(K: any, V: any, o: any?)
 				skip = true
 			end
 		end
-		if not skip and x > V.x0 + 1 and x < V.x1 - 1 and z > V.z0 + 1 and z < V.z1 - 1 and Common.ceilFree(K, x, z, 1.1) then
+		if not skip and x > V.x0 + 1 and x < V.x1 - 1 and z > V.z0 + 1 and z < V.z1 - 1 and ceilOK(K, x, z, 0.9) then
 			table.insert(placed, c)
 			Common.useCeil(K, x, z)
 		end
@@ -1764,15 +1781,16 @@ BUILD.lobby = function(K: any, V: any)
 		-- 아크릴 가림막 (선반 뒤, 작업대 위)
 		local az = ledge.min.Z - 0.08
 		local bays = 3
-		local bw = (ledge.max.X - ledge.min.X - 0.6) / bays
+		local ax0 = ledge.min.X + 2.0
+		local bw = (ledge.max.X - 0.3 - ax0) / bays
 		for i = 1, bays do
-			local bx = ledge.min.X + 0.3 + (i - 0.5) * bw
+			local bx = ax0 + (i - 0.5) * bw
 			K:box("AcrylicScreen", V3(bw - 0.3, 1.9, 0.06), CF(bx, ledge.max.Y + 0.45 + 0.95, az), { c = C3(232, 244, 246), m = M.Glass, t = 0.78, r = 0.2 })
 			K:box("AcrylicEdge", V3(bw - 0.3, 0.05, 0.07), CF(bx, ledge.max.Y + 2.37, az), LK.alu)
 			tx(K, "AcrylicSticker", 1.6, 0.3, faceCF(Vector3.new(bx, ledge.max.Y + 2.05, az + 0.035), Vector3.zAxis), "신분증을 제시해 주세요", TEAL_D, nil, { font = FONT_M, d = 0.005 })
 		end
 		for i = 0, bays do
-			local bx = ledge.min.X + 0.3 + i * bw
+			local bx = ax0 + i * bw
 			K:box("AcrylicPost", V3(0.1, ledge.max.Y + 2.4 - desk.max.Y, 0.1), CF(bx, desk.max.Y + (ledge.max.Y + 2.4 - desk.max.Y) / 2, az), LK.alu)
 		end
 		-- 모니터 · 키보드 · 소품 (직원 쪽 -Z)
@@ -1977,9 +1995,9 @@ BUILD.lobby = function(K: any, V: any)
 		K:box("ThermalBody", V3(1.0, 1.5, 0.22), hc, lk(30, 32, 36, M.Plastic))
 		K:box("ThermalCam", V3(0.3, 0.2, 0.08), hc * CF(0, 0.6, 0.13), LK.black)
 		K:disc("ThermalLens", 0.14, 0.02, hc * CF(-0.07, 0.6, 0.17) * ANG(PI / 2, 0, 0), col(C3(120, 40, 160), M.Glass))
-		local _, lab = tx(K, "ThermalScreen", 0.85, 1.05, hc * CF(0, -0.12, 0.115), "체온 측정\n화면을\n바라봐 주세요", WHITE, C3(20, 70, 90), { glow = 1.2, d = 0.01 })
+		local scr, lab = tx(K, "ThermalScreen", 0.85, 1.05, hc * CF(0, -0.12, 0.115), "체온 측정\n화면을\n바라봐 주세요", WHITE, C3(20, 70, 90), { glow = 1.2, d = 0.01 })
 		K:box("ThermalStatus", V3(0.85, 0.05, 0.02), hc * CF(0, -0.7, 0.12), col(C3(60, 220, 120), M.Neon))
-		Interact.prompt(K, lab.Parent.Parent :: BasePart, {
+		Interact.prompt(K, scr, {
 			action = "체온 재기",
 			object = "열화상 체온계",
 			sound = "rbxasset://sounds/electronicpingshort.wav",
@@ -2014,7 +2032,6 @@ BUILD.lobby = function(K: any, V: any)
 		local wc = floorAt(K, dx + 15.5, V.z1 - 3.6, PI * 0.95, 2.4, 3.2, 3.8, 0.1)
 		if wc then
 			wheelchair(K, wc)
-			tx(K, "WheelchairSign", 1.4, 0.4, faceCF((wc * CF(0, 0.02, 1.8)).Position + Vector3.new(0, 0.02, 0), Vector3.yAxis) * ANG(-PI / 2, 0, 0), "", WHITE, nil, {})
 		end
 		-- 유리창 시트지 띠 (문 제외)
 		K:free(function()
@@ -2089,6 +2106,65 @@ BUILD.lobby = function(K: any, V: any)
 		hangSign(K, V.x0 + 4.5, 0.5, 5.2, 1.0, 7.6, -PI / 2, "대기실 →", "← 접수 · 수납")
 		hangSign(K, V.x0 + 9.0, V.z0 + 2.4, 6.4, 1.0, 7.6, 0, "진료실 · 주사실 · 약국 ↑", "출입구 ↓")
 	end)
+end
+
+-- 공통 마감 (방마다 끝에) ------------------------------------------------------------------------------------
+local PLANTS = { "monstera", "ficus", "snake", "olive" }
+
+local function finishCommon(K: any, V: any, o: any?)
+	local oo: any = o or {}
+	step(K, "upgrades", function()
+		Common.upgrades(K, V, { plants = oo.plants or PLANTS })
+	end)
+	step(K, "fixtures", function()
+		Common.fixtures(K, V, { license = false, clock = oo.clock ~= false, clockLook = { frame = lk(230, 232, 232, M.Plastic) } })
+	end)
+	step(K, "ceilfx", function()
+		Common.ceiling(K, V, { ceiling = {}, cctv = oo.cctv, lights = { kind = "none" } })
+	end)
+end
+
+function T.style(V: any): any
+	-- Common 단계는 전부 build 에서 (틀을 다시 맞춘 V 로) 직접 부름
+	return {
+		chair = false, stool = false, table = false, counter = false, base = false, lower = false, mat = false,
+		clock = false, license = false, cctv = false, ceiling = false, lights = { kind = "none" },
+		skip = { floor = true, ceiling = true, walls = true, chairs = true, stools = true, tables = true, counters = true, upgrades = true, fixtures = true },
+	}
+end
+
+local ROOM_OF_TYPE = {
+	clinic_lobby = "lobby", clinic_waiting = "waiting", clinic_consult = "consult", clinic_pharmacy = "pharmacy",
+	clinic_treat = "treat", clinic_hall = "backhall", clinic_ward = "ward", clinic_nurse = "nurse", clinic_lounge = "lounge",
+	clinic_checkup = "checkup",
+}
+
+function T.build(K: any, V: any, S: any)
+	local V2 = refit(V)
+	K.V = V2
+	K.cf = V2.cf
+	-- 프롬프트 금지 지점: 기본 + 병원 서버 프롬프트 앵커 (접수대 · 진료). DeskBell 은 이 시설에 서버 앵커가 없어 뺌
+	local hp = {}
+	for _, n in { "WaterPurifier", "Bin", "TrashBin", "WorkDesk", "FrontDesk", "HospitalPrompt_desk", "HospitalPrompt_doctor", "BedSeat" } do
+		for _, r in V2.byName[n] or {} do
+			table.insert(hp, r.c)
+		end
+	end
+	for _, t in V2.tables or {} do
+		table.insert(hp, (t.min + t.max) / 2)
+	end
+	K.hostPts = hp
+	local room = V.room or ""
+	local key = if string.sub(room, 1, 4) == "ward" then "ward" else room
+	local fn = BUILD[key] or BUILD[ROOM_OF_TYPE[V.type or ""] or ""]
+	note(K, string.format("room %s W=%.1f D=%.1f angle=%.2f keep=%d", room, V2.W, V2.D, math.deg(V2.bAngle or 0), #V2.keep))
+	if fn then
+		local ok, err = pcall(fn, K, V2)
+		if not ok then
+			note(K, "room error: " .. tostring(err))
+		end
+	end
+	finishCommon(K, V2, K.clinicCommon)
 end
 
 T._debug = {}

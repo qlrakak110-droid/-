@@ -2782,7 +2782,7 @@ local function burgerBuild(ctx: any)
 	if sp2 then
 		sauceStation(ctx, sp2, 2.6)
 	end
-	if P.checker or taco then
+	do
 		local jp = floorSpot(ctx, { walls = { "right", "left", "back" }, w = 2.2, h = 4.6, d = 1.3, pref = { right = "front", left = "front" }, prompt = true, front = 1.0 })
 		if jp then
 			jukebox(ctx, jp)

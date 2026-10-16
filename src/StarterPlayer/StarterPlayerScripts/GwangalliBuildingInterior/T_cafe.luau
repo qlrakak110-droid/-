@@ -638,7 +638,7 @@ local function brandOf(V: any): any
 		B.art, B.wifi, B.pw, B.hours = "pastel", "SWEET_FREE", "gelato777", "매일 11:00 - 23:00"
 		B.promo = { "BEST", "젤라또 와플", "6,500" }
 		B.cup = rgb(255, 236, 240)
-		feat = { freezer = true, plants = 1, gelato = true, fridge = true }
+		feat = { freezer = true, plants = 1, gelato = true, fridge = true, cart = if key ~= "waffle" then key else nil }
 		B.feat = feat
 	elseif key == "tanghulu" then
 		B.title, B.logo, B.slogan = nm, "탕후루", "바삭 달콤 과일 탕후루"
@@ -1498,6 +1498,64 @@ local function counterLogo(K: any, V: any, g: any, B: any)
 	end)
 end
 
+-- 조리 카트 (씨앗호떡 철판 · 츄러스 튀김기): 스테인리스 하부장 + 상판 장비 + 위 간판
+local function cookCart(K: any, pcf: CFrame, w: number, kind: string, B: any)
+	local d, h = 1.9, 3.0
+	K:box("CartKick", V3(w - 0.1, 0.3, d - 0.2), pcf * CF(0, 0.15, -0.05), Look.black)
+	K:box("CartBody", V3(w, h - 0.42, d), pcf * CF(0, 0.3 + (h - 0.42) / 2, 0), Look.steel)
+	K:box("CartTop", V3(w + 0.06, 0.12, d + 0.06), pcf * CF(0, h - 0.06, 0), Look.brushed)
+	for k = -1, 1, 2 do
+		K:box("CartDoor", V3(w / 2 - 0.15, h - 0.8, 0.03), pcf * CF(k * w / 4, 0.4 + (h - 0.8) / 2, d / 2 + 0.015), lk(rgb(190, 192, 196), M.Metal))
+		K:box("CartHandle", V3(0.5, 0.06, 0.06), pcf * CF(k * w / 4, h - 0.6, d / 2 + 0.06), Look.chrome)
+	end
+	K:text("CartLabel", w * 0.7, 0.36, faceCF((pcf * CF(0, 1.0, d / 2 + 0.035)).Position, pcf.ZVector), if kind == "hotteok" then "부산 명물 씨앗호떡" else "갓 튀긴 츄러스", { fg = rgb(255, 255, 255), bg = B.c1, d = 0.02, font = F.GothamBlack })
+	local y = h
+	if kind == "hotteok" then
+		-- 철판 + 굽는 호떡 6 + 누르개 + 기름병 + 씨앗 통
+		K:box("Griddle", V3(w * 0.62, 0.08, d - 0.3), pcf * CF(-w * 0.15, y + 0.04, 0), lk(rgb(36, 36, 38), M.Metal))
+		K:box("GriddleRim", V3(w * 0.62 + 0.08, 0.14, 0.06), pcf * CF(-w * 0.15, y + 0.07, -(d - 0.3) / 2), Look.steel)
+		for k = 0, 5 do
+			local x = -w * 0.15 - w * 0.22 + (k % 3) * w * 0.22
+			local z = if k < 3 then -0.3 else 0.3
+			K:disc("Hotteok", 0.5, 0.07, pcf * CF(x, y + 0.115, z), lk(rgb(206, 140, 60)))
+			K:disc("HotteokCrisp", 0.36, 0.072, pcf * CF(x, y + 0.117, z), lk(rgb(176, 104, 40)))
+		end
+		K:box("HotteokPress", V3(0.5, 0.04, 0.5), pcf * CF(w * 0.12, y + 0.26, 0.4) * ANG(0, 0.3, 0), Look.steel)
+		K:seg("HotteokPressHandle", (pcf * CF(w * 0.12, y + 0.28, 0.4)).Position, (pcf * CF(w * 0.12 + 0.2, y + 0.75, 0.4)).Position, 0.06, Look.walnut)
+		for k = 0, 2 do
+			K:box("SeedBin", V3(0.4, 0.22, 0.4), pcf * CF(w * 0.3, y + 0.11, -0.55 + k * 0.48), Look.steel)
+			K:box("SeedFill", V3(0.34, 0.03, 0.34), pcf * CF(w * 0.3, y + 0.2, -0.55 + k * 0.48), lk(if k == 0 then rgb(120, 86, 50) elseif k == 1 then rgb(60, 50, 40) else rgb(200, 170, 110), M.Pebble))
+		end
+		K:vcyl("OilBottle", 0.7, 0.24, pcf * CF(w * 0.42, y + 0.35, 0.5), lk(rgb(230, 200, 90), M.Glass, { t = 0.2 }))
+		-- 종이컵에 꽂힌 완성 호떡
+		for k = 0, 3 do
+			local c = pcf * CF(w * 0.45 - 0.05, y, -0.65 + k * 0.32)
+			K:vcyl("PaperCup", 0.32, 0.26, c * CF(0, 0.16, 0), Look.paper)
+			K:disc("CupHotteok", 0.34, 0.06, c * CF(0, 0.38, 0) * ANG(0.9, 0, 0), lk(rgb(200, 132, 56)))
+		end
+	else
+		-- 튀김기 (기름통 2) + 츄러스 거치대 + 설탕 통
+		for k = 0, 1 do
+			local c = pcf * CF(-w * 0.25 + k * 0.95, y, -0.1)
+			K:box("FryerWell", V3(0.85, 0.3, 1.1), c * CF(0, 0.15, 0), Look.steel)
+			K:box("FryerOil", V3(0.75, 0.02, 1.0), c * CF(0, 0.29, 0), lk(rgb(196, 150, 50), M.Glass, { t = 0.15 }))
+			K:box("FryerBasket", V3(0.6, 0.06, 0.8), c * CF(0, 0.36, 0), Look.chrome)
+			K:bar("FryerBasketHandle", (c * CF(0, 0.38, 0.4)).Position, (c * CF(0, 0.75, 0.75)).Position, 0.05, 0.05, Look.black)
+		end
+		local hc = pcf * CF(w * 0.32, y, 0.0)
+		K:box("ChurrosHolder", V3(0.9, 0.4, 0.5), hc * CF(0, 0.2, 0), Look.walnut)
+		for k = 0, 5 do
+			local x = -0.32 + (k % 3) * 0.32
+			local z = if k < 3 then -0.1 else 0.1
+			K:seg("Churro", (hc * CF(x, 0.3, z)).Position, (hc * CF(x + (k - 2.5) * 0.04, 1.35, z)).Position, 0.12, lk(rgb(200, 140, 70), M.Sand))
+		end
+		K:vcyl("SugarTub", 0.3, 0.6, pcf * CF(w * 0.32, y + 0.15, -0.6), lk(rgb(240, 236, 226), M.Sand))
+	end
+	K:text("CartPrice", w * 0.6, 0.3, faceCF((pcf * CF(0, y + 1.3, -d / 2 + 0.05)).Position, pcf.ZVector), if kind == "hotteok" then "씨앗호떡 2,000 · 꿀호떡 1,500" else "츄러스 3,000 · 초코딥 4,000", { fg = rgb(40, 30, 20), bg = rgb(255, 248, 230), d = 0.03, font = F.GothamBold })
+	K:bar("CartSignPost", (pcf * CF(-w / 2 + 0.1, y, -d / 2 + 0.05)).Position, (pcf * CF(-w / 2 + 0.1, y + 1.5, -d / 2 + 0.05)).Position, 0.06, 0.06, Look.blackMetal)
+	K:bar("CartSignPost", (pcf * CF(w / 2 - 0.1, y, -d / 2 + 0.05)).Position, (pcf * CF(w / 2 - 0.1, y + 1.5, -d / 2 + 0.05)).Position, 0.06, 0.06, Look.blackMetal)
+end
+
 -- 커피 로스터 (드럼 · 호퍼 · 냉각 트레이 · 연통 · 사이클론 · 제어반). 반환 { glass, arms, armBase, panel, screen }
 local function roaster(K: any, pcf: CFrame, B: any): any
 	local V = K.V
@@ -1625,7 +1683,12 @@ local BREADS = {
 	{ "치아바타", "4,000", "ciabatta" }, { "명란 바게트", "5,500", "baguette" },
 }
 local function bread(K: any, pcf: CFrame, kind: string, s: number)
-	if kind == "salt" then
+	if kind == "hotteok" or kind == "hotteokg" then
+		for k = 0, 1 do
+			K:disc("Hotteok", 0.46 * s, 0.07 * s, pcf * CF(k * 0.08 * s, 0.035 * s + k * 0.075 * s, 0), lk(if kind == "hotteokg" then rgb(150, 160, 80) else rgb(206, 140, 60)))
+			K:disc("HotteokSeeds", 0.24 * s, 0.072 * s, pcf * CF(k * 0.08 * s, 0.036 * s + k * 0.075 * s, 0), lk(rgb(120, 84, 50), M.Pebble))
+		end
+	elseif kind == "salt" then
 		K:ell("Bread", V3(0.6, 0.28, 0.36) * s, pcf * CF(0, 0.13 * s, 0), lk(rgb(216, 154, 72)))
 		K:ell("BreadGloss", V3(0.46, 0.1, 0.26) * s, pcf * CF(0, 0.24 * s, 0), lk(rgb(186, 112, 44), M.SmoothPlastic, { r = 0.06 }))
 	elseif kind == "croissant" then
@@ -2306,6 +2369,13 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 			ctx.oven = deckOven(K, pcf, 4.2)
 		end
 	end
+	if feat.cart then
+		local wn, pcf = floorFind(K, { pickSide, other, "back" }, 3.4, 1.9, 4.6, pref, { pad = 0.1 })
+		if wn and pcf then
+			mark("cart", pcf)
+			cookCart(K, pcf, 3.4, feat.cart, B)
+		end
+	end
 	if feat.selfbar then
 		local w = if small then 2.6 else 3.4
 		local wn, pcf = floorFind(K, { pickSide, other }, w, 1.5, 4.6, pref, { pad = 0.08 })
@@ -2854,6 +2924,10 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	end
 	-- 빵 (Bread): 바구니 + 빵 2~3 + 선반 앞 가격표
 	i = 0
+	local breadList = BREADS
+	if B.key == "hotteok" then
+		breadList = { { "씨앗호떡", "2,000", "hotteok" }, { "꿀호떡", "1,500", "hotteok" }, { "녹차씨앗호떡", "2,500", "hotteokg" }, { "치즈호떡", "2,500", "hotteok" } }
+	end
 	local shelves = V.byName.BreadShelf or {}
 	for _, r in V.byName.Bread or {} do
 		i += 1
@@ -2865,7 +2939,7 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 			end
 		end
 		local y = if sh then sh.max.Y else r.min.Y
-		local info = BREADS[(i + seed) % #BREADS + 1]
+		local info = breadList[(i + seed) % #breadList + 1]
 		local pcf = facing(V3(r.c.X, y, if sh then (sh.min.Z + sh.max.Z) / 2 + 0.1 else r.c.Z), V3(0, 0, 1))
 		local bw = 1.55
 		basket(K, pcf, bw, 1.1, if i % 2 == 0 then Look.rattan else Look.of(150, 110, 70, Enum.Material.Wood))
