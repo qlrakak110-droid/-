@@ -459,10 +459,10 @@ function Ctx:promptOK(part: BasePart): boolean
 	local lp = self.K.cf:PointToObjectSpace(part.Position)
 	for _, k in self.V.keep do
 		if k.kind == "point" then
-			local cx = math.clamp(lp.X, k.min.X, k.max.X)
-			local cz = math.clamp(lp.Z, k.min.Z, k.max.Z)
-			local cy = math.clamp(lp.Y, k.min.Y, k.max.Y)
-			if (V3(cx, cy, cz) - lp).Magnitude < (if pointSmall(k) then 1.2 else 0.5) then
+			-- 작은 것 (우편함 · 월패드 · 패널): 상자에서 1.2 / 큰 것 (샤워 · 침대 자리): 서버 프롬프트가 뜨는 가운데에서 1.6
+			local small = pointSmall(k)
+			local q = if small then V3(math.clamp(lp.X, k.min.X, k.max.X), math.clamp(lp.Y, k.min.Y, k.max.Y), math.clamp(lp.Z, k.min.Z, k.max.Z)) else (k.min + k.max) / 2
+			if (q - lp).Magnitude < (if small then 1.2 else 1.6) then
 				self.K:note(string.format("homewet prompt near HomeInteract: %s at %.1f,%.1f,%.1f box %.1f,%.1f,%.1f..%.1f,%.1f,%.1f", part.Name, lp.X, lp.Y, lp.Z, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
 				return false
 			end
@@ -1955,6 +1955,20 @@ local function kitchenFridges(K: any, V: any, H: number)
 	end
 end
 
+-- 방 벽에서 방 안쪽으로 향하는 축 방향 (가까운 벽 기준)
+local function awayFromWall(V: any, r: any): Vector3
+	local d = {
+		{ r.min.X - V.x0, V3(1, 0, 0) },
+		{ V.x1 - r.max.X, V3(-1, 0, 0) },
+		{ r.min.Z - V.z0, V3(0, 0, 1) },
+		{ V.z1 - r.max.Z, V3(0, 0, -1) },
+	}
+	table.sort(d, function(a, b)
+		return a[1] < b[1]
+	end)
+	return d[1][2]
+end
+
 -- 전자레인지 · 밥솥 · 포트 · 세탁기 (자기 앞 방향을 찾아서)
 local function kitchenAppliances(K: any, V: any, H: number)
 	for i, r in V.byName.Microwave or {} do
@@ -1974,7 +1988,7 @@ local function kitchenAppliances(K: any, V: any, H: number)
 	for i, r in V.byName.RiceCooker or {} do
 		if r.part.Transparency < 0.99 and not K.hidden[r.part] then
 			local pn = near(V, r, { "CookerPanel" }, 0.3)[1]
-			local n = if pn then frontDir(r, pn) else V3(0, 0, 1)
+			local n = if pn then frontDir(r, pn) else awayFromWall(V, r)
 			local C = objCtx(K, V, r, n, H, "rc" .. i)
 			local mn, mx = C:bb(r)
 			C:hide(r)
@@ -1988,7 +2002,7 @@ local function kitchenAppliances(K: any, V: any, H: number)
 	for i, r in V.byName.Kettle or {} do
 		if r.part.Transparency < 0.99 and not K.hidden[r.part] then
 			local bs = near(V, r, { "KettleBase" }, 0.2)[1]
-			local C = objCtx(K, V, r, V3(0, 0, 1), H, "kt" .. i)
+			local C = objCtx(K, V, r, awayFromWall(V, r), H, "kt" .. i)
 			local mn, mx = C:bb(r)
 			if bs then
 				local a = C:bb(bs)
@@ -2697,9 +2711,11 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 		local wy0, wy1 = by, fy + h - 0.1
 		table.insert(streams, P:vcyl("FaucetWater", wy1 - wy0, 0.06, CF(fx, (wy0 + wy1) / 2, fz + spoutLen - 0.02), { c = C3(214, 238, 248), m = M.Glass, t = 1 }))
 		if not firstLever then
-			firstLever = lever
+			-- 프롬프트는 수전 아래쪽 (거울 수납장 프롬프트와 떨어지게)
+			firstLever = P:box("FaucetPromptHost", V3(0.2, 0.2, 0.2), CF(fx, fy + 0.1, fz + (if mirror and C.ti >= 2 and C.ti <= 4 then 0.2 else 0)), { c = C3(255, 255, 255), t = 1 })
 		end
-		local _ = i
+		local _ = lever
+		local _2 = i
 	end
 	if firstLever then
 		P:toggle(firstLever, {
@@ -2797,9 +2813,11 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 				end
 			end
 			local hinge = if side == "left" or side == "back" then a.X else b.X
+			local freeX = if hinge == a.X then b.X - 0.08 else a.X + 0.08
 			local dm = P:group("MirrorCabinetDoor", function()
 				P:box("MirrorDoorFrame", V3(mw, mh, 0.05), CF(mcx, mcy, dz + 0.025), st.cab)
-				P:box("MirrorDoorHandle", V3(mw - 0.06, mh - 0.06, 0.02), CF(mcx, mcy, dz + 0.06), LK.mirror)
+				P:box("MirrorDoorGlass", V3(mw - 0.06, mh - 0.06, 0.02), CF(mcx, mcy, dz + 0.06), LK.mirror)
+				P:box("MirrorDoorHandle", V3(0.04, 0.5, 0.05), CF(freeX, b.Y - 0.32, dz + 0.085), metal)
 			end)
 			P:swing(dm, V3(hinge, mcy, dz + 0.05), V3(0, 1, 0), (if hinge == a.X then -1 else 1) * math.rad(95), { object = "거울 수납장", openText = "열기", closeText = "닫기" })
 			-- 아래 조명 (세면대 비춤)
@@ -2912,12 +2930,27 @@ local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: V
 		end
 	end
 	-- 샤워 선반 (벽 모서리): 수전 반대쪽 벽 끝
-	local shelfX = 1.1
+	-- 이 벽의 로컬 x 범위 (욕실 칸 모서리)
+	local wx0, wx1 = math.huge, -math.huge
+	for _, cx in { C.x0, C.x1 } do
+		for _, cz in { C.z0, C.z1 } do
+			local q = pcf:PointToObjectSpace(V3(cx, 0, cz))
+			if math.abs(q.Z) < 0.3 then
+				wx0 = math.min(wx0, q.X)
+				wx1 = math.max(wx1, q.X)
+			end
+		end
+	end
+	if wx0 == math.huge then
+		wx0, wx1 = -1.5, 1.5
+	end
+	local shelfX = if wx1 > -wx0 then wx1 - 0.5 else wx0 + 0.5
 	if trays[1] then
 		local a, b = lp(trays[1])
 		shelfX = if math.abs(a.X) > math.abs(b.X) then a.X + 0.45 else b.X - 0.45
 	end
-	local ok1 = math.abs(shelfX) > 0.7
+	shelfX = math.clamp(shelfX, wx0 + 0.45, wx1 - 0.45)
+	local ok1 = math.abs(shelfX) > 0.7 and P:claim(CF(shelfX, 4.5, 0.25), V3(0.85, 1.3, 0.5), "wall")
 	if ok1 then
 		local sw = 0.8
 		for j, sy in { 4.1, 4.95 } do
@@ -3117,7 +3150,7 @@ local function bathGrout(C: any, ti: number)
 			if s.Z < 0.3 then
 				continue
 			end
-			dcf = CFrame.fromMatrix(V3(face, (a.Y + b.Y) / 2, (a.Z + b.Z) / 2), V3(0, 1, 0):Cross(nrm) * -1, V3(0, 1, 0), nrm)
+			dcf = CFrame.fromMatrix(V3(face, (a.Y + b.Y) / 2, (a.Z + b.Z) / 2), V3(0, 1, 0):Cross(nrm), V3(0, 1, 0), nrm)
 			w = s.Z
 		else
 			local face = if (a.Z + b.Z) / 2 < cz then b.Z else a.Z
@@ -3125,7 +3158,7 @@ local function bathGrout(C: any, ti: number)
 			if s.X < 0.3 then
 				continue
 			end
-			dcf = CFrame.fromMatrix(V3((a.X + b.X) / 2, (a.Y + b.Y) / 2, face), V3(0, 1, 0):Cross(nrm) * -1, V3(0, 1, 0), nrm)
+			dcf = CFrame.fromMatrix(V3((a.X + b.X) / 2, (a.Y + b.Y) / 2, face), V3(0, 1, 0):Cross(nrm), V3(0, 1, 0), nrm)
 			w = s.X
 		end
 		if dcf then

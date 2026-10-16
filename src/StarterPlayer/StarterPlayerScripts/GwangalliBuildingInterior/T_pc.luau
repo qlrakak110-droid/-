@@ -589,6 +589,12 @@ local function acousticWall(K: any, wn: string, o: any?)
 				-- 패널 가운데 가는 홈 (흡음 슬롯)
 				K:plate("AcousticGroove", 0.05, (y1 - y0) * 0.86, 0.125, W(K, wn, u, (y0 + y1) / 2, 0.02), lk(rgb(20, 20, 24)))
 			end
+			-- 세 칸마다 이음매에 가는 세로 RGB (어두운 홀에서 벽 윤곽이 보이게)
+			if i < n and (i % 3 == 0) then
+				local ju = s[1] + step * i
+				local jp = K:plate("AcousticJointRGB", 0.05, y1 - y0 - 0.4, 0.1, W(K, wn, ju, (y0 + y1) / 2, 0.02), neon(dk(oo.rgb or C.cyan, 0.45)))
+				table.insert(K.pc.rgb, { p = jp, c = dk(oo.rgb or C.cyan, 0.45), x = jp.Position.X, z = jp.Position.Z })
+			end
 		end
 	end
 	-- RGB 채널 (패널 위)
@@ -2367,8 +2373,8 @@ local function backLounge(K: any, V: any)
 	-- 소파 (벽 쪽, 3인)
 	local sofa = facing(V3(cx, 0, zb + 1.45), V3(0, 0, 1))
 	if spotN(K, sofa, V3(9.4, 3.8, 2.6), 0) then
-		local fab = lk(rgb(64, 66, 72), M.Fabric)
-		local fab2 = lk(rgb(54, 56, 62), M.Fabric)
+		local fab = lk(rgb(112, 106, 100), M.Fabric)
+		local fab2 = lk(rgb(84, 80, 76), M.Fabric)
 		K:box("SofaPlinth", V3(9.2, 0.25, 2.4), sofa * CF(0, 0.125, 0), lk(rgb(30, 30, 32)))
 		K:box("SofaBase", V3(9.2, 1.0, 2.4), sofa * CF(0, 0.75, 0), fab2)
 		for i = 0, 2 do
@@ -2415,6 +2421,22 @@ local function backLounge(K: any, V: any)
 	K:free(function()
 		for i = -1, 1 do
 			Props.pendant(K, V3(cx + i * 2.6, P.ceil, zb + 4.5), 3.6, { shade = "globe", dia = 0.9, look = { c = rgb(255, 236, 200), m = M.Glass, t = 0.25 }, light = i == 0, range = 12, bright = 0.6, color = Look.warmLight })
+		end
+	end)
+	-- 라운지 위 원목 슬랫 천장 (루버 벽과 같은 월넛) + 매달기 와이어
+	K:free(function()
+		local rz0, rz1 = zb + 0.6, zb + 7.6
+		local ry = P.ceil - 0.9
+		local n = math.floor((x1 - x0 - 0.4) / 0.5)
+		for i = 0, n - 1 do
+			local x = x0 + 0.4 + (x1 - x0 - 0.8) * (i + 0.5) / n
+			K:box("LoungeRaftSlat", V3(0.22, 0.3, rz1 - rz0), CF(x, ry, (rz0 + rz1) / 2), Look.walnut)
+		end
+		for _, zz in { rz0 + 0.4, rz1 - 0.4 } do
+			K:box("LoungeRaftRail", V3(x1 - x0 - 0.4, 0.08, 0.16), CF(cx, ry + 0.19, zz), Look.blackMetal)
+			for _, xx in { x0 + 0.8, x1 - 0.8 } do
+				K:seg("LoungeRaftWire", V3(xx, ry + 0.23, zz), V3(xx, P.ceil, zz), 0.03, Look.blackMetal)
+			end
 		end
 	end)
 	-- 아크 플로어 램프 + 화분
@@ -2507,7 +2529,7 @@ local function lockers(K: any, V: any, x0: number, x1: number)
 	if not spotN(K, pcf, V3(w, h, d), 0) then
 		return
 	end
-	K:box("LockerBody", V3(w, h, d), pcf * CF(0, h / 2, 0), lk(rgb(48, 50, 56), M.Metal))
+	K:box("LockerBody", V3(w, h, d), pcf * CF(0, h / 2, 0), lk(rgb(150, 154, 160), M.Metal))
 	local fd = faceCF((pcf * V3(0, 0, d / 2)), V3(0, 0, 1))
 	local cols = 3
 	local cw = (w - 0.2) / cols
@@ -2520,7 +2542,7 @@ local function lockers(K: any, V: any, x0: number, x1: number)
 			local y = 0.4 + row * 2.0 + 1.0
 			local num = row * cols + col + 1
 			local function build()
-				K:plate("LockerDoor", cw - 0.08, 1.92, 0.05, fd * CF(u, y, 0), lk(rgb(70, 74, 82), M.Metal))
+				K:plate("LockerDoor", cw - 0.08, 1.92, 0.05, fd * CF(u, y, 0), lk(rgb(206, 210, 216), M.Metal))
 				K:plate("LockerVent", cw * 0.5, 0.25, 0.055, fd * CF(u, y + 0.6, 0), lk(rgb(40, 42, 46), M.DiamondPlate))
 				K:plate("LockerKeypad", 0.28, 0.4, 0.08, fd * CF(u + cw / 2 - 0.3, y, 0), lk(rgb(20, 20, 24)))
 				K:plate("LockerKeypadLED", 0.1, 0.04, 0.09, fd * CF(u + cw / 2 - 0.3, y + 0.14, 0), neon(if num % 3 == 0 then C.red else C.green))
@@ -2712,8 +2734,16 @@ local function backBuild(K: any, V: any)
 	-- 왼쪽 벽: 광안대교 네온 (탑 2 + 주케이블 + 행어 + 상판) + 문구
 	if P.has.left then
 		K:free(function()
+			-- 맵 WallAccentLED (세로 네온) 앞에서 끝나게
+			local zEnd = V.z1 - 3.6
+			for _, r in recs(V, "WallAccentLED") do
+				local _, _, c = mb(K, r)
+				if c.X < 0 and c.Z > zb and c.Z < zEnd + 0.6 then
+					zEnd = math.min(zEnd, c.Z - 0.5)
+				end
+			end
 			local u0 = -(zb + 0.6) -- 왼쪽 벽 u = -z
-			local u1 = -(V.z1 - 3.6)
+			local u1 = -zEnd
 			local len = math.abs(u1 - u0)
 			local uc = (u0 + u1) / 2
 			local dcf = W(K, "left", uc, 0, 0.1)
@@ -2789,6 +2819,31 @@ local function backBuild(K: any, V: any)
 			notice(K, W(K, "right", zc - 3.4, 5.0, 0.02), 1.7, 2.0, "분실물 보관", "분실물은 카운터에서\n7일간 보관합니다", rgb(90, 90, 100))
 		end)
 	end
+	-- 케이블 트레이 (홀에서 이어져 뒷벽에서 세로로 내려감)
+	K:free(function()
+		local tx = -0.2
+		local ty = P.ceil - 0.95
+		local z0, z1 = zb + 0.35, V.z1
+		local len = z1 - z0
+		for _, sx in { -0.45, 0.45 } do
+			K:box("CableTrayRail", V3(0.06, 0.28, len), CF(tx + sx, ty, (z0 + z1) / 2), lk(rgb(150, 154, 158), M.Metal))
+		end
+		local z = z0 + 0.6
+		while z < z1 do
+			K:box("CableTrayRung", V3(0.9, 0.05, 0.08), CF(tx, ty - 0.12, z), lk(rgb(150, 154, 158), M.Metal))
+			z += if hi(K) then 1.6 else 3.2
+		end
+		for i, c in { rgb(40, 90, 200), rgb(70, 70, 76), rgb(230, 200, 40), rgb(60, 60, 64) } do
+			local cx2 = tx - 0.27 + (i - 1) * 0.18
+			K:cyl("TrayCable", len, 0.12, CF(cx2, ty - 0.03, (z0 + z1) / 2) * ANG(0, PI / 2, 0), lk(c))
+			-- 뒷벽 세로 덕트로 꺾여 내려감
+			K:seg("TrayCableBend", V3(cx2, ty - 0.03, z0), V3(cx2, ty - 0.4, zb + 0.15), 0.12, lk(c))
+		end
+		K:box("CableRiser", V3(1.0, ty - 0.4 - 6.0, 0.35), CF(tx, (ty - 0.4 + 6.0) / 2, zb + 0.18), lk(rgb(60, 62, 68), M.Metal))
+		K:box("CableRiserBox", V3(1.4, 1.6, 0.5), CF(tx, 5.2, zb + 0.25), lk(rgb(70, 72, 78), M.Metal))
+		K:text("CableRiserLabel", 1.2, 0.3, faceCF(V3(tx, 5.5, zb + 0.505), V3(0, 0, 1)), "통신 · 전기 EPS", { fg = rgb(230, 230, 230), bg = rgb(40, 40, 44), d = 0.01 })
+		K:text("CableRiserWarn", 0.9, 0.3, faceCF(V3(tx, 4.95, zb + 0.505), V3(0, 0, 1)), "⚡ 감전 주의", { fg = rgb(20, 20, 20), bg = rgb(250, 210, 40), d = 0.01 })
+	end)
 	-- 천장: 뒷벽 위 RGB · 스피커 · 스프링클러 · 감지기
 	K:free(function()
 		local p = K:plate("BackWallRGB", V.W - 3, 0.07, 0.05, W(K, "back", 0, P.ceil - 0.35, 0.02), neon(C.purple))

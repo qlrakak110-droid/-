@@ -1886,6 +1886,19 @@ local function setupZones(ctx: any)
 	end
 	for _, g in V.counters do
 		local alongX = (g.max.X - g.min.X) >= (g.max.Z - g.min.Z)
+		-- 카운터 뒤 (직원 쪽 ~ 벽): 바닥 소품 금지 (벽 선반 · 6.5 위만 허용)
+		if alongX then
+			if g.min.Z - V.z0 < 8 then
+				addNo(ctx, V3(g.min.X - 0.6, 0.05, V.z0 - 0.5), V3(g.max.X + 0.6, 6.5, g.min.Z + 0.05))
+			end
+		else
+			local cx = (g.min.X + g.max.X) / 2
+			if cx < 0 and g.min.X - V.x0 < 8 then
+				addNo(ctx, V3(V.x0 - 0.5, 0.05, g.min.Z - 0.6), V3(g.min.X + 0.05, 6.5, g.max.Z + 0.6))
+			elseif cx >= 0 and V.x1 - g.max.X < 8 then
+				addNo(ctx, V3(g.max.X - 0.05, 0.05, g.min.Z - 0.6), V3(V.x1 + 0.5, 6.5, g.max.Z + 0.6))
+			end
+		end
 		if alongX then
 			addNo(ctx, V3(g.min.X - 0.5, 0.05, g.max.Z), V3(g.max.X + 0.5, 8, g.max.Z + 2.8))
 			table.insert(targets, V3((g.min.X + g.max.X) / 2, 0, g.max.Z + 1.5))
@@ -4021,7 +4034,7 @@ local function odengBuild(ctx: any)
 		{ rgb(60, 120, 40), "bottle", rgb(30, 110, 40) },
 		{ rgb(30, 70, 170), "can" },
 		{ rgb(236, 230, 214), "bottle", rgb(180, 30, 24) },
-	}, brand = "SAKE" })
+	}, brand = "SAKE", object = "사케 냉장고" })
 	local nd = promptWallSpot(ctx, { "left", "right", "back" }, 3.4, 6.4, 7.8)
 	if not nd then
 		nd = wallSpot(ctx, { "left", "right", "back" }, 3.4, 6.4, 7.8, 0)
