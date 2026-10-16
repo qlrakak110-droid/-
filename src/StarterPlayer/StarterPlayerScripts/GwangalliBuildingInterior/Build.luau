@@ -31,6 +31,8 @@ local MODULES = {
 	require(script.Parent:WaitForChild("T_gym")), -- T_style 의 gym 보다 뒤 (덮어씀)
 	require(script.Parent:WaitForChild("T_club")),
 	require(script.Parent:WaitForChild("T_facility")),
+	require(script.Parent:WaitForChild("T_clinic")),
+	require(script.Parent:WaitForChild("T_garage")),
 }
 local BY_TYPE: { [string]: any } = {}
 for _, m in MODULES do

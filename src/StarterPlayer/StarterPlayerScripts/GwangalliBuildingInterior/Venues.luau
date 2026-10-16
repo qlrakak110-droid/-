@@ -67,6 +67,24 @@ Venues.LIST = {
 		{ room = "wc_f", type = "restroom", center = Vector3.new(-196.8, 7.0, 280.3), size = Vector3.new(41.3, 10.5, 19.6), face = "+X", noDoorGuess = true, name = "여자 화장실" },
 		{ room = "wc_m", type = "restroom", center = Vector3.new(-197.0, 7.0, 301.8), size = Vector3.new(41.3, 10.5, 20.6), face = "+X", noDoorGuess = true, name = "남자 화장실" },
 	} },
+	{ group = "hospital", name = "광안 메디컬 의원", rooms = {
+		{ room = "lobby", type = "clinic_lobby", center = Vector3.new(-504.5, 6.9, 278.3), size = Vector3.new(47.0, 11.05, 25.5), face = "-Z", name = "광안 메디컬 의원 접수" },
+		{ room = "waiting", type = "clinic_waiting", center = Vector3.new(-468.5, 6.9, 279.6), size = Vector3.new(25.0, 11.05, 26.1), face = "-Z", noDoorGuess = true, name = "광안 메디컬 의원 대기실" },
+		{ room = "consult", type = "clinic_consult", center = Vector3.new(-551.3, 6.9, 278.1), size = Vector3.new(43.4, 11.05, 26.9), face = "+Z", noDoorGuess = true, name = "진료실 1 · 내과" },
+		{ room = "pharmacy", type = "clinic_pharmacy", center = Vector3.new(-545.3, 6.9, 308.7), size = Vector3.new(57.5, 11.05, 21.7), face = "-Z", noDoorGuess = true, name = "약국 코너" },
+		{ room = "treat", type = "clinic_treat", center = Vector3.new(-479.5, 6.9, 311.1), size = Vector3.new(45.7, 11.05, 21.7), face = "-Z", noDoorGuess = true, name = "주사실 · 처치실" },
+		{ room = "backhall", type = "clinic_hall", center = Vector3.new(-515.7, 6.9, 330.5), size = Vector3.new(116.7, 11.05, 12.5), face = "-Z", noDoorGuess = true, name = "후면 홀" },
+		{ room = "ward201", type = "clinic_ward", center = Vector3.new(-477.5, 21.08, 278.0), size = Vector3.new(43.5, 8.4, 24.5), face = "+Z", noDoorGuess = true, name = "입원실 201" },
+		{ room = "nurse", type = "clinic_nurse", center = Vector3.new(-514.4, 21.08, 277.3), size = Vector3.new(26.9, 8.4, 25.2), face = "+Z", noDoorGuess = true, name = "간호사실" },
+		{ room = "ward202", type = "clinic_ward", center = Vector3.new(-551.3, 21.08, 275.9), size = Vector3.new(43.5, 8.4, 23.2), face = "+Z", noDoorGuess = true, name = "입원실 202" },
+		{ room = "lounge", type = "clinic_lounge", center = Vector3.new(-475.2, 21.08, 317.4), size = Vector3.new(38.3, 8.4, 38.3), face = "-Z", noDoorGuess = true, name = "휴게실 LOUNGE" },
+		{ room = "checkup", type = "clinic_checkup", center = Vector3.new(-549.0, 21.08, 316.1), size = Vector3.new(47.8, 8.4, 40.4), face = "-Z", noDoorGuess = true, name = "건강검진센터" },
+	} },
+	{ group = "garage", name = "광안 오토 정비소 & 중고차", rooms = {
+		{ room = "showroom", type = "showroom", center = Vector3.new(-564.9, 6.67, 450.3), size = Vector3.new(68.4, 14.8, 49.3), face = "+Z", name = "광안 오토 쇼룸" },
+		{ room = "bay", type = "servicebay", center = Vector3.new(-499.0, 6.66, 450.0), size = Vector3.new(46.0, 14.6, 52.1), face = "+Z", name = "광안 오토 정비 베이" },
+		{ room = "wash", type = "carwash", center = Vector3.new(-455.1, 6.66, 452.6), size = Vector3.new(25.3, 13.4, 50.0), face = "+Z", noDoorGuess = true, name = "광안 오토 자동세차장" },
+	} },
 }
 
 local FACE = { ["+X"] = Vector3.new(1, 0, 0), ["-X"] = Vector3.new(-1, 0, 0), ["+Z"] = Vector3.new(0, 0, 1), ["-Z"] = Vector3.new(0, 0, -1) }
