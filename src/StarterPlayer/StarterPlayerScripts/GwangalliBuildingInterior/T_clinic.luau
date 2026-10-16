@@ -5121,6 +5121,8 @@ BUILD.checkup = function(K: any, V: any)
 	-- X-ray 실 (남서쪽 구석, 복도 쪽)
 	local xr0, xr1, zr0, zr1 = 15.8, V.x1, 11.4, V.z1
 	table.insert(avoid, { xr0 - 0.6, zr0 - 0.6, xr1, zr1 })
+	wallUse(K, "right", zr0 - 0.3, zr1 + 0.3, 0, V.H)
+	wallUse(K, "front", -xr1 - 0.3, -xr0 + 0.3, 0, V.H)
 	step(K, "ceiling", function()
 		ceilingKit(K, V, { lights = 6, avoid = avoid })
 	end)
@@ -5360,6 +5362,7 @@ BUILD.checkup = function(K: any, V: any)
 		local el = V:first("EyeLine")
 		local ys, res
 		if s then
+			hideRec(K, s)
 			local d = faceCF(Vector3.new(V.x1 - 0.02, 5.6, s.c.Z), -Vector3.xAxis)
 			K:free(function()
 				local a, b = eyeChart(K, d, 3.6, 5.2)
@@ -5452,7 +5455,8 @@ BUILD.checkup = function(K: any, V: any)
 			K:box("BoothDoorSeal", V3(0.09, 6.5, 0.08), dc * CF(0, 0, 1.52), LK.rubber)
 			tx(K, "BoothSign", 3.0, 0.6, faceCF(Vector3.new(cx + 0.8, 6.9, z1 + 0.05), Vector3.zAxis), "⑥ 청력 검사실", WHITE, TEAL, { font = FONT_K, d = 0.03 })
 			K:box("BoothLampBox", V3(1.4, 0.45, 0.2), CF(cx + 2.6, 5.4, z1 + 0.1), LK.black)
-			lamp = tx(K, "BoothLamp", 1.3, 0.38, faceCF(Vector3.new(cx + 2.6, 5.4, z1 + 0.21), Vector3.zAxis), "검사 중", C3(80, 30, 30), nil, { font = FONT_K, d = 0.01 })
+			local _, ll = tx(K, "BoothLamp", 1.3, 0.38, faceCF(Vector3.new(cx + 2.6, 5.4, z1 + 0.21), Vector3.zAxis), "검사 중", C3(80, 30, 30), nil, { font = FONT_K, d = 0.01 })
+			lamp = ll
 		end)
 		-- 오디오미터 책상 (창 앞)
 		local dp = floorAt(K, cx - 1.0, z1 + 1.4, PI, 4.4, 2.0, 3.0, 0)
@@ -5487,8 +5491,7 @@ BUILD.checkup = function(K: any, V: any)
 						return
 					end
 					busy = true
-					lamp.Color = C3(255, 60, 50)
-					lamp.Material = M.Neon
+					lamp.TextColor3 = C3(255, 60, 50)
 					task.spawn(function()
 						for i = 1, 6 do
 							if not btn.Parent then
@@ -5497,8 +5500,7 @@ BUILD.checkup = function(K: any, V: any)
 							Interact.click(btn, "rbxasset://sounds/electronicpingshort.wav")
 							task.wait(0.7 + (i % 3) * 0.3)
 						end
-						lamp.Color = C3(80, 30, 30)
-						lamp.Material = M.SmoothPlastic
+						lamp.TextColor3 = C3(80, 30, 30)
 						busy = false
 					end)
 				end,
