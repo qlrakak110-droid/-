@@ -707,6 +707,21 @@ local function notice(D: any, dcf: CFrame, w: number, h: number, title: string, 
 	D.plate("NoticeGlass", w, h, 0.01, dcf * CF(0, 0, 0.08), { c = C(230, 236, 240), m = M.Glass, t = 0.9, r = 0.2 })
 end
 
+-- 줄마다 글자 크기가 들쭉날쭉하지 않게 (TextScaled 는 칸마다 따로 맞춤): 칸 높이 비율로 최대 글자 크기 제한
+-- (Kit:text 의 PixelsPerStud = clamp(220 / max(w, h), 24, 80) 와 같은 식)
+local function capText(lab: TextLabel?, w: number, h: number, frac: number)
+	if not lab then
+		return
+	end
+	pcall(function()
+		local ppx = math.clamp(math.floor(220 / math.max(w, h)), 24, 80)
+		local c = Instance.new("UITextSizeConstraint")
+		c.MaxTextSize = math.max(8, math.floor(h * ppx * frac))
+		c.MinTextSize = 1
+		c.Parent = lab
+	end)
+end
+
 -- 가격표 (불투명 줄 바탕): items = { { 이름, 가격 } }, o.cols, o.accent, o.frame
 local function priceBoard(D: any, dcf: CFrame, w: number, h: number, title: string, items: { { string } }, o: any?)
 	local acc: Color3 = (o and o.accent) or NAVY
@@ -724,8 +739,10 @@ local function priceBoard(D: any, dcf: CFrame, w: number, h: number, title: stri
 		local x0 = -w / 2 + col * cw
 		local y = h / 2 - th - 0.08 - rh * (row + 0.5)
 		local bg = if row % 2 == 0 then C(250, 250, 246) else C(234, 236, 240)
-		D.label("PriceRowName", cw * 0.6, rh * 0.86, dcf * CF(x0 + cw * 0.33, y, 0.145), it[1], INK, bg, { d = 0.005, align = "Left", font = Enum.Font.GothamMedium })
-		D.label("PriceRowPrice", cw * 0.32, rh * 0.86, dcf * CF(x0 + cw * 0.81, y, 0.145), it[2] or "", acc, bg, { d = 0.005, align = "Right", font = Enum.Font.GothamBold })
+		local _, ln = D.label("PriceRowName", cw * 0.6, rh * 0.86, dcf * CF(x0 + cw * 0.33, y, 0.145), it[1], INK, bg, { d = 0.005, align = "Left", font = Enum.Font.GothamMedium })
+		local _, lp = D.label("PriceRowPrice", cw * 0.32, rh * 0.86, dcf * CF(x0 + cw * 0.81, y, 0.145), it[2] or "", acc, bg, { d = 0.005, align = "Right", font = Enum.Font.GothamBold })
+		capText(ln, cw * 0.6, rh * 0.86, 0.62)
+		capText(lp, cw * 0.32, rh * 0.86, 0.62)
 	end
 	if cols > 1 then
 		for c = 1, cols - 1 do
@@ -1116,7 +1133,9 @@ local function buildShowroom(K: any, V: any)
 		}
 		lab.Text = frames[1][1]
 		screenCycle(K, lab, nil, frames, 5)
-		D.light(scr, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 12, Brightness = 0.6, Angle = 110, Color = C(150, 180, 255) })
+		if mid then -- 저사양 (불빛 4 개) 에서는 차 스포트에 양보
+			D.light(scr, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 12, Brightness = 0.6, Angle = 110, Color = C(150, 180, 255) })
+		end
 	end)
 
 	-- 4.5 천장: 선형 LED (맵 네온 띠 자리), 트랙 스포트 (차마다), 스프링클러, 스피커 ------------------------------------
@@ -1260,7 +1279,7 @@ local function buildShowroom(K: any, V: any)
 	end)
 	-- 4.5b 통로 위 행잉 배너 (양면 천 배너, 턴테이블 반경 밖 통로 위 8.2 이상)
 	step(K, "aisleBanners", function()
-		if #tts < 4 then
+		if #tts < 4 or not mid then
 			return
 		end
 		local colsX, rowsZ = {}, {}
@@ -3111,8 +3130,8 @@ local function buildBayImpl(K: any, V: any): any
 		end
 		-- 정비 요금표 (오른쪽 벽, 접수 위)
 		local items = {
-			{ "엔진오일 교환 (합성유)", "69,000~" }, { "에어컨 필터", "20,000" }, { "에어 클리너", "20,000" },
-			{ "브레이크 패드 (앞)", "80,000~" }, { "타이어 교체 공임 (1본)", "10,000" }, { "휠 얼라인먼트", "40,000" },
+			{ "엔진오일 (합성유)", "69,000~" }, { "에어컨 필터", "20,000" }, { "에어 클리너", "20,000" },
+			{ "브레이크 패드 (앞)", "80,000~" }, { "타이어 교체 (1본)", "10,000" }, { "휠 얼라인먼트", "40,000" },
 			{ "배터리 교체", "120,000~" }, { "와이퍼 (1조)", "15,000" }, { "미션오일 교환", "120,000~" }, { "냉각수 교환", "50,000" },
 			{ "차량 점검 · 진단", "무료" },
 		}

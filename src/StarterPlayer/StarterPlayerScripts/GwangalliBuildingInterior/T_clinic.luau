@@ -42,6 +42,17 @@ local NAVY = C3(28, 50, 92)
 local GREEN_EXIT = C3(0, 150, 80)
 
 local function lk(r: number, g: number, b: number, m: Enum.Material?, extra: { [string]: any }?): any
+	-- 밝은 Metal 은 실내에서 푸르스름하게 어둡게 보임 (T-bar · 부스 · 사물함이 남색처럼 보였음).
+	-- 병원 집기의 밝은 금속은 대부분 분체 도장 강판 -> SmoothPlastic + 약한 반사로 (스테인리스 · 크롬은 Look 쪽 그대로)
+	if m == Enum.Material.Metal and (r + g + b) / 3 >= 165 then
+		local e: { [string]: any } = { r = 0.05 }
+		if extra then
+			for k, v in extra do
+				e[k] = v
+			end
+		end
+		return Look.of(r, g, b, Enum.Material.SmoothPlastic, e)
+	end
 	return Look.of(r, g, b, m, extra)
 end
 local function col(c: Color3, m: Enum.Material?, extra: { [string]: any }?): any
@@ -65,7 +76,7 @@ local LK = {
 	absDark = lk(86, 92, 98, M.Plastic),
 	steel = Look.steel,
 	chrome = Look.chrome,
-	alu = Look.alu,
+	alu = { c = Color3.fromRGB(204, 207, 211), m = Enum.Material.SmoothPlastic, r = 0.12 }, -- 아노다이징 알루미늄 (Look.alu Metal 은 어둡게 보임)
 	darkAlu = Look.darkAlu,
 	black = Look.black,
 	rubber = Look.rubber,
@@ -2410,6 +2421,12 @@ BUILD.lobby = function(K: any, V: any)
 			K:box("SanStandWindow", V3(0.5, 0.45, 0.02), sp * CF(0, 4.15, 0.46), { c = C3(150, 210, 230), m = M.Glass, t = 0.3 })
 			K:box("SanStandSensor", V3(0.3, 0.08, 0.06), sp * CF(0, 3.4, 0.46), col(C3(60, 220, 160), M.Neon))
 			K:box("SanStandTray", V3(0.8, 0.06, 0.6), sp * CF(0, 2.6, 0.3), LK.chrome)
+			-- KF94 마스크 비치함 (기둥 앞 아크릴 상자, 독감 철 의원 입구 필수품)
+			K:box("MaskBoxBracket", V3(0.34, 0.1, 0.3), sp * CF(0, 2.12, 0.14), LK.chrome)
+			K:box("MaskBox", V3(0.82, 0.58, 0.46), sp * CF(0, 1.84, 0.33), { c = C3(236, 246, 248), m = M.Glass, t = 0.5, r = 0.1 })
+			K:box("MaskStack", V3(0.7, 0.34, 0.36), sp * CF(0, 1.73, 0.33), lk(244, 246, 248, M.Fabric))
+			K:box("MaskStackBand", V3(0.7, 0.04, 0.37), sp * CF(0, 1.8, 0.33), col(C3(120, 170, 220)))
+			tx(K, "MaskBoxLabel", 0.78, 0.2, sp * CF(0, 2.02, 0.565), "KF94 마스크 · 1인 1매", TEAL_D, WHITE, { font = FONT_B, d = 0.01 })
 			K:box("SanStandSign", V3(0.9, 1.1, 0.04), sp * CF(0, 5.25, 0.1), col(TEAL))
 			tx(K, "SanStandSignText", 0.8, 1.0, sp * CF(0, 5.25, 0.125), "손 소독\n후\n접수", WHITE, nil, { font = FONT_K })
 			drop = K:ball("SanDrop", 0.08, sp * CF(0, 3.25, 0.25), { c = C3(200, 230, 255), m = M.Glass, t = 1 })
@@ -5572,7 +5589,31 @@ BUILD.nurse = function(K: any, V: any)
 		end
 		local d2 = wallSpot(K, "right", 3.4, 4.6, 7.4, wallU("right", Vector3.new(0, 0, 6.0)), 0.6)
 		if d2 then
-			poster(K, d2, 3.2, 2.6, "10월 근무표", "D  07~15   E  15~23   N  23~07\n박선생 D · 이선생 E · 최선생 N\n인계 : 07:00 · 15:00 · 23:00", WHITE, INK, NAVY, WHITE, 0.24)
+			-- 3교대 근무표: 이름 칸 + 날짜별 색 칸 (D 노랑 · E 주황 · N 남색 · OFF 회색) + 범례
+			local bw, bh = 3.4, 2.6
+			K:plate("RosterFrame", bw + 0.12, bh + 0.12, 0.04, d2, LK.alu)
+			K:plate("RosterBoard", bw, bh, 0.05, d2, lk(252, 252, 250))
+			K:plate("RosterBand", bw, 0.42, 0.055, d2 * CF(0, bh / 2 - 0.21, 0), col(NAVY))
+			tx(K, "RosterTitle", bw - 0.2, 0.34, d2 * CF(0, bh / 2 - 0.21, 0.056), "2병동 10월 근무표 (3교대)", WHITE, nil, { font = FONT_K })
+			local names = { "김수진 (수)", "박선생", "이선생", "최선생", "정선생", "한선생" }
+			local shift = { "DDEENNOO", "EENNOODD", "NNOODDEE", "OODDEENN", "DEENNOOD", "ENOODDEN" }
+			local SH = { D = C3(250, 214, 90), E = C3(244, 150, 60), N = C3(44, 66, 130), O = C3(206, 210, 214) }
+			local x0, cw, ch = -bw / 2 + 1.0, (bw - 1.15) / 8, 0.24
+			local yTop = bh / 2 - 0.62
+			tx(K, "RosterDays", bw - 1.15, 0.2, d2 * CF(x0 + 4 * cw, yTop + 0.06, 0.056), "12   13   14   15   16   17   18   19", GREY_T, nil, { font = FONT_B })
+			tx(K, "RosterNames", 0.9, ch * #names, d2 * CF(-bw / 2 + 0.5, yTop - 0.16 - ch * #names / 2, 0.056), table.concat(names, "\n"), INK, nil, { font = FONT_M, align = "Left" })
+			for i, sq in shift do
+				local y = yTop - 0.16 - (i - 0.5) * ch
+				for j = 1, 8 do
+					local c = SH[string.sub(sq, j, j)]
+					local x = x0 + (j - 0.5) * cw
+					K:plate("RosterCell", cw - 0.03, ch - 0.03, 0.058, d2 * CF(x, y, 0), col(c))
+				end
+			end
+			-- 오늘 (16일) 칸 테두리
+			K:plate("RosterToday", 0.025, ch * #names + 0.06, 0.062, d2 * CF(x0 + 4 * cw, yTop - 0.16 - ch * #names / 2, 0), col(RED))
+			K:plate("RosterToday", 0.025, ch * #names + 0.06, 0.062, d2 * CF(x0 + 5 * cw, yTop - 0.16 - ch * #names / 2, 0), col(RED))
+			tx(K, "RosterLegend", bw - 0.2, 0.36, d2 * CF(0, -bh / 2 + 0.26, 0.056), "D 07~15  E 15~23  N 23~07  OFF 휴무\n인계 07:00 · 15:00 · 23:00 (병상 옆 인계)", GREY_T, nil, { font = FONT_M })
 		end
 		local d3 = wallSpot(K, "right", 1.0, 3.6, 5.0, wallU("right", Vector3.new(0, 0, 9.5)), 0.6)
 		if d3 then
