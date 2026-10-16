@@ -1,8 +1,4 @@
 --!strict
--- GwangalliBuildingInterior/T_karaoke: 큰 시설 방 유형 (karaoke kcorridor kbooth) 실내 (Venues.luau 의 방, Scan.fitRoom).
---   style(V) -> S  Common 에 줄 공통 마감 스타일 (Common.luau 머리말의 S 필드)
---   build(K, V, S) 유형별 디테일
-
 local Look = require(script.Parent:WaitForChild("Look"))
 local Props = require(script.Parent:WaitForChild("Props"))
 local Interact = require(script.Parent:WaitForChild("Interact"))
@@ -12,10 +8,24 @@ local T = {}
 T.types = { "karaoke", "kcorridor", "kbooth" }
 
 function T.style(V: any): any
-	-- 기본: 기존 가구는 그대로, 천장 설비만 (모듈을 채우면서 바꿈)
-	return { chair = false, stool = false, table = false, counter = false, base = false, lower = false, mat = false, clock = false, license = false, cctv = false, ceiling = {}, lights = { kind = "none" }, skip = { upgrades = true, fixtures = true } }
+	return { chair = false, stool = false, table = false, counter = false, base = false, lower = false, mat = false, clock = false, license = false, cctv = false, ceiling = false, lights = { kind = "none" }, skip = { upgrades = true, fixtures = true, ceiling = true } }
 end
 
-function T.build(K: any, V: any, S: any) end
+function T.build(K: any, V: any, S: any)
+	for _, k in V.keep do
+		K:note(string.format("keep %s (%.1f,%.1f,%.1f)-(%.1f,%.1f,%.1f)", k.kind, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
+	end
+	for _, t in V.tables do
+		K:note(string.format("table %s y=%.2f (%.1f,%.1f)-(%.1f,%.1f)", t.top.name, t.y, t.min.X, t.min.Z, t.max.X, t.max.Z))
+	end
+	for _, c in V.chairs do
+		K:note(string.format("chair %s top=%.2f c=(%.1f,%.1f) face=(%.1f,%.1f) n=%d", c.seat.name, c.top, c.c.X, c.c.Z, c.face.X, c.face.Z, #c.parts))
+	end
+	for _, s in V.solid do
+		if #K.log < 58 then
+			K:note(string.format("solid %s (%.1f,%.1f,%.1f)-(%.1f,%.1f,%.1f)", s.name, s.min.X, s.min.Y, s.min.Z, s.max.X, s.max.Y, s.max.Z))
+		end
+	end
+end
 
 return T
