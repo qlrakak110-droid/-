@@ -336,6 +336,7 @@ function Visit.finish(v: any, reason: string, note: string?)
 				deferred = v.deferred or 0,
 				rx = v.rx ~= nil and reason == "done",
 				treated = treated,
+				checkup = v.chk ~= nil,
 			},
 			health = Patient.view(p),
 			meds = Patient.medsView(p),

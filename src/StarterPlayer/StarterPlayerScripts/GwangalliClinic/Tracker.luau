@@ -342,6 +342,9 @@ end
 
 function Tracker.onDone(p: any)
 	local sm = p.summary or {}
+	if sm.checkup and sm.treated then
+		return -- the 결과지 is the summary of a checkup
+	end
 	if not sm.treated then
 		if p.note then
 			Ui.toast(p.note, nil, if p.reason == "done" then "ok" else "warn")
