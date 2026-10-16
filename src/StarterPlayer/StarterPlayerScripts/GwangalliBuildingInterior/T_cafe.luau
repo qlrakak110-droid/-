@@ -4532,6 +4532,125 @@ local function brandMural(K: any, V: any, B: any, wn: string, u: number, w: numb
 	useWall(K, wn, u - w / 2 - 0.2, u + w / 2 + 0.2, y0 - 0.1, y1 + 0.1)
 end
 
+-- 넓은 매장 가운데 빈 바닥: 원두 · MD 아일랜드 진열대 + 플랜터 박스 (K:spot 으로 통로 · 좌석 · 줄 서는 자리 피함)
+local SWEET_KEYS = { tanghulu = true, waffle = true, churros = true, hotteok = true, bingsu = true, claw = true, bakery = true, lobby = true }
+local function coffeeBrand(B: any): boolean
+	return not SWEET_KEYS[B.key]
+end
+
+local function beanIsland(K: any, B: any, pcf: CFrame)
+	local w, d, h = 3.4, 1.6, 2.7
+	local wood = if B.key == "pascucci" or B.key == "lounge" or B.key == "roastery" or B.key == "starbucks" then Look.walnut else Look.oak
+	local topL = if B.key == "pascucci" or B.key == "haute" or B.key == "twosome" then Look.marbleWhite else Look.with(wood, { c = lt((wood :: any).c, 0.1) })
+	K:box("IslandKick", V3(w - 0.24, 0.3, d - 0.24), pcf * CF(0, 0.15, 0), Look.black)
+	K:box("IslandBody", V3(w, h - 0.42, d), pcf * CF(0, 0.3 + (h - 0.42) / 2, 0), wood)
+	K:box("IslandTop", V3(w + 0.12, 0.12, d + 0.12), pcf * CF(0, h - 0.06, 0), topL)
+	if not lowD(K) then
+		for _, sz in { 1, -1 } do
+			for k = 1, 7 do
+				K:box("IslandFlute", V3(0.05, h - 0.62, 0.03), pcf * CF(-w / 2 + k * w / 8, 0.3 + (h - 0.42) / 2, sz * (d / 2 + 0.015)), lk(dk((wood :: any).c, 0.25), (wood :: any).m))
+			end
+		end
+	end
+	local top = pcf * CF(0, h, 0)
+	-- 원두 상자 2 (나무 크레이트 + 원두 + 스쿱)
+	for i, sx in { -1, 1 } do
+		local c = top * CF(sx * 1.05, 0, -0.25)
+		K:box("CrateBase", V3(1.0, 0.06, 0.7), c * CF(0, 0.03, 0), Look.pine)
+		for _, e in { { 0, 0.33, 1.0, 0.06 }, { 0, -0.33, 1.0, 0.06 } } do
+			K:box("CrateSide", V3(e[3], 0.3, e[4]), c * CF(e[1], 0.18, e[2]), Look.pine)
+		end
+		for _, ex in { -0.47, 0.47 } do
+			K:box("CrateSide", V3(0.06, 0.3, 0.6), c * CF(ex, 0.18, 0), Look.pine)
+		end
+		K:box("CrateBeans", V3(0.88, 0.2, 0.6), c * CF(0, 0.16, 0), lk(if i == 1 then rgb(74, 46, 30) else rgb(104, 66, 40), M.Pebble))
+		if i == 1 then
+			K:vcyl("BeanScoop", 0.16, 0.26, c * CF(0.18, 0.3, 0.05) * ANG(0.5, 0, 0), Look.steel)
+			K:seg("BeanScoopHandle", (c * CF(0.18, 0.34, 0.15)).Position, (c * CF(0.18, 0.5, 0.42)).Position, 0.06, Look.steel)
+		end
+		K:text("CrateTag", 0.6, 0.18, top * CF(sx * 1.05, 0.24, 0.12) * ANG(-0.5, 0, 0), if i == 1 then "HOUSE BLEND\n200g 16,000" else "ETHIOPIA G1\n200g 19,000", { fg = rgb(30, 30, 30), bg = rgb(250, 248, 240), d = 0.01, font = F.GothamBold })
+	end
+	-- 가운데: 원두 봉투 줄 + 선물 세트 + 아크릴 사인
+	for k = -1, 1 do
+		local c = top * CF(k * 0.32, 0, 0.35)
+		K:box("BeanBag", V3(0.28, 0.48, 0.2), c * CF(0, 0.24, 0), lk(rgb(196, 160, 112), M.Cardboard))
+		K:plate("BeanBagLabel", 0.22, 0.2, 0.01, c * CF(0, 0.26, 0.1), lk(if k == 0 then B.c1 else rgb(250, 250, 246)))
+	end
+	K:box("GiftSet", V3(0.8, 0.32, 0.5), top * CF(0, 0.16, -0.35), lk(B.c2 or rgb(40, 40, 40)))
+	K:plate("GiftRibbon", 0.07, 0.33, 0.01, top * CF(0, 0.16, -0.1), lk(B.c3 or rgb(200, 160, 90)))
+	K:box("SignFoot", V3(0.9, 0.05, 0.2), top * CF(0, 0.025, 0.72), Look.acrylicWhite)
+	K:text("IslandSign", 1.0, 0.42, top * CF(0, 0.3, 0.73) * ANG(-0.12, 0, 0), "이달의 원두\n에티오피아 예가체프 · 자스민 · 레몬", { fg = rgb(30, 30, 30), bg = rgb(252, 252, 250), d = 0.02, font = F.GothamMedium })
+end
+
+local function planterBox(K: any, pcf: CFrame, len: number, B: any)
+	local body = if B.key == "roastery" or B.key == "concrete" then Look.of(80, 80, 82, Enum.Material.Concrete) else Look.walnut
+	K:box("PlanterBox", V3(len, 1.3, 0.9), pcf * CF(0, 0.65, 0), body)
+	K:box("PlanterBoxLip", V3(len + 0.08, 0.08, 0.98), pcf * CF(0, 1.32, 0), Look.blackMetal)
+	K:box("PlanterBoxSoil", V3(len - 0.12, 0.05, 0.78), pcf * CF(0, 1.3, 0), Look.soil)
+	local n = math.floor(len / 0.32)
+	for k = 1, n do
+		local x = -len / 2 + (k - 0.5) * len / n
+		local hgt = 1.4 + rnd(B.seed, k) * 1.2
+		local lean = (rnd(B.seed, k + 30) - 0.5) * 0.35
+		K:wedge("PlanterLeaf", V3(0.05, hgt, 0.22), pcf * CF(x, 1.3 + hgt / 2, (rnd(B.seed, k + 60) - 0.5) * 0.4) * ANG(lean, rnd(B.seed, k + 90) * 3, 0), lk(if k % 3 == 0 then rgb(96, 128, 64) else rgb(46, 92, 54), M.Grass))
+	end
+end
+
+local function floorIslands(K: any, V: any, B: any, ctx: any)
+	if V.W * V.D < 650 or B.key == "lobby" or B.key == "starbucks" then
+		return
+	end
+	local placed = {}
+	local function farFromCounters(x: number, z: number): boolean
+		for _, g in V.counters do
+			if x > g.min.X - 3.5 and x < g.max.X + 3.5 and z > g.min.Z - 3.5 and z < g.max.Z + 5.0 then
+				return false
+			end
+		end
+		return true
+	end
+	local cands = {}
+	local x = V.x0 + 5
+	while x <= V.x1 - 5 do
+		local z = V.z0 + 5
+		while z <= V.z1 - 5.5 do
+			table.insert(cands, V3(x, 0, z))
+			z += 1.0
+		end
+		x += 1.0
+	end
+	table.sort(cands, function(a, b)
+		return (a - V3(ctx.cx, 0, ctx.cz)).Magnitude < (b - V3(ctx.cx, 0, ctx.cz)).Magnitude
+	end)
+	local want = if V.W * V.D > 1400 then 3 else 2
+	for _, p in cands do
+		if #placed >= want or not room(K, 70) then
+			break
+		end
+		breathe(K)
+		local ok = farFromCounters(p.X, p.Z)
+		for _, q in placed do
+			if (q - p).Magnitude < 11 then
+				ok = false
+			end
+		end
+		if ok then
+			local kind = if #placed % 2 == 0 and coffeeBrand(B) then "island" else "planter"
+			local pcf = facing(p, V3(0, 0, 1))
+			local size = if kind == "island" then V3(3.6, 3.4, 1.8) else V3(3.6, 3.0, 1.0)
+			if spotX(K, pcf, size, 1.4, kind) then
+				if kind == "island" then
+					beanIsland(K, B, pcf)
+				else
+					planterBox(K, pcf, 3.4, B)
+				end
+				table.insert(placed, p)
+				table.insert(ctx.placed, kind .. ctx.where(pcf))
+			end
+		end
+	end
+end
+
 -- 스타벅스: 계산대 뒤 맵 GreenTileWall (거의 검은 초록) -> 같은 자리 광택 그린 서브웨이 타일 + 줄눈 + 황동 몰딩
 local function starbucksTiles(K: any, V: any)
 	for _, r in V.byName.GreenTileWall or {} do
@@ -4573,7 +4692,7 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 	local n = 0
 	local idx = 0
 	local archy = B.key == "haute" or B.key == "scandi" or B.key == "terracotta" or B.key == "lounge"
-	local merchOK = B.type == "cafe" and B.key ~= "mega" and B.key ~= "compose" and B.key ~= "lobby"
+	local merchOK = coffeeBrand(B) and B.key ~= "mega" and B.key ~= "compose"
 	local muralDone = false
 	for pass = 1, 2 do
 		for _, wn in { "back", "left", "right" } do
@@ -4650,6 +4769,7 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 		end
 	end
 	ctx.fillN = n
+	floorIslands(K, V, B, ctx)
 end
 
 -- 짓기 ------------------------------------------------------------------------------------------------------
