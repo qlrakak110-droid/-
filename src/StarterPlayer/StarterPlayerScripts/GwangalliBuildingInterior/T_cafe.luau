@@ -479,6 +479,10 @@ local function brandKey(V: any): string
 	if has("TWOSOME") then
 		return "twosome"
 	end
+	-- 윗층 카페의 1층 엘리베이터 로비 (계산대 없음)
+	if V.type == "cafe" and V:has("ElevatorDoor") > 0 and #V.counters == 0 then
+		return "lobby"
+	end
 	if V.type == "dessert" then
 		if V:has("ClawBase") > 0 then
 			return "claw"
@@ -655,6 +659,18 @@ local function brandOf(V: any): any
 		B.neon = { "good evening", rgb(255, 210, 160), F.IndieFlower }
 		B.art = "gallery"
 		feat.md = false
+	elseif key == "lobby" then
+		local floorTag = string.match(nm, "(%d+F)") or "15F"
+		local cafeName = string.gsub(string.gsub(nm, "%s*·%s*%d+F", ""), "%s+$", "")
+		B.title, B.logo, B.slogan = nm, cafeName, floorTag .. " · OCEAN VIEW CAFE & LOUNGE"
+		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(196, 160, 96), rgb(28, 26, 24), rgb(150, 120, 70), rgb(244, 240, 232), rgb(30, 28, 26)
+		B.menuKind, B.menuBg, B.menuFg, B.menuAcc = "brass", rgb(30, 28, 26), rgb(240, 232, 216), rgb(206, 170, 106)
+		B.menus = {}
+		B.neon = { cafeName .. " · " .. floorTag .. " ↑", rgb(255, 214, 160), F.GothamMedium }
+		B.art, B.wifi, B.pw, B.hours = "bridge", "LOBBY_FREE", "lobby2026", "매일 10:00 - 23:00 (" .. floorTag .. ")"
+		B.info = { "관리사무소\n평일 09:00 - 18:00\n☎ 051-752-0181", "택배 보관 안내\n관리사무소 앞\n무인 택배함 이용", "엘리베이터 정기 점검\n매월 둘째 주 화요일 10:00 - 11:00\n점검 중 계단을 이용해 주세요" }
+		feat = { plants = 2, lobby = true }
+		B.feat = feat
 	elseif key == "bakery" then
 		B.title, B.logo, B.slogan = nm, "BAKERY", "매일 아침 직접 굽는 빵"
 		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(150, 96, 52), rgb(60, 40, 28), rgb(232, 176, 60), rgb(250, 244, 230), rgb(52, 36, 24)
@@ -889,6 +905,13 @@ function T.style(V: any): any
 		S.lights = { kind = "downlight", color = Look.neutralLight }
 		S.base = lk(B.c1)
 		S.plants = { "olive" }
+	elseif k == "lobby" then
+		S.chair = { style = "padded", frame = Look.darkWood, seat = Look.leatherBrown }
+		S.floor = { look = lk(rgb(226, 222, 214), M.Marble), tile = 3.0, grout = lk(rgb(190, 184, 174)) }
+		S.lower = { kind = "wainscot", h = 3.4, look = Look.walnut, cap = Look.brass, panel = 2.4, walls = { "left", "right" } }
+		S.pendant = { shade = "globe" }
+		S.base = Look.darkWood
+		S.plants = { "ficus", "snake", "olive" }
 	elseif k == "claw" then
 		S.floor = { look = lk(rgb(34, 28, 50), M.Rubber), tile = 2.0, grout = lk(rgb(60, 40, 90)) }
 		S.ceiling = { skin = lk(rgb(26, 22, 34)) }
@@ -1139,9 +1162,9 @@ local function infoBoard(K: any, dcf: CFrame, B: any)
 	K:plate("InfoBoardFrame", w + 0.14, h + 0.14, 0.06, dcf, Look.oak)
 	K:plate("InfoBoardCork", w, h, 0.07, dcf, lk(rgb(178, 136, 92), M.Sand))
 	local z = 0.075
-	K:text("InfoWifi", 0.86, 0.95, dcf * CF(-0.44, 0.56, z) * ANG(0, 0, 0.03), "Wi-Fi\n" .. B.wifi .. "\nPW " .. B.pw, { fg = rgb(30, 30, 34), bg = rgb(252, 252, 250), d = 0.01, font = F.GothamMedium })
-	K:text("InfoHours", 0.86, 0.95, dcf * CF(0.47, 0.6, z) * ANG(0, 0, -0.04), "영업시간\n" .. B.hours .. "\n라스트오더 30분 전", { fg = rgb(40, 34, 30), bg = rgb(255, 244, 196), d = 0.01, font = F.GothamMedium })
-	K:text("InfoPay", 1.6, 0.8, dcf * CF(0, -0.55, z) * ANG(0, 0, 0.015), "카드 · 삼성페이 · 카카오페이 · 제로페이\n현금영수증 발행 가능\n1인 1음료 부탁드려요 :)", { fg = rgb(30, 30, 30), bg = rgb(240, 244, 248), d = 0.01, font = F.GothamMedium })
+	K:text("InfoWifi", 0.86, 0.95, dcf * CF(-0.44, 0.56, z) * ANG(0, 0, 0.03), (B.info and B.info[1]) or ("Wi-Fi\n" .. B.wifi .. "\nPW " .. B.pw), { fg = rgb(30, 30, 34), bg = rgb(252, 252, 250), d = 0.01, font = F.GothamMedium })
+	K:text("InfoHours", 0.86, 0.95, dcf * CF(0.47, 0.6, z) * ANG(0, 0, -0.04), (B.info and B.info[2]) or ("영업시간\n" .. B.hours .. "\n라스트오더 30분 전"), { fg = rgb(40, 34, 30), bg = rgb(255, 244, 196), d = 0.01, font = F.GothamMedium })
+	K:text("InfoPay", 1.6, 0.8, dcf * CF(0, -0.55, z) * ANG(0, 0, 0.015), (B.info and B.info[3]) or "카드 · 삼성페이 · 카카오페이 · 제로페이\n현금영수증 발행 가능\n1인 1음료 부탁드려요 :)", { fg = rgb(30, 30, 30), bg = rgb(240, 244, 248), d = 0.01, font = F.GothamMedium })
 	for _, p in { V3(-0.44, 0.98, 0), V3(0.47, 1.02, 0), V3(-0.6, -0.2, 0), V3(0.6, -0.2, 0) } do
 		K:ball("InfoPin", 0.08, dcf * CF(p.X, p.Y, z + 0.03), lk(if p.Y > 0 then rgb(220, 40, 40) else rgb(40, 110, 220)))
 	end
@@ -3470,7 +3493,10 @@ local function stepSideWalls(K: any, V: any, B: any, ctx: any)
 		Props.row(K, at, 2.9, if B.type == "bakery" then "jars" elseif B.key == "roastery" then "books" else "plants", { seed = B.seed % 97, n = if B.key == "roastery" then 10 else 4 })
 	end
 	-- 위생 · 원산지 · 콘센트 안내
-	local wn2, dn = wallFind(K, sides, 1.0, 4.2, 5.2, frontU)
+	local wn2, dn = nil, nil
+	if B.key ~= "lobby" then
+		wn2, dn = wallFind(K, sides, 1.0, 4.2, 5.2, frontU)
+	end
 	if wn2 and dn then
 		K:panel("HygieneBadge", 0.85, 0.85, 0.03, 0.42, dn, lk(rgb(30, 110, 200)))
 		K:text("HygieneText", 0.7, 0.5, dn * CF(0, 0, 0.035), "위생등급\n매우 우수", { fg = rgb(255, 255, 255), font = F.GothamBold, d = 0.005 })
@@ -3480,14 +3506,14 @@ local function stepSideWalls(K: any, V: any, B: any, ctx: any)
 		if wo and dor then
 			notice(K, dor, 1.8, 1.6, "원산지 표시\n밀가루: 미국산 · 캐나다산\n버터: 뉴질랜드산\n우유 · 계란: 국내산\n딸기: 국내산 (논산)\n팥: 국내산", rgb(30, 30, 30), rgb(250, 250, 246))
 		end
-	else
+	elseif B.key ~= "lobby" then
 		local wo, dor = wallFind(K, sides, 1.5, 3.2, 3.9, midU)
 		if wo and dor then
 			notice(K, dor, 1.4, 0.55, "콘센트 사용 가능\n노트북 이용 2시간", rgb(40, 40, 40), rgb(250, 248, 240))
 		end
 	end
 	-- 벽등 (고급 카페: 브라스 팔 + 유리구)
-	if B.key == "haute" or B.key == "lounge" or B.key == "pascucci" or B.key == "twosome" or B.key == "green" then
+	if B.key == "haute" or B.key == "lounge" or B.key == "pascucci" or B.key == "twosome" or B.key == "green" or B.key == "lobby" then
 		local n = 0
 		for _, s in sides do
 			for k = 1, 3 do
@@ -4053,6 +4079,164 @@ local function stepChairs(K: any, V: any, B: any, S: any)
 	end
 end
 
+-- 엘리베이터 로비 (윗층 카페 · 1층 로비: CAFE 181 · 15F) --------------------------------------------------
+--   우편함 (맵 Mailboxes 같은 자세 스테인리스 리스킨: 호수 문 · 투입구 · 번호) · 층별 안내판 · 엘리베이터 안내판 ·
+--   15F 카페 입간판 · 콘솔 테이블 (화병 · 메뉴 카드) · 관리사무소 게시판
+local function mailboxSkin(K: any, V: any, r: any)
+	local lines = {}
+	for _, q in V.byName.MailboxLine or {} do
+		table.insert(lines, q)
+	end
+	-- 앞면 방향: 줄 무늬(MailboxLine)가 있는 쪽, 없으면 방 가운데 쪽
+	local lc = r.lcf
+	local sz = r.part.Size
+	local fwd: Vector3
+	if #lines > 0 then
+		local d = lines[1].c - r.c
+		fwd = if math.abs(d.X) > math.abs(d.Z) then V3(math.sign(d.X), 0, 0) else V3(0, 0, math.sign(d.Z))
+	else
+		local d = V3((V.x0 + V.x1) / 2, 0, (V.z0 + V.z1) / 2) - r.c
+		fwd = if math.abs(d.X) > math.abs(d.Z) then V3(math.sign(d.X), 0, 0) else V3(0, 0, math.sign(d.Z))
+	end
+	-- 앞면 기준 크기: 폭(앞에서 본 가로) · 깊이
+	local depth = math.abs(fwd.X) * r.size.X + math.abs(fwd.Z) * r.size.Z
+	local width = math.abs(fwd.Z) * r.size.X + math.abs(fwd.X) * r.size.Z
+	local hgt = r.size.Y
+	local front = faceCF(V3(r.c.X, r.min.Y, r.c.Z) + fwd * (depth / 2), fwd)
+	K:free(function()
+		-- 몸통 (앞면 0.05 안쪽, 문짝이 원래 앞면까지)
+		K:box("MailBody", V3(width, hgt, depth - 0.05), front * CF(0, hgt / 2, -(depth - 0.05) / 2 - 0.05), Look.brushed)
+		K:plate("MailTop", width, 0.08, 0.05, front * CF(0, hgt - 0.04, -0.05), Look.chrome)
+		K:plate("MailKick", width - 0.04, 0.4, 0.05, front * CF(0, 0.2, -0.05), Look.charcoal)
+		local cols = math.clamp(math.floor(width / 0.95), 3, 9)
+		local rows = math.clamp(math.floor((hgt - 1.0) / 0.92), 3, 6)
+		local cw = (width - 0.2) / cols
+		local rh = (hgt - 0.9) / rows
+		local floors = { 15, 14, 12, 10, 8, 6, 5, 3, 2 }
+		for ry = 1, rows do
+			for cx = 1, cols do
+				local x = -width / 2 + 0.1 + cw * (cx - 0.5)
+				local y = 0.55 + rh * (ry - 0.5)
+				local door = front * CF(x, y, -0.05)
+				K:plate("MailDoor", cw - 0.06, rh - 0.06, 0.04, door, lk(rgb(196, 198, 202), M.Metal, { r = 0.06 }))
+				if hi(K) or (cx + ry) % 2 == 0 then
+					K:plate("MailSlot", (cw - 0.06) * 0.62, 0.05, 0.045, door * CF(0, rh * 0.28, 0), Look.charcoal)
+				end
+				local fl = floors[(rows - ry) % #floors + 1]
+				K:text("MailNo", (cw - 0.06) * 0.55, 0.16, door * CF(0, -rh * 0.12, 0.045), string.format("%d%02d", fl, cx), { fg = rgb(30, 30, 34), bg = rgb(244, 244, 240), d = 0.004, font = F.GothamBold })
+			end
+		end
+		K:text("MailHeader", math.min(width - 0.4, 3.2), 0.3, front * CF(0, hgt - 0.24, 0.0), "우편함 MAIL BOX · 택배는 관리사무소에 맡겨 주세요", { fg = rgb(40, 40, 44), d = 0.004, font = F.GothamMedium })
+	end)
+	Scan.hide(K.hidden, r.part)
+	for _, q in lines do
+		Scan.hide(K.hidden, q.part)
+	end
+end
+
+local function stepLobby(K: any, V: any, B: any, ctx: any)
+	for _, r in V.byName.Mailboxes or {} do
+		mailboxSkin(K, V, r)
+	end
+	-- 엘리베이터 벽 (ElevatorHead 가 붙은 벽)
+	local heads = V.byName.ElevatorHead or {}
+	local ewall = "back"
+	if heads[1] then
+		local bd = math.huge
+		for _, wn in { "back", "left", "right" } do
+			if V.walls[wn] then
+				local _, d = V:wallCoord(wn, heads[1].c)
+				if math.abs(d) < bd then
+					ewall, bd = wn, math.abs(d)
+				end
+			end
+		end
+	end
+	local eu: { number } = {}
+	for _, h in heads do
+		local u = V:wallCoord(ewall, h.c)
+		table.insert(eu, u)
+	end
+	table.sort(eu)
+	-- 엘리베이터 옆 안내판 (정원 · 점검)
+	for _, u in eu do
+		for _, sx in { -1, 1 } do
+			local wn, dcf = wallFind(K, { ewall }, 0.9, 4.6, 5.8, u + sx * 3.0)
+			if wn and dcf and room(K, 4) then
+				K:plate("ElevPlateBack", 0.8, 1.05, 0.02, dcf, Look.chrome)
+				K:text("ElevPlate", 0.72, 0.95, dcf * CF(0, 0, 0.02), "승강기 안전\n정원 15인\n1,000kg\n검사 2026.03", { fg = rgb(30, 40, 60), bg = rgb(236, 240, 246), d = 0.005, font = F.GothamMedium })
+				break
+			end
+		end
+	end
+	-- 층별 안내판
+	local mid = if #eu > 0 then (eu[1] + eu[#eu]) / 2 else 0
+	local wd, dd = wallFind(K, { ewall, "left", "right" }, 2.4, 3.5, 6.6, { [ewall] = mid + (if mid > 0 then -4.5 else 4.5) })
+	if not wd then
+		wd, dd = wallFind(K, { "left", "right", "back" }, 2.4, 3.5, 6.6, 0)
+	end
+	if wd and dd and room(K, 8) then
+		K:plate("DirFrame", 2.3, 3.0, 0.06, dd, Look.brass)
+		K:plate("DirFace", 2.14, 2.84, 0.08, dd, lk(rgb(24, 26, 30), M.Glass, { r = 0.15 }))
+		K:text("DirTitle", 1.9, 0.34, dd * CF(0, 1.12, 0.09), "층별 안내  DIRECTORY", { fg = rgb(214, 186, 126), font = F.GothamBold, d = 0.005 })
+		K:text("DirList", 1.95, 2.1, dd * CF(0, -0.18, 0.09), "15F   CAFE 181 · 오션뷰 라운지\n14F - 5F   오피스텔\n4F - 2F   게스트하우스 게스후\n1F   로비 · 우편함 · 관리사무소\nB1   주차장 (방문 1시간 무료)", { fg = rgb(236, 236, 232), font = F.GothamMedium, align = "Left", d = 0.005 })
+		K:plate("DirRule", 1.9, 0.02, 0.09, dd * CF(0, 0.9, 0), lk(rgb(214, 186, 126)))
+	end
+	-- 15F 카페 액자 포스터 (메뉴 + 뷰)
+	local wp, dp = wallFind(K, { "left", "right", ewall }, 2.3, 3.6, 6.7, 0)
+	if wp and dp and room(K, 12) then
+		K:plate("CafePosterFrame", 2.2, 3.0, 0.06, dp, Look.blackMetal)
+		K:plate("CafePosterFace", 2.04, 2.84, 0.07, dp, lk(rgb(246, 242, 234)))
+		K:plate("CafePosterSky", 2.04, 1.1, 0.075, dp * CF(0, 0.82, 0), lk(rgb(226, 150, 120)))
+		K:plate("CafePosterSea", 2.04, 0.42, 0.078, dp * CF(0, 0.12, 0), lk(rgb(40, 70, 120)))
+		K:plate("CafePosterBridge", 2.04, 0.04, 0.082, dp * CF(0, 0.36, 0), lk(rgb(240, 240, 236)))
+		for _, tx in { -0.45, 0.45 } do
+			K:plate("CafePosterTower", 0.04, 0.5, 0.082, dp * CF(tx, 0.6, 0), lk(rgb(240, 240, 236)))
+		end
+		K:text("CafePosterTitle", 1.9, 0.3, dp * CF(0, -0.32, 0.085), "15F  CAFE 181", { fg = rgb(30, 28, 26), font = F.GothamBlack, d = 0.004 })
+		K:text("CafePosterMenu", 1.8, 0.8, dp * CF(0, -0.95, 0.085), "아메리카노 6,500 · 카페라떼 7,000\n181 시그니처 라떼 8,000\n광안대교 야경 창가석 · 매일 10:00 - 23:00", { fg = rgb(60, 54, 48), font = F.GothamMedium, d = 0.004 })
+	end
+	-- 바닥: 15F 카페 입간판 · 콘솔 테이블
+	for _, cand in { { ewall, mid - 3.2 }, { ewall, mid + 3.2 }, { "left", 0 }, { "right", 0 } } do
+		local wn = cand[1]
+		if V.walls[wn] then
+			local dcf = V:wall(wn, cand[2], 0, 1.4)
+			local p = dcf.Position
+			local pcf = CFrame.lookAt(V3(p.X, 0, p.Z), V3(p.X, 0, p.Z) + dcf.ZVector)
+			if K:spot(pcf, V3(1.9, 3.6, 1.3), 0.1, "sign") then
+				local cf = pcf * CF(0, 0, 0)
+				K:box("StandBase", V3(1.6, 0.12, 0.9), cf * CF(0, 0.06, 0), Look.blackMetal)
+				K:seg("StandPole", (cf * CF(0, 0.12, 0)).Position, (cf * CF(0, 1.2, 0)).Position, 0.08, Look.blackMetal)
+				K:box("StandBoard", V3(1.6, 2.3, 0.08), cf * CF(0, 2.3, 0) * ANG(-0.06, 0, 0), lk(rgb(30, 28, 26)))
+				K:text("StandText", 1.45, 2.1, (cf * CF(0, 2.3, 0.05) * ANG(-0.06, 0, 0)), "CAFE 181\n15F\n▲\n엘리베이터를\n이용해 주세요\n10:00 - 23:00", { fg = rgb(236, 214, 170), font = F.GothamBold, d = 0.005 })
+				useWall(K, wn, cand[2] - 1.0, cand[2] + 1.0, 0, 3.8)
+				break
+			end
+		end
+	end
+	for _, wn in { "left", "right", ewall } do
+		local wf, pcf = floorFind(K, { wn }, 2.6, 0.9, 2.7, 0, { pad = 0.05, wallH = 2.8 })
+		if wf and pcf and room(K, 16) then
+			K:box("ConsoleTop", V3(2.6, 0.1, 0.9), pcf * CF(0, 2.55, 0), Look.walnut)
+			K:box("ConsoleApron", V3(2.5, 0.25, 0.8), pcf * CF(0, 2.37, 0), Look.walnut)
+			for _, sx in { -1, 1 } do
+				K:seg("ConsoleLeg", (pcf * CF(sx * 1.15, 0, 0)).Position, (pcf * CF(sx * 1.15, 2.25, 0)).Position, 0.1, Look.brass)
+			end
+			K:box("ConsoleShelf", V3(2.3, 0.06, 0.7), pcf * CF(0, 0.5, 0), Look.walnut)
+			K:vcyl("ConsoleVase", 0.9, 0.42, pcf * CF(-0.75, 3.05, 0), lk(rgb(240, 238, 232), M.SmoothPlastic))
+			for k = 0, 4 do
+				K:seg("ConsoleBranch", (pcf * CF(-0.75, 3.4, 0)).Position, (pcf * CF(-0.75 + (k - 2) * 0.22, 4.4 + (k % 2) * 0.3, (k - 2) * 0.05)).Position, 0.04, lk(rgb(110, 90, 60)))
+				K:ball("ConsoleBloom", 0.2, pcf * CF(-0.75 + (k - 2) * 0.22, 4.4 + (k % 2) * 0.3, (k - 2) * 0.05), lk(if k % 2 == 0 then rgb(246, 242, 236) else rgb(228, 196, 196)))
+			end
+			K:box("ConsoleBook", V3(0.7, 0.1, 0.5), pcf * CF(0.55, 2.65, 0), lk(rgb(40, 60, 70)))
+			K:box("ConsoleBook", V3(0.62, 0.08, 0.46), pcf * CF(0.55, 2.74, 0) * ANG(0, 0.12, 0), lk(rgb(220, 210, 190)))
+			K:box("MenuCardBase", V3(0.5, 0.06, 0.2), pcf * CF(0.1, 2.63, 0.15), Look.brass)
+			K:text("MenuCard", 0.46, 0.62, pcf * CF(0.1, 2.97, 0.17) * ANG(-0.15, 0, 0), "15F\nCAFE 181\n오늘의 원두\n에티오피아", { fg = rgb(40, 34, 30), bg = rgb(250, 246, 238), d = 0.02, font = F.GothamMedium })
+			break
+		end
+	end
+end
+
 -- 9) 빈 벽 채우기 ------------------------------------------------------------------------------------------
 -- 다른 단계가 끝난 뒤 옆벽 · 뒷벽(손님 쪽) 눈높이 띠에 남은 긴 빈 구간을 브랜드 구성으로 채움:
 --   갤러리 월 (크기가 다른 액자 줄 + 픽처 라이트) · MD 벽선반 (원두 · 드립백 · 텀블러) · 아치 니치 (오뜨 · 인디) ·
@@ -4438,7 +4622,9 @@ function T.build(K: any, V: any, S: any)
 		{ "machines", stepMachines },
 		{ "rebuild", stepRebuild },
 	}
-	if B.key == "claw" then
+	if B.key == "lobby" then
+		steps = { { "shell", stepShell }, { "floor", stepFloor }, { "rebuild", stepRebuild }, { "lobby", stepLobby }, { "sides", stepSideWalls }, { "plants", stepPlants }, { "fill", stepFill }, { "ceiling", stepCeiling } }
+	elseif B.key == "claw" then
 		table.insert(steps, { "claw", stepClaw })
 		table.insert(steps, { "ceiling", stepCeiling })
 		table.insert(steps, { "clawWalls", stepClawWalls })

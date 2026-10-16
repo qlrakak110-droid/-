@@ -1720,6 +1720,8 @@ local function backBar(c: any)
 	local crownH = math.min(0.62, V.H - yTop - 0.04)
 	K:free(function()
 		-- 스모크 거울
+		-- 거울 뒤 불투명 판 (밝은 맵 벽이 유리 너머로 비쳐 하얗게 뜨지 않게)
+		K:box("BackBarMirrorBacking", V3(W - 0.06, yTop - yb, 0.02), CF(cx, (yb + yTop) / 2, zw + 0.0), L.of(22, 20, 18))
 		K:box("BackBarMirror", V3(W - 0.06, yTop - yb, 0.04), CF(cx, (yb + yTop) / 2, zw + 0.03), th.mirror)
 		-- 기둥 (원목 + 황동 띠)
 		for i = 0, nb do

@@ -1193,7 +1193,6 @@ local function didScreen(K: any, dcf: CFrame, w: number, frames: { any }, object
 	K:plate("StDIDBezel", w + 0.14, h + 0.14, 0.12, dcf * CF(0, 0, 0.1), frameL or Look.black)
 	-- 화면 = 불투명 배경 글자판 (밝기 1.3): 화면 색 · 글자를 같이 바꿈
 	local scr, label = txt(K, "StDIDScreen", w, h, dcf * CF(0, 0, 0.22), frames[1].text, WHITE, frames[1].c, { glow = 1.1, font = Enum.Font.GothamBlack, d = 0.02 })
-	K:plate("StDIDGlass", w, h, 0.005, dcf * CF(0, 0, 0.243), { c = C(220, 230, 240), m = M.Glass, t = 0.97, r = 0.06 })
 	K:plate("StDIDLed", 0.06, 0.06, 0.01, dcf * CF(w / 2 - 0.05, -h / 2 - 0.04, 0.225), Look.ledGreen)
 	local idx = 0
 	local last = -1
