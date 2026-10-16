@@ -279,7 +279,9 @@ local function counterSpot(K: any, g: any, w: number, d: number, h: number, side
 	local V = K.V
 	local n = custDir(V, g)
 	local t = g.top or g
-	local mn, mx = t.min, t.max
+	-- 상판이 벽 속으로 들어간 경우 방 안쪽으로 자름
+	local mn = V3(math.max(t.min.X, V.x0 + 0.06), t.min.Y, math.max(t.min.Z, V.z0 + 0.06))
+	local mx = V3(math.min(t.max.X, V.x1 - 0.06), t.max.Y, math.min(t.max.Z, V.z1 - 0.06))
 	local y = g.y
 	local alongX = math.abs(n.Z) > 0.5
 	local ins = inset or 0.14
@@ -859,9 +861,10 @@ function T.style(V: any): any
 		S.mat = { text = "PICK ME UP!" }
 		S.plants = {}
 	end
-	-- 의자는 이 모듈이 직접 (소파 구분)
+	-- 의자는 이 모듈이 직접 (소파 구분). 벽시계도 직접 (뒷벽은 메뉴판 자리라 옆벽에)
 	S.myChair = S.chair
 	S.chair = false
+	S.clock = false
 	return S
 end
 
@@ -3249,8 +3252,21 @@ local function stepBackWall(K: any, V: any, B: any, ctx: any)
 	end
 end
 
+-- 벽시계 (옆벽 뒤쪽, 실제 게임 시각)
+local function wallClock(K: any, V: any, B: any)
+	local h = math.min(V.H - 1.4, 7.6)
+	local prefer = { left = uOf(V, "left", 0, V.z0 + 3.5), right = uOf(V, "right", 0, V.z0 + 3.5), back = 0 }
+	local wn, dcf = wallFind(K, { "left", "right", "back" }, 1.6, h - 0.8, h + 0.8, prefer)
+	if wn and dcf then
+		local look = if B.key == "haute" or B.key == "lounge" or B.key == "pascucci" then { frame = Look.goldMetal } elseif B.key == "scandi" or B.key == "bakery" or B.key == "terracotta" then { frame = Look.oak } else nil
+		local hr, mn = Props.clock(K, dcf, 1.4, look)
+		Interact.clock(K, hr, mn, dcf, 1.4)
+	end
+end
+
 -- 6) 옆벽
 local function stepSideWalls(K: any, V: any, B: any, ctx: any)
+	wallClock(K, V, B)
 	local sides = { "left", "right" }
 	local frontU = { left = uOf(V, "left", 0, V.z1 - 5), right = uOf(V, "right", 0, V.z1 - 5) }
 	local midU = { left = uOf(V, "left", 0, ctx.cz), right = uOf(V, "right", 0, ctx.cz) }
@@ -3325,6 +3341,15 @@ local function stepSideWalls(K: any, V: any, B: any, ctx: any)
 			artPiece(K, da * CF(0, 0, 0.01), aw, ah, artKinds[(k - 1) % #artKinds + 1], B, k)
 		end
 	end
+	-- 높은 천장: 윗벽 큰 그림 (7 ~ 9.4)
+	if V.H >= 10.4 then
+		for k, sd in { "right", "left" } do
+			local wa, da = wallFind(K, { sd }, 3.9, 7.0, 9.4, midU)
+			if wa and da then
+				artPiece(K, da * CF(0, 0, 0.01), 3.6, 2.2, if k == 1 then (if B.art == "gallery" then "abstract" else "gallery") else B.art, B, 10 + k)
+			end
+		end
+	end
 	-- 벽 선반 (식물 · 책 · 원두)
 	local ws, dsh = wallFind(K, sides, 3.2, 6.9, 8.1, midU)
 	if ws and dsh then
@@ -3379,6 +3404,7 @@ end
 
 -- 인형뽑기방 벽 (기계 위 높은 띠 + 조작 패널)
 local function stepClawWalls(K: any, V: any, B: any, ctx: any)
+	wallClock(K, V, B)
 	local promptPred = promptOK(K)
 	local midU = { left = uOf(V, "left", 0, ctx.cz), right = uOf(V, "right", 0, ctx.cz) }
 	local wn, dcf = wallFind(K, { "back" }, 7.0, 8.3, 10.2, 0)

@@ -233,7 +233,7 @@ function T.style(V: any): any
 			table = { top = L.lightOak, base = L.blackMetal, barStyle = "steel" },
 			counter = { front = "wood", frontL = L.lightOak, topL = L.of(70, 72, 74, M.Granite), led = rgb(255, 230, 170) },
 			ceiling = { grid = true, tile = 2.0 },
-			lower = { kind = "louver", h = 3.4, look = L.lightOak, back = L.of(0, 110, 52), walls = { "left", "right" }, pitch = 0.5 },
+			lower = { kind = "louver", h = 3.4, look = L.lightOak, back = L.of(0, 110, 52), walls = { "left", "right", "back" }, pitch = 0.5 },
 			floor = { look = L.of(196, 192, 184, M.CeramicTiles), tile = 2.0, grout = L.of(150, 146, 140) },
 			base = L.of(0, 100, 50),
 			lights = { kind = "panel", n = 4 },
@@ -3045,6 +3045,19 @@ local function subwayBuild(ctx: any)
 			K:plate("FfSubArrow", 0.9, 0.16, 0.04, sg * CF(sx * 3.2, 0.45, 0.02) * ANG(0, 0, sx * 0.5), pl(P.accent))
 		end
 	end
+	-- 뒤 카운터 위 얕은 벽 선반 (포장 봉투 · 컵 · 냅킨 묶음)
+	local bs = wallSpot(ctx, { "back" }, 4.4, 5.2, 6.6, 2)
+	if bs then
+		local at = Props.shelf(K, bs * CF(0, -0.4, 0), 4.2, { depth = 0.8, look = L.lightOak })
+		for i = 0, 3 do
+			K:box("FfSubBag", V3(0.7, 0.9, 0.3), at * CF(-1.6 + i * 0.75, 0.45, -0.1) * ANG(0, (i % 2) * 0.08, 0), L.of(196, 162, 118, M.Cardboard))
+			K:plate("FfSubBagLogo", 0.5, 0.18, 0.01, at * CF(-1.6 + i * 0.75, 0.55, 0.05), pl(rgb(0, 132, 61)))
+		end
+		for i = 0, 2 do
+			K:vcyl("FfSubCups", 0.8, 0.34, at * CF(1.4 + (i - 1) * 0.0 + i * 0.0, 0.4, 0.0) * CF((i - 1) * 0.36, 0, 0), L.of(250, 250, 246))
+			K:vcyl("FfSubCupBand", 0.14, 0.35, at * CF(1.4 + (i - 1) * 0.36, 0.5, 0.0), pl(rgb(255, 194, 14)))
+		end
+	end
 	-- 주문 방법 5단계 포스터 (써브웨이 대표 안내)
 	local st = wallSpot(ctx, { "left", "right" }, 5.4, 4.2, 7.0, 0)
 	if st then
@@ -3288,7 +3301,7 @@ local function gimbapStation(ctx: any, base: CFrame, w: number, d: number)
 end
 
 -- 분식 조리대 (벽에 붙은 스테인리스 작업대 + 모듈들). pcf 앞 = 방 쪽. len 길이
-local function snackStation(ctx: any, pcf: CFrame, len: number): any
+local function snackStation(ctx: any, pcf: CFrame, len: number, o: any?): any
 	local K = ctx.K
 	local P = ctx.pal
 	local h, d = 3.2, 2.0
@@ -3305,8 +3318,10 @@ local function snackStation(ctx: any, pcf: CFrame, len: number): any
 	end
 	K:text("FfStationBand", len - 0.4, 0.36, pcf * CF(0, h - 0.32, d / 2 - 0.035), "즉석 떡볶이 · 튀김 · 순대 · 김밥 · 어묵", { fg = WHITE, bg = dark(P.accent, 0.1), font = F.GothamBlack, d = 0.01 })
 	local y = h
-	-- 모듈 배치 (왼쪽부터): 튀김 · 떡볶이 · 어묵 · 순대 · 김밥 (길이에 맞춰)
+	-- 모듈 배치: 순대 찜기는 방 구석 쪽 끝 (손님이 뚜껑을 열어 볼 수 있게), 이어서 튀김 · 떡볶이 · 어묵 · 김밥
 	local mods = {}
+	local out: any = {}
+	local flip = (o and o.steamerRight) == true
 	local x = -len / 2 + 0.15
 	local function take(wd: number): number?
 		if x + wd > len / 2 - 0.15 then
@@ -3314,36 +3329,43 @@ local function snackStation(ctx: any, pcf: CFrame, len: number): any
 		end
 		local c = x + wd / 2
 		x += wd + 0.12
-		return c
+		return if flip then -c else c
 	end
-	local out: any = {}
-	local tc = take(2.2)
-	if tc then
-		twigimCase(ctx, pcf * CF(tc, y, 0.05), 2.1, 1.5)
-		table.insert(mods, "twigim")
-	end
-	local pc = take(2.8)
-	if pc then
-		tteokPan(ctx, pcf * CF(pc, y, 0.05), 2.7, 1.6)
-		-- 열기 (불꽃 받침): 팬 아래 버너 테두리
-		K:box("FfPanBurner", V3(2.7, 0.06, 1.6), pcf * CF(pc, y + 0.0, 0.05), L.of(40, 40, 42, M.Metal))
-		table.insert(mods, "pan")
-	end
-	local ec = take(2.0)
-	if ec then
-		eomukTank(ctx, pcf * CF(ec, y, 0.0), 1.9, 1.4)
-		table.insert(mods, "eomuk")
-	end
-	local sc = take(1.25)
-	if sc then
-		out.steamer = sundaeSteamer(ctx, pcf * CF(sc, y, -0.25), 1.1)
-		sundaeBoard(ctx, pcf * CF(sc, y, 0.62))
-		table.insert(mods, "sundae")
-	end
-	local gc = take(2.1)
-	if gc then
-		gimbapStation(ctx, pcf * CF(gc, y, 0.1), 2.0, 1.4)
-		table.insert(mods, "gimbap")
+	local order = { "sundae", "twigim", "pan", "eomuk", "gimbap" }
+	for _, m in order do
+		if m == "sundae" then
+			local sc = take(1.25)
+			if sc then
+				out.steamer = sundaeSteamer(ctx, pcf * CF(sc, y, -0.25), 1.1)
+				sundaeBoard(ctx, pcf * CF(sc, y, 0.62))
+				table.insert(mods, m)
+			end
+		elseif m == "twigim" then
+			local tc = take(2.2)
+			if tc then
+				twigimCase(ctx, pcf * CF(tc, y, 0.05), 2.1, 1.5)
+				table.insert(mods, m)
+			end
+		elseif m == "pan" then
+			local pc = take(2.8)
+			if pc then
+				tteokPan(ctx, pcf * CF(pc, y, 0.05), 2.7, 1.6)
+				K:box("FfPanBurner", V3(2.7, 0.06, 1.6), pcf * CF(pc, y + 0.0, 0.05), L.of(40, 40, 42, M.Metal))
+				table.insert(mods, m)
+			end
+		elseif m == "eomuk" then
+			local ec = take(2.0)
+			if ec then
+				eomukTank(ctx, pcf * CF(ec, y, 0.0), 1.9, 1.4)
+				table.insert(mods, m)
+			end
+		else
+			local gc = take(2.1)
+			if gc then
+				gimbapStation(ctx, pcf * CF(gc, y, 0.1), 2.0, 1.4)
+				table.insert(mods, m)
+			end
+		end
 	end
 	out.mods = mods
 	-- 뒤 벽 아래 받침 선반 위 양념 통 (고춧가루 · 물엿)
@@ -3564,7 +3586,13 @@ local function bunsikBuild(ctx: any)
 			end
 		end
 		if spcf then
-			stationRec = snackStation(ctx, spcf, len)
+			-- 찜기를 가까운 구석 쪽 끝에 (pcf 의 +X 쪽이 방 오른쪽 구석이면 오른쪽)
+			local rightEnd = (spcf * CF(len / 2, 0, 0)).Position
+			local leftEnd = (spcf * CF(-len / 2, 0, 0)).Position
+			local function cornerDist(p: Vector3): number
+				return math.min(math.abs(p.X - V.x0), math.abs(p.X - V.x1)) + math.min(math.abs(p.Z - V.z0), math.abs(p.Z - V.z1))
+			end
+			stationRec = snackStation(ctx, spcf, len, { steamerRight = cornerDist(rightEnd) < cornerDist(leftEnd) })
 			-- 조리대 위 벽: 손글씨 가격판 (간판 · 다른 장식과 겹치면 다른 빈 벽으로)
 			local wc = spcf * CF(0, 0, -1.0 - 0.06)
 			local bw = math.min(3.4, len / 2 - 0.3)

@@ -457,7 +457,7 @@ local SKU: { [string]: any } = {
 	ointment = { k = "medbox", w = 0.56, h = 0.18, d = 0.26, stack = 3, cols = { C(250, 250, 250), C(40, 150, 80), C(210, 40, 50) }, lab = { C(200, 30, 40), C(30, 120, 200), C(250, 250, 250) } },
 	drinkA = { k = "amber", w = 0.17, h = 0.42, cols = { C(120, 60, 20) } },
 	vitamin = { k = "jar", w = 0.36, h = 0.56, cols = { C(250, 250, 250), C(250, 200, 60), C(240, 140, 30), C(200, 40, 40) } },
-	ginseng = { k = "box", w = 0.8, h = 0.5, d = 0.4, stack = 2, cols = { C(150, 20, 30), C(40, 30, 30) }, lab = { C(214, 180, 100) } },
+	ginseng = { k = "box", w = 0.72, h = 0.46, d = 0.4, cols = { C(150, 20, 30), C(40, 30, 30) }, lab = { C(214, 180, 100) } },
 	rxBox = { k = "medbox", w = 0.42, h = 0.36, d = 0.34, stack = 3, cols = { C(250, 250, 250), C(236, 240, 244) }, lab = { C(30, 90, 190), C(40, 150, 70), C(200, 30, 40) } },
 	rxBottle = { k = "jar", w = 0.3, h = 0.44, cols = { C(160, 90, 30), C(250, 250, 250) } },
 	-- 기념품 · 비치
@@ -957,7 +957,7 @@ local function fillSurf(K: any, s: any, catName: string, rng: () -> number, them
 		local w = sku.w * scale
 		local d = math.min((sku.d or sku.w) * scale, s.depth - 0.12)
 		-- 상자류는 칸 깊이만큼 (한 줄 재고가 통째로 보임) → 뒤 재고 덩어리 대신 라벨에 파트를 씀
-		local deep = (sku.k == "box" or sku.k == "medbox" or sku.k == "pack" or sku.k == "towel") and o.back ~= false
+		local deep = (sku.k == "box" or sku.k == "medbox" or sku.k == "pack" or sku.k == "towel") and o.back ~= false and w <= 0.7
 		if deep then
 			d = math.max(d, s.depth - 0.16)
 		end
@@ -1154,6 +1154,8 @@ local function hangSign(K: any, x: number, z: number, w: number, h: number, yBot
 	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, 0.031), front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01, glow = 1.05 })
 	txt(K, "StHangText", w * 0.92, h * 0.74, cf * CF(0, -0.02, -0.031) * ANG(0, PI, 0), back or front, fg, nil, { font = Enum.Font.GothamBlack, d = 0.01, glow = 1.05 })
 	Common.useCeil(K, x, z)
+	K.stSignBoxes = K.stSignBoxes or {}
+	table.insert(K.stSignBoxes, { min = mn, max = V3(mx.X, V.H, mx.Z) })
 	return true
 end
 
@@ -3121,6 +3123,11 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 				cashierDress(K, V, g, { main = accent }, "retail")
 			end
 		end)
+		step(K, "hang", function()
+			local t1 = if beach then "BEACH SHOP · 튜브 대여" else "BUSAN SOUVENIR · 부산 기념품"
+			local t2 = if beach then "선크림 · 돗자리 · 비치타월" else "I ♥ BUSAN · 광안리"
+			hangSignNear(K, (V.x0 + V.x1) / 2 - V.W * 0.2, (V.z0 + V.z1) / 2, 4.6, 1.1, math.max(6.2, V.H - 2.8), 0, t1, t2, accent, WHITE, warm)
+		end)
 		if beach then
 			-- 대여 요금판 · 파라솔 통 · 선풍기
 			step(K, "fan", function()
@@ -3200,7 +3207,13 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 						local y = V.H - 2.0 - (i % 2) * 0.35
 						local ring = CF(x, y, ln[3]) * ANG(0, (i % 3) * 0.5, 0)
 						local mn, mx = K.laabb(ring, V3(1.5, 1.5, 1.5))
-						if not K:hitsKeep(mn, V3(mx.X, V.H, mx.Z)) and not mapBlocked(K, mn, mx) then
+						local nearSign = false
+						for _, sb in K.stSignBoxes or {} do
+							if K.overlap(mn - V3(0.6, 0, 0.6), mx + V3(0.6, 0, 0.6), sb.min, sb.max, 0) then
+								nearSign = true
+							end
+						end
+						if not nearSign and not K:hitsKeep(mn, V3(mx.X, V.H, mx.Z)) and not mapBlocked(K, mn, mx) then
 							K:ring("StCeilTube", ring, 0.55, 0.32, if K.detail == "high" then 10 else 7, lk(cols[(n % #cols) + 1], M.Plastic))
 							K:seg("StCeilTubeString", V3(x, y + 0.72, ln[3]), V3(x, V.H - 0.02, ln[3]), 0.025, lk(C(240, 240, 240)))
 							n += 1
@@ -3293,11 +3306,6 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 			end
 		end)
 		fixturesNow(K, V, S)
-		step(K, "hang", function()
-			local t1 = if beach then "BEACH SHOP · 튜브 대여" else "BUSAN SOUVENIR · 부산 기념품"
-			local t2 = if beach then "선크림 · 돗자리 · 비치타월" else "I ♥ BUSAN · 광안리"
-			hangSignNear(K, (V.x0 + V.x1) / 2 - V.W * 0.2, (V.z0 + V.z1) / 2, 4.6, 1.1, math.max(6.2, V.H - 2.8), 0, t1, t2, accent, WHITE, warm)
-		end)
 		step(K, "posters", function()
 			local P = if beach
 				then { { "주의 안내", "수영 가능 시간 09:00 - 18:00\n음주 수영 금지 · 안전요원 지시", C(250, 250, 246), INK, warm }, { "TAX FREE", "카드 · 간편결제 OK", C(250, 250, 246), INK, accent }, { "광안리 해수욕장", "개장 7.1 - 8.31\n튜브는 안전구역 안에서", C(250, 250, 246), INK, C(60, 170, 150) } }
