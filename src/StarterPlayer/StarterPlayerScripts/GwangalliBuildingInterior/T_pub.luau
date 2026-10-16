@@ -554,7 +554,7 @@ THEMES.sunset = {
 		{ "소시지 야채볶음", nil, nil, "17,000" },
 		{ "먹태 & 청양마요", nil, nil, "13,000" },
 	},
-	posters = { "lotte", "sunsetp", "prost", "rules" },
+	posters = { "schedule", "lotte", "sunsetp", "rules", "prost" },
 	plants = { "monstera", "snake" },
 	tanks = false,
 	kegs = true,
@@ -585,8 +585,9 @@ THEMES.fuzzy = {
 	counterTop = L.of(236, 232, 226, M.Marble),
 	led = rgb(255, 90, 180),
 	floor = { look = L.of(40, 38, 42, M.Marble), tile = 2.5, grout = L.of(150, 120, 70) },
-	lower = { kind = "paint", h = 3.6, look = L.of(30, 52, 50), cap = L.goldMetal, walls = { "left", "right", "back" } },
+	lower = { kind = "paint", h = 3.6, look = L.of(40, 24, 44), cap = L.goldMetal, walls = { "left", "right", "back" } },
 	feature = { wall = "left", look = L.of(70, 40, 74, M.Fabric) },
+	cove = rgb(255, 96, 196),
 	paint = L.of(58, 36, 64),
 	ceil = L.of(20, 18, 22),
 	pendant = { shade = "globe", look = L.of(240, 206, 226, M.Glass, { t = 0.3 }) },
@@ -634,6 +635,7 @@ THEMES.fuzzy = {
 
 THEMES.party = extend(THEMES.sunset, {
 	key = "party",
+	cove = rgb(140, 100, 255),
 	brand = "THURSDAY PARTY",
 	crown = "THURSDAY PARTY  ·  광안리점",
 	dark = L.of(26, 26, 30, M.SmoothPlastic),
@@ -741,7 +743,7 @@ THEMES.bat = extend(THEMES.sunset, {
 	neon2 = rgb(80, 160, 255),
 	counterFrontL = L.of(20, 36, 80),
 	lower = { kind = "wainscot", h = 3.4, look = L.of(20, 34, 76), cap = L.of(200, 40, 40), panel = 1.7, walls = { "left", "right", "back" } },
-	posters = { "lotte", "lotte2", "prost", "rules" },
+	posters = { "lotte", "schedule", "lotte2", "prost", "rules" },
 	bats = true,
 	boardTitle = "직관보다 맛있는 생맥",
 	boardFoot = "롯데 승리한 날 생맥 500cc 1잔 무료!",
@@ -1106,6 +1108,8 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, kind: string, t
 		bg = rgb(214, 190, 150)
 	elseif kind == "rules" then
 		bg = rgb(34, 40, 38)
+	elseif kind == "schedule" then
+		bg = rgb(18, 22, 36)
 	elseif kind == "monk" then
 		bg = rgb(70, 40, 26)
 	elseif kind == "party" then
@@ -1224,6 +1228,18 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, kind: string, t
 			txt(p[3], p[1], p[2] + 0.06, 0.24, 0.05, rgb(50, 40, 30), F.GothamBold)
 		end
 		txt("BUSAN CRAFT\nBEER MAP", 0.5, 0.84, 0.86, 0.2, rgb(70, 46, 30))
+	elseif kind == "schedule" then
+		txt("오늘의 중계", 0.5, 0.9, 0.8, 0.08, rgb(255, 214, 90), F.GothamBlack)
+		txt("TODAY ON SCREEN", 0.5, 0.83, 0.8, 0.04, rgb(200, 200, 210), F.GothamBold)
+		local rows = { { "18:30", "KBO", "롯데 vs 두산" }, { "19:30", "K리그", "부산 vs 전남" }, { "23:30", "EPL", "토트넘 vs 첼시" }, { "04:00", "UCL", "챔스 16강 1차전" } }
+		for i, r in rows do
+			local yy = 0.72 - (i - 1) * 0.15
+			blk(if i == 1 then rgb(200, 40, 50) else rgb(60, 64, 80), 0.06, yy - 0.045, 0.2, 0.09)
+			txt(r[1], 0.16, yy, 0.18, 0.06, rgb(255, 255, 255), F.GothamBlack)
+			txt(r[2], 0.36, yy, 0.18, 0.05, rgb(255, 214, 90), F.GothamBold)
+			txt(r[3], 0.7, yy, 0.5, 0.055, rgb(240, 240, 244), F.GothamBold)
+		end
+		txt("중계 있는 날 피처 2,000원 할인\n큰 화면 자리는 예약 가능", 0.5, 0.1, 0.86, 0.1, rgb(220, 220, 228), F.GothamMedium)
 	elseif kind == "rules" then
 		txt("HOUSE RULES", 0.5, 0.88, 0.8, 0.09, rgb(250, 214, 110), F.PermanentMarker)
 		txt("1. 건배는 크게!\n2. 과음은 금물\n3. 음주운전 NO\n4. 대리운전은 필수\n5. 다트는 선 뒤에서", 0.5, 0.42, 0.84, 0.66, rgb(236, 234, 222), F.PermanentMarker)
@@ -3155,6 +3171,36 @@ local function sconces(c: any)
 	end
 end
 
+-- 15b2) 천장 코브 LED (칵테일 바 · 파티 펍): 벽 맨 위 둘레 네온 띠 + (예산 남으면) 소파 쪽 벽을 씻는 은은한 불빛
+local function coveLED(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if not th.cove or not budget(K, 12) then
+		return
+	end
+	local y = V.H - 0.3
+	local lit = false
+	local litWall = (c.banq and c.banq[1] and c.banq[1].wall) or "right"
+	K:free(function()
+		for _, wn in { "left", "right", "back" } do
+			local excl = if wn == "back" then c.backExcl else nil
+			for _, s in wallRuns(V, wn, y - 0.1, y + 0.1, excl) do
+				local len = s[2] - s[1] - 0.2
+				if len > 1.5 then
+					local d = V:wall(wn, (s[1] + s[2]) / 2, y, 0.03)
+					K:box("CoveTrim", V3(len, 0.16, 0.12), d * CF(0, 0.02, 0.06), th.dark)
+					local strip = K:box("CoveLED", V3(len - 0.1, 0.05, 0.05), d * CF(0, -0.08, 0.1), L.neon(th.cove))
+					if not lit and wn == litWall and len > 5 then
+						local li = K:light(strip, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 12, Brightness = 0.8, Angle = 150, Color = th.cove })
+						if li then
+							lit = true
+						end
+					end
+				end
+			end
+		end
+	end)
+end
+
 -- 15c) 높은 선반 (천장 아래 빈 벽 띠): 크래프트 펍은 캔 · 그라울러 · 탭 핸들 · 식스팩 컬렉션,
 --      칵테일 바는 빈 술병 · 셰이커, 스포츠 펍은 캔 · 트로피. 선반 앞 아래 은은한 LED (네온 파트, 불빛 예산 안 씀)
 local function growler(K: any, base: CFrame, gc: Color3, lab: Color3, capL: any, detail: string)
@@ -3527,6 +3573,7 @@ function T.build(K: any, V: any, S: any)
 		{ "counter", counterProps },
 		{ "decor", wallDecor },
 		{ "sconces", sconces },
+		{ "cove", coveLED },
 		{ "ledge", highLedge },
 		{ "plants", plants },
 		{ "barrels", barrels },

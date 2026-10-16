@@ -3314,10 +3314,10 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 			-- 긴 막대 어묵
 			K:cyl("FfEomukStick", 0.7, 0.2, sk * CF(0, 0.18, 0) * ANG(0, 0, PI / 2), L.of(214, 160, 100))
 		else
-			-- 지그재그로 접어 꽂은 납작 어묵 3겹
-			for k = 0, 2 do
-				local c = if k % 2 == 0 then L.of(220, 172, 112) else L.of(204, 152, 94)
-				K:ell("FfEomuk", V3(0.52, 0.3, 0.17), sk * CF((k % 2 - 0.5) * 0.1, 0.0 + k * 0.2, 0), c)
+			-- 지그재그로 접어 꽂은 납작 어묵 (얇은 판 4겹, 번갈아 기울임)
+			for k = 0, 3 do
+				local c = if k % 2 == 0 then L.of(226, 186, 128) else L.of(212, 168, 108)
+				K:box("FfEomuk", V3(0.5, 0.2, 0.05), sk * CF(0, -0.05 + k * 0.15, 0) * ANG(if k % 2 == 0 then 0.75 else -0.75, 0, 0), c)
 			end
 		end
 	end
@@ -4621,6 +4621,180 @@ local function selfCabinetOverlay(ctx: any): number
 	return made
 end
 
+-- 남은 빈 벽 채우기: 유형별 액자 포스터 (가로형, 폭 w · 높이 h). 반환 = poster() 옵션
+local function posterPool(ctx: any): { (number, number) -> any }
+	local sk = ctx.sk
+	local sg = ctx.signs or ""
+	local G, GB, GM = F.GothamBlack, F.GothamBold, F.GothamMedium
+	if sk == "chicken" or sk == "tongdak" then
+		local pF = priceIn(sg, "후라이드", "20,000")
+		return {
+			function(w, h)
+				return { bg = rgb(250, 196, 40), frame = L.blackMetal, glass = true, art = artChicken(-w * 0.24, -h * 0.04, w * 0.28), texts = {
+					{ "오늘은\n치킨이닭", w * 0.2, h * 0.12, w * 0.5, h * 0.44, rgb(120, 24, 16), G },
+					{ "후라이드 " .. pF .. "원", w * 0.2, -h * 0.3, w * 0.52, h * 0.14, rgb(196, 30, 34), GB },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(16, 30, 74), frame = L.of(196, 30, 40), border = 0.07, art = { { "b", 0, h * 0.42, w - 0.16, h * 0.06, rgb(214, 30, 40) }, { "b", 0, -h * 0.42, w - 0.16, h * 0.06, rgb(214, 30, 40) } }, texts = {
+					{ "최강 롯데!", 0, h * 0.16, w * 0.8, h * 0.3, WHITE, G },
+					{ "부산 갈매기 · 사직에서 만나요", 0, -h * 0.1, w * 0.84, h * 0.13, rgb(255, 210, 60), GB },
+					{ "롯데 경기 있는 날 생맥주 500cc 1+1 (19시~)", 0, -h * 0.28, w * 0.86, h * 0.09, rgb(240, 240, 240), GM },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(20, 62, 146), frame = L.chrome, glass = true, art = artBeer(-w * 0.26, -h * 0.02, w * 0.3), texts = {
+					{ "시원한\n생맥주", w * 0.2, h * 0.12, w * 0.48, h * 0.42, WHITE, G },
+					{ "500cc " .. priceIn(sg, "생맥주", "4,500") .. "원", w * 0.2, -h * 0.3, w * 0.5, h * 0.14, rgb(255, 214, 60), G },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(250, 246, 236), frame = L.walnut, texts = {
+					{ "포장 · 배달 주문", 0, h * 0.28, w * 0.8, h * 0.16, rgb(40, 30, 20), G },
+					{ "포장하면 콜라 1.25L 서비스", 0, h * 0.04, w * 0.86, h * 0.14, rgb(196, 30, 34), GB },
+					{ "☎ 051-752-8282", 0, -h * 0.2, w * 0.7, h * 0.16, rgb(40, 30, 20), G },
+					{ "배민 · 쿠팡이츠 · 요기요", 0, -h * 0.38, w * 0.7, h * 0.09, rgb(90, 80, 70), GM },
+				} }
+			end,
+		}
+	elseif sk == "sub" then
+		return {
+			function(w, h)
+				return { bg = rgb(0, 120, 56), frame = L.of(255, 194, 14), border = 0.06, art = artSandwich(-w * 0.24, -h * 0.02, w * 0.3), texts = {
+					{ "FRESH\nVEGGIES", w * 0.2, h * 0.12, w * 0.5, h * 0.42, WHITE, G },
+					{ "매일 아침 손질하는 채소", w * 0.2, -h * 0.3, w * 0.5, h * 0.12, rgb(255, 214, 60), GB },
+				} }
+			end,
+			function(w, h)
+				local a = {}
+				for i = -1, 1 do
+					table.insert(a, { "e", -w * 0.26 + i * w * 0.1, -h * 0.02 + (i % 2) * h * 0.06, w * 0.13, w * 0.13, rgb(170, 112, 60) })
+					table.insert(a, { "e", -w * 0.26 + i * w * 0.1 + w * 0.02, h * 0.0 + (i % 2) * h * 0.06, w * 0.03, w * 0.025, rgb(70, 40, 24) })
+				end
+				return { bg = rgb(250, 236, 200), frame = L.of(0, 110, 52), border = 0.06, art = a, texts = {
+					{ "갓 구운 쿠키", w * 0.2, h * 0.14, w * 0.5, h * 0.2, rgb(90, 50, 24), G },
+					{ "3개 4,500원", w * 0.2, -h * 0.14, w * 0.5, h * 0.18, rgb(0, 110, 52), G },
+				} }
+			end,
+		}
+	elseif sk == "burger" or sk == "taco" then
+		if sk == "taco" then
+			return {
+				function(w, h)
+					return { bg = rgb(250, 200, 60), frame = L.of(30, 140, 120), border = 0.07, art = artTaco(-w * 0.24, 0, w * 0.3), texts = {
+						{ "TACO\nTUESDAY", w * 0.2, h * 0.12, w * 0.5, h * 0.42, rgb(180, 40, 30), G },
+						{ "화요일 타코 2+1", w * 0.2, -h * 0.3, w * 0.5, h * 0.13, rgb(30, 100, 90), GB },
+					} }
+				end,
+			}
+		end
+		return {
+			function(w, h)
+				return { bg = rgb(246, 238, 220), frame = L.blackMetal, glass = true, art = artBurger(-w * 0.22, -h * 0.02, w * 0.32), texts = {
+					{ "BURGER ANATOMY", w * 0.2, h * 0.32, w * 0.52, h * 0.14, rgb(30, 30, 30), G },
+					{ "브리오슈 번\n체다 치즈\n소고기 패티 150g\n양상추 · 토마토", w * 0.2, -h * 0.08, w * 0.5, h * 0.56, rgb(150, 40, 30), GB },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(250, 190, 200), frame = L.chrome, art = artCola(-w * 0.26, -h * 0.04, w * 0.3), texts = {
+					{ "MILK\nSHAKE", w * 0.18, h * 0.12, w * 0.5, h * 0.42, rgb(150, 30, 70), G },
+					{ "바닐라 · 딸기 · 초코 5,500원", w * 0.18, -h * 0.3, w * 0.56, h * 0.11, rgb(60, 30, 40), GB },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(26, 26, 28), frame = L.of(212, 168, 74, M.Metal), border = 0.06, texts = {
+					{ "100% BEEF", 0, h * 0.18, w * 0.8, h * 0.28, rgb(236, 190, 90), G },
+					{ "매일 아침 직접 다진 패티", 0, -h * 0.1, w * 0.8, h * 0.13, WHITE, GB },
+					{ "호주산 소고기 · 냉장 숙성", 0, -h * 0.3, w * 0.7, h * 0.1, rgb(180, 176, 168), GM },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(220, 36, 40), frame = L.blackMetal, art = artFries(-w * 0.24, -h * 0.02, w * 0.36), texts = {
+					{ "FRIES", w * 0.2, h * 0.16, w * 0.5, h * 0.28, rgb(255, 214, 60), G },
+					{ "감자튀김 3,500 · 치즈 +1,000", w * 0.2, -h * 0.22, w * 0.54, h * 0.12, WHITE, GB },
+				} }
+			end,
+		}
+	elseif sk == "odeng" then
+		local wood = L.of(150, 106, 66, M.Wood)
+		return {
+			function(w, h)
+				return { bg = rgb(236, 220, 186), frame = wood, border = 0.1, art = artEomuk(-w * 0.26, 0, w * 0.32), texts = {
+					{ "모둠 어묵탕", w * 0.18, h * 0.16, w * 0.52, h * 0.22, rgb(90, 30, 20), G },
+					{ "2인 15,000원", w * 0.18, -h * 0.16, w * 0.5, h * 0.18, rgb(180, 30, 26), G },
+				} }
+			end,
+			function(w, h)
+				return { bg = rgb(30, 24, 22), frame = wood, border = 0.1, texts = {
+					{ "오늘의 사케", 0, h * 0.26, w * 0.7, h * 0.18, rgb(236, 196, 120), G },
+					{ "월계관 300ml 18,000\n백화수복 15,000\n하이볼 7,000", 0, -h * 0.12, w * 0.8, h * 0.5, rgb(246, 238, 214), GB },
+				} }
+			end,
+		}
+	end
+	-- 분식
+	return {
+		function(w, h)
+			return { bg = rgb(250, 244, 230), frame = L.of(214, 38, 34), border = 0.07, art = artGimbap(-w * 0.24, 0, w * 0.3), texts = {
+				{ "김밥 한 줄", w * 0.2, h * 0.16, w * 0.5, h * 0.22, rgb(40, 30, 20), G },
+				{ priceIn(sg, "김밥", "3,500") .. "원 · 참치 4,500", w * 0.2, -h * 0.16, w * 0.52, h * 0.14, rgb(214, 38, 34), GB },
+			} }
+		end,
+		function(w, h)
+			return { bg = rgb(255, 214, 80), frame = L.blackMetal, art = artTwigim(-w * 0.24, 0, w * 0.3), texts = {
+				{ "모둠 튀김", w * 0.2, h * 0.16, w * 0.5, h * 0.22, rgb(150, 40, 20), G },
+				{ "5개 " .. priceIn(sg, "튀김", "5,000") .. "원", w * 0.2, -h * 0.16, w * 0.5, h * 0.16, rgb(40, 24, 10), G },
+			} }
+		end,
+		function(w, h)
+			return { bg = rgb(40, 110, 170), frame = L.chrome, art = artEomuk(-w * 0.24, 0, w * 0.3), texts = {
+				{ "부산 어묵", w * 0.2, h * 0.16, w * 0.5, h * 0.22, WHITE, G },
+				{ "1꼬치 1,000원 · 국물 셀프", w * 0.2, -h * 0.16, w * 0.54, h * 0.12, rgb(255, 220, 90), GB },
+			} }
+		end,
+		function(w, h)
+			return { bg = rgb(250, 238, 214), frame = L.walnut, art = artNoodle(-w * 0.24, 0, w * 0.3, rgb(214, 70, 40), rgb(240, 200, 80)), texts = {
+				{ "라볶이", w * 0.2, h * 0.16, w * 0.5, h * 0.22, rgb(190, 40, 30), G },
+				{ "6,500원 · 치즈 추가 1,000", w * 0.2, -h * 0.16, w * 0.54, h * 0.12, rgb(60, 40, 24), GB },
+			} }
+		end,
+	}
+end
+
+local function fillWalls(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	if ctx.low or #K.parts > K.maxParts - 200 then
+		return 0
+	end
+	local pool = posterPool(ctx)
+	local per = (V.W + V.D) * 2
+	local maxN = math.clamp(math.floor(per / 16), 2, 4)
+	local n = 0
+	local pick = ctx.rand(#pool) - 1
+	local missBefore = ctx.miss
+	for _, band in { { 5.5, 7.5 }, { 3.9, 5.5 } } do
+		for _, wn in { "left", "right", "back" } do
+			for _ = 1, 2 do
+				if n >= maxN then
+					break
+				end
+				local d, fw = wallSpotFit(ctx, { wn }, { 3.1, 2.5 }, band[1], band[2], 0)
+				if not d then
+					break
+				end
+				local w = fw - 0.4
+				local h = math.min(band[2] - band[1] - 0.25, w * 0.7)
+				pick += 1
+				local o = pool[(pick - 1) % #pool + 1](w, h)
+				poster(ctx, d, w, h, o)
+				n += 1
+			end
+		end
+	end
+	ctx.miss = missBefore
+	return n
+end
+
 -- 벽시계: 간판 · 장식을 피한 빈 벽 (높이 7.6 -> 6.4 순), 게임 시각으로 도는 바늘
 local function placeClock(ctx: any)
 	local K, V = ctx.K, ctx.V
@@ -4667,6 +4841,10 @@ function T.build(K: any, V: any, S: any)
 		restockSupplies(ctx)
 		selfCabinetOverlay(ctx)
 		placeClock(ctx)
+		local nfw = fillWalls(ctx)
+		if nfw > 0 then
+			K:note("ff fill posters: " .. nfw)
+		end
 		if nf + nb > 0 then
 			K:note(string.format("ff restock: fridge %d, bar %d", nf, nb))
 		end
@@ -4677,26 +4855,6 @@ function T.build(K: any, V: any, S: any)
 	K:note(string.format("ff %s/%s: +%d parts, toggles %d", ctx.sk, ctx.pal.key or "?", #K.parts - t0, ctx.toggles))
 	if ctx.miss then
 		K:note("ff miss:" .. string.sub(ctx.miss, 1, 200))
-	end
-	do -- TMPDBG
-		for _, wn in { "left", "right", "back" } do
-			local t = {}
-			for _, sp in spans(ctx, wn, 4.5, 7.0, 1.0) do
-				table.insert(t, string.format("[%.1f..%.1f]", sp[1], sp[2]))
-			end
-			local u = {}
-			for _, q in K.wallUsed or {} do
-				if q.w == wn and q.y1 > 4.5 and q.y0 < 7.0 then
-					table.insert(u, string.format("(%.1f..%.1f@%.1f-%.1f)", q.a, q.b, q.y0, q.y1))
-				end
-			end
-			K:note("TMPDBG " .. wn .. " spans " .. table.concat(t, " ") .. " used " .. table.concat(u, " "))
-		end
-		local kk = {}
-		for _, k in V.keep do
-			table.insert(kk, string.format("%s(%.1f,%.1f,%.1f..%.1f,%.1f,%.1f)", k.kind, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
-		end
-		K:note("TMPDBG keep " .. table.concat(kk, " "))
 	end
 end
 

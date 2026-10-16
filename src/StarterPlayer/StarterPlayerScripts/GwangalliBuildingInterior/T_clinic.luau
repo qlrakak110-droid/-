@@ -2090,6 +2090,61 @@ local function inbody(K: any, pcf: CFrame): (TextLabel?, BasePart)
 	return lab, btn
 end
 
+-- 응급 카트 (빨간 서랍 + 제세동기 + 산소통 + 앰부백), pcf 바닥 +Z = 서랍 앞
+local function crashCart(K: any, pcf: CFrame)
+	local w, d, h = 2.6, 1.8, 3.4
+	local red = col(C3(200, 40, 44), M.Plastic)
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:ball("CrashWheel", 0.34, pcf * CF(sx * (w / 2 - 0.25), 0.17, sz * (d / 2 - 0.25)), LK.black)
+		end
+	end
+	K:box("CrashBody", V3(w, h - 0.4, d), pcf * CF(0, 0.35 + (h - 0.4) / 2, 0), red)
+	for i = 0, 4 do
+		local y = 0.55 + i * 0.55
+		K:plate("CrashDrawer", w - 0.2, 0.47, 0.03, pcf * CF(0, y + 0.25, d / 2), col(C3(214, 56, 58), M.Plastic))
+		K:plate("CrashPull", w * 0.5, 0.08, 0.05, pcf * CF(0, y + 0.42, d / 2 + 0.03), lk(240, 240, 240, M.Plastic))
+		tx(K, "CrashDrawerLabel", 0.9, 0.18, pcf * CF(-w / 2 + 0.6, y + 0.25, d / 2 + 0.02), ({ "수액 · 라인", "기도 확보", "주사기 · 바늘", "응급 약물", "모니터 소모품" })[5 - i], WHITE, nil, { d = 0.005 })
+	end
+	K:box("CrashTop", V3(w + 0.1, 0.12, d + 0.1), pcf * CF(0, h + 0.01, 0), lk(60, 64, 70, M.Plastic))
+	K:box("CrashSeal", V3(0.12, 0.3, 0.05), pcf * CF(w / 2 - 0.15, h - 0.4, d / 2 + 0.03), col(C3(240, 200, 40)))
+	-- 제세동기
+	local df = pcf * CF(-0.2, h + 0.07, 0)
+	K:box("DefibBody", V3(1.6, 0.9, 1.2), df * CF(0, 0.45, 0), lk(240, 196, 40, M.Plastic))
+	K:box("DefibFace", V3(0.8, 0.55, 0.04), df * CF(-0.25, 0.55, 0.61), LK.black)
+	tx(K, "DefibScreen", 0.75, 0.5, df * CF(-0.25, 0.55, 0.635), "♥ 72\nSpO₂ 98", C3(80, 240, 140), C3(6, 14, 10), { glow = 1.1, d = 0.005 })
+	K:disc("DefibKnob", 0.3, 0.06, df * CF(0.45, 0.55, 0.62) * ANG(PI / 2, 0, 0), LK.black)
+	for _, sx in { -0.5, 0.5 } do
+		K:box("DefibPaddle", V3(0.45, 0.3, 0.3), df * CF(sx, 1.05, -0.3), lk(60, 64, 70, M.Plastic))
+	end
+	-- 앰부백 · 점검표 · 산소통
+	K:ell("AmbuBag", V3(0.5, 0.45, 1.1), pcf * CF(0.85, h + 0.3, 0.1), col(C3(60, 120, 200), M.Rubber))
+	K:box("AmbuMask", V3(0.45, 0.25, 0.4), pcf * CF(0.85, h + 0.2, 0.75), { c = C3(230, 240, 246), m = M.Glass, t = 0.3 })
+	local o2 = pcf * CF(w / 2 + 0.32, 0, 0.1)
+	K:vcyl("CrashO2", 3.0, 0.55, o2 * CF(0, 1.9, 0), col(C3(40, 150, 80), M.Metal))
+	K:vcyl("CrashO2Valve", 0.35, 0.3, o2 * CF(0, 3.55, 0), LK.chrome)
+	K:box("CrashO2Strap", V3(0.6, 0.12, 0.6), o2 * CF(0, 2.6, 0), LK.black)
+	K:box("CrashClip", V3(0.9, 1.2, 0.05), pcf * CF(-w / 2 - 0.03, 2.2, 0) * ANG(0, -PI / 2, 0), lk(130, 96, 60, M.Wood))
+	tx(K, "CrashClipSheet", 0.8, 1.0, pcf * CF(-w / 2 - 0.06, 2.15, 0) * ANG(0, -PI / 2, 0), "응급 카트\n일일 점검표\n10/16 ✓", INK, C3(250, 250, 246), { d = 0.005 })
+end
+
+-- 이동식 활력징후 모니터 (바퀴 스탠드), pcf 바닥 +Z = 화면 앞
+local function vitalsStand(K: any, pcf: CFrame)
+	for i = 0, 4 do
+		local a = i * 2 * PI / 5
+		K:seg("VSStar", (pcf * CF(0, 0.25, 0)).Position, (pcf * CF(math.cos(a) * 0.9, 0.15, math.sin(a) * 0.9)).Position, 0.1, LK.alu)
+		K:ball("VSCaster", 0.22, pcf * CF(math.cos(a) * 0.9, 0.11, math.sin(a) * 0.9), LK.black)
+	end
+	K:vcyl("VSPole", 4.2, 0.14, pcf * CF(0, 2.35, 0), LK.alu)
+	K:box("VSBasket", V3(1.0, 0.5, 0.6), pcf * CF(0, 3.0, 0.35), LK.steel)
+	local m = pcf * CF(0, 4.9, 0.1) * ANG(math.rad(-8), 0, 0)
+	K:box("VSMonitor", V3(1.8, 1.4, 0.5), m, lk(236, 238, 240, M.Plastic))
+	K:box("VSBezel", V3(1.5, 1.05, 0.04), m * CF(0, 0.05, 0.26), LK.black)
+	tx(K, "VSScreen", 1.45, 1.0, m * CF(0, 0.05, 0.285), "HR 76   SpO₂ 98\nNIBP 118/74\nRR 16   T 36.6", C3(90, 240, 150), C3(4, 10, 8), { glow = 1.2, d = 0.005, align = "Left" })
+	K:seg("VSCuffHose", (m * CF(0.85, -0.5, 0)).Position, (pcf * CF(0.4, 3.1, 0.6)).Position, 0.05, lk(60, 64, 70, M.Rubber))
+	K:box("VSCuff", V3(0.7, 0.3, 0.4), pcf * CF(-0.15, 3.35, 0.4), lk(40, 70, 140, M.Fabric))
+end
+
 -- 상호작용 공통 -----------------------------------------------------------------------------------------------
 local function ding(part: BasePart)
 	Interact.click(part, "rbxasset://sounds/electronicpingshort.wav")
@@ -3712,6 +3767,78 @@ BUILD.pharmacy = function(K: any, V: any)
 		end
 	end)
 	-- 계산대: 직원 쪽 수납 + 손님 쪽 앞판 --------------------------------------------------------------
+	-- 검수 · 포장대 (투약구 쪽) + 입고 대차 (서랍장 쪽) ---------------------------------------------------------------
+	step(K, "packing", function()
+		local placed = false
+		for _, x in { 9.0, 11.0, 7.0, 13.0 } do
+			local pc = CF(x, 0, 3.4) * ANG(0, PI, 0)
+			if K:spot(pc, V3(7.4, 3.6, 3.0), 0) then
+				placed = true
+				K:free(function()
+					local tp = 3.1
+					K:box("PackTop", V3(7.0, 0.14, 2.6), pc * CF(0, tp - 0.07, 0), lk(236, 236, 232, M.Marble))
+					K:box("PackBody", V3(6.8, tp - 0.4, 2.3), pc * CF(-0.0, 0.25 + (tp - 0.4) / 2, -0.1), lk(246, 246, 244, M.SmoothPlastic))
+					K:box("PackKick", V3(6.7, 0.25, 2.2), pc * CF(0, 0.125, -0.12), lk(120, 128, 132))
+					for k = 0, 3 do
+						K:plate("PackDrawer", 1.6, 0.8, 0.03, pc * CF(-2.55 + k * 1.7, tp - 0.75, 1.06), lk(236, 240, 240, M.SmoothPlastic))
+						K:plate("PackPull", 0.8, 0.07, 0.05, pc * CF(-2.55 + k * 1.7, tp - 0.5, 1.09), LK.chrome)
+					end
+					local t = pc * CF(0, tp, 0)
+					-- 조제 완료 바구니 (번호표)
+					for k = 0, 3 do
+						local b = t * CF(-2.6 + k * 1.15, 0, 0.3)
+						K:box("RxBasket", V3(1.0, 0.45, 0.8), b * CF(0, 0.225, 0), col(({ C3(70, 160, 220), C3(240, 170, 40), C3(90, 180, 120), C3(230, 110, 130) })[k + 1], M.Plastic))
+						K:box("RxBag", V3(0.7, 0.5, 0.06), b * CF(-0.1, 0.55, 0.1) * ANG(math.rad(-10), 0, 0), lk(250, 250, 246))
+						K:box("RxBag", V3(0.7, 0.45, 0.06), b * CF(0.1, 0.5, -0.12) * ANG(math.rad(8), 0, 0), lk(250, 250, 246))
+						tx(K, "RxBasketNo", 0.6, 0.25, b * CF(0, 0.3, 0.405), string.format("%04d", 245 + k), INK, WHITE, { d = 0.005, font = FONT_B })
+					end
+					-- 약봉투 프린터 · 바코드 스캐너 · 검수 모니터
+					K:box("BagPrinter", V3(1.2, 0.6, 1.0), t * CF(2.0, 0.3, -0.5), lk(60, 64, 70, M.Plastic))
+					K:box("BagPrinterSlot", V3(0.9, 0.06, 0.05), t * CF(2.0, 0.45, 0.01), LK.black)
+					K:box("BagPrinterOut", V3(0.8, 0.02, 0.5), t * CF(2.0, 0.08, 0.3), lk(250, 250, 246))
+					K:box("Scanner", V3(0.25, 0.5, 0.2), t * CF(2.9, 0.3, 0.6) * ANG(math.rad(-15), 0, 0), lk(30, 32, 36, M.Plastic))
+					K:box("ScannerBase", V3(0.4, 0.08, 0.4), t * CF(2.9, 0.04, 0.6), lk(30, 32, 36, M.Plastic))
+					deskMonitor(K, t * CF(2.4, 0, -0.85), 1.8, "검수 0248\n이*희 님 · 5일분\n바코드 6/6 ✓", C3(236, 246, 244), C3(20, 60, 60), { align = "Left" })
+					K:box("TabletCounter", V3(0.9, 0.06, 0.6), t * CF(0.8, 0.03, -0.4), lk(200, 204, 206, M.Metal))
+					K:box("TabletTray", V3(0.6, 0.1, 0.4), t * CF(0.8, 0.1, -0.4), lk(240, 240, 238))
+				end)
+				local stp = pc * CF(-1.6, 0, -2.1)
+				if K:spot(stp, V3(1.6, 2.4, 1.6), 0) then
+					rollStool(K, stp, 2.3, LK.vinylTeal)
+				end
+				break
+			end
+		end
+		if not placed then
+			note(K, "pharmacy packing: no spot")
+		end
+		-- 입고 대차 (골판지 상자 · 송장)
+		for _, x in { -20.0, -18.0, -22.0 } do
+			local pc = CF(x, 0, 1.0) * ANG(0, 0.12, 0)
+			if K:spot(pc, V3(3.4, 4.2, 2.6), 0) then
+				K:free(function()
+					K:box("TruckDeck", V3(3.0, 0.2, 2.2), pc * CF(0, 0.45, 0), lk(60, 90, 160, M.Plastic))
+					for _, sx in { -1.2, 1.2 } do
+						for _, sz in { -0.85, 0.85 } do
+							K:ball("TruckWheel", 0.36, pc * CF(sx, 0.18, sz), LK.black)
+						end
+					end
+					K:seg("TruckHandle", (pc * CF(-1.45, 0.55, -0.8)).Position, (pc * CF(-1.6, 3.4, -0.8)).Position, 0.1, LK.steel)
+					K:seg("TruckHandle", (pc * CF(-1.45, 0.55, 0.8)).Position, (pc * CF(-1.6, 3.4, 0.8)).Position, 0.1, LK.steel)
+					K:bar("TruckGrip", pc * V3(-1.6, 3.4, -0.85), pc * V3(-1.6, 3.4, 0.85), 0.12, 0.12, LK.black)
+					local names = { "해열진통제 100T × 20", "소화제 60T × 30", "인공눈물 0.5ml × 60", "멸균 거즈 × 50" }
+					for k = 0, 3 do
+						local bx = pc * CF(-0.55 + (k % 2) * 1.2, 0.55 + math.floor(k / 2) * 1.0, -0.15 + (k % 2) * 0.25) * ANG(0, (k - 1.5) * 0.06, 0)
+						K:box("StockBox", V3(1.15, 0.95, 1.6), bx * CF(0, 0.475, 0), Look.cardboard or lk(196, 160, 110, M.Cardboard))
+						K:box("StockTape", V3(1.17, 0.04, 0.3), bx * CF(0, 0.96, 0), lk(220, 196, 150, M.Plastic))
+						tx(K, "StockLabel", 1.0, 0.45, bx * CF(0, 0.5, 0.81), names[k + 1], INK, WHITE, { d = 0.005 })
+					end
+					K:box("Invoice", V3(0.8, 0.02, 1.0), pc * CF(0.6, 2.53, 0.2) * ANG(0, 0.3, 0), lk(250, 236, 200))
+				end)
+				break
+			end
+		end
+	end)
 	step(K, "counter", function()
 		local body = V:first("Body")
 		if not body then
@@ -4117,6 +4244,43 @@ BUILD.treat = function(K: any, V: any)
 		local d2 = wallSpot(K, "right", 4.2, 3.4, 5.4, 9.0, 0.6)
 		if d2 then
 			poster(K, d2, 4.0, 1.9, "영양 수액 안내 (비급여)", "비타민 C 고용량 60,000 · 마늘주사 50,000\n피로회복 · 숙취 70,000 · 백옥주사 50,000", WHITE, INK, TEAL, WHITE, 0.32)
+		end
+	end)
+	-- 응급 카트 (앞벽) · 이동식 활력징후 모니터 (침대 사이) ---------------------------------------------------------
+	step(K, "crash", function()
+		for _, x in { -14.0, -12.0, -16.0, -10.0 } do
+			local cu = wallU("front", Vector3.new(x, 0, 0))
+			local pc = wallFloor(K, "front", cu, 3.6, 2.0, 4.6, 0, 0.05)
+			if pc then
+				K:free(function()
+					crashCart(K, pc)
+				end)
+				local d = wallSpot(K, "front", 3.0, 5.4, 6.6, cu, 0.5)
+				if d then
+					K:plate("CrashSign", 2.8, 0.9, 0.05, d, col(C3(200, 40, 44)))
+					tx(K, "CrashSignText", 2.6, 0.75, d * CF(0, 0, 0.055), "응급 카트 · CPR", WHITE, nil, { font = FONT_K })
+				end
+				break
+			end
+		end
+		local seats = {}
+		for _, r in V.byName.BedSeat or {} do
+			table.insert(seats, r)
+		end
+		if #seats >= 2 then
+			table.sort(seats, function(a, b)
+				return a.c.X < b.c.X
+			end)
+			local mx = (seats[1].c.X + seats[2].c.X) / 2
+			for _, dz in { -2.0, 0, -4.0 } do
+				local vp = CF(mx, 0, seats[1].c.Z + dz) * ANG(0, PI, 0)
+				if K:spot(vp, V3(2.0, 5.8, 2.0), 0) then
+					K:free(function()
+						vitalsStand(K, vp)
+					end)
+					break
+				end
+			end
 		end
 	end)
 	-- 시계 (멈춘 맵 시계 그림 자리) · 포스터 · 휠체어 · 처치 조명 -----------------------------------------------

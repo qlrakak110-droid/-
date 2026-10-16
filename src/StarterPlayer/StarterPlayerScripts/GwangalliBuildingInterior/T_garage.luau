@@ -3855,10 +3855,10 @@ local function buildWashImpl(K: any, V: any): any
 				D.vcyl("VacBoomPost", 2.0, 0.24, post0 * CF(0, 1.0, 0), L.steel)
 				D.vcyl("VacSwivel", 0.3, 0.42, post0 * CF(0, 2.0, 0), lk(C(40, 42, 46), M.Metal))
 				local bA = (post0 * CF(0, 2.05, 0)).Position
-				local bB = (post0 * CF(3.4, 2.05, 0.3)).Position
+				local bB = (post0 * CF(-3.4, 2.05, 0.3)).Position
 				D.seg("VacBoom", bA, bB, 0.2, L.steel)
-				D.seg("VacBoomStay", (post0 * CF(0, 1.1, 0)).Position, (post0 * CF(1.8, 2.0, 0.16)).Position, 0.08, L.steel)
-				D.box("VacBoomEnd", V3(0.3, 0.3, 0.3), post0 * CF(3.45, 2.05, 0.3), lk(C(240, 196, 30)))
+				D.seg("VacBoomStay", (post0 * CF(0, 1.1, 0)).Position, (post0 * CF(-1.8, 2.0, 0.16)).Position, 0.08, L.steel)
+				D.box("VacBoomEnd", V3(0.3, 0.3, 0.3), post0 * CF(-3.45, 2.05, 0.3), lk(C(240, 196, 30)))
 				local function hose(a: Vector3, c: Vector3, b: Vector3, n: number)
 					local prev = a
 					for i = 1, n do
@@ -3871,15 +3871,24 @@ local function buildWashImpl(K: any, V: any): any
 						prev = p
 					end
 				end
-				for k, ox in { 1.6, 3.3 } do
-					local top = (post0 * CF(ox, 2.0, 0.15 * k)).Position
-					D.box("VacHoseClip", V3(0.26, 0.26, 0.26), CF(top - Vector3.yAxis * 0.1), L.black)
-					local s = if k == 1 then -1 else 1
-					local endP = (body * CF(s * 1.1, 1.3, 0.75)).Position
-					local mid = (post0 * CF(ox * 0.5, -1.0, 1.4)).Position
-					hose(top - Vector3.yAxis * 0.2, mid, endP, if hi then 7 else 4)
-					D.seg("VacWand", endP, (body * CF(s * 1.2, 0.35, 0.95)).Position, 0.14, L.steel)
-					D.box("VacFloorNozzle", V3(0.5, 0.1, 0.22), body * CF(s * 1.2, 0.3, 1.0), lk(C(30, 32, 34), M.Plastic))
+				for k, ox in { 1.7, 3.3 } do
+					local top = (post0 * CF(-ox, 1.95, 0.15 * k)).Position
+					D.box("VacHoseClip", V3(0.26, 0.3, 0.26), CF(top), L.black)
+					if k == 1 then
+						-- 붐에서 U 자로 처져 본체 옆 걸이로 돌아온 호스 (사용 후 걸어 둔 모양)
+						local endP = (body * CF(-0.98, 2.9, -0.3)).Position
+						local ctl = (post0 * CF(-ox * 0.9, -5.0, 0.9)).Position
+						hose(top - Vector3.yAxis * 0.15, ctl, endP, if hi then 8 else 5)
+						D.box("VacHoseHook", V3(0.36, 0.14, 0.3), body * CF(-1.1, 2.85, -0.3), lk(C(40, 42, 46), M.Metal))
+					else
+						-- 붐 끝에서 늘어진 호스 + 노즐 (차 쪽으로)
+						local endP = (post0 * CF(-ox - 0.2, -2.6, 0.9)).Position
+						local ctl = (post0 * CF(-ox - 0.4, -0.6, 0.3)).Position
+						hose(top - Vector3.yAxis * 0.15, ctl, endP, if hi then 6 else 4)
+						local tip = endP - Vector3.yAxis * 1.1
+						D.seg("VacWand", endP, tip, 0.15, L.steel)
+						D.box("VacCrevice", V3(0.12, 0.45, 0.24), CF(tip - Vector3.yAxis * 0.2), lk(C(30, 32, 34), M.Plastic))
+					end
 				end
 				-- 옆 쓰레기통
 				local tb = vp * CF(1.05, 0.12, 0.55)

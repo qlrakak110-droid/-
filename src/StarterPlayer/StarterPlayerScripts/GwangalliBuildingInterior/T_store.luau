@@ -2450,7 +2450,10 @@ local function spinRack(K: any, pcf: CFrame, kind: string, object: string)
 	end
 	if kind == "postcard" then
 		keep(K:box("StSpinTop", V3(0.9, 0.5, 0.9), pcf * CF(0, h + 0.25, 0), lk(C(30, 80, 160))))
-		txt(K, "StSpinTopText", 0.86, 0.4, pcf * CF(0, h + 0.25, 0.451), "POSTCARD 1,500", WHITE, nil, { d = 0.01 })
+		for f = 0, 3 do
+			local tp = txt(K, "StSpinTopText", 0.84, 0.36, pcf * ANG(0, f * PI / 2, 0) * CF(0, h + 0.25, 0.451), if f % 2 == 0 then "엽서 POSTCARD\n1장 1,500 · 3장 4,000" else "광안리 · 해운대\n부산 풍경 엽서", WHITE, C(30, 80, 160), { d = 0.01 })
+			keep(tp)
+		end
 	end
 	local center = (K.cf * pcf).Position
 	local base = {}
@@ -3446,6 +3449,51 @@ local function coatHook(K: any, dcf: CFrame)
 	K:box("StCoatPen", V3(0.04, 0.3, 0.04), d * CF(-0.3, -0.8, 0.09), lk(C(30, 60, 140)))
 end
 
+-- 폐의약품 수거함 (흰 철제 함 · 초록 머리 · 투입구 덮개는 여닫기): pcf = 바닥 가운데, +Z = 정면
+local function medBin(K: any, pcf: CFrame)
+	local w, d, h = 1.3, 0.9, 2.8
+	local hb = h - 0.1
+	K:box("StMedBinKick", V3(w - 0.08, 0.12, d - 0.08), pcf * CF(0, 0.06, 0), Look.charcoal)
+	K:box("StMedBinBody", V3(w, hb - 0.12, d), pcf * CF(0, 0.12 + (hb - 0.12) / 2, 0), lk(C(246, 248, 246), M.Metal))
+	K:box("StMedBinCap", V3(w + 0.04, 0.1, d + 0.04), pcf * CF(0, hb + 0.05, 0), lk(PH.main))
+	local fr = pcf * CF(0, 0, d / 2)
+	txt(K, "StMedBinTitle", w - 0.12, 0.62, fr * CF(0, hb - 0.42, 0), "폐의약품\n수거함", WHITE, PH.main, { d = 0.02, font = Enum.Font.GothamBlack })
+	-- 투입구 (어두운 틈 + 둘레) 와 덮개
+	local sy = hb - 1.05
+	K:plate("StMedBinSlotRim", w * 0.72, 0.26, 0.015, fr * CF(0, sy, 0), Look.steel)
+	K:plate("StMedBinSlot", w * 0.62, 0.12, 0.02, fr * CF(0, sy, 0), lk(C(24, 26, 28)))
+	local flap = K:group("StMedBinFlapG", function()
+		K:plate("StMedBinFlap", w * 0.66, 0.34, 0.03, fr * CF(0, sy - 0.04, 0.015) * CF(0, 0, 0), lk(C(220, 226, 222), M.Metal))
+		K:plate("StMedBinFlapHandle", 0.4, 0.05, 0.03, fr * CF(0, sy - 0.17, 0.045), Look.chrome)
+	end)
+	txt(K, "StMedBinGuide", w - 0.16, 0.86, fr * CF(0, 0.95, 0), "유통기한 지난 약 · 먹다 남은 약\n알약은 포장째 · 물약은 한 병에\n※ 주사바늘 · 체온계 넣지 마세요", INK, C(250, 252, 250), { d = 0.012, font = Enum.Font.GothamBold })
+	K:plate("StMedBinStripe", w, 0.08, 0.012, fr * CF(0, 0.42, 0), lk(PH.main))
+	-- 덮개 윗변 경첩 기준으로 위로 젖힘
+	local hinge = (K.cf * (fr * CF(0, sy + 0.13, 0.03))).Position
+	local axis = (K.cf * pcf).XVector
+	return Interact.swing(K, flap, hinge, -axis, 1.1, { object = "폐의약품 수거함 투입구", openText = "투입구 열기", closeText = "닫기" })
+end
+
+-- 벽걸이 건강 정보 리플릿 꽂이 (아크릴 주머니 3단 x 2열)
+local function leafletRack(K: any, dcf: CFrame)
+	local cols = { C(60, 150, 90), C(40, 120, 200), C(240, 150, 40), C(220, 70, 90), C(130, 90, 180), C(30, 160, 170) }
+	local titles = { "당뇨 관리", "고혈압 수칙", "올바른 약 복용", "감기 · 독감", "피부 건강", "어린이 해열제" }
+	K:plate("StLeafBack", 1.6, 1.9, 0.04, dcf, lk(C(236, 238, 236)))
+	txt(K, "StLeafHead", 1.5, 0.26, dcf * CF(0, 0.8, 0.045), "건강 정보 · 무료로 가져가세요", WHITE, PH.main, { d = 0.01, font = Enum.Font.GothamBold })
+	local i = 0
+	for row = 0, 2 do
+		for col = 0, 1 do
+			i += 1
+			local c = dcf * CF(-0.38 + col * 0.76, 0.32 - row * 0.52, 0.04)
+			K:box("StLeafPaper", V3(0.6, 0.46, 0.04), c * CF(0, 0.02, 0.05), lk(cols[i]))
+			if K.detail ~= "low" then
+				txt(K, "StLeafTitle", 0.56, 0.14, c * CF(0, 0.14, 0.071), titles[i], WHITE, nil, { d = 0.004, font = Enum.Font.GothamBold })
+			end
+			K:box("StLeafPocket", V3(0.68, 0.28, 0.12), c * CF(0, -0.1, 0.07), { c = C(230, 240, 244), m = M.Glass, t = 0.55 })
+		end
+	end
+end
+
 local function buildPharmacy(K: any, V: any, S: any, sub: string)
 	local gw = sub == "gw"
 	local surfs = mapSurfaces(V)
@@ -3698,6 +3746,39 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 				K:plate("StCrossBack", 1.7, 1.7, 0.05, d, lk(C(250, 252, 250)))
 				K:plate("StCrossH", 1.3, 0.42, 0.08, d, Look.neon(C(30, 200, 90)))
 				K:plate("StCrossV", 0.42, 1.3, 0.08, d, Look.neon(C(30, 200, 90)))
+			end
+		end)
+		step(K, "medbin", function()
+			local door = V.door
+			local prefer = if door then V3(door.x, 0, door.z - 7) else nil
+			local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 1.5, 1.0, 3.0, prefer, 0.15, "medbin", function(c: CFrame): boolean
+				return promptOk(K, (c * CF(0, 1.8, 0.5)).Position)
+			end)
+			if wn and pcf then
+				medBin(K, pcf * CF(0, 0, -0.05))
+				local mn, mx = K.laabb(pcf * CF(0, 1.2, 1.3), V3(1.5, 2.4, 1.6))
+				K:reserve(mn, mx, "front")
+			else
+				-- 벽이 다 찼으면 앞 유리 안쪽 (높이 2.8 < 창 keep 3.4), 방 안을 보게
+				local cands = {}
+				for _, dx in { 0.9, 1.7, 2.5, 3.3 } do
+					table.insert(cands, V3(V.x1 - dx, 0, V.z1 - 0.62))
+					table.insert(cands, V3(V.x0 + dx, 0, V.z1 - 0.62))
+				end
+				local fp = floorSpot(K, cands, V3(1.4, 3.0, 1.0), V3(0, 0, -1), 0.1, "medbin", function(p: Vector3): boolean
+					return promptOk(K, p + V3(0, 1.8, -0.5))
+				end)
+				if fp then
+					medBin(K, fp)
+				else
+					note(K, "no medbin spot")
+				end
+			end
+		end)
+		step(K, "leaflets", function()
+			local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 1.8, 3.4, 5.5, 2)
+			if wn and dcf then
+				leafletRack(K, dcf * CF(0, 0, 0.02))
 			end
 		end)
 		step(K, "coat", function()
