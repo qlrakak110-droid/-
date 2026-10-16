@@ -374,6 +374,11 @@ local function destroyCabin(rec: Rec)
 			e:SetAttribute("GwCabinV", nil)
 		end
 	end
+	for _, e in cab.lotGlass or {} do
+		if e[1].Parent then
+			e[1].Transparency, e[1].Reflectance = e[2], e[3]
+		end
+	end
 	cab.folder:Destroy()
 	if rec.model.Parent then
 		rec.model:SetAttribute("GwCabinParts", nil) -- 다시 만드는 동안 지난 파트 수가 남지 않게
@@ -406,6 +411,9 @@ local function buildCabin(rec: Rec)
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
 		folder.Parent = rec.model -- 먼저 넣어서 70개씩 나눠 들어감 (한 프레임에 몰리지 않게)
 		building_folder = folder
+		if F.synth then
+			F.base.Parent = folder -- 주차장 차: Fit 이 만든 기준 파트 (실내와 같이 사라짐)
+		end
 		-- 주차된(고정) 차는 용접 없이 고정 파트로: 가장 가볍고(물리 어셈블리를 건드리지 않음) 실제 로블록스에서도 싸요
 		local anchored = F.base.Anchored and not rec.moving
 		local K = Kit.new(F.base, folder, anchored)
@@ -431,6 +439,7 @@ local function buildCabin(rec: Rec)
 			fit = F,
 			base = F.base,
 			interior = F.interior,
+			ref = if F.synth then rec.base else F.base, -- 차가 바뀌었는지 볼 차체 파트 (주차장 차 = Body)
 			cockpit = cockpit,
 			lights = lights,
 			guiVis = {},
@@ -447,14 +456,23 @@ local function buildCabin(rec: Rec)
 			parts = #K.parts,
 		}
 		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만) + 나중에 들어오는 파트도
-		for _, d in F.interior:GetDescendants() do
-			hideOld(cab, d)
-		end
-		table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
-			if cab.alive then
+		if F.interior then
+			for _, d in F.interior:GetDescendants() do
 				hideOld(cab, d)
 			end
-		end))
+			table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
+				if cab.alive then
+					hideOld(cab, d)
+				end
+			end))
+		end
+		-- 주차장 차: 불투명한 유리 상자를 실내가 있는 동안만 어두운 반투명 틴팅으로 (실내가 사라지면 원래대로)
+		cab.lotGlass = {}
+		for _, g in F.lotGlass or {} do
+			table.insert(cab.lotGlass, { g, g.Transparency, g.Reflectance })
+			g.Transparency = if g.Name == "Windshield" then 0.5 else 0.42
+			g.Reflectance = 0.2
+		end
 		rec.cabin = cab
 	end)
 	if not ok then
@@ -544,7 +562,7 @@ local function lodStep()
 			base = rec.base
 		end
 		local cab = rec.cabin
-		if cab and (cab.base ~= base or not cab.interior.Parent or cab.interior.Parent ~= m) then
+		if cab and (cab.ref ~= base or (cab.interior and (not cab.interior.Parent or cab.interior.Parent ~= m))) then
 			-- 탈 때 서버가 Interior 를 새로 복제했거나(Rig) 차체 파트가 바뀜: 다음 단계에 다시 만듦
 			destroyCabin(rec)
 			cab = nil

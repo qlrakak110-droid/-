@@ -500,6 +500,23 @@ function Dash.build(K: any, F: any, P: any)
 		end
 		K:slab("DashTray", 0.3, 0.42, 0.02, 0.06, CFrame.new(cx + toC * 0.19, top + 0.002, face - 0.42), P.hardDark)
 	end
+	if F.kind == "ambulance" and not ex.siren then
+		-- 다른 차를 고친 구급차(카니발 등): 대시 아래에 매단 사이렌 · 경광등 조작기 (스위치 6 + 표시등 + 모드 다이얼),
+		-- 콘솔 조수석 쪽, 운전자 쪽으로 15° 기울임
+		local hx = cx + toC * ((if con then con.w / 2 else 0.45) + 0.42)
+		local sc = CFrame.new(hx, bottom - 0.13, face + 0.06) * CFrame.Angles(math.rad(-15), 0, 0)
+		K:rbox("SirenBracket", Vector3.new(0.5, 0.05, 0.18), 0.02, sc * CFrame.new(0, 0.14, -0.02), P.hardDark)
+		K:rbox("SirenBox", Vector3.new(0.66, 0.22, 0.18), 0.045, sc, P.hardDark)
+		local cols = { P.hazard, P.lampBlue, P.lampAmber, P.button, P.button }
+		for i = 1, 5 do
+			local x = -0.25 + (i - 1) * 0.095
+			K:box("SirenSwitch", Vector3.new(0.065, 0.06, 0.035), sc * CFrame.new(x, -0.015, 0.1), cols[i])
+			K:box("SirenLed", Vector3.new(0.022, 0.011, 0.008), sc * CFrame.new(x, 0.06, 0.094), if i <= 3 then P.ledRed else P.ledGreen)
+		end
+		K:cyl("SirenDialRing", 0.02, 0.15, sc * CFrame.new(0.25, 0, 0.095) * ROT_X_TO_Z, P.satin)
+		K:cyl("SirenDial", 0.05, 0.12, sc * CFrame.new(0.25, 0, 0.115) * ROT_X_TO_Z, P.hardDark)
+		K:box("SirenDialMark", Vector3.new(0.01, 0.04, 0.005), sc * CFrame.new(0.25, 0.03, 0.142), P.markWhite)
+	end
 	if ex.siren then
 		-- 119: 사이렌 · 경광등 조작 헤드 (스위치 2줄 + 표시등 + 오른쪽 사이렌 모드 다이얼), 스택 아래 칸. 무전기 핸드셋은 스택 오른쪽
 		local sc = CFrame.new(cx + toC * 0.17, mid - 0.42, face + 0.14) * CFrame.Angles(math.rad(-12), 0, 0)

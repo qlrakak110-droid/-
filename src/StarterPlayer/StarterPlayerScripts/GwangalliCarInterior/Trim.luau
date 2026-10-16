@@ -6,6 +6,7 @@
 -- 바닥 매트, 알루미늄 페달 + 고무 띠 + 풋레스트.
 
 local Gauges = require(script.Parent:WaitForChild("Gauges"))
+local Emblems = require(script.Parent:WaitForChild("Emblems"))
 
 local Trim = {}
 
@@ -268,6 +269,11 @@ function Trim.build(K: any, F: any, P: any)
 	end
 	for _, s in F.front do
 		K:box("FloorMat", Vector3.new(math.min(s.w, 1.7) - 0.1, 0.03, 1.6), CFrame.new(s.x, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.85), P.mat)
+		if F.style.trimMat ~= "plastic" and Emblems.DATA[F.style.brand] then
+			-- 순정 매트: 뒤쪽 바깥 모서리에 브랜드 로고 (바닥에 눕혀 앞을 위로)
+			local ox = (if s.x < 0 then -1 else 1) * (math.min(s.w, 1.7) / 2 - 0.3)
+			Emblems.draw(K, P, F.style.brand, CFrame.new(s.x + ox, floor + 0.032, s.z - s.cushSize.Z / 2 - 0.2) * CFrame.Angles(-math.pi / 2, 0, 0), 1.3)
+		end
 		K:box("MatPiping", Vector3.new(math.min(s.w, 1.7) - 0.05, 0.035, 0.035), CFrame.new(s.x, floor + 0.018, s.z - s.cushSize.Z / 2 - 0.05), P.stitch)
 	end
 	for _, s in F.rear do
@@ -335,6 +341,11 @@ function Trim.build(K: any, F: any, P: any)
 		K:panel("PartitionWindowGlass", 1.18, 0.6, 0.01, 0.08, wc * CFrame.new(0, 0, -0.025), P.screen)
 		K:box("PartitionWindowMullion", Vector3.new(0.04, 0.6, 0.02), wc * CFrame.new(0.05, 0, -0.035), P.hard)
 		K:box("PartitionWindowLatch", Vector3.new(0.05, 0.09, 0.025), wc * CFrame.new(0.12, 0, -0.04), P.satin)
+	end
+	if F.beltY and F.lotGlassZ then
+		-- 주차장 차: 허리선까지 꽉 찬 차체 블록의 윗면(차 색)이 유리로 비치지 않게 어두운 덮개
+		local z0, z1 = F.lotGlassZ[1], F.lotGlassZ[2]
+		K:box("LotBeltCover", Vector3.new(half * 2 - 0.04, 0.02, z1 - z0), CFrame.new(0, (F.beltY :: number) + 0.006, (z0 + z1) / 2), P.carpet)
 	end
 	return {}
 end

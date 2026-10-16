@@ -11,6 +11,7 @@
 
 local Screens = require(script.Parent:WaitForChild("Screens"))
 local Gauges = require(script.Parent:WaitForChild("Gauges"))
+local Emblems = require(script.Parent:WaitForChild("Emblems"))
 
 local Cockpit = {}
 
@@ -24,7 +25,10 @@ local function stroke(K: any, cf: CFrame, a: Vector2, b: Vector2, th: number, lo
 end
 
 local function emblem(K: any, P: any, brand: string, cf: CFrame)
-	if brand == "genesis" then
+	if Emblems.DATA[brand] then
+		-- 실제 로고와 비교해 다듬은 도형 목록 (Emblems)
+		Emblems.draw(K, P, brand, cf)
+	elseif brand == "genesis" then
 		-- 방패 크레스트 + 양쪽 날개 깃 3줄
 		K:ell("Crest", Vector3.new(0.05, 0.062, 0.014), cf, P.chrome)
 		K:ell("CrestInner", Vector3.new(0.034, 0.044, 0.01), cf * CFrame.new(0, 0, 0.004), P.hardDark)
@@ -263,7 +267,8 @@ local function clusterFace(K: any, P: any, S: any, cf: CFrame, w: number, h: num
 		out.speedNum = Gauges.digits(K, speedCF * CFrame.new(0, 0.018, 0.01), 3, r * 0.42, P.seg)
 		Screens.plate(K, "SpeedUnit", speedCF * CFrame.new(0, -r * 0.34, 0.012), r * 0.62, r * 0.15, { "km/h" }, Color3.fromRGB(150, 165, 185))
 		out.gear = Gauges.digits(K, rpmCF * CFrame.new(0, 0.012, 0.01), 1, r * 0.5, P.segAccent)
-		out.info = Screens.info(K, cf * CFrame.new(0, 0.03, 0.012), w * 0.22, h * 0.36, string.upper(S.brand))
+		local BRAND_TEXT = { hyundai = "HYUNDAI", kia = "KIA", genesis = "GENESIS", generic = "GWANGAN MOTORS" }
+		out.info = Screens.info(K, cf * CFrame.new(0, 0.03, 0.012), w * 0.22, h * 0.36, BRAND_TEXT[S.brand] or string.upper(S.brand))
 		-- 연료 · 수온 막대
 		for i, fill in { 0.72, 0.55 } do
 			local y = -h * 0.28 - (i - 1) * 0.036

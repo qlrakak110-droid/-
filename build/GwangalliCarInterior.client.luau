@@ -40,6 +40,7 @@ __defs["Cockpit"] = function()
 
 local Screens = __require("Screens")
 local Gauges = __require("Gauges")
+local Emblems = __require("Emblems")
 
 local Cockpit = {}
 
@@ -53,7 +54,10 @@ local function stroke(K: any, cf: CFrame, a: Vector2, b: Vector2, th: number, lo
 end
 
 local function emblem(K: any, P: any, brand: string, cf: CFrame)
-	if brand == "genesis" then
+	if Emblems.DATA[brand] then
+		-- 실제 로고와 비교해 다듬은 도형 목록 (Emblems)
+		Emblems.draw(K, P, brand, cf)
+	elseif brand == "genesis" then
 		-- 방패 크레스트 + 양쪽 날개 깃 3줄
 		K:ell("Crest", Vector3.new(0.05, 0.062, 0.014), cf, P.chrome)
 		K:ell("CrestInner", Vector3.new(0.034, 0.044, 0.01), cf * CFrame.new(0, 0, 0.004), P.hardDark)
@@ -292,7 +296,8 @@ local function clusterFace(K: any, P: any, S: any, cf: CFrame, w: number, h: num
 		out.speedNum = Gauges.digits(K, speedCF * CFrame.new(0, 0.018, 0.01), 3, r * 0.42, P.seg)
 		Screens.plate(K, "SpeedUnit", speedCF * CFrame.new(0, -r * 0.34, 0.012), r * 0.62, r * 0.15, { "km/h" }, Color3.fromRGB(150, 165, 185))
 		out.gear = Gauges.digits(K, rpmCF * CFrame.new(0, 0.012, 0.01), 1, r * 0.5, P.segAccent)
-		out.info = Screens.info(K, cf * CFrame.new(0, 0.03, 0.012), w * 0.22, h * 0.36, string.upper(S.brand))
+		local BRAND_TEXT = { hyundai = "HYUNDAI", kia = "KIA", genesis = "GENESIS", generic = "GWANGAN MOTORS" }
+		out.info = Screens.info(K, cf * CFrame.new(0, 0.03, 0.012), w * 0.22, h * 0.36, BRAND_TEXT[S.brand] or string.upper(S.brand))
 		-- 연료 · 수온 막대
 		for i, fill in { 0.72, 0.55 } do
 			local y = -h * 0.28 - (i - 1) * 0.036
@@ -1308,6 +1313,23 @@ function Dash.build(K: any, F: any, P: any)
 		end
 		K:slab("DashTray", 0.3, 0.42, 0.02, 0.06, CFrame.new(cx + toC * 0.19, top + 0.002, face - 0.42), P.hardDark)
 	end
+	if F.kind == "ambulance" and not ex.siren then
+		-- 다른 차를 고친 구급차(카니발 등): 대시 아래에 매단 사이렌 · 경광등 조작기 (스위치 6 + 표시등 + 모드 다이얼),
+		-- 콘솔 조수석 쪽, 운전자 쪽으로 15° 기울임
+		local hx = cx + toC * ((if con then con.w / 2 else 0.45) + 0.42)
+		local sc = CFrame.new(hx, bottom - 0.13, face + 0.06) * CFrame.Angles(math.rad(-15), 0, 0)
+		K:rbox("SirenBracket", Vector3.new(0.5, 0.05, 0.18), 0.02, sc * CFrame.new(0, 0.14, -0.02), P.hardDark)
+		K:rbox("SirenBox", Vector3.new(0.66, 0.22, 0.18), 0.045, sc, P.hardDark)
+		local cols = { P.hazard, P.lampBlue, P.lampAmber, P.button, P.button }
+		for i = 1, 5 do
+			local x = -0.25 + (i - 1) * 0.095
+			K:box("SirenSwitch", Vector3.new(0.065, 0.06, 0.035), sc * CFrame.new(x, -0.015, 0.1), cols[i])
+			K:box("SirenLed", Vector3.new(0.022, 0.011, 0.008), sc * CFrame.new(x, 0.06, 0.094), if i <= 3 then P.ledRed else P.ledGreen)
+		end
+		K:cyl("SirenDialRing", 0.02, 0.15, sc * CFrame.new(0.25, 0, 0.095) * ROT_X_TO_Z, P.satin)
+		K:cyl("SirenDial", 0.05, 0.12, sc * CFrame.new(0.25, 0, 0.115) * ROT_X_TO_Z, P.hardDark)
+		K:box("SirenDialMark", Vector3.new(0.01, 0.04, 0.005), sc * CFrame.new(0.25, 0.03, 0.142), P.markWhite)
+	end
 	if ex.siren then
 		-- 119: 사이렌 · 경광등 조작 헤드 (스위치 2줄 + 표시등 + 오른쪽 사이렌 모드 다이얼), 스택 아래 칸. 무전기 핸드셋은 스택 오른쪽
 		local sc = CFrame.new(cx + toC * 0.17, mid - 0.42, face + 0.14) * CFrame.Angles(math.rad(-12), 0, 0)
@@ -1368,6 +1390,151 @@ return Dash
 
 end
 
+__defs["Emblems"] = function()
+-- GwangalliCarInterior/Emblems: 브랜드 로고를 납작한 파트로 (현대 · 기아 · 제네시스 + 쇼룸 가상 브랜드 '광안 모터스').
+-- 로고마다 2D 도형 목록(획 · 상자 · 타원 · 타원 고리 · 삼각형 · 볼록 다각형, 단위 스터드, 가운데 원점, +y 위)을 두고
+-- 그대로 파트로 지음. 도형 목록은 미리보기 도구(tools: 오프라인 렌더러)로 실제 로고와 비교해 다듬은 것.
+-- draw(K, P, brand, cf, scale): cf = 로고 가운데 (+Z = 보는 쪽), 뒤에 나오는 도형이 위 (0.0012 씩 앞으로).
+
+local Emblems = {}
+
+local ROT_X_TO_Z = CFrame.Angles(0, -math.pi / 2, 0)
+local DEPTH = 0.008
+local LAYER = 0.0012
+
+local function lookOf(P: any, name: string?): any
+	if name == "dark" then
+		return P.hardDark
+	elseif name == "gloss" then
+		return P.gloss
+	elseif name == "satin" then
+		return P.satin
+	elseif name == "white" then
+		return P.markWhite
+	elseif name == "red" then
+		return P.hazard
+	end
+	return P.chrome
+end
+
+-- 삼각형 = 쐐기 2개 (세 점은 로고 평면 위, 두께는 평면 법선 방향)
+local function tri(K: any, frame: CFrame, a: Vector3, b: Vector3, c: Vector3, look: any)
+	local ab, ac, bc = b - a, c - a, c - b
+	local abd, acd, bcd = ab:Dot(ab), ac:Dot(ac), bc:Dot(bc)
+	if abd > acd and abd > bcd then
+		c, a = a, c
+	elseif acd > bcd and acd > abd then
+		a, b = b, a
+	end
+	ab, ac, bc = b - a, c - a, c - b
+	if ac:Cross(ab).Magnitude < 1e-8 or bc.Magnitude < 1e-5 then
+		return
+	end
+	local right = ac:Cross(ab).Unit
+	local up = bc:Cross(right).Unit
+	local back = bc.Unit
+	local h = math.abs(ab:Dot(up))
+	if h < 1e-4 then
+		return
+	end
+	local d1, d2 = math.abs(ab:Dot(back)), math.abs(ac:Dot(back))
+	if d1 > 1e-4 then
+		K:wedge("EmblemFacet", Vector3.new(DEPTH, h, d1), frame * CFrame.fromMatrix((a + b) / 2, right, up, back), look)
+	end
+	if d2 > 1e-4 then
+		K:wedge("EmblemFacet", Vector3.new(DEPTH, h, d2), frame * CFrame.fromMatrix((a + c) / 2, -right, up, -back), look)
+	end
+end
+
+local function bar(K: any, frame: CFrame, x0: number, y0: number, x1: number, y1: number, w: number, extra: number, z: number, look: any)
+	local dx, dy = x1 - x0, y1 - y0
+	local L = math.sqrt(dx * dx + dy * dy)
+	K:box("EmblemStroke", Vector3.new(L + extra, w, DEPTH), frame * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, z) * CFrame.Angles(0, 0, math.atan2(dy, dx)), look)
+end
+
+function Emblems.draw(K: any, P: any, brand: string, cf: CFrame, scale: number?)
+	local E = Emblems.DATA[brand] or Emblems.DATA.generic
+	if not E then
+		return
+	end
+	local s = scale or 1
+	for i, pr in E.prims do
+		local z = (i - 1) * LAYER
+		local look = lookOf(P, pr.look)
+		local t = pr.t
+		if t == "s" then
+			local a, b, w = pr.a, pr.b, pr.w * s
+			if pr.cap then
+				bar(K, cf, a[1] * s, a[2] * s, b[1] * s, b[2] * s, w, 0, z, look)
+				for _, p in { a, b } do
+					K:cyl("EmblemStroke", DEPTH, w, cf * CFrame.new(p[1] * s, p[2] * s, z) * ROT_X_TO_Z, look)
+				end
+			else
+				bar(K, cf, a[1] * s, a[2] * s, b[1] * s, b[2] * s, w, w * 0.6, z, look)
+			end
+		elseif t == "b" then
+			K:box("EmblemStroke", Vector3.new(pr.w * s, pr.h * s, DEPTH), cf * CFrame.new(pr.c[1] * s, pr.c[2] * s, z) * CFrame.Angles(0, 0, math.rad(pr.rot or 0)), look)
+		elseif t == "e" then
+			K:ell("EmblemDisc", Vector3.new(pr.rx * 2 * s, pr.ry * 2 * s, DEPTH), cf * CFrame.new(pr.c[1] * s, pr.c[2] * s, z) * CFrame.Angles(0, 0, math.rad(pr.rot or 0)), look)
+		elseif t == "r" then
+			local n = pr.n or 16
+			local a0, a1 = math.rad(pr.a0 or 0), math.rad(pr.a1 or 360)
+			local rr = math.rad(pr.rot or 0)
+			local cr, sr = math.cos(rr), math.sin(rr)
+			local pts = {}
+			for k = 0, n do
+				local u = a0 + (a1 - a0) * k / n
+				local x, y = pr.rx * math.cos(u), pr.ry * math.sin(u)
+				pts[k + 1] = { (pr.c[1] + x * cr - y * sr) * s, (pr.c[2] + x * sr + y * cr) * s }
+			end
+			for k = 1, n do
+				bar(K, cf, pts[k][1], pts[k][2], pts[k + 1][1], pts[k + 1][2], pr.w * s, pr.w * s * 0.3, z, look)
+			end
+		elseif t == "tri" or t == "poly" then
+			local p = pr.p
+			local function v(q: { number }): Vector3
+				return Vector3.new(q[1] * s, q[2] * s, z)
+			end
+			for k = 2, #p - 1 do
+				tri(K, cf, v(p[1]), v(p[k]), v(p[k + 1]), look)
+			end
+		end
+	end
+end
+
+
+Emblems.DATA = {
+	hyundai = { w = 0.17, h = 0.105, prims = {
+		{ t = "e", c = { 0, 0 }, rx = 0.085, ry = 0.0435, look = "chrome" },
+		{ t = "e", c = { 0, 0 }, rx = 0.078, ry = 0.0367, look = "dark" },
+		{ t = "poly", p = { { -0.0233, 0.039 }, { 0.0615, 0.0273 }, { 0.0449, -0.0063 }, { 0.0233, -0.039 }, { -0.0615, -0.0273 }, { -0.0449, 0.0063 } }, look = "chrome" },
+		{ t = "e", c = { -0.0061, 0.0192 }, rx = 0.0109, ry = 0.0147, rot = -18.8183, look = "dark" },
+		{ t = "poly", p = { { -0.0046, 0.0364 }, { -0.0089, 0.0062 }, { 0.0033, 0.0077 }, { 0.0273, 0.0165 }, { 0.0445, 0.0296 } }, look = "dark" },
+		{ t = "e", c = { 0.0061, -0.0192 }, rx = 0.0109, ry = 0.0147, rot = -18.8183, look = "dark" },
+		{ t = "poly", p = { { 0.0046, -0.0364 }, { 0.0089, -0.0062 }, { -0.0033, -0.0077 }, { -0.0273, -0.0165 }, { -0.0445, -0.0296 } }, look = "dark" },
+	} },
+	kia = { w = 0.16, h = 0.058, prims = {
+		{ t = "b", c = { -0.071, -0.0045 }, w = 0.0167, h = 0.0268, rot = 0, look = "chrome" },
+		{ t = "tri", p = { { -0.0794, 0.0089 }, { -0.0627, 0.0089 }, { -0.0627, 0.0189 } }, look = "chrome" },
+		{ t = "poly", p = { { -0.0759, -0.0179 }, { -0.0593, -0.0179 }, { 0.0009, 0.0183 }, { -0.0158, 0.0183 } }, look = "chrome" },
+		{ t = "poly", p = { { -0.0288, -0.0179 }, { -0.0104, -0.0179 }, { -0.0309, 0.0027 }, { -0.0427, -0.004 } }, look = "chrome" },
+		{ t = "b", c = { 0.0045, 0.0002 }, w = 0.0164, h = 0.0362, rot = 0, look = "chrome" },
+		{ t = "poly", p = { { 0.0085, -0.0179 }, { 0.0246, -0.0179 }, { 0.0787, 0.0173 }, { 0.0642, 0.0183 } }, look = "chrome" },
+		{ t = "b", c = { 0.071, 0.0047 }, w = 0.0167, h = 0.0272, rot = 0, look = "chrome" },
+		{ t = "tri", p = { { 0.0627, -0.0089 }, { 0.0794, -0.0089 }, { 0.0627, -0.0188 } }, look = "chrome" },
+	} },
+	generic = { w = 0.13, h = 0.13, prims = {
+		{ t = "r", c = { 0, 0 }, rx = 0.058, ry = 0.058, w = 0.009, n = 24, look = "chrome" },
+		{ t = "r", c = { -0.018, -0.004 }, rx = 0.022, ry = 0.017, w = 0.008, n = 8, a0 = 0, a1 = 180, look = "chrome" },
+		{ t = "r", c = { 0.026, -0.004 }, rx = 0.022, ry = 0.017, w = 0.008, n = 8, a0 = 0, a1 = 180, look = "chrome" },
+		{ t = "s", a = { -0.044, -0.022 }, b = { 0.044, -0.022 }, w = 0.007, cap = true, look = "chrome" },
+	} },
+}
+
+return Emblems
+
+end
+
 __defs["Fit"] = function()
 -- GwangalliCarInterior/Fit: 기존 차 모델(build/kit/vehicles 규약)의 Interior 파트에서 실내 치수를 읽습니다.
 -- 이름 우선 (WheelRim / WheelHub / Dash / DashTop / ClusterScreen / NavScreen / CentreConsole / SeatCushion /
@@ -1392,6 +1559,11 @@ local function frameOf(model: Model): BasePart?
 	if c and c:IsA("BasePart") then
 		return c
 	end
+	-- 주차장 차(LotCar_*): 차체 블록 + 유리 상자만 있는 단순 차
+	local b = model:FindFirstChild("Body")
+	if b and b:IsA("BasePart") and model:FindFirstChild("CabinGlass") then
+		return b
+	end
 	return nil
 end
 Fit.frameOf = frameOf
@@ -1404,6 +1576,8 @@ local function avg(list: { Vector3 }): Vector3
 	return s / math.max(1, #list)
 end
 
+local synth: (Model) -> (any?, string?)
+
 function Fit.run(model: Model): (any?, string?)
 	local base = frameOf(model)
 	if not base then
@@ -1411,7 +1585,7 @@ function Fit.run(model: Model): (any?, string?)
 	end
 	local interior = model:FindFirstChild("Interior")
 	if not interior then
-		return nil, "no Interior"
+		return synth(model)
 	end
 	local U = base.CFrame
 	local by: { [string]: { BasePart } } = {}
@@ -1773,6 +1947,149 @@ function Fit.run(model: Model): (any?, string?)
 end
 
 -- 디버그용 요약 (스크립트 속성 Debug = true 일 때 차 모델의 GwCabinFit 속성으로)
+---------------------------------------------------------------------------------------------- 주차장 차
+-- LotCar_*: Interior 파트 없이 Body(허리선까지) · CabinGlass(유리 상자) · Roof · Windshield 만 있는 차.
+-- 같은 차종 대표 차(Templates)의 원래 Interior 파트를 이 차의 유리 상자에 맞춰 늘린 임시 모델을 만들어
+-- 보통 차와 똑같이 Fit.run 으로 읽음 -> 실내 만드는 코드는 그대로. 임시 모델은 바로 지우고 기준 파트만 남김.
+-- 트럭(Cab 블록이 지붕까지 막혀 있음)은 안이 보일 수 없어서 건너뜀.
+local function extents(U: CFrame, p: BasePart): (Vector3, Vector3)
+	-- U 축 기준 중심 + 반 크기 (파트가 U 와 다른 방향으로 놓여 있어도)
+	local lc = U:ToObjectSpace(p.CFrame)
+	local h = p.Size / 2
+	local function ax(v: Vector3): number
+		return math.abs(v.X) * h.X + math.abs(v.Y) * h.Y + math.abs(v.Z) * h.Z
+	end
+	local r, u, l = lc.RightVector, lc.UpVector, lc.LookVector
+	return lc.Position, Vector3.new(ax(Vector3.new(r.X, u.X, -l.X)), ax(Vector3.new(r.Y, u.Y, -l.Y)), ax(Vector3.new(r.Z, u.Z, -l.Z)))
+end
+
+synth = function(model: Model): (any?, string?)
+	local Templates = __require("Templates") :: any
+	local kind = model:GetAttribute("VehicleKind")
+	local tp = Templates[kind]
+	local body, glass, roof, ws = model:FindFirstChild("Body"), model:FindFirstChild("CabinGlass"), model:FindFirstChild("Roof"), model:FindFirstChild("Windshield")
+	if not tp then
+		return nil, "no Interior (no template for " .. tostring(kind) .. ")"
+	end
+	if not (body and body:IsA("BasePart") and glass and glass:IsA("BasePart") and ws and ws:IsA("BasePart")) then
+		return nil, "no Interior (no Body/CabinGlass/Windshield)"
+	end
+	-- 기준 프레임: 차체 블록의 위 방향 + 긴 축, 앞유리 쪽이 -Z
+	local bc = body.CFrame
+	local up = bc.UpVector
+	local along = if body.Size.Z >= body.Size.X then bc.LookVector else bc.RightVector
+	local fwd = if (ws.Position - glass.Position):Dot(along) >= 0 then along else -along
+	local back = -fwd
+	local U = CFrame.fromMatrix(body.Position, up:Cross(back), up, back)
+	local bp, be = extents(U, body)
+	local gp, ge = extents(U, glass)
+	local sill = model:FindFirstChild("Sill")
+	local floorL = bp.Y - be.Y + 0.45
+	if sill and sill:IsA("BasePart") then
+		local sp, se = extents(U, sill)
+		floorL = sp.Y + se.Y
+	end
+	local roofL, roofRear = gp.Y + ge.Y, gp.Z + ge.Z
+	if roof and roof:IsA("BasePart") then
+		local rp, re = extents(U, roof)
+		roofL, roofRear = rp.Y - re.Y, rp.Z + re.Z
+	end
+	-- 앞유리 쐐기: 경사면이 앞 아래(-Z, -Y) -> 뒤 위(+Z, +Y)
+	local wlo = U:PointToObjectSpace((ws.CFrame * CFrame.new(0, -ws.Size.Y / 2, -ws.Size.Z / 2)).Position)
+	local whi = U:PointToObjectSpace((ws.CFrame * CFrame.new(0, ws.Size.Y / 2, ws.Size.Z / 2)).Position)
+	if wlo.Y > whi.Y then
+		wlo, whi = whi, wlo
+	end
+	local halfL = ge.X - 0.12
+	if roofL - floorL < 1.5 or halfL < 1 or whi.Z <= wlo.Z or roofRear <= whi.Z then
+		return nil, "no Interior (odd lot car shape)"
+	end
+	-- 기준 차 -> 이 차: X 는 폭 비율, Y 는 바닥~천장, Z 는 앞유리 아래 · 위 · 지붕 뒤 끝 세 점 사이를 이어 붙임
+	local sx = halfL / tp.half
+	local sy = (roofL - floorL) / (tp.roof - tp.floor)
+	local A = { { tp.wsLowZ, wlo.Z }, { tp.wsHighZ, whi.Z }, { tp.roofRearZ, roofRear } }
+	local function seg(z: number): (number, number)
+		local i = if z <= A[2][1] then 1 else 2
+		local a, b = A[i], A[i + 1]
+		local k = (b[2] - a[2]) / (b[1] - a[1])
+		return a[2] + (z - a[1]) * k, k
+	end
+	local proxy = Instance.new("Model")
+	proxy.Name = model.Name
+	proxy:SetAttribute("VehicleKind", kind)
+	local frame = Instance.new("Part")
+	frame.Name = "Underbody"
+	frame.Size = Vector3.new(0.2, 0.2, 0.2)
+	frame.Transparency = 1
+	frame.CanCollide, frame.CanQuery, frame.CanTouch = false, false, false
+	frame.CastShadow = false
+	frame.Anchored = true
+	frame.CFrame = U
+	frame.Parent = proxy
+	local int = Instance.new("Model")
+	int.Name = "Interior"
+	int.Parent = proxy
+	for _, e in tp.parts do
+		local c = e[5]
+		local pz, kz = seg(c[3])
+		local pos = Vector3.new(c[1] * sx, floorL + (c[2] - tp.floor) * sy, pz)
+		local k = Vector3.new(sx, sy, kz)
+		local cols = { Vector3.new(c[4], c[7], c[10]), Vector3.new(c[5], c[8], c[11]), Vector3.new(c[6], c[9], c[12]) }
+		local function sc(v: Vector3): number
+			return (v * k).Magnitude
+		end
+		local p = Instance.new("Part")
+		p.Name = e[1]
+		p.Size = Vector3.new(e[2] * sc(cols[1]), e[3] * sc(cols[2]), e[4] * sc(cols[3]))
+		p.CFrame = U * CFrame.new(pos.X, pos.Y, pos.Z, c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12])
+		p.Color = Color3.new(e[6], e[7], e[8])
+		if e[9] then
+			p.Material = Enum.Material.Fabric
+		end
+		p.Anchored = true
+		p.Parent = int
+	end
+	-- 앞유리: 실제 경사(아래 앞 -> 위 뒤)를 따라 놓인 얇은 판 (Fit 은 Z 축 양끝을 앞유리 아래 · 위 끝으로 읽음)
+	local wsp = Instance.new("Part")
+	wsp.Name = "Windshield"
+	wsp.Size = Vector3.new(halfL * 2, 0.05, (whi - wlo).Magnitude)
+	wsp.CFrame = U * CFrame.lookAt((wlo + whi) / 2, whi)
+	wsp.Anchored = true
+	wsp.Parent = proxy
+	local ok, F, why = pcall(function()
+		return Fit.run(proxy)
+	end)
+	frame.Parent = nil
+	proxy:Destroy()
+	if not ok then
+		frame:Destroy()
+		return nil, "lot fit: " .. tostring(F)
+	end
+	if not F then
+		frame:Destroy()
+		return nil, why
+	end
+	F.model, F.interior, F.synth = model, nil, true
+	frame.Name = "GwCabinFrame"
+	if not body.Anchored then
+		frame.Anchored = false
+		local wc = Instance.new("WeldConstraint")
+		wc.Part0, wc.Part1 = frame, body
+		wc.Parent = frame
+	end
+	F.base = frame
+	F.beltY = bp.Y + be.Y -- 차체 블록 윗면 (유리 아래 끝)
+	F.lotGlassZ = { gp.Z - ge.Z, gp.Z + ge.Z }
+	F.lotGlass = {}
+	for _, n in { "CabinGlass", "Windshield", "RearGlass" } do
+		local g = model:FindFirstChild(n)
+		if g and g:IsA("BasePart") then
+			table.insert(F.lotGlass, g)
+		end
+	end
+	return F, nil
+end
+
 function Fit.summary(F: any): string
 	local function v(p: Vector3?): string
 		return if p then string.format("(%.2f,%.2f,%.2f)", p.X, p.Y, p.Z) else "nil"
@@ -3155,6 +3472,17 @@ local function byName(s: string?): string?
 	return nil
 end
 
+-- 가상 차종(쇼룸 '플래그십 세단' · '큐비 박스카' 등): 실내 구성은 같은 급의 실제 차, 엠블럼 · 브랜드 글자만 중립 브랜드
+local GENERIC: { [string]: any } = {}
+local function generic(key: string): any
+	local g = GENERIC[key]
+	if not g then
+		g = setmetatable({ brand = "generic" }, { __index = LIST[key] or LIST.sonata })
+		GENERIC[key] = g
+	end
+	return g
+end
+
 -- 반환: 스타일 표 (공유 표이므로 바꾸지 말 것)
 function Styles.resolve(model: Model, kind: string?): any
 	local forced = model:GetAttribute("InteriorStyle")
@@ -3165,11 +3493,272 @@ function Styles.resolve(model: Model, kind: string?): any
 	if kind == "taxi" or kind == "taxi_service" or kind == "police" then
 		return LIST.sonata_taxi
 	end
-	local key = byName(model:GetAttribute("CarModel") :: any) or byName(model.Name) or (kind and KIND[kind]) or "sonata"
+	local cm = model:GetAttribute("CarModel")
+	local key = byName(cm :: any) or byName(model.Name)
+	if key then
+		return LIST[key] or LIST.sonata
+	end
+	key = (kind and KIND[kind]) or "sonata"
+	if type(cm) == "string" and cm ~= "" then
+		return generic(key)
+	end
 	return LIST[key] or LIST.sonata
 end
 
 return Styles
+
+end
+
+__defs["Templates"] = function()
+-- GwangalliCarInterior/Templates: 실내 파트가 없는 주차장 차(LotCar_*)용 기준 실내 치수.
+-- 각 차종 대표 차(쏘나타 · 투싼 · 레이 · 카니발)의 원래 Interior 파트를 Underbody 기준으로 옮겨 적은 것 (tools: 오프라인 추출).
+-- Fit.synth 가 이 파트들을 주차장 차의 유리 상자 크기에 맞춰 늘려 임시 모델을 만들고 Fit.run 으로 읽습니다.
+
+local T = {}
+
+T.sedan = {
+	floor = 0.335, roof = 3.755, half = 2.560, wsLowZ = -3.250, wsHighZ = -0.250, roofRearZ = 3.200, wsLowY = 2.495, wsHighY = 3.965,
+	parts = {
+		{ "Carpet", 5.360, 0.060, 7.850, { 0.000, 0.305, 0.825, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.102, 0.102, 0.110 },
+		{ "Firewall", 5.360, 1.200, 0.100, { 0.000, 0.935, -2.850, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.102, 0.102, 0.110 },
+		{ "DoorTrim", 0.140, 2.240, 7.500, { -2.630, 1.455, 0.900, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "Armrest", 0.270, 0.160, 2.550, { -2.435, 1.815, -0.225, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.157, 0.157, 0.169 },
+		{ "DoorTrim", 0.140, 2.240, 7.500, { 2.630, 1.455, 0.900, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "Armrest", 0.270, 0.160, 2.550, { 2.435, 1.815, -0.225, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.157, 0.157, 0.169 },
+		{ "Headliner", 4.670, 0.095, 3.430, { -0.000, 3.803, 1.485, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.588, 0.588, 0.596, true },
+		{ "RearViewMirror", 0.800, 0.220, 0.080, { 0.000, 3.585, -0.510, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "SunVisor", 1.200, 0.065, 0.720, { -1.200, 3.717, 0.010, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.588, 0.588, 0.596, true },
+		{ "SunVisor", 1.200, 0.065, 0.720, { 1.200, 3.717, 0.010, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.588, 0.588, 0.596, true },
+		{ "Pedal", 0.420, 0.340, 0.060, { -1.300, 0.905, -2.450, 1.000, 0.000, 0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Pedal", 0.240, 0.580, 0.060, { -0.830, 0.735, -2.400, 1.000, 0.000, 0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Dash", 5.260, 0.930, 1.180, { -0.000, 1.950, -2.540, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.086, 0.086, 0.094 },
+		{ "DashTop", 5.260, 0.090, 1.180, { -0.000, 2.460, -2.540, -1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, -1.000 }, 0.180, 0.180, 0.192 },
+		{ "ClusterScreen", 1.200, 0.440, 0.060, { -1.250, 2.595, -2.250, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "NavScreen", 1.300, 0.440, 0.060, { -0.010, 2.595, -2.137, 0.985, 0.000, -0.174, 0.000, 1.000, 0.000, 0.174, 0.000, 0.985 }, 0.047, 0.047, 0.055 },
+		{ "VentBand", 5.200, 0.140, 0.070, { 0.000, 2.065, -1.935, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "DashChrome", 5.200, 0.050, 0.080, { -0.000, 1.960, -1.930, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.820, 0.835 },
+		{ "AmbientStrip", 4.760, 0.050, 0.060, { -0.000, 2.170, -1.940, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.471, 0.353, 1.000 },
+		{ "ClimatePanel", 0.920, 0.390, 0.090, { -0.040, 1.660, -1.925, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "TempKnob", 0.100, 0.170, 0.170, { -0.420, 1.635, -1.850, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.588, 0.600, 0.620 },
+		{ "TempKnob", 0.100, 0.170, 0.170, { 0.340, 1.635, -1.850, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.588, 0.600, 0.620 },
+		{ "CentreConsole", 0.900, 1.210, 3.600, { 0.000, 0.930, -0.450, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.094, 0.094, 0.102 },
+		{ "ConsoleTray", 0.760, 0.060, 1.700, { 0.000, 1.565, -0.850, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.690, 0.694, 0.706 },
+		{ "Cupholder", 0.050, 0.300, 0.300, { 0.000, 1.605, -0.250, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "Cupholder", 0.050, 0.300, 0.300, { 0.000, 1.605, -0.650, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "ConsoleArmrest", 0.840, 0.300, 1.250, { 0.000, 1.745, 0.725, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.126, 0.126, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.677, 2.402, -1.297, -0.383, 0.602, 0.701, 0.844, 0.536, 0.000, -0.376, 0.591, -0.714 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.013, 2.708, -1.433, -0.924, 0.345, 0.166, 0.350, 0.937, 0.000, -0.156, 0.058, -0.986 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.487, 2.708, -1.433, -0.924, -0.345, -0.166, -0.350, 0.937, 0.000, 0.156, 0.058, -0.986 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.823, 2.402, -1.297, -0.383, -0.602, -0.701, -0.844, 0.536, 0.000, 0.376, 0.591, -0.714 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.823, 1.968, -1.104, 0.383, 0.602, -0.701, -0.844, 0.536, 0.000, 0.376, 0.591, 0.714 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.487, 1.662, -0.967, 0.924, 0.345, -0.166, -0.350, 0.937, 0.000, 0.156, 0.058, 0.986 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.013, 1.662, -0.967, 0.924, -0.345, 0.166, 0.350, 0.937, 0.000, -0.156, 0.058, 0.986 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.677, 1.968, -1.104, 0.383, -0.602, 0.701, 0.844, 0.536, 0.000, -0.376, 0.591, 0.714 }, 0.118, 0.118, 0.126 },
+		{ "WheelHub", 0.620, 0.400, 0.170, { -1.250, 2.201, -1.163, 1.000, 0.000, 0.000, 0.000, 0.914, 0.407, 0.000, -0.407, 0.914 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 1.180, 0.140, 0.070, { -1.250, 2.193, -1.182, 1.000, 0.000, 0.000, 0.000, 0.914, 0.407, 0.000, -0.407, 0.914 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 0.100, 0.570, 0.080, { -1.250, 1.868, -1.026, 1.000, 0.000, 0.000, 0.000, 0.914, 0.407, 0.000, -0.407, 0.914 }, 0.808, 0.820, 0.835 },
+		{ "ColumnShifter", 0.450, 0.070, 0.070, { -0.830, 2.305, -1.650, 0.952, -0.233, -0.196, 0.238, 0.971, 0.000, 0.190, -0.047, 0.981 }, 0.157, 0.157, 0.165 },
+		{ "SeatCushion", 1.700, 0.480, 1.750, { -1.250, 0.995, 0.350, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.126, 0.126, 0.133 },
+		{ "SeatBack", 1.700, 1.950, 0.450, { -1.250, 2.031, 1.261, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.126, 0.126, 0.133 },
+		{ "SeatInsert", 1.054, 1.404, 0.050, { -1.250, 2.041, 1.016, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.094, 0.094, 0.102 },
+		{ "Headrest", 0.952, 0.600, 0.300, { -1.250, 3.317, 1.540, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.126, 0.126, 0.133 },
+		{ "SeatCushion", 1.700, 0.480, 1.750, { 1.250, 0.995, 0.350, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.126, 0.126, 0.133 },
+		{ "SeatBack", 1.700, 1.950, 0.450, { 1.250, 2.031, 1.261, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.126, 0.126, 0.133 },
+		{ "SeatInsert", 1.054, 1.404, 0.050, { 1.250, 2.041, 1.016, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.094, 0.094, 0.102 },
+		{ "Headrest", 0.952, 0.600, 0.300, { 1.250, 3.317, 1.540, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.126, 0.126, 0.133 },
+		{ "SeatCushion", 4.500, 0.480, 1.600, { -0.000, 1.045, 3.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.126, 0.126, 0.133 },
+		{ "SeatBack", 4.500, 1.750, 0.450, { -0.000, 1.928, 3.970, 1.000, -0.000, 0.000, 0.000, 0.906, -0.423, 0.000, 0.423, 0.906 }, 0.126, 0.126, 0.133 },
+		{ "Headrest", 0.850, 0.500, 0.280, { -1.350, 2.975, 4.458, 1.000, -0.000, 0.000, 0.000, 0.906, -0.423, 0.000, 0.423, 0.906 }, 0.126, 0.126, 0.133 },
+		{ "Headrest", 0.850, 0.500, 0.280, { 1.350, 2.975, 4.458, 1.000, -0.000, 0.000, 0.000, 0.906, -0.423, 0.000, 0.423, 0.906 }, 0.126, 0.126, 0.133 },
+	},
+}
+
+T.suv = {
+	floor = 0.400, roof = 4.050, half = 2.570, wsLowZ = -2.700, wsHighZ = -0.200, roofRearZ = 5.900, wsLowY = 2.860, wsHighY = 4.260,
+	parts = {
+		{ "Carpet", 5.380, 0.060, 7.200, { -0.000, 0.370, 1.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.094, 0.094, 0.102 },
+		{ "Firewall", 5.380, 1.200, 0.100, { 0.000, 1.000, -2.450, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.094, 0.094, 0.102 },
+		{ "DoorTrim", 0.140, 2.540, 7.000, { -2.640, 1.670, 1.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.118, 0.126 },
+		{ "Armrest", 0.270, 0.160, 2.100, { -2.445, 2.180, -0.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.172, 0.172, 0.184 },
+		{ "DoorTrim", 0.140, 2.540, 7.000, { 2.640, 1.670, 1.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.118, 0.126 },
+		{ "Armrest", 0.270, 0.160, 2.100, { 2.445, 2.180, -0.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.172, 0.172, 0.184 },
+		{ "Headliner", 4.849, 0.095, 6.080, { -0.000, 4.098, 2.860, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.228, 0.228, 0.235, true },
+		{ "FloorMat", 1.870, 0.050, 0.800, { -1.555, 0.417, -1.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "FloorMat", 1.870, 0.050, 0.800, { 1.555, 0.417, -1.050, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "RearViewMirror", 0.800, 0.220, 0.080, { 0.000, 3.880, -0.460, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "SunVisor", 1.200, 0.065, 0.720, { -1.200, 4.012, 0.060, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.228, 0.228, 0.235, true },
+		{ "SunVisor", 1.200, 0.065, 0.720, { 1.200, 4.012, 0.060, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.228, 0.228, 0.235, true },
+		{ "Pedal", 0.420, 0.340, 0.060, { -1.300, 0.970, -2.050, 1.000, -0.000, -0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Pedal", 0.240, 0.580, 0.060, { -0.830, 0.800, -2.000, 1.000, -0.000, -0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Dash", 5.280, 1.120, 1.030, { 0.000, 2.110, -2.065, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "DashTop", 5.280, 0.200, 1.030, { 0.000, 2.770, -2.065, -1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, -1.000 }, 0.141, 0.141, 0.149 },
+		{ "DashSpeaker", 1.600, 0.050, 0.250, { 0.000, 2.880, -2.225, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.588, 0.600, 0.620 },
+		{ "ClusterScreen", 1.240, 0.460, 0.060, { -1.250, 2.900, -1.850, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "NavScreen", 1.350, 0.460, 0.060, { 0.037, 2.900, -1.744, 0.988, 0.000, -0.156, 0.000, 1.000, 0.000, 0.156, 0.000, 0.988 }, 0.047, 0.047, 0.055 },
+		{ "VentBand", 5.220, 0.120, 0.070, { 0.000, 2.370, -1.535, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "DashChrome", 5.220, 0.060, 0.080, { 0.000, 2.270, -1.530, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.820, 0.835 },
+		{ "ClimatePanel", 1.000, 0.450, 0.090, { -0.050, 1.945, -1.525, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "TempKnob", 0.100, 0.170, 0.170, { -0.450, 1.890, -1.450, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.588, 0.600, 0.620 },
+		{ "TempKnob", 0.100, 0.170, 0.170, { 0.350, 1.890, -1.450, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.588, 0.600, 0.620 },
+		{ "CentreConsole", 0.920, 1.510, 3.150, { 0.000, 1.145, -0.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.086, 0.086, 0.094 },
+		{ "ShiftBoot", 0.320, 0.320, 0.300, { -0.000, 2.060, -0.800, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.118, 0.126 },
+		{ "GearLever", 0.220, 0.340, 0.300, { 0.000, 2.360, -0.820, 1.000, 0.000, -0.000, 0.000, 0.970, 0.243, 0.000, -0.243, 0.970 }, 0.172, 0.172, 0.180 },
+		{ "Cupholder", 0.050, 0.280, 0.280, { -0.180, 1.910, -0.250, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "Cupholder", 0.050, 0.280, 0.280, { 0.180, 1.910, -0.250, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "ConsoleArmrest", 0.880, 0.340, 1.250, { 0.000, 2.070, 0.675, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.677, 2.713, -0.954, -0.383, 0.570, 0.727, 0.830, 0.557, 0.000, -0.405, 0.604, -0.687 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.013, 3.015, -1.101, -0.924, 0.338, 0.179, 0.344, 0.939, 0.000, -0.168, 0.061, -0.984 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.487, 3.015, -1.101, -0.924, -0.338, -0.179, -0.344, 0.939, 0.000, 0.168, 0.061, -0.984 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.823, 2.713, -0.954, -0.383, -0.570, -0.727, -0.830, 0.557, 0.000, 0.405, 0.604, -0.687 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.823, 2.287, -0.746, 0.383, 0.570, -0.727, -0.830, 0.557, 0.000, 0.405, 0.604, 0.687 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.487, 1.985, -0.599, 0.924, 0.338, -0.179, -0.344, 0.939, 0.000, 0.168, 0.061, 0.984 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.013, 1.985, -0.599, 0.924, -0.338, 0.179, 0.344, 0.939, 0.000, -0.168, 0.061, 0.984 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.677, 2.287, -0.746, 0.383, -0.570, 0.727, 0.830, 0.557, 0.000, -0.405, 0.604, 0.687 }, 0.118, 0.118, 0.126 },
+		{ "WheelHub", 0.620, 0.400, 0.170, { -1.250, 2.518, -0.814, 1.000, 0.000, 0.000, 0.000, 0.899, 0.438, 0.000, -0.438, 0.899 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 1.180, 0.140, 0.070, { -1.250, 2.509, -0.832, 1.000, 0.000, 0.000, 0.000, 0.899, 0.438, 0.000, -0.438, 0.899 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 0.100, 0.570, 0.080, { -1.250, 2.190, -0.665, 1.000, 0.000, 0.000, 0.000, 0.899, 0.438, 0.000, -0.438, 0.899 }, 0.808, 0.820, 0.835 },
+		{ "SeatCushion", 1.700, 0.480, 1.750, { -1.250, 1.360, 0.300, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "SeatBack", 1.700, 1.900, 0.450, { -1.250, 2.372, 1.205, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.133, 0.133, 0.141 },
+		{ "SeatInsert", 1.054, 1.368, 0.050, { -1.250, 2.381, 0.960, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.102, 0.102, 0.110 },
+		{ "Headrest", 0.952, 0.600, 0.300, { -1.250, 3.633, 1.478, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.133, 0.133, 0.141 },
+		{ "SeatCushion", 1.700, 0.480, 1.750, { 1.250, 1.360, 0.300, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "SeatBack", 1.700, 1.900, 0.450, { 1.250, 2.372, 1.205, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.133, 0.133, 0.141 },
+		{ "SeatInsert", 1.054, 1.368, 0.050, { 1.250, 2.381, 0.960, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.102, 0.102, 0.110 },
+		{ "Headrest", 0.952, 0.600, 0.300, { 1.250, 3.633, 1.478, 1.000, -0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.133, 0.133, 0.141 },
+		{ "SeatCushion", 4.600, 0.480, 1.600, { -0.000, 1.410, 3.150, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.133, 0.133, 0.141 },
+		{ "SeatBack", 4.600, 1.900, 0.450, { 0.000, 2.381, 4.106, 1.000, -0.000, 0.000, 0.000, 0.927, -0.375, 0.000, 0.375, 0.927 }, 0.133, 0.133, 0.141 },
+		{ "Headrest", 0.850, 0.500, 0.280, { -1.380, 3.521, 4.567, 1.000, -0.000, 0.000, 0.000, 0.927, -0.375, 0.000, 0.375, 0.927 }, 0.133, 0.133, 0.141 },
+		{ "Headrest", 0.850, 0.500, 0.280, { 1.380, 3.521, 4.567, 1.000, -0.000, 0.000, 0.000, 0.927, -0.375, 0.000, 0.375, 0.927 }, 0.133, 0.133, 0.141 },
+	},
+}
+
+T.compact = {
+	floor = 0.335, roof = 4.625, half = 2.120, wsLowZ = -3.500, wsHighZ = -1.450, roofRearZ = 5.300, wsLowY = 2.445, wsHighY = 4.835,
+	parts = {
+		{ "Carpet", 4.480, 0.060, 7.800, { 0.000, 0.305, 0.550, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.094, 0.094, 0.102 },
+		{ "Firewall", 4.480, 1.200, 0.100, { -0.000, 0.935, -2.950, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.094, 0.094, 0.102 },
+		{ "DoorTrim", 0.140, 2.190, 7.300, { -2.190, 1.430, 0.700, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.784, 0.776, true },
+		{ "DoorTrimUpper", 0.050, 0.570, 6.300, { -2.115, 2.220, 1.100, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "Armrest", 0.270, 0.160, 2.650, { -1.995, 2.215, -0.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.706, 0.706, 0.698 },
+		{ "DoorTrim", 0.140, 2.190, 7.300, { 2.190, 1.430, 0.700, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.784, 0.776, true },
+		{ "DoorTrimUpper", 0.050, 0.570, 6.300, { 2.115, 2.220, 1.100, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "Armrest", 0.270, 0.160, 2.650, { 1.995, 2.215, -0.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.706, 0.706, 0.698 },
+		{ "Headliner", 4.076, 0.095, 6.730, { -0.000, 4.673, 1.935, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.808, 0.792, true },
+		{ "RearViewMirror", 0.800, 0.220, 0.080, { -0.000, 4.455, -1.710, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "SunVisor", 1.200, 0.065, 0.720, { -1.200, 4.588, -1.190, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.808, 0.792, true },
+		{ "SunVisor", 1.200, 0.065, 0.720, { 1.200, 4.588, -1.190, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.808, 0.792, true },
+		{ "Pedal", 0.420, 0.340, 0.060, { -1.100, 0.905, -2.550, 1.000, -0.000, 0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Pedal", 0.240, 0.580, 0.060, { -0.630, 0.735, -2.500, 1.000, -0.000, 0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Dash", 4.380, 1.000, 1.330, { -0.000, 1.835, -2.715, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "DashTop", 4.380, 0.120, 1.330, { -0.000, 2.395, -2.715, -1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, -1.000 }, 0.133, 0.133, 0.141 },
+		{ "CentrePanel", 1.900, 0.600, 0.080, { -0.000, 2.015, -2.030, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "Screen", 1.000, 0.480, 0.050, { 0.000, 2.015, -1.980, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "VerticalVent", 0.330, 0.440, 0.050, { -0.715, 2.015, -1.980, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.063, 0.063, 0.071 },
+		{ "CornerVent", 0.350, 0.180, 0.070, { -1.865, 2.165, -2.035, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.063, 0.063, 0.071 },
+		{ "VerticalVent", 0.330, 0.440, 0.050, { 0.715, 2.015, -1.980, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.063, 0.063, 0.071 },
+		{ "CornerVent", 0.350, 0.180, 0.070, { 1.865, 2.165, -2.035, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.063, 0.063, 0.071 },
+		{ "GearGate", 0.400, 0.630, 0.090, { -0.150, 1.300, -2.025, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.141, 0.141, 0.149 },
+		{ "GearLever", 0.420, 0.100, 0.100, { -0.150, 1.535, -1.830, 0.000, -0.000, -1.000, 0.507, 0.862, 0.000, 0.862, -0.507, 0.000 }, 0.110, 0.110, 0.118 },
+		{ "GearKnob", 0.200, 0.260, 0.200, { -0.150, 1.675, -1.650, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "StartButton", 0.080, 0.200, 0.200, { -0.550, 1.535, -1.980, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.808, 0.820, 0.835 },
+		{ "ClimateKnob", 0.120, 0.240, 0.240, { 0.350, 1.485, -1.960, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.157, 0.157, 0.165 },
+		{ "ClimateKnob", 0.120, 0.240, 0.240, { 0.350, 1.135, -1.960, 0.000, 0.000, 1.000, 0.000, 1.000, 0.000, -1.000, 0.000, 0.000 }, 0.157, 0.157, 0.165 },
+		{ "Glovebox", 1.040, 0.650, 0.070, { 1.470, 1.660, -2.035, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.126, 0.126, 0.133 },
+		{ "ClusterHood", 1.000, 0.270, 0.350, { -1.050, 2.420, -2.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "ClusterScreen", 0.840, 0.210, 0.050, { -1.050, 2.410, -2.090, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "FloorConsole", 0.700, 0.410, 1.600, { -0.000, 0.530, -0.950, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.110, 0.110, 0.118 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -0.514, 2.727, -1.461, -0.383, 0.510, 0.770, 0.800, 0.600, 0.000, -0.462, 0.616, -0.638 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -0.828, 2.999, -1.618, -0.924, 0.325, 0.203, 0.331, 0.943, 0.000, -0.191, 0.067, -0.979 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -1.272, 2.999, -1.618, -0.924, -0.325, -0.203, -0.331, 0.943, 0.000, 0.191, 0.067, -0.979 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -1.586, 2.727, -1.461, -0.383, -0.510, -0.770, -0.800, 0.600, 0.000, 0.462, 0.616, -0.638 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -1.586, 2.343, -1.239, 0.383, 0.510, -0.770, -0.800, 0.600, 0.000, 0.462, 0.616, 0.638 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -1.272, 2.071, -1.082, 0.924, 0.325, -0.203, -0.331, 0.943, 0.000, 0.191, 0.067, 0.979 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -0.828, 2.071, -1.082, 0.924, -0.325, 0.203, 0.331, 0.943, 0.000, -0.191, 0.067, 0.979 }, 0.118, 0.118, 0.126 },
+		{ "WheelRim", 0.530, 0.130, 0.130, { -0.514, 2.343, -1.239, 0.383, -0.510, 0.770, 0.800, 0.600, 0.000, -0.462, 0.616, 0.638 }, 0.118, 0.118, 0.126 },
+		{ "WheelHub", 0.520, 0.460, 0.180, { -1.050, 2.555, -1.315, 1.000, 0.000, 0.000, 0.000, 0.866, 0.500, 0.000, -0.500, 0.866 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 1.100, 0.150, 0.070, { -1.050, 2.545, -1.333, 1.000, 0.000, 0.000, 0.000, 0.866, 0.500, 0.000, -0.500, 0.866 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 0.160, 0.580, 0.070, { -1.050, 2.294, -1.188, 1.000, 0.000, 0.000, 0.000, 0.866, 0.500, 0.000, -0.500, 0.866 }, 0.102, 0.102, 0.110 },
+		{ "WheelBadge", 0.300, 0.100, 0.050, { -1.050, 2.600, -1.237, 1.000, 0.000, 0.000, 0.000, 0.866, 0.500, 0.000, -0.500, 0.866 }, 0.808, 0.820, 0.835 },
+		{ "SeatCushion", 1.550, 0.480, 1.600, { -1.050, 1.395, 0.350, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.784, 0.776, true },
+		{ "SeatBack", 1.550, 2.000, 0.450, { -1.050, 2.463, 1.158, 1.000, -0.000, 0.000, 0.000, 0.978, -0.208, 0.000, 0.208, 0.978 }, 0.784, 0.784, 0.776, true },
+		{ "Headrest", 0.868, 0.600, 0.300, { -1.050, 3.782, 1.397, 1.000, -0.000, 0.000, 0.000, 0.978, -0.208, 0.000, 0.208, 0.978 }, 0.784, 0.784, 0.776, true },
+		{ "SeatCushion", 1.550, 0.480, 1.600, { 1.050, 1.395, 0.350, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.784, 0.776, true },
+		{ "SeatBack", 1.550, 2.000, 0.450, { 1.050, 2.463, 1.158, 1.000, -0.000, 0.000, 0.000, 0.978, -0.208, 0.000, 0.208, 0.978 }, 0.784, 0.784, 0.776, true },
+		{ "Headrest", 0.868, 0.600, 0.300, { 1.050, 3.782, 1.397, 1.000, -0.000, 0.000, 0.000, 0.978, -0.208, 0.000, 0.208, 0.978 }, 0.784, 0.784, 0.776, true },
+		{ "SeatCushion", 3.950, 0.480, 1.500, { 0.000, 1.445, 3.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.784, 0.776, true },
+		{ "SeatBack", 3.950, 1.900, 0.450, { 0.000, 2.448, 3.812, 1.000, 0.000, 0.000, 0.000, 0.961, -0.276, 0.000, 0.276, 0.961 }, 0.784, 0.784, 0.776, true },
+		{ "Headrest", 0.850, 0.500, 0.280, { -1.185, 3.631, 4.151, 1.000, 0.000, 0.000, 0.000, 0.961, -0.276, 0.000, 0.276, 0.961 }, 0.784, 0.784, 0.776, true },
+		{ "Headrest", 0.850, 0.500, 0.280, { 1.185, 3.631, 4.151, 1.000, 0.000, 0.000, 0.000, 0.961, -0.276, 0.000, 0.276, 0.961 }, 0.784, 0.784, 0.776, true },
+	},
+}
+
+T.van = {
+	floor = 0.435, roof = 4.635, half = 2.785, wsLowZ = -3.750, wsHighZ = -1.000, roofRearZ = 7.400, wsLowY = 2.745, wsHighY = 4.845,
+	parts = {
+		{ "Carpet", 5.810, 0.060, 10.650, { -0.000, 0.405, 1.725, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.118, 0.133 },
+		{ "Firewall", 5.810, 1.200, 0.100, { 0.000, 1.035, -3.200, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.118, 0.133 },
+		{ "DoorTrim", 0.140, 2.390, 10.150, { -2.855, 1.630, 1.875, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "DoorTrimUpper", 0.050, 0.570, 9.150, { -2.780, 2.520, 2.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.133, 0.172 },
+		{ "Armrest", 0.270, 0.160, 2.550, { -2.660, 2.215, -0.575, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.772, 0.745 },
+		{ "DoorTrim", 0.140, 2.390, 10.150, { 2.855, 1.630, 1.875, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "DoorTrimUpper", 0.050, 0.570, 9.150, { 2.780, 2.520, 2.275, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.133, 0.172 },
+		{ "Armrest", 0.270, 0.160, 2.550, { 2.660, 2.215, -0.575, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.784, 0.772, 0.745 },
+		{ "Headliner", 5.042, 0.095, 8.380, { -0.000, 4.683, 3.210, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.800, 0.776, true },
+		{ "RearViewMirror", 0.800, 0.220, 0.080, { 0.000, 4.465, -1.260, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "SunVisor", 1.200, 0.065, 0.720, { -1.200, 4.598, -0.740, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.800, 0.776, true },
+		{ "SunVisor", 1.200, 0.065, 0.720, { 1.200, 4.598, -0.740, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.800, 0.776, true },
+		{ "Pedal", 0.420, 0.340, 0.060, { -1.350, 1.005, -2.800, 1.000, 0.000, -0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "Pedal", 0.240, 0.580, 0.060, { -0.880, 0.835, -2.750, 1.000, 0.000, -0.000, 0.000, 0.862, 0.507, 0.000, -0.507, 0.862 }, 0.141, 0.141, 0.149 },
+		{ "DashLower", 5.710, 0.650, 1.350, { 0.000, 1.810, -2.955, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "DashUpper", 5.710, 0.450, 1.330, { 0.000, 2.360, -2.965, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.133, 0.172 },
+		{ "DashTop", 5.710, 0.170, 1.330, { 0.000, 2.670, -2.965, -1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, -1.000 }, 0.118, 0.133, 0.172 },
+		{ "ClusterScreen", 1.240, 0.450, 0.060, { -1.300, 2.810, -2.600, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "NavScreen", 1.350, 0.450, 0.060, { -0.013, 2.810, -2.494, 0.988, 0.000, -0.156, 0.000, 1.000, 0.000, 0.156, 0.000, 0.988 }, 0.047, 0.047, 0.055 },
+		{ "VentBand", 5.650, 0.120, 0.070, { 0.000, 2.345, -2.285, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "AmbientStrip", 5.610, 0.050, 0.070, { 0.000, 2.240, -2.285, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.839, 0.667, 0.353 },
+		{ "ClimatePanel", 1.250, 0.280, 0.070, { -0.075, 1.925, -2.265, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "CentreConsole", 1.000, 1.560, 3.600, { -0.000, 1.205, -0.800, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.118, 0.133, 0.172 },
+		{ "RotaryShifter", 0.140, 0.300, 0.300, { -0.120, 2.055, -1.050, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.808, 0.820, 0.835 },
+		{ "Cupholder", 0.050, 0.300, 0.300, { 0.180, 1.995, -0.600, 0.000, -1.000, 0.000, 1.000, 0.000, 0.000, 0.000, 0.000, 1.000 }, 0.047, 0.047, 0.055 },
+		{ "ConsoleArmrest", 0.960, 0.330, 1.250, { -0.000, 2.150, 0.375, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.727, 2.645, -1.661, -0.383, 0.540, 0.750, 0.816, 0.578, 0.000, -0.434, 0.612, -0.662 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.063, 2.941, -1.819, -0.924, 0.332, 0.191, 0.338, 0.941, 0.000, -0.180, 0.064, -0.982 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.537, 2.941, -1.819, -0.924, -0.332, -0.191, -0.338, 0.941, 0.000, 0.180, 0.065, -0.982 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.873, 2.645, -1.661, -0.383, -0.540, -0.750, -0.816, 0.578, 0.000, 0.434, 0.612, -0.662 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.873, 2.226, -1.439, 0.383, 0.540, -0.750, -0.816, 0.578, 0.000, 0.434, 0.612, 0.662 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.537, 1.929, -1.281, 0.924, 0.332, -0.191, -0.338, 0.941, 0.000, 0.180, 0.064, 0.982 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -1.063, 1.929, -1.281, 0.924, -0.332, 0.191, 0.338, 0.941, 0.000, -0.180, 0.065, 0.982 }, 0.118, 0.118, 0.133 },
+		{ "WheelRim", 0.564, 0.130, 0.130, { -0.727, 2.226, -1.439, 0.383, -0.540, 0.750, 0.816, 0.578, 0.000, -0.434, 0.612, 0.662 }, 0.118, 0.118, 0.133 },
+		{ "WheelHub", 0.520, 0.460, 0.180, { -1.300, 2.454, -1.515, 1.000, -0.000, -0.000, 0.000, 0.883, 0.469, 0.000, -0.469, 0.883 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 1.180, 0.150, 0.070, { -1.300, 2.444, -1.532, 1.000, -0.000, -0.000, 0.000, 0.883, 0.469, 0.000, -0.469, 0.883 }, 0.102, 0.102, 0.110 },
+		{ "WheelSpoke", 0.160, 0.620, 0.070, { -1.300, 2.171, -1.387, 1.000, -0.000, -0.000, 0.000, 0.883, 0.469, 0.000, -0.469, 0.883 }, 0.102, 0.102, 0.110 },
+		{ "WheelBadge", 0.300, 0.100, 0.050, { -1.300, 2.496, -1.435, 1.000, -0.000, -0.000, 0.000, 0.883, 0.469, 0.000, -0.469, 0.883 }, 0.808, 0.820, 0.835 },
+		{ "SeatCushion", 1.750, 0.480, 1.750, { -1.300, 1.395, -0.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "SeatBack", 1.750, 2.000, 0.450, { -1.300, 2.459, 0.900, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.843, 0.831, 0.804 },
+		{ "SeatPiping", 1.225, 1.600, 0.080, { -1.300, 2.465, 0.655, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.118, 0.133, 0.172 },
+		{ "SeatInsert", 1.085, 1.440, 0.070, { -1.300, 2.479, 0.591, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.886, 0.875, 0.847 },
+		{ "Headrest", 0.980, 0.600, 0.300, { -1.300, 3.774, 1.162, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.843, 0.831, 0.804 },
+		{ "SeatCushion", 1.750, 0.480, 1.750, { 1.300, 1.395, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "SeatBack", 1.750, 2.000, 0.450, { 1.300, 2.459, 0.900, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.843, 0.831, 0.804 },
+		{ "SeatPiping", 1.225, 1.600, 0.080, { 1.300, 2.465, 0.655, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.118, 0.133, 0.172 },
+		{ "SeatInsert", 1.085, 1.440, 0.070, { 1.300, 2.479, 0.591, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.886, 0.875, 0.847 },
+		{ "Headrest", 0.980, 0.600, 0.300, { 1.300, 3.774, 1.162, 1.000, -0.000, -0.000, 0.000, 0.974, -0.225, 0.000, 0.225, 0.974 }, 0.843, 0.831, 0.804 },
+		{ "SeatCushion", 1.650, 0.480, 1.700, { -1.300, 1.445, 3.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "SeatBack", 1.650, 1.950, 0.450, { -1.300, 2.481, 3.886, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.843, 0.831, 0.804 },
+		{ "SeatPiping", 1.155, 1.560, 0.080, { -1.300, 2.491, 3.641, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.118, 0.133, 0.172 },
+		{ "SeatInsert", 1.023, 1.404, 0.070, { -1.300, 2.506, 3.578, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.886, 0.875, 0.847 },
+		{ "Headrest", 0.924, 0.600, 0.300, { -1.300, 3.767, 4.165, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.843, 0.831, 0.804 },
+		{ "SeatCushion", 1.650, 0.480, 1.700, { 1.300, 1.445, 3.000, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "SeatBack", 1.650, 1.950, 0.450, { 1.300, 2.481, 3.886, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.843, 0.831, 0.804 },
+		{ "SeatPiping", 1.155, 1.560, 0.080, { 1.300, 2.491, 3.641, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.118, 0.133, 0.172 },
+		{ "SeatInsert", 1.023, 1.404, 0.070, { 1.300, 2.506, 3.578, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.886, 0.875, 0.847 },
+		{ "Headrest", 0.924, 0.600, 0.300, { 1.300, 3.767, 4.165, 1.000, 0.000, -0.000, 0.000, 0.970, -0.242, 0.000, 0.242, 0.970 }, 0.843, 0.831, 0.804 },
+		{ "SeatCushion", 4.900, 0.480, 1.550, { -0.000, 1.395, 5.750, 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 }, 0.843, 0.831, 0.804 },
+		{ "SeatBack", 4.900, 1.900, 0.450, { -0.000, 2.378, 6.650, 1.000, 0.000, -0.000, 0.000, 0.940, -0.342, 0.000, 0.342, 0.940 }, 0.843, 0.831, 0.804 },
+	},
+}
+
+return T
 
 end
 
@@ -3181,6 +3770,7 @@ __defs["Trim"] = function()
 -- 바닥 매트, 알루미늄 페달 + 고무 띠 + 풋레스트.
 
 local Gauges = __require("Gauges")
+local Emblems = __require("Emblems")
 
 local Trim = {}
 
@@ -3443,6 +4033,11 @@ function Trim.build(K: any, F: any, P: any)
 	end
 	for _, s in F.front do
 		K:box("FloorMat", Vector3.new(math.min(s.w, 1.7) - 0.1, 0.03, 1.6), CFrame.new(s.x, floor + 0.016, s.z - s.cushSize.Z / 2 - 0.85), P.mat)
+		if F.style.trimMat ~= "plastic" and Emblems.DATA[F.style.brand] then
+			-- 순정 매트: 뒤쪽 바깥 모서리에 브랜드 로고 (바닥에 눕혀 앞을 위로)
+			local ox = (if s.x < 0 then -1 else 1) * (math.min(s.w, 1.7) / 2 - 0.3)
+			Emblems.draw(K, P, F.style.brand, CFrame.new(s.x + ox, floor + 0.032, s.z - s.cushSize.Z / 2 - 0.2) * CFrame.Angles(-math.pi / 2, 0, 0), 1.3)
+		end
 		K:box("MatPiping", Vector3.new(math.min(s.w, 1.7) - 0.05, 0.035, 0.035), CFrame.new(s.x, floor + 0.018, s.z - s.cushSize.Z / 2 - 0.05), P.stitch)
 	end
 	for _, s in F.rear do
@@ -3510,6 +4105,11 @@ function Trim.build(K: any, F: any, P: any)
 		K:panel("PartitionWindowGlass", 1.18, 0.6, 0.01, 0.08, wc * CFrame.new(0, 0, -0.025), P.screen)
 		K:box("PartitionWindowMullion", Vector3.new(0.04, 0.6, 0.02), wc * CFrame.new(0.05, 0, -0.035), P.hard)
 		K:box("PartitionWindowLatch", Vector3.new(0.05, 0.09, 0.025), wc * CFrame.new(0.12, 0, -0.04), P.satin)
+	end
+	if F.beltY and F.lotGlassZ then
+		-- 주차장 차: 허리선까지 꽉 찬 차체 블록의 윗면(차 색)이 유리로 비치지 않게 어두운 덮개
+		local z0, z1 = F.lotGlassZ[1], F.lotGlassZ[2]
+		K:box("LotBeltCover", Vector3.new(half * 2 - 0.04, 0.02, z1 - z0), CFrame.new(0, (F.beltY :: number) + 0.006, (z0 + z1) / 2), P.carpet)
 	end
 	return {}
 end
@@ -3879,6 +4479,11 @@ local function destroyCabin(rec: Rec)
 			e:SetAttribute("GwCabinV", nil)
 		end
 	end
+	for _, e in cab.lotGlass or {} do
+		if e[1].Parent then
+			e[1].Transparency, e[1].Reflectance = e[2], e[3]
+		end
+	end
 	cab.folder:Destroy()
 	if rec.model.Parent then
 		rec.model:SetAttribute("GwCabinParts", nil) -- 다시 만드는 동안 지난 파트 수가 남지 않게
@@ -3911,6 +4516,9 @@ local function buildCabin(rec: Rec)
 		folder:SetAttribute("GwSkinKeep", true) -- 임시 스튜디오: 실사 차체 스킨이 이 실내를 가리지 않게
 		folder.Parent = rec.model -- 먼저 넣어서 70개씩 나눠 들어감 (한 프레임에 몰리지 않게)
 		building_folder = folder
+		if F.synth then
+			F.base.Parent = folder -- 주차장 차: Fit 이 만든 기준 파트 (실내와 같이 사라짐)
+		end
 		-- 주차된(고정) 차는 용접 없이 고정 파트로: 가장 가볍고(물리 어셈블리를 건드리지 않음) 실제 로블록스에서도 싸요
 		local anchored = F.base.Anchored and not rec.moving
 		local K = Kit.new(F.base, folder, anchored)
@@ -3936,6 +4544,7 @@ local function buildCabin(rec: Rec)
 			fit = F,
 			base = F.base,
 			interior = F.interior,
+			ref = if F.synth then rec.base else F.base, -- 차가 바뀌었는지 볼 차체 파트 (주차장 차 = Body)
 			cockpit = cockpit,
 			lights = lights,
 			guiVis = {},
@@ -3952,14 +4561,23 @@ local function buildCabin(rec: Rec)
 			parts = #K.parts,
 		}
 		-- 바뀐 기존 실내 파트 숨기기 (지우지 않음, 이 클라이언트에서만) + 나중에 들어오는 파트도
-		for _, d in F.interior:GetDescendants() do
-			hideOld(cab, d)
-		end
-		table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
-			if cab.alive then
+		if F.interior then
+			for _, d in F.interior:GetDescendants() do
 				hideOld(cab, d)
 			end
-		end))
+			table.insert(cab.conns, F.interior.DescendantAdded:Connect(function(d)
+				if cab.alive then
+					hideOld(cab, d)
+				end
+			end))
+		end
+		-- 주차장 차: 불투명한 유리 상자를 실내가 있는 동안만 어두운 반투명 틴팅으로 (실내가 사라지면 원래대로)
+		cab.lotGlass = {}
+		for _, g in F.lotGlass or {} do
+			table.insert(cab.lotGlass, { g, g.Transparency, g.Reflectance })
+			g.Transparency = if g.Name == "Windshield" then 0.5 else 0.42
+			g.Reflectance = 0.2
+		end
 		rec.cabin = cab
 	end)
 	if not ok then
@@ -4049,7 +4667,7 @@ local function lodStep()
 			base = rec.base
 		end
 		local cab = rec.cabin
-		if cab and (cab.base ~= base or not cab.interior.Parent or cab.interior.Parent ~= m) then
+		if cab and (cab.ref ~= base or (cab.interior and (not cab.interior.Parent or cab.interior.Parent ~= m))) then
 			-- 탈 때 서버가 Interior 를 새로 복제했거나(Rig) 차체 파트가 바뀜: 다음 단계에 다시 만듦
 			destroyCabin(rec)
 			cab = nil

@@ -22,6 +22,11 @@ local function frameOf(model: Model): BasePart?
 	if c and c:IsA("BasePart") then
 		return c
 	end
+	-- 주차장 차(LotCar_*): 차체 블록 + 유리 상자만 있는 단순 차
+	local b = model:FindFirstChild("Body")
+	if b and b:IsA("BasePart") and model:FindFirstChild("CabinGlass") then
+		return b
+	end
 	return nil
 end
 Fit.frameOf = frameOf
@@ -34,6 +39,8 @@ local function avg(list: { Vector3 }): Vector3
 	return s / math.max(1, #list)
 end
 
+local synth: (Model) -> (any?, string?)
+
 function Fit.run(model: Model): (any?, string?)
 	local base = frameOf(model)
 	if not base then
@@ -41,7 +48,7 @@ function Fit.run(model: Model): (any?, string?)
 	end
 	local interior = model:FindFirstChild("Interior")
 	if not interior then
-		return nil, "no Interior"
+		return synth(model)
 	end
 	local U = base.CFrame
 	local by: { [string]: { BasePart } } = {}
@@ -403,6 +410,149 @@ function Fit.run(model: Model): (any?, string?)
 end
 
 -- 디버그용 요약 (스크립트 속성 Debug = true 일 때 차 모델의 GwCabinFit 속성으로)
+---------------------------------------------------------------------------------------------- 주차장 차
+-- LotCar_*: Interior 파트 없이 Body(허리선까지) · CabinGlass(유리 상자) · Roof · Windshield 만 있는 차.
+-- 같은 차종 대표 차(Templates)의 원래 Interior 파트를 이 차의 유리 상자에 맞춰 늘린 임시 모델을 만들어
+-- 보통 차와 똑같이 Fit.run 으로 읽음 -> 실내 만드는 코드는 그대로. 임시 모델은 바로 지우고 기준 파트만 남김.
+-- 트럭(Cab 블록이 지붕까지 막혀 있음)은 안이 보일 수 없어서 건너뜀.
+local function extents(U: CFrame, p: BasePart): (Vector3, Vector3)
+	-- U 축 기준 중심 + 반 크기 (파트가 U 와 다른 방향으로 놓여 있어도)
+	local lc = U:ToObjectSpace(p.CFrame)
+	local h = p.Size / 2
+	local function ax(v: Vector3): number
+		return math.abs(v.X) * h.X + math.abs(v.Y) * h.Y + math.abs(v.Z) * h.Z
+	end
+	local r, u, l = lc.RightVector, lc.UpVector, lc.LookVector
+	return lc.Position, Vector3.new(ax(Vector3.new(r.X, u.X, -l.X)), ax(Vector3.new(r.Y, u.Y, -l.Y)), ax(Vector3.new(r.Z, u.Z, -l.Z)))
+end
+
+synth = function(model: Model): (any?, string?)
+	local Templates = require(script.Parent:WaitForChild("Templates")) :: any
+	local kind = model:GetAttribute("VehicleKind")
+	local tp = Templates[kind]
+	local body, glass, roof, ws = model:FindFirstChild("Body"), model:FindFirstChild("CabinGlass"), model:FindFirstChild("Roof"), model:FindFirstChild("Windshield")
+	if not tp then
+		return nil, "no Interior (no template for " .. tostring(kind) .. ")"
+	end
+	if not (body and body:IsA("BasePart") and glass and glass:IsA("BasePart") and ws and ws:IsA("BasePart")) then
+		return nil, "no Interior (no Body/CabinGlass/Windshield)"
+	end
+	-- 기준 프레임: 차체 블록의 위 방향 + 긴 축, 앞유리 쪽이 -Z
+	local bc = body.CFrame
+	local up = bc.UpVector
+	local along = if body.Size.Z >= body.Size.X then bc.LookVector else bc.RightVector
+	local fwd = if (ws.Position - glass.Position):Dot(along) >= 0 then along else -along
+	local back = -fwd
+	local U = CFrame.fromMatrix(body.Position, up:Cross(back), up, back)
+	local bp, be = extents(U, body)
+	local gp, ge = extents(U, glass)
+	local sill = model:FindFirstChild("Sill")
+	local floorL = bp.Y - be.Y + 0.45
+	if sill and sill:IsA("BasePart") then
+		local sp, se = extents(U, sill)
+		floorL = sp.Y + se.Y
+	end
+	local roofL, roofRear = gp.Y + ge.Y, gp.Z + ge.Z
+	if roof and roof:IsA("BasePart") then
+		local rp, re = extents(U, roof)
+		roofL, roofRear = rp.Y - re.Y, rp.Z + re.Z
+	end
+	-- 앞유리 쐐기: 경사면이 앞 아래(-Z, -Y) -> 뒤 위(+Z, +Y)
+	local wlo = U:PointToObjectSpace((ws.CFrame * CFrame.new(0, -ws.Size.Y / 2, -ws.Size.Z / 2)).Position)
+	local whi = U:PointToObjectSpace((ws.CFrame * CFrame.new(0, ws.Size.Y / 2, ws.Size.Z / 2)).Position)
+	if wlo.Y > whi.Y then
+		wlo, whi = whi, wlo
+	end
+	local halfL = ge.X - 0.12
+	if roofL - floorL < 1.5 or halfL < 1 or whi.Z <= wlo.Z or roofRear <= whi.Z then
+		return nil, "no Interior (odd lot car shape)"
+	end
+	-- 기준 차 -> 이 차: X 는 폭 비율, Y 는 바닥~천장, Z 는 앞유리 아래 · 위 · 지붕 뒤 끝 세 점 사이를 이어 붙임
+	local sx = halfL / tp.half
+	local sy = (roofL - floorL) / (tp.roof - tp.floor)
+	local A = { { tp.wsLowZ, wlo.Z }, { tp.wsHighZ, whi.Z }, { tp.roofRearZ, roofRear } }
+	local function seg(z: number): (number, number)
+		local i = if z <= A[2][1] then 1 else 2
+		local a, b = A[i], A[i + 1]
+		local k = (b[2] - a[2]) / (b[1] - a[1])
+		return a[2] + (z - a[1]) * k, k
+	end
+	local proxy = Instance.new("Model")
+	proxy.Name = model.Name
+	proxy:SetAttribute("VehicleKind", kind)
+	local frame = Instance.new("Part")
+	frame.Name = "Underbody"
+	frame.Size = Vector3.new(0.2, 0.2, 0.2)
+	frame.Transparency = 1
+	frame.CanCollide, frame.CanQuery, frame.CanTouch = false, false, false
+	frame.CastShadow = false
+	frame.Anchored = true
+	frame.CFrame = U
+	frame.Parent = proxy
+	local int = Instance.new("Model")
+	int.Name = "Interior"
+	int.Parent = proxy
+	for _, e in tp.parts do
+		local c = e[5]
+		local pz, kz = seg(c[3])
+		local pos = Vector3.new(c[1] * sx, floorL + (c[2] - tp.floor) * sy, pz)
+		local k = Vector3.new(sx, sy, kz)
+		local cols = { Vector3.new(c[4], c[7], c[10]), Vector3.new(c[5], c[8], c[11]), Vector3.new(c[6], c[9], c[12]) }
+		local function sc(v: Vector3): number
+			return (v * k).Magnitude
+		end
+		local p = Instance.new("Part")
+		p.Name = e[1]
+		p.Size = Vector3.new(e[2] * sc(cols[1]), e[3] * sc(cols[2]), e[4] * sc(cols[3]))
+		p.CFrame = U * CFrame.new(pos.X, pos.Y, pos.Z, c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12])
+		p.Color = Color3.new(e[6], e[7], e[8])
+		if e[9] then
+			p.Material = Enum.Material.Fabric
+		end
+		p.Anchored = true
+		p.Parent = int
+	end
+	-- 앞유리: 실제 경사(아래 앞 -> 위 뒤)를 따라 놓인 얇은 판 (Fit 은 Z 축 양끝을 앞유리 아래 · 위 끝으로 읽음)
+	local wsp = Instance.new("Part")
+	wsp.Name = "Windshield"
+	wsp.Size = Vector3.new(halfL * 2, 0.05, (whi - wlo).Magnitude)
+	wsp.CFrame = U * CFrame.lookAt((wlo + whi) / 2, whi)
+	wsp.Anchored = true
+	wsp.Parent = proxy
+	local ok, F, why = pcall(function()
+		return Fit.run(proxy)
+	end)
+	frame.Parent = nil
+	proxy:Destroy()
+	if not ok then
+		frame:Destroy()
+		return nil, "lot fit: " .. tostring(F)
+	end
+	if not F then
+		frame:Destroy()
+		return nil, why
+	end
+	F.model, F.interior, F.synth = model, nil, true
+	frame.Name = "GwCabinFrame"
+	if not body.Anchored then
+		frame.Anchored = false
+		local wc = Instance.new("WeldConstraint")
+		wc.Part0, wc.Part1 = frame, body
+		wc.Parent = frame
+	end
+	F.base = frame
+	F.beltY = bp.Y + be.Y -- 차체 블록 윗면 (유리 아래 끝)
+	F.lotGlassZ = { gp.Z - ge.Z, gp.Z + ge.Z }
+	F.lotGlass = {}
+	for _, n in { "CabinGlass", "Windshield", "RearGlass" } do
+		local g = model:FindFirstChild(n)
+		if g and g:IsA("BasePart") then
+			table.insert(F.lotGlass, g)
+		end
+	end
+	return F, nil
+end
+
 function Fit.summary(F: any): string
 	local function v(p: Vector3?): string
 		return if p then string.format("(%.2f,%.2f,%.2f)", p.X, p.Y, p.Z) else "nil"

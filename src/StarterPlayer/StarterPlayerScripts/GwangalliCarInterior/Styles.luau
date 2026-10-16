@@ -378,6 +378,17 @@ local function byName(s: string?): string?
 	return nil
 end
 
+-- 가상 차종(쇼룸 '플래그십 세단' · '큐비 박스카' 등): 실내 구성은 같은 급의 실제 차, 엠블럼 · 브랜드 글자만 중립 브랜드
+local GENERIC: { [string]: any } = {}
+local function generic(key: string): any
+	local g = GENERIC[key]
+	if not g then
+		g = setmetatable({ brand = "generic" }, { __index = LIST[key] or LIST.sonata })
+		GENERIC[key] = g
+	end
+	return g
+end
+
 -- 반환: 스타일 표 (공유 표이므로 바꾸지 말 것)
 function Styles.resolve(model: Model, kind: string?): any
 	local forced = model:GetAttribute("InteriorStyle")
@@ -388,7 +399,15 @@ function Styles.resolve(model: Model, kind: string?): any
 	if kind == "taxi" or kind == "taxi_service" or kind == "police" then
 		return LIST.sonata_taxi
 	end
-	local key = byName(model:GetAttribute("CarModel") :: any) or byName(model.Name) or (kind and KIND[kind]) or "sonata"
+	local cm = model:GetAttribute("CarModel")
+	local key = byName(cm :: any) or byName(model.Name)
+	if key then
+		return LIST[key] or LIST.sonata
+	end
+	key = (kind and KIND[kind]) or "sonata"
+	if type(cm) == "string" and cm ~= "" then
+		return generic(key)
+	end
 	return LIST[key] or LIST.sonata
 end
 
