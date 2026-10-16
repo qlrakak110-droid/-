@@ -406,6 +406,13 @@ function M.debug(cmd: string): string
 	local op = w[1]
 	if op == "status" then
 		return M.status()
+	elseif op == "probe" then
+		local okP, pos = pcall(s.ctx.focus)
+		local nr = {}
+		for z, t in s.notReady do
+			table.insert(nr, string.format("%s@%.0f", z, os.clock() - t))
+		end
+		return string.format("hospital=%s bld=%s frameOk=%s building=%s focus=%s notReady=%s", tostring(s.Lib.hospital() ~= nil), tostring(s.Lib.building() ~= nil), tostring(s.frameOk), tostring(s.building), if okP then tostring(pos) else "err", table.concat(nr, ","))
 	elseif op == "zones" then
 		local t = {}
 		for z, K in s.zones do
