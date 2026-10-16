@@ -160,7 +160,7 @@ local function makeRoom(K: any, V: any): any
 	local bestL, bestR, bestB, bestF = -math.huge, math.huge, -math.huge, math.huge
 	local ok = pcall(function()
 		for _, d in V.model:GetDescendants() do
-			if d:IsA("BasePart") and d.Transparency < 0.8 then
+			if d:IsA("BasePart") and d.Transparency < 0.8 and not string.find(d.Name, "Step") and not string.find(d.Name, "Stair") then
 				local lc = A:ToObjectSpace(V.cf:ToObjectSpace(d.CFrame))
 				local mn, mx = Kit.laabb(lc, d.Size)
 				local h = mx.Y - mn.Y
@@ -168,7 +168,7 @@ local function makeRoom(K: any, V: any): any
 					local sx, sz = mx.X - mn.X, mx.Z - mn.Z
 					local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
 					local front = FRONTS[d.Name] == true
-					if sx <= 1.8 and not front then
+					if sx <= 1.25 and not front then
 						local ov = math.min(mx.Z, bz1) - math.max(mn.Z, bz0)
 						if ov >= 0.4 * (bz1 - bz0) then
 							if cx > bx0 - 2.5 and cx < bx0 + 2.0 and mx.X <= bx0 + 2.0 and mx.X > bestL then
@@ -178,7 +178,7 @@ local function makeRoom(K: any, V: any): any
 							end
 						end
 					end
-					if sz <= 1.8 then
+					if sz <= 1.25 or (front and sz <= 1.8) then
 						local ov = math.min(mx.X, bx1) - math.max(mn.X, bx0)
 						if not front and ov >= 0.4 * (bx1 - bx0) and cz > bz0 - 2.5 and cz < bz0 + 2.0 and mx.Z <= bz0 + 2.0 and mx.Z > bestB then
 							bestB = mx.Z
@@ -329,7 +329,6 @@ end
 local function stool(K: any, pcf: CFrame, top: number, seat: Color3?)
 	K:disc("StoolFoot", 1.1, 0.08, pcf * CF(0, 0.04, 0), Look.blackMetal)
 	K:vcyl("StoolPole", top - 0.3, 0.16, pcf * CF(0, (top - 0.3) / 2 + 0.06, 0), Look.chrome)
-	K:disc("StoolRing", 0.8, 0.06, pcf * CF(0, top * 0.38, 0), Look.chrome)
 	K:disc("StoolCushion", 1.2, 0.26, pcf * CF(0, top - 0.13, 0), lk(seat or rgb(196, 28, 40), M.Leather))
 end
 
@@ -353,11 +352,6 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, o: any)
 		txt(K, "PosterTag", w * 0.5, h * 0.07, dcf * CF(-w * 0.2, -h * 0.46, 0.04), o.tag, rgb(230, 230, 230), nil, F.Gotham)
 	end
 	K:plate("PosterAcrylic", w + 0.06, h + 0.06, 0.02, dcf * CF(0, 0, 0.05), gl(rgb(240, 244, 248), 0.9))
-	for _, sx in { -1, 1 } do
-		for _, sy in { -1, 1 } do
-			wdisc(K, "PosterPin", 0.1, 0.03, dcf * CF(sx * (w / 2 - 0.08), sy * (h / 2 - 0.08), 0.07), Look.chrome)
-		end
-	end
 end
 
 -- 안내문 (흰 판 + 색 머리띠 + 본문): dcf, w, h, title, body, head 색
@@ -419,7 +413,8 @@ end
 
 -- 카펫 무늬 (블랙라이트 우주 카펫): 정렬 프레임 (x0..x1, z0..z1) 격자에 별 · 행성 · 고리 · 지그재그. avoid = 함수(pmin, pmax)
 local CARPET_COLS = { rgb(255, 70, 170), rgb(60, 230, 255), rgb(255, 220, 60), rgb(120, 255, 120), rgb(170, 110, 255), rgb(255, 140, 50) }
-local function carpetPrint(K: any, R: any, x0: number, x1: number, z0: number, z1: number, step: number, seed: number)
+local function carpetPrint(K: any, R: any, x0: number, x1: number, z0: number, z1: number, step: number, seed: number, scale: number?)
+	local S = scale or 1
 	local V = R.V
 	local function covered(cx: number, cz: number, r: number): boolean
 		local c = R.A * V3(cx, 0.05, cz)
@@ -444,33 +439,33 @@ local function carpetPrint(K: any, R: any, x0: number, x1: number, z0: number, z
 			i += 1
 			local px = x + (rnd(seed, i) - 0.5) * step * 0.6
 			local pz = z + (rnd(seed + 7, i) - 0.5) * step * 0.6
-			if not covered(px, pz, 0.9) then
+			if not covered(px, pz, 0.9 * S) then
 				local col = CARPET_COLS[(i + seed) % #CARPET_COLS + 1]
 				local kind = math.floor(rnd(seed + 3, i) * 5)
 				local rot = rnd(seed + 11, i) * PI
-				local c = at(R, px, pz, rot, 0.012)
+				local c = at(R, px, pz, rot, 0.012) * CF(0, 0, 0)
 				K:free(function()
 					if kind == 0 then
 						-- 4각 별
-						K:box("CarpetStar", V3(1.1, 0.012, 0.16), c, lk(col, M.Fabric))
-						K:box("CarpetStar", V3(0.16, 0.012, 1.1), c, lk(col, M.Fabric))
+						K:box("CarpetStar", V3(1.1 * S, 0.012, 0.16 * S), c, lk(col, M.Fabric))
+						K:box("CarpetStar", V3(0.16 * S, 0.012, 1.1 * S), c, lk(col, M.Fabric))
 					elseif kind == 1 then
 						-- 행성 + 고리
-						K:disc("CarpetPlanet", 0.9, 0.012, c, lk(col, M.Fabric))
-						K:box("CarpetRing", V3(1.7, 0.014, 0.12), c * ANG(0, 0.5, 0), lk(CARPET_COLS[(i + seed + 2) % #CARPET_COLS + 1], M.Fabric))
+						K:disc("CarpetPlanet", 0.9 * S, 0.012, c, lk(col, M.Fabric))
+						K:box("CarpetRing", V3(1.7 * S, 0.014, 0.12 * S), c * ANG(0, 0.5, 0), lk(CARPET_COLS[(i + seed + 2) % #CARPET_COLS + 1], M.Fabric))
 					elseif kind == 2 then
 						-- 지그재그 번개
-						K:box("CarpetZig", V3(0.9, 0.012, 0.14), c * CF(-0.3, 0, 0) * ANG(0, 0.6, 0), lk(col, M.Fabric))
-						K:box("CarpetZig", V3(0.9, 0.012, 0.14), c * CF(0.3, 0, 0.1) * ANG(0, -0.6, 0), lk(col, M.Fabric))
+						K:box("CarpetZig", V3(0.9 * S, 0.012, 0.14 * S), c * CF(-0.3 * S, 0, 0) * ANG(0, 0.6, 0), lk(col, M.Fabric))
+						K:box("CarpetZig", V3(0.9 * S, 0.012, 0.14 * S), c * CF(0.3 * S, 0, 0.1 * S) * ANG(0, -0.6, 0), lk(col, M.Fabric))
 					elseif kind == 3 then
 						-- 동그라미 3개
 						for j = 0, 2 do
-							K:disc("CarpetDot", 0.32 - j * 0.06, 0.012, c * CF(j * 0.5 - 0.5, 0, (j % 2) * 0.35), lk(CARPET_COLS[(i + j) % #CARPET_COLS + 1], M.Fabric))
+							K:disc("CarpetDot", (0.32 - j * 0.06) * S, 0.012, c * CF((j * 0.5 - 0.5) * S, 0, (j % 2) * 0.35 * S), lk(CARPET_COLS[(i + j) % #CARPET_COLS + 1], M.Fabric))
 						end
 					else
 						-- 고리 (도넛)
-						K:disc("CarpetDonut", 0.8, 0.012, c, lk(col, M.Fabric))
-						K:disc("CarpetDonutHole", 0.42, 0.014, c, lk(rgb(26, 22, 58), M.Fabric))
+						K:disc("CarpetDonut", 0.8 * S, 0.012, c, lk(col, M.Fabric))
+						K:disc("CarpetDonutHole", 0.42 * S, 0.014, c, lk(rgb(26, 22, 58), M.Fabric))
 					end
 				end)
 			end
@@ -491,19 +486,14 @@ local function candy(K: any, pcf: CFrame, o: any): any
 	local out: any = {}
 	-- 하부 (코인 도어 · 발판)
 	K:box("CandyBase", V3(W, 2.3, 2.6), pcf * CF(0, 1.15, -0.3), lk(body))
-	K:box("CandyKick", V3(W - 0.1, 0.34, 0.06), pcf * CF(0, 0.17, 1.02), dark)
 	K:box("CandyDoor", V3(1.15, 1.05, 0.05), pcf * CF(0, 1.2, 1.02), Look.darkAlu)
 	for _, x in { -0.27, 0.27 } do
 		K:box("CandyCoinSlot", V3(0.08, 0.28, 0.03), pcf * CF(x, 1.47, 1.06), nl(rgb(255, 70, 40)))
-		if hi(K) then
-			K:box("CandyCoinReturn", V3(0.24, 0.12, 0.03), pcf * CF(x, 1.0, 1.06), Look.chrome)
-		end
 	end
 	txt(K, "CandyCoinLabel", 1.0, 0.18, pcf * CF(0, 1.66, 1.05), o.coin or "500원", WHITE, nil, F.GothamBold)
 	-- 조작 패널 (앞으로 기울어진 판 + 레버 · 버튼 6 + 스타트)
 	local pan = pcf * CF(0, 2.45, 0.75) * ANG(math.rad(12), 0, 0)
 	K:box("CandyPanel", V3(W + 0.04, 0.24, 1.3), pan, dark)
-	K:box("CandyPanelArt", V3(W - 0.1, 0.02, 1.1), pan * CF(0, 0.13, 0.02), lk(dk(acc, 0.35)))
 	if hi(K) then
 		K:box("CandyPanelEdge", V3(W + 0.06, 0.1, 0.08), pan * CF(0, 0, 0.66), Look.chrome)
 	end
@@ -525,9 +515,6 @@ local function candy(K: any, pcf: CFrame, o: any): any
 	local scr = K:plate("CandyScreen", W - 0.55, 1.75, 0.04, face * CF(0, 0.06, 0.05), scrL)
 	local _, lab = txt(K, "CandyScreenText", W - 0.7, 1.2, face * CF(0, 0.1, 0.1), o.screen or "INSERT COIN", WHITE, nil, F.Arcade, 1.4)
 	out.screen, out.label = scr, lab
-	if hi(K) then
-		K:plate("CandyGlass", W - 0.3, 1.95, 0.02, face * CF(0, 0.06, 0.14), gl(rgb(220, 230, 240), 0.86))
-	end
 	-- 마키 (위 간판)
 	local mq = pcf * CF(0, 5.45, -0.55)
 	K:box("CandyMarqueeBox", V3(W, 0.8, 1.7), mq, lk(body))
@@ -539,7 +526,6 @@ local function candy(K: any, pcf: CFrame, o: any): any
 	for _, sx in { -1, 1 } do
 		local x = sx * (W / 2 + 0.03)
 		K:box("CandySide", V3(0.06, 2.3, 2.6), pcf * CF(x, 1.15, -0.3), lk(acc))
-		K:box("CandySideUpper", V3(0.06, 3.2, 1.9), pcf * CF(x, 4.25, -0.75) * ANG(math.rad(-9), 0, 0), lk(body))
 		K:box("CandySideStripe", V3(0.07, 0.28, 2.8), pcf * CF(x, 3.7, -0.6) * ANG(math.rad(28), 0, 0), lk(acc))
 	end
 	if o.stool ~= false then
@@ -772,7 +758,6 @@ local function prizeMachine(K: any, pcf: CFrame, o: any, seed: number): any
 				local x = -0.78 + j * 0.78
 				K:box("PrizeBox", V3(0.62, 0.55, 0.45), pcf * CF(x, y + 0.31, 0.2), lk(p[2]))
 				txt(K, "PrizeBoxText", 0.58, 0.28, pcf * CF(x, y + 0.31, 0.43), p[1], if p[2].R + p[2].G + p[2].B > 1.8 then BLACK else WHITE, nil, F.GothamBold)
-				K:disc("PrizeKeyhole", 0.12, 0.02, pcf * CF(x, y + 0.04, 0.85) * ANG(PI / 2, 0, 0), Look.goldMetal)
 			end
 		end
 	end
@@ -815,7 +800,6 @@ local function gachaStack(K: any, pcf: CFrame, themes: { any }, seed: number): a
 		local knob = wdisc(K, "GachaKnob", 0.5, 0.08, hc, lk(rgb(240, 240, 240)))
 		local bar = K:plate("GachaHandle", 0.48, 0.1, 0.08, hc * CF(0, 0, 0.08), lk(rgb(220, 220, 224)))
 		table.insert(out.handles, { knob = knob, bar = bar, cf = K.cf * hc * CF(0, 0, 0.12) })
-		K:plate("GachaCoinSlot", 0.06, 0.2, 0.02, u * CF(0.42, 0.62, 0.81), lk(rgb(20, 20, 20)))
 		K:plate("GachaOut", 0.36, 0.3, 0.03, u * CF(0.42, 0.25, 0.81), lk(rgb(20, 20, 20)))
 		txt(K, "GachaPrice", 0.6, 0.18, u * CF(0.38, 0.84, 0.82), th[3], rgb(20, 20, 20), rgb(255, 230, 80), F.GothamBlack)
 	end
@@ -857,6 +841,74 @@ local function kiddieRide(K: any, pcf: CFrame, o: any): any
 	K:box("KiddieCoinSlot", V3(0.06, 0.22, 0.02), pcf * CF(0.75, 1.25, 2.36), nl(rgb(255, 60, 40)))
 	txt(K, "KiddiePrice", 0.62, 0.3, pcf * CF(0.75, 0.85, 2.36), o.price or "1,000원", rgb(30, 30, 30), nil, F.GothamBlack)
 	txt(K, "KiddieName", 1.6, 0.36, b * CF(0, 0.85, 1.72 + 0.03), o.name or "빵빵이", WHITE, nil, F.FredokaOne)
+	return out
+end
+
+-- 8b) 레이싱 2인 (나란히 앉는 시트형): 폭 6.4, 깊이 6.2 (화면 z -2.4..-0.2, 시트 1.4..3.6). 앞 = +Z (손님 쪽)
+local function racingTwin(K: any, pcf: CFrame, o: any): any
+	local out: any = {}
+	K:box("RaceTwinBase", V3(6.4, 0.3, 6.0), pcf * CF(0, 0.15, 0.6), lk(rgb(34, 34, 40), M.DiamondPlate))
+	for i, sx in { -1.6, 1.6 } do
+		local col = if i == 1 then rgb(220, 40, 40) else rgb(40, 120, 230)
+		local u = pcf * CF(sx, 0.3, 0)
+		K:box("RaceTwinCab", V3(3.0, 6.0, 2.2), u * CF(0, 3.0, -1.3), lk(rgb(26, 26, 30)))
+		local f = u * CF(0, 3.9, -0.18)
+		K:plate("RaceTwinBezel", 2.8, 2.0, 0.05, f, lk(rgb(10, 10, 12)))
+		local scr = K:plate("RaceTwinScreen", 2.55, 1.6, 0.04, f * CF(0, 0, 0.05), { c = rgb(30, 80, 150), m = M.Neon, t = 0.05 })
+		local _, lab = txt(K, "RaceTwinScreenText", 2.3, 1.1, f * CF(0, 0, 0.1), if i == 1 then "광안대교 코스\nLAP 1/3" else "해운대 야경\nREADY?", WHITE, nil, F.Oswald, 1.4)
+		if i == 1 then
+			out.screen, out.label = scr, lab
+		end
+		K:box("RaceTwinDash", V3(2.4, 2.1, 1.2), u * CF(0, 1.05, 0.2), lk(col))
+		K:cyl("RaceTwinWheel", 0.14, 1.3, u * CF(0, 2.45, 0.85) * ANG(math.rad(-25), 0, 0) * ANG(0, PI / 2, 0), lk(rgb(24, 24, 26), M.Rubber))
+		K:cyl("RaceTwinHub", 0.16, 0.35, u * CF(0, 2.45, 0.86) * ANG(math.rad(-25), 0, 0) * ANG(0, PI / 2, 0), lk(col))
+		for _, px in { -0.35, 0.35 } do
+			K:wedge("RaceTwinPedal", V3(0.35, 0.25, 0.5), u * CF(px, 0.15, 1.2) * ANG(0, PI, 0), Look.brushed)
+		end
+		-- 버킷 시트
+		local seat = u * CF(0, 0, 2.8)
+		K:box("RaceTwinSeatBase", V3(1.6, 1.1, 1.4), seat * CF(0, 0.55, 0), lk(rgb(30, 30, 34)))
+		K:ell("RaceTwinSeat", V3(1.7, 0.5, 1.6), seat * CF(0, 1.25, 0), lk(rgb(26, 26, 28), M.Leather))
+		K:box("RaceTwinBack", V3(1.6, 2.2, 0.35), seat * CF(0, 2.35, 0.75) * ANG(math.rad(-12), 0, 0), lk(rgb(26, 26, 28), M.Leather))
+		K:box("RaceTwinBackStripe", V3(0.4, 2.0, 0.37), seat * CF(0, 2.35, 0.75) * ANG(math.rad(-12), 0, 0), lk(col, M.Leather))
+		for _, bx in { -0.85, 0.85 } do
+			K:box("RaceTwinBolster", V3(0.3, 1.6, 0.9), seat * CF(bx, 2.0, 0.45) * ANG(0, -math.sign(bx) * 0.3, 0), lk(rgb(40, 40, 44), M.Leather))
+		end
+		K:box("RaceTwinSide", V3(0.08, 1.2, 4.0), u * CF(sx < 0 and -1.5 or 1.5, 0.6, 1.4), lk(col))
+		txt(K, "RaceTwinNo", 0.7, 0.4, u * CF(0, 1.6, 0.81), if i == 1 then "1P" else "2P", WHITE, nil, F.GothamBlack)
+	end
+	local mq = pcf * CF(0, 6.75, -0.4)
+	K:box("RaceTwinMarqueeBox", V3(6.4, 0.9, 1.0), mq * CF(0, 0, -0.3), lk(rgb(20, 20, 24)))
+	local mp = K:plate("RaceTwinMarquee", 6.2, 0.75, 0.05, mq * CF(0, 0, 0.21), nl(rgb(255, 200, 40)))
+	txt(K, "RaceTwinTitle", 5.8, 0.62, mq * CF(0, 0, 0.27), o.title or "BUSAN DRIFT 2 · 2인 대전", rgb(20, 20, 20), nil, F.Oswald, 1.3)
+	out.marquee = mp
+	txt(K, "RaceTwinPrice", 2.0, 0.3, pcf * CF(0, 2.2, 0.82), "1인 1,000원", rgb(255, 230, 120), rgb(20, 20, 24), F.GothamBold, 1.1)
+	return out
+end
+
+-- 8c) 망치 게임 (힘 겨루기): 폭 2.6, 깊이 3.2, 높이 9.4. 앞 = +Z
+local function hammerGame(K: any, pcf: CFrame, o: any): any
+	local out: any = { lamps = {} }
+	K:box("HammerBase", V3(2.6, 1.4, 2.6), pcf * CF(0, 0.7, 0.2), lk(rgb(200, 30, 36)))
+	K:cyl("HammerPad", 0.35, 1.5, pcf * CF(0, 1.55, 0.5) * ANG(0, 0, PI / 2), lk(rgb(30, 30, 30), M.Rubber))
+	K:cyl("HammerPadRing", 0.1, 1.7, pcf * CF(0, 1.42, 0.5) * ANG(0, 0, PI / 2), Look.chrome)
+	K:box("HammerTower", V3(1.7, 8.0, 0.7), pcf * CF(0, 5.4, -1.0), lk(rgb(240, 200, 30)))
+	K:box("HammerScaleBack", V3(1.2, 6.8, 0.05), pcf * CF(0, 5.4, -0.63), lk(rgb(20, 20, 24)))
+	for i = 1, 10 do
+		local c = hsv(0.33 - i * 0.033, 0.9, 1)
+		local lp = K:box("HammerLamp", V3(0.9, 0.42, 0.05), pcf * CF(0, 2.3 + i * 0.62, -0.6), nl(dk(c, 0.55)))
+		table.insert(out.lamps, { p = lp, c = c })
+	end
+	K:ball("HammerBell", 0.8, pcf * CF(0, 9.55, -1.0), Look.goldMetal)
+	local mq = pcf * CF(0, 8.9, -0.6)
+	K:plate("HammerMarquee", 2.2, 0.6, 0.05, mq, nl(rgb(255, 60, 60)))
+	txt(K, "HammerTitle", 2.0, 0.5, mq * CF(0, 0, 0.06), o.title or "망치왕", WHITE, nil, F.Bangers, 1.4)
+	-- 망치 (사슬로 묶여 받침에 기댐)
+	local hm = pcf * CF(1.05, 1.4, 1.2) * ANG(0, 0, math.rad(-62))
+	K:box("HammerHandle", V3(0.14, 1.8, 0.14), hm * CF(0, 0.9, 0), lk(rgb(200, 160, 100), M.Wood))
+	K:cyl("HammerHead", 0.8, 0.5, hm * CF(0, 1.85, 0) * ANG(0, PI / 2, 0), lk(rgb(220, 40, 40), M.Rubber))
+	K:box("HammerCoin", V3(0.08, 0.28, 0.03), pcf * CF(-0.8, 1.0, 1.51), nl(rgb(255, 70, 40)))
+	txt(K, "HammerPrice", 1.0, 0.26, pcf * CF(-0.3, 0.55, 1.51), "1회 500원", WHITE, rgb(30, 30, 30), F.GothamBold)
 	return out
 end
 
@@ -973,7 +1025,6 @@ local function clawOverlay(K: any, R: any, g: any, idx: number): { BasePart }
 		table.insert(leds, tl)
 		-- 안쪽 거울 (뒷면) + 안쪽 조명 띠
 		K:box("ClawMirror", V3(hw * 2 - 0.4, glassTop - cabTop - 0.7, 0.04), mf * CF(0, (cabTop + glassTop) / 2 + 0.2, -hd + 0.18), Look.mirror)
-		K:box("ClawInnerLight", V3(hw * 2 - 0.5, 0.06, 0.12), mf * CF(0, glassTop - 0.12, hd - 0.35), nl(rgb(255, 250, 240)))
 		-- 상품 출구 테 (문 바깥 0.03, 문은 그대로 보이게)
 		if door then
 			local dc = acen(R, door)
@@ -997,9 +1048,6 @@ local function clawOverlay(K: any, R: any, g: any, idx: number): { BasePart }
 		end
 		-- 요금 스티커 (유리 아래 모서리)
 		txt(K, "ClawPriceSticker", 1.3, 0.34, mf * CF(-hw + 0.8, cabTop + 0.28, hd + 0.06), "1회 1,000원\n5,000원 6회", rgb(30, 20, 20), rgb(255, 230, 60), F.GothamBlack)
-		if hi(K) then
-			txt(K, "ClawNotice", 1.0, 0.24, mf * CF(hw - 0.62, cabTop + 0.22, hd + 0.06), "집게 힘 조절 X\n정품 인형", rgb(255, 255, 255), rgb(200, 30, 90), F.GothamBold)
-		end
 	end)
 	return leds
 end
@@ -1040,7 +1088,6 @@ local function retroOverlay(K: any, R: any, g: any, i: number)
 		K:box("RetroCoinDoor", V3(1.5, 1.3, 0.05), mf * CF(0, 1.35, dz), Look.darkAlu)
 		for _, x in { -0.35, 0.35 } do
 			K:box("RetroCoinSlot", V3(0.08, 0.3, 0.03), mf * CF(x, 1.6, dz + 0.04), nl(rgb(255, 60, 40)))
-			K:box("RetroCoinReturn", V3(0.26, 0.12, 0.03), mf * CF(x, 1.1, dz + 0.04), Look.chrome)
 		end
 		txt(K, "RetroCoinLabel", 1.3, 0.2, mf * CF(0, 1.88, dz + 0.04), "500원 · 1 CREDIT", WHITE, nil, F.GothamBold)
 		-- T몰딩 (앞 모서리 세로 2)
@@ -1318,7 +1365,7 @@ local function hallShell(K: any, R: any)
 		ceilSpeaker(K, R, p[1], p[2])
 	end
 	for _, x in { -25, -11, 3, 17, 31 } do
-		for _, z in { 32.5, 20.5, 8.5, -3.5, -15.5, -27.5 } do
+		for _, z in { 32.5, 14.5, -3.5, -21.5 } do
 			if not (x == 3 and (z == 20.5 or z == -15.5)) then
 				sprinkler(K, R, x + 1.6, z)
 			end
@@ -1529,8 +1576,12 @@ local function hallMachines(K: any, R: any): any
 	made.mole = footprint(R, -16.4, -8.1, 0, 3.1, 6.6, 2.3, 1.4, 0, function(p)
 		return moleGame(K, p, {})
 	end)
-	made.gun2 = footprint(R, -10.0, -8.2, 0, 5.4, 7.4, 2.7, 1.8, 0, function(p)
-		return gunCabinet(K, p, { title = "DEEP SEA SHOOTER", screen = "광안 앞바다\n상어 출현!", accent = rgb(60, 160, 255) })
+	made.hammer = footprint(R, -11.2, -9.0, 0, 2.7, 9.9, 1.4, 1.6, 0, function(p)
+		return hammerGame(K, p, {})
+	end)
+	-- 레이싱 2인 · 망치 (뒤쪽 가운데, 앞 = +z 입구 쪽)
+	made.race2 = footprint(R, 13.0, -18.2, 0, 6.5, 7.8, 2.45, 3.75, 0, function(p)
+		return racingTwin(K, p, {})
 	end)
 	-- BEAT 존: 댄스 (뒷벽 레이싱과 댄스비트 사이)
 	made.dance = footprint(R, 5.9, R.z0 + 2.7, 0, 7.3, 8.6, 2.65, 5.7, 0, function(p)
@@ -1877,7 +1928,7 @@ local function buildHall(K: any, V: any, S: any)
 		end
 	end)
 	-- 카펫 무늬 (기계 자리 빼고)
-	pcall(carpetPrint, K, R, R.x0 + 0.4, R.x1 - 0.4, R.z0 + 0.4, R.z1 - 2.8, if lowD(K) then 10 else 7.4, 17)
+	pcall(carpetPrint, K, R, R.x0 + 0.4, R.x1 - 0.4, R.z0 + 0.4, R.z1 - 2.8, if lowD(K) then 11 else 8.6, 17, 1.7)
 	pcall(hallInteract, K, R, made, clawLeds)
 end
 
@@ -2118,21 +2169,21 @@ local function buildPhoto(K: any, V: any, S: any)
 		stool(K, at(R, R.x1 - 1.7, sz, 0), 2.2, rgb(255, 170, 200))
 	end
 	local cartZ = math.min(R.z1 - 1.1, vz1 + 1.3)
-	local cartOK = place(R, at(R, R.x1 - 0.85, cartZ, -PI / 2), V3(1.9, 3.2, 1.3), 0, "cart")
+	local cartOK = place(R, at(R, R.x1 - 0.85, cartZ, -PI / 2), V3(1.9, 3.1, 1.3), 0, "cart")
 	if cartOK then
 		K:free(function()
 			local p = at(R, R.x1 - 0.85, cartZ, -PI / 2)
-			for j, y in { 0.7, 1.8, 2.9 } do
+			for j, y in { 0.6, 1.6 } do
 				K:box("PropCartShelf", V3(1.8, 0.08, 1.2), p * CF(0, y, 0), lk(rgb(255, 255, 255)))
 				K:box("PropBasket", V3(1.6, 0.4, 1.0), p * CF(0, y + 0.24, 0), lk(({ rgb(255, 200, 220), rgb(200, 230, 255), rgb(255, 240, 180) })[j], M.Fabric))
 			end
 			for _, sx in { -0.85, 0.85 } do
 				for _, sz2 in { -0.55, 0.55 } do
-					K:box("PropCartPost", V3(0.06, 3.0, 0.06), p * CF(sx, 1.55, sz2), Look.chrome)
+					K:box("PropCartPost", V3(0.06, 2.0, 0.06), p * CF(sx, 1.0, sz2), Look.chrome)
 				end
 			end
 			-- 바구니 속 소품: 토끼 머리띠 · 하트 안경 · 왕관 · 미니 모자
-			local b3 = p * CF(0, 3.3, 0)
+			local b3 = p * CF(0, 2.0, 0)
 			for _, sx in { -0.5, -0.2 } do
 				K:ell("PropBunnyEar", V3(0.16, 0.6, 0.08), b3 * CF(sx, 0.3, -0.2) * ANG(0, 0, sx * 0.3), lk(rgb(255, 255, 255)))
 			end
@@ -2140,13 +2191,13 @@ local function buildPhoto(K: any, V: any, S: any)
 			for _, sx in { 0.25, 0.55 } do
 				K:ell("PropHeartGlass", V3(0.24, 0.2, 0.05), b3 * CF(sx, 0.12, 0.2) * ANG(0, 0, PI / 4), lk(rgb(255, 60, 120)))
 			end
-			K:box("PropCrown", V3(0.4, 0.22, 0.4), p * CF(0.4, 2.3, -0.1), Look.goldMetal)
+			K:box("PropCrown", V3(0.4, 0.22, 0.4), p * CF(0.4, 1.0, -0.1), Look.goldMetal)
 			for j = 0, 2 do
-				K:wedge("PropCrownTip", V3(0.06, 0.18, 0.12), p * CF(0.25 + j * 0.15, 2.5, 0.1), Look.goldMetal)
+				K:wedge("PropCrownTip", V3(0.06, 0.18, 0.12), p * CF(0.25 + j * 0.15, 1.2, 0.1), Look.goldMetal)
 			end
-			K:vcyl("PropHat", 0.3, 0.45, p * CF(-0.4, 2.28, 0.1), lk(rgb(40, 40, 46)))
-			K:disc("PropHatBrim", 0.7, 0.04, p * CF(-0.4, 2.14, 0.1), lk(rgb(40, 40, 46)))
-			txt(K, "PropCartSign", 1.6, 0.4, p * CF(0, 3.9, 0.62), "소품 무료 대여\n사용 후 제자리에 ♥", rgb(255, 80, 140), rgb(255, 255, 255), F.GothamBold)
+			K:vcyl("PropHat", 0.3, 0.45, p * CF(-0.4, 0.98, 0.1), lk(rgb(40, 40, 46)))
+			K:disc("PropHatBrim", 0.7, 0.04, p * CF(-0.4, 0.84, 0.1), lk(rgb(40, 40, 46)))
+			txt(K, "PropCartSign", 1.6, 0.4, p * CF(0, 2.75, 0.0), "소품 무료 대여\n사용 후 제자리에 ♥", rgb(255, 80, 140), rgb(255, 255, 255), F.GothamBold)
 		end)
 	end
 	-- 뒷벽 위 (카운터 뒤): 샘플 사진 벽 · 로고 네온 · 가격판 (얇은 판, 알바생 머리 위)
@@ -2362,23 +2413,23 @@ local function buildLobby(K: any, V: any, S: any)
 		local fy = top.mx.Y
 		K:free(function()
 			local d = wallB(R, R.cx, fy, 0.02)
-			K:plate("FireDoorFrame", 3.4, 4.9, 0.12, d * CF(0, 2.45, 0), lk(rgb(90, 92, 96), M.Metal))
-			K:plate("FireDoor", 3.0, 4.7, 0.16, d * CF(0, 2.35, 0), lk(rgb(150, 152, 156), M.Metal))
-			K:plate("FireDoorVision", 0.4, 1.2, 0.18, d * CF(0.8, 3.4, 0), gl(rgb(200, 220, 230), 0.5))
-			K:plate("FireDoorBar", 2.4, 0.18, 0.3, d * CF(0, 2.1, 0), Look.chrome)
-			K:plate("FireDoorCloser", 0.8, 0.22, 0.25, d * CF(0.9, 4.55, 0), lk(rgb(60, 60, 64)))
-			txt(K, "FireDoorLabel", 1.6, 0.36, d * CF(0, 4.05, 0.17), "방화문 · 항상 닫아 두세요", rgb(255, 255, 255), rgb(200, 30, 30), F.GothamBold)
-			local _, lab = txt(K, "FloorSign", 2.6, 1.0, d * CF(0, 2.9, 0.17), "▲ 2F 보드게임카페 주사위\n▲ 3F 방탈출 미스터리룸", rgb(30, 30, 30), rgb(255, 230, 80), F.GothamBlack)
+			K:plate("FireDoorFrame", 3.4, 4.5, 0.12, d * CF(0, 2.25, 0), lk(rgb(90, 92, 96), M.Metal))
+			K:plate("FireDoor", 3.0, 4.3, 0.16, d * CF(0, 2.15, 0), lk(rgb(150, 152, 156), M.Metal))
+			K:plate("FireDoorVision", 0.4, 1.1, 0.18, d * CF(0.8, 3.2, 0), gl(rgb(200, 220, 230), 0.5))
+			K:plate("FireDoorBar", 2.4, 0.18, 0.3, d * CF(0, 2.0, 0), Look.chrome)
+			K:plate("FireDoorCloser", 0.8, 0.22, 0.25, d * CF(0.9, 4.15, 0), lk(rgb(60, 60, 64)))
+			txt(K, "FireDoorLabel", 1.6, 0.34, d * CF(0, 3.75, 0.17), "방화문 · 항상 닫아 두세요", rgb(255, 255, 255), rgb(200, 30, 30), F.GothamBold)
+			local _, lab = txt(K, "FloorSign", 2.6, 1.0, d * CF(0, 2.75, 0.17), "▲ 2F 보드게임카페 주사위\n▲ 3F 방탈출 미스터리룸", rgb(30, 30, 30), rgb(255, 230, 80), F.GothamBlack)
 			doorSign = lab
 			-- 비상구 유도등
-			local ex = d * CF(0, 5.25, 0.03)
-			K:plate("ExitSignBox", 1.6, 0.6, 0.15, ex, lk(rgb(240, 240, 240)))
-			K:plate("ExitSignFace", 1.5, 0.5, 0.02, ex * CF(0, 0, 0.15), nl(rgb(0, 190, 90)))
-			txt(K, "ExitSignText", 1.4, 0.4, ex * CF(0, 0, 0.18), "🏃 비상구 EXIT", WHITE, nil, F.GothamBlack, 1.3)
+			local ex = d * CF(0, 4.78, 0.03)
+			K:plate("ExitSignBox", 1.5, 0.5, 0.15, ex, lk(rgb(240, 240, 240)))
+			K:plate("ExitSignFace", 1.4, 0.42, 0.02, ex * CF(0, 0, 0.15), nl(rgb(0, 190, 90)))
+			txt(K, "ExitSignText", 1.3, 0.34, ex * CF(0, 0, 0.18), "비상구 EXIT", WHITE, nil, F.GothamBlack, 1.3)
 		end)
 	end
 	if doorSign then
-		local frames = { "▲ 2F 보드게임카페 주사위\n▲ 3F 방탈출 미스터리룸", "보드게임카페 주사위\nOPEN 13:00 ~ 02:00", "방탈출 미스터리룸\n예약제 · 현장 대기 가능", "공사 중이 아닙니다!\n곧 문을 엽니다 🙏" }
+		local frames = { "▲ 2F 보드게임카페 주사위\n▲ 3F 방탈출 미스터리룸", "보드게임카페 주사위\nOPEN 13:00 ~ 02:00", "방탈출 미스터리룸\n예약제 · 현장 대기 가능", "공사 중이 아닙니다!\n곧 문을 엽니다!" }
 		local lab = doorSign
 		Interact.anim(K, function(t: number)
 			local i = math.floor(t / 4) % #frames + 1
@@ -2431,7 +2482,23 @@ local function buildLobby(K: any, V: any, S: any)
 		txt(K, "StairCaution", 2.2, 0.5, wallL(R, R.z1 - 5.6, 4.4, 0.02), "⚠ 계단 조심 · 뛰지 마세요", rgb(30, 30, 30), rgb(255, 210, 40), F.GothamBlack)
 		K:disc("LobbyCCTVBase", 0.6, 0.06, at(R, R.x1 - 0.7, R.z1 - 1.2, 0, ceilLow - 0.03), Look.white)
 		K:ell("LobbyCCTV", V3(0.5, 0.5, 0.5), at(R, R.x1 - 0.7, R.z1 - 1.2, 0, ceilLow - 0.06), gl(rgb(40, 46, 52), 0.15))
-		-- 현관 매트
+		-- 우편함 (입주 업체) · 분전반 문 (왼벽)
+		local mb = wallL(R, R.z1 - 7.6, 4.6, 0.02)
+		K:plate("MailboxFrame", 3.0, 2.0, 0.5, mb, Look.brushed)
+		local names = { "101 게임랜드", "102 찰칵", "201 주사위", "202", "301 미스터리", "302", "401", "관리실" }
+		for i, nm in names do
+			local cx = -1.08 + ((i - 1) % 4) * 0.72
+			local cy = 0.45 - ((i - 1) // 4) * 0.9
+			K:plate("MailboxDoor", 0.66, 0.82, 0.52, mb * CF(cx, cy, 0), lk(rgb(200, 202, 206), M.Metal))
+			K:plate("MailboxSlot", 0.44, 0.05, 0.53, mb * CF(cx, cy + 0.26, 0), lk(rgb(40, 40, 44)))
+			txt(K, "MailboxLabel", 0.6, 0.16, mb * CF(cx, cy - 0.1, 0.54), nm, rgb(30, 30, 30), rgb(250, 250, 246), F.GothamBold)
+		end
+		local ep = wallL(R, R.z1 - 10.4, 3.4, 0.02)
+		K:plate("PanelDoor", 1.6, 3.2, 0.12, ep, lk(rgb(176, 178, 180), M.Metal))
+		K:plate("PanelDoorHandle", 0.1, 0.4, 0.2, ep * CF(0.6, 0, 0), Look.chrome)
+		txt(K, "PanelDoorLabel", 1.2, 0.4, ep * CF(0, 1.1, 0.13), "⚡ 분전반 · 관계자 외 금지", rgb(30, 30, 30), rgb(255, 210, 40), F.GothamBold)
+		-- 현관 매트 + 계단까지 고무 러너
+		K:box("LobbyRunner", V3(3.4, 0.03, (R.z1 - 2.8) - (steps[1] and steps[1].mx.Z or 2) - 0.3), at(R, R.cx, ((R.z1 - 2.8) + (steps[1] and steps[1].mx.Z or 2) + 0.3) / 2, 0, 0.015), lk(rgb(60, 30, 40), M.Fabric))
 		K:box("LobbyMat", V3(5.6, 0.04, 2.4), at(R, R.cx, R.z1 - 1.5, 0, 0.02), lk(rgb(40, 40, 44), M.Fabric))
 		K:box("LobbyMatEdge", V3(5.8, 0.035, 2.5), at(R, R.cx, R.z1 - 1.5, 0, 0.0175), Look.rubber)
 	end)

@@ -542,10 +542,8 @@ local function trackHead(D: any, p: Vector3, t: Vector3, look: any?): BasePart
 	local joint = p - V3(0, 0.38, 0)
 	D.seg("TrackStem", p - V3(0, 0.12, 0), joint, 0.07, Lk)
 	local hcf = CFrame.lookAt(joint, t)
-	D.ball("TrackJoint", 0.16, CF(joint), Lk)
-	D.cyl("TrackHead", 0.62, 0.36, hcf * CF(0, 0, -0.16) * ANG(0, PI / 2, 0), Lk)
+	D.cyl("TrackHead", 0.66, 0.36, hcf * CF(0, 0, -0.14) * ANG(0, PI / 2, 0), Lk)
 	D.cyl("TrackRing", 0.06, 0.4, hcf * CF(0, 0, -0.46) * ANG(0, PI / 2, 0), lk(C(60, 60, 64), M.Metal))
-	D.cyl("TrackFins", 0.2, 0.3, hcf * CF(0, 0, 0.22) * ANG(0, PI / 2, 0), lk(C(40, 40, 44), M.Metal))
 	local lens = D.box("TrackLens", V3(0.26, 0.26, 0.02), hcf * CF(0, 0, -0.48), Look.lampWarm)
 	return lens
 end
@@ -664,6 +662,19 @@ end
 local function caster(D: any, cf: CFrame, d: number)
 	D.box("CasterFork", V3(0.12, d * 0.7, d * 0.5), cf * CF(0, d * 0.65, 0), lk(C(70, 70, 74), M.Metal))
 	D.cyl("CasterWheel", d * 0.45, d, cf * CF(0, d / 2, 0), L.rubber)
+end
+
+-- 가벼운 라운지 · 상담 의자 (썰매 다리 + 쿠션 좌판 + 등받이, 9 파트). pcf 정면 = 앉은 사람이 보는 쪽
+local function chairLite(D: any, pcf: CFrame, top: number, seat: any, frame: any)
+	local w, d = 1.55, 1.5
+	for _, sx in { -1, 1 } do
+		D.bar("ChairSled", (pcf * CF(sx * 0.62, 0.04, -0.6)).Position, (pcf * CF(sx * 0.62, 0.04, 0.62)).Position, 0.08, 0.08, frame)
+		D.bar("ChairSledPost", (pcf * CF(sx * 0.62, 0.04, 0.6)).Position, (pcf * CF(sx * 0.6, top - 0.25, 0.45)).Position, 0.07, 0.07, frame)
+		D.bar("ChairSledPost", (pcf * CF(sx * 0.62, 0.04, -0.58)).Position, (pcf * CF(sx * 0.6, top + 1.4, -0.66)).Position, 0.07, 0.07, frame)
+	end
+	D.box("ChairSeatPad", V3(w, 0.24, d), pcf * CF(0, top - 0.12, 0.02), seat)
+	D.box("ChairSeatShell", V3(w - 0.1, 0.06, d - 0.1), pcf * CF(0, top - 0.27, 0.02), frame)
+	D.box("ChairBackPad", V3(w - 0.05, 1.05, 0.2), pcf * CF(0, top + 0.95, -0.68) * ANG(math.rad(10), 0, 0), seat)
 end
 
 -- 화면 순환 (글자 + 배경색 같이): frames = { { text, bg } }
@@ -1114,12 +1125,12 @@ local function buildShowroom(K: any, V: any)
 	end)
 	step(K, "ceilingFixtures", function()
 		-- 스프링클러 (9 스터드 격자, 막히면 건너뜀)
-		local nx = math.floor((RB.x1 - RB.x0) / 9)
-		local nz = math.floor((RB.z1 - RB.z0) / 9)
+		local nx = math.floor((RB.x1 - RB.x0) / 11)
+		local nz = math.floor((RB.z1 - RB.z0) / 11)
 		for i = 0, nx do
 			for j = 0, nz do
-				local x = RB.x0 + 3.2 + i * 9
-				local z = RB.z0 + 3.0 + j * 9
+				local x = RB.x0 + 3.2 + i * 11
+				local z = RB.z0 + 3.0 + j * 11
 				if x < RB.x1 - 1 and z < RB.z1 - 1 and ceilFree(x - 0.3, x + 0.3, z - 0.3, z + 0.3) then
 					sprinkler(D, x, yC, z)
 				end
@@ -1330,13 +1341,35 @@ local function buildShowroom(K: any, V: any)
 				end)
 			end
 			-- 데스크 위 '구매 상담' 간판 (벽)
-			D.label("SalesHeader", 9.0, 0.95, D.wall("back", -22.2, 9.5, 0.03), "구매 상담 · 렌트 · 할부 · 내 차 팔기", NAVY, nil, { d = 0.02, font = Enum.Font.GothamBlack })
-			D.plate("SalesHeaderLine", 9.0, 0.06, 0.05, D.wall("back", -22.2, 8.9, 0.03), L.orangeNeon)
+			D.plate("SalesHeaderBand", 10.0, 1.2, 0.06, D.wall("back", -22.2, 9.4, 0.0), L.navyMatte)
+			D.label("SalesHeader", 9.2, 0.8, D.wall("back", -22.2, 9.45, 0.06), "구매 상담 · 렌트 · 할부 · 내 차 팔기", WHITE, nil, { d = 0.01, font = Enum.Font.GothamBlack })
+			D.plate("SalesHeaderLine", 10.0, 0.06, 0.08, D.wall("back", -22.2, 8.85, 0.0), L.orangeNeon)
 		end
 	end)
 
 	-- 4.7 고객 라운지: 소파 · 테이블 · 정수기 (맵 자리 정확히) + 커피 스테이션 · 음료 냉장고 · 잡지꽂이 · 펜던트 ---------------------------------
 	step(K, "lounge", function()
+		-- 라운지 뒤 벽: 원목 루버 (TV · 소파 뒤, 화장실 문 앞까지)
+		do
+			local lx0, lx1 = 8.6, 30.2
+			local door = nil
+			for _, r in G.byName.DoorCasing or {} do
+				if r.c.Z < RB.z0 + 1 then
+					door = r
+				end
+			end
+			if door then
+				lx1 = math.min(lx1, door.min.X - 0.4)
+			end
+			local lm = (lx0 + lx1) / 2
+			D.plate("LoungeLouverBack", lx1 - lx0, yC - 0.55, 0.03, D.wall("back", lm, (0.45 + yC - 0.1) / 2, 0.004), lk(C(40, 36, 32)))
+			local pitch = if hi then 0.45 else 0.7
+			local n = math.floor((lx1 - lx0) / pitch)
+			for i = 0, n - 1 do
+				D.plate("LoungeLouverSlat", pitch * 0.55, yC - 0.6, 0.14, D.wall("back", lx0 + pitch * (i + 0.5), (0.45 + yC - 0.1) / 2, 0.03), Look.oak)
+			end
+			D.plate("LoungeLouverCap", lx1 - lx0, 0.12, 0.2, D.wall("back", lm, 0.5, 0.0), L.black)
+		end
 		local sofa = G.byName.Sofa and G.byName.Sofa[1]
 		local sback = G.byName.SofaBack and G.byName.SofaBack[1]
 		if sofa then
@@ -1419,7 +1452,7 @@ local function buildShowroom(K: any, V: any)
 			if sofa and wp then
 				x = (sofa.max.X + wp.min.X) / 2
 			end
-			local p = D.wallPf("back", x, 0.9)
+			local p = D.wallPf("back", x, 0.9) * CF(0, 0, 0.22)
 			if spot(G, p, V3(1.7, 3.0, 0.9), 0, "magRack") then
 				propGroup(G, "magRack", V3(x - 0.9, 0, RB.z0), V3(x + 0.9, 3, RB.z0 + 0.9), function()
 					for _, sx in { -1, 1 } do
@@ -1567,7 +1600,7 @@ local function buildShowroom(K: any, V: any)
 				D.plate("TVBezel", w + 0.24, 0.12, 0.26, D.wall("back", cx, cy + s * (h / 2 + 0.06), 0.0), L.black)
 				D.plate("TVBezel", 0.12, h, 0.26, D.wall("back", cx + s * (w / 2 + 0.06), cy, 0.0), L.black)
 			end
-			D.rbox("Soundbar", V3(4.6, 0.32, 0.4), 0.12, CF(cx, cy - h / 2 - 0.5, RB.z0 + 0.25), L.black)
+			D.rbox("Soundbar", V3(4.6, 0.32, 0.4), 0.12, CF(cx, cy - h / 2 - 0.5, RB.z0 + 0.42), L.black)
 		end
 	end)
 
@@ -1587,7 +1620,7 @@ local function buildShowroom(K: any, V: any)
 						local rad = math.rad(a)
 						local cx, cz = tx + math.sin(rad) * 2.15, tz + math.cos(rad) * 2.15
 						local cp = V3(cx, y0, cz)
-						Props.chair(K, G.B * CFrame.lookAt(cp, cp + V3(math.sin(rad), 0, math.cos(rad))), { style = "padded", seatTop = 1.95, w = 1.6, d = 1.55, backH = 1.8, frame = L.darkAlu, seat = if k == 1 then lk(C(214, 206, 192), M.Leather) else lk(C(120, 122, 128), M.Fabric) })
+						chairLite(D, CFrame.lookAt(cp, cp + V3(math.sin(rad), 0, math.cos(rad))), 1.95, if k == 1 then lk(C(214, 206, 192), M.Leather) else lk(C(120, 122, 128), M.Fabric), L.darkAlu)
 					end
 					-- 테이블 위: 태블릿 · 카탈로그 · 펜
 					local tp = p * CF(-0.35, th, 0.2) * ANG(0, math.rad(20), 0)
@@ -1750,7 +1783,9 @@ local function buildShowroom(K: any, V: any)
 		local lbp = D.label("LightboxFace", 3.4, 4.8, c2 * CF(0, 0, 0.3), "할부 OK\n\n선수금 30%\n10일 분할\n\n렌트 큐비 하루\n20,000원", WHITE, C(200, 70, 28), { d = 0.02, glow = 1.15, font = Enum.Font.GothamBlack })
 		local _ = lbp
 		-- 위쪽 대형 그래픽 띠
-		D.label("LeftWallGraphic", 26, 1.4, D.wall("left", -2.0, 11.2, 0.03), "SINCE 2008  ·  광안리 바닷가 옆 믿을 수 있는 자동차 매장", C(60, 66, 80), nil, { d = 0.02, font = Enum.Font.GothamBold })
+		D.plate("LeftWallBand", 22, 1.2, 0.05, D.wall("left", -2.0, 11.2, 0.0), L.navyMatte)
+		D.plate("LeftWallBandLine", 22, 0.06, 0.06, D.wall("left", -2.0, 10.5, 0.0), L.orangeNeon)
+		D.label("LeftWallGraphic", 20, 0.8, D.wall("left", -2.0, 11.2, 0.05), "SINCE 2008  ·  광안리 바닷가 옆 믿을 수 있는 자동차 매장", C(236, 236, 230), nil, { d = 0.01, font = Enum.Font.GothamBold })
 		-- 소화전 위 비상벨 · 스위치 옆 안내 (맵 스위치 피함)
 		Props.fireBell(K, G.B * D.wall("left", 17.6, 4.6, 0.0))
 		-- 용품 쇼케이스 (왼쪽 벽 앞쪽)
@@ -1810,7 +1845,7 @@ local function buildShowroom(K: any, V: any)
 				local y = 6.6 - j * 2.9
 				local dcf = D.wall("right", z, y, 0.0)
 				D.plate("WheelBracket", 0.3, 0.3, 0.5, dcf, L.darkAlu)
-				tyre(D, dcf * CF(0, 0, 0.55) * ANG(0, PI / 2, 0), 2.3, { rim = true, w = 0.8, spokes = if (i + j) % 2 == 0 then 5 else 10, rimLook = if j == 0 then L.rim else lk(C(40, 42, 46), M.Metal, { r = 0.1 }) })
+				tyre(D, dcf * CF(0, 0, 0.55) * ANG(0, PI / 2, 0), 2.3, { rim = true, w = 0.8, spokes = if (i + j) % 2 == 0 then 5 else 6, rimLook = if j == 0 then L.rim else lk(C(40, 42, 46), M.Metal, { r = 0.1 }) })
 				D.label("WheelTag", 1.4, 0.36, dcf * CF(0, -1.35, 0.06), ({ "18인치 · 189,000", "19인치 · 249,000", "17인치 · 139,000", "20인치 · 329,000" })[i * 2 + j + 1], INK, C(250, 250, 246), { d = 0.01 })
 			end
 		end
@@ -1826,8 +1861,10 @@ local function buildShowroom(K: any, V: any)
 			local e = cat[k] or CATALOG_FALLBACK[k]
 			table.insert(items, { e.label or k, "신차 " .. fmtWon(e.new or 0) .. " / 중고 " .. fmtWon(e.used or 0) })
 		end
-		Props.menuBoard(K, G.B * D.wall("right", 9.6, 5.6, 0.0), 6.4, 4.4, "차량 가격표 (원)", items, { cols = 1, bg = C(250, 250, 246), fg = INK, accent = NAVY, glow = 1.0, frame = L.alu, rowH = 0.55 })
-		D.label("RightWallGraphic", 24, 1.4, D.wall("right", -1.0, 11.2, 0.03), "신차 · 중고차 · 렌트 · 정비 · 세차  ONE STOP", C(60, 66, 80), nil, { d = 0.02, font = Enum.Font.GothamBold })
+		Props.menuBoard(K, G.B * D.wall("right", 9.6, 5.6, 0.0), 6.4, 4.4, "차량 가격표 (원)", items, { cols = 1, bg = C(250, 250, 246), fg = INK, accent = NAVY, glow = false, frame = L.alu, rowH = 0.55 })
+		D.plate("RightWallBand", 22, 1.2, 0.05, D.wall("right", -1.0, 11.2, 0.0), L.navyMatte)
+		D.plate("RightWallBandLine", 22, 0.06, 0.06, D.wall("right", -1.0, 10.5, 0.0), L.orangeNeon)
+		D.label("RightWallGraphic", 20, 0.8, D.wall("right", -1.0, 11.2, 0.05), "신차 · 중고차 · 렌트 · 정비 · 세차  ONE STOP", C(236, 236, 230), nil, { d = 0.01, font = Enum.Font.GothamBold })
 		-- 키즈존 (앞쪽 오른쪽 구석, 창가)
 		local kx0, kx1, kz0, kz1 = 27.6, RB.x1 - 0.3, 18.75, RB.z1 - 0.35
 		local kp = pf((kx0 + kx1) / 2, y0, (kz0 + kz1) / 2, 180)
@@ -1890,7 +1927,7 @@ local function buildShowroom(K: any, V: any)
 							local kind = t.kind or "sedan"
 							local e = cat[kind] or CATALOG_FALLBACK[kind] or CATALOG_FALLBACK.sedan
 							propGroup(G, "spec", V3(sx - 0.5, 0, sz - 0.4), V3(sx + 0.5, 3.6, sz + 0.4), function()
-								D.slab("SpecBase", 0.85, 0.6, 0.06, 0.12, p * CF(0, 0.03, 0), L.darkAlu)
+								D.box("SpecBase", V3(0.85, 0.06, 0.6), p * CF(0, 0.03, 0), L.darkAlu)
 								D.box("SpecPole", V3(0.12, 3.0, 0.12), p * CF(0, 1.56, -0.05), L.alu)
 								local sc = p * CF(0, 3.25, 0.02) * ANG(math.rad(-22), 0, 0)
 								D.box("SpecTablet", V3(1.15, 0.82, 0.06), sc, L.black)

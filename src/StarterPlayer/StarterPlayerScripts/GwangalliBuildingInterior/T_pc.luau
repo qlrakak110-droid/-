@@ -2132,18 +2132,31 @@ local function hallCeiling(K: any, V: any)
 	K:free(function()
 		local y1 = H - 0.25
 		local y0 = y1 - 1.25
+		-- 존 색 (앞 = 일반석 · 가운데 = FPS · 뒤 = 프리미엄)
+		local function zc(z: number): Color3
+			if #crossZ >= 2 and z < crossZ[1] then
+				return C.magenta
+			elseif #crossZ >= 2 and z < crossZ[#crossZ] then
+				return C.purple
+			end
+			return C.cyan
+		end
 		for bi, z in bays do
 			for _, xr in { { xA0, xA1 }, { xB0, xB1 } } do
 				local len = xr[2] - xr[1]
 				if len > 2 then
 					local cx = (xr[1] + xr[2]) / 2
-					K:box("CeilBaffle", V3(len, y1 - y0, 0.22), CF(cx, (y0 + y1) / 2, z), lk(if bi % 2 == 0 then rgb(30, 31, 36) else rgb(40, 41, 47), M.Fabric))
-					local led = K:box("CeilBaffleLED", V3(len - 0.1, 0.04, 0.08), CF(cx, y0 - 0.02, z), neon(C.cyan))
-					table.insert(P.rgb, { p = led, c = C.cyan, x = cx, z = z, baffle = true })
+					K:box("CeilBaffle", V3(len, y1 - y0, 0.22), CF(cx, (y0 + y1) / 2, z), lk(if bi % 2 == 0 then rgb(46, 47, 54) else rgb(58, 60, 68), M.Fabric))
+					K:box("CeilBaffleCap", V3(len + 0.02, 0.05, 0.26), CF(cx, y0 + 0.02, z), Look.blackMetal)
 					if not lowD(K) then
 						for _, sx in { -0.35, 0.35 } do
 							K:seg("BaffleWire", V3(cx + sx * len, y1, z), V3(cx + sx * len, H, z), 0.03, Look.blackMetal)
 						end
+					end
+					if bi % 2 == 1 then
+						local c = dk(zc(z), 0.35)
+						local led = K:box("CeilBaffleLED", V3(len - 0.1, 0.04, 0.06), CF(cx, y0 - 0.02, z), neon(c))
+						table.insert(P.rgb, { p = led, c = c, x = cx, z = z, baffle = true })
 					end
 				end
 			end

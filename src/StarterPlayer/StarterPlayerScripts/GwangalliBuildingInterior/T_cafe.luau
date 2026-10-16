@@ -2424,9 +2424,8 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		if wn and pcf then
 			mark("roaster", pcf)
 			if room(K, 70) then
-				local R = roaster(K, pcf, B)
+				ctx.roaster = roaster(K, pcf, B)
 			end
-			ctx.roaster = R
 			if feat.sacks then
 				local wn2, pcf2 = floorFind(K, { wn, "left", "right" }, 2.3, 1.8, 2.0, uOf(V, wn, (pcf.Position.X), pcf.Position.Z) + 3.3, { pad = 0.03, behindOK = true })
 				if wn2 and pcf2 then
@@ -2914,7 +2913,7 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 		-- 페이스트리 (Pastry 상자 → 모양 + 가격표)
 		local k = 0
 		for _, pr in V.byName.Pastry or {} do
-			if pr.c.X >= cb.min.X - 0.1 and pr.c.X <= cb.max.X + 0.1 and pr.c.Z >= cb.min.Z - 0.4 and pr.c.Z <= cb.max.Z + 0.4 then
+			if pr.c.X >= cb.min.X - 0.1 and pr.c.X <= cb.max.X + 0.1 and pr.c.Z >= cb.min.Z - 0.4 and pr.c.Z <= cb.max.Z + 0.4 and room(K, 10) then
 				k += 1
 				local info = PASTRIES[(k + B.seed) % #PASTRIES + 1]
 				local pcf = facing(V3(pr.c.X, pr.min.Y, pr.c.Z), cn)
@@ -3153,6 +3152,9 @@ local function stepClaw(K: any, V: any, B: any, ctx: any)
 	ctx.clawLeds = {}
 	for _, b in V.byName.ClawBase or {} do
 		i += 1
+		if not room(K, 18) then
+			break
+		end
 		local face = V3(0, 0, 1)
 		local best = math.huge
 		for _, j in V.byName.Joystick or {} do
@@ -3723,7 +3725,7 @@ local function stepSpecial(K: any, V: any, B: any, ctx: any)
 		end)
 	end
 	-- 탕후루 쇼케이스 (냉장, 앞 유리) + 꼬치
-	if ctx.tangCase then
+	if ctx.tangCase and room(K, 170) then
 		local pcf: CFrame = ctx.tangCase
 		local w, d, h = 3.6, 2.2, 4.4
 		K:box("TangCaseBase", V3(w, 2.2, d), pcf * CF(0, 1.1, 0), lk(B.c1))
@@ -3763,7 +3765,7 @@ local function stepSpecial(K: any, V: any, B: any, ctx: any)
 		end
 	end
 	-- 베이커리 아일랜드 진열대
-	if ctx.island then
+	if ctx.island and room(K, 130) then
 		local pcf: CFrame = ctx.island
 		local w, d, h = 4.2, 2.4, 2.9
 		for _, sx in { -1, 1 } do

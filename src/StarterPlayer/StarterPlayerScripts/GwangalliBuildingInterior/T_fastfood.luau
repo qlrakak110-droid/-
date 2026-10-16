@@ -175,7 +175,7 @@ local CHICKEN_PAL = {
 	-- 화이트 · 레드 (깔끔한 프랜차이즈)
 	{ key = "red", wall = rgb(238, 234, 228), wall2 = rgb(200, 30, 38), accent = rgb(200, 30, 38), ink = rgb(30, 30, 30), gold = rgb(255, 210, 60), wood = L.lightOak, lowerL = L.white, floor = rgb(196, 194, 190), floorM = M.CeramicTiles, chair = "shell", seat = L.plywood, table = L.lightOak },
 	-- 블랙 · 골드 (프리미엄 치킨 & 펍)
-	{ key = "black", wall = rgb(46, 44, 42), wall2 = rgb(64, 60, 56), accent = rgb(212, 168, 74), ink = rgb(246, 236, 210), gold = rgb(228, 186, 90), wood = L.walnut, lowerL = L.darkWood, floor = rgb(84, 80, 76), floorM = M.Slate, chair = "padded", seat = L.leatherBlack, table = L.walnut },
+	{ key = "black", wall = rgb(92, 80, 70), wall2 = rgb(70, 62, 56), accent = rgb(212, 168, 74), ink = rgb(246, 236, 210), gold = rgb(228, 186, 90), wood = L.walnut, lowerL = L.darkWood, floor = rgb(84, 80, 76), floorM = M.Slate, chair = "padded", seat = L.leatherBlack, table = L.walnut },
 }
 local TONGDAK_PAL = { key = "tongdak", wall = rgb(246, 226, 168), wall2 = rgb(252, 244, 226), accent = rgb(196, 40, 30), ink = rgb(70, 40, 20), gold = rgb(250, 190, 40), wood = L.pine, lowerL = L.pine, floor = rgb(160, 120, 84), floorM = M.WoodPlanks, chair = "bentwood", seat = L.walnut, table = L.pine }
 
@@ -183,7 +183,7 @@ local BURGER_PAL = {
 	-- 아메리칸 다이너 (빨강 · 크림 · 체커)
 	{ key = "diner", wall = rgb(166, 30, 34), wall2 = rgb(246, 240, 226), accent = rgb(220, 36, 40), ink = rgb(24, 24, 26), gold = rgb(255, 196, 48), checker = true, tile = rgb(246, 246, 242), neonC = rgb(255, 70, 90), chair = "diner", seat = L.leatherRed, table = L.marbleWhite },
 	-- 인더스트리얼 (블랙 · 콘크리트 · 오렌지)
-	{ key = "industrial", wall = rgb(58, 58, 60), wall2 = rgb(150, 148, 144), accent = rgb(244, 120, 32), ink = rgb(240, 236, 228), gold = rgb(255, 170, 40), checker = false, tile = rgb(238, 238, 234), neonC = rgb(255, 150, 50), chair = "shell", seat = L.plywood, table = L.walnut },
+	{ key = "industrial", wall = rgb(112, 112, 114), wall2 = rgb(160, 158, 154), accent = rgb(244, 120, 32), ink = rgb(240, 236, 228), gold = rgb(255, 170, 40), checker = false, tile = rgb(238, 238, 234), neonC = rgb(255, 150, 50), chair = "shell", seat = L.plywood, table = L.walnut },
 	-- 브루클린 (벽돌 · 블랙 · 머스터드)
 	{ key = "brick", wall = rgb(150, 82, 62), wall2 = rgb(36, 36, 38), accent = rgb(236, 176, 40), ink = rgb(250, 244, 230), gold = rgb(236, 176, 40), checker = false, brick = true, tile = rgb(30, 30, 32), neonC = rgb(255, 200, 70), chair = "padded", seat = L.leatherBlack, table = L.oak },
 }
@@ -215,12 +215,12 @@ function T.style(V: any): any
 			stool = { style = "cushion", seat = L.leatherRed },
 			table = { top = P.table, base = L.blackMetal, thick = 0.16 },
 			counter = { front = "wood", frontL = P.wood, topL = L.of(60, 58, 56, M.Granite), led = rgb(255, 200, 140) },
-			ceiling = { grid = false, skin = if P.key == "black" then L.of(40, 40, 42) else L.of(244, 240, 232, M.Plaster) },
+			ceiling = { grid = false, skin = if P.key == "black" then L.of(120, 88, 60, M.WoodPlanks) else L.of(244, 240, 232, M.Plaster) },
 			lower = { kind = if P.key == "red" then "tile" else "louver", h = 3.3, look = if P.key == "red" then L.tileWhite else P.lowerL, back = L.charcoal, walls = { "left", "right", "back" }, tw = 0.8, th = 0.4 },
 			floor = { look = L.of(P.floor.R * 255, P.floor.G * 255, P.floor.B * 255, P.floorM), tile = if P.floorM == M.WoodPlanks then 0 else 2.0, grout = L.of(120, 116, 110) },
 			base = L.walnut,
 			pendant = { shade = "dome", look = L.with(L.blackMetal, { c = dark(P.accent, 0.2) }) },
-			lights = { kind = "downlight", n = 4, color = L.warmLight },
+			lights = { kind = "downlight", n = if P.key == "black" then 6 else 4, color = L.warmLight },
 			mat = { look = L.of(60, 40, 30, M.Fabric), text = "어서 오세요" },
 			plants = { "snake", "olive" },
 		}
@@ -248,7 +248,7 @@ function T.style(V: any): any
 			stool = { style = "bar", frame = L.chrome, seat = P.seat },
 			table = { top = P.table, base = if P.chair == "diner" then L.chrome else L.blackMetal, edge = if P.chair == "diner" then L.chrome else nil },
 			counter = { front = "tile", frontL = L.tileWhite, topL = L.of(36, 36, 38, M.Granite), led = rgb(255, 210, 160) },
-			ceiling = { grid = false, skin = if P.key == "diner" then L.of(244, 240, 230, M.Plaster) else L.of(34, 34, 36, M.Concrete) },
+			ceiling = { grid = false, skin = if P.key == "diner" then L.of(244, 240, 230, M.Plaster) else L.of(52, 52, 54, M.Concrete) },
 			lower = { kind = "tile", h = 3.6, look = L.of(P.tile.R * 255, P.tile.G * 255, P.tile.B * 255, M.CeramicTiles), grout = L.of(170, 168, 162), walls = { "left", "right", "back" }, tw = 0.66, th = 0.33 },
 			floor = if P.checker then false else { look = L.of(120, 118, 114, M.Slate), tile = 2.4, grout = L.of(90, 88, 86) },
 			base = L.black,
@@ -332,6 +332,14 @@ local function ctxNew(K: any, V: any, S: any): any
 		end
 	end
 	return ctx
+end
+
+-- 긴 자리 찾기 루프 중 프레임 양보 (Kit:tick 과 같은 시간 분할)
+local function yieldMaybe(K: any)
+	if K.sliceT and os.clock() - K.sliceT > (K.slice or 0.0025) then
+		task.wait()
+		K.sliceT = os.clock()
+	end
 end
 
 local function addNo(ctx: any, mn: Vector3, mx: Vector3)
@@ -432,6 +440,7 @@ local function floorSpot(ctx: any, o: any): (CFrame?, string?, number?)
 	end)
 	for pass = 1, (if o.prompt then 2 else 1) do
 		for _, c in cands do
+			yieldMaybe(K)
 			local pcf = V:wall(c.wn, c.u, 0, d / 2 + gap)
 			local mn, mx = laabb(pcf * CF(0, h / 2, 0), V3(w, h, d))
 			if wallBusy(K, c.wn, c.u - w / 2 - 0.05, c.u + w / 2 + 0.05, 0, h) or blockedBy(ctx, mn, mx) then
@@ -599,6 +608,7 @@ local function promptIntervals(ctx: any, walls: { string }): { any }
 		end
 		local run0: number? = nil
 		local u = wl.a + 0.3
+		yieldMaybe(K)
 		while u <= wl.b - 0.3 + 1e-6 do
 			local p = V:wall(wn, u, 3, 0.4).Position
 			local okp = Interact.canPrompt(K, p)
@@ -1701,6 +1711,12 @@ local function passDress(ctx: any, o: any)
 			end
 			local hw = w + 0.5
 			local hh = math.min(0.75, (V.H - topY) - 2.2)
+			-- 위쪽 메뉴 간판 (Sign_) 아래까지만
+			for _, sg in ctx.wallSigns do
+				if sg.min.Y > topY and sg.min.X < r.max.X + 2.2 and sg.max.X > r.min.X - 0.3 then
+					hh = math.min(hh, sg.min.Y - 0.1 - (topY + 0.12))
+				end
+			end
 			if hh > 0.3 then
 				local hc = face * CF(0, topY - r.c.Y + 0.12 + hh / 2, 0)
 				local hl = o.hoodLook or L.steel
@@ -2298,7 +2314,7 @@ local function chickenBuild(ctx: any)
 	if not ctx.gw then
 		local lh = if S.lower then S.lower.h else 0.45
 		upperPaint(ctx, { "left", "right" }, lh + 0.08, pl(P.wall, M.Plaster))
-		upperPaint(ctx, { "back" }, 0.45, pl(P.wall2, M.Plaster))
+		upperPaint(ctx, { "back" }, lh + 0.08, pl(P.wall2, M.Plaster))
 		wallBand(ctx, { "left", "right" }, V.H - 0.9, 0.22, 0.05, pl(P.accent))
 		if S.lower then
 			wallBand(ctx, { "left", "right", "back" }, S.lower.h + 0.04, 0.14, 0.16, if P.key == "red" then L.of(200, 30, 38) else L.darkWood)
