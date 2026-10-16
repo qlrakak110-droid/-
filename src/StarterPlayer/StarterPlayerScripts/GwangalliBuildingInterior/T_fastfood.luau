@@ -3285,7 +3285,7 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 	local rnd = ctx.rand
 	local hh = h or 0.7
 	K:box("FfTankBody", V3(w, hh, d), base * CF(0, hh / 2, 0), L.of(178, 176, 170, M.Metal, { r = 0.04 }))
-	K:box("FfTankBroth", V3(w - 0.1, 0.03, d - 0.1), base * CF(0, hh - 0.06, 0), { c = rgb(214, 170, 96), m = M.SmoothPlastic, r = 0.18 })
+	K:box("FfTankBroth", V3(w - 0.1, 0.03, d - 0.1), base * CF(0, hh - 0.06, 0), { c = rgb(196, 146, 74), m = M.SmoothPlastic, r = 0.04 })
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, d / 2), L.chrome)
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, -d / 2), L.chrome)
 	local nDiv = math.max(1, math.floor(w / 1.1))

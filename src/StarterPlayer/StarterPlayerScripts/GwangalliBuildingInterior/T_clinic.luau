@@ -5503,6 +5503,81 @@ BUILD.lounge = function(K: any, V: any)
 			end,
 		})
 	end)
+	-- 소파 뒤 화분 칸막이 + 보호자 작업 테이블 (가운데 빈 띠) --------------------------------------------------------------
+	step(K, "commons", function()
+		-- 소파 등받이 줄 (맵 Backrest) 바로 뒤에 낮은 화분 상자
+		for _, r in V.byName.Backrest or {} do
+			local w = math.max(r.size.X, r.size.Z)
+			if w > 4 then
+				local pc = CF(r.c.X, 0, r.min.Z - 0.85)
+				if K:spot(pc, V3(w - 0.4, 2.2, 1.3), 0) then
+					K:free(function()
+						K:box("PlanterBox", V3(w - 0.4, 1.9, 1.2), pc * CF(0, 0.95, 0), lk(150, 116, 80, M.Wood))
+						K:box("PlanterCap", V3(w - 0.3, 0.1, 1.3), pc * CF(0, 1.95, 0), lk(120, 92, 64, M.Wood))
+						K:box("PlanterSoil", V3(w - 0.6, 0.06, 1.0), pc * CF(0, 1.92, 0), lk(90, 66, 46, M.Ground))
+						local n = math.floor((w - 0.6) / 1.1)
+						for k = 0, n - 1 do
+							local x = -(n - 1) * 0.55 + k * 1.1
+							local hgt = 1.0 + ((k * 7) % 3) * 0.35
+							K:ell("PlanterLeaf", V3(1.2, hgt, 1.0), pc * CF(x, 1.9 + hgt / 2 - 0.1, (k % 2) * 0.15 - 0.07), lk(58 + (k % 3) * 14, 112 + (k % 2) * 18, 60, M.Grass))
+						end
+					end)
+				end
+			end
+		end
+		-- 공용 테이블 (콘센트 · 스탠드 · 노트북 · 신문)
+		local tc = CF(2.0, 0, -11.4)
+		if K:spot(tc, V3(9.4, 3.4, 3.6), 0) then
+			local tp = 3.0
+			K:free(function()
+				K:box("CommonTop", V3(9.0, 0.18, 3.2), tc * CF(0, tp - 0.09, 0), lk(196, 166, 126, M.Wood))
+				K:box("CommonEdge", V3(9.04, 0.06, 3.24), tc * CF(0, tp - 0.2, 0), lk(60, 64, 70, M.Metal))
+				for _, sx in { -3.4, 3.4 } do
+					K:box("CommonLeg", V3(0.25, tp - 0.25, 0.25), tc * CF(sx, (tp - 0.25) / 2, 0), lk(60, 64, 70, M.Metal))
+					K:box("CommonFoot", V3(0.3, 0.12, 2.6), tc * CF(sx, 0.06, 0), lk(60, 64, 70, M.Metal))
+				end
+				K:box("CommonRail", V3(6.8, 0.2, 0.2), tc * CF(0, 1.2, 0), lk(60, 64, 70, M.Metal))
+				-- 가운데 매립 콘센트 줄
+				K:box("CommonPowerBox", V3(2.4, 0.08, 0.5), tc * CF(0, tp + 0.04, 0), lk(230, 232, 232, M.Plastic))
+				for k = 0, 3 do
+					K:disc("CommonSocket", 0.22, 0.02, tc * CF(-0.9 + k * 0.6, tp + 0.09, 0), lk(60, 64, 70))
+				end
+				tx(K, "CommonPowerSign", 1.6, 0.35, tc * CF(0, tp + 0.3, 0) * ANG(0, 0, 0), "충전 · 노트북 사용 가능", TEAL_D, WHITE, { d = 0.01, font = FONT_M })
+				K:box("CommonPowerSignFoot", V3(1.6, 0.12, 0.2), tc * CF(0, tp + 0.06, -0.02), lk(250, 250, 248))
+				-- 스탠드 2
+				for _, sx in { -3.6, 3.6 } do
+					local lc = tc * CF(sx, tp, -0.9)
+					K:disc("LampFoot", 0.6, 0.06, lc * CF(0, 0.03, 0), LK.black)
+					K:seg("LampArm", (lc * CF(0, 0.05, 0)).Position, (lc * CF(0.1, 1.5, 0.4)).Position, 0.06, LK.black)
+					K:box("LampHead", V3(0.9, 0.12, 0.35), lc * CF(0.3, 1.5, 0.5) * ANG(0, 0, math.rad(-8)), LK.black)
+					K:box("LampGlow", V3(0.8, 0.02, 0.28), lc * CF(0.3, 1.43, 0.5), col(C3(255, 238, 210), M.Neon))
+				end
+				-- 노트북 (열림) · 종이컵 · 신문 · 보호자 수첩
+				local lp = tc * CF(-1.8, tp, 0.7) * ANG(0, PI, 0)
+				K:box("LaptopBase", V3(1.3, 0.06, 0.9), lp * CF(0, 0.03, 0), lk(190, 194, 198, M.Metal))
+				local scr = lp * CF(0, 0.45, -0.45) * ANG(math.rad(-12), 0, 0)
+				K:box("LaptopLid", V3(1.3, 0.85, 0.04), scr, lk(190, 194, 198, M.Metal))
+				tx(K, "LaptopScreen", 1.2, 0.75, scr * CF(0, 0, 0.025), "보험금 청구 서류\n입원확인서 · 영수증", C3(30, 40, 60), C3(236, 242, 250), { glow = 0.8, d = 0.005 })
+				K:vcyl("PaperCup", 0.4, 0.3, tc * CF(-0.6, tp + 0.2, 0.9), lk(250, 250, 248))
+				K:disc("PaperCupCoffee", 0.26, 0.02, tc * CF(-0.6, tp + 0.39, 0.9), lk(110, 70, 40))
+				K:box("Newspaper", V3(1.6, 0.04, 1.1), tc * CF(2.2, tp + 0.02, -0.5) * ANG(0, 0.25, 0), Look.paper)
+				tx(K, "NewspaperHead", 1.4, 0.25, tc * CF(2.2, tp + 0.045, -0.5) * ANG(0, 0.25, 0) * CF(0, 0, -0.35) * ANG(-PI / 2, 0, 0), "부산일보 · 2026.10.16", INK, nil, { d = 0.002, font = FONT_B })
+				K:box("Notebook", V3(0.7, 0.06, 0.95), tc * CF(1.0, tp + 0.03, 0.8) * ANG(0, -0.2, 0), col(C3(60, 110, 170)))
+			end)
+			for i, x in { -2.6, 2.0, -0.3, 4.3 } do
+				for _, side in { -1, 1 } do
+					if (i + (if side > 0 then 1 else 0)) % 2 == 0 or i <= 2 then
+						local cp = tc * CF(x, 0, side * 2.25) * (if side > 0 then ANG(0, PI, 0) else CF())
+						if K:spot(cp, V3(1.7, 3.8, 1.7), 0) then
+							K:free(function()
+								Props.chair(K, cp, { style = "shell", seatTop = 1.9, w = 1.6 })
+							end)
+						end
+					end
+				end
+			end
+		end
+	end)
 	-- 벽: 식단표 · 이용 안내 · 포스터 -------------------------------------------------------------------------------------
 	step(K, "walls", function()
 		local d = wallSpot(K, "right", 6.0, 3.6, 7.0, wallU("right", Vector3.new(0, 0, -3.0)), 0.6)
