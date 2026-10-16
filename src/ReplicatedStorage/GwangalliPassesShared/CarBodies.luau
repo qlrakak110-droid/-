@@ -351,6 +351,21 @@ function CarBodies.frameOf(model: Model): (CFrame, Vector3)
 			fwd = flat.Unit
 		end
 	end
+	-- snap to the body panel's own axes (lamps are not always symmetric)
+	local ref = model:FindFirstChild("BodySide", true) or model:FindFirstChild("Underbody", true)
+	if ref and ref:IsA("BasePart") then
+		local best, bestDot = fwd, -2
+		for _, axis in { ref.CFrame.LookVector, -ref.CFrame.LookVector, ref.CFrame.RightVector, -ref.CFrame.RightVector } do
+			local a = Vector3.new(axis.X, 0, axis.Z)
+			if a.Magnitude > 0.5 then
+				local dot = a.Unit:Dot(fwd)
+				if dot > bestDot then
+					best, bestDot = a.Unit, dot
+				end
+			end
+		end
+		fwd = best
+	end
 	local cf0 = CFrame.lookAt(Vector3.zero, fwd)
 	local minV = Vector3.new(math.huge, math.huge, math.huge)
 	local maxV = -minV
@@ -513,7 +528,7 @@ function CarBodies.kitOffroad(model: Model, car: any)
 	for _, t in tyres do
 		local l = frame:PointToObjectSpace(t.Position)
 		if l.Z > 0 then
-			kitPart(kit, frame, "MudFlap", Vector3.new(t.Size.X, 1.0, 0.08), l.X, 0.55 + lift * 0.5, l.Z + t.Size.Y / 2 + 0.25, Color3.fromRGB(20, 20, 20), Enum.Material.Rubber)
+			kitPart(kit, frame, "MudFlap", Vector3.new(t.Size.X, 0.9, 0.08), l.X, 1.35 + lift * 0.4, l.Z + t.Size.Y / 2 + 0.25, Color3.fromRGB(20, 20, 20), Enum.Material.Rubber)
 		end
 	end
 end

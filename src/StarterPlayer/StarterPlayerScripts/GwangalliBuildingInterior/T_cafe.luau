@@ -801,7 +801,7 @@ function T.style(V: any): any
 		S.counter = { front = "panel", frontL = lk(B.c1), topL = Look.white, kickL = Look.black, led = rgb(255, 240, 200) }
 		S.floor = { look = lk(rgb(200, 200, 198), M.CeramicTiles), tile = 2.0, grout = lk(rgb(162, 162, 160)) }
 		S.lower = { kind = "tile", h = 3.2, look = Look.tileWhite, grout = lk(rgb(206, 204, 200)), walls = { "left", "right" } }
-		S.pendant = { shade = "drum", look = lk(B.c1, M.Metal) }
+		S.pendant = { shade = "drum", look = lk(B.c1, M.Metal), dia = 1.15 }
 		S.lights = { kind = "downlight", color = Look.neutralLight }
 		S.base = Look.black
 	elseif k == "twosome" then
@@ -4532,9 +4532,39 @@ local function brandMural(K: any, V: any, B: any, wn: string, u: number, w: numb
 	useWall(K, wn, u - w / 2 - 0.2, u + w / 2 + 0.2, y0 - 0.1, y1 + 0.1)
 end
 
+-- 스타벅스: 계산대 뒤 맵 GreenTileWall (거의 검은 초록) -> 같은 자리 광택 그린 서브웨이 타일 + 줄눈 + 황동 몰딩
+local function starbucksTiles(K: any, V: any)
+	for _, r in V.byName.GreenTileWall or {} do
+		local u0, d0 = V:wallCoord("back", r.min)
+		local u1, d1 = V:wallCoord("back", r.max)
+		if math.max(d0, d1) < 1.0 and room(K, 70) then
+			local a, b = math.min(u0, u1), math.max(u0, u1)
+			local face = math.max(d0, d1)
+			local y0, y1 = r.min.Y, r.max.Y
+			K:free(function()
+				local c = V:wall("back", (a + b) / 2, (y0 + y1) / 2, face - 0.02)
+				K:plate("GreenTile", b - a, y1 - y0, 0.03, c, lk(rgb(30, 96, 76), M.SmoothPlastic, { r = 0.12 }))
+				local rows = math.floor((y1 - y0) / 0.55)
+				for i = 1, rows do
+					K:plate("GreenTileGrout", b - a, 0.03, 0.035, c * CF(0, -(y1 - y0) / 2 + i * 0.55, 0), lk(rgb(150, 170, 160)))
+				end
+				local cols = math.floor((b - a) / 1.1)
+				for i = 1, cols do
+					K:plate("GreenTileGrout", 0.03, y1 - y0, 0.035, c * CF(-(b - a) / 2 + i * 1.1, 0, 0), lk(rgb(150, 170, 160)))
+				end
+				K:plate("GreenTileCap", b - a + 0.1, 0.12, 0.08, c * CF(0, (y1 - y0) / 2 - 0.06, 0), Look.brass)
+			end)
+			Scan.hide(K.hidden, r.part)
+		end
+	end
+end
+
 local function stepFill(K: any, V: any, B: any, ctx: any)
 	if B.key == "claw" then
 		return
+	end
+	if B.key == "starbucks" then
+		starbucksTiles(K, V)
 	end
 	local maxN = if V.W * V.D > 900 then 9 elseif V.W * V.D > 450 then 6 else 4
 	if K.detail == "low" then
