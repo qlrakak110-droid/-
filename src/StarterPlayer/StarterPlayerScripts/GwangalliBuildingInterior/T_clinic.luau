@@ -487,6 +487,252 @@ local function refit(V: any): any
 end
 T._refit = refit
 
+-- 천장: 맵 T-bar 격자(4.08) 를 반으로 나눠 600각 텍스 + 2x2 LED 평판등 ------------------------------------------
+local function tbarGrid(V: any): ({ number }, { number })
+	local gx, gz = {}, {}
+	local seenX, seenZ = {}, {}
+	local root = V.model
+	for _, d in root:GetDescendants() do
+		if d.Name == "TBar" and d:IsA("BasePart") then
+			local l = V.cf:ToObjectSpace(d.CFrame)
+			if math.abs(l.Y - V.H) < 0.8 then
+				local s = d.Size
+				local long = if s.X >= s.Z then l.XVector else l.ZVector
+				if math.abs(long.Z) > 0.95 then
+					local k = math.floor(l.X * 4 + 0.5)
+					if l.X > V.x0 - 4.5 and l.X < V.x1 + 4.5 and not seenX[k] then
+						seenX[k] = true
+						table.insert(gx, l.X)
+					end
+				elseif math.abs(long.X) > 0.95 then
+					local k = math.floor(l.Z * 4 + 0.5)
+					if l.Z > V.z0 - 4.5 and l.Z < V.z1 + 4.5 and not seenZ[k] then
+						seenZ[k] = true
+						table.insert(gz, l.Z)
+					end
+				end
+			end
+		end
+	end
+	table.sort(gx)
+	table.sort(gz)
+	return gx, gz
+end
+
+-- 반 격자 선 (맵 선 + 가운데 선, 방 안쪽만)
+local function halfLines(lines: { number }, a: number, b: number, pitch: number): ({ number }, { number })
+	local all, mids = {}, {}
+	if #lines < 2 then
+		local n = math.floor((b - a) / pitch)
+		for i = 0, n do
+			table.insert(all, a + i * pitch)
+		end
+		return all, all
+	end
+	local step = lines[2] - lines[1]
+	local first = lines[1]
+	while first - step / 2 > a do
+		first -= step
+	end
+	local x = first
+	while x < b + step do
+		for _, v in { x, x + step / 2 } do
+			if v > a + 0.15 and v < b - 0.15 then
+				table.insert(all, v)
+				if v ~= x then
+					table.insert(mids, v)
+				end
+			end
+		end
+		x += step
+	end
+	table.sort(all)
+	return all, mids
+end
+
+-- 천장 마감. o.skin (텍스 look), o.every (평판등 간격 칸 수, 기본 3), o.lights (붙일 불빛 수), o.bright, o.range,
+-- o.avoid = { {x0,z0,x1,z1} } 평판등을 피할 xz 구간, o.hideMap (맵 LightPanel 숨김, 기본 true)
+local function ceilingKit(K: any, V: any, o: any?)
+	local oo: any = o or {}
+	local H = V.H
+	if oo.hideMap ~= false then
+		hideNames(K, { "LightPanel" })
+	end
+	local gx, gz = tbarGrid(V)
+	local xs, mx = halfLines(gx, V.x0, V.x1, 2.04)
+	local zs, mz = halfLines(gz, V.z0, V.z1, 2.04)
+	local barL = lk(206, 206, 202, M.Metal)
+	K:free(function()
+		K:box("CeilingSkin", V3(V.W - 0.04, 0.02, V.D - 0.04), CF(0, H - 0.018, 0), oo.skin or lk(238, 237, 232, M.Plaster))
+		for _, x in mx do
+			K:box("CeilingTBar", V3(0.18, 0.08, V.D - 0.08), CF(x, H - 0.05, 0), barL)
+		end
+		for _, z in mz do
+			K:box("CeilingTBar", V3(V.W - 0.08, 0.08, 0.18), CF(0, H - 0.05, z), barL)
+		end
+	end)
+	-- 평판등 칸
+	local every = oo.every or 3
+	local cells = {}
+	for i = 1, #xs - 1 do
+		for j = 1, #zs - 1 do
+			if (i % every == 2 % every) and (j % every == 2 % every) then
+				local x0, x1, z0, z1 = xs[i], xs[i + 1], zs[j], zs[j + 1]
+				if x1 - x0 > 1.6 and x1 - x0 < 2.6 and z1 - z0 > 1.6 and z1 - z0 < 2.6 then
+					table.insert(cells, { (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0 })
+				end
+			end
+		end
+	end
+	local placed = {}
+	for _, c in cells do
+		local x, z = c[1], c[2]
+		local skip = false
+		for _, a in oo.avoid or {} do
+			if x > a[1] and x < a[3] and z > a[2] and z < a[4] then
+				skip = true
+			end
+		end
+		if not skip and x > V.x0 + 1 and x < V.x1 - 1 and z > V.z0 + 1 and z < V.z1 - 1 and Common.ceilFree(K, x, z, 1.1) then
+			table.insert(placed, c)
+			Common.useCeil(K, x, z)
+		end
+	end
+	-- 불빛 고르기: 고르게 퍼지게 (멀리 떨어진 순)
+	local nL = math.min(oo.lights or 4, math.max(0, (V.maxLights or 8) - #K.lights - (oo.reserve or 2)))
+	local lit = {}
+	if nL > 0 and #placed > 0 then
+		local chosen = {}
+		local cx, cz = 0, 0
+		table.insert(chosen, placed[math.max(1, math.floor(#placed / 2))])
+		while #chosen < math.min(nL, #placed) do
+			local best, bd = nil, -1
+			for _, c in placed do
+				local dmin = math.huge
+				for _, q in chosen do
+					dmin = math.min(dmin, (c[1] - q[1]) ^ 2 + (c[2] - q[2]) ^ 2)
+				end
+				if dmin > bd then
+					best, bd = c, dmin
+				end
+			end
+			if not best or bd <= 0 then
+				break
+			end
+			table.insert(chosen, best)
+		end
+		for _, q in chosen do
+			lit[q] = true
+		end
+		_ = cx + cz
+	end
+	local glow = col(C3(244, 248, 255), M.Neon)
+	K:free(function()
+		for _, c in placed do
+			local x, z, w, d = c[1], c[2], c[3] - 0.1, c[4] - 0.1
+			K:box("PanelLightFrame", V3(w, 0.06, d), CF(x, H - 0.06, z), lk(238, 238, 236))
+			local p = K:box("PanelLight", V3(w - 0.22, 0.03, d - 0.22), CF(x, H - 0.1, z), glow)
+			if lit[c] then
+				K:light(p, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = oo.range or 18, Brightness = oo.bright or 0.85, Angle = 120, Color = C3(240, 246, 255) })
+			end
+		end
+	end)
+	note(K, string.format("ceiling panels=%d lit=%d grid=%dx%d", #placed, #K.lights, #gx, #gz))
+	return placed
+end
+
+-- 바닥 오버레이: o.look, o.tile (줄눈 간격, 0 = 없음), o.grout, o.plank (마루형: 줄 방향 x, 이음 엇갈림)
+local function floorKit(K: any, V: any, o: any?)
+	local oo: any = o or {}
+	local L = oo.look or lk(214, 210, 202, M.SmoothPlastic)
+	local grout = oo.grout or lk(176, 172, 166)
+	local t = oo.tile or 2.04
+	K:free(function()
+		K:box("FloorSkin", V3(V.W - 0.02, 0.02, V.D - 0.02), CF(0, 0.012, 0), L)
+		if t > 0 then
+			if oo.plank then
+				-- 데코타일 마루: 폭 t 줄 (z 방향 줄눈) + 길이 이음 (x 방향, 줄마다 엇갈림 2개만)
+				local z = V.z0 + t
+				local row = 0
+				while z < V.z1 - 0.1 do
+					K:box("FloorGrout", V3(V.W - 0.04, 0.022, 0.03), CF(0, 0.014, z), grout)
+					z += t
+					row += 1
+				end
+			else
+				local x = V.x0 + ((oo.ox or 0) % t)
+				if x <= V.x0 + 0.05 then
+					x += t
+				end
+				while x < V.x1 - 0.05 do
+					K:box("FloorGrout", V3(0.035, 0.022, V.D - 0.04), CF(x, 0.014, 0), grout)
+					x += t
+				end
+				local z = V.z0 + ((oo.oz or 0) % t)
+				if z <= V.z0 + 0.05 then
+					z += t
+				end
+				while z < V.z1 - 0.05 do
+					K:box("FloorGrout", V3(V.W - 0.04, 0.022, 0.035), CF(0, 0.014, z), grout)
+					z += t
+				end
+			end
+		end
+	end)
+end
+
+-- 걸레받이 (벽 이름 목록)
+local function baseKit(K: any, V: any, walls: { string }, look: any?)
+	for _, w in walls do
+		K:free(function()
+			Props.baseboard(K, w, look or lk(120, 128, 132, M.SmoothPlastic), 0.45)
+		end)
+	end
+end
+
+-- 안전 손잡이 (벽에 붙은 둥근 레일 + 까치발): wall, u0..u1, 높이 y
+local function handrail(K: any, wn: string, u0: number, u1: number, y: number?, o: any?)
+	local V = K.V
+	local yy = y or 2.9
+	local oo: any = o or {}
+	local railL = oo.look or lk(214, 200, 168, M.Wood)
+	local brL = oo.bracket or LK.alu
+	local len = u1 - u0
+	if len < 1.5 then
+		return
+	end
+	K:free(function()
+		local a = V:wall(wn, u0, yy, 0.42)
+		local b = V:wall(wn, u1, yy, 0.42)
+		K:seg("Handrail", a.Position, b.Position, 0.32, railL)
+		-- 끝 (벽으로 꺾임)
+		for _, e in { { u0, 1 }, { u1, -1 } } do
+			local p = V:wall(wn, e[1], yy, 0.42).Position
+			local q = V:wall(wn, e[1], yy, 0.05).Position
+			K:seg("HandrailEnd", p, q, 0.3, railL)
+			K:ball("HandrailEndCap", 0.32, CF(p), railL)
+		end
+		local n = math.max(1, math.floor(len / 4.2))
+		for i = 0, n do
+			local u = u0 + 0.6 + (len - 1.2) * i / n
+			local w = V:wall(wn, u, yy - 0.28, 0)
+			K:plate("HandrailBracketPlate", 0.32, 0.32, 0.04, w, brL)
+			K:seg("HandrailBracket", (w * CF(0, 0, 0.04)).Position, (w * CF(0, 0.12, 0.3)).Position, 0.08, brL)
+		end
+	end)
+end
+
+-- 벽 구간마다 손잡이 (spans 사용)
+local function handrailSpans(K: any, wn: string, y: number?, minLen: number?)
+	local V = K.V
+	local yy = y or 2.9
+	for _, s in V:spans(wn, yy - 0.4, yy + 0.4, 0.8) do
+		if s[2] - s[1] >= (minLen or 3) then
+			handrail(K, wn, s[1] + 0.2, s[2] - 0.2, yy)
+		end
+	end
+end
+
 T._debug = {}
 
 return T

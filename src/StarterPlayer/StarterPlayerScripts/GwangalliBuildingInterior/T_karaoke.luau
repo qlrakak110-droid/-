@@ -268,7 +268,7 @@ end
 -- 스피커 (드라이버: 서라운드 + 콘 + 더스트캡 + LED 링) ---------------------------------------------------
 local function driver(K: any, dcf: CFrame, dia: number, ring: Color3?, leds: { any }?)
 	if ring then
-		local p = wdisc(K, "SpeakerLEDRing", dia + 0.1, 0.02, dcf, neon(ring))
+		local p = wdisc(K, "SpeakerLEDRing", dia + 0.07, 0.02, dcf, neon(ring))
 		if leds then
 			table.insert(leds, { p = p, c = ring })
 		end
@@ -607,7 +607,7 @@ local function boothBuild(K: any, V: any, S: any)
 				local Wd = math.min(s.X, s.Z)
 				local c = V3(rem.c.X, rem.min.Y, rem.c.Z)
 				local frame = CFrame.lookAt(c, c + V3(long.X, 0, long.Z)) -- -Z = 리모컨 앞(화면 쪽)
-				K:rbox("RemoteBody", V3(Wd + 0.02, 0.12, L), 0.05, frame * CF(0, 0.06, 0) * ANG(0, PI / 2, 0) * ANG(0, -PI / 2, 0), lk(rgb(28, 28, 32), M.SmoothPlastic, { r = 0.06 }))
+				K:rbox("RemoteBody", V3(L, 0.12, Wd + 0.02), 0.05, frame * CF(0, 0.06, 0) * ANG(0, PI / 2, 0), lk(rgb(28, 28, 32), M.SmoothPlastic, { r = 0.06 }))
 				K:box("RemoteScreen", V3(Wd - 0.08, 0.02, 0.24), frame * CF(0, 0.125, -L / 2 + 0.2), lk(rgb(60, 200, 230), M.Neon, { t = 0.2 }))
 				if not lo(K) then
 					for row = 0, 3 do
@@ -626,8 +626,7 @@ local function boothBuild(K: any, V: any, S: any)
 				local c = V3(ms.c.X, ms.min.Y, ms.c.Z)
 				local w = math.max(ms.size.X, ms.size.Z) * 0.9
 				local along = if ms.size.X >= ms.size.Z then V3(1, 0, 0) else V3(0, 0, 1)
-				local n = V3(0, 0, 1):Cross(Vector3.yAxis) -- 임시
-				n = Vector3.yAxis:Cross(along)
+				local n = Vector3.yAxis:Cross(along)
 				K:box("MenuStandFoot", V3(w, 0.04, 0.42), CFrame.fromMatrix(c + V3(0, 0.02, 0), along, Vector3.yAxis, n), lk(rgb(240, 240, 244), M.Glass, { t = 0.3 }))
 				for _, sgn in { 1, -1 } do
 					local nn = n * sgn
@@ -726,11 +725,16 @@ local function boothBuild(K: any, V: any, S: any)
 				local rec = 0.18
 				K:box("CabinetSide", V3(0.12, h, d), CF(mn.X - 0.03 + 0.06, c.Y, c.Z), LACQ)
 				K:box("CabinetSide", V3(0.12, h, d), CF(mx.X + 0.03 - 0.06, c.Y, c.Z), LACQ)
-				K:box("CabinetBack", V3(w - 0.2, h, d - rec), CF(c.X, c.Y, c.Z - rec / 2), lk(rgb(10, 10, 12)))
-				K:box("CabinetKick", V3(w - 0.24, 0.24, 0.05), CF(c.X, 0.12, zf - rec - 0.02), lk(rgb(8, 8, 10)))
-				K:box("CabinetShelf", V3(w - 0.2, 0.08, d), CF(c.X, 0.28, c.Z), LACQ)
 				local bayW = (w - 0.24 - 0.16) / 3
 				local xs = { mn.X + 0.12 + bayW / 2, c.X, mx.X - 0.12 - bayW / 2 }
+				local zb = mn.Z - 0.02
+				for k, x in xs do
+					local depth = if k == 2 then 1.4 else rec
+					local bd = (zf - depth) - zb
+					K:box("CabinetBack", V3(bayW + 0.02, h - 0.3, bd), CF(x, c.Y + 0.15, zb + bd / 2), lk(rgb(10, 10, 12)))
+				end
+				K:box("CabinetKick", V3(w - 0.24, 0.24, 0.05), CF(c.X, 0.12, zf - rec - 0.02), lk(rgb(8, 8, 10)))
+				K:box("CabinetShelf", V3(w - 0.2, 0.08, d), CF(c.X, 0.28, c.Z), LACQ)
 				for _, dx in { -1, 1 } do
 					K:box("CabinetDivider", V3(0.08, h - 0.32, d), CF(c.X + dx * (bayW / 2 + 0.04), c.Y + 0.14, c.Z), LACQ)
 				end
@@ -764,15 +768,17 @@ local function boothBuild(K: any, V: any, S: any)
 				do
 					local x = xs[2]
 					local sy = 1.32
-					K:box("CabinetMidShelf", V3(bayW, 0.06, d - rec - 0.05), CF(x, sy, c.Z - rec / 2), LACQ)
+					K:box("CabinetMidShelf", V3(bayW, 0.06, 1.38), CF(x, sy, zf - 0.71), LACQ)
+					K:box("CabinetMidLED", V3(bayW - 0.1, 0.03, 0.04), CF(x, mx.Y - 0.14, zf - 0.08), neon(theme))
 					for k = 0, 2 do
 						local th = 0.22 + k * 0.03
-						K:box("ShelfSongBook", V3(bayW * 0.8, th, 1.2), CF(x, 0.32 + 0.06 + k * 0.27 + th / 2, zf - rec - 0.75), lk(({ rgb(200, 40, 60), rgb(40, 90, 200), rgb(250, 190, 30) })[k + 1]))
+						K:box("ShelfSongBook", V3(bayW * 0.8, th, 1.0), CF(x, 0.32 + k * 0.27 + th / 2, zf - 0.72), lk(({ rgb(200, 40, 60), rgb(40, 90, 200), rgb(250, 190, 30) })[k + 1]))
+						K:box("ShelfSongBookPages", V3(bayW * 0.8 - 0.06, th - 0.06, 0.02), CF(x, 0.32 + k * 0.27 + th / 2, zf - 0.21), lk(rgb(240, 236, 226)))
 					end
-					K:box("ShelfCoverBox", V3(0.8, 0.5, 0.6), CF(x - 0.25, sy + 0.28, zf - rec - 0.5), lk(rgb(240, 240, 236)))
-					K:text("ShelfCoverLabel", 0.7, 0.26, faceCF(V3(x - 0.25, sy + 0.3, zf - rec - 0.19), V3(0, 0, 1)), "마이크 커버\n100매", { fg = rgb(220, 40, 90), font = F.GothamBold, d = 0.005 })
-					K:box("ShelfBattery", V3(0.5, 0.3, 0.4), CF(x + 0.4, sy + 0.18, zf - rec - 0.4), lk(rgb(30, 30, 30)))
-					K:plate("ShelfBatteryBand", 0.5, 0.1, 0.01, faceCF(V3(x + 0.4, sy + 0.18, zf - rec - 0.2), V3(0, 0, 1)), lk(rgb(250, 190, 30)))
+					K:box("ShelfCoverBox", V3(0.8, 0.5, 0.6), CF(x - 0.25, sy + 0.28, zf - 0.6), lk(rgb(240, 240, 236)))
+					K:text("ShelfCoverLabel", 0.7, 0.26, faceCF(V3(x - 0.25, sy + 0.3, zf - 0.295), V3(0, 0, 1)), "마이크 커버\n100매", { fg = rgb(220, 40, 90), font = F.GothamBold, d = 0.005 })
+					K:box("ShelfBattery", V3(0.5, 0.3, 0.4), CF(x + 0.42, sy + 0.18, zf - 0.5), lk(rgb(30, 30, 30)))
+					K:plate("ShelfBatteryBand", 0.5, 0.1, 0.01, faceCF(V3(x + 0.42, sy + 0.18, zf - 0.295), V3(0, 0, 1)), lk(rgb(250, 190, 30)))
 				end
 				-- 오른쪽 칸: 스모크 유리문 (안에 파워 분배기 LED)
 				do
@@ -793,7 +799,7 @@ local function boothBuild(K: any, V: any, S: any)
 				K:box("CabinetTopEdge", V3(mx.X - mn.X + 0.08, 0.04, 0.03), CF((mn.X + mx.X) / 2, mn.Y + 0.03, mx.Z + 0.03), CHROME)
 				-- 안테나 (무선 수신기)
 				for k, x in { mn.X + 0.35, mn.X + 0.85 } do
-					K:seg("RxAntenna", V3(x, mx.Y, mn.Z + 0.35), V3(x + (k - 1.5) * 0.4, mx.Y + 1.1, mn.Z + 0.25), 0.06, lk(rgb(20, 20, 22)))
+					K:seg("RxAntenna", V3(x, mx.Y, mn.Z + 0.35), V3(x + (k - 1.5) * 0.3, mx.Y + 0.85, mn.Z + 0.28), 0.06, lk(rgb(20, 20, 22)))
 				end
 				-- 왼쪽 끝: 손 소독제 · 휴지
 				K:vcyl("SanitizerBottle", 0.5, 0.26, CF(mn.X + 0.45, mx.Y + 0.25, mx.Z - 0.4), lk(rgb(220, 236, 244), M.Glass, { t = 0.3 }))
@@ -838,11 +844,13 @@ local function boothBuild(K: any, V: any, S: any)
 				local mn, mx = dock.min, dock.max
 				local c = (mn + mx) / 2
 				K:rbox("MicCradle", V3(mx.X - mn.X + 0.04, 0.26, mx.Z - mn.Z + 0.04), 0.08, CF(c.X, mn.Y + 0.13, c.Z), lk(rgb(26, 26, 30), M.SmoothPlastic, { r = 0.05 }))
-				for k, dx in { -0.22, 0.22 } do
-					local base = V3(c.X + dx, mn.Y + 0.24, c.Z)
-					K:vcyl("MicCradleCup", 0.2, 0.32, CF(base + V3(0, 0.08, 0)), lk(rgb(40, 40, 46)))
-					handMic(K, base + V3(0, 0.05, 0), base + V3(0, 0.88, 0.02), lk(if k == 1 then rgb(30, 30, 34) else rgb(232, 232, 236), M.SmoothPlastic, { r = 0.05 }), theme, nil)
-					K:plate("MicCradleLED", 0.08, 0.05, 0.03, faceCF(V3(c.X + dx, mn.Y + 0.14, mx.Z + 0.02), V3(0, 0, 1)), Look.ledGreen)
+				for k, dz in { -0.24, 0.24 } do
+					local y = mn.Y + 0.36
+					local a = V3(mx.X - 0.08, y, c.Z + dz)
+					local b = V3(mn.X + 0.22, y + 0.06, c.Z + dz)
+					K:box("MicCradleSlot", V3(mx.X - mn.X - 0.1, 0.06, 0.34), CF(c.X, mn.Y + 0.27, c.Z + dz), lk(rgb(40, 40, 46)))
+					handMic(K, a, b, lk(if k == 1 then rgb(30, 30, 34) else rgb(232, 232, 236), M.SmoothPlastic, { r = 0.05 }), theme, nil)
+					K:plate("MicCradleLED", 0.05, 0.05, 0.03, faceCF(V3(mx.X - 0.12 - k * 0.12, mn.Y + 0.14, mx.Z + 0.02), V3(0, 0, 1)), Look.ledGreen)
 				end
 				K:text("MicCradleLabel", 0.7, 0.07, faceCF(V3(c.X, mn.Y + 0.06, mx.Z + 0.025), V3(0, 0, 1)), "CH1 · 충전 · CH2", { fg = rgb(170, 170, 178), font = F.GothamBold, d = 0.005 })
 				hideRec(K, dock)
@@ -969,7 +977,6 @@ local function boothBuild(K: any, V: any, S: any)
 				sign = r
 			end
 		end
-		local door = first("BoothDoor")
 		local zA, zB = zBack + 0.02, zFront - 0.02
 		local spkZ = zBack + 1.25 -- 천장 스피커 앞면 (디퓨저는 그 앞부터)
 		for _, sp in all("Speaker") do
@@ -1000,7 +1007,7 @@ local function boothBuild(K: any, V: any, S: any)
 					db = math.min(db, bk.a - 0.1)
 				end
 				if db - da > 1.6 then
-					local y0, y1 = 4.5, H - 1.2
+					local y0, y1 = 5.75, H - 1.2
 					local n = math.floor((db - da - 0.16) / 0.42)
 					local seq = { 0, 1, 4, 2, 2, 4, 1 }
 					local cw = (db - da - 0.16) / n
@@ -1057,12 +1064,6 @@ local function boothBuild(K: any, V: any, S: any)
 						sidePlate("ChannelFrame", sd, s[1] - 0.06, s[2] + 0.06, y0 - 0.08, y0, 0.36, 0.02, CHROME)
 					end
 				end
-			end
-			-- 문 쪽 (오른벽 문 받침 구간): 문 멈춤 + 세로 LED
-			if door then
-				local sd = if door.c.X < 0 then -1 else 1
-				local bump = sidePlate("DoorStopPad", sd, door.min.Z + 0.6, door.min.Z + 0.9, 3.6, 4.0, 0.12, 0.0, RUBBER)
-				local _ = bump
 			end
 		end)
 	end)
@@ -1125,12 +1126,13 @@ local function boothBuild(K: any, V: any, S: any)
 			-- 유도등 (비상구) + 비상조명등
 			local exitY = doorTop + 0.75
 			K:plate("ExitSignBox", 1.3, 0.55, 0.16, fcf((dx0 + dx1) / 2, exitY, 0.0), lk(rgb(240, 244, 240)))
-			K:text("ExitSign", 1.2, 0.45, fcf((dx0 + dx1) / 2, exitY, 0.165), "🏃 비상구", { fg = WHITE, bg = rgb(20, 170, 80), glow = 1.6, font = F.GothamBlack, d = 0.01 })
-			K:plate("EmergencyLight", 1.1, 0.36, 0.22, fcf((dx0 + dx1) / 2 + 1.6, H - 0.2 - 0.18 - 0.6, 0.0), lk(rgb(240, 240, 236)))
+			K:text("ExitSign", 1.2, 0.45, fcf((dx0 + dx1) / 2, exitY, 0.165), "← 비상구 EXIT", { fg = WHITE, bg = rgb(20, 170, 80), glow = 1.6, font = F.GothamBlack, d = 0.01 })
+			local ex = math.min(dx1 - 0.6, (dx0 + dx1) / 2 + 1.75)
+			K:plate("EmergencyLight", 1.0, 0.36, 0.22, fcf(ex, exitY + 0.05, 0.0), lk(rgb(240, 240, 236)))
 			for _, sx in { -1, 1 } do
-				wdisc(K, "EmergencyLamp", 0.24, 0.12, fcf((dx0 + dx1) / 2 + 1.6 + sx * 0.32, H - 0.98, 0.22), lk(rgb(255, 250, 230), M.Glass, { t = 0.2 }))
+				wdisc(K, "EmergencyLamp", 0.22, 0.12, fcf(ex + sx * 0.3, exitY, 0.22), lk(rgb(255, 250, 230), M.Glass, { t = 0.2 }))
 			end
-			K:plate("EmergencyLightLED", 0.06, 0.06, 0.24, fcf((dx0 + dx1) / 2 + 1.6, H - 0.88, 0.0), Look.ledGreen)
+			K:plate("EmergencyLightLED", 0.06, 0.06, 0.24, fcf(ex, exitY + 0.15, 0.0), Look.ledGreen)
 		end)
 
 		-- 조명 패널 (문 바로 왼쪽): 4 버튼
@@ -1183,7 +1185,7 @@ local function boothBuild(K: any, V: any, S: any)
 			K:plate("TabletMount", 0.5, 0.5, 0.12, fcf(tx, 5.4, 0.0), DARKALU)
 			K:plate("TabletBody", 1.7, 1.1, 0.08, fcf(tx, 5.4, 0.12), lk(rgb(16, 16, 20), M.SmoothPlastic, { r = 0.1 }))
 			K:plate("TabletScreen", 1.56, 0.96, 0.02, fcf(tx, 5.4, 0.2), lk(rgb(20, 26, 50), M.Neon, { t = 0.55 }))
-			K:text("TabletHeader", 1.5, 0.16, fcf(tx, 5.78, 0.225), "🔍 곡 검색 · 예약", { fg = WHITE, bg = dk(theme, 0.25), glow = 1.2, font = F.GothamBold, d = 0.004 })
+			K:text("TabletHeader", 1.5, 0.16, fcf(tx, 5.78, 0.225), "곡 검색 · 예약", { fg = WHITE, bg = dk(theme, 0.25), glow = 1.2, font = F.GothamBold, d = 0.004 })
 			local list = {}
 			for i = 1, 4 do
 				local k = ((roomNo + i * 3) % #SONGS) + 1
@@ -1191,7 +1193,7 @@ local function boothBuild(K: any, V: any, S: any)
 			end
 			K:text("TabletList", 1.48, 0.66, fcf(tx, 5.32, 0.225), table.concat(list, "\n"), { fg = rgb(220, 230, 255), glow = 1.2, font = F.GothamMedium, align = "Left", d = 0.004 })
 			-- 안내문 + 가방 고리
-			local nx = (x0 + ax) / 2 + 0.2
+			local nx = ax + 0.3
 			K:plate("NoticeFrame", 2.5, 1.36, 0.04, fcf(nx, 7.35, 0.0), CHROME)
 			K:text("Notice", 2.4, 1.26, fcf(nx, 7.35, 0.045), "이용 안내\n· 30분 500원 · 사용 중 자동 연장\n· 음식물 OK · 주류 · 흡연 금지\n· 기물 파손 시 변상\n· 퇴실 시 마이크는 충전 거치대에", { fg = rgb(30, 30, 36), bg = rgb(250, 248, 242), font = F.GothamMedium, d = 0.01, align = "Left" })
 			for k = 0, 1 do
@@ -1202,7 +1204,7 @@ local function boothBuild(K: any, V: any, S: any)
 			end
 		end)
 		-- 벽걸이 에어컨 (루버가 열림)
-		local acx = (x0 + ax) / 2
+		local acx = x0 + 1.75
 		local louver: BasePart? = nil
 		local louverCF: CFrame? = nil
 		local acLED: BasePart? = nil
@@ -1213,7 +1215,7 @@ local function boothBuild(K: any, V: any, S: any)
 			K:plate("ACFrontLine", 3.0, 0.03, 0.73, d0 * CF(0, 0.18, 0), lk(rgb(210, 210, 206)))
 			K:text("ACBrand", 0.8, 0.12, d0 * CF(-1.0, 0.32, 0.73), "INVERTER", { fg = rgb(150, 150, 156), font = F.GothamBold, d = 0.004 })
 			acLED = K:plate("ACLED", 0.1, 0.06, 0.73, d0 * CF(1.2, 0.32, 0), lk(rgb(120, 120, 120)))
-			K:plate("ACIntake", 2.8, 0.12, 0.72, d0 * CF(0, -0.42, 0.0), lk(rgb(60, 60, 64)))
+			K:plate("ACIntake", 2.8, 0.12, 0.735, d0 * CF(0, -0.42, 0.0), lk(rgb(60, 60, 64)))
 			local lcf = d0 * CF(0, -0.53, 0.66)
 			louverCF = lcf
 			louver = K:box("ACLouver", V3(2.9, 0.06, 0.24), lcf, lk(rgb(236, 236, 232)))
@@ -1293,8 +1295,8 @@ local function boothBuild(K: any, V: any, S: any)
 				K:box("DoorCloserArm", V3(0.05, 0.05, 0.9), hcf * CF(-0.2, hgt - 0.12, -0.6), lk(rgb(130, 132, 138), M.Metal))
 				-- 가로 밀대 (프롬프트 자리: 테이블에서 6.5 이상)
 				K:box("DoorPushHandle", V3(0.08, 0.08, L * 0.6), hcf * CF(-0.18, 3.1, -L / 2 + 0.2), CHROME)
-				for _, f in { -0.25, 0.25 } do
-					K:box("DoorPushPost", V3(0.12, 0.06, 0.06), hcf * CF(-0.12, 3.1, -L / 2 + 0.2 + f * L * 0.6 / 0.5 * 0.5), CHROME)
+				for _, f in { -1, 1 } do
+					K:box("DoorPushPost", V3(0.12, 0.06, 0.06), hcf * CF(-0.12, 3.1, -L / 2 + 0.2 + f * L * 0.27), CHROME)
 				end
 			end)
 		end)
@@ -1310,29 +1312,13 @@ local function boothBuild(K: any, V: any, S: any)
 	-- 10) 천장: 별빛 · 핀스폿 · 파 조명 · 환기구 · 비상 (스프링클러 · 감지기는 Common) ----------------------------------
 	step(K, "ceiling", function()
 		K:free(function()
-			-- 별빛 (광섬유 점)
-			local nStars = if hi(K) then 46 elseif lo(K) then 0 else 24
-			local seed = roomNo * 17 + 3
-			local placed = 0
-			for i = 1, nStars * 3 do
-				if placed >= nStars then
-					break
-				end
-				local x = x0 + 0.9 + rnd(seed, i) * (x1 - x0 - 1.8)
-				local z = zBack + 1.6 + rnd(seed + 7, i) * (zFront - zBack - 2.6)
-				if Common.ceilFree(K, x, z, 0.3) then
-					local s = 0.05 + rnd(seed + 11, i) * 0.05
-					local p = K:disc("StarDot", s, 0.02, CF(x, H - 0.01, z), neon(if i % 5 == 0 then rgb(180, 210, 255) else rgb(255, 250, 236)))
-					table.insert(st.stars, p)
-					placed += 1
-				end
-			end
 			-- 핀스폿 (미러볼 비춤)
 			local ball = first("MirrorBall")
 			if ball then
 				local pos = V3(ball.c.X + 2.2, H - 0.25, ball.c.Z + 2.6)
 				local dir = (ball.c - pos).Unit
 				K:disc("PinspotMount", 0.4, 0.05, CF(pos.X, H - 0.025, pos.Z), DARKALU)
+				Common.useCeil(K, pos.X, pos.Z)
 				local can = K:cyl("PinspotCan", 0.55, 0.32, CFrame.lookAt(pos, pos + dir) * ANG(0, PI / 2, 0), lk(rgb(24, 24, 28), M.Metal))
 				K:disc("PinspotLens", 0.24, 0.02, CFrame.lookAt(pos + dir * 0.28, pos + dir) * ANG(PI / 2, 0, 0), Look.lampNeutral)
 				addLight(K, st, can, "SpotLight", { Face = Enum.NormalId.Right, Range = 9, Brightness = 2.2, Angle = 16, Color = rgb(255, 250, 240) })
@@ -1343,6 +1329,7 @@ local function boothBuild(K: any, V: any, S: any)
 				local aim = V3(sx * -1.2, 1.2, 1.5)
 				local dir = (aim - pos).Unit
 				K:box("ParYoke", V3(0.6, 0.06, 0.12), CF(pos.X, H - 0.03, pos.Z), DARKALU)
+				Common.useCeil(K, pos.X, pos.Z)
 				K:bar("ParYokeArm", V3(pos.X - 0.28, H - 0.05, pos.Z), V3(pos.X - 0.28, pos.Y, pos.Z), 0.05, 0.05, DARKALU)
 				K:bar("ParYokeArm", V3(pos.X + 0.28, H - 0.05, pos.Z), V3(pos.X + 0.28, pos.Y, pos.Z), 0.05, 0.05, DARKALU)
 				local can = K:cyl("ParCan", 0.6, 0.44, CFrame.lookAt(pos, pos + dir) * ANG(0, PI / 2, 0), lk(rgb(20, 20, 24), M.Metal))
@@ -1361,6 +1348,23 @@ local function boothBuild(K: any, V: any, S: any)
 					K:box("CeilingVentRing", V3(s, 0.05, s), CF(vx, H - 0.03, vz), lk(if k % 2 == 1 then rgb(150, 150, 150) else rgb(220, 220, 216)))
 				end
 				Common.useCeil(K, vx, vz)
+			end
+			-- 별빛 (광섬유 점)
+			local nStars = if hi(K) then 46 elseif lo(K) then 0 else 24
+			local seed = roomNo * 17 + 3
+			local placed = 0
+			for i = 1, nStars * 3 do
+				if placed >= nStars then
+					break
+				end
+				local x = x0 + 0.9 + rnd(seed, i) * (x1 - x0 - 1.8)
+				local z = zBack + 1.6 + rnd(seed + 7, i) * (zFront - zBack - 2.6)
+				if Common.ceilFree(K, x, z, 0.3) then
+					local s = 0.05 + rnd(seed + 11, i) * 0.05
+					local p = K:disc("StarDot", s, 0.02, CF(x, H - 0.01, z), neon(if i % 5 == 0 then rgb(180, 210, 255) else rgb(255, 250, 236)))
+					table.insert(st.stars, p)
+					placed += 1
+				end
 			end
 		end)
 	end)

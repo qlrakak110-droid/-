@@ -3104,7 +3104,7 @@ local function sundaeSteamer(ctx: any, base: CFrame, dia: number): any
 		K:vcyl("FfSteamerLidKnob", 0.12, 0.16, base * CF(0, h + 0.22, 0), L.black)
 		K:box("FfSteamerLidHandle", V3(0.3, 0.06, 0.08), base * CF(0, h + 0.3, 0), L.black)
 	end)
-	return { lid = lid, hinge = (K.cf * base * CF(0, h + 0.02, -dia / 2)).Position }
+	return { lid = lid, hinge = (K.cf * base * CF(0, h + 0.02, -dia / 2)).Position, axis = (K.cf * base).RightVector }
 end
 
 local function sundaeBoard(ctx: any, base: CFrame)
@@ -3386,8 +3386,10 @@ local function bunsikBuild(ctx: any)
 	local pE = priceIn(ctx.signs, "어묵", "1,000")
 	if not ctx.gw then
 		local lh = if S.lower then S.lower.h else 0.45
-		upperPaint(ctx, { "left", "right", "back" }, lh + 0.08, pl(P.wall, M.Plaster))
-		wallBand(ctx, { "left", "right", "back" }, lh + 0.05, 0.2, 0.06, pl(P.wall2))
+		upperPaint(ctx, { "left", "right" }, lh + 0.08, pl(P.wall, M.Plaster))
+		upperPaint(ctx, { "back" }, lh + 0.08, pl(dark(P.wall2, 0.08), M.Plaster))
+		wallBand(ctx, { "left", "right", "back" }, lh + 0.05, 0.2, 0.06, pl(if P.key == "red" then rgb(30, 26, 24) else P.wall2))
+		wallBand(ctx, { "left", "right" }, V.H - 0.7, 0.3, 0.05, pl(P.wall2))
 	end
 	passDress(ctx, { trim = L.steel, header = "noren", norenText = { "분", "식", "주", "방" }, norenColor = if P.key == "mint" then rgb(30, 120, 100) else rgb(30, 40, 90), utensil = "ladle" })
 	menuSignDress(ctx, pl(P.wall2), nil)
@@ -3493,7 +3495,7 @@ local function bunsikBuild(ctx: any)
 			end
 		end
 		if knob and Interact.canPrompt(K, K.cf:PointToObjectSpace(knob.Position)) then
-			Interact.swing(K, st.lid, st.hinge, (K.cf.RightVector :: Vector3), -1.1, { object = "순대 찜기", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
+			Interact.swing(K, st.lid, st.hinge, st.axis, -1.1, { object = "순대 찜기", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 		end
 	end
 	-- 음료 냉장고 (콜라 · 사이다 · 쿨피스)

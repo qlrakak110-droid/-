@@ -3269,6 +3269,29 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 				end
 			end)
 		end
+		-- 여행 · 바다 정보 화면 (서버 앵커에서 먼 벽)
+		step(K, "infoScreen", function()
+			local wn, dcf = wallItemSpot(K, { "left", "right", "back" }, 3.2, 5.0, 7.0, -3, function(d: CFrame): boolean
+				return promptOk(K, d.Position)
+			end)
+			if wn and dcf then
+				if beach then
+					didScreen(K, dcf * CF(0, 0, 0.04), 2.8, {
+						{ text = "오늘의 광안리 바다\n수온 22°C · 파고 0.5m", c = C(30, 120, 200) },
+						{ text = "자외선 지수 높음\n선크림 2시간마다", c = C(240, 140, 30) },
+						{ text = "해파리 주의보\n쏘이면 바닷물로 씻기", c = C(200, 60, 80) },
+						{ text = "튜브 대여 1일 10,000\n18:00 까지 반납", c = C(40, 150, 120) },
+					}, "바다 정보 화면")
+				else
+					didScreen(K, dcf * CF(0, 0, 0.04), 2.8, {
+						{ text = "광안리 M 드론 라이트쇼\n매주 토요일 20:00", c = C(40, 50, 120) },
+						{ text = "부산 시티투어\n광안대교 야경 코스", c = C(30, 110, 170) },
+						{ text = "해운대 블루라인파크\n해변열차 · 스카이캡슐", c = C(20, 130, 140) },
+						{ text = "TAX FREE · 외국인 환급\nInstant Refund", c = C(170, 40, 50) },
+					}, "부산 여행 정보 화면")
+				end
+			end
+		end)
 		fixturesNow(K, V, S)
 		step(K, "hang", function()
 			local t1 = if beach then "BEACH SHOP · 튜브 대여" else "BUSAN SOUVENIR · 부산 기념품"

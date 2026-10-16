@@ -614,7 +614,7 @@ local function brandOf(V: any): any
 		B.art, B.wifi, B.pw, B.hours = "pastel", "SWEET_FREE", "gelato777", "매일 11:00 - 23:00"
 		B.promo = { "BEST", "젤라또 와플", "6,500" }
 		B.cup = rgb(255, 236, 240)
-		feat = { freezer = true, plants = 1, gelato = true }
+		feat = { freezer = true, plants = 1, gelato = true, fridge = true }
 		B.feat = feat
 	elseif key == "tanghulu" then
 		B.title, B.logo, B.slogan = nm, "탕후루", "바삭 달콤 과일 탕후루"
@@ -625,7 +625,7 @@ local function brandOf(V: any): any
 		B.art, B.wifi, B.pw, B.hours = "fruit", "TANGHULU_5G", "sweet2026", "매일 12:00 - 23:00"
 		B.promo = { "BEST", "샤인머스캣 탕후루", "4,500" }
 		B.cup = rgb(255, 240, 240)
-		feat = { tanghulu = true, freezer = true, plants = 1, gelato = true, fruit = true }
+		feat = { tanghulu = true, freezer = true, plants = 2, gelato = true, fruit = true, fridge = true }
 		B.feat = feat
 	elseif key == "claw" then
 		B.title, B.logo, B.slogan = nm, "BINGBING", "인형뽑기 · 빙수"
@@ -1850,6 +1850,54 @@ local function skewer(K: any, base: CFrame, kind: string, len: number)
 	end
 end
 
+-- 생과일 진열대 (3단 나무 상자 + 과일 + 가격 카드): 탕후루 · 디저트 가게 가운데
+local function fruitStand(K: any, pcf: CFrame, w: number, B: any)
+	local d = 2.2
+	local wood = Look.pine
+	for _, sx in { -1, 1 } do
+		K:box("FruitStandSide", V3(0.12, 2.6, d), pcf * CF(sx * (w / 2 - 0.06), 1.3, 0), Look.walnut)
+	end
+	local tiers = { { 0.55, 0.55 }, { 1.35, 0.0 }, { 2.15, -0.55 } }
+	local kinds = { { "strawberry", "생딸기 500g", "9,900" }, { "grape", "샤인머스캣 1송이", "12,000" }, { "mandarin", "제주 귤 1kg", "6,900" }, { "blueberry", "블루베리 200g", "7,900" }, { "kiwi", "골드키위 5입", "6,500" }, { "tomato", "대추방울토마토", "5,900" } }
+	local idx = 0
+	for _, t in tiers do
+		local y, z = t[1], t[2]
+		K:box("FruitStandShelf", V3(w - 0.24, 0.08, 1.0), pcf * CF(0, y, z), wood)
+		local n = 2
+		for k = 1, n do
+			idx += 1
+			local info = kinds[(idx + B.seed) % #kinds + 1]
+			local f = FRUIT[info[1]]
+			local x = -(w - 0.4) / 2 + (w - 0.4) * (k - 0.5) / n
+			local c = pcf * CF(x, y + 0.04, z)
+			local cw = (w - 0.6) / n
+			K:box("FruitCrate", V3(cw, 0.06, 0.85), c * CF(0, 0.03, 0), wood)
+			for _, sz in { -1, 1 } do
+				K:box("FruitCrateSide", V3(cw, 0.28, 0.06), c * CF(0, 0.14, sz * 0.4), wood)
+			end
+			for _, sx in { -1, 1 } do
+				K:box("FruitCrateSide", V3(0.06, 0.28, 0.8), c * CF(sx * (cw / 2 - 0.03), 0.14, 0), wood)
+			end
+			local look = lk(f.c, M.SmoothPlastic, { r = 0.04 })
+			local fd = math.max(f.d, 0.18)
+			local nx = math.max(2, math.floor((cw - 0.15) / fd))
+			for j = 0, nx - 1 do
+				for q = 0, 2 do
+					local p = c * CF(-cw / 2 + 0.1 + fd * (j + 0.5), 0.12 + fd * 0.45 + (q % 2) * 0.04, -0.28 + q * 0.28)
+					if f.ell then
+						K:ell("CrateFruit", V3(fd, fd * 1.1, fd), p, look)
+					else
+						K:ball("CrateFruit", fd, p, look)
+					end
+				end
+			end
+			local cardP = faceCF((c * CF(0, 0.22, 0.44)).Position, pcf.ZVector)
+			K:text("FruitCard", cw * 0.8, 0.26, cardP, info[2] .. "  " .. info[3], { fg = rgb(40, 30, 20), bg = rgb(255, 250, 236), d = 0.01, font = F.GothamBold })
+		end
+	end
+	K:text("FruitStandHead", w - 0.3, 0.36, faceCF((pcf * CF(0, 2.75, -0.45)).Position, pcf.ZVector), "오늘 들어온 생과일", { fg = rgb(255, 255, 255), bg = B.c1, d = 0.04, font = F.GothamBlack })
+end
+
 -- 인형 (곰 · 토끼 · 병아리): c 중심, s 크기, face = 앞 방향
 local function plush(K: any, c: Vector3, s: number, kind: number, col: Color3, face: Vector3)
 	local pcf = facing(c - V3(0, s * 0.45, 0), face)
@@ -2222,7 +2270,7 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 		local wn, pcf = floorFind(K, { pickSide, other }, 2.5, 2.1, 6.6, pref, { pad = 0.06 })
 		if wn and pcf then
 			mark("fridge", pcf)
-			local door, hinge = drinkFridge(K, pcf, 2.5, B, "GRAB & GO")
+			local door, hinge = drinkFridge(K, pcf, 2.5, B, if B.type == "dessert" then "과일컵 · 음료" else "GRAB & GO")
 			if door and hinge then
 				Interact.swing(K, door, hinge, (K.cf * pcf).UpVector, -1.75, { object = "음료 냉장고", openText = "문 열기", closeText = "문 닫기" })
 			end
@@ -2284,6 +2332,26 @@ local function stepFloor(K: any, V: any, B: any, ctx: any)
 				break
 			end
 			x -= 0.5
+		end
+	end
+	-- 생과일 진열대 (가운데, 탕후루)
+	if feat.fruit then
+		local done = false
+		for dx = 0, 14 do
+			for _, sx in { -1, 1 } do
+				local x = ctx.cx - V.W * 0.22 + sx * dx * 0.7
+				for _, z in { V.z0 + V.D * 0.42, V.z0 + V.D * 0.36, V.z0 + V.D * 0.5 } do
+					local pcf = facing(V3(x, 0, z), V3(0, 0, 1))
+					if not done and spotX(K, pcf, V3(3.6, 2.9, 2.3), 0.8) then
+						done = true
+						mark("fruit", pcf)
+						fruitStand(K, pcf, 3.6, B)
+					end
+				end
+			end
+			if done then
+				break
+			end
 		end
 	end
 	-- 베이커리 아일랜드 진열대 (가운데)
