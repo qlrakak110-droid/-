@@ -2961,6 +2961,38 @@ local function buildBayImpl(K: any, V: any): any
 			end
 		end
 		D.label("UsedTyreSign", 2.4, 0.5, D.wall("left", 16.7, 4.6, 0.02), "폐타이어 수거", WHITE, C(90, 94, 100), { d = 0.02 })
+		-- 정비 진행 순서 배너 (왼쪽 앞 윗벽: 접수 → 출고 6 단계)
+		do
+			local bz0, bz1 = 9.6, RB.z1 - 1.6
+			local bw = bz1 - bz0
+			if bw > 8 then
+				local bc = D.wall("left", (bz0 + bz1) / 2, 8.15, 0.0)
+				D.plate("ProcessBanner", bw, 2.5, 0.06, bc, lk(C(250, 250, 246)))
+				D.plate("ProcessBannerTop", bw, 0.55, 0.07, bc * CF(0, 0.97, 0), lk(C(30, 60, 120)))
+				D.label("ProcessTitle", bw - 0.4, 0.5, bc * CF(0, 0.97, 0.08), "정비 진행 순서  ·  모든 작업은 고객 승인 후 진행합니다", WHITE, nil, { d = 0.005, clear = true, font = Enum.Font.GothamBold })
+				local steps = {
+					{ "01", "접수 · 문진", "증상 · 주행거리 확인" },
+					{ "02", "무료 점검", "OBD 스캔 · 하부 점검" },
+					{ "03", "견적 안내", "부품 · 공임 고객 승인" },
+					{ "04", "정비 작업", "정품 부품 · 토크 관리" },
+					{ "05", "품질 검사", "시운전 · 누유 확인" },
+					{ "06", "세차 · 출고", "교체 부품 반납 안내" },
+				}
+				local sw = bw / #steps
+				for i, st in steps do
+					local sc = bc * CF(-bw / 2 + sw * (i - 0.5), -0.3, 0.07)
+					local accent = if i == #steps then C(20, 150, 80) else C(236, 110, 30)
+					D.cyl("ProcessDot", 0.03, 0.62, sc * CF(-sw / 2 + 0.5, 0.18, 0) * ANG(0, PI / 2, 0), lk(accent))
+					D.label("ProcessNum", 0.5, 0.3, sc * CF(-sw / 2 + 0.5, 0.18, 0.03), st[1], WHITE, nil, { d = 0.003, clear = true, font = Enum.Font.GothamBlack })
+					D.label("ProcessName", sw - 1.1, 0.42, sc * CF(0.3, 0.2, 0.01), st[2], NAVY, nil, { d = 0.003, clear = true, align = "Left", font = Enum.Font.GothamBlack })
+					D.label("ProcessSub", sw - 0.4, 0.32, sc * CF(0.1, -0.33, 0.01), st[3], C(80, 84, 92), nil, { d = 0.003, clear = true, align = "Left" })
+					if i < #steps then
+						D.label("ProcessArrow", 0.3, 0.4, sc * CF(sw / 2, 0.18, 0.01), "▶", C(236, 110, 30), nil, { d = 0.003, clear = true, font = Enum.Font.GothamBlack })
+					end
+				end
+				D.plate("ProcessBannerEdge", bw + 0.1, 0.06, 0.08, bc * CF(0, -1.26, 0), L.alu)
+			end
+		end
 		-- 옥내소화전함 + 비상벨
 		local hz = RB.z1 - 3.9
 		local hc = D.wall("left", hz, 2.9, 0.0)

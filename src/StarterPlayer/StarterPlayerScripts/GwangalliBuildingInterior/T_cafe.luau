@@ -898,6 +898,11 @@ function T.style(V: any): any
 		S.mat = { text = "PICK ME UP!" }
 		S.plants = {}
 	end
+	-- 아랫벽 마감은 뒷벽(손님 쪽 빈 벽 · 계산대 뒤 백스플래시)까지
+	if S.lower and S.lower.walls and not table.find(S.lower.walls, "back") then
+		S.lower.walls = table.clone(S.lower.walls)
+		table.insert(S.lower.walls, "back")
+	end
 	-- 의자는 이 모듈이 직접 (소파 구분). 벽시계도 직접 (뒷벽은 메뉴판 자리라 옆벽에)
 	S.myChair = S.chair
 	S.chair = false
@@ -4040,6 +4045,363 @@ local function stepChairs(K: any, V: any, B: any, S: any)
 	end
 end
 
+-- 9) 빈 벽 채우기 ------------------------------------------------------------------------------------------
+-- 다른 단계가 끝난 뒤 옆벽 · 뒷벽(손님 쪽) 눈높이 띠에 남은 긴 빈 구간을 브랜드 구성으로 채움:
+--   갤러리 월 (크기가 다른 액자 줄 + 픽처 라이트) · MD 벽선반 (원두 · 드립백 · 텀블러) · 아치 니치 (오뜨 · 인디) ·
+--   브랜드 벽화 (긴 벽) · 윗벽 브랜드 문구. 넓은 매장(파스쿠찌 · 스타벅스 · 오뜨)의 텅 빈 벽을 없앰.
+local ART_KINDS: { [string]: { string } } = {
+	mega = { "pop", "bridge", "pop" },
+	compose = { "pop", "bridge", "pop" },
+	twosome = { "botanical", "gallery", "abstract" },
+	pascucci = { "coffee", "gallery", "bridge" },
+	starbucks = { "coffee", "bridge", "botanical" },
+	roastery = { "coffee", "gallery", "abstract" },
+	concrete = { "coffee", "abstract", "gallery" },
+	haute = { "gallery", "botanical", "abstract" },
+	busan = { "busan", "bridge", "gallery" },
+	ocean = { "busan", "bridge", "abstract" },
+	lounge = { "gallery", "bridge", "abstract" },
+	scandi = { "abstract", "botanical", "gallery" },
+	terracotta = { "abstract", "botanical", "pastel" },
+	green = { "botanical", "abstract", "gallery" },
+	bakery = { "bread", "botanical", "gallery" },
+	tanghulu = { "fruit", "pastel", "abstract" },
+	waffle = { "pastel", "abstract", "fruit" },
+	churros = { "pastel", "abstract", "bridge" },
+	hotteok = { "bridge", "pastel", "abstract" },
+	bingsu = { "pastel", "fruit", "abstract" },
+	lobby = { "bridge", "gallery", "busan" },
+}
+
+-- 벽 wn 의 y0..y1 띠에서 쓸 수 있는 구간: freeSpans 에서 새로 세운 바닥 소품(K.reserved) · 카운터 뒤를 뺌
+local function fillSpans(K: any, V: any, wn: string, y0: number, y1: number, skipCounters: boolean): { { number } }
+	local spans = freeSpans(K, wn, y0, y1, 1.2)
+	local cuts = {}
+	local function cutBox(mn: Vector3, mx: Vector3, depth: number, pad: number)
+		if mx.Y < y0 or mn.Y > y1 then
+			return
+		end
+		local umin, umax, dmin = math.huge, -math.huge, math.huge
+		for _, x in { mn.X, mx.X } do
+			for _, z in { mn.Z, mx.Z } do
+				local u, d = V:wallCoord(wn, V3(x, 0, z))
+				umin, umax, dmin = math.min(umin, u), math.max(umax, u), math.min(dmin, d)
+			end
+		end
+		if dmin <= depth then
+			table.insert(cuts, { umin - pad, umax + pad })
+		end
+	end
+	for _, r in K.reserved or {} do
+		cutBox(r.min, r.max, 1.4, 0.3)
+	end
+	if skipCounters then
+		for _, g in V.counters do
+			cutBox(V3(g.min.X, 0, g.min.Z), V3(g.max.X, 10, g.max.Z), 4.5, 0.4)
+		end
+	end
+	local out = {}
+	for _, s in spans do
+		local segs = { { s[1], s[2] } }
+		for _, c in cuts do
+			local nxt = {}
+			for _, g in segs do
+				if c[2] <= g[1] or c[1] >= g[2] then
+					table.insert(nxt, g)
+				else
+					if c[1] > g[1] then
+						table.insert(nxt, { g[1], c[1] })
+					end
+					if c[2] < g[2] then
+						table.insert(nxt, { c[2], g[2] })
+					end
+				end
+			end
+			segs = nxt
+		end
+		for _, g in segs do
+			if g[2] - g[1] > 1.5 then
+				table.insert(out, g)
+			end
+		end
+	end
+	table.sort(out, function(a, b)
+		return (a[2] - a[1]) > (b[2] - b[1])
+	end)
+	return out
+end
+
+-- 픽처 라이트 (액자 위 황동 바 + 아래로 비추는 빛줄)
+local function pictureLight(K: any, dcf: CFrame, w: number, h: number)
+	local top = dcf * CF(0, h / 2 + 0.32, 0)
+	K:box("PicLightMount", V3(0.18, 0.12, 0.06), top * CF(0, 0, 0.03), Look.brass)
+	K:bar("PicLightArm", (top * CF(0, 0, 0.05)).Position, (top * CF(0, 0.06, 0.32)).Position, 0.05, 0.05, Look.brass)
+	K:cyl("PicLightBar", w * 0.55, 0.13, top * CF(0, 0.06, 0.36), Look.brass)
+	K:box("PicLightGlow", V3(w * 0.5, 0.03, 0.06), top * CF(0, 0.0, 0.36), Look.lampWarm)
+end
+
+-- 갤러리 월: 구간 a..b 가운데에 크기가 다른 액자 줄 (가운데 높이 yc)
+local function galleryWall(K: any, V: any, B: any, wn: string, a: number, b: number, yc: number, idx: number): number
+	local kinds = ART_KINDS[B.key] or { "abstract", "gallery", "botanical" }
+	local cycles = {
+		{ { 1.5, 2.0 }, { 2.7, 2.0 }, { 1.5, 2.0 } },
+		{ { 1.8, 1.8 }, { 1.3, 1.7 }, { 2.5, 1.9 } },
+		{ { 2.4, 1.8 }, { 1.4, 1.9 } },
+	}
+	local cyc = cycles[(B.seed + idx) % #cycles + 1]
+	local gap = 0.55
+	local len = b - a - 0.6
+	local row = {}
+	local total = -gap
+	local k = 0
+	while k < 7 do
+		local sz = cyc[k % #cyc + 1]
+		if total + gap + sz[1] > len then
+			break
+		end
+		table.insert(row, sz)
+		total += gap + sz[1]
+		k += 1
+	end
+	if #row == 0 then
+		return 0
+	end
+	local u = (a + b) / 2 - total / 2
+	for i, sz in row do
+		if not room(K, 40) then
+			break
+		end
+		local cu = u + sz[1] / 2
+		-- 액자 위 · 아래 가장자리 맞춤 대신 가운데 맞춤 + 작은 높이 흔들림 (손으로 건 느낌 없이 정돈)
+		local dcf = V:wall(wn, cu, yc + (if sz[2] < 1.8 then 0.1 else 0), 0.01)
+		artPiece(K, dcf, sz[1], sz[2], kinds[(i + idx + B.seed) % #kinds + 1], B, 40 + idx * 7 + i)
+		if sz[1] >= 2.2 and hi(K) then
+			pictureLight(K, dcf, sz[1], sz[2])
+		end
+		u += sz[1] + gap
+	end
+	useWall(K, wn, (a + b) / 2 - total / 2 - 0.2, (a + b) / 2 + total / 2 + 0.2, yc - 1.2, yc + 1.5)
+	return #row
+end
+
+-- MD 벽선반: 떠 있는 선반 2단 + 원두 봉투 · 드립백 · 텀블러 · 머그 + 가격표 + 머리판
+local function merchWall(K: any, V: any, B: any, wn: string, u: number, w: number)
+	if not room(K, 70) then
+		return
+	end
+	local shelfL = if B.key == "roastery" or B.key == "concrete" or B.key == "pascucci" or B.key == "lounge" then Look.walnut elseif B.key == "scandi" then Look.birch else Look.oak
+	local cols = { B.c1, rgb(250, 250, 248), rgb(30, 30, 32), B.c3, rgb(150, 170, 150) }
+	local bag = lk(rgb(196, 160, 112), M.Cardboard)
+	for tier = 0, 1 do
+		local y = 4.1 + tier * 1.35
+		local at = Props.shelf(K, V:wall(wn, u, y, 0), w, { depth = 0.72, look = shelfL, bracket = Look.blackMetal, thick = 0.12 })
+		local inner = w - 0.5
+		if tier == 0 then
+			local n = math.max(2, math.floor(inner / 0.62))
+			for k = 1, n do
+				local x = -inner / 2 + inner * (k - 0.5) / n
+				local c = at * CF(x, 0, -0.06)
+				if k % 3 == 0 then
+					K:box("DripBox", V3(0.56, 0.5, 0.36), c * CF(0, 0.25, 0), lk(cols[(k % #cols) + 1]))
+					K:text("DripBoxLabel", 0.46, 0.18, c * CF(0, 0.3, 0.185), "DRIP BAG\n10입", { fg = onColor(cols[(k % #cols) + 1]), d = 0.005, font = F.GothamBold })
+				else
+					K:box("BeanBag", V3(0.44, 0.68, 0.28), c * CF(0, 0.34, 0), bag)
+					K:box("BeanBagFold", V3(0.46, 0.09, 0.3), c * CF(0, 0.7, 0), lk(rgb(170, 134, 90), M.Cardboard))
+					K:plate("BeanBagLabel", 0.34, 0.28, 0.01, c * CF(0, 0.36, 0.14), lk(cols[(k + 1) % #cols + 1]))
+				end
+			end
+			K:text("MerchPrice", math.min(inner, 2.6), 0.13, at * CF(0, -0.07, 0.37), "원두 200g 16,000 ~ 19,000원 · 드립백 10입 15,000원", { fg = rgb(30, 30, 30), bg = rgb(250, 250, 246), d = 0.005, font = F.GothamMedium })
+		else
+			local n = math.max(2, math.floor(inner / 0.48))
+			for k = 1, n do
+				local x = -inner / 2 + inner * (k - 0.5) / n
+				local c = at * CF(x, 0, -0.06)
+				local col = cols[k % #cols + 1]
+				if k % 3 == 0 then
+					K:vcyl("Mug", 0.38, 0.36, c * CF(0, 0.19, 0), lk(col))
+					K:box("MugHandle", V3(0.06, 0.22, 0.07), c * CF(0.21, 0.19, 0), lk(col))
+				else
+					K:vcyl("Tumbler", 0.78, 0.3, c * CF(0, 0.39, 0), lk(col, M.Metal, { r = 0.08 }))
+					K:vcyl("TumblerLid", 0.13, 0.32, c * CF(0, 0.84, 0), if k % 2 == 0 then Look.black else Look.chrome)
+					K:plate("TumblerLogo", 0.16, 0.16, 0.005, c * CF(0, 0.45, 0.15), lk(onColor(col)))
+				end
+			end
+			K:text("MerchPrice", math.min(inner, 2.4), 0.13, at * CF(0, -0.07, 0.37), "텀블러 25,000 ~ 39,000원 · 머그 15,000원", { fg = rgb(30, 30, 30), bg = rgb(250, 250, 246), d = 0.005, font = F.GothamMedium })
+		end
+	end
+	K:text("MerchHeader", math.min(w - 0.2, 3.0), 0.34, V:wall(wn, u, 6.85, 0.02), if B.key == "roastery" or B.key == "concrete" then "BEANS & GOODS" else (B.logo or "CAFE") .. "  MD · 원두 · 텀블러", { fg = B.ink, bg = B.paper, d = 0.03, font = F.GothamBold })
+	useWall(K, wn, u - w / 2 - 0.2, u + w / 2 + 0.2, 3.4, 7.1)
+end
+
+-- 아치 니치: 페인트 아치 + 작은 선반 (화병 · 책 · 캔들) — 오뜨 · 스칸디 · 테라코타 · 라운지
+local function archNiche(K: any, V: any, B: any, wn: string, u: number, w: number, y0: number, y1: number, idx: number)
+	if not room(K, 22) then
+		return
+	end
+	local base = if B.key == "haute" then rgb(234, 200, 196) elseif B.key == "terracotta" then rgb(214, 150, 112) elseif B.key == "lounge" then rgb(70, 58, 48) else lt(B.c1, 0.35)
+	if idx % 2 == 1 then
+		base = dk(base, 0.08)
+	end
+	local look = lk(base, M.Plaster)
+	local r = w / 2
+	local rectH = (y1 - y0) - r
+	K:plate("ArchPanel", w, rectH, 0.03, V:wall(wn, u, y0 + rectH / 2, 0.01), look)
+	wdisc(K, "ArchTop", w, 0.03, V:wall(wn, u, y0 + rectH, 0.01), look)
+	-- 니치 선반 + 소품
+	local at = Props.shelf(K, V:wall(wn, u, y0 + rectH * 0.55, 0.04), w * 0.7, { depth = 0.5, look = if B.key == "lounge" then Look.brass else Look.oak, bracket = lk(base), thick = 0.08 })
+	K:vcyl("NicheVase", 0.62, 0.3, at * CF(-w * 0.16, 0.31, -0.05), lk(rgb(246, 244, 238), M.Plaster))
+	for k = 0, 2 do
+		K:seg("NicheStem", (at * CF(-w * 0.16 + (k - 1) * 0.05, 0.55, -0.05)).Position, (at * CF(-w * 0.16 + (k - 1) * 0.16, 1.05 + k * 0.08, -0.05)).Position, 0.03, lk(rgb(110, 120, 80)))
+		K:ball("NicheBloom", 0.16, at * CF(-w * 0.16 + (k - 1) * 0.16, 1.07 + k * 0.08, -0.05), lk(if k == 1 then rgb(250, 246, 236) else rgb(232, 170, 170)))
+	end
+	K:box("NicheBook", V3(0.5, 0.08, 0.36), at * CF(w * 0.14, 0.04, -0.06), lk(rgb(226, 214, 196)))
+	K:box("NicheBook", V3(0.46, 0.07, 0.34), at * CF(w * 0.15, 0.115, -0.06) * ANG(0, 0.1, 0), lk(rgb(120, 140, 130)))
+	K:vcyl("NicheCandle", 0.22, 0.18, at * CF(w * 0.15, 0.26, -0.06), lk(rgb(250, 246, 238)))
+	useWall(K, wn, u - w / 2 - 0.15, u + w / 2 + 0.15, y0, y1)
+end
+
+-- 브랜드 벽화 (긴 빈 벽): 바탕 판 + 큰 제목 + 부제 + 음료 그림 3 (또는 사이렌 원형 엠블럼)
+local MURAL: { [string]: { string } } = {
+	mega = { "MEGA SIZE", "24oz 대용량 · 아메리카노 2,000원", "pop" },
+	compose = { "COMPOSE YOUR DAY", "BEST QUALITY · BEST PRICE", "pop" },
+	pascucci = { "Caffè Pascucci", "dal 1883 · Montecerignone, Italia", "coffee" },
+	starbucks = { "STARBUCKS COFFEE", "광안리점 · Since 1971 Seattle", "siren" },
+	twosome = { "A TWOSOME PLACE", "Dessert & Coffee · Strawberry Choux Cake", "cake" },
+	haute = { "Pâtisserie Haute", "fraisier · mille-feuille · madeleine", "cake" },
+	roastery = { "ROASTED HERE", "Ethiopia · Kenya · Colombia · Guatemala", "coffee" },
+	lounge = { "Lounge by the Sea", "coffee · tea · wine · 광안대교 view", "bridge" },
+	busan = { "SEA YOU IN 051", "Gwangalli Beach · Busan", "bridge" },
+	bakery = { "Boulangerie", "매일 아침 7시 첫 빵이 나옵니다", "bread" },
+	tanghulu = { "탕후루", "제철 과일 · 바삭한 설탕 코팅", "fruit" },
+}
+local function brandMural(K: any, V: any, B: any, wn: string, u: number, w: number, y0: number, y1: number)
+	if not room(K, 40) then
+		return
+	end
+	local m = MURAL[B.key] or { B.title, B.slogan, "cups" }
+	local h = y1 - y0
+	local dcf = V:wall(wn, u, y0 + h / 2, 0.01)
+	local bg = if B.key == "mega" or B.key == "compose" then B.c1 elseif B.key == "haute" then rgb(244, 222, 218) elseif B.key == "starbucks" then rgb(0, 98, 65) elseif B.key == "bakery" then rgb(236, 220, 196) else (B.c2 or rgb(40, 40, 40))
+	local fg = onColor(bg)
+	if B.key == "haute" then
+		fg = rgb(150, 110, 60)
+	end
+	K:plate("MuralTrim", w + 0.16, h + 0.16, 0.03, dcf, if B.key == "haute" or B.key == "pascucci" or B.key == "lounge" then Look.goldMetal else Look.blackMetal)
+	K:plate("Mural", w, h, 0.02, dcf * CF(0, 0, 0.03), lk(bg, M.SmoothPlastic))
+	local z = 0.052
+	local font = if B.key == "pascucci" or B.key == "haute" or B.key == "lounge" or B.key == "bakery" then F.Garamond else F.GothamBlack
+	if m[3] == "siren" then
+		local d = math.min(h * 0.72, w * 0.32)
+		local c = dcf * CF(-w * 0.26, 0, z)
+		wdisc(K, "SirenRing", d, 0.01, c, lk(rgb(255, 255, 255)))
+		wdisc(K, "SirenField", d * 0.86, 0.012, c, lk(rgb(0, 112, 74)))
+		wdisc(K, "SirenInner", d * 0.56, 0.014, c, lk(rgb(255, 255, 255)))
+		wdisc(K, "SirenFace", d * 0.4, 0.016, c * CF(0, d * 0.02, 0), lk(rgb(0, 112, 74)))
+		K:plate("SirenCrown", d * 0.22, d * 0.07, 0.018, c * CF(0, d * 0.22, 0), lk(rgb(255, 255, 255)))
+		for sx = -1, 1, 2 do
+			K:plate("SirenTail", d * 0.06, d * 0.3, 0.018, c * CF(sx * d * 0.24, -d * 0.02, 0) * ANG(0, 0, sx * 0.35), lk(rgb(0, 112, 74)))
+		end
+		K:text("MuralTitle", w * 0.5, h * 0.22, dcf * CF(w * 0.18, h * 0.12, z), m[1], { fg = rgb(255, 255, 255), font = F.GothamBold, d = 0.005 })
+		K:text("MuralSub", w * 0.5, h * 0.12, dcf * CF(w * 0.18, -h * 0.12, z), m[2], { fg = rgb(212, 233, 226), font = F.Gotham, d = 0.005 })
+	else
+		K:text("MuralTitle", w * 0.86, h * 0.3, dcf * CF(0, h * 0.24, z), m[1], { fg = fg, font = font, d = 0.005 })
+		K:text("MuralSub", w * 0.8, h * 0.11, dcf * CF(0, h * 0.02, z), m[2], { fg = if B.key == "mega" or B.key == "compose" then rgb(30, 30, 30) else lt(fg, 0.15), font = F.GothamMedium, d = 0.005 })
+		local kinds = if m[3] == "pop" then { "americano", "latte", "strawberry", "ade" } elseif m[3] == "fruit" then { "strawberry", "ade", "strawberry" } else { "latte", "americano", "latte" }
+		local n = #kinds
+		for k = 1, n do
+			local x = -w * 0.33 + (k - 1) * (w * 0.66 / math.max(1, n - 1))
+			if m[3] == "coffee" or m[3] == "bread" or m[3] == "cake" or m[3] == "bridge" then
+				-- 선 그림 대신 원형 배지 + 아이콘 글자
+				wdisc(K, "MuralBadge", h * 0.28, 0.01, dcf * CF(x, -h * 0.28, z), lk(lt(bg, 0.2)))
+				K:text("MuralBadgeText", h * 0.26, h * 0.1, dcf * CF(x, -h * 0.28, z + 0.012), (if m[3] == "coffee" then { "ESPRESSO", "ROAST", "BREW" } elseif m[3] == "bread" then { "PAIN", "CROISSANT", "BRIOCHE" } elseif m[3] == "cake" then { "GÂTEAU", "TARTE", "CHOUX" } else { "COFFEE", "TEA", "WINE" })[k], { fg = fg, font = F.GothamBold, d = 0.003 })
+			else
+				glyph(K, dcf * CF(x, -h * 0.26, z), h * 0.4, kinds[k])
+			end
+		end
+	end
+	useWall(K, wn, u - w / 2 - 0.2, u + w / 2 + 0.2, y0 - 0.1, y1 + 0.1)
+end
+
+local function stepFill(K: any, V: any, B: any, ctx: any)
+	if B.key == "claw" then
+		return
+	end
+	local maxN = if V.W * V.D > 900 then 9 elseif V.W * V.D > 450 then 6 else 4
+	if K.detail == "low" then
+		maxN = math.min(maxN, 2)
+	end
+	local n = 0
+	local idx = 0
+	local archy = B.key == "haute" or B.key == "scandi" or B.key == "terracotta" or B.key == "lounge"
+	local merchOK = B.type == "cafe" and B.key ~= "mega" and B.key ~= "compose" and B.key ~= "lobby"
+	local muralDone = false
+	for pass = 1, 2 do
+		for _, wn in { "back", "left", "right" } do
+			if not V.walls[wn] then
+				continue
+			end
+			local y0, y1 = 3.55, math.min(6.75, V.H - 1.2)
+			for _, s in fillSpans(K, V, wn, y0, y1, wn == "back") do
+				if n >= maxN or not room(K, 60) then
+					break
+				end
+				local a, b = s[1], s[2]
+				local len = b - a
+				idx += 1
+				-- 긴 벽 (8+): 브랜드 벽화 1 회, 그 외 갤러리
+				if not muralDone and len >= 8.5 and MURAL[B.key] and V.H >= 9.4 then
+					local w = math.min(len - 1.0, 9.5)
+					local top = math.min(V.H - 1.0, 8.4)
+					local mh = math.min(3.6, top - 3.7)
+					if mh >= 2.6 and #fillSpans(K, V, wn, 3.7, top, wn == "back") > 0 then
+						brandMural(K, V, B, wn, (a + b) / 2, w, top - mh, top)
+						muralDone = true
+						n += 1
+						continue
+					end
+				end
+				if len >= 6.2 then
+					if galleryWall(K, V, B, wn, a, b, 5.05, idx) > 0 then
+						n += 1
+					end
+				elseif len >= 4.0 then
+					local w = math.min(3.6, len - 0.6)
+					if merchOK and (idx + B.seed) % 2 == 0 then
+						merchWall(K, V, B, wn, (a + b) / 2, w)
+					elseif archy and V.H >= 9 then
+						local aw = math.min(2.4, len - 0.8)
+						archNiche(K, V, B, wn, (a + b) / 2, aw, 0.45, math.min(V.H - 1.4, 7.4), idx)
+					else
+						galleryWall(K, V, B, wn, a, b, 5.05, idx)
+					end
+					n += 1
+				elseif len >= 2.6 and pass == 2 then
+					local kinds = ART_KINDS[B.key] or { "abstract" }
+					local aw = math.min(2.2, len - 0.5)
+					local ah = if aw > 1.8 then 1.7 else 2.0
+					artPiece(K, V:wall(wn, (a + b) / 2, 5.05, 0.01), aw, ah, kinds[(idx + B.seed) % #kinds + 1], B, 80 + idx)
+					useWall(K, wn, (a + b) / 2 - aw / 2 - 0.2, (a + b) / 2 + aw / 2 + 0.2, 3.9, 6.2)
+					n += 1
+				end
+			end
+		end
+	end
+	-- 윗벽 브랜드 문구 (뒷벽 손님 쪽 · 높은 천장)
+	if V.H >= 9.6 then
+		for _, s in fillSpans(K, V, "back", 7.3, math.min(V.H - 0.6, 9.4), true) do
+			local len = s[2] - s[1]
+			if len >= 6 and room(K, 4) then
+				local w = math.min(len - 1, 9)
+				local txt = if B.key == "pascucci" then "Caffè Pascucci · dal 1883" elseif B.key == "haute" then "Pâtisserie & Café Haute" elseif B.key == "twosome" then "A TWOSOME PLACE · DESSERT CAFE" else (B.slogan or B.title)
+				K:text("BackScript", w, 0.8, V:wall("back", (s[1] + s[2]) / 2, 8.3, 0.03), txt, { fg = if B.key == "mega" or B.key == "compose" then B.c1 else lt(B.ink, 0.1), font = if B.key == "pascucci" or B.key == "haute" or B.key == "lounge" then F.Garamond else F.GothamBlack, d = 0.03 })
+				useWall(K, "back", (s[1] + s[2]) / 2 - w / 2, (s[1] + s[2]) / 2 + w / 2, 7.8, 8.8)
+				break
+			end
+		end
+	end
+	ctx.fillN = n
+end
+
 -- 짓기 ------------------------------------------------------------------------------------------------------
 function T.build(K: any, V: any, S: any)
 	local B = (S and S.brand) or brandOf(V)
@@ -4067,6 +4429,7 @@ function T.build(K: any, V: any, S: any)
 		table.insert(steps, { "special", stepSpecial })
 		table.insert(steps, { "sides", stepSideWalls })
 		table.insert(steps, { "plants", stepPlants })
+		table.insert(steps, { "fill", stepFill })
 		table.insert(steps, { "ceiling", stepCeiling })
 	end
 	local function where(cf: CFrame?): string
@@ -4092,7 +4455,7 @@ function T.build(K: any, V: any, S: any)
 			K:note("cafe." .. st[1] .. " error: " .. tostring(err))
 		end
 	end
-	K:note(string.format("cafe[%s] menus=%d boards=%d placed=%s", B.key, ctx.menuPlaced or 0, #ctx.boards, table.concat(ctx.placed or {}, " ")))
+	K:note(string.format("cafe[%s] menus=%d boards=%d fill=%d placed=%s", B.key, ctx.menuPlaced or 0, #ctx.boards, ctx.fillN or 0, table.concat(ctx.placed or {}, " ")))
 end
 
 return T
