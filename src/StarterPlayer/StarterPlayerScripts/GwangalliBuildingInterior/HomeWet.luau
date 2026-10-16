@@ -326,6 +326,11 @@ function Ctx:hitsKeep(mn: Vector3, mx: Vector3, mode: string): string?
 			if mode == "flush" then
 				continue
 			end
+		elseif kind == "slot" then
+			-- 위층 (복층 침대 등) 가구 자리: Homes.post 는 바닥(0.05)부터 잡으므로, 이 방 천장 위로 솟은 것은 무시
+			if k.max.Y > (self.H or 99) + 0.6 and mx.Y < (self.H or 99) then
+				continue
+			end
 		end
 		if overlap(mn, mx, k.min, k.max, 0.03) then
 			return kind
@@ -1629,7 +1634,14 @@ local function utensilHolder(C: any, pcf: CFrame)
 end
 
 -- 양념 (간장 · 식용유 · 참기름 · 소금 · 고춧가루)
-local function seasonings(C: any, pcf: CFrame, ti: number)
+local function seasonings(C: any, pcf: CFrame, ti: number, small: boolean?)
+	if small then
+		bottle(C, pcf * CF(-0.2, 0, -0.08), 0.95, 0.24, lk(50, 26, 16, M.Glass, { t = 0.1 }), lk(200, 30, 30, M.Plastic), C3(250, 246, 236), "진간장")
+		bottle(C, pcf * CF(0.1, 0, -0.1), 1.0, 0.26, lk(232, 200, 90, M.Glass, { t = 0.35 }), lk(240, 200, 40, M.Plastic), C3(250, 230, 120), "식용유")
+		C:vcyl("SaltTub", 0.32, 0.28, pcf * CF(0.0, 0.16, 0.2), lk(248, 248, 246, M.Plastic, { t = 0.2 }))
+		C:vcyl("SaltLid", 0.05, 0.29, pcf * CF(0.0, 0.345, 0.2), lk(60, 130, 200, M.Plastic))
+		return
+	end
 	if ti >= 4 then
 		C:disc("SpiceTray", 1.0, 0.04, pcf * CF(0, 0.02, 0), lk(110, 80, 56, M.Wood))
 	end
@@ -1822,19 +1834,49 @@ local function topSpot(C: any, info: any, w: number, d: number, h: number, targe
 	if hi < lo then
 		return nil
 	end
+	-- 후보: 선호 위치 둘레 + 빈 틈 가운데 (선호 위치에 가까운 순)
 	local tries = {}
 	for _, t in targets do
-		for k = 0, 12 do
-			for _, s in { 1, -1 } do
-				table.insert(tries, math.clamp(t + s * k * 0.25, lo, hi))
+		for k = 0, 8 do
+			for _, sg in { 1, -1 } do
+				table.insert(tries, math.clamp(t + sg * k * 0.2, lo, hi))
 			end
 		end
+	end
+	local cuts = {}
+	for _, bz in info.busy do
+		if (bz[3] or -1) < z + d / 2 and (bz[4] or 99) > z - d / 2 then
+			table.insert(cuts, { bz[1], bz[2] })
+		end
+	end
+	table.sort(cuts, function(p, q)
+		return p[1] < q[1]
+	end)
+	local cur = info.topA + 0.05
+	local gaps = {}
+	for _, c in cuts do
+		if c[1] - cur >= w then
+			table.insert(gaps, { cur, c[1] })
+		end
+		cur = math.max(cur, c[2])
+	end
+	if info.topB - 0.05 - cur >= w then
+		table.insert(gaps, { cur, info.topB - 0.05 })
+	end
+	local t0 = targets[1] or 0
+	table.sort(gaps, function(p, q)
+		return math.abs((p[1] + p[2]) / 2 - t0) < math.abs((q[1] + q[2]) / 2 - t0)
+	end)
+	for _, g in gaps do
+		table.insert(tries, math.clamp(t0, g[1] + w / 2, g[2] - w / 2))
+		table.insert(tries, g[1] + w / 2)
+		table.insert(tries, g[2] - w / 2)
 	end
 	for _, x in tries do
 		local cf = CF(x, ytop + h / 2 + 0.01, z)
 		local ok = true
-		for _, b in info.busy do
-			if x + w / 2 > b[1] and x - w / 2 < b[2] and z + d / 2 > (b[3] or -1) and z - d / 2 < (b[4] or 99) then
+		for _, bz in info.busy do
+			if x + w / 2 > bz[1] and x - w / 2 < bz[2] and z + d / 2 > (bz[3] or -1) and z - d / 2 < (bz[4] or 99) then
 				ok = false
 				break
 			end
@@ -1852,9 +1894,6 @@ local function topSpot(C: any, info: any, w: number, d: number, h: number, targe
 			C:reserve(cf, V3(w, h, d))
 			table.insert(info.busy, { x - w / 2, x + w / 2, z - d / 2, z + d / 2 })
 			return CF(x, ytop, z)
-		end
-		if ok and C.K.hwDebug then
-			C.K:note(string.format("topSpot clear fail x=%.2f w=%.2f why=%s", x, w, tostring(C:why(cf, V3(w, h, d), "top"))))
 		end
 	end
 	return nil
@@ -2329,19 +2368,73 @@ local function kitchenClutter(info: any)
 			potOnHob(C, CF(r2.X, info.ytop + 0.04, r2.Z), "pan")
 		end
 	end
-	-- 식기건조대 (식기세척기 집은 작게 / 펜트하우스 없음)
+	-- 식기건조대 (식기세척기 집은 작게 / 펜트하우스 없음). 조리대가 좁으면 상부장 아래 매다는 건조대
 	if ti <= 4 and info.bowl then
 		local w = if ti == 4 then 1.7 else 1.45
-		local p = topSpot(C, info, w, 0.95, if ti == 4 then 1.5 else 0.95, { sinkEdge + away * (w / 2 + 0.15) }, true)
+		local p = topSpot(C, info, w, 0.95, if ti == 4 then 1.5 else 0.95, { sinkEdge + away * (w / 2 + 0.15), sinkEdge2 - away * (w / 2 + 0.15) }, true)
 		if p then
 			dishRack(C, p, w, 0.95, if ti == 4 then 2 else 1)
+		elseif info.upperY then
+			-- 상부장 하부 식기건조대 (개수대 옆 상부장 밑에 매담)
+			for _, x in { sinkEdge + away * 0.9, sinkEdge2 - away * 0.9, (info.bowl.a + info.bowl.b) / 2 } do
+				local cf = CF(x, info.upperY - 0.5, 0.55)
+				if C:claim(cf, V3(1.5, 0.9, 0.9), "wall") then
+					local wire = lk(236, 236, 232, M.Plastic)
+					local y1 = info.upperY - 0.04
+					for _, sx in { -1, 1 } do
+						C:box("HangRackStrap", V3(0.04, 0.9, 0.04), CF(x + sx * 0.7, y1 - 0.45, 0.85), wire)
+						C:box("HangRackStrap", V3(0.04, 0.9, 0.04), CF(x + sx * 0.7, y1 - 0.45, 0.15), wire)
+					end
+					C:box("HangRackBase", V3(1.45, 0.04, 0.75), CF(x, y1 - 0.88, 0.5), wire)
+					C:box("HangRackTray", V3(1.45, 0.05, 0.75), CF(x, y1 - 0.93, 0.5), lk(200, 214, 220, M.Plastic, { t = 0.25 }))
+					for k = 0, 6 do
+						C:disc("HangRackPlate", if k % 3 == 0 then 0.7 else 0.6, 0.03, CF(x - 0.55 + k * 0.12, y1 - 0.5, 0.45) * ANG(0, 0, PI / 2), LK.ceramic)
+					end
+					C:vcyl("HangRackCup", 0.32, 0.26, CF(x + 0.45, y1 - 0.68, 0.35), col(C3(120, 170, 210)))
+					C:vcyl("HangRackCup", 0.32, 0.26, CF(x + 0.45, y1 - 0.68, 0.7), LK.white)
+					break
+				end
+			end
 		end
 	end
-	-- 세제 · 수세미 · 고무장갑 (개수대 옆)
+	-- 세제 · 수세미 (개수대 뒤 턱 / 옆) · 고무장갑 (개수대 앞 턱에 걸침)
 	if info.bowl then
-		local p = topSpot(C, info, 0.75, 0.75, 0.8, { sinkEdge2 - away * 0.5 }, false)
-		if p then
-			sinkSet(C, p, ti <= 4)
+		local bw = info.bowl
+		local placed = false
+		local fx = if info.faucet then info.faucet.X else (bw.a + bw.b) / 2
+		if bw.z0 > 0.32 then
+			for _, x in { fx - 0.45 * away, fx + 0.45 * away, bw.a + 0.2, bw.b - 0.2 } do
+				local cf = CF(x, info.ytop + 0.45, bw.z0 / 2)
+				if x > bw.a and x < bw.b and C:claim(cf, V3(0.3, 0.9, math.min(0.3, bw.z0 - 0.04)), "top") then
+					bottle(C, CF(x, info.ytop, bw.z0 / 2), 0.75, 0.24, lk(120, 200, 80, M.Plastic, { t = 0.15 }), lk(240, 240, 240, M.Plastic), C3(250, 250, 240), "주방세제")
+					placed = true
+					break
+				end
+			end
+		end
+		if not placed then
+			local p = topSpot(C, info, 0.75, 0.75, 0.8, { sinkEdge2 - away * 0.5, sinkEdge + away * 0.5 }, false)
+			if p then
+				sinkSet(C, p, false)
+				placed = true
+			end
+		end
+		-- 수세미 걸이 (볼 안쪽 벽, 흡착)
+		local sx = (bw.a + bw.b) / 2 + (bw.b - bw.a) * 0.3 * away
+		local sy = info.ytop - 0.25
+		C:box("SinkSpongeRack", V3(0.4, 0.04, 0.24), CF(sx, sy, bw.z0 + 0.14), lk(236, 236, 232, M.Plastic))
+		C:box("Sponge", V3(0.32, 0.12, 0.2), CF(sx, sy + 0.08, bw.z0 + 0.14), lk(250, 210, 60, M.Fabric))
+		C:box("SpongeScrub", V3(0.32, 0.04, 0.2), CF(sx, sy + 0.16, bw.z0 + 0.14), lk(60, 150, 70, M.Fabric))
+		if ti <= 4 then
+			-- 고무장갑: 앞 턱에 걸쳐 볼 안으로 늘어짐
+			local gx = (bw.a + bw.b) / 2 - (bw.b - bw.a) * 0.25 * away
+			local fz = bw.z1
+			local glove = lk(236, 120, 150, M.Rubber)
+			C:box("RubberGloveCuff", V3(0.36, 0.05, 0.3), CF(gx, info.ytop + 0.025, fz + 0.12), glove)
+			C:box("RubberGloveHand", V3(0.34, 0.5, 0.05), CF(gx, info.ytop - 0.24, fz - 0.04) * ANG(0.12, 0, 0), glove)
+			for k = 0, 3 do
+				C:box("RubberGloveFinger", V3(0.06, 0.2, 0.05), CF(gx - 0.12 + k * 0.08, info.ytop - 0.58, fz - 0.07) * ANG(0.12, 0, 0), glove)
+			end
 		end
 	end
 	-- 조리도구 꽂이 · 양념 (인덕션 옆)
@@ -2353,6 +2446,11 @@ local function kitchenClutter(info: any)
 		local q = topSpot(C, info, 1.0, 0.75, 1.0, { hobEdge + hobOut * 1.2, hobEdge - hobOut * 1.0 }, true)
 		if q then
 			seasonings(C, q, ti)
+		else
+			local q2 = topSpot(C, info, 0.65, 0.6, 1.0, { hobEdge + hobOut * 0.9, hobEdge - hobOut * 0.9, sinkC }, true)
+			if q2 then
+				seasonings(C, q2, ti, true)
+			end
 		end
 	end
 	-- 도마 (벽에 기대 둠)
@@ -2367,7 +2465,7 @@ local function kitchenClutter(info: any)
 		if p then
 			ramenStack(C, p)
 		end
-		local s = topSpot(C, info, 0.4, 0.4, 0.9, { sinkEdge + away * 2.2 }, false)
+		local s = topSpot(C, info, 0.4, 0.4, 0.9, { sinkEdge + away * 0.4, sinkEdge2 - away * 0.4, sinkEdge + away * 2.2 }, true)
 		if s then
 			spoonHolder(C, s)
 		end

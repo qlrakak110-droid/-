@@ -778,6 +778,129 @@ local function baseKit(K: any, V: any, walls: { string }, look: any?)
 	end
 end
 
+-- 벽 도장: 맵 회벽 (이름에 Wall, Plaster/Concrete) 의 방 쪽 면에만 얇은 매끈한 도장판을 덮는다.
+-- 벽에 붙은 맵 물건 (보이는 것) 자리는 사각형으로 비워 둠 (숨긴 것 · 투명 앵커는 무시). 반환: 판 수
+local function paintWalls(K: any, V: any, look: any?, o: any?): number
+	local oo: any = o or {}
+	local L = look or lk(242, 242, 238, M.SmoothPlastic)
+	local y0 = oo.y0 or 0.3
+	local y1 = math.min(oo.y1 or (V.H - 0.03), V.H - 0.03)
+	local only: any = nil
+	if oo.walls then
+		only = {}
+		for _, w in oo.walls do
+			only[w] = true
+		end
+	end
+	local WN = { "back", "front", "left", "right" }
+	local faces = {}
+	local others = {}
+	local root = K.root
+	for _, p in V.model:GetDescendants() do
+		if p:IsA("BasePart") and not (root and p:IsDescendantOf(root)) then
+			local mn, mx = Scan.laabb(V.cf:ToObjectSpace(p.CFrame), p.Size)
+			if mx.Y > y0 and mn.Y < y1 and mx.X > V.x0 - 1.2 and mn.X < V.x1 + 1.2 and mx.Z > V.z0 - 1.2 and mn.Z < V.z1 + 1.2 then
+				local isWall = string.find(p.Name, "Wall", 1, true) ~= nil
+					and (p.Material == Enum.Material.Plaster or p.Material == Enum.Material.Concrete)
+					and p.Transparency < 0.05
+				if isWall then
+					for _, wn in WN do
+						if (not only or only[wn]) and V.walls[wn] then
+							local f, ok = 0, false
+							if wn == "back" then
+								f, ok = mx.Z, math.abs(mx.Z - V.z0) < 0.8 and mn.Z < mx.Z - 0.15 and (mn.Z + mx.Z) / 2 < V.z0 + 0.3
+							elseif wn == "front" then
+								f, ok = mn.Z, math.abs(mn.Z - V.z1) < 0.8 and mx.Z > mn.Z + 0.15 and (mn.Z + mx.Z) / 2 > V.z1 - 0.3
+							elseif wn == "left" then
+								f, ok = mx.X, math.abs(mx.X - V.x0) < 0.8 and mn.X < mx.X - 0.15 and (mn.X + mx.X) / 2 < V.x0 + 0.3
+							else
+								f, ok = mn.X, math.abs(mn.X - V.x1) < 0.8 and mx.X > mn.X + 0.15 and (mn.X + mx.X) / 2 > V.x1 - 0.3
+							end
+							if ok then
+								local a: Vector3, b: Vector3
+								if wn == "back" or wn == "front" then
+									a = V3(math.max(mn.X, V.x0 + 0.01), 0, f)
+									b = V3(math.min(mx.X, V.x1 - 0.01), 0, f)
+								else
+									a = V3(f, 0, math.max(mn.Z, V.z0 + 0.01))
+									b = V3(f, 0, math.min(mx.Z, V.z1 - 0.01))
+								end
+								local ua, d = V:wallCoord(wn, a)
+								local ub = V:wallCoord(wn, b)
+								local u0, u1 = math.min(ua, ub), math.max(ua, ub)
+								local v0, v1 = math.max(mn.Y, y0), math.min(mx.Y, y1)
+								if u1 - u0 > 0.3 and v1 - v0 > 0.5 then
+									table.insert(faces, { wn = wn, f = f, d = d, r = { u0, u1, v0, v1 } })
+								end
+							end
+						end
+					end
+				elseif p.Transparency < 0.9 and not K.hidden[p] then
+					table.insert(others, { mn = mn, mx = mx })
+				end
+			end
+		end
+	end
+	-- 사각형 빼기 (길로틴)
+	local function sub(rs: { any }, h: { number }): { any }
+		local out = {}
+		for _, r in rs do
+			if h[2] <= r[1] or h[1] >= r[2] or h[4] <= r[3] or h[3] >= r[4] then
+				table.insert(out, r)
+			else
+				if h[1] > r[1] then
+					table.insert(out, { r[1], h[1], r[3], r[4] })
+				end
+				if h[2] < r[2] then
+					table.insert(out, { h[2], r[2], r[3], r[4] })
+				end
+				local a, b = math.max(r[1], h[1]), math.min(r[2], h[2])
+				if h[3] > r[3] then
+					table.insert(out, { a, b, r[3], h[3] })
+				end
+				if h[4] < r[4] then
+					table.insert(out, { a, b, h[4], r[4] })
+				end
+			end
+		end
+		return out
+	end
+	local n = 0
+	K:free(function()
+		for _, fc in faces do
+			local rs = { fc.r }
+			local wn, f = fc.wn, fc.f
+			for _, ob in others do
+				local mn, mx = ob.mn, ob.mx
+				local touch
+				if wn == "back" then
+					touch = mn.Z < f + 0.08 and mx.Z > f - 0.3
+				elseif wn == "front" then
+					touch = mx.Z > f - 0.08 and mn.Z < f + 0.3
+				elseif wn == "left" then
+					touch = mn.X < f + 0.08 and mx.X > f - 0.3
+				else
+					touch = mx.X > f - 0.08 and mn.X < f + 0.3
+				end
+				if touch then
+					local ua = V:wallCoord(wn, V3(mn.X, 0, mn.Z))
+					local ub = V:wallCoord(wn, V3(mx.X, 0, mx.Z))
+					rs = sub(rs, { math.min(ua, ub) - 0.02, math.max(ua, ub) + 0.02, mn.Y - 0.02, mx.Y + 0.02 })
+				end
+			end
+			for _, r in rs do
+				local w, h = r[2] - r[1], r[4] - r[3]
+				if w > 0.08 and h > 0.08 then
+					K:plate("WallPaint", w, h, 0.016, V:wall(wn, (r[1] + r[2]) / 2, (r[3] + r[4]) / 2, fc.d + 0.002), L)
+					n += 1
+				end
+			end
+		end
+	end)
+	note(K, string.format("wall paint faces=%d plates=%d", #faces, n))
+	return n
+end
+
 -- 안전 손잡이 (벽에 붙은 둥근 레일 + 까치발): wall, u0..u1, 높이 y
 local function handrail(K: any, wn: string, u0: number, u1: number, y: number?, o: any?)
 	local V = K.V
@@ -5705,6 +5828,21 @@ function T.style(V: any): any
 	}
 end
 
+-- 방별 벽 도장 색 (매끈한 수성 페인트 느낌)
+local PAINT = {
+	default = lk(242, 242, 238, M.SmoothPlastic),
+	lobby = lk(242, 240, 234, M.SmoothPlastic),
+	waiting = lk(242, 240, 234, M.SmoothPlastic),
+	consult = lk(243, 244, 241, M.SmoothPlastic),
+	pharmacy = lk(243, 244, 241, M.SmoothPlastic),
+	treat = lk(240, 244, 242, M.SmoothPlastic),
+	backhall = lk(238, 237, 232, M.SmoothPlastic),
+	ward = lk(244, 241, 234, M.SmoothPlastic),
+	nurse = lk(240, 243, 242, M.SmoothPlastic),
+	lounge = lk(240, 234, 224, M.SmoothPlastic),
+	checkup = lk(243, 244, 241, M.SmoothPlastic),
+}
+
 local ROOM_OF_TYPE = {
 	clinic_lobby = "lobby", clinic_waiting = "waiting", clinic_consult = "consult", clinic_pharmacy = "pharmacy",
 	clinic_treat = "treat", clinic_hall = "backhall", clinic_ward = "ward", clinic_nurse = "nurse", clinic_lounge = "lounge",
@@ -5736,6 +5874,10 @@ function T.build(K: any, V: any, S: any)
 			note(K, "room error: " .. tostring(err))
 		end
 	end
+	local pk = if BUILD[key] then key else (ROOM_OF_TYPE[V.type or ""] or "")
+	step(K, "paint", function()
+		paintWalls(K, V2, PAINT[pk] or PAINT.default)
+	end)
 	finishCommon(K, V2, K.clinicCommon)
 end
 

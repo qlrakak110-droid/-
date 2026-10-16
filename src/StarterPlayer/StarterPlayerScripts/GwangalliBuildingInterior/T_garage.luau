@@ -529,7 +529,14 @@ local function draw(G: any): any
 	-- 글자판 (fg, bg 간단 호출)
 	function D.label(n: string, w: number, h: number, dcf: CFrame, s: string, fg: Color3?, bg: Color3?, o: any?): (BasePart, TextLabel)
 		local opts: any = if o then table.clone(o) else {}
-		opts.fg = fg or INK
+		local f = fg or INK
+		opts.fg = f
+		-- 어두운 글자는 인쇄된 라벨처럼 밝은 바탕을 깔아 읽히게 (투명 바탕 어두운 글자는 멀리서 사라짐)
+		if bg == nil and not opts.clear and (0.3 * f.R + 0.59 * f.G + 0.11 * f.B) < 0.42 then
+			bg = opts.autoBg or C(250, 250, 246)
+		end
+		opts.clear = nil
+		opts.autoBg = nil
 		opts.bg = bg
 		return K:text(n, w, h, B * dcf, s, opts)
 	end
@@ -655,6 +662,33 @@ local function notice(D: any, dcf: CFrame, w: number, h: number, title: string, 
 	D.label("NoticeTitle", w, th, dcf * CF(0, h / 2 - th / 2, 0.065), title, WHITE, hd, { d = 0.01, font = Enum.Font.GothamBlack })
 	D.label("NoticeBody", w * 0.92, h - th - 0.2, dcf * CF(0, -th / 2 - 0.02, 0.065), body, (o and o.fg) or INK, nil, { d = 0.01, font = Enum.Font.GothamMedium, align = (o and o.align) or "Left" })
 	D.plate("NoticeGlass", w, h, 0.01, dcf * CF(0, 0, 0.08), { c = C(230, 236, 240), m = M.Glass, t = 0.9, r = 0.2 })
+end
+
+-- 가격표 (불투명 줄 바탕): items = { { 이름, 가격 } }, o.cols, o.accent, o.frame
+local function priceBoard(D: any, dcf: CFrame, w: number, h: number, title: string, items: { { string } }, o: any?)
+	local acc: Color3 = (o and o.accent) or NAVY
+	D.plate("PriceBoardFrame", w + 0.24, h + 0.24, 0.12, dcf, (o and o.frame) or L.alu)
+	D.plate("PriceBoardFace", w, h, 0.14, dcf, lk(C(250, 250, 246)))
+	local th = math.min(0.85, h * 0.17)
+	D.label("PriceBoardTitle", w, th, dcf * CF(0, h / 2 - th / 2, 0.14), title, WHITE, acc, { d = 0.01, font = Enum.Font.GothamBlack })
+	local cols = (o and o.cols) or 1
+	local rows = math.ceil(#items / cols)
+	local rh = (h - th - 0.16) / rows
+	local cw = w / cols
+	for i, it in items do
+		local col = (i - 1) // rows
+		local row = (i - 1) % rows
+		local x0 = -w / 2 + col * cw
+		local y = h / 2 - th - 0.08 - rh * (row + 0.5)
+		local bg = if row % 2 == 0 then C(250, 250, 246) else C(234, 236, 240)
+		D.label("PriceRowName", cw * 0.6, rh * 0.86, dcf * CF(x0 + cw * 0.33, y, 0.145), it[1], INK, bg, { d = 0.005, align = "Left", font = Enum.Font.GothamMedium })
+		D.label("PriceRowPrice", cw * 0.32, rh * 0.86, dcf * CF(x0 + cw * 0.81, y, 0.145), it[2] or "", acc, bg, { d = 0.005, align = "Right", font = Enum.Font.GothamBold })
+	end
+	if cols > 1 then
+		for c = 1, cols - 1 do
+			D.plate("PriceBoardDivider", 0.04, h - th - 0.2, 0.16, dcf * CF(-w / 2 + c * cw, -th / 2, 0), lk(C(200, 202, 206)))
+		end
+	end
 end
 
 -- 안전 표지 (원형 · 삼각 대신 사각 판 + 색 띠): kind = "warn" | "ban" | "must" | "fire" | "exit"
@@ -1332,7 +1366,9 @@ local function buildShowroom(K: any, V: any)
 			D.label("KeyCabinetLabel", 2.2, 0.3, kc * CF(0, 1.5, 0.05), "시승차 키 보관함", INK, C(246, 246, 242), { d = 0.01 })
 			local texts = { "사업자등록증\n\n광안 오토 정비소 & 중고차\n\n국세청", "자동차매매업\n등록증\n\n부산광역시 수영구청장", "성능·상태점검\n지정증\n\n국토교통부" }
 			for i, tx in texts do
-				Props.frame(K, G.B * D.wall("back", -34.0 + (i - 1) * 1.55, 6.7, 0.0), 1.3, 1.75, { frame = Look.goldMetal, text = tx, fg = C(40, 40, 40), textH = 0.9, border = 0.06, depth = 0.05 })
+				local fc = D.wall("back", -34.0 + (i - 1) * 1.55, 6.7, 0.0)
+				D.plate("CertFrame", 1.3, 1.75, 0.06, fc, Look.goldMetal)
+				D.label("CertPaper", 1.12, 1.56, fc * CF(0, 0, 0.06), tx, C(40, 40, 40), C(250, 248, 240), { d = 0.01, font = Enum.Font.GothamMedium })
 			end
 			-- 크레덴자 (뒤 벽, 직원 자리 왼쪽)
 			local cp = D.wallPf("back", -27.6, 1.5)
@@ -1890,7 +1926,7 @@ local function buildShowroom(K: any, V: any)
 			local e = cat[k] or CATALOG_FALLBACK[k]
 			table.insert(items, { e.label or k, "신차 " .. fmtWon(e.new or 0) .. " / 중고 " .. fmtWon(e.used or 0) })
 		end
-		Props.menuBoard(K, G.B * D.wall("right", 9.6, 5.6, 0.0), 6.4, 4.4, "차량 가격표 (원)", items, { cols = 1, bg = C(250, 250, 246), fg = INK, accent = NAVY, glow = false, frame = L.alu, rowH = 0.55 })
+		priceBoard(D, D.wall("right", 9.6, 5.6, 0.0), 6.4, 4.4, "차량 가격표 (원)", items, { accent = NAVY })
 		D.plate("RightWallBand", 22, 1.2, 0.05, D.wall("right", -1.0, 11.2, 0.0), L.navyMatte)
 		D.plate("RightWallBandLine", 22, 0.06, 0.06, D.wall("right", -1.0, 10.5, 0.0), L.orangeNeon)
 		D.label("RightWallGraphic", 20, 0.8, D.wall("right", -1.0, 11.2, 0.05), "신차 · 중고차 · 렌트 · 정비 · 세차  ONE STOP", C(236, 236, 230), nil, { d = 0.01, font = Enum.Font.GothamBold })
@@ -2714,7 +2750,7 @@ local function buildBayImpl(K: any, V: any): any
 		}
 		local pbz = (17.8 + math.min(23.2, RB.z1 - 1.8)) / 2 - 0.5
 		local pdcf = D.wall("right", pbz, 7.9, 0.0)
-		Props.menuBoard(K, G.B * pdcf, 6.8, 4.6, "정비 요금표 · 광안 오토 서비스", items, { cols = 2, bg = C(248, 248, 244), fg = INK, accent = C(200, 60, 24), glow = false, frame = L.navy, rowH = 0.6 })
+		priceBoard(D, pdcf, 7.2, 4.6, "정비 요금표 · 광안 오토 서비스", items, { cols = 2, accent = C(200, 60, 24), frame = L.navy })
 		local strip = D.plate("PriceBoardLight", 6.6, 0.08, 0.3, pdcf * CF(0, 2.5, 0.0), Look.lampNeutral)
 		D.light(strip, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 8, Brightness = 0.8, Angle = 120, Color = Look.neutralLight })
 	end)
@@ -3324,7 +3360,7 @@ local function buildWashImpl(K: any, V: any): any
 			{ "기본 세차", "5,000" }, { "폼 세차 (거품)", "7,000" }, { "프리미엄 왁스", "10,000" }, { "하부 세차 추가", "+2,000" },
 			{ "셀프 진공청소기 4분", "1,000" }, { "매트 세척", "1,000" },
 		}
-		Props.menuBoard(K, G.B * D.wall("left", pz, 6.6, -0.05), 4.6, 3.6, "자동세차 요금 (원)", items, { cols = 1, bg = C(250, 250, 248), fg = INK, accent = C(30, 90, 170), glow = false, frame = L.alu, rowH = 0.45 })
+		priceBoard(D, D.wall("left", pz, 6.6, -0.05), 4.6, 3.6, "자동세차 요금 (원)", items, { accent = C(30, 90, 170) })
 	end)
 
 	-- 6.5 진입 신호등 (전진 / 정지 / 후진) : 갠트리 움직임 · 존 안의 차를 읽어 스스로 바뀜 ---------------------------------------
@@ -3576,6 +3612,25 @@ local function buildWashImpl(K: any, V: any): any
 				end
 			end
 		end
+		-- 진입 높이 제한 바 (진입로 위, 차보다 높게)
+		local hz = RB.z1 - 1.0
+		local hy = 9.1
+		D.box("HeightBar", V3(zx1 - zx0 + 1.2, 0.4, 0.4), CF((zx0 + zx1) / 2, hy, hz), L.yellow)
+		for k = -3, 3 do
+			D.box("HeightBarStripe", V3(0.5, 0.42, 0.42), CF((zx0 + zx1) / 2 + k * 1.9, hy, hz) * ANG(0, 0, math.rad(30)), L.black)
+		end
+		for _, sx in { -1, 1 } do
+			D.seg("HeightBarChain", V3((zx0 + zx1) / 2 + sx * 5.0, hy + 0.2, hz), V3((zx0 + zx1) / 2 + sx * 5.0, yR, hz), 0.06, lk(C(150, 150, 154), M.Metal))
+		end
+		D.label("HeightBarSign", 3.6, 0.7, CFrame.fromMatrix(V3((zx0 + zx1) / 2, hy + 0.75, hz + 0.05), XA, YA, ZA), "높이 제한 2.1m", INK, L.yellow.c, { d = 0.04, font = Enum.Font.GothamBlack })
+		-- 갠트리 전원 · 호스 페스툰 레일 (오른쪽 위) + 홈 쪽에 몰린 케이블 고리
+		local fx = (rightX + RB.x1) / 2
+		D.box("FestoonRail", V3(0.3, 0.3, env1.Z - env0.Z), CF(fx, yR - 0.35, (env0.Z + env1.Z) / 2), L.darkAlu)
+		for k = 0, 4 do
+			local z = env0.Z + 0.6 + k * 0.45
+			D.seg("FestoonLoop", V3(fx, yR - 0.5, z), V3(fx, yR - 1.6 - k * 0.08, z + 0.22), 0.12, L.black)
+			D.seg("FestoonLoop", V3(fx, yR - 1.6 - k * 0.08, z + 0.22), V3(fx, yR - 0.5, z + 0.45), 0.12, L.black)
+		end
 		local nrib = if hi then 14 else 7
 		for i = 0, nrib - 1 do
 			local z = RB.z0 + 1 + i * (RB.z1 - RB.z0 - 2) / (nrib - 1)
@@ -3824,8 +3879,6 @@ local function buildWashImpl(K: any, V: any): any
 				})
 			end)
 		end
-		local lampPart = D.vcyl("ExitLampPost", 0.2, 0.2, CF(vx - 1.6, yR - 0.2, RB.z0 + 5.8), L.darkAlu)
-		local _ = lampPart
 		RB.z0 = saved
 	end)
 	return G
