@@ -567,6 +567,16 @@ local function halfLines(lines: { number }, a: number, b: number, pitch: number)
 	return all, mids
 end
 
+-- 문 테두리 (가운데 빈 사각 틀 4 개): 폭 w, 높이 h, 테 폭 b, 두께 d, 중심 cf
+local function frameRing(K: any, name: string, w: number, h: number, b: number, d: number, cf: CFrame, look: any)
+	for _, sy in { -1, 1 } do
+		K:box(name, V3(w, b, d), cf * CF(0, sy * (h / 2 - b / 2), 0), look)
+	end
+	for _, sx in { -1, 1 } do
+		K:box(name, V3(b, h - 2 * b, d), cf * CF(sx * (w / 2 - b / 2), 0, 0), look)
+	end
+end
+
 -- 아랫벽 보호 패널 + 청록 몰딩 (벽 이름 목록, 높이 y1)
 local function lowerWall(K: any, V: any, walls: { string }, y1: number?, look: any?, capC: Color3?)
 	local yy = y1 or 3.0
@@ -3395,7 +3405,7 @@ BUILD.pharmacy = function(K: any, V: any)
 		local door = K:group("VacDoor", function()
 			K:free(function()
 				local dc = pcf * CF(0, 0.55 + (h - 1.1) / 2, d / 2 + 0.03)
-				K:box("VacDoorFrame", V3(w - 0.1, h - 1.1, 0.12), dc, lk(240, 240, 238, M.Plastic))
+				frameRing(K, "VacDoorFrame", w - 0.1, h - 1.1, 0.24, 0.12, dc, lk(240, 240, 238, M.Plastic))
 				K:box("VacDoorGlass", V3(w - 0.5, h - 1.5, 0.06), dc * CF(0, 0, 0.04), { c = C3(214, 232, 238), m = M.Glass, t = 0.7, r = 0.15 })
 				K:box("VacDoorHandle", V3(0.12, (h - 1.1) * 0.55, 0.14), dc * CF(w / 2 - 0.35, 0, 0.12), LK.chrome)
 			end)
@@ -3627,8 +3637,15 @@ local function glassCabinet(K: any, r: any, front: Vector3, items: string, o: an
 		local m = K:group("CabDoor_" .. i, function()
 			K:free(function()
 				local c = pcf * CF(x0 + dw / 2, h / 2, d / 2 + 0.03)
-				K:box("CabDoorFrame", V3(dw - 0.04, h - 0.04, 0.06), c * CF(0, 0, 0), LK.alu)
-				K:box("CabDoorGlass", V3(dw - 0.3, h - 0.3, 0.07), c, { c = C3(220, 236, 240), m = M.Glass, t = 0.72, r = 0.15 })
+				-- 알루미늄 테두리 4 개 (가운데는 비워 둠: 안의 약품이 보이게)
+				local fw, fh = dw - 0.04, h - 0.04
+				for _, sy in { -1, 1 } do
+					K:box("CabDoorFrame", V3(fw, 0.16, 0.06), c * CF(0, sy * (fh / 2 - 0.08), 0), LK.alu)
+				end
+				for _, sx in { -1, 1 } do
+					K:box("CabDoorFrame", V3(0.16, fh - 0.32, 0.06), c * CF(sx * (fw / 2 - 0.08), 0, 0), LK.alu)
+				end
+				K:box("CabDoorGlass", V3(dw - 0.3, h - 0.3, 0.03), c, { c = C3(226, 240, 244), m = M.Glass, t = 0.82, r = 0.08 })
 				K:box("CabDoorHandle", V3(0.08, 0.9, 0.12), c * CF((if hingeLeft then 1 else -1) * (dw / 2 - 0.25), 0, 0.07), LK.chrome)
 			end)
 		end)
@@ -4576,7 +4593,7 @@ local function medFridge(K: any, f: any, front: Vector3, label: string, object: 
 	local door = K:group("MedFridgeDoor", function()
 		K:free(function()
 			local dc = pcf * CF(0, 0.55 + (h - 1.1) / 2, d / 2 + 0.03)
-			K:box("MedFridgeDoorFrame", V3(w - 0.1, h - 1.1, 0.12), dc, lk(240, 240, 238, M.Plastic))
+			frameRing(K, "MedFridgeDoorFrame", w - 0.1, h - 1.1, 0.24, 0.12, dc, lk(240, 240, 238, M.Plastic))
 			K:box("MedFridgeDoorGlass", V3(w - 0.5, h - 1.5, 0.06), dc * CF(0, 0, 0.04), { c = C3(214, 232, 238), m = M.Glass, t = 0.7, r = 0.15 })
 			K:box("MedFridgeDoorHandle", V3(0.12, (h - 1.1) * 0.55, 0.14), dc * CF(w / 2 - 0.35, 0, 0.12), LK.chrome)
 		end)

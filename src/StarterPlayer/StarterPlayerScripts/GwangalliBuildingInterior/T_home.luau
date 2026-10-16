@@ -702,7 +702,7 @@ local function slotFrame(C_: any, slot: Model, piece: Instance, backNames: { str
 	-- 회전: 부피 가중 다수결 (기본 가구 파트 대부분은 슬롯 방향 그대로)
 	local votes = { 0, 0, 0, 0 }
 	for _, d in piece:GetDescendants() do
-		if d:IsA("BasePart") and d.Transparency < 0.99 then
+		if d:IsA("BasePart") and d.Transparency < 0.99 and not (d:IsA("Part") and (d :: Part).Shape ~= Enum.PartType.Block) and not d:FindFirstChildOfClass("SpecialMesh") then
 			local rel = frame:ToObjectSpace(d.CFrame)
 			if math.abs(rel.LookVector.Y) < 0.3 then
 				local q = quarter(yawOf(rel)) + 1
@@ -730,10 +730,9 @@ local function slotFrame(C_: any, slot: Model, piece: Instance, backNames: { str
 			end
 		end
 		if b then
+			-- 앞뒤만 (옆 방향 어긋남은 다수결이 맞춤: 모니터가 옆에 있는 넓은 책상 등)
 			local d = b.c - ctr
-			if math.abs(d.X) > math.abs(d.Z) and math.abs(d.X) > 0.2 then
-				F = F * ANG(0, if d.X > 0 then -PI / 2 else PI / 2, 0)
-			elseif d.Z > 0.2 then
+			if d.Z > 0.15 then
 				F = F * ANG(0, PI, 0)
 			end
 		end
@@ -1388,7 +1387,7 @@ end
 -------------------------------------------------------------------------------------------------
 local SLOT: { [string]: (any, any) -> boolean? } = {}
 local BACK = {
-	bed = { "Headboard" }, sofa = { "SofaBack" }, desk = { "Monitor", "ModestyPanel", "MonitorArm" }, chair = { "ChairBack" },
+	bed = { "Headboard" }, sofa = { "SofaBack" }, desk = { "Monitor", "ModestyPanel", "MonitorArm" }, chair = { "ChairBack", "LoungeShell" },
 	tv = { "TV" }, shelf = { "ShelfBack", "Bracket" }, curtain = { "CurtainRail" }, art = { "ArtFrame", "CorkFrame" },
 }
 -- 원래 색을 이어받은 재질
@@ -3088,20 +3087,55 @@ function C:slotOverlays()
 		local lp = self.V.cf:PointToObjectSpace(base.Position)
 		local cat = slot:GetAttribute("Category")
 		local probe = V3(lp.X, math.max(lp.Y, 0) + 0.5, lp.Z)
-		if cat == "art" or cat == "curtain" then
-			-- 벽에 붙은 슬롯: 방 안쪽으로 조금
-			local F = nil
+		local owner = self:roomAt(probe)
+		if cat == "art" or cat == "curtain" or cat == "shelf" or cat == "tv" then
+			-- 벽에 붙는 슬롯: 슬롯 앞뒤 1 스터드의 방. 양쪽 다 방이면 슬롯 규약(앞 = 슬롯 -Z) 쪽
+			local zf = self.V.cf:VectorToObjectSpace(base.CFrame.ZVector)
+			local pf = V3(lp.X, 0.5, lp.Z) - zf * 1.0
+			local pb = V3(lp.X, 0.5, lp.Z) + zf * 1.0
+			local rf = if self:insideWall(V3(pf.X, 1, pf.Z)) then nil else self:roomAt(pf)
+			local rb = if self:insideWall(V3(pb.X, 1, pb.Z)) then nil else self:roomAt(pb)
+			owner = if rf and rb then rf else (rf or rb or owner)
+			-- 벽에 붙은 쪽: 가구 가운데가 가까운 벽의 어느 쪽에 있나
 			local piece = defaultPiece(slot)
-			if piece then
-				F = slotFrame(self, slot, piece, BACK[cat])
-			end
-			if F then
-				local p = (F * CF(0, 0, 0.9)).Position
-				probe = V3(p.X, math.max(lp.Y, 0) + 0.5, p.Z)
+			if piece and rf and rb then
+				local pcf = (piece :: Model):GetBoundingBox()
+				local pc = self.V.cf:PointToObjectSpace(pcf.Position)
+				local best, bd = nil, math.huge
+				for _, w in self.walls do
+					if w.mx.Y - w.mn.Y > 2.5 then
+						local dx = math.max(w.mn.X - pc.X, 0, pc.X - w.mx.X)
+						local dz = math.max(w.mn.Z - pc.Z, 0, pc.Z - w.mx.Z)
+						if dx + dz < bd and dx + dz < 0.9 and pc.Y >= w.mn.Y and pc.Y <= w.mx.Y then
+							best, bd = w, dx + dz
+						end
+					end
+				end
+				if best then
+					local wc = (best.mn + best.mx) / 2
+					local thinX = (best.mx.X - best.mn.X) < (best.mx.Z - best.mn.Z)
+					local axis = if thinX then V3(1, 0, 0) else V3(0, 0, 1)
+					local side = if (pc - wc):Dot(axis) >= 0 then 1 else -1
+					local half = if thinX then (best.mx.X - best.mn.X) / 2 else (best.mx.Z - best.mn.Z) / 2
+					local q = wc + axis * side * (half + 1.0)
+					owner = self:roomAt(V3(q.X, 0.5, q.Z)) or owner
+				end
 			end
 		end
-		if not self:mine(probe) then
+		if owner ~= self.room then
 			continue
+		end
+		-- 이 방 천장보다 높이 걸린 것 (복층 위 그림 등) 은 위층 방 몫
+		do
+			local piece = defaultPiece(slot)
+			if piece then
+				local _, sz = (piece :: Model):GetBoundingBox()
+				local cfp = (piece :: Model):GetBoundingBox()
+				local py = self.V.cf:PointToObjectSpace(cfp.Position).Y
+				if py - sz.Y / 2 > self.H then
+					continue
+				end
+			end
 		end
 		local ok, err = pcall(function()
 			self:overlaySlot(slot)

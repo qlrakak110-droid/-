@@ -1015,7 +1015,7 @@ local function boothBuild(K: any, V: any, S: any)
 					for i = 1, n do
 						local z = da + 0.08 + cw * (i - 0.5)
 						local dep = 0.08 + seq[(i - 1) % #seq + 1] * 0.07
-						sidePlate("DiffuserWell", sd, z - cw / 2 + 0.02, z + cw / 2 - 0.02, y0 + 0.08, y1 - 0.08, dep, 0.02, if i % 2 == 0 then Look.walnut else Look.oak)
+						sidePlate("DiffuserWell", sd, z - cw / 2 + 0.02, z + cw / 2 - 0.02, y0 + 0.08, y1 - 0.08, dep, 0.02, if i % 2 == 0 then Look.walnut else Look.darkWood)
 						if i < n then
 							sidePlate("DiffuserFin", sd, z + cw / 2 - 0.02, z + cw / 2 + 0.02, y0 + 0.08, y1 - 0.08, 0.42, 0.02, lk(rgb(30, 22, 18), M.Wood))
 						end
@@ -1037,9 +1037,19 @@ local function boothBuild(K: any, V: any, S: any)
 							else
 								if cut[1] - s[1] > 1.0 then
 									table.insert(nxt, { s[1], cut[1] })
+								elseif cut[1] - s[1] > 0.3 then
+									local zp = (s[1] + cut[1]) / 2
+									local e = sidePlate("PilasterLED", sd, zp - 0.04, zp + 0.04, bk.top + 0.45, H - 1.25, 0.06, 0.02, neon(theme))
+									table.insert(st.leds, { p = e, c = theme })
+									sidePlate("PilasterBack", sd, zp - 0.16, zp + 0.16, bk.top + 0.35, H - 1.15, 0.03, 0.02, GLOSS)
 								end
 								if s[2] - cut[2] > 1.0 then
 									table.insert(nxt, { cut[2], s[2] })
+								elseif s[2] - cut[2] > 0.3 then
+									local zp = (cut[2] + s[2]) / 2
+									local e = sidePlate("PilasterLED", sd, zp - 0.04, zp + 0.04, bk.top + 0.45, H - 1.25, 0.06, 0.02, neon(theme))
+									table.insert(st.leds, { p = e, c = theme })
+									sidePlate("PilasterBack", sd, zp - 0.16, zp + 0.16, bk.top + 0.35, H - 1.15, 0.03, 0.02, GLOSS)
 								end
 							end
 						end
@@ -1063,6 +1073,10 @@ local function boothBuild(K: any, V: any, S: any)
 						end
 						sidePlate("ChannelFrame", sd, s[1] - 0.06, s[2] + 0.06, y1, y1 + 0.08, 0.36, 0.02, CHROME)
 						sidePlate("ChannelFrame", sd, s[1] - 0.06, s[2] + 0.06, y0 - 0.08, y0, 0.36, 0.02, CHROME)
+						for _, ze in { s[1] - 0.1, s[2] + 0.1 } do
+							local e = sidePlate("ChannelEdgeLED", sd, ze - 0.03, ze + 0.03, y0, y1, 0.05, 0.02, neon(theme))
+							table.insert(st.leds, { p = e, c = theme })
+						end
 					end
 				end
 			end
