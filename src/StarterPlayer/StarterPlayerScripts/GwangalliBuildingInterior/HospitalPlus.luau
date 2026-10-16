@@ -335,12 +335,15 @@ function M.start(ctx: any)
 	-- 결과는 HospDebugOut 속성 (이 클라이언트 안에서만 바꿀 수 있는 속성)
 	if ctx.script then
 		table.insert(s.conns, ctx.script:GetAttributeChangedSignal("HospDebug"):Connect(function()
-			local cmd = ctx.script:GetAttribute("HospDebug")
-			if type(cmd) ~= "string" or cmd == "" then
+			local raw = ctx.script:GetAttribute("HospDebug")
+			if type(raw) ~= "string" or raw == "" then
 				return
 			end
+			-- "명령|번호" 이면 결과 앞에 "번호:" 를 붙여 돌려줌 (자동 테스트가 응답을 구분)
+			local cmd, tag = string.match(raw, "^(.-)|(%w+)$")
+			cmd = cmd or raw
 			local ok, out = pcall(M.debug, cmd)
-			ctx.script:SetAttribute("HospDebugOut", (if ok then "" else "ERR ") .. tostring(out))
+			ctx.script:SetAttribute("HospDebugOut", (if tag then tag .. ":" else "") .. (if ok then "" else "ERR ") .. tostring(out))
 		end))
 	end
 	task.spawn(function()

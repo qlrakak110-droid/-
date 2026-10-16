@@ -622,12 +622,16 @@ local function brandOf(V: any): any
 		B.wifi, B.pw, B.hours = "Starbucks_WiFi", "앱에서 연결", "매일 07:00 - 23:00"
 		feat.pickup, feat.selfbar, feat.md, feat.plants = false, false, false, 0
 	elseif key == "roastery" then
-		B.title, B.logo, B.slogan = nm, "LAB", "SPECIALTY COFFEE ROASTERS"
+		-- 로고: COFFEE LAB 149 -> LAB, 남천 로스터리 -> 남천 (첫 낱말)
+		local first = string.match(nm, "^(%S+)") or nm
+		B.title, B.slogan = nm, "SPECIALTY COFFEE ROASTERS"
+		local isLab = string.find(string.upper(nm), "LAB", 1, true) ~= nil
+		B.logo = if isLab then "LAB" else first
 		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(28, 28, 30), rgb(18, 18, 18), rgb(214, 120, 52), rgb(236, 232, 224), rgb(24, 24, 24)
 		B.menuKind, B.menuBg, B.menuFg, B.menuAcc = "felt", rgb(26, 26, 28), rgb(240, 240, 236), rgb(240, 160, 90)
 		B.menus = MENUS.roastery
 		B.neon = { "ROASTING IN PROGRESS", rgb(255, 140, 60), F.Oswald }
-		B.art, B.wifi, B.pw, B.hours = "coffee", "LAB149_GUEST", "roast149", "매일 09:00 - 22:00 · 로스팅 화 · 금"
+		B.art, B.wifi, B.pw, B.hours = "coffee", if isLab then "LAB149_GUEST" else "ROASTERY_GUEST", if isLab then "roast149" else "beans0612", "매일 09:00 - 22:00 · 로스팅 화 · 금"
 		B.wall = { left = lk(rgb(168, 98, 76), M.Brick), right = lk(rgb(160, 158, 154), M.Concrete), back = lk(rgb(176, 174, 170), M.Concrete) }
 		B.promo = { "THIS WEEK", "에티오피아 게뎁 내추럴", "7,500" }
 		feat.roaster, feat.ducts, feat.track, feat.sacks, feat.drip = true, true, true, true, true
@@ -831,7 +835,8 @@ function T.style(V: any): any
 		S.table = { top = Look.walnut, base = Look.blackMetal, barStyle = "steel" }
 		S.counter = { front = "fluted", frontL = Look.walnut, topL = lk(rgb(64, 64, 66), M.Slate), kickL = Look.black, led = rgb(255, 196, 140) }
 		S.floor = { look = Look.polishedConcrete, tile = 4.0, grout = lk(rgb(128, 126, 122)) }
-		S.ceiling = { skin = lk(rgb(46, 46, 48), M.Concrete) }
+		-- 노출 천장: 낮은 천장(8 미만)은 짙은 색이 답답해서 중간 회색 콘크리트
+		S.ceiling = { skin = if V.H < 9 then lk(rgb(112, 110, 106), M.Concrete) else lk(rgb(46, 46, 48), M.Concrete) }
 		S.pendant = { shade = "cone", look = Look.blackMetal }
 		S.lights = { kind = "downlight", color = Look.warmLight }
 		S.base = Look.black
@@ -1702,7 +1707,7 @@ local function roaster(K: any, pcf: CFrame, B: any): any
 	for k = -1, 1 do
 		wdisc(K, "RoasterGauge", 0.2, 0.03, dcfP * CF(k * 0.26, -0.22, 0.0), Look.white)
 	end
-	K:text("RoasterBadge", 1.2, 0.22, faceCF((pcf * CF(-0.55, 1.95, 0.64)).Position, pcf.ZVector), "LAB ROASTER 12kg", { fg = rgb(240, 240, 236), font = F.GothamBold, d = 0.01 })
+	K:text("RoasterBadge", 1.2, 0.22, faceCF((pcf * CF(-0.55, 1.95, 0.64)).Position, pcf.ZVector), "DRUM ROASTER 12kg", { fg = rgb(240, 240, 236), font = F.GothamBold, d = 0.01 })
 	return out
 end
 
