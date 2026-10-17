@@ -360,7 +360,7 @@ local THEMES: { [string]: any } = {
 		lower = { kind = "tile", h = 3.6, look = L.of(236, 240, 242, M.CeramicTiles), grout = L.of(178, 190, 200), tw = 1.0, th = 1.0, walls = { "back", "left", "right" } },
 		band = rgb(26, 96, 178),
 		base = L.of(28, 60, 110),
-		top = L.of(178, 182, 186, M.Metal, { r = 0.1 }), -- 스테인리스 불판 상판
+		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 불판 상판
 		edge = L.of(36, 36, 40, M.Rubber),
 		tableBase = "cabinet",
 		stools = { RED_PL, RED_PL, RED_PL, RED_PL, RED_PL, BLUE_PL },
@@ -403,7 +403,7 @@ local THEMES: { [string]: any } = {
 		floor = { look = L.of(84, 80, 78, M.Concrete), tile = 0, grout = L.of(70, 66, 64) },
 		lower = { kind = "paint", h = 3.6, look = L.of(150, 70, 52, M.Brick), cap = L.of(70, 46, 32, M.Wood), walls = { "back", "left", "right" } },
 		base = L.of(54, 36, 26, M.Wood),
-		top = L.of(178, 182, 186, M.Metal, { r = 0.1 }), -- 스테인리스 불판 상판
+		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 불판 상판
 		edge = L.of(40, 40, 44, M.Metal),
 		tableBase = "drum",
 		drums = { rgb(168, 40, 32), rgb(168, 40, 32), rgb(40, 84, 140) },
@@ -499,7 +499,7 @@ local function pochaTheme(V: any, layout: string): any
 		floor = { look = L.of(118, 116, 112, M.Concrete), tile = 0, grout = L.of(90, 88, 86) },
 		lower = { kind = "louver", h = 3.4, look = L.of(176, 132, 84, M.WoodPlanks), back = L.of(60, 44, 30), pitch = 0.62, walls = { "back", "left", "right" } },
 		base = L.of(54, 40, 28, M.Wood),
-		top = L.of(182, 186, 190, M.Metal, { r = 0.1 }), -- 스테인리스 원형 드럼 상판
+		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 드럼 상판
 		edge = L.of(150, 40, 34, M.Plastic),
 		tableBase = "drum",
 		drums = { rgb(40, 84, 150), rgb(168, 40, 32), rgb(40, 120, 70) },
@@ -1659,7 +1659,7 @@ local function tentCeiling(c: any)
 		txt(K, "TarpName", math.min(14, (x1 - x0) * 0.45), vh * 0.66, nameDcf, name .. "  ·  실내포장마차", tarp.trim, nil, F.GothamBlack, { d = 0.01 })
 		-- 말아 올린 투명 비닐 가림막 (포차 앞 비닐 천막): 가림막 아래 비닐 두루마리 + 주황 묶음 끈 (문 위는 비움)
 		local ry = yp + 0.04 - vh - 0.2
-		local vinyl = { c = rgb(226, 236, 236), m = M.SmoothPlastic, t = 0.45, r = 0.1 }
+		local vinyl = { c = rgb(214, 228, 232), m = M.SmoothPlastic, t = 0.18, r = 0.1 }
 		local strap = col(rgb(236, 120, 30), M.Fabric)
 		local doorX = if V.door then V.door.x else 0
 		local doorW = if V.door then V.door.w else 4
@@ -1667,13 +1667,13 @@ local function tentCeiling(c: any)
 		for _, sg in segs do
 			local la, lb = sg[1], sg[2]
 			if lb - la > 1.6 then
-				K:cyl("VinylRoll", lb - la, 0.32, CF((la + lb) / 2, ry, zf - 0.06), vinyl)
+				K:cyl("VinylRoll", lb - la, 0.4, CF((la + lb) / 2, ry, zf - 0.08), vinyl)
 				K:cyl("VinylRollCore", lb - la - 0.1, 0.12, CF((la + lb) / 2, ry, zf - 0.06), L.of(200, 210, 212, M.SmoothPlastic))
 				local nst = math.max(1, math.floor((lb - la) / 3.2))
 				for k = 1, nst do
 					local sx = la + (lb - la) * k / (nst + 1)
-					K:cyl("VinylStrap", 0.12, 0.38, CF(sx, ry, zf - 0.06), strap)
-					K:box("VinylStrapTail", V3(0.1, 0.4, 0.03), CF(sx, ry - 0.34, zf - 0.24), strap)
+					K:cyl("VinylStrap", 0.14, 0.46, CF(sx, ry, zf - 0.08), strap)
+					K:box("VinylStrapTail", V3(0.12, 0.5, 0.03), CF(sx, ry - 0.42, zf - 0.3), strap)
 				end
 			end
 		end
@@ -3550,7 +3550,10 @@ local function graffitiWall(c: any)
 				local u0 = (sp[1] + sp[2]) / 2
 				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, y0, y1)
 				c.graffitiAt = c.graffitiAt or { wn, u0 }
-				local cols = math.max(1, math.floor(w / 1.35))
+				-- 흰 페인트 낙서 판 (글씨가 벽에서 또렷하게) + 아래 몰딩
+				K:plate("GraffitiBoard", w + 0.1, y1 - y0, 0.02, V:wall(wn, u0, (y0 + y1) / 2, 0), L.of(244, 240, 228, M.Plaster))
+				K:plate("GraffitiTrim", w + 0.2, 0.08, 0.05, V:wall(wn, u0, y0 + 0.04, 0), L.of(70, 46, 32, M.Wood))
+				local cols = math.max(1, math.floor(w / 1.25))
 				local rows = 6
 				local cwid = w / cols
 				local rh = (y1 - y0 - 0.45) / rows
@@ -3572,25 +3575,25 @@ local function graffitiWall(c: any)
 						-- 포스트잇 (색 종이 + 볼펜 글씨 두 줄)
 						local nc = notes[(k + c.seed) % #notes + 1]
 						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt * 0.6)
-						K:plate("PostIt", 0.52, 0.52, 0.012, d, col(nc, M.SmoothPlastic))
+						K:plate("PostIt", 0.6, 0.6, 0.012, d * CF(0, 0, 0.02), col(nc, M.SmoothPlastic))
 						local msg = GRAFFITI[(k * 7 + c.seed) % #GRAFFITI + 1]
-						txt(K, "PostItText", 0.46, 0.42, d * CF(0, -0.02, 0.012), msg, rgb(30, 40, 90), nil, F.IndieFlower, { d = 0.003 })
+						txt(K, "PostItText", 0.54, 0.48, d * CF(0, -0.02, 0.034), msg, rgb(30, 40, 90), nil, F.IndieFlower, { d = 0.003 })
 					elseif roll < 0.3 then
 						-- 하트 · 별 낙서
 						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt)
-						txt(K, "Doodle", 0.5, 0.5, d, doodles[(k + c.seed) % #doodles + 1], inks[(k + 1) % #inks + 1], nil, F.GothamBlack, { d = 0.003 })
+						txt(K, "Doodle", 0.6, 0.6, d * CF(0, 0, 0.02), doodles[(k + c.seed) % #doodles + 1], inks[(k + 1) % #inks + 1], nil, F.GothamBlack, { d = 0.003 })
 					else
 						local msg = GRAFFITI[(k + c.seed) % #GRAFFITI + 1]
 						local two = string.find(msg, "\n", 1, true) ~= nil
-						local sz = if two then 0.2 else 0.22 + rnd(c.seed, k * 7) * 0.1
-						local tw = math.min(cwid - 0.1, 1.5)
-						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt)
+						local sz = if two then 0.24 else 0.3 + rnd(c.seed, k * 7) * 0.12
+						local tw = math.min(cwid - 0.02, 1.5)
+						local d = V:wall(wn, x, y, 0.02) * ANG(0, 0, tilt)
 						txt(K, "Graffiti", tw, sz * (if two then 2.1 else 1), d, msg, inks[(k + ci) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.003 })
 					end
 				end
 				-- 머리 띠: "손님 낙서 환영 · 매직은 카운터에"
-				local hd = V:wall(wn, u0, y1 - 0.16, 0)
-				txt(K, "GraffitiHead", math.min(w, 3.6), 0.22, hd, "낙서 환영! 매직은 카운터에 있어요", rgb(160, 30, 30), nil, F.PermanentMarker, { d = 0.003 })
+				local hd = V:wall(wn, u0, y1 - 0.16, 0.02)
+				txt(K, "GraffitiHead", math.min(w, 3.6), 0.24, hd, "낙서 환영! 매직은 카운터에 있어요", rgb(160, 30, 30), nil, F.PermanentMarker, { d = 0.003 })
 				placed += 1
 			end
 		end

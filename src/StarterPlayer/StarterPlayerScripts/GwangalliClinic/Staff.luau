@@ -235,10 +235,10 @@ function Staff.init(c: any)
 						r.revertAt = nil
 						applyAct(id)
 					end
-					pcall(function()
-						r.ctl:setDetail(if d < 40 then 2 else 1)
-						r.ctl:step()
-					end)
+					-- no closure per rig per frame: call the controller's methods through pcall directly
+					local ctl = r.ctl
+					pcall(ctl.setDetail, ctl, if d < 40 then 2 else 1)
+					pcall(ctl.step, ctl)
 				end
 			end
 		end
