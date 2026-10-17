@@ -28,9 +28,12 @@ function Interact.hostPoints(V: any): { Vector3 }
 			table.insert(pts, r.c)
 		end
 	end
+	-- 테이블 가운데는 따로 (서버 앉기 · 테이블 프롬프트는 테이블에서 약 3 스터드 안이라 4 스터드만 비움)
+	local tpts = {}
 	for _, t in V.tables or {} do
-		table.insert(pts, (t.min + t.max) / 2)
+		table.insert(tpts, (t.min + t.max) / 2)
 	end
+	V.hostTablePts = tpts
 	for _, k in V.keep do
 		if k.kind == "bin" then
 			table.insert(pts, (k.min + k.max) / 2)
@@ -58,6 +61,12 @@ function Interact.canPrompt(K: any, lp: Vector3): boolean
 	for _, h in K.hostPts do
 		local d = h - lp
 		if Vector3.new(d.X, 0, d.Z).Magnitude < HOST_GAP then
+			return false
+		end
+	end
+	for _, h in K.V.hostTablePts or {} do
+		local d = h - lp
+		if Vector3.new(d.X, 0, d.Z).Magnitude < 4.0 then
 			return false
 		end
 	end

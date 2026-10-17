@@ -668,7 +668,14 @@ function Props.floorPlant(K: any, pcf: CFrame, o: any?)
 			local base = pcf * V3(math.cos(a) * 0.3, ph - 0.1, math.sin(a) * 0.3)
 			local topP = pcf * V3(math.cos(a) * 0.5, h, math.sin(a) * 0.5)
 			K:seg("BambooStem", base, topP, 0.1, Look.of(150, 170, 90, Enum.Material.Wood))
-			K:ell("BambooLeaves", V3(0.9, 0.5, 0.9), CF(topP), leafL)
+			-- 대나무 잎: 줄기 위쪽 세 마디에 가는 잎 다발 (막대사탕처럼 보이지 않게)
+			for k = 0, 2 do
+				local q = base:Lerp(topP, 0.6 + k * 0.17)
+				for j = 0, 2 do
+					local b = a + j * 2.1 + k * 0.7
+					K:ell("BambooLeaves", V3(0.55, 0.06, 0.16), CF(q) * ANG(0, b, math.rad(-25)) * CF(0.25, 0, 0), leafL)
+				end
+			end
 		end
 		return
 	end

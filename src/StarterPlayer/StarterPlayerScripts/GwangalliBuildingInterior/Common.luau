@@ -366,6 +366,9 @@ end
 function Common.wallSpot(K: any, walls: { string }, w: number, y0: number, y1: number, prefer: number?): (string?, CFrame?)
 	local V = K.V
 	K.wallUsed = K.wallUsed or {}
+	table.sort(K.wallUsed, function(x, y)
+		return x.a < y.a
+	end)
 	for _, wn in walls do
 		local spans = V:spans(wn, y0, y1, 1.0)
 		-- 이미 쓴 자리 빼기

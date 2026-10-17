@@ -81,8 +81,9 @@ apiEvent.Name = "Event"
 apiEvent.Parent = apiFolder
 
 -- wait for the building system (ShopLife) ----------------------------------------------------------------
+-- (GwB_Ready: every building service is up; GwB_ShopLife: ShopLife finished its map scan)
 local t0 = os.clock()
-while workspace:GetAttribute("GwB_Ready") ~= true and os.clock() - t0 < 120 do
+while workspace:GetAttribute("GwB_Ready") ~= true and workspace:GetAttribute("GwB_ShopLife") == nil and os.clock() - t0 < 120 do
 	task.wait(1)
 end
 if not Bridge.bindBus(60) then

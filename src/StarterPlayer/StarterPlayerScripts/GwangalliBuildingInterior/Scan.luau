@@ -51,7 +51,7 @@ Scan.SHELL = SHELL
 local DOORS = { Door = true, GlassDoor = true, ShopDoor = true, LobbyDoor = true, EntranceDoor = true, FrontDoor = true, Handle = true }
 -- 계산대 앵커 (ShopStaff 가 직원을 세우는 순서)
 local CASHIER = { "PosBase", "CashierPanel", "OrderKiosk", "FrontDesk", "BackBar", "POS", "BarCounter", "Counter" }
-local SEATS = { ChairSeat = true, StoolSeat = true, Stool = true, Cushion = true, SeatCushion = true, StoolTop = true, BarStool = true, SofaSeat = true, WashSeat = true }
+local SEATS = { ChairSeat = true, StoolSeat = true, Stool = true, Cushion = true, SeatCushion = true, StoolTop = true, BarStool = true, SofaSeat = true, WashSeat = true, SalonChair = true }
 local TABLES = { TableTop = true, LowTableTop = true, LowTable = true, CommunalTable = true, Table = true, BarTop = true, WindowBar = true, Ledge = true, PlasticTable = true, Top = true, GrillTable = true }
 Scan.SEATS, Scan.TABLES, Scan.CASHIER = SEATS, TABLES, CASHIER
 -- 게임 포인트 · NPC (주변 2.5 스터드 비움)
@@ -238,6 +238,8 @@ function Vm:spans(name: string, y0: number, y1: number, depth: number?): { { num
 	for _, r in self.parts do
 		if not r.shell or r.door then
 			cutBox(r.min, r.max, 0.25)
+		elseif string.sub(r.name, 1, 5) == "Sign_" and r.size.Y < 6 then
+			cutBox(r.min, r.max, 0.2) -- 맵 메뉴판 · 간판 위에 벽 소품이 덮이지 않게
 		end
 	end
 	for _, k in self.keep do
@@ -722,6 +724,9 @@ function Scan.families(V: any)
 			end
 			claimed[r] = true
 		end
+	end
+	for _, g in V.counters do
+		g.c = (g.min + g.max) / 2
 	end
 	for _, g in V.counters do
 		for _, r in V.parts do

@@ -351,7 +351,7 @@ local THEMES: { [string]: any } = {
 		lower = { kind = "tile", h = 3.6, look = L.of(236, 240, 242, M.CeramicTiles), grout = L.of(178, 190, 200), tw = 1.0, th = 1.0, walls = { "back", "left", "right" } },
 		band = rgb(26, 96, 178),
 		base = L.of(28, 60, 110),
-		top = L.of(210, 214, 218, M.SmoothPlastic, { r = 0.16 }),
+		top = L.of(178, 182, 186, M.Metal, { r = 0.1 }), -- 스테인리스 불판 상판
 		edge = L.of(36, 36, 40, M.Rubber),
 		tableBase = "cabinet",
 		stools = { RED_PL, RED_PL, RED_PL, RED_PL, RED_PL, BLUE_PL },
@@ -394,7 +394,7 @@ local THEMES: { [string]: any } = {
 		floor = { look = L.of(84, 80, 78, M.Concrete), tile = 0, grout = L.of(70, 66, 64) },
 		lower = { kind = "paint", h = 3.6, look = L.of(150, 70, 52, M.Brick), cap = L.of(70, 46, 32, M.Wood), walls = { "back", "left", "right" } },
 		base = L.of(54, 36, 26, M.Wood),
-		top = L.of(210, 214, 218, M.SmoothPlastic, { r = 0.16 }),
+		top = L.of(178, 182, 186, M.Metal, { r = 0.1 }), -- 스테인리스 불판 상판
 		edge = L.of(40, 40, 44, M.Metal),
 		tableBase = "drum",
 		drums = { rgb(168, 40, 32), rgb(168, 40, 32), rgb(40, 84, 140) },
@@ -490,7 +490,7 @@ local function pochaTheme(V: any, layout: string): any
 		floor = { look = L.of(118, 116, 112, M.Concrete), tile = 0, grout = L.of(90, 88, 86) },
 		lower = { kind = "louver", h = 3.4, look = L.of(176, 132, 84, M.WoodPlanks), back = L.of(60, 44, 30), pitch = 0.62, walls = { "back", "left", "right" } },
 		base = L.of(54, 40, 28, M.Wood),
-		top = L.of(212, 214, 216, M.SmoothPlastic, { r = 0.16 }),
+		top = L.of(182, 186, 190, M.Metal, { r = 0.1 }), -- 스테인리스 원형 드럼 상판
 		edge = L.of(150, 40, 34, M.Plastic),
 		tableBase = "drum",
 		drums = { rgb(40, 84, 150), rgb(168, 40, 32), rgb(40, 120, 70) },
@@ -597,19 +597,34 @@ end
 T.themeFor = themeFor
 
 -- 좌석 ------------------------------------------------------------------------------------------------
--- 포차 원형 플라스틱 스툴: 위 원판 + 테 + 몸통 + 넓은 치마 + 손잡이 구멍 + (고급) 다리 사이 구멍
+-- 포차 원형 플라스틱 스툴 (빨간 동그라미 의자): 앉는 판 (가운데 손잡이 구멍) + 둥근 테 + 짧은 치마 띠 +
+-- 바깥으로 벌어진 넓은 다리 4 (다리 사이가 뚫려 보임) + 다리 끝 고무 발 (고급)
 local function plasticStool(c: any, x: number, z: number, top: number, dia: number, cc: Color3)
 	local K = c.K
 	local pl = col(cc, M.Plastic)
 	local dk = col(cc:Lerp(Color3.new(0, 0, 0), 0.45), M.Plastic)
 	local base = CF(x, 0, z)
-	K:disc("StoolSeat", dia * 0.94, 0.1, base * CF(0, top - 0.05, 0), pl)
-	K:disc("StoolRim", dia * 0.98, 0.06, base * CF(0, top - 0.12, 0), dk)
-	local hb = top - 0.15
-	K:disc("StoolBody", dia * 0.9, hb * 0.36, base * CF(0, hb - hb * 0.18, 0), pl)
-	K:disc("StoolBody", dia * 0.97, hb * 0.34, base * CF(0, hb * 0.47, 0), pl)
-	K:disc("StoolSkirt", dia * 1.04, hb * 0.32, base * CF(0, hb * 0.16, 0), pl)
-	K:disc("StoolGrip", dia * 0.3, 0.02, base * CF(0, top + 0.004, 0), dk)
+	local R = dia / 2
+	K:disc("StoolSeat", dia * 0.96, 0.1, base * CF(0, top - 0.05, 0), pl)
+	K:disc("StoolRim", dia, 0.05, base * CF(0, top - 0.115, 0), dk)
+	K:disc("StoolGrip", dia * 0.24, 0.02, base * CF(0, top + 0.004, 0), dk)
+	local skH = math.clamp(top * 0.16, 0.18, 0.32)
+	local skTop = top - 0.12
+	K:disc("StoolSkirt", dia * 0.9, skH, base * CF(0, skTop - skH / 2, 0), pl)
+	local legTop = skTop - skH + 0.04
+	local lw = dia * 0.44
+	for i = 0, 3 do
+		local a = i * PI / 2 + PI / 4 + (c.seed % 7) * 0.05
+		local out = V3(math.cos(a), 0, math.sin(a))
+		local tan = V3(-math.sin(a), 0, math.cos(a))
+		local p0 = V3(x, legTop, z) + out * (R * 0.8)
+		local p1 = V3(x, 0.02, z) + out * (R * 0.98)
+		local up = (p0 - p1).Unit
+		K:box("StoolLeg", V3(lw, (p0 - p1).Magnitude, 0.08), CFrame.fromMatrix((p0 + p1) / 2, tan, up), pl)
+		if c.hi then
+			K:box("StoolFoot", V3(lw * 0.7, 0.04, 0.12), CF(p1 + V3(0, 0.0, 0)) * CFrame.fromMatrix(Vector3.zero, tan, Vector3.yAxis), dk)
+		end
+	end
 end
 
 local function stoolsOver(c: any)
@@ -901,6 +916,22 @@ local function grillTableOver(c: any, g: any, idx: number)
 	end)
 end
 
+-- 원뿔대 껍데기: 아래 반지름 Rb (yb) -> 위 Rt (yt), n 각 판. 판 폭은 아래 둘레 기준이라 틈이 없고 위쪽 겹침은 안으로 숨음
+local function frustum(K: any, name: string, cx: number, cz: number, yb: number, yt: number, Rb: number, Rt: number, n: number, look: any, t: number?)
+	local th = t or 0.04
+	local dr, dy = Rb - Rt, yt - yb
+	local s = math.sqrt(dr * dr + dy * dy)
+	local w = 2 * Rb * math.tan(PI / n) + 0.02
+	local rm, ym = (Rb + Rt) / 2, (yb + yt) / 2
+	for i = 0, n - 1 do
+		local a = (i + 0.5) * 2 * PI / n
+		local out = V3(math.cos(a), 0, math.sin(a))
+		local tan = V3(-math.sin(a), 0, math.cos(a))
+		local up = (V3(0, dy, 0) - out * dr).Unit
+		K:box(name, V3(w, s, th), CFrame.fromMatrix(V3(cx, ym, cz) + out * rm, tan, up), look)
+	end
+end
+
 -- 원형 후드 (Hood 같은 범위) + 신축 덕트 (HoodDuct 같은 범위)
 local function hoodOver(c: any, h: any, duct: any?)
 	local K, V = c.K, c.V
@@ -911,13 +942,17 @@ local function hoodOver(c: any, h: any, duct: any?)
 	local st = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.2 })
 	local stD = L.of(182, 186, 190, M.SmoothPlastic, { r = 0.14 })
 	K:free(function()
-		-- 계단식 종 모양 (아래 테가 가장 넓음)
-		local steps = { { 1.0, 0.2 }, { 0.92, 0.1 }, { 0.83, 0.1 }, { 0.74, 0.1 }, { 0.65, 0.1 }, { 0.56, 0.1 }, { 0.47, 0.1 }, { 0.38, 0.2 } }
-		local y = y0
-		for i, s in steps do
-			local sh = hh * s[2]
-			K:disc("HoodShell", hw * s[1], sh, CF(cx, y + sh / 2, cz), if i == 1 then stD else st)
-			y += sh
+		-- 매끈한 종 모양: 아래 곧은 테 + 말린 끝 + 원뿔 판 (n 각) + 위 칼라 (계단 원판 쌓기 대신)
+		local lipH = math.min(0.16, hh * 0.22)
+		K:disc("HoodLip", hw - 0.02, lipH, CF(cx, y0 + lipH / 2, cz), stD)
+		K:disc("HoodRoll", hw + 0.04, 0.05, CF(cx, y0 + 0.025, cz), L.of(150, 154, 160, M.Metal))
+		local colH = math.min(0.12, hh * 0.16)
+		local Rt = math.max(0.3, hw * 0.2)
+		frustum(K, "HoodShell", cx, cz, y0 + lipH - 0.01, y1 - colH + 0.02, hw / 2 - 0.02, Rt, if c.hi then 16 else 10, st)
+		K:disc("HoodCollar", Rt * 2 + 0.08, colH, CF(cx, y1 - colH / 2, cz), stD)
+		if c.hi then
+			-- 리벳 이음 (원뿔 가운데 띠)
+			K:disc("HoodSeamBand", (hw / 2 + Rt) * 0.98 + 0.03, 0.03, CF(cx, (y0 + lipH + y1 - colH) / 2, cz), L.of(170, 174, 178, M.Metal))
 		end
 		K:disc("HoodFilter", hw * 0.9, 0.02, CF(cx, y0 + 0.012, cz), L.of(64, 66, 70, M.DiamondPlate))
 		if duct then
@@ -1611,6 +1646,26 @@ local function tentCeiling(c: any)
 		local name = V.name or "포장마차"
 		local nameDcf = CFrame.fromMatrix(V3(cx, vy + 0.06, zf - 0.03), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1)) * ANG(0, PI, 0)
 		txt(K, "TarpName", math.min(14, (x1 - x0) * 0.45), vh * 0.66, nameDcf, name .. "  ·  실내포장마차", tarp.trim, nil, F.GothamBlack, { d = 0.01 })
+		-- 말아 올린 투명 비닐 가림막 (포차 앞 비닐 천막): 가림막 아래 비닐 두루마리 + 주황 묶음 끈 (문 위는 비움)
+		local ry = yp + 0.04 - vh - 0.2
+		local vinyl = { c = rgb(226, 236, 236), m = M.SmoothPlastic, t = 0.45, r = 0.1 }
+		local strap = col(rgb(236, 120, 30), M.Fabric)
+		local doorX = if V.door then V.door.x else 0
+		local doorW = if V.door then V.door.w else 4
+		local segs = { { x0 + 0.3, doorX - doorW / 2 - 0.6 }, { doorX + doorW / 2 + 0.6, x1 - 0.3 } }
+		for _, sg in segs do
+			local la, lb = sg[1], sg[2]
+			if lb - la > 1.6 then
+				K:cyl("VinylRoll", lb - la, 0.32, CF((la + lb) / 2, ry, zf - 0.06), vinyl)
+				K:cyl("VinylRollCore", lb - la - 0.1, 0.12, CF((la + lb) / 2, ry, zf - 0.06), L.of(200, 210, 212, M.SmoothPlastic))
+				local nst = math.max(1, math.floor((lb - la) / 3.2))
+				for k = 1, nst do
+					local sx = la + (lb - la) * k / (nst + 1)
+					K:cyl("VinylStrap", 0.12, 0.38, CF(sx, ry, zf - 0.06), strap)
+					K:box("VinylStrapTail", V3(0.1, 0.4, 0.03), CF(sx, ry - 0.34, zf - 0.24), strap)
+				end
+			end
+		end
 	end)
 	-- 전구 줄 (파이프 아래, 안쪽 줄마다)
 	local step = if c.hi then 1.5 elseif K.detail == "mid" then 2.2 else 3.2
@@ -2632,14 +2687,32 @@ local function passDecor(c: any)
 		end
 		local sy = -kh * 0.16
 		K:plate("PassShelf", w - 0.3, 0.07, 0.08, kd * CF(0, sy, 0.01), L.steel)
+		-- 선반 위 뚝배기 (벽에 반쯤 묻힌 원통 → 둥근 음영) 2단 쌓기
+		local ttuk = L.of(52, 38, 32, M.Slate)
+		local ttukRim = L.of(92, 70, 58, M.Slate)
 		for i = 0, 5 do
 			local bx = -w / 2 + 0.55 + i * 0.5
 			if bx < w / 2 - 1.7 then
-				K:plate("PassTtukbaegi", 0.42, 0.24, 0.03, kd * CF(bx, sy + 0.16, 0.012), L.of(54, 40, 34))
-				K:plate("PassTtukRim", 0.46, 0.05, 0.035, kd * CF(bx, sy + 0.28, 0.012), L.of(84, 64, 54))
-				if i % 2 == 0 then
-					K:plate("PassTtukbaegi", 0.42, 0.24, 0.03, kd * CF(bx, sy + 0.46, 0.012), L.of(54, 40, 34))
-					K:plate("PassTtukRim", 0.46, 0.05, 0.035, kd * CF(bx, sy + 0.58, 0.012), L.of(84, 64, 54))
+				local nst = if i % 2 == 0 then 2 else 1
+				for k = 0, nst - 1 do
+					local by = sy + 0.04 + k * 0.27
+					K:vcyl("PassTtukbaegi", 0.22, 0.4, kd * CF(bx, by + 0.11, -0.1), ttuk)
+					K:vcyl("PassTtukRim", 0.04, 0.44, kd * CF(bx, by + 0.24, -0.1), ttukRim)
+				end
+			end
+		end
+		-- 아래: 화구 (검은 레인지 + 파란 불꽃) 위에 끓는 뚝배기 2
+		local ry = -kh / 2 + 0.16
+		K:plate("PassRange", w - 2.4, 0.3, 0.12, kd * CF(-0.9, ry, 0.0), L.of(34, 34, 36, M.Metal))
+		K:plate("PassRangeFront", w - 2.4, 0.05, 0.13, kd * CF(-0.9, ry + 0.13, 0.0), L.steel)
+		for k = 0, 1 do
+			local bx = -w / 2 + 0.9 + k * 0.85
+			if bx < w / 2 - 1.9 then
+				K:plate("PassFlame", 0.36, 0.05, 0.14, kd * CF(bx, ry + 0.18, 0.0), L.neon(rgb(80, 150, 255)))
+				K:vcyl("PassBoilPot", 0.24, 0.5, kd * CF(bx, ry + 0.33, -0.12), ttuk)
+				K:vcyl("PassBoilSoup", 0.03, 0.42, kd * CF(bx, ry + 0.46, -0.12), L.of(196, 54, 30, M.SmoothPlastic))
+				if c.hi then
+					K:ell("PassBoilSteam", V3(0.36, 0.3, 0.02), kd * CF(bx, ry + 0.7, 0.05), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.7 })
 				end
 			end
 		end
@@ -3091,7 +3164,10 @@ local function liveTank(c: any)
 	end
 	local D = 1.85
 	local frame = L.of(150, 154, 160, M.Metal)
-	local water = { c = rgb(96, 196, 236), m = M.SmoothPlastic, t = 0.52, r = 0.05 }
+	local water = { c = rgb(64, 176, 232), m = M.SmoothPlastic, t = 0.62, r = 0.05 }
+	-- 뒤 · 옆 파란 배경 필름 (따뜻한 전구 아래에서도 물이 파랗게 읽힘)
+	local film = L.of(26, 104, 168, M.SmoothPlastic)
+	local filmGlow = L.neon(rgb(40, 140, 210))
 	local standH = 1.5
 	K:box("TankKick", V3(W - 0.2, 0.2, D - 0.2), pcf * CF(0, 0.1, 0), L.black)
 	K:box("TankStand", V3(W, standH - 0.2, D), pcf * CF(0, 0.2 + (standH - 0.2) / 2, 0), L.brushed)
@@ -3108,6 +3184,11 @@ local function liveTank(c: any)
 		local base = pcf * CF(0, y0, 0)
 		K:box("TankFloor", V3(W, 0.08, D), base * CF(0, 0.04, 0), frame)
 		K:box("TankBed", V3(W - 0.16, 0.06, D - 0.16), base * CF(0, 0.11, 0), L.of(214, 204, 180, M.Sand))
+		K:box("TankBackFilm", V3(W - 0.12, hh - 0.14, 0.03), base * CF(0, 0.08 + (hh - 0.14) / 2, -D / 2 + 0.06), film)
+		K:box("TankBackGlow", V3(W - 0.3, 0.1, 0.02), base * CF(0, hh - 0.3, -D / 2 + 0.085), filmGlow)
+		for _, sx in { -1, 1 } do
+			K:box("TankSideFilm", V3(0.03, hh - 0.14, D - 0.2), base * CF(sx * (W / 2 - 0.06), 0.08 + (hh - 0.14) / 2, 0), dim(film, 0.15))
+		end
 		K:box("LiveTankWater", V3(W - 0.14, hh - 0.32, D - 0.14), base * CF(0, 0.14 + (hh - 0.32) / 2, 0), water)
 		-- 유리 앞판 + 모서리 프레임
 		K:box("TankGlass", V3(W - 0.08, hh - 0.1, 0.03), base * CF(0, 0.08 + (hh - 0.1) / 2, D / 2 - 0.02), { c = rgb(220, 236, 240), m = M.SmoothPlastic, t = 0.88, r = 0.2 })
@@ -3126,11 +3207,31 @@ local function liveTank(c: any)
 			if item then
 				local sx = -W / 2 + W * (si - 0.5) / nsec
 				seafood(c, item[1], base * CF(sx, 0.14, 0), W / nsec - 0.5, D - 0.6, c.seed + ti * 10 + si)
+				if c.hi and budget(K, 40) and item[1] ~= "octopus" then
+					-- 뒤쪽에 한 겹 더 쌓임 (수조 바닥이 비어 보이지 않게)
+					seafood(c, item[1], base * CF(sx + 0.08, 0.2, -0.25), W / nsec - 0.7, D - 1.1, c.seed + ti * 10 + si + 50)
+				end
 				local tag = string.gsub(item[2], "\n", "  ")
 				txt(K, "TankTag", math.min(1.5, W / nsec - 0.3), 0.28, base * CF(sx, hh - 0.38, D / 2 + 0.005), tag, rgb(200, 16, 16), rgb(255, 250, 228), F.GothamBlack, { d = 0.01 })
 			end
 			if si < nsec then
 				K:box("TankDivider", V3(0.02, hh - 0.3, D - 0.2), base * CF(-W / 2 + W * si / nsec, 0.1 + (hh - 0.3) / 2, 0), { c = rgb(220, 236, 240), m = M.Glass, t = 0.7 })
+			end
+		end
+		-- 활어 (포차 위 칸): 광어 · 우럭이 물 가운데 떠 있음
+		if th.pocha and ti == 2 then
+			for fi = 1, 3 do
+				local fx = -W / 2 + W * fi / 4 + (rnd(c.seed, fi * 13) - 0.5) * 0.3
+				local fy = 0.55 + rnd(c.seed, fi * 17) * (hh - 1.1)
+				local fz = (rnd(c.seed, fi * 19) - 0.5) * (D - 0.9)
+				local dir = if fi % 2 == 0 then 1 else -1
+				local fcf = base * CF(fx, fy, fz) * ANG(0, (if dir > 0 then 0 else PI) + (rnd(c.seed, fi) - 0.5) * 0.5, 0)
+				local body = if fi == 2 then L.of(150, 132, 104) else L.of(88, 84, 80)
+				K:ell("LiveFish", V3(0.7, 0.26, 0.14), fcf, body)
+				K:ell("LiveFishBelly", V3(0.5, 0.12, 0.13), fcf * CF(0.02, -0.07, 0), L.of(226, 222, 210))
+				K:ell("LiveFishTail", V3(0.2, 0.26, 0.04), fcf * CF(-0.4, 0, 0), body)
+				K:ell("LiveFishFin", V3(0.3, 0.08, 0.03), fcf * CF(-0.02, 0.15, 0), body)
+				K:ball("LiveFishEye", 0.05, fcf * CF(0.27, 0.04, 0.06), L.black)
 			end
 		end
 		-- 기포 (에어스톤 + 올라가는 방울)
@@ -3357,39 +3458,70 @@ local GRAFFITI = {
 	"민수 ♥ 지은\n2026.03.14", "곱창 최고!!", "부산 사나이\n다녀감", "또 올게요~", "졸업 기념 ♡",
 	"사장님 대박나세요", "막창은 여기가 진리", "롯데 우승 기원!!\n2026", "김OO 왔다감", "소주 3병 ㅋㅋ",
 	"다이어트는 내일부터", "♡ 1주년 ♡", "해운대보다 광안리", "새벽 4시 생존", "인생 곱창",
+	"부경대 23학번\n다녀감", "서울에서 왔어요!", "ㅋㅋㅋㅋㅋ", "여기 또 왔다\n3번째", "취업 성공 ♪",
+	"이모 사랑해요", "광안대교 야경 최고", "회식 2차 ㅠㅠ", "우리 결혼해요\n♥ 10.03", "대구에서 원정",
+	"군대 가기 전날", "Busan ♥", "맛있다!!!", "볶음밥 꼭 드세요", "경성대 동아리 MT",
 }
+-- 손님 낙서 벽: 매직 글씨 줄 (빽빽하게, 기울기 · 색 · 글꼴 섞임) + 포스트잇 + 하트 · 별 낙서 + 사인 날짜
 local function graffitiWall(c: any)
 	local K, V = c.K, c.V
-	if not budget(K, 30) then
+	if not budget(K, 40) then
 		return
 	end
-	local inks = { rgb(20, 20, 24), rgb(200, 24, 24), rgb(24, 60, 170), rgb(20, 120, 50), rgb(150, 40, 150) }
-	local fonts = { F.PermanentMarker, F.IndieFlower, F.GothamBold, F.SourceSansBold }
+	local inks = { rgb(20, 20, 24), rgb(200, 24, 24), rgb(24, 60, 170), rgb(20, 120, 50), rgb(150, 40, 150), rgb(20, 20, 24) }
+	local fonts = { F.PermanentMarker, F.IndieFlower, F.PermanentMarker, F.SourceSansBold, F.IndieFlower }
+	local notes = { rgb(255, 238, 110), rgb(255, 170, 190), rgb(150, 220, 250), rgb(180, 240, 150), rgb(255, 200, 120) }
+	local doodles = { "♥", "★", "^^", "♡", "V", ":)", "♪" }
 	local placed = 0
+	local y0, y1 = 4.1, 7.4
 	for _, wn in { "left", "right", "back" } do
-		for _, sp in freeSpans(K, wn, 4.3, 7.3, 0.6) do
+		for _, sp in freeSpans(K, wn, y0, y1, 0.6) do
 			local len = sp[2] - sp[1] - 0.3
-			if len >= 2.6 and placed < 2 then
-				local w = math.min(len, 6.0)
+			if len >= 2.2 and placed < 2 then
+				local w = math.min(len, 7.0)
 				local u0 = (sp[1] + sp[2]) / 2
-				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, 4.3, 7.3)
+				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, y0, y1)
 				c.graffitiAt = c.graffitiAt or { wn, u0 }
-				-- 격자 칸마다 한 줄 (칸 안에서 조금씩 흔들림 → 겹치지 않음)
-				local cols = math.max(1, math.floor(w / 2.0))
-				local rows = 4
+				local cols = math.max(1, math.floor(w / 1.35))
+				local rows = 6
 				local cwid = w / cols
-				for i = 1, cols * rows do
-					local k = placed * 20 + i
-					local msg = GRAFFITI[(k + c.seed) % #GRAFFITI + 1]
-					local ci, ri = (i - 1) % cols, (i - 1) // cols
-					local x = u0 - w / 2 + cwid * (ci + 0.5) + (rnd(c.seed, k * 3) - 0.5) * cwid * 0.25
-					local y = 4.75 + ri * 0.68 + (rnd(c.seed, k * 5) - 0.5) * 0.14
-					local two = string.find(msg, "\n", 1, true) ~= nil
-					local sz = if two then 0.24 else 0.26 + rnd(c.seed, k * 7) * 0.1
-					local tw = math.min(cwid - 0.15, 1.9)
-					local d = V:wall(wn, x, y, 0) * ANG(0, 0, (rnd(c.seed, k * 11) - 0.5) * 0.3)
-					txt(K, "Graffiti", tw, sz * (if two then 2.1 else 1), d, msg, inks[(k + ci) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.004 })
+				local rh = (y1 - y0 - 0.45) / rows
+				local n = cols * rows
+				if not budget(K, n + 20) then
+					rows = 4
+					rh = (y1 - y0 - 0.45) / rows
+					n = cols * rows
 				end
+				for i = 1, n do
+					local k = placed * 40 + i
+					local ci, ri = (i - 1) % cols, (i - 1) // cols
+					local x = u0 - w / 2 + cwid * (ci + 0.5) + (rnd(c.seed, k * 3) - 0.5) * cwid * 0.3
+					local y = y0 + 0.1 + rh * (ri + 0.5) + (rnd(c.seed, k * 5) - 0.5) * rh * 0.3
+					local roll = rnd(c.seed, k * 13)
+					local tilt = (rnd(c.seed, k * 11) - 0.5) * 0.36
+					if roll < 0.18 then
+						-- 포스트잇 (색 종이 + 볼펜 글씨 두 줄)
+						local nc = notes[(k + c.seed) % #notes + 1]
+						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt * 0.6)
+						K:plate("PostIt", 0.52, 0.52, 0.012, d, col(nc, M.SmoothPlastic))
+						local msg = GRAFFITI[(k * 7 + c.seed) % #GRAFFITI + 1]
+						txt(K, "PostItText", 0.46, 0.42, d * CF(0, -0.02, 0.012), msg, rgb(30, 40, 90), nil, F.IndieFlower, { d = 0.003 })
+					elseif roll < 0.3 then
+						-- 하트 · 별 낙서
+						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt)
+						txt(K, "Doodle", 0.5, 0.5, d, doodles[(k + c.seed) % #doodles + 1], inks[(k + 1) % #inks + 1], nil, F.GothamBlack, { d = 0.003 })
+					else
+						local msg = GRAFFITI[(k + c.seed) % #GRAFFITI + 1]
+						local two = string.find(msg, "\n", 1, true) ~= nil
+						local sz = if two then 0.2 else 0.22 + rnd(c.seed, k * 7) * 0.1
+						local tw = math.min(cwid - 0.1, 1.5)
+						local d = V:wall(wn, x, y, 0) * ANG(0, 0, tilt)
+						txt(K, "Graffiti", tw, sz * (if two then 2.1 else 1), d, msg, inks[(k + ci) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.003 })
+					end
+				end
+				-- 머리 띠: "손님 낙서 환영 · 매직은 카운터에"
+				local hd = V:wall(wn, u0, y1 - 0.16, 0)
+				txt(K, "GraffitiHead", math.min(w, 3.6), 0.22, hd, "낙서 환영! 매직은 카운터에 있어요", rgb(160, 30, 30), nil, F.PermanentMarker, { d = 0.003 })
 				placed += 1
 			end
 		end

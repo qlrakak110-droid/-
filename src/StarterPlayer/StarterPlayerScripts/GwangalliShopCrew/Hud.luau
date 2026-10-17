@@ -246,10 +246,25 @@ local function onReceipt(d: any)
 	end
 	line(if d.preview then "계산은 나가실 때 해 주세요" else "감사합니다 · 또 오세요!", { size = 12, align = Enum.TextXAlignment.Center, font = Enum.Font.GothamBold, color = Color3.fromRGB(90, 86, 80) })
 	slip.Size = UDim2.fromOffset(W, y + 8)
-	-- the right side, vertically centred (clear of the dialog slot at the bottom on PC)
+	-- PC / tablet: the right side, vertically centred (clear of the dialog slot at the bottom). Phones: under
+	-- the money chip on the left (the right edge is the 폰 / 이동 / 달리기 column and the jump button there)
 	local scr = screen.AbsoluteSize
 	local x = scr.X - W - 16
 	local yy = math.max(70, scr.Y * 0.5 - (y + 8) / 2 - 40)
+	local cls = nil
+	if ctx.Layout and type(ctx.Layout.deviceClass) == "function" then
+		local ok, c = pcall(ctx.Layout.deviceClass)
+		cls = if ok then c else nil
+	end
+	if cls == "phoneL" or cls == "phoneP" then
+		local r = slot("topLeftChips")
+		x = if r then r.x else 12
+		yy = (if r then r.y + r.h else 52) + 8
+		local maxH = scr.Y - yy - 8
+		if y + 8 > maxH then
+			slip.Size = UDim2.fromOffset(W, maxH)
+		end
+	end
 	slip.Position = UDim2.fromOffset(scr.X + 10, yy)
 	TweenService:Create(slip, TweenInfo.new(0.35, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), { Position = UDim2.fromOffset(x, yy) }):Play()
 	if ctx.K and type(ctx.K.feedback) == "function" then
