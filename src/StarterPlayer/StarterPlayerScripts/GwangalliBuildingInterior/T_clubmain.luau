@@ -898,6 +898,43 @@ local function lobbyPhoto(R: any)
 end
 
 -- 락커 32칸: 몸체 · 번호판을 우리 것으로 다시 짓고 (속이 빈 칸), 문마다 번호판 · 손잡이 · 키 (빈 칸엔 코일 키 밴드), 119번 열림
+-- 락커 문 앞면 (문 위에 덧댐): 새틴 그라파이트 판 (문보다 작게 = 줄눈) · 브라스 번호판 · RFID 리더 (상태 LED) ·
+-- 세로 손잡이 홈 · 통풍 슬롯 · 빈 칸엔 팔찌 키 (코일 밴드 + 태그) 를 고리에. face = 문 앞면 dcf (+X = 보는 사람 오른쪽 = 경첩 반대가 왼쪽)
+local LOCKER_FACE = lk(rgb(70, 72, 78), M.Metal)
+local LOCKER_READER = lk(rgb(14, 14, 16), M.SmoothPlastic, { r = 0.08 })
+local function lockerFace(P: any, K: any, face: CFrame, dw: number, dh: number, n: number, free: boolean, detail: boolean, z0: number?)
+	local f = face * CF(0, 0, z0 or 0)
+	local hw = dw / 2
+	P:plate("LockerFace", dw - 0.1, dh - 0.1, 0.03, f, LOCKER_FACE)
+	local d = 0.03
+	-- 번호판 (위 가운데)
+	txt(P, "LockerNo", 0.52, 0.24, f * CF(0, dh / 2 - 0.3, d), tostring(n), rgb(34, 26, 14), nil, F.GothamBold, nil, { look = BRASS })
+	-- RFID 리더 (열리는 쪽 = 보는 사람 왼쪽, 손잡이 홈 안쪽)
+	local rx = -hw + 0.58
+	P:plate("LockerReader", 0.4, 0.66, 0.02, f * CF(rx, 0.02, d), LOCKER_READER)
+	P:plate("LockerLED", 0.24, 0.07, 0.012, f * CF(rx, 0.24, d + 0.02), nl(if free then rgb(60, 230, 120) else rgb(255, 60, 50)))
+	txt(P, "LockerTap", 0.32, 0.3, f * CF(rx, -0.08, d + 0.021), "TAP\n))))", rgb(110, 200, 235), nil, F.GothamBold, 0.6)
+	-- 손잡이 홈 (세로, 문 모서리)
+	P:plate("LockerPull", 0.1, 0.9, 0.012, f * CF(-hw + 0.17, 0.0, d), lk(rgb(12, 12, 14)))
+	P:plate("LockerPullLip", 0.03, 0.9, 0.02, f * CF(-hw + 0.235, 0.0, d), CHROME)
+	if detail then
+		for k = 0, 2 do
+			P:plate("LockerVent", dw * 0.42, 0.035, 0.008, f * CF(0.18, -dh / 2 + 0.28 + k * 0.1, d), lk(rgb(16, 16, 18)))
+		end
+	end
+	if free then
+		-- 빈 칸: 리더 아래 고리에 걸린 팔찌 키 (코일 밴드 정면 = 고리 모양 + 번호 태그)
+		local by = -0.48
+		P:plate("KeyHook", 0.05, 0.12, 0.08, f * CF(rx, by + 0.12, d), CHROME)
+		P:cyl("KeyBand", 0.06, 0.34, f * CF(rx, by - 0.08, d + 0.06) * ANG(0, PI / 2, 0), lk(CY, M.Plastic, { t = 0.1 }))
+		P:cyl("KeyBandHole", 0.08, 0.22, f * CF(rx, by - 0.08, d + 0.06) * ANG(0, PI / 2, 0), LOCKER_FACE)
+		if detail then
+			txt(P, "KeyFob", 0.16, 0.16, f * CF(rx, by - 0.3, d + 0.1), tostring(n), rgb(240, 240, 240), rgb(16, 60, 86), F.GothamBold)
+		end
+	end
+	local _ = K
+end
+
 local function lobbyLockers(R: any)
 	local P, K = R.P, R.K
 	local car = R.one("LockerCarcass")
@@ -987,16 +1024,10 @@ local function lobbyLockers(R: any)
 				openDoor = { door = door, led = led, x = x, y = y, n = n }
 				continue
 			end
-			-- 번호판 (위 가운데) · 손잡이 (LED 아래) · 키 실린더
-			local lx = if led then -(led.c.X - x) else -0.8 -- dcf X 는 -X 방향
-			txt(P, "LockerNo", 0.62, 0.3, face * CF(0, dh / 2 - 0.32, 0.0), tostring(n), rgb(20, 20, 22), rgb(196, 198, 202), F.GothamBold)
-			P:plate("LockerPull", 0.08, 0.62, 0.06, face * CF(lx, -0.32, 0), CHROME)
-			wdisc(P, "LockerKeyLock", 0.16, 0.04, face * CF(lx, -0.82, 0), CHROME)
-			if free and hi(K) then
-				-- 꽂혀 있는 키 + 코일 밴드 (오션 블루)
-				P:plate("LockerKey", 0.07, 0.22, 0.03, face * CF(lx, -0.82, 0.04), BRASS)
-				P:cyl("KeyBandCoil", 0.24, 0.18, face * CF(lx, -1.0, 0.1), lk(CY, M.Plastic, { t = 0.15 }))
+			if led then
+				R.hide(led.part) -- 리더기 패널의 우리 LED 로 바꿈 (같은 색 = 같은 상태)
 			end
+			lockerFace(P, K, face, dw, dh, n, free, hi(K))
 		end
 	end
 	-- 이용 안내판 (락커 오른쪽 · 벽)
@@ -1004,7 +1035,7 @@ local function lobbyLockers(R: any)
 	if R.xr - cx1 > 1.8 then
 		-- (앞 벽 전체에 'window' keep 이 잡혀 있음: 유리창이 아니라 벽이라 free 로 붙임)
 		P:free(function()
-			lightbox(P, "LockerGuide", R.wall("front", gx, 5.2, 0.0), math.min(2.2, R.xr - cx1 - 0.4), 3.2, "LOCKER\n이용 안내", "① 초록 불 칸을 고르세요\n② 키 밴드를 손목에\n③ 퇴장 시 키 반납\n\n1회 ₩2,000 · 계산대 결제\n키 분실 ₩10,000", { titleH = 0.9, accent = CY, frame = BMETAL })
+			lightbox(P, "LockerGuide", R.wall("front", gx, 5.2, 0.0), math.min(2.2, R.xr - cx1 - 0.4), 3.2, "LOCKER\n이용 안내", "① 초록 불 칸을 고르세요\n② 팔찌 키를 리더기에 태그\n③ 퇴장 시 팔찌 키 반납\n\n1회 ₩2,000 · 계산대 결제\n팔찌 키 분실 ₩10,000", { titleH = 0.9, accent = CY, frame = BMETAL })
 		end)
 	end
 	-- 열리는 락커 (원래 문 · LED 숨김 → 우리 문)
@@ -1020,22 +1051,13 @@ local function lobbyLockers(R: any)
 		P:free(function()
 			P:box("LockerInnerLED", V3(dw - 0.3, 0.03, 0.04), CF(x, y + dh / 2 - 0.12, zf + 0.25), nl(rgb(240, 245, 255)))
 			P:seg("LockerHangerRod", V3(x - dw / 2 + 0.15, y + dh / 2 - 0.35, zf + depth * 0.55), V3(x + dw / 2 - 0.15, y + dh / 2 - 0.35, zf + depth * 0.55), 0.05, CHROME)
-			txt(P, "LockerInnerSticker", 0.9, 0.5, CF(x, y - 0.1, zb - 0.07) * ANG(0, PI, 0), "No." .. tostring(n) .. "\n퇴장 시 키 반납", rgb(30, 30, 34), rgb(240, 240, 236), F.GothamBold)
+			txt(P, "LockerInnerSticker", 0.9, 0.5, CF(x, y - 0.1, zb - 0.07) * ANG(0, PI, 0), "No." .. tostring(n) .. "\n퇴장 시 팔찌 키 반납", rgb(30, 30, 34), rgb(240, 240, 236), F.GothamBold)
 			P:box("LockerHook", V3(0.06, 0.2, 0.18), CF(x + 0.6, y + 0.25, zb - 0.15), CHROME)
 		end)
-		local lx = if openDoor.led then -(openDoor.led.c.X - x) else -0.8
 		local g = K:group("Locker" .. tostring(n), function()
 			P:free(function()
 				P:plate("LockerDoorNew", dw, dh, 0.08, face * CF(0, 0, -0.03), lk(d.part.Color, M.Metal))
-				for k = 0, 3 do
-					P:plate("LockerVent", dw * 0.5, 0.04, 0.09, face * CF(0, dh / 2 - 0.62 - k * 0.1, -0.03), lk(rgb(16, 16, 18)))
-				end
-				txt(P, "LockerNo", 0.62, 0.3, face * CF(0, dh / 2 - 0.32, 0.055), tostring(n), rgb(20, 20, 22), rgb(196, 198, 202), F.GothamBold)
-				P:plate("LockerLED", 0.26, 0.16, 0.04, face * CF(lx, 0.1, 0.05), nl(rgb(60, 230, 120)))
-				wdisc(P, "LockerKeyLock", 0.16, 0.04, face * CF(lx, -0.82, 0.05), CHROME)
-				P:plate("LockerKey", 0.07, 0.22, 0.03, face * CF(lx, -0.82, 0.09), BRASS)
-				P:cyl("KeyBandCoil", 0.24, 0.18, face * CF(lx, -1.0, 0.15), lk(CY, M.Plastic, { t = 0.15 }))
-				P:plate("LockerHandle", 0.08, 0.62, 0.06, face * CF(lx, -0.32, 0.05), CHROME)
+				lockerFace(P, K, face, dw, dh, n, true, true, 0.05)
 			end)
 		end)
 		-- 경첩: 보는 사람 오른쪽 = -X 쪽 모서리 → 문 바깥(-Z)으로 열림 (+Y 축 회전)
