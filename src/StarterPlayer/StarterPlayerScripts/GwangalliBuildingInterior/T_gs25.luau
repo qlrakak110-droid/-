@@ -13,7 +13,8 @@
 --   Gondola_n · OpenChiller · Fridge · ATM · Microwave · HotBar · RestockBoxes 는 그대로 (숨기지도 덮지도 않음).
 --   진열 슬롯 (SlotBack/SlotBoard, Display_slot_*) 앞 · 계산대 위 (counter_items/scanned) · 줄 서는 곳 · 직원 문 · 통로 비움.
 --   숨기는 것 (순수 장식만, 같은 자리에 더 나은 것으로): CigarettePacks · CoffeeMachine · GumRack · EntranceMat ·
---   창고의 RackPost/RackDeck · StaffLocker · StaffSink · RollCage · MopBucket · WorkNotice.
+--   FridgeLiner (유리문 바로 뒤 네온 판: 병이 하나도 안 보이게 막음 -> 숨기고 병마다 뚜껑 · 라벨) ·
+--   창고의 RackPost/RackDeck · StaffLocker · StaffSink · RollCage · MopBucket · WorkNotice · StaffDoorLeaf (열린 채 고정, 비충돌).
 --
 -- 매장: 담배장 (갑 하나하나 + 가격표 + 전자담배 · 라이터) · 카페25 머신 · 핫바 · 찐빵 스티머 꾸밈 · LED 전광판 ·
 --   계산대 앞 결제 스티커 · 껌/사탕 랙 · 로또 용지대 · 택배 저울 선반 · CCTV 모니터 · 봉투 걸이 · 천장 카테고리 행잉 사인 ·
@@ -22,7 +23,10 @@
 --   장바구니 · 우산 비닐 커버기 (상호작용) · 미끄럼 주의 · 빵 매대 · 소화전 · 볼록거울 · 스피커 · 현관 매트.
 -- 창고: 앵글 랙 (기둥 · 빔 · 가새 · 메쉬 선반) + 라벨 붙은 박스 · 워크인 냉장고 (문 여닫기, 안에 음료 박스) ·
 --   직원 책상 (발주 단말기 · PC · CCTV 화면 전환) + 의자 · 사물함 (문 여닫기, 조끼) · 금고 · 유니폼 걸이 · 개수대 + 청소 싱크 ·
---   박스 더미 · 롤테이너 · 우유 상자 · 폐기 바구니 · 게시판 · 분전반 · 스프링클러 배관 · 바닥 안전선.
+--   박스 더미 · 롤테이너 · 우유 상자 · 폐기 바구니 · 게시판 · 분전반 · 스프링클러 배관 · 바닥 안전선 ·
+--   LED 일자등 (불빛 4 + 맵 패널 1) · 석고보드 이음매 · 점검구 · 환풍기 · 스피커 · 유도등 2 · 비상조명등 · 비상벨 ·
+--   검수대 (라벨 프린터 · 스캐너 · 테이프 커터 · 검수표) · A형 사다리 · 핸드자키 · 손수레 · 사물함 벤치 ·
+--   피난 안내도 · 위생 포스터 · 벽시계 (게임 시각) · 콘센트 · 온도 기록표 · 직원 문 (킥플레이트 · 레버 · 도어클로저).
 
 local Look = require(script.Parent:WaitForChild("Look"))
 local Props = require(script.Parent:WaitForChild("Props"))

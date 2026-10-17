@@ -1261,9 +1261,39 @@ local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
 	return mirrors
 end
 
+-- 벽걸이 편의용품 자판기 (클럽 화장실 단골: 숙취해소제 · 가글 · 스타킹 · 충전 케이블). dcf 중심 (+Z = 앞)
+local function vendBox(K: any, dcf: CFrame, female: boolean)
+	local body = if female then lk(rgb(246, 236, 240)) else lk(rgb(34, 36, 42))
+	local acc = if female then rgb(230, 90, 150) else rgb(60, 150, 255)
+	K:plate("VendBody", 2.2, 3.4, 0.7, dcf, body)
+	K:plate("VendHeader", 2.2, 0.5, 0.74, dcf * CF(0, 1.45, 0), lk(acc))
+	txt(K, "VendHeaderText", 2.0, 0.38, dcf * CF(0, 1.45, 0.75), "편의용품 자판기", WHITE, nil, F.GothamBlack)
+	K:plate("VendWindowBack", 1.8, 1.9, 0.72, dcf * CF(-0.05, 0.25, 0), lk(rgb(20, 20, 24)))
+	local items = if female
+		then { { rgb(250, 230, 120), "컨디션" }, { rgb(80, 180, 230), "가글" }, { rgb(40, 40, 44), "스타킹" }, { rgb(240, 120, 170), "머리끈" } }
+		else { { rgb(250, 230, 120), "컨디션" }, { rgb(80, 180, 230), "가글" }, { rgb(230, 230, 236), "칫솔" }, { rgb(40, 40, 44), "케이블" } }
+	for row = 0, 2 do
+		local y = 0.85 - row * 0.62
+		K:plate("VendShelf", 1.7, 0.04, 0.73, dcf * CF(-0.05, y - 0.27, 0), Look.chrome)
+		for k = 0, 3 do
+			local it = items[(k + row) % 4 + 1]
+			K:plate("VendItem", 0.32, 0.42, 0.66, dcf * CF(-0.68 + k * 0.42, y - 0.04, 0), lk(it[1]))
+		end
+	end
+	K:plate("VendGlass", 1.8, 1.9, 0.76, dcf * CF(-0.05, 0.25, 0), lk(rgb(220, 230, 236), M.SmoothPlastic, { t = 0.85 }))
+	txt(K, "VendPrice", 1.9, 0.55, dcf * CF(0, -1.05, 0.71), if female then "컨디션 5,000 · 가글 2,000\n스타킹 6,000 · 머리끈 2,000" else "컨디션 5,000 · 가글 2,000\n칫솔 3,000 · 충전케이블 8,000", if female then rgb(120, 40, 80) else rgb(200, 220, 255), nil, F.GothamBold)
+	K:plate("VendCardPad", 0.5, 0.3, 0.74, dcf * CF(0.75, -1.45, 0), lk(rgb(20, 20, 24)))
+	K:plate("VendCardLED", 0.3, 0.05, 0.75, dcf * CF(0.75, -1.38, 0), nl(rgb(60, 230, 120)))
+	K:plate("VendTray", 0.9, 0.22, 0.78, dcf * CF(-0.4, -1.45, 0), lk(rgb(16, 16, 18)))
+end
+
 local function buildRestroom(K: any, V: any, R: any)
 	local female = V.room == "wc_f"
 	rebuildWCFixtures(K, R, female)
+	-- 편의용품 자판기 (왼벽, 입구 쪽 빈 벽)
+	K:free(function()
+		vendBox(K, wallL(R, if female then 15.8 else 17.4, 3.9, 0.06), female)
+	end)
 	local ACC = if female then rgb(255, 60, 170) else rgb(60, 140, 255)
 	local ACC2 = if female then rgb(255, 180, 210) else rgb(150, 210, 255)
 	local tileL = lk(rgb(36, 34, 40), M.CeramicTiles)
@@ -2694,7 +2724,9 @@ local function buildLounge(K: any, V: any, R: any)
 	for z = -80, 60, 14 do
 		sprinkler(K, R, -11.5, z + 3)
 		sprinkler(K, R, 2.0, z + 10)
-		sprinkler(K, R, 13.0, z + 3)
+		if ((z + 80) / 14) % 2 == 0 then
+			sprinkler(K, R, 13.0, z + 3)
+		end
 	end
 	for _, z in { -70, -30, 10, 50 } do
 		smoke(K, R, 2.0, z)
@@ -3253,6 +3285,20 @@ local function buildLounge(K: any, V: any, R: any)
 			end)
 		end
 	end
+	-- 안내 · 안전 표지: 테라스 문 앞 매달린 안내판 · 비상구 유도등 2 (테라스 문 · 계단) · 실내 금연 2 ------------------------
+	hangSign(K, R, -1.0, z0 + 9.0, 7.7, 8.0, 1.3, 0, { title = "▼ OCEAN ROOFTOP · 루프탑", sub = "OPEN 19:00 - 02:00 · 흡연구역은 루프탑", c = rgb(255, 200, 120) }, { title = "OCEAN SKY LOUNGE · 2F", sub = "VIP 계단 · 1F 메인홀 ▲", c = rgb(120, 210, 255) })
+	K:free(function()
+		for _, e in { { -1.0, z0 + 1.2, 0, "▼ " }, { -14.0, 62.0, PI, "▲ 계단 " } } do
+			local d = face(R, e[1], 10.4, e[2], e[3])
+			exitLight(K, d, 2.4, e[4])
+			for _, sx in { -0.9, 0.9 } do
+				local p = (d * CF(sx, 0.5, 0.09)).Position
+				K:seg("ExitRod", p, V3(p.X, R.H, p.Z), 0.04, Look.blackMetal)
+			end
+		end
+		noSmoking(K, wallR(R, -80.0, 5.4, 0), 1.0, "실내 금연")
+		noSmoking(K, wallR(R, 66.5, 5.4, 0), 1.0, "실내 금연")
+	end)
 	-- 오른벽 남쪽 (DJ 와 셀러 사이) 작은 액자 · 바 끝 메뉴 스탠드 --------------------------------------------------
 	K:free(function()
 		artFrame(K, wallR(R, -74.0, 6.6, 0), 4.0, 5.0, { { rgb(16, 20, 40), 0, 0, 1, 1 }, { rgb(80, 150, 255), 0.1, 0.4, 0.8, 0.05 }, { rgb(255, 120, 200), 0.3, 0.55, 0.4, 0.05 }, { rgb(240, 240, 255), 0.45, 0.7, 0.1, 0.15 } }, brassL)

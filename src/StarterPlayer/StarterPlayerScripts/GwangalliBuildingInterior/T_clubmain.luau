@@ -268,6 +268,19 @@ local function makeRoom(K: any, V: any): any
 	function R.hide(part: BasePart)
 		Scan.hide(K.hidden, part)
 	end
+	-- 정렬 프레임 상자 (mn..mx) 와 겹치는 맵 파트 이름 (ignore[name] = true 는 뺌). 없으면 nil
+	function R.blocked(mn: Vector3, mx: Vector3, ignore: { [string]: boolean }?, only: { [string]: boolean }?): string?
+		for _, r in V.parts do
+			if not (ignore and ignore[r.name]) and (only == nil or only[r.name]) and r.part.Transparency < 0.95 then
+				local l = A:ToObjectSpace(r.lcf)
+				local a, b = Scan.laabb(l, r.part.Size)
+				if a.X < mx.X and b.X > mn.X and a.Y < mx.Y and b.Y > mn.Y and a.Z < mx.Z and b.Z > mn.Z then
+					return r.name
+				end
+			end
+		end
+		return nil
+	end
 	return R
 end
 
@@ -654,6 +667,21 @@ local function lobbyCashier(R: any)
 			zA, zB = up[1], up[2]
 		else
 			zA, zB = lo[1], lo[2]
+		end
+	end
+	-- 반대쪽 좁은 벽 (데스크 위): 사업자등록증 · 영업신고증 액자 (계산대 손님 쪽에서 보이는 높이)
+	if wb then
+		local lo0, lo1 = R.bz + 0.25, wb.mn.Z - 0.25
+		local up0, up1 = wb.mx.Z + 0.25, R.fz - 0.25
+		local c0, c1 = lo0, lo1
+		if math.abs((zA + zB) / 2 - (lo0 + lo1) / 2) < 0.5 then
+			c0, c1 = up0, up1
+		end
+		if c1 - c0 > 1.4 then
+			P:free(function()
+				Props.license(P, R.wall("left", (c0 + c1) / 2, 6.7, 0.0), "CLUB OCEAN 광안\n대표 오OO\n617-8X-XXXXX")
+				Props.frame(P, R.wall("left", (c0 + c1) / 2, 4.75, 0.0), 1.2, 1.6, { frame = Look.goldMetal, text = "영업신고증\n\n유흥주점영업\nCLUB OCEAN 광안\n\n부산광역시 수영구청장", fg = rgb(40, 40, 40), textH = 0.9, border = 0.06, depth = 0.05 })
+			end)
 		end
 	end
 	local pw = math.min(3.0, zB - zA)
@@ -1077,6 +1105,12 @@ local function lobbyRight(R: any)
 	-- 뒤 벽 (메인홀 문 오른쪽) 이벤트 포스터 3 (라이트박스)
 	local x0 = R.doorX1 + 1.6
 	local x1 = R.xr - 0.6
+	-- 오른쪽 구석 화분 잎 앞으로 포스터가 가려지지 않게
+	for _, lv in R.find("Leaves") do
+		if lv.mn.Z < R.bz + 1.5 and lv.mn.X - 0.3 < x1 then
+			x1 = lv.mn.X - 0.3
+		end
+	end
 	local posters = {
 		{ "10.17 SAT", "K-EDM NIGHT\nDJ SEAN WAVE\n23:30 ~", rgb(255, 60, 170), { { rgb(60, 10, 70), 0, 0, 1, 0.55 }, { rgb(255, 60, 170), 0.12, 0.06, 0.76, 0.03 } } },
 		{ "10.23 FRI", "TECH HOUSE\nDJ HAEWON\n23:00 ~", rgb(40, 220, 255), { { rgb(6, 40, 70), 0, 0, 1, 0.55 }, { rgb(40, 220, 255), 0.12, 0.06, 0.76, 0.03 } } },
@@ -1215,7 +1249,13 @@ local function lobbyFinish(R: any)
 	local tn = R.one("Sign_TONIGHT · 오늘 밤")
 	if tn then
 		for _, z in { tn.mn.Z - 0.6, tn.mx.Z + 0.6 } do
-			if z > R.bz + 0.5 and z < R.fz - 0.5 then
+			local inLeaves = false
+			for _, lv in R.find("Leaves") do
+				if z > lv.mn.Z - 0.3 and z < lv.mx.Z + 0.3 and lv.mx.X > R.xr - 1.2 and lv.mx.Y > 6.4 and lv.mn.Y < 7.8 then
+					inLeaves = true
+				end
+			end
+			if z > R.bz + 0.5 and z < R.fz - 0.5 and not inLeaves then
 				local d = R.wall("right", z, 7.1, 0.0)
 				P:free(function()
 					P:plate("SconceBack", 0.3, 0.9, 0.06, d, BRASS)
@@ -1410,7 +1450,7 @@ local function buildTunnel(K: any, V: any)
 		local z1 = if #barsZ > 0 then (barsZ[#barsZ] + R.fz) / 2 else R.fz - 0.6
 		local z0 = if #barsZ > 1 then (barsZ[1] + barsZ[2]) / 2 else R.bz + 1
 		P:free(function()
-			lightbox(P, "TunnelRules", R.wall("left", z0, 4.6, 0.04), 1.5, 2.6, "19+", "만 19세 이상\n신분증 필수\n\nDRESS CODE\n슬리퍼 · 트레이닝복\n입장 불가", { titleH = 0.8, accent = rgb(255, 80, 80), frame = BMETAL })
+			lightbox(P, "TunnelRules", R.wall("left", z0, 4.6, 0.04), 1.5, 2.6, "19+", "2007년생부터 입장\n신분증 필수\n\nDRESS CODE\n슬리퍼 · 트레이닝복\n입장 불가", { titleH = 0.8, accent = rgb(255, 80, 80), frame = BMETAL })
 			lightbox(P, "TunnelCCTV", R.wall("right", z0, 4.6, 0.04), 1.5, 2.6, "CCTV", "24시간 녹화 중\n\n촬영은 로비\n포토월에서 📸", { titleH = 0.8, accent = CY, frame = BMETAL })
 			txt(P, "TunnelWelcome", 1.6, 0.5, R.wall("right", z1, 5.0, 0.04), "WELCOME ▶", rgb(220, 250, 255), nil, F.GothamBlack, 1.4)
 		end)
@@ -1634,9 +1674,15 @@ local function mainBar(R: any)
 				-- 스피드레일 = 바텐더 통로 쪽 (게이트리 쪽). 랙은 그 반대 (손님 쪽) 으로 붙임
 				local away = if u.c.X < bx then -1 else 1
 				local rw, rd = 1.15, math.min(1.9, z1 - z0)
+				local rx = u.c.X + away * 0.12
+				local rzc = (z0 + z1) / 2
+				-- 바텐더 NPC 팔이 언더바 위로 나와 있는 칸은 비움 (NPC 는 애니메이션)
+				local LIMBS = { ["Right Arm"] = true, ["Left Arm"] = true, Torso = true, Head = true, RightHand = true, LeftHand = true, RightLowerArm = true, LeftLowerArm = true }
+				if R.blocked(V3(rx - rw / 2 - 0.25, u.mx.Y - 0.2, rzc - rd / 2 - 0.25), V3(rx + rw / 2 + 0.25, u.mx.Y + 1.4, rzc + rd / 2 + 0.25), nil, LIMBS) then
+					rd = 0
+				end
 				if rd > 1.2 then
 					-- 바 상판 안쪽 끝 (상판 아래로 들어가지 않게) 과 스피드레일 병 사이
-					local rx = u.c.X + away * 0.12
 					local rz = (z0 + z1) / 2
 					local y = u.mx.Y
 					local RACK = lk(rgb(58, 60, 64), M.Plastic)
@@ -1841,12 +1887,24 @@ local function mainDJ(R: any)
 		headphones(P, V3(desk.mn.X - 0.02, desk.mx.Y - 0.35, desk.c.Z), V3(-1, 0, 0))
 		-- 로드 케이스 (데크 양 끝, 뒤 난간 쪽)
 		local L = { x0 = deck.mn.X + 0.35, x1 = deck.mn.X + 2.15 }
-		if clearOfNPC(L.x0, L.x1) then
+		if clearOfNPC(L.x0, L.x1) and R.blocked(V3(L.x0 - 0.05, dy + 0.05, deck.mn.Z + 0.55), V3(L.x1 + 0.05, dy + 1.95, deck.mn.Z + 1.5), { BoothDeck = true, BoothPlatform = true, BoothEdgeTrim = true, BoothLED = true, BoothGlassRail = true, RailCap = true, RailLED = true }) == nil then
 			roadCase(P, faceCF(V3((L.x0 + L.x1) / 2, dy, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.8, 1.3, 1.1), "OCEAN SOUND")
 			roadCase(P, faceCF(V3((L.x0 + L.x1) / 2, dy + 1.3, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.6, 0.6, 1.0), "FX · RACK 2")
 		end
 		local Rr = { x0 = deck.mx.X - 2.15, x1 = deck.mx.X - 0.35 }
-		if clearOfNPC(Rr.x0, Rr.x1) then
+		-- 데크 위 맵 장비 (헤이저 등) 와 겹치면 안쪽으로 옮김, 그래도 겹치면 생략
+		local deckIgnore = { BoothDeck = true, BoothPlatform = true, BoothEdgeTrim = true, BoothLED = true, BoothGlassRail = true, RailCap = true, RailLED = true }
+		local function caseFree(x0: number, x1: number): boolean
+			return R.blocked(V3(x0 - 0.05, dy + 0.05, deck.mn.Z + 0.55), V3(x1 + 0.05, dy + 1.9, deck.mn.Z + 2.3), deckIgnore) == nil
+		end
+		if not caseFree(Rr.x0, Rr.x1) then
+			for _, h in R.find("Hazer") do
+				if h.mx.Y > dy and h.mn.Y < dy + 2 and h.mn.X - 2.1 > desk.mx.X + 0.2 then
+					Rr = { x0 = h.mn.X - 2.1, x1 = h.mn.X - 0.3 }
+				end
+			end
+		end
+		if clearOfNPC(Rr.x0, Rr.x1) and caseFree(Rr.x0, Rr.x1) then
 			local rx = (Rr.x0 + Rr.x1) / 2
 			roadCase(P, faceCF(V3(rx, dy, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.8, 1.3, 1.1), "CLUB OCEAN · DJ")
 			-- 수건 · 생수 · 레코드 가방
@@ -1864,7 +1922,17 @@ local function mainDJ(R: any)
 			for _, s in steps do
 				sx0 = math.min(sx0, s.mn.X)
 			end
-			local f = faceCF(V3(sx0 - 0.15, dy + 1.6, deck.mn.Z - 0.03), V3(0, 0, -1))
+			local px, pz = sx0 - 0.15, deck.mn.Z - 0.03
+			local best: any = nil
+			for _, r in R.find("BoothGlassRail") do
+				if r.s.X > 3 and r.mx.X <= sx0 + 0.2 and (best == nil or r.mx.X > best.mx.X) then
+					best = r
+				end
+			end
+			if best then
+				px, pz = best.mx.X - 0.75, best.mn.Z - 0.005
+			end
+			local f = faceCF(V3(px, dy + 1.6, pz), V3(0, 0, -1))
 			P:plate("DJOnlyPlate", 1.1, 0.5, 0.04, f, BMETAL)
 			txt(P, "DJOnlyText", 1.0, 0.42, f * CF(0, 0, 0.042), "DJ · STAFF ONLY", rgb(255, 210, 60), nil, F.GothamBlack, 1.2)
 		end
