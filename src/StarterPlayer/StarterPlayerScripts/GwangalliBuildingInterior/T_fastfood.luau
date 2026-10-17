@@ -3433,7 +3433,8 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 	local rnd = ctx.rand
 	local hh = h or 0.7
 	-- 몸통은 국물 높이까지 (속이 꽉 찬 상자가 국물을 덮지 않게) + 얇은 네 벽이 테두리까지
-	local tank = L.of(204, 206, 208, M.Metal, { r = 0.06 })
+	-- 스테인리스: 어두운 실내에서 Metal 은 푸르게 어두워 보여 밝은 무광 회색 + 약한 반사로
+	local tank = L.of(200, 202, 204, M.SmoothPlastic, { r = 0.12 })
 	K:box("FfTankBody", V3(w, hh - 0.1, d), base * CF(0, (hh - 0.1) / 2, 0), tank)
 	K:box("FfTankBroth", V3(w - 0.1, 0.05, d - 0.1), base * CF(0, hh - 0.085, 0), { c = rgb(204, 148, 70), m = M.SmoothPlastic, r = 0.02 })
 	if not ctx.low then
@@ -3446,11 +3447,11 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 		K:box("FfTankWall", V3(w, 0.13, 0.05), base * CF(0, hh - 0.065, sz * (d / 2 - 0.025)), tank)
 		K:box("FfTankWall", V3(0.05, 0.13, d - 0.1), base * CF(sz * (w / 2 - 0.025), hh - 0.065, 0), tank)
 	end
-	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, d / 2), L.of(214, 216, 218, M.Metal))
-	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, -d / 2), L.of(214, 216, 218, M.Metal))
+	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, d / 2), L.of(222, 224, 226, M.SmoothPlastic, { r = 0.15 }))
+	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, -d / 2), L.of(222, 224, 226, M.SmoothPlastic, { r = 0.15 }))
 	local nDiv = math.max(1, math.floor(w / 1.1))
 	for i = 1, nDiv - 1 do
-		K:box("FfTankDivider", V3(0.04, 0.2, d - 0.06), base * CF(-w / 2 + i * w / nDiv, hh - 0.04, 0), L.of(214, 216, 218, M.Metal))
+		K:box("FfTankDivider", V3(0.04, 0.2, d - 0.06), base * CF(-w / 2 + i * w / nDiv, hh - 0.04, 0), L.of(222, 224, 226, M.SmoothPlastic, { r = 0.15 }))
 	end
 	-- 꼬치: 국물 속 뒤쪽 바닥에서 손님 쪽(+Z) 테두리로 비스듬히 기대 누움 (막대 끝만 테두리 밖으로).
 	--   접은 납작 어묵은 막대 아래쪽 절반에 지그재그로 꿰어 대부분 국물 속, 윗주름 1~2개만 국물 위로 보임.
@@ -4134,8 +4135,8 @@ local function odengTrough(ctx: any)
 		eomukTank(ctx, base, len, dd, 0.7)
 		local lw = 0.1
 		for _, sz in { -1, 1 } do
-			K:box("FfTroughLip", V3(len + 0.2, 0.04, lw), CF(cx, y + 0.32, cz + sz * (dd / 2 + 0.05)), L.of(206, 208, 210, M.Metal))
-			K:box("FfTroughLip", V3(lw, 0.04, dd + 0.2), CF(cx + sz * (len / 2 + 0.05), y + 0.32, cz), L.of(206, 208, 210, M.Metal))
+			K:box("FfTroughLip", V3(len + 0.2, 0.04, lw), CF(cx, y + 0.32, cz + sz * (dd / 2 + 0.05)), L.of(222, 224, 226, M.SmoothPlastic, { r = 0.15 }))
+			K:box("FfTroughLip", V3(lw, 0.04, dd + 0.2), CF(cx + sz * (len / 2 + 0.05), y + 0.32, cz), L.of(222, 224, 226, M.SmoothPlastic, { r = 0.15 }))
 		end
 	end)
 end
@@ -5093,7 +5094,9 @@ local function hangingBoards(ctx: any): number
 		for _, p in K.parts do
 			if p.Parent and p:IsA("BasePart") then
 				local a, b = laabb(K.cf:ToObjectSpace(p.CFrame), p.Size)
-				if b.Y > mn.Y - 0.2 and ov(a, b, mn, mx, 0) then
+				local nm = p.Name
+				local flushCeil = a.Y >= V.H - 0.3 and (string.find(nm, "Ceil") ~= nil or string.find(nm, "Grid") ~= nil or string.find(nm, "Tile") ~= nil or string.find(nm, "TBar") ~= nil)
+				if not flushCeil and b.Y > mn.Y - 0.2 and ov(a, b, mn, mx, 0) then
 					return false
 				end
 			end
@@ -5105,8 +5108,8 @@ local function hangingBoards(ctx: any): number
 		{ "떡튀순 세트 " .. priceIn(ctx.signs or "", "떡튀순", "9,000") .. "원", "떡볶이 + 모둠튀김 + 순대", "카드 · 페이 결제 OK", "현금영수증 발행 가능" },
 	}
 	local n = 0
-	local zs = { { V.z0 + V.D * 0.34, V.z0 + V.D * 0.42, V.z0 + V.D * 0.28 }, { V.z0 + V.D * 0.62, V.z0 + V.D * 0.55, V.z0 + V.D * 0.7 } }
-	local xs = { -V.W * 0.18, V.W * 0.18, 0, -V.W * 0.3, V.W * 0.3 }
+	local zs = { { V.z0 + V.D * 0.34, V.z0 + V.D * 0.42, V.z0 + V.D * 0.28, V.z0 + V.D * 0.22, V.z0 + V.D * 0.47 }, { V.z0 + V.D * 0.62, V.z0 + V.D * 0.55, V.z0 + V.D * 0.7, V.z0 + V.D * 0.76 } }
+	local xs = { -V.W * 0.18, V.W * 0.18, 0, -V.W * 0.3, V.W * 0.3, -V.W * 0.08, V.W * 0.08 }
 	for zi, zl in zs do
 		for _, z in zl do
 			for _, x in xs do
@@ -5200,38 +5203,6 @@ function T.build(K: any, V: any, S: any)
 	end)
 	if not ok3 then
 		K:note("ff restock error: " .. tostring(err3))
-	end
-	if true then -- TMPDBG
-		for _, nm in { "KitchenPass", "SpoonBox", "EomukTank", "Ingredient", "SneezeGuard" } do
-			local r = (V.byName[nm] or {})[1]
-			if r then
-				K:note(string.format("DBGPOS %s %.1f %.1f %.1f size %.1f %.1f %.1f", nm, r.c.X, r.c.Y, r.c.Z, r.size.X, r.size.Y, r.size.Z))
-			end
-		end
-		if V.counters[1] then
-			local g = V.counters[1]
-			K:note(string.format("DBGPOS counter %.1f..%.1f y%.1f z%.1f..%.1f", g.min.X, g.max.X, g.y, g.min.Z, g.max.Z))
-		end
-		for _, wn in { "back", "left", "right", "front" } do
-			local wl = V.walls[wn]
-			if wl then
-				local t = {}
-				for _, b in { { 4.0, 6.6 }, { 7.0, 8.9 } } do
-					local ss = {}
-					for _, sp in spans(ctx, wn, b[1], b[2], 1.0) do
-						table.insert(ss, string.format("%.1f..%.1f", sp[1], sp[2]))
-					end
-					table.insert(t, string.format("[%.1f-%.1f] %s", b[1], b[2], table.concat(ss, " ")))
-				end
-				local us = {}
-				for _, u in K.wallUsed or {} do
-					if u.w == wn then
-						table.insert(us, string.format("%.1f..%.1f@%.1f-%.1f", u.a, u.b, u.y0, u.y1))
-					end
-				end
-				K:note(string.format("DBG %s a=%.1f b=%.1f %s USED %s", wn, wl.a, wl.b, table.concat(t, " | "), table.concat(us, " ")))
-			end
-		end
 	end
 	K:note(string.format("ff %s/%s: +%d parts, toggles %d", ctx.sk, ctx.pal.key or "?", #K.parts - t0, ctx.toggles))
 	if ctx.miss then

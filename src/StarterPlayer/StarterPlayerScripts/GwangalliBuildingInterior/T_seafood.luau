@@ -196,8 +196,17 @@ end
 local function freeSpans(K: any, wn: string, y0: number, y1: number, depth: number?): { { number } }
 	local V = K.V
 	local out = {}
+	-- 옆벽: 앞 유리 2 스터드 안쪽은 창 띠 (3.4 위) 라 비움
+	local clipLo, clipHi = -math.huge, math.huge
+	if y1 > 3.4 and (wn == "left" or wn == "right") then
+		if wn == "right" then
+			clipHi = V.z1 - 2.1
+		else
+			clipLo = -(V.z1 - 2.1)
+		end
+	end
 	for _, s in V:spans(wn, y0, y1, depth or 0.8) do
-		local segs = { { s[1], s[2] } }
+		local segs = { { math.max(s[1], clipLo), math.min(s[2], clipHi) } }
 		for _, u in K.wallUsed or {} do
 			if u.w == wn and u.y0 < y1 and u.y1 > y0 then
 				local nxt = {}
@@ -617,8 +626,8 @@ local function themeFor(V: any): any
 	th.lowerH = 4.2
 	th.floor = { look = L.of(150, 154, 156, M.Slate), tile = 2.0, grout = L.of(118, 122, 124) }
 	th.stool = { style = "wood", frame = L.chrome, seat = L.of(40, 84, 168, M.Leather) }
-	th.table = { style = "four", top = L.of(196, 200, 204, M.Metal, { r = 0.06 }), edge = L.of(150, 154, 160, M.Metal), base = L.chrome, thick = 0.12, r = 0.06 }
-	th.counter = { front = "panel", frontL = L.of(188, 192, 196, M.Metal), topL = L.of(206, 210, 214, M.Metal, { r = 0.08 }), kickL = L.black, led = rgb(200, 230, 255) }
+	th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), edge = L.of(150, 152, 154, M.SmoothPlastic, { r = 0.1 }), base = L.chrome, thick = 0.12, r = 0.06 }
+	th.counter = { front = "panel", frontL = L.of(188, 192, 196, M.Metal), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(200, 230, 255) }
 	th.chair = { style = "padded", frame = L.blackMetal, seat = L.fabricGrey }
 	th.splash = L.of(244, 246, 246, M.CeramicTiles)
 	th.tank = "fish"
@@ -637,7 +646,7 @@ local function themeFor(V: any): any
 		th.floor = { look = L.of(118, 110, 100, M.Slate), tile = 2.0, grout = L.of(92, 86, 78) }
 		th.stool = { style = "wood", frame = L.darkWood, seat = L.of(176, 132, 88, M.Wood) }
 		th.table = { style = "four", top = L.of(132, 92, 60, M.Wood), base = L.blackMetal, thick = 0.16, r = 0.05 }
-		th.counter = { front = "wood", frontL = L.of(100, 70, 48, M.Wood), topL = L.of(206, 210, 214, M.Metal, { r = 0.08 }), kickL = L.black, led = rgb(255, 214, 160) }
+		th.counter = { front = "wood", frontL = L.of(100, 70, 48, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
 		th.wifi = "JINMI_5G"
 	elseif variant == "red" then
 		th.accent = rgb(196, 28, 38)
@@ -655,7 +664,7 @@ local function themeFor(V: any): any
 		th.upper = L.of(232, 242, 240, M.SmoothPlastic)
 		th.floor = { look = L.of(122, 128, 128, M.Slate), tile = 1.8, grout = L.of(98, 102, 102) }
 		th.stool = { style = "plastic", seat = L.of(206, 52, 46, M.Plastic) }
-		th.table = { style = "four", top = L.of(198, 202, 206, M.Metal, { r = 0.06 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
+		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
 		th.wifi = if variant == "market" then "MILLAK_SUSAN" else "CHOJANG_FREE"
 		th.flags = true
 		th.fridgeHeader = "소주 · 맥주 · 음료"
@@ -667,7 +676,7 @@ local function themeFor(V: any): any
 		th.upper = L.of(246, 244, 238, M.SmoothPlastic)
 		th.floor = { look = L.of(140, 142, 144, M.Slate), tile = 2.0, grout = L.of(110, 112, 114) }
 		th.stool = { style = "plastic", seat = L.of(38, 96, 196, M.Plastic) }
-		th.table = { style = "four", top = L.of(198, 202, 206, M.Metal, { r = 0.06 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
+		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
 		th.tank = "shell"
 		th.flags = true
 		th.wifi = "JOGAE_JJIM"
@@ -683,7 +692,7 @@ local function themeFor(V: any): any
 		th.floor = { look = L.of(176, 164, 150, M.Slate), tile = 2.0, grout = L.of(140, 130, 118) }
 		th.stool = { style = "wood", frame = L.darkWood, seat = L.of(170, 40, 32, M.Leather) }
 		th.table = { style = "four", top = L.of(168, 122, 82, M.Wood), base = L.blackMetal, thick = 0.16, r = 0.05 }
-		th.counter = { front = "wood", frontL = L.of(110, 40, 32, M.Wood), topL = L.of(206, 210, 214, M.Metal, { r = 0.08 }), kickL = L.black, led = rgb(255, 214, 160) }
+		th.counter = { front = "wood", frontL = L.of(110, 40, 32, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
 		th.tank = "crab"
 		th.wifi = "DAEGE_MILLAK"
 	elseif variant == "squid" then
@@ -717,9 +726,9 @@ local function themeFor(V: any): any
 	end
 	-- 타일 벽 매장: 카운터 앞도 같은 타일 (스테인리스 상판), 시장형은 스테인리스 판
 	if th.lowerKind == "tile" and variant ~= "chojang" and variant ~= "market" then
-		th.counter = { front = "tile", frontL = th.tile, topL = L.of(214, 218, 222, M.Metal, { r = 0.12 }), kickL = th.band, led = rgb(200, 230, 255) }
+		th.counter = { front = "tile", frontL = th.tile, topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = th.band, led = rgb(200, 230, 255) }
 	elseif variant == "chojang" or variant == "market" then
-		th.counter = { front = "panel", frontL = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }), topL = L.of(214, 218, 222, M.Metal, { r = 0.12 }), kickL = L.black, led = false }
+		th.counter = { front = "panel", frontL = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = false }
 	end
 	th.menu = MENUS[if kind == "hoe" then "hoe" else kind] or MENUS.hoe
 	th.origin = ORIGIN[if kind == "hoe" then "hoe" else kind] or ORIGIN.hoe
@@ -733,7 +742,7 @@ function T.style(V: any): any
 		stool = th.stool,
 		table = th.table,
 		counter = th.counter,
-		ceiling = if th.kind == "sushi" then { grid = false, skin = L.of(196, 168, 128, M.Wood) } else { grid = true },
+		ceiling = if th.kind == "sushi" then { grid = false, skin = L.of(176, 140, 100, M.WoodPlanks) } else { grid = true },
 		floor = th.floor,
 		base = if th.lowerKind == "wainscot" or th.lowerKind == "louver" then dim(th.band, 0.1) else L.of(70, 74, 78),
 		lights = { kind = "none" },
@@ -1571,9 +1580,10 @@ local function kitchen(c: any)
 			end
 			if not hit then
 				local cx = (a + b) / 2
-				local base = CF(cx, topY, zBack)
-				local h = if it.kind == "pot" then 1.6 else 0.8
-				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, 1.0)) then
+				local isPot = it.kind == "pot"
+				local base = CF(cx, topY, if isPot then zBack + 0.3 else zBack)
+				local h = if isPot then 1.6 else 0.8
+				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 else 1.0)) then
 					placed = true
 					cursor = b + 0.2
 					if it.kind == "scale" then
@@ -1921,7 +1931,7 @@ end
 local function bigFlag(c: any, dcf: CFrame, w: number, h: number, text: string)
 	local K = c.K
 	local stripes = { rgb(214, 36, 36), rgb(248, 214, 40), rgb(40, 110, 200), rgb(250, 250, 248), rgb(40, 160, 80) }
-	K:cyl("FlagPole", w + 0.4, 0.08, dcf * CF(0, h / 2 + 0.08, 0.1), L.of(150, 110, 70, M.Wood))
+	K:cyl("FlagPole", w + 0.1, 0.08, dcf * CF(0, h / 2 + 0.08, 0.1), L.of(150, 110, 70, M.Wood))
 	local sh = h / #stripes
 	for i, cc in stripes do
 		K:plate("FlagStripe", w, sh, 0.02, dcf * CF(0, h / 2 - sh * (i - 0.5), 0.04) * ANG(0, 0, (i % 2 - 0.5) * 0.01), col(cc, M.Fabric))
@@ -2350,8 +2360,8 @@ local function giftPlant(c: any, pcf: CFrame)
 	K:disc("GiftSoil", 1.0, 0.04, pcf * CF(0, 0.98, 0), L.soil)
 	for i = 1, 7 do
 		local a = i * 0.9
-		local lean = 0.12 + (i % 3) * 0.08
-		local h = 1.6 + (i % 3) * 0.5
+		local lean = 0.1 + (i % 3) * 0.06
+		local h = 1.3 + (i % 3) * 0.32
 		local root = pcf * V3(math.cos(a) * 0.2, 1.0, math.sin(a) * 0.2)
 		local tip = pcf * V3(math.cos(a) * (0.2 + lean * h), 1.0 + h, math.sin(a) * (0.2 + lean * h))
 		K:seg("ZZStem", root, tip, 0.06, L.of(70, 110, 50))
@@ -2550,6 +2560,124 @@ local function luckyCat(K: any, pcf: CFrame, s: number)
 	return arm
 end
 
+-- 주방 패스 창 (KitchenPass 를 같은 크기로 덮고 숨김): 주방 타일 · 나무 틀 · 주문표 레일 · 보온등 · 그릇 선반
+local function passOverlay(c: any)
+	local K, V = c.K, c.V
+	for _, r in V.byName.KitchenPass or {} do
+		if r.size.Z < 0.5 and r.size.X > 2 and math.abs(r.min.Z - V.z0) < 0.6 then
+			local w, h = r.size.X, r.size.Y
+			local dcf = CFrame.fromMatrix(V3(r.c.X, r.c.Y, r.max.Z), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
+			K:free(function()
+				K:box("PassSkin", r.size, CF(r.c), L.of(236, 234, 226, M.CeramicTiles))
+				for i = 1, math.floor(h / 0.6) do
+					K:plate("PassGrout", w, 0.025, 0.01, dcf * CF(0, -h / 2 + i * 0.6, 0), L.of(196, 194, 186))
+				end
+				for i = 1, math.floor(w / 0.9) do
+					K:plate("PassGrout", 0.025, h, 0.01, dcf * CF(-w / 2 + i * 0.9, 0, 0), L.of(196, 194, 186))
+				end
+				local wood = L.of(64, 46, 32, M.Wood)
+				K:plate("PassFrame", w + 0.36, 0.2, 0.14, dcf * CF(0, h / 2 + 0.08, 0), wood)
+				for _, sx in { -1, 1 } do
+					K:plate("PassFrame", 0.2, h + 0.1, 0.14, dcf * CF(sx * (w / 2 + 0.08), 0, 0), wood)
+				end
+				-- 보온등 · 주문표 레일
+				local lamp = K:plate("PassHeatLamp", w - 0.6, 0.08, 0.1, dcf * CF(0, h / 2 - 0.12, 0), L.neon(rgb(255, 196, 130)))
+				K:light(lamp, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.7, Angle = 120, Color = rgb(255, 200, 150) })
+				K:plate("TicketRail", w - 0.8, 0.07, 0.08, dcf * CF(0, h / 2 - 0.32, 0.02), L.of(200, 204, 208, M.Metal))
+				local nT = if c.hi then 7 else 4
+				for i = 1, nT do
+					local x = -w / 2 + 0.6 + (w - 1.2) * (i - 0.5) / nT
+					K:plate("OrderTicket", 0.32, 0.46, 0.012, dcf * CF(x, h / 2 - 0.6, 0.1) * ANG(0, 0, (rnd(c.seed, i) - 0.5) * 0.12), L.of(250, 248, 240))
+				end
+				-- 안쪽 그릇 선반 (벽면에 납작)
+				K:plate("PassShelf", w - 0.6, 0.07, 0.22, dcf * CF(0, -h / 2 + 1.2, 0), L.of(200, 204, 208, M.Metal))
+				local nB = math.floor((w - 1) / 0.7)
+				for i = 1, nB do
+					local x = -w / 2 + 0.8 + (w - 1.6) * (i - 0.5) / nB
+					K:ell("PassBowl", V3(0.42, 0.18, 0.16), dcf * CF(x, -h / 2 + 1.33, 0.1), if i % 3 == 0 then L.of(40, 36, 34) else L.of(238, 236, 228))
+				end
+			end)
+			hideRec(K, r)
+		end
+	end
+end
+
+-- 노렌 (맵 Noren 을 같은 자리에서 갈라진 쪽빛 천 + 흰 글자로)
+local function norenOver(c: any)
+	local K, V = c.K, c.V
+	local chars = { "寿", "司", "海", "光", "酒", "肴", "旬", "魚" }
+	local ci = 0
+	for _, r in V.byName.Noren or {} do
+		if r.size.Z < 0.3 and r.size.X > 1.5 then
+			hideRec(K, r)
+			local w, h = r.size.X, r.size.Y
+			local dcf = CFrame.fromMatrix(V3(r.c.X, r.c.Y, r.max.Z), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
+			K:free(function()
+				K:cyl("NorenRod", w + 0.3, 0.1, dcf * CF(0, h / 2 + 0.05, 0.04), L.of(70, 50, 34, M.Wood))
+				local n = math.max(2, math.floor(w / 1.4))
+				local pw = w / n
+				for i = 1, n do
+					local x = -w / 2 + pw * (i - 0.5)
+					local pc = dcf * CF(x, 0, -0.02)
+					K:plate("NorenPanel", pw - 0.07, h, 0.03, pc, L.of(28, 38, 78, M.Fabric))
+					K:plate("NorenHem", pw - 0.07, 0.06, 0.035, pc * CF(0, -h / 2 + 0.03, 0), L.of(20, 28, 60, M.Fabric))
+					ci += 1
+					K:text("NorenChar", math.min(pw * 0.6, h * 0.7), h * 0.7, pc * CF(0, -0.02, 0.031), chars[(ci - 1) % #chars + 1], { fg = rgb(244, 240, 228), font = F.GothamBlack, d = 0.004 })
+				end
+			end)
+		end
+	end
+end
+
+-- 사케 통 (고모다루) 더미: 짚 감은 흰 통 + 줄 + 붉은 글자
+local function sakeBarrels(c: any, pcf: CFrame)
+	local K = c.K
+	local straw = L.of(232, 222, 196, M.Fabric)
+	local rope = L.of(150, 110, 70, M.Fabric)
+	local pos = { { -0.62, 0 }, { 0.62, 0 }, { 0, 1.2 } }
+	local names = { "大漁", "光安", "酒" }
+	for i, p in pos do
+		local base = pcf * CF(p[1], p[2], 0)
+		K:vcyl("SakeBarrel", 1.15, 1.2, base * CF(0, 0.6, 0), straw)
+		K:vcyl("SakeBarrelLid", 0.06, 1.1, base * CF(0, 1.18, 0), L.of(200, 170, 120, M.Wood))
+		for _, y in { 0.15, 0.6, 1.05 } do
+			K:vcyl("SakeBarrelRope", 0.07, 1.24, base * CF(0, y, 0), rope)
+		end
+		ktext(K, "SakeBarrelLabel", 0.5, 0.7, base * CF(0, 0.6, 0.61), vertical(names[i]), { fg = rgb(190, 30, 30), font = F.GothamBlack, d = 0.01 })
+	end
+end
+
+-- 블루투스 스피커 (BGM 바꾸기): 나무 몸체 + 그릴 + LCD
+local function bgmSpeaker(c: any, dcf: CFrame): (BasePart, TextLabel)
+	local K = c.K
+	K:plate("SpeakerShelf", 1.3, 0.08, 0.6, dcf * CF(0, -0.5, 0), L.of(84, 60, 42, M.Wood))
+	K:plate("SpeakerBody", 1.1, 0.9, 0.45, dcf * CF(0, -0.02, 0.05), L.of(120, 86, 56, M.Wood))
+	wdisc(K, "SpeakerGrille", 0.6, 0.02, dcf * CF(-0.18, -0.02, 0.05), 0.45, L.of(40, 38, 36, M.Fabric))
+	local scr, lbl = K:text("SpeakerLCD", 0.36, 0.24, dcf * CF(0.32, 0.12, 0.5), "♪ 시티팝", { bg = rgb(20, 40, 60), fg = rgb(140, 220, 255), glow = 1.2, font = F.GothamBold, d = 0.01 })
+	K:plate("SpeakerKnob", 0.12, 0.12, 0.04, dcf * CF(0.32, -0.2, 0.5), L.chrome)
+	return scr, lbl
+end
+
+local function sushiExtras(c: any)
+	local K, V = c.K, c.V
+	passOverlay(c)
+	norenOver(c)
+	-- 사케 통 (입구 쪽 옆벽 앞)
+	local pcf = floorOnWall(K, { "left", "right" }, V3(2.6, 2.4, 1.3), { left = -(V.z1 - 3.2), right = V.z1 - 3.2 }, 0.1)
+	if pcf then
+		sakeBarrels(c, pcf)
+	end
+	-- 대나무 화분
+	local pcf2 = floorOnWall(K, { "right", "left", "back" }, V3(1.4, 5.2, 1.4), { left = -(V.z1 - 3), right = V.z1 - 3, back = V.x1 * 0.6 }, 0.05)
+	if pcf2 then
+		Props.floorPlant(K, pcf2, { kind = "bamboo", h = 5.0, dia = 1.2 })
+	end
+	-- 냉장고 위 마네키네코
+	if c.fridgeTop then
+		luckyCat(K, c.fridgeTop * CF(-0.6, 0, 0.2), 1.0)
+	end
+end
+
 local function sushiDecor(c: any)
 	local K, V, th = c.K, c.V, c.th
 	-- 뒷벽 위: 사케 병 선반 (패스 위 6.8 ~)
@@ -2594,23 +2722,31 @@ local function sushiDecor(c: any)
 	if wn2 and u2 and w2 then
 		waveArt(c, V:wall(wn2, u2, 5.8, 0), w2, 2.4)
 	end
-	-- 종이 등 (입구 쪽 천장 + 카운터 위)
+	-- 종이 등 (카운터 위): 형광등 · 에어컨 피해서 몇 줄 앞뒤로 시도
 	local g = V.counters[1]
 	local nL = 0
-	local xs = {}
+	c.lanterns = {}
 	if g then
-		for k = 1, 3 do
-			table.insert(xs, V3(g.min.X + (g.max.X - g.min.X) * k / 4, V.H, (g.min.Z + g.max.Z) / 2 + 0.3))
-		end
-	end
-	for _, p in xs do
-		if Common.ceilFree(K, p.X, p.Z, 0.6) then
-			local body = lantern(c, p, 0.9, 1.3, if nL == 1 then "寿司" else nil, rgb(214, 54, 36))
-			if nL == 0 then
-				K:light(body, "PointLight", { Range = 9, Brightness = 0.8, Color = rgb(255, 170, 120) })
+		local gz = (g.min.Z + g.max.Z) / 2
+		for _, dz in { 1.4, -1.0, 2.2, -1.8, 0.4 } do
+			if nL >= 3 then
+				break
 			end
-			Common.useCeil(K, p.X, p.Z)
-			nL += 1
+			for k = 1, 3 do
+				local p = V3(g.min.X + (g.max.X - g.min.X) * k / 4, V.H, gz + dz)
+				if nL < 3 and Common.ceilFree(K, p.X, p.Z, 0.6) then
+					local body = lantern(c, p, 0.9, 1.3, if nL == 1 then "寿司" elseif nL == 2 then "酒" else nil, rgb(214, 54, 36))
+					table.insert(c.lanterns, { p = body, c = body.Color })
+					if nL == 0 then
+						local l = K:light(body, "PointLight", { Range = 10, Brightness = 0.8, Color = rgb(255, 170, 120) })
+						if l then
+							c.lanternLight = l
+						end
+					end
+					Common.useCeil(K, p.X, p.Z)
+					nL += 1
+				end
+			end
 		end
 	end
 	-- 원산지 · 와이파이
@@ -2686,6 +2822,7 @@ function T.build(K: any, V: any, S: any)
 			end else nil)
 			if pcf then
 				local doors = drinkFridge(c, pcf, n)
+				c.fridgeTop = pcf * CF(0, 6.3, 0)
 				fridgeDoors = doors
 				at(K, "fridge", nil, nil, pcf.Position)
 				break
@@ -2704,7 +2841,14 @@ function T.build(K: any, V: any, S: any)
 				at(K, "clamRack", nil, nil, pcf.Position)
 			end
 		elseif th.kind == "crab" then
-			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, V3(2.7, 4.3, 2.1), { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }, 0.15)
+			local size = V3(2.7, 4.3, 2.1)
+			local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
+			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15, function(p: CFrame)
+				return Interact.canPrompt(K, (p * CF(0.9, 2.3, 1.15)).Position)
+			end)
+			if not pcf then
+				pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15)
+			end
 			if pcf then
 				local door, hinge = crabSteamer(c, pcf)
 				c.steamer = { door = door, hinge = hinge }
@@ -2775,6 +2919,7 @@ function T.build(K: any, V: any, S: any)
 	step("boards", function()
 		if isSushi then
 			sushiDecor(c)
+			sushiExtras(c)
 			return
 		end
 		local wn, u, w = findWall(K, { B, A, "back" }, 3.0, 3.8, 4.1, 7.1, pMid, 0.6)
@@ -2832,17 +2977,7 @@ function T.build(K: any, V: any, S: any)
 			return promptWallOK(K, wn0, u0 + 0.24, 6.6, 0.3)
 		end)
 		if wn and u then
-			local st, knob = wallFan(c, V:wall(wn, u, 8.3, 0))
-			Interact.toggle(K, knob, {
-				object = "벽걸이 선풍기",
-				state = true,
-				onText = "끄기",
-				offText = "켜기",
-				on = function(on: boolean)
-					st.on = on
-				end,
-			})
-			at(K, "fan", wn, u)
+			c.fanSpot = { wn = wn, u = u }
 		end
 	end)
 	step("upper", function()
@@ -2940,6 +3075,68 @@ function T.build(K: any, V: any, S: any)
 		-- (d) 대게 찜기 문
 		if c.steamer and c.steamer.door and c.steamer.hinge then
 			Interact.swing(K, c.steamer.door, c.steamer.hinge, Vector3.yAxis, -1.6, { object = "대게 찜기", openText = "찜기 열기", closeText = "찜기 닫기" })
+		end
+		-- (스시) BGM 스피커 · 등불 스위치
+		if isSushi then
+			local wn, u = findWall(K, { A, B, "back" }, 1.4, 1.4, 4.2, 5.7, pMid, 0.9, function(wn0: string, u0: number)
+				return promptWallOK(K, wn0, u0, 4.8, 0.5)
+			end)
+			if wn and u then
+				local scr, lbl = bgmSpeaker(c, V:wall(wn, u, 5.1, 0))
+				local songs = { { t = "♪ 시티팝" }, { t = "♪ 재즈 피아노" }, { t = "♪ 엔카" }, { t = "♪ 로파이" } }
+				Interact.cycle(K, scr, songs, {
+					action = "음악 바꾸기",
+					object = "BGM 스피커",
+					on = function(_i: number, it: any)
+						if lbl.Parent then
+							lbl.Text = it.t
+						end
+					end,
+				})
+				at(K, "speaker", wn, u)
+			end
+			if c.lanterns and #c.lanterns > 0 then
+				local wn2, u2 = findWall(K, { B, A, "back" }, 0.9, 0.9, 3.8, 5.2, pMid, 0.6, function(wn0: string, u0: number)
+					return promptWallOK(K, wn0, u0, 4.4, 0.4)
+				end)
+				if wn2 and u2 then
+					local dcf = V:wall(wn2, u2, 4.4, 0)
+					local plate = Props.switchPlate(K, dcf, 1)
+					ktext(K, "LanternSwitchLabel", 0.6, 0.18, dcf * CF(0, 0.42, 0), "등불", { fg = rgb(60, 40, 30), bg = rgb(236, 226, 206), d = 0.02 })
+					Interact.toggle(K, plate, {
+						object = "종이 등불",
+						state = true,
+						onText = "끄기",
+						offText = "켜기",
+						on = function(on: boolean)
+							for _, ln in c.lanterns do
+								if ln.p.Parent then
+									ln.p.Material = if on then M.Neon else M.SmoothPlastic
+									ln.p.Color = if on then ln.c else ln.c:Lerp(rgb(60, 30, 20), 0.5)
+								end
+							end
+							if c.lanternLight then
+								c.lanternLight.Enabled = on
+							end
+						end,
+					})
+				end
+			end
+		end
+		-- (e) 선풍기 (상호작용이 4개 미만일 때만)
+		if c.fanSpot and #K.prompts < 4 then
+			local fs = c.fanSpot
+			local st, knob = wallFan(c, V:wall(fs.wn, fs.u, 8.3, 0))
+			Interact.toggle(K, knob, {
+				object = "벽걸이 선풍기",
+				state = true,
+				onText = "끄기",
+				offText = "켜기",
+				on = function(on: boolean)
+					st.on = on
+				end,
+			})
+			at(K, "fan", fs.wn, fs.u)
 		end
 	end)
 end

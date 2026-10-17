@@ -964,7 +964,7 @@ local function hitsAny(K: any, list: { any }, mn: Vector3, mx: Vector3): boolean
 end
 
 -- 가격표 · 행사 태그 (레일 앞면). x = 칸 좌표
-local function priceTag(K: any, s: any, x: number, promo: string?, theme: any, price: string?)
+local function priceTag(K: any, s: any, x: number, promo: string?, theme: any, price: string?, dl: number?)
 	local y = if s.railY then s.railY else -0.12
 	local z = s.railOff or 0.075
 	local at = s.cf * CF(x, y, z)
@@ -979,7 +979,7 @@ local function priceTag(K: any, s: any, x: number, promo: string?, theme: any, p
 		txt(K, "StPriceTag", 0.4, 0.2, at, price, INK, C(252, 252, 248), { d = 0.02, font = Enum.Font.GothamBold })
 	else
 		K:plate("StPriceTag", 0.36, 0.18, 0.015, at, lk(C(252, 252, 248)))
-		if K.detail ~= "low" then
+		if K.detail ~= "low" and (dl or 3) >= 2 then
 			K:plate("StPriceInk", 0.22, 0.06, 0.017, at * CF(0.03, -0.03, 0), lk(INK))
 		end
 	end
@@ -1065,8 +1065,8 @@ local function fillSurf(K: any, s: any, catName: string, rng: () -> number, them
 				local r = rng()
 				local p11, p21, ps = theme.p11 or 0.12, theme.p21 or 0.12, theme.pSale or 0
 				local promo = if r < p11 then "1+1" elseif r < p11 + p21 then "2+1" elseif r < p11 + p21 + ps then (theme.saleText or "SALE") else nil
-				priceTag(K, s, gx0 + gw / 2, promo, theme, if theme.prices then pick(rng, theme.prices) else pick(rng, PRICES))
-				used += if promo or dl >= 3 then 1 else 2
+				priceTag(K, s, gx0 + gw / 2, promo, theme, if theme.prices then pick(rng, theme.prices) else pick(rng, PRICES), dl)
+				used += if promo or dl >= 3 or dl < 2 then 1 else 2
 			end
 		end
 		x += (o.groupGap or 0.08) * (o.spread or 1) + (if (o.spread or 1) > 1 then w * ((o.spread or 1) - 1) else 0)
@@ -1083,32 +1083,69 @@ end
 -- 스터드당 대략 파트 수 (단계 3 / 2 / 1)
 local PPS = { 6.6, 4.2, 2.4 }
 
+-- 진열 칸 하나의 예상 파트 밀도 (스터드당, 단계 lv): 상품 폭 · 라벨 단계 · 가격표 · 뒤 재고
+local function estDensity(e: any, lv: number): number
+	local cat = CATS[e.cat] or CATS.snack
+	local s = e.s
+	local l = s.level or 1
+	local list = if l <= 1 then cat.low elseif s.levels and l >= s.levels then cat.top else cat.mid
+	local gap = e.opt.gap or 0.04
+	local scale = e.opt.scale or 1
+	local items = 0
+	for _, nm in list do
+		items += 1 / ((SKU[nm] or SKU.chips).w * scale + gap)
+	end
+	items = items / math.max(1, #list) * 0.94
+	local per = if lv >= 3 then 2.5 elseif lv == 2 then 1.8 else 1
+	local groups = items / 3
+	local tags = if not s.rail or e.opt.noTags then 0 elseif lv >= 3 then groups elseif lv == 2 then groups * 2 else groups * 0.5
+	local back = if lv >= 2 and e.opt.back ~= false and s.depth > 0.8 then groups else 0
+	-- 실측 보정 (빈 칸 · 장애물 · 큰 상자 깊이 채움 때문에 실제가 조금 적음)
+	return (items * per + tags + back) * (if lv >= 3 then 0.82 elseif lv == 2 then 0.86 else 0.92)
+end
+
+-- 예약된 진열 칸을 예산 안에서 고르게 채움: 남은 칸을 모두 단계 1 로 채울 예산을 남겨 둔 채로, 칸마다 가능한 가장 높은 단계.
+-- 단계 1 로도 모자라면 묶음 간격을 띄움 (앞 칸이 빽빽하고 뒤 칸이 텅 비는 일 없이)
 local function runFill(K: any, budget: number): number
 	local q = K.stQueue or {}
 	K.stQueue = {}
-	local total = 0
-	for _, e in q do
-		total += e.s.len * (e.opt.weight or 1)
-	end
-	local used = 0
 	local maxLv = if K.detail == "high" then 3 elseif K.detail == "mid" then 2 else 1
+	local remain1 = 0
+	local need = { 0, 0, 0 }
 	for _, e in q do
-		local wl = e.s.len * (e.opt.weight or 1)
-		local per = (budget - used) / math.max(total, 1)
-		local lv = if per >= PPS[1] then 3 elseif per >= PPS[2] then 2 else 1
-		lv = math.min(lv, maxLv, e.opt.maxLvl or 3)
+		for lv = 1, 3 do
+			need[lv] += estDensity(e, math.min(lv, e.opt.maxLvl or 3)) * e.s.len
+		end
+	end
+	remain1 = need[1]
+	local used = 0
+	for _, e in q do
+		local cap = math.min(maxLv, e.opt.maxLvl or 3)
+		local c1 = estDensity(e, 1) * e.s.len
+		local rest = remain1 - c1
+		local left = budget - used - rest
+		local lv = 1
+		for l = cap, 2, -1 do
+			if estDensity(e, l) * e.s.len <= left then
+				lv = l
+				break
+			end
+		end
 		local o = table.clone(e.opt)
 		o.lvl = lv
-		if per < PPS[3] * 0.9 then
-			o.spread = math.clamp(PPS[3] / math.max(per, 0.5), 1, 2.2)
+		local ratio = (budget - used) / math.max(remain1, 1)
+		if lv == 1 and ratio < 0.95 then
+			-- 묶음(약 3개)마다 상품 하나 폭만큼 더 띄움: 밀도 = 3 / (2 + spread)
+			o.spread = math.clamp(3 / math.max(ratio, 0.3) - 2, 1, 2.6)
 		end
 		local n = 0
 		K:free(function()
 			n = fillSurf(K, e.s, e.cat, mkRng(e.seed), e.theme, o)
 		end)
 		used += n
-		total -= wl
+		remain1 = math.max(0, rest)
 	end
+	note(K, string.format("fill budget=%d need=%d/%d/%d used=%d", budget, need[1], need[2], need[3], used))
 	K.stGoodsParts = (K.stGoodsParts or 0) + used
 	return used
 end
@@ -1438,7 +1475,7 @@ local PH = { main = C(10, 138, 58), dark = C(10, 70, 40), sub = C(0, 150, 200), 
 
 -- 매장 상품 파트 예산 (넓이 비례, 남은 파트 여유 안에서)
 local function goodsBudget(K: any, V: any, mul: number?): number
-	local cap = if V.W * V.D > 900 then 1450 else 950 -- 대형 매장 (올리브영 본점급) 은 진열이 비어 보이지 않게 조금 더
+	local cap = if V.W * V.D > 900 then 1650 else 950 -- 대형 매장 (올리브영 본점급) 은 진열이 비어 보이지 않게 조금 더
 	local b = math.clamp(V.W * V.D * 1.5 * (mul or 1), 300, cap)
 	local room = (K.maxParts or 2600) - #K.parts - 520
 	return math.max(160, math.min(b, room))
@@ -2047,6 +2084,7 @@ local function ramenCorner(K: any, V: any, B: any)
 			cnt0 = g
 		end
 	end
+	local sinkX: number? = nil
 	if cnt0 and wn == "back" then
 		local busy = {}
 		for _, r in V.parts do
@@ -2066,6 +2104,19 @@ local function ramenCorner(K: any, V: any, B: any)
 		end
 		if cnt0.max.X - 0.2 - cur > bw then
 			best, bw = (cur + cnt0.max.X - 0.2) / 2, cnt0.max.X - 0.2 - cur
+		end
+		-- 가장 넓은 빈 구간: 온수기 쪽 끝 1.1 = 국물 개수대 (편의점 라면 코너의 상징), 남으면 양념 · 젓가락 꽂이
+		if best and bw >= 1.15 then
+			local ga, gb = best - bw / 2, best + bw / 2
+			local hx = if hw then hw.c.X else ref.c.X
+			local nearA = math.abs(ga - hx) <= math.abs(gb - hx)
+			sinkX = if bw < 2.4 then best elseif nearA then ga + 0.55 else gb - 0.55
+			if bw >= 2.4 then
+				local ra, rb = if nearA then ga + 1.25 else ga, if nearA then gb else gb - 1.25
+				best, bw = (ra + rb) / 2, rb - ra
+			else
+				best, bw = nil, 0
+			end
 		end
 		if best and bw >= 1.2 then
 			local rw = math.min(1.8, bw - 0.2)
@@ -2102,15 +2153,15 @@ local function ramenCorner(K: any, V: any, B: any)
 			table.insert(cands, V3(cnt.max.X + 0.65, 0, cnt.min.Z + 0.6))
 			table.insert(cands, V3(cnt.min.X - 0.65, 0, cnt.min.Z + 0.6))
 			-- 옆 자리가 없으면 카운터 앞 끝 (전자레인지 · 온수기 앞 예약 칸 밖)
-			local fz = if cnt.c.Z < (V.z0 + V.z1) / 2 then cnt.max.Z + 0.6 else cnt.min.Z - 0.6
-			for _, fx in { cnt.min.X + 0.55, cnt.max.X - 0.55, cnt.min.X + 1.2, cnt.max.X - 1.2 } do
+			local fz = if (cnt.min.Z + cnt.max.Z) / 2 < (V.z0 + V.z1) / 2 then cnt.max.Z + 0.6 else cnt.min.Z - 0.6
+			for fx = cnt.min.X + 0.55, cnt.max.X - 0.55, 0.25 do
 				table.insert(cands, V3(fx, 0, fz))
 			end
 		else
-			table.insert(cands, V3(cnt.c.X, 0, cnt.max.Z + 0.65))
-			table.insert(cands, V3(cnt.c.X, 0, cnt.min.Z - 0.65))
-			local fx = if cnt.c.X < (V.x0 + V.x1) / 2 then cnt.max.X + 0.6 else cnt.min.X - 0.6
-			for _, fz in { cnt.min.Z + 0.55, cnt.max.Z - 0.55, cnt.min.Z + 1.2, cnt.max.Z - 1.2 } do
+			table.insert(cands, V3((cnt.min.X + cnt.max.X) / 2, 0, cnt.max.Z + 0.65))
+			table.insert(cands, V3((cnt.min.X + cnt.max.X) / 2, 0, cnt.min.Z - 0.65))
+			local fx = if (cnt.min.X + cnt.max.X) / 2 < (V.x0 + V.x1) / 2 then cnt.max.X + 0.6 else cnt.min.X - 0.6
+			for fz = cnt.min.Z + 0.55, cnt.max.Z - 0.55, 0.25 do
 				table.insert(cands, V3(fx, 0, fz))
 			end
 		end
@@ -2120,6 +2171,19 @@ local function ramenCorner(K: any, V: any, B: any)
 			K:vcyl("StSoupBinLid", 0.1, 0.96, pcf * CF(0, 2.05, 0), lk(C(220, 222, 224), M.Metal))
 			K:disc("StSoupBinMesh", 0.6, 0.02, pcf * CF(0, 2.11, 0), lk(C(150, 150, 150), M.DiamondPlate))
 			txt(K, "StSoupBinLabel", 0.7, 0.4, pcf * CF(0, 1.4, 0.452), "국물\n버리는 곳", WHITE, C(200, 40, 40), { d = 0.01 })
+		elseif sinkX and cnt0 then
+			-- 바닥 자리가 없으면 (카운터 앞 = 손님 자리) 상판에 얹힌 스테인리스 국물 개수대 + 거름망 + 안내판
+			local y = cnt0.y
+			local zc = cnt0.max.Z - 0.62
+			local sc = CF(sinkX, y, zc)
+			K:free(function()
+				K:box("StSoupSinkRim", V3(1.0, 0.05, 0.9), sc * CF(0, 0.025, 0), Look.steel)
+				K:box("StSoupSinkBasin", V3(0.78, 0.012, 0.68), sc * CF(0, 0.056, 0), lk(C(60, 64, 70), M.Metal))
+				K:box("StSoupSinkGrate", V3(0.5, 0.012, 0.42), sc * CF(0, 0.066, 0), lk(C(170, 172, 176), M.DiamondPlate))
+				K:vcyl("StSoupSinkDrain", 0.014, 0.16, sc * CF(0, 0.072, 0), lk(C(30, 30, 32), M.Metal))
+				K:box("StSoupSinkBack", V3(1.0, 0.55, 0.05), sc * CF(0, 0.3, -0.43), Look.steel)
+				txt(K, "StSoupSinkLabel", 0.9, 0.42, sc * CF(0, 0.32, -0.402), "국물 버리는 곳\n건더기는 거름망에", WHITE, C(200, 40, 40), { d = 0.01, font = Enum.Font.GothamBold })
+			end)
 		end
 	end
 end
@@ -2416,6 +2480,39 @@ local function buildCvs(K: any, V: any, S: any, brand: string)
 		if pcf then
 			basketStack(K, pcf, B.basket, 6, B.name)
 		end
+	end)
+	-- 입구 옆 우산 통 (비 오는 날 장우산 · 3단 우산 판매) + 가격 POP
+	step(K, "umbrella", function()
+		local d = V.door
+		if not d then
+			return
+		end
+		local cands = {}
+		for _, dx in { 3.4, -3.4, 4.2, -4.2, 5.0, -5.0, 6.4, -6.4 } do
+			table.insert(cands, V3(d.x + dx, 0, V.z1 - 0.75))
+			table.insert(cands, V3(d.x + dx, 0, V.z1 - 1.4))
+		end
+		local pcf = floorSpot(K, cands, V3(1.0, 3.2, 1.0), V3(0, 0, -1), 0.05, "umbrella")
+		if not pcf then
+			return
+		end
+		local ur = mkRng(V.key .. "umb")
+		K:vcyl("StUmbBin", 1.4, 0.86, pcf * CF(0, 0.7, 0), lk(C(70, 74, 80), M.Metal))
+		K:vcyl("StUmbBinRim", 0.08, 0.92, pcf * CF(0, 1.4, 0), Look.chrome)
+		local cols = { C(20, 24, 30), C(30, 60, 120), C(150, 30, 40), C(230, 230, 226), C(40, 90, 70), B.main }
+		for i = 0, 5 do
+			local a = i / 6 * PI * 2 + ur()
+			local top = (pcf * CF(math.cos(a) * 0.34, 2.55 + ur() * 0.4, math.sin(a) * 0.34)).Position
+			local bot = (pcf * CF(math.cos(a) * 0.14, 0.2, math.sin(a) * 0.14)).Position
+			local col = cols[(i % #cols) + 1]
+			-- 접힌 우산: 천 부분(아래 넓게) + 손잡이 막대 + J 손잡이
+			K:seg("StUmbCanopy", bot + (top - bot) * 0.05, bot + (top - bot) * 0.72, 0.2, lk(col, M.Fabric))
+			K:seg("StUmbShaft", bot + (top - bot) * 0.72, top, 0.05, Look.chrome)
+			if K.detail ~= "low" then
+				K:ball("StUmbHandle", 0.13, CF(top), lk(C(40, 30, 24), M.Wood))
+			end
+		end
+		txt(K, "StUmbPOP", 0.66, 0.46, pcf * CF(0, 0.9, 0.45), "장우산 9,900\n3단 12,000", INK, C(250, 250, 248), { d = 0.02, font = Enum.Font.GothamBold })
 	end)
 	fixturesNow(K, V, S)
 	-- 천장 POP (진열대 위 · 입구 쪽을 봄)
@@ -3522,7 +3619,7 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 		fixturesNow(K, V, S)
 		step(K, "posters", function()
 			local P = if beach
-				then { { "주의 안내", "수영 가능 시간 09:00 - 18:00\n음주 수영 금지 · 안전요원 지시", C(250, 250, 246), INK, warm }, { "TAX FREE", "카드 · 간편결제 OK", C(250, 250, 246), INK, accent }, { "광안리 해수욕장", "개장 7.1 - 8.31\n튜브는 안전구역 안에서", C(250, 250, 246), INK, C(60, 170, 150) } }
+				then { { "주의 안내", "수영 가능 시간 09:00 - 18:00\n음주 수영 금지 · 안전요원 지시", C(250, 250, 246), INK, warm }, { "TAX FREE", "카드 · 간편결제 OK", C(250, 250, 246), INK, accent }, { "광안리 해수욕장", "개장 7.1 - 8.31\n튜브는 안전구역 안에서", C(250, 250, 246), INK, C(60, 170, 150) }, { "폭죽 사용 금지", "광안리 백사장 · 해변로 전역\n적발 시 과태료 부과", C(250, 250, 246), INK, C(200, 40, 40) } }
 				else { { "부산 여행 기념", "광안대교 · 해운대 · 감천마을\n엽서 1,500 · 마그넷 5,000", C(250, 250, 246), INK, accent }, { "TAX FREE", "외국인 즉시 환급\n카드 · 간편결제 OK", C(250, 250, 246), INK, warm }, { "포장 서비스", "선물 포장 무료\n쇼핑백 100원", C(250, 250, 246), INK, C(60, 140, 90) } }
 			for i, p in P do
 				local wn, dcf = wallItemSpot(K, { "left", "right" }, 2.0, 4.2, 6.6, (i - 2) * 3)
@@ -3608,6 +3705,36 @@ local function bpCorner(K: any, pcf: CFrame)
 end
 
 -- 약사 가운 걸이 (벽)
+-- 조제실 약 서랍장 (처방약장 맨 아래 칸 밑, 약장 앞면에 맞춤): 몸통 + 서랍 칸 + 흰 이름표 + 손잡이 + 위 약포지 · 약봉투
+local function drawerCab(K: any, pcf: CFrame, w: number, h: number, d: number, top: boolean)
+	K:box("StDrawerBody", V3(w, h, d), pcf * CF(0, h / 2, 0), lk(C(236, 238, 236)))
+	K:box("StDrawerKick", V3(w - 0.06, 0.3, 0.04), pcf * CF(0, 0.15, d / 2 + 0.005), Look.charcoal)
+	local cols = math.max(3, math.floor(w / 1.25))
+	local rows = math.max(2, math.floor((h - 0.4) / 0.72))
+	local cw, rh = (w - 0.12) / cols, (h - 0.42) / rows
+	for r = 1, rows do
+		for c = 1, cols do
+			local x = -w / 2 + 0.06 + cw * (c - 0.5)
+			local y = 0.36 + rh * (r - 0.5)
+			local f = pcf * CF(x, y, d / 2)
+			K:plate("StDrawerFront", cw - 0.05, rh - 0.05, 0.03, f, lk(C(246, 248, 246)))
+			if K.detail ~= "low" then
+				K:plate("StDrawerPull", cw * 0.34, 0.05, 0.04, f * CF(0, -rh * 0.12, 0.03), Look.chrome)
+			end
+			if K.detail == "high" then
+				K:plate("StDrawerLabel", cw * 0.5, 0.1, 0.01, f * CF(0, rh * 0.22, 0.03), lk(if (r + c) % 4 == 0 then C(220, 236, 226) else C(252, 252, 250)))
+			end
+		end
+	end
+	if not top then
+		return
+	end
+	-- 위: 약포지 롤 · 약봉투 묶음 (뒤쪽에 얕게)
+	K:cyl("StDrawerPaperRoll", 0.5, 0.36, pcf * CF(-w / 2 + 0.6, h + 0.18, -d / 2 + 0.3) * ANG(0, PI / 2, 0), lk(C(250, 250, 248)))
+	K:box("StDrawerBags", V3(0.6, 0.12, 0.45), pcf * CF(w / 2 - 0.6, h + 0.06, -d / 2 + 0.3), lk(C(250, 250, 246)))
+	K:box("StDrawerBagPrint", V3(0.3, 0.004, 0.2), pcf * CF(w / 2 - 0.6, h + 0.122, -d / 2 + 0.3), lk(PH.main))
+end
+
 local function coatHook(K: any, dcf: CFrame)
 	K:plate("StCoatRail", 1.2, 0.12, 0.06, dcf * CF(0, 0.6, 0), Look.walnut)
 	K:seg("StCoatPeg", (dcf * CF(0, 0.6, 0.05)).Position, (dcf * CF(0, 0.66, 0.3)).Position, 0.06, Look.chrome)
@@ -3846,6 +3973,37 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 		for _, g in V.counters do
 			cashierDress(K, V, g, PH, "pharmacy")
 		end
+	end)
+	-- 처방약장 맨 아래 판 밑이 비어 있으면 조제실 약 서랍장 (약장 앞면에 맞춘 얕은 장)
+	step(K, "drawers", function()
+		local low = nil
+		for sf in rxBoard do
+			if sf.rec and sf.rec.name == "Board" and sf.rec.min.Y > 2.6 and (not low or sf.rec.min.Y < low.rec.min.Y) then
+				low = sf
+			end
+		end
+		if not low then
+			return
+		end
+		local face = low.cf.ZVector
+		local d = math.min(1.0, low.depth - 0.05)
+		local h = low.rec.min.Y - 0.06
+		local w = low.len - 0.1
+		local p = low.cf.Position - face * (d / 2 + 0.02)
+		local pcf = pcfAt(V3(p.X, 0, p.Z), V3(math.round(face.X), 0, math.round(face.Z)))
+		local mn, mx = canPlace(K, pcf, V3(w, h, d), 0)
+		if mn and mx then
+			K:reserve(mn, mx, "drawers")
+			drawerCab(K, pcf, w, h, d, true)
+		else
+			-- 직원 자리 keep 안: 약장 뒤판에 붙은 붙박이 서랍 (뒤판 면에서 0.1 이내 = 벽 마감)
+			local bp = low.cf.Position - face * (low.depth - 0.05)
+			local fcf = pcfAt(V3(bp.X, 0, bp.Z), V3(math.round(face.X), 0, math.round(face.Z)))
+			K:free(function()
+				drawerCab(K, fcf, w, h, 0.1, false)
+			end)
+		end
+
 	end)
 	step(K, "did", function()
 		local wn, dcf = wallItemSpot(K, { "right", "left", "back" }, 3.2, math.min(4.6, V.H - 3.3), math.min(6.6, V.H - 1.3), -3, function(d: CFrame): boolean
@@ -4244,6 +4402,13 @@ local function lightboxes(K: any, V: any, walls: { string }, y0: number, y1: num
 	local yc = y0 + h / 2
 	local MW = maxW or 14
 	for _, wn in walls do
+		if K.stDebugLb then
+			local ss = {}
+			for _, sp in freeIntervals(K, V, wn, y0, y0 + h) do
+				table.insert(ss, string.format("%.1f..%.1f", sp[1], sp[2]))
+			end
+			note(K, "lb " .. wn .. " y" .. y0 .. ": " .. table.concat(ss, " "))
+		end
 		for _, sp in freeIntervals(K, V, wn, y0, y0 + h) do
 			local len = sp[2] - sp[1]
 			if len < 4.5 then

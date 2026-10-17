@@ -45,13 +45,12 @@ function Rules.entry(rec: any): any?
 		local b = Geometry.prime(Geometry.obb(pose * t.cf, t.half))
 		table.insert(tops, { box = b, y = b.hi.Y })
 	end
-	if def.place == "rug" and #tops == 0 then
-		for _, b in boxes do
-			table.insert(tops, { box = b, y = b.hi.Y })
-		end
-	end
 	local cf, half = Catalog.box(rec.i)
 	local bound = Geometry.prime(Geometry.obb(pose * cf, half))
+	if def.place == "rug" then
+		-- a rug carries pieces (and other rugs) on its full height, inlays included
+		tops = { { box = bound, y = bound.hi.Y } }
+	end
 	return {
 		u = rec.u,
 		i = rec.i,

@@ -3,7 +3,7 @@
 --   Server: ServerScriptService.GwangalliDecorPlus (Script)   Client: StarterPlayerScripts.GwangalliDecorPlus
 --   Shared.Config  tunables              Shared.Text     Korean strings / 원 / 초성
 --   Shared.Palette colours, materials    Shared.Catalog  >= 150 pieces (14 categories), specs, bounds
---   Shared.Geometry OBB math              Shared.Space    pure spatial index (rays / box queries)
+--   Shared.Geometry OBB math
 --   Shared.Unit    home model scan        Shared.Rules    placement validation (server = final)
 --   Shared.Path    reachability raster    Shared.Codec    compact save format + sanitizer
 --   Shared.Finish  벽지 · 바닥 · 조명      Shared.Score    인테리어 점수 / 뱃지 / 목표
@@ -23,7 +23,6 @@ Shared.Text = child("Text")
 Shared.Palette = child("Palette")
 Shared.Catalog = child("Catalog")
 Shared.Geometry = child("Geometry")
-Shared.Space = child("Space")
 Shared.Unit = child("Unit")
 Shared.Path = child("Path")
 Shared.Rules = child("Rules")

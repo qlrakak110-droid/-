@@ -3381,6 +3381,26 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 			end
 		end
 	end)
+	-- 커피 뒷벽 선반 (맵 WallShelf: 떠 있는 판 하나) 보강: 앞 립 · 까치발 · 선반 아래 LED 띠 (선반 자체는 그대로)
+	K:free(function()
+		for _, s in V.byName.WallShelf or {} do
+			local nz = if s.c.Z < (V.z0 + V.z1) / 2 then 1 else -1
+			if math.abs(s.size.X) < 1.5 or not room(K, 20) then
+				continue
+			end
+			local fz = if nz > 0 then s.max.Z else s.min.Z
+			local bz = if nz > 0 then s.min.Z else s.max.Z
+			local lipL = if B.key == "mega" or B.key == "compose" then lk(B.c1) elseif B.key == "busan" then lk(B.c1) else Look.walnut
+			K:box("ShelfLip", V3(s.size.X, s.size.Y + 0.04, 0.04), CF(s.c.X, s.c.Y + 0.01, fz + nz * 0.02), lipL)
+			local nb = math.max(2, math.floor(s.size.X / 3))
+			for k = 0, nb do
+				local x = s.min.X + 0.3 + (s.size.X - 0.6) * k / nb
+				K:box("ShelfBracket", V3(0.05, 0.42, 0.05), CF(x, s.min.Y - 0.21, bz + nz * 0.03), Look.blackMetal)
+				K:box("ShelfBracket", V3(0.05, 0.05, s.size.Z - 0.2), CF(x, s.min.Y - 0.025, (s.min.Z + s.max.Z) / 2 - nz * 0.05), Look.blackMetal)
+			end
+			K:box("ShelfLED", V3(s.size.X - 0.3, 0.03, 0.05), CF(s.c.X, s.min.Y - 0.02, fz - nz * 0.12), Look.lampWarm)
+		end
+	end)
 	-- 젤라또 통 (GelatoTub, 게임플레이: 같은 자세 오버레이 후 숨김) + 맛 이름표
 	i = 0
 	for _, r in V.byName.GelatoTub or {} do
@@ -3735,6 +3755,10 @@ local function backBarWall(K: any, V: any, B: any, ctx: any)
 		return
 	end
 	local y0, y1 = 6.6, math.min(V.H - 1.0, 8.9)
+	if ctx.backSign then
+		-- 맵 간판 (Sign_) 밑까지만 (간판 자리는 위아래 0.2 여유로 등록돼 있음)
+		y1 = math.min(y1, ctx.backSign.min.Y - 0.3)
+	end
 	if y1 - y0 < 1.7 then
 		return
 	end
@@ -3759,19 +3783,19 @@ local function backBarWall(K: any, V: any, B: any, ctx: any)
 		local a, b = math.max(s[1], cx0 - ctx.cx), math.min(s[2], cx1 - ctx.cx)
 		local len = b - a
 		if len >= 2.4 and placed < 6 and room(K, 40) then
-			local n = math.clamp(math.floor((len + 0.4) / 3.0), 1, 4)
-			local pw = math.min(if mirror then 2.0 else 2.3, (len - 0.4 - (n - 1) * 0.6) / n)
+			-- 구간을 같은 칸으로 나눠 칸 가운데에 (긴 벽은 리듬 있게 6 장까지)
+			local n = math.clamp(math.floor((len + 0.4) / (if mirror then 3.2 else 3.0)), 1, 6)
+			local cell = len / n
+			local pw = math.min(if mirror then math.min(2.0, (y1 - y0) * 0.82) else 2.3, cell - 0.6)
 			local ph = math.min(y1 - y0 - 0.2, if mirror then 2.3 else pw * 1.2)
-			local total = n * pw + (n - 1) * 0.6
-			local st0 = (a + b) / 2 - total / 2
 			local yc = y0 + (y1 - y0) / 2
 			for j = 1, n do
-				if not room(K, 26) then
+				if not room(K, 26) or placed >= 6 then
 					break
 				end
 				k += 1
 				placed += 1
-				local u = st0 + (j - 0.5) * pw + (j - 1) * 0.6
+				local u = a + (j - 0.5) * cell
 				if mirror then
 					local r = pw / 2
 					local rectH = ph - r
@@ -3783,7 +3807,7 @@ local function backBarWall(K: any, V: any, B: any, ctx: any)
 					wdisc(K, "ArchMirrorTop", pw, 0.02, V:wall("back", u, yb + rectH, 0.05), Look.mirror)
 					if j < n then
 						-- 사이 벽등 (황동 팔 + 우윳빛 글로브)
-						local sx = u + pw / 2 + 0.3
+						local sx = u + cell / 2
 						local sd = V:wall("back", sx, yc + 0.2, 0.01)
 						K:plate("SconcePlate", 0.2, 0.34, 0.04, sd, frameL)
 						K:box("SconceArm", V3(0.05, 0.05, 0.36), sd * CF(0, 0.05, 0.2), frameL)
