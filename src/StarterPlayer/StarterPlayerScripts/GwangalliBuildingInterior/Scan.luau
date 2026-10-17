@@ -15,7 +15,8 @@
 --   V:wall(name, u, y, off) -> dcf    벽 표시면 프레임 (name = "back" | "left" | "right" | "front"; u = 벽 가운데 기준
 --                                   보는 사람 오른쪽 +, y = 바닥 기준 높이, off = 벽에서 띄우는 거리)
 --   V.walls[name] = { len, a, b (u 범위), n (안쪽 법선), depth }
---   V:spans(name, y0, y1, depth?) -> { {a, b} } 벽면에서 기존 물건 · 문 · keep 에 안 걸리는 빈 구간 (u 좌표)
+--   V:spans(name, y0, y1, depth?, extra?) -> { {a, b} } 벽면에서 기존 물건 · 문 · keep 에 안 걸리는 빈 구간 (u 좌표)
+--                                   extra = { {min, max} } 더 뺄 상자 (예: K.reserved = 새로 세운 바닥 소품)
 --   V:toLocal(worldCF) / V:toWorld(lcf), V:lpos(part) -> 로컬 중심
 
 local CollectionService = game:GetService("CollectionService")
@@ -209,7 +210,8 @@ function Vm:first(name: string): any?
 end
 
 -- 벽면 빈 구간: 높이 y0..y1 에서 벽으로부터 depth 안에 있는 기존 물건 · 문 · 창 · keep 을 뺀 u 구간들
-function Vm:spans(name: string, y0: number, y1: number, depth: number?): { { number } }
+-- extra (선택): 같이 뺄 상자 목록 { {min, max} } (K.reserved: 벽 앞에 새로 세운 키 큰 소품 뒤에 벽 소품이 숨지 않게)
+function Vm:spans(name: string, y0: number, y1: number, depth: number?, extra: { any }?): { { number } }
 	local w = self.walls[name]
 	if not w then
 		return {}
@@ -246,6 +248,9 @@ function Vm:spans(name: string, y0: number, y1: number, depth: number?): { { num
 		if k.kind ~= "table" and k.kind ~= "seat" then
 			cutBox(k.min, k.max, 0)
 		end
+	end
+	for _, e in extra or {} do
+		cutBox(e.min, e.max, 0.05)
 	end
 	table.sort(cuts, function(a, b)
 		return a[1] < b[1]

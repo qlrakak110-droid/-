@@ -463,7 +463,8 @@ end
 -- 벽 부착물 ----------------------------------------------------------------------------------------
 
 -- 액자 / 포스터. dcf 표면, w x h. o.art = { {색, x, y, w, h}, ... } (액자 안 0..1 좌표 색 블록) | nil,
--- o.text (포스터 글자) / o.fg / o.bg, o.frame (look), o.mat (매트 색 look), o.depth
+-- o.text (포스터 글자) / o.fg / o.bg, o.frame (look), o.mat (매트 색 look), o.depth,
+-- o.glass (기본 true: 앞 유리. 글씨 증서 · 포스터는 false = 비스듬히 볼 때 하늘 반사가 글씨를 덮지 않음)
 function Props.frame(K: any, dcf: CFrame, w: number, h: number, o: any?)
 	local fr = pick(o, "frame", Look.blackMetal)
 	local dep = pick(o, "depth", 0.08)
@@ -486,7 +487,9 @@ function Props.frame(K: any, dcf: CFrame, w: number, h: number, o: any?)
 		K:text("FrameText", iw, ih * pick(o, "textH", 1), dcf * CF(0, pick(o, "textY", 0), dep * 0.7 + 0.004), txt, { fg = pick(o, "fg", Color3.fromRGB(30, 30, 30)), bg = pick(o, "bg", nil), font = pick(o, "font", Enum.Font.GothamBold) })
 	end
 	-- 유리 반사
-	K:plate("FrameGlass", w - 2 * b, h - 2 * b, 0.01, dcf * CF(0, 0, dep * 0.75), { c = Color3.fromRGB(230, 236, 240), m = Enum.Material.Glass, t = 0.88, r = 0.2 })
+	if pick(o, "glass", true) then
+		K:plate("FrameGlass", w - 2 * b, h - 2 * b, 0.01, dcf * CF(0, 0, dep * 0.75), { c = Color3.fromRGB(230, 236, 240), m = Enum.Material.Glass, t = 0.88, r = 0.2 })
+	end
 end
 
 -- 메뉴판 (라이트 박스). items = { { "아메리카노", "2,000" }, ... }, title, o.cols (열 수), o.bg / o.fg / o.accent,
@@ -832,7 +835,7 @@ function Props.thermostat(K: any, dcf: CFrame)
 	K:text("ACTemp", 0.38, 0.2, dcf * CF(0, 0.08, 0.08), "24°C", { fg = Color3.fromRGB(20, 30, 40) })
 end
 function Props.license(K: any, dcf: CFrame, name: string?)
-	Props.frame(K, dcf, 1.2, 1.6, { frame = Look.goldMetal, text = "사업자등록증\n\n" .. (name or "") .. "\n\n국세청", fg = Color3.fromRGB(40, 40, 40), textH = 0.9, border = 0.06, depth = 0.05 })
+	Props.frame(K, dcf, 1.2, 1.6, { frame = Look.goldMetal, text = "사업자등록증\n\n" .. (name or "") .. "\n\n국세청", fg = Color3.fromRGB(40, 40, 40), textH = 0.9, border = 0.06, depth = 0.05, glass = false })
 end
 
 -- 카운터 소품 ---------------------------------------------------------------------------------------

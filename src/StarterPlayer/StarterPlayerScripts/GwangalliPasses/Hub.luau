@@ -18,6 +18,7 @@ local ctx: any
 local P: any, K: any, Lines: any
 local gui: ScreenGui? = nil
 local root: Frame? = nil
+local scrim: Frame? = nil
 local rootScale: UIScale? = nil
 local rootCorner: UICorner? = nil
 local body: Frame? = nil
@@ -200,6 +201,15 @@ local function build()
 	g.Enabled = false
 	g.Parent = pg
 	gui = g
+	-- panel mode: a dim backdrop behind the window (tap outside = close); hidden over the phone
+	local sc = K.frame(g, { Name = "Scrim", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0.5, BackgroundColor3 = Color3.new(0, 0, 0), Active = true, Visible = false, ZIndex = 0 })
+	sc.InputBegan:Connect(function(input: InputObject)
+		local t = input.UserInputType
+		if t == Enum.UserInputType.MouseButton1 or t == Enum.UserInputType.Touch then
+			Hub.close()
+		end
+	end)
+	scrim = sc
 	local r = K.frame(g, { Name = "Root", BackgroundTransparency = 0, BackgroundColor3 = K.Color.bg, ClipsDescendants = true, Active = true })
 	root = r
 	rootCorner = K.corner(r, 24)
@@ -246,6 +256,9 @@ local function layout()
 		return
 	end
 	local g = gui :: ScreenGui
+	if scrim then
+		scrim.Visible = mode ~= "phone"
+	end
 	local pg = if mode == "phone" and ctx.PhoneHook then ctx.PhoneHook.phoneGui() else nil
 	if pg then
 		-- the same coordinate space as the phone (its inset settings)

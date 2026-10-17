@@ -148,7 +148,7 @@ Config.Staff = {
 Config.Interior = {
 	Folder = "GwInteriorDetailLocal",
 	SuppressAlways = { "번호표 뽑기" }, -- 이 애드온이 진짜 번호표를 뽑으므로 장식 프롬프트는 끔
-	SuppressDuringCheckup = { "키 · 몸무게 재기", "시력 검사", "청력 검사" }, -- 내 검진 코스 중에만 끔
+	SuppressDuringCheckup = { "키 · 몸무게 재기", "시력 검사", "청력 검사", "혈압 재기" }, -- 내 검진 코스 중에만 끔 (병원 안 장식만)
 	-- 장식 팀이 만든 글자판 (파트 이름 -> 우리 화면 종류). 그 SurfaceGui("Gw"..이름) 는 끄고 우리 것을 덮어 씀
 	Screens = { CallBoardNo = "callno", WaitScreen = "wait", WaitMonitorText = "door", KioskScreen = "kiosk" },
 	ScreenAttribute = "GwClinicScreen", -- 이 속성이 있는 파트 (값 = "call" | "wait" | "door" | "rx" | "kiosk") 를 1순위로 씀
