@@ -2295,7 +2295,7 @@ local function hallCeiling(K: any, V: any)
 					local cx = (xr[1] + xr[2]) / 2
 					K:box("CeilBaffle", V3(len, y1 - y0, 0.22), CF(cx, (y0 + y1) / 2, z), lk(if bi % 2 == 0 then rgb(46, 47, 54) else rgb(58, 60, 68), M.Fabric))
 					K:box("CeilBaffleCap", V3(len + 0.02, 0.05, 0.26), CF(cx, y0 + 0.02, z), Look.blackMetal)
-					if not lowD(K) then
+					if hi(K) and bi % 3 == 0 then
 						for _, sx in { -0.35, 0.35 } do
 							K:seg("BaffleWire", V3(cx + sx * len, y1, z), V3(cx + sx * len, H, z), 0.03, Look.blackMetal)
 						end
