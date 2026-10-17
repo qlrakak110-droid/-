@@ -34,6 +34,24 @@ end
 ---------------------------------------------------------------------------------------------------
 -- jail
 ---------------------------------------------------------------------------------------------------
+-- the Jail.begin(player, s, episode, info) wrapper: an owner's sentence (episode.seconds) x JAIL_MULT, never
+-- below JAIL_MIN; the episode table is copied (Law keeps its own)
+function Waits.jailWrapper(o: any): any
+	return function(player: any, s: any, episode: any, info: any)
+		if Util.isPlayer(player) and type(episode) == "table" and type(episode.seconds) == "number" and owns(player) then
+			local before = episode.seconds
+			local after = math.max(Config.QOL.JAIL_MIN, math.ceil(before * Config.QOL.JAIL_MULT))
+			if after < before then
+				local e = table.clone(episode)
+				e.seconds = after
+				episode = e
+				ctx.Net.send(player, { kind = "qol", what = "jail", before = before, after = after, text = Lines.t("jail_cut", Lines.dur(before), Lines.dur(after)) })
+			end
+		end
+		return o(player, s, episode, info)
+	end
+end
+
 local function hookJail(): boolean
 	local api = Util.waitChild(ServerStorage, "GwangalliGameplayAPI", "BindableFunction", 150)
 	if not api then
@@ -44,21 +62,7 @@ local function hookJail(): boolean
 		Util.warnOnce("jail", why)
 		return false
 	end
-	local orig = Util.wrap(Jail, "begin", function(o)
-		return function(player: any, s: any, episode: any, info: any)
-			if Util.isPlayer(player) and type(episode) == "table" and type(episode.seconds) == "number" and owns(player) then
-				local before = episode.seconds
-				local after = math.max(Config.QOL.JAIL_MIN, math.ceil(before * Config.QOL.JAIL_MULT))
-				if after < before then
-					local e = table.clone(episode)
-					e.seconds = after
-					episode = e
-					ctx.Net.send(player, { kind = "qol", what = "jail", before = before, after = after, text = Lines.t("jail_cut", Lines.dur(before), Lines.dur(after)) })
-				end
-			end
-			return o(player, s, episode, info)
-		end
-	end)
+	local orig = Util.wrap(Jail, "begin", Waits.jailWrapper)
 	return orig ~= nil or Jail.begin ~= nil
 end
 
@@ -151,6 +155,25 @@ local function tick()
 	end
 end
 
+-- the KO.koHelp(victim) wrapper: an owner may ask for the hospital after SELF_HELP_AFTER x KO_MULT. The global
+-- A.KO.SELF_HELP_AFTER is lifted only around this one synchronous call and always restored (pcall).
+function Waits.koHelpWrapper(o: any): any
+	return function(victim: any): boolean
+		if Util.isPlayer(victim) and owns(victim) and A and type(A.KO) == "table" then
+			local rec = ko[victim]
+			local need = koConst("SELF_HELP_AFTER", 20) * Config.QOL.KO_MULT
+			if rec and os.clock() - rec.t0 >= need then
+				local old = A.KO.SELF_HELP_AFTER
+				A.KO.SELF_HELP_AFTER = 0
+				local ok, res = pcall(o, victim)
+				A.KO.SELF_HELP_AFTER = old
+				return ok and res == true
+			end
+		end
+		return o(victim)
+	end
+end
+
 local function hookKO(): boolean
 	local api = Util.waitChild(ServerStorage, "GwangalliArmsAPI", "BindableFunction", 150)
 	if not api then
@@ -163,22 +186,7 @@ local function hookKO(): boolean
 		return false
 	end
 	KO = K
-	origKoHelp = Util.wrap(KO, "koHelp", function(o)
-		return function(victim: any): boolean
-			if Util.isPlayer(victim) and owns(victim) then
-				local rec = ko[victim]
-				local need = koConst("SELF_HELP_AFTER", 20) * Config.QOL.KO_MULT
-				if rec and os.clock() - rec.t0 >= need then
-					local old = A.KO.SELF_HELP_AFTER
-					A.KO.SELF_HELP_AFTER = 0
-					local ok, res = pcall(o, victim)
-					A.KO.SELF_HELP_AFTER = old
-					return ok and res == true
-				end
-			end
-			return o(victim)
-		end
-	end)
+	origKoHelp = Util.wrap(KO, "koHelp", Waits.koHelpWrapper)
 	if not origKoHelp then
 		return false
 	end
@@ -254,9 +262,29 @@ local function hookRespawn()
 	Players.PlayerAdded:Connect(join)
 end
 
-function Waits.start(c: any)
+-- module state only (no hooks): used by start and by the offline tests
+function Waits.bind(c: any, armsShared: any?)
 	ctx = c
 	P, Config, Util, Lines = c.P, c.Config, c.Util, c.P.Lines
+	if armsShared ~= nil then
+		A = armsShared
+	end
+end
+
+-- the KO record of a downed player (offline tests / other modules)
+function Waits.koRecord(player: Player): any
+	return ko[player]
+end
+
+-- a downed player's KO watch starts now (normally the character's GwKO attribute does this)
+function Waits.markDown(player: Player)
+	if not ko[player] then
+		ko[player] = { t0 = os.clock(), ems = false, forced = false }
+	end
+end
+
+function Waits.start(c: any)
+	Waits.bind(c)
 	hookRespawn()
 	Players.PlayerRemoving:Connect(function(p: Player)
 		ko[p] = nil
