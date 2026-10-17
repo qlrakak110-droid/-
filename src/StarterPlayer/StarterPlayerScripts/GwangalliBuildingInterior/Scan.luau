@@ -374,6 +374,25 @@ local function finishFit(V: any, model: Instance, frame: CFrame, doorsM: { Model
 	end
 
 	Scan.families(V)
+	-- 계산대 상판 위에 놓인 맵 파트 (도마 · 윗선반 BarUpstand ...): 벽 가까이면 wallItems 로만 분류돼 V.solid 에
+	-- 없어 새 소품이 그 위에 겹쳤음 -> V.solid 에도 넣음 (keep · 프롬프트와는 무관)
+	if #V.counters > 0 then
+		local inSolid: { [any]: boolean } = {}
+		for _, r in V.solid do
+			inSolid[r] = true
+		end
+		for _, r in V.parts do
+			if not inSolid[r] and not r.shell and not r.door and not r.point and not V.claimed[r] and r.part.Transparency < 0.99 then
+				for _, g in V.counters do
+					if math.abs(r.min.Y - g.y) <= 0.1 and r.c.X >= g.min.X - 0.1 and r.c.X <= g.max.X + 0.1 and r.c.Z >= g.min.Z - 0.1 and r.c.Z <= g.max.Z + 0.1 then
+						table.insert(V.solid, r)
+						inSolid[r] = true
+						break
+					end
+				end
+			end
+		end
+	end
 	Scan.keepouts(V)
 	-- 벽 정보
 	V.walls = {
@@ -746,6 +765,20 @@ function Scan.families(V: any)
 end
 
 -- 비워 둘 공간 ---------------------------------------------------------------------------------------
+-- +Z 벽(앞면)에 창 · 유리가 있나 (ShopWindow · ShopGlass · *Window* · *Glass* 이름, 또는 Glass 재질 판; 문짝 제외)
+function Scan.frontGlass(V: any): boolean
+	for _, r in V.parts do
+		if not r.door and r.max.Z > V.z1 - 1.2 and r.min.Z < V.z1 + 1.2 and r.max.X > V.x0 and r.min.X < V.x1 and r.max.Y > 3.4 and r.min.Y < V.H then
+			local nm = r.name
+			local named = nm == "ShopWindow" or nm == "ShopGlass" or string.find(nm, "Window", 1, true) ~= nil or string.find(nm, "Glass", 1, true) ~= nil
+			if (named or r.part.Material == Enum.Material.Glass) and r.size.X * r.size.Y >= 1.5 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 function Scan.keepouts(V: any)
 	local H = math.max(V.H, 8)
 	-- 1) 출입문: 슬라이드 공간 (문 폭 + 양쪽 2) + 안쪽 4x4 현관
@@ -828,20 +861,70 @@ function Scan.keepouts(V: any)
 			break
 		end
 	end
+	--    주문 지점이 계산대 안 · 뒤(직원 쪽)면 손님 쪽 앞면 1.3 바깥에서 시작 (통로가 상판 · 윗선반을 뚫고 지나가
+	--    그 위 소품이 다 막히지 않게). 그래도 계산대와 겹치는 통로 상자는 계산대 면에서 잘라 냄.
+	--    직원 자리 (2) · NPC (7) keep 은 그대로라 직원 쪽 공간은 계속 비워 둠.
 	if svc then
 		local a = Vector3.new(svc.c.X, 0, svc.c.Z)
+		for _, g in V.counters do
+			if (g.max.X - g.min.X) >= (g.max.Z - g.min.Z) then
+				-- 손님 쪽 = 입구 쪽 (Props.counterOver 와 같은 규칙)
+				local sz = if (V.door and V.door.z or V.z1) > (g.min.Z + g.max.Z) / 2 then 1 else -1
+				local face = if sz > 0 then g.max.Z else g.min.Z
+				if a.X >= g.min.X - 0.3 and a.X <= g.max.X + 0.3 and (a.Z - face) * sz <= 0 then
+					a = Vector3.new(math.clamp(a.X, g.min.X, g.max.X), 0, face + sz * 1.3)
+					break
+				end
+			else
+				-- 옆벽 쪽 카운터: 손님 쪽 = 방 가운데 쪽
+				local sx = if (g.min.X + g.max.X) / 2 > 0 then -1 else 1
+				local face = if sx > 0 then g.max.X else g.min.X
+				if a.Z >= g.min.Z - 0.3 and a.Z <= g.max.Z + 0.3 and (a.X - face) * sx <= 0 then
+					a = Vector3.new(face + sx * 1.3, 0, math.clamp(a.Z, g.min.Z, g.max.Z))
+					break
+				end
+			end
+		end
+		-- 계산대 발자국과 겹치는 부분 잘라 내기 (남는 쪽이 0.4 보다 얇으면 버림)
+		local function clip(mn: Vector3, mx: Vector3): (Vector3?, Vector3?)
+			for _, g in V.counters do
+				if mn.X < g.max.X - 0.01 and mx.X > g.min.X + 0.01 and mn.Z < g.max.Z - 0.01 and mx.Z > g.min.Z + 0.01 then
+					local opts = {
+						{ mx.Z - g.max.Z, mn, Vector3.new(mn.X, mn.Y, g.max.Z), mx }, -- +Z 쪽 남김
+						{ g.min.Z - mn.Z, mn, mn, Vector3.new(mx.X, mx.Y, g.min.Z) }, -- -Z 쪽
+						{ mx.X - g.max.X, mn, Vector3.new(g.max.X, mn.Y, mn.Z), mx }, -- +X 쪽
+						{ g.min.X - mn.X, mn, mn, Vector3.new(g.min.X, mx.Y, mx.Z) }, -- -X 쪽
+					}
+					local best = nil
+					for _, o in opts do
+						if o[1] >= 0.4 and (not best or o[1] > best[1]) then
+							best = o
+						end
+					end
+					if not best then
+						return nil, nil
+					end
+					mn, mx = best[3], best[4]
+				end
+			end
+			return mn, mx
+		end
 		for _, t in V.tables do
 			local b = Vector3.new((t.min.X + t.max.X) / 2, 0, (t.min.Z + t.max.Z) / 2)
 			local len = (b - a).Magnitude
 			local n = math.max(1, math.floor(len / 1.5))
 			for i = 1, n - 1 do
 				local p = a:Lerp(b, i / n)
-				V:addKeep(Vector3.new(p.X - 1.25, 0.1, p.Z - 1.25), Vector3.new(p.X + 1.25, 6, p.Z + 1.25), "aisle")
+				local mn, mx = clip(Vector3.new(p.X - 1.25, 0.1, p.Z - 1.25), Vector3.new(p.X + 1.25, 6, p.Z + 1.25))
+				if mn and mx then
+					V:addKeep(mn, mx, "aisle")
+				end
 			end
 		end
 	end
-	-- 5) 앞 유리 안쪽 띠: 낮게만 (시트지 · 포스터가 보이게)
-	if V.kind ~= "home" then -- 집의 +Z 는 방문 쪽 (가게 앞 유리 아님)
+	-- 5) 앞 유리 안쪽 띠: 낮게만 (시트지 · 포스터가 보이게). 집의 +Z 는 방문 쪽 (가게 앞 유리 아님).
+	--    큰 시설의 방(venue)은 +Z 가 안쪽 벽인 경우가 많아 그 벽에 실제 창 · 유리가 있을 때만
+	if V.kind ~= "home" and (V.kind ~= "venue" or Scan.frontGlass(V)) then
 		V:addKeep(Vector3.new(V.x0 - 1, 3.4, V.z1 - 1.8), Vector3.new(V.x1 + 1, H, V.z1 + 0.5), "window")
 	end
 	-- 6) ShopLife 쓰레기통 · 정수기 예정 자리 (Scan.freeSpot 과 같은 계산, ShopLife 프레임 +Z 쪽)
