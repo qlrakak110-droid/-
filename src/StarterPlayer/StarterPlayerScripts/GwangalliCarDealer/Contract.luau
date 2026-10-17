@@ -9,7 +9,6 @@
 --   Contract.isOpen()
 
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 
 local Contract = {}
@@ -74,7 +73,7 @@ end
 
 local function bindBack(on: boolean)
 	if on then
-		ContextActionService:BindActionAtPriority("GwCarDealerContractBack", function(_, st)
+		Ui.bind("GwCarDealerContractBack", function(_, st)
 			if st == Enum.UserInputState.Begin and not UserInputService:GetFocusedTextBox() then
 				Contract.close()
 				return Enum.ContextActionResult.Sink
@@ -82,7 +81,7 @@ local function bindBack(on: boolean)
 			return Enum.ContextActionResult.Pass
 		end, false, 3100, Enum.KeyCode.ButtonB)
 	else
-		ContextActionService:UnbindAction("GwCarDealerContractBack")
+		Ui.unbind("GwCarDealerContractBack")
 	end
 end
 
@@ -211,7 +210,7 @@ local function holdButton(parent: Instance, text: string, style: string, width: 
 			stop()
 		end
 	end)
-	b.inst.Destroying:Connect(function()
+	Ui.onDestroy(b.inst, function()
 		keyConnA:Disconnect()
 		keyConnB:Disconnect()
 		stop()

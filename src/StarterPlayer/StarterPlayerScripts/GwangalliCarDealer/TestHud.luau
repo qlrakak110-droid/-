@@ -10,7 +10,6 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local ContextActionService = game:GetService("ContextActionService")
 
 local TestHud = {}
 
@@ -93,7 +92,7 @@ local function placeBeacon(pos: Vector3, label: string)
 	local box = Ui.frame(bb, { BackgroundTransparency = 0.1, BackgroundColor3 = Col.accentD })
 	Ui.corner(box, 10)
 	Ui.label(box, { Text = label, Font = Ui.F.bold, TextSize = 14, Size = UDim2.fromScale(1, 1), TextXAlignment = Enum.TextXAlignment.Center })
-	m.Destroying:Connect(function()
+	Ui.onDestroy(m, function()
 		bb:Destroy()
 	end)
 	beacon = m
@@ -207,7 +206,7 @@ local function closeReport()
 		report:Destroy()
 		report = nil
 	end
-	ContextActionService:UnbindAction("GwCarDealerReport")
+	Ui.unbind("GwCarDealerReport")
 end
 
 local function showReport(r: any, record: boolean?)
@@ -254,7 +253,7 @@ local function showReport(r: any, record: boolean?)
 	report = f
 	Ui.select(buy.inst)
 	Ui.sfx("success")
-	ContextActionService:BindActionAtPriority("GwCarDealerReport", function(_, st)
+	Ui.bind("GwCarDealerReport", function(_, st)
 		if st == Enum.UserInputState.Begin then
 			closeReport()
 			return Enum.ContextActionResult.Sink

@@ -2346,13 +2346,18 @@ end
 
 -- 커튼 묶음 (창가, 접힌 주름 5): 정렬 x (창 쪽 면), z 중심, 높이
 local function curtainStack(K: any, R: any, x: number, z: number, h: number, fab: any)
+	-- 묶어 둔 드레이프: 얇은 주름 7개가 물결 (앞뒤로 엇갈림) + 바닥에 살짝 끌리는 밑단 + 천 타이백
 	K:free(function()
-		for i = -2, 2 do
-			local zz = z + i * 0.3
-			local xx = x + 0.35 + (math.abs(i) % 2) * 0.12
-			K:vcyl("CurtainFold", h, 0.42, at(R, xx, zz, 0, h / 2 + 0.05), fab)
+		local fold = lk(dk(fab.c, 0.12), fab.m)
+		for i = -3, 3 do
+			local zz = z + i * 0.19
+			local xx = x + 0.36 + (if i % 2 == 0 then 0 else 0.11)
+			K:vcyl("CurtainFold", h - 0.1, 0.24, at(R, xx, zz, 0, h / 2 + 0.1), if i % 2 == 0 then fab else fold)
+			K:vcyl("CurtainHem", 0.12, 0.3, at(R, xx, zz + i * 0.04, 0, 0.07), fold)
 		end
-		K:box("CurtainTie", V3(0.9, 0.12, 1.8), at(R, x + 0.4, z, 0, 3.6), Look.brass)
+		K:box("CurtainHeader", V3(0.5, 0.3, 1.5), at(R, x + 0.42, z, 0, h - 0.1), fold)
+		K:box("CurtainTieBack", V3(0.62, 0.16, 1.5), at(R, x + 0.42, z, 0, 3.4), lk(dk(fab.c, 0.35), M.Fabric))
+		K:box("CurtainTieHook", V3(0.2, 0.2, 0.2), at(R, x + 0.1, z + 0.85, 0, 3.4), Look.brass)
 	end)
 end
 
@@ -2443,7 +2448,7 @@ local function buildLounge(K: any, V: any, R: any)
 	end
 
 	-- 커튼 (창 기둥 위치) + 레일 + 시어 커튼 (상호작용) ---------------------------------------------------------
-	local curtainFab = lk(rgb(196, 178, 150), M.Fabric)
+	local curtainFab = lk(rgb(138, 118, 102), M.Fabric)
 	local sheers: { BasePart } = {}
 	local stackZ = {}
 	do
@@ -2676,8 +2681,15 @@ local function buildLounge(K: any, V: any, R: any)
 			for ui, zc in units do
 				local d = wallR(R, zc, 0, 0)
 				local u = d * CF(0, 3.2, 1.2)
-				K:box("CellarBody", V3(5.4, 6.4, 2.4), u, walnut)
-				K:box("CellarInner", V3(4.8, 5.6, 0.05), u * CF(0, 0.1, -1.0), lk(rgb(150, 96, 50), M.Neon, { t = 0.35 }))
+				-- 속이 빈 캐비닛 (뒤판 · 옆판 · 위 · 아래): 유리문 너머로 병이 보이게
+				K:box("CellarBack", V3(5.4, 6.4, 0.12), u * CF(0, 0, -1.14), walnut)
+				for _, sx in { -1, 1 } do
+					K:box("CellarSide", V3(0.14, 6.4, 2.28), u * CF(sx * 2.63, 0, 0.06), walnut)
+				end
+				K:box("CellarTop", V3(5.4, 0.3, 2.28), u * CF(0, 3.05, 0.06), walnut)
+				K:box("CellarFloor", V3(5.12, 0.3, 2.28), u * CF(0, -3.05, 0.06), walnut)
+				K:box("CellarMullion", V3(0.12, 5.8, 0.14), u * CF(0, 0.1, 1.15), lk(rgb(30, 26, 24), M.Metal))
+				K:box("CellarInner", V3(4.9, 5.7, 0.05), u * CF(0, 0.05, -1.05), lk(rgb(190, 120, 60), M.Neon, { t = 0.25 }))
 				for row = 0, 4 do
 					local y = -2.3 + row * 1.15
 					K:box("CellarShelf", V3(4.8, 0.06, 1.9), u * CF(0, y, -0.05), lk(rgb(90, 64, 44), M.Wood))
@@ -2693,8 +2705,13 @@ local function buildLounge(K: any, V: any, R: any)
 				end
 				-- 유리문 2 + 손잡이
 				for _, sx in { -1, 1 } do
-					K:box("CellarDoorFrame", V3(2.55, 5.8, 0.08), u * CF(sx * 1.3, 0.1, 1.22), lk(rgb(30, 26, 24), M.Metal))
-					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.04), u * CF(sx * 1.3, 0.1, 1.25), lk(rgb(200, 214, 214), M.SmoothPlastic, { t = 0.9 }))
+					-- 문틀 (테두리만) + 유리
+					local fl = lk(rgb(30, 26, 24), M.Metal)
+					for _, dy in { -2.85, 2.85 } do
+						K:box("CellarDoorRail", V3(2.5, 0.14, 0.08), u * CF(sx * 1.3, 0.1 + dy, 1.22), fl)
+					end
+					K:box("CellarDoorStile", V3(0.12, 5.8, 0.08), u * CF(sx * 2.5, 0.1, 1.22), fl)
+					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.03), u * CF(sx * 1.3, 0.1, 1.24), lk(rgb(200, 214, 214), M.Glass, { t = 0.88, r = 0.08 }))
 					K:box("CellarHandle", V3(0.06, 1.6, 0.1), u * CF(sx * 0.15, 0.3, 1.32), brassL)
 				end
 				K:box("CellarKick", V3(5.4, 0.3, 0.06), u * CF(0, -3.05, 1.2), Look.black)

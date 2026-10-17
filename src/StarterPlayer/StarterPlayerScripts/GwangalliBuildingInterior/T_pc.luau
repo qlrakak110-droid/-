@@ -1823,10 +1823,6 @@ local function hallStations(K: any, V: any, st: { any })
 				local cd = faceCF(V3(cx, 3.45, faceZ), n)
 				K:plate("CallPanel", 0.55, 0.55, 0.04, cd, lk(rgb(18, 18, 22)))
 				wdisc(K, "CallButton", 0.26, 0.05, cd * CF(0, 0.07, 0.04), lk(rgb(220, 36, 40)))
-				if detail == "high" then
-					K:plate("CallUSB", 0.16, 0.06, 0.05, cd * CF(-0.12, -0.17, 0.04), lk(rgb(40, 40, 46)))
-					K:plate("CallUSB", 0.16, 0.06, 0.05, cd * CF(0.12, -0.17, 0.04), lk(rgb(40, 40, 46)))
-				end
 			end
 			-- 헤드셋 걸이 (모니터 위 모서리에서 헤드밴드까지)
 			local band = s.p.HeadsetBand
@@ -1856,9 +1852,6 @@ local function hallStations(K: any, V: any, st: { any })
 					local a = i * 2 * PI / 5 + 0.3
 					local tip = V3(cc.X + math.cos(a) * r0, yb + 0.06, cc.Z + math.sin(a) * r0)
 					K:bar("ChairStar", hub, tip, 0.16, 0.1, lk(rgb(26, 26, 30), M.Metal))
-					if detail == "high" then
-						K:ball("ChairCaster", 0.24, CF(tip.X, 0.12, tip.Z), lk(rgb(20, 20, 22), M.Rubber))
-					end
 				end
 				local _ = gmx
 			end
@@ -1887,7 +1880,7 @@ local function hallRows(K: any, V: any)
 		local n0 = (i - 1) * 8 + 1
 		local label = string.format("%s열 · %s  %02d–%02d", row, z.name, n0, n0 + 7)
 		-- 행잉 존 사인 (칸막이 위, 앞뒤 두 면)
-		local l1, l2 = hangSign(K, V3(d.c.X, 8.15, d.c.Z), V3(0, 0, 1), 7.4, 1.25, label, label, WHITE, z.c, { font = F.GothamBlack, light = true, range = 12, bright = 0.4 })
+		local l1, l2 = hangSign(K, V3(d.c.X, 8.15, d.c.Z), V3(0, 0, 1), 7.4, 1.25, label, label, WHITE, z.c, { font = F.GothamBlack })
 		local _ = l1
 		local _2 = l2
 		-- 존 사인 아래 RGB 막대 등록
@@ -1937,6 +1930,87 @@ local function hallRows(K: any, V: any)
 			end)
 		end
 	end
+end
+
+-- 좌석 줄마다 리니어 펜던트 (키보드 ~ 의자 사이 위, 검은 하우징 + 확산판 + 와이어 2)
+-- 칸막이 하나(행 쌍)당 SurfaceLight 1개 + 양쪽 벽 워셔 1개씩 = 8 (홀 행잉 사인은 빛 없음)
+local function hallPendants(K: any, V: any, st: { any })
+	local P = K.pc
+	local H = P.ceil
+	local rows: { [string]: any } = {}
+	local order = {}
+	for _, s in st do
+		local seat, kb = s.p.Seat, s.p.Keyboard or s.p.DeskMat
+		if seat and kb then
+			local _, _, sc = mb(K, seat)
+			local _, _, kc = mb(K, kb)
+			local key = string.format("%d:%d", if sc.X < 0 then -1 else 1, math.floor(sc.Z + 0.5))
+			local r = rows[key]
+			if not r then
+				r = { x0 = math.huge, x1 = -math.huge, zs = 0, n = 0, sz = sc.Z, kz = kc.Z, side = if sc.X < 0 then -1 else 1 }
+				rows[key] = r
+				table.insert(order, r)
+			end
+			r.x0 = math.min(r.x0, sc.X)
+			r.x1 = math.max(r.x1, sc.X)
+			r.zs += kc.Z + (sc.Z - kc.Z) * 0.42
+			r.n += 1
+		end
+	end
+	table.sort(order, function(a, b)
+		if a.side ~= b.side then
+			return a.side < b.side
+		end
+		return a.sz > b.sz
+	end)
+	local ductL = -24.5 + 1.4
+	local lit = 0
+	K:free(function()
+		for i, r in order do
+			local z = r.zs / r.n
+			for _, bz in P.baffles or {} do
+				if math.abs(bz - z) < 0.4 then
+					z = bz + (if z > bz then 0.42 else -0.42)
+				end
+			end
+			local x0, x1 = r.x0 - 1.4, r.x1 + 1.4
+			if r.side < 0 then
+				x0 = math.max(x0, ductL)
+			end
+			local len, cx, y = x1 - x0, (x0 + x1) / 2, 9.05
+			K:box("PendantHousing", V3(len, 0.16, 0.34), CF(cx, y, z), lk(rgb(22, 22, 26), M.Metal))
+			K:box("PendantEndCap", V3(0.04, 0.18, 0.36), CF(x0 - 0.02, y, z), Look.blackMetal)
+			K:box("PendantEndCap", V3(0.04, 0.18, 0.36), CF(x1 + 0.02, y, z), Look.blackMetal)
+			local dif = K:box("PendantDiffuser", V3(len - 0.12, 0.05, 0.24), CF(cx, y - 0.095, z), neon(rgb(255, 244, 228)))
+			for _, wx in { x0 + 1.2, x1 - 1.2 } do
+				K:seg("PendantWire", V3(wx, y + 0.08, z), V3(wx, H, z), 0.03, Look.blackMetal)
+				K:disc("PendantCanopy", 0.3, 0.05, CF(wx, H - 0.025, z), Look.blackMetal)
+			end
+			-- 위로 새는 은은한 업라이트 (천장 · 배플 윤곽)
+			if not lowD(K) then
+				local up = K:box("PendantUplight", V3(len - 0.3, 0.03, 0.12), CF(cx, y + 0.085, z), neon(dk(if r.side < 0 then C.cyan else C.magenta, 0.55)))
+				table.insert(P.rgb, { p = up, c = dk(if r.side < 0 then C.cyan else C.magenta, 0.55), x = cx, z = z })
+			end
+			-- 행 쌍마다 하나 (앞 줄 = 홀수 번째 정렬)
+			if i % 2 == 1 and lit < 6 then
+				if K:light(dif, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 13, Brightness = 1.15, Angle = 140, Color = Look.neutralLight }) then
+					lit += 1
+				end
+			end
+		end
+	end)
+	-- 벽 워셔 (양쪽 벽 위 · 벽을 향해 비스듬히): 포스터 · 흡음 패널이 보이게
+	for _, wn in { "left", "right" } do
+		local d = W(K, wn, 0, H - 0.12, 0.62)
+		local len = V.D - 3
+		K:free(function()
+			K:plate("WallWasherTrack", len, 0.1, 0.26, d * CF(0, 0.05, -0.13), Look.blackMetal)
+			K:plate("WallWasherBody", len - 0.2, 0.2, 0.18, d * CF(0, -0.08, -0.12) * ANG(math.rad(35), 0, 0), lk(rgb(26, 26, 30), M.Metal))
+			local lens = K:plate("WallWasher", len - 0.4, 0.05, 0.14, d * CF(0, -0.19, -0.12) * ANG(math.rad(35), 0, 0), neon(rgb(255, 240, 222), 0.35))
+			K:light(lens, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 11, Brightness = 0.85, Angle = 150, Color = Look.neutralLight })
+		end)
+	end
+	local _ = V
 end
 
 -- 홀 벽 (흡음 패널 · 포스터 · 안내 · 유도등 · 소화기 · 스피커 · RGB 조명 패널)
@@ -2942,6 +3016,9 @@ function T.build(K: any, V: any, S: any)
 		step(K, "rows", hallRows, V)
 		step(K, "stations", function(k, v)
 			hallStations(k, v, st)
+		end, V)
+		step(K, "pendants", function(k, v)
+			hallPendants(k, v, st)
 		end, V)
 		step(K, "purifiers", function(k, v)
 			local P = k.pc

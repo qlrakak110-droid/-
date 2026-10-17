@@ -7,7 +7,6 @@
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService")
 
 local Dialog = {}
 
@@ -474,7 +473,7 @@ end
 
 local function bindKeys(on: boolean)
 	if on then
-		ContextActionService:BindActionAtPriority("GwCarDealerDialogBack", function(_, state)
+		Ui.bind("GwCarDealerDialogBack", function(_, state)
 			if state == Enum.UserInputState.Begin then
 				if UserInputService:GetFocusedTextBox() then
 					return Enum.ContextActionResult.Pass
@@ -485,7 +484,7 @@ local function bindKeys(on: boolean)
 			return Enum.ContextActionResult.Pass
 		end, false, 3000, Enum.KeyCode.ButtonB)
 	else
-		ContextActionService:UnbindAction("GwCarDealerDialogBack")
+		Ui.unbind("GwCarDealerDialogBack")
 	end
 end
 

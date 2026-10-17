@@ -662,6 +662,41 @@ function Ui.deselect(root: Instance)
 	end)
 end
 
+-- ContextActionService wrappers (pcall: never break a screen over an input binding)
+function Ui.bind(name: string, fn: (string, Enum.UserInputState, InputObject) -> any, touchButton: boolean, priority: number, ...: Enum.KeyCode)
+	local keys = { ... }
+	pcall(function()
+		game:GetService("ContextActionService"):BindActionAtPriority(name, fn, touchButton, priority, table.unpack(keys))
+	end)
+end
+
+function Ui.unbind(name: string)
+	pcall(function()
+		game:GetService("ContextActionService"):UnbindAction(name)
+	end)
+end
+
+-- Runs fn once when inst is destroyed / leaves the DataModel.
+function Ui.onDestroy(inst: Instance, fn: () -> ())
+	local fired = false
+	local function once()
+		if not fired then
+			fired = true
+			fn()
+		end
+	end
+	local ok = pcall(function()
+		inst.Destroying:Connect(once)
+	end)
+	if not ok then
+		inst.AncestryChanged:Connect(function()
+			if not inst:IsDescendantOf(game) then
+				once()
+			end
+		end)
+	end
+end
+
 -- Loads GwangalliUI (K) when present (toasts / feedback / blur match the game).
 function Ui.loadK(): any
 	local m = ReplicatedStorage:FindFirstChild("GwangalliUI")

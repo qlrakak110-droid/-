@@ -446,7 +446,7 @@ function Detail.layout()
 	end
 	actions.Size = UDim2.new(1, -24, 0, actH)
 	actions.Position = UDim2.new(0, 12, 1, -actH - 10)
-	local bw = actions.AbsoluteSize.X
+	local bw = W - 24
 	local small = if m.compact then 44 else 50
 	local wide = math.max(110, (bw - small * 2 - 8 * 3) / 2)
 	testBtn.inst.Size = UDim2.fromOffset(wide, actH - 6)
@@ -519,6 +519,11 @@ function Detail.mount(h: Frame)
 		zoomIn.inst.Position = UDim2.fromOffset(p.X + s.X - 44, p.Y + 10)
 		zoomOut.inst.Position = UDim2.fromOffset(p.X + s.X - 44, p.Y + 50)
 		resetBtn.inst.Position = UDim2.fromOffset(p.X + s.X - 44, p.Y + 90)
+	end)
+	host:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if openFlag then
+			Detail.layout()
+		end
 	end)
 	local hint = Ui.label(stageHolder, { Name = "Hint", Text = "↔ 드래그해서 돌려 보세요", Font = Ui.F.med, TextSize = 11, TextColor3 = Col.sub, AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -8), Size = UDim2.fromOffset(200, 14), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 14 })
 	local _ = hint

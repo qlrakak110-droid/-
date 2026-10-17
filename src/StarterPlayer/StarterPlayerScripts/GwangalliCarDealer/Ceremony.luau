@@ -6,7 +6,6 @@
 --   Ceremony.play(buyResult, entry, colorId)   Ceremony.isOpen()
 
 local Players = game:GetService("Players")
-local ContextActionService = game:GetService("ContextActionService")
 
 local Ceremony = {}
 
@@ -61,7 +60,7 @@ local function close()
 		return
 	end
 	openFlag = false
-	ContextActionService:UnbindAction("GwCarDealerCeremony")
+	Ui.unbind("GwCarDealerCeremony")
 	Ui.blur(false, "ceremony")
 	Ui.controls("ceremony", true)
 	Ui.deselect(gui)
@@ -239,7 +238,7 @@ function Ceremony.play(res: any, e: any, colorId: string)
 		Ui.toast({ kind = "info", icon = "🔑", title = "언제든 부를 수 있어요", body = "화면 오른쪽 위 '🚗 내 차' 버튼 · 휴대폰 '내 차' 앱에서 불러 타세요" })
 	end)
 	Ui.select(drive.inst)
-	ContextActionService:BindActionAtPriority("GwCarDealerCeremony", function(_, st)
+	Ui.bind("GwCarDealerCeremony", function(_, st)
 		if st == Enum.UserInputState.Begin then
 			close()
 			return Enum.ContextActionResult.Sink

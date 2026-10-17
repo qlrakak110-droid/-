@@ -10,7 +10,6 @@
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService")
 
 local CatalogUI = {}
 
@@ -726,6 +725,16 @@ local function build()
 	gridHolder = Ui.frame(gridScroll, { Name = "Cards", AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, -16, 0, 0), LayoutOrder = 1 })
 	gridLayout = Ui.make("UIGridLayout", { SortOrder = Enum.SortOrder.LayoutOrder, CellPadding = UDim2.fromOffset(14, 14), CellSize = UDim2.fromOffset(240, 250) }, gridHolder)
 	gridScroll:GetPropertyChangedSignal("CanvasPosition"):Connect(updateThumbs)
+	gridScroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		if not isOpen then
+			return
+		end
+		local oldCols, oldW = cols, cellW
+		sizeGrid()
+		if oldCols ~= cols or math.abs(oldW - cellW) > 6 then
+			render()
+		end
+	end)
 	emptyState = Ui.frame(gridScroll, { Name = "Empty", Size = UDim2.new(1, -16, 0, 180), LayoutOrder = 2, Visible = false })
 	Ui.label(emptyState, { Text = "🔎", TextSize = 40, Size = UDim2.new(1, 0, 0, 56), TextXAlignment = Enum.TextXAlignment.Center })
 	Ui.label(emptyState, { Text = "조건에 맞는 차가 없어요", Font = Ui.F.bold, TextSize = 17, Position = UDim2.fromOffset(0, 60), Size = UDim2.new(1, 0, 0, 24), TextXAlignment = Enum.TextXAlignment.Center })
@@ -801,7 +810,7 @@ end
 
 local function bindKeys(on: boolean)
 	if on then
-		ContextActionService:BindActionAtPriority("GwCarDealerCatalog", function(_, st, input)
+		Ui.bind("GwCarDealerCatalog", function(_, st, input)
 			if st ~= Enum.UserInputState.Begin then
 				return Enum.ContextActionResult.Pass
 			end
@@ -830,7 +839,7 @@ local function bindKeys(on: boolean)
 			return Enum.ContextActionResult.Pass
 		end, false, 2900, Enum.KeyCode.ButtonB, Enum.KeyCode.Backspace, Enum.KeyCode.ButtonL1, Enum.KeyCode.ButtonR1)
 	else
-		ContextActionService:UnbindAction("GwCarDealerCatalog")
+		Ui.unbind("GwCarDealerCatalog")
 	end
 end
 
