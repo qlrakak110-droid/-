@@ -2023,17 +2023,45 @@ local function capsuleMachine(C: any, pcf: CFrame, ti: number)
 end
 
 local function espressoMachine(C: any, pcf: CFrame)
-	C:box("EspressoBody", V3(1.2, 1.25, 1.05), pcf * CF(0, 0.66, -0.05), LK.chrome)
-	C:box("EspressoTop", V3(1.2, 0.05, 1.05), pcf * CF(0, 1.31, -0.05), LK.steelDark)
-	for i = 0, 2 do
-		C:vcyl("EspressoCupWarm", 0.24, 0.24, pcf * CF(-0.35 + i * 0.35, 1.45, -0.1), LK.ceramic)
+	-- 1 그룹 반자동 에스프레소 머신 (1.0 x 1.0 자리 안): 스테인리스 몸통 + 앞 윗부분 돌출 + 그룹헤드 · 포터필터 ·
+	-- 스팀 완드 · 압력계 · 버튼 · 물받이 그릴 · 위 컵 워머 (잔 둘)
+	local ss, dk = LK.brushed, LK.steelDark
+	local function at(x: number, y: number, z: number): Vector3
+		return (pcf * CF(x, y, z)).Position
 	end
-	C:box("EspressoGroupHead", V3(0.3, 0.18, 0.2), pcf * CF(-0.1, 0.95, 0.52), LK.chrome)
-	C:bar("EspressoPortafilter", V3(-0.1, 0.85, 0.6), V3(-0.1, 0.8, 1.05), 0.08, 0.08, LK.black)
-	C:box("EspressoGauge", V3(0.2, 0.2, 0.02), pcf * CF(0.32, 1.0, 0.48), LK.white)
-	C:seg("EspressoWand", (pcf * CF(0.45, 0.95, 0.5)).Position, (pcf * CF(0.5, 0.45, 0.65)).Position, 0.04, LK.chrome)
-	C:box("EspressoTray", V3(1.0, 0.06, 0.4), pcf * CF(0, 0.2, 0.52), LK.steelDark)
-	C:vcyl("EspressoCup", 0.22, 0.22, pcf * CF(-0.1, 0.34, 0.6), LK.ceramic)
+	for _, fx in { -0.38, 0.38 } do
+		for _, fz in { -0.4, 0.15 } do
+			C:vcyl("EspressoFoot", 0.08, 0.08, pcf * CF(fx, 0.04, fz), LK.black)
+		end
+	end
+	C:box("EspressoBody", V3(0.9, 1.0, 0.68), pcf * CF(0, 0.58, -0.13), ss)
+	C:box("EspressoHead", V3(0.9, 0.3, 0.27), pcf * CF(0, 0.95, 0.335), ss)
+	C:box("EspressoTop", V3(0.9, 0.04, 0.95), pcf * CF(0, 1.1, -0.0), dk)
+	for _, sx in { -1, 1 } do
+		C:box("EspressoWarmRail", V3(0.03, 0.06, 0.9), pcf * CF(sx * 0.42, 1.15, 0), LK.chrome)
+	end
+	C:vcyl("EspressoCupWarm", 0.2, 0.22, pcf * CF(-0.18, 1.22, -0.1), LK.ceramic)
+	C:vcyl("EspressoCupWarm", 0.2, 0.22, pcf * CF(0.14, 1.22, -0.18), LK.ceramic)
+	-- 물받이 + 그릴
+	C:box("EspressoTray", V3(0.82, 0.06, 0.3), pcf * CF(0, 0.15, 0.34), dk)
+	if C.hi then
+		for k = -3, 3 do
+			C:box("EspressoGrill", V3(0.02, 0.012, 0.26), pcf * CF(k * 0.1, 0.185, 0.34), LK.chrome)
+		end
+	end
+	-- 그룹헤드 + 포터필터 (손잡이는 앞 왼쪽으로)
+	C:vcyl("EspressoGroupHead", 0.1, 0.26, pcf * CF(-0.12, 0.76, 0.34), LK.chrome)
+	C:vcyl("EspressoPortafilter", 0.09, 0.22, pcf * CF(-0.12, 0.67, 0.34), LK.chrome)
+	C:seg("EspressoPortafilterHandle", at(-0.18, 0.66, 0.4), at(-0.36, 0.63, 0.49), 0.07, LK.black)
+	C:vcyl("EspressoCup", 0.2, 0.2, pcf * CF(-0.12, 0.28, 0.34), LK.ceramic)
+	-- 압력계 · 버튼 · 스팀 완드
+	C:disc("EspressoGaugeRim", 0.2, 0.02, pcf * CF(0.24, 0.97, 0.475) * ANG(PI / 2, 0, 0), LK.chrome)
+	C:disc("EspressoGauge", 0.16, 0.025, pcf * CF(0.24, 0.97, 0.48) * ANG(PI / 2, 0, 0), LK.white)
+	C:box("EspressoButton", V3(0.07, 0.07, 0.02), pcf * CF(0.03, 0.99, 0.475), LK.black)
+	C:box("EspressoButton", V3(0.07, 0.07, 0.02), pcf * CF(0.03, 0.9, 0.475), LK.black)
+	C:box("EspressoLED", V3(0.04, 0.02, 0.012), pcf * CF(0.03, 1.05, 0.476), lk(255, 160, 60, M.Neon))
+	C:seg("EspressoWand", at(0.37, 0.84, 0.42), at(0.41, 0.42, 0.46), 0.04, LK.chrome)
+	C:cyl("EspressoWandKnob", 0.08, 0.12, pcf * CF(0.47, 0.95, 0.33), LK.black)
 end
 
 -- 과일 그릇 (사과 · 귤 · 바나나)
@@ -3087,7 +3115,7 @@ local function toilet(C: any, st: any, recs: { any })
 		local rd = tankD + 0.3
 		local bh = seatY + 0.18
 		C:slab("SmartToiletRear", rw, rd, bh - 0.12, 0.3, pcf * CF(0, (bh - 0.12) / 2, rd / 2), por)
-		C:ell("SmartToiletCover", V3(rw, 0.28, rd * 1.02), pcf * CF(0, bh - 0.12, rd / 2), por)
+		C:ell("SmartToiletCover", V3(rw, 0.16, rd * 1.02), pcf * CF(0, bh - 0.12, rd / 2), por)
 		C:slab("SmartToiletTopPanel", rw * 0.55, 0.26, 0.02, 0.1, pcf * CF(0, bh + 0.03, rd * 0.5), lk(30, 32, 36, M.Glass, { r = 0.2 }))
 		if C.hi then
 			for i = -1, 1 do
@@ -3105,9 +3133,18 @@ local function toilet(C: any, st: any, recs: { any })
 	-- 몸통 (트랩 받침) + 볼
 	local bw = math.min(W * 0.9, 1.35)
 	local bowlLen = D - tankD * 0.6
-	C:slab("ToiletPedestal", bw * 0.62, bowlLen * 0.62, seatY - 0.25, 0.22, pcf * CF(0, (seatY - 0.25) / 2, tankD * 0.6 + bowlLen * 0.36), por)
-	C:ell("ToiletBowlBody", V3(bw, 0.6, bowlLen * 0.98), pcf * CF(0, seatY - 0.32, tankD * 0.55 + bowlLen * 0.48), por)
-	C:box("ToiletBowlNeck", V3(bw * 0.7, 0.5, tankD * 0.6), pcf * CF(0, seatY - 0.3, tankD * 0.75), por)
+	if smart then
+		-- 일체형 스커트 몸통 (바닥까지 매끈한 둥근 사각 기둥) + 바닥 그림자 띠 + 시트 아래 턱
+		local sl = bowlLen * 0.96
+		local sz = tankD * 0.5 + sl / 2
+		C:slab("SmartToiletSkirt", bw * 0.9, sl, seatY - 0.06, math.min(bw * 0.42, 0.5), pcf * CF(0, (seatY - 0.06) / 2, sz), por)
+		C:slab("SmartToiletRim", bw * 0.94, sl * 1.0, 0.06, math.min(bw * 0.45, 0.52), pcf * CF(0, seatY - 0.06, sz), lk(240, 240, 236, M.SmoothPlastic, { r = 0.06 }))
+		C:slab("SmartToiletShadow", bw * 0.86, sl * 0.96, 0.02, math.min(bw * 0.4, 0.48), pcf * CF(0, 0.01, sz), lk(60, 60, 62))
+	else
+		C:slab("ToiletPedestal", bw * 0.62, bowlLen * 0.62, seatY - 0.25, 0.22, pcf * CF(0, (seatY - 0.25) / 2, tankD * 0.6 + bowlLen * 0.36), por)
+		C:ell("ToiletBowlBody", V3(bw, 0.6, bowlLen * 0.98), pcf * CF(0, seatY - 0.32, tankD * 0.55 + bowlLen * 0.48), por)
+		C:box("ToiletBowlNeck", V3(bw * 0.7, 0.5, tankD * 0.6), pcf * CF(0, seatY - 0.3, tankD * 0.75), por)
+	end
 	-- 비데 본체 (뒤) + 시트 + 뚜껑
 	local bidet = C.ti >= 2
 	local seatL = if bidet then lk(250, 250, 248, M.SmoothPlastic, { r = 0.04 }) else por

@@ -2621,7 +2621,7 @@ local function passDecor(c: any)
 		for i = 1, 3 do
 			K:plate("PassKitchenGrout", w - 0.14, 0.015, 0.012, kd * CF(0, -kh / 2 + kh * i / 4, 0), L.of(186, 190, 186))
 		end
-		local sy = kh * 0.12
+		local sy = -kh * 0.16
 		K:plate("PassShelf", w - 0.3, 0.07, 0.08, kd * CF(0, sy, 0.01), L.steel)
 		for i = 0, 5 do
 			local bx = -w / 2 + 0.55 + i * 0.5
@@ -2636,9 +2636,9 @@ local function passDecor(c: any)
 		end
 		-- 육수 솥 (오른쪽 아래) + 김
 		local px = w / 2 - 0.95
-		K:plate("PassStockPot", 1.2, 0.95, 0.04, kd * CF(px, -kh / 2 + 0.6, 0.012), L.of(196, 200, 204, M.Metal))
-		K:plate("PassStockRim", 1.28, 0.08, 0.05, kd * CF(px, -kh / 2 + 1.07, 0.012), L.steel)
-		K:plate("PassStockBand", 1.2, 0.05, 0.045, kd * CF(px, -kh / 2 + 0.5, 0.012), L.of(150, 154, 160, M.Metal))
+		K:plate("PassStockPot", 1.2, 0.95, 0.04, kd * CF(px, -kh / 2 + 0.6, 0.012), L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }))
+		K:plate("PassStockRim", 1.28, 0.08, 0.05, kd * CF(px, -kh / 2 + 1.07, 0.012), L.chrome)
+		K:plate("PassStockBand", 1.2, 0.05, 0.045, kd * CF(px, -kh / 2 + 0.5, 0.012), L.of(170, 174, 180, M.Metal))
 		if c.hi then
 			for k = 1, 3 do
 				K:ell("PassSteam", V3(0.5 + k * 0.12, 0.42, 0.02), kd * CF(px + (k - 2) * 0.22, -kh / 2 + 1.2 + k * 0.32, 0.03), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.55 + k * 0.1 })
@@ -2931,7 +2931,13 @@ local function photoMenu(c: any, walls: { string }, near: Vector3?, y0: number, 
 	local cw = 1.9
 	local nMax = math.min(#items, maxN or #items)
 	local nMin = math.min(nMax, 2)
-	local wn, u, w = findWall(K, walls, nMin * cw + 0.4, nMax * cw + 0.4, y0, y1, near, 0.6)
+	local wn, u, w
+	for nn = nMax, nMin, -1 do
+		wn, u, w = findWall(K, walls, nn * cw + 0.4, nn * cw + 0.4, y0, y1, near, 0.6)
+		if wn then
+			break
+		end
+	end
 	if not wn or not u or not w then
 		return false
 	end
@@ -3059,7 +3065,7 @@ local function liveTank(c: any)
 	end
 	local D = 1.85
 	local frame = L.of(150, 154, 160, M.Metal)
-	local water = { c = rgb(70, 160, 210), m = M.SmoothPlastic, t = 0.7, r = 0.05 }
+	local water = { c = rgb(40, 140, 210), m = M.SmoothPlastic, t = 0.58, r = 0.05 }
 	local standH = 1.5
 	K:box("TankKick", V3(W - 0.2, 0.2, D - 0.2), pcf * CF(0, 0.1, 0), L.black)
 	K:box("TankStand", V3(W, standH - 0.2, D), pcf * CF(0, 0.2 + (standH - 0.2) / 2, 0), L.brushed)
@@ -3159,7 +3165,7 @@ local function neonSlogan(c: any)
 	local h = math.clamp(w * 0.24, 0.9, 1.25)
 	local d = V:wall(wn, u, 6.8, 0)
 	-- 아크릴 판 (반투명 검정) + 볼트 4
-	K:plate("NeonAcrylic", w + 0.3, h + 0.4, 0.05, d * CF(0, 0, 0.12), { c = rgb(24, 24, 28), m = M.SmoothPlastic, t = 0.35, r = 0.2 })
+	K:plate("NeonAcrylic", w + 0.3, h + 0.4, 0.05, d * CF(0, 0, 0.12), { c = rgb(16, 16, 20), m = M.SmoothPlastic, t = 0.08, r = 0.2 })
 	for _, sx in { -1, 1 } do
 		for _, sy in { -1, 1 } do
 			K:vcyl("NeonStandoff", 0.12, 0.1, d * CF(sx * (w / 2 + 0.02), sy * (h / 2 + 0.07), 0.06) * ANG(PI / 2, 0, 0), L.chrome)
@@ -3179,15 +3185,90 @@ local function neonSlogan(c: any)
 			K:ring("NeonTube", d * CF(sx * (tw / 2 - 0.2), sy * (th2 / 2 - 0.2), 0.2), 0.2, 0.06, 3, tube, a0, a0 + PI / 2)
 		end
 	end
-	-- 하트 장식 (작은 네온 원 두 개 + 쐐기 대신 원)
-	if c.hi then
-		local hx = tw / 2 - 0.45
-		K:ring("NeonHeart", d * CF(hx - 0.1, th2 / 2 - 0.42, 0.21), 0.1, 0.04, 6, L.neon(rgb(255, 80, 110)))
-		K:ring("NeonHeart", d * CF(hx + 0.1, th2 / 2 - 0.42, 0.21), 0.1, 0.04, 6, L.neon(rgb(255, 80, 110)))
-	end
 	-- 전원선 (아래로)
 	K:seg("NeonCord", (d * CF(tw / 2 - 0.3, -th2 / 2 - 0.05, 0.08)).Position, (d * CF(tw / 2 - 0.3, -th2 / 2 - 1.1, 0.03)).Position, 0.035, L.of(30, 30, 32))
 	at(K, "neon", wn, u)
+end
+
+
+-- 벽 옷걸이 (테이블 옆 벽, 아랫벽 위 빈 띠): 원목 레일 + 크롬 후크 + 가끔 겉옷 · 에코백 + 벽걸이 두루마리 휴지
+local function wallHooks(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local lowerH = if th.lower and th.lower.h then th.lower.h else 3.4
+	local y1 = math.max(5.3, lowerH + 1.7)
+	local yb = lowerH + 0.25
+	local jackets = { rgb(40, 44, 54), rgb(120, 30, 30), rgb(70, 90, 60), rgb(186, 176, 156), rgb(30, 60, 120), rgb(150, 110, 70) }
+	local n = 0
+	local maxN = if V.W > 30 then 4 else 3
+	for _, wn in { "left", "right", "back" } do
+		for _, sp in freeSpans(K, wn, yb, y1, 0.6) do
+			local len = sp[2] - sp[1] - 0.4
+			if len >= 2.4 and n < maxN then
+				local rl = math.min(len, 3.6)
+				-- 테이블에 가까운 자리 (손님 자리 옆)
+				local best, bu = math.huge, nil
+				local k = sp[1] + 0.2 + rl / 2
+				while k <= sp[2] - 0.2 - rl / 2 + 1e-3 do
+					local wp = V:wall(wn, k, 0, 1.0).Position
+					for _, t in V.tables do
+						local tc = (t.min + t.max) / 2
+						local dd = V3(tc.X - wp.X, 0, tc.Z - wp.Z).Magnitude
+						if dd < best then
+							best, bu = dd, k
+						end
+					end
+					k += 0.5
+				end
+				if bu and best < 7.0 then
+					local u = bu
+					c.hookAt = c.hookAt or { wn, u }
+					claim(K, wn, u - rl / 2 - 0.1, u + rl / 2 + 0.1, yb, y1)
+					local d = V:wall(wn, u, y1 - 0.25, 0)
+					K:plate("HookRail", rl, 0.22, 0.08, d, L.of(120, 80, 50, M.Wood))
+					K:plate("HookRailEdge", rl, 0.03, 0.09, d * CF(0, 0.1, 0), dim(L.of(120, 80, 50, M.Wood), 0.3))
+					local nh = math.max(2, math.floor(rl / 0.75))
+					for i = 1, nh do
+						local x = -rl / 2 + rl * (i - 0.5) / nh
+						K:plate("HookBase", 0.1, 0.14, 0.03, d * CF(x, 0, 0.08), L.chrome)
+						K:bar("Hook", (d * CF(x, -0.02, 0.1)).Position, (d * CF(x, 0.08, 0.3)).Position, 0.04, 0.04, L.chrome)
+						K:ball("HookTip", 0.07, d * CF(x, 0.1, 0.31), L.chrome)
+						local r = rnd(c.seed, n * 20 + i)
+						if r < 0.3 then
+							-- 겉옷 (어깨 + 몸판 + 소매 + 지퍼)
+							local jc = col(jackets[(n * 3 + i + c.seed) % #jackets + 1], M.Fabric)
+							local jh = math.min(1.3, y1 - 0.25 - yb - 0.55)
+							local jd = d * CF(x, -0.12 - jh / 2, 0.24) * ANG(0.04, 0, (r - 0.15) * 0.3)
+							K:ell("JacketShoulder", V3(0.72, 0.3, 0.26), jd * CF(0, jh / 2 - 0.05, 0), jc)
+							K:box("JacketBody", V3(0.72, jh, 0.2), jd, jc)
+							for _, sx in { -1, 1 } do
+								K:box("JacketSleeve", V3(0.16, jh - 0.15, 0.16), jd * CF(sx * 0.42, 0.02, 0.02) * ANG(0, 0, -sx * 0.06), dim(jc, 0.12))
+							end
+							K:plate("JacketZip", 0.03, jh - 0.1, 0.01, jd * CF(0, 0, 0.1), L.chrome)
+							K:plate("JacketHood", 0.4, 0.22, 0.06, jd * CF(0, jh / 2 + 0.06, -0.04), dim(jc, 0.2))
+						elseif r < 0.42 then
+							-- 에코백 (손잡이 두 줄 + 가방)
+							local bd = d * CF(x, -0.62, 0.22)
+							K:seg("BagStrap", (d * CF(x - 0.04, 0.08, 0.3)).Position, (bd * CF(-0.22, 0.32, 0)).Position, 0.03, L.of(220, 210, 186, M.Fabric))
+							K:seg("BagStrap", (d * CF(x + 0.04, 0.08, 0.3)).Position, (bd * CF(0.22, 0.32, 0)).Position, 0.03, L.of(220, 210, 186, M.Fabric))
+							K:box("EcoBag", V3(0.62, 0.66, 0.12), bd, L.of(226, 216, 192, M.Fabric))
+							txt(K, "EcoBagPrint", 0.46, 0.2, bd * CF(0, 0, 0.061), "BUSAN", rgb(30, 60, 120), nil, F.GothamBlack, { d = 0.003 })
+						end
+					end
+					-- 벽걸이 두루마리 휴지 (레일 끝 아래)
+					if c.hi then
+						local td = V:wall(wn, u + rl / 2 - 0.25, y1 - 0.95, 0)
+						K:plate("TissueHolder", 0.5, 0.12, 0.06, td * CF(0, 0.28, 0), L.of(240, 240, 236, M.Plastic))
+						K:cyl("TissueRoll", 0.42, 0.42, td * CF(0, 0.02, 0.24), L.of(250, 250, 248))
+						K:plate("TissueTail", 0.36, 0.35, 0.01, td * CF(0, -0.32, 0.43), L.of(250, 250, 248))
+					end
+					n += 1
+				end
+			end
+		end
+	end
+	if n > 0 then
+		at(K, "hooks x" .. n, c.hookAt[1], c.hookAt[2])
+	end
 end
 
 -- 스타일 · 빌드 --------------------------------------------------------------------------------------------
@@ -3316,6 +3397,7 @@ function T.build(K: any, V: any, S: any)
 	step("autos", autographs)
 	step("posters", posters)
 	step("clock", wallClock)
+	step("hooks", wallHooks)
 	-- 전구 빛 (남은 불빛 예산으로)
 	if c.bulbs and #c.bulbs > 0 then
 		step("bulbLights", function()

@@ -1943,7 +1943,7 @@ local function vendingMachine(K: any, pcf: CFrame, rng: () -> number)
 	K:box("VendBody", V3(ww0, wy0b - 0.25 - 0.3, rec), f * CF(wx0, 0.3 + (wy0b - 0.55) / 2, -rec / 2), body)
 	-- 위 간판 (발광)
 	K:plate("VendHeader", w - 0.2, 0.62, 0.04, f * CF(0, h - 0.5, 0.01), Look.neon(C(240, 246, 255), 0.05))
-	txt(K, "VendHeaderText", w - 0.4, 0.46, f * CF(0, h - 0.5, 0.04), "시원한 음료  COLD DRINK", C(28, 64, 140), nil, { font = F.GothamBlack })
+	txt(K, "VendHeaderText", w - 0.4, 0.46, f * CF(0, h - 0.5, 0.04), "시원한 음료  COLD DRINK", C(20, 46, 120), nil, { font = F.GothamBlack, glow = 1 })
 	-- 진열창: 뒤 발광판 + 선반 4 줄 + 캔 · 병 + 가격 띠 + 유리
 	local ww = w * 0.66
 	local wx = -w / 2 + 0.12 + ww / 2

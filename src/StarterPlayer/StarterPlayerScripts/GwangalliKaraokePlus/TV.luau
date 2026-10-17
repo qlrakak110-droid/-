@@ -392,6 +392,16 @@ local function updateReady(v: any, now: number)
 	end
 end
 
+-- the title card stays up through the start of the intro: until 4 beats before the first sung line
+-- (at most 3.5 s of song time), and never ends before the chart shows the first lyric line
+local function titleEnd(c: any): number
+	local first = c and c.lines[1]
+	if not first then
+		return 0
+	end
+	return math.max(first.show, math.min(first.t0 - c.beat * 4, 3.5))
+end
+
 local chipsFor = ""
 local function updateTitle(v: any, st: number)
 	local s = v.song
@@ -437,8 +447,7 @@ local function updateTitle(v: any, st: number)
 	end
 	L.tSingers.Text = if #names > 0 then "🎤 " .. table.concat(names, "   ") else "🎤 마이크를 잡고 함께 불러요"
 	-- fade the card as the first line comes in
-	local first = c.lines[1]
-	local fadeAt = if first then first.show else c.intro
+	local fadeAt = titleEnd(c)
 	local a = math.clamp((st - (fadeAt - 0.5)) / 0.5, 0, 1)
 	L.titleCard.BackgroundTransparency = 0.25 + 0.75 * a
 	setLayer("title", a < 1)
@@ -866,15 +875,20 @@ function TV.update(dt: number)
 		if lyr.chart ~= v.chart then
 			lyr.setChart(v.chart)
 		end
-		local first = v.chart and v.chart.lines[1]
-		local titleOn = first and st < first.show
+		local tEnd = titleEnd(v.chart)
+		local titleOn = st < tEnd
 		showLayer(if titleOn then "title" else "sing")
 		setLayer("sing", true)
-		if titleOn or (first and st < first.show + 0.1) then
+		if st < tEnd + 0.1 then
 			setLayer("title", true)
 			updateTitle(v, st)
 		else
 			setLayer("title", false)
+		end
+		-- the lyrics come in as the card fades
+		local lyrOn = st >= tEnd - 0.5
+		if lyr.holder.Visible ~= lyrOn then
+			lyr.holder.Visible = lyrOn
 		end
 		updateSing(v, st, t)
 	else

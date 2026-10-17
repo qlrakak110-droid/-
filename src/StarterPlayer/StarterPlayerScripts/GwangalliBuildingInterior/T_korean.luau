@@ -1400,6 +1400,22 @@ local function passView(c: any, a: number, b: number, y0: number, y1: number, zf
 				local px = a + w * (i - 0.5) / nPot
 				local pw = math.min(1.5, w / nPot - 0.5)
 				local pc = face * CF(px - u, ctY + 0.5 - (y0 + y1) / 2, 0)
+				if th.key == "ramen" and i % 2 == 0 then
+					-- 면 삶는 기계 (테보 바구니 손잡이가 위로) : 벽에 붙은 스테인리스 통
+					local bw = math.min(1.7, w / nPot - 0.3)
+					local boil = pc * CF(0, -0.1, 0.2)
+					K:box("NoodleBoiler", V3(bw, 0.55, 0.42), boil, L.brushed)
+					K:box("NoodleBoilerRim", V3(bw + 0.06, 0.05, 0.46), boil * CF(0, 0.29, 0), L.chrome)
+					K:box("NoodleBoilerWater", V3(bw - 0.12, 0.02, 0.32), boil * CF(0, 0.26, 0), col(rgb(220, 214, 196), M.SmoothPlastic))
+					local nb2 = math.max(2, math.floor(bw / 0.3))
+					for k = 1, nb2 do
+						local bx = -bw / 2 + (k - 0.5) * bw / nb2
+						K:vcyl("Tebo", 0.16, 0.22, boil * CF(bx, 0.33, 0), L.chrome)
+						K:seg("TeboHandle", (boil * CF(bx, 0.4, 0.05)).Position, (boil * CF(bx, 0.95, 0.16)).Position, 0.035, L.of(40, 30, 24))
+					end
+					table.insert(srcs, { p = V3(px, ctY + 0.85, zf + 0.25), r = 0.9, rise = math.max(0.8, norenBottom - ctY - 0.9) })
+					continue
+				end
 				-- 반쯤 벽에 묻힌 원통 솥 (앞으로 최대 0.42 나옴: 패스 받침 위 그릇 자리와 안 겹침)
 				local pd = math.min(pw, 0.84)
 				local potC = pc * CF(0, 0, -0.02)
@@ -1622,7 +1638,8 @@ local function lantern(c: any, top: Vector3, dia: number, h: number, txt: string
 		end
 	end
 	if txt then
-		for _, s in { 1, -1 } do
+		-- 글자는 손님 쪽(+Z, 입구 쪽) 한 면만 (SurfaceGui 수 절약)
+		for _, s in { 1 } do
 			local d = CFrame.fromMatrix(p + V3(0, 0, s * (dia / 2 + 0.005)), V3(s, 0, 0), Vector3.yAxis, V3(0, 0, s))
 			ktext(K, "LanternText", dia * 0.5, h * 0.6, d, vertical(txt), { fg = rgb(20, 14, 12), font = F.GothamBlack, free = true })
 		end
@@ -2139,7 +2156,14 @@ end
 local function noodlePress(c: any, pcf: CFrame)
 	local K = c.K
 	local w, d, h = 1.8, 1.5, 3.4
-	K:box("PressBody", V3(w, h - 0.3, d), pcf * CF(0, 0.3 + (h - 0.3) / 2, 0), L.steel)
+	-- 몸통: 아래 · 위 덩어리 + 양 기둥, 가운데 앞쪽은 면 받는 칸 (h-2.1 .. h-1.2, 깊이 0.6)
+	local a0, a1, ad = h - 2.1, h - 1.2, 0.6
+	K:box("PressBody", V3(w, a0 - 0.3, d), pcf * CF(0, 0.3 + (a0 - 0.3) / 2, 0), L.steel)
+	K:box("PressBody", V3(w, h - a1, d), pcf * CF(0, a1 + (h - a1) / 2, 0), L.steel)
+	K:box("PressBody", V3(w - 0.24, a1 - a0, d - ad), pcf * CF(0, (a0 + a1) / 2, -ad / 2), L.brushed)
+	for _, sx in { -1, 1 } do
+		K:box("PressPillar", V3(0.12, a1 - a0, d), pcf * CF(sx * (w / 2 - 0.06), (a0 + a1) / 2, 0), L.steel)
+	end
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
 			K:vcyl("PressFoot", 0.3, 0.16, pcf * CF(sx * (w / 2 - 0.15), 0.15, sz * (d / 2 - 0.15)), L.black)
@@ -2149,17 +2173,17 @@ local function noodlePress(c: any, pcf: CFrame)
 	K:disc("PressCap", 0.9, 0.12, pcf * CF(0, h + 1.46, -0.1), L.blackMetal)
 	K:seg("PressLever", (pcf * CF(0, h + 1.5, -0.1)).Position, (pcf * CF(0.72, h + 1.95, 0.28)).Position, 0.1, L.chrome)
 	K:ball("PressLeverKnob", 0.22, pcf * CF(0.74, h + 1.97, 0.3), L.black)
-	-- 면 받는 스테인리스 받침 + 대야
-	K:box("PressTray", V3(0.9, 0.06, 0.5), pcf * CF(-0.3, h - 2.0, d / 2 + 0.25), L.steel)
-	K:vcyl("PressBasin", 0.28, 0.62, pcf * CF(-0.3, h - 1.83, d / 2 + 0.26), L.brushed)
+
 	K:box("PressPanel", V3(0.8, 0.5, 0.04), pcf * CF(0.3, h - 0.6, d / 2 + 0.02), L.charcoal)
 	K:plate("PressBtnG", 0.14, 0.14, 0.03, pcf * CF(0.1, h - 0.6, d / 2 + 0.04), L.ledGreen)
 	K:plate("PressBtnR", 0.14, 0.14, 0.03, pcf * CF(0.45, h - 0.6, d / 2 + 0.04), L.ledRed)
-	-- 면 나오는 구멍 + 면 가닥 (뜨거운 물 솥 위)
-	K:box("PressNozzle", V3(0.5, 0.2, 0.3), pcf * CF(-0.3, h - 1.1, d / 2 + 0.03), L.chrome)
+	-- 면 나오는 구멍 + 면 가닥 → 칸 바닥의 스테인리스 대야
+	K:box("PressNozzle", V3(0.5, 0.16, 0.3), pcf * CF(0, a1 - 0.08, d / 2 - ad / 2), L.chrome)
 	for i = 1, 5 do
-		K:box("PressNoodle", V3(0.03, 0.7, 0.03), pcf * CF(-0.45 + i * 0.05, h - 1.55, d / 2 + 0.03), L.of(220, 196, 150))
+		K:box("PressNoodle", V3(0.03, 0.62, 0.03), pcf * CF(-0.15 + i * 0.05, a1 - 0.47, d / 2 - ad / 2), L.of(220, 196, 150))
 	end
+	K:vcyl("PressBasin", 0.26, 0.56, pcf * CF(0, a0 + 0.13, d / 2 - ad / 2), L.brushed)
+	K:vcyl("PressBasinNoodle", 0.04, 0.46, pcf * CF(0, a0 + 0.24, d / 2 - ad / 2), L.of(220, 196, 150))
 	ktext(K, "PressSign", w * 0.9, 0.5, pcf * CF(0, 1.2, d / 2 + 0.01), "주문 즉시 뽑는 생면", { fg = WHITE, bg = rgb(20, 70, 120), font = F.GothamBold })
 end
 

@@ -743,9 +743,11 @@ end
 -- 헤어 스타일 포스터 그림 (일러스트 초상): d = poster() 에 준 dcf. 그림 칸 = 위쪽 (y -0.55 ~ 1.5).
 -- 층: 해(원) -> 뒷머리 -> 몸 · 목 -> 얼굴 -> 앞머리 -> 눈 · 입 (0.0015 간격, FrameBack 앞 0.036 ~ 유리 0.045 사이)
 local SKIN_ART = rgb(240, 214, 196)
-local function portraitArt(K: any, d: CFrame, kind: string, bg: Color3, hair: Color3, top: Color3, inner: Color3?)
+local function portraitArt(K: any, d0: CFrame, kind: string, bg: Color3, hair: Color3, top: Color3, inner: Color3?, sc: number?)
+	local k = sc or 1
+	local d = d0
 	local function ov(name: string, w: number, h: number, x: number, y: number, z: number, c: Color3, rot: number?)
-		K:ell(name, V3(w, h, 0.001), d * CF(x, y, z) * ANG(0, 0, rot or 0), lk(c))
+		K:ell(name, V3(w * k, h * k, 0.001), d * CF(x * k, y * k, z) * ANG(0, 0, rot or 0), lk(c))
 	end
 	ov("ArtSun", 1.35, 1.35, 0.1, 0.85, 0.0375, lt(bg, 0.28))
 	if kind == "long" then
@@ -758,10 +760,10 @@ local function portraitArt(K: any, d: CFrame, kind: string, bg: Color3, hair: Co
 	if inner then
 		ov("ArtShirt", 0.3, 0.42, 0, 0.12, 0.041, inner)
 		for _, sx in { -1, 1 } do
-			K:plate("ArtLapel", 0.07, 0.42, 0.001, d * CF(sx * 0.1, 0.1, 0.0412) * ANG(0, 0, sx * 0.4), lk(dk(top, 0.25)))
+			K:plate("ArtLapel", 0.07 * k, 0.42 * k, 0.001, d * CF(sx * 0.1 * k, 0.1 * k, 0.0412) * ANG(0, 0, sx * 0.4), lk(dk(top, 0.25)))
 		end
 	end
-	K:plate("ArtNeck", 0.2, 0.34, 0.001, d * CF(0, 0.3, 0.0415), lk(dk(SKIN_ART, 0.08)))
+	K:plate("ArtNeck", 0.2 * k, 0.34 * k, 0.001, d * CF(0, 0.3 * k, 0.0415), lk(dk(SKIN_ART, 0.08)))
 	-- 얼굴
 	ov("ArtFace", 0.5, 0.66, 0, 0.75, 0.042, SKIN_ART)
 	-- 앞머리 · 옆머리
@@ -775,7 +777,7 @@ local function portraitArt(K: any, d: CFrame, kind: string, bg: Color3, hair: Co
 		ov("ArtHairSide", 0.3, 0.62, -0.31, 0.55, 0.0435, hair, -0.05)
 		ov("ArtHairSide", 0.3, 0.62, 0.31, 0.55, 0.0435, hair, 0.05)
 		ov("ArtBangs", 0.62, 0.3, 0, 1.03, 0.0435, hair)
-		K:plate("ArtBobLine", 0.86, 0.04, 0.001, d * CF(0, 0.25, 0.0435), lk(dk(hair, 0.2)))
+		K:plate("ArtBobLine", 0.86 * k, 0.04 * k, 0.001, d * CF(0, 0.25 * k, 0.0435), lk(dk(hair, 0.2)))
 	else
 		ov("ArtHairTop", 0.62, 0.42, 0, 1.04, 0.0435, hair)
 		ov("ArtHairPart", 0.38, 0.26, 0.13, 1.12, 0.0445, lt(hair, 0.18), -0.35)
@@ -784,7 +786,7 @@ local function portraitArt(K: any, d: CFrame, kind: string, bg: Color3, hair: Co
 	end
 	-- 눈 · 입 (아주 단순)
 	for _, sx in { -1, 1 } do
-		K:plate("ArtEye", 0.09, 0.022, 0.001, d * CF(sx * 0.11, 0.76, 0.0445), lk(rgb(40, 30, 28)))
+		K:plate("ArtEye", 0.09 * k, 0.022 * k, 0.001, d * CF(sx * 0.11 * k, 0.76 * k, 0.0445), lk(rgb(40, 30, 28)))
 	end
 	ov("ArtLips", 0.11, 0.04, 0, 0.54, 0.0445, if kind == "men" then dk(SKIN_ART, 0.25) else rgb(196, 96, 104))
 end
@@ -1526,6 +1528,27 @@ local function buildSalon(K: any, V: any, S: any)
 		end
 	end
 
+	-- 맵 브랜드 포스터 (Sign_물결 + PosterFrame) -> 같은 자리 일러스트 포스터 (물결 웨이브 헤어)
+	for _, sg in recs(V, "Sign_물결") do
+		local wn = nearestWall(V, sg.c)
+		if math.min(math.abs(sg.c.X - V.x0), math.abs(sg.c.X - V.x1), math.abs(sg.c.Z - V.z0)) < 0.4 then
+			local u = V:wallCoord(wn, sg.c)
+			local pw = math.max(sg.size.X, sg.size.Z)
+			local ph = sg.size.Y
+			local pd = wcf(V, wn, u, sg.c.Y, 0.01)
+			K:free(function()
+				poster(K, pd, pw, ph, { title = "물결", sub = "자연스럽게, 나답게", th = 0.16, ty = -0.29, sy = -0.41, frame = brass, bg = rgb(226, 176, 182), fg = WHITE, font = F.GothamBlack })
+				portraitArt(K, pd * CF(0, ph * 0.04, 0), "long", rgb(226, 176, 182), rgb(70, 46, 38), rgb(250, 244, 236), nil, math.min(pw / 2.4, ph / 3.6))
+			end)
+			hideRec(K, sg)
+			for _, fr in recs(V, "PosterFrame") do
+				if nearXZ(fr.c, sg.c) < 0.6 then
+					hideRec(K, fr)
+				end
+			end
+		end
+	end
+
 	-- 디자이너 소개 보드 (원장 · 실장 · 디자이너)
 	local dw, dd = Common.wallSpot(K, { "left", "right", "back" }, 1.85, 4.3, 7.1, 9)
 	if dw and dd then
@@ -1709,7 +1732,8 @@ local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: numbe
 	local top = lk(outfit.top, M.Fabric)
 	local topD = lk(dk(outfit.top, 0.12), M.Fabric)
 	local bot = lk(outfit.bottom or outfit.top, M.Fabric)
-	local b = pcf * CF(0, y0, 0)
+	local b0 = pcf * CF(0, y0, 0)
+	local b = b0 * CF(0, 0.06, 0) -- 발이 받침 원판 위에 서게
 	local function P(x: number, y: number, z: number): CFrame
 		return b * CF(x * s, y * s, z * s)
 	end
@@ -1720,9 +1744,9 @@ local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: numbe
 	local bk = outfit.bottomKind
 	local dress = bk == "dress"
 	-- 받침: 크롬 원판 + 종아리로 들어가는 봉
-	K:disc("ManqBase", 1.25 * s, 0.06, b * CF(0, 0.03, 0), Look.chrome)
-	K:disc("ManqBaseRim", 1.3 * s, 0.02, b * CF(0, 0.01, 0), lk(rgb(30, 30, 32)))
-	K:seg("ManqRod", P(0.2, 0.06, -0.05).Position, P(0.2, 1.2, -0.05).Position, 0.07, Look.chrome)
+	K:disc("ManqBase", 1.25 * s, 0.06, b0 * CF(0, 0.03, 0), Look.chrome)
+	K:disc("ManqBaseRim", 1.3 * s, 0.02, b0 * CF(0, 0.01, 0), lk(rgb(30, 30, 32)))
+	K:seg("ManqRod", (b0 * CF(0.2 * s, 0.05, -0.05 * s)).Position, P(0.2, 1.2, -0.05).Position, 0.07, Look.chrome)
 	-- 다리 (허벅지 · 종아리 · 발)
 	for _, sx in { -1, 1 } do
 		local hip = P(sx * 0.22, 3.25, 0).Position
@@ -3957,20 +3981,32 @@ end
 
 -- 가챠 (캡슐 뽑기) 한 대: pcf = 바닥 (+Z = 앞), y = 받침 높이
 local function gacha(K: any, pcf: CFrame, y: number, c: Color3, label: string, seed: number)
+	-- 캡슐 뽑기 (등을 맞댄 2대가 겹치지 않게 깊이 0.74, pcf = 뒷면에서 0.37 앞 = 몸통 가운데)
 	local b = pcf * CF(0, y, 0)
-	K:box("GachaBody", V3(1.4, 1.2, 1.1), b * CF(0, 0.6, 0), lk(c, M.SmoothPlastic, { r = 0.08 }))
-	K:box("GachaWindow", V3(1.2, 1.15, 0.9), b * CF(0, 1.8, 0), gl(rgb(236, 244, 250), 0.45))
-	K:box("GachaTop", V3(1.4, 0.12, 1.1), b * CF(0, 2.44, 0), lk(c))
-	for i = 1, 6 do
-		local x = -0.4 + ((i - 1) % 3) * 0.4 + (rnd(seed, i) - 0.5) * 0.1
-		local yy = 1.4 + ((i - 1) // 3) * 0.38
-		K:ball("Capsule", 0.34, b * CF(x, yy, (rnd(seed, i + 5) - 0.5) * 0.4), lk(NEONS[(i + seed) % #NEONS + 1], M.SmoothPlastic, { r = 0.15 }))
+	local D = 0.74
+	local fz = D / 2
+	K:box("GachaBody", V3(1.4, 1.2, D), b * CF(0, 0.6, 0), lk(c, M.SmoothPlastic, { r = 0.08 }))
+	K:box("GachaBodyTrim", V3(1.42, 0.06, D + 0.02), b * CF(0, 1.2, 0), lk(rgb(250, 250, 252)))
+	K:box("GachaWindow", V3(1.24, 1.08, D - 0.1), b * CF(0, 1.77, 0), gl(rgb(236, 244, 250), 0.5))
+	for _, sx in { -1, 1 } do
+		K:box("GachaPost", V3(0.08, 1.08, 0.08), b * CF(sx * 0.66, 1.77, fz - 0.05), lk(c))
+		K:box("GachaPost", V3(0.08, 1.08, 0.08), b * CF(sx * 0.66, 1.77, -fz + 0.05), lk(c))
 	end
-	K:disc("GachaKnob", 0.46, 0.08, b * CF(0.25, 0.75, 0.55) * ANG(PI / 2, 0, 0), Look.chrome)
-	K:box("GachaKnobBar", V3(0.38, 0.08, 0.08), b * CF(0.25, 0.75, 0.62), lk(rgb(40, 40, 44)))
-	K:box("GachaExit", V3(0.42, 0.32, 0.06), b * CF(-0.35, 0.3, 0.55), lk(rgb(30, 30, 34)))
-	txt(K, "GachaLabel", 1.25, 0.28, b * CF(0, 1.06, 0.555), label, WHITE, nil, F.GothamBlack)
-	txt(K, "GachaPrice", 0.5, 0.18, b * CF(-0.35, 0.62, 0.555), "3,000", rgb(255, 230, 60), nil, F.GothamBlack)
+	K:box("GachaTop", V3(1.4, 0.14, D), b * CF(0, 2.38, 0), lk(c))
+	K:ell("GachaDome", V3(1.1, 0.34, D * 0.86), b * CF(0, 2.45, 0), lk(lt(c, 0.35), M.SmoothPlastic, { r = 0.1 }))
+	for i = 1, 6 do
+		local x = -0.42 + ((i - 1) % 3) * 0.42 + (rnd(seed, i) - 0.5) * 0.08
+		local yy = 1.42 + ((i - 1) // 3) * 0.36
+		K:ball("Capsule", 0.32, b * CF(x, yy, (rnd(seed, i + 5) - 0.5) * 0.24), lk(NEONS[(i + seed) % #NEONS + 1], M.SmoothPlastic, { r = 0.15 }))
+	end
+	-- 앞면: 손잡이 (크롬 원판 + 막대) · 동전 투입구 · 상품 출구 덮개 · 라벨 · 가격
+	K:disc("GachaKnob", 0.46, 0.08, b * CF(0.28, 0.72, fz + 0.04) * ANG(PI / 2, 0, 0), Look.chrome)
+	K:box("GachaKnobBar", V3(0.38, 0.08, 0.08), b * CF(0.28, 0.72, fz + 0.1), lk(rgb(40, 40, 44)))
+	K:plate("GachaCoinSlot", 0.2, 0.26, 0.02, CFrame.lookAt((b * CF(0.28, 1.0, fz)).Position, (b * CF(0.28, 1.0, fz + 1)).Position) * ANG(0, PI, 0), lk(rgb(30, 30, 34), M.Metal))
+	K:box("GachaExit", V3(0.42, 0.32, 0.06), b * CF(-0.35, 0.3, fz + 0.03), lk(rgb(30, 30, 34)))
+	K:box("GachaExitFlap", V3(0.38, 0.14, 0.03), b * CF(-0.35, 0.4, fz + 0.065), gl(rgb(220, 230, 240), 0.4))
+	txt(K, "GachaLabel", 1.25, 0.26, b * CF(0, 1.04, fz + 0.005), label, WHITE, nil, F.GothamBlack)
+	txt(K, "GachaPrice", 0.5, 0.18, b * CF(-0.35, 0.62, fz + 0.005), "3,000", rgb(255, 230, 60), nil, F.GothamBlack)
 end
 
 local function buildPlay(K: any, V: any, S: any)
@@ -4164,8 +4200,8 @@ local function buildPlay(K: any, V: any, S: any)
 		K:box("IslandPlinth", V3(3.3, 0.5, 1.5), icf * CF(0, 0.25, 0), lk(rgb(250, 248, 252)))
 		K:box("IslandPlinthLED", V3(3.32, 0.06, 1.52), icf * CF(0, 0.08, 0), nl(rgb(255, 80, 180)))
 		for k, sx in { -0.8, 0.8 } do
-			gacha(K, icf * CF(sx, 0, 0.2), 0.5, NEONS[(k + seed) % #NEONS + 1], labels[k], seed + k)
-			gacha(K, icf * CF(-sx, 0, -0.2) * ANG(0, PI, 0), 0.5, NEONS[(k + 2 + seed) % #NEONS + 1], labels[k + 2], seed + k + 2)
+			gacha(K, icf * CF(sx, 0, 0.375), 0.5, NEONS[(k + seed) % #NEONS + 1], labels[k], seed + k)
+			gacha(K, icf * CF(-sx, 0, -0.375) * ANG(0, PI, 0), 0.5, NEONS[(k + 2 + seed) % #NEONS + 1], labels[k + 2], seed + k + 2)
 		end
 		-- 위 안내 화면 (문 쪽)
 		-- 양쪽 기둥 2개 (가운데 기둥이 뒷면 글자를 가리지 않게) + 위 캡
@@ -4298,9 +4334,9 @@ local function buildPlay(K: any, V: any, S: any)
 	-- 큰 곰 인형 (앞 모서리 바닥, 자리가 비면)
 	for _, sx in { -1, 1 } do
 		local p = firstSpot(K, {
-			CF(sx * (V.W / 2 - 6.0), 0, V.z1 - 3.2) * ANG(0, sx * -0.6, 0),
-			CF(sx * (V.W / 2 - 6.6), 0, V.z1 - 3.5) * ANG(0, sx * -0.6, 0),
-			CF(sx * (V.W / 2 - 4.6), 0, V.z1 - 3.0) * ANG(0, sx * -0.6, 0),
+			CF(sx * (V.W / 2 - 6.0), 0, V.z1 - 3.2) * ANG(0, -sx * (PI - 0.6), 0),
+			CF(sx * (V.W / 2 - 6.6), 0, V.z1 - 3.5) * ANG(0, -sx * (PI - 0.6), 0),
+			CF(sx * (V.W / 2 - 4.6), 0, V.z1 - 3.0) * ANG(0, -sx * (PI - 0.6), 0),
 		}, V3(1.8, 2.6, 1.6), 0.1)
 		if p then
 			plush(K, p, 1.6, "bear", if sx < 0 then rgb(196, 150, 110) else rgb(250, 200, 220))
