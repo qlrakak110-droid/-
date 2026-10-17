@@ -126,7 +126,15 @@ function Homes.post(V: any, model: Instance)
 			local size = if typeof(fp) == "Vector3" then (fp :: Vector3):Max(s) else s
 			local lc = V.cf:ToObjectSpace(cf)
 			local mn, mx = laabb(lc, size + Vector3.new(0.4, 0.2, 0.4))
-			V:addKeep(Vector3.new(mn.X, 0.05, mn.Z), Vector3.new(mx.X, math.max(mx.Y, 0.3), mx.Z), "slot")
+			-- 슬롯 자기 바닥(SlotBase)부터: 복층 침대가 아래층 방에 기둥처럼 비운 자리를 남기지 않게
+			local base = d:FindFirstChild("SlotBase", true)
+			local y0 = 0.05
+			if base and base:IsA("BasePart") then
+				y0 = math.max(0.05, V.cf:ToObjectSpace(base.CFrame).Position.Y - base.Size.Y / 2)
+			end
+			if mx.Y > y0 then
+				V:addKeep(Vector3.new(mn.X, y0, mn.Z), Vector3.new(mx.X, math.max(mx.Y, y0 + 0.3), mx.Z), "slot")
+			end
 		elseif d:IsA("BasePart") and (CollectionService:HasTag(d, "HomeInteract") or string.sub(d.Name, 1, 9) == "Interact_") then
 			local lc = V.cf:ToObjectSpace(d.CFrame)
 			local mn, mx = laabb(lc, d.Size + Vector3.new(0.6, 0.4, 0.6))

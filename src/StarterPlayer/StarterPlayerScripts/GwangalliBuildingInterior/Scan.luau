@@ -831,7 +831,9 @@ function Scan.keepouts(V: any)
 		end
 	end
 	-- 5) 앞 유리 안쪽 띠: 낮게만 (시트지 · 포스터가 보이게)
-	V:addKeep(Vector3.new(V.x0 - 1, 3.4, V.z1 - 1.8), Vector3.new(V.x1 + 1, H, V.z1 + 0.5), "window")
+	if V.kind ~= "home" then -- 집의 +Z 는 방문 쪽 (가게 앞 유리 아님)
+		V:addKeep(Vector3.new(V.x0 - 1, 3.4, V.z1 - 1.8), Vector3.new(V.x1 + 1, H, V.z1 + 0.5), "window")
+	end
 	-- 6) ShopLife 쓰레기통 · 정수기 예정 자리 (Scan.freeSpot 과 같은 계산, ShopLife 프레임 +Z 쪽)
 	if not V.noBin and not V:first("Bin") and not V:first("TrashBin") then
 		for _, f in { 0.38, -0.38 } do
@@ -882,6 +884,12 @@ Scan.lodRoot = lodRoot
 -- hidden[part] = { t, ltm, mode, guis }
 function Scan.hide(store: { [BasePart]: any }, p: BasePart)
 	if store[p] then
+		return
+	end
+	-- 숨기면 안 되는 파트: TV 화면 · 테마로 칠하는 집 벽/바닥 · 창밖 풍경
+	if p.Name == "Screen" or p.Name == "TVScreen"
+		or (p:GetAttribute("Room") ~= nil and p:GetAttribute("Surface") ~= nil)
+		or p:FindFirstAncestor("Backdrop") or p:FindFirstAncestor("WindowView") then
 		return
 	end
 	local root = lodRoot(p, nil)

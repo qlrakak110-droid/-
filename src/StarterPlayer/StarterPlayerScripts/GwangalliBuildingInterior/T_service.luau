@@ -2605,6 +2605,28 @@ local function buildMotel(K: any, V: any, S: any)
 					placed += 1
 				end
 			end
+			-- 넓은 열대 콘셉트 로비: 가운데 비켜 둥근 원목 화단 벤치 + 큰 야자 (입구 → 엘리베이터 동선은 비움)
+			if tropical and V.W >= 20 then
+				for _, p in { V3(-6.2, 0, 0.8), V3(6.2, 0, 0.8), V3(-7.0, 0, -0.8), V3(7.0, 0, -0.8) } do
+					local pc = pcfAt(p, V3(0, 0, 1))
+					if canPlace(K, pc, V3(3.2, 7.5, 3.2), 0.1) then
+						K:vcyl("PalmIslandBase", 1.2, 3.0, pc * CF(0, 0.6, 0), lk(C(120, 88, 58), M.Wood))
+						K:vcyl("PalmIslandSeat", 0.14, 3.2, pc * CF(0, 1.27, 0), lk(C(150, 112, 74), M.Wood))
+						for k = 0, 11 do
+							local a = k * PI / 6
+							K:box("PalmIslandSlat", V3(0.06, 1.0, 0.3), pc * CF(math.cos(a) * 1.52, 0.62, math.sin(a) * 1.52) * ANG(0, -a, 0), lk(C(96, 70, 46), M.Wood))
+						end
+						K:vcyl("PalmIslandSoil", 0.08, 2.0, pc * CF(0, 1.36, 0), Look.soil)
+						K:vcyl("PalmIslandPebbles", 0.06, 2.6, pc * CF(0, 1.33, 0), lk(C(226, 220, 206), M.Pebble))
+						-- 큰 야자 (화분 없이 화단에 심음): 화분 없는 palmTree 를 쓰기 위해 아주 작은 화분 + 높이
+						local tcf = pc * CF(0, 1.3, 0)
+						palmTree(K, tcf, math.min(7.2, V.H - 2.4), 0.6, lk(C(120, 88, 58), M.Wood), 99)
+						local imn, imx = K.laabb(pc * CF(0, 3.75, 0), V3(3.3, 7.5, 3.3))
+						K:reserve(imn, imx, "island")
+						break
+					end
+				end
+			end
 			if placed == 0 then
 				plantAt(K, pcfAt(spots[1], V3(0, 0, 1)), "snake", 3.4, 1.0, potL)
 			end
