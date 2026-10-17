@@ -1969,6 +1969,34 @@ local function infoSigns(c: any)
 	end
 end
 
+-- 코팅된 안내문 (테이프로 붙인 A4 두 장): 먹는 법 · 이용 안내 (가게 유형별 실제 문구)
+local HOWTO: { [string]: { string } } = {
+	clam = { "조개구이 맛있게 먹는 법", "① 숯이 빨갛게 오르면 조개를 올려 주세요\n② 입이 벌어지면 국물이 쏟아지지 않게 뒤집기\n③ 가리비는 치즈 · 버터 추가 (3,000원)\n④ 키조개 관자는 살짝만 익혀 드세요\n⑤ 껍데기는 옆 통에 버려 주세요" },
+	gopchang = { "곱창 맛있게 먹는 법", "① 초벌된 곱창은 불판 가장자리에\n② 부추 · 양파와 함께 노릇하게\n③ 기름이 튀니 앞치마 꼭 하세요!\n④ 대창은 겉이 바삭해지면 OK\n⑤ 마무리는 볶음밥 (3,000원)" },
+	bbq = { "숯불구이 맛있게 먹는 법", "① 참숯이 올라오면 고기를 올려 주세요\n② 한 번만 뒤집는 게 육즙 비결\n③ 갈비는 직원이 잘라 드립니다\n④ 마무리는 된장찌개 · 냉면" },
+	pocha = { "포차 이용 안내", "· 2시간 이용 부탁드립니다\n· 외부 음식 · 주류 반입 금지\n· 소주 · 맥주는 냉장고에서 셀프\n· 화장실 비밀번호 1004*\n· 늦은 시간 소음 주의 부탁드려요" },
+}
+local function howToSheet(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local h = HOWTO[if th.pocha then "pocha" else th.key]
+	if not h then
+		return
+	end
+	local wn, u = findWall(K, { "left", "right", "back" }, 2.5, 2.5, 4.3, 6.6, V3(0, 0, 0), 0.5)
+	if not wn or not u then
+		return
+	end
+	local d = V:wall(wn, u, 5.45, 0) * ANG(0, 0, (rnd(c.seed, 41) - 0.5) * 0.04)
+	K:plate("HowToSheet", 2.3, 2.0, 0.012, d, L.of(252, 252, 248, M.SmoothPlastic, { r = 0.06 }))
+	K:plate("HowToHead", 2.3, 0.34, 0.014, d * CF(0, 0.83, 0), col(th.accent or rgb(200, 40, 30)))
+	txt(K, "HowToTitle", 2.1, 0.26, d * CF(0, 0.83, 0.016), h[1], WHITE, nil, F.GothamBlack, { d = 0.003 })
+	txt(K, "HowToBody", 2.16, 1.5, d * CF(0, -0.12, 0.014), h[2], INK, nil, F.GothamBold, { d = 0.003, align = "Left", lines = 5 })
+	for _, sx in { -1, 1 } do
+		K:plate("HowToTape", 0.34, 0.12, 0.016, d * CF(sx * 1.0, 1.0, 0) * ANG(0, 0, sx * 0.5), { c = rgb(240, 236, 210), m = M.SmoothPlastic, t = 0.35 })
+	end
+	at(K, "howto", wn, u)
+end
+
 -- 사인지 벽 (손님 · 유명인 다녀감)
 local AUTOS = {
 	"대박나세요!\n♡ 2025.07", "또 올게요~\n광안리 최고", "조개 최고!!\n부산 사나이", "번창하세요\n2024.08.15",
@@ -3319,13 +3347,19 @@ local function neonSlogan(c: any)
 	local text, cc = pick[1], pick[2]
 	local n = utf8.len(text) or 6
 	local w0 = math.clamp(n * 0.62, 3.2, 5.6)
+	local cy = 6.8
 	local wn, u, fw = findWall(K, { "back", "left", "right" }, 3.4, w0 + 0.4, 5.5, 8.1, V3(V.x1 * 0.5, 0, V.z0), 0.6)
+	if (not wn or not u or not fw) and V.H >= 9.4 then
+		-- 벽 가운데가 꽉 찼으면 천장 바로 아래 높은 띠에 (낙서 벽 · 사진 메뉴 위)
+		cy = math.min(V.H - 1.05, 8.5)
+		wn, u, fw = findWall(K, { "left", "right", "back" }, 3.4, w0 + 0.4, cy - 0.85, cy + 0.85, V3(V.x0, 0, 0), 0.6)
+	end
 	if not wn or not u or not fw then
 		return
 	end
 	local w = fw - 0.4
-	local h = math.clamp(w * 0.24, 0.9, 1.25)
-	local d = V:wall(wn, u, 6.8, 0)
+	local h = math.clamp(w * 0.24, 0.9, if cy > 7 then 1.05 else 1.25)
+	local d = V:wall(wn, u, cy, 0)
 	-- 아크릴 판 (반투명 검정) + 볼트 4
 	K:plate("NeonAcrylic", w + 0.3, h + 0.4, 0.05, d * CF(0, 0, 0.12), { c = rgb(16, 16, 20), m = M.SmoothPlastic, t = 0.08, r = 0.2 })
 	for _, sx in { -1, 1 } do
@@ -3509,7 +3543,7 @@ local function graffitiWall(c: any)
 	for _, wn in { "left", "right", "back" } do
 		for _, sp in freeSpans(K, wn, y0, y1, 0.6) do
 			local len = sp[2] - sp[1] - 0.3
-			if len >= 2.2 and placed < 2 then
+			if len >= 2.2 and placed < (if c.th.key == "gopchang" then 1 else 2) then
 				local w = math.min(len, 7.0)
 				local u0 = (sp[1] + sp[2]) / 2
 				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, y0, y1)
@@ -3644,6 +3678,10 @@ function T.build(K: any, V: any, S: any)
 	if c.bulbs and #c.bulbs > 0 then
 		step("bulbSwitch", bulbSwitch)
 	end
+	-- 낙서 벽 (곱창 · 24시): 사진 메뉴 · 네온보다 먼저 넓은 빈 벽을 잡음 (이 가게들의 상징)
+	if th.key == "gopchang" or th.key == "pocha24" then
+		step("graffiti", graffitiWall)
+	end
 	-- 사진 메뉴 라이트박스 + 손글씨 메뉴 줄
 	if th.menuStyle == "sheets" then
 		step("photo", function()
@@ -3679,10 +3717,6 @@ function T.build(K: any, V: any, S: any)
 	if th.crates then
 		step("crates", crateStack)
 	end
-	-- 낙서 벽 (곱창 · 24시): 안내판보다 먼저 넓은 빈 벽을 잡음
-	if th.key == "gopchang" or th.key == "pocha24" then
-		step("graffiti", graffitiWall)
-	end
 	-- 안내 · 장식
 	step("origin", function()
 		originBoard(c, V3(V.x0 * 0.3, 0, V.z0))
@@ -3690,6 +3724,7 @@ function T.build(K: any, V: any, S: any)
 	if th.pocha then
 		step("chalk", chalkboard)
 	end
+	step("howto", howToSheet)
 	step("info", infoSigns)
 	if not th.pocha or th.key == "pochaTent" then
 		step("aprons", apronRack)
