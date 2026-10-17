@@ -1097,6 +1097,7 @@ end
 
 -- 냉장고 문 스티커 · 선반 가격표 (맵 Fridge 앞)
 local function fridgeDress(ctx: any)
+	local Q = ctx.Q
 	local cats = {
 		{ "생수", "이온음료", "탄산음료" },
 		{ "커피 · 컵커피", "우유 · 두유", "주스" },
@@ -1137,6 +1138,43 @@ local function fridgeDress(ctx: any)
 		local lvl = if ws.c.Y < 3 then 1 elseif ws.c.Y < 4.6 then 2 else 3
 		local p = prices[ui] and prices[ui][lvl] or "1,500"
 		txt(ctx, "FridgeShelfPrice", ws.s.X - 0.3, 0.13, fc(V3(ws.c.X, ws.mx.Y - 0.03, ws.mx.Z + 0.02), ZA), p .. "   ·   " .. p, INK, rgb(250, 250, 246), { font = F.GothamBold, d = 0.01 })
+	end
+	-- 유리문 바로 뒤를 막던 네온 판 (FridgeLiner: 장식) 숨기고 병마다 뚜껑 + 라벨 띠 (음료 종류는 맵 병 색으로)
+	for _, e in all(ctx, "FridgeLiner") do
+		if e.r.part.Material == M.Neon then
+			hideRec(ctx, e)
+		end
+	end
+	local function near(c: Color3, r: number, g: number, b: number): boolean
+		return math.abs(c.R * 255 - r) + math.abs(c.G * 255 - g) + math.abs(c.B * 255 - b) < 40
+	end
+	for i, e in all(ctx, "Bottle") do
+		local col = e.r.part.Color
+		local h = e.s.Y
+		local cap: Color3, band: Color3? = WHITE, GS_BLUE
+		if near(col, 150, 181, 191) then -- 생수 (투명 병)
+			cap, band = rgb(30, 110, 200), if i % 2 == 0 then rgb(30, 110, 200) else rgb(0, 150, 200)
+		elseif near(col, 20, 89, 191) then -- 이온음료
+			cap, band = rgb(30, 80, 170), WHITE
+		elseif near(col, 250, 204, 20) then -- 바나나 · 주스
+			cap, band = rgb(240, 240, 236), nil
+		elseif near(col, 0, 150, 79) then -- 소주 (초록 병)
+			cap, band = rgb(40, 130, 70), rgb(236, 244, 250)
+		elseif near(col, 214, 41, 41) then -- 콜라 · 사이다
+			cap, band = RED, nil
+		elseif near(col, 181, 41, 31) then -- 에너지 드링크
+			cap, band = rgb(200, 200, 204), nil
+		elseif near(col, 199, 150, 41) then -- 맥주 (갈색 병)
+			cap, band = rgb(220, 190, 80), if i % 2 == 0 then rgb(20, 60, 160) else WHITE
+		elseif near(col, 219, 219, 209) then -- 우유
+			cap, band = rgb(30, 110, 200), rgb(30, 110, 200)
+		else
+			cap, band = rgb(220, 190, 80), rgb(240, 240, 236)
+		end
+		Q:vcyl("BottleCap", 0.1, 0.15, CF(e.c.X, e.mx.Y + 0.05, e.c.Z), lk(cap, M.SmoothPlastic))
+		if band then
+			Q:vcyl("BottleLabel", h * 0.36, 0.29, CF(e.c.X, e.mn.Y + h * 0.42, e.c.Z), lk(band, M.SmoothPlastic))
+		end
 	end
 end
 
@@ -1736,7 +1774,7 @@ local function productLabels(ctx: any)
 	if #plinths == 0 then
 		return
 	end
-	local budget = math.max(0, 1600 - #K.parts)
+	local budget = math.max(0, 1700 - #K.parts)
 	local n = 0
 	local labelCols = { WHITE, rgb(250, 230, 120), rgb(240, 240, 236), rgb(30, 30, 34) }
 	-- 가슴 높이 줄 (바닥 3.1) 먼저, 남으면 눈높이 줄 (4.4)

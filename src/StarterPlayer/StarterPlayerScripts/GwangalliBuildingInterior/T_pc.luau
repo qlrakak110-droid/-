@@ -2664,6 +2664,7 @@ local function backBuild(K: any, V: any)
 		local pcf = facing(V3(x, 0, zb + 1.2), V3(0, 0, 1))
 		if spotN(K, pcf, V3(3.0, 6.6, 2.3), 0.02) then
 			vending(K, pcf, kind)
+			useWall(K, "back", x - 1.6, x + 1.6, 0.0, 7.0)
 		else
 			K:note("vending blocked " .. kind)
 		end
@@ -2679,6 +2680,13 @@ local function backBuild(K: any, V: any)
 		px0 = mn.X
 	end
 	lockers(K, V, rx1 + 0.55, px0 - 0.15)
+	useWall(K, "back", rx1 + 0.4, px0, 0.0, 7.2)
+	for _, nm in { "RestroomDoor", "ExitDoor" } do
+		for _, r in recs(V, nm) do
+			local mn, mx = mb(K, r)
+			useWall(K, "back", mn.X - 0.5, mx.X + 0.5, 0.0, mx.Y + 0.6)
+		end
+	end
 	-- 화장실 문: 문틀 · 킥 플레이트 · 밀판 + 사이 손소독기
 	K:free(function()
 		for _, r in recs(V, "RestroomDoor") do
@@ -2915,10 +2923,11 @@ local function backBuild(K: any, V: any)
 			-- 뒷벽 세로 덕트로 꺾여 내려감
 			K:seg("TrayCableBend", V3(cx2, ty - 0.03, z0), V3(cx2, ty - 0.4, zb + 0.15), 0.12, lk(c))
 		end
-		K:box("CableRiser", V3(1.0, ty - 0.4 - 6.0, 0.35), CF(tx, (ty - 0.4 + 6.0) / 2, zb + 0.18), lk(rgb(60, 62, 68), M.Metal))
-		K:box("CableRiserBox", V3(1.4, 1.6, 0.5), CF(tx, 5.2, zb + 0.25), lk(rgb(70, 72, 78), M.Metal))
-		K:text("CableRiserLabel", 1.2, 0.3, faceCF(V3(tx, 5.5, zb + 0.505), V3(0, 0, 1)), "통신 · 전기 EPS", { fg = rgb(230, 230, 230), bg = rgb(40, 40, 44), d = 0.01 })
-		K:text("CableRiserWarn", 0.9, 0.3, faceCF(V3(tx, 4.95, zb + 0.505), V3(0, 0, 1)), "⚡ 감전 주의", { fg = rgb(20, 20, 20), bg = rgb(250, 210, 40), d = 0.01 })
+		-- 자판기(높이 6.6) 위에서 끝나는 EPS 함
+		K:box("CableRiser", V3(1.0, ty - 0.4 - 8.3, 0.35), CF(tx, (ty - 0.4 + 8.3) / 2, zb + 0.18), lk(rgb(60, 62, 68), M.Metal))
+		K:box("CableRiserBox", V3(1.5, 1.4, 0.5), CF(tx, 7.65, zb + 0.25), lk(rgb(70, 72, 78), M.Metal))
+		K:text("CableRiserLabel", 1.3, 0.3, faceCF(V3(tx, 7.95, zb + 0.505), V3(0, 0, 1)), "통신 · 전기 EPS", { fg = rgb(230, 230, 230), bg = rgb(40, 40, 44), d = 0.01 })
+		K:text("CableRiserWarn", 0.9, 0.3, faceCF(V3(tx, 7.45, zb + 0.505), V3(0, 0, 1)), "감전 주의", { fg = rgb(20, 20, 20), bg = rgb(250, 210, 40), font = F.GothamBlack, d = 0.01 })
 	end)
 	-- 천장: 뒷벽 위 RGB · 스피커 · 스프링클러 · 감지기
 	K:free(function()
@@ -2933,6 +2942,35 @@ local function backBuild(K: any, V: any)
 	detector(K, -14, -1)
 	detector(K, 12, 2)
 	dome(K, V.x0 + 2.0, zb + 2.0)
+	-- 뒷벽 남은 칸: 흡음 패널 (홀과 같은 마감, 보라 RGB)
+	useWall(K, "back", -1.0, 0.6, 7.0, P.ceil) -- EPS 함
+	acousticWall(K, "back", { rgb = C.purple })
+	-- 리니어 펜던트 (홀과 같은 조명 언어): 보관함 · 프린터 위, 화장실 앞
+	K:free(function()
+		local H = P.ceil
+		for i, sp in { { 16.6, 28.2, zb + 4.4 }, { 1.6, 8.0, zb + 4.6 } } do
+			local x0, x1, z = sp[1], sp[2], sp[3]
+			local len, cx, y = x1 - x0, (x0 + x1) / 2, 9.05
+			K:box("PendantHousing", V3(len, 0.16, 0.34), CF(cx, y, z), lk(rgb(22, 22, 26), M.Metal))
+			local dif = K:box("PendantDiffuser", V3(len - 0.12, 0.05, 0.24), CF(cx, y - 0.095, z), neon(rgb(255, 244, 228)))
+			for _, wx in { x0 + 1.0, x1 - 1.0 } do
+				K:seg("PendantWire", V3(wx, y + 0.08, z), V3(wx, H, z), 0.03, Look.blackMetal)
+				K:disc("PendantCanopy", 0.3, 0.05, CF(wx, H - 0.025, z), Look.blackMetal)
+			end
+			local up = K:box("PendantUplight", V3(len - 0.3, 0.03, 0.12), CF(cx, y + 0.085, z), neon(dk(C.purple, 0.5)))
+			table.insert(P.rgb, { p = up, c = dk(C.purple, 0.5), x = cx, z = z })
+			K:light(dif, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = if i == 1 then 12 else 10, Brightness = 1.0, Angle = 140, Color = Look.neutralLight })
+		end
+		-- 오른쪽 벽 워셔 (이용 수칙 · 소화전)
+		if P.has.right then
+			local d = W(K, "right", zb + 9.5, H - 0.12, 0.62)
+			local len = 16
+			K:plate("WallWasherTrack", len, 0.1, 0.26, d * CF(0, 0.05, -0.13), Look.blackMetal)
+			K:plate("WallWasherBody", len - 0.2, 0.2, 0.18, d * CF(0, -0.08, -0.12) * ANG(math.rad(35), 0, 0), lk(rgb(26, 26, 30), M.Metal))
+			local lens = K:plate("WallWasher", len - 0.4, 0.05, 0.14, d * CF(0, -0.19, -0.12) * ANG(math.rad(35), 0, 0), neon(rgb(255, 240, 222), 0.35))
+			K:light(lens, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 10, Brightness = 0.8, Angle = 150, Color = Look.neutralLight })
+		end
+	end)
 	-- 바닥: 카펫 줄눈
 	carpetSeams(K, P.xl, P.xr, zb, V.z1, 3.3, lk(rgb(46, 48, 53), M.Carpet))
 end

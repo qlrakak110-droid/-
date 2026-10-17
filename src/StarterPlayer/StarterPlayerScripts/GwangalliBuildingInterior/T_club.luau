@@ -3732,6 +3732,46 @@ local function buildRooftop(K: any, V: any, R: any)
 			K:disc("UplightLens", 0.4, 0.03, u * CF(0, 0.42, 0), Look.lampWarm)
 		end)
 	end
+	-- 화분 야자수: 맵의 네모 줄기 + 납작한 잎 판 7장을 숨기고, 마디진 줄기 + 아치형 잎 9장 (워싱턴야자) 으로 다시
+	do
+		local trunks = {}
+		for _, r in V.byName.PalmTrunk or {} do
+			local mn, mx = abox(R, r)
+			table.insert(trunks, { c = (mn + mx) / 2, y0 = mn.Y, y1 = mx.Y })
+			safeHide(K, r)
+		end
+		for _, r in V.byName.PalmLeaf or {} do
+			safeHide(K, r)
+		end
+		local bark = { lk(rgb(104, 82, 62), M.Wood), lk(rgb(84, 66, 50), M.Wood) }
+		local leafA, leafB = lk(rgb(64, 112, 52), M.LeafyGrass), lk(rgb(84, 132, 60), M.LeafyGrass)
+		for ti, t in trunks do
+			K:free(function()
+				local top = t.y1 - 0.4
+				local lean = V3(math.cos(ti * 1.7) * 0.35, 0, math.sin(ti * 1.7) * 0.35)
+				local n = 6
+				local prev = ap(R, t.c.X, t.y0, t.c.Z)
+				for k = 1, n do
+					local f = k / n
+					local p = ap(R, t.c.X, t.y0 + (top - t.y0) * f, t.c.Z) + R.A:VectorToWorldSpace(lean * f * f)
+					K:seg("PalmTrunkSeg", prev, p, 0.95 - 0.3 * f, bark[k % 2 + 1], 0.06)
+					prev = p
+				end
+				K:ball("PalmCrownBoot", 1.15, CF(prev), lk(rgb(110, 92, 60), M.Grass))
+				for k = 0, 8 do
+					local a = k * 2 * PI / 9 + ti * 0.4
+					local dir = R.A:VectorToWorldSpace(V3(math.cos(a), 0, math.sin(a)))
+					local up = Vector3.yAxis
+					local L = 3.6 + (k % 3) * 0.4
+					local pts = { prev, prev + dir * (L * 0.3) + up * 0.75, prev + dir * (L * 0.65) + up * 0.55, prev + dir * L - up * (0.5 + (k % 2) * 0.4) }
+					local look = if k % 2 == 0 then leafA else leafB
+					for j = 1, 3 do
+						K:bar("PalmFrond", pts[j], pts[j + 1], ({ 0.5, 1.15, 0.8 })[j], 0.06, look)
+					end
+				end
+			end)
+		end
+	end
 
 	-- 7) 유리 난간 LED (바닥 레일 안쪽 전체) ---------------------------------------------------------------------
 	K:free(function()
