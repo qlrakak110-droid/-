@@ -1724,6 +1724,12 @@ local function kitchen(c: any)
 			table.insert(busy, { s.min.X - 0.25, s.max.X + 0.25 })
 		end
 	end
+	-- 상판 위 맵 파트 (도마 CuttingBoard 등 게임플레이 파트는 solid 목록에 없을 수 있음): 상판보다 높이 솟은 것은 모두 피함
+	for _, r in V.parts do
+		if not r.shell and r.max.Y > topY + 0.02 and r.min.Y < topY + 1.5 and r.max.X > tmn.X and r.min.X < tmx.X and r.max.Z > tmn.Z and r.min.Z < tmx.Z then
+			table.insert(busy, { r.min.X - 0.25, r.max.X + 0.25 })
+		end
+	end
 	local zBack = if againstBack then tmn.Z + 0.6 else (tmn.Z + tmx.Z) / 2
 	local items: { any } = {}
 	if th.kind == "sushi" then
@@ -1741,6 +1747,7 @@ local function kitchen(c: any)
 	end
 	local cursor = tmn.X + 0.3
 	local steamSrc: { any } = {}
+	local placedNames: { string } = {}
 	for _, it in items do
 		local placed = false
 		while cursor + it.w <= tmx.X - 0.25 do
@@ -1760,6 +1767,7 @@ local function kitchen(c: any)
 				local h = if isPot then 1.6 elseif it.kind == "sink" then 1.0 else 0.8
 				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 elseif it.kind == "bowl" then 1.3 else 1.0)) then
 					placed = true
+					table.insert(placedNames, string.format("%s@%.1f", it.kind, cx))
 					cursor = b + 0.2
 					-- 놓은 자리는 다음 품목 (처음부터 다시 찾을 때 포함) 이 피함
 					table.insert(busy, { a - 0.1, b + 0.1 })
@@ -1838,6 +1846,7 @@ local function kitchen(c: any)
 		end
 	end
 	c.steamSrc = steamSrc
+	K:note("counter: " .. table.concat(placedNames, " "))
 end
 
 -- 김 (냄비 · 찜기): 반투명 구 3개가 오르며 흩어짐

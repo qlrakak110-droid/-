@@ -741,6 +741,8 @@ local function frontKitchen(K: any, V: any)
 			K:text("FoodPrice", tw - 0.4, 0.38, tc * CF(0, -1.18, 0.01), it[2], { fg = C.amber, glow = 1.5, font = F.GothamBlack })
 		end
 		K:text("FoodMenuFoot", mw * 0.9, 0.3, mc * CF(0, -mh / 2 + 0.22, 0.185), "모니터 하단 메뉴 → 음식 주문 · 자리로 가져다 드려요", { fg = rgb(200, 200, 210), glow = 1.1, font = F.GothamMedium })
+		-- 모서리 신메뉴 스티커 (아직 주문 메뉴엔 없음 = 준비중)
+		K:text("FoodNewSticker", 1.9, 0.62, mc * CF(mw / 2 - 0.15, mh / 2 + 0.05, 0.2) * ANG(0, 0, -0.18), "NEW 준비중\n김치볶음밥 5,500 · 떡볶이 4,500", { fg = rgb(30, 20, 10), bg = rgb(255, 214, 40), font = F.GothamBlack, d = 0.012 })
 	end)
 
 	-- 조리대 위: 맵의 상자 조리기 · 냄비 · 라면 박스 숨기고 다시
