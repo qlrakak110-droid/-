@@ -1135,17 +1135,19 @@ local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
 		end
 		return -1, mx.X
 	end
-	-- 벽걸이 소변기: 모서리 둥근 몸통 (평평한 앞면) + 둥근 윗머리 + 앞면 타원 볼 (회색 그림자로 움푹) + 아래 배수관
+	-- 벽걸이 소변기: 알약 단면 몸통 (평평한 앞면) + 앞면 타원 볼 (위 가장자리 그림자로 움푹) + 배수구 + 아래 배수관
 	each("Urinal", function(mn, mx)
 		local s, wx = side(mn, mx)
 		local d, h, w = mx.X - mn.X, mx.Y - mn.Y, mx.Z - mn.Z
 		local cz = (mn.Z + mx.Z) / 2
-		local bodyH = h * 0.78
+		local dd = d - 0.05
 		K:box("UrinalBack", V3(0.1, h - 0.1, w - 0.2), at(R, wx + s * 0.05, cz, 0, mn.Y + h / 2), CHINA)
-		K:rbox("UrinalBody", V3(bodyH, d - 0.05, w - 0.1), 0.38, at(R, wx + s * (d - 0.05) / 2, cz, 0, mn.Y + bodyH / 2) * ANG(0, 0, PI / 2), CHINA)
-		K:ell("UrinalTop", V3(2 * (d - 0.05), (h - bodyH) * 2, w - 0.1), at(R, wx, cz, 0, mn.Y + bodyH - 0.02), CHINA)
-		K:ell("UrinalBowl", V3(0.04, bodyH * 0.72, (w - 0.1) * 0.66), at(R, wx + s * (d - 0.05), cz, 0, mn.Y + bodyH * 0.56), lk(rgb(150, 156, 162)))
-		K:ell("UrinalBowlDeep", V3(0.05, bodyH * 0.42, (w - 0.1) * 0.4), at(R, wx + s * (d - 0.045), cz, 0, mn.Y + bodyH * 0.42), lk(rgb(118, 124, 130)))
+		-- 옆에서 보면 위 · 아래 앞 모서리가 둥근 알약 모양 (rbox 의 둥근 모서리 4개가 폭 방향)
+		K:rbox("UrinalBody", V3(w - 0.1, h, dd), 0.5, at(R, wx + s * dd / 2, cz, PI / 2, mn.Y + h / 2), CHINA)
+		local fx = wx + s * dd
+		K:ell("UrinalBowl", V3(0.03, h * 0.56, (w - 0.1) * 0.64), at(R, fx, cz, 0, mn.Y + h * 0.5), lk(rgb(212, 216, 218)))
+		K:ell("UrinalBowlShade", V3(0.036, h * 0.12, (w - 0.1) * 0.52), at(R, fx, cz, 0, mn.Y + h * 0.72), lk(rgb(120, 126, 132)))
+		wdisc(K, "UrinalDrain", 0.2, 0.02, R.A * CFrame.fromMatrix(V3(fx + s * 0.015, mn.Y + h * 0.3, cz), V3(0, 0, -s), Vector3.yAxis, V3(s, 0, 0)), Look.chrome)
 		K:cyl("UrinalTrap", 0.9, 0.22, at(R, wx + s * 0.45, cz, 0, mn.Y - 0.35), Look.chrome)
 		K:vcyl("UrinalSpud", 0.4, 0.2, at(R, wx + s * 0.85, cz, 0, mn.Y - 0.15), Look.chrome)
 	end)

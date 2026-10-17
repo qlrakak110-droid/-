@@ -35,7 +35,7 @@ local rgb = Color3.fromRGB
 local WHITE = rgb(255, 255, 255)
 local WALL_OFF = 0.05 -- 벽 부착물은 타일 · 줄눈 · 색띠(최대 0.045) 앞에
 -- 활어 손질대 상판: 헤어라인 스테인리스 (횟집 · 수산 · 조개찜 · 대게 공통)
-local STEEL_TOP = Look.of(198, 202, 206, Enum.Material.Metal, { r = 0.14 })
+local STEEL_TOP = Look.of(204, 208, 212, Enum.Material.Metal)
 
 -- 공용 도우미 ------------------------------------------------------------------------------------------
 local function col(c: Color3, m: Enum.Material?, extra: any?): any
@@ -1565,21 +1565,23 @@ end
 -- 위생 앞치마 걸이 (PVC 앞치마 2 + 고무장갑 + 토시) + 아래 바닥에 고무 장화
 local function apronStation(c: any, dcf: CFrame, bootsCf: CFrame?)
 	local K = c.K
-	K:plate("ApronRail", 1.4, 0.12, 0.08, dcf * CF(0, 1.55, 0), L.of(196, 200, 204, M.Metal))
-	local colors = { pickOf({ rgb(236, 120, 40), rgb(40, 110, 190), rgb(250, 250, 246) }, c.seed, 51), rgb(30, 30, 34) }
+	K:plate("ApronRail", 1.6, 0.12, 0.08, dcf * CF(0, 1.35, 0), L.of(196, 200, 204, M.Metal))
+	local colors = { pickOf({ rgb(236, 120, 40), rgb(40, 110, 190), rgb(60, 140, 90) }, c.seed, 51), rgb(34, 36, 44) }
 	for i, cc in colors do
-		local x = -0.36 + (i - 1) * 0.72
-		K:vcyl("ApronHook", 0.06, 0.12, dcf * CF(x, 1.5, 0.12), L.chrome)
-		local a = dcf * CF(x, 0.15, 0.1 + i * 0.03)
-		K:plate("Apron", 0.66, 2.3, 0.03, a * CF(0, -0.15, 0), col(cc, M.Plastic, { r = 0.06 }))
-		K:plate("ApronBib", 0.42, 0.5, 0.03, a * CF(0, 1.1, 0.0), col(cc, M.Plastic, { r = 0.06 }))
-		K:seg("ApronStrap", (dcf * CF(x - 0.12, 1.36, 0.14 + i * 0.03)).Position, (dcf * CF(x - 0.18, 1.5, 0.14)).Position, 0.03, col(cc))
-		K:seg("ApronStrap", (dcf * CF(x + 0.12, 1.36, 0.14 + i * 0.03)).Position, (dcf * CF(x + 0.18, 1.5, 0.14)).Position, 0.03, col(cc))
+		local x = -0.4 + (i - 1) * 0.8
+		local z = 0.06 + i * 0.04
+		local look = col(cc, M.Plastic)
+		K:cyl("ApronHook", 0.2, 0.06, dcf * CF(x, 1.3, 0.14) * ANG(0, PI / 2, 0), L.chrome)
+		-- 가슴판 (위가 좁음) + 치마 (넓고 길게) + 목끈 고리
+		K:plate("ApronBib", 0.46, 0.6, 0.03, dcf * CF(x, 0.8, z), look)
+		K:plate("Apron", 0.8, 2.0, 0.03, dcf * CF(x, -0.5, z), look)
+		K:seg("ApronStrap", (dcf * CF(x - 0.2, 1.08, z + 0.02)).Position, (dcf * CF(x, 1.3, 0.14)).Position, 0.035, look)
+		K:seg("ApronStrap", (dcf * CF(x + 0.2, 1.08, z + 0.02)).Position, (dcf * CF(x, 1.3, 0.14)).Position, 0.035, look)
 	end
 	-- 고무장갑 (노랑 · 빨강) 한 켤레를 고리에
-	K:vcyl("GloveHook", 0.06, 0.1, dcf * CF(0.62, 1.2, 0.1), L.chrome)
-	K:ell("RubberGloveHang", V3(0.22, 0.7, 0.08), dcf * CF(0.58, 0.8, 0.14) * ANG(0, 0, 0.12), L.of(244, 196, 40, M.Rubber))
-	K:ell("RubberGloveHang", V3(0.22, 0.66, 0.08), dcf * CF(0.68, 0.78, 0.2) * ANG(0, 0, -0.1), L.of(200, 50, 40, M.Rubber))
+	K:cyl("GloveHook", 0.24, 0.05, dcf * CF(0.72, 1.3, 0.2) * ANG(0, PI / 2, 0), L.chrome)
+	K:ell("RubberGloveHang", V3(0.22, 0.7, 0.08), dcf * CF(0.68, 0.95, 0.26) * ANG(0, 0, 0.12), L.of(244, 196, 40, M.Rubber))
+	K:ell("RubberGloveHang", V3(0.22, 0.66, 0.08), dcf * CF(0.76, 0.93, 0.32) * ANG(0, 0, -0.1), L.of(244, 196, 40, M.Rubber))
 	if bootsCf then
 		for _, sx in { -1, 1 } do
 			local b = bootsCf * CF(sx * 0.24, 0, 0)
@@ -3185,7 +3187,7 @@ function T.build(K: any, V: any, S: any)
 		end
 		-- 카운터의 방 가운데 쪽 끝 옆 (뒷벽 우선)
 		local endX = if math.abs(g.min.X) < math.abs(g.max.X) then g.min.X - 1.0 else g.max.X + 1.0
-		local wn, u = findWall(K, { "back" }, 1.5, 1.5, 2.2, 6.2, endX, 0.5)
+		local wn, u = findWall(K, { "back" }, 1.7, 1.7, 2.2, 6.0, endX, 0.5)
 		if wn and u then
 			local bcf = V:wall(wn, u, 0, 0.55)
 			local okBoots = K:spot(bcf * CF(0, 0, 0), V3(1.0, 1.3, 0.85), 0.05, "seafood")
