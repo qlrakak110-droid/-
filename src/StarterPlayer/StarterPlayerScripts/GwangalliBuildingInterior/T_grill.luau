@@ -258,10 +258,19 @@ local function promptOK(c: any, lp: Vector3): boolean
 	if not Interact.canPrompt(K, lp) then
 		return false
 	end
+	-- 테이블 가운데 5.4 · 좌석 3.4 스터드 안은 피함 (서버 앉기 프롬프트와 화면에서 안 겹치게; 공용 규칙은 4.0)
 	for _, t in V.tables do
 		local tc = (t.min + t.max) / 2
-		if V3(tc.X - lp.X, 0, tc.Z - lp.Z).Magnitude < 6.6 then
+		if V3(tc.X - lp.X, 0, tc.Z - lp.Z).Magnitude < 5.4 then
 			return false
+		end
+	end
+	for _, fam in { V.chairs, V.stools } do
+		for _, ch in fam or {} do
+			local sc = ch.seat.c
+			if V3(sc.X - lp.X, 0, sc.Z - lp.Z).Magnitude < 3.4 then
+				return false
+			end
 		end
 	end
 	return true
@@ -2260,9 +2269,32 @@ local function wallTV(c: any)
 		return promptWallOK(c, wn2, cu, 4.7)
 	end)
 	local remote = wn ~= nil
+	local ru = u
 	if not wn or not u then
-		-- 프롬프트 자리가 없으면 TV 만 (리모컨 없이) 높이 걸기
+		-- 바로 아래가 막혔으면 TV 는 높이 걸고 리모컨 거치대는 TV 옆 빈 벽 (3 스터드 안, 프롬프트 가능한 곳)
 		wn, u = findWall(K, { "left", "right", "back" }, w + 0.3, w + 0.3, 5.6, 8.6, V3(0, 0, V.z0 + 4), 0.6)
+		if wn and u then
+			local spans = freeSpans(K, wn, 4.2, 5.3, 0.4)
+			local dus = {}
+			for k = 0, 16 do
+				table.insert(dus, -(1.4 + k * 0.2))
+				table.insert(dus, 1.4 + k * 0.2)
+			end
+			for _, du in dus do
+				local cu = u + du
+				local fits = false
+				for _, sp in spans do
+					if cu - 0.35 >= sp[1] and cu + 0.35 <= sp[2] then
+						fits = true
+					end
+				end
+				if fits and promptWallOK(c, wn, cu, 4.7) then
+					remote, ru = true, cu
+					claim(K, wn, cu - 0.35, cu + 0.35, 4.2, 5.3)
+					break
+				end
+			end
+		end
 	end
 	if not wn or not u then
 		return
@@ -2270,8 +2302,8 @@ local function wallTV(c: any)
 	local dcf = V:wall(wn, u, 7.1, 0)
 	K:plate("TVMount", w * 0.3, h * 0.4, 0.1, dcf, L.blackMetal)
 	local scr, lab = tvScreen(c, dcf * CF(0, 0, 0.1), w, h, 0.12)
-	if remote then
-		tvRemote(c, wn, u, scr, lab)
+	if remote and ru then
+		tvRemote(c, wn, ru, scr, lab)
 	else
 		-- 스스로 바뀌는 화면 (야구 중계 · 뉴스)
 		Interact.screenLoop(K, scr, lab, { TV_FRAMES[1], TV_FRAMES[2], TV_FRAMES[3] }, 9)
@@ -3495,7 +3527,8 @@ local function graffitiWall(c: any)
 				for i = 1, n do
 					local k = placed * 40 + i
 					local ci, ri = (i - 1) % cols, (i - 1) // cols
-					local x = u0 - w / 2 + cwid * (ci + 0.5) + (rnd(c.seed, k * 3) - 0.5) * cwid * 0.3
+					local half = math.min(0.75, cwid / 2)
+					local x = math.clamp(u0 - w / 2 + cwid * (ci + 0.5) + (rnd(c.seed, k * 3) - 0.5) * cwid * 0.3, u0 - w / 2 + half + 0.05, u0 + w / 2 - half - 0.05)
 					local y = y0 + 0.1 + rh * (ri + 0.5) + (rnd(c.seed, k * 5) - 0.5) * rh * 0.3
 					local roll = rnd(c.seed, k * 13)
 					local tilt = (rnd(c.seed, k * 11) - 0.5) * 0.36

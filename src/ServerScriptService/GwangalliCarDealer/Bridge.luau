@@ -291,34 +291,59 @@ local function isTraffic(m: Instance): boolean
 	return false
 end
 
--- The model the garage delivers for a kit kind: the spawn system's cached template, else the first parked map
--- car of that kind (never traffic / NoDrive / rigged), else the showroom display car of that kind.
-function Bridge.kitSource(kind: string): Model?
+-- The models the garage delivers for kit kinds (one map pass): the spawn system's cached template, else the
+-- first parked map car of that kind (never traffic / NoDrive / rigged), else the showroom display car.
+function Bridge.kitSources(kinds: { string }): { [string]: Model }
+	local want: { [string]: boolean } = {}
+	local left = 0
+	for _, k in kinds do
+		if not want[k] then
+			want[k] = true
+			left += 1
+		end
+	end
+	local out: { [string]: Model } = {}
+	local function take(kind: any, m: Model)
+		if type(kind) == "string" and want[kind] and not out[kind] then
+			out[kind] = m
+			left -= 1
+		end
+	end
 	local holder = ServerStorage:FindFirstChild("GwangalliDriveTemplates")
 	if holder then
 		for _, c in holder:GetChildren() do
-			if c:IsA("Model") and c:GetAttribute("VehicleKind") == kind then
-				return c
+			if c:IsA("Model") then
+				take(c:GetAttribute("VehicleKind"), c)
 			end
 		end
 	end
-	local map = workspace:FindFirstChild("Gwangalli") or workspace
-	local n = 0
-	for _, d in map:GetDescendants() do
-		n += 1
-		if n % 4000 == 0 then
-			task.wait()
-		end
-		if d:IsA("Model") and d:GetAttribute("VehicleKind") == kind and not d:GetAttribute("DriveRigged") and not d:GetAttribute("NoDrive") and not isTraffic(d) then
-			return d
+	if left > 0 then
+		local map = workspace:FindFirstChild("Gwangalli") or workspace
+		local n = 0
+		for _, d in map:GetDescendants() do
+			n += 1
+			if n % 4000 == 0 then
+				task.wait()
+			end
+			if d:IsA("Model") then
+				local kind = d:GetAttribute("VehicleKind")
+				if kind ~= nil and want[kind] and not out[kind] and not d:GetAttribute("DriveRigged") and not d:GetAttribute("NoDrive") and not isTraffic(d) and d:IsDescendantOf(workspace) then
+					take(kind, d)
+					if left <= 0 then
+						break
+					end
+				end
+			end
 		end
 	end
-	for _, d in CollectionService:GetTagged("GarageDisplayCar") do
-		if d:IsA("Model") and d:GetAttribute("GarageKind") == kind then
-			return d
+	if left > 0 then
+		for _, d in CollectionService:GetTagged("GarageDisplayCar") do
+			if d:IsA("Model") and d:IsDescendantOf(workspace) then
+				take(d:GetAttribute("GarageKind"), d)
+			end
 		end
 	end
-	return nil
+	return out
 end
 
 function Bridge.players(): { Player }

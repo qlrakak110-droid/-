@@ -8,7 +8,7 @@
 --   CS.Lines    the Korean line bank (std / 부산 사투리), Lines.get(key, ctx)
 --   CS.Personas who works where: roles per shop type, deterministic names / titles / looks
 --   CS.NavGrid  the pure grid planner the waiters walk with (A* + string pulling)
---   CS.Menus    per-kind counter menus for staff counters that ShopLife does not run
+--   CS.Menus    what counter staff sell where ShopLife does not run the counter (홈플러스 POS, PC방 ...)
 -- Pure modules: no instances at require time, nothing yields. Safe on server and client.
 
 local Shared = {}
@@ -18,8 +18,8 @@ Shared.VERSION = 1
 -- instance names (the contract other systems may read)
 Shared.NET = "GwangalliShopCrewNet" -- ReplicatedStorage folder: Request (RemoteFunction), Event (RemoteEvent)
 Shared.API = "GwangalliShopCrew" -- ServerStorage folder: API (BindableFunction), Event (BindableEvent), attribute Ready
-Shared.WORLD = "GwShopCrew" -- Workspace folder: <shopKey>/Spots, door-opener proxies, helper props
-Shared.RIG_FOLDER = "GwangalliShopStaff" -- Workspace folder of every staff rig (shared with ShopStaff: see Config)
+Shared.WORLD = "GwShopCrew" -- Workspace folder: Staff (crew rigs), Diners (NPC customers), Spots/<shopKey> (GwCrewSpot
+--   parts), Fx (door-opener proxies). Clients add Workspace.GwShopCrewLocal (their own props / fx).
 Shared.TAG = "GwShopCrew" -- our rigs (crew + diners)
 Shared.NPC_TAG = "GwShopNpc" -- every NPC model this add-on owns (crew, diners)
 Shared.STAFF_TAG = "GwShopStaff" -- GwangalliNPCClient animates models with this tag

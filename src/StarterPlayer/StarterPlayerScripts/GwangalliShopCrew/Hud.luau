@@ -178,7 +178,7 @@ local function onReceipt(d: any)
 		receipt:Destroy()
 	end
 	local W = 240
-	local slip = new("TextButton", { Name = "CrewReceipt", AutoButtonColor = false, Text = "", BackgroundColor3 = PAPER, Size = UDim2.fromOffset(W, 100), ZIndex = 30 }, screen)
+	local slip = new("TextButton", { Name = "CrewReceipt", AutoButtonColor = false, Text = "", BackgroundColor3 = PAPER, Size = UDim2.fromOffset(W, 100), ZIndex = 30, ClipsDescendants = true }, screen)
 	receipt = slip
 	corner(slip, 6)
 	local y = 10
