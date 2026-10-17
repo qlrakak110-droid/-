@@ -477,7 +477,7 @@ local THEMES: { [string]: any } = {
 -- 포차 (실내포차): 천막 색은 가게 이름으로
 local TARPS = {
 	{ name = "orange", a = rgb(244, 124, 38), b = rgb(244, 124, 38), trim = rgb(252, 238, 212) },
-	{ name = "blue", a = rgb(40, 96, 180), b = rgb(40, 96, 180), trim = rgb(244, 244, 240) },
+	{ name = "blue", a = rgb(56, 128, 214), b = rgb(48, 112, 196), trim = rgb(244, 244, 240) },
 	{ name = "red", a = rgb(214, 44, 38), b = rgb(214, 44, 38), trim = rgb(250, 238, 214) },
 	{ name = "stripe", a = rgb(214, 58, 40), b = rgb(244, 238, 226), trim = rgb(252, 240, 220) },
 }

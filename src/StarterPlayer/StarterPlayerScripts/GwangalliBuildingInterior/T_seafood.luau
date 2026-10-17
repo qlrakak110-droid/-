@@ -2714,8 +2714,9 @@ local function clamRack(c: any, pcf: CFrame, w: number)
 end
 
 -- 대게 찜통 (가스 레인지 + 3단 원형 찜통 2줄 + 벽 후드 + 김). 반환: 뚜껑 Model, 경첩(월드), 축(월드)
-local function crabSteamer(c: any, pcf: CFrame): (Model?, Vector3?, Vector3?)
+local function crabSteamer(c: any, pcf: CFrame, style: string?): (Model?, Vector3?, Vector3?)
 	local K, V = c.K, c.V
+	local jjim = style == "jjim"
 	local w, d = 2.6, 1.8
 	local steel = L.of(206, 210, 214, M.Metal, { r = 0.1 })
 	local rangeH = 1.4
@@ -2728,22 +2729,32 @@ local function crabSteamer(c: any, pcf: CFrame): (Model?, Vector3?, Vector3?)
 	end
 	K:box("SteamRangeTop", V3(w + 0.04, 0.06, d + 0.04), pcf * CF(0, rangeH + 0.03, 0), L.of(50, 52, 56, M.Metal))
 	K:plate("SteamPilot", 0.1, 0.06, 0.02, pcf * CF(0, 0.95, d / 2), L.neon(rgb(80, 150, 255)))
-	ktext(K, "SteamRangeLabel", 1.5, 0.3, pcf * CF(0, 0.55, d / 2 + 0.01), "대게 찜통 · 15분", { fg = WHITE, bg = rgb(196, 36, 28), font = F.GothamBold, d = 0.02 })
+	ktext(K, "SteamRangeLabel", 1.5, 0.3, pcf * CF(0, 0.55, d / 2 + 0.01), if jjim then "조개찜 찜솥 · 12분" else "대게 찜통 · 15분", { fg = WHITE, bg = if jjim then c.th.accent else rgb(196, 36, 28), font = F.GothamBold, d = 0.02 })
 	local lid: Model? = nil
 	local hinge: Vector3? = nil
 	for k, sx in { -1, 1 } do
 		local base = pcf * CF(sx * 0.64, rangeH + 0.06, 0)
 		K:disc("SteamBurnerRing", 0.9, 0.06, base * CF(0, 0.03, 0), L.of(40, 40, 44, M.Metal))
 		local y = 0.06
-		for tier = 1, 3 do
-			K:disc("SteamBasket", 1.16, 0.5, base * CF(0, y + 0.25, 0), steel)
-			K:disc("SteamBasketRim", 1.22, 0.05, base * CF(0, y + 0.5, 0), L.of(186, 190, 194, M.Metal))
-			if tier == 2 then
-				for _, hx in { -1, 1 } do
-					K:box("SteamBasketHandle", V3(0.16, 0.06, 0.3), base * CF(hx * 0.64, y + 0.4, 0), L.black)
-				end
+		if jjim then
+			-- 대형 알루미늄 찜솥 (손잡이 2) + 안쪽 찜 채반 테두리
+			K:disc("JjimPot", 1.2, 0.95, base * CF(0, y + 0.475, 0), L.of(206, 202, 192, M.Metal))
+			K:disc("JjimPotRim", 1.26, 0.06, base * CF(0, y + 0.95, 0), L.of(222, 218, 208, M.Metal))
+			for _, hx in { -1, 1 } do
+				K:box("JjimPotHandle", V3(0.18, 0.08, 0.32), base * CF(hx * 0.68, y + 0.8, 0), L.black)
 			end
-			y += 0.52
+			y += 0.97
+		else
+			for tier = 1, 3 do
+				K:disc("SteamBasket", 1.16, 0.5, base * CF(0, y + 0.25, 0), steel)
+				K:disc("SteamBasketRim", 1.22, 0.05, base * CF(0, y + 0.5, 0), L.of(186, 190, 194, M.Metal))
+				if tier == 2 then
+					for _, hx in { -1, 1 } do
+						K:box("SteamBasketHandle", V3(0.16, 0.06, 0.3), base * CF(hx * 0.64, y + 0.4, 0), L.black)
+					end
+				end
+				y += 0.52
+			end
 		end
 		local lidY = y
 		if k == 1 then
@@ -3219,6 +3230,20 @@ function T.build(K: any, V: any, S: any)
 		bigWalls = { "right", "left" }
 	end
 	local isSushi = th.kind == "sushi"
+	-- 벽 계획: A = 메뉴 벽, B = 맞은편 옆벽, back = 뒷벽 (카운터 · 냉장고 남은 자리)
+	local A, B = bigWalls[1], bigWalls[2]
+	local pFront = V3(0, 0, V.z1 - 3.5)
+	local pBack = V3(V.x1 * 0.25, 0, V.z0 + 3)
+	local pMid = V3(0, 0, (V.z0 + V.z1) / 2 + 0.5)
+	-- 3a) 메뉴판이 가장 먼저 (바닥 소품 · 찜기가 옆벽을 다 차지하기 전에)
+	step("menu", function()
+		local w = math.min(9, math.max(6, V.D * 0.5))
+		local wn, u, ww = findWall(K, { A, B }, 6.0, w, 3.95, 7.75, pMid, 0.6)
+		if wn and u and ww then
+			menuLightbox(c, V:wall(wn, u, 5.85, WALL_OFF), ww, 3.4)
+			at(K, "menu", wn, u)
+		end
+	end)
 	-- 3) 바닥 소품 (벽 자리를 먼저 차지)
 	local fridgeDoors = nil
 	step("fridge", function()
@@ -3259,6 +3284,20 @@ function T.build(K: any, V: any, S: any)
 			if pcf then
 				clamRack(c, pcf, 3.6)
 				at(K, "clamRack", nil, nil, pcf.Position)
+			end
+			-- 찜솥 레인지 (조개찜은 카운터가 좁아 솥을 바닥 레인지에): 프롬프트 자리 우선
+			local size = V3(2.9, 6.3, 1.9)
+			local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
+			local scf = floorOnWall(K, { bigWalls[2], "back", bigWalls[1] }, size, nearS, 0.15, function(p: CFrame)
+				return Interact.canPrompt(K, (p * CF(-0.64, 3.0, 0.2)).Position)
+			end)
+			if not scf then
+				scf = floorOnWall(K, { bigWalls[2], "back", bigWalls[1] }, size, nearS, 0.15)
+			end
+			if scf then
+				local door, hinge, axis = crabSteamer(c, scf, "jjim")
+				c.steamer = { door = door, hinge = hinge, axis = axis, object = "조개찜 찜솥" }
+				at(K, "steamer", nil, nil, scf.Position)
 			end
 		elseif th.kind == "crab" then
 			local size = V3(2.9, 6.3, 1.9)
@@ -3322,19 +3361,6 @@ function T.build(K: any, V: any, S: any)
 				})
 				at(K, "tankSwitch", wn, u)
 			end
-		end
-	end)
-	-- 4) 벽 계획: A = 메뉴 벽, B = 맞은편 옆벽, back = 뒷벽 (카운터 · 냉장고 남은 자리)
-	local A, B = bigWalls[1], bigWalls[2]
-	local pFront = V3(0, 0, V.z1 - 3.5)
-	local pBack = V3(V.x1 * 0.25, 0, V.z0 + 3)
-	local pMid = V3(0, 0, (V.z0 + V.z1) / 2 + 0.5)
-	step("menu", function()
-		local w = math.min(9, math.max(6, V.D * 0.5))
-		local wn, u, ww = findWall(K, { A, B }, 6.0, w, 3.95, 7.75, pMid, 0.6)
-		if wn and u and ww then
-			menuLightbox(c, V:wall(wn, u, 5.85, WALL_OFF), ww, 3.4)
-			at(K, "menu", wn, u)
 		end
 	end)
 	step("tv", function()
@@ -3522,7 +3548,7 @@ function T.build(K: any, V: any, S: any)
 		end
 		-- (d) 대게 찜기 문
 		if c.steamer and c.steamer.door and c.steamer.hinge then
-			Interact.swing(K, c.steamer.door, c.steamer.hinge, c.steamer.axis or Vector3.xAxis, -1.25, { object = "대게 찜통", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
+			Interact.swing(K, c.steamer.door, c.steamer.hinge, c.steamer.axis or Vector3.xAxis, -1.25, { object = c.steamer.object or "대게 찜통", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 		end
 		-- (e) 선풍기 (상호작용이 4개 미만일 때만)
 		if c.fanSpot and #K.prompts < 4 then
