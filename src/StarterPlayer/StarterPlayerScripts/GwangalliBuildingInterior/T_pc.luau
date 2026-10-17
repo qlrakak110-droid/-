@@ -1867,6 +1867,23 @@ local function hallStations(K: any, V: any, st: { any })
 				end
 				local _ = gmx
 			end
+			-- 본체 앞면 RGB 팬 (맵 본체 앞면에 붙임): 네온 링 + 검은 허브
+			local tower, trgb = s.p.PCTower, s.p.TowerRGB
+			if tower and detail ~= "low" then
+				local tmn, tmx, tc = mb(K, tower)
+				local _, _, sc3 = mb(K, seat)
+				local tz = if sc3.Z > tc.Z then 1 else -1
+				local fzz = if tz > 0 then tmx.Z + 0.005 else tmn.Z - 0.005
+				local off = 0.1
+				if trgb then
+					local _, _, rc = mb(K, trgb)
+					off = if rc.X < tc.X then 0.1 else -0.1
+				end
+				local fd = faceCF(V3(tc.X + off, tmn.Y + (tmx.Y - tmn.Y) * 0.62, fzz), V3(0, 0, tz))
+				local fan = wdisc(K, "TowerFan", 0.52, 0.02, fd, neon(dk(z.c, 0.15)))
+				wdisc(K, "TowerFanHub", 0.36, 0.03, fd, lk(rgb(16, 16, 20)))
+				table.insert(P.rgb, { p = fan, c = dk(z.c, 0.15), x = tc.X, z = tc.Z })
+			end
 			-- 게이밍 의자 등판: 존 색 사이드 볼스터 2 + 뒷면 퀼팅 패널 (맵 등받이 바깥에 덧댐, 앉는 면은 그대로)
 			local back = s.p.ChairBack
 			if back and detail ~= "low" then

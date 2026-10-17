@@ -575,7 +575,10 @@ function Dialog.open(info: any)
 			return
 		end
 		if not h.ok then
-			h = { ctx = { garageReady = false } }
+			-- still loading the dealer's memory: greet normally; anything else: the garage system is down
+			local snap = ctx.Net.state.snap
+			local ready = h.code == "loading" or h.code == "rate" or (snap ~= nil and snap.garageReady == true)
+			h = { ctx = { garageReady = ready, visits = 1, owned = snap and snap.owned or 0, max = snap and snap.max or 3, canSell = snap ~= nil and (snap.owned or 0) > 0 } }
 		end
 		local text = greeting(h)
 		while isOpen and my == session do
