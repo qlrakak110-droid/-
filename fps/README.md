@@ -6,9 +6,9 @@ three.js와 WebSocket 서버가 모두 이 폴더에 들어 있습니다. 방을
 
 ![게임 화면](docs/gameplay.png)
 
-| 캐릭터 | 무기 |
+| 캐릭터 (애니메이션 + IK 조준) | 1인칭 (실제 모델 팔 + 장갑) |
 |---|---|
-| ![캐릭터](docs/soldiers.png) | ![무기](docs/weapons.png) |
+| ![캐릭터](docs/soldiers.png) | ![1인칭](docs/viewmodel.png) |
 
 ## 1. 실행 (1분)
 
@@ -64,8 +64,11 @@ three.js와 WebSocket 서버가 모두 이 폴더에 들어 있습니다. 방을
 - **방 코드 시스템**: 방마다 독립된 경기(점수·라운드·봇). 빈 방은 자동 삭제. 최대 16명/방.
 - **무기 4종**: AR-7 돌격소총(홀로사이트), VX-9 기관단총(소음기·리플렉스), K-14 저격소총(스코프·볼트액션),
   P-22 권총. 레일·M-LOK 홈·탄창·장전손잡이까지 모델링, 손가락이 그립을 감싸는 1인칭 팔, 탄피 배출.
-- **캐릭터**: 관절(무릎·팔꿈치 IK) 있는 병사 — 위장복, 플레이트 캐리어+파우치, 헬멧+고글+청음기, 배낭,
-  무릎보호대, 전투화. 플레이어별 장비 색상. 걷기/점프/사망 애니메이션.
+- **캐릭터**: 스켈레톤 애니메이션 병사 모델(Idle/Walk/Run 블렌딩). 상체는 실시간 IK로 조준 —
+  양손이 총의 그립·핸드가드를 잡고 손가락이 감기며, 몸통이 비틀리고 시선이 조준 각도를 따라감.
+  플레이어별 색상 틴트.
+- **1인칭 팔**: 같은 캐릭터 모델의 전완·장갑을 IK로 총에 붙이고 팔꿈치 뒤는 클리핑 — 반동·흔들림·
+  재장전 때도 손이 총을 따라감.
 - **그래픽**: 절차적 PBR 텍스처(노멀맵 — 콘크리트 블록, 보도블록, 골판지 컨테이너+녹, 나무 상자, 드럼통,
   모래주머니), 실시간 그림자, 구름 하늘, 창문 불빛 도시, 블룸·비네트·색보정 후처리, 탄흔·먼지·피 효과.
   `Esc` 메뉴에서 그래픽 품질 "낮음"으로 바꾸면 저사양 PC에서도 부드럽게 돌아갑니다.
@@ -82,11 +85,19 @@ bots.js            AI 봇
 public/
   index.html, style.css
   game.js          클라이언트 (입력, 이동, 무기, HUD, 네트워크)
-  models.js        총기·팔·병사·소품 모델
+  models.js        총기·소품 모델
+  character.js     캐릭터 애니메이션 + 조준 IK (3인칭/1인칭)
+  assets/soldier.glb  캐릭터 모델
   textures.js      절차적 텍스처 생성
   world.js         맵·조명·하늘·도시
   shared/map.js    맵·무기 데이터 (서버와 공유)
   vendor/          three.js (MIT, 동봉)
-  preview.html     모델 미리보기 (?m=guns | soldier | ar | smg | sniper | pistol)
+  char.html        캐릭터/1인칭 미리보기 (?m=third | ?m=fp&w=ar)
 test/bots.test.js  자동 테스트 (node test/bots.test.js)
 ```
+
+## 크레딧
+
+- 캐릭터 모델 `public/assets/soldier.glb`: three.js 예제의 Soldier 모델(Mixamo "Vanguard" 캐릭터·애니메이션).
+  Mixamo 에셋은 게임 안에서 사용하는 것은 허용되지만 모델 파일만 따로 재배포하는 것은 허용되지 않습니다.
+- three.js (MIT) — `public/vendor/THREE_LICENSE.txt`

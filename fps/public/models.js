@@ -75,8 +75,8 @@ export function createMaterials(T) {
   const camoMap = T.camo.map.clone(), camoN = T.camo.normalMap.clone();
   camoMap.repeat.set(3, 3); camoN.repeat.set(3, 3);
   return {
-    gunBlack: std({ color: 0x232528, roughness: 0.42, metalness: 0.65, map: T.gunmetal.map, normalMap: T.gunmetal.normalMap }),
-    gunPoly: std({ color: 0x26282a, roughness: 0.72, metalness: 0.05, normalMap: T.nylon.normalMap, normalScale: new THREE.Vector2(0.4, 0.4) }),
+    gunBlack: std({ color: 0x2c2f33, roughness: 0.36, metalness: 0.55, map: T.gunmetal.map, normalMap: T.gunmetal.normalMap }),
+    gunPoly: std({ color: 0x313336, roughness: 0.66, metalness: 0.05, normalMap: T.nylon.normalMap, normalScale: new THREE.Vector2(0.4, 0.4) }),
     gunTan: std({ color: 0x8c775a, roughness: 0.62, metalness: 0.05, normalMap: T.nylon.normalMap, normalScale: new THREE.Vector2(0.3, 0.3) }),
     gunOlive: std({ color: 0x4f5640, roughness: 0.66, metalness: 0.05, normalMap: T.nylon.normalMap, normalScale: new THREE.Vector2(0.3, 0.3) }),
     dark: std({ color: 0x0c0d0e, roughness: 0.6, metalness: 0.3 }),
@@ -96,15 +96,6 @@ export function createMaterials(T) {
     metalTex: T.metal,
     burlapMat: std({ color: 0xffffff, map: T.burlap.map, normalMap: T.burlap.normalMap, roughness: 0.95 }),
     flash: new THREE.MeshBasicMaterial({ map: T.muzzle, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
-  };
-}
-
-/** Per-player gear colour (vest, helmet cover, shoulder patch). */
-export function teamMaterials(T, hue) {
-  const c = new THREE.Color().setHSL(hue / 360, 0.38, 0.36);
-  return {
-    gear: new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, map: T.nylon.map, normalMap: T.nylon.normalMap }),
-    patch: new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(hue / 360, 0.85, 0.55), roughness: 0.6, emissive: new THREE.Color().setHSL(hue / 360, 0.9, 0.2) }),
   };
 }
 
@@ -286,7 +277,9 @@ export function worldGun(id, M) {
   if (!gunCache.has(id)) {
     const { B, Mg, extras, info } = buildGunParts(id, M);
     const g = B.build();
-    g.add(Mg.build());
+    const mag = Mg.build();
+    mag.name = 'mag';
+    g.add(mag);
     for (const e of extras) g.add(e);
     gunCache.set(id, { g, info });
   }
@@ -294,76 +287,13 @@ export function worldGun(id, M) {
   return { group: g.clone(), info };
 }
 
-// ---------- first-person arms ----------
-function rightHand(B, M) {
-  // Local grip frame: grip axis = +Y, front of grip = -Z.
-  B.box(0.05, 0.085, 0.03, M.glove, [0.006, -0.005, 0.032], undefined, 0.012);
-  B.box(0.024, 0.085, 0.06, M.glove, [0.03, -0.005, 0.0], undefined, 0.01);
-  for (let i = 0; i < 3; i++) {
-    const y = 0.012 - i * 0.024;
-    B.limb([0.032, y, -0.012], [0.004, y - 0.004, -0.034], 0.0105, M.glove);
-    B.limb([0.004, y - 0.004, -0.034], [-0.022, y - 0.006, -0.02], 0.0098, M.glove);
-    B.sphere(0.008, M.knuckle, [0.036, y, -0.014]);
-  }
-  B.limb([0.03, 0.05, -0.01], [0.016, 0.054, -0.05], 0.0095, M.glove);
-  B.limb([0.016, 0.054, -0.05], [0.004, 0.046, -0.062], 0.009, M.glove);
-  B.limb([-0.012, 0.04, 0.03], [-0.026, 0.052, -0.02], 0.011, M.glove);
-  B.limb([0.012, -0.03, 0.05], [0.1, -0.17, 0.13], 0.034, M.glove);
-  B.limb([0.07, -0.12, 0.1], [0.3, -0.44, 0.3], 0.047, M.camo);
-  B.torus(0.044, 0.009, M.strap, [0.075, -0.125, 0.105], [0.7, 0.6, 0]);
-}
-
-function leftHandUnder(B, M, vertical) {
-  // Local frame at the fore grip point: under the handguard, gun axis = -Z.
-  if (vertical) {
-    B.box(0.03, 0.06, 0.045, M.glove, [-0.032, -0.03, 0.005], undefined, 0.01);
-    for (let i = 0; i < 4; i++) {
-      const y = -0.005 - i * 0.017;
-      B.limb([-0.03, y, -0.02], [0.0, y, -0.03], 0.0095, M.glove);
-      B.limb([0.0, y, -0.03], [0.026, y, -0.012], 0.009, M.glove);
-    }
-    B.limb([-0.03, 0.01, 0.02], [0.01, 0.025, 0.035], 0.01, M.glove);
-  } else {
-    B.box(0.055, 0.026, 0.09, M.glove, [-0.004, -0.044, 0.0], [0, 0, 0.25], 0.011);
-    for (let i = 0; i < 4; i++) {
-      const z = -0.033 + i * 0.022;
-      B.limb([0.022, -0.042, z], [0.04, -0.012, z], 0.0098, M.glove);
-      B.limb([0.04, -0.012, z], [0.036, 0.012, z], 0.009, M.glove);
-    }
-    B.limb([-0.03, -0.035, 0.03], [-0.036, -0.004, -0.02], 0.0105, M.glove);
-  }
-  B.limb([-0.012, -0.055, 0.04], [-0.1, -0.16, 0.24], 0.034, M.glove);
-  B.limb([-0.06, -0.1, 0.13], [-0.22, -0.32, 0.46], 0.046, M.camo);
-  B.cyl(0.018, 0.012, M.watch, [-0.072, -0.11, 0.155], [0.6, 0, -0.7]);
-  B.cyl(0.013, 0.013, M.glass, [-0.078, -0.104, 0.15], [0.6, 0, -0.7]);
-}
-
-function leftHandPistol(B, M) {
-  B.box(0.026, 0.08, 0.055, M.glove, [-0.03, -0.01, 0.0], [0, 0, 0.1], 0.01);
-  for (let i = 0; i < 3; i++) {
-    const y = 0.0 - i * 0.022;
-    B.limb([-0.034, y, -0.035], [0.0, y - 0.004, -0.05], 0.0098, M.glove);
-    B.limb([0.0, y - 0.004, -0.05], [0.032, y - 0.004, -0.036], 0.009, M.glove);
-  }
-  B.limb([-0.03, 0.04, 0.0], [-0.02, 0.05, -0.06], 0.0105, M.glove);
-  B.limb([-0.03, -0.03, 0.04], [-0.1, -0.13, 0.23], 0.034, M.glove);
-  B.limb([-0.07, -0.08, 0.14], [-0.2, -0.3, 0.46], 0.046, M.camo);
-}
-
-/** First-person weapon: gun + arms, plus metadata for positioning. */
-export function viewWeapon(id, M) {
-  const { B, Mg, extras, info } = buildGunParts(id, M);
-  B.frame(info.grip, [info.gripRot, 0, 0], () => rightHand(B, M));
-  if (info.fore) B.frame(info.fore, [0, 0, 0], () => leftHandUnder(B, M, info.foreVertical));
-  else B.frame(info.grip, [info.gripRot, 0, 0], () => leftHandPistol(B, M));
+/** First-person weapon: the gun (arms come from the character rig), plus view positions. */
+export function fpWeapon(id, M) {
+  const { group, info } = worldGun(id, M);
   const root = new THREE.Group();
-  const model = new THREE.Group();
-  root.add(model);
-  const body = B.build({ shadows: false });
-  model.add(body);
-  const mag = Mg.build({ shadows: false });
-  model.add(mag);
-  for (const e of extras) model.add(e);
+  root.add(group);
+  group.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  const mag = group.getObjectByName('mag');
 
   const flash = new THREE.Group();
   for (let i = 0; i < 3; i++) {
@@ -375,193 +305,19 @@ export function viewWeapon(id, M) {
   flash.scale.setScalar(id === 'sniper' ? 1.5 : id === 'pistol' ? 0.7 : id === 'smg' ? 0.5 : 1);
   flash.position.set(0, 0.008, info.muzzleZ);
   flash.visible = false;
-  model.add(flash);
+  group.add(flash);
   root.visible = false;
 
   const POS = {
-    ar: { hip: [0.15, -0.165, -0.6], adsZ: -0.46 },
-    smg: { hip: [0.14, -0.15, -0.5], adsZ: -0.4 },
-    sniper: { hip: [0.17, -0.165, -0.64], adsZ: -0.4 },
-    pistol: { hip: [0.13, -0.14, -0.45], adsZ: -0.4 },
+    ar: { hip: [0.15, -0.19, -0.5], adsZ: -0.52 },
+    smg: { hip: [0.14, -0.17, -0.45], adsZ: -0.45 },
+    sniper: { hip: [0.16, -0.19, -0.55], adsZ: -0.42 },
+    pistol: { hip: [0.12, -0.15, -0.42], adsZ: -0.45 },
   }[id];
   return {
-    root, model, mag, magBase: mag.position.clone(), flash, info,
+    root, model: group, mag, magBase: mag.position.clone(), flash, info,
     hip: V(POS.hip), ads: new THREE.Vector3(0, -info.sightY, POS.adsZ),
   };
-}
-
-// =====================================================================
-// Soldier (third person)
-// =====================================================================
-/** Two-bone IK elbow position: shoulder S, hand H, bone lengths a,b, bend toward pole. */
-function elbow(S, H, a, b, pole) {
-  const d = H.clone().sub(S);
-  const dist = Math.min(d.length(), a + b - 1e-3);
-  const dir = d.normalize();
-  const along = (a * a - b * b + dist * dist) / (2 * dist);
-  const h = Math.sqrt(Math.max(0, a * a - along * along));
-  const p = pole.clone().sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
-  return S.clone().add(dir.multiplyScalar(along)).add(p.multiplyScalar(h));
-}
-
-const GUN_OFFSET = new THREE.Vector3(0.09, -0.07, -0.3);
-
-export class Soldier {
-  constructor(T, M, hue) {
-    const team = teamMaterials(T, hue);
-    this.team = team;
-    this.root = new THREE.Group();
-    const body = new THREE.Group();
-    this.body = body;
-    this.root.add(body);
-
-    // --- hips & legs ---
-    this.hips = new THREE.Group();
-    this.hips.position.y = 0.94;
-    body.add(this.hips);
-    {
-      const B = new Builder();
-      B.box(0.34, 0.2, 0.22, M.camo, [0, 0.02, 0], undefined, 0.06);
-      B.box(0.37, 0.05, 0.25, M.strap, [0, 0.1, 0], undefined, 0.015);
-      B.box(0.05, 0.05, 0.03, M.gunBlack, [0, 0.1, -0.128], undefined, 0.008);
-      B.box(0.08, 0.1, 0.05, M.strap, [0.17, 0.04, 0.06], undefined, 0.012);
-      B.box(0.07, 0.09, 0.05, M.strap, [-0.17, 0.04, 0.05], undefined, 0.012);
-      this.hips.add(B.build());
-    }
-    const leg = (side) => {
-      const thigh = new THREE.Group();
-      thigh.position.set(side * 0.1, -0.02, 0);
-      const shin = new THREE.Group();
-      shin.position.y = -0.43;
-      thigh.add(shin);
-      const Bt = new Builder();
-      Bt.limb([0, 0.02, 0], [0, -0.42, -0.01], 0.088, M.camo);
-      if (side > 0) { Bt.box(0.06, 0.15, 0.13, M.strap, [0.09, -0.16, 0.0], undefined, 0.02); Bt.box(0.04, 0.1, 0.06, M.gunBlack, [0.12, -0.17, -0.01], undefined, 0.01); }
-      else Bt.box(0.05, 0.12, 0.1, M.strap, [-0.09, -0.18, 0.02], undefined, 0.02);
-      thigh.add(Bt.build());
-      const Bs = new Builder();
-      Bs.limb([0, 0, -0.01], [0, -0.38, 0.0], 0.072, M.camo);
-      Bs.box(0.11, 0.12, 0.06, M.strap, [0, -0.02, -0.07], undefined, 0.025);
-      Bs.box(0.13, 0.15, 0.17, M.boot, [0, -0.4, -0.01], undefined, 0.04);
-      Bs.box(0.12, 0.09, 0.12, M.boot, [0, -0.43, -0.1], undefined, 0.035);
-      Bs.box(0.135, 0.03, 0.28, M.sole, [0, -0.475, -0.04], undefined, 0.012);
-      shin.add(Bs.build());
-      this.hips.add(thigh);
-      return { thigh, shin };
-    };
-    this.legL = leg(-1);
-    this.legR = leg(1);
-
-    // --- torso ---
-    this.spine = new THREE.Group();
-    this.spine.position.y = 0.1;
-    this.hips.add(this.spine);
-    {
-      const B = new Builder();
-      B.box(0.4, 0.5, 0.24, M.camo, [0, 0.27, 0], undefined, 0.08);
-      B.box(0.42, 0.36, 0.3, team.gear, [0, 0.29, 0], undefined, 0.04);
-      for (let i = 0; i < 3; i++) {
-        B.box(0.1, 0.13, 0.055, team.gear, [-0.12 + i * 0.12, 0.2, -0.17], undefined, 0.015);
-        B.box(0.1, 0.03, 0.06, M.strap, [-0.12 + i * 0.12, 0.27, -0.172], undefined, 0.008);
-      }
-      B.box(0.3, 0.06, 0.02, M.strap, [0, 0.39, -0.155], undefined, 0.006);
-      B.box(0.06, 0.16, 0.06, M.strap, [-0.23, 0.3, 0.02], undefined, 0.012);
-      B.cyl(0.006, 0.2, M.dark, [-0.23, 0.45, 0.02], [0, 0, 0]);
-      B.box(0.3, 0.36, 0.12, M.strap, [0, 0.3, 0.2], undefined, 0.04);
-      B.box(0.24, 0.12, 0.05, team.gear, [0, 0.22, 0.27], undefined, 0.02);
-      for (const s of [-1, 1]) B.box(0.07, 0.05, 0.3, M.strap, [s * 0.14, 0.5, 0], undefined, 0.015);
-      B.limb([0, 0.5, 0], [0, 0.6, 0], 0.06, M.skin);
-      this.spine.add(B.build());
-    }
-
-    // --- head ---
-    this.head = new THREE.Group();
-    this.head.position.y = 0.62;
-    this.spine.add(this.head);
-    {
-      const B = new Builder();
-      B.sphere(0.112, M.skin, [0, 0.04, 0], [0.92, 1.08, 1]);
-      B.sphere(0.115, M.strap, [0, 0.0, -0.005], [0.95, 0.75, 1.0]);
-      B.box(0.2, 0.05, 0.05, M.goggle, [0, 0.06, -0.09], undefined, 0.02);
-      B.box(0.25, 0.025, 0.14, M.strap, [0, 0.06, 0.0], undefined, 0.01);
-      B.add(new THREE.SphereGeometry(0.15, 18, 10, 0, PI * 2, 0, PI * 0.52), team.gear, [0, 0.07, 0.005], [0, 0, 0], [1, 0.95, 1.05]);
-      B.torus(0.148, 0.008, M.strap, [0, 0.07, 0.005], [PI / 2, 0, 0]);
-      B.box(0.06, 0.04, 0.03, M.gunBlack, [0, 0.14, -0.14], undefined, 0.008);
-      for (const s of [-1, 1]) B.cyl(0.045, 0.04, M.strap, [s * 0.12, 0.03, 0.0], [0, 0, PI / 2]);
-      B.box(0.05, 0.05, 0.02, team.patch, [0.0, 0.2, 0.06], [0.5, 0, 0], 0.005);
-      this.head.add(B.build());
-    }
-
-    // --- arms + gun (aim group pitches with the view) ---
-    this.aim = new THREE.Group();
-    this.aim.position.y = 0.44;
-    this.spine.add(this.aim);
-    this.guns = [];
-    this.armSets = [];
-    this.muzzles = [];
-    for (const id of ['ar', 'smg', 'sniper', 'pistol']) {
-      const { group, info } = worldGun(id, M);
-      const off = id === 'pistol' ? new THREE.Vector3(0.05, -0.03, -0.42) : GUN_OFFSET;
-      group.position.copy(off);
-      group.visible = false;
-      this.aim.add(group);
-      this.guns.push(group);
-      this.muzzles.push(new THREE.Vector3(off.x, off.y + 0.008, off.z + info.muzzleZ));
-
-      // Static IK so the hands sit on this weapon's grip and fore grip.
-      const B = new Builder();
-      const handR = off.clone().add(V(info.grip));
-      const handL = info.fore ? off.clone().add(V(info.fore)).add(new THREE.Vector3(0, -0.03, 0)) : handR.clone().add(new THREE.Vector3(-0.04, -0.01, -0.01));
-      const shR = new THREE.Vector3(0.21, 0.02, 0.02), shL = new THREE.Vector3(-0.21, 0.02, 0.02);
-      const eR = elbow(shR, handR, 0.27, 0.27, new THREE.Vector3(0.6, -1, 0.3));
-      const eL = elbow(shL, handL, 0.27, 0.27, new THREE.Vector3(-0.7, -1, 0.2));
-      for (const [s, e, h] of [[shR, eR, handR], [shL, eL, handL]]) {
-        B.sphere(0.075, M.camo, s.toArray());
-        B.limb(s.toArray(), e.toArray(), 0.062, M.camo);
-        B.limb(e.toArray(), h.toArray(), 0.052, M.camo);
-        B.sphere(0.048, M.glove, h.toArray(), [1, 0.9, 1.3]);
-      }
-      B.box(0.06, 0.06, 0.012, team.patch, [shL.x - 0.05, shL.y - 0.04, shL.z], [0, PI / 2, 0], 0.004);
-      const arms = B.build();
-      arms.visible = false;
-      this.aim.add(arms);
-      this.armSets.push(arms);
-    }
-    this.weapon = -1;
-    this.setWeapon(0);
-  }
-  setWeapon(w) {
-    if (w === this.weapon || !this.guns[w]) return;
-    if (this.weapon >= 0) { this.guns[this.weapon].visible = false; this.armSets[this.weapon].visible = false; }
-    this.guns[w].visible = true;
-    this.armSets[w].visible = true;
-    this.weapon = w;
-  }
-  muzzleLocal() { return this.muzzles[this.weapon]; }
-  /** phase: walk cycle, speed: m/s, air: airborne, pitch: aim pitch, t: time. */
-  pose(phase, speed, air, pitch, t) {
-    const k = Math.min(1, speed / 6);
-    const s = Math.sin(phase), c = Math.cos(phase);
-    if (air) {
-      this.legL.thigh.rotation.x = 0.6; this.legL.shin.rotation.x = -1.0;
-      this.legR.thigh.rotation.x = 0.2; this.legR.shin.rotation.x = -0.5;
-    } else {
-      this.legL.thigh.rotation.x = s * 0.65 * k;
-      this.legR.thigh.rotation.x = -s * 0.65 * k;
-      this.legL.shin.rotation.x = -Math.max(0, -c) * 1.1 * k - 0.05;
-      this.legR.shin.rotation.x = -Math.max(0, c) * 1.1 * k - 0.05;
-    }
-    const breathe = Math.sin(t * 1.8) * 0.01;
-    this.hips.position.y = 0.94 - Math.abs(c) * 0.04 * k + breathe * 0.3;
-    this.spine.rotation.x = -0.08 * k + breathe;
-    this.spine.rotation.y = s * 0.06 * k;
-    this.aim.rotation.x = pitch - this.spine.rotation.x;
-    this.head.rotation.x = pitch * 0.6;
-  }
-  dispose() {
-    this.team.gear.dispose();
-    this.team.patch.dispose();
-  }
 }
 
 // =====================================================================

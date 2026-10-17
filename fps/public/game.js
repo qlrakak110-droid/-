@@ -6,7 +6,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { makeTextures } from './textures.js';
-import { createMaterials, viewWeapon, Soldier } from './models.js';
+import { createMaterials, fpWeapon, worldGun } from './models.js';
+import { loadCharacter, CharacterRig } from './character.js';
 import { buildWorld } from './world.js';
 import {
   ARENA, BOXES, PLAYER, WEAPONS, PRIMARIES, PISTOL, RANGE,
@@ -35,11 +36,13 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 renderer.autoClear = false;
+renderer.localClippingEnabled = true; // first-person arms are clipped at the elbows
 document.body.prepend(renderer.domElement);
 
 const envTex = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 const T = makeTextures();
 const M = createMaterials(T);
+await loadCharacter();
 
 const scene = new THREE.Scene();
 scene.environment = envTex;
@@ -306,10 +309,14 @@ const audio = {
 // First-person weapons
 // =====================================================================
 const viewModels = WEAPONS.map((w) => {
-  const vm = viewWeapon(w.id, M);
+  const vm = fpWeapon(w.id, M);
   vmScene.add(vm.root);
   return vm;
 });
+// The player's own forearms and gloves: the soldier model, IK'd onto the weapon every frame.
+const fpRig = new CharacterRig({ firstPerson: true, armScale: 1.6 });
+fpRig.root.position.set(0.04, -1.75, 0.1);
+vmScene.add(fpRig.root);
 
 const casingGeo = [
   new THREE.CylinderGeometry(0.0045, 0.0045, 0.04, 8), new THREE.CylinderGeometry(0.0045, 0.0045, 0.025, 8),
@@ -351,18 +358,30 @@ class Avatar {
     this.id = id; this.name = name; this.hue = hue;
     this.buf = [];
     this.alive = true; this.hp = 100; this.protect = false;
-    this.deathT = 0; this.walk = 0; this.stepDist = 0; this.speed = 0; this.vy = 0;
+    this.deathT = 0; this.stepDist = 0; this.speed = 0;
     this.pos = new THREE.Vector3(); this.yaw = 0; this.pitch = 0;
     this.flashT = 0; this.lastShotT = -1e9;
 
-    this.soldier = new Soldier(T, M, hue);
-    this.root = this.soldier.root;
-    this.body = this.soldier.body;
+    this.rig = new CharacterRig({ tint: new THREE.Color().setHSL(hue / 360, 0.45, 0.85) });
+    this.root = this.rig.root;
+    this.body = this.rig.model;
+    this.aimG = new THREE.Group();
+    this.aimG.position.set(0, 1.45, 0);
+    this.root.add(this.aimG);
+    this.guns = WEAPONS.map((w) => {
+      const { group, info } = worldGun(w.id, M);
+      const pistol = w.id === 'pistol';
+      group.position.set(pistol ? 0.05 : 0.1, pistol ? -0.05 : -0.02, pistol ? -0.42 : -0.26);
+      group.scale.setScalar(1.25);
+      group.visible = false;
+      this.aimG.add(group);
+      return { group, info };
+    });
     const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: muzzleTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-    fl.scale.setScalar(0.45);
+    fl.scale.setScalar(0.36);
     fl.visible = false;
-    this.soldier.aim.add(fl);
     this.flash = fl;
+    this.weapon = -1;
     this.setWeapon(0);
     this.tag = nameSprite(name, hue);
     this.root.add(this.tag);
@@ -373,14 +392,19 @@ class Avatar {
     if (this.buf.length > 30) this.buf.shift();
   }
   setWeapon(w) {
-    this.soldier.setWeapon(w);
-    this.flash.position.copy(this.soldier.muzzleLocal());
+    if (w === this.weapon || !this.guns[w]) return;
+    if (this.weapon >= 0) this.guns[this.weapon].group.visible = false;
+    const g = this.guns[w];
+    g.group.visible = true;
+    g.group.add(this.flash);
+    this.flash.position.set(0, 0.008, g.info.muzzleZ - 0.05);
+    this.weapon = w;
   }
   muzzleWorld(out) {
     this.root.updateMatrixWorld(true);
     return this.flash.getWorldPosition(out);
   }
-  update(dt, renderT, time) {
+  update(dt, renderT) {
     const b = this.buf;
     if (b.length) {
       let a = b[0], c = b[b.length - 1];
@@ -396,32 +420,35 @@ class Avatar {
       this.pitch = lerp(a.pitch, c.pitch, k);
       const moved = Math.hypot(this.pos.x - prev.x, this.pos.z - prev.z);
       if (moved < 3) {
-        this.walk += moved * 4.2;
         this.stepDist += moved;
         if (this.stepDist > 2.4 && this.alive && moved / Math.max(dt, 1e-3) > 4.5) {
           this.stepDist = 0;
           audio.step(this.pos);
         }
         this.speed = damp(this.speed, moved / Math.max(dt, 1e-3), 10, dt);
-        this.vy = damp(this.vy, (this.pos.y - prev.y) / Math.max(dt, 1e-3), 10, dt);
       }
     }
     this.root.position.copy(this.pos);
     this.root.rotation.y = this.yaw;
-    this.soldier.pose(this.walk, this.speed, Math.abs(this.vy) > 1.2, this.pitch, time + this.id);
+    this.rig.locomote(dt, this.alive ? this.speed : 0);
+    this.aimG.rotation.x = this.pitch;
+    const gun = this.guns[this.weapon];
+    this.rig.hold(gun.group, gun.info, { pitch: this.pitch });
 
     if (!this.alive) {
       this.deathT += dt;
       const k = Math.min(1, this.deathT / 0.45);
       const e = 1 - (1 - k) * (1 - k);
       this.body.rotation.x = -e * Math.PI / 2;
-      this.body.position.y = -e * 0.12;
+      this.aimG.rotation.x = -e * Math.PI / 2;
+      this.aimG.position.y = 1.45 * (1 - e) + 0.15 * e;
       this.root.visible = this.deathT < 3;
       this.tag.visible = false;
     } else {
-      this.body.rotation.x = 0; this.body.position.y = 0;
+      this.body.rotation.x = 0;
+      this.aimG.position.y = 1.45;
       this.root.visible = true; this.tag.visible = true;
-      this.soldier.team.gear.emissive.setHex(this.protect ? 0x1a2a4a : 0x000000);
+      this.rig.setProtect(this.protect);
     }
     if (this.flashT > 0) {
       this.flashT -= dt;
@@ -435,7 +462,7 @@ class Avatar {
   }
   dispose() {
     scene.remove(this.root);
-    this.soldier.dispose();
+    this.rig.dispose();
     this.tag.material.map.dispose();
     this.tag.material.dispose();
     this.flash.material.dispose();
@@ -1172,6 +1199,12 @@ function frame() {
   if (!me.alive) vm.root.position.y -= 0.6;
   vm.root.rotation.set(rx, ry, rz);
   vm.root.visible = playing && !scoped;
+  fpRig.root.visible = vm.root.visible;
+  if (vm.root.visible) {
+    fpRig.locomote(dt, 0);
+    vm.root.updateMatrixWorld(true);
+    fpRig.hold(vm.model, vm.info, { fpReach: true });
+  }
   flashT -= dt;
   if (flashT <= 0) vm.flash.visible = false;
   flashLight.intensity = flashT > 0 ? 12 : 0;
@@ -1187,7 +1220,7 @@ function frame() {
 
   // --- remote players & fx ---
   const renderT = now - INTERP_MS;
-  for (const av of avatars.values()) av.update(dt, renderT, now / 1000);
+  for (const av of avatars.values()) av.update(dt, renderT);
   updateFx(dt);
   if (playing) { hud.update(dt); mini.draw(); }
 

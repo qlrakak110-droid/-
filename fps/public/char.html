@@ -1,0 +1,67 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>Character Preview</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#1b1f26}</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script></head><body>
+<script type="module">
+// Character/viewmodel showroom: /char.html?m=third | fp&w=ar|smg|sniper|pistol
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { makeTextures } from './textures.js';
+import { createMaterials, worldGun } from './models.js';
+import { loadCharacter, CharacterRig } from './character.js';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;
+document.body.append(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x7d8ea3);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.6); sun.position.set(2, 5, 3); sun.castShadow = true; scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x4a4036, 0.6));
+const T = makeTextures(), M = createMaterials(T);
+await loadCharacter();
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 50);
+const mode = q.get('m') || 'third';
+const IDS = ['ar', 'smg', 'sniper', 'pistol'];
+if (mode === 'third') {
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ map: T.ground.map, normalMap: T.ground.normalMap }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const rot = Number(q.get('rot') ?? 0.5);
+  [[-1.5, 0], [-0.5, 1], [0.5, 2], [1.5, 3]].forEach(([x, w], i) => {
+    const rig = new CharacterRig({ tint: new THREE.Color().setHSL(i * 0.25, 0.45, 0.88) });
+    const aimG = new THREE.Group(); aimG.position.set(0, 1.45, 0); rig.root.add(aimG);
+    const { group, info } = worldGun(IDS[w], M);
+    group.position.set(IDS[w] === 'pistol' ? 0.05 : 0.1, IDS[w] === 'pistol' ? -0.05 : -0.02, IDS[w] === 'pistol' ? -0.42 : -0.26);
+    group.scale.setScalar(1.25);
+    aimG.add(group);
+    rig.locomote(0.016, i === 1 ? 4 : 0);
+    rig.root.position.x = x; rig.root.rotation.y = Math.PI + rot;
+    scene.add(rig.root);
+    rig.hold(group, info, { pitch: 0 });
+  });
+  cam.position.set(0, 1.45, 5.2); cam.lookAt(0, 1.05, 0);
+} else {
+  const id = q.get('w') || 'ar';
+  const rig = new CharacterRig({ firstPerson: true, armScale: Number(q.get('s') || 1.15) });
+  scene.add(rig.root);
+  const { group, info } = worldGun(id, M);
+  const P = JSON.parse(q.get('p') || '[0.16,-0.17,-0.5]');
+  group.position.set(...P);
+  scene.add(group);
+  const R = JSON.parse(q.get('r') || '[0,-0.3,0.12]'); // rig offset relative to camera
+  rig.root.position.set(R[0], -1.6 + R[1], R[2]);
+  rig.locomote(0.016, 0);
+  rig.hold(group, info, { fpReach: true });
+  window.dbg = { planes: rig.clip.map(p => [p.normal.toArray(), p.constant]), mats: rig.materials.map(m => [m.name, m.clippingPlanes?.length, m.clipIntersection]), lce: renderer.localClippingEnabled };
+  cam.fov = 60;
+  if (q.has('side')) { cam.position.set(1.4, 0.1, -0.35); cam.lookAt(0, -0.2, -0.35); }
+  else { cam.position.set(0, 0, 0); cam.lookAt(0, 0, -1); }
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.02), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+  if (q.has('side')) scene.add(eye);
+}
+cam.updateProjectionMatrix();
+renderer.render(scene, cam);
+window.done = true;
+</script></body></html>
