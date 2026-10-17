@@ -260,17 +260,45 @@ local function sortWallUsed(K: any)
 	end
 end
 
--- Common.fixtures 를 부르되, 매번 Common.wallSpot 전에 K.wallUsed 를 정렬 (정렬 안 된 목록이면 구간 빼기가 틀려 겹침)
+-- Common.fixtures 와 같은 배치 (스위치 · 콘센트 · 온도조절기 · 비상벨 · 등록증 · 시계) 이지만, 매번 Common.wallSpot 전에
+-- K.wallUsed 를 a 순으로 정렬 (정렬 안 된 목록이면 Common.wallSpot 의 구간 빼기가 틀려 큰 게시물과 겹침).
 local function fixturesSorted(K: any, V: any, S: any)
-	local orig = Common.wallSpot
-	Common.wallSpot = function(K2: any, ...): (string?, CFrame?)
-		sortWallUsed(K2)
-		return orig(K2, ...)
+	local function spot(walls: { string }, w: number, y0: number, y1: number, prefer: number?): (string?, CFrame?)
+		sortWallUsed(K)
+		return Common.wallSpot(K, walls, w, y0, y1, prefer)
 	end
-	local ok, err = pcall(Common.fixtures, K, V, S)
-	Common.wallSpot = orig
-	if not ok then
-		error(err)
+	local side = if V.door and V.door.x > 0 then "left" else "right"
+	local wn, dcf = spot({ side, if side == "left" then "right" else "left" }, 1.0, 3.8, 4.6, if side == "left" then -V.D / 2 + 3 else V.D / 2 - 3)
+	if wn and dcf then
+		local plate = Props.switchPlate(K, dcf, 2)
+		Interact.lightSwitch(K, plate, "실내 조명 스위치")
+	end
+	local wn2, d2 = spot({ "left", "right", "back" }, 0.5, 1.0, 1.7, 0)
+	if wn2 and d2 then
+		Props.outlet(K, d2)
+	end
+	local wn3, d3 = spot({ side, "back" }, 0.7, 4.5, 5.3, 0)
+	if wn3 and d3 then
+		Props.thermostat(K, d3)
+	end
+	local wn4, d4 = spot({ "right", "left" }, 1.0, 4.4, 5.4, 0)
+	if wn4 and d4 then
+		Props.fireBell(K, d4)
+	end
+	if S.license ~= false and #V.counters > 0 then
+		local g = V.counters[1]
+		local wn5, d5 = spot({ "back", "left", "right" }, 1.3, 5.0, 6.7, (g.min.X + g.max.X) / 2 - (V.x0 + V.x1) / 2 + 3)
+		if wn5 and d5 then
+			Props.license(K, d5, V.name)
+		end
+	end
+	if S.clock ~= false then
+		local h = math.min(V.H - 1.4, 7.6)
+		local wn6, d6 = spot({ "back", "left", "right" }, 1.6, h - 0.8, h + 0.8, 0)
+		if wn6 and d6 then
+			local hr, mn = Props.clock(K, d6, 1.4, S.clockLook)
+			Interact.clock(K, hr, mn, d6, 1.4)
+		end
 	end
 end
 
