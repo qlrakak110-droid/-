@@ -2512,6 +2512,345 @@ local function floorStock(ctx: any)
 	end)
 end
 
+-- 창고 조명 · 천장 마감: LED 일자등 (밝기) · 석고보드 이음매 · 점검구 · 환풍기 · 스피커 · 비상조명등 · 유도등
+local function stockCeilingPlus(ctx: any)
+	local Q = ctx.Q
+	local sc = one(ctx, "StockCeiling")
+	local cy = if sc then sc.mn.Y else ctx.V.H - 0.05
+	local x0, x1, z0, z1 = ctx.fx0, ctx.fx1, ctx.fz0, ctx.fz1
+	Q:free(function()
+		-- 석고보드 이음매 (4 스터드 격자, 맵 등 패널 자리는 건너뜀)
+		local seam = lk(rgb(206, 206, 200))
+		local lps = all(ctx, "LightPanel")
+		local function underPanel(x: number, z: number): boolean
+			for _, lp in lps do
+				if x > lp.mn.X - 0.2 and x < lp.mx.X + 0.2 and z > lp.mn.Z - 0.2 and z < lp.mx.Z + 0.2 then
+					return true
+				end
+			end
+			return false
+		end
+		local zz = z0 + 4.0
+		while zz < z1 - 1 do
+			Q:box("CeilSeam", V3(x1 - x0 - 0.4, 0.02, 0.05), CF((x0 + x1) / 2, cy - 0.01, zz), seam)
+			zz += 4.0
+		end
+		local xx = x0 + 4.0
+		while xx < x1 - 1 do
+			if not underPanel(xx, 4.9) and not underPanel(xx, -2.8) then
+				Q:box("CeilSeam", V3(0.05, 0.02, z1 - z0 - 0.4), CF(xx, cy - 0.01, (z0 + z1) / 2), seam)
+			end
+			xx += 4.0
+		end
+		-- 점검구 (알루미늄 테)
+		local hc = CF(-19.0, cy - 0.02, -2.0)
+		Q:box("AccessHatch", V3(1.9, 0.02, 1.9), hc, lk(rgb(238, 238, 234)))
+		for _, s in { { 0, 0.95, 2.0, 0.08 }, { 0, -0.95, 2.0, 0.08 }, { 0.95, 0, 0.08, 2.0 }, { -0.95, 0, 0.08, 2.0 } } do
+			Q:box("AccessHatchFrame", V3(s[3], 0.05, s[4]), hc * CF(s[1], -0.02, s[2]), L_STEEL)
+		end
+		-- 환풍기 (개수대 위)
+		local fcf = CF(19.4, cy - 0.04, 5.2)
+		Q:box("ExhaustFan", V3(1.6, 0.08, 1.6), fcf, lk(rgb(240, 240, 236)))
+		for k = -3, 3 do
+			Q:box("ExhaustSlat", V3(1.3, 0.05, 0.08), fcf * CF(0, -0.06, k * 0.18), lk(rgb(160, 160, 156)))
+		end
+		-- 매장 방송 스피커 · 비상조명등
+		for _, p in { V3(-4.0, 0, 7.5), V3(8.5, 0, -6.5) } do
+			Q:disc("CeilSpeaker", 0.9, 0.06, CF(p.X, cy - 0.03, p.Z), lk(rgb(244, 244, 240)))
+			Q:disc("CeilSpeakerGrille", 0.7, 0.02, CF(p.X, cy - 0.07, p.Z), lk(rgb(190, 190, 186), M.DiamondPlate))
+		end
+	end)
+	-- LED 일자등 (2등용 · 확산판): 맵 등이 없는 쪽을 밝게
+	local fixtures = {
+		{ -12.5, -5.9, 8.0, true },
+		{ -0.2, -5.9, 8.0, true },
+		{ 11.5, 8.4, 7.0, true },
+		{ -18.5, 3.0, 5.0, true },
+	}
+	for _, f in fixtures do
+		Q:free(function()
+			local c = CF(f[1], cy - 0.13, f[2])
+			Q:box("LEDBatten", V3(f[3], 0.24, 0.75), c, L_WHITEP)
+			Q:box("LEDBattenEnd", V3(0.06, 0.26, 0.77), c * CF(-f[3] / 2, 0, 0), lk(rgb(210, 212, 214)))
+			Q:box("LEDBattenEnd", V3(0.06, 0.26, 0.77), c * CF(f[3] / 2, 0, 0), lk(rgb(210, 212, 214)))
+			local d = Q:box("LEDBattenDiffuser", V3(f[3] - 0.2, 0.05, 0.55), c * CF(0, -0.13, 0), Look.lampNeutral)
+			if f[4] then
+				Q:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 20, Brightness = 1.25, Angle = 150, Color = rgb(255, 246, 232) })
+			end
+		end)
+	end
+	-- 맵 등 패널 (불빛 없는 쪽) 테두리에도 불빛 하나
+	local lpB = one(ctx, "LightPanel", function(e)
+		return e.c.X > 0
+	end)
+	if lpB then
+		Q:free(function()
+			local d = Q:box("LightPanelLamp", V3(lpB.s.X - 0.4, 0.03, lpB.s.Z - 0.4), CF(lpB.c.X, lpB.mn.Y - 0.02, lpB.c.Z), Look.lampNeutral)
+			Q:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 20, Brightness = 1.2, Angle = 150, Color = rgb(255, 246, 232) })
+		end)
+	end
+	-- 유도등: 직원 문 위 (매장으로 나가는 비상구) · 뒷문 위
+	local bwh = one(ctx, "BackWallHead")
+	local gb = one(ctx, "GroundBack", function(e)
+		return e.s.X > 30
+	end)
+	local bd = one(ctx, "BackDoor")
+	Q:free(function()
+		local function exitSign(d: CFrame)
+			Q:plate("ExitSignBox", 1.9, 0.75, 0.22, d, lk(rgb(236, 238, 236)))
+			local face = Q:plate("ExitSignFace", 1.7, 0.6, 0.01, d * CF(0, 0, 0.22), lk(rgb(20, 170, 80), M.Neon))
+			face.Transparency = 0.1
+			txt(ctx, "ExitSignText", 1.2, 0.4, d * CF(0.2, 0, 0.235), "비상구 EXIT", WHITE, nil, { font = F.GothamBlack, d = 0.005, glow = 1.4 })
+			Q:plate("ExitSignMan", 0.22, 0.4, 0.01, d * CF(-0.6, 0, 0.235), lk(WHITE, M.Neon))
+		end
+		if bwh then
+			exitSign(fc(V3(-19.4, 9.6, bwh.mn.Z), -ZA))
+		end
+		if gb and bd then
+			exitSign(fc(V3(bd.c.X, 9.7, gb.mx.Z), ZA))
+		end
+		-- 비상조명등 + 비상벨 (직원 문 옆)
+		local bw = one(ctx, "BackWall", function(e)
+			return e.s.X > 20
+		end)
+		if bw then
+			local ed = fc(V3(-15.7, 8.8, bw.mn.Z), -ZA)
+			Q:plate("EmergencyLight", 1.4, 0.5, 0.3, ed, lk(rgb(240, 240, 236)))
+			for _, sx in { -0.42, 0.42 } do
+				Q:plate("EmergencyLamp", 0.38, 0.3, 0.06, ed * CF(sx, -0.04, 0.3), lk(rgb(255, 250, 230), M.Glass, { t = 0.2 }))
+			end
+			Q:plate("EmergencyLED", 0.08, 0.08, 0.02, ed * CF(0, 0.12, 0.3), Look.ledGreen)
+			Props.fireBell(Q, fc(V3(-15.7, 6.6, bw.mn.Z), -ZA))
+			txt(ctx, "FireBellLabel", 0.9, 0.22, fc(V3(-15.7, 5.95, bw.mn.Z), -ZA), "비상벨 · 화재 시 누르세요", WHITE, RED, { font = F.GothamBold, d = 0.01 })
+		end
+	end)
+end
+
+-- 창고 바닥 · 작업 소품: 검수대 · A형 사다리 · 핸드자키 · 손수레 · 핸드트럭 바퀴 · 사물함 벤치
+local function stockWork(ctx: any)
+	local Q = ctx.Q
+	-- 검수대 (입고 박스 검수 · 라벨 출력)
+	local tp = pf(V3(-0.6, 0, -1.9), ZA)
+	if spotB(ctx, tp, V3(4.4, 3.6, 2.0), 0.1) then
+		local top = 3.0
+		local steel = lk(rgb(196, 200, 204), M.Metal)
+		Q:box("InspectTop", V3(4.4, 0.12, 2.0), tp * CF(0, top - 0.06, 0), lk(rgb(214, 218, 220), M.Metal))
+		Q:box("InspectEdge", V3(4.42, 0.2, 0.06), tp * CF(0, top - 0.1, 1.0), steel)
+		for _, sx in { -2.05, 2.05 } do
+			for _, sz in { -0.85, 0.85 } do
+				Q:box("InspectLeg", V3(0.14, top - 0.12, 0.14), tp * CF(sx, (top - 0.12) / 2, sz), steel)
+				Q:box("InspectFoot", V3(0.22, 0.06, 0.22), tp * CF(sx, 0.03, sz), lk(rgb(40, 40, 42), M.Rubber))
+			end
+		end
+		Q:box("InspectShelf", V3(4.2, 0.08, 1.8), tp * CF(0, 0.75, 0), lk(rgb(170, 174, 178), M.DiamondPlate))
+		for k = 0, 4 do
+			Q:box("InspectFlatBox", V3(3.4, 0.1, 1.5), tp * CF(-0.2 + rnd(7, k) * 0.2, 0.84 + k * 0.1, rnd(8, k) * 0.1) * ANG(0, (rnd(2, k) - 0.5) * 0.08, 0), lk(rgb(184 + k * 3, 144, 98), M.Cardboard))
+		end
+		local T0 = tp * CF(0, top, 0)
+		-- 열린 박스 (삼각김밥 · 라면) + 날개
+		local ob = T0 * CF(-1.1, 0, -0.1)
+		Q:box("OpenBoxBottom", V3(1.6, 0.05, 1.2), ob * CF(0, 0.03, 0), lk(rgb(190, 150, 104), M.Cardboard))
+		for _, s in { { 0, 0.6, 1.6, 0.06 }, { 0, -0.6, 1.6, 0.06 }, { 0.8, 0, 0.06, 1.2 }, { -0.8, 0, 0.06, 1.2 } } do
+			Q:box("OpenBoxWall", V3(s[3], 0.9, s[4]), ob * CF(s[1], 0.45, s[2]), lk(rgb(190, 150, 104), M.Cardboard))
+		end
+		Q:box("OpenBoxFlap", V3(1.6, 0.04, 0.6), ob * CF(0, 0.95, 0.85) * ANG(-0.5, 0, 0), lk(rgb(196, 156, 110), M.Cardboard))
+		Q:box("OpenBoxFlap", V3(1.6, 0.04, 0.6), ob * CF(0, 0.95, -0.85) * ANG(0.5, 0, 0), lk(rgb(196, 156, 110), M.Cardboard))
+		for i = 0, 5 do
+			Q:box("CupRamenInBox", V3(0.42, 0.36, 0.42), ob * CF(-0.5 + (i % 3) * 0.5, 0.62, -0.25 + (i // 3) * 0.5), lk(if i % 2 == 0 then RED else rgb(240, 150, 30)))
+			Q:disc("CupRamenLid", 0.4, 0.02, ob * CF(-0.5 + (i % 3) * 0.5, 0.81, -0.25 + (i // 3) * 0.5), lk(rgb(240, 240, 236)))
+		end
+		txt(ctx, "OpenBoxPrint", 1.3, 0.4, ob * CF(0, 0.5, 0.635), "육개장 사발면 × 24", RED, nil, { font = F.GothamBlack, d = 0.005 })
+		-- 라벨 프린터 · 스캐너 · 테이프 커터 · 박스칼 · 검수표
+		local lp = T0 * CF(0.9, 0, -0.45)
+		Q:box("LabelPrinter", V3(0.8, 0.55, 0.9), lp * CF(0, 0.28, 0), lk(rgb(236, 236, 232)))
+		Q:box("LabelPrinterLid", V3(0.82, 0.08, 0.6), lp * CF(0, 0.58, -0.1), lk(GS_BLUE))
+		Q:box("LabelOut", V3(0.4, 0.02, 0.3), lp * CF(0, 0.3, 0.55), Look.paper)
+		Q:box("Scanner", V3(0.22, 0.6, 0.3), T0 * CF(1.7, 0.3, -0.5) * ANG(0.25, 0, 0), lk(rgb(40, 42, 46)))
+		Q:box("ScannerTrigger", V3(0.16, 0.12, 0.06), T0 * CF(1.7, 0.42, -0.33) * ANG(0.25, 0, 0), lk(YEL))
+		local tg = T0 * CF(0.4, 0, 0.55)
+		Q:box("TapeGunFrame", V3(0.12, 0.5, 0.7), tg * CF(0, 0.3, 0), lk(rgb(220, 40, 40), M.Plastic))
+		Q:cyl("TapeRoll", 0.16, 0.48, tg * CF(0, 0.36, -0.05), lk(rgb(210, 180, 120), M.SmoothPlastic, { t = 0.15 }))
+		Q:box("TapeGunHandle", V3(0.1, 0.38, 0.14), tg * CF(0, 0.22, 0.32) * ANG(-0.4, 0, 0), lk(rgb(30, 30, 32), M.Plastic))
+		Q:box("BoxCutter", V3(0.12, 0.05, 0.6), T0 * CF(1.3, 0.03, 0.5) * ANG(0, 0.5, 0), lk(YEL, M.Plastic))
+		Q:box("BoxCutterBlade", V3(0.06, 0.02, 0.14), T0 * CF(1.43, 0.04, 0.24) * ANG(0, 0.5, 0), L_CHROME)
+		Q:box("Clipboard", V3(0.8, 0.04, 1.05), T0 * CF(-0.1, 0.02, 0.45) * ANG(0, -0.15, 0), lk(rgb(140, 100, 60), M.Wood))
+		Q:box("ClipboardClip", V3(0.4, 0.06, 0.1), T0 * CF(-0.15, 0.06, -0.02) * ANG(0, -0.15, 0), L_CHROME)
+		txt(ctx, "InspectSheet", 0.7, 0.9, T0 * CF(-0.1, 0.045, 0.48) * ANG(0, -0.15, 0) * ANG(-PI / 2, 0, 0), "입고 검수표\n10/17 06:30\n상품  수량  확인\n삼각  48   ✓\n도시락 24  ✓\n우유  36   □", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.004, align = "Left" })
+		Q:seg("Pen", T0 * V3(0.35, 0.03, 0.2), T0 * V3(0.4, 0.03, 0.75), 0.05, lk(GS_BLUE))
+		txt(ctx, "InspectSign", 2.2, 0.4, tp * CF(0, top - 0.6, 1.04), "검수대 · 입고 확인 후 진열", WHITE, GS_BLUE, { font = F.GothamBold, d = 0.01 })
+	end
+	-- A형 사다리 (랙 B 앞, 접어 세움 아님: 벌려 둠)
+	local lp2 = pf(V3(3.9, 0, -6.5), ZA)
+	if spotB(ctx, lp2, V3(1.4, 4.8, 1.8), 0) then
+		local alu = lk(rgb(200, 204, 208), M.Metal)
+		for _, sz in { -1, 1 } do
+			for _, sx in { -0.55, 0.55 } do
+				Q:seg("LadderRail", lp2 * V3(sx, 0.05, sz * 0.8), lp2 * V3(sx * 0.85, 4.5, sz * 0.12), 0.12, alu)
+				Q:box("LadderFoot", V3(0.2, 0.1, 0.24), lp2 * CF(sx, 0.05, sz * 0.8), lk(rgb(30, 30, 32), M.Rubber))
+			end
+		end
+		for k = 1, 4 do
+			local f = k / 5
+			local zz = 0.8 - (0.8 - 0.12) * f
+			Q:box("LadderStep", V3(1.0 - 0.15 * f, 0.08, 0.32), lp2 * CF(0, 0.05 + 4.45 * f, zz), alu)
+		end
+		Q:box("LadderTop", V3(1.1, 0.16, 0.5), lp2 * CF(0, 4.56, 0), lk(rgb(240, 120, 20), M.Plastic))
+		Q:seg("LadderStay", lp2 * V3(0.5, 1.8, 0.5), lp2 * V3(0.5, 1.8, -0.5), 0.04, L_STEEL)
+		Q:seg("LadderStay", lp2 * V3(-0.5, 1.8, 0.5), lp2 * V3(-0.5, 1.8, -0.5), 0.04, L_STEEL)
+		txt(ctx, "LadderLabel", 0.5, 0.25, lp2 * CF(0, 3.0, 0.48) * ANG(-0.15, 0, 0), "최대 100kg", INK, YEL, { font = F.GothamBold, d = 0.005 })
+	end
+	-- 핸드자키 (팔레트 옆)
+	local jp = pf(V3(9.7, 0, -3.3), -XA)
+	if spotB(ctx, jp, V3(2.0, 4.2, 4.6), 0) then
+		local red = lk(rgb(210, 40, 36), M.Metal)
+		for _, sx in { -0.55, 0.55 } do
+			Q:box("JackFork", V3(0.5, 0.25, 3.6), jp * CF(sx, 0.16, -0.6), red)
+			Q:cyl("JackRoller", 0.4, 0.22, jp * CF(sx, 0.11, -2.3) * ANG(0, PI / 2, 0), lk(rgb(30, 30, 32), M.Rubber))
+		end
+		Q:box("JackBody", V3(1.7, 0.9, 0.7), jp * CF(0, 0.55, 1.4), red)
+		Q:vcyl("JackPump", 0.9, 0.36, jp * CF(0, 1.3, 1.45), lk(rgb(40, 40, 42), M.Metal))
+		Q:cyl("JackWheel", 0.25, 0.6, jp * CF(-0.3, 0.3, 1.75) * ANG(0, PI / 2, 0), lk(rgb(30, 30, 32), M.Rubber))
+		Q:cyl("JackWheel", 0.25, 0.6, jp * CF(0.3, 0.3, 1.75) * ANG(0, PI / 2, 0), lk(rgb(30, 30, 32), M.Rubber))
+		Q:seg("JackHandle", jp * V3(0, 1.5, 1.5), jp * V3(0, 3.9, 2.1), 0.14, red)
+		Q:box("JackGrip", V3(1.0, 0.16, 0.16), jp * CF(0, 4.0, 2.12), lk(rgb(30, 30, 32), M.Rubber))
+		Q:box("JackLever", V3(0.08, 0.06, 0.4), jp * CF(0.25, 3.95, 2.0), L_STEEL)
+	end
+	-- 손수레 (L자 대차, 랙 A 와 왼쪽 벽 사이 구석)
+	local sl = one(ctx, "StockLining")
+	local xl = if sl then sl.mx.X else ctx.fx0 + 0.15
+	local hp = pf(V3(xl + 1.4, 0, -9.6), XA)
+	if spotB(ctx, hp, V3(1.6, 4.6, 1.4), 0) then
+		local fr = lk(rgb(40, 110, 200), M.Metal)
+		local tilt = ANG(-0.12, 0, 0)
+		local b = hp * tilt
+		for _, sx in { -0.55, 0.55 } do
+			Q:box("HandTruckRail", V3(0.1, 4.3, 0.1), b * CF(sx, 2.25, -0.35), fr)
+			Q:cyl("HandTruckWheel", 0.22, 0.75, hp * CF(sx + (if sx < 0 then -0.15 else 0.15), 0.38, -0.5) * ANG(0, PI / 2, 0), lk(rgb(30, 30, 32), M.Rubber))
+		end
+		for k = 1, 4 do
+			Q:box("HandTruckBar", V3(1.1, 0.06, 0.06), b * CF(0, 0.6 + k * 0.85, -0.35), fr)
+		end
+		Q:box("HandTruckNose", V3(1.3, 0.06, 0.8), hp * CF(0, 0.05, 0.05), L_STEEL)
+		Q:seg("HandTruckGrip", b * V3(-0.55, 4.4, -0.35), b * V3(0.55, 4.4, -0.35), 0.1, lk(rgb(30, 30, 32), M.Rubber))
+	end
+	-- 진열용 박스 대차 (맵 HandTruckBase 에 바퀴 · 밀대만; 박스 · 스테이션은 그대로)
+	local ht = one(ctx, "HandTruckBase")
+	if ht then
+		Q:free(function()
+			for _, sx in { ht.mn.X + 0.45, ht.mx.X - 0.45 } do
+				for _, sz in { ht.mn.Z + 0.35, ht.mx.Z - 0.35 } do
+					Q:box("CasterFork", V3(0.2, 0.14, 0.24), CF(sx, 0.07, sz), L_STEEL)
+				end
+			end
+			Q:box("TruckBumper", V3(ht.s.X + 0.08, 0.14, 0.08), CF(ht.c.X, 0.25, ht.mx.Z + 0.02), lk(rgb(30, 30, 32), M.Rubber))
+			Q:box("TruckBumper", V3(ht.s.X + 0.08, 0.14, 0.08), CF(ht.c.X, 0.25, ht.mn.Z - 0.02), lk(rgb(30, 30, 32), M.Rubber))
+		end)
+		local hx = ht.mn.X - 0.1
+		if not keepHit(ctx, V3(hx - 0.2, 0.3, ht.mn.Z + 0.2), V3(hx + 0.1, 3.6, ht.mx.Z - 0.2)) then
+			Q:free(function()
+				for _, sz in { ht.mn.Z + 0.35, ht.mx.Z - 0.35 } do
+					Q:box("TruckHandlePost", V3(0.12, 3.2, 0.12), CF(hx, 1.95, sz), lk(rgb(30, 80, 160), M.Metal))
+				end
+				Q:seg("TruckHandleGrip", V3(hx, 3.5, ht.mn.Z + 0.35), V3(hx, 3.5, ht.mx.Z - 0.35), 0.14, lk(rgb(30, 30, 32), M.Rubber))
+			end)
+		end
+	end
+	-- 사물함 앞 벤치 (문 열리는 반경 밖)
+	local ls = all(ctx, "StaffLocker")
+	if #ls >= 2 then
+		local bx = (ls[1].mn.X + ls[#ls].mx.X) / 2
+		local bz = ls[1].mn.Z - 2.6
+		local bp = pf(V3(bx, 0, bz), ZA)
+		if spotB(ctx, bp, V3(4.0, 1.6, 1.0), 0) then
+			Q:box("BenchSeat", V3(4.0, 0.18, 0.95), bp * CF(0, 1.45, 0), lk(rgb(176, 136, 92), M.WoodPlanks))
+			for _, sx in { -1.7, 1.7 } do
+				Q:box("BenchLeg", V3(0.1, 1.36, 0.8), bp * CF(sx, 0.68, 0), L_STEEL)
+				Q:box("BenchFoot", V3(0.14, 0.06, 0.9), bp * CF(sx, 0.03, 0), lk(rgb(40, 40, 42), M.Rubber))
+			end
+			Q:box("BenchRail", V3(3.4, 0.08, 0.08), bp * CF(0, 0.45, 0), L_STEEL)
+			Q:box("BenchBag", V3(1.0, 0.7, 0.45), bp * CF(-1.0, 1.9, 0), lk(rgb(30, 30, 34), M.Fabric))
+			Q:box("BenchBagStrap", V3(0.08, 0.5, 0.47), bp * CF(-0.75, 2.2, 0), lk(rgb(60, 60, 64), M.Fabric))
+			Q:vcyl("BenchTumbler", 0.5, 0.22, bp * CF(0.9, 1.79, 0.1), lk(rgb(230, 230, 226), M.Metal))
+		end
+	end
+end
+
+-- 창고 벽 꾸밈: 대피 안내도 · 위생 포스터 · 시계 · 콘센트 · 벽 보호대 · 온도 기록표
+local function stockWalls(ctx: any)
+	local Q, K = ctx.Q, ctx.K
+	local gs = one(ctx, "GroundSide")
+	local xr = if gs then gs.mn.X else ctx.fx1
+	local sl = one(ctx, "StockLining")
+	local xl = if sl then sl.mx.X else ctx.fx0 + 0.15
+	local bw = one(ctx, "BackWall", function(e)
+		return e.s.X > 20
+	end)
+	Q:free(function()
+		-- 왼쪽 벽: 피난 안내도 (액자)
+		local ev = fc(V3(xl, 7.0, 3.2), XA)
+		Props.frame(Q, ev, 3.0, 2.2, { frame = lk(rgb(200, 30, 30), M.Metal), mat = lk(rgb(250, 250, 246)) })
+		txt(ctx, "EvacTitle", 2.6, 0.32, ev * CF(0, 0.82, 0.09), "피난 안내도 · 현 위치 ●", WHITE, rgb(200, 30, 30), { font = F.GothamBold, d = 0.005 })
+		-- 안내도 평면 (방 블록 + 녹색 화살표)
+		local blocks = { { -0.8, 0.0, 0.9, 0.9, rgb(210, 214, 220) }, { 0.35, 0.15, 1.1, 0.6, rgb(220, 226, 232) }, { 0.35, -0.45, 1.1, 0.4, rgb(200, 206, 214) } }
+		for _, b in blocks do
+			Q:plate("EvacRoom", b[3], b[4], 0.005, ev * CF(b[1], b[2] - 0.1, 0.085), lk(b[5]))
+		end
+		Q:plate("EvacArrow", 1.3, 0.07, 0.006, ev * CF(-0.1, -0.62, 0.086), lk(rgb(20, 170, 80)))
+		Q:plate("EvacArrow", 0.07, 0.5, 0.006, ev * CF(0.52, -0.4, 0.086), lk(rgb(20, 170, 80)))
+		Q:plate("EvacHere", 0.12, 0.12, 0.007, ev * CF(-0.8, -0.1, 0.087), lk(RED))
+		-- 왼쪽 벽: 콘센트 둘
+		for _, z in { -1.2, 9.8 } do
+			Props.outlet(Q, fc(V3(xl, 1.2, z), XA))
+		end
+		-- 오른쪽 벽: 위생 관리 포스터 · 벽시계 · 콘센트
+		poster(ctx, fc(V3(xr, 5.6, -3.7), -XA), 2.2, 3.0, "식품 위생 관리\n① 손 씻기 30초\n② 위생모 · 장갑\n③ 냉장 0~10°C\n④ 냉동 -18°C 이하\n⑤ 폐기 즉시 등록", INK, rgb(246, 252, 250), { band = rgb(40, 150, 110), bandH = 0.12, font = F.GothamMedium })
+		local cd = fc(V3(xr, 8.2, 1.0), -XA)
+		local hr, mn = Props.clock(Q, cd, 1.2, { frame = lk(GS_BLUE, M.Metal) })
+		local wcf = K.cf * ctx.R * cd
+		local lighting = game:GetService("Lighting")
+		Interact.anim(K, function()
+			if not hr.Parent then
+				return
+			end
+			local h = lighting.ClockTime
+			local m = (h % 1) * 60
+			local ah = -((h % 12) / 12) * PI * 2
+			local am = -(m / 60) * PI * 2
+			hr.CFrame = wcf * ANG(0, 0, ah) * CF(0, 0.12, 0.145 + 0.01)
+			mn.CFrame = wcf * ANG(0, 0, am) * CF(0, 0.19, 0.165 + 0.01)
+		end)
+		for _, z in { -0.6, 4.6 } do
+			Props.outlet(Q, fc(V3(xr, 1.2, z), -XA))
+		end
+		-- 오른쪽 벽 아래: 카트 범퍼
+		Q:plate("WallBumperR", 6.0, 0.3, 0.12, fc(V3(xr, 1.5, -5.4), -XA), lk(rgb(60, 62, 66), M.Rubber))
+		-- 앞벽 (워크인 위): 이음매 몰딩 · 온도 기록표 (워크인 문 옆)
+		if bw then
+			local zw = bw.mn.Z
+			Q:plate("ConduitBox", 0.5, 0.5, 0.2, fc(V3(5.8, 9.4, zw), -ZA), lk(rgb(220, 220, 216)))
+			Q:seg("WallConduit", V3(5.8, 9.65, zw - 0.1), V3(5.8, ctx.V.H - 0.05, zw - 0.1), 0.1, lk(rgb(220, 220, 216)))
+			Q:seg("WallConduit", V3(5.8, 9.15, zw - 0.1), V3(5.8, 7.2, zw - 0.1), 0.1, lk(rgb(220, 220, 216)))
+		end
+	end)
+	-- 온도 기록표 (워크인 앞판, 문 오른쪽 위)
+	local wl = nil
+	for _, p in K.parts do
+		if p.Name == "WalkInPanel" then
+			wl = p
+			break
+		end
+	end
+	if wl then
+		local z0 = (ctx.IR * (K.cf:Inverse() * wl.CFrame)).Position.Z - 0.15
+		Q:free(function()
+			local cb = fc(V3(-12.0, 3.9, z0), -ZA)
+			Q:plate("TempLogBoard", 1.1, 1.5, 0.05, cb, lk(rgb(140, 100, 60), M.Wood))
+			Q:plate("TempLogClip", 0.5, 0.12, 0.06, cb * CF(0, 0.66, 0.05), L_CHROME)
+			txt(ctx, "TempLog", 0.95, 1.2, cb * CF(0, -0.08, 0.06), "냉장 온도 기록\n06시  3.1°C\n14시  3.4°C\n22시  ____", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.004, align = "Left" })
+		end)
+	end
+end
+
 local function buildStock(K: any, V: any, S: any)
 	local ctx = newCtx(K, V)
 	local steps = {
