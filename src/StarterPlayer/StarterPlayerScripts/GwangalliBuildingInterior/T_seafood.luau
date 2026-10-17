@@ -1595,6 +1595,14 @@ local function apronStation(c: any, dcf: CFrame, bootsCf: CFrame?)
 	end
 end
 
+-- 카운터 위 얇은 품목: { 벽 쪽 z 오프셋, 깊이 }
+local SLIM_DZ: { [string]: { number } } = {
+	sauce = { -0.3, 0.5 },
+	wrap = { -0.32, 0.42 },
+	boxes = { -0.12, 0.72 },
+	gloves = { -0.2, 0.55 },
+}
+
 local function kitchen(c: any)
 	local K, V, th = c.K, c.V, c.th
 	local g = V.counters[1]
@@ -1735,11 +1743,11 @@ local function kitchen(c: any)
 	if th.kind == "sushi" then
 		items = {}
 	elseif th.kind == "jjim" then
-		items = { { w = 1.9, kind = "pot" }, { w = 1.9, kind = "pot" }, { w = 1.7, kind = "sink" }, { w = 1.2, kind = "sauce" }, { w = 1.1, kind = "scale" }, { w = 1.0, kind = "wrap" } }
+		items = { { w = 1.55, kind = "pot" }, { w = 1.55, kind = "pot" }, { w = 1.7, kind = "sink" }, { w = 1.2, kind = "sauce" }, { w = 1.1, kind = "scale" }, { w = 1.0, kind = "wrap" } }
 	elseif th.kind == "crab" then
-		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.9, kind = "pot" }, { w = 1.0, kind = "boxes" } }
+		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.55, kind = "pot" }, { w = 1.0, kind = "boxes" } }
 	else
-		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.3, kind = "bowl" }, { w = 1.0, kind = "boxes" }, { w = 1.0, kind = "wrap" }, { w = 1.0, kind = "gloves" }, { w = 1.1, kind = "plates" } }
+		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.3, kind = "bowl" }, { w = 1.0, kind = "boxes" }, { w = 0.95, kind = "wrap" }, { w = 0.8, kind = "gloves" }, { w = 1.1, kind = "plates" } }
 	end
 	if th.kind == "jjim" or th.kind == "crab" then
 		table.insert(items, { w = 1.3, kind = "bowl" })
@@ -1748,8 +1756,10 @@ local function kitchen(c: any)
 	local cursor = tmn.X + 0.3
 	local steamSrc: { any } = {}
 	local placedNames: { string } = {}
+	-- 첫 맞춤 (first-fit): 품목마다 왼쪽 끝부터 빈 자리 (맵 파트 · 이미 놓은 품목 · keep 을 모두 피함)
 	for _, it in items do
 		local placed = false
+		cursor = tmn.X + 0.3
 		while cursor + it.w <= tmx.X - 0.25 do
 			local a, b = cursor, cursor + it.w
 			local hit = false
@@ -1763,9 +1773,11 @@ local function kitchen(c: any)
 			if not hit then
 				local cx = (a + b) / 2
 				local isPot = it.kind == "pot"
-				local base = CF(cx, topY, if isPot then zBack + 0.3 else zBack)
+				-- 얇은 품목 (소스병 · 랩 · 포장 용기) 은 벽 쪽으로 붙여 손님 동선 keep 을 피함
+				local slim = SLIM_DZ[it.kind]
+				local base = CF(cx, topY, if isPot then zBack + 0.05 elseif slim then zBack + slim[1] else zBack)
 				local h = if isPot then 1.6 elseif it.kind == "sink" then 1.0 else 0.8
-				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 elseif it.kind == "bowl" then 1.3 else 1.0)) then
+				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.25 elseif slim then slim[2] elseif it.kind == "bowl" then 1.3 else 1.0)) then
 					placed = true
 					table.insert(placedNames, string.format("%s@%.1f", it.kind, cx))
 					cursor = b + 0.2
@@ -1777,9 +1789,9 @@ local function kitchen(c: any)
 						sashimiPlatter(c, base)
 					elseif it.kind == "sauce" then
 						sauceBottle(K, base * CF(-0.4, 0, 0), "chojang")
-						sauceBottle(K, base * CF(-0.1, 0, 0), "soy")
-						sauceBottle(K, base * CF(0.2, 0, 0.1), "wasabi")
-						sauceBottle(K, base * CF(0.42, 0, -0.1), "sesame")
+						sauceBottle(K, base * CF(-0.12, 0, 0.02), "soy")
+						sauceBottle(K, base * CF(0.16, 0, 0.08), "wasabi")
+						sauceBottle(K, base * CF(0.42, 0, -0.05), "sesame")
 					elseif it.kind == "boxes" then
 						for k = 1, 3 do
 							K:box("TakeoutTray", V3(0.9, 0.12, 0.62), base * CF(0, 0.07 + (k - 1) * 0.13, 0), L.of(246, 246, 242, M.Plastic))
@@ -1805,7 +1817,7 @@ local function kitchen(c: any)
 						end
 						K:disc("SauceDishFill", 0.2, 0.02, base * CF(0.21, 0.54, 0.15), L.of(196, 40, 30))
 					elseif it.kind == "gloves" then
-						K:box("GloveBox", V3(0.7, 0.3, 0.42), base * CF(0, 0.15, 0), L.of(240, 240, 236))
+						K:box("GloveBox", V3(0.66, 0.3, 0.42), base * CF(0, 0.15, 0), L.of(240, 240, 236))
 						K:box("GloveBoxBand", V3(0.72, 0.1, 0.44), base * CF(0, 0.2, 0), L.of(40, 110, 190))
 						K:ell("RubberGlove", V3(0.5, 0.06, 0.22), base * CF(0.05, 0.33, 0.05) * ANG(0, 0.3, 0), L.of(240, 190, 40, M.Rubber))
 					elseif it.kind == "sink" then
@@ -1824,25 +1836,22 @@ local function kitchen(c: any)
 						K:box("Scrubber", V3(0.26, 0.1, 0.18), base * CF(0.62, 0.05, -0.32), L.of(90, 170, 80, M.Fabric))
 					elseif it.kind == "pot" then
 						local burner = L.of(46, 48, 52, M.Metal)
-						K:box("GasBurner", V3(1.5, 0.3, 1.0), base * CF(0, 0.15, 0), burner)
-						K:disc("BurnerKnob", 0.16, 0.08, base * CF(0.5, 0.15, 0.52) * ANG(PI / 2, 0, 0), L.black)
-						K:disc("Pot", 1.4, 0.9, base * CF(0, 0.3 + 0.45, 0), L.of(206, 200, 186, M.Metal, { r = 0.12 }))
-						K:disc("PotRim", 1.46, 0.06, base * CF(0, 1.2, 0), L.of(220, 214, 200, M.Metal))
-						K:disc("PotLid", 1.38, 0.08, base * CF(0, 1.27, 0), L.of(196, 190, 176, M.Metal))
+						K:box("GasBurner", V3(1.3, 0.3, 0.95), base * CF(0, 0.15, 0.05), burner)
+						K:disc("BurnerKnob", 0.16, 0.08, base * CF(0.42, 0.15, 0.53) * ANG(PI / 2, 0, 0), L.black)
+						K:disc("Pot", 1.2, 0.9, base * CF(0, 0.3 + 0.45, 0), L.of(206, 200, 186, M.Metal))
+						K:disc("PotRim", 1.25, 0.06, base * CF(0, 1.2, 0), L.of(220, 214, 200, M.Metal))
+						K:disc("PotLid", 1.18, 0.08, base * CF(0, 1.27, 0), L.of(196, 190, 176, M.Metal))
 						K:ball("PotLidKnob", 0.18, base * CF(0, 1.36, 0), L.black)
 						for _, sx in { -1, 1 } do
-							K:box("PotHandle", V3(0.2, 0.08, 0.3), base * CF(sx * 0.78, 1.1, 0), L.black)
+							K:box("PotHandle", V3(0.18, 0.08, 0.28), base * CF(sx * 0.68, 1.1, 0), L.black)
 						end
 						table.insert(steamSrc, base * CF(0, 1.38, 0))
 					end
 					break
 				else
-					cursor += 0.3
+					cursor += 0.15
 				end
 			end
-		end
-		if not placed then
-			cursor = tmn.X + 0.3
 		end
 	end
 	c.steamSrc = steamSrc

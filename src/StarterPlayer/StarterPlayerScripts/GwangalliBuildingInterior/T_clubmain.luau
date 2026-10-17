@@ -343,7 +343,7 @@ local function lightbox(P: any, name: string, dcf: CFrame, w: number, h: number,
 	end
 	if op.art then
 		for _, a in op.art do
-			P:plate(name .. "Art", a[4] * w, a[5] * h, 0.125, dcf * CF((a[2] - 0.5) * w + a[4] * w / 2, (a[3] - 0.5) * h + a[5] * h / 2, 0), lk(a[1]))
+			P:plate(name .. "Art", a[4] * w, a[5] * h, 0.1225, dcf * CF((a[2] - 0.5) * w + a[4] * w / 2, (a[3] - 0.5) * h + a[5] * h / 2, 0), lk(a[1]))
 		end
 	end
 end
@@ -1178,10 +1178,44 @@ local function lobbyFinish(R: any)
 			table.insert(skip, { f.mn.X - 0.1, f.mx.X + 0.1, f.mn.Y - 0.1, f.mx.Y + 0.1 })
 		end
 	end
+	-- 뒤 벽 가운데 (CLUB OCEAN 간판 ~ 메인홀 문 포디움 뒤): 월넛 플루티드 패널 + 위 그레이징 조명 + 아래 LED 띠
+	local so = R.one("Sign_CLUB OCEAN")
+	local tb = R.one("Sign_TABLE · BAR · DJ ▶")
+	local fa = if so then so.mx.X + 0.25 else -10.2
+	local fb = R.doorX0 - 1.0
+	if fb - fa > 3 then
+		P:free(function()
+			local WAL = lk(rgb(62, 42, 30), M.Wood)
+			local y0, y1 = 0.45, H - 0.75
+			P:plate("FluteBacker", fb - fa, y1 - y0, 0.04, R.wall("back", (fa + fb) / 2, (y0 + y1) / 2, 0.0), lk(rgb(30, 22, 18), M.Wood))
+			local n = math.floor((fb - fa) / 0.42)
+			local pitch = (fb - fa) / n
+			for i = 0, n - 1 do
+				local x = fa + pitch * (i + 0.5)
+				local cuts = { { y0, y1 } }
+				if tb and x > tb.mn.X - 0.15 and x < tb.mx.X + 0.15 then
+					cuts = { { y0, tb.mn.Y - 0.12 }, { tb.mx.Y + 0.12, y1 } }
+				end
+				for _, c in cuts do
+					if c[2] - c[1] > 0.3 then
+						-- 반쯤 묻힌 원기둥 = 둥근 플루트
+						local d = R.wall("back", x, (c[1] + c[2]) / 2, 0.0)
+						P:vcyl("Flute", c[2] - c[1], pitch * 0.92, d * CF(0, 0, 0.02), WAL)
+					end
+				end
+			end
+			P:plate("FluteCapTop", fb - fa + 0.1, 0.08, 0.26, R.wall("back", (fa + fb) / 2, y1 + 0.04, 0.0), BRASS)
+			P:plate("FluteCapBottom", fb - fa + 0.1, 0.06, 0.26, R.wall("back", (fa + fb) / 2, y0 - 0.03, 0.0), BRASS)
+			-- 위 매입 그레이징 라인 (네온) + 스폿 하나 (벽을 쓸어 내림)
+			P:box("FluteGrazeSlot", V3(fb - fa - 0.4, 0.04, 0.2), CF((fa + fb) / 2, H - 0.03, R.bz + 0.45), nl(rgb(255, 222, 186)))
+			local gz = P:box("FluteGrazeHead", V3(0.5, 0.06, 0.3), CF((fa + fb) / 2 - 1.2, H - 0.05, R.bz + 0.45), nl(rgb(255, 222, 186)))
+			K:light(gz, "SpotLight", { Face = Enum.NormalId.Bottom, Angle = 110, Range = 12, Brightness = 1.6, Color = rgb(255, 218, 180) })
+		end)
+	end
 	P:free(function()
 		local x = R.xl + 2.4
 		while x < R.xr - 1.0 do
-			if not (x > R.doorX0 - 0.6 and x < R.doorX1 + 0.6) then
+			if not (x > R.doorX0 - 0.6 and x < R.doorX1 + 0.6) and not (x > fa - 0.3 and x < fb + 0.3) then
 				-- 간판과 겹치는 높이는 잘라서
 				local y0, y1 = 0.42, H - 0.7
 				local cuts = { { y0, y1 } }
