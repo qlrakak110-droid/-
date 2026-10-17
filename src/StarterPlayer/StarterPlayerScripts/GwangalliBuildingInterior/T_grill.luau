@@ -360,7 +360,7 @@ local THEMES: { [string]: any } = {
 		lower = { kind = "tile", h = 3.6, look = L.of(236, 240, 242, M.CeramicTiles), grout = L.of(178, 190, 200), tw = 1.0, th = 1.0, walls = { "back", "left", "right" } },
 		band = rgb(26, 96, 178),
 		base = L.of(28, 60, 110),
-		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 불판 상판
+		top = L.of(166, 170, 175, M.SmoothPlastic, { r = 0.2 }), -- 스테인리스 불판 상판 (Metal 은 밤에 검게 보여 매끈 + 반사)
 		edge = L.of(36, 36, 40, M.Rubber),
 		tableBase = "cabinet",
 		stools = { RED_PL, RED_PL, RED_PL, RED_PL, RED_PL, BLUE_PL },
@@ -403,7 +403,7 @@ local THEMES: { [string]: any } = {
 		floor = { look = L.of(84, 80, 78, M.Concrete), tile = 0, grout = L.of(70, 66, 64) },
 		lower = { kind = "paint", h = 3.6, look = L.of(150, 70, 52, M.Brick), cap = L.of(70, 46, 32, M.Wood), walls = { "back", "left", "right" } },
 		base = L.of(54, 36, 26, M.Wood),
-		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 불판 상판
+		top = L.of(166, 170, 175, M.SmoothPlastic, { r = 0.2 }), -- 스테인리스 불판 상판 (Metal 은 밤에 검게 보여 매끈 + 반사)
 		edge = L.of(40, 40, 44, M.Metal),
 		tableBase = "drum",
 		drums = { rgb(168, 40, 32), rgb(168, 40, 32), rgb(40, 84, 140) },
@@ -499,7 +499,7 @@ local function pochaTheme(V: any, layout: string): any
 		floor = { look = L.of(118, 116, 112, M.Concrete), tile = 0, grout = L.of(90, 88, 86) },
 		lower = { kind = "louver", h = 3.4, look = L.of(176, 132, 84, M.WoodPlanks), back = L.of(60, 44, 30), pitch = 0.62, walls = { "back", "left", "right" } },
 		base = L.of(54, 40, 28, M.Wood),
-		top = L.of(214, 218, 222, M.Metal, { r = 0.04 }), -- 스테인리스 드럼 상판
+		top = L.of(166, 170, 175, M.SmoothPlastic, { r = 0.2 }), -- 스테인리스 드럼 상판
 		edge = L.of(150, 40, 34, M.Plastic),
 		tableBase = "drum",
 		drums = { rgb(40, 84, 150), rgb(168, 40, 32), rgb(40, 120, 70) },
@@ -1659,7 +1659,7 @@ local function tentCeiling(c: any)
 		txt(K, "TarpName", math.min(14, (x1 - x0) * 0.45), vh * 0.66, nameDcf, name .. "  ·  실내포장마차", tarp.trim, nil, F.GothamBlack, { d = 0.01 })
 		-- 말아 올린 투명 비닐 가림막 (포차 앞 비닐 천막): 가림막 아래 비닐 두루마리 + 주황 묶음 끈 (문 위는 비움)
 		local ry = yp + 0.04 - vh - 0.2
-		local vinyl = { c = rgb(214, 228, 232), m = M.SmoothPlastic, t = 0.18, r = 0.1 }
+		local vinyl = { c = rgb(206, 222, 228), m = M.SmoothPlastic, t = 0.08, r = 0.15 }
 		local strap = col(rgb(236, 120, 30), M.Fabric)
 		local doorX = if V.door then V.door.x else 0
 		local doorW = if V.door then V.door.w else 4
@@ -3528,20 +3528,20 @@ local function shellBuckets(c: any)
 		end
 		for k, p in cands do
 			local pcf = CF(p) * ANG(0, rnd(c.seed, gi * 5 + k) * PI, 0)
-			if K:spot(pcf, V3(0.95, 1.0, 0.95), 0.05, "shellBucket") then
-				local st = L.of(206, 210, 214, M.SmoothPlastic, { r = 0.22 })
-				K:vcyl("ShellBucket", 0.8, 0.86, pcf * CF(0, 0.42, 0), st)
-				K:vcyl("ShellBucketRim", 0.06, 0.94, pcf * CF(0, 0.82, 0), L.of(230, 232, 236, M.SmoothPlastic, { r = 0.3 }))
-				K:vcyl("ShellBucketBand", 0.05, 0.9, pcf * CF(0, 0.2, 0), L.of(170, 174, 180, M.SmoothPlastic, { r = 0.2 }))
-				for _, sx in { -1, 1 } do
-					K:box("ShellBucketEar", V3(0.06, 0.1, 0.16), pcf * CF(sx * 0.45, 0.7, 0), L.of(170, 174, 180, M.SmoothPlastic))
-				end
-				K:vcyl("ShellBucketIn", 0.02, 0.78, pcf * CF(0, 0.74, 0), L.of(70, 66, 62))
-				if c.hi then
-					for j = 1, 4 do
-						local a = j * 1.6 + gi
-						K:ell("EmptyShell", V3(0.24, 0.07, 0.2), pcf * CF(math.cos(a) * 0.18, 0.78, math.sin(a) * 0.18) * ANG(0.3, a, 0.4), if j % 2 == 0 then L.of(214, 140, 110) else L.of(226, 214, 190))
-					end
+			if K:spot(pcf, V3(0.85, 0.9, 0.85), 0.05, "shellBucket") then
+				-- 스테인리스 양동이 (위가 넓은 원뿔대) + 말린 테 + 철사 손잡이 + 위로 수북한 빈 껍데기
+				local st = L.of(196, 200, 206, M.SmoothPlastic, { r = 0.25 })
+				local hgt = 0.62
+				K:disc("ShellBucketBase", 0.6, 0.04, pcf * CF(0, 0.02, 0), dim(st, 0.2))
+				frustum(K, "ShellBucket", p.X, p.Z, 0.02, hgt, 0.3, 0.37, if c.hi then 10 else 8, st, 0.03)
+				K:disc("ShellBucketRim", 0.8, 0.04, pcf * CF(0, hgt, 0), L.of(226, 228, 232, M.SmoothPlastic, { r = 0.3 }))
+				K:disc("ShellBucketFill", 0.7, 0.05, pcf * CF(0, hgt - 0.06, 0), L.of(200, 186, 160))
+				K:ring("ShellBucketHandle", pcf * CF(0, hgt, 0), 0.37, 0.03, 4, L.of(150, 154, 160, M.Metal), 0, PI)
+				local nsh = if c.hi then 6 else 3
+				for j = 1, nsh do
+					local a2 = j * (2 * PI / nsh) + gi
+					local r2 = if j % 3 == 0 then 0.05 else 0.2
+					K:ell("EmptyShell", V3(0.26, 0.08, 0.22), pcf * CF(math.cos(a2) * r2, hgt + 0.03 + (j % 3) * 0.04, math.sin(a2) * r2) * ANG(0.35, a2, 0.5), if j % 2 == 0 then L.of(216, 140, 108) else L.of(230, 218, 196))
 				end
 				n += 1
 				break
