@@ -736,4 +736,55 @@ function LedArt.band(host: Instance, d: any, _tier: number, dur: number): any
 	return api
 end
 
+-------------------------------------------------------------------------------------------------
+-- generic lower-band note (짠 / laser show / DJ hands / 합석 arrivals)
+-------------------------------------------------------------------------------------------------
+function LedArt.note(host: Instance, d: any, _tier: number, dur: number): any
+	local col: Color3 = if typeof(d.color) == "Color3" then d.color else VIOLET
+	local frame = Core.frame(host, {
+		Name = "Note",
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.fromScale(0, 1),
+		Size = UDim2.fromScale(1, 0.2),
+		BackgroundColor3 = WHITE,
+		BackgroundTransparency = 1,
+		ZIndex = 25,
+		gradient = Core.seq(dark(col, 0.25), dark(col, 0.75), dark(col, 0.25)),
+	})
+	local edge = Core.frame(frame, { Size = UDim2.new(1, 0, 0, 3), BackgroundColor3 = lerpC(col, WHITE, 0.4), BackgroundTransparency = 1, ZIndex = 26 })
+	local label = Core.text(frame, {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.55),
+		Size = UDim2.fromScale(0.94, 0.68),
+		Text = tostring(d.text or ""),
+		Font = Enum.Font.GothamBlack,
+		TextTransparency = 1,
+		ZIndex = 27,
+		stroke = dark(col, 0.4),
+	})
+	local scale = Instance.new("UIScale")
+	scale.Parent = label
+	local api: any = { frame = frame, dur = dur, band = true }
+	api.steps = {
+		{ t = 0, fn = function(instant: boolean)
+			to(frame, 0.25, { BackgroundTransparency = 0.1 }, instant)
+			to(edge, 0.25, { BackgroundTransparency = 0.1 }, instant)
+			to(label, 0.3, { TextTransparency = 0 }, instant)
+			pop(label, instant, 0.6)
+		end },
+		{ t = dur - 0.45, fn = function(instant: boolean)
+			to(label, 0.4, { TextTransparency = 1 }, instant)
+			to(frame, 0.4, { BackgroundTransparency = 1 }, instant)
+			to(edge, 0.4, { BackgroundTransparency = 1 }, instant)
+		end },
+	}
+	function api.update(el: number, _dt: number)
+		if el > 0.5 then
+			local phase = Core.beat()
+			scale.Scale = 1 + 0.04 * (1 - phase) ^ 3
+		end
+	end
+	return api
+end
+
 return LedArt

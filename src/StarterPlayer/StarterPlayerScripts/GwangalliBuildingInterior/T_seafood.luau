@@ -612,7 +612,7 @@ local function themeFor(V: any): any
 	th.tile = L.of(242, 244, 244, M.CeramicTiles)
 	th.grout = L.of(204, 210, 212)
 	th.band = L.of(36, 96, 170, M.CeramicTiles)
-	th.upper = L.of(226, 234, 238, M.SmoothPlastic)
+	th.upper = L.of(216, 232, 242, M.SmoothPlastic)
 	th.lowerKind = "tile"
 	th.lowerH = 4.2
 	th.floor = { look = L.of(150, 154, 156, M.Slate), tile = 2.0, grout = L.of(118, 122, 124) }
@@ -652,7 +652,7 @@ local function themeFor(V: any): any
 		th.accent2 = rgb(214, 48, 40)
 		th.tile = L.of(214, 226, 222, M.CeramicTiles)
 		th.band = L.of(0, 120, 128, M.CeramicTiles)
-		th.upper = L.of(240, 242, 240, M.SmoothPlastic)
+		th.upper = L.of(232, 242, 240, M.SmoothPlastic)
 		th.floor = { look = L.of(122, 128, 128, M.Slate), tile = 1.8, grout = L.of(98, 102, 102) }
 		th.stool = { style = "plastic", seat = L.of(206, 52, 46, M.Plastic) }
 		th.table = { style = "four", top = L.of(198, 202, 206, M.Metal, { r = 0.06 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
@@ -714,6 +714,12 @@ local function themeFor(V: any): any
 		th.net = false
 		th.fridgeHeader = "SAKE · 사케"
 		th.wifi = "SUSHI_OCEAN"
+	end
+	-- 타일 벽 매장: 카운터 앞도 같은 타일 (스테인리스 상판), 시장형은 스테인리스 판
+	if th.lowerKind == "tile" and variant ~= "chojang" and variant ~= "market" then
+		th.counter = { front = "tile", frontL = th.tile, topL = L.of(214, 218, 222, M.Metal, { r = 0.12 }), kickL = th.band, led = rgb(200, 230, 255) }
+	elseif variant == "chojang" or variant == "market" then
+		th.counter = { front = "panel", frontL = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }), topL = L.of(214, 218, 222, M.Metal, { r = 0.12 }), kickL = L.black, led = false }
 	end
 	th.menu = MENUS[if kind == "hoe" then "hoe" else kind] or MENUS.hoe
 	th.origin = ORIGIN[if kind == "hoe" then "hoe" else kind] or ORIGIN.hoe
@@ -1969,6 +1975,164 @@ local function crabSign(c: any, dcf: CFrame, w: number)
 	ktext(K, "CrabSignText", 1.2 * s, 0.38 * s, base * CF(0, -0.15 * s, 0.17), "대게", { fg = WHITE, font = F.GothamBlack, d = 0.01 })
 end
 
+-- 광안대교 야경 파노라마 액자 (마린시티 스카이라인 + 복층 현수교 + 무지개 조명 + 드론쇼)
+local function bridgeArt(c: any, dcf: CFrame, w: number, h: number)
+	local K = c.K
+	local fr = L.of(24, 24, 26, M.Metal)
+	K:plate("BridgeBack", w, h, 0.05, dcf, col(rgb(12, 16, 40)))
+	for _, sy in { -1, 1 } do
+		K:plate("BridgeFrame", w + 0.12, 0.1, 0.1, dcf * CF(0, sy * (h / 2 + 0.01), 0), fr)
+	end
+	for _, sx in { -1, 1 } do
+		K:plate("BridgeFrame", 0.1, h + 0.12, 0.1, dcf * CF(sx * (w / 2 + 0.01), 0, 0), fr)
+	end
+	local pc = dcf * CF(0, 0, 0.05)
+	local iw, ih = w - 0.1, h - 0.1
+	-- 하늘 노을 띠 · 달
+	K:plate("BridgeSkyMid", iw, ih * 0.2, 0.003, pc * CF(0, ih * 0.02, 0), col(rgb(46, 36, 92)))
+	K:plate("BridgeSkyLow", iw, ih * 0.08, 0.004, pc * CF(0, -ih * 0.1, 0), col(rgb(150, 76, 104)))
+	wdisc(K, "BridgeMoon", ih * 0.12, 0.004, pc * CF(-iw * 0.36, ih * 0.32, 0), 0.0, L.neon(rgb(250, 240, 210)))
+	K:plate("BridgeSea", iw, ih * 0.36, 0.006, pc * CF(0, -ih * 0.32, 0), col(rgb(8, 20, 42)))
+	-- 마린시티 고층 빌딩 (왼쪽) + 창 불빛
+	local bxs = { 0.05, 0.11, 0.16, 0.22, 0.27, 0.33 }
+	for i, f in bxs do
+		local bx = -iw / 2 + iw * f
+		local bh = ih * (0.22 + ((i * 37) % 10) / 28)
+		local bw = iw * 0.045
+		K:plate("BridgeTower", bw, bh, 0.008, pc * CF(bx, -ih * 0.14 + bh / 2, 0), col(rgb(30, 34, 58)))
+		if c.hi then
+			K:plate("BridgeWindows", bw * 0.35, bh * 0.7, 0.01, pc * CF(bx - bw * 0.15, -ih * 0.14 + bh * 0.45, 0), L.neon(if i % 2 == 0 then rgb(255, 220, 150) else rgb(170, 210, 255), 0.25))
+		end
+	end
+	-- 다리: 복층 상판 · 주탑 2 · 무지개 주케이블 · 행어
+	local dy = -ih * 0.1
+	K:plate("BridgeDeck", iw, 0.07, 0.012, pc * CF(0, dy, 0), col(rgb(70, 74, 92)))
+	K:plate("BridgeDeck2", iw, 0.05, 0.012, pc * CF(0, dy - 0.12, 0), col(rgb(60, 64, 80)))
+	K:plate("BridgeDeckLights", iw, 0.025, 0.018, pc * CF(0, dy + 0.045, 0), L.neon(rgb(255, 210, 140)))
+	K:plate("BridgeDeckLights2", iw, 0.02, 0.018, pc * CF(0, dy - 0.09, 0), L.neon(rgb(255, 120, 90)))
+	local tx = iw * 0.2
+	local th0 = ih * 0.46
+	for _, sx in { -1, 1 } do
+		K:plate("BridgePylon", 0.06, th0, 0.014, pc * CF(sx * tx - 0.04, dy + th0 / 2 - 0.15, 0), col(rgb(96, 100, 120)))
+		K:plate("BridgePylon", 0.06, th0, 0.014, pc * CF(sx * tx + 0.04, dy + th0 / 2 - 0.15, 0), col(rgb(96, 100, 120)))
+		K:plate("BridgePylonBeam", 0.16, 0.04, 0.016, pc * CF(sx * tx, dy + th0 - 0.3, 0), col(rgb(96, 100, 120)))
+	end
+	local rainbow = { rgb(80, 160, 255), rgb(150, 100, 255), rgb(255, 90, 200), rgb(80, 230, 200) }
+	local function cable(x0: number, y0: number, x1: number, y1: number, sag: number, hangers: boolean)
+		local n = 6
+		local prev = nil
+		for k = 0, n do
+			local t = k / n
+			local x = x0 + (x1 - x0) * t
+			local y = y0 + (y1 - y0) * t - sag * 4 * t * (1 - t)
+			local p = (pc * CF(x, y, 0.016)).Position
+			if prev then
+				K:seg("BridgeCable", prev, p, 0.03, L.neon(rainbow[k % #rainbow + 1]))
+			end
+			if hangers and c.hi and k > 0 and k < n then
+				K:seg("BridgeHanger", p, (pc * CF(x, dy + 0.04, 0.014)).Position, 0.01, col(rgb(150, 150, 180)))
+			end
+			prev = p
+		end
+	end
+	local topY = dy + th0 - 0.15
+	cable(-tx, topY, tx, topY, th0 * 0.72, true)
+	cable(-iw / 2 + 0.05, dy + 0.06, -tx, topY, -th0 * 0.12, false)
+	cable(tx, topY, iw / 2 - 0.05, dy + 0.06, -th0 * 0.12, false)
+	-- 물 위 반사
+	for k = 1, 3 do
+		K:plate("BridgeReflect", iw * (0.85 - k * 0.15), 0.03, 0.012, pc * CF((k - 2) * 0.12, -ih * (0.2 + k * 0.06), 0), L.neon(rainbow[k], 0.45))
+	end
+	-- 드론쇼 (하트 점)
+	if c.hi then
+		for k = 0, 9 do
+			local a = k / 10 * PI * 2
+			local hx = 16 * math.sin(a) ^ 3
+			local hy = 13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)
+			K:plate("DroneDot", 0.045, 0.045, 0.012, pc * CF(iw * 0.3 + hx * 0.013, ih * 0.27 + hy * 0.013, 0), L.neon(rgb(255, 140, 210)))
+		end
+	end
+	K:text("BridgeCaption", iw * 0.42, 0.2, pc * CF(iw * 0.02, ih * 0.41, 0.012), "광안대교 야경 · 단체석 뷰", { fg = rgb(230, 230, 250), font = F.GothamBold, d = 0.004, glow = 0.8 })
+end
+
+-- 천장 그물 (부표 · 불가사리를 담아 처지게 매단 장식 그물)
+local function ceilingNet(c: any)
+	local K, V = c.K, c.V
+	local nw, nd = math.min(8, V.W * 0.28), 3.6
+	local rope = L.of(176, 156, 112, M.Fabric)
+	local nets = 0
+	local want = if V.W > 30 then 2 else 1
+	local zc = (V.z0 + V.z1) / 2
+	local used = {}
+	local x = V.x0 + nw / 2 + 1.5
+	while x <= V.x1 - nw / 2 - 1.5 and nets < want do
+		local ok = true
+		for _, u in used do
+			if math.abs(u - x) < nw + 2 then
+				ok = false
+			end
+		end
+		if ok then
+			for i = 0, 2 do
+				for j = 0, 2 do
+					if not Common.ceilFree(K, x - nw / 2 + nw * i / 2, zc - nd / 2 + nd * j / 2, 0.35) then
+						ok = false
+					end
+				end
+			end
+		end
+		if ok and budget(K, 70) then
+			table.insert(used, x)
+			nets += 1
+			local top = V.H - 0.06
+			local sag = 0.85
+			local function y(u: number, v: number): number
+				return top - sag * (1 - (2 * u - 1) ^ 2) * (1 - (2 * v - 1) ^ 2) - 0.08
+			end
+			local function P(u: number, v: number): Vector3
+				return V3(x - nw / 2 + nw * u, y(u, v), zc - nd / 2 + nd * v)
+			end
+			local nu, nv = 8, 4
+			for j = 0, nv do
+				local v = j / nv
+				for i = 0, nu - 1, 2 do
+					K:seg("CeilNetRope", P(i / nu, v), P((i + 2) / nu, v), 0.035, rope)
+				end
+			end
+			for i = 0, nu do
+				local u = i / nu
+				K:seg("CeilNetRope", P(u, 0), P(u, 0.5), 0.035, rope)
+				K:seg("CeilNetRope", P(u, 0.5), P(u, 1), 0.035, rope)
+			end
+			for _, cu in { 0, 1 } do
+				for _, cv in { 0, 1 } do
+					local p = P(cu, cv)
+					K:vcyl("CeilNetHook", 0.12, 0.08, CF(p.X, V.H - 0.06, p.Z), L.of(120, 120, 120, M.Metal))
+				end
+			end
+			-- 그물에 얹힌 부표 · 불가사리 · 소라
+			local items = { { 0.3, 0.45, "buoy", rgb(240, 110, 30) }, { 0.55, 0.5, "buoy", rgb(246, 246, 240) }, { 0.72, 0.4, "star", rgb(230, 120, 60) }, { 0.42, 0.62, "shell", rgb(240, 222, 200) }, { 0.8, 0.6, "buoy", rgb(240, 110, 30) } }
+			for k, it in items do
+				if not c.hi and k > 3 then
+					break
+				end
+				local p = P(it[1], it[2])
+				if it[3] == "buoy" then
+					K:ball("CeilBuoy", 0.6, CF(p - V3(0, 0.26, 0)), col(it[4], M.Plastic))
+				elseif it[3] == "star" then
+					for a = 0, 4 do
+						K:box("CeilStarArm", V3(0.36, 0.06, 0.12), CF(p - V3(0, 0.05, 0)) * ANG(0, a * 2 * PI / 5, 0) * CF(0.16, 0, 0), col(it[4]))
+					end
+				else
+					K:ell("CeilShell", V3(0.4, 0.3, 0.32), CF(p - V3(0, 0.14, 0)), col(it[4]))
+				end
+			end
+			Common.useCeil(K, x, zc)
+		end
+		x += 1.0
+	end
+end
+
 -- 벽걸이 TV (화면 = 스스로 빛나는 라벨)
 local function tvSet(c: any, dcf: CFrame, w: number): (BasePart, TextLabel, BasePart)
 	local K = c.K
@@ -2563,122 +2727,7 @@ function T.build(K: any, V: any, S: any)
 			giftPlant(c, pcf3)
 		end
 	end)
-	-- 4) 벽 큰 것: 메뉴 라이트 박스 · 시가 칠판 · 원산지 · 달력
-	step("menu", function()
-		local w = math.min(9, math.max(6, V.D * 0.5))
-		local wn, u, ww = findWall(K, bigWalls, 6.0, w, 4.2, 7.5, 0, 0.6)
-		if wn and u and ww then
-			menuLightbox(c, V:wall(wn, u, 5.85, 0), ww, 2.9)
-			at(K, "menu", wn, u)
-		end
-	end)
-	step("boards", function()
-		if not isSushi then
-			local wn, u, w = findWall(K, { bigWalls[2], bigWalls[1], "back" }, 3.0, 3.8, 4.1, 7.1, { left = 0, right = 0, back = V.x1 * 0.25 }, 0.6)
-			if wn and u and w then
-				sigaBoard(c, V:wall(wn, u, 5.6, 0), w, 2.5)
-			end
-			local wn2, u2 = findWall(K, { bigWalls[1], bigWalls[2], "back" }, 1.9, 1.9, 4.2, 6.9, { left = -3, right = 3, back = 0 }, 0.6)
-			if wn2 and u2 then
-				originBoard(c, V:wall(wn2, u2, 5.5, 0), 1.9, 2.5)
-			end
-			local wn3, u3 = findWall(K, { "back", bigWalls[2], bigWalls[1] }, 2.4, 2.4, 4.1, 7.0, { back = V.x1 * 0.15, left = 3, right = -3 }, 0.6)
-			if wn3 and u3 then
-				seasonChart(c, V:wall(wn3, u3, 5.55, 0), 2.4, 2.8)
-			end
-			local wn4, u4 = findWall(K, { "back", bigWalls[1], bigWalls[2] }, 1.7, 1.7, 4.0, 6.7, { back = V.x1 * 0.05, left = 0, right = 0 }, 0.6)
-			if wn4 and u4 then
-				sojuPoster(c, V:wall(wn4, u4, 5.35, 0), 1.7, 2.5)
-			end
-		else
-			sushiDecor(c)
-		end
-	end)
-	-- 5) 위쪽 벽 (7.5 ~ 9.6): 사진 · 어탁 · 그물 · 풍어기 · 대게 조형 · 오징어 줄
-	step("upper", function()
-		local yA, yB = 7.55, math.min(V.H - 0.3, 9.6)
-		if yB - yA < 1.4 then
-			return
-		end
-		local mid = (yA + yB) / 2
-		local hh = yB - yA
-		if th.kind == "crab" then
-			local wn, u, w = findWall(K, bigWalls, 3.4, 3.6, yA - 0.4, yB + 0.1, 0, 0.8)
-			if wn and u and w then
-				crabSign(c, V:wall(wn, u, mid, 0), w)
-			end
-		end
-		if th.kind == "squid" then
-			local wn, u, w = findWall(K, { bigWalls[2], bigWalls[1] }, 3.0, 5.0, yA - 0.6, yB, 0, 0.8)
-			if wn and u and w then
-				squidLine(c, V:wall(wn, u, yB - 0.2, 0), w)
-			end
-		end
-		if th.net then
-			local wn, u, w = findWall(K, { bigWalls[2], bigWalls[1], "back" }, 3.6, 5.2, yA, yB, { left = 2, right = -2, back = 0 }, 0.8)
-			if wn and u and w then
-				netDecor(c, V:wall(wn, u, mid, 0), w, hh - 0.2)
-			end
-		end
-		if not isSushi then
-			local wn, u, w = findWall(K, { bigWalls[1], "back", bigWalls[2] }, 2.6, 3.2, yA, yB, { left = -5, right = 5, back = 3 }, 0.8)
-			if wn and u and w then
-				bigFlag(c, V:wall(wn, u, mid - 0.05, 0), w, hh - 0.35, if th.kind == "crab" then "만선" else "풍어")
-			end
-			local nPh = if c.hi then 4 else 2
-			for i = 1, nPh do
-				local wn2, u2 = findWall(K, { bigWalls[1], bigWalls[2], "back" }, 1.6, 1.6, yA, yB, { left = -2 + i * 2, right = 2 - i * 2, back = -3 + i * 2 }, 0.8)
-				if wn2 and u2 then
-					if i == 2 then
-						gyotaku(c, V:wall(wn2, u2, mid, 0), 1.6, hh - 0.35)
-					else
-						fishPhoto(c, V:wall(wn2, u2, mid, 0), 1.6, math.min(1.5, hh - 0.25), i)
-					end
-				end
-			end
-		end
-	end)
-	-- 6) 작은 안내판
-	step("info", function()
-		local plates = {
-			{ "Wi-Fi  " .. th.wifi .. "\nPW  0516" .. string.format("%04d", c.seed % 10000), rgb(255, 255, 255), rgb(36, 40, 48), 1.7, 0.7 },
-			{ "카드 · 제로페이 · 동백전\n결제 가능합니다", rgb(30, 30, 40), rgb(250, 230, 120), 1.9, 0.7 },
-			{ if isSushi then "런치 11:30 - 15:00\n디너 17:00 - 22:00" else "포장 · 택배 가능\n단체 예약 환영", WHITE, th.accent, 1.8, 0.7 },
-		}
-		for i, p in plates do
-			local wn, u = findWall(K, { "back", bigWalls[1], bigWalls[2] }, p[4], p[4], 3.9 + (i % 2) * 0.1, 4.8, { back = -2 + i * 2.2, left = 4 - i * 2, right = -4 + i * 2 }, 0.6)
-			if wn and u then
-				infoPlate(c, V:wall(wn, u, 4.35, 0), p[4], p[5], p[1], p[2], p[3])
-			end
-		end
-		local wn, u = findWall(K, { "back", bigWalls[2] }, 1.2, 1.2, 4.6, 6.4, { back = 2, left = 0, right = 0 }, 0.6)
-		if wn and u then
-			hygieneBadge(c, V:wall(wn, u, 5.5, 0))
-		end
-	end)
-	-- 7) 천장
-	step("ceiling", function()
-		if th.flags then
-			buntings(c)
-		end
-		if th.kind == "crab" and budget(K, 30) then
-			local n = 0
-			for _, fx in { 0.3, 0.7 } do
-				local p = V3(V.x0 + V.W * fx, V.H, V.z0 + V.D * 0.42)
-				if Common.ceilFree(K, p.X, p.Z, 0.7) then
-					lantern(c, p, 1.0, 1.2, if n == 0 then "대게" else "킹크랩", rgb(220, 50, 30))
-					Common.useCeil(K, p.X, p.Z)
-					n += 1
-				end
-			end
-		end
-	end)
-	-- 8) 김
-	step("steam", function()
-		steam(c, c.steamSrc)
-	end)
-	-- 9) 상호작용
-	step("interact", function()
+	step("tankSwitch", function()
 		-- (a) 수족관 조명 · 기포기 스위치
 		if #tks > 0 then
 			local near = (tks[1].min + tks[1].max) / 2
@@ -2709,31 +2758,179 @@ function T.build(K: any, V: any, S: any)
 				at(K, "tankSwitch", wn, u)
 			end
 		end
-		-- (b) TV 채널
-		if not isSushi then
-			local wn, u, w = findWall(K, { bigWalls[2], "back", bigWalls[1] }, 3.0, 3.4, 6.6, 8.8, { left = -3, right = 3, back = V.x1 * 0.3 }, 0.8, function(wn0: string, u0: number)
-				return promptWallOK(K, wn0, u0, 7.0, 0.6)
-			end)
+	end)
+	-- 4) 벽 계획: A = 메뉴 벽, B = 맞은편 옆벽, back = 뒷벽 (카운터 · 냉장고 남은 자리)
+	local A, B = bigWalls[1], bigWalls[2]
+	local pFront = V3(0, 0, V.z1 - 3.5)
+	local pBack = V3(V.x1 * 0.25, 0, V.z0 + 3)
+	local pMid = V3(0, 0, (V.z0 + V.z1) / 2 + 0.5)
+	step("menu", function()
+		local w = math.min(9, math.max(6, V.D * 0.5))
+		local wn, u, ww = findWall(K, { A, B }, 6.0, w, 3.95, 7.75, pMid, 0.6)
+		if wn and u and ww then
+			menuLightbox(c, V:wall(wn, u, 5.85, 0), ww, 3.4)
+			at(K, "menu", wn, u)
+		end
+	end)
+	step("boards", function()
+		if isSushi then
+			sushiDecor(c)
+			return
+		end
+		local wn, u, w = findWall(K, { B, A, "back" }, 3.0, 3.8, 4.1, 7.1, pMid, 0.6)
+		if wn and u and w then
+			sigaBoard(c, V:wall(wn, u, 5.6, 0), w, 2.5)
+		end
+		local wn3, u3 = findWall(K, { B, "back", A }, 2.4, 2.4, 4.1, 7.1, pBack, 0.6)
+		if wn3 and u3 then
+			seasonChart(c, V:wall(wn3, u3, 5.6, 0), 2.4, 2.8)
+		end
+		local wn4, u4 = findWall(K, { B, A, "back" }, 1.7, 1.7, 4.0, 6.8, pFront, 0.6)
+		if wn4 and u4 then
+			sojuPoster(c, V:wall(wn4, u4, 5.4, 0), 1.7, 2.5)
+		end
+		local wn2, u2 = findWall(K, { A, B, "back" }, 1.9, 1.9, 4.2, 6.9, pBack, 0.6)
+		if wn2 and u2 then
+			originBoard(c, V:wall(wn2, u2, 5.55, 0), 1.9, 2.5)
+		end
+		local wn5, u5, w5 = findWall(K, { "back", B, A }, 3.6, 5.0, 4.5, 7.25, V3((V.x0 + V.x1) / 2 + 2, 0, V.z0), 0.6)
+		if wn5 and u5 and w5 then
+			bridgeArt(c, V:wall(wn5, u5, 5.85, 0), w5, 2.4)
+		end
+	end)
+	-- 5) 위쪽 벽 (7.5 ~ 9.6): TV · 선풍기 (프롬프트 자리) 먼저, 그다음 사진 · 어탁 · 그물 · 풍어기
+	local yA, yB = 7.55, math.min(V.H - 0.3, 9.6)
+	step("tv", function()
+		if isSushi then
+			return
+		end
+		local wn, u, w = findWall(K, { B, "back", A }, 3.0, 3.4, 6.6, 8.8, { left = -3, right = 3, back = V.x1 * 0.3 }, 0.8, function(wn0: string, u0: number)
+			return promptWallOK(K, wn0, u0, 7.0, 0.6)
+		end)
+		if wn and u and w then
+			local scr, lbl = tvSet(c, V:wall(wn, u, 7.7, 0), w)
+			lbl.Text = TV_CH[1].text
+			lbl.BackgroundColor3 = TV_CH[1].c
+			Interact.cycle(K, scr, TV_CH, {
+				action = "채널 돌리기",
+				object = "TV",
+				on = function(_i: number, item: any)
+					if lbl.Parent then
+						lbl.Text = item.text
+						lbl.BackgroundColor3 = item.c
+					end
+				end,
+			})
+			at(K, "tv", wn, u)
+		end
+	end)
+	step("fan", function()
+		if isSushi or not budget(K, 40) then
+			return
+		end
+		local wn, u = findWall(K, { B, A, "back" }, 1.8, 1.8, 6.4, 8.9, pMid, 1.2, function(wn0: string, u0: number)
+			return promptWallOK(K, wn0, u0 + 0.24, 6.6, 0.3)
+		end)
+		if wn and u then
+			local st, knob = wallFan(c, V:wall(wn, u, 8.3, 0))
+			Interact.toggle(K, knob, {
+				object = "벽걸이 선풍기",
+				state = true,
+				onText = "끄기",
+				offText = "켜기",
+				on = function(on: boolean)
+					st.on = on
+				end,
+			})
+			at(K, "fan", wn, u)
+		end
+	end)
+	step("upper", function()
+		if yB - yA < 1.4 then
+			return
+		end
+		local mid = (yA + yB) / 2
+		local hh = yB - yA
+		if th.kind == "crab" then
+			local wn, u, w = findWall(K, { A, B }, 3.4, 3.6, yA - 0.4, yB + 0.1, pMid, 0.8)
 			if wn and u and w then
-				local scr, lbl = tvSet(c, V:wall(wn, u, 7.7, 0), w)
-				local ch = 1
-				lbl.Text = TV_CH[1].text
-				lbl.BackgroundColor3 = TV_CH[1].c
-				Interact.cycle(K, scr, TV_CH, {
-					action = "채널 돌리기",
-					object = "TV",
-					on = function(i: number, item: any)
-						ch = i
-						if lbl.Parent then
-							lbl.Text = item.text
-							lbl.BackgroundColor3 = item.c
-						end
-					end,
-				})
-				local _ = ch
-				at(K, "tv", wn, u)
+				crabSign(c, V:wall(wn, u, mid, 0), w)
 			end
 		end
+		if th.kind == "squid" then
+			local wn, u, w = findWall(K, { B, A }, 3.0, 5.0, yA - 0.6, yB, pMid, 0.8)
+			if wn and u and w then
+				squidLine(c, V:wall(wn, u, yB - 0.2, 0), w)
+			end
+		end
+		if isSushi then
+			return
+		end
+		if th.net then
+			local wn, u, w = findWall(K, { B, A, "back" }, 3.6, 5.2, yA, yB, pMid, 0.8)
+			if wn and u and w then
+				netDecor(c, V:wall(wn, u, mid, 0), w, hh - 0.2)
+			end
+		end
+		local wn, u, w = findWall(K, { A, B, "back" }, 2.6, 3.2, yA, yB, pFront, 0.8)
+		if wn and u and w then
+			bigFlag(c, V:wall(wn, u, mid - 0.05, 0), w, hh - 0.35, if th.kind == "crab" then "만선" else "풍어")
+		end
+		local nPh = if c.hi then 4 else 2
+		for i = 1, nPh do
+			local wn2, u2 = findWall(K, { A, B, "back" }, 1.6, 1.6, yA, yB, if i % 2 == 1 then pMid else pBack, 0.8)
+			if wn2 and u2 then
+				if i == 2 then
+					gyotaku(c, V:wall(wn2, u2, mid, 0), 1.6, hh - 0.35)
+				else
+					fishPhoto(c, V:wall(wn2, u2, mid, 0), 1.6, math.min(1.5, hh - 0.25), i)
+				end
+			end
+		end
+	end)
+	-- 6) 작은 안내판
+	step("info", function()
+		local plates = {
+			{ "Wi-Fi  " .. th.wifi .. "\nPW  0516" .. string.format("%04d", c.seed % 10000), rgb(255, 255, 255), rgb(36, 40, 48), 1.7, 0.7 },
+			{ "카드 · 제로페이 · 동백전\n결제 가능합니다", rgb(30, 30, 40), rgb(250, 230, 120), 1.9, 0.7 },
+			{ if isSushi then "런치 11:30 - 15:00\n디너 17:00 - 22:00" else "포장 · 택배 가능\n단체 예약 환영", WHITE, th.accent, 1.8, 0.7 },
+		}
+		for i, p in plates do
+			local wn, u = findWall(K, { "back", A, B }, p[4], p[4], 3.9, 4.8, { back = -2 + i * 2.2, left = 4 - i * 2, right = -4 + i * 2 }, 0.6)
+			if wn and u then
+				infoPlate(c, V:wall(wn, u, 4.35, 0), p[4], p[5], p[1], p[2], p[3])
+			end
+		end
+		local wn, u = findWall(K, { "back", B, A }, 1.2, 1.2, 4.6, 6.4, { back = 2, left = 0, right = 0 }, 0.6)
+		if wn and u then
+			hygieneBadge(c, V:wall(wn, u, 5.5, 0))
+		end
+	end)
+	-- 7) 천장
+	step("ceiling", function()
+		if th.flags then
+			buntings(c)
+		elseif th.kind == "hoe" or th.kind == "crab" then
+			ceilingNet(c)
+		end
+		if th.kind == "crab" and budget(K, 30) then
+			local n = 0
+			for _, fx in { 0.3, 0.7 } do
+				local p = V3(V.x0 + V.W * fx, V.H, V.z0 + V.D * 0.42)
+				if Common.ceilFree(K, p.X, p.Z, 0.7) then
+					lantern(c, p, 1.0, 1.2, if n == 0 then "대게" else "킹크랩", rgb(220, 50, 30))
+					Common.useCeil(K, p.X, p.Z)
+					n += 1
+				end
+			end
+		end
+	end)
+	-- 8) 김
+	step("steam", function()
+		steam(c, c.steamSrc)
+	end)
+	-- 9) 상호작용
+	step("interact", function()
 		-- (c) 냉장고 문
 		if fridgeDoors then
 			for _, dd in fridgeDoors do
@@ -2743,24 +2940,6 @@ function T.build(K: any, V: any, S: any)
 		-- (d) 대게 찜기 문
 		if c.steamer and c.steamer.door and c.steamer.hinge then
 			Interact.swing(K, c.steamer.door, c.steamer.hinge, Vector3.yAxis, -1.6, { object = "대게 찜기", openText = "찜기 열기", closeText = "찜기 닫기" })
-		end
-		-- (e) 선풍기 (사람 손 닿는 높이, 서버 앵커와 떨어진 벽)
-		if not isSushi and budget(K, 40) then
-			local wn, u = findWall(K, { "back", bigWalls[1], bigWalls[2] }, 1.8, 1.8, 6.4, 8.9, { back = V.x1 * 0.5, left = -4, right = 4 }, 1.2, function(wn0: string, u0: number)
-				return promptWallOK(K, wn0, u0 + 0.24, 6.6, 0.3)
-			end)
-			if wn and u then
-				local st, knob = wallFan(c, V:wall(wn, u, 8.3, 0))
-				Interact.toggle(K, knob, {
-					object = "벽걸이 선풍기",
-					state = true,
-					onText = "끄기",
-					offText = "켜기",
-					on = function(on: boolean)
-						st.on = on
-					end,
-				})
-			end
 		end
 	end)
 end

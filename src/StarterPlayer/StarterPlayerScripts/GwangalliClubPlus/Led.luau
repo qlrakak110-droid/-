@@ -28,7 +28,8 @@ local activateFns: { (any) -> () } = {}
 local squeezed = false
 local vj: any = nil
 
-local PRI = { order = 3, booking = 3, band = 1, donate = 2, dj = 2, djon = 2 }
+local PRI = { order = 3, booking = 3, band = 1, note = 1, donate = 2, dj = 2, djon = 2 }
+local FULL = { order = true, booking = true } -- these own the whole wall even over the club's overlay
 
 local function holdBefore(it: any, now: number): number
 	local t = 0
@@ -408,6 +409,33 @@ local function officialOverlay(now: number): boolean
 	return false
 end
 
+-- ClubLights' own pixel-wall moments: Club.server banners (WallMsg*) and the ClubDance photo moment
+local runtimeCache: Instance? = nil
+local function pixelMoment(now: number): boolean
+	local bus = Core.Bus
+	if os.clock() - (tonumber(bus.photoAt) or -1e9) < 5 then
+		return true
+	end
+	local rt = runtimeCache
+	if not (rt and rt.Parent) then
+		rt = nil
+		for _, m in game:GetService("CollectionService"):GetTagged("ClubRuntime") do
+			if m:IsDescendantOf(workspace) then
+				rt = m
+				break
+			end
+		end
+		runtimeCache = rt
+	end
+	if rt then
+		local at, dur = rt:GetAttribute("WallMsgAt"), rt:GetAttribute("WallMsgFor")
+		if type(at) == "number" and type(dur) == "number" and now >= at and now < at + math.clamp(dur, 0, 120) then
+			return true
+		end
+	end
+	return false
+end
+
 local function setSqueeze(on: boolean)
 	if on == squeezed or not canvas then
 		return
@@ -475,8 +503,12 @@ local function director(_dt: number, now: number)
 	if active then
 		runUi(active, now, dt)
 	end
-	setSqueeze(active ~= nil and not active.ui == false and Core.houseMoment() and not (active.ui and active.ui.band))
-	local showVJ = active == nil and not officialOverlay(now) and not Core.houseMoment() and Core.showRoom
+	local overlay = officialOverlay(now)
+	local isBand = active ~= nil and active.ui ~= nil and active.ui.band == true
+	-- the house show (countdown / DROP) and the club's own overlay keep the top of the wall:
+	-- a paid / DJ takeover shrinks to the lower third meanwhile (order intros / 합석 card stay full)
+	setSqueeze(active ~= nil and active.ui ~= nil and not isBand and (Core.houseMoment() or (overlay and not FULL[active.kind])))
+	local showVJ = active == nil and not overlay and not Core.houseMoment() and not pixelMoment(now) and Core.showRoom
 	vj.frame.Visible = showVJ
 	if showVJ then
 		vjStep(dt)
@@ -585,6 +617,16 @@ function Led.onActivate(fn: (any, number) -> ())
 	table.insert(activateFns, fn)
 end
 
+-- a local lower-band note (짠 / laser show / DJ hands ...): drawn only when nothing bigger runs
+function Led.note(key: string, text: string, seconds: number, color: Color3?, startAt: number?)
+	addItem("note:" .. key, "note", startAt or Core.now(), seconds, 1, { text = text, color = color })
+end
+
+-- the running takeover (kind, tier, data) or nil
+function Led.current(): any?
+	return active
+end
+
 function Led.init(core: any, art: any)
 	Core = core
 	S = core.S
@@ -592,11 +634,7 @@ function Led.init(core: any, art: any)
 	Core.on("Show", onShow)
 	Core.on("Stage", onStage)
 	Core.on("Booking", onBooking)
-	Core.Event.OnClientEvent:Connect(function(kind: string, payload: any)
-		if kind == "order" then
-			onOrderEvent(payload)
-		end
-	end)
+	Core.onEvent("order", onOrderEvent)
 	Core.job("led", 30, director)
 	Players.LocalPlayer.CharacterAdded:Connect(function()
 		-- (the SurfaceGui is ResetOnSpawn = false; nothing to rebuild)

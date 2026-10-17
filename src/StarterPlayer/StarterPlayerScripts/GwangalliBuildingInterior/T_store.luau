@@ -135,6 +135,18 @@ local function txt(K: any, name: string, w: number, h: number, dcf: CFrame, s: s
 	return K:text(name, w, h, dcf, s, opts)
 end
 
+-- 물놀이 튜브 (원환): 원통 조각 + 이음 공 (각진 다각형 대신 둥근 도넛) + 공기 마개
+local function tubeRing(K: any, name: string, frame: CFrame, R: number, d: number, n: number, look: any, hi: boolean)
+	K:ring(name, frame, R, d, n, look)
+	if hi then
+		for i = 0, n - 1 do
+			local t = 2 * PI * i / n
+			K:ball(name .. "Joint", d * 0.98, frame * CF(math.cos(t) * R, math.sin(t) * R, 0), look)
+		end
+		K:vcyl(name .. "Valve", 0.08, 0.1, frame * CF(R * 0.7, R * 0.7, d * 0.46) * ANG(PI / 2, 0, 0), lk(C(250, 250, 250), M.Plastic))
+	end
+end
+
 ---------------------------------------------------------------------------------------------------
 -- 1. 자리 확인 · 벽 사용 기록
 ---------------------------------------------------------------------------------------------------
@@ -472,7 +484,7 @@ local SKU: { [string]: any } = {
 	rxBox = { k = "medbox", w = 0.42, h = 0.36, d = 0.34, stack = 3, cols = { C(250, 250, 250), C(236, 240, 244) }, lab = { C(30, 90, 190), C(40, 150, 70), C(200, 30, 40) } },
 	rxBottle = { k = "jar", w = 0.3, h = 0.44, cols = { C(160, 90, 30), C(250, 250, 250) } },
 	-- 기념품 · 비치
-	giftBox = { k = "box", w = 0.96, h = 0.36, d = 0.66, stack = 3, cols = { C(30, 80, 160), C(200, 40, 40), C(240, 200, 60), C(250, 250, 250), C(40, 130, 120) }, lab = { C(250, 250, 250), C(214, 180, 100) } },
+	giftBox = { k = "box", gift = true, w = 0.96, h = 0.36, d = 0.66, stack = 3, cols = { C(30, 80, 160), C(200, 40, 40), C(240, 200, 60), C(250, 250, 250), C(40, 130, 120) }, lab = { C(250, 250, 250), C(214, 180, 100) } },
 	mug = { k = "mug", w = 0.32, h = 0.36, cols = { C(250, 250, 250), C(30, 80, 160), C(240, 200, 60), C(200, 40, 40) } },
 	globe = { k = "globe", w = 0.42, h = 0.52, cols = { C(30, 80, 160), C(250, 250, 250), C(40, 40, 44) } },
 	plush = { k = "plush", w = 0.46, h = 0.56, cols = { C(250, 250, 250) } },
@@ -481,7 +493,8 @@ local SKU: { [string]: any } = {
 	goggle = { k = "card", w = 0.46, h = 0.6, d = 0.08, cols = { C(30, 120, 200), C(250, 120, 40), C(240, 60, 120), C(60, 60, 64) } },
 	flip = { k = "flip", w = 0.56, h = 0.12, d = 0.9, cols = { C(30, 120, 200), C(250, 120, 40), C(240, 60, 120), C(250, 210, 60), C(60, 180, 160) } },
 	loaf = { k = "loaf", w = 0.62, h = 0.36, d = 0.42, cols = { C(196, 140, 80), C(170, 110, 60), C(214, 170, 110), C(150, 90, 50) } },
-	hotteok = { k = "box", w = 0.8, h = 0.3, d = 0.52, stack = 3, cols = { C(250, 200, 60), C(200, 120, 50), C(240, 240, 236) }, lab = { C(200, 40, 40), C(120, 70, 40) } },
+	hotteok = { k = "box", gift = true, ribbon = C(200, 40, 40), w = 0.8, h = 0.3, d = 0.52, stack = 3, cols = { C(250, 200, 60), C(200, 120, 50), C(240, 240, 236) }, lab = { C(200, 40, 40), C(120, 70, 40) } },
+	tshirtFold = { k = "box", fold = true, print = true, w = 0.86, h = 0.56, d = 0.7, cols = { C(20, 40, 90), C(250, 250, 250), C(150, 154, 160), C(240, 200, 60), C(200, 40, 40), C(90, 170, 220) } },
 	book = { k = "book", w = 0.16, h = 0.86, d = 0.6, cols = { C(30, 80, 160), C(200, 40, 40), C(240, 200, 60), C(40, 130, 90), C(240, 236, 226), C(60, 60, 64) } },
 }
 
@@ -513,6 +526,7 @@ local CATS: { [string]: any } = {
 	gift = { low = { "giftBox" }, mid = { "mug", "globe", "plush" }, top = { "plush", "mug", "globe" } },
 	beachgoods = { low = { "towel", "flip" }, mid = { "sunB", "goggle", "sunscreen" }, top = { "goggle", "sunB" } },
 	books = { low = { "book" }, mid = { "book" }, top = { "book" } },
+	tableGift = { low = { "tshirtFold", "giftBox", "tshirtFold", "hotteok" }, mid = { "giftBox", "mug", "globe", "plush", "hotteok" }, top = { "plush", "mug" } },
 	busan = { low = { "giftBox", "hotteok" }, mid = { "loaf", "hotteok", "giftBox", "mug" }, top = { "loaf", "plush", "globe" } },
 }
 
@@ -538,6 +552,30 @@ local function item(K: any, base: CFrame, sku: any, col: Color3, lab: Color3?, h
 	elseif k == "box" or k == "medbox" or k == "pack" then
 		K:box("StGoodsBox", V3(w, h, d), base * CF(0, h / 2, 0), L)
 		local sn = sku.stackN or 1
+		if sku.gift and two then
+			-- 선물세트: 앞 · 위를 지나는 리본 띠 + 위 가로 리본 + 앞 옆면 금박 띠 (상자 더미 전체)
+			local rib = lk(sku.ribbon or C(214, 180, 100), M.SmoothPlastic)
+			K:plate("StGiftRibbonV", 0.07, h, 0.012, base * CF(w * 0.3, h / 2, d / 2), rib)
+			K:box("StGiftRibbonTop", V3(0.07, 0.014, d), base * CF(w * 0.3, h + 0.007, 0), rib)
+			n += 2
+			if three then
+				K:box("StGiftRibbonTop2", V3(w, 0.014, 0.07), base * CF(0, h + 0.009, d * 0.18), rib)
+				K:ell("StGiftBow", V3(0.22, 0.08, 0.16), base * CF(w * 0.3, h + 0.04, d * 0.18), rib)
+				n += 2
+			end
+		end
+		if sku.fold and two then
+			-- 접어 쌓은 티셔츠 · 수건: 층마다 어두운 접힘 줄 (앞) + 맨 위 프린트
+			local layers = math.max(2, math.floor(h / 0.14))
+			for li = 1, math.min(layers - 1, 6) do
+				K:plate("StFoldLine", w * 0.98, 0.025, 0.01, base * CF(0, h * li / layers, d / 2), lk(darker(col, 0.35)))
+				n += 1
+			end
+			if three and sku.print then
+				K:box("StFoldPrint", V3(w * 0.5, 0.012, d * 0.4), base * CF(0, h + 0.006, 0), lk(if (col.R + col.G + col.B) > 1.6 then C(20, 40, 90) else C(250, 250, 250)))
+				n += 1
+			end
+		end
 		if sn > 1 and two then
 			-- 쌓인 상자 이음매 (상자 사이 어두운 줄)
 			for si = 1, sn - 1 do
@@ -1097,9 +1135,20 @@ local function fillInside(K: any, r: any, front: Vector3, catName: string, rng: 
 	if clear and sku.stack and (sku.k == "box" or sku.k == "medbox") then
 		sn = math.clamp(math.floor((clear - 0.25) / (hh + 0.02)), 1, sku.stack + 1)
 	end
+	-- 깊은 칸: 앞줄은 실제 상자 깊이, 뒤로는 같은 상품 재고 줄 (한 덩어리 긴 막대처럼 보이지 않게 틈 0.04)
+	local fd = dep * 0.95
+	local backD = 0
+	if sku.d and dep > sku.d * 1.7 and lv >= 2 then
+		fd = math.min(dep * 0.95, sku.d * 1.05)
+		backD = dep * 0.95 - fd - 0.04
+	end
 	for i = 1, n do
-		local base = cf * CF(-len / 2 + w * (i - 0.5), 0.005, -dep / 2)
-		used += item(K, base, setmetatable({ w = w * 0.92, d = dep * 0.95, stackN = sn }, { __index = sku }), col, lab, hh * sn, lv)
+		local base = cf * CF(-len / 2 + w * (i - 0.5), 0.005, -fd / 2 - 0.02)
+		used += item(K, base, setmetatable({ w = w * 0.92, d = fd, stackN = sn }, { __index = sku }), col, lab, hh * sn, lv)
+	end
+	if backD > 0.08 then
+		K:box("StBackStock", V3(len * 0.96, hh * sn * 0.96, backD), cf * CF(0, 0.005 + hh * sn * 0.48, -fd - 0.06 - backD / 2), lk(darker(col, 0.12)))
+		used += 1
 	end
 	return used
 end
@@ -1615,6 +1664,64 @@ local function walkIn(K: any, V: any, surfs: { any }, B: any, rng: () -> number,
 			K:box("StFridgeLED", V3(0.05, dm.size.Y - 0.3, 0.05), CF(q.X, dm.c.Y, q.Z), L_FREE(Look.lampCool))
 		end
 	end
+	-- 맵 FridgeGlow (냉장고 뒤 전체가 눈부신 네온 판 -> 상품이 실루엣으로만 보임) 를 숨기고 같은 자리에 무광 흰 뒤판,
+	-- 와이어 선반마다 앞 모서리 아래 LED 띠 + 흰 가격 레일 (행사 태그 몇 개) — 실제 워크인 쿨러처럼 상품 앞면이 밝게
+	local fr = { min = mn, max = mx }
+	K:free(function()
+		for _, g in V.byName.FridgeGlow or {} do
+			if overlapXZ(g, fr, 0.9) and g.part.Transparency < 0.99 then
+				Scan.hide(K.hidden, g.part)
+				K:box("StFridgeBack", g.part.Size, g.lcf, lk(C(226, 230, 234), M.SmoothPlastic))
+				-- 뒤판 세로 이음 (판넬 칸)
+				if K.detail ~= "low" then
+					local alongG = g.size.X >= g.size.Z
+					local glen = if alongG then g.size.X else g.size.Z
+					local nseg = math.max(1, math.floor(glen / 2.6))
+					local inward = if alongG then V3(0, 0, if g.c.Z < (mn.Z + mx.Z) / 2 + 0.01 then 1 else -1) else V3(if g.c.X < (mn.X + mx.X) / 2 + 0.01 then 1 else -1, 0, 0)
+					local th = if alongG then g.size.Z else g.size.X
+					for i = 1, nseg - 1 do
+						local a = -glen / 2 + glen * i / nseg
+						local p = g.c + inward * (th / 2 + 0.005) + (if alongG then V3(a, 0, 0) else V3(0, 0, a))
+						K:box("StFridgeBackSeam", if alongG then V3(0.05, g.size.Y - 0.2, 0.01) else V3(0.01, g.size.Y - 0.2, 0.05), CF(p), lk(C(190, 196, 202)))
+					end
+				end
+			end
+		end
+		local tr = mkRng(V.key .. "frail")
+		local tags = 0
+		for _, s in fridge do
+			if s.rec and s.rec.name == "WireShelf" then
+				K:box("StFridgeShelfLED", V3(s.len - 0.12, 0.035, 0.05), s.cf * CF(0, -0.075, -0.06), L_FREE(Look.lampCool))
+				K:box("StFridgeRail", V3(s.len - 0.04, 0.17, 0.03), s.cf * CF(0, -0.05, 0.016), lk(C(250, 250, 248)))
+				if K.detail ~= "low" then
+					-- 레일 위 행사 태그 (빨강 1+1 · 노랑 2+1) + 가격 표 자국
+					local n = math.floor(s.len / 0.9)
+					for i = 1, n do
+						local x = -s.len / 2 + (i - 0.5) * s.len / n
+						local r = tr()
+						if r < 0.22 and tags < 14 then
+							tags += 1
+							local promo = if r < 0.11 then "1+1" else "2+1"
+							txt(K, "StFridgeTag", 0.36, 0.15, s.cf * CF(x, -0.05, 0.032), promo, if promo == "2+1" then INK else WHITE, if promo == "1+1" then theme.promo1 or C(230, 30, 50) else theme.promo2 or C(250, 190, 0), { d = 0.012, font = Enum.Font.GothamBlack, free = true })
+						elseif K.detail == "high" and r < 0.62 then
+							K:box("StFridgeTagInk", V3(0.2, 0.05, 0.01), s.cf * CF(x, -0.06, 0.036), lk(INK))
+						end
+					end
+				end
+			end
+		end
+		-- 냉장고 머리 안쪽 조명 (앞 위 FridgeLamp 바로 아래, 아래로 비춤) — 진열 상품 앞면을 밝힘
+		local lit = 0
+		for _, fl in V.byName.FridgeLamp or {} do
+			if lit < 2 and overlapXZ(fl, fr, 0.9) then
+				local bsz = if fl.size.Z > fl.size.X then V3(math.max(0.08, fl.size.X - 0.1), 0.04, math.max(0.4, fl.size.Z - 0.2)) else V3(math.max(0.4, fl.size.X - 0.2), 0.04, math.max(0.08, fl.size.Z - 0.1))
+				local bar = K:box("StFridgeLightBar", bsz, CF(fl.c.X, fl.min.Y - 0.03, fl.c.Z), L_FREE(Look.lampCool))
+				if K:light(bar, "SurfaceLight", { Face = Enum.NormalId.Bottom, Angle = 70, Range = 8, Brightness = 1.6, Color = Color3.fromRGB(236, 244, 255) }) then
+					lit += 1
+				end
+			end
+		end
+	end)
 	return used
 end
 
@@ -1990,14 +2097,24 @@ local function ramenCorner(K: any, V: any, B: any)
 	if cnt then
 		local cands = {}
 		local alongX = (cnt.max.X - cnt.min.X) >= (cnt.max.Z - cnt.min.Z)
+		local face = V3(0, 0, 1)
 		if alongX then
 			table.insert(cands, V3(cnt.max.X + 0.65, 0, cnt.min.Z + 0.6))
 			table.insert(cands, V3(cnt.min.X - 0.65, 0, cnt.min.Z + 0.6))
+			-- 옆 자리가 없으면 카운터 앞 끝 (전자레인지 · 온수기 앞 예약 칸 밖)
+			local fz = if cnt.c.Z < (V.z0 + V.z1) / 2 then cnt.max.Z + 0.6 else cnt.min.Z - 0.6
+			for _, fx in { cnt.min.X + 0.55, cnt.max.X - 0.55, cnt.min.X + 1.2, cnt.max.X - 1.2 } do
+				table.insert(cands, V3(fx, 0, fz))
+			end
 		else
 			table.insert(cands, V3(cnt.c.X, 0, cnt.max.Z + 0.65))
 			table.insert(cands, V3(cnt.c.X, 0, cnt.min.Z - 0.65))
+			local fx = if cnt.c.X < (V.x0 + V.x1) / 2 then cnt.max.X + 0.6 else cnt.min.X - 0.6
+			for _, fz in { cnt.min.Z + 0.55, cnt.max.Z - 0.55, cnt.min.Z + 1.2, cnt.max.Z - 1.2 } do
+				table.insert(cands, V3(fx, 0, fz))
+			end
 		end
-		local pcf = floorSpot(K, cands, V3(1.0, 2.6, 1.0), V3(0, 0, 1), 0, "soupbin")
+		local pcf = floorSpot(K, cands, V3(1.0, 2.6, 1.0), face, 0, "soupbin")
 		if pcf then
 			K:vcyl("StSoupBin", 2.0, 0.9, pcf * CF(0, 1.0, 0), lk(C(70, 74, 80), M.Plastic))
 			K:vcyl("StSoupBinLid", 0.1, 0.96, pcf * CF(0, 2.05, 0), lk(C(220, 222, 224), M.Metal))
@@ -2660,7 +2777,7 @@ local function displayTable(K: any, V: any, kind: string, rng: () -> number)
 					local px = cx - w / 2 + 1.1 + i * 1.6
 					for j = 0, 1 do
 						local ring = CF(px, top + 0.14 + j * 0.27, cz - 0.3) * ANG(PI / 2, 0, 0)
-						K:ring("StTube", ring, 0.48, 0.28, if K.detail == "high" then 10 else 7, lk(tubeCols[(i + j) % #tubeCols + 1], M.Plastic))
+						tubeRing(K, "StTube", ring, 0.48, 0.28, if K.detail == "high" then 12 else 7, lk(tubeCols[(i + j) % #tubeCols + 1], M.Plastic), K.detail == "high")
 					end
 				end
 				for i = 0, 1 do
@@ -2670,10 +2787,10 @@ local function displayTable(K: any, V: any, kind: string, rng: () -> number)
 				txt(K, "StDTSign", 1.4, 0.5, dcfAt(V3(cx, top + 0.5, mx.Z + 0.01), V3(0, 0, 1)) * CF(0, -0.25 - 0.4, 0), "튜브 판매 12,000~", WHITE, C(30, 120, 200), { d = 0.02 })
 			else
 				-- 기념품: 어묵 선물세트 · 머그 · 스노우볼 · 갈매기 인형
-				local surf = { cf = CFrame.fromMatrix(V3(cx, top, if alongX then mx.Z - 0.05 else cz), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1)), len = w - 0.4, depth = d * 0.45, clear = 1.4, rail = false, level = 2, levels = 3 }
-				fillSurf(K, surf, "gift", rng, {}, { back = false, facing = 1 })
+				local surf = { cf = CFrame.fromMatrix(V3(cx, top, if alongX then mx.Z - 0.05 else cz), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1)), len = w - 0.4, depth = d * 0.45, clear = 0.95, rail = false, level = 2, levels = 3 }
+				fillSurf(K, surf, "tableGift", rng, {}, { back = false, facing = 1 })
 				local surf2 = { cf = CFrame.fromMatrix(V3(cx, top, mn.Z + 0.05), V3(-1, 0, 0), Vector3.yAxis, V3(0, 0, -1)), len = w - 0.4, depth = d * 0.45, clear = 1.4, rail = false, level = 1, levels = 3 }
-				fillSurf(K, surf2, "gift", rng, {}, { back = false, facing = 1 })
+				fillSurf(K, surf2, "tableGift", rng, {}, { back = false, facing = 1 })
 				txt(K, "StDTSign", 1.6, 0.6, dcfAt(V3(cx, top - 0.34, mx.Z + 0.01), V3(0, 0, 1)), "부산 기념 선물세트\n어묵 · 씨앗호떡 · 머그", WHITE, C(30, 80, 160), { d = 0.02 })
 			end
 		end)
@@ -2835,7 +2952,7 @@ local function goodsWall(K: any, V: any, kind: string, rng: () -> number)
 						local y = h / 2 - 0.9 - j * 1.6
 						if y > -h / 2 + 0.6 then
 							K:seg("StWallHook", (d * CF(x, y + 0.6, 0.05)).Position, (d * CF(x, y + 0.6, 0.3)).Position, 0.04, Look.chrome)
-							K:ring("StWallTube", d * CF(x, y, 0.3), 0.5, 0.26, if hi then 10 else 7, lk(pick(rng, { C(250, 120, 40), C(40, 160, 230), C(250, 210, 60), C(240, 80, 140), C(60, 200, 150) }), M.Plastic))
+							tubeRing(K, "StWallTube", d * CF(x, y, 0.3), 0.5, 0.3, if hi then 12 else 7, lk(pick(rng, { C(250, 120, 40), C(40, 160, 230), C(250, 210, 60), C(240, 80, 140), C(60, 200, 150) }), M.Plastic), hi)
 						end
 					end
 				end
@@ -3300,7 +3417,7 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 						local x = ln[1] + (ln[2] - ln[1]) * i / math.max(1, cnt)
 						local y = V.H - 2.0 - (i % 2) * 0.35
 						local ring = CF(x, y, ln[3]) * ANG(0, (i % 3) * 0.5, 0)
-						local mn, mx = K.laabb(ring, V3(1.5, 1.5, 1.5))
+						local mn, mx = K.laabb(ring, V3(1.8, 1.8, 1.8))
 						local nearSign = false
 						for _, sb in K.stSignBoxes or {} do
 							if K.overlap(mn - V3(0.6, 0, 0.6), mx + V3(0.6, 0, 0.6), sb.min, sb.max, 0) then
@@ -3308,8 +3425,8 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 							end
 						end
 						if not nearSign and not K:hitsKeep(mn, V3(mx.X, V.H, mx.Z)) and not mapBlocked(K, mn, mx) then
-							K:ring("StCeilTube", ring, 0.55, 0.32, if K.detail == "high" then 10 else 7, lk(cols[(n % #cols) + 1], M.Plastic))
-							K:seg("StCeilTubeString", V3(x, y + 0.72, ln[3]), V3(x, V.H - 0.02, ln[3]), 0.025, lk(C(240, 240, 240)))
+							tubeRing(K, "StCeilTube", ring, 0.68, 0.4, if K.detail == "high" then 12 else 8, lk(cols[(n % #cols) + 1], M.Plastic), K.detail ~= "low")
+							K:seg("StCeilTubeString", V3(x, y + 0.88, ln[3]), V3(x, V.H - 0.02, ln[3]), 0.025, lk(C(240, 240, 240)))
 							n += 1
 						end
 					end
@@ -3797,12 +3914,28 @@ local function buildPharmacy(K: any, V: any, S: any, sub: string)
 			end
 		end)
 		step(K, "cross", function()
-			local wn, dcf = wallItemSpot(K, { "back", "left", "right" }, 1.8, math.max(5.6, V.H - 2.3), V.H - 0.3, 0)
+			-- 약국 LED 십자 간판 (진녹색 알루미늄 테 + 초록 LED 면 + 가운데 흰 '약') + 옆 'PHARMACY' 글자판
+			local wn, dcf = wallItemSpot(K, { "back", "left", "right" }, 4.4, math.max(5.4, V.H - 2.4), V.H - 0.3, 0)
+			local cw = 1.9
 			if wn and dcf then
-				local d = dcf * CF(0, 0, 0.04)
-				K:plate("StCrossBack", 1.7, 1.7, 0.05, d, lk(C(250, 252, 250)))
-				K:plate("StCrossH", 1.3, 0.42, 0.08, d, Look.neon(C(30, 200, 90)))
-				K:plate("StCrossV", 0.42, 1.3, 0.08, d, Look.neon(C(30, 200, 90)))
+				local d = dcf * CF(-1.2, 0, 0.04)
+				K:plate("StCrossMount", 0.5, 0.5, 0.08, d, Look.alu)
+				for _, hv in { V3(cw, cw * 0.34, 0), V3(cw * 0.34, cw, 0) } do
+					K:plate("StCrossFrame", hv.X, hv.Y, 0.16, d * CF(0, 0, 0.08), lk(PH.dark, M.Metal))
+					K:plate("StCrossFace", hv.X - 0.1, hv.Y - 0.1, 0.03, d * CF(0, 0, 0.24), Look.neon(C(20, 210, 90)))
+				end
+				txt(K, "StCrossYak", cw * 0.3, cw * 0.3, d * CF(0, 0, 0.275), "약", PH.dark, WHITE, { d = 0.01, font = Enum.Font.GothamBlack, glow = 1.1 })
+				txt(K, "StCrossWord", 2.1, 0.9, dcf * CF(1.05, 0, 0.04), "약국\nPHARMACY", PH.dark, nil, { d = 0.02, font = Enum.Font.GothamBlack })
+			else
+				wn, dcf = wallItemSpot(K, { "back", "left", "right" }, 2.0, math.max(5.4, V.H - 2.4), V.H - 0.3, 0)
+				if wn and dcf then
+					local d = dcf * CF(0, 0, 0.04)
+					for _, hv in { V3(cw, cw * 0.34, 0), V3(cw * 0.34, cw, 0) } do
+						K:plate("StCrossFrame", hv.X, hv.Y, 0.16, d, lk(PH.dark, M.Metal))
+						K:plate("StCrossFace", hv.X - 0.1, hv.Y - 0.1, 0.03, d * CF(0, 0, 0.16), Look.neon(C(20, 210, 90)))
+					end
+					txt(K, "StCrossYak", cw * 0.3, cw * 0.3, d * CF(0, 0, 0.195), "약", PH.dark, WHITE, { d = 0.01, font = Enum.Font.GothamBlack, glow = 1.1 })
+				end
 			end
 		end)
 		step(K, "leaflets", function()
@@ -4241,7 +4374,25 @@ function T.build(K: any, V: any, S: any)
 	equipSkins(K, V, kind, sub)
 	step(K, "lightbox", function()
 		local n = 0
-		if kind == "retail" and sub == "cosmetics" then
+		if kind == "cvs" then
+			-- 편의점: 냉장고 · 진열장 위 남는 윗벽에 브랜드 행사 라이트박스 (최대 2)
+			local B = BRANDS[sub] or BRANDS.indie
+			local nm = if sub == "indie" then tostring(V.name or B.name) else B.name
+			local LB: { [string]: any } = {
+				seven = { { title = "세븐일레븐 이달의 행사", sub = "1+1 · 2+1 · 덤 증정 · 세븐앱 쿠폰 할인", bg = B.main, fg = WHITE, fg2 = C(255, 214, 160), band = B.sub }, { title = "세븐셀렉트 신상품", sub = "도시락 · 삼각김밥 · 디저트 · 하이볼", bg = C(250, 250, 248), fg = B.main, fg2 = B.accent, band = B.sub } },
+				gs25 = { { title = "GS25 갓생기획", sub = "이달의 1+1 · 2+1 · 우리동네GS 앱 픽업", bg = B.main, fg = WHITE, fg2 = C(200, 236, 255), band = B.accent }, { title = "유어스 신상품", sub = "유어스 도시락 · 삼각김밥 · 카페25 커피", bg = C(250, 250, 248), fg = B.main, fg2 = B.dark, band = B.sub } },
+				cu = { { title = "CU 득템 행사", sub = "1+1 · 2+1 · 포켓CU 앱 쿠폰", bg = B.main, fg = WHITE, fg2 = B.sub, band = B.sub }, { title = "헤이루 PB 신상품", sub = "도시락 · 연세우유 크림빵 · GET 커피", bg = C(250, 250, 248), fg = B.main, fg2 = C(90, 130, 30), band = B.sub } },
+				emart24 = { { title = "emart24 이달의 행사", sub = "1+1 · 2+1 · 노브랜드 상품 · 와인 할인", bg = B.main, fg = B.dark, fg2 = C(120, 20, 20), band = B.dark }, { title = "아임e 신상품", sub = "도시락 · 샌드위치 · 이프레소 커피", bg = C(52, 52, 54), fg = B.main, fg2 = WHITE, band = B.main } },
+				indie = { { title = nm, sub = "신선식품 · 생활용품 · 음료 · 주류 매일 할인", bg = B.main, fg = WHITE, fg2 = C(255, 230, 140), band = B.accent } },
+			}
+			n = lightboxes(K, V, { "left", "right", "back" }, math.max(6.9, V.H - 2.9), V.H - 0.45, LB[sub] or LB.indie, 2, 8)
+		elseif kind == "pharmacy" then
+			local nm = tostring(V.name or "약국")
+			n = lightboxes(K, V, { "left", "right", "back" }, math.max(5.5, V.H - 2.4), V.H - 0.3, {
+				{ title = nm, sub = "일반의약품 · 건강기능식품 · 처방전 조제 · 약사 상담", bg = PH.main, fg = WHITE, fg2 = C(220, 250, 230), band = WHITE },
+				{ title = "환절기 건강 지키기", sub = "종합감기약 · 비타민 · 유산균 · 마스크", bg = PH.white, fg = PH.dark, fg2 = PH.main, band = PH.main },
+			}, if sub == "gw" then 1 else 2, 7)
+		elseif kind == "retail" and sub == "cosmetics" then
 			n = lightboxes(K, V, { "back", "left", "right" }, 7.3, V.H - 0.45, {
 				{ title = "올영세일", sub = "10.24 - 10.30 · 최대 70% · 올리브영 단독 기획", bg = OY.main, fg = OY.dark, side = true, sideC = C(250, 250, 248), sideC2 = C(255, 214, 90) },
 				{ title = "OLIVE YOUNG 광안리점", sub = "K-BEAUTY · TAX FREE 외국인 즉시 환급", bg = OY.white, fg = OY.dark, fg2 = C(90, 120, 20), band = OY.main },

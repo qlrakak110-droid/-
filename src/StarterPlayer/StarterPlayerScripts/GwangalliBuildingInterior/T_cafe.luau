@@ -626,7 +626,7 @@ local function brandOf(V: any): any
 		local first = string.match(nm, "^(%S+)") or nm
 		B.title, B.slogan = nm, "SPECIALTY COFFEE ROASTERS"
 		local isLab = string.find(string.upper(nm), "LAB", 1, true) ~= nil
-		B.logo = if isLab then "LAB" else first
+		B.logo = if isLab then (string.match(string.upper(nm), "LAB%s*%d+") or "LAB") else first
 		B.c1, B.c2, B.c3, B.paper, B.ink = rgb(28, 28, 30), rgb(18, 18, 18), rgb(214, 120, 52), rgb(236, 232, 224), rgb(24, 24, 24)
 		B.menuKind, B.menuBg, B.menuFg, B.menuAcc = "felt", rgb(26, 26, 28), rgb(240, 240, 236), rgb(240, 160, 90)
 		B.menus = MENUS.roastery
@@ -687,6 +687,8 @@ local function brandOf(V: any): any
 		B.menus = MENUS.bakery
 		B.neon = { "FRESH BREAD DAILY", rgb(255, 196, 110), F.FredokaOne }
 		B.art, B.wifi, B.pw, B.hours = "bread", "BAKERY_GUEST", "bread0707", "매일 07:00 - 22:00"
+		-- 맵 벽 (따뜻한 살구색) 이 노란 조명에서 주황으로 타 보여서: 크림 회벽
+		B.wall = { left = lk(rgb(248, 242, 230), M.Plaster), right = lk(rgb(248, 242, 230), M.Plaster), back = lk(rgb(242, 234, 220), M.Plaster) }
 		B.promo = { "OVEN FRESH", "오늘의 소금빵 나왔어요", "3,500" }
 		feat = { oven = true, cake = true, island = true, plants = 1, tongs = true, pickup = false }
 		B.feat = feat
@@ -836,7 +838,7 @@ function T.style(V: any): any
 		S.counter = { front = "fluted", frontL = Look.walnut, topL = lk(rgb(64, 64, 66), M.Slate), kickL = Look.black, led = rgb(255, 196, 140) }
 		S.floor = { look = Look.polishedConcrete, tile = 4.0, grout = lk(rgb(128, 126, 122)) }
 		-- 노출 천장: 낮은 천장(8 미만)은 짙은 색이 답답해서 중간 회색 콘크리트
-		S.ceiling = { skin = if V.H < 9 then lk(rgb(112, 110, 106), M.Concrete) else lk(rgb(46, 46, 48), M.Concrete) }
+		S.ceiling = { skin = if V.H < 9 then lk(rgb(112, 110, 106), M.Concrete) else lk(rgb(78, 78, 80), M.Concrete) }
 		S.pendant = { shade = "cone", look = Look.blackMetal }
 		S.lights = { kind = "downlight", color = Look.warmLight }
 		S.base = Look.black
@@ -2033,6 +2035,213 @@ local function machineSkin(K: any, r: any, look: any)
 	end)
 end
 
+-- 상업용 2그룹 에스프레소 머신 (EspressoBody 같은 자리 스킨): 스테인리스 몸통 (세로 모서리 둥글게) + 브랜드 색
+--   옆판 · 손님 쪽 뒷판 (크롬 테 · 배지) + 윗면 컵 워머 그릴 + 직원 쪽 그룹별 버튼 패드 · 온수 꼭지 · 작업등.
+--   C = faceCF(몸통 중심, n): +X = 폭, +Z = 손님 쪽. 원본 몸통은 스킨이 0.01 바깥으로 덮음 (그룹헤드 · 포터필터는 맵 그대로)
+local ESP_MAKERS = { "ARDENTE", "SOLENNE", "VELARO" }
+local STAINLESS = { c = rgb(206, 209, 213), m = M.Metal, r = 0.12 }
+local function espressoSkin(K: any, V: any, B: any, e: any, n: Vector3, espL: any)
+	local ax = if math.abs(n.Z) > 0.5 then V3(1, 0, 0) else V3(0, 0, 1)
+	local W = math.abs(n.Z) * e.size.X + math.abs(n.X) * e.size.Z
+	local Dd = math.abs(n.X) * e.size.X + math.abs(n.Z) * e.size.Z
+	local H = e.size.Y
+	local C = faceCF(e.c, n)
+	local steel = STAINLESS
+	local badge = if B.key == "mega" then "MGC" elseif B.key == "compose" then "COMPOSE" elseif B.key == "busan" then "051" else ESP_MAKERS[B.seed % #ESP_MAKERS + 1]
+	local bz = Dd / 2 + 0.01
+	-- 몸통 · 옆판 · 뒷판
+	K:rbox("SkinEspressoBody", V3(H + 0.02, W + 0.02, Dd + 0.02), 0.11, C * ANG(0, 0, PI / 2), steel)
+	for _, s in { -1, 1 } do
+		K:box("EspressoSidePanel", V3(0.05, H - 0.22, Dd - 0.3), C * CF(s * (W / 2 + 0.03), -0.02, 0), espL)
+		K:box("EspressoSideTrim", V3(0.06, 0.05, Dd - 0.26), C * CF(s * (W / 2 + 0.03), H / 2 - 0.13, 0), Look.chrome)
+	end
+	K:box("EspressoBackPanel", V3(W - 0.34, H - 0.44, 0.04), C * CF(0, -0.04, bz + 0.02), espL)
+	for _, sy in { -1, 1 } do
+		K:box("EspressoBackTrim", V3(W - 0.3, 0.05, 0.05), C * CF(0, -0.04 + sy * (H - 0.44) / 2, bz + 0.025), Look.chrome)
+	end
+	local bw = math.min(1.1, W * 0.42)
+	K:panel("EspressoBadge", bw, 0.26, 0.03, 0.09, C * CF(0, 0.16, bz + 0.04), Look.chrome)
+	K:text("EspressoBadgeText", bw * 0.84, 0.17, C * CF(0, 0.16, bz + 0.071), badge, { fg = if B.key == "mega" then rgb(30, 30, 30) else rgb(40, 40, 44), font = F.GothamBlack, d = 0.004 })
+	if not lowD(K) then
+		-- 아래 통풍 슬릿
+		local ventL = lk(dk(espL.c, 0.35))
+		for k = 0, 3 do
+			K:box("EspressoVent", V3(W * 0.5, 0.03, 0.02), C * CF(0, -H / 2 + 0.36 + k * 0.08, bz + 0.045), ventL)
+		end
+	end
+	-- 윗면: 컵 워머 트레이 + 그릴 홈 + 난간 + 데운 잔
+	local tY = H / 2 + 0.01
+	K:box("EspressoCupTray", V3(W - 0.18, 0.035, Dd - 0.2), C * CF(0, tY + 0.0175, 0), Look.chrome)
+	if hi(K) then
+		for k = 1, 5 do
+			K:box("EspressoTrayGrille", V3(W - 0.42, 0.01, 0.03), C * CF(0, tY + 0.04, -Dd / 2 + 0.1 + k * (Dd - 0.2) / 6), Look.black)
+		end
+	end
+	for _, s in { -1, 1 } do
+		K:box("CupRail", V3(W - 0.2, 0.04, 0.04), C * CF(0, tY + 0.14, s * (Dd / 2 - 0.12)), Look.chrome)
+		for _, sx in { -1, 1 } do
+			K:vcyl("CupRailPost", 0.12, 0.04, C * CF(sx * (W / 2 - 0.12), tY + 0.08, s * (Dd / 2 - 0.12)), Look.chrome)
+		end
+	end
+	for k = 0, 4 do
+		local x = -W / 2 + 0.36 + k * (W - 0.72) / 4
+		local zz = ((k % 2) - 0.5) * 0.36
+		K:vcyl("WarmerCup", 0.2, 0.24, C * CF(x, tY + 0.135, zz), Look.white)
+		if k % 2 == 0 then
+			K:vcyl("WarmerCup", 0.2, 0.24, C * CF(x, tY + 0.335, zz) * ANG(PI, 0, 0), Look.white)
+		end
+	end
+	-- 직원 쪽 (-Z): 그룹별 버튼 패드 · 압력계 · 온수 꼭지 · 스팀 완드 · 작업등
+	local sz = -Dd / 2 - 0.01
+	local groups = {}
+	for _, g in V.byName.GroupHead or {} do
+		if (g.c - e.c).Magnitude < 2.6 then
+			table.insert(groups, (g.c - e.c):Dot(ax))
+		end
+	end
+	if #groups == 0 then
+		groups = { -W * 0.28, W * 0.28 }
+	end
+	local Cs = C * ANG(0, PI, 0)
+	for _, gx in groups do
+		K:box("EspressoKeypad", V3(0.44, 0.2, 0.03), C * CF(gx, 0.45, sz - 0.015), Look.black)
+		for b = 0, 3 do
+			K:box("EspressoKey", V3(0.07, 0.07, 0.02), C * CF(gx - 0.15 + b * 0.1, 0.45, sz - 0.035), if b == 0 then Look.ledBlue else Look.lampNeutral)
+		end
+		K:box("EspressoGroupCollar", V3(0.5, 0.06, 0.06), C * CF(gx, 0.3, sz - 0.03), Look.chrome)
+	end
+	for _, s in { -1, 1 } do
+		local g = Cs * CF(s * 0.3, H / 2 - 0.3, Dd / 2 + 0.01)
+		wdisc(K, "EspressoGauge", 0.24, 0.035, g, Look.chrome)
+		wdisc(K, "EspressoGaugeFace", 0.19, 0.04, g, Look.white)
+		K:box("EspressoGaugeNeedle", V3(0.015, 0.08, 0.01), g * CF(0.01, 0.025, 0.045) * ANG(0, 0, -0.6), Look.ledRed)
+	end
+	K:seg("EspressoHotWater", C * V3(0, 0.12, sz), C * V3(0, -0.12, sz - 0.18), 0.06, Look.chrome)
+	for _, s in { -1, 1 } do
+		local a = C * V3(s * (W / 2 - 0.12), H / 2 - 0.34, sz - 0.02)
+		local b2 = a + Vector3.yAxis * -0.8 + ax * s * 0.08 + n * -0.2
+		K:seg("SteamWand", a, b2, 0.05, Look.chrome)
+		K:seg("SteamKnob", a + Vector3.yAxis * 0.16, a + Vector3.yAxis * 0.16 - n * 0.14, 0.11, Look.black)
+		K:ball("SteamKnobCap", 0.12, CF(a + Vector3.yAxis * 0.16 - n * 0.15), Look.chrome)
+	end
+	K:box("EspressoWorkLED", V3(W - 0.5, 0.03, 0.03), C * CF(0, H / 2 - 0.16, sz - 0.02), Look.lampNeutral)
+end
+
+-- 그라인더 (Grinder + GrinderHopper): 몸통 둥근 상자 · 직원 쪽 배출구 · 포터필터 거치 포크 · LCD · 손님 쪽 배지,
+--   호퍼는 같은 자세 스모크 아크릴 + 원두 + 검은 뚜껑으로 다시 입히고 원본 숨김
+local function grinderSkin(K: any, V: any, B: any, r: any, n: Vector3, bodyL: any)
+	local w = math.abs(n.Z) * r.size.X + math.abs(n.X) * r.size.Z
+	local d = math.abs(n.X) * r.size.X + math.abs(n.Z) * r.size.Z
+	local h = r.size.Y
+	local C = faceCF(r.c, n)
+	K:rbox("SkinGrinder", V3(h + 0.02, w + 0.02, d + 0.02), 0.09, C * ANG(0, 0, PI / 2), bodyL)
+	local sz = -d / 2 - 0.01
+	K:box("GrinderChute", V3(0.2, 0.16, 0.14), C * CF(0, h * 0.12, sz - 0.07), Look.chrome)
+	for _, s in { -1, 1 } do
+		K:box("GrinderFork", V3(0.04, 0.04, 0.3), C * CF(s * 0.12, -h * 0.05, sz - 0.15), Look.chrome)
+	end
+	K:box("GrinderTray", V3(0.46, 0.03, 0.26), C * CF(0, -h / 2 + 0.2, sz - 0.12), Look.chrome)
+	K:text("GrinderLCD", 0.32, 0.14, C * ANG(0, PI, 0) * CF(0, h * 0.32, d / 2 + 0.012), "18.5g", { fg = rgb(120, 210, 255), bg = rgb(10, 14, 20), glow = 1.2, font = F.Code, d = 0.006 })
+	K:box("GrinderButton", V3(0.1, 0.06, 0.02), C * CF(0, h * 0.22, sz - 0.01), Look.ledGreen)
+	K:panel("GrinderBadge", 0.42, 0.13, 0.02, 0.05, C * CF(0, h * 0.25, d / 2 + 0.01), Look.chrome)
+	K:text("GrinderBadgeText", 0.36, 0.09, C * CF(0, h * 0.25, d / 2 + 0.032), "MILL·64", { fg = rgb(40, 40, 44), font = F.GothamBlack, d = 0.003 })
+	local hop = nil
+	for _, q in V.byName.GrinderHopper or {} do
+		if math.abs(q.c.X - r.c.X) < 0.5 and math.abs(q.c.Z - r.c.Z) < 0.5 then
+			hop = q
+		end
+	end
+	if hop then
+		K:box("GrinderHopperSkin", hop.size, CF(hop.c), glassL(rgb(70, 56, 48), 0.42))
+		K:box("GrinderBeans", V3(hop.size.X - 0.08, hop.size.Y * 0.56, hop.size.Z - 0.08), CF(hop.c - V3(0, hop.size.Y * 0.2, 0)), lk(rgb(74, 44, 26), M.Pebble))
+		K:box("GrinderLid", V3(hop.size.X + 0.02, 0.07, hop.size.Z + 0.02), CF(hop.c.X, hop.max.Y - 0.035, hop.c.Z), Look.blackMetal)
+		K:vcyl("GrinderLidKnob", 0.05, 0.16, CF(hop.c.X, hop.max.Y - 0.01, hop.c.Z), Look.chrome)
+		Scan.hide(K.hidden, hop.part)
+	end
+end
+
+-- 와플 기계 (같은 자세): 스테인리스 받침 (둥근 모서리) + 직원 쪽 검은 조작판 (온도 다이얼 · 램프 2) +
+--   주물 아래판 + 둥근 주물 뚜껑 (격자) + 경첩 + 베이클라이트 손잡이. face = 손잡이 쪽 (직원)
+local function waffleMaker(K: any, cf: CFrame, w: number, h: number, d: number, lidD: number, lidH: number, decor: boolean)
+	-- cf: 받침 바닥 가운데, +Z = 손잡이 쪽
+	K:rbox(if decor then "WaffleDecorBase" else "WaffleBase", V3(h, w, d), 0.07, cf * CF(0, h / 2, 0) * ANG(0, 0, PI / 2), STAINLESS)
+	K:plate("WaffleControl", w * 0.7, h * 0.62, 0.02, cf * CF(0, h * 0.5, d / 2), Look.black)
+	wdisc(K, "WaffleDial", 0.16, 0.04, cf * CF(-w * 0.18, h * 0.5, d / 2 + 0.02), Look.chrome)
+	K:plate("WaffleLamp", 0.07, 0.05, 0.02, cf * CF(w * 0.12, h * 0.55, d / 2 + 0.02), Look.ledRed)
+	K:plate("WaffleLamp", 0.07, 0.05, 0.02, cf * CF(w * 0.24, h * 0.55, d / 2 + 0.02), Look.ledGreen)
+	K:box("WafflePlate", V3(w - 0.14, 0.04, d - 0.14), cf * CF(0, h - 0.015, 0), Look.of(52, 52, 56, Enum.Material.DiamondPlate))
+	local lc = cf * CF(0, h + lidH / 2, 0)
+	K:disc("WaffleLid", lidD, lidH, lc, Look.of(40, 40, 44, Enum.Material.Metal))
+	K:disc("WaffleLidTop", lidD * 0.82, 0.02, lc * CF(0, lidH / 2 + 0.01, 0), Look.of(28, 28, 30, Enum.Material.Metal))
+	for k = -1, 1 do
+		K:box("WaffleGrid", V3(lidD * 0.6, 0.012, 0.03), lc * CF(0, lidH / 2 + 0.025, k * lidD * 0.16), Look.of(60, 60, 64))
+		K:box("WaffleGrid", V3(0.03, 0.012, lidD * 0.6), lc * CF(k * lidD * 0.16, lidH / 2 + 0.025, 0), Look.of(60, 60, 64))
+	end
+	K:box("WaffleHinge", V3(0.3, 0.1, 0.08), cf * CF(0, h + 0.03, -d / 2 + 0.06), Look.chrome)
+	K:box("WaffleHandleArm", V3(0.06, 0.05, 0.16), cf * CF(0, h + lidH / 2, d / 2 - 0.12), Look.chrome)
+	K:box("WaffleHandle", V3(0.42, 0.08, 0.09), cf * CF(0, h + lidH / 2, d / 2 - 0.05), Look.black)
+end
+
+-- 뒷선반 작업 스테이션 소품 (와플 · 탕후루 가게: 맵 Cup 자리를 맛집 작업대로) — pcf: 선반 윗면, +Z = 손님 쪽
+local function batterJug(K: any, pcf: CFrame)
+	K:vcyl("BatterJug", 0.62, 0.4, pcf * CF(0, 0.31, 0), glassL(rgb(244, 240, 230), 0.35))
+	K:vcyl("BatterFill", 0.42, 0.36, pcf * CF(0, 0.22, 0), lk(rgb(236, 206, 150)))
+	K:vcyl("BatterLid", 0.06, 0.42, pcf * CF(0, 0.65, 0), Look.white)
+	K:seg("BatterSpout", pcf * V3(0.18, 0.5, 0), pcf * V3(0.3, 0.58, 0), 0.07, Look.white)
+	K:seg("BatterLadle", pcf * V3(-0.05, 0.4, 0), pcf * V3(-0.12, 0.95, 0.05), 0.04, Look.chrome)
+end
+local function creamMachine(K: any, pcf: CFrame)
+	K:box("CreamBase", V3(0.5, 0.12, 0.5), pcf * CF(0, 0.06, 0), STAINLESS)
+	K:vcyl("CreamTank", 0.62, 0.42, pcf * CF(0, 0.43, 0), STAINLESS)
+	K:vcyl("CreamCap", 0.08, 0.44, pcf * CF(0, 0.78, 0), Look.white)
+	K:seg("CreamNozzle", pcf * V3(0, 0.32, 0.2), pcf * V3(0, 0.22, 0.36), 0.08, Look.chrome)
+	K:text("CreamLabel", 0.32, 0.12, pcf * CF(0, 0.5, 0.215), "WHIP 4℃", { fg = rgb(120, 210, 255), bg = rgb(16, 20, 26), glow = 1.1, font = F.Code, d = 0.005 })
+end
+local function insertPans(K: any, pcf: CFrame, cols: { Color3 }, ball: boolean)
+	local n = #cols
+	local pw = 0.34
+	K:box("PanFrame", V3(n * (pw + 0.04) + 0.06, 0.08, 0.6), pcf * CF(0, 0.04, 0), Look.steel)
+	for k = 1, n do
+		local x = (k - (n + 1) / 2) * (pw + 0.04)
+		K:box("InsertPan", V3(pw, 0.12, 0.52), pcf * CF(x, 0.14, 0), Look.chrome)
+		K:box("PanFill", V3(pw - 0.05, 0.03, 0.46), pcf * CF(x, 0.2, 0), lk(cols[k], M.Pebble))
+		if ball and hi(K) then
+			for j = 0, 2 do
+				K:ball("PanFruit", 0.13, pcf * CF(x + ((j % 2) - 0.5) * 0.12, 0.25, -0.14 + j * 0.14), lk(cols[k]))
+			end
+		end
+	end
+end
+local function sugarStation(K: any, pcf: CFrame)
+	K:box("Induction", V3(1.0, 0.1, 0.9), pcf * CF(0, 0.05, 0), Look.black)
+	K:plate("InductionRing", 0.5, 0.5, 0.005, topCF((pcf * CF(0, 0.101, 0)).Position, -pcf.ZVector), Look.of(70, 70, 76))
+	K:plate("InductionLED", 0.2, 0.05, 0.01, pcf * CF(0.32, 0.05, 0.45), Look.ledRed)
+	K:vcyl("SugarPot", 0.42, 0.62, pcf * CF(0, 0.31, 0), STAINLESS)
+	K:vcyl("SugarSyrup", 0.03, 0.56, pcf * CF(0, 0.5, 0), lk(rgb(236, 170, 60), M.Glass, { t = 0.15 }))
+	K:seg("SugarPotHandle", pcf * V3(0.31, 0.42, 0), pcf * V3(0.7, 0.44, 0.05), 0.06, Look.black)
+	K:seg("DipSkewer", pcf * V3(-0.1, 0.45, 0), pcf * V3(-0.22, 1.15, 0.08), 0.03, lk(rgb(224, 202, 160), M.Wood))
+end
+local function skewerCup(K: any, pcf: CFrame)
+	K:vcyl("SkewerCup", 0.4, 0.3, pcf * CF(0, 0.2, 0), Look.white)
+	for k = 0, 8 do
+		local a = k * 0.7
+		K:seg("Skewer", pcf * V3(math.cos(a) * 0.06, 0.1, math.sin(a) * 0.06), pcf * V3(math.cos(a) * 0.12, 1.05, math.sin(a) * 0.12), 0.025, lk(rgb(224, 202, 160), M.Wood))
+	end
+end
+local function fruitCrate(K: any, pcf: CFrame, c: Color3, label: string)
+	K:box("FruitCrate", V3(1.0, 0.32, 0.7), pcf * CF(0, 0.16, 0), lk(rgb(246, 244, 238), M.Cardboard))
+	K:box("FruitCrateBand", V3(1.02, 0.1, 0.72), pcf * CF(0, 0.26, 0), lk(c))
+	for k = 0, 5 do
+		K:ball("CrateFruit", 0.2, pcf * CF(-0.33 + (k % 3) * 0.33, 0.34, -0.14 + math.floor(k / 3) * 0.28), lk(c))
+	end
+	K:text("FruitCrateLabel", 0.8, 0.13, pcf * CF(0, 0.12, 0.355), label, { fg = dk(c, 0.3), font = F.GothamBold, d = 0.004 })
+end
+local function sugarSack(K: any, pcf: CFrame)
+	K:box("SugarSack", V3(0.9, 0.5, 0.42), pcf * CF(0, 0.25, 0), lk(rgb(246, 244, 240), M.Fabric))
+	K:box("SugarSackFold", V3(0.92, 0.08, 0.3), pcf * CF(0, 0.52, -0.04), lk(rgb(232, 230, 224), M.Fabric))
+	K:text("SugarSackLabel", 0.74, 0.26, pcf * CF(0, 0.26, 0.215), "백설탕\n15kg", { fg = rgb(30, 90, 170), font = F.GothamBlack, d = 0.004 })
+end
+
 -- 젤라또 맛
 local FLAVORS = {
 	{ "피스타치오", rgb(156, 186, 104) }, { "바닐라빈", rgb(248, 238, 206) }, { "다크초코", rgb(88, 54, 36) }, { "생딸기", rgb(240, 130, 150) },
@@ -2862,51 +3071,32 @@ local function stepMachines(K: any, V: any, B: any, ctx: any)
 	local n: Vector3 = ctx.n or V3(0, 0, 1)
 	local espL = if B.key == "mega" or B.key == "compose" then lk(rgb(30, 30, 32), M.Metal) elseif B.key == "haute" then lk(rgb(240, 236, 228), M.Metal) elseif B.key == "busan" or B.key == "ocean" then lk(rgb(30, 64, 120), M.Metal) elseif B.key == "roastery" or B.key == "concrete" then lk(rgb(40, 40, 42), M.Metal) else lk(rgb(170, 40, 36), M.Metal, { r = 0.06 })
 	for _, e in V.byName.EspressoBody or {} do
-		machineSkin(K, e, espL)
-		local half = math.abs(n.X) * e.size.X / 2 + math.abs(n.Z) * e.size.Z / 2
-		local fp = e.c + n * (half + 0.016)
-		local dcf = faceCF(V3(fp.X, e.c.Y + 0.05, fp.Z), n)
-		local wdt = math.abs(n.Z) * e.size.X + math.abs(n.X) * e.size.Z
+		if room(K, 70) then
+			K:free(function()
+				espressoSkin(K, V, B, e, n, espL)
+			end)
+		else
+			machineSkin(K, e, espL)
+		end
+	end
+	-- 드립 트레이 (게임플레이: 같은 자세 스테인리스 + 직원 쪽 그릴 후 원본 숨김)
+	for _, r in V.byName.DripTray or {} do
 		K:free(function()
-			K:plate("EspressoPanel", wdt * 0.8, e.size.Y * 0.55, 0.02, dcf, lk(dk(espL.c, 0.25), M.Metal))
-			K:text("EspressoBrand", wdt * 0.6, 0.32, dcf * CF(0, 0.05, 0.025), if B.key == "mega" then "MGC" else "ESPRESSO", { fg = if B.key == "mega" then B.c1 else rgb(236, 236, 236), font = F.GothamBlack, d = 0.008 })
-			K:plate("EspressoTrim", wdt + 0.04, 0.06, 0.03, faceCF(V3(fp.X, e.max.Y - 0.05, fp.Z), n), Look.chrome)
-			-- 컵 워머 레일 + 잔
-			local topY = e.max.Y + 0.02
-			local ax = if math.abs(n.Z) > 0.5 then V3(1, 0, 0) else V3(0, 0, 1)
-			local L2 = wdt / 2 - 0.12
-			local dep = (math.abs(n.X) * e.size.X + math.abs(n.Z) * e.size.Z) / 2 - 0.12
-			for _, s in { -1, 1 } do
-				K:bar("CupRail", e.c * V3(1, 0, 1) + V3(0, topY + 0.08, 0) - ax * L2 + n * (s * dep), e.c * V3(1, 0, 1) + V3(0, topY + 0.08, 0) + ax * L2 + n * (s * dep), 0.04, 0.04, Look.chrome)
-			end
-			for k = 0, 4 do
-				local p = e.c * V3(1, 0, 1) + V3(0, topY + 0.11, 0) + ax * (-L2 + 0.2 + k * (2 * L2 - 0.4) / 4)
-				K:vcyl("WarmerCup", 0.22, 0.24, CF(p), Look.white)
-			end
-			-- 스팀 완드 2 (직원 쪽)
-			for _, s in { -1, 1 } do
-				local a = e.c * V3(1, 0, 1) + V3(0, e.max.Y - 0.35, 0) + ax * s * (wdt / 2 + 0.06) - n * (half - 0.2)
-				local b = a + V3(0, -0.85, 0) + ax * s * 0.12 - n * 0.15
-				K:seg("SteamWand", a, b, 0.05, Look.chrome)
-				K:seg("SteamKnob", a + V3(0, 0.2, 0), a + V3(0, 0.2, 0) - n * 0.15, 0.1, Look.black)
-			end
-			-- 압력계 (직원 쪽 위)
-			for _, s in { -1, 1 } do
-				local gp = e.c * V3(1, 0, 1) + V3(0, e.max.Y - 0.32, 0) - n * (half + 0.016) + ax * s * 0.35
-				local g = faceCF(gp, -n)
-				wdisc(K, "EspressoGauge", 0.26, 0.04, g, Look.chrome)
-				wdisc(K, "EspressoGaugeFace", 0.2, 0.045, g, Look.white)
+			K:box("DripTraySkin", r.size, CF(r.c), STAINLESS)
+			if not lowD(K) then
+				for k = 0, 5 do
+					local t = -0.42 + k * 0.17
+					K:box("DripGrate", V3(math.abs(n.Z) * (r.size.X - 0.2) + math.abs(n.X) * 0.05, 0.012, math.abs(n.X) * (r.size.Z - 0.2) + math.abs(n.Z) * 0.05), CF(r.c + V3(0, r.size.Y / 2 + 0.006, 0) + (if math.abs(n.Z) > 0.5 then V3(0, 0, -n.Z * (r.size.Z / 2 - 0.3 + t * 0.4)) else V3(-n.X * (r.size.X / 2 - 0.3 + t * 0.4), 0, 0))), Look.black)
+				end
 			end
 		end)
+		Scan.hide(K.hidden, r.part)
 	end
+	local grL = if B.key == "haute" then lk(rgb(232, 226, 216), M.Metal) elseif B.key == "busan" or B.key == "ocean" then lk(rgb(30, 64, 120), M.Metal) else lk(rgb(32, 32, 34), M.Metal)
 	for _, r in V.byName.Grinder or {} do
-		machineSkin(K, r, Look.of(30, 30, 32, Enum.Material.Metal))
 		K:free(function()
+			grinderSkin(K, V, B, r, n, grL)
 			K:vcyl("GrinderCollar", 0.12, math.min(r.size.X, r.size.Z) * 0.9, CF(r.c.X, r.max.Y + 0.06, r.c.Z), Look.chrome)
-			local half = math.abs(n.X) * r.size.X / 2 + math.abs(n.Z) * r.size.Z / 2
-			local fp = r.c + n * (half + 0.016)
-			K:text("GrinderLabel", 0.5, 0.18, faceCF(V3(fp.X, r.c.Y + 0.25, fp.Z), n), "GRINDER", { fg = rgb(220, 220, 220), font = F.GothamBold, d = 0.005 })
-			wdisc(K, "GrinderDial", 0.26, 0.04, faceCF(V3(fp.X, r.c.Y - 0.15, fp.Z), n), Look.chrome)
 		end)
 	end
 	-- 진열장 (CaseBase · CaseGlass): 앞면 패널 + 크롬 모서리 + 가격 레일
@@ -3015,16 +3205,75 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 			Props.potPlant(K, pcf, 0.4, math.max(0.4, h - 0.3))
 		end
 	end
-	-- 디저트 선반 컵 (Cup): 파인트 · 콘 타워 · 토핑 병 · 소스 · 컵 스택
+	-- 디저트 선반 컵 (Cup): 파인트 · 콘 타워 · 토핑 병 · 소스 · 컵 스택 (와플 · 탕후루는 아래 선반을 작업 스테이션으로)
 	i = 0
+	local lowI: number?, upI: number? = nil, nil
 	for _, r in V.byName.Cup or {} do
 		i += 1
-		if not room(K, 16) then
+		if not room(K, if B.key == "waffle" or B.key == "tanghulu" then 44 else 16) then
 			break
 		end
 		Scan.hide(K.hidden, r.part)
 		local pcf = facing(V3(r.c.X, r.min.Y, r.c.Z), V3(0, 0, 1))
 		local kind = (i + seed) % 5
+		-- 와플 · 탕후루: 아래 선반 (작업대 높이 ~2.6) = 직원 작업 스테이션, 위 선반 = 재료 · 포장 재고
+		local lower = r.min.Y < 3.6
+		if B.key == "waffle" and lower then
+			lowI = (lowI or 0) + 1
+			local k5 = (lowI + seed) % 4
+			if k5 == 0 or k5 == 2 then
+				for _, sx in { -0.6, 0.6 } do
+					waffleMaker(K, pcf * CF(sx, 0, 0), 1.0, 0.36, 0.95, 0.84, 0.14, true)
+				end
+			elseif k5 == 1 then
+				batterJug(K, pcf * CF(-0.5, 0, 0))
+				creamMachine(K, pcf * CF(0.45, 0, 0))
+			else
+				insertPans(K, pcf, { rgb(222, 40, 60), rgb(250, 222, 120), rgb(92, 56, 36), rgb(50, 44, 44) }, false)
+				K:text("PanLabel", 1.5, 0.14, pcf * CF(0, 0.05, 0.31), "딸기 · 바나나 · 누텔라 · 오레오", { fg = rgb(60, 46, 40), bg = rgb(255, 250, 244), font = F.GothamBold, d = 0.006 })
+			end
+			continue
+		elseif B.key == "tanghulu" then
+			if lower then
+				lowI = (lowI or 0) + 1
+				local k5 = (lowI + seed) % 4
+				if k5 == 0 then
+					sugarStation(K, pcf * CF(-0.3, 0, 0))
+					skewerCup(K, pcf * CF(0.65, 0, 0.1))
+				elseif k5 == 1 then
+					insertPans(K, pcf, { rgb(214, 28, 48), rgb(160, 206, 80), rgb(250, 146, 28), rgb(60, 60, 120) }, true)
+				elseif k5 == 2 then
+					K:box("SkewerFoam", V3(1.1, 0.24, 0.36), pcf * CF(-0.2, 0.12, 0), lk(rgb(250, 250, 248)))
+					for k = 0, 4 do
+						skewer(K, pcf * CF(-0.6 + k * 0.2, 0.24, 0), FRUIT_ORDER[(k + lowI) % #FRUIT_ORDER + 1], 0.8)
+					end
+					skewerCup(K, pcf * CF(0.7, 0, 0))
+				else
+					sugarStation(K, pcf * CF(0.1, 0, 0))
+				end
+				continue
+			else
+				upI = (upI or 0) + 1
+				local k5 = (upI + seed) % 4
+				if k5 == 0 then
+					fruitCrate(K, pcf * CF(-0.55, 0, 0), rgb(214, 28, 48), "논산 설향 딸기")
+					sugarSack(K, pcf * CF(0.55, 0, 0))
+				elseif k5 == 1 then
+					fruitCrate(K, pcf * CF(-0.55, 0, 0), rgb(150, 200, 70), "샤인머스캣 2kg")
+					fruitCrate(K, pcf * CF(0.55, 0, 0) * ANG(0, 0.05, 0), rgb(250, 146, 28), "제주 감귤")
+				elseif k5 == 2 then
+					for k = 0, 2 do
+						K:vcyl("TangCupStack", 0.8, 0.34, pcf * CF(-0.5 + k * 0.42, 0.4, 0), lk(if k == 1 then B.c1 else rgb(250, 250, 248)))
+						K:vcyl("TangCupRim", 0.04, 0.37, pcf * CF(-0.5 + k * 0.42, 0.78, 0), lk(dk(if k == 1 then B.c1 else rgb(250, 250, 248), 0.15)))
+					end
+					K:text("TangCupLabel", 1.2, 0.13, pcf * CF(0, 0.05, 0.3), "탕후루 컵 · 꼬치 홀더", { fg = B.c1, bg = rgb(255, 255, 255), font = F.GothamBold, d = 0.005 })
+				else
+					sugarSack(K, pcf * CF(-0.5, 0, 0))
+					fruitCrate(K, pcf * CF(0.55, 0, 0), rgb(60, 60, 120), "블루베리")
+				end
+				continue
+			end
+		end
 		if kind == 0 then
 			for k = 0, 2 do
 				local fl = FLAVORS[(i + k) % #FLAVORS + 1]
@@ -3168,19 +3417,11 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 				lid = q
 			end
 		end
+		local wn = ctx.n or V3(0, 0, 1)
+		local ww = math.abs(wn.Z) * r.size.X + math.abs(wn.X) * r.size.Z
+		local wd = math.abs(wn.X) * r.size.X + math.abs(wn.Z) * r.size.Z
 		K:free(function()
-			K:box("WaffleBase", r.size, CF(r.c), Look.of(34, 34, 36, Enum.Material.Metal))
-			K:box("WafflePlate", V3(r.size.X - 0.16, 0.06, r.size.Z - 0.16), CF(r.c.X, r.max.Y - 0.03, r.c.Z), Look.of(70, 70, 74, Enum.Material.DiamondPlate))
-			K:box("WaffleLED", V3(0.12, 0.04, 0.02), CF(r.c.X - r.size.X / 2 + 0.25, r.c.Y, r.max.Z + 0.005), Look.ledRed)
-			K:box("WaffleLED", V3(0.12, 0.04, 0.02), CF(r.c.X - r.size.X / 2 + 0.45, r.c.Y, r.max.Z + 0.005), Look.ledGreen)
-			if lid then
-				K:box("WaffleLidSkin", lid.size, CF(lid.c), Look.of(44, 44, 48, Enum.Material.Metal))
-				for k = -1, 1 do
-					K:box("WaffleGrid", V3(lid.size.X - 0.2, 0.012, 0.04), CF(lid.c.X, lid.max.Y + 0.006, lid.c.Z + k * 0.25), Look.of(28, 28, 30))
-					K:box("WaffleGrid", V3(0.04, 0.012, lid.size.Z - 0.2), CF(lid.c.X + k * 0.25, lid.max.Y + 0.006, lid.c.Z), Look.of(28, 28, 30))
-				end
-				K:box("WaffleHandle", V3(0.5, 0.08, 0.08), CF(lid.c.X, lid.max.Y + 0.04, lid.min.Z + 0.08), Look.black)
-			end
+			waffleMaker(K, facing(V3(r.c.X, r.min.Y, r.c.Z), -wn), ww, r.size.Y, wd, if lid then math.min(lid.size.X, lid.size.Z) else ww * 0.82, if lid then lid.size.Y else 0.15, false)
 		end)
 		Scan.hide(K.hidden, r.part)
 		if lid then
@@ -3218,7 +3459,7 @@ local function stepClaw(K: any, V: any, B: any, ctx: any)
 	ctx.clawLeds = {}
 	for _, b in V.byName.ClawBase or {} do
 		i += 1
-		if not room(K, 18) then
+		if not room(K, 46) then
 			break
 		end
 		local face = V3(0, 0, 1)
@@ -3267,6 +3508,77 @@ local function stepClaw(K: any, V: any, B: any, ctx: any)
 			if top then
 				local tf = top.c + face * (half + 0.015)
 				K:text("ClawMarquee", w * 0.9, top.size.Y * 0.7, faceCF(V3(tf.X, top.c.Y, tf.Z), face), if i % 3 == 0 then "인형뽑기" elseif i % 3 == 1 then "BINGBING" else "♥ CATCH ♥", { fg = rgb(255, 255, 255), glow = 1.6, font = F.FredokaOne, d = 0.01 })
+			end
+			-- 집게 · 와이어 · 갠트리 · 조이스틱 · 배출구 (맵의 상자 집게 · 굵은 막대 · 각진 조이스틱 대신, 같은 자리)
+			local function near(list: { any }?, maxD: number): any
+				for _, q in list or {} do
+					if (q.c * V3(1, 0, 1) - b.c * V3(1, 0, 1)).Magnitude < maxD then
+						return q
+					end
+				end
+				return nil
+			end
+			local claw = near(V.byName.Claw, 1.6)
+			local cable = near(V.byName.ClawCable, 1.6)
+			local glass = near(V.byName.ClawGlass, 0.6)
+			local stick = nil
+			for _, j in V.byName.Joystick or {} do
+				if (j.c * V3(1, 0, 1) - (b.c + face * half) * V3(1, 0, 1)).Magnitude < 1.6 then
+					stick = j
+				end
+			end
+			if claw then
+				local hubY = claw.max.Y - 0.1
+				K:vcyl("ClawHub", 0.2, 0.32, CF(claw.c.X, hubY, claw.c.Z), Look.chrome)
+				K:vcyl("ClawMotor", 0.12, 0.22, CF(claw.c.X, claw.max.Y - 0.02, claw.c.Z), Look.darkAlu)
+				local rr = math.min(claw.size.X, claw.size.Z) / 2 - 0.04
+				for k = 0, 2 do
+					local a = k * 2 * PI / 3 + 0.4
+					local dir = V3(math.cos(a), 0, math.sin(a))
+					local p0 = V3(claw.c.X, hubY - 0.08, claw.c.Z) + dir * 0.13
+					local p1 = V3(claw.c.X, claw.c.Y - 0.02, claw.c.Z) + dir * rr
+					local p2 = V3(claw.c.X, claw.min.Y + 0.04, claw.c.Z) + dir * (rr * 0.55)
+					K:seg("ClawProng", p0, p1, 0.05, Look.chrome, 0.03)
+					K:seg("ClawProng", p1, p2, 0.05, Look.chrome, 0.03)
+					K:ball("ClawTip", 0.07, CF(p2), Look.chrome)
+				end
+				Scan.hide(K.hidden, claw.part)
+			end
+			if cable then
+				K:vcyl("ClawWire", cable.size.Y, 0.035, CF(cable.c), Look.steel)
+				Scan.hide(K.hidden, cable.part)
+			end
+			if glass and not lowD(K) then
+				local gy = glass.max.Y - 0.06
+				local side = face:Cross(Vector3.yAxis)
+				local gw = math.abs(face.Z) * glass.size.X + math.abs(face.X) * glass.size.Z
+				local gd = math.abs(face.X) * glass.size.X + math.abs(face.Z) * glass.size.Z
+				for _, sz in { -1, 1 } do
+					local c0 = glass.c * V3(1, 0, 1) + V3(0, gy, 0) + face * (sz * (gd / 2 - 0.1))
+					K:box("ClawGantryRail", V3(0.07, 0.06, 0.07) + (V3(math.abs(side.X), 0, math.abs(side.Z)) * (gw - 0.24)), CF(c0), Look.darkAlu)
+				end
+				local cx = if cable then cable.c else glass.c
+				local c1 = V3(cx.X, gy - 0.02, cx.Z)
+				local along = V3(math.abs(face.X), 0, math.abs(face.Z))
+				K:box("ClawGantryBeam", V3(0.06, 0.05, 0.06) + along * (gd - 0.24), CF(V3(c1.X, gy - 0.02, c1.Z) * (V3(1, 1, 1) - along) + glass.c * along), Look.darkAlu)
+				K:box("ClawTrolley", V3(0.32, 0.14, 0.32), CF(c1.X, gy - 0.08, c1.Z), Look.blackMetal)
+				-- 배출구 (앞 왼쪽 모서리의 투명 아크릴 통)
+				local cc = glass.c * V3(1, 0, 1) + face * (gd / 2 - 0.5) - side * (gw / 2 - 0.5) + V3(0, glass.min.Y + 0.3, 0)
+				K:box("ClawChute", V3(0.82, 0.6, 0.82), CF(cc), glassL(rgb(230, 240, 250), 0.55))
+				K:box("ClawChuteRim", V3(0.86, 0.04, 0.86), CF(cc + V3(0, 0.31, 0)), Look.chrome)
+				for _, sx in { -1, 1 } do
+					for _, sz in { -1, 1 } do
+						local pp = glass.c * V3(1, 0, 1) + side * (sx * (gw / 2 - 0.03)) + face * (sz * (gd / 2 - 0.03))
+						K:box("ClawGlassEdge", V3(0.05, glass.size.Y, 0.05), CF(pp.X, glass.c.Y, pp.Z), Look.chrome)
+					end
+				end
+			end
+			if stick then
+				K:disc("JoyBase", 0.34, 0.05, CF(stick.c.X, stick.min.Y + 0.025, stick.c.Z), Look.black)
+				K:vcyl("JoyBoot", 0.12, 0.16, CF(stick.c.X, stick.min.Y + 0.1, stick.c.Z), Look.rubber)
+				K:vcyl("JoyStick", stick.size.Y - 0.25, 0.06, CF(stick.c.X, stick.min.Y + (stick.size.Y - 0.25) / 2 + 0.05, stick.c.Z), Look.chrome)
+				K:ball("JoyBall", 0.22, CF(stick.c.X, stick.max.Y - 0.11, stick.c.Z), lk(c))
+				Scan.hide(K.hidden, stick.part)
 			end
 		end)
 	end
@@ -3411,6 +3723,93 @@ local function stepBackWall(K: any, V: any, B: any, ctx: any)
 			K:text("BackLogo", math.min(6.8, V.W * 0.38), 0.7, dcf * CF(0, 0, 0.06), B.title, { fg = if chain then B.c1 else B.ink, glow = if chain then 1.0 else nil, font = if B.key == "bakery" or B.key == "haute" then F.Garamond else F.GothamBlack, d = 0.06 })
 		end
 	end
+end
+
+-- 계산대 뒤 벽 (뒷선반 위 ~ 천장 간판 아래, 6.6 ~ 8.9) 빈 구간: 브랜드별로
+--   프랜차이즈 · 디저트 = 사진 메뉴 포스터 (태그 · 음료 그림 · 이름 · 가격), 오뜨 · 라운지 · 투썸 · 파스쿠찌 = 황동 아치 거울 +
+--   사이 벽등, 베이커리 = 빵 그림 액자. 벽에 붙는 판뿐 (깊이 < 0.2) 이라 직원 자리 · 선반과 안 부딪힘
+local MIRROR_KEYS = { haute = true, lounge = true, twosome = true, pascucci = true, green = true }
+local POSTER_TAGS = { "BEST", "NEW", "SIGNATURE", "시즌 한정", "추천" }
+local function backBarWall(K: any, V: any, B: any, ctx: any)
+	if B.key == "starbucks" or B.key == "lobby" or B.key == "claw" or not V.walls.back or not ctx.main then
+		return
+	end
+	local y0, y1 = 6.6, math.min(V.H - 1.0, 8.9)
+	if y1 - y0 < 1.7 then
+		return
+	end
+	local items = {}
+	for _, sec in B.menus or {} do
+		for _, it in sec[2] do
+			table.insert(items, it)
+		end
+	end
+	if #items == 0 then
+		return
+	end
+	local cx0, cx1 = ctx.main.min.X - 0.5, ctx.main.max.X + 0.5
+	if ctx.back then
+		cx0, cx1 = math.min(cx0, ctx.back.min.X - 0.5), math.max(cx1, ctx.back.max.X + 0.5)
+	end
+	local mirror = MIRROR_KEYS[B.key] == true
+	local k = 0
+	local placed = 0
+	for _, s in freeSpans(K, "back", y0, y1, 1.0) do
+		-- 계산대 폭 안쪽만 (손님 쪽 벽은 stepFill 이 채움)
+		local a, b = math.max(s[1], cx0 - ctx.cx), math.min(s[2], cx1 - ctx.cx)
+		local len = b - a
+		if len >= 2.4 and placed < 6 and room(K, 40) then
+			local n = math.clamp(math.floor((len + 0.4) / 3.0), 1, 4)
+			local pw = math.min(if mirror then 2.0 else 2.3, (len - 0.4 - (n - 1) * 0.6) / n)
+			local ph = math.min(y1 - y0 - 0.2, if mirror then 2.3 else pw * 1.2)
+			local total = n * pw + (n - 1) * 0.6
+			local st0 = (a + b) / 2 - total / 2
+			local yc = y0 + (y1 - y0) / 2
+			for j = 1, n do
+				if not room(K, 26) then
+					break
+				end
+				k += 1
+				placed += 1
+				local u = st0 + (j - 0.5) * pw + (j - 1) * 0.6
+				if mirror then
+					local r = pw / 2
+					local rectH = ph - r
+					local yb = yc - ph / 2
+					local frameL = if B.key == "twosome" then Look.blackMetal else Look.goldMetal
+					K:plate("ArchMirrorFrame", pw + 0.14, rectH, 0.04, V:wall("back", u, yb + rectH / 2, 0.01), frameL)
+					wdisc(K, "ArchMirrorFrameTop", pw + 0.14, 0.04, V:wall("back", u, yb + rectH, 0.01), frameL)
+					K:plate("ArchMirror", pw, rectH - 0.07, 0.02, V:wall("back", u, yb + rectH / 2 + 0.035, 0.05), Look.mirror)
+					wdisc(K, "ArchMirrorTop", pw, 0.02, V:wall("back", u, yb + rectH, 0.05), Look.mirror)
+					if j < n then
+						-- 사이 벽등 (황동 팔 + 우윳빛 글로브)
+						local sx = u + pw / 2 + 0.3
+						local sd = V:wall("back", sx, yc + 0.2, 0.01)
+						K:plate("SconcePlate", 0.2, 0.34, 0.04, sd, frameL)
+						K:box("SconceArm", V3(0.05, 0.05, 0.36), sd * CF(0, 0.05, 0.2), frameL)
+						K:ball("SconceGlobe", 0.32, sd * CF(0, 0.22, 0.36), lk(rgb(255, 244, 226), M.Neon))
+					end
+				else
+					local it = items[(k * 3 + B.seed) % #items + 1]
+					local dcf = V:wall("back", u, yc, 0)
+					if B.key == "bakery" then
+						artPiece(K, dcf, pw, ph, "bread", B, 40 + k)
+					else
+						local face = if B.key == "mega" or B.key == "compose" then B.c1 elseif B.type == "dessert" then lt(B.c1, 0.55) else B.paper
+						local ink = onColor(face)
+						K:plate("PosterFrame", pw + 0.1, ph + 0.1, 0.05, dcf, Look.blackMetal)
+						K:text("PosterFace", pw, ph, dcf * CF(0, 0, 0.05), " ", { bg = face, glow = 0.7, d = 0.02 })
+						K:text("PosterTag", pw * 0.5, 0.3, dcf * CF(-pw * 0.2, ph / 2 - 0.28, 0.072), POSTER_TAGS[(k + B.seed) % #POSTER_TAGS + 1], { fg = face, bg = B.c2 or BLACK, font = F.GothamBlack, d = 0.006 })
+						glyph(K, dcf * CF(0, 0.08, 0.075), math.min(ph * 0.48, pw * 0.8), it[3] or (if B.type == "dessert" then "strawberry" else "latte"))
+						K:text("PosterName", pw * 0.9, 0.34, dcf * CF(0, -ph / 2 + 0.62, 0.072), it[1], { fg = ink, glow = 0.7, font = F.GothamBlack, d = 0.006 })
+						K:text("PosterPrice", pw * 0.6, 0.28, dcf * CF(0, -ph / 2 + 0.27, 0.072), (it[2] or "") .. "원", { fg = if B.key == "mega" then rgb(24, 24, 24) else dk(B.c1, 0.1), glow = 0.7, font = F.GothamBold, d = 0.006 })
+					end
+				end
+				useWall(K, "back", u - pw / 2 - 0.2, u + pw / 2 + 0.2, y0, y1)
+			end
+		end
+	end
+	ctx.backBar = placed
 end
 
 -- 벽시계 (옆벽 뒤쪽, 실제 게임 시각)
@@ -4930,6 +5329,29 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 			end
 		end
 	end
+	-- 메가 · 컴포즈: 옆벽 윗단 브랜드 컬러 띠 (매장 전체가 흰 벽 + 회색으로 죽어 보여서). 벽면 마감이라 깊이 0.03
+	if (B.key == "mega" or B.key == "compose") and V.H >= 9 then
+		local by0, by1 = 7.25, math.min(V.H - 0.9, 8.55)
+		for _, wn in { "left", "right" } do
+			if V.walls[wn] and room(K, 12) then
+				-- 칠한 띠라서 액자 · 포스터 뒤로 지나가도 됨: 구조 (창 · 문 · keep) 만 피함
+				for _, sp in V:spans(wn, by0, by1, 0.4) do
+					local len = sp[2] - sp[1] - 0.3
+					if len >= 3.0 then
+						local mid = (sp[1] + sp[2]) / 2
+						local bh = by1 - by0
+						local dcf = V:wall(wn, mid, by0 + bh / 2, 0.01)
+						K:plate("BrandBand", len, bh, 0.014, dcf, lk(B.c1))
+						K:plate("BrandBandLine", len, 0.06, 0.025, dcf * CF(0, bh / 2 - 0.03, 0), Look.black)
+						K:plate("BrandBandLine", len, 0.06, 0.025, dcf * CF(0, -bh / 2 + 0.03, 0), Look.black)
+						local tw = math.min(len - 0.4, 9.0)
+						K:text("BrandBandText", tw, bh * 0.56, dcf * CF(0, 0, 0.03), if B.key == "mega" then "MEGA MGC COFFEE · 메가MGC커피" else "COMPOSE COFFEE · 컴포즈커피", { fg = rgb(24, 24, 24), font = F.GothamBlack, d = 0.004 })
+						useWall(K, wn, sp[1], sp[2], by0, by1)
+					end
+				end
+			end
+		end
+	end
 	ctx.fillN = n
 	floorIslands(K, V, B, ctx)
 	dessertFloor(K, V, B, ctx)
@@ -4962,6 +5384,7 @@ function T.build(K: any, V: any, S: any)
 	else
 		table.insert(steps, { "back", stepBackWall })
 		table.insert(steps, { "special", stepSpecial })
+		table.insert(steps, { "backbar", backBarWall })
 		table.insert(steps, { "sides", stepSideWalls })
 		table.insert(steps, { "plants", stepPlants })
 		table.insert(steps, { "fill", stepFill })
@@ -4990,7 +5413,7 @@ function T.build(K: any, V: any, S: any)
 			K:note("cafe." .. st[1] .. " error: " .. tostring(err))
 		end
 	end
-	K:note(string.format("cafe[%s] menus=%d boards=%d fill=%d placed=%s", B.key, ctx.menuPlaced or 0, #ctx.boards, ctx.fillN or 0, table.concat(ctx.placed or {}, " ")))
+	K:note(string.format("cafe[%s] menus=%d boards=%d backbar=%d fill=%d placed=%s", B.key, ctx.menuPlaced or 0, #ctx.boards, ctx.backBar or 0, ctx.fillN or 0, table.concat(ctx.placed or {}, " ")))
 end
 
 return T

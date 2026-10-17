@@ -500,8 +500,7 @@ function Core.tableInfo(id: any): any?
 		local m = e.model
 		local top = m:FindFirstChild("TableTop", true) or m:FindFirstChild("Top", true) or m:FindFirstChild("VIPTableTop", true) or m:FindFirstChild("TableSlab", true)
 		if top and top:IsA("BasePart") then
-			e.top = top.Position + Vector3.new(0, top.Size.Y * 0.5, 0)
-			-- (the slab may be rotated: use the world AABB height)
+			-- (the slab may be rotated: use its world AABB height)
 			local h = math.abs(top.CFrame.UpVector.Y) * top.Size.Y + math.abs(top.CFrame.RightVector.Y) * top.Size.X + math.abs(top.CFrame.LookVector.Y) * top.Size.Z
 			e.top = top.Position + Vector3.new(0, h * 0.5, 0)
 		elseif m:IsA("Model") then
