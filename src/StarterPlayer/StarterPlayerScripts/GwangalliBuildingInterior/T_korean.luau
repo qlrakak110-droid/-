@@ -2527,8 +2527,8 @@ end
 
 local function photoRow(c: any)
 	local K, V, th = c.K, c.V, c.th
-	if V.H >= 9 and th.key ~= "bistro" then
-		local ph = 2.3
+	if V.H >= 7.6 and th.key ~= "bistro" then
+		local ph = math.clamp(V.H - 5.7, 1.9, 2.3)
 		local py0 = V.H - 0.4 - ph
 		local n = math.min(5, #th.menu)
 		local kinds = th.photoKinds or {}
@@ -2802,11 +2802,37 @@ local function calendarProp(c: any)
 	end
 end
 
+-- 이야기 액자 (한지 바탕 + 나무 테): 부산 돼지국밥 · 밀면의 유래
+local STORIES: { [string]: { string } } = {
+	gukbap = { "부산 돼지국밥 이야기", "6·25 피란 시절, 부산에 모인 사람들이\n돼지 뼈와 머리 고기를 푹 고아 나눠 먹던\n한 그릇이 오늘의 돼지국밥이 되었습니다.\n새우젓 · 부추 · 다대기는 입맛대로!" },
+	milmyeon = { "밀면 이야기", "1950년대 피란 온 이북 사람들이\n메밀 대신 구호물자 밀가루로 냉면을 뽑은 것이\n부산 밀면의 시작입니다.\n식초 · 겨자는 두 바퀴, 기호에 맞게!" },
+}
+local function storyBoard(c: any, yc: number)
+	local K, V, th = c.K, c.V, c.th
+	local st = STORIES[th.key]
+	if not st then
+		return
+	end
+	local wn, u = findWall(K, { "left", "right", "back" }, 3.3, 3.3, yc - 1.25, yc + 1.25, V3(0, 0, 0), 0.7)
+	if not wn or not u then
+		return
+	end
+	local d = V:wall(wn, u, yc, 0)
+	K:plate("StoryFrame", 3.2, 2.3, 0.08, d, wood(84, 56, 36))
+	K:plate("StoryPaper", 2.96, 2.06, 0.1, d, L.of(236, 224, 196, M.Fabric))
+	ktext(K, "StoryTitle", 2.6, 0.36, d * CF(0, 0.78, 0.1), st[1], { fg = rgb(120, 30, 24), font = F.GothamBlack })
+	ktext(K, "StoryBody", 2.7, 1.3, d * CF(0, -0.2, 0.1), st[2], { fg = rgb(50, 36, 26), font = F.GothamMedium })
+	-- 낙관 (빨간 도장)
+	K:plate("StorySeal", 0.2, 0.2, 0.105, d * CF(1.25, -0.85, 0), L.of(190, 30, 26))
+	at(K, "story", wn, u)
+end
+
 -- 남은 빈 벽을 포스터 · 액자로 채움
 local function postersFill(c: any)
 	local K, V, th = c.K, c.V, c.th
 	local placed = 0
 	local yc = math.min(6.0, V.H - 2.4)
+	storyBoard(c, yc)
 	for i, ps in th.posters do
 		local wide = (i % 2 == 1)
 		local w, h = if wide then 4.2 else 2.4, if wide then 2.4 else 3.2
@@ -3085,14 +3111,14 @@ local function fuProp(c: any)
 	end
 end
 
--- 텍스 천장 LED 평판등 (국밥 · 해장국 · 밀면 · 칼국수): 맵 형광등 줄 사이, 벽에서 3 이상 (후드 · 솥 자리 비움)
+-- 텍스 천장 LED 평판등 (국밥 · 해장국 · 밀면 · 칼국수): 맵 형광등 줄 사이, 벽에서 3.5 이상 (후드 · 솥 자리 비움)
 local function ceilPanels(c: any)
 	local K, V, th = c.K, c.V, c.th
 	if not ((th.kind == "soup" or th.kind == "noodle") and th.key ~= "ramen" and th.key ~= "bistro") then
 		return
 	end
 	local want = math.clamp(math.floor(V.W * V.D / 80), 3, 8)
-	local nx = math.max(2, math.floor((V.W - 6) / 6.5 + 0.5))
+	local nx = math.max(2, math.floor((V.W - 7.2) / 6.5 + 0.5))
 	local zs = { V.z0 + V.D * 0.2, (V.z0 + V.z1) / 2, V.z1 - V.D * 0.2 }
 	local placed, lit = 0, 0
 	for j, z0 in zs do
@@ -3100,11 +3126,11 @@ local function ceilPanels(c: any)
 			if placed >= want then
 				break
 			end
-			local x = V.x0 + 3 + (V.W - 6) * (i - 0.5) / nx
+			local x = V.x0 + 3.6 + (V.W - 7.2) * (i - 0.5) / nx
 			local z: number? = nil
 			for _, dz in { 0, 1.3, -1.3, 2.4, -2.4 } do
 				local zz = z0 + dz
-				if zz > V.z0 + 2.5 and zz < V.z1 - 1.5 and Common.ceilFree(K, x, zz, 1.15) then
+				if zz > V.z0 + 3.5 and zz < V.z1 - 1.5 and Common.ceilFree(K, x, zz, 1.15) then
 					z = zz
 					break
 				end

@@ -642,8 +642,7 @@ local function cert(K: any, dcf: CFrame, w: number, h: number, title: string, bo
 	local oo: any = o or {}
 	Props.frame(K, dcf, w, h, { frame = oo.frame or Look.goldMetal, border = 0.07, depth = 0.06, mat = Look.paper })
 	local d = dcf * CF(0, 0, 0.05)
-	txt(K, "CertTitle", w * 0.72, h * 0.13, d * CF(0, h * 0.32, 0), title, C(40, 40, 44), nil, { font = F.GothamBlack, d = 0.004 })
-	txt(K, "CertBody", w * 0.7, h * 0.48, d * CF(0, -h * 0.06, 0), body, C(70, 70, 74), nil, { font = F.SourceSans, d = 0.004 })
+	txt(K, "CertBody", w * 0.72, h * 0.66, d * CF(0, h * 0.06, 0), title .. "\n\n" .. body, C(50, 50, 54), nil, { font = F.GothamMedium, d = 0.004 })
 	K:disc("CertSeal", math.min(w, h) * 0.16, 0.01, d * CF(w * 0.24, -h * 0.34, 0.004) * ANG(PI / 2, 0, 0), lk(C(200, 40, 40)))
 end
 
@@ -1991,6 +1990,64 @@ local function vendingMachine(K: any, pcf: CFrame, rng: () -> number)
 	txt(K, "VendOutletText", ww * 0.6, 0.16, f * CF(wx, 1.62, 0.06), "꺼내는 곳  PUSH", WHITE, nil, { font = F.GothamBold })
 end
 
+-- 택배 상자 더미 (택배함 옆 바닥: 크기 다른 상자 3~4 + 테이프 + 송장). pcf 바닥 가운데
+local function parcelPile(K: any, pcf: CFrame, rng: () -> number)
+	local boxes = { { 1.3, 0.9, 1.0 }, { 0.9, 0.7, 0.8 }, { 1.0, 0.55, 0.7 }, { 0.7, 0.5, 0.6 } }
+	local y = 0
+	local n = if lo(K) then 2 else 4
+	for i = 1, n do
+		local b = boxes[i]
+		local stackOn = i == 2 or i == 4
+		local x = if stackOn then (rng() - 0.5) * 0.2 else (if i == 1 then -0.3 else 0.75)
+		local yy = if stackOn then y else 0
+		local cf = pcf * CF(x, yy + b[2] / 2, (rng() - 0.5) * 0.2) * ANG(0, (rng() - 0.5) * 0.5, 0)
+		K:box("ParcelBox", V3(b[1], b[2], b[3]), cf, Look.cardboard)
+		K:box("ParcelTape", V3(b[1] + 0.01, 0.02, 0.18), cf * CF(0, b[2] / 2, 0), lk(C(196, 170, 120), M.SmoothPlastic))
+		K:box("ParcelLabel", V3(0.36, 0.02, 0.26), cf * CF(b[1] * 0.18, b[2] / 2 + 0.012, b[3] * 0.22), Look.paper)
+		y = if stackOn then 0 else yy + b[2]
+		if i == 1 then
+			y = b[2]
+		end
+	end
+end
+
+-- 모텔 셀프 바 (어메니티 · 커피 · 생수). pcf 바닥 가운데, +Z 앞, 폭 w
+local function selfBar(K: any, pcf: CFrame, w: number, rng: () -> number, accent: Color3)
+	local h, d = 3.1, 1.2
+	K:box("SelfBarBody", V3(w, h - 0.15, d - 0.05), pcf * CF(0, (h - 0.15) / 2, -0.025), lk(C(36, 30, 34), M.Wood))
+	for i = 1, 2 do
+		K:plate("SelfBarDoor", w / 2 - 0.08, h - 0.6, 0.03, CFrame.fromMatrix((pcf * CF(-w / 4 + (i - 1) * w / 2, (h - 0.15) / 2, d / 2 - 0.04)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector), lk(C(48, 40, 46), M.Wood))
+	end
+	K:box("SelfBarTop", V3(w + 0.1, 0.15, d + 0.05), pcf * CF(0, h - 0.075, 0), Look.marbleBlack)
+	local top = pcf * CF(0, h, 0)
+	-- 캡슐 커피 머신 + 컵 탑
+	K:rbox("CoffeeMachine", V3(0.6, 0.95, 0.8), 0.06, top * CF(-w / 2 + 0.5, 0.475, -0.1), lk(C(30, 30, 32)))
+	K:box("CoffeeMachineTray", V3(0.4, 0.05, 0.3), top * CF(-w / 2 + 0.5, 0.15, 0.25), Look.chrome)
+	K:plate("CoffeeMachineLED", 0.1, 0.1, 0.02, CFrame.fromMatrix((top * CF(-w / 2 + 0.5, 0.8, 0.31)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector), Look.ledBlue)
+	for i = 0, 4 do
+		K:vcyl("PaperCupStack", 0.12, 0.26 - i * 0.004, top * CF(-w / 2 + 1.1, 0.06 + i * 0.12, 0.05), Look.paper)
+	end
+	-- 어메니티 바구니 3 (칫솔 · 면도기 · 헤어끈)
+	for i = 0, 2 do
+		local bcf = top * CF(-0.2 + i * 0.62, 0, -0.05)
+		K:box("AmenityTray", V3(0.55, 0.22, 0.6), bcf * CF(0, 0.11, 0), Look.rattan)
+		if not lo(K) then
+			for k = 0, 2 do
+				K:box("AmenityItem", V3(0.12, 0.3, 0.06), bcf * CF(-0.15 + k * 0.15, 0.3, (k % 2) * 0.1 - 0.05) * ANG(0.25, 0, 0), lk(pickR(rng, { C(240, 240, 240), C(120, 200, 230), C(240, 180, 200), C(250, 220, 120) })))
+			end
+		end
+	end
+	-- 생수 묶음
+	for i = 0, 2 do
+		K:vcyl("WaterBottle", 0.7, 0.22, top * CF(w / 2 - 0.35, 0.35, -0.25 + i * 0.25), lk(C(200, 226, 240), M.Glass, { t = 0.3 }))
+		K:vcyl("WaterBottleCap", 0.08, 0.12, top * CF(w / 2 - 0.35, 0.74, -0.25 + i * 0.25), lk(C(40, 110, 200)))
+	end
+	-- 위 안내판
+	local sd = CFrame.fromMatrix((pcf * CF(0, h + 1.7, -d / 2 + 0.03)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector)
+	K:plate("SelfBarSign", math.min(2.6, w - 0.2), 0.7, 0.05, sd, lk(C(24, 20, 24)))
+	txt(K, "SelfBarSignText", math.min(2.4, w - 0.4), 0.5, sd * CF(0, 0, 0.05), "SELF BAR  무료 어메니티 · 커피", accent, nil, { font = F.GothamBold, glow = 1.2 })
+end
+
 local function elevatorHall(K: any, V: any, th: any?, kind: string)
 	local els = V.byName.ElevatorDoor
 	if not els or #els == 0 then
@@ -2470,6 +2527,15 @@ local function buildMotel(K: any, V: any, S: any)
 			vendingMachine(K, pcf, rng)
 		end
 	end)
+	step(K, "selfbar", function()
+		for _, w in { 3.6, 2.8 } do
+			local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, w, 1.35, 5.2, V3(V.x0, 0, V.z0 + 2), 0.05, "selfbar")
+			if wn and pcf then
+				selfBar(K, pcf * CF(0, 0, 0.05), w, rng, accent)
+				break
+			end
+		end
+	end)
 	-- 무드 LED 띠 (천장 둘레)
 	step(K, "mood", function()
 		for _, wn in { "left", "right" } do
@@ -2630,10 +2696,10 @@ local function mailboxOver(K: any, V: any, r: any)
 	local warm = hashStr(V.name or "") % 2 == 0
 	local steel = if warm then lk(C(214, 196, 160), M.SmoothPlastic, { r = 0.08 }) else lk(C(226, 228, 230), M.SmoothPlastic, { r = 0.1 })
 	K:free(function()
-		K:box("MailBody", r.size + V3(0.02, 0.01, 0.02), CF(r.c), lk(C(212, 214, 216), M.SmoothPlastic, { r = 0.06 }))
+		K:box("MailBody", r.size + V3(0.02, 0.01, 0.02), CF(r.c), lk(C(212, 214, 216), M.SmoothPlastic))
 		-- 뒤 · 옆면: 템바보드 (세로 루버) 마감. 몸통 면에서 0.04 이상 띄움 (z-fighting 방지)
 		local slatL = if warm then lk(C(176, 136, 96), M.Wood) else lk(C(92, 70, 54), M.Wood)
-		local grooveL = if warm then lk(C(70, 52, 38), M.Wood) else lk(C(36, 30, 26), M.Wood)
+		local grooveL = if warm then lk(C(70, 52, 38), M.Wood) else lk(C(58, 48, 42), M.Wood)
 		local function louver(fd: CFrame, flen: number, y0: number, y1: number)
 			K:plate("MailLouverBack", flen - 0.04, y1 - y0, 0.03, fd * CF(0, (y0 + y1) / 2, 0.025), grooveL)
 			local pitch = if lo(K) then 0.7 else 0.42
@@ -2867,6 +2933,14 @@ local function buildResidence(K: any, V: any, S: any)
 				if lockerDoor and lockerHinge then
 					Interact.swing(K, lockerDoor, lockerHinge, K.cf.UpVector, -1.6, { object = "택배함 큰 칸", openText = "칸 열어 보기", closeText = "닫기" })
 				end
+				-- 택배함 옆에 쌓인 택배 상자 (기사님이 못 넣은 큰 상자)
+				for _, sx in { 1, -1 } do
+					local pp = pcf * CF(sx * (w / 2 + 1.12), 0, 0.1)
+					if claim(K, pp, V3(1.9, 1.7, 1.4), 0.02, "parcels") then
+						parcelPile(K, pp, rng)
+						break
+					end
+				end
 				break
 			end
 		end
@@ -3090,10 +3164,8 @@ local function listingBoard(K: any, dcf: CFrame, w: number, h: number, rng: () -
 			K:plate("ListCard", cwid, chgt, 0.01, card, Look.paper)
 			K:plate("ListCardBand", cwid, chgt * 0.24, 0.012, card * CF(0, chgt * 0.38, 0), lk(DEAL_COL[L[1]] or C(60, 60, 60)))
 			txt(K, "ListCardDeal", cwid * 0.8, chgt * 0.2, card * CF(0, chgt * 0.38, 0.015), L[1], WHITE, nil, { font = F.GothamBlack })
-			if not lo(K) or n <= 6 then
-				txt(K, "ListCardBody", cwid * 0.9, chgt * 0.36, card * CF(0, chgt * 0.04, 0.012), L[2], C(50, 50, 56), nil, { font = F.GothamMedium })
-			end
-			txt(K, "ListCardPrice", cwid * 0.9, chgt * 0.2, card * CF(0, -chgt * 0.34, 0.012), L[3], DEAL_COL[L[1]] or INK, nil, { font = F.GothamBlack })
+			-- 내용 + 가격을 글자판 하나로 (글자판 수 절약)
+			txt(K, "ListCardBody", cwid * 0.9, chgt * 0.62, card * CF(0, -chgt * 0.12, 0.012), L[2] .. "\n" .. L[3], C(40, 40, 48), nil, { font = F.GothamBold })
 			K:ball("ListPin", 0.08, card * CF(0, chgt / 2 - 0.05, 0.03), lk(pickR(rng, { C(220, 40, 40), C(40, 120, 220), C(240, 200, 40) })))
 		end
 	end
@@ -3440,6 +3512,7 @@ local function buildRealty(K: any, V: any, S: any)
 		local sw, sh = 1.12, 1.42
 		local zf = V.z1 - 0.07
 		local idx = math.floor(rng() * #LISTINGS)
+		local topN = 0
 		local function onGlass(x: number): boolean
 			if #wins == 0 then
 				return true
@@ -3468,13 +3541,28 @@ local function buildRealty(K: any, V: any, S: any)
 				for i = 1, n do
 					local x = a + (i - 0.5) * ((b - a) / n)
 					if onGlass(x) and not nearMullion(x) then
-						for _, y in { 1.08, 2.6 } do
+						for row, y in { 1.08, 2.6 } do
 							idx += 1
 							local L = LISTINGS[idx % #LISTINGS + 1]
 							local out = CFrame.fromMatrix(V3(x, y, zf), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1))
 							K:plate("WinSheet", sw, sh, 0.02, out * CF(0, 0, -0.012), Look.paper)
-							txt(K, "WinSheetDeal", sw, 0.34, out * CF(0, sh / 2 - 0.17, 0), L[1], WHITE, DEAL_COL[L[1]] or C(60, 60, 64), { font = F.GothamBlack, d = 0.012 })
-							txt(K, "WinSheetText", sw - 0.1, sh - 0.46, out * CF(0, -0.2, 0), L[2] .. "\n" .. L[3], C(24, 30, 48), nil, { font = F.GothamBold, d = 0.012 })
+							K:plate("WinSheetBand", sw, 0.3, 0.012, out * CF(0, sh / 2 - 0.15, 0.002), lk(DEAL_COL[L[1]] or C(60, 60, 64)))
+							if row == 2 then
+								topN += 1
+							end
+							if row == 2 and topN % 2 == 1 and topN <= 7 then
+								-- 위 줄: 매물 글자 (글자판은 한 장에 하나 — 글자판 수를 아낌)
+								txt(K, "WinSheetText", sw - 0.1, sh - 0.4, out * CF(0, -0.17, 0), L[1] .. "\n" .. L[2] .. "\n" .. L[3], C(24, 30, 48), nil, { font = F.GothamBold, d = 0.012 })
+							else
+								-- 아래 줄: 평면도 (선 판)
+								local ink = lk(C(90, 96, 110))
+								K:plate("WinPlan", sw * 0.7, 0.03, 0.01, out * CF(0, 0.25, 0.004), ink)
+								K:plate("WinPlan", sw * 0.7, 0.03, 0.01, out * CF(0, -0.55, 0.004), ink)
+								K:plate("WinPlan", 0.03, 0.8, 0.01, out * CF(-sw * 0.35, -0.15, 0.004), ink)
+								K:plate("WinPlan", 0.03, 0.8, 0.01, out * CF(sw * 0.35, -0.15, 0.004), ink)
+								K:plate("WinPlan", 0.03, 0.45, 0.01, out * CF(0.05, 0.03, 0.004), ink)
+								K:plate("WinPlan", sw * 0.36, 0.03, 0.01, out * CF(-0.12, -0.2, 0.004), ink)
+							end
 						end
 					end
 				end
@@ -4149,7 +4237,7 @@ local function buildLaundry(K: any, V: any, S: any)
 					local ld = d * CF(w * fx, bh / 2 + 0.25, 0)
 					K:box("BoardLightArm", V3(0.08, 0.08, 0.55), ld * CF(0, 0, 0.27), Look.blackMetal)
 					K:cyl("BoardLightHood", w * 0.36, 0.22, ld * CF(0, 0.04, 0.56), Look.blackMetal)
-					local led = K:cyl("BoardLightLED", w * 0.34, 0.12, ld * CF(0, -0.03, 0.56), Look.lampNeutral)
+					local led = K:cyl("BoardLightLED", w * 0.34, 0.12, ld * CF(0, -0.03, 0.56), lk(C(250, 246, 236), M.SmoothPlastic))
 					if fx < 0 then
 						K:light(led, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.4, Angle = 80, Color = Look.warmLight })
 					end

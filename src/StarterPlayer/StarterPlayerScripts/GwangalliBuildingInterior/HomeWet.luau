@@ -2018,8 +2018,13 @@ local function capsuleMachine(C: any, pcf: CFrame, ti: number)
 	C:box("CoffeeDripTray", V3(0.45, 0.06, 0.32), pcf * CF(0, 0.07, 0.3), LK.steelDark)
 	C:vcyl("CoffeeCup", 0.28, 0.24, pcf * CF(0, 0.24, 0.32), LK.ceramic)
 	C:box("CoffeeLever", V3(0.4, 0.05, 0.2), pcf * CF(0, 1.11, 0.3) * ANG(math.rad(10), 0, 0), LK.steelDark)
-	C:box("CoffeeButton", V3(0.08, 0.08, 0.02), pcf * CF(-0.12, 0.95, 0.455), lk(250, 250, 250, M.Neon))
-	C:box("CoffeeButton", V3(0.08, 0.08, 0.02), pcf * CF(0.12, 0.95, 0.455), lk(250, 250, 250, M.Neon))
+	-- 위 버튼 둘 (에스프레소 · 룽고: 작은 동그라미, 은은한 백라이트) + 앞 캡슐 투입구 선 + 브랜드 띠
+	for _, bx in { -0.1, 0.1 } do
+		C:disc("CoffeeButton", 0.08, 0.02, pcf * CF(bx, 1.085, 0.39), lk(236, 232, 224, M.SmoothPlastic))
+		C:disc("CoffeeButtonGlow", 0.04, 0.022, pcf * CF(bx, 1.086, 0.39), lk(255, 236, 200, M.Neon))
+	end
+	C:box("CoffeeSlot", V3(0.4, 0.015, 0.012), pcf * CF(0, 1.0, 0.452), LK.black)
+	C:box("CoffeeBadge", V3(0.16, 0.04, 0.01), pcf * CF(0, 0.6, 0.285), LK.chrome)
 end
 
 local function espressoMachine(C: any, pcf: CFrame)
@@ -5200,10 +5205,12 @@ local function entryClutter(C: any)
 		table.insert(corners, V3(sx * (C.W / 2 - 0.45), 0, 0))
 		table.insert(corners, V3(sx * (C.W / 2 - 0.45), 0, C.z0 + 0.6))
 	end
+	local standOK = false
 	if not V.decorPlus then
 		-- 우산꽂이 (원룸 이상)
 		if ti >= 2 then
 			local p = floorSpot(0.55, 0.55, 2.6, corners)
+			standOK = p ~= nil
 			if p then
 				p = p * CF(0, fy, 0)
 				C:vcyl("UmbrellaStand", 1.4, 0.55, p * CF(0, 0.7, 0), if ti >= 5 then LK.brass else lk(60, 60, 64, M.Metal))
@@ -5335,6 +5342,28 @@ local function entryClutter(C: any)
 		end
 		return nil, nil
 	end
+	-- 우산꽂이 자리가 없는 좁은 현관 (원룸): 벽 고리에 장우산 하나 + 3단 우산 하나를 걸어 둠
+	if not standOK and ti >= 2 and ti <= 4 then
+		local sd, dcf = wallSlot(0.9, 2.7, 2.75, { "left", "right", "back" })
+		if dcf then
+			local hookY = 1.4
+			C:plate("UmbrellaHookPlate", 0.7, 0.1, 0.03, dcf * CF(0, hookY, 0), LK.white)
+			for _, hx in { -0.2, 0.2 } do
+				C:box("UmbrellaWallHook", V3(0.05, 0.05, 0.16), dcf * CF(hx, hookY, 0.1), LK.chrome)
+			end
+			-- 장우산: 손잡이 고리가 hook 에 걸림 (umbrella() 의 고리 높이 = 0.2 + h * 0.9)
+			local h1 = 2.4
+			umbrella(C, dcf * CF(-0.2 - 0.14, hookY - 0.02 - (0.2 + h1 * 0.9), 0.17), h1, C3(30, 40, 70), 0)
+			-- 3단 우산 (짧고 통통, 손목 끈으로 걸림)
+			local q = dcf * CF(0.2, hookY - 0.08, 0.17)
+			C:seg("FoldUmbrellaStrap", (q * CF(0, 0.06, 0)).Position, (q * CF(0, -0.3, 0)).Position, 0.03, LK.black)
+			C:vcyl("FoldUmbrellaHandle", 0.3, 0.12, q * CF(0, -0.45, 0), LK.black)
+			C:vcyl("FoldUmbrellaBody", 0.75, 0.24, q * CF(0, -0.98, 0), lk(200, 60, 80, M.Fabric))
+			C:vcyl("FoldUmbrellaTip", 0.08, 0.1, q * CF(0, -1.39, 0), LK.black)
+			C:box("FoldUmbrellaBand", V3(0.25, 0.04, 0.25), q * CF(0, -0.98, 0), lk(170, 40, 60, M.Fabric))
+			local _ = sd
+		end
+	end
 	if ti >= 2 and ti <= 3 then
 		local sd, dcf = wallSlot(1.4, 1.8, 6.6, { "left", "right", "back" }, CF(0.52, 0, 0.15))
 		if dcf then
@@ -5405,22 +5434,24 @@ local function entryClutter(C: any)
 			if ti >= 5 then
 				-- 달항아리 그림 (따뜻한 회색 바탕 + 바닥 띠 + 위아래 두 사발을 이은 항아리 · 이음선 · 입 · 굽 · 그림자 · 낙관)
 				local z0 = 0.07
-				C:plate("ArtCanvas", aw, ah, z0, dcf, lk(204, 196, 182, M.Fabric))
+				C:plate("ArtCanvas", aw, ah, z0, dcf, lk(216, 208, 194, M.Fabric))
 				local gh = ah * 0.24
-				C:plate("ArtGround", aw, gh, z0 + 0.004, dcf * CF(0, -ah / 2 + gh / 2, 0), lk(176, 166, 150, M.Fabric))
-				local jw, jcx = math.min(aw * 0.46, 2.1), -aw * 0.04
-				local jcy = -ah / 2 + gh + jw * 0.47
+				C:plate("ArtGround", aw, gh, z0 + 0.004, dcf * CF(0, -ah / 2 + gh / 2, 0), lk(188, 178, 162, M.Fabric))
+				-- 항아리: 어깨가 넓은 하나의 둥근 몸통 + 아래로 좁아지는 굽 쪽 (윤곽이 끊기지 않게) + 은은한 이음선
+				local jw, jcx = math.min(aw * 0.4, ah * 0.5), -aw * 0.04
+				local footY = -ah / 2 + gh + 0.1
+				local jcy = footY + 0.6 * jw
 				local function el(n: string, w: number, h: number, x: number, y: number, dz: number, c: Color3)
 					C:ell(n, V3(w, h, 0.02), dcf * CF(x, y, z0 + dz), col(c, M.Fabric))
 				end
-				el("ArtJarShadow", jw * 1.15, jw * 0.16, jcx + jw * 0.12, -ah / 2 + gh - 0.02, 0.012, C3(150, 140, 126))
-				el("ArtJarLower", jw, jw * 0.6, jcx, jcy - jw * 0.17, 0.016, C3(238, 233, 222))
-				el("ArtJarUpper", jw * 0.98, jw * 0.58, jcx, jcy + jw * 0.15, 0.018, C3(244, 240, 231))
-				C:plate("ArtJarSeam", jw * 0.82, 0.014, z0 + 0.03, dcf * CF(jcx, jcy - 0.01, 0), lk(222, 214, 200, M.Fabric))
-				el("ArtJarGlow", jw * 0.16, jw * 0.36, jcx - jw * 0.26, jcy + jw * 0.12, 0.024, C3(252, 250, 245))
-				C:plate("ArtJarMouth", jw * 0.32, 0.09, z0 + 0.03, dcf * CF(jcx, jcy + jw * 0.43, 0), lk(232, 226, 212, M.Fabric))
-				C:plate("ArtJarRim", jw * 0.35, 0.03, z0 + 0.034, dcf * CF(jcx, jcy + jw * 0.47, 0), lk(214, 206, 190, M.Fabric))
-				C:plate("ArtJarFoot", jw * 0.34, 0.08, z0 + 0.03, dcf * CF(jcx, jcy - jw * 0.46, 0), lk(224, 216, 202, M.Fabric))
+				el("ArtJarShadow", jw * 1.1, jw * 0.14, jcx + jw * 0.14, footY + 0.02, 0.012, C3(160, 150, 136))
+				el("ArtJarLower", jw * 0.74, jw * 0.52, jcx, jcy - jw * 0.32, 0.016, C3(238, 233, 222))
+				el("ArtJarBody", jw, jw * 0.9, jcx, jcy + jw * 0.03, 0.018, C3(245, 241, 232))
+				C:plate("ArtJarSeam", jw * 0.86, 0.012, z0 + 0.03, dcf * CF(jcx, jcy - jw * 0.06, 0), lk(228, 221, 208, M.Fabric))
+				el("ArtJarGlow", jw * 0.14, jw * 0.42, jcx - jw * 0.27, jcy + jw * 0.08, 0.024, C3(252, 250, 246))
+				C:plate("ArtJarMouth", jw * 0.34, 0.08, z0 + 0.03, dcf * CF(jcx, jcy + jw * 0.5, 0), lk(234, 228, 214, M.Fabric))
+				C:plate("ArtJarRim", jw * 0.37, 0.03, z0 + 0.034, dcf * CF(jcx, jcy + jw * 0.54, 0), lk(214, 206, 190, M.Fabric))
+				C:plate("ArtJarFoot", jw * 0.36, 0.08, z0 + 0.03, dcf * CF(jcx, footY + 0.04, 0), lk(226, 218, 204, M.Fabric))
 				-- 낙관 (붉은 도장) + 서명
 				C:plate("ArtSeal", 0.12, 0.12, z0 + 0.012, dcf * CF(aw / 2 - 0.32, -ah / 2 + 0.3, 0), lk(170, 50, 40, M.Fabric))
 				C:plate("ArtSignature", 0.04, 0.3, z0 + 0.01, dcf * CF(aw / 2 - 0.32, -ah / 2 + 0.56, 0), lk(90, 80, 70, M.Fabric))
@@ -5512,6 +5543,22 @@ function HomeWet.build(K: any, V: any, S: any)
 	end
 	K.hwStart = #K.parts
 	K.hwPrior = nil
+	-- 욕실: 공통 마감 (T_home) 의 나무 걸레받이는 타일 벽 · 방수 바닥에 없음 (타일이 바닥까지) -> 이 클라이언트 파트만 감춤,
+	--   천장 몰딩은 욕실 천장재와 같은 흰 PVC 로 (갈색 띠가 천장 테두리에 보이지 않게)
+	if V.room == "bath" then
+		for i = 1, K.hwStart do
+			local p = K.parts[i]
+			if p and p.Parent then
+				local nm = p.Name
+				if string.sub(nm, 1, 13) == "HomeBaseboard" then
+					p.Transparency = 1
+				elseif string.sub(nm, 1, 9) == "HomeCrown" then
+					p.Color = C3(234, 234, 230)
+					p.Material = M.SmoothPlastic
+				end
+			end
+		end
+	end
 	K.hwRes = K.hwRes or {}
 	K.hwLights = 0
 	K.hwDebug = V.hwDebug

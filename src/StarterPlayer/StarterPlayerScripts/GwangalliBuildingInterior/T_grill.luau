@@ -13,6 +13,11 @@
 --     메뉴판 (파란 라이트박스 · 나무 간판 · 손글씨 색지 메뉴 줄, 2026 부산 가격) · 원산지 표시판 · 영업시간 · 결제 (동백전) ·
 --     와이파이 · 청소년 주류 판매 금지 · 사인지 벽 · 소주 포스터 · 앞치마 걸이 · 셀프 코너 · 소주 박스 · 스탠드 에어컨 ·
 --     주방 문 (STAFF ONLY) · 벽걸이 TV (롯데 야구) · 벽걸이 선풍기 · 환풍기 · 벽시계
+--     사진 메뉴 라이트박스 (그릇 · 국물 · 건더기를 겹쳐 그린 음식 사진 + 이름 + 가격) · 네온 문구 간판 ·
+--     2단 활어 · 조개 수조 (냉각기 · 파란 LED · 기포 · 가격 스티커) · 셀프 물 코너 (정수기 · UV 컵 소독기) ·
+--     벽 옷걸이 (겉옷 · 에코백 · 두루마리 휴지) · 조개 껍데기 통 · 24시 포차 텍스 천장 + 주방 패스 안 그림 (뚝배기 · 육수 솥)
+--   가게마다 다르게: 조개구이 색 (광안 파랑 · 바다마을 청록 · 갯마을 남색 + 주황), 포차 천막 색 (이름), 네온 문구 (seed)
+--   큰 유리판은 SmoothPlastic + 투명 (미리보기 렌더러가 Glass 판을 밤 창문으로 그리는 문제 회피, 게임에서도 자연스러움)
 --   상호작용 (이 클라이언트만, 주문 · 계산 · 앉기와 겹치지 않음): 선풍기 켜기 · 환풍기 켜기 · TV 채널 · 냉장고 문 ·
 --     전구 줄 켜기 — 프롬프트는 서버 앵커 · 테이블에서 6.5 넘게 떨어진 벽에만.
 
@@ -426,8 +431,8 @@ local THEMES: { [string]: any } = {
 		shop = "숯불구이",
 		accent = rgb(214, 120, 40),
 		accent2 = rgb(246, 238, 220),
-		floor = { look = L.of(70, 70, 74, M.Slate), tile = 2.0, grout = L.of(50, 50, 54) },
-		lower = { kind = "louver", h = 3.8, look = L.of(96, 66, 44, M.Wood), back = L.of(30, 26, 24), pitch = 0.5, walls = { "back", "left", "right" } },
+		floor = { look = L.of(112, 108, 104, M.Slate), tile = 2.0, grout = L.of(78, 76, 74) },
+		lower = { kind = "louver", h = 3.8, look = L.of(150, 104, 66, M.Wood), back = L.of(52, 40, 32), pitch = 0.5, walls = { "back", "left", "right" } },
 		base = L.of(26, 24, 22),
 		top = L.of(44, 44, 48, M.Metal),
 		edge = L.of(150, 154, 158, M.Metal),
@@ -1464,10 +1469,14 @@ local function displayOver(c: any)
 			local base = pcf * CF(x, bedTop, -0.12)
 			if kind == "basin" then
 				-- 빨간 고무 다라이 + 물
-				K:vcyl("Darai", 0.16, sw - 0.1, base * CF(0, 0.08, 0), L.of(204, 36, 30, M.Rubber))
-				K:vcyl("DaraiRim", 0.05, sw - 0.04, base * CF(0, 0.165, 0), L.of(180, 30, 26, M.Rubber))
-				K:vcyl("DaraiWater", 0.02, sw - 0.2, base * CF(0, 0.13, 0), { c = rgb(140, 186, 200), m = M.Glass, t = 0.4, r = 0.2 })
-				seafood(c, catch[i][1], base * CF(0, 0.1, 0), sw - 0.36, sw - 0.36, c.seed + i)
+				-- 얕은 다라이: 바닥 몸통 + 물 + 둥근 테 (해산물은 물 위로 보이게)
+				local dd = math.min(sw - 0.1, D - 0.5)
+				K:vcyl("Darai", 0.12, dd, base * CF(0, 0.06, 0), L.of(204, 36, 30, M.Rubber))
+				K:vcyl("DaraiWater", 0.012, dd - 0.12, base * CF(0, 0.126, 0), { c = rgb(150, 196, 210), m = M.SmoothPlastic, t = 0.25, r = 0.2 })
+				if c.hi then
+					K:ring("DaraiRim", base * CF(0, 0.15, 0) * ANG(PI / 2, 0, 0), dd / 2 - 0.03, 0.07, 10, L.of(186, 30, 26, M.Rubber))
+				end
+				seafood(c, catch[i][1], base * CF(0, 0.11, 0), dd - 0.3, dd - 0.3, c.seed + i)
 			elseif kind == "meat" then
 				K:box("MeatTray", V3(sw - 0.12, 0.05, D - 0.6), base * CF(0, 0.025, 0), L.of(250, 250, 248))
 				seafood(c, catch[i][1], base * CF(0, 0.05, 0), sw - 0.3, D - 0.8, c.seed + i)
@@ -1712,8 +1721,8 @@ local function grillLights(c: any)
 					K:box("LedHousing", V3(len, 0.14, 0.44), CF(cxl, V.H - 0.07, z), housing)
 					local d = K:box("LedDiffuser", V3(len - 0.12, 0.03, 0.3), CF(cxl, V.H - 0.155, z), lamp)
 					nl += 1
-					if nl % 3 == 1 and zi <= 3 then
-						K:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = if th.key == "gopchang" then 0.95 else 0.8, Angle = 140, Color = th.light or L.coolLight })
+					if (nl % 3 == 1 or (V.W < 32 and nl % 2 == 1)) and zi <= 3 and #K.lights < (V.maxLights or 8) - 1 then
+						K:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = if th.key == "clam" then 0.8 else 0.95, Angle = 140, Color = th.light or L.coolLight })
 					end
 				end)
 				x += len + 1.6
@@ -2636,9 +2645,13 @@ local function passDecor(c: any)
 		end
 		-- 육수 솥 (오른쪽 아래) + 김
 		local px = w / 2 - 0.95
-		K:plate("PassStockPot", 1.2, 0.95, 0.04, kd * CF(px, -kh / 2 + 0.6, 0.012), L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }))
-		K:plate("PassStockRim", 1.28, 0.08, 0.05, kd * CF(px, -kh / 2 + 1.07, 0.012), L.chrome)
-		K:plate("PassStockBand", 1.2, 0.05, 0.045, kd * CF(px, -kh / 2 + 0.5, 0.012), L.of(170, 174, 180, M.Metal))
+		-- 벽에 반쯤 묻힌 원통 (앞으로 0.17 만 나옴 → 둥근 음영, 선반 · 패스 턱에는 안 닿음)
+		K:vcyl("PassStockPot", 0.95, 1.1, kd * CF(px, -kh / 2 + 0.62, -0.38), L.of(214, 218, 222, M.SmoothPlastic, { r = 0.2 }))
+		K:vcyl("PassStockRim", 0.08, 1.18, kd * CF(px, -kh / 2 + 1.1, -0.38), L.chrome)
+		K:vcyl("PassStockBand", 0.05, 1.13, kd * CF(px, -kh / 2 + 0.5, -0.38), L.of(150, 154, 160, M.Metal))
+		for _, sx in { -1, 1 } do
+			K:box("PassStockEar", V3(0.16, 0.08, 0.1), kd * CF(px + sx * 0.6, -kh / 2 + 0.98, 0.05), L.of(150, 154, 160, M.Metal))
+		end
 		if c.hi then
 			for k = 1, 3 do
 				K:ell("PassSteam", V3(0.5 + k * 0.12, 0.42, 0.02), kd * CF(px + (k - 2) * 0.22, -kh / 2 + 1.2 + k * 0.32, 0.03), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.55 + k * 0.1 })
@@ -2932,8 +2945,15 @@ local function photoMenu(c: any, walls: { string }, near: Vector3?, y0: number, 
 	local nMax = math.min(#items, maxN or #items)
 	local nMin = math.min(nMax, 2)
 	local wn, u, w
+	-- 칸이 많은 판부터 (좁으면 칸 폭 1.6 으로 한 번 더)
 	for nn = nMax, nMin, -1 do
-		wn, u, w = findWall(K, walls, nn * cw + 0.4, nn * cw + 0.4, y0, y1, near, 0.6)
+		for _, cwi in { 1.9, 1.6 } do
+			wn, u, w = findWall(K, walls, nn * cwi + 0.4, nn * cwi + 0.4, y0, y1, near, 0.6)
+			if wn then
+				cw = cwi
+				break
+			end
+		end
 		if wn then
 			break
 		end
@@ -3065,7 +3085,7 @@ local function liveTank(c: any)
 	end
 	local D = 1.85
 	local frame = L.of(150, 154, 160, M.Metal)
-	local water = { c = rgb(40, 140, 210), m = M.SmoothPlastic, t = 0.58, r = 0.05 }
+	local water = { c = rgb(96, 196, 236), m = M.SmoothPlastic, t = 0.52, r = 0.05 }
 	local standH = 1.5
 	K:box("TankKick", V3(W - 0.2, 0.2, D - 0.2), pcf * CF(0, 0.1, 0), L.black)
 	K:box("TankStand", V3(W, standH - 0.2, D), pcf * CF(0, 0.2 + (standH - 0.2) / 2, 0), L.brushed)
@@ -3233,6 +3253,9 @@ local function wallHooks(c: any)
 						K:bar("Hook", (d * CF(x, -0.02, 0.1)).Position, (d * CF(x, 0.08, 0.3)).Position, 0.04, 0.04, L.chrome)
 						K:ball("HookTip", 0.07, d * CF(x, 0.1, 0.31), L.chrome)
 						local r = rnd(c.seed, n * 20 + i)
+						if i == 1 + (n + c.seed) % nh then
+							r = 0.1 + ((n + c.seed) % 2) * 0.25
+						end
 						if r < 0.3 then
 							-- 겉옷 (어깨 + 몸판 + 소매 + 지퍼)
 							local jc = col(jackets[(n * 3 + i + c.seed) % #jackets + 1], M.Fabric)
@@ -3268,6 +3291,86 @@ local function wallHooks(c: any)
 	end
 	if n > 0 then
 		at(K, "hooks x" .. n, c.hookAt[1], c.hookAt[2])
+	end
+end
+
+
+-- 조개 껍데기 통 (불판 테이블 모서리 옆 바닥, 빈 자리만): 스테인리스 들통 + 껍데기 몇 개 + 집게
+local function shellBuckets(c: any)
+	local K, V = c.K, c.V
+	local n = 0
+	for gi, g in c.grills or {} do
+		local t = g.t
+		local cx, cz = (t.min.X + t.max.X) / 2, (t.min.Z + t.max.Z) / 2
+		local hx, hz = (t.max.X - t.min.X) / 2, (t.max.Z - t.min.Z) / 2
+		local cands = {}
+		for _, off in { 0.6, 0.95 } do
+			for _, d in { { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 }, { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } } do
+				table.insert(cands, V3(cx + d[1] * (hx + off), 0, cz + d[2] * (hz + off)))
+			end
+		end
+		for k, p in cands do
+			local pcf = CF(p) * ANG(0, rnd(c.seed, gi * 5 + k) * PI, 0)
+			if K:spot(pcf, V3(0.95, 1.0, 0.95), 0.05, "shellBucket") then
+				local st = L.of(196, 200, 206, M.Metal)
+				K:vcyl("ShellBucket", 0.8, 0.86, pcf * CF(0, 0.42, 0), st)
+				K:vcyl("ShellBucketRim", 0.06, 0.94, pcf * CF(0, 0.82, 0), L.chrome)
+				K:vcyl("ShellBucketBand", 0.05, 0.9, pcf * CF(0, 0.2, 0), L.of(150, 154, 160, M.Metal))
+				K:vcyl("ShellBucketIn", 0.02, 0.78, pcf * CF(0, 0.74, 0), L.of(70, 66, 62))
+				if c.hi then
+					for j = 1, 4 do
+						local a = j * 1.6 + gi
+						K:ell("EmptyShell", V3(0.24, 0.07, 0.2), pcf * CF(math.cos(a) * 0.18, 0.78, math.sin(a) * 0.18) * ANG(0.3, a, 0.4), if j % 2 == 0 then L.of(214, 140, 110) else L.of(226, 214, 190))
+					end
+				end
+				n += 1
+				break
+			end
+		end
+	end
+	if n > 0 then
+		at(K, "shell buckets x" .. n, "floor", 0)
+	end
+end
+
+
+-- 낙서 벽 (곱창 · 24시 포차): 손님들이 매직으로 벽에 직접 쓴 글 (투명 글자판, 색 · 기울기 · 크기 제각각)
+local GRAFFITI = {
+	"민수 ♥ 지은\n2026.03.14", "곱창 최고!!", "부산 사나이\n다녀감", "또 올게요~", "졸업 기념 ♡",
+	"사장님 대박나세요", "막창은 여기가 진리", "롯데 우승 기원!!\n2026", "김OO 왔다감", "소주 3병 ㅋㅋ",
+	"다이어트는 내일부터", "♡ 1주년 ♡", "해운대보다 광안리", "새벽 4시 생존", "인생 곱창",
+}
+local function graffitiWall(c: any)
+	local K, V = c.K, c.V
+	local inks = { rgb(20, 20, 24), rgb(200, 24, 24), rgb(24, 60, 170), rgb(20, 120, 50), rgb(150, 40, 150) }
+	local fonts = { F.PermanentMarker, F.IndieFlower, F.GothamBold, F.SourceSansBold }
+	local placed = 0
+	for _, wn in { "left", "right", "back" } do
+		for _, sp in freeSpans(K, wn, 4.3, 7.3, 0.6) do
+			local len = sp[2] - sp[1] - 0.3
+			if len >= 2.6 and placed < 2 then
+				local w = math.min(len, 6.0)
+				local u0 = (sp[1] + sp[2]) / 2
+				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, 4.3, 7.3)
+				c.graffitiAt = c.graffitiAt or { wn, u0 }
+				local nmsg = math.max(3, math.floor(w * 1.6))
+				for i = 1, nmsg do
+					local k = placed * 20 + i
+					local msg = GRAFFITI[(k + c.seed) % #GRAFFITI + 1]
+					local col0 = (i - 1) % 2
+					local x = u0 - w / 2 + 0.6 + (w - 1.2) * rnd(c.seed, k * 3)
+					local y = 4.6 + 2.4 * ((i - 0.5) / nmsg) + (rnd(c.seed, k * 5) - 0.5) * 0.3
+					local sz = 0.28 + rnd(c.seed, k * 7) * 0.16
+					local tw = math.min(w - 0.4, sz * 6.5)
+					local d = V:wall(wn, x, y, 0) * ANG(0, 0, (rnd(c.seed, k * 11) - 0.5) * 0.35)
+					txt(K, "Graffiti", tw, sz * (if string.find(msg, "\n", 1, true) then 2 else 1), d, msg, inks[(k + col0) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.004 })
+				end
+				placed += 1
+			end
+		end
+	end
+	if placed > 0 then
+		at(K, "graffiti x" .. placed, c.graffitiAt[1], c.graffitiAt[2])
 	end
 end
 
@@ -3380,8 +3483,15 @@ function T.build(K: any, V: any, S: any)
 		step("selfCart", selfCart)
 	end
 	step("water", waterStation)
+	if th.key == "clam" then
+		step("buckets", shellBuckets)
+	end
 	if th.crates then
 		step("crates", crateStack)
+	end
+	-- 낙서 벽 (곱창 · 24시): 안내판보다 먼저 넓은 빈 벽을 잡음
+	if th.key == "gopchang" or th.key == "pocha24" then
+		step("graffiti", graffitiWall)
 	end
 	-- 안내 · 장식
 	step("origin", function()

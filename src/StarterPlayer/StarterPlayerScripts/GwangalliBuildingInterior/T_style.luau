@@ -9,6 +9,8 @@
 --     StylistSpot · FitStand · GwShopClerk 인형 · ClawBase/ClawGlass/ClawTop/Joystick/Claw · ChangeMachine) 은
 --     정확히 같은 자세 · 크기로만 덧씌우고 (의자 · 소파) 숨기거나, 아예 건드리지 않고 겉에 장식만 붙임 (인형뽑기 기계).
 --   * 상호작용은 손님 자리 · 게임 포인트에서 6.6 스터드 넘게 떨어진 벽 쪽에만 (promptSpot).
+--   * 공통 손질 (네 유형 모두): 앞 유리 시트지 뒷면 (windowSignBacks) · 홀로 선 맵 POP 양면화 (twoSidedSigns) ·
+--     남은 벽에 영업시간 · 결제 (동백전 등) 아크릴 명판 (hoursPlaque, T.build 끝) · 일러스트 포스터 (portraitArt / photoArt).
 -- 실제 기준: 부산 광안리 2026 동네 미용실 · 편집숍 · 서핑 숍 · 무인 인형뽑기방의 집기 · 가격 · 안내문.
 
 local Look = require(script.Parent:WaitForChild("Look"))
@@ -136,6 +138,13 @@ local function twoSidedSigns(K: any, V: any)
 		if fr and fr.BackgroundTransparency < 0.5 then
 			bg = fr.BackgroundColor3
 		end
+		-- 맵 글꼴이 FontFace 전용(Unknown)이면 GothamBold 로
+		local fnt = F.GothamBold
+		pcall(function()
+			if label.Font ~= Enum.Font.Unknown then
+				fnt = label.Font
+			end
+		end)
 		-- 양쪽 면 모두에 같은 글자판 (글자 있는 면은 같은 글자로 덮이므로 똑같이 보임; Face 정보가 없는 환경에서도 안전)
 		local pcfL = V.cf:ToObjectSpace(part.CFrame)
 		local half = part.Size.Z / 2
@@ -144,7 +153,7 @@ local function twoSidedSigns(K: any, V: any)
 			local o = r.c + n * (half + 0.004)
 			local dcf = CFrame.fromMatrix(o, up:Cross(n), up, n)
 			K:free(function()
-				txt(K, "SignBackFace", part.Size.X - 0.02, part.Size.Y - 0.02, dcf, label.Text, label.TextColor3, bg, label.Font)
+				txt(K, "SignBackFace", part.Size.X - 0.02, part.Size.Y - 0.02, dcf, (string.gsub(label.Text, "<[^>]+>", "")), label.TextColor3, bg, fnt)
 			end)
 		end
 	end
@@ -493,6 +502,9 @@ local function salonStation(K: any, V: any, wall: string, u: number, idx: number
 		local _ = halo
 		K:panel("MirrorBacker", mw + 0.02, mh + 0.02, 0.1, 0.45, wcf(V, wall, u, my, 0.04), lk(rgb(40, 38, 40)))
 		K:panel("StationMirror", mw, mh, 0.03, 0.42, wcf(V, wall, u, my, 0.14), Look.mirror)
+		-- 거울 반사 하이라이트 (사선 두 줄)
+		K:plate("MirrorSheen", 0.34, 2.5, 0.004, wcf(V, wall, u - 0.55, my + 0.35, 0.171) * ANG(0, 0, -0.55), lk(WHITE, M.Glass, { t = 0.84 }))
+		K:plate("MirrorSheen", 0.12, 2.1, 0.004, wcf(V, wall, u - 0.05, my + 0.2, 0.171) * ANG(0, 0, -0.55), lk(WHITE, M.Glass, { t = 0.86 }))
 		-- 거울 아래 터치 스위치 · 번호
 		K:plate("MirrorTouch", 0.16, 0.16, 0.01, wcf(V, wall, u + mw / 2 - 0.4, my - mh / 2 + 0.35, 0.17), lk(rgb(200, 200, 204), M.Glass, { t = 0.3 }))
 		txt(K, "StationNo", 0.6, 0.3, wcf(V, wall, u - mw / 2 + 0.55, my - mh / 2 + 0.36, 0.175), string.format("%02d", idx), lt(SALON.brass, 0.2), nil, F.GothamMedium)
@@ -2457,6 +2469,17 @@ local function buildClothing(K: any, V: any, S: any)
 			for _, s in { -1, 1 } do
 				K:plate("MirrorFrameBrass", 0.18, h, 0.3, d * CF(s * (w / 2 + 0.01), 0, 0), brass)
 				K:plate("MirrorLED", 0.06, h - 0.6, 0.32, d * CF(s * (w / 2 - 0.14), 0, 0), Look.lampWarm)
+			end
+			-- 거울면 (맵 BigMirror 자리, 같은 깊이) + 사선 반사 하이라이트
+			local gm = V:first("BigMirror")
+			if gm then
+				local gz = math.abs(V:wall(wall, u, 0, 0):PointToObjectSpace(gm.max).Z)
+				local gw, gh = math.max(gm.size.X, gm.size.Z), gm.size.Y
+				local gd = wcf(V, wall, u, gm.c.Y, 0)
+				K:plate("BigMirrorGlass", gw, gh, 0.02, gd * CF(0, 0, gz - 0.02), Look.mirror)
+				K:plate("MirrorSheen", 0.5, 4.2, 0.004, gd * CF(-0.5, 0.6, gz + 0.002) * ANG(0, 0, -0.45), lk(WHITE, M.Glass, { t = 0.84 }))
+				K:plate("MirrorSheen", 0.16, 3.4, 0.004, gd * CF(0.25, 0.3, gz + 0.002) * ANG(0, 0, -0.45), lk(WHITE, M.Glass, { t = 0.86 }))
+				hideRec(K, gm)
 			end
 		end)
 		hideRec(K, bm)

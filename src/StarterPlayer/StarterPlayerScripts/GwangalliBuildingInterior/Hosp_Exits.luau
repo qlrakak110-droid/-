@@ -119,6 +119,15 @@ local function erEntrance(K: any, env: any)
 		Lib.ab(K, "ERLightBox", 59.91, 10.0, 12.0, 60.25, 11.6, 17.0, Look.neon(C3(214, 30, 30)))
 	end)
 	Lib.tx(K, "ERLightBoxText", 4.7, 1.4, Lib.face(60.255, 10.8, 14.5, 1, 0), "응급실\nEMERGENCY", C.WHITE, nil, { glow = 2, font = Lib.FONT_K })
+	-- 돌출 간판 (캐노피 남쪽 끝, 양면): 길 · 구급차 베이(남쪽)에서 멀리서도 보이는 빨간 "응급실"
+	K:free(function()
+		Lib.solid(Lib.ab(K, "ERBladeBox", 61.2, 9.70, 9.92, 65.2, 11.50, 10.18, Look.of(236, 236, 232)), false)
+		for _, n in { -1, 1 } do
+			local zf = 10.05 + n * 0.135
+			Lib.ab(K, "ERBladeFace", 61.3, 9.80, math.min(zf, zf + n * 0.02), 65.1, 11.40, math.max(zf, zf + n * 0.02), Look.neon(C3(214, 30, 30)))
+			Lib.tx(K, "ERBladeText", 3.6, 1.45, Lib.face(63.2, 10.6, zf + n * 0.025, 0, n), "응급실 EMERGENCY", C.WHITE, nil, { glow = 2, font = Lib.FONT_K })
+		end
+	end)
 	-- 바깥 호출 버튼
 	local callBtn = K:plate("ERCallPlate", 0.5, 1.0, 0.09, Lib.face(59.91, 4.1, 20.15, 1, 0), LK.steel)
 	K:disc("ERCallButton", 0.3, 0.05, Lib.face(59.995, 4.25, 20.15, 1, 0) * ANG(PI / 2, 0, 0), LK.red)

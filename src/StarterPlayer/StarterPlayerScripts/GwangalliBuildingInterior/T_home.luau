@@ -5822,14 +5822,21 @@ ROOM["apartment:study"] = function(Cx: any)
 	end
 	-- 빈 벽: 가족사진 액자 묶음 (코르크 보드와 먼 벽) + 책상 옆 벽걸이 달력 (학원 · 관리비 날 동그라미)
 	local cbP = if cb then cb.Position else fc + V3(0, 0, -6)
-	local _, _, ph = Cx:wallSpotHigh(3.4, 4.3, 6.5, 0.1, { score = far(cbP), margin = 0.5 })
+	-- (꾸미기 추가 기능을 쓰면 벽 장식도 플레이어 몫: 붙박이 · 마감만)
+	local _, _, ph = nil, nil, nil
+	if not Cx.V.decorPlus then
+		_, _, ph = Cx:wallSpotHigh(3.4, 4.3, 6.5, 0.1, { score = far(cbP), margin = 0.5 })
+	end
 	if ph then
 		K:free(function()
 			P.photoCluster(Cx, ph * CF(0, 0.05, 0), 4, Cx.seed + 41)
 		end)
 	end
 	local dk = slotAt(Cx, "desk") or (fc + V3(0, 0, -6))
-	local _, _, cal = Cx:wallSpot(1.3, 3.5, 5.3, 0.06, { score = near(dk), margin = 0.4 })
+	local _, _, cal = nil, nil, nil
+	if not Cx.V.decorPlus then
+		_, _, cal = Cx:wallSpot(1.3, 3.5, 5.3, 0.06, { score = near(dk), margin = 0.4 })
+	end
 	if cal then
 		K:free(function()
 			P.calendar(K, cal, "10월 OCTOBER")
