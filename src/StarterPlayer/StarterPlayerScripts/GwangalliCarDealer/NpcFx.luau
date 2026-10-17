@@ -108,6 +108,17 @@ local function makeBubble(r: Rig)
 	r.bubbleText = t
 end
 
+-- Our "딜러와 상담하기" prompts hide (locally) while a dealer screen is up, so they never float over it.
+local hideKeys: { [string]: boolean } = {}
+local function applyPrompts(inst: Instance)
+	local hidden = next(hideKeys) ~= nil
+	for _, d in inst:GetDescendants() do
+		if d:IsA("ProximityPrompt") and d:GetAttribute(N.AttrNpc) ~= nil then
+			d.Enabled = not hidden
+		end
+	end
+end
+
 local function register(inst: Instance)
 	if rigs[inst] then
 		return
@@ -126,6 +137,12 @@ local function register(inst: Instance)
 		end)
 	end
 	makeTag(r)
+	applyPrompts(inst)
+	inst.DescendantAdded:Connect(function(d)
+		if d:IsA("ProximityPrompt") then
+			task.defer(applyPrompts, inst)
+		end
+	end)
 	inst.AncestryChanged:Connect(function()
 		if not inst:IsDescendantOf(workspace) then
 			local rr = rigs[inst]
@@ -212,6 +229,13 @@ function NpcFx.emote(id: string, name: string)
 		pcall(function()
 			r.ctl:emote(name)
 		end)
+	end
+end
+
+function NpcFx.hidePrompts(key: string, on: boolean)
+	hideKeys[key] = if on then true else nil
+	for inst in rigs do
+		applyPrompts(inst)
 	end
 end
 

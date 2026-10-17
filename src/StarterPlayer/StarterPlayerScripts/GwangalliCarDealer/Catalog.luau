@@ -276,9 +276,10 @@ local function updateThumbs()
 	end)
 end
 
+local gridWidth = 0 -- set by layout() from the screen metrics
 local function sizeGrid()
 	local m = Ui.metrics()
-	local W = gridScroll.AbsoluteSize.X - 16
+	local W = (if gridWidth > 0 then gridWidth else gridScroll.AbsoluteSize.X) - 16
 	if W <= 0 then
 		return
 	end
@@ -329,7 +330,7 @@ local function renderBanner()
 	end
 	local snap = st.snap or {}
 	local month = tonumber(string.match(snap.month or "", "%-(%d+)$")) or 1
-	local b = Ui.make("TextButton", { Name = "Banner", Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.fromRGB(60, 44, 16), Size = UDim2.new(1, -16, 0, 74), LayoutOrder = 0, Selectable = true, ZIndex = 3 }, gridScroll)
+	local b = Ui.make("TextButton", { Name = "Banner", Text = "", AutoButtonColor = false, BackgroundColor3 = Color3.new(1, 1, 1), Size = UDim2.new(1, -16, 0, 74), LayoutOrder = 0, Selectable = true, ZIndex = 3 }, gridScroll)
 	Ui.corner(b, 16)
 	Ui.grad(b, Color3.fromRGB(255, 214, 120), Color3.fromRGB(150, 96, 30), 0)
 	Ui.stroke(b, Col.gold, 1, 0.3)
@@ -506,8 +507,10 @@ local function layout()
 	-- detail placement
 	local detailOpen = ctx.Detail.isOpen()
 	mode = if m.w >= 1000 and not m.portrait then "dock" else "overlay"
+	gridWidth = m.w - side * 2
 	if detailOpen and mode == "dock" then
 		local dw = math.clamp(math.floor(m.w * 0.4), 420, 620)
+		gridWidth -= dw + 14
 		gridScroll.Size = UDim2.new(1, -dw - 14, 1, 0)
 		detailHost.Position = UDim2.new(1, -dw, 0, 0)
 		detailHost.Size = UDim2.new(0, dw, 1, 0)
@@ -973,6 +976,7 @@ function CatalogUI.open(opts: { [string]: any }?)
 	searchBox.Text = ""
 	isOpen = true
 	Ui.show(gui, true)
+	ctx.NpcFx.hidePrompts("catalog", true)
 	Ui.controls("catalog", false)
 	bindKeys(true)
 	Ui.sfx("open")
@@ -1016,6 +1020,7 @@ function CatalogUI.close()
 	clearCards()
 	bindKeys(false)
 	Ui.controls("catalog", true)
+	ctx.NpcFx.hidePrompts("catalog", false)
 	Ui.deselect(gui)
 	Ui.show(gui, false)
 	compareTray.Visible = false

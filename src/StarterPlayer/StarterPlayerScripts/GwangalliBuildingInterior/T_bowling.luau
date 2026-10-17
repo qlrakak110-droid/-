@@ -371,12 +371,12 @@ local function rentalShoe(K: any, pcf: CFrame, a: Color3, b: Color3, size: strin
 end
 
 local SHOE_COLS = {
-	{ rgb(196, 36, 40), rgb(30, 44, 96) },
-	{ rgb(30, 44, 96), rgb(196, 36, 40) },
-	{ rgb(36, 36, 40), rgb(196, 36, 40) },
-	{ rgb(30, 44, 96), rgb(220, 220, 214) },
-	{ rgb(36, 36, 40), rgb(150, 150, 154) },
-	{ rgb(120, 30, 34), rgb(36, 36, 40) },
+	{ rgb(214, 40, 44), rgb(240, 240, 236) },
+	{ rgb(40, 80, 190), rgb(240, 240, 236) },
+	{ rgb(214, 40, 44), rgb(36, 50, 120) },
+	{ rgb(36, 36, 40), rgb(240, 240, 236) },
+	{ rgb(36, 50, 120), rgb(214, 40, 44) },
+	{ rgb(90, 92, 98), rgb(214, 40, 44) },
 }
 
 local function lobbyShoes(R: any)
@@ -400,20 +400,29 @@ local function lobbyShoes(R: any)
 			hideRec(K, r)
 		end
 	end
+	-- 칸마다 2켤레 (맵은 1켤레): 칸 가운데 기준으로 4짝을 나란히
 	for _, list in cells do
-		table.sort(list, function(p, q)
-			return p.a.X < q.a.X
-		end)
-		for i, s in list do
-			local cs = SHOE_COLS[s.row]
-			local size = tostring(220 + (s.row - 1) * 10 + math.floor((s.col - 1) / 2) * 5)
-			rentalShoe(K, C(R, s.a.X, s.y, -11.2), cs[1], cs[2], if i == 1 and full then size else nil, full)
+		local s = list[1]
+		local cs = SHOE_COLS[s.row]
+		local size = tostring(220 + (s.row - 1) * 10 + math.floor((s.col - 1) / 2) * 5)
+		local cx = 5.05 + (s.col - 0.5) * 3.25
+		local pairs = if full then 2 else 1
+		local k = 0
+		for pi = 1, pairs do
+			for side = 0, 1 do
+				k += 1
+				local x = cx + (if pairs == 2 then (pi - 1.5) * 1.3 else 0) + (side - 0.5) * 0.48
+				rentalShoe(K, C(R, x, s.y, -11.2), cs[1], cs[2], if k == 1 and full then size else nil, false)
+			end
 		end
 	end
 	-- 선반 앞 모서리 LED (칸마다 은은한 빛) + 칸 위 사이즈 띠 위 크롬 모서리
 	for i = 0, 6 do
 		local y = 0.53 + i * 1.45 + 0.13
 		B(R, "CubbyEdge", 26.8, 0.04, 0.06, 17.98, y - 0.01, -10.53, lk(150, 120, 90, M.Metal))
+		if i > 0 then
+			B(R, "CubbyLipLED", 26.4, 0.04, 0.05, 17.98, y - 0.16, -10.62, nl(rgb(255, 232, 200)))
+		end
 	end
 	-- 신발장 위 간접조명 (선반 맨 위)
 	local strip = B(R, "CubbyLEDStrip", 26.4, 0.08, 0.1, 17.98, 9.42, -10.7, nl(rgb(255, 236, 210)))
@@ -597,13 +606,20 @@ local function sockVending(R: any, x: number, z: number)
 	end
 	local pc = C(R, x, 0, z)
 	local w, h, d = 2.6, 6.2, 2.0
-	K:box("SockVendBody", V3(w, h, d), pc * CF(0, h / 2, 0), lk(244, 244, 248, M.SmoothPlastic))
+	local bodyL = lk(244, 244, 248, M.SmoothPlastic)
+	-- 몸체는 껍데기만 (유리창 안이 보이게): 뒤판 · 아래 · 위 · 오른쪽 조작부 기둥 · 왼쪽 띠
+	K:box("SockVendBack", V3(w, h, 0.1), pc * CF(0, h / 2, -d / 2 + 0.05), bodyL)
+	K:box("SockVendLower", V3(w, 1.65, d), pc * CF(0, 0.825, 0), bodyL)
+	K:box("SockVendUpper", V3(w, h - 5.55, d), pc * CF(0, 5.55 + (h - 5.55) / 2, 0), bodyL)
+	K:box("SockVendColumn", V3(0.6, 3.9, d), pc * CF(0.95, 3.6, 0), bodyL)
+	K:box("SockVendLeft", V3(0.1, 3.9, d), pc * CF(-w / 2 + 0.05, 3.6, 0), bodyL)
+	K:box("SockVendInnerTop", V3(1.8, 0.04, d - 0.2), pc * CF(-0.3, 5.5, 0), nl(rgb(255, 250, 240)))
 	K:box("SockVendSide", V3(0.06, h, d), pc * CF(-w / 2 - 0.02, h / 2, 0), lk(120, 50, 210, M.SmoothPlastic))
 	K:box("SockVendSide", V3(0.06, h, d), pc * CF(w / 2 + 0.02, h / 2, 0), lk(120, 50, 210, M.SmoothPlastic))
 	local f = d / 2
 	-- 유리창 + 안쪽 칸
 	local gx, gw = -0.3, 1.8
-	K:box("SockVendInner", V3(gw, 3.8, 0.1), pc * CF(gx, 3.6, f - 0.9), lk(30, 26, 40, M.SmoothPlastic))
+	K:box("SockVendInner", V3(gw, 3.8, 0.1), pc * CF(gx, 3.6, -d / 2 + 0.15), lk(236, 230, 250, M.SmoothPlastic))
 	local cols = { rgb(240, 240, 240), rgb(30, 30, 34), rgb(210, 60, 80), rgb(60, 120, 220), rgb(250, 200, 60), rgb(130, 80, 220) }
 	for row = 0, 3 do
 		local y = 2.0 + row * 0.95
@@ -1170,13 +1186,18 @@ local function lobbyPhoto(R: any, wallX: number)
 	if spot(R, wallX - 1.6, pz, 0, 2.0, 7.0, 2.0, 0) then
 		local pc = C(R, wallX - 1.6, 0, pz)
 		local W2 = lk(248, 248, 246, M.SmoothPlastic, { r = 0.1 })
-		K:disc("GiantPinBase", 1.3, 0.1, pc * CF(0, 0.05, 0), W2)
-		K:ell("GiantPinBody", V3(1.9, 3.8, 1.9), pc * CF(0, 2.1, 0), W2)
-		K:ell("GiantPinNeck", V3(0.9, 2.0, 0.9), pc * CF(0, 4.4, 0), W2)
-		K:ell("GiantPinHead", V3(1.15, 1.4, 1.15), pc * CF(0, 5.6, 0), W2)
-		K:vcyl("GiantPinStripe", 0.16, 0.86, pc * CF(0, 4.55, 0), lk(210, 30, 40, M.SmoothPlastic))
-		K:vcyl("GiantPinStripe", 0.16, 0.8, pc * CF(0, 4.25, 0), lk(210, 30, 40, M.SmoothPlastic))
-		K:disc("GiantPinBottom", 1.25, 0.04, pc * CF(0, 0.12, 0), Look.rubber)
+		-- 핀 윤곽 (높이 비율, 지름): 실제 볼링핀 15인치 규격 비율을 6.4 스터드로
+		local prof = { { 0.0, 0.9 }, { 0.06, 1.2 }, { 0.14, 1.55 }, { 0.24, 1.82 }, { 0.34, 1.9 }, { 0.44, 1.78 }, { 0.53, 1.45 }, { 0.61, 1.02 }, { 0.68, 0.78 }, { 0.74, 0.74 }, { 0.8, 0.86 }, { 0.87, 1.02 }, { 0.93, 0.98 }, { 0.98, 0.7 } }
+		local Hp = 6.4
+		for i = 1, #prof - 1 do
+			local a, b = prof[i], prof[i + 1]
+			local y0, y1 = a[1] * Hp, b[1] * Hp
+			K:vcyl("GiantPin", y1 - y0 + 0.02, (a[2] + b[2]) / 2, pc * CF(0, (y0 + y1) / 2, 0), W2)
+		end
+		K:ell("GiantPinTop", V3(0.7, 0.3, 0.7), pc * CF(0, Hp * 0.98, 0), W2)
+		K:vcyl("GiantPinStripe", 0.14, 0.8, pc * CF(0, Hp * 0.665, 0), lk(210, 30, 40, M.SmoothPlastic))
+		K:vcyl("GiantPinStripe", 0.14, 0.77, pc * CF(0, Hp * 0.715, 0), lk(210, 30, 40, M.SmoothPlastic))
+		txt(K, "GiantPinLogo", 0.9, 0.5, pc * CF(0, Hp * 0.4, 0.96), "AMF", rgb(210, 30, 40), nil, F.GothamBlack)
 	end
 	-- 대형 볼 (오른쪽)
 	if spot(R, wallX - 1.9, 7.6, 0, 3.4, 3.4, 3.4, 0) then
@@ -1188,19 +1209,20 @@ local function lobbyPhoto(R: any, wallX: number)
 	local sx, sz = wallX - 4.5, -0.1
 	K:disc("PhotoSpotRing", 3.6, 0.02, C(R, sx, 0.012, sz), lk(250, 220, 90, M.SmoothPlastic))
 	K:disc("PhotoSpotInner", 3.1, 0.02, C(R, sx, 0.022, sz), lk(30, 16, 54, M.SmoothPlastic))
-	txt(K, "PhotoSpotText", 2.6, 0.9, floorDcf(R, sx, sz, BX, 0.035), "PHOTO SPOT\n여기 서서 찰칵!", rgb(255, 230, 120), nil, F.GothamBlack)
+	txt(K, "PhotoSpotText", 2.6, 0.9, floorDcf(R, sx, sz, BX, 0.035), "PHOTO SPOT\n여기 서서 찰칵!", rgb(255, 230, 120), nil, F.GothamBlack, 1)
 	-- 링라이트 삼각대 (사진 찍는 쪽)
-	local rx, rz = wallX - 10.0, -0.1
-	if spot(R, rx, rz, FX, 1.6, 5.4, 1.6, 0) then
-		local pc = C(R, rx, 0, rz, FX) -- +Z = 벽 쪽
+	local rx, rz = wallX - 9.0, -3.6
+	local aim = math.atan2(sx - rx, sz - rz)
+	if spot(R, rx, rz, aim, 1.6, 5.4, 1.6, 0) then
+		local pc = C(R, rx, 0, rz, aim) -- +Z = 포토 스팟 쪽
 		for i = 0, 2 do
 			local a = i * 2 * PI / 3
 			K:seg("TripodLeg", (pc * CF(0, 2.0, 0)).Position, (pc * CF(math.cos(a) * 0.8, 0.02, math.sin(a) * 0.8)).Position, 0.07, BLACKMETAL)
 		end
 		K:vcyl("TripodPole", 2.4, 0.1, pc * CF(0, 3.2, 0), BLACKMETAL)
 		local ringC = pc * CF(0, 4.8, 0)
-		local ring = K:ring("RingLightLamp", ringC, 0.75, 0.16, 16, nl(rgb(255, 250, 240)))
-		K:ring("RingLightHousing", ringC * CF(0, 0, -0.06), 0.75, 0.24, 16, BLACKMETAL)
+		local ring = K:ring("RingLightLamp", ringC * CF(0, 0, 0.08), 0.75, 0.13, 16, nl(rgb(255, 250, 240)))
+		K:ring("RingLightHousing", ringC * CF(0, 0, -0.06), 0.75, 0.2, 16, BLACKMETAL)
 		K:box("RingPhoneHolder", V3(0.1, 0.5, 0.06), ringC * CF(0, -0.2, 0.05), BLACKMETAL)
 		local phone = K:box("RingPhone", V3(0.36, 0.72, 0.05), ringC * CF(0, 0.05, 0.1), lk(20, 20, 24, M.Glass))
 		local scr = K:box("RingPhoneScreen", V3(0.32, 0.66, 0.01), ringC * CF(0, 0.05, 0.13), { c = rgb(40, 40, 60), m = M.Neon, t = 0.2 })
@@ -1251,8 +1273,7 @@ local function lobbyPhoto(R: any, wallX: number)
 		})
 	end
 	-- 보라 무드 조명 (포토존)
-	local glow = B(R, "PhotoUplight", 12.6, 0.1, 0.2, wallX - 0.25, 0.08, 0, nl(PURPLE), FX)
-	K:light(glow, "SurfaceLight", { Face = Enum.NormalId.Top, Range = 12, Brightness = 1.2, Angle = 90, Color = rgb(190, 120, 255) })
+	B(R, "PhotoUplight", 12.6, 0.1, 0.2, wallX - 0.25, 0.08, 0, nl(PURPLE), FX)
 end
 
 -- 로비 천장 설비 (덕트 · 트레이 · 스프링클러 · 스피커 · 라인 조명)
@@ -1290,10 +1311,10 @@ local function lobbyFloor(R: any)
 	local lx, lz = -33, 4.2
 	K:disc("FloorLogoRing", 6.4, 0.02, C(R, lx, 0.012, lz), lk(150, 70, 255, M.SmoothPlastic))
 	K:disc("FloorLogoInner", 5.9, 0.02, C(R, lx, 0.02, lz), lk(18, 16, 26, M.Marble))
-	txt(K, "FloorLogoText", 5.0, 1.6, floorDcf(R, lx, lz, FZ, 0.034), "GWANGAN\nROCK BOWL", rgb(220, 200, 255), nil, F.GothamBlack)
+	txt(K, "FloorLogoText", 5.0, 1.6, floorDcf(R, lx, lz, FZ, 0.034), "GWANGAN\nROCK BOWL", rgb(220, 200, 255), nil, F.GothamBlack, 1)
 	-- 레인 쪽 화살표 + 글자
 	for _, a in { { -4.5, -10.2, "LANES 1-12 ▲" }, { 40.5, -11.6, "LANES ▲" } } do
-		txt(K, "FloorArrowText", 4.4, 1.0, floorDcf(R, a[1], a[2], FZ, 0.03), a[3], rgb(255, 214, 90), nil, F.GothamBlack)
+		txt(K, "FloorArrowText", 4.4, 1.0, floorDcf(R, a[1], a[2], FZ, 0.03), a[3], rgb(255, 214, 90), nil, F.GothamBlack, 1)
 		for i = 0, 2 do
 			K:box("FloorChevron", V3(1.2, 0.02, 0.24), C(R, a[1] - 0.45, 0.02, a[2] + 1.0 + i * 0.6) * ANG(0, 0.6, 0), lk(255, 214, 90, M.SmoothPlastic))
 			K:box("FloorChevron", V3(1.2, 0.02, 0.24), C(R, a[1] + 0.45, 0.02, a[2] + 1.0 + i * 0.6) * ANG(0, -0.6, 0), lk(255, 214, 90, M.SmoothPlastic))
@@ -1301,7 +1322,7 @@ local function lobbyFloor(R: any)
 	end
 	-- 카운터 앞 대기선
 	B(R, "FloorQueueLine", 26, 0.02, 0.2, 18, 0.012, 6.2, lk(255, 214, 90, M.SmoothPlastic))
-	txt(K, "FloorQueueText", 6.0, 0.6, floorDcf(R, 18, 6.9, FZ, 0.03), "여기서 잠시 기다려 주세요", rgb(255, 214, 90), nil, F.GothamBold)
+	txt(K, "FloorQueueText", 6.0, 0.6, floorDcf(R, 18, 6.9, FZ, 0.03), "여기서 잠시 기다려 주세요", rgb(255, 214, 90), nil, F.GothamBold, 1)
 end
 
 -- 로비 벽 (동쪽 벽 남는 곳) 공지 · 포스터 + X배너
@@ -1324,6 +1345,58 @@ local function lobbyNotices(R: any, wallX: number)
 		K:seg("XBannerLeg", (pc * CF(0.8, 0.02, -0.4)).Position, (pc * CF(-0.75, 5.8, 0)).Position, 0.06, BLACKMETAL)
 		K:box("XBannerSheet", V3(1.6, 5.2, 0.02), pc * CF(0, 3.3, 0.04), lk(250, 248, 255, M.Fabric))
 		txt(K, "XBannerText", 1.5, 4.8, pc * CF(0, 3.3, 0.06), "생일파티\n단체 대관\n\nLEAGUE\nNIGHT\n매주 목요일\n\n☎ 051-756-2026", rgb(80, 30, 160), nil, F.GothamBlack, nil, { wrap = false })
+	end
+end
+
+-- 서쪽 절반: 천장 원형 조명 2 (넓게 비춤) · 디지털 사이니지 토템 · 정수기
+local function lobbyWest(R: any)
+	local K = R.K
+	for _, p in { V3(-31, 0, -4.5), V3(-14, 0, 1.5) } do
+		local y = 16.2
+		for i = 0, 2 do
+			local a = i * 2 * PI / 3
+			K:seg("HighBayCable", P(R, p.X + math.cos(a) * 1.2, y + 0.4, p.Z + math.sin(a) * 1.2), P(R, p.X, R.H, p.Z), 0.04, lk(120, 122, 126, M.Metal))
+		end
+		K:vcyl("HighBayBody", 0.5, 3.0, C(R, p.X, y + 0.25, p.Z), MATTE)
+		K:vcyl("HighBayFin", 0.3, 1.6, C(R, p.X, y + 0.65, p.Z), lk(60, 60, 66, M.Metal))
+		local lens = K:disc("HighBayLens", 2.6, 0.04, C(R, p.X, y - 0.02, p.Z), nl(rgb(255, 240, 222)))
+		K:disc("HighBayRing", 3.05, 0.06, C(R, p.X, y - 0.0, p.Z), nl(PURPLE))
+		K:light(lens, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 28, Brightness = 1.3, Angle = 120, Color = rgb(255, 236, 214) })
+	end
+	-- 디지털 사이니지 토템 (양면 세로 LED, 이벤트 광고 순환)
+	local tx, tz = -21.5, -8.6
+	if spot(R, tx, tz, FZ, 2.6, 7.4, 1.0, 0.2) then
+		local pc = C(R, tx, 0, tz)
+		K:box("TotemBase", V3(2.6, 0.4, 1.0), pc * CF(0, 0.2, 0), MATTE)
+		K:rbox("TotemBody", V3(2.4, 6.8, 0.6), 0.1, pc * CF(0, 3.8, 0) * ANG(0, PI / 2, 0), lk(32, 30, 38, M.Metal))
+		local frames = {
+			{ text = "ROCK BOWL\nCOSMIC NIGHT\n\n매일 20:00~\n락볼링 5,500원", c = rgb(60, 20, 110) },
+			{ text = "생일파티 패키지\n\n3게임 + 음료\n1인 15,000원", c = rgb(150, 30, 80) },
+			{ text = "초보 볼링교실\n\n주 2회 4주\n120,000원", c = rgb(20, 70, 120) },
+			{ text = "이달의 하이스코어\n\n1. 김*준 279\n2. 박*희 268\n3. 이*호 255", c = rgb(20, 90, 60) },
+		}
+		for _, side in { 0, PI } do
+			local f = pc * CF(0, 3.9, 0) * ANG(0, side, 0)
+			local scr = K:box("TotemScreen", V3(2.1, 5.9, 0.02), f * CF(0, 0, 0.31), { c = frames[1].c, m = M.Neon, t = 0.15 })
+			local _, lb = txt(K, "TotemText", 1.9, 5.2, f * CF(0, 0, 0.325), frames[1].text, WHITE, nil, F.GothamBlack, 1.6)
+			Interact.screenLoop(K, scr, lb, frames, 5)
+		end
+		txt(K, "TotemFoot", 2.0, 0.3, pc * CF(0, 0.75, 0.31), "GWANGAN ROCK BOWL", rgb(200, 180, 255), nil, F.GothamBold, 1)
+	end
+	-- 정수기 + 종이컵 (대기 소파 옆, 서버 이름과 겹치지 않게 'Cooler')
+	local wx, wz = -9.2, 9.6
+	if spot(R, wx, wz, BZ, 1.6, 4.6, 1.5, 0.1) then
+		local pc = C(R, wx, 0, wz, BZ)
+		K:rbox("CoolerBody", V3(1.4, 4.0, 1.3), 0.12, pc * CF(0, 2.0, 0) * ANG(0, PI / 2, 0), lk(240, 240, 242, M.SmoothPlastic))
+		K:box("CoolerPanel", V3(1.1, 1.4, 0.06), pc * CF(0, 2.9, 0.66), lk(30, 30, 36, M.Glass))
+		K:box("CoolerLEDHot", V3(0.14, 0.08, 0.02), pc * CF(-0.25, 3.3, 0.7), Look.ledRed)
+		K:box("CoolerLEDCold", V3(0.14, 0.08, 0.02), pc * CF(0.25, 3.3, 0.7), Look.ledBlue)
+		K:box("CoolerNozzle", V3(0.5, 0.2, 0.3), pc * CF(0, 2.4, 0.75), CHROME)
+		K:box("CoolerTray", V3(0.9, 0.08, 0.5), pc * CF(0, 1.5, 0.82), lk(160, 162, 166, M.Metal))
+		K:vcyl("CupTube", 1.4, 0.36, pc * CF(0.95, 2.6, 0.2), gl(rgb(230, 240, 240), 0.6))
+		K:vcyl("CupStack", 1.0, 0.3, pc * CF(0.95, 2.4, 0.2), lk(250, 250, 248, M.SmoothPlastic))
+		txt(K, "CoolerTag", 1.0, 0.3, pc * CF(0, 3.8, 0.66), "정수기 · 냉온수", rgb(30, 30, 34), rgb(250, 250, 250), F.GothamBold)
+		K:box("CupBin", V3(0.8, 1.0, 0.8), pc * CF(-0.2, 0.5, 1.3), lk(60, 60, 66, M.Plastic))
 	end
 end
 
@@ -1352,6 +1425,7 @@ local function buildLobby(R: any)
 		{ "photo", function() lobbyPhoto(R, wallX) end },
 		{ "floor", function() lobbyFloor(R) end },
 		{ "notices", function() lobbyNotices(R, wallX) end },
+		{ "west", function() lobbyWest(R) end },
 	}
 	for _, st in steps do
 		local ok, err = pcall(st[2])

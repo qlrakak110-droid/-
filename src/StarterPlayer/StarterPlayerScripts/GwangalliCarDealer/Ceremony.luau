@@ -62,6 +62,7 @@ local function close()
 	openFlag = false
 	Ui.unbind("GwCarDealerCeremony")
 	Ui.blur(false, "ceremony")
+	ctx.NpcFx.hidePrompts("ceremony", false)
 	Ui.controls("ceremony", true)
 	Ui.deselect(gui)
 	if stage then
@@ -120,6 +121,7 @@ function Ceremony.play(res: any, e: any, colorId: string)
 	local npc = ctx.CatalogUI.ctxNpc()
 	Ui.show(gui, true)
 	Ui.blur(true, "ceremony")
+	ctx.NpcFx.hidePrompts("ceremony", true)
 	Ui.controls("ceremony", false)
 	Ui.sfx("money")
 
