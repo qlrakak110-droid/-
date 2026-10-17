@@ -34,6 +34,8 @@ local PI = math.pi
 local rgb = Color3.fromRGB
 local WHITE = rgb(255, 255, 255)
 local WALL_OFF = 0.05 -- 벽 부착물은 타일 · 줄눈 · 색띠(최대 0.045) 앞에
+-- 활어 손질대 상판: 헤어라인 스테인리스 (횟집 · 수산 · 조개찜 · 대게 공통)
+local STEEL_TOP = Look.of(198, 202, 206, Enum.Material.Metal, { r = 0.14 })
 
 -- 공용 도우미 ------------------------------------------------------------------------------------------
 local function col(c: Color3, m: Enum.Material?, extra: any?): any
@@ -658,7 +660,7 @@ local function themeFor(V: any): any
 	th.floor = { look = L.of(150, 154, 156, M.Slate), tile = 2.0, grout = L.of(118, 122, 124) }
 	th.stool = { kind = "steel", frame = L.chrome, seat = L.of(40, 84, 168, M.Leather) }
 	th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), edge = L.of(150, 152, 154, M.SmoothPlastic, { r = 0.1 }), base = L.chrome, thick = 0.12, r = 0 }
-	th.counter = { front = "panel", frontL = L.of(188, 192, 196, M.Metal), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(200, 230, 255) }
+	th.counter = { front = "panel", frontL = L.of(188, 192, 196, M.Metal), topL = STEEL_TOP, kickL = L.black, led = rgb(200, 230, 255) }
 	th.chair = { style = "padded", frame = L.blackMetal, seat = L.fabricGrey }
 	th.splash = L.of(244, 246, 246, M.CeramicTiles)
 	th.tank = "fish"
@@ -677,7 +679,7 @@ local function themeFor(V: any): any
 		th.floor = { look = L.of(118, 110, 100, M.Slate), tile = 2.0, grout = L.of(92, 86, 78) }
 		th.stool = { kind = "wood", frame = L.darkWood, seat = L.of(176, 132, 88, M.Wood) }
 		th.table = { style = "four", top = L.of(132, 92, 60, M.Wood), base = L.blackMetal, thick = 0.16, r = 0 }
-		th.counter = { front = "wood", frontL = L.of(100, 70, 48, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
+		th.counter = { front = "wood", frontL = L.of(100, 70, 48, M.Wood), topL = STEEL_TOP, kickL = L.black, led = rgb(255, 214, 160) }
 		th.wifi = "JINMI_5G"
 	elseif variant == "red" then
 		th.accent = rgb(196, 28, 38)
@@ -723,7 +725,7 @@ local function themeFor(V: any): any
 		th.floor = { look = L.of(176, 164, 150, M.Slate), tile = 2.0, grout = L.of(140, 130, 118) }
 		th.stool = { kind = "wood", frame = L.darkWood, seat = L.of(170, 40, 32, M.Leather) }
 		th.table = { style = "four", top = L.of(168, 122, 82, M.Wood), base = L.blackMetal, thick = 0.16, r = 0 }
-		th.counter = { front = "wood", frontL = L.of(110, 40, 32, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
+		th.counter = { front = "wood", frontL = L.of(110, 40, 32, M.Wood), topL = STEEL_TOP, kickL = L.black, led = rgb(255, 214, 160) }
 		th.tank = "crab"
 		th.wifi = "DAEGE_MILLAK"
 	elseif variant == "squid" then
@@ -757,9 +759,9 @@ local function themeFor(V: any): any
 	end
 	-- 타일 벽 매장: 카운터 앞도 같은 타일 (스테인리스 상판), 시장형은 스테인리스 판
 	if th.lowerKind == "tile" and variant ~= "chojang" and variant ~= "market" then
-		th.counter = { front = "tile", frontL = th.tile, topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = th.band, led = rgb(200, 230, 255) }
+		th.counter = { front = "tile", frontL = th.tile, topL = STEEL_TOP, kickL = th.band, led = rgb(200, 230, 255) }
 	elseif variant == "chojang" or variant == "market" then
-		th.counter = { front = "panel", frontL = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = false }
+		th.counter = { front = "panel", frontL = L.of(214, 218, 222, M.SmoothPlastic, { r = 0.15 }), topL = STEEL_TOP, kickL = L.black, led = false }
 	end
 	th.menu = MENUS[if kind == "hoe" then "hoe" else kind] or MENUS.hoe
 	th.origin = ORIGIN[if kind == "hoe" then "hoe" else kind] or ORIGIN.hoe
@@ -1003,7 +1005,7 @@ local function crab(K: any, base: CFrame, s: number, kind: string, hi: boolean)
 			end
 		end
 	end
-	local legD = (if kind == "king" then 0.1 else 0.065) * s
+	local legD = (if kind == "king" then 0.13 else 0.085) * s
 	local reach = (if kind == "king" then 1.05 else 1.25) * s
 	local nLegs = if hi then 4 else 3
 	for _, sz in { -1, 1 } do
@@ -1333,7 +1335,7 @@ local function tankOverlay(c: any, t: any)
 				K:vcyl("AirStone", 0.16, 0.22, bottom * CF(x, 0.08, z), L.of(130, 130, 126, M.Slate))
 				K:seg("AirHose", (bottom * CF(x, 0.15, z)).Position, (tcf * CF(x * 0.98, y1 + 0.35, z)).Position, 0.035, { c = rgb(220, 230, 230), m = M.Glass, t = 0.3 })
 				for b = 1, (if hi then 6 else 3) do
-					local p = K:ball("TankBubble", 0.08 + (b % 3) * 0.03, bottom * CF(x, 0.3 + b * 0.3, z), { c = WHITE, m = M.Glass, t = 0.35 })
+					local p = K:ball("TankBubble", 0.08 + (b % 3) * 0.03, bottom * CF(x, 0.3 + b * 0.3, z), { c = rgb(236, 248, 255), m = M.SmoothPlastic, t = 0.4, r = 0.3 })
 					table.insert(bubbles, { p = p, base = bottom * CF(x, 0, z), h = (y1 - 0.15) - gTop, k = b, n = (if hi then 6 else 3) })
 				end
 			end
@@ -1449,7 +1451,7 @@ local function tankOverlay(c: any, t: any)
 			if b.p.Parent then
 				if on then
 					local fr = (tt * 0.45 + b.k / b.n) % 1
-					b.p.Transparency = 0.35
+					b.p.Transparency = 0.4 + fr * 0.2
 					b.p.CFrame = K.cf * b.base * CF(math.sin(tt * 3 + b.k) * 0.04, 0.2 + fr * b.h, 0)
 				else
 					b.p.Transparency = 1
@@ -1477,15 +1479,31 @@ local function knifeSet(c: any, dcf: CFrame, w: number)
 end
 
 local function uvSterilizer(c: any, dcf: CFrame)
+	-- 벽걸이 자외선 칼 · 도마 소독기: 스테인리스 함 + 유리문 (안에 칼 · 도마가 보임) + 위 보라 램프 띠 + 전원 표시
 	local K = c.K
-	K:plate("UVCabinet", 1.4, 1.6, 0.5, dcf, L.of(238, 240, 240, M.Plastic))
-	K:plate("UVWindow", 1.1, 1.0, 0.02, dcf * CF(0, 0.1, 0.5), { c = rgb(120, 110, 255), m = M.Neon, t = 0.35 })
-	for i = 1, 3 do
-		K:plate("UVKnife", 0.12, 0.8, 0.02, dcf * CF(-0.35 + i * 0.18, 0.1, 0.48), L.of(200, 204, 210, M.Metal))
+	local body = L.of(214, 218, 222, M.Metal, { r = 0.12 })
+	K:plate("UVCabinet", 1.5, 1.7, 0.55, dcf, body)
+	K:plate("UVInner", 1.3, 1.25, 0.02, dcf * CF(0, -0.08, 0.5), L.of(70, 64, 120, M.SmoothPlastic))
+	K:plate("UVLampBar", 1.24, 0.07, 0.04, dcf * CF(0, 0.5, 0.46), L.neon(rgb(150, 110, 255)))
+	for i = 1, 4 do
+		local x = -0.48 + (i - 1) * 0.22
+		K:plate("UVKnife", 0.1, 0.62, 0.02, dcf * CF(x, -0.12, 0.42), L.of(206, 210, 216, M.Metal, { r = 0.2 }))
+		K:plate("UVKnifeHandle", 0.07, 0.28, 0.04, dcf * CF(x, 0.3, 0.42), if i % 2 == 0 then L.black else L.of(196, 170, 120, M.Wood))
 	end
-	K:plate("UVBoard", 0.5, 0.75, 0.04, dcf * CF(0.3, 0.1, 0.44), L.of(240, 236, 226))
-	ktext(K, "UVLabel", 1.2, 0.24, dcf * CF(0, -0.6, 0.5), "자외선 칼 · 도마 살균 소독기", { fg = rgb(30, 60, 120), d = 0.01 })
-	K:plate("UVHandle", 0.6, 0.06, 0.06, dcf * CF(0, 0.66, 0.5), L.chrome)
+	K:plate("UVBoard", 0.42, 0.9, 0.06, dcf * CF(0.4, -0.12, 0.38), L.of(236, 232, 222))
+	-- 유리문 + 알루 문틀 + 손잡이
+	K:plate("UVDoorGlass", 1.36, 1.32, 0.02, dcf * CF(0, -0.06, 0.55), { c = rgb(190, 180, 255), m = M.Glass, t = 0.55 })
+	for _, sy in { -1, 1 } do
+		K:plate("UVDoorFrame", 1.42, 0.06, 0.04, dcf * CF(0, -0.06 + sy * 0.68, 0.55), L.alu)
+	end
+	for _, sx in { -1, 1 } do
+		K:plate("UVDoorFrame", 0.06, 1.42, 0.04, dcf * CF(sx * 0.7, -0.06, 0.55), L.alu)
+	end
+	K:plate("UVHandle", 0.06, 0.4, 0.08, dcf * CF(0.6, -0.06, 0.59), L.chrome)
+	-- 위 조작부: 이름 띠 + 전원 LED + 타이머 다이얼
+	ktext(K, "UVLabel", 1.0, 0.18, dcf * CF(-0.15, 0.76, 0.551), "자외선 살균 소독기", { fg = rgb(30, 60, 120), d = 0.005 })
+	K:plate("UVPower", 0.06, 0.06, 0.02, dcf * CF(0.52, 0.76, 0.55), L.neon(rgb(80, 255, 120)))
+	K:cyl("UVDial", 0.04, 0.12, dcf * CF(0.64, 0.76, 0.57) * ANG(0, PI / 2, 0), L.black)
 end
 
 local function platesStack(K: any, base: CFrame, dia: number, n: number, look: any)
@@ -2132,47 +2150,60 @@ end
 
 -- 광안대교 야경 파노라마 액자 (마린시티 스카이라인 + 복층 현수교 + 무지개 조명 + 드론쇼)
 local function bridgeArt(c: any, dcf: CFrame, w: number, h: number)
+	-- 광안대교 야경 사진 액자: 검은 알루 프레임 + 흰 매트 + 사진 (노을 하늘 · 마린시티 실루엣 · 주탑 2 · 현수 케이블 · 수면 반사)
 	local K = c.K
 	local fr = L.of(24, 24, 26, M.Metal)
-	K:plate("BridgeBack", w, h, 0.05, dcf, col(rgb(12, 16, 40)))
+	K:plate("BridgeMat", w, h, 0.05, dcf, L.of(246, 244, 238, M.SmoothPlastic))
 	for _, sy in { -1, 1 } do
-		K:plate("BridgeFrame", w + 0.12, 0.1, 0.1, dcf * CF(0, sy * (h / 2 + 0.01), 0), fr)
+		K:plate("BridgeFrame", w + 0.12, 0.08, 0.1, dcf * CF(0, sy * (h / 2 + 0.02), 0), fr)
 	end
 	for _, sx in { -1, 1 } do
-		K:plate("BridgeFrame", 0.1, h + 0.12, 0.1, dcf * CF(sx * (w / 2 + 0.01), 0, 0), fr)
+		K:plate("BridgeFrame", 0.08, h + 0.12, 0.1, dcf * CF(sx * (w / 2 + 0.02), 0, 0), fr)
 	end
-	local pc = dcf * CF(0, 0, 0.05)
-	local iw, ih = w - 0.1, h - 0.1
-	-- 하늘 노을 띠 · 달
-	K:plate("BridgeSkyMid", iw, ih * 0.2, 0.003, pc * CF(0, ih * 0.02, 0), col(rgb(46, 36, 92)))
-	K:plate("BridgeSkyLow", iw, ih * 0.08, 0.004, pc * CF(0, -ih * 0.1, 0), col(rgb(150, 76, 104)))
-	wdisc(K, "BridgeMoon", ih * 0.12, 0.004, pc * CF(-iw * 0.36, ih * 0.32, 0), 0.0, L.neon(rgb(250, 240, 210)))
-	K:plate("BridgeSea", iw, ih * 0.36, 0.006, pc * CF(0, -ih * 0.32, 0), col(rgb(8, 20, 42)))
-	-- 마린시티 고층 빌딩 (왼쪽) + 창 불빛
-	local bxs = { 0.05, 0.11, 0.16, 0.22, 0.27, 0.33 }
+	local mat = 0.16
+	local iw, ih = w - mat * 2, h - mat * 2 - 0.12
+	local pc = dcf * CF(0, 0.06, 0.05)
+	-- 하늘 (위 남색 -> 지평선 보라 · 분홍), 바다
+	local sky = { rgb(14, 20, 52), rgb(36, 34, 88), rgb(92, 56, 120), rgb(170, 92, 120) }
+	local skyH = ih * 0.58
+	for k, cc in sky do
+		local bh = skyH / #sky
+		K:plate("BridgeSky", iw, bh, 0.004, pc * CF(0, ih / 2 - bh * (k - 0.5), 0), col(cc))
+	end
+	local seaH = ih - skyH
+	K:plate("BridgeSea", iw, seaH, 0.004, pc * CF(0, -ih / 2 + seaH / 2, 0), col(rgb(8, 16, 36)))
+	local hz = ih / 2 - skyH -- 지평선 y
+	wdisc(K, "BridgeMoon", ih * 0.09, 0.004, pc * CF(-iw * 0.38, ih * 0.36, 0), 0.0, L.neon(rgb(250, 240, 210)))
+	-- 마린시티 실루엣 (왼쪽 뒤) : 어두운 탑 + 꼭대기 경관등 몇 점
+	local bxs = { 0.04, 0.085, 0.12, 0.16, 0.2, 0.235, 0.27 }
 	for i, f in bxs do
 		local bx = -iw / 2 + iw * f
-		local bh = ih * (0.22 + ((i * 37) % 10) / 28)
-		local bw = iw * 0.045
-		K:plate("BridgeTower", bw, bh, 0.008, pc * CF(bx, -ih * 0.14 + bh / 2, 0), col(rgb(30, 34, 58)))
-		if c.hi then
-			K:plate("BridgeWindows", bw * 0.35, bh * 0.7, 0.01, pc * CF(bx - bw * 0.15, -ih * 0.14 + bh * 0.45, 0), L.neon(if i % 2 == 0 then rgb(255, 220, 150) else rgb(170, 210, 255), 0.25))
+		local bh = ih * (0.12 + ((i * 37) % 10) / 45)
+		local bw = iw * (0.03 + (i % 3) * 0.008)
+		K:plate("BridgeCity", bw, bh, 0.006, pc * CF(bx, hz + bh / 2, 0), col(rgb(20, 22, 40)))
+		if c.hi and i % 2 == 1 then
+			K:plate("BridgeCityLamp", bw * 0.5, 0.025, 0.008, pc * CF(bx, hz + bh - 0.03, 0), L.neon(rgb(255, 214, 150), 0.3))
 		end
 	end
-	-- 다리: 복층 상판 · 주탑 2 · 무지개 주케이블 · 행어
-	local dy = -ih * 0.1
-	K:plate("BridgeDeck", iw, 0.07, 0.012, pc * CF(0, dy, 0), col(rgb(70, 74, 92)))
-	K:plate("BridgeDeck2", iw, 0.05, 0.012, pc * CF(0, dy - 0.12, 0), col(rgb(60, 64, 80)))
-	K:plate("BridgeDeckLights", iw, 0.025, 0.018, pc * CF(0, dy + 0.045, 0), L.neon(rgb(255, 210, 140)))
-	K:plate("BridgeDeckLights2", iw, 0.02, 0.018, pc * CF(0, dy - 0.09, 0), L.neon(rgb(255, 120, 90)))
-	local tx = iw * 0.2
-	local th0 = ih * 0.46
+	-- 다리: 복층 상판 (불빛 줄) + 주탑 2 (H형, 흰 조명) + 주케이블 + 행어
+	local cableC = pickOf({ rgb(90, 170, 255), rgb(170, 110, 255), rgb(80, 230, 210) }, c.seed, 41)
+	local dy = hz + ih * 0.05
+	K:plate("BridgeDeck", iw, 0.06, 0.01, pc * CF(0, dy, 0), col(rgb(40, 44, 64)))
+	K:plate("BridgeDeckLights", iw, 0.022, 0.014, pc * CF(0, dy + 0.035, 0), L.neon(rgb(255, 226, 170)))
+	K:plate("BridgeDeckLights2", iw, 0.018, 0.014, pc * CF(0, dy - 0.04, 0), L.neon(cableC, 0.2))
+	local tx = iw * 0.21
+	local th0 = ih * 0.4
 	for _, sx in { -1, 1 } do
-		K:plate("BridgePylon", 0.06, th0, 0.014, pc * CF(sx * tx - 0.04, dy + th0 / 2 - 0.15, 0), col(rgb(96, 100, 120)))
-		K:plate("BridgePylon", 0.06, th0, 0.014, pc * CF(sx * tx + 0.04, dy + th0 / 2 - 0.15, 0), col(rgb(96, 100, 120)))
-		K:plate("BridgePylonBeam", 0.16, 0.04, 0.016, pc * CF(sx * tx, dy + th0 - 0.3, 0), col(rgb(96, 100, 120)))
+		for _, dx in { -0.035, 0.035 } do
+			K:plate("BridgePylon", 0.035, th0, 0.012, pc * CF(sx * tx + dx, dy + th0 / 2 - 0.08, 0), L.neon(rgb(226, 232, 250), 0.15))
+		end
+		K:plate("BridgePylonBeam", 0.1, 0.03, 0.014, pc * CF(sx * tx, dy + th0 - 0.2, 0), L.neon(rgb(226, 232, 250), 0.15))
+		K:plate("BridgePylonBeam", 0.1, 0.03, 0.014, pc * CF(sx * tx, dy + th0 * 0.45, 0), L.neon(rgb(226, 232, 250), 0.15))
+		-- 수면 반사 (세로로 흔들리는 빛 기둥)
+		for k = 1, 3 do
+			K:plate("BridgeReflect", 0.03, seaH * (0.5 - k * 0.1), 0.008, pc * CF(sx * tx + (k - 2) * 0.05, hz - seaH * (0.25 - k * 0.02), 0), L.neon(if k == 2 then rgb(226, 232, 250) else cableC, 0.5))
+		end
 	end
-	local rainbow = { rgb(80, 160, 255), rgb(150, 100, 255), rgb(255, 90, 200), rgb(80, 230, 200) }
 	local function cable(x0: number, y0: number, x1: number, y1: number, sag: number, hangers: boolean)
 		local n = 6
 		local prev = nil
@@ -2180,34 +2211,31 @@ local function bridgeArt(c: any, dcf: CFrame, w: number, h: number)
 			local t = k / n
 			local x = x0 + (x1 - x0) * t
 			local y = y0 + (y1 - y0) * t - sag * 4 * t * (1 - t)
-			local p = (pc * CF(x, y, 0.016)).Position
+			local p = (pc * CF(x, y, 0.014)).Position
 			if prev then
-				K:seg("BridgeCable", prev, p, 0.03, L.neon(rainbow[k % #rainbow + 1]))
+				K:seg("BridgeCable", prev, p, 0.03, L.neon(cableC))
 			end
 			if hangers and c.hi and k > 0 and k < n then
-				K:seg("BridgeHanger", p, (pc * CF(x, dy + 0.04, 0.014)).Position, 0.01, col(rgb(150, 150, 180)))
+				K:seg("BridgeHanger", p, (pc * CF(x, dy + 0.03, 0.012)).Position, 0.008, col(rgb(120, 130, 170)))
 			end
 			prev = p
 		end
 	end
-	local topY = dy + th0 - 0.15
-	cable(-tx, topY, tx, topY, th0 * 0.72, true)
-	cable(-iw / 2 + 0.05, dy + 0.06, -tx, topY, -th0 * 0.12, false)
-	cable(tx, topY, iw / 2 - 0.05, dy + 0.06, -th0 * 0.12, false)
-	-- 물 위 반사
-	for k = 1, 3 do
-		K:plate("BridgeReflect", iw * (0.85 - k * 0.15), 0.03, 0.012, pc * CF((k - 2) * 0.12, -ih * (0.2 + k * 0.06), 0), L.neon(rainbow[k], 0.45))
-	end
+	local topY = dy + th0 - 0.08
+	cable(-tx, topY, tx, topY, th0 * 0.78, true)
+	cable(-iw / 2 + 0.03, dy + 0.05, -tx, topY, -th0 * 0.1, false)
+	cable(tx, topY, iw / 2 - 0.03, dy + 0.05, -th0 * 0.1, false)
 	-- 드론쇼 (하트 점)
 	if c.hi then
 		for k = 0, 9 do
 			local a = k / 10 * PI * 2
 			local hx = 16 * math.sin(a) ^ 3
 			local hy = 13 * math.cos(a) - 5 * math.cos(2 * a) - 2 * math.cos(3 * a) - math.cos(4 * a)
-			K:plate("DroneDot", 0.045, 0.045, 0.012, pc * CF(iw * 0.3 + hx * 0.013, ih * 0.27 + hy * 0.013, 0), L.neon(rgb(255, 140, 210)))
+			K:plate("DroneDot", 0.04, 0.04, 0.01, pc * CF(iw * 0.32 + hx * 0.011, ih * 0.3 + hy * 0.011, 0), L.neon(rgb(255, 150, 214)))
 		end
 	end
-	K:text("BridgeCaption", iw * 0.42, 0.2, pc * CF(iw * 0.02, ih * 0.41, 0.012), "광안대교 야경 · 단체석 뷰", { fg = rgb(230, 230, 250), font = F.GothamBold, d = 0.004, glow = 0.8 })
+	K:plate("BridgeGlass", w - 0.04, h - 0.04, 0.01, dcf * CF(0, 0, 0.09), { c = rgb(230, 236, 240), m = M.Glass, t = 0.9, r = 0.2 })
+	K:text("BridgeCaption", w * 0.7, 0.13, dcf * CF(0, -h / 2 + 0.1, 0.051), "광안대교 야경 · 민락수변공원에서", { fg = rgb(60, 60, 64), font = F.GothamMedium, d = 0.004 })
 end
 
 -- 천장 그물 (부표 · 불가사리를 담아 처지게 매단 장식 그물)
@@ -2266,7 +2294,7 @@ local function ceilingNet(c: any)
 				end
 			end
 			-- 그물에 얹힌 부표 · 불가사리 · 소라
-			local items = { { 0.3, 0.45, "buoy", rgb(240, 110, 30) }, { 0.55, 0.5, "buoy", rgb(246, 246, 240) }, { 0.72, 0.4, "star", rgb(230, 120, 60) }, { 0.42, 0.62, "shell", rgb(240, 222, 200) }, { 0.8, 0.6, "buoy", rgb(240, 110, 30) } }
+			local items = { { 0.3, 0.45, "buoy", rgb(240, 110, 30) }, { 0.55, 0.5, "buoy", rgb(246, 246, 240) }, { 0.72, 0.4, "star", rgb(230, 120, 60) }, { 0.18, 0.7, "glass", rgb(70, 150, 110) }, { 0.42, 0.62, "shell", rgb(240, 222, 200) }, { 0.8, 0.6, "buoy", rgb(240, 110, 30) }, { 0.64, 0.25, "glass", rgb(60, 120, 150) } }
 			for k, it in items do
 				if not c.hi and k > 3 then
 					break
@@ -2274,6 +2302,12 @@ local function ceilingNet(c: any)
 				local p = P(it[1], it[2])
 				if it[3] == "buoy" then
 					K:ball("CeilBuoy", 0.6, CF(p - V3(0, 0.26, 0)), col(it[4], M.Plastic))
+				elseif it[3] == "glass" then
+					-- 유리 부표 (밧줄 망에 싸서 늘어뜨림)
+					local q = p - V3(0, 0.55, 0)
+					K:seg("CeilFloatRope", p, q + V3(0, 0.22, 0), 0.03, rope)
+					K:ball("CeilGlassFloat", 0.48, CF(q), { c = it[4], m = M.SmoothPlastic, t = 0.25, r = 0.25 })
+					K:ring("CeilFloatNet", CF(q) * ANG(PI / 2, 0, 0), 0.245, 0.025, 8, rope)
 				elseif it[3] == "star" then
 					for a = 0, 4 do
 						K:box("CeilStarArm", V3(0.36, 0.06, 0.12), CF(p - V3(0, 0.05, 0)) * ANG(0, a * 2 * PI / 5, 0) * CF(0.16, 0, 0), col(it[4]))
@@ -2362,9 +2396,6 @@ local function tankSwitchBox(c: any, dcf: CFrame): BasePart
 	K:plate("TankCtrlSwitch2", 0.3, 0.42, 0.06, dcf * CF(0.2, 0.0, 0.25), L.of(60, 140, 220, M.Plastic))
 	K:text("TankCtrlSub", 0.86, 0.3, dcf * CF(0, -0.36, 0.255), "수족관 조명 · 기포기", { fg = rgb(30, 60, 120), font = F.GothamBold, d = 0.005 })
 	K:plate("TankCtrlLED", 0.06, 0.06, 0.02, dcf * CF(0.36, -0.5, 0.25), L.ledGreen)
-	local top = dcf * CF(0, 0.65, 0.1)
-	local yTop = V.H - 0.15
-	K:seg("TankConduit", top.Position, V3(top.Position.X, yTop, top.Position.Z), 0.12, L.of(226, 226, 222, M.Plastic))
 	return sw
 end
 
@@ -2468,28 +2499,30 @@ local function styroStack(c: any, pcf: CFrame, n: number)
 	end
 end
 
--- 빨간 고무 다라이 (물 + 낙지 · 조개)
+-- 빨간 고무 다라이 (물 + 낙지 · 조개): 바닥이 좁고 위가 넓은 통 + 말린 테두리 + 물 + 기포 호스
 local function basin(c: any, pcf: CFrame, kind: string)
 	local K = c.K
-	local red = L.of(196, 40, 34, M.Rubber)
-	K:disc("BasinBottom", 1.6, 0.06, pcf * CF(0, 0.03, 0), red)
-	K:disc("Basin", 2.0, 0.6, pcf * CF(0, 0.36, 0), red)
-	K:disc("BasinRim", 2.12, 0.08, pcf * CF(0, 0.66, 0), dim(red, 0.1))
-	K:disc("BasinWater", 1.86, 0.02, pcf * CF(0, 0.6, 0), { c = rgb(110, 170, 200), m = M.Glass, t = 0.25, r = 0.2 })
+	local red = L.of(190, 38, 32, M.Rubber)
+	K:disc("BasinBottom", 1.5, 0.08, pcf * CF(0, 0.04, 0), dim(red, 0.15))
+	K:disc("BasinLow", 1.7, 0.3, pcf * CF(0, 0.23, 0), red)
+	K:disc("Basin", 1.9, 0.36, pcf * CF(0, 0.55, 0), red)
+	K:disc("BasinRim", 2.08, 0.1, pcf * CF(0, 0.76, 0), dim(red, 0.08))
+	K:disc("BasinInner", 1.72, 0.04, pcf * CF(0, 0.72, 0), dim(red, 0.35))
+	K:disc("BasinWater", 1.74, 0.03, pcf * CF(0, 0.66, 0), { c = rgb(70, 130, 160), m = M.SmoothPlastic, t = 0.35, r = 0.25 })
 	if kind == "octopus" then
 		for i = 1, 3 do
 			local a = i * 2.1
-			local p = pcf * CF(math.cos(a) * 0.4, 0.6, math.sin(a) * 0.4)
-			K:ell("OctopusHead", V3(0.32, 0.12, 0.28), p * CF(0, 0.02, 0), col(rgb(150, 110, 120)))
+			local p = pcf * CF(math.cos(a) * 0.4, 0.66, math.sin(a) * 0.4)
+			K:ell("OctopusHead", V3(0.34, 0.16, 0.3), p * CF(0, 0.03, 0), col(rgb(150, 104, 116)))
 			for k = 1, 4 do
 				local b = a + k * 1.4
-				K:seg("OctopusArm", p.Position, (p * CF(math.cos(b) * 0.4, 0, math.sin(b) * 0.4)).Position, 0.05, col(rgb(170, 130, 136)))
+				K:seg("OctopusArm", p.Position, (p * CF(math.cos(b) * 0.42, -0.02, math.sin(b) * 0.42)).Position, 0.06, col(rgb(176, 128, 136)))
 			end
 		end
 	else
-		shellPile(K, pcf * CF(0, 0.55, 0), 1.4, 1.4, "clam", c.seed + 9, if c.hi then 10 else 5)
+		shellPile(K, pcf * CF(0, 0.62, 0), 1.3, 1.3, "clam", c.seed + 9, if c.hi then 10 else 5)
 	end
-	K:seg("BasinAirHose", (pcf * CF(0.7, 0.66, 0.3)).Position, (pcf * CF(0.5, 0.5, 0.2)).Position, 0.04, { c = rgb(220, 230, 230), m = M.Glass, t = 0.3 })
+	K:seg("BasinAirHose", (pcf * CF(0.8, 0.8, 0.4)).Position, (pcf * CF(0.55, 0.45, 0.25)).Position, 0.045, { c = rgb(220, 230, 230), m = M.SmoothPlastic, t = 0.3 })
 end
 
 -- 개업 축하 화분 (금전수 + 리본)
@@ -3113,7 +3146,7 @@ function T.build(K: any, V: any, S: any)
 		if pcf then
 			styroStack(c, pcf, if c.hi then 3 else 2)
 		end
-		local pcf2 = floorOnWall(K, { "back", "left", "right" }, V3(2.2, 0.8, 2.2), { back = (V.x0 + V.x1) / 2 + 2, left = V.z0 + 2, right = V.z0 + 2 }, 0.1)
+		local pcf2 = floorOnWall(K, { "back", "left", "right" }, V3(2.2, 0.9, 2.2), { back = (V.x0 + V.x1) / 2 + 2, left = V.z0 + 2, right = V.z0 + 2 }, 0.1)
 		if pcf2 then
 			basin(c, pcf2 * CF(0, 0, 0), if th.kind == "jjim" then "clam" else "octopus")
 		end
@@ -3132,6 +3165,7 @@ function T.build(K: any, V: any, S: any)
 			end)
 			if wn and u then
 				local sw = tankSwitchBox(c, V:wall(wn, u, 4.4, WALL_OFF))
+				c.conduitAt = { wn = wn, u = u }
 				local st = c.tankState
 				Interact.toggle(K, sw, {
 					object = "수족관 조명 · 기포기",
@@ -3323,6 +3357,20 @@ function T.build(K: any, V: any, S: any)
 	-- 8) 김
 	step("steam", function()
 		steam(c, c.steamSrc)
+	end)
+	-- 8b) 스위치 박스 전선관: 위 벽이 비어 있을 때만 천장까지 (TV · 액자 뒤를 지나지 않게)
+	step("conduit", function()
+		local ca = c.conduitAt
+		if ca and not usedHit(K, ca.wn, ca.u - 0.15, ca.u + 0.15, 5.25, V.H) then
+			local top = V:wall(ca.wn, ca.u, 5.05, WALL_OFF + 0.1)
+			local yTop = V.H - 0.15
+			K:seg("TankConduit", top.Position, V3(top.Position.X, yTop, top.Position.Z), 0.12, L.of(226, 226, 222, M.Plastic))
+			for _, yy in { 6.4, 8.2 } do
+				if yy < yTop - 0.3 then
+					K:plate("ConduitClip", 0.2, 0.1, 0.16, V:wall(ca.wn, ca.u, yy, WALL_OFF), L.of(200, 200, 196, M.Plastic))
+				end
+			end
+		end
 	end)
 	-- 9) 상호작용
 	step("interact", function()

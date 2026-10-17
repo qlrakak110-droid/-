@@ -1848,7 +1848,7 @@ local GPAL = {
 }
 
 -- 와이어 박스 트러스 (두 점 사이, 단면 s): 코드 4 + 지그재그 레이싱
-local function truss(K: any, a: Vector3, b: Vector3, s: number, look: any)
+local function truss(K: any, a: Vector3, b: Vector3, s: number, look: any, faces: number?)
 	local v = b - a
 	local len = v.Magnitude
 	local d = v / len
@@ -1864,7 +1864,7 @@ local function truss(K: any, a: Vector3, b: Vector3, s: number, look: any)
 	for i = 0, n - 1 do
 		local p0 = a + d * (len * i / n)
 		local p1 = a + d * (len * (i + 1) / n)
-		for k = 1, 4 do
+		for k = 1, 4, (faces == 2 and 2 or 1) do
 			local c0, c1 = corners[k], corners[k % 4 + 1]
 			if (i + k) % 2 == 0 then
 				K:seg("TrussLace", p0 + c0, p1 + c1, 0.06, look)
@@ -3571,6 +3571,27 @@ local function buildRooftop(K: any, V: any, R: any)
 				K:box("RTTop", V3(1.4, 2.2, 1.2), body, lk(rgb(24, 24, 26)))
 				K:box("RTTopGrille", V3(1.3, 2.1, 0.03), body * CF(0, 0, 0.61), lk(rgb(46, 46, 50), M.DiamondPlate))
 			end
+		end
+		-- DJ 뒤 골대 트러스 + 'SUNSET SESSION' 현수막 (사람 키 위 5.6~8: 난간 너머 바다는 그대로 보임) + 전구 줄
+		local pz = z0 + 1.0
+		local okA = place(R, at(R, xc - 5.6, pz), V3(1.0, 8.4, 1.0), 0, "dj truss L")
+		local okB = okA and place(R, at(R, xc + 5.6, pz), V3(1.0, 8.4, 1.0), 0, "dj truss R")
+		if okA and okB then
+			K:free(function()
+				local tl = lk(rgb(200, 202, 206), M.Metal)
+				for _, sx in { -1, 1 } do
+					K:box("DJTrussBase", V3(1.0, 0.1, 1.0), at(R, xc + sx * 5.6, pz, 0, 0.05), Look.blackMetal)
+					truss(K, ap(R, xc + sx * 5.6, 0.1, pz), ap(R, xc + sx * 5.6, 8.0, pz), 0.9, tl, 2)
+				end
+				truss(K, ap(R, xc - 6.0, 8.4, pz), ap(R, xc + 6.0, 8.4, pz), 0.9, tl, 2)
+				K:box("DJBanner", V3(10.4, 2.5, 0.06), at(R, xc, pz, 0, 6.65), lk(rgb(16, 22, 44), M.Fabric))
+				K:box("DJBannerHem", V3(10.4, 0.12, 0.08), at(R, xc, pz, 0, 5.42), lk(rgb(255, 150, 70), M.Fabric))
+				txt(K, "DJBannerText", 9.8, 2.2, face(R, xc, 6.7, pz + 0.04, 0), "OCEAN ROOFTOP\nSUNSET SESSION · 광안리", rgb(255, 214, 160), nil, F.GothamBlack, 1.3)
+				for k = 0, 9 do
+					local b2 = K:ball("DJTrussBulb", 0.32, at(R, xc - 5.0 + k * (10.0 / 9), pz + 0.3, 0, 7.75), Look.lampWarm)
+					table.insert(moodParts, b2)
+				end
+			end)
 		end
 	end
 

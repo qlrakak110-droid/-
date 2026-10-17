@@ -1857,6 +1857,25 @@ local function hallStations(K: any, V: any, st: { any })
 				end
 				local _ = gmx
 			end
+			-- 게이밍 의자 등판: 존 색 사이드 볼스터 2 + 뒷면 퀼팅 패널 (맵 등받이 바깥에 덧댐, 앉는 면은 그대로)
+			local back = s.p.ChairBack
+			if back and detail ~= "low" then
+				local cbmn, cbmx, cb = mb(K, back)
+				local _, _, sc2 = mb(K, seat)
+				local fz = if sc2.Z > cb.Z then 1 else -1 -- 의자 앞(앉는 쪽) = +fz
+				local bw, bh = cbmx.X - cbmn.X, cbmx.Y - cbmn.Y
+				local bd = cbmx.Z - cbmn.Z
+				local zc = dk(z.c, 0.5)
+				local leather = lk(zc, M.Leather)
+				for _, sx in { -1, 1 } do
+					K:box("ChairBolster", V3(0.2, bh - 0.35, bd + 0.34), CF(cb.X + sx * (bw / 2 + 0.1), cb.Y - 0.1, cb.Z + fz * 0.12), leather)
+				end
+				local backZ = cb.Z - fz * (bd / 2 + 0.03)
+				K:box("ChairBackPanel", V3(bw - 0.5, bh * 0.62, 0.06), CF(cb.X, cb.Y + 0.15, backZ), lk(rgb(20, 20, 24), M.Leather))
+				if detail == "high" then
+					K:box("ChairBackStripe", V3(0.16, bh * 0.62, 0.07), CF(cb.X, cb.Y + 0.15, backZ - fz * 0.005), leather)
+				end
+			end
 		end
 	end)
 end
