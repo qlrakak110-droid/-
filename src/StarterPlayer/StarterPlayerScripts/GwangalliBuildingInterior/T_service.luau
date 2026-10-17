@@ -2529,7 +2529,11 @@ local function buildMotel(K: any, V: any, S: any)
 	end)
 	step(K, "selfbar", function()
 		for _, w in { 3.6, 2.8 } do
-			local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, w, 1.35, 5.2, V3(V.x0, 0, V.z0 + 2), 0.05, "selfbar")
+			-- 앞 1.8 스터드는 비어 있어야 (사람이 서서 쓰는 자리)
+			local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, w, 1.35, 5.2, V3(V.x0, 0, V.z0 + 2), 0.05, "selfbar", function(pc: CFrame)
+				local mn = canPlace(K, pc * CF(0, 0, 1.35 / 2 + 1.0), V3(w, 2.0, 1.8), 0)
+				return mn ~= nil
+			end)
 			if wn and pcf then
 				selfBar(K, pcf * CF(0, 0, 0.05), w, rng, accent)
 				break
@@ -4238,9 +4242,7 @@ local function buildLaundry(K: any, V: any, S: any)
 					K:box("BoardLightArm", V3(0.08, 0.08, 0.55), ld * CF(0, 0, 0.27), Look.blackMetal)
 					K:cyl("BoardLightHood", w * 0.36, 0.22, ld * CF(0, 0.04, 0.56), Look.blackMetal)
 					local led = K:cyl("BoardLightLED", w * 0.34, 0.12, ld * CF(0, -0.03, 0.56), lk(C(250, 246, 236), M.SmoothPlastic))
-					if fx < 0 then
-						K:light(led, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.4, Angle = 80, Color = Look.warmLight })
-					end
+					_ = led -- 스폿라이트는 글자를 하얗게 날려 버려서 빼고 (조명 예산도 아낌), 등기구 모양만
 				end
 			end)
 			priceBoard(K, d, w, y1 - y0 - 0.2, name .. "  세탁 요금표", {
@@ -4584,6 +4586,28 @@ local function buildOffice(K: any, V: any, S: any)
 			local wn3, d3 = wallItemSpot(K, { "left", "right", "back" }, 2.4, 3.8, 6.4, 3)
 			if wn3 and d3 then
 				priceBoard(K, d3, 2.2, 2.4, "비급여 진료비 안내", { { "독감 접종", "35,000" }, { "대상포진", "160,000" }, { "수액 (비타민)", "50,000" }, { "진단서", "20,000" } }, { cols = 1, head = cfg.color })
+			end
+		elseif t == "academy" then
+			-- 교습비 등 게시표 (학원법상 게시 의무) · 등록증 · 셔틀 시간표 · 교재 책장
+			local wn2, d2 = wallItemSpot(K, { "left", "right", "back" }, 2.8, 3.8, 6.6, 3)
+			if wn2 and d2 then
+				priceBoard(K, d2, 2.6, 2.7, "교습비 등 게시표 (월)", { { "초등 수학 주3회", "250,000" }, { "중등 수학 주3회", "320,000" }, { "고등 수학 주3회", "420,000" }, { "중등 영어 주3회", "300,000" }, { "교재비 · 모의고사", "별도" } }, { cols = 1, head = cfg.color, accent = C(40, 40, 46) })
+			end
+			local wn3, d3 = wallItemSpot(K, { "left", "right", "back" }, 1.4, 4.2, 6.2, 0)
+			if wn3 and d3 then
+				cert(K, d3, 1.3, 1.7, "학원 설립 · 운영 등록증", "부산광역시남부\n교육지원청 교육장")
+			end
+			local wn4, d4 = wallItemSpot(K, { "left", "right", "back" }, 1.4, 3.8, 5.8, -3)
+			if wn4 and d4 then
+				paper(K, d4, 1.3, 1.8, "셔틀버스 운행", "1차 15:00 광안초\n2차 17:10 수영중\n3차 19:20 광안역\n\n하원 22:00 출발", { band = cfg.color, pin = false })
+			end
+			local wn5, d5 = wallItemSpot(K, { "left", "right", "back" }, 3.0, 2.0, 5.4, V.W / 4)
+			if wn5 and d5 then
+				for i = 0, 2 do
+					local at = Props.shelf(K, d5 * CF(0, -1.5 + i * 1.15, 0), 2.8, { depth = 0.8, look = Look.white })
+					Props.row(K, at, 2.5, "books", { seed = i + 3, colors = { C(230, 120, 30), C(30, 60, 140), C(200, 40, 50), C(40, 140, 90), C(240, 200, 60) } })
+				end
+				txt(K, "BookShelfSign", 1.6, 0.3, d5 * CF(0, 2.0, 0.04), "교재 · 문제집", WHITE, cfg.color, { font = F.GothamBold, d = 0.03 })
 			end
 		end
 	end)

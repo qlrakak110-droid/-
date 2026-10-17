@@ -20,6 +20,18 @@ function T.style(V: any): any
 	}
 end
 
-function T.build(K: any, V: any, S: any) end
+function T.build(K: any, V: any, S: any)
+	for _, k in V.keep do
+		print(string.format("KEEP %-10s %6.1f %5.1f %6.1f  ->  %6.1f %5.1f %6.1f", k.kind, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
+	end
+	for _, s in V.solid do
+		print(string.format("SOLID %-14s %6.1f %5.1f %6.1f  ->  %6.1f %5.1f %6.1f", tostring(s.name), s.min.X, s.min.Y, s.min.Z, s.max.X, s.max.Y, s.max.Z))
+	end
+	for _, w in { "back", "left", "right" } do
+		local t = {}
+		for _, sp in V:spans(w, 1.0, 7.0, 1.0) do table.insert(t, string.format("[%.1f,%.1f]", sp[1], sp[2])) end
+		print("SPANS " .. w .. " a=" .. V.walls[w].a .. " b=" .. V.walls[w].b .. " " .. table.concat(t, " "))
+	end
+end
 
 return T

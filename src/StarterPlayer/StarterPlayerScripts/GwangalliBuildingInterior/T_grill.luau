@@ -3019,6 +3019,9 @@ end
 -- 셀프 물 코너: 흰 하부장 + 정수기 (온 · 냉 버튼 · 물받이) + UV 컵 소독기 (스테인리스 컵) + 종이컵 디스펜서 + 안내
 local function waterStation(c: any)
 	local K, V, th = c.K, c.V, c.th
+	if not budget(K, 60) then
+		return
+	end
 	if V:has("WaterPurifier") > 0 or V:has("WaterDispenser") > 0 or V:has("WaterBottle") > 0 then
 		return
 	end
@@ -3077,6 +3080,9 @@ end
 -- 활어 · 조개 수조 (2단 유리 수조 + 스테인리스 받침 · 냉각기 + 파란 LED + 기포 + 가격 스티커)
 local function liveTank(c: any)
 	local K, V, th = c.K, c.V, c.th
+	if not budget(K, 110) then
+		return
+	end
 	local W = math.clamp(V.W * 0.13, 3.6, 4.8)
 	local size = V3(W + 0.1, 6.5, 2.0)
 	local pcf, wn, u = floorOnWall(K, { "left", "right", "back" }, size, V3(V.x0, 0, V.z1 - 3), 0.2)
@@ -3169,6 +3175,9 @@ local NEON_SLOGANS: { [string]: any } = {
 }
 local function neonSlogan(c: any)
 	local K, V, th = c.K, c.V, c.th
+	if not budget(K, 30) then
+		return
+	end
 	local list = NEON_SLOGANS[th.key]
 	if not list then
 		return
@@ -3214,6 +3223,9 @@ end
 -- 벽 옷걸이 (테이블 옆 벽, 아랫벽 위 빈 띠): 원목 레일 + 크롬 후크 + 가끔 겉옷 · 에코백 + 벽걸이 두루마리 휴지
 local function wallHooks(c: any)
 	local K, V, th = c.K, c.V, c.th
+	if not budget(K, 60) then
+		return
+	end
 	local lowerH = if th.lower and th.lower.h then th.lower.h else 3.4
 	local y1 = math.max(5.3, lowerH + 1.7)
 	local yb = lowerH + 0.25
@@ -3298,6 +3310,9 @@ end
 -- 조개 껍데기 통 (불판 테이블 모서리 옆 바닥, 빈 자리만): 스테인리스 들통 + 껍데기 몇 개 + 집게
 local function shellBuckets(c: any)
 	local K, V = c.K, c.V
+	if not budget(K, 50) then
+		return
+	end
 	local n = 0
 	for gi, g in c.grills or {} do
 		local t = g.t
@@ -3312,10 +3327,13 @@ local function shellBuckets(c: any)
 		for k, p in cands do
 			local pcf = CF(p) * ANG(0, rnd(c.seed, gi * 5 + k) * PI, 0)
 			if K:spot(pcf, V3(0.95, 1.0, 0.95), 0.05, "shellBucket") then
-				local st = L.of(196, 200, 206, M.Metal)
+				local st = L.of(206, 210, 214, M.SmoothPlastic, { r = 0.22 })
 				K:vcyl("ShellBucket", 0.8, 0.86, pcf * CF(0, 0.42, 0), st)
-				K:vcyl("ShellBucketRim", 0.06, 0.94, pcf * CF(0, 0.82, 0), L.chrome)
-				K:vcyl("ShellBucketBand", 0.05, 0.9, pcf * CF(0, 0.2, 0), L.of(150, 154, 160, M.Metal))
+				K:vcyl("ShellBucketRim", 0.06, 0.94, pcf * CF(0, 0.82, 0), L.of(230, 232, 236, M.SmoothPlastic, { r = 0.3 }))
+				K:vcyl("ShellBucketBand", 0.05, 0.9, pcf * CF(0, 0.2, 0), L.of(170, 174, 180, M.SmoothPlastic, { r = 0.2 }))
+				for _, sx in { -1, 1 } do
+					K:box("ShellBucketEar", V3(0.06, 0.1, 0.16), pcf * CF(sx * 0.45, 0.7, 0), L.of(170, 174, 180, M.SmoothPlastic))
+				end
 				K:vcyl("ShellBucketIn", 0.02, 0.78, pcf * CF(0, 0.74, 0), L.of(70, 66, 62))
 				if c.hi then
 					for j = 1, 4 do
@@ -3342,6 +3360,9 @@ local GRAFFITI = {
 }
 local function graffitiWall(c: any)
 	local K, V = c.K, c.V
+	if not budget(K, 30) then
+		return
+	end
 	local inks = { rgb(20, 20, 24), rgb(200, 24, 24), rgb(24, 60, 170), rgb(20, 120, 50), rgb(150, 40, 150) }
 	local fonts = { F.PermanentMarker, F.IndieFlower, F.GothamBold, F.SourceSansBold }
 	local placed = 0
@@ -3353,17 +3374,21 @@ local function graffitiWall(c: any)
 				local u0 = (sp[1] + sp[2]) / 2
 				claim(K, wn, u0 - w / 2 - 0.1, u0 + w / 2 + 0.1, 4.3, 7.3)
 				c.graffitiAt = c.graffitiAt or { wn, u0 }
-				local nmsg = math.max(3, math.floor(w * 1.6))
-				for i = 1, nmsg do
+				-- 격자 칸마다 한 줄 (칸 안에서 조금씩 흔들림 → 겹치지 않음)
+				local cols = math.max(1, math.floor(w / 2.0))
+				local rows = 4
+				local cwid = w / cols
+				for i = 1, cols * rows do
 					local k = placed * 20 + i
 					local msg = GRAFFITI[(k + c.seed) % #GRAFFITI + 1]
-					local col0 = (i - 1) % 2
-					local x = u0 - w / 2 + 0.6 + (w - 1.2) * rnd(c.seed, k * 3)
-					local y = 4.6 + 2.4 * ((i - 0.5) / nmsg) + (rnd(c.seed, k * 5) - 0.5) * 0.3
-					local sz = 0.28 + rnd(c.seed, k * 7) * 0.16
-					local tw = math.min(w - 0.4, sz * 6.5)
-					local d = V:wall(wn, x, y, 0) * ANG(0, 0, (rnd(c.seed, k * 11) - 0.5) * 0.35)
-					txt(K, "Graffiti", tw, sz * (if string.find(msg, "\n", 1, true) then 2 else 1), d, msg, inks[(k + col0) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.004 })
+					local ci, ri = (i - 1) % cols, (i - 1) // cols
+					local x = u0 - w / 2 + cwid * (ci + 0.5) + (rnd(c.seed, k * 3) - 0.5) * cwid * 0.25
+					local y = 4.75 + ri * 0.68 + (rnd(c.seed, k * 5) - 0.5) * 0.14
+					local two = string.find(msg, "\n", 1, true) ~= nil
+					local sz = if two then 0.24 else 0.26 + rnd(c.seed, k * 7) * 0.1
+					local tw = math.min(cwid - 0.15, 1.9)
+					local d = V:wall(wn, x, y, 0) * ANG(0, 0, (rnd(c.seed, k * 11) - 0.5) * 0.3)
+					txt(K, "Graffiti", tw, sz * (if two then 2.1 else 1), d, msg, inks[(k + ci) % #inks + 1], nil, fonts[(k + c.seed) % #fonts + 1], { d = 0.004 })
 				end
 				placed += 1
 			end

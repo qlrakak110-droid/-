@@ -3105,9 +3105,19 @@ local function toilet(C: any, st: any, recs: { any })
 		W, D = mx.X - mn.X, mx.Z - mn.Z
 	end
 	local pcf = CFrame.fromMatrix(backP, V3(0, 1, 0):Cross(f), V3(0, 1, 0), f)
+	-- 템플릿 물탱크가 벽 속에 묻혀 있으면 (펜트하우스) 뒤를 실제 타일 벽면까지 당김: 위 수건 선반 · 휴지 등이 벽에 반쯤 묻히지 않게
+	local push = wallFaceOffset(C, pcf * CF(0, 2.2, 0), 0.8, 0.8)
+	if push and push > 0.04 and push < 0.6 then
+		backP += f * push
+		D -= push
+		pcf = CFrame.fromMatrix(backP, V3(0, 1, 0):Cross(f), V3(0, 1, 0), f)
+	end
 	C:hideAll(recs)
 	local seatY = bmx.Y
 	local tankD = math.abs(f.X) * (tmx.X - tmn.X) + math.abs(f.Z) * (tmx.Z - tmn.Z)
+	if push and push > 0.04 and push < 0.6 then
+		tankD = math.max(0.3, tankD - push)
+	end
 	local tankW = math.abs(f.Z) * (tmx.X - tmn.X) + math.abs(f.X) * (tmx.Z - tmn.Z)
 	local tankH = tmx.Y - tmn.Y
 	local por = LK.porcelain
@@ -3223,6 +3233,13 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 	local mn, mx = unionBB(C, list)
 	if not mn or not mx then
 		return
+	end
+	-- 템플릿 실수: 세면대 몸통을 관통해 선 샤워 유리 판 (펜트하우스 욕실) 은 이 화면에서만 숨김 (서 있는 문짝처럼 보임)
+	for _, g in C:find({ "ShowerGlass", "FrostBand" }, 0.6) do
+		local ga, gb = C:bb(g)
+		if overlap(ga, gb, mn, mx, 0.15) and ga.Y < mx.Y - 0.3 then
+			C:hide(g)
+		end
 	end
 	local side, n = nearestWall(C, mn, mx)
 	local pcf, W, Dd = wallObjCF(C, mn, mx, side, n)
@@ -3728,6 +3745,25 @@ local function towelBar(C: any, st: any, bar: any, towels: { any })
 	for _, t in towels do
 		C:hide(t)
 	end
+	-- 이 벽의 실제 폭 (칸 모서리) 안으로 막대를 자름: 템플릿 막대 끝이 옆벽 속으로 들어간 경우 (고시원)
+	local wx0, wx1 = -math.huge, math.huge
+	for _, cx in { C.x0, C.x1 } do
+		for _, cz in { C.z0, C.z1 } do
+			local q = pcf:PointToObjectSpace(V3(cx, 0, cz))
+			if math.abs(q.Z) < 0.4 then
+				if q.X < 0 then
+					wx0 = math.max(wx0, q.X)
+				else
+					wx1 = math.min(wx1, q.X)
+				end
+			end
+		end
+	end
+	local lx0, lx1 = math.max(la.X, wx0 + 0.15), math.min(lb.X, wx1 - 0.15)
+	if lx1 - lx0 < 0.8 then
+		lx0, lx1 = la.X, lb.X
+	end
+	la, lb = V3(lx0, la.Y, la.Z), V3(lx1, lb.Y, lb.Z)
 	local y = (la.Y + lb.Y) / 2
 	local bx = (la.X + lb.X) / 2
 	local bw = lb.X - la.X
