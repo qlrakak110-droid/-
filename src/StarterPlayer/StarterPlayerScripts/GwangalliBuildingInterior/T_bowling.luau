@@ -996,12 +996,12 @@ end
 
 -- 프로샵 (맵 유리 진열대 자리 + 볼 진열 타워 + 가방)
 local BALLS = {
-	{ "Storm Phaze II", "15lb · 289,000원", rgb(40, 60, 170), rgb(120, 30, 160) },
-	{ "Roto Grip Hustle", "14lb · 199,000원", rgb(220, 60, 140), rgb(250, 200, 60) },
-	{ "Hammer Black Widow", "15lb · 309,000원", rgb(30, 30, 34), rgb(200, 30, 40) },
-	{ "Brunswick Rhino", "13lb · 179,000원", rgb(40, 160, 120), rgb(30, 60, 140) },
-	{ "Motiv Venom Shock", "15lb · 259,000원", rgb(250, 120, 30), rgb(40, 40, 46) },
-	{ "Columbia 300 White Dot", "12lb · 129,000원", rgb(120, 200, 255), rgb(240, 240, 250) },
+	{ "STRIKER Phase 2", "15lb · 289,000원", rgb(40, 60, 170), rgb(120, 30, 160) },
+	{ "ORBIT Hustle", "14lb · 199,000원", rgb(220, 60, 140), rgb(250, 200, 60) },
+	{ "NOVA Black Spider", "15lb · 309,000원", rgb(30, 30, 34), rgb(200, 30, 40) },
+	{ "BRAVO Rhino", "13lb · 179,000원", rgb(40, 160, 120), rgb(30, 60, 140) },
+	{ "MOTO Venom", "15lb · 259,000원", rgb(250, 120, 30), rgb(40, 40, 46) },
+	{ "KOLUMN 300 Dot", "12lb · 129,000원", rgb(120, 200, 255), rgb(240, 240, 250) },
 }
 
 local function swirlBall(K: any, cf: CFrame, d: number, a: Color3, b: Color3)
@@ -1197,7 +1197,7 @@ local function lobbyPhoto(R: any, wallX: number)
 		K:ell("GiantPinTop", V3(0.7, 0.3, 0.7), pc * CF(0, Hp * 0.98, 0), W2)
 		K:vcyl("GiantPinStripe", 0.14, 0.8, pc * CF(0, Hp * 0.665, 0), lk(210, 30, 40, M.SmoothPlastic))
 		K:vcyl("GiantPinStripe", 0.14, 0.77, pc * CF(0, Hp * 0.715, 0), lk(210, 30, 40, M.SmoothPlastic))
-		txt(K, "GiantPinLogo", 0.9, 0.5, pc * CF(0, Hp * 0.4, 0.96), "AMF", rgb(210, 30, 40), nil, F.GothamBlack)
+		txt(K, "GiantPinLogo", 0.9, 0.5, pc * CF(0, Hp * 0.4, 0.96), "GRB", rgb(210, 30, 40), nil, F.GothamBlack)
 	end
 	-- 대형 볼 (오른쪽)
 	if spot(R, wallX - 1.9, 7.6, 0, 3.4, 3.4, 3.4, 0) then
