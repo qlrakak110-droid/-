@@ -6,11 +6,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 
--- GetDataStore can throw where API services are unavailable (e.g. the browser studio); play still works without saving.
-local okStore, SAVE_STORE = pcall(function() return DataStoreService:GetDataStore("TrendFishing_v1") end)
-if not okStore then SAVE_STORE = nil end
--- Island centre; y = 1 keeps the island top just above a standard baseplate (top at y = 0).
-local ORIGIN = Vector3.new(0, 1, 0)
+local SAVE_STORE = DataStoreService:GetDataStore("TrendFishing_v1")
 local START_COINS = 80
 local MAX_ROD_LEVEL = 10
 local MAX_DISPLAY = 8
@@ -53,13 +49,8 @@ local DisplayFish = remote("DisplayFish")
 local StateUpdate = remote("StateUpdate")
 local Notice = remote("Notice")
 
-local function at(x, y, z)
-    return CFrame.new(ORIGIN + Vector3.new(x, y, z))
-end
-
 local profiles = {}
 local fishing = {}
-local nextToken = 0
 local baseModels = {}
 local mapFolder
 
@@ -78,7 +69,7 @@ local function makePart(parent, name, size, cf, color, material)
 end
 
 local function makeSign(parent, text, position, color)
-    local p = makePart(parent, text.." Sign", Vector3.new(14,1,1), CFrame.new(ORIGIN + position), color, Enum.Material.Neon)
+    local p = makePart(parent, text.." Sign", Vector3.new(14,1,1), CFrame.new(position), color, Enum.Material.Neon)
     p.CanCollide = false
     local gui = Instance.new("BillboardGui")
     gui.Size = UDim2.fromOffset(250,55)
@@ -102,21 +93,21 @@ local function buildMap()
     mapFolder.Name = "TREND_FISHING_MAP"
     mapFolder.Parent = workspace
 
-    makePart(mapFolder,"Island",Vector3.new(150,5,150),at(0,-3,0),Color3.fromRGB(82,170,78),Enum.Material.Grass)
-    makePart(mapFolder,"Pond",Vector3.new(48,1,48),at(0,0,0),Color3.fromRGB(35,160,225),Enum.Material.Glass).Transparency = 0.18
+    makePart(mapFolder,"Island",Vector3.new(150,5,150),CFrame.new(0,-3,0),Color3.fromRGB(82,170,78),Enum.Material.Grass)
+    makePart(mapFolder,"Pond",Vector3.new(48,1,48),CFrame.new(0,0,0),Color3.fromRGB(35,160,225),Enum.Material.Glass).Transparency = 0.18
     makeSign(mapFolder,"TREND FISHING",Vector3.new(0,7,-30),Color3.fromRGB(0,190,255))
-    makePart(mapFolder,"Rod Shop",Vector3.new(16,8,12),at(-48,2,0),Color3.fromRGB(190,75,55),Enum.Material.Brick)
+    makePart(mapFolder,"Rod Shop",Vector3.new(16,8,12),CFrame.new(-48,2,0),Color3.fromRGB(190,75,55),Enum.Material.Brick)
     makeSign(mapFolder,"낚싯대 상점",Vector3.new(-48,8,0),Color3.fromRGB(255,180,35))
-    makePart(mapFolder,"Upgrade Platform",Vector3.new(18,1,14),at(0,0.5,54),Color3.fromRGB(115,65,190),Enum.Material.Neon)
+    makePart(mapFolder,"Upgrade Platform",Vector3.new(18,1,14),CFrame.new(0,0.5,54),Color3.fromRGB(115,65,190),Enum.Material.Neon)
     makeSign(mapFolder,"업그레이드",Vector3.new(0,4,54),Color3.fromRGB(180,90,255))
 
     for i=1,8 do
         local a = math.pi*2*(i-1)/8
         local x,z = math.cos(a)*57, math.sin(a)*57
-        makePart(mapFolder,"Player Base "..i,Vector3.new(23,1,19),at(x,0.5,z),Color3.fromRGB(95,195,105),Enum.Material.Grass)
+        makePart(mapFolder,"Player Base "..i,Vector3.new(23,1,19),CFrame.new(x,0.5,z),Color3.fromRGB(95,195,105),Enum.Material.Grass)
         makeSign(mapFolder,"기지 "..i,Vector3.new(x,4,z),Color3.fromRGB(25,200,255))
         local dockX,dockZ = math.cos(a)*28,math.sin(a)*28
-        local dock = makePart(mapFolder,"Dock "..i,Vector3.new(7,1,14),at(dockX,0.6,dockZ)*CFrame.Angles(0,-a,0),Color3.fromRGB(130,82,48),Enum.Material.WoodPlanks)
+        local dock = makePart(mapFolder,"Dock "..i,Vector3.new(7,1,14),CFrame.new(dockX,0.6,dockZ)*CFrame.Angles(0,-a,0),Color3.fromRGB(130,82,48),Enum.Material.WoodPlanks)
     end
 end
 
@@ -164,7 +155,7 @@ local function renderDisplays(player)
     local index=1
     for i,p in ipairs(all) do if p==player then index=i end end
     local angle=math.pi*2*(index-1)/8
-    local center=ORIGIN+Vector3.new(math.cos(angle)*57,1,math.sin(angle)*57)
+    local center=Vector3.new(math.cos(angle)*57,1,math.sin(angle)*57)
 
     for i,f in ipairs(d.Displayed) do
         local col=(i-1)%4
@@ -186,14 +177,13 @@ end
 
 local function load(player)
     local data=fresh()
-    local ok,saved=false,nil
-    if SAVE_STORE then ok,saved=pcall(function() return SAVE_STORE:GetAsync("u_"..player.UserId) end) end
+    local ok,saved=pcall(function() return SAVE_STORE:GetAsync("u_"..player.UserId) end)
     if ok and type(saved)=="table" then
         data.Coins=math.max(0,tonumber(saved.Coins) or START_COINS)
         data.Rod=math.clamp(tonumber(saved.Rod) or 1,1,MAX_ROD_LEVEL)
         if type(saved.Inventory)=="table" then data.Inventory=saved.Inventory end
         if type(saved.Displayed)=="table" then data.Displayed=saved.Displayed end
-    elseif SAVE_STORE and not ok then
+    elseif not ok then
         warn("TREND FISHING load failed for",player.Name,saved)
     end
     profiles[player]=data
@@ -204,7 +194,7 @@ end
 
 local function save(player)
     local d=profiles[player]
-    if not d or not SAVE_STORE then return end
+    if not d then return end
     local snapshot={Coins=d.Coins,Rod=d.Rod,Inventory=d.Inventory,Displayed=d.Displayed}
     local ok,err=pcall(function()
         SAVE_STORE:UpdateAsync("u_"..player.UserId,function() return snapshot end)
@@ -231,9 +221,7 @@ buildMap()
 
 StartFishing.OnServerEvent:Connect(function(player)
     if not profiles[player] or fishing[player] then return end
-    -- integer token: float tick() values can lose precision on the way through a remote
-    nextToken += 1
-    fishing[player]={started=os.clock(),token=nextToken}
+    fishing[player]={started=os.clock(),token=tick()}
     Notice:FireClient(player,{Kind="FishingStarted",Duration=FISHING_SECONDS,Token=fishing[player].token})
 end)
 
