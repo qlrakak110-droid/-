@@ -79,15 +79,28 @@ local function lockDialog()
 	local pg = lp():FindFirstChildOfClass("PlayerGui")
 	local sheet = pg and pg:FindFirstChild("GwangalliCallCar")
 	local where = (sheet and sheet:FindFirstChild("Sheet")) or host
-	if where then
-		K.confirm(where, {
+	if where and type(K.Modal) == "function" then
+		-- K.Modal directly: tapping outside only closes it (K.confirm would treat that as the 길찾기 button)
+		K.Modal(where, {
 			title = Lines.t("gate_banner"),
 			body = Lines.t("gate_banner_body") .. "\n" .. P.Config.PASSES.PremiumGarage.Perks[2],
+			icon = "🔒",
+			zIndex = 40,
+			buttons = {
+				{ text = "🧭 " .. Lines.t("gate_route"), style = "secondary", onClick = function()
+					task.spawn(DriveHook.waypoint)
+				end },
+				{ text = "👑 " .. Lines.t("gate_buy"), style = "gold", onClick = buy },
+			},
+		})
+	elseif where then
+		K.confirm(where, {
+			title = Lines.t("gate_banner"),
+			body = Lines.t("gate_banner_body"),
 			icon = "🔒",
 			cancelText = "🧭 " .. Lines.t("gate_route"),
 			confirmText = "👑 " .. Lines.t("gate_buy"),
 			style = "gold",
-			zIndex = 40,
 			onConfirm = buy,
 			onCancel = function()
 				task.spawn(DriveHook.waypoint)

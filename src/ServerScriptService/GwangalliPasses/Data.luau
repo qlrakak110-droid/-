@@ -7,6 +7,7 @@
 
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
 
 local Data = {}
 
@@ -57,6 +58,28 @@ local function keyOf(player: Player): string
 	return "u_" .. tostring(player.UserId)
 end
 
+-- changes made while the profile is still loading are replayed on the loaded copy (never lost, never saved
+-- over an unread profile)
+local pending: { [Player]: { (any) -> () } } = {}
+local function flushPending(player: Player)
+	local list = pending[player]
+	pending[player] = nil
+	local prof = profiles[player]
+	local st = state[player]
+	if not list or not prof or not st then
+		return
+	end
+	for _, fn in list do
+		local ok, err = pcall(fn, prof)
+		if not ok then
+			Util.warnOnce("pending update", err)
+		end
+	end
+	if not st.failed then
+		task.defer(Data.update, player, function() end) -- schedules the debounced save
+	end
+end
+
 local function load(player: Player)
 	local st = { loaded = false, failed = false, dirty = false, saving = false }
 	state[player] = st
@@ -78,14 +101,26 @@ local function load(player: Player)
 			end
 			profiles[player] = sanitize(res)
 			st.loaded = true
+			flushPending(player)
 			loadedEv:Fire(player, profiles[player])
 			return
 		end
 		Util.warnOnce("load " .. player.UserId, res)
-		task.wait(2 * i)
+		-- Studio without "Enable Studio Access to API Services" / an unpublished place: no point retrying
+		local msg = string.lower(tostring(res))
+		if RunService:IsStudio() and (string.find(msg, "studio", 1, true) or string.find(msg, "publish", 1, true) or string.find(msg, "api", 1, true)) then
+			break
+		end
+		if i < Config.DATA.RETRIES then
+			task.wait(2 * i)
+		end
+	end
+	if player.Parent ~= Players then
+		return
 	end
 	st.failed = true -- keep defaults for this session, never overwrite the saved copy
 	st.loaded = true
+	flushPending(player)
 	loadedEv:Fire(player, profiles[player])
 end
 
@@ -151,6 +186,13 @@ function Data.update(player: Player, fn: (any) -> ())
 		return
 	end
 	fn(prof)
+	if not st.loaded then
+		-- applied to the session copy now (attributes / UI react at once) and replayed after the load
+		local list = pending[player] or {}
+		pending[player] = list
+		table.insert(list, fn)
+		return
+	end
 	st.dirty = true
 	if (st :: any).scheduled then
 		return
@@ -253,6 +295,7 @@ function Data.start(ctx: any)
 		save(p, true)
 		profiles[p] = nil
 		state[p] = nil
+		pending[p] = nil
 		for k, uid in localClaims do
 			if uid == p.UserId then
 				localClaims[k] = nil
