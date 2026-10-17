@@ -254,7 +254,7 @@ end
 for _, t in __SHARED do
 	local old = __RS:FindFirstChild(t[1])
 	if old and old:GetAttribute("GwVMod") == nil then
-		warn(__TAG .. " ReplicatedStorage." .. t[1] .. " 가 이미 있습니다 (따로 설치한 예전 버전?). 지우고 이 파일 것만 쓰세요.")
+		warn(__TAG .. " ReplicatedStorage 에 예전에 넣은 " .. t[1] .. " 가 있습니다. 이 파일과 섞이지 않게 예전 것을 지우세요.")
 	end
 	if old and old:GetAttribute("GwVMod") ~= nil then
 		old:Destroy()
@@ -271,7 +271,7 @@ for _, t in __SERVER do
 	end
 	local old = __SSS:FindFirstChild(name)
 	if old and old:GetAttribute("GwVMod") == nil then
-		warn(__TAG .. " ServerScriptService." .. name .. " 가 이미 있어 이 파일의 " .. name .. " 는 건너뜁니다 (두 번 돌지 않게).")
+		warn(__TAG .. " ServerScriptService 에 예전에 넣은 " .. name .. " 가 있어 그것을 씁니다 (두 번 돌지 않게). 새 버전을 쓰려면 예전 것을 지우세요.")
 		continue
 	end
 	if old then
@@ -329,7 +329,7 @@ for _, t in __CLIENT do
 	end
 	local old = __PS:FindFirstChild(name)
 	if old and old:GetAttribute("GwVMod") == nil then
-		warn(__TAG .. " PlayerScripts." .. name .. " 가 이미 있어 이 파일의 " .. name .. " 는 건너뜁니다 (두 번 돌지 않게).")
+		warn(__TAG .. " StarterPlayerScripts 에 예전에 넣은 " .. name .. " 가 있어 그것을 씁니다 (두 번 돌지 않게). 새 버전을 쓰려면 예전 것을 지우세요.")
 		continue
 	end
 	if old then
