@@ -75,7 +75,8 @@ Sites.SCREENS = {
 	{ path = "1F/ConsultRoom/DoctorDesk/Monitor", kind = "chart", viewer = V(-554.2, 11, 272.5) },
 }
 
--- the clinic's centre and the doctor's side of the consult room (camera framing)
-Sites.CONSULT_CAM = { eye = V(-551.6, 12.6, 284.6), focus = V(-554.3, 10.2, 276.4) }
+-- 진료실 camera: a side shot from the room's open east half across the desk — the patient (south seat,
+-- left of frame), 김선생 (north chair, right) and the EMR monitor between them
+Sites.CONSULT_CAM = { eye = V(-545.6, 12.8, 277.2), focus = V(-554.4, 10.4, 276.7) }
 
 return Sites

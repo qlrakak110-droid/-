@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
+local ContextActionService = game:GetService("ContextActionService")
 local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -777,6 +778,38 @@ function Ui.sheet(name: string, opts: { [string]: any }): any
 	end
 	table.insert(sheets, sheet)
 	return sheet
+end
+
+-------------------------------------------------------------------------------------------------
+-- minigame action key (F on keyboard, R2 on gamepad; Space is jump and would stand a seated patient up)
+-------------------------------------------------------------------------------------------------
+function Ui.isActionKey(k: Enum.KeyCode): boolean
+	return k == Enum.KeyCode.F or k == Enum.KeyCode.ButtonR2
+end
+
+function Ui.actionHint(): string
+	if Ui.gamepad() then
+		return "  · R2"
+	elseif UserInputService.KeyboardEnabled and not Ui.touch() then
+		return "  · F"
+	end
+	return ""
+end
+
+-- while a patient sits in the consult chair / lies on a bed, Space does not hop them off it
+local jumpLocks: { [string]: boolean } = {}
+function Ui.lockJump(on: boolean, key: string)
+	jumpLocks[key] = if on then true else nil
+	local any = next(jumpLocks) ~= nil
+	pcall(function()
+		if any then
+			ContextActionService:BindActionAtPriority("GwClinicNoJump", function()
+				return Enum.ContextActionResult.Sink
+			end, false, 3000, Enum.KeyCode.Space)
+		else
+			ContextActionService:UnbindAction("GwClinicNoJump")
+		end
+	end)
 end
 
 -------------------------------------------------------------------------------------------------

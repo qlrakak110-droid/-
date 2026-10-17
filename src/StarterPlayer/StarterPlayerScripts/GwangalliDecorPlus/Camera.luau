@@ -200,6 +200,7 @@ function Camera.start(unit: any, at: Vector3?)
 	Camera.level = level
 	dist = 26
 	pitch = Config.CAMERA.pitch
+	clampAll()
 	cur = { focus = focus, yaw = yaw, pitch = pitch, dist = dist + 8 }
 	if cam then
 		cam.FieldOfView = Config.CAMERA.fov

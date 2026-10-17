@@ -48,8 +48,24 @@ local function frameCamera(on: boolean)
 		end
 		savedCam = { type = cam.CameraType }
 		local spec = S.Sites.CONSULT_CAM
+		local from = cam.CFrame
+		local to = CFrame.lookAt(spec.eye, spec.focus)
 		cam.CameraType = Enum.CameraType.Scriptable
-		Ui.tween(cam, 0.8, { CFrame = CFrame.lookAt(spec.eye, spec.focus) }, Enum.EasingStyle.Sine)
+		-- a short eased move from the player's view to the room shot (manual lerp, frame by frame)
+		local token = {}
+		savedCam.token = token
+		task.spawn(function()
+			local t0 = os.clock()
+			while savedCam and savedCam.token == token do
+				local a = math.clamp((os.clock() - t0) / 0.8, 0, 1)
+				local e = 0.5 - math.cos(a * math.pi) / 2
+				cam.CFrame = from:Lerp(to, e)
+				if a >= 1 then
+					break
+				end
+				RunService.RenderStepped:Wait()
+			end
+		end)
 	else
 		if not savedCam then
 			return
@@ -72,11 +88,15 @@ local function buildVitals()
 		end
 	end
 	tiles = {}
-	Ui.text(vitalsCard, { Text = "🩺 진찰 기록", Font = F.black, TextSize = 14, TextColor3 = Col.tealDD, LayoutOrder = 0 })
+	Ui.text(vitalsCard, { Text = "🩺 진찰 기록 · " .. C.Doctor.name, Font = F.black, TextSize = 13, TextColor3 = Col.tealDD, LayoutOrder = 0, Size = UDim2.new(1, 0, 0, 18) })
+	local grid = Ui.new("Frame", { Name = "Numbers", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1 }, vitalsCard)
+	Ui.new("UIGridLayout", { CellSize = UDim2.new(0.5, -4, 0, 20), CellPadding = UDim2.fromOffset(8, 2), SortOrder = Enum.SortOrder.LayoutOrder }, grid)
 	for i, id in TILE_ORDER do
-		local row = Ui.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = i, Visible = false }, vitalsCard)
-		Ui.text(row, { Text = TILE_LABEL[id], Font = F.med, TextSize = 12, TextColor3 = Col.sub, Size = UDim2.new(0, 72, 0, 18) })
-		local val = Ui.text(row, { Text = "", Font = F.black, TextSize = 13, Position = UDim2.fromOffset(74, 0), Size = UDim2.new(1, -74, 0, 18), TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y })
+		local numeric = id == "temp" or id == "bp" or id == "pulse" or id == "spo2"
+		local row = Ui.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 20), LayoutOrder = i, Visible = false }, if numeric then grid else vitalsCard)
+		row.LayoutOrder = if numeric then i else 10 + i
+		Ui.text(row, { Text = TILE_LABEL[id], Font = F.med, TextSize = 12, TextColor3 = Col.sub, Size = UDim2.new(0, if numeric then 58 else 40, 1, 0) })
+		local val = Ui.text(row, { Text = "", Font = F.black, TextSize = 13, Position = UDim2.fromOffset(if numeric then 60 else 42, 0), Size = UDim2.new(1, if numeric then -60 else -42, 1, 0), TextTruncate = Enum.TextTruncate.AtEnd })
 		tiles[id] = val
 	end
 end
@@ -136,7 +156,7 @@ end
 
 -- hold the button for `secs`; returns true when completed (nil when aborted)
 local function holdButton(body: Frame, label: string, secs: number, token: number): boolean
-	local b = Ui.btn(body, { text = label, style = "primary", size = UDim2.new(0.8, 0, 0, 56), pos = UDim2.new(0.5, 0, 1, -6), anchor = Vector2.new(0.5, 1), textSize = 17, sound = false })
+	local b = Ui.btn(body, { text = label .. Ui.actionHint(), style = "primary", size = UDim2.new(0.8, 0, 0, 56), pos = UDim2.new(0.5, 0, 1, -6), anchor = Vector2.new(0.5, 1), textSize = 17, sound = false })
 	local bar = Ui.bar(body, { h = 12 })
 	bar.frame.Position = UDim2.new(0.1, 0, 0, 6)
 	bar.frame.Size = UDim2.new(0.8, 0, 0, 12)
@@ -152,12 +172,12 @@ local function holdButton(body: Frame, label: string, secs: number, token: numbe
 		holding = false
 	end)
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and (io.KeyCode == Enum.KeyCode.Space or io.KeyCode == Enum.KeyCode.ButtonA) then
+		if not gp and Ui.isActionKey(io.KeyCode) then
 			holding = true
 		end
 	end)
 	local keyUp = UserInputService.InputEnded:Connect(function(io)
-		if io.KeyCode == Enum.KeyCode.Space or io.KeyCode == Enum.KeyCode.ButtonA then
+		if Ui.isActionKey(io.KeyCode) then
 			holding = false
 		end
 	end)
@@ -183,18 +203,19 @@ end
 
 local function tapButton(body: Frame, label: string, n: number, token: number, onTap: ((number) -> ())?): boolean
 	local count = 0
-	local b = Ui.btn(body, { text = string.format("%s (0/%d)", label, n), style = "primary", size = UDim2.new(0.8, 0, 0, 56), pos = UDim2.new(0.5, 0, 1, -6), anchor = Vector2.new(0.5, 1), textSize = 17 })
+	local hint = Ui.actionHint()
+	local b = Ui.btn(body, { text = string.format("%s (0/%d)%s", label, n, hint), style = "primary", size = UDim2.new(0.8, 0, 0, 56), pos = UDim2.new(0.5, 0, 1, -6), anchor = Vector2.new(0.5, 1), textSize = 17 })
 	b.Activated:Connect(function()
 		count += 1
-		b.Text = string.format("%s (%d/%d)", label, math.min(count, n), n)
+		b.Text = string.format("%s (%d/%d)%s", label, math.min(count, n), n, hint)
 		if onTap then
 			pcall(onTap, count)
 		end
 	end)
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and (io.KeyCode == Enum.KeyCode.Space or io.KeyCode == Enum.KeyCode.ButtonA) then
+		if not gp and Ui.isActionKey(io.KeyCode) then
 			count += 1
-			b.Text = string.format("%s (%d/%d)", label, math.min(count, n), n)
+			b.Text = string.format("%s (%d/%d)%s", label, math.min(count, n), n, hint)
 			if onTap then
 				pcall(onTap, count)
 			end
@@ -636,17 +657,23 @@ function Consult.init(c: any)
 	Ui.corner(panel, 16)
 	Ui.stroke(panel, Col.teal, 1.5, 0.2)
 	Ui.pad(panel, 12, 10, 12, 10)
-	vitalsCard = Ui.card(Ui.gui, { Name = "Vitals", AnchorPoint = Vector2.new(0, 0), Position = UDim2.fromOffset(12, 96), Size = UDim2.fromOffset(250, 0), Visible = false })
+	vitalsCard = Ui.card(Ui.gui, { Name = "Vitals", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, 64), Size = UDim2.fromOffset(460, 0), Visible = false })
 	Ui.pad(vitalsCard, 12, 10, 12, 10)
 	Ui.list(vitalsCard, "v", 4)
 	Ui.onLayout(function()
 		local W, H = Ui.size()
 		panel.Size = UDim2.fromOffset(math.min(420, W - 24), 150)
 		Ui.placeBottom(panel, 420, if H < 480 then 176 else 196)
-		vitalsCard.Size = UDim2.fromOffset(if W < 760 then 200 else 250, 0)
-		-- the vitals card sits under the game's top-left chips when the layout module tells us where
-		local tl = Ui.slotRect("topLeftChips")
-		vitalsCard.Position = UDim2.fromOffset(12, if tl then tl.y + tl.h + 8 else 96)
+		-- the vitals strip sits under the game's clock chip (top centre), clear of the tracker on the right
+		local tc = Ui.slotRect("topCenter")
+		local tr = Ui.slotRect("topRight")
+		local w = math.min(460, W - 24)
+		if tr then
+			w = math.min(w, math.max(260, 2 * (tr.x - W / 2) - 16))
+		end
+		vitalsCard.AnchorPoint = Vector2.new(0.5, 0)
+		vitalsCard.Size = UDim2.fromOffset(w, 0)
+		vitalsCard.Position = UDim2.new(0.5, 0, 0, if tc then tc.y + tc.h + 6 else 64)
 	end)
 	dxSheet = Ui.sheet("GwClinic_Dx", { title = "진단 결과", w = 560, h = 660, sticky = true })
 	planSheet = Ui.sheet("GwClinic_Plan", { title = "치료 계획", w = 560, h = 640, sticky = true })

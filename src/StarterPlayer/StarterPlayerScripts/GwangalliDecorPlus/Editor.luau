@@ -1555,9 +1555,11 @@ function Editor.begin(snap: any, model: Model, U: any): boolean
 		if room then
 			Camera.start(U, nil)
 			Camera.focusRoom(room)
-		else
+		elseif Unit.floorAt(U, q.X, q.Z, q.Y) then
 			at = Vector3.new(q.X, q.Y - 3, q.Z)
 			Camera.start(U, at)
+		else
+			Camera.start(U, nil)
 		end
 	else
 		Camera.start(U, nil)

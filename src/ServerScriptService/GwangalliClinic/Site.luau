@@ -386,12 +386,15 @@ function Site.sit(player: Player, anchor: string): boolean
 	Site.unlie(player)
 	Site.unseat(player)
 	K.Bridge.allowTeleport(player, 6)
-	local rot = seat.CFrame - seat.CFrame.Position
-	local target = CFrame.new(seat.Position + Vector3.new(0, 2.6, 0)) * rot
-	pcall(function()
-		ch:PivotTo(target * root.CFrame:ToObjectSpace(ch:GetPivot()))
-		root.AssemblyLinearVelocity = Vector3.zero
-	end)
+	-- Seat:Sit snaps the humanoid onto the seat by itself; only a far-away patient is moved first
+	if (root.Position - seat.Position).Magnitude > 10 then
+		local rot = seat.CFrame - seat.CFrame.Position
+		local target = CFrame.new(seat.Position + Vector3.new(0, 2.6, 0)) * rot
+		pcall(function()
+			ch:PivotTo(target * root.CFrame:ToObjectSpace(ch:GetPivot()))
+			root.AssemblyLinearVelocity = Vector3.zero
+		end)
+	end
 	local ok = pcall(function()
 		seat:Sit(hum)
 	end)

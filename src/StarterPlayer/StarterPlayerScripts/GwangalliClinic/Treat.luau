@@ -79,11 +79,11 @@ local function injection(vaccine: boolean)
 	local needle = Ui.new("Frame", { BackgroundColor3 = Col.ink, AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0, 0.5), Size = UDim2.fromOffset(6, 28) }, track)
 	Ui.corner(needle, 3)
 	local pressed = false
-	local btn = Ui.btn(overlay, { text = "😮‍💨 힘 빼기", style = "primary", size = UDim2.new(0.84, 0, 0, 52), pos = UDim2.new(0.5, 0, 1, -4), anchor = Vector2.new(0.5, 1), textSize = 17, onClick = function()
+	local btn = Ui.btn(overlay, { text = "😮‍💨 힘 빼기" .. Ui.actionHint(), style = "primary", size = UDim2.new(0.84, 0, 0, 52), pos = UDim2.new(0.5, 0, 1, -4), anchor = Vector2.new(0.5, 1), textSize = 17, onClick = function()
 		pressed = true
 	end })
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and (io.KeyCode == Enum.KeyCode.Space or io.KeyCode == Enum.KeyCode.ButtonA) then
+		if not gp and Ui.isActionKey(io.KeyCode) then
 			pressed = true
 		end
 	end)
