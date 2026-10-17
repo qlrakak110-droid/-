@@ -159,6 +159,8 @@ local function buildVJ(root: Frame): any
 	})
 	v.lastBeat = -1
 	v.t = 0
+	v.barW = 1 / n * 0.7
+	v.palKey = ""
 	return v
 end
 
@@ -228,19 +230,25 @@ local function vjStep(dt: number)
 	local phase, beat, _bpm, section, bar, energy = Core.beat()
 	local pal = palette(section)
 	local a, b, acc = pal[1], pal[2], pal[3]
-	v.grad.Color = Core.seq(dim(a, 0.35), dim(b, 0.5), dim(a, 0.25))
+	local slow = section == "intro" or section == "breakdown"
+	-- colours change with the section only (no per-frame sequence allocations)
+	if v.palKey ~= section then
+		v.palKey = section
+		v.grad.Color = Core.seq(dim(a, 0.35), dim(b, 0.5), dim(a, 0.25))
+		for i, bb in v.bars do
+			bb.BackgroundColor3 = a:Lerp(acc, i / #v.bars)
+			bb.BackgroundTransparency = if slow then 0.55 else 0.25
+		end
+	end
 	v.grad.Rotation = (t * 10) % 360
 	local kick = (1 - phase) ^ 2.2
 	local drop = section == "drop"
 	local build = section == "build"
-	local slow = section == "intro" or section == "breakdown"
 	-- bars
 	local amp = if drop then 0.75 elseif build then 0.35 + 0.4 * ((bar % 8) / 8) else 0.28
 	for i, bb in v.bars do
 		local h = 0.04 + amp * energy * (0.3 + 0.7 * math.abs(math.sin(t * 2.3 + i * 0.47))) * (0.5 + 0.5 * kick)
-		bb.Size = UDim2.new(bb.Size.X.Scale, 0, math.clamp(h + 0.05, 0.03, 0.92), 0)
-		bb.BackgroundColor3 = a:Lerp(acc, i / #v.bars)
-		bb.BackgroundTransparency = if slow then 0.55 else 0.25
+		bb.Size = UDim2.new(v.barW, 0, math.clamp(h + 0.05, 0.03, 0.92), 0)
 	end
 	-- new beat: rings + drop tiles
 	if beat ~= v.lastBeat then
@@ -461,7 +469,15 @@ local function near(): boolean
 end
 
 local lastTick = os.clock()
+local skip = false
 local function director(_dt: number, now: number)
+	-- low / saver tiers draw at half rate
+	if Core.q().hz < 30 then
+		skip = not skip
+		if skip then
+			return
+		end
+	end
 	local t = os.clock()
 	local dt = t - lastTick
 	lastTick = t

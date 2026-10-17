@@ -1843,6 +1843,10 @@ local function buildHipHop(K: any, V: any, R: any)
 					K:cyl("ParCan", 0.9, 0.62, p * CF(0, 0, -0.1) * ANG(math.rad(-35), 0, 0) * ANG(0, PI / 2, 0), Look.black)
 					K:disc("ParLens", 0.5, 0.03, p * CF(0, -0.27, -0.48) * ANG(math.rad(-35), 0, 0) * ANG(PI / 2, 0, 0), nl(({ rgb(255, 60, 40), rgb(255, 170, 30), rgb(255, 60, 160), rgb(60, 140, 255), rgb(255, 170, 30), rgb(255, 60, 40) })[i + 1]))
 				end
+				-- 무대 워시 (고정 스포트, 트러스 가운데에서 DJ 데스크로)
+				local wash = K:box("StageWashAim", V3(0.1, 0.1, 0.1), at(R, 0, zt, 0, 10.6), lk(BLACK, nil, { t = 1 }))
+				wash.CFrame = R.V.cf * CFrame.lookAt(ap(R, 0, 10.6, zt), ap(R, 0, 3.0, -28.0))
+				K:light(wash, "SpotLight", { Face = Enum.NormalId.Front, Range = 18, Brightness = 1.4, Angle = 70, Color = rgb(255, 214, 180) })
 				local ob = at(R, 0, zt + 0.6, 0, 9.8)
 				K:seg("OnAirRod", (ob * CF(-0.9, 0.5, 0)).Position, (ob * CF(-0.9, 1.15, 0)).Position, 0.04, Look.blackMetal)
 				K:seg("OnAirRod", (ob * CF(0.9, 0.5, 0)).Position, (ob * CF(0.9, 1.15, 0)).Position, 0.04, Look.blackMetal)
@@ -2658,7 +2662,7 @@ local function buildLounge(K: any, V: any, R: any)
 				-- 유리문 2 + 손잡이
 				for _, sx in { -1, 1 } do
 					K:box("CellarDoorFrame", V3(2.55, 5.8, 0.08), u * CF(sx * 1.3, 0.1, 1.22), lk(rgb(30, 26, 24), M.Metal))
-					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.04), u * CF(sx * 1.3, 0.1, 1.25), lk(rgb(200, 210, 210), M.Glass, { t = 0.75 }))
+					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.04), u * CF(sx * 1.3, 0.1, 1.25), lk(rgb(200, 214, 214), M.SmoothPlastic, { t = 0.86 }))
 					K:box("CellarHandle", V3(0.06, 1.6, 0.1), u * CF(sx * 0.15, 0.3, 1.32), brassL)
 				end
 				K:box("CellarKick", V3(5.4, 0.3, 0.06), u * CF(0, -3.05, 1.2), Look.black)
@@ -2672,13 +2676,50 @@ local function buildLounge(K: any, V: any, R: any)
 			-- 셀러 위 명판
 			txt(K, "CellarPlaque", 8.0, 0.5, wallR(R, -52.8, 6.75, 2.45), "CHAMPAGNE & WINE CELLAR · 셀러 보관 와인은 테이블 오더로", rgb(220, 196, 140), nil, F.GothamMedium)
 		end)
-		if cellarLED then
-			K:light(cellarLED :: BasePart, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 0.9, Angle = 150, Color = WARM })
+		local _ = cellarLED
+		-- 남쪽 존 오른벽 코브 (셀러 · 하이테이블 · DJ 쪽을 고르게)
+		cove(K, R, 16.6, z0 + 1.5, 16.6, -19.0, H - 0.1, WARM, 0.6, 13)
+	end
+	-- 하이테이블 존 러그 + 샴페인 아이스 버킷 아일랜드 + 라운지 포드 2
+	K:free(function()
+		K:box("SouthRug", V3(13.6, 0.03, 46.0), at(R, 9.6, -56.0, 0, 0.015), lk(rgb(58, 46, 40), M.Fabric))
+		K:box("SouthRugField", V3(12.4, 0.032, 44.8), at(R, 9.6, -56.0, 0, 0.016), lk(rgb(96, 74, 58), M.Fabric))
+		for k = -5, 5 do
+			K:box("SouthRugLine", V3(12.2, 0.034, 0.12), at(R, 9.6, -56.0 + k * 4.0, 0, 0.017), lk(rgb(150, 120, 80), M.Fabric))
+		end
+	end)
+	do
+		local icf = at(R, 6.2, -56.0)
+		if placeOr(R, icf, V3(2.6, 4.2, 4.2), 0.2, "champagne island") then
+			K:box("ChampIslandBody", V3(2.4, 2.8, 4.0), icf * CF(0, 1.4, 0), walnut)
+			K:box("ChampIslandTop", V3(2.6, 0.12, 4.2), icf * CF(0, 2.86, 0), marbleW)
+			K:box("ChampIslandLED", V3(2.5, 0.05, 4.1), icf * CF(0, 0.1, 0), nl(WARM))
+			for k = -1, 1 do
+				local b = icf * CF(0, 2.92, k * 1.3)
+				K:vcyl("IceBucket", 0.9, 0.8, b * CF(0, 0.45, 0), Look.steel)
+				K:vcyl("IceBucketIce", 0.06, 0.7, b * CF(0, 0.86, 0), lk(rgb(236, 244, 250), M.Ice))
+				K:seg("ChampBottle", (b * CF(0.05, 0.5, 0)).Position, (b * CF(0.25, 1.6, 0.1)).Position, 0.32, lk(rgb(30, 60, 40), M.Glass, { t = 0.1 }))
+				K:seg("ChampFoil", (b * CF(0.25, 1.6, 0.1)).Position, (b * CF(0.3, 1.95, 0.12)).Position, 0.16, lk(rgb(214, 180, 90), M.Metal))
+			end
+			txt(K, "ChampIslandTag", 1.9, 0.4, at(R, 7.52, -56.0, PI / 2, 2.1), "CHAMPAGNE BTL 280,000~", rgb(230, 200, 130), nil, F.GothamMedium)
+		end
+		for _, pz in { -68.0, -44.0 } do
+			for _, s in { -1, 1 } do
+				local pcf = at(R, 6.0, pz + s * 1.9, if s > 0 then PI else 0)
+				if placeOr(R, pcf, V3(2.6, 3.0, 2.6), 0, "south pod chair") then
+					armchair(K, pcf, if s > 0 then velvetCream else velvetBlue)
+				end
+			end
+			local tcf = at(R, 4.0, pz)
+			if placeOr(R, tcf, V3(1.3, 3.6, 1.3), 0, "south pod lamp") then
+				local sh = sideLamp(K, tcf, marbleW)
+				table.insert(lampShades, sh)
+			end
 		end
 	end
 	-- 칵테일 하이테이블 4 + 스툴 + 위 펜던트
-	for i, zc in { -72.0, -60.0, -48.0, -36.0 } do
-		local xc = 10.6
+	for i, zc in { -74.0, -62.0, -50.0, -38.0 } do
+		local xc = 12.2
 		local pcf = at(R, xc, zc)
 		if placeOr(R, pcf, V3(2.6, 3.8, 2.6), 0.2, "high table") then
 			highTable(K, pcf, 3.5, 2.4, marbleW, brassL)
@@ -2799,7 +2840,7 @@ local function buildLounge(K: any, V: any, R: any)
 			table.insert(lampShades, sh)
 		end
 		-- 화분 (라운지 북쪽)
-		plant(K, R, 4.6, 33.2, "olive", 5.6, 1.6, lk(rgb(40, 38, 36), M.Concrete))
+		plant(K, R, 6.4, 33.0, "monstera", 5.4, 1.6, lk(rgb(40, 38, 36), M.Concrete))
 	end
 	-- VIP 호스트 데스크 (계단 도착 지점 옆) + 예약 태블릿 (상호작용)
 	local tabletLabel: TextLabel? = nil
@@ -2942,22 +2983,55 @@ end
 --=====================================================================================================
 -- OCEAN ROOFTOP (rooftop) ---------------------------------------------------------------------------
 --=====================================================================================================
--- 파라솔 (돔 캔버스 + 살 8 + 가장자리 전구 8). 정렬 x, z, 반지름, 높이
+-- 삼각형 판 (꼭짓점 A, 밑변 B-C, 방 프레임 점): A 에서 BC 로 내린 수선의 발 M 으로 나눈 직각 쐐기 2개
+local function triPanel(K: any, name: string, A: Vector3, B: Vector3, C: Vector3, t: number, look: any)
+	local bc = C - B
+	local L = bc.Magnitude
+	if L < 1e-3 then
+		return
+	end
+	local u = bc / L
+	local M = B + u * (A - B):Dot(u)
+	local up = A - M
+	local h = up.Magnitude
+	if h < 1e-3 then
+		return
+	end
+	local Y = up / h
+	for _, P in { B, C } do
+		local leg = P - M
+		local d = leg.Magnitude
+		if d > 1e-3 then
+			local Z = -leg / d
+			local X = Y:Cross(Z)
+			local pos = M + Y * (h / 2) - Z * (d / 2)
+			K:make("WedgePart", name, V3(t, h, d), CFrame.fromMatrix(pos, X, Y, Z), look)
+		end
+	end
+end
+
+-- 파라솔 (8각 캔버스 판 + 살 8 + 가장자리 전구 8). 정렬 x, z, 반지름, 높이
 local function parasol(K: any, R: any, x: number, z: number, r: number, h: number, c: Color3, bulbs: { BasePart }?)
 	local base = at(R, x, z)
 	K:disc("ParasolBase", 1.4, 0.3, base * CF(0, 0.15, 0), lk(rgb(40, 40, 42), M.Concrete))
 	K:vcyl("ParasolPole", h - 0.2, 0.18, base * CF(0, (h - 0.2) / 2 + 0.25, 0), lk(rgb(220, 214, 200), M.Wood))
-	K:ell("ParasolCanopy", V3(2 * r, 0.7, 2 * r), base * CF(0, h, 0), lk(c, M.Fabric))
+	local apex = (base * CF(0, h + 0.35, 0)).Position
+	for k = 0, 7 do
+		local a0, a1 = k * PI / 4, (k + 1) * PI / 4
+		local p0 = (base * CF(math.cos(a0) * r, h - 0.45, math.sin(a0) * r)).Position
+		local p1 = (base * CF(math.cos(a1) * r, h - 0.45, math.sin(a1) * r)).Position
+		triPanel(K, "ParasolPanel", apex, p0, p1, 0.04, lk(if k % 2 == 0 then c else lt(c, 0.12), M.Fabric))
+	end
 	K:ball("ParasolFinial", 0.3, base * CF(0, h + 0.4, 0), lk(rgb(220, 214, 200), M.Wood))
 	for k = 0, 7 do
 		local a = k * PI / 4
-		K:seg("ParasolRib", (base * CF(0, h - 0.6, 0)).Position, (base * CF(math.cos(a) * r * 0.96, h - 0.12, math.sin(a) * r * 0.96)).Position, 0.06, lk(rgb(220, 214, 200), M.Wood))
-		local b = K:ball("ParasolBulb", 0.22, base * CF(math.cos(a + PI / 8) * r * 0.9, h - 0.4, math.sin(a + PI / 8) * r * 0.9), Look.lampWarm)
+		K:seg("ParasolRib", (base * CF(0, h - 0.9, 0)).Position, (base * CF(math.cos(a) * r * 0.97, h - 0.5, math.sin(a) * r * 0.97)).Position, 0.06, lk(rgb(220, 214, 200), M.Wood))
+		local b = K:ball("ParasolBulb", 0.22, base * CF(math.cos(a + PI / 8) * r * 0.82, h - 0.75, math.sin(a + PI / 8) * r * 0.82), Look.lampWarm)
 		if bulbs then
 			table.insert(bulbs, b)
 		end
 	end
-	K:ring("ParasolValance", base * CF(0, h - 0.18, 0) * ANG(PI / 2, 0, 0), r * 0.98, 0.12, 12, lk(rgb(240, 236, 226), M.Fabric))
+	K:ring("ParasolValance", base * CF(0, h - 0.55, 0) * ANG(PI / 2, 0, 0), r * 0.97, 0.12, 8, lk(rgb(240, 236, 226), M.Fabric))
 end
 
 -- 바닥 랜턴 (검은 철 + 유리 + 촛불 빛). pcf 바닥

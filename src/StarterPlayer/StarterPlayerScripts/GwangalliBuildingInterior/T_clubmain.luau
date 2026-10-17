@@ -1953,7 +1953,9 @@ local function mainSmoking(R: any)
 	K:light(lightP, "PointLight", { Range = 10, Brightness = 0.8, Color = rgb(230, 240, 255) })
 	local sw: BasePart? = nil
 	P:free(function()
-		local f = faceCF(V3(R.wallL + 0.01, fy + 4.0, (bench and bench.mx.Z or fl.mx.Z - 1) + 0.6), V3(1, 0, 0))
+		-- 벤치 위 벽 (안내판 옆): 벤치에 앉거나 서서 닿는 높이
+		local sz = if bench then math.min(bench.c.Z + 3.0, bench.mx.Z - 0.6) else fl.c.Z
+		local f = faceCF(V3(R.wallL + 0.01, fy + 3.5, sz), V3(1, 0, 0))
 		P:plate("FanSwitchPlate", 0.5, 0.8, 0.05, f, lk(rgb(236, 236, 232)))
 		sw = P:plate("FanSwitch", 0.22, 0.34, 0.08, f * CF(0, 0.08, 0), lk(rgb(220, 220, 216)))
 		P:plate("FanSwitchLED", 0.08, 0.08, 0.06, f * CF(0, -0.25, 0), nl(rgb(60, 230, 120)))
@@ -2018,7 +2020,7 @@ local function mainStaffDoor(R: any)
 		if dw then
 			local lampP = P:box("StaffDoorLamp", V3(0.5, 0.12, 0.9), CF(dw.mn.X - 0.4, 9.2, dw.c.Z), BMETAL)
 			local lens = P:box("StaffDoorLampLens", V3(0.4, 0.02, 0.8), CF(dw.mn.X - 0.4, 9.13, dw.c.Z), nl(rgb(255, 236, 214)))
-			R.K:light(lens, "SpotLight", { Face = Enum.NormalId.Bottom, Angle = 80, Range = 11, Brightness = 1.3, Color = rgb(255, 232, 210) })
+			R.K:light(lens, "PointLight", { Range = 10, Brightness = 1.1, Color = rgb(255, 232, 210) })
 			local _ = lampP
 		end
 		if frame then
@@ -2358,22 +2360,28 @@ local function mainBottleStands(R: any)
 	local _ = cab
 end
 
--- 생수 무료 스테이션 (남자 화장실 바깥 벽, 홀 쪽): 벽걸이 정수기 + 컵 디스펜서 + 컵 수거함, '물 한 잔' 상호작용
+-- 생수 무료 스테이션 (여자 화장실 앞 벽의 홀 쪽 면, 문 오른쪽 · 비상구 가기 전): 벽걸이 정수기 + 컵 디스펜서 + 컵 수거함, '물 한 잔'
 local function mainWater(R: any)
 	local P, K = R.P, R.K
-	local Mn = restroomParts(R, "남자화장실")
+	local Wr = restroomParts(R, "여자화장실")
 	local wall: any = nil
-	for _, w in Mn.Wall or {} do
-		if w.s.X < 1 and w.s.Z > 3 and (not wall or w.mn.X < wall.mn.X) then
+	for _, w in Wr.Wall or {} do
+		if w.s.X > 8 and (not wall or w.mx.Z > wall.mx.Z) then
 			wall = w
 		end
 	end
 	if not wall then
 		return
 	end
-	local x = wall.mn.X
-	local zc = wall.c.Z + 0.3
-	local f = faceCF(V3(x - 0.005, 4.2, zc), V3(-1, 0, 0))
+	local x = math.min(wall.mn.X + 2.0, R.wallR - 1.5)
+	-- NPC 가 서 있으면 건너뜀
+	for _, h in R.find("HumanoidRootPart") do
+		if math.abs(h.c.X - x) < 2.2 and h.c.Z > wall.mx.Z - 0.5 and h.c.Z < wall.mx.Z + 2.0 then
+			P:note("water station: NPC in front, skipped")
+			return
+		end
+	end
+	local f = faceCF(V3(x, 4.2, wall.mx.Z + 0.005), V3(0, 0, 1))
 	local cup: BasePart? = nil
 	P:free(function()
 		P:plate("WaterBack", 2.6, 4.4, 0.06, f * CF(0, 0.6, 0), lk(rgb(18, 40, 60)))

@@ -1656,7 +1656,13 @@ local function backCabinet(K: any, cab: any, th: any, c: any)
 				K:box("BackCoolerFrame", V3(fw, rim + 0.06, 0.06), fcf * CF(0, -fh / 2 + (rim + 0.06) / 2, 0), fl)
 				K:box("BackCoolerFrame", V3(rim, fh - 2 * rim - 0.06, 0.06), fcf * CF(-fw / 2 + rim / 2, 0.03, 0), fl)
 				K:box("BackCoolerFrame", V3(rim, fh - 2 * rim - 0.06, 0.06), fcf * CF(fw / 2 - rim / 2, 0.03, 0), fl)
-				K:box("BackCoolerGlass", V3(dw - 0.3, bh - 0.3, 0.03), base * CF(x, yc, fz + 0.075), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.15 })
+				-- 가운데 가로대 + 유리 2 장 (큰 통유리 한 장은 밤 미리보기에서 '불 켜진 창' 으로 하얗게 뜸)
+				local ho = fh - 2 * rim - 0.06
+				local ph = (ho - 0.08) / 2
+				K:box("BackCoolerFrame", V3(fw - 2 * rim, 0.08, 0.06), fcf * CF(0, 0.03, 0), fl)
+				for _, sy in { -1, 1 } do
+					K:box("BackCoolerGlass", V3(fw - 2 * rim + 0.04, ph + 0.04, 0.03), fcf * CF(0, 0.03 + sy * (0.04 + ph / 2), 0.045), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.15 })
+				end
 				K:box("BackCoolerHandle", V3(0.06, bh * 0.5, 0.08), base * CF(x + dw / 2 - 0.2, yc, fz + 0.12), L.chrome)
 				if c then
 					table.insert(c.coolLamps, lamp)
@@ -2003,13 +2009,20 @@ local function tapTower(c: any)
 		K:vcyl("TapColumn", fy - 0.06, 0.27, tc * CF(pp.X, (fy - 0.06) / 2 + 0.04, pp.Z), chrome)
 		K:ball("TapElbow", 0.31, tc * CF(pp.X, fy, 0), chrome)
 		K:cyl("TapCrossbar", len - 0.3, 0.27, tc * CF(0, fy, 0), chrome)
-		K:cyl("TapFrost", len - 0.6, 0.3, tc * CF(0, fy, 0), { c = rgb(238, 244, 248), m = M.Glass, t = 0.5, r = 0.05 })
+		-- 성에 낀 슬리브: 가운데 명판 자리는 비우고 양쪽만 (명판 뒤로 유리가 겹쳐 뿌옇게 보이지 않게)
+		local bw2 = math.min(1.0, len * 0.42)
+		local gap = bw2 + 0.12
+		local segL = (len - 0.6 - gap) / 2
+		if segL > 0.12 then
+			for _, sd in { -1, 1 } do
+				K:cyl("TapFrost", segL, 0.3, tc * CF(sd * (gap / 2 + segL / 2), fy, 0), { c = rgb(238, 244, 248), m = M.Glass, t = 0.5, r = 0.05 })
+			end
+		end
 		for _, sd in { -1, 1 } do
 			K:ball("TapEnd", 0.29, tc * CF(sd * (len / 2 - 0.15), fy, 0), chrome)
 		end
 		-- 탭 브랜드 띠 (크로스바 앞 중앙)
 		-- 검은 바탕 금색 글자 명판 + 테두리 (흰 종이 띠처럼 보이지 않게)
-		local bw2 = math.min(1.0, len * 0.42)
 		K:box("TapBadgeRim", V3(bw2 + 0.05, 0.21, 0.015), tc * CF(0, fy + 0.01, 0.158), th.trim)
 		local _, lab = K:text("TapBadge", bw2, 0.16, tc * CF(0, fy + 0.01, 0.166), th.brand, { fg = rgb(236, 210, 150), bg = rgb(22, 22, 24), d = 0.008, font = F.GothamBlack })
 		local _ = lab
@@ -2372,7 +2385,11 @@ local function tapBoard(c: any)
 				K:box("UnderCoolerDoor", V3(fw, rim, 0.05), fc * CF(0, -fh / 2 + rim / 2, 0.025), fl)
 				K:box("UnderCoolerDoor", V3(rim, fh - 2 * rim, 0.05), fc * CF(-fw / 2 + rim / 2, 0, 0.025), fl)
 				K:box("UnderCoolerDoor", V3(rim, fh - 2 * rim, 0.05), fc * CF(fw / 2 - rim / 2, 0, 0.025), fl)
-				K:box("UnderCoolerGlass", V3(fw - 2 * rim + 0.04, fh - 2 * rim + 0.04, 0.02), fc * CF(0, 0, 0.03), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.12 })
+				local ph = (fh - 2 * rim - 0.08) / 2
+				K:box("UnderCoolerDoor", V3(fw - 2 * rim, 0.08, 0.05), fc * CF(0, 0, 0.025), fl)
+				for _, sy in { -1, 1 } do
+					K:box("UnderCoolerGlass", V3(fw - 2 * rim + 0.04, ph + 0.04, 0.02), fc * CF(0, sy * (0.04 + ph / 2), 0.03), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.12 })
+				end
 				K:box("UnderCoolerHandle", V3(fw - 0.5, 0.06, 0.08), fc * CF(0, fh / 2 - 0.2, 0.09), L.chrome)
 			end
 			-- 위: 바 매트 + 엎어 둔 파인트 잔

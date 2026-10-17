@@ -291,13 +291,15 @@ function Serve.poll(key: string, menuKey: string?): { any }
 	return out
 end
 
--- 1 Hz, independent of the crews: nothing waits longer than SERVE_TIMEOUT for a waiter
-function Serve.guard(waiterUp: (string) -> boolean)
+-- 1 Hz, independent of the crews: nothing waits longer than SERVE_TIMEOUT for a waiter. Only shops we put in
+-- staffMode are touched (elsewhere ShopLife serves by itself); ours(key) -> (owned, waiterUp)
+function Serve.guard(ours: (string) -> (boolean, boolean))
 	local t = now()
 	for id, o in orders do
 		if o.phase == "ready" and o.dest == "table" and not o.served then
+			local owned, up = ours(o.shop)
 			local age = t - (o.readyAt or t)
-			if age > Config.SERVE_TIMEOUT or (not waiterUp(o.shop) and age > 1) then
+			if owned and (age > Config.SERVE_TIMEOUT or (not up and age > 1)) then
 				Serve.serveNow(o, "guard")
 			end
 		end

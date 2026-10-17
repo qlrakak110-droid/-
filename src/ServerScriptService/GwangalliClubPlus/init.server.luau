@@ -279,7 +279,7 @@ function C.root(p: Player): BasePart?
 	local ch = p.Character
 	local r = ch and ch:FindFirstChild("HumanoidRootPart")
 	local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-	if r and r:IsA("BasePart") and hum and hum.Health > 0 then
+	if r and r:IsA("BasePart") and (hum == nil or hum.Health > 0) then
 		return r
 	end
 	return nil

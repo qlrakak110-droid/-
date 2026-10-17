@@ -100,17 +100,22 @@ local function refreshSign(s: any, e: any)
 	local icon, label, price = itemText(e.item or e.set)
 	local tier = S.orderTier(price)
 	local T = S.tier(tier)
-	s.num.BackgroundColor3 = T.color:Lerp(WHITE, 0.15)
-	if s.stroke then
-		s.stroke.Color = T.color
-	end
-	s.name.Text = string.format("%s님", tostring(e.name or "손님"))
-	s.sub.Text = string.format("%s %s", icon, label)
 	local text, col = chipFor(s.id)
-	s.chip.Visible = text ~= nil
-	if text then
-		s.chipText.Text = text
-		s.chip.BackgroundColor3 = col :: Color3
+	local key = table.concat({ tostring(e.name), tostring(e.item or e.set), tostring(text) }, "|")
+	if key ~= s.key then
+		-- (only when something changed: this runs every second)
+		s.key = key
+		s.num.BackgroundColor3 = T.color:Lerp(WHITE, 0.15)
+		if s.stroke then
+			s.stroke.Color = T.color
+		end
+		s.name.Text = string.format("%s님", tostring(e.name or "손님"))
+		s.sub.Text = string.format("%s %s", icon, label)
+		s.chip.Visible = text ~= nil
+		if text then
+			s.chipText.Text = text
+			s.chip.BackgroundColor3 = col :: Color3
+		end
 	end
 	if type(e.at) == "number" and e.at ~= s.at then
 		local fresh = s.at ~= 0 or Core.now() - e.at < 20

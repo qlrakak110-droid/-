@@ -30,6 +30,7 @@ Bridge.SS = nil :: any
 Bridge.Looks = nil :: any
 Bridge.ShopLife = nil :: any
 Bridge.Registry = nil :: any
+Bridge.tookOver = false
 
 local function log(...)
 	if Config and Config.DEBUG then
@@ -596,7 +597,8 @@ function Bridge.takeOverShopService(): number
 			end
 		end
 	end
-	if s or n > 0 then
+	if (s or n > 0) and (not Bridge.tookOver or (Config and Config.DEBUG)) then
+		Bridge.tookOver = true
 		print(string.format("[GwangalliShopCrew] took over GwangalliShopService (%d waiter%s removed)", n, if n == 1 then "" else "s"))
 	end
 	return n

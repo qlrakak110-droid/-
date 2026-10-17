@@ -1,6 +1,6 @@
 -- GwangalliShopCrewShared (ModuleScript, ReplicatedStorage): the shared half of GwangalliShopCrew, the shop
 -- staff add-on ("크루"): staff that greet, take orders, cook in view, carry the tray to your table, clear it,
--- answer questions, remember regulars, plus NPC diners and an optional 일손 돕기 mini shift.
+-- answer questions, remember regulars (단골), plus NPC diners; the shops' own staff get the same conversation.
 --   Server: ServerScriptService.GwangalliShopCrew (Script)   Client: StarterPlayerScripts.GwangalliShopCrew
 --   local CS = require(ReplicatedStorage.GwangalliShopCrewShared)
 --   CS.Config   tunables (Script / workspace attributes override a few, see Config.luau)
@@ -35,8 +35,6 @@ Shared.ATTR = {
 	Carry = "CrewCarry", -- "" | "dish|<menuKey>|<itemId>|<qty>[;...]" | "water" | "menu" | "empty" | "box" | "broom" | "cup"
 	Icon = "CrewIcon",
 	Color = "CrewColor",
-	Mood = "CrewMood", -- 0..100 (shop mood, shown as the name tag's face)
-	Helper = "CrewHelper", -- ProximityPrompt attribute: only this UserId sees the prompt (일손 돕기)
 }
 
 Shared.Config = require(script:WaitForChild("Config"))

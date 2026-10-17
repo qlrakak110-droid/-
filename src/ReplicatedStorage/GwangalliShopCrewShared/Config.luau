@@ -1,7 +1,7 @@
 -- GwangalliShopCrewShared/Config: every tunable of the shop crew add-on.
 -- Overrides without code changes (read once at server start):
 --   Script ServerScriptService.GwangalliShopCrew attributes: TakeOverShopService (bool), Diners (bool),
---     MaxShops (number), Debug (bool), Help (bool: 일손 돕기), Augment (bool: talk to ShopStaff / clerks)
+--     MaxShops (number), Debug (bool), Augment (bool: talk to ShopStaff / clerks / venue staff)
 --   Workspace attributes: GwShopCrew = false (everything off), GwShopCrewDebug = true (logs + status prints)
 --   Shop model attribute ShopCrew = false: that shop never gets a crew.
 -- Pure data (strings for enums: the server converts them).
@@ -16,6 +16,7 @@ C.DEBUG = false
 C.TAKE_OVER_SHOP_SERVICE = true
 -- ShopStaff counter rigs, GwShopClerk figures and venue staff (PC방 · 노래방 ...) get our "말 걸기" dialog
 C.AUGMENT_STAFF = true
+C.AUGMENT_REPLACE_TALK = true -- their canned "말 걸기" prompt is switched off while our 대화하기 is there
 
 -- where crews exist ----------------------------------------------------------------------------------
 C.MAX_SHOPS = 6 -- crewed shops at once (nearest players first; the shop a player is in always wins)
@@ -38,6 +39,7 @@ C.AGENT_R_TIGHT = 0.35
 C.CELL = 0.5 -- grid cell (studs)
 C.DOOR_STRIP = 4.5 -- walkable strip outside the door (diners come in from the sidewalk)
 C.TICK = 0.25 -- brain tick (s)
+C.SIT_DROP = 0.9 -- a seated NPC's feet sit this far below the seat top (pose "sit" lowers the hips)
 
 -- serving ----------------------------------------------------------------------------------------------
 C.SERVE_TIMEOUT = 18 -- a ready table order nobody brought in this many seconds is served by ShopLife directly
@@ -101,9 +103,6 @@ C.DINERS = {
 
 -- counter sales (staff counters ShopLife does not run: 홈플러스 POS, 빵집, 펍 바 ...) ----------------------------
 C.COUNTER = { enabled = true, perMinute = 6 }
-
--- 일손 돕기 (P3, off by default) ----------------------------------------------------------------------------
-C.HELP = { enabled = false, perDay = 3, seconds = 180, maxDeliveries = 6, pay = 1200, bonus = 600, cap = 15000, leaveR = 25, reach = 5 }
 
 -- client -----------------------------------------------------------------------------------------------
 C.CLIENT = {

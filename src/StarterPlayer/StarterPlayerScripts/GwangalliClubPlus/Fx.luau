@@ -363,9 +363,12 @@ local function floorStep(dt: number)
 	for _, cell in fl.cells do
 		if slow then
 			local w = 0.5 + 0.5 * math.sin(t * 1.4 + cell.r * 0.55 + cell.c * 0.3)
-			cell.a = 0.86 + 0.14 * (1 - w)
-			cell.f.BackgroundColor3 = pal[1]:Lerp(pal[2], w)
-			cell.f.BackgroundTransparency = cell.a
+			local na = 0.86 + 0.14 * (1 - w)
+			if math.abs(na - cell.a) > 0.012 then
+				cell.a = na
+				cell.f.BackgroundColor3 = pal[1]:Lerp(pal[2], w)
+				cell.f.BackgroundTransparency = na
+			end
 		elseif cell.a < 1 then
 			cell.a = math.min(1, cell.a + dt * 1.7)
 			cell.f.BackgroundTransparency = cell.a

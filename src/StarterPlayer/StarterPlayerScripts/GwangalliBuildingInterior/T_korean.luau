@@ -2431,6 +2431,7 @@ local function potProp(c: any)
 		claim(K, wn, u - 1.6, u + 1.6, 3.9, 4.9)
 	end
 	c.pot = pcf
+	c.potWall = wn
 end
 
 -- 개업 축하 화분 (산세베리아 · 고무나무) + 붉은 리본
@@ -2634,7 +2635,11 @@ local function ttukRackProp(c: any)
 		return
 	end
 	local w, d, h = 1.9, 1.0, 3.3
-	local pcf = placeOnWall(c, { "left", "back", "right" }, V3(w + 0.1, h + 0.1, d + 0.1), c.pot.Position)
+	-- 솥과 같은 벽, 솥에서 4.5 안쪽만 (멀리 떨어진 선반은 이야기가 안 됨)
+	local potP = c.pot.Position
+	local pcf = placeOnWall(c, { c.potWall or "back" }, V3(w + 0.1, h + 0.1, d + 0.1), potP, function(p: CFrame)
+		return (p.Position - potP).Magnitude < 4.5
+	end)
 	if not pcf then
 		return
 	end
@@ -2682,7 +2687,8 @@ local function signWall(c: any)
 	end
 	local bw = 0.92
 	local y0, y1 = 5.25, 7.55
-	local cols, need, wn, u = 0, 0, nil, nil
+	local cols, need = 0, 0
+	local wn: string?, u: number? = nil, nil
 	for _, n in { 4, 3, 2 } do
 		need = n * (bw + 0.2) + 0.2
 		wn, u = findWall(K, { "left", "right", "back" }, need, need, y0, y1, V3(0, 0, 0), 0.6)
