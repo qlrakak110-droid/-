@@ -1021,7 +1021,7 @@ local function lobbyLockers(R: any)
 			local free = led ~= nil and led.part.Color.G > led.part.Color.R
 			local face = CFrame.fromMatrix(V3(x, y, zf), V3(-1, 0, 0), Vector3.yAxis, V3(0, 0, -1)) -- dcf (보는 쪽 = -Z)
 			if i == openCol and j == openRow and door then
-				openDoor = { door = door, led = led, x = x, y = y, n = n }
+				openDoor = { door = door, led = led, x = x, y = y, n = n, i = i, j = j }
 				continue
 			end
 			if led then
@@ -1049,8 +1049,13 @@ local function lobbyLockers(R: any)
 		local face = CFrame.fromMatrix(V3(x, y, zf), V3(-1, 0, 0), Vector3.yAxis, V3(0, 0, -1))
 		-- 칸 속: 조명 띠 · 옷걸이 봉 · 스티커
 		P:free(function()
-			P:box("LockerInnerLED", V3(dw - 0.3, 0.03, 0.04), CF(x, y + dh / 2 - 0.12, zf + 0.25), nl(rgb(240, 245, 255)))
-			P:seg("LockerHangerRod", V3(x - dw / 2 + 0.15, y + dh / 2 - 0.35, zf + depth * 0.55), V3(x + dw / 2 - 0.15, y + dh / 2 - 0.35, zf + depth * 0.55), 0.05, CHROME)
+			-- 칸 위 선반 아랫면 · 양옆 칸막이 (몸체를 다시 지은 위치와 같은 식)
+			local oi, oj = openDoor.i, openDoor.j
+			local shelfY = if oj > 1 then (ys[oj - 1] + ys[oj]) / 2 - 0.04 else cy1 - 0.1
+			local xA = if oi < #xs then (xs[oi] + xs[oi + 1]) / 2 + 0.04 else cx0 + 0.1
+			local xB = if oi > 1 then (xs[oi - 1] + xs[oi]) / 2 - 0.04 else cx1 - 0.1
+			P:box("LockerInnerLED", V3(dw - 0.3, 0.03, 0.04), CF(x, shelfY - 0.015, zf + 0.25), nl(rgb(240, 245, 255)))
+			P:seg("LockerHangerRod", V3(xA, shelfY - 0.3, zf + depth * 0.55), V3(xB, shelfY - 0.3, zf + depth * 0.55), 0.05, CHROME)
 			txt(P, "LockerInnerSticker", 0.9, 0.5, CF(x, y - 0.1, zb - 0.07) * ANG(0, PI, 0), "No." .. tostring(n) .. "\n퇴장 시 팔찌 키 반납", rgb(30, 30, 34), rgb(240, 240, 236), F.GothamBold)
 			P:box("LockerHook", V3(0.06, 0.2, 0.18), CF(x + 0.6, y + 0.25, zb - 0.15), CHROME)
 		end)
@@ -2366,7 +2371,14 @@ local function mainRestrooms(R: any)
 				txt(P, "UrinalNotice", math.min(5, ux1 - ux0), 0.5, faceCF(V3((ux0 + ux1) / 2, 7.3, urs[1].mx.Z - 0.01), V3(0, 0, -1)), "남자가 흘리지 말아야 할 것은 눈물만이 아닙니다 · 한 걸음 더 가까이", rgb(240, 240, 240), rgb(20, 24, 30), F.GothamBold)
 			end
 			-- 바닥 배수구
-			P:box("FloorDrain", V3(0.6, 0.015, 0.6), CF((mv.mx.X + (Mn.StallDoor and Mn.StallDoor[1] and Mn.StallDoor[1].mn.X or mv.mx.X + 6)) / 2, 0.11, mv.mx.Z + 2.2), STEEL)
+			local dx, dz = (mv.mx.X + (Mn.StallDoor and Mn.StallDoor[1] and Mn.StallDoor[1].mn.X or mv.mx.X + 6)) / 2, mv.mx.Z + 2.2
+			local dy = 0.1
+			for _, fl in Mn.Floor or {} do
+				if dx > fl.mn.X and dx < fl.mx.X and dz > fl.mn.Z and dz < fl.mx.Z then
+					dy = fl.mx.Y
+				end
+			end
+			P:box("FloorDrain", V3(0.6, 0.015, 0.6), CF(dx, dy + 0.006, dz), STEEL)
 		end)
 		local part = one(Mn, "StallPartition")
 		for _, b in Mn.ToiletBowl or {} do

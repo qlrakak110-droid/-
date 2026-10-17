@@ -424,13 +424,13 @@ local function djPortrait(K: any, dcf: CFrame, w: number, h: number, bgA: Color3
 	local hcf = dcf * CF(0, hy, 0.075)
 	wdisc(K, "PortraitHalo", ih * 0.62, 0.005, hcf, lk(rim:Lerp(bgB, 0.35), M.SmoothPlastic))
 	-- 상반신 (아래 반을 꽉 채운 타원) + 림
-	K:ell("PortraitShoulderRim", V3(iw * 0.72, ih * 0.5, 0.02), dcf * CF(iw * 0.015, -ih * 0.25 + 0.03, 0.082), lk(rim))
-	K:ell("PortraitShoulders", V3(iw * 0.7, ih * 0.5, 0.02), dcf * CF(-iw * 0.01, -ih * 0.25, 0.086), lk(rgb(16, 14, 20)))
+	K:ell("PortraitShoulderRim", V3(iw * 0.52, ih * 0.5, 0.02), dcf * CF(iw * 0.012, -ih * 0.25 + 0.03, 0.082), lk(rim))
+	K:ell("PortraitShoulders", V3(iw * 0.5, ih * 0.5, 0.02), dcf * CF(-iw * 0.008, -ih * 0.25, 0.086), lk(rgb(22, 18, 26)))
 	K:plate("PortraitNeck", iw * 0.09, ih * 0.14, 0.012, dcf * CF(0, -ih * 0.02, 0.088), lk(skin:Lerp(BLACK, 0.55)))
 	-- 머리 (림 + 얼굴 그림자) + 머리카락
-	K:ell("PortraitHeadRim", V3(iw * 0.215, ih * 0.33, 0.02), hcf * CF(iw * 0.012, 0, 0.012), lk(rim))
-	K:ell("PortraitHead", V3(iw * 0.2, ih * 0.32, 0.02), hcf * CF(-iw * 0.006, 0, 0.018), lk(skin:Lerp(BLACK, 0.45)))
-	K:ell("PortraitHair", V3(iw * 0.22, ih * 0.14, 0.02), hcf * CF(-iw * 0.006, ih * 0.12, 0.024), lk(rgb(14, 12, 16)))
+	K:ell("PortraitHeadRim", V3(iw * 0.2, ih * 0.38, 0.02), hcf * CF(iw * 0.012, 0, 0.012), lk(rim))
+	K:ell("PortraitHead", V3(iw * 0.19, ih * 0.37, 0.02), hcf * CF(-iw * 0.006, 0, 0.018), lk(skin:Lerp(BLACK, 0.3)))
+	K:ell("PortraitHair", V3(iw * 0.205, ih * 0.15, 0.02), hcf * CF(-iw * 0.006, ih * 0.14, 0.024), lk(rgb(14, 12, 16)))
 	-- 헤드폰 (밴드 + 이어컵 2)
 	K:ring("PortraitPhonesBand", hcf * CF(0, 0, 0.03), iw * 0.13, 0.07, 6, lk(rgb(30, 30, 34)), 0, PI)
 	for _, sx in { -1, 1 } do
@@ -2967,7 +2967,7 @@ local function buildLounge(K: any, V: any, R: any)
 						K:box("CellarDoorRail", V3(2.5, 0.14, 0.08), u * CF(sx * 1.3, 0.1 + dy, 1.22), fl)
 					end
 					K:box("CellarDoorStile", V3(0.12, 5.8, 0.08), u * CF(sx * 2.5, 0.1, 1.22), fl)
-					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.03), u * CF(sx * 1.3, 0.1, 1.24), lk(rgb(200, 214, 214), M.Glass, { t = 0.88, r = 0.08 }))
+					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.03), u * CF(sx * 1.3, 0.1, 1.24), lk(rgb(200, 214, 214), M.SmoothPlastic, { t = 0.93 }))
 					K:box("CellarHandle", V3(0.06, 1.6, 0.1), u * CF(sx * 0.15, 0.3, 1.32), brassL)
 				end
 				K:box("CellarKick", V3(5.4, 0.3, 0.06), u * CF(0, -3.05, 1.2), Look.black)
