@@ -497,16 +497,23 @@ function Tracker.init(c: any)
 		ensureGuide()
 		local att = ensureCharAttach()
 		if a and p and guidePart and att and beam and marker then
-			guidePart.CFrame = CFrame.new(a.Position + Vector3.new(0, -1.4, 0))
+			local gpos = a.Position + Vector3.new(0, -1.4, 0)
+			if (guidePart.Position - gpos).Magnitude > 0.05 then
+				guidePart.CFrame = CFrame.new(gpos)
+			end
 			local d = (a.Position - p).Magnitude
 			local show = d > 7 and d < 260
-			beam.Enabled = show
-			marker.Enabled = show
+			if beam.Enabled ~= show then
+				beam.Enabled = show
+			end
+			if marker.Enabled ~= show then
+				marker.Enabled = show
+			end
 			if markerText then
-				markerText.Text = string.format("%s · %dm", targetLabel(a), math.floor(d * 0.28 + 0.5))
+				Ui.setText(markerText, string.format("%s · %dm", targetLabel(a), math.floor(d * 0.28 + 0.5)))
 			end
 			if distLabel then
-				distLabel.Text = if d <= 7 then string.format("📍 %s 도착", targetLabel(a)) else string.format("→ %s · %dm", targetLabel(a), math.floor(d * 0.28 + 0.5))
+				Ui.setText(distLabel, if d <= 7 then string.format("📍 %s 도착", targetLabel(a)) else string.format("→ %s · %dm", targetLabel(a), math.floor(d * 0.28 + 0.5)))
 			end
 		else
 			if beam then
@@ -518,13 +525,13 @@ function Tracker.init(c: any)
 			if distLabel then
 				local v = ctx.visit
 				if v and (v.step == "consult" or v.step == "treat" or v.step == "iv") then
-					distLabel.Text = "📍 " .. (v.stepLabel or "")
+					Ui.setText(distLabel, "📍 " .. (v.stepLabel or ""))
 				elseif not v then
 					-- health chip: distance to the clinic door
 					local k = ctx.anchor("Kiosk")
-					distLabel.Text = if k and p then string.format("🏥 %s까지 %dm", C.Venue.Name, math.floor((k.Position - p).Magnitude * 0.28 + 0.5)) else ""
+					Ui.setText(distLabel, if k and p then string.format("🏥 %s까지 %dm", C.Venue.Name, math.floor((k.Position - p).Magnitude * 0.28 + 0.5)) else "")
 				else
-					distLabel.Text = ""
+					Ui.setText(distLabel, "")
 				end
 			end
 		end

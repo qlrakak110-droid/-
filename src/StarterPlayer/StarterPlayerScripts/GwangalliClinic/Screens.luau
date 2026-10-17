@@ -654,7 +654,7 @@ function Screens.init(c: any)
 		for _, rec in screens do
 			if rec.kind == "call" or rec.kind == "callno" then
 				local on = flashing and (math.floor(os.clock() * 4) % 2 == 0)
-				rec.num.TextColor3 = if on then Color3.new(1, 1, 1) else LED
+				Ui.setColor(rec.num, if on then Color3.new(1, 1, 1) else LED)
 			end
 		end
 		if acc >= 15 then

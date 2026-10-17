@@ -25,8 +25,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Ui = {}
 
--- keyboard actions of our buttons (weak keys: destroyed buttons drop out)
-local actions: { [Instance]: () -> () } = setmetatable({}, { __mode = "k" }) :: any
+-- keyboard actions of our buttons (entries leave with the button: Destroying)
+local actions: { [Instance]: () -> () } = {}
 
 local S: any
 local C: any
@@ -220,14 +220,33 @@ function Ui.btn(parent: Instance, opts: { [string]: any }): TextButton
 		end
 		b.Activated:Connect(fire)
 		actions[b] = fire
+		b.Destroying:Connect(function()
+			actions[b] = nil
+		end)
 	end
 	return b
+end
+
+-- change-only property writes for per-frame updates (no needless change events / re-layout)
+function Ui.setText(label: TextLabel?, text: string)
+	if label and label.Text ~= text then
+		label.Text = text
+	end
+end
+
+function Ui.setColor(label: TextLabel?, color: Color3)
+	if label and label.TextColor3 ~= color then
+		label.TextColor3 = color
+	end
 end
 
 -- a plain TextButton (cards) gets the same keyboard action as Ui.btn: Activated + Enter when focused
 function Ui.onActivate(b: GuiButton, fn: () -> ())
 	b.Activated:Connect(fn)
 	actions[b] = fn
+	b.Destroying:Connect(function()
+		actions[b] = nil
+	end)
 end
 
 function Ui.restyle(b: TextButton, style: string)

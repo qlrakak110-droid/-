@@ -357,7 +357,7 @@ function Treat.init(c: any)
 		local a = ivLocal.progress / math.max(1, ivLocal.seconds)
 		ivBar.set(a)
 		local left = math.max(0, (ivLocal.seconds - ivLocal.progress) / math.max(0.1, ivLocal.speed))
-		ivText.Text = string.format("%d%% · 남은 시간 약 %d초%s", math.floor(a * 100), math.ceil(left), if ivLocal.speed > 1 then " · 😴 자는 중" else "")
+		Ui.setText(ivText, string.format("%d%% · 남은 시간 약 %d초%s", math.floor(a * 100), math.ceil(left), if ivLocal.speed > 1 then " · 😴 자는 중" else ""))
 	end)
 	local _ = player
 end
