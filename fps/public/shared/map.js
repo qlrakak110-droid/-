@@ -135,6 +135,20 @@ for (const [x, z, s, y = 0] of CRATES) {
   block(-x, -z, s, s, s, 'crate', y);
 }
 
+// Barrels and sandbag walls (collidable props).
+const PROPS = [
+  ['barrel', -17.7, -27.6], ['barrel', -16.9, -27.3], ['barrel', 32.1, -9.2],
+  ['barrel', -42.9, -20.5], ['barrel', -42.9, -19.6], ['barrel', 24.9, -24.9],
+];
+for (const [kind, x, z] of PROPS) {
+  block(x, z, 0.62, 0.62, 0.92, kind);
+  block(-x, -z, 0.62, 0.62, 0.92, kind);
+}
+for (const [x, z, w, d] of [[8, -26.5, 4, 1], [-26.5, 8, 1, 4], [-36, -4, 1, 3]]) {
+  block(x, z, w, d, 0.9, 'sandbag');
+  block(-x, -z, w, d, 0.9, 'sandbag');
+}
+
 export const SPAWNS = [
   [-40, -40], [40, 40], [-40, 40], [40, -40],
   [0, -40], [0, 40], [-40, 0], [40, 0],

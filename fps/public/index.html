@@ -19,7 +19,7 @@
     <div id="netline"><span id="net">0 ms</span> · <span id="fps">0 fps</span></div>
   </div>
   <div id="streak"></div>
-  <div id="score"><div id="leader"></div><div id="limit"></div></div>
+  <div id="score"><div id="leader"></div><div id="limit"></div><div id="roomtag"></div></div>
   <div id="killfeed"></div>
   <div id="announce"></div>
   <div id="bottomleft">
@@ -57,6 +57,13 @@
     <div class="panel">
       <h2>일시정지</h2>
       <p class="click">클릭해서 게임으로 돌아가기</p>
+      <div id="roombox">
+        <div class="roomcode"><span>방 코드</span><b id="roomcode">-----</b></div>
+        <button id="copylink" class="alt">초대 링크 복사</button>
+      </div>
+      <label>그래픽 품질
+        <select id="quality"><option value="high">높음 (블룸·후처리·고해상도 그림자)</option><option value="low">낮음 (성능 우선)</option></select>
+      </label>
       <div class="loadout-title">주무기 <small>(다음 리스폰부터 적용)</small></div>
       <div class="loadout" data-where="pause"></div>
       <label>마우스 감도 <span id="sensval"></span><input id="sens" type="range" min="0.2" max="4" step="0.05"></label>
@@ -77,14 +84,23 @@
     <input id="name" maxlength="16" placeholder="닉네임" autocomplete="off">
     <div class="loadout-title">주무기 선택 <small>(+ 권총 기본 지급)</small></div>
     <div class="loadout" data-where="menu"></div>
-    <button id="play">게임 시작</button>
+    <div class="playrow">
+      <button id="play">빠른 시작</button>
+      <button id="create" class="alt">방 만들기</button>
+    </div>
+    <div class="coderow">
+      <input id="code" maxlength="8" placeholder="방 코드 (예: K7Q2M)" autocomplete="off" spellcheck="false">
+      <button id="joincode" class="alt">코드로 참가</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="botfill" checked> 내가 만든 방에 AI 봇 채우기</label>
+    <p id="menuerr"></p>
     <p id="online">서버 확인 중…</p>
     <div class="keys">
       <span><b>WASD</b> 이동</span><span><b>Shift</b> 달리기</span><span><b>Space</b> 점프</span>
       <span><b>좌클릭</b> 사격</span><span><b>우클릭</b> 조준</span><span><b>R</b> 재장전</span>
       <span><b>1 / 2 / 휠</b> 무기 교체</span><span><b>Tab</b> 점수판</span><span><b>Enter</b> 채팅</span>
     </div>
-    <p class="hint">같은 주소로 친구가 접속하면 함께 플레이할 수 있어요. 사람이 적으면 AI 봇이 자리를 채웁니다.</p>
+    <p class="hint">방 만들기 → 코드나 초대 링크를 친구에게 보내면 같은 방에서 플레이합니다. 빠른 시작은 공개 방에 들어가요.</p>
   </div>
 </div>
 

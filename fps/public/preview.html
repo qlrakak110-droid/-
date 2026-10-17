@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>Model Preview</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#1b1f26}</style>
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script>
+</head><body>
+<script type="module">
+// Model showroom: /preview.html?m=guns | soldier | fp=ar|smg|sniper|pistol
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { makeTextures } from './textures.js';
+import { createMaterials, worldGun, viewWeapon, Soldier } from './models.js';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.shadowMap.enabled = true;
+document.body.append(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2f38);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const sun = new THREE.DirectionalLight(0xfff0dd, 2.5); sun.position.set(2, 4, 3); sun.castShadow = true; scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x4a4036, 0.6));
+const T = makeTextures(), M = createMaterials(T);
+const cam = new THREE.PerspectiveCamera(35, innerWidth / innerHeight, 0.01, 50);
+const mode = q.get('m') || 'guns';
+if (mode === 'guns') {
+  ['ar', 'smg', 'sniper', 'pistol'].forEach((id, i) => {
+    const { group } = worldGun(id, M);
+    group.rotation.y = -Math.PI / 2;
+    group.position.set(id === 'pistol' ? 0 : 0.15, 0.95 - i * 0.32, 0);
+    if (id === 'pistol') group.scale.setScalar(1.6);
+    scene.add(group);
+  });
+  cam.position.set(0.15, 0.55, 2.9); cam.lookAt(0.15, 0.48, 0);
+} else if (mode === 'soldier') {
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ map: T.ground.map, normalMap: T.ground.normalMap }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  [[0, 210, 0.4, 0], [-1.1, 20, 0.9, 1], [1.1, 120, -0.7, 2]].forEach(([x, hue, yaw, w]) => {
+    const s = new Soldier(T, M, hue);
+    s.setWeapon(w);
+    s.pose(x === 0 ? 0 : 1.2, x === 0 ? 0 : 5, false, 0, 0);
+    s.root.position.x = x; s.root.rotation.y = Math.PI + yaw;
+    scene.add(s.root);
+  });
+  cam.position.set(0, 1.35, 4.6); cam.lookAt(0, 1.0, 0);
+} else {
+  const vm = viewWeapon(mode, M);
+  vm.root.visible = true;
+  vm.root.position.copy(q.has('ads') ? vm.ads : vm.hip);
+  scene.add(vm.root);
+  cam.fov = 60; cam.position.set(0, 0, 0); cam.lookAt(0, 0, -1);
+  scene.background = new THREE.Color(0x8a96a6);
+}
+cam.updateProjectionMatrix();
+renderer.render(scene, cam);
+window.done = true;
+</script></body></html>

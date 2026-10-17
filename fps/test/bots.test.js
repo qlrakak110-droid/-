@@ -1,7 +1,6 @@
 // Headless multiplayer test: two bots join, walk into position, one shoots the other until a kill.
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
-import WebSocket from 'ws';
 import { PLAYER, WEAPONS } from '../public/shared/map.js';
 
 const AR = WEAPONS[0];
@@ -13,8 +12,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function bot(name) {
   const ws = new WebSocket(`ws://localhost:${PORT}`);
   const b = { ws, name, msgs: [], waiters: [], id: 0, life: 0, pos: null };
-  ws.on('message', (raw) => {
-    const m = JSON.parse(raw);
+  ws.addEventListener('message', (e) => {
+    const m = JSON.parse(e.data);
     if (m.t === 'welcome') b.id = m.id;
     if (m.t === 'spawn') { b.life = m.life; b.pos = m.p.slice(); }
     if (m.t === 'fix') b.pos = m.p.slice();
@@ -30,7 +29,7 @@ function bot(name) {
       setTimeout(() => rej(new Error(`${name}: timed out waiting`)), ms);
     });
   };
-  b.open = new Promise((r) => ws.on('open', r));
+  b.open = new Promise((r) => ws.addEventListener('open', r));
   // Walk to (x, z) at sprint speed, sending states like the real client.
   b.walkTo = async (x, z) => {
     for (;;) {
@@ -127,6 +126,31 @@ try {
   // Board updated
   const b2 = await a.wait((m) => m.t === 'board' && m.p.find((r) => r[0] === a.id)?.[2] === 1);
   assert.ok(b2);
+
+  // Private rooms: create → code → friend joins by code; bad codes are rejected; rooms are isolated.
+  const host = bot('Host'), friend = bot('Friend'), lost = bot('Lost');
+  await Promise.all([host.open, friend.open, lost.open]);
+  host.send({ t: 'join', name: 'Host', mode: 'create', bots: false });
+  const hw = await host.wait((m) => m.t === 'welcome');
+  assert.match(hw.room, /^[A-Z2-9]{5}$/);
+  assert.equal(hw.pub, 0);
+  assert.equal(hw.players.length, 1, 'new private room starts empty');
+  friend.send({ t: 'join', name: 'Friend', mode: 'code', code: hw.room.toLowerCase() });
+  const fw = await friend.wait((m) => m.t === 'welcome');
+  assert.equal(fw.room, hw.room);
+  assert.deepEqual(fw.players.map((p) => p[1]).sort(), ['Friend', 'Host']);
+  await host.wait((m) => m.t === 'join' && m.name === 'Friend');
+  lost.send({ t: 'join', name: 'Lost', mode: 'code', code: 'ZZZZZ' });
+  const err = await lost.wait((m) => m.t === 'error');
+  assert.match(err.m, /찾을 수 없습니다/);
+  await sleep(200);
+  assert.ok(!a.msgs.some((m) => m.t === 'join' && (m.name === 'Host' || m.name === 'Friend')), 'public room never sees private players');
+  const st = await (await fetch(`http://localhost:${PORT}/status`)).json();
+  assert.equal(st.rooms, 2);
+  host.ws.close(); friend.ws.close();
+  await sleep(200);
+  assert.equal((await (await fetch(`http://localhost:${PORT}/status`)).json()).rooms, 1, 'empty room is removed');
+  console.log('✓ room codes');
 
   // Disconnect broadcasts leave
   b.ws.close();
