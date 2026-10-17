@@ -1612,6 +1612,55 @@ local function mainBar(R: any)
 			P:seg("Muddler", V3(x - 0.2, y + 0.03, d.mx.Z - 0.9), V3(x - 0.2, y + 0.03, d.mx.Z - 0.25), 0.07, Look.walnut)
 		end
 	end)
+	-- 4b) 언더바 위 글라스 랙 (아이스웰 두 칸 사이, 스피드레일 병 뒤): 회색 식기세척 랙 + 엎어 둔 잔 3 x 4
+	P:free(function()
+		for _, u in R.find("UnderBarStation") do
+			local wells = {}
+			for _, w in R.find("IceWell") do
+				if math.abs(w.c.X - u.c.X) < 0.8 then
+					table.insert(wells, w)
+				end
+			end
+			if #wells >= 2 then
+				table.sort(wells, function(a, b)
+					return a.c.Z < b.c.Z
+				end)
+				local z0, z1 = wells[1].mx.Z + 0.1, wells[2].mn.Z - 0.1
+				-- 스피드레일 = 바텐더 통로 쪽 (게이트리 쪽). 랙은 그 반대 (손님 쪽) 으로 붙임
+				local away = if u.c.X < bx then -1 else 1
+				local rw, rd = 1.15, math.min(1.9, z1 - z0)
+				if rd > 1.2 then
+					-- 바 상판 안쪽 끝 (상판 아래로 들어가지 않게) 과 스피드레일 병 사이
+					local rx = u.c.X + away * 0.12
+					local rz = (z0 + z1) / 2
+					local y = u.mx.Y
+					local RACK = lk(rgb(58, 60, 64), M.Plastic)
+					P:box("GlassRackBase", V3(rw, 0.04, rd), CF(rx, y + 0.02, rz), RACK)
+					for _, sz in { -1, 1 } do
+						P:box("GlassRackWall", V3(rw, 0.3, 0.04), CF(rx, y + 0.15, rz + sz * (rd / 2 - 0.02)), RACK)
+						P:box("GlassRackWall", V3(0.04, 0.3, rd), CF(rx + sz * (rw / 2 - 0.02), y + 0.15, rz), RACK)
+					end
+					P:box("GlassRackBar", V3(0.03, 0.22, rd - 0.08), CF(rx, y + 0.11, rz), RACK)
+					for k = 1, 3 do
+						P:box("GlassRackBar", V3(rw - 0.08, 0.22, 0.03), CF(rx, y + 0.11, rz - rd / 2 + rd * k / 4), RACK)
+					end
+					if hi(K) then
+						for a = 0, 1 do
+							for b = 0, 3 do
+								local gx = rx - rw / 4 + a * rw / 2
+								local gz = rz - rd / 2 + rd * (b + 0.5) / 4
+								if (a + b) % 3 ~= 2 then
+									-- 엎어 둔 록 글라스 (두꺼운 바닥이 위)
+									P:vcyl("RackGlass", 0.3, 0.3, CF(gx, y + 0.19, gz), gl(rgb(225, 238, 245), 0.55))
+									P:disc("RackGlassBase", 0.3, 0.04, CF(gx, y + 0.35, gz), gl(rgb(210, 228, 238), 0.35))
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+	end)
 	-- 5) 바 상판: 서비스 고무 매트 (바텐더 쪽 가장자리) · 테이블 메뉴 스탠드 · POS 하나 더
 	local tops = R.find("BarTop", nil)
 	local mc = V3(0, 0, 0)
@@ -1926,6 +1975,13 @@ local function mainSmoking(R: any)
 		return
 	end
 	local fy = fl.mx.Y
+	-- 안쪽 벽 (메자닌 끝 칸막이 = Partition_Front 앞면): 흡연실 바닥은 벽 밑까지 깔려 있어서 바닥 끝이 아님
+	local farZ = fl.mx.Z
+	for _, w in R.find("Partition_Front") do
+		if w.mn.X < fl.mx.X and w.mx.X > fl.mn.X and w.mn.Z < farZ then
+			farZ = w.mn.Z
+		end
+	end
 	local blades: { BasePart } = {}
 	local hub: BasePart? = nil
 	P:free(function()
@@ -1950,8 +2006,8 @@ local function mainSmoking(R: any)
 				P:cyl("CigButt", 0.22, 0.06, CF(p) * ANG(0, rnd(17, i) * PI, 0), lk(if i % 2 == 0 then rgb(236, 230, 220) else rgb(214, 160, 90)))
 			end
 		end
-		-- 공기청정기 (유리 쪽 구석)
-		local px, pz = fl.mx.X - 0.9, fl.mx.Z - 0.8
+		-- 공기청정기 (안쪽 벽 · 유리 쪽 구석: 벽 앞면에서 띄움)
+		local px, pz = fl.mx.X - 0.9, farZ - 0.55
 		P:rbox("AirPurifier", V3(0.9, 3.4, 0.9), 0.2, CF(px, fy + 1.7, pz), lk(rgb(240, 240, 238), M.Plastic))
 		P:disc("AirPurifierTop", 0.75, 0.04, CF(px, fy + 3.42, pz), lk(rgb(60, 62, 66)))
 		P:box("AirPurifierLED", V3(0.3, 0.06, 0.02), faceCF(V3(px, fy + 2.9, pz - 0.46), V3(0, 0, -1)), nl(rgb(60, 160, 255)))
@@ -1960,9 +2016,37 @@ local function mainSmoking(R: any)
 	-- 안내판: 안쪽 (뒤 벽 = +Z 칸막이 쪽 유리 위가 아니라 벤치 위 벽)
 	local bench = R.one("SmokeBench")
 	P:free(function()
-		if bench then
-			local f = faceCF(V3(R.wallL + 0.01, fy + 5.0, bench.c.Z), V3(1, 0, 0))
-			lightbox(P, "SmokeRule", f, 3.2, 1.6, "SMOKING ROOM · 흡연실", "음료 · 잔 반입 금지\n꽁초는 재떨이에 · 문은 꼭 닫아 주세요", { titleH = 0.45, accent = rgb(255, 200, 80), frame = BMETAL })
+		-- 안쪽 벽 (+Z, 보는 쪽 = -Z): 세로 줄눈 불연 패널 · 안내 라이트박스 · 전기 라이터 · 꽁초 수거함 · 하부 배기 그릴
+		local wx0, wx1 = fl.mn.X + 1.2, fl.mx.X - 0.45
+		local cx = (wx0 + wx1) / 2
+		local function farF(x: number, y: number): CFrame
+			return faceCF(V3(x, y, farZ - 0.01), V3(0, 0, -1))
+		end
+		P:plate("SmokeWallPanel", wx1 - wx0, 7.6, 0.03, farF(cx, fy + 3.95), lk(rgb(46, 48, 52), M.Concrete))
+		local x = wx0 + 1.2
+		while x < wx1 - 0.6 do
+			P:plate("SmokeWallJoint", 0.04, 7.6, 0.045, farF(x, fy + 3.95), lk(rgb(24, 24, 26)))
+			x += 1.2
+		end
+		lightbox(P, "SmokeRule", farF(cx - 0.4, fy + 5.6) * CF(0, 0, 0.04), 3.6, 1.7, "SMOKING ROOM · 흡연실", "음료 · 잔 반입 금지 · 꽁초는 재떨이에\n문은 꼭 닫아 주세요 · 1회 10분 이내", { titleH = 0.48, accent = rgb(255, 200, 80), frame = BMETAL })
+		-- 전기 라이터 (벽부형: 버튼을 누르면 코일이 달아오름)
+		local lf = farF(cx + 2.1, fy + 3.7) * CF(0, 0, 0.04)
+		P:plate("WallLighter", 0.62, 0.9, 0.22, lf, STEEL)
+		P:plate("WallLighterSlot", 0.34, 0.2, 0.012, lf * CF(0, -0.18, 0.22), lk(rgb(16, 16, 18)))
+		P:plate("WallLighterCoil", 0.22, 0.06, 0.016, lf * CF(0, -0.2, 0.222), nl(rgb(255, 110, 30)))
+		P:plate("WallLighterButton", 0.2, 0.2, 0.05, lf * CF(0, 0.2, 0.22), lk(rgb(200, 30, 30), M.SmoothPlastic))
+		txt(P, "WallLighterLabel", 0.56, 0.16, lf * CF(0, 0.39, 0.222), "전기 라이터", rgb(30, 30, 34), nil, F.GothamBold)
+		-- 꽁초 수거함 (스테인리스, 위 투입구)
+		local bf = farF(wx0 + 1.35, fy + 2.4) * CF(0, 0, 0.04)
+		P:plate("ButtBin", 0.8, 1.4, 0.36, bf, STEEL)
+		P:plate("ButtBinTop", 0.8, 0.06, 0.4, bf * CF(0, 0.7, 0), lk(rgb(30, 30, 32), M.Metal))
+		P:plate("ButtBinSlot", 0.5, 0.08, 0.012, bf * CF(0, 0.52, 0.36), lk(rgb(10, 10, 12)))
+		txt(P, "ButtBinLabel", 0.7, 0.36, bf * CF(0, 0.05, 0.362), "꽁초 수거함\n불씨 확인", rgb(255, 255, 255), rgb(170, 24, 30), F.GothamBold)
+		-- 하부 배기 그릴 (바닥 쪽 공기 흡입)
+		local gf = farF(cx - 0.4, fy + 0.62) * CF(0, 0, 0.04)
+		P:plate("ExhaustGrille", 3.0, 0.7, 0.05, gf, STEEL)
+		for k = 0, 4 do
+			P:plate("ExhaustSlat", 2.8, 0.05, 0.06, gf * CF(0, -0.24 + k * 0.12, 0.0), lk(rgb(20, 20, 22)))
 		end
 		-- 바깥 (유리문 옆 유리 바깥면): 흡연실 외 흡연 금지
 		local door = R.one("SmokeDoor")
@@ -1988,8 +2072,7 @@ local function mainSmoking(R: any)
 	local sw: BasePart? = nil
 	P:free(function()
 		-- 벤치 위 벽 (안내판 옆): 벤치에 앉거나 서서 닿는 높이
-		local sz = if bench then math.min(bench.c.Z + 3.0, bench.mx.Z - 0.6) else fl.c.Z
-		local f = faceCF(V3(R.wallL + 0.01, fy + 3.5, sz), V3(1, 0, 0))
+		local f = faceCF(V3(fl.mx.X - 2.0, fy + 3.6, farZ - 0.06), V3(0, 0, -1))
 		P:plate("FanSwitchPlate", 0.5, 0.8, 0.05, f, lk(rgb(236, 236, 232)))
 		sw = P:plate("FanSwitch", 0.22, 0.34, 0.08, f * CF(0, 0.08, 0), lk(rgb(220, 220, 216)))
 		P:plate("FanSwitchLED", 0.08, 0.08, 0.06, f * CF(0, -0.25, 0), nl(rgb(60, 230, 120)))
@@ -2124,6 +2207,14 @@ local function mainCoatCheck(R: any)
 			local f = faceCF(V3(c.mx.X + 0.01, c.mx.Y - 0.55, c.c.Z + 0.35), V3(1, 0, 0))
 			txt(P, "CoatTag", 0.22, 0.3, f, string.format("%02d", i), rgb(20, 20, 22), rgb(240, 236, 220), F.GothamBold)
 			P:seg("CoatTagString", top + V3(0.21, -0.05, 0.35), top + V3(0.21, -0.4, 0.35), 0.015, lk(rgb(240, 236, 220)))
+		end
+		-- 옷걸이 봉 위 천장 라인 조명 (따뜻한 LED 바: 어두운 보관소에서 옷이 보이게) + 봉 끝 브래킷
+		for _, rl in R.find("HangerRail", "CoatCheck_물품보관") do
+			P:box("CoatLineLightHousing", V3(rl.s.X - 0.4, 0.12, 0.42), CF(rl.c.X, 11.38, rl.c.Z), BMETAL)
+			P:box("CoatLineLight", V3(rl.s.X - 0.6, 0.03, 0.26), CF(rl.c.X, 11.31, rl.c.Z), nl(rgb(255, 222, 180)))
+			for _, sx in { -1, 1 } do
+				P:seg("CoatRailDrop", V3(rl.c.X + sx * (rl.s.X / 2 - 0.3), rl.mx.Y, rl.c.Z), V3(rl.c.X + sx * (rl.s.X / 2 - 0.3), 11.32, rl.c.Z), 0.06, CHROME)
+			end
 		end
 		local ct = R.one("CounterTop", "CoatCheck_물품보관")
 		if ct then

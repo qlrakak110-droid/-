@@ -1066,8 +1066,106 @@ local function towelDispenser(K: any, dcf: CFrame): (BasePart, BasePart)
 	return sheet, lever
 end
 
+-- 맵의 네모 위생도기 (소변기 · 세면볼 · 물 · 수전 · 비누 · 둥근 거울 · 핸드드라이어) 를 숨기고 같은 자리에 진짜 모양으로
+-- (맵 파트는 충돌이 그대로 남으니 새 모양은 같은 부피 안에 짓고 충돌 없음)
+local CHINA = { c = Color3.fromRGB(240, 240, 236), m = Enum.Material.SmoothPlastic, r = 0.06 }
+local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
+	local V = R.V
+	local mirrors: { BasePart } = {}
+	local function each(name: string, fn: (mn: Vector3, mx: Vector3) -> ())
+		for _, r in V.byName[name] or {} do
+			local mn, mx = abox(R, r)
+			if mx.X > R.x0 - 0.5 and mn.X < R.x1 + 0.5 and safeHide(K, r) then
+				K:free(function()
+					fn(mn, mx)
+				end)
+			end
+		end
+	end
+	-- 벽 쪽 (+1 = 왼벽 x0 에 붙음, -1 = 오른벽 x1)
+	local function side(mn: Vector3, mx: Vector3): (number, number)
+		if math.abs(mn.X - R.x0) < math.abs(mx.X - R.x1) then
+			return 1, mn.X
+		end
+		return -1, mx.X
+	end
+	-- 벽걸이 소변기: 벽에 반쯤 묻힌 타원 몸통 + 앞으로 열린 볼 + 뒤판 + 바닥 쪽 배수 커버
+	each("Urinal", function(mn, mx)
+		local s, wx = side(mn, mx)
+		local d, h, w = mx.X - mn.X, mx.Y - mn.Y, mx.Z - mn.Z
+		local cz, yc = (mn.Z + mx.Z) / 2, (mn.Y + mx.Y) / 2
+		K:box("UrinalBack", V3(0.1, h - 0.1, w - 0.3), at(R, wx + s * 0.05, cz, 0, yc + 0.05), CHINA)
+		K:ell("UrinalBody", V3(2 * (d - 0.05), h, w - 0.1), at(R, wx, cz, 0, yc), CHINA)
+		K:ell("UrinalBowl", V3(2 * (d - 0.2), h * 0.66, w * 0.66), at(R, wx + s * 0.18, cz, 0, yc - h * 0.06), lk(rgb(206, 210, 210)))
+		K:ell("UrinalLip", V3(2 * (d - 0.06), 0.3, w * 0.8), at(R, wx, cz, 0, mn.Y + h * 0.2), CHINA)
+	end)
+	-- 세면볼 (원형 베슬) + 물 + 배수구
+	each("VesselSink", function(mn, mx)
+		local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+		local dia = math.min(mx.X - mn.X, mx.Z - mn.Z)
+		local h = mx.Y - mn.Y
+		K:vcyl("VesselFoot", 0.18, dia * 0.6, at(R, cx, cz, 0, mn.Y + 0.09), CHINA)
+		K:vcyl("VesselLow", h * 0.35, dia * 0.86, at(R, cx, cz, 0, mn.Y + 0.1 + h * 0.175), CHINA)
+		K:vcyl("VesselBowl", h * 0.55, dia, at(R, cx, cz, 0, mn.Y + h * 0.45 + h * 0.275), CHINA)
+		K:disc("VesselInner", dia - 0.18, 0.02, at(R, cx, cz, 0, mx.Y + 0.01), lk(rgb(198, 204, 208)))
+		K:disc("VesselDrain", 0.26, 0.02, at(R, cx, cz, 0, mx.Y + 0.025), Look.chrome)
+	end)
+	each("BasinWater", function() end)
+	-- 벽 수전: 로제트 + 길게 나온 스파우트 + 아래로 꺾인 끝 + 레버
+	each("WallTap", function(mn, mx)
+		local s, wx = side(mn, mx)
+		local cz, yc = (mn.Z + mx.Z) / 2, (mn.Y + mx.Y) / 2
+		local len = mx.X - mn.X
+		K:cyl("TapRosette", 0.06, 0.42, at(R, wx + s * 0.03, cz, 0, yc), Look.chrome)
+		K:cyl("TapSpout", len - 0.05, 0.13, at(R, wx + s * (len / 2), cz, 0, yc), Look.chrome)
+		K:vcyl("TapNozzle", 0.2, 0.14, at(R, wx + s * (len - 0.07), cz, 0, yc - 0.08), Look.chrome)
+		K:cyl("TapLeverHub", 0.12, 0.16, at(R, wx + s * 0.1, cz, 0, yc + 0.42), Look.chrome)
+		K:box("TapLever", V3(0.36, 0.05, 0.08), at(R, wx + s * 0.28, cz, 0, yc + 0.46) * ANG(0, 0, s * 0.35), Look.chrome)
+	end)
+	-- 비누 디스펜서: 호박색 유리병 + 크롬 펌프
+	each("SoapDispenser", function(mn, mx)
+		local cx, cz = (mn.X + mx.X) / 2, (mn.Z + mx.Z) / 2
+		K:vcyl("SoapBottle", 0.42, 0.26, at(R, cx - 0.05, cz, 0, mn.Y + 0.21), lk(rgb(120, 70, 30), M.Glass, { t = 0.15 }))
+		K:vcyl("SoapCollar", 0.06, 0.16, at(R, cx - 0.05, cz, 0, mn.Y + 0.45), Look.chrome)
+		K:vcyl("SoapPump", 0.12, 0.1, at(R, cx - 0.05, cz, 0, mn.Y + 0.54), Look.chrome)
+		K:box("SoapNozzle", V3(0.2, 0.05, 0.05), at(R, cx - 0.15, cz, 0, mn.Y + 0.6), Look.chrome)
+		txt(K, "SoapLabel", 0.2, 0.12, face(R, cx - 0.05, mn.Y + 0.22, cz, -PI / 2) * CF(0, 0, 0.13), "HAND\nWASH", rgb(240, 230, 210), nil, F.GothamBold)
+	end)
+	-- 둥근 거울 (맵 유리는 밤에 하얗게 떠서) → 은회색 거울 원판, 후광 네온은 그대로
+	each("RoundMirror", function(mn, mx)
+		local s, wx = side(mn, mx)
+		local cz, yc = (mn.Z + mx.Z) / 2, (mn.Y + mx.Y) / 2
+		local dia = math.min(mx.Y - mn.Y, mx.Z - mn.Z)
+		local front = if s == 1 then mx.X else mn.X
+		local _ = wx
+		local dcf = R.A * CFrame.fromMatrix(V3(front, yc, cz), V3(0, 0, -s), Vector3.yAxis, V3(s, 0, 0))
+		local m = wdisc(K, "RoundMirrorFace", dia, 0.08, dcf * CF(0, 0, -0.06), MIRROR)
+		table.insert(mirrors, m)
+		K:ell("RoundMirrorSheen", V3(dia * 0.5, dia * 0.12, 0.02), dcf * CF(-dia * 0.12, dia * 0.22, 0.03) * ANG(0, 0, 0.6), lk(rgb(150, 160, 172), M.SmoothPlastic, { t = 0.55 }))
+	end)
+	-- 핸드드라이어 (한국 공중화장실의 위에서 손 넣는 '제트 타올' 형)
+	each("HandDryer", function(mn, mx)
+		local s, wx = side(mn, mx)
+		local d, h, w = mx.X - mn.X, mx.Y - mn.Y, mx.Z - mn.Z
+		local cz = (mn.Z + mx.Z) / 2
+		local function blk(nm: string, y0: number, y1: number, dd: number, look: any)
+			K:rbox(nm, V3(w, y1 - y0, dd), 0.12, at(R, wx + s * dd / 2, cz, PI / 2, (y0 + y1) / 2), look)
+		end
+		local body = lk(rgb(236, 238, 240))
+		blk("JetTowelLower", mn.Y, mn.Y + h * 0.55, d, body)
+		blk("JetTowelUpper", mn.Y + h * 0.8, mx.Y, d * 0.55, body)
+		K:box("JetTowelBack", V3(0.06, h * 0.3, w - 0.1), at(R, wx + s * 0.03, cz, 0, mn.Y + h * 0.68), lk(rgb(30, 32, 36)))
+		K:box("JetTowelSlot", V3(d * 0.6, 0.04, w - 0.3), at(R, wx + s * (d * 0.45), cz, 0, mn.Y + h * 0.55 + 0.02), lk(rgb(40, 44, 50)))
+		K:box("JetTowelLED", V3(0.02, 0.05, w * 0.5), at(R, wx + s * (d + 0.01), cz, 0, mn.Y + h * 0.45), nl(rgb(60, 170, 255)))
+		txt(K, "JetTowelLabel", w * 0.8, 0.22, R.A * CFrame.fromMatrix(V3(wx + s * (d + 0.015), mn.Y + h * 0.3, cz), V3(0, 0, -s), Vector3.yAxis, V3(s, 0, 0)), "JET TOWEL · 손을 넣으세요", rgb(60, 70, 90), nil, F.GothamBold)
+	end)
+	local _ = female
+	return mirrors
+end
+
 local function buildRestroom(K: any, V: any, R: any)
 	local female = V.room == "wc_f"
+	rebuildWCFixtures(K, R, female)
 	local ACC = if female then rgb(255, 60, 170) else rgb(60, 140, 255)
 	local ACC2 = if female then rgb(255, 180, 210) else rgb(150, 210, 255)
 	local tileL = lk(rgb(36, 34, 40), M.CeramicTiles)
@@ -1464,7 +1562,6 @@ local function buildRestroom(K: any, V: any, R: any)
 				K:plate("UrinalSensor", 0.6, 0.36, 0.12, sd2, lk(rgb(232, 232, 236)))
 				wdisc(K, "UrinalSensorEye", 0.14, 0.02, sd2 * CF(0, 0, 0.12), lk(rgb(30, 30, 34), M.Glass))
 				wdisc(K, "UrinalSensorLED", 0.05, 0.02, sd2 * CF(0.2, 0.08, 0.12), nl(rgb(255, 40, 40)))
-				K:disc("UrinalScreen", 0.55, 0.04, at(R, x0 + 0.62, z, 0, 1.72), lk(rgb(80, 150, 230), M.Plastic))
 			end
 			-- 소변기 위 폰 · 잔 선반 (클럽 화장실 필수)
 			for ui, uz in { -8.6, -3.6, 1.4, 6.4 } do
@@ -2353,7 +2450,6 @@ local function curtainStack(K: any, R: any, x: number, z: number, h: number, fab
 			local zz = z + i * 0.19
 			local xx = x + 0.36 + (if i % 2 == 0 then 0 else 0.11)
 			K:vcyl("CurtainFold", h - 0.1, 0.24, at(R, xx, zz, 0, h / 2 + 0.1), if i % 2 == 0 then fab else fold)
-			K:vcyl("CurtainHem", 0.12, 0.3, at(R, xx, zz + i * 0.04, 0, 0.07), fold)
 		end
 		K:box("CurtainHeader", V3(0.5, 0.3, 1.5), at(R, x + 0.42, z, 0, h - 0.1), fold)
 		K:box("CurtainTieBack", V3(0.62, 0.16, 1.5), at(R, x + 0.42, z, 0, 3.4), lk(dk(fab.c, 0.35), M.Fabric))
@@ -2693,7 +2789,7 @@ local function buildLounge(K: any, V: any, R: any)
 				for row = 0, 4 do
 					local y = -2.3 + row * 1.15
 					K:box("CellarShelf", V3(4.8, 0.06, 1.9), u * CF(0, y, -0.05), lk(rgb(90, 64, 44), M.Wood))
-					local n = if hi(K) then 5 else 3
+					local n = if hi(K) then 4 else 3
 					for k = 0, n - 1 do
 						local bx = -1.9 + k * 3.8 / math.max(1, n - 1)
 						local champ = (ui + row) % 2 == 0
@@ -2772,8 +2868,18 @@ local function buildLounge(K: any, V: any, R: any)
 		local pcf = at(R, xc, zc)
 		if placeOr(R, pcf, V3(2.6, 3.8, 2.6), 0.2, "high table") then
 			highTable(K, pcf, 3.5, 2.4, marbleW, brassL)
-			K:vcyl("HiTableCandle", 0.32, 0.22, pcf * CF(0, 3.72, 0), gl(rgb(255, 230, 200), 0.3))
-			K:ball("HiTableFlame", 0.12, pcf * CF(0, 3.9, 0), Look.lampWarm)
+			-- 셀러 위 네온 간판 (맵, z -55.6..-36.4) 앞 테이블은 펜던트 대신 무선 버섯 램프 (간판을 가리지 않게)
+			local underSign = zc > -57 and zc < -35
+			if underSign then
+				K:disc("CordlessLampFoot", 0.5, 0.05, pcf * CF(0.35, 3.58, 0.2), brassL)
+				K:vcyl("CordlessLampStem", 0.7, 0.1, pcf * CF(0.35, 3.95, 0.2), brassL)
+				local cap = K:ell("CordlessLampShade", V3(0.95, 0.5, 0.95), pcf * CF(0.35, 4.4, 0.2), lk(rgb(255, 214, 160), M.Neon, { t = 0.1 }))
+				K:ell("CordlessLampTop", V3(1.0, 0.36, 1.0), pcf * CF(0.35, 4.52, 0.2), brassL)
+				table.insert(lampShades, cap)
+			else
+				K:vcyl("HiTableCandle", 0.32, 0.22, pcf * CF(0, 3.72, 0), gl(rgb(255, 230, 200), 0.3))
+				K:ball("HiTableFlame", 0.12, pcf * CF(0, 3.9, 0), Look.lampWarm)
+			end
 			for k, a in { 0.4, 2.5, 4.4 } do
 				local sp = at(R, xc + math.cos(a) * 2.0, zc + math.sin(a) * 2.0)
 				if place(R, sp, V3(1.2, 2.9, 1.2), 0, "high stool") then
@@ -2782,6 +2888,9 @@ local function buildLounge(K: any, V: any, R: any)
 			end
 			-- 펜던트 (황동 돔)
 			K:free(function()
+				if underSign then
+					return
+				end
 				local px, pz = xc, zc
 				K:disc("HTPendantCanopy", 0.5, 0.06, at(R, px, pz, 0, H - 0.04), brassL)
 				K:seg("HTPendantCord", ap(R, px, H - 0.08, pz), ap(R, px, 7.6, pz), 0.04, Look.black)
