@@ -5,6 +5,8 @@ Keeps the shell, engine, Luau VM and physics packs untouched and replaces the ga
   * place pack -> a fresh place with only the services, lighting, a baseplate and a spawn
   * static pack (pre-baked map parts the renderer and physics draw / collide with) -> just the baseplate + spawn
   * the embedded 광안리 플레이 콘텐츠 injector -> removed
+  * adds a content slot near the top of <head>: <script type="text/x-luau" data-path="..."> blocks that are
+    created in the place after boot, so other workers can add a game by pasting Luau into the HTML
 
     python3 tools/make_empty_studio.py <Gwangalli_Studio_*.html> [dist/TempStudio_Empty.html]
 """
@@ -130,6 +132,93 @@ def empty_place(src):
     return gwpb.write({"meta": json.dumps(meta, ensure_ascii=False), "rot": place["rot"], "insts": out}), out
 
 
+SLOT = """<!-- ================================================================================================
+  CONTENT SLOT (콘텐츠 넣는 곳) — 이 빈 임시 스튜디오에 게임을 넣으려면 아래에 블록을 추가하세요.
+
+  <script type="text/x-luau" data-class="Script" data-path="ServerScriptService/MyServer">
+  print("서버 시작")
+  </script>
+
+  data-class : Script | LocalScript | ModuleScript
+  data-path  : 서비스/폴더/이름  (중간 폴더는 자동 생성)
+               ServerScriptService · ServerStorage · ReplicatedStorage · Workspace · StarterPlayerScripts
+               (StarterPlayerScripts 아래 LocalScript 는 현재 플레이어에게도 바로 실행됩니다)
+  위에서부터 순서대로 만들어집니다: ModuleScript 를 require 하는 스크립트보다 먼저 두세요.
+  Luau 코드 안에 '</' + 'script>' 문자열은 쓸 수 없습니다.
+================================================================================================= -->
+<!-- CONTENT:BEGIN -->
+<!-- CONTENT:END -->
+"""
+
+RUNNER = r"""<script>
+/* CONTENT SLOT runner: creates every <script type="text/x-luau"> block of the page inside the running place. */
+(function () {
+  var LUA = [
+    'local I = GW.require("instance") local Sched = GW.require("sched") local Env = GW.require("env")',
+    'local S = GW.require("services").S',
+    'local args = ...',
+    'local cls, path, src = args[1], args[2], args[3]',
+    'local function run(f, ...) local r; Sched.runIn(Env.serverCtx, function(...) r = f(...) end, ...) return r end',
+    'local parts = string.split(path, "/")',
+    'local svcName = table.remove(parts, 1)',
+    'local name = table.remove(parts)',
+    'local roots = {}',
+    'if svcName == "StarterPlayerScripts" then',
+    '  table.insert(roots, run(function() return S.game:GetService("StarterPlayer"):FindFirstChildOfClass("StarterPlayerScripts") end))',
+    '  if cls == "LocalScript" or cls == "ModuleScript" then',
+    '    local ps = run(function() return S.player and S.player:FindFirstChildOfClass("PlayerScripts") end)',
+    '    if not ps then return "no parent" end',
+    '    roots = { ps }',
+    '  end',
+    'else',
+    '  local ok, svc = pcall(run, function() return S.game:GetService(svcName) end)',
+    '  if not ok or not svc then return "ERR unknown service " .. tostring(svcName) end',
+    '  roots = { svc }',
+    'end',
+    'for _, root in roots do',
+    '  local parent = root',
+    '  for _, folder in parts do',
+    '    local f = run(function() return parent:FindFirstChild(folder) end)',
+    '    if not f then f = I.create("Folder", { name = folder }) run(I.setParent, f, parent) end',
+    '    parent = f',
+    '  end',
+    '  if run(function() return parent:FindFirstChild(name) end) then return "already" end',
+    '  local inst = I.create(cls, { name = name, props = { Source = src }, newDefaults = true })',
+    '  run(I.setParent, inst, parent)',
+    'end',
+    'Sched.flush()',
+    'return "ok"'
+  ].join('\n');
+  var blocks = [].slice.call(document.querySelectorAll('script[type="text/x-luau"]')).map(function (el) {
+    return { cls: el.getAttribute('data-class') || 'Script', path: el.getAttribute('data-path') || '', src: el.textContent };
+  });
+  if (!blocks.length) return;
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function q(s) { return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r') + '"'; }
+  async function run() {
+    for (var i = 0; i < 900; i++) { if (window.GW && GW.engine && GW.engine.running && GW.engine.eval) break; await wait(500); }
+    if (!(window.GW && GW.engine && GW.engine.running)) { console.warn('[Content] engine not running'); return; }
+    await wait(1500);
+    var failed = 0;
+    for (var k = 0; k < blocks.length; k++) {
+      var b = blocks[k], r = '';
+      if (b.path.split('/').length < 2) { failed++; console.warn('[Content] bad data-path: ' + b.path); continue; }
+      var code = 'return (function(...)\n' + LUA + '\nend)({' + q(b.cls) + ',' + q(b.path) + ',' + q(b.src) + '})';
+      for (var t = 0; t < 40; t++) {
+        try { r = String(await GW.engine.eval(code)); } catch (e) { r = 'ERR ' + e; }
+        if (!/^no parent/.test(r)) break;
+        await wait(1000);
+      }
+      if (!/^(ok|already)/.test(r)) { failed++; console.warn('[Content] ' + b.path + ': ' + r); }
+    }
+    console.log('[Content] created ' + (blocks.length - failed) + '/' + blocks.length + ' scripts');
+  }
+  run();
+})();
+</script>
+"""
+
+
 def main():
     src = Path(sys.argv[1])
     dst = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / "dist" / "TempStudio_Empty.html"
@@ -157,6 +246,10 @@ def main():
     man.pop("integration", None)
     html = html[:m.start(2)] + json.dumps(man, ensure_ascii=False, separators=(",", ":")) + html[m.end(2):]
 
+    anchor = '<meta name="color-scheme" content="dark">\n'  # after <meta charset> (must stay in the first 1 KB)
+    html = html.replace(anchor, anchor + SLOT, 1)
+    idx = html.rindex("</body>")
+    html = html[:idx] + RUNNER + html[idx:]
     html = re.sub(r"<title>.*?</title>", "<title>%s</title>" % TITLE, html, count=1)
     html = html.replace('<h1 class="gw-title">광안리 임시 스튜디오<span class="ver">1.0 v2.0</span></h1>',
                         '<h1 class="gw-title">임시 스튜디오<span class="ver">빈 버전</span></h1>')
