@@ -584,7 +584,7 @@ THEMES.fuzzy = {
 	counterFrontL = L.of(36, 30, 38, M.Wood),
 	counterTop = L.of(236, 232, 226, M.Marble),
 	led = rgb(255, 90, 180),
-	floor = { look = L.of(40, 38, 42, M.Marble), tile = 2.5, grout = L.of(150, 120, 70) },
+	floor = { look = L.of(62, 54, 64, M.Marble), tile = 2.5, grout = L.of(170, 138, 80) }, -- 밤에 바닥이 까맣게 꺼지지 않게 조금 밝은 자두빛 대리석
 	lower = { kind = "paint", h = 3.6, look = L.of(40, 24, 44), cap = L.goldMetal, walls = { "left", "right", "back" } },
 	feature = { wall = "left", look = L.of(70, 40, 74, M.Fabric) },
 	cove = rgb(255, 96, 196),
@@ -1007,7 +1007,7 @@ end
 local function neonIcon(K: any, dcf: CFrame, kind: string, s: number, c: Color3, c2: Color3, out: { BasePart })
 	local d = math.clamp(s * 0.045, 0.05, 0.09)
 	local lk, lk2 = L.neon(c), L.neon(c2)
-	local z = 0.12
+	local z = 0.1 -- 튜브가 뒤판에 거의 닿게 (지지대 없이 떠 보이지 않게)
 	if kind == "mug" then
 		nline(K, dcf, { { -0.3, -0.45 }, { 0.18, -0.45 }, { 0.22, 0.26 }, { -0.34, 0.26 }, { -0.3, -0.45 } }, s, z, d, lk, out)
 		narc(K, dcf, 0.24, -0.08, 0.16, -1.35, 1.35, 6, s, z, d, lk, out)
@@ -1161,7 +1161,7 @@ local function signPlate(K: any, dcf: CFrame, w: number, h: number, text: string
 	if border then
 		K:plate("SignBorder", w + 0.1, h + 0.1, 0.03, dcf, { c = border, m = M.SmoothPlastic })
 	end
-	K:text("SignPlate", w, h, dcf * CF(0, 0, 0.03), text, { fg = fg, bg = bg, d = 0.02, font = font or F.GothamBold })
+	K:text("SignPlate", w, h, dcf * CF(0, 0, if border then 0.03 else 0), text, { fg = fg, bg = bg, d = 0.02, font = font or F.GothamBold })
 end
 
 -- 포스터 ---------------------------------------------------------------------------------------------------
@@ -1633,7 +1633,7 @@ local function backCabinet(K: any, cab: any, th: any, c: any)
 				-- 유리문 맥주 쿨러: 뒤 몸통 + 밝은 안쪽 + 선반 2 + 병 · 캔 + 검은 문틀 + 유리
 				K:box("BackCoolerBody", V3(dw, bh, d - 0.62), base * CF(x, yc, -0.31), th.dark)
 				K:box("BackCoolerInner", V3(dw - 0.2, bh - 0.2, 0.04), base * CF(x, yc, fz - 0.6), L.of(232, 238, 242))
-				local lamp = K:box("BackCoolerLED", V3(dw - 0.3, 0.04, 0.05), base * CF(x, 0.34 + bh - 0.16, fz - 0.2), L.lampCool)
+				local lamp = K:box("BackCoolerLED", V3(dw - 0.3, 0.04, 0.05), base * CF(x, 0.34 + bh - 0.02, fz - 0.2), L.lampCool)
 				for k = 0, 1 do
 					local sy = 0.34 + 0.12 + k * (bh - 0.25) / 2
 					K:box("BackCoolerShelf", V3(dw - 0.2, 0.03, 0.5), base * CF(x, sy, fz - 0.33), L.of(200, 204, 208, M.Metal))
@@ -2343,11 +2343,11 @@ local function tapBoard(c: any)
 				local x = -bw / 2 + dw * (i - 0.5)
 				local iw = dw - 0.08
 				K:box("UnderCoolerInner", V3(iw, 2.5, 0.02), pcf * CF(x, 1.63, -0.19), L.of(226, 236, 242))
-				local lamp = K:box("UnderCoolerLED", V3(iw - 0.2, 0.04, 0.05), pcf * CF(x, 2.84, 0.36), L.lampCool)
+				local lamp = K:box("UnderCoolerLED", V3(iw - 0.2, 0.04, 0.05), pcf * CF(x, 2.88, 0.36), L.lampCool)
 				if c.coolLamps then
 					table.insert(c.coolLamps, lamp)
 				end
-				local m = math.max(2, math.floor((iw - 0.16) / 0.32))
+				local m = math.max(2, math.floor((iw - 0.16) / (if K.detail == "low" then 0.5 else 0.32)))
 				for li, ly in levels do
 					if li > 1 then
 						K:box("UnderCoolerShelf", V3(iw, 0.03, 0.6), pcf * CF(x, ly - 0.015, 0.1), L.of(200, 204, 208, M.Metal))
@@ -3077,6 +3077,71 @@ local function disco(c: any)
 	Interact.spin(K, parts, (K.cf * CF(x, 0, z)).Position, 0.08)
 end
 
+-- 아크릴 메뉴 스탠드 (Props.menuStand 는 판이 받침 위 0.05 에 떠 있어 로컬로: 판 아래 끝이 받침 홈에 꽂힘)
+local function menuStand(K: any, pcf: CFrame, text: string)
+	K:box("MenuStandBase", V3(0.6, 0.06, 0.3), pcf * CF(0, 0.03, 0), L.acrylicWhite)
+	K:box("MenuStandSlot", V3(0.58, 0.012, 0.05), pcf * CF(0, 0.066, 0), L.of(200, 200, 204))
+	local tilt = math.rad(10)
+	local yc = 0.05 + 0.4 * math.cos(tilt)
+	local d = CFrame.fromMatrix((pcf * CF(0, yc, 0)).Position, pcf.XVector, pcf.YVector, pcf.ZVector) * ANG(-tilt, 0, 0)
+	K:text("MenuStand", 0.56, 0.8, d * CF(0, 0, -0.01), text, { fg = rgb(30, 30, 30), bg = rgb(252, 250, 244), d = 0.02, wrap = true })
+end
+
+-- 카운터 몸통 마감: 공용 리스킨(Props.counterOver)은 손님 쪽 앞판 + 상판만 만들고 맵 Counter 를 숨김
+-- -> 열린 끝과 직원 쪽이 텅 빈 상자로 보이고 STAFF ONLY 표지가 허공에 뜸. 맵 Counter 범위 안에서 끝판 2 + 뒤판.
+local function counterShell(c: any)
+	local K, V, th = c.K, c.V, c.th
+	for _, g in V.counters do
+		local b = g.body
+		if not b or not b.part or K.hidden[b.part] == nil then
+			continue
+		end
+		local mn, mx = b.min, b.max
+		local alongX = (mx.X - mn.X) >= (mx.Z - mn.Z)
+		local topY = (if g.top then g.top.min.Y else g.y) - 0.02
+		local h = topY - mn.Y
+		if h < 1 then
+			continue
+		end
+		local look = th.counterFrontL or th.dark
+		local backL = dim(look, 0.3)
+		local yc = mn.Y + h / 2
+		K:free(function()
+			if alongX then
+				local cz = (mn.Z + mx.Z) / 2
+				local face = if (V.door and V.door.z or V.z1) > cz then 1 else -1
+				for _, sx in { mn.X + 0.03, mx.X - 0.03 } do
+					K:box("CounterEnd", V3(0.06, h, mx.Z - mn.Z), CF(sx, yc, cz), look)
+				end
+				local bz = if face > 0 then mn.Z + 0.03 else mx.Z - 0.03
+				K:box("CounterBack", V3(mx.X - mn.X - 0.12, h, 0.06), CF((mn.X + mx.X) / 2, yc, bz), backL)
+				K:box("CounterBackKick", V3(mx.X - mn.X - 0.12, 0.3, 0.02), CF((mn.X + mx.X) / 2, mn.Y + 0.15, bz - face * 0.04), L.black)
+			else
+				local cx = (mn.X + mx.X) / 2
+				local face = if cx > 0 then -1 else 1
+				for _, sz in { mn.Z + 0.03, mx.Z - 0.03 } do
+					K:box("CounterEnd", V3(mx.X - mn.X, h, 0.06), CF(cx, yc, sz), look)
+				end
+				local bx = if face > 0 then mn.X + 0.03 else mx.X - 0.03
+				K:box("CounterBack", V3(0.06, h, mx.Z - mn.Z - 0.12), CF(bx, yc, (mn.Z + mx.Z) / 2), backL)
+				K:box("CounterBackKick", V3(0.02, 0.3, mx.Z - mn.Z - 0.12), CF(bx - face * 0.04, mn.Y + 0.15, (mn.Z + mx.Z) / 2), L.black)
+			end
+		end)
+	end
+end
+
+-- 탭 타워 · 물받이 발자국 근처인가 (코스터 · 소품이 물받이 밑으로 파고들지 않게)
+local function nearTap(V: any, pp: Vector3, pad: number): boolean
+	for _, nm in { "DripTray", "TapBar", "TapPost" } do
+		for _, r in V.byName[nm] or {} do
+			if pp.X > r.min.X - pad and pp.X < r.max.X + pad and pp.Z > r.min.Z - pad and pp.Z < r.max.Z + pad and math.abs(pp.Y - r.min.Y) < 2.5 then
+				return true
+			end
+		end
+	end
+	return false
+end
+
 -- 14) 카운터 위 소품 (코스터 · 바 캐디 · 해피아워 텐트 · 결제 안내) ------------------------------------------------
 local function counterProps(c: any)
 	local K, V, th = c.K, c.V, c.th
@@ -3095,9 +3160,9 @@ local function counterProps(c: any)
 				table.insert(stoolX, sc.X)
 				-- 코스터 (원형 펄프 + 로고 원)
 				local p = V3(sc.X + 0.12, top + 0.01, edgeZ - custZ * 0.42)
-				if clearAt(K, CF(p), V3(0.5, 0.03, 0.5)) then
+				if clearAt(K, CF(p), V3(0.5, 0.03, 0.5)) and not nearTap(V, p, 0.32) then
 					K:disc("Coaster", 0.48, 0.02, CF(p), L.of(236, 226, 204, M.Cardboard))
-					K:disc("CoasterPrint", 0.3, 0.022, CF(p + V3(0, 0.002, 0)), { c = th.neonC:Lerp(rgb(0, 0, 0), 0.25) })
+					K:disc("CoasterPrint", 0.3, 0.02, CF(p + V3(0, 0.008, 0)), { c = th.neonC:Lerp(rgb(0, 0, 0), 0.25) })
 				end
 			end
 		end
@@ -3160,7 +3225,7 @@ local function counterProps(c: any)
 				end
 			elseif used == 3 then
 				-- 간편결제 안내 스탠드
-				Props.menuStand(K, pc * CF(0, 0, 0) * ANG(0, 0, 0), "카드 · 삼성페이\n애플페이 · 카카오페이\n제로페이 결제 가능")
+				menuStand(K, pc, "카드 · 삼성페이\n애플페이 · 카카오페이\n제로페이 결제 가능")
 			elseif used == 4 then
 				-- 기본 안주 (뻥튀기 바구니)
 				K:vcyl("SnackBasket", 0.18, 0.62, pc * CF(0, 0.09, 0), L.rattan)
@@ -3174,7 +3239,7 @@ local function counterProps(c: any)
 		local eb = g.body or g
 		local endX = eb.max.X
 		K:free(function()
-			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.015, 2.4, (eb.min.Z + eb.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), bg = rgb(170, 30, 30), d = 0.01, font = F.GothamBlack })
+			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.002, 2.4, (eb.min.Z + eb.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), bg = rgb(170, 30, 30), d = 0.01, font = F.GothamBlack })
 		end)
 	end
 end
@@ -3689,6 +3754,7 @@ function T.build(K: any, V: any, S: any)
 	local steps = {
 		{ "banquette", banquettes },
 		{ "chairs", chairsOver },
+		{ "countershell", counterShell },
 		{ "backbar", backBar },
 		{ "backtop", backTop },
 		{ "shelfbar", shelfBar },

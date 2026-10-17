@@ -79,7 +79,7 @@ end
 -- vitals panel
 -------------------------------------------------------------------------------------------------
 local TILE_ORDER = { "temp", "bp", "pulse", "spo2", "lung", "throat", "belly", "talk" }
-local TILE_LABEL = { temp = "체온", bp = "혈압", pulse = "맥박", spo2 = "산소포화도", lung = "청진", throat = "인후", belly = "복부", talk = "생활" }
+local TILE_LABEL = { temp = "체온", bp = "혈압", pulse = "맥박", spo2 = "SpO₂", lung = "청진", throat = "인후", belly = "복부", talk = "생활" }
 
 local function buildVitals()
 	for _, c in vitalsCard:GetChildren() do
@@ -121,9 +121,9 @@ local function showResult(kind: string, r: any)
 	if kind == "temp" and r.temp then
 		setTile("temp", string.format("%.1f℃ · %s", r.temp, r.tempClass or ""), r.tempTone)
 	elseif kind == "bp" and r.sys then
-		setTile("bp", string.format("%d/%d mmHg · %s", r.sys, r.dia, r.bpClass or ""), r.bpTone)
+		setTile("bp", string.format("%d/%d · %s", r.sys, r.dia, r.bpClass or ""), r.bpTone)
 		setTile("pulse", string.format("%d회/분", r.pulse), if r.pulse > 100 then "bad" elseif r.pulse > 90 then "warn" else "ok")
-		setTile("spo2", string.format("%d%%", r.spo2), if r.spo2 < 96 then "warn" else "ok")
+		setTile("spo2", string.format("%d%% (산소포화도)", r.spo2), if r.spo2 < 96 then "warn" else "ok")
 	elseif kind == "stetho" and r.lung then
 		setTile("lung", r.lung, if string.find(r.lung, "가래") or string.find(r.lung, "얕") then "warn" else "ok")
 	elseif kind == "throat" and r.throat then

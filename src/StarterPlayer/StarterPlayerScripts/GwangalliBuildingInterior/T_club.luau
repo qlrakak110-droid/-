@@ -41,6 +41,9 @@ local BLACK, WHITE = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
 local _ = Common
 
 -- 작은 도구 ------------------------------------------------------------------------------------------
+-- 거울: 반사율을 낮춘 은회색 유리 (밤에 반사가 하얗게 뜨지 않게)
+local MIRROR = { c = Color3.fromRGB(112, 120, 128), m = Enum.Material.Glass, t = 0, r = 0.12 }
+
 local function lk(c: Color3, m: Enum.Material?, extra: { [string]: any }?): { [string]: any }
 	local t: { [string]: any } = { c = c, m = m or M.SmoothPlastic }
 	if extra then
@@ -179,11 +182,24 @@ local function face(R: any, x: number, y: number, z: number, yaw: number): CFram
 end
 
 -- 정렬 프레임 상자 → keep (방 프레임 AABB)
+-- (방 프레임 AABB 는 회전 때문에 길이 x 0.015 만큼 부풀어서, 긴 상자는 8 스터드 조각으로 나눔)
 local function keepBox(R: any, x0: number, z0: number, x1: number, z1: number, y1: number, kind: string, y0: number?)
 	local yb = y0 or 0.1
-	local c = R.A * CF((x0 + x1) / 2, (yb + y1) / 2, (z0 + z1) / 2)
-	local mn, mx = Kit.laabb(c, V3(math.abs(x1 - x0), y1 - yb, math.abs(z1 - z0)))
-	R.V:addKeep(mn, mx, kind)
+	local ax0, ax1 = math.min(x0, x1), math.max(x0, x1)
+	local az0, az1 = math.min(z0, z1), math.max(z0, z1)
+	local nx = math.max(1, math.ceil((ax1 - ax0) / 8))
+	local nz = math.max(1, math.ceil((az1 - az0) / 8))
+	for i = 0, nx - 1 do
+		for j = 0, nz - 1 do
+			local xa = ax0 + (ax1 - ax0) * i / nx
+			local xb = ax0 + (ax1 - ax0) * (i + 1) / nx
+			local za = az0 + (az1 - az0) * j / nz
+			local zb = az0 + (az1 - az0) * (j + 1) / nz
+			local c = R.A * CF((xa + xb) / 2, (yb + y1) / 2, (za + zb) / 2)
+			local mn, mx = Kit.laabb(c, V3(xb - xa, y1 - yb, zb - za))
+			R.V:addKeep(mn, mx, kind)
+		end
+	end
 end
 
 -- NPC 모형 (HumanoidRootPart 가 있는 모델) 둘레 2 비우기 (실제 게임의 Scan.keepouts 와 같은 폭)
@@ -233,10 +249,17 @@ local function place(R: any, pcf: CFrame, size: Vector3, pad: number?, kind: str
 		R.why = "keep " .. hk
 		return false
 	end
+	-- 맵 가구: 정렬 프레임 AABB 끼리 비교 (긴 난간 · 벽이 방 프레임에서 부풀지 않게)
+	local amnP, amxP = Kit.laabb(R.A:ToObjectSpace(c), size + V3(2 * p, 0, 2 * p))
 	for _, s in V.solid do
 		if not K.hidden[s.part] and not (s.size.Y < 0.15 and s.max.Y < 0.2) and Kit.overlap(mn, mx, s.min, s.max, 0.04) then
-			R.why = "map " .. s.name
-			return false
+			if not s.amin then
+				s.amin, s.amax = abox(R, s)
+			end
+			if Kit.overlap(amnP, amxP, s.amin, s.amax, 0.04) then
+				R.why = "map " .. s.name
+				return false
+			end
 		end
 	end
 	for _, r in K.reserved do
@@ -761,7 +784,7 @@ local function buildCorridor(K: any, V: any, R: any)
 	do
 		local d = wallL(R, -28.9, 3.9, 0)
 		K:plate("FullMirrorFrame", 2.6, 6.2, 0.1, d, Look.blackMetal)
-		K:plate("FullMirror", 2.3, 5.9, 0.12, d, Look.mirror)
+		K:plate("FullMirror", 2.3, 5.9, 0.12, d, MIRROR)
 		K:plate("FullMirrorLED", 2.4, 0.06, 0.13, d * CF(0, 3.0, 0), nl(rgb(255, 230, 210)))
 		K:plate("FullMirrorLED", 2.4, 0.06, 0.13, d * CF(0, -3.0, 0), nl(rgb(255, 230, 210)))
 		txt(K, "MirrorDecal", 1.8, 0.32, d * CF(0, 2.5, 0.13), "오늘 밤도 멋져요 ✦", rgb(255, 220, 240), nil, F.GothamMedium, 1.2)
@@ -1003,7 +1026,7 @@ end
 -- 할리우드 거울 (전구 둘레). dcf 중심, w x h
 local function hollywoodMirror(K: any, dcf: CFrame, w: number, h: number, bulbs: { BasePart })
 	K:plate("HMirrorFrame", w + 0.5, h + 0.5, 0.12, dcf, lk(rgb(244, 236, 230)))
-	K:plate("HMirror", w, h, 0.14, dcf, Look.mirror)
+	K:plate("HMirror", w, h, 0.14, dcf, MIRROR)
 	local function bulb(x: number, y: number)
 		K:vcyl("HBulbSocket", 0.12, 0.16, CF((dcf * CF(x, y, 0.16)).Position) * dcf.Rotation * ANG(PI / 2, 0, 0), Look.chrome)
 		local b = K:ball("HBulb", 0.26, dcf * CF(x, y, 0.28), Look.lampWarm)
@@ -1183,7 +1206,7 @@ local function buildRestroom(K: any, V: any, R: any)
 		do
 			local d = wallL(R, 12.6, 3.8, 0.08)
 			K:plate("FullMirrorFrame", 2.7, 6.4, 0.08, d, Look.goldMetal)
-			K:plate("FullMirror", 2.4, 6.1, 0.1, d, Look.mirror)
+			K:plate("FullMirror", 2.4, 6.1, 0.1, d, MIRROR)
 			for _, sx in { -1, 1 } do
 				K:plate("FullMirrorLED", 0.07, 6.0, 0.11, d * CF(sx * 1.3, 0, 0), nl(ACC2))
 			end
@@ -1216,9 +1239,9 @@ local function buildRestroom(K: any, V: any, R: any)
 			end
 			plant(K, R, -2.85, z1 - 1.3, "snake", 4.6, 1.2, lk(rgb(240, 236, 230), M.Concrete))
 			-- 러브시트 위 액자 (핑크 추상화)
-			Props.frame(K, wallF(R, scx, 6.2, 0), 4.0, 2.6, { frame = Look.goldMetal, mat = lk(rgb(250, 244, 240)), depth = 0.1, art = {
+			artFrame(K, wallF(R, scx, 6.2, 0), 4.0, 2.6, {
 				{ rgb(250, 232, 236), 0, 0, 1, 1 }, { rgb(255, 150, 190), 0.1, 0.15, 0.45, 0.6 }, { rgb(230, 90, 140), 0.45, 0.35, 0.4, 0.5 }, { rgb(255, 214, 120), 0.62, 0.12, 0.2, 0.2 }, { rgb(40, 30, 40), 0.2, 0.82, 0.6, 0.03 },
-			} })
+			}, Look.goldMetal, lk(rgb(250, 244, 240)))
 		end
 		-- 샹들리에 (가운데) + 바닥 대리석 메달리온 --------------------------------------------------------------
 		do
@@ -1257,7 +1280,7 @@ local function buildRestroom(K: any, V: any, R: any)
 		cladLeft(8.6, 19.9)
 		-- 소변기 위 안내문 (한 걸음 더 가까이)
 		K:free(function()
-			local d = wallL(R, -1.1, 5.4, 0)
+			local d = wallL(R, -1.1, 6.75, 0)
 			K:plate("UrinalSignBoard", 15.0, 0.8, 0.04, d, lk(rgb(18, 18, 22)))
 			txt(K, "UrinalSign", 14.6, 0.6, d * CF(0, 0, 0.045), "한 걸음 더 가까이 ·  남자가 흘리지 말아야 할 것은 눈물만이 아닙니다", ACC2, nil, F.GothamBold, 1.3)
 			K:plate("UrinalSignLED", 15.0, 0.05, 0.08, d * CF(0, -0.45, 0), nl(ACC))
@@ -1297,7 +1320,7 @@ local function buildRestroom(K: any, V: any, R: any)
 			end)
 			-- 거울 (가림벽 앞면) + 둥근 LED 후광
 			local md = face(R, gcx, 5.4, pz + 0.5, 0)
-			K:plate("GroomMirror", glen - 0.4, 3.0, 0.05, md, Look.mirror)
+			K:plate("GroomMirror", glen - 0.4, 3.0, 0.05, md, MIRROR)
 			local halo = K:plate("GroomHalo", glen - 0.2, 0.07, 0.06, md * CF(0, 1.56, 0), nl(ACC2))
 			K:plate("GroomHalo", glen - 0.2, 0.07, 0.06, md * CF(0, -1.56, 0), nl(ACC2))
 			table.insert(bulbs, halo)
@@ -1405,12 +1428,54 @@ local function buildRestroom(K: any, V: any, R: any)
 		K:plate("ChecklistClamp", 0.6, 0.16, 0.08, cd * CF(0, 0.82, 0), Look.chrome)
 		txt(K, "ChecklistText", 1.05, 1.36, cd * CF(0, -0.12, 0.055), "청소 점검표\n20:00 ✓ 김\n22:00 ✓ 김\n00:00 ✓ 박\n02:00 ✓ 박\n04:00", rgb(40, 40, 60), nil, F.GothamMedium)
 	end
+	-- 작은 벽 설비: 손 소독제 · 방향제 (+ 여: 생리대 무료 디스펜서, 남: 소변기 센서 · 탈취 패드 · 앞벽 네온) --------------
+	K:free(function()
+		local sd = wallF(R, if female then 8.4 else 8.0, 3.7, 0)
+		K:plate("SanitizerBack", 0.5, 0.9, 0.06, sd, Look.white)
+		K:plate("SanitizerBody", 0.42, 0.6, 0.3, sd * CF(0, 0.05, 0.06), lk(rgb(240, 240, 244)))
+		K:plate("SanitizerWindow", 0.2, 0.25, 0.32, sd * CF(0, 0.12, 0.06), lk(rgb(120, 200, 230), M.Glass, { t = 0.2 }))
+		K:plate("SanitizerNozzle", 0.12, 0.08, 0.36, sd * CF(0, -0.27, 0.06), Look.chrome)
+		txt(K, "SanitizerLabel", 0.5, 0.18, sd * CF(0, -0.6, 0.02), "손 소독제", rgb(30, 90, 160), Look.white.c, F.GothamBold)
+		local ad = wallR(R, -10.8, 7.6, 0)
+		K:plate("AirFreshener", 0.6, 0.8, 0.28, ad, lk(rgb(244, 244, 240)))
+		wdisc(K, "AirFreshenerLED", 0.08, 0.02, ad * CF(0.18, 0.26, 0.28), nl(rgb(60, 230, 120)))
+		K:plate("AirFreshenerGrill", 0.4, 0.12, 0.29, ad * CF(0, -0.2, 0), lk(rgb(180, 180, 184)))
+		if female then
+			local pd = wallF(R, 8.6, 5.6, 0)
+			K:plate("PadDispenser", 1.1, 1.5, 0.4, pd, lk(rgb(250, 236, 242)))
+			K:plate("PadDispenserHead", 1.1, 0.4, 0.42, pd * CF(0, 0.55, 0), lk(rgb(230, 120, 160)))
+			txt(K, "PadDispenserText", 1.0, 0.32, pd * CF(0, 0.55, 0.43), "생리대 무료", WHITE, nil, F.GothamBlack)
+			K:plate("PadDispenserSlot", 0.6, 0.1, 0.43, pd * CF(0, -0.45, 0), Look.black)
+			txt(K, "PadDispenserSub", 1.0, 0.36, pd * CF(0, 0.0, 0.43), "FREE · 1인 1개\n버튼을 누르세요", rgb(120, 60, 80), nil, F.GothamMedium)
+		else
+			-- 소변기마다 센서 + 탈취 패드
+			for _, z in { -8.6, -3.6, 1.4, 6.4 } do
+				local sd2 = wallL(R, z, 4.85, 0)
+				K:plate("UrinalSensor", 0.6, 0.36, 0.12, sd2, lk(rgb(232, 232, 236)))
+				wdisc(K, "UrinalSensorEye", 0.14, 0.02, sd2 * CF(0, 0, 0.12), lk(rgb(30, 30, 34), M.Glass))
+				wdisc(K, "UrinalSensorLED", 0.05, 0.02, sd2 * CF(0.2, 0.08, 0.12), nl(rgb(255, 40, 40)))
+				K:disc("UrinalScreen", 0.55, 0.04, at(R, x0 + 0.62, z, 0, 1.72), lk(rgb(80, 150, 230), M.Plastic))
+			end
+			-- 앞벽 왼쪽 (입구 옆): GENTLEMEN 네온 + 사진 2
+			local nd = wallF(R, -5.6, 7.6, 0)
+			K:plate("GentsNeonBacker", 6.4, 1.3, 0.05, nd, lk(rgb(14, 16, 20)))
+			txt(K, "GentsNeon", 6.0, 1.0, nd * CF(0, 0, 0.07), "GENTLEMEN · 남자", ACC2, nil, F.GothamBlack, 2.2)
+			artFrame(K, wallF(R, -3.6, 4.6, 0.06), 2.6, 3.0, { { rgb(20, 22, 30), 0, 0, 1, 1 }, { rgb(200, 200, 210), 0.2, 0.15, 0.6, 0.5 }, { rgb(60, 140, 255), 0.0, 0.75, 1, 0.04 } }, Look.blackMetal)
+			artFrame(K, wallF(R, -7.6, 4.6, 0.06), 2.6, 3.0, { { rgb(230, 228, 220), 0, 0, 1, 1 }, { rgb(30, 30, 34), 0.3, 0.1, 0.4, 0.7 }, { rgb(200, 40, 50), 0.38, 0.62, 0.24, 0.1 } }, Look.blackMetal)
+		end
+	end)
 	-- 바닥 배수구 2
 	floorDrain(K, R, 2.2, -6.6)
 	floorDrain(K, R, 3.4, 9.0)
 	-- 천장: 다운라이트 · 배기구 · 감지기 · 스프링클러 · 스피커 · 네온 코브 ------------------------------------
 	for i, z in { -0.4, 5.6, 11.6 } do
-		downlight(K, R, vanX - 0.4, z, { light = i ~= 2, range = 12, bright = 0.9, angle = 70, glow = Look.lampNeutral, color = rgb(255, 236, 220) })
+		downlight(K, R, vanX - 0.4, z, { light = i == 2, range = 12, bright = 0.9, angle = 80, glow = Look.lampNeutral, color = rgb(255, 236, 220) })
+	end
+	-- 칸 앞 코브 (칸 문 · 칸막이를 비춤)
+	cove(K, R, (if female then x0 else -4.0) + 0.6, -10.4, x1 - 0.6, -10.4, H - 0.1, rgb(255, 226, 200), 0.6, 11)
+	if not female then
+		-- 소변기 · 청소 코너 쪽 왼벽 코브
+		cove(K, R, x0 + 0.9, z0 + 0.8, x0 + 0.9, 11.6, H - 0.1, rgb(220, 232, 255), 0.6, 11)
 	end
 	for _, s in stalls do
 		downlight(K, R, (s[1] + s[2]) / 2, z0 + 4.0, { light = (s[1] > 0 and s[2] > 6), range = 11, bright = 0.7 })
@@ -1421,7 +1486,7 @@ local function buildRestroom(K: any, V: any, R: any)
 		end
 	else
 		for _, z in { -8.6, -3.6, 1.4, 6.4 } do
-			downlight(K, R, x0 + 1.8, z, { light = z == -3.6, range = 11, bright = 0.8, angle = 70 })
+			downlight(K, R, x0 + 2.4, z, {})
 		end
 	end
 	vent(K, R, if female then 2.0 else 3.6, 14.4, 1.6)
@@ -1533,42 +1598,43 @@ local function graffiti(K: any, dcf: CFrame, w: number, h: number, word: string,
 	-- 2) 글자: 그림자 (3D 블록) + 흰 외곽 + 채움
 	local tw, th = w * 0.92, h * (op.wordH or 0.56)
 	local ty = op.wordY or h * 0.04
-	txt(K, "GraffitiShadow", tw, th, dcf * CF(0.22, ty - 0.24, 0.06), word, pal.out, nil, F.LuckiestGuy)
-	txt(K, "GraffitiOutline", tw * 1.04, th * 1.06, dcf * CF(0, ty, 0.07), word, pal.edge or WHITE, nil, F.LuckiestGuy)
-	txt(K, "GraffitiFill", tw, th, dcf * CF(0, ty, 0.08), word, pal.fill, nil, F.LuckiestGuy, op.glow)
+	local far = { maxDist = 150, d = 0.01 }
+	txt(K, "GraffitiShadow", tw, th, dcf * CF(0.22, ty - 0.24, 0.05), word, pal.out, nil, F.LuckiestGuy, nil, far)
+	txt(K, "GraffitiOutline", tw * 1.04, th * 1.06, dcf * CF(0, ty, 0.085), word, pal.edge or WHITE, nil, F.LuckiestGuy, 0.9, far)
+	txt(K, "GraffitiFill", tw, th, dcf * CF(0, ty, 0.12), word, pal.fill, nil, F.LuckiestGuy, op.glow or 1.15, far)
 	-- 3) 흘러내림 (드립)
 	local nd = if lowD(K) then 3 else 7
 	for i = 1, nd do
 		local x = (rnd(seed, i + 40) - 0.5) * tw * 0.86
 		local len = h * (0.1 + 0.22 * rnd(seed, i + 50))
 		local y0 = ty - th * 0.36
-		K:plate("GraffitiDrip", 0.1, len, 0.02, dcf * CF(x, y0 - len / 2, 0.08), lk(pal.fill))
-		K:ell("GraffitiDripEnd", V3(0.17, 0.22, 0.05), dcf * CF(x, y0 - len, 0.09), lk(pal.fill))
+		K:plate("GraffitiDrip", 0.1, len, 0.02, dcf * CF(x, y0 - len / 2, 0.1), nl(dk(pal.fill, 0.25)))
+		K:ell("GraffitiDripEnd", V3(0.17, 0.22, 0.05), dcf * CF(x, y0 - len, 0.11), nl(dk(pal.fill, 0.25)))
 	end
 	-- 4) 반짝이 (하이라이트 획 + 4각 별)
 	for i = 1, 3 do
 		local x = (rnd(seed, i + 60) - 0.5) * tw * 0.8
-		K:plate("GraffitiShine", 0.55, 0.09, 0.02, dcf * CF(x, ty + th * 0.18, 0.1) * ANG(0, 0, 0.45), lk(pal.hl or WHITE))
+		K:plate("GraffitiShine", 0.55, 0.09, 0.02, dcf * CF(x, ty + th * 0.18, 0.14) * ANG(0, 0, 0.45), nl(pal.hl or WHITE))
 	end
 	for i = 1, (if lowD(K) then 1 else 3) do
 		local x = (rnd(seed, i + 70) - 0.5) * w * 0.9
 		local y = (rnd(seed, i + 80) - 0.2) * h * 0.5
 		local s = 0.35 + rnd(seed, i + 90) * 0.4
-		K:plate("GraffitiStar", s, 0.08, 0.02, dcf * CF(x, y, 0.11), lk(WHITE))
-		K:plate("GraffitiStar", 0.08, s, 0.02, dcf * CF(x, y, 0.11), lk(WHITE))
+		K:plate("GraffitiStar", s, 0.08, 0.02, dcf * CF(x, y, 0.14), nl(WHITE))
+		K:plate("GraffitiStar", 0.08, s, 0.02, dcf * CF(x, y, 0.14), nl(WHITE))
 	end
 	-- 5) 태그 (작은 손글씨)
 	for i, t in op.tags or {} do
 		local x = (rnd(seed, i + 100) - 0.5) * w * 0.8
 		local y = -h * 0.36 + (rnd(seed, i + 110) - 0.5) * h * 0.14
 		local c = ({ WHITE, rgb(255, 230, 60), rgb(60, 230, 255), rgb(255, 90, 180), rgb(140, 255, 120) })[(i + seed) % 5 + 1]
-		txt(K, "GraffitiTag", w * 0.28, h * 0.13, dcf * CF(x, y, 0.12) * ANG(0, 0, (rnd(seed, i + 120) - 0.5) * 0.3), t, c, nil, F.PermanentMarker)
+		txt(K, "GraffitiTag", w * 0.28, h * 0.13, dcf * CF(x, y, 0.15) * ANG(0, 0, (rnd(seed, i + 120) - 0.5) * 0.3), t, c, nil, F.PermanentMarker, 1.0, far)
 	end
 	if op.sub then
-		txt(K, "GraffitiSub", w * 0.6, h * 0.14, dcf * CF(w * 0.12, ty + th * 0.55, 0.11) * ANG(0, 0, 0.06), op.sub, op.subC or rgb(255, 236, 90), nil, F.PermanentMarker)
+		txt(K, "GraffitiSub", w * 0.6, h * 0.14, dcf * CF(w * 0.12, ty + th * 0.55, 0.15) * ANG(0, 0, 0.06), op.sub, op.subC or rgb(255, 236, 90), nil, F.PermanentMarker, 1.1, far)
 	end
 	if op.crown then
-		txt(K, "GraffitiCrown", h * 0.36, h * 0.3, dcf * CF(-tw * 0.36, ty + th * 0.52, 0.11) * ANG(0, 0, 0.2), "♛", rgb(255, 214, 60), nil, F.GothamBlack)
+		txt(K, "GraffitiCrown", h * 0.36, h * 0.3, dcf * CF(-tw * 0.36, ty + th * 0.52, 0.15) * ANG(0, 0, 0.2), "♛", rgb(255, 214, 60), nil, F.GothamBlack, 1.2, far)
 	end
 	if op.arrow then
 		local a = dcf * CF(tw * 0.38, -h * 0.32, 0.1)
@@ -1888,8 +1954,8 @@ local function buildHipHop(K: any, V: any, R: any)
 				local sd = d * CF(-4.2, y - 5.0, 0)
 				K:box("MerchShelf", V3(9.0, 0.1, 1.1), sd * CF(0, 0, 0.6), gl(rgb(220, 230, 236), 0.45))
 				local led = K:box("MerchShelfLED", V3(8.9, 0.04, 0.05), sd * CF(0, -0.06, 1.13), nl(rgb(230, 240, 255)))
-				if row == 1 then
-					K:light(led, "SurfaceLight", { Face = Enum.NormalId.Back, Range = 9, Brightness = 0.9, Angle = 120, Color = rgb(220, 236, 255) })
+				if row == 2 then
+					K:light(led, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 10, Brightness = 1.3, Angle = 170, Color = rgb(220, 236, 255) })
 				end
 				for k = 0, 3 do
 					local c = SNK[((row * 4 + k) % #SNK) + 1]
@@ -2552,7 +2618,7 @@ local function buildLounge(K: any, V: any, R: any)
 		end
 		-- 스탠드 스피커 2
 		for _, sx in { -1, 1 } do
-			local sc = at(R, xc + sx * 4.6, zc + 0.2)
+			local sc = at(R, xc + sx * 4.75, zc + 0.2)
 			if placeOr(R, sc, V3(1.6, 6.2, 1.6), 0, "speaker stand") then
 				for k = 0, 2 do
 					local a = k * 2 * PI / 3 + PI / 6
@@ -2874,6 +2940,623 @@ local function buildLounge(K: any, V: any, R: any)
 end
 
 --=====================================================================================================
+-- OCEAN ROOFTOP (rooftop) ---------------------------------------------------------------------------
+--=====================================================================================================
+-- 파라솔 (돔 캔버스 + 살 8 + 가장자리 전구 8). 정렬 x, z, 반지름, 높이
+local function parasol(K: any, R: any, x: number, z: number, r: number, h: number, c: Color3, bulbs: { BasePart }?)
+	local base = at(R, x, z)
+	K:disc("ParasolBase", 1.4, 0.3, base * CF(0, 0.15, 0), lk(rgb(40, 40, 42), M.Concrete))
+	K:vcyl("ParasolPole", h - 0.2, 0.18, base * CF(0, (h - 0.2) / 2 + 0.25, 0), lk(rgb(220, 214, 200), M.Wood))
+	K:ell("ParasolCanopy", V3(2 * r, 0.7, 2 * r), base * CF(0, h, 0), lk(c, M.Fabric))
+	K:ball("ParasolFinial", 0.3, base * CF(0, h + 0.4, 0), lk(rgb(220, 214, 200), M.Wood))
+	for k = 0, 7 do
+		local a = k * PI / 4
+		K:seg("ParasolRib", (base * CF(0, h - 0.6, 0)).Position, (base * CF(math.cos(a) * r * 0.96, h - 0.12, math.sin(a) * r * 0.96)).Position, 0.06, lk(rgb(220, 214, 200), M.Wood))
+		local b = K:ball("ParasolBulb", 0.22, base * CF(math.cos(a + PI / 8) * r * 0.9, h - 0.4, math.sin(a + PI / 8) * r * 0.9), Look.lampWarm)
+		if bulbs then
+			table.insert(bulbs, b)
+		end
+	end
+	K:ring("ParasolValance", base * CF(0, h - 0.18, 0) * ANG(PI / 2, 0, 0), r * 0.98, 0.12, 12, lk(rgb(240, 236, 226), M.Fabric))
+end
+
+-- 바닥 랜턴 (검은 철 + 유리 + 촛불 빛). pcf 바닥
+local function lantern(K: any, pcf: CFrame, h: number, glows: { BasePart }?)
+	local w = h * 0.42
+	K:box("LanternBase", V3(w + 0.1, 0.12, w + 0.1), pcf * CF(0, 0.06, 0), Look.blackMetal)
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:box("LanternPost", V3(0.07, h * 0.78, 0.07), pcf * CF(sx * w / 2, 0.12 + h * 0.39, sz * w / 2), Look.blackMetal)
+		end
+	end
+	K:box("LanternGlass", V3(w - 0.05, h * 0.74, w - 0.05), pcf * CF(0, 0.14 + h * 0.37, 0), gl(rgb(255, 236, 210), 0.65))
+	local g = K:vcyl("LanternCandle", h * 0.28, w * 0.4, pcf * CF(0, 0.12 + h * 0.14, 0), Look.lampWarm)
+	if glows then
+		table.insert(glows, g)
+	end
+	K:wedge("LanternRoofA", V3(w + 0.2, h * 0.14, (w + 0.2) / 2), pcf * CF(0, 0.12 + h * 0.85, -(w + 0.2) / 4) * ANG(0, PI, 0), Look.blackMetal)
+	K:wedge("LanternRoofB", V3(w + 0.2, h * 0.14, (w + 0.2) / 2), pcf * CF(0, 0.12 + h * 0.85, (w + 0.2) / 4), Look.blackMetal)
+	K:ring("LanternHandle", pcf * CF(0, 0.12 + h * 0.95, 0), w * 0.3, 0.05, 6, Look.blackMetal, 0, PI)
+end
+
+local function buildRooftop(K: any, V: any, R: any)
+	local x0, x1, z0, z1 = R.x0, R.x1, R.z0, R.z1
+	local WARM = rgb(255, 204, 150)
+	local teak = lk(rgb(150, 104, 64), M.Wood)
+	local whiteWood = lk(rgb(232, 226, 214), M.Wood)
+	local rope = lk(rgb(214, 196, 160), M.Fabric)
+	local cushion = lk(rgb(232, 226, 212), M.Fabric)
+	-- 비울 곳 ------------------------------------------------------------------------------------------
+	keepBox(R, 19.5, 49.5, 25.0, 59.5, 9, "door") -- 라운지 문
+	keepBox(R, 3.0, 49.5, 19.5, 59.5, 6.8, "lane") -- 문 -> 가운데 산책로
+	keepBox(R, -7.0, -46.0, 3.0, 70.0, 6.8, "promenade") -- 가운데 산책로 (히터 줄)
+	keepBox(R, 3.0, -46.0, 14.8, -41.0, 6.5, "lane") -- 산책로 -> 바
+	keepBox(R, 10.5, -70.0, 13.6, -45.0, 6.5, "bar front")
+	keepBox(R, -15.6, -38.0, -13.6, 63.0, 6.5, "daybed front")
+	-- 데이베드 · 소파 위치 (맵에서)
+	local daybeds = {}
+	for _, r in V.byName.DaybedBase or {} do
+		local mn, mx = abox(R, r)
+		table.insert(daybeds, { x0 = mn.X, x1 = mx.X, z0 = mn.Z, z1 = mx.Z })
+	end
+	table.sort(daybeds, function(a, b)
+		return a.z0 < b.z0
+	end)
+
+	local moodParts: { BasePart } = {}
+	local glows: { BasePart } = {}
+
+	-- 1) 루프탑 바: 퍼걸러 · 백바 2 + 헤더 선반 · 탭 · POS · 아이스웰 · 스툴 · 메뉴 ------------------------------------
+	local bz0, bz1 = -67.5, -47.5
+	do
+		-- 퍼걸러 기둥 4 + 보 + 살
+		local px0, px1 = 15.7, 25.9
+		local pz0, pz1 = bz0 - 2.6, bz1 + 2.6
+		local okP = true
+		for _, p in { { px0, pz0 }, { px0, pz1 }, { px1, pz0 }, { px1, pz1 } } do
+			if not place(R, at(R, p[1], p[2]), V3(0.5, 9.6, 0.5), 0, "pergola post") then
+				okP = false
+				K:note("pergola post blocked " .. tostring(R.why))
+			end
+		end
+		if okP then
+			K:free(function()
+				for _, p in { { px0, pz0 }, { px0, pz1 }, { px1, pz0 }, { px1, pz1 } } do
+					K:box("PergolaPost", V3(0.45, 9.6, 0.45), at(R, p[1], p[2], 0, 4.8), teak)
+					K:box("PergolaFoot", V3(0.7, 0.2, 0.7), at(R, p[1], p[2], 0, 0.1), Look.blackMetal)
+				end
+				for _, x in { px0, px1 } do
+					K:box("PergolaBeam", V3(0.4, 0.7, pz1 - pz0 + 1.0), at(R, x, (pz0 + pz1) / 2, 0, 9.85), teak)
+				end
+				for k = 0, 12 do
+					local z = pz0 - 0.2 + k * (pz1 - pz0 + 0.4) / 12
+					K:box("PergolaSlat", V3(px1 - px0 + 1.0, 0.35, 0.22), at(R, (px0 + px1) / 2, z, 0, 10.35), teak)
+				end
+			end)
+			-- 펜던트 3 (바 위, 퍼걸러에 매달림)
+			K:free(function()
+				for k = 0, 2 do
+					local z = bz0 + 3.5 + k * 6.5
+					local px = 19.0
+					K:seg("BarPendantCord", ap(R, px, 10.2, z), ap(R, px, 8.6, z), 0.04, Look.black)
+					K:vcyl("BarPendantShade", 0.7, 1.0, at(R, px, z, 0, 8.25), lk(rgb(40, 40, 42), M.Metal))
+					local b = K:ell("BarPendantBulb", V3(0.4, 0.5, 0.4), at(R, px, z, 0, 7.85), Look.lampWarm)
+					if k == 1 then
+						K:light(b, "PointLight", { Range = 16, Brightness = 1.0, Color = WARM })
+					end
+				end
+			end)
+		end
+		-- 바 앞면 라탄 패널 (카운터 앞 x 16.0)
+		K:free(function()
+			local fd = face(R, 15.98, 2.0, (bz0 + bz1) / 2, -PI / 2)
+			K:plate("BarFrontRattan", bz1 - bz0 - 0.2, 3.0, 0.04, fd, lk(rgb(196, 160, 110), M.Fabric))
+			for k = 0, 9 do
+				K:plate("BarFrontRib", 0.12, 3.0, 0.06, fd * CF(-(bz1 - bz0) / 2 + 1.0 + k * 2.0, 0, 0), teak)
+			end
+		end)
+		-- 백바 구간 2 (바텐더 자리 비움): z -67.4..-61.6 , -53.4..-47.6
+		local backL: BasePart? = nil
+		for si, seg in { { -67.4, -61.6 }, { -53.4, -47.6 } } do
+			local zc = (seg[1] + seg[2]) / 2
+			local len = seg[2] - seg[1]
+			local u = at(R, 25.55, zc)
+			if placeOr(R, u, V3(1.4, 7.6, len), 0, "back bar") then
+				K:box("BackBarBody", V3(1.3, 3.3, len), u * CF(0, 1.65, 0), lk(rgb(40, 34, 30), M.Wood))
+				K:box("BackBarTop", V3(1.4, 0.1, len + 0.1), u * CF(0, 3.35, 0), Look.steel)
+				for k = 0, 2 do
+					K:box("BackBarDoor", V3(0.05, 2.7, len / 3 - 0.12), u * CF(-0.66, 1.75, -len / 2 + (k + 0.5) * len / 3), lk(rgb(56, 46, 40), M.Wood))
+				end
+				-- 위 유리 선반 2 + 라벨 병
+				for row = 0, 1 do
+					local y = 4.6 + row * 1.5
+					K:box("BackBarShelf", V3(1.0, 0.06, len), u * CF(0.1, y, 0), gl(rgb(220, 230, 236), 0.4))
+					local n = math.floor(len / 0.55)
+					for k = 0, n - 1 do
+						local bzz = -len / 2 + (k + 0.5) * len / n
+						local hgt = 0.9 + rnd(si * 7 + row, k) * 0.3
+						local col = ({ rgb(120, 70, 30), rgb(30, 90, 50), rgb(200, 200, 210), rgb(90, 30, 20), rgb(220, 170, 60), rgb(40, 40, 60) })[(k + row + si) % 6 + 1]
+						local bc = u * CF(0.05, y + 0.03, bzz)
+						K:vcyl("BackBarBottle", hgt * 0.65, 0.32, bc * CF(0, hgt * 0.33, 0), lk(col, M.Glass, { t = 0.2 }))
+						K:vcyl("BackBarNeck", hgt * 0.3, 0.12, bc * CF(0, hgt * 0.8, 0), lk(col, M.Glass, { t = 0.2 }))
+						if hi(K) then
+							K:plate("BackBarLabel", 0.22, 0.24, 0.01, face(R, 25.6 - 0.17, y + 0.03 + hgt * 0.3, zc + bzz, -PI / 2), lk(rgb(240, 232, 214)))
+						end
+					end
+				end
+				K:box("BackBarBack", V3(0.08, 4.2, len), u * CF(0.62, 5.45, 0), lk(rgb(30, 26, 22), M.Wood))
+				local led = K:box("BackBarLED", V3(0.05, 3.8, 0.06), u * CF(0.55, 5.4, -len / 2 + 0.1), Look.lampWarm)
+				K:box("BackBarLED", V3(0.05, 3.8, 0.06), u * CF(0.55, 5.4, len / 2 - 0.1), Look.lampWarm)
+				if si == 1 then
+					backL = led
+				end
+				local tcf = u * CF(-0.1, 3.4, 0)
+				if si == 1 then
+					-- 생맥주 탭 타워 3
+					K:box("TapTower", V3(0.4, 1.4, 1.8), tcf * CF(0, 0.7, 0), Look.chrome)
+					for k = -1, 1 do
+						K:box("TapHandle", V3(0.14, 0.9, 0.14), tcf * CF(-0.3, 1.25, k * 0.55), lk(({ rgb(240, 200, 40), rgb(30, 120, 60), rgb(200, 40, 40) })[k + 2]))
+						K:box("TapSpout", V3(0.25, 0.08, 0.08), tcf * CF(-0.3, 0.8, k * 0.55), Look.chrome)
+					end
+					txt(K, "TapLabel", 1.8, 0.34, face(R, 24.86, 2.9, zc, -PI / 2), "생맥주 · 수제 IPA · 하이볼", WHITE, rgb(20, 20, 20), F.GothamBold)
+					K:box("GlassRack", V3(1.0, 0.4, 1.8), tcf * CF(0, 0.2, 2.0), Look.steel)
+					for k = 0, 5 do
+						K:vcyl("RackGlass", 0.5, 0.3, tcf * CF(-0.25 + (k % 2) * 0.5, 0.65, 1.4 + math.floor(k / 2) * 0.5), gl(rgb(230, 236, 240), 0.55))
+					end
+				else
+					-- POS + 영수증 프린터 + 카드 단말기
+					K:box("POSStand", V3(0.3, 0.6, 0.3), tcf * CF(0, 0.3, -1.6), Look.alu)
+					K:box("POSScreen", V3(0.08, 0.9, 1.3), tcf * CF(-0.1, 0.95, -1.6) * ANG(0, 0, 0.25), lk(rgb(20, 20, 24)))
+					K:box("POSDisplay", V3(0.02, 0.8, 1.2), tcf * CF(-0.15, 0.95, -1.6) * ANG(0, 0, 0.25), nl(rgb(60, 140, 220)))
+					K:box("ReceiptPrinter", V3(0.6, 0.45, 0.6), tcf * CF(0, 0.22, -0.7), lk(rgb(40, 40, 44)))
+					K:box("CardTerminal", V3(0.4, 0.14, 0.7), tcf * CF(0, 0.07, 0.1), lk(rgb(40, 40, 44)))
+					K:vcyl("TipJar", 0.6, 0.42, tcf * CF(0, 0.3, 1.0), gl(rgb(230, 240, 240), 0.5))
+					K:box("CitrusTray", V3(0.8, 0.12, 1.4), tcf * CF(0, 0.06, 2.1), Look.steel)
+					for k = 0, 3 do
+						K:ball("Lime", 0.3, tcf * CF(-0.2 + (k % 2) * 0.35, 0.25, 1.7 + math.floor(k / 2) * 0.5), lk(if k % 2 == 0 then rgb(120, 190, 60) else rgb(250, 210, 40)))
+					end
+				end
+			end
+		end
+		if backL then
+			K:light(backL :: BasePart, "SurfaceLight", { Face = Enum.NormalId.Left, Range = 8, Brightness = 0.9, Angle = 150, Color = WARM })
+		end
+		-- 헤더 선반 (바텐더 머리 위, 두 백바 사이 전체) + 간판
+		K:free(function()
+			local hz = (bz0 + bz1) / 2
+			local h = at(R, 25.55, hz, 0, 6.8)
+			K:box("BackBarHeader", V3(1.3, 0.9, 19.8), h, lk(rgb(30, 26, 22), M.Wood))
+			K:box("BackBarHeaderLED", V3(0.05, 0.06, 19.6), h * CF(-0.66, -0.4, 0), nl(WARM))
+			txt(K, "BackBarSign", 9.0, 0.7, face(R, 24.88, 6.85, hz, -PI / 2), "OCEAN ROOFTOP BAR · 광안리", rgb(255, 214, 160), nil, F.GothamBlack, 1.6)
+		end)
+		-- 아이스웰 + 스피드레일 (카운터 안쪽 끝)
+		K:free(function()
+			for _, zc in { -64.5, -50.0 } do
+				local ic = at(R, 22.55, zc, 0, 2.9)
+				K:box("IceWell", V3(1.1, 1.0, 3.0), ic, Look.steel)
+				K:box("IceWellIce", V3(0.9, 0.05, 2.8), ic * CF(0, 0.48, 0), lk(rgb(236, 244, 250), M.Ice))
+				K:box("SpeedRail", V3(0.3, 0.5, 3.0), ic * CF(0.7, -0.25, 0), Look.steel)
+				for k = 0, 4 do
+					K:vcyl("RailBottle", 1.0, 0.28, ic * CF(0.7, 0.25, -1.2 + k * 0.6), lk(({ rgb(220, 220, 230), rgb(140, 80, 30), rgb(30, 90, 50) })[k % 3 + 1], M.Glass, { t = 0.2 }))
+				end
+			end
+		end)
+		-- 스툴 6 (카운터 앞)
+		for k = 0, 5 do
+			local z = bz0 + 1.6 + k * 3.35
+			local sp = at(R, 14.6, z)
+			if place(R, sp, V3(1.2, 3.0, 1.2), 0, "bar stool") then
+				barStool(K, sp, 2.8, lk(rgb(196, 160, 110), M.Fabric), teak)
+			end
+		end
+		-- 바 위 매달린 라이트박스 메뉴 (장식) + 바닥 메뉴 스탠드 (상호작용)
+		K:free(function()
+			local md = face(R, 15.55, 8.6, (bz0 + bz1) / 2, -PI / 2)
+			K:plate("HangMenuBox", 6.0, 1.6, 0.3, md, Look.black)
+			txt(K, "HangMenuText", 5.7, 1.3, md * CF(0, 0, 0.31), "HIGHBALL 13,000 · DRAFT 9,000 · COCKTAIL 16,000", rgb(255, 230, 190), nil, F.GothamBold, 1.5)
+			for _, sx in { -1, 1 } do
+				K:seg("HangMenuChain", (md * CF(sx * 2.6, 0.8, 0.15)).Position, ap(R, 15.7, 9.5, (bz0 + bz1) / 2 + sx * 2.6), 0.04, Look.chrome)
+			end
+		end)
+	end
+	local menuLabel: TextLabel? = nil
+	local menuPart: BasePart? = nil
+	do
+		local mx, mz = 4.6, -39.4
+		local scf = at(R, mx, mz, 0)
+		if placeOr(R, scf, V3(2.0, 4.6, 1.6), 0, "menu stand") then
+			K:box("MenuStandFootA", V3(1.8, 0.1, 0.12), scf * CF(0, 0.05, -0.6), Look.blackMetal)
+			K:box("MenuStandFootB", V3(1.8, 0.1, 0.12), scf * CF(0, 0.05, 0.6), Look.blackMetal)
+			for _, sx in { -1, 1 } do
+				K:seg("MenuStandLeg", ap(R, mx - sx * 0.85, 0.1, mz + 0.6), ap(R, mx - sx * 0.85, 4.2, mz), 0.08, teak)
+				K:seg("MenuStandLeg", ap(R, mx - sx * 0.85, 0.1, mz - 0.6), ap(R, mx - sx * 0.85, 4.2, mz), 0.08, teak)
+			end
+			menuPart = K:box("MenuStandBoard", V3(1.7, 3.0, 0.08), scf * CF(0, 2.3, 0.3) * ANG(math.rad(10), 0, 0), lk(rgb(26, 30, 28)))
+			local _, lab = txt(K, "MenuStandText", 1.55, 2.8, scf * CF(0, 2.3, 0.35) * ANG(math.rad(10), 0, 0), "TODAY'S BAR\n\n하이볼 2+1\n19:00 - 21:00\n\n← 메뉴 넘기기", rgb(250, 246, 236), nil, F.PermanentMarker)
+			menuLabel = lab
+		end
+	end
+
+	-- 2) DJ 코너 (동쪽 끝 가운데): 플라이트 케이스 부스 + 스탠드 스피커 2 + 서브 ----------------------------------------
+	local djKnob: BasePart? = nil
+	do
+		local xc, zc = -4.0, z0 + 4.4
+		local b = at(R, xc, zc)
+		if placeOr(R, b, V3(7.4, 4.2, 2.2), 0, "rooftop dj") then
+			K:box("RTDJCase", V3(7.0, 3.2, 1.8), b * CF(0, 1.6, 0), lk(rgb(26, 26, 28), M.DiamondPlate))
+			for _, y in { 0.06, 3.14 } do
+				K:box("RTDJEdge", V3(7.04, 0.1, 1.84), b * CF(0, y, 0), Look.alu)
+			end
+			for _, sx in { -1, 1 } do
+				K:box("RTDJCorner", V3(0.14, 3.2, 0.14), b * CF(sx * 3.45, 1.6, 0.86), Look.chrome)
+			end
+			local led = K:box("RTDJLED", V3(6.6, 0.1, 0.05), b * CF(0, 2.6, 0.92), nl(rgb(60, 200, 255)))
+			table.insert(moodParts, led)
+			txt(K, "RTDJText", 4.4, 0.8, b * CF(0, 1.5, 0.92), "OCEAN ROOFTOP · SUNSET SESSION", rgb(255, 230, 200), nil, F.GothamBlack, 1.3)
+			local top = b * CF(0, 3.25, -0.2)
+			for _, sx in { -1, 1 } do
+				K:box("RTCDJ", V3(1.3, 0.24, 1.5), top * CF(sx * 1.6, 0.12, 0), lk(rgb(24, 24, 26)))
+				K:disc("RTCDJWheel", 0.95, 0.05, top * CF(sx * 1.6, 0.27, 0.15), lk(rgb(60, 62, 66), M.Metal))
+			end
+			djKnob = K:box("RTMixer", V3(1.1, 0.26, 1.4), top * CF(0, 0.13, 0), lk(rgb(30, 30, 32)))
+			for k = 0, 3 do
+				K:box("RTFader", V3(0.06, 0.04, 0.4), top * CF(-0.36 + k * 0.24, 0.28, 0.3), Look.chrome)
+			end
+			K:box("RTLaptop", V3(1.2, 0.8, 0.03), top * CF(2.9, 0.7, -0.4) * ANG(math.rad(-15), 0, 0), Look.alu)
+			local djl = K:box("RTDJLight", V3(0.1, 0.1, 0.1), b * CF(0, 6.5, 1.5), lk(BLACK, nil, { t = 1 }))
+			K:light(djl, "PointLight", { Range = 14, Brightness = 0.9, Color = rgb(120, 160, 255) })
+		end
+		for _, sx in { -1, 1 } do
+			local sc = at(R, xc + sx * 4.8, zc + 0.4)
+			if placeOr(R, sc, V3(1.8, 6.4, 1.8), 0, "rooftop speaker") then
+				K:box("RTSub", V3(1.7, 1.6, 1.7), sc * CF(0, 0.8, 0), lk(rgb(24, 24, 26)))
+				K:disc("RTSubCone", 1.2, 0.04, sc * CF(0, 0.8, 0.87) * ANG(PI / 2, 0, 0), lk(rgb(40, 40, 44), M.DiamondPlate))
+				K:vcyl("RTSpkPole", 2.2, 0.12, sc * CF(0, 2.7, 0), Look.blackMetal)
+				local body = sc * CF(0, 4.9, 0) * ANG(0, -sx * 0.25, 0)
+				K:box("RTTop", V3(1.4, 2.2, 1.2), body, lk(rgb(24, 24, 26)))
+				K:box("RTTopGrille", V3(1.3, 2.1, 0.03), body * CF(0, 0, 0.61), lk(rgb(46, 46, 50), M.DiamondPlate))
+			end
+		end
+	end
+
+	-- 3) 데이베드 카바나 (기둥 4 + 지붕 천 + 묶은 커튼) + 랜턴 ------------------------------------------------------
+	local cabanaCurtains: { BasePart } = {}
+	for di, d in daybeds do
+		local cx0, cx1 = d.x0 - 0.45, d.x1 + 0.45
+		local cz0, cz1 = d.z0 - 0.45, d.z1 + 0.45
+		local ok = true
+		for _, p in { { cx0, cz0 }, { cx0, cz1 }, { cx1, cz0 }, { cx1, cz1 } } do
+			if not place(R, at(R, p[1], p[2]), V3(0.36, 8.4, 0.36), 0, "cabana post") then
+				ok = false
+			end
+		end
+		if ok then
+			K:free(function()
+				for _, p in { { cx0, cz0 }, { cx0, cz1 }, { cx1, cz0 }, { cx1, cz1 } } do
+					K:box("CabanaPost", V3(0.32, 8.4, 0.32), at(R, p[1], p[2], 0, 4.2), whiteWood)
+				end
+				for _, z in { cz0, cz1 } do
+					K:box("CabanaBeam", V3(cx1 - cx0 + 0.3, 0.3, 0.3), at(R, (cx0 + cx1) / 2, z, 0, 8.35), whiteWood)
+				end
+				for _, x in { cx0, cx1 } do
+					K:box("CabanaBeam", V3(0.3, 0.3, cz1 - cz0 + 0.3), at(R, x, (cz0 + cz1) / 2, 0, 8.35), whiteWood)
+				end
+				K:box("CabanaRoof", V3(cx1 - cx0, 0.06, cz1 - cz0), at(R, (cx0 + cx1) / 2, (cz0 + cz1) / 2, 0, 8.55), lk(rgb(246, 242, 232), M.Fabric))
+				K:box("CabanaValance", V3(cx1 - cx0 + 0.4, 0.6, 0.06), at(R, (cx0 + cx1) / 2, cz1 + 0.15, 0, 8.1), lk(rgb(246, 242, 232), M.Fabric))
+				K:box("CabanaValance", V3(cx1 - cx0 + 0.4, 0.6, 0.06), at(R, (cx0 + cx1) / 2, cz0 - 0.15, 0, 8.1), lk(rgb(246, 242, 232), M.Fabric))
+				-- 묶은 커튼 (기둥마다)
+				for _, p in { { cx0, cz0 }, { cx0, cz1 }, { cx1, cz0 }, { cx1, cz1 } } do
+					K:ell("CabanaDrape", V3(0.7, 7.6, 0.7), at(R, p[1] + (if p[1] > -20 then -0.35 else 0.35), p[2], 0, 4.3), lk(rgb(246, 242, 232), M.Fabric, { t = 0.1 }))
+					K:box("CabanaTie", V3(0.75, 0.12, 0.75), at(R, p[1] + (if p[1] > -20 then -0.35 else 0.35), p[2], 0, 3.4), rope)
+				end
+				-- 앞 커튼 (닫힘 상태, 처음엔 안 보임)
+				if di == 3 then
+					for _, z in { cz0 + (cz1 - cz0) * 0.25, cz0 + (cz1 - cz0) * 0.75 } do
+						local cp = K:box("CabanaCurtain", V3(0.06, 7.8, (cz1 - cz0) / 2 - 0.1), at(R, cx1 - 0.05, z, 0, 4.2), lk(rgb(246, 242, 232), M.Fabric, { t = 1 }))
+						table.insert(cabanaCurtains, cp)
+					end
+				end
+			end)
+		end
+		-- 랜턴 2 (데이베드 앞 모서리)
+		for _, z in { d.z0 + 0.6, d.z1 - 0.6 } do
+			local lc = at(R, d.x1 + 0.7, z)
+			if place(R, lc, V3(1.0, 2.2, 1.0), 0, "lantern") then
+				lantern(K, lc, 2.0, glows)
+			end
+		end
+		-- 사이드 테이블 (데이베드 바다 쪽 끝 사이, 쿠션 톤)
+	end
+	-- 랜턴 빛 (가운데 카바나)
+	if glows[5] then
+		K:light(glows[5], "PointLight", { Range = 12, Brightness = 0.8, Color = WARM })
+	end
+
+	-- 4) 바다 쪽 난간: 데이베드 사이마다 레일 바 레지 + 스툴 2, 망원경 1 ---------------------------------------------
+	local binoc: Model? = nil
+	local binocPivot: Vector3? = nil
+	local binocLabel: TextLabel? = nil
+	for i = 1, #daybeds - 1 do
+		local g0, g1 = daybeds[i].z1 + 1.4, daybeds[i + 1].z0 - 1.4
+		local gz = (g0 + g1) / 2
+		-- 레지 (난간 안쪽 브래킷)
+		K:free(function()
+			local lz0, lz1 = g0 + 0.4, g1 - 0.4
+			if i == 2 then
+				lz1 = gz - 1.2
+			end
+			local lc = at(R, x0 + 0.55, (lz0 + lz1) / 2, 0, 3.5)
+			K:box("RailLedgeTop", V3(1.1, 0.14, lz1 - lz0), lc, teak)
+			K:box("RailLedgeLED", V3(0.05, 0.05, lz1 - lz0 - 0.2), lc * CF(0.5, -0.1, 0), nl(WARM))
+			for k = 0, 2 do
+				local z = lz0 + 0.4 + k * (lz1 - lz0 - 0.8) / 2
+				K:bar("RailLedgeBracket", ap(R, x0 + 0.1, 2.4, z), ap(R, x0 + 0.95, 3.42, z), 0.08, 0.08, Look.blackMetal)
+			end
+		end)
+		local nst = if i == 2 then 1 else 2
+		for k = 1, nst do
+			local z = if nst == 1 then gz - 3.0 else gz + (k - 1.5) * 3.0
+			local sp = at(R, x0 + 1.9, z)
+			if place(R, sp, V3(1.2, 3.0, 1.2), 0, "rail stool") then
+				barStool(K, sp, 2.75, cushion, teak)
+			end
+		end
+		if i == 2 and not binoc then
+			-- 동전 망원경 (광안리 해변 그 노랑 망원경)
+			local bc = at(R, x0 + 1.3, gz + 2.2)
+			if placeOr(R, bc, V3(1.6, 5.4, 1.6), 0, "binoculars") then
+				K:disc("BinoBase", 1.3, 0.12, bc * CF(0, 0.06, 0), lk(rgb(40, 120, 130), M.Metal))
+				K:vcyl("BinoPost", 3.4, 0.36, bc * CF(0, 1.8, 0), lk(rgb(40, 120, 130), M.Metal))
+				K:box("BinoCoinBox", V3(0.6, 0.7, 0.5), bc * CF(0.32, 3.0, 0), lk(rgb(40, 120, 130), M.Metal))
+				txt(K, "BinoCoinText", 0.5, 0.3, face(R, x0 + 1.63, 3.05, gz + 2.2, PI / 2), "500원", WHITE, nil, F.GothamBlack)
+				binocPivot = (bc * CF(0, 3.9, 0)).Position
+				binoc = K:group("RooftopBinoculars", function()
+					local hcf = bc * CF(0, 4.1, 0) * ANG(0, -PI / 2 - 0.35, 0)
+					K:box("BinoHead", V3(1.3, 0.7, 0.9), hcf, lk(rgb(250, 200, 40), M.Metal))
+					for _, sx in { -1, 1 } do
+						K:cyl("BinoTube", 0.9, 0.42, hcf * CF(sx * 0.35, 0.05, -0.75) * ANG(0, PI / 2, 0), lk(rgb(250, 200, 40), M.Metal))
+						K:disc("BinoLens", 0.34, 0.02, hcf * CF(sx * 0.35, 0.05, -1.21) * ANG(PI / 2, 0, 0), lk(rgb(60, 90, 120), M.Glass, { r = 0.3 }))
+						K:cyl("BinoEye", 0.3, 0.26, hcf * CF(sx * 0.3, 0.05, 0.55) * ANG(0, PI / 2, 0), Look.black)
+					end
+					K:box("BinoVisor", V3(1.2, 0.3, 0.2), hcf * CF(0, 0.3, 0.55), Look.black)
+				end)
+				local _, lab = txt(K, "BinoInfo", 1.6, 0.8, face(R, x0 + 1.25, 1.9, gz + 3.0, 0), "광안대교 VIEW\n500원 · 2분", rgb(30, 40, 50), rgb(250, 200, 40), F.GothamBold)
+				binocLabel = lab
+			end
+		end
+		-- 난간 안전 안내판
+		if i == 1 or i == 3 then
+			K:free(function()
+				local sd = face(R, x0 + 0.08, 2.2, gz + 4.6, PI / 2)
+				K:plate("RailSafetySign", 1.6, 0.9, 0.02, sd, lk(rgb(250, 210, 30)))
+				txt(K, "RailSafetyText", 1.5, 0.8, sd * CF(0, 0, 0.022), "⚠ 난간에 기대거나\n올라가지 마세요", BLACK, nil, F.GothamBlack)
+			end)
+		end
+	end
+
+	-- 5) 가운데: 파라솔 하이테이블 · 라운지 세트 · 아웃도어 러그 --------------------------------------------------------
+	local parasolBulbs: { BasePart } = {}
+	local function hiSet(xc: number, zc: number, col: Color3, withLight: boolean)
+		local pcf = at(R, xc, zc)
+		if not placeOr(R, pcf, V3(2.6, 9.0, 2.6), 0.2, "parasol table") then
+			return
+		end
+		K:free(function()
+			parasol(K, R, xc, zc, 4.0, 8.2, col, parasolBulbs)
+		end)
+		K:box("HiTableRing", V3(0.1, 0.1, 0.1), pcf * CF(0, 3.6, 0), lk(BLACK, nil, { t = 1 }))
+		K:disc("HiTableTopTeak", 2.6, 0.12, pcf * CF(0, 3.5, 0), teak)
+		K:disc("HiTableApron", 2.3, 0.2, pcf * CF(0, 3.34, 0), lk(rgb(30, 30, 32), M.Metal))
+		for k = 0, 3 do
+			local a = k * PI / 2 + PI / 4
+			K:seg("HiTableLeg", (pcf * CF(math.cos(a) * 0.9, 3.3, math.sin(a) * 0.9)).Position, (pcf * CF(math.cos(a) * 1.15, 0.02, math.sin(a) * 1.15)).Position, 0.1, lk(rgb(30, 30, 32), M.Metal))
+		end
+		K:vcyl("HiTableLanternGlass", 0.5, 0.36, pcf * CF(0.5, 3.81, 0.3), gl(rgb(255, 236, 210), 0.5))
+		local g = K:vcyl("HiTableCandle", 0.2, 0.16, pcf * CF(0.5, 3.66, 0.3), Look.lampWarm)
+		if withLight then
+			K:light(g, "PointLight", { Range = 12, Brightness = 0.8, Color = WARM })
+		end
+		for k, a in { 0.3, 1.9, 3.5, 5.0 } do
+			local sp = at(R, xc + math.cos(a) * 2.1, zc + math.sin(a) * 2.1)
+			if place(R, sp, V3(1.2, 3.0, 1.2), 0, "parasol stool") then
+				barStool(K, sp, 2.75, if k % 2 == 0 then cushion else lk(rgb(40, 90, 120), M.Fabric), teak)
+			end
+		end
+	end
+	hiSet(9.0, -32.0, rgb(240, 236, 226), true)
+	hiSet(9.5, 15.0, rgb(40, 90, 120), true)
+	-- 라운지 세트 (파라솔 + 낮은 의자 2 + 사이드 테이블)
+	local function loungeSet(xc: number, zc: number, col: Color3)
+		local pcf = at(R, xc, zc)
+		if not placeOr(R, pcf, V3(1.6, 9.0, 1.6), 0, "lounge parasol") then
+			return
+		end
+		K:free(function()
+			parasol(K, R, xc, zc, 4.2, 8.0, col, parasolBulbs)
+		end)
+		for _, s in { -1, 1 } do
+			local ccf = at(R, xc + 0.6, zc + s * 2.2, if s > 0 then PI else 0)
+			if place(R, ccf, V3(2.4, 2.8, 2.4), 0, "lounge chair") then
+				K:box("RTChairFrame", V3(2.2, 0.5, 2.2), ccf * CF(0, 0.5, 0), teak)
+				for _, sx in { -1, 1 } do
+					K:box("RTChairArm", V3(0.25, 1.0, 2.2), ccf * CF(sx * 1.0, 1.0, 0), teak)
+				end
+				K:rbox("RTChairCushion", V3(1.8, 0.4, 2.0), 0.15, ccf * CF(0, 0.95, 0.05), cushion)
+				K:rbox("RTChairBack", V3(1.9, 1.3, 0.35), 0.15, ccf * CF(0, 1.65, -0.85) * ANG(math.rad(-12), 0, 0), cushion)
+				K:ell("RTChairPillow", V3(0.9, 0.75, 0.25), ccf * CF(0.2, 1.65, -0.55) * ANG(math.rad(-15), 0.2, 0), lk(rgb(40, 90, 120), M.Fabric))
+			end
+		end
+		local tcf = at(R, xc + 2.2, zc)
+		if place(R, tcf, V3(1.4, 1.8, 1.4), 0, "lounge side table") then
+			K:disc("RTSideTop", 1.3, 0.1, tcf * CF(0, 1.5, 0), teak)
+			K:vcyl("RTSideBody", 1.45, 1.0, tcf * CF(0, 0.73, 0), lk(rgb(200, 190, 170), M.Concrete))
+			K:vcyl("RTSideGlass", 0.5, 0.26, tcf * CF(0.2, 1.8, 0.2), gl(rgb(250, 180, 80), 0.3))
+		end
+	end
+	loungeSet(8.5, 1.0, rgb(214, 120, 70))
+	loungeSet(8.0, 29.0, rgb(240, 236, 226))
+	-- 아웃도어 러그 (소파 묶음 아래)
+	K:free(function()
+		for _, zc in { -18.0, 45.5 } do
+			K:box("OutdoorRug", V3(15.0, 0.03, 9.5), at(R, 9.0, zc, 0, 0.015), lk(rgb(196, 186, 166), M.Fabric))
+			for k = -3, 3 do
+				K:box("OutdoorRugStripe", V3(0.25, 0.032, 9.3), at(R, 9.0 + k * 2.0, zc, 0, 0.016), lk(rgb(40, 90, 120), M.Fabric))
+			end
+		end
+	end)
+
+	-- 6) 북쪽 난간: 긴 화단 (그라스) + 업라이트 -------------------------------------------------------------------
+	for _, seg in { { -33.0, -21.0 }, { -17.5, 4.5 }, { 8.5, 30.5 } } do
+		local zc = (seg[1] + seg[2]) / 2
+		local len = seg[2] - seg[1]
+		local pcf = at(R, x1 - 1.3, zc)
+		if placeOr(R, pcf, V3(1.8, 3.6, len), 0, "rail planter") then
+			K:box("RailPlanter", V3(1.6, 1.6, len), pcf * CF(0, 0.8, 0), lk(rgb(44, 44, 46), M.Metal))
+			K:box("RailPlanterSoil", V3(1.4, 0.06, len - 0.2), pcf * CF(0, 1.55, 0), Look.soil)
+			K:box("RailPlanterLED", V3(0.05, 0.05, len - 0.3), pcf * CF(-0.82, 0.12, 0), nl(rgb(60, 200, 255)))
+			local n = math.floor(len / 1.1)
+			for k = 0, n - 1 do
+				local z = -len / 2 + (k + 0.5) * len / n
+				local hgt = 1.4 + rnd(77, k + seg[1]) * 1.0
+				K:ell("GrassClump", V3(1.0, hgt, 1.0), pcf * CF((rnd(78, k) - 0.5) * 0.3, 1.55 + hgt * 0.4, z), lk(if k % 3 == 0 then rgb(150, 160, 100) else rgb(96, 130, 74), M.Grass))
+			end
+		end
+	end
+	-- 모서리 화분 업라이트 (야자수 비춤)
+	for _, p in { { -22.0, -66.4 }, { 22.0, -34.0 }, { -22.0, 66.4 } } do
+		K:free(function()
+			local u = at(R, p[1], p[2], 0, 0)
+			K:box("UplightBody", V3(0.5, 0.4, 0.5), u * CF(0, 0.2, 0), Look.blackMetal)
+			K:disc("UplightLens", 0.4, 0.03, u * CF(0, 0.42, 0), Look.lampWarm)
+		end)
+	end
+
+	-- 7) 유리 난간 LED (바닥 레일 안쪽 전체) ---------------------------------------------------------------------
+	K:free(function()
+		local a = K:box("RailLEDSouth", V3(0.06, 0.05, z1 - z0 - 1.0), at(R, x0 + 0.1, R.cz, 0, 0.36), nl(rgb(60, 200, 255)))
+		local b = K:box("RailLEDNorth", V3(0.06, 0.05, 104), at(R, x1 - 0.1, -20.6, 0, 0.36), nl(rgb(60, 200, 255)))
+		local c = K:box("RailLEDEast", V3(x1 - x0 - 1.0, 0.05, 0.06), at(R, R.cx, z0 + 0.1, 0, 0.36), nl(rgb(60, 200, 255)))
+		local d = K:box("RailLEDWest", V3(x1 - x0 - 2.0, 0.05, 0.06), at(R, R.cx - 0.5, z1 - 0.1, 0, 0.36), nl(rgb(60, 200, 255)))
+		for _, p in { a, b, c, d } do
+			table.insert(moodParts, p)
+		end
+	end)
+
+	-- 8) 흡연구역 (서쪽 남쪽 모서리) · 금연 안내 · 라운지 문 옆 안내 ------------------------------------------------------
+	do
+		local scf = at(R, -16.6, 69.4)
+		if placeOr(R, scf, V3(1.2, 3.0, 1.2), 0, "ashtray") then
+			K:vcyl("AshtrayBody", 2.6, 0.9, scf * CF(0, 1.3, 0), Look.steel)
+			K:disc("AshtraySand", 0.8, 0.05, scf * CF(0, 2.62, 0), lk(rgb(200, 190, 160), M.Sand))
+			K:disc("AshtrayRim", 0.95, 0.06, scf * CF(0, 2.6, 0), Look.chrome)
+		end
+		local pcf = at(R, -13.2, 70.6)
+		if placeOr(R, pcf, V3(1.8, 6.0, 0.6), 0, "smoking sign") then
+			K:vcyl("SmokeSignPole", 4.6, 0.12, pcf * CF(0, 2.3, 0), Look.blackMetal)
+			K:disc("SmokeSignBase", 0.9, 0.08, pcf * CF(0, 0.04, 0), Look.blackMetal)
+			local sd = pcf * CF(0, 4.9, 0.08)
+			K:plate("SmokeSignBoard", 1.8, 1.3, 0.04, sd, lk(rgb(30, 140, 80)))
+			txt(K, "SmokeSignText", 1.7, 1.2, sd * CF(0, 0, 0.045), "흡연구역\nSMOKING AREA\n꽁초는 재떨이에", WHITE, nil, F.GothamBlack)
+			local sl = K:box("SmokeAreaLight", V3(0.1, 0.1, 0.1), pcf * CF(0, 5.8, 0.6), lk(BLACK, nil, { t = 1 }))
+			K:light(sl, "PointLight", { Range = 10, Brightness = 0.6, Color = WARM })
+		end
+		K:free(function()
+			noSmoking(K, face(R, 24.9, 5.2, 48.6, -PI / 2), 1.0, "루프탑 금연 · 흡연구역 이용")
+			local nd = face(R, 24.9, 3.4, 61.4, -PI / 2)
+			K:plate("RTHoursBoard", 2.0, 1.4, 0.03, nd, lk(rgb(20, 20, 22)))
+			txt(K, "RTHoursText", 1.9, 1.3, nd * CF(0, 0, 0.035), "OCEAN ROOFTOP\nOPEN 18:00 - 02:00\n우천 시 2F 라운지", rgb(255, 230, 190), nil, F.GothamBold, 1.2)
+		end)
+	end
+	-- 바닥 조명 문구 (라운지 문 앞)
+	K:free(function()
+		txt(K, "DeckWelcome", 6.0, 1.2, topCF(ap(R, 14.0, 0.03, 54.5), av(R, 1, 0, 0)), "OCEAN ROOFTOP", rgb(255, 214, 160), nil, F.GothamBlack, 0.8, { d = 0.01 })
+	end)
+
+	-- 상호작용 ---------------------------------------------------------------------------------------
+	-- 1) 메뉴 넘기기
+	if menuPart and menuLabel then
+		local PAGES = {
+			"HIGHBALL\n\n짐빔 하이볼 13,000\n산토리 가쿠 15,000\n유자 하이볼 14,000\n\n← 넘기기",
+			"BEER\n\n생맥주 500 9,000\n수제 IPA 11,000\n코로나 9,000\n\n← 넘기기",
+			"COCKTAIL\n\n광안 선셋 16,000\n모히또 15,000\n아페롤 스프리츠 17,000\n\n← 넘기기",
+			"NON-ALC · 안주\n\n제로 하이볼 9,000\n레몬에이드 8,000\n나쵸 · 감자튀김 15,000\n\n← 넘기기",
+		}
+		prompt(R, menuPart, "cycle", {
+			action = "메뉴 넘기기",
+			object = "루프탑 바 메뉴",
+			start = 0,
+			on = function(_i, it)
+				(menuLabel :: TextLabel).Text = it
+			end,
+		}, PAGES)
+	end
+	-- 2) 카바나 커튼
+	if #cabanaCurtains > 0 then
+		prompt(R, cabanaCurtains[1], "toggle", {
+			object = "카바나 커튼",
+			onText = "커튼 열기",
+			offText = "커튼 치기",
+			state = false,
+			on = function(s: boolean)
+				for _, p in cabanaCurtains do
+					tween(p, { Transparency = if s then 0.15 else 1 }, 0.6)
+				end
+			end,
+		})
+	end
+	-- 3) 망원경
+	if binoc and binocPivot then
+		local parts = {}
+		for _, d in (binoc :: Model):GetDescendants() do
+			if d:IsA("BasePart") then
+				table.insert(parts, { p = d, cf = d.CFrame })
+			end
+		end
+		local pivot = R.V.cf * (binocPivot :: Vector3)
+		local step = 0
+		local INFO = { "광안대교 VIEW\n500원 · 2분", "광안대교 · 7.4km\n야경 20:00-24:00", "이기대 해안 산책로\n오륙도 방향", "광안리 드론쇼\n토요일 20:00 · 22:00" }
+		prompt(R, parts[1] and parts[1].p or nil, "prompt", {
+			action = "망원경 보기",
+			object = "광안리 망원경",
+			fn = function()
+				step = step % 4 + 1
+				local rot = CF(pivot) * CFrame.fromAxisAngle(R.V.cf:VectorToWorldSpace(V3(0, 1, 0)), (step - 1) * 0.3 - 0.45) * CF(-pivot)
+				for _, r in parts do
+					tween(r.p, { CFrame = rot * r.cf }, 0.6)
+				end
+				if binocLabel then
+					(binocLabel :: TextLabel).Text = INFO[step]
+				end
+			end,
+		})
+	end
+	-- 4) DJ: 조명 모드 (난간 LED · DJ 부스 · 랜턴 · 파라솔 전구)
+	if djKnob then
+		local MODES = {
+			{ "OCEAN", rgb(60, 200, 255), rgb(255, 200, 140) },
+			{ "SUNSET", rgb(255, 120, 60), rgb(255, 170, 90) },
+			{ "PARTY", rgb(255, 60, 170), rgb(180, 120, 255) },
+			{ "CALM", rgb(255, 214, 160), rgb(255, 226, 190) },
+		}
+		prompt(R, djKnob, "cycle", {
+			action = "조명 모드",
+			object = "루프탑 DJ 콘솔",
+			on = function(_i, it)
+				for _, p in moodParts do
+					tween(p, { Color = it[2] }, 0.6)
+				end
+				for _, p in parasolBulbs do
+					tween(p, { Color = it[3] }, 0.6)
+				end
+				for _, p in glows do
+					tween(p, { Color = it[3] }, 0.6)
+				end
+			end,
+		}, MODES)
+	end
+end
+
+--=====================================================================================================
 function T.build(K: any, V: any, S: any)
 	local R = makeRoom(K, V)
 	npcKeeps(R)
@@ -2883,6 +3566,8 @@ function T.build(K: any, V: any, S: any)
 		buildHipHop(K, V, R)
 	elseif V.type == "clublounge" then
 		buildLounge(K, V, R)
+	elseif V.type == "rooftop" then
+		buildRooftop(K, V, R)
 	elseif V.type == "clubwc" then
 		buildRestroom(K, V, R)
 	end

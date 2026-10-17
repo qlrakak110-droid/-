@@ -334,12 +334,12 @@ local BANK: { [string]: any } = {
 		busan = { "어데 찾노? 이 근처는 내가 빠삭하다~", "어데 갈라꼬예? 알려 주께예!" },
 	},
 	directionsAnswer = {
-		std = { "{place}|은} 여기서 {dir}으로 {dist}쯤 가시면 돼요~ 걸어서 {mins}분 정도요! 화면에 표시해 드릴게요~", "{place}요? {dir}으로 {dist}쯤이에요! 지도에 찍어 드릴게요~" },
-		busan = { "{place}|은} 여서 {dir}으로 {dist}쯤 가모 됩니더~ 걸어서 {mins}분이면 간데이! 화면에 표시해 주께예~", "{place}예? {dir}으로 {dist}쯤이라예! 찍어 드리께~" },
+		std = { "{place|은} 여기서 {dir}으로 {dist}쯤 가시면 돼요~ 걸어서 {mins}분 정도요! 화면에 표시해 드릴게요~", "{place}요? {dir}으로 {dist}쯤이에요! 지도에 찍어 드릴게요~" },
+		busan = { "{place|은} 여서 {dir}으로 {dist}쯤 가모 됩니더~ 걸어서 {mins}분이면 간데이! 화면에 표시해 주께예~", "{place}예? {dir}으로 {dist}쯤이라예! 찍어 드리께~" },
 	},
 	directionsHere = {
-		std = { "{place}|은} 바로 여기 근처예요! 화면에 표시해 드릴게요~" },
-		busan = { "{place}|은} 바로 요 앞이라예! 표시해 주께예~" },
+		std = { "{place|은} 바로 여기 근처예요! 화면에 표시해 드릴게요~" },
+		busan = { "{place|은} 바로 요 앞이라예! 표시해 주께예~" },
 	},
 	directionsNone = {
 		std = { "음… 그건 저도 잘 모르겠어요~ 휴대폰 지도 앱을 보시면 나와요!" },

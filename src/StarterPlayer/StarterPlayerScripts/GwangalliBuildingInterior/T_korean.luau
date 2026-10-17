@@ -471,8 +471,14 @@ THEMES.milmyeon = extend(THEMES.gukbap, {
 		{ title = "살얼음 물밀면", sub = "한약재 사골 육수 + 쫄깃한 면", bg = rgb(20, 70, 120), fg = rgb(240, 250, 255), acc = rgb(140, 220, 255), kind = "milmyeon" },
 		{ title = "비빔밀면", sub = "새콤달콤 매콤 비법 양념", bg = rgb(170, 36, 30), fg = rgb(255, 246, 230), acc = rgb(255, 214, 90), kind = "bibim" },
 	},
-	chairs = { { style = "diner", frame = L.chrome, seat = L.of(40, 90, 160, M.Leather) }, { style = "bentwood", frame = L.oak, seat = L.oak } },
+	chairs = {
+		{ style = "diner", frame = L.chrome, seat = L.of(40, 90, 160, M.Leather) },
+		{ style = "diner", frame = L.chrome, seat = L.of(236, 238, 240, M.Leather) },
+		{ style = "padded", frame = L.chrome, seat = L.of(24, 60, 110, M.Leather) },
+	},
 	table = { top = L.of(236, 236, 230, M.SmoothPlastic), edge = L.steel, base = L.chrome, style = "pedestal" },
+	upper = L.of(246, 247, 245, M.Plaster), -- 밀면집: 하얗고 시원한 벽
+	onyuksu = true,
 	lower = { kind = "tile", h = 3.4, look = L.of(226, 236, 244, M.CeramicTiles), grout = L.of(190, 200, 208), tw = 1.0, th = 0.5, walls = { "left", "right", "back" } },
 	base = L.of(60, 90, 130),
 	fridgeHeader = "시원한 음료 · 소주 · 맥주",
@@ -711,19 +717,36 @@ local function themeFor(V: any): any
 	-- 가게마다 다르게 (같은 맵 틀을 쓰는 가게가 많음): 바닥 · 징두리 · 메뉴판 · 쿠션 색 순서
 	local v1, v2, v3 = (seed // 7) % 3, (seed // 31) % 3, (seed // 101) % 2
 	if th.kind == "soup" or th.kind == "noodle" and key ~= "ramen" then
+		local ALL = { "left", "right", "back" }
 		local floors = {
 			th.floor,
 			{ look = L.of(204, 196, 182, M.CeramicTiles), tile = 2.0, grout = L.of(170, 162, 150) },
 			{ look = L.of(196, 192, 184, M.Granite), tile = 0 },
 		}
 		th.floor = floors[v1 + 1]
-		local lowers = {
-			th.lower,
-			{ kind = "tile", h = 3.4, look = L.of(236, 236, 230, M.CeramicTiles), grout = L.of(196, 196, 190), tw = 1.0, th = 0.5, walls = { "left", "right", "back" } },
-			{ kind = "wainscot", h = 3.4, look = wood(150, 104, 66), cap = wood(100, 68, 44), panel = 1.9, walls = { "left", "right", "back" } },
-		}
+		-- 아랫벽 변형은 가게 종류 정체성 안에서만 (밀면 = 하늘 · 흰 · 민트 타일, 해장국 = 흰 타일 · 짙은 나무, 국밥 = 나무 · 흰 타일)
+		local lowers: { any }
+		if key == "milmyeon" then
+			lowers = {
+				th.lower,
+				{ kind = "tile", h = 3.4, look = L.of(240, 242, 240, M.CeramicTiles), grout = L.of(150, 176, 200), tw = 1.0, th = 0.5, walls = ALL },
+				{ kind = "tile", h = 3.4, look = L.of(206, 234, 226, M.CeramicTiles), grout = L.of(170, 200, 192), tw = 0.5, th = 0.5, walls = ALL },
+			}
+		elseif key == "kalguksu" or key == "bok" then
+			lowers = {
+				th.lower,
+				{ kind = "wainscot", h = 3.4, look = wood(190, 156, 112), cap = wood(130, 96, 62), panel = 2.0, walls = ALL },
+				{ kind = "tile", h = 3.4, look = L.of(232, 228, 214, M.CeramicTiles), grout = L.of(190, 184, 170), tw = 1.0, th = 0.5, walls = ALL },
+			}
+		else
+			lowers = {
+				th.lower,
+				{ kind = "tile", h = 3.4, look = L.of(236, 236, 230, M.CeramicTiles), grout = L.of(196, 196, 190), tw = 1.0, th = 0.5, walls = ALL },
+				{ kind = "wainscot", h = 3.4, look = wood(150, 104, 66), cap = wood(100, 68, 44), panel = 1.9, walls = ALL },
+			}
+		end
 		th.lower = lowers[v2 + 1]
-		if v3 == 1 and (th.menuStyle == "wood" or th.menuStyle == "light") then
+		if v3 == 1 and key ~= "milmyeon" and (th.menuStyle == "wood" or th.menuStyle == "light") then
 			th.menuStyle = if th.menuStyle == "wood" then "light" else "wood"
 		end
 	end
@@ -736,8 +759,39 @@ local function themeFor(V: any): any
 	return th
 end
 
+-- GwShop 의 맵 메뉴 글자 (서버 · 알바 일과 같은 값) 를 읽어 사진 메뉴 가격을 맞춤: "돼지국밥\n9,500원" 꼴
+local GW_MENU_FALLBACK = { { "돼지국밥", "9,500" }, { "순대국밥", "10,000" }, { "섞어국밥", "10,500" }, { "수육백반", "14,000" } }
+local function gwMenu(V: any): { any }
+	local out, seen = {}, {}
+	local model: Instance? = V.model
+	if model then
+		local n = 0
+		for _, d in model:GetDescendants() do
+			n += 1
+			if n > 8000 or #out >= 6 then
+				break
+			end
+			if d:IsA("TextLabel") then
+				local txt = tostring(d.Text)
+				local name, price = string.match(txt, "^%s*([^\n%d]-)%s*\n%s*([%d,]+)%s*원")
+				if name and price and #name >= 6 and not seen[name] then
+					seen[name] = true
+					table.insert(out, { name, price })
+				end
+			end
+		end
+	end
+	if #out >= 3 then
+		return out
+	end
+	return GW_MENU_FALLBACK
+end
+
 function T.style(V: any): any
 	local th = themeFor(V)
+	if V.kind == "gwshop" then
+		th.menu = gwMenu(V)
+	end
 	local S: any = {
 		chair = false, -- 좌석은 build 에서 (방석 · 둥근 스툴 구분)
 		table = false, -- 테이블 · 교자상도 build 에서
@@ -1312,7 +1366,7 @@ local function steam(c: any, srcs: { any }, n: number?)
 	local per = n or 3
 	for si, s in srcs do
 		for j = 1, per do
-			local p = K:ell("Steam", V3(s.r, s.r * 0.7, s.r), CF(s.p + V3(0, j * 0.5, 0)), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.85, free = true })
+			local p = K:ell("Steam", V3(s.r, s.r * 0.6, s.r), CF(s.p + V3(0, j * 0.5, 0)), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.9, free = true })
 			table.insert(puffs, { part = p, base = s.p, ph = (j - 1) / per + si * 0.37, r = s.r, rise = s.rise or 2.0, src = s })
 		end
 	end
@@ -1323,7 +1377,8 @@ local function steam(c: any, srcs: { any }, n: number?)
 				local sc = 0.55 + f * 0.9
 				q.part.Size = V3(q.r * sc, q.r * (0.45 + f * 0.5), q.r * sc)
 				q.part.CFrame = K.cf * CF(q.base + V3(math.sin(t * 0.9 + q.ph * 6) * 0.12, f * q.rise, math.cos(t * 0.7 + q.ph * 5) * 0.08))
-				q.part.Transparency = if q.src.off then 1 else 0.78 + 0.21 * f
+				-- 솥 입구에선 거의 투명 → 중간에서 가장 짙고 → 위에서 사라짐 (공처럼 보이지 않게)
+				q.part.Transparency = if q.src.off then 1 else 0.84 + 0.15 * math.abs(f * 2 - 0.7) / 1.3
 			end
 		end
 	end)
@@ -1668,6 +1723,22 @@ local function barOver(c: any)
 			local base = CF(x, up.max.Y, up.c.Z)
 			if clearAt(K, base * CF(0, 0.3, 0), V3(2.3, 0.62, 0.4)) then
 				condimentSet(c, base, i)
+			else
+				-- Scan 의 통로 keep 은 주방 패스(카운터 안쪽)에서 테이블로 곧게 그어져 카운터 · 윗선반을 뚫고 지나감.
+				-- 윗선반(맵 BarUpstand) 위는 사람이 다닐 수 없는 자리라 통로 keep 만 걸리면 놓음 (좌석 · 테이블 · 직원 keep 은 그대로 피함)
+				local mn, mx = laabb(base * CF(0, 0.3, 0), V3(2.3, 0.62, 0.4))
+				local other = false
+				for _, kk in V.keep do
+					if kk.kind ~= "aisle" and overlap(mn, mx, kk.min, kk.max) then
+						other = true
+						break
+					end
+				end
+				if not other and mn.Z >= up.min.Z - 0.05 and mx.Z <= up.max.Z + 0.05 then
+					K:free(function()
+						condimentSet(c, base, i)
+					end)
+				end
 			end
 		end
 		c.upstand = up
@@ -2415,6 +2486,233 @@ local function pressProp(c: any)
 	end
 end
 
+-- 밀면집 온육수 셀프대: 스테인리스 하부장 + 전기 육수 보온통 (꼭지) + 종이컵 디스펜서 + 식초 · 겨자 + 대접 더미
+-- pcf +Z = 손님 쪽. 프롬프트: 온육수 따르기 (컵에 따라지는 줄기 + 김, 클라이언트 전용)
+local function onyuksuStation(c: any, pcf: CFrame)
+	local K, th = c.K, c.th
+	local w, d, h = 1.8, 1.2, 2.9
+	K:box("OnyukCab", V3(w, h - 0.3, d), pcf * CF(0, 0.3 + (h - 0.3) / 2, 0), L.steel)
+	K:box("OnyukKick", V3(w - 0.16, 0.3, d - 0.16), pcf * CF(0, 0.15, -0.04), L.black)
+	K:box("OnyukTop", V3(w + 0.06, 0.08, d + 0.04), pcf * CF(0, h + 0.04, 0), L.brushed)
+	K:box("OnyukDoorSeam", V3(0.03, h - 0.6, 0.02), pcf * CF(0, 0.3 + (h - 0.3) / 2, d / 2 + 0.005), dim(L.steel, 0.3))
+	for _, sx in { -1, 1 } do
+		K:box("OnyukHandle", V3(0.05, 0.4, 0.06), pcf * CF(sx * 0.12, h - 0.45, d / 2 + 0.03), L.chrome)
+	end
+	local top = pcf * CF(0, h + 0.08, 0)
+	-- 보온통 (뒤 왼쪽) + 꼭지 + 물받이
+	local urn = top * CF(-0.42, 0, -0.12)
+	K:vcyl("UrnBody", 1.3, 0.82, urn * CF(0, 0.65 + 0.12, 0), L.chrome)
+	K:vcyl("UrnBase", 0.12, 0.9, urn * CF(0, 0.06, 0), L.black)
+	K:vcyl("UrnLid", 0.1, 0.86, urn * CF(0, 1.47, 0), L.brushed)
+	K:ball("UrnKnob", 0.16, urn * CF(0, 1.58, 0), L.black)
+	K:box("UrnLabel", V3(0.5, 0.3, 0.02), urn * CF(0, 0.95, 0.41), L.of(250, 246, 236))
+	K:box("UrnLamp", V3(0.08, 0.08, 0.03), urn * CF(0.24, 0.42, 0.4), L.neon(rgb(255, 80, 40)))
+	K:box("UrnTap", V3(0.14, 0.12, 0.26), urn * CF(0, 0.34, 0.5), L.chrome)
+	K:box("UrnTapLever", V3(0.08, 0.26, 0.06), urn * CF(0, 0.5, 0.6), L.black)
+	K:box("UrnDripTray", V3(0.5, 0.06, 0.36), top * CF(-0.42, 0.03, 0.42), L.brushed)
+	-- 따르는 줄기 + 컵 (평소엔 안 보임)
+	local stream = K:box("UrnStream", V3(0.05, 0.22, 0.05), urn * CF(0, 0.17, 0.6), { c = th.broth, m = M.Glass, t = 1, free = true })
+	local cupY = 0.06 + 0.13
+	local cup = K:vcyl("PourCup", 0.26, 0.2, top * CF(-0.42, cupY, 0.48), { c = rgb(250, 250, 246), m = M.SmoothPlastic, t = 1, free = true })
+	local steamP = K:ell("PourSteam", V3(0.22, 0.16, 0.22), top * CF(-0.42, 0.45, 0.48), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 1, free = true })
+	-- 종이컵 디스펜서 (오른쪽 뒤, 위로 긴 투명 통)
+	local cd = top * CF(0.55, 0, -0.3)
+	K:vcyl("CupTube", 1.1, 0.3, cd * CF(0, 0.6, 0), { c = rgb(220, 232, 240), m = M.Glass, t = 0.55 })
+	K:vcyl("CupStack", 1.0, 0.24, cd * CF(0, 0.6, 0), L.of(250, 250, 246))
+	K:vcyl("CupTubeCap", 0.06, 0.34, cd * CF(0, 1.18, 0), L.chrome)
+	K:vcyl("CupTubeFoot", 0.08, 0.36, cd * CF(0, 0.04, 0), L.chrome)
+	-- 식초 · 겨자 (짜는 통) + 스테인리스 대접 더미
+	local bt = top * CF(0.2, 0, 0.3)
+	K:vcyl("Vinegar", 0.5, 0.18, bt * CF(0, 0.25, 0), { c = rgb(236, 222, 170), m = M.Glass, t = 0.3 })
+	K:vcyl("VinegarCap", 0.12, 0.12, bt * CF(0, 0.56, 0), L.of(200, 30, 30))
+	K:vcyl("Mustard", 0.5, 0.18, bt * CF(0.24, 0.25, 0), L.of(236, 196, 40, M.SmoothPlastic))
+	K:vcyl("MustardCap", 0.12, 0.12, bt * CF(0.24, 0.56, 0), L.of(40, 120, 60))
+	if not c.lo then
+		for j = 1, 4 do
+			K:vcyl("BowlStack", 0.12, 0.62, top * CF(0.62, 0.06 + j * 0.11, 0.26), L.brushed)
+		end
+	end
+	-- 앞 이름표
+	ktext(K, "OnyukTag", w - 0.2, 0.5, pcf * CF(0, h - 0.95, d / 2 + 0.01), "온육수 · 식초 · 겨자 셀프", { fg = WHITE, bg = rgb(20, 70, 120), font = F.GothamBold, d = 0.02 })
+	K:plate("OnyukWarn", 0.5, 0.18, 0.012, urn * CF(0, 0.95, 0.42), L.of(200, 30, 30))
+	return { tap = K:box("UrnTapHit", V3(0.5, 0.5, 0.5), urn * CF(0, 0.45, 0.62), { c = WHITE, t = 1, free = true }), stream = stream, cup = cup, steam = steamP }
+end
+
+local function onyuksuProp(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if not th.onyuksu then
+		return
+	end
+	local size = V3(1.9, 4.6, 1.3)
+	local near = if c.selfbar then c.selfbar.Position elseif c.fridge then c.fridge.Position else V3(V.x0, 0, 0)
+	-- 꼭지 앞에서 프롬프트가 뜨는 자리를 먼저 찾고, 없으면 장식으로만
+	local pcf, wn, u = placeOnWall(c, { "left", "back", "right" }, size, near, function(p: CFrame)
+		return promptOK(K, (p * CF(-0.42, 3.43, 0.5)).Position)
+	end)
+	if not pcf then
+		pcf, wn, u = placeOnWall(c, { "left", "back", "right" }, size, near)
+	end
+	if not pcf or not wn or not u then
+		return
+	end
+	local o = onyuksuStation(c, pcf)
+	at(K, "onyuksu", nil, nil, pcf.Position)
+	-- 위 벽 안내
+	if not usedHit(K, wn, u - 1.0, u + 1.0, 4.5, 5.4) then
+		signPlate(c, V:wall(wn, u, 4.95, 0), 1.9, 0.75, "따뜻한 온육수\n뜨거우니 조심하세요", rgb(20, 50, 90), rgb(236, 244, 250), { border = rgb(20, 70, 120), font = F.GothamBold })
+		claim(K, wn, u - 1.0, u + 1.0, 4.5, 5.4)
+	end
+	do
+		local pouring = false
+		Interact.prompt(K, o.tap, {
+			action = "따르기",
+			object = "온육수",
+			fn = function()
+				if pouring then
+					return
+				end
+				pouring = true
+				o.cup.Transparency = 0
+				o.stream.Transparency = 0.25
+				o.steam.Transparency = 0.8
+				task.delay(1.6, function()
+					if o.stream.Parent then
+						o.stream.Transparency = 1
+					end
+				end)
+				task.delay(4.5, function()
+					if o.cup.Parent then
+						o.cup.Transparency = 1
+						o.steam.Transparency = 1
+					end
+					pouring = false
+				end)
+			end,
+		})
+	end
+end
+
+-- 스탠드형 정수기 (셀프바 옆): 흰 몸통 + 은색 앞판 + 냉 · 온 꼭지 + 물받이 + 종이컵 걸이
+local function purifierProp(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if th.key == "ramen" or th.key == "bistro" or th.onyuksu then
+		return -- 밀면집은 온육수 셀프대가 컵 · 물 자리
+	end
+	local size = V3(1.25, 4.5, 1.25)
+	local near = if c.selfbar then c.selfbar.Position elseif c.fridge then c.fridge.Position else V3(V.x0, 0, 0)
+	local pcf = placeOnWall(c, { "left", "back", "right" }, size, near)
+	if not pcf then
+		return
+	end
+	local w, d, h = 1.1, 1.1, 4.3
+	K:rbox("PurifierBody", V3(w, h - 0.15, d), 0.08, pcf * CF(0, 0.15 + (h - 0.15) / 2, 0), L.plasticWhite)
+	K:box("PurifierFoot", V3(w - 0.1, 0.15, d - 0.1), pcf * CF(0, 0.075, 0), L.of(70, 72, 76))
+	local f = pcf * CF(0, 0, d / 2)
+	K:plate("PurifierPanel", w - 0.16, 2.0, 0.03, f * CF(0, h - 1.25, 0), L.brushed)
+	-- 꼭지 칸 (움푹 들어간 검은 칸) + 꼭지 2개 + 물받이
+	K:plate("PurifierNook", w - 0.3, 0.9, 0.02, f * CF(0, 2.15, 0.03), L.of(40, 42, 46))
+	for i, cl in { rgb(40, 120, 220), rgb(220, 40, 30) } do
+		local x = (i - 1.5) * 0.36
+		K:box("PurifierTap", V3(0.12, 0.16, 0.16), f * CF(x, 2.45, 0.1), L.chrome)
+		K:plate("PurifierBtn", 0.2, 0.12, 0.02, f * CF(x, 2.85, 0.05), L.neon(cl))
+	end
+	K:box("PurifierDrip", V3(w - 0.3, 0.06, 0.32), f * CF(0, 1.72, 0.16), L.chrome)
+	K:box("PurifierGrate", V3(w - 0.4, 0.015, 0.24), f * CF(0, 1.76, 0.16), L.of(60, 62, 66, M.DiamondPlate))
+	ktext(K, "PurifierLogo", 0.7, 0.18, f * CF(0, h - 0.5, 0.035), "PURE WATER", { fg = rgb(40, 90, 160), font = F.GothamBold, d = 0.01 })
+	K:plate("PurifierLED", 0.4, 0.08, 0.02, f * CF(0, h - 0.8, 0.035), L.neon(rgb(80, 180, 255)))
+	-- 옆면 종이컵 걸이
+	local side = pcf * CF(w / 2, 0, 0)
+	K:vcyl("CupHolder", 0.9, 0.24, side * CF(0.14, 2.9, 0.15), { c = rgb(220, 232, 240), m = M.Glass, t = 0.5 })
+	K:vcyl("CupHolderCups", 0.8, 0.18, side * CF(0.14, 2.9, 0.15), L.of(250, 250, 246))
+	at(K, "purifier", nil, nil, pcf.Position)
+end
+
+-- 뚝배기 선반 (육수 솥 옆): 크롬 기둥 3단 선반 + 뚝배기 · 토기 받침 더미
+local function ttukRackProp(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if th.kind ~= "soup" or not c.pot then
+		return
+	end
+	local w, d, h = 1.9, 1.0, 3.3
+	local pcf = placeOnWall(c, { "left", "back", "right" }, V3(w + 0.1, h + 0.1, d + 0.1), c.pot.Position)
+	if not pcf then
+		return
+	end
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			K:vcyl("RackPost", h, 0.07, pcf * CF(sx * (w / 2 - 0.04), h / 2, sz * (d / 2 - 0.04)), L.chrome)
+		end
+	end
+	local earth = L.of(70, 44, 32, M.Slate)
+	local glaze = L.of(44, 30, 24, M.SmoothPlastic)
+	for si, y in { 0.35, 1.45, 2.55 } do
+		K:box("RackShelf", V3(w, 0.04, d), pcf * CF(0, y, 0), L.of(150, 154, 160, M.DiamondPlate))
+		K:box("RackLip", V3(w, 0.08, 0.03), pcf * CF(0, y + 0.03, d / 2 - 0.015), L.chrome)
+		for k = 1, 3 do
+			local x = (k - 2) * 0.6
+			if si == 3 and k == 2 then
+				-- 맨 위 가운데: 나무 받침 더미
+				for j = 1, 4 do
+					K:box("TtukTray", V3(0.56, 0.06, 0.56), pcf * CF(x, y + 0.02 + (j - 0.5) * 0.065, 0.05), wood(120, 84, 52))
+				end
+				continue
+			end
+			local n = math.min(1 + ((k + si + c.seed) % 3), if si == 3 then 2 else 3)
+			for j = 1, n do
+				local by = y + 0.02 + (j - 1) * 0.3
+				K:vcyl("Ttukbaegi", 0.3, 0.5, pcf * CF(x, by + 0.15, 0.05), earth)
+				if c.hi then
+					K:vcyl("TtukbaegiLip", 0.05, 0.56, pcf * CF(x, by + 0.28, 0.05), glaze)
+				end
+			end
+		end
+	end
+	at(K, "ttukrack", nil, nil, pcf.Position)
+end
+
+-- 사인 액자 벽 (연예인 · 손님 사인 색지): 이름은 지어낸 것, 손글씨 글꼴
+local SIGN_TEXTS = {
+	"광안리 최고!\n또 올게요\n2025.8", "사장님\n대박나세요 ♡", "JJANG!!\n국밥은 여기", "맛있게\n먹었습니다\n- 부산 야구단", "해장 완료 ^^\n2026.3",
+	"부산 오면\n무조건 여기", "Delicious!\nfrom Seoul", "육수 진짜\n미쳤다", "단골 인증\n10년째", "♡ 행복하세요\n2025.12",
+}
+local function signWall(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if V.H < 8 or th.key == "bistro" then
+		return
+	end
+	local bw = 0.92
+	local y0, y1 = 5.25, 7.55
+	local cols, need, wn, u = 0, 0, nil, nil
+	for _, n in { 4, 3, 2 } do
+		need = n * (bw + 0.2) + 0.2
+		wn, u = findWall(K, { "left", "right", "back" }, need, need, y0, y1, V3(0, 0, 0), 0.6)
+		if wn and u then
+			cols = n
+			break
+		end
+	end
+	if not wn or not u then
+		return
+	end
+	local papers = { rgb(250, 248, 240), rgb(252, 240, 220), rgb(236, 244, 250) }
+	local inks = { rgb(30, 30, 34), rgb(30, 50, 140), rgb(170, 30, 30), rgb(30, 110, 60) }
+	local fonts = { F.PermanentMarker, F.IndieFlower, F.PermanentMarker }
+	local k = 0
+	for row = 1, 2 do
+		for col_ = 1, cols do
+			k += 1
+			local x = (col_ - (cols + 1) / 2) * (bw + 0.2) + (if row == 2 then 0.06 else -0.04)
+			local y = (y0 + y1) / 2 + (if row == 1 then 0.56 else -0.56)
+			local d = V:wall(wn, u + x, y, 0) * ANG(0, 0, ((k + c.seed) % 3 - 1) * 0.04)
+			local i = ((k + c.seed) % #SIGN_TEXTS) + 1
+			K:plate("SignBoardEdge", bw + 0.06, bw * 1.12 + 0.06, 0.03, d, L.of(200, 166, 90, M.Metal))
+			ktext(K, "SignBoard", bw, bw * 1.12, d * CF(0, 0, 0.03), SIGN_TEXTS[i], { fg = inks[((k + c.seed) % #inks) + 1], bg = papers[((k + c.seed) % #papers) + 1], font = fonts[(k % #fonts) + 1], d = 0.02, glow = 0.85 })
+		end
+	end
+	claim(K, wn, u - need / 2, u + need / 2, y0, y1)
+	at(K, "signwall", wn, u)
+end
+
 local function doughProp(c: any)
 	local K, V = c.K, c.V
 	local near = if c.pass then V3((c.pass.a + c.pass.b) / 2, 0, V.z0) else V3(0, 0, V.z0)
@@ -2452,6 +2750,22 @@ end
 -- 윗벽 칠 (테마: 라멘 = 짙은 먹색 회벽, 돈카츠 = 크림 회벽): 징두리 위 ~ 천장, 맵 물건 · 문을 피해서
 local function upperPaint(c: any)
 	local K, V, th = c.K, c.V, c.th
+	if V.kind == "gwshop" then
+		-- GwShop: 맵 징두리 레일(3.5 - 3.7) 위 벽을 밝은 미색 회벽으로 (얇은 마감, 맵 액자 · 시계 · 선풍기 자리는 V:spans 가 비움)
+		local rail = 3.4
+		for _, r in V.byName.WainscotRail or {} do
+			rail = math.max(rail, r.max.Y)
+		end
+		local y0, y1 = rail + 0.02, V.H - 0.05
+		K:free(function()
+			for _, wn in { "left", "right", "back" } do
+				for _, sp in V:spans(wn, y0, y1, 0.3) do
+					K:plate("UpperPaint", sp[2] - sp[1], y1 - y0, 0.02, V:wall(wn, (sp[1] + sp[2]) / 2, (y0 + y1) / 2, 0.005), L.of(240, 234, 220, M.Plaster))
+				end
+			end
+		end)
+		return
+	end
 	if not th.upper then
 		return
 	end
@@ -2533,6 +2847,9 @@ local function photoRow(c: any)
 		local n = math.min(5, #th.menu)
 		local kinds = th.photoKinds or {}
 		for _, want in { 5, 4, 3 } do
+			if want > n then
+				continue
+			end
 			local need = want * 2.2
 			local pwn, pu, pw = findWall(K, { "left", "right", "back" }, need, need, py0 - 0.1, V.H - 0.3, V3(0, 0, V.z0), 0.6)
 			if pwn and pu and pw then
@@ -3117,7 +3434,10 @@ local function ceilPanels(c: any)
 	if not ((th.kind == "soup" or th.kind == "noodle") and th.key ~= "ramen" and th.key ~= "bistro") then
 		return
 	end
-	local want = math.clamp(math.floor(V.W * V.D / 80), 3, 8)
+	-- GwShop (넓은 홀, 맵 형광등 3줄뿐이라 어두움): 천장 마감 위 평판등을 더 달고 불빛도 하나 더
+	local gw = V.kind == "gwshop"
+	local maxLit = if gw then 4 else 3
+	local want = math.clamp(math.floor(V.W * V.D / 80), 3, if gw then 10 else 8)
 	local nx = math.max(2, math.floor((V.W - 7.2) / 6.5 + 0.5))
 	local zs = { V.z0 + V.D * 0.2, (V.z0 + V.z1) / 2, V.z1 - V.D * 0.2 }
 	local placed, lit = 0, 0
@@ -3136,7 +3456,7 @@ local function ceilPanels(c: any)
 				end
 			end
 			if z then
-				local withLight = (i + j) % 2 == 0 and lit < 3 and #K.lights < (V.maxLights or 8) - 2
+				local withLight = (i + j) % 2 == 0 and lit < maxLit and #K.lights < (V.maxLights or 8) - 2
 				Props.panelLight(K, x, z, { light = withLight, range = 18, bright = 0.85, color = L.coolLight, glow = L.lampCool })
 				Common.useCeil(K, x, z)
 				placed += 1
@@ -3259,6 +3579,8 @@ function T.build(K: any, V: any, S: any)
 	K:note("theme " .. tostring(th.key))
 	if V.kind == "gwshop" then
 		-- GwShop (국밥 알바): Table_n · Seat · TrayPoint · PassTray · Point 는 그대로 둠. 평상 · 벽 · 천장 장식만
+		step("panels", ceilPanels)
+		step("upper", upperPaint)
 		step("platform", platformOver)
 		step("gwfurniture", gwFurniture)
 		step("mapsigns", mapSignClaims)
@@ -3284,12 +3606,17 @@ function T.build(K: any, V: any, S: any)
 	end
 	if f.selfbar then
 		step("selfbar", selfBarProp)
+		step("purifier", purifierProp)
 	end
 	if f.pot then
 		step("pot", potProp)
+		step("ttukrack", ttukRackProp)
 	end
 	if f.press then
 		step("press", pressProp)
+	end
+	if th.onyuksu then
+		step("onyuksu", onyuksuProp)
 	end
 	if th.key ~= "bistro" then
 		step("gift", giftPlant)
@@ -3332,6 +3659,9 @@ function T.build(K: any, V: any, S: any)
 	end
 	if th.key == "ramen" then
 		step("ramenwall", ramenWall)
+	end
+	if th.kind == "soup" or th.kind == "noodle" then
+		step("signwall", signWall)
 	end
 	step("posters", postersFill)
 	if f.lanterns then

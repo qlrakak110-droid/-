@@ -746,8 +746,8 @@ local function lobbyBagCheck(R: any)
 	for i = 1, 5 do
 		P:ball("Earplug", 0.07, CF(cx + 1.7 + rnd(3, i) * 0.12, h + 0.1 + rnd(4, i) * 0.06, zc + 0.3 + rnd(5, i) * 0.1), lk(({ rgb(255, 140, 40), rgb(255, 230, 60), rgb(90, 200, 255) })[i % 3 + 1]))
 	end
-	-- 안내판 (테이블 뒤 벽)
-	lightbox(P, "BagRule", R.wall("back", cx + 1.0, 4.4, 0.0) * CF(0, 0, 0.0), 1.9, 1.0, "반입 금지", "외부 음식 · 음료 · 위험물 · 레이저 포인터", { titleH = 0.36, accent = rgb(255, 90, 90), frame = BMETAL })
+	-- 반입 금지 안내 (테이블 위 아크릴 스탠드, 줄 서는 쪽을 봄)
+	acrylicStand(P, CF(cx - 1.4, h, zc - 0.66), 1.2, 0.8, "반입 금지\n외부 음식 · 음료\n위험물 · 레이저 포인터", rgb(255, 255, 255), rgb(170, 24, 30))
 end
 
 -- 메인홀 입구: 팔찌 확인 포디움 + 스탠션 + 로프
@@ -953,6 +953,12 @@ local function lobbyLockers(R: any)
 			local y = (ys[j] + ys[j + 1]) / 2
 			P:box("LockerShelf", V3(cx1 - cx0 - 0.2, 0.08, depth), CF((cx0 + cx1) / 2, y, zf + depth / 2), CARC)
 		end
+		-- 칸 줄눈 LED (선반 앞 모서리, 은은한 시안): 어두운 로비에서 락커 격자가 보이게
+		for j = 1, #ys - 1 do
+			local y = (ys[j] + ys[j + 1]) / 2
+			P:box("LockerShelfLED", V3(cx1 - cx0 - 0.3, 0.025, 0.025), CF((cx0 + cx1) / 2, y, zf - 0.03), nl(dk(CY, 0.45)))
+		end
+		P:box("LockerTopLED", V3(cx1 - cx0 - 0.1, 0.04, 0.04), CF((cx0 + cx1) / 2, cy1 - 0.12, zf - 0.03), nl(CY))
 		-- 맨 아래 칸 아래 받침
 		P:box("LockerShelf", V3(cx1 - cx0 - 0.2, 0.08, depth), CF((cx0 + cx1) / 2, ys[#ys] - dh / 2 - 0.05, zf + depth / 2), CARC)
 	end)
@@ -2009,6 +2015,12 @@ local function mainStaffDoor(R: any)
 			P:box("StaffDoorStripe", V3(0.25, 0.015, dw.s.Z), CF(wx - 0.3, 0.008, dw.c.Z), lk(rgb(240, 200, 30)))
 			txt(P, "StaffDoorFloorText", dw.s.Z * 0.9, 0.45, topCF(V3(wx - 0.75, 0.018, dw.c.Z), V3(1, 0, 0)), "STAFF ONLY", rgb(240, 200, 30), nil, F.GothamBlack)
 		end
+		if dw then
+			local lampP = P:box("StaffDoorLamp", V3(0.5, 0.12, 0.9), CF(dw.mn.X - 0.4, 9.2, dw.c.Z), BMETAL)
+			local lens = P:box("StaffDoorLampLens", V3(0.4, 0.02, 0.8), CF(dw.mn.X - 0.4, 9.13, dw.c.Z), nl(rgb(255, 236, 214)))
+			R.K:light(lens, "SpotLight", { Face = Enum.NormalId.Bottom, Angle = 80, Range = 11, Brightness = 1.3, Color = rgb(255, 232, 210) })
+			local _ = lampP
+		end
 		if frame then
 			-- 도어 클로저 (프레임 위)
 			P:box("DoorCloser", V3(0.3, 0.3, 1.1), CF(frame.mn.X - 0.15, frame.mn.Y - 0.2, frame.mn.Z + 0.9), lk(rgb(170, 172, 176), M.Metal))
@@ -2074,7 +2086,8 @@ local function mainCoatCheck(R: any)
 			end
 			-- 번호표 (카운터 쪽 = +X 면)
 			local f = faceCF(V3(c.mx.X + 0.01, c.mx.Y - 0.55, c.c.Z + 0.35), V3(1, 0, 0))
-			txt(P, "CoatTag", 0.32, 0.42, f, string.format("%02d", i), rgb(20, 20, 22), rgb(240, 236, 220), F.GothamBold)
+			txt(P, "CoatTag", 0.22, 0.3, f, string.format("%02d", i), rgb(20, 20, 22), rgb(240, 236, 220), F.GothamBold)
+			P:seg("CoatTagString", top + V3(0.21, -0.05, 0.35), top + V3(0.21, -0.4, 0.35), 0.015, lk(rgb(240, 236, 220)))
 		end
 		local ct = R.one("CounterTop", "CoatCheck_물품보관")
 		if ct then
@@ -2345,6 +2358,63 @@ local function mainBottleStands(R: any)
 	local _ = cab
 end
 
+-- 생수 무료 스테이션 (남자 화장실 바깥 벽, 홀 쪽): 벽걸이 정수기 + 컵 디스펜서 + 컵 수거함, '물 한 잔' 상호작용
+local function mainWater(R: any)
+	local P, K = R.P, R.K
+	local Mn = restroomParts(R, "남자화장실")
+	local wall: any = nil
+	for _, w in Mn.Wall or {} do
+		if w.s.X < 1 and w.s.Z > 3 and (not wall or w.mn.X < wall.mn.X) then
+			wall = w
+		end
+	end
+	if not wall then
+		return
+	end
+	local x = wall.mn.X
+	local zc = wall.c.Z + 0.3
+	local f = faceCF(V3(x - 0.005, 4.2, zc), V3(-1, 0, 0))
+	local cup: BasePart? = nil
+	P:free(function()
+		P:plate("WaterBack", 2.6, 4.4, 0.06, f * CF(0, 0.6, 0), lk(rgb(18, 40, 60)))
+		P:plate("WaterBackRim", 2.7, 0.06, 0.08, f * CF(0, 2.82, 0), nl(CY))
+		txt(P, "WaterTitle", 2.4, 0.6, f * CF(0, 2.35, 0.07), "FREE WATER · 생수 무료", rgb(220, 250, 255), nil, F.GothamBlack, 1.4)
+		-- 정수기 본체 (벽걸이)
+		P:plate("WaterUnit", 1.1, 1.8, 0.7, f * CF(-0.4, 0.4, 0), lk(rgb(236, 238, 240), M.Plastic))
+		P:plate("WaterUnitPanel", 0.8, 0.4, 0.71, f * CF(-0.4, 0.95, 0), lk(rgb(30, 34, 40)))
+		P:plate("WaterUnitLED", 0.12, 0.08, 0.72, f * CF(-0.6, 0.95, 0), nl(rgb(60, 160, 255)))
+		P:plate("WaterUnitLED", 0.12, 0.08, 0.72, f * CF(-0.2, 0.95, 0), nl(rgb(255, 80, 60)))
+		P:plate("WaterNozzleBlock", 0.4, 0.2, 0.9, f * CF(-0.4, 0.2, 0), CHROME)
+		P:plate("WaterDripTray", 0.9, 0.08, 0.95, f * CF(-0.4, -0.75, 0), lk(rgb(40, 40, 44), M.DiamondPlate))
+		cup = P:vcyl("WaterCup", 0.32, 0.26, (f * CF(-0.4, -0.55, 0.62)) * ANG(-PI / 2, 0, 0) * ANG(PI / 2, 0, 0), lk(rgb(250, 250, 250), M.Plastic, { t = 1 }))
+		-- 컵 디스펜서 (세로 통) + 수거함
+		P:plate("CupTube", 0.36, 1.6, 0.36, f * CF(0.55, 0.4, 0), gl(rgb(235, 240, 245), 0.4))
+		P:vcyl("CupStackW", 1.3, 0.28, CF((f * CF(0.55, 0.35, 0.18)).Position), lk(rgb(250, 250, 250)))
+		P:plate("CupBin", 0.6, 0.9, 0.5, f * CF(0.55, -1.0, 0), STEEL)
+		P:plate("CupBinSlot", 0.4, 0.08, 0.51, f * CF(0.55, -0.68, 0), lk(rgb(10, 10, 12)))
+		txt(P, "WaterNote", 2.2, 0.32, f * CF(0, -1.65, 0.07), "다 마신 컵은 수거함에 · 과음 주의", rgb(200, 230, 255), nil, F.GothamBold, 1.2)
+	end)
+	if cup then
+		local c: BasePart = cup
+		Interact.prompt(K, c.Parent and P:plate("WaterButton", 0.24, 0.18, 0.74, f * CF(-0.4, 0.62, 0), lk(rgb(60, 160, 255), M.Neon)) or c, {
+			action = "물 한 잔",
+			object = "생수 무료",
+			sound = "rbxasset://sounds/electronicpingshort.wav",
+			fn = function()
+				if not c.Parent then
+					return
+				end
+				c.Transparency = 0
+				task.delay(4, function()
+					if c.Parent then
+						TweenService:Create(c, TweenInfo.new(0.5), { Transparency = 1 }):Play()
+					end
+				end)
+			end,
+		})
+	end
+end
+
 local function buildMain(K: any, V: any)
 	local R = makeRoom(K, V)
 	-- 긴 벽 안쪽 면 (정렬 프레임)
@@ -2373,6 +2443,7 @@ local function buildMain(K: any, V: any)
 		{ "coatcheck", mainCoatCheck },
 		{ "restrooms", mainRestrooms },
 		{ "stands", mainBottleStands },
+		{ "water", mainWater },
 	}
 	for _, s in steps do
 		local ok, err = pcall(s[2], R)
