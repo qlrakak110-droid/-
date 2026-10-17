@@ -1475,28 +1475,43 @@ local function frontZone(ctx: any)
 		Q:box("PromoSkirt", V3(5.5, 2.2, 2.7), pcfP * CF(0, 1.12, 0), L_BLUE)
 		Q:plate("PromoSkirtBand", 5.5, 0.3, 0.02, pcfP * CF(0, 1.9, 1.35), L_CYAN)
 		txt(ctx, "PromoSkirtText", 4.8, 0.9, pcfP * CF(0, 1.0, 1.37), "2+1 행사 골라 담기", WHITE, nil, { font = F.GothamBlack, d = 0.01 })
-		-- 상품 묶음: 라면 멀티팩 · 과자 박스 · 생수 소형
+		-- 상품 묶음: 라면 멀티팩 (봉지 묶음) · 과자 봉지 (빵빵한 베개 모양) · 생수 500ml (라벨 · 뚜껑)
 		local groups = {
-			{ -1.8, function(c: CFrame)
+			{ -1.8, "신라면 멀티 5입\n2+1  4,480원", function(c: CFrame)
 				for i = 0, 5 do
-					Q:box("RamenMulti", V3(1.1, 0.42, 0.75), c * CF((i % 2) * 1.15 - 0.57, 0.21 + (i // 2) * 0.43, 0), lk(if i % 3 == 2 then rgb(240, 160, 30) else RED))
+					local pc = c * CF((i % 2) * 1.15 - 0.57, 0.21 + (i // 2) * 0.43, 0)
+					local col = if i % 3 == 2 then rgb(236, 120, 20) else rgb(206, 24, 30)
+					Q:box("RamenMulti", V3(1.1, 0.42, 0.75), pc, lk(col, M.SmoothPlastic, { r = 0.08 }))
+					Q:plate("RamenMultiBand", 0.5, 0.36, 0.01, pc * CF(-0.18, 0, 0.375), lk(rgb(20, 20, 22)))
+					Q:plate("RamenMultiLogo", 0.22, 0.22, 0.012, pc * CF(-0.18, 0.02, 0.375), lk(WHITE))
+					Q:box("RamenMultiSeal", V3(1.12, 0.06, 0.77), pc * CF(0, 0.18, 0), lk(dk(col, 0.25)))
 				end
 			end },
-			{ 0.2, function(c: CFrame)
-				local cols = { rgb(250, 210, 40), rgb(60, 160, 220), rgb(230, 80, 120), rgb(120, 70, 40) }
+			{ 0.2, "포카칩 · 꼬북칩\n2+1  1,700원", function(c: CFrame)
+				local cols = { rgb(250, 200, 30), rgb(40, 150, 220), rgb(230, 70, 110), rgb(120, 60, 30), rgb(250, 200, 30), rgb(40, 150, 220) }
 				for i = 0, 5 do
-					Q:box("SnackBox", V3(0.85, 0.6, 0.55), c * CF((i % 3) * 0.9 - 0.9, 0.3 + (i // 3) * 0.6, 0), lk(cols[i % #cols + 1]))
+					local row = i // 3
+					local pc = c * CF((i % 3) * 0.62 - 0.62, 0.52, -0.3 + row * 0.55) * ANG(-0.18, 0, 0)
+					Q:ell("SnackBag", V3(0.6, 1.0, 0.36), pc, lk(cols[i + 1], M.SmoothPlastic, { r = 0.15 }))
+					Q:box("SnackBagCrimp", V3(0.58, 0.07, 0.08), pc * CF(0, 0.5, 0), lk(dk(cols[i + 1], 0.2)))
+					Q:plate("SnackBagLabel", 0.34, 0.26, 0.01, pc * CF(0, 0.05, 0.17), lk(if i % 2 == 0 then WHITE else rgb(250, 240, 200)))
 				end
 			end },
-			{ 2.0, function(c: CFrame)
+			{ 2.0, "생수 500ml\n1+1  950원", function(c: CFrame)
 				for i = 0, 8 do
-					Q:vcyl("SmallWater", 0.75, 0.28, c * CF((i % 3) * 0.32 - 0.32, 0.38, (i // 3) * 0.32 - 0.32), { c = rgb(210, 230, 245), m = M.Glass, t = 0.4 })
-					Q:vcyl("SmallWaterCap", 0.08, 0.14, c * CF((i % 3) * 0.32 - 0.32, 0.79, (i // 3) * 0.32 - 0.32), lk(GS_BLUE))
+					local bc = c * CF((i % 3) * 0.32 - 0.32, 0, (i // 3) * 0.32 - 0.32)
+					Q:vcyl("SmallWater", 0.75, 0.28, bc * CF(0, 0.38, 0), { c = rgb(210, 230, 245), m = M.Glass, t = 0.4 })
+					Q:vcyl("SmallWaterLabel", 0.22, 0.29, bc * CF(0, 0.42, 0), lk(if i % 2 == 0 then rgb(30, 120, 200) else rgb(20, 160, 200)))
+					Q:vcyl("SmallWaterCap", 0.08, 0.14, bc * CF(0, 0.79, 0), lk(GS_BLUE))
 				end
 			end },
 		}
 		for _, gp in groups do
-			gp[2](pcfP * CF(gp[1], 2.36, 0))
+			gp[3](pcfP * CF(gp[1], 2.36, 0))
+			-- 쇼카드 (평대 앞 모서리에 꽂은 가격표)
+			local sc = pcfP * CF(gp[1], 2.42, 1.42) * ANG(-0.2, 0, 0)
+			Q:box("ShowCardClip", V3(0.3, 0.12, 0.06), pcfP * CF(gp[1], 2.36, 1.38), L_CHROME)
+			txt(ctx, "ShowCard", 1.3, 0.55, sc * CF(0, 0.28, 0), gp[2], RED, rgb(255, 236, 90), { font = F.GothamBlack, d = 0.012 })
 		end
 		Q:box("PromoPOPPole", V3(0.05, 1.3, 0.05), pcfP * CF(0, 2.98, -0.9), L_CHROME)
 		txt(ctx, "PromoPOP", 1.4, 0.7, pcfP * CF(0, 3.95, -0.9), "2+1\n골라 담기", RED, YEL, { font = F.GothamBlack, d = 0.03 })
