@@ -414,6 +414,31 @@ local function pictureLight(K: any, dcf: CFrame, w: number, light: boolean?)
 end
 
 -- 액자 (유리 없이: 프레임 4 + 매트 + 그림 블록). art = { {색, x, y, w, h} } (0..1)
+-- DJ 프로필 사진 (듀오톤 배경 + 뒤 후광 + 헤드폰 낀 상반신 실루엣 + 림 라이트). dcf 중심, w x h (액자 안쪽)
+local function djPortrait(K: any, dcf: CFrame, w: number, h: number, bgA: Color3, bgB: Color3, rim: Color3, skin: Color3)
+	local iw, ih = w, h
+	for k = 0, 2 do
+		K:plate("PortraitBG", iw, ih / 3, 0.07, dcf * CF(0, -ih / 2 + ih * (k + 0.5) / 3, 0), lk(bgA:Lerp(bgB, k / 2)))
+	end
+	local hy = ih * 0.1
+	local hcf = dcf * CF(0, hy, 0.075)
+	wdisc(K, "PortraitHalo", ih * 0.62, 0.005, hcf, lk(rim:Lerp(bgB, 0.35), M.SmoothPlastic))
+	-- 상반신 (아래 반을 꽉 채운 타원) + 림
+	K:ell("PortraitShoulderRim", V3(iw * 0.72, ih * 0.5, 0.02), dcf * CF(iw * 0.015, -ih * 0.25 + 0.03, 0.082), lk(rim))
+	K:ell("PortraitShoulders", V3(iw * 0.7, ih * 0.5, 0.02), dcf * CF(-iw * 0.01, -ih * 0.25, 0.086), lk(rgb(16, 14, 20)))
+	K:plate("PortraitNeck", iw * 0.09, ih * 0.14, 0.012, dcf * CF(0, -ih * 0.02, 0.088), lk(skin:Lerp(BLACK, 0.55)))
+	-- 머리 (림 + 얼굴 그림자) + 머리카락
+	K:ell("PortraitHeadRim", V3(iw * 0.215, ih * 0.33, 0.02), hcf * CF(iw * 0.012, 0, 0.012), lk(rim))
+	K:ell("PortraitHead", V3(iw * 0.2, ih * 0.32, 0.02), hcf * CF(-iw * 0.006, 0, 0.018), lk(skin:Lerp(BLACK, 0.45)))
+	K:ell("PortraitHair", V3(iw * 0.22, ih * 0.14, 0.02), hcf * CF(-iw * 0.006, ih * 0.12, 0.024), lk(rgb(14, 12, 16)))
+	-- 헤드폰 (밴드 + 이어컵 2)
+	K:ring("PortraitPhonesBand", hcf * CF(0, 0, 0.03), iw * 0.13, 0.07, 6, lk(rgb(30, 30, 34)), 0, PI)
+	for _, sx in { -1, 1 } do
+		K:ell("PortraitPhonesCup", V3(iw * 0.07, ih * 0.13, 0.02), hcf * CF(sx * iw * 0.115, -ih * 0.02, 0.032), lk(rgb(26, 26, 30)))
+	end
+	K:ell("PortraitPhonesLED", V3(iw * 0.02, ih * 0.05, 0.02), hcf * CF(iw * 0.128, -ih * 0.02, 0.04), lk(rim))
+end
+
 local function artFrame(K: any, dcf: CFrame, w: number, h: number, art: { any }, frame: any?, mat: any?)
 	local fr = frame or Look.black
 	local b = 0.1
@@ -613,13 +638,18 @@ local function buildCorridor(K: any, V: any, R: any)
 
 	-- 왼벽 갤러리: 레지던트 DJ 사진 3점 + 픽처 라이트 + 캡션 -------------------------------------------------
 	local GAL = {
-		{ z = 5.55, cap = "DJ HAEWON · RESIDENT\nTECH HOUSE", art = { { rgb(40, 30, 70), 0, 0, 1, 1 }, { rgb(150, 60, 230), 0, 0, 1, 0.45 }, { rgb(255, 70, 170), 0.12, 0.45, 0.76, 0.05 }, { rgb(26, 22, 30), 0.38, 0.18, 0.24, 0.5 }, { rgb(230, 190, 160), 0.44, 0.66, 0.12, 0.14 }, { rgb(40, 220, 255), 0.05, 0.86, 0.3, 0.04 } } },
+		{ z = 5.55, cap = "DJ HAEWON · RESIDENT\nTECH HOUSE", dj = { rgb(60, 24, 110), rgb(230, 60, 160), rgb(80, 230, 255), rgb(236, 196, 170) }, art = { { rgb(40, 30, 70), 0, 0, 1, 1 }, { rgb(150, 60, 230), 0, 0, 1, 0.45 }, { rgb(255, 70, 170), 0.12, 0.45, 0.76, 0.05 }, { rgb(26, 22, 30), 0.38, 0.18, 0.24, 0.5 }, { rgb(230, 190, 160), 0.44, 0.66, 0.12, 0.14 }, { rgb(40, 220, 255), 0.05, 0.86, 0.3, 0.04 } } },
 		{ z = 11.5, cap = "광안대교 · GWANGAN BRIDGE\n2025 NIGHT", art = { { rgb(20, 30, 70), 0, 0, 1, 1 }, { rgb(40, 80, 160), 0, 0, 1, 0.4 }, { rgb(255, 210, 120), 0, 0.42, 1, 0.03 }, { rgb(255, 210, 120), 0.18, 0.45, 0.02, 0.3 }, { rgb(255, 210, 120), 0.78, 0.45, 0.02, 0.3 }, { rgb(120, 200, 255), 0.0, 0.3, 1, 0.02 }, { rgb(255, 80, 160), 0.6, 0.8, 0.1, 0.08 } } },
-		{ z = 17.5, cap = "SEAN WAVE · RESIDENT\nK-EDM", art = { { rgb(70, 26, 44), 0, 0, 1, 1 }, { rgb(255, 140, 60), 0, 0, 1, 0.3 }, { rgb(255, 60, 90), 0.0, 0.3, 1, 0.12 }, { rgb(20, 16, 22), 0.4, 0.15, 0.2, 0.55 }, { rgb(220, 180, 150), 0.45, 0.7, 0.1, 0.12 }, { rgb(255, 230, 120), 0.7, 0.75, 0.2, 0.2 } } },
+		{ z = 17.5, cap = "SEAN WAVE · RESIDENT\nK-EDM", dj = { rgb(255, 120, 50), rgb(120, 20, 60), rgb(255, 230, 120), rgb(220, 180, 150) }, art = { { rgb(70, 26, 44), 0, 0, 1, 1 }, { rgb(255, 140, 60), 0, 0, 1, 0.3 }, { rgb(255, 60, 90), 0.0, 0.3, 1, 0.12 }, { rgb(20, 16, 22), 0.4, 0.15, 0.2, 0.55 }, { rgb(220, 180, 150), 0.45, 0.7, 0.1, 0.12 }, { rgb(255, 230, 120), 0.7, 0.75, 0.2, 0.2 } } },
 	}
 	for i, g in GAL do
 		local d = wallL(R, g.z, 5.95, 0)
-		artFrame(K, d, 4.6, 3.0, g.art, Look.black)
+		if g.dj then
+			artFrame(K, d, 4.6, 3.0, {}, Look.black, lk(rgb(236, 232, 224)))
+			djPortrait(K, d, 4.1, 2.5, g.dj[1], g.dj[2], g.dj[3], g.dj[4])
+		else
+			artFrame(K, d, 4.6, 3.0, g.art, Look.black)
+		end
 		pictureLight(K, d * CF(0, 1.5, 0), 3.2, i <= 3)
 		txt(K, "GalleryCaption", 1.7, 0.34, wallL(R, g.z + 1.4, 4.12, 0.11), g.cap, rgb(220, 200, 150), rgb(16, 14, 18), F.GothamMedium)
 	end
@@ -1159,6 +1189,17 @@ local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
 		K:box("JetTowelLED", V3(0.02, 0.05, w * 0.5), at(R, wx + s * (d + 0.01), cz, 0, mn.Y + h * 0.45), nl(rgb(60, 170, 255)))
 		txt(K, "JetTowelLabel", w * 0.8, 0.22, R.A * CFrame.fromMatrix(V3(wx + s * (d + 0.015), mn.Y + h * 0.3, cz), V3(0, 0, -s), Vector3.yAxis, V3(s, 0, 0)), "JET TOWEL · 손을 넣으세요", rgb(60, 70, 90), nil, F.GothamBold)
 	end)
+	-- 소변기 칸막이 (맵 그대로): 앞 모서리 헤어라인 마감 + 윗면 캡 (밤에 칸막이 윤곽이 보이게)
+	for _, r in V.byName.UrinalDivider or {} do
+		local mn, mx = abox(R, r)
+		local s = if math.abs(mn.X - R.x0) < math.abs(mx.X - R.x1) then 1 else -1
+		local fx = if s == 1 then mx.X else mn.X
+		local cz = (mn.Z + mx.Z) / 2
+		K:free(function()
+			K:box("DividerEdge", V3(0.1, mx.Y - mn.Y, (mx.Z - mn.Z) + 0.06), at(R, fx + s * 0.05, cz, 0, (mn.Y + mx.Y) / 2), Look.brushed)
+			K:box("DividerCap", V3(mx.X - mn.X, 0.06, (mx.Z - mn.Z) + 0.06), at(R, (mn.X + mx.X) / 2, cz, 0, mx.Y + 0.03), Look.brushed)
+		end)
+	end
 	local _ = female
 	return mirrors
 end

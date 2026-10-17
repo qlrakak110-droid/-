@@ -359,7 +359,9 @@ end
 -- 게임 포스터 (색 블록 키아트 + 제목 + 부제)
 local function poster(K: any, dcf: CFrame, w: number, h: number, spec: any)
 	local fr = Look.blackMetal
-	K:plate("PosterBack", w, h, 0.06, dcf, lk(spec.bg))
+	-- 백라이트 필름 (라이트박스 포스터): 바탕 · 키아트 모두 은은하게 발광
+	K:plate("PosterBox", w + 0.04, h + 0.04, 0.05, dcf, Look.blackMetal)
+	K:plate("PosterBack", w, h, 0.06, dcf, neon(lt(spec.bg, 0.06)))
 	local b = 0.09
 	K:plate("PosterFrame", w + 0.08, b, 0.1, dcf * CF(0, h / 2, 0), fr)
 	K:plate("PosterFrame", w + 0.08, b, 0.1, dcf * CF(0, -h / 2, 0), fr)
@@ -367,7 +369,7 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, spec: any)
 	K:plate("PosterFrame", b, h, 0.1, dcf * CF(w / 2, 0, 0), fr)
 	for i, a in spec.art or {} do
 		local c: Color3 = a[1]
-		local look = if a[7] then neon(c) else lk(c)
+		local look = if a[7] then neon(c) else neon(dk(c, 0.3))
 		K:plate("PosterArt", w * a[4], h * a[5], 0.065 + i * 0.002, dcf * CF(-w / 2 + w * a[2], -h / 2 + h * a[3], 0) * ANG(0, 0, math.rad(a[6] or 0)), look)
 	end
 	if spec.title then

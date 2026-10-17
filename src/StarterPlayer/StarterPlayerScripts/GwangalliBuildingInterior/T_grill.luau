@@ -479,13 +479,18 @@ local TARPS = {
 	{ name = "orange", a = rgb(244, 124, 38), b = rgb(244, 124, 38), trim = rgb(252, 238, 212) },
 	{ name = "blue", a = rgb(40, 96, 180), b = rgb(40, 96, 180), trim = rgb(244, 244, 240) },
 	{ name = "red", a = rgb(214, 44, 38), b = rgb(214, 44, 38), trim = rgb(250, 238, 214) },
+	{ name = "stripe", a = rgb(214, 58, 40), b = rgb(244, 238, 226), trim = rgb(252, 240, 220) },
 }
 
 local function pochaTheme(V: any, layout: string): any
 	local h = hash(V.name or "pocha")
 	local tarp = TARPS[(h % #TARPS) + 1]
-	if string.find(V.name or "", "해물", 1, true) then
-		tarp = TARPS[1]
+	-- 가게마다 천막 색을 확실히 다르게 (해물 = 주황, 해변 = 파랑, 민락 = 빨강, 광연 = 빨강 · 흰 줄무늬)
+	local nm = V.name or ""
+	for _, ov in { { "해물", 1 }, { "해변", 2 }, { "민락", 3 }, { "민락 포차", 1 }, { "광연", 4 } } do
+		if string.find(nm, ov[1], 1, true) then
+			tarp = TARPS[ov[2]]
+		end
 	end
 	local th: any = {
 		key = layout,
@@ -2262,7 +2267,8 @@ local TV_FRAMES = {
 local function tvScreen(c: any, dcf: CFrame, w: number, h: number, depth: number): (BasePart, TextLabel)
 	local K = c.K
 	K:plate("TVBody", w + 0.1, h + 0.1, depth, dcf, L.of(18, 18, 20))
-	local scr = K:plate("TVScreen", w, h, 0.02, dcf * CF(0, 0, depth), { c = TV_FRAMES[1].c, m = M.SmoothPlastic })
+	-- 화면은 은은히 빛나게 (Neon, 어두운 색이라 과하지 않음): 밤에도 켜진 TV 로 보임
+	local scr = K:plate("TVScreen", w, h, 0.02, dcf * CF(0, 0, depth), { c = TV_FRAMES[1].c, m = M.Neon })
 	local _, lab = txt(K, "TVText", w * 0.92, h * 0.8, dcf * CF(0, 0, depth + 0.025), TV_FRAMES[1].text, WHITE, nil, F.GothamBlack, { glow = 1.3, d = 0.01 })
 	K:plate("TVLogo", 0.26, 0.04, 0.01, dcf * CF(0, -h / 2 - 0.025, depth + 0.002), L.chrome)
 	K:plate("TVStandby", 0.05, 0.05, 0.01, dcf * CF(w / 2 - 0.1, -h / 2 - 0.025, depth + 0.002), L.ledRed)
@@ -2374,6 +2380,8 @@ local function tvOver(c: any)
 	if promptWallOK(c, wn, u, 4.7) then
 		claim(K, wn, u - 0.4, u + 0.4, 4.2, 5.2)
 		tvRemote(c, wn, u, scr, lab)
+	elseif scr and lab then
+		Interact.screenLoop(K, scr, lab, { TV_FRAMES[1], TV_FRAMES[2], TV_FRAMES[3] }, 9)
 	end
 end
 
@@ -3626,7 +3634,7 @@ local function graffitiWall(c: any)
 				end
 				-- 머리 띠: "손님 낙서 환영 · 매직은 카운터에"
 				local hd = V:wall(wn, u0, y1 - 0.16, 0.02)
-				txt(K, "GraffitiHead", math.min(w, 3.6), 0.24, hd, "낙서 환영! 매직은 카운터에 있어요", rgb(160, 30, 30), nil, F.PermanentMarker, { d = 0.003 })
+				txt(K, if placed == 0 then "GraffitiHead" else "GraffitiHead2", math.min(w, 3.6), 0.24, hd, if placed == 0 then "낙서 환영! 매직은 카운터에 있어요" else "♥ 오늘도 한 줄 남기고 가세요 ♥", rgb(160, 30, 30), nil, F.PermanentMarker, { d = 0.003 })
 				placed += 1
 			end
 		end
