@@ -2594,7 +2594,7 @@ local function drinkFridge(c: any, pcf: CFrame, nd: number)
 			K:box("FridgeDoorFrame", V3(dw, 0.12, 0.1), cc * CF(0, -innerH / 2 + 0.06, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, innerH, 0.1), cc * CF(-dw / 2 + 0.06, 0, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, innerH, 0.1), cc * CF(dw / 2 - 0.06, 0, 0), fr)
-			K:box("FridgeDoorGlass", V3(dw - 0.22, innerH - 0.22, 0.03), cc, { c = rgb(220, 236, 240), m = M.Glass, t = 0.84, r = 0.02 })
+			K:box("FridgeDoorGlass", V3(dw - 0.22, innerH - 0.22, 0.03), cc, { c = rgb(220, 236, 240), m = M.SmoothPlastic, t = 0.84, r = 0.04 })
 			K:box("FridgeDoorHandle", V3(0.08, innerH * 0.55, 0.12), cc * CF(dw / 2 - 0.22, 0, 0.1), L.chrome)
 		end)
 		local hinge = (K.cf * pcf * CF(x0, 0, d / 2 + 0.05)).Position
