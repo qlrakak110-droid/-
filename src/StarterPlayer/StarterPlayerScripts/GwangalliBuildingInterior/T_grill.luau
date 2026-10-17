@@ -1223,7 +1223,7 @@ local function fridgeBuild(c: any, pcf: CFrame, W: number, D: number, H: number,
 			K:box("FridgeDoorFrame", V3(dw, 0.16, 0.1), cc * CF(0, -hgt / 2 + 0.08, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, hgt, 0.1), cc * CF(-dw / 2 + 0.06, 0, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, hgt, 0.1), cc * CF(dw / 2 - 0.06, 0, 0), fr)
-			K:box("FridgeDoorGlass", V3(dw - 0.22, hgt - 0.26, 0.03), cc, { c = rgb(214, 232, 238), m = M.Glass, t = 0.78, r = 0.14 })
+			K:box("FridgeDoorGlass", V3(dw - 0.22, hgt - 0.26, 0.03), cc, { c = rgb(214, 232, 238), m = M.SmoothPlastic, t = 0.8, r = 0.14 })
 			local hx = if hingeLeft then dw / 2 - 0.2 else -dw / 2 + 0.2
 			K:box("FridgeDoorHandle", V3(0.08, hgt * 0.5, 0.08), cc * CF(hx, 0, 0.16), L.chrome)
 			K:box("FridgeHandleFoot", V3(0.06, 0.06, 0.12), cc * CF(hx, hgt * 0.24, 0.08), L.chrome)
@@ -1446,7 +1446,7 @@ local function displayOver(c: any)
 		K:box("DisplayRim", V3(0.08, rh, D - 0.16), pcf * CF(-W / 2 + 0.04, ry0 + rh / 2, 0), L.steel)
 		K:box("DisplayRim", V3(0.08, rh, D - 0.16), pcf * CF(W / 2 - 0.04, ry0 + rh / 2, 0), L.steel)
 		local bedTop = ry0 + rh - 0.06
-		local bedL = if kind == "meat" then L.of(236, 238, 240) else { c = rgb(226, 240, 248), m = M.Glass, t = 0.0, r = 0.2 }
+		local bedL = if kind == "meat" then L.of(236, 238, 240) else { c = rgb(232, 244, 250), m = M.Ice, r = 0.1 }
 		K:box("DisplayBed", V3(W - 0.16, bedTop - top + 0.06, D - 0.16), pcf * CF(0, (top - 0.06 + bedTop) / 2, 0), bedL)
 		if kind ~= "meat" and c.hi then
 			for i = 1, 10 do
@@ -1486,7 +1486,7 @@ local function displayOver(c: any)
 		end
 		if kind == "meat" then
 			-- 냉장 쇼케이스 유리 (경사 앞유리 + 옆유리) + 위 LED
-			local g = { c = rgb(220, 236, 242), m = M.Glass, t = 0.8, r = 0.15 }
+			local g = { c = rgb(220, 236, 242), m = M.SmoothPlastic, t = 0.84, r = 0.15 }
 			local gy0, gy1 = ry0 + rh, maxY
 			K:bar("CaseGlass", pcf * V3(0, gy0, D / 2 - 0.06), pcf * V3(0, gy1, D / 2 - 0.5), W - 0.1, 0.03, g)
 			for _, sx in { -1, 1 } do
@@ -1497,7 +1497,7 @@ local function displayOver(c: any)
 		else
 			-- 앞 테 파란 LED · 낮은 유리 가드
 			K:box("DisplayLED", V3(W - 0.3, 0.04, 0.03), pcf * CF(0, ry0 + rh - 0.06, D / 2 + 0.005), L.neon(rgb(120, 200, 255)))
-			K:bar("SneezeGuard", pcf * V3(0, ry0 + rh, D / 2 - 0.05), pcf * V3(0, maxY - 0.02, D / 2 - 0.2), W - 0.1, 0.02, { c = rgb(220, 236, 242), m = M.Glass, t = 0.82, r = 0.15 })
+			K:bar("SneezeGuard", pcf * V3(0, ry0 + rh, D / 2 - 0.05), pcf * V3(0, maxY - 0.02, D / 2 - 0.2), W - 0.1, 0.02, { c = rgb(220, 236, 242), m = M.SmoothPlastic, t = 0.84, r = 0.15 })
 		end
 	end)
 	hideRec(K, sd)
@@ -1713,7 +1713,7 @@ local function grillLights(c: any)
 					local d = K:box("LedDiffuser", V3(len - 0.12, 0.03, 0.3), CF(cxl, V.H - 0.155, z), lamp)
 					nl += 1
 					if nl % 3 == 1 and zi <= 3 then
-						K:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 14, Brightness = 0.7, Angle = 140, Color = th.light or L.coolLight })
+						K:light(d, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 16, Brightness = if th.key == "gopchang" then 0.95 else 0.8, Angle = 140, Color = th.light or L.coolLight })
 					end
 				end)
 				x += len + 1.6
@@ -2387,7 +2387,7 @@ local function standAC(c: any)
 	local white = L.of(244, 244, 240, M.SmoothPlastic)
 	K:box("ACBase", V3(w - 0.1, 0.14, d - 0.1), pcf * CF(0, 0.07, 0), L.of(70, 70, 74))
 	K:rbox("ACBody", V3(h - 0.16, w, d), 0.22, pcf * CF(0, 0.14 + (h - 0.16) / 2, 0) * ANG(0, 0, PI / 2), white)
-	K:plate("ACFront", w - 0.26, h - 1.9, 0.02, pcf * CF(0, 0.6 + (h - 1.9) / 2, d / 2), L.of(250, 250, 248, M.Glass, { r = 0.08 }))
+	K:plate("ACFront", w - 0.26, h - 1.9, 0.02, pcf * CF(0, 0.6 + (h - 1.9) / 2, d / 2), L.of(250, 250, 248, M.SmoothPlastic, { r = 0.08 }))
 	K:plate("ACVent", w - 0.3, 1.1, 0.03, pcf * CF(0, h - 0.75, d / 2), L.of(70, 72, 76))
 	for i = 0, 4 do
 		K:plate("ACVane", w - 0.36, 0.05, 0.06, pcf * CF(0, h - 1.22 + i * 0.22, d / 2), L.of(200, 202, 206))
@@ -2930,7 +2930,7 @@ local function photoMenu(c: any, walls: { string }, near: Vector3?, y0: number, 
 	local items = set.items
 	local cw = 1.9
 	local nMax = math.min(#items, maxN or #items)
-	local nMin = math.min(nMax, 3)
+	local nMin = math.min(nMax, 2)
 	local wn, u, w = findWall(K, walls, nMin * cw + 0.4, nMax * cw + 0.4, y0, y1, near, 0.6)
 	if not wn or not u or not w then
 		return false
@@ -3059,7 +3059,7 @@ local function liveTank(c: any)
 	end
 	local D = 1.85
 	local frame = L.of(150, 154, 160, M.Metal)
-	local water = { c = rgb(96, 176, 214), m = M.Glass, t = 0.62, r = 0.25 }
+	local water = { c = rgb(70, 160, 210), m = M.SmoothPlastic, t = 0.7, r = 0.05 }
 	local standH = 1.5
 	K:box("TankKick", V3(W - 0.2, 0.2, D - 0.2), pcf * CF(0, 0.1, 0), L.black)
 	K:box("TankStand", V3(W, standH - 0.2, D), pcf * CF(0, 0.2 + (standH - 0.2) / 2, 0), L.brushed)
@@ -3078,7 +3078,7 @@ local function liveTank(c: any)
 		K:box("TankBed", V3(W - 0.16, 0.06, D - 0.16), base * CF(0, 0.11, 0), L.of(214, 204, 180, M.Sand))
 		K:box("LiveTankWater", V3(W - 0.14, hh - 0.32, D - 0.14), base * CF(0, 0.14 + (hh - 0.32) / 2, 0), water)
 		-- 유리 앞판 + 모서리 프레임
-		K:box("TankGlass", V3(W - 0.08, hh - 0.1, 0.03), base * CF(0, 0.08 + (hh - 0.1) / 2, D / 2 - 0.02), { c = rgb(220, 236, 240), m = M.Glass, t = 0.85, r = 0.2 })
+		K:box("TankGlass", V3(W - 0.08, hh - 0.1, 0.03), base * CF(0, 0.08 + (hh - 0.1) / 2, D / 2 - 0.02), { c = rgb(220, 236, 240), m = M.SmoothPlastic, t = 0.88, r = 0.2 })
 		for _, sx in { -1, 1 } do
 			for _, sz in { -1, 1 } do
 				K:box("TankPost", V3(0.08, hh, 0.08), base * CF(sx * (W / 2 - 0.04), hh / 2, sz * (D / 2 - 0.04)), frame)
@@ -3129,6 +3129,65 @@ local function liveTank(c: any)
 	claim(K, wn, u - W / 2 - 0.3, u + W / 2 + 0.3, 0, V.H)
 	plateSign(K, sd, math.min(W, 4.2), 0.6, if th.pocha then "오늘 들어온 활어 · 해산물" else "산지직송 활 조개 수조", WHITE, rgb(20, 100, 170), nil, F.GothamBlack)
 	at(K, "live tank", wn, u)
+end
+
+
+-- 네온 문구 간판 (아크릴 판 + 빛나는 글자 + 같은 색 네온관 테 + 벽 고정 볼트). 불빛(Light)은 안 씀 (예산)
+local NEON_SLOGANS: { [string]: any } = {
+	clam = { { "조개 굽는 밤", rgb(90, 230, 255) }, { "오늘도 조개각", rgb(255, 120, 200) } },
+	gopchang = { { "오늘은 곱창에 소주", rgb(255, 90, 150) }, { "곱창은 사랑입니다", rgb(255, 120, 80) } },
+	bbq = { { "고기는 사랑입니다", rgb(255, 170, 70) } },
+	pochaTent = { { "오늘 밤은 포차에서", rgb(255, 100, 170) }, { "소주 한잔 할래?", rgb(110, 230, 255) } },
+	pochaBar = { { "술술 넘어간다", rgb(255, 210, 80) }, { "오늘 밤은 포차에서", rgb(255, 100, 170) } },
+	pocha24 = { { "새벽까지 영업중", rgb(120, 230, 255) }, { "해장은 여기서", rgb(255, 150, 60) } },
+}
+local function neonSlogan(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local list = NEON_SLOGANS[th.key]
+	if not list then
+		return
+	end
+	local pick = list[c.seed % #list + 1]
+	local text, cc = pick[1], pick[2]
+	local n = utf8.len(text) or 6
+	local w0 = math.clamp(n * 0.62, 3.2, 5.6)
+	local wn, u, fw = findWall(K, { "back", "left", "right" }, 3.4, w0 + 0.4, 5.5, 8.1, V3(V.x1 * 0.5, 0, V.z0), 0.6)
+	if not wn or not u or not fw then
+		return
+	end
+	local w = fw - 0.4
+	local h = math.clamp(w * 0.24, 0.9, 1.25)
+	local d = V:wall(wn, u, 6.8, 0)
+	-- 아크릴 판 (반투명 검정) + 볼트 4
+	K:plate("NeonAcrylic", w + 0.3, h + 0.4, 0.05, d * CF(0, 0, 0.12), { c = rgb(24, 24, 28), m = M.SmoothPlastic, t = 0.35, r = 0.2 })
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			K:vcyl("NeonStandoff", 0.12, 0.1, d * CF(sx * (w / 2 + 0.02), sy * (h / 2 + 0.07), 0.06) * ANG(PI / 2, 0, 0), L.chrome)
+		end
+	end
+	txt(K, "NeonText", w, h * 0.78, d * CF(0, 0.02, 0.18), text, cc, nil, F.GothamBlack, { glow = 2.4, d = 0.01 })
+	-- 네온관 테 (둥근 모서리 사각): 위 · 아래 · 옆 막대
+	local tube = L.neon(cc)
+	local tw, th2 = w + 0.1, h + 0.2
+	K:seg("NeonTube", (d * CF(-tw / 2 + 0.2, th2 / 2, 0.2)).Position, (d * CF(tw / 2 - 0.2, th2 / 2, 0.2)).Position, 0.06, tube)
+	K:seg("NeonTube", (d * CF(-tw / 2 + 0.2, -th2 / 2, 0.2)).Position, (d * CF(tw / 2 - 0.2, -th2 / 2, 0.2)).Position, 0.06, tube)
+	K:seg("NeonTube", (d * CF(-tw / 2, -th2 / 2 + 0.2, 0.2)).Position, (d * CF(-tw / 2, th2 / 2 - 0.2, 0.2)).Position, 0.06, tube)
+	K:seg("NeonTube", (d * CF(tw / 2, -th2 / 2 + 0.2, 0.2)).Position, (d * CF(tw / 2, th2 / 2 - 0.2, 0.2)).Position, 0.06, tube)
+	for _, sx in { -1, 1 } do
+		for _, sy in { -1, 1 } do
+			local a0 = if sx > 0 then (if sy > 0 then 0 else -PI / 2) else (if sy > 0 then PI / 2 else PI)
+			K:ring("NeonTube", d * CF(sx * (tw / 2 - 0.2), sy * (th2 / 2 - 0.2), 0.2), 0.2, 0.06, 3, tube, a0, a0 + PI / 2)
+		end
+	end
+	-- 하트 장식 (작은 네온 원 두 개 + 쐐기 대신 원)
+	if c.hi then
+		local hx = tw / 2 - 0.45
+		K:ring("NeonHeart", d * CF(hx - 0.1, th2 / 2 - 0.42, 0.21), 0.1, 0.04, 6, L.neon(rgb(255, 80, 110)))
+		K:ring("NeonHeart", d * CF(hx + 0.1, th2 / 2 - 0.42, 0.21), 0.1, 0.04, 6, L.neon(rgb(255, 80, 110)))
+	end
+	-- 전원선 (아래로)
+	K:seg("NeonCord", (d * CF(tw / 2 - 0.3, -th2 / 2 - 0.05, 0.08)).Position, (d * CF(tw / 2 - 0.3, -th2 / 2 - 1.1, 0.03)).Position, 0.035, L.of(30, 30, 32))
+	at(K, "neon", wn, u)
 end
 
 -- 스타일 · 빌드 --------------------------------------------------------------------------------------------
@@ -3216,11 +3275,15 @@ function T.build(K: any, V: any, S: any)
 		step("photo", function()
 			photoMenu(c, { "left", "right", "back" }, V3(V.x0, 0, -1), 5.2, 8.1, if th.key == "pochaBar" then 4 elseif th.key == "pochaTent" then 5 else 6)
 		end)
+		step("neon", neonSlogan)
 		step("sheets", menuSheets)
 	else
 		step("photo", function()
-			photoMenu(c, { "right", "left" }, V3(V.x1, 0, 0), 5.3, 8.2, 6)
+			photoMenu(c, { "right", "left", "back" }, V3(V.x1, 0, 0), 5.3, 8.2, 6)
 		end)
+	end
+	if th.menuStyle ~= "sheets" then
+		step("neon", neonSlogan)
 	end
 	-- 바닥 소품: 수조 (조개구이 · 해물 포차, 앞쪽 옆벽) · 에어컨 · 화로대 · 셀프 카트 · 셀프 물 · 소주 박스
 	if th.key == "clam" or (th.pocha and th.key ~= "pocha24") then

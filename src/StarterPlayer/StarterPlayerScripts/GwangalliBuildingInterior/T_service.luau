@@ -1077,7 +1077,7 @@ function T.style(V: any): any
 				return {
 					chair = false, stool = {}, table = false, counter = { front = "panel", frontL = lk(C(120, 90, 60), M.Wood), topL = Look.marbleWhite },
 					floor = { look = lk(C(206, 196, 178), M.Limestone), tile = 2.4, grout = lk(C(160, 150, 134)) },
-					ceiling = { skin = lk(C(92, 70, 52), M.Wood) }, base = lk(C(70, 52, 40), M.Wood),
+					ceiling = { skin = lk(C(168, 134, 98), M.Wood) }, base = lk(C(70, 52, 40), M.Wood),
 					lower = { kind = "paint", h = 3.4, look = lk(C(150, 116, 80), M.Wood), cap = Look.goldMetal, walls = { "left", "right", "back" } },
 					lights = { kind = "downlight", n = math.clamp(math.floor(V.W / 6), 3, 6), color = C(255, 210, 160), glow = Look.lampWarm },
 					mat = { look = lk(C(40, 60, 44), M.Fabric), text = string.upper(nm) }, cctv = true, clock = false, license = true, skip = skip,
@@ -3399,6 +3399,55 @@ local function buildRealty(K: any, V: any, S: any)
 			K:plate("RealtyNameBack", w + 0.4, 0.95, 0.06, d3, lk(C(24, 50, 100)))
 			txt(K, "RealtyName", w, 0.62, d3 * CF(0, 0.03, 0.07), name, WHITE, nil, { font = F.GothamBlack })
 		end
+	end)
+	-- 유리창 매물 전단 (밖에서 읽히게 바깥쪽을 향함, 창 keep 3.4 아래 · 문 keep 밖 · 멀리언 피함)
+	step(K, "windowsheets", function()
+		local d = V.door
+		local wins = V.byName.ShopWindow or {}
+		local mulls = V.byName.Mullion or {}
+		local sw, sh = 1.12, 1.42
+		local zf = V.z1 - 0.07
+		local idx = math.floor(rng() * #LISTINGS)
+		local function onGlass(x: number): boolean
+			if #wins == 0 then
+				return true
+			end
+			for _, r in wins do
+				if x - sw / 2 >= r.min.X + 0.05 and x + sw / 2 <= r.max.X - 0.05 and r.max.Z > V.z1 - 0.3 then
+					return true
+				end
+			end
+			return false
+		end
+		local function nearMullion(x: number): boolean
+			for _, r in mulls do
+				if r.max.Z > V.z1 - 0.4 and x + sw / 2 > r.min.X - 0.06 and x - sw / 2 < r.max.X + 0.06 then
+					return true
+				end
+			end
+			return false
+		end
+		K:free(function()
+			for _, side in { -1, 1 } do
+				local inner = if d then (if side > 0 then d.x + (d.w or 4.8) / 2 + 2.1 else d.x - (d.w or 4.8) / 2 - 2.1) else 0
+				local outer = if side > 0 then V.x1 - 0.4 else V.x0 + 0.4
+				local a, b = math.min(inner, outer), math.max(inner, outer)
+				local n = math.floor((b - a) / (sw + 0.1))
+				for i = 1, n do
+					local x = a + (i - 0.5) * ((b - a) / n)
+					if onGlass(x) and not nearMullion(x) then
+						for _, y in { 1.08, 2.6 } do
+							idx += 1
+							local L = LISTINGS[idx % #LISTINGS + 1]
+							local out = CFrame.fromMatrix(V3(x, y, zf), V3(1, 0, 0), Vector3.yAxis, V3(0, 0, 1))
+							K:plate("WinSheet", sw, sh, 0.02, out * CF(0, 0, -0.012), Look.paper)
+							txt(K, "WinSheetDeal", sw, 0.34, out * CF(0, sh / 2 - 0.17, 0), L[1], WHITE, DEAL_COL[L[1]] or C(60, 60, 64), { font = F.GothamBlack, d = 0.012 })
+							txt(K, "WinSheetText", sw - 0.1, sh - 0.46, out * CF(0, -0.2, 0), L[2] .. "\n" .. L[3], C(24, 30, 48), nil, { font = F.GothamBold, d = 0.012 })
+						end
+					end
+				end
+			end
+		end)
 	end)
 	step(K, "extras", function()
 		-- 매물 사진 (3장)

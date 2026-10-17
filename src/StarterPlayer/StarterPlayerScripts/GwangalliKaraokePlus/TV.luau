@@ -276,9 +276,22 @@ end
 -------------------------------------------------------------------------------------------------
 -- dynamic content
 -------------------------------------------------------------------------------------------------
+-- a shown layer is attached to the TV root and a hidden one is parked (Parent nil, kept in L), so
+-- renderers that lay a SurfaceGui out only on structural changes draw it at once; Roblox is unaffected
+local function setLayer(n: string, on: boolean)
+	local f = L[n]
+	if f.Visible ~= on then
+		f.Visible = on
+	end
+	local want = if on then root else nil
+	if f.Parent ~= want then
+		f.Parent = want
+	end
+end
+
 local function showLayer(name: string)
 	for _, n in { "idle", "ready", "title", "sing", "score" } do
-		L[n].Visible = n == name or (name == "title" and n == "sing")
+		setLayer(n, n == name or (name == "title" and n == "sing"))
 	end
 end
 
@@ -428,7 +441,7 @@ local function updateTitle(v: any, st: number)
 	local fadeAt = if first then first.show else c.intro
 	local a = math.clamp((st - (fadeAt - 0.5)) / 0.5, 0, 1)
 	L.titleCard.BackgroundTransparency = 0.25 + 0.75 * a
-	L.title.Visible = a < 1
+	setLayer("title", a < 1)
 	for _, d in L.titleCard:GetDescendants() do
 		if d:IsA("TextLabel") then
 			d.TextTransparency = a
@@ -856,12 +869,12 @@ function TV.update(dt: number)
 		local first = v.chart and v.chart.lines[1]
 		local titleOn = first and st < first.show
 		showLayer(if titleOn then "title" else "sing")
-		L.sing.Visible = true
+		setLayer("sing", true)
 		if titleOn or (first and st < first.show + 0.1) then
-			L.title.Visible = true
+			setLayer("title", true)
 			updateTitle(v, st)
 		else
-			L.title.Visible = false
+			setLayer("title", false)
 		end
 		updateSing(v, st, t)
 	else

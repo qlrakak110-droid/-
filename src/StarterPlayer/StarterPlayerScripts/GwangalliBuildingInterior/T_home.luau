@@ -644,6 +644,16 @@ end
 -- 숨기기 (장식용 엉성한 파트만)
 function C:hide(p: Instance?)
 	if p and p:IsA("BasePart") then
+		-- 계약 보호: TV 화면 (SurfaceGui) · 테마로 다시 칠하는 쉘 면 · 창밖 풍경은 어떤 경로로도 숨기지 않음
+		if p.Name == "Screen" or p.Name == "TVScreen" or p:GetAttribute("Screen") or p:FindFirstChildOfClass("SurfaceGui") then
+			return
+		end
+		if p:GetAttribute("Room") ~= nil and p:GetAttribute("Surface") ~= nil then
+			return
+		end
+		if p:FindFirstAncestor("Backdrop") or p:FindFirstAncestor("WindowView") then
+			return
+		end
 		Scan.hide(self.K.hidden, p)
 	end
 end
@@ -1592,9 +1602,12 @@ SLOT.bed = function(C_: any, info: any): boolean?
 		local pw = math.min(p.size.X, (mx1 - mx0) / math.max(1, #pillows) - 0.1)
 		local pd = math.min(p.size.Z, 1.25)
 		local py = mt + 0.22
-		K:ell("HomePillow", V3(pw, 0.44, pd), F * CF(p.c.X, py, math.max(p.c.Z, hz + pd / 2 + 0.05)) * ANG(math.rad(-6), (i - 1.5) * 0.06, 0), sheet)
+		-- 베개: 모서리가 둥근 직사각 몸통 + 가운데 볼록 (렌즈 모양 타원 하나는 원반처럼 보임)
+		local pcf = F * CF(p.c.X, py - 0.02, math.max(p.c.Z, hz + pd / 2 + 0.05)) * ANG(math.rad(-6), (i - 1.5) * 0.06, 0)
+		K:rbox("HomePillow", V3(pw, 0.32, pd), 0.15, pcf, sheet)
+		K:ell("HomePillowPuff", V3(pw * 0.94, 0.46, pd * 0.86), pcf * CF(0, 0.02, 0), sheet)
 		if hi then
-			K:ell("HomePillowSeam", V3(pw + 0.04, 0.06, pd + 0.04), F * CF(p.c.X, py, math.max(p.c.Z, hz + pd / 2 + 0.05)) * ANG(math.rad(-6), (i - 1.5) * 0.06, 0), lk(232, 230, 224, M.Fabric))
+			K:box("HomePillowSeam", V3(pw - 0.24, 0.03, 0.03), pcf * CF(0, 0, pd / 2 - 0.005), tint(sheet, -0.06))
 		end
 	end
 	if C_.lux >= 4 and #pillows >= 2 then
@@ -2857,6 +2870,29 @@ local function artPaint(K: any, f: CFrame, w: number, h: number, kind: string, s
 			blk("HomeBridgeLight", x, -0.05, w * 0.01, h * 0.012, ({ c3(120, 200, 255), c3(255, 120, 200), c3(140, 255, 160) })[i % 3 + 1], 0, 0.005)
 			blk("HomeBridgeReflect", x, -0.35, w * 0.006, h * 0.22, c3(60, 90, 150), 0, 0.002)
 		end
+	elseif kind == "sunset" then
+		-- 광안대교 노을 사진: 하늘 띠 (위 보라 → 분홍 → 주황) · 낮은 해 · 어두운 바다 + 물빛 반사 · 다리 실루엣
+		local sky = { c3(96, 86, 140), c3(168, 110, 150), c3(226, 132, 120), c3(246, 170, 104), c3(252, 206, 140) }
+		for i, c in sky do
+			blk("HomePaintSkyBand", 0, 1 - (i - 0.5) * 0.24, w, h * 0.125, c, 0, 0.0002 * i)
+		end
+		blk("HomePaintSea", 0, -0.6, w, h * 0.4, c3(52, 50, 78), 0, 0.002)
+		blk("HomePaintSeaGlow", 0.28, -0.32, w * 0.3, h * 0.04, c3(240, 160, 110), 0, 0.003)
+		blk("HomePaintSeaGlow", 0.3, -0.48, w * 0.18, h * 0.03, c3(214, 130, 104), 0, 0.003)
+		K:disc("HomePaintSun", h * 0.14, 0.01, f * CF(w * 0.15, -h * 0.08, 0.012) * ANG(PI / 2, 0, 0), { c = c3(255, 236, 196), m = M.SmoothPlastic })
+		local dark = c3(34, 30, 46)
+		blk("HomeBridgeDeck", 0, -0.2, w, h * 0.03, dark, 0, 0.006)
+		for _, sx in { -0.42, 0.42 } do
+			blk("HomeBridgeTower", sx, 0.02, w * 0.016, h * 0.42, dark, 0, 0.006)
+			for j = 1, 3 do
+				local dx = 0.05 + j * 0.06
+				blk("HomeBridgeCable", sx - dx * 0.5, 0.06 - j * 0.04, w * dx * 1.05, h * 0.006, dark, math.rad(20 + j * 5), 0.005)
+				blk("HomeBridgeCable", sx + dx * 0.5, 0.06 - j * 0.04, w * dx * 1.05, h * 0.006, dark, -math.rad(20 + j * 5), 0.005)
+			end
+		end
+		for i = 1, 7 do
+			blk("HomeBridgeLight", -0.9 + i * 0.225, -0.2, w * 0.008, h * 0.014, c3(255, 214, 150), 0, 0.008)
+		end
 	elseif kind == "abstract" then
 		blk("HomePaintGround", 0, 0, w, h, cols[1] or c3(232, 226, 214))
 		K:ell("HomePaintForm", V3(w * 0.42, h * 0.62, 0.01), f * CF(-w * 0.18, h * 0.05, 0.019), { c = cols[2] or c3(40, 70, 110), m = M.SmoothPlastic })
@@ -2947,11 +2983,13 @@ SLOT.art = function(C_: any, info: any): boolean?
 		for i, sx in { -1, 1 } do
 			local d = dcf * CF(sx * (gw / 2 + 0.15), 0, 0)
 			local f = artFrame(K, d, gw, h, { frame = from(frame, L.oak, M.Wood), border = 0.08, mat = lk(246, 244, 238) })
-			artPaint(K, f, gw - 0.5, h - 0.5, "warm", C_.seed + i, { c3(236, 230, 218), cols[i + 1] or c3(200, 120, 80), cols[4 - i] or c3(60, 80, 120) })
+			-- 집마다 같은 그림이 반복되지 않게: 등급 · 방 · 상품으로 화풍 고르기 (딥틱 두 폭은 같은 화풍)
+			local pk = ({ "warm", "lines", "warm", "lines", "field" })[(hash(item .. C_.tier .. C_.room) % 5) + 1]
+			artPaint(K, f, gw - 0.5, h - 0.5, pk, C_.seed + i, if pk == "field" then { c3(214, 204, 186), cols[i + 1] or c3(200, 120, 80), cols[4 - i] or c3(60, 80, 120) } else { c3(236, 230, 218), cols[i + 1] or c3(200, 120, 80), cols[4 - i] or c3(60, 80, 120) })
 		end
 		return true
 	end
-	local kind = if string.find(item, "sea") then "sea" elseif string.find(item, "bridge") then "bridge" elseif string.find(item, "large") then "abstract" else "warm"
+	local kind = if string.find(item, "sea") then "sea" elseif string.find(item, "bridge") then "bridge" elseif string.find(item, "large") then "abstract" else ({ "warm", "lines", "field", "warm", "lines" })[(hash(item .. C_.tier .. C_.room) % 5) + 1]
 	local gallery = kind == "abstract"
 	local f = artFrame(K, dcf, w, h, { frame = if kind == "bridge" then lk(26, 26, 28, M.Metal) else from(frame, L.oak, M.Wood), border = if kind == "bridge" then 0.06 else 0.1, gallery = gallery, mat = if kind == "bridge" then lk(250, 250, 248) else nil })
 	local inset = if gallery then 0 elseif kind == "bridge" then 0.5 else 0.22
@@ -5303,7 +5341,7 @@ ROOM["apartment:bedroom"] = function(Cx: any)
 	if wed then
 		K:free(function()
 			local f = artFrame(K, wed, 4.0, 2.4, { frame = lk(232, 226, 214, M.Wood), border = 0.1, mat = lk(250, 250, 248) })
-			artPaint(K, f, 3.4, 1.8, "sea", Cx.seed + 3, {})
+			artPaint(K, f, 3.4, 1.8, "sunset", Cx.seed + 3, {})
 		end)
 	end
 	-- TV 아래: 6단 서랍장 (낮은 체스트) + 위 소품
@@ -5743,6 +5781,21 @@ ROOM["apartment:study"] = function(Cx: any)
 	if gs then
 		K:free(function()
 			P.guitar(K, gs)
+		end)
+	end
+	-- 빈 벽: 가족사진 액자 묶음 (코르크 보드와 먼 벽) + 책상 옆 벽걸이 달력 (학원 · 관리비 날 동그라미)
+	local cbP = if cb then cb.Position else fc + V3(0, 0, -6)
+	local _, _, ph = Cx:wallSpotHigh(3.4, 4.3, 6.5, 0.1, { score = far(cbP), margin = 0.5 })
+	if ph then
+		K:free(function()
+			P.photoCluster(Cx, ph * CF(0, 0.05, 0), 4, Cx.seed + 41)
+		end)
+	end
+	local dk = slotAt(Cx, "desk") or (fc + V3(0, 0, -6))
+	local _, _, cal = Cx:wallSpot(1.3, 3.5, 5.3, 0.06, { score = near(dk), margin = 0.4 })
+	if cal then
+		K:free(function()
+			P.calendar(K, cal, "10월 OCTOBER")
 		end)
 	end
 	-- 독서 스탠드 (내 불빛)
@@ -6472,12 +6525,49 @@ ROOM["penthouse:study"] = function(Cx: any)
 	if mp then
 		K:free(function()
 			local f = artFrame(K, mp, 3.8, 2.5, { frame = L.walnut, border = 0.1, mat = lk(236, 226, 200) })
-			K:box("HomeMapSea", V3(3.3, 1.95, 0.006), f * CF(0, 0, 0.003), lk(170, 196, 200))
-			local land = { { -1.0, 0.25, 0.8, 0.75 }, { -0.75, -0.5, 0.42, 0.66 }, { 0.25, 0.33, 1.15, 0.66 }, { 0.5, -0.33, 0.42, 0.5 }, { 1.15, -0.58, 0.42, 0.3 } }
-			for _, l in land do
-				K:ell("HomeMapLand", V3(l[3], l[4], 0.006), f * CF(l[1], l[2], 0.008), lk(214, 196, 150))
+			K:box("HomeMapSea", V3(3.3, 1.95, 0.006), f * CF(0, 0, 0.003), lk(176, 196, 190))
+			-- 등거리 원통 도법 (경도 · 위도 → 지도 좌표): 대륙을 겹친 타원으로 (모양이 알아보이게)
+			local function at(lon: number, lat: number): (number, number)
+				return lon / 180 * 1.62, lat / 90 * 0.95
 			end
-			K:ball("HomeMapPin", 0.08, f * CF(0.87, 0.32, 0.03), L.ledRed)
+			-- 경위선 (30도 간격)
+			for lon = -150, 150, 30 do
+				local x = at(lon, 0)
+				K:box("HomeMapGrid", V3(0.006, 1.9, 0.004), f * CF(x, 0, 0.0065), lk(150, 170, 166))
+			end
+			for lat = -60, 60, 30 do
+				local _, y = at(0, lat)
+				K:box("HomeMapGrid", V3(3.24, if lat == 0 then 0.012 else 0.006, 0.004), f * CF(0, y, 0.0067), lk(150, 170, 166))
+			end
+			local land = {
+				-- 북미 · 알래스카 · 캐나다 북부 · 그린란드 · 중미
+				{ -100, 42, 52, 26 }, { -110, 58, 60, 18 }, { -152, 63, 26, 11 }, { -82, 30, 14, 14 }, { -98, 20, 14, 10 }, { -88, 14, 8, 8 }, { -42, 72, 22, 14 }, { -75, 68, 22, 12 },
+				-- 남미
+				{ -60, -10, 30, 36 }, { -66, 6, 22, 12 }, { -68, -36, 14, 24 }, { -42, -8, 12, 14 },
+				-- 유럽 · 스칸디나비아 · 이베리아 · 영국
+				{ 18, 50, 30, 14 }, { 16, 63, 12, 14 }, { -4, 40, 10, 8 }, { -2, 54, 5, 8 }, { 40, 52, 20, 18 },
+				-- 아프리카 · 마다가스카르
+				{ 12, 16, 50, 22 }, { 24, -2, 32, 26 }, { 26, -22, 22, 24 }, { 47, -19, 4, 9 },
+				-- 아시아 · 시베리아 · 아라비아 · 인도 · 동남아 · 인도네시아
+				{ 90, 48, 84, 28 }, { 105, 64, 80, 16 }, { 46, 24, 18, 14 }, { 78, 20, 16, 16 }, { 104, 12, 14, 14 }, { 116, 30, 22, 18 }, { 116, -2, 22, 5 }, { 138, -5, 10, 5 },
+				-- 한반도 · 일본
+				{ 127.5, 37.5, 3.4, 6.5 }, { 137, 36, 3.6, 9 }, { 142, 43, 4, 4 },
+				-- 오세아니아
+				{ 134, -25, 36, 22 }, { 172, -42, 4, 9 },
+			}
+			for i, l in land do
+				local x, y = at(l[1], l[2])
+				local lw, lh = l[3] / 180 * 1.62, l[4] / 90 * 0.95
+				K:ell("HomeMapLand", V3(lw, lh, 0.006), f * CF(x, y, 0.008 + i * 0.0003), lk(214, 196, 150))
+			end
+			-- 나침반 장미 (오른쪽 아래) + 부산 핀
+			local rx, ry = 1.3, -0.62
+			K:disc("HomeMapRose", 0.34, 0.004, f * CF(rx, ry, 0.02) * ANG(PI / 2, 0, 0), lk(232, 220, 190))
+			K:box("HomeMapRoseN", V3(0.03, 0.4, 0.004), f * CF(rx, ry, 0.024), lk(120, 60, 40))
+			K:box("HomeMapRoseE", V3(0.4, 0.03, 0.004), f * CF(rx, ry, 0.025), lk(120, 60, 40))
+			local bx, by = at(129, 35)
+			K:ball("HomeMapPin", 0.08, f * CF(bx, by, 0.03), L.ledRed)
+			K:seg("HomeMapPinNeedle", (f * CF(bx, by, 0.012)).Position, (f * CF(bx, by, 0.03)).Position, 0.015, L.chrome)
 			K:text("HomeMapTitle", 1.6, 0.16, f * CF(0, 1.08, 0.012), "MAPPA MUNDI · 2026", { fg = c3(90, 70, 50), d = 0.004, free = true, font = Enum.Font.Garamond })
 		end)
 	end
@@ -6708,19 +6798,21 @@ ROOM["penthouse:bedroom"] = function(Cx: any)
 		local F = CF(c.X, mn.Y, c.Z) * (if alongX then CFrame.new() else ANG(0, PI / 2, 0))
 		local h = mx.Y - mn.Y
 		K:free(function()
-			K:rbox("HomeTubShell", V3(len, h - 0.1, wid), wid * 0.45, F * CF(0, (h - 0.1) / 2 + 0.1, 0) * ANG(0, PI / 2, 0) * ANG(0, -PI / 2, 0), lk(250, 250, 248))
-			K:slab("HomeTubRim", len, wid, 0.08, wid * 0.48, F * CF(0, h - 0.02, 0), lk(252, 252, 250))
-			K:slab("HomeTubWater", len - 0.5, wid - 0.5, 0.04, wid * 0.4, F * CF(0, h - 0.25, 0), { c = c3(150, 200, 214), m = M.Glass, t = 0.35, r = 0.1 })
+			-- 바깥 몸체 (위에서 보면 둥근 타원형) + 얇은 림 · 안쪽 그늘 띠 · 물 (뚜껑처럼 막힌 판이 아니라 안이 보이게)
+			K:slab("HomeTubShell", len, wid, h - 0.12, wid * 0.46, F * CF(0, (h - 0.12) / 2 + 0.1, 0), lk(250, 250, 248))
+			K:slab("HomeTubRim", len - 0.08, wid - 0.08, 0.03, wid * 0.44, F * CF(0, h - 0.005, 0), lk(253, 253, 251))
+			K:slab("HomeTubInner", len - 0.36, wid - 0.36, 0.02, wid * 0.36, F * CF(0, h + 0.016, 0), lk(226, 228, 228))
+			K:slab("HomeTubWater", len - 0.56, wid - 0.56, 0.02, wid * 0.3, F * CF(0, h + 0.03, 0), { c = c3(150, 196, 208), m = M.SmoothPlastic, t = 0.25, r = 0.3 })
 			for _, sx in { -1, 1 } do
 				for _, sz in { -1, 1 } do
 					K:ball("HomeTubFoot", 0.22, F * CF(sx * (len / 2 - 0.5), 0.11, sz * (wid / 2 - 0.4)), L.brass)
 				end
 			end
 			-- 욕조 트레이 (책 · 와인잔 · 초)
-			K:box("HomeTubTray", V3(0.4, 0.06, wid + 0.3), F * CF(len * 0.15, h + 0.05, 0), lk(150, 120, 90, M.Wood))
-			K:vcyl("HomeTubCandle", 0.2, 0.2, F * CF(len * 0.15, h + 0.18, -wid * 0.3), lk(248, 244, 234))
-			K:vcyl("HomeTubGlassStem", 0.25, 0.03, F * CF(len * 0.15, h + 0.2, wid * 0.25), L.glass(c3(230, 240, 246), 0.5))
-			K:ell("HomeTubGlassBowl", V3(0.2, 0.26, 0.2), F * CF(len * 0.15, h + 0.42, wid * 0.25), { c = c3(120, 30, 40), m = M.Glass, t = 0.3 })
+			K:box("HomeTubTray", V3(0.4, 0.06, wid + 0.3), F * CF(len * 0.15, h + 0.08, 0), lk(150, 120, 90, M.Wood))
+			K:vcyl("HomeTubCandle", 0.2, 0.2, F * CF(len * 0.15, h + 0.21, -wid * 0.3), lk(248, 244, 234))
+			K:vcyl("HomeTubGlassStem", 0.25, 0.03, F * CF(len * 0.15, h + 0.235, wid * 0.25), L.glass(c3(230, 240, 246), 0.5))
+			K:ell("HomeTubGlassBowl", V3(0.2, 0.26, 0.2), F * CF(len * 0.15, h + 0.47, wid * 0.25), { c = c3(120, 30, 40), m = M.Glass, t = 0.3 })
 		end)
 		Cx:hide(tf.part)
 		for _, w in walls do

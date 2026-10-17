@@ -1119,8 +1119,9 @@ local function menuBoard(c: any, dcf: CFrame, w: number, h: number, title: strin
 		local row = (i - 1) % rows
 		local x0 = -w / 2 + 0.2 + cI * cw
 		local y = top - rh * (row + 0.5)
-		ktext(K, "MenuItem", cw * 0.62, rh * 0.68, dcf * CF(x0 + cw * 0.32, y, z), it[1], { fg = st.fg, glow = st.glow, align = "Left", font = f })
-		ktext(K, "MenuPrice", cw * 0.32, rh * 0.6, dcf * CF(x0 + cw * 0.81, y, z), it[2], { fg = st.price, glow = st.glow, align = "Right", font = f })
+		local tbg = if style == "light" then st.face.c else nil
+		ktext(K, "MenuItem", cw * 0.62, rh * 0.68, dcf * CF(x0 + cw * 0.32, y, z), it[1], { fg = st.fg, glow = st.glow, align = "Left", font = f, bg = tbg, d = 0.01 })
+		ktext(K, "MenuPrice", cw * 0.32, rh * 0.6, dcf * CF(x0 + cw * 0.81, y, z), it[2], { fg = st.price, glow = st.glow, align = "Right", font = f, bg = tbg, d = 0.01 })
 	end
 	for i = 1, cols - 1 do
 		K:plate("MenuColRule", 0.03, avail - 0.1, 0.012, dcf * CF(-w / 2 + 0.2 + cw * i, top - avail / 2 + 0.05, 0.18), col(st.rule))
@@ -2900,21 +2901,31 @@ local function ramenWall(c: any)
 		return
 	end
 	local dining = V3(if c.upstand then (if c.upstand.c.X < 0 then V.x1 - V.W * 0.25 else V.x0 + V.W * 0.25) else 0, 0, V.z0)
-	-- 1) 높은 선반 (6.6 위) + 술병 · 됫병
-	if V.H >= 8.6 then
-		local wn, u, w = findWall(K, { "back", "right", "left" }, 3.4, 5.2, 6.75, 8.5, dining, 0.8)
+	-- 1) 높은 선반 (7.3 위: 원산지 · 냉장고 위) + 술병 · 됫병
+	if V.H >= 9.2 then
+		local wn, u, w = findWall(K, { "back", "right", "left" }, 3.2, 5.2, 7.35, 8.9, dining, 0.8)
 		if wn and u and w then
 			local sw = w - 0.2
-			local top = Props.shelf(K, V:wall(wn, u, 7.0, 0), sw, { depth = 0.6, look = wood(96, 64, 42) })
+			local top = Props.shelf(K, V:wall(wn, u, 7.55, 0), sw, { depth = 0.6, look = wood(96, 64, 42) })
 			local n = math.floor((sw - 0.4) / 0.5)
 			for i = 1, n do
 				local x = -(sw - 0.4) / 2 + (i - 0.5) * (sw - 0.4) / n
 				sakeBottle(K, top * CF(x, 0, -0.02), (i + c.seed) % 4, c.hi)
 			end
-			ktext(K, "SakeShelfTag", math.min(2.4, sw * 0.5), 0.3, V:wall(wn, u, 6.62, 0.15), "SAKE · HIGHBALL · 生ビール", { fg = rgb(250, 236, 200), bg = rgb(40, 28, 20), font = F.GothamBold, d = 0.02 })
 		end
 	end
-	-- 2) '맛있게 먹는 법' 나무 액자 (눈높이)
+	-- 2) 노보리 (세로 천 현수막) 두 장
+	local wn3, u3 = findWall(K, { "back", "right", "left" }, 2.1, 2.1, 3.95, 7.45, dining, 0.6)
+	if wn3 and u3 then
+		for i, txt in { "豚骨 라멘", "차슈 듬뿍" } do
+			local d = V:wall(wn3, u3 + (i - 1.5) * 1.02, 5.7, 0)
+			K:plate("NoboriPole", 1.0, 0.08, 0.1, d * CF(0, 1.66, 0), L.of(150, 110, 70, M.Wood))
+			K:plate("NoboriCloth", 0.88, 3.25, 0.04, d, col(if i == 1 then rgb(246, 240, 226) else rgb(170, 30, 26), M.Fabric))
+			K:plate("NoboriBand", 0.88, 0.26, 0.05, d * CF(0, 1.5, 0), col(if i == 1 then rgb(170, 30, 26) else rgb(30, 24, 20), M.Fabric))
+			ktext(K, "NoboriText", 0.66, 2.6, d * CF(0, -0.18, 0.05), vertical(txt), { fg = if i == 1 then rgb(30, 22, 18) else rgb(255, 240, 210), font = F.GothamBlack })
+		end
+	end
+	-- 3) '맛있게 먹는 법' 나무 액자 (눈높이)
 	local wn2, u2 = findWall(K, { "back", "right", "left" }, 2.8, 2.8, 4.0, 7.0, dining, 0.7)
 	if wn2 and u2 then
 		local d = V:wall(wn2, u2, 5.5, 0)
@@ -2924,21 +2935,10 @@ local function ramenWall(c: any)
 		K:plate("HowToRule", 2.1, 0.03, 0.105, d * CF(0, 0.82, 0), L.of(150, 110, 70))
 		ktext(K, "HowToBody", 2.15, 1.9, d * CF(0, -0.25, 0.1), "① 국물 먼저 한 숟갈\n② 면은 바로, 불기 전에\n③ 반쯤 먹고 마늘 · 생강 추가\n④ 면 추가 (카에다마) 2,000원\n   면 익힘: 카타 · 보통 · 야와", { fg = rgb(40, 30, 22), font = F.GothamBold, align = "Left" })
 	end
-	-- 3) 노보리 (세로 천 현수막) 두 장
-	local wn3, u3, w3 = findWall(K, { "right", "back", "left" }, 2.8, 2.8, 4.2, 8.2, V3(V.x1, 0, 0), 0.6)
-	if wn3 and u3 then
-		for i, txt in { "豚骨 라멘", "차슈 듬뿍" } do
-			local d = V:wall(wn3, u3 + (i - 1.5) * 1.35, 6.2, 0)
-			K:plate("NoboriPole", 1.25, 0.08, 0.1, d * CF(0, 1.95, 0), L.of(150, 110, 70, M.Wood))
-			K:plate("NoboriCloth", 1.1, 3.8, 0.04, d, col(if i == 1 then rgb(246, 240, 226) else rgb(170, 30, 26), M.Fabric))
-			K:plate("NoboriBand", 1.1, 0.3, 0.05, d * CF(0, 1.75, 0), col(if i == 1 then rgb(170, 30, 26) else rgb(30, 24, 20), M.Fabric))
-			ktext(K, "NoboriText", 0.8, 3.0, d * CF(0, -0.2, 0.05), vertical(txt), { fg = if i == 1 then rgb(30, 22, 18) else rgb(255, 240, 210), font = F.GothamBlack })
-		end
-	end
 	-- 4) 오늘의 한정 칠판
-	local wn4, u4 = findWall(K, { "back", "left", "right" }, 2.6, 2.6, 4.4, 6.9, dining, 0.7)
+	local wn4, u4 = findWall(K, { "back", "right", "left" }, 2.1, 2.1, 4.4, 6.9, dining, 0.7)
 	if wn4 and u4 then
-		menuBoard(c, V:wall(wn4, u4, 5.65, 0), 2.3, 2.0, "오늘의 한정", { { "마제소바", "12,000" }, { "아부리 차슈동", "9,000" }, { "미소 라멘", "12,500" } }, "chalk")
+		menuBoard(c, V:wall(wn4, u4, 5.65, 0), 1.8, 1.9, "오늘의 한정", { { "마제소바", "12,000" }, { "아부리 차슈동", "9,000" }, { "미소 라멘", "12,500" } }, "chalk")
 	end
 end
 
@@ -3140,6 +3140,14 @@ local function gwshopDecor(c: any)
 		signPlate(c, V:wall(wn3, u3, 5.0, 0), 1.5, 0.95, "WiFi\nID  HAENGBOK_GUKBAP\nPW  " .. tostring(20000000 + c.seed % 79999999), rgb(30, 30, 34), rgb(236, 244, 250), { border = rgb(60, 130, 200) })
 	end
 	calendarProp(c)
+	-- 평상 안내 (평상 위 벽)
+	if c.platform then
+		local pf = c.platform
+		local wn5, u5 = findWall(K, { "left", "right", "back" }, 2.4, 2.4, pf.top + 2.5, pf.top + 3.4, (pf.mn + pf.mx) / 2, 0.5)
+		if wn5 and u5 then
+			signPlate(c, V:wall(wn5, u5, pf.top + 2.95, 0), 2.2, 0.7, "신발은 벗고 올라가 주세요 ^^\n단체석 예약 환영", rgb(60, 40, 24), rgb(244, 232, 210), { border = rgb(120, 80, 50) })
+		end
+	end
 	-- 빈 벽에 포스터 · 방송 액자 · 선풍기
 	postersFill(c)
 	fanProp(c)

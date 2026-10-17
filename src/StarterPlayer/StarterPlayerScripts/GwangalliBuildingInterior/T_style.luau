@@ -100,6 +100,57 @@ local function faceCF(p: Vector3, dir: Vector3): CFrame
 end
 
 -- 맵 파트 레코드 ------------------------------------------------------------------------------------
+-- 홀로 선 맵 안내판 (테이블 · 진열대 위 Sign_): 글자가 한쪽 면에만 있어 반대쪽이 빈 색판으로 보임 ->
+-- 빈 면에 같은 글자 · 색의 글자판을 덧붙여 양면 아크릴 POP 처럼 (맵 파트는 그대로)
+local function twoSidedSigns(K: any, V: any)
+	for _, r in V.parts do
+		if string.sub(r.name, 1, 5) ~= "Sign_" or r.name == "Sign_메  뉴" then
+			continue
+		end
+		local thin = math.min(r.size.X, r.size.Y, r.size.Z)
+		if thin > 0.15 or r.max.Y > V.H - 0.2 or r.min.Y < 0.3 then
+			continue
+		end
+		-- 벽 · 유리에서 떨어져 있어야 (양면이 다 보이는 것만)
+		local dWall = math.min(r.c.X - V.x0, V.x1 - r.c.X, r.c.Z - V.z0, V.z1 - r.c.Z)
+		if dWall < 0.9 then
+			continue
+		end
+		local part = r.part
+		local gui = part:FindFirstChildWhichIsA("SurfaceGui")
+		if not gui then
+			continue
+		end
+		local label: any = nil
+		for _, d in gui:GetDescendants() do
+			if d:IsA("TextLabel") and d.Text ~= "" then
+				label = d
+				break
+			end
+		end
+		if not label then
+			continue
+		end
+		local bg = part.Color
+		local fr = gui:FindFirstChildWhichIsA("Frame")
+		if fr and fr.BackgroundTransparency < 0.5 then
+			bg = fr.BackgroundColor3
+		end
+		-- 글자 있는 면의 반대쪽 법선 (매장 프레임)
+		local n = if gui.Face == Enum.NormalId.Back then r.lcf.LookVector elseif gui.Face == Enum.NormalId.Front then -r.lcf.LookVector else nil
+		if not n then
+			continue
+		end
+		local half = r.size.Z / 2
+		local up = r.lcf.UpVector
+		local o = r.c + n * (half + 0.004)
+		local dcf = CFrame.fromMatrix(o, up:Cross(n), up, n)
+		K:free(function()
+			txt(K, "SignBackFace", r.size.X - 0.02, r.size.Y - 0.02, dcf, label.Text, label.TextColor3, bg, label.Font)
+		end)
+	end
+end
+
 -- 유리창 시트지 (맵 Sign_ 판이 앞 유리 안쪽에 붙어 있으면 실내에서 검은 뒷면만 보임): 안쪽에 흰 시트 뒷면 + 테두리
 local function windowSignBacks(K: any, V: any)
 	for _, r in V.parts do
@@ -511,7 +562,7 @@ local function shampooUnit(K: any, V: any, seat: any, idx: number)
 	local pcf = faceCF(V3(seat.c.X, 0, seat.c.Z), f)
 	local top = seat.max.Y
 	local w = math.min(seat.size.X, seat.size.Z) + 0.0
-	local leather = lk(SALON.leather, M.Leather)
+	local leather = lk(rgb(228, 218, 204), M.Leather) -- 아이보리 가죽 샴푸 체어 (어두운 볼과 대비)
 	K:free(function()
 		-- 받침대
 		K:rbox("WashPlinth", V3(w, top - 0.42, 1.95), 0.12, pcf * CF(0, (top - 0.42) / 2, 0) * ANG(0, PI / 2, 0), Look.blackMetal)
@@ -717,6 +768,7 @@ end
 -- 미용실 전체
 local function buildSalon(K: any, V: any, S: any)
 	pcall(windowSignBacks, K, V)
+	pcall(twoSidedSigns, K, V)
 	local seed = hashStr(V.key or V.name or "salon")
 	local brass = lk(SALON.brass, M.Metal, { r = 0.12 })
 	local W, H = V.W, V.H
@@ -1626,9 +1678,12 @@ end
 
 -- 마네킹 (흰 FRP, 추상 얼굴). pcf = 받침 아래 가운데 (+Z = 보는 쪽), y0 = 받침 윗면 높이, outfit, sc = 크기 배율
 -- (기본 키 6.5 스터드 -> sc 0.85 면 사람 키(5.2)보다 조금 큰 5.5)
+-- 마네킹 (패션 마네킹: 달걀 머리 · 캡슐 어깨 · 가는 허리 · 크롬 받침). pcf +Z = 정면, y0 = 받침 윗면.
+-- 옷 파트 이름: "ManqT_*" = 상의 색, "ManqB_*" = 하의 색 (코디 바꾸기가 이름 앞머리로 색만 바꿈)
 local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: number?)
 	local s = sc or 0.85
 	local top = lk(outfit.top, M.Fabric)
+	local topD = lk(dk(outfit.top, 0.12), M.Fabric)
 	local bot = lk(outfit.bottom or outfit.top, M.Fabric)
 	local b = pcf * CF(0, y0, 0)
 	local function P(x: number, y: number, z: number): CFrame
@@ -1637,59 +1692,117 @@ local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: numbe
 	local function S3(x: number, y: number, z: number): Vector3
 		return V3(x * s, y * s, z * s)
 	end
-	K:disc("ManqBase", 1.3 * s, 0.06, b * CF(0, 0.03, 0), Look.chrome)
-	K:seg("ManqRod", P(0.18, 0.06, -0.12).Position, P(0.18, 1.4, -0.12).Position, 0.08, Look.chrome)
-	-- 다리
+	local kind = outfit.topKind
+	local bk = outfit.bottomKind
+	local dress = bk == "dress"
+	-- 받침: 크롬 원판 + 종아리로 들어가는 봉
+	K:disc("ManqBase", 1.25 * s, 0.06, b * CF(0, 0.03, 0), Look.chrome)
+	K:disc("ManqBaseRim", 1.3 * s, 0.02, b * CF(0, 0.01, 0), lk(rgb(30, 30, 32)))
+	K:seg("ManqRod", P(0.2, 0.06, -0.05).Position, P(0.2, 1.2, -0.05).Position, 0.07, Look.chrome)
+	-- 다리 (허벅지 · 종아리 · 발)
 	for _, sx in { -1, 1 } do
-		local x = sx * 0.26
-		local shinL = if outfit.bottomKind == "pants" then bot else SKIN
-		local thighL = if outfit.bottomKind == "skirt" or outfit.bottomKind == "dress" then SKIN else bot
-		K:ell("ManqFoot", S3(0.3, 0.18, 0.62), P(x, 0.12, 0.12), SKIN)
-		K:seg("ManqShin", P(x, 0.2, 0).Position, P(x * 1.05, 1.85, 0.02).Position, 0.34 * s, shinL)
-		K:seg("ManqThigh", P(x * 1.05, 1.8, 0.02).Position, P(x * 1.2, 3.35, 0).Position, 0.46 * s, if outfit.bottomKind == "shorts" then bot else thighL)
-		if outfit.bottomKind == "shorts" then
-			K:seg("ManqShortsHem", P(x * 1.12, 2.55, 0.01).Position, P(x * 1.2, 3.35, 0).Position, 0.5 * s, bot)
+		local hip = P(sx * 0.22, 3.25, 0).Position
+		local knee = P(sx * 0.2, 1.85, 0.03).Position
+		local ankle = P(sx * 0.17, 0.32, 0).Position
+		local thighL = if bk == "pants" or bk == "shorts" then bot else SKIN
+		local shinL = if bk == "pants" then bot else SKIN
+		K:seg(if thighL == SKIN then "ManqSkinThigh" else "ManqB_Thigh", hip, knee, (if bk == "pants" then 0.48 else 0.42) * s, thighL)
+		K:seg(if shinL == SKIN then "ManqSkinShin" else "ManqB_Shin", knee, ankle, (if bk == "pants" then 0.4 else 0.3) * s, shinL)
+		K:ball(if shinL == SKIN then "ManqSkinKnee" else "ManqB_Knee", (if bk == "pants" then 0.46 else 0.34) * s, P(sx * 0.2, 1.85, 0.03), shinL)
+		if bk == "shorts" then
+			K:seg("ManqB_ShortsLeg", hip, P(sx * 0.215, 2.55, 0.01).Position, 0.54 * s, bot)
+			K:seg("ManqB_ShortsCuff", P(sx * 0.215, 2.62, 0.01).Position, P(sx * 0.215, 2.5, 0.01).Position, 0.56 * s, lk(dk(outfit.bottom or outfit.top, 0.12), M.Fabric))
+		elseif bk == "pants" then
+			K:seg("ManqB_Hem", P(sx * 0.17, 0.5, 0).Position, P(sx * 0.17, 0.34, 0).Position, 0.44 * s, lk(dk(outfit.bottom or outfit.top, 0.1), M.Fabric))
+		end
+		-- 신발 (스니커즈 / 샌들)
+		local shoeC = outfit.shoe or (if bk == "pants" then rgb(246, 244, 240) else rgb(196, 160, 120))
+		K:ell("ManqShoe", S3(0.3, 0.2, 0.62), P(sx * 0.17, 0.12, 0.12), lk(shoeC))
+		K:box("ManqShoeSole", S3(0.3, 0.05, 0.6), P(sx * 0.17, 0.03, 0.12), lk(rgb(236, 232, 224)))
+	end
+	-- 골반 · 허리 · 가슴 (하의 · 상의)
+	K:ell(if dress then "ManqT_Hips" else "ManqB_Hips", S3(0.92, 0.62, 0.58), P(0, 3.35, 0), if dress then top else bot)
+	if bk ~= "dress" then
+		K:vcyl("ManqB_Waistband", 0.14 * s, 0.8 * s, P(0, 3.62, 0), lk(dk(outfit.bottom or outfit.top, 0.15), M.Fabric))
+	end
+	K:ell("ManqT_Waist", S3(0.76, 0.75, 0.5), P(0, 3.95, 0), top)
+	K:ell("ManqT_Chest", S3(1.02, 1.0, 0.6), P(0, 4.5, 0), top)
+	K:seg("ManqT_Shoulder", P(-0.5, 4.93, 0).Position, P(0.5, 4.93, 0).Position, 0.36 * s, top)
+	for _, sx in { -1, 1 } do
+		K:ball("ManqT_ShoulderCap", 0.37 * s, P(sx * 0.52, 4.92, 0), top)
+	end
+	-- 스커트 · 원피스 치마 (층층 원판 = 티어드)
+	if bk == "skirt" or dress then
+		local tiers = if dress then 4 else 3
+		local yTop = if dress then 3.55 else 3.6
+		for k = 1, tiers do
+			local dia = (0.86 + k * 0.13) * s
+			local hgt = 0.42 * s
+			local name = if dress then "ManqT_Skirt" else "ManqB_Skirt"
+			K:vcyl(name, hgt, dia, P(0, yTop - (k - 0.5) * 0.42, 0), if k % 2 == 0 then (if dress then topD else lk(dk(outfit.bottom or outfit.top, 0.1), M.Fabric)) else (if dress then top else bot))
 		end
 	end
-	K:ell("ManqHips", S3(1.08, 0.78, 0.68), P(0, 3.45, 0), bot)
-	if outfit.bottomKind == "skirt" then
-		K:ell("ManqSkirt", S3(1.3, 1.4, 0.95), P(0, 2.95, 0), bot)
-	elseif outfit.bottomKind == "dress" then
-		K:ell("ManqDressSkirt", S3(1.45, 2.3, 1.05), P(0, 2.55, 0), top)
+	-- 상의 디테일
+	if kind == "jacket" then
+		K:box("ManqJacketFront", S3(0.06, 1.5, 0.03), P(-0.1, 4.25, 0.3), lk(dk(outfit.top, 0.3), M.Fabric))
+		K:box("ManqInner", S3(0.26, 1.2, 0.03), P(0.06, 4.45, 0.295), lk(outfit.inner or rgb(246, 244, 238), M.Fabric))
+		for _, sx in { -1, 1 } do
+			K:box("ManqT_Lapel", S3(0.14, 0.6, 0.04), P(sx * 0.17, 4.7, 0.3) * ANG(0, 0, sx * 0.35), topD)
+			K:box("ManqT_Pocket", S3(0.3, 0.05, 0.04), P(sx * 0.3, 3.9, 0.25), topD)
+		end
+	elseif kind == "shirt" then
+		for _, sx in { -1, 1 } do
+			K:box("ManqT_Collar", S3(0.22, 0.12, 0.08), P(sx * 0.1, 5.12, 0.18) * ANG(0, 0, sx * 0.5), topD)
+		end
+		for k = 0, 3 do
+			K:ball("ManqButton", 0.05 * s, P(0, 4.85 - k * 0.3, 0.3 - (k == 3 and 0.04 or 0)), lk(rgb(240, 238, 232)))
+		end
+	elseif kind == "knit" then
+		K:vcyl("ManqT_Ribbing", 0.14 * s, 0.82 * s, P(0, 3.62, 0), topD)
+		K:vcyl("ManqT_Neckline", 0.1 * s, 0.34 * s, P(0, 5.1, 0), topD)
+	else
+		K:vcyl("ManqT_Neckline", 0.06 * s, 0.32 * s, P(0, 5.08, 0.01), topD)
 	end
-	-- 몸통 · 어깨 · 목 · 머리
-	K:ell("ManqTorso", S3(1.12, 1.95, 0.7), P(0, 4.35, 0), top)
-	K:ell("ManqShoulders", S3(1.72, 0.5, 0.64), P(0, 5.1, 0), top)
-	if outfit.topKind == "jacket" then
-		K:box("ManqJacketFront", S3(0.08, 1.6, 0.04), P(-0.12, 4.3, 0.36), lk(dk(outfit.top, 0.25), M.Fabric))
-		K:box("ManqInner", S3(0.3, 1.3, 0.03), P(0.08, 4.45, 0.35), lk(outfit.inner or rgb(246, 244, 238), M.Fabric))
-	end
-	K:vcyl("ManqNeck", 0.36 * s, 0.26 * s, P(0, 5.45, 0), SKIN)
-	K:ell("ManqHead", S3(0.66, 0.92, 0.78), P(0, 6.05, 0.02), SKIN)
-	-- 팔 (살짝 벌림)
-	local longSleeve = outfit.topKind == "shirt" or outfit.topKind == "jacket" or outfit.topKind == "knit"
+	-- 목 · 머리 (달걀형)
+	K:vcyl("ManqNeck", 0.42 * s, 0.24 * s, P(0, 5.25, 0), SKIN)
+	K:ell("ManqHead", S3(0.58, 0.8, 0.66), P(0, 5.82, 0.03), SKIN)
+	-- 팔 (어깨 캡슐 끝에서 시작, 살짝 굽힘). 반팔 = 소매 통 + 맨팔
+	local longSleeve = kind == "shirt" or kind == "jacket" or kind == "knit"
 	for _, sx in { -1, 1 } do
-		local sh = P(sx * 0.8, 5.05, 0)
-		local el = P(sx * 0.95, 3.85, 0.05)
-		local wr = P(sx * 0.98, 2.9, 0.18)
-		K:seg("ManqUpperArm", sh.Position, el.Position, 0.3 * s, if outfit.topKind == "dress" then SKIN else top)
-		K:seg("ManqForearm", el.Position, wr.Position, 0.25 * s, if longSleeve then top else SKIN)
-		K:ell("ManqHand", S3(0.16, 0.4, 0.24), wr * CF(0, -0.2 * s, 0), SKIN)
+		local sh = P(sx * 0.62, 4.9, 0).Position
+		local el = P(sx * 0.7, 3.88, 0.04).Position
+		local wr = P(sx * 0.72, 3.0, 0.2).Position
+		if dress and kind == "dress" then
+			K:seg("ManqSkinUpperArm", sh, el, 0.25 * s, SKIN)
+		elseif longSleeve then
+			K:seg("ManqT_UpperArm", sh, el, 0.3 * s, top)
+		else
+			K:seg("ManqT_Sleeve", sh, sh:Lerp(el, 0.45), 0.36 * s, top)
+			K:seg("ManqSkinUpperArm", sh:Lerp(el, 0.3), el, 0.24 * s, SKIN)
+		end
+		K:ball(if longSleeve then "ManqT_Elbow" else "ManqSkinElbow", (if longSleeve then 0.3 else 0.22) * s, CF(el), if longSleeve then top else SKIN)
+		K:seg(if longSleeve then "ManqT_Forearm" else "ManqSkinForearm", el, wr, (if longSleeve then 0.27 else 0.21) * s, if longSleeve then top else SKIN)
+		if longSleeve then
+			K:seg("ManqT_Cuff", wr + (el - wr).Unit * 0.12, wr, 0.29 * s, topD)
+		end
+		K:ell("ManqHand", S3(0.14, 0.36, 0.24), pcf.Rotation + wr + V3(0, -0.18 * s, 0), SKIN)
 	end
 	-- 소품: 밀짚모자 · 토트백 · 선글라스
 	if outfit.hat then
-		K:disc("ManqHatBrim", 1.35 * s, 0.04, P(0, 6.42, 0.02), lk(outfit.hat, M.Fabric))
-		K:vcyl("ManqHatCrown", 0.36 * s, 0.72 * s, P(0, 6.6, 0.02), lk(outfit.hat, M.Fabric))
-		K:vcyl("ManqHatBand", 0.08, 0.74 * s, P(0, 6.47, 0.02), lk(rgb(40, 40, 44), M.Fabric))
+		K:disc("ManqHatBrim", 1.25 * s, 0.04, P(0, 6.12, 0.03), lk(outfit.hat, M.Fabric))
+		K:vcyl("ManqHatCrown", 0.34 * s, 0.66 * s, P(0, 6.3, 0.03), lk(outfit.hat, M.Fabric))
+		K:vcyl("ManqHatBand", 0.08, 0.68 * s, P(0, 6.17, 0.03), lk(rgb(40, 40, 44), M.Fabric))
 	end
 	if outfit.bag then
-		local wr = P(-1.0, 3.0, 0.2)
-		K:box("ManqBag", S3(0.25, 0.85, 0.95), wr * CF(-0.05 * s, -0.75 * s, 0), lk(outfit.bag, M.Fabric))
-		K:seg("ManqBagStrap", (wr * CF(-0.05 * s, -0.32 * s, -0.3 * s)).Position, (wr * CF(0, 0.15 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
-		K:seg("ManqBagStrap", (wr * CF(-0.05 * s, -0.32 * s, 0.3 * s)).Position, (wr * CF(0, 0.15 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
+		local wr = P(-0.74, 3.0, 0.2)
+		K:box("ManqBag", S3(0.22, 0.8, 0.95), wr * CF(-0.1 * s, -0.7 * s, 0), lk(outfit.bag, M.Fabric))
+		K:box("ManqBagTrim", S3(0.24, 0.08, 0.97), wr * CF(-0.1 * s, -0.36 * s, 0), lk(dk(outfit.bag, 0.25), M.Fabric))
+		K:seg("ManqBagStrap", (wr * CF(-0.1 * s, -0.3 * s, -0.3 * s)).Position, (wr * CF(0, 0.12 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
+		K:seg("ManqBagStrap", (wr * CF(-0.1 * s, -0.3 * s, 0.3 * s)).Position, (wr * CF(0, 0.12 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
 	end
 	if outfit.shades then
-		K:box("ManqShades", S3(0.62, 0.14, 0.05), P(0, 6.12, 0.42), lk(rgb(20, 20, 22), M.Glass, { r = 0.3 }))
+		K:box("ManqShades", S3(0.56, 0.12, 0.05), P(0, 5.88, 0.36), lk(rgb(20, 20, 22), M.Glass, { r = 0.3 }))
+		K:box("ManqShadesBridge", S3(0.6, 0.03, 0.03), P(0, 5.93, 0.37), lk(rgb(190, 156, 96), M.Metal))
 	end
 end
 
@@ -1781,6 +1894,7 @@ end
 
 local function buildClothing(K: any, V: any, S: any)
 	pcall(windowSignBacks, K, V)
+	pcall(twoSidedSigns, K, V)
 	local seed = hashStr(V.key or V.name or "clothing")
 	local brass = lk(rgb(190, 156, 96), M.Metal, { r = 0.12 })
 	local oak = lk(rgb(204, 170, 128), M.Wood)
@@ -2493,12 +2607,11 @@ local function buildClothing(K: any, V: any, S: any)
 							for _, p in g:GetDescendants() do
 								if p:IsA("BasePart") and p.Material == M.Fabric then
 									local nm = p.Name
-									if nm == "ManqTorso" or nm == "ManqShoulders" or nm == "ManqUpperArm" or nm == "ManqDressSkirt" then
-										p.Color = o.top
-									elseif nm == "ManqHips" or nm == "ManqThigh" or nm == "ManqShortsHem" or nm == "ManqSkirt" or nm == "ManqShin" then
-										p.Color = o.bottom or o.top
-									elseif nm == "ManqForearm" then
-										p.Color = o.top
+									local pre = string.sub(nm, 1, 6)
+									if pre == "ManqT_" then
+										p.Color = if nm == "ManqT_Lapel" or nm == "ManqT_Collar" or nm == "ManqT_Cuff" or nm == "ManqT_Neckline" or nm == "ManqT_Ribbing" or nm == "ManqT_Pocket" then dk(o.top, 0.12) else o.top
+									elseif pre == "ManqB_" then
+										p.Color = if nm == "ManqB_Waistband" or nm == "ManqB_Hem" or nm == "ManqB_ShortsCuff" then dk(o.bottom or o.top, 0.12) else (o.bottom or o.top)
 									end
 								end
 							end
@@ -2606,22 +2719,104 @@ local SURF = {
 }
 
 -- 서프보드: cf = 보드 가운데, X = 폭, Y = 길이 (노즈 +Y), Z = 데크 쪽. o.rail (테두리 색), o.deck (윗면), o.no (번호 글자)
+-- 액자 사진 (Props.frame depth 0.06 안쪽, 그림 칸 aw x ah): 층 0.037 ~ 0.0435
+--   kind = "bridge" (광안대교 야경) | "wave" (파도 배럴 + 서퍼) | "sunrise" (일출 + 롱보더 실루엣)
+local function photoArt(K: any, d: CFrame, aw: number, ah: number, kind: string)
+	local L = { 0.0365, 0.038, 0.0395, 0.041, 0.0425 }
+	local function R(name: string, w: number, h: number, x: number, y: number, layer: number, c: Color3, rot: number?)
+		K:box(name, V3(math.min(w, aw), math.min(h, ah), 0.001), d * CF(x * aw, y * ah, L[layer]) * ANG(0, 0, rot or 0), lk(c))
+	end
+	local function O(name: string, w: number, h: number, x: number, y: number, layer: number, c: Color3, rot: number?)
+		K:ell(name, V3(w, h, 0.001), d * CF(x * aw, y * ah, L[layer]) * ANG(0, 0, rot or 0), lk(c))
+	end
+	-- 두 점 사이 가는 선 (그림 좌표 -0.5..0.5)
+	local function line(name: string, x0: number, y0: number, x1: number, y1: number, th: number, layer: number, c: Color3)
+		local dx, dy = (x1 - x0) * aw, (y1 - y0) * ah
+		local len = math.sqrt(dx * dx + dy * dy)
+		K:box(name, V3(len, th, 0.001), d * CF((x0 + x1) / 2 * aw, (y0 + y1) / 2 * ah, L[layer]) * ANG(0, 0, math.atan2(dy, dx)), lk(c))
+	end
+	if kind == "bridge" then
+		R("ArtSky", aw, ah, 0, 0, 1, rgb(18, 26, 62))
+		R("ArtHorizon", aw, ah * 0.16, 0, 0.0, 2, rgb(92, 60, 120))
+		R("ArtSea", aw, ah * 0.42, 0, -0.29, 2, rgb(12, 20, 44))
+		O("ArtMoon", 0.16, 0.16, 0.36, 0.34, 2, rgb(250, 244, 220))
+		R("ArtDeck", aw, 0.05, 0, 0.06, 3, rgb(240, 200, 120))
+		for _, tx in { -0.22, 0.22 } do
+			R("ArtTower", 0.05, ah * 0.36, tx, 0.24, 3, rgb(200, 204, 214))
+			R("ArtTowerGlow", 0.04, ah * 0.2, tx, -0.2, 3, rgb(200, 160, 90))
+		end
+		local cc = { rgb(120, 210, 255), rgb(255, 130, 200) }
+		for k, sx in { -1, 1 } do
+			line("ArtCable", sx * 0.22, 0.42, sx * 0.08, 0.16, 0.025, 4, cc[k])
+			line("ArtCable", sx * 0.08, 0.16, 0, 0.1, 0.025, 4, cc[k])
+			line("ArtCable", sx * 0.22, 0.42, sx * 0.38, 0.17, 0.025, 4, cc[k])
+			line("ArtCable", sx * 0.38, 0.17, sx * 0.5, 0.1, 0.025, 4, cc[k])
+		end
+		for j = 0, 5 do
+			R("ArtReflect", 0.05, 0.03 + (j % 3) * 0.03, -0.3 + j * 0.12, -0.12 - (j % 2) * 0.12, 3, if j % 2 == 0 then rgb(220, 180, 110) else rgb(110, 180, 230))
+		end
+	elseif kind == "wave" then
+		R("ArtSky", aw, ah, 0, 0, 1, rgb(170, 214, 236))
+		R("ArtSea", aw, ah * 0.5, 0, -0.25, 2, rgb(36, 120, 160))
+		O("ArtWave", aw * 0.62, ah * 0.92, 0.16, -0.14, 3, rgb(30, 150, 170))
+		O("ArtBarrel", aw * 0.3, ah * 0.5, 0.22, -0.18, 4, rgb(16, 80, 110))
+		O("ArtLip", aw * 0.46, ah * 0.12, 0.1, 0.28, 4, rgb(244, 250, 252), -0.25)
+		R("ArtFoam", aw, ah * 0.1, 0, -0.45, 4, rgb(236, 246, 250))
+		-- 서퍼 (몸 · 머리 · 보드)
+		O("ArtSurferBoard", 0.42, 0.06, -0.06, -0.24, 4, rgb(250, 120, 80), 0.25)
+		O("ArtSurfer", 0.08, 0.24, -0.06, -0.15, 4, rgb(30, 30, 34), -0.3)
+		O("ArtSurferHead", 0.07, 0.07, -0.08, -0.05, 4, rgb(30, 30, 34))
+		line("ArtSurferArm", -0.12, -0.1, -0.0, -0.08, 0.025, 4, rgb(30, 30, 34))
+	else
+		R("ArtSky", aw, ah, 0, 0, 1, rgb(244, 150, 100))
+		R("ArtSkyLow", aw, ah * 0.22, 0, 0.0, 2, rgb(252, 204, 120))
+		O("ArtSun", 0.5, 0.5, 0.18, 0.02, 3, rgb(255, 236, 170))
+		R("ArtSea", aw, ah * 0.47, 0, -0.265, 4, rgb(52, 92, 132))
+		R("ArtBridgeLine", aw, 0.03, 0, -0.03, 4, rgb(70, 60, 80))
+		for j = 0, 3 do
+			R("ArtSunPath", 0.5 - j * 0.1, 0.025, 0.18, -0.1 - j * 0.09, 5, rgb(255, 214, 140))
+		end
+		-- 롱보드 든 실루엣
+		O("ArtWalker", 0.1, 0.36, -0.28, -0.3, 5, rgb(30, 26, 30))
+		O("ArtWalkerHead", 0.08, 0.08, -0.28, -0.15, 5, rgb(30, 26, 30))
+		line("ArtLongboard", -0.36, -0.2, -0.2, -0.42, 0.06, 5, rgb(30, 26, 30))
+	end
+end
+
 local function surfboard(K: any, cf: CFrame, len: number, w: number, t: number, o: any)
-	local rail = lk(o.rail or SURF.white, M.SmoothPlastic, { r = 0.06 })
-	local deck = lk(o.deck or o.rail or SURF.white, M.SmoothPlastic, { r = 0.04 })
+	-- cf: +Y = 코, +Z = 데크 (보이는 면). 평면 = 타원 (코 쪽 조금 뾰족) + 데크 색 안쪽 타원 + 스트링어
+	local railC = o.rail or SURF.white
+	local rail = lk(railC, M.SmoothPlastic, { r = 0.06 })
 	local out = {}
 	table.insert(out, K:ell("BoardOutline", V3(w, len, t), cf, rail))
-	table.insert(out, K:box("BoardCore", V3(w * 0.82, len * 0.5, t * 0.9), cf * CF(0, -len * 0.04, 0), rail))
-	table.insert(out, K:box("BoardDeck", V3(w * 0.74, len * 0.48, 0.02), cf * CF(0, -len * 0.04, t * 0.45 + 0.01), deck))
+	local lift = 0
+	if o.deck and o.deck ~= railC then
+		-- 소프트보드: 흰 데크 (레일 색 테두리가 남게 조금 작은 타원)
+		table.insert(out, K:ell("BoardDeck", V3(w * 0.84, len * 0.9, t), cf * CF(0, -len * 0.02, 0.014), lk(o.deck, M.SmoothPlastic, { r = 0.03 })))
+		lift = 0.014
+	end
+	local top = t / 2 + lift
 	if o.stringer ~= false then
-		table.insert(out, K:box("BoardStringer", V3(0.04, len * 0.48, 0.022), cf * CF(0, -len * 0.04, t * 0.45 + 0.015), lk(o.stringerC or rgb(150, 110, 70), M.Wood)))
+		table.insert(out, K:box("BoardStringer", V3(0.035, len * 0.5, 0.016), cf * CF(0, 0, top - 0.002), lk(o.stringerC or rgb(150, 110, 70), M.Wood)))
 	end
 	if o.stripe then
-		table.insert(out, K:box("BoardStripe", V3(w * 0.75, 0.22, 0.024), cf * CF(0, len * 0.12, t * 0.45 + 0.016), lk(o.stripe)))
+		-- 코 쪽 핀라인 2줄
+		for k, y in { 0.17, 0.2 } do
+			table.insert(out, K:box("BoardStripe", V3(w * (0.62 - k * 0.04), 0.06, 0.016), cf * CF(0, len * y, top * 0.94), lk(o.stripe)))
+		end
 	end
-	-- 꼬리 트랙션 패드 + 리시 플러그
+	-- 꼬리 트랙션 패드 (홈 3줄 + 킥)
 	if o.pad ~= false then
-		table.insert(out, K:box("BoardTailPad", V3(w * 0.55, len * 0.12, 0.03), cf * CF(0, -len * 0.33, t * 0.36), lk(rgb(30, 30, 32), M.Rubber)))
+		local pz = t * 0.5 * math.sqrt(1 - 0.66 ^ 2) + lift
+		table.insert(out, K:box("BoardTailPad", V3(w * 0.5, len * 0.12, 0.03), cf * CF(0, -len * 0.33, pz), lk(rgb(30, 30, 32), M.Rubber)))
+		if not lowD(K) then
+			for g = -1, 1 do
+				table.insert(out, K:box("BoardPadGroove", V3(0.025, len * 0.11, 0.012), cf * CF(g * w * 0.12, -len * 0.33, pz + 0.018), lk(rgb(70, 70, 74), M.Rubber)))
+			end
+			table.insert(out, K:box("BoardPadKick", V3(w * 0.42, 0.12, 0.08), cf * CF(0, -len * 0.39, pz + 0.03), lk(rgb(30, 30, 32), M.Rubber)))
+		end
+		-- 리시 플러그
+		table.insert(out, K:disc("BoardLeashPlug", 0.1, 0.02, cf * CF(0, -len * 0.42, pz - 0.01) * ANG(PI / 2, 0, 0), lk(rgb(240, 240, 240))))
 	end
 	-- 핀 (바닥 -Z)
 	if not lowD(K) then
@@ -2630,8 +2825,13 @@ local function surfboard(K: any, cf: CFrame, len: number, w: number, t: number, 
 			table.insert(out, K:wedge("BoardFin", V3(0.05, 0.42, 0.34), cf * CF(fx * w * 0.9, fy, -t * 0.3 - 0.17) * ANG(PI, 0, 0), lk(o.fin or rgb(40, 40, 44))))
 		end
 	end
+	-- 렌탈 번호 스티커 (작게, 코 쪽) + 브랜드 로고 타원
 	if o.no then
-		local _ = txt(K, "BoardNo", w * 0.6, w * 0.3, cf * CF(0, len * 0.02, t * 0.45 + 0.035) * ANG(0, 0, PI / 2), o.no, o.noC or rgb(30, 30, 32), nil, F.GothamBlack)
+		table.insert(out, K:ell("BoardNoSticker", V3(w * 0.5, w * 0.24, 0.01), cf * CF(0, len * 0.06, top + 0.001), lk(rgb(250, 250, 248))))
+		local _ = txt(K, "BoardNo", w * 0.42, w * 0.18, cf * CF(0, len * 0.06, top + 0.006), o.no, o.noC or rgb(30, 30, 32), nil, F.GothamBlack)
+	end
+	if o.logo ~= false then
+		table.insert(out, K:ell("BoardLogo", V3(w * 0.34, w * 0.16, 0.01), cf * CF(0, len * 0.28, top * 0.86), lk(o.logoC or dk(railC, 0.35))))
 	end
 	return out
 end
@@ -2713,6 +2913,7 @@ end
 
 local function buildSurf(K: any, V: any, S: any)
 	pcall(windowSignBacks, K, V)
+	pcall(twoSidedSigns, K, V)
 	local seed = hashStr(V.key or V.name or "surf")
 	local wood = lk(SURF.wood, M.Wood)
 	local drift = lk(SURF.driftwood, M.WoodPlanks)
@@ -2756,7 +2957,7 @@ local function buildSurf(K: any, V: any, S: any)
 		end
 		if railR then
 			K:box("BoardRackRail", railR.size + V3(0, 0.1, 0), CF(railR.c), wood)
-			K:box("BoardRackRailPad", V3(0.12, 0.3, railR.size.Z), CF(railR.max.X + 0.06, railR.c.Y, railR.c.Z), lk(rgb(40, 60, 70), M.Fabric))
+			K:box("BoardRackRailPad", V3(0.12, 0.3, railR.size.Z), CF(railR.max.X + 0.06, railR.c.Y, railR.c.Z), lk(rgb(196, 176, 136), M.Fabric))
 		end
 	end)
 	for _, r in boards do
@@ -2779,15 +2980,13 @@ local function buildSurf(K: any, V: any, S: any)
 		local u0 = V:wallCoord(wall, rackBase.min)
 		local u1 = V:wallCoord(wall, rackBase.max)
 		local ua, ub = math.min(u0, u1), math.max(u0, u1)
-		local arts = {
-			{ { rgb(250, 180, 120), 0, 0.5, 1, 0.5 }, { rgb(60, 120, 180), 0, 0, 1, 0.5 }, { rgb(250, 240, 220), 0, 0.42, 1, 0.08 }, { rgb(40, 40, 60), 0.1, 0.48, 0.8, 0.04 } },
-			{ { rgb(120, 190, 220), 0, 0.55, 1, 0.45 }, { rgb(30, 100, 150), 0, 0, 1, 0.55 }, { rgb(250, 250, 250), 0.2, 0.35, 0.6, 0.12 } },
-			{ { rgb(240, 150, 110), 0, 0.6, 1, 0.4 }, { rgb(250, 210, 120), 0.4, 0.62, 0.2, 0.15 }, { rgb(50, 90, 140), 0, 0, 1, 0.6 } },
-		}
+		local arts = { "bridge", "wave", "sunrise" }
 		K:free(function()
 			for i = 1, 3 do
 				local u = ua + (ub - ua) * (i - 0.5) / 3
-				Props.frame(K, wcf(V, wall, u, 8.45, 0.01), 3.6, 1.9, { frame = lk(rgb(240, 236, 228), M.Wood), mat = lk(WHITE), art = arts[i], depth = 0.06, border = 0.08 })
+				local fd = wcf(V, wall, u, 8.45, 0.01)
+				Props.frame(K, fd, 3.6, 1.9, { frame = lk(rgb(240, 236, 228), M.Wood), mat = lk(WHITE), depth = 0.06, border = 0.08 })
+				photoArt(K, fd, 3.6 - 0.16 - 0.24, 1.9 - 0.16 - 0.24, arts[(i + seed) % 3 + 1])
 			end
 			txt(K, "RackHeader", 4.2, 0.45, wcf(V, wall, (ua + ub) / 2, 7.45, 0.04), "RENTAL BOARDS · 렌탈 보드", SURF.white, SURF.teal, F.GothamBlack)
 			useWall(K, wall, ua, ub, 0, 9.6)
@@ -2910,7 +3109,7 @@ local function buildSurf(K: any, V: any, S: any)
 					K:box("SupTrestleLeg", V3(0.3, supRack.size.Y - 0.1, 0.3), c0 * CF(sx * (Wd / 2 - 0.3), (supRack.size.Y - 0.1) / 2, tz), wood)
 				end
 				K:box("SupTrestleBar", V3(Wd, 0.3, 0.5), c0 * CF(0, supRack.size.Y - 0.15, tz), wood)
-				K:box("SupTrestlePad", V3(Wd - 0.1, 0.08, 0.55), c0 * CF(0, supRack.size.Y + 0.0, tz), lk(rgb(40, 60, 70), M.Fabric))
+				K:box("SupTrestlePad", V3(Wd - 0.1, 0.08, 0.55), c0 * CF(0, supRack.size.Y + 0.0, tz), lk(rgb(196, 176, 136), M.Fabric))
 				K:box("SupFoot", V3(Wd + 0.4, 0.15, 0.6), c0 * CF(0, 0.075, tz), wood)
 			end
 			K:box("SupRunner", V3(0.2, 0.2, L - 2.0), c0 * CF(0, 0.3, 0), wood)
@@ -2923,17 +3122,41 @@ local function buildSurf(K: any, V: any, S: any)
 				local along2 = r.size.Z > r.size.X
 				local len = if along2 then r.size.Z else r.size.X
 				local w = if along2 then r.size.X else r.size.Z
-				local cf = CFrame.fromMatrix(r.c, if along2 then V3(1, 0, 0) else V3(0, 0, -1), if along2 then V3(0, 0, -1) else V3(-1, 0, 0), V3(0, 1, 0))
+				local ldir = if along2 then V3(0, 0, -1) else V3(-1, 0, 0)
+				if (i + seed) % 2 == 0 then
+					ldir = -ldir
+				end
+				-- 납작한 보드 프레임: +Z = 꼬리, -Z = 코 (위 = +Y)
+				local fcf = CFrame.lookAt(r.c, r.c + ldir)
+				local t = r.size.Y
 				local cc = cols[(i + seed) % #cols + 1]
-				K:ell("SupOutline", V3(w, len, r.size.Y), cf, lk(cc[1]))
-				K:box("SupCore", V3(w * 0.9, len * 0.7, r.size.Y * 0.92), cf, lk(cc[1]))
-				K:box("SupPad", V3(w * 0.7, len * 0.32, 0.02), cf * CF(0, -len * 0.05, r.size.Y * 0.46 + 0.01), lk(cc[2], M.Rubber))
+				local shell = lk(cc[1], M.SmoothPlastic, { r = 0.06 })
+				-- 평면: 둥근 꼬리 스타디움 + 뾰족한 코 타원 + 흰 레일 띠
+				K:slab("SupHull", w, len * 0.82, t, w / 2 - 0.02, fcf * CF(0, 0, len * 0.09), shell)
+				K:ell("SupNose", V3(w, t, len * 0.52), fcf * CF(0, 0, -len * 0.24), shell)
+				K:slab("SupRailBand", w + 0.02, len * 0.7, t * 0.3, w / 2 - 0.01, fcf * CF(0, -t * 0.22, len * 0.1), lk(rgb(246, 246, 244)))
+				-- EVA 데크 패드 (홈 줄) + 킥 패드
+				local padL = len * 0.36
+				K:slab("SupPad", w * 0.72, padL, 0.03, 0.18, fcf * CF(0, t / 2 + 0.015, len * 0.08), lk(cc[2], M.Rubber))
+				if not lowD(K) then
+					for g = -2, 2 do
+						K:box("SupPadGroove", V3(0.03, 0.012, padL - 0.2), fcf * CF(g * w * 0.12, t / 2 + 0.034, len * 0.08), lk(dk(cc[2], 0.3), M.Rubber))
+					end
+				end
+				K:slab("SupKickPad", w * 0.5, len * 0.08, 0.05, 0.12, fcf * CF(0, t / 2 + 0.025, len * 0.4), lk(dk(cc[2], 0.15), M.Rubber))
+				-- 가운데 손잡이 (홈 + 고무 띠) · 앞 번지 (화물끈 X) · 로고
+				K:box("SupHandle", V3(0.55, 0.06, 0.2), fcf * CF(0, t / 2 + 0.04, len * 0.0), lk(rgb(30, 30, 30), M.Rubber))
 				if i == #sups then
 					for _, d in { 1, -1 } do
-						K:bar("SupBungee", (cf * CF(-w * 0.28, len * 0.28 + d * 0.5, r.size.Y * 0.46 + 0.02)).Position, (cf * CF(w * 0.28, len * 0.28 - d * 0.5, r.size.Y * 0.46 + 0.02)).Position, 0.05, 0.04, lk(rgb(30, 30, 30), M.Fabric))
+						K:bar("SupBungee", (fcf * CF(-w * 0.3, t / 2 + 0.03, -len * 0.27 + d * 0.5)).Position, (fcf * CF(w * 0.3, t / 2 + 0.03, -len * 0.27 - d * 0.5)).Position, 0.05, 0.04, lk(rgb(30, 30, 30), M.Fabric))
 					end
-					K:box("SupHandle", V3(0.5, 0.25, 0.08), cf * CF(0, 0, r.size.Y * 0.46 + 0.05), lk(rgb(30, 30, 30), M.Rubber))
-					txt(K, "SupLogo", w * 0.6, 0.4, cf * CF(0, len * 0.18, r.size.Y * 0.46 + 0.02) * ANG(0, 0, PI / 2) * ANG(0, 0, -PI / 2), "GWANGAN SUP 10'6\"", rgb(250, 250, 248), nil, F.GothamBlack)
+					for _, sx in { -1, 1 } do
+						for _, dz in { -0.5, 0.5 } do
+							K:disc("SupBungeeCleat", 0.12, 0.04, fcf * CF(sx * w * 0.3, t / 2 + 0.02, -len * 0.27 + dz), lk(rgb(240, 240, 240)))
+						end
+					end
+					local lp = (fcf * CF(0, t / 2 + 0.004, -len * 0.08)).Position
+					txt(K, "SupLogo", 2.6, 0.42, topCF(lp, fcf.RightVector), "GWANGAN SUP 10'6\"", rgb(250, 250, 248), nil, F.GothamBlack)
 				end
 				-- 보드 사이 받침 폼
 				if i > 1 then
@@ -3544,7 +3767,25 @@ local function plush(K: any, pcf: CFrame, s: number, kind: string, c: Color3)
 			K:ball("PlushEar", 0.26 * s, pcf * CF(sx * 0.3 * s, 1.28 * s, 0), fab)
 		end
 	end
-	if s > 0.7 and not lowD(K) then
+	if s >= 1.0 then
+		-- 큰 인형 (포토존): 앉은 다리 · 팔 · 배 · 주둥이 · 코 · 눈 · 리본
+		local light = lk(lt(c, 0.4), M.Fabric)
+		local dark = lk(rgb(30, 22, 20), M.SmoothPlastic, { r = 0.2 })
+		for _, sx in { -1, 1 } do
+			K:ell("PlushLeg", V3(0.34, 0.3, 0.52) * s, pcf * CF(sx * 0.25 * s, 0.15 * s, 0.32 * s), fab)
+			K:ell("PlushPaw", V3(0.24, 0.24, 0.04) * s, pcf * CF(sx * 0.25 * s, 0.15 * s, 0.58 * s), light)
+			K:ell("PlushArm", V3(0.26, 0.52, 0.3) * s, pcf * CF(sx * 0.42 * s, 0.5 * s, 0.14 * s) * ANG(0.35, 0, sx * 0.55), fab)
+			K:ball("PlushEye", 0.09 * s, pcf * CF(sx * 0.15 * s, 1.0 * s, 0.37 * s), dark)
+			if kind == "bear" then
+				K:ball("PlushEarIn", 0.14 * s, pcf * CF(sx * 0.3 * s, 1.28 * s, 0.08 * s), light)
+			end
+			K:ell("PlushBow", V3(0.26, 0.18, 0.08) * s, pcf * CF(sx * 0.15 * s, 0.68 * s, 0.37 * s) * ANG(0, 0, sx * 0.3), lk(rgb(230, 40, 90), M.Fabric))
+		end
+		K:ball("PlushBowKnot", 0.1 * s, pcf * CF(0, 0.68 * s, 0.39 * s), lk(rgb(200, 30, 70), M.Fabric))
+		K:ell("PlushBelly", V3(0.5, 0.48, 0.1) * s, pcf * CF(0, 0.36 * s, 0.35 * s), light)
+		K:ell("PlushMuzzle", V3(0.34, 0.24, 0.2) * s, pcf * CF(0, 0.86 * s, 0.38 * s), light)
+		K:ball("PlushNose", 0.1 * s, pcf * CF(0, 0.92 * s, 0.48 * s), dark)
+	elseif s > 0.7 and not lowD(K) then
 		K:box("PlushEyes", V3(0.36, 0.08, 0.02) * s, pcf * CF(0, 1.0 * s, 0.4 * s), lk(rgb(20, 20, 24)))
 	end
 end
@@ -3699,6 +3940,7 @@ end
 
 local function buildPlay(K: any, V: any, S: any)
 	pcall(windowSignBacks, K, V)
+	pcall(twoSidedSigns, K, V)
 	local seed = hashStr(V.key or V.name or "play")
 	local H = V.H
 
@@ -3891,7 +4133,11 @@ local function buildPlay(K: any, V: any, S: any)
 			gacha(K, icf * CF(-sx, 0, -0.2) * ANG(0, PI, 0), 0.5, NEONS[(k + 2 + seed) % #NEONS + 1], labels[k + 2], seed + k + 2)
 		end
 		-- 위 안내 화면 (문 쪽)
-		K:box("InfoPost", V3(0.2, 2.3, 0.2), icf * CF(0, 3.1 + 1.15, 0), lk(rgb(30, 30, 34)))
+		-- 양쪽 기둥 2개 (가운데 기둥이 뒷면 글자를 가리지 않게) + 위 캡
+		for _, sx in { -1, 1 } do
+			K:box("InfoPost", V3(0.12, 2.9, 0.12), icf * CF(sx * 1.26, 3.1 + 1.45, 0.08), lk(rgb(30, 30, 34), M.Metal))
+			K:box("InfoPostCap", V3(0.18, 0.06, 0.18), icf * CF(sx * 1.26, 6.03, 0.08), lk(rgb(255, 80, 180), M.Neon))
+		end
 		local ib = icf * CF(0, 4.55, 0.16)
 		K:box("InfoBezel", V3(2.4, 1.4, 0.12), ib, lk(rgb(24, 24, 28)))
 		infoPart = K:box("InfoScreen", V3(2.25, 1.25, 0.02), ib * CF(0, 0, 0.07), lk(rgb(20, 16, 40), M.Neon))

@@ -1299,10 +1299,14 @@ local function kitchenSink(C: any, st: any, info: any)
 		C:vcyl("SoapPumpNeck", 0.22, 0.06, CF(cx + w / 2 - 0.25, ytop + 0.11, fz), fl)
 		C:box("SoapPumpSpout", V3(0.05, 0.04, 0.16), CF(cx + w / 2 - 0.25, ytop + 0.22, fz + 0.06), fl)
 	end
-	-- 펜트하우스: 언더싱크 직수 정수기 전용 수전 (상판 위 정수기 통 대신, 터치 LED 링)
-	if C.ti >= 5 then
+	-- 아파트 · 펜트하우스: 언더싱크 직수 정수기 전용 수전 (상판 위 정수기 통 대신, 터치 LED 링)
+	if C.ti >= 4 then
 		local px = cx - w / 2 + 0.25
+		if math.abs(px - fx) <= 0.45 then
+			px = cx + w / 2 - 0.6 -- 세제 펌프 (오른쪽 끝) 안쪽
+		end
 		if math.abs(px - fx) > 0.45 then
+			C:reserve(CF(px, ytop + 0.6, fz + 0.1), V3(0.3, 1.2, 0.55))
 			C:disc("PurifierTapBase", 0.16, 0.03, CF(px, ytop + 0.015, fz), fl)
 			C:vcyl("PurifierTapRiser", 1.15, 0.08, CF(px, ytop + 0.575, fz), fl)
 			C:box("PurifierTapSpout", V3(0.07, 0.07, 0.42), CF(px, ytop + 1.12, fz + 0.2), fl)
@@ -1432,7 +1436,7 @@ local function kitchenUpper(C: any, st: any, info: any)
 	if C.ti >= 5 and st.front and st.front.c then
 		-- 펜트하우스 투톤: 상부장 · 키큰장은 밝은 호두나무 결, 하부장은 짙은 색 그대로
 		local s2 = table.clone(st)
-		local wc = st.front.c:Lerp(C3(128, 94, 66), 0.65)
+		local wc = st.front.c:Lerp(C3(150, 112, 78), 0.85)
 		s2.front = col(wc, M.Wood)
 		s2.carcass = col(shade(wc, -0.3), M.Wood)
 		st = s2
@@ -2275,7 +2279,7 @@ local function kitchenFridges(K: any, V: any, H: number)
 		if C.ti >= 5 then
 			kind = "column"
 			-- 패널형 빌트인: 상부장과 같은 호두나무 결 (어두운 맵 색은 구석에서 까맣게만 보임)
-			base = base:Lerp(C3(128, 94, 66), 0.65)
+			base = base:Lerp(C3(150, 112, 78), 0.85)
 		elseif w >= 2.8 then
 			kind = "sbs"
 			base = C3(214, 212, 208)
@@ -5209,17 +5213,24 @@ local function entryClutter(C: any)
 				end
 			end
 		end
-		if ti <= 3 and ti >= 2 then
+		if ti <= 3 then
+			-- 소화기 (고시원은 법정 비치: 방마다 하나)
 			local p = floorSpot(0.5, 0.5, 1.7, corners)
 			if p then
 				local q = p * CF(0, fy, 0)
-				C:vcyl("ExtinguisherBody", 1.25, 0.46, q * CF(0, 0.7, 0), lk(206, 28, 30))
-				C:ell("ExtinguisherDome", V3(0.46, 0.22, 0.46), q * CF(0, 1.32, 0), lk(206, 28, 30))
-				C:vcyl("ExtinguisherNeck", 0.14, 0.16, q * CF(0, 1.46, 0), LK.black)
-				C:box("ExtinguisherLever", V3(0.4, 0.05, 0.1), q * CF(0.06, 1.58, 0) * ANG(0, 0, -0.2), LK.black)
-				C:ball("ExtinguisherGauge", 0.14, q * CF(0, 1.46, 0.1), LK.white)
-				C:seg("ExtinguisherHose", (q * CF(-0.05, 1.45, -0.08)).Position, (q * CF(-0.24, 0.5, -0.15)).Position, 0.06, LK.black)
-				C:label("ExtinguisherLabel", 0.34, 0.4, q * CF(0, 0.75, 0.235), "소화기\nABC", C3(255, 255, 255), C3(40, 40, 40), { wrap = true })
+				-- 3.3 kg ABC 분말 소화기 (높이 ~47 cm): 몸통 · 받침 고무 · 어깨 · 밸브 · 손잡이 · 안전핀 · 압력계 · 호스 · 노즐
+				local red = lk(206, 28, 30, M.SmoothPlastic, { r = 0.06 })
+				C:vcyl("ExtinguisherFoot", 0.08, 0.48, q * CF(0, 0.04, 0), LK.black)
+				C:vcyl("ExtinguisherBody", 1.38, 0.46, q * CF(0, 0.77, 0), red)
+				C:ell("ExtinguisherDome", V3(0.46, 0.2, 0.46), q * CF(0, 1.46, 0), red)
+				C:vcyl("ExtinguisherNeck", 0.14, 0.17, q * CF(0, 1.6, 0), LK.steelDark)
+				C:box("ExtinguisherLever", V3(0.44, 0.05, 0.1), q * CF(0.08, 1.74, 0) * ANG(0, 0, -0.18), LK.black)
+				C:box("ExtinguisherHandle", V3(0.4, 0.05, 0.1), q * CF(0.06, 1.66, 0), LK.black)
+				C:ring("ExtinguisherPin", q * CF(-0.1, 1.7, 0.07) * ANG(PI / 2, 0, 0), 0.05, 0.02, 5, lk(240, 200, 40, M.Metal))
+				C:ball("ExtinguisherGauge", 0.14, q * CF(0, 1.6, 0.1), LK.white)
+				C:seg("ExtinguisherHose", (q * CF(-0.05, 1.6, -0.08)).Position, (q * CF(-0.2, 0.9, -0.22)).Position, 0.06, LK.black)
+				C:vcyl("ExtinguisherNozzle", 0.2, 0.08, q * CF(-0.2, 0.8, -0.22), LK.black)
+				C:label("ExtinguisherLabel", 0.26, 0.56, q * CF(0, 0.85, 0.232), "소화기\nABC 분말\n3.3kg", C3(255, 255, 255), C3(40, 40, 40), { wrap = true })
 			end
 		end
 	end
