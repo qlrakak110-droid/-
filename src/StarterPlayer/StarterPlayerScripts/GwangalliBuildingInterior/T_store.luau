@@ -1725,8 +1725,8 @@ local function walkIn(K: any, V: any, surfs: { any }, B: any, rng: () -> number,
 		for _, g in V.byName.FridgeGlow or {} do
 			if overlapXZ(g, fr, 0.9) and g.part.Transparency < 0.99 then
 				Scan.hide(K.hidden, g.part)
-				-- 은은하게 빛나는 뒤판 (원래 네온 판의 1/2 밝기: 냉장고 안이 밝아 보이되 상품이 실루엣이 되지 않게)
-				K:box("StFridgeBack", g.part.Size, g.lcf, Look.neon(C(128, 136, 144)))
+				-- 무광 흰 뒤판 (네온 뒤판은 밤에 유리문 전체가 하얗게 번져 상품이 안 보였음)
+				K:box("StFridgeBack", g.part.Size, g.lcf, lk(C(238, 242, 246), M.SmoothPlastic))
 				-- 뒤판 세로 이음 (판넬 칸)
 				if K.detail ~= "low" then
 					local alongG = g.size.X >= g.size.Z
@@ -1765,13 +1765,14 @@ local function walkIn(K: any, V: any, surfs: { any }, B: any, rng: () -> number,
 				end
 			end
 		end
-		-- 냉장고 머리 안쪽 조명 (앞 위 FridgeLamp 바로 아래, 아래로 비춤) — 진열 상품 앞면을 밝힘
+		-- 냉장고 머리 안쪽 LED 바 (앞 위 FridgeLamp 바로 아래)
 		local lit = 0
 		for _, fl in V.byName.FridgeLamp or {} do
 			if lit < 2 and overlapXZ(fl, fr, 0.9) then
 				local bsz = if fl.size.Z > fl.size.X then V3(math.max(0.08, fl.size.X - 0.1), 0.04, math.max(0.4, fl.size.Z - 0.2)) else V3(math.max(0.4, fl.size.X - 0.2), 0.04, math.max(0.08, fl.size.Z - 0.1))
 				local bar = K:box("StFridgeLightBar", bsz, CF(fl.c.X, fl.min.Y - 0.03, fl.c.Z), L_FREE(Look.lampCool))
-				if K:light(bar, "SurfaceLight", { Face = Enum.NormalId.Bottom, Angle = 70, Range = 8, Brightness = 1.6, Color = Color3.fromRGB(236, 244, 255) }) then
+				-- 실제 불빛(SurfaceLight)은 두지 않음: 밤에 문 유리 안쪽이 하얗게 번져 상품이 안 보였음 (네온 띠 + 은은한 뒤판만)
+				if bar then
 					lit += 1
 				end
 			end

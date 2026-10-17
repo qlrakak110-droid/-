@@ -76,7 +76,8 @@ local PK = rgb(255, 60, 170) -- 마젠타 (포토존)
 local AMB = rgb(236, 160, 80) -- 오닉스 앰버
 local MATTE = lk(rgb(20, 20, 23))
 local MATTE2 = lk(rgb(32, 32, 36))
-local GLOSS = lk(rgb(8, 8, 10), M.Glass, { r = 0.25 })
+-- 블랙 유광 (반사율은 아주 조금만: 유리 재질 + 반사는 하늘을 비춰 밝게 뜸)
+local GLOSS = lk(rgb(9, 9, 11), M.SmoothPlastic, { r = 0.05 })
 local BRASS = Look.brass
 local CHROME = Look.chrome
 local STEEL = Look.steel
@@ -809,6 +810,10 @@ local function lobbyHallDoor(R: any)
 		P:box("WallRopeHook", V3(0.2, 0.2, 0.12), CF(hook + V3(0, 0, 0.06)), BRASS)
 		rope(P, a, hook, 0.25)
 	end
+	-- 물품보관 안내 (문 오른쪽 벽, 눈높이)
+	P:free(function()
+		lightbox(P, "CoatWay", R.wall("back", x1 + 1.35, 6.4, 0.0), 1.6, 1.3, "COAT CHECK", "물품보관 ₩3,000\n입장 후 왼쪽 ↰", { titleH = 0.38, accent = rgb(255, 200, 90), frame = BMETAL })
+	end)
 	-- 문틀 브라스 몰딩 + 문 위 시안 라인
 	P:free(function()
 		P:plate("DoorJambTrim", 0.16, 9.4, 0.08, R.wall("back", x0 - 0.08, 4.7, 0.0), BRASS)
@@ -932,7 +937,7 @@ local function lobbyLockers(R: any)
 	local cx0, cx1, cy1 = car.mn.X, car.mx.X, car.mx.Y
 	local zb = math.min(car.mx.Z, R.fz)
 	local depth = zb - zf
-	local CARC = lk(rgb(28, 28, 32), M.Metal)
+	local CARC = lk(rgb(92, 94, 100), M.Metal) -- 헤어라인 프레임 (문 사이 줄눈이 보이게)
 	P:free(function()
 		P:box("LockerBack", V3(cx1 - cx0, cy1, 0.06), CF((cx0 + cx1) / 2, cy1 / 2, zb - 0.03), lk(rgb(20, 20, 23)))
 		P:box("LockerTop", V3(cx1 - cx0, 0.1, depth), CF((cx0 + cx1) / 2, cy1 - 0.05, zf + depth / 2), CARC)
@@ -1143,6 +1148,18 @@ local function lobbyFinish(R: any)
 			end
 		end
 	end)
+	-- 바닥 가운데 브라스 메달리온 (인레이 사각 안, 천장 링 아래)
+	local inl = R.one("InlayField")
+	if inl then
+		P:free(function()
+			P:disc("FloorMedallionRing", 5.2, 0.014, CF(inl.c.X, inl.mx.Y + 0.007, inl.c.Z), BRASS)
+			P:disc("FloorMedallion", 4.9, 0.018, CF(inl.c.X, inl.mx.Y + 0.009, inl.c.Z), lk(rgb(16, 16, 18), M.Marble))
+			P:disc("FloorMedallionInner", 2.2, 0.022, CF(inl.c.X, inl.mx.Y + 0.011, inl.c.Z), BRASS)
+			P:disc("FloorMedallionCore", 2.0, 0.026, CF(inl.c.X, inl.mx.Y + 0.013, inl.c.Z), lk(rgb(16, 16, 18), M.Marble))
+			txt(P, "FloorMedallionText", 1.8, 0.7, topCF(V3(inl.c.X, inl.mx.Y + 0.03, inl.c.Z), V3(0, 0, -1)), "CLUB\nOCEAN", rgb(214, 180, 104), nil, F.GothamBlack)
+			txt(P, "FloorMedallionSub", 3.6, 0.36, topCF(V3(inl.c.X, inl.mx.Y + 0.03, inl.c.Z + 1.65), V3(0, 0, -1)), "광안 · GWANGALLI · EST. 2026", rgb(214, 180, 104), nil, F.GothamBold)
+		end)
+	end
 	-- 벽 워시 조명 (락커 · 소지품 검사 · 포스터): 천장 핀 스폿에서 아래로
 	local function wash(x: number, z: number, at: Vector3, angle: number, br: number)
 		local head = CFrame.lookAt(V3(x, H - 0.25, z), at)
@@ -1153,7 +1170,7 @@ local function lobbyFinish(R: any)
 	P:free(function()
 		local car = R.one("LockerCarcass")
 		if car then
-			wash(car.c.X, R.fz - 4.2, V3(car.c.X, 3.5, R.fz), 95, 1.5)
+			wash(car.c.X, R.fz - 4.6, V3(car.c.X, 3.2, R.fz), 100, 2.6)
 		end
 		local sign = R.one("Sign_CLUB OCEAN")
 		if sign then
@@ -1299,12 +1316,10 @@ local function buildTunnel(K: any, V: any)
 			local lens = P:disc("GoboLens", 0.3, 0.03, head * CF(0, 0, -0.46) * ANG(PI / 2, 0, 0), nl(rgb(240, 250, 255)))
 			K:light(lens, "SpotLight", { Face = Enum.NormalId.Left, Angle = 40, Range = 14, Brightness = 1.4, Color = rgb(190, 235, 255) })
 			P:cyl("GoboFin", 0.5, 0.12, head * CF(0, 0.3, 0.1) * ANG(0, PI / 2, 0), BMETAL)
-			-- 투사 빛 (아주 옅은 빔)
-			P:seg("GoboBeam", V3(cx, H - 0.8, pz - 0.5), V3(cx, 0.1, pz - 4.6), 0.9, lk(rgb(200, 240, 255), M.Neon, { t = 0.94 }))
 		end)
 		local tz = pz - 4.6
 		P:free(function()
-			P:disc("GoboSpot", 4.2, 0.012, CF(cx, 0.008, tz), lk(rgb(30, 60, 80), M.Neon, { t = 0.75 }))
+			P:disc("GoboSpot", 4.2, 0.012, CF(cx, 0.008, tz), lk(rgb(20, 50, 70), M.Neon, { t = 0.9 }))
 		end)
 		local _, lbl = txt(P, "GoboText", 3.6, 1.5, topCF(V3(cx, 0.02, tz), V3(0, 0, -1)), "CLUB OCEAN\n광안 · GWANGALLI", rgb(170, 240, 255), nil, F.GothamBlack, 1.6)
 		loopText(K, lbl, { "CLUB OCEAN\n광안 · GWANGALLI", "WELCOME\n오늘 밤, 광안리에서", "SAT 10.17\nK-EDM NIGHT", "▼ LOBBY\n입장료 · 팔찌" }, 3.5)
@@ -1326,6 +1341,23 @@ local function buildTunnel(K: any, V: any)
 				wallSpeaker(P, d, 0.75)
 			end)
 		end
+	end })
+	-- 4b) 통로 유도등 (벽 아래, 초록 · 화살표는 출구 = 현관 쪽)
+	table.insert(steps, { "guide", function()
+		P:free(function()
+			for k, i in { 2, 5, 8 } do
+				if barsZ[i] and barsZ[i + 1] then
+					local zc = (barsZ[i] + barsZ[i + 1]) / 2
+					for _, side in { "left", "right" } do
+						local d = R.wall(side, zc, 1.15, 0.035)
+						P:plate("GuideLightBox", 0.75, 0.38, 0.1, d, lk(rgb(230, 232, 228), M.Plastic))
+						local arrow = if side == "left" then "◀ EXIT" else "EXIT ▶"
+						txt(P, "GuideLight", 0.66, 0.3, d * CF(0, 0, 0.102), "🏃 " .. arrow, rgb(255, 255, 255), rgb(20, 150, 70), F.GothamBold, 1.2)
+					end
+				end
+				local _ = k
+			end
+		end)
 	end })
 	-- 5) 안내판 (터널 입구 · 로비 쪽 끝)
 	table.insert(steps, { "signs", function()
@@ -1379,9 +1411,975 @@ end
 -- 메인홀 (다듬기) -----------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------
 
+-- dcf 를 방향 dir (수평 단위) 으로: +Z = dir (보는 쪽), +X = 보는 사람 오른쪽
+local function faceCF(p: Vector3, dir: Vector3): CFrame
+	local up = Vector3.yAxis
+	return CFrame.fromMatrix(p, (-dir):Cross(up), up, dir)
+end
+
+-- 라벨 병 종류 (UI 이름은 '음료': 브랜드 이름 없음)
+local BOTTLE_KINDS: { [string]: any } = {
+	vodka = { name = "Vodka", body = lk(rgb(226, 236, 242), M.Glass, { t = 0.3 }), label = lk(rgb(244, 246, 250)), cap = CHROME },
+	gin = { name = "Gin", body = lk(rgb(110, 186, 196), M.Glass, { t = 0.3 }), label = lk(rgb(236, 228, 208)), cap = lk(rgb(24, 44, 34)), sq = true },
+	tequila = { name = "Tequila", body = lk(rgb(236, 216, 168), M.Glass, { t = 0.25 }), label = lk(rgb(196, 40, 40)), cap = lk(rgb(150, 110, 70), M.Wood), squat = true },
+	whisky = { name = "Whisky", body = lk(rgb(176, 98, 30), M.Glass, { t = 0.2 }), label = lk(rgb(22, 22, 24)), cap = BRASS, sq = true },
+	champ = { name = "Champagne", body = lk(rgb(24, 58, 34), M.Glass, { t = 0.1 }), label = lk(rgb(240, 232, 210)), cap = lk(rgb(214, 180, 96), M.Foil), foil = true },
+	liqueur = { name = "Liqueur", body = lk(rgb(60, 128, 44), M.Glass, { t = 0.25 }), label = lk(rgb(240, 200, 60)), cap = lk(rgb(20, 20, 22)) },
+	rum = { name = "Rum", body = lk(rgb(124, 62, 22), M.Glass, { t = 0.2 }), label = lk(rgb(236, 226, 196)), cap = lk(rgb(170, 30, 30)) },
+	rose = { name = "Rose", body = lk(rgb(232, 150, 150), M.Glass, { t = 0.25 }), label = lk(rgb(250, 240, 236)), cap = lk(rgb(230, 190, 200), M.Foil), foil = true },
+	black = { name = "Black", body = lk(rgb(20, 20, 22), M.Glass, { t = 0.05 }), label = lk(rgb(200, 170, 90)), cap = lk(rgb(20, 20, 22), M.Foil), foil = true },
+}
+
+-- 라벨 병: base = 바닥 가운데, H 전체 높이, D 지름, kd 종류, dir = 라벨 쪽, lite = 어깨 생략 (파트 절약)
+local function bottle(P: any, base: Vector3, H: number, D: number, kd: any, dir: Vector3, lite: boolean?)
+	local bh = H * (if kd.squat then 0.5 else 0.58)
+	local bw = if kd.squat then D * 1.05 else D
+	local sqw = bw * 0.86
+	if kd.sq then
+		P:box("Bottle" .. kd.name, V3(sqw, bh, sqw), CF(base + V3(0, bh / 2, 0)), kd.body)
+	else
+		P:vcyl("Bottle" .. kd.name, bh, bw, CF(base + V3(0, bh / 2, 0)), kd.body)
+	end
+	if not lite then
+		local sw = if kd.sq then sqw else bw
+		P:ell("BottleShoulder", V3(sw, H * 0.16, sw), CF(base + V3(0, bh, 0)), kd.body)
+	end
+	local nd = D * (if kd.foil then 0.36 else 0.3)
+	local nh = H * 0.94 - bh
+	P:vcyl("BottleNeck", nh, nd, CF(base + V3(0, bh + nh / 2, 0)), kd.body)
+	if kd.foil then
+		P:vcyl("BottleFoil", H * 0.2, nd * 1.15, CF(base + V3(0, H * 0.88, 0)), kd.cap)
+	else
+		P:vcyl("BottleCap", H * 0.08, nd * 1.25, CF(base + V3(0, H * 0.95, 0)), kd.cap)
+	end
+	local off = (if kd.sq then sqw * 0.5 else bw * 0.5) + 0.006
+	P:box("BottleLabel", V3(bw * 0.7, bh * 0.46, 0.012), faceCF(base + V3(0, bh * 0.48, 0) + dir * off, dir), kd.label)
+end
+
+-- LED 얼음 바스켓 + 병 (카운터 위): pcf = 바닥 가운데
+local function iceBucket(P: any, pcf: CFrame, kd: any, glow: Color3)
+	P:vcyl("IceBucketBody", 0.75, 0.82, pcf * CF(0, 0.375, 0), lk(glow, M.Neon, { t = 0.35 }))
+	P:vcyl("IceBucketRim", 0.06, 0.9, pcf * CF(0, 0.75, 0), CHROME)
+	P:vcyl("IceBucketIce", 0.06, 0.74, pcf * CF(0, 0.66, 0), lk(rgb(225, 240, 250), M.Ice, { t = 0.2 }))
+	local p = (pcf * CF(0.08, 0.2, 0) * ANG(0, 0, -0.25)).Position
+	bottle(P, p, 1.25, 0.32, kd, (pcf.LookVector * -1), true)
+end
+
+-- 플루트 잔 (스템 + 볼)
+local function flute(P: any, pcf: CFrame)
+	P:disc("FluteFoot", 0.16, 0.015, pcf * CF(0, 0.008, 0), gl(rgb(235, 245, 250), 0.45))
+	P:vcyl("FluteStem", 0.22, 0.025, pcf * CF(0, 0.12, 0), gl(rgb(235, 245, 250), 0.45))
+	P:vcyl("FluteBowl", 0.32, 0.11, pcf * CF(0, 0.39, 0), gl(rgb(240, 225, 170), 0.45))
+end
+
+-- 헤드폰 (훅에 걸림): p = 훅 점, dir = 바깥쪽
+local function headphones(P: any, p: Vector3, dir: Vector3)
+	local f = faceCF(p, dir)
+	P:box("HeadphoneHook", V3(0.06, 0.06, 0.22), f * CF(0, 0, 0.11), CHROME)
+	P:ring("HeadphoneBand", f * CF(0, -0.32, 0.22), 0.3, 0.07, 5, lk(rgb(24, 24, 26), M.Plastic), 0.15, PI - 0.15)
+	for _, s in { -1, 1 } do
+		P:cyl("HeadphoneCup", 0.14, 0.32, f * CF(s * 0.3, -0.4, 0.22), lk(rgb(30, 30, 32), M.Plastic))
+		P:cyl("HeadphonePad", 0.04, 0.28, f * CF(s * 0.22, -0.4, 0.22), lk(rgb(60, 20, 20), M.Leather))
+	end
+end
+
+-- 로드 케이스 (플라이트 케이스): pcf = 바닥 가운데, size, label
+local function roadCase(P: any, pcf: CFrame, size: Vector3, label: string?)
+	local s = size
+	P:box("RoadCase", s, pcf * CF(0, s.Y / 2, 0), lk(rgb(28, 28, 30), M.Plastic))
+	local AL = lk(rgb(190, 192, 196), M.Metal)
+	for _, y in { 0.04, s.Y - 0.04 } do
+		P:box("CaseEdge", V3(s.X + 0.02, 0.08, 0.06), pcf * CF(0, y, s.Z / 2), AL)
+		P:box("CaseEdge", V3(s.X + 0.02, 0.08, 0.06), pcf * CF(0, y, -s.Z / 2), AL)
+	end
+	for _, sx in { -1, 1 } do
+		P:box("CaseLatch", V3(0.16, 0.12, 0.04), pcf * CF(sx * s.X * 0.32, s.Y * 0.7, s.Z / 2 + 0.02), CHROME)
+		P:ball("CaseCorner", 0.14, pcf * CF(sx * s.X / 2, s.Y, s.Z / 2), AL)
+	end
+	if label then
+		txt(P, "CaseStencil", s.X * 0.7, s.Y * 0.3, pcf * CF(0, s.Y * 0.38, s.Z / 2 + 0.01), label, rgb(235, 235, 235), nil, F.Arcade)
+	end
+end
+
+-- 메인홀 문맥: 벽은 쓰지 않음 (벽 소품은 맵 파트 기준으로 붙임)
+local function mainBar(R: any)
+	local P, K = R.P, R.K
+	local bl = R.one("GantryBacklight")
+	local bx = if bl then bl.c.X else -3.95
+	-- 1) 백바 병 75 (원래 무지 유리 원통) -> 라벨 병 (층마다 종류)
+	local tiers = {
+		{ "champ", "rose", "liqueur", "champ", "black" },
+		{ "vodka", "gin", "tequila", "vodka", "gin" },
+		{ "whisky", "rum", "whisky", "liqueur", "whisky" },
+	}
+	local bottles = R.find("Bottle", "BarDetail")
+	for i, b in bottles do
+		R.hide(b.part)
+		local D = math.min(b.s.X, b.s.Z)
+		local H = b.s.Y
+		local dir = if b.c.X >= bx then V3(1, 0, 0) else V3(-1, 0, 0)
+		local tier = if b.mn.Y < 5.4 then 1 elseif b.mn.Y < 7.4 then 2 else 3
+		local list = tiers[tier]
+		local kd = BOTTLE_KINDS[list[(i % #list) + 1]]
+		-- 숨긴 원래 병과 같은 자리 (바텐더 keep 안이어도 그대로)
+		P:free(function()
+			bottle(P, V3(b.c.X, b.mn.Y, b.c.Z), H, D, kd, dir, not hi(K))
+		end)
+	end
+	-- 2) 유리 선반 앞 모서리 LED (양쪽) + 백바 불빛
+	P:free(function()
+		for _, sh in R.find("GlassShelf", "MainBar") do
+			for _, sx in { -1, 1 } do
+				P:box("ShelfEdgeLED", V3(0.04, 0.04, sh.s.Z - 0.1), CF(sh.c.X + sx * (sh.s.X / 2 - 0.02), sh.mn.Y - 0.03, sh.c.Z), nl(rgb(255, 214, 160)))
+			end
+		end
+		local gb = R.one("GantryBase")
+		if gb then
+			for _, sx in { -1, 1 } do
+				P:box("ShelfEdgeLED", V3(0.04, 0.04, gb.s.Z - 0.2), CF(gb.c.X + sx * (gb.s.X / 2 + 0.01), gb.mx.Y - 0.05, gb.c.Z), nl(rgb(255, 214, 160)))
+			end
+		end
+	end)
+	local gc = R.one("GantryCanopy")
+	if gc then
+		local lamp = P:box("GantryLamp", V3(0.3, 0.05, gc.s.Z - 1.0), CF(gc.c.X, gc.mn.Y - 0.03, gc.c.Z), nl(rgb(255, 222, 180)))
+		K:light(lamp, "PointLight", { Range = 11, Brightness = 1.1, Color = rgb(255, 214, 170) })
+	end
+	-- 3) 스피드레일 병 → 푸어 스파우트
+	for _, b in R.find("SpeedRailBottle") do
+		local top = V3(b.c.X, b.mx.Y, b.c.Z)
+		P:free(function()
+			P:vcyl("PourCollar", 0.08, 0.13, CF(top + V3(0, 0.04, 0)), lk(rgb(20, 20, 22), M.Rubber))
+			P:seg("PourSpout", top + V3(0, 0.07, 0), top + V3(0, 0.27, 0.1), 0.035, CHROME)
+		end)
+	end
+	-- 4) 아이스웰 스쿱 · 바 도구 (드립 트레이 위)
+	P:free(function()
+		for i, w in R.find("IceWell") do
+			local p = V3(w.c.X, w.mx.Y + 0.08, w.c.Z + (if i % 2 == 0 then 1.2 else -1.2))
+			P:cyl("IceScoop", 0.42, 0.24, CF(p) * ANG(0, PI / 2, 0) * ANG(0, 0, 0.35), CHROME)
+			P:seg("IceScoopHandle", p + V3(0, 0.05, 0.21), p + V3(0, 0.12, 0.55), 0.06, lk(rgb(20, 20, 22), M.Plastic))
+		end
+		for _, d in R.find("DripTray") do
+			local y = d.mx.Y + 0.01
+			local x = d.c.X
+			-- 지거 (이중) · 바 스푼 · 스트레이너 · 머들러
+			P:vcyl("Jigger", 0.14, 0.12, CF(x, y + 0.07, d.mn.Z + 0.4), CHROME)
+			P:vcyl("Jigger", 0.12, 0.1, CF(x, y + 0.2, d.mn.Z + 0.4), CHROME)
+			P:seg("BarSpoon", V3(x - 0.15, y + 0.02, d.mn.Z + 0.75), V3(x + 0.1, y + 0.02, d.mn.Z + 1.85), 0.03, CHROME)
+			P:disc("Strainer", 0.26, 0.02, CF(x + 0.2, y + 0.01, d.mx.Z - 0.6), CHROME)
+			P:seg("StrainerHandle", V3(x + 0.2, y + 0.01, d.mx.Z - 0.6), V3(x + 0.2, y + 0.01, d.mx.Z - 0.22), 0.04, CHROME)
+			P:seg("Muddler", V3(x - 0.2, y + 0.03, d.mx.Z - 0.9), V3(x - 0.2, y + 0.03, d.mx.Z - 0.25), 0.07, Look.walnut)
+		end
+	end)
+	-- 5) 바 상판: 서비스 고무 매트 (바텐더 쪽 가장자리) · 테이블 메뉴 스탠드 · POS 하나 더
+	local tops = R.find("BarTop", nil)
+	local mc = V3(0, 0, 0)
+	for _, t in tops do
+		mc += t.c
+	end
+	if #tops > 0 then
+		mc /= #tops
+	end
+	local stands: { BasePart } = {}
+	for _, t in tops do
+		local long = t.s.Z > t.s.X
+		local inward = if long then V3(math.sign(mc.X - t.c.X), 0, 0) else V3(0, 0, math.sign(mc.Z - t.c.Z))
+		local y = t.mx.Y
+		-- 고무 매트 (안쪽 가장자리)
+		local mp = t.c + inward * ((if long then t.s.X else t.s.Z) / 2 - 0.55)
+		P:free(function()
+			if long then
+				P:box("BarServiceMat", V3(0.8, 0.03, 3.2), CF(mp.X, y + 0.015, mp.Z), lk(rgb(16, 16, 18), M.Rubber))
+			else
+				P:box("BarServiceMat", V3(3.2, 0.03, 0.8), CF(mp.X, y + 0.015, mp.Z), lk(rgb(16, 16, 18), M.Rubber))
+			end
+			-- 메뉴 스탠드 (손님 쪽을 봄, 바깥 가장자리 · 모서리 가까이)
+			local outward = -inward
+			local along = if long then V3(0, 0, 1) else V3(1, 0, 0)
+			local sp = t.c + outward * ((if long then t.s.X else t.s.Z) / 2 - 0.5) + along * ((if long then t.s.Z else t.s.X) / 2 - 1.6) * (if long then -1 else 1)
+			local f = faceCF(V3(sp.X, y, sp.Z), outward)
+			P:box("MenuStandBase", V3(0.7, 0.04, 0.3), f * CF(0, 0.02, 0), gl(rgb(235, 240, 245), 0.4))
+			local face = f * CF(0, 0.52, -0.04) * ANG(-0.16, 0, 0)
+			local pl = P:box("MenuStandFace", V3(0.72, 0.96, 0.03), face, gl(rgb(235, 240, 245), 0.5))
+			txt(P, "MenuStandText", 0.66, 0.9, face * CF(0, 0, 0.016), "SIGNATURE\n오션 블루 에이드 9,000\n자몽 스파클링 9,000\n패션후르츠 목테일 10,000\n\n보틀 주문은 테이블에서", rgb(240, 240, 240), rgb(14, 22, 36), F.GothamMedium, 1.1)
+			table.insert(stands, pl)
+		end)
+	end
+	-- POS 하나 더 (원래 POS 반대쪽 모서리)
+	local pos = R.one("POSScreen")
+	if pos and #tops > 0 then
+		local px = mc.X - (pos.c.X - mc.X)
+		local pz = mc.Z - (pos.c.Z - mc.Z)
+		local dir = V3(math.sign(mc.X - px), 0, 0)
+		P:free(function()
+			P:vcyl("POSPole", 0.5, 0.1, CF(px, pos.mn.Y - 0.25, pz), BMETAL)
+			local f = faceCF(V3(px, pos.c.Y, pz), dir) * ANG(-0.2, 0, 0)
+			P:box("POSScreen2Body", V3(1.4, 1.0, 0.08), f, lk(rgb(18, 18, 20)))
+			local _, lbl = txt(P, "POSScreen2", 1.3, 0.9, f * CF(0, 0, 0.042), "ORDER #214\n에이드 x2 · 목테일 x1\n₩28,000", rgb(230, 245, 255), rgb(20, 40, 70), F.GothamBold, 1.2)
+			loopText(K, lbl, { "ORDER #214\n에이드 x2 · 목테일 x1\n₩28,000", "ORDER #215\n스파클링 x3\n₩27,000", "TABLE B4\n보틀 서비스 준비\n퍼레이드 대기" }, 5)
+			-- 손님용 카드 단말기 (POS 옆, 바깥 쪽)
+			P:box("CardTerminalBar", V3(0.36, 0.14, 0.6), CF(px - dir.X * 0.9, (tops[1].mx.Y) + 0.07, pz) * ANG(-0.2, 0, 0), lk(rgb(24, 24, 26)))
+			P:box("CardTerminalScreen", V3(0.28, 0.01, 0.24), CF(px - dir.X * 0.9, (tops[1].mx.Y) + 0.145, pz - 0.12), nl(rgb(60, 140, 255)))
+		end)
+	end
+	-- 6) 백바 양 끝 음료 메뉴판 (게이트리 캐노피 아래, 짧은 변 손님 쪽을 봄)
+	local menuPages = {
+		{ "SIGNATURE · 시그니처", { { "오션 블루 에이드", "9,000" }, { "광안 선셋 에이드", "9,000" }, { "자몽 스파클링", "9,000" }, { "패션후르츠 목테일", "10,000" }, { "모히또 목테일", "10,000" }, { "에너지 드링크", "7,000" } } },
+		{ "SPARKLING · 스파클링", { { "샴페인 1병", "150,000" }, { "VIP 보틀 퍼레이드", "300,000" }, { "생일 축하 보틀", "250,000" }, { "스파클링 주스 1병", "60,000" }, { "탄산수 · 토닉", "4,000" }, { "생수", "3,000" } } },
+		{ "MOCKTAIL · 목테일", { { "버진 모히또", "10,000" }, { "피치 아이스티", "8,000" }, { "블루 레모네이드", "9,000" }, { "망고 스무디", "10,000" }, { "콜라 · 사이다", "4,000" }, { "웰컴 음료 (입장)", "FREE" } } },
+	}
+	local menuLabels: { TextLabel } = {}
+	if gc then
+		for k, z in { gc.mn.Z - 0.03, gc.mx.Z + 0.03 } do
+			local dir = if k == 1 then V3(0, 0, -1) else V3(0, 0, 1)
+			local f = faceCF(V3(gc.c.X, gc.mn.Y - 1.45, z), dir)
+			local pg = menuPages[k]
+			P:free(function()
+				P:plate("BarMenuFrame", 3.3, 2.7, 0.08, f, BRASS)
+				P:plate("BarMenuFace", 3.16, 2.56, 0.1, f, lk(rgb(10, 12, 18)))
+				local _, tl = txt(P, "BarMenuTitle", 3.0, 0.42, f * CF(0, 1.02, 0.105), pg[1], CY, nil, F.GothamBlack, 1.4)
+				table.insert(menuLabels, tl)
+				local lines = {}
+				for _, it in pg[2] do
+					table.insert(lines, it[1] .. "  ·  " .. it[2])
+				end
+				local _, bl2 = txt(P, "BarMenuBody", 2.9, 1.9, f * CF(0, -0.22, 0.105), table.concat(lines, "\n"), rgb(240, 236, 228), nil, F.GothamMedium, 1.2)
+				table.insert(menuLabels, bl2)
+				P:seg("BarMenuRod", V3(gc.c.X - 1.3, gc.mn.Y, z), V3(gc.c.X - 1.3, gc.mn.Y - 0.12, z), 0.04, BRASS)
+				P:seg("BarMenuRod", V3(gc.c.X + 1.3, gc.mn.Y, z), V3(gc.c.X + 1.3, gc.mn.Y - 0.12, z), 0.04, BRASS)
+			end)
+		end
+	end
+	-- 상호작용: 메뉴 넘기기 (모서리 메뉴 스탠드 중 서버 프롬프트 자리에서 먼 것)
+	local function pageText(i: number): (string, string)
+		local pg = menuPages[i]
+		local lines = {}
+		for _, it in pg[2] do
+			table.insert(lines, it[1] .. "  ·  " .. it[2])
+		end
+		return pg[1], table.concat(lines, "\n")
+	end
+	for _, st in stands do
+		local lp = K.V.cf:PointToObjectSpace(st.Position)
+		if Interact.canPrompt(K, lp) then
+			Interact.cycle(K, st, { 1, 2, 3 }, {
+				action = "메뉴 넘기기",
+				object = "음료 메뉴",
+				start = 1,
+				on = function(_i, page)
+					-- 백바 메뉴판 두 개를 같은 페이지로 (+ 다음 페이지)
+					local t1, b1 = pageText(page)
+					local t2, b2 = pageText(page % 3 + 1)
+					local vals = { t1, b1, t2, b2 }
+					for j, l in menuLabels do
+						if l.Parent and vals[j] then
+							l.Text = vals[j]
+						end
+					end
+				end,
+			})
+			break
+		end
+	end
+end
+
+-- 서비스 스테이션 (보틀 서비스 백바) 병 63 → 라벨 병 (가벼운 버전)
+local function mainServiceStation(R: any)
+	local P = R.P
+	local list = { "champ", "vodka", "champ", "whisky", "rose", "black", "gin", "champ" }
+	for i, b in R.find("Bottle", "ServiceStation") do
+		R.hide(b.part)
+		local kd = BOTTLE_KINDS[list[(i % #list) + 1]]
+		P:free(function()
+			bottle(P, V3(b.c.X, b.mn.Y, b.c.Z), b.s.Y, math.min(b.s.X, b.s.Z), kd, V3(-1, 0, 0), true)
+		end)
+	end
+end
+
+-- DJ 부스 주변: 케이블 · 스테이지 박스 · 헤드폰 · 로드 케이스 · 수건 · 물 · DJ ONLY
+local function mainDJ(R: any)
+	local P = R.P
+	local deck = R.one("BoothDeck")
+	local desk = R.one("DJDesk")
+	if not (deck and desk) then
+		return
+	end
+	local dy = deck.mx.Y
+	-- NPC 자리 (DJ · MC) 피하기
+	local npcs = {}
+	for _, h in R.find("HumanoidRootPart") do
+		local n = h.part.Parent and h.part.Parent.Name or ""
+		if string.sub(n, 1, 3) == "DJ_" or string.sub(n, 1, 3) == "MC_" then
+			table.insert(npcs, h)
+		end
+	end
+	local function clearOfNPC(x0: number, x1: number): boolean
+		for _, h in npcs do
+			if h.mx.X + 0.3 > x0 and h.mn.X - 0.3 < x1 then
+				return false
+			end
+		end
+		return true
+	end
+	local zb = desk.mn.Z -- 책상 뒤 (DJ 쪽)
+	P:free(function()
+		-- 케이블 (책상 뒷면 → 바닥 → 스테이지 박스)
+		local sbx = desk.mn.X - 0.6
+		local sbz = deck.mn.Z + 0.55
+		P:box("StageBox", V3(0.8, 0.45, 0.6), CF(sbx, dy + 0.225, sbz), lk(rgb(60, 62, 66), M.Metal))
+		P:plate("StageBoxJacks", 0.7, 0.3, 0.02, faceCF(V3(sbx, dy + 0.24, sbz + 0.3), V3(0, 0, 1)), lk(rgb(20, 20, 22)))
+		local cx = { -6.1, -4.8, -3.2, -1.6, -0.4, 1.1 }
+		for i, x0 in cx do
+			local x = math.clamp(x0, desk.mn.X + 0.3, desk.mx.X - 0.3)
+			local a = V3(x, desk.mx.Y - 0.25, zb - 0.04)
+			local b = V3(x, dy + 0.04, zb - 0.06 - i * 0.05)
+			local c = V3(sbx + 0.2, dy + 0.04, sbz + 0.2 + i * 0.03)
+			local col = if i % 2 == 0 then lk(rgb(20, 20, 22), M.Rubber) else lk(rgb(36, 36, 40), M.Rubber)
+			P:seg("DJCable", a, b, 0.05, col)
+			P:seg("DJCable", b, c, 0.05, col)
+		end
+		-- 모니터 스피커 케이블
+		for _, m in R.find("MonitorStand") do
+			P:seg("MonitorCable", V3(m.c.X, dy + 0.04, m.c.Z), V3(sbx, dy + 0.04, sbz), 0.05, lk(rgb(20, 20, 22), M.Rubber))
+		end
+		-- 헤드폰 (책상 왼쪽 옆면 훅)
+		headphones(P, V3(desk.mn.X - 0.02, desk.mx.Y - 0.35, desk.c.Z), V3(-1, 0, 0))
+		-- 로드 케이스 (데크 양 끝, 뒤 난간 쪽)
+		local L = { x0 = deck.mn.X + 0.35, x1 = deck.mn.X + 2.15 }
+		if clearOfNPC(L.x0, L.x1) then
+			roadCase(P, faceCF(V3((L.x0 + L.x1) / 2, dy, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.8, 1.3, 1.1), "OCEAN SOUND")
+			roadCase(P, faceCF(V3((L.x0 + L.x1) / 2, dy + 1.3, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.6, 0.6, 1.0), "FX · RACK 2")
+		end
+		local Rr = { x0 = deck.mx.X - 2.15, x1 = deck.mx.X - 0.35 }
+		if clearOfNPC(Rr.x0, Rr.x1) then
+			local rx = (Rr.x0 + Rr.x1) / 2
+			roadCase(P, faceCF(V3(rx, dy, deck.mn.Z + 0.95), V3(0, 0, 1)), V3(1.8, 1.3, 1.1), "CLUB OCEAN · DJ")
+			-- 수건 · 생수 · 레코드 가방
+			P:box("DJTowel", V3(0.9, 0.06, 0.7), CF(rx - 0.3, dy + 1.33, deck.mn.Z + 0.95) * ANG(0, 0.2, 0), lk(rgb(240, 240, 236), M.Fabric))
+			P:box("DJTowelDrape", V3(0.9, 0.5, 0.05), CF(rx - 0.3, dy + 1.1, deck.mn.Z + 1.52) * ANG(0, 0.2, 0), lk(rgb(240, 240, 236), M.Fabric))
+			P:vcyl("DJWater", 0.5, 0.18, CF(rx + 0.45, dy + 1.55, deck.mn.Z + 0.8), gl(rgb(200, 230, 255), 0.4))
+			P:vcyl("DJWaterCap", 0.06, 0.12, CF(rx + 0.45, dy + 1.83, deck.mn.Z + 0.8), lk(rgb(40, 120, 220)))
+			P:box("RecordBag", V3(1.2, 0.9, 0.5), CF(rx, dy + 0.45, deck.mn.Z + 2.0), lk(rgb(30, 30, 34), M.Fabric))
+			P:box("RecordBagFlap", V3(1.22, 0.4, 0.06), CF(rx, dy + 0.72, deck.mn.Z + 2.26), lk(rgb(40, 40, 46), M.Fabric))
+		end
+		-- 부스 계단 위 'DJ ONLY' 판 (뒤 난간 끝)
+		local steps = R.find("BoothStep")
+		if #steps > 0 then
+			local sx0 = math.huge
+			for _, s in steps do
+				sx0 = math.min(sx0, s.mn.X)
+			end
+			local f = faceCF(V3(sx0 - 0.15, dy + 1.6, deck.mn.Z - 0.03), V3(0, 0, -1))
+			P:plate("DJOnlyPlate", 1.1, 0.5, 0.04, f, BMETAL)
+			txt(P, "DJOnlyText", 1.0, 0.42, f * CF(0, 0, 0.042), "DJ · STAFF ONLY", rgb(255, 210, 60), nil, F.GothamBlack, 1.2)
+		end
+	end)
+end
+
+-- VIP 단상: 계단 브라스 노싱 + 챌면 LED · 스탠션 위 RESERVED 판 · 단상 명판
+local function mainVIP(R: any)
+	local P = R.P
+	P:free(function()
+		for _, s in R.find("VIPStep") do
+			-- 단상 쪽 반대 (홀 쪽, +Z) 가 앞
+			local fz = s.mx.Z
+			local w = s.s.X
+			P:box("VIPStepNosing", V3(w, 0.05, 0.12), CF(s.c.X, s.mx.Y - 0.02, fz - 0.06), BRASS)
+			local n = math.max(2, math.floor(w / 1.4))
+			for i = 1, n do
+				local x = s.mn.X + w * (i - 0.5) / n
+				P:box("VIPRiserLED", V3(0.3, 0.1, 0.03), CF(x, s.mn.Y + s.s.Y * 0.45, fz + 0.01), nl(rgb(255, 214, 140)))
+			end
+		end
+		local posts = R.find("StanchionFinial", "VIPPlatform")
+		table.sort(posts, function(a, b)
+			return a.c.X < b.c.X
+		end)
+		for i, p in posts do
+			if i == 1 or i == #posts or i % 3 == 0 then
+				local top = V3(p.c.X, p.mx.Y, p.c.Z)
+				P:vcyl("ReservedStem", 0.3, 0.05, CF(top + V3(0, 0.15, 0)), BRASS)
+				local f = faceCF(top + V3(0, 0.62, 0), V3(0, 0, 1)) * ANG(-0.12, 0, 0)
+				P:box("ReservedPlate", V3(1.0, 0.6, 0.04), f, BRASS)
+				txt(P, "ReservedText", 0.92, 0.52, f * CF(0, 0, 0.021), "RESERVED\nVIP 예약석", rgb(20, 18, 14), rgb(214, 184, 110), F.GothamBold)
+				txt(P, "ReservedTextB", 0.92, 0.52, f * ANG(0, PI, 0) * CF(0, 0, 0.021), "RESERVED\nVIP 예약석", rgb(20, 18, 14), rgb(214, 184, 110), F.GothamBold)
+			end
+		end
+		-- 단상 앞면 명판 (가장 넓은 PlatformBody 앞)
+		local best: any = nil
+		for _, b in R.find("PlatformBody") do
+			if not best or b.s.X > best.s.X then
+				best = b
+			end
+		end
+		if best then
+			local f = faceCF(V3(best.c.X, best.mx.Y - 0.2, best.mx.Z + 0.01), V3(0, 0, 1))
+			txt(P, "VIPPlaque", 3.2, 0.3, f, "VIP  ·  G1 — G4  ·  RESERVATION ONLY", rgb(226, 196, 120), nil, F.GothamBold, 1.1)
+		end
+	end)
+end
+
+-- 메자닌 샴페인 바
+local function mainChampagne(R: any)
+	local P, K = R.P, R.K
+	local top = R.one("MezzBarTop")
+	local glow = R.one("BackGlow", "MezzChampagneBar")
+	if not top then
+		return
+	end
+	local list = { "champ", "champ", "rose", "black", "champ", "rose" }
+	for i, b in R.find("Bottle", "MezzChampagneBar") do
+		R.hide(b.part)
+		P:free(function()
+			bottle(P, V3(b.c.X, b.mn.Y, b.c.Z), b.s.Y, math.min(b.s.X, b.s.Z), BOTTLE_KINDS[list[(i % #list) + 1]], V3(0, 0, -1), not hi(K))
+		end)
+	end
+	local y = top.mx.Y
+	local zf = top.mn.Z -- 손님 쪽
+	P:free(function()
+		-- LED 얼음 바스켓 2 + 플루트 6 (트레이) + POS 태블릿 + 메뉴 스탠드
+		iceBucket(P, faceCF(V3(top.mn.X + 1.6, y, top.c.Z), V3(0, 0, -1)), BOTTLE_KINDS.champ, rgb(255, 196, 90))
+		iceBucket(P, faceCF(V3(top.mx.X - 1.6, y, top.c.Z), V3(0, 0, -1)), BOTTLE_KINDS.rose, rgb(255, 120, 190))
+		local tx = top.c.X - 1.4
+		P:slab("FluteTray", 1.3, 0.9, 0.04, 0.12, CF(tx, y + 0.02, top.c.Z - 0.2), CHROME)
+		for i = 0, 5 do
+			flute(P, CF(tx - 0.42 + (i % 3) * 0.42, y + 0.04, top.c.Z - 0.42 + (i // 3) * 0.42))
+		end
+		local f = faceCF(V3(top.c.X + 1.6, y, top.mx.Z - 0.5), V3(0, 0, 1)) * ANG(-0.5, 0, 0)
+		P:box("ChampPOS", V3(0.9, 0.62, 0.05), f * CF(0, 0.32, 0), lk(rgb(20, 20, 22)))
+		txt(P, "ChampPOSScreen", 0.82, 0.54, f * CF(0, 0.32, 0.026), "M2 · 샴페인 x2\nVIP 퍼레이드 준비", rgb(230, 240, 255), rgb(30, 24, 50), F.GothamBold, 1.1)
+		acrylicStand(P, faceCF(V3(top.c.X + 0.2, y, zf + 0.35), V3(0, 0, -1)), 1.0, 0.7, "CHAMPAGNE\n1병 150,000\n퍼레이드 300,000", rgb(255, 230, 170), rgb(20, 16, 10))
+		-- 손님 쪽 발 받침 브라스 레일
+		local cnt = R.one("MezzBarCounter")
+		if cnt then
+			local rz = cnt.mn.Z - 0.35
+			P:seg("ChampFootRail", V3(cnt.mn.X + 0.4, 12.5 + 0.7, rz), V3(cnt.mx.X - 0.4, 12.5 + 0.7, rz), 0.14, BRASS)
+			for _, x in { cnt.mn.X + 0.8, cnt.c.X, cnt.mx.X - 0.8 } do
+				P:seg("ChampRailBracket", V3(x, 12.5 + 0.7, rz), V3(x, 12.5 + 0.9, cnt.mn.Z), 0.07, BRASS)
+			end
+		end
+		-- 네온 'CHAMPAGNE' (선반 위 백글로 앞)
+		if glow then
+			local f2 = faceCF(V3(glow.c.X, glow.mx.Y - 0.75, glow.mn.Z - 0.02), V3(0, 0, -1))
+			P:plate("ChampSignBack", 6.4, 1.1, 0.06, f2, lk(rgb(12, 10, 8)))
+			txt(P, "ChampSign", 6.0, 0.95, f2 * CF(0, 0, 0.065), "CHAMPAGNE · 샴페인 바", rgb(255, 222, 150), nil, F.GothamBlack, 1.8)
+		end
+	end)
+	local lamp = P:box("ChampLamp", V3(4, 0.05, 0.3), CF(top.c.X, top.mx.Y + 4.6, top.c.Z), nl(rgb(255, 220, 170)))
+	if lamp then
+		P:free(function()
+			P:seg("ChampLampRod", V3(top.c.X - 1.8, top.mx.Y + 4.62, top.c.Z), V3(top.c.X - 1.8, 25.4, top.c.Z), 0.04, BMETAL)
+			P:seg("ChampLampRod", V3(top.c.X + 1.8, top.mx.Y + 4.62, top.c.Z), V3(top.c.X + 1.8, 25.4, top.c.Z), 0.04, BMETAL)
+			P:box("ChampLampBody", V3(4.1, 0.16, 0.36), CF(top.c.X, top.mx.Y + 4.7, top.c.Z), BRASS)
+		end)
+		K:light(lamp, "SpotLight", { Face = Enum.NormalId.Bottom, Angle = 90, Range = 10, Brightness = 1.4, Color = rgb(255, 214, 170) })
+	end
+end
+
+-- 흡연실: 환풍기 팬 (켜기/끄기) · 공기청정기 · 꽁초 · 안내 · 불빛
+local function mainSmoking(R: any)
+	local P, K = R.P, R.K
+	local fl = R.one("SmokeFloor")
+	local hood = R.one("ExtractorHood")
+	if not (fl and hood) then
+		return
+	end
+	local fy = fl.mx.Y
+	local blades: { BasePart } = {}
+	local hub: BasePart? = nil
+	P:free(function()
+		-- 후드 아래 팬 그릴 + 날개 + 덕트
+		local hy = hood.mn.Y
+		P:disc("ExtractorRing", 2.3, 0.08, CF(hood.c.X, hy - 0.04, hood.c.Z), STEEL)
+		P:disc("ExtractorBack", 2.1, 0.03, CF(hood.c.X, hy - 0.02, hood.c.Z), lk(rgb(16, 16, 18)))
+		for i = 0, 3 do
+			local a = i * PI / 2
+			table.insert(blades, P:box("ExtractorBlade", V3(0.95, 0.03, 0.32), CF(hood.c.X, hy - 0.1, hood.c.Z) * ANG(0, a, 0) * CF(0.5, 0, 0) * ANG(0.25, 0, 0), STEEL))
+		end
+		hub = P:disc("ExtractorHub", 0.36, 0.08, CF(hood.c.X, hy - 0.12, hood.c.Z), CHROME)
+		for i = -3, 3 do
+			P:box("ExtractorGrille", V3(2.1, 0.03, 0.04), CF(hood.c.X, hy - 0.16, hood.c.Z + i * 0.28), STEEL)
+		end
+		P:vcyl("ExtractorDuct", 25.4 - hood.mx.Y, 1.2, CF(hood.c.X, (hood.mx.Y + 25.4) / 2, hood.c.Z), lk(rgb(150, 152, 156), M.Metal))
+		-- 재떨이 위 모래 + 꽁초
+		for _, t in R.find("AshtrayTop") do
+			P:disc("AshtraySand", t.s.X * 0.8, 0.03, CF(t.c.X, t.mx.Y + 0.01, t.c.Z), lk(rgb(200, 190, 170), M.Sand))
+			for i = 1, 4 do
+				local p = V3(t.c.X + (rnd(11, i) - 0.5) * t.s.X * 0.6, t.mx.Y + 0.04, t.c.Z + (rnd(13, i) - 0.5) * t.s.X * 0.6)
+				P:cyl("CigButt", 0.22, 0.06, CF(p) * ANG(0, rnd(17, i) * PI, 0), lk(if i % 2 == 0 then rgb(236, 230, 220) else rgb(214, 160, 90)))
+			end
+		end
+		-- 공기청정기 (유리 쪽 구석)
+		local px, pz = fl.mx.X - 0.9, fl.mx.Z - 0.8
+		P:rbox("AirPurifier", V3(0.9, 3.4, 0.9), 0.2, CF(px, fy + 1.7, pz), lk(rgb(240, 240, 238), M.Plastic))
+		P:disc("AirPurifierTop", 0.75, 0.04, CF(px, fy + 3.42, pz), lk(rgb(60, 62, 66)))
+		P:box("AirPurifierLED", V3(0.3, 0.06, 0.02), faceCF(V3(px, fy + 2.9, pz - 0.46), V3(0, 0, -1)), nl(rgb(60, 160, 255)))
+		txt(P, "AirPurifierLabel", 0.7, 0.2, faceCF(V3(px, fy + 2.6, pz - 0.461), V3(0, 0, -1)), "공기청정 · 강", rgb(40, 40, 44), nil, F.GothamBold)
+	end)
+	-- 안내판: 안쪽 (뒤 벽 = +Z 칸막이 쪽 유리 위가 아니라 벤치 위 벽)
+	local bench = R.one("SmokeBench")
+	P:free(function()
+		if bench then
+			local f = faceCF(V3(R.wallL + 0.01, fy + 5.0, bench.c.Z), V3(1, 0, 0))
+			lightbox(P, "SmokeRule", f, 3.2, 1.6, "SMOKING ROOM · 흡연실", "음료 · 잔 반입 금지\n꽁초는 재떨이에 · 문은 꼭 닫아 주세요", { titleH = 0.45, accent = rgb(255, 200, 80), frame = BMETAL })
+		end
+		-- 바깥 (유리문 옆 유리 바깥면): 흡연실 외 흡연 금지
+		local door = R.one("SmokeDoor")
+		for _, g in R.find("SmokeGlass") do
+			if g.s.X > 5 then
+				-- 메자닌 통로 쪽 긴 유리 (-Z 면) 바깥, 입구 쪽 끝
+				local f = faceCF(V3(g.mx.X - 1.3, fy + 4.6, g.mn.Z - 0.01), V3(0, 0, -1))
+				P:plate("NoSmokeSticker", 1.6, 1.6, 0.01, f, lk(rgb(250, 250, 250)))
+				P:ring("NoSmokeRing", f * CF(0, 0.15, 0.015), 0.55, 0.12, 8, lk(rgb(220, 30, 30)))
+				P:plate("NoSmokeBar", 1.1, 0.12, 0.012, f * CF(0, 0.15, 0.01) * ANG(0, 0, -PI / 4), lk(rgb(220, 30, 30)))
+				P:plate("NoSmokeCig", 0.7, 0.14, 0.011, f * CF(0, 0.15, 0.008), lk(rgb(60, 60, 60)))
+				txt(P, "NoSmokeText", 1.5, 0.36, f * CF(0, -0.58, 0.012), "흡연실 외 흡연 금지\n(전자담배 포함)", rgb(200, 20, 20), nil, F.GothamBlack)
+				break
+			end
+		end
+		local _ = door
+		-- 열감지기 (흡연실은 연기 감지기 대신)
+		P:disc("HeatDetector", 0.5, 0.12, CF(fl.c.X + 2.5, R.one("SmokeCeiling") and R.one("SmokeCeiling").mn.Y - 0.06 or fy + 8, fl.c.Z - 2.5), lk(rgb(240, 240, 236)))
+	end)
+	-- 불빛 + 상호작용 (환풍기 스위치: 벤치 위 벽)
+	local lightP = P:box("SmokeLampDiffuser", V3(3.0, 0.04, 0.4), CF(fl.c.X, (R.one("SmokeCeiling") and R.one("SmokeCeiling").mn.Y or fy + 8.2) - 0.03, fl.c.Z + 3.0), nl(rgb(236, 244, 255)))
+	K:light(lightP, "PointLight", { Range = 10, Brightness = 0.8, Color = rgb(230, 240, 255) })
+	local sw: BasePart? = nil
+	P:free(function()
+		local f = faceCF(V3(R.wallL + 0.01, fy + 4.0, (bench and bench.mx.Z or fl.mx.Z - 1) + 0.6), V3(1, 0, 0))
+		P:plate("FanSwitchPlate", 0.5, 0.8, 0.05, f, lk(rgb(236, 236, 232)))
+		sw = P:plate("FanSwitch", 0.22, 0.34, 0.08, f * CF(0, 0.08, 0), lk(rgb(220, 220, 216)))
+		P:plate("FanSwitchLED", 0.08, 0.08, 0.06, f * CF(0, -0.25, 0), nl(rgb(60, 230, 120)))
+		txt(P, "FanSwitchLabel", 0.5, 0.18, f * CF(0, 0.55, 0.01), "환풍기", rgb(240, 240, 240), nil, F.GothamBold, 1.1)
+	end)
+	local on = true
+	local base = {}
+	for _, b in blades do
+		table.insert(base, { p = b, cf = b.CFrame })
+	end
+	local center = R.world(V3(hood.c.X, hood.mn.Y - 0.1, hood.c.Z))
+	local ang = 0
+	Interact.anim(K, function(_t, dt)
+		if not on then
+			return
+		end
+		ang += dt * 9
+		local rot = CFrame.new(center) * CFrame.fromAxisAngle(R.wdir(Vector3.yAxis), ang) * CFrame.new(-center)
+		for _, b in base do
+			if b.p.Parent then
+				b.p.CFrame = rot * b.cf
+			end
+		end
+	end)
+	if sw then
+		Interact.toggle(K, sw, {
+			object = "흡연실 환풍기",
+			state = true,
+			onText = "환풍기 끄기",
+			offText = "환풍기 켜기",
+			on = function(st)
+				on = st
+			end,
+		})
+	end
+	local _ = hub
+end
+
+-- 직원 출입문 · 비상구: 카드 리더 · 도어 클로저 · 킥 플레이트 · 스티커 · 소화기 · 비상등
+local function mainStaffDoor(R: any)
+	local P = R.P
+	local dw = R.one("DarkDoorway")
+	local leaf = R.one("StaffDoorLeaf_Open")
+	local frame = R.one("DoorFrame", "StaffDoor_관계자외출입금지")
+	P:free(function()
+		if dw then
+			local wx = dw.mn.X -- 벽 앞면 (홀 쪽)
+			-- 카드 리더 (문 +Z 쪽 옆)
+			local f = faceCF(V3(wx - 0.02, 3.9, dw.mx.Z + 0.9), V3(-1, 0, 0))
+			P:plate("CardReader", 0.42, 0.7, 0.08, f, lk(rgb(24, 24, 26)))
+			P:plate("CardReaderPad", 0.32, 0.3, 0.09, f * CF(0, -0.08, 0), lk(rgb(40, 40, 44)))
+			P:plate("CardReaderLED", 0.08, 0.05, 0.1, f * CF(0, 0.22, 0), nl(rgb(255, 60, 50)))
+			-- 인터폰
+			local f2 = faceCF(V3(wx - 0.02, 4.4, dw.mx.Z + 1.7), V3(-1, 0, 0))
+			P:plate("Intercom", 0.5, 0.8, 0.06, f2, lk(rgb(200, 200, 204), M.Metal))
+			P:plate("IntercomGrille", 0.3, 0.2, 0.07, f2 * CF(0, 0.15, 0), lk(rgb(40, 40, 44), M.DiamondPlate))
+			P:plate("IntercomButton", 0.14, 0.14, 0.08, f2 * CF(0, -0.18, 0), CHROME)
+			-- 바닥 노란 주의 띠 (문턱)
+			P:box("StaffDoorStripe", V3(0.25, 0.015, dw.s.Z), CF(wx - 0.3, 0.008, dw.c.Z), lk(rgb(240, 200, 30)))
+			txt(P, "StaffDoorFloorText", dw.s.Z * 0.9, 0.45, topCF(V3(wx - 0.75, 0.018, dw.c.Z), V3(1, 0, 0)), "STAFF ONLY", rgb(240, 200, 30), nil, F.GothamBlack)
+		end
+		if frame then
+			-- 도어 클로저 (프레임 위)
+			P:box("DoorCloser", V3(0.3, 0.3, 1.1), CF(frame.mn.X - 0.15, frame.mn.Y - 0.2, frame.mn.Z + 0.9), lk(rgb(170, 172, 176), M.Metal))
+		end
+		if leaf then
+			-- 문짝 (+Z 면 = 문 안쪽 통로 쪽) 킥 플레이트 · 미는 판 · 스티커
+			local z = leaf.mx.Z + 0.005
+			local f = faceCF(V3(leaf.c.X, 0.45, z), V3(0, 0, 1))
+			P:plate("KickPlate", leaf.s.X - 0.3, 0.8, 0.02, f, STEEL)
+			local f2 = faceCF(V3(leaf.c.X, 0.45, leaf.mn.Z - 0.005), V3(0, 0, -1))
+			P:plate("KickPlate", leaf.s.X - 0.3, 0.8, 0.02, f2, STEEL)
+			P:plate("PushPlate", 0.4, 1.2, 0.02, faceCF(V3(leaf.mn.X + 0.6, 3.9, leaf.mn.Z - 0.005), V3(0, 0, -1)), STEEL)
+			txt(P, "LeafSticker", 1.6, 0.9, faceCF(V3(leaf.c.X, 5.2, leaf.mn.Z - 0.01), V3(0, 0, -1)), "관계자 외\n출입금지", rgb(255, 255, 255), rgb(190, 20, 30), F.GothamBlack)
+			P:box("DoorCloserArm", V3(1.4, 0.08, 0.08), CF(leaf.mn.X + 0.9, leaf.mx.Y - 0.25, leaf.c.Z), lk(rgb(170, 172, 176), M.Metal))
+		end
+		-- 비상구 문틀: 비상등 (2구) + 안내
+		local eh = R.one("ExitDoorHead")
+		if eh then
+			local f = faceCF(V3(eh.mn.X - 0.02, eh.mx.Y + 0.9, eh.c.Z), V3(-1, 0, 0))
+			P:plate("EmergencyLampBox", 1.4, 0.45, 0.3, f, lk(rgb(240, 240, 236), M.Plastic))
+			for _, s in { -1, 1 } do
+				P:box("EmergencyLampHead", V3(0.3, 0.3, 0.4), f * CF(s * 0.5, -0.05, 0.45) * ANG(0.3, s * 0.3, 0), lk(rgb(230, 230, 226), M.Plastic))
+			end
+			P:plate("EmergencyLampLED", 0.12, 0.06, 0.31, f * CF(0, 0.1, 0), nl(rgb(60, 230, 120)))
+			txt(P, "ExitNotice", 1.6, 0.6, faceCF(V3(eh.mn.X - 0.02, 4.6, eh.mn.Z - 0.8), V3(-1, 0, 0)), "비상구\n물건 적치 금지", rgb(255, 255, 255), rgb(30, 140, 70), F.GothamBold)
+		end
+	end)
+	-- 소화기 (직원문 +Z 옆 · 비상구 옆) : 바닥 자리 확인
+	local function ext(x: number, z: number, what: string)
+		if spotOK(P, CF(x, 0, z), V3(0.55, 2.4, 0.55), 0, what) then
+			P:vcyl("ExtinguisherBody", 1.5, 0.42, CF(x, 0.95, z), lk(rgb(200, 24, 28)))
+			P:ball("ExtinguisherTop", 0.42, CF(x, 1.7, z), lk(rgb(200, 24, 28)))
+			P:box("ExtinguisherValve", V3(0.14, 0.22, 0.14), CF(x, 1.95, z), BMETAL)
+			P:seg("ExtinguisherHose", V3(x, 1.95, z + 0.07), V3(x - 0.1, 1.1, z + 0.2), 0.06, BMETAL)
+			P:box("ExtinguisherLabel", V3(0.02, 0.5, 0.3), CF(x - 0.21, 1.0, z), lk(WHITE))
+		end
+	end
+	if dw then
+		ext(dw.mn.X - 0.35, dw.mx.Z + 2.7, "staff extinguisher")
+	end
+	local eh = R.one("ExitDoorHead")
+	if eh then
+		ext(eh.mn.X - 0.35, eh.mn.Z - 0.6, "exit extinguisher")
+	end
+end
+
+-- 물품보관소: 코트마다 옷걸이 고리 + 번호표, 카운터 위 번호표 묶음 · 호출벨
+local function mainCoatCheck(R: any)
+	local P, K = R.P, R.K
+	local coats = R.find("Coat", "CoatCheck_물품보관")
+	table.sort(coats, function(a, b)
+		if math.abs(a.c.Z - b.c.Z) > 1 then
+			return a.c.Z < b.c.Z
+		end
+		return a.c.X > b.c.X
+	end)
+	P:free(function()
+		for i, c in coats do
+			local top = V3(c.c.X, c.mx.Y, c.c.Z)
+			P:seg("CoatHanger", top + V3(0, -0.02, -0.6), top + V3(0, -0.02, 0.6), 0.05, lk(rgb(30, 30, 32), M.Plastic))
+			if hi(K) then
+				P:box("CoatHangerHook", V3(0.04, 0.3, 0.04), CF(top + V3(0, 0.13, 0)), CHROME)
+			end
+			-- 번호표 (카운터 쪽 = +X 면)
+			local f = faceCF(V3(c.mx.X + 0.01, c.mx.Y - 0.55, c.c.Z + 0.35), V3(1, 0, 0))
+			txt(P, "CoatTag", 0.32, 0.42, f, string.format("%02d", i), rgb(20, 20, 22), rgb(240, 236, 220), F.GothamBold)
+		end
+		local ct = R.one("CounterTop", "CoatCheck_물품보관")
+		if ct then
+			local y = ct.mx.Y
+			-- 번호표 묶음 (갈고리) · 호출벨 · 결제 단말기
+			P:box("TicketSpikeBase", V3(0.3, 0.04, 0.3), CF(ct.c.X - 0.2, y + 0.02, ct.mn.Z + 0.8), BMETAL)
+			P:vcyl("TicketSpike", 0.5, 0.03, CF(ct.c.X - 0.2, y + 0.29, ct.mn.Z + 0.8), CHROME)
+			for i = 0, 4 do
+				P:box("TicketStub", V3(0.3, 0.01, 0.42), CF(ct.c.X - 0.2, y + 0.06 + i * 0.03, ct.mn.Z + 0.8) * ANG(0, i * 0.3, 0), lk(rgb(240, 200, 60)))
+			end
+			P:disc("DeskBellBase", 0.34, 0.04, CF(ct.c.X + 0.2, y + 0.02, ct.c.Z), lk(rgb(20, 20, 22)))
+			P:ell("DeskBellDome", V3(0.3, 0.2, 0.3), CF(ct.c.X + 0.2, y + 0.06, ct.c.Z), CHROME)
+			P:box("CoatCardTerminal", V3(0.36, 0.14, 0.6), CF(ct.c.X, y + 0.07, ct.mx.Z - 0.9) * ANG(0, 0, 0.2), lk(rgb(24, 24, 26)))
+			acrylicStand(P, faceCF(V3(ct.mx.X - 0.3, y, ct.c.Z - 1.2), V3(1, 0, 0)), 1.0, 0.7, "COAT CHECK\n1벌 ₩3,000\n번호표 분실 주의", rgb(255, 255, 255), rgb(20, 20, 24))
+			local lamp = P:disc("CoatLamp", 0.7, 0.05, CF(ct.c.X - 1.5, 11.45, ct.c.Z), nl(rgb(255, 228, 196)))
+			K:light(lamp, "SpotLight", { Face = Enum.NormalId.Left, Angle = 95, Range = 12, Brightness = 1.2, Color = rgb(255, 226, 196) })
+		end
+	end)
+end
+
+-- 홀 화장실 (HallRooms 여 · 남): 방 상자 밖까지 이어져서 모델에서 직접 읽음
+local function restroomParts(R: any, name: string): { [string]: { any } }
+	local out: { [string]: { any } } = {}
+	local hr = R.V.model:FindFirstChild("HallRooms", true)
+	local m = hr and hr:FindFirstChild(name)
+	if not m then
+		return out
+	end
+	for _, d in m:GetDescendants() do
+		if d:IsA("BasePart") then
+			local l = R.A:ToObjectSpace(R.V.cf:ToObjectSpace(d.CFrame))
+			local mn, mx = Scan.laabb(l, d.Size)
+			local t = out[d.Name]
+			if not t then
+				t = {}
+				out[d.Name] = t
+			end
+			table.insert(t, { part = d, mn = mn, mx = mx, c = (mn + mx) / 2, s = mx - mn })
+		end
+	end
+	return out
+end
+
+-- 종이타월 디스펜서 (벽): dcf 표면. 반환: 타월 파트 (상호작용용)
+local function towelDispenser(P: any, f: CFrame): BasePart
+	P:plate("TowelDispenser", 1.1, 1.4, 0.42, f, lk(rgb(236, 236, 232), M.Plastic))
+	P:plate("TowelDispenserWindow", 0.5, 0.18, 0.43, f * CF(0, 0.35, 0), lk(rgb(60, 70, 80), M.Glass, { t = 0.3 }))
+	txt(P, "TowelDispenserLabel", 0.8, 0.16, f * CF(0, 0.05, 0.432), "PAPER TOWEL", rgb(120, 120, 124), nil, F.GothamBold)
+	return P:plate("TowelSheet", 0.7, 0.36, 0.02, f * CF(0, -0.82, 0.3), lk(rgb(250, 250, 246), M.Fabric))
+end
+
+-- 화장지 홀더 (벽): 롤 + 덮개
+local function tissueHolder(P: any, f: CFrame)
+	P:plate("TissueHolderBack", 0.5, 0.3, 0.04, f, CHROME)
+	P:cyl("TissueRoll", 0.42, 0.36, f * CF(0, -0.12, 0.22), lk(rgb(250, 250, 248), M.Fabric))
+	P:plate("TissueHolderLid", 0.5, 0.06, 0.4, f * CF(0, 0.1, 0), CHROME)
+end
+
+-- 휴지통 (바닥, 페달식): pcf
+local function trashBin(P: any, pcf: CFrame, h: number, d: number)
+	P:vcyl("TrashBin", h, d, pcf * CF(0, h / 2, 0), STEEL)
+	P:vcyl("TrashBinLid", 0.08, d + 0.04, pcf * CF(0, h + 0.04, 0), STEEL)
+	P:box("TrashPedal", V3(0.3, 0.06, 0.2), pcf * CF(0, 0.06, -d / 2 - 0.08), BMETAL)
+end
+
+local function mainRestrooms(R: any)
+	local P, K = R.P, R.K
+	local towels: { BasePart } = {}
+	local function one(t: { [string]: { any } }, n: string): any?
+		return t[n] and t[n][1]
+	end
+	-- 여자 화장실 ------------------------------------------------------------------------------------------
+	local W = restroomParts(R, "여자화장실")
+	local wv = one(W, "VanityCounter")
+	if wv then
+		local walls = W.Wall or {}
+		local west = math.huge
+		for _, w in walls do
+			if w.s.X < 1 and w.c.X < wv.c.X then
+				west = math.min(west, w.mx.X)
+			end
+		end
+		if west == math.huge then
+			west = wv.mn.X - 4
+		end
+		local back = wv.mn.Z
+		P:free(function()
+			-- 화장대 서쪽 끝 옆: 종이타월 (뒤 벽) + 휴지통 (바닥)
+			local tx = (west + wv.mn.X) / 2
+			table.insert(towels, towelDispenser(P, faceCF(V3(tx, 5.0, back + 0.0), V3(0, 0, 1))))
+			trashBin(P, faceCF(V3(tx, 0, back + 0.55), V3(0, 0, 1)), 2.0, 0.8)
+			txt(P, "TowelNotice", 1.6, 0.5, faceCF(V3(tx, 6.7, back + 0.01), V3(0, 0, 1)), "종이타월은 휴지통에\n한 장이면 충분해요", rgb(255, 255, 255), rgb(150, 20, 70), F.GothamBold)
+			-- 화장대 위: 어메니티 트레이 (가그린 · 헤어 · 면봉)
+			local ay = wv.mx.Y
+			local ax = wv.mn.X + 0.9
+			P:slab("AmenityTray", 0.9, 1.3, 0.05, 0.1, CF(ax, ay + 0.025, wv.c.Z - 0.3), lk(rgb(30, 30, 32)))
+			P:vcyl("Mouthwash", 0.6, 0.3, CF(ax - 0.2, ay + 0.35, wv.c.Z - 0.6), lk(rgb(60, 170, 220), M.Glass, { t = 0.3 }))
+			P:vcyl("MouthwashCap", 0.1, 0.18, CF(ax - 0.2, ay + 0.7, wv.c.Z - 0.6), lk(WHITE))
+			P:vcyl("CupStack", 0.4, 0.2, CF(ax + 0.2, ay + 0.25, wv.c.Z - 0.6), lk(rgb(250, 250, 250)))
+			P:vcyl("HairSpray", 0.55, 0.16, CF(ax - 0.2, ay + 0.3, wv.c.Z), lk(rgb(200, 60, 120), M.Metal))
+			P:vcyl("CottonJar", 0.3, 0.26, CF(ax + 0.2, ay + 0.2, wv.c.Z), gl(rgb(240, 250, 255), 0.3))
+			-- 'CCTV 없음' 안내 (서쪽 벽)
+			txt(P, "PrivacyNotice", 1.4, 0.45, faceCF(V3(west + 0.02, 5.6, back + 2.4), V3(1, 0, 0)), "화장실 내부 CCTV 없음\n불법촬영 점검 완료 ✓", rgb(255, 255, 255), rgb(20, 70, 120), F.GothamBold)
+		end)
+		-- 칸마다: 화장지 홀더 · 위생함 · 문 안쪽 옷걸이 고리 · 안내
+		for _, b in W.ToiletBowl or {} do
+			local zc = b.c.Z
+			P:free(function()
+				tissueHolder(P, faceCF(V3(b.mn.X - 0.2, 2.6, zc - 1.36), V3(0, 0, 1)))
+				P:box("SanitaryBin", V3(0.5, 1.0, 0.7), CF(b.mn.X - 0.9, 0.5, zc + 1.0), lk(rgb(236, 220, 230), M.Plastic))
+				P:box("SanitaryBinLid", V3(0.52, 0.06, 0.72), CF(b.mn.X - 0.9, 1.03, zc + 1.0), lk(rgb(220, 200, 214), M.Plastic))
+				txt(P, "StallNotice", 1.2, 0.5, faceCF(V3(b.mx.X + 0.35, 5.2, zc), V3(-1, 0, 0)), "화장지는 변기에\n생리대는 위생함에", rgb(40, 40, 44), rgb(244, 240, 236), F.GothamBold)
+			end)
+		end
+		for _, d in W.StallDoor or {} do
+			P:free(function()
+				P:box("StallHook", V3(0.2, 0.08, 0.08), CF(d.mx.X + 0.1, 6.0, d.c.Z), CHROME)
+				P:box("StallHookTip", V3(0.06, 0.18, 0.06), CF(d.mx.X + 0.18, 6.08, d.c.Z), CHROME)
+			end)
+		end
+		local lamp = P:disc("WCLampW", 0.8, 0.05, CF(wv.c.X - 3.5, 10.85, wv.c.Z + 3.5), nl(rgb(255, 232, 214)))
+		K:light(lamp, "PointLight", { Range = 16, Brightness = 1.6, Color = rgb(255, 222, 226) })
+	end
+	-- 남자 화장실 ------------------------------------------------------------------------------------------
+	local Mn = restroomParts(R, "남자화장실")
+	local mv = one(Mn, "VanityCounter")
+	if mv then
+		local fz = mv.mn.Z -- 거울 벽 (홀 쪽 벽 안쪽 면)
+		P:free(function()
+			-- 화장대 동쪽 끝 옆: 종이타월 + 휴지통
+			local tx = mv.mx.X + 1.0
+			table.insert(towels, towelDispenser(P, faceCF(V3(tx, 5.0, fz), V3(0, 0, 1))))
+			trashBin(P, faceCF(V3(tx, 0, fz + 0.55), V3(0, 0, 1)), 2.0, 0.8)
+			txt(P, "TowelNotice", 1.6, 0.5, faceCF(V3(tx, 6.7, fz + 0.01), V3(0, 0, 1)), "종이타월은 휴지통에\n한 장이면 충분해요", rgb(255, 255, 255), rgb(20, 70, 140), F.GothamBold)
+			-- 소변기: 센서 · 방향제 매트 · 그 유명한 문구
+			local urs = Mn.Urinal or {}
+			for _, u in urs do
+				local wz = u.mx.Z
+				P:plate("UrinalSensor", 0.4, 0.3, 0.12, faceCF(V3(u.c.X, u.mx.Y + 0.45, wz), V3(0, 0, -1)), CHROME)
+				P:plate("UrinalSensorEye", 0.1, 0.06, 0.13, faceCF(V3(u.c.X, u.mx.Y + 0.4, wz), V3(0, 0, -1)), lk(rgb(30, 10, 10), M.Glass))
+				P:box("UrinalScreen", V3(0.8, 0.04, 0.6), CF(u.c.X, u.mn.Y + 0.25, u.c.Z - 0.1), lk(rgb(80, 200, 220), M.Plastic))
+			end
+			if #urs > 0 then
+				local ux0, ux1 = math.huge, -math.huge
+				for _, u in urs do
+					ux0 = math.min(ux0, u.mn.X)
+					ux1 = math.max(ux1, u.mx.X)
+				end
+				txt(P, "UrinalNotice", math.min(5, ux1 - ux0), 0.5, faceCF(V3((ux0 + ux1) / 2, 7.3, urs[1].mx.Z - 0.01), V3(0, 0, -1)), "남자가 흘리지 말아야 할 것은 눈물만이 아닙니다 · 한 걸음 더 가까이", rgb(240, 240, 240), rgb(20, 24, 30), F.GothamBold)
+			end
+			-- 바닥 배수구
+			P:box("FloorDrain", V3(0.6, 0.015, 0.6), CF((mv.mx.X + (Mn.StallDoor and Mn.StallDoor[1] and Mn.StallDoor[1].mn.X or mv.mx.X + 6)) / 2, 0.11, mv.mx.Z + 2.2), STEEL)
+		end)
+		local part = one(Mn, "StallPartition")
+		for _, b in Mn.ToiletBowl or {} do
+			P:free(function()
+				if part then
+					local up = b.c.Z > part.c.Z
+					local z = if up then part.mx.Z + 0.02 else part.mn.Z - 0.02
+					tissueHolder(P, faceCF(V3(b.mn.X - 0.2, 2.6, z), V3(0, 0, if up then 1 else -1)))
+				end
+				txt(P, "StallNotice", 1.2, 0.5, faceCF(V3(b.mx.X + 0.35, 5.2, b.c.Z), V3(-1, 0, 0)), "화장지는 변기에\n물은 꼭 내려 주세요", rgb(40, 40, 44), rgb(244, 240, 236), F.GothamBold)
+			end)
+		end
+		for _, d in Mn.StallDoor or {} do
+			P:free(function()
+				P:box("StallHook", V3(0.2, 0.08, 0.08), CF(d.mx.X + 0.1, 6.0, d.c.Z), CHROME)
+			end)
+		end
+		local lamp = P:disc("WCLampM", 0.8, 0.05, CF(mv.c.X, 10.65, mv.c.Z + 4.0), nl(rgb(236, 244, 255)))
+		K:light(lamp, "PointLight", { Range = 16, Brightness = 1.6, Color = rgb(226, 238, 255) })
+	end
+	-- 상호작용: 종이타월 뽑기 (한 장 쏙 나왔다 사라짐)
+	for _, t in towels do
+		local base = t.CFrame
+		Interact.prompt(K, t, {
+			action = "종이타월 뽑기",
+			object = "페이퍼 타월",
+			sound = "rbxasset://sounds/swoosh.wav",
+			fn = function()
+				if not t.Parent then
+					return
+				end
+				t.CFrame = base
+				t.Transparency = 0
+				local down = base * CFrame.new(0, -0.9, 0.15)
+				TweenService:Create(t, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = down }):Play()
+				task.delay(1.6, function()
+					if t.Parent then
+						TweenService:Create(t, TweenInfo.new(0.4), { Transparency = 1 }):Play()
+						task.delay(0.6, function()
+							if t.Parent then
+								t.CFrame = base
+								t.Transparency = 0
+							end
+						end)
+					end
+				end)
+			end,
+		})
+	end
+end
+
+-- 보틀 서비스 스탠드 (크롬 받침 + LED 바스켓 + 냅킨): 샴페인 캐비닛 · 샴페인 타워 옆 · VIP 테이블 끝 중 빈 곳
+local function mainBottleStands(R: any)
+	local P = R.P
+	local plats = R.find("PlatformTop")
+	local function floorY(x: number, z: number): number
+		for _, pt in plats do
+			if x > pt.mn.X and x < pt.mx.X and z > pt.mn.Z and z < pt.mx.Z then
+				return pt.mx.Y
+			end
+		end
+		return 0
+	end
+	local cands = {}
+	local cab = R.one("ChampagneCabinet")
+	if not cab then
+		local l = R.findPrefix("Cabinet", "ChampagneCabinet")
+		cab = l[1]
+	end
+	local cabs = R.findPrefix("", "ChampagneCabinet")
+	if #cabs > 0 then
+		local mn, mx = cabs[1].mn, cabs[1].mx
+		for _, c in cabs do
+			mn = mn:Min(c.mn)
+			mx = mx:Max(c.mx)
+		end
+		local cx, cz = (mn.X + mx.X) / 2, mx.Z
+		table.insert(cands, V3(mn.X - 0.8, 0, cz + 0.6))
+		table.insert(cands, V3(mx.X + 0.8, 0, cz + 0.6))
+		table.insert(cands, V3(cx - 1.4, 0, cz + 1.0))
+	end
+	local tow = R.findPrefix("", "ChampagneTower")
+	if #tow > 0 then
+		local mn, mx = tow[1].mn, tow[1].mx
+		for _, c in tow do
+			mn = mn:Min(c.mn)
+			mx = mx:Max(c.mx)
+		end
+		table.insert(cands, V3(mx.X + 0.9, 0, (mn.Z + mx.Z) / 2))
+		table.insert(cands, V3((mn.X + mx.X) / 2, 0, mx.Z + 0.9))
+	end
+	for _, t in R.find("MarbleTop") do
+		local tm = t.part.Parent
+		local tn = if tm then tm.Name else ""
+		if string.sub(tn, 1, 7) == "Table_G" then
+			table.insert(cands, V3(t.c.X - t.s.X / 2 - 0.6, 0, t.mx.Z + 1.0))
+			table.insert(cands, V3(t.c.X + t.s.X / 2 + 0.6, 0, t.mx.Z + 1.0))
+		end
+	end
+	local n = 0
+	for _, c in cands do
+		if n >= 3 then
+			break
+		end
+		local y = floorY(c.X, c.Z)
+		local pcf = CF(c.X, y, c.Z)
+		if spotOK(P, pcf, V3(1.0, 3.9, 1.0), 0.05, "bottle stand") then
+			n += 1
+			P:disc("StandBase", 0.95, 0.06, pcf * CF(0, 0.03, 0), CHROME)
+			P:vcyl("StandPole", 2.3, 0.1, pcf * CF(0, 1.2, 0), CHROME)
+			P:ring("StandRing", pcf * CF(0, 2.38, 0) * ANG(PI / 2, 0, 0), 0.44, 0.06, 8, CHROME)
+			iceBucket(P, faceCF((pcf * CF(0, 2.3, 0)).Position, V3(0, 0, 1)), BOTTLE_KINDS[if n % 2 == 0 then "rose" else "champ"], if n % 2 == 0 then rgb(255, 110, 190) else rgb(90, 200, 255))
+			P:box("StandNapkin", V3(0.5, 0.6, 0.02), pcf * CF(0.43, 2.55, 0.0) * ANG(0, PI / 2, 0.08), lk(rgb(250, 250, 248), M.Fabric))
+		end
+	end
+	local _ = cab
+end
+
 local function buildMain(K: any, V: any)
 	local R = makeRoom(K, V)
-	local _ = R
+	-- 긴 벽 안쪽 면 (정렬 프레임)
+	R.wallL, R.wallR = -35.0, 34.4
+	local bl, br = 0, 0
+	for _, w in R.find("MainWall_Left") do
+		if w.s.Z > bl then
+			bl = w.s.Z
+			R.wallL = w.mx.X
+		end
+	end
+	for _, w in R.find("MainWall_Right") do
+		if w.s.Z > br then
+			br = w.s.Z
+			R.wallR = w.mn.X
+		end
+	end
+	local steps = {
+		{ "bar", mainBar },
+		{ "service", mainServiceStation },
+		{ "dj", mainDJ },
+		{ "vip", mainVIP },
+		{ "champagne", mainChampagne },
+		{ "smoking", mainSmoking },
+		{ "staffdoor", mainStaffDoor },
+		{ "coatcheck", mainCoatCheck },
+		{ "restrooms", mainRestrooms },
+		{ "stands", mainBottleStands },
+	}
+	for _, s in steps do
+		local ok, err = pcall(s[2], R)
+		if not ok then
+			K:note("main." .. s[1] .. " error: " .. tostring(err))
+		end
+	end
 end
 
 ------------------------------------------------------------------------------------------------------------

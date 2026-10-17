@@ -60,6 +60,10 @@ local function menuItem(id: any): any?
 			return it
 		end
 	end
+	-- the club's shared module is missing: the add-on's copy of the menu
+	if type(id) == "string" then
+		return S.Config.Fallback.Menu[id]
+	end
 	return nil
 end
 local function allAges(): boolean
@@ -106,6 +110,10 @@ local function showEvent(rec: any)
 	if not mark(string.format("show:%d@%.2f", rec.id, rec.at)) then
 		return
 	end
+	-- the same set landing on the table (Tables.at = arriveAt) is not a second order
+	if type(rec.arriveAt) == "number" then
+		mark(string.format("tbl:%s@%.2f", rec.table, rec.arriveAt))
+	end
 	local item = menuItem(rec.item)
 	fire(orderFns, {
 		key = string.format("show:%d@%.2f", rec.id, rec.at),
@@ -151,7 +159,16 @@ local function onTables()
 					showEvent(sh)
 				elseif type(e.owner) == "number" then
 					local key = string.format("tbl:%s@%.2f", id, e.at)
-					if mark(key) then
+					-- a Show write may still follow (or a queued show may begin): decide a moment later
+					task.delay(0.6, function()
+						local sh2 = S.decode(clubFolder and clubFolder:GetAttribute("Show"))
+						if type(sh2) == "table" and sh2.table == id and type(sh2.arriveAt) == "number" and math.abs(sh2.arriveAt - e.at) < 0.05 then
+							showEvent(sh2)
+							return
+						end
+						if not mark(key) then
+							return
+						end
 						local item = menuItem(e.item or e.set)
 						local now = C.now()
 						fire(orderFns, {
@@ -170,7 +187,7 @@ local function onTables()
 							endAt = e.at + 6,
 							staff = item and item.staff or 1,
 						})
-					end
+					end)
 				end
 			end
 		end

@@ -857,19 +857,22 @@ local function roomSalon(K: any, V: any, seed: number)
 		if sz.Z > 0.3 or sz.Y < 2 then
 			continue
 		end
-		local n = m.lcf.ZVector
-		local near, nd = nil, 9
-		for _, r in chairs do
-			local dd = nearXZ(r.c, m.c)
-			if dd < nd then
-				near, nd = r, dd
+		-- 거울 앞 = 가까운 의자가 있는 쪽 (양면 섬: 앞뒤 두 쪽 중 의자가 더 가까운 반공간)
+		local n0 = m.lcf.ZVector
+		local bestS, bestD = 0, 9.0
+		for _, nm in { "SalonChair", "ChairSeat" } do
+			for _, r in recs(V, nm) do
+				local rel = V3(r.c.X - m.c.X, 0, r.c.Z - m.c.Z)
+				local dd = rel.Magnitude
+				if dd < bestD and math.abs(rel:Dot(n0)) > 0.5 then
+					bestS, bestD = (if rel:Dot(n0) > 0 then 1 else -1), dd
+				end
 			end
 		end
-		if near and n:Dot(near.c - m.c) < 0 then
-			n = -n
-		elseif not near and n:Dot(V3(-m.c.X, 0, -m.c.Z)) < 0 then
-			n = -n
+		if bestS == 0 then
+			bestS = if n0:Dot(V3(-m.c.X, 0, -m.c.Z)) >= 0 then 1 else -1
 		end
+		local n = n0 * bestS
 		local up = Vector3.yAxis
 		local d = CFrame.fromMatrix(m.c + n * (sz.Z / 2 + 0.004), up:Cross(n), up, n)
 		local w, h = sz.X, sz.Y

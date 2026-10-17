@@ -2008,7 +2008,10 @@ local function tapTower(c: any)
 			K:ball("TapEnd", 0.29, tc * CF(sd * (len / 2 - 0.15), fy, 0), chrome)
 		end
 		-- 탭 브랜드 띠 (크로스바 앞 중앙)
-		local _, lab = K:text("TapBadge", math.min(1.2, len * 0.5), 0.2, tc * CF(0, fy + 0.02, 0.16), th.brand, { fg = rgb(30, 30, 30), bg = rgb(240, 232, 214), d = 0.01, font = F.GothamBlack })
+		-- 검은 바탕 금색 글자 명판 + 테두리 (흰 종이 띠처럼 보이지 않게)
+		local bw2 = math.min(1.0, len * 0.42)
+		K:box("TapBadgeRim", V3(bw2 + 0.05, 0.21, 0.015), tc * CF(0, fy + 0.01, 0.158), th.trim)
+		local _, lab = K:text("TapBadge", bw2, 0.16, tc * CF(0, fy + 0.01, 0.166), th.brand, { fg = rgb(236, 210, 150), bg = rgb(22, 22, 24), d = 0.008, font = F.GothamBlack })
 		local _ = lab
 		for i, h in handles do
 			local hp = tc:PointToObjectSpace(h.c)

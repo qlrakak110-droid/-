@@ -275,9 +275,9 @@ end
 -------------------------------------------------------------------------------------------------
 -- jobs: one Heartbeat connection; job(dt, now) returns false to stop
 -------------------------------------------------------------------------------------------------
-local jobs: { [string]: { fn: (number, number) -> boolean?, period: number, acc: number } } = {}
+local jobs: { [string]: { fn: (number, number) -> boolean?, period: number, acc: number, errors: number } } = {}
 function Core.job(name: string, hz: number, fn: (number, number) -> boolean?)
-	jobs[name] = { fn = fn, period = if hz > 0 then 1 / hz else 0, acc = 0 }
+	jobs[name] = { fn = fn, period = if hz > 0 then 1 / hz else 0, acc = 0, errors = 0 }
 end
 function Core.stop(name: string)
 	jobs[name] = nil
@@ -294,11 +294,21 @@ RunService.Heartbeat:Connect(function(dt: number)
 			j.acc = if j.period > 0 then j.acc % j.period else 0
 			local ok, res = pcall(j.fn, step, now)
 			if not ok then
-				warn("[GwangalliClubPlus] job " .. name .. " failed:", res)
+				-- a job survives a few bad frames (streamed-out parts, a respawn); it stops on the 5th in a row
+				j.errors += 1
 				Core.debug("JobErr_" .. name, tostring(res))
-				jobs[name] = nil
+				if j.errors == 1 or j.errors >= 5 then
+					warn("[GwangalliClubPlus] job " .. name .. " failed:", res)
+				end
+				if j.errors >= 5 and jobs[name] == j then
+					jobs[name] = nil
+				end
 			elseif res == false then
-				jobs[name] = nil
+				if jobs[name] == j then
+					jobs[name] = nil
+				end
+			else
+				j.errors = 0
 			end
 		end
 	end
@@ -356,6 +366,21 @@ function Core.startWatching()
 		return true
 	end)
 	pollZone()
+end
+
+-- the club menu item (GwangalliClubShowShared.item, else the add-on's fallback copy of the menu)
+function Core.menuItem(id: any): any?
+	local SS = Core.ShowShared
+	if SS and type(SS.item) == "function" then
+		local ok, it = pcall(SS.item, id)
+		if ok and type(it) == "table" then
+			return it
+		end
+	end
+	if type(id) == "string" then
+		return Core.S.Config.Fallback.Menu[id]
+	end
+	return nil
 end
 
 function Core.allAges(): boolean

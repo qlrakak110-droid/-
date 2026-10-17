@@ -297,7 +297,7 @@ end
 
 -- another add-on asked the HUD to step aside
 local function hudHidden(): boolean
-	local pg = Core.player:FindFirstChildOfClass("PlayerGui")
+	local pg = Core.player:FindFirstChild("PlayerGui")
 	if not pg then
 		return false
 	end

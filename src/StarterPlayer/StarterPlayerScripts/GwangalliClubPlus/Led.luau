@@ -536,7 +536,7 @@ local function onShow(rec: any)
 		return
 	end
 	local SS = Core.ShowShared
-	local item = SS and type(SS.item) == "function" and SS.item(rec.item) or nil
+	local item = Core.menuItem(rec.item)
 	local price = item and item.price or 0
 	local tier = S.orderTier(price)
 	local icon = "✨"

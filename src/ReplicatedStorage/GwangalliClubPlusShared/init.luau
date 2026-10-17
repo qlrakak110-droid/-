@@ -191,6 +191,14 @@ Shared.Config = {
 		Sparks = { Vector3.new(-101.1, 11.4, 368.5), Vector3.new(-101.3, 11.4, 378.9) },
 		MirrorBall = Vector3.new(-111.1, 23.9, 373.4),
 		BoothFront = { pos = Vector3.new(-100.75, 13.0, 373.7), length = 11 }, -- DJ desk LED strip (faces the floor)
+		-- GwangalliClubShowShared menu (used only when that module cannot be read)
+		Menu = {
+			basic = { tier = 1, price = 90000, label = "기본 음료 세트", staff = 1 },
+			champagne = { tier = 2, price = 200000, label = "스파클링 주스 세트", staff = 2 },
+			vodka = { tier = 3, price = 350000, label = "프리미엄 음료 세트", staff = 3 },
+			gold = { tier = 4, price = 600000, label = "골드 스파클링 세트", staff = 4 },
+			royal = { tier = 5, price = 1200000, label = "로열 스파클링 세트", staff = 5 },
+		},
 	},
 }
 

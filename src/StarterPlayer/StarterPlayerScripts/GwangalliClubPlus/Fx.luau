@@ -353,8 +353,12 @@ local function floorStep(dt: number)
 			end
 		end
 	end
-	-- slow sections: a soft wave; everything fades back between beats
+	-- slow sections: a soft wave (10 Hz is plenty); everything fades back between beats
 	local slow = section == "intro" or section == "breakdown"
+	fl.odd = not fl.odd
+	if slow and fl.odd then
+		return
+	end
 	local t = os.clock()
 	for _, cell in fl.cells do
 		if slow then
@@ -537,7 +541,7 @@ local function teardown()
 			end
 		end
 	end
-	local pg = Core.player:FindFirstChildOfClass("PlayerGui")
+	local pg = Core.player:FindFirstChild("PlayerGui")
 	if pg then
 		for _, n in { "GwClubPlusFloor", "GwClubPlusOnAir" } do
 			local g = pg:FindFirstChild(n)

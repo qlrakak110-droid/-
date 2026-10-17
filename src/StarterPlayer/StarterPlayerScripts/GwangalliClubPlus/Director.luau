@@ -248,12 +248,12 @@ local function onShow(rec: any)
 		return
 	end
 	local SS = Core.ShowShared
-	local item = SS and type(SS.item) == "function" and SS.item(rec.item) or nil
+	local item = Core.menuItem(rec.item)
 	local price = item and tonumber(item.price) or 0
 	local tier = S.orderTier(price)
 	local T = S.tier(tier)
 	local icon = "✨"
-	if item and type(SS.icon) == "function" then
+	if item and SS and type(SS.icon) == "function" then
 		local ok, v = pcall(SS.icon, item, rec.aa)
 		if ok and type(v) == "string" then
 			icon = v

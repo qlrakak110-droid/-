@@ -28,22 +28,12 @@ local bookingUntil = 0
 local djTable: string? = nil
 local pings: { [string]: { text: string, untilT: number } } = {}
 
-local function menuItem(id: any): any?
-	local SS = Core.ShowShared
-	if SS and type(SS.item) == "function" then
-		local ok, it = pcall(SS.item, id)
-		if ok and type(it) == "table" then
-			return it
-		end
-	end
-	return nil
-end
 local function itemText(id: any): (string, string, number)
-	local it = menuItem(id)
+	local it = Core.menuItem(id)
 	if not it then
 		return "✨", "음료 세트", 0
 	end
-	local SS = Core.ShowShared
+	local SS = Core.ShowShared or {}
 	local aa = Core.allAges()
 	local icon, label = "✨", tostring(it.labelAA or it.label or "음료 세트")
 	if type(SS.icon) == "function" then
