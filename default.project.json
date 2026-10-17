@@ -1,28 +1,23 @@
 {
-  "name": "GwangalliMiniGames",
+  "name": "trend-fishing",
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "$className": "ReplicatedStorage",
-      "$ignoreUnknownInstances": true,
-      "GwangalliMiniGamesShared": { "$path": "src/ReplicatedStorage/GwangalliMiniGamesShared" }
+      "$className": "ReplicatedStorage"
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "$ignoreUnknownInstances": true,
-      "GwangalliGameplay": {
-        "$className": "Folder",
-        "$ignoreUnknownInstances": true,
-        "MiniGames": { "$path": "src/ServerScriptService/GwangalliGameplay/MiniGames" }
+      "TrendFishingServer": {
+        "$path": "src/server/TrendFishingServer.server.lua"
       }
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
-      "$ignoreUnknownInstances": true,
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
-        "$ignoreUnknownInstances": true,
-        "GwangalliMiniGames": { "$path": "src/StarterPlayer/StarterPlayerScripts/GwangalliMiniGames" }
+        "TrendFishingClient": {
+          "$path": "src/client/TrendFishingClient.client.lua"
+        }
       }
     }
   }
