@@ -25,6 +25,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Ui = {}
 
+-- keyboard actions of our buttons (weak keys: destroyed buttons drop out)
+local actions: { [Instance]: () -> () } = setmetatable({}, { __mode = "k" }) :: any
+
 local S: any
 local C: any
 local player = Players.LocalPlayer
@@ -199,7 +202,7 @@ function Ui.btn(parent: Instance, opts: { [string]: any }): TextButton
 		Ui.tween(sc, 0.12, { Scale = 1 })
 	end)
 	if opts.onClick then
-		b.Activated:Connect(function()
+		local function fire()
 			if b:GetAttribute("Disabled") then
 				Ui.sound("error")
 				return
@@ -214,9 +217,17 @@ function Ui.btn(parent: Instance, opts: { [string]: any }): TextButton
 					warn("[GwangalliClinic] button:", err)
 				end
 			end)
-		end)
+		end
+		b.Activated:Connect(fire)
+		actions[b] = fire
 	end
 	return b
+end
+
+-- a plain TextButton (cards) gets the same keyboard action as Ui.btn: Activated + Enter when focused
+function Ui.onActivate(b: GuiButton, fn: () -> ())
+	b.Activated:Connect(fn)
+	actions[b] = fn
 end
 
 function Ui.restyle(b: TextButton, style: string)
@@ -389,6 +400,14 @@ end
 -- toasts
 -------------------------------------------------------------------------------------------------
 function Ui.toast(title: string, body: string?, tone: string?)
+	-- the game's own toast stack (one Toaster for every client script) when it is there
+	if UI and type(UI.toast) == "function" then
+		local kind = if tone == "ok" then "success" elseif tone == "warn" or tone == "bad" then "warn" else "info"
+		local ok = pcall(UI.toast, { title = title, body = body or "", kind = kind, icon = "🏥" })
+		if ok then
+			return
+		end
+	end
 	local color = Ui.TONE[tone or "info"] or Col.teal
 	local f = new("Frame", {
 		Size = UDim2.fromOffset(400, 0),
@@ -465,6 +484,78 @@ function Ui.onLayout(fn: () -> ())
 	pcall(fn)
 end
 
+-- the game's screen-slot contract (ReplicatedStorage.GwangalliLayout, optional): our tracker, staff
+-- dialog and bottom panels go where the game reserves room for them (clear of the thumbstick / jump
+-- button and of the game's own HUD widgets). Rects are converted to OUR design pixels (UIScale).
+local Layout: any = nil
+
+function Ui.scale(): number
+	return if scaleObj then scaleObj.Scale else 1
+end
+
+function Ui.layoutModule(): any
+	return Layout
+end
+
+-- the game's own HUD scale (Layout.metrics().s), nil without the module
+function Ui.layoutScale(): number?
+	if not Layout or type(Layout.metrics) ~= "function" then
+		return nil
+	end
+	local ok, m = pcall(Layout.metrics)
+	return if ok and type(m) == "table" and type(m.s) == "number" then m.s else nil
+end
+
+-- "phoneL" | "phoneP" | "tablet" | "pc" (nil without the game's layout module)
+function Ui.deviceClass(): string?
+	if not Layout then
+		return nil
+	end
+	local ok, cls = pcall(Layout.deviceClass)
+	return if ok then cls else nil
+end
+
+function Ui.isPhone(): boolean
+	local cls = Ui.deviceClass()
+	if cls then
+		return cls == "phoneL" or cls == "phoneP"
+	end
+	return Ui.touch()
+end
+
+-- slot rect { x, y, w, h } in design px, and the slot's anchor (nil when unavailable)
+function Ui.slotRect(name: string): (any?, Vector2?)
+	if not Layout then
+		return nil, nil
+	end
+	local ok, r = pcall(Layout.rect, name)
+	if not ok or type(r) ~= "table" or (r.w or 0) <= 0 then
+		return nil, nil
+	end
+	local okS, _pos, _size, anchor = pcall(Layout.slot, name)
+	local s = Ui.scale()
+	return { x = r.x / s, y = r.y / s, w = r.w / s, h = r.h / s }, if okS then anchor else nil
+end
+
+Ui.PANEL_H = 168 -- tallest bottom panel (design px); the staff dialog stays above it
+
+-- puts a bottom panel (exam / injection / IV / dispensing) in the game's "bottomCenter" slot
+-- (between the thumbstick and the jump button on phones). lift = design px above the slot bottom.
+-- fallbackBottom = design px from the screen bottom when the game's layout module is missing.
+function Ui.placeBottom(frame: GuiObject, maxW: number, fallbackBottom: number)
+	local r = Ui.slotRect("bottomCenter")
+	local W = Ui.size()
+	frame.AnchorPoint = Vector2.new(0.5, 1)
+	if r then
+		local w = math.min(maxW, math.max(260, r.w), W - 24)
+		frame.Position = UDim2.fromOffset(r.x + r.w / 2, r.y + r.h)
+		frame.Size = UDim2.fromOffset(w, frame.Size.Y.Offset)
+	else
+		frame.Position = UDim2.new(0.5, 0, 1, -fallbackBottom)
+		frame.Size = UDim2.fromOffset(math.min(maxW, W - 24), frame.Size.Y.Offset)
+	end
+end
+
 local function relayout()
 	local cam = workspace.CurrentCamera
 	local vp = if cam then cam.ViewportSize else Vector2.new(1280, 720)
@@ -482,6 +573,8 @@ end
 -- modal etiquette (blur, touch controls, the game's HUD)
 -------------------------------------------------------------------------------------------------
 local modalKeys: { [string]: boolean } = {}
+local hudFns: { (boolean) -> () } = {}
+local dlg: any = nil
 local blur: BlurEffect? = nil
 local controlsOff = false
 
@@ -514,7 +607,7 @@ function Ui.modal(on: boolean, key: string)
 			b:Destroy()
 		end)
 	end
-	Ui.gui:SetAttribute("HideGwangalliHUD", any)
+	Ui.refreshHud()
 	if Ui.touch() then
 		if any and not controlsOff then
 			local c = controls()
@@ -530,6 +623,23 @@ function Ui.modal(on: boolean, key: string)
 			controlsOff = false
 		end
 	end
+end
+
+-- HideGwangalliHUD on our ScreenGui: while a sheet is open, or while the staff dialog is shown on a
+-- phone (the dialog slot covers the right column there)
+function Ui.refreshHud()
+	local anySheet = next(modalKeys) ~= nil
+	local dialogUp = dlg ~= nil and dlg.root.Visible and Ui.isPhone()
+	Ui.gui:SetAttribute("HideGwangalliHUD", anySheet or dialogUp)
+	Ui.hudHidden = anySheet or dialogUp
+	for _, fn in hudFns do
+		pcall(fn, Ui.hudHidden)
+	end
+end
+
+-- our own always-on widgets (tracker) step aside too: fn(hidden)
+function Ui.onHud(fn: (boolean) -> ())
+	table.insert(hudFns, fn)
 end
 
 -------------------------------------------------------------------------------------------------
@@ -672,8 +782,11 @@ end
 -------------------------------------------------------------------------------------------------
 -- staff dialogue box (portrait + typewriter + choices)
 -------------------------------------------------------------------------------------------------
-local dlg: any = nil
 local dlgToken = 0
+local NUMBER_KEYS: { [Enum.KeyCode]: number } = {
+	[Enum.KeyCode.One] = 1, [Enum.KeyCode.Two] = 2, [Enum.KeyCode.Three] = 3, [Enum.KeyCode.Four] = 4, [Enum.KeyCode.Five] = 5,
+	[Enum.KeyCode.KeypadOne] = 1, [Enum.KeyCode.KeypadTwo] = 2, [Enum.KeyCode.KeypadThree] = 3, [Enum.KeyCode.KeypadFour] = 4, [Enum.KeyCode.KeypadFive] = 5,
+}
 
 local function buildDialog()
 	local root = new("Frame", {
@@ -719,7 +832,30 @@ local function buildDialog()
 	end)
 	Ui.onLayout(function()
 		local W = Ui.size()
-		root.Size = UDim2.fromOffset(math.min(720, W - 20), 0)
+		local r, anchor = Ui.slotRect("dialog")
+		if r and anchor then
+			-- the game's NPC dialog slot: clear of the thumbstick / jump button on phones
+			local w = math.min(720, r.w)
+			local y = r.y + r.h * anchor.Y
+			if anchor.Y >= 1 then
+				-- PC / tablet: the slot sits right above "bottomCenter", where our exam / IV panels go
+				local bc = Ui.slotRect("bottomCenter")
+				if bc then
+					y = math.min(y, bc.y + bc.h - Ui.PANEL_H - 10)
+				end
+			end
+			root.AnchorPoint = Vector2.new(anchor.X, anchor.Y)
+			root.Position = UDim2.fromOffset(r.x + r.w * anchor.X, y)
+			root.Size = UDim2.fromOffset(w, 0)
+		else
+			root.AnchorPoint = Vector2.new(0.5, 1)
+			root.Position = UDim2.new(0.5, 0, 1, -16)
+			root.Size = UDim2.fromOffset(math.min(720, W - 20), 0)
+		end
+	end)
+	-- on phones the dialog slot covers the game's right column: ask its HUD to step aside meanwhile
+	root:GetPropertyChangedSignal("Visible"):Connect(function()
+		Ui.refreshHud()
 	end)
 	dlg = { root = root, avatar = avatar, avStroke = avStroke, name = name, body = body, choices = choices }
 end
@@ -793,9 +929,10 @@ function Ui.ask(who: string, text: string, choices: { string }, opts: { [string]
 	local token = showDialog(who, text, o.name)
 	local picked: number? = nil
 	local first: GuiObject? = nil
+	local keyHints = UserInputService.KeyboardEnabled and not Ui.touch() and #choices > 0
 	for i, label in choices do
 		local b = Ui.btn(dlg.choices, {
-			text = label,
+			text = if keyHints and i <= 9 then string.format("%d  %s", i, label) else label,
 			style = if i == 1 then "primary" else "ghost",
 			size = UDim2.fromOffset(0, 44),
 			textSize = 15,
@@ -814,11 +951,24 @@ function Ui.ask(who: string, text: string, choices: { string }, opts: { [string]
 		end
 	end
 	Ui.select(first)
+	-- PC: 1 ~ 9 picks a choice (the labels show the number)
+	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
+		if gp or dlgToken ~= token then
+			return
+		end
+		local n = NUMBER_KEYS[io.KeyCode]
+		if n and n <= #choices then
+			Ui.sound("tap")
+			picked = n
+		end
+	end)
 	while picked == nil do
 		if dlgToken ~= token then
+			keyConn:Disconnect()
 			return nil
 		end
 		if o.abort and o.abort() then
+			keyConn:Disconnect()
 			if dlgToken == token then
 				Ui.hideDialog()
 			end
@@ -826,6 +976,7 @@ function Ui.ask(who: string, text: string, choices: { string }, opts: { [string]
 		end
 		task.wait(0.05)
 	end
+	keyConn:Disconnect()
 	if not o.keep then
 		for _, c in dlg.choices:GetChildren() do
 			if c:IsA("GuiButton") then
@@ -931,6 +1082,15 @@ function Ui.init(ctx: any)
 	if okUI and type(mod) == "table" then
 		UI = mod
 	end
+	do
+		local m = ReplicatedStorage:FindFirstChild("GwangalliLayout")
+		if m and m:IsA("ModuleScript") then
+			local ok, L = pcall(require, m)
+			if ok and type(L) == "table" and type(L.rect) == "function" then
+				Layout = L
+			end
+		end
+	end
 	soundFolder = new("Folder", { Name = "GwClinicUI" }, SoundService)
 	local pg = player:WaitForChild("PlayerGui")
 	local old = pg:FindFirstChild(S.NAMES.Gui)
@@ -973,10 +1133,29 @@ function Ui.init(ctx: any)
 					break
 				end
 			end
+		elseif not gp and (io.KeyCode == Enum.KeyCode.Return or io.KeyCode == Enum.KeyCode.KeypadEnter) then
+			-- PC: Enter runs the open sheet's primary button (the one gamepads start on)
+			for i = #sheets, 1, -1 do
+				local sh = sheets[i]
+				if sh.isOpen then
+					local f = sh.focus
+					local fn = f and actions[f]
+					if fn and f.Parent and f.Visible then
+						fn()
+					end
+					break
+				end
+			end
 		end
-		local _ = gp
 	end)
 	relayout()
+	if Layout and Layout.changed then
+		pcall(function()
+			Layout.changed:Connect(function()
+				pcall(relayout)
+			end)
+		end)
+	end
 end
 
 return Ui

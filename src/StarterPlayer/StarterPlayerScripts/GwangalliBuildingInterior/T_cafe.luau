@@ -647,7 +647,8 @@ local function brandOf(V: any): any
 		B.sofa = rgb(196, 150, 150)
 		B.logoFg = rgb(190, 150, 86)
 		B.casePanel = lk(rgb(240, 230, 218))
-		B.wall = { back = lk(rgb(246, 228, 224), M.Plaster) }
+		-- 블러시 핑크 (너무 짙으면 중성광에서 회보라로 죽음): 뒷벽은 조금 진하게, 옆벽은 크림에 가깝게
+		B.wall = { back = lk(rgb(250, 230, 224), M.Plaster), left = lk(rgb(250, 242, 236), M.Plaster), right = lk(rgb(250, 242, 236), M.Plaster) }
 		feat.cake, feat.md, feat.mirror, feat.flowers = true, false, true, true
 	elseif key == "busan" then
 		B.title, B.logo, B.slogan = nm, "051", "GWANGALLI · BUSAN"
@@ -838,7 +839,7 @@ function T.style(V: any): any
 		S.counter = { front = "fluted", frontL = Look.walnut, topL = lk(rgb(64, 64, 66), M.Slate), kickL = Look.black, led = rgb(255, 196, 140) }
 		S.floor = { look = Look.polishedConcrete, tile = 4.0, grout = lk(rgb(128, 126, 122)) }
 		-- 노출 천장: 낮은 천장(8 미만)은 짙은 색이 답답해서 중간 회색 콘크리트
-		S.ceiling = { skin = if V.H < 9 then lk(rgb(120, 118, 114), M.Concrete) else lk(rgb(104, 103, 100), M.Concrete) }
+		S.ceiling = { skin = if V.H < 9 then lk(rgb(164, 162, 158), M.Concrete) else lk(rgb(146, 144, 140), M.Concrete) }
 		S.pendant = { shade = "cone", look = Look.blackMetal }
 		S.lights = { kind = "downlight", color = Look.warmLight }
 		S.base = Look.black
@@ -3386,7 +3387,7 @@ local function stepRebuild(K: any, V: any, B: any, ctx: any)
 	K:free(function()
 		for _, s in V.byName.WallShelf or {} do
 			local nz = if s.c.Z < (V.z0 + V.z1) / 2 then 1 else -1
-			if math.abs(s.size.X) < 1.5 or not room(K, 20) then
+			if B.noCounter or math.abs(s.size.X) < 1.5 or not room(K, 20) then
 				continue
 			end
 			local fz = if nz > 0 then s.max.Z else s.min.Z
@@ -3984,7 +3985,7 @@ local function stepSideWalls(K: any, V: any, B: any, ctx: any)
 		for _, s in sides do
 			local wl, dl = wallFind(K, { s }, math.min(9, V.D * 0.5), 8.35, 9.05, midU)
 			if wl and dl then
-				K:text("WallSlogan", math.min(8.6, V.D * 0.48), 0.5, dl * CF(0, 0, 0.02), B.slogan, { fg = if B.key == "mega" then rgb(30, 30, 30) elseif B.key == "compose" then B.c1 else lt(B.ink, 0.15), font = F.GothamBlack, d = 0.02 })
+				K:text("WallSlogan", math.min(8.6, V.D * 0.48), 0.5, dl * CF(0, 0, 0.02), B.slogan, { fg = if B.key == "mega" then rgb(30, 30, 30) elseif B.key == "compose" then B.c1 elseif B.type == "dessert" then dk(B.c1, 0.15) else B.ink, font = F.GothamBlack, d = 0.02 })
 			end
 		end
 	end
@@ -5348,7 +5349,7 @@ local function stepFill(K: any, V: any, B: any, ctx: any)
 			if len >= 6 and room(K, 4) then
 				local w = math.min(len - 1, 9)
 				local txt = if B.key == "pascucci" then "Caffè Pascucci · dal 1883" elseif B.key == "haute" then "Pâtisserie & Café Haute" elseif B.key == "twosome" then "A TWOSOME PLACE · DESSERT CAFE" else (B.slogan or B.title)
-				K:text("BackScript", w, 0.8, V:wall("back", (s[1] + s[2]) / 2, 8.3, 0.03), txt, { fg = if B.key == "mega" or B.key == "compose" then B.c1 else lt(B.ink, 0.1), font = if B.key == "pascucci" or B.key == "haute" or B.key == "lounge" then F.Garamond else F.GothamBlack, d = 0.03 })
+				K:text("BackScript", w, 0.8, V:wall("back", (s[1] + s[2]) / 2, 8.3, 0.03), txt, { fg = if B.key == "mega" or B.key == "compose" then B.c1 elseif B.type == "dessert" then dk(B.c1, 0.15) elseif B.key == "haute" then rgb(150, 108, 56) else B.ink, font = if B.key == "pascucci" or B.key == "haute" or B.key == "lounge" then F.Garamond else F.GothamBlack, d = 0.03 })
 				useWall(K, "back", (s[1] + s[2]) / 2 - w / 2, (s[1] + s[2]) / 2 + w / 2, 7.8, 8.8)
 				break
 			end

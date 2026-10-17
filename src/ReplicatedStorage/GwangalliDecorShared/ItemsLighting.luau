@@ -249,11 +249,12 @@ return function(D: any)
 		size = { 1.2, 2.0, 1.4 }, tags = { "스탠드", "책상", "공부" }, light = "cool",
 		slots = { S("body", "몸체", "white", { "plastic", "metal" }) },
 		build = function(k, W, H, Dp)
-			k:box("Base", 0.9, 0.1, 0.9, 0, 0.05, 0.2, "body", { solid = true })
-			k:cyl("Arm1", 1.2, 0.1, 0, 0.65, 0.25, "y", "body", { rx = 12 })
-			k:cyl("Arm2", 1.1, 0.1, 0, 1.45, -0.1, "z", "body", { rx = 25 })
-			k:box("Head", 0.4, 0.12, 0.9, 0, 1.55, -0.55, "body")
-			local led = k:box("LEDPanel", 0.32, 0.03, 0.8, 0, 1.48, -0.55, "light", { glow = true })
+			k:box("Base", 0.9, 0.1, 0.9, 0, 0.05, 0.3, "body", { solid = true })
+			k:box("Arm", 0.09, 1.4, 0.09, 0, 0.78, 0.36, "body", { rx = -8 })
+			k:ball("Joint", 0.16, 0, 1.47, 0.44, k:sh("body", 0.85))
+			k:box("Arm", 0.09, 0.09, 1.05, 0, 1.52, -0.04, "body", { rx = -5 })
+			k:box("Head", 0.42, 0.1, 0.72, 0, 1.52, -0.66, "body")
+			local led = k:box("LEDPanel", 0.34, 0.03, 0.62, 0, 1.455, -0.66, "light", { glow = true })
 			k:light(led, 8, 0.6, { spot = true, face = "Bottom", angle = 80 })
 		end,
 	})

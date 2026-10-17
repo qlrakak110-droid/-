@@ -213,8 +213,14 @@ for _, m in modules do
 	end
 end
 
-local function hello()
+-- full refresh from the server (visit, health, meds, chart, report, ward). Returns true when it worked.
+local function hello(): boolean
 	local res = Net.call("hello", {})
+	if type(res) == "table" and res.code == "busy" then
+		-- another refresh is in flight: wait for it and ask again (its answer may predate a change)
+		task.wait(0.5)
+		res = Net.call("hello", {})
+	end
 	if type(res) == "table" and res.ok then
 		ctx.fees = res.fees
 		ctx.chart = res.chart
@@ -224,8 +230,11 @@ local function hello()
 		ctx.setHealth(res.health)
 		forEach("onMeds", res.meds)
 		ctx.setVisit(res.visit)
+		return true
 	end
+	return false
 end
+ctx.refresh = hello
 task.spawn(hello)
 player.CharacterAdded:Connect(function()
 	task.wait(1.5)
@@ -238,17 +247,34 @@ task.spawn(function()
 	local ev = remotes and remotes:WaitForChild("HealthEvent", 60)
 	if ev and ev:IsA("RemoteEvent") then
 		local pending = false
+		local function later()
+			if not pending then
+				pending = true
+				task.delay(1.2, function()
+					pending = false
+					hello()
+				end)
+			end
+		end
 		ev.OnClientEvent:Connect(function(p)
 			if type(p) ~= "table" then
 				return
 			end
 			if p.kind == "cured" or p.kind == "vitamin" or p.kind == "ill" or p.kind == "woke" or p.kind == "checkup" then
-				if not pending then
-					pending = true
-					task.delay(1.2, function()
-						pending = false
-						hello()
-					end)
+				later()
+			elseif p.kind == "status" and type(p.status) == "table" and ctx.health then
+				-- live fatigue / pay tier / debt without a round trip; an illness change asks the server
+				local st = p.status
+				local h = table.clone(ctx.health)
+				if type(st.fatigue) == "number" then
+					h.fatigue = math.floor(st.fatigue + 0.5)
+				end
+				h.tier = if type(st.tierLabel) == "string" then st.tierLabel else h.tier
+				h.mult = if type(st.mult) == "number" then st.mult else h.mult
+				h.debt = if type(st.debt) == "number" then st.debt else h.debt
+				ctx.setHealth(h)
+				if (type(st.illness) == "table") ~= (h.kind ~= nil) then
+					later()
 				end
 			end
 		end)

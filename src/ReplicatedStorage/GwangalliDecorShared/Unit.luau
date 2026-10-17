@@ -235,7 +235,8 @@ function Unit.scan(model: Instance): any?
 			if top == "Shell" or fallback then
 				if surf == "floor" or isFloorName(n) then
 					local rid = if type(room) == "string" and #room > 0 then room else (FLOOR_ROOM[n] or "main")
-					table.insert(U.floors, { box = b, top = topOf(b), room = rid, part = d, name = n })
+					local minor = string.sub(n, 1, 9) == "Threshold" or n == "StepNosing"
+					table.insert(U.floors, { box = b, top = topOf(b), room = rid, part = d, name = n, minor = minor })
 					lo, hi = lo:Min(b.lo), hi:Max(b.hi)
 					table.insert(U.cut.all, d)
 					continue
@@ -313,27 +314,71 @@ function Unit.scan(model: Instance): any?
 		end
 	end
 
-	-- rooms (floor footprints grouped by room id)
-	for _, f in U.floors do
-		local r = U.roomById[f.room]
-		if not r then
-			local name, icon = Unit.roomName(f.room)
-			r = { id = f.room, name = name, icon = icon, lo = f.box.lo, hi = f.box.hi, level = f.level, floorY = f.top, area = 0 }
-			U.roomById[f.room] = r
-			table.insert(U.rooms, r)
-		else
-			r.lo, r.hi = r.lo:Min(f.box.lo), r.hi:Max(f.box.hi)
-			r.level = math.min(r.level, f.level)
-			r.floorY = math.min(r.floorY, f.top)
+	-- rooms: floor footprints grouped by room id; disjoint groups of one id (two bathrooms) become
+	-- separate rooms ("bath", "bath_2"); thresholds / step nosings belong to no room
+	local clusters: { [string]: { any } } = {}
+	local function touches(a: any, f: any): boolean
+		local e = 0.8
+		return f.box.lo.X < a.hi.X + e and a.lo.X < f.box.hi.X + e and f.box.lo.Z < a.hi.Z + e and a.lo.Z < f.box.hi.Z + e and math.abs(f.top - a.floorY) < 2
+	end
+	local order = {}
+	for i, f in U.floors do
+		order[i] = f
+	end
+	table.sort(order, function(a, b)
+		return a.box.half.X * a.box.half.Z > b.box.half.X * b.box.half.Z
+	end)
+	for _, f in order do
+		if not f.minor then
+			local base = f.room
+			local list = clusters[base]
+			if not list then
+				list = {}
+				clusters[base] = list
+			end
+			local r = nil
+			for _, c in list do
+				if touches(c, f) then
+					r = c
+					break
+				end
+			end
+			if not r then
+				local k = #list + 1
+				local id = if k == 1 then base else (base .. "_" .. k)
+				local name, icon = Unit.roomName(base)
+				r = { id = id, base = base, name = if k == 1 then name else (name .. " " .. k), icon = icon, lo = f.box.lo, hi = f.box.hi, level = f.level, floorY = f.top, area = 0 }
+				table.insert(list, r)
+				U.roomById[id] = r
+				table.insert(U.rooms, r)
+			else
+				r.lo, r.hi = r.lo:Min(f.box.lo), r.hi:Max(f.box.hi)
+				r.level = math.min(r.level, f.level)
+			end
+			r.area += f.box.half.X * f.box.half.Z * 4
+			f.room = r.id
 		end
-		r.area += f.box.half.X * f.box.half.Z * 4
+	end
+	-- minor floors join the room they touch (else the nearest)
+	for _, f in U.floors do
+		if f.minor then
+			local best, bd = nil, math.huge
+			for _, r in U.rooms do
+				local c = (r.lo + r.hi) / 2
+				local d = (Vector3.new(c.X, 0, c.Z) - Vector3.new(f.box.cf.Position.X, 0, f.box.cf.Position.Z)).Magnitude
+				if d < bd and math.abs(r.floorY - f.top) < 1.5 then
+					best, bd = r, d
+				end
+			end
+			f.room = if best then best.id else "main"
+		end
 	end
 	local rank = {}
 	for i, id in Unit.ROOM_ORDER do
 		rank[id] = i
 	end
 	table.sort(U.rooms, function(a, b)
-		local ra, rb = rank[a.id] or 50, rank[b.id] or 50
+		local ra, rb = rank[a.base] or 50, rank[b.base] or 50
 		if ra ~= rb then
 			return ra < rb
 		end

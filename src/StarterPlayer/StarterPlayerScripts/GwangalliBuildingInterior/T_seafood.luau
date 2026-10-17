@@ -1239,9 +1239,9 @@ local function tankOverlay(c: any, t: any)
 			local x = -hw + tw * (i - 0.5) / nT
 			local dc = tcf * CF(x, wt.max.Y - 0.32, hd + 0.075)
 			K:free(function()
-				K:plate("PriceTagBack", 0.95, 0.46, 0.02, dc, L.white)
+				K:plate("PriceTagBack", 0.95, 0.46, 0.02, dc, L.of(250, 214, 40))
 				K:plate("PriceTagClip", 0.16, 0.12, 0.04, dc * CF(0, 0.27, 0), L.of(40, 120, 200))
-				K:text("PriceTag", 0.86, 0.4, dc * CF(0, 0, 0.021), tags[i][1] .. "\n" .. tags[i][2], { fg = rgb(190, 30, 30), font = F.GothamBlack, d = 0.005, free = true })
+				K:text("PriceTag", 0.86, 0.4, dc * CF(0, 0, 0.021), tags[i][1] .. "\n" .. tags[i][2], { fg = rgb(30, 24, 20), font = F.GothamBlack, d = 0.005, free = true, glow = 0.7 })
 			end)
 		end
 	end
@@ -1279,8 +1279,6 @@ local function tankOverlay(c: any, t: any)
 	end
 	-- 반환 배관 (탱크 끝 바깥으로 내려가 받침장으로)
 	if hi then
-		local endSide = if (tcf * V3(hw, 0, 0)).X > (tcf * V3(-hw, 0, 0)).X then 1 else -1
-		local _ = endSide
 		local px = hw + 0.22
 		local pz = hd - 0.45
 		local a = tcf * V3(px - 0.4, top + 0.5, pz)
@@ -1303,11 +1301,9 @@ local function tankOverlay(c: any, t: any)
 		if K:hitsKeep(mn, mx) == nil and mapClear(V, mn, mx) then
 			local topP = (base * CF(0.05, 6.4, 0.1)).Position
 			K:seg("NetPole", (base * CF(0, 0.6, 0)).Position, topP, 0.07, L.of(60, 120, 200, M.Plastic))
-			local ring = CFrame.lookAt(topP, topP + V3(0, 1, 0)) * CF(0, 0, 0)
 			local rc = CF(topP + V3(0, 0.38, 0)) * CFrame.fromMatrix(V3(), tcf.XVector, tcf.YVector, tcf.ZVector)
 			K:ring("NetRing", rc * ANG(0, PI / 2, 0), 0.36, 0.04, 10, L.of(60, 120, 200, M.Plastic))
 			K:ell("NetMesh", V3(0.04, 0.68, 0.6), rc * CF(0, -0.12, 0), { c = rgb(30, 60, 50), m = M.Fabric, t = 0.4 })
-			local _ = ring
 		end
 	end
 	-- 물칸 안 내용물 + 기포
@@ -1640,6 +1636,23 @@ local function kitchen(c: any)
 			end)
 		end
 	end
+	-- 카운터 끝면 (방 가운데 쪽) 관계자 외 출입금지 스티커
+	if alongX and g.body then
+		local bmn, bmx = g.body.min, g.body.max
+		local endX, dir = bmx.X, 1
+		if math.abs(bmn.X) < math.abs(bmx.X) then
+			endX, dir = bmn.X, -1
+		end
+		local pos = V3(endX + dir * 0.012, math.min(2.0, topY - 0.9), (bmn.Z + bmx.Z) / 2)
+		local zAx = V3(dir, 0, 0)
+		local dcfS = CFrame.fromMatrix(pos, Vector3.yAxis:Cross(zAx), Vector3.yAxis, zAx)
+		local wS = math.min(1.3, (bmx.Z - bmn.Z) - 0.3)
+		if wS > 0.6 then
+			K:free(function()
+				ktext(K, "StaffOnly", wS, 0.5, dcfS, "관계자 외\n출입금지", { fg = WHITE, bg = rgb(200, 30, 36), font = F.GothamBlack, d = 0.01 })
+			end)
+		end
+	end
 	if not alongX then
 		return
 	end
@@ -1654,11 +1667,11 @@ local function kitchen(c: any)
 	if th.kind == "sushi" then
 		items = {}
 	elseif th.kind == "jjim" then
-		items = { { w = 1.9, kind = "pot" }, { w = 1.9, kind = "pot" }, { w = 1.2, kind = "sauce" }, { w = 1.1, kind = "scale" }, { w = 1.0, kind = "wrap" } }
+		items = { { w = 1.9, kind = "pot" }, { w = 1.9, kind = "pot" }, { w = 1.7, kind = "sink" }, { w = 1.2, kind = "sauce" }, { w = 1.1, kind = "scale" }, { w = 1.0, kind = "wrap" } }
 	elseif th.kind == "crab" then
-		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.9, kind = "pot" }, { w = 1.0, kind = "boxes" } }
+		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.9, kind = "pot" }, { w = 1.0, kind = "boxes" } }
 	else
-		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.0, kind = "boxes" }, { w = 1.0, kind = "wrap" }, { w = 1.0, kind = "gloves" } }
+		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.0, kind = "boxes" }, { w = 1.0, kind = "wrap" }, { w = 1.0, kind = "gloves" } }
 	end
 	local cursor = tmn.X + 0.3
 	local steamSrc: { any } = {}
@@ -1678,7 +1691,7 @@ local function kitchen(c: any)
 				local cx = (a + b) / 2
 				local isPot = it.kind == "pot"
 				local base = CF(cx, topY, if isPot then zBack + 0.3 else zBack)
-				local h = if isPot then 1.6 else 0.8
+				local h = if isPot then 1.6 elseif it.kind == "sink" then 1.0 else 0.8
 				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 else 1.0)) then
 					placed = true
 					cursor = b + 0.2
@@ -1703,6 +1716,20 @@ local function kitchen(c: any)
 						K:box("GloveBox", V3(0.7, 0.3, 0.42), base * CF(0, 0.15, 0), L.of(240, 240, 236))
 						K:box("GloveBoxBand", V3(0.72, 0.1, 0.44), base * CF(0, 0.2, 0), L.of(40, 110, 190))
 						K:ell("RubberGlove", V3(0.5, 0.06, 0.22), base * CF(0.05, 0.33, 0.05) * ANG(0, 0.3, 0), L.of(240, 190, 40, M.Rubber))
+					elseif it.kind == "sink" then
+						-- 상판 매립 스테인리스 싱크 + 벽 쪽 구즈넥 수전 + 수세미
+						K:box("SinkRim", V3(1.6, 0.03, 1.0), base * CF(0, 0.015, 0), L.of(214, 218, 222, M.Metal, { r = 0.2 }))
+						K:box("SinkBowl", V3(1.36, 0.035, 0.78), base * CF(0, 0.02, 0), L.of(110, 114, 118, M.Metal))
+						K:disc("SinkDrain", 0.16, 0.04, base * CF(0.3, 0.03, 0), L.of(60, 60, 62, M.Metal))
+						local p0 = (base * CF(0, 0.03, -0.45)).Position
+						local p1 = (base * CF(0, 0.95, -0.45)).Position
+						local p2 = (base * CF(0, 0.95, -0.1)).Position
+						K:seg("Faucet", p0, p1, 0.08, L.chrome)
+						K:ball("FaucetBend", 0.09, CF(p1), L.chrome)
+						K:seg("Faucet", p1, p2, 0.07, L.chrome)
+						K:seg("FaucetSpout", p2, (base * CF(0, 0.78, -0.1)).Position, 0.06, L.chrome)
+						K:box("FaucetLever", V3(0.3, 0.04, 0.06), base * CF(0.08, 0.55, -0.45), L.chrome)
+						K:box("Scrubber", V3(0.26, 0.1, 0.18), base * CF(0.62, 0.05, -0.32), L.of(90, 170, 80, M.Fabric))
 					elseif it.kind == "pot" then
 						local burner = L.of(46, 48, 52, M.Metal)
 						K:box("GasBurner", V3(1.5, 0.3, 1.0), base * CF(0, 0.15, 0), burner)
@@ -2315,8 +2342,6 @@ local function tankSwitchBox(c: any, dcf: CFrame): BasePart
 	K:plate("TankCtrlLED", 0.06, 0.06, 0.02, dcf * CF(0.36, -0.5, 0.25), L.ledGreen)
 	local top = dcf * CF(0, 0.65, 0.1)
 	local yTop = V.H - 0.15
-	local up = (top * CF(0, yTop - (V.cf:ToObjectSpace(V.cf * top)).Position.Y, 0)).Position
-	local _ = up
 	K:seg("TankConduit", top.Position, V3(top.Position.X, yTop, top.Position.Z), 0.12, L.of(226, 226, 222, M.Plastic))
 	return sw
 end
@@ -2396,7 +2421,7 @@ local function drinkFridge(c: any, pcf: CFrame, nd: number)
 			K:box("FridgeDoorFrame", V3(dw, 0.12, 0.1), cc * CF(0, -innerH / 2 + 0.06, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, innerH, 0.1), cc * CF(-dw / 2 + 0.06, 0, 0), fr)
 			K:box("FridgeDoorFrame", V3(0.12, innerH, 0.1), cc * CF(dw / 2 - 0.06, 0, 0), fr)
-			K:box("FridgeDoorGlass", V3(dw - 0.22, innerH - 0.22, 0.03), cc, { c = rgb(210, 230, 236), m = M.Glass, t = 0.75, r = 0.12 })
+			K:box("FridgeDoorGlass", V3(dw - 0.22, innerH - 0.22, 0.03), cc, { c = rgb(220, 236, 240), m = M.Glass, t = 0.84, r = 0.02 })
 			K:box("FridgeDoorHandle", V3(0.08, innerH * 0.55, 0.12), cc * CF(dw / 2 - 0.22, 0, 0.1), L.chrome)
 		end)
 		local hinge = (K.cf * pcf * CF(x0, 0, d / 2 + 0.05)).Position
@@ -2470,10 +2495,10 @@ local function giftPlant(c: any, pcf: CFrame)
 	ktext(K, "Ribbon", 0.26, 1.7, rc * CF(0.22, -0.95, 0.02) * ANG(0, 0, -0.08), vertical("번창하세요"), { fg = rgb(250, 230, 160), bg = rgb(200, 30, 40), font = F.GothamBold, d = 0.01 })
 end
 
--- 조개 진열대 (2단 스텐 + 빨간 바구니 + 얼음)
+-- 조개 진열대 (2단 스텐, 앞으로 기울인 얼음 판 + 빨간 바구니 + 이름표, 위 간판)
 local function clamRack(c: any, pcf: CFrame, w: number)
 	local K = c.K
-	local d, h = 1.6, 3.2
+	local d, h = 1.6, 3.6
 	local steel = L.of(200, 204, 208, M.Metal)
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
@@ -2483,34 +2508,34 @@ local function clamRack(c: any, pcf: CFrame, w: number)
 	local kinds = { { "scallop", "가리비" }, { "clam", "백합" }, { "mussel", "홍합" }, { "pen", "키조개" }, { "abalone", "전복" }, { "conch", "소라" } }
 	local idx = 0
 	for tier = 1, 2 do
-		local y = if tier == 1 then 1.1 else 2.4
-		local tz = if tier == 1 then 0.1 else -0.25
-		local tilt = if tier == 1 then 0.0 else 0.0
-		local _ = tilt
-		K:box("RackTray", V3(w, 0.06, d - 0.1), pcf * CF(0, y, 0), steel)
-		K:box("RackIce", V3(w - 0.2, 0.08, d - 0.3), pcf * CF(0, y + 0.07, 0), { c = rgb(236, 244, 248), m = M.Glass, t = 0.2 })
+		local y = if tier == 1 then 1.0 else 2.15
+		-- 앞으로 15도 기울인 판 (손님 쪽 = +Z)
+		local tc = pcf * CF(0, y, 0) * ANG(math.rad(15), 0, 0)
+		K:box("RackTray", V3(w, 0.06, d - 0.1), tc, steel)
+		K:box("RackIce", V3(w - 0.2, 0.06, d - 0.3), tc * CF(0, 0.06, 0), L.of(236, 244, 248, M.Ice))
+		K:box("RackLip", V3(w, 0.16, 0.05), tc * CF(0, 0.08, (d - 0.1) / 2), steel)
 		local nb = math.max(2, math.floor(w / 1.2))
 		local bw = (w - 0.3) / nb - 0.1
 		for k = 1, nb do
 			idx += 1
 			local x = -w / 2 + 0.15 + (bw + 0.1) * (k - 0.5) + 0.05
-			local bc = pcf * CF(x, y + 0.11, tz)
+			local bc = tc * CF(x, 0.09, -0.05)
 			local red = L.of(206, 36, 36, M.Plastic)
-			local bd = 0.95
+			local bd = 1.0
 			K:box("RedBasket", V3(bw, 0.05, bd), bc * CF(0, 0.025, 0), red)
 			for _, sz in { -1, 1 } do
-				K:box("RedBasketSide", V3(bw, 0.3, 0.04), bc * CF(0, 0.15, sz * bd / 2), red)
+				K:box("RedBasketSide", V3(bw, 0.24, 0.04), bc * CF(0, 0.12, sz * bd / 2), red)
 			end
 			for _, sx in { -1, 1 } do
-				K:box("RedBasketSide", V3(0.04, 0.3, bd), bc * CF(sx * bw / 2, 0.15, 0), red)
+				K:box("RedBasketSide", V3(0.04, 0.24, bd), bc * CF(sx * bw / 2, 0.12, 0), red)
 			end
 			local kd = kinds[(idx - 1) % #kinds + 1]
-			shellPile(K, bc * CF(0, 0.02, 0), bw, bd, kd[1], c.seed + idx, if c.hi then 9 else 5)
-			ktext(K, "RackTag", 0.7, 0.24, bc * CF(0, 0.15, bd / 2 + 0.03), kd[2], { fg = rgb(200, 30, 30), bg = WHITE, font = F.GothamBlack, d = 0.01 })
+			shellPile(K, bc * CF(0, 0.04, 0), bw, bd, kd[1], c.seed + idx, if c.hi then 10 else 5)
+			ktext(K, "RackTag", 0.7, 0.24, bc * CF(0, 0.14, bd / 2 + 0.03), kd[2], { fg = rgb(200, 30, 30), bg = WHITE, font = F.GothamBlack, d = 0.01 })
 		end
 	end
-	ktext(K, "RackHeader", w, 0.4, pcf * CF(0, h - 0.1, d / 2 - 0.05), "오늘 들어온 조개", { fg = WHITE, bg = c.th.accent, font = F.GothamBlack, d = 0.04 })
-	K:box("RackTopBar", V3(w, 0.08, 0.08), pcf * CF(0, h - 0.34, d / 2 - 0.05), steel)
+	K:box("RackTopBar", V3(w, 0.08, 0.08), pcf * CF(0, h - 0.04, d / 2 - 0.05), steel)
+	ktext(K, "RackHeader", w, 0.46, pcf * CF(0, h + 0.2, d / 2 - 0.05), "오늘 들어온 조개", { fg = WHITE, bg = c.th.accent, font = F.GothamBlack, d = 0.05 })
 end
 
 -- 대게 찜기 (스테인리스 찜통 캐비닛 + 압력계 + 연통 + 김)
@@ -2751,6 +2776,37 @@ local function bgmSpeaker(c: any, dcf: CFrame): (BasePart, TextLabel)
 	return scr, lbl
 end
 
+-- 생맥주 · 하이볼 포스터 (스시 바)
+local function beerPoster(c: any, dcf: CFrame, w: number, h: number)
+	local K = c.K
+	K:plate("BeerPosterBack", w, h, 0.03, dcf, col(rgb(246, 238, 220)))
+	wdisc(K, "BeerPosterSun", w * 0.5, 0.008, dcf * CF(0, h * 0.18, 0), 0.03, col(rgb(206, 50, 38)))
+	local mc = dcf * CF(0, h * 0.12, 0.04)
+	K:plate("BeerMug", w * 0.26, h * 0.28, 0.01, mc, col(rgb(236, 170, 40)))
+	K:plate("BeerFoam", w * 0.3, h * 0.07, 0.012, mc * CF(0, h * 0.16, 0), L.white)
+	K:plate("BeerHandle", w * 0.06, h * 0.16, 0.01, mc * CF(w * 0.17, 0, 0), col(rgb(220, 220, 214)))
+	K:text("BeerPosterText", w * 0.9, h * 0.3, dcf * CF(0, -h * 0.28, 0.04), "생맥주 6,000\n하이볼 9,000", { fg = rgb(40, 30, 24), font = F.GothamBlack, d = 0.005 })
+end
+
+-- 도자기 선반 (도쿠리 · 오초코 · 젓가락 받침)
+local function ceramicShelf(c: any, dcf: CFrame, w: number)
+	local K = c.K
+	local at2 = Props.shelf(K, dcf, w, { depth = 0.6, look = L.of(84, 60, 42, M.Wood), bracket = L.blackMetal, thick = 0.1 })
+	local n = math.max(3, math.floor(w / 0.45))
+	for i = 1, n do
+		local x = -w / 2 + 0.25 + (w - 0.5) * (i - 0.5) / n
+		local b = at2 * CF(x, 0, -0.05)
+		local glaze = if i % 3 == 0 then L.of(40, 60, 110) elseif i % 3 == 1 then L.of(236, 232, 222) else L.of(150, 110, 80)
+		if i % 2 == 1 then
+			K:vcyl("Tokkuri", 0.42, 0.26, b * CF(0, 0.21, 0), glaze)
+			K:vcyl("TokkuriNeck", 0.16, 0.1, b * CF(0, 0.5, 0), glaze)
+		else
+			K:vcyl("Ochoko", 0.14, 0.18, b * CF(-0.08, 0.07, 0), glaze)
+			K:vcyl("Ochoko", 0.14, 0.18, b * CF(0.1, 0.07, 0.05), glaze)
+		end
+	end
+end
+
 local function sushiExtras(c: any)
 	local K, V = c.K, c.V
 	passOverlay(c)
@@ -2765,6 +2821,15 @@ local function sushiExtras(c: any)
 	if pcf2 then
 		Props.floorPlant(K, pcf2, { kind = "bamboo", h = 5.0, dia = 1.2 })
 	end
+	-- 옆벽: 생맥주 포스터 · 도자기 선반
+	local wn, u = findWall(K, { "left", "right" }, 1.7, 1.7, 4.0, 6.7, V3(0, 0, V.z1 - 4), 0.6)
+	if wn and u then
+		beerPoster(c, V:wall(wn, u, 5.35, WALL_OFF), 1.7, 2.5)
+	end
+	local wn2, u2, w2 = findWall(K, { "right", "left" }, 2.4, 3.2, 3.6, 4.6, V3(0, 0, (V.z0 + V.z1) / 2), 0.8)
+	if wn2 and u2 and w2 then
+		ceramicShelf(c, V:wall(wn2, u2, 4.0, WALL_OFF), w2)
+	end
 	-- 냉장고 위 마네키네코
 	if c.fridgeTop then
 		luckyCat(K, c.fridgeTop * CF(-0.6, 0, 0.2), 1.0)
@@ -2775,7 +2840,7 @@ local function sushiDecor(c: any)
 	local K, V, th = c.K, c.V, c.th
 	-- 뒷벽 위: 사케 병 선반 (패스 위 6.8 ~)
 	local pass = V.byName.KitchenPass and V.byName.KitchenPass[1]
-	local y0 = if pass then pass.max.Y + 0.3 else 6.6
+	local y0 = if pass then pass.max.Y + 0.7 else 6.9
 	local spans = freeSpans(K, "back", y0, y0 + 1.6, 1.0)
 	local placedShelf = false
 	for _, s in spans do
@@ -2840,6 +2905,51 @@ local function sushiDecor(c: any)
 					nL += 1
 				end
 			end
+		end
+	end
+	-- BGM 스피커 (프롬프트 자리 먼저)
+	local wn, u = findWall(K, { "left", "right" }, 1.4, 1.4, 4.2, 5.7, V3(0, 0, (V.z0 + V.z1) / 2 - 2.5), 0.9, function(wn0: string, u0: number)
+		return promptWallOK(K, wn0, u0, 4.8, 0.5)
+	end)
+	if wn and u then
+		local scr, lbl = bgmSpeaker(c, V:wall(wn, u, 5.1, WALL_OFF))
+		local songs = { { t = "♪ 시티팝" }, { t = "♪ 재즈 피아노" }, { t = "♪ 엔카" }, { t = "♪ 로파이" } }
+		Interact.cycle(K, scr, songs, {
+			action = "음악 바꾸기",
+			object = "BGM 스피커",
+			on = function(_i: number, it: any)
+				if lbl.Parent then
+					lbl.Text = it.t
+				end
+			end,
+		})
+		at(K, "speaker", wn, u)
+	end
+	if c.lanterns and #c.lanterns > 0 then
+		local wn2, u2 = findWall(K, { "right", "left" }, 0.9, 0.9, 3.8, 5.2, V3(0, 0, (V.z0 + V.z1) / 2), 0.6, function(wn0: string, u0: number)
+			return promptWallOK(K, wn0, u0, 4.4, 0.4)
+		end)
+		if wn2 and u2 then
+			local dcf = V:wall(wn2, u2, 4.4, WALL_OFF)
+			local plate = Props.switchPlate(K, dcf, 1)
+			ktext(K, "LanternSwitchLabel", 0.6, 0.18, dcf * CF(0, 0.42, 0), "등불", { fg = rgb(60, 40, 30), bg = rgb(236, 226, 206), d = 0.02 })
+			Interact.toggle(K, plate, {
+				object = "종이 등불",
+				state = true,
+				onText = "끄기",
+				offText = "켜기",
+				on = function(on: boolean)
+					for _, ln in c.lanterns do
+						if ln.p.Parent then
+							ln.p.Material = if on then M.Neon else M.SmoothPlastic
+							ln.p.Color = if on then ln.c else ln.c:Lerp(rgb(60, 30, 20), 0.5)
+						end
+					end
+					if c.lanternLight then
+						c.lanternLight.Enabled = on
+					end
+				end,
+			})
 		end
 	end
 	-- 원산지 · 와이파이
@@ -2931,7 +3041,7 @@ function T.build(K: any, V: any, S: any)
 		end
 		-- 종류별 큰 소품
 		if th.kind == "jjim" then
-			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, V3(3.6, 3.3, 1.6), { left = 0, right = 0, back = V.x1 * 0.3 }, 0.15)
+			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, V3(3.6, 3.9, 1.7), { left = 0, right = 0, back = V.x1 * 0.3 }, 0.15)
 			if pcf then
 				clamRack(c, pcf, 3.6)
 				at(K, "clamRack", nil, nil, pcf.Position)
@@ -3012,6 +3122,41 @@ function T.build(K: any, V: any, S: any)
 			at(K, "menu", wn, u)
 		end
 	end)
+	step("tv", function()
+		if isSushi then
+			return
+		end
+		local wn, u, w = findWall(K, { B, "back", A }, 3.0, 3.4, 5.95, 7.9, { left = -3, right = 3, back = V.x1 * 0.3 }, 0.8, function(wn0: string, u0: number)
+			return promptWallOK(K, wn0, u0, 6.9, 0.6)
+		end)
+		if wn and u and w then
+			local scr, lbl = tvSet(c, V:wall(wn, u, 6.9, WALL_OFF), w)
+			lbl.Text = TV_CH[1].text
+			lbl.BackgroundColor3 = TV_CH[1].c
+			Interact.cycle(K, scr, TV_CH, {
+				action = "채널 돌리기",
+				object = "TV",
+				on = function(_i: number, item: any)
+					if lbl.Parent then
+						lbl.Text = item.text
+						lbl.BackgroundColor3 = item.c
+					end
+				end,
+			})
+			at(K, "tv", wn, u)
+		end
+	end)
+	step("fan", function()
+		if isSushi or not budget(K, 40) then
+			return
+		end
+		local wn, u = findWall(K, { B, A, "back" }, 1.8, 1.8, 6.4, 8.9, pMid, 1.2, function(wn0: string, u0: number)
+			return promptWallOK(K, wn0, u0 + 0.24, 6.6, 0.3)
+		end)
+		if wn and u then
+			c.fanSpot = { wn = wn, u = u }
+		end
+	end)
 	step("boards", function()
 		if isSushi then
 			sushiDecor(c)
@@ -3041,41 +3186,6 @@ function T.build(K: any, V: any, S: any)
 	end)
 	-- 5) 위쪽 벽 (7.5 ~ 9.6): TV · 선풍기 (프롬프트 자리) 먼저, 그다음 사진 · 어탁 · 그물 · 풍어기
 	local yA, yB = 7.55, math.min(V.H - 0.3, 9.6)
-	step("tv", function()
-		if isSushi then
-			return
-		end
-		local wn, u, w = findWall(K, { B, "back", A }, 3.0, 3.4, 6.6, 8.8, { left = -3, right = 3, back = V.x1 * 0.3 }, 0.8, function(wn0: string, u0: number)
-			return promptWallOK(K, wn0, u0, 7.0, 0.6)
-		end)
-		if wn and u and w then
-			local scr, lbl = tvSet(c, V:wall(wn, u, 7.7, WALL_OFF), w)
-			lbl.Text = TV_CH[1].text
-			lbl.BackgroundColor3 = TV_CH[1].c
-			Interact.cycle(K, scr, TV_CH, {
-				action = "채널 돌리기",
-				object = "TV",
-				on = function(_i: number, item: any)
-					if lbl.Parent then
-						lbl.Text = item.text
-						lbl.BackgroundColor3 = item.c
-					end
-				end,
-			})
-			at(K, "tv", wn, u)
-		end
-	end)
-	step("fan", function()
-		if isSushi or not budget(K, 40) then
-			return
-		end
-		local wn, u = findWall(K, { B, A, "back" }, 1.8, 1.8, 6.4, 8.9, pMid, 1.2, function(wn0: string, u0: number)
-			return promptWallOK(K, wn0, u0 + 0.24, 6.6, 0.3)
-		end)
-		if wn and u then
-			c.fanSpot = { wn = wn, u = u }
-		end
-	end)
 	step("upper", function()
 		if yB - yA < 1.4 then
 			return
@@ -3179,53 +3289,6 @@ function T.build(K: any, V: any, S: any)
 		-- (d) 대게 찜기 문
 		if c.steamer and c.steamer.door and c.steamer.hinge then
 			Interact.swing(K, c.steamer.door, c.steamer.hinge, Vector3.yAxis, -1.6, { object = "대게 찜기", openText = "찜기 열기", closeText = "찜기 닫기" })
-		end
-		-- (스시) BGM 스피커 · 등불 스위치
-		if isSushi then
-			local wn, u = findWall(K, { A, B, "back" }, 1.4, 1.4, 4.2, 5.7, pMid, 0.9, function(wn0: string, u0: number)
-				return promptWallOK(K, wn0, u0, 4.8, 0.5)
-			end)
-			if wn and u then
-				local scr, lbl = bgmSpeaker(c, V:wall(wn, u, 5.1, WALL_OFF))
-				local songs = { { t = "♪ 시티팝" }, { t = "♪ 재즈 피아노" }, { t = "♪ 엔카" }, { t = "♪ 로파이" } }
-				Interact.cycle(K, scr, songs, {
-					action = "음악 바꾸기",
-					object = "BGM 스피커",
-					on = function(_i: number, it: any)
-						if lbl.Parent then
-							lbl.Text = it.t
-						end
-					end,
-				})
-				at(K, "speaker", wn, u)
-			end
-			if c.lanterns and #c.lanterns > 0 then
-				local wn2, u2 = findWall(K, { B, A, "back" }, 0.9, 0.9, 3.8, 5.2, pMid, 0.6, function(wn0: string, u0: number)
-					return promptWallOK(K, wn0, u0, 4.4, 0.4)
-				end)
-				if wn2 and u2 then
-					local dcf = V:wall(wn2, u2, 4.4, WALL_OFF)
-					local plate = Props.switchPlate(K, dcf, 1)
-					ktext(K, "LanternSwitchLabel", 0.6, 0.18, dcf * CF(0, 0.42, 0), "등불", { fg = rgb(60, 40, 30), bg = rgb(236, 226, 206), d = 0.02 })
-					Interact.toggle(K, plate, {
-						object = "종이 등불",
-						state = true,
-						onText = "끄기",
-						offText = "켜기",
-						on = function(on: boolean)
-							for _, ln in c.lanterns do
-								if ln.p.Parent then
-									ln.p.Material = if on then M.Neon else M.SmoothPlastic
-									ln.p.Color = if on then ln.c else ln.c:Lerp(rgb(60, 30, 20), 0.5)
-								end
-							end
-							if c.lanternLight then
-								c.lanternLight.Enabled = on
-							end
-						end,
-					})
-				end
-			end
 		end
 		-- (e) 선풍기 (상호작용이 4개 미만일 때만)
 		if c.fanSpot and #K.prompts < 4 then

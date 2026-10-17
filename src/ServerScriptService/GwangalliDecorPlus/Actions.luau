@@ -14,7 +14,7 @@ local Config, Catalog, Rules, Codec, Finish, Text, Geometry, Unit =
 
 local Actions = {}
 
-local Host: any, Store: any, Homes: any, Social: any, push: any = nil, nil, nil, nil, nil
+local Host: any, Store: any, Homes: any, Social: any = nil, nil, nil, nil
 
 type Session = {
 	bucket: { tokens: number, t: number },
@@ -27,7 +27,7 @@ type Session = {
 local sessions: { [Player]: Session } = {}
 
 function Actions.init(deps: any)
-	Host, Store, Homes, Social, push = deps.Host, deps.Store, deps.Homes, deps.Social, deps.push
+	Host, Store, Homes, Social = deps.Host, deps.Store, deps.Homes, deps.Social
 end
 
 local function session(p: Player): Session

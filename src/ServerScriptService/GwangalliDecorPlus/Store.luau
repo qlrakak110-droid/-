@@ -36,6 +36,12 @@ local function key(p: Player): string
 	return "u_" .. tostring(p.UserId)
 end
 
+-- errors that no retry will fix (unpublished place, Studio without API access)
+local function fatal(err: any): boolean
+	local s = tostring(err)
+	return string.find(s, "StudioAccessToApisNotAllowed", 1, true) ~= nil or string.find(s, "API Services", 1, true) ~= nil or string.find(s, "not published", 1, true) ~= nil or string.find(s, "403", 1, true) ~= nil
+end
+
 local function retry<T>(n: number, fn: () -> T): (boolean, any)
 	local lastErr = nil
 	for i = 1, n do
@@ -44,7 +50,12 @@ local function retry<T>(n: number, fn: () -> T): (boolean, any)
 			return true, r
 		end
 		lastErr = r
-		task.wait(math.min(8, 1.5 * i))
+		if fatal(r) then
+			break
+		end
+		if i < n then
+			task.wait(math.min(8, 1.5 * i))
+		end
 	end
 	return false, lastErr
 end
@@ -82,12 +93,10 @@ function Store.load(p: Player): any
 				end)
 				return out
 			end)
-			if ok and not locked then
-				break
+			if not ok or not locked then
+				break -- loaded, or failed for good (memory fallback below)
 			end
-			if locked then
-				task.wait(4)
-			end
+			task.wait(4) -- another server still holds the session lock
 		end
 		if ok and type(res) == "table" then
 			data = Codec.sanitize(res.data)

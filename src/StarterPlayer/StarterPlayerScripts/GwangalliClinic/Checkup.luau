@@ -393,7 +393,7 @@ local function showReport(r: any)
 			end
 		end })
 	end
-	Ui.btn(b, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
+	reportSheet.focus = Ui.btn(b, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
 		reportSheet.close()
 	end })
 	reportSheet.open()

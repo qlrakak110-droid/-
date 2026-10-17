@@ -397,9 +397,10 @@ function Kit:spec(): any
 		parts = self.parts,
 		lights = self.lights,
 		seats = self.seats,
-		tank = self.tank,
-		fire = self.fire,
-		speaker = self.speaker,
+		-- rawget: the marker methods share these names (k:tank / k:fire / k:speaker)
+		tank = rawget(self, "tank"),
+		fire = rawget(self, "fire"),
+		speaker = rawget(self, "speaker"),
 		hasPose = self.hasPose,
 	}
 end

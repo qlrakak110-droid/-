@@ -272,10 +272,10 @@ local function ceilSpot(K: any, x: number, z: number, r: number, reach: number?)
 end
 
 -- 불빛 있는 다운라이트 (근처 빈 천장)
-local function litDownlight(K: any, x: number, z: number, color: Color3?, range: number?)
+local function litDownlight(K: any, x: number, z: number, color: Color3?, range: number?, bright: number?)
 	local bx, bz = ceilSpot(K, x, z, 0.8)
 	if bx and bz then
-		Props.downlight(K, bx, bz, { light = true, color = color or Look.warmLight, glow = Look.lampWarm, range = range or 18, bright = 1.0, dia = 0.8 })
+		Props.downlight(K, bx, bz, { light = true, color = color or Look.warmLight, glow = Look.lampWarm, range = range or 18, bright = bright or 1.0, dia = 0.8 })
 		Common.useCeil(K, bx, bz)
 	end
 end
@@ -598,17 +598,17 @@ local function shampooUnit(K: any, V: any, seat: any, idx: number)
 	local pcf = faceCF(V3(seat.c.X, 0, seat.c.Z), f)
 	local top = seat.max.Y
 	local w = math.min(seat.size.X, seat.size.Z) + 0.0
-	local leather = lk(rgb(228, 218, 204), M.Leather) -- 아이보리 가죽 샴푸 체어 (어두운 볼과 대비)
+	local leather = lk(if idx % 2 == 0 then rgb(52, 40, 36) else rgb(30, 28, 30), M.SmoothPlastic, { r = 0.06 }) -- 블랙 · 다크브라운 PU 가죽 (살롱 표준 샴푸 체어)
 	K:free(function()
 		-- 받침대
-		K:rbox("WashPlinth", V3(w, top - 0.42, 1.95), 0.12, pcf * CF(0, (top - 0.42) / 2, 0) * ANG(0, PI / 2, 0), Look.blackMetal)
+		K:rbox("WashPlinth", V3(w, top - 0.42, 1.95), 0.12, pcf * CF(0, (top - 0.42) / 2, 0), Look.blackMetal)
 		K:box("WashKick", V3(w + 0.04, 0.12, 1.99), pcf * CF(0, 0.06, 0), Look.chrome)
 		-- 좌판 · 다리받침
-		K:rbox("WashSeatPad", V3(w, 0.42, 1.9), 0.15, pcf * CF(0, top - 0.21, 0) * ANG(0, PI / 2, 0), leather)
-		K:rbox("WashLegRest", V3(w * 0.92, 0.32, 1.25), 0.12, pcf * CF(0, top - 0.32, 1.25) * ANG(-0.42, 0, 0) * CF(0, 0, 0.1) * ANG(0, PI / 2, 0), leather)
+		K:rbox("WashSeatPad", V3(w, 0.42, 1.9), 0.15, pcf * CF(0, top - 0.21, 0), leather)
+		K:rbox("WashLegRest", V3(w * 0.92, 0.32, 1.25), 0.12, pcf * CF(0, top - 0.32, 1.25) * ANG(-0.42, 0, 0) * CF(0, 0, 0.1), leather)
 		-- 등받이 (뒤로 젖힘)
 		local back = pcf * CF(0, top - 0.05, -0.85) * ANG(0.95, 0, 0) * CF(0, 0, -1.15)
-		K:rbox("WashBackPad", V3(w * 0.96, 0.36, 2.3), 0.15, back * ANG(0, PI / 2, 0), leather)
+		K:rbox("WashBackPad", V3(w * 0.96, 0.36, 2.3), 0.15, back, leather)
 		K:box("WashBackShell", V3(w * 0.9, 0.12, 2.2), back * CF(0, -0.22, 0), Look.blackMetal)
 		-- 팔걸이
 		for _, sx in { -1, 1 } do
@@ -719,22 +719,22 @@ local function sofaOver(K: any, V: any, base: any, fabric: Color3, pillow: Color
 				K:vcyl("SofaLeg", 0.25, 0.14, pcf * CF(sx * (W / 2 - 0.35), 0.125, sz * (D / 2 - 0.3)), lk(SALON.brass, M.Metal))
 			end
 		end
-		K:rbox("SofaFrame", V3(W, seatTop - 0.45 - 0.25, D), 0.1, pcf * CF(0, 0.25 + (seatTop - 0.7) / 2, 0) * ANG(0, PI / 2, 0), fabD)
+		K:rbox("SofaFrame", V3(W, seatTop - 0.45 - 0.25, D), 0.1, pcf * CF(0, 0.25 + (seatTop - 0.7) / 2, 0), fabD)
 		-- 등판 + 팔걸이
 		local bt = 0.55
-		K:rbox("SofaBackFrame", V3(W, backTop - 0.25, bt), 0.2, pcf * CF(0, 0.25 + (backTop - 0.25) / 2, -D / 2 + bt / 2) * ANG(0, PI / 2, 0), fabD)
+		K:rbox("SofaBackFrame", V3(W, backTop - 0.25, bt), 0.2, pcf * CF(0, 0.25 + (backTop - 0.25) / 2, -D / 2 + bt / 2), fabD)
 		local armW = 0.5
 		for _, sx in { -1, 1 } do
-			K:rbox("SofaArm", V3(armW, seatTop + 0.55 - 0.25, D - bt), 0.22, pcf * CF(sx * (W / 2 - armW / 2), 0.25 + (seatTop + 0.3) / 2, bt / 2) * ANG(0, PI / 2, 0) * ANG(0, PI / 2, 0), fab)
+			K:rbox("SofaArm", V3(D - bt, seatTop + 0.55 - 0.25, armW), 0.24, pcf * CF(sx * (W / 2 - armW / 2), 0.25 + (seatTop + 0.3) / 2, bt / 2) * ANG(0, PI / 2, 0), fab)
 		end
 		-- 좌판 쿠션 2 + 등쿠션 2 + 쿠션 베개
 		local inner = W - 2 * armW
 		for i = 0, 1 do
 			local x = -inner / 4 + i * inner / 2
-			K:rbox("SofaCushion", V3(inner / 2 - 0.04, 0.45, D - bt - 0.05), 0.16, pcf * CF(x, seatTop - 0.225, bt / 2) * ANG(0, PI / 2, 0), fab)
-			K:rbox("SofaBackCushion", V3(inner / 2 - 0.06, backTop - seatTop - 0.25, 0.5), 0.2, pcf * CF(x, seatTop + (backTop - seatTop - 0.25) / 2, -D / 2 + bt + 0.2) * ANG(-0.12, 0, 0) * ANG(0, PI / 2, 0), fab)
+			K:rbox("SofaCushion", V3(inner / 2 - 0.04, 0.45, D - bt - 0.05), 0.16, pcf * CF(x, seatTop - 0.225, bt / 2), fab)
+			K:rbox("SofaBackCushion", V3(inner / 2 - 0.06, backTop - seatTop - 0.25, 0.5), 0.2, pcf * CF(x, seatTop + (backTop - seatTop - 0.25) / 2, -D / 2 + bt + 0.2) * ANG(-0.12, 0, 0), fab)
 			if not lowD(K) then
-				K:rbox("SofaPillow", V3(0.9, 0.85, 0.28), 0.25, pcf * CF(x + (if i == 0 then -0.6 else 0.6), seatTop + 0.5, -D / 2 + bt + 0.6) * ANG(-0.25, (i - 0.5) * 0.5, 0) * ANG(0, PI / 2, 0), lk(pillow, M.Fabric))
+				K:rbox("SofaPillow", V3(0.9, 0.85, 0.28), 0.25, pcf * CF(x + (if i == 0 then -0.6 else 0.6), seatTop + 0.5, -D / 2 + bt + 0.6) * ANG(-0.25, (i - 0.5) * 0.5, 0), lk(pillow, M.Fabric))
 				-- 단추 (누빔)
 				for j = -1, 1 do
 					K:ball("SofaButton", 0.07, pcf * CF(x + j * 0.6, seatTop + 0.8, -D / 2 + bt + 0.47), fabD)
@@ -1964,11 +1964,11 @@ local function buildClothing(K: any, V: any, S: any)
 
 	-- 0) 우리 다운라이트 (맵 조명이 어두운 가운데 통로)
 	for _, pz in { { -3.2, V.z1 - 7 }, { 3.2, (V.z0 + V.z1) / 2 + 2 }, { -3.2, V.z0 + 12 }, { V.x1 - 4.5, V.z0 + 6 } } do
-		litDownlight(K, pz[1], pz[2])
+		litDownlight(K, pz[1], pz[2], Look.neutralLight, 18, 1.25)
 	end
-	-- 벽 진열 (레일 · 큐비) 을 비추는 중성광 월워셔 2 (옷 색이 살게)
-	litDownlight(K, V.x0 + 2.6, (V.z0 + V.z1) / 2 + 3, Look.neutralLight, 16)
-	litDownlight(K, V.x1 - 2.6, (V.z0 + V.z1) / 2 + 6, Look.neutralLight, 16)
+	-- 벽 진열 (레일 · 큐비) 을 비추는 중성광 월워셔 2 (옷 색이 살게): 편집숍은 3500-4000K 로 밝게
+	litDownlight(K, V.x0 + 2.6, (V.z0 + V.z1) / 2 + 3, Look.neutralLight, 18, 1.7)
+	litDownlight(K, V.x1 - 2.6, (V.z0 + V.z1) / 2 + 6, Look.neutralLight, 18, 1.7)
 
 	-- 1) 벽 레일 + 옷 (맵 Rail 자리) --------------------------------------------------------------------
 	for _, rail in recs(V, "Rail") do
@@ -2791,7 +2791,7 @@ local SURF = {
 	white = rgb(248, 248, 244),
 	wood = rgb(176, 136, 92),
 	driftwood = rgb(196, 182, 160),
-	neo = rgb(26, 26, 28),
+	neo = rgb(44, 46, 50),
 }
 
 -- 서프보드: cf = 보드 가운데, X = 폭, Y = 길이 (노즈 +Y), Z = 데크 쪽. o.rail (테두리 색), o.deck (윗면), o.no (번호 글자)
@@ -2867,11 +2867,18 @@ local function surfboard(K: any, cf: CFrame, len: number, w: number, t: number, 
 	local railC = o.rail or SURF.white
 	local rail = lk(railC, M.SmoothPlastic, { r = 0.06 })
 	local out = {}
+	-- 평면: 긴 타원 하나는 코가 연필처럼 뾰족함 -> 코 · 꼬리 쪽에 작은 타원을 겹쳐 둥근 코 (소프트보드 · 롱보드) + 스쿼시 꼬리
+	local round = o.round or 0.62
 	table.insert(out, K:ell("BoardOutline", V3(w, len, t), cf, rail))
+	table.insert(out, K:ell("BoardOutline", V3(w * 0.95, len * round, t * 0.98), cf * CF(0, len * (0.5 - round / 2 - 0.01), 0), rail))
+	table.insert(out, K:ell("BoardOutline", V3(w * 0.9, len * 0.5, t * 0.96), cf * CF(0, -len * 0.235, 0), rail))
 	local lift = 0
 	if o.deck and o.deck ~= railC then
 		-- 소프트보드: 흰 데크 (레일 색 테두리가 남게 조금 작은 타원)
-		table.insert(out, K:ell("BoardDeck", V3(w * 0.84, len * 0.9, t), cf * CF(0, -len * 0.02, 0.014), lk(o.deck, M.SmoothPlastic, { r = 0.03 })))
+		local dk2 = lk(o.deck, M.SmoothPlastic, { r = 0.03 })
+		table.insert(out, K:ell("BoardDeck", V3(w * 0.84, len * 0.9, t), cf * CF(0, -len * 0.02, 0.014), dk2))
+		table.insert(out, K:ell("BoardDeck", V3(w * 0.8, len * 0.9 * round, t * 0.98), cf * CF(0, len * (0.43 - 0.45 * round - 0.01), 0.014), dk2))
+		table.insert(out, K:ell("BoardDeck", V3(w * 0.75, len * 0.44, t * 0.96), cf * CF(0, -len * 0.235, 0.014), dk2))
 		lift = 0.014
 	end
 	local top = t / 2 + lift
@@ -2921,8 +2928,9 @@ end
 -- 웻슈트 (정면 걸이): hook = 레일 점, fdir = 보는 쪽 (방 안쪽)
 local function wetsuit(K: any, hook: Vector3, fdir: Vector3, accent: Color3, kind: string)
 	local g = faceCF(hook, fdir)
-	local neo = lk(SURF.neo, M.Rubber)
-	local acc = lk(accent, M.Rubber)
+	-- 네오프렌: 순검정 고무는 조명 아래 구멍처럼 보임 -> 짙은 차콜 + 살짝 광택 (스무스 네오프렌 가슴판)
+	local neo = lk(SURF.neo, M.SmoothPlastic, { r = 0.04 })
+	local acc = lk(accent, M.SmoothPlastic, { r = 0.03 })
 	K:seg("SuitHook", (g * CF(0, 0.1, -0.05)).Position, (g * CF(0, -0.2, 0)).Position, 0.04, Look.chrome)
 	K:bar("SuitHanger", (g * CF(-0.75, -0.42, 0)).Position, (g * CF(0.75, -0.42, 0)).Position, 0.12, 0.1, lk(rgb(30, 30, 32)))
 	K:ell("SuitShoulders", V3(1.45, 0.5, 0.26), g * CF(0, -0.55, 0), neo)
@@ -4469,10 +4477,62 @@ local PLAQUES: { [string]: { any } } = {
 	surf = { "영업시간 · OPEN", "08:00 - 19:00 (7-8월 06:30 오픈)\n기상 악화 시 강습 · 대여 중단\n카드 · 동백전 · 계좌이체", rgb(0, 150, 160) },
 }
 
+-- GwShop 벽걸이 모니터 (맵 MonitorScreen = 꺼진 흰 판) -> 화면면에 붙는 네온 화면 + 홍보 슬라이드 순환 (프롬프트 없음).
+-- 맵 파트는 그대로 두고 화면 앞 0.004 에 덮개만 (같은 크기). 이름은 MonitorScreen 을 피함 (다른 스크립트가 그 이름을 찾음).
+local MONITOR: { [string]: { any } } = {
+	salon = {
+		{ c = rgb(46, 30, 36), text = "10월 이벤트\n뿌리염색 + 두피 클리닉\n55,000원" },
+		{ c = rgb(30, 34, 44), text = "BEFORE → AFTER\n레이어드 C컬 셋팅펌\n디자이너 김하늘" },
+		{ c = rgb(20, 70, 44), text = "네이버 예약 시\n전 시술 10% 할인\n리뷰 이벤트 진행 중" },
+		{ c = rgb(60, 40, 30), text = "남자 다운펌 25,000원~\n댄디컷 15,000원" },
+	},
+	clothing = {
+		{ c = rgb(24, 28, 40), text = "F/W 2026\nNEW ARRIVAL\n니트 · 가디건 입고" },
+		{ c = rgb(120, 24, 30), text = "SUMMER SALE\n최대 50% OFF\n~ 10.31" },
+		{ c = rgb(84, 64, 24), text = "카카오톡 채널 추가 시\n5% 할인 쿠폰" },
+		{ c = rgb(40, 40, 44), text = "@bada_closet\n오늘의 데일리룩\n인스타 업데이트" },
+	},
+	surf = {
+		{ c = rgb(10, 60, 90), text = "광안리 오늘의 파도\n0.6m · 남동풍 3m/s\n수온 21°C" },
+		{ c = rgb(0, 110, 120), text = "초보 서핑강습\n2시간 · 장비 포함\n60,000원" },
+		{ c = rgb(90, 40, 30), text = "SUP 선셋 투어\n매일 18:00 출발\n광안대교 뷰" },
+		{ c = rgb(30, 30, 34), text = "서핑 후 샤워실\n5,000원 · 수건 포함" },
+	},
+}
+local function shopMonitor(K: any, V: any, slides: { any })
+	for _, r in recs(V, "MonitorScreen") do
+		local sz = r.part.Size
+		if sz.Z > 0.2 or sz.X < 0.8 or sz.Y < 0.5 then
+			continue
+		end
+		local lcf = r.lcf
+		local n = lcf.ZVector
+		local toC = V3(-r.c.X, 0, -r.c.Z)
+		if n:Dot(toC) < 0 then
+			n = -n
+		end
+		local up = lcf.YVector
+		local d = CFrame.fromMatrix(r.c + n * (sz.Z / 2 + 0.004), up:Cross(n), up, n)
+		K:free(function()
+			local scr = K:plate("ShopTVPanel", sz.X - 0.02, sz.Y - 0.02, 0.01, d, nl(slides[1].c))
+			local _, lab = txt(K, "ShopTVText", sz.X - 0.16, sz.Y - 0.16, d * CF(0, 0, 0.012), slides[1].text, rgb(250, 248, 244), nil, F.GothamBlack, 1.6)
+			-- 하단 진행 막대 (영상 재생 느낌)
+			K:plate("ShopTVBar", (sz.X - 0.2) * 0.4, 0.03, 0.006, d * CF(-(sz.X - 0.2) * 0.3, -sz.Y / 2 + 0.07, 0.01), nl(rgb(255, 255, 255)))
+			Interact.screenLoop(K, scr, lab, slides, 6)
+		end)
+	end
+end
+
 function T.build(K: any, V: any, S: any)
 	local b = BUILDERS[V.type]
 	if b then
 		b(K, V, S)
+	end
+	if MONITOR[V.type] then
+		local ok, err = pcall(shopMonitor, K, V, MONITOR[V.type])
+		if not ok then
+			K:note("monitor error: " .. tostring(err))
+		end
 	end
 	-- 남은 벽 자리에 영업시간 · 결제 명판 (다른 진열이 자리를 다 잡은 뒤)
 	local pq = PLAQUES[V.type]

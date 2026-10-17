@@ -375,7 +375,7 @@ function Tracker.onDone(p: any)
 	if p.health then
 		Ui.healthCard(b, p.health, { order = 3, title = "🌿 지금 내 상태" })
 	end
-	Ui.btn(b, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
+	summarySheet.focus = Ui.btn(b, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
 		summarySheet.close()
 	end })
 	summarySheet.open()
@@ -440,11 +440,25 @@ function Tracker.init(c: any)
 	Ui.onLayout(function()
 		local W, H = Ui.size()
 		local w = if W < 760 then 250 else 300
+		local r = Ui.slotRect("topRight")
+		if r then
+			-- the game's "topRight" slot holds its quest tracker / shift card (one 56 px row): ours goes
+			-- right under it, aligned to the slot, never over the right column
+			w = math.clamp(math.floor(r.w), 220, 300)
+			local below = 62 * (Ui.layoutScale() or 1) / Ui.scale()
+			right.AnchorPoint = Vector2.new(1, 0)
+			right.Position = UDim2.fromOffset(r.x + r.w, r.y + below)
+		else
+			right.AnchorPoint = Vector2.new(1, 0)
+			right.Position = UDim2.new(1, -10, 0, if H < 460 then 60 else 96)
+		end
 		right.Size = UDim2.fromOffset(w, 0)
 		for _, f in { card, chip, medsChip } do
 			f.Size = UDim2.fromOffset(w, 0)
 		end
-		right.Position = UDim2.new(1, -10, 0, if H < 460 then 60 else 96)
+	end)
+	Ui.onHud(function(hidden)
+		right.Visible = not (hidden and Ui.isPhone())
 	end)
 	banner = Ui.new("Frame", { Name = "CallBanner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, -90), Size = UDim2.fromOffset(640, 64), BackgroundColor3 = Col.teal, Visible = false, ZIndex = 55 }, gui)
 	Ui.corner(banner, 18)

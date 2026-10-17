@@ -3269,12 +3269,9 @@ local function subwayBuild(ctx: any)
 		if sg then
 			local bw = sw - 0.3
 			local ts = math.min(1, bh / 2.2)
-			local _, bwn = sg, nil
-			local onGreen = false
-			do
-				local u, dd = V:wallCoord("right", sg.Position)
-				onGreen = math.abs(dd) < 0.3 and u == u
-			end
+			-- 초록으로 칠한 오른쪽 벽이면 판을 더 짙은 초록으로 (벽과 구분)
+			local _, ddR = V:wallCoord("right", sg.Position)
+			local onGreen = math.abs(ddR) < 0.3
 			K:panel("FfSubBrandBack", bw, bh, 0.06, 0.12, sg, pl(if onGreen then dark(g, 0.35) else g))
 			K:plate("FfSubBrandStripe", bw - 0.24, 0.1, 0.012, sg * CF(0, -bh / 2 + 0.16, 0.06), pl(P.accent))
 			K:text("FfSubLogo", bw * 0.62, 0.95 * ts, sg * CF(-bw * 0.12, 0.3 * ts, 0.07), "SUBWAY", { fg = WHITE, font = F.GothamBlack, d = 0.02 })

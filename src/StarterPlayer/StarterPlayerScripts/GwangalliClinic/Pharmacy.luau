@@ -170,6 +170,7 @@ function Pharmacy.init(c: any)
 	Ui.onLayout(function()
 		local W = Ui.size()
 		waitCard.Size = UDim2.fromOffset(math.min(380, W - 24), 0)
+		Ui.placeBottom(waitCard, 380, 24)
 	end)
 	bagSheet = Ui.sheet("GwClinic_Bag", { title = "약봉투", w = 500, h = 640 })
 end

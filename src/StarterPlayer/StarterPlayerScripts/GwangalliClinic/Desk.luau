@@ -119,7 +119,7 @@ local function showTicket(v: any)
 		Ui.new("Frame", { BackgroundColor3 = Col.ink, BorderSizePixel = 0, Position = UDim2.fromScale(x, 0), Size = UDim2.new(w, 0, 1, 0) }, bar)
 		x += w + rng:NextNumber(0.004, 0.01)
 	end
-	Ui.btn(b, { text = "대기실에서 기다릴게요", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 2, onClick = function()
+	ticketSheet.focus = Ui.btn(b, { text = "대기실에서 기다릴게요", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 2, onClick = function()
 		ticketSheet.close()
 	end })
 	ticketSheet.open()
@@ -142,10 +142,18 @@ function Desk.openKiosk()
 		Ui.toast(string.format("이미 %s번으로 접수돼 있어요", S.ticket(ctx.visit.ticket)), ctx.visit.stepLabel, "info")
 		return
 	end
+	-- the card shows the REAL state right now (fatigue / illness may have changed since the last event)
+	if ctx.refresh then
+		ctx.refresh()
+		if ctx.visit then
+			Ui.toast(string.format("이미 %s번으로 접수돼 있어요", S.ticket(ctx.visit.ticket)), ctx.visit.stepLabel, "info")
+			return
+		end
+	end
 	kioskSheet.clear()
 	local b = kioskSheet.body
 	local hv = ctx.health or {}
-	kioskSheet.sub.Text = string.format("진료시간 09:00 ~ 22:00 · 야간 당직 진료 %s", if S.isNight() then "중 (야간 가산)" else "")
+	kioskSheet.sub.Text = if S.isNight() then string.format("진료시간 09:00 ~ 22:00 · 지금은 야간 당직 진료 (진찰료 야간 가산 %d%%)", math.floor(C.Fees.NightAddRate * 100)) else "진료시간 09:00 ~ 22:00 · 이후 야간 당직 진료"
 	Ui.healthCard(b, hv, { order = 1, compact = true })
 	if hv.kind then
 		local warn = Ui.card(b, { BackgroundColor3 = Color3.fromRGB(255, 244, 236), LayoutOrder = 2 })
@@ -172,7 +180,7 @@ function Desk.openKiosk()
 		if not first and not disabled then
 			first = btn
 		end
-		btn.Activated:Connect(function()
+		Ui.onActivate(btn, function()
 			if disabled then
 				Ui.sound("error")
 				Ui.toast("아프실 땐 내과 진료부터 받아요", nil, "warn")
@@ -458,7 +466,7 @@ local function showRx(rx: any)
 	rxSheet.title.Text = "처방전을 받았어요"
 	rxSheet.sub.Text = "원내 약국에 제출하세요 · 1층 오른쪽 복도"
 	rxPaper(rxSheet.body, rx, 1)
-	Ui.btn(rxSheet.body, { text = "💊 약국으로 가기", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
+	rxSheet.focus = Ui.btn(rxSheet.body, { text = "💊 약국으로 가기", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 9, onClick = function()
 		rxSheet.close()
 	end })
 	rxSheet.open()
@@ -487,7 +495,7 @@ function Desk.openBill()
 				billSheet.clear()
 				billSheet.title.Text = "영수증"
 				receipt(billSheet.body, r.bill, 1)
-				Ui.btn(billSheet.body, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 90, onClick = function()
+				billSheet.focus = Ui.btn(billSheet.body, { text = "확인", style = "primary", size = UDim2.new(1, 0, 0, 48), order = 90, onClick = function()
 					billSheet.close()
 				end })
 				billSheet.open()

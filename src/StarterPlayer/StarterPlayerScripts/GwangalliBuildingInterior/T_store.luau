@@ -1194,8 +1194,14 @@ local function fillInside(K: any, r: any, front: Vector3, catName: string, rng: 
 		used += item(K, base, setmetatable({ w = w * 0.92, d = fd, stackN = sn }, { __index = sku }), col, lab, hh * sn, lv)
 	end
 	if backD > 0.08 then
-		K:box("StBackStock", V3(len * 0.96, hh * sn * 0.96, backD), cf * CF(0, 0.005 + hh * sn * 0.48, -fd - 0.06 - backD / 2), lk(darker(col, 0.12)))
-		used += 1
+		-- 뒤 재고: 앞줄과 같은 깊이의 줄 1~2개 (줄 사이 틈 0.07 · 뒤로 갈수록 어둡게)
+		local rows = math.clamp(math.floor((backD + 0.07) / (fd + 0.07)), 1, 2)
+		local rd = (backD - 0.07 * (rows - 1)) / rows
+		for ri = 1, rows do
+			local z = -fd - 0.06 - (ri - 1) * (rd + 0.07) - rd / 2
+			K:box("StBackStock", V3(len * 0.96, hh * sn * (0.97 - ri * 0.02), rd), cf * CF(0, 0.005 + hh * sn * (0.97 - ri * 0.02) / 2, z), lk(darker(col, 0.14 * ri)))
+			used += 1
+		end
 	end
 	return used
 end
@@ -1216,9 +1222,10 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, title: string, 
 	if band then
 		K:plate("StPosterBand", w, th, 0.04, d0 * CF(0, h / 2 - th / 2, 0), lk(band))
 	end
-	txt(K, "StPosterTitle", w * 0.92, th * 0.82, d0 * CF(0, h / 2 - th / 2, 0.041), title, bandFg or fg, nil, { font = oo.font or Enum.Font.GothamBlack })
+	-- 글자판 배경 = 밑판 색 (불투명): 실제 게임에선 똑같고, 글자 대비가 흐려지지 않음
+	txt(K, "StPosterTitle", w * 0.92, th * 0.82, d0 * CF(0, h / 2 - th / 2, 0.041), title, bandFg or fg, band or bg, { font = oo.font or Enum.Font.GothamBlack })
 	if body then
-		txt(K, "StPosterBody", w * 0.88, (h - th) * 0.86, d0 * CF(0, -th / 2, 0.036), body, fg, nil, { font = oo.bodyFont or Enum.Font.GothamBold })
+		txt(K, "StPosterBody", w * 0.88, (h - th) * 0.86, d0 * CF(0, -th / 2, 0.036), body, fg, bg, { font = oo.bodyFont or Enum.Font.GothamBold })
 	end
 end
 
@@ -2188,13 +2195,20 @@ local function ramenCorner(K: any, V: any, B: any)
 			local zc = cnt0.max.Z - 0.62
 			local sc = CF(sinkX, y, zc)
 			K:free(function()
-				K:box("StSoupSinkRim", V3(1.0, 0.05, 0.9), sc * CF(0, 0.025, 0), Look.steel)
-				K:box("StSoupSinkBasin", V3(0.78, 0.012, 0.68), sc * CF(0, 0.056, 0), lk(C(60, 64, 70), M.Metal))
-				K:box("StSoupSinkGrate", V3(0.5, 0.012, 0.42), sc * CF(0, 0.066, 0), lk(C(170, 172, 176), M.DiamondPlate))
-				K:vcyl("StSoupSinkDrain", 0.014, 0.16, sc * CF(0, 0.072, 0), lk(C(30, 30, 32), M.Metal))
-				K:box("StSoupSinkBack", V3(1.0, 0.55, 0.05), sc * CF(0, 0.3, -0.43), Look.steel)
-				txt(K, "StSoupSinkLabel", 0.9, 0.42, sc * CF(0, 0.32, -0.402), "국물 버리는 곳\n건더기는 거름망에", WHITE, C(200, 40, 40), { d = 0.01, font = Enum.Font.GothamBold })
+				-- 상판에 얹힌 스테인리스 개수대: 밝은 테두리 + 회색 수조 + 둥근 거름망 바구니 + 배수구
+				K:box("StSoupSinkRim", V3(1.0, 0.05, 0.86), sc * CF(0, 0.025, 0), Look.chrome)
+				K:box("StSoupSinkBasin", V3(0.8, 0.012, 0.66), sc * CF(0, 0.056, 0), lk(C(128, 132, 138), M.Metal))
+				K:vcyl("StSoupSinkBasket", 0.08, 0.34, sc * CF(0, 0.1, 0), lk(C(196, 198, 202), M.DiamondPlate))
+				K:vcyl("StSoupSinkBasketRim", 0.02, 0.38, sc * CF(0, 0.145, 0), Look.chrome)
+				if K.detail ~= "low" then
+					K:vcyl("StSoupSinkDrain", 0.012, 0.12, sc * CF(0.26, 0.068, 0.2), lk(C(40, 42, 46), M.Metal))
+				end
 			end)
+			-- 안내판은 바로 뒤 벽에 (흰 바탕 · 빨간 머리띠)
+			local u = sinkX - (V.x0 + V.x1) / 2
+			local wd = V:wall("back", u, y + 0.72, 0.03)
+			txt(K, "StSoupSinkSignHead", 1.0, 0.18, wd * CF(0, 0.16, 0.012), "국물 버리는 곳", WHITE, C(200, 40, 40), { d = 0.012, font = Enum.Font.GothamBlack, free = true })
+			txt(K, "StSoupSinkSign", 1.0, 0.26, wd * CF(0, -0.05, 0), "건더기는 거름망에 · 용기는 분리수거", C(200, 40, 40), C(252, 252, 250), { d = 0.012, font = Enum.Font.GothamBold, free = true })
 		end
 	end
 end
@@ -2523,7 +2537,7 @@ local function buildCvs(K: any, V: any, S: any, brand: string)
 				K:ball("StUmbHandle", 0.13, CF(top), lk(C(40, 30, 24), M.Wood))
 			end
 		end
-		txt(K, "StUmbPOP", 0.66, 0.46, pcf * CF(0, 0.9, 0.45), "장우산 9,900\n3단 12,000", INK, C(250, 250, 248), { d = 0.02, font = Enum.Font.GothamBold })
+		txt(K, "StUmbPOP", 0.56, 0.42, pcf * CF(0, 0.9, 0.44), "장우산 9,900\n3단 12,000", INK, C(250, 250, 248), { d = 0.02, font = Enum.Font.GothamBold })
 	end)
 	fixturesNow(K, V, S)
 	-- 천장 POP (진열대 위 · 입구 쪽을 봄)
@@ -3136,6 +3150,13 @@ local function buildRetail(K: any, V: any, S: any, sub: string)
 							end
 							local sub2 = { cf = s.cf * CF(-s.len / 2 + bw * (bi - 0.5), 0, 0), len = bw - 0.16, depth = s.depth, clear = s.clear, rail = s.rail, level = s.level, levels = s.levels }
 							queueFill(K, sub2, faceCat[key], V.key .. key .. (s.level or 0), theme, { obst = obst, scale = 1.15, facing = 2 })
+							-- 브랜드 존 뒷판 (같은 블록은 모든 단이 같은 색 = 세로 브랜드 기둥): 라운드랩 하늘 · 아누아 베이지 · 메디힐 민트 · 롬앤 핑크 · 클리오 블랙 ...
+							local ph = math.min(s.clear - 0.14, 1.3)
+							if ph > 0.4 and s.depth > 0.6 then
+								local BB = { C(214, 232, 246), C(238, 228, 214), C(218, 240, 226), C(248, 222, 230), C(234, 234, 238), C(44, 44, 48), C(250, 242, 204), C(226, 220, 244) }
+								local bc = BB[(hashStr(key) % #BB) + 1]
+								K:plate("StBrandBack", bw - 0.3, ph, 0.02, sub2.cf * CF(0, 0.02 + ph / 2, -s.depth + 0.03), lk(bc))
+							end
 						end
 					else
 						if not faceCat[s.face] then

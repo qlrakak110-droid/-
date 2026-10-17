@@ -404,7 +404,7 @@ local function showPlans(v: any, token: number)
 		if not first and not disabled then
 			first = cardBtn
 		end
-		cardBtn.Activated:Connect(function()
+		Ui.onActivate(cardBtn, function()
 			if sending then
 				return
 			end
@@ -642,8 +642,11 @@ function Consult.init(c: any)
 	Ui.onLayout(function()
 		local W, H = Ui.size()
 		panel.Size = UDim2.fromOffset(math.min(420, W - 24), 150)
-		panel.Position = UDim2.new(0.5, 0, 1, if H < 480 then -176 else -196)
+		Ui.placeBottom(panel, 420, if H < 480 then 176 else 196)
 		vitalsCard.Size = UDim2.fromOffset(if W < 760 then 200 else 250, 0)
+		-- the vitals card sits under the game's top-left chips when the layout module tells us where
+		local tl = Ui.slotRect("topLeftChips")
+		vitalsCard.Position = UDim2.fromOffset(12, if tl then tl.y + tl.h + 8 else 96)
 	end)
 	dxSheet = Ui.sheet("GwClinic_Dx", { title = "진단 결과", w = 560, h = 660, sticky = true })
 	planSheet = Ui.sheet("GwClinic_Plan", { title = "치료 계획", w = 560, h = 640, sticky = true })

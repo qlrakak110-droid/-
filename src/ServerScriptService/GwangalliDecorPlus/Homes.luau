@@ -199,8 +199,8 @@ local function prompt(H: any, b: any, def: any, what: string, action: string, sl
 	if at then
 		local a = Instance.new("Attachment")
 		a.Name = "DPPrompt_" .. what
-		a.WorldPosition = at
 		a.Parent = hit
+		a.WorldPosition = at
 		host = a
 	end
 	local pr = Instance.new("ProximityPrompt")
@@ -300,6 +300,7 @@ local function build(H: any, rec: any): any?
 	model:SetAttribute("PlaceKind", def.place)
 	model:SetAttribute("Look", lookAttr(rec))
 	model:SetAttribute("LampOn", rec.on ~= false)
+	model:SetAttribute("Pivot", pivot)
 	if #extra.screens > 0 then
 		model:SetAttribute("On", false)
 		model:SetAttribute("Channel", 1)
@@ -406,6 +407,7 @@ function Homes.move(H: any, uid: number, fx: any)
 			build(H, rec)
 		else
 			b.pivot = pivot
+			b.model:SetAttribute("Pivot", pivot)
 		end
 		promptLabels(b, rec)
 	else
