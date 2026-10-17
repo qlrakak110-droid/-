@@ -237,7 +237,7 @@ return function(D: any)
 
 	D.item({
 		id = "hb_karaoke", cat = "hobby", name = "가정용 노래방 기계 + 마이크", price = 980000, decor = 5, style = "trendy", place = "floor",
-		size = { 2.6, 3.2, 1.8 }, tags = { "노래방", "마이크", "노래", "파티" }, light = "magenta", glow = true,
+		size = { 2.6, 3.2, 1.8 }, tags = { "노래방", "마이크", "노래", "파티" }, light = "magenta", glow = true, toggle = false,
 		slots = { S("body", "본체", "black", { "gloss", "plastic" }) },
 		build = function(k, W, H, Dp)
 			local body = k:box("Cabinet", W, 2.2, Dp, 0, 1.1, 0, "body", { solid = true, top = true })

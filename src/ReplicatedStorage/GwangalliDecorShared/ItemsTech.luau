@@ -47,7 +47,7 @@ return function(D: any)
 	-- 게임 콘솔 ------------------------------------------------------------------------------------
 	D.item({
 		id = "tc_console", cat = "tech", name = "게임 콘솔 + 듀얼 패드", price = 690000, decor = 3, style = "trendy", place = "surface",
-		size = { 1.6, 1.4, 1.0 }, tags = { "게임기", "콘솔", "게임" }, light = "blue", glow = true,
+		size = { 1.6, 1.4, 1.0 }, tags = { "게임기", "콘솔", "게임" }, light = "blue", glow = true, toggle = false,
 		slots = { S("body", "본체", "white", { "gloss", "plastic" }) },
 		build = function(k, W, H, Dp)
 			k:box("Body", 0.5, 1.35, 0.95, -0.5, 0.675, 0, "body", { solid = true })
@@ -65,7 +65,7 @@ return function(D: any)
 	-- 톨보이 스피커 --------------------------------------------------------------------------------
 	D.item({
 		id = "tc_speaker_tower", cat = "tech", name = "톨보이 스피커 (블루투스)", price = 890000, decor = 4, style = "classic", place = "floor",
-		size = { 1.4, 4.4, 1.6 }, tags = { "스피커", "음악", "오디오" }, light = "amber", glow = true,
+		size = { 1.4, 4.4, 1.6 }, tags = { "스피커", "음악", "오디오" }, light = "amber", glow = true, toggle = false,
 		slots = { S("wood", "인클로저", "walnut", { "wood", "gloss", "plastic" }), S("grille", "그릴", "charcoal", { "fabric", "metal" }) },
 		build = function(k, W, H, Dp)
 			k:box("Plinth", W + 0.1, 0.15, Dp + 0.1, 0, 0.075, 0, k:lit({ 30, 30, 34 }, "metal"))
@@ -84,7 +84,7 @@ return function(D: any)
 	-- 블루투스 스피커 ------------------------------------------------------------------------------
 	D.item({
 		id = "tc_speaker_bt", cat = "tech", name = "패브릭 블루투스 스피커", price = 159000, decor = 2, style = "modern", place = "surface",
-		size = { 1.4, 0.9, 0.7 }, tags = { "스피커", "음악", "블루투스" }, light = "warm", glow = true,
+		size = { 1.4, 0.9, 0.7 }, tags = { "스피커", "음악", "블루투스" }, light = "warm", glow = true, toggle = false,
 		slots = { S("fabric", "패브릭", "greige", { "fabric" }), S("trim", "테두리", "gold", { "metal", "brushed" }) },
 		build = function(k, W, H, Dp)
 			local body = k:box("Body", W, H - 0.05, Dp, 0, (H - 0.05) / 2 + 0.05, 0, "fabric", { solid = true })
@@ -116,7 +116,7 @@ return function(D: any)
 	-- 로봇청소기 -----------------------------------------------------------------------------------
 	D.item({
 		id = "tc_robot_vacuum", cat = "tech", name = "로봇청소기 + 스테이션", price = 1290000, decor = 2, style = "modern", place = "floor",
-		size = { 1.8, 1.8, 1.6 }, tags = { "로봇청소기", "청소기", "가전" }, light = "cool", glow = true,
+		size = { 1.8, 1.8, 1.6 }, tags = { "로봇청소기", "청소기", "가전" }, light = "cool", glow = true, toggle = false,
 		slots = { S("body", "본체", "white", { "gloss", "plastic" }) },
 		build = function(k, W, H, Dp)
 			k:box("Station", 1.5, 1.7, 0.9, 0, 0.85, 0.35, "body", { solid = true })
@@ -131,7 +131,7 @@ return function(D: any)
 	-- 공기청정기 -----------------------------------------------------------------------------------
 	D.item({
 		id = "tc_air_purifier", cat = "tech", name = "타워형 공기청정기", price = 590000, decor = 2, style = "modern", place = "floor",
-		size = { 1.2, 3.4, 1.2 }, tags = { "공기청정기", "가전", "미세먼지" }, light = "green", glow = true,
+		size = { 1.2, 3.4, 1.2 }, tags = { "공기청정기", "가전", "미세먼지" }, light = "green", glow = true, toggle = false,
 		slots = { S("body", "본체", "white", { "gloss", "plastic", "brushed" }) },
 		build = function(k, W, H, Dp)
 			k:cyl("Body", H - 0.3, 1.15, 0, (H - 0.3) / 2, 0, "y", "body", { solid = true })
@@ -185,7 +185,7 @@ return function(D: any)
 	-- 스탠드 에어컨 --------------------------------------------------------------------------------
 	D.item({
 		id = "tc_aircon", cat = "tech", name = "스탠드 에어컨", price = 2100000, decor = 2, style = "modern", place = "floor",
-		size = { 1.8, 5.8, 1.2 }, tags = { "에어컨", "가전", "여름" }, light = "cool", glow = true,
+		size = { 1.8, 5.8, 1.2 }, tags = { "에어컨", "가전", "여름" }, light = "cool", glow = true, toggle = false,
 		slots = { S("body", "본체", "white", { "gloss", "plastic", "brushed" }) },
 		build = function(k, W, H, Dp)
 			k:box("Body", W, H, Dp, 0, H / 2, 0, "body", { solid = true })

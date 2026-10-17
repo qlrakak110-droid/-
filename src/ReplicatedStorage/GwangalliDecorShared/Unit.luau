@@ -163,7 +163,15 @@ function Unit.scan(model: Instance): any?
 			local sid = s:GetAttribute("SlotId")
 			if type(sid) == "string" then
 				local base = (s :: any).PrimaryPart or s:FindFirstChild("SlotBase")
-				if base and base:IsA("BasePart") then
+				-- an emptied slot (piece sold / stored through 🛠️ 인테리어) frees its space
+				local filled = false
+				for _, dd in s:GetDescendants() do
+					if dd:IsA("BasePart") and dd ~= base then
+						filled = true
+						break
+					end
+				end
+				if base and base:IsA("BasePart") and filled then
 					local fp = s:GetAttribute("Footprint")
 					local w, h, d
 					if typeof(fp) == "Vector3" then

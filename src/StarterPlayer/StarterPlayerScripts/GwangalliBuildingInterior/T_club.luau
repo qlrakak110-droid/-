@@ -9,7 +9,7 @@ local Interact = require(script.Parent:WaitForChild("Interact"))
 local Common = require(script.Parent:WaitForChild("Common"))
 
 local T = {}
-T.types = { "clublounge", "rooftop", "hiphop" }
+T.types = { "clublounge", "rooftop", "hiphop", "clublobby", "clubtunnel", "clubmain" }
 
 function T.style(V: any): any
 	-- 기본: 기존 가구는 그대로, 천장 설비만 (모듈을 채우면서 바꿈)

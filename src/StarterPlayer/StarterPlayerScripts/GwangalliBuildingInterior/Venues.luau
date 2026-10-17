@@ -66,6 +66,9 @@ Venues.LIST = {
 		{ room = "corridor", type = "corridor", center = Vector3.new(-167.0, 7.0, 302.2), size = Vector3.new(18.1, 10.5, 76.3), face = "+Z", noDoorGuess = true, name = "CLUB OCEAN 복도" },
 		{ room = "wc_f", type = "restroom", center = Vector3.new(-196.8, 7.0, 280.3), size = Vector3.new(41.3, 10.5, 19.6), face = "+X", noDoorGuess = true, name = "여자 화장실" },
 		{ room = "wc_m", type = "restroom", center = Vector3.new(-197.0, 7.0, 301.8), size = Vector3.new(41.3, 10.5, 20.6), face = "+X", noDoorGuess = true, name = "남자 화장실" },
+		{ room = "lobby", type = "clublobby", center = Vector3.new(-184.9, 7.0, 376.0), size = Vector3.new(15.4, 10.5, 62.2), face = "-X", noDoorGuess = true, name = "CLUB OCEAN 로비" },
+		{ room = "tunnel", type = "clubtunnel", center = Vector3.new(-202.0, 7.0, 375.8), size = Vector3.new(19.7, 9.5, 12.3), face = "-X", noDoorGuess = true, name = "CLUB OCEAN 입장 터널" },
+		{ room = "main", type = "clubmain", center = Vector3.new(-124.2, 7.0, 376.9), size = Vector3.new(106.0, 25.5, 71.6), face = "-X", noDoorGuess = true, name = "CLUB OCEAN 메인홀" },
 	} },
 	{ group = "hospital", name = "광안 메디컬 의원", rooms = {
 		{ room = "lobby", type = "clinic_lobby", center = Vector3.new(-504.5, 6.9, 278.3), size = Vector3.new(47.0, 11.05, 25.5), face = "-Z", name = "광안 메디컬 의원 접수" },

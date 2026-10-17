@@ -47,7 +47,7 @@ function Score.facts(ctx: any): any
 			if def.cat == "plants" or table.find(def.tags, "식물") then
 				f.plants += 1
 			end
-			if Catalog.lightCount(rec.i) > 0 or def.glow then
+			if (Catalog.lightCount(rec.i) > 0 or def.glow) and def.toggle ~= false then
 				f.lamps += 1
 				if rec.on ~= false then
 					f.lampsOn += 1

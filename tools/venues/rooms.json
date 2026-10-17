@@ -862,6 +862,57 @@
      "face": "+X",
      "noDoorGuess": true,
      "name": "남자 화장실"
+    },
+    {
+     "room": "lobby",
+     "type": "clublobby",
+     "center": [
+      -184.9,
+      7.0,
+      376.0
+     ],
+     "size": [
+      15.4,
+      10.5,
+      62.2
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "CLUB OCEAN 로비"
+    },
+    {
+     "room": "tunnel",
+     "type": "clubtunnel",
+     "center": [
+      -202.0,
+      7.0,
+      375.8
+     ],
+     "size": [
+      19.7,
+      9.5,
+      12.3
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "CLUB OCEAN 입장 터널"
+    },
+    {
+     "room": "main",
+     "type": "clubmain",
+     "center": [
+      -124.2,
+      7.0,
+      376.9
+     ],
+     "size": [
+      106.0,
+      25.5,
+      71.6
+     ],
+     "face": "-X",
+     "noDoorGuess": true,
+     "name": "CLUB OCEAN 메인홀"
     }
    ]
   },

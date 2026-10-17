@@ -103,7 +103,8 @@ type Rec = {
 local recs: { [any]: Rec } = {} -- 매장: Model 키, 큰 시설의 방: spec.key 문자열 키
 local SKIP_ROOTS = { "club", "bowling", "garage", "hospital", "homes", "npcnav", "zones" }
 
-local function skipped(m: Instance): boolean
+-- venue = true: 큰 시설의 방 (Venues.luau) 은 SKIP_ROOTS 아래에 있어도 지음 (SKIP_ROOTS 는 그 안의 '거리 매장' 오검출만 막음)
+local function skipped(m: Instance, venue: boolean?): boolean
 	if m:GetAttribute("GwInterior") == false or m:GetAttribute("ShopLife") == false then
 		return true
 	end
@@ -111,7 +112,7 @@ local function skipped(m: Instance): boolean
 		return true
 	end
 	local g = Workspace:FindFirstChild("Gwangalli")
-	if g then
+	if g and not venue then
 		for _, n in SKIP_ROOTS do
 			local r = g:FindFirstChild(n)
 			if r and m:IsDescendantOf(r) then
@@ -232,7 +233,7 @@ end
 local function venueScan()
 	for _, f in Venues.find() do
 		local spec = Venues.spec(f.model, f.venue, f.room)
-		if not recs[spec.key] and not skipped(f.model) then
+		if not recs[spec.key] and not skipped(f.model, true) then
 			local r = f.room
 			local rec: Rec = { model = f.model, spec = spec, room = r, building = false, failedAt = -1e9, nParts = 0, conns = {} }
 			rec.center = r.center + Vector3.new(0, 4, 0)
