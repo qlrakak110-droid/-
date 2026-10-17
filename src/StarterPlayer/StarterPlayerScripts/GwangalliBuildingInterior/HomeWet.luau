@@ -788,24 +788,51 @@ local function towelStack(C: any, pcf: CFrame, w: number, d: number, n: number, 
 end
 
 -- 운동화 한 짝 (pcf = 바닥, +Z = 앞코), 길이 L, 폭 w
+--   겉창 + 흰 미드솔 (두툼) + 토캡 · 고무 앞코 · 갑피 · 뒤축 (힐 카운터) · 발목 칼라 · 혀 · 끈 3 줄 · 옆 로고 · 뒤 탭
 local function sneaker(C: any, pcf: CFrame, L: number, w: number, upper: any, sole: any, accent: any?)
-	C:rbox("ShoeSole", V3(w, 0.1, L), 0.04, pcf * CF(0, 0.05, 0), sole)
-	C:ell("ShoeToe", V3(w * 0.96, 0.24, L * 0.42), pcf * CF(0, 0.15, L * 0.27), upper)
-	C:rbox("ShoeUpper", V3(w * 0.94, 0.26, L * 0.58), 0.1, pcf * CF(0, 0.22, -L * 0.14), upper)
-	C:ell("ShoeHeel", V3(w * 0.9, 0.34, L * 0.3), pcf * CF(0, 0.26, -L * 0.33), upper)
-	C:box("ShoeOpening", V3(w * 0.6, 0.02, L * 0.3), pcf * CF(0, 0.355, -L * 0.18), lk(40, 40, 42, M.Fabric))
+	local outC = if (sole.c.R + sole.c.G + sole.c.B) / 3 > 0.7 then lk(70, 66, 62, M.Rubber) else lk(30, 30, 32, M.Rubber)
+	C:rbox("ShoeOutsole", V3(w, 0.04, L), 0.05, pcf * CF(0, 0.02, 0), outC)
+	C:rbox("ShoeSole", V3(w * 0.99, 0.1, L * 0.99), 0.06, pcf * CF(0, 0.09, -L * 0.005), sole)
+	C:ell("ShoeToe", V3(w * 0.94, 0.22, L * 0.42), pcf * CF(0, 0.17, L * 0.27), upper)
+	C:ell("ShoeToeBumper", V3(w * 0.86, 0.1, L * 0.16), pcf * CF(0, 0.16, L * 0.43), sole)
+	C:rbox("ShoeUpper", V3(w * 0.92, 0.24, L * 0.5), 0.09, pcf * CF(0, 0.25, -L * 0.08), upper)
+	C:rbox("ShoeHeel", V3(w * 0.9, 0.3, L * 0.28), 0.1, pcf * CF(0, 0.29, -L * 0.34), upper)
+	C:ell("ShoeOpening", V3(w * 0.6, 0.03, L * 0.3), pcf * CF(0, 0.44, -L * 0.24), lk(40, 40, 42, M.Fabric))
+	if C.lo then
+		return
+	end
+	-- 혀 (발등에서 뒤로 비스듬히) + 끈
+	C:box("ShoeTongue", V3(w * 0.42, 0.05, L * 0.2), pcf * CF(0, 0.42, -L * 0.1) * ANG(math.rad(22), 0, 0), upper)
+	local laceC = if (upper.c.R + upper.c.G + upper.c.B) / 3 > 0.6 then lk(250, 250, 248, M.Fabric) else lk(36, 36, 38, M.Fabric)
+	for k = 0, 2 do
+		local z = L * (0.13 - k * 0.075)
+		C:box("ShoeLace", V3(w * 0.5, 0.025, 0.035), pcf * CF(0, 0.37 + k * 0.012 - (if k == 0 then 0.02 else 0), z) * ANG(math.rad(-16), 0, 0), laceC)
+	end
+	-- 뒤 탭 (힐 카운터 위)
+	C:box("ShoeHeelTab", V3(w * 0.3, 0.12, 0.04), pcf * CF(0, 0.46, -L * 0.48) * ANG(math.rad(-10), 0, 0), accent or upper)
 	if accent and C.hi then
-		C:box("ShoeSwoosh", V3(w * 0.97, 0.05, L * 0.4), pcf * CF(0, 0.2, -L * 0.05) * ANG(math.rad(-8), 0, 0), accent)
-		C:box("ShoeLace", V3(w * 0.4, 0.03, L * 0.22), pcf * CF(0, 0.33, L * 0.04) * ANG(math.rad(-14), 0, 0), lk(250, 250, 248, M.Fabric))
+		-- 옆 로고 띠 (바깥 · 안쪽)
+		for _, sx in { -1, 1 } do
+			C:box("ShoeSwoosh", V3(0.012, 0.06, L * 0.36), pcf * CF(sx * w * 0.465, 0.24, -L * 0.1) * ANG(math.rad(-9), 0, 0), accent)
+		end
 	end
 end
--- 구두 · 로퍼 한 짝
+-- 구두 · 로퍼 한 짝 (얇은 가죽 밑창 + 굽 + 뾰족한 앞코 + 낮은 갑피 + 웰트 + 로퍼 띠)
 local function dressShoe(C: any, pcf: CFrame, L: number, w: number, leather: any)
-	C:rbox("ShoeSole", V3(w, 0.06, L), 0.04, pcf * CF(0, 0.03, 0), lk(40, 30, 24, M.Rubber))
-	C:box("ShoeHeelBlock", V3(w * 0.86, 0.1, L * 0.22), pcf * CF(0, 0.05, -L * 0.38), lk(40, 30, 24, M.Rubber))
-	C:ell("ShoeToe", V3(w * 0.94, 0.2, L * 0.5), pcf * CF(0, 0.12, L * 0.22), leather)
-	C:rbox("ShoeUpper", V3(w * 0.9, 0.22, L * 0.55), 0.09, pcf * CF(0, 0.17, -L * 0.17), leather)
-	C:box("ShoeOpening", V3(w * 0.62, 0.02, L * 0.34), pcf * CF(0, 0.285, -L * 0.2), lk(70, 50, 36, M.Leather))
+	local soleC = lk(46, 34, 26, M.Leather)
+	C:rbox("ShoeSole", V3(w * 0.98, 0.05, L), 0.05, pcf * CF(0, 0.075, 0), soleC)
+	C:box("ShoeHeelBlock", V3(w * 0.82, 0.1, L * 0.24), pcf * CF(0, 0.05, -L * 0.37), lk(30, 24, 20, M.Rubber))
+	C:box("ShoeWaist", V3(w * 0.5, 0.05, L * 0.3), pcf * CF(0, 0.07, -L * 0.1), soleC)
+	C:ell("ShoeToe", V3(w * 0.9, 0.17, L * 0.5), pcf * CF(0, 0.15, L * 0.22), leather)
+	C:rbox("ShoeUpper", V3(w * 0.88, 0.2, L * 0.46), 0.08, pcf * CF(0, 0.2, -L * 0.15), leather)
+	C:rbox("ShoeHeel", V3(w * 0.86, 0.24, L * 0.22), 0.08, pcf * CF(0, 0.22, -L * 0.38), leather)
+	C:ell("ShoeOpening", V3(w * 0.62, 0.03, L * 0.32), pcf * CF(0, 0.31, -L * 0.22), lk(70, 50, 36, M.Leather))
+	if C.hi then
+		C:box("ShoeWelt", V3(w * 1.0, 0.015, L * 0.62), pcf * CF(0, 0.105, L * 0.12), col(shade(leather.c, -0.25), M.Leather))
+		-- 로퍼 페니 띠 + 발등 박음질 선
+		C:box("ShoeStrap", V3(w * 0.84, 0.035, 0.08), pcf * CF(0, 0.3, L * 0.04) * ANG(math.rad(-12), 0, 0), col(shade(leather.c, -0.18), M.Leather))
+		C:box("ShoeShine", V3(w * 0.3, 0.012, L * 0.14), pcf * CF(w * 0.12, 0.235, L * 0.3) * ANG(math.rad(-20), 0, 0), col(shade(leather.c, 0.35), M.SmoothPlastic, { r = 0.15 }))
+	end
 end
 -- 삼선 슬리퍼 / 욕실화 한 짝
 local function slipper(C: any, pcf: CFrame, L: number, w: number, sole: any, strap: any, stripes: boolean?)
@@ -3244,34 +3271,41 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 		local items = {}
 		local free = {}
 		-- 볼과 수전 사이 빈 칸 찾기 (x 구간)
-		local occ = {}
-		-- 볼 뒤 (벽 쪽) 띠가 깊으면 (원룸 · 오피스텔 탑볼) 그 띠에 놓음: 수전 자리만 피함
+		-- 볼 양옆 빈 칸 → 없으면 볼 뒤 (벽 쪽) 띠 (원룸 · 오피스텔 탑볼): 수전 자리만 피함
 		local backStrip = math.huge
 		for _, q in basinCs do
 			backStrip = math.min(backStrip, q.back)
 		end
-		local useBack = #basinCs > 0 and backStrip >= 0.34 and backStrip < 1.2
-		if useBack then
+		local function spans(occ: { any }): { any }
+			local out = {}
+			table.sort(occ, function(p, q)
+				return p[1] < q[1]
+			end)
+			local cur = a.X + 0.1
+			for _, o in occ do
+				if o[1] - cur > 0.35 then
+					table.insert(out, { cur, o[1] })
+				end
+				cur = math.max(cur, o[2])
+			end
+			if b.X - 0.1 - cur > 0.35 then
+				table.insert(out, { cur, b.X - 0.1 })
+			end
+			return out
+		end
+		local occ = {}
+		for _, q in basinCs do
+			table.insert(occ, { q.cx - 0.85, q.cx + 0.85 })
+		end
+		free = spans(occ)
+		local useBack = false
+		if #free == 0 and #basinCs > 0 and backStrip >= 0.34 and backStrip < 1.2 then
+			local focc = {}
 			for _, fx in faucetXs do
-				table.insert(occ, { fx - 0.32, fx + 0.32 })
+				table.insert(focc, { fx - 0.32, fx + 0.32 })
 			end
-		else
-			for _, q in basinCs do
-				table.insert(occ, { q.cx - 0.85, q.cx + 0.85 })
-			end
-		end
-		table.sort(occ, function(p, q)
-			return p[1] < q[1]
-		end)
-		local cur = a.X + 0.1
-		for _, o in occ do
-			if o[1] - cur > 0.35 then
-				table.insert(free, { cur, o[1] })
-			end
-			cur = math.max(cur, o[2])
-		end
-		if b.X - 0.1 - cur > 0.35 then
-			table.insert(free, { cur, b.X - 0.1 })
+			free = spans(focc)
+			useBack = true
 		end
 		local y = topY
 		local zb = if useBack then math.clamp(backStrip / 2, 0.16, 0.3) else 0.3
@@ -3474,18 +3508,30 @@ local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: V
 		wx0, wx1 = -1.5, 1.5
 	end
 	local shelfX = if wx1 > -wx0 then wx1 - 0.5 else wx0 + 0.5
+	local cands = { shelfX }
 	if trays[1] then
 		local a, b = lp(trays[1])
-		shelfX = if math.abs(a.X) > math.abs(b.X) then a.X + 0.45 else b.X - 0.45
+		local far = if math.abs(a.X) > math.abs(b.X) then a.X + 0.45 else b.X - 0.45
+		local near_ = if math.abs(a.X) > math.abs(b.X) then b.X - 0.45 else a.X + 0.45
+		-- 유리 칸막이 · 기둥에 걸리면 조금 안쪽 · 반대쪽 끝
+		cands = { far, near_, far - math.sign(far) * 0.15, near_ - math.sign(near_) * 0.15 }
 	end
-	shelfX = math.clamp(shelfX, wx0 + 0.45, wx1 - 0.45)
-	local ok1 = math.abs(shelfX) > 0.7 and P:claim(CF(shelfX, 4.5, 0.25), V3(0.85, 1.3, 0.5), "wall")
+	local ok1 = false
+	for _, cx in cands do
+		cx = math.clamp(cx, wx0 + 0.45, wx1 - 0.45)
+		if math.abs(cx) > 0.7 and P:claim(CF(cx, 4.5, 0.25), V3(0.85, 1.3, 0.5), "wall") then
+			shelfX, ok1 = cx, true
+			break
+		end
+	end
 	if ok1 then
 		local sw = 0.8
+		for _, sx in { -1, 1 } do
+			P:box("ShowerCaddyBack", V3(0.04, 1.0, 0.04), CF(shelfX + sx * (sw / 2 - 0.05), 4.55, 0.03), metal)
+		end
 		for j, sy in { 4.1, 4.95 } do
 			P:box("ShowerCaddyShelf", V3(sw, 0.04, 0.42), CF(shelfX, sy, 0.23), metal)
 			P:box("ShowerCaddyLip", V3(sw, 0.1, 0.02), CF(shelfX, sy + 0.05, 0.43), metal)
-			P:box("ShowerCaddyBack", V3(0.04, 1.0, 0.04), CF(shelfX + (if shelfX > 0 then sw / 2 - 0.05 else -sw / 2 + 0.05), 4.5, 0.03), metal)
 			if j == 1 then
 				bottle(P, CF(shelfX - 0.2, sy + 0.02, 0.22), 0.85, 0.26, lk(40, 60, 110, M.SmoothPlastic, { r = 0.05 }), LK.black, C3(240, 240, 236), "샴푸", { pump = true })
 				bottle(P, CF(shelfX + 0.15, sy + 0.02, 0.22), 0.78, 0.24, lk(236, 170, 190, M.SmoothPlastic, { r = 0.05 }), LK.white, C3(250, 240, 244), "린스", { pump = true })
@@ -5147,9 +5193,15 @@ local function entryClutter(C: any)
 			if p then
 				local q = p * CF(0, fy, 0)
 				C:box("ScooterDeck", V3(0.45, 0.1, 1.4), q * CF(0, 0.2, 0), lk(60, 160, 220, M.Plastic))
-				C:vcyl("ScooterWheel", 0.04, 0.3, q * CF(-0.15, 0.15, 0.55), lk(250, 220, 60, M.Rubber))
-				C:vcyl("ScooterWheel", 0.04, 0.3, q * CF(0.15, 0.15, 0.55), lk(250, 220, 60, M.Rubber))
-				C:cyl("ScooterRearWheel", 0.3, 0.3, q * CF(0, 0.15, -0.65), lk(250, 220, 60, M.Rubber))
+				-- 앞바퀴 둘 (세운 바퀴, 축 = 좌우) + 뒷바퀴 + 뒤 브레이크 덮개 (LED 바퀴: Neon 테)
+				for _, sx in { -1, 1 } do
+					C:cyl("ScooterWheel", 0.09, 0.3, q * CF(sx * 0.17, 0.15, 0.58), lk(250, 220, 60, M.Rubber))
+					C:cyl("ScooterHub", 0.1, 0.12, q * CF(sx * 0.17, 0.15, 0.58), lk(240, 120, 160, M.Neon))
+				end
+				C:box("ScooterFork", V3(0.44, 0.12, 0.2), q * CF(0, 0.28, 0.6), lk(60, 160, 220, M.Plastic))
+				C:cyl("ScooterRearWheel", 0.09, 0.26, q * CF(0, 0.13, -0.66), lk(250, 220, 60, M.Rubber))
+				C:box("ScooterBrake", V3(0.16, 0.04, 0.3), q * CF(0, 0.29, -0.62) * ANG(math.rad(8), 0, 0), lk(40, 40, 44, M.Plastic))
+				C:box("ScooterGripTape", V3(0.4, 0.01, 1.0), q * CF(0, 0.255, -0.05), lk(40, 40, 44, M.Fabric))
 				C:seg("ScooterStem", (q * CF(0, 0.25, 0.6)).Position, (q * CF(0, 2.6, 0.75)).Position, 0.1, LK.steel)
 				C:seg("ScooterBar", (q * CF(-0.4, 2.6, 0.75)).Position, (q * CF(0.4, 2.6, 0.75)).Position, 0.08, LK.steel)
 				for _, sx in { -1, 1 } do

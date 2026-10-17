@@ -100,6 +100,19 @@ local function faceCF(p: Vector3, dir: Vector3): CFrame
 end
 
 -- 맵 파트 레코드 ------------------------------------------------------------------------------------
+-- 유리창 시트지 (맵 Sign_ 판이 앞 유리 안쪽에 붙어 있으면 실내에서 검은 뒷면만 보임): 안쪽에 흰 시트 뒷면 + 테두리
+local function windowSignBacks(K: any, V: any)
+	for _, r in V.parts do
+		if string.sub(r.name, 1, 5) == "Sign_" and r.size.Z < 0.3 and r.size.X > 0.6 and r.min.Y > 0.5 and r.max.Y < V.H - 0.1 and math.abs(r.c.Z - V.z1) < 0.6 and r.c.X > V.x0 and r.c.X < V.x1 then
+			local z = r.min.Z - 0.012
+			K:free(function()
+				K:box("WindowVinylBack", V3(r.size.X - 0.02, r.size.Y - 0.02, 0.012), CF(r.c.X, r.c.Y, z), lk(rgb(240, 238, 234), M.SmoothPlastic, { t = 0.05 }))
+				K:box("WindowVinylEdge", V3(r.size.X, 0.03, 0.014), CF(r.c.X, r.max.Y - 0.015, z - 0.002), lk(rgb(210, 208, 204)))
+			end)
+		end
+	end
+end
+
 local function recs(V: any, name: string): { any }
 	return V.byName[name] or {}
 end
@@ -475,10 +488,19 @@ local function salonStation(K: any, V: any, wall: string, u: number, idx: number
 		-- 미용 가운 (반대쪽 벽 고리)
 		local cape = wcf(V, wall, u - side - 0.05, 6.1, 0.0)
 		K:box("CapeHook", V3(0.1, 0.1, 0.3), cape * CF(0, 0, 0.15), brass)
+		K:ball("CapeHookKnob", 0.16, cape * CF(0, 0, 0.31), brass)
 		local capeC = if idx % 2 == 0 then rgb(120, 110, 122) else rgb(196, 160, 166)
-		K:wedge("Cape", V3(0.9, 1.9, 0.06), cape * CF(0, -0.97, 0.2) * ANG(0, PI, 0), lk(capeC, M.Fabric))
-		K:box("CapeNeck", V3(0.42, 0.12, 0.1), cape * CF(0, -0.02, 0.22), lk(dk(capeC, 0.2), M.Fabric))
-		txt(K, "CapeLogo", 0.4, 0.14, cape * CF(0, -0.75, 0.24), "물결", WHITE, nil, F.GothamBlack)
+		-- 고리에 건 가운: 목 부분에서 모이고 아래로 퍼지는 주름 5폭 + 목 밴드 + 로고
+		K:cyl("CapeNeck", 0.46, 0.13, cape * CF(0, -0.1, 0.26), lk(dk(capeC, 0.2), M.Fabric))
+		local len = 1.85
+		for k = -2, 2 do
+			local tx, bx = k * 0.06, k * 0.21
+			local roll = math.atan2(bx - tx, len)
+			local yaw = if k % 2 == 0 then 0.32 else -0.32
+			K:box("CapePleat", V3(0.25, len, 0.03), cape * CF((tx + bx) / 2, -0.15 - len / 2, 0.22 + (k % 2) * 0.03) * ANG(0, 0, roll) * ANG(0, yaw, 0), lk(if k % 2 == 0 then capeC else dk(capeC, 0.1), M.Fabric))
+		end
+		K:box("CapeHem", V3(1.0, 0.05, 0.05), cape * CF(0, -0.15 - len + 0.02, 0.25), lk(dk(capeC, 0.25), M.Fabric))
+		txt(K, "CapeLogo", 0.36, 0.13, cape * CF(0, -0.85, 0.255), "물결", WHITE, nil, F.GothamBlack)
 	end)
 	local _ = seed
 end
@@ -529,27 +551,33 @@ local function shampooUnit(K: any, V: any, seat: any, idx: number)
 				K:box("BasinCabPull", V3(0.05, 0.6, 0.05), ccf * CF(sx * 0.18, ch - 0.6, cdp / 2 + 0.04), lk(SALON.brass, M.Metal))
 			end
 			-- 도기 볼 (반쯤 묻힘) + 안쪽 + 배수구
-			local bowl = ccf * CF(0, ch + 0.12, 0.05)
-			K:ell("BasinBowl", V3(1.9, 0.75, 1.55), bowl, lk(rgb(250, 250, 248), M.SmoothPlastic, { r = 0.08 }))
-			K:ell("BasinBowlInner", V3(1.55, 0.06, 1.2), bowl * CF(0, 0.34, -0.02), lk(rgb(214, 218, 220), M.SmoothPlastic, { r = 0.12 }))
-			K:disc("BasinDrain", 0.16, 0.02, bowl * CF(0, 0.38, -0.05), Look.chrome)
+			-- 볼 받침 기둥 + 의자 쪽으로 살짝 기운 도기 볼 (테두리 ~3.7, 등받이 끝이 목받침에 닿음)
+			local bowlC = if idx % 2 == 0 then rgb(250, 250, 248) else rgb(34, 32, 34)
+			K:vcyl("BasinPedestal", 0.42, 0.8, ccf * CF(0, ch + 0.33, 0.05), lk(rgb(236, 234, 230), M.SmoothPlastic, { r = 0.05 }))
+			local bowl = ccf * CF(0, ch + 0.62, 0.05) * ANG(0.2, 0, 0)
+			K:ell("BasinBowl", V3(1.9, 0.7, 1.55), bowl, lk(bowlC, M.SmoothPlastic, { r = 0.1 }))
+			K:ell("BasinBowlInner", V3(1.55, 0.06, 1.2), bowl * CF(0, 0.31, -0.02), lk(if idx % 2 == 0 then rgb(214, 218, 220) else rgb(58, 56, 60), M.SmoothPlastic, { r = 0.15 }))
+			K:disc("BasinDrain", 0.16, 0.02, bowl * CF(0, 0.345, -0.05), Look.chrome)
 			-- 목받침 (볼 앞 고무 패드)
 			K:cyl("BasinNeckRest", 0.7, 0.24, bowl * CF(0, 0.3, 0.72), Look.rubber)
 			-- 구즈넥 수전 + 레버 + 핸드 샤워
 			local tap = ccf * CF(0.25, ch + 0.12, -cdp / 2 + 0.25)
-			K:vcyl("TapBody", 0.7, 0.16, tap * CF(0, 0.35, 0), Look.chrome)
-			K:ring("TapNeck", tap * CF(0, 0.7, 0.3) * ANG(0, PI / 2, 0), 0.3, 0.1, 5, Look.chrome, PI * 0.5, PI * 1.5)
-			K:box("TapLever", V3(0.36, 0.06, 0.08), tap * CF(0.18, 0.5, 0) * ANG(0, 0, 0.25), Look.chrome)
-			K:vcyl("ShowerHolder", 0.3, 0.14, tap * CF(-0.55, 0.15, 0), Look.chrome)
-			K:vcyl("ShowerHead", 0.5, 0.14, tap * CF(-0.55, 0.45, 0) * ANG(0.15, 0, 0), Look.chrome)
-			cable(K, { (tap * CF(-0.55, 0.15, 0)).Position, (tap * CF(-0.35, 0.02, 0.1)).Position, (tap * CF(0, 0.02, 0.05)).Position }, 0.06, Look.chrome)
-			-- 샴푸 · 린스 · 트리트먼트 펌프 (뒤 선반)
-			local sh = ccf * CF(-0.75, ch + 0.12, -cdp / 2 + 0.25)
+			K:vcyl("TapBody", 1.15, 0.16, tap * CF(0, 0.575, 0), Look.chrome)
+			K:ring("TapNeck", tap * CF(0, 1.15, 0.3) * ANG(0, PI / 2, 0), 0.3, 0.1, 5, Look.chrome, PI * 0.5, PI * 1.5)
+			K:box("TapLever", V3(0.36, 0.06, 0.08), tap * CF(0.18, 0.95, 0) * ANG(0, 0, 0.25), Look.chrome)
+			-- 핸드 샤워 (볼 왼쪽) + 호스
+			local shw = ccf * CF(-1.3, ch + 0.12, -0.55)
+			K:vcyl("ShowerHolder", 0.3, 0.16, shw * CF(0, 0.15, 0), Look.chrome)
+			K:vcyl("ShowerHead", 0.55, 0.15, shw * CF(0, 0.5, 0) * ANG(0.15, 0, 0), Look.chrome)
+			K:disc("ShowerFace", 0.2, 0.02, shw * CF(0, 0.78, 0.04), lk(rgb(60, 60, 64)))
+			cable(K, { (shw * CF(0, 0.15, 0)).Position, (shw * CF(0.35, 0.02, -0.15)).Position, (tap * CF(0, 0.02, 0)).Position }, 0.06, Look.chrome)
+			-- 샴푸 · 린스 · 트리트먼트 펌프 (볼 왼쪽 앞)
+			local sh = ccf * CF(-1.3, ch + 0.12, 0.15)
 			local cols = { rgb(36, 86, 60), rgb(240, 236, 228), rgb(30, 30, 34) }
 			for j = 1, 3 do
-				bottle(K, sh * CF((j - 2) * 0.32, 0, 0) * ANG(0, PI, 0) * ANG(0, PI, 0), "pump", 0.95, cols[(j + idx) % 3 + 1], rgb(30, 30, 30), WHITE)
+				bottle(K, sh * CF(0, 0, (j - 2) * 0.32) * ANG(0, PI / 2, 0), "pump", 0.95, cols[(j + idx) % 3 + 1], rgb(30, 30, 30), WHITE)
 			end
-			towelStack(K, ccf * CF(cw / 2 - 0.45, ch + 0.12, -cdp / 2 + 0.4), 0.7, 0.5, 3, rgb(246, 244, 240))
+			towelStack(K, ccf * CF(cw / 2 - 0.36, ch + 0.12, -0.15), 0.6, 0.7, 3, rgb(246, 244, 240))
 		end)
 		hideRec(K, cab)
 		for _, nm in { "Basin", "BasinTap" } do
@@ -637,8 +665,58 @@ local function sofaOver(K: any, V: any, base: any, fabric: Color3, pillow: Color
 	K:reserve(base.min - V3(0.2, 0, 0.2), V3(base.max.X + 0.2, backTop, base.max.Z + 0.2), "sofa")
 end
 
+-- 헤어 스타일 포스터 그림 (일러스트 초상): d = poster() 에 준 dcf. 그림 칸 = 위쪽 (y -0.55 ~ 1.5).
+-- 층: 해(원) -> 뒷머리 -> 몸 · 목 -> 얼굴 -> 앞머리 -> 눈 · 입 (0.0015 간격, FrameBack 앞 0.036 ~ 유리 0.045 사이)
+local SKIN_ART = rgb(240, 214, 196)
+local function portraitArt(K: any, d: CFrame, kind: string, bg: Color3, hair: Color3, top: Color3, inner: Color3?)
+	local function ov(name: string, w: number, h: number, x: number, y: number, z: number, c: Color3, rot: number?)
+		K:ell(name, V3(w, h, 0.001), d * CF(x, y, z) * ANG(0, 0, rot or 0), lk(c))
+	end
+	ov("ArtSun", 1.35, 1.35, 0.1, 0.85, 0.0375, lt(bg, 0.28))
+	if kind == "long" then
+		ov("ArtHairBack", 1.02, 1.6, 0, 0.42, 0.039, hair)
+	elseif kind == "bob" then
+		ov("ArtHairBack", 1.0, 1.0, 0, 0.66, 0.039, hair)
+	end
+	-- 몸 (어깨) + 목
+	ov("ArtBody", 1.55, 0.95, 0, -0.18, 0.0405, top)
+	if inner then
+		ov("ArtShirt", 0.3, 0.42, 0, 0.12, 0.041, inner)
+		for _, sx in { -1, 1 } do
+			K:plate("ArtLapel", 0.07, 0.42, 0.001, d * CF(sx * 0.1, 0.1, 0.0412) * ANG(0, 0, sx * 0.4), lk(dk(top, 0.25)))
+		end
+	end
+	K:plate("ArtNeck", 0.2, 0.34, 0.001, d * CF(0, 0.3, 0.0415), lk(dk(SKIN_ART, 0.08)))
+	-- 얼굴
+	ov("ArtFace", 0.5, 0.66, 0, 0.75, 0.042, SKIN_ART)
+	-- 앞머리 · 옆머리
+	if kind == "long" then
+		ov("ArtHairSide", 0.3, 1.05, -0.32, 0.38, 0.0435, hair, -0.14)
+		ov("ArtHairSide", 0.3, 1.05, 0.32, 0.38, 0.0435, hair, 0.14)
+		ov("ArtCurl", 0.34, 0.22, -0.24, -0.13, 0.0435, dk(hair, 0.15), 0.3)
+		ov("ArtCurl", 0.34, 0.22, 0.24, -0.13, 0.0435, dk(hair, 0.15), -0.3)
+		ov("ArtBangs", 0.64, 0.34, 0.05, 1.02, 0.0435, hair, -0.25)
+	elseif kind == "bob" then
+		ov("ArtHairSide", 0.3, 0.62, -0.31, 0.55, 0.0435, hair, -0.05)
+		ov("ArtHairSide", 0.3, 0.62, 0.31, 0.55, 0.0435, hair, 0.05)
+		ov("ArtBangs", 0.62, 0.3, 0, 1.03, 0.0435, hair)
+		K:plate("ArtBobLine", 0.86, 0.04, 0.001, d * CF(0, 0.25, 0.0435), lk(dk(hair, 0.2)))
+	else
+		ov("ArtHairTop", 0.62, 0.42, 0, 1.04, 0.0435, hair)
+		ov("ArtHairPart", 0.38, 0.26, 0.13, 1.12, 0.0445, lt(hair, 0.18), -0.35)
+		ov("ArtSideburn", 0.08, 0.2, -0.23, 0.82, 0.0435, hair)
+		ov("ArtSideburn", 0.08, 0.2, 0.23, 0.82, 0.0435, hair)
+	end
+	-- 눈 · 입 (아주 단순)
+	for _, sx in { -1, 1 } do
+		K:plate("ArtEye", 0.09, 0.022, 0.001, d * CF(sx * 0.11, 0.76, 0.0445), lk(rgb(40, 30, 28)))
+	end
+	ov("ArtLips", 0.11, 0.04, 0, 0.54, 0.0445, if kind == "men" then dk(SKIN_ART, 0.25) else rgb(196, 96, 104))
+end
+
 -- 미용실 전체
 local function buildSalon(K: any, V: any, S: any)
+	pcall(windowSignBacks, K, V)
 	local seed = hashStr(V.key or V.name or "salon")
 	local brass = lk(SALON.brass, M.Metal, { r = 0.12 })
 	local W, H = V.W, V.H
@@ -688,6 +766,20 @@ local function buildSalon(K: any, V: any, S: any)
 			if not ok then
 				K:note("shampoo error: " .. tostring(err))
 			end
+		end
+	end
+	-- 샴푸 구역 위 따뜻한 다운라이트 (어두운 가죽 · 볼이 보이게)
+	do
+		local sx, sz, n = 0, 0, 0
+		for _, ch in V.chairs do
+			if ch.seat.name == "WashSeat" then
+				sx += ch.seat.c.X
+				sz += ch.seat.c.Z
+				n += 1
+			end
+		end
+		if n > 0 then
+			litDownlight(K, sx / n, sz / n - 1.2, Look.warmLight, 14)
 		end
 	end
 
@@ -1336,9 +1428,9 @@ local function buildSalon(K: any, V: any, S: any)
 	end
 	-- 남은 옆벽 빈 자리: 시즌 트렌드 포스터 2 + 스타일북 꽂이
 	local posters = {
-		{ "2026 S/S 트렌드\n레이어드 C컬", "물결 스타일 제안", { { SALON.pink, 0.1, 0.35, 0.8, 0.55 }, { rgb(60, 40, 34), 0.3, 0.42, 0.4, 0.5 }, { rgb(250, 244, 236), 0.38, 0.5, 0.24, 0.3 } } },
-		{ "애쉬 베이지\n톤다운 컬러", "탈색 없이 가능", { { rgb(200, 190, 176), 0.1, 0.35, 0.8, 0.55 }, { rgb(150, 140, 130), 0.25, 0.4, 0.5, 0.48 }, { rgb(240, 230, 220), 0.4, 0.55, 0.2, 0.25 } } },
-		{ "남자 댄디컷\n가르마펌", "10월 이벤트 20% ↓", { { rgb(60, 70, 80), 0.1, 0.35, 0.8, 0.55 }, { rgb(30, 26, 24), 0.3, 0.5, 0.4, 0.35 }, { rgb(230, 210, 190), 0.35, 0.38, 0.3, 0.2 } } },
+		{ "2026 S/S 트렌드\n레이어드 C컬", "물결 스타일 제안", "long", rgb(232, 182, 186), rgb(60, 40, 34), rgb(250, 244, 236), nil, SALON.ink },
+		{ "애쉬 베이지\n톤다운 컬러", "탈색 없이 가능", "bob", rgb(96, 104, 112), rgb(206, 190, 168), rgb(240, 236, 228), nil, WHITE },
+		{ "남자 댄디컷\n가르마펌", "10월 이벤트 20% ↓", "men", rgb(214, 206, 192), rgb(30, 26, 24), rgb(44, 58, 92), rgb(250, 250, 248), SALON.ink },
 	}
 	local pi = 0
 	for _, wn in { "right", "left" } do
@@ -1349,7 +1441,9 @@ local function buildSalon(K: any, V: any, S: any)
 			if w2 and d2 then
 				pi += 1
 				local pp = posters[pi]
-				poster(K, d2 * CF(0, 0, 0.01), 2.4, 3.4, { art = pp[3], title = pp[1], sub = pp[2], th = 0.18, ty = -0.3, sy = -0.43, frame = brass, bg = rgb(250, 246, 240), font = F.GothamBlack })
+				local pd = d2 * CF(0, 0, 0.01)
+				poster(K, pd, 2.4, 3.4, { title = pp[1], sub = pp[2], th = 0.18, ty = -0.3, sy = -0.43, frame = brass, bg = pp[4], fg = pp[8], font = F.GothamBlack })
+				portraitArt(K, pd, pp[3], pp[4], pp[5], pp[6], pp[7])
 			else
 				break
 			end
@@ -1686,6 +1780,7 @@ local function bgmPanel(K: any, d: CFrame, songs: { string }, label: string, acc
 end
 
 local function buildClothing(K: any, V: any, S: any)
+	pcall(windowSignBacks, K, V)
 	local seed = hashStr(V.key or V.name or "clothing")
 	local brass = lk(rgb(190, 156, 96), M.Metal, { r = 0.12 })
 	local oak = lk(rgb(204, 170, 128), M.Wood)
@@ -2617,6 +2712,7 @@ local function ceilingFan(K: any, V: any, x: number, z: number, drop: number): (
 end
 
 local function buildSurf(K: any, V: any, S: any)
+	pcall(windowSignBacks, K, V)
 	local seed = hashStr(V.key or V.name or "surf")
 	local wood = lk(SURF.wood, M.Wood)
 	local drift = lk(SURF.driftwood, M.WoodPlanks)
@@ -3602,6 +3698,7 @@ local function gacha(K: any, pcf: CFrame, y: number, c: Color3, label: string, s
 end
 
 local function buildPlay(K: any, V: any, S: any)
+	pcall(windowSignBacks, K, V)
 	local seed = hashStr(V.key or V.name or "play")
 	local H = V.H
 

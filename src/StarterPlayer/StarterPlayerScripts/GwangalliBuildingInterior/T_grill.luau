@@ -557,7 +557,32 @@ local function themeFor(V: any): any
 		return THEMES.gopchang
 	end
 	if has("조개") or m == "clam" then
-		return THEMES.clam
+		-- 조개구이집마다 간판색 · 타일 띠 · 스툴 색을 다르게 (광안 = 파랑, 바다마을 = 청록, 갯마을 = 남색 + 주황)
+		local th = table.clone(THEMES.clam)
+		local v = hash(n) % 3
+		if has("바다") then
+			v = 1
+		elseif has("갯") then
+			v = 2
+		elseif has("광안") then
+			v = 0
+		end
+		if v == 1 then
+			th.accent = rgb(0, 118, 126)
+			th.band = rgb(0, 136, 142)
+			th.base = L.of(0, 70, 76)
+			th.stools = { rgb(236, 120, 30), rgb(236, 120, 30), BLUE_PL, rgb(236, 120, 30) }
+			th.posters = { { "가리비 듬뿍\n바다마을 정식", rgb(255, 226, 90), rgb(0, 118, 126) }, { "부산 바다\n한 상 가득", WHITE, rgb(20, 120, 150) } }
+		elseif v == 2 then
+			th.accent = rgb(28, 42, 92)
+			th.accent2 = rgb(255, 160, 50)
+			th.band = rgb(226, 110, 34)
+			th.base = L.of(28, 42, 92)
+			th.stools = { RED_PL, rgb(28, 60, 140), RED_PL, RED_PL }
+			th.posters = { { "갯벌에서 바로\n싱싱한 조개", rgb(255, 170, 60), rgb(28, 42, 92) }, { "치즈 가리비\n출시!", rgb(255, 206, 40), rgb(196, 60, 30) } }
+		end
+		th.variant = v
+		return th
 	end
 	if m == "bbq" or has("갈비") or has("고기") or has("테이스티") or has("숯불") then
 		return THEMES.bbq
@@ -1453,9 +1478,11 @@ local function displayOver(c: any)
 				K:box("DisplayDivider", V3(0.04, 0.1, D - 0.3), pcf * CF(x + sw / 2, bedTop + 0.04, 0), L.steel)
 			end
 			-- 가격표 (꽂이)
-			local ty = math.min(maxY - 0.14, bedTop + 0.24)
-			K:seg("TagPick", (pcf * CF(x, bedTop, D / 2 - 0.42)).Position, (pcf * CF(x, ty - 0.08, D / 2 - 0.42)).Position, 0.03, L.white)
-			txt(K, "PriceTag", math.min(0.74, sw - 0.1), 0.26, pcf * CF(x, ty, D / 2 - 0.39) * ANG(-0.55, 0, 0), catch[i][2], rgb(200, 20, 20), rgb(255, 255, 250), F.GothamBold, { d = 0.02 })
+			-- 앞 테에 기대 꽂은 가격표 (뒤로 많이 눕혀 해산물을 가리지 않게)
+			local ty = math.min(maxY - 0.1, bedTop + 0.1)
+			local tw = math.min(0.9, sw - 0.08)
+			K:seg("TagPick", (pcf * CF(x, bedTop, D / 2 - 0.3)).Position, (pcf * CF(x, ty - 0.02, D / 2 - 0.24)).Position, 0.025, L.white)
+			txt(K, "PriceTag", tw, 0.36, pcf * CF(x, ty, D / 2 - 0.2) * ANG(-1.05, 0, 0), catch[i][2], rgb(196, 0, 0), rgb(255, 252, 236), F.GothamBlack, { d = 0.02 })
 		end
 		if kind == "meat" then
 			-- 냉장 쇼케이스 유리 (경사 앞유리 + 옆유리) + 위 LED
@@ -2168,13 +2195,23 @@ local function wallTV(c: any)
 	local wn, u = findWall(K, { "left", "right", "back" }, w + 0.3, w + 0.3, 4.3, 8.6, V3(0, 0, V.z0 + 4), 0.6, function(wn2: string, cu: number)
 		return promptWallOK(c, wn2, cu, 4.7)
 	end)
+	local remote = wn ~= nil
+	if not wn or not u then
+		-- 프롬프트 자리가 없으면 TV 만 (리모컨 없이) 높이 걸기
+		wn, u = findWall(K, { "left", "right", "back" }, w + 0.3, w + 0.3, 5.6, 8.6, V3(0, 0, V.z0 + 4), 0.6)
+	end
 	if not wn or not u then
 		return
 	end
 	local dcf = V:wall(wn, u, 7.1, 0)
 	K:plate("TVMount", w * 0.3, h * 0.4, 0.1, dcf, L.blackMetal)
 	local scr, lab = tvScreen(c, dcf * CF(0, 0, 0.1), w, h, 0.12)
-	tvRemote(c, wn, u, scr, lab)
+	if remote then
+		tvRemote(c, wn, u, scr, lab)
+	else
+		-- 스스로 바뀌는 화면 (야구 중계 · 뉴스)
+		Interact.screenLoop(K, scr, lab, { TV_FRAMES[1], TV_FRAMES[2], TV_FRAMES[3] }, 9)
+	end
 	at(K, "tv", wn, u)
 end
 
@@ -2576,6 +2613,44 @@ local function passDecor(c: any)
 		K:plate("PassTrim", 0.12, y1 - y0, 0.14, d * CF(w / 2 + 0.06, 0, 0), L.steel)
 		K:box("PassInner", kp.size - V3(0.02, 0.02, 0), CF(kp.c), L.of(56, 50, 44))
 		K:box("PassGlow", V3(w - 0.3, 0.04, 0.02), CF(kp.c.X, y1 - 0.12, kp.max.Z), L.lampNeutral)
+		-- 패스 안 주방 (벽에 붙은 얕은 그림): 흰 타일 · 선반 위 뚝배기 · 육수 솥 김 · 국자 걸이
+		local _, fdist = V:wallCoord("back", V3(kp.c.X, 0, kp.max.Z))
+		local kd = V:wall("back", u, (y0 + y1) / 2, fdist)
+		local kh = y1 - y0
+		K:plate("PassKitchenTile", w - 0.14, kh - 0.2, 0.01, kd, L.of(232, 234, 230, M.CeramicTiles))
+		for i = 1, 3 do
+			K:plate("PassKitchenGrout", w - 0.14, 0.015, 0.012, kd * CF(0, -kh / 2 + kh * i / 4, 0), L.of(186, 190, 186))
+		end
+		local sy = kh * 0.12
+		K:plate("PassShelf", w - 0.3, 0.07, 0.08, kd * CF(0, sy, 0.01), L.steel)
+		for i = 0, 5 do
+			local bx = -w / 2 + 0.55 + i * 0.5
+			if bx < w / 2 - 1.7 then
+				K:plate("PassTtukbaegi", 0.42, 0.24, 0.03, kd * CF(bx, sy + 0.16, 0.012), L.of(54, 40, 34))
+				K:plate("PassTtukRim", 0.46, 0.05, 0.035, kd * CF(bx, sy + 0.28, 0.012), L.of(84, 64, 54))
+				if i % 2 == 0 then
+					K:plate("PassTtukbaegi", 0.42, 0.24, 0.03, kd * CF(bx, sy + 0.46, 0.012), L.of(54, 40, 34))
+					K:plate("PassTtukRim", 0.46, 0.05, 0.035, kd * CF(bx, sy + 0.58, 0.012), L.of(84, 64, 54))
+				end
+			end
+		end
+		-- 육수 솥 (오른쪽 아래) + 김
+		local px = w / 2 - 0.95
+		K:plate("PassStockPot", 1.2, 0.95, 0.04, kd * CF(px, -kh / 2 + 0.6, 0.012), L.of(196, 200, 204, M.Metal))
+		K:plate("PassStockRim", 1.28, 0.08, 0.05, kd * CF(px, -kh / 2 + 1.07, 0.012), L.steel)
+		K:plate("PassStockBand", 1.2, 0.05, 0.045, kd * CF(px, -kh / 2 + 0.5, 0.012), L.of(150, 154, 160, M.Metal))
+		if c.hi then
+			for k = 1, 3 do
+				K:ell("PassSteam", V3(0.5 + k * 0.12, 0.42, 0.02), kd * CF(px + (k - 2) * 0.22, -kh / 2 + 1.2 + k * 0.32, 0.03), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.55 + k * 0.1 })
+			end
+		end
+		-- 국자 · 뜰채 걸이 (위)
+		K:plate("PassUtensilRail", w - 1.0, 0.05, 0.06, kd * CF(-0.3, kh / 2 - 0.42, 0.012), L.chrome)
+		for k = 0, 3 do
+			local lx = -w / 2 + 0.9 + k * 0.42
+			K:plate("PassLadle", 0.04, 0.6, 0.02, kd * CF(lx, kh / 2 - 0.74, 0.04), L.chrome)
+			wdisc(K, "PassLadleCup", 0.2, 0.03, kd * CF(lx, kh / 2 - 1.08, 0.03), 0, L.chrome)
+		end
 		-- 주문표 레일
 		local rd = V:wall("back", u, y1 + 0.95, 0)
 		K:plate("TicketRail", w, 0.12, 0.1, rd, L.steel)
@@ -2699,6 +2774,363 @@ local function bulbSwitch(c: any)
 	at(K, "bulb switch", wn, u)
 end
 
+-- 사진 메뉴 라이트박스 (한식 · 포차 벽 위쪽: 메뉴마다 음식 사진 + 이름 + 가격) ----------------------------------
+-- 사진은 얇은 타원 판을 겹쳐 그린 일러스트 (그릇 · 국물 · 건더기 · 고명). DISH[kind] = { v = 그릇, fill = 국물색,
+--   bits = { { 모양, 색, 개수, 크기(그릇 지름 비), 종횡비 } }, side = 곁들이 반찬 }
+local DISH: { [string]: any } = {
+	gukbap = { v = "ttuk", fill = rgb(238, 228, 208), bits = { { "ell", rgb(214, 176, 156), 4, 0.24, 0.5 }, { "disc", rgb(96, 168, 70), 8, 0.07 }, { "ell", rgb(196, 46, 30), 1, 0.18, 0.75 } }, side = "kkakdugi" },
+	seonji = { v = "ttuk", fill = rgb(176, 64, 34), bits = { { "sq", rgb(84, 22, 24), 4, 0.15 }, { "ell", rgb(110, 116, 52), 4, 0.22, 0.45 }, { "disc", rgb(110, 180, 70), 7, 0.06 } }, side = "kimchi" },
+	sundae = { v = "ttuk", fill = rgb(232, 220, 196), bits = { { "disc", rgb(74, 52, 62), 5, 0.17 }, { "ell", rgb(214, 180, 160), 3, 0.2, 0.5 }, { "disc", rgb(96, 168, 70), 7, 0.06 } }, side = "kkakdugi" },
+	doenjang = { v = "ttuk", fill = rgb(150, 100, 52), bits = { { "sq", rgb(246, 242, 228), 5, 0.14 }, { "disc", rgb(176, 200, 96), 4, 0.15 }, { "ell", rgb(200, 40, 30), 3, 0.1, 0.35 } } },
+	eggs = { v = "ttuk", fill = rgb(250, 206, 92), bits = { { "ell", rgb(255, 226, 140), 3, 0.3, 0.8 }, { "disc", rgb(96, 168, 70), 6, 0.06 } } },
+	dakbal = { v = "plate", bits = { { "ell", rgb(176, 40, 22), 9, 0.26, 0.28 }, { "disc", rgb(250, 246, 230), 8, 0.03 }, { "disc", rgb(110, 180, 70), 4, 0.06 } }, side = "egg" },
+	kkom = { v = "plate", bits = { { "ell", rgb(206, 86, 40), 7, 0.3, 0.32 }, { "ell", rgb(250, 240, 220), 3, 0.2, 0.3 }, { "disc", rgb(110, 180, 70), 6, 0.06 } } },
+	pajeon = { v = "plate", bits = { { "ell", rgb(222, 170, 80), 1, 0.86, 0.9 }, { "bar", rgb(70, 150, 60), 7, 0.5, 0.05 }, { "ell", rgb(244, 236, 226), 4, 0.14, 0.7 }, { "disc", rgb(200, 40, 30), 5, 0.05 } }, side = "sauce" },
+	haemultang = { v = "pot", fill = rgb(190, 54, 30), bits = { { "ell", rgb(226, 90, 44), 1, 0.42, 0.7 }, { "ell", rgb(236, 120, 80), 3, 0.24, 0.4 }, { "ell", rgb(220, 206, 176), 4, 0.14, 0.75 }, { "ell", rgb(90, 150, 60), 3, 0.2, 0.5 } } },
+	odeng = { v = "pot", fill = rgb(206, 172, 110), bits = { { "bar", rgb(150, 110, 70), 5, 0.62, 0.025 }, { "ell", rgb(214, 160, 96), 6, 0.24, 0.5 }, { "disc", rgb(246, 244, 236), 2, 0.16 }, { "disc", rgb(110, 180, 70), 6, 0.05 } } },
+	clamset = { v = "grill", bits = { { "ell", rgb(230, 136, 104), 4, 0.24, 0.85 }, { "ell", rgb(226, 212, 186), 5, 0.18, 0.8 }, { "ell", rgb(64, 52, 44), 2, 0.3, 0.4 }, { "ell", rgb(250, 214, 80), 2, 0.12, 0.8 } } },
+	scallopcheese = { v = "grill", bits = { { "ell", rgb(232, 140, 104), 6, 0.26, 0.85 }, { "ell", rgb(252, 216, 90), 6, 0.15, 0.8 }, { "disc", rgb(250, 230, 120), 6, 0.04 } } },
+	pen = { v = "grill", bits = { { "ell", rgb(200, 200, 204), 1, 0.6, 0.8 }, { "disc", rgb(246, 238, 220), 5, 0.17 }, { "ell", rgb(250, 220, 120), 3, 0.1, 0.8 }, { "disc", rgb(110, 180, 70), 4, 0.05 } } },
+	clamsoup = { v = "steel", fill = rgb(230, 226, 200), bits = { { "ell", rgb(214, 200, 170), 6, 0.2, 0.8 }, { "disc", rgb(110, 180, 70), 6, 0.06 }, { "ell", rgb(200, 40, 30), 2, 0.1, 0.35 } } },
+	ramyeon = { v = "yangeun", fill = rgb(204, 70, 30), bits = { { "bar", rgb(240, 214, 140), 9, 0.5, 0.035 }, { "ell", rgb(250, 250, 244), 1, 0.3, 0.8 }, { "disc", rgb(250, 190, 40), 1, 0.14 }, { "disc", rgb(110, 180, 70), 6, 0.06 } }, side = "kimchi" },
+	gopchang = { v = "pan", fill = rgb(70, 56, 46), bits = { { "ell", rgb(236, 196, 160), 9, 0.2, 0.62 }, { "bar", rgb(90, 160, 60), 6, 0.36, 0.04 }, { "ell", rgb(244, 236, 220), 3, 0.16, 0.5 } }, side = "ssam" },
+	daechang = { v = "pan", fill = rgb(70, 56, 46), bits = { { "ell", rgb(236, 186, 110), 6, 0.3, 0.42 }, { "ell", rgb(250, 230, 190), 4, 0.16, 0.6 }, { "bar", rgb(90, 160, 60), 4, 0.36, 0.04 } }, side = "ssam" },
+	jeongol = { v = "pot", fill = rgb(196, 62, 34), bits = { { "ell", rgb(236, 196, 160), 6, 0.2, 0.6 }, { "ell", rgb(232, 222, 200), 4, 0.15, 0.6 }, { "ell", rgb(80, 150, 60), 4, 0.22, 0.45 }, { "bar", rgb(250, 246, 230), 4, 0.3, 0.05 } } },
+	friedrice = { v = "pan", fill = rgb(222, 180, 120), bits = { { "disc", rgb(200, 90, 50), 10, 0.05 }, { "disc", rgb(40, 40, 36), 8, 0.05 }, { "disc", rgb(110, 180, 70), 8, 0.05 }, { "ell", rgb(250, 220, 110), 1, 0.3, 0.6 } } },
+	galbi = { v = "grill", bits = { { "ell", rgb(128, 56, 28), 5, 0.36, 0.42 }, { "ell", rgb(236, 226, 206), 3, 0.12, 0.6 }, { "disc", rgb(240, 236, 220), 6, 0.04 } }, side = "ssam" },
+	samgyeop = { v = "grill", bits = { { "ell", rgb(214, 120, 106), 5, 0.4, 0.3 }, { "ell", rgb(248, 236, 222), 5, 0.36, 0.1 }, { "ell", rgb(250, 240, 220), 3, 0.12, 0.8 } }, side = "ssam" },
+	naengmyeon = { v = "steel", fill = rgb(206, 186, 140), bits = { { "ell", rgb(120, 98, 84), 1, 0.55, 0.6 }, { "ell", rgb(250, 248, 240), 1, 0.2, 0.7 }, { "disc", rgb(250, 196, 40), 1, 0.09 }, { "bar", rgb(120, 180, 80), 4, 0.24, 0.04 }, { "disc", rgb(236, 240, 244), 3, 0.12 } } },
+	eggroll = { v = "plate", bits = { { "sq", rgb(250, 206, 90), 6, 0.2 }, { "disc", rgb(110, 180, 70), 8, 0.04 }, { "bar", rgb(200, 40, 30), 2, 0.6, 0.04 } } },
+	golbaengi = { v = "plate", bits = { { "ell", rgb(250, 246, 236), 1, 0.5, 0.6 }, { "ell", rgb(214, 74, 40), 4, 0.3, 0.55 }, { "ell", rgb(110, 84, 54), 4, 0.15, 0.8 }, { "bar", rgb(120, 180, 80), 5, 0.3, 0.04 } } },
+	dubu = { v = "plate", bits = { { "sq", rgb(248, 246, 236), 5, 0.2 }, { "ell", rgb(206, 64, 36), 1, 0.45, 0.7 }, { "ell", rgb(220, 120, 110), 3, 0.15, 0.6 }, { "disc", rgb(250, 246, 230), 6, 0.03 } } },
+	jeyuk = { v = "plate", bits = { { "ell", rgb(190, 60, 30), 8, 0.28, 0.45 }, { "ell", rgb(246, 238, 220), 4, 0.2, 0.25 }, { "bar", rgb(90, 160, 60), 4, 0.3, 0.04 }, { "disc", rgb(250, 246, 230), 6, 0.03 } }, side = "ssam" },
+}
+
+local PHOTOS: { [string]: any } = {
+	clam = { title = "대표 메뉴", items = { { "조개구이 모듬", "55,000", "clamset" }, { "가리비 치즈구이", "35,000", "scallopcheese" }, { "키조개 관자구이", "30,000", "pen" }, { "시원한 조개탕", "15,000", "clamsoup" }, { "해물라면", "6,000", "ramyeon" }, { "김치볶음밥", "4,000", "friedrice" } } },
+	gopchang = { title = "대표 메뉴", items = { { "한우 소곱창", "22,000", "gopchang" }, { "한우 대창", "23,000", "daechang" }, { "곱창 전골", "32,000", "jeongol" }, { "볶음밥", "3,000", "friedrice" }, { "된장찌개", "5,000", "doenjang" } } },
+	bbq = { title = "대표 메뉴", items = { { "숯불 돼지갈비", "17,000", "galbi" }, { "생삼겹살", "17,000", "samgyeop" }, { "물냉면", "8,000", "naengmyeon" }, { "된장찌개", "5,000", "doenjang" }, { "계란찜", "5,000", "eggs" } } },
+	pochaTent = { title = "포차 인기 안주", items = { { "얼큰 해물탕", "38,000", "haemultang" }, { "매운 닭발", "19,000", "dakbal" }, { "꼼장어 구이", "25,000", "kkom" }, { "해물파전", "17,000", "pajeon" }, { "오뎅탕", "18,000", "odeng" } } },
+	pochaBar = { title = "오늘의 안주", items = { { "오뎅탕", "18,000", "odeng" }, { "매운 닭발", "19,000", "dakbal" }, { "계란말이", "13,000", "eggroll" }, { "골뱅이 무침", "20,000", "golbaengi" } } },
+	pocha24 = { title = "24시 해장 · 식사", items = { { "선지해장국", "9,000", "seonji" }, { "돼지국밥", "10,000", "gukbap" }, { "순대국밥", "10,000", "sundae" }, { "두부김치", "15,000", "dubu" }, { "제육볶음", "15,000", "jeyuk" }, { "매운 닭발", "18,000", "dakbal" } } },
+}
+
+local function foodPhoto(c: any, d: CFrame, w: number, h: number, kind: string, seed: number)
+	local K = c.K
+	local ds = DISH[kind] or DISH.gukbap
+	local bgs = { rgb(118, 80, 50), rgb(86, 62, 46), rgb(150, 112, 76), rgb(62, 60, 58), rgb(178, 150, 116) }
+	K:plate("PhotoBg", w, h, 0.012, d, col(bgs[seed % #bgs + 1]))
+	local z = 0.012
+	local function E(name: string, sw: number, sh: number, x: number, y: number, look: any, rot: number?)
+		z += 0.006
+		K:ell(name, V3(sw, sh, 0.012), d * CF(x, y, z) * ANG(0, 0, rot or 0), look)
+	end
+	local function P(name: string, sw: number, sh: number, x: number, y: number, look: any, rot: number?)
+		z += 0.006
+		K:plate(name, sw, sh, 0.008, d * CF(x, y, z - 0.004) * ANG(0, 0, rot or 0), look)
+	end
+	local side = ds.side and h > 0.9
+	local dia = math.min(if side then w * 0.66 else w * 0.84, h * 0.86)
+	local cx, cy = if side then -w * 0.13 else 0, -h * 0.01
+	local rx, ry = dia * 0.5, dia * 0.44
+	-- 그림자 + 그릇
+	E("PhotoShadow", dia * 1.06, dia * 0.92, cx + dia * 0.04, cy - dia * 0.05, L.of(30, 24, 20))
+	local v = ds.v
+	if v == "ttuk" then
+		E("PhotoBowl", dia, dia * 0.9, cx, cy, L.of(46, 36, 32))
+		E("PhotoSoup", dia * 0.82, dia * 0.72, cx, cy, col(ds.fill))
+		rx, ry = dia * 0.36, dia * 0.3
+	elseif v == "steel" then
+		E("PhotoBowl", dia, dia * 0.9, cx, cy, L.of(206, 210, 214, M.Metal))
+		E("PhotoSoup", dia * 0.84, dia * 0.74, cx, cy, col(ds.fill))
+		rx, ry = dia * 0.36, dia * 0.3
+	elseif v == "plate" then
+		E("PhotoPlate", dia * 1.04, dia * 0.86, cx, cy, L.of(250, 250, 246))
+		E("PhotoPlateWell", dia * 0.84, dia * 0.68, cx, cy, L.of(238, 238, 232))
+		rx, ry = dia * 0.34, dia * 0.27
+	elseif v == "pan" then
+		P("PhotoPanHandle", dia * 0.5, dia * 0.1, cx + dia * 0.62, cy - dia * 0.08, L.of(30, 28, 28), -0.15)
+		E("PhotoPan", dia, dia * 0.9, cx, cy, L.of(34, 32, 32))
+		E("PhotoPanIn", dia * 0.86, dia * 0.76, cx, cy, col(ds.fill or rgb(60, 56, 52)))
+		rx, ry = dia * 0.36, dia * 0.31
+	elseif v == "pot" then
+		for _, sx in { -1, 1 } do
+			E("PhotoPotEar", dia * 0.2, dia * 0.12, cx + sx * dia * 0.52, cy, L.of(40, 40, 42))
+		end
+		E("PhotoPot", dia, dia * 0.9, cx, cy, L.of(52, 52, 56, M.Metal))
+		E("PhotoBroth", dia * 0.88, dia * 0.78, cx, cy, col(ds.fill))
+		rx, ry = dia * 0.38, dia * 0.32
+	elseif v == "yangeun" then
+		E("PhotoPot", dia, dia * 0.9, cx, cy, L.of(214, 178, 92, M.Metal))
+		E("PhotoBroth", dia * 0.86, dia * 0.76, cx, cy, col(ds.fill))
+		rx, ry = dia * 0.36, dia * 0.31
+	else -- grill: 둥근 석쇠
+		E("PhotoGrill", dia, dia * 0.92, cx, cy, L.of(40, 38, 36))
+		E("PhotoCoal", dia * 0.8, dia * 0.72, cx, cy, L.of(120, 46, 26))
+		for i = -2, 2 do
+			local yy = i * dia * 0.14
+			local hw = math.sqrt(math.max(0, 1 - (yy / (dia * 0.4)) ^ 2)) * dia * 0.8
+			P("PhotoGrate", hw, 0.02, cx, cy + yy, L.of(150, 146, 140, M.Metal))
+		end
+		rx, ry = dia * 0.34, dia * 0.3
+	end
+	-- 건더기 · 고명
+	local k = 0
+	for _, b in ds.bits or {} do
+		local shape, cc, n, s = b[1], b[2], b[3], b[4]
+		if not c.hi then
+			n = math.max(1, math.ceil(n * 0.5))
+		end
+		for i = 1, n do
+			k += 1
+			local a = rnd(seed, k) * PI * 2
+			local rr = if n == 1 then 0.1 else 0.35 + rnd(seed, k + 50) * 0.6
+			local x, y = cx + math.cos(a) * rx * rr, cy + math.sin(a) * ry * rr
+			local rot = rnd(seed, k + 90) * PI
+			local sz = s * dia
+			if shape == "ell" then
+				E("PhotoBit", sz, sz * (b[5] or 0.7), x, y, col(cc), rot)
+			elseif shape == "disc" then
+				E("PhotoDot", sz, sz, x, y, col(cc))
+			elseif shape == "sq" then
+				P("PhotoCube", sz, sz * 0.85, x, y, col(cc), rot * 0.3)
+			else
+				P("PhotoStrip", sz, math.max(0.02, sz * (b[5] or 0.06)), x, y, col(cc), rot)
+			end
+		end
+	end
+	-- 김 · 윤기 하이라이트
+	E("PhotoGloss", dia * 0.28, dia * 0.07, cx - dia * 0.2, cy + dia * 0.3, { c = WHITE, m = M.SmoothPlastic, t = 0.45 }, 0.25)
+	-- 곁들이 반찬 (오른쪽 작은 접시)
+	if side then
+		local sx, sy, sd = w * 0.33, -h * 0.18, math.min(w * 0.3, h * 0.42)
+		E("PhotoSidePlate", sd, sd * 0.84, sx, sy, L.of(250, 250, 246))
+		local sc = if ds.side == "kkakdugi" then rgb(214, 70, 40) elseif ds.side == "kimchi" then rgb(206, 80, 46) elseif ds.side == "ssam" then rgb(86, 160, 64) elseif ds.side == "egg" then rgb(250, 214, 110) else rgb(80, 56, 40)
+		for i = 1, (if c.hi then 4 else 2) do
+			local a = i * 1.7 + seed
+			if ds.side == "kkakdugi" then
+				P("PhotoSideBit", sd * 0.22, sd * 0.2, sx + math.cos(a) * sd * 0.18, sy + math.sin(a) * sd * 0.14, col(sc), a)
+			else
+				E("PhotoSideBit", sd * 0.42, sd * 0.24, sx + math.cos(a) * sd * 0.14, sy + math.sin(a) * sd * 0.1, col(sc), a)
+			end
+		end
+		-- 수저 (위 오른쪽)
+		P("PhotoSpoon", w * 0.36, 0.035, w * 0.3, h * 0.3, L.of(214, 216, 220, M.Metal), 0.2)
+		E("PhotoSpoonHead", 0.12, 0.08, w * 0.12, h * 0.26, L.of(214, 216, 220, M.Metal), 0.2)
+	end
+end
+
+-- 라이트박스 한 판: 알루미늄 테 + 흰 아크릴 면 + 머리띠 + 칸마다 사진 · 이름 · 가격, 위 · 아래 LED 테
+local function photoMenu(c: any, walls: { string }, near: Vector3?, y0: number, y1: number, maxN: number?): boolean
+	local K, V, th = c.K, c.V, c.th
+	local set = PHOTOS[th.key]
+	if not set then
+		return false
+	end
+	local items = set.items
+	local cw = 1.9
+	local nMax = math.min(#items, maxN or #items)
+	local nMin = math.min(nMax, 3)
+	local wn, u, w = findWall(K, walls, nMin * cw + 0.4, nMax * cw + 0.4, y0, y1, near, 0.6)
+	if not wn or not u or not w then
+		return false
+	end
+	local n = math.max(1, math.min(nMax, math.floor((w - 0.4) / cw)))
+	local bw = n * cw + 0.4
+	local bh = y1 - y0 - 0.2
+	local d = V:wall(wn, u, (y0 + y1) / 2, 0)
+	local depth = 0.26
+	K:plate("LightboxBack", bw, bh, depth - 0.02, d, L.of(60, 62, 66, M.Metal))
+	-- 알루미늄 테 (4변, 살짝 둥근 단면)
+	for _, sy in { -1, 1 } do
+		K:plate("LightboxRail", bw + 0.08, 0.12, depth + 0.02, d * CF(0, sy * (bh / 2 + 0.02), 0), L.alu)
+	end
+	for _, sx in { -1, 1 } do
+		K:plate("LightboxRail", 0.12, bh + 0.16, depth + 0.02, d * CF(sx * (bw / 2 + 0.02), 0, 0), L.alu)
+	end
+	local f = d * CF(0, 0, depth - 0.02)
+	K:plate("LightboxFace", bw - 0.08, bh - 0.06, 0.012, f, L.of(252, 252, 248))
+	-- 머리띠 (색) + 제목
+	local hh = 0.5
+	local hy = bh / 2 - 0.05 - hh / 2
+	K:plate("LightboxHead", bw - 0.08, hh, 0.014, f * CF(0, hy, 0.012), col(th.accent))
+	txt(K, "LightboxTitle", math.min(bw - 0.6, 5.2), hh * 0.72, f * CF(0, hy, 0.028), set.title, WHITE, nil, F.GothamBlack, { glow = 1.15, d = 0.004 })
+	if c.hi then
+		txt(K, "LightboxSub", 1.6, hh * 0.42, f * CF(bw / 2 - 1.0, hy, 0.028), "사진은 실제와 다를 수 있습니다", lift(col(th.accent), 0.6).c, nil, F.GothamMedium, { glow = 1.0, d = 0.004 })
+	end
+	-- 위 · 아래 LED 띠 (불 켜진 라이트박스 느낌)
+	K:plate("LightboxLED", bw - 0.2, 0.05, 0.015, f * CF(0, hy - hh / 2 - 0.04, 0.012), L.lampNeutral)
+	K:plate("LightboxLED", bw - 0.2, 0.05, 0.015, f * CF(0, -bh / 2 + 0.08, 0.012), L.lampNeutral)
+	-- 칸
+	local top = hy - hh / 2 - 0.1
+	local bot = -bh / 2 + 0.14
+	local nameH, priceH = 0.34, 0.3
+	local ph = (top - bot) - nameH - priceH - 0.12
+	for i = 1, n do
+		local it = items[i]
+		local x = -bw / 2 + 0.2 + cw * (i - 0.5)
+		local pw = cw - 0.18
+		local py = top - ph / 2
+		K:plate("PhotoMat", pw + 0.06, ph + 0.06, 0.012, f * CF(x, py, 0.012), L.of(214, 214, 210))
+		foodPhoto(c, f * CF(x, py, 0.024), pw, ph, it[3], c.seed + i * 13)
+		txt(K, "PhotoName", pw, nameH, f * CF(x, top - ph - 0.06 - nameH / 2, 0.016), it[1], INK, nil, F.GothamBlack, { glow = 1.05, d = 0.004 })
+		txt(K, "PhotoPrice", pw * 0.8, priceH, f * CF(x, top - ph - 0.08 - nameH - priceH / 2, 0.016), it[2] .. "원", rgb(206, 24, 24), nil, F.GothamBold, { glow = 1.05, d = 0.004 })
+		if i < n then
+			K:plate("PhotoDivider", 0.02, top - bot, 0.01, f * CF(x + cw / 2, (top + bot) / 2, 0.012), L.of(220, 220, 216))
+		end
+	end
+	-- 전선 (라이트박스 아래로 콘센트까지)
+	if c.hi then
+		local a = (d * CF(bw / 2 - 0.3, -bh / 2, 0.05)).Position
+		local oy = math.max((th.lower and th.lower.h or 3.4) + 0.5, y0 - 1.0)
+		K:seg("LightboxCord", a, (V:wall(wn, u + bw / 2 - 0.3, oy + 0.2, 0.05)).Position, 0.04, L.of(240, 240, 236))
+		Props.outlet(K, V:wall(wn, u + bw / 2 - 0.3, oy, 0))
+	end
+	at(K, "photo menu", wn, u)
+	return true
+end
+
+-- 셀프 물 코너: 흰 하부장 + 정수기 (온 · 냉 버튼 · 물받이) + UV 컵 소독기 (스테인리스 컵) + 종이컵 디스펜서 + 안내
+local function waterStation(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if V:has("WaterPurifier") > 0 or V:has("WaterDispenser") > 0 or V:has("WaterBottle") > 0 then
+		return
+	end
+	local size = V3(2.1, 4.7, 1.3)
+	local pcf, wn, u = floorOnWall(K, { "left", "right", "back" }, size, V3(V.x0 * 0.6, 0, V.z0 + 2), 0.15)
+	if not pcf or not wn or not u then
+		return
+	end
+	local w, d, h = 2.0, 1.2, 2.7
+	K:box("WaterCabKick", V3(w - 0.12, 0.22, d - 0.12), pcf * CF(0, 0.11, -0.03), L.black)
+	K:box("WaterCab", V3(w, h - 0.22, d), pcf * CF(0, 0.22 + (h - 0.22) / 2, 0), L.white)
+	K:plate("WaterCabSeam", 0.02, h - 0.4, 0.01, pcf * CF(0, 0.32 + (h - 0.4) / 2, d / 2), L.of(200, 200, 196))
+	for _, sx in { -1, 1 } do
+		K:box("WaterCabPull", V3(0.05, 0.5, 0.06), pcf * CF(sx * 0.12, h - 0.55, d / 2 + 0.03), L.chrome)
+	end
+	K:box("WaterCabTop", V3(w + 0.04, 0.06, d + 0.04), pcf * CF(0, h + 0.03, 0), L.steel)
+	-- 정수기 (왼쪽)
+	local pb = pcf * CF(-0.48, h + 0.06, -0.05)
+	K:rbox("PurifierBody", V3(0.8, 1.55, 0.95), 0.12, pb * CF(0, 0.775, 0), L.of(246, 246, 244))
+	K:plate("PurifierPanel", 0.56, 0.4, 0.02, pb * CF(0, 1.22, 0.475), L.of(26, 28, 32, M.Glass, { r = 0.1 }))
+	for i, cc in { rgb(80, 160, 255), WHITE, rgb(255, 90, 70) } do
+		K:plate("PurifierBtn", 0.1, 0.1, 0.01, pb * CF(-0.18 + (i - 1) * 0.18, 1.18, 0.497), L.neon(cc))
+	end
+	txt(K, "PurifierLabel", 0.5, 0.1, pb * CF(0, 1.34, 0.497), "냉수   정수   온수", rgb(220, 224, 230), nil, F.GothamBold, { glow = 1.0, d = 0.003 })
+	K:box("PurifierNozzle", V3(0.14, 0.1, 0.2), pb * CF(0, 0.92, 0.52), L.chrome)
+	K:plate("PurifierRecess", 0.5, 0.62, 0.01, pb * CF(0, 0.66, 0.475), L.of(220, 222, 224))
+	K:box("PurifierTray", V3(0.5, 0.06, 0.3), pb * CF(0, 0.38, 0.52), L.of(60, 62, 66))
+	K:plate("PurifierLED", 0.4, 0.03, 0.01, pb * CF(0, 1.5, 0.477), L.ledBlue)
+	-- UV 컵 소독기 (오른쪽): 스테인리스 상자 + 유리문 + 보라 빛 + 컵 줄
+	local ub = pcf * CF(0.5, h + 0.06, -0.12)
+	local uw, uh, ud = 0.92, 1.25, 0.8
+	K:box("UVBody", V3(uw, uh, ud), ub * CF(0, uh / 2, 0), L.steel)
+	K:box("UVInner", V3(uw - 0.12, uh - 0.3, 0.02), ub * CF(0, uh / 2 - 0.02, -ud / 2 + 0.08), L.neon(rgb(150, 110, 255)))
+	K:box("UVShelf", V3(uw - 0.12, 0.03, ud - 0.16), ub * CF(0, uh * 0.5, 0), L.chrome)
+	for row = 0, 1 do
+		for i = 0, 3 do
+			K:vcyl("SteelCup", 0.24, 0.17, ub * CF(-0.3 + i * 0.2, 0.2 + row * uh * 0.44 + 0.12, 0.08), L.chrome)
+		end
+	end
+	K:box("UVDoor", V3(uw - 0.06, uh - 0.14, 0.03), ub * CF(0, uh / 2, ud / 2 + 0.015), { c = rgb(200, 190, 240), m = M.Glass, t = 0.55, r = 0.15 })
+	K:box("UVHandle", V3(0.4, 0.05, 0.05), ub * CF(0, uh - 0.18, ud / 2 + 0.06), L.black)
+	txt(K, "UVLabel", 0.7, 0.12, ub * CF(0, 0.08, ud / 2 + 0.035), "자외선 컵 소독기", INK, nil, F.GothamBold, { d = 0.003 })
+	-- 종이컵 디스펜서 (벽) + 쟁반 위 컵 몇 개
+	local cd = V:wall(wn, u + 0.5, h + 1.85, 0)
+	K:vcyl("CupTube", 1.0, 0.3, cd * CF(0, 0, 0.2), { c = rgb(230, 236, 240), m = M.Glass, t = 0.5 })
+	K:vcyl("CupStack", 0.9, 0.24, cd * CF(0, 0.02, 0.2), L.paper)
+	K:plate("CupBracket", 0.36, 0.2, 0.06, cd * CF(0, 0.38, 0), L.steel)
+	K:box("TowelRoll", V3(0.5, 0.42, 0.36), pcf * CF(0.55, 0.22 + 1.1, d / 2 - 0.25), L.paper)
+	-- 안내판
+	local sd = V:wall(wn, u - 0.45, h + 2.2, 0)
+	claim(K, wn, u - 1.2, u + 1.2, h, h + 2.8)
+	plateSign(K, sd, 1.15, 0.6, "물은\n셀프입니다", WHITE, rgb(40, 120, 200), nil, F.GothamBlack)
+	at(K, "water station", wn, u)
+end
+
+-- 활어 · 조개 수조 (2단 유리 수조 + 스테인리스 받침 · 냉각기 + 파란 LED + 기포 + 가격 스티커)
+local function liveTank(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local W = math.clamp(V.W * 0.13, 3.6, 4.8)
+	local size = V3(W + 0.1, 6.5, 2.0)
+	local pcf, wn, u = floorOnWall(K, { "left", "right", "back" }, size, V3(V.x0, 0, V.z1 - 3), 0.2)
+	if not pcf or not wn or not u then
+		return
+	end
+	local D = 1.85
+	local frame = L.of(150, 154, 160, M.Metal)
+	local water = { c = rgb(96, 176, 214), m = M.Glass, t = 0.62, r = 0.25 }
+	local standH = 1.5
+	K:box("TankKick", V3(W - 0.2, 0.2, D - 0.2), pcf * CF(0, 0.1, 0), L.black)
+	K:box("TankStand", V3(W, standH - 0.2, D), pcf * CF(0, 0.2 + (standH - 0.2) / 2, 0), L.brushed)
+	-- 냉각기 통풍 그릴 (받침 앞)
+	for i = 0, 5 do
+		K:plate("ChillerVent", W * 0.4, 0.05, 0.02, pcf * CF(-W * 0.22, 0.45 + i * 0.16, D / 2), L.of(44, 46, 50))
+	end
+	K:plate("ChillerPanel", 0.7, 0.36, 0.02, pcf * CF(W * 0.26, 1.0, D / 2), L.of(28, 30, 34))
+	txt(K, "ChillerTemp", 0.6, 0.24, pcf * CF(W * 0.26, 1.0, D / 2 + 0.022), "수온 12.5℃", rgb(120, 230, 140), nil, F.Arcade, { glow = 1.3, d = 0.003 })
+	local tiers = { { standH, 1.85 }, { standH + 2.05, 1.5 } }
+	local catch = th.catch or {}
+	for ti, tr in tiers do
+		local y0, hh = tr[1], tr[2]
+		local base = pcf * CF(0, y0, 0)
+		K:box("TankFloor", V3(W, 0.08, D), base * CF(0, 0.04, 0), frame)
+		K:box("TankBed", V3(W - 0.16, 0.06, D - 0.16), base * CF(0, 0.11, 0), L.of(214, 204, 180, M.Sand))
+		K:box("LiveTankWater", V3(W - 0.14, hh - 0.32, D - 0.14), base * CF(0, 0.14 + (hh - 0.32) / 2, 0), water)
+		-- 유리 앞판 + 모서리 프레임
+		K:box("TankGlass", V3(W - 0.08, hh - 0.1, 0.03), base * CF(0, 0.08 + (hh - 0.1) / 2, D / 2 - 0.02), { c = rgb(220, 236, 240), m = M.Glass, t = 0.85, r = 0.2 })
+		for _, sx in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				K:box("TankPost", V3(0.08, hh, 0.08), base * CF(sx * (W / 2 - 0.04), hh / 2, sz * (D / 2 - 0.04)), frame)
+			end
+		end
+		K:box("TankRim", V3(W, 0.1, 0.1), base * CF(0, hh - 0.05, D / 2 - 0.05), frame)
+		K:box("TankRim", V3(W, 0.1, 0.1), base * CF(0, hh - 0.05, -D / 2 + 0.05), frame)
+		K:box("TankLED", V3(W - 0.3, 0.05, 0.1), base * CF(0, hh - 0.14, 0.2), L.neon(rgb(110, 190, 255)))
+		-- 해산물 (칸 2개) + 가격 스티커
+		local nsec = 2
+		for si = 1, nsec do
+			local item = catch[((ti - 1) * nsec + si - 1) % math.max(1, #catch) + 1]
+			if item then
+				local sx = -W / 2 + W * (si - 0.5) / nsec
+				seafood(c, item[1], base * CF(sx, 0.14, 0), W / nsec - 0.5, D - 0.6, c.seed + ti * 10 + si)
+				local tag = string.gsub(item[2], "\n", "  ")
+				txt(K, "TankTag", math.min(1.5, W / nsec - 0.3), 0.28, base * CF(sx, hh - 0.38, D / 2 + 0.005), tag, rgb(200, 16, 16), rgb(255, 250, 228), F.GothamBlack, { d = 0.01 })
+			end
+			if si < nsec then
+				K:box("TankDivider", V3(0.02, hh - 0.3, D - 0.2), base * CF(-W / 2 + W * si / nsec, 0.1 + (hh - 0.3) / 2, 0), { c = rgb(220, 236, 240), m = M.Glass, t = 0.7 })
+			end
+		end
+		-- 기포 (에어스톤 + 올라가는 방울)
+		if c.hi then
+			for bi = 1, 2 do
+				local bx = (if bi == 1 then -1 else 1) * W * 0.36
+				K:vcyl("AirStone", 0.08, 0.16, base * CF(bx, 0.18, -D / 2 + 0.3), L.of(150, 140, 130, M.Slate))
+				for k = 1, 5 do
+					local yy = 0.3 + (hh - 0.75) * k / 5
+					K:ball("Bubble", 0.05 + rnd(c.seed, ti * 30 + bi * 7 + k) * 0.06, base * CF(bx + (rnd(c.seed, k + bi) - 0.5) * 0.12, yy, -D / 2 + 0.3), { c = rgb(240, 250, 255), m = M.Glass, t = 0.35 })
+				end
+			end
+		end
+	end
+	-- 위: 여과기 · 냉각 배관 상자 + 호스
+	local ty = standH + 2.05 + 1.5
+	K:box("FilterBox", V3(W, 0.8, D - 0.3), pcf * CF(0, ty + 0.42, -0.15), L.of(60, 64, 70, M.Metal))
+	K:plate("FilterLabel", 1.6, 0.36, 0.01, pcf * CF(0, ty + 0.42, (D - 0.3) / 2 - 0.15), L.of(240, 240, 236))
+	txt(K, "FilterText", 1.5, 0.3, pcf * CF(0, ty + 0.42, (D - 0.3) / 2 - 0.135), "해수 순환 여과", INK, nil, F.GothamBold, { d = 0.004 })
+	K:seg("TankHose", (pcf * CF(W / 2 - 0.2, ty + 0.2, -D / 2 + 0.2)).Position, (pcf * CF(W / 2 - 0.2, standH + 0.2, -D / 2 + 0.2)).Position, 0.1, L.of(30, 30, 34, M.Rubber))
+	K:seg("TankHose", (pcf * CF(-W / 2 + 0.2, ty + 0.2, -D / 2 + 0.2)).Position, (pcf * CF(-W / 2 + 0.2, standH + 2.1, -D / 2 + 0.2)).Position, 0.08, L.of(210, 220, 230, M.Plastic))
+	-- 뜰채 (옆에 걸림)
+	local nx = W / 2 + 0.05
+	K:seg("NetPole", (pcf * CF(nx, 1.6, 0.4)).Position, (pcf * CF(nx, 4.6, 0.3)).Position, 0.05, L.of(220, 200, 60, M.Plastic))
+	K:make("Part", "NetRing", V3(0.04, 0.5, 0.5), pcf * CF(nx + 0.02, 4.85, 0.3), L.of(40, 120, 200, M.Plastic), Enum.PartType.Cylinder)
+	-- 위 간판 (벽)
+	local sd = V:wall(wn, u, math.min(V.H - 0.9, ty + 1.5), 0)
+	claim(K, wn, u - W / 2 - 0.3, u + W / 2 + 0.3, 0, V.H)
+	plateSign(K, sd, math.min(W, 4.2), 0.6, if th.pocha then "오늘 들어온 활어 · 해산물" else "산지직송 활 조개 수조", WHITE, rgb(20, 100, 170), nil, F.GothamBlack)
+	at(K, "live tank", wn, u)
+end
+
 -- 스타일 · 빌드 --------------------------------------------------------------------------------------------
 function T.style(V: any): any
 	local th = themeFor(V)
@@ -2708,7 +3140,7 @@ function T.style(V: any): any
 		stool = false,
 		table = false,
 		counter = th.counter or { front = "tile", frontL = L.of(196, 64, 44, M.CeramicTiles), topL = L.steel, kickL = L.black, led = rgb(255, 196, 130) },
-		ceiling = if th.tent == "full" then false else { grid = false },
+		ceiling = if th.tent == "full" then false elseif th.key == "pocha24" then { grid = true, tile = 2.0 } else { grid = false },
 		floor = th.floor,
 		lower = th.lower,
 		base = th.base,
@@ -2762,17 +3194,40 @@ function T.build(K: any, V: any, S: any)
 	if th.kitchenDoor then
 		step("kdoor", kitchenDoor)
 	end
-	if th.menuStyle == "sheets" then
-		step("sheets", menuSheets)
-	else
+	if th.menuStyle ~= "sheets" then
 		step("menus", mainMenus)
 	end
-	-- 바닥 소품
-	if th.standAC then
-		step("standAC", standAC)
-	end
+	-- 상호작용 벽 · 바닥 소품 먼저 (프롬프트 자리는 테이블에서 먼 벽에만 있어서 드묾)
 	if not c.hasFridge and th.pocha then
 		step("standFridge", standFridge)
+	end
+	if th.tv then
+		step("tv", wallTV)
+	end
+	step("fan", wallFan)
+	if th.exhaust then
+		step("exhaust", exhaustFan)
+	end
+	if c.bulbs and #c.bulbs > 0 then
+		step("bulbSwitch", bulbSwitch)
+	end
+	-- 사진 메뉴 라이트박스 + 손글씨 메뉴 줄
+	if th.menuStyle == "sheets" then
+		step("photo", function()
+			photoMenu(c, { "left", "right", "back" }, V3(V.x0, 0, -1), 5.2, 8.1, if th.key == "pochaBar" then 4 elseif th.key == "pochaTent" then 5 else 6)
+		end)
+		step("sheets", menuSheets)
+	else
+		step("photo", function()
+			photoMenu(c, { "right", "left" }, V3(V.x1, 0, 0), 5.3, 8.2, 6)
+		end)
+	end
+	-- 바닥 소품: 수조 (조개구이 · 해물 포차, 앞쪽 옆벽) · 에어컨 · 화로대 · 셀프 카트 · 셀프 물 · 소주 박스
+	if th.key == "clam" or (th.pocha and th.key ~= "pocha24") then
+		step("tank", liveTank)
+	end
+	if th.standAC then
+		step("standAC", standAC)
 	end
 	if th.station then
 		step("station", charcoalStation)
@@ -2780,16 +3235,9 @@ function T.build(K: any, V: any, S: any)
 	if th.selfBar then
 		step("selfCart", selfCart)
 	end
+	step("water", waterStation)
 	if th.crates then
 		step("crates", crateStack)
-	end
-	-- 상호작용 벽 소품
-	if th.tv then
-		step("tv", wallTV)
-	end
-	step("fan", wallFan)
-	if th.exhaust then
-		step("exhaust", exhaustFan)
 	end
 	-- 안내 · 장식
 	step("origin", function()
@@ -2805,12 +3253,11 @@ function T.build(K: any, V: any, S: any)
 	step("autos", autographs)
 	step("posters", posters)
 	step("clock", wallClock)
-	-- 전구 빛 + 스위치
+	-- 전구 빛 (남은 불빛 예산으로)
 	if c.bulbs and #c.bulbs > 0 then
 		step("bulbLights", function()
 			bulbLights(c, math.max(1, math.min(4, (V.maxLights or 8) - #K.lights - 1)))
 		end)
-		step("bulbSwitch", bulbSwitch)
 	end
 end
 

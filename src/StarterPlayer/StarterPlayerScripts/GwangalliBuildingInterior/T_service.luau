@@ -798,7 +798,7 @@ local function priceBoard(K: any, dcf: CFrame, w: number, h: number, title: stri
 	local head: Color3 = oo.head or C(24, 50, 110)
 	local acc: Color3 = oo.accent or C(210, 40, 50)
 	K:plate("PriceBoardFrame", w + 0.14, h + 0.14, 0.08, dcf, lk(head))
-	K:plate("PriceBoard", w, h, 0.1, dcf, lk(C(252, 252, 250)))
+	K:plate("PriceBoard", w, h, 0.1, dcf, lk(oo.bg or C(252, 252, 250)))
 	local th = math.min(0.8, h * 0.2)
 	K:plate("PriceBoardHead", w, th, 0.11, dcf * CF(0, h / 2 - th / 2, 0), lk(head))
 	txt(K, "PriceBoardTitle", w * 0.9, th * 0.7, dcf * CF(0, h / 2 - th / 2, 0.115), title, WHITE, nil, { font = F.GothamBlack })
@@ -811,7 +811,7 @@ local function priceBoard(K: any, dcf: CFrame, w: number, h: number, title: stri
 		local r = (i - 1) % rows
 		local x0 = -w / 2 + 0.15 + c * cw
 		local y = h / 2 - th - 0.15 - rh * (r + 0.5)
-		txt(K, "PriceItem", cw * 0.6, rh * 0.62, dcf * CF(x0 + cw * 0.32, y, 0.105), it[1], C(36, 40, 52), nil, { font = F.GothamBold, align = "Left" })
+		txt(K, "PriceItem", cw * 0.6, rh * 0.62, dcf * CF(x0 + cw * 0.32, y, 0.105), it[1], oo.ink or C(36, 40, 52), nil, { font = F.GothamBold, align = "Left" })
 		txt(K, "PriceValue", cw * 0.34, rh * 0.62, dcf * CF(x0 + cw * 0.8, y, 0.105), it[2], acc, nil, { font = F.GothamBlack, align = "Right" })
 		if r < rows - 1 and not lo(K) then
 			K:plate("PriceRule", cw * 0.94, 0.02, 0.102, dcf * CF(x0 + cw * 0.5, y - rh / 2, 0), lk(C(220, 222, 226)))
@@ -2492,7 +2492,7 @@ local function buildMotel(K: any, V: any, S: any)
 			local potL = if tropical then lk(C(196, 170, 130), M.Fabric) else lk(C(30, 28, 30), M.Concrete)
 			local spots = { V3(V.x1 - 1.6, 0, V.z0 + 1.6), V3(V.x0 + 1.6, 0, V.z0 + 1.6) }
 			if V.W >= 14 then
-				for _, p in { V3(V.x0 + 1.6, 0, V.z1 - 3.0), V3(V.x1 - 1.6, 0, V.z1 - 3.0), V3(V.x0 + 1.6, 0, 0), V3(V.x1 - 1.6, 0, 0) } do
+				for _, p in { V3(V.x0 + 1.6, 0, V.z1 - 3.3), V3(V.x1 - 1.6, 0, V.z1 - 3.3), V3(V.x0 + 1.6, 0, 0), V3(V.x1 - 1.6, 0, 0) } do
 					table.insert(spots, p)
 				end
 				local els = V.byName.ElevatorDoor
@@ -3533,14 +3533,39 @@ local function garment(K: any, frame: CFrame, g: any, col: Color3, tag: boolean)
 			table.insert(out, p)
 		end
 	end
-	add(K:seg("GarmentHook", (frame * CF(0, 0.02, 0)).Position, (frame * CF(0, -0.28, 0)).Position, 0.035, Look.chrome))
+	local w, t, len = g.w, g.t, g.len
+	local fab = lk(col, if g.kind == "shirt" then M.SmoothPlastic elseif g.kind == "padding" then M.Fabric else M.Fabric)
+	-- 철사 옷걸이 고리 + 종이 어깨 커버 (세탁소 옷걸이)
+	add(K:seg("GarmentHook", (frame * CF(0, 0.02, 0)).Position, (frame * CF(0, -0.3, 0)).Position, 0.035, Look.chrome))
 	for _, sx in { -1, 1 } do
-		add(K:box("GarmentShoulder", V3(g.w / 2 + 0.08, 0.1, g.t + 0.05), frame * CF(sx * g.w / 4, -0.42, 0) * ANG(0, 0, sx * -0.32), Look.paper))
+		add(K:box("GarmentShoulder", V3(w / 2 + 0.06, 0.09, t + 0.05), frame * CF(sx * w / 4, -0.44, 0) * ANG(0, 0, sx * -0.3), Look.paper))
 	end
-	add(K:box("GarmentBody", V3(g.w, g.len, g.t), frame * CF(0, -0.5 - g.len / 2, 0), lk(col, if g.kind == "padding" then M.Fabric elseif g.kind == "shirt" then M.SmoothPlastic else M.Fabric)))
-	add(K:box("GarmentPlastic", V3(g.w + 0.12, g.len + 0.3, g.t + 0.1), frame * CF(0, -0.38 - g.len / 2, 0), { c = C(232, 240, 246), m = M.Glass, t = 0.72, r = 0.25 }))
+	-- 몸판: 위 (어깨 폭) + 아래 (코트 · 원피스는 살짝 넓게)
+	local upper = len * 0.45
+	add(K:box("GarmentBody", V3(w, upper, t), frame * CF(0, -0.52 - upper / 2, 0), fab))
+	local flare = if g.kind == "dress" or g.kind == "coat" then 1.1 elseif g.kind == "padding" then 0.96 else 0.98
+	add(K:box("GarmentBody", V3(w * flare, len - upper, t * 0.92), frame * CF(0, -0.52 - upper - (len - upper) / 2, 0), fab))
+	-- 소매 (몸판 옆으로 늘어진 팔) · 깃
+	if not lo(K) and g.kind ~= "dress" then
+		for _, sx in { -1, 1 } do
+			add(K:box("GarmentSleeve", V3(0.2, len * 0.62, t * 0.8), frame * CF(sx * (w / 2 + 0.07), -0.6 - len * 0.31, 0) * ANG(0, 0, sx * 0.05), lk(darker(col, 0.06), fab.m)))
+		end
+	end
+	if g.kind == "shirt" or g.kind == "suit" then
+		add(K:box("GarmentCollar", V3(w * 0.34, 0.16, t + 0.03), frame * CF(0, -0.56, 0), lk(if g.kind == "suit" then C(240, 240, 244) else lighter(col, 0.1))))
+	end
+	-- 비닐 커버: 몸통 + 어깨 지붕 (쐐기 둘) — 고리 쪽으로 좁아짐
+	local pl = { c = C(232, 240, 246), m = M.Glass, t = 0.74, r = 0.25 }
+	add(K:box("GarmentPlastic", V3(w + 0.16, len + 0.25, t + 0.1), frame * CF(0, -0.58 - len / 2, 0), pl))
+	if not lo(K) then
+		for _, sx in { -1, 1 } do
+			add(K:wedge("GarmentPlasticTop", V3(t + 0.1, 0.32, w / 2 + 0.08), frame * CF(sx * (w / 4 + 0.04), -0.3, 0) * ANG(0, sx * -PI / 2, 0), pl))
+		end
+	end
 	if tag then
-		add(K:box("GarmentTag", V3(0.2, 0.28, 0.02), frame * CF(g.w / 2 - 0.15, -0.6 - g.len, g.t / 2 + 0.06), lk(pickR(mkRng(col.R * 1000 + g.len), { C(250, 220, 60), C(250, 150, 170), C(140, 220, 160) }))))
+		-- 세탁 번호표: 고리 목에 스테이플
+		local tc = pickR(mkRng(col.R * 1000 + len), { C(250, 220, 60), C(250, 150, 170), C(140, 220, 160), C(250, 250, 250) })
+		add(K:box("GarmentTag", V3(0.03, 0.3, 0.2), frame * CF(0, -0.42, t / 2 + 0.1) * ANG(0, 0, 0.12), lk(tc)))
 	end
 	return out
 end
@@ -3656,7 +3681,7 @@ local function pressStation(K: any, V: any, pcf: CFrame, w: number, dep: number)
 	K:box("SteamIronPost", V3(0.1, 0.18, 0.08), pcf * CF(ix, h + 0.27, iz + 0.2), Look.black)
 	-- 천장 스프링 밸런서 + 코드
 	local topY = V.H - 0.05
-	K:box("PressBalancer", V3(0.4, 0.4, 0.4), pcf * CF(ix, topY - 0.25, iz), lk(C(230, 120, 30), M.Metal))
+	K:box("PressBalancer", V3(0.4, 0.4, 0.4), pcf * CF(ix, topY - 0.25, iz), lk(C(70, 74, 80), M.Metal))
 	K:seg("PressBalancerRod", (pcf * CF(ix, topY, iz)).Position, (pcf * CF(ix, topY - 0.1, iz)).Position, 0.06, steel)
 	local springTop = topY - 0.5
 	if not lo(K) then
@@ -3664,8 +3689,15 @@ local function pressStation(K: any, V: any, pcf: CFrame, w: number, dep: number)
 			K:ring("PressSpring", pcf * CF(ix, springTop - i * 0.14, iz) * ANG(PI / 2, 0, 0), 0.09, 0.03, 6, Look.chrome)
 		end
 	end
-	K:seg("PressCord", (pcf * CF(ix, springTop - 0.7, iz)).Position, (pcf * CF(ix, h + 0.45, iz + 0.15)).Position, 0.04, Look.black)
-	K:seg("PressHose", (pcf * CF(ix, springTop - 0.7, iz)).Position, (pcf * CF(ix + 0.05, h + 0.42, iz + 0.2)).Position, 0.05, lk(C(220, 60, 40), M.Rubber))
+	-- 스프링에서 내려오는 코드 + 흰 스팀 호스 (가운데서 살짝 휨)
+	local hoseL = lk(C(232, 232, 228), M.Rubber)
+	local hA = (pcf * CF(ix, springTop - 0.7, iz)).Position
+	local hM = (pcf * CF(ix + 0.12, (springTop - 0.7 + h + 0.45) / 2, iz + 0.22)).Position
+	local hB = (pcf * CF(ix, h + 0.42, iz + 0.2)).Position
+	K:seg("PressHose", hA, hM, 0.07, hoseL)
+	K:seg("PressHose", hM, hB, 0.07, hoseL)
+	K:seg("PressCord", hA + V3(0.05, 0, 0), hM + V3(0.05, 0, -0.04), 0.035, Look.charcoal)
+	K:seg("PressCord", hM + V3(0.05, 0, -0.04), (pcf * CF(ix + 0.04, h + 0.45, iz + 0.1)).Position, 0.035, Look.charcoal)
 	-- 옆 보일러
 	local bx = pcf * CF(w / 2 + 0.6, 0, 0)
 	local bd = math.min(1.0, dep - 0.05)
@@ -3746,6 +3778,30 @@ local function sewingCorner(K: any, pcf: CFrame, rng: () -> number)
 	return lamp, bulb
 end
 
+-- 수선용 마네킹 (드레스 폼: 삼발이 받침 + 봉 + 몸통 + 줄자). pcf 바닥 가운데, +Z 앞
+local function dressForm(K: any, pcf: CFrame, col: Color3)
+	for i = 0, 2 do
+		local a = i * 2 * PI / 3
+		K:box("FormFoot", V3(0.12, 0.1, 0.62), pcf * ANG(0, a, 0) * CF(0, 0.1, 0.3), Look.walnut)
+		K:ball("FormCaster", 0.14, pcf * ANG(0, a, 0) * CF(0, 0.07, 0.56), Look.black)
+	end
+	K:vcyl("FormPole", 2.45, 0.1, pcf * CF(0, 1.3, 0), Look.chrome)
+	K:vcyl("FormCollar", 0.16, 0.18, pcf * CF(0, 1.9, 0), Look.chrome)
+	local fab = lk(col, M.Fabric)
+	K:ell("FormHips", V3(1.12, 0.85, 0.72), pcf * CF(0, 2.85, 0), fab)
+	K:ell("FormWaist", V3(0.88, 1.0, 0.6), pcf * CF(0, 3.4, 0), fab)
+	K:ell("FormChest", V3(1.22, 1.35, 0.74), pcf * CF(0, 4.1, 0.02), fab)
+	K:ell("FormShoulders", V3(1.32, 0.5, 0.62), pcf * CF(0, 4.62, -0.02), fab)
+	K:vcyl("FormNeck", 0.36, 0.34, pcf * CF(0, 4.98, -0.02), fab)
+	K:vcyl("FormNeckCap", 0.06, 0.38, pcf * CF(0, 5.18, -0.02), Look.walnut)
+	K:ball("FormKnob", 0.14, pcf * CF(0, 5.26, -0.02), Look.walnut)
+	-- 목에 건 줄자 (양쪽으로 늘어짐)
+	local tape = lk(C(240, 200, 40))
+	for _, sx in { -1, 1 } do
+		K:seg("FormTape", (pcf * CF(sx * 0.2, 4.9, 0.2)).Position, (pcf * CF(sx * 0.32, 3.75, 0.42)).Position, 0.05, tape)
+	end
+end
+
 -- 실 걸이 (벽 판 + 실패). dcf 벽
 local function threadRack(K: any, dcf: CFrame, w: number, h: number, rng: () -> number)
 	K:plate("ThreadBoard", w, h, 0.06, dcf, lk(C(220, 196, 150), M.Wood))
@@ -3792,7 +3848,7 @@ local function buildLaundry(K: any, V: any, S: any)
 	end)
 	-- 1) 다림질대: 뒷벽 가운데 (문 앞 현관 keep 뒤 얕은 자리) — 들어오면 바로 보이는 작업대
 	local steam, iron = nil, nil
-	local pressU = nil
+	local pressU, ironU = nil, nil
 	step(K, "press", function()
 		local dep = 1.12
 		for _, w in { 4.2, 3.4, 2.8 } do
@@ -3804,6 +3860,7 @@ local function buildLaundry(K: any, V: any, S: any)
 			if pcf then
 				steam, iron = pressStation(K, V, pcf * CF(-0.6, 0, 0), w, dep)
 				pressU = pcf.Position.X - cx
+				ironU = pressU - 0.6 - w / 2 + 1.1
 				-- 일하는 자리 (앞) 비움
 				K:reserve((pcf * CF(-(w + 1.3) / 2, 0, dep / 2)).Position, (pcf * CF((w + 1.3) / 2, 6, dep / 2 + 1.6)).Position:Max((pcf * CF(-(w + 1.3) / 2, 0, dep / 2)).Position), "front")
 				break
@@ -3997,9 +4054,9 @@ local function buildLaundry(K: any, V: any, S: any)
 	end)
 	-- 2) 요금표: 다림질대 위 뒷벽 (없으면 다른 벽)
 	step(K, "prices", function()
-		local w = math.min(4.6, V.W * 0.26)
+		local w = math.min(4.0, V.W * 0.26)
 		local y0, y1 = 4.1, math.min(V.H - 0.5, 7.4)
-		local wn, d = wallItemSpot(K, { "back" }, w, y0, y1, pressU or 0)
+		local wn, d = wallItemSpot(K, { "back" }, w, y0, y1, if ironU then ironU + 0.4 + w / 2 else 0)
 		if not wn then
 			wn, d = wallItemSpot(K, { "back", "left", "right" }, w, y0, y1, 0)
 		end
@@ -4013,14 +4070,14 @@ local function buildLaundry(K: any, V: any, S: any)
 					K:cyl("BoardLightHood", w * 0.36, 0.22, ld * CF(0, 0.04, 0.56), Look.blackMetal)
 					local led = K:cyl("BoardLightLED", w * 0.34, 0.12, ld * CF(0, -0.03, 0.56), Look.lampNeutral)
 					if fx < 0 then
-						K:light(led, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 7, Brightness = 0.9, Angle = 90, Color = Look.neutralLight })
+						K:light(led, "SpotLight", { Face = Enum.NormalId.Bottom, Range = 6, Brightness = 0.4, Angle = 80, Color = Look.warmLight })
 					end
 				end
 			end)
 			priceBoard(K, d, w, y1 - y0 - 0.2, name .. "  세탁 요금표", {
 				{ "와이셔츠", "2,000" }, { "바지 · 스커트", "4,000" }, { "블라우스", "4,000" }, { "니트 · 스웨터", "5,000" }, { "원피스", "7,000" }, { "정장 상하", "9,000" },
 				{ "코트", "12,000" }, { "패딩 점퍼", "15,000~" }, { "운동화", "6,000" }, { "이불 (극세사)", "15,000~" }, { "바지 기장 수선", "7,000" }, { "지퍼 교체", "10,000" },
-			}, { cols = 2, head = navy })
+			}, { cols = 2, head = navy, bg = C(238, 236, 230), ink = C(16, 20, 32), accent = C(196, 24, 36) })
 		end
 	end)
 	-- 6) 상호작용: 컨베이어 조작함 · 스팀
@@ -4031,7 +4088,20 @@ local function buildLaundry(K: any, V: any, S: any)
 		local wn, d = wallItemSpot(K, { "left", "right", "back" }, 3.0, 5.9, 7.0, 0)
 		if wn and d then
 			local at = Props.shelf(K, d * CF(0, -0.4, 0), 3.0, { depth = 0.9, look = Look.white })
-			Props.row(K, at * CF(-0.6, 0, 0), 1.6, "bottles", { colors = { C(40, 110, 200), C(240, 240, 240), C(60, 180, 120), C(240, 140, 40) }, seed = 3, n = 4 })
+			-- 세제 말통 · 섬유유연제 · 얼룩 제거 스프레이
+			local jugs = { C(40, 110, 200), C(240, 240, 240), C(250, 140, 170) }
+			for i, jc in jugs do
+				local jcf = at * CF(-1.25 + (i - 1) * 0.55, 0, -0.05)
+				K:rbox("DetergentJug", V3(0.46, 0.72, 0.36), 0.06, jcf * CF(0, 0.36, 0), lk(jc, M.SmoothPlastic, { r = 0.15 }))
+				K:box("DetergentHandle", V3(0.08, 0.2, 0.22), jcf * CF(0.14, 0.78, 0), lk(jc, M.SmoothPlastic))
+				K:vcyl("DetergentCap", 0.1, 0.16, jcf * CF(-0.1, 0.77, 0), lk(if i == 2 then C(40, 110, 200) else C(250, 250, 250)))
+				K:plate("DetergentLabel", 0.36, 0.3, 0.01, CFrame.fromMatrix((jcf * CF(0, 0.34, 0.185)).Position, jcf.XVector, Vector3.yAxis, jcf.ZVector), lk(if i == 2 then C(250, 200, 60) else C(250, 250, 250)))
+			end
+			for i = 0, 1 do
+				local scf = at * CF(0.35 + i * 0.3, 0, 0.05)
+				K:vcyl("SprayBottle", 0.5, 0.2, scf * CF(0, 0.25, 0), lk(if i == 0 then C(120, 200, 230) else C(250, 220, 90), M.SmoothPlastic, { t = 0.15 }))
+				K:box("SprayHead", V3(0.12, 0.16, 0.2), scf * CF(0, 0.58, 0.03), lk(C(250, 250, 250)))
+			end
 			for i = 0, 3 do
 				K:box("HangerBundle", V3(0.8, 0.45, 0.05), at * CF(0.95, 0.24, -0.25 + i * 0.12), lk(C(200, 202, 206), M.Metal))
 			end
@@ -4064,6 +4134,19 @@ local function buildLaundry(K: any, V: any, S: any)
 			end
 		end
 		plantAt(K, pcfAt(V3(V.x1 - 0.9, 0, V.z1 - 1.0), V3(0, 0, 1)), "snake", 3.4, 1.0, lk(C(236, 234, 228), M.Concrete))
+		-- 수선 마네킹: 수선 코너 가까이 (벽 앞, 문 · 창 keep 밖)
+		local wf, fpcf = wallFloorSpot(K, { "left", "right", "back" }, 1.4, 1.4, 5.4, V3(V.x0 + 3, 0, V.z0), 0.02, "form")
+		if wf and fpcf then
+			dressForm(K, fpcf, pickR(rng, { C(40, 40, 44), C(226, 210, 184), C(240, 236, 230) }))
+		end
+		-- 맡긴 세탁물 망 (바구니 옆 바닥)
+		local wb, bpcf = wallFloorSpot(K, { "left", "right", "back" }, 1.6, 1.2, 1.4, V3(V.x1, 0, V.z1 - 3), 0.05, "bags")
+		if wb and bpcf then
+			for i = 0, 2 do
+				K:ell("LaundryBag", V3(0.95, 0.75 - i * 0.1, 0.8), bpcf * CF(-0.35 + i * 0.4, 0.34 + (i % 2) * 0.35, (i % 2) * 0.1 - 0.05) * ANG(0, i * 0.7, 0.1), lk(pickR(rng, { C(240, 240, 240), C(200, 210, 230), C(230, 220, 200) }), M.Fabric))
+			end
+			K:box("LaundryBagTag", V3(0.25, 0.32, 0.02), bpcf * CF(0.05, 0.9, 0.42) * ANG(0, 0, 0.15), lk(C(250, 220, 60)))
+		end
 	end)
 	step(K, "fixtures", function()
 		Common.fixtures(K, V, S)

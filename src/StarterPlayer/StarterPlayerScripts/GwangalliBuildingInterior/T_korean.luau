@@ -758,7 +758,7 @@ function T.style(V: any): any
 		-- GwShop: 바닥 · 징두리는 이미 있음 (마감 · 장식만, R14)
 		S.floor = nil
 		S.lower = false
-		S.ceiling = {}
+		S.ceiling = { grid = true } -- 텍스 그리드 마감 (얇은 오버레이, R5 · R14)
 		S.mat = false
 	end
 	S.__theme = th
@@ -1400,11 +1400,19 @@ local function passView(c: any, a: number, b: number, y0: number, y1: number, zf
 				local px = a + w * (i - 0.5) / nPot
 				local pw = math.min(1.5, w / nPot - 0.5)
 				local pc = face * CF(px - u, ctY + 0.5 - (y0 + y1) / 2, 0)
-				K:plate("PassPot", pw, 0.75, 0.08, pc, L.brushed)
-				K:plate("PassPotRim", pw + 0.12, 0.08, 0.1, pc * CF(0, 0.38, 0), L.chrome)
-				K:plate("PassPotBand", pw, 0.05, 0.09, pc * CF(0, 0.05, 0), dim(L.steel, 0.2))
+				-- 반쯤 벽에 묻힌 원통 솥 (앞으로 최대 0.42 나옴: 패스 받침 위 그릇 자리와 안 겹침)
+				local pd = math.min(pw, 0.84)
+				local potC = pc * CF(0, 0, -0.02)
+				K:vcyl("PassPot", 0.75, pd, potC, L.brushed)
+				K:vcyl("PassPotRim", 0.07, pd + 0.06, potC * CF(0, 0.38, 0), L.chrome)
+				K:vcyl("PassPotBand", 0.05, pd + 0.02, potC * CF(0, 0.04, 0), dim(L.steel, 0.2))
+				K:vcyl("PassBroth", 0.02, pd - 0.08, potC * CF(0, 0.33, 0), col(th.broth, M.SmoothPlastic))
 				for _, sx in { -1, 1 } do
-					K:plate("PassPotHandle", 0.1, 0.1, 0.12, pc * CF(sx * (pw / 2 + 0.06), 0.24, 0), L.blackMetal)
+					K:box("PassPotHandle", V3(0.12, 0.08, 0.1), potC * CF(sx * (pd / 2 + 0.04), 0.26, 0.12), L.blackMetal)
+				end
+				if i % 2 == 0 then
+					-- 국자 꽂힌 솥
+					K:seg("PassPotLadle", (potC * CF(0.12, 0.3, 0.16)).Position, (potC * CF(0.3, 1.0, 0.1)).Position, 0.035, L.chrome)
 				end
 				table.insert(srcs, { p = V3(px, ctY + 0.95, zf + 0.25), r = 0.7, rise = math.max(0.8, norenBottom - ctY - 0.9) })
 			end
@@ -2858,6 +2866,82 @@ local function catProp(c: any)
 	end
 end
 
+-- 라멘: 일본 술병 (1.8L 됫병 · 위스키 · 소주) — base = 선반 윗면 위 병 바닥 가운데
+local function sakeBottle(K: any, base: CFrame, kind: number, hi: boolean)
+	if kind == 0 or kind == 2 then
+		-- 됫병 (짙은 갈색 / 초록 유리 + 흰 라벨)
+		local gl = if kind == 0 then { c = rgb(70, 40, 20), m = M.Glass, t = 0.1 } else { c = rgb(30, 70, 40), m = M.Glass, t = 0.1 }
+		K:vcyl("SakeBody", 0.95, 0.36, base * CF(0, 0.475, 0), gl)
+		K:ell("SakeShoulder", V3(0.36, 0.24, 0.36), base * CF(0, 0.95, 0), gl)
+		K:vcyl("SakeNeck", 0.26, 0.14, base * CF(0, 1.12, 0), gl)
+		K:vcyl("SakeCap", 0.08, 0.16, base * CF(0, 1.27, 0), L.of(200, 170, 80, M.Metal))
+		if hi then
+			ktext(K, "SakeLabel", 0.26, 0.5, base * CF(0, 0.52, 0.181), if kind == 0 then "辛\n口" else "純\n米", { fg = rgb(30, 20, 16), bg = rgb(244, 236, 214), font = F.GothamBlack, d = 0.008 })
+		end
+	elseif kind == 1 then
+		-- 하이볼 위스키 (각진 병)
+		K:box("WhiskyBody", V3(0.34, 0.62, 0.22), base * CF(0, 0.31, 0), { c = rgb(190, 120, 40), m = M.Glass, t = 0.15 })
+		K:vcyl("WhiskyNeck", 0.2, 0.1, base * CF(0, 0.72, 0), { c = rgb(190, 120, 40), m = M.Glass, t = 0.15 })
+		K:vcyl("WhiskyCap", 0.08, 0.13, base * CF(0, 0.86, 0), L.black)
+		if hi then
+			K:plate("WhiskyLabel", 0.26, 0.2, 0.01, base * CF(0, 0.3, 0.11), L.of(240, 226, 190))
+		end
+	else
+		-- 소주 (초록 병 · 짧음)
+		K:vcyl("ShochuBody", 0.5, 0.24, base * CF(0, 0.25, 0), { c = rgb(40, 140, 80), m = M.Glass, t = 0.15 })
+		K:vcyl("ShochuNeck", 0.2, 0.11, base * CF(0, 0.6, 0), { c = rgb(40, 140, 80), m = M.Glass, t = 0.15 })
+	end
+end
+
+-- 라멘 식당 벽: 높은 술 선반 · '맛있게 먹는 법' 액자 · 노보리 현수막 · 오늘의 한정 칠판
+local function ramenWall(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if th.key ~= "ramen" then
+		return
+	end
+	local dining = V3(if c.upstand then (if c.upstand.c.X < 0 then V.x1 - V.W * 0.25 else V.x0 + V.W * 0.25) else 0, 0, V.z0)
+	-- 1) 높은 선반 (6.6 위) + 술병 · 됫병
+	if V.H >= 8.6 then
+		local wn, u, w = findWall(K, { "back", "right", "left" }, 3.4, 5.2, 6.75, 8.5, dining, 0.8)
+		if wn and u and w then
+			local sw = w - 0.2
+			local top = Props.shelf(K, V:wall(wn, u, 7.0, 0), sw, { depth = 0.6, look = wood(96, 64, 42) })
+			local n = math.floor((sw - 0.4) / 0.5)
+			for i = 1, n do
+				local x = -(sw - 0.4) / 2 + (i - 0.5) * (sw - 0.4) / n
+				sakeBottle(K, top * CF(x, 0, -0.02), (i + c.seed) % 4, c.hi)
+			end
+			ktext(K, "SakeShelfTag", math.min(2.4, sw * 0.5), 0.3, V:wall(wn, u, 6.62, 0.15), "SAKE · HIGHBALL · 生ビール", { fg = rgb(250, 236, 200), bg = rgb(40, 28, 20), font = F.GothamBold, d = 0.02 })
+		end
+	end
+	-- 2) '맛있게 먹는 법' 나무 액자 (눈높이)
+	local wn2, u2 = findWall(K, { "back", "right", "left" }, 2.8, 2.8, 4.0, 7.0, dining, 0.7)
+	if wn2 and u2 then
+		local d = V:wall(wn2, u2, 5.5, 0)
+		K:plate("HowToFrame", 2.7, 3.0, 0.08, d, wood(70, 46, 30))
+		K:plate("HowToPaper", 2.45, 2.75, 0.1, d, L.of(240, 230, 206))
+		ktext(K, "HowToTitle", 2.2, 0.42, d * CF(0, 1.08, 0.1), "라멘 맛있게 먹는 법", { fg = rgb(170, 30, 24), font = F.GothamBlack })
+		K:plate("HowToRule", 2.1, 0.03, 0.105, d * CF(0, 0.82, 0), L.of(150, 110, 70))
+		ktext(K, "HowToBody", 2.15, 1.9, d * CF(0, -0.25, 0.1), "① 국물 먼저 한 숟갈\n② 면은 바로, 불기 전에\n③ 반쯤 먹고 마늘 · 생강 추가\n④ 면 추가 (카에다마) 2,000원\n   면 익힘: 카타 · 보통 · 야와", { fg = rgb(40, 30, 22), font = F.GothamBold, align = "Left" })
+	end
+	-- 3) 노보리 (세로 천 현수막) 두 장
+	local wn3, u3, w3 = findWall(K, { "right", "back", "left" }, 2.8, 2.8, 4.2, 8.2, V3(V.x1, 0, 0), 0.6)
+	if wn3 and u3 then
+		for i, txt in { "豚骨 라멘", "차슈 듬뿍" } do
+			local d = V:wall(wn3, u3 + (i - 1.5) * 1.35, 6.2, 0)
+			K:plate("NoboriPole", 1.25, 0.08, 0.1, d * CF(0, 1.95, 0), L.of(150, 110, 70, M.Wood))
+			K:plate("NoboriCloth", 1.1, 3.8, 0.04, d, col(if i == 1 then rgb(246, 240, 226) else rgb(170, 30, 26), M.Fabric))
+			K:plate("NoboriBand", 1.1, 0.3, 0.05, d * CF(0, 1.75, 0), col(if i == 1 then rgb(170, 30, 26) else rgb(30, 24, 20), M.Fabric))
+			ktext(K, "NoboriText", 0.8, 3.0, d * CF(0, -0.2, 0.05), vertical(txt), { fg = if i == 1 then rgb(30, 22, 18) else rgb(255, 240, 210), font = F.GothamBlack })
+		end
+	end
+	-- 4) 오늘의 한정 칠판
+	local wn4, u4 = findWall(K, { "back", "left", "right" }, 2.6, 2.6, 4.4, 6.9, dining, 0.7)
+	if wn4 and u4 then
+		menuBoard(c, V:wall(wn4, u4, 5.65, 0), 2.3, 2.0, "오늘의 한정", { { "마제소바", "12,000" }, { "아부리 차슈동", "9,000" }, { "미소 라멘", "12,500" } }, "chalk")
+	end
+end
+
 -- 비스트로 (파스타 · 와인): 칠판 · 와인 상자 · 허브 화분 · 올리브유 · 치즈
 local function bistroProp(c: any)
 	local K, V = c.K, c.V
@@ -3040,7 +3124,23 @@ end
 -- GwShop (행복 돼지국밥): 마감 · 장식만 (R14) ------------------------------------------------------------------
 local function gwshopDecor(c: any)
 	local K, V, th = c.K, c.V, c.th
-	-- 빈 벽에 포스터 · 달력 · 선풍기 · 방송 액자
+	-- 빈 벽 위쪽: 사진 메뉴 줄 (높이 6.5 위, 테이블 · 통로와 무관)
+	photoRow(c)
+	-- 눈높이 안내 (GwShop 에 이미 있는 원산지 · 셀프 안내는 빼고): 영업시간 · 결제 · 와이파이 · 금연
+	local near = V3(V.x1, 0, V.z1 - 6)
+	local wn2, u2 = findWall(K, { "right", "left" }, 2.2, 2.2, 4.2, 6.8, near, 0.7)
+	if wn2 and u2 then
+		local d = V:wall(wn2, u2, 6.1, 0)
+		signPlate(c, d, 2.0, 1.0, table.concat(th.hours, "\n"), rgb(30, 30, 34), rgb(250, 248, 240), { border = rgb(40, 40, 44) })
+		signPlate(c, d * CF(0, -1.25, 0), 2.0, 0.7, th.pay, WHITE, rgb(20, 100, 170), { font = F.GothamBold })
+		at(K, "gwinfo", wn2, u2)
+	end
+	local wn3, u3 = findWall(K, { "left", "right" }, 1.6, 1.6, 4.4, 5.6, V3(V.x0, 0, V.z1 - 6), 0.7)
+	if wn3 and u3 then
+		signPlate(c, V:wall(wn3, u3, 5.0, 0), 1.5, 0.95, "WiFi\nID  HAENGBOK_GUKBAP\nPW  " .. tostring(20000000 + c.seed % 79999999), rgb(30, 30, 34), rgb(236, 244, 250), { border = rgb(60, 130, 200) })
+	end
+	calendarProp(c)
+	-- 빈 벽에 포스터 · 방송 액자 · 선풍기
 	postersFill(c)
 	fanProp(c)
 end
@@ -3132,6 +3232,9 @@ function T.build(K: any, V: any, S: any)
 	end
 	if f.fu then
 		step("fu", fuProp)
+	end
+	if th.key == "ramen" then
+		step("ramenwall", ramenWall)
 	end
 	step("posters", postersFill)
 	if f.lanterns then
