@@ -484,7 +484,7 @@ function Catalog.sort(list: { any }, key: string, money: any?): { any }
 			s -= 120
 		end
 		if e.grade == "rent" then
-			s += 40
+			s += 260 -- 렌트 last: it is not a car to buy
 		end
 		if e.tag and TAG_RANK[e.tag] then
 			s -= 30 - TAG_RANK[e.tag]

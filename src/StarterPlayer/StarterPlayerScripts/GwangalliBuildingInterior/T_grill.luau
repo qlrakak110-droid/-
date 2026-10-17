@@ -615,8 +615,10 @@ local function plasticStool(c: any, x: number, z: number, top: number, dia: numb
 	local base = CF(x, 0, z)
 	local R = dia / 2
 	K:disc("StoolSeat", dia * 0.96, 0.1, base * CF(0, top - 0.05, 0), pl)
-	K:disc("StoolRim", dia, 0.05, base * CF(0, top - 0.115, 0), dk)
-	K:disc("StoolGrip", dia * 0.24, 0.02, base * CF(0, top + 0.004, 0), dk)
+	if K.detail ~= "low" then
+		K:disc("StoolRim", dia, 0.05, base * CF(0, top - 0.115, 0), dk)
+		K:disc("StoolGrip", dia * 0.24, 0.02, base * CF(0, top + 0.004, 0), dk)
+	end
 	local skH = math.clamp(top * 0.16, 0.18, 0.32)
 	local skTop = top - 0.12
 	K:disc("StoolSkirt", dia * 0.9, skH, base * CF(0, skTop - skH / 2, 0), pl)
@@ -957,7 +959,7 @@ local function hoodOver(c: any, h: any, duct: any?)
 		K:disc("HoodRoll", hw + 0.04, 0.05, CF(cx, y0 + 0.025, cz), L.of(150, 154, 160, M.Metal))
 		local colH = math.min(0.12, hh * 0.16)
 		local Rt = math.max(0.3, hw * 0.2)
-		frustum(K, "HoodShell", cx, cz, y0 + lipH - 0.01, y1 - colH + 0.02, hw / 2 - 0.02, Rt, if c.hi then 16 else 10, st)
+		frustum(K, "HoodShell", cx, cz, y0 + lipH - 0.01, y1 - colH + 0.02, hw / 2 - 0.02, Rt, if c.hi then 16 elseif K.detail == "mid" then 12 else 8, st)
 		K:disc("HoodCollar", Rt * 2 + 0.08, colH, CF(cx, y1 - colH / 2, cz), stD)
 		if c.hi then
 			-- 리벳 이음 (원뿔 가운데 띠)
