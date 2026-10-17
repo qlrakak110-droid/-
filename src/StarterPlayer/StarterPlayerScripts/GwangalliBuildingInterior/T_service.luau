@@ -867,6 +867,48 @@ local function plantAt(K: any, pcf: CFrame, kind: string, h: number, dia: number
 	return true
 end
 
+-- 아레카야자 (로비 대형 화분): 원통 화분 + 줄기 3~4 + 끝에 늘어진 잎 (얇은 판 · 아래로 휨). pcf 바닥 가운데
+local function palmTree(K: any, pcf: CFrame, h: number, dia: number, potL: any?, seed: number?): boolean
+	if not claim(K, pcf, V3(dia + 0.6, h, dia + 0.6), 0.05, "plant") then
+		return false
+	end
+	local rng = mkRng(seed or 7)
+	-- 줄기는 방 가운데 쪽으로만 기울임 (벽 쪽 잎이 벽을 뚫지 않게)
+	local toC = pcf:VectorToObjectSpace(V3(-pcf.Position.X, 0, -pcf.Position.Z))
+	local baseA = if toC.Magnitude > 0.1 then math.atan2(toC.Z, toC.X) else 0
+	local ph = dia * 0.85
+	potL = potL or lk(C(236, 232, 224), M.Concrete)
+	K:vcyl("PalmPot", ph, dia, pcf * CF(0, ph / 2, 0), potL)
+	K:vcyl("PalmPotRim", 0.1, dia + 0.08, pcf * CF(0, ph - 0.05, 0), lk(darker(potL.c, 0.12), potL.m))
+	K:vcyl("PalmSoil", 0.06, dia - 0.15, pcf * CF(0, ph - 0.08, 0), Look.soil)
+	local stems = if lo(K) then 3 else 4
+	local leafA = lk(C(70, 120, 60), M.Grass)
+	local leafB = lk(C(96, 146, 70), M.Grass)
+	for i = 1, stems do
+		local a = baseA + ((i - 0.5) / stems - 0.5) * PI * 1.1 + (rng() - 0.5) * 0.3
+		local lean = 0.06 + rng() * 0.08
+		local top = (h - ph) * (0.62 + rng() * 0.3)
+		local base = pcf * CF(math.cos(a) * dia * 0.12, ph - 0.05, math.sin(a) * dia * 0.12)
+		local tipP = (pcf * CF(math.cos(a) * (dia * 0.12 + top * lean), ph + top, math.sin(a) * (dia * 0.12 + top * lean))).Position
+		K:seg("PalmStem", base.Position, tipP, 0.07, lk(C(150, 160, 90), M.Wood))
+		local nf = if lo(K) then 3 else 5
+		for f = 1, nf do
+			local fa = a + (f - (nf + 1) / 2) * 0.75 + rng() * 0.2
+			local dir = V3(math.cos(fa), 0, math.sin(fa))
+			local len = 1.15 + rng() * 0.4
+			local droop = 0.45 + rng() * 0.35
+			-- 잎줄기 방향: 바깥 + 아래로 처짐. 판 (폭 0.55 · 두께 0.03 · 길이 len)
+			local mid = tipP + dir * (len * 0.45) + V3(0, -len * 0.18 * droop, 0)
+			local look = CFrame.lookAt(mid, mid + dir + V3(0, -droop * 0.6, 0))
+			K:box("PalmFrond", V3(0.55, 0.03, len), look * ANG(0, 0, (rng() - 0.5) * 0.6), if (i + f) % 2 == 0 then leafA else leafB)
+			if hi(K) then
+				K:box("PalmFrondTip", V3(0.36, 0.03, len * 0.45), look * CF(0, -len * 0.12 * droop, -len * 0.62) * ANG(-droop * 0.7, 0, 0), leafA)
+			end
+		end
+	end
+	return true
+end
+
 -- 세계 시계 (도시 이름 + 시차). dcf 중심
 local function worldClock(K: any, dcf: CFrame, dia: number, city: string, off: number, frame: any?, fg: Color3?)
 	local hr, mn = Props.clock(K, dcf, dia, { frame = frame or Look.brass })
@@ -1029,13 +1071,25 @@ function T.style(V: any): any
 	local skip = { fixtures = true }
 	if t == "lobby" then
 		if isMotel(V) then
+			local nm = V.name or ""
+			if string.find(nm, "야자", 1, true) or string.find(string.upper(nm), "PALM", 1, true) then
+				-- 열대 휴양지 콘셉트 (야자수): 밝은 석재 바닥 · 라탄 · 원목 천장
+				return {
+					chair = false, stool = {}, table = false, counter = { front = "panel", frontL = lk(C(120, 90, 60), M.Wood), topL = Look.marbleWhite },
+					floor = { look = lk(C(206, 196, 178), M.Limestone), tile = 2.4, grout = lk(C(160, 150, 134)) },
+					ceiling = { skin = lk(C(92, 70, 52), M.Wood) }, base = lk(C(70, 52, 40), M.Wood),
+					lower = { kind = "paint", h = 3.4, look = lk(C(150, 116, 80), M.Wood), cap = Look.goldMetal, walls = { "left", "right", "back" } },
+					lights = { kind = "downlight", n = math.clamp(math.floor(V.W / 6), 3, 6), color = C(255, 210, 160), glow = Look.lampWarm },
+					mat = { look = lk(C(40, 60, 44), M.Fabric), text = string.upper(nm) }, cctv = true, clock = false, license = true, skip = skip,
+				}
+			end
 			return {
 				chair = false, stool = {}, table = false, counter = { front = "panel", frontL = lk(C(40, 34, 40)), topL = Look.marbleBlack },
 				floor = { look = lk(C(54, 50, 52), M.Slate), tile = 2.0, grout = lk(C(30, 30, 32)) },
 				ceiling = { skin = lk(C(40, 36, 42)) }, base = Look.black,
 				lower = { kind = "paint", h = 3.4, look = lk(C(64, 48, 58), M.Wood), cap = Look.goldMetal, walls = { "left", "right", "back" } },
-				lights = { kind = "downlight", n = 3, color = C(255, 196, 150), glow = Look.lampWarm },
-				mat = { look = lk(C(60, 20, 30), M.Fabric), text = "L MOTEL" }, cctv = true, clock = false, license = true, skip = skip,
+				lights = { kind = "downlight", n = math.clamp(math.floor(V.W / 6), 3, 6), color = C(255, 196, 150), glow = Look.lampWarm },
+				mat = { look = lk(C(60, 20, 30), M.Fabric), text = string.upper(V.name or "MOTEL") }, cctv = true, clock = false, license = true, skip = skip,
 			}
 		end
 		local th = hotelTheme(V)
@@ -1629,7 +1683,7 @@ local function bridgeArt(K: any, dcf: CFrame, w: number, h: number, frameL: any)
 end
 
 -- 라운지: 라운지 체어 덮기 + 사이드 테이블 + 스탠드 + 커피 테이블 + 러그 + 아트
-local function hotelLounge(K: any, V: any, th: any, rng: () -> number): any
+local function hotelLounge(K: any, V: any, th: any, rng: () -> number, opt: any?): any
 	local out = { lamp = nil, art = nil }
 	local groups = {}
 	for _, ch in V.chairs do
@@ -1653,9 +1707,9 @@ local function hotelLounge(K: any, V: any, th: any, rng: () -> number): any
 	if #groups == 0 then
 		-- 맵 의자가 없는 로비: 러그 옆 벽에 2~3인 소파
 		local rug = V:first("Rug")
-		local pref = if rug then rug.c else V3(V.x0, 0, 0)
+		local pref = (opt and opt.pref) or (if rug then rug.c else V3(V.x0, 0, 0))
 		for _, len in { 4.6, 3.8 } do
-			local wn, pcf = wallFloorSpot(K, { "left", "right" }, len + 0.2, 2.5, 3.4, pref, 0.1, "sofa")
+			local wn, pcf = wallFloorSpot(K, (opt and opt.walls) or { "left", "right" }, len + 0.2, 2.5, 3.4, pref, 0.1, "sofa")
 			if wn and pcf then
 				sofa(K, pcf * CF(0, 0, 0.05), len, th.fab, Look.walnut)
 				local mn0, mx0 = K.laabb(pcf * CF(0, 1.7, 0), V3(len + 0.2, 3.4, 2.5))
@@ -1856,6 +1910,63 @@ local function brochureRack(K: any, pcf: CFrame, w: number)
 end
 
 -- 엘리베이터 홀: 위 안내 띠 + 층별 안내판 (엘리베이터 파트는 그대로)
+-- 음료 자판기 (모텔 · 호텔 로비). pcf 바닥 가운데, +Z 앞. 폭 2.4 · 깊이 1.9 · 높이 6.1
+local function vendingMachine(K: any, pcf: CFrame, rng: () -> number)
+	local w, d, h = 2.4, 1.9, 6.1
+	local body = lk(C(28, 64, 140), M.SmoothPlastic, { r = 0.1 })
+	K:box("VendPlinth", V3(w - 0.1, 0.3, d - 0.1), pcf * CF(0, 0.15, -0.05), Look.charcoal)
+	K:rbox("VendBody", V3(w, h - 0.3, d), 0.08, pcf * CF(0, 0.3 + (h - 0.3) / 2, -0.05), body)
+	local f = CFrame.fromMatrix((pcf * CF(0, 0, d / 2 - 0.05)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector)
+	-- 위 간판 (발광)
+	K:plate("VendHeader", w - 0.2, 0.62, 0.04, f * CF(0, h - 0.5, 0.01), Look.neon(C(240, 246, 255), 0.05))
+	txt(K, "VendHeaderText", w - 0.4, 0.46, f * CF(0, h - 0.5, 0.04), "시원한 음료  COLD DRINK", C(28, 64, 140), nil, { font = F.GothamBlack })
+	-- 진열창: 뒤 발광판 + 선반 4 줄 + 캔 · 병 + 가격 띠 + 유리
+	local ww = w * 0.66
+	local wx = -w / 2 + 0.12 + ww / 2
+	local wy0, wy1 = 2.35, h - 0.95
+	K:plate("VendBacklight", ww, wy1 - wy0, 0.02, f * CF(wx, (wy0 + wy1) / 2, -0.55), Look.neon(C(236, 244, 255), 0.15))
+	local rows = 4
+	local rh = (wy1 - wy0) / rows
+	local per = if lo(K) then 3 else 5
+	local cols = { C(220, 40, 40), C(240, 200, 40), C(40, 160, 90), C(30, 30, 34), C(250, 140, 40), C(60, 120, 220), C(240, 240, 240), C(140, 60, 160) }
+	local prices = { "1,500   1,500   1,800   2,000   1,200", "2,000   1,800   1,500   2,500   2,000", "1,200   1,200   1,500   1,800   1,500", "2,500   2,000   2,000   1,800   3,000" }
+	for r = 1, rows do
+		local y = wy0 + rh * (r - 1)
+		K:plate("VendShelf", ww, 0.06, 0.6, f * CF(wx, y + 0.08, -0.3), Look.chrome)
+		for c = 1, per do
+			local x = wx - ww / 2 + (c - 0.5) * (ww / per)
+			local col = cols[math.floor(rng() * #cols) + 1]
+			if (r + c) % 3 == 0 then
+				-- 페트병
+				K:vcyl("VendBottle", rh * 0.62, 0.26, f * CF(x, y + 0.12 + rh * 0.31, -0.25), lk(col, M.Glass, { t = 0.25 }))
+				K:vcyl("VendBottleCap", 0.08, 0.14, f * CF(x, y + 0.16 + rh * 0.62, -0.25), lk(C(240, 240, 240)))
+			else
+				K:vcyl("VendCan", rh * 0.46, 0.3, f * CF(x, y + 0.12 + rh * 0.23, -0.25), lk(col, M.Metal, { r = 0.2 }))
+			end
+		end
+		txt(K, "VendPrice", ww - 0.05, 0.16, f * CF(wx, y + 0.02, 0.03), prices[r], WHITE, C(20, 20, 24), { font = F.GothamBold, d = 0.02 })
+		K:plate("VendButtons", ww - 0.05, 0.07, 0.04, f * CF(wx, y - 0.1, 0.03), Look.ledRed)
+	end
+	K:plate("VendGlass", ww, wy1 - wy0 + 0.1, 0.03, f * CF(wx, (wy0 + wy1) / 2, 0.02), lk(C(220, 230, 240), M.Glass, { t = 0.75, r = 0.3 }))
+	K:plate("VendGlassFrame", ww + 0.12, 0.08, 0.05, f * CF(wx, wy1 + 0.06, 0.03), Look.chrome)
+	K:plate("VendGlassFrame", ww + 0.12, 0.08, 0.05, f * CF(wx, wy0 - 0.25, 0.03), Look.chrome)
+	-- 오른쪽 결제부
+	local px = w / 2 - 0.12 - (w - ww - 0.36) / 2
+	local pw = w - ww - 0.36
+	K:plate("VendPayPanel", pw, 2.6, 0.03, f * CF(px, 3.6, 0.01), lk(C(220, 224, 230), M.Metal))
+	K:plate("VendLCD", pw * 0.7, 0.32, 0.04, f * CF(px, 4.6, 0.02), Look.neon(C(120, 220, 140), 0.1))
+	txt(K, "VendLCDText", pw * 0.65, 0.24, f * CF(px, 4.6, 0.05), "0", C(20, 60, 30), nil, { font = F.Arcade })
+	K:plate("VendCoin", 0.1, 0.32, 0.05, f * CF(px - pw * 0.2, 4.05, 0.02), Look.black)
+	K:plate("VendBill", pw * 0.7, 0.1, 0.05, f * CF(px, 3.65, 0.02), Look.black)
+	K:plate("VendCard", pw * 0.6, 0.45, 0.05, f * CF(px, 3.1, 0.02), Look.charcoal)
+	txt(K, "VendCardText", pw * 0.55, 0.16, f * CF(px, 3.1, 0.06), "카드 · 페이", WHITE, nil, { font = F.GothamBold })
+	K:plate("VendReturn", 0.34, 0.26, 0.06, f * CF(px, 2.5, 0.02), Look.chrome)
+	-- 꺼내는 곳
+	K:plate("VendOutlet", ww, 0.7, 0.06, f * CF(wx, 1.15, 0.02), lk(C(16, 16, 18)))
+	K:plate("VendFlap", ww - 0.15, 0.55, 0.03, f * CF(wx, 1.15, 0.06) * ANG(-0.15, 0, 0), lk(C(60, 64, 72), M.Glass, { t = 0.3 }))
+	txt(K, "VendOutletText", ww * 0.6, 0.16, f * CF(wx, 1.62, 0.06), "꺼내는 곳  PUSH", WHITE, nil, { font = F.GothamBold })
+end
+
 local function elevatorHall(K: any, V: any, th: any?, kind: string)
 	local els = V.byName.ElevatorDoor
 	if not els or #els == 0 then
@@ -2172,9 +2283,13 @@ local function buildMotel(K: any, V: any, S: any)
 	local accent = C(220, 60, 120)
 	local gold = Look.goldMetal
 	local name = V.name or "MOTEL"
+	local tropical = string.find(name, "야자", 1, true) ~= nil or string.find(string.upper(name), "PALM", 1, true) ~= nil
+	if tropical then
+		accent = C(250, 176, 80)
+	end
 	local leds = {}
 	step(K, "skin", function()
-		wallSkin(K, { "left", "right", "back" }, 3.4, V.H - 0.02, lk(C(118, 96, 106), M.Fabric), Look.goldMetal)
+		wallSkin(K, { "left", "right", "back" }, 3.4, V.H - 0.02, if tropical then lk(C(226, 210, 184), M.Plaster) else lk(C(118, 96, 106), M.Fabric), Look.goldMetal)
 		-- 벽 브래킷 조명 (따뜻한 빛 2)
 		local n = 0
 		for _, wn in { "left", "right" } do
@@ -2291,6 +2406,45 @@ local function buildMotel(K: any, V: any, S: any)
 		K:plate("KioskKeySlot", 0.5, 0.5, 0.04, pcf * CF(0, 1.2, 0.35), lk(C(60, 56, 60)))
 		txt(K, "KioskKeyText", 0.5, 0.18, pcf * CF(0, 0.85, 0.36), "KEY OUT", C(200, 196, 200), nil, { font = F.GothamBold })
 		txt(K, "KioskTop", 1.5, 0.3, pcf * CF(0, 4.95, 0.36), "SELF CHECK-IN", accent, nil, { font = F.GothamBlack, glow = 1.3 })
+		local screens = {
+			"무인 체크인\n\n대실  30,000\n숙박  60,000\n\n화면을 눌러 주세요",
+			"객실 선택\n\n스탠다드  203 · 305\n스파 객실  402\n파티룸  406",
+			"결제 수단\n\n신용카드 · 삼성페이\n카카오페이\n\n※ 현금은 프런트",
+			"KOREAN · ENGLISH\n中文 · 日本語\n\n언어를 선택하세요",
+		}
+		Interact.cycle(K, kioskScreen, screens, { action = "화면 넘기기", object = "무인 키오스크", on = function(_i, s)
+			if kioskLab and kioskLab.Parent then
+				kioskLab.Text = s
+			end
+		end })
+	end)
+	-- 넓은 모텔형 호텔 로비 (W >= 14): 대기 라운지 (소파 · 커피 테이블 · 아트 · 플로어 램프) + 음료 자판기
+	local motelTh = if tropical
+		then { fab = lk(C(214, 198, 168), M.Fabric), top = lk(C(126, 92, 60), M.Wood), trim = Look.goldMetal, rug = lk(C(190, 172, 140), M.Fabric), rugEdge = lk(C(112, 88, 56), M.Fabric) }
+		else { fab = lk(C(96, 30, 52), M.Fabric), top = Look.marbleBlack, trim = Look.goldMetal, rug = lk(C(52, 38, 46), M.Fabric), rugEdge = lk(C(176, 140, 80), M.Fabric) }
+	step(K, "lounge", function()
+		if V.W < 14 then
+			return
+		end
+		local lg = hotelLounge(K, V, motelTh, rng, { walls = { "back", "left", "right" }, pref = V3(V.x0 + V.W * 0.3, 0, V.z0) })
+		if lg and lg.floorLamp then
+			local b = lg.floorLamp
+			Interact.toggle(K, b, { object = "플로어 램프", onText = "램프 끄기", offText = "램프 켜기", state = true, on = function(on: boolean)
+				if b.Parent then
+					b.Material = if on then M.Neon else M.SmoothPlastic
+					b.Color = if on then C(255, 214, 160) else C(110, 104, 96)
+				end
+			end })
+		end
+	end)
+	step(K, "vending", function()
+		if V.W < 14 then
+			return
+		end
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 2.6, 2.2, 6.4, V3(V.x1, 0, 0), 0.05, "vending")
+		if wn and pcf then
+			vendingMachine(K, pcf, rng)
+		end
 	end)
 	-- 무드 LED 띠 (천장 둘레)
 	step(K, "mood", function()
@@ -2333,8 +2487,37 @@ local function buildMotel(K: any, V: any, S: any)
 			K:plate("MirrorFrame", 1.6, 5.2, 0.08, d * CF(0, 0.5, 0), gold)
 			K:plate("Mirror", 1.44, 5.04, 0.03, d * CF(0, 0.5, 0.08), Look.mirror)
 		end
-		plantAt(K, pcfAt(V3(V.x1 - 1.0, 0, V.z0 + 1.0), V3(0, 0, 1)), "snake", 3.4, 1.0, lk(C(30, 28, 30), M.Concrete))
-		plantAt(K, pcfAt(V3(V.x0 + 1.0, 0, V.z0 + 1.0), V3(0, 0, 1)), "bamboo", 4.6, 1.0, lk(C(30, 28, 30), M.Concrete))
+		if tropical or V.W >= 14 then
+			-- 아레카야자: 뒤 모서리 + 넓으면 창가 양끝
+			local potL = if tropical then lk(C(196, 170, 130), M.Fabric) else lk(C(30, 28, 30), M.Concrete)
+			local spots = { V3(V.x1 - 1.6, 0, V.z0 + 1.6), V3(V.x0 + 1.6, 0, V.z0 + 1.6) }
+			if V.W >= 14 then
+				for _, p in { V3(V.x0 + 1.6, 0, V.z1 - 3.0), V3(V.x1 - 1.6, 0, V.z1 - 3.0), V3(V.x0 + 1.6, 0, 0), V3(V.x1 - 1.6, 0, 0) } do
+					table.insert(spots, p)
+				end
+				local els = V.byName.ElevatorDoor
+				if els and #els > 0 then
+					local mn, mx = els[1].min, els[1].max
+					for _, r in els do
+						mn, mx = mn:Min(r.min), mx:Max(r.max)
+					end
+					table.insert(spots, V3(mn.X - 1.9, 0, V.z0 + 1.6))
+					table.insert(spots, V3(mx.X + 1.9, 0, V.z0 + 1.6))
+				end
+			end
+			local placed = 0
+			for i, p in spots do
+				if placed < 4 and palmTree(K, pcfAt(p, V3(0, 0, 1)), math.min(6.4, V.H - 1.6), 1.3, potL, i * 13 + #name) then
+					placed += 1
+				end
+			end
+			if placed == 0 then
+				plantAt(K, pcfAt(spots[1], V3(0, 0, 1)), "snake", 3.4, 1.0, potL)
+			end
+		else
+			plantAt(K, pcfAt(V3(V.x1 - 1.0, 0, V.z0 + 1.0), V3(0, 0, 1)), "snake", 3.4, 1.0, lk(C(30, 28, 30), M.Concrete))
+			plantAt(K, pcfAt(V3(V.x0 + 1.0, 0, V.z0 + 1.0), V3(0, 0, 1)), "bamboo", 4.6, 1.0, lk(C(30, 28, 30), M.Concrete))
+		end
 		local d0 = V.door
 		if d0 then
 			local pcf = floorSpot(K, { V3(V.x0 + 0.8, 0, V.z1 - 4.0), V3(V.x1 - 0.8, 0, V.z1 - 4.0), V3(V.x0 + 0.8, 0, V.z1 - 5.5) }, V3(1.4, 3.0, 1.0), V3(1, 0, 0), 0.0, "umbrella")
@@ -2353,21 +2536,6 @@ local function buildMotel(K: any, V: any, S: any)
 	end)
 	step(K, "elevator", function()
 		elevatorHall(K, V, nil, "motel")
-	end)
-	step(K, "interact", function()
-		if kioskScreen and kioskLab then
-			local screens = {
-				"무인 체크인\n\n대실  30,000\n숙박  60,000\n\n화면을 눌러 주세요",
-				"객실 선택\n\n스탠다드  203 · 305\n스파 객실  402\n파티룸  406",
-				"결제 수단\n\n신용카드 · 삼성페이\n카카오페이\n\n※ 현금은 프런트",
-				"KOREAN · ENGLISH\n中文 · 日本語\n\n언어를 선택하세요",
-			}
-			Interact.cycle(K, kioskScreen, screens, { action = "화면 넘기기", object = "무인 키오스크", on = function(_i, s)
-				if kioskLab and kioskLab.Parent then
-					kioskLab.Text = s
-				end
-			end })
-		end
 	end)
 	step(K, "extras", function()
 		-- 입구 → 엘리베이터 러너 카펫 (바닥 마감, 0.03)
@@ -2439,19 +2607,41 @@ local function mailboxOver(K: any, V: any, r: any)
 	local steel = if warm then lk(C(214, 196, 160), M.SmoothPlastic, { r = 0.08 }) else lk(C(226, 228, 230), M.SmoothPlastic, { r = 0.1 })
 	K:free(function()
 		K:box("MailBody", r.size + V3(0.02, 0.01, 0.02), CF(r.c), lk(C(212, 214, 216), M.SmoothPlastic, { r = 0.06 }))
-		-- 뒤 · 옆면: 패널 줄눈 (벽 쪽 틈으로도 보임)
-		local bd, blen = faceOf(r, -face)
-		for i = 1, math.max(1, math.floor(blen / 1.9)) do
-			K:plate("MailBackJoint", 0.04, r.size.Y - 0.6, 0.02, bd * CF(-blen / 2 + i * blen / (math.floor(blen / 1.9) + 1), r.size.Y / 2, 0.01), lk(C(170, 172, 176)))
+		-- 뒤 · 옆면: 템바보드 (세로 루버) 마감. 몸통 면에서 0.04 이상 띄움 (z-fighting 방지)
+		local slatL = if warm then lk(C(176, 136, 96), M.Wood) else lk(C(92, 70, 54), M.Wood)
+		local grooveL = if warm then lk(C(70, 52, 38), M.Wood) else lk(C(36, 30, 26), M.Wood)
+		local function louver(fd: CFrame, flen: number, y0: number, y1: number)
+			K:plate("MailLouverBack", flen - 0.04, y1 - y0, 0.03, fd * CF(0, (y0 + y1) / 2, 0.025), grooveL)
+			local pitch = if lo(K) then 0.7 else 0.42
+			local n = math.max(2, math.floor((flen - 0.1) / pitch))
+			local pw = (flen - 0.1) / n
+			for i = 1, n do
+				K:plate("MailLouver", pw * 0.7, y1 - y0 - 0.04, 0.09, fd * CF(-flen / 2 + 0.05 + pw * (i - 0.5), (y0 + y1) / 2, 0.06), slatL)
+			end
 		end
-		K:plate("MailBackBand", blen, 0.5, 0.02, bd * CF(0, r.size.Y - 0.3, 0.01), lk(C(40, 44, 48)))
-		-- 양 끝면: 테두리 + 스티커
+		local _, flen0 = faceOf(r, face)
+		local mrows = math.max(2, math.floor((r.size.Y - 1.2) / 0.9))
+		local mcols = math.max(2, math.floor(flen0 / 0.95))
+		local bd, blen = faceOf(r, -face)
+		louver(bd, blen, 0.5, r.size.Y - 0.55)
+		K:plate("MailBackBand", blen, 0.5, 0.04, bd * CF(0, r.size.Y - 0.3, 0.04), lk(C(40, 44, 48)))
+		K:plate("MailBackPlinth", blen, 0.5, 0.04, bd * CF(0, 0.25, 0.04), Look.charcoal)
+		-- 양 끝면: 루버 + 위 띠 + 안내 판 (입구 쪽 끝은 동 · 호수 안내)
 		for _, ef in { V3(-face.Z, 0, face.X), V3(face.Z, 0, -face.X) } do
 			local ed, elen = faceOf(r, ef)
-			K:plate("MailEndPanel", elen - 0.2, r.size.Y - 1.1, 0.02, ed * CF(0, 0.6 + (r.size.Y - 1.1) / 2, 0.01), lk(C(226, 228, 230)))
-			K:plate("MailEndBand", elen, 0.5, 0.02, ed * CF(0, r.size.Y - 0.3, 0.01), lk(C(40, 44, 48)))
+			local towardDoor = (ed.Position.Z > r.c.Z + 0.1) or (math.abs(ef.X) > 0.5 and V.door ~= nil and math.sign(V.door.x - r.c.X) == math.sign(ef.X))
+			louver(ed, elen, 0.5, r.size.Y - 0.55)
+			K:plate("MailEndBand", elen, 0.5, 0.04, ed * CF(0, r.size.Y - 0.3, 0.04), lk(C(40, 44, 48)))
+			K:plate("MailEndPlinth", elen, 0.5, 0.04, ed * CF(0, 0.25, 0.04), Look.charcoal)
+			if towardDoor and elen > 1.6 then
+				local pw = math.min(1.9, elen - 0.5)
+				K:plate("MailDirPlate", pw, 2.1, 0.04, ed * CF(0, 4.15, 0.13), Look.brushed)
+				K:plate("MailDirHead", pw, 0.42, 0.045, ed * CF(0, 5.0, 0.13), lk(C(40, 44, 48)))
+				txt(K, "MailDirHeadText", pw - 0.2, 0.3, ed * CF(0, 5.0, 0.16), "세대 안내", WHITE, nil, { font = F.GothamBold })
+				txt(K, "MailDirText", pw - 0.25, 1.5, ed * CF(0, 3.95, 0.16), string.format("%dF ~ 1F  세대 우편함\n101 ~ %d%02d 호\n\n등기 · 대형 택배는\n경비실 · 무인택배함", mrows, mrows, mcols), C(40, 42, 46), nil, { font = F.GothamMedium })
+			end
 			if not lo(K) then
-				txt(K, "MailEndSticker", math.min(1.6, elen - 0.5), 0.9, ed * CF(0, 3.4, 0.03), "광고 전단\n부착 금지\n- 관리사무소 -", C(200, 40, 40), C(250, 250, 246), { font = F.GothamBold, d = 0.01 })
+				txt(K, "MailEndSticker", math.min(1.5, elen - 0.5), 0.8, ed * CF(0, if towardDoor then 2.3 else 3.4, 0.16), "광고 전단\n부착 금지\n- 관리사무소 -", C(200, 40, 40), C(250, 250, 246), { font = F.GothamBold, d = 0.01 })
 			end
 		end
 		local d, len = faceOf(r, face)
@@ -3751,6 +3941,7 @@ local function buildLaundry(K: any, V: any, S: any)
 			note(K, "conveyor panel: no prompt spot")
 		end
 	end)
+	local sewBulb: BasePart? = nil
 	step(K, "sewing", function()
 		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 3.0, 1.45, 4.0, V3(V.x0, 0, V.z0), 0.05, "sew")
 		local sdep = 1.45
@@ -3832,8 +4023,6 @@ local function buildLaundry(K: any, V: any, S: any)
 			}, { cols = 2, head = navy })
 		end
 	end)
-	-- 5) 수선 코너 (옆벽 우선)
-	local sewBulb = nil
 	-- 6) 상호작용: 컨베이어 조작함 · 스팀
 	step(K, "interact", function()
 	end)
@@ -4212,6 +4401,20 @@ end
 function T.build(K: any, V: any, S: any)
 	local t = V.type
 	if t == "lobby" then
+		-- 로비에도 맵 우편함 (게임플레이) 이 있으면 같은 범위로 덮고 앞을 비움
+		step(K, "lobbymail", function()
+			for _, r in V.byName.Mailboxes or {} do
+				local f = mailboxOver(K, V, r)
+				K:reserve(r.min - V3(0.2, 0, 0.2), r.max + V3(0.2, 0, 0.2), "mail")
+				if math.abs(f.X) > 0.5 then
+					local fx = if f.X > 0 then r.max.X else r.min.X
+					K:reserve(V3(math.min(fx, fx + f.X * 2.6), 0, r.min.Z), V3(math.max(fx, fx + f.X * 2.6), 6, r.max.Z), "front")
+				else
+					local fz = if f.Z > 0 then r.max.Z else r.min.Z
+					K:reserve(V3(r.min.X, 0, math.min(fz, fz + f.Z * 2.6)), V3(r.max.X, 6, math.max(fz, fz + f.Z * 2.6)), "front")
+				end
+			end
+		end)
 		if isMotel(V) then
 			buildMotel(K, V, S)
 		else

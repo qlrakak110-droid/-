@@ -521,7 +521,7 @@ function E.build(K: any, env: any)
 		end
 		st.alarmUntil = os.clock() + 4
 		Lib.beeps(cab.copPart or lands[st.floor].call, SND.chime, 8, 0.22, { vol = 0.55, speed = 1.9 })
-		UI.toast("비상벨이 울렸습니다. 관리실과 연결 중이에요 (연출)", 3)
+		UI.toast("비상벨을 눌렀어요. 관리실에 연결하고 있어요", 3)
 	end
 	local handlers = {
 		floor = function(i: number)

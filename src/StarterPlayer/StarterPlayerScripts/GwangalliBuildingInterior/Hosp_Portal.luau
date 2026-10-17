@@ -149,7 +149,7 @@ function Portal.new(env: any): any
 				UI.fade(false, 0.3)
 				busy = false
 				if not ready then
-					UI.toast("문이 잠겨 있어요. 잠시 뒤 다시 해 주세요", 2.4)
+					UI.toast("문이 잠겨 있어요. 잠시 뒤에 다시 눌러 주세요", 2.4)
 				end
 				return
 			end

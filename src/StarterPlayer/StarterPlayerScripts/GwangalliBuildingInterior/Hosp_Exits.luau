@@ -129,7 +129,7 @@ local function erEntrance(K: any, env: any)
 		sound = SND.click,
 		fn = function()
 			Lib.beeps(callBtn, SND.chime, 2, 0.35, { vol = 0.5, speed = 1.2 })
-			UI.toast("응급실에 연락했어요. 의료진이 곧 나와요 (연출)", 3)
+			UI.toast("응급실 인터폰을 눌렀어요. 의료진에게 호출이 전달됐어요", 3)
 		end,
 	})
 	-- 바닥 유도선 (구급차 베이 → 응급실)

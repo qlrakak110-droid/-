@@ -9,6 +9,7 @@
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
 
 -- 다른 방 빌더(T_clinic 등)가 비워 둘 공간: yield 전에 바로 등록 (Scan · Hosp_Geo 는 같은 폴더에 이미 있음)
 local Scan = require(script.Parent:WaitForChild("Scan")) :: any
@@ -40,6 +41,7 @@ local function qualityOf(ctx: any): string
 end
 
 -- 맵 위치 검증: GroundBack 이 기대 위치에서 0.5 이상 벗어나 있으면 HF 를 실제 파트 기준으로
+local bedKeepsAdded = false
 local function validateFrame(Lib: any): boolean
 	local gb = Lib.find(Geo.PARTS.groundBack, 6)
 	if not gb then
@@ -50,6 +52,18 @@ local function validateFrame(Lib: any): boolean
 		local expected = Geo.HF * CFrame.new(Geo.GB_LOCAL) * CFrame.Angles(0, math.pi, 0)
 		Geo.HF = gb.CFrame * (expected:Inverse() * Geo.HF)
 		log("frame adjusted from GroundBack", tostring(gb.Position))
+	end
+	-- 서버 침대 좌석(태그 HospitalBed) 실제 상자도 keep 에 (한 번만)
+	if not bedKeepsAdded then
+		bedKeepsAdded = true
+		pcall(function()
+			for _, s in CollectionService:GetTagged("HospitalBed") do
+				if s:IsA("BasePart") then
+					local mn, mx = Lib.localBox(s)
+					Geo.addBedKeep(mn, mx)
+				end
+			end
+		end)
 	end
 	return true
 end

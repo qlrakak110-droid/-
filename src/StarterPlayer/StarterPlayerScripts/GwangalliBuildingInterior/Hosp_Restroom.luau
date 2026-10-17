@@ -792,6 +792,24 @@ function R.build(K: any, env: any)
 	K:plate("ExtBox", 1.0, 2.1, 0.35, Lib.face(-35.90, 1.15, 29.0, 1, 0), Look.of(196, 30, 34))
 	K:vcyl("ExtBottle", 1.5, 0.5, CF(-35.30, 1.0, 29.0), Look.of(214, 36, 36))
 	Lib.tx(K, "ExtLabel", 0.9, 0.3, Lib.face(-35.90, 2.6, 29.0, 1, 0), "소화기", C.WHITE, C.RED, { font = Lib.FONT_K })
+	-- 홀 쪽 벽 보호판(T_clinic 복도와 같은 아이보리 + 청록 띠) + 안전 손잡이 (문 · 안내 기둥 피함)
+	K:free(function()
+		for _, s in { { -59.29, -51.55 }, { -43.95, -35.90 } } do
+			local len = s[2] - s[1]
+			local u = (s[1] + s[2]) / 2
+			K:plate("HallGuardPanel", len, 2.55, 0.04, Lib.face(u, 0.5 + 2.55 / 2, 27.00, 0, -1), Look.of(232, 230, 224, M.SmoothPlastic))
+			K:plate("HallGuardCap", len, 0.12, 0.09, Lib.face(u, 3.05, 27.00, 0, -1), Look.of(0, 128, 118))
+			if not low then
+				local a, b = s[1] + 0.35, s[2] - 0.35
+				K:seg("HallRail", V3(a, 2.75, 26.62), V3(b, 2.75, 26.62), 0.17, Look.of(236, 234, 228, M.SmoothPlastic))
+				local n = math.max(2, math.floor((b - a) / 3.2) + 1)
+				for i = 0, n - 1 do
+					local x = a + 0.15 + (b - a - 0.3) * i / (n - 1)
+					K:seg("HallRailBracket", V3(x, 2.75, 26.62), V3(x, 2.75, 26.96), 0.08, Look.brushed)
+				end
+			end
+		end
+	end)
 	-- 비상 경광등 (입구 위 홀 쪽, 비상벨 누르면 깜빡임)
 	local strobes = {}
 	for _, x in { -49.9, -45.6 } do
@@ -868,7 +886,7 @@ function R.build(K: any, env: any)
 				end
 				Lib.beeps(b, SND.chime, 6, 0.25, { vol = 0.6, speed = 1.6 })
 				strobeUntil = os.clock() + 10
-				UI.toast("비상벨이 울렸어요. 직원이 곧 확인해요 (연출)", 3)
+				UI.toast("비상벨이 울렸어요. 간호사실에 호출이 전달됐어요", 3)
 			end,
 		})
 	end

@@ -3198,9 +3198,11 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 	-- 수전 (맵 Faucet 자리, 볼마다) + 물 (상호작용: 첫 수전)
 	local firstLever: BasePart? = nil
 	local streams: { BasePart } = {}
+	local faucetXs: { number } = {}
 	for i, r in faucets do
 		local a, b = lbb(r)
 		local fx, fz = (a.X + b.X) / 2, (a.Z + b.Z) / 2
+		table.insert(faucetXs, fx)
 		local fy = a.Y
 		local bc = basinCs[1]
 		for _, q in basinCs do
@@ -3243,8 +3245,20 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 		local free = {}
 		-- 볼과 수전 사이 빈 칸 찾기 (x 구간)
 		local occ = {}
+		-- 볼 뒤 (벽 쪽) 띠가 깊으면 (원룸 · 오피스텔 탑볼) 그 띠에 놓음: 수전 자리만 피함
+		local backStrip = math.huge
 		for _, q in basinCs do
-			table.insert(occ, { q.cx - 0.85, q.cx + 0.85 })
+			backStrip = math.min(backStrip, q.back)
+		end
+		local useBack = #basinCs > 0 and backStrip >= 0.34 and backStrip < 1.2
+		if useBack then
+			for _, fx in faucetXs do
+				table.insert(occ, { fx - 0.32, fx + 0.32 })
+			end
+		else
+			for _, q in basinCs do
+				table.insert(occ, { q.cx - 0.85, q.cx + 0.85 })
+			end
 		end
 		table.sort(occ, function(p, q)
 			return p[1] < q[1]
@@ -3260,7 +3274,7 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 			table.insert(free, { cur, b.X - 0.1 })
 		end
 		local y = topY
-		local zb = 0.3
+		local zb = if useBack then math.clamp(backStrip / 2, 0.16, 0.3) else 0.3
 		local k = 0
 		for _, fr in free do
 			local x = (fr[1] + fr[2]) / 2
@@ -3274,8 +3288,15 @@ local function vanity(C: any, st: any, cab: any?, topR: any?, basins: { any }, f
 					P:box("ToothbrushHead", V3(0.05, 0.12, 0.06), CF(x - 0.08 + j * 0.16, y + 0.7, zb + 0.06), LK.white)
 				end
 				if wspan > 0.7 then
-					P:box("ToothpasteTube", V3(0.14, 0.06, 0.6), CF(x + 0.3, y + 0.03, zb + 0.15) * ANG(0, 0.3, 0), lk(250, 250, 250))
-					P:box("ToothpasteCap", V3(0.08, 0.07, 0.1), CF(x + 0.3 - 0.09, y + 0.035, zb + 0.15 - 0.28) * ANG(0, 0.3, 0), lk(60, 140, 220))
+					-- 치약 (눕힘): 볼 뒤 띠면 벽과 나란히
+					local tcf = if useBack then CF(x + 0.12, y + 0.035, zb + 0.02) * ANG(0, PI / 2 - 0.12, 0) else CF(x + 0.3, y + 0.03, zb + 0.15) * ANG(0, 0.3, 0)
+					P:box("ToothpasteTube", V3(0.14, 0.06, 0.5), tcf, lk(250, 250, 250))
+					P:box("ToothpasteBand", V3(0.145, 0.065, 0.12), tcf * CF(0, 0, 0.08), lk(40, 120, 200))
+					P:box("ToothpasteCap", V3(0.08, 0.07, 0.1), tcf * CF(0, 0.003, -0.29), lk(60, 140, 220))
+				elseif useBack and C.hi then
+					-- 좁은 칸: 치약은 컵에 꽂음
+					P:seg("ToothpasteTube", V3(x + 0.03, y + 0.22, zb - 0.03), V3(x + 0.07, y + 0.6, zb - 0.06), 0.1, lk(250, 250, 250))
+					P:box("ToothpasteCap", V3(0.08, 0.1, 0.08), CF(x + 0.035, y + 0.2, zb - 0.03), lk(60, 140, 220))
 				end
 			elseif k == 2 then
 				bottle(P, CF(x - 0.12, y, zb), 0.7, 0.26, col(if C.ti >= 5 then C3(70, 60, 50) else C3(250, 250, 248), M.SmoothPlastic, { r = 0.05 }), if C.ti >= 5 then LK.brass else LK.chrome, C3(240, 236, 226), "핸드워시", { pump = true })

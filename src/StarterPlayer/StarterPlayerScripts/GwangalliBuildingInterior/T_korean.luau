@@ -533,13 +533,13 @@ THEMES.ramen = extend(BASE_THEME, {
 	stool = { style = "wood", frame = wood(70, 46, 30), seat = wood(196, 156, 108) },
 	table = { top = wood(196, 156, 108), edge = wood(90, 60, 40), base = L.blackMetal, style = "pedestal" },
 	counter = { front = "wood", frontL = wood(84, 56, 36), topL = L.of(226, 196, 150, M.Wood), kickL = L.black, led = rgb(255, 200, 140) },
-	floor = { look = L.of(70, 68, 66, M.Slate), tile = 2.0, grout = L.of(50, 48, 46) },
+	floor = { look = L.of(112, 106, 98, M.Slate), tile = 2.0, grout = L.of(78, 74, 70) },
 	lower = { kind = "louver", h = 3.8, look = wood(176, 134, 90), back = L.of(60, 44, 32), pitch = 0.5, walls = { "left", "right", "back" } },
 	base = L.of(30, 26, 22),
 	ceiling = { skin = L.of(226, 216, 198, M.WoodPlanks) },
 	lights = { kind = "downlight", n = 6, color = rgb(255, 214, 170), glow = L.lampWarm },
 	passTile = L.of(214, 210, 200, M.CeramicTiles),
-	upper = L.of(52, 42, 36, M.Plaster),
+	upper = L.of(222, 206, 176, M.Plaster), -- 토벽 느낌 모래색 회벽 (나무 루버 · 검은 테와 대비)
 	fridgeHeader = "BEER · SAKE · 음료",
 	tagsOn = true,
 	tags = { { "돈코츠", "11,000" }, { "카라이", "12,000" }, { "쇼유", "11,500" }, { "츠케멘", "13,000" }, { "차슈동", "8,000" }, { "교자", "6,000" }, { "아지타마", "2,000" }, { "카에다마", "2,000" }, { "생맥주", "6,000" }, { "하이볼", "7,000" } },
@@ -754,6 +754,7 @@ function T.style(V: any): any
 		plants = { "snake", "ficus", "olive" },
 	}
 	if V.kind == "gwshop" then
+		S.lights = { kind = "none" }
 		-- GwShop: 바닥 · 징두리는 이미 있음 (마감 · 장식만, R14)
 		S.floor = nil
 		S.lower = false
@@ -2937,6 +2938,44 @@ local function fuProp(c: any)
 	end
 end
 
+-- 텍스 천장 LED 평판등 (국밥 · 해장국 · 밀면 · 칼국수): 맵 형광등 줄 사이, 벽에서 3 이상 (후드 · 솥 자리 비움)
+local function ceilPanels(c: any)
+	local K, V, th = c.K, c.V, c.th
+	if not ((th.kind == "soup" or th.kind == "noodle") and th.key ~= "ramen" and th.key ~= "bistro") then
+		return
+	end
+	local want = math.clamp(math.floor(V.W * V.D / 80), 3, 8)
+	local nx = math.max(2, math.floor((V.W - 6) / 6.5 + 0.5))
+	local zs = { V.z0 + V.D * 0.2, (V.z0 + V.z1) / 2, V.z1 - V.D * 0.2 }
+	local placed, lit = 0, 0
+	for j, z0 in zs do
+		for i = 1, nx do
+			if placed >= want then
+				break
+			end
+			local x = V.x0 + 3 + (V.W - 6) * (i - 0.5) / nx
+			local z: number? = nil
+			for _, dz in { 0, 1.3, -1.3, 2.4, -2.4 } do
+				local zz = z0 + dz
+				if zz > V.z0 + 2.5 and zz < V.z1 - 1.5 and Common.ceilFree(K, x, zz, 1.15) then
+					z = zz
+					break
+				end
+			end
+			if z then
+				local withLight = (i + j) % 2 == 0 and lit < 3 and #K.lights < (V.maxLights or 8) - 2
+				Props.panelLight(K, x, z, { light = withLight, range = 18, bright = 0.85, color = L.coolLight, glow = L.lampCool })
+				Common.useCeil(K, x, z)
+				placed += 1
+				if withLight then
+					lit += 1
+				end
+			end
+		end
+	end
+	K:note(string.format("panels %d lit %d", placed, lit))
+end
+
 -- GwShop 가구 감싸기: 원본(Table_n · Seat)은 숨기지도 옮기지도 않고, 조금 더 큰 덮개로 감쌈 (윗면 +0.006)
 local function gwFurniture(c: any)
 	local K, V, th = c.K, c.V, c.th
@@ -3029,6 +3068,7 @@ function T.build(K: any, V: any, S: any)
 		step("gwshop", gwshopDecor)
 		return
 	end
+	step("panels", ceilPanels)
 	step("seats", seatsOver)
 	step("tables", tablesOver)
 	step("platform", platformOver)

@@ -126,10 +126,27 @@ sphereKeep(Geo.SAFE_KEEPS, Geo.TRANSIT, 2.0, 5, "point")
 table.insert(Geo.SAFE_KEEPS, { min = V3(-3.33, 0, 24.6), max = V3(19.31, 21, 35.5), kind = "stair" })
 -- 정문 자동문 (AutoDoor_Hospital)
 table.insert(Geo.SAFE_KEEPS, { min = V3(13.4, 0, -37), max = V3(22.4, 9, -31), kind = "door" })
--- 서버 침대 BedSeat (HospitalBed 8 개, 로컬 xz 근삿값; 런타임에 실제 좌석이 있으면 Lib 가 더함)
-Geo.BED_SPOTS = {
-	V3(49.95, 1.9, 6.97), -- TreatBed1
-}
+-- 서버 침대 BedSeat (태그 HospitalBed 8 개, 월드 좌석 위치 → 로컬). 침대 주변은 우리 장식이 비켜 감.
+-- 실제 좌석이 스트리밍되어 있으면 HospitalPlus 가 시작할 때 그 상자도 더함 (Geo.addBedKeep)
+Geo.BED_SPOTS = {} :: { Vector3 }
+for _, w in {
+	V3(-569.6, 8.8, 283.2), -- ExamBed (진료실 1)
+	V3(-465.3, 8.8, 308.6), -- TreatBed1 (= Ems TRANSIT)
+	V3(-479.3, 8.8, 308.1), -- TreatBed2
+	V3(-566.1, 22.9, 329.3), -- CheckupBed (2F)
+	V3(-466.5, 22.9, 279.1), -- 201 A
+	V3(-488.5, 22.9, 278.3), -- 201 B
+	V3(-540.2, 22.9, 276.6), -- 202 A
+	V3(-562.2, 22.9, 275.9), -- 202 B
+} do
+	local l = Geo.L(w)
+	table.insert(Geo.BED_SPOTS, l)
+	sphereKeep(Geo.SAFE_KEEPS, l, 2.2, 4.5, "bed")
+end
+-- 실제 BedSeat 파트 상자 (로컬 AABB) + 둘레 0.6, 위 4
+function Geo.addBedKeep(mn: Vector3, mx: Vector3)
+	table.insert(Geo.SAFE_KEEPS, { min = mn - V3(0.6, 0.2, 0.6), max = mx + V3(0.6, 4, 0.6), kind = "bed" })
+end
 
 -- 맵 부품 찾기 사양. root = "main" (광안 메디컬 의원) | "bld" (광안 메디컬 의원 (건물))
 Geo.PARTS = {
