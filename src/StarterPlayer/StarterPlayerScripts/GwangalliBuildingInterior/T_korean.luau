@@ -2147,8 +2147,11 @@ local function noodlePress(c: any, pcf: CFrame)
 	end
 	K:vcyl("PressCylinder", 1.4, 0.8, pcf * CF(0, h + 0.7, -0.1), L.chrome)
 	K:disc("PressCap", 0.9, 0.12, pcf * CF(0, h + 1.46, -0.1), L.blackMetal)
-	K:seg("PressLever", (pcf * CF(0, h + 1.5, -0.1)).Position, (pcf * CF(0.9, h + 2.2, 0.3)).Position, 0.1, L.chrome)
-	K:ball("PressLeverKnob", 0.24, pcf * CF(0.92, h + 2.22, 0.32), L.ledRed)
+	K:seg("PressLever", (pcf * CF(0, h + 1.5, -0.1)).Position, (pcf * CF(0.72, h + 1.95, 0.28)).Position, 0.1, L.chrome)
+	K:ball("PressLeverKnob", 0.22, pcf * CF(0.74, h + 1.97, 0.3), L.black)
+	-- 면 받는 스테인리스 받침 + 대야
+	K:box("PressTray", V3(0.9, 0.06, 0.5), pcf * CF(-0.3, h - 2.0, d / 2 + 0.25), L.steel)
+	K:vcyl("PressBasin", 0.28, 0.62, pcf * CF(-0.3, h - 1.83, d / 2 + 0.26), L.brushed)
 	K:box("PressPanel", V3(0.8, 0.5, 0.04), pcf * CF(0.3, h - 0.6, d / 2 + 0.02), L.charcoal)
 	K:plate("PressBtnG", 0.14, 0.14, 0.03, pcf * CF(0.1, h - 0.6, d / 2 + 0.04), L.ledGreen)
 	K:plate("PressBtnR", 0.14, 0.14, 0.03, pcf * CF(0.45, h - 0.6, d / 2 + 0.04), L.ledRed)
@@ -2594,6 +2597,36 @@ local function infoSigns(c: any)
 		if wn5 and u5 then
 			signPlate(c, V:wall(wn5, u5, pf.top + 2.95, 0), 2.2, 0.7, "신발은 벗고 올라가 주세요 ^^\n단체석 예약 환영", rgb(60, 40, 24), rgb(244, 232, 210), { border = rgb(120, 80, 50) })
 		end
+		-- 옷걸이 레일 (평상 위 벽, 놋쇠 고리 + 걸린 겉옷 하나)
+		local wn6, u6, w6 = findWall(K, { "right", "left", "back" }, 2.8, 4.2, pf.top + 3.55, pf.top + 4.75, (pf.mn + pf.mx) / 2, 0.6)
+		if wn6 and u6 and w6 then
+			local rw = w6 - 0.3
+			local d = V:wall(wn6, u6, pf.top + 4.35, 0)
+			K:plate("CoatRail", rw, 0.3, 0.06, d, c.th.maruFrame or wood(120, 80, 50))
+			local nh = math.max(3, math.floor(rw / 0.7))
+			for i = 1, nh do
+				local x = -rw / 2 + (i - 0.5) * rw / nh
+				K:box("CoatHook", V3(0.06, 0.06, 0.22), d * CF(x, -0.02, 0.17), L.brass)
+				K:box("CoatHookTip", V3(0.06, 0.12, 0.05), d * CF(x, 0.04, 0.27), L.brass)
+				if i == 2 then
+					-- 걸린 점퍼 (몸판 + 소매 + 후드)
+					local jc = col(if c.seed % 2 == 0 then rgb(40, 52, 80) else rgb(70, 74, 62), M.Fabric)
+					K:box("CoatBody", V3(0.95, 1.5, 0.16), d * CF(x, -0.86, 0.2), jc)
+					K:box("CoatHood", V3(0.5, 0.26, 0.2), d * CF(x, -0.06, 0.24), jc)
+					for _, sx in { -1, 1 } do
+						K:box("CoatSleeve", V3(0.2, 1.2, 0.16), d * CF(x + sx * 0.56, -0.95, 0.19) * ANG(0, 0, sx * 0.08), jc)
+					end
+					K:box("CoatZip", V3(0.03, 1.4, 0.01), d * CF(x, -0.86, 0.285), L.chrome)
+				end
+			end
+		end
+	end
+	-- 포장 안내 (계산대 옆)
+	if c.cash then
+		local wn7, u7 = findWall(K, { "left", "right", "back" }, 1.9, 1.9, 4.0, 5.1, c.cash.Position, 0.7)
+		if wn7 and u7 then
+			signPlate(c, V:wall(wn7, u7, 4.55, 0), 1.8, 0.8, "포장 됩니다\n" .. (if th.kind == "noodle" then "면 · 육수 따로 포장" else "수육 · 국밥 포장 환영"), WHITE, rgb(196, 40, 30), { border = rgb(250, 240, 220), font = F.GothamBlack })
+		end
 	end
 end
 
@@ -2618,6 +2651,12 @@ local function tvProp(c: any)
 		return promptWallOK(K, wn, uu + w / 2 - 0.2, ry, 0.4) and not usedHit(K, wn, uu + w / 2 - 0.5, uu + w / 2 + 0.1, ry - 0.5, ry + 0.5)
 	end)
 	if not wn or not u then
+		-- 리모컨 자리(프롬프트)가 없으면 TV 만 (방송 화면은 그대로)
+		local wn2, u2 = findWall(K, { "left", "right", "back" }, w + 0.4, w + 0.4, y - h / 2 - 0.3, y + h / 2 + 0.2, V3(V.x0, 0, V.z1 - 4), 1.2)
+		if wn2 and u2 then
+			tvSet(c, V:wall(wn2, u2, y, 0), w)
+			at(K, "tv(no remote)", wn2, u2)
+		end
 		return
 	end
 	local p, lab, chans = tvSet(c, V:wall(wn, u, y, 0), w)
@@ -2876,7 +2915,8 @@ local function sakeBottle(K: any, base: CFrame, kind: number, hi: boolean)
 		K:vcyl("SakeNeck", 0.26, 0.14, base * CF(0, 1.12, 0), gl)
 		K:vcyl("SakeCap", 0.08, 0.16, base * CF(0, 1.27, 0), L.of(200, 170, 80, M.Metal))
 		if hi then
-			ktext(K, "SakeLabel", 0.26, 0.5, base * CF(0, 0.52, 0.181), if kind == 0 then "辛\n口" else "純\n米", { fg = rgb(30, 20, 16), bg = rgb(244, 236, 214), font = F.GothamBlack, d = 0.008 })
+			K:plate("SakeLabel", 0.24, 0.46, 0.01, base * CF(0, 0.52, 0.178), L.of(244, 236, 214))
+			K:plate("SakeLabelMark", 0.1, 0.26, 0.012, base * CF(0, 0.55, 0.179), L.of(if kind == 0 then 30 else 170, if kind == 0 then 24 else 30, 20))
 		end
 	elseif kind == 1 then
 		-- 하이볼 위스키 (각진 병)

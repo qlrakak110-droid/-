@@ -309,6 +309,31 @@ local function notice(K: any, dcf: CFrame, w: number, h: number, title: string, 
 	txt(K, "NoticeBody", w * 0.88, (h - hh) * 0.84, dcf * CF(0, -hh / 2, 0.035), body, op.fg or rgb(40, 40, 44), nil, op.font or F.GothamMedium)
 end
 
+-- 영업시간 · 결제 안내 아크릴 명판 (입구 쪽 옆벽, 눈높이): 흰 인쇄판 + 앞 투명 아크릴 + 크롬 스탠드오프 4
+local function hoursPlaque(K: any, V: any, title: string, body: string, accent: Color3)
+	local w, h = 1.5, 1.05
+	for _, wn in { "left", "right" } do
+		local pref = if wn == "left" then -(V.z1 - 3.5) else (V.z1 - 3.5)
+		local w2, d = Common.wallSpot(K, { wn }, w + 0.2, 4.5, 5.7, pref)
+		if w2 and d then
+			K:free(function()
+				local dd = d * CF(0, 0, 0.01)
+				K:plate("PlaquePrint", w, h, 0.02, dd, lk(rgb(252, 251, 248)))
+				K:plate("PlaqueBand", w, 0.26, 0.022, dd * CF(0, h / 2 - 0.13, 0), lk(accent))
+				txt(K, "PlaqueTitle", w * 0.9, 0.2, dd * CF(0, h / 2 - 0.13, 0.024), title, WHITE, nil, F.GothamBlack)
+				txt(K, "PlaqueBody", w * 0.9, h - 0.38, dd * CF(0, -0.13, 0.024), body, rgb(40, 40, 44), nil, F.GothamMedium)
+				K:plate("PlaqueAcrylic", w + 0.1, h + 0.1, 0.03, dd * CF(0, 0, 0.1), gl(rgb(236, 246, 248), 0.75))
+				for _, sx in { -1, 1 } do
+					for _, sy in { -1, 1 } do
+						wdisc(K, "PlaqueStandoff", 0.09, 0.15, dd * CF(sx * (w / 2 - 0.02), sy * (h / 2 - 0.02), 0), Look.chrome)
+					end
+				end
+			end)
+			return
+		end
+	end
+end
+
 -- 병 (pcf = 놓이는 면 위, +Z = 라벨 쪽). kind = "pump" | "bottle" | "tube" | "spray" | "jar" | "tall"
 local function bottle(K: any, pcf: CFrame, kind: string, h: number, c: Color3, cap: Color3?, label: Color3?)
 	local capC = cap or rgb(30, 30, 32)
@@ -4379,10 +4404,24 @@ local BUILDERS: { [string]: (any, any, any) -> () } = {
 	play = buildPlay,
 }
 
+local PLAQUES: { [string]: { any } } = {
+	salon = { "영업시간 · OPEN", "10:00 - 20:00 (마지막 접수 19:00)\n매주 화요일 정기 휴무\n카드 · 동백전 · 제로페이 OK", SALON.rose },
+	clothing = { "OPEN 11:00 - 22:00", "연중무휴 · 교환 7일 이내 (영수증)\n택 제거 · 세탁 후 교환 불가\n카드 · 동백전 · 네이버페이", rgb(44, 58, 92) },
+	surf = { "영업시간 · OPEN", "08:00 - 19:00 (7-8월 06:30 오픈)\n기상 악화 시 강습 · 대여 중단\n카드 · 동백전 · 계좌이체", rgb(0, 150, 160) },
+}
+
 function T.build(K: any, V: any, S: any)
 	local b = BUILDERS[V.type]
 	if b then
 		b(K, V, S)
+	end
+	-- 남은 벽 자리에 영업시간 · 결제 명판 (다른 진열이 자리를 다 잡은 뒤)
+	local pq = PLAQUES[V.type]
+	if pq then
+		local ok, err = pcall(hoursPlaque, K, V, pq[1], pq[2], pq[3])
+		if not ok then
+			K:note("plaque error: " .. tostring(err))
+		end
 	end
 end
 

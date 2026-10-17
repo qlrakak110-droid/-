@@ -260,6 +260,20 @@ local function sortWallUsed(K: any)
 	end
 end
 
+-- Common.fixtures 를 부르되, 매번 Common.wallSpot 전에 K.wallUsed 를 정렬 (정렬 안 된 목록이면 구간 빼기가 틀려 겹침)
+local function fixturesSorted(K: any, V: any, S: any)
+	local orig = Common.wallSpot
+	Common.wallSpot = function(K2: any, ...): (string?, CFrame?)
+		sortWallUsed(K2)
+		return orig(K2, ...)
+	end
+	local ok, err = pcall(Common.fixtures, K, V, S)
+	Common.wallSpot = orig
+	if not ok then
+		error(err)
+	end
+end
+
 -- 벽 부착물 자리 (Common.wallSpot + 맵 파트 · keep 검사). accept(dcf, wn) 가 false 면 다른 자리
 local function wallItemSpot(K: any, walls: { string }, w: number, y0: number, y1: number, prefer: number?, accept: ((CFrame, string) -> boolean)?, depth: number?): (string?, CFrame?)
 	local temp = {}
@@ -1915,8 +1929,18 @@ local function vendingMachine(K: any, pcf: CFrame, rng: () -> number)
 	local w, d, h = 2.4, 1.9, 6.1
 	local body = lk(C(28, 64, 140), M.SmoothPlastic, { r = 0.1 })
 	K:box("VendPlinth", V3(w - 0.1, 0.3, d - 0.1), pcf * CF(0, 0.15, -0.05), Look.charcoal)
-	K:rbox("VendBody", V3(w, h - 0.3, d), 0.08, pcf * CF(0, 0.3 + (h - 0.3) / 2, -0.05), body)
 	local f = CFrame.fromMatrix((pcf * CF(0, 0, d / 2 - 0.05)).Position, pcf.XVector, Vector3.yAxis, pcf.ZVector)
+	-- 몸통: 뒤 덩어리 + 진열창 둘레 테 (진열창 안은 비어 있어야 캔이 보임)
+	local rec = 0.62
+	local ww0 = w * 0.66
+	local wx0 = -w / 2 + 0.12 + ww0 / 2
+	local wy0b, wy1b = 2.35, h - 0.95
+	local bh = h - 0.3
+	K:rbox("VendBody", V3(w, bh, d - rec), 0.08, f * CF(0, 0.3 + bh / 2, -rec - (d - rec) / 2), body)
+	K:box("VendBody", V3(w - ww0 - 0.12, bh, rec), f * CF(wx0 + ww0 / 2 + (w - ww0 - 0.12) / 2, 0.3 + bh / 2, -rec / 2), body)
+	K:box("VendBody", V3(0.12, bh, rec), f * CF(-w / 2 + 0.06, 0.3 + bh / 2, -rec / 2), body)
+	K:box("VendBody", V3(ww0, h - wy1b, rec), f * CF(wx0, wy1b + (h - wy1b) / 2, -rec / 2), body)
+	K:box("VendBody", V3(ww0, wy0b - 0.25 - 0.3, rec), f * CF(wx0, 0.3 + (wy0b - 0.55) / 2, -rec / 2), body)
 	-- 위 간판 (발광)
 	K:plate("VendHeader", w - 0.2, 0.62, 0.04, f * CF(0, h - 0.5, 0.01), Look.neon(C(240, 246, 255), 0.05))
 	txt(K, "VendHeaderText", w - 0.4, 0.46, f * CF(0, h - 0.5, 0.04), "시원한 음료  COLD DRINK", C(28, 64, 140), nil, { font = F.GothamBlack })
@@ -1924,7 +1948,7 @@ local function vendingMachine(K: any, pcf: CFrame, rng: () -> number)
 	local ww = w * 0.66
 	local wx = -w / 2 + 0.12 + ww / 2
 	local wy0, wy1 = 2.35, h - 0.95
-	K:plate("VendBacklight", ww, wy1 - wy0, 0.02, f * CF(wx, (wy0 + wy1) / 2, -0.55), Look.neon(C(236, 244, 255), 0.15))
+	K:plate("VendBacklight", ww, wy1 - wy0 + 0.25, 0.02, f * CF(wx, (wy0 + wy1) / 2 - 0.1, -rec + 0.01), Look.neon(C(236, 244, 255), 0.15))
 	local rows = 4
 	local rh = (wy1 - wy0) / rows
 	local per = if lo(K) then 3 else 5
@@ -2244,7 +2268,7 @@ local function buildHotel(K: any, V: any, S: any)
 		hotelInteract(K, V, lounge)
 	end)
 	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	-- 벽: 층별 안내 · 와이파이 · 관광 포스터 · 비상구
 	step(K, "walls", function()
@@ -2582,7 +2606,7 @@ local function buildMotel(K: any, V: any, S: any)
 		}, 3)
 	end)
 	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)
@@ -2822,7 +2846,12 @@ local function buildResidence(K: any, V: any, S: any)
 	step(K, "locker", function()
 		local h = math.min(6.0, V.H - 0.8)
 		for _, w in (if V.W < 13 then { 5.0, 3.8 } else { 6.2, 5.0, 3.8 }) do
-			local wn, pcf = wallFloorSpot(K, { "right", "left", "back" }, w, 1.4, h, V3(V.x1, 0, V.z0 + 3), 0.05, "locker")
+			local wn, pcf = wallFloorSpot(K, { "right", "left", "back" }, w, 1.4, h, V3(V.x1, 0, V.z0 + 3), 0.05, "locker", function(pc: CFrame)
+				return Interact.canPrompt(K, (pc * CF(0, 4.0, 0.65)).Position)
+			end)
+			if not wn then
+				wn, pcf = wallFloorSpot(K, { "right", "left", "back" }, w, 1.4, h, V3(V.x1, 0, V.z0 + 3), 0.05, "locker")
+			end
 			if wn and pcf then
 				lockerScreen, lockerLab, lockerDoor, lockerHinge = parcelLocker(K, pcf, w, h, rng)
 				if lockerScreen and lockerLab then
@@ -2840,6 +2869,20 @@ local function buildResidence(K: any, V: any, S: any)
 				end
 				break
 			end
+		end
+	end)
+	-- 인터폰 (경비실 호출)
+	local icScreen, icLab, icBtn = nil, nil, nil
+	step(K, "intercom", function()
+		local wn, d = spotNear(K, { "left", "right", "back" }, 1.3, 3.6, 5.6, V3(0, 0, V.z1 - 4), function(dc: CFrame)
+			return Interact.canPrompt(K, (dc * CF(0, -0.8, 0.15)).Position)
+		end, 0.2)
+		if not wn then
+			wn, d = spotNear(K, { "left", "right", "back" }, 1.3, 3.6, 5.6, V3(0, 0, V.z1 - 4), nil, 0.2)
+		end
+		if wn and d then
+			icScreen, icLab, icBtn = intercom(K, d * CF(0, 0.05, 0))
+			txt(K, "IntercomSticker", 1.1, 0.3, d * CF(0, -1.25, 0.01), "CCTV 24시간 녹화 중", C(200, 40, 40), C(250, 230, 60), { font = F.GothamBold, d = 0.01 })
 		end
 	end)
 	-- 벤치 + 위 게시판
@@ -2898,17 +2941,6 @@ local function buildResidence(K: any, V: any, S: any)
 			end)
 		end
 	end)
-	-- 인터폰 (경비실 호출)
-	local icScreen, icLab, icBtn = nil, nil, nil
-	step(K, "intercom", function()
-		local wn, d = spotNear(K, { "left", "right" }, 1.3, 3.6, 5.6, V3(0, 0, V.z1 - 4), function(dc: CFrame)
-			return Interact.canPrompt(K, (dc * CF(0, -0.8, 0.15)).Position)
-		end, 0.2)
-		if wn and d then
-			icScreen, icLab, icBtn = intercom(K, d * CF(0, 0.05, 0))
-			txt(K, "IntercomSticker", 1.1, 0.3, d * CF(0, -1.25, 0.01), "CCTV 24시간 녹화 중", C(200, 40, 40), C(250, 230, 60), { font = F.GothamBold, d = 0.01 })
-		end
-	end)
 	-- 소화전 · 비상구 · CCTV 안내 · 우산 비닐 · 화분
 	step(K, "safety", function()
 		local wn, d = spotNear(K, { "left", "right", "back" }, 1.95, 1.0, 5.4, V3(V.x0, 0, V.z0), nil, 0.4)
@@ -2957,7 +2989,7 @@ local function buildResidence(K: any, V: any, S: any)
 		end
 	end)
 	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)
@@ -3550,7 +3582,7 @@ local function buildRealty(K: any, V: any, S: any)
 		end
 	end)
 	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)
@@ -4198,7 +4230,7 @@ local function buildLaundry(K: any, V: any, S: any)
 		end
 	end)
 	step(K, "fixtures", function()
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)
@@ -4511,7 +4543,7 @@ local function buildOffice(K: any, V: any, S: any)
 	end)
 	step(K, "fixtures", function()
 		S.clock = true
-		Common.fixtures(K, V, S)
+		fixturesSorted(K, V, S)
 	end)
 	step(K, "switch", function()
 		ensureSwitch(K, V)

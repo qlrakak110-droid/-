@@ -1607,14 +1607,20 @@ SLOT.bed = function(C_: any, info: any): boolean?
 		K:rbox("HomePillow", V3(pw, 0.32, pd), 0.15, pcf, sheet)
 		K:ell("HomePillowPuff", V3(pw * 0.94, 0.46, pd * 0.86), pcf * CF(0, 0.02, 0), sheet)
 		if hi then
-			K:box("HomePillowSeam", V3(pw - 0.24, 0.03, 0.03), pcf * CF(0, 0, pd / 2 - 0.005), tint(sheet, -0.06))
+			K:box("HomePillowSeam", V3(pw - 0.24, 0.03, 0.03), pcf * CF(0, 0, pd / 2 - 0.005), tint(sheet, 0.07))
 		end
 	end
 	if C_.lux >= 4 and #pillows >= 2 then
 		local cz = hz + 0.45
 		K:rbox("HomeEuroSham", V3(math.min(2.2, (mx1 - mx0) * 0.42), 1.5, 0.35), 0.15, F * CF(dcx - (mx1 - mx0) * 0.24, mt + 0.75, cz) * ANG(math.rad(-12), 0, 0), tint(duvL, 0.08))
 		K:rbox("HomeEuroSham", V3(math.min(2.2, (mx1 - mx0) * 0.42), 1.5, 0.35), 0.15, F * CF(dcx + (mx1 - mx0) * 0.24, mt + 0.75, cz) * ANG(math.rad(-12), 0, 0), tint(duvL, 0.08))
-		K:rbox("HomeCushionAccent", V3(1.2, 0.8, 0.3), 0.12, F * CF(dcx, mt + 0.48, hz + 1.25) * ANG(math.rad(-18), 0, 0), if throw then fab(throw) else lk(150, 120, 90, M.Fabric))
+		-- 포인트 쿠션: 어두운 스로우 색을 그대로 쓰면 멀리서 검은 상자처럼 보임 → 어두우면 카라멜 · 머스터드 톤
+		local acc = if throw then fab(throw) else lk(150, 120, 90, M.Fabric)
+		local ac: Color3? = acc.c
+		if ac and (ac.R + ac.G + ac.B) / 3 < 0.32 then
+			acc = if C_.lux >= 5 then lk(186, 142, 98, M.Fabric) else lk(204, 160, 72, M.Fabric)
+		end
+		K:rbox("HomeCushionAccent", V3(1.2, 0.8, 0.3), 0.12, F * CF(dcx, mt + 0.48, hz + 1.25) * ANG(math.rad(-18), 0, 0), acc)
 	end
 	-- 6) 헤드보드
 	if head then

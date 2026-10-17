@@ -1136,8 +1136,29 @@ local function kitchenBase(C: any, st: any, info: any)
 		end
 	end
 	-- 몸통 (문짝 뒤): 세그먼트마다 하나
+	-- 개수대 볼 자리는 몸통을 비움 (볼 바닥 아래만 채움): 안 비우면 몸통 윗면이 볼 안을 메워 납작한 판으로 보임
+	local hole = nil
+	if info.sinkBB then
+		local smn, smx = info.sinkBB[1], info.sinkBB[2]
+		hole = { a = smn.X + 0.08 - 0.04, b = smx.X - 0.08 + 0.04, z0 = math.max(smn.Z + 0.08, 0.35) - 0.04, z1 = math.min(smx.Z - 0.08, zt - 0.3) + 0.04, y = ytop - 0.72 - 0.06 }
+	end
+	local function carcass(a: number, b: number, y0: number, y1: number, z0: number, z1: number)
+		if b - a > 0.01 and y1 - y0 > 0.01 and z1 - z0 > 0.01 then
+			C:box("CabCarcass", V3(b - a, y1 - y0, z1 - z0), CF((a + b) / 2, (y0 + y1) / 2, (z0 + z1) / 2), st.carcass)
+		end
+	end
 	for _, s in segs do
-		C:box("CabCarcass", V3(s.b - s.a, ybot - kick, zf - 0.02), CF((s.a + s.b) / 2, kick + (ybot - kick) / 2, (zf - 0.02) / 2), st.carcass)
+		local zc = zf - 0.02
+		if hole and hole.b > s.a and hole.a < s.b then
+			local ha, hb = math.max(hole.a, s.a), math.min(hole.b, s.b)
+			carcass(s.a, ha, kick, ybot, 0, zc)
+			carcass(hb, s.b, kick, ybot, 0, zc)
+			carcass(ha, hb, kick, hole.y, 0, zc)
+			carcass(ha, hb, hole.y, ybot, 0, math.min(hole.z0, zc))
+			carcass(ha, hb, hole.y, ybot, math.min(hole.z1, zc), zc)
+		else
+			carcass(s.a, s.b, kick, ybot, 0, zc)
+		end
 		-- 걸레받이 (안으로 들어간 킥)
 		C:box("CabKick", V3(s.b - s.a, kick, 0.06), CF((s.a + s.b) / 2, kick / 2, zf - 0.28), st.kick)
 		C:box("CabKickShadow", V3(s.b - s.a, kick, zf - 0.34), CF((s.a + s.b) / 2, kick / 2, (zf - 0.34) / 2), lk(30, 30, 32))
@@ -1988,13 +2009,17 @@ local function airFryer(C: any, pcf: CFrame, ti: number)
 end
 
 local function capsuleMachine(C: any, pcf: CFrame, ti: number)
+	-- 깊이 1.0 (topSpot 자리) 안에: 뒤 물통 · 몸통 · 추출구 · 받침 · 컵
 	local body = if ti >= 5 then LK.chrome else lk(160, 40, 44, M.SmoothPlastic, { r = 0.08 })
-	C:rbox("CoffeeBody", V3(0.55, 1.05, 1.0), 0.1, pcf * CF(0, 0.6, -0.1), body)
-	C:box("CoffeeHead", V3(0.5, 0.25, 0.4), pcf * CF(0, 0.95, 0.45), body)
-	C:box("CoffeeDripTray", V3(0.45, 0.06, 0.4), pcf * CF(0, 0.07, 0.4), LK.steelDark)
-	C:vcyl("CoffeeCup", 0.28, 0.26, pcf * CF(0, 0.24, 0.42), LK.ceramic)
-	C:box("CoffeeLever", V3(0.4, 0.05, 0.22), pcf * CF(0, 1.14, 0.42) * ANG(math.rad(10), 0, 0), LK.steelDark)
-	C:box("CoffeeTank", V3(0.5, 0.8, 0.25), pcf * CF(0, 0.55, -0.68), lk(220, 236, 240, M.Glass, { t = 0.45 }))
+	C:box("CoffeeTank", V3(0.46, 0.8, 0.2), pcf * CF(0, 0.5, -0.38), lk(220, 236, 240, M.Glass, { t = 0.45 }))
+	C:box("CoffeeTankLid", V3(0.46, 0.04, 0.2), pcf * CF(0, 0.92, -0.38), LK.black)
+	C:rbox("CoffeeBody", V3(0.55, 1.05, 0.6), 0.1, pcf * CF(0, 0.56, -0.02), body)
+	C:box("CoffeeHead", V3(0.5, 0.25, 0.3), pcf * CF(0, 0.95, 0.3), body)
+	C:box("CoffeeDripTray", V3(0.45, 0.06, 0.32), pcf * CF(0, 0.07, 0.3), LK.steelDark)
+	C:vcyl("CoffeeCup", 0.28, 0.24, pcf * CF(0, 0.24, 0.32), LK.ceramic)
+	C:box("CoffeeLever", V3(0.4, 0.05, 0.2), pcf * CF(0, 1.11, 0.3) * ANG(math.rad(10), 0, 0), LK.steelDark)
+	C:box("CoffeeButton", V3(0.08, 0.08, 0.02), pcf * CF(-0.12, 0.95, 0.455), lk(250, 250, 250, M.Neon))
+	C:box("CoffeeButton", V3(0.08, 0.08, 0.02), pcf * CF(0.12, 0.95, 0.455), lk(250, 250, 250, M.Neon))
 end
 
 local function espressoMachine(C: any, pcf: CFrame)
@@ -3448,16 +3473,31 @@ local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: V
 	local ra, rb = lp(riser)
 	local topY = rb.Y
 	local my = if mixer then (select(1, lp(mixer)).Y + select(2, lp(mixer)).Y) / 2 else 3.4
-	-- 바 수전 (수평 원통 + 손잡이 둘)
-	P:cyl("ShowerMixerBar", 1.0, 0.16, CF(0, my, 0.14), metal)
+	-- 이 벽의 로컬 x 범위 (욕실 칸 모서리)
+	local wx0, wx1 = math.huge, -math.huge
+	for _, cx in { C.x0, C.x1 } do
+		for _, cz in { C.z0, C.z1 } do
+			local q = pcf:PointToObjectSpace(V3(cx, 0, cz))
+			if math.abs(q.Z) < 0.3 then
+				wx0 = math.min(wx0, q.X)
+				wx1 = math.max(wx1, q.X)
+			end
+		end
+	end
+	if wx0 == math.huge then
+		wx0, wx1 = -1.5, 1.5
+	end
+	-- 바 수전 (수평 원통 + 손잡이 둘): 좁은 칸 (고시원) 이면 벽 끝을 넘지 않게 짧게
+	local bh = math.clamp(math.min(0.5, wx1 - 0.2, -wx0 - 0.2), 0.28, 0.5)
+	P:cyl("ShowerMixerBar", bh * 2, 0.16, CF(0, my, 0.14), metal)
 	for _, s in { -1, 1 } do
-		P:cyl("ShowerMixerKnob", 0.12, 0.24, CF(s * 0.56, my, 0.14), metal)
-		P:box("ShowerMixerWallPlate", V3(0.08, 0.26, 0.04), CF(s * 0.35, my, 0.02), metal)
-		P:cyl("ShowerMixerArm", 0.1, 0.08, CF(s * 0.35, my, 0.07) * ANG(0, PI / 2, 0), metal)
+		P:cyl("ShowerMixerKnob", 0.12, 0.24, CF(s * (bh + 0.06), my, 0.14), metal)
+		P:box("ShowerMixerWallPlate", V3(0.08, 0.26, 0.04), CF(s * bh * 0.7, my, 0.02), metal)
+		P:cyl("ShowerMixerArm", 0.1, 0.08, CF(s * bh * 0.7, my, 0.07) * ANG(0, PI / 2, 0), metal)
 	end
 	if C.hi then
-		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-0.62, my + 0.12, 0.14), lk(220, 50, 50))
-		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-0.62, my - 0.12, 0.14), lk(50, 120, 220))
+		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-(bh + 0.12), my + 0.12, 0.14), lk(220, 50, 50))
+		P:box("ShowerTempMark", V3(0.02, 0.1, 0.02), CF(-(bh + 0.12), my - 0.12, 0.14), lk(50, 120, 220))
 	end
 	-- 세로관 (레인 샤워 기둥)
 	local colY1 = math.min(topY, C.H - 0.4)
@@ -3496,21 +3536,7 @@ local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: V
 			end
 		end
 	end
-	-- 샤워 선반 (벽 모서리): 수전 반대쪽 벽 끝
-	-- 이 벽의 로컬 x 범위 (욕실 칸 모서리)
-	local wx0, wx1 = math.huge, -math.huge
-	for _, cx in { C.x0, C.x1 } do
-		for _, cz in { C.z0, C.z1 } do
-			local q = pcf:PointToObjectSpace(V3(cx, 0, cz))
-			if math.abs(q.Z) < 0.3 then
-				wx0 = math.min(wx0, q.X)
-				wx1 = math.max(wx1, q.X)
-			end
-		end
-	end
-	if wx0 == math.huge then
-		wx0, wx1 = -1.5, 1.5
-	end
+	-- 샤워 선반 (벽 모서리): 수전 반대쪽 벽 끝 (wx0 .. wx1 = 위에서 구한 이 벽의 로컬 x 범위)
 	local shelfX = if wx1 > -wx0 then wx1 - 0.5 else wx0 + 0.5
 	local cands = { shelfX }
 	if trays[1] then
@@ -5096,12 +5122,29 @@ local function entryClutter(C: any)
 	local V = C.V
 	-- 바닥 소품 후보 자리 (현관문 쪽 모서리 · 신발장 옆)
 	local function floorSpot(w: number, d: number, h: number, cands: { Vector3 }): CFrame?
-		for _, p in cands do
-			local cf = CF(p.X, h / 2, p.Z)
-			local dk = C.doorKeep
-			local inDoor = dk ~= nil and p.X + w / 2 > dk.mn.X and p.X - w / 2 < dk.mx.X and p.Z + d / 2 > dk.mn.Z and p.Z - d / 2 < dk.mx.Z
-			if not inDoor and C:claim(cf, V3(w, h, d), "floor", 0.05) then
-				return CF(p.X, 0, p.Z)
+		local walls = wallParts(V)
+		local function hitsWall(px: number, pz: number): boolean
+			local mn, mx = laabb(C.cf * CF(px, h / 2, pz), V3(w, h, d))
+			for _, r in walls do
+				if r.min.Y < mn.Y + 0.5 and overlap(mn, mx, r.min, r.max, 0.02) then
+					return true
+				end
+			end
+			return false
+		end
+		for _, p0 in cands do
+			-- 후보 자리를 물건 크기만큼 방 안으로 (방 상자 끝이 벽 중심선인 방은 벽 두께 반만큼 더 안으로)
+			for _, mg in { 0.02, 0.12, 0.22, 0.32 } do
+				local p = V3(math.clamp(p0.X, C.x0 + w / 2 + mg, math.max(C.x0 + w / 2 + mg, C.x1 - w / 2 - mg)), 0, math.clamp(p0.Z, C.z0 + d / 2 + mg, math.max(C.z0 + d / 2 + mg, C.z1 - d / 2 - mg)))
+				if not hitsWall(p.X, p.Z) then
+					local cf = CF(p.X, h / 2, p.Z)
+					local dk = C.doorKeep
+					local inDoor = dk ~= nil and p.X + w / 2 > dk.mn.X and p.X - w / 2 < dk.mx.X and p.Z + d / 2 > dk.mn.Z and p.Z - d / 2 < dk.mx.Z
+					if not inDoor and C:claim(cf, V3(w, h, d), "floor", 0.05) then
+						return CF(p.X, 0, p.Z)
+					end
+					break
+				end
 			end
 		end
 		return nil
@@ -5323,15 +5366,27 @@ local function entryClutter(C: any)
 				C:plate("ArtFrame", e[1], e[2], 0.1, dcf * CF(e[3], e[4], 0), frameL)
 			end
 			if ti >= 5 then
-				-- 단색화 (한지 빛 바탕에 손으로 그은 세로 결) : 펜트하우스 현관의 조용한 대작
-				C:plate("ArtCanvas", aw, ah, 0.07, dcf, lk(232, 226, 212, M.Fabric))
-				local n = if C.hi then 22 elseif C.lo then 8 else 14
-				for k = 1, n do
-					local x = -aw / 2 + aw * (k - 0.5) / n + (C.rnd() - 0.5) * aw / n * 0.3
-					local hh = ah * (0.86 + C.rnd() * 0.08)
-					C:plate("ArtRidge", 0.035, hh, 0.078, dcf * CF(x, (C.rnd() - 0.5) * 0.06, 0), lk(214, 206, 190, M.Fabric))
+				-- 달항아리 그림 (따뜻한 회색 바탕 + 바닥 띠 + 위아래 두 사발을 이은 항아리 · 이음선 · 입 · 굽 · 그림자 · 낙관)
+				local z0 = 0.07
+				C:plate("ArtCanvas", aw, ah, z0, dcf, lk(204, 196, 182, M.Fabric))
+				local gh = ah * 0.24
+				C:plate("ArtGround", aw, gh, z0 + 0.004, dcf * CF(0, -ah / 2 + gh / 2, 0), lk(176, 166, 150, M.Fabric))
+				local jw, jcx = math.min(aw * 0.46, 2.1), -aw * 0.04
+				local jcy = -ah / 2 + gh + jw * 0.47
+				local function el(n: string, w: number, h: number, x: number, y: number, dz: number, c: Color3)
+					C:ell(n, V3(w, h, 0.02), dcf * CF(x, y, z0 + dz), col(c, M.Fabric))
 				end
-				C:plate("ArtSignature", 0.3, 0.05, 0.08, dcf * CF(aw / 2 - 0.35, -ah / 2 + 0.12, 0), lk(150, 60, 50, M.Fabric))
+				el("ArtJarShadow", jw * 1.15, jw * 0.16, jcx + jw * 0.12, -ah / 2 + gh - 0.02, 0.012, C3(150, 140, 126))
+				el("ArtJarLower", jw, jw * 0.6, jcx, jcy - jw * 0.17, 0.016, C3(238, 233, 222))
+				el("ArtJarUpper", jw * 0.98, jw * 0.58, jcx, jcy + jw * 0.15, 0.018, C3(244, 240, 231))
+				C:plate("ArtJarSeam", jw * 0.82, 0.014, z0 + 0.03, dcf * CF(jcx, jcy - 0.01, 0), lk(222, 214, 200, M.Fabric))
+				el("ArtJarGlow", jw * 0.16, jw * 0.36, jcx - jw * 0.26, jcy + jw * 0.12, 0.024, C3(252, 250, 245))
+				C:plate("ArtJarMouth", jw * 0.32, 0.09, z0 + 0.03, dcf * CF(jcx, jcy + jw * 0.43, 0), lk(232, 226, 212, M.Fabric))
+				C:plate("ArtJarRim", jw * 0.35, 0.03, z0 + 0.034, dcf * CF(jcx, jcy + jw * 0.47, 0), lk(214, 206, 190, M.Fabric))
+				C:plate("ArtJarFoot", jw * 0.34, 0.08, z0 + 0.03, dcf * CF(jcx, jcy - jw * 0.46, 0), lk(224, 216, 202, M.Fabric))
+				-- 낙관 (붉은 도장) + 서명
+				C:plate("ArtSeal", 0.12, 0.12, z0 + 0.012, dcf * CF(aw / 2 - 0.32, -ah / 2 + 0.3, 0), lk(170, 50, 40, M.Fabric))
+				C:plate("ArtSignature", 0.04, 0.3, z0 + 0.01, dcf * CF(aw / 2 - 0.32, -ah / 2 + 0.56, 0), lk(90, 80, 70, M.Fabric))
 			else
 				-- 광안리 바다 풍경 (하늘 · 수평선 · 바다 · 모래 + 광안대교 실루엣)
 				C:plate("ArtMat", aw, ah, 0.06, dcf, lk(244, 240, 232, M.Fabric))
