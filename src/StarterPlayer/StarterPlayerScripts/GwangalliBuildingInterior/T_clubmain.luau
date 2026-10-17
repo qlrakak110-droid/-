@@ -941,7 +941,9 @@ local function lockerFace(P: any, K: any, face: CFrame, dw: number, dh: number, 
 	local rx = -hw + 0.58
 	P:plate("LockerReader", 0.4, 0.66, 0.02, f * CF(rx, 0.02, d), LOCKER_READER)
 	P:plate("LockerLED", 0.24, 0.07, 0.012, f * CF(rx, 0.24, d + 0.02), nl(if free then rgb(60, 230, 120) else rgb(255, 60, 50)))
-	txt(P, "LockerTap", 0.32, 0.3, f * CF(rx, -0.08, d + 0.021), "TAP\n))))", rgb(110, 200, 235), nil, F.GothamBold, 0.6)
+	-- 태그 표시 (글자판 대신 도형: SurfaceGui 를 칸마다 늘리지 않음) = 시안 원 + 가운데 점
+	wdisc(P, "LockerTapRing", 0.2, 0.008, f * CF(rx, -0.1, d + 0.02), lk(dk(CY, 0.7), M.SmoothPlastic))
+	wdisc(P, "LockerTapDot", 0.12, 0.01, f * CF(rx, -0.1, d + 0.02), LOCKER_READER)
 	-- 손잡이 홈 (세로, 문 모서리)
 	P:plate("LockerPull", 0.1, 0.9, 0.012, f * CF(-hw + 0.17, 0.0, d), lk(rgb(12, 12, 14)))
 	P:plate("LockerPullLip", 0.03, 0.9, 0.02, f * CF(-hw + 0.235, 0.0, d), CHROME)
@@ -957,7 +959,7 @@ local function lockerFace(P: any, K: any, face: CFrame, dw: number, dh: number, 
 		P:cyl("KeyBand", 0.06, 0.34, f * CF(rx, by - 0.08, d + 0.06) * ANG(0, PI / 2, 0), lk(CY, M.Plastic, { t = 0.1 }))
 		P:cyl("KeyBandHole", 0.08, 0.22, f * CF(rx, by - 0.08, d + 0.06) * ANG(0, PI / 2, 0), LOCKER_FACE)
 		if detail then
-			txt(P, "KeyFob", 0.16, 0.16, f * CF(rx, by - 0.3, d + 0.1), tostring(n), rgb(240, 240, 240), rgb(16, 60, 86), F.GothamBold)
+			P:plate("KeyFob", 0.14, 0.18, 0.03, f * CF(rx, by - 0.3, d + 0.06), lk(rgb(16, 60, 86), M.SmoothPlastic))
 		end
 	end
 	local _ = K
