@@ -12,7 +12,8 @@
 --   table = { style, top, edge, base, thick, r } | false     counter = { front, frontL, topL, kickL, led } | false
 --   ceiling = { grid = bool, skin = look, tile } | false    floor = { look, tile, grout } | false
 --   lower = { kind = "wainscot" | "tile" | "louver" | "paint", h, look, cap, walls = { "back", "left", "right" } } | false
---   base = look (걸레받이) | false     pendant = { shade, look, dia } (맵 펜던트 바꿀 모양)
+--   base = look (걸레받이) | false     pendant = { shade, look, dia, maxDrop } (맵 펜던트 바꿀 모양;
+--          maxDrop = 천장에서 갓 아래까지 최대 길이: 맵 간판 · 메뉴판 앞으로 늘어지지 않게)
 --   clock = bool, license = bool, cctv = bool, mat = { look, text } | false
 --   lights = { kind = "downlight" | "panel" | "none", n, color, glow }  (우리 불빛, 최대 V.maxLights)
 
@@ -148,7 +149,7 @@ function Common.upgrades(K: any, V: any, S: any)
 	for _, nm in { "PendantShade", "PendantGlobe" } do
 		for _, r in V.byName[nm] or {} do
 			local topY = V.H
-			local drop = topY - r.min.Y
+			local drop = math.min(topY - r.min.Y, ps.maxDrop or math.huge)
 			local p = V3(r.c.X, topY, r.c.Z)
 			local shade = ps.shade or (if nm == "PendantGlobe" then "globe" else "dome")
 			K:free(function()
@@ -362,60 +363,90 @@ function Common.walls(K: any, V: any, S: any)
 end
 
 -- 작은 벽 부착물 ---------------------------------------------------------------------------------------
--- 벽면 빈 자리 하나 찾기 (폭 w, 높이 y0..y1). 반환 dcf 또는 nil. 찾은 자리는 K.wallUsed 에 기록
-function Common.wallSpot(K: any, walls: { string }, w: number, y0: number, y1: number, prefer: number?): (string?, CFrame?)
+-- K.reserved 중 바닥을 비워 두는 예약 (실제 물건이 아님): 벽 자리를 막지 않음
+local CLEAR_KINDS = { front = true, staff = true, wallfront = true }
+
+-- 벽면 빈 자리 하나 찾기 (폭 w, 높이 y0..y1, prefer = 바라는 u). 반환 wn, dcf 또는 nil. 찾은 자리는 K.wallUsed 에 기록.
+-- 새로 세운 키 큰 바닥 소품(K.reserved) 뒤에는 걸지 않음. test(wn, u, dcf) -> boolean (선택): 추가 조건
+-- (예: 프롬프트를 둘 수 있는 자리). test 가 있으면 구간마다 0.5 간격 후보를 prefer 에 가까운 순서로 시험
+function Common.wallSpot(K: any, walls: { string }, w: number, y0: number, y1: number, prefer: number?, test: ((string, number, CFrame) -> boolean)?): (string?, CFrame?)
 	local V = K.V
 	K.wallUsed = K.wallUsed or {}
-	table.sort(K.wallUsed, function(x, y)
-		return x.a < y.a
-	end)
+	local extra = {}
+	for _, r in K.reserved or {} do
+		if not CLEAR_KINDS[r.kind] then
+			table.insert(extra, r)
+		end
+	end
+	local target = prefer or 0
+	local yc = (y0 + y1) / 2
 	for _, wn in walls do
-		local spans = V:spans(wn, y0, y1, 1.0)
-		-- 이미 쓴 자리 빼기
+		-- 빈 구간에서 이미 쓴 자리 빼기
 		local cand = {}
-		for _, s in spans do
-			local a, b = s[1], s[2]
-			for _, u in K.wallUsed do
-				if u.w == wn and u.y1 > y0 and u.y0 < y1 then
-					if u.a <= a and u.b >= b then
-						a = b
-					elseif u.a > a and u.a < b and u.b >= b then
-						b = u.a
-					elseif u.b > a and u.b < b and u.a <= a then
-						a = u.b
-					elseif u.a > a and u.b < b then
-						table.insert(cand, { a, u.a })
-						a = u.b
+		for _, s in V:spans(wn, y0, y1, 1.0, extra) do
+			local pieces = { { s[1], s[2] } }
+			for _, used in K.wallUsed do
+				if used.w == wn and used.y1 > y0 and used.y0 < y1 then
+					local nxt = {}
+					for _, pc in pieces do
+						if used.b <= pc[1] or used.a >= pc[2] then
+							table.insert(nxt, pc)
+						else
+							if used.a > pc[1] then
+								table.insert(nxt, { pc[1], used.a })
+							end
+							if used.b < pc[2] then
+								table.insert(nxt, { used.b, pc[2] })
+							end
+						end
 					end
+					pieces = nxt
 				end
 			end
-			if b - a >= w then
-				table.insert(cand, { a, b })
-			end
-		end
-		local best, bd = nil, math.huge
-		for _, s in cand do
-			if s[2] - s[1] >= w then
-				local target = prefer or 0
-				local u = math.clamp(target, s[1] + w / 2, s[2] - w / 2)
-				local d = math.abs(u - target)
-				if d < bd then
-					best, bd = u, d
+			for _, pc in pieces do
+				if pc[2] - pc[1] >= w then
+					table.insert(cand, pc)
 				end
 			end
 		end
-		if best then
-			table.insert(K.wallUsed, { w = wn, a = best - w / 2 - 0.2, b = best + w / 2 + 0.2, y0 = y0, y1 = y1 })
-			return wn, V:wall(wn, best, (y0 + y1) / 2, 0.0)
+		-- 후보 u: 구간마다 prefer 를 구간 안으로 당긴 점 (+ test 가 있으면 0.5 간격 점들), prefer 에 가까운 순서
+		local us = {}
+		for _, sp in cand do
+			local lo, hi = sp[1] + w / 2, sp[2] - w / 2
+			table.insert(us, { u = math.clamp(target, lo, hi), n = #us })
+			if test then
+				local u = lo
+				while u < hi - 1e-3 do
+					table.insert(us, { u = u, n = #us })
+					u += 0.5
+				end
+				table.insert(us, { u = hi, n = #us })
+			end
+		end
+		table.sort(us, function(a, b)
+			local da, db = math.abs(a.u - target), math.abs(b.u - target)
+			if math.abs(da - db) > 1e-6 then
+				return da < db
+			end
+			return a.n < b.n
+		end)
+		for _, c in us do
+			local dcf = V:wall(wn, c.u, yc, 0.0)
+			if not test or test(wn, c.u, dcf) then
+				table.insert(K.wallUsed, { w = wn, a = c.u - w / 2 - 0.2, b = c.u + w / 2 + 0.2, y0 = y0, y1 = y1 })
+				return wn, dcf
+			end
 		end
 	end
 	return nil, nil
 end
 
 function Common.fixtures(K: any, V: any, S: any)
-	-- 조명 스위치 (상호작용) + 콘센트: 입구 쪽 옆벽, 높이 4.2
+	-- 조명 스위치 (상호작용) + 콘센트: 입구 쪽 옆벽, 높이 4.2. 프롬프트를 둘 수 있는 자리(맵 앵커에서 떨어진 곳)만
 	local side = if V.door and V.door.x > 0 then "left" else "right"
-	local wn, dcf = Common.wallSpot(K, { side, if side == "left" then "right" else "left" }, 1.0, 3.8, 4.6, if side == "left" then -V.D / 2 + 3 else V.D / 2 - 3)
+	local wn, dcf = Common.wallSpot(K, { side, if side == "left" then "right" else "left" }, 1.0, 3.8, 4.6, if side == "left" then -V.D / 2 + 3 else V.D / 2 - 3, function(_wn: string, _u: number, d: CFrame): boolean
+		return Interact.canPrompt(K, (d * CF(0, 0, 0.02)).Position) -- SwitchPlate 중심 = 프롬프트 자리
+	end)
 	if wn and dcf then
 		local plate = Props.switchPlate(K, dcf, 2)
 		Interact.lightSwitch(K, plate, "실내 조명 스위치")

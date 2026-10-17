@@ -810,7 +810,7 @@ function T.style(V: any): any
 		S.counter = { front = "panel", frontL = lk(B.c1), topL = Look.white, kickL = Look.black, led = rgb(255, 240, 200) }
 		S.floor = { look = lk(rgb(200, 200, 198), M.CeramicTiles), tile = 2.0, grout = lk(rgb(162, 162, 160)) }
 		S.lower = { kind = "tile", h = 3.2, look = Look.tileWhite, grout = lk(rgb(206, 204, 200)), walls = { "left", "right" } }
-		S.pendant = { shade = "drum", look = lk(B.c1, M.Metal), dia = 1.15 }
+		S.pendant = { shade = "drum", look = lk(B.c1, M.Metal), dia = 1.15, maxDrop = 1.6 } -- 맵 Sign_ 브랜드 간판 앞으로 안 늘어지게
 		S.lights = { kind = "downlight", color = Look.neutralLight }
 		S.base = Look.black
 	elseif k == "twosome" then
@@ -861,7 +861,7 @@ function T.style(V: any): any
 		S.counter = { front = "tile", frontL = lk(rgb(36, 80, 146), M.CeramicTiles), topL = Look.terrazzo, kickL = Look.black, led = rgb(220, 236, 255) }
 		S.floor = { look = Look.terrazzo, tile = 0 }
 		S.lower = { kind = "tile", h = 3.0, look = Look.tileWhite, grout = lk(rgb(96, 136, 186)), walls = { "left", "right" } }
-		S.pendant = { shade = "dome", look = lk(rgb(30, 60, 110), M.Metal) }
+		S.pendant = { shade = "dome", look = lk(rgb(30, 60, 110), M.Metal), maxDrop = if k == "busan" then 1.6 else nil }
 		S.lights = { kind = "downlight", color = Look.neutralLight }
 	elseif k == "lounge" then
 		S.chair = { style = "padded", frame = Look.darkWood, seat = Look.fabricNavy }
@@ -944,6 +944,10 @@ function T.style(V: any): any
 	S.myChair = S.chair
 	S.chair = false
 	S.clock = false
+	-- 계산대 몸통은 counterCarcass 가 브랜드 색으로 통째로 (Props.counterOver 의 끝판 · 뒤판은 겹치니 끔)
+	if S.counter then
+		S.counter.shell = false
+	end
 	return S
 end
 
