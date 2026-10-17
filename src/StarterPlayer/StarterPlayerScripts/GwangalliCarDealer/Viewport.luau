@@ -175,7 +175,6 @@ Stage.__index = Stage
 
 function Viewport.stage(parent: GuiObject, opts: { [string]: any }?): any
 	local o = opts or {}
-	local C = Ui.C
 	local z = o.zIndex or (parent.ZIndex + 1)
 	local root = Ui.frame(parent, { Name = "Stage", Size = UDim2.fromScale(1, 1), BackgroundTransparency = 0, BackgroundColor3 = Color3.fromRGB(16, 19, 28), ZIndex = z, ClipsDescendants = true })
 	Ui.corner(root, o.radius or 18)

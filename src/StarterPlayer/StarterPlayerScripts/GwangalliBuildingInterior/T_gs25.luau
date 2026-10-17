@@ -1938,7 +1938,7 @@ local function walkIn(ctx: any)
 		hideRec(ctx, wn)
 	end
 	table.insert(ctx.res, { bmn, bmx })
-	local panel = lk(rgb(236, 238, 238), M.Metal)
+	local panel = lk(rgb(234, 236, 236), M.SmoothPlastic)
 	local w = x1 - x0
 	local cx = (x0 + x1) / 2
 	local doorW, doorH = 3.2, 7.2
@@ -1959,7 +1959,7 @@ local function walkIn(ctx: any)
 		end
 		Q:box("WalkInTop", V3(w, 0.3, d), CF(cx, h - 0.15, z0 + d / 2), panel)
 		-- 패널 이음매 (세로 줄)
-		local seam = lk(rgb(200, 204, 206), M.Metal)
+		local seam = lk(rgb(196, 200, 202), M.SmoothPlastic)
 		local xx = x0 + 3.0
 		while xx < x1 - 0.5 do
 			if math.abs(xx - dx) > doorW / 2 + 0.3 then
@@ -1999,7 +1999,7 @@ local function walkIn(ctx: any)
 		local hingeX = dx - doorW / 2
 		local model = Q:group("WalkInDoor", function()
 			local c = CF(dx, doorH / 2, z0 - 0.12)
-			Q:box("WalkInDoorLeaf", V3(doorW - 0.05, doorH - 0.08, 0.32), c, lk(rgb(244, 246, 246), M.Metal))
+			Q:box("WalkInDoorLeaf", V3(doorW - 0.05, doorH - 0.08, 0.32), c, lk(rgb(242, 244, 244), M.SmoothPlastic))
 			Q:box("WalkInDoorGasket", V3(doorW + 0.02, doorH, 0.04), c * CF(0, 0, 0.17), lk(rgb(40, 40, 42), M.Rubber))
 			Q:box("WalkInDoorKick", V3(doorW - 0.1, 0.8, 0.02), c * CF(0, -doorH / 2 + 0.45, -0.17), L_STEEL)
 			Q:box("WalkInDoorWindow", V3(0.9, 0.9, 0.04), c * CF(0, 1.6, -0.16), { c = rgb(200, 220, 236), m = M.Glass, t = 0.45 })
@@ -2130,8 +2130,8 @@ local function lockers(ctx: any)
 	if #ls == 0 then
 		return
 	end
-	local body = lk(rgb(120, 139, 160), M.Metal)
-	local inner = lk(rgb(90, 104, 120), M.Metal)
+	local body = lk(rgb(172, 180, 188), M.SmoothPlastic)
+	local inner = lk(rgb(130, 138, 146), M.SmoothPlastic)
 	for i, e in ls do
 		hideRec(ctx, e)
 		local mn, mx = e.mn, e.mx
@@ -2790,6 +2790,55 @@ local function stockWork(ctx: any)
 	end
 end
 
+-- 직원 문 (맵 StaffDoorLeaf: 열린 채 고정된 장식 문짝) 같은 자세로 다시: 도장 철문 · 킥플레이트 · 레버 · 창 · 도어클로저
+local function staffDoor(ctx: any)
+	local Q = ctx.Q
+	local e = one(ctx, "StaffDoorLeaf")
+	if not e then
+		return
+	end
+	local part = e.r.part
+	if part.CanCollide then
+		return -- 맵이 바뀌어 막는 문이면 건드리지 않음
+	end
+	hideRec(ctx, e)
+	local c = ctx.IR * e.r.lcf
+	local sz = part.Size
+	local hw, hh = sz.X / 2, sz.Y / 2
+	-- 경첩 쪽 (+X 끝이 문틀에 가까운지 확인)
+	local jamb = one(ctx, "StaffDoorJamb", function(j)
+		return j.c.X > -18
+	end)
+	local hs = 1
+	if jamb then
+		local pa = (c * CF(hw, 0, 0)).Position
+		local pb = (c * CF(-hw, 0, 0)).Position
+		local jp = V3(jamb.c.X, pa.Y, jamb.c.Z)
+		hs = if (pa - jp).Magnitude < (pb - jp).Magnitude then 1 else -1
+	end
+	Q:free(function()
+		Q:box("StaffDoorSlab", V3(sz.X, sz.Y, 0.16), c, lk(rgb(178, 186, 194)))
+		Q:box("StaffDoorEdge", V3(0.05, sz.Y, 0.2), c * CF(-hs * (hw - 0.025), 0, 0), lk(rgb(120, 126, 132), M.Metal))
+		for _, f in { 1, -1 } do
+			local fz = f * 0.09
+			Q:box("StaffDoorKick", V3(sz.X - 0.2, 0.8, 0.02), c * CF(0, -hh + 0.5, fz), L_STEEL)
+			Q:box("StaffDoorLever", V3(0.55, 0.08, 0.08), c * CF(-hs * (hw - 0.6), -0.5, f * 0.2), L_CHROME)
+			Q:box("StaffDoorRose", V3(0.18, 0.3, 0.04), c * CF(-hs * (hw - 0.35), -0.5, f * 0.11), L_CHROME)
+			Q:box("StaffDoorPush", V3(0.4, 1.0, 0.02), c * CF(-hs * (hw - 0.45), 0.7, f * 0.1), L_STEEL)
+		end
+		Q:box("StaffDoorVision", V3(0.5, 1.8, 0.18), c * CF(-hs * 0.4, 1.7, 0), { c = rgb(190, 214, 228), m = M.Glass, t = 0.45, r = 0.1 })
+		Q:box("StaffDoorVisionFrame", V3(0.62, 1.92, 0.17), c * CF(-hs * 0.4, 1.7, 0), lk(rgb(90, 94, 100), M.Metal))
+		Q:box("DoorCloser", V3(1.1, 0.28, 0.26), c * CF(hs * (hw - 0.75), hh - 0.3, 0.21), lk(rgb(150, 154, 158), M.Metal))
+		Q:box("DoorCloserArm", V3(1.0, 0.07, 0.07), c * CF(hs * (hw - 0.85), hh - 0.12, 0.38) * ANG(0, hs * 0.6, 0), lk(rgb(60, 62, 66), M.Metal))
+		for _, f in { 1, -1 } do
+			txt(ctx, "StaffDoorSticker", 1.2, 0.45, c * CF(-hs * 0.4, 0.3, f * 0.08) * (if f < 0 then ANG(0, PI, 0) else CF()), "직원 전용\nSTAFF ONLY", WHITE, GS_BLUE, { font = F.GothamBold, d = 0.01 })
+		end
+		for _, yy in { hh - 1.0, 0, -hh + 1.0 } do
+			Q:box("StaffDoorHinge", V3(0.12, 0.45, 0.24), c * CF(hs * (hw + 0.02), yy, 0), L_STEEL)
+		end
+	end)
+end
+
 -- 창고 벽 꾸밈: 대피 안내도 · 위생 포스터 · 시계 · 콘센트 · 벽 보호대 · 온도 기록표
 local function stockWalls(ctx: any)
 	local Q, K = ctx.Q, ctx.K
@@ -2874,6 +2923,7 @@ local function buildStock(K: any, V: any, S: any)
 		{ "ceilingPlus", stockCeilingPlus },
 		{ "work", stockWork },
 		{ "walls", stockWalls },
+		{ "staffDoor", staffDoor },
 	}
 	for _, st in steps do
 		local n0 = #K.parts

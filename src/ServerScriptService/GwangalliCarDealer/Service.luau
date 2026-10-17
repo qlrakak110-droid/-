@@ -134,10 +134,6 @@ local function resolve(id: any, byId: { [string]: any }): (any?, { [string]: any
 	return e, nil
 end
 
-local function statusOf(player: Player): any
-	return Bridge.status(player) or {}
-end
-
 local function carsOf(st: any): { any }
 	return if type(st.cars) == "table" then st.cars else {}
 end
@@ -194,7 +190,7 @@ end
 function Service.snapshot(player: Player): { [string]: any }
 	local GS = S.GS(0)
 	local st = Bridge.status(player)
-	local list, _, specials = entries()
+	local _, _, specials = entries()
 	local bank, cash
 	if st and type(st.bank) == "number" then
 		bank, cash = st.bank, st.cash or 0

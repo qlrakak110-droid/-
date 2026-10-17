@@ -19,7 +19,6 @@ local CollectionService = game:GetService("CollectionService")
 
 local Npc = {}
 
-local S: any
 local C: any
 local Bridge: any
 local N: any
@@ -28,7 +27,6 @@ local folder: Folder? = nil
 local npcs: { [string]: any } = {}
 
 function Npc.init(shared: any, bridge: any)
-	S = shared
 	C = shared.Config
 	N = shared.NAMES
 	Bridge = bridge
