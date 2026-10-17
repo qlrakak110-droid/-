@@ -1861,7 +1861,7 @@ local function racks(ctx: any)
 			end
 		end
 		table.sort(g.ys)
-		for _, y in g.ys do
+		for li, y in g.ys do
 			for _, z in zs do
 				Q:box("RackBeam", V3(g.x1 - g.x0 - 0.3, 0.32, 0.12), CF((g.x0 + g.x1) / 2, y - 0.2, z), beam)
 			end
@@ -1869,7 +1869,7 @@ local function racks(ctx: any)
 			for k = 1, 3 do
 				Q:box("RackDeckBar", V3(0.06, 0.1, g.z1 - g.z0 - 0.3), CF(g.x0 + (g.x1 - g.x0) * k / 4, y - 0.1, (g.z0 + g.z1) / 2), lk(rgb(120, 124, 128), M.Metal))
 			end
-			txt(ctx, "RackLoc", 0.9, 0.22, fc(V3(g.x0 + 0.9, y - 0.2, g.z1 - 0.15 + 0.06), ZA), string.format("%s-%d", if g.x0 < -10 then "A" elseif g.x0 < 0 then "B" else "C", math.floor(y)), INK, YEL, { font = F.GothamBold, d = 0.01 })
+			txt(ctx, "RackLoc", 0.9, 0.22, fc(V3(g.x0 + 0.9, y - 0.2, g.z1 - 0.15 + 0.06), ZA), string.format("%s-%d", if g.x0 < -10 then "A" elseif g.x0 < 0 then "B" else "C", li), INK, YEL, { font = F.GothamBold, d = 0.01 })
 		end
 		txt(ctx, "RackLimit", 1.6, 0.36, fc(V3((g.x0 + g.x1) / 2, H - 0.2, g.z1 - 0.15 + 0.08), ZA), "적재 하중 300kg / 단", WHITE, rgb(200, 40, 40), { font = F.GothamBold, d = 0.01 })
 	end
@@ -2402,7 +2402,7 @@ local function staffWall(ctx: any)
 		Q:plate("ElecPanel", 1.6, 2.2, 0.2, p, lk(rgb(210, 212, 210), M.Metal))
 		Q:plate("ElecPanelDoorLine", 0.03, 2.0, 0.01, p * CF(0, 0, 0.2), lk(rgb(150, 150, 150)))
 		Q:plate("ElecPanelHandle", 0.06, 0.3, 0.06, p * CF(0.55, 0, 0.2), L_CHROME)
-		txt(ctx, "ElecPanelSign", 1.2, 0.3, p * CF(0, 0.75, 0.21), "분전반 ⚡ 위험", INK, YEL, { font = F.GothamBold, d = 0.01 })
+		txt(ctx, "ElecPanelSign", 1.2, 0.3, p * CF(0, 0.75, 0.21), "분전반 · 감전 주의", INK, YEL, { font = F.GothamBold, d = 0.01 })
 		Q:seg("ElecConduit", (p * CF(0, 1.1, 0.1)).Position, V3(xr - 0.12, ctx.V.H - 0.05, pz), 0.12, lk(rgb(200, 200, 196)))
 		-- 근무 스케줄표 (화이트보드)
 		local sz = 1.0
@@ -2607,7 +2607,7 @@ local function stockCeilingPlus(ctx: any)
 			exitSign(fc(V3(-19.4, 9.6, bwh.mn.Z), -ZA))
 		end
 		if gb and bd then
-			exitSign(fc(V3(bd.c.X, 9.7, gb.mx.Z), ZA))
+			exitSign(fc(V3(bd.c.X, 9.4, gb.mx.Z), ZA))
 		end
 		-- 비상조명등 + 비상벨 (직원 문 옆)
 		local bw = one(ctx, "BackWall", function(e)
@@ -2621,7 +2621,7 @@ local function stockCeilingPlus(ctx: any)
 			end
 			Q:plate("EmergencyLED", 0.08, 0.08, 0.02, ed * CF(0, 0.12, 0.3), Look.ledGreen)
 			Props.fireBell(Q, fc(V3(-15.7, 6.6, bw.mn.Z), -ZA))
-			txt(ctx, "FireBellLabel", 0.9, 0.22, fc(V3(-15.7, 5.95, bw.mn.Z), -ZA), "비상벨 · 화재 시 누르세요", WHITE, RED, { font = F.GothamBold, d = 0.01 })
+			txt(ctx, "FireBellLabel", 1.2, 0.24, fc(V3(-15.7, 5.95, bw.mn.Z), -ZA), "비상벨 · 화재 시 누르세요", WHITE, RED, { font = F.GothamBold, d = 0.01 })
 		end
 	end)
 end
@@ -2675,8 +2675,8 @@ local function stockWork(ctx: any)
 		Q:box("BoxCutterBlade", V3(0.06, 0.02, 0.14), T0 * CF(1.43, 0.04, 0.24) * ANG(0, 0.5, 0), L_CHROME)
 		Q:box("Clipboard", V3(0.8, 0.04, 1.05), T0 * CF(-0.1, 0.02, 0.45) * ANG(0, -0.15, 0), lk(rgb(140, 100, 60), M.Wood))
 		Q:box("ClipboardClip", V3(0.4, 0.06, 0.1), T0 * CF(-0.15, 0.06, -0.02) * ANG(0, -0.15, 0), L_CHROME)
-		txt(ctx, "InspectSheet", 0.7, 0.9, T0 * CF(-0.1, 0.045, 0.48) * ANG(0, -0.15, 0) * ANG(-PI / 2, 0, 0), "입고 검수표\n10/17 06:30\n상품  수량  확인\n삼각  48   ✓\n도시락 24  ✓\n우유  36   □", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.004, align = "Left" })
-		Q:seg("Pen", T0 * V3(0.35, 0.03, 0.2), T0 * V3(0.4, 0.03, 0.75), 0.05, lk(GS_BLUE))
+		txt(ctx, "InspectSheet", 0.7, 0.9, T0 * CF(-0.1, 0.045, 0.48) * ANG(0, -0.15, 0) * ANG(-PI / 2, 0, 0), "입고 검수표\n10/17 06:30\n삼각김밥 48  OK\n도시락 24  OK\n우유 36  확인중", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.004, align = "Left" })
+		Q:seg("Pen", T0 * V3(-0.35, 0.08, 0.3), T0 * V3(0.0, 0.08, 0.85), 0.05, lk(GS_BLUE))
 		txt(ctx, "InspectSign", 2.2, 0.4, tp * CF(0, top - 0.6, 1.04), "검수대 · 입고 확인 후 진열", WHITE, GS_BLUE, { font = F.GothamBold, d = 0.01 })
 	end
 	-- A형 사다리 (랙 B 앞, 접어 세움 아님: 벌려 둠)
@@ -2700,7 +2700,7 @@ local function stockWork(ctx: any)
 		txt(ctx, "LadderLabel", 0.5, 0.25, lp2 * CF(0, 3.0, 0.48) * ANG(-0.15, 0, 0), "최대 100kg", INK, YEL, { font = F.GothamBold, d = 0.005 })
 	end
 	-- 핸드자키 (팔레트 옆)
-	local jp = pf(V3(9.7, 0, -3.3), -XA)
+	local jp = pf(V3(10.5, 0, -3.3), XA)
 	if spotB(ctx, jp, V3(2.0, 4.2, 4.6), 0) then
 		local red = lk(rgb(210, 40, 36), M.Metal)
 		for _, sx in { -0.55, 0.55 } do
@@ -2800,7 +2800,7 @@ local function stockWalls(ctx: any)
 		Q:plate("EvacHere", 0.12, 0.12, 0.007, ev * CF(-0.8, -0.1, 0.087), lk(RED))
 		-- 왼쪽 벽: 콘센트 둘
 		for _, z in { -1.2, 9.8 } do
-			Props.outlet(Q, fc(V3(xl, 1.2, z), XA))
+			Props.outlet(Q, fc(V3(xl, 0.9, z), XA))
 		end
 		-- 오른쪽 벽: 위생 관리 포스터 · 벽시계 · 콘센트
 		poster(ctx, fc(V3(xr, 5.6, -3.7), -XA), 2.2, 3.0, "식품 위생 관리\n① 손 씻기 30초\n② 위생모 · 장갑\n③ 냉장 0~10°C\n④ 냉동 -18°C 이하\n⑤ 폐기 즉시 등록", INK, rgb(246, 252, 250), { band = rgb(40, 150, 110), bandH = 0.12, font = F.GothamMedium })
@@ -2820,10 +2820,10 @@ local function stockWalls(ctx: any)
 			mn.CFrame = wcf * ANG(0, 0, am) * CF(0, 0.19, 0.165 + 0.01)
 		end)
 		for _, z in { -0.6, 4.6 } do
-			Props.outlet(Q, fc(V3(xr, 1.2, z), -XA))
+			Props.outlet(Q, fc(V3(xr, 0.9, z), -XA))
 		end
 		-- 오른쪽 벽 아래: 카트 범퍼
-		Q:plate("WallBumperR", 6.0, 0.3, 0.12, fc(V3(xr, 1.5, -5.4), -XA), lk(rgb(60, 62, 66), M.Rubber))
+		Q:plate("WallBumperR", 4.2, 0.3, 0.12, fc(V3(xr, 1.5, -6.5), -XA), lk(rgb(60, 62, 66), M.Rubber))
 		-- 앞벽 (워크인 위): 이음매 몰딩 · 온도 기록표 (워크인 문 옆)
 		if bw then
 			local zw = bw.mn.Z
@@ -2832,18 +2832,11 @@ local function stockWalls(ctx: any)
 			Q:seg("WallConduit", V3(5.8, 9.15, zw - 0.1), V3(5.8, 7.2, zw - 0.1), 0.1, lk(rgb(220, 220, 216)))
 		end
 	end)
-	-- 온도 기록표 (워크인 앞판, 문 오른쪽 위)
-	local wl = nil
-	for _, p in K.parts do
-		if p.Name == "WalkInPanel" then
-			wl = p
-			break
-		end
-	end
-	if wl then
-		local z0 = (ctx.IR * (K.cf:Inverse() * wl.CFrame)).Position.Z - 0.15
+	-- 온도 기록표 (워크인 앞판, 문 오른쪽 아래: walkIn 과 같은 치수)
+	if bw then
+		local z0 = bw.mn.Z - 2.6
 		Q:free(function()
-			local cb = fc(V3(-12.0, 3.9, z0), -ZA)
+			local cb = fc(V3(-0.6, 3.6, z0), -ZA)
 			Q:plate("TempLogBoard", 1.1, 1.5, 0.05, cb, lk(rgb(140, 100, 60), M.Wood))
 			Q:plate("TempLogClip", 0.5, 0.12, 0.06, cb * CF(0, 0.66, 0.05), L_CHROME)
 			txt(ctx, "TempLog", 0.95, 1.2, cb * CF(0, -0.08, 0.06), "냉장 온도 기록\n06시  3.1°C\n14시  3.4°C\n22시  ____", INK, rgb(250, 250, 246), { font = F.GothamMedium, d = 0.004, align = "Left" })
@@ -2863,6 +2856,9 @@ local function buildStock(K: any, V: any, S: any)
 		{ "staffWall", staffWall },
 		{ "ceiling", ceilingStock },
 		{ "floor", floorStock },
+		{ "ceilingPlus", stockCeilingPlus },
+		{ "work", stockWork },
+		{ "walls", stockWalls },
 	}
 	for _, st in steps do
 		local n0 = #K.parts

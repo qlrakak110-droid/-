@@ -2617,19 +2617,52 @@ local function odengBath(c: any)
 		return
 	end
 	local b = CF(spotX, y, zc)
-	K:box("OdengBath", V3(W, Hh, D), b * CF(0, Hh / 2, 0), L.steel)
-	K:box("OdengBroth", V3(W - 0.12, 0.02, D - 0.12), b * CF(0, Hh - 0.06, 0), L.of(176, 122, 64, M.Glass, { t = 0.1 }))
-	K:box("OdengDivider", V3(0.03, 0.08, D - 0.12), b * CF(-W * 0.18, Hh - 0.04, 0), L.steel)
-	K:box("OdengDivider", V3(0.03, 0.08, D - 0.12), b * CF(W * 0.2, Hh - 0.04, 0), L.steel)
-	local cake = L.of(214, 158, 94)
+	local ss = L.of(204, 208, 212, M.Metal, { r = 0.05 })
+	K:box("OdengBath", V3(W, Hh - 0.04, D), b * CF(0, (Hh - 0.04) / 2, 0), ss)
+	-- 말린 테 (위 네 변) + 받침 발
+	for _, sz in { -1, 1 } do
+		K:box("OdengRim", V3(W + 0.04, 0.05, 0.06), b * CF(0, Hh - 0.02, sz * (D / 2 - 0.01)), L.chrome)
+	end
+	for _, sx in { -1, 1 } do
+		K:box("OdengRim", V3(0.06, 0.05, D + 0.04), b * CF(sx * (W / 2 - 0.01), Hh - 0.02, 0), L.chrome)
+	end
+	K:box("OdengKnob", V3(0.12, 0.12, 0.04), b * CF(W / 2 - 0.25, Hh * 0.45, D / 2 + 0.02), L.black)
+	-- 국물 (불투명 갈색, 윗면이 테 바로 아래) + 칸막이 2
+	local brothY = Hh - 0.07
+	K:box("OdengBroth", V3(W - 0.1, 0.02, D - 0.1), b * CF(0, brothY, 0), L.of(168, 112, 52, M.SmoothPlastic, { r = 0.12 }))
+	local dxs = { -W * 0.2, W * 0.22 }
+	for _, dx in dxs do
+		K:box("OdengDivider", V3(0.03, 0.06, D - 0.1), b * CF(dx, brothY + 0.02, 0), ss)
+	end
+	-- 왼쪽 칸: 무 · 삶은 달걀 (국물 위로 반쯤)
+	local lx0, lx1 = -W / 2 + 0.08, dxs[1] - 0.05
+	for i = 0, 3 do
+		local fx = lx0 + (lx1 - lx0) * (i + 0.5) / 4
+		for _, fz in { -0.2, 0.18 } do
+			if (i + (if fz > 0 then 1 else 0)) % 2 == 0 then
+				K:disc("OdengMu", 0.26, 0.1, b * CF(fx, brothY + 0.02, fz), L.of(236, 214, 170))
+			else
+				K:ell("OdengEgg", V3(0.18, 0.14, 0.22), b * CF(fx, brothY + 0.03, fz), L.of(196, 150, 96))
+			end
+		end
+	end
+	-- 가운데 · 오른쪽 칸: 꼬치 오뎅 (막대 + 접힌 어묵이 지그재그), 두 줄로 같은 쪽으로 기대어 섬
+	local cake = L.of(222, 168, 98)
+	local cakeD = L.of(196, 140, 78)
+	local stick = L.of(226, 204, 160, M.Wood)
 	local n = if c.hi then 12 else 7
+	local per = math.ceil(n / 2)
+	local mx0, mx1 = dxs[1] + 0.12, W / 2 - 0.14
 	for i = 1, n do
-		local x = -W / 2 + 0.2 + (W - 0.4) * ((i - 1) % 6) / 5
-		local zz = if i <= 6 then -0.18 else 0.16
-		local base = b * CF(x, Hh - 0.08, zz) * ANG(if zz < 0 then -0.5 else 0.45, 0, (rnd(c.seed, i) - 0.5) * 0.3)
-		K:seg("OdengStick", (base * CF(0, 0, 0)).Position, (base * CF(0, 0.75, 0)).Position, 0.03, L.of(222, 196, 150, M.Wood))
+		local row = if i <= per then 0 else 1
+		local j = (i - 1) % per
+		local x = mx0 + (mx1 - mx0) * (j + 0.5) / per + row * 0.08
+		local zz = if row == 0 then 0.2 else -0.12
+		local lean = 0.55 + (rnd(c.seed, i) - 0.5) * 0.08
+		local base = b * CF(x, brothY - 0.04, zz) * ANG(-lean, 0, 0)
+		K:seg("OdengStick", (base * CF(0, 0, 0)).Position, (base * CF(0, 0.95, 0)).Position, 0.03, stick)
 		for k = 0, 2 do
-			K:box("OdengCake", V3(0.26, 0.16, 0.04), base * CF(0, 0.12 + k * 0.13, 0) * ANG(if k % 2 == 0 then 0.5 else -0.5, 0, 0), cake)
+			K:box("OdengCake", V3(0.24, 0.13, 0.035), base * CF(0, 0.1 + k * 0.1, 0) * ANG(if k % 2 == 0 then 0.55 else -0.55, 0, 0), if k == 1 then cakeD else cake)
 		end
 	end
 	K:seg("Ladle", (b * CF(W / 2 - 0.25, Hh - 0.05, 0.2)).Position, (b * CF(W / 2 + 0.1, Hh + 0.55, 0.36)).Position, 0.04, L.chrome)
