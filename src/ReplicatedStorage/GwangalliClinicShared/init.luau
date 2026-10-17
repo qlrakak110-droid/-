@@ -23,7 +23,8 @@
 --     "report" | "meds" | "ward" | "fx" | "health", ... }
 -- SHARED STATE (Configuration "State" in this module, attributes, replicated to everyone):
 --   Active (bool) · Board (JSON call board) · Call (JSON last call, seq) · Rx (JSON pharmacy board) ·
---   Act_<staffId> ("act|userId|t") · Bed_<anchor> ("userId|what|t0|seconds" or "") · Lamp_<anchor> (t)
+--   Act_<staffId> ("act|userId|t") · Bed_<anchor> ("userId|what|t0|seconds" or "") · Lamp_<anchor> (t) ·
+--   EMR (JSON: the patient in 진료실 1 for the doctor's monitor, masked; "" when empty) · ConsultBusy (bool)
 -- CHARACTER ATTRIBUTES we set: GwTreating (bool, the interior's "진료 중" lamp reads it; same meaning as
 --   Health's), GwClinicPose ("lie" | "" while lying on an IV / ECG bed).
 
@@ -63,7 +64,7 @@ S.NAMES = {
 -------------------------------------------------------------------------------------------------
 S.STAGES = { "접수", "진료", "처치", "수납", "약국" }
 S.STEPS = {
-	desk_wait = { label = "접수 대기", stage = 1, hint = "번호를 부를 때까지 대기실에서 기다려 주세요" },
+	desk_wait = { label = "접수 대기", stage = 1, hint = "번호를 부를 때까지 대기실 의자에서 기다려요 · 잡지 꽂이에 건강 매거진이 있어요" },
 	desk_called = { label = "창구로 오세요", stage = 1, hint = "호출된 창구로 가서 접수하세요" },
 	desk = { label = "접수 중", stage = 1, hint = "창구에서 문진표를 작성해요" },
 	consult_wait = { label = "진료 대기", stage = 2, hint = "진료실 앞에서 호출을 기다려요" },
@@ -159,6 +160,35 @@ function S.isNight(clock: number?): boolean
 	local c = clock or S.clock()
 	local F = S.Config.Fees
 	return c >= F.NightFrom or c < F.NightTo
+end
+
+-- inside the clinic building's box (Config.Venue.ZoneMin / ZoneMax + margin; world axes). Used by the
+-- client to touch only the interior team's parts / prompts that belong to THIS clinic (the same names
+-- exist in other venues: "KioskScreen" in fast-food shops, "번호표 뽑기" at the bank, ...).
+function S.inVenue(pos: Vector3?): boolean
+	if typeof(pos) ~= "Vector3" then
+		return false
+	end
+	local V = S.Config.Venue
+	local m = V.ZoneMargin or 3
+	local mn, mx = V.ZoneMin, V.ZoneMax
+	return pos.X >= mn.X - m and pos.X <= mx.X + m and pos.Y >= mn.Y - m and pos.Y <= mx.Y + m and pos.Z >= mn.Z - m and pos.Z <= mx.Z + m
+end
+
+-- world position of a part / attachment / model (nil for anything else)
+function S.posOf(inst: Instance?): Vector3?
+	if not inst then
+		return nil
+	end
+	if inst:IsA("BasePart") then
+		return inst.Position
+	elseif inst:IsA("Attachment") then
+		return inst.WorldPosition
+	elseif inst:IsA("Model") then
+		local ok, cf = pcall(inst.GetPivot, inst)
+		return if ok then cf.Position else nil
+	end
+	return nil
 end
 
 function S.now(): number

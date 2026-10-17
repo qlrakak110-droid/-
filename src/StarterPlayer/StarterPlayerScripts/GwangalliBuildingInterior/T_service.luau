@@ -852,8 +852,9 @@ local function priceBoard(K: any, dcf: CFrame, w: number, h: number, title: stri
 		local r = (i - 1) % rows
 		local x0 = -w / 2 + 0.15 + c * cw
 		local y = h / 2 - th - 0.15 - rh * (r + 0.5)
-		txt(K, "PriceItem", cw * 0.6, rh * 0.62, dcf * CF(x0 + cw * 0.32, y, 0.105), it[1], oo.ink or C(36, 40, 52), nil, { font = F.GothamBold, align = "Left" })
-		txt(K, "PriceValue", cw * 0.34, rh * 0.62, dcf * CF(x0 + cw * 0.8, y, 0.105), it[2], acc, nil, { font = F.GothamBlack, align = "Right" })
+		-- 인쇄 글자: 조명에 하얗게 날리지 않게 LightInfluence 0 (glow = 1)
+		txt(K, "PriceItem", cw * 0.6, rh * 0.62, dcf * CF(x0 + cw * 0.32, y, 0.105), it[1], oo.ink or C(36, 40, 52), nil, { font = F.GothamBold, align = "Left", glow = 1 })
+		txt(K, "PriceValue", cw * 0.34, rh * 0.62, dcf * CF(x0 + cw * 0.8, y, 0.105), it[2], acc, nil, { font = F.GothamBlack, align = "Right", glow = 1 })
 		if r < rows - 1 and not lo(K) then
 			K:plate("PriceRule", cw * 0.94, 0.02, 0.102, dcf * CF(x0 + cw * 0.5, y - rh / 2, 0), lk(C(220, 222, 226)))
 		end

@@ -42,7 +42,23 @@ local function printSlip()
 	if not kiosk then
 		return
 	end
-	local slot = kiosk.Position + Vector3.new(0, -0.2, 1.62)
+	-- the slip comes out of the real slot: the interior's kiosk (it replaces the map one) or the map's
+	local slotPart: BasePart? = nil
+	local deco = workspace:FindFirstChild(C.Interior.Folder)
+	if deco then
+		for _, d in deco:GetDescendants() do
+			if d:IsA("BasePart") and (d.Name == "KioskTicket" or d.Name == "TicketSlot") and S.inVenue(d.Position) and (d.Position - kiosk.Position).Magnitude < 6 then
+				slotPart = d
+				break
+			end
+		end
+	end
+	slotPart = slotPart or ctx.mapPart("1F/Lobby/TicketSlot")
+	local slot = if slotPart then slotPart.Position + Vector3.new(0, -0.05, 0) else kiosk.Position + Vector3.new(0, -0.25, 1.62)
+	-- out toward the patient (the anchor stands in front of the kiosk)
+	local out = Vector3.new(kiosk.Position.X - slot.X, 0, kiosk.Position.Z - slot.Z)
+	out = if out.Magnitude > 0.01 then out.Unit else Vector3.new(0, 0, -1)
+	slot += out * 0.08
 	local p = Instance.new("Part")
 	p.Name = "TicketSlip"
 	p.Size = Vector3.new(0.5, 0.02, 0.05)
@@ -52,9 +68,25 @@ local function printSlip()
 	p.CanCollide = false
 	p.CanTouch = false
 	p.CanQuery = false
-	p.CFrame = CFrame.new(slot)
+	local face = CFrame.lookAt(slot, slot + out)
+	p.CFrame = face
 	p.Parent = ctx.Tracker.localFolder()
-	TweenService:Create(p, TweenInfo.new(0.9, Enum.EasingStyle.Quad), { Size = Vector3.new(0.5, 0.8, 0.02), CFrame = CFrame.new(slot + Vector3.new(0, -0.4, -0.06)) }):Play()
+	-- printed number on the paper (local SurfaceGui on our own prop)
+	local g = Instance.new("SurfaceGui")
+	g.Face = Enum.NormalId.Front
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	g.PixelsPerStud = 120
+	g.LightInfluence = 0.4
+	local tl = Instance.new("TextLabel")
+	tl.BackgroundTransparency = 1
+	tl.Size = UDim2.fromScale(1, 1)
+	tl.Font = Enum.Font.GothamBlack
+	tl.TextScaled = true
+	tl.TextColor3 = Color3.fromRGB(30, 42, 50)
+	tl.Text = if ctx.visit and ctx.visit.ticket then S.ticket(ctx.visit.ticket) else ""
+	tl.Parent = g
+	g.Parent = p
+	TweenService:Create(p, TweenInfo.new(0.9, Enum.EasingStyle.Quad), { Size = Vector3.new(0.5, 0.8, 0.02), CFrame = face * CFrame.new(0, -0.4, -0.06) }):Play()
 	task.delay(6, function()
 		p:Destroy()
 	end)

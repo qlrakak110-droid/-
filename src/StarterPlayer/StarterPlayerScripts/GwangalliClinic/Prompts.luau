@@ -2,7 +2,8 @@
 -- (Workspace.GwangalliClinic.Anchors), showing only the action that fits the patient's current step:
 --   Kiosk "번호표 뽑기" · Win1/2 "접수하기" / "수납하기" / "결제하고 치료받기" / "퇴원 수속" · ConsultSeat "진료실
 --   들어가기" · ExamBed "주사 맞기" · TreatBed "수액 맞기" · Pharmacy "처방전 내기" / "약 받기" · CheckDesk
---   "건강검진 접수" / "결과 상담" · stations "○○ 검사" · ward beds "병실 휴식" · call panels "간호사 호출"
+--   "건강검진 접수" / "결과 상담" · stations "○○ 검사" · ward beds "병실 휴식" · call panels "간호사 호출" ·
+--   the waiting room's magazine rack "잡지 보기"
 -- The server re-checks step + distance for every action. The interior team's duplicate toy prompts
 -- ("번호표 뽑기" always, the 2F checkup toys during our course) are disabled locally and kept off.
 
@@ -99,6 +100,8 @@ local function config(name: string, a: BasePart, v: any?, hv: any?): any?
 		return nil
 	elseif kind == "call" then
 		return { action = "간호사 호출", object = label }
+	elseif kind == "magazine" then
+		return { action = "잡지 보기", object = label }
 	end
 	return nil
 end
@@ -145,6 +148,8 @@ local function onTrigger(name: string, a: BasePart)
 		if res.ok then
 			ctx.Ui.ding()
 		end
+	elseif kind == "magazine" then
+		ctx.Lounge.openMagazine()
 	end
 end
 
@@ -162,7 +167,7 @@ local function ensure(a: BasePart): ProximityPrompt
 	pr.HoldDuration = 0.25
 	local kind = a:GetAttribute(S.NAMES.AttrKind)
 	local reach = C.Reach
-	local dist = ({ kiosk = reach.Kiosk, window = reach.Window, consult = reach.Seat, bed = reach.Bed, pharmacy = reach.Pharmacy, checkdesk = reach.CheckDesk, station = reach.Station, ward = reach.Ward, call = reach.Ward })[kind] or 10
+	local dist = ({ kiosk = reach.Kiosk, window = reach.Window, consult = reach.Seat, bed = reach.Bed, pharmacy = reach.Pharmacy, checkdesk = reach.CheckDesk, station = reach.Station, ward = reach.Ward, call = reach.Ward, magazine = 9 })[kind] or 10
 	pr.MaxActivationDistance = math.max(6, dist - 2.5)
 	pr.Enabled = false
 	pr.Parent = a
@@ -223,6 +228,10 @@ local function considerInterior(d: Instance)
 	end
 	local listed = table.find(C.Interior.SuppressAlways, d.ActionText) ~= nil or table.find(C.Interior.SuppressDuringCheckup, d.ActionText) ~= nil
 	if not listed then
+		return
+	end
+	-- only this clinic's toys (the bank / 주민센터 interiors have their own "번호표 뽑기")
+	if not S.inVenue(S.posOf(d.Parent)) then
 		return
 	end
 	suppressed[d] = true

@@ -204,6 +204,41 @@ local function setStep(v: any, step: string)
 end
 Visit.setStep = setStep
 
+-- the doctor's EMR monitor in 진료실 1 (State.EMR, JSON; "" = no patient). Masked name only.
+local function setEMR(v: any?)
+	local st = K.state
+	if not st then
+		return
+	end
+	if not v then
+		st:SetAttribute("EMR", "")
+		return
+	end
+	local sym = {}
+	for i, id in v.symptoms or {} do
+		if i <= 4 and id ~= "none" then
+			table.insert(sym, S.Medical.SYMPTOMS[id] or id)
+		end
+	end
+	local sh = v.shown or {}
+	st:SetAttribute("EMR", S.encode({
+		n = S.ticket(v.ticket),
+		name = S.mask(v.player.DisplayName),
+		visit = if v.revisit then "재진" else "초진",
+		dept = (C.Depts[v.dept] or C.Depts.im).name,
+		chart = v.chartNo,
+		cc = table.concat(sym, " · "),
+		bt = sh.temp,
+		bp = if sh.sys then string.format("%d/%d", sh.sys, sh.dia) else nil,
+		hr = sh.pulse,
+		spo2 = sh.spo2,
+		dx = v.dx and v.dx.name or nil,
+		code = v.dx and v.dx.code or nil,
+		rx = v.plan and v.plan.title or nil,
+		f = v.dx and v.dx.fatigue or nil,
+	}))
+end
+
 local function callBanner(v: any, to: string, text: string)
 	Net.fire(v.player, { kind = "call", to = to, number = v.ticket, window = v.window, text = text, target = targetOf(v) })
 end
@@ -262,6 +297,7 @@ local function cleanup(v: any)
 	end
 	if v.step == "consult" then
 		Site.setAct("doctor", "idle", 0)
+		setEMR(nil)
 	end
 	setTreating(p, false)
 	if visits[p] == v then
@@ -688,9 +724,7 @@ local function opEnter(player: Player, _p: any): any
 	v.shown = {}
 	v.lastExam = now()
 	Site.setAct("doctor", "listen", v.uid)
-	if K.state then
-		K.state:SetAttribute("Mon_consult", string.format("%s · %s · %s", S.mask(player.DisplayName), if v.revisit then "재진" else "초진", (C.Depts[v.dept] or C.Depts.im).name))
-	end
+	setEMR(v)
 	setStep(v, "consult")
 	return { ok = true, visit = Visit.view(v), greet = S.Medical.GREET[v.dept] or S.Medical.GREET.im }
 end
@@ -724,6 +758,7 @@ local function opExam(player: Player, p: any): any
 		buildDx(v)
 		Site.setAct("doctor", "talk", v.uid)
 	end
+	setEMR(v)
 	Visit.push(v)
 	return { ok = true, result = res, done = done, visit = Visit.view(v) }
 end
@@ -748,6 +783,16 @@ local function opPlan(player: Player, p: any): any
 	end
 	v.plan = plan
 	Site.setAct("doctor", "idle", 0)
+	-- the chart keeps the plan for a moment, then the monitor goes back to the waiting list
+	setEMR(v)
+	local planned = v
+	task.delay(6, function()
+		local st = K.state
+		local cur = st and S.decode(st:GetAttribute("EMR"))
+		if cur and cur.n == S.ticket(planned.ticket) then
+			setEMR(nil)
+		end
+	end)
 	Queue.releaseRoom()
 	if v.seated then
 		Site.unseat(player)

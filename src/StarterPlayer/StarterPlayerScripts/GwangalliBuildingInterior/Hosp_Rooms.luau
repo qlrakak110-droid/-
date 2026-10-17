@@ -571,13 +571,15 @@ function Rooms.store(K: any, env: any, P: any)
 	end })
 	note(K, Lib.face(-24.3, y + 7.2, 14.0, 0, -1), 3.4, 0.5, "선입선출 (FIFO) · 유효기간 확인", C.WHITE, C.TEAL)
 	note(K, Lib.face(-15.0, y + 7.2, 9.5, -1, 0), 2.8, 0.5, "물품 반출 시 장부 기록", C.WHITE, C3(110, 114, 118))
-	-- 천장 LED 튜브 2 + 빛 1
+	-- 천장 LED 튜브 2 + 빛 2 (선반 사이 통로까지 밝게)
 	local tubes = {}
 	for _, tz in { 5.5, 10.5 } do
 		K:box("TubeLampHousing", V3(5.2, 0.18, 0.5), CF(-22.5, ct - 0.09, tz), Look.white)
 		table.insert(tubes, K:box("TubeLampLED", V3(4.9, 0.06, 0.25), CF(-22.5, ct - 0.21, tz), Look.lampCool))
 	end
-	K:light(tubes[1], "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 18, Brightness = 1.0, Angle = 150, Color = Look.coolLight })
+	for _, tube in tubes do
+		K:light(tube, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 18, Brightness = 1.1, Angle = 160, Color = Look.coolLight })
+	end
 	K:free(function()
 		K:disc("SmokeDetector", 0.55, 0.12, CF(-22.5, ct - 0.06, 8.0), Look.white)
 	end)

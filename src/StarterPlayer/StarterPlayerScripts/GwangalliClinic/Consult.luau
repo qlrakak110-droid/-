@@ -280,16 +280,20 @@ GAMES.bp = function(token)
 	gauge.frame.Position = UDim2.new(0.1, 0, 0, 30)
 	gauge.frame.Size = UDim2.new(0.8, 0, 0, 16)
 	local mm = Ui.text(body, { Text = "0 mmHg", Font = F.black, TextSize = 24, Size = UDim2.new(1, 0, 0, 30), Position = UDim2.fromOffset(0, 0), TextXAlignment = Enum.TextXAlignment.Center })
+	ctx.Treat.cuff(true)
 	local ok = tapButton(body, "펌프 꾹꾹", 6, token, function(n)
 		gauge.set(n / 6 * 0.9, nil, 0.15)
 		mm.Text = string.format("%d mmHg", math.floor(n / 6 * 180))
 		Ui.sound("tap", 0.8 + n * 0.05)
+		ctx.Treat.cuffInflate(n / 6)
 	end)
 	if not ok then
+		ctx.Treat.cuff(false)
 		return nil
 	end
 	local res = exam("bp", token)
 	if not res then
+		ctx.Treat.cuff(false)
 		return nil
 	end
 	local r = res.result
@@ -299,12 +303,15 @@ GAMES.bp = function(token)
 		local p = 180 - (180 - (r.dia or 70)) * a
 		mm.Text = string.format("%d mmHg", math.floor(p))
 		gauge.set(p / 200)
+		ctx.Treat.cuffInflate(1 - a)
 		task.wait()
 	end
 	mm.Text = string.format("%d / %d · 맥박 %d", r.sys or 0, r.dia or 0, r.pulse or 0)
 	mm.TextColor3 = toneColor(r.bpTone)
 	Ui.sound("beep")
+	ctx.Treat.cuffInflate(0)
 	task.wait(0.7)
+	ctx.Treat.cuff(false)
 	return res
 end
 
@@ -581,6 +588,7 @@ local function run(greet: string?)
 	running = false
 	panel.Visible = false
 	vitalsCard.Visible = false
+	pcall(ctx.Treat.cuff, false)
 	frameCamera(false)
 	if dxSheet.isOpen then
 		dxSheet.close()

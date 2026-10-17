@@ -133,11 +133,37 @@ Shared.Config = {
 	Rate = { Burst = 8, PerSecond = 2 }, -- remote token bucket per player
 
 	-- client show budgets per quality tier (GwangalliQuality: high | mid | low, saver)
+	--   lasers: our laser emitters (fans) · beams: beams per emitter · hz: aim updates per second
+	--   heads: our moving heads · headLights: real SpotLights on them · strobes: strobe bars
+	--   mirror: mirror-ball rays · confetti / co2 / sparks: particles per burst · floor: LED floor overlay
+	--   trails / spots: sparkle trails and follow spots on the club show's staff / 합석 guests
 	Quality = {
-		high = { lasers = 4, heads = 8, headLights = 4, strobes = 4, haze = true, mirror = 140, confetti = 160, co2 = 6, ripple = true, signs = true, trails = true },
-		mid = { lasers = 2, heads = 6, headLights = 2, strobes = 2, haze = true, mirror = 90, confetti = 100, co2 = 4, ripple = true, signs = true, trails = true },
-		low = { lasers = 1, heads = 4, headLights = 0, strobes = 2, haze = false, mirror = 40, confetti = 50, co2 = 2, ripple = true, signs = true, trails = false },
-		saver = { lasers = 0, heads = 0, headLights = 0, strobes = 0, haze = false, mirror = 0, confetti = 24, co2 = 2, ripple = false, signs = true, trails = false },
+		high = { lasers = 4, beams = 10, hz = 30, heads = 8, headLights = 4, strobes = 4, haze = true, mirror = 24, confetti = 160, co2 = 34, sparks = 60, floor = true, signs = true, trails = true, spots = 3 },
+		mid = { lasers = 3, beams = 8, hz = 30, heads = 6, headLights = 2, strobes = 3, haze = true, mirror = 16, confetti = 100, co2 = 24, sparks = 40, floor = true, signs = true, trails = true, spots = 2 },
+		low = { lasers = 2, beams = 6, hz = 15, heads = 4, headLights = 0, strobes = 2, haze = false, mirror = 8, confetti = 50, co2 = 14, sparks = 20, floor = true, signs = true, trails = false, spots = 1 },
+		saver = { lasers = 0, beams = 0, hz = 0, heads = 0, headLights = 0, strobes = 0, haze = false, mirror = 0, confetti = 24, co2 = 8, sparks = 10, floor = false, signs = true, trails = false, spots = 0 },
+	},
+
+	-- client show look
+	Show = {
+		-- our laser fans (the screenshot's purple fans) layered over ClubLights' own lasers
+		LaserPalette = {
+			Color3.fromRGB(150, 60, 255), -- violet
+			Color3.fromRGB(255, 50, 200), -- magenta
+			Color3.fromRGB(70, 120, 255), -- blue
+			Color3.fromRGB(40, 230, 255), -- cyan
+		},
+		LaserWidth = 0.13,
+		LaserReach = 95, -- studs (clipped to the main room box)
+		HeadY = 28.4, -- our moving heads hang at this height (below the ceiling cable trays)
+		HeadRowsZ = { 351.5, 372.5, 396 }, -- candidate rows (world Z) for our heads
+		HeadX = { -150, -98 }, -- candidate X range
+		HeadClear = 2.6, -- studs kept from any map fixture
+		LaserShowEvery = 2, -- our 8-bar "OCEAN LASER SHOW" plays every Nth show cycle (clock mode), bars 4..12
+		SignHeight = 3.3, -- table LED sign above the table top
+		SignDistance = 60,
+		CrownOffset = 3.2, -- same height as ClubRanking's crown (it owns that slot when it runs)
+		CrownStack = 4.6,
 	},
 
 	-- fallbacks when the map lookups fail (world space, CLUB OCEAN 광안 v7)
@@ -147,6 +173,24 @@ Shared.Config = {
 		Floor = Vector3.new(-106.83, 10, 373.48),
 		SideLED = { pos = Vector3.new(-118.8, 23.3, 411.76), size = Vector3.new(0.5, 15.6, 58.4) },
 		DJSpotOffset = Vector3.new(1.4, -4.2, 4.1), -- guest DJ spot relative to the Show_DJ anchor
+		Room = { pos = Vector3.new(-124.2, 19.5, 376.9), size = Vector3.new(105, 26, 70) }, -- main room (world axes)
+		DanceFloor = { pos = Vector3.new(-106.9, 7.24, 373.5), size = Vector3.new(9.2, 0.02, 22.2) },
+		Lasers = {
+			Vector3.new(-99.2, 26.9, 361.6),
+			Vector3.new(-99.6, 26.9, 385.6),
+			Vector3.new(-74.5, 31.8, 347.4),
+			Vector3.new(-75.3, 31.8, 400.6),
+		},
+		CO2 = {
+			Vector3.new(-101.0, 11.8, 362.7),
+			Vector3.new(-101.1, 11.8, 366.2),
+			Vector3.new(-101.3, 11.8, 381.3),
+			Vector3.new(-101.3, 11.8, 384.7),
+		},
+		Confetti = { Vector3.new(-119.7, 26.3, 381.3), Vector3.new(-119.5, 26.3, 365.3) },
+		Sparks = { Vector3.new(-101.1, 11.4, 368.5), Vector3.new(-101.3, 11.4, 378.9) },
+		MirrorBall = Vector3.new(-111.1, 23.9, 373.4),
+		BoothFront = { pos = Vector3.new(-100.75, 13.0, 373.7), length = 11 }, -- DJ desk LED strip (faces the floor)
 	},
 }
 

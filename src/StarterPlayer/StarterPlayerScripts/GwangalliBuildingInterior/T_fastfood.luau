@@ -558,6 +558,7 @@ end
 
 -- 벽 장식 자리: 빈 구간에서 K.wallUsed (Common · 우리 기록) 를 정확히 빼고 prefer 에 가장 가까운 곳.
 -- (Common.wallSpot 은 한 구간이 둘로 갈릴 때 앞 조각을 뒤 기록과 다시 비교하지 않아 겹칠 수 있어 따로 둠)
+local WALL_OFF = 0.036
 local function wallSpot(ctx: any, walls: { string }, w: number, y0: number, y1: number, prefer: number?): (CFrame?, string?)
 	local K, V = ctx.K, ctx.V
 	if #K.parts > K.maxParts - 60 then
@@ -600,7 +601,8 @@ local function wallSpot(ctx: any, walls: { string }, w: number, y0: number, y1: 
 		end
 		if best then
 			table.insert(K.wallUsed, { w = wn, a = best - w / 2 - 0.2, b = best + w / 2 + 0.2, y0 = y0, y1 = y1 })
-			return V:wall(wn, best, (y0 + y1) / 2, 0.0), wn
+			-- 벽 칠(FfWallPaint: 벽에서 0.012~0.032) 앞에 걸리도록 0.036 띄움 (얇은 포스터 바탕이 칠 속에 묻히지 않게)
+			return V:wall(wn, best, (y0 + y1) / 2, WALL_OFF), wn
 		end
 	end
 	ctx.miss = (ctx.miss or "") .. string.format(" w%.1f@%.1f-%.1f", w, y0, y1)
@@ -861,7 +863,8 @@ local function poster(ctx: any, dcf: CFrame, w: number, h: number, o: any)
 		K:text("FfPosterText", t[4], t[5], face * CF(t[2], t[3], z + i * 0.003), t[1], { fg = t[6], font = t[7] or F.GothamBlack, align = t[8], glow = t[9] or o.textGlow, d = 0.006 })
 	end
 	if o.glass and not ctx.low then
-		K:plate("FfPosterGlass", iw, ih, 0.01, dcf * CF(0, 0, dep - 0.012), { c = rgb(230, 236, 240), m = M.Glass, t = 0.9, r = 0.2 })
+		-- 액자 유리: 반사가 크면 그림이 하얗게 날아가므로 아주 옅게 (반사 0.03)
+		K:plate("FfPosterGlass", iw, ih, 0.01, dcf * CF(0, 0, dep - 0.012), { c = rgb(236, 240, 244), m = M.Glass, t = 0.93, r = 0.03 })
 	end
 end
 
@@ -1676,14 +1679,98 @@ local function passDress(ctx: any, o: any)
 			K:plate("FfPassTile", w - 0.12, h - 0.62, 0.006, face * CF(0, -0.18, z), L.of(204, 206, 204, M.CeramicTiles))
 			K:plate("FfPassCounter", w - 0.12, h * 0.2, 0.012, face * CF(0, -h / 2 + h * 0.1 + 0.02, z + 0.004), L.of(150, 154, 158, M.Metal))
 			K:plate("FfPassCounterEdge", w - 0.12, 0.05, 0.016, face * CF(0, -h / 2 + h * 0.2 + 0.02, z + 0.006), L.chrome)
-			K:plate("FfPassGlow", w - 0.2, h * 0.34, 0.004, face * CF(0, h * 0.12, z + 0.014), { c = rgb(255, 176, 96), m = M.Neon, t = 0.86 })
+			K:plate("FfPassGlow", w - 0.2, h * 0.3, 0.004, face * CF(0, h * 0.16, z + 0.014), { c = rgb(255, 196, 140), m = M.Neon, t = 0.92 })
+			-- 안쪽 벽 위 선반: 양념통 · 스테인리스 통 · 기름통 (채도 낮은 실제 색) — 왼쪽 2/3
 			if not ctx.low then
-				-- 선반 위 양념통 · 바구니 실루엣
-				local cols = o.shelfColors or { rgb(200, 40, 30), rgb(240, 196, 40), rgb(246, 244, 236), rgb(200, 40, 30), rgb(60, 60, 64) }
-				for i, c in cols do
-					local tx = -w / 2 + 0.45 + (i - 1) * (w - 0.9) / math.max(1, #cols - 1)
-					K:plate("FfPassJar", 0.32, 0.4, 0.01, face * CF(tx, h * 0.06 + 0.26, z + 0.012), pl(c))
+				local jars = o.shelfColors or { rgb(178, 182, 186), rgb(196, 54, 40), rgb(226, 170, 60), rgb(240, 240, 234), rgb(178, 182, 186), rgb(150, 110, 60) }
+				local span = w * 0.62
+				for i, c in jars do
+					local tx = -w / 2 + 0.35 + (i - 1) * span / math.max(1, #jars - 1)
+					local jw = if i % 3 == 0 then 0.22 else 0.3
+					local jh = if i % 2 == 0 then 0.34 else 0.26
+					K:plate("FfPassJar", jw, jh, 0.02, face * CF(tx, 0.06 + 0.13 + jh / 2, z + 0.03), pl(c))
+					K:plate("FfPassJarLid", jw + 0.02, 0.04, 0.024, face * CF(tx, 0.06 + 0.13 + jh + 0.02, z + 0.03), pl(dark(c, 0.25)))
 				end
+				-- 오른쪽 1/3: 걸이봉 + 걸린 도구 (국자 · 뒤집개 · 집게)
+				local hx0 = w / 2 - w * 0.3
+				K:plate("FfPassHookRail", w * 0.26, 0.04, 0.03, face * CF(hx0 + w * 0.13, 0.58, z + 0.03), L.chrome)
+				for i = 0, 2 do
+					local tx = hx0 + 0.25 + i * (w * 0.26 - 0.5) / 2
+					K:plate("FfPassUtensil", 0.05, 0.46, 0.012, face * CF(tx, 0.33, z + 0.03), L.of(150, 152, 156, M.Metal))
+					K:plate("FfPassUtensilHead", if i == 1 then 0.2 else 0.16, if i == 1 then 0.14 else 0.18, 0.014, face * CF(tx, 0.06, z + 0.032), L.of(150, 152, 156, M.Metal))
+				end
+			end
+			-- 아래: 유형별 조리 장비 정면 (패스 너머 주방 라인)
+			local eq = o.utensil
+			local cy = -h / 2 + h * 0.2 + 0.02 -- 조리대 띠 윗선
+			if eq == "basket" then
+				-- 튀김기 2대 (스테인리스 몸통 · 기름 · 바구니 손잡이) / 옛날통닭 = 가마솥
+				if ctx.sk == "tongdak" then
+					local pw = math.min(2.2, w * 0.44)
+					K:ell("FfCauldron", V3(pw, 0.9, 0.04), face * CF(-w * 0.18, cy + 0.05, z + 0.03), L.of(34, 32, 30, M.Metal))
+					K:plate("FfCauldronRim", pw + 0.12, 0.08, 0.05, face * CF(-w * 0.18, cy + 0.42, z + 0.03), L.of(60, 56, 52, M.Metal))
+					K:plate("FfCauldronOil", pw - 0.1, 0.05, 0.055, face * CF(-w * 0.18, cy + 0.38, z + 0.03), neon(rgb(255, 170, 60)))
+					K:plate("FfCauldronStand", pw * 0.8, 0.18, 0.04, face * CF(-w * 0.18, cy - 0.06, z + 0.03), L.of(70, 66, 62, M.Metal))
+					-- 튀김 건지개 (긴 손잡이) + 닭 바구니
+					K:plate("FfSkimmer", 0.06, 0.9, 0.02, face * CF(-w * 0.18 + pw * 0.3, cy + 0.82, z + 0.06) * ANG(0, 0, -0.35), L.of(150, 110, 70, M.Wood))
+					K:plate("FfTongdakTray", 1.0, 0.18, 0.05, face * CF(w * 0.2, cy + 0.1, z + 0.03), L.of(196, 200, 204, M.Metal))
+					for k = -1, 1 do
+						K:ell("FfTongdakBird", V3(0.32, 0.22, 0.04), face * CF(w * 0.2 + k * 0.3, cy + 0.27, z + 0.05), L.of(200, 130, 50))
+					end
+				else
+					local fw2 = math.min(1.5, w * 0.3)
+					for k, fx in { -w * 0.24, w * 0.08 } do
+						K:plate("FfFryerBody", fw2, 0.6, 0.04, face * CF(fx, cy + 0.22, z + 0.03), L.of(180, 184, 188, M.Metal))
+						K:plate("FfFryerOilLine", fw2 - 0.12, 0.06, 0.045, face * CF(fx, cy + 0.48, z + 0.03), neon(rgb(255, 176, 70)))
+						K:plate("FfFryerPanel", fw2 - 0.2, 0.18, 0.044, face * CF(fx, cy + 0.12, z + 0.03), L.of(40, 40, 44, M.Metal))
+						for d2 = -1, 1, 2 do
+							K:disc("FfFryerKnob", 0.08, 0.03, face * CF(fx + d2 * fw2 * 0.25, cy + 0.12, z + 0.08) * ANG(PI / 2, 0, 0), L.black)
+							-- 바구니 손잡이 (기름에서 비스듬히)
+							K:plate("FfFryerHandle", 0.05, 0.42, 0.03, face * CF(fx + d2 * fw2 * 0.22, cy + 0.68, z + 0.06) * ANG(0, 0, d2 * 0.4), L.black)
+						end
+						if k == 1 and not ctx.low then
+							K:plate("FfFryerTemp", 0.3, 0.1, 0.01, face * CF(fx, cy + 0.12, z + 0.075), neon(rgb(255, 80, 60)))
+						end
+					end
+				end
+			elseif eq == "spatula" then
+				-- 그리들 (철판 + 패티 · 번) + 튀김기 1
+				local gw2 = math.min(2.4, w * 0.48)
+				local gx = -w * 0.18
+				K:plate("FfGriddleBack", gw2, 0.3, 0.03, face * CF(gx, cy + 0.32, z + 0.03), L.of(186, 190, 194, M.Metal))
+				K:plate("FfGriddleTop", gw2, 0.07, 0.05, face * CF(gx, cy + 0.14, z + 0.03), L.of(30, 30, 32, M.Metal))
+				K:plate("FfGriddleBody", gw2, 0.2, 0.04, face * CF(gx, cy + 0.0, z + 0.03), L.of(176, 180, 184, M.Metal))
+				for k = 0, 3 do
+					local px = gx - gw2 / 2 + 0.35 + k * (gw2 - 0.7) / 3
+					K:ell("FfPattySide", V3(0.36, 0.1, 0.03), face * CF(px, cy + 0.22, z + 0.08), L.of(92, 52, 30))
+					if k % 2 == 1 then
+						K:ell("FfCheeseSide", V3(0.34, 0.05, 0.03), face * CF(px, cy + 0.28, z + 0.085), L.of(250, 190, 40))
+					else
+						K:ell("FfBunSide", V3(0.34, 0.16, 0.03), face * CF(px + 0.05, cy + 0.33, z + 0.075), L.of(214, 150, 70))
+					end
+				end
+				K:plate("FfGrillSpatula", 0.26, 0.05, 0.02, face * CF(gx + gw2 / 2 - 0.2, cy + 0.2, z + 0.09) * ANG(0, 0, 0.5), L.chrome)
+				local fx = w * 0.2
+				K:plate("FfFryerBody", 1.1, 0.56, 0.04, face * CF(fx, cy + 0.2, z + 0.03), L.of(180, 184, 188, M.Metal))
+				K:plate("FfFryerOilLine", 0.96, 0.05, 0.045, face * CF(fx, cy + 0.44, z + 0.03), neon(rgb(255, 176, 70)))
+				K:plate("FfFryerHandle", 0.05, 0.42, 0.03, face * CF(fx, cy + 0.64, z + 0.06) * ANG(0, 0, 0.35), L.black)
+				K:plate("FfFryBasketFries", 0.4, 0.14, 0.05, face * CF(fx + 0.12, cy + 0.52, z + 0.05), L.of(246, 196, 70))
+			else
+				-- 분식: 큰 육수 냄비 + 라면 냄비 (가스 화구 위)
+				local px = -w * 0.2
+				K:plate("FfBurnerRow", w * 0.7, 0.12, 0.04, face * CF(-w * 0.05, cy + 0.06, z + 0.03), L.of(40, 40, 42, M.Metal))
+				K:plate("FfStockPotFront", 1.2, 0.86, 0.04, face * CF(px, cy + 0.55, z + 0.03), L.of(196, 200, 204, M.Metal))
+				K:plate("FfStockPotRim", 1.28, 0.06, 0.05, face * CF(px, cy + 0.99, z + 0.03), L.chrome)
+				for d2 = -1, 1, 2 do
+					K:plate("FfStockPotEar", 0.16, 0.06, 0.05, face * CF(px + d2 * 0.7, cy + 0.86, z + 0.03), L.chrome)
+				end
+				K:plate("FfRamenPot", 0.7, 0.36, 0.04, face * CF(w * 0.14, cy + 0.3, z + 0.03), L.of(214, 170, 60, M.Metal))
+				K:plate("FfRamenPotHandle", 0.5, 0.05, 0.03, face * CF(w * 0.14 + 0.55, cy + 0.42, z + 0.03), L.black)
+				K:plate("FfLadleHang", 0.05, 0.7, 0.02, face * CF(px + 0.3, cy + 1.2, z + 0.07) * ANG(0, 0, -0.3), L.of(150, 152, 156, M.Metal))
+			end
+			-- 위 김 (옅은 흰 판)
+			if not ctx.low then
+				K:plate("FfPassSteam", w * 0.5, 0.5, 0.004, face * CF(-w * 0.1, cy + 0.95, z + 0.09), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.88 })
 			end
 			if not ctx.low then
 				for i = 1, 3 do
@@ -1694,34 +1781,22 @@ local function passDress(ctx: any, o: any)
 				end
 			end
 			-- 주방 선반 (스테인리스) + 위 후드 그림자 띠
-			K:plate("FfPassShelf", w - 0.12, 0.12, 0.03, face * CF(0, h * 0.06, z + 0.006), L.steel)
+			K:plate("FfPassShelf", w * 0.66, 0.08, 0.03, face * CF(-w / 2 + w * 0.33 + 0.06, 0.15, z + 0.006), L.steel)
 			K:plate("FfPassHoodBand", w, 0.5, 0.02, face * CF(0, h / 2 - 0.25, z), L.of(70, 72, 76, M.Metal))
 			-- 열 램프 (주황 네온 2줄)
 			local lampC = o.lamp or rgb(255, 150, 70)
 			for _, sx in { -1, 1 } do
 				K:plate("FfPassHeatLamp", w * 0.36, 0.07, 0.04, face * CF(sx * w * 0.22, h / 2 - 0.55, z + 0.01), neon(lampC))
 			end
-			-- 주문서 레일 + 주문서
+			-- 주문서 레일 + 주문서 (패스 창 위쪽에 집게로)
 			K:plate("FfTicketRail", w - 0.3, 0.07, 0.05, face * CF(0, h / 2 - 0.78, z + 0.01), L.chrome)
-			local nT = if ctx.low then 2 else 4
+			local nT = if ctx.low then 2 else 3
 			for i = 1, nT do
-				local tx = -w / 2 + 0.5 + (i - 1) * (w - 1.0) / math.max(1, nT - 1)
-				K:plate("FfTicket", 0.3, 0.46, 0.008, face * CF(tx, h / 2 - 1.04, z + 0.06) * ANG(0, 0, (i % 2 - 0.5) * 0.06), L.paper)
+				local tx = -w / 2 + 0.6 + (i - 1) * (w - 1.2) / math.max(1, nT - 1)
+				K:plate("FfTicket", 0.28, 0.36, 0.008, face * CF(tx, h / 2 - 0.97, z + 0.07) * ANG(0, 0, (i % 2 - 0.5) * 0.06), L.paper)
 				if not ctx.low then
 					for j = 1, 3 do
-						K:plate("FfTicketLine", 0.22, 0.025, 0.004, face * CF(tx, h / 2 - 0.9 - j * 0.09, z + 0.068), L.of(60, 60, 60))
-					end
-				end
-			end
-			-- 안쪽 소품 실루엣 (국자 · 튀김망 · 뒤집개)
-			if not ctx.low then
-				for i = 1, 3 do
-					local tx = -w / 2 + w * (0.25 + (i - 1) * 0.25)
-					K:plate("FfPassUtensil", 0.06, 0.6, 0.008, face * CF(tx, -0.15, z + 0.012), L.of(150, 152, 156, M.Metal))
-					if o.utensil == "basket" then
-						K:plate("FfPassUtensil", 0.42, 0.3, 0.008, face * CF(tx, -0.55, z + 0.012), L.of(120, 122, 126, M.DiamondPlate))
-					else
-						K:ell("FfPassUtensil", V3(0.26, 0.18, 0.008), face * CF(tx, -0.5, z + 0.016), L.of(150, 152, 156, M.Metal))
+						K:plate("FfTicketLine", 0.2, 0.022, 0.004, face * CF(tx, h / 2 - 0.86 - j * 0.07, z + 0.078), L.of(60, 60, 60))
 					end
 				end
 			end
@@ -1825,7 +1900,7 @@ local function menuSignDress(ctx: any, look: any, ledC: Color3?)
 		local w, h = r.size.X, r.size.Y
 		local dcf = CFrame.fromMatrix(V3(r.c.X, r.c.Y, V.z0), Vector3.xAxis, Vector3.yAxis, Vector3.zAxis)
 		K:free(function()
-			K:plate("FfMenuBacker", w + 0.4, h + 0.36, 0.035, dcf, look)
+			K:plate("FfMenuBacker", w + 0.4, h + 0.36, 0.05, dcf, look)
 			if ledC then
 				K:plate("FfMenuLED", w - 0.3, 0.05, 0.05, dcf * CF(0, -h / 2 - 0.14, 0.06), neon(ledC))
 			end
@@ -2459,7 +2534,7 @@ local function chickenBuild(ctx: any)
 	end
 	if bpcf and bwn then
 		-- 위 벽: 생맥주 포스터
-		local wc = bpcf * CF(0, 0, -0.75 - 0.06)
+		local wc = bpcf * CF(0, 0, -0.75 - 0.06 + WALL_OFF)
 		poster(ctx, wc * CF(0, 6.4, 0), 2.6, 2.0, {
 			bg = rgb(20, 60, 140),
 			art = artBeer(-0.6, -0.05, 1.2),
@@ -3012,13 +3087,15 @@ local function veggieWells(ctx: any)
 			local base = CF(r.c.X, r.min.Y, r.c.Z)
 			-- 스테인리스 팬 (테두리) + 속 재료
 			K:box("FfWellRim", V3(w, 0.1, d), base * CF(0, 0.05, 0), L.of(200, 204, 208, M.Metal, { r = 0.12 }))
-			K:box("FfWellFill", V3(w - 0.08, 0.06, d - 0.08), base * CF(0, 0.09, 0), pl(c))
+			K:box("FfWellFill", V3(w - 0.08, 0.06, d - 0.08), base * CF(0, 0.09, 0), pl(dark(c, 0.1)))
+			-- 소복이 쌓인 재료 (가운데가 볼록)
+			K:ell("FfWellMound", V3(w - 0.14, 0.12, d - 0.14), base * CF(0, 0.12, 0), { c = c, m = if ing[2] == "leaf" then M.Grass else M.SmoothPlastic })
 			if not ctx.low then
-				local n = if ctx.high then 4 else 2
+				local n = if ctx.high then 5 else 3
 				for k = 1, n do
 					local x = (rnd() - 0.5) * (w - 0.3)
 					local z = (rnd() - 0.5) * (d - 0.3)
-					local p = base * CF(x, 0.12, z) * ANG(0, rnd() * PI, 0)
+					local p = base * CF(x, 0.16, z) * ANG((rnd() - 0.5) * 0.4, rnd() * PI, (rnd() - 0.5) * 0.4)
 					local lc = if (k % 2) == 0 then light(c, 0.15) else dark(c, 0.12)
 					if ing[2] == "leaf" then
 						K:ell("FfIng", V3(0.3, 0.06, 0.22), p, { c = lc, m = M.Grass })
@@ -3152,7 +3229,7 @@ local function subwayBuild(ctx: any)
 	end
 	-- 뒷벽 메뉴판 3개 (Sign_) 뒤 액자 + 아래 노란 LED
 	menuSignDress(ctx, L.of(30, 34, 32), P.accent)
-	local tvd = promptWallSpot(ctx, { "left", "right", "back" }, 3.4, 6.2, 8.3)
+	local tvd = promptSpotStrict(ctx, { "left", "right", "back" }, 3.4, 6.2, 8.3, { 0, -1.25, 1.25 })
 	if not tvd then
 		tvd = wallSpot(ctx, { "left", "right" }, 3.4, 6.2, 8.3, 6)
 	end
@@ -3170,15 +3247,50 @@ local function subwayBuild(ctx: any)
 			shapes = { { -1.45, -0.62, 1.45, -0.62, rgb(80, 220, 120) } },
 		})
 	end
-	-- 초록 벽 큰 글자 + 노란 화살표
-	local sg = wallSpot(ctx, { "right", "left" }, 7.0, 7.0, 9.6, 0)
-	if sg then
-		K:text("FfSubLogo", 6.0, 1.5, sg * CF(0, 0.45, 0.02), "SUBWAY", { fg = WHITE, font = F.GothamBlack, d = 0.04 })
-		K:text("FfSubSlogan", 5.0, 0.5, sg * CF(0, -0.75, 0.02), "신선한 재료를 매일 아침 준비합니다", { fg = P.accent, font = F.GothamBold, d = 0.02 })
-		for _, sx in { -1, 1 } do
-			K:plate("FfSubArrow", 0.9, 0.16, 0.04, sg * CF(sx * 3.2, 0.45, 0.02) * ANG(0, 0, sx * 0.5), pl(P.accent))
+	-- 브랜드 벽 (긴 흰 벽 위쪽): 초록 판 + 워드마크 + 노란 화살표 + 채소 사진 띠 — 다른 장식보다 먼저 자리 잡음
+	do
+		local sg, sw, bh = nil, 0, 2.2
+		local missBefore = ctx.miss
+		for _, band in { { 7.05, 9.55, { 7.4, 6.0 } }, { 8.4, V.H - 0.12, { 7.4, 6.0, 4.6, 3.8 } } } do
+			if band[2] - band[1] >= 1.3 then
+				sg, sw = wallSpotFit(ctx, { "left", "right", "back" }, band[3], band[1], band[2], 0)
+				if sg then
+					bh = band[2] - band[1] - 0.3
+					break
+				end
+			end
+		end
+		ctx.miss = missBefore
+		if sg then
+			local bw = sw - 0.3
+			local ts = math.min(1, bh / 2.2)
+			local _, bwn = sg, nil
+			local onGreen = false
+			do
+				local u, dd = V:wallCoord("right", sg.Position)
+				onGreen = math.abs(dd) < 0.3 and u == u
+			end
+			K:panel("FfSubBrandBack", bw, bh, 0.06, 0.12, sg, pl(if onGreen then dark(g, 0.35) else g))
+			K:plate("FfSubBrandStripe", bw - 0.24, 0.1, 0.012, sg * CF(0, -bh / 2 + 0.16, 0.06), pl(P.accent))
+			K:text("FfSubLogo", bw * 0.62, 0.95 * ts, sg * CF(-bw * 0.12, 0.3 * ts, 0.07), "SUBWAY", { fg = WHITE, font = F.GothamBlack, d = 0.02 })
+			K:text("FfSubSlogan", bw * 0.6, 0.34 * ts, sg * CF(-bw * 0.12, -0.42 * ts, 0.07), "매일 아침 손질하는 신선한 재료", { fg = P.accent, font = F.GothamBold, d = 0.01 })
+			-- 오른쪽: 채소 사진 (토마토 · 양상추 · 양파 · 피망 둥근 색 블록)
+			local vx = bw / 2 - bw * 0.17
+			local veg = { { rgb(214, 44, 36), 0.5 }, { rgb(110, 180, 60), 0.62 }, { rgb(236, 230, 214), 0.44 }, { rgb(250, 196, 30), 0.4 }, { rgb(60, 130, 50), 0.36 } }
+			for i, vg in veg do
+				local a = (i - 1) / #veg * PI * 2
+				local cx, cy = vx + math.cos(a) * bw * 0.06, (0.1 + math.sin(a) * 0.42) * ts
+				K:disc("FfSubVeg", vg[2] * math.max(ts, 0.6), 0.02, sg * CF(cx, cy, 0.075) * ANG(PI / 2, 0, 0), pl(vg[1]))
+				if not ctx.low then
+					K:disc("FfSubVegCore", vg[2] * 0.5 * math.max(ts, 0.6), 0.02, sg * CF(cx, cy, 0.085) * ANG(PI / 2, 0, 0), pl(light(vg[1], 0.25)))
+				end
+			end
+			for _, sx in { -1, 1 } do
+				K:plate("FfSubArrow", 0.7, 0.14, 0.02, sg * CF(-bw * 0.12 + sx * bw * 0.34, 0.3 * ts, 0.06) * ANG(0, 0, sx * 0.5), pl(P.accent))
+			end
 		end
 	end
+	local st0, stw = wallSpotFit(ctx, { "left", "right", "back" }, { 5.4, 4.6 }, 4.2, 7.0, 0)
 	-- 뒤 카운터 위 얕은 벽 선반 (포장 봉투 · 컵 · 냅킨 묶음)
 	local bs = wallSpot(ctx, { "back" }, 4.4, 5.2, 6.6, 2)
 	if bs then
@@ -3193,21 +3305,24 @@ local function subwayBuild(ctx: any)
 		end
 	end
 	-- 주문 방법 5단계 포스터 (써브웨이 대표 안내)
-	local st = wallSpot(ctx, { "left", "right" }, 5.4, 4.2, 7.0, 0)
+	local st = st0
 	if st then
+		-- 폭이 좁으면 가로만 줄임 (ks)
+		local ks = math.min(1, (stw - 0.1) / 5.3)
 		local steps = { { "1", "빵 선택" }, { "2", "메인 재료" }, { "3", "치즈 · 토스팅" }, { "4", "야채 선택" }, { "5", "소스 선택" } }
-		K:plate("FfStepsBack", 5.3, 2.6, 0.04, st, pl(rgb(250, 248, 240)))
-		K:text("FfStepsTitle", 4.6, 0.46, st * CF(0, 0.95, 0.045), "주문 방법  HOW TO ORDER", { fg = g, font = F.GothamBlack, d = 0.01 })
-		for i, s in steps do
-			local x = -2.1 + (i - 1) * 1.05
-			K:disc("FfStepDot", 0.62, 0.04, st * CF(x, 0.15, 0.06) * ANG(PI / 2, 0, 0), pl(if i % 2 == 1 then g else P.accent))
-			K:text("FfStepNum", 0.4, 0.4, st * CF(x, 0.15, 0.085), s[1], { fg = WHITE, font = F.GothamBlack, d = 0.005 })
-			K:text("FfStepText", 0.98, 0.3, st * CF(x, -0.45, 0.045), s[2], { fg = rgb(30, 30, 30), font = F.GothamBold, d = 0.005 })
+		K:panel("FfStepsBack", 5.3 * ks, 2.6, 0.04, 0.08, st, pl(rgb(250, 248, 240)))
+		K:plate("FfStepsBand", 5.3 * ks - 0.16, 0.5, 0.01, st * CF(0, 0.95, 0.04), pl(g))
+		K:text("FfStepsTitle", 4.6 * ks, 0.4, st * CF(0, 0.95, 0.052), "주문 방법  HOW TO ORDER", { fg = WHITE, font = F.GothamBlack, d = 0.006 })
+		for i, sp in steps do
+			local x = (-2.1 + (i - 1) * 1.05) * ks
+			K:disc("FfStepDot", 0.62 * math.max(ks, 0.85), 0.04, st * CF(x, 0.15, 0.06) * ANG(PI / 2, 0, 0), pl(if i % 2 == 1 then g else P.accent))
+			K:text("FfStepNum", 0.4, 0.4, st * CF(x, 0.15, 0.085), sp[1], { fg = WHITE, font = F.GothamBlack, d = 0.005 })
+			K:text("FfStepText", 0.98 * ks, 0.3, st * CF(x, -0.45, 0.045), sp[2], { fg = rgb(30, 30, 30), font = F.GothamBold, d = 0.005 })
 			if i < 5 and not ctx.low then
-				K:plate("FfStepArrow", 0.3, 0.06, 0.02, st * CF(x + 0.52, 0.15, 0.05), pl(P.accent))
+				K:plate("FfStepArrow", 0.24 * ks, 0.06, 0.02, st * CF(x + 0.52 * ks, 0.15, 0.05), pl(P.accent))
 			end
 		end
-		K:text("FfStepsFoot", 4.8, 0.3, st * CF(0, -0.98, 0.045), "15cm " .. priceIn(ctx.signs, "15cm", "6,900") .. "  ·  30cm " .. priceIn(ctx.signs, "30cm", "11,900"), { fg = rgb(60, 60, 60), font = F.GothamBold, d = 0.01 })
+		K:text("FfStepsFoot", 4.8 * ks, 0.3, st * CF(0, -0.98, 0.045), "15cm " .. priceIn(ctx.signs, "15cm", "6,900") .. "  ·  30cm " .. priceIn(ctx.signs, "30cm", "11,900"), { fg = rgb(60, 60, 60), font = F.GothamBold, d = 0.01 })
 	end
 	-- 샌드위치 사진 포스터 2
 	for i, pr in { { "이탈리안 비엠티", "15cm 7,400" }, { "로티세리 바비큐 치킨", "15cm 7,900" } } do
@@ -3312,30 +3427,56 @@ local function eomukTank(ctx: any, base: CFrame, w: number, d: number, h: number
 	local K = ctx.K
 	local rnd = ctx.rand
 	local hh = h or 0.7
-	K:box("FfTankBody", V3(w, hh, d), base * CF(0, hh / 2, 0), L.of(196, 194, 188, M.Metal))
-	K:box("FfTankBroth", V3(w - 0.1, 0.03, d - 0.1), base * CF(0, hh - 0.06, 0), { c = rgb(196, 146, 74), m = M.SmoothPlastic, r = 0.04 })
+	-- 몸통은 국물 높이까지 (속이 꽉 찬 상자가 국물을 덮지 않게) + 얇은 네 벽이 테두리까지
+	local tank = L.of(204, 206, 208, M.Metal, { r = 0.06 })
+	K:box("FfTankBody", V3(w, hh - 0.1, d), base * CF(0, (hh - 0.1) / 2, 0), tank)
+	K:box("FfTankBroth", V3(w - 0.1, 0.05, d - 0.1), base * CF(0, hh - 0.085, 0), { c = rgb(190, 134, 62), m = M.SmoothPlastic, r = 0.02 })
+	if not ctx.low then
+		-- 국물 위 기름 · 파 고명 (밝은 반점)
+		for k = 1, math.max(2, math.floor(w / 0.9)) do
+			K:disc("FfBrothSheen", 0.16 + rnd() * 0.12, 0.006, base * CF(-w / 2 + 0.3 + (w - 0.6) * rnd(), hh - 0.058, (rnd() - 0.5) * (d - 0.3)), { c = rgb(214, 162, 82), m = M.SmoothPlastic })
+		end
+	end
+	for _, sz in { -1, 1 } do
+		K:box("FfTankWall", V3(w, 0.13, 0.05), base * CF(0, hh - 0.065, sz * (d / 2 - 0.025)), tank)
+		K:box("FfTankWall", V3(0.05, 0.13, d - 0.1), base * CF(sz * (w / 2 - 0.025), hh - 0.065, 0), tank)
+	end
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, d / 2), L.chrome)
 	K:box("FfTankRim", V3(w + 0.04, 0.05, 0.05), base * CF(0, hh + 0.02, -d / 2), L.chrome)
 	local nDiv = math.max(1, math.floor(w / 1.1))
 	for i = 1, nDiv - 1 do
 		K:box("FfTankDivider", V3(0.04, 0.2, d - 0.06), base * CF(-w / 2 + i * w / nDiv, hh - 0.04, 0), L.chrome)
 	end
+	-- 꼬치: 국물 속 뒤쪽 바닥에서 손님 쪽(+Z) 테두리로 비스듬히 기대 누움 (막대 끝만 테두리 밖으로).
+	--   접은 납작 어묵은 막대 아래쪽 절반에 지그재그로 꿰어 대부분 국물 속, 윗주름 1~2개만 국물 위로 보임.
 	local n = if ctx.low then 6 elseif ctx.high then 16 else 11
+	local surf = hh - 0.06
 	for i = 1, n do
-		local x = -w / 2 + 0.2 + (w - 0.4) * (i - 0.5) / n
-		local z = (rnd() - 0.5) * (d - 0.4) - d * 0.12
-		-- 손님 쪽(+Z) 테두리에 기대 꽂힌 꼬치: 아래는 국물 속, 위 손잡이는 테두리 밖으로
-		local lean = ANG(0.55 + rnd() * 0.2, 0, (rnd() - 0.5) * 0.25)
-		local sk = base * CF(x, hh - 0.08, z) * lean
-		K:cyl("FfSkewer", 1.2, 0.04, sk * CF(0, 0.45, 0) * ANG(0, 0, PI / 2), L.of(214, 182, 130, M.Wood))
+		local x = -w / 2 + 0.22 + (w - 0.44) * (i - 0.5) / n + (rnd() - 0.5) * 0.08
+		local zb = -d / 2 + 0.16 + rnd() * 0.12
+		local p0 = V3(x + (rnd() - 0.5) * 0.12, math.max(0.08, hh - 0.5), zb)
+		local p1 = V3(x + (rnd() - 0.5) * 0.2, hh + 0.2 + rnd() * 0.08, d / 2 + 0.16)
+		local axisL = (p1 - p0).Magnitude
+		local look = CFrame.lookAt(p0, p1) -- -Z = 막대 방향
+		local stickL = axisL + 0.12
+		K:cyl("FfSkewer", stickL, 0.045, base * look * CF(0, 0, -stickL / 2) * ANG(0, PI / 2, 0), L.of(214, 182, 130, M.Wood))
+		-- 국물 표면을 지나는 막대 위치 (0..1)
+		local ts = math.clamp((surf - p0.Y) / math.max(0.01, p1.Y - p0.Y), 0.2, 0.9)
+		local t0, t1 = 0.06, math.min(ts + 0.22, 0.88)
 		if i % 4 == 0 then
-			-- 긴 막대 어묵
-			K:cyl("FfEomukStick", 0.7, 0.2, sk * CF(0, 0.18, 0) * ANG(0, 0, PI / 2), L.of(214, 160, 100))
+			-- 긴 막대 어묵 (봉 어묵): 국물 표면에 반쯤 잠김
+			local tm = (t0 + t1) / 2
+			local len = (t1 - t0) * axisL
+			K:cyl("FfEomukStick", len, 0.2, base * look * CF(0, 0, -tm * axisL) * ANG(0, PI / 2, 0), L.of(206, 150, 88))
 		else
-			-- 지그재그로 접어 꽂은 납작 어묵 (얇은 판 4겹, 번갈아 기울임)
-			for k = 0, 3 do
-				local c = if k % 2 == 0 then L.of(226, 186, 128) else L.of(212, 168, 108)
-				K:box("FfEomuk", V3(0.5, 0.2, 0.05), sk * CF(0, -0.05 + k * 0.15, 0) * ANG(if k % 2 == 0 then 0.75 else -0.75, 0, 0), c)
+			-- 접은 납작 어묵: 막대 따라 주름 (번갈아 기울인 얇은 판)
+			local nf = math.max(3, math.floor((t1 - t0) * axisL / 0.15))
+			local fw = 0.36 + rnd() * 0.08
+			local c1 = if i % 3 == 0 then L.of(222, 176, 112) else L.of(230, 190, 132)
+			local c2 = if i % 3 == 0 then L.of(204, 156, 96) else L.of(214, 170, 112)
+			for k = 0, nf - 1 do
+				local t = t0 + (t1 - t0) * (k + 0.5) / nf
+				K:box("FfEomuk", V3(fw, 0.035, (t1 - t0) * axisL / nf + 0.07), base * look * CF(0, 0, -t * axisL) * ANG(if k % 2 == 0 then 0.55 else -0.55, 0, 0), if k % 2 == 0 then c1 else c2)
 			end
 		end
 	end
@@ -3750,7 +3891,7 @@ local function bunsikBuild(ctx: any)
 			end
 			stationRec = snackStation(ctx, spcf, len, { steamerRight = cornerDist(rightEnd) < cornerDist(leftEnd) })
 			-- 조리대 위 벽: 손글씨 가격판 (간판 · 다른 장식과 겹치면 다른 빈 벽으로)
-			local wc = spcf * CF(0, 0, -1.0 - 0.06)
+			local wc = spcf * CF(0, 0, -1.0 - 0.06 + WALL_OFF)
 			local bw = math.min(3.4, len / 2 - 0.3)
 			local _, swn, su = nil, nil, nil
 			local bcf = wc * CF(-len / 4, 6.9, 0)
@@ -4567,6 +4708,65 @@ local function restockSupplies(ctx: any)
 	end)
 end
 
+-- 테이블 위 SpoonBox (맵에 이미 있는 자리 · 크기 그대로): 한식형 = 스테인리스 수저통, 버거 · 써브 · 타코 = 냅킨 디스펜서 + 케첩 · 머스터드
+local function spoonBoxes(ctx: any): number
+	local K, V = ctx.K, ctx.V
+	local list = V.byName.SpoonBox or {}
+	if #list == 0 then
+		return 0
+	end
+	local western = ctx.sk == "burger" or ctx.sk == "taco" or ctx.sk == "sub"
+	local n = 0
+	K:free(function()
+		for _, r in list do
+			local sx, sy, sz = r.size.X, r.size.Y, r.size.Z
+			local long, short = math.max(sx, sz), math.min(sx, sz)
+			if long > 1.4 or sy > 0.8 then
+				continue -- 큰 것은 수저통이 아님
+			end
+			-- 긴 변 = 로컬 X, +Z = 방 가운데 쪽 (글자 · 냅킨 면)
+			local rot = if sx >= sz then CFrame.identity else ANG(0, PI / 2, 0)
+			local b = CF(r.c.X, r.min.Y, r.c.Z) * rot
+			local toC = b:VectorToObjectSpace(V3(-r.c.X, 0, -r.c.Z))
+			if toC.Z < 0 then
+				b = b * ANG(0, PI, 0)
+			end
+			if western then
+				local nw = math.min(0.44, long * 0.56)
+				local nx = -long / 2 + nw / 2 + 0.01
+				-- 크롬 냅킨 디스펜서 (앞뒤로 냅킨이 보이는 V 홈)
+				K:box("FfNapDispBody", V3(nw, sy * 0.9, short - 0.02), b * CF(nx, sy * 0.45, 0), L.chrome)
+				K:box("FfNapDispSlot", V3(nw * 0.78, sy * 0.06, short + 0.004), b * CF(nx, sy * 0.86, 0), L.of(250, 250, 248))
+				K:box("FfNapDispFace", V3(nw * 0.8, sy * 0.46, 0.012), b * CF(nx, sy * 0.44, short / 2), L.of(28, 28, 30))
+				K:text("FfNapDispLabel", nw * 0.7, sy * 0.3, b * CF(nx, sy * 0.44, short / 2 + 0.008), "NAPKIN", { fg = WHITE, font = F.GothamBold, d = 0.003 })
+				-- 케첩 · 머스터드 짜는 병 (높이 = 수저통 높이 안)
+				local bx = nx + nw / 2
+				local rest = long / 2 - bx
+				local bd = math.min(0.15, rest / 2 - 0.01, short - 0.04)
+				for k, c in { rgb(200, 26, 30), rgb(246, 196, 30) } do
+					local x = bx + rest * (k - 0.5) / 2
+					K:vcyl("FfSqueeze", sy * 0.74, bd, b * CF(x, sy * 0.37, 0), pl(c, M.Plastic))
+					K:vcyl("FfSqueezeCap", sy * 0.16, bd * 0.7, b * CF(x, sy * 0.82, 0), pl(dark(c, 0.15), M.Plastic))
+					K:vcyl("FfSqueezeTip", sy * 0.1, bd * 0.3, b * CF(x, sy * 0.95, 0), pl(dark(c, 0.15), M.Plastic))
+				end
+			else
+				-- 스테인리스 수저통 (몸통 + 뚜껑 + 손잡이 + 옆면 숟가락 · 젓가락 그림)
+				K:box("FfSujeoBody", V3(long - 0.02, sy - 0.06, short - 0.02), b * CF(0, (sy - 0.06) / 2, 0), L.steel)
+				K:box("FfSujeoLid", V3(long, 0.05, short), b * CF(0, sy - 0.035, 0), L.chrome)
+				K:box("FfSujeoKnob", V3(0.2, 0.025, 0.07), b * CF(0, sy - 0.0, 0), L.black)
+				K:box("FfSujeoBand", V3(long - 0.018, 0.03, short - 0.018), b * CF(0, 0.05, 0), L.brushed)
+				if not ctx.low then
+					K:plate("FfSujeoMark", long * 0.4, sy * 0.36, 0.006, b * CF(0, sy * 0.42, short / 2 - 0.01), L.of(150, 154, 158, M.Metal))
+					K:text("FfSujeoText", long * 0.36, sy * 0.3, b * CF(0, sy * 0.42, short / 2 - 0.002), "수저", { fg = rgb(60, 62, 66), font = F.GothamBold, d = 0.003 })
+				end
+			end
+			Scan.hide(K.hidden, r.part)
+			n += 1
+		end
+	end)
+	return n
+end
+
 -- 셀프 코너 수납장 (맵 SelfCabinet): 같은 범위 덮개 + 여닫는 두 문 + 안쪽 비품 (냅킨 · 물티슈 · 치킨무 컵 · 비닐봉투)
 local function selfCabinetOverlay(ctx: any): number
 	local K, V = ctx.K, ctx.V
@@ -4930,6 +5130,7 @@ function T.build(K: any, V: any, S: any)
 		local nf = restockFridges(ctx)
 		local nb = restockBarBottles(ctx)
 		restockSupplies(ctx)
+		spoonBoxes(ctx)
 		selfCabinetOverlay(ctx)
 		placeClock(ctx)
 		if ctx.sk == "bunsik" then
@@ -4948,6 +5149,38 @@ function T.build(K: any, V: any, S: any)
 	end)
 	if not ok3 then
 		K:note("ff restock error: " .. tostring(err3))
+	end
+	if true then -- TMPDBG
+		for _, nm in { "KitchenPass", "SpoonBox", "EomukTank", "Ingredient", "SneezeGuard" } do
+			local r = (V.byName[nm] or {})[1]
+			if r then
+				K:note(string.format("DBGPOS %s %.1f %.1f %.1f size %.1f %.1f %.1f", nm, r.c.X, r.c.Y, r.c.Z, r.size.X, r.size.Y, r.size.Z))
+			end
+		end
+		if V.counters[1] then
+			local g = V.counters[1]
+			K:note(string.format("DBGPOS counter %.1f..%.1f y%.1f z%.1f..%.1f", g.min.X, g.max.X, g.y, g.min.Z, g.max.Z))
+		end
+		for _, wn in { "back", "left", "right", "front" } do
+			local wl = V.walls[wn]
+			if wl then
+				local t = {}
+				for _, b in { { 4.0, 6.6 }, { 7.0, 8.9 } } do
+					local ss = {}
+					for _, sp in spans(ctx, wn, b[1], b[2], 1.0) do
+						table.insert(ss, string.format("%.1f..%.1f", sp[1], sp[2]))
+					end
+					table.insert(t, string.format("[%.1f-%.1f] %s", b[1], b[2], table.concat(ss, " ")))
+				end
+				local us = {}
+				for _, u in K.wallUsed or {} do
+					if u.w == wn then
+						table.insert(us, string.format("%.1f..%.1f@%.1f-%.1f", u.a, u.b, u.y0, u.y1))
+					end
+				end
+				K:note(string.format("DBG %s a=%.1f b=%.1f %s USED %s", wn, wl.a, wl.b, table.concat(t, " | "), table.concat(us, " ")))
+			end
+		end
 	end
 	K:note(string.format("ff %s/%s: +%d parts, toggles %d", ctx.sk, ctx.pal.key or "?", #K.parts - t0, ctx.toggles))
 	if ctx.miss then

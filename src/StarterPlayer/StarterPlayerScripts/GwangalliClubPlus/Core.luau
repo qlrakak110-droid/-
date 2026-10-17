@@ -57,6 +57,28 @@ function Core.init(S: any, folder: Instance)
 	}
 end
 
+-- one OnClientEvent connection for every module: Core.onEvent(kind, fn(payload))
+local eventFns: { [string]: { (any) -> () } } = {}
+function Core.onEvent(kind: string, fn: (any) -> ())
+	eventFns[kind] = eventFns[kind] or {}
+	table.insert(eventFns[kind], fn)
+end
+function Core.connectEvents()
+	Core.Event.OnClientEvent:Connect(function(kind: any, payload: any)
+		if type(kind) ~= "string" then
+			return
+		end
+		for _, fn in eventFns[kind] or {} do
+			task.spawn(function()
+				local ok, err = pcall(fn, if type(payload) == "table" then payload else {})
+				if not ok then
+					warn("[GwangalliClubPlus] event " .. kind .. " failed:", err)
+				end
+			end)
+		end
+	end)
+end
+
 function Core.now(): number
 	return workspace:GetServerTimeNow()
 end
@@ -91,8 +113,12 @@ function Core.q(): any
 				saver = okS and s == true
 			end
 		end
-		qCache = Core.S.quality(tierName, saver)
-		qCache.name = if saver then "saver" else tierName
+		local q = table.clone(Core.S.quality(tierName, saver))
+		q.name = if saver then "saver" elseif Core.S.Config.Quality[tierName] then tierName else "mid"
+		if Core.reduced() then
+			q.reduced = true
+		end
+		qCache = q
 	end
 	return qCache
 end
@@ -410,6 +436,162 @@ function Core.mainBox(): (CFrame?, Vector3?)
 		end
 	end
 	return nil, nil
+end
+
+-- the main room as a world box: CFrame + size (Zone_Main, else the config fallback)
+function Core.roomBox(): (CFrame, Vector3)
+	local cf, size = Core.mainBox()
+	if cf and size then
+		return cf, size
+	end
+	local fb = Core.S.Config.Fallback.Room
+	return CFrame.new(fb.pos), fb.size
+end
+
+-- clip a ray from `from` along unit `dir` to the inside of the room box (minus `margin`)
+function Core.clipToRoom(from: Vector3, dir: Vector3, reach: number, margin: number?): Vector3
+	local cf, size = Core.roomBox()
+	local o = cf:PointToObjectSpace(from)
+	local d = cf:VectorToObjectSpace(dir)
+	local h = size * 0.5 - Vector3.one * (margin or 0.6)
+	local tMax = reach
+	for _, ax in { "X", "Y", "Z" } do
+		local dv = (d :: any)[ax]
+		local ov = (o :: any)[ax]
+		local hv = (h :: any)[ax]
+		if math.abs(dv) > 1e-6 then
+			local t = ((if dv > 0 then hv else -hv) - ov) / dv
+			if t > 0 and t < tMax then
+				tMax = t
+			end
+		end
+	end
+	return from + dir * math.max(1, tMax)
+end
+
+-- ClubTable models by TableId: { model, top (centre of the table top), size }
+local tableCache: { [string]: any } = {}
+local tableScanAt = -1e9
+local function scanTables()
+	tableScanAt = os.clock()
+	for _, m in CollectionService:GetTagged("ClubTable") do
+		local id = m:GetAttribute("TableId")
+		if type(id) == "string" and m:IsDescendantOf(workspace) then
+			local e = tableCache[id]
+			if not e or e.model ~= m or not e.model.Parent then
+				tableCache[id] = { model = m }
+			end
+		end
+	end
+end
+function Core.tableInfo(id: any): any?
+	if type(id) ~= "string" then
+		return nil
+	end
+	local e = tableCache[id]
+	if (not e or not e.model.Parent or not e.model:IsDescendantOf(workspace)) and os.clock() - tableScanAt > 3 then
+		scanTables()
+		e = tableCache[id]
+	end
+	if not e or not e.model.Parent then
+		return nil
+	end
+	if not e.top then
+		local m = e.model
+		local top = m:FindFirstChild("TableTop", true) or m:FindFirstChild("Top", true) or m:FindFirstChild("VIPTableTop", true) or m:FindFirstChild("TableSlab", true)
+		if top and top:IsA("BasePart") then
+			e.top = top.Position + Vector3.new(0, top.Size.Y * 0.5, 0)
+			-- (the slab may be rotated: use the world AABB height)
+			local h = math.abs(top.CFrame.UpVector.Y) * top.Size.Y + math.abs(top.CFrame.RightVector.Y) * top.Size.X + math.abs(top.CFrame.LookVector.Y) * top.Size.Z
+			e.top = top.Position + Vector3.new(0, h * 0.5, 0)
+		elseif m:IsA("Model") then
+			local cf, size = m:GetBoundingBox()
+			e.top = cf.Position + Vector3.new(0, size.Y * 0.5 - 1, 0)
+		elseif m:IsA("BasePart") then
+			e.top = m.Position + Vector3.new(0, m.Size.Y * 0.5, 0)
+		end
+		local serve = m:FindFirstChild("ServePoint", true)
+		e.serve = if serve and serve:IsA("BasePart") then serve.Position else e.top
+	end
+	return e
+end
+
+-- an invisible anchored part in the room centre: beam end attachments live in it (Position = local offset)
+function Core.sink(): Part
+	local s = Core.sinkPart
+	if s and s.Parent then
+		return s
+	end
+	local cf = Core.roomBox()
+	local p = Core.part("PlusSink", Vector3.new(0.2, 0.2, 0.2), CFrame.new(cf.Position))
+	p.Transparency = 1
+	Core.sinkPart = p
+	return p
+end
+function Core.sinkAttachment(name: string): Attachment
+	local a = Instance.new("Attachment")
+	a.Name = name
+	a.Parent = Core.sink()
+	return a
+end
+-- move a sink attachment to a world position
+function Core.place(a: Attachment, world: Vector3)
+	local s = Core.sink()
+	a.Position = world - s.Position
+end
+
+-- the club's NPCs with a role (ClubNPC tag; Role / Zone attributes)
+function Core.npcs(role: string, zone: string?): { Model }
+	local out = {}
+	for _, m in CollectionService:GetTagged("ClubNPC") do
+		if m:IsA("Model") and m:GetAttribute("Role") == role and (zone == nil or m:GetAttribute("Zone") == zone) and m:IsDescendantOf(workspace) then
+			table.insert(out, m)
+		end
+	end
+	return out
+end
+
+-- parts named `name` anywhere under the club model (cached per name for 20 s)
+local allCache: { [string]: { at: number, list: { BasePart } } } = {}
+function Core.clubParts(name: string): { BasePart }
+	local c = allCache[name]
+	if c and os.clock() - c.at < 20 then
+		local alive = true
+		for _, p in c.list do
+			if not p.Parent then
+				alive = false
+				break
+			end
+		end
+		if alive and #c.list > 0 then
+			return c.list
+		end
+	end
+	local out = {}
+	local club = Core.clubModel()
+	if club then
+		for _, d in club:GetDescendants() do
+			if d.Name == name and d:IsA("BasePart") then
+				table.insert(out, d)
+			end
+		end
+	end
+	allCache[name] = { at = os.clock(), list = out }
+	return out
+end
+
+-- positions of map parts named `name`, else the fallback list
+function Core.spots(name: string, fallback: { Vector3 }, offset: Vector3?): { Vector3 }
+	local list = {}
+	for _, p in Core.clubParts(name) do
+		table.insert(list, p.Position + (offset or Vector3.zero))
+	end
+	if #list == 0 then
+		for _, v in fallback do
+			table.insert(list, v + (offset or Vector3.zero))
+		end
+	end
+	return list
 end
 
 -------------------------------------------------------------------------------------------------

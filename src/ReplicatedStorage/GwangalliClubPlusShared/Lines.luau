@@ -126,4 +126,49 @@ Lines.UI = {
 	hudDj = "DJ",
 }
 
+-- world show / signs / 합석 production (client)
+Lines.Show = {
+	laserShow = "🟣 OCEAN LASER SHOW · 손 머리 위로! 🙌",
+	cheers = "🎉 짠~! %s 테이블 합석 파티 ✨",
+	dance = "💃 %s 테이블 다 같이 댄스 타임! 🕺",
+	arrive = "✨ %s 테이블 · 새 친구 도착! 반갑게 맞아 주세요",
+	djHands = "🙌 DJ %s · 손 머리 위로!",
+	signBooking = "✨ 합석 중",
+	signDj = "🎧 DJ",
+	signGift = "💸 후원 도착",
+	presenterFor = "%s · %s님",
+	bartender = "🍹 %s 주문 들어갑니다!",
+	bartenderLegend = "🍹 %s 레전드 세트 준비 중! ✨",
+	crownSpend = "👑 오늘의 큰손",
+	crownDonate = "💸 후원왕",
+	onAir = "🎧 DJ %s ON AIR",
+	residentDj = "🎧 RESIDENT DJ",
+}
+
+Lines.Rank = {
+	title = "🏆 CLUB OCEAN 랭킹전",
+	sub = "%s 밤 · 이번 주 %s",
+	tabs = { "오늘의 큰손", "후원 랭킹", "최고가 주문", "이번 주" },
+	keys = { "spend", "donate", "best", "weekly" },
+	icons = { "👑", "💸", "💎", "📅" },
+	mine = "내 기록 · 오늘 후원 %s · 이번 주 %s",
+	none = "아직 기록이 없어요 · 첫 주인공이 되어 보세요!",
+	newKing = "NEW 1위",
+	up = "▲%d",
+	new = "NEW",
+	shared = "모든 서버 합산 · 1분마다 갱신",
+}
+
+Lines.Pad = {
+	title = "🎧 DJ 패드",
+	left = "남은 시간 %s",
+	ready = "준비",
+	booth = "부스로 이동",
+	finish = "DJ 끝내기",
+	textHint = "전광판에 띄울 문구 (24자)",
+	send = "보내기",
+	collapse = "접기",
+	expand = "🎧 패드",
+}
+
 return Lines

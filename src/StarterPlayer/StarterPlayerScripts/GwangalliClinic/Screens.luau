@@ -6,6 +6,8 @@
 --   door   the interior's monitor by the consult door: 진료 중 / 다음 순서
 --   callno the interior's "호출번호" board: "042 → 1번 창구"
 --   kiosk  the interior's kiosk screen: 대기 n명 · 내 번호
+--   chart  진료실 1 의사 모니터 (map DoctorDesk.Monitor, or the interior's EMR "MonitorScreen"): the patient in
+--          the room (State.EMR: masked name · 초진/재진 · C.C. · measured vitals · Dx · Rx) or the waiting list
 -- SurfaceGuis live in PlayerGui (Adornee = the part), never under map parts. The screen's own gui
 -- (map SignGui / the interior's "Gw"..name) is switched off locally while ours covers it. A 딩동 chime
 -- plays for every call while the player is inside the clinic.
@@ -80,6 +82,7 @@ local function silence(part: BasePart, rec: any)
 	for _, g in part:GetChildren() do
 		if g:IsA("SurfaceGui") then
 			face = face or g.Face
+			rec.was[g] = g.Enabled
 			g.Enabled = false
 			table.insert(rec.conns, g:GetPropertyChangedSignal("Enabled"):Connect(function()
 				if g.Enabled and screens[part] then
@@ -248,6 +251,44 @@ RENDER.door = function(rec)
 	rec.c.Text = if nextOne then string.format("다음 %s %s", S.ticket(nextOne.n), nextOne.name or "") else "다음 순서 없음"
 end
 
+-- 진료실 1 의사 모니터 (EMR): the patient in the room right now (State.EMR, masked), else the waiting list
+local emr: any = nil
+BUILD.chart = function(root, rec)
+	root.BackgroundColor3 = Color3.fromRGB(240, 246, 248)
+	local head = new("Frame", { BackgroundColor3 = Color3.fromRGB(15, 120, 124), BorderSizePixel = 0, Size = UDim2.fromScale(1, 0.17) }, root)
+	rec.head = label(head, { Text = "EMR · 진료 차트 · 진료실 1", Font = Ui.F.bold, Size = UDim2.fromScale(0.96, 0.8), Position = UDim2.fromScale(0.02, 0.1), TextXAlignment = Enum.TextXAlignment.Left })
+	rec.lines = {}
+	for i = 1, 5 do
+		rec.lines[i] = label(root, { Text = "", Font = if i == 1 then Ui.F.black else Ui.F.bold, TextColor3 = Color3.fromRGB(30, 50, 60), Size = UDim2.fromScale(0.95, 0.15), Position = UDim2.fromScale(0.03, 0.19 + (i - 1) * 0.162), TextXAlignment = Enum.TextXAlignment.Left })
+	end
+end
+RENDER.chart = function(rec)
+	local e = emr
+	local L = rec.lines
+	if e and e.n then
+		rec.head.Text = string.format("EMR · 진료 차트 · %s", e.chart or "")
+		L[1].Text = string.format("%s %s · %s · %s", e.n, e.name or "", e.visit or "", e.dept or "")
+		L[2].Text = "C.C. " .. (if e.cc and e.cc ~= "" then e.cc else "-")
+		L[3].Text = string.format("BT %s   BP %s   HR %s   SpO₂ %s", if e.bt then string.format("%.1f", e.bt) else "--.-", e.bp or "---/--", if e.hr then tostring(e.hr) else "--", if e.spo2 then tostring(e.spo2) .. "%" else "--")
+		L[4].Text = if e.dx then string.format("Dx %s %s", e.code or "", e.dx) else (if e.f then string.format("피로도 %d", e.f) else "진찰 중…")
+		L[5].Text = if e.rx then "Rx " .. e.rx else ""
+		L[4].TextColor3 = if e.dx then Color3.fromRGB(200, 50, 50) else Color3.fromRGB(30, 50, 60)
+	else
+		rec.head.Text = "EMR · 진료 차트 · 진료실 1"
+		local waiting = {}
+		for _, w in board.waiting or {} do
+			if w.st ~= "접수 대기" and #waiting < 3 then
+				table.insert(waiting, string.format("%s %s · %s", S.ticket(w.n), w.name or "", w.st or ""))
+			end
+		end
+		L[1].Text = "대기 환자 " .. tostring((board.counts and board.counts.consult) or 0) .. "명"
+		for i = 2, 5 do
+			L[i].Text = waiting[i - 1] or ""
+			L[i].TextColor3 = Color3.fromRGB(30, 50, 60)
+		end
+	end
+end
+
 BUILD.kiosk = function(root, rec)
 	root.BackgroundColor3 = Color3.fromRGB(20, 60, 70)
 	rec.a = label(root, { Text = "무인 접수 · 수납", Size = UDim2.fromScale(0.94, 0.2), Position = UDim2.fromScale(0.03, 0.04) })
@@ -276,8 +317,11 @@ local function unregister(part: BasePart)
 	for _, c in rec.conns do
 		c:Disconnect()
 	end
+	-- give the part its own screen back, unless it was off already or the part is hidden meanwhile
+	-- (the interior team hides map furniture it replaces: Transparency / LocalTransparencyModifier)
+	local visible = part.Transparency < 0.99 and part.LocalTransparencyModifier < 0.99
 	for _, g in rec.silenced do
-		if g.Parent then
+		if g.Parent and visible and rec.was[g] ~= false then
 			g.Enabled = true
 		end
 	end
@@ -290,7 +334,7 @@ local function register(part: BasePart, kind: string, viewer: Vector3?)
 	if screens[part] or not BUILD[kind] then
 		return
 	end
-	local rec: any = { part = part, kind = kind, conns = {}, silenced = {} }
+	local rec: any = { part = part, kind = kind, conns = {}, silenced = {}, was = {} }
 	local face = silence(part, rec) or faceToward(part, viewer)
 	local w, h = faceSize(part, face)
 	local px = math.clamp(math.floor(900 / math.max(w, h)), 30, 90)
@@ -374,10 +418,20 @@ local function ownScreen(spec: any)
 	register(p, spec.kind, spec.viewer)
 end
 
+-- kinds whose map part the interior replaces with its own screen (then only the interior's is ours)
+local interiorOwns: { [string]: BasePart } = {}
+
 local function scanMap()
 	local v = venue()
 	for _, spec in S.Sites.SCREENS do
 		local p = v and byPath(v, spec.path)
+		local owner = interiorOwns[spec.kind]
+		if owner and owner:IsDescendantOf(workspace) and p and p:IsA("BasePart") then
+			if screens[p] then
+				unregister(p)
+			end
+			continue
+		end
 		if p and p:IsA("BasePart") then
 			missingSince[spec] = nil
 			if ownParts[spec] then
@@ -406,11 +460,22 @@ local function considerInterior(d: Instance)
 	end
 	local attr = d:GetAttribute(C.Interior.ScreenAttribute)
 	local kind = if type(attr) == "string" then attr else C.Interior.Screens[d.Name]
-	if kind and BUILD[kind] then
+	-- the interior's EMR monitor on the doctor's desk (a generic "MonitorScreen" text part)
+	if not kind and d.Name == "MonitorScreen" then
+		local spec = S.Sites.PARTS.DoctorMonitor
+		if spec and (d.Position - spec.fallback).Magnitude < 7 then
+			kind = "chart"
+		end
+	end
+	-- the same part names exist in other venues (fast-food / GS25 kiosks ...): only this clinic's
+	if kind and BUILD[kind] and S.inVenue(d.Position) then
 		-- the interior builds its text parts first and their SurfaceGui right after: wait a frame
 		task.defer(function()
 			if d.Parent then
 				register(d, kind, nil)
+				if kind == "chart" then
+					interiorOwns.chart = d
+				end
 			end
 		end)
 	end
@@ -490,6 +555,11 @@ function Screens.init(c: any)
 		decode()
 		renderAll()
 	end)
+	st:GetAttributeChangedSignal("EMR"):Connect(function()
+		emr = S.decode(st:GetAttribute("EMR"))
+		renderAll()
+	end)
+	emr = S.decode(st:GetAttribute("EMR"))
 	st:GetAttributeChangedSignal("Call"):Connect(function()
 		decode()
 		if call and call.seq ~= lastSeq then

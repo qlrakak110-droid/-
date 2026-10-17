@@ -4,6 +4,7 @@
 --   5초 꾹 누르기. 예방접종 uses the same overlay.
 --   주사실 수액: lying on the bed (server), progress ring with the drip, "😴 눈 붙이기" (faster, screen dims) /
 --   "그만 맞기", drip particles at the bed's IV bag (local prop).
+--   혈압 커프: Treat.cuff(on) / Treat.cuffInflate(frac) — a local cuff on the upper arm (진료실 혈압 측정).
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -126,6 +127,70 @@ local function injection(vaccine: boolean)
 end
 
 -------------------------------------------------------------------------------------------------
+-- 혈압 커프 (진료실 혈압 측정: a local cuff on the patient's upper arm that inflates with the pump)
+-------------------------------------------------------------------------------------------------
+local cuffPart: Part? = nil
+local cuffBase: Vector3 = Vector3.one
+
+function Treat.cuff(on: boolean)
+	if cuffPart then
+		cuffPart:Destroy()
+		cuffPart = nil
+	end
+	if not on then
+		return
+	end
+	local ch = player.Character
+	local arm = ch and (ch:FindFirstChild("LeftUpperArm") or ch:FindFirstChild("Left Arm"))
+	if not arm or not arm:IsA("BasePart") then
+		return
+	end
+	local p = Instance.new("Part")
+	p.Name = "BPCuff"
+	cuffBase = Vector3.new(arm.Size.X + 0.12, math.min(0.7, arm.Size.Y * 0.55), arm.Size.Z + 0.12)
+	p.Size = cuffBase
+	p.Color = Color3.fromRGB(28, 44, 82)
+	p.Material = Enum.Material.Fabric
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CanQuery = false
+	p.Massless = true
+	p.CastShadow = false
+	p.CFrame = arm.CFrame * CFrame.new(0, arm.Size.Y * 0.18, 0)
+	local strip = Instance.new("Part")
+	strip.Name = "Velcro"
+	strip.Size = Vector3.new(0.06, cuffBase.Y * 0.9, 0.3)
+	strip.Color = Color3.fromRGB(210, 214, 220)
+	strip.Material = Enum.Material.SmoothPlastic
+	strip.CanCollide = false
+	strip.CanTouch = false
+	strip.CanQuery = false
+	strip.Massless = true
+	strip.CFrame = p.CFrame * CFrame.new(-cuffBase.X / 2 - 0.02, 0, 0)
+	local w = Instance.new("WeldConstraint")
+	w.Part0 = arm
+	w.Part1 = p
+	w.Parent = p
+	local w2 = Instance.new("WeldConstraint")
+	w2.Part0 = p
+	w2.Part1 = strip
+	w2.Parent = strip
+	strip.Parent = p
+	p.Parent = ctx.Tracker.localFolder()
+	cuffPart = p
+end
+
+-- frac 0..1 = how far the cuff is pumped up
+function Treat.cuffInflate(frac: number)
+	local p = cuffPart
+	if not p then
+		return
+	end
+	local a = math.clamp(frac, 0, 1)
+	Ui.tween(p, 0.15, { Size = cuffBase + Vector3.new(0.22 * a, 0.04 * a, 0.22 * a) })
+end
+
+-------------------------------------------------------------------------------------------------
 -- IV
 -------------------------------------------------------------------------------------------------
 local function setDrip(v: any?)
@@ -148,7 +213,10 @@ local function setDrip(v: any?)
 	p.CanCollide = false
 	p.CanTouch = false
 	p.CanQuery = false
-	p.CFrame = CFrame.new(spec.fallback + Vector3.new(0, -0.7, 0))
+	-- the real bag when it is streamed in (the drip falls from its bottom), else the surveyed position
+	local bag = ctx.mapPart(spec.path)
+	local top = if bag then bag.Position - Vector3.new(0, bag.Size.Y / 2 + 0.05, 0) else spec.fallback + Vector3.new(0, -0.55, 0)
+	p.CFrame = CFrame.new(top)
 	local pe = Instance.new("ParticleEmitter")
 	pe.Texture = "rbxasset://textures/particles/sparkles_main.dds"
 	pe.Color = ColorSequence.new(Color3.fromRGB(200, 240, 255))

@@ -22,6 +22,7 @@ Sites.ANCHORS = {
 	TreatBed1 = { path = "1F/TreatmentRoom/TreatBed1/BedSeat", seat = "self", at = V(0, 2, 0), fallback = V(-465.3, 10.8, 308.6), label = "주사실 1번 침대", kind = "bed" },
 	TreatBed2 = { path = "1F/TreatmentRoom/TreatBed2/BedSeat", seat = "self", at = V(0, 2, 0), fallback = V(-479.3, 10.8, 308.2), label = "주사실 2번 침대", kind = "bed" },
 	Pharmacy = { path = "1F/PharmacyCorner/PharmSign", at = V(0, 0, -2.2), floor = 1, y = 2.6, fallback = V(-545.0, 9.5, 294.3), label = "원내 약국", kind = "pharmacy" },
+	Magazine = { path = "1F/WaitingRoom/MagazineRack", at = V(0, 0, 0), floor = 1, y = 2.6, fallback = V(-456.2, 9.5, 269.1), label = "대기실 잡지 꽂이", kind = "magazine" },
 	WaitArea = { path = "1F/WaitingRoom/LEDScreen", at = V(0, 0, -12), floor = 1, y = 2.6, fallback = V(-468.8, 9.5, 281.0), label = "대기실", kind = "wait" },
 	CheckDesk = { path = "2F/CheckupCenter/DeskTop", at = V(0, 0, -3.3), floor = 2, y = 2.6, fallback = V(-535.1, 23.6, 297.3), label = "건강검진센터 접수", kind = "checkdesk" },
 	CheckScale = { path = "2F/CheckupCenter/Scale", at = V(0, 0, 0), floor = 2, y = 2.6, fallback = V(-548.6, 23.6, 300.0), label = "신장 · 체중계", kind = "station", station = "height" },
@@ -71,6 +72,7 @@ Sites.SCREENS = {
 	{ path = "1F/WaitingRoom/LEDScreen", kind = "wait", viewer = V(-462, 10, 278), at = V(-468.84, 14.5, 292.95), size = V(10, 5.6, 0.2) },
 	{ path = "1F/PharmacyCorner/PrescriptionScreen", kind = "rx", viewer = V(-538, 10, 291), at = V(-535.48, 11.75, 299.25), size = V(4.4, 2.3, 0.1) },
 	{ path = "2F/Lounge/LEDScreen", kind = "wait", viewer = V(-494, 24, 300) },
+	{ path = "1F/ConsultRoom/DoctorDesk/Monitor", kind = "chart", viewer = V(-554.2, 11, 272.5) },
 }
 
 -- the clinic's centre and the doctor's side of the consult room (camera framing)

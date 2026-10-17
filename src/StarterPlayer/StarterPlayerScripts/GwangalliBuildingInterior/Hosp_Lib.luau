@@ -1036,8 +1036,15 @@ function Lib.teleport(lcf: CFrame): boolean
 		flat = V3(0, 0, -1)
 	end
 	local p = target.Position + V3(0, up + 0.05, 0)
-	-- HumanoidRootPart 를 옮기면 관절로 이어진 몸 전체가 같이 옮겨짐 (캐릭터 물리 = 이 클라이언트 소유)
-	hrp.CFrame = CFrame.lookAt(p, p + flat.Unit)
+	-- 캐릭터 모델 통째로 PivotTo (HRP 기준 피벗 관계 유지). 실패하면 HRP 만 옮김 (관절로 몸 전체가 따라옴)
+	local goal = CFrame.lookAt(p, p + flat.Unit)
+	local moved = pcall(function()
+		local rel = hrp.CFrame:ToObjectSpace(ch:GetPivot())
+		ch:PivotTo(goal * rel)
+	end)
+	if not moved or (hrp.Position - goal.Position).Magnitude > 0.5 then
+		hrp.CFrame = goal
+	end
 	hrp.AssemblyLinearVelocity = Vector3.zero
 	pcall(function()
 		hum:MoveTo(p) -- 진행 중인 클릭 이동 (MoveTo) 취소: 도착한 자리에서 멈춤

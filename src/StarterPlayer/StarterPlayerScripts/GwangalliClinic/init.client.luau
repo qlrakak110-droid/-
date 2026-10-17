@@ -5,7 +5,8 @@
 -- the game's Health system); until then nothing of ours shows and the legacy hospital stays as it is.
 --
 -- ctx (shared by the modules): S, C, player, sharedModule, state, Ui, Net, visit (latest VisitView or nil),
--- health (latest health view), meds, call(op, payload) -> reply, anchor(name) -> BasePart?, flow (step token)
+-- health (latest health view), meds, call(op, payload) -> reply, anchor(name) -> BasePart?,
+-- mapPart(path) -> BasePart? (map clinic part, when streamed in), flow (step token)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,7 +51,7 @@ end
 
 local Ui = mod("Ui")
 local Net = mod("Net")
-local order = { "Screens", "Staff", "Prompts", "Tracker", "Desk", "Consult", "Treat", "Pharmacy", "Checkup", "Chart" }
+local order = { "Screens", "Staff", "Prompts", "Tracker", "Desk", "Consult", "Treat", "Pharmacy", "Checkup", "Chart", "Lounge" }
 local modules = {}
 for _, n in order do
 	table.insert(modules, mod(n))
@@ -85,6 +86,21 @@ function ctx.anchors(): { BasePart }
 		end
 	end
 	return out
+end
+
+-- a part of the map clinic by its venue path ("1F/TreatmentRoom/TreatBed1/IVBag"), nil while streamed out
+function ctx.mapPart(path: string): BasePart?
+	local cur: Instance? = workspace
+	for _, n in S.Config.Venue.Path do
+		cur = cur and cur:FindFirstChild(n)
+	end
+	for seg in string.gmatch(path, "[^/]+") do
+		cur = cur and cur:FindFirstChild(seg)
+	end
+	if cur and cur:IsA("BasePart") then
+		return cur
+	end
+	return nil
 end
 
 function ctx.rootPos(): Vector3?
