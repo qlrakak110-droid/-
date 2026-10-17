@@ -4866,7 +4866,7 @@ BUILD.backhall = function(K: any, V: any)
 			local d = wallSpot(K, "back", 3.6, 4.6, 5.8, 5.9, 0.4)
 			if d then
 				K:plate("WheelSign", 3.4, 1.0, 0.05, d, col(NAVY))
-				tx(K, "WheelSignText", 3.2, 0.85, d * CF(0, 0, 0.055), "♿ 휠체어 보관 · 자유롭게 이용하세요", WHITE, nil, { font = FONT_B })
+				tx(K, "WheelSignText", 3.2, 0.85, d * CF(0, 0, 0.055), "휠체어 보관 · 자유롭게 이용하세요", WHITE, nil, { font = FONT_B })
 			end
 		end
 		-- 엘리베이터 옆 층별 안내

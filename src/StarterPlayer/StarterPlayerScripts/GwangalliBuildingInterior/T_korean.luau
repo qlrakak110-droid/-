@@ -1084,7 +1084,7 @@ end
 -- 메뉴판 스타일
 local MENU_STYLES: { [string]: any } = {
 	wood = { frame = wood(66, 44, 30), face = L.of(212, 176, 128, M.WoodPlanks), title = rgb(110, 26, 22), fg = rgb(44, 28, 18), price = rgb(150, 30, 24), font = F.GothamBlack, rule = rgb(110, 76, 48) },
-	light = { frame = L.of(200, 202, 206, M.Metal), face = L.of(250, 250, 246), title = WHITE, titleBg = rgb(196, 30, 36), fg = rgb(30, 30, 32), price = rgb(200, 28, 32), glow = 1.0, font = F.GothamBlack, rule = rgb(220, 220, 214) },
+	light = { frame = L.of(200, 202, 206, M.Metal), face = L.of(214, 212, 204), title = WHITE, titleBg = rgb(196, 30, 36), fg = rgb(30, 30, 32), price = rgb(200, 28, 32), glow = 1.0, font = F.GothamBlack, rule = rgb(220, 220, 214) },
 	black = { frame = wood(40, 28, 20), face = L.of(26, 24, 22), title = rgb(255, 206, 80), fg = rgb(246, 242, 232), price = rgb(255, 206, 80), glow = 1.1, font = F.GothamBlack, rule = rgb(90, 80, 60) },
 	red = { frame = L.of(196, 160, 80, M.Metal, { r = 0.1 }), face = L.of(150, 22, 24), title = rgb(255, 220, 120), fg = rgb(255, 240, 214), price = rgb(255, 214, 90), glow = 1.0, font = F.GothamBlack, rule = rgb(200, 150, 70) },
 	chalk = { frame = wood(96, 66, 42), face = L.of(42, 48, 44, M.Slate), title = rgb(250, 248, 240), fg = rgb(236, 234, 226), price = rgb(255, 214, 140), font = F.PermanentMarker, rule = rgb(150, 150, 140) },
@@ -1119,9 +1119,8 @@ local function menuBoard(c: any, dcf: CFrame, w: number, h: number, title: strin
 		local row = (i - 1) % rows
 		local x0 = -w / 2 + 0.2 + cI * cw
 		local y = top - rh * (row + 0.5)
-		local tbg = if style == "light" then st.face.c else nil
-		ktext(K, "MenuItem", cw * 0.62, rh * 0.68, dcf * CF(x0 + cw * 0.32, y, z), it[1], { fg = st.fg, glow = st.glow, align = "Left", font = f, bg = tbg, d = 0.01 })
-		ktext(K, "MenuPrice", cw * 0.32, rh * 0.6, dcf * CF(x0 + cw * 0.81, y, z), it[2], { fg = st.price, glow = st.glow, align = "Right", font = f, bg = tbg, d = 0.01 })
+		ktext(K, "MenuItem", cw * 0.62, rh * 0.68, dcf * CF(x0 + cw * 0.32, y, z), it[1], { fg = st.fg, glow = st.glow, align = "Left", font = f })
+		ktext(K, "MenuPrice", cw * 0.32, rh * 0.6, dcf * CF(x0 + cw * 0.81, y, z), it[2], { fg = st.price, glow = st.glow, align = "Right", font = f })
 	end
 	for i = 1, cols - 1 do
 		K:plate("MenuColRule", 0.03, avail - 0.1, 0.012, dcf * CF(-w / 2 + 0.2 + cw * i, top - avail / 2 + 0.05, 0.18), col(st.rule))

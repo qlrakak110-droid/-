@@ -131,8 +131,8 @@ local function landing(K: any, f: number): any
 		Lib.tx(K, "CallDownArrow", 0.22, 0.22, Lib.face(-29.625, y + 3.55, zf - 0.087, 0, -1), "▼", C3(90, 94, 100), nil, { font = Lib.FONT_K })
 		table.insert(out.rings, dn)
 	end
-	-- 장애인용 낮은 버튼 · 화재 시 안내 · 층 표시
-	Lib.tx(K, "LowCall", 0.5, 0.6, Lib.face(-34.85, y + 2.70, zf, 0, -1), "♿\n▲▼", C.NAVY, C.WHITE, { font = Lib.FONT_K })
+	-- 낮은 호출 버튼 · 화재 시 안내 · 층 표시
+	Lib.tx(K, "LowCall", 0.5, 0.6, Lib.face(-34.85, y + 2.70, zf, 0, -1), "▲▼", C.NAVY, C.WHITE, { font = Lib.FONT_K })
 	if not low then
 		K:plate("FireWarnBorder", 1.6, 1.6, 0.02, Lib.face(-34.80, y + 4.20, zf, 0, -1), Look.of(206, 36, 40))
 		Lib.tx(K, "FireWarn", 1.5, 1.5, Lib.face(-34.80, y + 4.20, zf - 0.025, 0, -1), "화재 발생 시\n엘리베이터를\n이용하지 마시고\n계단을\n이용하십시오", C.RED, C.WHITE, { font = Lib.FONT_B })

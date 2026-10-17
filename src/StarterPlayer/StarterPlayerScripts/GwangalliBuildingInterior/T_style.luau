@@ -136,18 +136,17 @@ local function twoSidedSigns(K: any, V: any)
 		if fr and fr.BackgroundTransparency < 0.5 then
 			bg = fr.BackgroundColor3
 		end
-		-- 글자 있는 면의 반대쪽 법선 (매장 프레임)
-		local n = if gui.Face == Enum.NormalId.Back then r.lcf.LookVector elseif gui.Face == Enum.NormalId.Front then -r.lcf.LookVector else nil
-		if not n then
-			continue
+		-- 양쪽 면 모두에 같은 글자판 (글자 있는 면은 같은 글자로 덮이므로 똑같이 보임; Face 정보가 없는 환경에서도 안전)
+		local pcfL = V.cf:ToObjectSpace(part.CFrame)
+		local half = part.Size.Z / 2
+		local up = pcfL.UpVector
+		for _, n in { pcfL.LookVector, -pcfL.LookVector } do
+			local o = r.c + n * (half + 0.004)
+			local dcf = CFrame.fromMatrix(o, up:Cross(n), up, n)
+			K:free(function()
+				txt(K, "SignBackFace", part.Size.X - 0.02, part.Size.Y - 0.02, dcf, label.Text, label.TextColor3, bg, label.Font)
+			end)
 		end
-		local half = r.size.Z / 2
-		local up = r.lcf.UpVector
-		local o = r.c + n * (half + 0.004)
-		local dcf = CFrame.fromMatrix(o, up:Cross(n), up, n)
-		K:free(function()
-			txt(K, "SignBackFace", r.size.X - 0.02, r.size.Y - 0.02, dcf, label.Text, label.TextColor3, bg, label.Font)
-		end)
 	end
 end
 
@@ -1725,22 +1724,24 @@ local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: numbe
 	if bk ~= "dress" then
 		K:vcyl("ManqB_Waistband", 0.14 * s, 0.8 * s, P(0, 3.62, 0), lk(dk(outfit.bottom or outfit.top, 0.15), M.Fabric))
 	end
-	K:ell("ManqT_Waist", S3(0.76, 0.75, 0.5), P(0, 3.95, 0), top)
-	K:ell("ManqT_Chest", S3(1.02, 1.0, 0.6), P(0, 4.5, 0), top)
+	K:ell("ManqT_Waist", S3(0.78, 1.05, 0.5), P(0, 3.92, 0), top)
+	K:ell("ManqT_Chest", S3(1.0, 1.15, 0.6), P(0, 4.45, 0), top)
 	K:seg("ManqT_Shoulder", P(-0.5, 4.93, 0).Position, P(0.5, 4.93, 0).Position, 0.36 * s, top)
 	for _, sx in { -1, 1 } do
 		K:ball("ManqT_ShoulderCap", 0.37 * s, P(sx * 0.52, 4.92, 0), top)
 	end
 	-- 스커트 · 원피스 치마 (층층 원판 = 티어드)
 	if bk == "skirt" or dress then
-		local tiers = if dress then 4 else 3
+		-- A 라인: 얇은 원판 여러 장이 아래로 갈수록 넓어짐 (같은 색) + 밑단 띠
+		local tiers = if dress then 6 else 4
 		local yTop = if dress then 3.55 else 3.6
+		local hgt = 0.27
+		local name = if dress then "ManqT_Skirt" else "ManqB_Skirt"
+		local look = if dress then top else bot
 		for k = 1, tiers do
-			local dia = (0.86 + k * 0.13) * s
-			local hgt = 0.42 * s
-			local name = if dress then "ManqT_Skirt" else "ManqB_Skirt"
-			K:vcyl(name, hgt, dia, P(0, yTop - (k - 0.5) * 0.42, 0), if k % 2 == 0 then (if dress then topD else lk(dk(outfit.bottom or outfit.top, 0.1), M.Fabric)) else (if dress then top else bot))
+			K:vcyl(name, hgt * s + 0.01, (0.84 + k * 0.075) * s, P(0, yTop - (k - 0.5) * hgt, 0), look)
 		end
+		K:vcyl(if dress then "ManqT_Hem" else "ManqB_Hem", 0.06 * s, (0.86 + tiers * 0.075) * s, P(0, yTop - tiers * hgt + 0.03, 0), if dress then topD else lk(dk(outfit.bottom or outfit.top, 0.15), M.Fabric))
 	end
 	-- 상의 디테일
 	if kind == "jacket" then
@@ -1904,6 +1905,9 @@ local function buildClothing(K: any, V: any, S: any)
 	for _, pz in { { -3.2, V.z1 - 7 }, { 3.2, (V.z0 + V.z1) / 2 + 2 }, { -3.2, V.z0 + 12 }, { V.x1 - 4.5, V.z0 + 6 } } do
 		litDownlight(K, pz[1], pz[2])
 	end
+	-- 벽 진열 (레일 · 큐비) 을 비추는 중성광 월워셔 2 (옷 색이 살게)
+	litDownlight(K, V.x0 + 2.6, (V.z0 + V.z1) / 2 + 3, Look.neutralLight, 16)
+	litDownlight(K, V.x1 - 2.6, (V.z0 + V.z1) / 2 + 6, Look.neutralLight, 16)
 
 	-- 1) 벽 레일 + 옷 (맵 Rail 자리) --------------------------------------------------------------------
 	for _, rail in recs(V, "Rail") do
@@ -2609,7 +2613,7 @@ local function buildClothing(K: any, V: any, S: any)
 									local nm = p.Name
 									local pre = string.sub(nm, 1, 6)
 									if pre == "ManqT_" then
-										p.Color = if nm == "ManqT_Lapel" or nm == "ManqT_Collar" or nm == "ManqT_Cuff" or nm == "ManqT_Neckline" or nm == "ManqT_Ribbing" or nm == "ManqT_Pocket" then dk(o.top, 0.12) else o.top
+										p.Color = if nm == "ManqT_Lapel" or nm == "ManqT_Collar" or nm == "ManqT_Cuff" or nm == "ManqT_Neckline" or nm == "ManqT_Ribbing" or nm == "ManqT_Pocket" or nm == "ManqT_Hem" then dk(o.top, 0.12) else o.top
 									elseif pre == "ManqB_" then
 										p.Color = if nm == "ManqB_Waistband" or nm == "ManqB_Hem" or nm == "ManqB_ShortsCuff" then dk(o.bottom or o.top, 0.12) else (o.bottom or o.top)
 									end
@@ -2758,9 +2762,12 @@ local function photoArt(K: any, d: CFrame, aw: number, ah: number, kind: string)
 	elseif kind == "wave" then
 		R("ArtSky", aw, ah, 0, 0, 1, rgb(170, 214, 236))
 		R("ArtSea", aw, ah * 0.5, 0, -0.25, 2, rgb(36, 120, 160))
-		O("ArtWave", aw * 0.62, ah * 0.92, 0.16, -0.14, 3, rgb(30, 150, 170))
-		O("ArtBarrel", aw * 0.3, ah * 0.5, 0.22, -0.18, 4, rgb(16, 80, 110))
-		O("ArtLip", aw * 0.46, ah * 0.12, 0.1, 0.28, 4, rgb(244, 250, 252), -0.25)
+		O("ArtWave", aw * 0.78, ah * 0.7, 0.14, -0.22, 3, rgb(30, 150, 170), 0.3)
+		O("ArtWaveShade", aw * 0.5, ah * 0.42, 0.22, -0.3, 4, rgb(24, 122, 150), 0.3)
+		O("ArtLip", aw * 0.6, ah * 0.08, 0.04, 0.08, 4, rgb(244, 250, 252), 0.3)
+		for j = 0, 3 do
+			O("ArtSpray", 0.08 + j * 0.02, 0.06 + j * 0.015, 0.28 + j * 0.05, 0.16 + (j % 2) * 0.08, 4, rgb(240, 248, 252))
+		end
 		R("ArtFoam", aw, ah * 0.1, 0, -0.45, 4, rgb(236, 246, 250))
 		-- 서퍼 (몸 · 머리 · 보드)
 		O("ArtSurferBoard", 0.42, 0.06, -0.06, -0.24, 4, rgb(250, 120, 80), 0.25)
@@ -2831,7 +2838,10 @@ local function surfboard(K: any, cf: CFrame, len: number, w: number, t: number, 
 		local _ = txt(K, "BoardNo", w * 0.42, w * 0.18, cf * CF(0, len * 0.06, top + 0.006), o.no, o.noC or rgb(30, 30, 32), nil, F.GothamBlack)
 	end
 	if o.logo ~= false then
-		table.insert(out, K:ell("BoardLogo", V3(w * 0.34, w * 0.16, 0.01), cf * CF(0, len * 0.28, top * 0.86), lk(o.logoC or dk(railC, 0.35))))
+		-- 브랜드 스티커 (데크 색과 대비되는 레일 색 타원 + 가는 띠)
+		local logoC = o.logoC or (if o.deck and o.deck ~= railC then railC else rgb(250, 250, 248))
+		table.insert(out, K:ell("BoardLogo", V3(w * 0.3, w * 0.13, 0.01), cf * CF(0, len * 0.28, top * 0.86), lk(logoC)))
+		table.insert(out, K:box("BoardLogoBar", V3(w * 0.2, 0.025, 0.012), cf * CF(0, len * 0.28 - w * 0.1, top * 0.86), lk(logoC)))
 	end
 	return out
 end

@@ -205,10 +205,10 @@ function Lib.exitSign(K: any, dcf: CFrame, w: number, label: string?, kind: stri
 	return box
 end
 
--- 그림 문자 (🚺 🚹 ♿ 🏃 ...) 정사각 판
+-- 그림 문자 (🚺 🚹 🏃 ...) 정사각 판
 function Lib.pictogram(K: any, dcf: CFrame, h: number, kind: string, o: any?)
 	local oo: any = o or {}
-	local glyph = ({ f = "🚺", m = "🚹", wheel = "♿", run = "🏃", baby = "🚼", nosmoke = "🚭", lift = "🛗" } :: any)[kind] or kind
+	local glyph = ({ f = "🚺", m = "🚹", run = "🏃", baby = "🚼", nosmoke = "🚭", lift = "🛗" } :: any)[kind] or kind
 	local bg = oo.bg or (if kind == "f" then Geo.C.RED elseif kind == "m" then Geo.C.NAVY else Geo.C.TEAL)
 	K:plate("PictoBack", h, h, 0.04, dcf, { c = bg, m = M.SmoothPlastic, free = true })
 	Lib.tx(K, "Picto", h * 0.86, h * 0.86, dcf * CF(0, 0, 0.045), glyph, oo.fg or Geo.C.WHITE, nil, { font = FONT_K })

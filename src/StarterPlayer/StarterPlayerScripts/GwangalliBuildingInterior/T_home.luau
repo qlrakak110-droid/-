@@ -3332,6 +3332,14 @@ function C:slotOverlays()
 		end
 		table.insert(K.conns, slot.ChildAdded:Connect(changed))
 		table.insert(K.conns, slot.ChildRemoved:Connect(changed))
+		-- 기본 가구 돌리기: 서버가 같은 모델을 PivotTo 로 돌림 (자식 추가 · 삭제 없음) → 기준 파트 CFrame 변화로 다시 짓기
+		local dp = defaultPiece(slot)
+		if dp then
+			local bp = dp.PrimaryPart or dp:FindFirstChildWhichIsA("BasePart", true)
+			if bp then
+				table.insert(K.conns, bp:GetPropertyChangedSignal("CFrame"):Connect(changed))
+			end
+		end
 	end
 end
 
@@ -4039,12 +4047,23 @@ function P.photoCluster(C_: any, dcf: CFrame, n: number, seed: number)
 		local l = layout[i]
 		local f = artFrame(K, dcf * CF(l[1], l[2], 0), l[3], l[4], { frame = if i % 2 == 0 then L.walnut else lk(246, 246, 244), border = 0.06, depth = 0.06, mat = lk(250, 250, 248) })
 		local iw, ih = l[3] - 0.24, l[4] - 0.24
-		K:box("HomePhotoImg", V3(iw, ih, 0.006), f * CF(0, 0, 0.003), { c = c3(150 + math.floor(rnd(seed, i) * 60), 160, 175), m = M.SmoothPlastic })
-		K:box("HomePhotoSky", V3(iw, ih * 0.4, 0.007), f * CF(0, ih * 0.3, 0.004), lk(160, 200, 230))
-		-- 사람 실루엣 2
-		for j = -1, 1, 2 do
-			K:ell("HomePhotoPerson", V3(iw * 0.18, ih * 0.5, 0.004), f * CF(j * iw * 0.14, -ih * 0.12, 0.008), lk(70 + j * 10, 60, 60))
-			K:ball("HomePhotoHead", math.min(iw, ih) * 0.14, f * CF(j * iw * 0.14, ih * 0.18, 0.008), lk(230, 200, 180))
+		-- 바닷가 가족사진: 하늘 · 바다 · 모래 띠 + 사람 2~3 (옷 색 · 머리 · 아이)
+		K:box("HomePhotoImg", V3(iw, ih, 0.006), f * CF(0, 0, 0.003), lk(222, 204, 170))
+		K:box("HomePhotoSky", V3(iw, ih * 0.45, 0.007), f * CF(0, ih * 0.275, 0.004), if i % 3 == 0 then lk(236, 186, 150) else lk(166, 204, 232))
+		K:box("HomePhotoSea", V3(iw, ih * 0.16, 0.007), f * CF(0, -0.03 * ih, 0.0045), lk(60, 120, 170))
+		local shirts = { c3(250, 250, 248), c3(40, 60, 100), c3(236, 150, 160), c3(240, 200, 80), c3(120, 160, 120) }
+		local nP = if i % 2 == 1 then 3 else 2
+		local unit = math.min(iw, ih)
+		for j = 1, nP do
+			local px = (j - (nP + 1) / 2) * iw * 0.26
+			local kid = nP == 3 and j == 2
+			local sc = if kid then 0.7 else 1
+			local col = shirts[(math.floor(rnd(seed, i * 7 + j) * 5)) % 5 + 1]
+			local by = -ih * 0.5 + ih * 0.22 * sc
+			K:ell("HomePhotoPerson", V3(unit * 0.26 * sc, ih * 0.46 * sc, 0.004), f * CF(px, by, 0.008 + j * 0.0005), { c = col, m = M.SmoothPlastic })
+			local hy = by + ih * 0.25 * sc
+			K:disc("HomePhotoHair", unit * 0.15 * sc, 0.003, f * CF(px, hy + unit * 0.02, 0.0095 + j * 0.0005) * ANG(PI / 2, 0, 0), lk(46, 34, 28))
+			K:disc("HomePhotoHead", unit * 0.13 * sc, 0.003, f * CF(px, hy, 0.012 + j * 0.0005) * ANG(PI / 2, 0, 0), lk(232, 198, 172))
 		end
 	end
 end
@@ -4119,15 +4138,27 @@ function C:commonReskins()
 			local gl = { c = p.Color:Lerp(Color3.new(0, 0, 0), 0.22), m = M.SmoothPlastic }
 			local cols = math.max(2, math.floor(wid / 2.3 + 0.5))
 			local cw = wid / cols
+			local grout: { BasePart } = {}
 			K:free(function()
 				for k = 1, cols - 1 do
-					K:box("HomeArtWallGrout", V3(0.03, p.Size.Y - 0.02, 0.012), f * CF(-wid / 2 + k * cw, 0, 0.004), gl)
+					table.insert(grout, K:box("HomeArtWallGrout", V3(0.03, p.Size.Y - 0.02, 0.012), f * CF(-wid / 2 + k * cw, 0, 0.004), gl))
 				end
 				local rows = math.max(1, math.floor(p.Size.Y / 4.2 + 0.5))
 				for k = 1, rows - 1 do
-					K:box("HomeArtWallGrout", V3(wid - 0.02, 0.03, 0.012), f * CF(0, -p.Size.Y / 2 + k * p.Size.Y / rows, 0.004), gl)
+					table.insert(grout, K:box("HomeArtWallGrout", V3(wid - 0.02, 0.03, 0.012), f * CF(0, -p.Size.Y / 2 + k * p.Size.Y / rows, 0.004), gl))
 				end
 			end)
+			-- 테마 구매로 아트월 색이 바뀌면 줄눈도 그 색의 어두운 톤으로 따라감
+			do
+				K.conns = K.conns or {}
+				table.insert(K.conns, p:GetPropertyChangedSignal("Color"):Connect(function()
+					for _, g in grout do
+						if g.Parent then
+							g.Color = p.Color:Lerp(Color3.new(0, 0, 0), 0.22)
+						end
+					end
+				end))
+			end
 		end)
 	end
 	-- 벽걸이 에어컨

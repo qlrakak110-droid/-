@@ -1,7 +1,7 @@
 --!strict
 -- GwangalliBuildingInterior/Hosp_Restroom: 1F 후면 홀 서쪽 끝의 진짜 남/여 화장실 (설계 §7.2).
---   여자 화장실 (서쪽): 장애인 겸용 칸 + 일반 칸 + 청소도구함, 세면대 2, 핸드드라이어, 종이타월, 기저귀 교환대
---   남자 화장실 (동쪽): 장애인 겸용 칸, 소변기 2 (칸막이 · 자동 물 내림), 세면대 2, 핸드드라이어, 종이타월, 기저귀 교환대
+--   여자 화장실 (서쪽): 넓은 칸 + 일반 칸 + 청소도구함, 세면대 2, 핸드드라이어, 종이타월, 기저귀 교환대
+--   남자 화장실 (동쪽): 넓은 칸, 소변기 2 (칸막이 · 자동 물 내림), 세면대 2, 핸드드라이어, 종이타월, 기저귀 교환대
 --   입구 문: 다가가면 안쪽으로 열리고 도어클로저로 닫힘. 칸 문: 안에서 잠그면 "사용중" (빨강), 풀면 "비어있음" (초록).
 --   상호작용: 물 내리기 · 손 씻기 · 손 말리기 · 잠그기/잠금 해제 · 비상벨 · 기저귀 교환대 펼치기/접기.
 --   동작 감지 조명: 안에 들어가면 켜지고, 나간 뒤 20 초 지나면 꺼짐.
@@ -258,14 +258,11 @@ local function stall(K: any, spec: any): any
 	local leafPart: BasePart? = nil
 	local g = K:group("StallDoor_" .. spec.id, function()
 		leafPart = Lib.ab(K, "StallLeaf", spec.x0, 0.50, spec.z0, spec.x1, 6.80, spec.z1, LK.hplDoor)
-		-- 바깥: 사용 표시창 + (장애인 칸) ♿ 판
+		-- 바깥: 사용 표시창
 		local latchX = if spec.hinge > (spec.x0 + spec.x1) / 2 then spec.x0 + 0.42 else spec.x1 - 0.42
 		K:plate("LockWindowRim", 0.62, 0.30, 0.02, Lib.face(latchX, 3.6, outZ, 0, -1), LK.chrome)
 		local _, t = Lib.tx(K, "LockIndicator", 0.56, 0.24, Lib.face(latchX, 3.6, outZ - 0.02, 0, -1), "비어있음", C.WHITE, C3(40, 170, 90), { font = Lib.FONT_K })
 		indicator = t
-		if spec.wheel then
-			Lib.pictogram(K, Lib.face((spec.x0 + spec.x1) / 2, 4.8, outZ, 0, -1), 0.8, "wheel", { bg = C.NAVY })
-		end
 		-- 안쪽: 잠금 손잡이 · 옷걸이 · 안내
 		knob = K:box("LockKnob", V3(0.28, 0.14, 0.10), CF(spec.knobX, 3.6, inZ + 0.05), LK.chrome)
 		K:cyl("LockBase", 0.04, 0.3, CF(spec.knobX, 3.6, inZ + 0.01) * ANG(0, PI / 2, 0), LK.chrome)
@@ -304,7 +301,7 @@ local function stall(K: any, spec: any): any
 	if knob then
 		st.prompt = Interact.prompt(K, knob, {
 			action = "잠그기",
-			object = if spec.wheel then "장애인 겸용 칸" else "화장실 칸",
+			object = if spec.wheel then "넓은 칸" else "화장실 칸",
 			sound = SND.click,
 			fn = function()
 				local me = Lib.me()
@@ -636,7 +633,7 @@ function R.build(K: any, env: any)
 	table.insert(flushers, { lever = lw1, water = ww1 })
 	local lw2, ww2 = toilet(K, -51.75)
 	table.insert(flushers, { lever = lw2, water = ww2 })
-	-- 장애인 칸 손잡이 + 휴지걸이 + 비상벨 + 위생용품 수거함
+	-- 넓은 칸 손잡이 + 휴지걸이 + 비상벨 + 위생용품 수거함
 	grab(K, V3(-59.15, 2.65, 34.6), V3(-59.15, 2.65, 37.6), V3(-1, 0, 0))
 	grab(K, V3(-59.15, 2.65, 34.6), V3(-59.15, 5.2, 34.6), V3(-1, 0, 0))
 	if not low then
@@ -778,13 +775,13 @@ function R.build(K: any, env: any)
 	-- 홀에서 북쪽을 보면 서쪽(여자)이 오른쪽, 동쪽(남자)이 왼쪽
 	Lib.tx(K, "SignColumnW", 1.0, 0.8, col * CF(0, 0.9, 0.065), "🚺 여 →", C.RED, nil, { font = Lib.FONT_K })
 	Lib.tx(K, "SignColumnM", 1.0, 0.8, col * CF(0, -0.1, 0.065), "← 남 🚹", C.NAVY, nil, { font = Lib.FONT_K })
-	Lib.tx(K, "SignColumnWheel", 1.0, 0.6, col * CF(0, -1.1, 0.065), "♿ 장애인 겸용", C.NAVY, nil, { font = Lib.FONT_B })
+	Lib.tx(K, "SignColumnWheel", 1.0, 0.6, col * CF(0, -1.1, 0.065), "넓은 칸", C.NAVY, nil, { font = Lib.FONT_B })
 	-- 돌출 간판 (양면, 동쪽에서 보임)
 	K:free(function()
 		Lib.ab(K, "BladeSign", -37.26, 7.40, 25.30, -37.14, 8.60, 26.90, LK.white)
 		Lib.ab(K, "BladeBracket", -37.24, 8.0, 26.90, -37.16, 8.1, 27.00, LK.alu)
 		for _, sx in { 1, -1 } do
-			Lib.tx(K, "BladeText", 1.5, 1.1, Lib.face(-37.20 + sx * 0.065, 8.0, 26.1, sx, 0), "🚺 화장실 🚹 ♿", C.NAVY, nil, { font = Lib.FONT_K })
+			Lib.tx(K, "BladeText", 1.5, 1.1, Lib.face(-37.20 + sx * 0.065, 8.0, 26.1, sx, 0), "🚺 화장실 🚹", C.NAVY, nil, { font = Lib.FONT_K })
 		end
 	end)
 	Lib.exitSign(K, Lib.face(-37.8, 1.2, 27.00, 0, -1), 1.2, "← 🏃", "path") -- 비상구는 동쪽 (북쪽을 보면 왼쪽)
