@@ -1671,7 +1671,11 @@ local function kitchen(c: any)
 	elseif th.kind == "crab" then
 		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.9, kind = "pot" }, { w = 1.0, kind = "boxes" } }
 	else
-		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.0, kind = "boxes" }, { w = 1.0, kind = "wrap" }, { w = 1.0, kind = "gloves" } }
+		items = { { w = 1.1, kind = "scale" }, { w = 1.7, kind = "sink" }, { w = 1.7, kind = "platter" }, { w = 1.2, kind = "sauce" }, { w = 1.3, kind = "bowl" }, { w = 1.0, kind = "boxes" }, { w = 1.0, kind = "wrap" }, { w = 1.0, kind = "gloves" }, { w = 1.1, kind = "plates" } }
+	end
+	if th.kind == "jjim" or th.kind == "crab" then
+		table.insert(items, { w = 1.3, kind = "bowl" })
+		table.insert(items, { w = 1.1, kind = "plates" })
 	end
 	local cursor = tmn.X + 0.3
 	local steamSrc: { any } = {}
@@ -1695,6 +1699,8 @@ local function kitchen(c: any)
 				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 else 1.0)) then
 					placed = true
 					cursor = b + 0.2
+					-- 놓은 자리는 다음 품목 (처음부터 다시 찾을 때 포함) 이 피함
+					table.insert(busy, { a - 0.1, b + 0.1 })
 					if it.kind == "scale" then
 						scale(K, base)
 					elseif it.kind == "platter" then
@@ -1712,6 +1718,22 @@ local function kitchen(c: any)
 					elseif it.kind == "wrap" then
 						K:box("WrapBox", V3(0.9, 0.2, 0.24), base * CF(0, 0.1, 0), L.of(40, 120, 70))
 						K:cyl("WrapRoll", 0.86, 0.12, base * CF(0, 0.24, 0.03), { c = rgb(236, 244, 246), m = M.Glass, t = 0.35 })
+					elseif it.kind == "bowl" then
+						-- 스텐 볼 (무채 · 깻잎) + 집게
+						K:disc("PrepBowl", 1.1, 0.34, base * CF(0, 0.17, 0), L.of(210, 214, 218, M.Metal, { r = 0.2 }))
+						K:disc("PrepBowlRim", 1.18, 0.04, base * CF(0, 0.35, 0), L.chrome)
+						K:ell("RadishShred", V3(0.86, 0.22, 0.86), base * CF(0, 0.32, 0), L.of(248, 248, 242, M.Fabric))
+						K:ell("PerillaPile", V3(0.36, 0.08, 0.3), base * CF(0.18, 0.43, 0.12), L.of(56, 112, 52))
+						K:box("Tongs", V3(0.7, 0.03, 0.07), base * CF(0.2, 0.47, -0.1) * ANG(0, 0.5, 0.2), L.chrome)
+					elseif it.kind == "plates" then
+						-- 회 접시 (흰 타원 플라스틱) 더미 + 초장 종지
+						for k = 1, 5 do
+							K:slab("SashimiPlate", 0.95, 0.7, 0.05, 0.3, base * CF(0, 0.03 + (k - 1) * 0.055, 0) * ANG(0, (k % 2) * 0.05, 0), L.of(246, 246, 242, M.SmoothPlastic))
+						end
+						for k = 1, 3 do
+							K:disc("SauceDish", 0.26, 0.08, base * CF(-0.3 + k * 0.17, 0.33 + (k - 1) * 0.08, 0.15), L.of(240, 240, 236))
+						end
+						K:disc("SauceDishFill", 0.2, 0.02, base * CF(0.21, 0.54, 0.15), L.of(196, 40, 30))
 					elseif it.kind == "gloves" then
 						K:box("GloveBox", V3(0.7, 0.3, 0.42), base * CF(0, 0.15, 0), L.of(240, 240, 236))
 						K:box("GloveBoxBand", V3(0.72, 0.1, 0.44), base * CF(0, 0.2, 0), L.of(40, 110, 190))

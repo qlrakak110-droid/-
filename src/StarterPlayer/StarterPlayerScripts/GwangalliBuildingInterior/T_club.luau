@@ -544,6 +544,22 @@ local function hangSign(K: any, R: any, x: number, z: number, y: number, w: numb
 end
 
 -- 피난구 유도등 (초록 바탕 + 흰 달리는 사람 + 화살표). dcf 중심
+-- 맵 백바의 네모 술병 (유리 상자) 위에 목 + 마개 하나씩 (병 모양 실루엣, 파트 1개씩)
+local function bottleNecks(K: any, R: any, list: { any }?)
+	K:free(function()
+		local CAPS = { rgb(24, 22, 20), rgb(196, 160, 80), rgb(120, 24, 30), rgb(190, 192, 196), rgb(24, 22, 20), rgb(40, 60, 40) }
+		for i, r in list or {} do
+			local mn, mx = abox(R, r)
+			local w = math.min(mx.X - mn.X, mx.Z - mn.Z)
+			if w > 0.2 and w < 0.9 and mx.Y - mn.Y > 0.6 and not K.hidden[r.part] then
+				local c = (mn + mx) / 2
+				local nh = 0.3 + (i % 3) * 0.08
+				K:vcyl("BottleNeck", nh, math.min(0.16, w * 0.4), at(R, c.X, c.Z, 0, mx.Y + nh / 2), lk(CAPS[i % #CAPS + 1], if i % 4 == 1 then M.Metal else M.SmoothPlastic))
+			end
+		end
+	end)
+end
+
 local function exitLight(K: any, dcf: CFrame, w: number, arrow: string?)
 	local h = w * 0.42
 	K:plate("ExitLightBody", w, h, 0.18, dcf, Look.white)
@@ -2280,6 +2296,7 @@ local function buildHipHop(K: any, V: any, R: any)
 	end)
 
 	-- 바: 앞면 골강판 · 매달린 메뉴판 · 케이지 펜던트 --------------------------------------------------------------
+	bottleNecks(K, R, V.byName.Bottle)
 	K:free(function()
 		local fz0, fz1 = 3.1, 26.9
 		local fd = face(R, -15.98, 2.0, (fz0 + fz1) / 2, PI / 2)
@@ -2376,6 +2393,53 @@ local function buildHipHop(K: any, V: any, R: any)
 	K:free(function()
 		txt(K, "FloorStencil", 7.0, 1.6, topCF(ap(R, -0.5, 0.02, 31.0), av(R, 0, 0, -1)), "WELCOME TO THE CYPHER", rgb(220, 220, 214), nil, F.GothamBlack, nil, { d = 0.01 })
 	end)
+	-- 앞쪽 절반 (입구 ~ 사이퍼): 비어 있던 콘크리트 바닥에 스탠딩 드럼통 테이블 2 · 우유 상자 더미 · 바닥 스프레이 원
+	for i, zc in { 13.5, 21.5 } do
+		local xc = 7.6
+		local pcf = at(R, xc, zc)
+		if placeOr(R, pcf, V3(2.4, 3.8, 2.4), 0.3, "front barrel table") then
+			local col = if i == 1 then rgb(240, 200, 40) else rgb(30, 30, 32)
+			K:vcyl("BarrelBody", 3.4, 1.9, pcf * CF(0, 1.7, 0), lk(col, M.Metal))
+			for _, y in { 0.6, 1.7, 2.8 } do
+				K:vcyl("BarrelRib", 0.1, 1.96, pcf * CF(0, y, 0), lk(dk(col, 0.35), M.Metal))
+			end
+			K:disc("BarrelTop", 2.5, 0.12, pcf * CF(0, 3.46, 0), lk(rgb(56, 40, 30), M.Wood))
+			K:disc("BarrelTopEdge", 2.56, 0.06, pcf * CF(0, 3.38, 0), Look.blackMetal)
+			txt(K, "BarrelStencil", 1.3, 0.7, at(R, xc, zc + 0.96, 0, 1.9), if i == 1 then "DANGER\n051" else "ROOM 2\nBUSAN", if i == 1 then BLACK else rgb(240, 200, 40), nil, F.GothamBlack)
+			-- 위에 컵 받침 · 재떨이 대신 금연 스티커 (클럽 실내 금연)
+			K:box("BarrelSticker", V3(0.7, 0.01, 0.5), pcf * CF(-0.5, 3.53, 0.4) * ANG(0, 0.4, 0), lk(rgb(220, 40, 40)))
+		end
+	end
+	do
+		local CR = { rgb(220, 40, 40), rgb(40, 90, 200), rgb(250, 200, 40), rgb(40, 150, 80) }
+		local function crate(cf: CFrame, col: Color3)
+			K:box("MilkCrate", V3(1.6, 1.1, 1.6), cf * CF(0, 0.55, 0), lk(col, M.Plastic))
+			K:box("MilkCrateInner", V3(1.38, 0.02, 1.38), cf * CF(0, 1.105, 0), lk(dk(col, 0.6), M.Plastic))
+			for _, sx in { -1, 1 } do
+				K:box("MilkCrateHandle", V3(0.02, 0.22, 0.6), cf * CF(sx * 0.81, 0.85, 0), Look.black)
+			end
+		end
+		for si, s in { { -6.9, 17.0, 0.15 }, { -6.9, 19.4, -0.2 } } do
+			local pcf = at(R, s[1], s[2], s[3])
+			if placeOr(R, pcf, V3(1.8, 2.4, 1.8), 0, "crate stack") then
+				K:free(function()
+					crate(pcf, CR[si])
+					crate(pcf * CF(0, 1.1, 0) * ANG(0, 0.2 * si, 0), CR[si + 2])
+					if si == 2 then
+						for k = 0, 4 do
+							K:box("CrateVinyl", V3(1.2, 1.2, 0.04), pcf * CF(0, 2.15, -0.5 + k * 0.22) * ANG(0, 0.2 * si, 0) * ANG(-0.12, 0, 0), lk(({ rgb(240, 240, 232), rgb(20, 20, 20), rgb(220, 60, 40), rgb(30, 30, 30), rgb(250, 200, 40) })[k + 1]))
+						end
+					end
+				end)
+			end
+		end
+		-- 바닥 스프레이 원 (사이퍼로 이어지는 통로 바깥, 발에 밟혀 바랜 느낌)
+		K:free(function()
+			K:disc("FloorSprayRing", 6.2, 0.01, at(R, 7.6, 17.5, 0, 0.012), lk(rgb(200, 60, 140), M.SmoothPlastic, { t = 0.35 }))
+			K:disc("FloorSprayCore", 5.4, 0.012, at(R, 7.6, 17.5, 0, 0.014), lk(rgb(30, 30, 34), M.SmoothPlastic))
+			txt(K, "FloorSprayTag", 4.4, 1.2, topCF(ap(R, 7.6, 0.03, 17.5), av(R, -1, 0, 0)), "051 CYPHER", rgb(250, 200, 60), nil, F.GothamBlack, nil, { d = 0.01 })
+		end)
+	end
 	-- 벽화 조명 (색 PointLight)
 	do
 		local a = K:box("MuralLightA", V3(0.1, 0.1, 0.1), at(R, -14.0, 31.0, 0, 9.0), lk(BLACK, nil, { t = 1 }))
@@ -3090,18 +3154,7 @@ local function buildLounge(K: any, V: any, R: any)
 		end
 	end
 	-- 바 백바 병 (맵: 네모 유리 상자 149개) 위에 목 + 마개를 얹어 진짜 술병 실루엣으로 (각진 위스키 병처럼 보임)
-	K:free(function()
-		local CAPS = { rgb(24, 22, 20), rgb(196, 160, 80), rgb(120, 24, 30), rgb(190, 192, 196), rgb(24, 22, 20), rgb(40, 60, 40) }
-		for i, r in V.byName.Bottle or {} do
-			local mn, mx = abox(R, r)
-			local w = math.min(mx.X - mn.X, mx.Z - mn.Z)
-			if w > 0.2 and w < 0.9 and mx.Y - mn.Y > 0.6 then
-				local c = (mn + mx) / 2
-				local nh = 0.3 + (i % 3) * 0.08
-				K:vcyl("BottleNeck", nh, 0.16, at(R, c.X, c.Z, 0, mx.Y + nh / 2), lk(CAPS[i % #CAPS + 1], if i % 4 == 1 then M.Metal else M.SmoothPlastic))
-			end
-		end
-	end)
+	bottleNecks(K, R, V.byName.Bottle)
 	-- 오른벽 남쪽 (DJ 와 셀러 사이) 작은 액자 · 바 끝 메뉴 스탠드 --------------------------------------------------
 	K:free(function()
 		artFrame(K, wallR(R, -74.0, 6.6, 0), 4.0, 5.0, { { rgb(16, 20, 40), 0, 0, 1, 1 }, { rgb(80, 150, 255), 0.1, 0.4, 0.8, 0.05 }, { rgb(255, 120, 200), 0.3, 0.55, 0.4, 0.05 }, { rgb(240, 240, 255), 0.45, 0.7, 0.1, 0.15 } }, brassL)
