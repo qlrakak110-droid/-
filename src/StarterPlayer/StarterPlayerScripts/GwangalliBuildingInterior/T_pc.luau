@@ -1272,6 +1272,15 @@ local function frontSelfBar(K: any, V: any)
 		if np then
 			table.insert(P.rgb, { p = np, c = C.cyan, x = 0, z = 0, text = true })
 		end
+		-- 셀프바 위 다운라이트 2 (하나만 실제 빛)
+		for i, dz in { -0.9, 0.9 } do
+			local x, z = P.xl + 1.7, nz + dz
+			K:disc("SelfBarDownlightTrim", 0.72, 0.04, CF(x, P.ceil - 0.02, z), Look.white)
+			local lens = K:box("SelfBarDownlight", V3(0.46, 0.03, 0.46), CF(x, P.ceil - 0.055, z), neon(rgb(255, 236, 214)))
+			if i == 1 then
+				K:light(lens, "SurfaceLight", { Face = Enum.NormalId.Bottom, Range = 10, Brightness = 0.9, Angle = 120, Color = Look.neutralLight })
+			end
+		end
 	end)
 end
 
