@@ -612,6 +612,13 @@ THEMES.fuzzy = {
 		{ "진토닉", "진 · 토닉 · 라임", "10%", "11,000", rgb(230, 244, 240) },
 		{ "하이볼", "위스키 · 소다", "9%", "10,000", rgb(230, 186, 100) },
 	},
+	-- 퍼지네이블은 칵테일 + 생맥주 펍: 탭 타워 핸들은 칵테일 이름이 아니라 생맥주
+	towerTaps = {
+		{ "생맥주 500cc", "Draft Lager", "4.5%", "5,000", rgb(240, 200, 100), "LAGER", rgb(250, 196, 60) },
+		{ "흑맥주", "Dark Lager", "5.0%", "6,500", rgb(50, 30, 20), "DARK", rgb(30, 30, 34) },
+		{ "에일", "Pale Ale", "5.2%", "7,000", rgb(226, 164, 64), "ALE", rgb(255, 120, 170) },
+		{ "밀맥주", "Wheat", "4.9%", "7,000", rgb(244, 216, 120), "WEISS", rgb(244, 240, 226) },
+	},
 	foodTitle = "BAR BITES",
 	food = {
 		{ "치즈 & 크래커", nil, nil, "15,000" },
@@ -1641,7 +1648,14 @@ local function backCabinet(K: any, cab: any, th: any, c: any)
 						end
 					end
 				end
-				K:plate("BackCoolerFrame", dw - 0.06, bh - 0.04, 0.06, CF(base * V3(x, yc, fz)), L.of(26, 26, 28, M.Metal))
+				-- 문틀은 테두리 4개 (통판이면 안쪽 병 · 캔이 다 가려짐)
+				local fw, fh, rim = dw - 0.06, bh - 0.04, 0.15
+				local fcf = CF(base * V3(x, yc, fz + 0.03))
+				local fl = L.of(26, 26, 28, M.Metal)
+				K:box("BackCoolerFrame", V3(fw, rim, 0.06), fcf * CF(0, fh / 2 - rim / 2, 0), fl)
+				K:box("BackCoolerFrame", V3(fw, rim + 0.06, 0.06), fcf * CF(0, -fh / 2 + (rim + 0.06) / 2, 0), fl)
+				K:box("BackCoolerFrame", V3(rim, fh - 2 * rim - 0.06, 0.06), fcf * CF(-fw / 2 + rim / 2, 0.03, 0), fl)
+				K:box("BackCoolerFrame", V3(rim, fh - 2 * rim - 0.06, 0.06), fcf * CF(fw / 2 - rim / 2, 0.03, 0), fl)
 				K:box("BackCoolerGlass", V3(dw - 0.3, bh - 0.3, 0.03), base * CF(x, yc, fz + 0.075), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.15 })
 				K:box("BackCoolerHandle", V3(0.06, bh * 0.5, 0.08), base * CF(x + dw / 2 - 0.2, yc, fz + 0.12), L.chrome)
 				if c then
@@ -1998,7 +2012,8 @@ local function tapTower(c: any)
 		local _ = lab
 		for i, h in handles do
 			local hp = tc:PointToObjectSpace(h.c)
-			local tap = th.taps[(i - 1) % #th.taps + 1]
+			local tlist = th.towerTaps or th.taps
+			local tap = tlist[(i - 1) % #tlist + 1]
 			local hc = tap[7] or tap[5]
 			-- 파우셋 (앞으로 나온 몸통 + 아래 주둥이)
 			K:cyl("TapShank", 0.22, 0.09, tc * CF(hp.X, fy - 0.02, 0.16) * ANG(0, PI / 2, 0), chrome)
@@ -2127,10 +2142,22 @@ local function tvSet(c: any)
 	end
 	local dcf = V:wall(wn :: string, u, yc, 0)
 	local sw, sh = w - 0.14, h - 0.14
-	local z = 0.24
+	-- 맵 TVScreen (Neon) 은 숨길 수 없음 (Scan.hide 가 화면을 거부): 그 앞면보다 앞에 새 화면을 두고
+	-- 몸통을 그 깊이까지 키워 맵 화면 테두리를 감춤. 아니면 맵 화면이 새 중계 화면을 덮어 버림.
+	local front = 0
+	if tv then
+		for _, r in V.byName.TVScreen or {} do
+			if (r.c - tv.c).Magnitude < 3 then
+				local _, dd = V:wallCoord(wn :: string, r.c)
+				local half = if wn == "back" then r.size.Z / 2 else r.size.X / 2
+				front = math.max(front, dd + half)
+			end
+		end
+	end
+	local z = math.max(0.24, front + 0.015)
 	-- 맵 TV 와 같은 자리 덮어씌우기 (free)
 	K:plate("TVMount", w * 0.3, h * 0.3, 0.1, dcf, L.with(L.blackMetal, { free = true }))
-	K:plate("TVBody", w, h, 0.14, dcf * CF(0, 0, 0.1), L.of(18, 18, 20, nil, { free = true }))
+	K:plate("TVBody", w, h, z - 0.105, dcf * CF(0, 0, 0.1), L.of(18, 18, 20, nil, { free = true }))
 	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01, free = true })
 	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.01) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.005, free = true })
 	-- 내야 (흙 다이아몬드 안 잔디 + 베이스 3 + 마운드): 야구 중계 화면처럼
@@ -2156,7 +2183,7 @@ local function tvSet(c: any)
 	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.014), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.005, font = F.GothamBlack, free = true })
 	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.014), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.005, font = F.GothamMedium, free = true })
 	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.014), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.004, font = F.GothamBlack, free = true })
-	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.05, 0.24), L.with(L.chrome, { free = true }))
+	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.035, z - 0.005), L.with(L.chrome, { free = true }))
 	-- 사운드바 (상호작용 손잡이; 문 앞 keep 에 걸리면 생략하고 TV 에 붙임)
 	local bar = tvBody
 	if clearAt(K, dcf * CF(0, -h / 2 - 0.36, 0.2), V3(w * 0.66, 0.42, 0.34)) then

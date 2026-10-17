@@ -1295,10 +1295,10 @@ local function tankOverlay(c: any, t: any)
 	end
 	-- 뜰채 (탱크 끝에 기대 세움)
 	do
-		local nx = -hw - 0.25
-		local base = tcf * CF(nx, 0, hd - 0.3)
-		local mn, mx = laabb(base * CF(0, 3.3, 0), V3(0.5, 6.6, 0.5))
-		if K:hitsKeep(mn, mx) == nil and mapClear(V, mn, mx) then
+		local nx = -hw - 0.32
+		local base = tcf * CF(nx, 0, hd - 0.35)
+		local mn, mx = laabb(base * CF(0, 3.3, 0), V3(0.4, 6.6, 0.4))
+		if K:hitsKeep(mn, mx) == nil and mapClear(V, mn, mx) and K:spot(base, V3(0.4, 6.6, 0.4), 0, "net") then
 			local topP = (base * CF(0.05, 6.4, 0.1)).Position
 			K:seg("NetPole", (base * CF(0, 0.6, 0)).Position, topP, 0.07, L.of(60, 120, 200, M.Plastic))
 			local rc = CF(topP + V3(0, 0.38, 0)) * CFrame.fromMatrix(V3(), tcf.XVector, tcf.YVector, tcf.ZVector)
@@ -2538,40 +2538,64 @@ local function clamRack(c: any, pcf: CFrame, w: number)
 	ktext(K, "RackHeader", w, 0.46, pcf * CF(0, h + 0.2, d / 2 - 0.05), "오늘 들어온 조개", { fg = WHITE, bg = c.th.accent, font = F.GothamBlack, d = 0.05 })
 end
 
--- 대게 찜기 (스테인리스 찜통 캐비닛 + 압력계 + 연통 + 김)
-local function crabSteamer(c: any, pcf: CFrame): (Model?, Vector3?)
+-- 대게 찜통 (가스 레인지 + 3단 원형 찜통 2줄 + 벽 후드 + 김). 반환: 뚜껑 Model, 경첩(월드), 축(월드)
+local function crabSteamer(c: any, pcf: CFrame): (Model?, Vector3?, Vector3?)
 	local K, V = c.K, c.V
-	local w, d, h = 2.6, 2.0, 4.2
+	local w, d = 2.6, 1.8
 	local steel = L.of(206, 210, 214, M.Metal, { r = 0.1 })
-	K:box("SteamerBody", V3(w, h - 0.4, d), pcf * CF(0, 0.4 + (h - 0.4) / 2, 0), steel)
+	local rangeH = 1.4
+	K:box("SteamRange", V3(w, rangeH - 0.3, d), pcf * CF(0, 0.3 + (rangeH - 0.3) / 2, 0), steel)
 	for _, sx in { -1, 1 } do
 		for _, sz in { -1, 1 } do
-			K:box("SteamerLeg", V3(0.14, 0.4, 0.14), pcf * CF(sx * (w / 2 - 0.12), 0.2, sz * (d / 2 - 0.12)), L.of(60, 60, 64, M.Metal))
+			K:box("SteamRangeLeg", V3(0.12, 0.3, 0.12), pcf * CF(sx * (w / 2 - 0.12), 0.15, sz * (d / 2 - 0.12)), L.of(60, 60, 64, M.Metal))
 		end
+		wdisc(K, "SteamRangeKnob", 0.22, 0.08, pcf * CF(sx * 0.62, 0.95, d / 2), 0, L.black)
 	end
-	K:box("SteamerTop", V3(w + 0.06, 0.1, d + 0.06), pcf * CF(0, h + 0.05, 0), L.of(180, 184, 188, M.Metal))
-	-- 문 (위 · 아래 두 칸)
-	local door = K:group("SteamerDoor", function()
-		local dc = pcf * CF(0, 0.4 + (h - 0.4) * 0.5, d / 2 + 0.03)
-		K:box("SteamerDoorPanel", V3(w - 0.3, h - 1.0, 0.08), dc, L.of(220, 224, 228, M.Metal, { r = 0.12 }))
-		K:box("SteamerDoorHandle", V3(0.12, 1.0, 0.16), dc * CF(w / 2 - 0.4, 0, 0.1), L.black)
-		K:box("SteamerDoorLatch", V3(0.5, 0.12, 0.12), dc * CF(w / 2 - 0.6, 0.6, 0.08), L.of(60, 60, 64, M.Metal))
-	end)
-	local hinge = (K.cf * pcf * CF(-w / 2 + 0.15, 0, d / 2 + 0.03)).Position
-	-- 압력계 · 표시
-	local gc = pcf * CF(-w / 2 + 0.5, h - 0.35, d / 2)
-	wdisc(K, "SteamerGauge", 0.42, 0.06, gc, 0.0, L.chrome)
-	wdisc(K, "SteamerGaugeFace", 0.34, 0.02, gc, 0.06, L.white)
-	K:plate("SteamerGaugeNeedle", 0.02, 0.14, 0.01, gc * CF(0.03, 0.03, 0.08) * ANG(0, 0, -0.6), L.ledRed)
-	ktext(K, "SteamerLabel", 1.4, 0.3, pcf * CF(0.35, h - 0.35, d / 2 + 0.01), "대게 찜기 · 15분", { fg = WHITE, bg = rgb(196, 36, 28), font = F.GothamBold, d = 0.02 })
-	-- 연통 (천장까지)
-	local cp = pcf * V3(w / 2 - 0.4, h + 0.1, -d / 2 + 0.4)
-	K:seg("SteamerFlue", cp, V3(cp.X, V.H - 0.05, cp.Z), 0.36, L.of(170, 174, 178, M.Metal))
-	K:vcyl("SteamerFlueCollar", 0.2, 0.5, CF(V3(cp.X, V.H - 0.15, cp.Z)), L.of(150, 154, 158, M.Metal))
-	-- 김 나오는 구멍
-	table.insert(c.steamSrc, pcf * CF(-w / 2 + 0.6, h + 0.12, 0))
-	K:disc("SteamerVent", 0.3, 0.06, pcf * CF(-w / 2 + 0.6, h + 0.12, 0), L.black)
-	return door, hinge
+	K:box("SteamRangeTop", V3(w + 0.04, 0.06, d + 0.04), pcf * CF(0, rangeH + 0.03, 0), L.of(50, 52, 56, M.Metal))
+	K:plate("SteamPilot", 0.1, 0.06, 0.02, pcf * CF(0, 0.95, d / 2), L.neon(rgb(80, 150, 255)))
+	ktext(K, "SteamRangeLabel", 1.5, 0.3, pcf * CF(0, 0.55, d / 2 + 0.01), "대게 찜통 · 15분", { fg = WHITE, bg = rgb(196, 36, 28), font = F.GothamBold, d = 0.02 })
+	local lid: Model? = nil
+	local hinge: Vector3? = nil
+	for k, sx in { -1, 1 } do
+		local base = pcf * CF(sx * 0.64, rangeH + 0.06, 0)
+		K:disc("SteamBurnerRing", 0.9, 0.06, base * CF(0, 0.03, 0), L.of(40, 40, 44, M.Metal))
+		local y = 0.06
+		for tier = 1, 3 do
+			K:disc("SteamBasket", 1.16, 0.5, base * CF(0, y + 0.25, 0), steel)
+			K:disc("SteamBasketRim", 1.22, 0.05, base * CF(0, y + 0.5, 0), L.of(186, 190, 194, M.Metal))
+			if tier == 2 then
+				for _, hx in { -1, 1 } do
+					K:box("SteamBasketHandle", V3(0.16, 0.06, 0.3), base * CF(hx * 0.64, y + 0.4, 0), L.black)
+				end
+			end
+			y += 0.52
+		end
+		local lidY = y
+		if k == 1 then
+			local hz = -0.58
+			lid = K:group("SteamerLid", function()
+				K:disc("SteamLid", 1.2, 0.08, base * CF(0, lidY + 0.04, 0), L.of(196, 200, 204, M.Metal))
+				K:ell("SteamLidDome", V3(1.1, 0.24, 1.1), base * CF(0, lidY + 0.08, 0), L.of(196, 200, 204, M.Metal))
+				K:ball("SteamLidHandle", 0.2, base * CF(0, lidY + 0.24, 0.2), L.black)
+			end)
+			hinge = (K.cf * base * CF(0, lidY + 0.04, hz)).Position
+		else
+			K:disc("SteamLid", 1.2, 0.08, base * CF(0, lidY + 0.04, 0), L.of(196, 200, 204, M.Metal))
+			K:ell("SteamLidDome", V3(1.1, 0.24, 1.1), base * CF(0, lidY + 0.08, 0), L.of(196, 200, 204, M.Metal))
+			K:ball("SteamLidKnob", 0.18, base * CF(0, lidY + 0.24, 0), L.black)
+		end
+		table.insert(c.steamSrc, base * CF(0, lidY + 0.3, 0))
+	end
+	-- 벽 후드 + 덕트
+	local hoodY = math.min(V.H - 1.4, 5.9)
+	local hc = pcf * CF(0, hoodY, -d / 2 + 0.75)
+	K:box("SteamHood", V3(w + 0.3, 0.6, 1.5), hc, steel)
+	K:box("SteamHoodLip", V3(w + 0.34, 0.08, 1.54), hc * CF(0, -0.3, 0), L.of(170, 174, 178, M.Metal))
+	K:box("SteamHoodFilter", V3(w, 0.03, 1.2), hc * CF(0, -0.32, 0), L.of(90, 94, 98, M.DiamondPlate))
+	local dp = (hc * CF(0, 0.3, -0.3)).Position
+	K:seg("SteamDuct", dp, V3(dp.X, V.H - 0.03, dp.Z), 0.6, L.of(186, 190, 194, M.Metal))
+	local axis = (K.cf * pcf).XVector
+	return lid, hinge, axis
 end
 
 -- 천장: 만국기 줄 (포차 분위기)
@@ -3047,17 +3071,17 @@ function T.build(K: any, V: any, S: any)
 				at(K, "clamRack", nil, nil, pcf.Position)
 			end
 		elseif th.kind == "crab" then
-			local size = V3(2.7, 4.3, 2.1)
+			local size = V3(2.9, 6.3, 1.9)
 			local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
 			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15, function(p: CFrame)
-				return Interact.canPrompt(K, (p * CF(0.9, 2.3, 1.15)).Position)
+				return Interact.canPrompt(K, (p * CF(-0.64, 3.3, 0.2)).Position)
 			end)
 			if not pcf then
 				pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15)
 			end
 			if pcf then
-				local door, hinge = crabSteamer(c, pcf)
-				c.steamer = { door = door, hinge = hinge }
+				local door, hinge, axis = crabSteamer(c, pcf)
+				c.steamer = { door = door, hinge = hinge, axis = axis }
 				at(K, "steamer", nil, nil, pcf.Position)
 			end
 		end
@@ -3288,7 +3312,7 @@ function T.build(K: any, V: any, S: any)
 		end
 		-- (d) 대게 찜기 문
 		if c.steamer and c.steamer.door and c.steamer.hinge then
-			Interact.swing(K, c.steamer.door, c.steamer.hinge, Vector3.yAxis, -1.6, { object = "대게 찜기", openText = "찜기 열기", closeText = "찜기 닫기" })
+			Interact.swing(K, c.steamer.door, c.steamer.hinge, c.steamer.axis or Vector3.xAxis, -1.25, { object = "대게 찜통", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 		end
 		-- (e) 선풍기 (상호작용이 4개 미만일 때만)
 		if c.fanSpot and #K.prompts < 4 then
