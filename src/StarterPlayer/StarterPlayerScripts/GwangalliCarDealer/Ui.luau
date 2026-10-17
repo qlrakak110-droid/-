@@ -440,7 +440,7 @@ function Ui.screen(name: string, order: number): ScreenGui
 		Enabled = false,
 	}, nil)
 	pcall(function()
-		(g :: any).ScreenInsets = Enum.ScreenInsets.None
+		(g :: any).ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets -- keep clear of phone notches
 	end)
 	g:SetAttribute("HideGwangalliHUD", false)
 	g.Parent = pg
