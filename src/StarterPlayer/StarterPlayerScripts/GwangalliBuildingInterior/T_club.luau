@@ -1350,6 +1350,16 @@ local function buildRestroom(K: any, V: any, R: any)
 			artFrame(K, wallF(R, scx, 6.2, 0), 4.0, 2.6, {
 				{ rgb(250, 232, 236), 0, 0, 1, 1 }, { rgb(255, 150, 190), 0.1, 0.15, 0.45, 0.6 }, { rgb(230, 90, 140), 0.45, 0.35, 0.4, 0.5 }, { rgb(255, 214, 120), 0.62, 0.12, 0.2, 0.2 }, { rgb(40, 30, 40), 0.2, 0.82, 0.6, 0.03 },
 			}, Look.goldMetal, lk(rgb(250, 244, 240)))
+			-- 맵의 '오늘도 예뻐 ♡' 판은 문 위 빈 공간까지 걸쳐 떠 있고 액자와 겹쳐서 → 숨기고 문 왼쪽 벽 위에 네온 글씨로
+			for _, r in V.byName["Sign_오늘도 예뻐 ♡"] or {} do
+				safeHide(K, r)
+			end
+			K:free(function()
+				local nd = wallF(R, -5.0, 8.95, 0)
+				K:plate("PrettyNeonBacker", 7.8, 1.5, 0.05, nd, lk(rgb(20, 14, 20), M.SmoothPlastic, { t = 0.4 }))
+				txt(K, "PrettyNeon", 7.4, 1.25, nd * CF(0, 0, 0.07), "오늘도 예뻐 ♡", rgb(255, 120, 200), nil, F.GothamBlack, 2.4)
+				K:plate("PrettyNeonLine", 7.0, 0.06, 0.08, nd * CF(0, -0.72, 0), nl(ACC))
+			end)
 		end
 		-- 샹들리에 (가운데) + 바닥 대리석 메달리온 --------------------------------------------------------------
 		do
@@ -2420,11 +2430,17 @@ local function armchair(K: any, pcf: CFrame, fab: any, legs: any?)
 			K:seg("ArmchairLeg", (pcf * CF(sx * 0.95, 0.5, sz * 0.85)).Position, (pcf * CF(sx * 1.05, 0.02, sz * 0.95)).Position, 0.1, lg)
 		end
 	end
-	K:rbox("ArmchairBase", V3(2.4, 0.5, 2.3), 0.15, pcf * CF(0, 0.75, 0), fab)
-	K:rbox("ArmchairCushion", V3(1.9, 0.35, 1.9), 0.15, pcf * CF(0, 1.15, 0.12), lk(lt(fab.c, 0.08), fab.m))
-	K:rbox("ArmchairBack", V3(2.4, 1.6, 0.45), 0.2, pcf * CF(0, 1.7, -0.95) * ANG(math.rad(-8), 0, 0), fab)
+	-- 둥근 모서리는 보이는 윗변만 원통 하나로 (rbox 6파트 대신 2파트)
+	local cush = lk(lt(fab.c, 0.08), fab.m)
+	K:box("ArmchairBase", V3(2.4, 0.5, 2.3), pcf * CF(0, 0.75, 0), fab)
+	K:box("ArmchairCushion", V3(1.9, 0.3, 1.75), pcf * CF(0, 1.13, 0.05), cush)
+	K:cyl("ArmchairCushionNose", 1.9, 0.34, pcf * CF(0, 1.13, 0.93), cush)
+	local back = pcf * CF(0, 1.62, -0.95) * ANG(math.rad(-8), 0, 0)
+	K:box("ArmchairBack", V3(2.4, 1.45, 0.45), back, fab)
+	K:cyl("ArmchairBackRoll", 2.4, 0.45, back * CF(0, 0.72, 0), fab)
 	for _, sx in { -1, 1 } do
-		K:rbox("ArmchairArm", V3(0.36, 0.9, 2.2), 0.15, pcf * CF(sx * 1.08, 1.35, 0), fab)
+		K:box("ArmchairArm", V3(0.36, 0.72, 2.2), pcf * CF(sx * 1.08, 1.26, 0), fab)
+		K:cyl("ArmchairArmRoll", 2.2, 0.36, pcf * CF(sx * 1.08, 1.62, 0) * ANG(0, PI / 2, 0), fab)
 	end
 	K:ell("ArmchairPillow", V3(1.0, 0.8, 0.28), pcf * CF(0.25, 1.75, -0.6) * ANG(math.rad(-15), 0.25, 0), lk(rgb(232, 222, 204), M.Fabric))
 end
@@ -3032,6 +3048,19 @@ local function buildLounge(K: any, V: any, R: any)
 			txt(K, "WelcomeText", 1.45, 2.0, scf * CF(0, 3.9, 0.05) * ANG(math.rad(-6), 0, 0), "WELCOME TO\nOCEAN SKY\nLOUNGE\n\n2F · VIP\n칵테일 18,000~\n샴페인 BTL 280,000~", rgb(240, 220, 180), nil, F.GothamBold, 1.1)
 		end
 	end
+	-- 바 백바 병 (맵: 네모 유리 상자 149개) 위에 목 + 마개를 얹어 진짜 술병 실루엣으로 (각진 위스키 병처럼 보임)
+	K:free(function()
+		local CAPS = { rgb(24, 22, 20), rgb(196, 160, 80), rgb(120, 24, 30), rgb(190, 192, 196), rgb(24, 22, 20), rgb(40, 60, 40) }
+		for i, r in V.byName.Bottle or {} do
+			local mn, mx = abox(R, r)
+			local w = math.min(mx.X - mn.X, mx.Z - mn.Z)
+			if w > 0.2 and w < 0.9 and mx.Y - mn.Y > 0.6 then
+				local c = (mn + mx) / 2
+				local nh = 0.3 + (i % 3) * 0.08
+				K:vcyl("BottleNeck", nh, 0.16, at(R, c.X, c.Z, 0, mx.Y + nh / 2), lk(CAPS[i % #CAPS + 1], if i % 4 == 1 then M.Metal else M.SmoothPlastic))
+			end
+		end
+	end)
 	-- 오른벽 남쪽 (DJ 와 셀러 사이) 작은 액자 · 바 끝 메뉴 스탠드 --------------------------------------------------
 	K:free(function()
 		artFrame(K, wallR(R, -74.0, 6.6, 0), 4.0, 5.0, { { rgb(16, 20, 40), 0, 0, 1, 1 }, { rgb(80, 150, 255), 0.1, 0.4, 0.8, 0.05 }, { rgb(255, 120, 200), 0.3, 0.55, 0.4, 0.05 }, { rgb(240, 240, 255), 0.45, 0.7, 0.1, 0.15 } }, brassL)
