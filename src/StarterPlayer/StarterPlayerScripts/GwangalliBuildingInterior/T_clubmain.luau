@@ -9,7 +9,7 @@
 --
 --   clublobby  로비 (60x14): 입장료 계산대 (가격판 · 신분증 스캐너 · 팔찌 디스펜서 · QR · 게스트 리스트 태블릿 · CCTV 모니터 ·
 --              무전기 충전기 · 금고) · 대기 줄 스탠션 · 소지품 검사대 · 팔찌 확인 포디움 + 메인홀 입구 스탠션 ·
---              포토월 (포토존 바닥 스티커 · 업라이트 · 폰 거치대 촬영) · 락커 32칸 (번호판 · 손잡이 · 키 밴드 · 열리는 107번) ·
+--              포토월 (포토존 바닥 스티커 · 업라이트 · 폰 거치대 촬영) · 락커 32칸 (번호판 · 손잡이 · 키 밴드 · 열리는 119번) ·
 --              이벤트 포스터 · 보조배터리 대여기 · 이용 안내 · 천장 CCTV · 스피커 · 스프링클러 · 감지기 · 레일 조명 · 걸레받이
 --   clubtunnel 입장 터널 (10x20): LED 바 사이 블랙 미러 패널 · 천장 미러 · 킥 플레이트 · 고보 프로젝터 브랜드 투사 (순환) ·
 --              코너 무드 라인 (색 바꾸기) · 입장 안내판 · CCTV · 스피커
@@ -897,7 +897,7 @@ local function lobbyPhoto(R: any)
 	txt(P, "PhotoTagText", 2.6, 0.5, CF(sr.mx.X - 1.6, 1.0, sr.mn.Z - 0.02) * ANG(0, PI, 0), "📸 #CLUBOCEAN 태그하면 웰컴 음료 1잔", rgb(255, 255, 255), rgb(150, 20, 90), F.GothamBold, 1.1)
 end
 
--- 락커 32칸: 몸체 · 번호판을 우리 것으로 다시 짓고 (속이 빈 칸), 문마다 번호판 · 손잡이 · 키 (빈 칸엔 코일 키 밴드), 107번 열림
+-- 락커 32칸: 몸체 · 번호판을 우리 것으로 다시 짓고 (속이 빈 칸), 문마다 번호판 · 손잡이 · 키 (빈 칸엔 코일 키 밴드), 119번 열림
 local function lobbyLockers(R: any)
 	local P, K = R.P, R.K
 	local car = R.one("LockerCarcass")
@@ -1347,6 +1347,18 @@ local function buildTunnel(K: any, V: any)
 				wallSpeaker(P, d, 0.75)
 			end)
 		end
+	end })
+	-- 4a) 바닥: 양 끝 스테인리스 문턱 띠 + 가운데 포토 스팟 스티커 (무드 라인과 짝)
+	table.insert(steps, { "floor", function()
+		P:free(function()
+			for _, z in { R.bz + 0.12, R.fz - 0.12 } do
+				P:box("TunnelThreshold", V3(R.xr - R.xl - 0.2, 0.025, 0.24), CF(cx, 0.012, z), Look.brushed)
+			end
+			local sz = (R.bz + R.fz) / 2 - 3.8 -- 고보 투사 원 (가운데 앞쪽) 과 안 겹치게
+			P:disc("TunnelPhotoSpot", 1.8, 0.012, CF(cx, 0.008, sz), lk(rgb(14, 14, 18)))
+			P:disc("TunnelPhotoSpotRing", 1.95, 0.01, CF(cx, 0.006, sz), lk(VI))
+			txt(P, "TunnelPhotoSpotText", 1.5, 0.5, topCF(V3(cx, 0.02, sz), V3(0, 0, -1)), "📸 TUNNEL\nPHOTO SPOT", rgb(220, 200, 255), nil, F.GothamBlack, 1.1)
+		end)
 	end })
 	-- 4b) 통로 유도등 (벽 아래, 초록 · 화살표는 출구 = 현관 쪽)
 	table.insert(steps, { "guide", function()

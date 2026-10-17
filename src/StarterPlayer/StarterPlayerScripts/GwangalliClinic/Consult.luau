@@ -34,6 +34,13 @@ local function alive(token: number): boolean
 	return token == runToken and v ~= nil and v.step == "consult"
 end
 
+-- the exam the minigame on screen is for; stale() = the server already moved past it
+local curExam = 0
+local function stale(): boolean
+	local v = ctx.visit
+	return v ~= nil and (v.examIdx or 1) > curExam
+end
+
 -------------------------------------------------------------------------------------------------
 -- camera
 -------------------------------------------------------------------------------------------------
@@ -210,7 +217,7 @@ local function holdButton(body: Frame, label: string, secs: number, token: numbe
 	end)
 	Ui.select(b)
 	local ok = false
-	while alive(token) do
+	while alive(token) and not stale() do
 		local dt = task.wait()
 		if holding then
 			held += dt
@@ -249,7 +256,7 @@ local function tapButton(body: Frame, label: string, n: number, token: number, o
 		end
 	end)
 	Ui.select(b)
-	while alive(token) and count < n do
+	while alive(token) and count < n and not stale() do
 		task.wait(0.05)
 	end
 	keyConn:Disconnect()
@@ -380,7 +387,7 @@ GAMES.palp = function(token)
 			done += 1
 		end)
 	end
-	while alive(token) and done < 3 do
+	while alive(token) and done < 3 and not stale() do
 		task.wait(0.05)
 	end
 	if not alive(token) then
@@ -389,11 +396,11 @@ GAMES.palp = function(token)
 	local kind = ctx.visit and ctx.visit.kind
 	if kind == "gastritis" then
 		Ui.ask("doctor", "여기 명치 누르면 아프세요?", { "악, 아파요!" }, { abort = function()
-			return not alive(token)
+			return not alive(token) or stale()
 		end })
 	else
 		Ui.ask("doctor", "누르면 아픈 곳 있어요?", { "괜찮아요" }, { abort = function()
-			return not alive(token)
+			return not alive(token) or stale()
 		end })
 	end
 	return exam("palp", token)
@@ -404,7 +411,7 @@ GAMES.talk = function(token)
 	local hv = ctx.health or {}
 	local choices = if (hv.workSec or 0) >= 3600 then { "알바를 쉬지 않고 계속했어요", "잠을 거의 못 잤어요" } else { "적당히 일해요", "요즘 좀 바빴어요" }
 	if not Ui.ask("doctor", S.Medical.EXAMS.talk.say, choices, { abort = function()
-		return not alive(token)
+		return not alive(token) or stale()
 	end }) then
 		return nil
 	end
@@ -589,8 +596,12 @@ local function run(greet: string?)
 			local def = S.Medical.EXAMS[kind]
 			Ui.say("doctor", def and def.say or "진찰할게요.", { hold = 3 })
 			local mini = GAMES[kind]
+			curExam = idx
 			local res = if mini then mini(token) else exam(kind, token)
 			if not res then
+				if alive(token) and stale() then
+					continue -- the server has this one already: go on with the next exam
+				end
 				return
 			end
 			showResult(kind, res.result or {})

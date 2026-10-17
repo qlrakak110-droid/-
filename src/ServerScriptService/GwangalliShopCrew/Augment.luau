@@ -16,7 +16,6 @@ local Augment = {}
 local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
-local Net: any = nil
 local Util: any = nil
 local Talk: any = nil
 local Personas: any = nil
@@ -28,7 +27,8 @@ local siteByModel: { [Model]: any } = {}
 local AUG_TAG = "GwCrewAug"
 
 function Augment.init(S: any, B: any, N: any, mods: any)
-	Shared, Config, Bridge, Net, Util = S, S.Config, B, N, S.Util
+	Shared, Config, Bridge, Util = S, S.Config, B, S.Util
+	local _ = N
 	Talk = mods.Talk
 	Personas = S.Personas
 end

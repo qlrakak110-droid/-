@@ -7,8 +7,12 @@
 --                파라솔 하이테이블 · 레일 바 레지 · 망원경 · 카바나 커튼 (상호작용) · 랜턴 · 업라이트 · 난간 LED · DJ 코너 · 화분 · 흡연구역
 --   hiphop       ROOM 2 · HIP-HOP (50x70): 그라피티 벽화 (플레이트 글자 · 드립 · 태그) · 스티커/포스터 벽 · 벽돌 · 무대 트러스 ·
 --                바리케이드 · 모니터 스피커 · 사이퍼 드링크 레일 · 스니커/머치 벽 · 붐박스 · 네온 아트 · 코너 스피커
---   clubwc       여자 / 남자 화장실 (20x41): 파우더 카운터 · 할리우드 거울 · 라운지 코너 · 샹들리에 (여) / 가림벽 · 그루밍 카운터 ·
---                청소 카트 · 배플 천장 (남), 종이타월 · 휴지통 · 배수구 · 안내문 · 칸마다 휴지걸이 · 위생용품 수거함
+--   clubwc       여자 / 남자 화장실 (20x41): 파우더 카운터 · 할리우드 거울 · 라운지 코너 · 샹들리에 · 생리대 무료 함 (여) /
+--                가림벽 · 그루밍 카운터 · 소변기 선반 · 센서 · 청소 카트 · 배플 천장 (남), 종이타월 · 휴지통 · 배수구 · 금연 ·
+--                불법촬영 점검 · 청소 점검표 · 손 소독제 · 방향제 · 칸마다 휴지걸이 · 안내문 · 옷걸이 · 위생용품 수거함
+-- 상호작용 (클라이언트 전용, 서버 행동 없음): 라운지 = 커튼 · 무드 조명 · VIP 예약 태블릿 · 망원경 / 루프탑 = 메뉴 넘기기 ·
+--   카바나 커튼 · 망원경 · 조명 모드 / 힙합 = 붐박스 · MC 마이크(ON AIR) · 태그 남기기 / 화장실 = 거울 조명 · 종이타월 ·
+--   향수(여) · 가글(남) / 복도 = 라인업 보기 · 정수기 · 휴대폰 충전 + 사이니지 화면 순환
 --   clubcorridor 복도 (17x76): 가죽 징두리 · 사진 갤러리 + 픽처 라이트 · LED 라인 · 벤치 · 정수기 · 휴대폰 충전함 · 소화전 · AED ·
 --                라인업 라이트박스 · 사이니지 화면 · 매달린 안내판 · 비상구 유도등 · CCTV
 --
@@ -38,11 +42,11 @@ local M = Enum.Material
 local F = Enum.Font
 local rgb = Color3.fromRGB
 local BLACK, WHITE = Color3.new(0, 0, 0), Color3.new(1, 1, 1)
-local _ = Common
+local _common = Common -- 공통 마감은 Common.run 이 이미 돌림 (여기서는 upgrades 만 켜 둠)
 
 -- 작은 도구 ------------------------------------------------------------------------------------------
 -- 거울: 반사율을 낮춘 은회색 유리 (밤에 반사가 하얗게 뜨지 않게)
-local MIRROR = { c = Color3.fromRGB(112, 120, 128), m = Enum.Material.Glass, t = 0, r = 0.12 }
+local MIRROR = { c = Color3.fromRGB(88, 96, 106), m = Enum.Material.SmoothPlastic, t = 0, r = 0.1 }
 
 local function lk(c: Color3, m: Enum.Material?, extra: { [string]: any }?): { [string]: any }
 	local t: { [string]: any } = { c = c, m = m or M.SmoothPlastic }
@@ -578,6 +582,7 @@ local function buildCorridor(K: any, V: any, R: any)
 			end
 		end
 		K:plate("CorrDadoCap", u1 - u0, 0.08, 0.1, wf(R, (u0 + u1) / 2, 3.82, 0), Look.brass)
+		K:plate("CorrDadoLED", u1 - u0 - 0.1, 0.04, 0.11, wf(R, (u0 + u1) / 2, 3.74, 0), nl(rgb(255, 190, 130)))
 		K:plate("CorrDadoShadow", u1 - u0, 0.3, 0.02, wf(R, (u0 + u1) / 2, 0.2, 0), lk(rgb(10, 10, 12)))
 	end
 	K:free(function()
@@ -608,9 +613,9 @@ local function buildCorridor(K: any, V: any, R: any)
 
 	-- 왼벽 갤러리: 레지던트 DJ 사진 3점 + 픽처 라이트 + 캡션 -------------------------------------------------
 	local GAL = {
-		{ z = 5.55, cap = "DJ HAEWON · RESIDENT\nTECH HOUSE", art = { { rgb(16, 14, 30), 0, 0, 1, 1 }, { rgb(90, 30, 160), 0, 0, 1, 0.45 }, { rgb(255, 70, 170), 0.12, 0.45, 0.76, 0.05 }, { rgb(26, 22, 30), 0.38, 0.18, 0.24, 0.5 }, { rgb(230, 190, 160), 0.44, 0.66, 0.12, 0.14 }, { rgb(40, 220, 255), 0.05, 0.86, 0.3, 0.04 } } },
-		{ z = 11.5, cap = "광안대교 · GWANGAN BRIDGE\n2025 NIGHT", art = { { rgb(8, 12, 30), 0, 0, 1, 1 }, { rgb(20, 40, 90), 0, 0, 1, 0.4 }, { rgb(255, 210, 120), 0, 0.42, 1, 0.03 }, { rgb(255, 210, 120), 0.18, 0.45, 0.02, 0.3 }, { rgb(255, 210, 120), 0.78, 0.45, 0.02, 0.3 }, { rgb(120, 200, 255), 0.0, 0.3, 1, 0.02 }, { rgb(255, 80, 160), 0.6, 0.8, 0.1, 0.08 } } },
-		{ z = 17.5, cap = "SEAN WAVE · RESIDENT\nK-EDM", art = { { rgb(30, 10, 20), 0, 0, 1, 1 }, { rgb(255, 120, 40), 0, 0, 1, 0.3 }, { rgb(255, 60, 90), 0.0, 0.3, 1, 0.12 }, { rgb(20, 16, 22), 0.4, 0.15, 0.2, 0.55 }, { rgb(220, 180, 150), 0.45, 0.7, 0.1, 0.12 }, { rgb(255, 230, 120), 0.7, 0.75, 0.2, 0.2 } } },
+		{ z = 5.55, cap = "DJ HAEWON · RESIDENT\nTECH HOUSE", art = { { rgb(40, 30, 70), 0, 0, 1, 1 }, { rgb(150, 60, 230), 0, 0, 1, 0.45 }, { rgb(255, 70, 170), 0.12, 0.45, 0.76, 0.05 }, { rgb(26, 22, 30), 0.38, 0.18, 0.24, 0.5 }, { rgb(230, 190, 160), 0.44, 0.66, 0.12, 0.14 }, { rgb(40, 220, 255), 0.05, 0.86, 0.3, 0.04 } } },
+		{ z = 11.5, cap = "광안대교 · GWANGAN BRIDGE\n2025 NIGHT", art = { { rgb(20, 30, 70), 0, 0, 1, 1 }, { rgb(40, 80, 160), 0, 0, 1, 0.4 }, { rgb(255, 210, 120), 0, 0.42, 1, 0.03 }, { rgb(255, 210, 120), 0.18, 0.45, 0.02, 0.3 }, { rgb(255, 210, 120), 0.78, 0.45, 0.02, 0.3 }, { rgb(120, 200, 255), 0.0, 0.3, 1, 0.02 }, { rgb(255, 80, 160), 0.6, 0.8, 0.1, 0.08 } } },
+		{ z = 17.5, cap = "SEAN WAVE · RESIDENT\nK-EDM", art = { { rgb(70, 26, 44), 0, 0, 1, 1 }, { rgb(255, 140, 60), 0, 0, 1, 0.3 }, { rgb(255, 60, 90), 0.0, 0.3, 1, 0.12 }, { rgb(20, 16, 22), 0.4, 0.15, 0.2, 0.55 }, { rgb(220, 180, 150), 0.45, 0.7, 0.1, 0.12 }, { rgb(255, 230, 120), 0.7, 0.75, 0.2, 0.2 } } },
 	}
 	for i, g in GAL do
 		local d = wallL(R, g.z, 5.95, 0)
@@ -842,8 +847,13 @@ local function buildCorridor(K: any, V: any, R: any)
 		end
 	end
 	-- 벽 쪽 코브 2줄 (가죽 징두리 · 사진을 고르게 비춤)
-	cove(K, R, R.x0 + 1.0, R.z0 + 0.6, R.x0 + 1.0, R.z1 - 0.6, H - 0.12, rgb(255, 206, 160), 0.55, 11)
-	cove(K, R, R.x1 - 1.0, R.z0 + 0.6, R.x1 - 1.0, R.z1 - 0.6, H - 0.12, rgb(255, 206, 160), 0.55, 11)
+	cove(K, R, R.x0 + 1.0, R.z0 + 0.6, R.x0 + 1.0, R.z1 - 0.6, H - 0.12, rgb(255, 206, 160), 0, 0, false)
+	cove(K, R, R.x1 - 1.0, R.z0 + 0.6, R.x1 - 1.0, R.z1 - 0.6, H - 0.12, rgb(255, 206, 160), 0, 0, false)
+	-- 구역 조명 (정수기 · 충전함 / 소화전 · AED / 화장실 대기 벤치 · 거울)
+	for _, p in { { 4.6, 6.5 }, { 4.8, -27.0 }, { -4.8, -16.0 } } do
+		local a = K:box("CorrZoneLight", V3(0.1, 0.1, 0.1), at(R, p[1], p[2], 0, 8.6), lk(BLACK, nil, { t = 1 }))
+		K:light(a, "PointLight", { Range = 13, Brightness = 0.85, Color = rgb(255, 206, 170) })
+	end
 	K:free(function()
 		for _, x in { -2.3, 2.1 } do
 			K:box("SlotDiffuser", V3(0.35, 0.04, R.D - 2), at(R, x, R.cz, 0, H - 0.02), lk(rgb(26, 26, 30)))
@@ -1456,6 +1466,18 @@ local function buildRestroom(K: any, V: any, R: any)
 				wdisc(K, "UrinalSensorLED", 0.05, 0.02, sd2 * CF(0.2, 0.08, 0.12), nl(rgb(255, 40, 40)))
 				K:disc("UrinalScreen", 0.55, 0.04, at(R, x0 + 0.62, z, 0, 1.72), lk(rgb(80, 150, 230), M.Plastic))
 			end
+			-- 소변기 위 폰 · 잔 선반 (클럽 화장실 필수)
+			for ui, uz in { -8.6, -3.6, 1.4, 6.4 } do
+				local ld = wallL(R, uz, 4.6, 0)
+				K:box("UrinalLedge", V3(3.8, 0.1, 0.55), ld * CF(0, 0, 0.275), lk(rgb(26, 24, 30), M.Marble))
+				K:box("UrinalLedgeLED", V3(3.7, 0.03, 0.04), ld * CF(0, -0.07, 0.53), nl(ACC))
+				if ui == 2 then
+					K:box("LedgePhone", V3(0.4, 0.04, 0.22), ld * CF(-1.2, 0.07, 0.3) * ANG(0, 0.2, 0), lk(rgb(20, 20, 24)))
+				elseif ui == 3 then
+					K:vcyl("LedgeCup", 0.5, 0.3, ld * CF(1.2, 0.3, 0.3), gl(rgb(230, 236, 240), 0.5))
+					K:vcyl("LedgeCupDrink", 0.3, 0.26, ld * CF(1.2, 0.2, 0.3), lk(rgb(220, 140, 40), M.Glass, { t = 0.2 }))
+				end
+			end
 			-- 앞벽 왼쪽 (입구 옆): GENTLEMEN 네온 + 사진 2
 			local nd = wallF(R, -5.6, 7.6, 0)
 			K:plate("GentsNeonBacker", 6.4, 1.3, 0.05, nd, lk(rgb(14, 16, 20)))
@@ -1472,10 +1494,20 @@ local function buildRestroom(K: any, V: any, R: any)
 		downlight(K, R, vanX - 0.4, z, { light = i == 2, range = 12, bright = 0.9, angle = 80, glow = Look.lampNeutral, color = rgb(255, 236, 220) })
 	end
 	-- 칸 앞 코브 (칸 문 · 칸막이를 비춤)
-	cove(K, R, (if female then x0 else -4.0) + 0.6, -10.4, x1 - 0.6, -10.4, H - 0.1, rgb(255, 226, 200), 0.6, 11)
+	cove(K, R, (if female then x0 else -4.0) + 0.6, -10.4, x1 - 0.6, -10.4, H - 0.1, rgb(255, 226, 200), 0, 0, false)
 	if not female then
 		-- 소변기 · 청소 코너 쪽 왼벽 코브
-		cove(K, R, x0 + 0.9, z0 + 0.8, x0 + 0.9, 11.6, H - 0.1, rgb(220, 232, 255), 0.6, 11)
+		cove(K, R, x0 + 0.9, z0 + 0.8, x0 + 0.9, 11.6, H - 0.1, rgb(220, 232, 255), 0, 0, false)
+	end
+	-- 구역 조명 (칸 앞 + 남: 소변기 · 청소 코너)
+	local zones = { { if female then 0.0 else 3.0, -10.0, rgb(255, 226, 200) } }
+	if not female then
+		table.insert(zones, { -6.6, -1.0, rgb(220, 232, 255) })
+		table.insert(zones, { -7.0, -16.5, rgb(255, 236, 214) })
+	end
+	for _, zl in zones do
+		local a = K:box("WCZoneLight", V3(0.1, 0.1, 0.1), at(R, zl[1], zl[2], 0, H - 1.6), lk(BLACK, nil, { t = 1 }))
+		K:light(a, "PointLight", { Range = 12, Brightness = 0.8, Color = zl[3] })
 	end
 	for _, s in stalls do
 		downlight(K, R, (s[1] + s[2]) / 2, z0 + 4.0, { light = (s[1] > 0 and s[2] > 6), range = 11, bright = 0.7 })
@@ -2645,7 +2677,7 @@ local function buildLounge(K: any, V: any, R: any)
 				local d = wallR(R, zc, 0, 0)
 				local u = d * CF(0, 3.2, 1.2)
 				K:box("CellarBody", V3(5.4, 6.4, 2.4), u, walnut)
-				K:box("CellarInner", V3(4.8, 5.6, 0.05), u * CF(0, 0.1, -1.0), lk(rgb(40, 30, 24)))
+				K:box("CellarInner", V3(4.8, 5.6, 0.05), u * CF(0, 0.1, -1.0), lk(rgb(150, 96, 50), M.Neon, { t = 0.35 }))
 				for row = 0, 4 do
 					local y = -2.3 + row * 1.15
 					K:box("CellarShelf", V3(4.8, 0.06, 1.9), u * CF(0, y, -0.05), lk(rgb(90, 64, 44), M.Wood))
@@ -2662,7 +2694,7 @@ local function buildLounge(K: any, V: any, R: any)
 				-- 유리문 2 + 손잡이
 				for _, sx in { -1, 1 } do
 					K:box("CellarDoorFrame", V3(2.55, 5.8, 0.08), u * CF(sx * 1.3, 0.1, 1.22), lk(rgb(30, 26, 24), M.Metal))
-					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.04), u * CF(sx * 1.3, 0.1, 1.25), lk(rgb(200, 214, 214), M.SmoothPlastic, { t = 0.86 }))
+					K:box("CellarDoorGlass", V3(2.3, 5.5, 0.04), u * CF(sx * 1.3, 0.1, 1.25), lk(rgb(200, 214, 214), M.SmoothPlastic, { t = 0.9 }))
 					K:box("CellarHandle", V3(0.06, 1.6, 0.1), u * CF(sx * 0.15, 0.3, 1.32), brassL)
 				end
 				K:box("CellarKick", V3(5.4, 0.3, 0.06), u * CF(0, -3.05, 1.2), Look.black)
@@ -2977,7 +3009,7 @@ local function buildLounge(K: any, V: any, R: any)
 			end,
 		})
 	end
-	local _ = lampToggle
+	local _lamp = lampToggle
 end
 
 --=====================================================================================================

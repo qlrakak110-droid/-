@@ -710,6 +710,7 @@ local function opEnter(player: Player, _p: any): any
 	end
 	setTreating(player, true)
 	v.enteredAt = now()
+	v.lastAct = now()
 	v.kind = Bridge.illness(player)
 	local hv = Patient.view(player)
 	local kind = S.kind(v.kind)
@@ -748,6 +749,7 @@ local function opExam(player: Player, p: any): any
 		return fail("tooSoon")
 	end
 	v.lastExam = now()
+	v.lastAct = now()
 	local res = examResult(v, kind)
 	for k2, val in res do
 		v.shown[k2] = val
@@ -1239,7 +1241,8 @@ local function tickVisit(v: any, dt: number)
 		if v.seated and not Site.isSeatedOn(p, "ConsultSeat") and Site.dist(p, "ConsultSeat") > C.Reach.Seat + 6 then
 			v.seated = false
 		end
-		if t - v.stepAt > W.ConsultTimeout then
+		-- inactivity (no exam / answer for ConsultTimeout s), not the total time in the room
+		if t - (v.lastAct or v.stepAt) > W.ConsultTimeout then
 			Visit.finish(v, "timeout", "진료 시간이 지나 진료가 끝났어요")
 		end
 	elseif step == "treat" then

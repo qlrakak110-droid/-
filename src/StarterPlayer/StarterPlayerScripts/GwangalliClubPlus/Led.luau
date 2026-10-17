@@ -525,7 +525,13 @@ local function director(_dt: number, now: number)
 	-- a paid / DJ takeover shrinks to the lower third meanwhile (order intros / 합석 card stay full)
 	setSqueeze(active ~= nil and active.ui ~= nil and not isBand and (Core.houseMoment() or (overlay and not FULL[active.kind])))
 	local showVJ = active == nil and not overlay and not Core.houseMoment() and not pixelMoment(now) and Core.showRoom
-	vj.frame.Visible = showVJ
+	if vj.shown ~= showVJ then
+		-- hidden layers are parked (Parent nil): nothing to redraw, and renderers that lay a
+		-- SurfaceGui out on structural changes pick the layer up at once
+		vj.shown = showVJ
+		vj.frame.Visible = showVJ
+		vj.frame.Parent = if showVJ then c.root else nil
+	end
 	if showVJ then
 		vjStep(dt)
 	end

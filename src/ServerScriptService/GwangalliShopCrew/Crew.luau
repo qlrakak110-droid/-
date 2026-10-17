@@ -17,7 +17,6 @@ local Lighting = game:GetService("Lighting")
 
 local Crew = {}
 
-local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
 local Net: any = nil
@@ -35,7 +34,7 @@ local P_SERVE, P_CALL, P_RELAY, P_CHECK, P_CLEAR, P_IDLE = 1, 2, 3, 5, 6, 9
 Crew.jobs = {}
 
 function Crew.init(S: any, B: any, N: any, mods: any)
-	Shared, Config, Bridge, Net, Util = S, S.Config, B, N, S.Util
+	Config, Bridge, Net, Util = S.Config, B, N, S.Util
 	Lines, Personas = S.Lines, S.Personas
 	Sites, Rig, Serve, Regulars = mods.Sites, mods.Rig, mods.Serve, mods.Regulars
 end

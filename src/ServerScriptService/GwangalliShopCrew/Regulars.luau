@@ -17,10 +17,8 @@ local Players = game:GetService("Players")
 
 local Regulars = {}
 
-local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
-local Net: any = nil
 local Util: any = nil
 
 local store: GlobalDataStore? = nil
@@ -29,7 +27,8 @@ local dirty: { [number]: boolean } = {}
 local loading: { [number]: boolean } = {}
 
 function Regulars.init(S: any, B: any, N: any)
-	Shared, Config, Bridge, Net, Util = S, S.Config, B, N, S.Util
+	Config, Bridge, Util = S.Config, B, S.Util
+	local _ = N
 	if not Config.REGULAR.enabled then
 		return
 	end

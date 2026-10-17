@@ -15,7 +15,6 @@
 
 local Serve = {}
 
-local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
 local Net: any = nil
@@ -26,7 +25,7 @@ local ticketDirty: { [string]: boolean } = {} -- "<uid>|<shop>"
 local stats = { tracked = 0, guardServed = 0, flushed = 0, adopted = 0 }
 
 function Serve.init(S: any, B: any, N: any)
-	Shared, Config, Bridge, Net = S, S.Config, B, N
+	Config, Bridge, Net = S.Config, B, N
 end
 
 local function now(): number

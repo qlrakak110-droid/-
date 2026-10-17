@@ -628,7 +628,7 @@ local function computeSpots(site: any)
 				top + right * 2.4,
 				top - right * 2.4,
 			}
-			local best, bestScore = nil, math.huge
+			local pick, bestScore = nil, math.huge
 			for k, w in cands do
 				local lx, lz = toLocal(site, w)
 				local x, z = snap(site, lx, lz, 1.1, main, 1)
@@ -639,16 +639,16 @@ local function computeSpots(site: any)
 						score += (flat(wp - sPos)).Magnitude * 0.04
 					end
 					if score < bestScore then
-						best, bestScore = { x = x, z = z, w = wp }, score
+						pick, bestScore = { x = x, z = z, w = wp }, score
 					end
 				end
 			end
-			if best then
-				local sp = makeSpot(site, best.x, best.z, yawTo(best.w, spotPos) or 0)
+			if pick then
+				local sp = makeSpot(site, pick.x, pick.z, yawTo(pick.w, spotPos) or 0)
 				sp.face = spotPos
 				sp.seat = seat.id
 				entry.seats[seat.id] = sp
-				local d = if sPos then (flat(best.w - sPos)).Magnitude else 0
+				local d = if sPos then (flat(pick.w - sPos)).Magnitude else 0
 				if d < bestD then
 					bestD = d
 					entry.best = sp

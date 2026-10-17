@@ -13,10 +13,8 @@ local Players = game:GetService("Players")
 
 local Director = {}
 
-local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
-local Net: any = nil
 local Sites: any = nil
 local Crew: any = nil
 local Serve: any = nil
@@ -37,7 +35,8 @@ local lastError: string? = nil
 local coexist = false
 
 function Director.init(S: any, B: any, N: any, mods: any)
-	Shared, Config, Bridge, Net = S, S.Config, B, N
+	Config, Bridge = S.Config, B
+	local _ = N
 	Sites, Crew, Serve, Diners, Talk, Augment, Rig = mods.Sites, mods.Crew, mods.Serve, mods.Diners, mods.Talk, mods.Augment, mods.Rig
 end
 

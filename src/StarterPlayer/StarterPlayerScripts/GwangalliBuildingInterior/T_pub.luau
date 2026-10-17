@@ -2024,7 +2024,7 @@ local function tapTower(c: any)
 		-- 탭 브랜드 띠 (크로스바 앞 중앙)
 		-- 검은 바탕 금색 글자 명판 + 테두리 (흰 종이 띠처럼 보이지 않게)
 		K:box("TapBadgeRim", V3(bw2 + 0.05, 0.21, 0.015), tc * CF(0, fy + 0.01, 0.158), th.trim)
-		local _, lab = K:text("TapBadge", bw2, 0.16, tc * CF(0, fy + 0.01, 0.166), th.brand, { fg = rgb(236, 210, 150), bg = rgb(22, 22, 24), d = 0.008, font = F.GothamBlack })
+		local _, lab = K:text("TapBadge", bw2, 0.16, tc * CF(0, fy + 0.01, 0.166), th.brand, { fg = rgb(236, 210, 150), look = L.of(22, 22, 24), d = 0.008, font = F.GothamBlack })
 		local _ = lab
 		for i, h in handles do
 			local hp = tc:PointToObjectSpace(h.c)
@@ -3256,7 +3256,7 @@ local function counterProps(c: any)
 		local eb = g.body or g
 		local endX = eb.max.X
 		K:free(function()
-			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.002, 2.4, (eb.min.Z + eb.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), bg = rgb(170, 30, 30), d = 0.01, font = F.GothamBlack })
+			K:text("StaffOnly", 1.1, 0.34, CFrame.fromMatrix(V3(endX + 0.002, 2.4, (eb.min.Z + eb.max.Z) / 2), V3(0, 0, -1), Vector3.yAxis, V3(1, 0, 0)), "STAFF ONLY", { fg = rgb(255, 255, 255), look = L.of(170, 30, 30), d = 0.01, font = F.GothamBlack })
 		end)
 	end
 end

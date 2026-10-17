@@ -820,7 +820,14 @@ local function wallAC(K: any, dcf: CFrame, w: number?)
 	K:plate("ACFlap", aw - 0.4, 0.06, 0.06, dcf * CF(0, -0.42, 0.72) * ANG(-0.5, 0, 0), lk(C(220, 220, 218)))
 	K:plate("ACLED", 0.3, 0.12, 0.01, dcf * CF(aw / 2 - 0.45, -0.12, 0.775), lk(C(80, 160, 255), M.Neon, { t = 0.2 }))
 	txt(K, "ACBrand", 0.6, 0.12, dcf * CF(-aw / 2 + 0.55, -0.15, 0.775), "WHISEN", C(150, 150, 150), nil, { font = F.GothamBold })
-	K:seg("ACPipe", (dcf * CF(aw / 2 - 0.2, -0.3, 0.1)).Position, (dcf * CF(aw / 2 + 0.2, -0.6, 0.1)).Position, 0.1, Look.white)
+	-- 배관: keep (창 띠 등) 에 걸리지 않는 쪽으로
+	for _, sx in { 1, -1 } do
+		local a, b = (dcf * CF(sx * (aw / 2 - 0.2), -0.3, 0.1)).Position, (dcf * CF(sx * (aw / 2 + 0.2), -0.6, 0.1)).Position
+		if not K:hitsKeep(a:Min(b) - V3(0.06, 0.06, 0.06), a:Max(b) + V3(0.06, 0.06, 0.06)) then
+			K:seg("ACPipe", a, b, 0.1, Look.white)
+			break
+		end
+	end
 end
 
 -- 매물 사진 액자 (아파트 · 오피스텔 그림). dcf, w x h
@@ -936,6 +943,14 @@ end
 local function signageStand(K: any, pcf: CFrame, w: number, h: number, frames: { any }, period: number?)
 	K:box("SignageFoot", V3(w + 0.3, 0.12, 1.0), pcf * CF(0, 0.06, 0), Look.darkAlu)
 	K:box("SignageBody", V3(w + 0.16, h + 0.16, 0.26), pcf * CF(0, 0.5 + h / 2, 0), Look.black)
+	-- 뒷면: 헤어라인 판 + 통풍구 (뒤에서 봐도 검은 덩어리가 아니게)
+	local back = CFrame.fromMatrix((pcf * CF(0, 0.5 + h / 2, -0.13)).Position, -pcf.XVector, Vector3.yAxis, -pcf.ZVector)
+	K:plate("SignageBack", w - 0.04, h - 0.04, 0.015, back, Look.darkAlu)
+	if not lo(K) then
+		for i = 1, 4 do
+			K:plate("SignageVent", w * 0.5, 0.04, 0.02, back * CF(0, h / 2 - 0.3 - i * 0.12, 0), Look.black)
+		end
+	end
 	local scr = K:plate("SignageScreen", w, h, 0.02, pcf * CF(0, 0.5 + h / 2, 0.13), { c = frames[1].c or C(20, 40, 80), m = M.Neon, t = 0.1 })
 	local _, lab = txt(K, "SignageText", w * 0.9, h * 0.9, pcf * CF(0, 0.5 + h / 2, 0.155), frames[1].text, WHITE, nil, { font = F.GothamBold, glow = 1.2 })
 	Interact.screenLoop(K, scr, lab, frames, period or 5)
@@ -1101,15 +1116,15 @@ local function guestChair(K: any, pcf: CFrame, seatL: any?)
 end
 
 -- 2인 소파 (장식). pcf 정면 +Z, len 길이
-local function sofa(K: any, pcf: CFrame, len: number, fab: any, legL: any?)
-	local d = 2.3
+local function sofa(K: any, pcf: CFrame, len: number, fab: any, legL: any?, dep: number?)
+	local d = dep or 2.3
 	K:rbox("SofaBase", V3(len, 0.9, d), 0.15, pcf * CF(0, 0.75, 0), fab)
 	local n = if len > 4.6 then 3 else 2
 	local cw = (len - 0.9) / n
 	for i = 1, n do
 		local x = -len / 2 + 0.45 + cw * (i - 0.5)
 		K:rbox("SofaCushion", V3(cw - 0.06, 0.38, d - 0.75), 0.14, pcf * CF(x, 1.38, 0.28), fab)
-		K:rbox("SofaBackCushion", V3(cw - 0.08, 1.25, 0.5), 0.2, pcf * CF(x, 2.05, -0.62) * ANG(-0.12, 0, 0), fab)
+		K:rbox("SofaBackCushion", V3(cw - 0.08, 1.25, 0.5), 0.2, pcf * CF(x, 2.05, -d / 2 + 0.53) * ANG(-0.12, 0, 0), fab)
 	end
 	K:rbox("SofaBack", V3(len, 1.9, 0.42), 0.15, pcf * CF(0, 1.6, -d / 2 + 0.21), fab)
 	for _, sx in { -1, 1 } do
@@ -1207,7 +1222,7 @@ function T.style(V: any): any
 			ceiling = { skin = lk(C(244, 242, 236), M.Plaster), crown = lk(C(236, 232, 224)) }, base = lk(darker(th.stone.c, 0.35), M.Slate),
 			lower = { kind = "tile", h = 3.6, look = th.stone, grout = lk(darker(th.stone.c, 0.15)), tw = 2.4, th = 1.2, walls = { "left", "right", "back" } },
 			lights = { kind = "downlight", n = 4, color = Look.warmLight, glow = Look.lampWarm },
-			pendant = { shade = "globe" }, plants = { "olive", "ficus", "monstera" },
+			pendant = { shade = "globe" }, plants = { "monstera", "snake" },
 			mat = { look = lk(C(48, 46, 44), M.Fabric), text = string.upper(V.name or "WELCOME") }, cctv = true, clock = false, license = true, skip = skip,
 		}
 	elseif t == "residence" then
@@ -1237,7 +1252,8 @@ function T.style(V: any): any
 	elseif t == "realty" then
 		return {
 			chair = { style = "office", frame = Look.blackMetal, seat = lk(C(44, 46, 52), M.Fabric) }, stool = {},
-			table = { top = lk(C(236, 234, 228)), base = Look.blackMetal, style = "four", edge = lk(C(60, 60, 62)) },
+			-- 상담 책상은 T_service 가 직접 같은 자세로 덮음 (consultDeskOver): Common 테이블 리스킨과 겹치지 않게 끔
+			table = false,
 			counter = { front = "panel", frontL = lk(C(232, 230, 224)), topL = lk(C(120, 92, 66), M.Wood), led = false },
 			floor = { look = lk(C(170, 140, 108), M.WoodPlanks), tile = 0 }, ceiling = { grid = true },
 			base = lk(C(90, 70, 52), M.Wood), lower = false, lights = { kind = "panel", n = 4 },
@@ -1256,7 +1272,7 @@ function T.style(V: any): any
 	-- office / bank / clinic / academy
 	return {
 		chair = { style = "office", frame = Look.blackMetal, seat = lk(C(44, 46, 52), M.Fabric) }, stool = {},
-		table = { top = lk(C(236, 234, 228)), base = Look.blackMetal, style = "four" },
+		table = false, -- buildOffice 가 consultDeskOver 로 직접 덮음 (겹침 방지)
 		counter = { front = "panel", frontL = if t == "bank" then lk(C(30, 60, 120)) else Look.white, topL = Look.marbleWhite, led = false },
 		floor = { look = if t == "clinic" then lk(C(226, 228, 226), M.SmoothPlastic) else lk(C(150, 152, 156), M.Fabric), tile = if t == "clinic" then 2.0 else 2.0, grout = lk(C(190, 192, 190)) },
 		ceiling = { grid = true }, base = Look.white, lower = false, lights = { kind = "panel", n = 5 },
@@ -2504,8 +2520,17 @@ local function buildHotel(K: any, V: any, S: any)
 		end
 	end)
 	step(K, "plants", function()
-		for _, p in { V3(V.x0 + 1.1, 0, V.z0 + 1.1), V3(V.x1 - 1.1, 0, V.z0 + 1.1) } do
-			plantAt(K, pcfAt(p, V3(0, 0, 1)), pickR(rng, { "olive", "ficus", "monstera" }), math.min(6.5, V.H * 0.5), 1.4, lk(C(60, 58, 56), M.Concrete))
+		-- 로비 모서리: 아레카야자 (한국 호텔 로비 대표 화분) / 몬스테라. 공 모양 토피어리는 쓰지 않음
+		for i, p in { V3(V.x0 + 1.1, 0, V.z0 + 1.1), V3(V.x1 - 1.1, 0, V.z0 + 1.1) } do
+			local pcf = pcfAt(p, V3(0, 0, 1))
+			local potL = lk(C(60, 58, 56), M.Concrete)
+			if (hashStr(V.name or "") + i) % 3 ~= 0 then
+				if not palmTree(K, pcf, math.min(7.0, V.H * 0.55), 1.4, potL, hashStr(V.name or "") + i) then
+					plantAt(K, pcf, "monstera", math.min(6.0, V.H * 0.5), 1.4, potL)
+				end
+			else
+				plantAt(K, pcf, "monstera", math.min(6.0, V.H * 0.5), 1.4, potL)
+			end
 		end
 	end)
 	step(K, "interact", function()
@@ -2964,20 +2989,20 @@ local function mailboxOver(K: any, V: any, r: any, old: boolean?)
 		face = if db < V.z1 - r.max.Z then V3(0, 0, 1) else V3(0, 0, -1)
 	end
 	local warm = hashStr(V.name or "") % 2 == 0
-	local steel = if old then lk(C(208, 210, 212), M.Metal, { r = 0.02 }) elseif warm then lk(C(214, 196, 160), M.SmoothPlastic, { r = 0.08 }) else lk(C(226, 228, 230), M.SmoothPlastic, { r = 0.1 })
+	local steel = if old then lk(C(226, 228, 230), M.SmoothPlastic) elseif warm then lk(C(214, 196, 160), M.SmoothPlastic, { r = 0.08 }) else lk(C(226, 228, 230), M.SmoothPlastic, { r = 0.1 })
 	K:free(function()
 		K:box("MailBody", r.size + V3(0.02, -0.08, 0.02), CF(r.c - V3(0, 0.04, 0)), lk(C(212, 214, 216), M.SmoothPlastic))
 		-- 윗면 마감 판 (윗면 높이 = 맵 Mailboxes 윗면, 둘레 루버까지 덮음)
-		K:box("MailTopCap", V3(r.size.X + 0.2, 0.08, r.size.Z + 0.2), CF(r.c.X, r.max.Y - 0.04, r.c.Z), if old then Look.alu else (if warm then lk(C(190, 154, 112), M.Wood) else lk(C(120, 94, 72), M.Wood)))
+		K:box("MailTopCap", V3(r.size.X + 0.2, 0.08, r.size.Z + 0.2), CF(r.c.X, r.max.Y - 0.04, r.c.Z), if old then lk(C(200, 204, 208), M.SmoothPlastic) else (if warm then lk(C(190, 154, 112), M.Wood) else lk(C(120, 94, 72), M.Wood)))
 		-- 뒤 · 옆면: 템바보드 (세로 루버) 마감. 몸통 면에서 0.04 이상 띄움 (z-fighting 방지)
 		-- 신축: 가는 템바보드 (홈과 살의 명암 차를 줄여 '울타리'처럼 보이지 않게) / 맨션: 헤어라인 알루미늄 판 + 가로 리브
 		local slatL = if warm then lk(C(178, 140, 100), M.Wood) else lk(C(104, 80, 62), M.Wood)
 		local grooveL = if warm then lk(C(128, 96, 66), M.Wood) else lk(C(70, 54, 44), M.Wood)
 		local function louver(fd: CFrame, flen: number, y0: number, y1: number)
 			if old then
-				K:plate("MailSidePanel", flen - 0.04, y1 - y0, 0.04, fd * CF(0, (y0 + y1) / 2, 0.03), Look.brushed)
+				K:plate("MailSidePanel", flen - 0.04, y1 - y0, 0.04, fd * CF(0, (y0 + y1) / 2, 0.03), lk(C(218, 220, 222), M.SmoothPlastic))
 				for k = 1, 3 do
-					K:plate("MailSideRib", flen - 0.06, 0.05, 0.06, fd * CF(0, y0 + (y1 - y0) * k / 4, 0.05), Look.alu)
+					K:plate("MailSideRib", flen - 0.06, 0.05, 0.06, fd * CF(0, y0 + (y1 - y0) * k / 4, 0.05), lk(C(186, 190, 194), M.SmoothPlastic))
 				end
 				return
 			end
@@ -3507,7 +3532,7 @@ local function consultDeskOver(K: any, V: any, t: any, topL: any)
 				K:box("ConsultUnderSheet", V3(0.75, 0.015, 1.0), CF(cx + w * off[1], y - 0.016, cz + l * off[2]) * ANG(0, (i - 1.5) * 0.3, 0), Look.paper)
 			end
 		end
-		K:box("ConsultGlass", V3(w - 0.04, 0.012, l - 0.04), CF(cx, y - 0.006, cz), lk(C(200, 230, 226), M.Glass, { t = 0.72, r = 0.15 }))
+		K:box("ConsultGlass", V3(w - 0.04, 0.012, l - 0.04), CF(cx, y - 0.006, cz), lk(C(210, 236, 232), M.Glass, { t = 0.88, r = 0.1 }))
 		-- 다리: 검은 철제 썰매형 프레임 + 원목 가림판
 		local alongX = w >= l
 		for _, sx in { -1, 1 } do
@@ -3777,62 +3802,6 @@ local function buildRealty(K: any, V: any, S: any)
 			end
 		end
 	end)
-	-- 손님 소파 + 작은 테이블
-	step(K, "sofa", function()
-		local fab = pickR(rng, { lk(C(92, 100, 112), M.Fabric), lk(C(150, 120, 92), M.Leather), lk(C(70, 84, 76), M.Fabric) })
-		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 4.2, 2.4, 3.2, V3(V.x0, 0, 0), 0.05, "sofa")
-		if not (wn and pcf) then
-			-- 좁은 매장: 2인용 (벽 쪽) → 없으면 앞 유리창에 등을 댄 2인용 (창 keep 3.4 아래, 문 keep 밖)
-			local lw
-			for _, l2 in { 3.4, 3.0 } do
-				wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, l2 + 0.1, 2.4, 3.2, V3(V.x0, 0, 0), 0.05, "sofa")
-				if wn and pcf then
-					lw = l2
-					break
-				end
-			end
-			if not (wn and pcf) then
-				local d = V.door
-				for _, l2 in { 3.4, 3.0 } do
-					local cands = {}
-					for _, side in { -1, 1 } do
-						local dx = if d then d.x + side * ((d.w or 4.8) / 2 + 2.2 + l2 / 2) else side * (l2 / 2 + 3)
-						for k = 0, 3 do
-							table.insert(cands, V3(dx + side * k * 0.8, 0, V.z1 - 1.25))
-						end
-					end
-					for _, p in cands do
-						-- 소파 앞 1.4 는 지나다닐 자리로 함께 비워 둠
-						local pc = pcfAt(p, V3(0, 0, -1))
-						if claim(K, pc * CF(0, 0, 0.7), V3(l2 + 0.1, 3.2, 3.8), 0.03, "sofa") then
-							pcf, lw = pc, l2
-							break
-						end
-					end
-					if pcf then
-						break
-					end
-				end
-			end
-			if pcf and lw then
-				sofa(K, pcf * CF(0, 0, -0.02), lw, fab)
-				K:box("SofaThrow", V3(0.9, 0.05, 1.5), pcf * CF(lw / 2 - 0.9, 1.6, 0.25) * ANG(0, 0.1, 0), lk(C(214, 200, 176), M.Fabric))
-			end
-			return
-		end
-		if wn and pcf then
-			sofa(K, pcf * CF(0, 0, -0.02), 4.0, fab)
-			local tp = pcf * CF(0, 0, 2.2)
-			if claim(K, tp, V3(2.0, 1.4, 1.2), 0, "table") then
-				K:box("SofaTableTop", V3(2.0, 0.1, 1.1), tp * CF(0, 1.3, 0), lk(C(240, 240, 236)))
-				for _, sx in { -1, 1 } do
-					K:box("SofaTableLeg", V3(0.08, 1.25, 1.0), tp * CF(sx * 0.9, 0.62, 0), Look.blackMetal)
-				end
-				K:box("SofaTableFolder", V3(0.9, 0.04, 1.0), tp * CF(-0.3, 1.37, 0) * ANG(0, 0.2, 0), lk(C(30, 60, 140)))
-				K:vcyl("SofaTableCup", 0.25, 0.22, tp * CF(0.55, 1.47, 0.1), Look.paper)
-			end
-		end
-	end)
 	-- 매물판 (가장 넓은 벽 자리, 입구에서 보이게)
 	step(K, "listing", function()
 		local w = math.min(8.0, V.W * 0.36)
@@ -3993,6 +3962,76 @@ local function buildRealty(K: any, V: any, S: any)
 		end
 		for _, p in { V3(V.x0 + 0.9, 0, V.z0 + 0.9), V3(V.x1 - 0.9, 0, V.z0 + 0.9), V3(V.x0 + 0.9, 0, V.z1 - 1.0) } do
 			plantAt(K, pcfAt(p, V3(0, 0, 1)), pickR(rng, { "snake", "ficus", "monstera" }), math.min(5.0, V.H * 0.6), 1.2, lk(C(236, 234, 228), M.Concrete))
+		end
+	end)
+	-- 손님 소파 + 작은 테이블
+	step(K, "sofa", function()
+		local fab = pickR(rng, { lk(C(92, 100, 112), M.Fabric), lk(C(150, 120, 92), M.Leather), lk(C(70, 84, 76), M.Fabric) })
+		local wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, 4.2, 2.4, 3.2, V3(V.x0, 0, 0), 0.05, "sofa")
+		if not (wn and pcf) then
+			-- 좁은 매장: 2인용 (벽 쪽) → 없으면 앞 유리창에 등을 댄 2인용 (창 keep 3.4 아래, 문 keep 밖)
+			local lw
+			local sd = 2.3
+			for _, l2 in { 3.4, 3.0 } do
+				wn, pcf = wallFloorSpot(K, { "left", "right", "back" }, l2 + 0.1, 2.4, 3.2, V3(V.x0, 0, 0), 0.05, "sofa")
+				if wn and pcf then
+					lw = l2
+					break
+				end
+			end
+			if not (wn and pcf) then
+				-- 얕은 2인용 (깊이 1.9): 좁은 매장 옆벽
+				for _, l2 in { 3.4, 3.0, 2.7 } do
+					-- 앞 1.3 은 앉고 지나갈 자리로 비어 있어야 함
+					wn, pcf = wallFloorSpot(K, { "left", "right" }, l2 + 0.1, 2.0, 3.2, V3(V.x0, 0, 0), 0.04, "sofa", function(pc: CFrame): boolean
+						return canPlace(K, pc * CF(0, 0, 1.0 + 0.7), V3(l2, 3.0, 1.3), 0) ~= nil
+					end)
+					if wn and pcf then
+						lw, sd = l2, 1.9
+						break
+					end
+				end
+			end
+			if not (wn and pcf) then
+				local d = V.door
+				for _, l2 in { 3.4, 3.0 } do
+					local cands = {}
+					for _, side in { -1, 1 } do
+						local dx = if d then d.x + side * ((d.w or 4.8) / 2 + 2.2 + l2 / 2) else side * (l2 / 2 + 3)
+						for k = 0, 3 do
+							table.insert(cands, V3(dx + side * k * 0.8, 0, V.z1 - 1.25))
+						end
+					end
+					for _, p in cands do
+						-- 소파 앞 1.4 는 지나다닐 자리로 함께 비워 둠
+						local pc = pcfAt(p, V3(0, 0, -1))
+						if claim(K, pc * CF(0, 0, 0.7), V3(l2 + 0.1, 3.2, 3.8), 0.03, "sofa") then
+							pcf, lw = pc, l2
+							break
+						end
+					end
+					if pcf then
+						break
+					end
+				end
+			end
+			if pcf and lw then
+				sofa(K, pcf * CF(0, 0, -0.02), lw, fab, nil, sd)
+				K:box("SofaThrow", V3(0.9, 0.05, sd - 0.8), pcf * CF(lw / 2 - 0.9, 1.6, 0.25) * ANG(0, 0.1, 0), lk(C(214, 200, 176), M.Fabric))
+			end
+			return
+		end
+		if wn and pcf then
+			sofa(K, pcf * CF(0, 0, -0.02), 4.0, fab)
+			local tp = pcf * CF(0, 0, 2.2)
+			if claim(K, tp, V3(2.0, 1.4, 1.2), 0, "table") then
+				K:box("SofaTableTop", V3(2.0, 0.1, 1.1), tp * CF(0, 1.3, 0), lk(C(240, 240, 236)))
+				for _, sx in { -1, 1 } do
+					K:box("SofaTableLeg", V3(0.08, 1.25, 1.0), tp * CF(sx * 0.9, 0.62, 0), Look.blackMetal)
+				end
+				K:box("SofaTableFolder", V3(0.9, 0.04, 1.0), tp * CF(-0.3, 1.37, 0) * ANG(0, 0.2, 0), lk(C(30, 60, 140)))
+				K:vcyl("SofaTableCup", 0.25, 0.22, tp * CF(0.55, 1.47, 0.1), Look.paper)
+			end
 		end
 	end)
 	-- 영업시간 · 달력 · 상호 간판(안쪽)

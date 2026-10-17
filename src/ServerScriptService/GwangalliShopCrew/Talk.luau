@@ -25,7 +25,6 @@ local Crew: any = nil
 local Rig: any = nil
 local Serve: any = nil
 local Regulars: any = nil
-local Sites: any = nil
 local Menus: any = nil
 
 local resolve: (string) -> any? = function()
@@ -37,12 +36,15 @@ local buys: { [Player]: { number } } = {}
 local lastPush: { [Player]: number } = {}
 local tokenSerial = 0
 
+-- what is left in the hand after eating / drinking a held item (the same words ShopLife uses)
+local LEAVES = { takeout_ice = "빈 컵", takeout_hot = "빈 컵", samgak = "포장지", cupramen = "빈 컵라면", dosirak = "빈 도시락", kimbap_roll = "은박지", milk = "빈 우유", water = "빈 병", can = "빈 캔", chips = "과자 봉지", chocopie = "포장지", hotbar = "막대", icebar = "막대", skewer = "꼬치", sausage = "막대", bread = "빵 봉투", cake = "접시", cookie = "봉투", medicine = "빈 병", beer_bottle = "빈 병", glass = "빈 잔", fries = "빈 바구니", nachos = "빈 접시" }
+
 -- types whose bill is paid at the table (포차 · 펍 · 구이 · 해산물: the owner comes over)
 local PAY_AT_TABLE = { pocha = true, pub = true, grill = true, seafood = true, rawfish = true }
 
 function Talk.init(S: any, B: any, N: any, mods: any)
 	Shared, Config, Bridge, Net, Util, Lines, Menus = S, S.Config, B, N, S.Util, S.Lines, S.Menus
-	Crew, Rig, Serve, Regulars, Sites = mods.Crew, mods.Rig, mods.Serve, mods.Regulars, mods.Sites
+	Crew, Rig, Serve, Regulars = mods.Crew, mods.Rig, mods.Serve, mods.Regulars
 	Players.PlayerRemoving:Connect(function(p)
 		sessions[p] = nil
 		cooldowns[p] = nil
@@ -153,17 +155,6 @@ local function close(p: Player, T: any, key: string?, vars: any?): any
 	end
 	Talk.endSession(p)
 	return { ok = true, close = true }
-end
-
-local function itemOf(T: any, id: any): any?
-	local SS = Bridge.SS
-	if SS and T.menuKey then
-		local ok, it = pcall(SS.item, T.menuKey, id)
-		if ok then
-			return it
-		end
-	end
-	return nil
 end
 
 local function shopMenu(T: any): { any }
@@ -1039,6 +1030,7 @@ local function sell(p: Player, T: any, s: any, it: any, here: boolean): any
 			style = if it.kind == "drink" then "sip" else "hand",
 			effect = it.effect,
 			edible = it.kind ~= "goods" or it.dish == "medicine",
+			leaves = LEAVES[it.dish],
 		})
 	end
 	if not given then

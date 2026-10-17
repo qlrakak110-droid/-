@@ -16,8 +16,6 @@ local Diners = {}
 local Shared: any = nil
 local Config: any = nil
 local Bridge: any = nil
-local Net: any = nil
-local Util: any = nil
 local Crew: any = nil
 local Rig: any = nil
 local Sites: any = nil
@@ -29,7 +27,8 @@ local STYLES = { "casual", "office", "street", "tourist", "hoodie", "trendy", "c
 local AGES = { "young", "young", "adult", "adult", "middle", "senior" }
 
 function Diners.init(S: any, B: any, N: any, mods: any)
-	Shared, Config, Bridge, Net, Util = S, S.Config, B, N, S.Util
+	Shared, Config, Bridge = S, S.Config, B
+	local _ = N
 	Crew, Rig, Sites = mods.Crew, mods.Rig, mods.Sites
 end
 
@@ -355,7 +354,7 @@ local function dinerOrderRun(crew: any, R: any, job: any, tok: number)
 	Crew.goHome(crew, R, tok)
 end
 
-function Crew.jobs.dinerOrder(party: any): any
+local function dinerOrderJob(party: any): any
 	return { kind = "dinerOrder", prio = 3, key = "diner" .. party.id, party = party, run = dinerOrderRun, preempt = true }
 end
 
@@ -411,7 +410,7 @@ local function arriveRun(crew: any, party: any)
 		return
 	end
 	if Crew.waiter(crew) then
-		Crew.enqueue(crew, "waiter", Crew.jobs.dinerOrder(party))
+		Crew.enqueue(crew, "waiter", dinerOrderJob(party))
 		-- nobody came within 25 s: they order at the counter's bell
 		task.delay(25, function()
 			if partyAlive(crew, party) and not party.ordered then

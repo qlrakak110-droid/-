@@ -149,22 +149,29 @@ local function build(): any?
 	for i, def in CARDS do
 		table.insert(cards, buildCard(root, i, def))
 	end
-	-- ticker band
-	local band = Core.frame(root, { Position = UDim2.fromScale(0, 0.875), Size = UDim2.fromScale(1, 0.125), BackgroundColor3 = WHITE, BackgroundTransparency = 0.05, ClipsDescendants = true, ZIndex = 2, gradient = Core.seq(Color3.fromRGB(30, 10, 60), Color3.fromRGB(70, 20, 110), Color3.fromRGB(30, 10, 60)) })
+	-- ticker band: its own thin part + SurfaceGui, so the crawl re-renders only this strip and the
+	-- big ranking canvas redraws only when the data changes
+	local bandH = size.Y * 0.125
+	local tpart = Core.part("PlusSideTicker", Vector3.new(size.X, bandH, 0.05), cf * CFrame.new(0, -size.Y * 0.5 + bandH * 0.5, -0.06))
+	tpart.Transparency = 1
+	local tgui = Core.surface("GwClubPlusTicker", tpart, Enum.NormalId.Front, PPS, { Brightness = 2.2, MaxDistance = 200 })
+	local band = Core.frame(tgui, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BackgroundTransparency = 0.05, ClipsDescendants = true, ZIndex = 2, gradient = Core.seq(Color3.fromRGB(30, 10, 60), Color3.fromRGB(70, 20, 110), Color3.fromRGB(30, 10, 60)) })
 	local ticker = Core.text(band, { AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.fromScale(1, 0.5), Size = UDim2.new(0, 3000, 0.72, 0), TextScaled = false, TextSize = 22, Text = "", Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3 })
 	local banner = Core.frame(band, { Size = UDim2.fromScale(1, 1), BackgroundColor3 = WHITE, BackgroundTransparency = 1, ZIndex = 5, gradient = Core.seq(MAGENTA, VIOLET, CYAN) })
 	local bannerText = Core.text(banner, { Size = UDim2.fromScale(0.96, 0.76), Position = UDim2.fromScale(0.02, 0.12), Text = "", TextTransparency = 1, ZIndex = 6, stroke = Color3.fromRGB(30, 10, 40) })
-	return { part = part, gui = gui, root = root, glow = glow, live = live, dates = dates, cards = cards, band = band, ticker = ticker, banner = banner, bannerText = bannerText }
+	return { part = part, gui = gui, tpart = tpart, tgui = tgui, root = root, glow = glow, live = live, dates = dates, cards = cards, band = band, ticker = ticker, banner = banner, bannerText = bannerText }
 end
 
 local function ensure(): any?
-	if board and board.part.Parent and board.gui.Parent then
+	if board and board.part.Parent and board.gui.Parent and board.tpart.Parent and board.tgui.Parent then
 		return board
 	end
 	if board then
 		pcall(function()
 			board.part:Destroy()
 			board.gui:Destroy()
+			board.tpart:Destroy()
+			board.tgui:Destroy()
 		end)
 		board = nil
 	end
@@ -339,6 +346,7 @@ function Boards.init(core: any, led: any)
 		if not here then
 			if board then
 				board.gui.Enabled = false
+				board.tgui.Enabled = false
 			end
 			return true
 		end
@@ -347,6 +355,7 @@ function Boards.init(core: any, led: any)
 			return true
 		end
 		bd.gui.Enabled = true
+		bd.tgui.Enabled = true
 		-- ticker crawl (px per second on the 18 PPS canvas)
 		local w = bd.band.AbsoluteSize.X
 		if w > 0 then
@@ -363,7 +372,10 @@ function Boards.init(core: any, led: any)
 			Core.tween(bd.bannerText, 0.4, { TextTransparency = 1 })
 		end
 		liveT += dt
-		bd.live.BackgroundTransparency = 0.1 + 0.35 * (0.5 + 0.5 * math.sin(liveT * 4))
+		local blink = if (liveT % 1.6) < 0.8 then 0.1 else 0.45
+		if bd.live.BackgroundTransparency ~= blink then
+			bd.live.BackgroundTransparency = blink
+		end
 		return true
 	end)
 end
