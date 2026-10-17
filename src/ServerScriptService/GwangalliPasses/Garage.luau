@@ -189,8 +189,15 @@ local function makePreviews()
 	for key, t in templates do
 		local c = t:Clone()
 		c.Name = key
+		-- a light copy: no cabin, no tiny trim, no scripts / prompts / sounds / lights (a thumbnail only)
+		local int = c:FindFirstChild("Interior")
+		if int then
+			int:Destroy()
+		end
 		for _, d in c:GetDescendants() do
 			if d:IsA("BaseScript") or d:IsA("ProximityPrompt") or d:IsA("ClickDetector") or d:IsA("Sound") or d:IsA("Light") then
+				d:Destroy()
+			elseif d:IsA("BasePart") and d.Size.Magnitude < 0.35 then
 				d:Destroy()
 			elseif d:IsA("BasePart") then
 				d.Anchored = true
@@ -555,8 +562,26 @@ local function buildStation()
 	local strip = part("GlowBand", Vector3.new(2.5, 0.12, 1.1), frame * CFrame.new(0, 5.62, 0), Color3.fromRGB(61, 214, 245), Enum.Material.Neon)
 	strip.CanCollide = false
 	strip.CastShadow = false
-	local screen = part("Screen", Vector3.new(2.0, 3.0, 0.06), frame * CFrame.new(0, 3.35, -0.53), Color3.fromRGB(8, 12, 22), Enum.Material.Glass)
+	local screen = part("Screen", Vector3.new(2.0, 3.0, 0.06), frame * CFrame.new(0, 3.35, -0.53), Color3.fromRGB(8, 12, 22), Enum.Material.SmoothPlastic)
 	screen.CanCollide = false
+	for _, sx in { -1, 1 } do
+		local edge = part("EdgeGlow", Vector3.new(0.08, 4.6, 0.08), frame * CFrame.new(sx * 1.16, 3.0, -0.52), Color3.fromRGB(61, 214, 245), Enum.Material.Neon)
+		edge.CanCollide = false
+		edge.CastShadow = false
+	end
+	-- header sign on top: readable from the road
+	local header = part("HeaderSign", Vector3.new(3.0, 0.8, 0.14), frame * CFrame.new(0, 6.5, 0), Color3.fromRGB(14, 18, 34), Enum.Material.SmoothPlastic)
+	header.CanCollide = false
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local hg = Instance.new("SurfaceGui")
+		hg.Face = face
+		hg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		hg.PixelsPerStud = 60
+		hg.LightInfluence = 0
+		hg.Brightness = 1.6
+		hg.Parent = header
+		kioskText(hg, { Text = Lines.t("station_sign"), Size = UDim2.fromScale(0.94, 0.8), Position = UDim2.fromScale(0.03, 0.1), TextColor3 = Color3.fromRGB(110, 230, 255), Font = Enum.Font.GothamBlack })
+	end
 	local light = Instance.new("PointLight")
 	light.Color = Color3.fromRGB(110, 220, 255)
 	light.Range = 9

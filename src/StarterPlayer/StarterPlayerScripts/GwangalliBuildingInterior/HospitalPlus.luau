@@ -443,17 +443,23 @@ function M.debug(cmd: string): string
 		-- tp x y z [lookX lookZ] (병원 로컬 좌표, 발 위치)
 		local x, y, z = tonumber(w[2]) or 0, tonumber(w[3]) or 0, tonumber(w[4]) or 0
 		local lx, lz = tonumber(w[5]) or x, tonumber(w[6]) or (z - 1)
-		local hrp = s.Lib.localRoot()
-		if hrp then
-			hrp.Anchored = false
-		end
-		s.Lib.teleport(CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(lx, y, lz)))
+		-- 이 스크립트의 스레드에서 실행 (속성을 바꾼 쪽 문맥이 아니라)
+		task.spawn(function()
+			local hrp = s.Lib.localRoot()
+			if hrp then
+				hrp.Anchored = false
+			end
+			s.Lib.teleport(CFrame.lookAt(Vector3.new(x, y, z), Vector3.new(lx, y, lz)))
+		end)
 		return "tp"
 	elseif op == "walk" then
-		local _, hum = s.Lib.localRoot()
-		if hum then
-			hum:MoveTo(Geo.W(tonumber(w[2]) or 0, tonumber(w[3]) or 0, tonumber(w[4]) or 0))
-		end
+		local target = Geo.W(tonumber(w[2]) or 0, tonumber(w[3]) or 0, tonumber(w[4]) or 0)
+		task.spawn(function()
+			local _, hum = s.Lib.localRoot()
+			if hum then
+				hum:MoveTo(target)
+			end
+		end)
 		return "walk"
 	elseif op == "anchor" then
 		local hrp = s.Lib.localRoot()
@@ -466,7 +472,7 @@ function M.debug(cmd: string): string
 		if not P then
 			return "no portal"
 		end
-		P[op](w[2] or "staff", w[3] or "hall")
+		task.spawn(P[op], w[2] or "staff", w[3] or "hall")
 		return op .. " " .. tostring(w[2])
 	end
 	return "unknown " .. op

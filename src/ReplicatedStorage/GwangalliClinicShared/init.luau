@@ -69,7 +69,7 @@ S.STEPS = {
 	consult_wait = { label = "진료 대기", stage = 2, hint = "진료실 앞에서 호출을 기다려요" },
 	consult_called = { label = "진료실로 들어오세요", stage = 2, hint = "진료실 1 · 내과 의자에 앉으세요" },
 	consult = { label = "진료 중", stage = 2, hint = "김선생님과 상담 중" },
-	need_money = { label = "진료비 준비", stage = 3, hint = "진료비가 부족해요 · ATM 에서 찾아 와서 창구에서 이어서" },
+	need_money = { label = "진료비 준비", stage = 3, hint = "진료비가 부족해요 · ATM에서 찾아 와서 창구에서 이어서" },
 	treat_go = { label = "진찰대로", stage = 3, hint = "진찰대(침대)로 가세요" },
 	treat = { label = "처치 중", stage = 3, hint = "주사 맞는 중" },
 	iv_go = { label = "주사실로", stage = 3, hint = "주사실 침대로 가세요" },

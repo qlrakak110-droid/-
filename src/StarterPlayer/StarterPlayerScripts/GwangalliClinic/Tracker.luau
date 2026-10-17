@@ -232,7 +232,7 @@ local function renderCard()
 	if cancelable then
 		Ui.btn(btns, { text = if v.chk then "검진 취소" else "진료 취소", style = "ghost", size = UDim2.new(0.5, -4, 1, 0), pos = UDim2.new(0.5, 4, 0, 0), textSize = 13, onClick = function()
 			local due = v.bill and v.bill.sum and v.bill.sum.dueNew or 0
-			local msg = if due > 0 then string.format("지금 나가면 %s 이 미납금으로 남아요. 정말 취소할까요?", S.won(due)) else "접수를 취소할까요?"
+			local msg = if due > 0 then string.format("지금 나가면 %s이 미납금으로 남아요. 정말 취소할까요?", S.won(due)) else "접수를 취소할까요?"
 			local pick = Ui.ask("system", msg, { "계속 진료받기", "취소할게요" })
 			if pick == 2 then
 				if v.chk then

@@ -41,14 +41,23 @@ local function open(title: string, sub: string): Frame
 end
 
 local function finishStation(id: string, result: any?)
-	local res = ctx.call("checkup", { action = "station", station = id, result = result or {} })
+	local res = ctx.call("checkup", { action = "station", station = id, result = result or {} }, { quiet = true })
 	if res.code == "tooSoon" then
 		task.wait(1.2)
 		res = ctx.call("checkup", { action = "station", station = id, result = result or {} })
+	elseif not res.ok and res.message then
+		Ui.toast(res.message, nil, "warn")
 	end
 	stationSheet.close()
 	if res.ok then
-		Ui.toast("✅ " .. (ctx.visit and "검사 완료" or "검사 완료"), res.text or "", "ok")
+		local label = "검사"
+		local v = ctx.visit
+		for _, st in (v and v.chk and v.chk.stations) or {} do
+			if st.id == id then
+				label = st.label
+			end
+		end
+		Ui.toast(string.format("✅ %s 검사 완료", label), res.text or "", "ok")
 		if (res.left or 0) == 0 then
 			Ui.toast("모든 검사가 끝났어요", "접수대로 가서 결과 상담을 받으세요", "info")
 		end
@@ -404,7 +413,7 @@ function Checkup.desk()
 	end
 	if not v then
 		local H = ctx.fees or {}
-		local pick = Ui.ask("check", string.format("건강검진 받으시겠어요? 신장·체중 · 혈압 · 시력 · 청력 · 심전도 다섯 가지예요. 검진비 %s 은 결과 상담 때 결제돼요.", S.won(H.checkup or 10000)), { "네, 받을게요", "다음에요" }, { name = C.Staff.check.name })
+		local pick = Ui.ask("check", string.format("건강검진 받으시겠어요? 신장·체중 · 혈압 · 시력 · 청력 · 심전도 다섯 가지예요. 검진비 %s은 결과 상담 때 결제돼요.", S.won(H.checkup or 10000)), { "네, 받을게요", "다음에요" }, { name = C.Staff.check.name })
 		if pick ~= 1 then
 			Ui.hideDialog()
 			return

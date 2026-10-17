@@ -787,8 +787,8 @@ function Lib.beeps(part: Instance?, id: string, n: number, gap: number, o: any?)
 	end)
 end
 
--- kind: "water" (물방울, 아래로) | "air" (바람, 아래로) | "steam" (김, 위로)
-function Lib.particles(part: BasePart?, kind: string, dur: number): ParticleEmitter?
+-- kind: "water" (물방울, 아래로) | "air" (바람, 아래로) | "steam" (김, 위로). face = 파트 면 (기본: 종류에 맞게 Bottom/Top)
+function Lib.particles(part: BasePart?, kind: string, dur: number, face: Enum.NormalId?): ParticleEmitter?
 	if not part or not part.Parent then
 		return nil
 	end
@@ -825,6 +825,9 @@ function Lib.particles(part: BasePart?, kind: string, dur: number): ParticleEmit
 		e.Speed = NumberRange.new(0.6, 1.2)
 		e.SpreadAngle = Vector2.new(15, 15)
 		e.EmissionDirection = Enum.NormalId.Top
+	end
+	if face then
+		e.EmissionDirection = face
 	end
 	e.LightInfluence = 0.6
 	e.Parent = part
@@ -986,6 +989,9 @@ function Lib.teleport(lcf: CFrame): boolean
 	-- HumanoidRootPart 를 옮기면 관절로 이어진 몸 전체가 같이 옮겨짐 (캐릭터 물리 = 이 클라이언트 소유)
 	hrp.CFrame = CFrame.lookAt(p, p + flat.Unit)
 	hrp.AssemblyLinearVelocity = Vector3.zero
+	pcall(function()
+		hum:MoveTo(p) -- 진행 중인 클릭 이동 (MoveTo) 취소: 도착한 자리에서 멈춤
+	end)
 	hrp.AssemblyAngularVelocity = Vector3.zero
 	if cam and off then
 		cam.CFrame = hrp.CFrame * off

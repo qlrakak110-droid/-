@@ -184,6 +184,45 @@ local function useWallRec(K: any, V: any, r: any, pad: number?)
 	useWall(K, wall, math.min(a, b) - (pad or 0), math.max(a, b) + (pad or 0), r.min.Y, r.max.Y)
 end
 
+-- 천장 빈 자리 (x, z 근처에서 반지름 r 이 비는 곳; 못 찾으면 nil)
+local function ceilSpot(K: any, x: number, z: number, r: number, reach: number?): (number?, number?)
+	local R = reach or 2.5
+	local best, bx, bz = math.huge, nil, nil
+	for dx = -R, R, 0.5 do
+		for dz = -R, R, 0.5 do
+			local d = dx * dx + dz * dz
+			if d < best and Common.ceilFree(K, x + dx, z + dz, r) then
+				best, bx, bz = d, x + dx, z + dz
+			end
+		end
+	end
+	return bx, bz
+end
+
+-- 불빛 있는 다운라이트 (근처 빈 천장)
+local function litDownlight(K: any, x: number, z: number, color: Color3?, range: number?)
+	local bx, bz = ceilSpot(K, x, z, 0.8)
+	if bx and bz then
+		Props.downlight(K, bx, bz, { light = true, color = color or Look.warmLight, glow = Look.lampWarm, range = range or 18, bright = 1.0, dia = 0.8 })
+		Common.useCeil(K, bx, bz)
+	end
+end
+
+-- 레일 조명 + 일부 헤드에 SpotLight (aim 쪽)
+local function litTrack(K: any, a: Vector3, b: Vector3, n: number, aim: Vector3, nLit: number, color: Color3?)
+	local i0 = #K.parts
+	Props.trackLight(K, a, b, n, { aim = aim })
+	local lit = 0
+	for i = i0 + 1, #K.parts do
+		local p = K.parts[i]
+		if p.Name == "TrackLens" and lit < nLit and (i - i0) % 2 == 0 then
+			if K:light(p, "SpotLight", { Face = Enum.NormalId.Top, Range = 16, Brightness = 1.2, Angle = 60, Color = color or Look.warmLight }) then
+				lit += 1
+			end
+		end
+	end
+end
+
 -- 공용 소품 ------------------------------------------------------------------------------------------
 
 -- 액자 포스터 (색 블록 그림 + 제목)
@@ -436,9 +475,10 @@ local function salonStation(K: any, V: any, wall: string, u: number, idx: number
 		-- 미용 가운 (반대쪽 벽 고리)
 		local cape = wcf(V, wall, u - side - 0.05, 6.1, 0.0)
 		K:box("CapeHook", V3(0.1, 0.1, 0.3), cape * CF(0, 0, 0.15), brass)
-		K:wedge("Cape", V3(0.95, 2.2, 0.06), cape * CF(0, -1.12, 0.2) * ANG(0, PI, 0), lk(rgb(58, 54, 60), M.Fabric))
-		K:box("CapeNeck", V3(0.42, 0.12, 0.1), cape * CF(0, -0.02, 0.22), lk(rgb(58, 54, 60), M.Fabric))
-		K:box("CapeLogo", V3(0.3, 0.06, 0.01), cape * CF(0, -0.9, 0.235), lk(SALON.pink))
+		local capeC = if idx % 2 == 0 then rgb(120, 110, 122) else rgb(196, 160, 166)
+		K:wedge("Cape", V3(0.9, 1.9, 0.06), cape * CF(0, -0.97, 0.2) * ANG(0, PI, 0), lk(capeC, M.Fabric))
+		K:box("CapeNeck", V3(0.42, 0.12, 0.1), cape * CF(0, -0.02, 0.22), lk(dk(capeC, 0.2), M.Fabric))
+		txt(K, "CapeLogo", 0.4, 0.14, cape * CF(0, -0.75, 0.24), "물결", WHITE, nil, F.GothamBlack)
 	end)
 	local _ = seed
 end
@@ -1259,6 +1299,7 @@ local function buildSalon(K: any, V: any, S: any)
 				K:plate("BackTileGrout", 0.02, 4.3, 0.035, d * CF(x, 0, 0), lk(rgb(250, 248, 244)))
 			end
 			K:plate("BackTileCap", len + 0.05, 0.1, 0.08, d * CF(0, 2.17, 0), brass)
+			useWall(K, "back", bu0, bu1, 0.45, 6.5)
 			-- 선반 + 소품
 			local at = Props.shelf(K, wcf(V, "back", mid, 5.6, 0), len - 0.4, { depth = 0.7, look = lk(SALON.walnut, M.Wood), bracket = brass })
 			for j = 0, 5 do
@@ -1287,6 +1328,7 @@ local function buildSalon(K: any, V: any, S: any)
 						K:bar("NeonWaveLED", (nd * CF(x0, -0.5 + (i % 2) * 0.16, 0.08)).Position, (nd * CF(x0 + 0.55, -0.5 + ((i + 1) % 2) * 0.16, 0.08)).Position, 0.05, 0.05, nl(rgb(255, 150, 175)))
 					end
 					K:light(p, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 8, Brightness = 0.7, Angle = 120, Color = rgb(255, 170, 190) })
+					useWall(K, "back", nu - 2.1, nu + 2.1, 6.7, 8.4)
 				end)
 				break
 			end
@@ -1312,6 +1354,26 @@ local function buildSalon(K: any, V: any, S: any)
 				break
 			end
 		end
+	end
+
+	-- 디자이너 소개 보드 (원장 · 실장 · 디자이너)
+	local dw, dd = Common.wallSpot(K, { "left", "right", "back" }, 1.85, 4.3, 7.1, 9)
+	if dw and dd then
+		K:free(function()
+			local d = dd * CF(0, 0, 0.01)
+			K:plate("DesignerBoard", 1.75, 2.7, 0.04, d, lk(rgb(250, 246, 240)))
+			K:plate("DesignerBoardTop", 1.75, 0.06, 0.06, d * CF(0, 1.35, 0), brass)
+			txt(K, "DesignerTitle", 1.6, 0.3, d * CF(0, 1.08, 0.045), "OUR DESIGNERS", SALON.ink, nil, F.GothamBlack)
+			local ppl = { { "원장 이물결", "펌 · 염색 18년" }, { "실장 김하늘", "커트 · 남성 펌" }, { "디자이너 박소라", "탈색 · 클리닉" } }
+			for i, pr in ppl do
+				local y = 0.62 - (i - 1) * 0.72
+				K:plate("DesignerPhoto", 0.5, 0.6, 0.05, d * CF(-0.5, y, 0), lk(({ rgb(214, 190, 176), rgb(196, 176, 168), rgb(226, 204, 196) })[i]))
+				K:ell("DesignerPhotoHead", V3(0.22, 0.26, 0.02), d * CF(-0.5, y + 0.08, 0.06), lk(({ rgb(60, 40, 32), rgb(30, 26, 24), rgb(150, 100, 70) })[i]))
+				K:plate("DesignerPhotoBody", 0.34, 0.2, 0.055, d * CF(-0.5, y - 0.2, 0), lk(SALON.ink))
+				txt(K, "DesignerName", 1.0, 0.22, d * CF(0.32, y + 0.12, 0.045), pr[1], SALON.ink, nil, F.GothamBold, nil, { align = "Left" })
+				txt(K, "DesignerSpec", 1.0, 0.17, d * CF(0.32, y - 0.14, 0.045), pr[2], rgb(140, 120, 120), nil, F.GothamMedium, nil, { align = "Left" })
+			end
+		end)
 	end
 
 	-- 10) 조명 · BGM 패널 (상호작용): 옆벽 낮은 곳 ---------------------------------------------------------
@@ -1348,6 +1410,2526 @@ local function buildSalon(K: any, V: any, S: any)
 	end
 	local _ = W
 	local _2 = H
+end
+
+--================================================================================================
+-- 옷가게 (clothing)
+--================================================================================================
+local SKIN = { c = rgb(244, 242, 238), m = M.SmoothPlastic, r = 0.08 }
+local WOOD_HANGER = lk(rgb(176, 136, 96), M.Wood)
+
+-- 색 팔레트 (비치웨어 편집숍): 화이트 · 크림 · 샌드 · 스카이 · 네이비 · 올리브 · 테라코타 · 블랙
+local CLOTH = {
+	rgb(246, 244, 238), rgb(232, 222, 202), rgb(206, 186, 150), rgb(150, 190, 220), rgb(44, 58, 92),
+	rgb(110, 120, 80), rgb(190, 100, 70), rgb(30, 30, 32), rgb(226, 170, 170), rgb(96, 140, 160),
+	rgb(240, 214, 120), rgb(170, 170, 172),
+}
+
+-- 옷걸이에 건 옷 하나 (옆으로 건 것: 폭 = xdir, 두께 = 레일 방향). hook = 레일 윗면 점 (매장 프레임)
+local function garment(K: any, hook: Vector3, xdir: Vector3, kind: string, c: Color3, o: any?)
+	local op: any = o or {}
+	local g = CFrame.fromMatrix(hook, xdir, Vector3.yAxis, xdir:Cross(Vector3.yAxis)) * ANG(0, 0, op.tilt or 0)
+	local fab = lk(c, M.Fabric)
+	local dark = lk(dk(c, 0.18), M.Fabric)
+	local t = op.t or 0.2
+	-- 고리 + 나무 옷걸이 (어깨 경사 2)
+	local low = lowD(K)
+	K:seg("HangerHook", (g * CF(0, 0.12, 0)).Position, (g * CF(0, -0.18, 0)).Position, 0.035, Look.chrome)
+	if low then
+		K:box("Hanger", V3(1.8, 0.07, 0.06), g * CF(0, -0.3, 0), WOOD_HANGER)
+	else
+		K:bar("Hanger", (g * CF(0, -0.18, 0)).Position, (g * CF(-0.92, -0.42, 0)).Position, 0.08, 0.06, WOOD_HANGER)
+		K:bar("Hanger", (g * CF(0, -0.18, 0)).Position, (g * CF(0.92, -0.42, 0)).Position, 0.08, 0.06, WOOD_HANGER)
+	end
+	if kind == "tee" or kind == "knit" or kind == "hoodie" then
+		local h = if kind == "tee" then 2.15 else 2.35
+		K:box("GarmentBody", V3(1.75, h, t), g * CF(0, -0.32 - h / 2, 0), fab)
+		if not low then
+			K:wedge("GarmentShoulder", V3(t, 0.22, 0.9), g * CF(-0.45, -0.25, 0) * ANG(0, PI / 2, 0), fab)
+			K:wedge("GarmentShoulder", V3(t, 0.22, 0.9), g * CF(0.45, -0.25, 0) * ANG(0, -PI / 2, 0), fab)
+		end
+		local sl = if kind == "tee" then 0.75 else 1.9
+		for _, sx in { -1, 1 } do
+			K:box("GarmentSleeve", V3(0.36, sl, t * 0.9), g * CF(sx * 0.98, -0.48 - sl / 2, 0) * ANG(0, 0, sx * 0.12), fab)
+		end
+		if kind == "knit" then
+			K:box("GarmentRib", V3(1.76, 0.22, t + 0.01), g * CF(0, -0.32 - h + 0.11, 0), dark)
+		elseif kind == "hoodie" then
+			K:ell("GarmentHood", V3(0.9, 0.5, t + 0.05), g * CF(0, -0.38, 0), dark)
+			K:box("GarmentPocket", V3(0.9, 0.45, t + 0.02), g * CF(0, -0.32 - h + 0.6, 0), dark)
+		end
+	elseif kind == "shirt" or kind == "jacket" then
+		local h = if kind == "shirt" then 2.55 else 2.6
+		local tt = if kind == "jacket" then t * 1.8 else t
+		K:box("GarmentBody", V3(1.8, h, tt), g * CF(0, -0.32 - h / 2, 0), fab)
+		K:box("GarmentCollar", V3(0.7, 0.18, tt + 0.03), g * CF(0, -0.36, 0), dark)
+		for _, sx in { -1, 1 } do
+			K:box("GarmentSleeve", V3(0.34, h * 0.85, tt * 0.9), g * CF(sx * 1.0, -0.45 - h * 0.42, 0) * ANG(0, 0, sx * 0.05), fab)
+		end
+		if kind == "jacket" and not lowD(K) then
+			K:box("GarmentLapel", V3(0.08, h * 0.5, tt + 0.03), g * CF(-0.15, -0.5 - h * 0.25, 0), dark)
+		end
+	elseif kind == "dress" then
+		K:box("GarmentBodice", V3(1.3, 1.3, t), g * CF(0, -0.32 - 0.65, 0), fab)
+		K:box("GarmentSkirt", V3(1.85, 2.0, t), g * CF(0, -0.32 - 1.3 - 1.0, 0), fab)
+		K:box("GarmentStrap", V3(0.12, 0.3, t), g * CF(-0.4, -0.25, 0), fab)
+		K:box("GarmentStrap", V3(0.12, 0.3, t), g * CF(0.4, -0.25, 0), fab)
+		K:box("GarmentWaist", V3(1.32, 0.12, t + 0.02), g * CF(0, -1.62, 0), dark)
+	else -- pants / shorts (클립 옷걸이)
+		local h = if kind == "shorts" then 1.3 else 2.6
+		K:box("GarmentWaistband", V3(1.4, 0.2, t + 0.02), g * CF(0, -0.55, 0), dark)
+		for _, sx in { -1, 1 } do
+			K:box("GarmentLeg", V3(0.66, h, t), g * CF(sx * 0.36, -0.65 - h / 2, 0), fab)
+		end
+	end
+	if op.tag and not lowD(K) then
+		K:box("PriceTag", V3(0.2, 0.3, 0.02), g * CF(0.75, -0.75, t / 2 + 0.015), lk(rgb(250, 248, 240)))
+	end
+end
+
+-- 레일 따라 옷 걸기: a..b (레일 윗면 점들), xdir = 옷 폭 방향. 색 묶음 (같은 색 2~4벌씩)
+local function hangRow(K: any, a: Vector3, b: Vector3, xdir: Vector3, pitch: number, kinds: { string }, seed: number, palette: { Color3 }?)
+	local pal = palette or CLOTH
+	local len = (b - a).Magnitude
+	local n = math.floor(len / pitch)
+	local ci = math.floor(rnd(seed, 1) * #pal)
+	local run = 0
+	local kind = kinds[1]
+	for i = 0, n - 1 do
+		if run <= 0 then
+			ci = (ci + 1 + math.floor(rnd(seed, i + 5) * 3)) % #pal
+			run = 2 + math.floor(rnd(seed, i + 9) * 3)
+			kind = kinds[math.floor(rnd(seed, i + 13) * #kinds) + 1]
+		end
+		run -= 1
+		local p = a:Lerp(b, (i + 0.5) / n)
+		local c = pal[ci + 1]
+		if rnd(seed, i + 31) > 0.7 then
+			c = dk(c, 0.08)
+		end
+		garment(K, p, xdir, kind, c, { tilt = (rnd(seed, i + 40) - 0.5) * 0.06, tag = i % 4 == 0, t = 0.16 + rnd(seed, i + 50) * 0.08 })
+	end
+end
+
+-- 사이즈 구분 링 (레일에 끼움)
+local function sizeDivider(K: any, p: Vector3, xdir: Vector3, s: string)
+	local g = CFrame.fromMatrix(p, xdir, Vector3.yAxis, xdir:Cross(Vector3.yAxis))
+	K:disc("SizeDivider", 0.7, 0.03, g * CF(0, -0.3, 0) * ANG(PI / 2, 0, 0), lk(rgb(250, 250, 248)))
+	txt(K, "SizeDividerText", 0.4, 0.3, g * CF(0, -0.3, 0.02), s, rgb(30, 30, 30), nil, F.GothamBlack)
+end
+
+-- 개어 쌓은 옷 더미 (pcf = 놓는 면, +Z = 접힌 앞쪽)
+local function foldedStack(K: any, pcf: CFrame, w: number, d: number, n: number, c: Color3, seed: number, print: Color3?)
+	for i = 1, n do
+		local y = (i - 0.5) * 0.14
+		local cc = if i % 3 == 0 then dk(c, 0.06) else c
+		K:box("FoldedItem", V3(w, 0.13, d), pcf * CF((rnd(seed, i) - 0.5) * 0.06, y, (rnd(seed, i + 7) - 0.5) * 0.05), lk(cc, M.Fabric))
+	end
+	if print and not lowD(K) then
+		K:box("FoldedPrint", V3(w * 0.22, 0.01, d * 0.16), pcf * CF(0, n * 0.14 + 0.005, d * 0.22), lk(print))
+	end
+end
+
+-- 마네킹 (흰 FRP, 추상 얼굴). pcf = 받침 아래 가운데 (+Z = 보는 쪽), y0 = 받침 윗면 높이, outfit, sc = 크기 배율
+-- (기본 키 6.5 스터드 -> sc 0.85 면 사람 키(5.2)보다 조금 큰 5.5)
+local function mannequin(K: any, pcf: CFrame, y0: number, outfit: any, sc: number?)
+	local s = sc or 0.85
+	local top = lk(outfit.top, M.Fabric)
+	local bot = lk(outfit.bottom or outfit.top, M.Fabric)
+	local b = pcf * CF(0, y0, 0)
+	local function P(x: number, y: number, z: number): CFrame
+		return b * CF(x * s, y * s, z * s)
+	end
+	local function S3(x: number, y: number, z: number): Vector3
+		return V3(x * s, y * s, z * s)
+	end
+	K:disc("ManqBase", 1.3 * s, 0.06, b * CF(0, 0.03, 0), Look.chrome)
+	K:seg("ManqRod", P(0.18, 0.06, -0.12).Position, P(0.18, 1.4, -0.12).Position, 0.08, Look.chrome)
+	-- 다리
+	for _, sx in { -1, 1 } do
+		local x = sx * 0.26
+		local shinL = if outfit.bottomKind == "pants" then bot else SKIN
+		local thighL = if outfit.bottomKind == "skirt" or outfit.bottomKind == "dress" then SKIN else bot
+		K:ell("ManqFoot", S3(0.3, 0.18, 0.62), P(x, 0.12, 0.12), SKIN)
+		K:seg("ManqShin", P(x, 0.2, 0).Position, P(x * 1.05, 1.85, 0.02).Position, 0.34 * s, shinL)
+		K:seg("ManqThigh", P(x * 1.05, 1.8, 0.02).Position, P(x * 1.2, 3.35, 0).Position, 0.46 * s, if outfit.bottomKind == "shorts" then bot else thighL)
+		if outfit.bottomKind == "shorts" then
+			K:seg("ManqShortsHem", P(x * 1.12, 2.55, 0.01).Position, P(x * 1.2, 3.35, 0).Position, 0.5 * s, bot)
+		end
+	end
+	K:ell("ManqHips", S3(1.08, 0.78, 0.68), P(0, 3.45, 0), bot)
+	if outfit.bottomKind == "skirt" then
+		K:ell("ManqSkirt", S3(1.3, 1.4, 0.95), P(0, 2.95, 0), bot)
+	elseif outfit.bottomKind == "dress" then
+		K:ell("ManqDressSkirt", S3(1.45, 2.3, 1.05), P(0, 2.55, 0), top)
+	end
+	-- 몸통 · 어깨 · 목 · 머리
+	K:ell("ManqTorso", S3(1.12, 1.95, 0.7), P(0, 4.35, 0), top)
+	K:ell("ManqShoulders", S3(1.72, 0.5, 0.64), P(0, 5.1, 0), top)
+	if outfit.topKind == "jacket" then
+		K:box("ManqJacketFront", S3(0.08, 1.6, 0.04), P(-0.12, 4.3, 0.36), lk(dk(outfit.top, 0.25), M.Fabric))
+		K:box("ManqInner", S3(0.3, 1.3, 0.03), P(0.08, 4.45, 0.35), lk(outfit.inner or rgb(246, 244, 238), M.Fabric))
+	end
+	K:vcyl("ManqNeck", 0.36 * s, 0.26 * s, P(0, 5.45, 0), SKIN)
+	K:ell("ManqHead", S3(0.66, 0.92, 0.78), P(0, 6.05, 0.02), SKIN)
+	-- 팔 (살짝 벌림)
+	local longSleeve = outfit.topKind == "shirt" or outfit.topKind == "jacket" or outfit.topKind == "knit"
+	for _, sx in { -1, 1 } do
+		local sh = P(sx * 0.8, 5.05, 0)
+		local el = P(sx * 0.95, 3.85, 0.05)
+		local wr = P(sx * 0.98, 2.9, 0.18)
+		K:seg("ManqUpperArm", sh.Position, el.Position, 0.3 * s, if outfit.topKind == "dress" then SKIN else top)
+		K:seg("ManqForearm", el.Position, wr.Position, 0.25 * s, if longSleeve then top else SKIN)
+		K:ell("ManqHand", S3(0.16, 0.4, 0.24), wr * CF(0, -0.2 * s, 0), SKIN)
+	end
+	-- 소품: 밀짚모자 · 토트백 · 선글라스
+	if outfit.hat then
+		K:disc("ManqHatBrim", 1.35 * s, 0.04, P(0, 6.42, 0.02), lk(outfit.hat, M.Fabric))
+		K:vcyl("ManqHatCrown", 0.36 * s, 0.72 * s, P(0, 6.6, 0.02), lk(outfit.hat, M.Fabric))
+		K:vcyl("ManqHatBand", 0.08, 0.74 * s, P(0, 6.47, 0.02), lk(rgb(40, 40, 44), M.Fabric))
+	end
+	if outfit.bag then
+		local wr = P(-1.0, 3.0, 0.2)
+		K:box("ManqBag", S3(0.25, 0.85, 0.95), wr * CF(-0.05 * s, -0.75 * s, 0), lk(outfit.bag, M.Fabric))
+		K:seg("ManqBagStrap", (wr * CF(-0.05 * s, -0.32 * s, -0.3 * s)).Position, (wr * CF(0, 0.15 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
+		K:seg("ManqBagStrap", (wr * CF(-0.05 * s, -0.32 * s, 0.3 * s)).Position, (wr * CF(0, 0.15 * s, 0)).Position, 0.05, lk(dk(outfit.bag, 0.3), M.Fabric))
+	end
+	if outfit.shades then
+		K:box("ManqShades", S3(0.62, 0.14, 0.05), P(0, 6.12, 0.42), lk(rgb(20, 20, 22), M.Glass, { r = 0.3 }))
+	end
+end
+
+local OUTFITS = {
+	{ top = rgb(246, 244, 238), topKind = "shirt", bottom = rgb(206, 186, 150), bottomKind = "shorts", hat = rgb(222, 196, 140) },
+	{ top = rgb(150, 190, 220), topKind = "dress", bottomKind = "dress", hat = rgb(232, 210, 160), bag = rgb(214, 186, 140) },
+	{ top = rgb(44, 58, 92), topKind = "knit", bottom = rgb(232, 222, 202), bottomKind = "pants", shades = true },
+	{ top = rgb(110, 120, 80), topKind = "jacket", bottom = rgb(30, 30, 32), bottomKind = "pants", inner = rgb(246, 244, 238) },
+	{ top = rgb(226, 170, 170), topKind = "tee", bottom = rgb(246, 244, 238), bottomKind = "skirt", bag = rgb(190, 100, 70) },
+	{ top = rgb(240, 214, 120), topKind = "tee", bottom = rgb(96, 140, 160), bottomKind = "shorts", shades = true },
+}
+
+-- 신발 한 짝 (pcf = 놓는 면, +Z = 앞코)
+local function shoe(K: any, pcf: CFrame, c: Color3, kind: string)
+	if kind == "sandal" then
+		K:box("ShoeSole", V3(0.42, 0.08, 1.05), pcf * CF(0, 0.04, 0), lk(rgb(200, 170, 120), M.Rubber))
+		K:box("ShoeStrap", V3(0.44, 0.1, 0.12), pcf * CF(0, 0.12, 0.2), lk(c, M.Leather))
+		K:box("ShoeStrap", V3(0.44, 0.1, 0.12), pcf * CF(0, 0.12, -0.2), lk(c, M.Leather))
+	else
+		K:box("ShoeSole", V3(0.44, 0.1, 1.1), pcf * CF(0, 0.05, 0), lk(rgb(246, 244, 240), M.Rubber))
+		K:ell("ShoeUpper", V3(0.42, 0.42, 1.0), pcf * CF(0, 0.2, -0.02), lk(c, M.Leather))
+		K:box("ShoeCollar", V3(0.38, 0.12, 0.3), pcf * CF(0, 0.38, -0.3), lk(dk(c, 0.3), M.Fabric))
+	end
+end
+
+-- 모자 (pcf = 바라보는 쪽 +Z, 원점 = 모자 아래 가운데). kind = "cap" | "bucket" | "straw"
+local function hat(K: any, pcf: CFrame, c: Color3, kind: string)
+	if kind == "cap" then
+		K:ell("CapCrown", V3(0.7, 0.55, 0.72), pcf * CF(0, 0.12, 0), lk(c, M.Fabric))
+		K:box("CapBrim", V3(0.6, 0.04, 0.4), pcf * CF(0, 0.02, 0.45) * ANG(-0.12, 0, 0), lk(dk(c, 0.1), M.Fabric))
+	elseif kind == "bucket" then
+		K:vcyl("BucketCrown", 0.36, 0.62, pcf * CF(0, 0.2, 0), lk(c, M.Fabric))
+		K:disc("BucketBrim", 0.92, 0.04, pcf * CF(0, 0.03, 0), lk(dk(c, 0.08), M.Fabric))
+	else
+		K:vcyl("StrawCrown", 0.32, 0.6, pcf * CF(0, 0.18, 0), lk(c, M.Fabric))
+		K:disc("StrawBrim", 1.25, 0.03, pcf * CF(0, 0.03, 0), lk(c, M.Fabric))
+		K:vcyl("StrawBand", 0.07, 0.62, pcf * CF(0, 0.07, 0), lk(rgb(40, 40, 44), M.Fabric))
+	end
+end
+
+-- 바닥 소품 자리 찾기 + 예약 (pcf 후보 목록 중 첫 번째)
+local function firstSpot(K: any, cands: { CFrame }, size: Vector3, pad: number?): CFrame?
+	for _, c in cands do
+		if K:spot(c, size, pad or 0.1) then
+			return c
+		end
+	end
+	return nil
+end
+
+-- 벽 패널 (프롬프트용) 자리 찾기: walls 순서대로, prefs (u 후보) 마다 Common.wallSpot 으로 찾고 promptOK 확인
+local function findPanel(K: any, V: any, walls: { string }, w: number, y0: number, y1: number, prefs: { number }, reject: ((Vector3) -> boolean)?): CFrame?
+	for _, wn in walls do
+		for _, pu in prefs do
+			-- wallSpot 은 찾은 자리를 기록하므로, 거절되면 그 기록을 되돌림
+			local nUsed = if K.wallUsed then #K.wallUsed else 0
+			local w2, d2 = Common.wallSpot(K, { wn }, w, y0, y1, pu)
+			if w2 and d2 then
+				if promptOK(K, V, d2.Position) and not (reject and reject(d2.Position)) then
+					return d2
+				end
+				while K.wallUsed and #K.wallUsed > nUsed do
+					table.remove(K.wallUsed)
+				end
+			end
+		end
+	end
+	return nil
+end
+
+-- BGM 패널 (매장 음악 순환): dcf 에 만들고 cycle 프롬프트
+local function bgmPanel(K: any, d: CFrame, songs: { string }, label: string, accent: Color3)
+	local plate = K:plate("BGMPanel", 1.2, 0.95, 0.06, d, lk(rgb(30, 30, 32)))
+	K:plate("BGMScreen", 1.04, 0.42, 0.02, d * CF(0, 0.16, 0.06), lk(rgb(20, 30, 40), M.Neon))
+	local _, lab = txt(K, "BGMText", 1.0, 0.36, d * CF(0, 0.16, 0.085), songs[1], accent, nil, F.GothamMedium, 1.4)
+	txt(K, "BGMLabel", 1.0, 0.16, d * CF(0, -0.18, 0.07), label, rgb(200, 200, 200), nil, F.GothamMedium)
+	for j = 0, 2 do
+		wdisc(K, "BGMButton", 0.16, 0.03, d * CF(-0.3 + j * 0.3, -0.36, 0.06), lk(rgb(200, 200, 204)))
+	end
+	Interact.cycle(K, plate, songs, {
+		object = "매장 음악",
+		action = "다음 곡",
+		on = function(_i, item)
+			lab.Text = item
+		end,
+	})
+	return plate
+end
+
+local function buildClothing(K: any, V: any, S: any)
+	local seed = hashStr(V.key or V.name or "clothing")
+	local brass = lk(rgb(190, 156, 96), M.Metal, { r = 0.12 })
+	local oak = lk(rgb(204, 170, 128), M.Wood)
+	local black = Look.blackMetal
+
+	-- 0) 우리 다운라이트 (맵 조명이 어두운 가운데 통로)
+	for _, pz in { { -3.2, V.z1 - 7 }, { 3.2, (V.z0 + V.z1) / 2 + 2 }, { -3.2, V.z0 + 12 }, { V.x1 - 4.5, V.z0 + 6 } } do
+		litDownlight(K, pz[1], pz[2])
+	end
+
+	-- 1) 벽 레일 + 옷 (맵 Rail 자리) --------------------------------------------------------------------
+	for _, rail in recs(V, "Rail") do
+		local alongZ = rail.size.Z > rail.size.X
+		local a = if alongZ then V3(rail.c.X, rail.max.Y, rail.min.Z + 0.3) else V3(rail.min.X + 0.3, rail.max.Y, rail.c.Z)
+		local b = if alongZ then V3(rail.c.X, rail.max.Y, rail.max.Z - 0.3) else V3(rail.max.X - 0.3, rail.max.Y, rail.c.Z)
+		local wall = nearestWall(V, rail.c)
+		local xdir = if alongZ then V3(1, 0, 0) else V3(0, 0, 1)
+		K:free(function()
+			-- 레일 뒤 벽 패널 (따뜻한 베이지 + 세로 홈)
+			local ua = V:wallCoord(wall, a)
+			local ub = V:wallCoord(wall, b)
+			local um, ul = (ua + ub) / 2, math.abs(ub - ua) + 1.2
+			local bd = wcf(V, wall, um, 0.45 + (7.25 - 0.45) / 2, 0.01)
+			K:plate("RailBackdrop", ul, 7.25 - 0.45, 0.03, bd, lk(rgb(170, 184, 164)))
+			K:plate("RailBackdropTrim", ul + 0.1, 0.08, 0.06, bd * CF(0, -(7.25 - 0.45) / 2, 0), lk(rgb(190, 156, 96), M.Metal))
+			for i = 1, math.floor(ul / 1.6) do
+				K:plate("RailBackdropGroove", 0.05, 7.25 - 0.45, 0.035, bd * CF(-ul / 2 + i * 1.6, 0, 0), lk(rgb(150, 164, 144)))
+			end
+			K:cyl("RailNew", rail.size.Z + rail.size.X, 0.14, CF(rail.c) * (if alongZ then ANG(0, PI / 2, 0) else CFrame.new()), brass)
+			-- 벽 브래킷 (5 스터드마다)
+			local len = (b - a).Magnitude + 0.6
+			local nb = math.max(2, math.floor(len / 5) + 1)
+			for i = 0, nb - 1 do
+				local p = a:Lerp(b, i / (nb - 1)) - V3(0, 0.06, 0)
+				local u = V:wallCoord(wall, p)
+				local wp = wcf(V, wall, u, p.Y, 0).Position
+				K:bar("RailArm", wp, p, 0.08, 0.08, brass)
+				wdisc(K, "RailRose", 0.3, 0.04, wcf(V, wall, u, p.Y, 0), brass)
+			end
+			hangRow(K, a, b, xdir, 0.5, { "tee", "shirt", "dress", "knit", "shirt", "tee", "pants" }, seed)
+			-- 사이즈 구분 링 3
+			for i, s in { "S", "M", "L" } do
+				sizeDivider(K, a:Lerp(b, i / 4), xdir, s)
+			end
+		end)
+		hideRec(K, rail)
+	end
+	hideWhere(K, V, setOf({ "RailBracket" }))
+	for _, r in recs(V, "Garment") do
+		hideRec(K, r)
+	end
+	-- 레일 위 선반 (TopShelf) + 접은 옷 · 바구니 · 라탄백
+	for _, sh in recs(V, "TopShelf") do
+		local wall = nearestWall(V, sh.c)
+		local u = V:wallCoord(wall, sh.c)
+		local len = math.max(sh.size.X, sh.size.Z)
+		local dep = math.min(sh.size.X, sh.size.Z)
+		K:free(function()
+			local at = Props.shelf(K, wcf(V, wall, u, sh.min.Y + sh.size.Y / 2, 0), len, { depth = dep, look = oak, bracket = black, thick = sh.size.Y })
+			local n = math.floor(len / 1.6)
+			for i = 1, n do
+				local x = -len / 2 + (i - 0.5) * len / n
+				local k = (i + seed) % 5
+				if k == 2 then
+					K:box("RattanBag", V3(1.0, 0.85, 0.5), at * CF(x, 0.425, -0.3), lk(rgb(196, 160, 104), M.Fabric))
+					K:seg("RattanHandle", (at * CF(x - 0.3, 0.85, -0.3)).Position, (at * CF(x + 0.3, 0.85, -0.3)).Position, 0.06, lk(rgb(150, 110, 70), M.Wood))
+				elseif k == 4 then
+					K:box("StorageBasket", V3(1.2, 0.6, 0.9), at * CF(x, 0.3, -0.4), lk(rgb(214, 200, 176), M.Fabric))
+				else
+					foldedStack(K, at * CF(x, 0, -0.5), 1.1, 0.85, 4, CLOTH[(i * 3 + seed) % #CLOTH + 1], seed + i)
+				end
+			end
+		end)
+		hideRec(K, sh)
+	end
+	for _, r in recs(V, "FoldedStack") do
+		if r.c.Y > 6 then
+			hideRec(K, r)
+		end
+	end
+
+	-- 2) 오른쪽 벽 큐비 (FoldedTees) ---------------------------------------------------------------------
+	local cback = V:first("CubbyBack")
+	if cback then
+		local sides, shelves = recs(V, "CubbySide"), recs(V, "CubbyShelf")
+		local mn, mx = cback.min, cback.max
+		for _, r in sides do
+			mn, mx = mn:Min(r.min), mx:Max(r.max)
+		end
+		for _, r in shelves do
+			mn, mx = mn:Min(r.min), mx:Max(r.max)
+		end
+		local wall = nearestWall(V, cback.c)
+		K:free(function()
+			-- 맵의 CubbyBack 은 방 쪽 면에 붙어 칸을 가림 -> 등판은 벽 쪽으로
+			local bx = if wall == "right" then V.x1 - 0.06 elseif wall == "left" then V.x0 + 0.06 else cback.c.X
+			K:box("CubbyBackNew", V3(0.08, cback.size.Y, cback.size.Z), CF(bx, cback.c.Y, cback.c.Z), lk(rgb(236, 230, 220)))
+			for _, r in sides do
+				K:box("CubbySideNew", r.size + V3(0, 0, 0.04), CF(r.c), oak)
+			end
+			for _, r in shelves do
+				K:box("CubbyShelfNew", r.size + V3(0, 0.04, 0), CF(r.c), oak)
+				-- 앞 가장자리 브라스 띠
+				local fx = if wall == "right" then r.min.X - 0.01 else r.max.X + 0.01
+				if wall == "right" or wall == "left" then
+					K:box("CubbyEdge", V3(0.03, 0.05, r.size.Z), CF(fx, r.max.Y - 0.03, r.c.Z), brass)
+				end
+			end
+			-- 칸마다 접은 티 3 + 가격 클립
+			table.sort(shelves, function(p, q)
+				return p.c.Y < q.c.Y
+			end)
+			local zs = {}
+			for _, r in sides do
+				table.insert(zs, r.c.Z)
+			end
+			table.sort(zs)
+			for si = 1, #shelves - 1 do
+				local y = shelves[si].max.Y + 0.02
+				for ci = 1, #zs - 1 do
+					local zc = (zs[ci] + zs[ci + 1]) / 2
+					local cw = zs[ci + 1] - zs[ci] - 0.3
+					local c = CLOTH[((si * 7 + ci * 3 + seed) % #CLOTH) + 1]
+					local x = (mn.X + mx.X) / 2 + (if wall == "right" then -0.1 else 0.1)
+					local fdir = if wall == "right" then V3(-1, 0, 0) else V3(1, 0, 0)
+					foldedStack(K, faceCF(V3(x, y, zc), fdir), cw * 0.8, 1.2, 4 + (si + ci) % 3, c, seed + si * 10 + ci, if (si + ci) % 4 == 0 then rgb(30, 60, 110) else nil)
+					if not lowD(K) then
+						local tx = if wall == "right" then shelves[si].min.X - 0.03 else shelves[si].max.X + 0.03
+						txt(K, "CubbyTag", 0.75, 0.2, faceCF(V3(tx, shelves[si].max.Y - 0.12, zc), fdir), (({ "29,000", "35,000", "19,900", "39,000", "25,000" })[(si + ci) % 5 + 1]), rgb(30, 30, 30), rgb(250, 248, 240), F.GothamBold)
+					end
+				end
+			end
+			-- 위 조명 띠
+			local lx = if wall == "right" then mn.X - 0.05 else mx.X + 0.05
+			K:box("CubbyLED", V3(0.05, 0.04, mx.Z - mn.Z - 0.3), CF(lx, mx.Y - 0.12, (mn.Z + mx.Z) / 2), Look.lampWarm)
+		end)
+		hideRec(K, cback)
+		for _, r in sides do
+			hideRec(K, r)
+		end
+		for _, r in shelves do
+			hideRec(K, r)
+		end
+		for _, r in recs(V, "FoldedTees") do
+			hideRec(K, r)
+		end
+	end
+
+	-- 3) 신발 선반 ---------------------------------------------------------------------------------------
+	local shoeShelves = recs(V, "ShoeShelf")
+	if #shoeShelves > 0 then
+		table.sort(shoeShelves, function(p, q)
+			return p.c.Y < q.c.Y
+		end)
+		for si, r in shoeShelves do
+			local wall = nearestWall(V, r.c)
+			local u = V:wallCoord(wall, r.c)
+			local len = math.max(r.size.X, r.size.Z)
+			local dep = math.min(r.size.X, r.size.Z)
+			K:free(function()
+				local at = Props.shelf(K, wcf(V, wall, u, r.c.Y, 0), len, { depth = dep, look = oak, bracket = black, thick = r.size.Y + 0.04 })
+				K:box("ShoeShelfLED", V3(len - 0.3, 0.03, 0.04), wcf(V, wall, u, r.min.Y - 0.03, dep - 0.15), Look.lampWarm)
+				local kinds = if si == #shoeShelves then { "sandal", "sandal", "sandal" } else { "sneaker", "sneaker", "sandal" }
+				local cols = { rgb(246, 244, 240), rgb(30, 30, 32), rgb(206, 186, 150), rgb(150, 190, 220), rgb(190, 100, 70) }
+				for j = 1, 3 do
+					local x = -len / 2 + (j - 0.5) * len / 3
+					local k = kinds[(j + si) % 3 + 1]
+					local c = cols[(j * 2 + si + seed) % #cols + 1]
+					shoe(K, at * CF(x - 0.27, 0, -0.1) * ANG(0, 0.12, 0), c, k)
+					shoe(K, at * CF(x + 0.27, 0, -0.1) * ANG(0, -0.06, 0), c, k)
+					if not lowD(K) then
+						txt(K, "ShoeTag", 0.6, 0.16, at * CF(x, -0.12, 0.02), (({ "59,000", "39,000", "25,000", "69,000" })[(j + si) % 4 + 1]), rgb(40, 40, 40), rgb(250, 248, 242), F.GothamBold)
+					end
+				end
+			end)
+			hideRec(K, r)
+		end
+		for _, r in recs(V, "Shoes") do
+			hideRec(K, r)
+		end
+	end
+
+	-- 4) 액세서리 벽 (Pegboard 자리): 슬랫월 + 캡 · 버킷햇 · 선글라스 · 토트백 ---------------------------------------
+	local peg = V:first("Pegboard")
+	if peg then
+		local wall = nearestWall(V, peg.c)
+		local u = V:wallCoord(wall, peg.c)
+		local pw = math.max(peg.size.X, peg.size.Z) + 0.6
+		local ph = peg.size.Y
+		local yc = peg.c.Y
+		K:free(function()
+			local d = wcf(V, wall, u, yc, 0.01)
+			K:plate("SlatWall", pw, ph, 0.06, d, lk(rgb(226, 214, 196), M.Wood))
+			for i = 1, math.floor(ph / 0.5) do
+				K:plate("SlatGroove", pw, 0.04, 0.065, d * CF(0, -ph / 2 + i * 0.5, 0), lk(rgb(150, 136, 118)))
+			end
+			-- 위 2줄: 캡 · 버킷햇 (후크 + 모자)
+			local hc = { rgb(30, 30, 32), rgb(232, 222, 202), rgb(44, 58, 92), rgb(110, 120, 80), rgb(226, 170, 170), rgb(246, 244, 238) }
+			for row = 0, 1 do
+				for col = 0, 2 do
+					local x = -pw / 2 + 0.7 + col * (pw - 1.4) / 2
+					local y = ph / 2 - 0.65 - row * 1.35
+					K:bar("PegHook", (d * CF(x, y, 0.06)).Position, (d * CF(x, y + 0.08, 0.5)).Position, 0.05, 0.05, Look.chrome)
+					local kind = if row == 0 then "cap" else "bucket"
+					hat(K, d * CF(x, y - 0.25, 0.42) * ANG(-PI / 2 + 0.25, 0, 0) * ANG(PI / 2, 0, 0) * CF(0, 0, 0), hc[(row * 3 + col + seed) % #hc + 1], kind)
+				end
+			end
+			-- 아래: 선글라스 진열대 (아크릴 6) + 작은 거울
+			local gy = -ph / 2 + 0.75
+			K:plate("ShadesRack", pw * 0.55, 0.9, 0.08, d * CF(-pw * 0.18, gy, 0.06), Look.acrylicWhite)
+			for i = 0, 5 do
+				local gx = -pw * 0.18 - pw * 0.22 + (i % 3) * pw * 0.22
+				local gyy = gy + 0.2 - (i // 3) * 0.42
+				K:box("Shades", V3(0.6, 0.16, 0.05), d * CF(gx, gyy, 0.18), lk(({ rgb(20, 20, 22), rgb(110, 70, 40), rgb(40, 60, 90) })[i % 3 + 1], M.Glass, { r = 0.3 }))
+				K:box("ShadesBridge", V3(0.66, 0.03, 0.03), d * CF(gx, gyy + 0.08, 0.2), lk(rgb(30, 30, 30), M.Metal))
+			end
+			K:panel("AccessoryMirror", 0.9, 1.3, 0.04, 0.4, d * CF(pw * 0.32, gy + 0.3, 0.07), Look.mirror)
+			txt(K, "AccessorySign", pw * 0.7, 0.36, d * CF(0, ph / 2 + 0.3, 0.06), "ACCESSORY · 모자 · 선글라스", rgb(40, 40, 44), nil, F.GothamBlack)
+			useWall(K, wall, u - pw / 2, u + pw / 2, yc - ph / 2, yc + ph / 2 + 0.5)
+		end)
+		hideRec(K, peg)
+		for _, r in recs(V, "Cap") do
+			if nearXZ(r.c, peg.c) < 3 then
+				hideRec(K, r)
+			end
+		end
+		for _, r in recs(V, "Sunglasses") do
+			if nearXZ(r.c, peg.c) < 3 then
+				hideRec(K, r)
+			end
+		end
+	end
+
+	-- 5) 가운데 진열 테이블 (DisplayTable + DisplayBase) + 접은 옷 ----------------------------------------------
+	for ti, t in recs(V, "DisplayTable") do
+		local base = nil
+		for _, r in recs(V, "DisplayBase") do
+			if nearXZ(r.c, t.c) < 1 then
+				base = r
+			end
+		end
+		local p = V3(t.c.X, 0, t.c.Z)
+		K:free(function()
+			K:box("DisplayTop", t.size, CF(t.c), oak)
+			K:box("DisplayTopEdge", V3(t.size.X + 0.02, 0.05, t.size.Z + 0.02), CF(t.c.X, t.min.Y + 0.02, t.c.Z), brass)
+			if base then
+				K:box("DisplayBody", base.size - V3(0, 0.25, 0), CF(base.c + V3(0, 0.125, 0)), lk(rgb(244, 242, 236)))
+				K:box("DisplayPlinth", V3(base.size.X - 0.2, 0.25, base.size.Z - 0.2), CF(base.c.X, 0.125, base.c.Z), black)
+				-- 아래 칸 (청바지 더미)
+				K:box("DisplayNiche", V3(base.size.X - 0.6, 1.1, 0.04), CF(base.c.X, 1.0, base.max.Z + 0.005), lk(rgb(214, 206, 192)))
+			end
+			-- 윗면: 3x2 더미
+			local cols = if ti % 2 == 0 then { rgb(44, 58, 92), rgb(70, 96, 140), rgb(130, 160, 196) } else { rgb(246, 244, 238), rgb(232, 222, 202), rgb(150, 190, 220), rgb(226, 170, 170) }
+			local k = 0
+			for ix = -1, 1 do
+				for iz = -1, 1, 2 do
+					k += 1
+					local c = cols[(k + seed) % #cols + 1]
+					foldedStack(K, CF(p.X + ix * 1.5, t.max.Y, p.Z + iz * 0.72) * ANG(0, (rnd(seed, k) - 0.5) * 0.1, 0), 1.25, 1.0, 3 + (k % 3), c, seed + k * 11 + ti, if k % 3 == 0 then rgb(190, 100, 70) else nil)
+				end
+			end
+			-- 가격 아크릴 (뒤쪽 가운데)
+			K:box("PriceStandBase", V3(0.7, 0.05, 0.25), CF(p.X, t.max.Y + 0.025, t.min.Z + 0.25), Look.acrylicWhite)
+			txt(K, "PriceStand", 0.66, 0.46, CF(p.X, t.max.Y + 0.3, t.min.Z + 0.25) * ANG(0, PI, 0), if ti % 2 == 0 then "데님 팬츠\n49,000" else "린넨 셔츠\n39,000", rgb(30, 30, 30), rgb(252, 250, 246), F.GothamBold)
+		end)
+		hideRec(K, t)
+		if base then
+			hideRec(K, base)
+		end
+		for _, r in recs(V, "FoldedStack") do
+			if r.c.Y < 6 and nearXZ(r.c, t.c) < 3 then
+				hideRec(K, r)
+			end
+		end
+		K:reserve(V3(t.min.X - 0.3, 0, t.min.Z - 0.3), V3(t.max.X + 0.3, 4, t.max.Z + 0.3), "display")
+	end
+
+	-- 6) 세일 바구니 (나무 상자) + 양말 팩 --------------------------------------------------------------------
+	local bin = V:first("SaleBin")
+	if bin then
+		local p = V3(bin.c.X, 0, bin.c.Z)
+		local w, h, d = bin.size.X, bin.size.Y, bin.size.Z
+		K:free(function()
+			local crate = lk(rgb(196, 160, 112), M.WoodPlanks)
+			for i = 0, 3 do
+				local y = 0.3 + i * (h - 0.4) / 3.2
+				K:box("CrateSlat", V3(w, (h - 0.4) / 4.2, 0.08), CF(p.X, y + 0.25, p.Z + d / 2 - 0.04), crate)
+				K:box("CrateSlat", V3(w, (h - 0.4) / 4.2, 0.08), CF(p.X, y + 0.25, p.Z - d / 2 + 0.04), crate)
+				K:box("CrateSlat", V3(0.08, (h - 0.4) / 4.2, d - 0.16), CF(p.X - w / 2 + 0.04, y + 0.25, p.Z), crate)
+				K:box("CrateSlat", V3(0.08, (h - 0.4) / 4.2, d - 0.16), CF(p.X + w / 2 - 0.04, y + 0.25, p.Z), crate)
+			end
+			for _, sx in { -1, 1 } do
+				for _, sz in { -1, 1 } do
+					K:box("CratePost", V3(0.16, h, 0.16), CF(p.X + sx * (w / 2 - 0.08), h / 2, p.Z + sz * (d / 2 - 0.08)), lk(rgb(150, 116, 80), M.Wood))
+				end
+			end
+			K:box("CrateFill", V3(w - 0.2, 0.1, d - 0.2), CF(p.X, h - 0.35, p.Z), lk(rgb(232, 222, 202), M.Fabric))
+			local sc = { rgb(226, 170, 170), rgb(150, 190, 220), rgb(240, 214, 120), rgb(246, 244, 238), rgb(110, 120, 80), rgb(44, 58, 92) }
+			for i = 0, 8 do
+				local x = -w / 2 + 0.45 + (i % 3) * (w - 0.9) / 2
+				local z = -d / 2 + 0.45 + (i // 3) * (d - 0.9) / 2
+				local cf2 = CF(p.X + x, h - 0.22 + (i % 2) * 0.06, p.Z + z) * ANG(0, rnd(seed, i) * 1.2 - 0.6, (rnd(seed, i + 3) - 0.5) * 0.3)
+				K:box("SockPackNew", V3(0.75, 0.16, 0.5), cf2, lk(sc[(i + seed) % #sc + 1], M.Fabric))
+				if not lowD(K) then
+					K:box("SockBand", V3(0.2, 0.17, 0.52), cf2 * CF(0.15, 0, 0), lk(rgb(250, 250, 248)))
+				end
+			end
+		end)
+		hideRec(K, bin)
+		for _, r in recs(V, "SockPack") do
+			hideRec(K, r)
+		end
+		K:reserve(bin.min - V3(0.2, 0, 0.2), bin.max + V3(0.2, 0.5, 0.2), "bin")
+	end
+
+	-- 7) 독립 행거 (RackPost · RackBar) -------------------------------------------------------------------
+	local bar = V:first("RackBar")
+	if bar then
+		local alongZ = bar.size.Z > bar.size.X
+		local a = if alongZ then V3(bar.c.X, bar.max.Y, bar.min.Z + 0.2) else V3(bar.min.X + 0.2, bar.max.Y, bar.c.Z)
+		local b = if alongZ then V3(bar.c.X, bar.max.Y, bar.max.Z - 0.2) else V3(bar.max.X - 0.2, bar.max.Y, bar.c.Z)
+		local xdir = if alongZ then V3(1, 0, 0) else V3(0, 0, 1)
+		K:free(function()
+			local pipe = lk(rgb(36, 36, 38), M.Metal)
+			K:seg("RackPipe", a - V3(0, 0.07, 0) - (b - a).Unit * 0.25, b - V3(0, 0.07, 0) + (b - a).Unit * 0.25, 0.14, pipe)
+			for _, r in recs(V, "RackPost") do
+				K:seg("RackUpright", V3(r.c.X, 0.15, r.c.Z), V3(r.c.X, bar.max.Y - 0.07, r.c.Z), 0.14, pipe)
+				K:ball("RackElbow", 0.2, CF(r.c.X, bar.max.Y - 0.07, r.c.Z), pipe)
+				K:seg("RackFootBar", V3(r.c.X, 0.08, r.c.Z) - xdir * 0.8, V3(r.c.X, 0.08, r.c.Z) + xdir * 0.8, 0.14, pipe)
+				for _, s in { -1, 1 } do
+					K:ball("RackCaster", 0.16, CF(V3(r.c.X, 0.08, r.c.Z) + xdir * s * 0.8), Look.rubber)
+				end
+			end
+			-- 아래 나무 선반 + 박스
+			local mid = (a + b) / 2
+			local len = (b - a).Magnitude
+			local rot = if alongZ then ANG(0, PI / 2, 0) else CFrame.new()
+			K:box("RackPlank", V3(len, 0.12, 1.2), CF(mid.X, 0.7, mid.Z) * rot, oak)
+			for i = 0, 2 do
+				local p = a:Lerp(b, (i + 0.5) / 3)
+				foldedStack(K, CF(p.X, 0.76, p.Z) * rot, 1.0, 0.9, 3, CLOTH[(i * 5 + seed) % #CLOTH + 1], seed + 70 + i)
+			end
+			hangRow(K, a, b, xdir, 0.55, { "jacket", "shirt", "knit" }, seed + 99)
+			-- 끝 사인 (SALE 30%)
+			txt(K, "RackEndSign", 1.2, 0.6, faceCF(b + (b - a).Unit * 0.45 + V3(0, -0.4, 0), (b - a).Unit) * CF(0, 0, 0), "NEW\n아우터", rgb(250, 250, 248), rgb(190, 100, 70), F.GothamBlack)
+		end)
+		hideRec(K, bar)
+		hideWhere(K, V, setOf({ "RackPost", "RackFoot" }), function(r)
+			return nearXZ(r.c, bar.c) < 6
+		end)
+		for _, r in recs(V, "Garment") do
+			hideRec(K, r)
+		end
+	end
+
+	-- 8) 마네킹 (맵 자세 그대로, 원본 숨김) + 쇼윈도 받침 ---------------------------------------------------------
+	local torsos = recs(V, "MannequinTorso")
+	local mList = {}
+	for mi, tr in torsos do
+		local base = nil
+		for _, r in recs(V, "MannequinBase") do
+			if nearXZ(r.c, tr.c) < 0.6 then
+				base = r
+			end
+		end
+		local y0 = if base then base.max.Y else 0.8
+		local f = tr.lcf.LookVector
+		local pcf = faceCF(V3(tr.c.X, 0, tr.c.Z), V3(f.X, 0, f.Z))
+		local outfit = OUTFITS[(mi + seed) % #OUTFITS + 1]
+		table.insert(mList, { pcf = pcf, y0 = y0, i = mi })
+		K:group("Mannequin_" .. mi, function()
+			K:free(function()
+				mannequin(K, pcf, y0, outfit)
+			end)
+		end)
+		for _, nm in { "MannequinBase", "MannequinPole", "MannequinLegs", "MannequinTorso", "MannequinShoulders", "MannequinNeck", "MannequinHead", "MannequinJacket" } do
+			for _, r in recs(V, nm) do
+				if nearXZ(r.c, tr.c) < 0.8 then
+					hideRec(K, r)
+				end
+			end
+		end
+	end
+	for _, r in recs(V, "WindowPlinth") do
+		K:free(function()
+			K:box("WindowPlinthBody", r.size - V3(0, 0.12, 0), CF(r.c - V3(0, 0.06, 0)), lk(rgb(244, 242, 236)))
+			K:box("WindowPlinthTop", V3(r.size.X + 0.04, 0.12, r.size.Z + 0.04), CF(r.c.X, r.max.Y - 0.06, r.c.Z), oak)
+			K:box("WindowPlinthLED", V3(r.size.X - 0.2, 0.04, 0.04), CF(r.c.X, 0.1, r.min.Z - 0.02), Look.lampWarm)
+			-- 소품: 비치 타월 롤 · 조개 장식 · 바구니
+			towelRoll(K, CF(r.c.X + (if r.c.X > 0 then -2.2 else 2.0), r.max.Y, r.c.Z - 0.6), 1.4, 0.45, rgb(96, 140, 160))
+			towelRoll(K, CF(r.c.X + (if r.c.X > 0 then -2.0 else 2.2), r.max.Y + 0.42, r.c.Z - 0.6), 1.4, 0.45, rgb(246, 244, 238))
+			K:ell("ShellDecor", V3(0.7, 0.3, 0.55), CF(r.c.X + (if r.c.X > 0 then 0.9 else -0.9), r.max.Y + 0.15, r.c.Z - 0.9), lk(rgb(246, 226, 214)))
+		end)
+		hideRec(K, r)
+	end
+	-- 중앙 마네킹 받침 (MannequinPlinth)
+	local mplinth = V:first("MannequinPlinth")
+	if mplinth then
+		K:free(function()
+			K:rbox("ManqPlinth", V3(mplinth.size.X, mplinth.size.Y - 0.08, mplinth.size.Z), 0.25, CF(mplinth.c - V3(0, 0.04, 0)) * ANG(0, PI / 2, 0) * ANG(0, PI / 2, 0), lk(rgb(236, 232, 224), M.Concrete))
+			K:box("ManqPlinthTop", V3(mplinth.size.X - 0.1, 0.08, mplinth.size.Z - 0.1), CF(mplinth.c.X, mplinth.max.Y - 0.04, mplinth.c.Z), lk(rgb(214, 206, 192)))
+		end)
+		hideRec(K, mplinth)
+	end
+	-- 쇼윈도 스포트 (천장, 마네킹을 비춤) 2개
+	local spotParts = {}
+	for _, m in mList do
+		local pz = (m.pcf * CF(0, 0, 0)).Position
+		if pz.Z > V.z1 - 4 and #spotParts < 2 then
+			local top = V3(pz.X, V.H, pz.Z - 2.6)
+			K:free(function()
+				K:box("WinSpotMount", V3(0.5, 0.06, 0.5), CF(top - V3(0, 0.03, 0)), black)
+				local hcf = CFrame.lookAt(top - V3(0, 0.5, 0), pz + V3(0, 4.5, 0))
+				K:vcyl("WinSpotStem", 0.45, 0.06, CF(top - V3(0, 0.25, 0)), black)
+				K:cyl("WinSpotHead", 0.6, 0.38, hcf * CF(0, 0, -0.1) * ANG(0, PI / 2, 0), black)
+				local lens = K:disc("WinSpotLens", 0.3, 0.02, hcf * CF(0, 0, -0.41) * ANG(PI / 2, 0, 0), Look.lampWarm)
+				local l = K:light(lens, "SpotLight", { Face = Enum.NormalId.Top, Range = 14, Brightness = 1.4, Angle = 45, Color = Look.warmLight })
+				table.insert(spotParts, { lens = lens, light = l })
+			end)
+		end
+	end
+
+	-- 9) 피팅룸: 주름 커튼 · 커튼봉 · 번호판 · 바깥벽 루버 · 안내 ---------------------------------------------------
+	for ci, cur in recs(V, "Curtain") do
+		local alongX = cur.size.X > cur.size.Z
+		local w, h = math.max(cur.size.X, cur.size.Z), cur.size.Y
+		local fdir = if alongX then V3(0, 0, 1) else V3(1, 0, 0)
+		local pcf = faceCF(V3(cur.c.X, 0, cur.c.Z), fdir)
+		local col = rgb(206, 190, 160)
+		K:free(function()
+			local n = math.max(6, math.floor(w / 0.42))
+			for i = 0, n - 1 do
+				local x = -w / 2 + (i + 0.5) * w / n
+				K:vcyl("CurtainPleat", h, w / n * 1.25, pcf * CF(x, cur.min.Y + h / 2, (i % 2) * 0.1 - 0.05), lk(if i % 2 == 0 then col else dk(col, 0.08), M.Fabric))
+			end
+			K:box("CurtainHeader", V3(w, 0.25, 0.2), pcf * CF(0, cur.max.Y - 0.12, 0), lk(dk(col, 0.05), M.Fabric))
+		end)
+		hideRec(K, cur)
+		local _ = ci
+	end
+	for _, rod in recs(V, "CurtainRod") do
+		local alongX = rod.size.X > rod.size.Z
+		K:free(function()
+			K:cyl("CurtainRodNew", math.max(rod.size.X, rod.size.Z), 0.1, CF(rod.c) * (if alongX then CFrame.new() else ANG(0, PI / 2, 0)), brass)
+			for _, s in { -1, 1 } do
+				local e = rod.c + (if alongX then V3(s * rod.size.X / 2, 0, 0) else V3(0, 0, s * rod.size.Z / 2))
+				K:ball("CurtainFinial", 0.2, CF(e), brass)
+			end
+		end)
+		hideRec(K, rod)
+	end
+	-- 피팅룸 번호 (헤더 위) + 바깥벽 루버 + 이용 안내 + 페이스커버 상자
+	local hdr = V:first("FittingHeader")
+	local curtains = recs(V, "Curtain")
+	if hdr then
+		K:free(function()
+			for i, cur in curtains do
+				local d = faceCF(V3(cur.c.X, hdr.c.Y + 0.05, hdr.max.Z + 0.01), V3(0, 0, 1))
+				if math.abs(cur.c.X - (V:first("Sign_FITTING ROOM") and V:first("Sign_FITTING ROOM").c.X or 1e9)) > 2.2 then
+					K:disc("FitNoPlate", 0.5, 0.03, d * ANG(PI / 2, 0, 0), brass)
+					txt(K, "FitNo", 0.34, 0.34, d * CF(0, 0, 0.035), tostring(i), rgb(40, 34, 28), nil, F.GothamBlack)
+				end
+			end
+		end)
+	end
+	for _, fw in recs(V, "FittingWall") do
+		if fw.size.X > 1.2 then
+			K:free(function()
+				local zf = fw.max.Z + 0.01
+				local n = math.floor((fw.size.X - 0.1) / 0.35)
+				K:box("FitWallBack", V3(fw.size.X, fw.size.Y - 0.5, 0.03), CF(fw.c.X, 0.25 + (fw.size.Y - 0.5) / 2, zf + 0.015), lk(rgb(232, 222, 202)))
+				for i = 0, n - 1 do
+					local x = fw.min.X + 0.05 + (i + 0.5) * (fw.size.X - 0.1) / n
+					K:box("FitWallSlat", V3(0.18, fw.size.Y - 0.5, 0.1), CF(x, 0.25 + (fw.size.Y - 0.5) / 2, zf + 0.08), oak)
+				end
+			end)
+		end
+	end
+	-- 이용 안내 (가장 넓은 피팅룸 바깥벽)
+	local bigFW = nil
+	for _, fw in recs(V, "FittingWall") do
+		if not bigFW or fw.size.X > bigFW.size.X then
+			bigFW = fw
+		end
+	end
+	if bigFW and bigFW.size.X > 3 then
+		K:free(function()
+			local d = faceCF(V3(bigFW.c.X, 5.0, bigFW.max.Z + 0.2), V3(0, 0, 1))
+			notice(K, d, 2.4, 1.6, "FITTING ROOM 이용 안내", "한 번에 3벌까지\n화장품이 묻지 않게 페이스 커버 사용\n이용 후 옷은 직원에게 주세요", rgb(44, 58, 92))
+			local bx = faceCF(V3(bigFW.c.X, 3.4, bigFW.max.Z + 0.2), V3(0, 0, 1))
+			K:box("FaceCoverBox", V3(0.9, 0.5, 0.35), bx * CF(0, 0, 0.18), lk(rgb(250, 250, 248)))
+			K:box("FaceCoverTissue", V3(0.3, 0.12, 0.2), bx * CF(0, 0.3, 0.18), lk(rgb(240, 240, 238), M.Fabric))
+			txt(K, "FaceCoverLabel", 0.8, 0.18, bx * CF(0, 0.02, 0.36), "페이스 커버", rgb(60, 60, 60), nil, F.GothamMedium)
+		end)
+	end
+
+	-- 10) 대형 거울 테두리 · 푸프 · 계산대 ----------------------------------------------------------------
+	local bm = V:first("BigMirrorFrame")
+	if bm then
+		local wall = nearestWall(V, bm.c)
+		local u = V:wallCoord(wall, bm.c)
+		local w, h = math.max(bm.size.X, bm.size.Z), bm.size.Y
+		K:free(function()
+			local d = wcf(V, wall, u, bm.c.Y, 0.01)
+			K:plate("MirrorFrameBrass", w + 0.2, 0.18, 0.3, d * CF(0, h / 2, 0), brass)
+			K:plate("MirrorFrameBrass", w + 0.2, 0.18, 0.3, d * CF(0, -h / 2, 0), brass)
+			for _, s in { -1, 1 } do
+				K:plate("MirrorFrameBrass", 0.18, h, 0.3, d * CF(s * (w / 2 + 0.01), 0, 0), brass)
+				K:plate("MirrorLED", 0.06, h - 0.6, 0.32, d * CF(s * (w / 2 - 0.14), 0, 0), Look.lampWarm)
+			end
+		end)
+		hideRec(K, bm)
+	end
+	for _, pf in recs(V, "Pouf") do
+		local dia = math.min(pf.size.X, pf.size.Z)
+		K:free(function()
+			K:vcyl("PoufBody", pf.size.Y - 0.25, dia, CF(pf.c.X, (pf.size.Y - 0.25) / 2 + 0.05, pf.c.Z), lk(rgb(110, 120, 80), M.Fabric))
+			K:ell("PoufTop", V3(dia, 0.5, dia), CF(pf.c.X, pf.max.Y - 0.25, pf.c.Z), lk(rgb(120, 130, 88), M.Fabric))
+			K:ball("PoufButton", 0.14, CF(pf.c.X, pf.max.Y + 0.0, pf.c.Z), lk(rgb(90, 100, 64), M.Fabric))
+			K:disc("PoufBase", dia - 0.2, 0.06, CF(pf.c.X, 0.03, pf.c.Z), brass)
+			for i = 0, 7 do
+				local a = i * PI / 4
+				K:box("PoufPiping", V3(0.05, pf.size.Y - 0.5, 0.05), CF(pf.c.X + math.cos(a) * dia / 2, (pf.size.Y - 0.25) / 2 + 0.05, pf.c.Z + math.sin(a) * dia / 2), lk(rgb(90, 100, 64), M.Fabric))
+			end
+		end)
+		hideRec(K, pf)
+	end
+	local cc = V:first("CashCounter")
+	local ct = V:first("CashTop")
+	if cc and ct then
+		local band = V:first("CounterLogoBand")
+		local fdir = if band then V3(band.c.X - cc.c.X, 0, band.c.Z - cc.c.Z) else V3(-cc.c.X, 0, 0)
+		if math.abs(fdir.X) >= math.abs(fdir.Z) then
+			fdir = V3(math.sign(fdir.X), 0, 0)
+		else
+			fdir = V3(0, 0, math.sign(fdir.Z))
+		end
+		local along = math.abs(fdir.X) > 0.5
+		local cw = if along then cc.size.Z else cc.size.X
+		local cd = if along then cc.size.X else cc.size.Z
+		local tw = if along then ct.size.Z else ct.size.X
+		local td = if along then ct.size.X else ct.size.Z
+		local pcf = faceCF(V3(cc.c.X, 0, cc.c.Z), fdir)
+		local tcf = faceCF(V3(ct.c.X, 0, ct.c.Z), fdir)
+		K:free(function()
+			K:box("CashBody", V3(cw, cc.size.Y - 0.25, cd), pcf * CF(0, 0.25 + (cc.size.Y - 0.25) / 2, 0), lk(rgb(244, 242, 236)))
+			K:box("CashKick", V3(cw - 0.1, 0.25, cd - 0.15), pcf * CF(0, 0.125, -0.06), black)
+			local n = math.floor((cw - 0.2) / 0.35)
+			for i = 0, n - 1 do
+				K:box("CashSlat", V3(0.2, cc.size.Y - 0.6, 0.1), pcf * CF(-cw / 2 + 0.1 + (i + 0.5) * (cw - 0.2) / n, 0.3 + (cc.size.Y - 0.6) / 2, cd / 2 + 0.05), oak)
+			end
+			K:box("CashTopNew", V3(tw, ct.size.Y, td), tcf * CF(0, ct.c.Y, 0), Look.terrazzo)
+			K:box("CashTopEdge", V3(tw + 0.02, 0.05, 0.03), tcf * CF(0, ct.min.Y + 0.03, td / 2), brass)
+			K:plate("CashLogoBack", 3.0, 0.9, 0.03, pcf * CF(0, cc.size.Y * 0.55, cd / 2 + 0.1), lk(rgb(44, 58, 92)))
+			txt(K, "CashLogo", 2.8, 0.7, pcf * CF(0, cc.size.Y * 0.55, cd / 2 + 0.135), "BADA CLOSET", rgb(246, 244, 238), nil, F.GothamBlack)
+			-- 상판 소품: 쇼핑백 (선 것 1 + 접힌 것) · 포장지 · 옷걸이 통
+			local topY = ct.max.Y
+			local bagC = rgb(250, 250, 248)
+			local items = { -tw / 2 + 0.6, tw / 2 - 0.7 }
+			local blk = { V:first("PosBase"), V:first("CardReader"), V:first("Vase") }
+			local placed = 0
+			for _, x in items do
+				local lp = (tcf * CF(x, topY, 0)).Position
+				local okp = true
+				for _, q in blk do
+					if q and nearXZ(q.c, lp) < 1.0 then
+						okp = false
+					end
+				end
+				if okp then
+					placed += 1
+					local at = tcf * CF(x, topY, -0.1)
+					if placed == 1 then
+						K:box("ShopBagStand", V3(0.9, 1.1, 0.45), at * CF(0, 0.55, 0), lk(bagC, M.Cardboard))
+						K:seg("ShopBagRope", (at * CF(-0.2, 1.1, 0)).Position, (at * CF(0, 1.45, 0)).Position, 0.04, lk(rgb(44, 58, 92), M.Fabric))
+						K:seg("ShopBagRope", (at * CF(0.2, 1.1, 0)).Position, (at * CF(0, 1.45, 0)).Position, 0.04, lk(rgb(44, 58, 92), M.Fabric))
+						txt(K, "ShopBagLogo", 0.8, 0.3, at * CF(0, 0.62, 0.235), "BADA\nCLOSET", rgb(44, 58, 92), nil, F.GothamBlack)
+						for j = 0, 2 do
+							K:box("ShopBagFlat", V3(1.0, 0.04, 0.7), at * CF(0.1, 0.02 + j * 0.045, 0.25 + 0.0) * ANG(0, 0.08 * j, 0), lk(if j == 1 then rgb(44, 58, 92) else bagC, M.Cardboard))
+						end
+					else
+						K:box("TissuePaper", V3(0.9, 0.08, 0.7), at * CF(0, 0.04, 0), lk(rgb(232, 222, 202)))
+						K:vcyl("HangerTub", 0.6, 0.5, at * CF(0.0, 0.38, 0.0), lk(rgb(40, 40, 44)))
+						for j = 0, 3 do
+							K:bar("SpareHanger", (at * CF(-0.1 + j * 0.06, 0.6, 0)).Position, (at * CF(-0.1 + j * 0.06, 1.0, 0.2)).Position, 0.04, 0.04, WOOD_HANGER)
+						end
+					end
+				end
+			end
+		end)
+		hideRec(K, cc)
+		hideRec(K, ct)
+		if band then
+			hideRec(K, band)
+		end
+		for _, r in recs(V, "ShopBag") do
+			hideRec(K, r)
+		end
+	end
+
+	-- 11) 모자 스탠드 (HatStand) -> 브라스 모자걸이 + 모자 ---------------------------------------------------------
+	local hp = V:first("HatStandPole")
+	if hp then
+		local p = V3(hp.c.X, 0, hp.c.Z)
+		local top = hp.max.Y
+		K:free(function()
+			K:disc("HatTreeBase", 1.4, 0.15, CF(p.X, 0.075, p.Z), Look.marbleWhite)
+			K:vcyl("HatTreePole", top - 0.15, 0.12, CF(p.X, 0.15 + (top - 0.15) / 2, p.Z), brass)
+			K:ball("HatTreeTop", 0.22, CF(p.X, top + 0.05, p.Z), brass)
+			local hc = { rgb(222, 196, 140), rgb(30, 30, 32), rgb(232, 222, 202), rgb(110, 120, 80), rgb(150, 190, 220), rgb(206, 186, 150) }
+			for i = 0, 5 do
+				local a = i * PI / 3 + 0.3
+				local y = top - 0.4 - (i % 2) * 0.6
+				local tip = V3(p.X + math.cos(a) * 0.7, y + 0.25, p.Z + math.sin(a) * 0.7)
+				K:seg("HatTreeArm", V3(p.X, y, p.Z), tip, 0.06, brass)
+				local kinds = { "straw", "cap", "bucket" }
+				hat(K, CF(tip + V3(math.cos(a) * 0.15, -0.2, math.sin(a) * 0.15)) * ANG(0, -a + PI / 2, 0) * ANG(0, 0, (i % 2 - 0.5) * 0.4), hc[(i + seed) % #hc + 1], kinds[i % 3 + 1])
+			end
+		end)
+		hideWhere(K, V, setOf({ "HatStandPole", "HatStandBase" }))
+		for _, r in recs(V, "Cap") do
+			if nearXZ(r.c, hp.c) < 1.5 then
+				hideRec(K, r)
+			end
+		end
+	end
+
+	-- 천장에 매단 SALE 간판 (앞 테이블 위, 양면)
+	local ft = nil
+	for _, t in recs(V, "DisplayTable") do
+		if not ft or t.c.Z > ft.c.Z then
+			ft = t
+		end
+	end
+	if ft then
+		local c = V3(ft.c.X, 7.4, ft.c.Z)
+		K:box("SaleHangSign", V3(3.4, 1.0, 0.08), CF(c), lk(rgb(190, 100, 70)))
+		for _, sgn in { 1, -1 } do
+			txt(K, "SaleHangText", 3.2, 0.8, CF(c + V3(0, 0, sgn * 0.045)) * (if sgn < 0 then ANG(0, PI, 0) else CFrame.new()), "SUMMER SALE  30 ~ 50%", rgb(252, 248, 240), nil, F.GothamBlack)
+		end
+		for _, sx in { -1.4, 1.4 } do
+			K:seg("SaleHangWire", c + V3(sx, 0.5, 0), V3(c.X + sx, V.H, c.Z), 0.03, Look.chrome)
+		end
+	end
+
+	-- 12) 위 간판 띠 (큐비 · 신발 · 레일 위 빈 벽) + 비치타월 사다리 ---------------------------------------------------
+	local bands = {
+		{ "right", "DAILY LOOK  ·  데일리룩", rgb(44, 58, 92) },
+		{ "right", "SHOES & SANDALS", rgb(190, 100, 70) },
+		{ "left", "BEACHWEAR  ·  린넨 & 코튼", rgb(110, 120, 80) },
+		{ "back", "BADA CLOSET", rgb(44, 58, 92) },
+	}
+	for bi, bd in bands do
+		local w2, d2 = Common.wallSpot(K, { bd[1] }, 5.0, 8.15, 9.55, if bi == 2 then -1 else (if bi == 1 then 9 else 4))
+		if w2 and d2 then
+			K:plate("BandSignBack", 5.0, 1.0, 0.12, d2, lk(rgb(250, 248, 244)))
+			K:plate("BandSignEdge", 5.0, 0.06, 0.14, d2 * CF(0, -0.47, 0), lk(bd[3]))
+			txt(K, "BandSign", 4.6, 0.62, d2 * CF(0, 0.05, 0.13), bd[2], bd[3], nil, F.GothamBlack)
+		end
+	end
+	-- 비치타월 사다리 (벽에 기대기)
+	for _, wn in { "right", "left", "back" } do
+		local w2, d2 = Common.wallSpot(K, { wn }, 2.0, 0.5, 7.0, -V.D / 3)
+		if w2 and d2 then
+			local base = V:wall(wn, (V:wallCoord(wn, d2.Position)), 0, 0.9)
+			if K:spot(base, V3(1.8, 6.6, 1.2), 0.05) then
+				local lad = lk(rgb(190, 150, 104), M.Wood)
+				for _, s in { -0.7, 0.7 } do
+					K:bar("LadderRail", (base * CF(s, 0, 0.45)).Position, (base * CF(s, 6.5, -0.75)).Position, 0.14, 0.1, lad)
+				end
+				local tc = { rgb(96, 140, 160), rgb(240, 214, 120), rgb(246, 244, 238), rgb(190, 100, 70) }
+				for i = 1, 4 do
+					local t = i / 5
+					local y, z = 6.5 * t, 0.45 - 1.2 * t
+					K:bar("LadderRung", (base * CF(-0.7, y, z)).Position, (base * CF(0.7, y, z)).Position, 0.1, 0.1, lad)
+					K:box("BeachTowel", V3(1.3, 1.4, 0.06), base * CF(0, y - 0.68, z + 0.08), lk(tc[(i + seed) % 4 + 1], M.Fabric))
+					if not lowD(K) then
+						K:box("BeachTowelStripe", V3(1.31, 0.12, 0.065), base * CF(0, y - 0.95, z + 0.08), lk(rgb(250, 250, 248), M.Fabric))
+					end
+				end
+				txt(K, "LadderTag", 0.9, 0.3, base * CF(0, 1.6, 0.42), "비치타월 19,000", rgb(30, 30, 30), rgb(250, 248, 240), F.GothamBold)
+				break
+			end
+		end
+	end
+
+	-- 13) 상호작용: 코디 바꾸기 (가운데 마네킹) · 쇼윈도 조명 · 매장 음악 -------------------------------------------------
+	local centerM = {}
+	for _, m in mList do
+		if m.pcf.Position.Z < V.z1 - 6 then
+			table.insert(centerM, m)
+		end
+	end
+	if mplinth and #centerM > 0 then
+		local d = faceCF(V3(mplinth.c.X, 0, mplinth.max.Z + 0.03), V3(0, 0, 1))
+		local lp = d.Position + V3(0, 0.3, 0)
+		if promptOK(K, V, lp) then
+			local tag = K:plate("CoordiSign", 1.4, 0.36, 0.04, d * CF(0, mplinth.size.Y / 2 - 0.02, 0), lk(rgb(44, 58, 92)))
+			txt(K, "CoordiText", 1.3, 0.26, d * CF(0, mplinth.size.Y / 2 - 0.02, 0.045), "오늘의 코디 · TODAY'S LOOK", rgb(246, 244, 238), nil, F.GothamBold)
+			local idx = 0
+			Interact.prompt(K, tag, {
+				action = "코디 바꾸기",
+				object = "마네킹",
+				fn = function()
+					idx += 1
+					for j, m in centerM do
+						local g = K.root:FindFirstChild("Mannequin_" .. m.i, true)
+						if g then
+							local o = OUTFITS[((m.i + seed + idx * 2 + j) % #OUTFITS) + 1]
+							for _, p in g:GetDescendants() do
+								if p:IsA("BasePart") and p.Material == M.Fabric then
+									local nm = p.Name
+									if nm == "ManqTorso" or nm == "ManqShoulders" or nm == "ManqUpperArm" or nm == "ManqDressSkirt" then
+										p.Color = o.top
+									elseif nm == "ManqHips" or nm == "ManqThigh" or nm == "ManqShortsHem" or nm == "ManqSkirt" or nm == "ManqShin" then
+										p.Color = o.bottom or o.top
+									elseif nm == "ManqForearm" then
+										p.Color = o.top
+									end
+								end
+							end
+						end
+					end
+				end,
+			})
+		end
+	end
+	-- 피팅룸 칸 안쪽 (FittingWall 뒤) 은 제외
+	local bmn, bmx = nil, nil
+	for _, nm in { "FittingWall", "BoothDivider", "FittingHeader" } do
+		for _, r in recs(V, nm) do
+			bmn = if bmn then bmn:Min(r.min) else r.min
+			bmx = if bmx then bmx:Max(r.max) else r.max
+		end
+	end
+	local function inBooth(p: Vector3): boolean
+		return bmn ~= nil and bmx ~= nil and p.X > bmn.X - 0.5 and p.X < bmx.X + 0.5 and p.Z < bmx.Z + 0.3
+	end
+	local _ = inBooth
+	-- 블루투스 스피커 (뒤쪽 진열 테이블 위) = 매장 음악 순환
+	local tables = recs(V, "DisplayTable")
+	table.sort(tables, function(p, q)
+		return p.c.Z < q.c.Z
+	end)
+	local songs = { "♪ NewJeans - Supernatural", "♪ 데이식스 - 녹아내려요", "♪ 아이유 - Love wins all", "♪ Crush - 미워", "♪ 검정치마 - Everything" }
+	local st = tables[1]
+	if st then
+		local at = CF(st.c.X + st.size.X / 2 - 0.55, st.max.Y, st.c.Z - st.size.Z / 2 + 0.45)
+		if promptOK(K, V, at.Position) then
+			K:free(function()
+				local spk = K:rbox("Speaker", V3(1.0, 0.7, 0.42), 0.1, at * CF(0, 0.35, 0), lk(rgb(30, 28, 26), M.Leather))
+				K:plate("SpeakerGrille", 0.86, 0.42, 0.01, at * CF(0, 0.3, 0.21), lk(rgb(60, 56, 50), M.Fabric))
+				for j = 0, 2 do
+					K:cyl("SpeakerKnob", 0.05, 0.08, at * CF(-0.25 + j * 0.25, 0.62, 0.2) * ANG(0, PI / 2, 0), lk(rgb(196, 164, 98), M.Metal))
+				end
+				K:box("SpeakerLED", V3(0.06, 0.03, 0.01), at * CF(0.42, 0.62, 0.21), nl(rgb(80, 200, 255)))
+				local cardF = at * CF(-0.95, 0.25, 0.05) * ANG(-0.15, 0.2, 0)
+				local _, lab = txt(K, "NowPlaying", 0.9, 0.42, cardF, "NOW PLAYING\n" .. songs[1], rgb(40, 40, 44), rgb(250, 248, 244), F.GothamMedium)
+				Interact.cycle(K, spk[1], songs, {
+					object = "매장 음악",
+					action = "다음 곡",
+					on = function(_i, item)
+						lab.Text = "NOW PLAYING\n" .. item
+					end,
+				})
+			end)
+		end
+	end
+	-- 룩북 디지털 스탠드 (입구 쪽 바닥, 다음 룩 보기)
+	local looks = {
+		{ "LOOK 01  린넨 셔츠 + 버뮤다 팬츠", rgb(232, 222, 202) },
+		{ "LOOK 02  플리츠 원피스 + 라탄백", rgb(150, 190, 220) },
+		{ "LOOK 03  니트 베스트 + 와이드 데님", rgb(44, 58, 92) },
+		{ "LOOK 04  오버핏 셔츠 + 버킷햇", rgb(110, 120, 80) },
+	}
+	local cands = {}
+	for _, x in { 4.6, -4.6, 5.6, -5.6 } do
+		for _, z in { V.z1 - 7.5, V.z1 - 9.0, V.z1 - 10.5 } do
+			table.insert(cands, faceCF(V3(x, 0, z), V3(-x * 0.3, 0, 1)))
+		end
+	end
+	local lb = firstSpot(K, cands, V3(1.8, 6.2, 0.9), 0.15)
+	if lb and promptOK(K, V, (lb * CF(0, 4.2, 0.3)).Position) then
+		K:box("LookbookBase", V3(1.6, 0.12, 0.8), lb * CF(0, 0.06, 0), black)
+		K:box("LookbookPost", V3(1.7, 5.6, 0.22), lb * CF(0, 0.12 + 2.8, 0), lk(rgb(30, 30, 32)))
+		local scr = K:box("LookbookScreen", V3(1.5, 3.9, 0.02), lb * CF(0, 3.55, 0.12), lk(looks[1][2], M.SmoothPlastic, { r = 0.1 }))
+		-- 화면 속 모델 실루엣 (머리 · 몸 · 다리)
+		local fg = lk(rgb(40, 38, 44))
+		K:disc("LookbookFigHead", 0.36, 0.01, lb * CF(0, 4.95, 0.135) * ANG(PI / 2, 0, 0), lk(rgb(236, 220, 206)))
+		K:box("LookbookFigBody", V3(0.62, 1.1, 0.01), lb * CF(0, 4.15, 0.135), fg)
+		K:box("LookbookFigLegs", V3(0.46, 1.1, 0.01), lb * CF(0, 3.05, 0.135), lk(rgb(230, 226, 216)))
+		local _, lab = txt(K, "LookbookText", 1.4, 0.6, lb * CF(0, 1.95, 0.135), looks[1][1], rgb(30, 30, 32), rgb(250, 248, 244), F.GothamBold)
+		txt(K, "LookbookHead", 1.4, 0.3, lb * CF(0, 5.25, 0.135), "BADA LOOKBOOK 2026", rgb(250, 250, 248), nil, F.GothamBlack, 1.2)
+		local back = lb * CF(0, 3.2, -0.115) * ANG(0, PI, 0)
+		K:plate("LookbookBackPanel", 1.5, 3.6, 0.01, back, lk(rgb(232, 222, 204)))
+		txt(K, "LookbookBackLogo", 1.3, 0.9, back * CF(0, 0.6, 0.012), "BADA\nCLOSET", rgb(44, 58, 92), nil, F.GothamBlack)
+		txt(K, "LookbookBackSub", 1.3, 0.3, back * CF(0, -0.4, 0.012), "데일리룩 & 비치웨어", rgb(80, 80, 84), nil, F.GothamMedium)
+		Interact.cycle(K, scr, looks, {
+			object = "룩북",
+			action = "다음 룩",
+			on = function(_i, item)
+				lab.Text = item[1]
+				scr.Color = item[2]
+			end,
+		})
+	end
+	local _ = S
+end
+
+--================================================================================================
+-- 서프 & SUP 숍 (surf)
+--================================================================================================
+local SURF = {
+	teal = rgb(32, 150, 150),
+	sea = rgb(40, 110, 170),
+	sand = rgb(226, 206, 166),
+	coral = rgb(240, 110, 90),
+	sun = rgb(250, 196, 70),
+	white = rgb(248, 248, 244),
+	wood = rgb(176, 136, 92),
+	driftwood = rgb(196, 182, 160),
+	neo = rgb(26, 26, 28),
+}
+
+-- 서프보드: cf = 보드 가운데, X = 폭, Y = 길이 (노즈 +Y), Z = 데크 쪽. o.rail (테두리 색), o.deck (윗면), o.no (번호 글자)
+local function surfboard(K: any, cf: CFrame, len: number, w: number, t: number, o: any)
+	local rail = lk(o.rail or SURF.white, M.SmoothPlastic, { r = 0.06 })
+	local deck = lk(o.deck or o.rail or SURF.white, M.SmoothPlastic, { r = 0.04 })
+	local out = {}
+	table.insert(out, K:ell("BoardOutline", V3(w, len, t), cf, rail))
+	table.insert(out, K:box("BoardCore", V3(w * 0.82, len * 0.5, t * 0.9), cf * CF(0, -len * 0.04, 0), rail))
+	table.insert(out, K:box("BoardDeck", V3(w * 0.74, len * 0.48, 0.02), cf * CF(0, -len * 0.04, t * 0.45 + 0.01), deck))
+	if o.stringer ~= false then
+		table.insert(out, K:box("BoardStringer", V3(0.04, len * 0.48, 0.022), cf * CF(0, -len * 0.04, t * 0.45 + 0.015), lk(o.stringerC or rgb(150, 110, 70), M.Wood)))
+	end
+	if o.stripe then
+		table.insert(out, K:box("BoardStripe", V3(w * 0.75, 0.22, 0.024), cf * CF(0, len * 0.12, t * 0.45 + 0.016), lk(o.stripe)))
+	end
+	-- 꼬리 트랙션 패드 + 리시 플러그
+	if o.pad ~= false then
+		table.insert(out, K:box("BoardTailPad", V3(w * 0.55, len * 0.12, 0.03), cf * CF(0, -len * 0.33, t * 0.36), lk(rgb(30, 30, 32), M.Rubber)))
+	end
+	-- 핀 (바닥 -Z)
+	if not lowD(K) then
+		for _, fx in { -0.3, 0, 0.3 } do
+			local fy = -len * 0.4 + (if fx == 0 then -0.05 else 0.2)
+			table.insert(out, K:wedge("BoardFin", V3(0.05, 0.42, 0.34), cf * CF(fx * w * 0.9, fy, -t * 0.3 - 0.17) * ANG(PI, 0, 0), lk(o.fin or rgb(40, 40, 44))))
+		end
+	end
+	if o.no then
+		local _ = txt(K, "BoardNo", w * 0.6, w * 0.3, cf * CF(0, len * 0.02, t * 0.45 + 0.035) * ANG(0, 0, PI / 2), o.no, o.noC or rgb(30, 30, 32), nil, F.GothamBlack)
+	end
+	return out
+end
+
+-- 웻슈트 (정면 걸이): hook = 레일 점, fdir = 보는 쪽 (방 안쪽)
+local function wetsuit(K: any, hook: Vector3, fdir: Vector3, accent: Color3, kind: string)
+	local g = faceCF(hook, fdir)
+	local neo = lk(SURF.neo, M.Rubber)
+	local acc = lk(accent, M.Rubber)
+	K:seg("SuitHook", (g * CF(0, 0.1, -0.05)).Position, (g * CF(0, -0.2, 0)).Position, 0.04, Look.chrome)
+	K:bar("SuitHanger", (g * CF(-0.75, -0.42, 0)).Position, (g * CF(0.75, -0.42, 0)).Position, 0.12, 0.1, lk(rgb(30, 30, 32)))
+	K:ell("SuitShoulders", V3(1.45, 0.5, 0.26), g * CF(0, -0.55, 0), neo)
+	K:box("SuitTorso", V3(1.12, 1.75, 0.24), g * CF(0, -1.45, 0), if kind == "color" then lk(dk(accent, 0.45), M.Rubber) else neo)
+	K:box("SuitChestPanel", V3(1.0, 0.5, 0.25), g * CF(0, -0.95, 0.005), acc)
+	K:box("SuitLogo", V3(0.4, 0.1, 0.01), g * CF(0.25, -1.2, 0.13), lk(rgb(240, 240, 240)))
+	-- 팔
+	for _, sx in { -1, 1 } do
+		local a = (g * CF(sx * 0.68, -0.62, 0)).Position
+		local b = (g * CF(sx * 0.82, if kind == "spring" then -1.35 else -2.55, 0.02)).Position
+		K:seg("SuitArm", a, b, 0.32, neo)
+		if kind ~= "spring" then
+			K:seg("SuitCuff", b + V3(0, 0.15, 0), b, 0.33, acc)
+		end
+	end
+	-- 다리
+	local legLen = if kind == "spring" then 0.8 else 2.35
+	K:box("SuitHips", V3(1.1, 0.5, 0.24), g * CF(0, -2.55, 0), neo)
+	for _, sx in { -1, 1 } do
+		K:box("SuitLeg", V3(0.5, legLen, 0.22), g * CF(sx * 0.29, -2.8 - legLen / 2, 0), neo)
+		if kind ~= "spring" and not lowD(K) then
+			K:box("SuitKnee", V3(0.48, 0.4, 0.23), g * CF(sx * 0.29, -3.45, 0.005), lk(rgb(70, 70, 74), M.Rubber))
+		end
+	end
+	-- 가격 · 사이즈 택
+	if not lowD(K) then
+		K:box("SuitTag", V3(0.22, 0.32, 0.02), g * CF(0.62, -0.75, 0.15), lk(rgb(250, 248, 240)))
+	end
+end
+
+-- 구명조끼 (정면): g = 고리 점 프레임
+local function lifeVest(K: any, g: CFrame, c: Color3)
+	local body = lk(c, M.Fabric)
+	K:seg("VestHook", (g * CF(0, 0.12, -0.12)).Position, (g * CF(0, -0.1, 0.05)).Position, 0.05, Look.chrome)
+	K:rbox("VestBody", V3(0.34, 1.45, 1.3), 0.15, g * CF(0, -0.85, 0.1) * ANG(0, PI / 2, 0), body)
+	K:ell("VestCollar", V3(0.9, 0.3, 0.4), g * CF(0, -0.15, 0.1), body)
+	K:box("VestZip", V3(0.05, 1.3, 0.01), g * CF(0, -0.85, 0.28), lk(rgb(30, 30, 30)))
+	for _, y in { -0.75, -1.25 } do
+		K:box("VestStrap", V3(1.32, 0.12, 0.36), g * CF(0, y, 0.1), lk(rgb(26, 26, 28), M.Fabric))
+		K:box("VestBuckle", V3(0.22, 0.16, 0.05), g * CF(0, y, 0.3), lk(rgb(40, 40, 40)))
+	end
+	K:box("VestReflect", V3(0.24, 0.1, 0.01), g * CF(-0.4, -0.4, 0.275), lk(rgb(220, 220, 220), M.SmoothPlastic, { r = 0.3 }))
+end
+
+-- 천장 선풍기 (실링팬): 반환 = 회전 파트 목록, 중심 (월드), 조명 파트
+local function ceilingFan(K: any, V: any, x: number, z: number, drop: number): ({ BasePart }, Vector3, BasePart?)
+	local y = V.H
+	local blades = {}
+	local hub = V3(x, y - drop, z)
+	local glow = nil
+	K:free(function()
+		K:disc("FanCanopy", 0.6, 0.12, CF(x, y - 0.06, z), lk(rgb(40, 34, 30), M.Metal))
+		K:seg("FanDownrod", V3(x, y - 0.1, z), hub + V3(0, 0.25, 0), 0.1, lk(rgb(40, 34, 30), M.Metal))
+		K:vcyl("FanMotor", 0.42, 0.75, CF(hub), lk(rgb(40, 34, 30), M.Metal))
+		for i = 0, 4 do
+			local a = i * PI * 2 / 5
+			local dir = V3(math.cos(a), 0, math.sin(a))
+			local arm = K:bar("FanArm", hub + dir * 0.3, hub + dir * 0.75 + V3(0, -0.02, 0), 0.12, 0.05, lk(rgb(40, 34, 30), M.Metal))
+			local blade = K:box("FanBlade", V3(0.55, 0.04, 1.9), CFrame.lookAt(hub + dir * 1.6, hub + dir * 3) * ANG(0, 0, 0.12), lk(rgb(150, 110, 70), M.Wood))
+			if arm then
+				table.insert(blades, arm)
+			end
+			table.insert(blades, blade)
+		end
+		K:vcyl("FanLightCup", 0.22, 0.55, CF(hub - V3(0, 0.3, 0)), lk(rgb(40, 34, 30), M.Metal))
+		glow = K:disc("FanLightLamp", 0.46, 0.04, CF(hub - V3(0, 0.42, 0)), Look.lampWarm)
+	end)
+	return blades, (K.cf * CF(hub)).Position, glow
+end
+
+local function buildSurf(K: any, V: any, S: any)
+	local seed = hashStr(V.key or V.name or "surf")
+	local wood = lk(SURF.wood, M.Wood)
+	local drift = lk(SURF.driftwood, M.WoodPlanks)
+	local rope = lk(rgb(196, 170, 120), M.Fabric)
+
+	-- 1) 벽 서프보드 랙 + 보드 (렌탈 소프트보드 번호) ------------------------------------------------------
+	local rackBase = V:first("RackBase")
+	local railR = V:first("RackRail")
+	local boards = {}
+	for _, r in recs(V, "Surfboard") do
+		if rackBase and nearXZ(r.c, V3(rackBase.c.X, 0, math.clamp(r.c.Z, rackBase.min.Z, rackBase.max.Z))) < 2.5 then
+			table.insert(boards, r)
+		end
+	end
+	table.sort(boards, function(p, q)
+		return p.c.Z > q.c.Z
+	end)
+	K:free(function()
+		for i, r in boards do
+			local cf = r.lcf
+			local soft = i % 3 ~= 0
+			local base = r.part.Color
+			surfboard(K, cf, r.part.Size.Y, r.part.Size.X, 0.24, {
+				rail = if soft then base else SURF.white,
+				deck = if soft then SURF.white else base,
+				stringer = not soft,
+				stripe = if soft then dk(base, 0.1) else nil,
+				no = if soft then string.format("R-%02d", i) else nil,
+				noC = dk(base, 0.25),
+				fin = if soft then rgb(240, 240, 240) else rgb(30, 30, 34),
+			})
+		end
+		if rackBase then
+			-- 받침: 나무 + 카펫 패드 + 칸막이
+			K:box("BoardRackBase", rackBase.size - V3(0, 0.1, 0), CF(rackBase.c - V3(0, 0.05, 0)), wood)
+			K:box("BoardRackPad", V3(rackBase.size.X - 0.1, 0.1, rackBase.size.Z - 0.1), CF(rackBase.c.X, rackBase.max.Y - 0.05, rackBase.c.Z), lk(rgb(40, 60, 70), M.Fabric))
+			for i = 1, #boards - 1 do
+				local z = (boards[i].c.Z + boards[i + 1].c.Z) / 2
+				K:box("BoardRackPeg", V3(1.2, 1.0, 0.12), CF(rackBase.c.X + 0.2, rackBase.max.Y + 0.45, z), lk(rgb(150, 110, 70), M.Wood))
+			end
+		end
+		if railR then
+			K:box("BoardRackRail", railR.size + V3(0, 0.1, 0), CF(railR.c), wood)
+			K:box("BoardRackRailPad", V3(0.12, 0.3, railR.size.Z), CF(railR.max.X + 0.06, railR.c.Y, railR.c.Z), lk(rgb(40, 60, 70), M.Fabric))
+		end
+	end)
+	for _, r in boards do
+		hideRec(K, r)
+		for _, q in recs(V, "Stringer") do
+			if nearXZ(q.c, r.c) < 0.6 and math.abs(q.c.Z - r.c.Z) < 0.4 then
+				hideRec(K, q)
+			end
+		end
+	end
+	if rackBase then
+		hideRec(K, rackBase)
+	end
+	if railR then
+		hideRec(K, railR)
+	end
+	-- 랙 위 사진 액자 3 (광안대교 · 파도 · 일출) + 간판
+	if rackBase then
+		local wall = nearestWall(V, rackBase.c)
+		local u0 = V:wallCoord(wall, rackBase.min)
+		local u1 = V:wallCoord(wall, rackBase.max)
+		local ua, ub = math.min(u0, u1), math.max(u0, u1)
+		local arts = {
+			{ { rgb(250, 180, 120), 0, 0.5, 1, 0.5 }, { rgb(60, 120, 180), 0, 0, 1, 0.5 }, { rgb(250, 240, 220), 0, 0.42, 1, 0.08 }, { rgb(40, 40, 60), 0.1, 0.48, 0.8, 0.04 } },
+			{ { rgb(120, 190, 220), 0, 0.55, 1, 0.45 }, { rgb(30, 100, 150), 0, 0, 1, 0.55 }, { rgb(250, 250, 250), 0.2, 0.35, 0.6, 0.12 } },
+			{ { rgb(240, 150, 110), 0, 0.6, 1, 0.4 }, { rgb(250, 210, 120), 0.4, 0.62, 0.2, 0.15 }, { rgb(50, 90, 140), 0, 0, 1, 0.6 } },
+		}
+		K:free(function()
+			for i = 1, 3 do
+				local u = ua + (ub - ua) * (i - 0.5) / 3
+				Props.frame(K, wcf(V, wall, u, 8.45, 0.01), 3.6, 1.9, { frame = lk(rgb(240, 236, 228), M.Wood), mat = lk(WHITE), art = arts[i], depth = 0.06, border = 0.08 })
+			end
+			txt(K, "RackHeader", 4.2, 0.45, wcf(V, wall, (ua + ub) / 2, 7.45, 0.04), "RENTAL BOARDS · 렌탈 보드", SURF.white, SURF.teal, F.GothamBlack)
+			useWall(K, wall, ua, ub, 0, 9.6)
+		end)
+	end
+
+	-- 2) 웻슈트 레일 ------------------------------------------------------------------------------------
+	local suitRail = V:first("SuitRail")
+	local suits = recs(V, "Wetsuit")
+	if suitRail and #suits > 0 then
+		local wall = nearestWall(V, suitRail.c)
+		local fdir = V:wall(wall, 0, 0, 0).ZVector
+		local accents = { SURF.teal, SURF.sea, SURF.coral, rgb(70, 70, 74), SURF.sun }
+		K:free(function()
+			K:cyl("SuitRailNew", math.max(suitRail.size.Z, suitRail.size.X) + 0.4, 0.14, CF(suitRail.c) * (if suitRail.size.Z > suitRail.size.X then ANG(0, PI / 2, 0) else CFrame.new()), Look.chrome)
+			for _, sz in { -1, 1 } do
+				local e = suitRail.c + (if suitRail.size.Z > suitRail.size.X then V3(0, 0, sz * (suitRail.size.Z / 2 + 0.1)) else V3(sz * (suitRail.size.X / 2 + 0.1), 0, 0))
+				local u = V:wallCoord(wall, e)
+				K:bar("SuitRailArm", wcf(V, wall, u, e.Y, 0).Position, e, 0.1, 0.1, Look.chrome)
+			end
+			for i, r in suits do
+				local hook = V3(r.c.X, suitRail.max.Y, r.c.Z)
+				wetsuit(K, hook, fdir, accents[(i + seed) % #accents + 1], if i % 4 == 0 then "spring" elseif i % 3 == 0 then "color" else "full")
+			end
+			local mid = V:wallCoord(wall, suitRail.c)
+			txt(K, "SuitHeader", 4.6, 0.45, wcf(V, wall, mid, 8.0, 0.04), "WETSUIT · 웻슈트 대여 15,000원", SURF.white, SURF.neo, F.GothamBlack)
+			txt(K, "SuitSizes", 3.6, 0.3, wcf(V, wall, mid, 7.55, 0.04), "XS  S  M  L  XL  ·  3/2mm 풀슈트 · 스프링 슈트", rgb(40, 40, 44), SURF.white, F.GothamMedium)
+			useWall(K, wall, mid - 7, mid + 7, 7.3, 8.3)
+		end)
+		hideRec(K, suitRail)
+		for _, r in suits do
+			hideRec(K, r)
+		end
+		for _, r in recs(V, "SuitTrim") do
+			hideRec(K, r)
+		end
+		-- 아래 바닥: 부츠 (페어) 4
+		local u0 = V:wallCoord(wall, suits[1].c)
+		local u1 = V:wallCoord(wall, suits[#suits].c)
+		for i = 0, 3 do
+			local u = u0 + (u1 - u0) * (i + 0.5) / 4
+			local pc = wcf(V, wall, u, 0, 0.6)
+			if K:spot(pc, V3(0.9, 1.0, 0.8), 0.02) then
+				for _, sx in { -0.22, 0.22 } do
+					K:box("BootSole", V3(0.38, 0.1, 0.8), pc * CF(sx, 0.05, 0), lk(rgb(60, 60, 64), M.Rubber))
+					K:box("BootUpper", V3(0.36, 0.8, 0.42), pc * CF(sx, 0.5, -0.18), lk(SURF.neo, M.Rubber))
+					K:ell("BootToe", V3(0.36, 0.36, 0.5), pc * CF(sx, 0.2, 0.15), lk(SURF.neo, M.Rubber))
+				end
+			end
+		end
+	end
+
+	-- 3) 장비 선반 (핀 · 리시 · 왁스) -------------------------------------------------------------------
+	local gear = recs(V, "GearShelf")
+	table.sort(gear, function(p, q)
+		return p.c.Y < q.c.Y
+	end)
+	for gi, r in gear do
+		local wall = nearestWall(V, r.c)
+		local u = V:wallCoord(wall, r.c)
+		local len = math.max(r.size.X, r.size.Z)
+		local dep = math.min(r.size.X, r.size.Z)
+		K:free(function()
+			local at = Props.shelf(K, wcf(V, wall, u, r.c.Y, 0), len, { depth = dep, look = wood, bracket = Look.blackMetal, thick = r.size.Y })
+			local n = 4
+			for j = 1, n do
+				local x = -len / 2 + (j - 0.5) * len / n
+				if gi == 1 then
+					-- 핀 세트 (카드 + 핀 3)
+					K:box("FinCard", V3(1.1, 1.0, 0.04), at * CF(x, 0.5, -0.45), lk(({ SURF.teal, SURF.neo, SURF.coral, SURF.sea })[j]))
+					for k = -1, 1 do
+						K:wedge("FinSet", V3(0.06, 0.55, 0.4), at * CF(x + k * 0.3, 0.4, -0.38) * ANG(0, PI / 2, 0), lk(if j % 2 == 0 then rgb(250, 250, 250) else rgb(30, 30, 34)))
+					end
+					txt(K, "FinPrice", 0.9, 0.18, at * CF(x, 0.9, -0.42), (({ "FCS II 89,000", "트라이 핀 65,000", "롱보드 싱글 55,000", "소프트 핀 25,000" })[j]), WHITE, nil, F.GothamBold)
+				elseif gi == 2 then
+					-- 리시 코일
+					local c = ({ SURF.sea, SURF.neo, SURF.coral, SURF.sun })[j]
+					K:ring("LeashCoil", at * CF(x, 0.42, -0.3) * ANG(0, 0, 0), 0.34, 0.08, if lowD(K) then 5 else 7, lk(c, M.Rubber))
+					K:box("LeashCuff", V3(0.32, 0.28, 0.16), at * CF(x + 0.1, 0.16, -0.25), lk(rgb(30, 30, 32), M.Fabric))
+					txt(K, "LeashPrice", 0.9, 0.18, at * CF(x, -0.12, 0.02), (({ "리시 6ft 35,000", "리시 9ft 39,000", "SUP 코일 리시 45,000", "키즈 리시 29,000" })[j]), rgb(30, 30, 30), SURF.white, F.GothamBold)
+				else
+					-- 왁스 더미 + 왁스 콤
+					for k = 0, 2 do
+						K:disc("WaxPuck", 0.62, 0.18, at * CF(x - 0.15, 0.09 + k * 0.19, -0.35), lk(({ rgb(250, 240, 200), rgb(200, 230, 240), rgb(250, 210, 220) })[(j + k) % 3 + 1]))
+					end
+					K:box("WaxComb", V3(0.4, 0.04, 0.3), at * CF(x + 0.35, 0.02, -0.2), lk(({ SURF.coral, SURF.teal })[j % 2 + 1]))
+					txt(K, "WaxPrice", 0.9, 0.18, at * CF(x, -0.12, 0.02), (({ "왁스 웜 5,000", "왁스 쿨 5,000", "베이스 코트 6,000", "왁스 콤 3,000" })[j]), rgb(30, 30, 30), SURF.white, F.GothamBold)
+				end
+			end
+		end)
+		hideRec(K, r)
+	end
+	for _, nm in { "Fin", "LeashCoil", "SurfWax" } do
+		for _, r in recs(V, nm) do
+			hideRec(K, r)
+		end
+	end
+	if #gear > 0 then
+		local r = gear[#gear]
+		local wall = nearestWall(V, r.c)
+		local u = V:wallCoord(wall, r.c)
+		K:free(function()
+			txt(K, "GearHeader", 4.0, 0.42, wcf(V, wall, u, r.c.Y + 1.15, 0.04), "SURF GEAR · 핀 · 리시 · 왁스", SURF.white, SURF.sea, F.GothamBlack)
+		end)
+	end
+
+	-- 4) 가운데 SUP 랙 + 보드 3 + 패들 ---------------------------------------------------------------------
+	local supRack = V:first("SupRack")
+	local sups = recs(V, "SupBoard")
+	if supRack then
+		local alongZ = supRack.size.Z > supRack.size.X
+		K:free(function()
+			local L = if alongZ then supRack.size.Z else supRack.size.X
+			local Wd = if alongZ then supRack.size.X else supRack.size.Z
+			local rot = if alongZ then CFrame.new() else ANG(0, PI / 2, 0)
+			local c0 = CF(supRack.c.X, 0, supRack.c.Z) * rot
+			for _, s in { -1, 1 } do
+				local tz = s * (L / 2 - 1.0)
+				for _, sx in { -1, 1 } do
+					K:box("SupTrestleLeg", V3(0.3, supRack.size.Y - 0.1, 0.3), c0 * CF(sx * (Wd / 2 - 0.3), (supRack.size.Y - 0.1) / 2, tz), wood)
+				end
+				K:box("SupTrestleBar", V3(Wd, 0.3, 0.5), c0 * CF(0, supRack.size.Y - 0.15, tz), wood)
+				K:box("SupTrestlePad", V3(Wd - 0.1, 0.08, 0.55), c0 * CF(0, supRack.size.Y + 0.0, tz), lk(rgb(40, 60, 70), M.Fabric))
+				K:box("SupFoot", V3(Wd + 0.4, 0.15, 0.6), c0 * CF(0, 0.075, tz), wood)
+			end
+			K:box("SupRunner", V3(0.2, 0.2, L - 2.0), c0 * CF(0, 0.3, 0), wood)
+			txt(K, "SupRackSign", 2.8, 0.5, c0 * CF(0, 0.8, L / 2 - 0.9) * CF(0, 0, 0.27), "SUP 체험 20,000원 · 30분", SURF.white, SURF.teal, F.GothamBlack)
+			local cols = { { SURF.sea, SURF.sand }, { SURF.coral, rgb(250, 250, 248) }, { SURF.teal, SURF.sand } }
+			table.sort(sups, function(p, q)
+				return p.c.Y < q.c.Y
+			end)
+			for i, r in sups do
+				local along2 = r.size.Z > r.size.X
+				local len = if along2 then r.size.Z else r.size.X
+				local w = if along2 then r.size.X else r.size.Z
+				local cf = CFrame.fromMatrix(r.c, if along2 then V3(1, 0, 0) else V3(0, 0, -1), if along2 then V3(0, 0, -1) else V3(-1, 0, 0), V3(0, 1, 0))
+				local cc = cols[(i + seed) % #cols + 1]
+				K:ell("SupOutline", V3(w, len, r.size.Y), cf, lk(cc[1]))
+				K:box("SupCore", V3(w * 0.9, len * 0.7, r.size.Y * 0.92), cf, lk(cc[1]))
+				K:box("SupPad", V3(w * 0.7, len * 0.32, 0.02), cf * CF(0, -len * 0.05, r.size.Y * 0.46 + 0.01), lk(cc[2], M.Rubber))
+				if i == #sups then
+					for _, d in { 1, -1 } do
+						K:bar("SupBungee", (cf * CF(-w * 0.28, len * 0.28 + d * 0.5, r.size.Y * 0.46 + 0.02)).Position, (cf * CF(w * 0.28, len * 0.28 - d * 0.5, r.size.Y * 0.46 + 0.02)).Position, 0.05, 0.04, lk(rgb(30, 30, 30), M.Fabric))
+					end
+					K:box("SupHandle", V3(0.5, 0.25, 0.08), cf * CF(0, 0, r.size.Y * 0.46 + 0.05), lk(rgb(30, 30, 30), M.Rubber))
+					txt(K, "SupLogo", w * 0.6, 0.4, cf * CF(0, len * 0.18, r.size.Y * 0.46 + 0.02) * ANG(0, 0, PI / 2) * ANG(0, 0, -PI / 2), "GWANGAN SUP 10'6\"", rgb(250, 250, 248), nil, F.GothamBlack)
+				end
+				-- 보드 사이 받침 폼
+				if i > 1 then
+					for _, s in { -1, 1 } do
+						K:box("SupSpacer", V3(w * 0.6, r.min.Y - sups[i - 1].max.Y + 0.02, 0.4), CF(r.c.X, (r.min.Y + sups[i - 1].max.Y) / 2, r.c.Z) * rot * CF(0, 0, s * (L / 2 - 1.0)), lk(rgb(40, 60, 70), M.Fabric))
+					end
+				end
+			end
+		end)
+		hideRec(K, supRack)
+		for _, r in sups do
+			hideRec(K, r)
+		end
+	end
+	-- 패들 (탄소 샤프트 + T 손잡이 + 블레이드)
+	for _, sh in recs(V, "PaddleShaft") do
+		local bl = nil
+		for _, r in recs(V, "PaddleBlade") do
+			if nearXZ(r.c, sh.c) < 1.0 and math.abs(r.c.X - sh.c.X) < 0.2 then
+				bl = r
+			end
+		end
+		if bl then
+			local topP = V3(sh.c.X, sh.max.Y, sh.max.Z - 0.05)
+			local botP = V3(bl.c.X, bl.max.Y - 0.1, bl.c.Z)
+			local dir = (topP - botP).Unit
+			K:free(function()
+				K:seg("PaddleShaftNew", botP, topP, 0.12, lk(rgb(30, 30, 32), M.SmoothPlastic, { r = 0.15 }))
+				K:bar("PaddleTGrip", topP - V3(0.22, 0, 0), topP + V3(0.22, 0, 0), 0.14, 0.12, lk(rgb(30, 30, 32)))
+				local bc = CFrame.lookAt(bl.c, bl.c + V3(0, 0, 1)) * CFrame.fromAxisAngle(V3(1, 0, 0), 0)
+				local up = dir
+				local bcf = CFrame.fromMatrix(bl.c, V3(1, 0, 0), up, V3(1, 0, 0):Cross(up))
+				K:ell("PaddleBladeNew", V3(0.7, 1.35, 0.1), bcf, lk(SURF.teal))
+				K:box("PaddleBladeRib", V3(0.08, 1.2, 0.12), bcf, lk(rgb(30, 30, 32)))
+				local _ = bc
+			end)
+			hideRec(K, sh)
+			hideRec(K, bl)
+		end
+	end
+
+	-- 5) 구명조끼 스탠드 ---------------------------------------------------------------------------------
+	local vs = V:first("VestStand")
+	if vs then
+		local vests = recs(V, "LifeVest")
+		local fz = if #vests > 0 then (vests[1].c.Z - vs.c.Z) else 1
+		local fdir = if math.abs(vs.size.X) > math.abs(vs.size.Z) then V3(0, 0, math.sign(fz)) else V3(math.sign(fz), 0, 0)
+		local pcf = faceCF(V3(vs.c.X, 0, vs.c.Z), fdir)
+		local w = math.max(vs.size.X, vs.size.Z)
+		local h = vs.size.Y
+		K:free(function()
+			for _, sx in { -1, 1 } do
+				K:box("VestPost", V3(0.3, h, 0.3), pcf * CF(sx * (w / 2 - 0.15), h / 2, -0.1), wood)
+				K:box("VestFoot", V3(0.4, 0.15, 1.6), pcf * CF(sx * (w / 2 - 0.15), 0.075, 0), wood)
+			end
+			K:box("VestTopBar", V3(w, 0.3, 0.3), pcf * CF(0, h - 0.15, -0.1), wood)
+			K:box("VestMidBar", V3(w - 0.3, 0.2, 0.2), pcf * CF(0, h * 0.52, -0.1), wood)
+			txt(K, "VestHeader", w - 0.2, 0.42, pcf * CF(0, h + 0.3, -0.1), "LIFE JACKET · 구명조끼 필수", SURF.white, SURF.coral, F.GothamBlack)
+			local cols = { rgb(250, 110, 40), rgb(250, 200, 40), rgb(250, 110, 40), rgb(40, 110, 200) }
+			for i, r in vests do
+				local g = faceCF(V3(r.c.X, r.max.Y + 0.25, r.c.Z - fdir.Z * 0.12 - fdir.X * 0.12), fdir)
+				lifeVest(K, g, cols[(i - 1) % #cols + 1])
+				if not lowD(K) then
+					txt(K, "VestSize", 0.4, 0.22, g * CF(0.42, -1.45, 0.3), (({ "M", "L", "S", "XL" })[(i - 1) % 4 + 1]), rgb(30, 30, 30), SURF.white, F.GothamBlack)
+				end
+			end
+		end)
+		hideRec(K, vs)
+		for _, r in vests do
+			hideRec(K, r)
+		end
+	end
+
+	-- 6) 벤치 (Seat 덮기: 같은 윗면 · 크기) · 아이스박스 ------------------------------------------------------
+	for _, ch in V.chairs do
+		local s = ch.seat
+		if s.name == "Bench" then
+			local alongX = s.size.X >= s.size.Z
+			local L = if alongX then s.size.X else s.size.Z
+			local D = if alongX then s.size.Z else s.size.X
+			local c0 = CF(s.c.X, 0, s.c.Z) * (if alongX then CFrame.new() else ANG(0, PI / 2, 0))
+			local top = s.max.Y
+			K:free(function()
+				local n = 5
+				for i = 0, n - 1 do
+					local z = -D / 2 + (i + 0.5) * D / n
+					K:box("BenchSlat", V3(L, 0.2, D / n - 0.06), c0 * CF(0, top - 0.1, z), drift)
+				end
+				for _, sx in { -1, 1 } do
+					local x = sx * (L / 2 - 0.45)
+					K:box("BenchLeg", V3(0.26, top - 0.2, D - 0.3), c0 * CF(x, (top - 0.2) / 2, 0), wood)
+				end
+				K:box("BenchStretcher", V3(L - 1.0, 0.2, 0.2), c0 * CF(0, 0.5, 0), wood)
+				-- 벤치 위 수건 한 장 (끝)
+				K:box("BenchTowel", V3(1.0, 0.06, D - 0.2), c0 * CF(L / 2 - 0.7, top + 0.03, 0), lk(SURF.sun, M.Fabric))
+			end)
+			hideRec(K, s)
+			for _, q in ch.parts do
+				if q ~= s then
+					hideRec(K, q)
+				end
+			end
+		end
+	end
+	local cooler = V:first("CoolerBox")
+	if cooler then
+		local p = CF(cooler.c.X, 0, cooler.c.Z)
+		local w, h, d = cooler.size.X, cooler.size.Y, cooler.size.Z
+		K:free(function()
+			K:box("CoolerBody", V3(w, h * 0.72, d), p * CF(0, h * 0.36, 0), lk(rgb(40, 110, 200)))
+			K:box("CoolerBand", V3(w + 0.02, h * 0.28, d + 0.02), p * CF(0, h * 0.86, 0), lk(rgb(248, 248, 244)))
+			K:box("CoolerLidNew", V3(w + 0.06, 0.22, d + 0.06), p * CF(0, h + 0.11, 0), lk(rgb(248, 248, 244)))
+			K:box("CoolerHandle", V3(w * 0.6, 0.08, 0.1), p * CF(0, h + 0.27, 0), lk(rgb(40, 40, 44)))
+			for _, sx in { -1, 1 } do
+				K:box("CoolerLatch", V3(0.12, 0.3, 0.06), p * CF(sx * w * 0.32, h * 0.9, d / 2 + 0.04), lk(rgb(40, 40, 44)))
+			end
+			K:disc("CoolerDrain", 0.14, 0.04, p * CF(-w * 0.38, 0.2, d / 2 + 0.02) * ANG(PI / 2, 0, 0), lk(rgb(40, 40, 44)))
+			txt(K, "CoolerText", w * 0.7, 0.3, p * CF(0, h * 0.45, d / 2 + 0.01), "ICE · 생수 1,500", WHITE, nil, F.GothamBlack)
+			for k = 0, 1 do
+				K:vcyl("CoolerCan", 0.46, 0.26, p * CF(-0.3 + k * 0.5, h + 0.45, 0.1), lk(({ rgb(220, 40, 40), rgb(40, 150, 220) })[k + 1], M.Metal))
+			end
+		end)
+		hideRec(K, cooler)
+		local lid = V:first("CoolerLid")
+		if lid then
+			hideRec(K, lid)
+		end
+	end
+
+	-- 7) 렌탈 카운터 (앞면 화이트워시 판자 + 로프 + 서프 그래픽, 상판 티크) -------------------------------------------
+	local ctop = V:first("CounterTop")
+	local cbody = V:first("RentalCounter")
+	if ctop and cbody then
+		local fz = cbody.max.Z
+		K:free(function()
+			K:box("RentalBody", cbody.size - V3(0, 0.25, 0.02), CF(cbody.c + V3(0, 0.125, 0)), lk(rgb(236, 232, 222), M.WoodPlanks))
+			K:box("RentalKick", V3(cbody.size.X - 0.1, 0.25, cbody.size.Z - 0.2), CF(cbody.c.X, 0.125, cbody.c.Z - 0.05), lk(rgb(40, 60, 70)))
+			K:box("RentalBand", V3(cbody.size.X + 0.02, 0.3, 0.04), CF(cbody.c.X, cbody.max.Y - 0.35, fz + 0.02), lk(SURF.teal))
+			K:cyl("RentalRope", cbody.size.X, 0.14, CF(cbody.c.X, cbody.max.Y - 0.12, fz + 0.06), rope)
+			K:box("RentalTopNew", ctop.size, CF(ctop.c), lk(rgb(150, 100, 60), M.Wood, { r = 0.08 }))
+		end)
+		hideRec(K, ctop)
+		hideRec(K, cbody)
+		local cb = V:first("CounterBoard")
+		if cb then
+			hideRec(K, cb)
+			local st = V:first("CounterBoardStripe")
+			if st then
+				hideRec(K, st)
+			end
+			-- 앞면 서프보드 모양 간판 (가로)
+			K:free(function()
+				local cf = CFrame.fromMatrix(V3(cb.c.X, cb.c.Y, fz + 0.12), V3(0, -1, 0), V3(1, 0, 0), V3(0, 0, 1))
+				surfboard(K, cf, cb.size.X * 0.95, cb.size.Y * 1.1, 0.16, { rail = SURF.sea, deck = SURF.white, stringer = false, pad = false })
+				txt(K, "CounterLogo", cb.size.X * 0.5, cb.size.Y * 0.55, CF(cb.c.X, cb.c.Y, fz + 0.24), "광안 SURF & SUP", SURF.sea, nil, F.GothamBlack)
+				txt(K, "CounterSub", cb.size.X * 0.36, 0.22, CF(cb.c.X, cb.c.Y - cb.size.Y * 0.36, fz + 0.24), "LESSON · RENTAL · SINCE 2019", rgb(80, 80, 84), nil, F.GothamBold)
+			end)
+		end
+		-- 상판 소품: 선크림 진열 · 서약서 클립보드 · 손목밴드 · 가격 스탠드
+		local topY = ctop.max.Y
+		local blk = { V:first("PosBase"), V:first("CardReader"), V:first("SunscreenDisplay") }
+		local function clear(lp: Vector3, r: number): boolean
+			for _, q in blk do
+				if q and nearXZ(q.c, lp) < r + math.max(q.size.X, q.size.Z) / 2 then
+					return false
+				end
+			end
+			return true
+		end
+		local slots = {}
+		for i = 0, 9 do
+			local x = ctop.min.X + 1.0 + i * (ctop.size.X - 2.0) / 9
+			local lp = V3(x, topY, ctop.c.Z + 0.35)
+			if clear(lp, 0.75) then
+				table.insert(slots, lp)
+			end
+		end
+		K:free(function()
+			for i, lp in slots do
+				local at = CF(lp)
+				if i == 1 then
+					K:box("Clipboard", V3(0.8, 0.04, 1.05), at * CF(0, 0.02, 0) * ANG(0, 0.15, 0), lk(rgb(150, 110, 70), M.Wood))
+					K:box("WaiverPaper", V3(0.72, 0.01, 0.95), at * CF(0, 0.045, 0.02) * ANG(0, 0.15, 0), lk(rgb(252, 252, 250)))
+					txt(K, "WaiverText", 0.62, 0.8, topCF(lp + V3(0, 0.052, 0.02), V3(0, 0, -1)) * ANG(0, 0, -0.15), "수상레저 안전 서약서\n\n성명 ________\n연락처 ________\n□ 구명조끼 착용\n□ 음주 후 이용 금지", rgb(40, 40, 44), nil, F.GothamMedium, nil, { d = 0.005 })
+					K:seg("Pen", lp + V3(0.42, 0.06, -0.2), lp + V3(0.5, 0.06, 0.35), 0.04, lk(rgb(30, 30, 30)))
+				elseif i == 2 then
+					K:vcyl("WristbandJar", 0.5, 0.6, at * CF(0, 0.25, 0), gl(rgb(220, 236, 240), 0.5))
+					for k = 0, 3 do
+						K:ring("Wristband", at * CF(-0.1 + (k % 2) * 0.2, 0.18 + (k // 2) * 0.14, -0.05 + (k % 2) * 0.1) * ANG(PI / 2, 0, k), 0.13, 0.04, 5, lk(({ SURF.coral, SURF.sun, SURF.teal, SURF.sea })[k + 1]))
+					end
+				elseif i == 3 then
+					K:box("PriceStandBase", V3(0.8, 0.05, 0.3), at * CF(0, 0.025, 0), Look.acrylicWhite)
+					txt(K, "PriceStand", 0.76, 1.0, at * CF(0, 0.55, 0) * ANG(-0.1, 0, 0), "오늘의 강습\n10:00 · 14:00\n16:30 선셋\n※ 예약 우선", rgb(30, 30, 30), rgb(252, 250, 246), F.GothamBold)
+				elseif i == 4 then
+					K:vcyl("WaxSampleJar", 0.45, 0.55, at * CF(0, 0.22, 0), lk(rgb(250, 240, 200)))
+					txt(K, "WaxSampleLabel", 0.5, 0.2, at * CF(0, 0.25, 0.28), "SURF WAX", rgb(200, 60, 60), nil, F.GothamBlack)
+				end
+			end
+		end)
+		local ssd = V:first("SunscreenDisplay")
+		if ssd then
+			local p = CF(ssd.c.X, ssd.min.Y, ssd.c.Z)
+			K:free(function()
+				K:box("SunStandBase", V3(ssd.size.X, 0.12, ssd.size.Z), p * CF(0, 0.06, 0), Look.acrylicWhite)
+				K:box("SunStandStep", V3(ssd.size.X, 0.45, ssd.size.Z * 0.5), p * CF(0, 0.12 + 0.225, -ssd.size.Z * 0.25), Look.acrylicWhite)
+				K:box("SunStandBack", V3(ssd.size.X, 0.7, 0.05), p * CF(0, 0.57 + 0.35, -ssd.size.Z / 2 + 0.03), lk(SURF.sun))
+				txt(K, "SunStandText", ssd.size.X * 0.9, 0.3, p * CF(0, 0.57 + 0.45, -ssd.size.Z / 2 + 0.06), "워터프루프 선크림 SPF50+", rgb(40, 40, 44), nil, F.GothamBlack)
+				local cols = { rgb(250, 250, 250), SURF.sun, SURF.coral, SURF.sea }
+				for k = 0, 3 do
+					local x = -ssd.size.X / 2 + 0.3 + k * (ssd.size.X - 0.6) / 3
+					bottle(K, p * CF(x, 0.57, -ssd.size.Z * 0.25), "tube", 0.65, cols[k + 1], rgb(40, 40, 44))
+					bottle(K, p * CF(x, 0.12, ssd.size.Z * 0.22), "spray", 0.55, cols[(k + 2) % 4 + 1], rgb(40, 40, 44))
+				end
+			end)
+			hideRec(K, ssd)
+			for _, r in recs(V, "Sunscreen") do
+				hideRec(K, r)
+			end
+		end
+		-- 카운터 위 라탄 펜던트 3
+		for i, x in { ctop.min.X + 2.5, ctop.c.X - 1.5, ctop.max.X - 2.5 } do
+			local z = ctop.c.Z + 0.5
+			if Common.ceilFree(K, x, z, 0.9) then
+				K:free(function()
+					Props.pendant(K, V3(x, V.H, z), 2.6, { shade = "rattan", dia = 1.4, light = i == 2, range = 12, bright = 0.6 })
+				end)
+				Common.useCeil(K, x, z)
+			end
+		end
+	end
+
+	-- 8) 보관함 (맵 Locker 자리, 문 하나는 여닫기) -----------------------------------------------------------
+	local lockers = recs(V, "Locker")
+	table.sort(lockers, function(p, q)
+		if math.abs(p.c.X - q.c.X) > 0.3 then
+			return p.c.X < q.c.X
+		end
+		return p.c.Y < q.c.Y
+	end)
+	local doors = {}
+	for li, r in lockers do
+		local wall = nearestWall(V, r.c)
+		local fdir = V:wall(wall, 0, 0, 0).ZVector
+		local along = math.abs(fdir.X) > 0.5
+		local w = if along then r.size.Z else r.size.X
+		local d = if along then r.size.X else r.size.Z
+		local pcf = faceCF(V3(r.c.X, 0, r.c.Z), fdir)
+		local y0, h = r.min.Y, r.size.Y
+		local body = lk(rgb(220, 226, 228), M.Metal)
+		K:free(function()
+			K:box("LockerBody", V3(w, h, d - 0.06), pcf * CF(0, y0 + h / 2, -0.03), body)
+			local m = K:group("LockerDoor_" .. li, function()
+				local dc = pcf * CF(0, y0 + h / 2, d / 2 + 0.02)
+				K:box("LockerDoorPanel", V3(w - 0.12, h - 0.12, 0.05), dc, lk(({ SURF.teal, SURF.sea, SURF.sun, SURF.coral })[(li - 1) % 4 + 1], M.Metal))
+				for k = 0, 2 do
+					K:box("LockerVent", V3(w * 0.5, 0.05, 0.01), dc * CF(0, h / 2 - 0.4 - k * 0.14, 0.03), lk(rgb(40, 40, 44)))
+				end
+				K:box("LockerHandle", V3(0.1, 0.5, 0.1), dc * CF(w / 2 - 0.3, 0, 0.07), Look.chrome)
+				K:box("LockerKeypad", V3(0.36, 0.5, 0.05), dc * CF(w / 2 - 0.35, 0.6, 0.04), lk(rgb(40, 40, 44)))
+				K:box("LockerKeyLED", V3(0.08, 0.05, 0.01), dc * CF(w / 2 - 0.35, 0.8, 0.07), nl(rgb(80, 255, 120)))
+				txt(K, "LockerNo", 0.5, 0.4, dc * CF(-w / 2 + 0.45, h / 2 - 0.45, 0.03), tostring(li), WHITE, nil, F.GothamBlack)
+			end)
+			table.insert(doors, { m = m, hinge = (K.cf * pcf * CF(-w / 2 + 0.06, y0, d / 2 + 0.02)).Position, axis = (K.cf * pcf).YVector, y = y0, pcf = pcf, w = w, d = d, h = h })
+			-- 안쪽 (열면 보이는 가방 · 수건)
+			K:box("LockerInside", V3(w - 0.2, h - 0.2, 0.04), pcf * CF(0, y0 + h / 2, -d / 2 + 0.06), lk(rgb(60, 64, 68), M.Metal))
+			if li == 1 then
+				K:box("LockerBag", V3(1.0, 1.2, 0.8), pcf * CF(0, y0 + 0.7, -0.1), lk(rgb(40, 90, 140), M.Fabric))
+				towelRoll(K, pcf * CF(0, y0 + 1.5, 0), 1.1, 0.4, SURF.sun)
+			end
+		end)
+		hideRec(K, r)
+	end
+	for _, r in recs(V, "LockerTag") do
+		hideRec(K, r)
+	end
+	if #doors > 0 then
+		local d1 = doors[1]
+		local handle = d1.m:FindFirstChild("LockerHandle", true)
+		if handle and handle:IsA("BasePart") and promptOK(K, V, V.cf:PointToObjectSpace(handle.Position)) then
+			Interact.swing(K, d1.m, d1.hinge, d1.axis, -PI * 0.6, { object = "보관함 1번", openText = "열기", closeText = "닫기" })
+		end
+		local top = lockers[1]
+		local wall = nearestWall(V, top.c)
+		local u0 = V:wallCoord(wall, lockers[1].c)
+		local u1 = V:wallCoord(wall, lockers[#lockers].c)
+		K:free(function()
+			txt(K, "LockerHeader", math.abs(u1 - u0) + 1.6, 0.42, wcf(V, wall, (u0 + u1) / 2, 7.55, 0.04), "LOCKER · 보관함 3,000원 (샤워 이용 시 무료)", rgb(40, 40, 44), SURF.white, F.GothamBold)
+		end)
+	end
+
+	-- 9) 강습 · 렌탈 요금판 (뒷벽 빈 자리) + 서핑 강습 사진 ----------------------------------------------------
+	local w9, d9 = Common.wallSpot(K, { "back", "right", "left" }, 3.15, 4.1, 8.9, -4.45)
+	if w9 and d9 then
+		local bw, bh = 3.05, 4.5
+		K:free(function()
+			K:plate("RateBoardFrame", bw + 0.2, bh + 0.2, 0.1, d9, lk(rgb(240, 236, 228), M.Wood))
+			K:plate("RateBoard", bw, bh, 0.12, d9, lk(rgb(24, 70, 96)))
+			txt(K, "RateTitle", bw * 0.9, 0.45, d9 * CF(0, bh / 2 - 0.38, 0.13), "LESSON & RENTAL 2026", SURF.sun, nil, F.GothamBlack)
+			local rows = {
+				{ "서핑 입문 강습 (2시간 · 장비 포함)", "60,000" },
+				{ "서핑 레벨업 강습 (2시간)", "70,000" },
+				{ "SUP 체험 (30분)", "20,000" },
+				{ "SUP 선셋 투어 (90분)", "45,000" },
+				{ "서프보드 대여 (2시간)", "25,000" },
+				{ "소프트보드 대여 (1일)", "35,000" },
+				{ "웻슈트 대여", "15,000" },
+				{ "구명조끼 · 리시", "무료" },
+				{ "온수 샤워 (수건 포함)", "5,000" },
+			}
+			for i, rr in rows do
+				local y = bh / 2 - 0.85 - (i - 1) * 0.38
+				txt(K, "RateItem", bw * 0.66, 0.26, d9 * CF(-bw * 0.15, y, 0.13), rr[1], SURF.white, nil, F.GothamMedium, nil, { align = "Left" })
+				txt(K, "RatePrice", bw * 0.24, 0.26, d9 * CF(bw * 0.35, y, 0.13), rr[2], SURF.sun, nil, F.GothamBold, nil, { align = "Right" })
+			end
+			txt(K, "RateNote", bw * 0.9, 0.22, d9 * CF(0, -bh / 2 + 0.25, 0.13), "* 파고 1.5m 이상 · 강풍 주의보 시 강습 취소 (전액 환불)", rgb(170, 200, 210), nil, F.GothamMedium)
+		end)
+	end
+
+	-- 10) 샤워실 옆: 장비 헹굼통 + 미끄럼 주의 · 샤워 안내 ------------------------------------------------------
+	local shower = V:first("ShowerDoor")
+	if shower then
+		local wall = nearestWall(V, shower.c)
+		local u = V:wallCoord(wall, shower.c)
+		K:free(function()
+			notice(K, wcf(V, wall, u + (if u < 0 then 3.4 else -3.4), 5.0, 0.02), 2.2, 1.5, "SHOWER · 샤워 안내", "온수 샤워 5,000원 (수건 포함)\n모래는 밖에서 털어 주세요\n이용 시간 09:00 - 19:00", SURF.sea)
+			-- 문 테두리 (나무) + 손잡이
+			local dc = wcf(V, wall, u, shower.c.Y, 0.08)
+			for _, s in { -1, 1 } do
+				K:plate("ShowerCasing", 0.18, shower.size.Y + 0.1, 0.08, dc * CF(s * (shower.size.X / 2 + 0.08), 0, -0.05), wood)
+			end
+			K:plate("ShowerCasing", shower.size.X + 0.34, 0.18, 0.08, dc * CF(0, shower.size.Y / 2 + 0.08, -0.05), wood)
+		end)
+		local tub = firstSpot(K, { wcf(V, wall, u + 4.0, 0, 1.1), wcf(V, wall, u + 5.2, 0, 1.1), wcf(V, "left", -(shower.c.Z + 4.2), 0, 1.1) }, V3(1.8, 1.6, 1.8), 0.1)
+		if tub then
+			K:vcyl("RinseTub", 1.3, 1.7, tub * CF(0, 0.65, 0), lk(rgb(40, 110, 200)))
+			K:disc("RinseWater", 1.5, 0.04, tub * CF(0, 1.18, 0), gl(rgb(120, 190, 220), 0.3))
+			K:ring("RinseRim", tub * CF(0, 1.3, 0) * ANG(PI / 2, 0, 0), 0.82, 0.12, 10, lk(rgb(30, 90, 170)))
+			cable(K, { (tub * CF(0.6, 1.3, 0)).Position, (tub * CF(0.9, 1.6, -0.6)).Position, (tub * CF(0.9, 3.4, -1.05)).Position }, 0.1, lk(rgb(40, 160, 90)))
+			txt(K, "RinseLabel", 1.2, 0.3, tub * CF(0, 0.75, 0.86), "장비 헹굼통", WHITE, nil, F.GothamBlack)
+		end
+		local wet = firstSpot(K, { wcf(V, wall, u + 2.6, 0, 2.6), wcf(V, wall, u + 1.4, 0, 3.0) }, V3(1.1, 2.2, 0.9), 0.05)
+		if wet then
+			local yel = lk(rgb(250, 200, 30))
+			K:box("WetSignA", V3(1.0, 2.0, 0.06), wet * CF(0, 1.0, 0.3) * ANG(-0.25, 0, 0), yel)
+			K:box("WetSignB", V3(1.0, 2.0, 0.06), wet * CF(0, 1.0, -0.3) * ANG(0.25, 0, 0), yel)
+			txt(K, "WetSignText", 0.85, 1.2, wet * CF(0, 1.0, 0.34) * ANG(-0.25, 0, 0) * CF(0, 0, 0.035), "미끄럼\n주의\nCAUTION", rgb(30, 30, 30), nil, F.GothamBlack)
+		end
+	end
+
+	-- 11) 천장: 행잉 롱보드 · 튜브 링 · 비치볼 · 실링팬 2 -----------------------------------------------------
+	local hb = V:first("HangingBoard")
+	if hb then
+		local alongZ = hb.size.Z > hb.size.X
+		local len = math.max(hb.size.X, hb.size.Z)
+		local cf = CFrame.fromMatrix(hb.c, if alongZ then V3(1, 0, 0) else V3(0, 0, 1), if alongZ then V3(0, 0, -1) else V3(1, 0, 0), V3(0, -1, 0))
+		K:free(function()
+			surfboard(K, cf, len, 2.3, 0.26, { rail = rgb(244, 232, 206), deck = rgb(244, 232, 206), stringerC = rgb(120, 80, 50), stripe = SURF.coral, pad = false, fin = rgb(150, 110, 70) })
+			for _, s in { -1, 1 } do
+				local p = hb.c + (if alongZ then V3(0, 0, s * len * 0.3) else V3(s * len * 0.3, 0, 0))
+				K:seg("HangRope", p + V3(-0.6, 0, 0), V3(p.X, V.H, p.Z), 0.05, rope)
+				K:seg("HangRope", p + V3(0.6, 0, 0), V3(p.X, V.H, p.Z), 0.05, rope)
+			end
+		end)
+		hideRec(K, hb)
+		for _, r in recs(V, "Wire") do
+			hideRec(K, r)
+		end
+	end
+	local fr = V:first("FloatRing")
+	if fr then
+		local R = (math.max(fr.size.X, fr.size.Z) + (V:first("FloatRingInner") and math.max(V:first("FloatRingInner").size.X, V:first("FloatRingInner").size.Z) or 1.8)) / 4
+		local tube = math.max(fr.size.X, fr.size.Z) / 2 - R
+		K:free(function()
+			local fcf = CF(fr.c) * ANG(PI / 2, 0, 0)
+			for i = 0, 7 do
+				K:ring("SwimRing", fcf, R, tube * 2, 2, lk(if i % 2 == 0 then rgb(250, 110, 140) else rgb(250, 250, 248), M.SmoothPlastic, { r = 0.15 }), i * PI / 4, (i + 1) * PI / 4)
+			end
+			K:seg("SwimRingRope", fr.c + V3(R, 0, 0), V3(fr.c.X + R, V.H, fr.c.Z), 0.04, rope)
+		end)
+		hideRec(K, fr)
+		local fi = V:first("FloatRingInner")
+		if fi then
+			hideRec(K, fi)
+		end
+	end
+	local bb = V:first("BeachBall")
+	if bb then
+		local d = bb.size.Y
+		K:free(function()
+			K:ball("BeachBallNew", d, CF(bb.c), lk(rgb(250, 250, 248), M.SmoothPlastic, { r = 0.1 }))
+			for i, c in { rgb(230, 50, 50), rgb(40, 110, 220), rgb(250, 200, 40) } do
+				K:disc("BeachBallGore", d * 1.005, d * 0.2, CF(bb.c) * ANG(0, i * PI / 3, 0) * ANG(PI / 2, 0, 0), lk(c, M.SmoothPlastic, { r = 0.1 }))
+			end
+			K:seg("BeachBallString", bb.c + V3(0, d / 2, 0), V3(bb.c.X, V.H, bb.c.Z), 0.03, rope)
+		end)
+		hideRec(K, bb)
+	end
+	-- 실링팬 (작동 토글 패널)
+	local fans = {}
+	local fanTry = { V3(-V.W * 0.22, 0, 3.3), V3(V.W * 0.22, 0, -4.2), V3(V.W * 0.22, 0, 3.3), V3(-V.W * 0.22, 0, -4.2), V3(0, 0, -4.2) }
+	for _, p in fanTry do
+		if #fans < 2 then
+			local fx, fz = ceilSpot(K, p.X, p.Z, 2.2, 1.5)
+			if fx and fz then
+				local blades, center, glow = ceilingFan(K, V, fx, fz, 1.0)
+				table.insert(fans, { blades = blades, center = center, glow = glow })
+				Common.useCeil(K, fx, fz)
+				if glow then
+					K:light(glow, "PointLight", { Range = 14, Brightness = 0.7, Color = Look.warmLight })
+				end
+			end
+		end
+	end
+	if #fans > 0 then
+		local on = true
+		local speed = 0.0
+		local spinSets = {}
+		for _, f in fans do
+			local base = {}
+			for _, p in f.blades do
+				table.insert(base, { p = p, cf = p.CFrame })
+			end
+			table.insert(spinSets, { base = base, center = f.center })
+		end
+		local ang = 0
+		Interact.anim(K, function(_t, dt)
+			local target = if on then 1.1 else 0
+			speed += (target - speed) * math.min(1, (dt or 0.1) * 1.5)
+			if speed < 0.01 then
+				return
+			end
+			ang += (dt or 0.1) * speed * PI * 2
+			for _, s in spinSets do
+				local rot = CFrame.new(s.center) * CFrame.Angles(0, ang, 0) * CFrame.new(-s.center)
+				for _, b in s.base do
+					if b.p.Parent then
+						b.p.CFrame = rot * b.cf
+					end
+				end
+			end
+		end)
+		local d = findPanel(K, V, { "right", "left", "back" }, 0.9, 3.8, 4.8, { -12.0, -8.0, 12.0, -14.0 })
+		if d then
+			local plate = K:plate("FanPanel", 0.8, 1.0, 0.05, d, lk(rgb(240, 238, 232)))
+			wdisc(K, "FanDial", 0.4, 0.06, d * CF(0, 0.1, 0.05), lk(rgb(60, 60, 64)))
+			txt(K, "FanLabel", 0.74, 0.18, d * CF(0, -0.36, 0.06), "선풍기 · FAN", rgb(50, 50, 54), nil, F.GothamBold)
+			Interact.toggle(K, plate, {
+				object = "실링팬",
+				state = true,
+				on = function(st: boolean)
+					on = st
+				end,
+			})
+		end
+	end
+
+	-- 조명: 보드 벽 · 웻슈트 벽 레일 조명 + 가운데 다운라이트
+	if rackBase then
+		local x = rackBase.max.X + 2.6
+		litTrack(K, V3(x, 0, rackBase.min.Z + 1), V3(x, 0, rackBase.max.Z - 1), 4, V3(-1, -1.1, 0), 1)
+	end
+	if suitRail then
+		local x = suitRail.c.X - 3.0
+		litTrack(K, V3(x, 0, suitRail.min.Z + 0.5), V3(x, 0, suitRail.max.Z - 0.5), 4, V3(1, -1.1, 0), 1)
+	end
+	litDownlight(K, 0, 1.5)
+	litDownlight(K, -6, -12)
+
+	-- 12) 파도 정보판 (프롬프트 순환: 오늘 · 내일 · 수온 · 일몰) ----------------------------------------------------
+	local wave = {
+		"오늘 광안리  파고 0.6m · 주기 7s\n남동풍 3m/s · SUP 좋음",
+		"내일 오전  파고 1.0m · 주기 8s\n서핑 초급 강습 추천",
+		"수온 21°C · 기온 23°C\n3/2mm 웻슈트 권장",
+		"일출 06:31 · 일몰 17:52\n선셋 SUP 투어 16:30 출발",
+	}
+	local wd = findPanel(K, V, { "left", "right", "back" }, 2.6, 3.4, 4.6, { 9.0, 12.0, 6.0, -9.0 })
+	if wd then
+		local plate = K:plate("WaveBoard", 2.6, 1.15, 0.08, wd, lk(rgb(24, 70, 96)))
+		K:plate("WaveScreen", 2.4, 0.8, 0.02, wd * CF(0, -0.05, 0.08), lk(rgb(18, 40, 60), M.Neon))
+		txt(K, "WaveTitle", 2.2, 0.22, wd * CF(0, 0.44, 0.09), "WAVE REPORT · 파도 정보", SURF.sun, nil, F.GothamBlack)
+		local _, lab = txt(K, "WaveText", 2.3, 0.72, wd * CF(0, -0.06, 0.105), wave[1], rgb(210, 240, 250), nil, F.GothamMedium, 1.3)
+		Interact.cycle(K, plate, wave, {
+			object = "파도 정보",
+			action = "다음 정보",
+			on = function(_i, item)
+				lab.Text = item
+			end,
+		})
+	end
+
+	-- 13) 바닥: 입구 모래 자국 · 고무 매트 · 수건 바구니 다시 짓기 · 큰 화분은 Common ---------------------------------
+	local door = V.door
+	if door then
+		K:free(function()
+			for i = 1, 9 do
+				local x = door.x + (rnd(seed, i) - 0.5) * 5.5
+				local z = V.z1 - 4.2 - rnd(seed, i + 30) * 6
+				K:ell("SandPatch", V3(0.5 + rnd(seed, i + 3) * 0.9, 0.03, 0.4 + rnd(seed, i + 5) * 0.6), CF(x, 0.03, z) * ANG(0, rnd(seed, i + 7) * PI, 0), lk(SURF.sand, M.Sand))
+			end
+			txt(K, "SandFloorText", 3.2, 0.5, topCF(V3(door.x, 0.035, V.z1 - 3.4), V3(0, 0, -1)), "모래는 밖에서 털어 주세요", rgb(200, 180, 140), nil, F.GothamBlack, nil, { d = 0.01 })
+		end)
+	end
+	local tbk = V:first("TowelBasket")
+	if tbk then
+		local p = CF(tbk.c.X, 0, tbk.c.Z)
+		K:free(function()
+			K:vcyl("TowelBasketNew", tbk.size.Y, math.min(tbk.size.X, tbk.size.Z), p * CF(0, tbk.size.Y / 2, 0), lk(rgb(196, 160, 104), M.Fabric))
+			K:ring("TowelBasketRim", p * CF(0, tbk.size.Y, 0) * ANG(PI / 2, 0, 0), math.min(tbk.size.X, tbk.size.Z) / 2, 0.12, 10, lk(rgb(150, 116, 70), M.Fabric))
+			local cols = { SURF.teal, SURF.sun, SURF.coral, SURF.sea, rgb(250, 250, 248) }
+			for i, r in recs(V, "RolledTowel") do
+				K:vcyl("RolledTowelNew", r.size.Y, r.size.X, CF(r.c), lk(cols[(i + seed) % #cols + 1], M.Fabric))
+				K:disc("RolledTowelSpiral", r.size.X * 0.6, 0.02, CF(r.c + V3(0, r.size.Y / 2, 0)), lk(dk(cols[(i + seed) % #cols + 1], 0.2), M.Fabric))
+			end
+			txt(K, "TowelBasketTag", 1.4, 0.3, p * CF(0, tbk.size.Y * 0.6, math.min(tbk.size.X, tbk.size.Z) / 2 + 0.02), "비치타월 9,000", rgb(30, 30, 30), SURF.white, F.GothamBold)
+		end)
+		hideRec(K, tbk)
+		for _, r in recs(V, "RolledTowel") do
+			hideRec(K, r)
+		end
+	end
+	-- 비치 파라솔 + 비치체어 2 (대여 진열)
+	local pcands = {}
+	for _, x in { 9.5, -8.5, 8.8, -9.2, 7.5 } do
+		for _, z in { V.z1 - 4.4, V.z1 - 5.4, V.z1 - 6.4 } do
+			table.insert(pcands, CF(x, 0, z) * ANG(0, if x > 0 then -0.5 else 0.5, 0))
+		end
+	end
+	local pp = firstSpot(K, pcands, V3(3.2, 6.2, 2.6), 0.05)
+	if pp then
+		K:disc("ParasolBase", 0.9, 0.2, pp * CF(0, 0.1, 0), lk(rgb(60, 60, 64)))
+		K:vcyl("ParasolPole", 5.6, 0.12, pp * CF(0, 2.9, 0), lk(rgb(240, 240, 236), M.Metal))
+		K:ell("ParasolCanopy", V3(3.4, 1.2, 3.4), pp * CF(0, 5.45, 0), lk(SURF.white, M.Fabric))
+		K:ell("ParasolCanopyTop", V3(2.0, 0.9, 2.0), pp * CF(0, 5.62, 0), lk(SURF.teal, M.Fabric))
+		for i = 0, 7 do
+			local a0, a1 = i * PI / 4, (i + 1) * PI / 4
+			K:ring("ParasolValance", pp * CF(0, 5.42, 0) * ANG(PI / 2, 0, 0), 1.68, 0.22, 1, lk(if i % 2 == 0 then SURF.teal else SURF.white, M.Fabric), a0, a1)
+			local a = a0
+			K:seg("ParasolRib", (pp * CF(0, 6.0, 0)).Position, (pp * CF(math.cos(a) * 1.7, 5.42, math.sin(a) * 1.7)).Position, 0.04, lk(rgb(200, 200, 196), M.Metal))
+		end
+		K:ball("ParasolFinial", 0.2, pp * CF(0, 5.98, 0), lk(rgb(240, 240, 236)))
+		for k, sx in { -0.75, 0.75 } do
+			local cc = pp * CF(sx, 0, 0.35) * ANG(0, sx * 0.25, 0)
+			local fab = lk(if k == 1 then SURF.coral else SURF.sun, M.Fabric)
+			K:bar("ChairFrame", (cc * CF(-0.4, 0.05, 0.45)).Position, (cc * CF(-0.4, 1.9, -0.55)).Position, 0.07, 0.07, lk(rgb(200, 170, 120), M.Wood))
+			K:bar("ChairFrame", (cc * CF(0.4, 0.05, 0.45)).Position, (cc * CF(0.4, 1.9, -0.55)).Position, 0.07, 0.07, lk(rgb(200, 170, 120), M.Wood))
+			K:bar("ChairFrame", (cc * CF(-0.4, 0.05, -0.4)).Position, (cc * CF(-0.4, 0.75, 0.35)).Position, 0.07, 0.07, lk(rgb(200, 170, 120), M.Wood))
+			K:bar("ChairFrame", (cc * CF(0.4, 0.05, -0.4)).Position, (cc * CF(0.4, 0.75, 0.35)).Position, 0.07, 0.07, lk(rgb(200, 170, 120), M.Wood))
+			K:box("ChairSling", V3(0.78, 0.04, 1.3), cc * CF(0, 1.05, -0.05) * ANG(0.95, 0, 0), fab)
+			K:box("ChairSlingStripe", V3(0.79, 0.045, 0.2), cc * CF(0, 1.05, -0.05) * ANG(0.95, 0, 0) * CF(0, 0, 0.3), lk(SURF.white, M.Fabric))
+		end
+		txt(K, "ParasolTag", 1.6, 0.5, pp * CF(0, 2.0, 0.08) * CF(0, 0, 0.07), "파라솔 · 비치체어\n대여 15,000원", rgb(30, 30, 30), SURF.white, F.GothamBold)
+	end
+
+	-- 플립플랍 보드 다시 짓기
+	local ffb = V:first("FlipFlopBoard")
+	if ffb then
+		local wall = nearestWall(V, ffb.c)
+		local u = V:wallCoord(wall, ffb.c)
+		local w = math.max(ffb.size.X, ffb.size.Z)
+		K:free(function()
+			local d = wcf(V, wall, u, ffb.c.Y, 0.01)
+			K:plate("FlipBoard", w, ffb.size.Y, 0.08, d, drift)
+			txt(K, "FlipHeader", w * 0.9, 0.35, d * CF(0, ffb.size.Y / 2 + 0.25, 0.08), "FLIP FLOPS 12,000", rgb(40, 40, 44), SURF.white, F.GothamBlack)
+			local cols = { SURF.coral, SURF.sea, SURF.sun, SURF.teal, rgb(30, 30, 32), rgb(250, 250, 248) }
+			for i, r in recs(V, "FlipFlops") do
+				local uu = V:wallCoord(wall, r.c)
+				for _, s in { -0.17, 0.17 } do
+					local fd = wcf(V, wall, uu + s, r.c.Y, 0.1)
+					K:panel("FlipSole", 0.3, 1.05, 0.08, 0.14, fd, lk(cols[(i + seed) % #cols + 1], M.Rubber))
+					K:bar("FlipStrap", (fd * CF(-0.12, -0.15, 0.1)).Position, (fd * CF(0, 0.32, 0.1)).Position, 0.05, 0.05, lk(rgb(250, 250, 248), M.Rubber))
+					K:bar("FlipStrap", (fd * CF(0.12, -0.15, 0.1)).Position, (fd * CF(0, 0.32, 0.1)).Position, 0.05, 0.05, lk(rgb(250, 250, 248), M.Rubber))
+				end
+			end
+		end)
+		hideRec(K, ffb)
+		for _, r in recs(V, "FlipFlops") do
+			hideRec(K, r)
+		end
+	end
+	local _ = S
+end
+
+--================================================================================================
+-- 인형뽑기 · 포토 (play)
+--================================================================================================
+local NEONS = { rgb(255, 80, 180), rgb(80, 220, 255), rgb(255, 220, 60), rgb(140, 255, 120), rgb(200, 120, 255), rgb(255, 140, 60) }
+local MACHINE_NAMES = { "곰돌이 천국", "말랑 오리", "토끼 마을", "젤리 캣", "쿠션 왕국", "펭귄 파티", "DOLL PARTY", "SWEET BEAR", "키링 뽑기", "LUCKY CLAW" }
+
+-- 인형 하나 (pcf = 바닥, +Z = 얼굴). kind = bear | bunny | duck | cat | pig
+local function plush(K: any, pcf: CFrame, s: number, kind: string, c: Color3)
+	local fab = lk(c, M.Fabric)
+	K:ell("PlushBody", V3(0.9, 0.8, 0.75) * s, pcf * CF(0, 0.38 * s, 0), fab)
+	K:ell("PlushHead", V3(0.8, 0.72, 0.7) * s, pcf * CF(0, 0.95 * s, 0.05 * s), fab)
+	if kind == "bunny" then
+		for _, sx in { -1, 1 } do
+			K:ell("PlushEar", V3(0.2, 0.6, 0.14) * s, pcf * CF(sx * 0.18 * s, 1.45 * s, 0), fab)
+		end
+	elseif kind == "cat" then
+		for _, sx in { -1, 1 } do
+			K:wedge("PlushEar", V3(0.08, 0.26, 0.24) * s, pcf * CF(sx * 0.24 * s, 1.36 * s, 0.05 * s) * ANG(0, PI / 2, 0), fab)
+		end
+	elseif kind == "duck" then
+		K:ell("PlushBeak", V3(0.36, 0.14, 0.3) * s, pcf * CF(0, 0.9 * s, 0.42 * s), lk(rgb(255, 150, 40), M.Fabric))
+	elseif kind == "pig" then
+		K:cyl("PlushSnout", 0.08 * s, 0.3 * s, pcf * CF(0, 0.9 * s, 0.4 * s) * ANG(0, PI / 2, 0), lk(dk(c, 0.15), M.Fabric))
+	else
+		for _, sx in { -1, 1 } do
+			K:ball("PlushEar", 0.26 * s, pcf * CF(sx * 0.3 * s, 1.28 * s, 0), fab)
+		end
+	end
+	if s > 0.7 and not lowD(K) then
+		K:box("PlushEyes", V3(0.36, 0.08, 0.02) * s, pcf * CF(0, 1.0 * s, 0.4 * s), lk(rgb(20, 20, 24)))
+	end
+end
+
+-- 인형뽑기 기계 덮어 꾸미기 (원본 그대로, 겉면 패널 · 콘솔 · 마키 · 인형 추가)
+local function clawSkin(K: any, V: any, base: any, idx: number, seed: number): { BasePart }
+	local function near(nm: string): any
+		local best, bd = nil, 1.7
+		for _, r in recs(V, nm) do
+			local d = nearXZ(r.c, base.c)
+			if d < bd then
+				best, bd = r, d
+			end
+		end
+		return best
+	end
+	local glass, top, joy = near("ClawGlass"), near("ClawTop"), near("Joystick")
+	local fdir = if joy then V3(joy.c.X - base.c.X, 0, joy.c.Z - base.c.Z) else V3(0, 0, 1)
+	if math.abs(fdir.X) > math.abs(fdir.Z) then
+		fdir = V3(math.sign(fdir.X), 0, 0)
+	else
+		fdir = V3(0, 0, math.sign(fdir.Z))
+	end
+	local mf = faceCF(V3(base.c.X, 0, base.c.Z), fdir)
+	local hw = (if math.abs(fdir.X) > 0.5 then base.size.Z else base.size.X) / 2
+	local hd = (if math.abs(fdir.X) > 0.5 then base.size.X else base.size.Z) / 2
+	local by = base.max.Y
+	local gy = if glass then glass.max.Y else by + 4.2
+	local ty = if top then top.max.Y else gy + 0.8
+	local acc = if top then top.part.Color else NEONS[idx % #NEONS + 1]
+	local accL = lk(acc)
+	local accD = lk(dk(acc, 0.35))
+	local leds = {}
+	K:free(function()
+		-- 몸통: 앞 · 옆 패널 (그래픽 띠) + 크롬 걸레받이
+		K:plate("ClawFrontPanel", hw * 2 - 0.1, by - 0.3, 0.03, mf * CF(0, 0.3 + (by - 0.3) / 2, hd + 0.01), lk(rgb(250, 248, 252)))
+		K:plate("ClawFrontStripe", hw * 2 - 0.1, 0.5, 0.04, mf * CF(0, by - 0.6, hd + 0.01), accL)
+		K:plate("ClawFrontStripe", hw * 2 - 0.1, 0.16, 0.04, mf * CF(0, by - 1.0, hd + 0.01), accD)
+		K:plate("ClawKick", hw * 2 + 0.04, 0.3, 0.05, mf * CF(0, 0.15, hd + 0.01), Look.chrome)
+		for _, sx in { -1, 1 } do
+			local sc = mf * CF(sx * (hw + 0.01), 0, 0) * ANG(0, sx * PI / 2, 0)
+			K:plate("ClawSidePanel", hd * 2 - 0.1, by - 0.3, 0.03, sc * CF(0, 0.3 + (by - 0.3) / 2, 0), accD)
+			K:plate("ClawSideStar", 1.0, 1.0, 0.04, sc * CF(0, by * 0.55, 0) * ANG(0, 0, PI / 4), lk(lt(acc, 0.35)))
+			K:plate("ClawSideStar", 1.0, 1.0, 0.04, sc * CF(0, by * 0.55, 0), lk(lt(acc, 0.35)))
+		end
+		-- 상품 출구 (왼쪽 아래) + 투명 덮개
+		local cx = -hw + 0.75
+		K:plate("ClawChute", 0.95, 0.8, 0.02, mf * CF(cx, 1.15, hd + 0.03), lk(rgb(20, 18, 24)))
+		K:plate("ClawChuteFlap", 0.9, 0.75, 0.02, mf * CF(cx, 1.15, hd + 0.06), gl(rgb(220, 230, 240), 0.55))
+		K:plate("ClawChuteFrame", 1.05, 0.08, 0.05, mf * CF(cx, 1.59, hd + 0.03), Look.chrome)
+		txt(K, "ClawChuteLabel", 0.95, 0.2, mf * CF(cx, 1.78, hd + 0.05), "상품 출구", rgb(40, 40, 44), nil, F.GothamBlack)
+		-- 지폐 투입구 · 동전 · 카드 (오른쪽)
+		local bx = hw - 0.6
+		K:plate("ClawBillPlate", 0.7, 0.9, 0.04, mf * CF(bx, 1.3, hd + 0.03), lk(rgb(30, 30, 34)))
+		K:plate("ClawBillSlot", 0.5, 0.06, 0.02, mf * CF(bx, 1.55, hd + 0.07), lk(rgb(5, 5, 5)))
+		K:plate("ClawBillLED", 0.12, 0.06, 0.02, mf * CF(bx - 0.18, 1.68, hd + 0.07), nl(rgb(80, 255, 120)))
+		K:plate("ClawCoinSlot", 0.08, 0.3, 0.02, mf * CF(bx + 0.15, 1.15, hd + 0.07), Look.chrome)
+		txt(K, "ClawBillText", 0.62, 0.2, mf * CF(bx, 0.98, hd + 0.075), "1,000원", WHITE, nil, F.GothamBold)
+		-- 조작 콘솔 (조이스틱 받침 + 버튼 + 크레딧 표시)
+		local cy = by
+		K:box("ClawConsole", V3(hw * 2 - 0.1, 0.42, 0.7), mf * CF(0, cy - 0.21, hd + 0.35), lk(rgb(30, 28, 36)))
+		K:box("ClawConsoleTop", V3(hw * 2 - 0.1, 0.04, 0.7), mf * CF(0, cy + 0.02, hd + 0.35), lk(rgb(20, 20, 24)))
+		K:box("ClawConsoleLED", V3(hw * 2 - 0.1, 0.06, 0.04), mf * CF(0, cy - 0.38, hd + 0.71), nl(acc))
+		if joy then
+			local jl = mf:PointToObjectSpace(joy.c)
+			K:ball("ClawJoyBall", 0.34, CF(joy.c.X, joy.max.Y + 0.12, joy.c.Z), lk(rgb(230, 30, 40), M.SmoothPlastic, { r = 0.1 }))
+			K:disc("ClawJoyBoot", 0.4, 0.06, CF(joy.c.X, cy + 0.06, joy.c.Z), lk(rgb(10, 10, 12)))
+			K:disc("ClawButton", 0.42, 0.12, mf * CF(jl.X + 0.8, cy + 0.08, hd + 0.35), lk(lt(acc, 0.2), M.Neon))
+			K:disc("ClawButtonRing", 0.5, 0.06, mf * CF(jl.X + 0.8, cy + 0.04, hd + 0.35), Look.chrome)
+		end
+		K:plate("ClawCredit", 0.8, 0.26, 0.02, mf * CF(-0.75, cy - 0.21, hd + 0.71), lk(rgb(30, 10, 10)))
+		txt(K, "ClawCreditText", 0.74, 0.2, mf * CF(-0.75, cy - 0.21, hd + 0.725), "CREDIT 0", rgb(255, 60, 50), nil, F.Arcade, 1.6)
+		-- 유리 박스: 모서리 크롬 기둥 + 앞 기둥 LED + 안쪽 거울 · 조명
+		for _, sx in { -1, 1 } do
+			for _, sz in { -1, 1 } do
+				K:box("ClawPost", V3(0.1, gy - by, 0.1), mf * CF(sx * (hw - 0.02), (by + gy) / 2, sz * (hd - 0.02)), Look.chrome)
+			end
+			local p = K:box("ClawPostLED", V3(0.06, gy - by - 0.2, 0.06), mf * CF(sx * (hw - 0.02), (by + gy) / 2, hd + 0.05), nl(acc))
+			table.insert(leds, p)
+		end
+		K:box("ClawMirror", V3(hw * 2 - 0.3, gy - by - 0.6, 0.03), mf * CF(0, (by + gy) / 2 + 0.2, -hd + 0.12), Look.mirror)
+		K:box("ClawInnerLight", V3(hw * 2 - 0.4, 0.06, 0.2), mf * CF(0, gy - 0.12, 0), Look.lampCool)
+		-- 갠트리 레일 (안쪽 위)
+		for _, sz in { -1, 1 } do
+			K:box("ClawGantry", V3(hw * 2 - 0.3, 0.08, 0.08), mf * CF(0, gy - 0.3, sz * (hd - 0.4)), Look.chrome)
+		end
+		-- 집게 발 3 (맵 Claw 아래)
+		local claw = near("Claw")
+		if claw then
+			for i = 0, 2 do
+				local a = i * PI * 2 / 3
+				local tip = claw.c + V3(math.cos(a) * 0.32, -0.55, math.sin(a) * 0.32)
+				K:seg("ClawProng", claw.c - V3(0, 0.2, 0), tip, 0.05, Look.chrome)
+				K:seg("ClawProngTip", tip, tip + V3(-math.cos(a) * 0.12, -0.12, -math.sin(a) * 0.12), 0.05, Look.chrome)
+			end
+		end
+		-- 인형 더미 (바닥 + 출구 둘레 칸막이)
+		K:box("ClawPrizeFloor", V3(hw * 2 - 0.2, 0.12, hd * 2 - 0.2), mf * CF(0, by + 0.06, 0), lk(dk(acc, 0.5), M.Fabric))
+		K:box("ClawDropWall", V3(1.0, 0.7, 0.05), mf * CF(cx, by + 0.35, hd - 1.0), gl(rgb(230, 240, 250), 0.5))
+		K:box("ClawDropWall", V3(0.05, 0.7, 1.0), mf * CF(cx + 0.5, by + 0.35, hd - 0.5), gl(rgb(230, 240, 250), 0.5))
+		local kinds = { "bear", "bunny", "duck", "cat", "pig" }
+		local kind = kinds[(idx + seed) % #kinds + 1]
+		local base1 = NEONS[(idx * 2) % #NEONS + 1]
+		local pcols = { lt(base1, 0.55), lt(acc, 0.5), rgb(250, 246, 236), rgb(196, 150, 110), rgb(255, 214, 120) }
+		local n = if lowD(K) then 3 else 6
+		for i = 1, n do
+			local px = -hw + 1.25 + rnd(seed + idx, i) * (hw * 2 - 1.6)
+			local pz = -hd + 0.4 + rnd(seed + idx, i + 20) * (hd * 2 - 1.6)
+			local sc = 0.55 + rnd(seed + idx, i + 40) * 0.3
+			plush(K, mf * CF(px, by + 0.12 + (i % 2) * 0.25, pz) * ANG(0, (rnd(seed, i + idx) - 0.5) * 1.6, (rnd(seed, i + 7) - 0.5) * 0.5), sc, if i % 3 == 0 then kinds[(i + idx) % 5 + 1] else kind, pcols[(i + idx) % #pcols + 1])
+		end
+		-- 마키 (위 상자 앞면 글자) + 볏 간판 + 전구
+		K:plate("ClawMarqueeFace", hw * 2 + 0.04, ty - gy + 0.04, 0.04, mf * CF(0, (gy + ty) / 2, hd + 0.01), lk(dk(acc, 0.55)))
+		txt(K, "ClawMarquee", hw * 2 - 0.2, ty - gy - 0.15, mf * CF(0, (gy + ty) / 2, hd + 0.055), MACHINE_NAMES[(idx + seed) % #MACHINE_NAMES + 1], lt(acc, 0.4), nil, F.FredokaOne, 2.0)
+		local crest = mf * CF(0, ty + 0.45, hd - 0.15)
+		K:panel("ClawCrest", hw * 2 - 0.3, 0.9, 0.12, 0.42, crest, lk(rgb(250, 248, 252)))
+		K:panel("ClawCrestInner", hw * 2 - 0.55, 0.65, 0.04, 0.3, crest * CF(0, 0, 0.12), accL)
+		txt(K, "ClawCrestText", hw * 2 - 0.8, 0.45, crest * CF(0, 0, 0.17), string.format("No.%02d", idx), WHITE, nil, F.FredokaOne, 1.6)
+		if not lowD(K) then
+			for i = 0, 5 do
+				local x = -hw + 0.45 + i * (hw * 2 - 0.9) / 5
+				local b = K:ball("ClawBulbLED", 0.14, crest * CF(x, 0.48, 0.1), nl(rgb(255, 244, 210)))
+				table.insert(leds, b)
+			end
+		end
+		-- 요금 스티커 (유리 아래 왼쪽) · 결제 스티커
+		txt(K, "ClawPriceSticker", 1.3, 0.36, mf * CF(-hw + 0.8, by + 0.35, hd + 0.03), "1회 1,000원\n5,000원 6회", rgb(30, 20, 20), rgb(255, 230, 60), F.GothamBlack)
+		txt(K, "ClawPaySticker", 0.9, 0.24, mf * CF(hw - 0.6, by + 0.3, hd + 0.03), "현금 · 카드 · QR", WHITE, rgb(40, 120, 220), F.GothamBold)
+	end)
+	local ext = fdir * 0.8
+	K:reserve(base.min - V3(0.1, 0, 0.1) + ext:Min(Vector3.zero), V3(base.max.X + 0.1, ty + 1, base.max.Z + 0.1) + ext:Max(Vector3.zero), "claw")
+	return leds
+end
+
+-- 가챠 (캡슐 뽑기) 한 대: pcf = 바닥 (+Z = 앞), y = 받침 높이
+local function gacha(K: any, pcf: CFrame, y: number, c: Color3, label: string, seed: number)
+	local b = pcf * CF(0, y, 0)
+	K:box("GachaBody", V3(1.4, 1.2, 1.1), b * CF(0, 0.6, 0), lk(c, M.SmoothPlastic, { r = 0.08 }))
+	K:box("GachaWindow", V3(1.2, 1.15, 0.9), b * CF(0, 1.8, 0), gl(rgb(236, 244, 250), 0.45))
+	K:box("GachaTop", V3(1.4, 0.12, 1.1), b * CF(0, 2.44, 0), lk(c))
+	for i = 1, 6 do
+		local x = -0.4 + ((i - 1) % 3) * 0.4 + (rnd(seed, i) - 0.5) * 0.1
+		local yy = 1.4 + ((i - 1) // 3) * 0.38
+		K:ball("Capsule", 0.34, b * CF(x, yy, (rnd(seed, i + 5) - 0.5) * 0.4), lk(NEONS[(i + seed) % #NEONS + 1], M.SmoothPlastic, { r = 0.15 }))
+	end
+	K:disc("GachaKnob", 0.46, 0.08, b * CF(0.25, 0.75, 0.55) * ANG(PI / 2, 0, 0), Look.chrome)
+	K:box("GachaKnobBar", V3(0.38, 0.08, 0.08), b * CF(0.25, 0.75, 0.62), lk(rgb(40, 40, 44)))
+	K:box("GachaExit", V3(0.42, 0.32, 0.06), b * CF(-0.35, 0.3, 0.55), lk(rgb(30, 30, 34)))
+	txt(K, "GachaLabel", 1.25, 0.28, b * CF(0, 1.06, 0.555), label, WHITE, nil, F.GothamBlack)
+	txt(K, "GachaPrice", 0.5, 0.18, b * CF(-0.35, 0.62, 0.555), "3,000", rgb(255, 230, 60), nil, F.GothamBlack)
+end
+
+local function buildPlay(K: any, V: any, S: any)
+	local seed = hashStr(V.key or V.name or "play")
+	local H = V.H
+
+	-- 1) 인형뽑기 기계 꾸미기 ------------------------------------------------------------------------
+	local bases = recs(V, "ClawBase")
+	table.sort(bases, function(p, q)
+		if math.abs(p.c.Z - q.c.Z) > 1 then
+			return p.c.Z < q.c.Z
+		end
+		return p.c.X < q.c.X
+	end)
+	local allLeds = {}
+	for i, b in bases do
+		local ok, res = pcall(clawSkin, K, V, b, i, seed)
+		if ok then
+			for _, p in res do
+				table.insert(allLeds, p)
+			end
+		else
+			K:note("claw skin error: " .. tostring(res))
+		end
+	end
+	-- 전구 · LED 순환 (프롬프트 없는 애니)
+	local ledBase = {}
+	for _, p in allLeds do
+		table.insert(ledBase, { p = p, c = p.Color })
+	end
+	Interact.anim(K, function(t)
+		local ph = math.floor(t * 4)
+		for i, l in ledBase do
+			if l.p.Parent then
+				if l.p.Name == "ClawBulbLED" then
+					l.p.Transparency = if (i + ph) % 3 == 0 then 0.75 else 0
+				else
+					local k = (math.floor(t * 0.5) + i) % 4
+					l.p.Color = if k == 0 then WHITE else l.c
+				end
+			end
+		end
+	end)
+
+	-- 2) 지폐 교환기 (앞판 꾸미기) ------------------------------------------------------------------------
+	local cm = V:first("ChangeMachine")
+	if cm then
+		local scr = V:first("ChangeScreen")
+		local fdir = if scr then V3(scr.c.X - cm.c.X, 0, scr.c.Z - cm.c.Z) else V3(0, 0, 1)
+		if math.abs(fdir.X) > math.abs(fdir.Z) then
+			fdir = V3(math.sign(fdir.X), 0, 0)
+		else
+			fdir = V3(0, 0, math.sign(fdir.Z))
+		end
+		local mf = faceCF(V3(cm.c.X, 0, cm.c.Z), fdir)
+		local hw = (if math.abs(fdir.X) > 0.5 then cm.size.Z else cm.size.X) / 2
+		local hd = (if math.abs(fdir.X) > 0.5 then cm.size.X else cm.size.Z) / 2
+		local h = cm.size.Y
+		K:free(function()
+			K:plate("ChangerHeaderBack", hw * 2, 0.7, 0.04, mf * CF(0, h - 0.4, hd + 0.01), lk(rgb(230, 40, 60)))
+			txt(K, "ChangerHeader", hw * 2 - 0.2, 0.5, mf * CF(0, h - 0.4, hd + 0.055), "지폐 교환기", WHITE, nil, F.GothamBlack)
+			K:plate("ChangerBillSlot", 1.0, 0.5, 0.05, mf * CF(0, 3.3, hd + 0.01), lk(rgb(20, 20, 24)))
+			K:plate("ChangerBillMouth", 0.8, 0.07, 0.02, mf * CF(0, 3.35, hd + 0.06), lk(rgb(0, 0, 0)))
+			K:plate("ChangerBillLED", 0.8, 0.05, 0.02, mf * CF(0, 3.2, hd + 0.06), nl(rgb(80, 255, 120)))
+			txt(K, "ChangerBillText", 1.6, 0.5, mf * CF(0, 2.65, hd + 0.03), "10,000원 · 5,000원\n→ 1,000원권 교환", rgb(30, 30, 34), rgb(250, 248, 240), F.GothamBold)
+			K:box("ChangerTray", V3(1.2, 0.5, 0.35), mf * CF(0, 1.2, hd + 0.17), lk(rgb(40, 40, 44), M.Metal))
+			K:box("ChangerTrayInner", V3(1.0, 0.2, 0.3), mf * CF(0, 1.1, hd + 0.2), lk(rgb(15, 15, 18)))
+			txt(K, "ChangerTrayText", 1.2, 0.2, mf * CF(0, 1.62, hd + 0.03), "지폐 나오는 곳", rgb(230, 230, 230), nil, F.GothamMedium)
+			txt(K, "ChangerCall", 1.7, 0.3, mf * CF(0, 0.6, hd + 0.03), "고장 · 환불 문의 010-0000-0000", rgb(255, 230, 60), rgb(30, 30, 34), F.GothamBold)
+		end)
+		K:reserve(cm.min - V3(0.1, 0, 0.1), cm.max + V3(0.1, 0.5, 0.1) + fdir * 0.6, "changer")
+	end
+
+	-- 3) 바닥: 어두운 오락실 카펫 + 무늬 -----------------------------------------------------------------------
+	K:free(function()
+		K:box("ArcadeCarpet", V3(V.W - 0.04, 0.02, V.D - 0.04), CF((V.x0 + V.x1) / 2, 0.012, (V.z0 + V.z1) / 2), lk(rgb(34, 26, 60), M.Fabric))
+		local n = if lowD(K) then 18 else 44
+		for i = 1, n do
+			local x = V.x0 + 0.6 + rnd(seed, i) * (V.W - 1.2)
+			local z = V.z0 + 0.6 + rnd(seed, i + 100) * (V.D - 1.2)
+			local c = NEONS[(i + seed) % #NEONS + 1]
+			local k = i % 3
+			if k == 0 then
+				K:disc("CarpetDot", 0.5 + rnd(seed, i + 200) * 0.5, 0.01, CF(x, 0.026, z), lk(c, M.Fabric))
+			elseif k == 1 then
+				K:box("CarpetSquiggle", V3(0.9, 0.01, 0.14), CF(x, 0.026, z) * ANG(0, rnd(seed, i + 300) * PI, 0), lk(c, M.Fabric))
+			else
+				K:box("CarpetStar", V3(0.4, 0.01, 0.4), CF(x, 0.026, z) * ANG(0, PI / 4, 0), lk(c, M.Fabric))
+			end
+		end
+	end)
+
+	-- 4) 천장: 무지개 LED 띠 (가로 3줄 + 테두리) · 색 불빛 ------------------------------------------------------
+	local strips = {}
+	K:free(function()
+		local y = H - 0.12
+		local zs = { V.z0 + V.D * 0.25, V.z0 + V.D * 0.5, V.z0 + V.D * 0.75 }
+		for i, z in zs do
+			local p = K:box("CeilLEDStrip", V3(V.W - 2.0, 0.08, 0.16), CF((V.x0 + V.x1) / 2, y, z), nl(NEONS[i]))
+			table.insert(strips, p)
+			K:box("CeilLEDChannel", V3(V.W - 1.9, 0.06, 0.3), CF((V.x0 + V.x1) / 2, y + 0.06, z), lk(rgb(30, 30, 36), M.Metal))
+		end
+		-- 벽 위 띠 (뒷벽 · 양옆)
+		for _, wn in { "back", "left", "right" } do
+			local w = V.walls[wn]
+			local p = K:plate("WallLEDStrip", w.b - w.a - 0.4, 0.1, 0.06, V:wall(wn, (w.a + w.b) / 2, H - 0.35, 0.01), nl(rgb(255, 80, 180)))
+			table.insert(strips, p)
+		end
+	end)
+	-- 색 불빛 2 (분홍 · 하늘) + 흰 다운라이트 2
+	for i, x in { V.x0 + V.W * 0.3, V.x0 + V.W * 0.7 } do
+		local holder = nil
+		K:free(function()
+			holder = K:disc("MoodLightLens", 0.5, 0.04, CF(x, H - 0.05, (V.z0 + V.z1) / 2), nl(if i == 1 then rgb(255, 120, 200) else rgb(120, 220, 255)))
+		end)
+		if holder then
+			K:light(holder, "PointLight", { Range = 20, Brightness = 0.9, Color = if i == 1 then rgb(255, 140, 210) else rgb(140, 220, 255) })
+		end
+	end
+	litDownlight(K, V.x0 + V.W * 0.25, V.z0 + 2.6, Look.neutralLight, 16)
+	litDownlight(K, V.x0 + V.W * 0.75, V.z0 + 2.6, Look.neutralLight, 16)
+
+	-- 벽 마감: 기계 위 띠 (y 8.0 위) + 앞쪽 옆벽 (기계 앞 ~ 유리) 를 짙은 보라 별무늬 벽지로
+	K:free(function()
+		local wall = lk(rgb(46, 30, 72))
+		for _, wn in { "back", "left", "right" } do
+			local w = V.walls[wn]
+			local d = V:wall(wn, (w.a + w.b) / 2, (8.05 + H) / 2, 0.005)
+			K:plate("WallBand", w.b - w.a - 0.05, H - 8.05, 0.02, d, wall)
+			for i = 0, math.floor((w.b - w.a) / 1.4) - 1 do
+				local x = -(w.b - w.a) / 2 + 0.7 + i * 1.4
+				K:plate("WallStar", 0.18, 0.18, 0.025, d * CF(x, (rnd(seed, i + #wn) - 0.5) * 0.9, 0) * ANG(0, 0, PI / 4), lk(NEONS[(i + #wn) % #NEONS + 1]))
+			end
+		end
+		for _, wn in { "left", "right", "back" } do
+			local w = V.walls[wn]
+			K:plate("WallPaper", w.b - w.a - 0.05, 8.05 - 0.45, 0.02, V:wall(wn, (w.a + w.b) / 2, (0.45 + 8.05) / 2, 0.003), wall)
+			if wn ~= "back" then
+				for _, s in V:spans(wn, 3.6, 4.0, 0.6) do
+					if s[2] - s[1] > 0.8 then
+						K:plate("WallPaperRail", s[2] - s[1], 0.08, 0.04, V:wall(wn, (s[1] + s[2]) / 2, 3.8, 0.005), nl(rgb(80, 220, 255)))
+					end
+				end
+			end
+		end
+	end)
+
+	-- 5) 뒷벽 위 네온 간판 + 옆벽 안내문 ---------------------------------------------------------------------
+	local topMax = 0
+	for _, r in recs(V, "ClawTop") do
+		topMax = math.max(topMax, r.max.Y)
+	end
+	local signY = math.min(H - 0.75, topMax + 1.25)
+	K:free(function()
+		local wb = V.walls.back
+		local d = V:wall("back", (wb.a + wb.b) / 2 - 1.0, signY, 0.02)
+		K:plate("NeonBacker", 13.0, 1.1, 0.04, d, lk(rgb(26, 18, 40)))
+		local p = txt(K, "NeonSignLED", 12.4, 0.85, d * CF(0, 0, 0.06), "♥ 인형뽑기 천국 ♥  CLAW 24H  ·  매일 신상 입고", rgb(255, 120, 200), nil, F.FredokaOne, 2.4)
+		table.insert(strips, p)
+		K:light(p, "SurfaceLight", { Face = Enum.NormalId.Front, Range = 10, Brightness = 0.8, Angle = 120, Color = rgb(255, 120, 200) })
+		useWall(K, "back", (wb.a + wb.b) / 2 - 7.6, (wb.a + wb.b) / 2 + 5.6, signY - 0.6, signY + 0.6)
+	end)
+	local notices = {
+		{ "무인 운영 안내", "24시간 무인 운영 · CCTV 녹화 중\n기계를 흔들거나 두드리지 마세요\n고장 · 환불 010-0000-0000", rgb(40, 120, 220) },
+		{ "청소년 이용 안내", "청소년 출입 09:00 - 22:00\n(게임산업진흥법)\n경품 소비자가 1만 원 이하", rgb(230, 60, 90) },
+	}
+	local ni = 0
+	for _, wn in { "left", "right" } do
+		ni += 1
+		local nt = notices[ni]
+		if nt then
+			local w2, d2 = Common.wallSpot(K, { wn, "back" }, 2.4, signY - 0.8, signY + 0.8, 0)
+			if w2 and d2 then
+				K:free(function()
+					notice(K, d2 * CF(0, 0, 0.02), 2.3, 1.4, nt[1], nt[2], nt[3])
+				end)
+			end
+		end
+	end
+
+	-- 6) 가운데 섬: 가챠 4대 (양면) + 안내 화면 · LED 모드 ---------------------------------------------------
+	local front = V.door and V.door.z or V.z1
+	local islandZ = (V.z0 + 3.2 + 2.6 + front - 4.6) / 2
+	local icf = CF(0, 0, islandZ)
+	local labels = { "말랑 키링", "미니 피규어", "럭키 스티커", "랜덤 뱃지" }
+	local islandOK = K:spot(icf, V3(3.4, 5.6, 1.6), 0.2)
+	local infoPart, ledPart = nil, nil
+	if islandOK then
+		K:box("IslandPlinth", V3(3.3, 0.5, 1.5), icf * CF(0, 0.25, 0), lk(rgb(250, 248, 252)))
+		K:box("IslandPlinthLED", V3(3.32, 0.06, 1.52), icf * CF(0, 0.08, 0), nl(rgb(255, 80, 180)))
+		for k, sx in { -0.8, 0.8 } do
+			gacha(K, icf * CF(sx, 0, 0.2), 0.5, NEONS[(k + seed) % #NEONS + 1], labels[k], seed + k)
+			gacha(K, icf * CF(-sx, 0, -0.2) * ANG(0, PI, 0), 0.5, NEONS[(k + 2 + seed) % #NEONS + 1], labels[k + 2], seed + k + 2)
+		end
+		-- 위 안내 화면 (문 쪽)
+		K:box("InfoPost", V3(0.2, 2.3, 0.2), icf * CF(0, 3.1 + 1.15, 0), lk(rgb(30, 30, 34)))
+		local ib = icf * CF(0, 4.55, 0.16)
+		K:box("InfoBezel", V3(2.4, 1.4, 0.12), ib, lk(rgb(24, 24, 28)))
+		infoPart = K:box("InfoScreen", V3(2.25, 1.25, 0.02), ib * CF(0, 0, 0.07), lk(rgb(20, 16, 40), M.Neon))
+		K:box("InfoBezelBack", V3(2.4, 1.4, 0.04), ib * CF(0, 0, -0.08), lk(rgb(30, 22, 44)))
+		local bk = ib * CF(0, 0, -0.1) * ANG(0, PI, 0)
+		K:plate("InfoBackRim", 2.3, 0.06, 0.02, bk * CF(0, 0.62, 0), nl(rgb(255, 80, 180)))
+		K:plate("InfoBackRim", 2.3, 0.06, 0.02, bk * CF(0, -0.62, 0), nl(rgb(80, 220, 255)))
+		txt(K, "InfoBackLogo", 2.1, 0.6, bk * CF(0, 0.15, 0.02), "♥ 인형뽑기 ♥", rgb(255, 140, 210), nil, F.FredokaOne, 2.0)
+		txt(K, "InfoBackSub", 2.1, 0.3, bk * CF(0, -0.32, 0.02), "CLAW 24H · 오늘도 득템!", rgb(150, 230, 255), nil, F.GothamBlack, 1.6)
+		local lb = icf * CF(1.66, 1.2, 0) * ANG(0, PI / 2, 0)
+		ledPart = K:box("LEDModeButton", V3(0.9, 0.6, 0.1), lb * CF(0, 0, 0.05), lk(rgb(30, 30, 34)))
+		txt(K, "LEDModeLabel", 0.8, 0.5, lb * CF(0, 0, 0.105), "LED\nMODE", rgb(255, 220, 60), nil, F.GothamBlack, 1.3)
+	end
+	if infoPart then
+		local pages = {
+			"이용 방법\n① 1,000원권 투입 (5,000원 6회)\n② 조이스틱으로 위치 맞추기\n③ 버튼 = 집게 내리기",
+			"오늘의 신상 입고\n곰돌이 쿠션 · 말랑 오리\n토끼 키링 · 젤리 캣",
+			"득템 인증 이벤트\n인스타 #광안리인형뽑기\n인증하면 1회 무료!",
+			"고장 · 환불 문의\n010-0000-0000\n24시간 무인 운영 · CCTV 녹화",
+		}
+		local ib = icf * CF(0, 4.55, 0.16)
+		local _, lab2 = txt(K, "InfoText", 2.1, 1.1, ib * CF(0, 0, 0.085), pages[1], rgb(250, 240, 255), nil, F.GothamBold, 1.4)
+		if promptOK(K, V, (ib * CF(0, 0, 0.1)).Position) then
+			Interact.cycle(K, infoPart, pages, {
+				object = "이용 안내",
+				action = "다음 안내",
+				on = function(_i, item)
+					lab2.Text = item
+				end,
+			})
+		end
+	end
+	if ledPart then
+		local modes = {
+			{ name = "RAINBOW", cols = NEONS },
+			{ name = "PINK", cols = { rgb(255, 80, 180), rgb(255, 140, 210), rgb(255, 60, 140) } },
+			{ name = "OCEAN", cols = { rgb(80, 220, 255), rgb(60, 140, 255), rgb(120, 255, 220) } },
+			{ name = "OFF", cols = {} },
+		}
+		local base = {}
+		for _, p in strips do
+			table.insert(base, { p = p, c = p.Color })
+		end
+		local mode = 1
+		Interact.anim(K, function(t)
+			local m = modes[mode]
+			if m.name ~= "RAINBOW" then
+				return
+			end
+			for i, b in base do
+				if b.p.Parent and b.p:IsA("BasePart") and b.p.Name ~= "NeonSignLED" then
+					b.p.Color = Color3.fromHSV((t * 0.08 + i * 0.13) % 1, 0.75, 1)
+				end
+			end
+		end)
+		if promptOK(K, V, V.cf:PointToObjectSpace(ledPart.Position)) then
+			Interact.cycle(K, ledPart, modes, {
+				object = "천장 LED",
+				action = "모드 바꾸기",
+				on = function(i, m)
+					mode = i
+					for j, b in base do
+						if b.p.Parent and b.p.Name ~= "NeonSignLED" then
+							if m.name == "OFF" then
+								b.p.Material = M.SmoothPlastic
+								b.p.Color = rgb(40, 40, 46)
+							else
+								b.p.Material = M.Neon
+								if #m.cols > 0 and m.name ~= "RAINBOW" then
+									b.p.Color = m.cols[(j - 1) % #m.cols + 1]
+								else
+									b.p.Color = b.c
+								end
+							end
+						end
+					end
+				end,
+			})
+		end
+	end
+
+	-- 7) 앞쪽 모서리: 득템 인증 폴라로이드 보드 · 벤치 · 큰 곰인형 ---------------------------------------------------
+	for side, wn in { "left", "right" } do
+		local w = V.walls[wn]
+		-- 앞 유리 쪽 끝 구간 (기계 앞)
+		local u = if wn == "left" then -(V.z1 - 3.2) else (V.z1 - 3.2)
+		local _ = w
+		local spans = V:spans(wn, 4.0, 6.6, 0.4)
+		local okSpan = false
+		-- 앞쪽 끝 구간 (창 띠 · 기계 사이) 가운데로
+		local best = nil
+		for _, s in spans do
+			local mid = (s[1] + s[2]) / 2
+			if s[2] - s[1] >= 1.7 and (best == nil or math.abs(mid - u) < math.abs(best - u)) then
+				best = mid
+			end
+		end
+		if best and math.abs(best - u) < 3 then
+			u = best
+			okSpan = true
+		end
+		local d = V:wall(wn, u, 5.2, 0.02)
+		if okSpan then
+			K:free(function()
+				if side == 1 then
+					K:plate("CorkBoard", 1.6, 2.2, 0.06, d, lk(rgb(196, 160, 112), M.Fabric))
+					K:plate("CorkFrame", 1.7, 0.08, 0.08, d * CF(0, 1.1, 0), lk(rgb(250, 248, 252)))
+					txt(K, "CorkTitle", 1.5, 0.3, d * CF(0, 0.85, 0.07), "오늘의 득템 ♥", rgb(230, 40, 120), rgb(255, 250, 252), F.FredokaOne)
+					for i = 0, 5 do
+						local px = -0.48 + (i % 3) * 0.48
+						local py = 0.25 - (i // 3) * 0.75
+						local pd = d * CF(px, py, 0.07) * ANG(0, 0, (rnd(seed, i) - 0.5) * 0.35)
+						K:plate("Polaroid", 0.5, 0.6, 0.01, pd, lk(rgb(252, 252, 250)))
+						K:plate("PolaroidPhoto", 0.42, 0.42, 0.012, pd * CF(0, 0.06, 0), lk(lt(NEONS[(i + seed) % #NEONS + 1], 0.3)))
+						K:plate("PolaroidPin", 0.08, 0.08, 0.02, pd * CF(0, 0.26, 0.01), lk(rgb(230, 40, 60)))
+					end
+				else
+					notice(K, d, 1.6, 1.3, "결제 안내", "1,000원권 · 500원 동전\n카드 · 삼성페이 · QR\n지폐 교환기 이용", rgb(255, 160, 40))
+				end
+			end)
+		end
+	end
+	-- 큰 곰 인형 (앞 모서리 바닥, 자리가 비면)
+	for _, sx in { -1, 1 } do
+		local p = firstSpot(K, {
+			CF(sx * (V.W / 2 - 6.0), 0, V.z1 - 3.2) * ANG(0, sx * -0.6, 0),
+			CF(sx * (V.W / 2 - 6.6), 0, V.z1 - 3.5) * ANG(0, sx * -0.6, 0),
+			CF(sx * (V.W / 2 - 4.6), 0, V.z1 - 3.0) * ANG(0, sx * -0.6, 0),
+		}, V3(1.8, 2.6, 1.6), 0.1)
+		if p then
+			plush(K, p, 1.6, "bear", if sx < 0 then rgb(196, 150, 110) else rgb(250, 200, 220))
+			txt(K, "BigBearTag", 0.8, 0.26, p * CF(0, 0.7, 0.62), "포토존 ♥", rgb(230, 40, 120), rgb(255, 250, 252), F.FredokaOne)
+		end
+	end
+	local _ = S
 end
 
 --================================================================================================
@@ -1439,6 +4021,9 @@ end
 --================================================================================================
 local BUILDERS: { [string]: (any, any, any) -> () } = {
 	salon = buildSalon,
+	clothing = buildClothing,
+	surf = buildSurf,
+	play = buildPlay,
 }
 
 function T.build(K: any, V: any, S: any)

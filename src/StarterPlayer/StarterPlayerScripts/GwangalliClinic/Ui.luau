@@ -400,7 +400,6 @@ function Ui.toast(title: string, body: string?, tone: string?)
 	Ui.stroke(f, color, 1.5, 0.2)
 	Ui.pad(f, 14, 10, 14, 10)
 	Ui.list(f, "v", 2)
-	new("Frame", { BackgroundColor3 = color, Size = UDim2.new(0, 4, 1, -16), Position = UDim2.fromOffset(-8, 8), BorderSizePixel = 0 }, f)
 	Ui.text(f, { Text = title, TextSize = 15, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 20) })
 	if body and body ~= "" then
 		Ui.text(f, { Text = body, Font = F.med, TextSize = 13, TextColor3 = Col.sub, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, Size = UDim2.new(1, 0, 0, 18) })

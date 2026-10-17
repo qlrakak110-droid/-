@@ -350,15 +350,52 @@ local function byPath(root: Instance, path: string): Instance?
 	return cur
 end
 
-local function scanMap()
-	local v = venue()
-	if not v then
+local missingSince: { [any]: number } = {}
+local ownParts: { [any]: BasePart } = {}
+
+-- our own small screen where the map has none (only once the player stands nearby for a while)
+local function ownScreen(spec: any)
+	if ownParts[spec] and ownParts[spec].Parent then
 		return
 	end
+	local p = Instance.new("Part")
+	p.Name = "ClinicScreen_" .. spec.kind
+	p.Size = spec.size
+	p.Color = Color3.fromRGB(12, 14, 16)
+	p.Material = Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.CanCollide = false
+	p.CanTouch = false
+	p.CanQuery = false
+	local flat = Vector3.new(spec.viewer.X, spec.at.Y, spec.viewer.Z)
+	p.CFrame = CFrame.lookAt(spec.at, flat)
+	p.Parent = ctx.Tracker.localFolder()
+	ownParts[spec] = p
+	register(p, spec.kind, spec.viewer)
+end
+
+local function scanMap()
+	local v = venue()
 	for _, spec in S.Sites.SCREENS do
-		local p = byPath(v, spec.path)
-		if p and p:IsA("BasePart") and not screens[p] then
-			register(p, spec.kind, spec.viewer)
+		local p = v and byPath(v, spec.path)
+		if p and p:IsA("BasePart") then
+			missingSince[spec] = nil
+			if ownParts[spec] then
+				unregister(ownParts[spec])
+				ownParts[spec]:Destroy()
+				ownParts[spec] = nil
+			end
+			if not screens[p] then
+				register(p, spec.kind, spec.viewer)
+			end
+		elseif spec.at and spec.size then
+			local pos = ctx.rootPos()
+			if pos and (pos - spec.viewer).Magnitude < 60 then
+				missingSince[spec] = missingSince[spec] or os.clock()
+				if os.clock() - missingSince[spec] > 15 then
+					ownScreen(spec)
+				end
+			end
 		end
 	end
 end

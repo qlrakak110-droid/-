@@ -204,7 +204,7 @@ local function washFx(K: any, spout: BasePart, x: number)
 		return
 	end
 	local stream = Lib.temp(K, "WaterStream", V3(0.79, 0.08, 0.08), CF(x, 3.42, 28.20) * ANG(0, 0, PI / 2), LK.stream, Enum.PartType.Cylinder)
-	Lib.particles(stream, "water", 3)
+	Lib.particles(spout, "water", 3)
 	local s = Lib.sfx(spout, SND.water, { vol = 0.25, speed = 1.4, loop = true, dur = 3.0 })
 	task.delay(3.0, function()
 		if stream.Parent then

@@ -209,11 +209,13 @@ local function tapButton(body: Frame, label: string, n: number, token: number, o
 end
 
 local function exam(kind: string, token: number): any?
-	local res = ctx.call("exam", { kind = kind })
+	local res = ctx.call("exam", { kind = kind }, { quiet = true })
 	if not res.ok then
-		if res.code == "tooSoon" then
+		if res.code == "tooSoon" or res.code == "rate" then
 			task.wait(1.1)
 			res = ctx.call("exam", { kind = kind })
+		elseif res.message then
+			Ui.toast(res.message, nil, "warn")
 		end
 		if not res.ok then
 			return nil
@@ -390,7 +392,7 @@ local function showPlans(v: any, token: number)
 			Ui.text(cardBtn, { Text = "⚠️ " .. pl.warn, Font = F.bold, TextSize = 12, TextColor3 = Col.red, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 4 })
 		end
 		if pl.short then
-			Ui.text(cardBtn, { Text = "💳 " .. pl.short .. " · ATM 에서 출금 후 다시 와도 돼요", Font = F.bold, TextSize = 12, TextColor3 = Col.red, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 5 })
+			Ui.text(cardBtn, { Text = "💳 " .. pl.short .. " · ATM에서 출금 후 다시 와도 돼요", Font = F.bold, TextSize = 12, TextColor3 = Col.red, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 5 })
 		end
 		if not first and not disabled then
 			first = cardBtn
@@ -401,7 +403,7 @@ local function showPlans(v: any, token: number)
 			end
 			Ui.sound("tap")
 			if disabled then
-				local pick = Ui.ask("doctor", string.format("이 치료는 %s 이 필요해요. 진료비를 준비해 오시겠어요?", S.won(pl.total or 0)), { "ATM 다녀올게요", "다른 방법 볼게요" })
+				local pick = Ui.ask("doctor", string.format("이 치료는 %s이 필요해요. 진료비를 준비해 오시겠어요?", S.won(pl.total or 0)), { "ATM 다녀올게요", "다른 방법 볼게요" })
 				if pick ~= 1 then
 					return
 				end
@@ -513,7 +515,7 @@ local function run(greet: string?)
 				return
 			end
 			if (hv.workSec or 0) >= 1800 then
-				Ui.say("doctor", string.format("%s 쉬지 않고 일하셨네요… 피로도가 %d이에요. 진찰해 볼게요.", S.dur(hv.workSec), hv.fatigue or 0))
+				Ui.say("doctor", string.format("%s 쉬지 않고 일하셨네요… 피로도가 %d까지 올라 있어요. 진찰해 볼게요.", S.dur(hv.workSec), hv.fatigue or 0))
 			else
 				Ui.say("doctor", "알겠어요. 진찰해 볼게요.")
 			end

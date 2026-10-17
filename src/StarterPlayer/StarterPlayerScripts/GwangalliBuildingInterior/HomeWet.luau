@@ -11,9 +11,12 @@
 --   욕실  바닥 FloorBath 마다 한 칸 (아파트처럼 욕실이 둘이면 둘 다): 비데 변기 · 세면대 + 거울 수납장 · 샤워 수전 ·
 --         욕조 리스킨, 수건 · 칫솔컵 · 샴푸 · 이태리타올 · 휴지걸이 · 욕실화 · 환풍기 · 타일 줄눈 · 천장재 줄.
 --   현관  신발장 리스킨 (문짝 · 간접등 · 거울), 신발 · 슬리퍼 리스킨, 도어락 안쪽 · 도어클로저 · 월패드 · 센서등,
---         우산꽂이 · 택배 상자 · 구둣주걱 · 분전반 · 소화기 (등급별).
+--         우산꽂이 · 택배 상자 · 구둣주걱 · 분전반 · 소화기 (등급별), 현관 철문 안쪽 도어 필름 · 홈 · 방화문 스티커 ·
+--         배달 자석 전단 · 관리비 고지서 · 말굽 스토퍼, (아파트 · 펜트하우스) 그림 + 그림 조명, (펜트하우스) 벤치 + 손님 슬리퍼.
+--         벽에 거는 것은 집 모델의 진짜 벽 (Wall · Partition · TileWall ...) 앞에만, 실제 벽면 깊이에 맞춰 붙임.
 -- 상호작용 (R 키, 서버 집 행동과 겹치지 않음): 수전 물 틀기 · 수납장 문 · 후드 · 서랍 · 세탁기 · 밥솥 · 거울장 ·
---   환풍기 · 변기 뚜껑 · 신발장 문 · 분전반, 프롬프트 없는 것: 현관 센서등 (가까이 가면 켜짐) · 월패드 화면 순환.
+--   환풍기 · 변기 뚜껑 · 신발장 문 · 분전반 문 (프롬프트가 HomeInteract 와 겹치지 않는 벽에만),
+--   프롬프트 없는 것: 현관 센서등 (가까이 가면 켜짐) · 월패드 화면 순환.
 -- 지키는 것: Shell 의 Room/Surface 파트 · Room 조명 (테마 색) 은 숨기지 않음, HomeInteract · FurnitureSlot · GwDecorItem
 --   자리 (V.keep "point" · "slot") 와 문 앞 · 통로는 비움, 새 불빛은 방마다 2 개까지, V.decorPlus 면 바닥 소품 없음.
 
@@ -312,7 +315,8 @@ function Ctx:hitsKeep(mn: Vector3, mx: Vector3, mode: string): string?
 			continue
 		end
 		if kind == "point" then
-			if (mode == "wall" or mode == "flush") and not pointSmall(k) then
+			-- 바닥에 납작한 것 (욕실화 · 매트, lowmat): 큰 상호작용 자리 (샤워 칸 전체) 안이어도 프롬프트를 가리지 않음
+			if (mode == "wall" or mode == "flush" or mode == "lowmat") and not pointSmall(k) then
 				continue
 			end
 		elseif kind == "restroom" or kind == "aisle" or kind == "door" or kind == "npc" or kind == "staff" or kind == "bin" then
@@ -365,10 +369,15 @@ function Ctx:clear(cf: CFrame, size: Vector3, mode: string, pad: number?): boole
 	local pd = pad or 0
 	local mn, mx = laabb(self.cf * cf, size + V3(2 * pd, 0, 2 * pd))
 	local V, K = self.V, self.K
+	-- "tight": 좁은 칸 (고시원 욕실) 바닥의 작은 것. 예약 상자 대신 이 파일이 실제로 지은 파트와만 겹침 검사
+	local tight = mode == "tight"
+	if tight then
+		mode = "lowmat"
+	end
 	if self:hitsKeep(mn, mx, mode) then
 		return false
 	end
-	if mode == "floor" or mode == "mat" then
+	if mode == "floor" or mode == "mat" or mode == "lowmat" then
 		-- 방 (V) 안, 욕실 한 칸처럼 틀이 방이면 그 틀 안
 		local a, b = laabb(self.cf * cf, size)
 		if a.X < V.x0 - 0.05 or b.X > V.x1 + 0.05 or a.Z < V.z0 - 0.05 or b.Z > V.z1 + 0.05 then
@@ -402,6 +411,18 @@ function Ctx:clear(cf: CFrame, size: Vector3, mode: string, pad: number?): boole
 		if overlap(mn, mx, r.min, r.max, 0.02) then
 			return false
 		end
+	end
+	if tight then
+		for i = (K.hwStart or 0) + 1, #K.parts do
+			local p = K.parts[i]
+			if p and p.Parent and p.Transparency < 0.95 then
+				local a, b = laabb(K.cf:ToObjectSpace(p.CFrame), p.Size)
+				if overlap(mn, mx, a, b, 0.02) then
+					return false
+				end
+			end
+		end
+		return true
 	end
 	for _, r in K.hwRes or {} do
 		if overlap(mn, mx, r.min, r.max, 0.01) then
@@ -473,6 +494,83 @@ function Ctx:wall(side: string, u: number, y: number, off: number?): CFrame
 	end
 	return CFrame.fromMatrix(V3(self.x1 - o, y, cz + u), V3(0, 0, 1), V3(0, 1, 0), V3(-1, 0, 0))
 end
+-- 진짜 벽이 뒤에 있나: 방 상자 테두리 (Ctx:wall) 가 트인 쪽 (현관 → 거실) 이면 벽에 거는 물건이 허공에 뜸.
+-- 집 모델의 벽 파트 (Wall · Partition · TileWall · Surface=wall ...) 를 한 번 모아 dcf 뒤 0.12 점들이 벽 안인지 봄.
+local WALL_NAMES = { Wall = true, Partition = true, TileWall = true, JungmunWall = true, BackWall = true, ShopBackWall = true, SideWall = true }
+local function wallParts(V: any): { any }
+	if V.hwWalls then
+		return V.hwWalls
+	end
+	local out = {}
+	local src = if V.model then V.model:GetDescendants() else {}
+	for _, d in src do
+		if d:IsA("BasePart") and d.Transparency < 0.5 and (WALL_NAMES[d.Name] or d:GetAttribute("Surface") == "wall") then
+			local mn, mx = laabb(V.cf:ToObjectSpace(d.CFrame), d.Size)
+			table.insert(out, { min = mn, max = mx })
+		end
+	end
+	if #out == 0 then
+		for _, r in V.parts do
+			if WALL_NAMES[r.name] then
+				table.insert(out, { min = r.min, max = r.max })
+			end
+		end
+	end
+	V.hwWalls = out
+	return out
+end
+-- 방 상자 테두리가 벽 두께 안쪽에 있으면 (벽면이 방 쪽으로 더 나와 있음) 실제 벽면까지의 거리 (0 ~ 0.7)
+local function wallFaceOffset(C: any, dcf: CFrame, w: number, h: number): number?
+	local walls = wallParts(C.V)
+	local function inside(q: Vector3): boolean
+		for _, r in walls do
+			if q.X > r.min.X + 0.005 and q.X < r.max.X - 0.005 and q.Y > r.min.Y and q.Y < r.max.Y and q.Z > r.min.Z + 0.005 and q.Z < r.max.Z - 0.005 then
+				return true
+			end
+		end
+		return false
+	end
+	-- 점마다 벽면까지 거리: 고르지 않으면 (타일 띠 · 기둥 모서리) 이 자리는 쓰지 않음 (nil)
+	local lo, hi = math.huge, -math.huge
+	for _, px in { -w / 2 + 0.05, 0, w / 2 - 0.05 } do
+		for _, py in { -h / 2 + 0.05, h / 2 - 0.05 } do
+			local o = 0.7
+			for k = 0, 14 do
+				if not inside(C.cf * (dcf * V3(px, py, k * 0.05 + 0.01))) then
+					o = k * 0.05
+					break
+				end
+			end
+			lo, hi = math.min(lo, o), math.max(hi, o)
+		end
+	end
+	if hi - lo > 0.06 then
+		return nil
+	end
+	return hi
+end
+local function solidBehind(C: any, dcf: CFrame, w: number, h: number): boolean
+	local walls = wallParts(C.V)
+	if #walls == 0 then
+		return true
+	end
+	for _, px in { -w / 2 + 0.05, 0, w / 2 - 0.05 } do
+		for _, py in { -h / 2 + 0.05, h / 2 - 0.05 } do
+			local q = C.cf * (dcf * V3(px, py, -0.12))
+			local hit = false
+			for _, r in walls do
+				if q.X >= r.min.X - 0.03 and q.X <= r.max.X + 0.03 and q.Y >= r.min.Y - 0.03 and q.Y <= r.max.Y + 0.03 and q.Z >= r.min.Z - 0.03 and q.Z <= r.max.Z + 0.03 then
+					hit = true
+					break
+				end
+			end
+			if not hit then
+				return false
+			end
+		end
+	end
+	return true
+end
 -- 점 p 에서 n 방향을 보는 수평 틀 (pcf: +Z = n)
 local function faceCF(p: Vector3, n: Vector3): CFrame
 	local z = V3(n.X, 0, n.Z)
@@ -503,6 +601,20 @@ function Ctx:promptOK(part: BasePart): boolean
 			local q = if small then V3(math.clamp(lp.X, k.min.X, k.max.X), math.clamp(lp.Y, k.min.Y, k.max.Y), math.clamp(lp.Z, k.min.Z, k.max.Z)) else (k.min + k.max) / 2
 			if (q - lp).Magnitude < (if small then 1.2 else 1.6) then
 				self.K:note(string.format("homewet prompt near HomeInteract: %s at %.1f,%.1f,%.1f box %.1f,%.1f,%.1f..%.1f,%.1f,%.1f", part.Name, lp.X, lp.Y, lp.Z, k.min.X, k.min.Y, k.min.Z, k.max.X, k.max.Y, k.max.Z))
+				return false
+			end
+		end
+	end
+	return true
+end
+-- 이 C 로컬 점에 프롬프트를 띄워도 되나 (promptOK 와 같은 규칙, 기록 없이) - 자리 고를 때 씀
+function Ctx:promptFreeAt(p: Vector3): boolean
+	local lp = self.cf * p
+	for _, k in self.V.keep do
+		if k.kind == "point" then
+			local small = pointSmall(k)
+			local q = if small then V3(math.clamp(lp.X, k.min.X, k.max.X), math.clamp(lp.Y, k.min.Y, k.max.Y), math.clamp(lp.Z, k.min.Z, k.max.Z)) else (k.min + k.max) / 2
+			if (q - lp).Magnitude < (if small then 1.25 else 1.65) then
 				return false
 			end
 		end
@@ -677,7 +789,7 @@ end
 
 -- 운동화 한 짝 (pcf = 바닥, +Z = 앞코), 길이 L, 폭 w
 local function sneaker(C: any, pcf: CFrame, L: number, w: number, upper: any, sole: any, accent: any?)
-	C:rbox("ShoeSole", V3(w, 0.1, L), 0.05, pcf * CF(0, 0.05, 0), sole)
+	C:rbox("ShoeSole", V3(w, 0.1, L), 0.04, pcf * CF(0, 0.05, 0), sole)
 	C:ell("ShoeToe", V3(w * 0.96, 0.24, L * 0.42), pcf * CF(0, 0.15, L * 0.27), upper)
 	C:rbox("ShoeUpper", V3(w * 0.94, 0.26, L * 0.58), 0.1, pcf * CF(0, 0.22, -L * 0.14), upper)
 	C:ell("ShoeHeel", V3(w * 0.9, 0.34, L * 0.3), pcf * CF(0, 0.26, -L * 0.33), upper)
@@ -697,7 +809,7 @@ local function dressShoe(C: any, pcf: CFrame, L: number, w: number, leather: any
 end
 -- 삼선 슬리퍼 / 욕실화 한 짝
 local function slipper(C: any, pcf: CFrame, L: number, w: number, sole: any, strap: any, stripes: boolean?)
-	C:rbox("SlipperSole", V3(w, 0.1, L), 0.12, pcf * CF(0, 0.05, 0), sole)
+	C:rbox("SlipperSole", V3(w, 0.1, L), 0.045, pcf * CF(0, 0.05, 0), sole)
 	C:rbox("SlipperStrap", V3(w * 1.02, 0.16, L * 0.36), 0.07, pcf * CF(0, 0.16, L * 0.12), strap)
 	if stripes and C.hi then
 		for i = -1, 1 do
@@ -717,9 +829,73 @@ local function umbrella(C: any, pcf: CFrame, h: number, c: Color3, lean: number)
 end
 
 -- 택배 상자 (pcf 바닥), 크기, 송장 글자
-local function parcel(C: any, pcf: CFrame, s: Vector3, txt: string)
-	C:box("ParcelBox", s, pcf * CF(0, s.Y / 2, 0), LK.cardboard)
-	C:box("ParcelTape", V3(0.28, 0.006, s.Z + 0.01), pcf * CF(0, s.Y + 0.003, 0), LK.tape)
+local function parcel(C: any, pcf: CFrame, s: Vector3, txt: string, openable: boolean?)
+	if not openable then
+		C:box("ParcelBox", s, pcf * CF(0, s.Y / 2, 0), LK.cardboard)
+		C:box("ParcelTape", V3(0.28, 0.006, s.Z + 0.01), pcf * CF(0, s.Y + 0.003, 0), LK.tape)
+	else
+		-- 위가 열리는 상자: 바닥 + 네 벽 + 안 (뽁뽁이 · 물건) + 덮개 두 장 (테이프 반씩) -> "택배 뜯기"
+		local t = 0.04
+		local cb = LK.cardboard
+		C:box("ParcelFloor", V3(s.X, t, s.Z), pcf * CF(0, t / 2, 0), cb)
+		for _, sz in { -1, 1 } do
+			C:box("ParcelWall", V3(s.X, s.Y - t, t), pcf * CF(0, s.Y / 2, sz * (s.Z / 2 - t / 2)), cb)
+		end
+		for _, sx in { -1, 1 } do
+			C:box("ParcelWall", V3(t, s.Y - t, s.Z - 2 * t), pcf * CF(sx * (s.X / 2 - t / 2), s.Y / 2, 0), cb)
+		end
+		C:box("ParcelInnerShade", V3(s.X - 2 * t, 0.02, s.Z - 2 * t), pcf * CF(0, t + 0.01, 0), lk(150, 116, 80, M.Cardboard))
+		C:ell("ParcelBubbleWrap", V3(s.X * 0.8, s.Y * 0.5, s.Z * 0.75), pcf * CF(0, s.Y * 0.62, 0), lk(230, 240, 246, M.SmoothPlastic, { t = 0.35 }))
+		C:box("ParcelGoods", V3(s.X * 0.5, s.Y * 0.4, s.Z * 0.45), pcf * CF(-s.X * 0.08, s.Y * 0.42, 0.02) * ANG(0, 0.2, 0), lk(242, 244, 246, M.SmoothPlastic))
+		if C.hi then
+			C:label("ParcelGoodsBrand", s.X * 0.4, 0.16, pcf * CF(-s.X * 0.08, s.Y * 0.62, 0.02) * ANG(-PI / 2, 0.2, 0), "무선 충전기", C3(40, 40, 44), nil, { font = FONT_M })
+		end
+		local flaps = {}
+		for _, sx in { -1, 1 } do
+			local m = C:group("ParcelFlap", function()
+				C:box("ParcelFlapBoard", V3(s.X / 2 - 0.005, t, s.Z), pcf * CF(sx * s.X / 4, s.Y - t / 2, 0), cb)
+				C:box("ParcelTape", V3(0.14, 0.006, s.Z + 0.01), pcf * CF(sx * 0.07, s.Y + 0.003, 0), LK.tape)
+			end)
+			table.insert(flaps, { m = m, hinge = pcf * V3(sx * s.X / 2, s.Y, 0), axis = pcf:VectorToWorldSpace(V3(0, 0, 1)), ang = sx * math.rad(-120) })
+		end
+		local handle: BasePart? = nil
+		for _, f in flaps do
+			for _, d in f.m:GetDescendants() do
+				if d:IsA("BasePart") and d.Name == "ParcelTape" then
+					d.Name = "ParcelTapeHandle"
+					handle = handle or d
+				end
+			end
+		end
+		if handle and C:promptOK(handle) then
+			local recs = {}
+			for _, f in flaps do
+				local hw = C:world(f.hinge)
+				local aw = C:wvec(f.axis).Unit
+				for _, d in f.m:GetDescendants() do
+					if d:IsA("BasePart") then
+						table.insert(recs, { p = d, cf = d.CFrame, h = hw, a = aw, ang = f.ang })
+					end
+				end
+			end
+			local open = false
+			Interact.prompt(C.K, handle, {
+				action = "택배 뜯기",
+				object = "택배 상자",
+				sound = "rbxasset://sounds/clickfast.wav",
+				fn = function(_n, pr)
+					open = not open
+					for _, r in recs do
+						if r.p.Parent then
+							local rot = CFrame.new(r.h) * CFrame.fromAxisAngle(r.a, if open then r.ang else 0) * CFrame.new(-r.h)
+							TweenService:Create(r.p, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = rot * r.cf }):Play()
+						end
+					end
+					pr.ActionText = if open then "덮기" else "택배 뜯기"
+				end,
+			})
+		end
+	end
 	C:box("ParcelTapeF", V3(0.28, s.Y * 0.35, 0.006), pcf * CF(0, s.Y * 0.82, s.Z / 2 + 0.003), LK.tape)
 	if C.hi then
 		C:label("ParcelLabel", math.min(1.0, s.X * 0.55), 0.5, pcf * CF(-s.X * 0.18, s.Y * 0.45, s.Z / 2 + 0.004), txt, C3(30, 30, 30), C3(250, 250, 248), { wrap = true, font = FONT_M })
@@ -1096,6 +1272,18 @@ local function kitchenSink(C: any, st: any, info: any)
 		C:vcyl("SoapPumpNeck", 0.22, 0.06, CF(cx + w / 2 - 0.25, ytop + 0.11, fz), fl)
 		C:box("SoapPumpSpout", V3(0.05, 0.04, 0.16), CF(cx + w / 2 - 0.25, ytop + 0.22, fz + 0.06), fl)
 	end
+	-- 펜트하우스: 언더싱크 직수 정수기 전용 수전 (상판 위 정수기 통 대신, 터치 LED 링)
+	if C.ti >= 5 then
+		local px = cx - w / 2 + 0.25
+		if math.abs(px - fx) > 0.45 then
+			C:disc("PurifierTapBase", 0.16, 0.03, CF(px, ytop + 0.015, fz), fl)
+			C:vcyl("PurifierTapRiser", 1.15, 0.08, CF(px, ytop + 0.575, fz), fl)
+			C:box("PurifierTapSpout", V3(0.07, 0.07, 0.42), CF(px, ytop + 1.12, fz + 0.2), fl)
+			C:vcyl("PurifierTapTip", 0.1, 0.07, CF(px, ytop + 1.07, fz + 0.4), fl)
+			C:disc("PurifierTapLED", 0.1, 0.012, CF(px, ytop + 1.16, fz + 0.06), lk(110, 200, 255, M.Neon))
+			info.purifierTap = true
+		end
+	end
 	-- 물줄기
 	local stream = C:vcyl("FaucetWater", hy - 0.17 - (yb + 0.02), 0.07, CF(hx, (hy - 0.17 + yb + 0.02) / 2, hz), { c = C3(210, 236, 248), m = M.Glass, t = 1, r = 0.1 })
 	local splash = C:disc("FaucetSplash", 0.3, 0.015, CF(hx, yb + 0.03, hz), { c = C3(230, 246, 252), m = M.Glass, t = 1 })
@@ -1214,6 +1402,14 @@ end
 
 -- 상부장 (문짝 · 하부 LED 그대로) + 문 하나 열리는 수납장 (안에 그릇)
 local function kitchenUpper(C: any, st: any, info: any)
+	if C.ti >= 5 and st.front and st.front.c then
+		-- 펜트하우스 투톤: 상부장 · 키큰장은 밝은 호두나무 결, 하부장은 짙은 색 그대로
+		local s2 = table.clone(st)
+		local wc = st.front.c:Lerp(C3(128, 94, 66), 0.65)
+		s2.front = col(wc, M.Wood)
+		s2.carcass = col(shade(wc, -0.3), M.Wood)
+		st = s2
+	end
 	local uppers = {}
 	for _, r in info.upper do
 		local mn, mx = C:bb(r)
@@ -1342,7 +1538,21 @@ local function fridgeReskin(C: any, mn: Vector3, mx: Vector3, doorZ: number, kin
 			C:label("KimchiBrand", 0.8, 0.12, CF(cx, mn.Y + h * 0.95, zf + 0.104), "김치플러스", C3(150, 150, 150), nil, { font = FONT_M })
 		end
 	elseif kind == "column" then
-		door(mn.X, mx.X, y0, y1, mn.X + 0.3)
+		if w > 2.6 then
+			-- 빌트인 냉장 · 냉동 칼럼 두 짝 (가운데 손잡이 한 쌍) + 위 환기 그릴
+			door(mn.X, cx, y0, y1 - 0.4, cx - 0.22)
+			door(cx, mx.X, y0, y1 - 0.4, cx + 0.22)
+			C:box("FridgeTopGrille", V3(w - 0.08, 0.34, 0.1), CF(cx, y1 - 0.2, zf + 0.02), LK.charcoal)
+			for k = 0, 5 do
+				C:box("FridgeGrilleSlot", V3(w - 0.3, 0.025, 0.02), CF(cx, y1 - 0.34 + k * 0.05, zf + 0.075), lk(20, 20, 22))
+			end
+			if C.hi then
+				C:label("FridgeColumnBadge", 0.7, 0.1, CF(cx - w * 0.25, y1 - 0.62, zf + 0.112), "FRESH 2°C", C3(200, 190, 170), nil, { font = FONT_M })
+				C:label("FridgeColumnBadge", 0.7, 0.1, CF(cx + w * 0.25, y1 - 0.62, zf + 0.112), "FREEZE -20°C", C3(200, 190, 170), nil, { font = FONT_M })
+			end
+		else
+			door(mn.X, mx.X, y0, y1, mn.X + 0.3)
+		end
 	else
 		-- 2 도어 (위 냉동 · 아래 냉장)
 		local split = mn.Y + h * 0.63
@@ -2037,6 +2247,8 @@ local function kitchenFridges(K: any, V: any, H: number)
 		local base = body.part.Color
 		if C.ti >= 5 then
 			kind = "column"
+			-- 패널형 빌트인: 상부장과 같은 호두나무 결 (어두운 맵 색은 구석에서 까맣게만 보임)
+			base = base:Lerp(C3(128, 94, 66), 0.65)
 		elseif w >= 2.8 then
 			kind = "sbs"
 			base = C3(214, 212, 208)
@@ -2588,7 +2800,7 @@ local function kitchenClutter(info: any)
 			knifeBlock(C, k)
 		end
 	end
-	if ti >= 4 then
+	if ti >= 4 and not info.purifierTap then
 		local p = topSpot(C, info, 0.7, 1.2, 1.6, { sinkEdge2 - away * 1.4, sinkEdge + away * 2.4 }, true)
 		if p then
 			purifier(C, p, ti)
@@ -2723,6 +2935,18 @@ local function nearestWall(C: any, mn: Vector3, mx: Vector3): (string, Vector3)
 	table.sort(d, function(a, b)
 		return a[2] < b[2]
 	end)
+	-- 길쭉한 물건 (신발장 · 거울 · 수건걸이 ...): 얇은 축에 수직인 두 벽 중 가까운 쪽 (모서리에 꽉 찬 붙박이장이
+	-- 짧은 끝면을 앞으로 삼지 않게). 거의 정사각형이면 그냥 가장 가까운 벽.
+	local ex, ez = mx.X - mn.X, mx.Z - mn.Z
+	if ex > ez * 1.6 or ez > ex * 1.6 then
+		local wantZ = ex > ez -- 얇은 축 = Z -> 앞 · 뒤 벽
+		for _, e in d do
+			local isZ = e[1] == "back" or e[1] == "front"
+			if isZ == wantZ then
+				return e[1], e[3]
+			end
+		end
+	end
 	return d[1][1], d[1][3]
 end
 -- 벽에 붙은 물건 틀: 원점 = 물건 가운데 앞 벽면 바닥, +Z = 벽에서 나오는 쪽
@@ -2798,12 +3022,30 @@ local function toilet(C: any, st: any, recs: { any })
 	local tankW = math.abs(f.Z) * (tmx.X - tmn.X) + math.abs(f.X) * (tmx.Z - tmn.Z)
 	local tankH = tmx.Y - tmn.Y
 	local por = LK.porcelain
-	-- 물탱크 (낮은 원피스형)
+	local smart = C.ti >= 5 -- 펜트하우스: 물탱크 없는 일체형 스마트 비데 변기
 	local ty0 = tmn.Y
-	C:slab("ToiletTankBody", tankW * 0.98, tankD * 0.92, tankH * 0.82, 0.12, pcf * CF(0, ty0 + tankH * 0.41, tankD * 0.48), por)
-	C:slab("ToiletTankLid", tankW, tankD, 0.1, 0.12, pcf * CF(0, ty0 + tankH * 0.82 + 0.05, tankD * 0.5), por)
-	C:disc("ToiletFlush", 0.32, 0.03, pcf * CF(0, ty0 + tankH * 0.82 + 0.115, tankD * 0.5), LK.chrome)
-	C:box("ToiletFlushSplit", V3(0.02, 0.035, 0.3), pcf * CF(0, ty0 + tankH * 0.82 + 0.12, tankD * 0.5), LK.steelDark)
+	if smart then
+		-- 낮은 뒤 몸체 (비데 일체) + 위 조작 패널 + 아래 무드등 (네온 띠, 불빛 아님)
+		-- 뒤 몸체는 시트보다 한 뼘만 높고(물탱크 아님), 뒤로 갈수록 둥글게 낮아지는 덮개
+		local rw = math.min(tankW, 1.25)
+		local rd = tankD + 0.3
+		local bh = seatY + 0.18
+		C:slab("SmartToiletRear", rw, rd, bh - 0.12, 0.3, pcf * CF(0, (bh - 0.12) / 2, rd / 2), por)
+		C:ell("SmartToiletCover", V3(rw, 0.28, rd * 1.02), pcf * CF(0, bh - 0.12, rd / 2), por)
+		C:slab("SmartToiletTopPanel", rw * 0.55, 0.26, 0.02, 0.1, pcf * CF(0, bh + 0.03, rd * 0.5), lk(30, 32, 36, M.Glass, { r = 0.2 }))
+		if C.hi then
+			for i = -1, 1 do
+				C:disc("SmartToiletIcon", 0.06, 0.01, pcf * CF(i * 0.15, bh + 0.045, rd * 0.5), lk(150, 210, 255, M.Neon))
+			end
+		end
+		C:box("SmartToiletNightLED", V3(rw * 0.6, 0.03, 0.03), pcf * CF(0, 0.1, tankD + 0.36), lk(120, 190, 255, M.Neon))
+	else
+		-- 물탱크 (낮은 원피스형)
+		C:slab("ToiletTankBody", tankW * 0.98, tankD * 0.92, tankH * 0.82, 0.12, pcf * CF(0, ty0 + tankH * 0.41, tankD * 0.48), por)
+		C:slab("ToiletTankLid", tankW, tankD, 0.1, 0.12, pcf * CF(0, ty0 + tankH * 0.82 + 0.05, tankD * 0.5), por)
+		C:disc("ToiletFlush", 0.32, 0.03, pcf * CF(0, ty0 + tankH * 0.82 + 0.115, tankD * 0.5), LK.chrome)
+		C:box("ToiletFlushSplit", V3(0.02, 0.035, 0.3), pcf * CF(0, ty0 + tankH * 0.82 + 0.12, tankD * 0.5), LK.steelDark)
+	end
 	-- 몸통 (트랩 받침) + 볼
 	local bw = math.min(W * 0.9, 1.35)
 	local bowlLen = D - tankD * 0.6
@@ -2813,7 +3055,27 @@ local function toilet(C: any, st: any, recs: { any })
 	-- 비데 본체 (뒤) + 시트 + 뚜껑
 	local bidet = C.ti >= 2
 	local seatL = if bidet then lk(250, 250, 248, M.SmoothPlastic, { r = 0.04 }) else por
-	if bidet then
+	if smart then
+		-- 벽걸이 리모컨 (앉은 사람 오른쪽 벽) + 급수 앵글밸브는 몸체 안
+		local rp = nil
+		for _, sx in { -1, 1 } do
+			local q = pcf * CF(sx * (bw / 2 + 0.6), 3.0, 0.02)
+			if C:claim(q * CF(0, 0, 0.05), V3(0.42, 0.66, 0.1), "wall") then
+				rp = q
+				break
+			end
+		end
+		if rp then
+			C:panel("BidetRemote", 0.38, 0.62, 0.05, 0.05, rp, lk(250, 250, 248))
+		end
+		if rp and C.hi then
+			local bc = { C3(60, 140, 220), C3(230, 110, 150), C3(220, 50, 50), C3(120, 200, 120) }
+			for i, c in bc do
+				C:disc("BidetRemoteBtn", 0.08, 0.02, rp * CF(0, 0.2 - (i - 1) * 0.12, 0.06) * ANG(PI / 2, 0, 0), col(c))
+			end
+			C:box("BidetRemoteLCD", V3(0.24, 0.08, 0.01), rp * CF(0, -0.24, 0.055), lk(30, 50, 60, M.Glass))
+		end
+	elseif bidet then
 		C:rbox("BidetBody", V3(bw * 1.02, 0.24, 0.5), 0.08, pcf * CF(0, seatY + 0.1, tankD + 0.18), seatL)
 		-- 오른쪽 조작부 (앉은 사람 오른쪽 = -X)
 		C:rbox("BidetPanel", V3(0.18, 0.2, 0.85), 0.06, pcf * CF(-(bw / 2 + 0.1), seatY + 0.08, tankD + 0.55), seatL)
@@ -2828,8 +3090,10 @@ local function toilet(C: any, st: any, recs: { any })
 			C:plate("BidetOutlet", 0.3, 0.42, 0.04, pcf * CF(-bw / 2 - 0.3, 1.15, 0.0), LK.white)
 		end
 	end
-	C:seg("ToiletSupplyHose", (pcf * CF(bw * 0.3, 0.75, 0.04)).Position, (pcf * CF(bw * 0.32, ty0 + 0.1, tankD * 0.3)).Position, 0.05, LK.chrome)
-	C:cyl("ToiletAngleValve", 0.14, 0.12, pcf * CF(bw * 0.3, 0.75, 0.07) * ANG(0, PI / 2, 0), LK.chrome)
+	if not smart then
+		C:seg("ToiletSupplyHose", (pcf * CF(bw * 0.3, 0.75, 0.04)).Position, (pcf * CF(bw * 0.32, ty0 + 0.1, tankD * 0.3)).Position, 0.05, LK.chrome)
+		C:cyl("ToiletAngleValve", 0.14, 0.12, pcf * CF(bw * 0.3, 0.75, 0.07) * ANG(0, PI / 2, 0), LK.chrome)
+	end
 	C:ell("ToiletSeat", V3(bw * 0.98, 0.1, bowlLen * 0.9), pcf * CF(0, seatY + 0.03, tankD * 0.62 + bowlLen * 0.44), seatL)
 	-- 뚜껑 (닫힘) = 여닫기 대상
 	local hingeZ = tankD + 0.36
@@ -2840,7 +3104,7 @@ local function toilet(C: any, st: any, recs: { any })
 	local axis = pcf:VectorToWorldSpace(V3(1, 0, 0))
 	C:swing(m, hingeP, axis, math.rad(-98), { object = "변기 뚜껑", openText = "뚜껑 열기", closeText = "뚜껑 닫기" })
 	C:reserve(pcf * CF(0, 1.3, D / 2 + 0.1), V3(W + 0.5, 2.8, D + 0.3))
-	return { pcf = pcf, W = W, D = D, f = f, tankTop = ty0 + tankH * 0.82 + 0.1 }
+	return { pcf = pcf, W = W, D = D, f = f, smart = smart, tankTop = if smart then seatY + 0.55 else ty0 + tankH * 0.82 + 0.1 }
 end
 
 -- 세면대 (하부장 · 상판 · 볼 · 수전) + 거울 수납장
@@ -3215,6 +3479,19 @@ local function shower(C: any, st: any, recs: { any }, trays: { any }, glassMn: V
 		P:box("ItalyTowel", V3(0.34, 0.6, 0.03), CF(hx, 3.5, 0.15), lk(56, 140, 70, M.Fabric))
 		P:ball("ShowerPuff", 0.36, CF(hx + (if shelfX > 0 then 0.32 else -0.32), 3.6, 0.2), lk(240, 150, 180, M.Fabric))
 	end
+	-- 유리 물기 닦는 스퀴지 (오피스텔 이상, 캐디 반대쪽 벽 고리)
+	if C.ti >= 3 then
+		for _, qx in { -shelfX, -shelfX * 0.6 } do
+			qx = math.clamp(qx, wx0 + 0.4, wx1 - 0.4)
+			if math.abs(qx - shelfX) > 1.0 and math.abs(qx) > 0.55 and P:claim(CF(qx, 4.0, 0.12), V3(0.7, 1.1, 0.24), "wall") then
+				P:box("SqueegeeHook", V3(0.06, 0.06, 0.1), CF(qx, 4.5, 0.05), metal)
+				P:box("SqueegeeHandle", V3(0.08, 0.7, 0.06), CF(qx, 4.08, 0.1), lk(60, 60, 64, M.Plastic))
+				P:box("SqueegeeBar", V3(0.62, 0.05, 0.07), CF(qx, 3.72, 0.1), LK.brushed)
+				P:box("SqueegeeBlade", V3(0.6, 0.07, 0.04), CF(qx, 3.66, 0.1), lk(40, 40, 44, M.Rubber))
+				break
+			end
+		end
+	end
 end
 
 -- 욕조 (맵 Tub* 자리) + 물 + 수전 + 고무 오리
@@ -3286,6 +3563,17 @@ local function bathtub(C: any, st: any, recs: { any })
 	end
 	-- 욕조 옆 테두리 위: 입욕제 병
 	bottle(C, CF(mn.X + 0.35, rimY, mn.Z + 0.3), 0.55, 0.2, lk(200, 160, 220, M.Glass, { t = 0.3 }), LK.white, C3(240, 230, 250), "", nil)
+	-- 가족 욕실: 테두리 끝에 엎어 둔 대야 + 바가지 (반대쪽 모서리)
+	if C.ti <= 4 then
+		local bx, bz = mx.X - 0.55, mx.Z - 0.55
+		if w < d then
+			bx, bz = cx, mx.Z - 0.55
+		end
+		C:ell("WashBasinTub", V3(0.95, 0.36, 0.95), CF(bx, rimY + 0.01, bz), lk(240, 170, 190, M.Plastic))
+		C:disc("WashBasinTubRim", 1.0, 0.04, CF(bx, rimY + 0.02, bz), lk(232, 160, 180, M.Plastic))
+		C:ell("Dipper", V3(0.5, 0.26, 0.5), CF(bx, rimY + 0.2 + 0.1, bz) * ANG(PI, 0, 0), lk(120, 180, 230, M.Plastic))
+		C:box("DipperHandle", V3(0.08, 0.05, 0.42), CF(bx, rimY + 0.36, bz + 0.38) * ANG(0.15, 0, 0), lk(120, 180, 230, M.Plastic))
+	end
 	local _ = glass
 end
 
@@ -3501,17 +3789,22 @@ local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
 	local metal = st.metal
 	if tinfo then
 		local pcf, W, D = tinfo.pcf, tinfo.W, tinfo.D
-		-- 휴지걸이: 변기 옆 벽 (없으면 뒷벽 탱크 옆)
+		-- 휴지걸이: 변기 옆 벽 → 뒷벽 탱크 옆 → 옆벽 앞쪽 · 높게 (좁은 고시원 샤워 칸)
 		local done = false
+		local cands = {}
 		for _, sx in { 1, -1 } do
+			table.insert(cands, { pcf * V3(sx * (W / 2 + 0.45), 2.4, D * 0.6), 1.3 })
+		end
+		for _, sx in { 1, -1 } do
+			table.insert(cands, { pcf * V3(sx * (W / 2 + 0.55), 2.4, 0.05), 0.3 })
+			table.insert(cands, { pcf * V3(sx * (W / 2 + 0.45), 3.3, D * 0.85), 1.3 })
+			table.insert(cands, { pcf * V3(sx * (W / 2 + 0.5), 3.4, 0.05), 0.3 })
+		end
+		for _, cd in cands do
 			if done then
 				break
 			end
-			local p = pcf * V3(sx * (W / 2 + 0.45), 2.4, D * 0.6)
-			local dcf = wallAt(C, p, 1.3)
-			if not dcf then
-				dcf = wallAt(C, pcf * V3(sx * (W / 2 + 0.55), 2.4, 0.05), 0.3)
-			end
+			local dcf = wallAt(C, cd[1], cd[2])
 			if dcf and C:claim(dcf * CF(0, 0, 0.2), V3(0.7, 0.7, 0.4), "wall") then
 				done = true
 				C:plate("PaperHolderPlate", 0.66, 0.12, 0.03, dcf * CF(0, 0.22, 0), metal)
@@ -3522,6 +3815,16 @@ local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
 					-- 선반 위 휴대폰
 					C:box("PhoneOnShelf", V3(0.26, 0.03, 0.5), dcf * CF(0.05, 0.295, 0.22) * ANG(0, 0.2, 0), LK.black)
 				end
+			end
+		end
+		-- 물탱크 위: 여분 휴지 · 방향제 (탱크 있는 변기)
+		if not tinfo.smart and not C.V.decorPlus then
+			local ty = tinfo.tankTop
+			local kmn, kmx = laabb(C.cf * pcf * CF(0, ty + 0.25, 0.28), V3(math.min(W, 1.3), 0.5, 0.45))
+			if ty < 3.6 and not C:hitsKeep(kmn, kmx, "top") then
+				C:vcyl("SpareRoll", 0.42, 0.42, pcf * CF(W * 0.22, ty + 0.21, 0.28), LK.paper)
+				C:vcyl("SpareRollCore", 0.425, 0.14, pcf * CF(W * 0.22, ty + 0.21, 0.28), lk(200, 170, 130, M.Cardboard))
+				bottle(C, pcf * CF(-W * 0.22, ty, 0.28), 0.5, 0.2, lk(170, 210, 240, M.SmoothPlastic, { t = 0.1 }), LK.white, C3(230, 244, 250), "방향제", nil)
 			end
 		end
 		-- 변기 위 수건 선반 (2 단, 접은 수건)
@@ -3546,10 +3849,22 @@ local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
 		end
 		-- 변기솔 (바닥)
 		if not C.V.decorPlus then
-			for _, sx in { -1, 1 } do
-				local bcf = pcf * CF(sx * (W / 2 + 0.3), 0, 0.3)
-				if C:claim(bcf * CF(0, 0.5, 0), V3(0.36, 1.0, 0.36), "floor") then
-					C:vcyl("ToiletBrushPot", 0.5, 0.32, bcf * CF(0, 0.25, 0), if ti >= 4 then lk(236, 236, 232) else lk(220, 228, 236, M.Plastic))
+			local brushC = {}
+			for _, mode in { "lowmat", "tight" } do
+				for _, off in { 0.47, 0.3, 0.2 } do
+					for _, bz in { 0.3, 0.75 } do
+						for _, sx in { 1, -1 } do
+							table.insert(brushC, { sx, bz, off, mode })
+						end
+					end
+				end
+			end
+			for _, bc in brushC do
+				local sx = bc[1]
+				local bcf = pcf * CF(sx * (W / 2 + bc[3]), 0, bc[2])
+				local pd = if bc[3] < 0.25 then 0.24 else 0.32
+				if C:claim(bcf * CF(0, 0.5, 0), V3(pd + 0.04, 1.0, pd + 0.04), bc[4]) then
+					C:vcyl("ToiletBrushPot", 0.5, pd, bcf * CF(0, 0.25, 0), if ti >= 4 then lk(236, 236, 232) else lk(220, 228, 236, M.Plastic))
 					C:vcyl("ToiletBrushHandle", 0.6, 0.06, bcf * CF(0, 0.75, 0), if ti >= 4 then metal else LK.white)
 					C:ball("ToiletBrushKnob", 0.1, bcf * CF(0, 1.06, 0), if ti >= 4 then metal else LK.white)
 					break
@@ -3560,22 +3875,59 @@ local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
 	if C.V.decorPlus then
 		return
 	end
-	-- 욕실화 (문 안쪽, 앞코가 욕실 쪽)
-	local dx = doorX or 0
-	for _, dz in { 0.75, 1.1 } do
-		local cf = CF(dx, 0.09, C.z1 - dz)
-		if C:claim(cf, V3(1.0, 0.18, 0.95), "mat") then
-			local sc = if ti >= 5 then lk(236, 232, 224, M.Rubber) elseif ti == 4 then lk(120, 150, 170, M.Rubber) else lk(90, 150, 210, M.Rubber)
-			for _, sx in { -1, 1 } do
-				C:rbox("BathSlipperSole", V3(0.4, 0.12, 0.92), 0.12, CF(dx + sx * 0.24, 0.06, C.z1 - dz) * ANG(0, PI + sx * 0.08, 0), sc)
-				C:rbox("BathSlipperStrap", V3(0.42, 0.18, 0.36), 0.08, CF(dx + sx * 0.24, 0.16, C.z1 - dz - 0.22) * ANG(0, PI + sx * 0.08, 0), sc)
-				if C.hi then
-					for k = 0, 3 do
-						C:box("BathSlipperHole", V3(0.05, 0.19, 0.05), CF(dx + sx * 0.24 + (k % 2 - 0.5) * 0.14, 0.16, C.z1 - dz - 0.16 - math.floor(k / 2) * 0.12), lk(40, 50, 60))
-					end
+	-- 욕실화 (문 안쪽, 앞코가 욕실 쪽). 맵 발매트가 문 안쪽에 있으면 매트를 다시 짓고 그 위에 가지런히
+	local slipC = if ti >= 5 then lk(236, 232, 224, M.Rubber) elseif ti == 4 then lk(120, 150, 170, M.Rubber) else lk(90, 150, 210, M.Rubber)
+	local function bathSlippers(dx: number, y: number, z: number)
+		for _, sx in { -1, 1 } do
+			C:rbox("BathSlipperSole", V3(0.4, 0.12, 0.92), 0.05, CF(dx + sx * 0.24, y + 0.06, z) * ANG(0, PI + sx * 0.08, 0), slipC)
+			C:rbox("BathSlipperStrap", V3(0.42, 0.18, 0.36), 0.08, CF(dx + sx * 0.24, y + 0.16, z - 0.22) * ANG(0, PI + sx * 0.08, 0), slipC)
+			if C.hi then
+				for k = 0, 3 do
+					C:box("BathSlipperHole", V3(0.05, 0.19, 0.05), CF(dx + sx * 0.24 + (k % 2 - 0.5) * 0.14, y + 0.16, z - 0.16 - math.floor(k / 2) * 0.12), lk(40, 50, 60))
 				end
 			end
-			break
+		end
+	end
+	local placed = false
+	local mat = bathFind(C, { "BathMat" })[1]
+	if mat then
+		local a0, b0 = C:bb(mat)
+		if C:hide(mat) then
+			local mcx, mcz = (a0.X + b0.X) / 2, (a0.Z + b0.Z) / 2
+			local mw, md = b0.X - a0.X, b0.Z - a0.Z
+			local mt = math.clamp(b0.Y - a0.Y, 0.04, 0.12)
+			C:slab("BathMatPad", mw, md, mt, 0.15, CF(mcx, a0.Y + mt / 2, mcz), lk(206, 222, 228, M.Fabric))
+			for k = -1, 1, 2 do
+				C:box("BathMatStripe", V3(mw - 0.3, 0.012, 0.07), CF(mcx, a0.Y + mt + 0.004, mcz + k * md * 0.32), lk(246, 246, 242, M.Fabric))
+			end
+			if mw >= 0.95 and md >= 0.9 then
+				bathSlippers(mcx, a0.Y + mt, mcz + 0.05)
+				placed = true
+			end
+		end
+	end
+	if not placed then
+		local dx0 = doorX or 0
+		local slipCands = {}
+		for _, dz in { 0.75, 1.1, 1.45 } do
+			for _, ox in { 0, 0.7, -0.7, 1.2, -1.2 } do
+				table.insert(slipCands, { dx0 + ox, dz })
+			end
+		end
+		local done = false
+		for _, mode in { "lowmat", "tight" } do
+			for _, sc in slipCands do
+				local dx, dz = sc[1], sc[2]
+				local cf = CF(dx, 0.09, C.z1 - dz)
+				if dx - 0.5 > C.x0 and dx + 0.5 < C.x1 and C:claim(cf, V3(1.0, 0.18, 0.95), mode) then
+					bathSlippers(dx, 0, C.z1 - dz)
+					done = true
+					break
+				end
+			end
+			if done then
+				break
+			end
 		end
 	end
 	-- 빨래바구니 (아파트 · 펜트하우스 · 오피스텔) · 체중계 (아파트)
@@ -3602,12 +3954,56 @@ local function bathExtras(C: any, st: any, tinfo: any?, doorX: number?)
 	end
 	-- 가운 걸이 (펜트하우스, 문 옆 벽)
 	if ti >= 5 then
+		local dx = doorX or 0
 		local dcf = wallAt(C, V3(dx + 1.6, 5.4, C.z1 - 0.2), 0.5)
 		if dcf and C:claim(dcf * CF(0, -1.2, 0.3), V3(1.2, 3.2, 0.6), "wall") then
 			C:box("RobeHook", V3(0.08, 0.08, 0.2), dcf * CF(0, 0, 0.1), LK.brass)
 			C:ell("RobeShoulder", V3(1.0, 0.5, 0.42), dcf * CF(0, -0.3, 0.26), LK.fabricW)
 			C:box("RobeBody", V3(0.95, 2.6, 0.36), dcf * CF(0, -1.65, 0.24), LK.fabricW)
 			C:box("RobeBelt", V3(0.97, 0.12, 0.4), dcf * CF(0, -1.4, 0.25), lk(232, 228, 220, M.Fabric))
+		end
+	end
+	-- 펜트하우스: 전기 수건 건조대 (사다리형 · 따뜻한 수건 한 장 · 전원 버튼 = 켜고 끄기)
+	if ti >= 5 then
+		local cands = {}
+		for _, u in { 0, -1.4, 1.4, -2.4, 2.4 } do
+			for _, side in { "left", "right", "back", "front" } do
+				table.insert(cands, { side, u })
+			end
+		end
+		for _, cd in cands do
+			local dcf = C:wall(cd[1], cd[2], 3.5)
+			local fo = wallFaceOffset(C, dcf, 1.5, 3.6)
+			if fo and solidBehind(C, dcf * CF(0, 0, fo), 1.5, 3.6) then
+				dcf = dcf * CF(0, 0, fo)
+				if C:claim(dcf * CF(0, 0, 0.32), V3(1.7, 3.9, 0.64), "wall") then
+					local mt = st.metal
+					local zr = 0.2
+					for _, sx in { -0.7, 0.7 } do
+						C:vcyl("TowelWarmerRail", 3.6, 0.1, dcf * CF(sx, 0, zr), mt)
+						for _, sy in { -1.5, 1.5 } do
+							C:seg("TowelWarmerBracket", dcf * V3(sx, sy, 0), dcf * V3(sx, sy, zr), 0.07, mt)
+							C:disc("TowelWarmerRose", 0.16, 0.03, dcf * CF(sx, sy, 0.015) * ANG(PI / 2, 0, 0), mt)
+						end
+					end
+					for k = 0, 8 do
+						C:cyl("TowelWarmerBar", 1.4, 0.06, dcf * CF(0, -1.6 + k * 0.4, zr), mt)
+					end
+					hangingTowel(C, dcf * CF(0, 1.0, zr - 0.12), 1.05, 1.5, col(st.towel[2], M.Fabric), nil, nil)
+					C:box("TowelWarmerPower", V3(0.22, 0.32, 0.1), dcf * CF(0.7, -1.95, 0.08), mt)
+					local led = C:disc("TowelWarmerLEDHandle", 0.06, 0.02, dcf * CF(0.7, -1.88, 0.14) * ANG(PI / 2, 0, 0), lk(255, 120, 60, M.Neon))
+					C:toggle(led, {
+						object = "수건 건조대",
+						onText = "끄기",
+						offText = "켜기",
+						state = true,
+						on = function(on)
+							setGlow({ led }, on, C3(255, 120, 60), C3(70, 60, 56))
+						end,
+					})
+					break
+				end
+			end
 		end
 	end
 end
@@ -3691,9 +4087,29 @@ local function bathCell(K: any, V: any, fl: any, idx: number)
 		{ "shower", function()
 			shower(C, st, bathFind(C, { "ShowerRiser", "ShowerArm", "RainHead", "ShowerHead", "Mixer", "Drain" }), bathFind(C, { "ShowerTray" }))
 			for _, h in bathFind(C, { "ShowerHandle" }) do
-				local a, b = C:bb(h)
-				C:hide(h)
-				C:box("ShowerPullHandle", V3(b.X - a.X + 0.02, b.Y - a.Y, b.Z - a.Z + 0.02), CF((a + b) / 2), st.metal)
+				-- 유리문 손잡이: 맵 파트 상자(통짜 막대) 대신 유리 양쪽 둥근 바 + 관통 받침 2 개 (맵 파트 자세 그대로)
+				local hp: BasePart = h.part
+				if C:hide(h) then
+					local lcf = C.wcf:ToObjectSpace(hp.CFrame)
+					local s = hp.Size
+					local L = s.Y * 0.92
+					-- 두께 축 = X/Z 중 얇은 쪽 (유리 쪽), 받침 방향 = 두꺼운 쪽
+					local deepZ = s.Z >= s.X
+					local depth = if deepZ then s.Z else s.X
+					local ax = if deepZ then V3(0, 0, 1) else V3(1, 0, 0)
+					for _, sd in { -1, 1 } do
+						local o = ax * sd * (depth / 2 - 0.035)
+						C:vcyl("ShowerPullBar", L, 0.055, lcf * CF(o), st.metal)
+						for _, sy in { -1, 1 } do
+							C:vcyl("ShowerPullCap", 0.03, 0.06, lcf * CF(o + V3(0, sy * L / 2, 0)), st.metal)
+						end
+					end
+					for _, sy in { -1, 1 } do
+						local p0 = (lcf * CF(ax * -(depth / 2 - 0.035) + V3(0, sy * L * 0.36, 0))).Position
+						local p1 = (lcf * CF(ax * (depth / 2 - 0.035) + V3(0, sy * L * 0.36, 0))).Position
+						C:seg("ShowerPullStandoff", p0, p1, 0.04, st.metal)
+					end
+				end
 			end
 		end },
 		{ "tub", function()
@@ -3853,7 +4269,7 @@ local function shoeCabinet(C: any)
 	for si, sc in sections do
 		local x0, x1, y0, y1 = sc.a.X, sc.b.X, sc.a.Y, sc.b.Y
 		local w = x1 - x0
-		local nd = math.max(1, math.floor(w / 1.55 + 0.5))
+		local nd = math.max(1, math.floor(w / 1.25 + 0.5))
 		for i = 1, nd do
 			local da = x0 + w * (i - 1) / nd
 			local db = x0 + w * i / nd
@@ -3980,25 +4396,85 @@ local function floorShoes(C: any)
 			table.insert(shoes, r)
 		end
 	end
+	-- 벗어 던진 한 짝 (줄 끝 운동화가 옆으로 쓰러져 있음) -> "신발 정리" 로 바로 세움
+	local kick = nil
+	if not C.lo and #shoes >= 2 then
+		local best = -1e9
+		for i, r in shoes do
+			local cc = r.part.Color
+			local isSneaker = (cc.R + cc.G + cc.B) / 3 > 0.8 or not (cc.R > cc.B + 0.15)
+			local a, b = C:bb(r)
+			local edge = math.abs((a.X + b.X) / 2)
+			if isSneaker and edge > best then
+				best, kick = edge, i
+			end
+		end
+	end
 	for i, r in shoes do
 		local a, b = C:bb(r)
 		local c = (a + b) / 2
 		local L = math.max(b.X - a.X, b.Z - a.Z)
 		local w = math.min(b.X - a.X, b.Z - a.Z)
 		local toe = if (b.Z - a.Z) >= (b.X - a.X) then V3(0, 0, 1) else V3(1, 0, 0)
-		local pcf = faceCF(V3(c.X, a.Y, c.Z), toe) * ANG(0, (C.rnd() - 0.5) * 0.12, 0)
+		local neat = faceCF(V3(c.X, a.Y, c.Z), toe) * ANG(0, (C.rnd() - 0.5) * 0.12, 0)
+		local pcf = neat
+		if i == kick then
+			-- 바깥쪽으로 쓰러짐 (발등이 바깥, 밑창이 안쪽) + 살짝 비틀림
+			local ov = neat:VectorToObjectSpace(V3(if c.X >= 0 then 1 else -1, 0, 0))
+			local out = if ov.X >= 0 then 1 else -1
+			pcf = neat * CF(-out * 0.17, w / 2, 0) * ANG(0, 0.28 * out, 0) * ANG(0, 0, -out * PI / 2)
+		end
 		C:hide(r)
 		local cc = r.part.Color
 		local lum = (cc.R + cc.G + cc.B) / 3
-		if lum > 0.8 then
-			sneaker(C, pcf, L, w, LK.white, lk(236, 234, 228, M.Rubber), if i % 2 == 0 then lk(30, 60, 130) else lk(30, 60, 130))
-		elseif cc.R > cc.B + 0.15 then
-			dressShoe(C, pcf, L, w, col(cc, M.Leather))
-		else
-			if i % 4 < 2 then
-				sneaker(C, pcf, L, w, lk(40, 40, 44, M.Fabric), LK.white, lk(220, 60, 50))
+		local function build()
+			if lum > 0.8 then
+				sneaker(C, pcf, L, w, LK.white, lk(236, 234, 228, M.Rubber), lk(30, 60, 130))
+			elseif cc.R > cc.B + 0.15 then
+				dressShoe(C, pcf, L, w, col(cc, M.Leather))
 			else
-				dressShoe(C, pcf, L, w, lk(26, 26, 28, M.Leather))
+				if i % 4 < 2 then
+					sneaker(C, pcf, L, w, lk(40, 40, 44, M.Fabric), LK.white, lk(220, 60, 50))
+				else
+					dressShoe(C, pcf, L, w, lk(26, 26, 28, M.Leather))
+				end
+			end
+		end
+		if i ~= kick then
+			build()
+		else
+			local m = C:group("KickedShoe", build)
+			local recs = {}
+			local handle: BasePart? = nil
+			for _, d in m:GetDescendants() do
+				if d:IsA("BasePart") then
+					table.insert(recs, { p = d, cf = d.CFrame })
+					if d.Name == "ShoeUpper" then
+						d.Name = "ShoeUpperHandle"
+						handle = d
+					end
+				end
+			end
+			-- 세운 자세로 옮기는 월드 변환
+			local wMessy = C.wcf * pcf
+			local wNeat = C.wcf * neat
+			local move = wNeat * wMessy:Inverse()
+			if handle and C:promptOK(handle) then
+				local tidy = false
+				Interact.prompt(C.K, handle, {
+					action = "신발 정리",
+					object = "벗어 던진 운동화",
+					sound = "rbxasset://sounds/clickfast.wav",
+					fn = function(_n, pr)
+						tidy = not tidy
+						for _, rr in recs do
+							if rr.p.Parent then
+								TweenService:Create(rr.p, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = if tidy then move * rr.cf else rr.cf }):Play()
+							end
+						end
+						pr.ActionText = if tidy then "툭 벗어 두기" else "신발 정리"
+					end,
+				})
 			end
 		end
 	end
@@ -4023,6 +4499,138 @@ local function floorShoes(C: any)
 			slipper(C, faceCF(V3(c.X, a.Y, c.Z), toe), L, w, lk(30, 30, 34, M.Rubber), col(strapC, M.Rubber), C.ti <= 2)
 		end
 	end
+end
+
+-- 현관문 안쪽 면 (철문 = 도어 필름 판 · 홈 · 방화문 스티커 · 배달 자석 · 말굽 스토퍼). 나무 문은 스토퍼만.
+-- C.doorKeep = 문 앞 통로 (C 로컬 AABB): 바닥 소품은 여기 두지 않음
+local function entranceDoor(C: any)
+	local V = C.V
+	local ex = nil
+	for _, r in V.byName["ExitDoor"] or {} do
+		local p = C.cf:PointToObjectSpace(r.c)
+		if p.X > C.x0 - 1.5 and p.X < C.x1 + 1.5 and p.Z > C.z0 - 1.5 and p.Z < C.z1 + 1.5 then
+			ex = r
+			break
+		end
+	end
+	if not ex then
+		return
+	end
+	local ea, eb = C:bb(ex)
+	local ec = (ea + eb) / 2
+	local leaf, bestD = nil, math.huge
+	-- 문짝은 방 테두리 밖 (벽 두께 안) 이라 V.byName 에 없을 수 있음: 집 모델에서 직접 찾음 (읽기만)
+	local leaves = table.clone(V.byName["DoorLeaf"] or {})
+	if V.model then
+		for _, d in V.model:GetDescendants() do
+			if d:IsA("BasePart") and d.Name == "DoorLeaf" then
+				local lcf = V.cf:ToObjectSpace(d.CFrame)
+				local mn, mx = laabb(lcf, d.Size)
+				table.insert(leaves, { part = d, name = d.Name, min = mn, max = mx, c = (mn + mx) / 2, size = mx - mn, lcf = lcf })
+			end
+		end
+	end
+	for _, r in leaves do
+		if r.part.Transparency < 0.99 then
+			local a, b = C:bb(r)
+			local c = (a + b) / 2
+			local d = (V3(c.X, 0, c.Z) - V3(ec.X, 0, ec.Z)).Magnitude
+			if d < 2.5 and d < bestD then
+				leaf, bestD = r, d
+			end
+		end
+	end
+	if not leaf then
+		return
+	end
+	local a, b = C:bb(leaf)
+	local c = (a + b) / 2
+	local n: Vector3, org: Vector3, w: number
+	if (b.Z - a.Z) <= (b.X - a.X) then
+		n = V3(0, 0, if ec.Z < c.Z then -1 else 1)
+		org = V3(c.X, a.Y, if n.Z < 0 then a.Z else b.Z)
+		w = b.X - a.X
+	else
+		n = V3(if ec.X < c.X then -1 else 1, 0, 0)
+		org = V3(if n.X < 0 then a.X else b.X, a.Y, c.Z)
+		w = b.Z - a.Z
+	end
+	local h = b.Y - a.Y
+	-- 문 앞 통로 (문 폭 + 여유, 문면에서 2.4 안쪽까지)
+	do
+		local p0 = org + n * 0.0
+		local p1 = org + n * 2.4
+		local across = V3(0, 1, 0):Cross(n)
+		local e0 = p0 - across * (w / 2 + 0.3)
+		local e1 = p1 + across * (w / 2 + 0.3)
+		C.doorKeep = {
+			mn = V3(math.min(e0.X, e1.X), -1, math.min(e0.Z, e1.Z)),
+			mx = V3(math.max(e0.X, e1.X), 8, math.max(e0.Z, e1.Z)),
+		}
+	end
+	local P = C:sub(CFrame.fromMatrix(org, V3(0, 1, 0):Cross(n), V3(0, 1, 0), n))
+	local ti = C.ti
+	local metal = leaf.part.Material == M.Metal
+	-- 도어락 쪽 (래치 쪽) x: 도어락 위치, 없으면 +X
+	local latchX = w * 0.35
+	local lock = C:first({ "DoorLock" }, 1.0)
+	if lock then
+		local la, lb = lbox(C, P, lock)
+		latchX = (la.X + lb.X) / 2
+	end
+	local ls = if latchX >= 0 then 1 else -1
+	if metal then
+		local film = if ti == 3 then lk(66, 68, 72, M.SmoothPlastic, { r = 0.04 }) elseif ti == 4 then lk(228, 224, 216, M.SmoothPlastic, { r = 0.03 }) else lk(196, 190, 180, M.SmoothPlastic, { r = 0.03 })
+		local groove = col(shade(film.c, -0.25))
+		P:box("DoorSkin", V3(w - 0.03, h - 0.03, 0.02), CF(0, h / 2, 0.01), film)
+		-- 문짝 둘레 홈 (몰딩 느낌) + 아파트는 가로 홈 두 줄
+		local inset = 0.32
+		local gw, gh = w - 2 * inset, h - 2 * inset
+		for _, e in { { gw, 0.035, 0, inset }, { gw, 0.035, 0, h - inset }, { 0.035, gh, -gw / 2, h / 2 }, { 0.035, gh, gw / 2, h / 2 } } do
+			P:box("DoorSkinGroove", V3(e[1], e[2], 0.006), CF(e[3], e[4], 0.022), groove)
+		end
+		if ti == 4 then
+			for _, gy in { h * 0.36, h * 0.64 } do
+				P:box("DoorSkinGroove", V3(gw, 0.03, 0.006), CF(0, gy, 0.022), groove)
+			end
+		end
+		-- 방화문 스티커 (문짝 위 경첩 쪽)
+		if C.hi then
+			P:label("FireDoorSticker", 0.9, 0.26, CF(-ls * (w / 2 - 0.75), h - 0.62, 0.024), "방화문\n항상 닫아 두세요", C3(200, 30, 30), C3(250, 250, 246), { wrap = true, d = 0.004 })
+		end
+		-- 배달 자석 전단 (원룸 · 오피스텔: 문 안쪽에 붙여 둔 것)
+		if ti == 2 or ti == 3 then
+			local mags = {
+				{ "광안 통닭\n후라이드 · 양념", C3(250, 210, 40), C3(170, 30, 20) },
+				{ "황금 반점\n짜장 · 짬뽕", C3(200, 30, 30), C3(255, 236, 160) },
+				{ "피자 한판\n배달 30분", C3(40, 120, 70), C3(250, 250, 240) },
+			}
+			if ti == 3 then
+				table.remove(mags, 3)
+			end
+			for i, m in mags do
+				local mx = -ls * (0.1 + (i - 1) * 0.42) + (C.rnd() - 0.5) * 0.06
+				local my = 4.3 - (i % 2) * 0.55 + (C.rnd() - 0.5) * 0.1
+				local dcf = CF(mx, my, 0.02) * ANG(0, 0, (C.rnd() - 0.5) * 0.12)
+				P:plate("DeliveryMagnet", 0.4, 0.3, 0.025, dcf, col(m[2]))
+				if C.hi then
+					P:label("DeliveryMagnetText", 0.36, 0.24, dcf * CF(0, 0, 0.027), m[1], m[3], nil, { wrap = true, d = 0.003 })
+				end
+			end
+			-- 관리비 고지서 (자석 클립에 끼움)
+			local bcf = CF(-ls * 0.55, 3.35, 0.02) * ANG(0, 0, 0.04)
+			P:plate("BillPaper", 0.55, 0.75, 0.01, bcf, LK.paper)
+			P:disc("BillMagnet", 0.14, 0.04, bcf * CF(0, 0.33, 0.03) * ANG(PI / 2, 0, 0), lk(40, 110, 200))
+			if C.hi then
+				P:label("BillText", 0.5, 0.5, bcf * CF(0, -0.05, 0.012), "관리비\n10월분\n납부 마감 25일", C3(40, 60, 100), nil, { wrap = true, d = 0.003 })
+			end
+		end
+	end
+	-- 말굽 도어스토퍼 (래치 쪽 아래, 방 쪽 면)
+	local sx = ls * (w / 2 - 0.4)
+	P:box("DoorStopBase", V3(0.22, 0.34, 0.06), CF(sx, 0.42, 0.05), LK.brushed)
+	P:box("DoorStopArm", V3(0.1, 0.22, 0.12), CF(sx, 0.22, 0.12) * ANG(math.rad(-20), 0, 0), LK.brushed)
+	P:box("DoorStopFoot", V3(0.16, 0.05, 0.14), CF(sx, 0.12, 0.17), LK.rubber)
 end
 
 -- 도어락 안쪽 몸체 · 손잡이 · 도어 뷰어 · 도어 클로저 · 도어 가드
@@ -4141,7 +4749,7 @@ local function wallpad(C: any)
 	if big then
 		w, h = w * 1.25, h * 1.25
 	end
-	P:slab("WallpadBody", w, 0.08, h, 0.06, CF(cx, cy, 0.04) * ANG(PI / 2, 0, 0), lk(246, 246, 244, M.SmoothPlastic, { r = 0.06 }))
+	P:slab("WallpadBody", w, h, 0.08, 0.06, CF(cx, cy, 0.04) * ANG(PI / 2, 0, 0), lk(246, 246, 244, M.SmoothPlastic, { r = 0.06 }))
 	local sw, sh = w * 0.62, h * 0.66
 	local sx = cx - w * 0.12
 	P:box("WallpadGlass", V3(sw, sh, 0.02), CF(sx, cy + h * 0.06, 0.09), lk(16, 20, 28, M.Glass, { r = 0.15 }))
@@ -4330,7 +4938,7 @@ local function foyer(C: any)
 			local w = b.X - a.X
 			local y0, y1 = a.Y + 0.3, b.Y
 			local zf = b.Z
-			local wal = lk(96, 66, 46, M.Wood)
+			local wal = lk(122, 88, 62, M.Wood)
 			P:box("FoyerCabKick", V3(w, 0.3, 0.06), CF((a.X + b.X) / 2, 0.15, zf - 0.2), lk(30, 26, 22))
 			local nd = math.max(2, math.floor(w / 1.5 + 0.5))
 			local nicheI = math.floor(nd / 2) + 1
@@ -4419,7 +5027,9 @@ local function entryClutter(C: any)
 	local function floorSpot(w: number, d: number, h: number, cands: { Vector3 }): CFrame?
 		for _, p in cands do
 			local cf = CF(p.X, h / 2, p.Z)
-			if C:claim(cf, V3(w, h, d), "floor", 0.05) then
+			local dk = C.doorKeep
+			local inDoor = dk ~= nil and p.X + w / 2 > dk.mn.X and p.X - w / 2 < dk.mx.X and p.Z + d / 2 > dk.mn.Z and p.Z - d / 2 < dk.mx.Z
+			if not inDoor and C:claim(cf, V3(w, h, d), "floor", 0.05) then
 				return CF(p.X, 0, p.Z)
 			end
 		end
@@ -4461,7 +5071,7 @@ local function entryClutter(C: any)
 			local s = if ti == 4 then V3(1.3, 0.8, 1.0) else V3(1.0, 0.6, 0.8)
 			local p = floorSpot(s.X, s.Z, s.Y, corners)
 			if p then
-				parcel(C, p * CF(0, fy, 0) * ANG(0, 0.15, 0), s, if ti <= 2 then "받는 분: 광안동 미성맨션\n문 앞 배송" else "받는 분: 광안해변로\n로켓 문 앞 배송")
+				parcel(C, p * CF(0, fy, 0) * ANG(0, 0.15, 0), s, if ti <= 2 then "받는 분: 광안동 미성맨션\n문 앞 배송" else "받는 분: 광안해변로\n로켓 문 앞 배송", true)
 			end
 		else
 			local p = floorSpot(1.2, 0.5, 1.6, corners)
@@ -4472,6 +5082,41 @@ local function entryClutter(C: any)
 				C:ring("ShoppingBagRope", q * CF(0, 1.2, 0), 0.3, 0.03, 6, lk(210, 180, 120, M.Fabric), 0, PI)
 				if C.hi then
 					C:label("ShoppingBagLogo", 0.8, 0.2, q * CF(0, 0.75, 0.228), "MAISON", C3(220, 200, 150), nil, { font = FONT_M })
+				end
+			end
+		end
+		-- 펜트하우스: 신발 신는 벤치 (진짜 벽 앞, 문 앞 통로 밖)
+		if ti >= 5 then
+			for _, u in { -4.5, 4.5, -6.0, 6.0, -3.0, 3.0 } do
+				local bw = 2.8
+				if math.abs(u) + bw / 2 < C.W / 2 - 0.3 then
+					local dcf = C:wall("back", u, 2.0, 0)
+					local fo = wallFaceOffset(C, dcf, bw, 2.0)
+					dcf = dcf * CF(0, 0, fo or 0)
+					local bp = dcf * CF(0, 0, 0.55)
+					local dk = C.doorKeep
+					local p = bp.Position
+					local inDoor = dk ~= nil and p.X + bw / 2 > dk.mn.X and p.X - bw / 2 < dk.mx.X and p.Z + 0.5 > dk.mn.Z and p.Z - 0.5 < dk.mx.Z
+					if fo and not inDoor and solidBehind(C, dcf, bw, 2.0) and C:claim(CF(p.X, 0.8, p.Z) * (dcf - dcf.Position), V3(bw, 1.6, 1.0), "floor", 0.05) then
+						local q = CF(p.X, 0, p.Z) * (dcf - dcf.Position)
+						local wal = lk(122, 88, 62, M.Wood)
+						C:box("BenchFrame", V3(bw, 0.14, 0.95), q * CF(0, 1.2, 0), wal)
+						C:rbox("BenchCushion", V3(bw - 0.1, 0.32, 0.9), 0.12, q * CF(0, 1.43, 0), lk(236, 230, 218, M.Fabric))
+						for _, sx in { -1, 1 } do
+							for _, sz in { -1, 1 } do
+								C:box("BenchLeg", V3(0.08, 1.13, 0.08), q * CF(sx * (bw / 2 - 0.15), 0.565, sz * 0.36), LK.brass)
+							end
+							C:box("BenchStretcher", V3(0.06, 0.06, 0.72), q * CF(sx * (bw / 2 - 0.15), 0.3, 0), LK.brass)
+						end
+						C:box("BenchShelf", V3(bw - 0.3, 0.06, 0.8), q * CF(0, 0.3, 0), wal)
+						-- 아래 선반: 손님 슬리퍼 두 켤레 (가지런히)
+						for i = 0, 1 do
+							for _, sx in { -1, 1 } do
+								slipper(C, q * CF(-0.6 + i * 1.2 + sx * 0.2, 0.33, 0.05), 0.85, 0.32, lk(236, 232, 224, M.Fabric), lk(214, 206, 192, M.Fabric), false)
+							end
+						end
+						break
+					end
 				end
 			end
 		end
@@ -4506,7 +5151,7 @@ local function entryClutter(C: any)
 		end
 	end
 	-- 벽: 분전반 (원룸 · 오피스텔) / 구둣주걱 / 고리 (고시원)
-	local function wallSlot(w: number, h: number, y: number, sides: { string }): (any?, CFrame?)
+	local function wallSlot(w: number, h: number, y: number, sides: { string }, probe: CFrame?): (any?, CFrame?)
 		for _, sd in sides do
 			local L = if sd == "left" or sd == "right" then C.D else C.W
 			for k = 0, 10 do
@@ -4514,8 +5159,10 @@ local function entryClutter(C: any)
 					local u = sg * k * 0.35
 					if math.abs(u) + w / 2 < L / 2 - 0.15 then
 						local dcf = C:wall(sd, u, y, 0)
+						local fo = wallFaceOffset(C, dcf, w, h)
+						dcf = dcf * CF(0, 0, fo or 0)
 						local box = dcf * CF(0, 0, 0.12)
-						if C:claim(box, V3(w, h, 0.24), "wall") then
+						if fo and (not probe or C:promptFreeAt((dcf * probe).Position)) and solidBehind(C, dcf, w, h) and C:claim(box, V3(w, h, 0.24), "wall") then
 							return sd, dcf
 						end
 					end
@@ -4525,12 +5172,30 @@ local function entryClutter(C: any)
 		return nil, nil
 	end
 	if ti >= 2 and ti <= 3 then
-		local sd, dcf = wallSlot(1.4, 1.8, 6.6, { "left", "right", "back" })
+		local sd, dcf = wallSlot(1.4, 1.8, 6.6, { "left", "right", "back" }, CF(0.52, 0, 0.15))
 		if dcf then
-			C:plate("BreakerPanel", 1.4, 1.8, 0.1, dcf, lk(232, 232, 228))
-			C:plate("BreakerPanelDoor", 1.3, 1.7, 0.03, dcf * CF(0, 0, 0.1), lk(240, 240, 236))
-			C:plate("BreakerPanelLatch", 0.08, 0.3, 0.04, dcf * CF(0.5, 0, 0.13), LK.steelDark)
-			C:label("BreakerPanelLabel", 0.7, 0.18, dcf * CF(0, 0.6, 0.135), "분전반", C3(60, 60, 64), C3(250, 250, 246))
+			-- 함 (뒤판 + 테두리) 안에 메인 차단기 + 분기 차단기 6, 문은 왼쪽 경첩으로 열림
+			local boxC = lk(232, 232, 228)
+			C:plate("BreakerPanel", 1.4, 1.8, 0.06, dcf, boxC)
+			for _, e in { { 1.4, 0.05, 0, 0.875 }, { 1.4, 0.05, 0, -0.875 }, { 0.05, 1.8, 0.675, 0 }, { 0.05, 1.8, -0.675, 0 } } do
+				C:plate("BreakerPanelRim", e[1], e[2], 0.12, dcf * CF(e[3], e[4], 0.06), boxC)
+			end
+			C:plate("BreakerMain", 0.32, 0.55, 0.06, dcf * CF(-0.38, 0.3, 0.06), LK.charcoal)
+			C:plate("BreakerMainLever", 0.1, 0.16, 0.05, dcf * CF(-0.38, 0.36, 0.12), lk(200, 40, 36))
+			for k = 0, 5 do
+				local bx = -0.08 + k * 0.13
+				C:plate("Breaker", 0.11, 0.42, 0.05, dcf * CF(bx, 0.28, 0.06), LK.white)
+				C:plate("BreakerToggle", 0.05, 0.1, 0.04, dcf * CF(bx, 0.33, 0.11), LK.charcoal)
+			end
+			if C.hi then
+				C:label("BreakerLabels", 1.2, 0.3, dcf * CF(0.02, -0.25, 0.062), "메인 · 전등 · 콘센트 · 에어컨\n주방 · 욕실 · 세탁기", C3(60, 60, 64), nil, { wrap = true, d = 0.004 })
+			end
+			local m = C:group("BreakerPanelDoorModel", function()
+				C:plate("BreakerPanelDoor", 1.3, 1.7, 0.03, dcf * CF(0, 0, 0.12), lk(240, 240, 236))
+				C:plate("BreakerPanelHandle", 0.08, 0.3, 0.04, dcf * CF(0.52, 0, 0.15), LK.steelDark)
+				C:label("BreakerPanelLabel", 0.7, 0.18, dcf * CF(0, 0.6, 0.152), "분전반", C3(60, 60, 64), C3(250, 250, 246))
+			end)
+			C:swing(m, (dcf * CF(-0.65, 0, 0.135)).Position, dcf.UpVector, -math.rad(105), { object = "분전반", openText = "열기", closeText = "닫기" })
 			local _ = sd
 		end
 	end
@@ -4562,6 +5227,63 @@ local function entryClutter(C: any)
 			local _ = sd2
 		end
 	end
+	-- 아파트 · 펜트하우스: 현관 벽 그림 (액자 + 그림 조명 네온 띠). 신발장 · 문 · 콘솔 자리는 claim 이 피함
+	if ti >= 4 then
+		local aw, ah = if ti >= 5 then 4.4 else 2.6, if ti >= 5 then 3.2 else 2.0
+		local sd, dcf = wallSlot(aw + 0.3, ah + 0.7, if ti >= 5 then 4.9 else 4.6, { "back", "left", "right", "front" })
+		if dcf then
+			local frameL = if ti >= 5 then LK.brass else lk(58, 48, 40, M.Wood)
+			-- 얇은 액자 테 (4 변) + 매트 (아파트) / 띄움 액자 (펜트하우스)
+			C:plate("ArtBacker", aw + 0.1, ah + 0.1, 0.05, dcf, lk(30, 28, 26))
+			for _, e in { { aw + 0.16, 0.08, 0, ah / 2 + 0.04 }, { aw + 0.16, 0.08, 0, -ah / 2 - 0.04 }, { 0.08, ah + 0.16, aw / 2 + 0.04, 0 }, { 0.08, ah + 0.16, -aw / 2 - 0.04, 0 } } do
+				C:plate("ArtFrame", e[1], e[2], 0.1, dcf * CF(e[3], e[4], 0), frameL)
+			end
+			if ti >= 5 then
+				-- 단색화 (한지 빛 바탕에 손으로 그은 세로 결) : 펜트하우스 현관의 조용한 대작
+				C:plate("ArtCanvas", aw, ah, 0.07, dcf, lk(232, 226, 212, M.Fabric))
+				local n = if C.hi then 22 elseif C.lo then 8 else 14
+				for k = 1, n do
+					local x = -aw / 2 + aw * (k - 0.5) / n + (C.rnd() - 0.5) * aw / n * 0.3
+					local hh = ah * (0.86 + C.rnd() * 0.08)
+					C:plate("ArtRidge", 0.035, hh, 0.078, dcf * CF(x, (C.rnd() - 0.5) * 0.06, 0), lk(214, 206, 190, M.Fabric))
+				end
+				C:plate("ArtSignature", 0.3, 0.05, 0.08, dcf * CF(aw / 2 - 0.35, -ah / 2 + 0.12, 0), lk(150, 60, 50, M.Fabric))
+			else
+				-- 광안리 바다 풍경 (하늘 · 수평선 · 바다 · 모래 + 광안대교 실루엣)
+				C:plate("ArtMat", aw, ah, 0.06, dcf, lk(244, 240, 232, M.Fabric))
+				local iw, ih = aw - 0.36, ah - 0.36
+				local bands = { { 0.30, C3(150, 188, 214) }, { 0.14, C3(214, 210, 206) }, { 0.08, C3(240, 196, 160) }, { 0.30, C3(70, 112, 150) }, { 0.18, C3(226, 210, 178) } }
+				local y = ih / 2
+				for _, bd in bands do
+					local h = ih * bd[1]
+					C:plate("ArtBand", iw, h, 0.065, dcf * CF(0, y - h / 2, 0), col(bd[2], M.Fabric))
+					y -= h
+				end
+				local hy = ih / 2 - ih * 0.52 -- 수평선 높이
+				C:plate("ArtBridgeDeck", iw * 0.9, 0.04, 0.07, dcf * CF(0, hy + 0.12, 0), lk(60, 70, 86, M.Fabric))
+				for _, tx in { -0.22, 0.22 } do
+					C:plate("ArtBridgeTower", 0.05, 0.42, 0.072, dcf * CF(iw * tx, hy + 0.3, 0), lk(60, 70, 86, M.Fabric))
+					if C.hi then
+						for _, sd in { -1, 1 } do
+							C:box("ArtBridgeCable", V3(iw * 0.24, 0.015, 0.005), dcf * CF(iw * tx + sd * iw * 0.11, hy + 0.32, 0.072) * ANG(0, 0, -sd * 0.36), lk(80, 90, 104, M.Fabric))
+						end
+					end
+				end
+				C:plate("ArtSun", 0.22, 0.22, 0.07, dcf * CF(iw * 0.3, hy + 0.42, 0), lk(250, 228, 196, M.Fabric))
+				if C.hi then
+					for k = 1, 4 do
+						C:plate("ArtWave", iw * (0.12 + C.rnd() * 0.12), 0.02, 0.068, dcf * CF((C.rnd() - 0.5) * iw * 0.7, hy - 0.12 - k * 0.1, 0), lk(150, 186, 210, M.Fabric))
+					end
+				end
+			end
+			-- 그림 조명 (위 황동 막대 + 아래로 비추는 네온 띠)
+			local plL = if ti >= 5 then LK.brass else LK.steelDark
+			C:box("PictureLightArm", V3(0.06, 0.06, 0.34), dcf * CF(0, ah / 2 + 0.3, 0.17), plL)
+			C:box("PictureLightBar", V3(aw * 0.5, 0.1, 0.12), dcf * CF(0, ah / 2 + 0.3, 0.36), plL)
+			C:box("PictureLightLED", V3(aw * 0.48, 0.02, 0.06), dcf * CF(0, ah / 2 + 0.245, 0.36), lk(255, 222, 180, M.Neon))
+			local _ = sd
+		end
+	end
 	-- 구둣주걱 (신발장 옆 벽에 걸어 둠)
 	if ti >= 2 then
 		local sd, dcf = wallSlot(0.3, 2.4, 3.6, { "right", "left", "back" })
@@ -4581,6 +5303,7 @@ local function entry(K: any, V: any)
 	local steps = {
 		{ "shoeCabinet", shoeCabinet },
 		{ "shoes", floorShoes },
+		{ "doorSkin", entranceDoor },
 		{ "door", doorHardware },
 		{ "wallpad", wallpad },
 		{ "sensor", sensorLight },

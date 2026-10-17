@@ -315,7 +315,7 @@ function Rooms.staff(K: any, env: any, P: any)
 	K:disc("CoffeeMachineLED", 0.08, 0.02, CF(-9.4, y + 4.55, 34.53) * ANG(PI / 2, 0, 0), Look.ledBlue)
 	Interact.prompt(K, cm, { action = "커피 내리기", object = "커피 머신", sound = SND.click, fn = function()
 		local cup = Lib.temp(K, "CoffeeCup", V3(0.4, 0.3, 0.3), CF(-9.8, y + 3.45, 34.55) * ANG(0, 0, PI / 2), Look.white, Enum.PartType.Cylinder)
-		Lib.particles(cup, "steam", 3)
+		Lib.particles(cup, "steam", 3, Enum.NormalId.Right) -- 눕힌 원통: +X 가 위
 		Lib.sfx(cm, SND.water, { vol = 0.3, speed = 0.9, dur = 2.5 })
 		task.delay(3, function()
 			UI.toast("따뜻한 아메리카노 ☕", 2.2)

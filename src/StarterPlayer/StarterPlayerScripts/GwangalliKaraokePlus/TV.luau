@@ -751,8 +751,14 @@ end
 local function setRoom(v: any?)
 	room = v
 	if v and v.screen and v.screen.Parent then
-		gui.Adornee = v.screen
-		gui.Face = faceOf(v.screen)
+		if gui.Adornee ~= v.screen then
+			-- re-parent around the Adornee change so every renderer places it on the new part
+			local pg = gui.Parent
+			gui.Parent = nil
+			gui.Adornee = v.screen
+			gui.Face = faceOf(v.screen)
+			gui.Parent = pg or player:FindFirstChildOfClass("PlayerGui")
+		end
 		gui.Enabled = true
 	else
 		gui.Enabled = false

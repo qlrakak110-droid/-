@@ -363,6 +363,9 @@ function Hud.update(_dt: number)
 		barBtns.mic.Text = if mic > 0 then (if m == "singer" then "🎤\n넘기기" else "🎤\n내려놓기") else "🎤\n마이크"
 		Kit.restyle(barBtns.mic, if mic > 0 then "magenta" else "secondary")
 		barBtns.tamb.Text = if mic > 0 then "👏\n박수" else "🪇\n탬버린"
+		if m == "member" then
+			barBtns.clap.Visible = mic == 0
+		end
 		local now = S.now()
 		local parts = { string.format("ROOM %s", v.name) }
 		if v.renter ~= 0 then
@@ -432,7 +435,7 @@ function Hud.init(k: any)
 	barButton("remote", "📟\n리모컨", 3, "secondary", function()
 		K.Remote.toggle()
 	end)
-	barButton("stop", "■\n취소", 4, "danger", Hud.stopSong)
+	barButton("stop", "⏹\n취소", 4, "danger", Hud.stopSong)
 	barButton("mic", "🎤\n마이크", 5, "secondary", function()
 		local v = Rooms.current()
 		if v and Rooms.micSlot(v) > 0 and v.state == "play" and Rooms.isSinger(v) then

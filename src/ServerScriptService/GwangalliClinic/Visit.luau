@@ -771,7 +771,7 @@ local function opPlan(player: Player, p: any): any
 		v.needAt = now()
 		setTreating(player, false)
 		setStep(v, "need_money")
-		Net.line(player, "doctor", string.format("진료비 %s 이 필요한데 잔액이 모자라요. ATM 에서 찾아 오시면 바로 치료해 드릴게요.", S.won(plan.opFee)))
+		Net.line(player, "doctor", string.format("진료비 %s이 필요한데 잔액이 모자라요. ATM에서 찾아 오시면 바로 치료해 드릴게요.", S.won(plan.opFee)))
 		return { ok = true, visit = Visit.view(v) }
 	end
 	setStep(v, "treat_go")
@@ -801,7 +801,7 @@ local function startIV(v: any): any
 	if not ok then
 		return fail("error")
 	end
-	setTreating(p, true)
+	-- (no GwTreating here: the interior's "진료 중" lamp is the consult room's, not the 주사실's)
 	v.iv = { seconds = v.plan.iv or C.Treat.IVSeconds, progress = 0, speed = 1, given = 0, acc = 0, total = v.plan.ivRest or 0, half = false, t0 = S.now() }
 	Site.setBed(bed, string.format("%d|iv|%.2f|%d", v.uid, S.now(), v.iv.seconds))
 	Site.setAct("nurse2", "iv", v.uid)
@@ -1015,8 +1015,9 @@ local function opPay(player: Player, p: any): any
 	Site.setAct(if win == "Win1" then "desk1" else "desk2", "give", v.uid)
 	local finalBill = billView(v)
 	-- 처방전 (illness plans) -> 약국
-	if v.plan and v.plan.rx and v.kind0 then
-		local kind = S.kind(v.kind0)
+	local rxKind = v.kind or v.kind0
+	if v.plan and v.plan.rx and rxKind then
+		local kind = S.kind(rxKind)
 		if kind then
 			local items = {}
 			for _, it in kind.med.meds do
@@ -1075,10 +1076,11 @@ local function opPharmacy(player: Player, p: any): any
 	end
 	Queue.rxCollect(v.ticket, v.uid)
 	Site.setAct("pharm", "give", v.uid)
-	if v.kind0 then
-		Patient.startMeds(player, v.kind0)
+	local rxKind = v.kind or v.kind0
+	if rxKind then
+		Patient.startMeds(player, rxKind)
 	end
-	local kind = S.kind(v.kind0)
+	local kind = S.kind(rxKind)
 	local guide = if kind then S.Medical.line("pharm_guide", kind.med.times) else ""
 	local rx = v.rx
 	Visit.finish(v, "done")
@@ -1152,7 +1154,7 @@ local function tickVisit(v: any, dt: number)
 		if due > 0 and away > C.Treat.UnpaidGrace then
 			Visit.finish(v, "walkout", "수납하지 않고 병원을 떠났어요")
 			return
-		elseif due == 0 and away > (if WAITING[v.step] then 150 else C.Treat.UnpaidGrace + 60) then
+		elseif due == 0 and v.step ~= "need_money" and away > (if WAITING[v.step] then 150 else C.Treat.UnpaidGrace + 60) then
 			Visit.finish(v, "walkout", "병원을 떠나서 접수가 취소됐어요")
 			return
 		end

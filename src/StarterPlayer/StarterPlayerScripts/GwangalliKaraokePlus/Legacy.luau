@@ -3,8 +3,8 @@
 -- show next to ours, and the old TV would sit under our TV).
 --   * PlayerGui.GwangalliVenues: KaraokeBar / KaraokeStrip / KaraokeTap / KaraokePicker are destroyed
 --     (again whenever they reappear; the legacy code tolerates writes to destroyed objects).
---   * every booth KaraokeScreen: the legacy SurfaceGui "KaraokeTV" is disabled and kept disabled
---     (DetailLOD re-enables guis when a booth streams back in).
+--   * every booth KaraokeScreen: the legacy SurfaceGui "KaraokeTV" and the placeholder "SignGui" are
+--     disabled and kept disabled (DetailLOD re-enables guis when a booth streams back in).
 -- The legacy chiptune never starts: the add-on never writes the booth attribute KSong.
 
 local Players = game:GetService("Players")
@@ -33,14 +33,18 @@ local function keepTvOff(sg: Instance)
 	end)
 end
 
+-- the screen's own placeholder sign ("ROOM 01 / 문 옆 패널에서 …") sits under our TV: the legacy client
+-- hid it while its TV existed, we keep doing that (local only; the panel's sign is left alone)
+local HIDE = { KaraokeTV = true, SignGui = true }
+
 local function watchScreen(scr: Instance)
 	for _, c in scr:GetChildren() do
-		if c.Name == "KaraokeTV" then
+		if HIDE[c.Name] then
 			keepTvOff(c)
 		end
 	end
 	scr.ChildAdded:Connect(function(c)
-		if c.Name == "KaraokeTV" then
+		if HIDE[c.Name] then
 			task.defer(keepTvOff, c)
 		end
 	end)

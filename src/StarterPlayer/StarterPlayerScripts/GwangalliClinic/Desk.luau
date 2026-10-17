@@ -402,7 +402,7 @@ local function methodButtons(parent: Instance, bill: any, onPay: (string) -> (),
 		onPay("cash")
 	end })
 	if onDefer and (m.card or 0) < due and (m.cash or 0) < due then
-		Ui.text(parent, { Text = "잔액이 모자라요. ATM 에서 출금하거나, 미납으로 처리하고 다음에 낼 수 있어요.", Font = F.med, TextSize = 12, TextColor3 = Col.red, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 81 })
+		Ui.text(parent, { Text = "잔액이 모자라요. ATM에서 출금하거나, 미납으로 처리하고 다음에 낼 수 있어요.", Font = F.med, TextSize = 12, TextColor3 = Col.red, TextWrapped = true, AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 81 })
 		Ui.btn(parent, { text = "🧾 미납으로 처리 (다음 진료 때 청구)", style = "ghost", size = UDim2.new(1, 0, 0, 44), order = 82, onClick = onDefer })
 	end
 	return card
@@ -504,7 +504,7 @@ function Desk.onWard(p: any)
 	local debt = p.debt or 0
 	local line = if p.wake == "collapse" then "정신이 드세요? 쓰러지셔서 구급차로 실려 오셨어요. 이제 괜찮아요." else "정신이 드세요? 다치셔서 응급실로 오셨어요. 많이 놀라셨죠."
 	if debt > 0 then
-		local pick = Ui.ask("nurse2", line .. string.format(" 응급 진료비 중 %s 이 미납이에요. 퇴원하실 때 1층 원무과에 들러 주세요.", S.won(debt)), { "알겠어요", "조금 더 누워 있을게요" }, { name = "입원실 간호사" })
+		local pick = Ui.ask("nurse2", line .. string.format(" 응급 진료비 중 %s이 미납이에요. 퇴원하실 때 1층 원무과에 들러 주세요.", S.won(debt)), { "알겠어요", "조금 더 누워 있을게요" }, { name = "입원실 간호사" })
 		if pick == 2 then
 			ctx.call("ward", { action = "rest" }, { quiet = true })
 		end

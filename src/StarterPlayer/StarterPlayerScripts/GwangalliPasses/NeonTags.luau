@@ -10,20 +10,20 @@ local RunService = game:GetService("RunService")
 local NeonTags = {}
 
 local P: any, K: any, Neon: any, Config: any
-local holder: ScreenGui? = nil
+local holder: Folder? = nil
 local tags: { [Player]: { gui: BillboardGui, grads: { UIGradient }, pal: any, conns: { RBXScriptConnection } } } = {}
 
-local function container(): ScreenGui
+-- a plain Folder in PlayerGui (a BillboardGui nested in a ScreenGui would not draw); it survives respawns
+local function container(): Folder
 	if holder and holder.Parent then
 		return holder
 	end
 	local pg = Players.LocalPlayer:WaitForChild("PlayerGui")
-	local g = Instance.new("ScreenGui")
-	g.Name = "GwangalliPassesTags"
-	g.ResetOnSpawn = false
-	g.Parent = pg
-	holder = g
-	return g
+	local f = Instance.new("Folder")
+	f.Name = "GwangalliPassesTags"
+	f.Parent = pg
+	holder = f
+	return f
 end
 
 local function drop(p: Player)

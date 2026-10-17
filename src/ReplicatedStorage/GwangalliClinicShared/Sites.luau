@@ -65,10 +65,11 @@ Sites.STAFF = {
 }
 
 -- world displays the client draws on (SurfaceGui in PlayerGui, Adornee = the part)
+-- (at / size: our own local screen when the map part does not exist at all)
 Sites.SCREENS = {
-	{ path = "1F/Lobby/LEDScreen", kind = "call", viewer = V(-508, 10, 272) },
-	{ path = "1F/WaitingRoom/LEDScreen", kind = "wait", viewer = V(-462, 10, 278) },
-	{ path = "1F/PharmacyCorner/PrescriptionScreen", kind = "rx", viewer = V(-538, 10, 291) },
+	{ path = "1F/Lobby/LEDScreen", kind = "call", viewer = V(-508, 10, 272), at = V(-510.81, 15.3, 291.6), size = V(13, 3, 0.2) },
+	{ path = "1F/WaitingRoom/LEDScreen", kind = "wait", viewer = V(-462, 10, 278), at = V(-468.84, 14.5, 292.95), size = V(10, 5.6, 0.2) },
+	{ path = "1F/PharmacyCorner/PrescriptionScreen", kind = "rx", viewer = V(-538, 10, 291), at = V(-535.48, 11.75, 299.25), size = V(4.4, 2.3, 0.1) },
 	{ path = "2F/Lounge/LEDScreen", kind = "wait", viewer = V(-494, 24, 300) },
 }
 
