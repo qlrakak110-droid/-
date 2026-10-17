@@ -180,7 +180,7 @@ return function(D: any)
 
 	D.item({
 		id = "ss_snowman", cat = "season", name = "눈사람 인형", price = 59000, decor = 3, style = "season", place = "floor",
-		size = { 1.8, 3.6, 1.8 }, tags = { "눈사람", "겨울", "크리스마스" },
+		size = { 3.2, 3.6, 1.8 }, tags = { "눈사람", "겨울", "크리스마스" },
 		slots = { S("scarf", "목도리", "red", { "fabric" }) },
 		build = function(k, W, H, Dp)
 			k:ball("Body", 1.7, 0, 0.85, 0, k:lit({ 248, 250, 255 }, "snow"), { solid = true })
@@ -221,11 +221,12 @@ return function(D: any)
 
 	D.item({
 		id = "ss_bokjumeoni", cat = "season", name = "설날 복주머니 장식", price = 22000, decor = 3, style = "season", place = "wall",
-		size = { 1.4, 2.2, 0.5 }, tags = { "설날", "복주머니", "명절", "새해" },
+		size = { 1.4, 2.2, 1.3 }, tags = { "설날", "복주머니", "명절", "새해" },
 		slots = { S("silk", "비단", "red", { "fabric", "velvet" }), S("knot", "매듭", "gold", { "fabric" }) },
 		build = function(k, W, H, Dp)
-			local z = Dp / 2 - 0.25
+			local z = Dp / 2 - 0.62
 			k:cyl("Hook", 0.15, 0.1, 0, H - 0.08, Dp / 2 - 0.07, "z", k:lit({ 200, 202, 206 }, "metal"))
+			k:box("Strap", 0.06, 0.06, 0.55, 0, H - 0.08, Dp / 2 - 0.4, "knot")
 			k:box("Cord", 0.05, 0.6, 0.05, 0, H - 0.4, z + 0.1, "knot")
 			k:ball("Pouch", 1.2, 0, 0.8, z, "silk", { solid = true })
 			k:cyl("Neck", 0.2, 0.55, 0, 1.35, z, "y", k:sh("silk", 0.9))

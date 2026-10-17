@@ -632,7 +632,16 @@ local function item(K: any, base: CFrame, sku: any, col: Color3, lab: Color3?, h
 			n += 1
 		end
 	elseif k == "pouch" then
-		K:ell("StPouch", V3(w, h, d), base * CF(0, h / 2, 0), L)
+		-- 스탠드 파우치 (젤리 · 물티슈): 납작한 몸통 + 윗 접착 띠 + 앞 창 (풍선처럼 둥근 공 대신)
+		K:box("StPouch", V3(w, h * 0.88, d), base * CF(0, h * 0.44, 0), L)
+		if two then
+			K:box("StPouchSeal", V3(w * 0.96, h * 0.1, d * 0.4), base * CF(0, h * 0.93, 0), lk(darker(col, 0.15)))
+			n += 1
+		end
+		if three then
+			K:plate("StPouchWindow", w * 0.5, h * 0.3, 0.012, base * CF(0, h * 0.42, d / 2), lk(lighter(col, 0.6)))
+			n += 1
+		end
 	elseif k == "pump" or k == "bottle" or k == "jug" then
 		local bh = h * 0.76
 		if k == "jug" then
@@ -1006,7 +1015,8 @@ local function fillSurf(K: any, s: any, catName: string, rng: () -> number, them
 		local w = sku.w * scale
 		local d = math.min((sku.d or sku.w) * scale, s.depth - 0.12)
 		-- 상자류는 칸 깊이만큼 (한 줄 재고가 통째로 보임) → 뒤 재고 덩어리 대신 라벨에 파트를 씀
-		local deep = (sku.k == "box" or sku.k == "medbox" or sku.k == "pack" or sku.k == "towel") and o.back ~= false and w <= 0.7
+		-- (단계 2 이상은 앞줄 실제 깊이 + 묶음 뒤 재고 덩어리: 옆에서 봐도 긴 막대 한 개가 아니라 줄지어 선 상자)
+		local deep = (sku.k == "box" or sku.k == "medbox" or sku.k == "pack" or sku.k == "towel") and o.back ~= false and w <= 0.7 and (dl < 2 or s.depth - 0.16 < ((sku.d or sku.w) * scale) * 1.7)
 		if deep then
 			d = math.max(d, s.depth - 0.16)
 		end
@@ -1708,7 +1718,8 @@ local function walkIn(K: any, V: any, surfs: { any }, B: any, rng: () -> number,
 		for _, g in V.byName.FridgeGlow or {} do
 			if overlapXZ(g, fr, 0.9) and g.part.Transparency < 0.99 then
 				Scan.hide(K.hidden, g.part)
-				K:box("StFridgeBack", g.part.Size, g.lcf, lk(C(226, 230, 234), M.SmoothPlastic))
+				-- 은은하게 빛나는 뒤판 (원래 네온 판의 1/2 밝기: 냉장고 안이 밝아 보이되 상품이 실루엣이 되지 않게)
+				K:box("StFridgeBack", g.part.Size, g.lcf, Look.neon(C(128, 136, 144)))
 				-- 뒤판 세로 이음 (판넬 칸)
 				if K.detail ~= "low" then
 					local alongG = g.size.X >= g.size.Z
@@ -2644,18 +2655,22 @@ local function spinRack(K: any, pcf: CFrame, kind: string, object: string)
 	K:disc("StSpinBase", 1.4, 0.08, pcf * CF(0, 0.04, 0), Look.chrome)
 	local h = if kind == "postcard" then 5.2 else 4.6
 	K:vcyl("StSpinPole", h, 0.12, pcf * CF(0, h / 2, 0), Look.chrome)
-	local tiers = if kind == "postcard" then 6 else 5
+	local tiers = 5
 	for t = 1, tiers do
 		local y = 0.7 + (t - 1) * (h - 1.0) / tiers
 		for f = 0, 3 do
 			local a = f * PI / 2
 			local fc = pcf * ANG(0, a, 0) * CF(0, y, 0.3)
 			if kind == "postcard" then
-				keep(K:box("StSpinPocket", V3(0.62, 0.62, 0.05), fc * CF(0, 0.31, 0.12), { c = C(230, 236, 240), m = M.Glass, t = 0.5 }))
-				local col = ({ C(40, 120, 200), C(250, 160, 60), C(60, 170, 150), C(220, 80, 90), C(250, 220, 80), C(120, 90, 200) })[(t + f) % 6 + 1]
-				keep(K:box("StPostcard", V3(0.56, 0.74, 0.02), fc * CF(0, 0.4, 0.09), lk(col)))
+				-- 철사 주머니 + 흰 테 엽서 (사진 = 하늘 · 바다 두 띠, 일부는 광안대교 실루엣 · 야경)
+				keep(K:box("StSpinPocket", V3(0.62, 0.5, 0.05), fc * CF(0, 0.25, 0.14), { c = C(230, 236, 240), m = M.Glass, t = 0.55 }))
+				local card = fc * CF(0, 0.4, 0.09) * ANG(-0.06, 0, 0)
+				keep(K:box("StPostcard", V3(0.54, 0.7, 0.02), card, lk(C(250, 250, 246))))
+				local ph = ({ { C(120, 190, 240), C(30, 90, 170) }, { C(250, 170, 90), C(60, 70, 120) }, { C(20, 26, 60), C(30, 40, 90) }, { C(150, 210, 240), C(230, 210, 160) }, { C(240, 120, 150), C(250, 220, 230) }, { C(90, 170, 120), C(40, 110, 170) } })[(t * 3 + f) % 6 + 1]
+				keep(K:plate("StPostcardSky", 0.46, 0.34, 0.006, card * CF(0, 0.1, 0.01), lk(ph[1])))
+				keep(K:plate("StPostcardSea", 0.46, 0.22, 0.006, card * CF(0, -0.18, 0.01), lk(ph[2])))
 				if K.detail == "high" and (t + f) % 2 == 0 then
-					keep(K:plate("StPostcardSky", 0.5, 0.22, 0.005, fc * CF(0, 0.6, 0.1), lk(lighter(col, 0.5))))
+					keep(K:plate("StPostcardBridge", 0.44, 0.03, 0.008, card * CF(0, -0.06, 0.012), lk(if (t * 3 + f) % 6 == 2 then C(120, 220, 255) else C(40, 44, 52), if (t * 3 + f) % 6 == 2 then M.Neon else M.SmoothPlastic)))
 				end
 			else
 				keep(K:box("StLipShelf", V3(0.7, 0.04, 0.3), fc * CF(0, 0, 0.1), lk(C(250, 250, 250))))
@@ -2836,7 +2851,9 @@ local function railShirts(K: any, V: any, cols: { Color3 }, rng: () -> number)
 		for i, s in shirts do
 			local p = if alongX then V3(s.c.X, rail.max.Y + 0.02, rail.c.Z) else V3(rail.c.X, rail.max.Y + 0.02, s.c.Z)
 			local h = math.min(2.3, rail.max.Y - 1.2)
-			hangerShirt(K, p, n, pick(rng, cols), hi and (i % 2 == 0 or K.detail == "high"), h)
+			-- 옷걸이마다 살짝 다른 각도 (자로 잰 듯한 판 줄 대신 걸린 옷처럼)
+			local nj = CFrame.Angles(0, (rng() - 0.5) * 0.18, 0):VectorToWorldSpace(n)
+			hangerShirt(K, p, nj, pick(rng, cols), hi and (i % 2 == 0 or K.detail == "high"), h * (0.94 + rng() * 0.08))
 			Scan.hide(K.hidden, s.part)
 		end
 		-- 봉 끝 사이즈 표 · 가격
@@ -4544,10 +4561,10 @@ function T.build(K: any, V: any, S: any)
 			local B = BRANDS[sub] or BRANDS.indie
 			local nm = if sub == "indie" then tostring(V.name or B.name) else B.name
 			local LB: { [string]: any } = {
-				seven = { { title = "세븐일레븐 이달의 행사", sub = "1+1 · 2+1 · 덤 증정 · 세븐앱 쿠폰 할인", bg = B.main, fg = WHITE, fg2 = C(255, 214, 160), band = B.sub }, { title = "세븐셀렉트 신상품", sub = "도시락 · 삼각김밥 · 디저트 · 하이볼", bg = C(250, 250, 248), fg = B.main, fg2 = B.accent, band = B.sub } },
-				gs25 = { { title = "GS25 갓생기획", sub = "이달의 1+1 · 2+1 · 우리동네GS 앱 픽업", bg = B.main, fg = WHITE, fg2 = C(200, 236, 255), band = B.accent }, { title = "유어스 신상품", sub = "유어스 도시락 · 삼각김밥 · 카페25 커피", bg = C(250, 250, 248), fg = B.main, fg2 = B.dark, band = B.sub } },
-				cu = { { title = "CU 득템 행사", sub = "1+1 · 2+1 · 포켓CU 앱 쿠폰", bg = B.main, fg = WHITE, fg2 = B.sub, band = B.sub }, { title = "헤이루 PB 신상품", sub = "도시락 · 연세우유 크림빵 · GET 커피", bg = C(250, 250, 248), fg = B.main, fg2 = C(90, 130, 30), band = B.sub } },
-				emart24 = { { title = "emart24 이달의 행사", sub = "1+1 · 2+1 · 노브랜드 상품 · 와인 할인", bg = B.main, fg = B.dark, fg2 = C(120, 20, 20), band = B.dark }, { title = "아임e 신상품", sub = "도시락 · 샌드위치 · 이프레소 커피", bg = C(52, 52, 54), fg = B.main, fg2 = WHITE, band = B.main } },
+				seven = { { title = "세븐일레븐 이달의 행사", sub = "1+1 · 2+1 · 덤 증정 · 세븐앱 쿠폰 할인", bg = B.main, fg = WHITE, fg2 = C(255, 214, 160), band = B.sub }, { title = "세븐카페 원두커피", sub = "아메리카노 1,300 · 택배 접수 · 세븐앱 픽업", bg = C(250, 250, 248), fg = B.main, fg2 = B.accent, band = B.sub } },
+				gs25 = { { title = "GS25 갓생기획", sub = "이달의 1+1 · 2+1 · 우리동네GS 앱 픽업", bg = B.main, fg = WHITE, fg2 = C(200, 236, 255), band = B.accent }, { title = "카페25 원두커피", sub = "아이스 아메리카노 1,800 · 반값택배 접수", bg = C(250, 250, 248), fg = B.main, fg2 = B.dark, band = B.sub } },
+				cu = { { title = "CU 득템 행사", sub = "1+1 · 2+1 · 포켓CU 앱 쿠폰", bg = B.main, fg = WHITE, fg2 = B.sub, band = B.sub }, { title = "GET 커피", sub = "연세우유 크림빵과 함께 · 알뜰택배 접수", bg = C(250, 250, 248), fg = B.main, fg2 = C(90, 130, 30), band = B.sub } },
+				emart24 = { { title = "emart24 이달의 행사", sub = "1+1 · 2+1 · 노브랜드 상품 · 와인 할인", bg = B.main, fg = B.dark, fg2 = C(120, 20, 20), band = B.dark }, { title = "이프레소 원두커피", sub = "아메리카노 1,500 · 택배 접수 · 앱 픽업", bg = C(52, 52, 54), fg = B.main, fg2 = WHITE, band = B.main } },
 				indie = { { title = nm, sub = "신선식품 · 생활용품 · 음료 · 주류 매일 할인", bg = B.main, fg = WHITE, fg2 = C(255, 230, 140), band = B.accent } },
 			}
 			n = lightboxes(K, V, { "left", "right", "back" }, math.max(6.9, V.H - 2.9), V.H - 0.45, LB[sub] or LB.indie, 2, 8)

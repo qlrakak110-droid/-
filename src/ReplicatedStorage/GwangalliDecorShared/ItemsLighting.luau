@@ -11,16 +11,16 @@ return function(D: any)
 	-- 아크 플로어 스탠드 ----------------------------------------------------------------------------
 	D.item({
 		id = "lt_floor_arc", cat = "lighting", name = "아크 플로어 스탠드", price = 260000, decor = 4, style = "modern", place = "floor",
-		size = { 4.4, 6.6, 1.6 }, tags = { "스탠드", "장스탠드", "조명" }, light = "warm",
+		size = { 4.9, 5.4, 1.6 }, tags = { "스탠드", "장스탠드", "조명" }, light = "warm",
 		slots = { S("metal", "프레임", "brass", MET), S("base", "받침", "carrara", { "marble", "concrete", "metal" }) },
 		build = function(k, W, H, Dp)
 			k:cyl("Base", 0.35, 1.3, -W / 2 + 0.7, 0.175, 0, "y", "base", { solid = true })
 			local x0 = -W / 2 + 0.7
-			-- arc: 7 tilted segments from the base to the shade
-			local pts = {}
-			for i = 0, 7 do
-				local a = math.rad(i / 7 * 160)
-				table.insert(pts, Vector3.new(x0 + (1 - math.cos(a)) * 1.75, 0.35 + math.sin(a) * 2.6 + i * 0.42, 0))
+			-- straight pole, then an arc (radius 1.9) bending over to the shade
+			local pts = { Vector3.new(x0, 0.35, 0) }
+			for i = 0, 8 do
+				local phi = math.rad(180 - i * 150 / 8)
+				table.insert(pts, Vector3.new(x0 + 1.9 + math.cos(phi) * 1.9, 3.2 + math.sin(phi) * 1.9, 0))
 			end
 			for i = 1, #pts - 1 do
 				local a, b = pts[i], pts[i + 1]
@@ -116,8 +116,8 @@ return function(D: any)
 			k:box("Tube", 0.4, 0.07, 0.07, 0.25, 0.66, z, "light", { glow = true })
 			k:box("Tube", 0.07, 0.75, 0.07, 0.7, 0.92, z, "light", { glow = true })
 			-- ♥
-			local hz = k:ball("Heart", 0.36, 1.45, 1.0, z, "light", { glow = true })
-			k:ball("Heart", 0.36, 1.75, 1.0, z, "light", { glow = true })
+			local hz = k:cyl("Heart", 0.07, 0.36, 1.45, 1.0, z, "z", "light", { glow = true })
+			k:cyl("Heart", 0.07, 0.36, 1.75, 1.0, z, "z", "light", { glow = true })
 			k:box("Heart", 0.42, 0.42, 0.07, 1.6, 0.78, z, "light", { glow = true, rz = 45 })
 			k:light(hz, 10, 1.1)
 		end,

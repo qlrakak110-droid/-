@@ -556,8 +556,17 @@ local function run(greet: string?)
 		v = ctx.visit
 		-- 진단
 		if v.dx then
-			Ui.say("doctor", (v.dx.find or "") .. (if v.dx.after then " " .. v.dx.after else ""), { hold = 6 })
-			task.wait(1.2)
+			Ui.say("doctor", v.dx.find or "진찰 끝났어요.", { hold = 4 })
+			task.wait(2.2)
+			-- the doctor names the real cause (work log · fatigue) before the diagnosis card
+			local cause = v.dx.cause
+			if type(cause) == "string" and cause ~= "" and alive(token) then
+				local reply = if v.dx.kindName then "네… 너무 무리했나 봐요" elseif (v.dx.fatigue or 0) >= 50 then "요즘 좀 바빴어요" else "다행이네요!"
+				Ui.ask("doctor", cause .. (if v.dx.after then " " .. v.dx.after else ""), { reply }, { abort = abort })
+			end
+			if not alive(token) then
+				return
+			end
 			showDx(v, token)
 		end
 		-- wait until the step changes (plan chosen) or the visit ends; a closed sheet leaves a way back

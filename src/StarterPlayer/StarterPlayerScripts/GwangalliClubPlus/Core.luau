@@ -140,7 +140,7 @@ function Core.reduced(): boolean
 end
 
 -------------------------------------------------------------------------------------------------
--- where am I: ClubZone parts (Zone_Main / Zone_Lobby / ... ; "Near" is the street)
+-- where am I: ClubZone parts (attribute Zone = Main / Lobby / ... ; "Near" is the street)
 -------------------------------------------------------------------------------------------------
 Core.zone = ""
 Core.inside = false
@@ -151,6 +151,15 @@ function Core.root(): BasePart?
 	local ch = Core.player.Character
 	local r = ch and ch:FindFirstChild("HumanoidRootPart")
 	return if r and r:IsA("BasePart") then r else nil
+end
+
+-- a ClubZone part's room name: its Zone attribute (Club.server / ClubLights contract), else its name
+function Core.zoneName(z: Instance): string
+	local a = z:GetAttribute("Zone")
+	if type(a) == "string" and a ~= "" then
+		return (a:gsub("^Zone_", ""))
+	end
+	return (z.Name:gsub("^Zone_", ""))
 end
 
 local function pollZone()
@@ -164,7 +173,7 @@ local function pollZone()
 				local lp = z.CFrame:PointToObjectSpace(pos)
 				local h = z.Size * 0.5
 				if math.abs(lp.X) <= h.X and math.abs(lp.Y) <= h.Y + 2 and math.abs(lp.Z) <= h.Z then
-					local name = (z.Name:gsub("^Zone_", ""))
+					local name = Core.zoneName(z)
 					local pri = tonumber(z:GetAttribute("Priority")) or (if name == "Near" then 1 else 5)
 					if pri > bestPri then
 						bestPri = pri
@@ -430,8 +439,13 @@ end
 
 -- the main room's box (Zone_Main), used to clip laser beams inside the walls
 function Core.mainBox(): (CFrame?, Vector3?)
+	local c = Core.mainBoxCache
+	if c and c.Parent then
+		return c.CFrame, c.Size
+	end
 	for _, z in CollectionService:GetTagged("ClubZone") do
-		if z:IsA("BasePart") and (z.Name == "Zone_Main" or z.Name == "Main") then
+		if z:IsA("BasePart") and Core.zoneName(z) == "Main" then
+			Core.mainBoxCache = z
 			return z.CFrame, z.Size
 		end
 	end

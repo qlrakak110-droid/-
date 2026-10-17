@@ -33,6 +33,7 @@ local ANG = CFrame.Angles
 local PI = math.pi
 local rgb = Color3.fromRGB
 local WHITE = rgb(255, 255, 255)
+local WALL_OFF = 0.05 -- 벽 부착물은 타일 · 줄눈 · 색띠(최대 0.045) 앞에
 
 -- 공용 도우미 ------------------------------------------------------------------------------------------
 local function col(c: Color3, m: Enum.Material?, extra: any?): any
@@ -223,6 +224,36 @@ local function freeSpans(K: any, wn: string, y0: number, y1: number, depth: numb
 					end
 				end
 				segs = nxt
+			end
+		end
+		-- 맵 간판 (Sign_*) 은 Scan 이 쉘로 분류해 빈 구간에서 빠지지 않으므로 여기서 뺌
+		for _, r in V.parts do
+			if string.sub(r.name, 1, 5) == "Sign_" and r.max.Y > y0 and r.min.Y < y1 then
+				local umin, umax, dmin = math.huge, -math.huge, math.huge
+				for _, x in { r.min.X, r.max.X } do
+					for _, z in { r.min.Z, r.max.Z } do
+						local uu, dd = V:wallCoord(wn, V3(x, 0, z))
+						umin = math.min(umin, uu)
+						umax = math.max(umax, uu)
+						dmin = math.min(dmin, dd)
+					end
+				end
+				if dmin <= 1.0 then
+					local nxt = {}
+					for _, g in segs do
+						if umax + 0.3 <= g[1] or umin - 0.3 >= g[2] then
+							table.insert(nxt, g)
+						else
+							if umin - 0.3 > g[1] then
+								table.insert(nxt, { g[1], umin - 0.3 })
+							end
+							if umax + 0.3 < g[2] then
+								table.insert(nxt, { umax + 0.3, g[2] })
+							end
+						end
+					end
+					segs = nxt
+				end
 			end
 		end
 		for _, g in segs do
@@ -625,8 +656,8 @@ local function themeFor(V: any): any
 	th.lowerKind = "tile"
 	th.lowerH = 4.2
 	th.floor = { look = L.of(150, 154, 156, M.Slate), tile = 2.0, grout = L.of(118, 122, 124) }
-	th.stool = { style = "wood", frame = L.chrome, seat = L.of(40, 84, 168, M.Leather) }
-	th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), edge = L.of(150, 152, 154, M.SmoothPlastic, { r = 0.1 }), base = L.chrome, thick = 0.12, r = 0.06 }
+	th.stool = { kind = "steel", frame = L.chrome, seat = L.of(40, 84, 168, M.Leather) }
+	th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), edge = L.of(150, 152, 154, M.SmoothPlastic, { r = 0.1 }), base = L.chrome, thick = 0.12, r = 0 }
 	th.counter = { front = "panel", frontL = L.of(188, 192, 196, M.Metal), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(200, 230, 255) }
 	th.chair = { style = "padded", frame = L.blackMetal, seat = L.fabricGrey }
 	th.splash = L.of(244, 246, 246, M.CeramicTiles)
@@ -644,8 +675,8 @@ local function themeFor(V: any): any
 		th.band = L.of(70, 48, 34, M.Wood)
 		th.upper = L.of(236, 228, 210, M.SmoothPlastic)
 		th.floor = { look = L.of(118, 110, 100, M.Slate), tile = 2.0, grout = L.of(92, 86, 78) }
-		th.stool = { style = "wood", frame = L.darkWood, seat = L.of(176, 132, 88, M.Wood) }
-		th.table = { style = "four", top = L.of(132, 92, 60, M.Wood), base = L.blackMetal, thick = 0.16, r = 0.05 }
+		th.stool = { kind = "wood", frame = L.darkWood, seat = L.of(176, 132, 88, M.Wood) }
+		th.table = { style = "four", top = L.of(132, 92, 60, M.Wood), base = L.blackMetal, thick = 0.16, r = 0 }
 		th.counter = { front = "wood", frontL = L.of(100, 70, 48, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
 		th.wifi = "JINMI_5G"
 	elseif variant == "red" then
@@ -654,7 +685,7 @@ local function themeFor(V: any): any
 		th.band = L.of(196, 36, 40, M.CeramicTiles)
 		th.upper = L.of(242, 238, 230, M.SmoothPlastic)
 		th.floor = { look = L.of(170, 172, 170, M.Slate), tile = 2.0, grout = L.of(136, 138, 136) }
-		th.stool = { style = "wood", frame = L.chrome, seat = L.of(190, 34, 36, M.Leather) }
+		th.stool = { kind = "steel", frame = L.chrome, seat = L.of(190, 34, 36, M.Leather) }
 		th.wifi = "SILLA_MULHOE"
 	elseif variant == "chojang" or variant == "market" then
 		th.accent = rgb(0, 112, 120)
@@ -663,8 +694,8 @@ local function themeFor(V: any): any
 		th.band = L.of(0, 120, 128, M.CeramicTiles)
 		th.upper = L.of(232, 242, 240, M.SmoothPlastic)
 		th.floor = { look = L.of(122, 128, 128, M.Slate), tile = 1.8, grout = L.of(98, 102, 102) }
-		th.stool = { style = "plastic", seat = L.of(206, 52, 46, M.Plastic) }
-		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
+		th.stool = { kind = "plastic", seat = L.of(206, 52, 46, M.Plastic) }
+		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0 }
 		th.wifi = if variant == "market" then "MILLAK_SUSAN" else "CHOJANG_FREE"
 		th.flags = true
 		th.fridgeHeader = "소주 · 맥주 · 음료"
@@ -675,8 +706,8 @@ local function themeFor(V: any): any
 		th.band = L.of(232, 112, 36, M.CeramicTiles)
 		th.upper = L.of(246, 244, 238, M.SmoothPlastic)
 		th.floor = { look = L.of(140, 142, 144, M.Slate), tile = 2.0, grout = L.of(110, 112, 114) }
-		th.stool = { style = "plastic", seat = L.of(38, 96, 196, M.Plastic) }
-		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0.04 }
+		th.stool = { kind = "plastic", seat = L.of(38, 96, 196, M.Plastic) }
+		th.table = { style = "four", top = L.of(196, 198, 198, M.SmoothPlastic, { r = 0.1 }), base = L.of(170, 174, 178, M.Metal), thick = 0.1, r = 0 }
 		th.tank = "shell"
 		th.flags = true
 		th.wifi = "JOGAE_JJIM"
@@ -690,8 +721,8 @@ local function themeFor(V: any): any
 		th.band = L.of(82, 30, 26, M.Wood)
 		th.upper = L.of(244, 236, 220, M.SmoothPlastic)
 		th.floor = { look = L.of(176, 164, 150, M.Slate), tile = 2.0, grout = L.of(140, 130, 118) }
-		th.stool = { style = "wood", frame = L.darkWood, seat = L.of(170, 40, 32, M.Leather) }
-		th.table = { style = "four", top = L.of(168, 122, 82, M.Wood), base = L.blackMetal, thick = 0.16, r = 0.05 }
+		th.stool = { kind = "wood", frame = L.darkWood, seat = L.of(170, 40, 32, M.Leather) }
+		th.table = { style = "four", top = L.of(168, 122, 82, M.Wood), base = L.blackMetal, thick = 0.16, r = 0 }
 		th.counter = { front = "wood", frontL = L.of(110, 40, 32, M.Wood), topL = L.of(206, 208, 208, M.SmoothPlastic, { r = 0.12 }), kickL = L.black, led = rgb(255, 214, 160) }
 		th.tank = "crab"
 		th.wifi = "DAEGE_MILLAK"
@@ -700,7 +731,7 @@ local function themeFor(V: any): any
 		th.accent2 = rgb(244, 176, 40)
 		th.band = L.of(0, 136, 156, M.CeramicTiles)
 		th.upper = L.of(228, 240, 238, M.SmoothPlastic)
-		th.stool = { style = "plastic", seat = L.of(40, 150, 90, M.Plastic) }
+		th.stool = { kind = "plastic", seat = L.of(40, 150, 90, M.Plastic) }
 		th.tank = "squid"
 		th.flags = true
 		th.wifi = "SQUID_GWANGAN"
@@ -714,9 +745,9 @@ local function themeFor(V: any): any
 		th.band = L.of(60, 44, 32, M.Wood)
 		th.upper = L.of(232, 222, 202, M.Plaster)
 		th.floor = { look = L.of(62, 62, 64, M.Slate), tile = 1.8, grout = L.of(44, 44, 46) }
-		th.stool = { style = "cushion", frame = L.blackMetal, seat = L.of(40, 36, 34, M.Leather) }
+		th.stool = { kind = "steel", frame = L.blackMetal, seat = L.of(40, 36, 34, M.Leather) }
 		th.chair = { style = "bentwood", frame = L.of(96, 66, 44, M.Wood), seat = L.of(120, 84, 56, M.Wood) }
-		th.table = { style = "four", top = L.of(226, 204, 166, M.Wood), base = L.blackMetal, thick = 0.18, r = 0.04 }
+		th.table = { style = "four", top = L.of(226, 204, 166, M.Wood), base = L.blackMetal, thick = 0.18, r = 0 }
 		th.counter = { front = "fluted", frontL = L.of(84, 60, 42, M.Wood), topL = L.of(232, 212, 172, M.Wood), kickL = L.black, led = rgb(255, 210, 150) }
 		th.splash = L.of(232, 222, 202, M.Plaster)
 		th.tank = "none"
@@ -739,7 +770,7 @@ function T.style(V: any): any
 	local th = themeFor(V)
 	local S: any = {
 		chair = th.chair,
-		stool = th.stool,
+		stool = false,
 		table = th.table,
 		counter = th.counter,
 		ceiling = if th.kind == "sushi" then { grid = false, skin = L.of(176, 140, 100, M.WoodPlanks) } else { grid = true },
@@ -748,9 +779,10 @@ function T.style(V: any): any
 		lights = { kind = "none" },
 		mat = { look = L.of(44, 46, 50, M.Fabric), text = if th.kind == "sushi" then "いらっしゃいませ" else "어서오세요" },
 		plants = { "snake", "ficus", "bamboo" },
+		clock = false,
 	}
 	if th.lowerKind == "wainscot" then
-		S.lower = { kind = "wainscot", h = th.lowerH, look = th.tile, cap = th.band, panel = 1.8, walls = { "left", "right", "back" } }
+		S.lower = { kind = "wainscot", h = th.lowerH, look = th.tile, cap = th.band, panel = 2.8, walls = { "left", "right", "back" } }
 	elseif th.lowerKind == "louver" then
 		S.lower = { kind = "louver", h = th.lowerH, look = th.tile, back = L.of(60, 46, 34, M.Wood), pitch = 0.5, walls = { "left", "right", "back" } }
 	else
@@ -758,6 +790,70 @@ function T.style(V: any): any
 	end
 	S.th = th
 	return S
+end
+
+-- 스툴 (맵 Stool 을 같은 자리 · 같은 높이로): steel = 크롬 4다리 + 사각 가로대 + 비닐 쿠션 (횟집 표준),
+-- wood = 원목, plastic = 포차 원형 플라스틱. Common 스툴보다 파트가 적음 (8~10, 저사양 3)
+local function stoolsOver(c: any)
+	local K, V, th = c.K, c.V, c.th
+	local spec = th.stool
+	if not spec then
+		return
+	end
+	for _, ch in V.stools do
+		local s = ch.seat
+		if s.part:IsA("Seat") and s.part.Transparency >= 0.99 then
+			continue
+		end
+		local top = ch.top
+		local dia = math.max(0.9, math.min(1.6, math.max(s.size.X, s.size.Z)))
+		local base = CF(s.c.X, 0, s.c.Z)
+		K:free(function()
+			local seatL = spec.seat
+			if spec.kind == "plastic" then
+				K:disc("StoolSeat", dia, 0.12, base * CF(0, top - 0.06, 0), seatL)
+				K:disc("StoolBody", dia * 0.9, top * 0.5, base * CF(0, top - 0.12 - top * 0.25, 0), seatL)
+				K:disc("StoolSkirt", dia * 1.06, top * 0.4, base * CF(0, top * 0.2, 0), seatL)
+				if c.hi then
+					K:disc("StoolGrip", dia * 0.32, 0.02, base * CF(0, top + 0.005, 0), dim(seatL, 0.35))
+				end
+				return
+			end
+			local fr = spec.frame
+			local ct = if spec.kind == "wood" then 0.14 else 0.2
+			K:disc("StoolSeat", dia, ct, base * CF(0, top - ct / 2, 0), seatL)
+			if spec.kind ~= "wood" then
+				K:disc("StoolSeatPan", dia * 0.84, 0.06, base * CF(0, top - ct - 0.03, 0), fr)
+			end
+			if K.detail == "low" then
+				K:vcyl("StoolPost", top - ct, 0.2, base * CF(0, (top - ct) / 2, 0), fr)
+				return
+			end
+			local r0, r1 = dia * 0.28, dia * 0.4
+			local feet = {}
+			local legD = if spec.kind == "wood" then 0.12 else 0.09
+			for i = 0, 3 do
+				local a = i * PI / 2 + PI / 4
+				local p0 = base * V3(math.cos(a) * r0, top - ct - 0.04, math.sin(a) * r0)
+				local p1 = base * V3(math.cos(a) * r1, 0.02, math.sin(a) * r1)
+				K:seg("StoolLeg", p0, p1, legD, fr)
+				table.insert(feet, { p0, p1 })
+			end
+			local ry = top * 0.34
+			local pts = {}
+			for i, f in feet do
+				local k = (ry - f[2].Y) / (f[1].Y - f[2].Y)
+				pts[i] = f[2]:Lerp(f[1], k)
+			end
+			for i = 1, 4 do
+				K:seg("StoolRung", pts[i], pts[i % 4 + 1], legD * 0.65, fr)
+			end
+		end)
+		for _, r in ch.parts do
+			hideRec(K, r)
+		end
+		K:reserve(V3(s.min.X - 0.2, 0, s.min.Z - 0.2), V3(s.max.X + 0.2, top + 0.5, s.max.Z + 0.2), "stool")
+	end
 end
 
 -- 윗벽 마감 (페인트 + 띠) ----------------------------------------------------------------------------------
@@ -778,7 +874,7 @@ local function wallFinish(c: any)
 			-- 아랫벽 위 띠 (타일 벽: 색 타일 한 줄)
 			if th.lowerKind == "tile" then
 				for _, s in V:spans(wn, y0 - 0.05, y0 + 0.3, 0.25) do
-					K:plate("TileBand", s[2] - s[1], 0.3, 0.05, V:wall(wn, (s[1] + s[2]) / 2, y0 + 0.15, 0.01), th.band)
+					K:plate("TileBand", s[2] - s[1], 0.3, 0.03, V:wall(wn, (s[1] + s[2]) / 2, y0 + 0.15, 0.012), th.band)
 				end
 			end
 		end
@@ -1474,11 +1570,11 @@ local function kitchen(c: any)
 		if th.kind ~= "sushi" then
 			local wn, u, w = findWall(K, { "back" }, 1.6, 2.4, topY + 1.2, topY + 2.6, bx, 0.6)
 			if wn and u and w then
-				knifeSet(c, V:wall("back", u, topY + 2.45, 0.0), w)
+				knifeSet(c, V:wall("back", u, topY + 2.45, WALL_OFF), w)
 			end
 			local wn2, u2 = findWall(K, { "back" }, 1.5, 1.5, topY + 0.6, topY + 2.3, bx + 3.2, 0.6)
 			if wn2 and u2 then
-				uvSterilizer(c, V:wall("back", u2, topY + 1.45, 0.0))
+				uvSterilizer(c, V:wall("back", u2, topY + 1.45, WALL_OFF))
 			end
 		end
 		-- 스텐 선반 (6.6) + 접시 · 소스병
@@ -2102,7 +2198,7 @@ local function ceilingNet(c: any)
 			local function P(u: number, v: number): Vector3
 				return V3(x - nw / 2 + nw * u, y(u, v), zc - nd / 2 + nd * v)
 			end
-			local nu, nv = 8, 4
+			local nu, nv = 6, 3
 			for j = 0, nv do
 				local v = j / nv
 				for i = 0, nu - 1, 2 do
@@ -2172,8 +2268,8 @@ local function wallFan(c: any, dcf: CFrame): (any, BasePart)
 	local head = dcf * CF(0, -0.18, 0.95) * ANG(math.rad(-18), 0, 0)
 	K:ell("FanMotor", V3(0.55, 0.55, 0.75), head * CF(0, 0, -0.18), plastic)
 	local R = 0.8
-	K:ring("FanGuard", head * CF(0, 0, 0.32), R, 0.04, 14, plastic)
-	K:ring("FanGuard", head * CF(0, 0, 0.06), R, 0.04, 14, plastic)
+	K:ring("FanGuard", head * CF(0, 0, 0.32), R, 0.04, 10, plastic)
+	K:ring("FanGuard", head * CF(0, 0, 0.06), R, 0.04, 10, plastic)
 	for i = 0, 5 do
 		local a = i * PI / 3
 		K:seg("FanSpoke", (head * CF(0, 0, 0.34)).Position, (head * CF(math.cos(a) * R, math.sin(a) * R, 0.32)).Position, 0.022, plastic)
@@ -2282,15 +2378,12 @@ local function drinkFridge(c: any, pcf: CFrame, nd: number)
 		local y = 0.6 + (i - 1) * innerH / shelves + 0.02
 		K:box("FridgeShelf", V3(w - 0.3, 0.04, d - 0.5), pcf * CF(0, y, -0.1), L.of(190, 194, 198, M.Metal))
 		local kind = kinds[i]
-		local step0 = if kind == "sake" then 0.4 else 0.33
+		local step0 = if kind == "sake" then 0.44 else 0.4
 		local n = math.floor((w - 0.5) / step0)
 		local step = (w - 0.5) / n
 		for j = 1, n do
 			local x = -w / 2 + 0.25 + step * (j - 0.5)
 			bottle(K, pcf * CF(x, y + 0.02, 0.35), kind, c.hi and (j % 2 == 1))
-			if c.hi and j % 3 == 0 then
-				bottle(K, pcf * CF(x, y + 0.02, -0.15), kind, false)
-			end
 		end
 	end
 	local doors = {}
@@ -2365,8 +2458,8 @@ local function giftPlant(c: any, pcf: CFrame)
 		local root = pcf * V3(math.cos(a) * 0.2, 1.0, math.sin(a) * 0.2)
 		local tip = pcf * V3(math.cos(a) * (0.2 + lean * h), 1.0 + h, math.sin(a) * (0.2 + lean * h))
 		K:seg("ZZStem", root, tip, 0.06, L.of(70, 110, 50))
-		for k = 1, 4 do
-			local p = root:Lerp(tip, 0.3 + k * 0.17)
+		for k = 1, 3 do
+			local p = root:Lerp(tip, 0.35 + k * 0.2)
 			K:ell("ZZLeaf", V3(0.3, 0.06, 0.16), CF(p) * ANG(0, a + k, 0.3), L.of(46, 110, 50, M.SmoothPlastic, { r = 0.1 }))
 		end
 	end
@@ -2715,12 +2808,12 @@ local function sushiDecor(c: any)
 		for i = 1, n do
 			table.insert(sub, tags[i])
 		end
-		woodTags(c, V:wall(wn, u, 7.3, 0), w, 1.8, sub)
+		woodTags(c, V:wall(wn, u, 7.3, WALL_OFF), w, 1.8, sub)
 	end
 	-- 파도 그림
 	local wn2, u2, w2 = findWall(K, { "right", "left" }, 3.6, 4.6, 4.4, 7.2, nil, 0.6)
 	if wn2 and u2 and w2 then
-		waveArt(c, V:wall(wn2, u2, 5.8, 0), w2, 2.4)
+		waveArt(c, V:wall(wn2, u2, 5.8, WALL_OFF), w2, 2.4)
 	end
 	-- 종이 등 (카운터 위): 형광등 · 에어컨 피해서 몇 줄 앞뒤로 시도
 	local g = V.counters[1]
@@ -2752,7 +2845,7 @@ local function sushiDecor(c: any)
 	-- 원산지 · 와이파이
 	local wn3, u3, w3 = findWall(K, { "left", "right", "back" }, 1.8, 1.8, 4.2, 6.6, nil, 0.6)
 	if wn3 and u3 and w3 then
-		originBoard(c, V:wall(wn3, u3, 5.4, 0), 1.8, 2.4)
+		originBoard(c, V:wall(wn3, u3, 5.4, WALL_OFF), 1.8, 2.4)
 	end
 	local _ = th
 end
@@ -2779,6 +2872,9 @@ function T.build(K: any, V: any, S: any)
 			K:note("seafood." .. name .. " error: " .. tostring(err))
 		end
 	end
+	step("stools", function()
+		stoolsOver(c)
+	end)
 	step("walls", function()
 		wallFinish(c)
 	end)
@@ -2879,7 +2975,7 @@ function T.build(K: any, V: any, S: any)
 				return promptWallOK(K, wn0, u0, 4.4, 0.5)
 			end)
 			if wn and u then
-				local sw = tankSwitchBox(c, V:wall(wn, u, 4.4, 0))
+				local sw = tankSwitchBox(c, V:wall(wn, u, 4.4, WALL_OFF))
 				local st = c.tankState
 				Interact.toggle(K, sw, {
 					object = "수족관 조명 · 기포기",
@@ -2912,7 +3008,7 @@ function T.build(K: any, V: any, S: any)
 		local w = math.min(9, math.max(6, V.D * 0.5))
 		local wn, u, ww = findWall(K, { A, B }, 6.0, w, 3.95, 7.75, pMid, 0.6)
 		if wn and u and ww then
-			menuLightbox(c, V:wall(wn, u, 5.85, 0), ww, 3.4)
+			menuLightbox(c, V:wall(wn, u, 5.85, WALL_OFF), ww, 3.4)
 			at(K, "menu", wn, u)
 		end
 	end)
@@ -2924,23 +3020,23 @@ function T.build(K: any, V: any, S: any)
 		end
 		local wn, u, w = findWall(K, { B, A, "back" }, 3.0, 3.8, 4.1, 7.1, pMid, 0.6)
 		if wn and u and w then
-			sigaBoard(c, V:wall(wn, u, 5.6, 0), w, 2.5)
+			sigaBoard(c, V:wall(wn, u, 5.6, WALL_OFF), w, 2.5)
 		end
 		local wn3, u3 = findWall(K, { B, "back", A }, 2.4, 2.4, 4.1, 7.1, pBack, 0.6)
 		if wn3 and u3 then
-			seasonChart(c, V:wall(wn3, u3, 5.6, 0), 2.4, 2.8)
+			seasonChart(c, V:wall(wn3, u3, 5.6, WALL_OFF), 2.4, 2.8)
 		end
 		local wn4, u4 = findWall(K, { B, A, "back" }, 1.7, 1.7, 4.0, 6.8, pFront, 0.6)
 		if wn4 and u4 then
-			sojuPoster(c, V:wall(wn4, u4, 5.4, 0), 1.7, 2.5)
+			sojuPoster(c, V:wall(wn4, u4, 5.4, WALL_OFF), 1.7, 2.5)
 		end
 		local wn2, u2 = findWall(K, { A, B, "back" }, 1.9, 1.9, 4.2, 6.9, pBack, 0.6)
 		if wn2 and u2 then
-			originBoard(c, V:wall(wn2, u2, 5.55, 0), 1.9, 2.5)
+			originBoard(c, V:wall(wn2, u2, 5.55, WALL_OFF), 1.9, 2.5)
 		end
 		local wn5, u5, w5 = findWall(K, { "back", B, A }, 3.6, 5.0, 4.5, 7.25, V3((V.x0 + V.x1) / 2 + 2, 0, V.z0), 0.6)
 		if wn5 and u5 and w5 then
-			bridgeArt(c, V:wall(wn5, u5, 5.85, 0), w5, 2.4)
+			bridgeArt(c, V:wall(wn5, u5, 5.85, WALL_OFF), w5, 2.4)
 		end
 	end)
 	-- 5) 위쪽 벽 (7.5 ~ 9.6): TV · 선풍기 (프롬프트 자리) 먼저, 그다음 사진 · 어탁 · 그물 · 풍어기
@@ -2953,7 +3049,7 @@ function T.build(K: any, V: any, S: any)
 			return promptWallOK(K, wn0, u0, 7.0, 0.6)
 		end)
 		if wn and u and w then
-			local scr, lbl = tvSet(c, V:wall(wn, u, 7.7, 0), w)
+			local scr, lbl = tvSet(c, V:wall(wn, u, 7.7, WALL_OFF), w)
 			lbl.Text = TV_CH[1].text
 			lbl.BackgroundColor3 = TV_CH[1].c
 			Interact.cycle(K, scr, TV_CH, {
@@ -2989,13 +3085,13 @@ function T.build(K: any, V: any, S: any)
 		if th.kind == "crab" then
 			local wn, u, w = findWall(K, { A, B }, 3.4, 3.6, yA - 0.4, yB + 0.1, pMid, 0.8)
 			if wn and u and w then
-				crabSign(c, V:wall(wn, u, mid, 0), w)
+				crabSign(c, V:wall(wn, u, mid, WALL_OFF), w)
 			end
 		end
 		if th.kind == "squid" then
 			local wn, u, w = findWall(K, { B, A }, 3.0, 5.0, yA - 0.6, yB, pMid, 0.8)
 			if wn and u and w then
-				squidLine(c, V:wall(wn, u, yB - 0.2, 0), w)
+				squidLine(c, V:wall(wn, u, yB - 0.2, WALL_OFF), w)
 			end
 		end
 		if isSushi then
@@ -3004,23 +3100,31 @@ function T.build(K: any, V: any, S: any)
 		if th.net then
 			local wn, u, w = findWall(K, { B, A, "back" }, 3.6, 5.2, yA, yB, pMid, 0.8)
 			if wn and u and w then
-				netDecor(c, V:wall(wn, u, mid, 0), w, hh - 0.2)
+				netDecor(c, V:wall(wn, u, mid, WALL_OFF), w, hh - 0.2)
 			end
 		end
 		local wn, u, w = findWall(K, { A, B, "back" }, 2.6, 3.2, yA, yB, pFront, 0.8)
 		if wn and u and w then
-			bigFlag(c, V:wall(wn, u, mid - 0.05, 0), w, hh - 0.35, if th.kind == "crab" then "만선" else "풍어")
+			bigFlag(c, V:wall(wn, u, mid - 0.05, WALL_OFF), w, hh - 0.35, if th.kind == "crab" then "만선" else "풍어")
 		end
 		local nPh = if c.hi then 4 else 2
 		for i = 1, nPh do
 			local wn2, u2 = findWall(K, { A, B, "back" }, 1.6, 1.6, yA, yB, if i % 2 == 1 then pMid else pBack, 0.8)
 			if wn2 and u2 then
 				if i == 2 then
-					gyotaku(c, V:wall(wn2, u2, mid, 0), 1.6, hh - 0.35)
+					gyotaku(c, V:wall(wn2, u2, mid, WALL_OFF), 1.6, hh - 0.35)
 				else
-					fishPhoto(c, V:wall(wn2, u2, mid, 0), 1.6, math.min(1.5, hh - 0.25), i)
+					fishPhoto(c, V:wall(wn2, u2, mid, WALL_OFF), 1.6, math.min(1.5, hh - 0.25), i)
 				end
 			end
+		end
+	end)
+	step("clock", function()
+		local wn, u = findWall(K, { "back", A, B }, 1.6, 1.6, 6.9, 8.6, { back = V.x1 * 0.45, left = 0, right = 0 }, 0.8)
+		if wn and u then
+			local dcf = V:wall(wn, u, 7.75, WALL_OFF)
+			local hr, mn = Props.clock(K, dcf, 1.4, if th.kind == "sushi" then { frame = L.of(84, 60, 42, M.Wood) } else nil)
+			Interact.clock(K, hr, mn, dcf, 1.4)
 		end
 	end)
 	-- 6) 작은 안내판
@@ -3033,12 +3137,12 @@ function T.build(K: any, V: any, S: any)
 		for i, p in plates do
 			local wn, u = findWall(K, { "back", A, B }, p[4], p[4], 3.9, 4.8, { back = -2 + i * 2.2, left = 4 - i * 2, right = -4 + i * 2 }, 0.6)
 			if wn and u then
-				infoPlate(c, V:wall(wn, u, 4.35, 0), p[4], p[5], p[1], p[2], p[3])
+				infoPlate(c, V:wall(wn, u, 4.35, WALL_OFF), p[4], p[5], p[1], p[2], p[3])
 			end
 		end
 		local wn, u = findWall(K, { "back", B, A }, 1.2, 1.2, 4.6, 6.4, { back = 2, left = 0, right = 0 }, 0.6)
 		if wn and u then
-			hygieneBadge(c, V:wall(wn, u, 5.5, 0))
+			hygieneBadge(c, V:wall(wn, u, 5.5, WALL_OFF))
 		end
 	end)
 	-- 7) 천장
@@ -3082,7 +3186,7 @@ function T.build(K: any, V: any, S: any)
 				return promptWallOK(K, wn0, u0, 4.8, 0.5)
 			end)
 			if wn and u then
-				local scr, lbl = bgmSpeaker(c, V:wall(wn, u, 5.1, 0))
+				local scr, lbl = bgmSpeaker(c, V:wall(wn, u, 5.1, WALL_OFF))
 				local songs = { { t = "♪ 시티팝" }, { t = "♪ 재즈 피아노" }, { t = "♪ 엔카" }, { t = "♪ 로파이" } }
 				Interact.cycle(K, scr, songs, {
 					action = "음악 바꾸기",
@@ -3100,7 +3204,7 @@ function T.build(K: any, V: any, S: any)
 					return promptWallOK(K, wn0, u0, 4.4, 0.4)
 				end)
 				if wn2 and u2 then
-					local dcf = V:wall(wn2, u2, 4.4, 0)
+					local dcf = V:wall(wn2, u2, 4.4, WALL_OFF)
 					local plate = Props.switchPlate(K, dcf, 1)
 					ktext(K, "LanternSwitchLabel", 0.6, 0.18, dcf * CF(0, 0.42, 0), "등불", { fg = rgb(60, 40, 30), bg = rgb(236, 226, 206), d = 0.02 })
 					Interact.toggle(K, plate, {
@@ -3126,7 +3230,7 @@ function T.build(K: any, V: any, S: any)
 		-- (e) 선풍기 (상호작용이 4개 미만일 때만)
 		if c.fanSpot and #K.prompts < 4 then
 			local fs = c.fanSpot
-			local st, knob = wallFan(c, V:wall(fs.wn, fs.u, 8.3, 0))
+			local st, knob = wallFan(c, V:wall(fs.wn, fs.u, 8.3, WALL_OFF))
 			Interact.toggle(K, knob, {
 				object = "벽걸이 선풍기",
 				state = true,

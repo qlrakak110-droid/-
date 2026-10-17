@@ -328,6 +328,19 @@ function Desk.beginRegister()
 	if not Ui.ask(who, line, { "네" }, { name = name, abort = abort }) then
 		return
 	end
+	-- the receptionist reads the real state: illness → 내과 (priority when severe), heavy fatigue → advice
+	if hv.kind then
+		local urgent = v.prio == true
+		local talk = string.format("%s %s 증상이 있으시네요. 피로도도 %d… 많이 힘드셨겠어요. %s 김선생님께 %s 접수해 드릴게요.", hv.kindIcon or "🤒", hv.kindName or "", hv.fatigue or 0, (C.Depts[v.dept] or C.Depts.im).name, if urgent then "응급 우선 순서로" else "바로")
+		if not Ui.ask(who, talk, { "네, 부탁드려요" }, { name = name, abort = abort }) then
+			return
+		end
+	elseif (hv.fatigue or 0) >= 75 then
+		local talk = string.format("얼굴이 많이 피곤해 보이세요. 피로도 %d이면 곧 탈 나요. 영양주사 상담도 같이 받아 보세요.", hv.fatigue or 0)
+		if not Ui.ask(who, talk, { "네, 그럴게요" }, { name = name, abort = abort }) then
+			return
+		end
+	end
 	if hv.onShift then
 		if not Ui.ask(who, S.Medical.line("desk_shift") .. " 퇴근하고 진료받으면 피로가 안 쌓여요.", { "알겠어요" }, { name = name, abort = abort }) then
 			return

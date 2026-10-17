@@ -838,7 +838,7 @@ function T.style(V: any): any
 		S.counter = { front = "fluted", frontL = Look.walnut, topL = lk(rgb(64, 64, 66), M.Slate), kickL = Look.black, led = rgb(255, 196, 140) }
 		S.floor = { look = Look.polishedConcrete, tile = 4.0, grout = lk(rgb(128, 126, 122)) }
 		-- 노출 천장: 낮은 천장(8 미만)은 짙은 색이 답답해서 중간 회색 콘크리트
-		S.ceiling = { skin = if V.H < 9 then lk(rgb(112, 110, 106), M.Concrete) else lk(rgb(78, 78, 80), M.Concrete) }
+		S.ceiling = { skin = if V.H < 9 then lk(rgb(120, 118, 114), M.Concrete) else lk(rgb(104, 103, 100), M.Concrete) }
 		S.pendant = { shade = "cone", look = Look.blackMetal }
 		S.lights = { kind = "downlight", color = Look.warmLight }
 		S.base = Look.black
@@ -1815,7 +1815,8 @@ local function bread(K: any, pcf: CFrame, kind: string, s: number)
 			K:ell("LoafTop", V3(0.25, 0.22, 0.44) * s, pcf * CF(i * 0.22 * s, 0.38 * s, 0), lk(rgb(178, 106, 44)))
 		end
 	elseif kind == "ciabatta" then
-		K:ell("Ciabatta", V3(0.8, 0.2, 0.46) * s, pcf * CF(0, 0.09 * s, 0), lk(rgb(226, 196, 150), M.Sand))
+		K:ell("Ciabatta", V3(0.8, 0.2, 0.46) * s, pcf * CF(0, 0.09 * s, 0), lk(rgb(206, 164, 104), M.Sand))
+		K:ell("CiabattaFlour", V3(0.5, 0.06, 0.28) * s, pcf * CF(0.04 * s, 0.17 * s, 0), lk(rgb(240, 232, 216), M.Sand))
 	elseif kind == "soboro" then
 		K:ell("Soboro", V3(0.52, 0.26, 0.52) * s, pcf * CF(0, 0.12 * s, 0), lk(rgb(214, 164, 92), M.Sand))
 	elseif kind == "goroke" then

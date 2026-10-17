@@ -32,7 +32,7 @@ return function(D: any)
 			for i = 0, 9 do
 				k:box("Reflect", 0.12, 0.02, 0.015, -1.8 + i * 0.4, 0.32 + (i % 3) * 0.06, z - 0.035, k:lit(if i % 2 == 0 then { 61, 214, 245 } else { 255, 79, 163 }, "neon"), { glow = true })
 			end
-			k:ball("Moon", 0.28, 1.5, H - 0.6, z - 0.02, k:lit({ 255, 246, 220 }, "neon"), { glow = true })
+			k:cyl("Moon", 0.03, 0.28, 1.5, H - 0.6, z - 0.02, "z", k:lit({ 255, 246, 220 }, "neon"), { glow = true })
 		end,
 	})
 
@@ -74,7 +74,7 @@ return function(D: any)
 					k:box("Hill", 1.1, 0.4, 0.03, a[1], a[2] - 0.6, z, k:lit({ 120, 140, 100 }))
 				elseif i == 2 then
 					k:box("Line", 0.06, 0.9, 0.03, a[1] - 0.2, a[2], z, k:lit({ 30, 30, 34 }), { rz = 20 })
-					k:ball("Dot", 0.3, a[1] + 0.25, a[2] + 0.2, z, "accent")
+					k:cyl("Dot", 0.03, 0.3, a[1] + 0.25, a[2] + 0.2, z, "z", "accent")
 				elseif i == 3 then
 					k:box("Block", 0.4, 0.6, 0.03, a[1] - 0.2, a[2], z, k:lit({ 214, 162, 58 }))
 					k:box("Block", 0.4, 0.4, 0.03, a[1] + 0.22, a[2] - 0.1, z, k:lit({ 48, 62, 100 }))

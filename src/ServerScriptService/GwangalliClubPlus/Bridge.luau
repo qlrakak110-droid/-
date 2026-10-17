@@ -302,7 +302,9 @@ end
 -- inside a club room: the club's hook first, then the ClubZone boxes (not the street "Near" zone)
 local function inZoneParts(pos: Vector3): boolean
 	for _, z in CollectionService:GetTagged("ClubZone") do
-		if z:IsA("BasePart") and not string.find(z.Name, "Near", 1, true) then
+		local zn = z:GetAttribute("Zone")
+		local near = (type(zn) == "string" and zn == "Near") or (type(zn) ~= "string" and string.find(z.Name, "Near", 1, true) ~= nil)
+		if z:IsA("BasePart") and not near then
 			local lp = z.CFrame:PointToObjectSpace(pos)
 			local h = z.Size * 0.5
 			if math.abs(lp.X) <= h.X and math.abs(lp.Y) <= h.Y + 2 and math.abs(lp.Z) <= h.Z then

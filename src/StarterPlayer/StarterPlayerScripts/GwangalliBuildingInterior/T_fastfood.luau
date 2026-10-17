@@ -862,9 +862,9 @@ local function poster(ctx: any, dcf: CFrame, w: number, h: number, o: any)
 	for i, t in o.texts or {} do
 		K:text("FfPosterText", t[4], t[5], face * CF(t[2], t[3], z + i * 0.003), t[1], { fg = t[6], font = t[7] or F.GothamBlack, align = t[8], glow = t[9] or o.textGlow, d = 0.006 })
 	end
-	if o.glass and not ctx.low then
-		-- 액자 유리: 반사가 크면 그림이 하얗게 날아가므로 아주 옅게 (반사 0.03)
-		K:plate("FfPosterGlass", iw, ih, 0.01, dcf * CF(0, 0, dep - 0.012), { c = rgb(236, 240, 244), m = M.Glass, t = 0.93, r = 0.03 })
+	if o.glass and ctx.high then
+		-- 액자 유리 = 위 가장자리 한 줄 하이라이트만 (유리 판을 덮으면 반사 · 밤 조명에 그림이 하얗게 날아감)
+		K:plate("FfPosterGloss", iw - 0.04, 0.03, 0.006, dcf * CF(0, ih / 2 - 0.05, dep - 0.02), { c = rgb(250, 250, 250), m = M.SmoothPlastic, t = 0.6 })
 	end
 end
 
