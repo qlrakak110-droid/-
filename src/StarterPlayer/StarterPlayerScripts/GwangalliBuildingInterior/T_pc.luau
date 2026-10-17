@@ -361,7 +361,7 @@ local function poster(K: any, dcf: CFrame, w: number, h: number, spec: any)
 	local fr = Look.blackMetal
 	-- 백라이트 필름 (라이트박스 포스터): 바탕 · 키아트 모두 은은하게 발광
 	K:plate("PosterBox", w + 0.04, h + 0.04, 0.05, dcf, Look.blackMetal)
-	K:plate("PosterBack", w, h, 0.06, dcf, neon(lt(spec.bg, 0.06)))
+	K:plate("PosterBack", w, h, 0.06, dcf, neon(spec.bg))
 	local b = 0.09
 	K:plate("PosterFrame", w + 0.08, b, 0.1, dcf * CF(0, h / 2, 0), fr)
 	K:plate("PosterFrame", w + 0.08, b, 0.1, dcf * CF(0, -h / 2, 0), fr)
@@ -575,11 +575,13 @@ end
 
 -- 바닥 · 벽 마감 공용 ---------------------------------------------------------------------------------------
 -- 흡음 패널 벽: 빈 구간마다 패브릭 패널 + 사이 홈 + 위 RGB 채널 + 걸레받이. RGB 파트는 K.pc.rgb 에 등록
-local function acousticWall(K: any, wn: string, o: any?)
+local function acousticWall(K: any, wn: string, o: any?): { { number } }
 	local oo: any = o or {}
 	local y0, y1 = oo.y0 or 0.6, oo.y1 or 8.6
 	local pw = oo.pw or 2.3
+	local placed = {}
 	for _, s in freeSpans(K, wn, y0, y1, 1.0) do
+		table.insert(placed, s)
 		local len = s[2] - s[1]
 		local n = math.max(1, math.floor(len / pw + 0.5))
 		local step = len / n
@@ -600,7 +602,7 @@ local function acousticWall(K: any, wn: string, o: any?)
 		end
 	end
 	-- RGB 채널 (패널 위)
-	for _, s in freeSpans(K, wn, y1 + 0.1, y1 + 0.5, 1.0) do
+	for _, s in (if oo.noRGB then {} else freeSpans(K, wn, y1 + 0.1, y1 + 0.5, 1.0)) do
 		local p = K:plate("WallRGB", s[2] - s[1], 0.08, 0.06, W(K, wn, (s[1] + s[2]) / 2, y1 + 0.3, 0.02), neon(oo.rgb or C.cyan))
 		if p.Parent then
 			table.insert(K.pc.rgb, { p = p, c = oo.rgb or C.cyan, x = p.Position.X, z = p.Position.Z })
@@ -610,7 +612,13 @@ local function acousticWall(K: any, wn: string, o: any?)
 	-- 걸레받이 (검은 금속)
 	for _, s in freeSpans(K, wn, 0.12, 0.55, 0.6) do
 		K:plate("Baseboard", s[2] - s[1], 0.45, 0.06, W(K, wn, (s[1] + s[2]) / 2, 0.36, 0.0), Look.blackMetal)
+		useWall(K, wn, s[1], s[2], 0.12, 0.55)
 	end
+	-- 이번에 덮은 칸 등록 (두 번째 낮은 띠 패스가 겹치지 않게)
+	for _, s in placed do
+		useWall(K, wn, s[1], s[2], y0, y1 + 0.6)
+	end
+	return placed
 end
 
 -- 카펫 타일 줄눈 (홀 · 뒤 띠)
@@ -2113,6 +2121,12 @@ local function hallWalls(K: any, V: any)
 	-- 흡음 패널 (남은 빈 칸)
 	acousticWall(K, "left", { rgb = C.cyan })
 	acousticWall(K, "right", { rgb = C.magenta })
+	-- 맵 간판 · LED 화면 아래 남은 낮은 띠 (허리 높이 흡음 패널 + 위 RGB 없이 검은 캡)
+	for _, wn in { "left", "right" } do
+		for _, s in acousticWall(K, wn, { y0 = 0.6, y1 = 3.9, pw = 2.0, noRGB = true }) do
+			K:plate("AcousticCap", s[2] - s[1], 0.1, 0.16, W(K, wn, (s[1] + s[2]) / 2, 3.98, 0.02), Look.blackMetal)
+		end
+	end
 	-- 유도등 (아래, 출구 쪽 화살표: 앞쪽은 입구, 뒤쪽은 비상구)
 	for _, wn in { "left", "right" } do
 		for _, z in { 20, 5, -10, -22 } do
@@ -2921,6 +2935,10 @@ local function backBuild(K: any, V: any)
 			Props.fireBell(K, W(K, "right", zc + 4.2, 4.6, 0.02))
 			notice(K, W(K, "right", zc - 3.4, 5.0, 0.02), 1.7, 2.0, "분실물 보관", "분실물은 카운터에서\n7일간 보관합니다", rgb(90, 90, 100))
 		end)
+		useWall(K, "right", zb + 4.5 - 1.8, zb + 4.5 + 1.8, 0.0, P.ceil)
+		useWall(K, "right", zb + 8.7 - 1.1, zb + 8.7 + 1.1, 0.0, P.ceil)
+		useWall(K, "right", zb + 1.1 - 1.0, zb + 1.1 + 1.0, 0.0, P.ceil)
+		acousticWall(K, "right", { rgb = C.magenta })
 	end
 	-- 케이블 트레이 (홀에서 이어져 뒷벽에서 세로로 내려감)
 	K:free(function()

@@ -930,8 +930,20 @@ function CatalogUI.openDetail(id: string)
 	if not e then
 		return
 	end
+	local wasOpen = ctx.Detail.isOpen()
 	ctx.Detail.show(e)
 	layout()
+	if not wasOpen and not Ui.reduced() then
+		-- phones: the detail slides up like a bottom sheet; wide screens: it slides in from the right
+		if mode == "overlay" then
+			detailHost.Position = UDim2.new(0, 0, 1, 0)
+			Ui.tween(detailHost, 0.3, { Position = UDim2.fromOffset(0, 0) })
+		else
+			local target = detailHost.Position
+			detailHost.Position = target + UDim2.fromOffset(60, 0)
+			Ui.tween(detailHost, 0.25, { Position = target })
+		end
+	end
 end
 
 function CatalogUI.closeDetail()

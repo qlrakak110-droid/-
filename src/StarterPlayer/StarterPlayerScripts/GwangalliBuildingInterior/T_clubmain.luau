@@ -679,7 +679,7 @@ local function lobbyCashier(R: any)
 		end
 		if c1 - c0 > 1.4 then
 			P:free(function()
-				Props.license(P, R.wall("left", (c0 + c1) / 2, 6.7, 0.0), "CLUB OCEAN 광안\n대표 오OO\n617-8X-XXXXX")
+				Props.license(P, R.wall("left", (c0 + c1) / 2, 6.7, 0.0), "CLUB OCEAN 광안\n대표 오OO\n617-81-24680")
 				Props.frame(P, R.wall("left", (c0 + c1) / 2, 4.75, 0.0), 1.2, 1.6, { frame = Look.goldMetal, text = "영업신고증\n\n유흥주점영업\nCLUB OCEAN 광안\n\n부산광역시 수영구청장", fg = rgb(40, 40, 40), textH = 0.9, border = 0.06, depth = 0.05 })
 			end)
 		end

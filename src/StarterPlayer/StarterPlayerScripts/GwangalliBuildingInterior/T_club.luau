@@ -653,7 +653,7 @@ local function buildCorridor(K: any, V: any, R: any)
 	end)
 
 	-- 왼벽 갤러리: 레지던트 DJ 사진 3점 + 픽처 라이트 + 캡션 -------------------------------------------------
-	local GAL = {
+	local GAL: { any } = {
 		{ z = 5.55, cap = "DJ HAEWON · RESIDENT\nTECH HOUSE", dj = { rgb(60, 24, 110), rgb(230, 60, 160), rgb(80, 230, 255), rgb(236, 196, 170) }, art = { { rgb(40, 30, 70), 0, 0, 1, 1 }, { rgb(150, 60, 230), 0, 0, 1, 0.45 }, { rgb(255, 70, 170), 0.12, 0.45, 0.76, 0.05 }, { rgb(26, 22, 30), 0.38, 0.18, 0.24, 0.5 }, { rgb(230, 190, 160), 0.44, 0.66, 0.12, 0.14 }, { rgb(40, 220, 255), 0.05, 0.86, 0.3, 0.04 } } },
 		{ z = 11.5, cap = "광안대교 · GWANGAN BRIDGE\n2025 NIGHT", art = { { rgb(20, 30, 70), 0, 0, 1, 1 }, { rgb(40, 80, 160), 0, 0, 1, 0.4 }, { rgb(255, 210, 120), 0, 0.42, 1, 0.03 }, { rgb(255, 210, 120), 0.18, 0.45, 0.02, 0.3 }, { rgb(255, 210, 120), 0.78, 0.45, 0.02, 0.3 }, { rgb(120, 200, 255), 0.0, 0.3, 1, 0.02 }, { rgb(255, 80, 160), 0.6, 0.8, 0.1, 0.08 } } },
 		{ z = 17.5, cap = "SEAN WAVE · RESIDENT\nK-EDM", dj = { rgb(255, 120, 50), rgb(120, 20, 60), rgb(255, 230, 120), rgb(220, 180, 150) }, art = { { rgb(70, 26, 44), 0, 0, 1, 1 }, { rgb(255, 140, 60), 0, 0, 1, 0.3 }, { rgb(255, 60, 90), 0.0, 0.3, 1, 0.12 }, { rgb(20, 16, 22), 0.4, 0.15, 0.2, 0.55 }, { rgb(220, 180, 150), 0.45, 0.7, 0.1, 0.12 }, { rgb(255, 230, 120), 0.7, 0.75, 0.2, 0.2 } } },
@@ -1265,26 +1265,26 @@ end
 local function vendBox(K: any, dcf: CFrame, female: boolean)
 	local body = if female then lk(rgb(246, 236, 240)) else lk(rgb(34, 36, 42))
 	local acc = if female then rgb(230, 90, 150) else rgb(60, 150, 255)
-	K:plate("VendBody", 2.2, 3.4, 0.7, dcf, body)
-	K:plate("VendHeader", 2.2, 0.5, 0.74, dcf * CF(0, 1.45, 0), lk(acc))
-	txt(K, "VendHeaderText", 2.0, 0.38, dcf * CF(0, 1.45, 0.75), "편의용품 자판기", WHITE, nil, F.GothamBlack)
-	K:plate("VendWindowBack", 1.8, 1.9, 0.72, dcf * CF(-0.05, 0.25, 0), lk(rgb(20, 20, 24)))
+	K:plate("VendBody", 2.2, 3.4, 0.5, dcf, body)
+	K:plate("VendHeader", 2.2, 0.5, 0.54, dcf * CF(0, 1.45, 0), lk(acc))
+	txt(K, "VendHeaderText", 2.0, 0.38, dcf * CF(0, 1.45, 0.55), "편의용품 자판기", WHITE, nil, F.GothamBlack)
+	K:plate("VendWindowBack", 1.8, 1.9, 0.52, dcf * CF(-0.05, 0.25, 0), lk(rgb(20, 20, 24)))
 	local items = if female
 		then { { rgb(250, 230, 120), "컨디션" }, { rgb(80, 180, 230), "가글" }, { rgb(40, 40, 44), "스타킹" }, { rgb(240, 120, 170), "머리끈" } }
 		else { { rgb(250, 230, 120), "컨디션" }, { rgb(80, 180, 230), "가글" }, { rgb(230, 230, 236), "칫솔" }, { rgb(40, 40, 44), "케이블" } }
 	for row = 0, 2 do
 		local y = 0.85 - row * 0.62
-		K:plate("VendShelf", 1.7, 0.04, 0.73, dcf * CF(-0.05, y - 0.27, 0), Look.chrome)
+		K:plate("VendShelf", 1.7, 0.04, 0.61, dcf * CF(-0.05, y - 0.27, 0), Look.chrome)
 		for k = 0, 3 do
 			local it = items[(k + row) % 4 + 1]
-			K:plate("VendItem", 0.32, 0.42, 0.66, dcf * CF(-0.68 + k * 0.42, y - 0.04, 0), lk(it[1]))
+			K:plate("VendItem", 0.32, 0.42, 0.6, dcf * CF(-0.68 + k * 0.42, y - 0.04, 0), lk(it[1]))
 		end
 	end
-	K:plate("VendGlass", 1.8, 1.9, 0.76, dcf * CF(-0.05, 0.25, 0), lk(rgb(220, 230, 236), M.SmoothPlastic, { t = 0.85 }))
-	txt(K, "VendPrice", 1.9, 0.55, dcf * CF(0, -1.05, 0.71), if female then "컨디션 5,000 · 가글 2,000\n스타킹 6,000 · 머리끈 2,000" else "컨디션 5,000 · 가글 2,000\n칫솔 3,000 · 충전케이블 8,000", if female then rgb(120, 40, 80) else rgb(200, 220, 255), nil, F.GothamBold)
-	K:plate("VendCardPad", 0.5, 0.3, 0.74, dcf * CF(0.75, -1.45, 0), lk(rgb(20, 20, 24)))
-	K:plate("VendCardLED", 0.3, 0.05, 0.75, dcf * CF(0.75, -1.38, 0), nl(rgb(60, 230, 120)))
-	K:plate("VendTray", 0.9, 0.22, 0.78, dcf * CF(-0.4, -1.45, 0), lk(rgb(16, 16, 18)))
+	K:plate("VendGlass", 1.8, 1.9, 0.66, dcf * CF(-0.05, 0.25, 0), lk(rgb(220, 230, 236), M.SmoothPlastic, { t = 0.85 }))
+	txt(K, "VendPrice", 1.9, 0.55, dcf * CF(0, -1.05, 0.51), if female then "컨디션 5,000 · 가글 2,000\n스타킹 6,000 · 머리끈 2,000" else "컨디션 5,000 · 가글 2,000\n칫솔 3,000 · 충전케이블 8,000", if female then rgb(120, 40, 80) else rgb(200, 220, 255), nil, F.GothamBold)
+	K:plate("VendCardPad", 0.5, 0.3, 0.54, dcf * CF(0.75, -1.45, 0), lk(rgb(20, 20, 24)))
+	K:plate("VendCardLED", 0.3, 0.05, 0.55, dcf * CF(0.75, -1.38, 0), nl(rgb(60, 230, 120)))
+	K:plate("VendTray", 0.9, 0.22, 0.58, dcf * CF(-0.4, -1.45, 0), lk(rgb(16, 16, 18)))
 end
 
 local function buildRestroom(K: any, V: any, R: any)
@@ -3984,7 +3984,18 @@ local function buildRooftop(K: any, V: any, R: any)
 					local pts = { prev, prev + dir * (L * 0.3) + up * 0.75, prev + dir * (L * 0.65) + up * 0.55, prev + dir * L - up * (0.5 + (k % 2) * 0.4) }
 					local look = if k % 2 == 0 then leafA else leafB
 					for j = 1, 3 do
-						K:bar("PalmFrond", pts[j], pts[j + 1], ({ 0.5, 1.15, 0.8 })[j], 0.06, look)
+						-- 잎 단면을 V 자로 (가운데 잎줄기를 따라 양쪽 반쪽 잎을 살짝 세움)
+						local a0, b0 = pts[j], pts[j + 1]
+						local v = b0 - a0
+						local len = v.Magnitude
+						local zz = v / len
+						local xx = Vector3.yAxis:Cross(zz).Unit
+						local yy = zz:Cross(xx).Unit
+						local cf = CFrame.fromMatrix((a0 + b0) / 2, xx, yy, -zz)
+						local w = ({ 0.55, 1.3, 0.9 })[j]
+						for _, sd in { -1, 1 } do
+							K:box("PalmFrond", V3(w / 2, 0.05, len + 0.05), cf * ANG(0, 0, sd * 0.38) * CF(sd * w / 4, 0, 0), look)
+						end
 					end
 				end
 			end)

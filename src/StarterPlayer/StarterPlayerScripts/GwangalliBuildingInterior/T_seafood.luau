@@ -34,8 +34,9 @@ local PI = math.pi
 local rgb = Color3.fromRGB
 local WHITE = rgb(255, 255, 255)
 local WALL_OFF = 0.05 -- 벽 부착물은 타일 · 줄눈 · 색띠(최대 0.045) 앞에
--- 활어 손질대 상판: 헤어라인 스테인리스 (횟집 · 수산 · 조개찜 · 대게 공통)
-local STEEL_TOP = Look.of(204, 208, 212, Enum.Material.Metal)
+-- 활어 손질대 상판: 스테인리스 색 (위를 보는 넓은 면은 Metal 이면 하늘 반사로 파랗게 보여서 무광 + 약한 반사)
+local STEEL_TOP = Look.of(192, 196, 200, Enum.Material.SmoothPlastic, { r = 0.1 })
+local STEEL_FLAT = Look.of(186, 190, 194, Enum.Material.SmoothPlastic, { r = 0.08 })
 
 -- 공용 도우미 ------------------------------------------------------------------------------------------
 local function col(c: Color3, m: Enum.Material?, extra: any?): any
@@ -1190,11 +1191,11 @@ local function tankOverlay(c: any, t: any)
 		if standTop > 0.5 then
 			local gl = tw - 0.4
 			local gcf = tcf * CF(0, 0.012, hd + 0.5)
-			K:box("TrenchFrame", V3(gl + 0.12, 0.024, 0.5), gcf, L.of(170, 174, 178, M.Metal))
-			K:box("TrenchSlot", V3(gl - 0.04, 0.026, 0.38), gcf, L.of(40, 42, 44, M.Metal))
+			K:box("TrenchFrame", V3(gl + 0.12, 0.024, 0.5), gcf, STEEL_FLAT)
+			K:box("TrenchSlot", V3(gl - 0.04, 0.026, 0.38), gcf, L.of(40, 42, 44, M.SmoothPlastic))
 			local nb = if hi then math.floor(gl / 0.36) else 0
 			for k = 1, nb - 1 do
-				K:box("TrenchBar", V3(0.05, 0.03, 0.4), gcf * CF(-gl / 2 + k * gl / nb, 0.003, 0), L.of(190, 194, 198, M.Metal, { r = 0.1 }))
+				K:box("TrenchBar", V3(0.05, 0.03, 0.4), gcf * CF(-gl / 2 + k * gl / nb, 0.003, 0), STEEL_FLAT)
 			end
 		end
 		-- 물칸마다: 모서리 앵글 · 아래 실리콘 띠 · LED
@@ -1644,7 +1645,7 @@ local function kitchen(c: any)
 				local u = (a + b) / 2
 				claim(K, "back", u - w / 2, u + w / 2, shY - 0.6, shY + 1.0)
 				local dcf = V:wall("back", u, shY, 0.0)
-				local at2 = Props.shelf(K, dcf, w, { depth = 0.9, look = L.of(206, 210, 214, M.Metal, { r = 0.1 }), bracket = L.of(170, 174, 178, M.Metal), thick = 0.08 })
+				local at2 = Props.shelf(K, dcf, w, { depth = 0.9, look = STEEL_FLAT, bracket = L.of(170, 174, 178, M.Metal), thick = 0.08 })
 				local n = math.floor((w - 0.4) / 0.6)
 				for i = 1, n do
 					local x = -w / 2 + 0.3 + (w - 0.6) * (i - 0.5) / n
@@ -1781,8 +1782,8 @@ local function kitchen(c: any)
 						K:cyl("WrapRoll", 0.86, 0.12, base * CF(0, 0.24, 0.03), { c = rgb(236, 244, 246), m = M.Glass, t = 0.35 })
 					elseif it.kind == "bowl" then
 						-- 스텐 볼 (무채 · 깻잎) + 집게
-						K:disc("PrepBowl", 1.1, 0.34, base * CF(0, 0.17, 0), L.of(210, 214, 218, M.Metal, { r = 0.2 }))
-						K:disc("PrepBowlRim", 1.18, 0.04, base * CF(0, 0.35, 0), L.chrome)
+						K:disc("PrepBowl", 1.1, 0.34, base * CF(0, 0.17, 0), STEEL_FLAT)
+						K:disc("PrepBowlRim", 1.18, 0.04, base * CF(0, 0.35, 0), STEEL_TOP)
 						K:ell("RadishShred", V3(0.86, 0.22, 0.86), base * CF(0, 0.32, 0), L.of(248, 248, 242, M.Fabric))
 						K:ell("PerillaPile", V3(0.36, 0.08, 0.3), base * CF(0.18, 0.43, 0.12), L.of(56, 112, 52))
 						K:box("Tongs", V3(0.7, 0.03, 0.07), base * CF(0.2, 0.47, -0.1) * ANG(0, 0.5, 0.2), L.chrome)
@@ -1801,8 +1802,8 @@ local function kitchen(c: any)
 						K:ell("RubberGlove", V3(0.5, 0.06, 0.22), base * CF(0.05, 0.33, 0.05) * ANG(0, 0.3, 0), L.of(240, 190, 40, M.Rubber))
 					elseif it.kind == "sink" then
 						-- 상판 매립 스테인리스 싱크 + 벽 쪽 구즈넥 수전 + 수세미
-						K:box("SinkRim", V3(1.6, 0.03, 1.0), base * CF(0, 0.015, 0), L.of(214, 218, 222, M.Metal, { r = 0.2 }))
-						K:box("SinkBowl", V3(1.36, 0.035, 0.78), base * CF(0, 0.02, 0), L.of(110, 114, 118, M.Metal))
+						K:box("SinkRim", V3(1.6, 0.03, 1.0), base * CF(0, 0.015, 0), STEEL_TOP)
+						K:box("SinkBowl", V3(1.36, 0.035, 0.78), base * CF(0, 0.02, 0), L.of(110, 114, 118, M.SmoothPlastic))
 						K:disc("SinkDrain", 0.16, 0.04, base * CF(0.3, 0.03, 0), L.of(60, 60, 62, M.Metal))
 						local p0 = (base * CF(0, 0.03, -0.45)).Position
 						local p1 = (base * CF(0, 0.95, -0.45)).Position
