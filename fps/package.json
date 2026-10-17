@@ -1,0 +1,16 @@
+{
+  "name": "strike-zone-fps",
+  "version": "1.0.0",
+  "description": "Browser multiplayer FPS (Three.js + WebSocket)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/bots.test.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "three": "0.160.0",
+    "ws": "8.18.0"
+  }
+}

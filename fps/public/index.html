@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STRIKE ZONE</title>
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">{ "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }</script>
+</head>
+<body>
+<div id="hud" class="hidden">
+  <div id="crosshair"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><i class="dot"></i></div>
+  <div id="hitmarker"><i></i><i></i><i></i><i></i></div>
+  <div id="scope"><div class="lens"></div><i class="h"></i><i class="v"></i></div>
+  <div id="vignette"></div>
+  <div id="dmgdirs"></div>
+  <div id="topleft">
+    <canvas id="minimap" width="180" height="180"></canvas>
+    <div id="netline"><span id="net">0 ms</span> · <span id="fps">0 fps</span></div>
+  </div>
+  <div id="streak"></div>
+  <div id="score"><div id="leader"></div><div id="limit"></div></div>
+  <div id="killfeed"></div>
+  <div id="announce"></div>
+  <div id="bottomleft">
+    <div id="hpbox">
+      <div class="label">HP</div>
+      <div id="hpnum">100</div>
+      <div id="hpbar"><div id="hpfill"></div></div>
+    </div>
+  </div>
+  <div id="bottomright">
+    <div id="slots"><span data-slot="0"><b>1</b> <em id="slot0">AR-7</em></span><span data-slot="1"><b>2</b> <em>P-22</em></span></div>
+    <div id="ammo"><span id="ammonum">30</span><span class="sep">/</span><span id="ammomax">30</span></div>
+    <div id="weapon">AR-7 돌격소총</div>
+    <div id="reloadbar"><div id="reloadfill"></div></div>
+  </div>
+  <div id="chat">
+    <div id="chatlog"></div>
+    <input id="chatinput" maxlength="120" placeholder="메시지 입력 후 Enter" autocomplete="off">
+  </div>
+  <div id="board" class="hidden">
+    <h2>점수판 <small id="boardlimit"></small></h2>
+    <table><thead><tr><th>#</th><th>이름</th><th>처치</th><th>데스</th><th>핑</th></tr></thead><tbody id="boardrows"></tbody></table>
+  </div>
+  <div id="death" class="hidden">
+    <div class="big">사망</div>
+    <div id="deathby"></div>
+    <div id="deathinfo"></div>
+    <div id="deathtimer"></div>
+  </div>
+  <div id="roundover" class="hidden">
+    <div class="big" id="roundwinner"></div>
+    <div id="roundtimer"></div>
+  </div>
+  <div id="pause" class="hidden">
+    <div class="panel">
+      <h2>일시정지</h2>
+      <p class="click">클릭해서 게임으로 돌아가기</p>
+      <div class="loadout-title">주무기 <small>(다음 리스폰부터 적용)</small></div>
+      <div class="loadout" data-where="pause"></div>
+      <label>마우스 감도 <span id="sensval"></span><input id="sens" type="range" min="0.2" max="4" step="0.05"></label>
+      <label>음량 <span id="volval"></span><input id="vol" type="range" min="0" max="1" step="0.05"></label>
+      <div class="keys">
+        <span><b>WASD</b> 이동</span><span><b>Shift</b> 달리기</span><span><b>Space</b> 점프</span>
+        <span><b>좌클릭</b> 사격</span><span><b>우클릭</b> 조준</span><span><b>R</b> 재장전</span>
+        <span><b>1 / 2 / 휠</b> 무기 교체</span><span><b>Tab</b> 점수판</span><span><b>Enter</b> 채팅</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="menu">
+  <div class="panel">
+    <h1>STRIKE<span>ZONE</span></h1>
+    <p class="sub">멀티플레이 데스매치 · 먼저 <b id="menulimit">30</b>킬 하면 승리</p>
+    <input id="name" maxlength="16" placeholder="닉네임" autocomplete="off">
+    <div class="loadout-title">주무기 선택 <small>(+ 권총 기본 지급)</small></div>
+    <div class="loadout" data-where="menu"></div>
+    <button id="play">게임 시작</button>
+    <p id="online">서버 확인 중…</p>
+    <div class="keys">
+      <span><b>WASD</b> 이동</span><span><b>Shift</b> 달리기</span><span><b>Space</b> 점프</span>
+      <span><b>좌클릭</b> 사격</span><span><b>우클릭</b> 조준</span><span><b>R</b> 재장전</span>
+      <span><b>1 / 2 / 휠</b> 무기 교체</span><span><b>Tab</b> 점수판</span><span><b>Enter</b> 채팅</span>
+    </div>
+    <p class="hint">같은 주소로 친구가 접속하면 함께 플레이할 수 있어요. 사람이 적으면 AI 봇이 자리를 채웁니다.</p>
+  </div>
+</div>
+
+<script type="module" src="/game.js"></script>
+</body>
+</html>
