@@ -17,6 +17,14 @@ local Core: any = {}
 
 Core.player = Players.LocalPlayer
 Core.started = os.clock()
+Core.scriptInst = nil :: Instance? -- the LocalScript (diagnostic attributes for Studio: Zone, Err_*, JobErr_*)
+
+function Core.debug(key: string, value: any)
+	local inst = Core.scriptInst
+	if inst then
+		pcall(inst.SetAttribute, inst, key, value)
+	end
+end
 
 local function optional(name: string, wait: number?): any?
 	local m = ReplicatedStorage:FindFirstChild(name)
@@ -188,6 +196,9 @@ local function pollZone()
 	if bus.state == "Inside" and type(bus.zone) == "string" and bus.zone ~= "" then
 		zone = (bus.zone:gsub("^Zone_", ""))
 	end
+	if zone ~= Core.zone then
+		Core.debug("Zone", zone)
+	end
 	Core.zone = zone
 	Core.inside = zone ~= "" and zone ~= "Near"
 	Core.showRoom = SHOW_ROOMS[zone] == true
@@ -284,6 +295,7 @@ RunService.Heartbeat:Connect(function(dt: number)
 			local ok, res = pcall(j.fn, step, now)
 			if not ok then
 				warn("[GwangalliClubPlus] job " .. name .. " failed:", res)
+				Core.debug("JobErr_" .. name, tostring(res))
 				jobs[name] = nil
 			elseif res == false then
 				jobs[name] = nil

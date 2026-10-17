@@ -305,10 +305,12 @@ function Treat.onVisit(v: any, prev: any)
 	local step = v and v.step
 	local prevStep = prev and prev.step
 	if step == "treat" and prevStep ~= "treat" then
+		Ui.lockJump(true, "treat")
 		injection(v.plan and v.plan.vaccine == true)
 	elseif step ~= "treat" then
 		injectToken += 1
 		overlay.Visible = false
+		Ui.lockJump(false, "treat")
 	end
 	if step == "iv" and v.iv then
 		if prevStep ~= "iv" then

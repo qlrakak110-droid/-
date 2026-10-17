@@ -16,6 +16,7 @@
 
 local Geometry = require(script.Parent:WaitForChild("Geometry"))
 local Config = require(script.Parent:WaitForChild("Config"))
+local Text = require(script.Parent:WaitForChild("Text"))
 
 local Unit = {}
 
@@ -56,6 +57,12 @@ local WINDOW = { WindowGlass = true, GlazingFrame = true, WindowFrame = true, Mu
 local DOOR_MODELS = { Door = true, WetCellDoor = true, VerandaDoor = true, Jungmun = true }
 local SKIP_TOP = { Backdrop = true, Interact = true, Spawn = true, UnitRoot = true }
 local KEEP_SKIP_KIND = { window = true, mailbox = true }
+-- life-game interaction kinds as nouns ("냉장고 앞은 비워 둬야 써요", "냉장고로 가는 길이 막혀요")
+local KIND_NOUN = {
+	bed = "침대", wardrobe = "옷장", fridge = "냉장고", table = "식탁", tv = "TV", sofa = "소파", shower = "샤워실",
+	desk = "책상", bath = "욕조", toilet = "화장실", sink = "세면대", kitchen = "주방", stove = "가스레인지",
+	interior = "인테리어 패널", computer = "컴퓨터", piano = "피아노", closet = "옷장", vanity = "화장대",
+}
 
 -- drops leading emoji / symbols ("🛠 인테리어" -> "인테리어")
 function Unit.stripIcon(s: string): string
@@ -421,7 +428,7 @@ function Unit.scan(model: Instance): any?
 		local fy = Unit.floorTopAt(U, c.Position.X, c.Position.Z, c.Position.Y + 1) or (c.Position.Y - size.Y / 2)
 		local half = if thinX then Vector3.new(K.doorDepth, 3.6, wide / 2 + K.doorPad) else Vector3.new(wide / 2 + K.doorPad, 3.6, K.doorDepth)
 		local centre = CFrame.new(c.Position.X, fy + 3.6, c.Position.Z) * c.Rotation
-		table.insert(U.keeps, { box = Geometry.prime(Geometry.obb(centre, half)), code = "door", label = label, door = true })
+		table.insert(U.keeps, { box = Geometry.prime(Geometry.obb(centre, half)), code = "door", label = label, labelTo = Text.ro(label), door = true })
 	end
 	for _, d in model:GetDescendants() do
 		if d:IsA("Model") and DOOR_MODELS[d.Name] and not (decor and d:IsDescendantOf(decor)) then
@@ -454,10 +461,9 @@ function Unit.scan(model: Instance): any?
 				if type(kind) == "string" and not KEEP_SKIP_KIND[kind] then
 					local b = boxOf(F, p)
 					local label = p:GetAttribute("Label")
-					local lb = if type(label) == "string" and #label > 0 then label else kind
-					lb = Unit.stripIcon(lb)
+					local lb = (KIND_NOUN :: any)[kind] or (if type(label) == "string" and #label > 0 then Unit.stripIcon(label) else kind)
 					local zone = Geometry.prime(Geometry.inflate(b, K.interactDepth * 0.5, 0, K.interactDepth * 0.5))
-					table.insert(U.keeps, { box = zone, code = "interact", label = lb, kind = kind, target = true })
+					table.insert(U.keeps, { box = zone, code = "interact", label = lb, labelTo = Text.ro(lb), kind = kind, target = true })
 				end
 			end
 		end

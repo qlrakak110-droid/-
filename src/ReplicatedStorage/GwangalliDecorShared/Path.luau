@@ -230,7 +230,7 @@ function Path.check(U: any, idx: any, extra: { any }, ignore: { [number]: boolea
 	local seen = reach(g, dynamicBlocks(g, idx, ignore, extra))
 	for i, t in g.targets do
 		if before[i] and not targetHit(g, t, seen) then
-			return false, t.label
+			return false, t.labelTo or t.label
 		end
 	end
 	return true, nil

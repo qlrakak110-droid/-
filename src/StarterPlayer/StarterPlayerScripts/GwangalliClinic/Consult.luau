@@ -530,6 +530,7 @@ local function run(greet: string?)
 	end
 	local ok, err = pcall(function()
 		frameCamera(true)
+		Ui.lockJump(true, "consult")
 		buildVitals()
 		vitalsCard.Visible = true
 		local v = ctx.visit
@@ -619,6 +620,7 @@ local function run(greet: string?)
 	panel.Visible = false
 	vitalsCard.Visible = false
 	pcall(ctx.Treat.cuff, false)
+	Ui.lockJump(false, "consult")
 	frameCamera(false)
 	if dxSheet.isOpen then
 		dxSheet.close()

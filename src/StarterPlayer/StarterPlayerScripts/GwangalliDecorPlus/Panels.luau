@@ -1238,6 +1238,11 @@ function Panels.mount(c: any)
 	buildTop(root)
 	buildCatalog(root)
 	buildBar(root)
+	if Ui.isGamepad() then
+		-- the gamepad aims with the screen centre
+		local cross = Ui.label(gui, "⊕", 34, C.cyan, F.bold, { AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0), Size = UDim2.new(0, 40, 0, 40), TextXAlignment = Enum.TextXAlignment.Center, TextStrokeTransparency = 0.4 })
+		cross.Name = "Crosshair"
+	end
 	if not ctx.snap.persistent then
 		local warnL = Ui.label(root, Text.UI.notSaved, 13, C.orange, F.bold, { Position = UDim2.new(0, 12, 0, 116), Size = UDim2.new(0, 420, 0, 22), TextWrapped = false })
 		local _ = warnL

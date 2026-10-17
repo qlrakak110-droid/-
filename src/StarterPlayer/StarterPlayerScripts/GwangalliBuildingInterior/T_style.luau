@@ -1436,8 +1436,8 @@ local function buildSalon(K: any, V: any, S: any)
 			K:plate("PriceRule", bw * 0.86, 0.025, 0.11, d * CF(0, bh / 2 - 0.78, 0), brass)
 			local colsT = {
 				{ "CUT  커트", { { "여성 커트", "20,000" }, { "남성 · 댄디컷", "15,000" }, { "투블럭", "18,000" }, { "앞머리 커트", "5,000" }, { "아동 커트", "12,000" } } },
-				{ "PERM  펌", { { "리젠트펌", "35,000" }, { "단발 C컬펌", "38,000" }, { "장발 웨이브펌", "40,000" }, { "셋팅펌", "90,000~" }, { "다운펌", "15,000" } } },
-				{ "COLOR · CARE", { { "애쉬브라운 염색", "45,000" }, { "뿌리 염색", "40,000~" }, { "핑크 탈색", "60,000" }, { "케라틴 클리닉", "40,000~" }, { "두피 스파", "30,000" } } },
+				{ "PERM  펌", { { "리젠트펌", "45,000" }, { "단발 C컬펌", "70,000~" }, { "장발 웨이브펌", "80,000~" }, { "셋팅펌", "100,000~" }, { "남자 다운펌", "25,000" } } },
+				{ "COLOR · CARE", { { "애쉬브라운 염색", "60,000~" }, { "뿌리 염색", "40,000~" }, { "탈색 (1회)", "50,000~" }, { "케라틴 클리닉", "40,000~" }, { "두피 스파", "30,000" } } },
 			}
 			local cwid = (bw - 0.5) / 3
 			for ci, col in colsT do
@@ -4477,62 +4477,10 @@ local PLAQUES: { [string]: { any } } = {
 	surf = { "영업시간 · OPEN", "08:00 - 19:00 (7-8월 06:30 오픈)\n기상 악화 시 강습 · 대여 중단\n카드 · 동백전 · 계좌이체", rgb(0, 150, 160) },
 }
 
--- GwShop 벽걸이 모니터 (맵 MonitorScreen = 꺼진 흰 판) -> 화면면에 붙는 네온 화면 + 홍보 슬라이드 순환 (프롬프트 없음).
--- 맵 파트는 그대로 두고 화면 앞 0.004 에 덮개만 (같은 크기). 이름은 MonitorScreen 을 피함 (다른 스크립트가 그 이름을 찾음).
-local MONITOR: { [string]: { any } } = {
-	salon = {
-		{ c = rgb(46, 30, 36), text = "10월 이벤트\n뿌리염색 + 두피 클리닉\n55,000원" },
-		{ c = rgb(30, 34, 44), text = "BEFORE → AFTER\n레이어드 C컬 셋팅펌\n디자이너 김하늘" },
-		{ c = rgb(20, 70, 44), text = "네이버 예약 시\n전 시술 10% 할인\n리뷰 이벤트 진행 중" },
-		{ c = rgb(60, 40, 30), text = "남자 다운펌 25,000원~\n댄디컷 15,000원" },
-	},
-	clothing = {
-		{ c = rgb(24, 28, 40), text = "F/W 2026\nNEW ARRIVAL\n니트 · 가디건 입고" },
-		{ c = rgb(120, 24, 30), text = "SUMMER SALE\n최대 50% OFF\n~ 10.31" },
-		{ c = rgb(84, 64, 24), text = "카카오톡 채널 추가 시\n5% 할인 쿠폰" },
-		{ c = rgb(40, 40, 44), text = "@bada_closet\n오늘의 데일리룩\n인스타 업데이트" },
-	},
-	surf = {
-		{ c = rgb(10, 60, 90), text = "광안리 오늘의 파도\n0.6m · 남동풍 3m/s\n수온 21°C" },
-		{ c = rgb(0, 110, 120), text = "초보 서핑강습\n2시간 · 장비 포함\n60,000원" },
-		{ c = rgb(90, 40, 30), text = "SUP 선셋 투어\n매일 18:00 출발\n광안대교 뷰" },
-		{ c = rgb(30, 30, 34), text = "서핑 후 샤워실\n5,000원 · 수건 포함" },
-	},
-}
-local function shopMonitor(K: any, V: any, slides: { any })
-	for _, r in recs(V, "MonitorScreen") do
-		local sz = r.part.Size
-		if sz.Z > 0.2 or sz.X < 0.8 or sz.Y < 0.5 then
-			continue
-		end
-		local lcf = r.lcf
-		local n = lcf.ZVector
-		local toC = V3(-r.c.X, 0, -r.c.Z)
-		if n:Dot(toC) < 0 then
-			n = -n
-		end
-		local up = lcf.YVector
-		local d = CFrame.fromMatrix(r.c + n * (sz.Z / 2 + 0.004), up:Cross(n), up, n)
-		K:free(function()
-			local scr = K:plate("ShopTVPanel", sz.X - 0.02, sz.Y - 0.02, 0.01, d, nl(slides[1].c))
-			local _, lab = txt(K, "ShopTVText", sz.X - 0.16, sz.Y - 0.16, d * CF(0, 0, 0.012), slides[1].text, rgb(250, 248, 244), nil, F.GothamBlack, 1.6)
-			-- 하단 진행 막대 (영상 재생 느낌)
-			K:plate("ShopTVBar", (sz.X - 0.2) * 0.4, 0.03, 0.006, d * CF(-(sz.X - 0.2) * 0.3, -sz.Y / 2 + 0.07, 0.01), nl(rgb(255, 255, 255)))
-			Interact.screenLoop(K, scr, lab, slides, 6)
-		end)
-	end
-end
-
 function T.build(K: any, V: any, S: any)
 	local b = BUILDERS[V.type]
 	if b then
 		b(K, V, S)
-	end
-	if MONITOR[V.type] then
-		local ok, err = pcall(shopMonitor, K, V, MONITOR[V.type])
-		if not ok then
-			K:note("monitor error: " .. tostring(err))
-		end
 	end
 	-- 남은 벽 자리에 영업시간 · 결제 명판 (다른 진열이 자리를 다 잡은 뒤)
 	local pq = PLAQUES[V.type]

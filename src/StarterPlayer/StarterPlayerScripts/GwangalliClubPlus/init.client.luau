@@ -32,6 +32,7 @@ if not folder then
 end
 
 local Core = require(script:WaitForChild("Core"))
+Core.scriptInst = script
 Core.init(S, folder)
 
 local function load(name: string): any?
@@ -43,6 +44,7 @@ local function load(name: string): any?
 	local ok, mod = pcall(require, m)
 	if not ok then
 		warn("[GwangalliClubPlus] module " .. name .. " failed:", mod)
+		Core.debug("Err_" .. name, tostring(mod))
 		return nil
 	end
 	return mod
@@ -52,6 +54,7 @@ local function start(name: string, fn: () -> ())
 	local ok, err = pcall(fn)
 	if not ok then
 		warn("[GwangalliClubPlus] " .. name .. " failed to start:", err)
+		Core.debug("Err_" .. name, tostring(err))
 	end
 end
 
@@ -124,3 +127,4 @@ end
 
 Core.connectEvents()
 Core.startWatching()
+Core.debug("Started", true)
