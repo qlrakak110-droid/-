@@ -230,6 +230,9 @@ local function telescopeView(K: any, env: any, eye: BasePart)
 			return
 		end
 		active = false
+		if K.scopeClose == close then
+			K.scopeClose = nil -- 다음 "광안대교 보기" 는 한 번 눌러서 바로 열림
+		end
 		if conn then
 			conn:Disconnect()
 		end

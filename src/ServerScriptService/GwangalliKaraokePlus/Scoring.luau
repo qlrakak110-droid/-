@@ -235,6 +235,10 @@ local function voice(p: Player, a: any): any
 	if not r then
 		return err
 	end
+	-- voice lines only count from a player the engine gave a voice device (Audio API voice chat)
+	if C.Voice == "off" or not K.Voice.device(p) then
+		return Net.fail("role")
+	end
 	local list = a.lines
 	if type(list) ~= "table" or #list == 0 or #list > 3 then
 		return Net.fail("bad")
@@ -276,7 +280,7 @@ local function voiceStatus(p: Player, a: any): any
 		return Net.fail("rate")
 	end
 	voiceStatusAt[p] = t
-	local live = a.live == true
+	local live = a.live == true and C.Voice ~= "off" and K.Voice.device(p) ~= nil
 	voiceLive[p] = live or nil
 	local r = Rooms.of(p)
 	if r then

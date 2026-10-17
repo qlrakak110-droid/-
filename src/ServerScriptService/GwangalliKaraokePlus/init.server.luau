@@ -112,6 +112,13 @@ end
 local legacyFound = K.Bridge.waitLegacy(panels, if #panels > 0 then 12 else 0)
 if legacyFound and not C.TakeOverLegacy then
 	warn("[GwangalliKaraokePlus] legacy karaoke is running and Config.TakeOverLegacy = false; the add-on stays off")
+	-- no remotes / room state left behind: clients never see Active and keep the legacy karaoke
+	for _, name in { S.NAMES.Remotes, S.NAMES.State } do
+		local f = sharedModule:FindFirstChild(name)
+		if f then
+			f:Destroy()
+		end
+	end
 	return
 end
 K.Bridge.takeOver(panels)

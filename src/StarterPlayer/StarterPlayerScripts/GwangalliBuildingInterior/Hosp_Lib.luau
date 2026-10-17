@@ -391,6 +391,46 @@ function Lib.hideModel(K: any, getter: () -> Instance?, filter: ((BasePart) -> b
 	end)
 end
 
+-- 다른 실내 빌더(T_clinic 등)가 keep 을 무시하는 free 장식을 우리 방 안에 놓았으면 이 클라이언트에서만 숨김.
+-- root = Workspace.GwInteriorDetailLocal, mine = 우리 HospitalPlus 모델 (제외),
+-- boxes = { { x0, y0, z0, x1, y1, z1 } } (병원 로컬, 파트 중심 기준). 나중에 지어지는 파트도 DescendantAdded 로 잡음
+function Lib.ghostForeign(K: any, root: Instance?, mine: Instance?, boxes: { { number } })
+	if not root then
+		return
+	end
+	local function inside(p: BasePart): boolean
+		local l = Geo.L(p.Position)
+		for _, b in boxes do
+			if l.X > b[1] and l.X < b[4] and l.Y > b[2] and l.Y < b[5] and l.Z > b[3] and l.Z < b[6] then
+				return true
+			end
+		end
+		return false
+	end
+	local function check(d: Instance)
+		if not d:IsA("BasePart") or not d.Parent or K.hidden[d] then
+			return
+		end
+		if mine and d:IsDescendantOf(mine) then
+			return
+		end
+		if inside(d) then
+			Lib.hide(K, d)
+			if d.CanCollide then
+				Lib.uncollide(K, d)
+			end
+		end
+	end
+	for _, d in root:GetDescendants() do
+		check(d)
+	end
+	Lib.conn(K, root.DescendantAdded:Connect(function(d)
+		if d:IsA("BasePart") then
+			task.defer(check, d) -- 위치 · 부모가 다 정해진 뒤
+		end
+	end))
+end
+
 -- 벽 바꿔 끼우기 ---------------------------------------------------------------------------------------
 
 -- part: 맵 벽 (얇은 축 = X 또는 Z). openings = { { u0, u1, v0, v1 } } (u = 벽을 따라 로컬 좌표, v = 로컬 y).
@@ -968,6 +1008,16 @@ function Lib.teleport(lcf: CFrame): boolean
 		return false
 	end
 	local target = Geo.HF * lcf
+	-- 앉아 있으면 먼저 일어남 (좌석 용접이 남아 있으면 캐릭터가 의자에 묶인 채로 끌려감)
+	if hum.SeatPart or hum.Sit then
+		local seat = hum.SeatPart
+		for _, w in (if seat then seat:GetChildren() else {}) :: { Instance } do
+			if (w:IsA("Weld") or w:IsA("WeldConstraint")) and (w.Name == "SeatWeld" or w.Name == "GwHospSitWeld") then
+				w:Destroy()
+			end
+		end
+		hum.Sit = false
+	end
 	local cam = Workspace.CurrentCamera
 	local off = if cam then hrp.CFrame:ToObjectSpace(cam.CFrame) else nil
 	local pl = Players.LocalPlayer

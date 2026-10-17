@@ -288,6 +288,12 @@ function E.build(K: any, env: any)
 		return Lib.find(Geo.PARTS.checkupGuide, 3)
 	end, true)
 
+	-- 다른 실내 빌더의 keep 무시 장식이 승강로(1F · 2F) 안에 들어오면 이 클라이언트에서 숨김
+	Lib.ghostForeign(K, env.ctx and env.ctx.root, env.folder, {
+		{ LIFT.x0 + 0.05, 0.12, LIFT.front + 0.3, LIFT.x1 - 0.05, 10.8, LIFT.backZ[1] - 0.02 },
+		{ LIFT.x0 + 0.05, LV[2] + 0.12, LIFT.front + 0.3, LIFT.x1 - 0.05, LV[2] + 8.3, LIFT.backZ[2] - 0.02 },
+	})
+
 	local lands = {}
 	for f = 1, 3 do
 		lands[f] = landing(K, f)

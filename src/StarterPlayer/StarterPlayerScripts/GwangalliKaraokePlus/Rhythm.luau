@@ -89,7 +89,8 @@ function Rhythm.tap()
 		return
 	end
 	local c = v.chart
-	local st = K.Rooms.songTime(v, S.now())
+	-- the press answers what was heard a moment ago (audio + input latency)
+	local st = K.Rooms.songTime(v, S.now() - math.clamp(tonumber(S.Config.TapLatency) or 0, 0, 0.2))
 	local rate = math.max(v.clock and v.clock.rate or 1, 0.5)
 	local win = S.Score.WIN.early * rate
 	local best, bd = nil, math.huge

@@ -478,6 +478,11 @@ function M.debug(cmd: string): string
 	return "unknown " .. op
 end
 
+-- 오프라인 시험용: 내부 허브 (portal · lift)
+function M._hub(): any
+	return state and state.hub
+end
+
 -- 오프라인 미리보기: 모든 구역 + 숨은 방 3 개를 한 번에 (UI · 루프 없음). 반환: { [zone] = K }
 function M._buildAll(ctx: any): any
 	state = makeState(ctx)

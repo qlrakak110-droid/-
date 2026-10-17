@@ -127,7 +127,7 @@ function Hud.openPay(v: any)
 			end,
 		})
 		local sub = Kit.text(b, { Text = p.sub or "", Font = Kit.F.medium, TextSize = 12, TextColor3 = Kit.C.faint, Position = UDim2.new(1, -110, 0, 0), Size = UDim2.new(0, 100, 1, 0), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = b.ZIndex + 1 })
-		sub.TextColor3 = if p.badge == "이득" then Color3.fromRGB(80, 50, 0) else Kit.C.sub
+		sub.TextColor3 = if p.badge == "이득" then Color3.fromRGB(80, 50, 0) elseif i == 1 then Color3.fromRGB(10, 40, 70) else Kit.C.sub
 		first = first or b
 	end
 	pay.focus = first
@@ -362,9 +362,15 @@ function Hud.update(_dt: number)
 		local mic = Rooms.micSlot(v)
 		barBtns.mic.Text = if mic > 0 then (if m == "singer" then "🎤\n넘기기" else "🎤\n내려놓기") else "🎤\n마이크"
 		Kit.restyle(barBtns.mic, if mic > 0 then "magenta" else "secondary")
-		barBtns.tamb.Text = if mic > 0 then "👏\n박수" else "🪇\n탬버린"
+		-- a mic in the hand: no tambourine (one hand prop at a time), 박수 stays
 		if m == "member" then
-			barBtns.clap.Visible = mic == 0
+			local wantTamb = mic == 0
+			if barBtns.tamb.Visible ~= wantTamb then
+				barBtns.tamb.Visible = wantTamb
+			end
+			if not barBtns.clap.Visible then
+				barBtns.clap.Visible = true
+			end
 		end
 		local now = S.now()
 		local parts = { string.format("ROOM %s", v.name) }
@@ -445,8 +451,7 @@ function Hud.init(k: any)
 		end
 	end)
 	barButton("tamb", "🪇\n탬버린", 6, "secondary", function()
-		local v = Rooms.current()
-		Hud.cheer(if v and Rooms.micSlot(v) > 0 then "clap" else "tamb")
+		Hud.cheer("tamb")
 	end)
 	barButton("clap", "👏\n박수", 7, "secondary", function()
 		Hud.cheer("clap")
@@ -474,7 +479,7 @@ function Hud.init(k: any)
 	bannerTitle = Kit.text(banner, { Text = "", Font = Kit.F.black, TextSize = 17, Position = UDim2.fromOffset(16, 8), Size = UDim2.new(1, -32, 0, 24), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 26, TextTruncate = Enum.TextTruncate.AtEnd })
 	bannerSub = Kit.text(banner, { Text = "", Font = Kit.F.medium, TextSize = 13, TextColor3 = Kit.C.sub, Position = UDim2.fromOffset(16, 34), Size = UDim2.new(1, -32, 0, 20), TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 26, TextTruncate = Enum.TextTruncate.AtEnd })
 	-- payment sheet
-	pay = Kit.sheet("GwKP_Pay", { title = "🪙 동전 · 지폐 넣기", w = 440, h = 470, accent = Kit.C.gold })
+	pay = Kit.sheet("GwKP_Pay", { title = "🪙 동전 · 지폐 넣기", w = 440, h = 400, accent = Kit.C.gold })
 	payBalance = Kit.text(pay.body, { Text = "", Font = Kit.F.bold, TextSize = 14, TextColor3 = Kit.C.gold, Size = UDim2.new(1, 0, 0, 22), LayoutOrder = 1, ZIndex = 22 })
 	payRows = Kit.new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 2, ZIndex = 22 }, pay.body)
 	Kit.list(payRows, "v", 10)

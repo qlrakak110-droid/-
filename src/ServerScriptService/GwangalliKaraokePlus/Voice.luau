@@ -2,9 +2,12 @@
 -- Works only when the place has VoiceChatService.UseAudioApi = Enabled: the engine then creates an
 -- AudioDeviceInput under each voice-enabled Player. For each room we build one speaker rig in
 -- Workspace.GwangalliKaraokePlus.Room_NN:
---     device(s) -> AudioFader -> AudioCompressor -> AudioEqualizer -> AudioEcho -> AudioReverb
---               -> AudioFader -> AudioEmitter (an invisible part in front of the TV)
--- with one Wire per mic holder (Config.EchoAllMembers: per member). 에코 0..5 sets echo / reverb.
+--     device(s) -> AudioFader -> AudioCompressor -> AudioEqualizer -+-> AudioEcho   -+-> AudioFader
+--                                                                  +-> AudioReverb -+   -> AudioEmitter
+-- (an invisible part in front of the TV) with one Wire "Mic_<userId>" per mic holder
+-- (Config.EchoAllMembers: per member). The echo and the reverb run in parallel and output only their
+-- wet signal: the singer's own (dry) voice still comes from their character as usual, so nobody hears
+-- the voice twice, and the room speaker adds the 노래방 echo tail. 에코 0..5 sets the wet levels.
 -- Soundproofing (Config.Soundproof): while a player stands in a rented room, their device is only
 -- audible to the room's members (AccessType Allow + the member list); the previous access settings
 -- are restored when they leave. We never create devices and never touch other voice settings.
@@ -21,13 +24,14 @@ local root: Folder? = nil
 local rigs: { [number]: any } = {}
 local saved: { [Player]: { access: any, list: { number }? } } = {}
 
+-- wet-only levels in dB (the dry voice is the character's own)
 local ECHO = {
 	[0] = { delay = 0.05, fb = 0, wet = -80, rdecay = 0.3, rwet = -80 },
-	[1] = { delay = 0.08, fb = 0.15, wet = -18, rdecay = 0.8, rwet = -18 },
-	[2] = { delay = 0.12, fb = 0.25, wet = -14, rdecay = 1.2, rwet = -14 },
-	[3] = { delay = 0.16, fb = 0.35, wet = -10, rdecay = 1.6, rwet = -11 },
-	[4] = { delay = 0.22, fb = 0.45, wet = -7, rdecay = 2.2, rwet = -9 },
-	[5] = { delay = 0.3, fb = 0.6, wet = -4, rdecay = 3.5, rwet = -6 },
+	[1] = { delay = 0.09, fb = 0.15, wet = -14, rdecay = 0.8, rwet = -16 },
+	[2] = { delay = 0.12, fb = 0.25, wet = -10, rdecay = 1.2, rwet = -13 },
+	[3] = { delay = 0.16, fb = 0.35, wet = -7, rdecay = 1.6, rwet = -10 },
+	[4] = { delay = 0.22, fb = 0.45, wet = -5, rdecay = 2.2, rwet = -8 },
+	[5] = { delay = 0.3, fb = 0.55, wet = -3, rdecay = 3.2, rwet = -6 },
 }
 
 local function device(p: Player): Instance?
@@ -91,12 +95,12 @@ local function applyEcho(rig: any, level: number)
 		rig.echo.DelayTime = e.delay
 		rig.echo.Feedback = e.fb
 		rig.echo.WetLevel = e.wet
-		rig.echo.DryLevel = 0
+		rig.echo.DryLevel = -80
 	end)
 	pcall(function()
 		rig.reverb.DecayTime = e.rdecay
 		rig.reverb.WetLevel = e.rwet
-		rig.reverb.DryLevel = 0
+		rig.reverb.DryLevel = -80
 	end)
 end
 
@@ -134,9 +138,9 @@ local function buildRig(r: any): any?
 		part:Destroy()
 		return nil
 	end
-	local chain = { inF, comp, eq, echo, reverb, outF, em }
-	for i = 1, #chain - 1 do
-		if not wire(chain[i] :: Instance, chain[i + 1] :: Instance, part) then
+	local links = { { inF, comp }, { comp, eq }, { eq, echo }, { eq, reverb }, { echo, outF }, { reverb, outF }, { outF, em } }
+	for _, l in links do
+		if not wire(l[1] :: Instance, l[2] :: Instance, part) then
 			part:Destroy()
 			return nil
 		end
@@ -197,6 +201,7 @@ function Voice.refresh(r: any)
 				if d then
 					local w = wire(d, rig.input, rig.part)
 					if w then
+						w.Name = "Mic_" .. uid
 						rig.wires[uid] = w
 					end
 				end

@@ -527,6 +527,9 @@ function R.build(K: any, env: any)
 		end)
 	end
 
+	-- 다른 실내 빌더의 keep 무시 장식(매단 표지 등)이 화장실 안에 들어오면 이 클라이언트에서 숨김
+	Lib.ghostForeign(K, env.ctx and env.ctx.root, env.folder, { { -59.25, 0.12, 27.32, -35.95, 9.18, 38.76 } })
+
 	-- 2) 벽 · 천장 · 바닥
 	local P = solidLook(LK.plaster)
 	Lib.wall(K, "FrontWall_W", -59.29, 0, 27.00, -51.40, 10.85, 27.30, P)

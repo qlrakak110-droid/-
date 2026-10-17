@@ -253,7 +253,8 @@ function UI.lift(show: boolean, handlers: any?): any
 		local f = Instance.new("Frame")
 		f.Name = "LiftPanel"
 		f.AnchorPoint = Vector2.new(1, 0.5)
-		f.Position = UDim2.new(1, -18, 0.5, 0)
+		-- 오른쪽 끝 HUD 열(알바 · 폰 · 점프 · 달리기 버튼) 을 가리지 않게 안쪽으로
+		f.Position = UDim2.new(1, -200, 0.5, 0)
 		f.Size = UDim2.new(0, 168, 0, 360)
 		f.BackgroundColor3 = C3(196, 190, 180)
 		f.BorderSizePixel = 0

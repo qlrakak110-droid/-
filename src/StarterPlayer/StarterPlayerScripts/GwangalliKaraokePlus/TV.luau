@@ -113,6 +113,18 @@ local function faceOf(scr: BasePart): Enum.NormalId
 	return Enum.NormalId.Back
 end
 
+-- Roblox ignores PixelsPerStud under SizingMode FixedSize; previews that size a SurfaceGui by it
+-- (the temp studio) then match the screen face too
+local function fitPps(sg: SurfaceGui, scr: BasePart, canvasW: number)
+	local face = sg.Face
+	local w = if face == Enum.NormalId.Left or face == Enum.NormalId.Right then scr.Size.Z else scr.Size.X
+	if w > 0.1 then
+		pcall(function()
+			(sg :: any).PixelsPerStud = canvasW / w
+		end)
+	end
+end
+
 -------------------------------------------------------------------------------------------------
 -- build
 -------------------------------------------------------------------------------------------------
@@ -715,6 +727,7 @@ local function liteFor(v: any): any?
 		ResetOnSpawn = false,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 	})
+	fitPps(sg, scr, 640)
 	local f = new("Frame", { Size = UDim2.fromScale(1, 1), BackgroundColor3 = Color3.fromRGB(10, 12, 30), BorderSizePixel = 0 }, sg)
 	new("UIGradient", { Color = ColorSequence.new(Color3.fromRGB(30, 20, 70), Color3.fromRGB(6, 10, 26)), Rotation = 90 }, f)
 	local t1 = new("TextLabel", { BackgroundTransparency = 1, Font = Enum.Font.GothamBlack, TextColor3 = Color3.fromRGB(255, 200, 70), TextSize = 40, Size = UDim2.new(1, 0, 0, 60), Position = UDim2.fromOffset(0, 50), Text = "" }, f)
@@ -757,6 +770,7 @@ local function setRoom(v: any?)
 			gui.Parent = nil
 			gui.Adornee = v.screen
 			gui.Face = faceOf(v.screen)
+			fitPps(gui, v.screen, W)
 			gui.Parent = pg or player:FindFirstChildOfClass("PlayerGui")
 		end
 		gui.Enabled = true

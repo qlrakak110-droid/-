@@ -66,6 +66,7 @@ Shared.Config = {
 	MicReturnGrace = 3, -- 마이크를 들고 방 밖에 이만큼 있으면 제자리로
 	MicOfferTTL = 10, -- 마이크 건네기 제안 유효 시간(초)
 	AutoStartDelay = 1.2, -- 예약 후 (재생 중인 곡이 없으면) 자동 시작까지(초)
+	TapLatency = 0.04, -- 박자 모드: 소리 · 입력 지연 보정(초). 박자가 늘 늦게 판정되면 조금 올리세요
 	PanelReach = 12, -- 방 밖에서 결제 · 노크할 수 있는 패널과의 거리
 	TempoMin = -4, TempoMax = 4, TempoStep = 0.05, -- 템포 단계 (1단계 = 5%)
 	KeyMin = -6, KeyMax = 6, -- 키 (반음)
