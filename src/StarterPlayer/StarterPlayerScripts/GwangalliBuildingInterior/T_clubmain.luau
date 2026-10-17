@@ -900,7 +900,7 @@ end
 -- 락커 32칸: 몸체 · 번호판을 우리 것으로 다시 짓고 (속이 빈 칸), 문마다 번호판 · 손잡이 · 키 (빈 칸엔 코일 키 밴드), 119번 열림
 -- 락커 문 앞면 (문 위에 덧댐): 새틴 그라파이트 판 (문보다 작게 = 줄눈) · 브라스 번호판 · RFID 리더 (상태 LED) ·
 -- 세로 손잡이 홈 · 통풍 슬롯 · 빈 칸엔 팔찌 키 (코일 밴드 + 태그) 를 고리에. face = 문 앞면 dcf (+X = 보는 사람 오른쪽 = 경첩 반대가 왼쪽)
-local LOCKER_FACE = lk(rgb(70, 72, 78), M.Metal)
+local LOCKER_FACE = lk(rgb(84, 86, 92), M.Metal)
 local LOCKER_READER = lk(rgb(14, 14, 16), M.SmoothPlastic, { r = 0.08 })
 local function lockerFace(P: any, K: any, face: CFrame, dw: number, dh: number, n: number, free: boolean, detail: boolean, z0: number?)
 	local f = face * CF(0, 0, z0 or 0)

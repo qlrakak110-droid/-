@@ -1135,15 +1135,19 @@ local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
 		end
 		return -1, mx.X
 	end
-	-- 벽걸이 소변기: 벽에 반쯤 묻힌 타원 몸통 + 앞으로 열린 볼 + 뒤판 + 바닥 쪽 배수 커버
+	-- 벽걸이 소변기: 모서리 둥근 몸통 (평평한 앞면) + 둥근 윗머리 + 앞면 타원 볼 (회색 그림자로 움푹) + 아래 배수관
 	each("Urinal", function(mn, mx)
 		local s, wx = side(mn, mx)
 		local d, h, w = mx.X - mn.X, mx.Y - mn.Y, mx.Z - mn.Z
-		local cz, yc = (mn.Z + mx.Z) / 2, (mn.Y + mx.Y) / 2
-		K:box("UrinalBack", V3(0.1, h - 0.1, w - 0.3), at(R, wx + s * 0.05, cz, 0, yc + 0.05), CHINA)
-		K:ell("UrinalBody", V3(2 * (d - 0.05), h, w - 0.1), at(R, wx, cz, 0, yc), CHINA)
-		K:ell("UrinalBowl", V3(2 * (d - 0.2), h * 0.66, w * 0.66), at(R, wx + s * 0.18, cz, 0, yc - h * 0.06), lk(rgb(206, 210, 210)))
-		K:ell("UrinalLip", V3(2 * (d - 0.06), 0.3, w * 0.8), at(R, wx, cz, 0, mn.Y + h * 0.2), CHINA)
+		local cz = (mn.Z + mx.Z) / 2
+		local bodyH = h * 0.78
+		K:box("UrinalBack", V3(0.1, h - 0.1, w - 0.2), at(R, wx + s * 0.05, cz, 0, mn.Y + h / 2), CHINA)
+		K:rbox("UrinalBody", V3(bodyH, d - 0.05, w - 0.1), 0.38, at(R, wx + s * (d - 0.05) / 2, cz, 0, mn.Y + bodyH / 2) * ANG(0, 0, PI / 2), CHINA)
+		K:ell("UrinalTop", V3(2 * (d - 0.05), (h - bodyH) * 2, w - 0.1), at(R, wx, cz, 0, mn.Y + bodyH - 0.02), CHINA)
+		K:ell("UrinalBowl", V3(0.04, bodyH * 0.72, (w - 0.1) * 0.66), at(R, wx + s * (d - 0.05), cz, 0, mn.Y + bodyH * 0.56), lk(rgb(150, 156, 162)))
+		K:ell("UrinalBowlDeep", V3(0.05, bodyH * 0.42, (w - 0.1) * 0.4), at(R, wx + s * (d - 0.045), cz, 0, mn.Y + bodyH * 0.42), lk(rgb(118, 124, 130)))
+		K:cyl("UrinalTrap", 0.9, 0.22, at(R, wx + s * 0.45, cz, 0, mn.Y - 0.35), Look.chrome)
+		K:vcyl("UrinalSpud", 0.4, 0.2, at(R, wx + s * 0.85, cz, 0, mn.Y - 0.15), Look.chrome)
 	end)
 	-- 세면볼 (원형 베슬) + 물 + 배수구
 	each("VesselSink", function(mn, mx)
@@ -1205,6 +1209,41 @@ local function rebuildWCFixtures(K: any, R: any, female: boolean): { BasePart }
 		K:box("JetTowelLED", V3(0.02, 0.05, w * 0.5), at(R, wx + s * (d + 0.01), cz, 0, mn.Y + h * 0.45), nl(rgb(60, 170, 255)))
 		txt(K, "JetTowelLabel", w * 0.8, 0.22, R.A * CFrame.fromMatrix(V3(wx + s * (d + 0.015), mn.Y + h * 0.3, cz), V3(0, 0, -s), Vector3.yAxis, V3(s, 0, 0)), "JET TOWEL · 손을 넣으세요", rgb(60, 70, 90), nil, F.GothamBold)
 	end)
+	-- 칸 문 (맵 그대로, 안쪽으로 반쯤 열린 상태): 바깥면 번호판 · 스테인리스 킥플레이트 · 양면 손잡이 (문 파트의 실제 회전을 따름)
+	do
+		local doors = {}
+		for _, r in V.byName.StallDoor or {} do
+			table.insert(doors, r)
+		end
+		table.sort(doors, function(a, b)
+			return R.A:PointToObjectSpace(a.lcf.Position).X < R.A:PointToObjectSpace(b.lcf.Position).X
+		end)
+		for i, r in doors do
+			local sz = r.part.Size
+			local lcf: CFrame = r.lcf
+			-- 바깥면 = 방 (+Z) 쪽을 보는 면, 자유단 = 칸 안쪽 (z 가 더 작은 끝)
+			local out = if R.A:VectorToObjectSpace(lcf.LookVector).Z < 0 then 1 else -1
+			local e1 = R.A:PointToObjectSpace((lcf * CF(sz.X / 2, 0, 0)).Position)
+			local e2 = R.A:PointToObjectSpace((lcf * CF(-sz.X / 2, 0, 0)).Position)
+			local fx = if e1.Z < e2.Z then 1 else -1
+			K:free(function()
+				for _, f in { 1, -1 } do
+					local fc = lcf * CF(0, 0, f * out * (sz.Z / 2)) * (if f * out < 0 then ANG(0, PI, 0) else CF())
+					-- fc: 문 면 위 (Z+ = 면 바깥). 손잡이 · 킥플레이트
+					local hx = (if f * out < 0 then -fx else fx) * (sz.X / 2 - 0.45)
+					K:box("StallPull", V3(0.08, 1.0, 0.08), fc * CF(hx, -0.2, 0.22), Look.chrome)
+					for _, dy in { -0.45, 0.45 } do
+						K:box("StallPullPost", V3(0.06, 0.06, 0.2), fc * CF(hx, -0.2 + dy, 0.11), Look.chrome)
+					end
+					if f == 1 then
+						K:box("StallKick", V3(sz.X - 0.3, 0.7, 0.03), fc * CF(0, -sz.Y / 2 + 0.45, 0.015), Look.brushed)
+						wdisc(K, "StallNumPlate", 0.8, 0.03, fc * CF(0, sz.Y / 2 - 1.1, 0), Look.brushed)
+						txt(K, "StallNum", 0.6, 0.5, fc * CF(0, sz.Y / 2 - 1.1, 0.035), string.format("%02d", i), rgb(30, 30, 34), nil, F.GothamBlack)
+					end
+				end
+			end)
+		end
+	end
 	-- 소변기 칸막이 (맵 그대로): 앞 모서리 헤어라인 마감 + 윗면 캡 (밤에 칸막이 윤곽이 보이게)
 	for _, r in V.byName.UrinalDivider or {} do
 		local mn, mx = abox(R, r)
@@ -1664,14 +1703,14 @@ local function buildRestroom(K: any, V: any, R: any)
 		cove(K, R, x0 + 0.9, z0 + 0.8, x0 + 0.9, 11.6, H - 0.1, rgb(220, 232, 255), 0, 0, false)
 	end
 	-- 구역 조명 (칸 앞 + 남: 소변기 · 청소 코너)
-	local zones = { { if female then 0.0 else 3.0, -10.0, rgb(255, 226, 200) } }
+	local zones = { { if female then 0.0 else 3.0, -8.6, rgb(255, 226, 200), 15, 1.25 } }
 	if not female then
 		table.insert(zones, { -6.6, -1.0, rgb(220, 232, 255) })
 		table.insert(zones, { -7.0, -16.5, rgb(255, 236, 214) })
 	end
 	for _, zl in zones do
 		local a = K:box("WCZoneLight", V3(0.1, 0.1, 0.1), at(R, zl[1], zl[2], 0, H - 1.6), lk(BLACK, nil, { t = 1 }))
-		K:light(a, "PointLight", { Range = 12, Brightness = 0.8, Color = zl[3] })
+		K:light(a, "PointLight", { Range = zl[4] or 12, Brightness = zl[5] or 0.8, Color = zl[3] })
 	end
 	for _, s in stalls do
 		downlight(K, R, (s[1] + s[2]) / 2, z0 + 4.0, { light = (s[1] > 0 and s[2] > 6), range = 11, bright = 0.7 })
@@ -3155,6 +3194,63 @@ local function buildLounge(K: any, V: any, R: any)
 	end
 	-- 바 백바 병 (맵: 네모 유리 상자 149개) 위에 목 + 마개를 얹어 진짜 술병 실루엣으로 (각진 위스키 병처럼 보임)
 	bottleNecks(K, R, V.byName.Bottle)
+	-- 바 작업대 (맵 BackCounter 윗면, 바텐더 쪽 앞 가장자리): POS · 칵테일 스테이션 3 + 바 위 매달린 와인잔 랙
+	-- (손님 쪽 BarTop 은 비워 둠)
+	do
+		local bc = V.byName.BackCounter and V.byName.BackCounter[1]
+		local bt = V.byName.BarTop and V.byName.BarTop[1]
+		if bc and bt then
+			local cmn, cmx = abox(R, bc)
+			local tmn, tmx = abox(R, bt)
+			local bx, ty = cmn.X + 0.55, cmx.Y
+			K:free(function()
+				-- POS (바텐더를 봄)
+				local pz = cmx.Z - 6.0
+				local pc = at(R, bx, pz, -PI / 2, ty)
+				K:box("LPOSBase", V3(0.6, 0.08, 0.5), pc * CF(0, 0.04, 0), lk(rgb(30, 30, 32)))
+				K:box("LPOSNeck", V3(0.1, 0.55, 0.1), pc * CF(0, 0.35, -0.1), Look.alu)
+				local scr = pc * CF(0, 0.75, -0.05) * ANG(math.rad(-20), 0, 0)
+				K:box("LPOSScreen", V3(1.2, 0.8, 0.06), scr, lk(rgb(24, 24, 26)))
+				K:box("LPOSGlass", V3(1.1, 0.7, 0.01), scr * CF(0, 0, 0.035), nl(rgb(40, 70, 120)))
+				K:box("LCardReader", V3(0.3, 0.12, 0.5), pc * CF(0.75, 0.06, 0.1), lk(rgb(30, 30, 32)))
+				-- 칵테일 스테이션 3
+				for k, sz in { cmn.Z + 7.0, (cmn.Z + cmx.Z) / 2, cmx.Z - 14.0 } do
+					local st = at(R, bx, sz, -PI / 2, ty)
+					K:box("BarMat", V3(1.4, 0.03, 0.7), st * CF(0, 0.015, 0), lk(rgb(20, 20, 22), M.Rubber))
+					K:vcyl("ShakerTin", 0.62, 0.34, st * CF(-0.4, 0.34, 0), Look.steel)
+					K:vcyl("ShakerGlass", 0.5, 0.3, st * CF(-0.4, 0.9, 0), gl(rgb(230, 236, 240), 0.5))
+					K:vcyl("Jigger", 0.24, 0.16, st * CF(0.0, 0.15, 0.1), Look.chrome)
+					for j = 0, 2 do
+						K:vcyl("BittersBottle", 0.4, 0.14, st * CF(0.35 + j * 0.17, 0.23, -0.15), lk(if j == 1 then rgb(150, 40, 30) else rgb(90, 50, 20), M.Glass, { t = 0.15 }))
+					end
+					K:box("GarnishTray", V3(0.9, 0.1, 0.32), st * CF(0.2, 0.08, 0.22), Look.steel)
+					for j, c in { rgb(240, 210, 60), rgb(110, 180, 60), rgb(200, 30, 40) } do
+						K:box("Garnish", V3(0.26, 0.06, 0.24), st * CF(-0.1 + (j - 1) * 0.29, 0.15, 0.22), lk(c))
+					end
+					local _ = k
+				end
+			end)
+			-- 바 위 와인잔 랙 (천장에 매단 레일 2 + 거꾸로 걸린 잔 12)
+			K:free(function()
+				local rx = (tmn.X + tmx.X) / 2
+				local za, zb = tmn.Z + 18.0, tmn.Z + 28.0
+				local ry = 9.4
+				for _, z in { za, zb } do
+					K:seg("GlassRackRod", ap(R, rx, R.H, z), ap(R, rx, ry, z), 0.06, Look.blackMetal)
+				end
+				for _, dx in { -0.35, 0.35 } do
+					K:box("GlassRackRail", V3(0.08, 0.08, zb - za + 0.4), at(R, rx + dx, (za + zb) / 2, 0, ry), Look.blackMetal)
+				end
+				for j = 0, 11 do
+					local gz = za + 0.4 + j * ((zb - za - 0.8) / 11)
+					local gx = rx + (if j % 2 == 0 then -0.35 else 0.35)
+					K:disc("HangGlassFoot", 0.32, 0.02, at(R, gx, gz, 0, ry - 0.06), gl(rgb(230, 236, 240), 0.45))
+					K:vcyl("HangGlassStem", 0.45, 0.04, at(R, gx, gz, 0, ry - 0.3), gl(rgb(230, 236, 240), 0.45))
+					K:ell("HangGlassBowl", V3(0.38, 0.5, 0.38), at(R, gx, gz, 0, ry - 0.75), gl(rgb(230, 236, 240), 0.55))
+				end
+			end)
+		end
+	end
 	-- 오른벽 남쪽 (DJ 와 셀러 사이) 작은 액자 · 바 끝 메뉴 스탠드 --------------------------------------------------
 	K:free(function()
 		artFrame(K, wallR(R, -74.0, 6.6, 0), 4.0, 5.0, { { rgb(16, 20, 40), 0, 0, 1, 1 }, { rgb(80, 150, 255), 0.1, 0.4, 0.8, 0.05 }, { rgb(255, 120, 200), 0.3, 0.55, 0.4, 0.05 }, { rgb(240, 240, 255), 0.45, 0.7, 0.1, 0.15 } }, brassL)

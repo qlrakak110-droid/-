@@ -1186,6 +1186,17 @@ local function tankOverlay(c: any, t: any)
 			local sc = tcf * CF(0, sy * 0.55, -sd / 2 + 0.05) * ANG(0, PI, 0)
 			ktext(K, "TankStreetSticker", math.min(4.2, tw * 0.5), 0.5, sc, if th.tank == "crab" then "영덕 · 울진 대게 직송" elseif th.tank == "shell" then "싱싱한 조개 · 산지 직송" elseif th.tank == "squid" then "동해 산오징어" else "자연산 활어 · 매일 입고", { fg = WHITE, bg = th.accent, font = F.GothamBlack, d = 0.02 })
 		end
+		-- 수족관 앞 바닥 배수 트렌치 (스테인리스 그레이팅, 바닥과 같은 높이)
+		if standTop > 0.5 then
+			local gl = tw - 0.4
+			local gcf = tcf * CF(0, 0.012, hd + 0.5)
+			K:box("TrenchFrame", V3(gl + 0.12, 0.024, 0.5), gcf, L.of(170, 174, 178, M.Metal))
+			K:box("TrenchSlot", V3(gl - 0.04, 0.026, 0.38), gcf, L.of(40, 42, 44, M.Metal))
+			local nb = if hi then math.floor(gl / 0.36) else 0
+			for k = 1, nb - 1 do
+				K:box("TrenchBar", V3(0.05, 0.03, 0.4), gcf * CF(-gl / 2 + k * gl / nb, 0.003, 0), L.of(190, 194, 198, M.Metal, { r = 0.1 }))
+			end
+		end
 		-- 물칸마다: 모서리 앵글 · 아래 실리콘 띠 · LED
 		for i, wt in t.waters do
 			local y0, y1 = wt.min.Y, wt.max.Y
@@ -1551,6 +1562,36 @@ local function sashimiPlatter(c: any, base: CFrame)
 	K:ball("WasabiDab", 0.1, base * CF(0.55, 0.12, 0.05), L.of(130, 180, 80))
 end
 
+-- 위생 앞치마 걸이 (PVC 앞치마 2 + 고무장갑 + 토시) + 아래 바닥에 고무 장화
+local function apronStation(c: any, dcf: CFrame, bootsCf: CFrame?)
+	local K = c.K
+	K:plate("ApronRail", 1.4, 0.12, 0.08, dcf * CF(0, 1.55, 0), L.of(196, 200, 204, M.Metal))
+	local colors = { pickOf({ rgb(236, 120, 40), rgb(40, 110, 190), rgb(250, 250, 246) }, c.seed, 51), rgb(30, 30, 34) }
+	for i, cc in colors do
+		local x = -0.36 + (i - 1) * 0.72
+		K:vcyl("ApronHook", 0.06, 0.12, dcf * CF(x, 1.5, 0.12), L.chrome)
+		local a = dcf * CF(x, 0.15, 0.1 + i * 0.03)
+		K:plate("Apron", 0.66, 2.3, 0.03, a * CF(0, -0.15, 0), col(cc, M.Plastic, { r = 0.06 }))
+		K:plate("ApronBib", 0.42, 0.5, 0.03, a * CF(0, 1.1, 0.0), col(cc, M.Plastic, { r = 0.06 }))
+		K:seg("ApronStrap", (dcf * CF(x - 0.12, 1.36, 0.14 + i * 0.03)).Position, (dcf * CF(x - 0.18, 1.5, 0.14)).Position, 0.03, col(cc))
+		K:seg("ApronStrap", (dcf * CF(x + 0.12, 1.36, 0.14 + i * 0.03)).Position, (dcf * CF(x + 0.18, 1.5, 0.14)).Position, 0.03, col(cc))
+	end
+	-- 고무장갑 (노랑 · 빨강) 한 켤레를 고리에
+	K:vcyl("GloveHook", 0.06, 0.1, dcf * CF(0.62, 1.2, 0.1), L.chrome)
+	K:ell("RubberGloveHang", V3(0.22, 0.7, 0.08), dcf * CF(0.58, 0.8, 0.14) * ANG(0, 0, 0.12), L.of(244, 196, 40, M.Rubber))
+	K:ell("RubberGloveHang", V3(0.22, 0.66, 0.08), dcf * CF(0.68, 0.78, 0.2) * ANG(0, 0, -0.1), L.of(200, 50, 40, M.Rubber))
+	if bootsCf then
+		for _, sx in { -1, 1 } do
+			local b = bootsCf * CF(sx * 0.24, 0, 0)
+			local boot = L.of(28, 30, 34, M.Rubber)
+			K:box("BootSole", V3(0.34, 0.12, 0.72), b * CF(0, 0.06, 0.08), L.of(240, 200, 40, M.Rubber))
+			K:box("BootFoot", V3(0.32, 0.3, 0.6), b * CF(0, 0.26, 0.1), boot)
+			K:vcyl("BootShaft", 0.95, 0.34, b * CF(0, 0.8, -0.08), boot)
+			K:disc("BootTopBand", 0.36, 0.06, b * CF(0, 1.25, -0.08), L.of(240, 200, 40, M.Rubber))
+		end
+	end
+end
+
 local function kitchen(c: any)
 	local K, V, th = c.K, c.V, c.th
 	local g = V.counters[1]
@@ -1714,7 +1755,7 @@ local function kitchen(c: any)
 				local isPot = it.kind == "pot"
 				local base = CF(cx, topY, if isPot then zBack + 0.3 else zBack)
 				local h = if isPot then 1.6 elseif it.kind == "sink" then 1.0 else 0.8
-				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 else 1.0)) then
+				if clearAt(K, base * CF(0, h / 2 + 0.02, 0), V3(it.w, h, if isPot then 1.6 elseif it.kind == "bowl" then 1.3 else 1.0)) then
 					placed = true
 					cursor = b + 0.2
 					-- 놓은 자리는 다음 품목 (처음부터 다시 찾을 때 포함) 이 피함
@@ -2320,6 +2361,64 @@ local function ceilingNet(c: any)
 		end
 		x += 1.0
 	end
+end
+
+-- 집어등 (오징어 배 등) 장식 줄: 천장에 매단 검은 파이프 + 반사갓 + 큰 전구 (네온). 반환: 전구 수
+local function fishingLamps(c: any): number
+	local K, V = c.K, c.V
+	if not budget(K, 40) then
+		return 0
+	end
+	local yPipe = V.H - 0.95
+	local step = 1.7
+	local zc = (V.z0 + V.z1) / 2
+	local best: { number }? = nil
+	local bestZ = zc
+	for _, dz in { -1.2, 1.2, -2.6, 2.6, 0 } do
+		local z = zc + dz
+		local run: { number } = {}
+		local x = V.x0 + 3
+		while x <= V.x1 - 3 do
+			if Common.ceilFree(K, x, z, 0.55) then
+				table.insert(run, x)
+			else
+				if #run > (if best then #(best :: { number }) else 0) then
+					best, bestZ = run, z
+				end
+				run = {}
+			end
+			x += step
+		end
+		if #run > (if best then #(best :: { number }) else 0) then
+			best, bestZ = run, z
+		end
+		if best and #(best :: { number }) >= 6 then
+			break
+		end
+	end
+	if not best or #(best :: { number }) < 4 then
+		return 0
+	end
+	local xs: { number } = best :: { number }
+	local n = math.min(#xs, if c.hi then 8 else 5)
+	local i0 = math.floor((#xs - n) / 2) + 1
+	local xa, xb = xs[i0], xs[i0 + n - 1]
+	local pipe = L.of(36, 38, 40, M.Metal)
+	K:seg("LampPipe", V3(xa - 0.5, yPipe, bestZ), V3(xb + 0.5, yPipe, bestZ), 0.12, pipe)
+	for _, x in { xa, xb } do
+		K:seg("LampRod", V3(x, yPipe, bestZ), V3(x, V.H - 0.02, bestZ), 0.06, pipe)
+		K:vcyl("LampRodPlate", 0.04, 0.3, CF(x, V.H - 0.03, bestZ), pipe)
+	end
+	for k = i0, i0 + n - 1 do
+		local x = xs[k]
+		local top = CF(x, yPipe - 0.06, bestZ)
+		K:vcyl("LampSocket", 0.32, 0.22, top * CF(0, -0.16, 0), L.black)
+		K:disc("LampShade", 0.8, 0.05, top * CF(0, -0.28, 0), L.of(214, 218, 222, M.Metal, { r = 0.2 }))
+		K:disc("LampShadeLip", 0.86, 0.03, top * CF(0, -0.31, 0), L.of(180, 184, 188, M.Metal))
+		K:ell("LampBulb", V3(0.44, 0.62, 0.44), top * CF(0, -0.62, 0), L.neon(rgb(255, 236, 196), 0.05))
+		Common.useCeil(K, x, bestZ)
+	end
+	return n
 end
 
 -- 벽걸이 TV (화면 = 스스로 빛나는 라벨)
@@ -3079,6 +3178,21 @@ function T.build(K: any, V: any, S: any)
 	step("kitchen", function()
 		kitchen(c)
 	end)
+	step("apron", function()
+		local g = V.counters[1]
+		if th.kind == "sushi" or not g or not c.hi then
+			return
+		end
+		-- 카운터의 방 가운데 쪽 끝 옆 (뒷벽 우선)
+		local endX = if math.abs(g.min.X) < math.abs(g.max.X) then g.min.X - 1.0 else g.max.X + 1.0
+		local wn, u = findWall(K, { "back" }, 1.5, 1.5, 2.2, 6.2, endX, 0.5)
+		if wn and u then
+			local bcf = V:wall(wn, u, 0, 0.55)
+			local okBoots = K:spot(bcf * CF(0, 0, 0), V3(1.0, 1.3, 0.85), 0.05, "seafood")
+			apronStation(c, V:wall(wn, u, 4.4, WALL_OFF), if okBoots then bcf else nil)
+			at(K, "apron", wn, u)
+		end
+	end)
 	local bigWalls = { "left", "right" }
 	if rnd(c.seed, 3) > 0.5 then
 		bigWalls = { "right", "left" }
@@ -3337,9 +3451,14 @@ function T.build(K: any, V: any, S: any)
 	end)
 	-- 7) 천장
 	step("ceiling", function()
+		-- 진미 (wood) · 오징어집: 집어등 줄, 조개찜 · 포차: 만국기, 그 밖 횟집 · 대게: 그물 + 부표
+		local lamps = 0
+		if th.variant == "wood" or th.kind == "squid" then
+			lamps = fishingLamps(c)
+		end
 		if th.flags then
 			buntings(c)
-		elseif th.kind == "hoe" or th.kind == "crab" then
+		elseif (th.kind == "hoe" or th.kind == "crab") and (lamps == 0 or V.W > 40) then
 			ceilingNet(c)
 		end
 		if th.kind == "crab" and budget(K, 30) then
