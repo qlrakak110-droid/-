@@ -1901,10 +1901,10 @@ local function hallStations(K: any, V: any, st: { any })
 				local fz = if sc2.Z > cb.Z then 1 else -1 -- 의자 앞(앉는 쪽) = +fz
 				local bw, bh = cbmx.X - cbmn.X, cbmx.Y - cbmn.Y
 				local bd = cbmx.Z - cbmn.Z
-				local zc = dk(z.c, 0.5)
+				local zc = dk(z.c, 0.62)
 				local leather = lk(zc, M.Leather)
 				for _, sx in { -1, 1 } do
-					K:box("ChairBolster", V3(0.2, bh - 0.35, bd + 0.34), CF(cb.X + sx * (bw / 2 + 0.1), cb.Y - 0.1, cb.Z + fz * 0.12), leather)
+					K:box("ChairBolster", V3(0.16, bh - 0.5, bd + 0.22), CF(cb.X + sx * (bw / 2 + 0.08), cb.Y - 0.12, cb.Z + fz * 0.08), leather)
 				end
 				local backZ = cb.Z - fz * (bd / 2 + 0.03)
 				K:box("ChairBackPanel", V3(bw - 0.5, bh * 0.62, 0.06), CF(cb.X, cb.Y + 0.15, backZ), lk(rgb(20, 20, 24), M.Leather))

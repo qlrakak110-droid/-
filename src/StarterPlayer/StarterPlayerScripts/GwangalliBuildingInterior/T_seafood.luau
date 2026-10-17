@@ -3210,6 +3210,25 @@ function T.build(K: any, V: any, S: any)
 	step("kitchen", function()
 		kitchen(c)
 	end)
+	-- 손질대 위 가로 라이트박스 간판 (뒷벽 윗부분: 횟집 손질대 위의 '활어회 전문' 띠 간판)
+	step("fascia", function()
+		local g = V.counters[1]
+		if th.kind == "sushi" or not g or V.H < 9 then
+			return
+		end
+		local cx = (g.min.X + g.max.X) / 2
+		local wn, u, w = findWall(K, { "back" }, 4.0, math.min(8.5, (g.max.X - g.min.X) - 1.0), 7.5, 8.95, cx, 0.5)
+		if not (wn and u and w) then
+			return
+		end
+		local txt = if th.kind == "jjim" then "산지직송 조개찜 · 조개구이" elseif th.kind == "crab" then "영덕 대게 · 러시아 킹크랩 직송" elseif th.kind == "squid" then "동해 산오징어 · 활어회" elseif th.variant == "market" or th.variant == "chojang" then "활어 즉석 손질 · 포장 · 택배" else "싱싱한 활어회 · 즉석 손질"
+		local dcf = V:wall(wn, u, 8.2, WALL_OFF)
+		local h = 1.0
+		K:plate("FasciaBox", w, h, 0.32, dcf, L.of(40, 42, 46, M.Metal))
+		litFace(K, "FasciaFace", w - 0.16, h - 0.16, dcf * CF(0, 0, 0.32), th.accent, txt, WHITE, 1.1, 0.02)
+		K:plate("FasciaTrim", w + 0.04, 0.05, 0.36, dcf * CF(0, -h / 2 - 0.02, 0), L.chrome)
+		at(K, "fascia", wn, u)
+	end)
 	step("apron", function()
 		local g = V.counters[1]
 		if th.kind == "sushi" or not g or not c.hi then
@@ -3274,6 +3293,33 @@ function T.build(K: any, V: any, S: any)
 			end
 		end
 	end)
+	-- 찜기 레인지 (후드 덕트가 천장까지 가므로 위 벽에 메뉴 간판 · 다른 벽 소품이 없는 자리만): 프롬프트 자리 우선
+	local function placeSteamer(style: string?, walls: { string }, promptY: number, object: string?)
+		local size = V3(2.9, 6.3, 1.9)
+		local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
+		local function upperClear(wn: string, u: number): boolean
+			for _, sp in freeSpans(K, wn, 6.4, V.H - 0.1, 1.2) do
+				if sp[1] <= u - 1.6 and sp[2] >= u + 1.6 then
+					return true
+				end
+			end
+			return false
+		end
+		local scf, swn, su = floorOnWall(K, walls, size, nearS, 0.15, function(p: CFrame, wn: string, u: number)
+			return upperClear(wn, u) and Interact.canPrompt(K, (p * CF(-0.64, promptY, 0.2)).Position)
+		end)
+		if not scf then
+			scf, swn, su = floorOnWall(K, walls, size, nearS, 0.15, function(_p: CFrame, wn: string, u: number)
+				return upperClear(wn, u)
+			end)
+		end
+		if scf and swn and su then
+			claim(K, swn, su - 1.6, su + 1.6, 6.3, V.H)
+			local door, hinge, axis = crabSteamer(c, scf, style)
+			c.steamer = { door = door, hinge = hinge, axis = axis, object = object }
+			at(K, "steamer", swn, su)
+		end
+	end
 	step("floorProps", function()
 		if isSushi then
 			return
@@ -3285,34 +3331,9 @@ function T.build(K: any, V: any, S: any)
 				clamRack(c, pcf, 3.6)
 				at(K, "clamRack", nil, nil, pcf.Position)
 			end
-			-- 찜솥 레인지 (조개찜은 카운터가 좁아 솥을 바닥 레인지에): 프롬프트 자리 우선
-			local size = V3(2.9, 6.3, 1.9)
-			local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
-			local scf = floorOnWall(K, { bigWalls[2], "back", bigWalls[1] }, size, nearS, 0.15, function(p: CFrame)
-				return Interact.canPrompt(K, (p * CF(-0.64, 3.0, 0.2)).Position)
-			end)
-			if not scf then
-				scf = floorOnWall(K, { bigWalls[2], "back", bigWalls[1] }, size, nearS, 0.15)
-			end
-			if scf then
-				local door, hinge, axis = crabSteamer(c, scf, "jjim")
-				c.steamer = { door = door, hinge = hinge, axis = axis, object = "조개찜 찜솥" }
-				at(K, "steamer", nil, nil, scf.Position)
-			end
+			placeSteamer("jjim", { bigWalls[2], "back", bigWalls[1] }, 3.0, "조개찜 찜솥")
 		elseif th.kind == "crab" then
-			local size = V3(2.9, 6.3, 1.9)
-			local nearS = { left = V.z0 + 4, right = V.z0 + 4, back = V.x1 * 0.2 }
-			local pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15, function(p: CFrame)
-				return Interact.canPrompt(K, (p * CF(-0.64, 3.3, 0.2)).Position)
-			end)
-			if not pcf then
-				pcf = floorOnWall(K, { bigWalls[2], bigWalls[1], "back" }, size, nearS, 0.15)
-			end
-			if pcf then
-				local door, hinge, axis = crabSteamer(c, pcf)
-				c.steamer = { door = door, hinge = hinge, axis = axis }
-				at(K, "steamer", nil, nil, pcf.Position)
-			end
+			placeSteamer(nil, { bigWalls[2], bigWalls[1], "back" }, 3.3, nil)
 		end
 		-- 스티로폼 상자 (탱크 가까운 벽 앞 · 뒤 구석)
 		local near = if tks[1] then (tks[1].min + tks[1].max) / 2 else V3(V.x1, 0, V.z1)
@@ -3425,6 +3446,17 @@ function T.build(K: any, V: any, S: any)
 			bridgeArt(c, V:wall(wn5, u5, 5.85, WALL_OFF), w5, 2.4)
 		end
 	end)
+	step("clock", function()
+		local wn, u = findWall(K, { "back", A, B }, 1.6, 1.6, 6.9, 8.6, { back = V.x1 * 0.45, left = 0, right = 0 }, 0.8)
+		if not wn then
+			wn, u = findWall(K, { "back", B, A }, 1.6, 1.6, 7.0, 8.9, { back = 0, left = 0, right = 0 }, 0.8)
+		end
+		if wn and u then
+			local dcf = V:wall(wn, u, 7.75, WALL_OFF)
+			local hr, mn = Props.clock(K, dcf, 1.4, if th.kind == "sushi" then { frame = L.of(84, 60, 42, M.Wood) } else nil)
+			Interact.clock(K, hr, mn, dcf, 1.4)
+		end
+	end)
 	-- 5) 위쪽 벽 (7.5 ~ 9.6): TV · 선풍기 (프롬프트 자리) 먼저, 그다음 사진 · 어탁 · 그물 · 풍어기
 	local yA, yB = 7.55, math.min(V.H - 0.3, 9.6)
 	step("upper", function()
@@ -3468,14 +3500,6 @@ function T.build(K: any, V: any, S: any)
 					fishPhoto(c, V:wall(wn2, u2, mid, WALL_OFF), 1.6, math.min(1.5, hh - 0.25), i)
 				end
 			end
-		end
-	end)
-	step("clock", function()
-		local wn, u = findWall(K, { "back", A, B }, 1.6, 1.6, 6.9, 8.6, { back = V.x1 * 0.45, left = 0, right = 0 }, 0.8)
-		if wn and u then
-			local dcf = V:wall(wn, u, 7.75, WALL_OFF)
-			local hr, mn = Props.clock(K, dcf, 1.4, if th.kind == "sushi" then { frame = L.of(84, 60, 42, M.Wood) } else nil)
-			Interact.clock(K, hr, mn, dcf, 1.4)
 		end
 	end)
 	-- 6) 작은 안내판
