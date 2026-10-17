@@ -814,7 +814,7 @@
     },
     {
      "room": "corridor",
-     "type": "corridor",
+     "type": "clubcorridor",
      "center": [
       -167.0,
       7.0,
@@ -831,7 +831,7 @@
     },
     {
      "room": "wc_f",
-     "type": "restroom",
+     "type": "clubwc",
      "center": [
       -196.8,
       7.0,
@@ -848,7 +848,7 @@
     },
     {
      "room": "wc_m",
-     "type": "restroom",
+     "type": "clubwc",
      "center": [
       -197.0,
       7.0,

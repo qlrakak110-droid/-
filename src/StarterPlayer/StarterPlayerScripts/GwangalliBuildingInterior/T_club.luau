@@ -1,5 +1,5 @@
 --!strict
--- GwangalliBuildingInterior/T_club: 큰 시설 방 유형 (clublounge rooftop hiphop) 실내 (Venues.luau 의 방, Scan.fitRoom).
+-- GwangalliBuildingInterior/T_club: CLUB OCEAN 광안 의 방 (clublounge 2F 스카이 라운지 · rooftop 옥상 · hiphop ROOM 2 · clubwc 화장실 · clubcorridor 복도).
 --   style(V) -> S  Common 에 줄 공통 마감 스타일 (Common.luau 머리말의 S 필드)
 --   build(K, V, S) 유형별 디테일
 
@@ -9,7 +9,7 @@ local Interact = require(script.Parent:WaitForChild("Interact"))
 local Common = require(script.Parent:WaitForChild("Common"))
 
 local T = {}
-T.types = { "clublounge", "rooftop", "hiphop", "clublobby", "clubtunnel", "clubmain" }
+T.types = { "clublounge", "rooftop", "hiphop", "clubwc", "clubcorridor" }
 
 function T.style(V: any): any
 	-- 기본: 기존 가구는 그대로, 천장 설비만 (모듈을 채우면서 바꿈)
