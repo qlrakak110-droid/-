@@ -83,7 +83,7 @@ local function injection(vaccine: boolean)
 		pressed = true
 	end })
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and Ui.isActionKey(io.KeyCode) then
+		if not Ui.typing() and Ui.isActionKey(io.KeyCode) then
 			pressed = true
 		end
 	end)

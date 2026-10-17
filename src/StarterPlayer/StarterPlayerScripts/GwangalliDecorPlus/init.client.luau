@@ -108,6 +108,7 @@ end
 -- Editor open / close
 -------------------------------------------------------------------------------------------------
 local closeEditor: (string?) -> ()
+local hiddenHomeGui: ScreenGui? = nil
 
 local function openPhoto()
 	if Photo.isOpen() then
@@ -165,6 +166,13 @@ local function openEditor()
 	if not home.model or not home.U then
 		return
 	end
+	-- the life game's HomeBar (초대 · 나가기) steps aside while editing
+	local pg = player:FindFirstChild("PlayerGui")
+	local hg = pg and pg:FindFirstChild("GwangalliHome")
+	if hg and hg:IsA("ScreenGui") and hg.Enabled then
+		hg.Enabled = false
+		hiddenHomeGui = hg
+	end
 	Editor.begin(snap, home.model, home.U)
 	Panels.mount({
 		snap = snap,
@@ -187,6 +195,12 @@ closeEditor = function(reason: string?)
 	end
 	Panels.unmount()
 	Editor.finish()
+	if hiddenHomeGui then
+		if hiddenHomeGui.Parent then
+			hiddenHomeGui.Enabled = true
+		end
+		hiddenHomeGui = nil
+	end
 	Visit.setVisible(true)
 	Visit.refresh()
 	if reason then

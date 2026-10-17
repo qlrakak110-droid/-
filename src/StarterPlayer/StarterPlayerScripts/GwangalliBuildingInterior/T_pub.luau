@@ -947,7 +947,7 @@ end
 local function sixPack(K: any, base: CFrame, col: Color3, gc: Color3, detail: string)
 	K:box("SixPack", V3(0.64, 0.34, 0.42), base * CF(0, 0.17, 0), { c = col, m = M.SmoothPlastic })
 	K:box("SixPackHandle", V3(0.07, 0.26, 0.4), base * CF(0, 0.47, 0), { c = col, m = M.SmoothPlastic })
-	K:box("SixPackBand", V3(0.645, 0.1, 0.425), base * CF(0, 0.22, 0), L.of(30, 30, 32))
+	K:box("SixPackBand", V3(0.66, 0.1, 0.44), base * CF(0, 0.22, 0), L.of(30, 30, 32))
 	for _, x in { -0.2, 0.2 } do
 		for _, z in { -0.1, 0.1 } do
 			if detail ~= "low" or z > 0 then
@@ -2035,11 +2035,20 @@ local function tapTower(c: any)
 			local tw = if alongX then tray.size.X else tray.size.Z
 			local td = if alongX then tray.size.Z else tray.size.X
 			local tH = tray.size.Y
-			K:box("TapTray", V3(tw, tH, td), tc * CF(tp.X, tray.c.Y - y0, tp.Z), L.steel)
-			K:box("TapTrayWell", V3(tw - 0.12, 0.012, td - 0.12), tc * CF(tp.X, tray.max.Y - y0 - 0.008, tp.Z), L.of(40, 40, 42, M.Metal))
-			local nbar = math.max(3, math.floor(td / 0.12))
+			-- 물받이: 바닥판 + 테두리 4 (윗면 = 맵 DripTray 윗면) + 움푹한 검은 바닥 + 그 위 크롬 그릴
+			-- (예전엔 통상자 윗면과 그릴이 0.002 차이라 깜빡임)
+			local yb, yt = tray.min.Y - y0, tray.max.Y - y0
+			local rim, lip = 0.05, 0.05
+			local tcf = tc * CF(tp.X, 0, tp.Z)
+			K:box("TapTray", V3(tw, tH - lip, td), tcf * CF(0, yb + (tH - lip) / 2, 0), L.steel)
+			for _, sd in { -1, 1 } do
+				K:box("TapTrayRim", V3(tw, lip, rim), tcf * CF(0, yt - lip / 2, sd * (td / 2 - rim / 2)), L.steel)
+				K:box("TapTrayRim", V3(rim, lip, td - 2 * rim), tcf * CF(sd * (tw / 2 - rim / 2), yt - lip / 2, 0), L.steel)
+			end
+			K:box("TapTrayWell", V3(tw - 2 * rim, 0.01, td - 2 * rim), tcf * CF(0, yb + tH - lip + 0.005, 0), L.of(28, 28, 30, M.Metal))
+			local nbar = math.max(3, math.floor((td - 2 * rim) / 0.1))
 			for k = 1, nbar do
-				K:box("TapTrayGrate", V3(tw - 0.14, 0.012, 0.035), tc * CF(tp.X, tray.max.Y - y0 - 0.004, tp.Z - td / 2 + 0.06 + (td - 0.12) * (k - 0.5) / nbar), L.chrome)
+				K:box("TapTrayGrate", V3(tw - 2 * rim, 0.02, 0.035), tcf * CF(0, yt - 0.02, -td / 2 + rim + (td - 2 * rim) * (k - 0.5) / nbar), L.chrome)
 			end
 		end
 	end)
@@ -2159,30 +2168,30 @@ local function tvSet(c: any)
 	K:plate("TVMount", w * 0.3, h * 0.3, 0.1, dcf, L.with(L.blackMetal, { free = true }))
 	K:plate("TVBody", w, h, z - 0.105, dcf * CF(0, 0, 0.1), L.of(18, 18, 20, nil, { free = true }))
 	local scr, scrLab = K:text("TVScreen", sw, sh, dcf * CF(0, 0, z), "", { bg = rgb(36, 118, 54), glow = 1.0, d = 0.01, free = true })
-	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.01) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.005, free = true })
+	local dirt = K:text("TVField", sh * 0.42, sh * 0.42, dcf * CF(0, -sh * 0.2, z + 0.012) * ANG(0, 0, PI / 4), "", { bg = rgb(170, 110, 64), glow = 1.0, d = 0.014, free = true })
 	-- 내야 (흙 다이아몬드 안 잔디 + 베이스 3 + 마운드): 야구 중계 화면처럼
 	local field = {}
 	do
 		local fc = dcf * CF(0, -sh * 0.2, z + 0.02)
-		local g = K:text("TVInfield", sh * 0.27, sh * 0.27, fc * ANG(0, 0, PI / 4), "", { bg = rgb(40, 128, 58), glow = 1.0, d = 0.004, free = true })
+		local g = K:text("TVInfield", sh * 0.27, sh * 0.27, fc * ANG(0, 0, PI / 4), "", { bg = rgb(40, 128, 58), glow = 1.0, d = 0.014, free = true })
 		table.insert(field, g)
 		local bs = sh * 0.035
 		for _, bp in { { -0.255, 0 }, { 0.255, 0 }, { 0, 0.255 } } do
-			local b0 = K:text("TVBase", bs, bs, dcf * CF(bp[1] * sh, -sh * 0.2 + bp[2] * sh, z + 0.028) * ANG(0, 0, PI / 4), "", { bg = rgb(246, 246, 240), glow = 1.1, d = 0.003, free = true })
+			local b0 = K:text("TVBase", bs, bs, dcf * CF(bp[1] * sh, -sh * 0.2 + bp[2] * sh, z + 0.03) * ANG(0, 0, PI / 4), "", { bg = rgb(246, 246, 240), glow = 1.1, d = 0.012, free = true })
 			table.insert(field, b0)
 		end
-		local mound = K:text("TVMound", sh * 0.06, sh * 0.06, fc * CF(0, 0, 0.008), "", { bg = rgb(176, 116, 70), glow = 1.0, d = 0.003, free = true })
+		local mound = K:text("TVMound", sh * 0.06, sh * 0.06, fc * CF(0, 0, 0.01), "", { bg = rgb(176, 116, 70), glow = 1.0, d = 0.012, free = true })
 		table.insert(field, mound)
 	end
 	local stripes = {}
 	for k = 1, 3 do
-		local p = K:text("TVStripe", sw / 7, sh, dcf * CF(-sw / 2 + sw * (2 * k - 0.5) / 7, 0, z + 0.008), "", { bg = rgb(44, 136, 60), glow = 1.0, d = 0.004, free = true })
+		local p = K:text("TVStripe", sw / 7, sh, dcf * CF(-sw / 2 + sw * (2 * k - 0.5) / 7, 0, z + 0.01), "", { bg = rgb(44, 136, 60), glow = 1.0, d = 0.008, free = true })
 		table.insert(stripes, p)
 	end
-	local _, bug = K:text("TVBug", sw * 0.4, sh * 0.17, dcf * CF(-sw * 0.27, sh * 0.37, z + 0.014), "", { fg = rgb(255, 255, 255), bg = rgb(16, 28, 70), glow = 1.1, d = 0.005, font = F.GothamBold, free = true })
-	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.014), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.005, font = F.GothamBlack, free = true })
-	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.014), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.005, font = F.GothamMedium, free = true })
-	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.014), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.004, font = F.GothamBlack, free = true })
+	local _, bug = K:text("TVBug", sw * 0.4, sh * 0.17, dcf * CF(-sw * 0.27, sh * 0.37, z + 0.03), "", { fg = rgb(255, 255, 255), bg = rgb(16, 28, 70), glow = 1.1, d = 0.012, font = F.GothamBold, free = true })
+	local live, liveLab = K:text("TVLive", sw * 0.1, sh * 0.08, dcf * CF(sw * 0.4, sh * 0.41, z + 0.03), "● LIVE", { fg = rgb(255, 255, 255), bg = rgb(210, 30, 40), glow = 1.2, d = 0.012, font = F.GothamBlack, free = true })
+	local _, tick = K:text("TVTicker", sw - 0.1, sh * 0.09, dcf * CF(0, -sh / 2 + sh * 0.06, z + 0.03), "", { fg = rgb(255, 230, 90), bg = rgb(10, 10, 14), glow = 1.1, d = 0.012, font = F.GothamMedium, free = true })
+	local _, logo = K:text("TVLogo", sw * 0.12, sh * 0.08, dcf * CF(sw * 0.4, -sh * 0.3, z + 0.03), "SPORTS", { fg = rgb(255, 255, 255), glow = 1.1, d = 0.012, font = F.GothamBlack, free = true })
 	local tvBody = K:plate("TVLogoBadge", 0.36, 0.05, 0.01, dcf * CF(0, -h / 2 + 0.035, z - 0.005), L.with(L.chrome, { free = true }))
 	-- 사운드바 (상호작용 손잡이; 문 앞 keep 에 걸리면 생략하고 TV 에 붙임)
 	local bar = tvBody
@@ -2218,10 +2227,13 @@ local function tvSet(c: any)
 				end
 			end
 		end
+		-- 잔디 줄무늬: 야구 · 축구 화면에서만 (판 자체도 초록이라 다른 채널에선 숨김)
+		local grass = ch.stripes or ch.dirt
 		for _, s in stripes do
+			s.Transparency = if grass then 0 else 1
 			for _, p in s:GetChildren() do
 				if p:IsA("SurfaceGui") then
-					p.Enabled = ch.stripes
+					p.Enabled = grass
 				end
 			end
 		end
@@ -2311,24 +2323,54 @@ local function tapBoard(c: any)
 			claim(K, "back", u - bw / 2 - 0.1, u + bw / 2 + 0.1, 0, 3.1)
 			local nd = math.max(2, math.floor(bw / 2.0 + 0.5))
 			local dw = bw / nd
-			K:box("UnderCoolerBody", V3(bw, 2.6, 1.0), pcf * CF(0, 0.3 + 1.3, 0), L.steel)
+			-- 몸통: 뒤판 + 칸막이 + 바닥만 (앞이 열린 칸 안에 진짜 캔 · 병, 앞에 테두리 문틀 + 유리)
+			-- (예전: 통상자 앞에 흰 판 + 납작한 캔 그림 = 가까이서 보면 종이 그림)
+			K:box("UnderCoolerBody", V3(bw, 2.6, 0.3), pcf * CF(0, 1.6, -0.35), L.steel)
+			for i = 0, nd do
+				local sx = math.clamp(-bw / 2 + dw * i, -bw / 2 + 0.04, bw / 2 - 0.04)
+				K:box("UnderCoolerSide", V3(0.08, 2.6, 0.7), pcf * CF(sx, 1.6, 0.15), L.steel)
+			end
+			K:box("UnderCoolerFloor", V3(bw, 0.08, 0.7), pcf * CF(0, 0.34, 0.15), L.steel)
 			K:box("UnderCoolerKick", V3(bw - 0.1, 0.3, 0.9), pcf * CF(0, 0.15, -0.04), L.black)
 			K:box("UnderCoolerTop", V3(bw + 0.04, 0.08, 1.04), pcf * CF(0, 2.94, 0), L.steel)
+			local levels = if K.detail == "low" then { 0.38, 1.5 } else { 0.38, 1.22, 2.06 }
+			local seed = c.seed or 0
+			local dets = K.detail
 			for i = 1, nd do
 				local x = -bw / 2 + dw * (i - 0.5)
-				local fc = pcf * CF(x, 1.6, 0.5)
-				K:plate("UnderCoolerDoor", dw - 0.08, 2.4, 0.05, fc, L.of(30, 30, 32, M.Metal))
-				K:plate("UnderCoolerInner", dw - 0.34, 2.1, 0.02, fc * CF(0, 0, 0.05), L.of(226, 236, 242))
-				local m = math.max(2, math.floor((dw - 0.4) / 0.28))
-				for row = 0, 1 do
+				local iw = dw - 0.08
+				K:box("UnderCoolerInner", V3(iw, 2.5, 0.02), pcf * CF(x, 1.63, -0.19), L.of(226, 236, 242))
+				local lamp = K:box("UnderCoolerLED", V3(iw - 0.2, 0.04, 0.05), pcf * CF(x, 2.84, 0.36), L.lampCool)
+				if c.coolLamps then
+					table.insert(c.coolLamps, lamp)
+				end
+				local m = math.max(2, math.floor((iw - 0.16) / 0.32))
+				for li, ly in levels do
+					if li > 1 then
+						K:box("UnderCoolerShelf", V3(iw, 0.03, 0.6), pcf * CF(x, ly - 0.015, 0.1), L.of(200, 204, 208, M.Metal))
+					end
 					for j = 1, m do
-						local bx = -(dw - 0.5) / 2 + (dw - 0.5) * (j - 0.5) / m
-						local col = (th.taps[((i + j + row) % #th.taps) + 1] :: any)[7] or rgb(200, 60, 40)
-						K:box("UnderCoolerCan", V3(0.18, 0.42, 0.02), fc * CF(bx, -0.55 + row * 1.0, 0.075), { c = col })
+						local bx = x - (iw - 0.16) / 2 + (iw - 0.16) * (j - 0.5) / m
+						local pc = pcf * CF(bx, ly, 0.05)
+						local k = i * 7 + li * 3 + j + seed
+						if (j + li) % 3 == 0 then
+							beerBottle(K, pc, if k % 2 == 0 then rgb(40, 96, 56) else rgb(110, 60, 24), LABELS[k % #LABELS + 1], dets)
+						else
+							local tp = th.taps[(k % #th.taps) + 1]
+							beerCan(K, pc, (tp :: any)[7] or (tp :: any)[5], rgb(250, 250, 246), dets)
+						end
 					end
 				end
-				K:box("UnderCoolerGlass", V3(dw - 0.3, 2.1, 0.02), fc * CF(0, 0, 0.1), { c = rgb(210, 230, 236), m = M.Glass, t = 0.7, r = 0.15 })
-				K:box("UnderCoolerHandle", V3(dw - 0.5, 0.06, 0.08), fc * CF(0, 1.06, 0.14), L.chrome)
+				-- 문: 테두리 4 + 유리 + 세로 손잡이
+				local fc = pcf * CF(x, 1.6, 0.5)
+				local fw, fh, rim = dw - 0.08, 2.4, 0.13
+				local fl = L.of(30, 30, 32, M.Metal)
+				K:box("UnderCoolerDoor", V3(fw, rim, 0.05), fc * CF(0, fh / 2 - rim / 2, 0.025), fl)
+				K:box("UnderCoolerDoor", V3(fw, rim, 0.05), fc * CF(0, -fh / 2 + rim / 2, 0.025), fl)
+				K:box("UnderCoolerDoor", V3(rim, fh - 2 * rim, 0.05), fc * CF(-fw / 2 + rim / 2, 0, 0.025), fl)
+				K:box("UnderCoolerDoor", V3(rim, fh - 2 * rim, 0.05), fc * CF(fw / 2 - rim / 2, 0, 0.025), fl)
+				K:box("UnderCoolerGlass", V3(fw - 2 * rim + 0.04, fh - 2 * rim + 0.04, 0.02), fc * CF(0, 0, 0.03), { c = rgb(210, 230, 236), m = M.Glass, t = 0.72, r = 0.12 })
+				K:box("UnderCoolerHandle", V3(fw - 0.5, 0.06, 0.08), fc * CF(0, fh / 2 - 0.2, 0.09), L.chrome)
 			end
 			-- 위: 바 매트 + 엎어 둔 파인트 잔
 			K:box("BarMat", V3(bw - 0.4, 0.03, 0.7), pcf * CF(0, 3.0, 0), L.rubber)
@@ -2891,7 +2933,7 @@ local function ducts(c: any)
 				local xg = a + len * (i - 0.5) / ng
 				K:box("DuctGrille", V3(1.4, 0.06, 0.34), CF(xg, y - dia / 2 + 0.02, z), L.of(60, 62, 66))
 				for k = -2, 2 do
-					K:box("DuctSlot", V3(1.3, 0.065, 0.03), CF(xg, y - dia / 2 + 0.02, z + k * 0.06), L.black)
+					K:box("DuctSlot", V3(1.3, 0.08, 0.03), CF(xg, y - dia / 2 + 0.02, z + k * 0.06), L.black)
 				end
 			end
 			local xx = a

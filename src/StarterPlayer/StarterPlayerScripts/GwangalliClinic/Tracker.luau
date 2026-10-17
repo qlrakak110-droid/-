@@ -457,8 +457,22 @@ function Tracker.init(c: any)
 			f.Size = UDim2.fromOffset(w, 0)
 		end
 	end)
+	-- step aside while a sheet / the staff dialog needs the room (phones), or when the dialog would cover us
 	Ui.onHud(function(hidden)
-		right.Visible = not (hidden and Ui.isPhone())
+		local covered = false
+		if Ui.dialogShown then
+			local s = Ui.scale()
+			local w = right.Size.X.Offset
+			local h = math.max(120, right.AbsoluteSize.Y / s)
+			local px = right.Position.X.Offset - w * right.AnchorPoint.X
+			local py = right.Position.Y.Offset
+			if right.Position.X.Scale > 0 then
+				local W = Ui.size()
+				px = W * right.Position.X.Scale + right.Position.X.Offset - w * right.AnchorPoint.X
+			end
+			covered = Ui.dialogCovers(px, py, w, h)
+		end
+		right.Visible = not ((hidden and Ui.isPhone()) or covered)
 	end)
 	banner = Ui.new("Frame", { Name = "CallBanner", AnchorPoint = Vector2.new(0.5, 0), Position = UDim2.new(0.5, 0, 0, -90), Size = UDim2.fromOffset(640, 64), BackgroundColor3 = Col.teal, Visible = false, ZIndex = 55 }, gui)
 	Ui.corner(banner, 18)

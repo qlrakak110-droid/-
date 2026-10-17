@@ -135,6 +135,33 @@ local function showResult(kind: string, r: any)
 	end
 end
 
+-- the server's measured values (VisitView.vitals) fill the strip too: a reconnect / respawn mid-consult
+-- or a step the client did not animate still shows every number already taken
+local function syncVitals(v: any)
+	local vt = v and v.vitals
+	if type(vt) ~= "table" or not next(tiles) then
+		return
+	end
+	if vt.temp then
+		showResult("temp", vt)
+	end
+	if vt.sys then
+		showResult("bp", vt)
+	end
+	if vt.lung then
+		showResult("stetho", vt)
+	end
+	if vt.throat then
+		showResult("throat", vt)
+	end
+	if vt.belly then
+		showResult("palp", vt)
+	end
+	if vt.talk then
+		showResult("talk", vt)
+	end
+end
+
 -------------------------------------------------------------------------------------------------
 -- minigames (flavour; the numbers come from the server)
 -------------------------------------------------------------------------------------------------
@@ -172,7 +199,7 @@ local function holdButton(body: Frame, label: string, secs: number, token: numbe
 		holding = false
 	end)
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and Ui.isActionKey(io.KeyCode) then
+		if not Ui.typing() and Ui.isActionKey(io.KeyCode) then
 			holding = true
 		end
 	end)
@@ -213,7 +240,7 @@ local function tapButton(body: Frame, label: string, n: number, token: number, o
 		end
 	end)
 	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if not gp and Ui.isActionKey(io.KeyCode) then
+		if not Ui.typing() and Ui.isActionKey(io.KeyCode) then
 			count += 1
 			b.Text = string.format("%s (%d/%d)%s", label, math.min(count, n), n, hint)
 			if onTap then
@@ -533,6 +560,7 @@ local function run(greet: string?)
 		Ui.lockJump(true, "consult")
 		buildVitals()
 		vitalsCard.Visible = true
+		syncVitals(ctx.visit)
 		local v = ctx.visit
 		local hv = v.health or ctx.health or {}
 		if (v.examIdx or 1) <= 1 then
@@ -638,6 +666,9 @@ function Consult.enter()
 end
 
 function Consult.onVisit(v: any, _prev: any)
+	if v and v.step == "consult" and running then
+		syncVitals(v)
+	end
 	if v and v.step == "consult" and not running then
 		-- reconnect / respawn while in the consult room: pick the flow up where the server is
 		task.spawn(run, nil)

@@ -19,7 +19,6 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local GuiService = game:GetService("GuiService")
-local ContextActionService = game:GetService("ContextActionService")
 local SoundService = game:GetService("SoundService")
 local Lighting = game:GetService("Lighting")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -576,6 +575,7 @@ end
 local modalKeys: { [string]: boolean } = {}
 local hudFns: { (boolean) -> () } = {}
 local dlg: any = nil
+local dialogBox: any = nil -- where the dialog sits (design px), for overlap checks
 local blur: BlurEffect? = nil
 local controlsOff = false
 
@@ -631,6 +631,7 @@ end
 function Ui.refreshHud()
 	local anySheet = next(modalKeys) ~= nil
 	local dialogUp = dlg ~= nil and dlg.root.Visible and Ui.isPhone()
+	Ui.dialogShown = dlg ~= nil and dlg.root.Visible
 	Ui.gui:SetAttribute("HideGwangalliHUD", anySheet or dialogUp)
 	Ui.hudHidden = anySheet or dialogUp
 	for _, fn in hudFns do
@@ -641,6 +642,20 @@ end
 -- our own always-on widgets (tracker) step aside too: fn(hidden)
 function Ui.onHud(fn: (boolean) -> ())
 	table.insert(hudFns, fn)
+end
+
+-- does the staff dialog (while shown) cover this design-px rect?
+function Ui.dialogCovers(x: number, y: number, w: number, h: number): boolean
+	if not dlg or not dlg.root.Visible or not dialogBox then
+		return false
+	end
+	local s = Ui.scale()
+	local dh = dlg.root.AbsoluteSize.Y / s
+	if dh < 40 then
+		dh = 160
+	end
+	local top = dialogBox.y - dh * dialogBox.ay
+	return dialogBox.x < x + w and dialogBox.x + dialogBox.w > x and top < y + h and top + dh > y
 end
 
 -------------------------------------------------------------------------------------------------
@@ -796,20 +811,26 @@ function Ui.actionHint(): string
 	return ""
 end
 
--- while a patient sits in the consult chair / lies on a bed, Space does not hop them off it
+-- while a patient sits in the consult chair / on the exam bed, a habitual Space / jump does not hop
+-- them off it: the local humanoid's Jumping state is switched off meanwhile (restored right after)
 local jumpLocks: { [string]: boolean } = {}
 function Ui.lockJump(on: boolean, key: string)
 	jumpLocks[key] = if on then true else nil
 	local any = next(jumpLocks) ~= nil
-	pcall(function()
-		if any then
-			ContextActionService:BindActionAtPriority("GwClinicNoJump", function()
-				return Enum.ContextActionResult.Sink
-			end, false, 3000, Enum.KeyCode.Space)
-		else
-			ContextActionService:UnbindAction("GwClinicNoJump")
-		end
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if hum then
+		pcall(function()
+			hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, not any)
+		end)
+	end
+end
+
+-- true while the player types in a TextBox (chat): our keyboard shortcuts stay quiet
+function Ui.typing(): boolean
+	local ok, tb = pcall(function()
+		return UserInputService:GetFocusedTextBox()
 	end)
+	return ok and tb ~= nil
 end
 
 -------------------------------------------------------------------------------------------------
@@ -880,10 +901,14 @@ local function buildDialog()
 			root.AnchorPoint = Vector2.new(anchor.X, anchor.Y)
 			root.Position = UDim2.fromOffset(r.x + r.w * anchor.X, y)
 			root.Size = UDim2.fromOffset(w, 0)
+			dialogBox = { x = r.x + r.w * anchor.X - w * anchor.X, y = y, w = w, ay = anchor.Y }
 		else
+			local w = math.min(720, W - 20)
+			local _, H = Ui.size()
 			root.AnchorPoint = Vector2.new(0.5, 1)
 			root.Position = UDim2.new(0.5, 0, 1, -16)
-			root.Size = UDim2.fromOffset(math.min(720, W - 20), 0)
+			root.Size = UDim2.fromOffset(w, 0)
+			dialogBox = { x = W / 2 - w / 2, y = H - 16, w = w, ay = 1 }
 		end
 	end)
 	-- on phones the dialog slot covers the game's right column: ask its HUD to step aside meanwhile
@@ -985,8 +1010,8 @@ function Ui.ask(who: string, text: string, choices: { string }, opts: { [string]
 	end
 	Ui.select(first)
 	-- PC: 1 ~ 9 picks a choice (the labels show the number)
-	local keyConn = UserInputService.InputBegan:Connect(function(io, gp)
-		if gp or dlgToken ~= token then
+	local keyConn = UserInputService.InputBegan:Connect(function(io, _gp)
+		if Ui.typing() or dlgToken ~= token then
 			return
 		end
 		local n = NUMBER_KEYS[io.KeyCode]
@@ -1166,7 +1191,7 @@ function Ui.init(ctx: any)
 					break
 				end
 			end
-		elseif not gp and (io.KeyCode == Enum.KeyCode.Return or io.KeyCode == Enum.KeyCode.KeypadEnter) then
+		elseif not Ui.typing() and (io.KeyCode == Enum.KeyCode.Return or io.KeyCode == Enum.KeyCode.KeypadEnter) then
 			-- PC: Enter runs the open sheet's primary button (the one gamepads start on)
 			for i = #sheets, 1, -1 do
 				local sh = sheets[i]

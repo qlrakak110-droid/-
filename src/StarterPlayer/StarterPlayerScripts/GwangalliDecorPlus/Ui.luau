@@ -165,7 +165,7 @@ function Ui.button(parent: Instance?, opts: any): TextButton
 		Font = Ui.F.bold,
 		TextWrapped = true,
 		RichText = true,
-		Size = if typeof(opts.w) == "UDim2" then opts.w else UDim2.new(0, opts.w or 120, 0, opts.h or 44),
+		Size = if typeof(opts.w) == "UDim2" then opts.w elseif opts.auto then UDim2.new(0, opts.w or 0, 0, opts.h or 44) else UDim2.new(0, opts.w or 120, 0, opts.h or 44),
 		LayoutOrder = opts.order or 0,
 		Selectable = true,
 		Parent = parent,

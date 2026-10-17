@@ -14,6 +14,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 local ServerStorage = game:GetService("ServerStorage")
 
+local Config = require(ReplicatedStorage:WaitForChild("GwangalliDecorShared"):WaitForChild("Config"))
+
 local Host = {}
 
 local folder: Instance? = nil
@@ -207,7 +209,7 @@ function Host.spend(p: Player, amount: number, label: string): boolean
 		return true
 	end
 	if ctxOk(ctx) then
-		local ok, r = pcall(ctx.spend, p, math.floor(amount), label, true, "bank")
+		local ok, r = pcall(ctx.spend, p, math.floor(amount), label, true, Config.PAY_PREFER)
 		return ok and r == true
 	end
 	if api then

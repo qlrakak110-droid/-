@@ -51,7 +51,6 @@ Config.MAX_LIFT = 10 -- studs a piece may float above its support (creative stac
 Config.WALL_GAP = 0.02
 Config.CEILING_CLEARANCE = 4.6 -- the bottom of a ceiling piece stays this high above the floor
 Config.SUPPORT_TOL = 0.12 -- |y - support| that still counts as standing on it
-Config.CORNER_TOL = 0.35 -- footprint corners may sit this much lower / higher than the centre support
 Config.OVERLAP_SHRINK = 0.06 -- collision boxes are shrunk by this before the overlap test
 Config.WALL_SHRINK = 0.1
 Config.PERSON_INFLATE = 0.4
@@ -82,10 +81,6 @@ Config.COOLDOWN = {
 	guestbook = 6,
 	gbDelete = 0.5,
 	photo = 2,
-	coop = 0.5,
-	stand = 0.5,
-	snapshot = 0.5,
-	planPreset = 0.6,
 }
 Config.RID_CACHE = 32
 
@@ -122,15 +117,10 @@ Config.HOST_DECOR_SCALE = 1 -- our decor points -> host decor points
 Config.HOST_VALUE_RATE = 0.5 -- our pieces -> 가구 가치 (resale)
 Config.CLEAR_ON_HOST_THEME = true -- the host's 🛠️ 인테리어 setTheme for a room clears our finish of that kind
 
--- Rewards (small life-game stats through ctx.addStats)
+-- Rewards (small life-game stats through ctx.addStats); goals + badges are in Score.luau
 Config.REWARDS = {
-	first = { happiness = 3 },
-	items10 = { happiness = 3 },
-	items30 = { happiness = 5 },
-	room = { happiness = 4 },
-	theme = { popularity = 2 },
-	like = { happiness = 1, popularity = 0.5 },
-	photo = { happiness = 1 },
+	like = { happiness = 1, popularity = 0.5 }, -- per ❤️ (max LIKE_OWNER_DAILY a day)
+	photo = { happiness = 1 }, -- per 📸 (max PHOTO_DAILY a day)
 }
 
 function Config.caps(tierKey: string?): { items: number, parts: number, lights: number }

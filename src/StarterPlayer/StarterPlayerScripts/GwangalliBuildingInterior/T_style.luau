@@ -804,6 +804,144 @@ local function portraitArt(K: any, d0: CFrame, kind: string, bg: Color3, hair: C
 end
 
 -- 미용실 전체
+-- 방 살롱 (3F 헤어살롱처럼 양면 거울 섬 + "SalonChair" 파트 의자, GwShop 스테이션 이름이 없는 곳):
+--   의자 = 같은 자세 · 크기로 유압 미용의자 덮어씌움 (원본 숨김), 거울 = LED 테두리 + 번호 + 섬 선반 위 제품 · 드라이어,
+--   트롤리 = 3단 미용 트롤리. 손님 NPC 가 앉은 의자 (ChairSeat + Cape) 는 그대로 둠.
+local function roomSalon(K: any, V: any, seed: number)
+	local chairs = recs(V, "SalonChair")
+	if #chairs == 0 then
+		return
+	end
+	local hideNear = setOf({ "ChairBack", "ChairBase", "ChairPost", "Armrest", "ArmPost", "Footrest", "FootRest", "Headrest" })
+	for i, r in chairs do
+		local back = nil
+		local bd = 1.8
+		for _, q in recs(V, "ChairBack") do
+			local dd = nearXZ(q.c, r.c)
+			if dd < bd then
+				back, bd = q, dd
+			end
+		end
+		if not back then
+			continue
+		end
+		local f = V3(r.c.X - back.c.X, 0, r.c.Z - back.c.Z)
+		if math.abs(f.X) >= math.abs(f.Z) then
+			f = V3(math.sign(f.X), 0, 0)
+		else
+			f = V3(0, 0, math.sign(f.Z))
+		end
+		local pcf = faceCF(V3(r.c.X, 0, r.c.Z), f)
+		local w = if math.abs(f.X) > 0.5 then r.size.Z else r.size.X
+		local d = if math.abs(f.X) > 0.5 then r.size.X else r.size.Z
+		K:free(function()
+			salonChair(K, pcf, r.max.Y, w, d, { leather = if (seed + i) % 3 == 0 then rgb(92, 60, 48) else SALON.leather })
+		end)
+		hideRec(K, r)
+		hideWhere(K, V, hideNear, function(q)
+			return nearXZ(q.c, r.c) < 2.0 and q.max.Y < 6
+		end)
+		K:reserve(V3(r.min.X - 0.6, 0, r.min.Z - 0.6), V3(r.max.X + 0.6, 5.6, r.max.Z + 0.6), "chair")
+		hairClumps(K, r.c, seed + i * 17, if i % 2 == 0 then rgb(40, 30, 24) else rgb(96, 70, 50))
+	end
+	-- 거울: LED 테두리 · 번호 스티커 · 선반 위 제품 (섬 상판 IslandTop 이 있으면)
+	local ledge = V:first("IslandTop")
+	local warm = nl(rgb(255, 236, 214))
+	local mirrors = recs(V, "Mirror")
+	table.sort(mirrors, function(a, b)
+		return a.c.X + a.c.Z * 0.01 < b.c.X + b.c.Z * 0.01
+	end)
+	local mirrorParts = {}
+	for mi, m in mirrors do
+		local sz = m.part.Size
+		if sz.Z > 0.3 or sz.Y < 2 then
+			continue
+		end
+		local n = m.lcf.ZVector
+		local near, nd = nil, 9
+		for _, r in chairs do
+			local dd = nearXZ(r.c, m.c)
+			if dd < nd then
+				near, nd = r, dd
+			end
+		end
+		if near and n:Dot(near.c - m.c) < 0 then
+			n = -n
+		elseif not near and n:Dot(V3(-m.c.X, 0, -m.c.Z)) < 0 then
+			n = -n
+		end
+		local up = Vector3.yAxis
+		local d = CFrame.fromMatrix(m.c + n * (sz.Z / 2 + 0.004), up:Cross(n), up, n)
+		local w, h = sz.X, sz.Y
+		K:free(function()
+			for _, sy in { -1, 1 } do
+				table.insert(mirrorParts, K:box("MirrorLEDRim", V3(w + 0.1, 0.07, 0.03), d * CF(0, sy * (h / 2 + 0.035), 0.015), warm))
+				table.insert(mirrorParts, K:box("MirrorLEDRim", V3(0.07, h, 0.03), d * CF(sy * (w / 2 + 0.035), 0, 0.015), warm))
+			end
+			txt(K, "MirrorNo", 0.36, 0.2, d * CF(-w / 2 + 0.32, -h / 2 + 0.25, 0.006), string.format("%02d", mi), rgb(90, 90, 96), nil, F.GothamBlack)
+			-- 섬 상판 위 (거울 앞 ~0.3): 제품 3 + 드라이어
+			if ledge then
+				local top = ledge.max.Y
+				local base = m.c + n * 0.32
+				if top < m.min.Y + 0.4 and math.abs(base.X - ledge.c.X) < ledge.size.X / 2 + 0.05 and math.abs(base.Z - ledge.c.Z) < ledge.size.Z / 2 + 0.05 then
+					local bcf = CFrame.fromMatrix(V3(base.X, top, base.Z), up:Cross(n), up, n)
+					local cols = { rgb(46, 110, 70), rgb(240, 236, 228), rgb(30, 30, 34), SALON.rose }
+					for j = 0, 2 do
+						bottle(K, bcf * CF(w / 2 - 0.35 - j * 0.32, 0, 0), ({ "pump", "spray", "tall" })[j + 1], 0.75 - j * 0.08, cols[(j + mi) % #cols + 1], rgb(30, 30, 30), WHITE)
+					end
+					-- 드라이어 (눕힘) + 빗
+					local dr = bcf * CF(-w / 2 + 0.6, 0.18, 0)
+					K:cyl("LedgeDryerBody", 0.7, 0.32, dr * ANG(0, PI / 2, 0), lk(rgb(30, 30, 32)))
+					K:cyl("LedgeDryerNozzle", 0.2, 0.22, dr * CF(0, 0, -0.42) * ANG(0, PI / 2, 0), lk(rgb(60, 60, 64)))
+					K:box("LedgeDryerHandle", V3(0.16, 0.12, 0.5), dr * CF(0, -0.06, 0.3) * ANG(0, 0.6, 0), lk(rgb(30, 30, 32)))
+					K:box("LedgeComb", V3(0.7, 0.03, 0.12), bcf * CF(0, 0.015, 0.05) * ANG(0, 0.25, 0), lk(rgb(30, 30, 32)))
+				end
+			end
+		end)
+	end
+	-- 맵 거울 위 막대 조명은 LED 테두리로 대신
+	for _, r in recs(V, "MirrorLight") do
+		hideRec(K, r)
+	end
+	-- 트롤리 (맵 상자 + 윗판) -> 3단 미용 트롤리 (같은 자리 · 높이)
+	for ti, tr in recs(V, "Trolley") do
+		local topR = nil
+		for _, q in recs(V, "TrolleyTop") do
+			if nearXZ(q.c, tr.c) < 0.6 then
+				topR = q
+			end
+		end
+		local tw, td = tr.size.X, tr.size.Z
+		local th = if topR then topR.max.Y else tr.max.Y
+		local p = CF(tr.c.X, 0, tr.c.Z)
+		K:free(function()
+			local body = lk(rgb(24, 24, 26))
+			for _, sx in { -1, 1 } do
+				for _, sz in { -1, 1 } do
+					K:ball("TrolleyCaster", 0.2, p * CF(sx * (tw / 2 - 0.12), 0.1, sz * (td / 2 - 0.12)), Look.rubber)
+					K:vcyl("TrolleyPostNew", th - 0.25, 0.07, p * CF(sx * (tw / 2 - 0.1), 0.2 + (th - 0.25) / 2, sz * (td / 2 - 0.1)), Look.chrome)
+				end
+			end
+			for _, y in { 0.55, th * 0.55, th - 0.06 } do
+				K:box("TrolleyShelf", V3(tw, 0.08, td), p * CF(0, y, 0), body)
+			end
+			local c = ({ rgb(240, 120, 150), rgb(120, 180, 240), rgb(250, 210, 80), rgb(140, 220, 150) })[(ti + seed) % 4 + 1]
+			K:vcyl("TintBowl", 0.22, 0.48, p * CF(-0.2, th + 0.11, 0.15), lk(rgb(250, 250, 250)))
+			K:disc("TintMix", 0.42, 0.02, p * CF(-0.2, th + 0.2, 0.15), lk(rgb(120, 70, 50)))
+			K:box("FoilSheets", V3(0.45, 0.05, 0.35), p * CF(0.25, th + 0.03, -0.2), lk(rgb(210, 212, 216), M.Foil))
+			for j = 0, 3 do
+				K:cyl("PermRod", 0.42, 0.1, p * CF(-0.3 + j * 0.2, th * 0.55 + 0.1, 0), lk(c))
+			end
+			towelStack(K, p * CF(0, 0.6, 0), tw - 0.3, td - 0.3, 3, rgb(240, 238, 234))
+		end)
+		hideRec(K, tr)
+		if topR then
+			hideRec(K, topR)
+		end
+	end
+	local _ = mirrorParts
+end
+
 local function buildSalon(K: any, V: any, S: any)
 	pcall(windowSignBacks, K, V)
 	pcall(twoSidedSigns, K, V)
@@ -845,6 +983,13 @@ local function buildSalon(K: any, V: any, S: any)
 			K:note("station error: " .. tostring(err))
 		end
 		hairClumps(K, s.c, seed + i * 17, if i % 2 == 0 then rgb(40, 30, 24) else rgb(96, 70, 50))
+	end
+
+	if #stations == 0 then
+		local ok, err = pcall(roomSalon, K, V, seed)
+		if not ok then
+			K:note("room salon error: " .. tostring(err))
+		end
 	end
 
 	-- 2) 샴푸대 -------------------------------------------------------------------------------------
@@ -1970,6 +2115,17 @@ local function buildClothing(K: any, V: any, S: any)
 	litDownlight(K, V.x0 + 2.6, (V.z0 + V.z1) / 2 + 3, Look.neutralLight, 18, 1.7)
 	litDownlight(K, V.x1 - 2.6, (V.z0 + V.z1) / 2 + 6, Look.neutralLight, 18, 1.7)
 
+	-- 맵 옷 (Garment) 은 우리가 다시 건 레일 둘레 것만 숨김 (다른 매장 · 방의 행거 옷이 통째로 사라지지 않게)
+	local garmentZones: { { Vector3 } } = {}
+	local function inZone(r: any, zones: { { Vector3 } }): boolean
+		for _, zn in zones do
+			if r.c.X > zn[1].X and r.c.X < zn[2].X and r.c.Y > zn[1].Y and r.c.Y < zn[2].Y and r.c.Z > zn[1].Z and r.c.Z < zn[2].Z then
+				return true
+			end
+		end
+		return false
+	end
+
 	-- 1) 벽 레일 + 옷 (맵 Rail 자리) --------------------------------------------------------------------
 	for _, rail in recs(V, "Rail") do
 		local alongZ = rail.size.Z > rail.size.X
@@ -1983,10 +2139,10 @@ local function buildClothing(K: any, V: any, S: any)
 			local ub = V:wallCoord(wall, b)
 			local um, ul = (ua + ub) / 2, math.abs(ub - ua) + 1.2
 			local bd = wcf(V, wall, um, 0.45 + (7.25 - 0.45) / 2, 0.01)
-			K:plate("RailBackdrop", ul, 7.25 - 0.45, 0.03, bd, lk(rgb(170, 184, 164)))
+			K:plate("RailBackdrop", ul, 7.25 - 0.45, 0.03, bd, lk(rgb(206, 212, 198)))
 			K:plate("RailBackdropTrim", ul + 0.1, 0.08, 0.06, bd * CF(0, -(7.25 - 0.45) / 2, 0), lk(rgb(190, 156, 96), M.Metal))
 			for i = 1, math.floor(ul / 1.6) do
-				K:plate("RailBackdropGroove", 0.05, 7.25 - 0.45, 0.035, bd * CF(-ul / 2 + i * 1.6, 0, 0), lk(rgb(150, 164, 144)))
+				K:plate("RailBackdropGroove", 0.05, 7.25 - 0.45, 0.035, bd * CF(-ul / 2 + i * 1.6, 0, 0), lk(rgb(176, 184, 168)))
 			end
 			K:cyl("RailNew", rail.size.Z + rail.size.X, 0.14, CF(rail.c) * (if alongZ then ANG(0, PI / 2, 0) else CFrame.new()), brass)
 			-- 벽 브래킷 (5 스터드마다)
@@ -2006,18 +2162,18 @@ local function buildClothing(K: any, V: any, S: any)
 			end
 		end)
 		hideRec(K, rail)
+		table.insert(garmentZones, { rail.min - V3(1.6, 5.5, 1.6), rail.max + V3(1.6, 0.6, 1.6) })
 	end
 	hideWhere(K, V, setOf({ "RailBracket" }))
-	for _, r in recs(V, "Garment") do
-		hideRec(K, r)
-	end
 	-- 레일 위 선반 (TopShelf) + 접은 옷 · 바구니 · 라탄백
+	local shelfZones: { { Vector3 } } = {}
 	for _, sh in recs(V, "TopShelf") do
 		local wall = nearestWall(V, sh.c)
 		local u = V:wallCoord(wall, sh.c)
 		local len = math.max(sh.size.X, sh.size.Z)
 		local dep = math.min(sh.size.X, sh.size.Z)
 		K:free(function()
+			table.insert(shelfZones, { sh.min - V3(0.3, 0.1, 0.3), sh.max + V3(0.3, 1.6, 0.3) })
 			local at = Props.shelf(K, wcf(V, wall, u, sh.min.Y + sh.size.Y / 2, 0), len, { depth = dep, look = oak, bracket = black, thick = sh.size.Y })
 			local n = math.floor(len / 1.6)
 			for i = 1, n do
@@ -2036,7 +2192,7 @@ local function buildClothing(K: any, V: any, S: any)
 		hideRec(K, sh)
 	end
 	for _, r in recs(V, "FoldedStack") do
-		if r.c.Y > 6 then
+		if r.c.Y > 6 and inZone(r, shelfZones) then
 			hideRec(K, r)
 		end
 	end
@@ -2310,7 +2466,45 @@ local function buildClothing(K: any, V: any, S: any)
 		hideWhere(K, V, setOf({ "RackPost", "RackFoot" }), function(r)
 			return nearXZ(r.c, bar.c) < 6
 		end)
-		for _, r in recs(V, "Garment") do
+		table.insert(garmentZones, { bar.min - V3(1.6, 5.5, 1.6), bar.max + V3(1.6, 0.6, 1.6) })
+	end
+
+	-- 7b) 다른 행거 (방 매장의 RackRail 독립 행거 · WallRail 벽 레일): 맵 옷 대신 옷걸이 + 옷 줄 (레일 파이프는 맵 그대로)
+	local rackKinds = { { "shirt", "tee", "knit" }, { "jacket", "shirt" }, { "dress", "knit", "tee" }, { "pants", "shorts", "pants" } }
+	local ri = 0
+	for _, nm in { "RackRail", "WallRail", "HangRail", "ClothesRail" } do
+		for _, r in recs(V, nm) do
+			local alongZ = r.size.Z > r.size.X
+			local lo = if alongZ then math.max(r.min.Z, V.z0 + 0.6) else math.max(r.min.X, V.x0 + 0.6)
+			local hi2 = if alongZ then math.min(r.max.Z, V.z1 - 0.6) else math.min(r.max.X, V.x1 - 0.6)
+			if hi2 - lo < 1.5 or r.max.Y < 4 or r.max.Y > V.H - 0.5 then
+				continue
+			end
+			ri += 1
+			local a = if alongZ then V3(r.c.X, r.max.Y, lo + 0.25) else V3(lo + 0.25, r.max.Y, r.c.Z)
+			local b = if alongZ then V3(r.c.X, r.max.Y, hi2 - 0.25) else V3(hi2 - 0.25, r.max.Y, r.c.Z)
+			local xdir = if alongZ then V3(1, 0, 0) else V3(0, 0, 1)
+			local pitch = 0.5
+			if nm == "WallRail" then
+				-- 벽에 바짝 붙은 레일: 앞을 보게 (폭 = 레일 방향), 겹치지 않게 넓은 간격
+				xdir = if alongZ then V3(0, 0, 1) else V3(1, 0, 0)
+				pitch = 2.05
+			end
+			local kinds = rackKinds[(ri + seed) % #rackKinds + 1]
+			K:free(function()
+				hangRow(K, a, b, xdir, pitch, kinds, seed + 131 * ri)
+				if (b - a).Magnitude > 3 and pitch < 1 then
+					sizeDivider(K, a:Lerp(b, 0.5), xdir, ({ "S", "M", "L", "FREE" })[ri % 4 + 1])
+				end
+			end)
+			table.insert(garmentZones, { V3(r.min.X - 1.6, r.max.Y - 5.5, lo - 0.4), V3(r.max.X + 1.6, r.max.Y + 0.6, hi2 + 0.4) })
+			if not alongZ then
+				garmentZones[#garmentZones] = { V3(lo - 0.4, r.max.Y - 5.5, r.min.Z - 1.6), V3(hi2 + 0.4, r.max.Y + 0.6, r.max.Z + 1.6) }
+			end
+		end
+	end
+	for _, r in recs(V, "Garment") do
+		if inZone(r, garmentZones) then
 			hideRec(K, r)
 		end
 	end
@@ -3714,6 +3908,10 @@ local function buildSurf(K: any, V: any, S: any)
 	end
 	litDownlight(K, 0, 1.5)
 	litDownlight(K, -6, -12)
+	-- 검은 웻슈트 벽은 레일 조명 하나로는 구멍처럼 어두움 -> 남는 불빛 하나를 웻슈트 앞 다운라이트로
+	if suitRail and #K.lights < (V.maxLights or 8) then
+		litDownlight(K, suitRail.c.X - 2.4, suitRail.c.Z, Look.neutralLight, 14, 1.3)
+	end
 
 	-- 12) 파도 정보판 (프롬프트 순환: 오늘 · 내일 · 수온 · 일몰) ----------------------------------------------------
 	local wave = {
@@ -4414,6 +4612,8 @@ function T.style(V: any): any
 			license = not gw,
 			cctv = not gw,
 			ceiling = { crown = Look.white },
+			-- 방 매장 (3F 편집숍 등): 맨 콘크리트 바닥 -> 밝은 오크 마루 (GwShop 은 맵 바닥이 이미 마루)
+			floor = if gw then false else { look = Look.of(200, 172, 136, M.WoodPlanks), tile = 0 },
 			plants = { "olive", "ficus" },
 			mat = false,
 			lights = { kind = "downlight", n = 8, color = Look.neutralLight, glow = Look.lampNeutral },

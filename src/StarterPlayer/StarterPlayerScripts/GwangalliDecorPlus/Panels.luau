@@ -429,8 +429,9 @@ function Panels.layoutBar()
 	refs.status.Size = UDim2.new(bar.Size.X.Scale, bar.Size.X.Offset, 0, 36)
 end
 
-local function abtn(text: string, style: string?, fn: () -> (), order: number): TextButton
-	return Ui.button(refs.barList, { text = text, auto = true, h = 50, style = style or "tonal", order = order, size = 15, onClick = fn })
+local function abtn(text: string, style: string?, fn: () -> (), order: number, pinned: boolean?): TextButton
+	local parent = if pinned then refs.barRight else refs.barList
+	return Ui.button(parent, { text = text, auto = true, h = 50, w = if pinned then 64 else 50, style = style or "tonal", order = order, size = 15, onClick = fn })
 end
 
 local function gridText(): string
@@ -513,9 +514,11 @@ function Panels.refreshBar()
 	if not list then
 		return
 	end
-	for _, c in list:GetChildren() do
-		if c:IsA("GuiObject") then
-			c:Destroy()
+	for _, holder in { list, refs.barRight } do
+		for _, c in holder:GetChildren() do
+			if c:IsA("GuiObject") then
+				c:Destroy()
+			end
 		end
 	end
 	local st = S()
@@ -545,9 +548,9 @@ function Panels.refreshBar()
 			end, 5)
 		end
 		settingChips(10)
-		abtn("✕ " .. Text.UI.cancel, "ghost", function()
+		abtn("✕", "ghost", function()
 			Editor.cancel()
-		end, 20)
+		end, 20, true)
 		local label
 		if st.mode == "place" then
 			local id = st.members and st.members[1] and st.members[1].i
@@ -566,7 +569,7 @@ function Panels.refreshBar()
 		end
 		abtn(label, if st.valid == false then "tonal" else "green", function()
 			Editor.confirm()
-		end, 30)
+		end, 30, true)
 		-- status
 		local nm = st.members and st.members[1] and Catalog.get(st.members[1].i)
 		if st.valid == false then
@@ -620,7 +623,7 @@ function Panels.refreshBar()
 			Ui.confirm({ gui = gui, title = if fresh then "구매 취소" else "가구 팔기", body = if fresh then "방금 산 가구라 전액 돌려받아요" else Text.fmt(Text.UI.confirmSell, math.floor(Config.SELL_RATE * 100)), ok = sellText, okStyle = "gold", onOk = function()
 				Editor.removeSelected("sell")
 			end })
-		end, 21)
+		end, 21, true)
 		status.Text = def.name .. "  ·  " .. Catalog.lookName(rec.i, rec.c, rec.m) .. "  ·  ⭐" .. def.decor
 		status.TextColor3 = C.text
 		return
@@ -682,6 +685,18 @@ local function buildBar(root: Frame)
 	})
 	Ui.list(sc, "x", 8, Enum.HorizontalAlignment.Left, Enum.VerticalAlignment.Center)
 	refs.barList = sc
+	-- primary actions (✓ 놓기 · ✕ · 팔기) stay visible at the right end
+	local right = Ui.new("Frame", { Name = "Pinned", BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.new(0, 0, 1, 0), AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -7, 0, 0), Parent = bar })
+	Ui.list(right, "x", 8, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+	refs.barRight = right
+	right:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		local sc2 = refs.barList
+		local scale = (gui :: ScreenGui):FindFirstChildOfClass("UIScale")
+		local k = if scale then scale.Scale else 1
+		if sc2 then
+			sc2.Size = UDim2.new(1, -14 - right.AbsoluteSize.X / k - (if right.AbsoluteSize.X > 1 then 8 else 0), 1, 0)
+		end
+	end)
 	local status = Ui.new("Frame", { Name = "Status", BackgroundColor3 = C.glass, BackgroundTransparency = 0.2, Parent = root })
 	Ui.corner(status, 18)
 	refs.status = status
@@ -1275,18 +1290,25 @@ function Panels.mount(c: any)
 		Panels.refresh()
 	end)
 	Panels.refresh()
-	local cam = workspace.CurrentCamera
-	if cam then
+	-- some devices do not fire ViewportSize changes on rotation: poll the orientation too
+	do
 		local was = Ui.portrait()
-		local conn
-		conn = cam:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-			if not gui or not gui.Parent then
-				conn:Disconnect()
+		local acc = 0
+		local conn: RBXScriptConnection? = nil
+		conn = game:GetService("RunService").Heartbeat:Connect(function(dt)
+			acc += dt
+			if acc < 1 then
+				return
+			end
+			acc = 0
+			if not gui or not gui.Parent or not root.Parent then
+				if conn then
+					conn:Disconnect()
+				end
 				return
 			end
 			if Ui.portrait() ~= was then
 				was = Ui.portrait()
-				-- rebuild for the new orientation
 				for _, ch in root:GetChildren() do
 					ch:Destroy()
 				end
