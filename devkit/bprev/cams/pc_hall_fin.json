@@ -1,0 +1,4 @@
+[{"name":"chairsBack","eye":[10,5.5,25.5],"at":[16,3,19],"fov":65},
+ {"name":"between","eye":[-24,5.6,7],"at":[0,3.4,7],"fov":78},
+ {"name":"rightAisle","eye":[26,6,26],"at":[22,3,-20],"fov":74},
+ {"name":"leftLong","eye":[-20,6,26],"at":[-29.5,4.5,-6],"fov":70}]

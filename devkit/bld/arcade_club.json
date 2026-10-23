@@ -1,0 +1,845 @@
+{
+ "venues": [
+  {
+   "name": "광안 게임랜드 1F 오락실 (main hall + 계단 로비)",
+   "path": "Workspace.Gwangalli.arcade.광안 게임랜드",
+   "bounds": "hall (-377.6,6.8,405.1)..(-303.0,18.0,483.7); lobby (-323.8,6.8,394.7)..(-302.0,18.0,404.3); whole model (-428,6.5,379)..(-297,20.5,487) incl. 3 parked cars outside the back wall",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "오락실 hall (SpaceCarpet 80.2x75.7 floor, Ceiling at 18.15; model is rotated ~-89 deg about Y, facade/entrance faces +X onto 광안로)",
+     "center": [
+      -340.3,
+      12.4,
+      444.4
+     ],
+     "size": [
+      74.6,
+      11.2,
+      78.6
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "entrance: 6 glass FoldedDoorLeaf (open storefront) + granite Threshold, x -305..-300, z 427.3..439.8; Destination '광안 게임랜드' at (-298.6,7.1,433.2)",
+     "center": [
+      -302.6,
+      11.4,
+      433.1
+     ],
+     "size": [
+      3,
+      9,
+      12.5
+     ],
+     "floorY": 6.8,
+     "ceilingY": 16.2
+    },
+    {
+     "name": "계단 로비 (granite LobbyFloor, glass Door at z 396.7..402.7, 8 granite Step rising west from y 7.8 to 14.6 and ending at the end Partition x -324; LobbyCeiling only x -311..-302)",
+     "center": [
+      -312.9,
+      12.4,
+      399.5
+     ],
+     "size": [
+      21.8,
+      11.2,
+      9.6
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    }
+   ],
+   "props": [
+    "ClawMachine_01..12 x12 (36 parts each): Cabinet 4x2.8x4 SmoothPlastic box (6 colours), TopBox 4.2x1.3x4.1, Neon Marquee 3.8x1 with SurfaceGui text (인형뽑기/LUCKY/피규어/대형인형/과자뽑기/GOLD), GlassBox 3.9x3.8x3.9 T=.78, 4 corner Posts, PrizeBed 3.8x0.5x3.8 Fabric, 8 Plush (SpecialMesh) + 3 PlushHead balls, gantry rail + carriage + cable + hub + 3 thin box ClawProngs, ControlPanel slab + GrabButton + Joystick/Knob, CoinPlate '1,000원', PrizeDoor 1.3x1.3 flat black, DropGuard glass box, 2 EdgeNeon. Row of 6 along the side wall x -333..-307 z 480.5..485, island of 6 (2x3, back-to-back) x -321.6..-308.6 z 458.8..467. Decent silhouette, but all flat boxes, no side art/bevel/LED chase, no prize chute, no coin-op slot detail",
+    "펀치기계 (10 parts): PunchBase 5.2x3.2x3.2 red box, PunchTower 4.4x6.4x1.6, Neon ScoreDisplay 'SCORE 987/오늘의 최고기록', PunchTopBox + PUNCH KING marquee, PadArm + Leather PunchPad 2.2x2.6x1.3, BoxingGlove box, CoinSlotPlate, Sign_도전! '900점 이상 경품 증정'. At x -320.8..-315.5 z 404.8..408.1 (against the south partition)",
+    "BasketballMachine_1/2 (26 parts each): FrontCabinet 6x3x3 orange, Ramp 5.6x2.2x13 + RampBase, BackPanel 5.8x9.6, Backboard, 8 Neon Rim segments, cylinder Net T=.5, 2 Fabric SideNet 8.5x13 T=.55 + NetFrames, Neon Marquee BASKET KING, ScoreLED 'SCORE 36', FrontScore 'BASKET 00:45', 5 Rubber Basketball balls. x -379..-363 z 469..482.5 against the back wall",
+    "RacingCabinet_1..3 (14 parts each): ScreenCabinet 6x9x4 single box, Neon RaceScreen 5.2x3.6 ('BUSAN RACER', 광안대교 코스 LAP 2/3...), DashBase box, SeatBase 4.8x0.3x5.5, Leather SeatBack slab + RacingSeat 2.2x0.5x2 box (no bucket shape), 2 SidePanels, cylinder SteeringWheel 1.9, WheelColumn, 2 box Pedals. x -379..-367 z 444.7..464.8",
+    "리듬게임_DanceBeat (24 parts): DanceCabinet 9.2x8.4x3.4 box, Neon DanceScreen ('♪ 광안리 연가 PERFECT x128'), 2 Speaker boxes + 4 cones, Neon marquee, DiamondPlate DancePlatform 9.2x0.6x6.6 with 8 Neon ArrowPanels 1.2x1.2 (flat squares, not arrows), 2 SafetyBars + 4 SafetyPosts. x -378.2..-367.8 z 422.1..431.5",
+    "RetroCabinet_1..4 (11 parts each): CabinetBody 3.6x7.2x3.4 single black box, flat Neon RetroScreen 3x2.2 (INSERT COIN / STAGE 3 / BUBBLE POP / GAME OVER), Neon Marquee (STREET FIGHT / SPACE WAR / BUBBLE POP / TANK 1990), ControlDeck slab, 2 joysticks + 2 knobs, round Leather StoolSeat on post. x -358.5..-342.8 z 404..411 (row on the south partition, all facing north)",
+    "AirHockey (13 parts): TableBody 5.6x2.6x10 blue box, white PlayField, 2 Neon EndRails, 2 SideRails, 2 cylinder Mallets, Puck, 2 Goals, CenterLine, ScoreBoard '3 : 5'. Alone in the hall centre at x -346.3..-336.2 z 437.5..443.3",
+    "CoinExchanger x2 (3x6.6x2.6 blue/red boxes) + Sign_동전교환기 + Neon ExchangerDisplay ('1,000원 → 500원 ×2', '5,000원 권 사용 가능') + BillSlot + CoinTray, x -312.4..-305.6 z 405..407.7 just inside the entrance",
+    "Prize corner: PrizeCounterBase 13x2.6x3.5 + Glass PrizeShowcase + Marble PrizeCounterTop + Neon CounterLED (x -339.8..-326.7 z 410.4..414.2), 3 PrizeShelf 13x1.8 on the partition (z 404.4..406.5) holding 23 PrizePlush (SpecialMesh) at y 10.5/13/15.5, 8 SmallPrize boxes on the counter, Sign_경품 교환 · PRIZE, Sign_교환 안내 '티켓 100장 = 중형 인형'. No staff / ticket counter / POS",
+    "VendingMachine (17 parts): Body 3.4x6.2x2.6 blue box, white Display panel, 15 Cans as 0.4x0.8x0.2 flat boxes (x -377.8..-375.2 z 418..421.5)",
+    "Walls/ceiling: dark-purple Plaster WallLining x2 + Partition (no posters except 2 info panels), 11 CeilingNeon tubes (grid 5 pink x 6 cyan, 72-76 long), 4 WallNeon strips, 4 LightPanel (Neon + SurfaceLight, InteriorLight tag), 5 LightHolder PointLights, 2 CassetteAC (+ grille/vanes), 2 CCTV balls, black SmoothPlastic Ceiling slab, 18 CarpetConfetti 0.7 squares on a flat navy Carpet",
+    "Wall info: Sign_이용 안내 (CCTV 녹화중 · 22시 이후 청소년 출입금지), Sign_인형뽑기 요금 (1회 1,000원 · 5,000원 6회), ScreenHousing + LEDScreen 6.4x3.6 (attr Messages '오늘의 펀치왕 987점|농구 최고 기록 64점|레이싱 베스트 랩 00:58.1|신규 인형 입고!', tag LEDScreen) on the side wall z 483.3",
+    "Back wall x -377.7: RestroomDoor 4x8 flat Metal slab + Sign_화장실, ExitDoor 4x8 + PanicBar + green ExitSign (both doors lead nowhere: outer wall GroundBack is behind them), FireExtinguisher on the south partition; outside the back wall: 4 OutdoorAC + fans, 2 GasMeter, RecycleBins (4 bins)",
+    "Facade (outside): Sign_광안 게임랜드 x2 + 34 MarqueeBulb (Neon balls), 12 NeonTube sign frames, 14 ShopWindow glass panes T=.5 + mullions, Sign_GAME/Sign_인형뽑기/price strips (transparent parts with SurfaceGui), StandingSign A-board, Sign_경품 대방출 on the side, Sign_3F 방탈출 2F 보드게임 1F 오락실 directory"
+   ],
+   "gameplay": [
+    "Play/Arcade World (ServerScriptService.GwangalliGameplay.Play.Arcade.World, config GwangalliPlayShared.Arcade.MACHINES): finds Models by NAME under Workspace.Gwangalli.arcade.광안 게임랜드: '펀치기계' (needs PunchBase, PunchTower, PunchPad, ScoreDisplay with SurfaceGui Face/Text + Face/Sub), 'BasketballMachine_1'/'_2' (needs 8 child parts named 'Rim', FrontCabinet, ScoreLED Face/Text, FrontScore Face/Text). Builds workspace.GwangalliPlay.Arcade: Anchor_gl_punch / Anchor_gl_basket1/2 with ProximityPrompt 'ArcadePrompt' (G key, MaxActivationDistance 9, '한 판 하기', 펀치 500원 / 농구 1,000원) at stand = PunchBase floor +4.6 studs out of the pad, basket FrontCabinet +3.4 studs; ballFrom/hoop from Rim average. Games: punch (tap charge + needle), basketball (40 s power/aim), 1:1 팔씨름 (free). Scores/leaderboards/rewards in Hub; NPC regulars 민수/유나/지훈/박 사장/덕배 할배 for challenges",
+    "Play/Arcade World ArmTable: builds its own 팔씨름 table (Top 3.2x0.3x2.4 + Leg + Pad + 2 Grips + Sign) at the FIRST spot whose 6x4x7 box (centre y+2.8) is empty server-side: (-327,6.75,428), (-330,6.75,425), (-332,6.75,440), (-345,6.75,425). Keep these 4 boxes clear of any new visible geometry (client builds do not block the server check but would visually intersect the table)",
+    "Play/Arcade World boards: wallBoard raycasts 14 studs from the punch stand (+6.2 y, +side*6.5) and basket stand (+6.4 y) to the nearest map wall and paints P.Boards (Board_punch 4.6x3.2, Board_basketball), Board_armwrestle 3.4x2.6 hovers 8.6 above the arm table. LEDScreen (direct child, attr Messages) is rewritten live ('오늘의 펀치왕 %d점|농구 최고 기록 %d점|...'): do not rename/move LEDScreen or ScoreDisplay/ScoreLED/FrontScore labels",
+    "GwangalliGameplay/Interact: tagExisting() tags each Model matching ^ClawMachine_%d+$ -> its PrizeDoor part gets tag GwInteract (GwKind 'claw', GwId = model name, label 인형뽑기). Server ops over ReplicatedStorage.GwangalliRemotes.InteractRequest: 'clawStart' {part=PrizeDoor} (within 9 studs, spends 1,000원 '광안 게임랜드 인형뽑기', pose claw_play, 12 s aim), 'clawDrop' {u,w in -1..1 over PrizeBed} (nearest Plush to the target, chance 0.12..0.55, prize 곰돌이/토끼/광안리 갈매기/고양이/펭귄/오리 인형, held plush 90 s, happiness +2), 'clawCancel'. Uses PrizeBed CFrame/Size and Plush positions. NO CLIENT in v7 (no GwangalliInteract hub module 'Claw'), so the 12 claw machines are currently NOT playable — the single biggest missing interaction",
+    "Interact sittables (IS.classify by name): StoolSeat x4 (retro stools) -> chair, RacingSeat x3, SeatBase x3 ('seat' wins over 'base' -> bench), the 8 lobby 'Step' parts -> edge sit. Do not hide/move them",
+    "GwangalliGameplay/ShopStaff: the arcade root Model has a direct child 'ShopFloor' (the photo shop floor) so the whole '광안 게임랜드' model is a storefront; its anchor is the only ANCHORS match 'Counter' (photo-shop counter at (-309.7,8.4,384.6)) -> one '알바생' NPC (kind game: hoodie/casual, typing/phone/teller, '말 걸기') stands behind the PHOTO counter, not at the prize counter. Keep ShopFloor/Counter/ShopBackWall and the 2x3-stud staff zone behind the counter",
+    "DetailLOD: 24 machine Models are ZoneLOD (LOD='zone', LODRadius 86-91, LODCenter at the machine) and 7 NearDetail + ShopDetail + RecycleBins are NearLOD (LOD='near'); hide crude parts per R3 (Transparency vs LocalTransparencyModifier depending on GwArrive) and re-apply on stream-in",
+    "Navigation / meta: Destination part DisplayName '광안 게임랜드' (tag Destination) = GwangalliNav node 3024 (-298.6,6.6,433.2), phone MapData, taxi names; Journey step 'arcade' (find radius 40, visit event arcade.play source arcade, hint from 준호 '펀치머신 한 판'); GwangalliCitizens area 'arcade' indoor r=70; IS.PHOTO_SPOTS 'arcade' (-330,7,433) r=45 (photo mode popularity); Pocha/Mind lines mention it",
+    "GwangalliDetails 네컷사진관 '네컷사진관 게임랜드점' is a separate runtime booth auto-placed on the 광안로 sidewalk near (-301,6.5,452) yaw 270 (auto search r=70 around the Destination) in workspace.GwangalliDetailsWorld — keep the sidewalk in front of the facade clear",
+    "Lights: 5 PointLight + 3 SurfaceLight tagged InteriorLight (GwangalliIndoorLight dims x0.55, Range cap 18); 136 parts tagged NeonTube (night neon), GwSurfaceGui on all signs; no ambient sound: GwangalliAmbience Soundscape has no arcade bed (silent arcade)",
+    "Annex: arcade is in Annex HOST_VENUES, so GwangalliBuildings never gives the 2F/3F an annex interior; StreetSigns treats 'arcade' as a host ancestor"
+   ],
+   "emptyOrCrude": [
+    "Hall is 28% occupied: largest empty floor square 34x34 studs centred (-345.3, 461.1) — between the claw island (x>-322), the basketball/racing wall (x<-367) and the air hockey (z<443.3). The whole north-centre (x -365..-322, z 445..479) is bare navy carpet; the south-centre around the air hockey (x -365..-322, z 415..437) also only has confetti squares. A real 오락실 of this size (~22x24 m) is packed wall-to-wall with ~40-60 machines in rows",
+    "Only 25 machines total and 5 kinds of video games; no 대전 격투 (철권-style candy cabinets back-to-back), no 펌프잇업-style dance machine (DanceBeat is a DDR-like generic), no 총게임, no 리듬 (drum/유비트), no 두더지 잡기, no 망치/킥 machine, no 경품 뽑기 (key-master/ 가위 자르기 / 브릿지), no 가챠 capsule wall, no 코인노래방 booths",
+    "Every cabinet is 1-3 axis-aligned SmoothPlastic boxes: RetroCabinet = one 3.6x7.2x3.4 black brick with a flat Neon rectangle as screen (no bezel, no angled CRT, no marquee overhang, no coin door/2 coin slots, no side art/T-molding, no 1P/2P button rows); RacingCabinet seat is a flat box on a slab (no bucket seat, no seat-belt/headrest, no shifter); DanceBeat arrows are flat squares; vending cans are flat 0.4x0.8x0.2 boxes; CoinExchanger is a coloured box with a strip display",
+    "Floor = single flat navy Carpet with 18 loose 0.7-stud coloured squares as 'space pattern'; walls = flat dark plaster with a few neon strips — no game posters, no 등급분류 stickers, no mirror/LED wall art, no zone floor graphics. Ceiling is a black slab + tube grid, no speakers/sprinklers/hanging zone signs (only 인형뽑기 존 sign)",
+    "Fake doors: RestroomDoor (화장실) and ExitDoor are flat slabs on the back wall with the outside wall right behind (no restroom behind); lobby stair (8 Steps up to y 14.6) ends against a wall — stair to nowhere although signs advertise 2F 보드게임 · 3F 방탈출",
+    "Prize corner has no 직원/계산대 (the ShopStaff 알바생 is placed in the photo shop instead), no ticket dispenser/ticket counter, prize shelves are 3 flat slabs; no seating/bench, no trash bin, no water purifier inside (recycle bins are outside behind the back wall)",
+    "Lighting is thin for 6,000 sq studs: 5 PointLights + 4 panels; machines have no own light (only Neon parts), no screen glow SurfaceLights",
+    "Silent: no BGM/jingles/coin sounds anywhere in the arcade",
+    "Retro/racing/dance/air hockey/vending/coin exchanger have no interaction at all; claws are server-ready but client-less"
+   ],
+   "realWorld": [
+    "Storefront: 인형뽑기 기계 wall visible through glass, LED 전광판/채널 간판 '인형뽑기 · 오락실 · 코인노래방', 24시 무인 운영 sign, 지폐교환기 (1만/5천/1천원 -> 500원/1000원 coin) at the door, CCTV 녹화중 sticker, 청소년 출입시간 안내 (게임산업법: 22시 이후 청소년 출입 제한)",
+    "Crane zone (인형뽑기방 style): 10-30 crane machines in rows/back-to-back islands, each ~0.9x0.9x2 m with LED-framed glass, top marquee lightbox, side plastic art panels, prize chute (상품 출구) with flap, coin/bill acceptor + card reader (카드 결제 단말기), 1회 1,000원 / 5,000원 6회 stickers, '집게 힘 조절 공지' sticker; variants: 대형 크레인(giant plush), 투클로, 과자뽑기, 피규어 브릿지(다리) 게임, 가위 자르기 (string-cut prizes), 키마스터/선물뽑기 behind acrylic (에어팟·닌텐도 스위치·향수), 랜덤박스 자판기",
+    "Capsule-toy (가챠) wall: 20-60 stacked capsule machines (2-3 high), 500-3,000원, capsule recycle bin",
+    "Video cabinets: 철권/KOF 대전 candy cabinets placed back-to-back in pairs (1P/2P sides, 32'' LCD, 8-button control panel, round stools), retro multi-game (50-in-1) cabinets, 슈팅/총게임 (light-gun cabinet with gun holsters, pedal), 레이싱 (마리오카트/이니셜D style: bucket seat, wheel, gear, pedals, 2-4 linked), 펌프잇업 (Andamiro, Korean) with 5-panel diagonal pad + safety bar, 유비트/사운드볼텍스/태고의 달인 drum, DJMAX",
+    "Physical/sports: 펀치기 (boxing bag that drops), 킥 머신, 망치(해머) strength tester, 농구 (2-4 linked hoops, ball return ramp), 에어하키 (2P, LED rim), 두더지 잡기 (hammers on chains), 야구/축구 슈팅",
+    "코인노래방 booths inside the arcade: 2-6 glass-door booths (2x1.5 m), sofa bench, monitor, 2 mics, 500원/1곡 · 1,000원/3곡 coin box, LED ceiling",
+    "Prize exchange: glass prize showcase + wall of plush/figures with ticket prices, ticket counter machine, staff POS, plush bags",
+    "Amenities: 음료 자판기 (cans/bottles with lit buttons, coin + card), 정수기 with paper cups, 쓰레기통/분리수거, 의자/둥근 스툴 at cabinets, 소화기 + 비상구 유도등, CCTV domes, 사업자등록증·게임제공업 등록증 frame, 화장실 열쇠 at counter (often in the building corridor)",
+    "Finish/lighting: black-light 우주 패턴 carpet or checker tiles, black ceiling with RGB LED tubes, machines are the main light (screens + marquees), loud BGM + machine attract sounds, ceiling speakers"
+   ],
+   "interactionIdeas": [
+    "인형뽑기 x12 (biggest win, server already exists): client-local prompt on PrizeDoor '인형뽑기 1,000원' -> InteractRequest:InvokeServer('clawStart', {part = PrizeDoor}); 12 s aim with WASD/stick moving a local copy of ClawCarriage over PrizeBed (u,w = -1..1), button/E to drop -> 'clawDrop' {u,w}; animate cable lowering, prongs closing, lift; on win drop the plush down the chute to PrizeDoor (server then sets GwHeld plush). 'clawCancel' on leave. Joystick/GrabButton animate with input",
+    "RetroCabinet x4: sit on StoolSeat -> '한 판 하기 (무료 체험)' opens a SurfaceGui mini game on RetroScreen (SPACE WAR shooter / BUBBLE POP / TANK 1990 / STREET FIGHT 1-button), local hi-score shown on the screen and marquee flash",
+    "RacingCabinet x3: sit in RacingSeat -> camera to RaceScreen, A/D turns SteeringWheel, W/S pedals; lane-dodge 광안대교 course on the screen, lap time vs the LED best lap",
+    "DanceBeat: step onto DancePlatform -> arrow panels light on the beat, arrow keys / 4 on-screen pads, PERFECT/GREAT combo on DanceScreen; spectators see the panels flash",
+    "AirHockey: 1P vs AI or 2 players on opposite ends; mallet follows mouse, local puck physics, ScoreBoard updates, goal horn",
+    "CoinExchanger: '지폐 교환' -> bill slot animation + coin clink into CoinTray + display '500원 ×2' (cosmetic, no money)",
+    "VendingMachine: '음료 고르기' -> lit product buttons, can drops into the bottom bin with sound (cosmetic; real purchase would need a server spend like GwangalliBuildings ACTIONS.vending)",
+    "Prize counter: '경품 구경' UI listing the shelf prizes with ticket prices; move/duplicate the 알바생 look-alike there (client-only figure) or add a counter bell",
+    "Punch/Basket/Arm wrestle already have server 'ArcadePrompt' — only add cosmetic attract-mode lights/sounds and keep ≥6.5 studs away from their anchors with any new prompt",
+    "New machines for the empty 34x34 zone (non-colliding visual + local mini-games): 철권-style 대전 pair (2P local fight), 두더지 잡기 (hit moles 30 s), 가챠 wall ('가챠 돌리기' capsule pops out), 2 코인노래방 booths (door slides, '노래 고르기' list, link to the karaoke venue), 총게임 cabinet",
+    "Restroom/exit doors: '화장실 (건물 복도)' / '비상구' prompt that shows a toast or locks with a rattle sound instead of a dead slab; lobby stair top: closed door '2F 보드게임카페 주사위 · 준비중' with knock prompt"
+   ]
+  },
+  {
+   "name": "셀프사진관 찰칵 (4컷 사진 · 24시간 무인) inside 게임랜드 빌딩",
+   "path": "Workspace.Gwangalli.arcade.광안 게임랜드 (ShopFloor / ShopBackWall / ShopLight / Counter / Sign_셀프사진관 찰칵 / Door at z 390.2 / ShopDetail)",
+   "bounds": "(-312.4,6.8,380.9)..(-302.0,16.5,393.2)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "photo shop room (CeramicTiles ShopFloor 12.08x10.2, ShopBackWall at x -312, glass Door 4.8x7 on the facade at z 387.8..392.6, ShopLight panel at y 16.1 is the only 'ceiling'; partition to the stair lobby at z 393.9..395.1)",
+     "center": [
+      -307.2,
+      11.6,
+      387.0
+     ],
+     "size": [
+      10.4,
+      9.7,
+      12.3
+     ],
+     "floorY": 6.8,
+     "ceilingY": 16.1
+    }
+   ],
+   "props": [
+    "ShopFloor x1 CeramicTiles (214,212,204)",
+    "ShopBackWall x1 12.08x9.7x0.5 white SmoothPlastic",
+    "Counter x1 3.62x3.3x2 pink WoodPlanks box at x -310.8..-308.7 z 382.8..386.4 (ShopStaff anchor)",
+    "ShopLight x1 10.08x0.2x8.5 (tag NightNeon)",
+    "ShopDetail/DoorFrame x1 (5.1x0.28x0.21 metal), Handle x1 on the door",
+    "Sign_셀프사진관 찰칵 on the fascia ('4컷 사진 · 24시간 무인')"
+   ],
+   "gameplay": [
+    "ShopStaff: this ShopFloor makes the parent '광안 게임랜드' a storefront and 'Counter' is the anchor -> an 알바생 NPC (kind 'game') stands behind the counter facing the door and offers '말 걸기'. Never hide/move ShopFloor, Counter, ShopBackWall (R4); keep 2x3 staff zone behind Counter",
+    "GwangalliDetails 네컷사진관 is NOT here: the Details photo-booth session (frame colour, props, 3-2-1, 4 poses -> polaroid strip, album, 같이 찍기) runs only at its own booths (spots prom / arcade sidewalk (-301,452) / market). An indoor booth could reuse the same client UI pattern but cannot start a Details session without a server spot",
+    "IS.PHOTO_SPOTS 'arcade' (-330,7,433) r=45 covers this shop: first photo-mode picture here gives popularity +1"
+   ],
+   "emptyOrCrude": [
+    "Room is a 10x12 empty tiled box with a single pink box 'Counter' — there are NO photo booths, no curtains, no kiosk, no props, no mirror; 40% of the floor is the counter + walls only, largest empty square 6x6 at (-308.4,388.9)",
+    "No real ceiling (light panel floating at 16.1 under the building core at 20.5), bare white back wall, no sample-photo wall, no lighting other than the panel",
+    "A '24시간 무인' shop with a staffed counter NPC is contradictory; real 무인 사진관 have a payment kiosk instead of a clerk"
+   ],
+   "realWorld": [
+    "2-4 photo booths (인생네컷/포토이즘/하루필름 style) ~1.5 W x 2 D x 2.2 H m each: black/white/pink box, fabric curtain on a rail, inside: monitor + camera with ring/soft box, shutter remote, bench/stool, backdrop colour (white/pink/blue), floor mark",
+    "Payment kiosk per booth (touchscreen, card reader, 4,000-5,000원, frame/선택 메뉴), QR download sign",
+    "Prop wall / 소품 rack: 머리띠 (bunny ears), 모자, 선글라스/하트 안경, 왕관, 가발, 인형, 말풍선 피켓 on hooks and baskets",
+    "Vanity: large mirror with bulb frame, 고데기/드라이기/빗/헤어롤, 거울 앞 선반, 화장대 의자",
+    "Printer output slot + 사진 정리 테이블 with 가위·투명 포토 케이스, trash bin",
+    "Sample photo wall (액자 collage), brand neon logo, bright white LED ceiling, tiled or epoxy floor, 'CCTV 촬영중' and 이용 방법 1-2-3 signs"
+   ],
+   "interactionIdeas": [
+    "Booth curtain: '커튼 열기/닫기' (local tween), inside '촬영하기' -> client photo mode 3-2-1 with flash + 4-cut strip from ViewportFrames (copy the Details look; cosmetic, no server spend)",
+    "Prop rack: '소품 고르기' -> pick 머리띠/안경/모자, attach a local accessory for the session",
+    "Vanity mirror: '머리 만지기' -> camera close-up + hair-fix emote, 고데기 steam particle",
+    "Kiosk: '프레임 선택' UI (colour frames, 2컷/4컷) feeding the booth session",
+    "Printer slot: strip slides out at the end with sound"
+   ]
+  },
+  {
+   "name": "게임랜드 빌딩 2F 보드게임카페 주사위 / 3F 방탈출 카페 미스터리룸 (upper floors)",
+   "path": "Workspace.Gwangalli.arcade.게임랜드 빌딩 (오락실)",
+   "bounds": "(-381,20.5,378)..(-297,56.3,487); floors 2F y 20.5..31.7, 3F y 31.7..42.5 (FloorBand at 31.7)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "solid Core 104.2x22x76.1 Concrete (no interior) behind facade glass",
+     "center": [
+      -340.5,
+      31.5,
+      432.4
+     ],
+     "size": [
+      76.1,
+      22.0,
+      104.2
+     ],
+     "floorY": 20.5,
+     "ceilingY": 42.5
+    }
+   ],
+   "props": [
+    "Core x1 solid concrete block (no rooms)",
+    "Facade: Blinds x3 (Fabric strips 105.2x3.94 / 77.2x2.68 / 77.2x3.29 pressed on the glass), FacadeDetail WinFrame x8, WinStile x29, SillStain x4, Pier, FloorBand x2, 30 'Window' parts tagged NightWindow (LitChance/LitColor/LitSeed attrs)",
+    "Signs: Sign_보드게임카페 주사위, Sign_방탈출 카페 미스터리룸, vertical Sign_인형뽑기 x2, Sign_방탈출 x2",
+    "Roof: Parapet, Coping, Crown (pink plaster), Penthouse 12x9x10, 3 ACCondenser + skid + fans, Antenna"
+   ],
+   "gameplay": [
+    "Model attr Floors=3; NightWindow windows lit at night by the environment system",
+    "Excluded from Annex (arcade is a HOST_VENUE) so no system builds these floors; the 1F lobby stair and directory sign point to them"
+   ],
+   "emptyOrCrude": [
+    "The 2F/3F businesses advertised on 3 signs do not exist: solid concrete core, blinds glued to the glass; the 1F stair dead-ends at y 14.6"
+   ],
+   "realWorld": [
+    "2F 보드게임카페: tables for 2-6 with chairs, wall shelves of 300+ board games (부루마블, 할리갈리, 루미큐브, 젠가), counter with drinks/snacks (음료 1잔 필수), 시간제 요금표 (1시간 3,000원), staff explaining rules, bell",
+    "3F 방탈출: reception/waiting lounge with theme posters (공포/추리/감성), lockers for phones, 3-5 theme rooms with locked doors, hint tablet/walkie-talkie, CCTV control desk, photo zone with result boards ('탈출 성공 00:42')"
+   ],
+   "interactionIdeas": [
+    "Keep non-enterable but finish the stair: landing + closed door '2F 보드게임카페 주사위 · OPEN 13:00' with '문 두드리기' / '예약 안내' toast",
+    "Optional later: a client-only 2F board-game room (tables + shelves) reached through a door at the stair top; 3F escape-room lobby with a '테마 고르기' poster wall (cosmetic)"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — entrance sequence (Forecourt, Vestibule, EntranceTunnel, Lobby: 입장료 cashier, lockers, photo wall)",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.{Forecourt, ClubDoor, Vestibule, EntranceTunnel, Lobby}",
+   "bounds": "forecourt (-237,6.5,264)..(-217,31.4,487); vestibule (-219.8,7,368.5)..(-211.6,16.5,382.6); tunnel (-211.8,7,369.6)..(-192.1,16.5,381.9); lobby (-192.6,7,344.9)..(-177.2,17.5,407.1)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Forecourt (granite EntrancePlatform, RedCarpet, valet bay, queue, ID podium)",
+     "center": [
+      -227,
+      7,
+      375
+     ],
+     "size": [
+      20,
+      10,
+      140
+     ],
+     "floorY": 6.8,
+     "ceilingY": 19.3
+    },
+    {
+     "name": "Vestibule (metal detector frame, open door leaves)",
+     "center": [
+      -215.7,
+      11.8,
+      375.6
+     ],
+     "size": [
+      8.2,
+      9.5,
+      14.1
+     ],
+     "floorY": 7.0,
+     "ceilingY": 16.5
+    },
+    {
+     "name": "EntranceTunnel (30 vertical LED bars, 2 floor lines)",
+     "center": [
+      -202,
+      11.8,
+      375.8
+     ],
+     "size": [
+      19.7,
+      9.5,
+      12.3
+     ],
+     "floorY": 7.0,
+     "ceilingY": 16.5
+    },
+    {
+     "name": "Lobby (marble floor + brass inlay, velvet walls, ceiling neon ring)",
+     "center": [
+      -184.9,
+      12.3,
+      376.0
+     ],
+     "size": [
+      15.4,
+      10.5,
+      62.2
+     ],
+     "floorY": 7.0,
+     "ceilingY": 17.5
+    }
+   ],
+   "props": [
+    "Forecourt: IDPodium + wedge PodiumTop + Tablet_IDCheck + ScannerLED + Sign_신분증 필수 + ProximityPrompt IDCheckPrompt ('신분증 보여주기', tag ClubIDCheck); ValetStand + Sign_VALET + AFrame x2 발렛파킹; Planter x2 with palms; Bollard x2 LED; GuestListSign A-frame; TaxiDropOff staged open taxi door; 3 parked cars (Genesis G80, 2 taxis) with full interiors; queue NPCs (People Zone 'Near' x10)",
+    "ClubDoor (28 parts, tag ClubDoor, attrs Inward/SlideTime 0.75): 2 sliding leaves with glass/LED/pulls, ClubDoorBarrier (14.1x10.1 invisible-ish blocker) + _VIP/_Exit/_SideExit barriers, ClubDoorOutside (eject point), ClubBouncerPost with ClubEntryPrompt ('입장하기', tag ClubIDCheck), 2 rope posts + velvet ropes (closed/open), Sign_ENTRY ₩30,000 (FRI·SAT ₩50,000 · 팔찌 재입장 무료)",
+    "Vestibule: VestibuleWall x2, DoorLeaf_Open x2 + DoorPull x2, DetectorPanel x2 + DetectorHead + DetectorLED (walk-through metal detector)",
+    "EntranceTunnel: TunnelLED x30 (ClubLight Kind Tunnel), FloorLine x2, TunnelLightHost PointLight",
+    "Lobby/Cashier_입장료: CashierCounter 10 long + metal CounterTop + UnderGlow + 3 Onyx panels, 3 GlassPartitions, BackDesk, POSMonitor, TerminalScreen, CardTerminal, CashTray, WristbandBoard with 30 Wristbands, Sign_ENTRANCE · 입장료 '₩30,000 (1 DRINK) · FRI/SAT ₩50,000'; Staff_001 + Guest NPCs",
+    "Lobby/Lockers_락커: LockerCarcass 18.8x9.1 with 32 LockerDoor + 32 KeypadLED + numbers 101-132, Sign_LOCKER · 물품보관함 ₩2,000 (x -192.1..-190.2, z 384.5..403.3)",
+    "Lobby photo wall: StepAndRepeat 13.2x9.9 fabric (CLUB OCEAN / 광안 · GWANGALLI logo grid), Sign_오늘 밤, 광안리에서 + neon, Sign_#CLUBOCEAN #광안리, RingLight + core + PhoneHolder + tripod (3 legs), PhotoMark floor sticker",
+    "Lobby misc: LobbyRight bench (base/cushion/back) + Sign_TONIGHT · 오늘 밤 + plant; Sign_HOUSE RULES (약물 반입 금지 · 음주운전 금지 · 분실물 책임지지 않음), Sign_CLUB OCEAN 16x5, Sign_MAIN HALL ▲, Sign_TABLE · BAR · DJ ▶, curtain (8 folds + valance), ExitSign"
+   ],
+   "gameplay": [
+    "Club.server PAID DOOR: ProximityPrompts tagged ClubIDCheck (IDCheckPrompt at the podium, ClubEntryPrompt at ClubBouncerPost) -> ClubRemote 'door' sheet (walk-in fee weekday 30,000 / Fri-Sat 50,000, or table booking), spend via GwangalliGameplayAPI, wristband attrs ClubOceanWristband/ClubOceanWristbandUntil; door is client-side (GwangalliClubShow Door: local slide + barrier); every EjectEvery s the server teleports players without wristband from any non-Near ClubZone to ClubDoorOutside",
+    "Life.luau club hooks: cover / VIP table spend, waypoint 'CLUB OCEAN 광안', entry stats; Journey/Club gate (found within 60 studs of the Destination or in the Near zone)",
+    "ClubRuntime zone boxes (tag ClubZone, attr Zone): Zone_Lobby (-219.1,6.5,344.5)..(-177.2,18.5,407.1), Zone_Near (-285,-1.5,219.6)..(-43.4,76.5,533.1). GwangalliPlayShared.Zones and ClubRanking Zones read them",
+    "ClubLights drives every ClubLight-tagged part (777 total; Tunnel x30, Portal, FacadeLine...) — don't hide/recolour them; ClubCrowd (StreetLife) animates the People rigs (130 ClubNPC, AnimationController)",
+    "ShowAnchors Show_Lobby / Show_HallTurn / Show_HallDoor used by GwangalliClub Booking (합석 event walk)",
+    "Interact excludes everything under 'CLUB OCEAN' from sittable tagging; systems.json rule: only wall-mounted, non-colliding decor in the club; DetailLOD: Lobby/EntranceTunnel are ZoneLOD (LODRadius 73/53)"
+   ],
+   "emptyOrCrude": [
+    "Lobby is 47% occupied and well dressed; small gaps only (12-stud empty square at (-185.6,369.9) = the walking lane, which must stay clear)",
+    "Lockers, wristband board, coat/ID desk and photo wall are pure decoration: no locker opens, the ring-light photo wall has no photo action",
+    "Tunnel is 33% occupied: bare walls between the LED bars (fine for a light tunnel); vestibule has no ID scanner screen or bag-check table"
+   ],
+   "realWorld": [
+    "Door: 신분증 검사 with ID scanner/flashlight, 19세 미만 출입금지 sign, bouncers in black, velvet ropes + VIP lane, guest list MD with tablet, 손목밴드/도장, metal detector wand & 소지품 검사 table, smoking area outside",
+    "Cashier: 입장료 board (요일별, 1 drink 포함), card terminal, wristband colours by night, coat check/물품보관 (₩2,000-3,000), lockers with keypad or key wristband",
+    "Lobby: step-and-repeat photo wall with ring light, event posters (DJ lineup), 하우스 룰, 분실물/휴대폰 충전 대여 (보조배터리), water, CCTV"
+   ],
+   "interactionIdeas": [
+    "Locker: '보관함 열기' on a LockerDoor -> door swings (local), keypad beep, 'No.1xx 사용 중' toast; second press closes",
+    "Photo wall: stand on PhotoMark -> '포토월 촬영' ring-light flash + camera snap (client photo mode with flash), no server cost",
+    "Wristband board: '팔찌 확인' shows the player's own ClubOceanWristbandUntil time (read-only attr)",
+    "Metal detector: walking through DetectorPanel beeps/flashes DetectorLED (client sound)",
+    "Do NOT add prompts near IDCheckPrompt/ClubEntryPrompt (6.5-stud rule) and never duplicate pay/entry"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — Main Room (dance floor, DJ booth, LED wall, MainBar, TableFloor 31 tables, Mezzanine, HallRooms)",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.{MainRoom, MainBar, TableFloor, HallRooms, ClubShowAnchors}",
+   "bounds": "(-177.2,7.0,341.1)..(-71.2,32.5,412.7); HallRooms extend to z 425",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Main hall (BlackGlossFloor 70x105, black ceiling install 22.2..32.5, Zone_Main)",
+     "center": [
+      -124.2,
+      19.8,
+      376.9
+     ],
+     "size": [
+      106.0,
+      25.5,
+      71.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 32.5
+    },
+    {
+     "name": "LEDDanceFloor (48 Neon tiles, ClubFloorTile) in front of the DJ booth",
+     "center": [
+      -107,
+      7.1,
+      373.5
+     ],
+     "size": [
+      9.2,
+      0.2,
+      22.2
+     ],
+     "floorY": 7.0,
+     "ceilingY": 32.5
+    },
+    {
+     "name": "DJ booth platform (BoothDeck)",
+     "center": [
+      -98.7,
+      10.2,
+      373.7
+     ],
+     "size": [
+      6.4,
+      16,
+      23.8
+     ],
+     "floorY": 10.3,
+     "ceilingY": 26.3
+    },
+    {
+     "name": "VIP platform G1-G4 (x -88..-71)",
+     "center": [
+      -79.5,
+      8.0,
+      373
+     ],
+     "size": [
+      17,
+      10,
+      58
+     ],
+     "floorY": 8.0,
+     "ceilingY": 32.5
+    },
+    {
+     "name": "Mezzanine (3 booths M1-M3, champagne bar, 흡연실) along the west wall",
+     "center": [
+      -167,
+      19.5,
+      376
+     ],
+     "size": [
+      20.5,
+      13,
+      70
+     ],
+     "floorY": 19.5,
+     "ceilingY": 32.5
+    },
+    {
+     "name": "SmokingRoom_흡연실 (glass box on the mezzanine)",
+     "center": [
+      -171.4,
+      23.6,
+      347.2
+     ],
+     "size": [
+      9.7,
+      8.2,
+      11.4
+     ],
+     "floorY": 19.5,
+     "ceilingY": 27.7
+    },
+    {
+     "name": "HallRooms: CoatCheck_물품보관 (-176.7..-164.5, z 364.6..381), InfoDesk, CornerLounge_A/B, 남자화장실 (-177.4..-167.5, z 395.4..424.3), 여자화장실 (-81.2..-72, z 401.6..424.1)",
+     "center": [
+      -124,
+      12.7,
+      383
+     ],
+     "size": [
+      106,
+      11.5,
+      84
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    }
+   ],
+   "props": [
+    "Finishes: BlackGlossFloor, BackWallLining, 22 LacquerPanel, 13 WallLEDLine + 3 CoveLED + 3 FloorLEDLine (ClubLight AccentLine), BrassLine",
+    "LEDWall: 352 Neon LEDPanel (1.67x1.47) in LEDWallFrame 56.8x17.8 on the back wall x -73..-71 (ClubLight Kind Wall, Col/Row attrs)",
+    "DJBooth (96): BoothPlatform 23.8 long + DiamondPlate deck, 38 BoothLED, glass rails, 4 steps, DJDesk + 4 CDJ3000 + DJM_Mixer + jog wheels/displays, laptop on stand, 2 BoothMonitor on stands, gooseneck WorkLamp, DeskLogo; DJ_009 + MC_010 NPCs",
+    "Show rig: TrussRig (6 TrussParts + 8 chain hoists), Fixtures 12 MovingHead + 8 BeamFixture + 6 strobes + 2 blinders (20 Beams, 12 SpotLights), Lasers x4 (32 Beams), Effects CO2 x4 / Confetti x2 / Hazer x2 (10 ParticleEmitters), ShowInstallation: MirrorBall 6 dia + 34 glints + pin spots, 20 KineticTube winches, StageFX cold spark x4 / flame x2 / low fog x2, spiral ducts, cable trays, sprinklers, delay speakers, Wayfinding hanging signs; SoundSystem 16 line-array cabinets + 6 flown subs + 4 wall fills",
+    "MainBar (340): 4 BarCounter sides around an island (x -148..-124.7, z 363.9..382) with Marble BarTop + brass + 16 OnyxFront, FootRail, UnderBarStation, 4 IceWell, 2 TapTower, DripTray, POSScreen, Gantry back bar with 6 FridgeGlow + backlight + 2 glass shelves, 11 stools (6 Seat + 5 non-seat StoolCushion), BarDetail 75 bottles + 24 speed-rail bottles + 8 tap handles + garnish trays/shakers/highballs/rocks/12 shot glasses/2 소주 bottles, BarCanopy 24 hanging glasses + 2 MenuBoards (칵테일 12,000-15,000 / 모엣 390,000 / 돔 페리뇽 890,000 / 소맥 SET 25,000 / 생맥주 9,000); Bartender_019/020/021",
+    "ServiceStation (232) along z 407-412: 96-panel side LED frame, 5 pilasters, BackBarCounter 53.8 + Marble top, 63 bottles on 2 glass shelves, 16 glasses, 4 LED ice buckets + champagne, LEDSignBoards (HAPPY BIRTHDAY ♥ / VIP ♛ OCEAN), SparklerBox, IceMachine, Sign_VIP BOTTLE SERVICE",
+    "TableFloor: 31 ClubTable models — Standing T1-T10 (podium + marble top + ring LED + bottle set), Bar S1-S6, DJ D1-D3, Booth B1-B8 (tufted velvet sofas, partitions, marble tables, pillows), VIPPlatform G1-G4 (raised marble platform, velvet ropes, 80 tufted channels, 18 champagne, fruit platters, birthday cake, foil balloons, MOËT TOWER ChampagneTower, ChampagneCabinet); every table has ServePoint",
+    "Mezzanine: 3 MezzSlab + carpet, fascia LED x7, glass balustrades, 22-step marble stair with StepLED, 3 MezzBooth (velvet back, sofa, marble table, ice bucket, flutes, M1-M3), MezzChampagneBar (17 bottles), SmokingRoom (glass walls, extractor hood, leather bench, 2 ashtray pedestals, haze emitter)",
+    "HallRooms: CoatCheck (27 Coats on 2 rails, ticket board 01-12, ₩3,000), InfoDesk (reservation book, tablet, HOUSE RULES '19세 이상 · 신분증 · 테이블 예약제'), CornerLounge_A/B (carpet platforms, tufted sofas, marble tables with bottle sets), StaffDoor_관계자외출입금지 (dark doorway), 2 restrooms (3+2 stalls, urinals, marble vanity, halo mirrors, powder bench), CCTV domes x4"
+   ],
+   "gameplay": [
+    "Club.server tables: Models tagged ClubTable (31; attrs TableId/TableType Standing|Bar|DJ|Booth|VIP/Capacity/Reserved) -> '보틀 서비스' ProximityPrompt on every ServePoint (ClubShared.Menu champagne / VIP parade / birthday parade via ClubRemote 'order', spend through GwangalliGameplayAPI) and '테이블 앉기' when the table has Seats (124 Seat parts in the club). ParadeAt/ParadeTable/ParadePath on ClubRuntime: staff walk ParadeRoute WP1-WP8 to the table; WallMsg* attrs put names on the LED wall",
+    "GwangalliClub (Show/Booking/BottleService) + client GwangalliClubShow (Show/Booking/Ui): bottle shows use ServePoint, BucketRim, ShowBottle/ShowFoil/SetSparkler names, Show_LEDWall/Show_DJ/Show_SpotRig/Show_Floor/Show_StaffDoor anchors; 합석 booking uses Seat attr ClubGuestSeat",
+    "ClubLights (client, 4,560 lines): all ClubLight parts by Kind (Wall 448, Booth 39, TableRing 38, IceBucket 54, AccentLine 22, MovingHead 16, Kinetic 20, Strobe, Blinder, Beam, LaserEmitter, BarFront/BarBack, Fascia, VIPEdge, MirrorBall/Glint, ColdSpark/Flame/LowFog...), ClubFloorTile x48, ClubLaser, ClubCO2, ClubConfetti, ClubHaze, ClubFX, ClubMirrorRay, ClubShowBeam; 64-bar show synced on ShowEpoch; ClubDance client = dance ring game (+3 happiness / 10 min through Club.server); ClubMusic (BPM 126)",
+    "ClubRanking (GwangalliBuildings): builds ClubRankingBoard on the main room's south wall (raycast from the MainRoom bounding-box centre along -RightVector, BOARD_Y) — keep that wall face free; Zones attr lists ZONE_MODELS {MainRoom, TableFloor, HallRooms, MainBar, OceanSkyLounge_2F, Room2_HipHop, RooftopTerrace, Corridor, Lobby, VIPStair}",
+    "People: 106 ClubNPC rigs in Zone 'Main' (attrs Anim/Pose/Role/Zone/Bounce) animated locally; DetailLOD ZoneLOD for MainRoom (r 106), MainBar (63), TableFloor (94), HallRooms (108)",
+    "Hard rule (systems.json): nothing on the LED dance floor, no colliding props in the club, only wall-mounted non-colliding decor; never move seats/ServePoints/table tops"
+   ],
+   "emptyOrCrude": [
+    "Main hall is 75% occupied and is the most detailed interior in the map (largest empty square only 10 studs at (-167.2,387.1), the mezzanine stair foot). Not crude",
+    "Minor: 5 of the 11 MainBar stools are non-sittable StoolCushion parts; bottles are plain Glass cylinders without labels/caps; menu boards are SurfaceGui text only",
+    "StaffDoor_관계자외출입금지 is a DarkDoorway decal-like slab; back of house (BackOfHouse/StaffRooms_*/plenums) are solid concrete blocks — fine as non-enterable",
+    "Hall restrooms (HallRooms) are compact and complete but have no paper towel/trash/tissue dispensers"
+   ],
+   "realWorld": [
+    "Korean EDM club main hall (서면/강남/해운대 style): raised DJ booth with 4x CDJ-3000 + DJM-V10/A9, booth monitors, LED wall/mapping behind the DJ, moving heads/lasers/CO2 jets/cold sparks, mirror ball, line arrays + subs, black ceiling with trusses",
+    "Tables: 스탠딩 테이블, 부스 (소파 6인), VIP 단상 with velvet rope, 테이블 번호, LED 얼음 바스켓, 양주/샴페인 세트, 과일 안주, 스파클러 bottle parade, 생일 이벤트 (cake, balloon, LED board)",
+    "Bar: island or wall bar, back bar with 양주 (조니워커/잭다니엘/예거), 샴페인, 하이볼, 소맥, 생맥주 taps, POS, ice wells, glass racks, menu lightbox",
+    "Mezzanine/VIP booths, 흡연실 (legally separate glass room with extractor), restrooms with 파우더룸, coat check, staff in black with earpieces/light sticks, security posts, CCTV, exit signs, 생수 무료 station"
+   ],
+   "interactionIdeas": [
+    "Bars: '메뉴 보기' on BarCanopy MenuBoards (local UI of the drink list; no order — bottle service is server-owned at tables)",
+    "DJ booth (from the floor in front of BoothGlassRail, not on the LED floor): '신청곡 쪽지 전달' -> toast 'DJ에게 쪽지 전달!' + DJ NPC nod emote (cosmetic)",
+    "Champagne tower (VIPPlatform/ChampagneTower) and cake: '구경하기' camera framing + sparkle particles",
+    "Smoking room: SmokeDoor slides open on approach (local), extractor fan hum, haze thicker while inside",
+    "Coat check: '옷 맡기기' -> a coat appears on the rail with a ticket number toast; InfoDesk tablet: '예약 확인' showing the player's table (read GwangalliClubShow Tables attr)",
+    "Restroom sinks/hand dryers/mirrors: '손 씻기' water particle + sound, '핸드 드라이어' sound, '거울 보기' camera close-up; stall doors swing + OccupancyLED red/green"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — Restrooms_화장실 (front block) + Corridor",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.{Restrooms_화장실, Corridor}",
+   "bounds": "restrooms (-217.7,6.8,263.5)..(-176.0,18.0,312.1); corridor (-176.1,6.8,264.1)..(-158.0,17.5,340.4)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "여자화장실 (tiled floor/ceiling, 41 deep)",
+     "center": [
+      -196.8,
+      12.3,
+      280.3
+     ],
+     "size": [
+      41.3,
+      10.5,
+      19.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 17.5
+    },
+    {
+     "name": "남자화장실",
+     "center": [
+      -197.0,
+      12.3,
+      301.8
+     ],
+     "size": [
+      41.3,
+      10.5,
+      20.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 17.5
+    },
+    {
+     "name": "ExitPassage (emergency passage along the street wall)",
+     "center": [
+      -196.6,
+      11.4,
+      266.8
+     ],
+     "size": [
+      41.1,
+      8.5,
+      6.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 15.5
+    },
+    {
+     "name": "Corridor (Zone_Corridor, links lobby side, restrooms and ROOM 2)",
+     "center": [
+      -167.0,
+      12.3,
+      302.2
+     ],
+     "size": [
+      18.1,
+      10.5,
+      76.3
+     ],
+     "floorY": 7.0,
+     "ceilingY": 17.5
+    }
+   ],
+   "props": [
+    "Restrooms (101 parts): 5 StallPartition + 5 StallDoor + 5 OccupancyLED + 5 ToiletBowl + 5 Cistern + 5 ToiletSeat, 2 StallHeader, 2 Marble VanityCounter 18 long + under-glow, 6 VesselSink + 6 WallTap + 6 SoapDispenser + 6 BasinWater, 6 RoundMirror + 6 MirrorHalo (Neon), 4 Urinal + 4 UrinalDivider, 2 HandDryer, 6 WallTile panels, WCDivider, Sign_오늘도 예뻐 ♡ / Sign_LOOKING GOOD, 2 PointLights",
+    "Corridor (27 parts): floor/ceiling, 3 CorridorNorthWall concrete, CeilingLED + 2 SkirtLED, signs 여자 WOMEN / 남자 MEN / 화장실 RESTROOM / ROOM 2 · HIP-HOP (+ neon) / LOVE · MUSIC · OCEAN / ◀ ROOM 2 · 화장실 / MAIN HALL ▶ / TONIGHT WE DANCE, 3 event posters (FRI · DJ HAEWON TECH HOUSE 23:00, SAT · SEAN WAVE K-EDM 23:30, LADIES NIGHT THU FREE ENTRY 22-24), FireExtinguisher + Sign_소화기, ExitSign, 1 PointLight"
+   ],
+   "gameplay": [
+    "ClubZone boxes Zone_Restroom (-217.7,6.5,263.5)..(-176,18.5,312.1) and Zone_Corridor; wristband eject applies inside; ClubLights treats 'Corridor' as a lighting zone",
+    "DetailLOD ZoneLOD: Restrooms_화장실 (r 73), Corridor (r 82)",
+    "Club rule: no colliding new props in the club; stalls/sinks are not sittable (Interact excludes CLUB OCEAN)"
+   ],
+   "emptyOrCrude": [
+    "Restrooms are oversized (each ~41x20 studs = 12x6 m) for 5 stalls: 39-42% occupied, an empty 12-14-stud tiled square in the middle of each (women (-201.4,280.5), men (-202.7,300.5)); missing paper-towel dispensers, trash bins, tissue holders, hooks, floor drains, 흡연 금지 / 휴지는 휴지통에 signs, ceiling vents/downlights",
+    "Corridor 76x18 studs is 23% occupied: long bare concrete walls with only signs and one extinguisher; largest empty square 14 studs at (-168.1,272.1); no bench, no water station, no phone-charging kiosk, no CCTV, no trash, no wall art lighting"
+   ],
+   "realWorld": [
+    "Club restroom: queue line outside, dark tiles + mood lighting, mirrors with LED halo, 파우더룸 bench (women), paper towels + hand dryer, sanitary bin in stalls, 휴지 dispenser, 'CCTV 없음' privacy note, cleaning staff cart, mouthwash/hair products tray in upscale clubs",
+    "Club corridor: dark walls with lightbox posters of resident DJs and events, neon slogans, 휴대폰 충전 대여 kiosk, water dispenser (생수), cigarette disposal near smoking room, CCTV, security staff, 비상구 유도등 + 소화기 every 20 m"
+   ],
+   "interactionIdeas": [
+    "Sink: '손 씻기' (water particle in VesselSink + tap sound, hands animation); HandDryer: '건조하기' roar sound + air particle; RoundMirror: '거울 보기' close camera + hair-fix emote ('오늘도 예뻐 ♡' text pop)",
+    "StallDoor: '들어가기/나가기' local swing + OccupancyLED red/green",
+    "Corridor posters: '라인업 보기' card with tonight's DJ schedule; new wall-mounted phone-charging kiosk 'Charge' prompt -> toast (cosmetic); wall water dispenser '물 마시기' drink emote"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — Room2_HipHop (ROOM 2 · HIP-HOP)",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.Room2_HipHop",
+   "bounds": "(-156.7,6.8,264.4)..(-86.0,22.5,314.5)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Room 2 (PolishedConcrete 49x70 floor, concrete ceiling at 22.5, BrickWall on the z 264-266 side, stage + LED screen at the x -86 end)",
+     "center": [
+      -121.4,
+      14.8,
+      289.5
+     ],
+     "size": [
+      70.7,
+      15.5,
+      50.1
+     ],
+     "floorY": 7.0,
+     "ceilingY": 22.5
+    }
+   ],
+   "props": [
+    "PolishedConcrete floor, Ceiling, BackWall, StorageBehind (solid), BrickWall 70 long, 2 Ducts 69 long",
+    "3 graffiti signs Sign_OCEAN CREW / Sign_BUSAN 051 / Sign_HIPHOP 4 LIFE = flat 14x5.5x0.1 SmoothPlastic panels with SurfaceGui text on the z 313.5 wall; Sign_HIP-HOP + 4 neon, Sign_♛ OCEAN, 12 HipHopStrip neon",
+    "Room2Stage 18x2.5x12 Metal block + StageLED; Room2Desk + DeskTop + DeskPanel, 2 TurntableBase + platters/labels/tonearms, BattleMixer + Crossfader; ScreenHousing 22.6x9.1 + LEDScreen 22x8.5; 2 Room2Sub + cones, 2 Room2Top + woofers/horns; Room2Truss 40 + 4 drops; 4 MovingHead (Beam + SpotLight each)",
+    "Room2Bar (69): bar counter 24 + top + back bar + shelf glow, 2 glass shelves, 52 bottles, 5 StoolPost + 5 Stool (Seat)",
+    "Room2Sofa x3 (13 parts each, 4 Seats each) along z 310-313; 3 Wood LowTable 3.5x1.6x7; CypherRing Neon 11 dia + CypherFloor at (-122.3,7,289)"
+   ],
+   "gameplay": [
+    "Zone_HipHop ClubZone (-156.7,6.5,264.4)..(-86,22.5,314.5); ClubLights Kind HipHopStrip x13 + MovingHead x4 (Room 'HipHop' show beams); 7 ClubNPC in Zone HipHop; DetailLOD ZoneLOD r 93",
+    "21 Seats (5 bar stools + 12 sofa + ...) used for sitting; no prompts"
+   ],
+   "emptyOrCrude": [
+    "40% occupied: the west half between the bar (z 265..277) and the sofas (z 310..313) is bare polished concrete — empty 24x24-stud square centred (-143.7,289.4); the cypher ring sits alone in the middle with nothing around it",
+    "Graffiti is three flat plastic boards with typed text (no spray-paint texture/tags/drips, no stickers/posters wall); only one brick wall, other walls bare concrete; stage is a plain metal block without a front truss, barrier or monitors",
+    "No standing tables / drink rails, no crowd barrier, no sneaker/merch wall, no corner speakers, no neon art, very low NPC count (7) for a 49x70 room"
+   ],
+   "realWorld": [
+    "Korean hip-hop room / 힙합클럽 (홍대/서면): low ceiling with exposed ducts, graffiti murals and sticker-bombed walls, neon slogans, DJ booth with 2 turntables + battle mixer + laptop, MC mic stand, bass-heavy subs in corners, standing tables with drink rails along the walls, bar with soju/beer/highball, LED screen with visuals, cypher circle for freestyle/dance battles, chain-link or crate decor, sneakers/street-wear display in some venues"
+   ],
+   "interactionIdeas": [
+    "CypherRing: '프리스타일 배틀' -> stand in the ring, beat-synced dance/rap emote rhythm prompt (client; like ClubDance), nearby NPCs cheer",
+    "Turntables: '스크래치' -> scratch sound + platter spin (local), crossfader slide",
+    "Stage mic: '마이크 잡기' hold-mic pose + echo voice line toast",
+    "Graffiti wall: '태그 남기기' -> local spray decal of the player's name on the wall (client only)",
+    "Bar: '메뉴 보기' local drink list (no server order)"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — VIPStair + OceanSkyLounge_2F (2F VIP lounge)",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.{VIPStair, OceanSkyLounge_2F, Facade_Level2}",
+   "bounds": "stair hall (-220.4,7.0,469.5)..(-179.1,33.9,488.1); lounge (-220.4,33.9,315.5)..(-177.8,46.9,488.1)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "VIP stair hall (marble HallFloor, 44 Steps with StepLED, landing at 19.4-20.4, Zone_VIPStair)",
+     "center": [
+      -199.7,
+      20.2,
+      478.8
+     ],
+     "size": [
+      41.3,
+      26.5,
+      18.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 32.5
+    },
+    {
+     "name": "Ocean Sky Lounge 2F (WoodPlanks floor 154x40, dark glass facade 29 panes on the 광안로 side x -219, L2Roof at 46.9, Zone_Lounge)",
+     "center": [
+      -199.1,
+      40.4,
+      401.8
+     ],
+     "size": [
+      42.6,
+      13.0,
+      172.6
+     ],
+     "floorY": 33.9,
+     "ceilingY": 46.9
+    }
+   ],
+   "props": [
+    "VIPStair (106): HallWall, HallBackWall, 44 marble Step + 44 StepLED, 2 StairSoffit, Landing 17.8x7, StairDivider, 4 RailPost + BrassRail, 2 WallHandrail, WallLED 40 long, Sign_OCEAN SKY LOUNGE ('2F · VIP ONLY · ROOFTOP ↑'), VIPHostPodium + PodiumLED at (-216.4,8.8,473.6)",
+    "Lounge shell: 3 LoungeFloor, 3 TerraceGlass + 6 Mullion + DoorHead to the terrace, 2 CoveLED 154 long, 3 GlassBalustrade + HandRail + RailShoe (stair void), Sign_OCEAN SKY LOUNGE + 4 neon, 2 LoungeLightHost PointLights at y 46.3",
+    "LoungeBar (171): BarCounter 42x3.9 Wood + Marble BarTop + UnderGlow (x -187.5..-184.3, z 386..428), BackCounter 46 + 8.7-high ShelfBacklight + 3 glass shelves with 149 Bottles, 7 BarStool Seats on posts; Bartender_005",
+    "5 LoungeSofa along the windows (x -209..-204, z 325..451; 14 long, 4 Seats + 4 back cushions + 2 arms each = 20 Seats), 5 Marble LowTable 8x1.6x3 with Neon Candle + WineBottle, 2 Plants (pot/soil/leaves) at the ends"
+   ],
+   "gameplay": [
+    "Zone_Lounge (-220.4,33.2,315.5)..(-176.8,46.9,488.1), Zone_VIPStair; wristband eject; the VIP stair hall's own street opening (x -221, z 471.4..479.6) is closed by ClubDoorBarrier_VIP, an invisible collider the client GwangalliClubShow Door module toggles; inside the club 'VIP ONLY' is only a sign (no extra server gate beyond the wristband); 2 ClubNPC Lounge rigs (Bartender_005, Guest_006); DetailLOD ZoneLOD OceanSkyLounge_2F r 150, VIPStair r 68",
+    "ClubRanking ZONE_MODELS include OceanSkyLounge_2F/VIPStair (player 'in the club' check)"
+   ],
+   "emptyOrCrude": [
+    "Lounge is huge (42x173 studs) and only 32% occupied: a ~12-stud-wide bare wooden aisle runs the full length between the sofas (x ≤ -204) and the bar (x ≥ -190); largest empty square 22 studs at (-194.1,439.5); the north part z 430..488 (beyond the bar) and z 315..384 (before the bar) hold only one sofa/table pair each",
+    "Lighting is 2 PointLights + 2 cove strips for 7,300 sq studs: no pendants, no table lamps, no floor lights; ceiling is the bare L2Roof underside",
+    "No rugs, armchairs, side tables, high tables, DJ corner/speakers, artwork, curtains, menu stands; only 2 NPCs -> feels deserted",
+    "VIPHostPodium has no host NPC/tablet"
+   ],
+   "realWorld": [
+    "Korean rooftop/sky lounge bar (광안대교 view): floor-to-ceiling glass with window-facing sofas and 2-person tables, low lounge chairs and ottomans, rugs, pendant/globe lights and candle lamps, long back-lit bar with bottle wall and 8-12 stools, a small DJ console with speakers, plants and partitions, menu stands with cocktail/wine/whisky lists, staff station, VIP host desk at the stair top with reservation tablet"
+   ],
+   "interactionIdeas": [
+    "Window: '광안대교 야경 보기' -> camera pans to the bridge/sea view for a few seconds (local)",
+    "Candle on LowTable: '촛불 켜기/끄기' toggle Neon + tiny PointLight (GwIndoorDim set)",
+    "LoungeBar: '메뉴 보기' wine/cocktail list; bartender NPC '말 걸기' line (cosmetic toast)",
+    "VIP host podium: '예약 확인' reading the player's booking; add a small DJ corner with '음악 볼륨' local mute/boost of ClubMusic"
+   ]
+  },
+  {
+   "name": "CLUB OCEAN 광안 — RooftopTerrace (OCEAN ROOFTOP)",
+   "path": "Workspace.Gwangalli.club.CLUB OCEAN 광안.RooftopTerrace",
+   "bounds": "(-217.8,34.1,263.5)..(-70.0,46.1,317.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Rooftop deck (2 WoodPlanks TerraceDeck 52x73, open sky, glass balustrade, Zone_Terrace)",
+     "center": [
+      -143.9,
+      40.0,
+      290.6
+     ],
+     "size": [
+      147.8,
+      12.0,
+      54.2
+     ],
+     "floorY": 34.1,
+     "ceilingY": 47.7
+    }
+   ],
+   "props": [
+    "2 TerraceDeck, 5 GlassBalustrade + HandRail + RailShoe (73 long each)",
+    "5 Daybed (8x8 WoodPlanks base, Fabric mattress Seat, back cushion, 2 pillows) along z 265-274 at x -204, -182, -160, -138, -116",
+    "2 TerraceSofa (14 long, 4 Seats) + 2 WoodPlanks CoffeeTable at x -193 and -129, z 292..307",
+    "RooftopBar: only RooftopBarCounter 6x3.9x20 Wood + Marble BarTop + UnderGlow + Sign_ROOFTOP BAR (x -96.7..-76.6, z 307.3..313.6); Bartender_007 NPC stands behind it",
+    "4 patio heaters (pole/base/reflector/Neon glow), 12 FestoonPole + 12 wires + 54 FestoonBulb, 4 metal Planters with palms (28 leaves), Sign_OCEAN ROOFTOP + 4 neon, 2 TerraceLightHost PointLights"
+   ],
+   "gameplay": [
+    "Zone_Terrace ClubZone (-217.8,33.2,263.5)..(-70,47.7,317.7); 1 ClubNPC (Bartender_007); 13 Seats (5 daybed mattresses, 8 sofa seats); not in DetailLOD ZoneLOD list (RooftopTerrace has no LOD attr) so it is always loaded"
+   ],
+   "emptyOrCrude": [
+    "25% occupied on 8,000 sq studs: largest empty square 24 studs at (-172.8,300.5); the whole centre strip z 280..305 between daybeds and the rail is bare decking; east half (x -110..-70) has only the bar",
+    "RooftopBar is just a counter + top + glow strip (4 parts): no back bar/bottles, no stools, no ice well/taps/POS/glass rack, no menu",
+    "No umbrellas/parasols/shade sails, no cocktail high tables, no lounge chairs, no floor uplights/lanterns, no speakers/DJ, no sea-view binoculars; 1 NPC only"
+   ],
+   "realWorld": [
+    "Korean rooftop bar (광안리 루프탑): daybeds/cabanas with curtains, outdoor sofas with cushions, high tables with stools along the glass rail facing the bridge, parasols, festoon lights, heaters, an outdoor bar with back shelf, beer taps, ice wells, stools, menu board (하이볼/맥주/칵테일), speakers + small DJ booth, planters, 금연/흡연구역 signs, staff with trays"
+   ],
+   "interactionIdeas": [
+    "Heater: '히터 켜기/끄기' toggles HeaterGlow + a warm PointLight (local)",
+    "Rail binoculars (new, wall-mounted on the rail): '광안대교 망원경' zoomed camera",
+    "Daybed: already a Seat — add '눕기' via the existing sit system is not available in the club (Interact excludes CLUB OCEAN), so a client 'lie down' pose on the daybed Seat is cosmetic",
+    "RooftopBar: '메뉴 보기' local list; festoon string '조명 모드' cycles bulb colours (local)"
+   ]
+  }
+ ],
+ "notes": "Survey of Workspace.Gwangalli.arcade (광안 게임랜드, 2,217 instances, 1,597 parts) and Workspace.Gwangalli.club (CLUB OCEAN 광안, 12,307 instances, 7,906 parts, 130 NPC rigs).\n\nORIENTATION: both buildings are rotated ~-89 deg about Y (local X -> world -Z); all bounds above are world AABBs computed from CFrame+Size. Arcade facade/entrance faces +X onto 광안로 (Destination (-298.6,7.1,433.2)); club facade faces -X (x ~ -219) with the door at z ~375.\n\nVERDICT: the ARCADE is the crude one — a 75x79-stud hall that is only 28% occupied (34x34 empty square at (-345,461)), 25 boxy machines, a silent hall, fake restroom/exit doors, a stair to nowhere, an EMPTY 셀프사진관 (one pink box), and solid 2F/3F behind 3 signs. The CLUB is already AAA-dense in the main room (75% occupied, 1,422 + 1,310 + 340 parts with full show rig) — its weak spots are the 2F Ocean Sky Lounge (32%, 12-stud bare aisle for 170 studs, 2 lights), the RooftopTerrace (25%, rooftop bar = 4 parts), Room 2 Hip-Hop (40%, 24x24 bare concrete, flat 'graffiti' boards), the long Corridor (23%) and the oversized front restrooms.\n\nPLAYABLE TODAY: arcade = 펀치 (500원), 농구 x2 (1,000원), 팔씨름 table (server-built at the first free of 4 spots), via 'ArcadePrompt' anchors in workspace.GwangalliPlay.Arcade. 12 claw machines are server-ready (GwangalliGameplay/Interact clawStart/clawDrop/clawCancel over GwangalliRemotes.InteractRequest, tag GwInteract on PrizeDoor) but have NO client in v7 -> unplayable; building that client is the highest-value arcade interaction. Club = paid door (ClubIDCheck prompts), 31 ClubTable '보틀 서비스'/'테이블 앉기' prompts, ClubDance ring game, 124 Seats, shows/parades, ranking board.\n\nDO NOT TOUCH / NAMES THAT MUST STAY (arcade): 펀치기계{PunchBase,PunchTower,PunchPad,ScoreDisplay Face/Text,Sub}, BasketballMachine_1/2{Rim x8,FrontCabinet,ScoreLED,FrontScore}, LEDScreen (attr Messages, direct child), ClawMachine_NN{PrizeDoor,PrizeBed,Plush}, ShopFloor + Counter (ShopStaff 알바생 anchor in the photo shop), Destination, StoolSeat/RacingSeat/SeatBase/Step (sittables), the 4 arm-table spots (-327,428) (-330,425) (-332,440) (-345,425) as 6x7 clear boxes, 14-stud wall raycast space next to punch/basket for wall boards. Club: everything tagged ClubLight/ClubFloorTile/ClubTable/ClubZone/ClubDoor/ClubIDCheck/ClubShowAnchor/ClubNPC/ClubRuntime, ServePoint, Seats (ClubGuestSeat), ParadeRoute WP1-8, LED dance floor (nothing on it), south main-room wall (ClubRankingBoard raycast). systems.json rule for the club: only wall-mounted, non-colliding decor; Interact excludes CLUB OCEAN from sittables.\n\nLOD: arcade machines are ZoneLOD (LODRadius 86-91), arcade NearDetail/ShopDetail are NearLOD; club rooms are ZoneLOD (Lobby 73, Tunnel 53, Restrooms 73, Corridor 82, VIPStair 68, Lounge 150, MainRoom 106, MainBar 63, TableFloor 94, HallRooms 108, Room2 93); RooftopTerrace has no LOD attr. Hide crude parts per bld rule R3 (LocalTransparencyModifier inside GwArrive roots, local Transparency otherwise), never reparent/rename.\n\nPRIORITY BUILD LIST (arcade): (1) claw client + per-machine detail skin (LED-framed glass, side art, chute flap, bill acceptor, card reader, rating sticker); (2) fill the 34x34 hole with a 철권-style back-to-back 대전 pair row, a 펌프 style dance machine, gun cabinet, 두더지/망치, gacha wall, 2 코인노래방 booths, key-master 경품 machine (keep the 4 arm spots and 2.5-stud aisles clear); (3) re-skin RetroCabinet/Racing/DanceBeat/Vending/CoinExchanger silhouettes (angled CRT bezel, coin door, bucket seat, arrow-shaped pads, bottle/can rows with lit buttons); (4) wall posters, 등급 stickers, blacklight carpet texture, ceiling speakers/sprinklers, zone hanging signs, machine screen SurfaceLights, arcade BGM + attract sounds; (5) photo shop: 2-3 booths with curtains, kiosk, prop wall, vanity, sample-photo wall, ceiling; (6) stair-top landing with closed 2F door + 'OPEN 13:00' sign; restroom/exit door prompts. Club: lounge pendants/rugs/armchairs/high tables, rooftop bar back-bar + stools + parasols + high tables, Room 2 graffiti decals + standing rails + barrier, corridor posters/charging kiosk/water station, restroom dispensers/bins (all non-colliding).\n\nRaw dumps: /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/bld/ac/arcade.txt, ac/club.txt (every instance with world pos/size/colour/material/attrs/tags), ac/club_c2.txt (per-model compact summary), ac/occ.json (occupancy per room). Web check (gamemeca.com) confirmed crane games at every Korean game-center entrance and Pump It Up/DDR as the staple dance games; other checklist items are from general knowledge.",
+ "occupancy": {
+  "arcade_hall": {
+   "area": 6068,
+   "filledPct": 28,
+   "largestEmptySquare": 34.0,
+   "emptyCenter": [
+    -345.3,
+    461.1
+   ]
+  },
+  "arcade_lobby": {
+   "area": 168,
+   "filledPct": 80,
+   "largestEmptySquare": 4.0,
+   "emptyCenter": [
+    -308.6,
+    398.1
+   ]
+  },
+  "arcade_photo": {
+   "area": 128,
+   "filledPct": 40,
+   "largestEmptySquare": 6.0,
+   "emptyCenter": [
+    -308.4,
+    388.9
+   ]
+  },
+  "club_main": {
+   "area": 7590,
+   "filledPct": 75,
+   "largestEmptySquare": 10.0,
+   "emptyCenter": [
+    -167.2,
+    387.1
+   ]
+  },
+  "club_room2": {
+   "area": 3542,
+   "filledPct": 40,
+   "largestEmptySquare": 24.0,
+   "emptyCenter": [
+    -143.7,
+    289.4
+   ]
+  },
+  "club_lounge2F": {
+   "area": 7297,
+   "filledPct": 32,
+   "largestEmptySquare": 22.0,
+   "emptyCenter": [
+    -194.1,
+    439.5
+   ]
+  },
+  "club_terrace": {
+   "area": 8011,
+   "filledPct": 25,
+   "largestEmptySquare": 24.0,
+   "emptyCenter": [
+    -172.8,
+    300.5
+   ]
+  },
+  "club_lobby": {
+   "area": 958,
+   "filledPct": 47,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -185.6,
+    369.9
+   ]
+  },
+  "club_corridor": {
+   "area": 1381,
+   "filledPct": 23,
+   "largestEmptySquare": 14.0,
+   "emptyCenter": [
+    -168.1,
+    272.1
+   ]
+  },
+  "club_wc_women": {
+   "area": 809,
+   "filledPct": 39,
+   "largestEmptySquare": 14.0,
+   "emptyCenter": [
+    -201.4,
+    280.5
+   ]
+  },
+  "club_wc_men": {
+   "area": 851,
+   "filledPct": 42,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -202.7,
+    300.5
+   ]
+  },
+  "club_vipstair_hall": {
+   "area": 768,
+   "filledPct": 55,
+   "largestEmptySquare": 8.0,
+   "emptyCenter": [
+    -215.4,
+    478.5
+   ]
+  },
+  "club_tunnel": {
+   "area": 242,
+   "filledPct": 33,
+   "largestEmptySquare": 8.0,
+   "emptyCenter": [
+    -208.8,
+    374.6
+   ]
+  }
+ }
+}

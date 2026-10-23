@@ -1,0 +1,11 @@
+[
+ {"name":"01_ext_34_day","car":"sedan","eye":[-10,6,-12],"at":[0,3,0],"fov":50},
+ {"name":"02_ext_side_day","car":"sedan","eye":[-13,4.6,1.5],"at":[0,3.6,1.5],"fov":55},
+ {"name":"03_int_fwd_day","car":"sedan","eye":[-1.1,3.95,1.6],"at":[-1.0,3.5,-10],"fov":75},
+ {"name":"04_int_left_day","car":"sedan","eye":[-1.1,3.95,1.6],"at":[-12,3.7,0.5],"fov":75},
+ {"name":"05_int_back_day","car":"sedan","eye":[-1.1,3.95,1.6],"at":[1,3.7,14],"fov":75},
+ {"name":"06_ext_34_night","car":"sedan","eye":[-10,6,-12],"at":[0,3,0],"fov":50,"night":true,"wait":4000},
+ {"name":"07_int_fwd_night","car":"sedan","eye":[-1.1,3.95,1.6],"at":[-1.0,3.5,-10],"fov":75,"night":true},
+ {"name":"08_lux_34_day","car":"luxury","eye":[-10,6,-12],"at":[0,3,0],"fov":50,"night":false,"wait":4000},
+ {"name":"09_truck_34_day","car":"truck","eye":[-9,6.5,-13],"at":[0,3.5,-3],"fov":50}
+]

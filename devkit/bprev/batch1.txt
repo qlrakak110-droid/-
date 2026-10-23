@@ -1,0 +1,8 @@
+mega	/MEGA COFFEE
+hae	/남천 해장국
+pub_happy	/HAPPY MONK
+cvs_7	/7-ELEVEn
+lobby_cb	/HOTEL CENTRAL BAY
+pocha_haemul	/광안 해물포차
+olive	/OLIVE YOUNG
+hair	/헤어살롱 물결

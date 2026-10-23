@@ -1,0 +1,9 @@
+[
+ {"name":"t01_driver","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[-1.25,3.2,1.05],"at":[-0.85,2.4,-2.6],"fov":72,"clock":14},
+ {"name":"t02_wheel","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[-0.95,2.75,0.15],"at":[-1.25,2.2,-1.25],"fov":55,"clock":14},
+ {"name":"t03_passenger_dash","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[1.3,3.15,1.3],"at":[-0.7,2.2,-2.3],"fov":70,"clock":14},
+ {"name":"t04_rear_center","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[0,3.25,3.7],"at":[0,2.1,-2.4],"fov":72,"clock":14},
+ {"name":"t05_rear_seats","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[1.0,3.1,-0.6],"at":[-0.4,1.9,4.2],"fov":72,"clock":14},
+ {"name":"t06_door","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[0.4,2.9,1.6],"at":[-2.6,1.7,0.2],"fov":70,"clock":14},
+ {"name":"t07_driver_night","car":{"near":[-170.4,6.8,48.5],"kind":"taxi"},"eye":[-1.25,3.2,1.05],"at":[-0.85,2.4,-2.6],"fov":72,"clock":22,"wait":5000}
+]

@@ -1,0 +1,3627 @@
+[
+{
+"name": "태양공인중개사",
+"parent": "협진태양맨션",
+"floor": [
+2444.9,
+6.65,
+-68.4
+],
+"floorSize": [
+24.1,
+6.4
+],
+"interiorParts": 6,
+"totalParts": 34,
+"lights": 0,
+"guis": 1,
+"keys": {
+"TableTop": 1,
+"ChairSeat": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "해변약국",
+"parent": "협진태양맨션",
+"floor": [
+2424.3,
+6.65,
+-57.2
+],
+"floorSize": [
+16.0,
+22.4
+],
+"interiorParts": 23,
+"totalParts": 226,
+"lights": 1,
+"guis": 3,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "남천 로스터리",
+"parent": "협진태양맨션",
+"floor": [
+2400.3,
+6.65,
+-55.1
+],
+"floorSize": [
+28.1,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 106,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 6,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "협진태양맨션",
+"parent": "협진태양맨션",
+"floor": [
+2377.2,
+6.65,
+-54.1
+],
+"floorSize": [
+14.0,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 46,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "남천 크린세탁",
+"parent": "협진태양맨션",
+"floor": [
+2356.8,
+6.65,
+-55.0
+],
+"floorSize": [
+22.1,
+6.4
+],
+"interiorParts": 6,
+"totalParts": 33,
+"lights": 0,
+"guis": 1,
+"keys": {
+"TableTop": 1,
+"ChairSeat": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "바다슈퍼",
+"parent": "협진태양맨션",
+"floor": [
+2331.2,
+6.65,
+-43.1
+],
+"floorSize": [
+28.1,
+22.4
+],
+"interiorParts": 48,
+"totalParts": 330,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 2,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "협진태양맨션 2",
+"parent": "협진태양맨션",
+"floor": [
+2307.8,
+6.65,
+-43.5
+],
+"floorSize": [
+14.0,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 46,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "남천 해장국",
+"parent": "협진태양맨션",
+"floor": [
+2282.4,
+6.65,
+-37.7
+],
+"floorSize": [
+34.1,
+18.4
+],
+"interiorParts": 84,
+"totalParts": 123,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 5,
+"ChairSeat": 20,
+"SpoonBox": 5,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "협진태양맨션",
+"floor": [
+2454.3,
+6.65,
+-48.1
+],
+"floorSize": [
+33.5,
+10.4
+],
+"interiorParts": 11,
+"totalParts": 45,
+"lights": 0,
+"guis": 1,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TableTop": 1,
+"ChairSeat": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "남천 해물칼국수",
+"parent": "남천해변빌딩",
+"floor": [
+2238.4,
+6.65,
+-47.3
+],
+"floorSize": [
+34.0,
+18.4
+],
+"interiorParts": 60,
+"totalParts": 112,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 3,
+"ChairSeat": 12,
+"Cushion": 8,
+"SpoonBox": 3,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "MEGA COFFEE",
+"parent": "오션빌",
+"floor": [
+2208.7,
+6.65,
+-42.6
+],
+"floorSize": [
+20.0,
+19.4
+],
+"interiorParts": 39,
+"totalParts": 93,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 수제버거",
+"parent": "오션빌",
+"floor": [
+2189.8,
+6.65,
+-40.4
+],
+"floorSize": [
+14.0,
+18.4
+],
+"interiorParts": 25,
+"totalParts": 54,
+"lights": 0,
+"guis": 5,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"TableTop": 1,
+"ChairSeat": 4,
+"SpoonBox": 1,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "오션빌",
+"floor": [
+2192.5,
+6.65,
+-12.7
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 37,
+"totalParts": 72,
+"lights": 0,
+"guis": 4,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SUNSET PUB",
+"parent": "남천 비치하우스",
+"floor": [
+2137.8,
+6.65,
+-32.7
+],
+"floorSize": [
+22.0,
+19.4
+],
+"interiorParts": 36,
+"totalParts": 125,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 1,
+"StoolSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "비치용품 · 튜브대여",
+"parent": "남천 비치하우스",
+"floor": [
+2115.8,
+6.65,
+-32.2
+],
+"floorSize": [
+17.6,
+14.4
+],
+"interiorParts": 38,
+"totalParts": 67,
+"lights": 0,
+"guis": 2,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"WallRack": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "남천 비치하우스",
+"floor": [
+2146.7,
+6.65,
+-5.4
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 47,
+"totalParts": 133,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"TableTop": 2,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BEACH STUDIO",
+"parent": "광안비치 스튜디오",
+"floor": [
+2097.5,
+6.65,
+-29.7
+],
+"floorSize": [
+13.3,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 47,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "COFFEE LAB 149",
+"parent": "광안비치 스튜디오",
+"floor": [
+2071.9,
+6.65,
+-23.8
+],
+"floorSize": [
+35.1,
+19.4
+],
+"interiorParts": 63,
+"totalParts": 137,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"StoolSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "해변포차",
+"parent": "해변포차 151",
+"floor": [
+2033.8,
+6.65,
+-12.7
+],
+"floorSize": [
+37.3,
+19.4
+],
+"interiorParts": 43,
+"totalParts": 122,
+"lights": 0,
+"guis": 4,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"GrillTable": 5,
+"Coals": 5,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "OLIVE YOUNG",
+"parent": "올리브영 광안리점",
+"floor": [
+1982.7,
+6.65,
+-10.6
+],
+"floorSize": [
+52.5,
+22.4
+],
+"interiorParts": 66,
+"totalParts": 367,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BEANS BINS COFFEE",
+"parent": "빈스빈스 광안리점",
+"floor": [
+1931.3,
+6.65,
+1.4
+],
+"floorSize": [
+46.0,
+19.4
+],
+"interiorParts": 79,
+"totalParts": 157,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"StoolSeat": 12,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "파도횟집",
+"parent": "파도횟집",
+"floor": [
+1886.8,
+6.65,
+5.3
+],
+"floorSize": [
+37.3,
+18.4
+],
+"interiorParts": 41,
+"totalParts": 106,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 4,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 돼지국밥",
+"parent": "광안 오션하우스",
+"floor": [
+1851.5,
+6.65,
+3.5
+],
+"floorSize": [
+26.3,
+18.4
+],
+"interiorParts": 44,
+"totalParts": 92,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"Cushion": 8,
+"SpoonBox": 2,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "emart24",
+"parent": "광안 오션하우스",
+"floor": [
+1827.9,
+6.65,
+8.3
+],
+"floorSize": [
+17.6,
+22.4
+],
+"interiorParts": 31,
+"totalParts": 196,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "COFFEE IWA",
+"parent": "씨타워 (커피아이와)",
+"floor": [
+1783.5,
+6.65,
+12.5
+],
+"floorSize": [
+65.6,
+20.4
+],
+"interiorParts": 85,
+"totalParts": 188,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "씨타워 (커피아이와)",
+"floor": [
+1759.9,
+6.65,
+44.2
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 43,
+"totalParts": 91,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "A TWOSOME PLACE",
+"parent": "광안지웰에스테이트",
+"floor": [
+1700.5,
+6.65,
+29.8
+],
+"floorSize": [
+30.0,
+20.4
+],
+"interiorParts": 55,
+"totalParts": 142,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BINGBING",
+"parent": "광안지웰에스테이트",
+"floor": [
+1675.9,
+6.65,
+30.4
+],
+"floorSize": [
+15.1,
+16.4
+],
+"interiorParts": 65,
+"totalParts": 108,
+"lights": 1,
+"guis": 2,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "GWANGAN JIWELL",
+"parent": "광안지웰에스테이트",
+"floor": [
+1659.9,
+6.65,
+31.2
+],
+"floorSize": [
+12.9,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 47,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CAFE 051",
+"parent": "광안지웰에스테이트",
+"floor": [
+1637.9,
+6.65,
+36.0
+],
+"floorSize": [
+27.9,
+19.4
+],
+"interiorParts": 50,
+"totalParts": 106,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 6,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "광안지웰에스테이트",
+"floor": [
+1712.7,
+6.65,
+57.5
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 33,
+"totalParts": 86,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 탭하우스",
+"parent": "광안비치빌딩",
+"floor": [
+1610.3,
+6.65,
+30.9
+],
+"floorSize": [
+19.3,
+19.4
+],
+"interiorParts": 33,
+"totalParts": 107,
+"lights": 1,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"StoolSeat": 3,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "츄러스 & 젤라또",
+"parent": "광안비치빌딩",
+"floor": [
+1590.0,
+6.65,
+31.5
+],
+"floorSize": [
+17.2,
+16.4
+],
+"interiorParts": 27,
+"totalParts": 64,
+"lights": 1,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 해물포차",
+"parent": "바다향빌딩",
+"floor": [
+1560.0,
+6.65,
+42.1
+],
+"floorSize": [
+38.5,
+19.4
+],
+"interiorParts": 43,
+"totalParts": 125,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"GrillTable": 5,
+"Coals": 5,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "OCEAN STAY",
+"parent": "광안 오션스테이",
+"floor": [
+1527.6,
+6.65,
+36.7
+],
+"floorSize": [
+12.9,
+14.4
+],
+"interiorParts": 1,
+"totalParts": 54,
+"lights": 0,
+"guis": 1,
+"keys": {
+"FrontDesk": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "COMPOSE COFFEE",
+"parent": "광안 오션스테이",
+"floor": [
+1502.4,
+6.65,
+41.7
+],
+"floorSize": [
+34.3,
+19.4
+],
+"interiorParts": 64,
+"totalParts": 138,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "바다분식",
+"parent": "바다분식",
+"floor": [
+1467.1,
+6.65,
+44.6
+],
+"floorSize": [
+30.0,
+18.4
+],
+"interiorParts": 66,
+"totalParts": 111,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 5,
+"StoolSeat": 20,
+"SpoonBox": 5,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "7-ELEVEn",
+"parent": "빌리브 광안에이파크오션",
+"floor": [
+1438.7,
+6.65,
+49.2
+],
+"floorSize": [
+21.5,
+22.4
+],
+"interiorParts": 44,
+"totalParts": 251,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BELIV A-PARK OCEAN",
+"parent": "빌리브 광안에이파크오션",
+"floor": [
+1419.2,
+6.65,
+47.0
+],
+"floorSize": [
+12.9,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 47,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "라운지 바다",
+"parent": "빌리브 광안에이파크오션",
+"floor": [
+1396.0,
+6.65,
+51.6
+],
+"floorSize": [
+30.0,
+19.4
+],
+"interiorParts": 54,
+"totalParts": 130,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"StoolSeat": 6,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "FUZZY NAVEL",
+"parent": "퍼지네이블 · 컵앤컵",
+"floor": [
+1357.2,
+6.65,
+62.1
+],
+"floorSize": [
+42.8,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 157,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CASA BUSANO",
+"parent": "까사부사노 · 팔도통닭 · 퍼니비어",
+"floor": [
+1320.5,
+6.65,
+58.2
+],
+"floorSize": [
+23.6,
+19.4
+],
+"interiorParts": 44,
+"totalParts": 100,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "팔도통닭",
+"parent": "까사부사노 · 팔도통닭 · 퍼니비어",
+"floor": [
+1297.0,
+6.65,
+59.7
+],
+"floorSize": [
+19.3,
+18.4
+],
+"interiorParts": 68,
+"totalParts": 108,
+"lights": 0,
+"guis": 6,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 16,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "까사부사노 · 팔도통닭 · 퍼니비어",
+"floor": [
+1295.5,
+6.65,
+87.7
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 37,
+"totalParts": 72,
+"lights": 0,
+"guis": 4,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CAFE 181 · 15F",
+"parent": "게스후 카페181 빌딩",
+"floor": [
+1243.2,
+6.65,
+62.1
+],
+"floorSize": [
+15.6,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 49,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "하카타 라멘 광안",
+"parent": "게스후 카페181 빌딩",
+"floor": [
+1213.8,
+6.65,
+66.4
+],
+"floorSize": [
+39.7,
+18.4
+],
+"interiorParts": 93,
+"totalParts": 150,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"Door_restroom": 1,
+"TableTop": 6,
+"StoolSeat": 30,
+"SpoonBox": 6,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "게스후 카페181 빌딩",
+"floor": [
+1247.2,
+6.65,
+87.6
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 36,
+"totalParts": 72,
+"lights": 0,
+"guis": 5,
+"keys": {
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "버거스테이션",
+"parent": "리코리카 · 로그인노래타운",
+"floor": [
+1169.0,
+6.65,
+69.8
+],
+"floorSize": [
+44.1,
+18.4
+],
+"interiorParts": 126,
+"totalParts": 184,
+"lights": 0,
+"guis": 6,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"Door_restroom": 1,
+"TableTop": 8,
+"ChairSeat": 32,
+"SpoonBox": 8,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "오뎅바 어묵",
+"parent": "광안해변 185빌딩",
+"floor": [
+1126.4,
+6.65,
+73.5
+],
+"floorSize": [
+35.3,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 153,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "HAPPY MONK",
+"parent": "해피몽크",
+"floor": [
+1082.9,
+6.65,
+76.6
+],
+"floorSize": [
+39.7,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 155,
+"lights": 1,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BEER BAT",
+"parent": "호텔 센트럴베이 광안리",
+"floor": [
+1045.1,
+6.65,
+85.2
+],
+"floorSize": [
+30.9,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 155,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "HOTEL CENTRAL BAY",
+"parent": "호텔 센트럴베이 광안리",
+"floor": [
+1014.2,
+6.65,
+84.7
+],
+"floorSize": [
+26.6,
+14.4
+],
+"interiorParts": 11,
+"totalParts": 74,
+"lights": 0,
+"guis": 1,
+"keys": {
+"FrontDesk": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CAFE BAY",
+"parent": "호텔 센트럴베이 광안리",
+"floor": [
+987.0,
+6.65,
+89.0
+],
+"floorSize": [
+24.4,
+19.4
+],
+"interiorParts": 43,
+"totalParts": 101,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 곱창",
+"parent": "취월 빌딩",
+"floor": [
+952.7,
+6.65,
+85.1
+],
+"floorSize": [
+37.5,
+19.4
+],
+"interiorParts": 43,
+"totalParts": 138,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"GrillTable": 5,
+"Coals": 5,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "THURSDAY PARTY",
+"parent": "썰스데이파티 광안리점",
+"floor": [
+910.0,
+6.65,
+87.7
+],
+"floorSize": [
+41.9,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 159,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 조개찜",
+"parent": "부단 빌딩",
+"floor": [
+865.1,
+6.65,
+89.7
+],
+"floorSize": [
+41.9,
+18.4
+],
+"interiorParts": 41,
+"totalParts": 104,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 4,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "부단 빌딩",
+"floor": [
+851.5,
+6.65,
+118.1
+],
+"floorSize": [
+33.5,
+10.4
+],
+"interiorParts": 8,
+"totalParts": 53,
+"lights": 0,
+"guis": 4,
+"keys": {
+"TankWater": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 오징어",
+"parent": "시티나인",
+"floor": [
+795.8,
+6.65,
+93.4
+],
+"floorSize": [
+24.2,
+18.4
+],
+"interiorParts": 28,
+"totalParts": 83,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 2,
+"SpoonBox": 2,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CITY NINE",
+"parent": "시티나인",
+"floor": [
+776.1,
+6.65,
+92.4
+],
+"floorSize": [
+11.1,
+14.4
+],
+"interiorParts": 0,
+"totalParts": 29,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "와플 & 젤라또",
+"parent": "시티나인",
+"floor": [
+761.0,
+6.65,
+94.2
+],
+"floorSize": [
+15.4,
+16.4
+],
+"interiorParts": 30,
+"totalParts": 75,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"Door_restroom": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "시티나인",
+"floor": [
+803.5,
+6.65,
+120.9
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 8,
+"totalParts": 55,
+"lights": 0,
+"guis": 5,
+"keys": {
+"TankWater": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광연이포차",
+"parent": "비치비키니",
+"floor": [
+729.8,
+6.65,
+104.1
+],
+"floorSize": [
+41.6,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 147,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 7,
+"GrillTable": 7,
+"Coals": 7,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "조새호",
+"parent": "비치비키니",
+"floor": [
+693.9,
+6.65,
+105.3
+],
+"floorSize": [
+26.3,
+18.4
+],
+"interiorParts": 54,
+"totalParts": 93,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 4,
+"StoolSeat": 16,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "네모네",
+"parent": "비치비키니",
+"floor": [
+665.6,
+6.65,
+107.0
+],
+"floorSize": [
+26.3,
+19.4
+],
+"interiorParts": 50,
+"totalParts": 106,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"StoolSeat": 6,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "HOTEL 1  CAFE & LOUNGE",
+"parent": "광안리 호텔1",
+"floor": [
+627.0,
+6.65,
+101.6
+],
+"floorSize": [
+43.8,
+19.4
+],
+"interiorParts": 75,
+"totalParts": 163,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안리 호텔1",
+"parent": "광안리 호텔1",
+"floor": [
+586.6,
+6.65,
+100.7
+],
+"floorSize": [
+32.9,
+14.4
+],
+"interiorParts": 13,
+"totalParts": 76,
+"lights": 0,
+"guis": 1,
+"keys": {
+"FrontDesk": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 밀면",
+"parent": "광안해변 205빌딩",
+"floor": [
+554.1,
+6.65,
+103.9
+],
+"floorSize": [
+26.3,
+18.4
+],
+"interiorParts": 44,
+"totalParts": 92,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"Cushion": 8,
+"SpoonBox": 2,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "씨앗호떡",
+"parent": "광안해변 205빌딩",
+"floor": [
+527.9,
+6.65,
+103.8
+],
+"floorSize": [
+22.0,
+16.4
+],
+"interiorParts": 46,
+"totalParts": 105,
+"lights": 1,
+"guis": 4,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 1,
+"ChairSeat": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "진미횟집",
+"parent": "진미횟집",
+"floor": [
+486.0,
+6.65,
+112.2
+],
+"floorSize": [
+50.3,
+18.4
+],
+"interiorParts": 51,
+"totalParts": 120,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 6,
+"SpoonBox": 6,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CAFE HAUTE",
+"parent": "카페오뜨 광안비치점",
+"floor": [
+436.8,
+6.65,
+108.6
+],
+"floorSize": [
+41.6,
+20.4
+],
+"interiorParts": 75,
+"totalParts": 174,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 기념품",
+"parent": "카페오뜨 광안비치점",
+"floor": [
+401.9,
+6.65,
+106.6
+],
+"floorSize": [
+24.2,
+14.4
+],
+"interiorParts": 40,
+"totalParts": 75,
+"lights": 0,
+"guis": 3,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"WallRack": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "카페오뜨 광안비치점",
+"floor": [
+396.3,
+6.65,
+132.5
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 33,
+"totalParts": 85,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "인형뽑기",
+"parent": "만남의광장 빌딩",
+"floor": [
+-223.2,
+6.65,
+111.2
+],
+"floorSize": [
+27.0,
+16.4
+],
+"interiorParts": 92,
+"totalParts": 152,
+"lights": 1,
+"guis": 2,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "만남의광장 빌딩",
+"floor": [
+-231.5,
+6.65,
+137.9
+],
+"floorSize": [
+34.0,
+10.0
+],
+"interiorParts": 81,
+"totalParts": 137,
+"lights": 0,
+"guis": 2,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "OLIVE YOUNG",
+"parent": "광안해변로 235 (올리브영 광안비치점)",
+"floor": [
+-304.6,
+6.65,
+112.8
+],
+"floorSize": [
+26.8,
+22.4
+],
+"interiorParts": 46,
+"totalParts": 192,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "MAD DOGS",
+"parent": "광안해변로 235 (올리브영 광안비치점)",
+"floor": [
+-328.9,
+6.65,
+110.3
+],
+"floorSize": [
+17.9,
+18.4
+],
+"interiorParts": 28,
+"totalParts": 54,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 1,
+"ChairSeat": 4,
+"SpoonBox": 1,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "WORKING HOLIDAY",
+"parent": "광안해변로 235 (올리브영 광안비치점)",
+"floor": [
+-348.8,
+6.65,
+110.3
+],
+"floorSize": [
+17.9,
+19.4
+],
+"interiorParts": 50,
+"totalParts": 104,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "광안해변로 235 (올리브영 광안비치점)",
+"floor": [
+-297.6,
+6.65,
+142.7
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 33,
+"totalParts": 163,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "THEME TOWER",
+"parent": "테마타워",
+"floor": [
+-437.2,
+6.65,
+105.6
+],
+"floorSize": [
+15.7,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 49,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SUBWAY 부산광안비치점",
+"parent": "광안샤인빌딩",
+"floor": [
+-463.8,
+6.65,
+106.9
+],
+"floorSize": [
+31.2,
+18.4
+],
+"interiorParts": 86,
+"totalParts": 162,
+"lights": 0,
+"guis": 8,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 4,
+"StoolSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "PASCUCCI",
+"parent": "파스쿠찌 센트로 광안리점",
+"floor": [
+-553.9,
+6.65,
+112.9
+],
+"floorSize": [
+75.5,
+24.4
+],
+"interiorParts": 128,
+"totalParts": 231,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 2,
+"StoolSeat": 24,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BILLBOARD CAFE",
+"parent": "부산 광안리 빌보드",
+"floor": [
+-663.7,
+6.65,
+100.1
+],
+"floorSize": [
+46.7,
+19.4
+],
+"interiorParts": 76,
+"totalParts": 160,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "부산 광안리 빌보드",
+"floor": [
+-682.4,
+6.65,
+126.9
+],
+"floorSize": [
+32.5,
+10.4
+],
+"interiorParts": 44,
+"totalParts": 92,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "I AM BUSAN",
+"parent": "아이엠부산 광안리점",
+"floor": [
+-744.2,
+6.65,
+95.0
+],
+"floorSize": [
+41.9,
+16.4
+],
+"interiorParts": 75,
+"totalParts": 163,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"Door_restroom": 1,
+"TableTop": 1,
+"ChairSeat": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "아이엠부산 광안리점",
+"floor": [
+-730.3,
+6.65,
+122.5
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 42,
+"totalParts": 149,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "ORANGEPADA",
+"parent": "오랜지바다 (ORANGEPADA)",
+"floor": [
+-781.4,
+6.65,
+92.2
+],
+"floorSize": [
+26.6,
+14.4
+],
+"interiorParts": 40,
+"totalParts": 78,
+"lights": 0,
+"guis": 3,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"WallRack": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "STARBUCKS",
+"parent": "스타벅스 광안리점",
+"floor": [
+-835.0,
+6.65,
+106.4
+],
+"floorSize": [
+72.7,
+28.4
+],
+"interiorParts": 182,
+"totalParts": 319,
+"lights": 1,
+"guis": 8,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 2,
+"EspressoBody": 2,
+"GroupHead": 4,
+"PastryCase": 1,
+"MDBoard": 4,
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"StoolSeat": 21,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CASA BUSANO TERRACE",
+"parent": "까사부사노 테라스 · 광안어썸",
+"floor": [
+-948.8,
+6.65,
+92.3
+],
+"floorSize": [
+63.9,
+19.4
+],
+"interiorParts": 83,
+"totalParts": 171,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안리 테이스티",
+"parent": "광안리 테이스티",
+"floor": [
+-996.5,
+6.65,
+82.4
+],
+"floorSize": [
+26.6,
+19.4
+],
+"interiorParts": 32,
+"totalParts": 110,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"GrillTable": 3,
+"Coals": 3,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "동면식밀면",
+"parent": "광안리 테이스티",
+"floor": [
+-1022.8,
+6.65,
+80.1
+],
+"floorSize": [
+22.2,
+18.4
+],
+"interiorParts": 67,
+"totalParts": 108,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 16,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "OCEAN RESIDENCE",
+"parent": "광안 오션 레지던스",
+"floor": [
+-1048.6,
+6.65,
+76.4
+],
+"floorSize": [
+17.8,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 49,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "베이커리 해변",
+"parent": "광안 오션 레지던스",
+"floor": [
+-1075.0,
+6.65,
+75.6
+],
+"floorSize": [
+30.9,
+16.4
+],
+"interiorParts": 62,
+"totalParts": 128,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"Door_restroom": 1,
+"TableTop": 1,
+"ChairSeat": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "광안 오션 레지던스",
+"floor": [
+-1117.3,
+6.65,
+101.5
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 37,
+"totalParts": 72,
+"lights": 0,
+"guis": 4,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "광안 조개구이",
+"parent": "광안 조개구이",
+"floor": [
+-1177.2,
+6.65,
+75.7
+],
+"floorSize": [
+42.7,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 147,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 7,
+"GrillTable": 7,
+"Coals": 7,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "광안 조개구이",
+"floor": [
+-1163.7,
+6.65,
+102.4
+],
+"floorSize": [
+28.5,
+10.4
+],
+"interiorParts": 13,
+"totalParts": 43,
+"lights": 0,
+"guis": 5,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "GS25",
+"parent": "GS25 광안목화점 · 엘모텔",
+"floor": [
+-1252.9,
+6.65,
+65.3
+],
+"floorSize": [
+20.4,
+22.4
+],
+"interiorParts": 39,
+"totalParts": 230,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "L MOTEL",
+"parent": "GS25 광안목화점 · 엘모텔",
+"floor": [
+-1268.8,
+6.65,
+60.0
+],
+"floorSize": [
+8.2,
+14.4
+],
+"interiorParts": 0,
+"totalParts": 26,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "조개구이 바다마을",
+"parent": "조개구이 바다마을",
+"floor": [
+-1307.0,
+6.65,
+65.4
+],
+"floorSize": [
+32.5,
+19.4
+],
+"interiorParts": 43,
+"totalParts": 124,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 5,
+"GrillTable": 5,
+"Coals": 5,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "1984 이바구밀면",
+"parent": "1984 이바구밀면 · 칠성횟집",
+"floor": [
+-1346.9,
+6.65,
+55.4
+],
+"floorSize": [
+42.7,
+18.4
+],
+"interiorParts": 99,
+"totalParts": 165,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 6,
+"ChairSeat": 24,
+"Cushion": 8,
+"SpoonBox": 6,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "탕후루 & 젤라또",
+"parent": "민락 브릿지뷰 게스트하우스",
+"floor": [
+-1392.3,
+6.65,
+50.4
+],
+"floorSize": [
+36.6,
+16.4
+],
+"interiorParts": 65,
+"totalParts": 119,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"Door_restroom": 1,
+"TableTop": 1,
+"ChairSeat": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "새벽집",
+"parent": "새벽집",
+"floor": [
+-1432.9,
+6.65,
+47.8
+],
+"floorSize": [
+38.6,
+18.4
+],
+"interiorParts": 99,
+"totalParts": 165,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 6,
+"ChairSeat": 24,
+"Cushion": 8,
+"SpoonBox": 6,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "오션 공인중개사",
+"parent": "테라스타오션",
+"floor": [
+-1478.5,
+6.65,
+41.5
+],
+"floorSize": [
+18.3,
+6.4
+],
+"interiorParts": 6,
+"totalParts": 30,
+"lights": 0,
+"guis": 1,
+"keys": {
+"TableTop": 1,
+"ChairSeat": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "TERRASTAR OCEAN",
+"parent": "테라스타오션",
+"floor": [
+-1496.0,
+6.65,
+43.8
+],
+"floorSize": [
+12.2,
+14.4
+],
+"interiorParts": 0,
+"totalParts": 36,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "커피 테라스",
+"parent": "테라스타오션",
+"floor": [
+-1514.5,
+6.65,
+44.5
+],
+"floorSize": [
+20.4,
+19.4
+],
+"interiorParts": 45,
+"totalParts": 100,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"Door_restroom": 1,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "WILD WAVE",
+"parent": "와일드웨이브 광안본점",
+"floor": [
+-1611.2,
+6.65,
+30.8
+],
+"floorSize": [
+43.4,
+19.4
+],
+"interiorParts": 57,
+"totalParts": 154,
+"lights": 1,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "와일드웨이브 광안본점",
+"floor": [
+-1598.3,
+6.65,
+60.6
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 47,
+"totalParts": 133,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"TableTop": 2,
+"StoolSeat": 9,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CU",
+"parent": "CU 광안해변로점 빌딩",
+"floor": [
+-1647.9,
+6.65,
+28.5
+],
+"floorSize": [
+23.9,
+22.4
+],
+"interiorParts": 45,
+"totalParts": 263,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "돗자리 · 폭죽 · 튜브",
+"parent": "CU 광안해변로점 빌딩",
+"floor": [
+-1670.0,
+6.65,
+22.1
+],
+"floorSize": [
+17.5,
+14.4
+],
+"interiorParts": 35,
+"totalParts": 65,
+"lights": 0,
+"guis": 3,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"WallRack": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "신라횟집",
+"parent": "신라횟집",
+"floor": [
+-1703.1,
+6.65,
+26.5
+],
+"floorSize": [
+41.2,
+18.4
+],
+"interiorParts": 41,
+"totalParts": 106,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 4,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "CU",
+"parent": "CU 민락비치점 빌딩",
+"floor": [
+-1751.0,
+6.65,
+17.2
+],
+"floorSize": [
+23.9,
+22.4
+],
+"interiorParts": 45,
+"totalParts": 266,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 포장마차",
+"parent": "CU 민락비치점 빌딩",
+"floor": [
+-1777.7,
+6.65,
+12.7
+],
+"floorSize": [
+26.1,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 144,
+"lights": 1,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"TapPost": 1,
+"Door_restroom": 1,
+"TableTop": 3,
+"StoolSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "HOTEL CIELO",
+"parent": "호텔 씨엘로 민락",
+"floor": [
+-1803.2,
+6.65,
+7.2
+],
+"floorSize": [
+19.6,
+14.4
+],
+"interiorParts": 11,
+"totalParts": 66,
+"lights": 0,
+"guis": 1,
+"keys": {
+"FrontDesk": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "라운지 카페 씨엘로",
+"parent": "호텔 씨엘로 민락",
+"floor": [
+-1834.6,
+6.65,
+6.0
+],
+"floorSize": [
+39.1,
+19.4
+],
+"interiorParts": 73,
+"totalParts": 161,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 포차",
+"parent": "민락 포차",
+"floor": [
+-1878.2,
+6.65,
+6.9
+],
+"floorSize": [
+41.2,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 147,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 7,
+"GrillTable": 7,
+"Coals": 7,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 대게",
+"parent": "민락 대게",
+"floor": [
+-1924.3,
+6.65,
+0.7
+],
+"floorSize": [
+45.6,
+18.4
+],
+"interiorParts": 41,
+"totalParts": 104,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 4,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BLUE WAVE COFFEE",
+"parent": "블루웨이브 커피",
+"floor": [
+-1972.9,
+6.65,
+-10.9
+],
+"floorSize": [
+47.7,
+19.4
+],
+"interiorParts": 77,
+"totalParts": 165,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "블루웨이브 커피",
+"floor": [
+-1994.4,
+6.65,
+14.9
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 33,
+"totalParts": 85,
+"lights": 0,
+"guis": 4,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "MILLAK BEACH HOTEL",
+"parent": "민락 비치호텔",
+"floor": [
+-2041.3,
+6.65,
+-22.2
+],
+"floorSize": [
+17.8,
+14.4
+],
+"interiorParts": 11,
+"totalParts": 66,
+"lights": 0,
+"guis": 1,
+"keys": {
+"FrontDesk": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 복국",
+"parent": "민락 비치호텔",
+"floor": [
+-2069.9,
+6.65,
+-24.0
+],
+"floorSize": [
+35.4,
+18.4
+],
+"interiorParts": 60,
+"totalParts": 113,
+"lights": 0,
+"guis": 6,
+"keys": {
+"Door_restroom": 1,
+"TableTop": 3,
+"ChairSeat": 12,
+"Cushion": 8,
+"SpoonBox": 3,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "민락 비치호텔",
+"floor": [
+-2041.6,
+6.65,
+3.7
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 36,
+"totalParts": 72,
+"lights": 0,
+"guis": 5,
+"keys": {
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "갯마을 조개구이",
+"parent": "갯마을 조개구이",
+"floor": [
+-2114.3,
+6.65,
+-23.4
+],
+"floorSize": [
+46.4,
+19.4
+],
+"interiorParts": 51,
+"totalParts": 148,
+"lights": 0,
+"guis": 5,
+"keys": {
+"Fridge": 1,
+"Door_restroom": 1,
+"TableTop": 7,
+"GrillTable": 7,
+"Coals": 7,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 초장집",
+"parent": "민락 활어 초장집",
+"floor": [
+-2152.6,
+6.65,
+-35.2
+],
+"floorSize": [
+26.6,
+18.4
+],
+"interiorParts": 28,
+"totalParts": 81,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 2,
+"SpoonBox": 2,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락수산",
+"parent": "민락 활어 초장집",
+"floor": [
+-2178.7,
+6.65,
+-38.9
+],
+"floorSize": [
+22.2,
+18.4
+],
+"interiorParts": 25,
+"totalParts": 78,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 2,
+"SpoonBox": 2,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "HOTEL 야자수",
+"parent": "호텔 야자수",
+"floor": [
+-2228.2,
+6.65,
+-47.9
+],
+"floorSize": [
+31.0,
+14.4
+],
+"interiorParts": 8,
+"totalParts": 58,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 활어횟집",
+"parent": "민락 활어횟집",
+"floor": [
+-2269.5,
+6.65,
+-45.8
+],
+"floorSize": [
+44.2,
+18.4
+],
+"interiorParts": 41,
+"totalParts": 106,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"CuttingBoard": 1,
+"TankWater": 2,
+"Door_restroom": 1,
+"TableTop": 4,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SUNSET ROOFTOP",
+"parent": "선셋 루프탑 카페",
+"floor": [
+-2317.6,
+6.65,
+-58.5
+],
+"floorSize": [
+48.6,
+19.4
+],
+"interiorParts": 95,
+"totalParts": 183,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"PastryCase": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 8,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "BBQ",
+"parent": "민락 노래빌딩",
+"floor": [
+-2355.6,
+6.65,
+-64.7
+],
+"floorSize": [
+22.2,
+18.4
+],
+"interiorParts": 68,
+"totalParts": 110,
+"lights": 0,
+"guis": 6,
+"keys": {
+"OrderKiosk": 1,
+"KioskScreen": 1,
+"Door_restroom": 1,
+"TableTop": 4,
+"ChairSeat": 16,
+"SpoonBox": 4,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "민락 스낵 편의점",
+"parent": "민락 노래빌딩",
+"floor": [
+-2379.8,
+6.65,
+-66.3
+],
+"floorSize": [
+22.2,
+22.4
+],
+"interiorParts": 44,
+"totalParts": 250,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 2,
+"Counter": 2,
+"PosBase": 1,
+"Fridge": 1,
+"Microwave": 2,
+"HotWater": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "MILLAK OCEAN TOWER",
+"parent": "민락 오션타워",
+"floor": [
+-2404.9,
+6.65,
+-74.3
+],
+"floorSize": [
+17.8,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 49,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "스시 & 사케 오션",
+"parent": "민락 오션타워",
+"floor": [
+-2435.6,
+6.65,
+-77.0
+],
+"floorSize": [
+39.8,
+18.4
+],
+"interiorParts": 132,
+"totalParts": 187,
+"lights": 0,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"Door_restroom": 1,
+"TableTop": 6,
+"ChairSeat": 24,
+"StoolSeat": 6,
+"SpoonBox": 6,
+"TubeLamp": 2,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "민락 오션타워",
+"floor": [
+-2453.8,
+6.65,
+-51.7
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 36,
+"totalParts": 70,
+"lights": 0,
+"guis": 4,
+"keys": {
+"TableTop": 2,
+"ChairSeat": 8,
+"SpoonBox": 2,
+"TubeLamp": 1,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "OCEAN VIEW RESIDENCE",
+"parent": "광안 오션뷰 레지던스",
+"floor": [
+347.5,
+6.65,
+111.9
+],
+"floorSize": [
+16.4,
+14.4
+],
+"interiorParts": 6,
+"totalParts": 49,
+"lights": 0,
+"guis": 1,
+"keys": {
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "바다곁 파스타 & 와인",
+"parent": "광안 오션뷰 레지던스",
+"floor": [
+316.9,
+6.65,
+115.1
+],
+"floorSize": [
+40.9,
+19.4
+],
+"interiorParts": 125,
+"totalParts": 272,
+"lights": 1,
+"guis": 6,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"Door_restroom": 1,
+"TableTop": 7,
+"ChairSeat": 14,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+},
+{
+"name": "SideShop",
+"parent": "광안 오션뷰 레지던스",
+"floor": [
+350.4,
+6.65,
+137.6
+],
+"floorSize": [
+34.0,
+10.4
+],
+"interiorParts": 33,
+"totalParts": 87,
+"lights": 0,
+"guis": 5,
+"keys": {
+"CounterTop": 1,
+"Counter": 1,
+"PosBase": 1,
+"EspressoBody": 1,
+"GroupHead": 2,
+"TableTop": 2,
+"ChairSeat": 4,
+"ShopCeiling": 1,
+"ShopBackWall": 1,
+"ShopPartition": 2
+}
+}
+]

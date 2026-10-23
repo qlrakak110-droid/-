@@ -1,0 +1,8 @@
+local f = loadstring("return 1 + (...)")
+print(f and f(2))
+local env = setmetatable({ x = 5 }, { __index = getfenv(0) })
+local g = loadstring("return x")
+setfenv(g, env)
+print(g())
+print(utf8.char(0xAC00), utf8.codepoint("가"))
+print(os.time(), os.clock())

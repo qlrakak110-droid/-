@@ -1,0 +1,10 @@
+{
+ "taxi":     {"near":[-170.4,6.8,48.5],"kind":"taxi"},
+ "sonata":   {"near":[-484.8,7.4,383.6],"kind":"sedan"},
+ "g80":      {"near":[-231.9,7.4,446.3],"kind":"luxury"},
+ "tucson":   {"near":[-419.7,7.6,464.4],"kind":"suv"},
+ "ray":      {"near":[-416.2,7.3,275.5],"kind":"compact"},
+ "carnival": {"near":[-419.0,7.6,425.4],"kind":"van"},
+ "porter":   {"near":[-227.5,7.9,21.3],"kind":"truck"},
+ "solati":   {"near":[-442.1,7.7,286.0],"kind":"ambulance"}
+}

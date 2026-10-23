@@ -1,0 +1,2083 @@
+{
+ "GwShop": {
+  "count": 7,
+  "groups": {
+   "shops/바다옷장": 1,
+   "shops/광안 서프 & SUP": 1,
+   "shops/광안 떡볶이": 1,
+   "shops/행복 돼지국밥": 1,
+   "shops/광안 치킨": 1,
+   "shops/헤어살롱 물결": 1,
+   "shops/바다약국": 1
+  },
+  "samples": [
+   {
+    "path": "shops/바다옷장",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "DisplayName": "바다옷장",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/광안 서프 & SUP",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "DisplayName": "광안 서프 & SUP",
+     "ShopId": "surf"
+    }
+   },
+   {
+    "path": "shops/광안 떡볶이",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "DisplayName": "광안 떡볶이",
+     "ShopId": "snack"
+    }
+   },
+   {
+    "path": "shops/행복 돼지국밥",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "DisplayName": "행복 돼지국밥",
+     "ShopId": "gukbap"
+    }
+   }
+  ]
+ },
+ "GwShopSpot": {
+  "count": 26,
+  "groups": {
+   "shops/바다옷장": 4,
+   "shops/광안 서프 & SUP": 4,
+   "shops/광안 떡볶이": 4,
+   "shops/행복 돼지국밥": 4,
+   "shops/광안 치킨": 4,
+   "shops/헤어살롱 물결": 3,
+   "shops/바다약국": 3
+  },
+  "samples": [
+   {
+    "path": "shops/바다옷장/Points/Spot_1",
+    "cls": "Part",
+    "pos": [
+     -401.6,
+     9.8,
+     111.8
+    ],
+    "attrs": {
+     "Act": "shop",
+     "Index": "1",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/바다옷장/Points/Spot_2",
+    "cls": "Part",
+    "pos": [
+     -423.4,
+     9.8,
+     109.2
+    ],
+    "attrs": {
+     "Act": "shop",
+     "Index": "2",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/바다옷장/Points/Spot_3",
+    "cls": "Part",
+    "pos": [
+     -422.3,
+     9.8,
+     137.6
+    ],
+    "attrs": {
+     "Act": "look",
+     "Index": "3",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/바다옷장/Points/Spot_4",
+    "cls": "Part",
+    "pos": [
+     -410.2,
+     9.8,
+     116.6
+    ],
+    "attrs": {
+     "Act": "phone",
+     "Index": "4",
+     "ShopId": "clothing"
+    }
+   }
+  ]
+ },
+ "GwShopTable": {
+  "count": 16,
+  "groups": {
+   "shops/행복 돼지국밥": 8,
+   "shops/광안 떡볶이": 4,
+   "shops/광안 치킨": 4
+  },
+  "samples": [
+   {
+    "path": "shops/광안 떡볶이/Interior/Table_1",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Index": "1",
+     "ShopId": "snack"
+    }
+   },
+   {
+    "path": "shops/광안 떡볶이/Interior/Table_2",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Index": "2",
+     "ShopId": "snack"
+    }
+   },
+   {
+    "path": "shops/광안 떡볶이/Interior/Table_3",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Index": "3",
+     "ShopId": "snack"
+    }
+   },
+   {
+    "path": "shops/광안 떡볶이/Interior/Table_4",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Index": "4",
+     "ShopId": "snack"
+    }
+   }
+  ]
+ },
+ "GwShopPoint": {
+  "count": 10,
+  "groups": {
+   "shops/바다옷장": 3,
+   "shops/헤어살롱 물결": 2,
+   "shops/광안 서프 & SUP": 1,
+   "shops/광안 떡볶이": 1,
+   "shops/행복 돼지국밥": 1,
+   "shops/광안 치킨": 1,
+   "shops/바다약국": 1
+  },
+  "samples": [
+   {
+    "path": "shops/바다옷장/Points/Point_counter_1",
+    "cls": "Part",
+    "pos": [
+     -421.9,
+     10.1,
+     128.6
+    ],
+    "attrs": {
+     "Index": "1",
+     "Label": "옷 고르기",
+     "PointKind": "counter",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/바다옷장/Points/Point_fitting_1",
+    "cls": "Part",
+    "pos": [
+     -403.2,
+     10.1,
+     132.1
+    ],
+    "attrs": {
+     "Index": "1",
+     "Label": "피팅룸 1",
+     "PointKind": "fitting",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/바다옷장/Points/Point_fitting_2",
+    "cls": "Part",
+    "pos": [
+     -410.4,
+     10.1,
+     132.0
+    ],
+    "attrs": {
+     "Index": "2",
+     "Label": "피팅룸 2",
+     "PointKind": "fitting",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/광안 서프 & SUP/Points/Point_counter_1",
+    "cls": "Part",
+    "pos": [
+     -497.5,
+     10.1,
+     122.4
+    ],
+    "attrs": {
+     "Index": "1",
+     "Label": "렌탈 · 구매",
+     "PointKind": "counter",
+     "ShopId": "surf"
+    }
+   }
+  ]
+ },
+ "GwShopClerk": {
+  "count": 9,
+  "groups": {
+   "shops/행복 돼지국밥": 2,
+   "shops/광안 치킨": 2,
+   "shops/바다옷장": 1,
+   "shops/광안 서프 & SUP": 1,
+   "shops/광안 떡볶이": 1,
+   "shops/헤어살롱 물결": 1,
+   "shops/바다약국": 1
+  },
+  "samples": [
+   {
+    "path": "shops/바다옷장/Interior/점원",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "teller",
+     "NpcName": "점원",
+     "Role": "clerk",
+     "ShopId": "clothing"
+    }
+   },
+   {
+    "path": "shops/광안 서프 & SUP/Interior/서프 강사",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "teller",
+     "NpcName": "서프 강사",
+     "Role": "clerk",
+     "ShopId": "surf"
+    }
+   },
+   {
+    "path": "shops/광안 떡볶이/Interior/분식 이모",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "cook",
+     "NpcName": "분식 이모",
+     "Role": "clerk",
+     "ShopId": "snack"
+    }
+   },
+   {
+    "path": "shops/행복 돼지국밥/Interior/주방 이모",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "cook",
+     "NpcName": "주방 이모",
+     "Role": "cook",
+     "ShopId": "gukbap"
+    }
+   }
+  ]
+ },
+ "ShopCounter": {
+  "count": 3,
+  "groups": {
+   "bowling/상층_2F-4F": 3
+  },
+  "samples": [
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/리셉션/ShopCounter_gym_store",
+    "cls": "Part",
+    "pos": [
+     326.0,
+     55.2,
+     450.2
+    ],
+    "attrs": {
+     "Label": "헬스장 카운터 · 음료 / 보충제",
+     "ShopId": "gym_store"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/헤어살롱/살롱_리셉션/ShopCounter_salon",
+    "cls": "Part",
+    "pos": [
+     326.7,
+     44.3,
+     464.4
+    ],
+    "attrs": {
+     "Label": "헤어살롱 예약 · 스타일 선택",
+     "ShopId": "salon"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/편집숍/편집숍_계산대/ShopCounter_clothing",
+    "cls": "Part",
+    "pos": [
+     282.1,
+     44.2,
+     427.7
+    ],
+    "attrs": {
+     "Label": "편집숍 계산대 · 옷 구매",
+     "ShopId": "clothing"
+    }
+   }
+  ]
+ },
+ "FurnitureSlot": {
+  "count": 74,
+  "groups": {
+   "DataModel/ServerStorage": 74
+  },
+  "samples": [
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Furniture/Slot_bed",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Category": "bed",
+     "DefaultItem": "bed_goshiwon_single",
+     "Footprint": "('V3', 3.0, 2.600006103515625, 6.399993896484375)",
+     "SlotId": "bed"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Furniture/Slot_desk",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Category": "desk",
+     "DefaultItem": "desk_goshiwon_builtin",
+     "Footprint": "('V3', 7.1999969482421875, 2.5, 1.8000030517578125)",
+     "SlotId": "desk"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Furniture/Slot_chair",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Category": "chair",
+     "DefaultItem": "chair_study",
+     "Footprint": "('V3', 1.8000030517578125, 3.8000030517578125, 1.80000305175",
+     "Rotate": "True",
+     "SlotId": "chair"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Furniture/Slot_shelf",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Category": "shelf",
+     "DefaultItem": "shelf_wall",
+     "Footprint": "('V3', 3.600006103515625, 1.1999969482421875, 1.100006103515",
+     "MountY": "5.34",
+     "SlotId": "shelf"
+    }
+   }
+  ]
+ },
+ "HomeInteract": {
+  "count": 62,
+  "groups": {
+   "DataModel/ServerStorage": 62
+  },
+  "samples": [
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Interact/Interact_interior",
+    "cls": "Part",
+    "pos": [
+     -3998.2,
+     1004.4,
+     10002.2
+    ],
+    "attrs": {
+     "Kind": "interior",
+     "Label": "인테리어 꾸미기"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Interact/Interact_bed",
+    "cls": "Part",
+    "pos": [
+     -4002.1,
+     1002.3,
+     9999.0
+    ],
+    "attrs": {
+     "Kind": "bed",
+     "Label": "잠자기",
+     "SlotId": "bed"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Interact/Interact_desk",
+    "cls": "Part",
+    "pos": [
+     -3999.0,
+     1003.2,
+     9994.9
+    ],
+    "attrs": {
+     "Kind": "desk",
+     "Label": "책상 사용",
+     "SlotId": "desk"
+    }
+   },
+   {
+    "path": "DataModel/ServerStorage/GwangalliHomes/HomeUnit_goshiwon/Interact/Interact_fridge",
+    "cls": "Part",
+    "pos": [
+     -3997.6,
+     1001.0,
+     9995.9
+    ],
+    "attrs": {
+     "Kind": "fridge",
+     "Label": "냉장고 열기"
+    }
+   }
+  ]
+ },
+ "HomeEntrance": {
+  "count": 5,
+  "groups": {
+   "homes/Entrances": 5
+  },
+  "samples": [
+   {
+    "path": "homes/Entrances/HomeEntrance_goshiwon/HomeEntrance",
+    "cls": "Part",
+    "pos": [
+     -489.1,
+     10.1,
+     255.4
+    ],
+    "attrs": {
+     "Destination": "광안 고시텔 (황령하우스 3F)",
+     "DisplayName": "황령하우스 · 광안 고시텔 3F",
+     "KoreanName": "고시원",
+     "ListingId": "goshiwon",
+     "Tier": "goshiwon",
+     "TierIndex": "1"
+    }
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_oneroom/HomeEntrance",
+    "cls": "Part",
+    "pos": [
+     209.6,
+     10.1,
+     601.5
+    ],
+    "attrs": {
+     "Destination": "미성맨션 원룸 (광안동)",
+     "DisplayName": "미성맨션 (원룸)",
+     "KoreanName": "원룸",
+     "ListingId": "oneroom",
+     "Tier": "oneroom",
+     "TierIndex": "2"
+    }
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_officetel/HomeEntrance",
+    "cls": "Part",
+    "pos": [
+     -1495.2,
+     10.1,
+     34.8
+    ],
+    "attrs": {
+     "Destination": "테라스타오션",
+     "DisplayName": "테라스타오션 (TERRASTAR OCEAN)",
+     "KoreanName": "오피스텔",
+     "ListingId": "officetel",
+     "Tier": "officetel",
+     "TierIndex": "3"
+    }
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_apartment/HomeEntrance",
+    "cls": "Part",
+    "pos": [
+     413.6,
+     10.1,
+     902.3
+    ],
+    "attrs": {
+     "Destination": "광안자이 (정문)",
+     "DisplayName": "광안자이 (정문)",
+     "KoreanName": "아파트",
+     "ListingId": "xi_apt",
+     "Tier": "apartment",
+     "TierIndex": "4"
+    }
+   }
+  ]
+ },
+ "HomeEntranceCue": {
+  "count": 25,
+  "groups": {
+   "homes/Entrances": 25
+  },
+  "samples": [
+   {
+    "path": "homes/Entrances/HomeEntrance_goshiwon/EntranceCue",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Tier": "goshiwon"
+    }
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_goshiwon/EntranceCue/PortalNeon",
+    "cls": "Part",
+    "pos": [
+     -486.8,
+     11.3,
+     255.9
+    ],
+    "attrs": {}
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_goshiwon/EntranceCue/PortalNeon",
+    "cls": "Part",
+    "pos": [
+     -491.4,
+     11.3,
+     255.7
+    ],
+    "attrs": {}
+   },
+   {
+    "path": "homes/Entrances/HomeEntrance_goshiwon/EntranceCue/PortalNeon",
+    "cls": "Part",
+    "pos": [
+     -489.1,
+     16.0,
+     255.8
+    ],
+    "attrs": {}
+   }
+  ]
+ },
+ "KaraokeRoom": {
+  "count": 8,
+  "groups": {
+   "karaoke/광안 코인노래연습장": 8
+  },
+  "samples": [
+   {
+    "path": "karaoke/광안 코인노래연습장/Booth_01",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 32.0, 12.399993896484375, 299.0)",
+     "LODRadius": "73",
+     "RoomName": "01",
+     "RoomNo": "1"
+    }
+   },
+   {
+    "path": "karaoke/광안 코인노래연습장/Booth_02",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 32.0, 12.399993896484375, 311.0)",
+     "LODRadius": "73",
+     "RoomName": "02",
+     "RoomNo": "2"
+    }
+   },
+   {
+    "path": "karaoke/광안 코인노래연습장/Booth_03",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 32.0, 12.399993896484375, 323.0)",
+     "LODRadius": "73",
+     "RoomName": "03",
+     "RoomNo": "3"
+    }
+   },
+   {
+    "path": "karaoke/광안 코인노래연습장/Booth_04",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 32.0, 12.399993896484375, 335.0)",
+     "LODRadius": "73",
+     "RoomName": "04",
+     "RoomNo": "4"
+    }
+   }
+  ]
+ },
+ "PCStation": {
+  "count": 48,
+  "groups": {
+   "pcbang/광안 PC방": 48
+  },
+  "samples": [
+   {
+    "path": "pcbang/광안 PC방/PCHall/PC_01",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "AislePos": "('V3', 120.3585205078125, 6.8000030517578125, 237.7478942871",
+     "PCNo": "1",
+     "RamenCF": "('CF', 143.01783752441406, 9.729995727539062, 300.2008666992",
+     "ServePos": "('V3', 140.03517150878906, 6.8000030517578125, 295.220275878"
+    }
+   },
+   {
+    "path": "pcbang/광안 PC방/PCHall/PC_02",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "AislePos": "('V3', 120.3585205078125, 6.8000030517578125, 237.7478942871",
+     "PCNo": "2",
+     "RamenCF": "('CF', 138.2179412841797, 9.729995727539062, 300.23229980468",
+     "ServePos": "('V3', 135.2352752685547, 6.8000030517578125, 295.2517089843"
+    }
+   },
+   {
+    "path": "pcbang/광안 PC방/PCHall/PC_03",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "AislePos": "('V3', 120.3585205078125, 6.8000030517578125, 237.7478637695",
+     "PCNo": "3",
+     "RamenCF": "('CF', 133.4180450439453, 9.729995727539062, 300.26370239257",
+     "ServePos": "('V3', 130.4353790283203, 6.8000030517578125, 295.2831420898"
+    }
+   },
+   {
+    "path": "pcbang/광안 PC방/PCHall/PC_04",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "AislePos": "('V3', 120.3585205078125, 6.8000030517578125, 237.7478942871",
+     "PCNo": "4",
+     "RamenCF": "('CF', 128.61814880371094, 9.729995727539062, 300.2951354980",
+     "ServePos": "('V3', 125.63548278808594, 6.8000030517578125, 295.314544677"
+    }
+   }
+  ]
+ },
+ "GwJobStation": {
+  "count": 32,
+  "groups": {
+   "convenience/GS25 광안리점": 27,
+   "delivery/광안 딜리버리": 5
+  },
+  "samples": [
+   {
+    "path": "convenience/GS25 광안리점/JobStations/Station_counter",
+    "cls": "Part",
+    "pos": [
+     -329.0,
+     7.5,
+     304.4
+    ],
+    "attrs": {
+     "Job": "gs25",
+     "Place": "GS25 광안리점",
+     "Station": "counter"
+    }
+   },
+   {
+    "path": "convenience/GS25 광안리점/JobStations/Station_counter_items",
+    "cls": "Part",
+    "pos": [
+     -325.9,
+     11.1,
+     304.3
+    ],
+    "attrs": {
+     "Job": "gs25",
+     "Place": "GS25 광안리점",
+     "Span": "3.2",
+     "Station": "counter_items"
+    }
+   },
+   {
+    "path": "convenience/GS25 광안리점/JobStations/Station_counter_scanned",
+    "cls": "Part",
+    "pos": [
+     -325.9,
+     11.1,
+     301.4
+    ],
+    "attrs": {
+     "Job": "gs25",
+     "Place": "GS25 광안리점",
+     "Station": "counter_scanned"
+    }
+   },
+   {
+    "path": "convenience/GS25 광안리점/JobStations/Station_boss",
+    "cls": "Part",
+    "pos": [
+     -329.3,
+     7.5,
+     300.2
+    ],
+    "attrs": {
+     "Job": "gs25",
+     "Place": "GS25 광안리점",
+     "Station": "boss"
+    }
+   }
+  ]
+ },
+ "VenueSpot": {
+  "count": 12,
+  "groups": {
+   "bowling/상층_2F-4F": 8,
+   "bowling/실내": 3,
+   "pcbang/광안 PC방": 1
+  },
+  "samples": [
+   {
+    "path": "bowling/실내/로비_카운터/Spot_bowl_shoes",
+    "cls": "Part",
+    "pos": [
+     316.6,
+     9.5,
+     458.3
+    ],
+    "attrs": {
+     "Label": "볼링화 대여 · 1,500원",
+     "Spot": "bowl_shoes"
+    }
+   },
+   {
+    "path": "bowling/실내/오락코너/펀치기계/Spot_bowl_punch",
+    "cls": "Part",
+    "pos": [
+     237.0,
+     9.8,
+     450.5
+    ],
+    "attrs": {
+     "Label": "펀치왕 · 1회 500원",
+     "Spot": "bowl_punch"
+    }
+   },
+   {
+    "path": "bowling/실내/분식코너/Spot_bowl_snack",
+    "cls": "Part",
+    "pos": [
+     239.9,
+     9.5,
+     386.2
+    ],
+    "attrs": {
+     "Label": "ROCK & BOWL 분식 · 떡볶이 · 어묵 · 감자튀김",
+     "PickupCF": "('CF', 240.77084350585938, 10.160003662109375, 377.479858398",
+     "Spot": "bowl_snack"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/락커_샤워실/LockerDoor",
+    "cls": "Part",
+    "pos": [
+     338.2,
+     53.8,
+     425.9
+    ],
+    "attrs": {
+     "LockerNo": "102",
+     "Spot": "gym_locker"
+    }
+   }
+  ]
+ },
+ "VenueStaff": {
+  "count": 6,
+  "groups": {
+   "bowling/상층_2F-4F": 3,
+   "bowling/실내": 2,
+   "pcbang/광안 PC방": 1
+  },
+  "samples": [
+   {
+    "path": "bowling/실내/로비_카운터/직원 (볼링화 대여)",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "teller",
+     "AnimSeed": "7714",
+     "HomeCF": "('CF', 316.7203674316406, 9.8800048828125, 452.5361938476562",
+     "NpcName": "직원 (볼링화 대여)",
+     "Staff": "shoe_clerk"
+    }
+   },
+   {
+    "path": "bowling/실내/분식코너/분식 이모",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "cook",
+     "AnimSeed": "5151",
+     "HomeCF": "('CF', 234.7879638671875, 9.520004272460938, 390.68045043945",
+     "NpcName": "분식 이모",
+     "Staff": "bowl_cook"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/트레이너 김코치",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "clipboard",
+     "AnimSeed": "4401",
+     "HomeCF": "('CF', 327.03546142578125, 54.93000793457031, 453.3659973144",
+     "NpcName": "트레이너 김코치",
+     "Staff": "gym_trainer"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/회원 (스트레칭)",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Act": "stretch",
+     "AnimSeed": "4402",
+     "HomeCF": "('CF', 309.8368835449219, 54.970001220703125, 459.6508178710",
+     "NpcName": "회원 (스트레칭)",
+     "Staff": "gym_regular"
+    }
+   }
+  ]
+ },
+ "VenueBoard": {
+  "count": 4,
+  "groups": {
+   "bowling/실내": 2,
+   "karaoke/광안 코인노래연습장": 1,
+   "pcbang/광안 PC방": 1
+  },
+  "samples": [
+   {
+    "path": "bowling/실내/오락코너/Board_punch/BoardFace",
+    "cls": "Part",
+    "pos": [
+     232.5,
+     16.2,
+     445.9
+    ],
+    "attrs": {
+     "Board": "punch"
+    }
+   },
+   {
+    "path": "bowling/실내/라운지/Board_bowling/BoardFace",
+    "cls": "Part",
+    "pos": [
+     283.1,
+     16.8,
+     400.5
+    ],
+    "attrs": {
+     "Board": "bowling"
+    }
+   },
+   {
+    "path": "karaoke/광안 코인노래연습장/Booth_Lobby/Board_karaoke/BoardFace",
+    "cls": "Part",
+    "pos": [
+     40.8,
+     13.8,
+     282.6
+    ],
+    "attrs": {
+     "Board": "karaoke"
+    }
+   },
+   {
+    "path": "pcbang/광안 PC방/PCHall/Board_pc/BoardFace",
+    "cls": "Part",
+    "pos": [
+     89.4,
+     14.1,
+     321.8
+    ],
+    "attrs": {
+     "Board": "pc"
+    }
+   }
+  ]
+ },
+ "GymStation": {
+  "count": 25,
+  "groups": {
+   "bowling/상층_2F-4F": 25
+  },
+  "samples": [
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/러닝머신_1/GymStation_treadmill",
+    "cls": "Part",
+    "pos": [
+     237.4,
+     56.2,
+     465.8
+    ],
+    "attrs": {
+     "Label": "러닝머신",
+     "Machine": "러닝머신",
+     "Pose": "run",
+     "RepStyle": "run",
+     "StationType": "treadmill"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/러닝머신_2/GymStation_treadmill",
+    "cls": "Part",
+    "pos": [
+     241.7,
+     56.2,
+     465.7
+    ],
+    "attrs": {
+     "Label": "러닝머신",
+     "Machine": "러닝머신",
+     "Pose": "run",
+     "RepStyle": "run",
+     "StationType": "treadmill"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/러닝머신_3/GymStation_treadmill",
+    "cls": "Part",
+    "pos": [
+     246.0,
+     56.2,
+     465.7
+    ],
+    "attrs": {
+     "Label": "러닝머신",
+     "Machine": "러닝머신",
+     "Pose": "run",
+     "RepStyle": "run",
+     "StationType": "treadmill"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/4F_광안휘트니스24/러닝머신_4/GymStation_treadmill",
+    "cls": "Part",
+    "pos": [
+     250.3,
+     56.2,
+     465.6
+    ],
+    "attrs": {
+     "Label": "러닝머신",
+     "Machine": "러닝머신",
+     "Pose": "run",
+     "RepStyle": "run",
+     "StationType": "treadmill"
+    }
+   }
+  ]
+ },
+ "SalonChair": {
+  "count": 5,
+  "groups": {
+   "bowling/상층_2F-4F": 5
+  },
+  "samples": [
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/헤어살롱/스타일링_아일랜드/스타일링체어_2/SalonChair",
+    "cls": "Part",
+    "pos": [
+     308.4,
+     42.5,
+     446.9
+    ],
+    "attrs": {
+     "Label": "헤어 스타일링 의자",
+     "Pose": "sit"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/헤어살롱/스타일링_아일랜드/스타일링체어_3/SalonChair",
+    "cls": "Part",
+    "pos": [
+     315.7,
+     42.5,
+     446.8
+    ],
+    "attrs": {
+     "Label": "헤어 스타일링 의자",
+     "Pose": "sit"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/헤어살롱/스타일링_아일랜드/스타일링체어_4/SalonChair",
+    "cls": "Part",
+    "pos": [
+     301.0,
+     42.5,
+     438.7
+    ],
+    "attrs": {
+     "Label": "헤어 스타일링 의자",
+     "Pose": "sit"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/3F_헤어살롱_편집숍/헤어살롱/스타일링_아일랜드/스타일링체어_5/SalonChair",
+    "cls": "Part",
+    "pos": [
+     308.3,
+     42.5,
+     438.6
+    ],
+    "attrs": {
+     "Label": "헤어 스타일링 의자",
+     "Pose": "sit"
+    }
+   }
+  ]
+ },
+ "ElevatorButton": {
+  "count": 12,
+  "groups": {
+   "bowling/상층_2F-4F": 12
+  },
+  "samples": [
+   {
+    "path": "bowling/상층_2F-4F/엘리베이터_광안빌딩/ElevatorButton_2F",
+    "cls": "Part",
+    "pos": [
+     342.3,
+     10.9,
+     447.0
+    ],
+    "attrs": {
+     "Floor": "2",
+     "FromFloor": "1",
+     "Label": "2F 광안 당구클럽",
+     "Target": "ElevatorStop_2"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/엘리베이터_광안빌딩/ElevatorButton_3F",
+    "cls": "Part",
+    "pos": [
+     347.9,
+     12.3,
+     446.9
+    ],
+    "attrs": {
+     "Floor": "3",
+     "FromFloor": "1",
+     "Label": "3F 헤어살롱 & 편집숍",
+     "Target": "ElevatorStop_3"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/엘리베이터_광안빌딩/ElevatorButton_4F",
+    "cls": "Part",
+    "pos": [
+     353.8,
+     10.9,
+     446.8
+    ],
+    "attrs": {
+     "Floor": "4",
+     "FromFloor": "1",
+     "Label": "4F 광안 휘트니스 24",
+     "Target": "ElevatorStop_4"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F/엘리베이터_광안빌딩/ElevatorButton_1F",
+    "cls": "Part",
+    "pos": [
+     339.8,
+     34.4,
+     447.0
+    ],
+    "attrs": {
+     "Floor": "1",
+     "FromFloor": "2",
+     "Label": "1F 광안 락볼링클럽 · 출구",
+     "Target": "ElevatorStop_1"
+    }
+   }
+  ]
+ },
+ "HospitalBed": {
+  "count": 8,
+  "groups": {
+   "hospital/광안 메디컬 의원": 8
+  },
+  "samples": [
+   {
+    "path": "hospital/광안 메디컬 의원/1F/ConsultRoom/ExamBed/BedSeat",
+    "cls": "Seat",
+    "pos": [
+     -569.6,
+     8.8,
+     283.2
+    ],
+    "attrs": {
+     "BedKind": "exam"
+    }
+   },
+   {
+    "path": "hospital/광안 메디컬 의원/1F/TreatmentRoom/TreatBed1/BedSeat",
+    "cls": "Seat",
+    "pos": [
+     -465.3,
+     8.8,
+     308.6
+    ],
+    "attrs": {
+     "BedKind": "treat"
+    }
+   },
+   {
+    "path": "hospital/광안 메디컬 의원/1F/TreatmentRoom/TreatBed2/BedSeat",
+    "cls": "Seat",
+    "pos": [
+     -479.3,
+     8.8,
+     308.1
+    ],
+    "attrs": {
+     "BedKind": "treat"
+    }
+   },
+   {
+    "path": "hospital/광안 메디컬 의원/2F/Ward_201/WardBed_A/BedSeat",
+    "cls": "Seat",
+    "pos": [
+     -466.5,
+     22.9,
+     279.1
+    ],
+    "attrs": {
+     "BedKind": "ward"
+    }
+   }
+  ]
+ },
+ "BowlingLane": {
+  "count": 12,
+  "groups": {
+   "bowling/볼링레인": 12
+  },
+  "samples": [
+   {
+    "path": "bowling/볼링레인/Lane_01",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LaneIndex": "1"
+    }
+   },
+   {
+    "path": "bowling/볼링레인/Lane_02",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LaneIndex": "2"
+    }
+   },
+   {
+    "path": "bowling/볼링레인/Lane_03",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LaneIndex": "3"
+    }
+   },
+   {
+    "path": "bowling/볼링레인/Lane_04",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LaneIndex": "4"
+    }
+   }
+  ]
+ },
+ "ClubTable": {
+  "count": 31,
+  "groups": {
+   "club/CLUB OCEAN 광안": 31
+  },
+  "samples": [
+   {
+    "path": "club/CLUB OCEAN 광안/TableFloor/Table_T1",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Capacity": "4",
+     "Reserved": "False",
+     "TableId": "T1",
+     "TableType": "Standing"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/TableFloor/Table_T2",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Capacity": "4",
+     "Reserved": "False",
+     "TableId": "T2",
+     "TableType": "Standing"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/TableFloor/Table_T3",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Capacity": "4",
+     "Reserved": "True",
+     "TableId": "T3",
+     "TableType": "Standing"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/TableFloor/Table_T4",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Capacity": "4",
+     "Reserved": "False",
+     "TableId": "T4",
+     "TableType": "Standing"
+    }
+   }
+  ]
+ },
+ "ClubZone": {
+  "count": 11,
+  "groups": {
+   "club/CLUB OCEAN 광안": 11
+  },
+  "samples": [
+   {
+    "path": "club/CLUB OCEAN 광안/ClubRuntime/Zone_Main",
+    "cls": "Part",
+    "pos": [
+     -124.2,
+     19.5,
+     376.9
+    ],
+    "attrs": {
+     "Muffle": "0",
+     "Priority": "10",
+     "Zone": "Main"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubRuntime/Zone_HipHop",
+    "cls": "Part",
+    "pos": [
+     -121.4,
+     14.5,
+     289.5
+    ],
+    "attrs": {
+     "Muffle": "0.75",
+     "Priority": "10",
+     "Zone": "HipHop"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubRuntime/Zone_Lobby",
+    "cls": "Part",
+    "pos": [
+     -198.2,
+     12.5,
+     375.8
+    ],
+    "attrs": {
+     "Muffle": "0.55",
+     "Priority": "8",
+     "Zone": "Lobby"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubRuntime/Zone_Corridor",
+    "cls": "Part",
+    "pos": [
+     -166.1,
+     12.5,
+     302.3
+    ],
+    "attrs": {
+     "Muffle": "0.5",
+     "Priority": "8",
+     "Zone": "Corridor"
+    }
+   }
+  ]
+ },
+ "ClubNPC": {
+  "count": 130,
+  "groups": {
+   "club/CLUB OCEAN 광안": 130
+  },
+  "samples": [
+   {
+    "path": "club/CLUB OCEAN 광안/People/Staff_001",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Anim": "idle",
+     "AnimIndex": "0",
+     "AnimOffset": "0.494",
+     "AnimSpeed": "1.06",
+     "Pose": "tablet",
+     "Role": "staff",
+     "Zone": "Lobby"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/People/Guest_002",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Anim": "idle",
+     "AnimIndex": "0",
+     "AnimOffset": "0.523",
+     "AnimSpeed": "1.07",
+     "Pose": "phone",
+     "Role": "guest",
+     "Zone": "Lobby"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/People/Bouncer_003",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Anim": "guard",
+     "AnimIndex": "0",
+     "AnimOffset": "0.351",
+     "AnimSpeed": "0.91",
+     "Pose": "chat",
+     "Role": "guard",
+     "Zone": "Lobby"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/People/Guest_004",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "Anim": "idle",
+     "AnimIndex": "0",
+     "AnimOffset": "0.281",
+     "AnimSpeed": "1.01",
+     "Pose": "phone",
+     "Role": "guest",
+     "Zone": "Lobby"
+    }
+   }
+  ]
+ },
+ "GarageTurntable": {
+  "count": 6,
+  "groups": {
+   "garage/광안 오토 정비소 & 중고차": 6
+  },
+  "samples": [
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Turntable",
+    "cls": "Part",
+    "pos": [
+     -589.4,
+     6.9,
+     459.2
+    ],
+    "attrs": {
+     "Centre": "('V3', -589.3657836914062, 7.05999755859375, 459.22320556640",
+     "GarageKind": "compact"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Turntable",
+    "cls": "Part",
+    "pos": [
+     -565.4,
+     6.9,
+     460.0
+    ],
+    "attrs": {
+     "Centre": "('V3', -565.3787231445312, 7.05999755859375, 460.00985717773",
+     "GarageKind": "luxury"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Turntable",
+    "cls": "Part",
+    "pos": [
+     -541.4,
+     6.9,
+     460.8
+    ],
+    "attrs": {
+     "Centre": "('V3', -541.3916015625, 7.05999755859375, 460.7964782714844)",
+     "GarageKind": "sedan"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Turntable",
+    "cls": "Part",
+    "pos": [
+     -588.7,
+     6.9,
+     438.2
+    ],
+    "attrs": {
+     "Centre": "('V3', -588.677490234375, 7.05999755859375, 438.234497070312",
+     "GarageKind": "suv"
+    }
+   }
+  ]
+ },
+ "GarageDisplayCar": {
+  "count": 6,
+  "groups": {
+   "garage/광안 오토 정비소 & 중고차": 6
+  },
+  "samples": [
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Display_compact",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "CarModel": "큐비 박스카",
+     "GarageKind": "compact",
+     "NoDrive": "True",
+     "PaintId": "mint",
+     "VehicleKind": "compact"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Display_luxury",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "CarModel": "플래그십 세단",
+     "GarageKind": "luxury",
+     "NoDrive": "True",
+     "PaintId": "black",
+     "VehicleKind": "luxury"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Display_sedan",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "CarModel": "미드 세단",
+     "GarageKind": "sedan",
+     "NoDrive": "True",
+     "PaintId": "white",
+     "VehicleKind": "sedan"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/Display_suv",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "CarModel": "트레일 SUV",
+     "GarageKind": "suv",
+     "NoDrive": "True",
+     "PaintId": "red",
+     "VehicleKind": "suv"
+    }
+   }
+  ]
+ },
+ "GaragePrompt": {
+  "count": 6,
+  "groups": {
+   "garage/광안 오토 정비소 & 중고차": 6
+  },
+  "samples": [
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/PriceCard",
+    "cls": "Part",
+    "pos": [
+     -586.7,
+     10.8,
+     469.3
+    ],
+    "attrs": {
+     "GarageKind": "compact"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/PriceCard",
+    "cls": "Part",
+    "pos": [
+     -565.7,
+     10.8,
+     470.0
+    ],
+    "attrs": {
+     "GarageKind": "luxury"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/PriceCard",
+    "cls": "Part",
+    "pos": [
+     -544.7,
+     10.8,
+     470.7
+    ],
+    "attrs": {
+     "GarageKind": "sedan"
+    }
+   },
+   {
+    "path": "garage/광안 오토 정비소 & 중고차/쇼룸/PriceCard",
+    "cls": "Part",
+    "pos": [
+     -586.0,
+     10.8,
+     448.3
+    ],
+    "attrs": {
+     "GarageKind": "suv"
+    }
+   }
+  ]
+ },
+ "InteriorLight": {
+  "count": 234,
+  "groups": {
+   "uptown/RowC_광남로-수영로": 45,
+   "club/CLUB OCEAN 광안": 20,
+   "DataModel/ServerStorage": 19,
+   "bowling/실내": 15,
+   "millak/밀락더마켓 MILLAC THE MARKET (민락수변로17번길 56)": 12,
+   "bowling/상층_2F-4F": 12,
+   "hospital/광안 메디컬 의원": 9,
+   "karaoke/광안 코인노래연습장": 8
+  },
+  "samples": [
+   {
+    "path": "coast/Promenade (광안리 해변 테마거리)/Plazas/공중화장실 · 샤워장 (-1600)/CeilingPanel/SurfaceLight",
+    "cls": "SurfaceLight",
+    "pos": null,
+    "attrs": {
+     "AlwaysOn": "True"
+    }
+   },
+   {
+    "path": "coast/Promenade (광안리 해변 테마거리)/Plazas/공중화장실 · 샤워장 (1250)/CeilingPanel/SurfaceLight",
+    "cls": "SurfaceLight",
+    "pos": null,
+    "attrs": {
+     "AlwaysOn": "True"
+    }
+   },
+   {
+    "path": "coast/Beach (광안리해수욕장)/광안리 해양레포츠센터 (Gwangalli Marine Leports Center)/레포츠센터 건물/CeilingLight/SurfaceLight",
+    "cls": "SurfaceLight",
+    "pos": null,
+    "attrs": {
+     "AlwaysOn": "True"
+    }
+   },
+   {
+    "path": "coast/Beach (광안리해수욕장)/광안리 해양레포츠센터 (Gwangalli Marine Leports Center)/레포츠센터 건물/CeilingLight/SurfaceLight",
+    "cls": "SurfaceLight",
+    "pos": null,
+    "attrs": {
+     "AlwaysOn": "True"
+    }
+   }
+  ]
+ },
+ "AutoDoor": {
+  "count": 166,
+  "groups": {
+   "beachfront/구간03 광남로94번길 ~ 광남로120번길": 17,
+   "beachfront/구간05 광남로142번길 ~ 광안해변로209번길": 14,
+   "beachfront/구간01 edge ~ 광안해변로141번길": 13,
+   "beachfront/구간04 광남로120번길 ~ 광남로142번길": 13,
+   "beachfront/구간12 광안해변로278번길 ~ edge": 13,
+   "beachfront/구간02 광안해변로141번길 ~ 광남로94번길": 12,
+   "beachfront/구간08 광안로 (만남의 광장) ~ 광안로61번길": 12,
+   "beachfront/구간09 광안로61번길 ~ 광안해변로241번길": 12
+  },
+  "samples": [
+   {
+    "path": "coast/Beach (광안리해수욕장)/광안리 해양레포츠센터 (Gwangalli Marine Leports Center)/레포츠센터 건물/AutoDoor_Entrance",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간01 edge ~ 광안해변로141번길/협진태양맨션/태양공인중개사/AutoDoor",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간01 edge ~ 광안해변로141번길/협진태양맨션/해변약국/AutoDoor",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간01 edge ~ 광안해변로141번길/협진태양맨션/남천 로스터리/AutoDoor",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   }
+  ]
+ },
+ "RoomDepth": {
+  "count": 280,
+  "groups": {
+   "uptown/RowC_광남로-수영로": 108,
+   "city/블록02 광안해변로278번길 ~ 광안해변로255번길": 17,
+   "city/블록08 광남로120번길 ~ 광남로94번길": 17,
+   "city/블록01 민락로 ~ 광안해변로278번길": 16,
+   "city/블록04 광안해변로241번길 ~ 광안로61번길": 15,
+   "city/블록06 광안해변로209번길 ~ 광남로142번길": 15,
+   "city/블록07 광남로142번길 ~ 광남로120번길": 15,
+   "city/블록09 광남로94번길 ~ 광안해변로141번길": 14
+  },
+  "samples": [
+   {
+    "path": "beachfront/구간01 edge ~ 광안해변로141번길/해변빌딩 (황금치킨)/RoomDepth",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간02 광안해변로141번길 ~ 광남로94번길/우림빌 (광안닭강정)/RoomDepth",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간02 광안해변로141번길 ~ 광남로94번길/우성빌리지 (뒷골목실내포장마차)/RoomDepth",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   },
+   {
+    "path": "beachfront/구간03 광남로94번길 ~ 광남로120번길/동일타워 (시장치킨)/RoomDepth",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {}
+   }
+  ]
+ },
+ "RoomGlass": {
+  "count": 1643,
+  "groups": {
+   "uptown/RowC_광남로-수영로": 928,
+   "millak/민락회타운 (Millak Hoe Town · 민락수변로 1)": 81,
+   "millak/민락동 건물 (Millak blocks)": 79,
+   "city/블록01 민락로 ~ 광안해변로278번길": 69,
+   "city/블록08 광남로120번길 ~ 광남로94번길": 60,
+   "city/블록02 광안해변로278번길 ~ 광안해변로255번길": 59,
+   "city/블록03 광안해변로255번길 ~ 광안해변로241번길": 57,
+   "city/블록09 광남로94번길 ~ 광안해변로141번길": 55
+  },
+  "samples": [
+   {
+    "path": "beachfront/구간01 edge ~ 광안해변로141번길/해변빌딩 (황금치킨)/RoomGlass",
+    "cls": "Part",
+    "pos": [
+     2254.9,
+     25.7,
+     67.8
+    ],
+    "attrs": {
+     "LitChance": "0.92",
+     "LitColor": "('C3', 0.9254901960784314, 0.8, 0.6196078431372549)",
+     "LitSeed": "0.37512",
+     "RoomBacked": "True",
+     "Zone": "shop"
+    }
+   },
+   {
+    "path": "beachfront/구간02 광안해변로141번길 ~ 광남로94번길/우림빌 (광안닭강정)/RoomGlass",
+    "cls": "Part",
+    "pos": [
+     2048.3,
+     28.3,
+     97.7
+    ],
+    "attrs": {
+     "LitChance": "0",
+     "LitColor": "('C3', 0.8, 0.8235294117647058, 0.8235294117647058)",
+     "LitSeed": "0.89122",
+     "Zone": "office"
+    }
+   },
+   {
+    "path": "beachfront/구간02 광안해변로141번길 ~ 광남로94번길/우성빌리지 (뒷골목실내포장마차)/RoomGlass",
+    "cls": "Part",
+    "pos": [
+     1900.2,
+     27.2,
+     115.9
+    ],
+    "attrs": {
+     "LitChance": "0.92",
+     "LitColor": "('C3', 0.8862745098039215, 0.5882352941176471, 0.37647058823",
+     "LitSeed": "0.62671",
+     "RoomBacked": "True",
+     "Zone": "hotel"
+    }
+   },
+   {
+    "path": "beachfront/구간03 광남로94번길 ~ 광남로120번길/동일타워 (시장치킨)/RoomGlass",
+    "cls": "Part",
+    "pos": [
+     1612.6,
+     25.0,
+     146.9
+    ],
+    "attrs": {
+     "LitChance": "0.52",
+     "LitColor": "('C3', 0.8313725490196079, 0.7450980392156863, 0.60392156862",
+     "LitSeed": "0.03833",
+     "RoomBacked": "True",
+     "Zone": "home"
+    }
+   }
+  ]
+ },
+ "ZoneLOD": {
+  "count": 67,
+  "groups": {
+   "arcade/광안 게임랜드": 24,
+   "club/CLUB OCEAN 광안": 11,
+   "karaoke/광안 코인노래연습장": 9,
+   "convenience/GS25 광안리점": 9,
+   "pcbang/광안 PC방": 4,
+   "bowling/볼링레인": 1,
+   "bowling/실내": 1,
+   "bowling/상층_2F-4F": 1
+  },
+  "samples": [
+   {
+    "path": "bowling/볼링레인",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 318.6000061035156, 17.600006103515625, 388.1000061035",
+     "LODRadius": "106"
+    }
+   },
+   {
+    "path": "bowling/실내",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 293.6000061035156, 17.800003051757812, 398.1000061035",
+     "LODRadius": "136"
+    }
+   },
+   {
+    "path": "bowling/상층_2F-4F",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', 293.29998779296875, 53.5, 442.20001220703125)",
+     "LODRadius": "143",
+     "Venues": "2F 광안 당구클럽 · 3F 헤어살롱 & 편집숍 · 4F 광안 휘트니스 24"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/EntranceTunnel",
+    "cls": "Model",
+    "pos": null,
+    "attrs": {
+     "LOD": "zone",
+     "LODCenter": "('V3', -201.6999969482422, 11.899993896484375, 375.799987792",
+     "LODRadius": "53"
+    }
+   }
+  ]
+ },
+ "Destination": {
+  "count": 55,
+  "groups": {
+   "uptown/RowC_광남로-수영로": 10,
+   "roads/MetroEntrances": 5,
+   "coast/Destinations": 4,
+   "millak/Destinations": 4,
+   "landmarks/호텔 아쿠아펠리스 HOTEL AQUA PALACE": 3,
+   "bowling/상층_2F-4F": 3,
+   "landmarks/호메르스호텔 HOMERS HOTEL": 2,
+   "landmarks/켄트호텔 광안리 by 켄싱턴 KENT HOTEL": 2
+  },
+  "samples": [
+   {
+    "path": "coast/Destinations/Destination_광안리 만남의 광장",
+    "cls": "Part",
+    "pos": [
+     -248.4,
+     7.0,
+     24.0
+    ],
+    "attrs": {
+     "DisplayName": "광안리 만남의 광장",
+     "Order": "10"
+    }
+   },
+   {
+    "path": "coast/Destinations/Destination_광안리해수욕장 (중앙)",
+    "cls": "Part",
+    "pos": [
+     -19.9,
+     3.2,
+     -70.0
+    ],
+    "attrs": {
+     "DisplayName": "광안리해수욕장 (중앙)",
+     "Order": "11"
+    }
+   },
+   {
+    "path": "coast/Destinations/Destination_광안리 SUP존",
+    "cls": "Part",
+    "pos": [
+     1715.6,
+     3.3,
+     -135.6
+    ],
+    "attrs": {
+     "DisplayName": "광안리 SUP존",
+     "Order": "12"
+    }
+   },
+   {
+    "path": "coast/Destinations/Destination_해양레포츠센터",
+    "cls": "Part",
+    "pos": [
+     2353.8,
+     3.5,
+     -339.5
+    ],
+    "attrs": {
+     "DisplayName": "해양레포츠센터",
+     "Order": "13"
+    }
+   }
+  ]
+ },
+ "LEDScreen": {
+  "count": 101,
+  "groups": {
+   "city/블록04 광안해변로241번길 ~ 광안로61번길": 11,
+   "city/블록09 광남로94번길 ~ 광안해변로141번길": 10,
+   "city/블록07 광남로142번길 ~ 광남로120번길": 8,
+   "city/블록06 광안해변로209번길 ~ 광남로142번길": 7,
+   "city/블록08 광남로120번길 ~ 광남로94번길": 6,
+   "city/블록02 광안해변로278번길 ~ 광안해변로255번길": 5,
+   "city/블록03 광안해변로255번길 ~ 광안해변로241번길": 5,
+   "uptown/RowC_광남로-수영로": 5
+  },
+  "samples": [
+   {
+    "path": "coast/Beach (광안리해수욕장)/광안리 해변 특설무대 (Festival Stage)/LEDScreen",
+    "cls": "Part",
+    "pos": [
+     -59.3,
+     18.9,
+     -178.4
+    ],
+    "attrs": {
+     "Messages": "광안리 M 드론라이트쇼 매주 토요일 20:00|GWANGALLI M DRONE LIGHT SHOW · EVE"
+    }
+   },
+   {
+    "path": "coast/Beach (광안리해수욕장)/광안리 해양레포츠센터 (Gwangalli Marine Leports Center)/레포츠센터 건물/LEDScreen",
+    "cls": "Part",
+    "pos": [
+     2332.2,
+     9.3,
+     -375.7
+    ],
+    "attrs": {
+     "Messages": "오늘의 해양기상 · 파고 0.5m|수온 24°C · 풍속 3m/s|SUP · 카약 · 요트 · 제트보트|운영"
+    }
+   },
+   {
+    "path": "beachfront/구간02 광안해변로141번길 ~ 광남로94번길/우성빌리지 (뒷골목실내포장마차)/LEDBoard",
+    "cls": "Part",
+    "pos": [
+     1914.6,
+     15.9,
+     113.8
+    ],
+    "attrs": {
+     "Messages": "OPEN|생맥주 3,500원|새벽 5시까지"
+    }
+   },
+   {
+    "path": "beachfront/구간04 광남로120번길 ~ 광남로142번길/삼성빌딩 (신짬뽕중화요리)/LEDBoard",
+    "cls": "Part",
+    "pos": [
+     1256.2,
+     14.4,
+     180.2
+    ],
+    "attrs": {
+     "Messages": "OPEN|조개구이 무한리필|영업중"
+    }
+   }
+  ]
+ },
+ "ClubShowAnchor": {
+  "count": 8,
+  "groups": {
+   "club/CLUB OCEAN 광안": 8
+  },
+  "samples": [
+   {
+    "path": "club/CLUB OCEAN 광안/ClubShowAnchors/Show_LEDWall",
+    "cls": "Part",
+    "pos": [
+     -72.9,
+     23.8,
+     374.0
+    ],
+    "attrs": {}
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubShowAnchors/Show_DJ",
+    "cls": "Part",
+    "pos": [
+     -98.8,
+     17.5,
+     373.7
+    ],
+    "attrs": {}
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubShowAnchors/Show_HallDoor",
+    "cls": "Part",
+    "pos": [
+     -174.2,
+     10.0,
+     386.8
+    ],
+    "attrs": {}
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/ClubShowAnchors/Show_Lobby",
+    "cls": "Part",
+    "pos": [
+     -186.3,
+     10.0,
+     386.6
+    ],
+    "attrs": {}
+   }
+  ]
+ },
+ "ClubFloorTile": {
+  "count": 48,
+  "groups": {
+   "club/CLUB OCEAN 광안": 48
+  },
+  "samples": [
+   {
+    "path": "club/CLUB OCEAN 광안/MainRoom/LEDDanceFloor/FloorTile",
+    "cls": "Part",
+    "pos": [
+     -110.0,
+     7.2,
+     363.5
+    ],
+    "attrs": {
+     "Col": "0",
+     "Row": "0"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/MainRoom/LEDDanceFloor/FloorTile",
+    "cls": "Part",
+    "pos": [
+     -107.8,
+     7.2,
+     363.6
+    ],
+    "attrs": {
+     "Col": "0",
+     "Row": "1"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/MainRoom/LEDDanceFloor/FloorTile",
+    "cls": "Part",
+    "pos": [
+     -105.6,
+     7.2,
+     363.6
+    ],
+    "attrs": {
+     "Col": "0",
+     "Row": "2"
+    }
+   },
+   {
+    "path": "club/CLUB OCEAN 광안/MainRoom/LEDDanceFloor/FloorTile",
+    "cls": "Part",
+    "pos": [
+     -103.4,
+     7.2,
+     363.6
+    ],
+    "attrs": {
+     "Col": "0",
+     "Row": "3"
+    }
+   }
+  ]
+ }
+}

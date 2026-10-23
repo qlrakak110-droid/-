@@ -1,0 +1,582 @@
+{
+ "key": "hotels_homes",
+ "venues": [
+  {
+   "name": "호메르스호텔 HOMERS HOTEL (광안해변로 217, 20F, 152 rooms attr) - lobby, wedding lobby, 2F-4F banquet strip, 6F front lounge, 6 ON ROOF TOP",
+   "path": "Workspace.Gwangalli.landmarks['호메르스호텔 HOMERS HOTEL'] (+ sibling Workspace.Gwangalli.landmarks['현관 디테일 · 호메르스호텔'])",
+   "bounds": "(152.5,6.0,100.7)..(293.6,255.9,231.4); lobby (256.7,6.5,114.5)..(279.9,21.4,151.7)",
+   "enterable": true,
+   "rooms": [
+    {"name": "1F 호텔 로비 Lobby (walk-in via AutoDoor LobbyDoor at x266-271 z114.8; elevators on back wall z150.5)", "center": [268.65, 13.68, 132.85], "size": [21.9, 13.85, 35.7], "floorY": 6.75, "ceilingY": 20.6},
+    {"name": "1F 호메르스 웨딩 · 컨벤션 로비 (walk-in via WeddingDoor AutoDoor x166-170 z116.3)", "center": [169.0, 13.4, 126.3], "size": [27.4, 13.25, 19.8], "floorY": 6.75, "ceilingY": 20.0},
+    {"name": "2F 다이닝홀 strip behind facade glass (UNREACHABLE, Core solid behind z>131.4)", "center": [222.8, 29.0, 122.55], "size": [104.2, 10.6, 16.5], "floorY": 23.7, "ceilingY": 34.3},
+    {"name": "3F 웨딩홀 strip (UNREACHABLE)", "center": [222.8, 41.5, 122.55], "size": [104.2, 10.6, 16.5], "floorY": 36.2, "ceilingY": 46.8},
+    {"name": "4F 크리에이티브홀 / 연회장 strip (UNREACHABLE; 5F band is a solid Core 104x11.7x15 at y60.5-72.3)", "center": [222.8, 54.0, 122.55], "size": [104.2, 10.6, 16.5], "floorY": 48.7, "ceilingY": 59.3},
+    {"name": "6F 프론트 · 라운지 (UNREACHABLE; real Homers front desk is on 6F)", "center": [223.45, 79.35, 168.1], "size": [94.7, 12.1, 25.0], "floorY": 73.3, "ceilingY": 85.4},
+    {"name": "6 ON ROOF TOP 루프탑 라운지 terrace on podium roof (UNREACHABLE; open sky, string-light canopy y~83-86)", "center": [222.95, 79.0, 134.5], "size": [136.5, 11.3, 41.8], "floorY": 73.35},
+    {"name": "주차장 램프 B1-B4 portal (fake: RampVoid black 9.9x7.9 panel at z178, no garage)", "center": [286.7, 10.5, 167.8], "size": [11.7, 8.0, 21.9], "floorY": 6.6, "ceilingY": 13.9}
+   ],
+   "props": [
+    "1F lobby (63 visible non-shell parts in 782 sq studs = 8.1/100sq): LobbySofa x1 (2-seat, navy 58,68,96 leather: Plinth 6.6x0.3x2.8, Base 7x0.85x2.6, Backrest 7x3.9x0.8, 2 Seat, 2 Arm, 2 BackCushion - all boxes), armchair x2 (Plinth+Seat 1.8x1.15x2.3+Back 2.8x2.6x0.6+2 Arms, tan leather), round side table (TableLeg cylinder + TableTop) with glass Vase 1.2 + 4 Bloom balls + Greenery, potted Plant x1 (2.2 ball pot + 2 ball-mesh leaves), Rug 12x11.5 burgundy carpet, ChandelierCore neon ball 1.56 (PointLight AlwaysOn, tag InteriorLight) + ChandelierRod + 6 Crystal glass bars + 2 ChandelierRing, Downlight x4 (only near the entrance z~116.6), CoveSoffit x4 + CoveLED x4 (perimeter cove), elevators x3 (6 ElevatorDoor leaves 2.16x8.6 brushed metal, 6 jambs, 3 heads, 3 FloorIndicator neon 1.2x0.34, 3 CallButton plates), Sign_HOMERS HOTEL 17x2.4 on back wall reading 'HOMERS HOTEL / 6F FRONT DESK · 6 ON ROOF TOP'",
+    "1F lobby shell: Floor 22.7x0.25x36.6 single marble slab (228,224,216), Ceiling 22.7x0.8x36.4 plain, west SideWall + BackWall marble 200,188,168, east wall = exterior LaneWall (concrete facade material 214,208,198 visible inside), front = 3 LobbyGlass 5.65x13.45 T0.45 + LobbyDoor AutoDoor (2 DoorLeaf 4.5x9.75 + 2 DoorStile, OpenOffset ±4.1) + DoorHeader",
+    "1F wedding lobby (9 parts in 543 sq studs = 1.7/100sq): Plant x2, Sign_Wedding 12x4 ('3F 웨딩홀 · 4F 크리에이티브홀 · 5F 오딧세이홀'), Floor 28.2x20.6 marble, Ceiling, BackWall 188,172,144; outside GlassCanopy 16x6.6 + 2 TieRods, Sign_호메르스 웨딩 & 컨벤션 24x2.6",
+    "2F dining strip: TableTop x8 (3.6x0.3x3.6 boxes) + TableLeg x8, Chair x16 (each ONE box 1.6x3.4x0.8 wood), CeilingLight x4 strips; 3F: VirginRoad 6x0.06x15.8, FlowerStand x8 + Flowers x8 (neon-free fabric boxes), Chandelier x3 (4.6x2.6x4.6 Neon boxes); 4F: BanquetTable x6 (cylinder 5.4 dia, no chairs), Centerpiece x6 (1.4 boxes); Floor_2F wood 170,130,90, Floor_3F carpet white, Floor_4F carpet 120,40,50; BackWall x3 236,226,206",
+    "6F front lounge (41 parts in 2368 sq studs = 1.7/100sq): FrontDesk Model (ToeKick 25.9 + Body 26x3.15x2.2 wood + marble Top 26.4x0.3x2.7 + LedStrip) - no monitors, bell, key encoder, logo wall; Sign_HOMERS HOTEL  FRONT DESK 20x2.6; LoungeSofa x2 (4-seat, navy), LowTable x2 6x1.5x2.5, PendantBulb x3 + PendantShade/Cord; Floor 94.4x25.8 wood, LoungeGlass 94.8x12.1 single pane, BackWall wood 92,62,42",
+    "6 ON ROOF TOP (261 parts in 5706 sq studs = 4.6/100sq): TerraceDeck 136x0.35x40.8 wood, Balustrade x3 glass + Handrail x3, sofa sets x4 (SofaBase 11x1.3x3 + SofaBack + 2 SofaArm, 25 Seat), CoffeeTable x4 + TableCandle x4 (neon), lounge chairs x8 (ChairBase 3x1x2.8 + ChairBack), parasols x4 (pole + 12-dia disc canopy + top), TerraceBar 22x3.6x3 + wood top + BarLed + BarShelf (43 Product bottles, 2 PriceRail) + 5 stools (StoolLeg + Seat), Planter x3 + Shrub x9, Sign_6 ON ROOF TOP, LightPost x5 + Wire x28 + Bulb x63 (NightNeon festoon)",
+    "현관 디테일 · 호메르스호텔 (outside porte-cochere): Sign_★★★★ (4성), 벨카트 Luggage Cart (deck + brass uprights + 2 suitcases), 우산 비닐 포장기 (WrapperBody 1.4x3.4x1), 발렛파킹 podium + Sign_VALET, FlagPole x3 + Sign_HOMERS flags, Bollard x7; Canopy 30.5x1.2x12 + CanopyLight, Destination '호메르스호텔' at (268.3,7,107.8)",
+    "Upper floors 7F-20F: Core 93.8x147x61.5 solid block (y87-234) behind 312 NightWindow glass panes + 79 Curtain parts; no rooms exist; roof: helipad, ElevatorMachineRoom, cooling towers, water tank, AC units",
+    "Lighting: whole model has 5 PointLights (InteriorLight) total; most 'lights' are Neon/NightNeon slabs"
+   ],
+   "gameplay": [
+    "AutoDoor (GwangalliDoors server + GwangalliDoorsClient): models LobbyDoor, WeddingDoor tagged AutoDoor; leaves carry OpenOffset (world V3) / ClosedCFrame / Collides attrs - keep names, tags, attributes and leaf CFrames",
+    "Annex (GwangalliBuildings/Annex via MapIndex): the hotel Model (has Core/Pier/Spandrel children, name contains 호텔/HOTEL) is an Annex entry of arch 'hotel'; DoorLeaf parts (DOOR_KIND main), ServiceDoor (back) and the Sign_* parts are read to place '들어가기' prompts and a 층별 안내 directory -> teleports to a procedural A.hotel instance at the y=3000 band (see the Annex venue entry). Do not rename DoorLeaf/ServiceDoor/BackDoor/Sign_* or add parts named Door/DoorLeaf/LobbyDoor/GlassDoor (they would become new Annex doors); a model attribute Annex=false would remove the Annex inside",
+    "MapIndex: indexed as building cat 'hotel' (minimap / full map); '현관 디테일' prefix is skipped",
+    "Destination tag parts (taxi Career/Taxi, JobDelivery, Journey, Citizens, Mind, HUD waypoints, GwangalliNav): '호메르스호텔' (268.3,7,107.8) and the Bronx one - keep",
+    "NightWindows client (GwangalliWorld/NightWindows): 294 NightWindow-tagged panes (Zone hotel, LitChance/LitColor/LitSeed) light up at night; StreetSigns: NightGlow/NightNeon/NeonTube/LEDScreen/NearLOD tags; GwangalliIndoorLight dims PointLights under a roof (x0.55, range<=18)",
+    "ShopStaff: anchors must be BaseParts named PosBase/POS/BarCounter/FrontDesk... outside storefronts; FrontDesk here is a Model, so NO hotel staff NPC is spawned in the lobby or on 6F",
+    "GwangalliInteractShared.PHOTO_SPOTS 'rooftop' = 호텔 루프탑 라운지 at (209,75,135) r45 yMin60 - a photo spot that currently cannot be reached on foot (no stair/elevator/ElevatorButton to 6F)",
+    "MiniGamesShared: 'memory_east' street mini-game labelled '호메르스호텔 앞' (x=510) - outdoor",
+    "Elevators in the lobby are pure decoration: no ElevatorButton/ElevatorStop parts (the Venues.lua ElevatorButton contract with Floor/Target='ElevatorStop_<n>' is only used in the bowling building)"
+   ],
+   "emptyOrCrude": [
+    "Everything above 1F is unreachable: 2F-4F, 6F front lounge and 6 ON ROOF TOP have no stair, escalator or working elevator, so the real 6F check-in floor and the rooftop photo spot are display-only; the lobby sign even advertises '6F FRONT DESK'",
+    "1F lobby has no reception/bell desk, no 층별 안내 directory, no luggage storage, no seating group beyond 1 sofa + 2 armchairs (4 seats in 782 sq studs); elevator hall z136-151 is bare floor",
+    "Lobby floor is one 22.7x36.6 marble slab (no inlay, no tile joints, no entrance mat/windbreak vestibule), ceiling is one flat slab (only a perimeter cove and 4 downlights at the door), east wall is raw exterior concrete",
+    "All furniture is boxes (sofa = 6-8 boxes, chairs on the 2F are single 1.6x3.4x0.8 boxes, chandeliers on 3F are neon boxes); no MeshParts/Textures/Decals anywhere; only 5 real lights for the whole hotel",
+    "Wedding lobby is almost empty (2 plants + 1 sign in 543 sq studs): no 축의금 접수대, 방명록, 웰컴보드 이젤, 화환, 하객 소파, no elevator/escalator to the halls",
+    "3F wedding hall has no stage/backdrop, no guest chairs; 4F banquet has round tables with no chairs; 2F dining has no buffet line (real 2F = 조식당)",
+    "6F front desk is a bare box counter (no monitors, card terminal, key-card encoder, world clocks, logo wall); 25.8-deep lounge with 2 sofas only",
+    "Rooms 7F-20F do not exist (solid Core); parking ramp is a black panel",
+    "No staff NPC anywhere (ShopStaff ignores Model FrontDesk)"
+   ],
+   "realWorld": [
+    "Real Homers (호텔 호메르스 광안리, 광안해변로 217): 1F 수제맥주 펍 (Bronx), 2F 조식당 + 소규모 세미나실, 3F 웨딩홀, 4-5F 연회장, 6F 프런트 + '6 ON ROOF TOP' 라운지, 7F+ 오션뷰 객실 (sources: mom-mom.net, trip.com listings)",
+    "1F elevator lobby of a Korean upper-floor-front hotel: 자동문 + 바람막이 전실 (vestibule with 2 door sets), 우산 비닐 포장기 inside the vestibule, 대형 '6F FRONT' 방향 사인 + 층별 안내판 (B1-B4 주차, 1F 펍, 2F 레스토랑, 3F 웨딩, 6F 프런트/루프탑, 7-20F 객실), 벨데스크 or 무인 안내 키오스크, 짐 보관 카트, 엘리베이터 홀 (상/하 호출버튼 panels, 홀랜턴 화살표, 층 표시 LED, 엘리베이터 내부 정원/중량 표지), 대리석 바닥 패턴 + 현관 매트, 간접조명 천장 + 펜던트, 아트월, 꽃 장식 (센터피스), 대기 소파 그룹, 비상구 녹색 유도등, 소화기함, CCTV 돔, 금연 표지",
+    "6F front desk: 2-3 체크인 스테이션 (모니터, 키카드 인코더, 카드 단말기, 데스크 벨, 브로셔 스탠드), 로고 월 + 세계 시계 4개 (SEOUL / NEW YORK / LONDON / TOKYO), 체크인 대기 라인 스탠션, 컨시어지 데스크, 웰컴 드링크 바, 라운지 좌석 + 통창 오션뷰, 짐 보관실 문, 화장실 표지",
+    "Wedding/convention lobby: 안내 데스크, 축의금 접수대 x2 (신랑측/신부측 표지), 방명록, 신랑·신부 웰컴보드 이젤 + 포토테이블, 축하 화환 줄, 하객 대기 소파, 연회장 일정 LED 안내판, 에스컬레이터/엘리베이터",
+    "Rooftop lounge (Korean hotel rooftop bar): 바 카운터 + 백바 조명, 칵테일/맥주 메뉴 보드, 하이테이블 + 바스툴, 소파 부스, 야외 가스 히터, 파라솔, 전구 줄조명, 난간 유리, DJ 부스 or 스피커, 광안대교 뷰 포토 프레임"
+   ],
+   "interactionIdeas": [
+    "Lobby elevator call panel ProximityPrompt '6F 프런트 · 루프탑' -> door open animation -> fade ride using the existing ElevatorButton/ElevatorStop contract (add ElevatorStop parts on the 6F floor y73.3 and the 1F lobby) so the 6F lounge, 6 ON ROOF TOP and photo spot 'rooftop' become reachable",
+    "6F front desk: '체크인' prompt that hands off to the Annex hotel check-in flow (ShopFlows hotel_lobby frontdesk -> GwB_HotelRoom key card); '짐 맡기기', '와이파이 비밀번호 보기'",
+    "Bell cart: 'push cart' (carry luggage prop), umbrella wrapper 'wrap umbrella' (plastic bag animation), valet podium '발렛 맡기기' (calls the player's car to the canopy)",
+    "Rooftop bar: '칵테일 주문' (bartender shake), sit at sofa/parasol tables, 'photo with 광안대교' framed spot, string lights toggled by DayNight",
+    "Wedding lobby: '축의금 내기' (envelope prop + 방명록 서명 minigame), '포토테이블 사진'",
+    "Lobby: coffee/water station, brochure rack 'take map', luggage storage locker"
+   ]
+  },
+  {
+   "name": "브롱스브루잉 광안리BP점 BRONX BREWING (Homers 1F craft beer pub)",
+   "path": "Workspace.Gwangalli.landmarks['호메르스호텔 HOMERS HOTEL']['브롱스브루잉 광안리BP점 BRONX BREWING']",
+   "bounds": "(182.7,6.5,103.1)..(257.4,21.8,164.8)",
+   "enterable": true,
+   "rooms": [
+    {"name": "Pub hall (walk-in via 2 PubDoor AutoDoors at x~203.7 and x~239.7, z115.3)", "center": [219.85, 13.9, 139.5], "size": [72.7, 14.25, 47.8], "floorY": 6.75, "ceilingY": 21.0},
+    {"name": "Brewery tank room behind BreweryGlass (x184-205, z146.7-163)", "center": [194.5, 13.9, 155.0], "size": [21.0, 14.25, 16.6], "floorY": 6.75, "ceilingY": 21.0},
+    {"name": "Street terrace under PubCanopy (barrel tables)", "center": [219.6, 12.0, 109.0], "size": [70.0, 11.0, 7.0], "floorY": 6.6, "ceilingY": 17.7}
+   ],
+   "props": [
+    "339 visible parts in 3475 sq studs (9.8/100sq): BarCounter Model (Body 41x3.25x2.7 metal + wood Top 41.4x0.3x3.2 + LedStrip + ToeKick) + FootRail 41, BackBarCabinet 41x3.6x3.2 + BackBarTop, BottleShelf (MirrorBack 19.7x7.3 + 3 glass BarShelf + 3 ShelfGlow + 97 Bottle cylinders 0.9x0.31), TapWall 18.5x7.2 + TapManifold + Tap x12 + TapTower x6 + TapHandle x18, Sign_BRONX ON TAP 12 (IPA · PALE ALE · 광안 LAGER · STOUT · WEIZEN), Sign_TODAY'S BEER board 6x5, Sign_BRONX neon",
+    "Seating: Seat x41 (1.6x0.3x1.6 square leather pads on single StoolLeg cylinders, no backrests), CommunalTable 12x0.3x2.4 + 2 legs, ~8 round TableTop cylinders 3.4 dia with BeerGlass + BeerFoam x18, BarrelTable x4 + BarrelHoop x4 outside",
+    "Brewery: BreweryGlass 21.2x14 T0.6 + frame, BrewTank x3 (cylinder 8.2x4.8) + BrewTankDome x3 + Manifold x2 + TankPipe x3, Keg x3",
+    "Ceiling/walls: Duct x2 (72-long cylinders) + CableTray, PendantBulb x11 + shades/cords, ScreenHousing x3 + LEDScreen x3 (Messages 'LIVE 롯데 자이언츠 vs 두산|BRONX IPA · 광안 LAGER|HAPPY HOUR 17:00-19:00'), BrickWall 72.4x14.25 (Brick), SideWall x2 dark, Floor 72.4x47.85 single concrete slab",
+    "Storefront: PubGlass x5 12.4x10.8, Muntin x12, KickPlate x3, SteelPier x2, Fascia 74x3.3, Sign_BRONX BREWING 34x3.4 (logo 'B'), Sign_브롱스 광안리BP점 ('CRAFT BEER PUB · 12:00 - 02:00'), Sign_CRAFT BEER + 4 NeonTube, Sign_ON TAP, PubCanopy 70x7 + 3 CanopyRod; Destination '브롱스 광안리 (호메르스호텔 1F)' (239.5,7,105.2)"
+   ],
+   "gameplay": [
+    "AutoDoor PubDoor x2 (OpenOffset ±2.8)",
+    "No ordering/eating: ShopLife only scans street shops (Interior + ShopFloor), GwShop-tagged shops and the GS25 venue; this pub has neither, so its tables/taps have no flow",
+    "ShopStaff: BarCounter here is a Model (LOOSE anchors must be BaseParts) -> no bartender NPC, although the KINDS table lists '브롱스' under pub",
+    "LEDScreen messages cycled by StreetSigns; Destination used by taxi/delivery/HUD/Street Events/Mind Talk lines that mention 브롱스",
+    "Annex: the PubDoor DoorLeaf parts are read as 'main' Annex doors of the Homers building (directory prompt) and the Sign_BRONX* texts become shop destinations"
+   ],
+   "emptyOrCrude": [
+    "Stools are flat square pads on a pole (41 of them, identical); round tables are bare discs",
+    "No restroom, no kitchen pass/food window, no POS or table-order tablets, no glass rack, no beer fridge, no menu boards at tables, no darts",
+    "Single-slab floor and plain dark side walls; tap handles are plain bars without beer names; bottles are uniform cylinders",
+    "Back half (z147-163) only has the tank room glass; no tasting bar seating facing the tanks"
+   ],
+   "realWorld": [
+    "Korean craft beer pub (브롱스 type): 15-20 탭 타워 with branded tap handles + 맥주 이름/ABV 칠판, 맥주잔 냉각 렉 + 잔 세척기, 냉장 병맥주 쇼케이스, 바 스툴 (등받이 철제), 하이테이블 + 일반 테이블, 테이블마다 QR 테이블오더 or 호출벨, 스포츠 중계 빔/TV (롯데 자이언츠), 피자/감자튀김 주방 패스 + 픽업 벨, 다트 기계, 굿즈 진열 (로고 잔, 티셔츠), 양조 탱크 + 투어 창, 화장실 표지, 계산대 POS + 카드 단말기, 야외 테라스 바레 테이블"
+   ],
+   "interactionIdeas": [
+    "Pull a tap (choose IPA / PALE ALE / 광안 LAGER / STOUT / WEIZEN -> glass fills, foam animation)",
+    "Sit at bar/table -> table-order tablet UI; call bell",
+    "Darts machine minigame; '경기 보기' on the LED screens (Lotte score ticker)",
+    "Brewery window 'tour' camera; buy merch glass"
+   ]
+  },
+  {
+   "name": "수영구 생활문화센터 · 광안리 관광안내소 (광안해변로 219, 5F) - tourist info, 여름경찰서, 바다갤러리",
+   "path": "Workspace.Gwangalli.landmarks['수영구 생활문화센터 · 광안리 관광안내소']",
+   "bounds": "(43.6,6.0,102.7)..(145.7,94.2,233.0)",
+   "enterable": true,
+   "rooms": [
+    {"name": "광안리 관광안내소 Tourist Information Center (walk-in via InfoDoor AutoDoor x102-107 z120.8)", "center": [110.9, 13.6, 142.3], "size": [60.0, 13.65, 43.0], "floorY": 6.75, "ceilingY": 20.4},
+    {"name": "광안리 여름경찰서 (summer police box) - visible through glass only: Door parts are static collidable glass, BackWall at z143.3 leaves a hidden void z143.7-165", "center": [63.8, 13.3, 132.0], "size": [30.2, 13.05, 21.8], "floorY": 6.75, "ceilingY": 19.8},
+    {"name": "바다갤러리 SEA GALLERY 2F-3F double-height strip (UNREACHABLE)", "center": [92.75, 36.45, 126.75], "size": [64.1, 25.5, 22.3], "floorY": 23.7, "ceilingY": 49.2}
+   ],
+   "props": [
+    "Tourist info (220 parts in 2580 sq studs = 8.5/100sq): InfoCounter Model 20 wide (white wood Body + marble Top + blue LedStrip) + CounterWave stripe, Monitor x2 (2.4x1.6 boxes, no screens), staff Seat x2 + chair backs/legs, Sign_TOURIST INFORMATION 26x3.2 ('관광안내 · 旅游咨询 · 観光案内'), LEDScreen 12x6.2 (Messages '광안리 M 드론라이트쇼 SAT 20:00|WELCOME TO GWANGALLI|부산불꽃축제 11.7 SAT|광안리어방축제 JUNE'), BrochureRack x3 (BackPanel 6.6x7.2, 5 boards, 36 Product brochure slabs each = 103 slabs), Locker x4 (2.8x8x2.6 plain blue boxes, 1 LockerHandle) + Sign_짐보관함 LUGGAGE STORAGE, ChargingStation 2.8x4x4 box + ChargingLed + Sign_휴대폰 충전 · FREE Wi-Fi, WaitingSofa (3-seat, blue), 유모차 · 휠체어 대여 (sign + plate stand + 2 wheelchairs of 2 discs + seat + back, 2 strollers of boxes), PhotoPrintKiosk 3x5.4x3 + KioskScreen, 트릭아트 포토존 (22x12.6 wall sign + GildedFrame x4 + bridge drawing of parts: towers, deck, cables, wave, 6 wings, 2 FootMarks), CeilingLight 8x2 (SurfaceLight) + CeilingLine x2",
+    "Police box (13 parts in 658 sq studs = 2.0/100sq): PoliceDesk 22 wide (navy body, white top), Monitor x2 boxes, Seat x2 + ChairBack/Leg, Sign_POLICE 광안리 여름경찰서 16x2.6, CeilingLight 26x2 NightNeon slab; outside: Car_Police (Hyundai Sonata 순찰차, full car interior 83 parts) parked at (62.7,7.3,111.4), Sign_광안리 여름경찰서 ('POLICE · 부산수영경찰서 112')",
+    "Sea gallery (11 parts in 1429 sq studs = 0.8/100sq): 5 poster panels 8x6 (Sign_광안리의 새벽 / 노을과 광안대교 / 드론라이트쇼 / 민락의 바다 / 불꽃축제, SurfaceGui text only), SpotLight x5 (flat NightNeon bars), GalleryBench x2 10x1.6x2, GalleryGlass x16 + frames on the facade",
+    "Outdoor (not interiors): SUP보드 안내판 (4 boards: 광안대교, 민락수변공원, F1963, 수영사적공원), 건물명 표지석 + benches + InfoPylon 'i', 세족장 Foot Wash (trough + 4 taps + 2 shower posts), 3 Flagpoles (태극기, 부산광역시, 수영구)",
+    "Upper floors 4F-5F: Core solid (91.6x53.2x69 and 91.6x24.8x18.6), StairPenthouse box + RoofDoor on roof, 12 SolarPanels"
+   ],
+   "gameplay": [
+    "Details.luau lost-wallet quest: builds '분실물 센터 (관광안내소)' counter at runtime OUTSIDE the door at D.WALLET.counter (96,6.5,101) tagged GwLostFound; returnWallet requires the player within 16 studs of it -> keep that spot clear",
+    "Destination '광안리 관광안내소' (104.7,7,111.7): ctx.setWaypoint in Details/Play.Street (wallet quests), taxi/nav/MapData, Street Events (tourist lines), Pocha/Mind Talk lines",
+    "GwangalliInteractShared.PHOTO_SPOTS 'info' 광안리 관광안내소 at (105,7,112) r45; MiniGamesShared 'wordchain_center' labelled '관광안내소 앞' (street)",
+    "AutoDoor InfoDoor; LEDScreen messages (StreetSigns); InteriorLight SurfaceLight",
+    "Annex: name contains 문화센터/관광안내 -> PUBLIC building (the building itself is one room, no storeys); InfoDoor DoorLeaf = main door, BackDoor (12x8 at z208.8) = back door, the police 'Door' parts = 'shop' doors that take the nearest sign -> '들어가기' prompts at those doors",
+    "ShopStaff: InfoCounter/PoliceDesk are Models -> no staff NPC in either room",
+    "StreetInteract/Cast has a 여름경찰서 police NPC bio (street cast, not placed inside)"
+   ],
+   "emptyOrCrude": [
+    "Tourist info has no staff, no wall map / touch kiosk, no multilingual screens on the monitors (monitors are black boxes), lockers are 4 plain boxes without doors/keypads, wheelchairs/strollers are disc-and-box sketches, no souvenir shelf, no water purifier, no restroom signage",
+    "Police box is nearly empty (desk + 2 chairs + sign in 658 sq studs) and not walk-in; a 21-stud hidden void sits behind its back wall",
+    "Sea gallery: 5 flat poster boards and 2 benches in a 64x23x25.5 double-height hall; no partition walls, plinths, captions, docent desk; unreachable (no stair)"
+   ],
+   "realWorld": [
+    "광안리 관광안내소: 다국어 상담 카운터 (한/영/중/일 명패, 상담원 2-3), 대형 광안리·부산 관광지도 월 + 터치스크린 관광 키오스크, 브로슈어 랙 (언어별 칸), 무료 짐보관함 (번호식/QR 락커, 칸마다 문과 번호), 휴대폰 충전 스테이션 (케이블 칸), 휠체어·유모차 대여 (실물 형태), 부산 굿즈/기념품 진열, 포토존 (광안대교 트릭아트), 대기 의자, 정수기 + 종이컵, 와이파이 안내, 행사 LED (드론쇼/불꽃축제), 분실물 센터, 수유실/화장실 안내, 관광 스탬프 투어 도장대",
+    "여름경찰서 (해수욕장 개장 기간 운영): 민원 접수 카운터 + 아크릴 칸막이, 분실물 보관 선반 + 습득물 대장, 미아 보호 공간 (놀이 매트, 장난감), 구급함 + AED, 수상안전 장비 (구명튜브, 구명조끼), 안전 홍보 포스터 (몰카·성범죄 예방, 음주 수영 금지), 무전기 충전대, CCTV 모니터 벽, 근무 일정 화이트보드, 태극기, 포돌이 스탠디, 대기 벤치, 112 대형 표지",
+    "Community gallery: 가벽 + 작품 캡션 라벨, 트랙 조명, 좌대 위 오브제, 영상 작품 스크린, 안내/도슨트 데스크 + 방명록, 전시 포스터, 계단·엘리베이터 연결"
+   ],
+   "interactionIdeas": [
+    "Info counter '관광 안내 받기' -> map waypoint menu (Destinations list), '스탬프 찍기' collection",
+    "Brochure rack 'take a brochure' (adds a map item), luggage locker 'store item' (code keypad UI), phone charging 'charge' (+battery stat), wheelchair/stroller rental",
+    "Photo print kiosk 'print photo' after taking a picture at the trick-art wall (photo spot 'info')",
+    "Police box: '분실물 신고/습득물 맡기기' (ties into the lost-wallet quest), '미아 찾기' mini quest, '길 묻기'",
+    "Gallery: walk-up artwork prompts showing a caption card; guestbook signature"
+   ]
+  },
+  {
+   "name": "호텔 아쿠아펠리스 HOTEL AQUA PALACE (광안해변로 225, 21F) - lobby, leisure front, 2F 광안차이나, 6F waterpark, 8F-9F 찜질방, 21F observatory, rooftop infinity pool",
+   "path": "Workspace.Gwangalli.landmarks['호텔 아쿠아펠리스 HOTEL AQUA PALACE'] (+ Workspace.Gwangalli.landmarks['현관 디테일 · 호텔 아쿠아펠리스'])",
+   "bounds": "(-120.8,6.0,103.0)..(36.7,276.5,231.2); lobby (-63.4,6.5,116.5)..(-21.1,21.3,163.0)",
+   "enterable": true,
+   "rooms": [
+    {"name": "1F 호텔 로비 Lobby (walk-in via LobbyDoor AutoDoor x-44..-38 z117; the penthouse HomeEntrance portal stands right in front at (-41.3,10.05,114.7))", "center": [-42.25, 13.3, 139.7], "size": [41.5, 13.15, 44.8], "floorY": 6.75, "ceilingY": 19.9},
+    {"name": "1F 워터파크 · 스파 입구 / LEISURE FRONT (walk-in via WaterparkDoor AutoDoor x-4..2 z117.2)", "center": [-0.6, 13.3, 139.8], "size": [36.8, 13.15, 45.0], "floorY": 6.75, "ceilingY": 19.9},
+    {"name": "2F 광안차이나 GWANGAN CHINA restaurant strip (UNREACHABLE)", "center": [-41.3, 28.2, 123.05], "size": [152.0, 10.2, 14.1], "floorY": 23.1, "ceilingY": 33.3},
+    {"name": "6F 아쿠아펠리스 워터파크 hall (UNREACHABLE; pools sunk to y65-66.5)", "center": [-41.45, 80.8, 172.85], "size": [152.7, 20.6, 112.9], "floorY": 70.5, "ceilingY": 91.1},
+    {"name": "8F 찜질방 strip (UNREACHABLE, only 10.2 deep)", "center": [-41.4, 108.6, 139.2], "size": [113.6, 10.2, 10.2], "floorY": 103.5, "ceilingY": 113.7},
+    {"name": "9F 찜질방 strip (UNREACHABLE)", "center": [-41.4, 119.0, 139.2], "size": [113.6, 10.0, 10.2], "floorY": 114.0, "ceilingY": 124.0},
+    {"name": "21F 스카이전망대 SKY OBSERVATORY (UNREACHABLE)", "center": [-41.45, 247.25, 160.3], "size": [115.1, 14.9, 54.6], "floorY": 239.8, "ceilingY": 254.7},
+    {"name": "21F 스카이워크 glass-floor cantilever", "center": [-41.35, 241.6, 120.95], "size": [18.1, 4.0, 24.1], "floorY": 239.8},
+    {"name": "루프탑 인피니티풀 deck (UNREACHABLE, open sky)", "center": [-41.4, 258.0, 160.2], "size": [116.2, 3.0, 57.8], "floorY": 256.8}
+   ],
+   "props": [
+    "1F lobby (80 parts in 1859 sq studs = 4.3/100sq): FrontDesk Model 18 wide (ToeKick, marble FrontPanel 18x3.3x0.8, Ledge 18.4x0.25x1.55, WorkDesk + WorkTop slate, DeskGlow neon) + Detail (2 Monitor 1.8x1.1 + MonitorScreen neon 40,70,110 + stands, DeskBell ball), armchair x2 (teal fabric), LobbySofa x1 (2-seat ivory), round TableTop 3 dia + TableFoot + TableLeg, Plant x2 (2.6 pot), Rug 12x13.2, ChandelierCore 1.87 neon ball (PointLight) + 2 ChandelierRing + rod + 8 Crystal, Downlight x16, CoveSoffit x4 + CoveLED x4, 1 elevator (2 leaves 1.96x8.6 + 2 jambs + head + indicator + CallButton) at x-61..-57, WaterWall 26x4x0.1 glass panel (0,146,204), Sign_HOTEL AQUA PALACE (transparent board with text)",
+    "Leisure front (20 parts in 1656 sq studs = 1.2/100sq): LeisureFront counter 16 wide (white body, marble top, blue LED), Sign_LEISURE FRONT 18x3 ('워터파크 · 찜질방 · 인피니티풀 발권'), 2 elevators (4 leaves 1.76x8.4, 4 jambs, 2 heads, 2 indicators, 2 CallButtons) at x-18..-8, ONE CeilingLight 34x0.15x36 NightNeon slab as the whole ceiling; Destination '아쿠아펠리스 워터파크 · 찜질방' (-1.3,7,107.1); Sign_6F 워터파크 · 8F-9F 찜질방 · 21F 스카이전망대",
+    "2F 광안차이나 (28 parts in 2143 sq studs): Lantern x12 (red neon boxes 1.8x2.2) + LanternCord x12, RoundTable x4 (cylinders 4 dia, NO chairs), red carpet floor, wall 178,26,30; 14 facade Glass panes; Sign_광안차이나 ('GWANGAN CHINA · 2F · 짬뽕 · 딤섬 · WINE BAR')",
+    "6F waterpark (217 parts in 17240 sq studs = 1.3/100sq): WavePool 62x36 (floor + 4 walls + water T0.3 + 2 WaveFoam + WaveMachine 54x5.6 + Sign_WAVE POOL · 파도풀 '최대 파고 1.5m'), BeachEntry 62x12.8 sand, LazyRiver (2 floor/water segments + 7 walls), SplashPool 22x14, 2 round SpaPools + Bubbles, BODY SLIDE 90m (24 BodySlide cylinders + 23 BodySlideJoint balls + 6 supports), slide tower (4 legs, platform 12x12, 8 Steps, balustrade), PalmPlanter x7 + PalmTrunk x7 + Frond x42, Lounger x12 (base/back/pad boxes), Parasol x3, Lifeguard pole+seat x1, CeilingLight x12 (6x6 neon squares + SurfaceLight), Truss x7, 40 WaterparkGlass panes, BackWall 40,110,150",
+    "8F-9F 찜질방 (15 parts): HeatedFloor x2 113.6x10.8 wood, CedarWall x2, Mat x12 (4.8x0.4x6 fabric), CoveLight x2, Sign_황토 불가마 · 편백 찜질방, 8 glass panes",
+    "21F observatory (12 parts in 9058 sq studs = 0.13/100sq): ObservatoryFloor 115x56, 20 ObservatoryGlass panes, Bench x3, Binocular x4 on posts, Sign_SKY OBSERVATORY 21F ('광안대교 · 해운대 · 마린시티'), 1 CeilingLight 40x4 (SurfaceLight); SkywalkGlassFloor 18x24 T0.55 + edge beams + balustrades + struts + under-light",
+    "Rooftop: RoofSlab, InfinityPool 92x17 (PoolFloor, 3 PoolWalls, InfinityEdgeGlass, CatchChannel, water, PoolLed), RoofDeck 114x36 wood, Lounger x8, Sign_INFINITY POOL ('해수 온천 09:00-21:00'), giant Sign_HOTEL AQUA PALACE 88x10 on 6 SignFrames, MEP on the deck (cooling tower, 2 AC units, vents, exhaust hoods, lightning rod, aviation light)",
+    "현관 디테일: 벨카트, 우산 비닐 포장기, 발렛 podium, 3 flags 'AQUA PALACE', Bollard x9; 주차장 입구 (Driveway + Header + black Void panel - fake garage)",
+    "Upper solid Cores: (-41.5,28.5,180.5) 149x12x99, (-41.5,49.5,174) 149x30x112, (-41.4,181.8,161.1) 113.6x115.5x53.2 (rooms 10F-20F do not exist); 235 NightWindow panes"
+   ],
+   "gameplay": [
+    "Life-game 펜트하우스: listing aqua_ph '아쿠아펠리스 오션뷰 펜트하우스' (tier 5, buy) has place = Destination '호텔 아쿠아펠리스' (-42.3,7,109.9); HomeEntrance_penthouse portal (Tier penthouse, ListingId aqua_ph) at (-41.3,10.05,114.7) 2.4 studs in front of the lobby AutoDoor - GwangalliHome client creates '집으로 들어가기 / 초인종 / 입주 문의' prompts there (G.HOME_ENTRANCE_REACH 18) -> the unit is a ServerStorage template clone far above the map, not this building",
+    "Annex: hotel entry (DoorLeaf of LobbyDoor/WaterparkDoor/CafeDoor = main doors, LoadingShutter ignored) -> '들어가기' to the generic A.hotel instance; so 3 overlapping systems at one door (AutoDoor walk-in, Annex prompt, HomeEntrance prompt)",
+    "Destinations: '호텔 아쿠아펠리스', '아쿠아펠리스 워터파크 · 찜질방', 'fondx 홍미당 (아쿠아펠리스 1F)' (taxi, HUD 워터파크/찜질방 category, Street Events kid/tourist lines, Journey 'buyable homes' text)",
+    "GwangalliInteractShared.PHOTO_SPOTS 'infinity' 인피니티풀 루프탑 at (-60,258,155) r70 yMin220 and 'hotelrow' at (-42,7,110) - the rooftop one cannot be reached on foot",
+    "Grades.HOST_LISTINGS / GwangalliProgressShared 'penthouse' level reference 아쿠아펠리스",
+    "No ShopLife flow and no staff in lobby/leisure front (FrontDesk & LeisureFront are Models); InteriorLight: 3 SurfaceLight + 3 PointLight in the whole model"
+   ],
+   "emptyOrCrude": [
+    "All the signature leisure venues (waterpark, 찜질방, observatory, infinity pool, 2F restaurant) are unreachable showpieces: the elevators in the leisure front are decoration (no ElevatorButton)",
+    "Lobby is a 42x46 hall with one 2-seat sofa, 2 armchairs and a desk - 4.3 parts per 100 sq studs; single elevator for a 21-floor hotel",
+    "Leisure front is a nearly empty 37x45 room: one counter and a whole-ceiling neon slab; no ticket kiosks, price board, gates, shoe lockers, wristband dispenser, swimwear shop",
+    "2F restaurant: 4 tables without chairs; 찜질방 is a 10-stud-deep strip with mats only (no 불가마 kiln, rooms, snack bar, TV); observatory has 12 props in 9000 sq studs",
+    "Waterpark lacks changing rooms/showers/lockers access, kids' area, tube racks, snack bar, depth markers, safety signage; slide is ball-and-cylinder segments",
+    "Box geometry throughout, no textures; rooms 10F-20F are solid Core"
+   ],
+   "realWorld": [
+    "Real Hotel Aqua Palace (광안해변로 225): 실내 비치 워터파크 (파도풀, 대형 바디슬라이드), 지하 816m 온천수 24시간 오션뷰 사우나 + 찜질방, 2F 조식 뷔페, 21F 스카이 전망대 (주말 무료 관람) (sources: ktriptips, mom-mom, trvlogue)",
+    "Korean beach-hotel lobby: 프런트 3-4 스테이션 (모니터, 키카드 인코더, 카드 단말기), 로고 월 + 세계 시계, 벨데스크 + 짐 보관, 컨시어지, 로비 라운지 좌석 그룹, 생화 센터피스, 대리석 패턴 바닥, 엘리베이터 홀 2-4대 + 객실층 카드키 리더, 층별 안내, 투숙객 전용 사우나 안내, 비상구 유도등, 소화기, ATM",
+    "워터파크/스파 매표소: 요금표 (대인/소인/투숙객 할인), 발권 카운터 + 키오스크, 신발장 (번호 열쇠), 팔찌형 락커키 (RFID), 입장 게이트/턴스타일, 수영복·튜브 판매점, 남/여 탈의실 입구, 대기 벤치, 안전 수칙 판",
+    "Indoor waterpark: 파도풀 + 유수풀 + 키즈풀 (물바가지 tipping bucket 놀이시설), 바디/튜브 슬라이드 + 계단 타워, 구명조끼 대여대, 튜브 보관대, 안전요원 망루 x several, 수심 표시, 스낵바 (치킨·라면·맥주), 선베드 + 파라솔, 탈의실 + 샤워실 + 파우더룸, 시계, 스피커",
+    "찜질방: 황토 불가마 (돔 + 작은 나무문), 소금방, 얼음방, 편백방, 넓은 휴게 홀 (매트, 목침/베개), 대형 TV, 매점 (식혜, 맥반석 계란, 컵라면, 미역국), 안마의자, 수면실, 찜질복 (반팔·반바지) 대여, 락커, PC/만화 코너",
+    "Sky observatory: 창마다 파노라마 안내 그래픽 (광안대교, 해운대, 마린시티, 이기대 이름표), 동전식 망원경, 포토존 프레임, 카페 키오스크, 기념품, 유리바닥 주의 표지, 의자",
+    "Rooftop infinity pool: 카바나, 타월 스테이션, 샤워 기둥, 풀바, 파라솔, 수심 표시, 안전요원 의자, 야간 수중 조명"
+   ],
+   "interactionIdeas": [
+    "Leisure front: '발권' kiosk (워터파크 / 찜질방 / 인피니티풀 ticket UI) -> wristband item -> working elevator to 6F/8F/21F/roof via ElevatorButton + ElevatorStop parts",
+    "Waterpark: '튜브 빌리기', '바디슬라이드 타기' (scripted slide ride camera), wave pool 'wave on' every N seconds, '구명조끼 착용', snack bar order, lifeguard whistle event",
+    "찜질방: '찜질복 갈아입기' (outfit), '불가마 들어가기' (heat meter), '식혜 · 맥반석 계란 사먹기', '양머리 수건 쓰기' emote, '눕기' on mats",
+    "Observatory: coin binoculars zoom camera, landmark name panels, photo frame, glass skywalk 'step out' (camera shake)",
+    "Infinity pool: lounger lie down, towel pickup, sunset photo; lobby front desk 'check-in' handing off to the Annex hotel key-card flow"
+   ]
+  },
+  {
+   "name": "fondx 홍미당 부산광안리점 (Aqua Palace 1F bakery cafe)",
+   "path": "Workspace.Gwangalli.landmarks['호텔 아쿠아펠리스 HOTEL AQUA PALACE']['fondx 홍미당 부산광안리점']",
+   "bounds": "(-117.6,6.5,107.8)..(-63.3,21.3,162.9)",
+   "enterable": true,
+   "rooms": [
+    {"name": "Bakery hall (walk-in via CafeDoor AutoDoor x-93..-89 z116.9)", "center": [-90.85, 13.3, 139.5], "size": [51.3, 13.15, 45.0], "floorY": 6.75, "ceilingY": 19.9}
+   ],
+   "props": [
+    "152 parts in 2308 sq studs (6.6/100sq): BreadShelf x3 (38.4x0.25x2.6 wood boards on the back wall), DisplayTable x4 (10x2.8x5) + DisplayTop x4 + Bread x45 (1.2x0.8x1.1 boxes) + Tray x12 + Cake x5, labels Sign_홍미당 식빵 / 명란바게트 / 앙버터 x2, ShowcaseBase + Showcase 5x3x16 glass + ShowcaseLight, Checkout Model 5x2.95x11.7 + POS 2x1.4x1.4 box + CoffeeMachine 3.2x2.6x3 box, ScreenHousing + LEDScreen 14x3.2 (menu messages '아메리카노 4,500 · 라떼 5,000|소금빵 3,200 · 앙버터 4,300|OCEAN VIEW SEATS · 2F 광안차이나'), Seat x16 (window bar + 3 tables with 6 chair backs/legs), WindowBar x2, PendantBulb x5 (PointLight) + shades, Awning wedge 50.4 red, ABoard 'NEW 소금빵', Destination 'fondx 홍미당 (아쿠아펠리스 1F)'"
+   ],
+   "gameplay": [
+    "ShopStaff: POS is a BasePart named POS outside any storefront -> LOOSE landmark counter site, kind 'bakery' (keys 홍미당/fondx) -> a 빵집 직원 NPC behind it with '말 걸기' prompt (rig only while a player is within 150 studs)",
+    "No ShopLife ordering/eating flow (not Interior+ShopFloor, not GwShop)",
+    "AutoDoor CafeDoor; LEDScreen messages; Destination used by taxi/HUD food category/Street Events/Mind Talk; Annex reads CafeDoor DoorLeaf as an Aqua Palace main door"
+   ],
+   "emptyOrCrude": [
+    "Bread are identical brown boxes; no tray-and-tongs station, no price tags per item, no packing counter, no pickup counter, no self bar (water, napkins), coffee machine is a single box",
+    "Walls plain plaster; no menu board above the counter except the LED strip; no bakery kitchen window (오픈 주방)"
+   ],
+   "realWorld": [
+    "Korean bakery cafe (홍미당/fondx type): 입구 트레이 + 집게 스테이션, 아일랜드 진열대 (빵마다 이름·가격 POP 카드), 냉장 케이크 쇼케이스, 계산대 (POS, 카드 단말기, 포장 봉투/박스), 음료 주문 카운터 + 에스프레소 머신 + 그라인더 + 메뉴 보드, 픽업대 + 진동벨, 셀프바 (물, 냅킨, 빨대, 포크), 오픈 베이킹 키친 창 + 오븐, 창가 오션뷰 바 좌석, 시식 코너, 2층 좌석 계단"
+   ],
+   "interactionIdeas": [
+    "Pick up tray + tongs, choose bread (소금빵, 앙버터, 명란바게트, 식빵) -> checkout at POS -> eat at a seat (hunger)",
+    "Order coffee at the counter -> vibrating pager -> pickup",
+    "Watch baker pull bread from the oven window (timed event 'fresh bread' sign lights up)"
+   ]
+  },
+  {
+   "name": "켄트호텔 광안리 by 켄싱턴 KENT HOTEL (광안해변로 229, 15F, 85 rooms attr) - lobby, 2F cafe, 15F sky lounge, rooftop bar",
+   "path": "Workspace.Gwangalli.landmarks['켄트호텔 광안리 by 켄싱턴 KENT HOTEL'] (+ Workspace.Gwangalli.landmarks['현관 디테일 · 켄트호텔 광안리'])",
+   "bounds": "(-207.2,6.0,102.0)..(-126.1,206.2,230.8); lobby (-168.7,6.5,115.7)..(-128.1,21.3,158.5)",
+   "enterable": true,
+   "rooms": [
+    {"name": "1F 켄트호텔 로비 (walk-in via LobbyDoor AutoDoor x-150..-145 z116.4)", "center": [-147.75, 13.3, 137.05], "size": [38.5, 13.15, 40.9], "floorY": 6.75, "ceilingY": 19.9},
+    {"name": "2F 카페 & 베이커리 strip (UNREACHABLE)", "center": [-166.3, 27.65, 122.1], "size": [74.2, 8.9, 14.4], "floorY": 23.2, "ceilingY": 32.1},
+    {"name": "15F 스카이라운지 SKY LOUNGE / reception (UNREACHABLE)", "center": [-166.65, 167.5, 154.1], "size": [77.9, 13.0, 79.8], "floorY": 161.0, "ceilingY": 174.0},
+    {"name": "루프탑 바 ROOFTOP BAR deck (UNREACHABLE, open sky)", "center": [-166.5, 180.0, 139.3], "size": [77.4, 9.0, 50.4], "floorY": 175.6}
+   ],
+   "props": [
+    "1F lobby (70 parts in 1575 sq studs = 4.5/100sq): ConciergeDesk Model 7 wide (walnut FrontPanel, slate Ledge, WorkDesk, DeskGlow) + 2 Monitors + DeskBell, armchair x2 (charcoal), LobbySofa 3-seat (tan), round TableTop 2.8 + TableFoot, Rug 14x14.5, Plant x1, PendantBulb x2 (PointLight) + shades, Downlight x7 (front only), CoveSoffit x4 + CoveLED x4, elevators x2 (4 dark leaves 2.16x8.6, brass jambs), FloorIndicator x2, CallButton x2, Sign_KENT HOTEL ('15F RECEPTION · SKY LOUNGE'); dark shell: Floor 38.6x41.8 dark marble 70,70,72, Ceiling 50,50,54, Partition west, BackWall wood",
+    "2F cafe (44 parts): Chair x12 (single boxes 1.6x2.9x0.8), CafeTable x6 (2.8 top + leg), PastryCounter 11x3.5x2.5 + Showcase glass, PendantBulb x6; BackWall plaster; Sign_CAFE & BAKERY 2F on facade",
+    "15F sky lounge (197 parts in 6216 sq studs = 3.2/100sq): SkyBar 28 wide (Body + marble Top + LedStrip) + BackBar (BackPanel 26x7 + 3 boards + 87 Product bottles + 3 PriceRails), Sign_KENT SKY LOUNGE, LoungeSofa 20-wide 7-seat, Seat x26 incl stools, TableTop x7 + legs, 14 chair backs/legs, PendantBulb x4 on 5.2 cords, 22 LoungeGlass panes T0.62 all round, LoungeFloor wood 76x46.8 over a 77x80 slab",
+    "Rooftop bar (75 parts): Deck 76.8x49.6 wood, RooftopBar 24x3.6x3 + top + BarLed, Seat x17 + StoolLeg x17, TableTop x3 + legs, Parasol x3, LightPost x2 + Wire x4 + Bulb x10, CrownBand x3 + Coping, Sign_KENT HOTEL 38x7 + Sign_by KENSINGTON, CrownCore 76.8x17.2x29.4 (machine box), RoofDoor (fake), AC units, cooling tower",
+    "현관 디테일: Sign_★★★ (3성), 벨카트, 우산 비닐 포장기, 발렛 podium, Bollard x7; Canopy 41.5x1x11.4 + CanopyLight; Sign_KENT HOTEL GWANGALLI 'by KENSINGTON'; back: ParkingShutter + Sign_P 켄트호텔 주차장 (fake)",
+    "Cores: (-167.1,13.9,193.7) 76.4x14.8x71.2, (-166.7,97,154.8) 74x127x76.6 (rooms 3F-14F do not exist), 201 NightWindow panes"
+   ],
+   "gameplay": [
+    "AutoDoor LobbyDoor; Destination '켄트호텔 광안리' (-147.7,7,109.3) used by Career/Taxi (fares/routes), GwangalliHUD, GwangalliNav, Citizens lines, G destination lists",
+    "Annex: hotel entry (LobbyDoor + GS25Door DoorLeaf parts) -> generic A.hotel interior",
+    "ShopStaff: no anchor in the lobby (ConciergeDesk is a Model) -> no front staff; the GS25 next door gets one",
+    "No elevator function (decor elevators); NightWindow tags; InteriorLight: 2 PointLight + 1 SurfaceLight in the model"
+   ],
+   "emptyOrCrude": [
+    "Real reception is advertised on 15F but 15F and the rooftop bar are unreachable; the 1F lobby only has a 7-wide concierge desk (no check-in), 5 seats, 1 plant",
+    "Lobby lighting is 7 downlights at the door + 2 pendants in a dark 38x41 room; back half near elevators is empty",
+    "2F cafe chairs are single boxes; no espresso machine, POS, menu",
+    "Sky lounge: one bar and one long sofa in 6200 sq studs; no DJ booth, no booths, no cocktail menu; rooftop bar has 3 tables"
+   ],
+   "realWorld": [
+    "Kent Hotel 광안리 by Kensington (광안해변로 229): 24시간 데스크, 뷔페 조식, 커피숍, 레스토랑, 수하물 보관, 바다 전망, 광안대교가 보이는 루프탑 (source: mom-mom.net listing; 15F reception not confirmed by sources)",
+    "Business/3-star hotel 1F: 무인 체크인 키오스크 or 소형 프런트, 짐 보관함, 엘리베이터 홀 + 카드키 리더, 층별 안내, 커피머신/웰컴티 코너, 소파 + 잡지랙, 관광 브로슈어, 비상구 유도등, CCTV, 우산꽂이",
+    "Sky lounge: 리셉션 데스크 (체크인), 조식 뷔페 라인 (시간대별), 바 카운터 + 백바 조명, 칵테일·와인 메뉴, 창가 소파석 + 하이테이블, 피아노 or DJ, 통창 야경",
+    "Rooftop bar: 바 + 냉장고, 스툴, 소파 존, 야외 히터, 줄조명, 파라솔, 포토 프레임 (광안대교)"
+   ],
+   "interactionIdeas": [
+    "1F: '15F 리셉션' elevator button (ElevatorButton/ElevatorStop contract) -> 15F check-in desk prompt -> Annex hotel room key card",
+    "Sky lounge: breakfast buffet time window (plate pick-up minigame), cocktail order, piano/DJ music toggle, window seat sit + night view camera",
+    "Rooftop bar: '건배' social emote at tables, sunset photo"
+   ]
+  },
+  {
+   "name": "GS25 광안해변점 (Kent Hotel 1F convenience store)",
+   "path": "Workspace.Gwangalli.landmarks['켄트호텔 광안리 by 켄싱턴 KENT HOTEL']['GS25 광안해변점']",
+   "bounds": "(-204.3,6.5,103.9)..(-168.2,21.3,158.1)",
+   "enterable": true,
+   "rooms": [
+    {"name": "Store floor (walk-in via GS25Door AutoDoor x-188..-184 z116)", "center": [-186.25, 12.7, 136.65], "size": [35.7, 11.95, 40.9], "floorY": 6.75, "ceilingY": 18.7},
+    {"name": "Outdoor terrace (2 plastic tables)", "center": [-176.0, 8.5, 108.5], "size": [12.0, 4.0, 8.0], "floorY": 6.6}
+   ],
+   "props": [
+    "395 parts in 1460 sq studs (27/100sq, densest landmark room): Fridge x4 (6.6 wide walk-in style: Body, Kick, 2 SidePanels, FridgeGlow, glass FridgeDoor, 2 DoorMullions, 3 WireShelves, 3 DoorHandles, FridgeLamp, 40 Bottle cylinders each), Shelf x3 gondolas (18x5.4 BackPanel, 2 Boards, 2 PriceRails, 40 Product boxes each), Counter 11 wide + 담배진열장 (CigCabinet 10x5.8 + CigHeader neon + PackFace SurfaceGui grid 5 rows x 15 packs), POS x2 (PosBase, PosScreenBack, CustomerDisplay), SteamerCase, Microwave + door, HotWater dispenser, RamenCounter 4x3x3, IceCreamChest 4.4x2.6x2 + ChestGlass, ATM (2.6x6.2 + header + screen + keypad), CeilingLight x9 (2.8 squares + SurfaceLight), Sign_24시간 · ATM, PlasticTable x2 outside (4 chairs each, all blue boxes)"
+   ],
+   "gameplay": [
+    "ShopStaff: PosBase BaseParts -> LOOSE landmark counter -> cvs kind '편의점 점원' NPC (KINDS keys GS25)",
+    "Not the 알바 store: JobWorld/JobCvs/Places 'STORE' use GS25 광안리점 (Workspace.Gwangalli.convenience); this second GS25 has no job, no ShopLife purchase flow (not Interior+ShopFloor and not the convenience venue)",
+    "Destination 'GS25 광안해변점 (켄트호텔 1F)' (-185.8,7,105.9) used by HUD (name split), Nav, Citizens",
+    "AutoDoor GS25Door; Annex reads its DoorLeaf as a Kent main door"
+   ],
+   "emptyOrCrude": [
+    "Products are uniform boxes/cylinders with no labels; only 3 gondolas; no snack/ramen aisle endcaps, no coffee machine (GS25 카페25), no lunchbox (도시락) chiller, no 택배 kiosk, no trash/recycling station, no eat-in counter inside",
+    "Cannot buy anything here although it looks like a working store"
+   ],
+   "realWorld": [
+    "GS25 (beach branch): 워크인 냉장고 (음료·주류), 도시락/김밥/샌드위치 오픈 냉장 쇼케이스, 과자·라면 곤돌라 + 엔드캡 행사 POP (1+1, 2+1), 계산대 (POS 2, 카드 단말기, 담배장, 복권 판매대), 카페25 원두커피 머신, 즉석조리 (핫바, 찐빵 스티머), 전자레인지 + 온수기 + 시식대, 아이스크림 냉동고, ATM, 택배 접수 키오스크 (반값택배), 분리수거함, 창가 취식 바 + 의자, 파라솔 테라스 (튜브·돗자리·불꽃놀이 등 해변용품 진열)"
+   ],
+   "interactionIdeas": [
+    "Open fridge door (door swing) and pick a drink; pick snack from shelf -> pay at POS (shared with the main GS25 flow)",
+    "Cup ramen: buy -> hot water dispenser -> wait 3 min -> eat at terrace table",
+    "Microwave lunchbox (beep), ATM withdraw (Bank), 택배 send kiosk, 해변용품 (튜브/불꽃) purchase for beach activities"
+   ]
+  },
+  {
+   "name": "Annex hotel interior (runtime, the '들어가기' inside of Homers / Aqua Palace / Kent)",
+   "path": "built at runtime by ServerScriptService.GwangalliBuildings.Annex -> Builder.plan('hotel') = Builder/Archetypes A.hotel; instances under Workspace.GwangalliBuildings (Registry.root) in the y=3000 band",
+   "bounds": "slot grid ORIGIN (-9600,3000,-9600), SLOT 560 studs, 16 columns; plan W 50 x D 48, floors B1 h12, 1F h13 lobby, 2F-9F (RES floors + 13-high royal floors), roof",
+   "enterable": true,
+   "rooms": [
+    {"name": "1F hotel_lobby shop (Builder/Shops T.hotel_lobby): frontdesk point, LogoWall, chandelier, sofa3, armchair, coffee table, 2 monstera, aquarium, 2 staff (프런트, 컨시어지)", "center": [0, 6.5, 10.5], "size": [50, 13, 21], "floorY": 0},
+    {"name": "2F 아케이드 홀 / 3F 카지노 라운지 / 8F VIP / 9F 프리미엄 라운지 (Royal casino floors)", "center": [0, 0, 24], "size": [50, 13, 48]},
+    {"name": "4F-7F guest rooms: hotel_standard (12.5 x 21: entry 5x7, bath 7.5x7, room 12.5x14; bed_queen, desk, tv_small, armchair, minibar, toilet, washbasin, shower, wallpad), hotel_deluxe (14.4 x 21, bed_king, tv55, 2 armchairs, minibar, floor lamp, bathtub), hotel_suite (25 x 21: entry, powder, living, bath, bedroom; sofa3, tv55, coffee table, bathtub + shower)", "center": [0, 0, 24], "size": [50, 10.5, 48]}
+   ],
+   "props": [
+    "Procedural (Kit boxes + GwangalliBuildingsShared/Furniture builders); the lobby LogoWall text is hard-coded 'HOTEL SEASIDE GWANGAN / 호텔 씨사이드 광안' (A.hotel nameEn) whichever real hotel was entered"
+   ],
+   "gameplay": [
+    "Annex door prompts appear when a player is within NEAR=70 studs of the building footprint; KEEP=150 s after last person; MAX_LIVE 6 instances; leaving = '나가기' at the door used",
+    "ShopFlows hotel_lobby frontdesk '체크인 / 체크아웃' -> Menus.HOTEL_ROOMS (standard/deluxe/suite) -> key card (player attrs GwB_HotelRoom, GwB_HotelLabel, GwB_Hold 'keycard'); Doors handle hotel card doors; Elevators module runs real elevators; Royal casino tiers gate 8F/9F",
+    "ShopLife.annexLink (lobbyLink) offers '🛏️ 객실 층으로 (체크인 · 객실)' from map lobbies of type lobby/residence"
+   ],
+   "emptyOrCrude": [
+    "Branding mismatch: entering Homers, Aqua Palace or Kent all lead to the same 'HOTEL SEASIDE GWANGAN' casino hotel (B1 parking, 2F arcade, 3F casino) instead of each hotel's real program (Homers: 2F 조식당, 3F 웨딩, 4-5F 연회장, 6F 프런트/루프탑; Aqua: 6F 워터파크, 8-9F 찜질방, 21F 전망대, 루프탑 풀; Kent: 15F 라운지/루프탑)",
+    "Two different 'lobbies' for one hotel: the static walk-in map lobby (no check-in) and the Annex lobby (check-in) - confusing"
+   ],
+   "realWorld": [
+    "Korean hotel guest room (standard double/twin): 카드키 슬롯 전원, 현관 슬리퍼 + 신발 공간, 옷장 (가운, 다리미, 금고), 미니바 냉장고 + 커피포트 + 캡슐커피 + 생수 2병, 책상 + 스탠드 + 콘센트/USB, 벽걸이 TV + 리모컨, 침대 (화이트 린넨, 쿠션, 러너), 협탁 + 조명 스위치 패널, 암막 + 쉬어 커튼, 오션뷰 창 + 창가 소파, 욕실 (레인샤워, 비데, 세면대 + 어메니티, 수건 3종, 헤어드라이어), 객실 번호판 + DND 램프, 화재 대피도 (문 뒤)"
+   ],
+   "interactionIdeas": [
+    "Per-hotel Annex identity: pass the real hotel name/nameEn/floor program into A.hotel (or attribute AnnexKind/AnnexFloors on the landmark model) so the logo wall and floors match",
+    "In-room: key-card slot turns lights on, curtains open/close, minibar take item, kettle + capsule coffee, safe code, DND lamp toggle, rain shower"
+   ]
+  },
+  {
+   "name": "Workspace.Gwangalli.homes.Entrances (5 HomeEntrance portals) + the street lobbies they sit at",
+   "path": "Workspace.Gwangalli.homes.Entrances.HomeEntrance_{goshiwon,oneroom,officetel,apartment,penthouse}",
+   "bounds": "(-1501.2,6.5,33.1)..(416.6,16.1,903.1)",
+   "enterable": false,
+   "rooms": [
+    {"name": "HomeEntrance_goshiwon portal '황령하우스 · 광안 고시텔 3F' beside 광안 메디컬 의원 (no 고시원 building exists; trash bags + scooter next to it)", "center": [-489.1, 10.1, 255.4], "size": [4.0, 7.0, 1.4], "floorY": 6.6},
+    {"name": "HomeEntrance_oneroom portal at 미성맨션 공동현관 (uptown RowC Block_C6 villa) - lobby is a SOLID brick block 'Lobby' 10.96x10.5x11.36 at (209.2,11.8,608.5) with a dark-glass LobbyDoor panel, under pilotis parking", "center": [209.6, 10.1, 601.5], "size": [4.0, 7.0, 1.4], "floorY": 6.6},
+    {"name": "HomeEntrance_officetel portal at 테라스타오션 (beachfront 구간10) TERRASTAR OCEAN lobby Model: ShopFloor 12.2x14.4 at (-1496,6.6,43.8), ShopBackWall, 2 ShopPartitions, 2 elevators, 4 downlights, EMPTY 'Interior' model", "center": [-1495.2, 10.1, 34.8], "size": [4.8, 7.0, 1.4], "floorY": 6.6},
+    {"name": "HomeEntrance_apartment portal at 광안자이 정문 (GatePylon 4.4x22x4.4, BarrierPost, NameStone + Sign_광안자이, intercom pillar); towers ~96 studs away", "center": [413.6, 10.1, 902.3], "size": [5.0, 7.0, 1.4], "floorY": 6.6},
+    {"name": "HomeEntrance_penthouse portal in front of the Aqua Palace LobbyDoor", "center": [-41.3, 10.05, 114.7], "size": [6.0, 7.0, 1.4], "floorY": 6.6}
+   ],
+   "props": [
+    "Each portal: HomeEntrance part (invisible, CanCollide/CanQuery/CanTouch false, attrs Destination, DisplayName, KoreanName, ListingId goshiwon|oneroom|officetel|xi_apt|aqua_ph, Tier, TierIndex 1-5, tag HomeEntrance), EntranceCue Model (3 PortalNeon + ThresholdNeon in the tier colour: 150,150,160 / 90,170,230 / 40,196,210 / 255,196,64 / 176,110,255, tag HomeEntranceCue), Kiosk (goshiwon: A-frame '1인실 · 보증금 0원 월 18만원부터 ↑ 3층 계단'; oneroom: KeypadPillar + KeypadLED + Sign_미성맨션 공동현관 '원룸 · 투룸 · 풀옵션'; officetel: stand + Sign_TERRASTAR OCEAN '오피스텔 입주민 출입구'; apartment: IntercomPillar + IntercomScreen + Keypad + Sign_광안자이 입주민 출입 '세대 호출 · 방문 차량 등록'; penthouse: brass stand + Sign_PENTHOUSE RESIDENCE '입주민 전용 엘리베이터 · 컨시어지')",
+    "Destination parts (Category 'home') for goshiwon (-489,7.2,253.1) and oneroom (209.6,7.1,599.2)"
+   ],
+   "gameplay": [
+    "GwangalliHome (LocalScript) builds local ProximityPrompts on HomeEntrance parts: 집으로 들어가기 (owner), 초인종 (owner online), 입주 문의 (listing card -> 월세/매매/대출) within G.HOME_ENTRANCE_REACH 18 studs",
+    "Housing.luau: missing tiers get a fallback entrance at the listing's Destination (folder GwangalliHomeEntrances); leaving a home returns the player to the building's HomeEntrance; Details.luau also lists HomeEntrance among its door/destination tags",
+    "Nothing here is an interior: entering teleports to the per-player unit (see HomeUnit venues)",
+    "TERRASTAR OCEAN lobby is a street-shop style Model (Interior + ShopFloor) -> ShopLife residence lobby -> Annex lobbyLink '🛗 엘리베이터 · 위층 세대 둘러보기'; the officetel portal sits 1.5 studs outside its AutoDoor"
+   ],
+   "emptyOrCrude": [
+    "The 고시원 has no building: a free-standing neon door frame next to a clinic and trash bags; the sign promises '3층 계단' but there is no stair",
+    "미성맨션 lobby is a solid brick cube (cannot walk in); no mailboxes, no 공동현관 door that opens",
+    "TERRASTAR OCEAN lobby Interior model is empty: no 무인택배함, 우편함, 보안 데스크, seating, directory; elevators decorative",
+    "광안자이 has only a gate: no 동 출입구 / 로비 / 경비실 with the portal"
+   ],
+   "realWorld": [
+    "고시원 entrance: 좁은 건물 1층 상가 옆 계단 입구, '○○고시텔' 세로 간판, 층별 안내, 계단 (형광등, 전단지), 3층 철문 + 번호키, 신발장, 총무실 창구, 공용주방·세탁실 안내문",
+    "빌라/원룸 공동현관: 필로티 주차장, 공동현관 유리문 + 번호키 도어폰, 우편함 (호수별), 택배 쌓인 바닥, 계단실, 분리수거장, CCTV 안내, 전단지",
+    "오피스텔 1F 로비: 자동문 + 카드키 리더, 보안 데스크 (경비원), 무인 택배 보관함, 우편함, 로비 소파, 엘리베이터 2-3대 + 층 표시, 입주민 공지 게시판, 관리사무소",
+    "아파트 단지: 정문 차단기 + 경비실, 동 표지 (101동…), 동 출입구 캐노피, 공동현관 (월패드 호출), 우편함, 엘리베이터 홀, 놀이터·커뮤니티 안내판"
+   ],
+   "interactionIdeas": [
+    "Keypad / intercom pillar: enter door code (number UI) or call a unit (초인종) - already the semantic of the prompts; make the 공동현관 door open visually before the teleport",
+    "Mailbox wall per building ('우편함 확인' mirrors the in-home mailbox kind), parcel locker 'pick up 택배' (delivery job tie-in)",
+    "Officetel lobby security desk NPC greeting, elevator ride effect (HomesFloors.rideEffect) before entering the unit"
+   ]
+  },
+  {
+   "name": "HomeUnit_goshiwon - 광안 고시원 1인실 (tier 1, 창문형 + 개인 샤워실, plan 7.8 m2)",
+   "path": "ServerStorage.GwangalliHomes.HomeUnit_goshiwon (template; cloned per owner into Workspace.GwangalliHomeInstances.Home_<UserId> / Tour_<UserId>)",
+   "bounds": "template interior (-4004.1,999.0,9993.2)..(-3995.9,1008.3,10006.5), UnitRoot (-4000,1000,10000); runtime clone pivoted to (0, 4000 + row*1400, (col-3.5)*3200) (8 columns, spacing from ViewExtent, SlotSpacing 3200)",
+   "enterable": true,
+   "rooms": [
+    {"name": "main 방 (bed + built-in desk wall)", "center": [-4000.0, 1003.9, 9998.25], "size": [7.25, 7.7, 9.3], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "현관 (shoe cabinet, mirror door, mail pocket)", "center": [-4001.6, 1003.9, 10004.45], "size": [4.0, 7.7, 3.1], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "bath 샤워실 wet cell (toilet + basin + shower)", "center": [-3997.9, 1003.9, 10004.45], "size": [3.0, 7.6, 3.1], "floorY": 1000.13, "ceilingY": 1007.75}
+   ],
+   "props": [
+    "228 parts excluding backdrop (Plastic 115, Metal 35, Fabric 22, Plaster 14, Glass 9); lights: desk LampHead PointLight, BathLight PointLight, LEDPanel SurfaceLight (LightCount 3)",
+    "Shell: Floor 7.2x12 wood (Room main, Surface floor), Ceiling plaster, Wall x9 + Partition x4 (Room/Surface attrs), FloorBath tile, TileWall x6, Threshold; Fixtures: door mirror, DoorLock, notice sign '외출 시 전등·전열기 OFF / 공용주방 07:00~23:00 · 총무실 101호', MailPocket + Letter, SmokeDetector, Sprinkler, Switch, 2 Outlets, PowerStrip, VentFan, CeilingGrid texture lines x6, Baseboard x3, Crown x3, Window (frame 2.3 wide + 8 sash + 2 glass + sill) + roll Blind, Door (jambs, casings, leaf, lever x2), LEDPanel 2.2, WetCellDoor (2 frosted glass leaves + track)",
+    "Furniture slots: Slot_bed (bed_goshiwon_single 3x6.4: plinth, frame, mattress, duvet, fold, pillow mesh, throw, headboard), Slot_desk (desk_goshiwon_builtin 7.2 wide + drawer unit + monitor arm/screen + keyboard + mouse + arm lamp), Slot_chair (chair_study 5-star base), Slot_shelf (shelf_wall MountY 5.34 with books, 3 cup noodles, cactus), Slot_art (corkboard_memos + 5 memos + photo strip), Slot_appliance (desk_fan)",
+    "Props: ShoeCabinet, slippers + 4 shoes, MiniFridge 1.6x1.7x1.4, Kitchenette (microwave on fridge, kettle, cup), HangerRail + 4 clothes, PlasticDrawers, DryingRack + 4 laundry, Ramen boxes x2 + 3 cup noodles, WallAC 2.6 wide, WetCell (toilet with mesh bowl, tank, flush, basin 0.54x0.3x0.8, faucet, shower riser/arm/head, mixer, drain, towel bar + towel, mirror), InteriorPanel (wall tablet '🛠 인테리어 탭하여 집 꾸미기')",
+    "Interact (tag HomeInteract): interior, bed (UseAt lie), desk (sit), fridge (crouch), wardrobe, window '창밖 보기', mailbox '우편함 확인', shower; ExitDoor (Kind door '나가기'); Spawn",
+    "Backdrop AlleyView: AlleyWall 26x40, neighbour window with bars (NightNeon), outdoor AC, gas pipe, drain pipe, alley ground, 3 wires"
+   ],
+   "gameplay": [
+    "Housing.luau (server): clones the template, PivotTo grid slot, anchors parts, enables Seats, proxifies HomeInteract parts inside default furniture, creates ProximityPrompts (makePrompt, Exclusivity AlwaysShow) on HomeInteract parts with Kind in G.HOME_KINDS (bed sofa tv fridge table shower wardrobe desk window mailbox door) + HS 'interior'; poses via UseAt Attachment Pose attr; HomeSeat seats; sleep via Life.sleep; fridge/desk/mailbox/wardrobe open client panels (HomeState 'panel')",
+    "Furniture: FurnitureSlot Models (SlotId, Category, DefaultItem, Footprint, Rotate, MountY, SlotBase, child 'Furniture' with Default=true + ItemId) - the server destroys/rebuilds the piece for bought variants (G.furnitureSpec / HS catalog of 40+ generated variants), quarter turns (rot) saved per listing",
+    "Themes: Shell parts with Room + Surface ('wall'|'floor'|'light') and Lights with Room are recoloured (Color + Material only; OrigColor/OrigMaterial attrs) for 벽지/바닥/조명 purchases; broadcast HomeState 'themes'",
+    "Model attrs HomeOwnerId, HomeTier, HomeListing, TvOn, Staged; ModelStreamingMode PersistentPerPlayer; HS.FURNITURE_LIGHTS = 3 extra lights cap; GwangalliHome client: HUD, 꾸미기 sheet, Interior (decor / 집 구경 / 둘러보기) mode, window photo camera, TV SurfaceGui on parts named Screen/TVScreen",
+    "Must keep: UnitRoot (PrimaryPart), Spawn/HomeSpawn, ExitDoor, HomeInteract parts + Kind/Label/SlotId attrs + UseAt, FurnitureSlot contract, Room/Surface attrs, Backdrop/WindowView model name; GwangalliIndoorLight dims PointLights under the ceiling"
+   ],
+   "emptyOrCrude": [
+    "Reasonably furnished for its size, but all geometry is boxes/cylinders (bed = 8 boxes, chair star base = 5 bars), flat plaster walls with no wallpaper pattern, floor a single wood slab without boards",
+    "Missing goshiwon signatures: 방 번호판 on the door, 개인 TV or 모니터 with content, 멀티탭 clutter, 공용주방/세탁실 (the notice mentions them but they do not exist), fire extinguisher, 소음 주의 notice",
+    "Window is 2.3 wide facing a wall (correct for 창문형) but no curtain/blackout; no clutter (bag, laptop, toiletries, snacks)"
+   ],
+   "realWorld": [
+    "고시원/고시텔 1인실 (창문형, 욕실형): 싱글 침대 (폭 ~90cm, 침대 하부 수납 서랍), 붙박이 책상 + 위쪽 책장 + 의자, 미니 냉장고, 벽걸이 에어컨 (개별 리모컨), 작은 TV/모니터, 옷걸이 행거 or 슬림 옷장, 개별 샤워부스 + 변기 + 미니 세면대, 환풍기, 스프링클러 + 화재감지기 (의무) + 소화기, 방 번호 + 번호키 도어락, 창문 (방범/블라인드), 콘센트 + 멀티탭, 와이파이 공유기 안내, 입실 규칙 안내문",
+    "Shared facilities a real 고시원 has: 공용주방 (밥·김치·라면 무료, 전기밥솥, 인덕션, 전자레인지, 정수기, 냉장고 칸 이름표), 세탁실 (세탁기, 건조대), 총무실 창구, 좁은 복도 양쪽 방문 (번호판), 신발장"
+   ],
+   "interactionIdeas": [
+    "Desk PC/monitor 'turn on' (screen SurfaceGui: 공부/게임/유튜브), desk lamp toggle, desk fan toggle (spinning guard)",
+    "Ramen box 'cup noodle' -> kettle 'boil water' -> eat at desk (hunger), mini-fridge open (door swing, drinks inside)",
+    "Wall AC remote 'on/off' (louver opens, LED), roll blind up/down, light switch (LEDPanel Room main), drying rack 'hang laundry', mirror check outfit",
+    "Shared kitchen / laundry rooms as an extra corridor scene (공용주방 무료 밥·김치)"
+   ]
+  },
+  {
+   "name": "HomeUnit_oneroom - 광안동 풀옵션 원룸 (tier 2, 미성맨션)",
+   "path": "ServerStorage.GwangalliHomes.HomeUnit_oneroom (runtime clone: Workspace.GwangalliHomeInstances.Home_<UserId>)",
+   "bounds": "template interior (-2010.8,999.0,9990.8)..(-1989.2,1008.4,10008.8), UnitRoot (-2000,1000,10000); Backdrop alley (-2026,983.5,9982.2)..(-1974,1018,9991.2)",
+   "enterable": true,
+   "rooms": [
+    {"name": "main 방 (bed, sofa, table, curtain window with security bars)", "center": [-2002.5, 1004.0, 9998.75], "size": [15.0, 7.9, 13.5], "floorY": 1000.05, "ceilingY": 1007.95},
+    {"name": "TV / wardrobe nook (east)", "center": [-1992.5, 1004.0, 9996.6], "size": [5.0, 7.9, 9.2], "floorY": 1000.05, "ceilingY": 1007.95},
+    {"name": "kitchen strip (Room kitchen)", "center": [-2004.6, 1004.0, 10006.8], "size": [10.8, 7.9, 2.4], "floorY": 1000.05, "ceilingY": 1007.95},
+    {"name": "현관 (step-down tile)", "center": [-1997.1, 1003.8, 10006.8], "size": [4.2, 8.4, 2.4], "floorY": 999.55, "ceilingY": 1007.95},
+    {"name": "bath", "center": [-1992.5, 1004.0, 10004.6], "size": [5.0, 7.9, 6.8], "floorY": 1000.13, "ceilingY": 1007.95}
+   ],
+   "props": [
+    "312 parts excluding backdrop; lights: LampShade PointLight, BathLight PointLight, LEDPanel SurfaceLight, SensorLight PointLight (LightCount 4)",
+    "Fixtures: DoorLock + LockLED + LockHandle, Peephole, DoorCloser, Wallpad + screen, Thermostat + LCD, Switch, 2 Outlets, SmokeDetector, VentFan, EntryMirror, SensorLight, Window 9.8 wide (8 sash, 4 glass, 9 security Bars + 3 rails), 2 doors (entrance + bath with lever), LED panels x2, baseboards/crowns",
+    "Slots: curtain_linen_sheer (Room main), bed_supersingle 3.6x6.6, table_cafe2 (2 chairs), tv_43_cabinet (TV + screen + cabinet + soundbar), rug_round_beige, plant_monstera, lamp_floor_brass, sofa_loveseat_beige, purifier_white, deco_vase_stand, art_abstract_warm, shelf_open_white (4 boards + books)",
+    "Props: ShoeCabinet + 4 shoes, Kitchen (base cabinet, countertop, sink + faucet, 2-ring induction + panel, range hood + hood cabinet, 2 upper cabinets + under-cabinet LEDs, rice cooker, kettle, front-load Washer under the counter), Fridge column (fridge + microwave on top), Nightstand + lamp, Wardrobe 4.6x7.9x2 (3 handles), WallAC, Bathroom (toilet, vanity + basin + LED mirror, 3 shower glass panels, rain head, bath mat, towel), InteriorPanel",
+    "Interact: interior, bed, wardrobe, fridge, table '식사하기', tv, sofa, shower, window, mailbox '택배·우편 확인 (인터폰)'; ExitDoor; Spawn; Backdrop AlleyView + UtilityPole"
+   ],
+   "gameplay": [
+    "Same Housing/HS/GwangalliHome contract as the goshiwon entry (prompts on HomeInteract, FurnitureSlot swaps, Room/Surface themes, TV SurfaceGui on TVScreen, UseAt poses)",
+    "Listing oneroom -> HomeEntrance_oneroom at 미성맨션 (209.6,10.1,601.5)"
+   ],
+   "emptyOrCrude": [
+    "Furnished but sterile: no clutter (dishes, food, laundry, bag, laptop), no wallpaper texture, single-slab floors, beds/sofas built of boxes",
+    "Kitchen has no utensils, dish rack, cutting board, spice rack; no 분리수거 bins; no 빨래건조대 (common in 원룸), no bathroom toiletries (shampoo, toothbrush cup), no toilet paper holder"
+   ],
+   "realWorld": [
+    "풀옵션 원룸: 드럼세탁기 (싱크대 하부), 냉장고 (소형 2도어), 2구 인덕션 + 후드, 전자레인지, 벽걸이 에어컨, 붙박이장, 신발장 + 전신거울, 비디오폰 인터폰, 디지털 도어락, 보일러 온도조절기, 방범창, 블라인드/커튼, LED 방등 + 현관 센서등, 욕실 (샤워부스/커튼, 수건장, 환풍기, 휴지걸이), 슈퍼싱글 침대, 행거, 접이식 테이블, 빨래건조대, 분리수거 봉투, 택배 박스"
+   ],
+   "interactionIdeas": [
+    "Washer: 'start laundry' (drum spin, 30 s, clean clothes stat), hang on drying rack",
+    "Induction: 'cook 라면/계란' (pot prop, steam), sink 'wash dishes', rice cooker 'cook rice' (steam valve)",
+    "Wallpad/intercom: answer door (visitor camera), delivery '배달음식 받기' at door, light switch toggles Room lights, curtain open/close, AC remote, air purifier mode LED"
+   ]
+  },
+  {
+   "name": "HomeUnit_officetel - 테라스타오션 오피스텔 (tier 3, 복층 loft, sea view)",
+   "path": "ServerStorage.GwangalliHomes.HomeUnit_officetel (runtime clone: Workspace.GwangalliHomeInstances.Home_<UserId>)",
+   "bounds": "template interior (-15.8,999.0,9990.7)..(15.8,1016.5,10009.3), UnitRoot (0,1000,10000); Backdrop sea/광안대교/skyline (-588,910,9816)..(798,1141,10020)",
+   "enterable": true,
+   "rooms": [
+    {"name": "living (double height, 30-wide full-height glazing to the sea)", "center": [0.0, 1008.0, 9996.5], "size": [30.0, 15.9, 10.0], "floorY": 1000.05, "ceilingY": 1015.95},
+    {"name": "kitchen under the loft (bar table)", "center": [-5.9, 1004.15, 10005.0], "size": [18.2, 8.2, 7.0], "floorY": 1000.05, "ceilingY": 1008.25},
+    {"name": "bath", "center": [6.2, 1004.1, 10005.0], "size": [5.6, 8.1, 7.0], "floorY": 1000.13, "ceilingY": 1008.25},
+    {"name": "현관 + hall", "center": [12.0, 1003.9, 10005.0], "size": [6.0, 8.4, 7.0], "floorY": 999.55, "ceilingY": 1008.25},
+    {"name": "loft 복층 침실 (stair at x-15..-12.3, glass railing)", "center": [0.0, 1012.15, 10005.0], "size": [30.0, 7.6, 7.0], "floorY": 1008.35, "ceilingY": 1015.95}
+   ],
+   "props": [
+    "383 parts excluding backdrop; lights: LampShade PointLight, BathLight PointLight, PendantLED SurfaceLight, KitchenLinear SurfaceLight",
+    "Fixtures: Glazing (4 glass, 4 frames, 3 mullions, transom, sill), Stair (9 steps + 9 treads + stringer), GlassRailing (loft) + StairRailing, 3 Downlights (kitchen) + KitchenLinear, LinearPendants (2 bodies + LED + 4 cables), ArtWall + ArtWallLED, Wallpad, Thermostat, DoorLock, Peephole, SensorLight, 2 doors",
+    "Slots: curtain_double_height 30x15.6, sofa_fabric3_grey, coffee_oak, rug_grey_wool, tv_55_wall, desk_oak_window (monitor + laptop), chair_office_mesh, lamp_floor_brass, plant_olive_tree, plant_sansevieria, art_canvas_sea, bartable_oak2 (2 stools), bed_queen_platform (loft), standac_white, purifier_white, deco_vase_stand",
+    "Props: ShoeCabinet with niche LED + mirror + diffuser + tray, Kitchen (2 base cabinets, 13 door seams, 3-ring induction, hood, sink, rice cooker, kettle, washer), Fridge, Nightstand, LoftWardrobe 6 wide, LoftDetail (rug + plant), Bathroom (26 parts), InteriorPanel",
+    "Interact: interior, sofa, tv, desk, table (bartable), fridge, bed (loft), wardrobe (loft), shower, window '바다 보기', mailbox"
+   ],
+   "gameplay": [
+    "Same Housing/HS contract; window kind triggers the photo moment (G.HOME_PHOTO_COOLDOWN 90 s) toward the sea backdrop (Coast, 광안대교 49 parts, Skyline 38, Neighbours, FacadeBelow)",
+    "Listing officetel -> HomeEntrance_officetel at TERRASTAR OCEAN (-1495.2,10.1,34.8)"
+   ],
+   "emptyOrCrude": [
+    "Big living volume (30x10x16) with a sofa, TV and desk: walls bare except the art wall; no clutter; no system AC cassette (stand AC only)",
+    "Loft stair is plain stacked boxes (no 수납계단 drawers); kitchen lacks utensils, dish rack, microwave; no 빨래건조대 (officetels have no veranda)"
+   ],
+   "realWorld": [
+    "복층 오피스텔: 천장형 시스템에어컨 (복층 위아래), 빌트인 냉장고 + 드럼세탁기 + 인덕션 + 후드 + 전자레인지, 수납 계단 (서랍 계단), 복층 유리난간, 복층 침대 매트리스 (층고 낮음), 전면 통창 + 전동 블라인드/암막커튼, 월패드 (방문자 영상, 관리비, 택배 도착 알림, 엘리베이터 호출), 현관 붙박이 신발장 + 전신거울, 실내 빨래건조대, 욕실 (샤워부스, 비데, 수건장), 공기청정기, 로봇청소기, 홈카페 머신"
+   ],
+   "interactionIdeas": [
+    "Wallpad: '엘리베이터 호출', '택배 도착 확인', '관리비 보기' (ties to bills), visitor camera",
+    "Motorized blinds / curtains open-close for the sea view; system AC cassette on/off with vane animation",
+    "Robot vacuum toggle (drives a loop), home-cafe capsule machine, loft stair drawers open"
+   ]
+  },
+  {
+   "name": "HomeUnit_apartment - 광안자이 아파트 84㎡ (tier 4, 3 rooms 2 baths, listing xi_apt)",
+   "path": "ServerStorage.GwangalliHomes.HomeUnit_apartment (runtime clone: Workspace.GwangalliHomeInstances.Home_<UserId>)",
+   "bounds": "template interior (1979.2,998.6,9980.2)..(2020.8,1008.7,10015.8), UnitRoot (2000,1000,10000); Backdrop city + 광안대교 (1440,775,9812)..(2560,1097,10003)",
+   "enterable": true,
+   "rooms": [
+    {"name": "living 거실 (tray ceiling + cove, sofa chaise, 65-inch TV, art wall)", "center": [2001.0, 1004.2, 9992.0], "size": [16.0, 8.25, 14.0], "floorY": 1000.05, "ceilingY": 1008.3},
+    {"name": "kitchen + dining (island with 3 stools, fridge column, 4-seat dining)", "center": [2003.0, 1003.9, 10007.0], "size": [20.0, 7.7, 16.0], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "master bedroom 안방", "center": [1986.5, 1003.9, 9994.0], "size": [13.0, 7.7, 18.0], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "dress room 드레스룸", "center": [1990.0, 1003.9, 10009.0], "size": [6.0, 7.7, 12.0], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "master bath 안방 욕실", "center": [1983.5, 1003.9, 10009.0], "size": [7.0, 7.7, 12.0], "floorY": 1000.13, "ceilingY": 1007.75},
+    {"name": "study 서재 · 작은방 (desk, daybed, tall bookshelf)", "center": [2014.5, 1003.9, 9991.0], "size": [11.0, 7.7, 12.0], "floorY": 1000.05, "ceilingY": 1007.75},
+    {"name": "common bath 공용 욕실 (bathtub)", "center": [2016.5, 1003.9, 10001.0], "size": [7.0, 7.7, 8.0], "floorY": 1000.13, "ceilingY": 1007.75},
+    {"name": "현관 + 중문 (sliding glass Jungmun)", "center": [2016.5, 1003.7, 10010.0], "size": [7.0, 8.2, 10.0], "floorY": 999.55, "ceilingY": 1007.75},
+    {"name": "veranda 베란다 (washer + dryer, drying rack)", "center": [1986.5, 1003.6, 9983.0], "size": [13.0, 7.85, 4.0], "floorY": 999.7, "ceilingY": 1007.55}
+   ],
+   "props": [
+    "759 parts excluding backdrop; lights: 2 LEDPanel SurfaceLights, PendantBulb PointLight, TrayLight SurfaceLight (LightCount 4) for 9 rooms",
+    "Fixtures: 5 smoke detectors, 4 outlets, 4 switches, wallpad, thermostat, doorlock + LED + handle, peephole, door closer, entry mirror, Cove (4 CoveLED + TrayLight), 2 windows (living 4 frames/16 sash/8 glass; study), VerandaDoor, VerandaWindow, StudyBlind, 6 doors (3 swing with levers, 1 opening, entrance), Jungmun (4 stiles, 4 bars, 2 glass, track, head), 3 kitchen pendants, 8 kitchen downlights, 4 living downlights, ArtWall + 2 trims",
+    "Slots (18): curtain_linen_sheer (living), curtain_blackout_grey (bedroom), sofa_fabric_chaise, coffee_marble_round, rug_wool_beige, tv_65_wall, lamp_floor_arc, plant_ficus_tree, plant_monstera, art_pair_warm, standac_white, purifier_beige, deco_vase_stand, dining_oak4 (4 chairs), bed_queen_upholstered, desk_study_oak, chair_office_mesh, bookshelf_tall_white",
+    "Props: ShoeCabinetWall (niche LED, mirror, diffuser, tray), shoes + slippers, Kitchen (36: cabinets, 3-ring induction, hood, sink, microwave, rice cooker, kettle), FridgeColumn (2 bodies + 2 doors + display + top cabinet = 양문형), Island (body, top, 2 ends, 3 stools), MasterBedside (2 nightstands + lamps), Dresser + mirror + stool + perfume, MasterTV, MasterAC wall unit + pipe cover, Veranda (washer + dryer stack, basket, rack + 6 laundry, 2 plants), DressRoom (2 rails, 17 clothes, 2 shelves, mirror), MasterBath (29), CommonBath (tub walls, tub water, tub glass, vanity, toilet, shower head), Daybed (study), StudyAC",
+    "Interact (13): interior, sofa, tv, window '광안대교 보기', window '베란다 창밖 보기', fridge, table (dining), bed, wardrobe '옷 갈아입기 (드레스룸)', shower (master), shower '반신욕 하기' (common bath), desk, mailbox '월패드 (택배·관리비·방문자)'"
+   ],
+   "gameplay": [
+    "Same Housing/HS contract; HS.ROOM_FACTOR scales theme prices per room (bath 0.6, dress 0.6, veranda 0.6, study 0.8); TIER_MULT apartment 2.8; listing xi_apt (buy, Journey 'buyable homes' 1,200만) -> HomeEntrance_apartment at 광안자이 정문",
+    "Max guests 6 (집들이 visits, doorbell, invite, kick/ban)"
+   ],
+   "emptyOrCrude": [
+    "Good room set, but lighting is 4 real lights for 9 rooms (most fixtures are neon), all furniture boxes; walls plain, floors single slabs",
+    "Missing Korean apartment staples: 김치냉장고, 식기세척기, 정수기, 에어프라이어, 팬트리, 보일러/다용도실, 분리수거함, 로봇청소기, 거실 시스템에어컨 (only stand AC), 가족사진/달력/시계, 아이방 (only one small room used as study)",
+    "Kitchen and baths have no small items (dishes, cups, towels sets, toiletries, bidet seat)"
+   ],
+   "realWorld": [
+    "84㎡ (34평) 3룸 2욕실: 현관 (중문, 신발장 + 벤치, 센서등, 디지털 도어락, 전신거울), 거실 (아트월, 3-4인 소파, 거실장 + 65형 TV, 스탠드 + 시스템 에어컨, 공기청정기, 러그, 이중 커튼, 확장형 거실 창 광안대교 뷰), 주방 (ㄷ자 싱크대 + 아일랜드, 양문형 냉장고 + 김치냉장고 (필수), 3구 인덕션, 후드, 식기세척기, 전기밥솥, 정수기, 전자레인지, 에어프라이어, 팬트리, 식탁 4인), 다용도실 (세탁기 + 건조기 직렬, 보일러, 빨래건조대, 분리수거함), 안방 (퀸/킹 침대, 협탁, 화장대, 붙박이장 + 드레스룸, 안방 욕실: 샤워부스, 이중 세면대, 비데), 작은방 2 (서재, 아이방/게스트), 공용 욕실 (욕조, 비데, 수납장), 월패드 (엘리베이터 호출, 방문자, 관리비), 온도조절기 각방, 로봇청소기, 실내 화분, 가족사진 액자, 벽시계, 달력"
+   ],
+   "interactionIdeas": [
+    "Kimchi fridge 'take 김치' (meal bonus), dishwasher load/start, water purifier 'pour water' (thirst), air fryer cook",
+    "Veranda washer -> dryer -> fold laundry at the dress room (clean clothes stat), boiler/thermostat set 온도 (comfort)",
+    "Wallpad 'call elevator' / 'visitor' / 'pay 관리비', robot vacuum, master bath bidet seat, bathtub fill (water rises) for 반신욕, kids' room toy box"
+   ]
+  },
+  {
+   "name": "HomeUnit_penthouse - 아쿠아펠리스 오션뷰 펜트하우스 (tier 5, duplex, listing aqua_ph)",
+   "path": "ServerStorage.GwangalliHomes.HomeUnit_penthouse (runtime clone: Workspace.GwangalliHomeInstances.Home_<UserId>)",
+   "bounds": "template interior (3969.2,999.0,9974.0)..(4030.8,1018.9,10014.8), UnitRoot (4000,1000,10000); Backdrop coast/광안대교/skyline/neighbours incl. 호메르스호텔 + 켄트호텔 (3380,810,9817)..(4620,1062,10013)",
+   "enterable": true,
+   "rooms": [
+    {"name": "living (double height ~18, chandelier, fireplace feature wall, 85-inch frame TV, grand piano)", "center": [4000.0, 1009.0, 9998.95], "size": [24.0, 17.9, 21.1], "floorY": 1000.05, "ceilingY": 1017.95},
+    {"name": "dining + home bar (6-seat marble table, 70-bottle bar)", "center": [3979.0, 1004.5, 9995.0], "size": [18.0, 8.9, 14.0], "floorY": 1000.05, "ceilingY": 1008.95},
+    {"name": "kitchen (island, tall fridge column)", "center": [3979.0, 1004.5, 10008.0], "size": [18.0, 8.9, 12.0], "floorY": 1000.05, "ceilingY": 1008.95},
+    {"name": "foyer / entry (console, sculpture, mirror, coat wardrobe)", "center": [4000.0, 1004.5, 10011.8], "size": [24.0, 8.9, 4.5], "floorY": 1000.05, "ceilingY": 1008.95},
+    {"name": "study 서재 (executive desk, walnut wall bookshelf, lounge chair)", "center": [4021.0, 1004.4, 9997.0], "size": [18.0, 8.7, 18.0], "floorY": 1000.05, "ceilingY": 1008.75},
+    {"name": "wine room (glass wall, 62 bottles) + powder room", "center": [4021.0, 1004.4, 10010.0], "size": [18.0, 8.7, 8.0], "floorY": 1000.05, "ceilingY": 1008.75},
+    {"name": "mezzanine master bedroom (king bed, ocean-view tub, dress area)", "center": [4021.0, 1013.65, 9996.5], "size": [18.0, 8.6, 17.0], "floorY": 1009.35, "ceilingY": 1017.95},
+    {"name": "master bath (upper level)", "center": [4025.6, 1013.8, 10009.6], "size": [8.7, 8.4, 8.8], "floorY": 1009.6, "ceilingY": 1017.95},
+    {"name": "terrace (jacuzzi, fire table, loungers, canopy)", "center": [4000.0, 1009.0, 9981.1], "size": [60.0, 18.3, 13.8], "floorY": 999.8}
+   ],
+   "props": [
+    "889 parts excluding backdrop (Plastic 209, Glass 171, Metal 152, Fabric 82, Wood 72, Neon 65); lights: LampShade PointLight, Terrace CanopyLight SpotLight, LinearPendantLED SurfaceLight, ChandelierCore PointLight",
+    "Fixtures: ceiling-cassette AC + grille, wallpad, thermostat, doorlock + pull handle, 5 smoke detectors; glazing (dining, living L/R, study, 17-part upper glazing) + sliding glass leaves to the terrace; TerraceRailing + TerraceBarrier; 4 doors; Fireplace (glass, neon flame, hearth 11.2 long), Chandelier (8 rings + 8 RingLEDs + 3 cables + core), Stair (10 treads + stringer) + StairRailing + MezzRailing, ~20 downlights, DiningPendant linear",
+    "Slots (21): tv_85_frame, sofa_boucle_modular 11 wide, coffee_travertine_pair, rug_silk_grey 14x11, chair_lounge_walnut x2, art_large_abstract 9x6, art_bridge_photo, plant_olive_large, plant_ficus, lamp_floor_arc_brass, dining_marble6, desk_walnut_executive, chair_office_leather, bookshelf_walnut_wall 9x8, bed_king_upholstered, purifier_beige, curtain_sheer_white x2, curtain_linen_ivory, deco_vase_stand x2",
+    "Props: Terrace (63: hot tub body/water/glow/step, fire table + flame, outdoor sofa, 3 loungers + rolled towels, 4 planters with trees, parasol, 4 wall washers), Foyer (console, sculpture, vase, mirror, wardrobe), GrandPiano (case, tail mesh, lid, key bed, keys, 3 legs, bench), Bar (bar body/top, back bar, 5 bottle shelves + 70 bottles + 7 flutes, 3 stools, LEDs), Kitchen (42), Study (lounge chair, rug), WineRoom (62 bottles on 6 shelves), Powder (toilet, vanity, LED mirror), MasterSuite (2 nightstands, bed bench, lounge chair, closet drawers, rail + 6 clothes, ocean-view tub), MasterBath (29)",
+    "Interact (15): sofa, tv, window '광안대교 야경 보기', window '침실 창밖 보기', table, fridge, desk, bed, wardrobe, shower '레인 샤워', shower '오션뷰 욕조 반신욕', sofa '선베드에 눕기' (terrace), shower '자쿠지' (terrace), mailbox '월패드 (컨시어지·택배)', interior"
+   ],
+   "gameplay": [
+    "Same Housing/HS contract; max guests 10; TIER_MULT 4; Grades.HOST_LISTINGS + ProgressShared level-15 'penthouse' goal; Journey buyable-home step (4,800만); HomeEntrance_penthouse at the Aqua Palace lobby",
+    "Backdrop Neighbours includes '호메르스호텔' and '켄트호텔' blocks (the view is a painted set, not the map)"
+   ],
+   "emptyOrCrude": [
+    "Richest unit, but the grand piano, home bar, wine room and fireplace are props with no interaction",
+    "Only 4 real lights for a double-height duplex at night (chandelier ring LEDs are neon); box geometry; no art lighting, no private elevator hall (the listing sign promises '입주민 전용 엘리베이터 · 컨시어지')",
+    "No guest bedroom, no laundry, no smart-home panel content; terrace has no BBQ grill"
+   ],
+   "realWorld": [
+    "Busan beachfront penthouse (해운대/광안리 레지던스): 전용 엘리베이터 홀 + 대리석 현관 + 콘솔/거울, 복층 거실 (층고 5-6 m, 통창, 대형 샹들리에, 벽난로), 모듈 소파, 그랜드 피아노, 와인셀러 (온도 디스플레이), 홈바 + 아이스메이커, 아일랜드 키친 + 빌트인 가전 (인덕션, 오븐, 식기세척기, 와인냉장고), 6-8인 대리석 식탁, 서재, 마스터 스위트 (킹 침대, 워크인 드레스룸, 욕실 + 오션뷰 욕조, 이중 세면대), 게스트 룸 + 파우더룸, 테라스 (자쿠지, 선베드, 파이어 테이블, 바비큐 그릴, 아웃도어 다이닝), 스마트홈 터치패널, 시스템 에어컨, 전동 커튼, 컨시어지 월패드, 미술품 + 픽처 조명"
+   ],
+   "interactionIdeas": [
+    "Grand piano 'play' (short melody, sit pose on bench), home bar 'mix cocktail', wine room 'pick a bottle' (temperature display), fireplace on/off (flame neon + light)",
+    "Smart-home panel: scene buttons (영화 모드: curtains close + lights dim + TV on; 파티 모드: bar LEDs + music), motorized curtains",
+    "Terrace: jacuzzi bubbles toggle, BBQ grill cook, fire table toggle, sunset/drone-show photo; concierge wallpad 'order room service / call valet'"
+   ]
+  }
+ ],
+ "notes": "SCOPE + METHOD: parsed /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7place/place.bin (pickled to bld/hh/all.pkl; tree dumps bld/hh/t0-t7.txt landmarks/homes, bld/hh/h_HomeUnit_*.txt templates, bld/hh/dens.json per-room prop density) and grepped the full v7 script dump bld/src/** (523 files) plus v7all/gen/addons/zip/**. Coordinates are world studs (y up; ground floor top ~6.75). Material ids in the dump (M11 SmoothPlastic, M10 Metal, M13 Glass, M67 Neon, M45 Fabric, M83/M77 Wood, M37 Plaster, M88 Tile, M233 Marble, M231 Carpet, M48/M28 Concrete) are inferred.\n\nKEY FINDINGS\n1) Hotels/landmarks: only the ground floors are walk-in (AutoDoor). Every upper venue - Homers 2F-4F banquet strips, 6F front lounge, 6 ON ROOF TOP; Aqua Palace 2F 광안차이나, 6F waterpark (152x113 hall), 8F-9F 찜질방 (10-deep strips), 21F observatory + skywalk, rooftop infinity pool; Kent 2F cafe, 15F sky lounge, rooftop bar; culture-center 2F-3F sea gallery - has no stair, escalator or working elevator. Lobby elevators are decoration (no ElevatorButton tag). Two photo spots (GwangalliInteractShared 'rooftop' (209,75,135) yMin60 and 'infinity' (-60,258,155) yMin220) therefore cannot be reached. The existing ElevatorButton (attrs Floor, Target='ElevatorStop_<n>', Label) + ElevatorStop part contract handled by ServerScriptService.GwangalliGameplay.Venues (fade + safe teleport, also used by StreetInteract/Places for NPCs) is the zero-code way to connect them: today it is only used in Workspace.Gwangalli.bowling['상층_2F-4F']['엘리베이터_광안빌딩']. It needs server-side tagged parts (a client-only build cannot create working ElevatorButtons).\n2) Floors above the amenity levels (Homers 7F-20F, Aqua 10F-20F, Kent 3F-14F, culture 4F-5F) are solid 'Core' blocks behind NightWindow glass; hotel rooms exist only in the Annex instance.\n3) Real hotel program (web check): Homers 1F 수제맥주, 2F 조식당/세미나, 3F 웨딩홀, 4-5F 연회장, 6F 프런트 + 6 ON ROOF TOP; Aqua Palace 실내 비치 워터파크 (파도풀, 바디슬라이드), 816 m 온천수 24h 오션뷰 사우나·찜질방, 2F 조식, 21F 스카이전망대; Kent: 24h desk, 뷔페, 커피숍, 루프탑 (15F reception not confirmed). The map's static floor plan matches these; the Annex inside does not (generic 'HOTEL SEASIDE GWANGAN' casino hotel A.hotel for all three, LogoWall text hard-coded).\n4) Density (non-shell visible parts per 100 sq studs): Homers lobby 8.1, wedding lobby 1.7, 2F/3F/4F 2.1/1.4/1.1, 6F front 1.7, roof 4.6, Bronx 9.8; tourist info 8.5, police 2.0, gallery 0.8; Aqua lobby 4.3, leisure front 1.2, 홍미당 6.6, 2F China 1.3, waterpark 1.3, 찜질방 1.3, observatory 0.13, roof pool 0.9; Kent lobby 4.5, GS25 27, 2F cafe 4.1, sky lounge 3.2, roof bar 1.9. Lights: Homers 5 PointLights total, Aqua 3 SurfaceLight + 3 PointLight, Kent 2 PointLight + 1 SurfaceLight; everything else is Neon slabs.\n5) Staff/flows: ShopStaff only treats BaseParts named PosBase/POS/BarCounter/FrontDesk/CashierPanel outside storefronts as counters, so hotel FrontDesk/ConciergeDesk/LeisureFront/InfoCounter/PoliceDesk/BarCounter (all Models) get NO NPC; 홍미당 (POS part) and GS25 광안해변점 (PosBase parts) do. ShopLife (ordering/eating) covers none of the landmark shops (needs Interior+ShopFloor, GwShop tag, or the convenience venue).\n6) Systems that read these models and must not be broken: GwangalliDoors (AutoDoor models + leaf attrs OpenOffset/ClosedCFrame/Collides), Annex (DoorLeaf/LobbyDoor/EntranceDoor/FrontDoor/Door/GlassDoor/ShopDoor/BackDoor/ServiceDoor part names, Sign_* texts, ShopGlass/ShopWindow; model attrs Annex/AnnexKind/AnnexFloors), MapIndex (Core/Pier/Spandrel/Roof children mark a building), Destination tag + DisplayName (taxi, delivery, nav, HUD, quests), NightWindow/NightGlow/NightNeon/NeonTube/LEDScreen(Messages)/NearLOD/InteriorLight/GwSurfaceGui tags, GwangalliTextures skips LOD='near' ancestors, Details lost-wallet counter at (96,6.5,101) outside the tourist center. New client parts should be CanQuery=false and not named like Annex door parts.\n7) Homes: Workspace.Gwangalli.homes only holds 5 HomeEntrance portals (non-colliding prompt part + neon cue + kiosk sign). The real interiors are ServerStorage.GwangalliHomes.HomeUnit_<tier> templates (goshiwon 228 parts, oneroom 312, officetel 383, apartment 759, penthouse 889, excluding window backdrops) staged at x=-4000/-2000/0/2000/4000, y=1000, z=10000 and cloned per owner by ServerScriptService.GwangalliGameplay.Housing into Workspace.GwangalliHomeInstances (Home_<UserId> / Tour_<UserId>) at G.homeSlotPosition: x=0, y=4000+row*1400, z=(col-3.5)*3200, 8 columns, PrimaryPart UnitRoot, ModelStreamingMode PersistentPerPlayer. Contract to preserve: UnitRoot, Spawn, ExitDoor, HomeInteract (Kind/Label/SlotId/UseAt Pose), FurnitureSlot Models (server swaps furniture), Room+Surface attrs (theme recolour), Lights with Room, Backdrop, TVScreen/Screen (client TV gui), attrs HomeOwnerId/HomeTier/HomeListing/TvOn/Staged. An AAA client overlay must key off those model attrs and re-run when furniture slots change; it should add detail around the shell (mouldings, outlets, clutter, appliances) and mirror theme colours rather than hide Room/Surface parts. GwangalliHomesFloors v2 defines 14 layouts but only the 5 tier templates exist in v7 and Housing.templateFor only looks up HomeUnit_<tierKey>; homes.Buildings (lobbies/halls) referenced by HomesFloors does not exist in the place.\n8) Entrance surroundings are crude: goshiwon portal stands next to 광안 메디컬 의원 with no 고시원 building; 미성맨션 'Lobby' is a solid brick cube; TERRASTAR OCEAN lobby has an empty Interior model; 광안자이 has only the gate; the penthouse portal overlaps the Aqua Palace AutoDoor and its Annex prompt (3 prompts at one door).\nSources (web): https://mom-mom.net/travel/properties/64f0b3b4acda0efda76e4f04 , https://kr.trip.com/hotels/busan-hotel-detail-1171946/homers-hotel-busan/ , https://mom-mom.net/travel/properties/64f80bafacd3f742aa51a681 , https://www.ktriptips.com/kor/stay/397655 , https://mom-mom.net/travel/properties/64f0b9f64115596698521126 , https://www.trvlogue.com/ko/busan-aquapalace-review"
+}

@@ -1,0 +1,168 @@
+// node gp.js <html> <outDir> : GwangalliPasses functional test in the temp studio
+const { chromium } = require('/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/harness/node_modules/playwright');
+const fs = require('fs');
+const [html, outDir] = process.argv.slice(2);
+fs.mkdirSync(outDir, { recursive: true });
+(async () => {
+  const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+  p.setDefaultTimeout(600000);
+  p.on('pageerror', (e) => console.log('[pageerror]', e.message.slice(0, 300)));
+  p.on('console', (m) => { const t = m.text(); if (/GwangalliPasses|\[GP\]|Passes/.test(t)) console.log('[c]', t.slice(0, 500)); });
+  await p.addInitScript(() => {
+    window.__mems = [];
+    const grab = (r, imp) => { try { const inst = r && (r.instance || r); if (inst && inst.exports) for (const k in inst.exports) if (inst.exports[k] instanceof WebAssembly.Memory) window.__mems.push(inst.exports[k]); if (imp) for (const ns in imp) for (const k in imp[ns]) if (imp[ns][k] instanceof WebAssembly.Memory) window.__mems.push(imp[ns][k]); } catch (e) {} return r; };
+    const oi = WebAssembly.instantiate; WebAssembly.instantiate = function (a, imp) { return oi.apply(this, arguments).then((r) => grab(r, imp)); };
+    const os = WebAssembly.instantiateStreaming; if (os) WebAssembly.instantiateStreaming = function (a, imp) { return os.apply(this, arguments).then((r) => grab(r, imp)); };
+  });
+  await p.goto('file://' + html);
+  await p.waitForFunction(() => window.GW && GW.engine && GW.engine.running, null, { timeout: 400000 });
+  const mem = async (tag) => console.log('MEM', tag, await p.evaluate(() => (window.__mems || []).map((m) => Math.round(m.buffer.byteLength / 1048576) + 'MB').join(',')));
+  await mem('engine');
+  await p.waitForFunction(() => window.__gpInjected === true, null, { timeout: 400000 });
+  console.log('injected');
+  await mem('injected');
+  const ev = (code) => p.evaluate((c) => GW.engine.eval(c).then((r) => String(r)).catch((e) => 'ERR ' + e), code);
+  const PRE = 'local Sched = GW.require("sched") local Env = GW.require("env") local S = GW.require("services").S local DT = GW.require("datatypes").globals local CFrame, Vector3 = DT.CFrame, DT.Vector3 local out = "?"\n';
+  const srv = (body) => ev(PRE + `Sched.runIn(Env.serverCtx, function() local ok, e = pcall(function()\n${body}\nend) if not ok then out = "ERR " .. tostring(e) end end) Sched.flush() return out`);
+  const cliCtx = `local CC = Env.clientCtx or (Env.peers and Env.peers.client and (Env.peers.client.ctx or Env.peers.client))`;
+  const cli = (body) => ev(PRE + cliCtx + `\nif not CC then return "NOCLIENT" end Sched.runIn(CC, function() local ok, e = pcall(function()\n${body}\nend) if not ok then out = "ERR " .. tostring(e) end end) Sched.flush() return out`);
+  const shot = async (name, eye, at, fov) => {
+    if (eye) {
+      await p.evaluate(() => CameraCtl.suspend());
+      for (let k = 0; k < 8; k++) {
+        await p.evaluate((s) => { const cam = Render3D.camera; cam.position.fromArray(s.eye); cam.up.set(0, 1, 0); cam.lookAt(...s.at); cam.fov = s.fov || 50; cam.near = 0.05; cam.updateProjectionMatrix(); }, { eye, at, fov });
+        await p.waitForTimeout(250);
+      }
+    }
+    await p.screenshot({ path: `${outDir}/${name}.png` });
+    if (eye) await p.evaluate(() => { try { CameraCtl.resume(); } catch (e) {} });
+    console.log('shot', name);
+  };
+  const tp = (x, y, z, lx, lz) => srv(`local ch = S.player.Character local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+    hrp.Anchored = false
+    ch:PivotTo(CFrame.lookAt(Vector3.new(${x}, ${y}, ${z}), Vector3.new(${lx}, ${y}, ${lz})))
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    out = "tp " .. tostring(hrp.Position)`);
+  const API = `local SS = S.game:GetService("ServerStorage") local api = SS:FindFirstChild("GwangalliPassesAPI")`;
+  // A. wait for the features
+  let ready = '';
+  for (let i = 0; i < 90; i++) {
+    ready = await srv(`local f = S.game:GetService("ReplicatedStorage"):FindFirstChild("GwangalliPassesRemotes") out = tostring(f and f:GetAttribute("GwPassesReady"))`);
+    if (/"garage":true/.test(ready) && /"market":true/.test(ready) && /"ko":true/.test(ready)) break;
+    await p.waitForTimeout(3000);
+  }
+  console.log('A ready', ready);
+  await mem('ready');
+  await p.waitForTimeout(30000);
+  await mem('idle30');
+  console.log('C0 plain', await srv(`local f = S.game:GetService("ServerStorage").GwangalliVehiclesAPI local ok, msg = f:Invoke("spawnOwned", S.player, { id = "dbg", kind = "luxury", plate = "12가 3456", cond = 100, label = "dbg" }, { force = true }) out = "ok=" .. tostring(ok) .. " msg=" .. tostring(msg)`));
+  await mem('plainSpawn');
+  console.log('C0 despawn', await srv(`local f = S.game:GetService("ServerStorage").GwangalliVehiclesAPI out = tostring(f:Invoke("despawn", S.player))`));
+  await p.waitForTimeout(3000);
+  console.log('A env', await ev(PRE + cliCtx + ` return "clientCtx=" .. tostring(CC ~= nil) .. " studio=" .. tostring(S.game:GetService("RunService"):IsStudio())`));
+  // B. state
+  console.log('B', await srv(`local SS = S.game:GetService("ServerStorage") local t = SS:FindFirstChild("GwangalliPassesTemplates")
+    local names = {} for _, m in (t and t:GetChildren() or {}) do local n = 0 for _, d in m:GetDescendants() do if d:IsA("BasePart") then n += 1 end end table.insert(names, m.Name .. "=" .. n .. ":" .. tostring(m:GetAttribute("VehicleKind"))) end
+    local pv = S.game:GetService("ReplicatedStorage"):FindFirstChild("GwangalliPassesPreviews")
+    local st = S.game.Workspace:FindFirstChild("GwangalliPassesWorld")
+    local body = st and st:FindFirstChild("Body", true)
+    local own = {} for _, k in { "PremiumGarage", "Convenience", "Flex" } do table.insert(own, k .. "=" .. tostring(S.player:GetAttribute("GwPass_" .. k))) end
+    out = "templates " .. table.concat(names, " ") .. " | previews " .. tostring(pv and #pv:GetChildren()) .. " | station " .. tostring(body and body.Position) .. " | " .. table.concat(own, " ") .. " | atGarage " .. tostring(S.player:GetAttribute("GwPassAtGarage"))`));
+  await shot('00_station', [-536, 12, 492], [-542, 9, 477], 50);
+  // C. summon each premium car next to the player on the 정비소 forecourt
+  const cars = ['hyper', 'super', 'vip', 'offroad'];
+  for (const key of cars) {
+    console.log('C tp', await tp(-556, 10, 487, -556, 520));
+    await p.waitForTimeout(2500);
+    const r = await srv(`${API} local ok, msg = api:Invoke("summon", S.player, "${key}", "here")
+      local f = S.game.Workspace:FindFirstChild("GwangalliPlayerCars") local m = nil
+      for _, c in (f and f:GetChildren() or {}) do if c:GetAttribute("GwPremiumCar") == "${key}" then m = c end end
+      local VS = require(S.game:GetService("ReplicatedStorage").GwangalliVehiclesShared)
+      local pos = m and m:GetPivot().Position
+      local frames = 0 if m then for _, d in m:GetDescendants() do if d.Name == "GwPlateFrame" then frames += 1 end end end
+      out = string.format("ok=%s msg=%s model=%s rigged=%s kind=%s plate=%s owned=%s top=%s pos=%s dist=%.1f frames=%d", tostring(ok), tostring(msg), tostring(m and m.Name), tostring(m and m:GetAttribute("DriveRigged")), tostring(m and m:GetAttribute("VehicleKind")), tostring(m and m:GetAttribute("DrivePlate")), tostring(m and m:GetAttribute("DriveOwnedCar")), tostring(m and VS.spec(m:GetAttribute("VehicleKind")).topKmh), tostring(pos), pos and (pos - S.player.Character.HumanoidRootPart.Position).Magnitude or -1, frames)
+      if pos then out ..= string.format(" @%.1f,%.1f,%.1f", pos.X, pos.Y, pos.Z) end`);
+    console.log('C', key, r);
+    await mem('after ' + key);
+    const m = r.match(/@(-?[\d.]+),(-?[\d.]+),(-?[\d.]+)/);
+    if (m) {
+      const [x, y, z] = [Number(m[1]), Number(m[2]), Number(m[3])];
+      await p.waitForTimeout(2500);
+      await shot('01_car_' + key, [x + 11, y + 5, z + 11], [x, y + 1.5, z], 45);
+      await shot('02_car_' + key + '_rear', [x - 10, y + 4, z - 12], [x, y + 1.5, z], 45);
+    }
+    await p.waitForTimeout(4600);
+  }
+  // D. 원격 차고 lock (no pass)
+  console.log('D noadmin', await srv(`S.player:SetAttribute("GwangalliAdmin", false) out = "ok"`));
+  await p.waitForTimeout(1500);
+  console.log('D give', await srv(`local g = S.game:GetService("ServerStorage").GwangalliGarageAPI local v = g:Invoke("give", S.player, "sedan") out = tostring(v and v.id) .. " pass=" .. tostring(S.player:GetAttribute("GwPass_PremiumGarage"))`));
+  console.log('D tp far', await tp(-513, 10, 245, -513, 200));
+  await p.waitForTimeout(2500);
+  console.log('D call far', await srv(`local g = S.game:GetService("ServerStorage").GwangalliGarageAPI local cars = g:Invoke("cars", S.player) local id = cars and cars[#cars] and cars[#cars].id
+    local r = g:Invoke("request", S.player, "call", { id = id }) out = "atGarage=" .. tostring(S.player:GetAttribute("GwPassAtGarage")) .. " ok=" .. tostring(r and r.ok) .. " msg=" .. tostring(r and r.message)`));
+  console.log('D tp station', await tp(-542, 10, 482, -542, 470));
+  await p.waitForTimeout(2500);
+  console.log('D call station', await srv(`local g = S.game:GetService("ServerStorage").GwangalliGarageAPI local cars = g:Invoke("cars", S.player) local id = cars and cars[#cars] and cars[#cars].id
+    local r = g:Invoke("request", S.player, "call", { id = id }) out = "atGarage=" .. tostring(S.player:GetAttribute("GwPassAtGarage")) .. " ok=" .. tostring(r and r.ok) .. " msg=" .. tostring(r and r.message)`));
+  console.log('D admin back', await srv(`S.player:SetAttribute("GwangalliAdmin", true) out = "ok"`));
+  await p.waitForTimeout(1500);
+  // E/F/G/H via the client remote
+  const req = (op, payload) => cli(`local rf = S.game:GetService("ReplicatedStorage").GwangalliPassesRemotes.Request local r = rf:InvokeServer("${op}", ${payload || 'nil'})
+    local bits = {} for k, v in r do if type(v) ~= "table" then table.insert(bits, tostring(k) .. "=" .. tostring(v)) end end table.sort(bits) out = table.concat(bits, " ")`);
+  console.log('E state', await req('state'));
+  console.log('E garage', await req('garage'));
+  console.log('E tp street', await tp(-430, 10, 470, -430, 520));
+  await p.waitForTimeout(2500);
+  console.log('E marketState', await req('marketState'));
+  console.log('E market', await req('market', '{ tab = "basic" }'));
+  await p.waitForTimeout(1500);
+  console.log('E shopui', await srv(`local pg = S.player:FindFirstChildOfClass("PlayerGui") local g = pg and pg:FindFirstChild("GwangalliArmsShop") out = "shop gui=" .. tostring(g ~= nil) .. " enabled=" .. tostring(g and g.Enabled)`));
+  await shot('03_market_shop');
+  console.log('F setPlate', await req('setPlate', '{ text = "광안 1004", style = "gold" }'));
+  console.log('F setPlate bad', await req('setPlate', '{ text = "<b>x</b>", style = "neon" }'));
+  console.log('G setNeon', await req('setNeon', '{ palette = "bridge" }'));
+  console.log('G setKoFx', await req('setKoFx', '{ fx = "lightning" }'));
+  await p.waitForTimeout(1000);
+  console.log('G tags', await srv(`local pg = S.player:FindFirstChildOfClass("PlayerGui") local t = pg and pg:FindFirstChild("GwangalliPassesTags") out = "tags=" .. tostring(t and #t:GetChildren()) .. " neon=" .. tostring(S.player:GetAttribute("GwNeonName")) .. " humDisplay=" .. tostring(S.player.Character.Humanoid.DisplayDistanceType)`));
+  console.log('G tp', await tp(-556, 10, 487, -556, 520));
+  await p.waitForTimeout(5000);
+  console.log('G vip', await srv(`${API} local ok, msg = api:Invoke("summon", S.player, "vip", "road")
+    local f = S.game.Workspace:FindFirstChild("GwangalliPlayerCars") local m = nil
+    for _, c in (f and f:GetChildren() or {}) do if c:GetAttribute("GwPremiumCar") == "vip" then m = c end end
+    local frames = 0 if m then for _, d in m:GetDescendants() do if d.Name == "GwPlateFrame" then frames += 1 end end end
+    out = "ok=" .. tostring(ok) .. " msg=" .. tostring(msg) .. " plate=" .. tostring(m and m:GetAttribute("DrivePlate")) .. " style=" .. tostring(m and m:GetAttribute("GwPlateStyle")) .. " frames=" .. frames`));
+  for (const fx of ['fireworks', 'lightning', 'stamp']) {
+    console.log('H preview', fx, await req('previewKo', `{ fx = "${fx}" }`));
+    await p.waitForTimeout(fx === 'fireworks' ? 1100 : 350);
+    const pos = await srv(`local r = S.player.Character.HumanoidRootPart local q = r.Position + Vector3.new(r.CFrame.LookVector.X, 0, r.CFrame.LookVector.Z).Unit * 9 out = string.format("%.1f,%.1f,%.1f", q.X, q.Y, q.Z)`);
+    const [x, y, z] = pos.split(',').map(Number);
+    await shot('04_fx_' + fx, [x + 14, y + 8, z + 18], [x, y + (fx === 'fireworks' ? 10 : 3), z], 60);
+    await p.waitForTimeout(3200);
+  }
+  // I. KO halving: knock out, koHelp at 11 s must succeed with the pass
+  console.log('I ko', await srv(`local A = S.game:GetService("ServerStorage").GwangalliArmsAPI local r = A:Invoke("knockOut", S.player, { byKind = "env" }) out = "down=" .. tostring(r) .. " GwKO=" .. tostring(S.player.Character:GetAttribute("GwKO")) .. " end=" .. tostring(S.player:GetAttribute("GwPassQoLKOEnd"))`));
+  await p.waitForTimeout(6000);
+  console.log('I help@6', await srv(`local SSS = S.game:GetService("ServerScriptService") local f for _, c in SSS:GetChildren() do if c.Name == "GwangalliGameplay" and c:IsA("Folder") then f = c end end
+    local KO = require(f.Arms.KOSystem) out = "help=" .. tostring(KO.koHelp(S.player)) .. " state=" .. tostring(S.player.Character:GetAttribute("ArmsKO"))`));
+  await p.waitForTimeout(5500);
+  console.log('I help@11', await srv(`local SSS = S.game:GetService("ServerScriptService") local f for _, c in SSS:GetChildren() do if c.Name == "GwangalliGameplay" and c:IsA("Folder") then f = c end end
+    local KO = require(f.Arms.KOSystem) local A = require(S.game:GetService("ReplicatedStorage").GwangalliArmsShared) out = "help=" .. tostring(KO.koHelp(S.player)) .. " state=" .. tostring(S.player.Character:GetAttribute("ArmsKO")) .. " SELF_HELP_AFTER=" .. tostring(A.KO.SELF_HELP_AFTER)`));
+  // J. phone + app
+  await p.waitForTimeout(8000);
+  console.log('J phone', await cli(`local ev = S.player:FindFirstChild("GwangalliPhoneOpen") if ev then ev:Fire() end out = "fired=" .. tostring(ev ~= nil)`));
+  await p.waitForTimeout(3000);
+  console.log('J dock', await srv(`local pg = S.player:FindFirstChildOfClass("PlayerGui") local ph = pg and pg:FindFirstChild("GwangalliPhone") local d = ph and ph:FindFirstChild("Dock", true) out = "phone=" .. tostring(ph and ph.Enabled) .. " vip=" .. tostring(d and d:FindFirstChild("App_vip") ~= nil)`));
+  await shot('05_phone_dock');
+  for (const tab of ['pass', 'garage', 'market', 'flex']) {
+    console.log('J hub', tab, await cli(`local Hub = require(S.player:FindFirstChildOfClass("PlayerScripts").GwangalliPasses.Hub) Hub.open("phone", "${tab}") out = "open=" .. tostring(Hub.isOpen()) .. " mode=" .. Hub.mode()`));
+    await p.waitForTimeout(4000);
+    await shot('06_hub_' + tab);
+  }
+  console.log('J panel', await cli(`local Hub = require(S.player:FindFirstChildOfClass("PlayerScripts").GwangalliPasses.Hub) Hub.close() Hub.open("panel", "garage") out = "open=" .. tostring(Hub.isOpen())`));
+  await p.waitForTimeout(4000);
+  await shot('07_panel_garage');
+  console.log('done');
+  await b.close();
+})();

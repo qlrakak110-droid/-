@@ -1,0 +1,5 @@
+home_goshiwon	/GwangalliHomes/HomeUnit_goshiwon
+home_oneroom	/GwangalliHomes/HomeUnit_oneroom
+home_officetel	/GwangalliHomes/HomeUnit_officetel
+home_apartment	/GwangalliHomes/HomeUnit_apartment
+home_penthouse	/GwangalliHomes/HomeUnit_penthouse

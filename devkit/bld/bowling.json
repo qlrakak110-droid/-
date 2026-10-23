@@ -1,0 +1,1282 @@
+{
+ "venues": [
+  {
+   "name": "1F 로비 · 리셉션 카운터 · 볼링화 대여 · 프로샵 · 포토존",
+   "path": "Workspace.Gwangalli.bowling.실내.로비_카운터 (+ 1층_외벽 Floor_Lobby/AutoDoor_정문/ShopWindow, 실내.FitOut)",
+   "bounds": "(253.6,6.75,442.7)-(341.6,28.68,469.2)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "로비 전체 (Floor_Lobby Marble 40,40,46; 88x26)",
+     "center": [
+      297.6,
+      17.7,
+      456.2
+     ],
+     "size": [
+      88,
+      21.9,
+      26
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "리셉션 카운터 + 직원 통로 + 신발장 벽 (직원은 z451~454, 손님은 z457~)",
+     "center": [
+      315.6,
+      17.7,
+      450.0
+     ],
+     "size": [
+      28.5,
+      21.9,
+      14.5
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "정문 웰컴 / 대기 소파 존 (자동문 x258.8~270.8, z469.6)",
+     "center": [
+      270.0,
+      17.7,
+      460.0
+     ],
+     "size": [
+      32,
+      21.9,
+      18
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "포토존 + 프로샵 (동쪽 끝, WallLiner x341.1)",
+     "center": [
+      336.0,
+      17.7,
+      456.0
+     ],
+     "size": [
+      11,
+      21.9,
+      22
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "Reception x1 model: Body 28x3.15x2.7 WoodPlanks (28,22,44) + Marble Top 28.4x0.3x3.2 (y10.55 = ~1.15 m) + ToeKick + purple LedStrip — one box counter, nothing on the staff side",
+    "POSScreen x2 2.2x1.5x0.12 slabs + POSStand x2 + Keyboard x2 + CustomerDisplay x2 ('결제 금액 4,500원') + CardTerminal x2 0.6x0.35x0.8 + ReceiptPrinter x1 + CounterBell x1 cylinder — flat slabs, readable but primitive",
+    "Seat x2 staff stools (leather discs on StoolPost/StoolFoot)",
+    "신발장 x1: CubbyBack 26.8x9.6x0.5 + Shelf x7 + Divider x9 + 6 size-label strips (220~285) + Shoe x88 (green Leather 0.4x0.42x0.95 boxes) + SoleHeel x44 — reads as a grid of identical green blocks",
+    "Shoe x2 (red boxes on counter) + SockBasket x1 (fabric box) — no sock vending",
+    "Sign_요금 안내 PRICE 26x6.6 board (일반 4,500 / 학생 4,000 / 경로 3,500 / 락볼링 5,500 / 볼링화 1,500 / 대관 45,000) + Sign_SHOES / Sign_볼링화 대여 neon outlines (NeonTube x12)",
+    "Kiosk x1: KioskBody 1.1x4.2x0.5 + KioskBase + KioskScreen ('무인 접수 / 게임 선택 / ▶ 터치') — decorative, no script",
+    "ShoeSterilizer x1 3.6x6.4x2.9 white box + SterilizerUV neon panel + sign — no doors/shelves",
+    "ProShop x1: glass case 8.3x(2.6+3.8)x3.5 + glass shelf + ProBall x10 spheres + sign 'PRO SHOP · 볼링공 · 볼링화'",
+    "WaitingSofa x1 (11 wide, 3 Seats, purple leather) + Plant x2 (pot + 2 leaf blobs)",
+    "LEDHalo x3 ring lights 6 dia (SurfaceLight) hung on wires + Sign_WELCOME TO ROCK BOWL banner 12x3.2 on 2 wires",
+    "Photo zone: Sign_광안리의 밤은 STRIKE! neon (NeonTube x4) + PhotoWing x8 neon bars + Sign_PHOTO ZONE; Sign_이달의 하이스코어 10x6.4 static text (1. 김*준 279 …)",
+    "WallLiner x2 dark plaster (24,18,38) around the elevator hall corner; FitOut: SmokeDetector x3, CCTV x1, ExitSign x1",
+    "직원 (볼링화 대여) NPC rig (block R15, skinned at runtime) at (316.7,9.9,452.5)",
+    "Spot_bowl_shoes invisible 7x5.5x2.5 prompt host at (316.6,9.5,458.3)"
+   ],
+   "gameplay": [
+    "VenueSpot Spot_bowl_shoes (attrs Spot=bowl_shoes, Label '볼링화 대여 · 1,500원'): VenueLife.setupSpot creates ProximityPrompt '볼링화 대여' (E, MaxDist 9) + 'GwangalliShoeColor' '색상 바꾸기 ▶' (R); pays V.SHOES.price, welds model 'GwangalliBowlingShoes' to the feet; re-trigger returns them. Keep name, tag VenueSpot, attrs, position; no collidable geometry between the customer side (z>457) and the spot.",
+    "VenueStaff '직원 (볼링화 대여)' (Staff=shoe_clerk, Act=teller, HomeCF (316.72,9.88,452.54)) — VenueLife staff[], GwangalliStaticNpcSkins hides its body parts and stands an avatar clone in place; keep the aisle behind the counter (x302~329, z451~454) free.",
+    "AutoDoor_정문 (tag AutoDoor, OpenRadius 14, leaves OpenOffset) — GwangalliDoors opens it; keep doorway + 14-stud radius path clear.",
+    "Destination_락볼링클럽 (부지_주차장, (265.0,7.06,481.3), DisplayName '광안 락볼링클럽 (볼링장)') — taxi/nav/Journey (find radius 40) / Social invite target in front of the door.",
+    "Interact sittable scan: WaitingSofa Seats and counter stool Seats get GwSittable.",
+    "실내 is a ZoneLOD model (LODCenter 293.6,17.8,398.1, LODRadius 136) and the small props are NearLOD 'NearDetail' models (shown within ~100-120 studs, arrive hidden via GwArrive).",
+    "GwangalliIndoorLight dims LEDHalo SurfaceLights (x0.55, Range<=18).",
+    "KioskScreen, Sign_이달의 하이스코어, ProShop, ShoeSterilizer: no script references (safe to replace)."
+   ],
+   "emptyOrCrude": [
+    "West half of the lobby x253.6~300, z446~462 (~46x16 studs) is bare dark marble: only a ceiling banner, 3 halo rings, one kiosk and 2 plants — no lane-status board, queue/ticket machine, trophy case, party zone, umbrella stand.",
+    "Lobby is a 22-stud (~6.6 m) void under a flat dark ceiling slab (16,14,22) with no ceiling features (no grid, speakers, downlight array) above x253~300.",
+    "Reception counter is one box: no cash drawer, phone, shoe-return bins, label printer, staff-side shelving; no lane-status monitors on the wall behind.",
+    "Shoe wall: 88 identical green boxes; real rental shoes are two-tone with size numbers on the heel; no return basket / disinfectant spray.",
+    "Shoe sterilizer is a closed box with a purple neon panel (no glass doors, racks, shoes inside).",
+    "No 양말 자판기 (Korean alleys require socks) and no 손님 신발장 (key shoe lockers).",
+    "Pro shop is one glass case with 10 spheres; no ball wall, bags, wrist supports, tapes, drill press, ball spinner, no clerk.",
+    "Photo zone: neon bars on a dark wall; no printed backdrop, pin/ball props, ring light, floor sticker.",
+    "Front shop windows (13.5 tall) show nothing behind them; no window vinyl / promo posters / event POP."
+   ],
+   "realWorld": [
+    "프런트 카운터: POS 2~3대, 레인 배정 관리 PC, 카드단말기, 영수증 프린터, 진동벨/대기번호 호출기, 전화기, 현금함",
+    "카운터 뒤 레인 현황 모니터 (레인별 사용중/대기/남은 게임) + 라이트박스 요금표 (일반·학생·경로·락볼링 심야·볼링화 대여·대관)",
+    "볼링화 선반 (220~300mm 사이즈별 칸, 투톤 렌탈화, 뒤꿈치 사이즈 숫자) + 반납 바구니 + 소독 스프레이",
+    "신발 살균건조기 (UV, 유리문, 칸별 선반)",
+    "양말 자판기 / 양말 판매대 (1,000~2,000원)",
+    "손님 신발 보관 열쇠 신발장",
+    "무인 키오스크 (게임 수 선택·결제), 대기 소파 + 낮은 테이블, 정수기 + 종이컵, 휴대폰 충전기",
+    "프로샵: 볼 진열 벽 (리액티브/우레탄 볼), 볼 백, 장갑·아대, 테이프, 로진백, 지공기(드릴 프레스), 볼 표면 재생기/스피너, 볼 클리너",
+    "트로피 진열장, 퍼펙트(300) 명예의 전당 사진, 이달의 하이스코어, 동호회·리그 일정, 생일파티/단체 POP",
+    "포토존: 네온 사인 + 대형 볼링핀 오브제 + 바닥 스티커 + 링라이트",
+    "출입구: 자동문, 우산꽂이/우산 비닐, 손소독제, 바닥 매트, 영업시간·청소년 이용시간 안내, CCTV 안내",
+    "조명: 로비는 밝은 다운라이트/간접조명, 레인 쪽은 어둡게 (락볼링 시간 블랙라이트)"
+   ],
+   "interactionIdeas": [
+    "무인 접수 키오스크: '게임 접수' → lane picker UI (free lanes = BowlingLane models with Players==0) + waypoint arrow to the chosen lane",
+    "레인 현황 보드 (new, behind counter): live 12-lane status (사용중/대기/게임 수) from Lane model attributes",
+    "양말 자판기: '양말 사기 (1,000원)' → socks accessory; hint before renting shoes",
+    "신발 살균기: '볼링화 살균' → glass doors open, UV glow 10 s, shoes swap",
+    "손님 신발장: '신발 맡기기' → locker door swings, key number toast",
+    "프로샵: '볼 구경하기' → colour/weight preview; '지공 맡기기' (drill animation) unlocks a personal ball colour for the Bowling picker",
+    "카운터 벨: '벨 누르기' → ding + clerk turns to face the player",
+    "포토존: '사진 찍기' → pose + flash (first visit popularity +1 like IS.PHOTO_SPOTS)",
+    "이달의 하이스코어: render live rows from the Bowling server leaderboard instead of static text"
+   ]
+  },
+  {
+   "name": "1F 오락코너 (GAME ZONE)",
+   "path": "Workspace.Gwangalli.bowling.실내.오락코너 (+ 1층_외벽 Floor_Arcade)",
+   "bounds": "(231.6,6.75,444.0)-(253.6,28.68,470.2)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "오락코너 (Floor_Arcade Carpet 38,26,62; 22x26)",
+     "center": [
+      242.6,
+      17.7,
+      457.2
+     ],
+     "size": [
+      22,
+      21.9,
+      26
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "인형뽑기_1..3 x3 (each 24 parts): Cabinet 3.8x2.8x3.8 box, Glass 3.6x3.8 (t0.75), BackPanel, TopBox 3.8x1.4x3.9, Post x4, Gantry, Claw 0.8x0.4x0.6 box + ClawCable, Joystick + ball knob, CoinSlot neon, PrizeDoor, ChuteGlass, Plush x6 identical 0.9x0.8x0.9 cubes, TrimNeon, sign — boxy, 6 cube prizes, no claw prongs, no interior lights/mirrors",
+    "펀치기계 x1: Cabinet 2.8x7.4x3 box, PunchPad 1.5x1.9x1.2 leather box (fixed; real pad swings down), ScreenHousing + LEDScreen (Messages 'PUNCH 872|HIGH 999|INSERT COIN'), ScoreDisplay, Sign_펀치왕",
+    "농구게임 x1 (22 parts): FrontCabinet 6x2.8x2.2, Ramp wedge 5.6x1.6x6.2 + RampBase, SideNet x2 glass slabs, BackTower 6x11x0.6, Backboard 3.6x2.4 + BoardSquare, Hoop x6 bar segments, Basketball x5 spheres, LEDScreen ('BASKET 00|TIME 40|HI-SCORE 312'), TrimNeon",
+    "에어하키 x1: HockeyBody 5.2x2.4x6.6 box, HockeyTop, HockeyRail x2 neon, Mallet x2 cylinders, Puck, CenterLine — no goals/score/legs",
+    "인생사진 x1: BoothBody 6x8x4.4 white box + Curtain slab + sign 'PHOTO · 4컷' — not enterable, no camera/screen",
+    "CoinChanger x1 1.4x5.6x2 metal box + Sign_동전교환",
+    "Board_punch (BoardFrame 3.7x2.9 + BoardFace) '🥊 오늘의 펀치왕' rows on the west wall",
+    "Sign_GAME ZONE + NeonTube x4; ArcadeLight x1 (PointLight); FireExtinguisher + sign (FitOut NearDetail)",
+    "Walls: SideWall/WallPanel purple plaster (38,26,62) with side windows on x232"
+   ],
+   "gameplay": [
+    "Spot_bowl_punch (VenueSpot, Spot=bowl_punch, Label '펀치왕 · 1회 500원', invisible 2.8x6x2.4 at (237.0,9.8,450.4)): VenueLife prompt '펀치! (500원)' → punch(): score, GwVenueAct 'punch', updates the machine's LEDScreen/ScoreDisplay and VenueBoard 'punch'.",
+    "Board_punch/BoardFace (tag VenueBoard, Board=punch, SurfaceGui 'BoardGui' TextLabels Row1..Row5) — server writes rows; keep names.",
+    "농구게임: Play.Arcade.World finds model '농구게임' under bowling/실내/오락코너 (Arcade.MACHINES id bw_basket, led=true), reads FrontCabinet / Hoop / LEDScreen (writes Messages 'BASKET nn|TIME nn|HI-SCORE nnn') and builds its own invisible prompt anchor in workspace.GwangalliPlay.Arcade — do not rename/move these parts.",
+    "인형뽑기_1..3 are NOT playable: Interact.tagExisting only tags models matching ^ClawMachine_%d+$ (with a PrizeDoor child) as kind 'claw' (IS.CLAW price, claw_play pose).",
+    "에어하키 / 인생사진 / CoinChanger: no script references.",
+    "Pocha NPC line mentions the 오락코너 basketball high score 300; Journey 'arcade.play' is shared by bowling/billiards/minigames."
+   ],
+   "emptyOrCrude": [
+    "Only 7 machines in 22x26 studs; the window side x237~248, z465~469 and the centre aisle are empty carpet.",
+    "Claw machines: identical cube plush, box claw, no LED marquee, no prize pile.",
+    "Punch pad is a fixed box (real boxing machines have a fold-down padded target).",
+    "Air hockey has no goal slots, score LEDs, legs; photo booth is a closed box.",
+    "No rhythm/dance (펌프), racing, gun or fighting cabinets; no prize/redemption counter; no token cups.",
+    "Ceiling dark and flat with a single PointLight; carpet single colour (no UV-reactive pattern)."
+   ],
+   "realWorld": [
+    "인형뽑기 크레인 3~6대 (LED 마키, 거울 내벽, 인형 30~50개, 경품 출구, 집게 3발)",
+    "펀치기 (접히는 샌드백 패드 + 점수 LED + 랭킹), 농구 게임 2연대 (망, 카운트다운 LED), 에어하키 (양쪽 골 + 점수판)",
+    "리듬게임: 펌프 잇 업 / 댄스러시, 유비트, 태고의 달인; 레이싱 시트형, 건슈팅, 철권 대전 기체",
+    "인생네컷/스티커 사진 부스 (내부 카메라 + 터치스크린 + 배경 + 소품 바구니 + 프린터 출구)",
+    "동전교환기 (지폐→500원), 경품 교환 카운터",
+    "형광 카펫, 천장 LED 바/네온, 청소년 이용시간 안내, CCTV"
+   ],
+   "interactionIdeas": [
+    "인형뽑기: '인형뽑기 (500원)' → joystick/drop claw mini game → plush held prop (alias these to Interact's claw flow or a client copy)",
+    "에어하키: '에어하키 (1,000원)' 1v1 client-physics puck, goal LEDs",
+    "인생사진: '사진 찍기' → step into the booth, 4-shot countdown flashes, printed 4컷 photo held prop + popularity",
+    "동전교환기: '동전 교환' → cash to token counter UI with coin clink",
+    "리듬게임 (new cabinet): '펌프 하기' → arrow tap mini game with score board",
+    "펀치기계: animate the pad folding down when the prompt fires"
+   ]
+  },
+  {
+   "name": "1F 라운지 · DJ 부스",
+   "path": "Workspace.Gwangalli.bowling.실내.라운지 (+ 1층_외벽 Floor_Lounge, 실내.Partition RailGlass)",
+   "bounds": "(244.0,6.75,395.4)-(284.4,28.68,443.9)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "라운지 (Floor_Lounge WoodPlanks 70,46,34; open to bar x231~244 and lobby z>443)",
+     "center": [
+      264.2,
+      17.7,
+      419.6
+     ],
+     "size": [
+      40.4,
+      21.9,
+      48.5
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "DJ 부스 (DJPlatform y7.2~7.6)",
+     "center": [
+      265.7,
+      17.7,
+      400.7
+     ],
+     "size": [
+      20.6,
+      21.9,
+      10.6
+     ],
+     "floorY": 7.6,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "CloudCeiling 하부 소파 존 (lowered cloud y21.6)",
+     "center": [
+      252.1,
+      14.2,
+      426.0
+     ],
+     "size": [
+      12,
+      14.9,
+      30
+     ],
+     "floorY": 6.75,
+     "ceilingY": 21.6
+    }
+   ],
+   "props": [
+    "LoungeSofa x3 (8 wide; Plinth, Base, Backrest 8x3.9x0.8, Seat x2, Arm x2, BackCushion x2; purple leather) at x247~251, z412~440 facing +x",
+    "LowTable x3 (WoodPlanks 3.4x0.25x4.4 on a 0.6 post) with BeerGlass x3, Cocktail x3, FriesBasket x3",
+    "Pouf x6 teal fabric cylinders 1.4x1.8x1.8 (+ invisible Seat on each)",
+    "HighLedge 2.55x0.25x30 along the lane rail x282.4 + LedgeBracket x3 + 7 bar stools (StoolPost/StoolFoot + invisible Seat)",
+    "CloudCeiling 12x0.4x30 WoodPlanks at y21.8 + CloudLED x4 + CloudDownlight (SurfaceLight) + CloudHanger x4",
+    "MirrorBall 2.4 Foil sphere + rod; PinSpot x2",
+    "DJ부스: DJPlatform 16x0.8x9.4 DiamondPlate + PlatformNeon, DJDesk 10.2x3.6x2, DeckBody x2 + Platter x2 + PlatterLabel x2, Mixer + MixerLEDs, Laptop, PASpeaker x2 2.2x6x2.2 + Woofer x4, ScreenHousing/LEDScreen x2 (9.4x3.2 desk front, 15x8 wall; Messages 'DJ|COSMIC|ROCK BOWL|PARTY'), DJLight (PointLight)",
+    "Board_bowling (BoardFrame 7.3x4.9 + BoardFace '🎳 오늘의 볼링 TOP 5') on the partition at (283.2,16.8,400.5)",
+    "Partition: RailBase/RailGlass/RailCap/RailNeon 32 long between lounge and lanes; PartitionWall 0.8x21.9x74 dark purple + WallNeon (BowlingCosmic)"
+   ],
+   "gameplay": [
+    "Board_bowling/BoardFace (tag VenueBoard, Board=bowling): VenueLife.setBoard('bowling') writes Row1..Row5 of SurfaceGui 'BoardGui' from LastBowlingScore submissions — keep name/tag/attr.",
+    "Pouf/stool invisible Seats and sofa Seats → Interact GwSittable (sit/lean).",
+    "WallNeon tagged BowlingCosmic → BowlingClient hue-cycles it while the camera is in the lane hall.",
+    "DJ booth, mirror ball, LEDScreen: no script interaction (LEDScreen Messages are cycled by the generic LEDScreen tag)."
+   ],
+   "emptyOrCrude": [
+    "The centre x255~280, z408~440 (~25x32 studs) is empty wood floor under a static mirror ball — no rugs, standing tables, floor lighting.",
+    "Sofas/tables are boxes; drinks are cylinders; no cushions variety, lamps, wall art or TV on the west wall (WallPanel planks only).",
+    "DJ decks are flat boxes; no headphones, cables, monitor speakers, truss/moving heads/laser/fog over the booth; PA speakers are plain boxes.",
+    "Mirror ball does not spin or cast light spots; PinSpots emit nothing."
+   ],
+   "realWorld": [
+    "라운지 소파 + 낮은 테이블 + 바 높이 스탠딩 테이블, 쿠션, 러그, 사이드 램프",
+    "대형 LED 스크린/프로젝터 (뮤비·스포츠 중계), 네온 아트, 볼링 테마 그래픽 월",
+    "DJ 부스: CDJ 2대 + 믹서, 헤드폰, 노트북 스탠드, 모니터 스피커, 전면 LED 패널, 상부 트러스 + 무빙라이트·레이저·포그머신",
+    "미러볼 + 핀스폿 (반사 점 회전), 클럽 음향 (서브우퍼)",
+    "QR 주문 메뉴판, 테이블 번호, 충전 스테이션, 코트 후크"
+   ],
+   "interactionIdeas": [
+    "DJ 부스: 'DJ 하기' → genre/song select for the hall BGM, platter scratch animation, cosmic light tempo change (BowlingCosmic speed)",
+    "미러볼: '조명 켜기' → spin + moving light dots (client)",
+    "라운지 테이블: '메뉴 보기' → order bar/snack items delivered to the table (VenueLife order with a lounge spot)",
+    "하이레저 스툴: sit with a camera framing toward the lanes (spectate)",
+    "대형 스크린: '채널 바꾸기' (뮤비 / 야구 중계 / 볼링 하이라이트)"
+   ]
+  },
+  {
+   "name": "1F ROCK & BOWL BAR",
+   "path": "Workspace.Gwangalli.bowling.실내.ROCK_BOWL_BAR",
+   "bounds": "(231.4,6.75,403.9)-(243.5,28.68,440.3)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "바 (백바 x231.4~234 | 바텐더 통로 x234~237 | 카운터 x237~240.8 | 스툴 x241~243.5)",
+     "center": [
+      237.4,
+      17.7,
+      422.1
+     ],
+     "size": [
+      12.1,
+      21.9,
+      36.4
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "BarCounter model: Body 32x3.15x2.7 dark WoodPlanks + Marble Top 32.4x0.3x3.2 + ToeKick + pink LedStrip — single box, no foot rail",
+    "BackBarCabinet 1.9x3.4x30 + BackBarTop + BarMirror 0.15x7.6x29 + GlassShelf x3 (29 long) + ShelfGlow x3 purple neon + Bottle x36 glass cylinders (3 sizes, same shape)",
+    "TapColumn x2 + TapBar x2 + Faucet x8 + TapHandle x8 (yellow) + DripTray x2",
+    "SojuBottle x3, BeerGlass x2 + Foam x2, Cocktail x3 + Stem x3, Shaker x1 on the counter",
+    "Seat x9 bar stools (leather 1.3 disc + StoolPost/StoolFoot)",
+    "PendantShade x5 (neon cylinders 1x0.9) on 9.9-long cords (2 PointLights)",
+    "Fridge (2-door glass cooler at x231.6~235.5, z404.4~409.7): Body x2, Kick x2, SidePanel x4, WireShelf x6, FridgeDoor x2 glass, FridgeGlow x2, FridgeLamp x2, Bottle x24 identical brown cylinders",
+    "Signs: Sign_ROCK & BOWL BAR (neon outline), Sign_DRINK menu 6.2x3.2 (생맥주 500cc 5,000 / 하이볼 8,000 / 칵테일 9,000 / 소주·맥주 5,000), Sign_BAR · 생맥주 · 칵테일 · 하이볼 on the counter front"
+   ],
+   "gameplay": [
+    "No staff: ShopStaff only uses a BasePart named BarCounter/BackBar/POS... as a loose anchor; here BarCounter is a Model (parts Body/Top/...) and there is no ShopFloor → no bartender spawns.",
+    "No purchase spot: the VenueLife 'bowling' menu (tteokbokki, eomuk, fries, bowl_cola) exists only at Spot_bowl_snack in 분식코너; drinks on Sign_DRINK cannot be bought.",
+    "Seat x9 → Interact GwSittable.",
+    "If a builder adds a BasePart named 'BarCounter' or a ShopCounter tag, ShopStaff would start spawning a 바텐더 there (kind pub) — use that deliberately or avoid the names."
+   ],
+   "emptyOrCrude": [
+    "Unattended bar with nothing to buy.",
+    "Back bar: flat mirror + 36 identical cylinders; no label/shape variety, glass racks, ice well, sink, speed rail, POS, kegs/CO2, branded draft tower, coasters, napkins.",
+    "Fridge holds 24 identical brown cylinders (no soju/beer brands).",
+    "Pendants hang 10 studs below a flat 28.7 ceiling with no bar canopy/soffit."
+   ],
+   "realWorld": [
+    "생맥주 디스펜서 (카스/테라/켈리 탭 핸들 + 브랜드 타워), 맥주잔 냉동고",
+    "하이볼 타워, 칵테일 툴 (셰이커·지거·스트레이너·바스푼), 제빙기, 싱크, 글라스 렉, 컵 워셔",
+    "백바: 위스키·보드카·진·리큐르 병 (다양한 형태/라벨) + LED 선반 조명; 소주/맥주 냉장 쇼케이스 (참이슬·처음처럼·카스)",
+    "바 POS + 카드단말기, 진동벨, 안주 메뉴판 (치킨, 감자튀김, 나쵸, 소떡소떡, 마른안주)",
+    "바 체어 + 발판 레일, 코스터, 냅킨·빨대 통, 안주 접시",
+    "바텐더 (블랙 유니폼), 청소년 주류 판매 금지 안내"
+   ],
+   "interactionIdeas": [
+    "바텐더 NPC + '주문하기' → drinks menu (생맥주/하이볼/칵테일/콜라, non-alcoholic variants) → held cup + drink pose",
+    "생맥주 탭: '맥주 따르기' (알바 mode) → pour animation with foam fill",
+    "냉장고: '냉장고 열기' → glass door swings, pick a bottle held prop",
+    "셰이커: '칵테일 만들기' shake-rhythm mini game",
+    "바 스툴: sit facing the bar, '건배' emote with neighbours"
+   ]
+  },
+  {
+   "name": "1F 분식코너 (ROCK & BOWL 분식)",
+   "path": "Workspace.Gwangalli.bowling.실내.분식코너",
+   "bounds": "(231.0,6.75,369.0)-(283.0,28.68,396.0)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "주방 (카운터 뒤, KitchenCounter x231.3~233.5)",
+     "center": [
+      233.6,
+      17.7,
+      384.8
+     ],
+     "size": [
+      5.3,
+      21.9,
+      19
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "주문 카운터 + 픽업대 (SnackCounter x235.5~238.6, PickupShelf x239.5~242.1)",
+     "center": [
+      238.8,
+      17.7,
+      385.2
+     ],
+     "size": [
+      6.6,
+      21.9,
+      19
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "식사 홀 (SnackTable 3세트)",
+     "center": [
+      260.0,
+      17.7,
+      382.8
+     ],
+     "size": [
+      32,
+      21.9,
+      10
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "분식코너 전체 (Floor_Back CeramicTiles 150,146,140)",
+     "center": [
+      257.0,
+      17.7,
+      382.5
+     ],
+     "size": [
+      52,
+      21.9,
+      27
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "KitchenCounter 2.3x3.4x19 steel + Backsplash ceramic 0.15x5.2x19 + WallShelf 18 + Container x8 (red cylinders)",
+    "Fryer + FryerOil slab, Microwave box, RiceCooker cylinder",
+    "SnackCounter: Body 18x2.95x2.2 red WoodPlanks + steel Top + LedStrip",
+    "TteokbokkiPan 1.9x0.4x4.5 + Tteokbokki red slab 1.5x0.16x4.1 + RiceCake x6; EomukPot + Broth + Skewer x5; WarmerGlass + Twigim x6",
+    "PickupShelf 2.4x3.3x4 + Marble PickupTop + Sign_픽업 PICK-UP",
+    "Sign_분식 SNACK 17x5 menu board on 2 wires (떡볶이 4,000 · 순대 4,000 · 튀김 3,500 / 어묵 2,000 · 김밥 3,000 · 라면 4,500 / 치킨 18,000 · 감자튀김 4,000 · 생맥주 5,000) + Sign_떡볶이 neon",
+    "SnackTable x3 (TableTop 4x0.2x4 + pedestal) with 12 chairs (Seat 1.7 + ChairBack + 4 legs, red fabric)",
+    "SnackLight 4x4 (SurfaceLight), FireExtinguisher, Sign_비상구 (exit at x230.2 z371.9)",
+    "분식 이모 NPC rig (apron, bandana) at (234.8,9.5,390.7)"
+   ],
+   "gameplay": [
+    "Spot_bowl_snack (VenueSpot, Spot=bowl_snack, Label 'ROCK & BOWL 분식 · 떡볶이 · 어묵 · 감자튀김', invisible 2.7x5.5x14 at (239.9,9.5,386.2), PickupCF (240.77,10.16,377.48)): prompt '분식 주문' → VenueEvent 'menu' (items tteokbokki, eomuk, fries, bowl_cola); VenueLife.order requires the player within 22 studs; after def.prep the food prop is placed at PickupCF and further orders stack +1.3 studs along its X axis (= +z) → keep PickupTop (x239.5~242.1, z374.3~378.5, top y10.15) clear; the 3rd order lands at z~380, past the shelf.",
+    "VenueStaff '분식 이모' (Staff=bowl_cook, Act=cook, HomeCF (234.79,9.52,390.68)) — skinned by GwangalliStaticNpcSkins ('분식'/'이모' → apron, f); keep x233.5~236 behind the counter free.",
+    "Chair Seats x12 → Interact sittables; eating plays GwPose eat after pickup.",
+    "GwangalliVenues/Spots client: bowling menu title '🌶️ ROCK & BOWL 분식' / '주문 후 픽업대에서 받아 가세요'."
+   ],
+   "emptyOrCrude": [
+    "No exhaust hood over the fryer/pans, no sink, fridge, prep table, gas burners, gimbap station, ramen cooker; food is flat coloured slabs.",
+    "No POS/kiosk/pager at the counter; menu is one 17x5 panel without photos.",
+    "Only 3 tables x 4 chairs in a 52x27 zone; x246~283 at z387~396 and z369~378 are empty tile; no self-bar (단무지·물·수저), napkins, condiments, trash/recycling, tray return.",
+    "Snack bar sits under the 28.7 dark ceiling with one light; no lightbox soffit."
+   ],
+   "realWorld": [
+    "메뉴 라이트박스 (사진 + 가격), 키오스크 주문 + 진동벨, 픽업대 + 식기 반납대",
+    "국물 떡볶이 대형 철판, 어묵 사각 통 (꼬치 + 국자 + 종이컵), 튀김 진열대 + 튀김기, 순대 찜기, 김밥 말이대, 즉석라면 조리기",
+    "후드 + 덕트, 2조 싱크, 업소용 4도어 냉장고, 음료 쇼케이스",
+    "셀프바: 단무지, 물, 종이컵, 수저통, 냅킨, 이쑤시개",
+    "스테인리스/원목 테이블 + 의자, 분리수거함"
+   ],
+   "interactionIdeas": [
+    "키오스크 (new): '주문하기' → same VenueLife menu + 진동벨 held prop that buzzes when the food lands at PickupCF",
+    "어묵 통: '어묵 꼬치 집기 (1,000원)' self-serve skewer + eat pose; '국물 뜨기' paper cup",
+    "셀프바: '단무지/물 가져오기' small held props",
+    "반납대: '식기 반납' after eating → tidy table + small happiness",
+    "떡볶이 철판 (알바 mode): '휘젓기' cook animation"
+   ]
+  },
+  {
+   "name": "1F 화장실 (남/여) + 사무실 · 창고",
+   "path": "Workspace.Gwangalli.bowling.실내.화장실 (+ 1층_외벽 RollerShutter/BackWall, Floor_Back)",
+   "bounds": "(230.4,6.75,328.9)-(254.6,18.0,368.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "남자 화장실 (entrance gap x253.7, z362~365.5)",
+     "center": [
+      242.3,
+      12.2,
+      362.2
+     ],
+     "size": [
+      22.5,
+      10.85,
+      10.9
+     ],
+     "floorY": 6.75,
+     "ceilingY": 17.6
+    },
+    {
+     "name": "여자 화장실 (entrance gap z346.5~350)",
+     "center": [
+      242.2,
+      12.2,
+      350.2
+     ],
+     "size": [
+      22.4,
+      10.85,
+      10.9
+     ],
+     "floorY": 6.75,
+     "ceilingY": 17.6
+    },
+    {
+     "name": "사무실 · 창고 STAFF ONLY (StaffDoor x253.6 z338; rear RollerShutter x235.5~249.5 to the loading dock)",
+     "center": [
+      241.8,
+      12.2,
+      336.3
+     ],
+     "size": [
+      22.8,
+      10.85,
+      14.7
+     ],
+     "floorY": 6.75,
+     "ceilingY": 17.6
+    }
+   ],
+   "props": [
+    "Wall x10 + Divider (plaster 226,222,214), Ceiling x2 at y17.6~18.0",
+    "PrivacyScreen x2 (maze entrance walls 0.6x7.4x6.5)",
+    "Wainscot x2 ceramic 4.5 high on the x231 wall",
+    "SinkCounter x4 marble 2.8x0.5x1.8 + Basin x4 metal discs (no taps) + Mirror x2 8x4",
+    "StallPanel x6 + StallDoor x4 (purple plastic slabs) → 2 stalls per room",
+    "Toilet x4 marble boxes 1.3x1.5x1.2",
+    "Signs: 남자 화장실 MEN, 여자 화장실 WOMEN, 사무실 · STAFF ONLY, 화장실 RESTROOM → (hung on 10.7 wires at z368.9)",
+    "StaffDoor WoodPlanks slab 0.6x7.8x3.7 (not a door model)"
+   ],
+   "gameplay": [
+    "No scripts, tags or prompts reference these rooms; StaffDoor is a static part (no GwangalliDoors tag).",
+    "Exit door ExitDoor_비상구 at (230.2,10.6,371.9) and RollerShutter/'물품 반입구 · 하역장' sign outside are exterior decor."
+   ],
+   "emptyOrCrude": [
+    "No faucets, soap, paper towels/hand dryer, trash bins; basins are flat discs on boxes.",
+    "No urinals in the men's room.",
+    "Toilets are marble boxes (no bowl/seat/tank), no paper holders, bidet, hooks; stall doors flat slabs with no lock indicator.",
+    "No ceiling light inside either room (ceiling drops to y17.6; nearest light is CorridorLight at y28.5 outside) → dark; no exhaust fan.",
+    "Uses the corridor's big tile floor slab; no wet-area tile/drain.",
+    "Office/창고 22.8x14.7 is completely empty (no desk, PC, CCTV monitors, safe, shelving, stock boxes); the loading-dock shutter opens into nothing."
+   ],
+   "realWorld": [
+    "남자: 소변기 3~4 + 칸막이, 양변기 칸 2~3 (휴지걸이, 사용중 표시 잠금, 옷걸이), 세면대 (센서 수전 + 거울 + 핸드솝), 핸드드라이어/페이퍼타올, 휴지통",
+    "여자: 양변기 칸 3~4 + 위생용품 수거함, 파우더 존 (거울 + 선반), 기저귀 교환대",
+    "공통: 타일 바닥 + 배수구, 벽 타일, 매입 천장등 + 환풍기, 여성 안심 비상벨, 미로형 입구, 청소 점검표",
+    "사무실: 책상 + PC, CCTV 분할 모니터, 금고, 레인 관리 서버/스코어 시스템 랙, 서류장, 볼링화·핀 재고 박스, 직원 사물함, 하역 카트"
+   ],
+   "interactionIdeas": [
+    "세면대: '손 씻기' → water particle + sound",
+    "핸드드라이어: '손 말리기' blow sound",
+    "칸 문: '들어가기/잠그기' → door swings, red 사용중 indicator; '물 내리기' flush sound",
+    "거울: '옷매무새 확인' → mirror camera showing the outfit",
+    "사무실 (알바/staff): 'CCTV 보기' lane-hall camera view; '정산하기' mini task"
+   ]
+  },
+  {
+   "name": "1F 복도 (사물함 · 자판기 · 정수기) + 기계실 통로",
+   "path": "Workspace.Gwangalli.bowling.실내.복도, 실내.기계실_통로, 실내.Partition",
+   "bounds": "(253.9,6.75,327.6)-(353.7,28.68,369.0)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "복도 (restroom/office side x254.5, partition x283)",
+     "center": [
+      268.7,
+      17.7,
+      348.9
+     ],
+     "size": [
+      28.5,
+      21.9,
+      40.2
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "기계실 통로 (behind pinsetters; StaffDoor (280.3,10.6,329.8), ServiceDoor (333.4,10.6,326.6))",
+     "center": [
+      318.6,
+      17.7,
+      333.5
+     ],
+     "size": [
+      69,
+      21.9,
+      11.6
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "Lockers x1 1.5x7.2x20 single metal box (60,90,150) + LockerSeam x12 strips (fake 10x2 doors) + Sign_사물함 LOCKER",
+    "VendingMachine x2 (Body 3.4x6.2x2.6 red + Display neon (NightNeon) + Can x15 flat 0.4x0.8x0.2 slabs each)",
+    "WaterPurifier 1.8x4.6x1.6 + CupDispenser glass",
+    "FireExtinguisher, Sign_비상구, CorridorLight 4x4 (SurfaceLight)",
+    "기계실: Workbench 10x3.2x2.2 metal box, PinCart 4x2.8x3, SparePin x6 cylinders, ServiceLight (SurfaceLight), Sign_비상구",
+    "Partition: PartitionWall 0.8x21.9x74 (34,26,56) + 2 short pieces, WallNeon 58 long (BowlingCosmic), StaffDoor metal slab + Sign_STAFF ONLY"
+   ],
+   "gameplay": [
+    "None interactive: Interact builds its own vending props (workspace.GwangalliInteract) and does not tag these VendingMachine models; lockers are not VenueSpots.",
+    "WallNeon tag BowlingCosmic (BowlingClient hue cycle)."
+   ],
+   "emptyOrCrude": [
+    "Corridor 28x40 is mostly bare tile; one wall has vending + purifier, the other a single locker slab.",
+    "Lockers have no doors/numbers/keys/handles; vending cans are flat slabs, no buttons/coin slot/pickup bin.",
+    "Machine passage: workbench box + cart; no pinsetter backs (pinsetters are single boxes), tool board, lane-conditioning machine, ball-return track, parts shelving."
+   ],
+   "realWorld": [
+    "유료 보관함 (열쇠/번호키 100~500원), 음료 자판기 (캔/페트 + 커피), 정수기 + 종이컵, 소화기, 비상구 유도등, 청소도구함",
+    "기계실: 핀세터 뒷면 (벨트·엘리베이터·핀 디스트리뷰터), 레인 정비기 (Kegel 오일 머신), 공구 보드, 부품 선반, 핀 카트, 작업등, '작업 중 출입금지' 표지"
+   ],
+   "interactionIdeas": [
+    "사물함: '사물함 사용 (500원)' → door opens with number; store/retrieve",
+    "자판기: '음료 뽑기' → drink picker, can drops (reuse Interact vending purchase)",
+    "정수기: '물 마시기' (like gym_water)",
+    "기계실 (알바/점검): '핀세터 점검' fix-jam mini task when a lane stalls"
+   ]
+  },
+  {
+   "name": "1F 레인홀 (12 레인 · 컨코스 · 핀세터)",
+   "path": "Workspace.Gwangalli.bowling.볼링레인 (Lane_01..12, Pair_01_02..11_12, Cappings, MaskingWall, Pit) + 실내.레인홀_조명 + 1층_외벽 Floor_LaneHall/Floor_Concourse/HallLiner",
+   "bounds": "(283.2,6.5,335.4)-(355.1,28.68,443.0)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "레인 (approach z407~423 → pin deck z343~347; lanes x284~354)",
+     "center": [
+      319.0,
+      17.7,
+      379.2
+     ],
+     "size": [
+      70.4,
+      21.9,
+      88
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "컨코스 · 세티 (ball returns z420~425, settees z428~434, ball racks z434~442; Floor_Concourse Carpet 30,22,52)",
+     "center": [
+      319.9,
+      17.7,
+      432.9
+     ],
+     "size": [
+      70.4,
+      21.9,
+      20
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    },
+    {
+     "name": "핀세터 · 피트 (behind MaskingWall z347.3, masking y16.5~28.7)",
+     "center": [
+      318.0,
+      17.7,
+      341.0
+     ],
+     "size": [
+      70,
+      21.9,
+      13
+     ],
+     "floorY": 6.75,
+     "ceilingY": 28.68
+    }
+   ],
+   "props": [
+    "Lane_01..12 (BowlingLane, ~170 inst each): Approach 6.3/5.7x0.75x16 + LaneBed 3.5x0.75x60.41 + PinDeck 3.5x3.65 WoodPlanks (214,172,118), Gutter x2 + GutterLip x2, BumperL/R (yellow, retracted), FoulLine, ApproachDot x12, LaneDot x8, Arrow x14 tiny slabs, invisible FoulBarrier/LaneFrame/PromptAnchor/BallRest, Sweep bar, PitCurtain, Pinsetter (one 4.8x5.7x11.44 metal box) + PinsetterDeck + PinsetterTurret (red box), Sign_N lane number, MonitorScreen_NN 5.1x2.95 slab (SurfaceGui LaneMonitor_NN), Pins Pin_1..10 (Collider + box Belly + Foot/Neck cylinders + box Head + 2 Stripes), Ball (BallCore sphere + 3 finger-hole discs)",
+    "Pair x6: Sign_ROCK BOWL / GWANGALLI masking panel 11.4x4.3, PinLight (SurfaceLight), BallReturnStand/Base/Hood (cylinder)/Mouth/BallRail x2/DryerGrille/ReturnNeon, MonitorPole 9.8 + MonitorBar + 2 mounts, 6 settee seats (SetteeBase/Seat/Back/Cap/Neon, purple leather) in a line, round TableTop + leg + foot + Beer/Cocktail/SnackBasket, ConsolePost + ScoreConsole 1.5x0.12x1 (ConsoleGui 'LANE 1 · 2'), BallRack (RackFoot, 2 ends, 2 trays, HouseBall x12 with Lb attr, BallRackPrompt, sign 'HOUSE BALL 8–16 LB')",
+    "Cappings: Capping x13, Kickback x13, CosmicStrip x13, KickbackNeon x13, FoulSensor x13, StepNeon 69.6",
+    "MaskingWall 69.6x12.15x0.6 + MaskingEnd x2 + CosmicPlanet x6 + CosmicStar x10 + CosmicRing + Sign_STRIKE ZONE + HallLeaderboard 15x4.8 (LeaderboardGui) + LeaderboardEdge",
+    "Pit: PitFloor rubber 69.6x3.4 + PitBack fabric",
+    "레인홀_조명: LEDStrip x8 (69.6 long, BowlingCosmic), BlackLight x3, SetteeLight x3 (SurfaceLight), Duct x3 96 long, Speaker x3 + cones, MuralPlanet x4, MuralZigzag x12, Sign_Rock & Bowl neon; Truss: TrussChord x2, TrussLace x10, TrussHanger x2, MovingHead x7 + lens + yoke",
+    "HallLiner (east wall 22,18,34) + MuralNeon x2 (65 long); BackLiner x3 (z328)"
+   ],
+   "gameplay": [
+    "ServerScriptService.Bowling: CollectionService 'BowlingLane' models; uses LaneFrame (attrs LaneLength 60.96, LaneWidth 3.5, ApproachLength 16, BallDiameter 0.72, DeckEnd 64.06, GutterDepth/Width, PinHeight 1.27, PinRow, PinSpacing, PitDepth, PitEnd), PromptAnchor (ProximityPrompt '볼링 치기' / '합류하기'), FoulBarrier (CanCollide on, group BowlingBarrier), BallRest, Sweep (DropHeight/Travel), BumperL/R (UpOffset), Pins/Pin_1..10 (PinNumber, PrimaryPart Collider), Ball (BallCore), LaneBed/PinDeck (custom friction), Approach, Pit; renders SurfaceGui LaneMonitor_NN; model attribute Players.",
+    "Bowling.prepareLane/prepareHallParts: EVERY CanCollide BasePart inside a Lane_XX model (except pins/ball) and inside 'Pit' and 'Cappings' is put in collision group BowlingLane (collides with the server-physics ball and pins) → never add server-side collidable parts under these models; client-only decor outside them.",
+    "BallRackPrompt x6 → server adds ProximityPrompt '공 고르기' (F, ObjectText '하우스볼 8~16 lb', MaxDist 8) → Picker UI; HouseBall Lb attrs are decor.",
+    "HallLeaderboard (MaskingWall) SurfaceGui 'LeaderboardGui' Row1..5 written by Bowling server.",
+    "BowlingClient: parts tagged BowlingCosmic (LEDStrip, CosmicStrip, SetteeNeon, MovingHeadLens, CosmicPlanet, MuralPlanet, StepNeon, WallNeon) hue-cycle at 3 Hz while the camera is inside their bbox (+16 margin, r90); lane prompts hidden locally while playing; BowlingFX Cam/Rig/Guide drive the approach camera → keep each lane volume (x lane±3, z335~423, y6.75~19) free of new opaque client parts.",
+    "Play.Street.onBowlingLane (busy check), Life/Progress via player attr LastBowlingScore, VenueLife bowling board, Arcade Adapters hookBowling, ServerStorage.GwangalliBowlingEvent.",
+    "Interact skips model '볼링레인' for sittables (settee Seats are not GwSittable).",
+    "Not referenced by any script (safe to hide/replace client-side): ScoreConsole/ConsoleGui, Settee*, BallReturn*, DryerGrille, MonitorPole/Bar/Mount, masking Sign_* panels, PinLight, Pinsetter/PinsetterDeck/PinsetterTurret, PitCurtain, Kickback*, MaskingWall art, Truss/MovingHead, Speaker, Duct (Capping/Kickback are collidable in group BowlingLane — hide visually, don't delete).",
+    "볼링레인 is a ZoneLOD model (LODCenter 318.6,17.6,388.1, LODRadius 106)."
+   ],
+   "emptyOrCrude": [
+    "Pinsetters are single boxes with a red box turret; masking is a flat panel with neon dots; pit curtain a slab.",
+    "Ball return: box base + cylinder hood; no hand-blower vent detail, ball ring/track.",
+    "Score console is a 1.5x0.12x1 slab on a post; overhead monitors flat slabs on a pole; no big projection screens above the masking.",
+    "Settees: 6 identical boxes in a straight line per pair (no U/ㄷ team seating, cup holders, shoe-change bench, belongings baskets).",
+    "Pins have box bellies/heads (not lathe profiles); balls plain spheres with 3 flat dots.",
+    "Lane surface: no board lines/oil sheen; arrows/dots are tiny slabs; gutters flat channels.",
+    "No ball cleaner/polisher, towel, rosin at the approach; ceiling over lanes is a flat dark slab with 3 ducts (no acoustic panels, projector rig, lane canopy)."
+   ],
+   "realWorld": [
+    "합성 레인 (39보드 결), 어프로치 도트, 가이드 애로우 7개, 파울라인 + 파울 센서, 거터, 어린이용 자동 범퍼",
+    "페어마다: 볼 리턴기 (후드 + 핸드 블로어 + 볼 받침 링), 터치 스코어 콘솔 (이름·범퍼·게임 추가·직원 호출), 오버헤드 모니터 2대 (점수/리플레이), U자/ㄷ자 팀 소파 + 테이블 + 컵홀더, 볼링화 갈아신는 벤치",
+    "마스킹 유닛 (라이트박스 그래픽/LED 영상) + 핀라이트 + 레인 번호",
+    "핀세터 (Brunswick GS-X / AMF 82-90XL): 데크, 스위퍼, 핀 디스트리뷰터, 커튼 뒤로 일부 보임",
+    "락볼링: 블랙라이트, 형광 캡핑, 무빙헤드/레이저, 대형 프로젝션 스크린 (뮤비), 클럽 음향",
+    "하우스볼 랙 (6~16lb 색깔별), 볼 클리너 머신, 타월, 로진백, 볼 폴리셔",
+    "컨코스: 관람석, 음료 테이블, 직원 호출벨, 음료 주문 태블릿"
+   ],
+   "interactionIdeas": [
+    "스코어 콘솔: '콘솔 사용' → name entry, bumper toggle (server already supports per-player bumpers), add game, call staff",
+    "볼 리턴 송풍구: '손 말리기' → air sound + particle",
+    "볼 클리너 (new, concourse): '공 닦기' → ball spins in the machine",
+    "로진백/타월: '로진 묻히기' quick emote before throwing",
+    "팀 소파 테이블: order drinks to the lane (bar staff NPC delivers)",
+    "오버헤드 모니터: replay of the last strike from BowlingFX camera",
+    "코스믹 모드 (staff button): toggle black-light / disco mode via the BowlingCosmic parts"
+   ]
+  },
+  {
+   "name": "1F 엘리베이터 홀 (2~4층 전용) + 엘리베이터 (광안빌딩)",
+   "path": "Workspace.Gwangalli.bowling.실내.2~4층_엘리베이터홀 + 상층_2F-4F.엘리베이터_광안빌딩",
+   "bounds": "(341.1,6.75,446.0)-(354.8,19.0,467.9)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "1F 엘리베이터 홀 (Floor_UpperLobby Granite 196,178,150; street door x346~349 z467.9)",
+     "center": [
+      348.2,
+      12.7,
+      457.0
+     ],
+     "size": [
+      13.2,
+      11.9,
+      21.2
+     ],
+     "floorY": 6.75,
+     "ceilingY": 18.6
+    }
+   ],
+   "props": [
+    "Wall x2 plaster (196,188,174) + Ceiling 12.7x0.4x20.4 at y18.8",
+    "ElevatorDoor x2 4.4x8.2x0.15 metal slabs + DoorSeam + ElevatorHead (never open)",
+    "ElevatorButton_2F/3F/4F metal tiles (0.6~1.3 wide) on the z447 wall at x342.3/347.9/353.8 + ButtonPlate x12 (all floors)",
+    "Sign_층별 안내 7x5.4 (4F 휘트니스 / 3F 헤어·편집숍 / 2F 당구 / 1F 락볼링)",
+    "Mailbox x4 stacked 1x0.9x6 boxes; LobbyLight (SurfaceLight)",
+    "ElevatorStop_1..4 invisible 4x1x4 pads at (348.0,7.3,451.9) / (347.9,30.6/41.5/52.5,451.9)"
+   ],
+   "gameplay": [
+    "ElevatorButton (tag; Floor, FromFloor, Target 'ElevatorStop_<n>', Label): Venues.setupButton → prompt → fade + safe teleport onto the ElevatorStop pad; StreetInteract NPC routine 'lift' rides via the same buttons (Places.luau). Keep names/attrs/tags and the pads unobstructed.",
+    "Model attrs ElevatorGroup '광안 락볼링빌딩', Floors '1,2,3,4'."
+   ],
+   "emptyOrCrude": [
+    "No floor indicator or ▲▼ call buttons; destination buttons are bare text tiles; doors never open and there is no cab (ride = fade teleport).",
+    "Mailboxes are 4 boxes; no CCTV, notice board, 소화전, plant, trash."
+   ],
+   "realWorld": [
+    "LED 층 표시기 + 방향 화살표, ▲▼ 호출 버튼, 헤어라인 스테인리스 문, 승강기 점검 필증",
+    "층별 안내 (테넌트 로고), 호실별 우편함, 게시판, 소화전함, CCTV, 비상구 유도등, 금연 표지",
+    "엘리베이터 카: 조작반 (1~4, 열림/닫힘, 비상통화), 거울, 핸드레일, 정원 표시, 천장 조명, 층 표시"
+   ],
+   "interactionIdeas": [
+    "호출 버튼: '엘리베이터 부르기' → arrow lights, indicator counts, door leaves slide open (client tween) and the existing ElevatorButton teleport fires from inside a client-built cab",
+    "카 조작반: floor buttons mapped 1:1 to ElevatorButton_nF",
+    "우편함/층별 안내: tap for venue hours and floor info"
+   ]
+  },
+  {
+   "name": "2F 광안 당구클럽",
+   "path": "Workspace.Gwangalli.bowling.상층_2F-4F.2F_광안당구클럽 (+ 2F_입구, 구조_계단_엘리베이터.2F_바닥천장, FitOut)",
+   "bounds": "(232.2,30.08,415.2)-(354.2,39.56,468.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "당구 홀 (Floor_2F WoodPlanks 46,40,38 + 2 Carpet strips 58,30,34; ceiling 30,28,34)",
+     "center": [
+      282.8,
+      34.8,
+      442.45
+     ],
+     "size": [
+      101.2,
+      9.5,
+      52.5
+     ],
+     "floorY": 30.08,
+     "ceilingY": 39.56
+    },
+    {
+     "name": "큐 보관함 · 화장실 코너 (extension floor)",
+     "center": [
+      343.6,
+      34.8,
+      421.4
+     ],
+     "size": [
+      21.2,
+      9.5,
+      12.5
+     ],
+     "floorY": 30.08,
+     "ceilingY": 39.56
+    },
+    {
+     "name": "입구 (glass partition x333.9, door gap z~458~461)",
+     "center": [
+      333.9,
+      34.8,
+      457.5
+     ],
+     "size": [
+      1,
+      9.5,
+      20.8
+     ],
+     "floorY": 30.08,
+     "ceilingY": 39.56
+    }
+   ],
+   "props": [
+    "당구대 x8: 대대(3쿠션) 당구대_1,2,5,6,7,8 — TableBody 9.6x1.12x5 Wood, Cloth 9.06x0.25x4.46 blue, Cushion x4, Rail x4 square 0.62 bars, TableLeg x2 blocks 1.5x1.25x3.9, LampShade 6.6x0.5x1.6 + LampDiffuser neon + 2 hangers, 3~4 balls (0.21), Sign_3쿠션 'NN : NN'; 포켓볼대_3,4 — 8.1x1.12x4.2, green cloth, Pocket x6 cylinders, 16/7 balls",
+    "Carpet x2 77x15.8 under the table rows (z448~464, z421~437)",
+    "대기석 (z416~425): 4 sofas 10 wide (3 seats each, black leather), SideTable x4 with Bottle x4 + Cup x4, 짜장면 Bowl + Jjajang + Danmuji + DeliveryBox (철가방) — nice touch; CueRack x3 3.2x6 + Cue x15",
+    "카운터 (x320~332, z444~451): CounterBody 10x3.1x2.4 + Granite top + glow + POSMonitor/POSScreen, Chalk x4, Cue x8 + CueRackBase/Top, LogoWall 12x8.4 + Sign_BILLIARDS CLUB neon, Sign_당구 요금 (대대 10분 2,500 · 중대 2,000 · 포켓 2,500 · 1시간 13,000 · 개인 큐 보관 월 10,000 · 짜장면 배달 OK)",
+    "큐보관함: CueLockers 18.6x7.2x1.6 single wood box + LockerSeam x12, red sofa, plant, RestroomDoor + Sign_화장실 WC (door on the back wall)",
+    "VendingMachine 3.2x6.2x3 + VendingWindow neon + slot; WaterDispenser + LED; LEDScreen x2 in housings (PBA 3쿠션 생중계 / 하이런 이벤트); Sign 매너 큐 · 금연 · 큐 보관함; Sign_오늘도 하이런!",
+    "WindowLedge 76x0.2x1.8 + 8 stools (StoolBase/StoolPost/StoolSeat)",
+    "Downlight x17 neon discs (only 당구대_2 and _8 carry a SurfaceLight)",
+    "People x4 static block mannequins (Thigh/Shin/Torso/Arm boxes, ball head, box hair) + 2 cues",
+    "FitOut: Baseboard, CassetteAC x3 (+vanes/grilles), CCTV, ExitSign, extinguisher, Door_restroom (back wall), SmokeDetector, SwitchPlate"
+   ],
+   "gameplay": [
+    "No scripted gameplay: ShopFlows billiards drives only models named 'BilliardTable_<n>' (children TableCenter, Ball1..4, Scoreboard) inside a ShopFloor shop; Shared.Billiards sim play area is W=12 x H=6 studs (R 0.26) vs this cloth 9.06x4.46 → these tables can't be played.",
+    "Players are sent here anyway: Destination_당구클럽 (338.2,30.58,457.18) 'DisplayName 광안 당구클럽 (2F)', Social invite 'billiards' (dest '광안 당구클럽 (2F)'), GwangalliNav node 3010, Taxi confuse list.",
+    "No clerk: ShopStaff needs a ShopFloor storefront or a loose BasePart named POS/PosBase/BarCounter/FrontDesk… or a ShopCounter tag; 'POSMonitor' doesn't match → empty counter.",
+    "Model attrs TableType '대대 (3쿠션)' / '포켓볼' are informational only.",
+    "Interact sittables: sofa Seats x14, StoolSeat x8 (name contains seat/stool → chair).",
+    "상층_2F-4F is a ZoneLOD (LODCenter 293.3,53.5,442.2, LODRadius 143); per-table 'Detail'/'NearDetail' are NearLOD."
+   ],
+   "emptyOrCrude": [
+    "Tables: square bar rails, two block legs, no diamond sights, corner castings or apron; '3쿠션' tables 1,2,5,7 carry 4 balls (4구 set).",
+    "No per-table scoreboard (전자 점수판/주판) or wall cue rack per table; no chalk on rails, no bridge/rest.",
+    "17 'downlights' are emissive discs that light nothing; ceiling is a flat dark slab.",
+    "Central aisle z437~448 between the two table rows is 11 studs of bare floor x232~320 with nothing (no score towers, side tables, ash-free stands).",
+    "Static block mannequins look primitive next to the skinned NPCs.",
+    "Restroom door (348.2,33.8,415.4) and FitOut Door_restroom lead into the back wall z416.1 — there is no restroom (behind is the solid Core block)."
+   ],
+   "realWorld": [
+    "대대 국제식 3쿠션 테이블 (열선 슬레이트, 다이아몬드 포인트, 고무 쿠션, 6족 원목 다리), 중대, 9ft 포켓볼대 (포켓 + 볼 리턴)",
+    "테이블마다: 사각 LED 조명, 전자 점수판 (태블릿/큐스코어: 이닝·하이런·애버리지), 큐 스탠드, 초크 + 파우더, 레스트, 브러시",
+    "카운터: 시간제 요금 POS (테이블별 타이머), 공 세트 보관, 큐 팁 교체 공구, 음료 냉장고, 커피 머신",
+    "개인 큐 보관함 (번호), 관전 소파 + 사이드 테이블, 짜장면·탕수육 배달 메뉴판",
+    "TV PBA/LPBA 중계, 대회 포스터, 금연/매너 안내, 공기청정기, 에어컨",
+    "포켓볼: 삼각 랙/9볼 랙, 1~15번 볼 세트"
+   ],
+   "interactionIdeas": [
+    "당구대: '당구 치기 (10분 2,500원)' → reuse GameViews/ShopFlows billiards (aim + Shared.Billiards.shoot) by building TableCenter/Ball1..4 aliases client/server-side and scaling the sim to the 9.06x4.46 cloth",
+    "큐 걸이: '큐 고르기' → cue held prop; 초크: '초크 칠하기' emote",
+    "점수판: '점수 올리기' manual counter for social play",
+    "카운터: '테이블 배정' timer + clerk NPC; '짜장면 시키기' → delivery NPC with 철가방 after N s, eat at the side table",
+    "자판기 / 정수기: buy coffee, drink water",
+    "TV: 'PBA ↔ 야구' channel"
+   ]
+  },
+  {
+   "name": "3F 헤어살롱",
+   "path": "Workspace.Gwangalli.bowling.상층_2F-4F.3F_헤어살롱_편집숍.헤어살롱 (+ 3F_입구, 3F_바닥천장)",
+   "bounds": "(294.7,41.0,415.0)-(354.3,50.55,468.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "살롱 홀 (Floor_Salon WoodPlanks 150,112,78; reception + styling island)",
+     "center": [
+      314.2,
+      45.8,
+      442.45
+     ],
+     "size": [
+      38.4,
+      9.55,
+      52.5
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.55
+    },
+    {
+     "name": "샴푸실 · SPA (extension corner)",
+     "center": [
+      345.4,
+      45.8,
+      420.8
+     ],
+     "size": [
+      17.6,
+      9.55,
+      11.0
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.55
+    },
+    {
+     "name": "컬러바 (along back wall z415.6~423.5)",
+     "center": [
+      313.7,
+      45.8,
+      419.5
+     ],
+     "size": [
+      30.7,
+      9.55,
+      8
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.55
+    }
+   ],
+   "props": [
+    "살롱_리셉션: DeskBody 8x3.1x2.2 white + wood top (ShopCounter_salon) + DeskGlow + Sign_HAIR SALON; Detail: Tablet + screen, plant, Magazine x3",
+    "대기소파 x1 (10 wide, 3 seats, beige fabric) + CoffeeTable 6x1.5x2.4",
+    "스타일링_아일랜드: IslandCounter 22x2.8x2.2 + IslandTop + IslandMirrorWall 22x5.8x1.1 (double-sided), Mirror x6 3.4x4.8 + MirrorLight x6, 스타일링체어_1..6 (3 per side; ChairBase disc, ChairPost, seat 2x0.55x1.9, ChairBack, Armrest x2, Footrest), Trolley x6 + TrolleyTop, Product x12 cylinders, PendantCord/Shade/Bulb x6 (2 PointLights AlwaysOn)",
+    "컬러바: ColorCounter 18x3.1x2.2 + ColorTop + ColorShelf + ColorBox x12 identical, Steamer x2 (base + pole + ring), Sign COLOR · PERM · CLINIC",
+    "샴푸실: BasinCabinet x3 + Basin x3 black marble + Faucet/FaucetSpout x3, WashChairBase/WashChair/WashBack/LegRest x3, TowelCabinet + Towel x4 cylinders, PendantGlobe x3, Sign SHAMPOO · SPA",
+    "Sign_HAIR PRICE 7.5x4.6 (커트 15,000 · 다운펌 25,000 · 펌 60,000~ · 염색 50,000~ · 클리닉 30,000 · 드라이 12,000), Sign_hair & style neon, PartitionWall 0.6x9.6x31.1 at x294.7, Downlight x8 neon discs",
+    "People: 3 static block figures (one with Cape) + Ponytail"
+   ],
+   "gameplay": [
+    "SalonChair (tag; Label '헤어 스타일링 의자', Pose sit) on 스타일링체어_2..6 → Venues.setupShop(inst, true): kiosk prompts ('<style> 구매' + '다음 상품 ▶'), each chair starts on a different style; 스타일링체어_1 has an untagged 'ChairSeat' → only 5 of 6 chairs work.",
+    "ShopCounter_salon (tag; ShopId salon, Label '헤어살롱 예약 · 스타일 선택') → Venues kiosk + menu board above counter, phone PhoneAction 'buy' within reach; ShopStaff spawns a clerk behind this ShopCounter-tagged part (no other staff within 9 studs) → keep z465~468 behind the desk clear.",
+    "Interact excludes SalonChair/ShopCounter-tagged parts; 대기소파 Seats sittable.",
+    "Destination_헤어·편집숍 (338.2,41.46,457.18)."
+   ],
+   "emptyOrCrude": [
+    "Window side x297~322, z449~462 (~25x13) between island and reception is empty wood floor; no product retail shelf or coffee bar.",
+    "Styling chairs are box seats on discs (no hydraulic base, headrest); trolleys hold only cylinders (no scissors, combs, dryers, irons).",
+    "Color bar: 12 identical boxes; no dye tubes, bowls, brushes, scale, gloves; steamers are a ring on a pole.",
+    "Shampoo basins are black boxes, no hose sprayers; towels are cylinders; no towel warmer.",
+    "No washer/dryer, broom/hair on floor, designer profile frames.",
+    "Static block people."
+   ],
+   "realWorld": [
+    "리셉션: 예약 태블릿/POS, 카드단말기, 홈케어 제품 진열장 (샴푸·트리트먼트·왁스), 쇼핑백",
+    "대기: 소파 + 패션 잡지·스타일북 + 커피 머신/티 셀프바 + 정수기",
+    "스타일링: 대형 거울 + LED, 유압 미용의자 (페달·헤드레스트), 워킹 트롤리 (가위·빗·클립·스프레이), 드라이어 홀더, 고데기/매직기, 손님 가운 걸이",
+    "샴푸실: 백워시 샴푸대 (도기 볼 + 샤워헤드 호스), 리클라이너, 수건 온장고, 수건장, 은은한 조명",
+    "펌/염색: 디지털펌 기계, 롤러볼/클라이맥존 가열기, 호수별 염색약 진열, 염모 볼·브러시, 저울, 비닐장갑, 캡",
+    "기타: 세탁기·건조기, 빗자루/머리카락 청소기, 디자이너 소개 액자, 가격표, 네온 사인"
+   ],
+   "interactionIdeas": [
+    "미용의자: keep the kiosk, add a stylist NPC haircut animation (scissors, hair-clipping particles) and a mirror camera reveal",
+    "샴푸대: '샴푸 받기' → lie-back pose, water sound, towel wrap",
+    "펌 가열기: '펌 기계' timer with a spinning heater ring",
+    "컬러바: '염색 컬러 고르기' → hair colour picker feeding the salon purchase",
+    "잡지: sit + read pose; 커피 셀프바: '커피 받기' held cup",
+    "제품 진열장: buy hair wax (appearance buff)"
+   ]
+  },
+  {
+   "name": "3F 편집숍 (GWANGAN SELECT SHOP)",
+   "path": "Workspace.Gwangalli.bowling.상층_2F-4F.3F_헤어살롱_편집숍.편집숍",
+   "bounds": "(232.2,41.0,416.2)-(294.4,50.55,468.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "매장 (Floor_3F Concrete 206,202,194)",
+     "center": [
+      263.3,
+      45.8,
+      442.45
+     ],
+     "size": [
+      62.2,
+      9.55,
+      52.5
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.55
+    },
+    {
+     "name": "피팅룸 (3 booths, curtains z424.7)",
+     "center": [
+      262.0,
+      45.6,
+      422.0
+     ],
+     "size": [
+      28.8,
+      9.5,
+      11.2
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.4
+    },
+    {
+     "name": "쇼윈도 (WindowPlatform y41.6)",
+     "center": [
+      245.7,
+      45.8,
+      466.0
+     ],
+     "size": [
+      20,
+      9.2,
+      4.6
+     ],
+     "floorY": 41.6,
+     "ceilingY": 50.55
+    }
+   ],
+   "props": [
+    "행거_1..4 x4: RackPost x2 + RackFoot x2 + RackRail 6.6 cylinder, Garment x10 each (0.28x3~4x2.1 fabric slabs, one colour per rack)",
+    "진열테이블_1..2 x2: TableTop 6.8x0.3x3.6 wood + white base + FoldedStack x6 boxes",
+    "벽면행거 (x292~294.6, z419~445): WallRail 26 + WallShelf 26 + Garment x18 + FoldedStack x8",
+    "피팅룸: FittingWall x4, FittingHeader 18.4x0.4x8.5, FittingCurtain x3 slabs, FittingMirror x3, FittingStool x3, MirrorFrame x2 + FloorMirror x2, Sign FITTING ROOM",
+    "슈즈선반: ShoeShelf 15.4x7.2x1.6 + ShelfEdge x3 + Shoes x10 and Bag x5 (identical 1.8x0.65x1.2 boxes)",
+    "편집숍_계산대: CounterBody 10x3.1x2.4 + ShopCounter_clothing wood top + POSMonitor/POSScreen + ShoppingBag x3 cardboard + Sign GWANGAN SELECT",
+    "WindowPlatform 20x0.6x4.6 + 3 mannequins (Stand, StandPole, Pants, Top, 2 Sleeves, Neck, box Head)",
+    "천장조명: LinearBody x6 + LinearDiffuser x6 + Hanger x12; TrackRail 20 + TrackHead x4 + lenses (2 SurfaceLights)",
+    "Plants x2; Sign_SELECT SHOP · NEW ARRIVALS (window), Sign_GWANGAN SELECT SHOP (back wall); People: 2 static block figures at the counter"
+   ],
+   "gameplay": [
+    "ShopCounter_clothing (tag; ShopId clothing, Label '편집숍 계산대 · 옷 구매') → Venues kiosk prompts + menu board above, PhoneAction 'buy'; ShopStaff clerk behind the counter (z428~431) → keep clear.",
+    "Fitting room, racks, mirrors: no script references."
+   ],
+   "emptyOrCrude": [
+    "Centre x262~292, z430~465 (~30x35) is nearly empty concrete; 4 racks + 2 tables for a 62x52 store.",
+    "Garments are flat slabs (no hangers, sleeves, collars); folded stacks are boxes; shoes/bags identical boxes.",
+    "Mannequins: box heads on poles, no arms/hands.",
+    "Fitting curtains are slabs; no hooks, mats, booth numbers, mirror lighting.",
+    "No accessories (caps, sunglasses, jewellery case, socks), brand wall graphics, price tags, sale POP, EAS gate, speaker, rug, companion seating."
+   ],
+   "realWorld": [
+    "행거 (원목/블랙 파이프) + 옷걸이 + 사이즈 링, 벽면 선반 (폴딩 니트·티), 중앙 테이블 진열, 조명 슈즈 월, 가방·모자·주얼리 유리 진열장",
+    "전신 마네킹 (팔·손 포즈), 시즌 VMD 쇼윈도, 브랜드 레터링/네온",
+    "피팅룸: 커튼 + 전신거울 + 후크 + 스툴 + 신발 벗는 매트 + 번호표",
+    "계산대: POS, 카드단말기, 택건/가격표, 쇼핑백·포장지, 영수증 프린터, 도난방지 태그 리무버",
+    "입구 도난방지 게이트, 디퓨저, 스피커, 식물, 트랙 조명"
+   ],
+   "interactionIdeas": [
+    "행거/벽면: '옷 구경하기' → item card from the clothing stock, '입어보기' → fitting room",
+    "피팅룸: '커튼 닫기 / 입어보기' → curtain tween + outfit preview camera, '구매하기' at the counter",
+    "전신거울: pose/photo",
+    "슈즈 월: '신어보기' preview; 액세서리 진열장: caps/sunglasses accessory purchase",
+    "쇼윈도 마네킹: rotate the daily VMD set"
+   ]
+  },
+  {
+   "name": "4F 광안 휘트니스 24",
+   "path": "Workspace.Gwangalli.bowling.상층_2F-4F.4F_광안휘트니스24 (+ 4F_입구, 4F_바닥천장)",
+   "bounds": "(232.2,52.0,414.9)-(354.2,61.95,468.7)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "운동 홀 (Floor_4F Rubber 44,45,48; ceiling 26,26,30)",
+     "center": [
+      282.8,
+      57.0,
+      442.45
+     ],
+     "size": [
+      101.2,
+      9.95,
+      52.5
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "유산소 존 (window side: treadmills, bikes, rowers)",
+     "center": [
+      266.0,
+      57.0,
+      462.5
+     ],
+     "size": [
+      63,
+      9.95,
+      9
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "프리웨이트 존 (squat racks, benches)",
+     "center": [
+      245.0,
+      57.0,
+      440.0
+     ],
+     "size": [
+      26,
+      9.95,
+      24
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "머신 · 기능성 존 (mirror wall z416, cable, pull-up, leg press, lat, turf)",
+     "center": [
+      300.0,
+      57.0,
+      425.0
+     ],
+     "size": [
+      45,
+      9.95,
+      18
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "리셉션 · 인바디 · PT",
+     "center": [
+      325.5,
+      57.0,
+      455.0
+     ],
+     "size": [
+      17,
+      9.95,
+      24
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "락커 코너 (extension; shower doors are fake)",
+     "center": [
+      344.6,
+      57.0,
+      421.4
+     ],
+     "size": [
+      19,
+      9.95,
+      12.8
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    }
+   ],
+   "props": [
+    "러닝머신_1..8 (deck, belt, motor hood, 2 uprights, 2 handrails, console screen)",
+    "실내사이클_1..4 (feet, flywheel, crank, frame, seat post, saddle, bar post, handlebar, console)",
+    "로잉머신_1..2 (rail, seat, flywheel housing, footrests, screen + arm, feet)",
+    "스쿼트랙_1..2 (LiftingPlatform 7.2x5.8, 4 uprights, top beam, pull-up bar, 2 safety bars, Barbell 7.3, Plate x4)",
+    "벤치프레스_1..2 (frame, foot, uprights + J-hooks, Barbell, Plate x4)",
+    "덤벨랙 (base, 2 shelves, 4 legs, 16 dumbbells = DumbbellHead x32 + DumbbellHandle x16); 덤벨벤치_1..2",
+    "케이블크로스오버 (12 parts), 턱걸이_딥스 (11), 레그프레스 (base, back, sled, footplate, 2 plates), 랫풀다운 (tower, WeightStack, boom, cable, bar, seat post, knee pad)",
+    "기능성존: TurfLane + TurfLine x2 + TurfMark x4, PlyoBox x3, Sled + handle; 스트레칭존: YogaMat x4; Detail: Kettlebell x6, GymBall x3, FoamRoller x5",
+    "거울벽: Mirror x6 + MirrorFrame x9 (z416~417); 3 TVs (ScreenHousing + LEDScreen messages + TVMount)",
+    "리셉션: CounterBody + ShopCounter_gym_store marble + CounterLED + POS, LogoWall 12x8.6 + neon, Sign_회원권 안내 (1개월 49,000 …), Fridge glass + Drink x12, SupplementShelf + ProteinTub x5 + Shaker x3, plants x2",
+    "인바디: platform, column, foot/hand electrodes, Sign_InBody",
+    "락커_샤워실: LockerBank 18.6x7.2x1.8 + LockerDoor x6 (102~107) + seams, LockerBench, TowelShelf + Towel x3, LockerRoomDoor x2 + signs (남자/여자 탈의실 · 샤워실)",
+    "천장: LinearBody/Diffuser x18 (4 SurfaceLights AlwaysOn) + Hanger x36 + Duct x2 (98 long)",
+    "WaterDispenser + LED; Signs 운동은 배신하지 않는다 / 오늘도 득근! / FREE WEIGHT / PT ZONE",
+    "NPCs: 트레이너 김코치, 회원 (스트레칭), 회원 (덤벨 컬); People model: Sign_PT · 오늘의 루틴 · 김코치 floating at (327.0,100.0,451.2) + loose dumbbell"
+   ],
+   "gameplay": [
+    "GymStation x25 (tag; attrs StationType treadmill/bike/squat/bench/dumbbell/pullup/inbody, Pose, RepStyle, Machine, Label; runtime InUse) → Venues.setupStation hold-1s prompt → gym session (sets, form taps, gains); Play/Gym routines; GwangalliVenues/Gym client rep animation. Parts named Bar/Barbell/Weight/Weights/WeightStack/Plate/Plates/Handle/Dumbbell (G.GYM_MOVING_PARTS) or attr GymMoving bob during sets (<=12 anchored parts per station model) → don't rename, keep anchored, don't weld new parts to them.",
+    "VenueSpot gym_locker x6 (LockerDoor, LockerNo 102~107): server ProximityPrompt '락커 열기' tweens door.CFrame 105° about its left hinge → keep the swing space (z424~426) free.",
+    "VenueSpot gym_water (Spot_gym_water at (331.2,54.5,437.0), '물 마시기' hold 0.3) and gym_trainer (Spot_gym_trainer + VenueStaff Staff=gym_trainer, routine quest).",
+    "VenueStaff gym_regular x2 (Act stretch / gym:curl) animated members; GwangalliStaticNpcSkins skins 트레이너 ('uniform').",
+    "ShopCounter_gym_store (ShopId gym_store) kiosk (drinks/protein); trainer within 9 studs so ShopStaff adds no clerk.",
+    "Destination_헬스장 (338.2,52.46,457.18); Journey quest find radius 35, dy 6.",
+    "Interact excludes GymStation-tagged parts from sittables."
+   ],
+   "emptyOrCrude": [
+    "Equipment is box-built: treadmill decks/hoods boxes, consoles flat neon slabs, bikes are stick figures; plates/dumbbells plain cylinders.",
+    "Missing the typical Korean gym machine line: smith machine, chest/shoulder press, pec deck, leg extension/curl, hack squat, seated row, hip ab/adductor; no plate trees, barbell storage, incline/decline benches, stepmill, elliptical.",
+    "Locker room/shower doors (z415.6) open into the back wall — no changing room, showers, powder area.",
+    "No entry gate, towel return, sanitizer stations, scale, speakers, GX/PT room.",
+    "Floor is uniform dark rubber; walls plain plaster (40,40,44) except the mirror wall.",
+    "Floating sign 'Sign_PT · 오늘의 루틴 · 김코치' at y100 (38 studs above the roof y62.9) — misplaced."
+   ],
+   "realWorld": [
+    "출입: 지문/안면/QR 출입 게이트, 회원 키오스크, 인포 데스크 (운동복·수건 대여, 보충제·음료·쉐이크)",
+    "유산소: 개별 TV 러닝머신, 업라이트/리컴번트 사이클, 천국의 계단, 일립티컬, 로잉",
+    "프리웨이트: 파워랙, 플랫/인클라인/디클라인 벤치, 1~40kg 덤벨 랙, 원판 거치대, 바벨 거치대, 데드리프트 플랫폼, 초크볼",
+    "머신: 스미스, 레그프레스, 핵스쿼트, 레그 익스텐션/컬, 체스트·숄더프레스, 펙덱, 랫풀다운, 시티드 로우, 케이블 크로스오버, 어시스트 풀업, 힙 어브/어덕션",
+    "스트레칭/기능성: 매트, 폼롤러, 밴드, 짐볼, 케틀벨, 플라이오 박스, 슬레드 + 인조잔디",
+    "위생: 기구 소독 스프레이 + 페이퍼타올, 정수기 + 종이컵, 수건 반납함, 쓰레기통",
+    "탈의실/샤워: 번호 락커, 벤치, 파우더존 (드라이기·스킨/로션·면봉), 체중계, 샤워 부스 + 디스펜서, 탈수기",
+    "기타: 동기부여 문구, 음악 스피커, TV 뉴스, PT룸, GX룸, 인바디"
+   ],
+   "interactionIdeas": [
+    "출입 게이트 (new): '지문 찍기' → beep + gate arm opens",
+    "수건: '수건 받기' held towel / '수건 반납'",
+    "덤벨랙: '덤벨 들기 (5~20kg)' → held dumbbell + free curl emote",
+    "원판: choose plate weight at squat/bench before a session (display only)",
+    "소독 스테이션: '기구 닦기' after a set (+manner/popularity)",
+    "샤워실 (client-built rooms inside the hall, since behind the doors is solid core): '샤워하기' → steam + water, fatigue down",
+    "체중계: '체중 재기' from stats; 프로틴 쉐이크: order at the counter; TV channel / playlist select"
+   ]
+  },
+  {
+   "name": "2F–4F 엘리베이터 홀 · 입구 · 비상계단",
+   "path": "Workspace.Gwangalli.bowling.상층_2F-4F.{2F,3F,4F}_엘리베이터홀, {2F,3F,4F}_입구, 구조_계단_엘리베이터 (계단, 바닥천장)",
+   "bounds": "(333.1,29.5,427.5)-(354.8,62.6,467.9)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "2F 엘리베이터 홀 (Floor_Lobby Granite)",
+     "center": [
+      344.2,
+      34.8,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.5,
+      20.8
+     ],
+     "floorY": 30.08,
+     "ceilingY": 39.56
+    },
+    {
+     "name": "3F 엘리베이터 홀",
+     "center": [
+      344.2,
+      45.8,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.55,
+      20.8
+     ],
+     "floorY": 41.0,
+     "ceilingY": 50.55
+    },
+    {
+     "name": "4F 엘리베이터 홀",
+     "center": [
+      344.2,
+      57.0,
+      457.3
+     ],
+     "size": [
+      21.2,
+      9.95,
+      20.8
+     ],
+     "floorY": 52.0,
+     "ceilingY": 61.95
+    },
+    {
+     "name": "비상계단 (2 flights per floor, landings z431.8)",
+     "center": [
+      337.6,
+      46.0,
+      437.0
+     ],
+     "size": [
+      7.4,
+      32.6,
+      17.6
+     ],
+     "floorY": 30.08,
+     "ceilingY": 62.0
+    }
+   ],
+   "props": [
+    "Per floor: ElevatorJamb x4, ElevatorHead x2, ElevatorDoor x4 (2 cars x 2 leaves), DoorSeam x2, Sill x2, Sign 'n ▲' / 'n ▼' text tiles, Sign_층별 안내 3.2x2.6, Sign_nF 4.4x4.4, Bench 8x1.3x1.6 + BenchBase, FireExtinguisher + sign, LobbyLight x2; 2F plant",
+    "ElevatorButton_1F/2F/3F/4F plates + ButtonPlate per floor (x339.8~353.8, z447)",
+    "입구: PartitionGlass x2 (7.6/7.2 wide, t0.62) + base rails + header, DoorPost x2, venue sign 16 wide + OPEN hours (12:00-02:00 / 10:00-21:00 / 24H)",
+    "계단: Step x32 + StepNosing x32 (yellow), StairLanding x2, StairWall, Handrail x4, StairLight x5, StairGuardGlass + rail, FireDoorLeaf x3 + DoorFrames, Sign nF 비상계단",
+    "ElevatorCoreWall 13.2x32.6x19.2 solid block (no shaft)"
+   ],
+   "gameplay": [
+    "ElevatorButton (Floor/FromFloor/Target 'ElevatorStop_<n>'/Label) per floor → Venues teleport onto ElevatorStop pads (347.9, 30.6/41.5/52.5, 451.9); NPC routines ride via the same buttons.",
+    "Destination_당구클럽/헤어·편집숍/헬스장 at (338.2, 30.58/41.46/52.46, 457.18) — Journey Signals use a tight y band to tell stacked venues apart.",
+    "FireDoorLeaf / 입구 glass have no door scripts; keep the 입구 door gap and stair runs walkable."
+   ],
+   "emptyOrCrude": [
+    "Doors never open; no cab, no lit floor indicator or ▲▼ call buttons (text tiles only).",
+    "Halls 21x21 with one bench: no notice board, CCTV, 소화전함, trash, tenant directory graphics.",
+    "Stair: concrete boxes; fire doors static slabs."
+   ],
+   "realWorld": [
+    "LED 층 표시기, ▲▼ 호출 버튼, 스테인리스 문, 테넌트 로고 층별 안내, 소화전함, 소화기, 비상구 유도등, CCTV, 게시판, 휴지통, 화분, 금연 표지",
+    "비상계단: 방화문 (도어클로저, 피난 안내도), 층 표시, 핸드레일, 비상등, 논슬립"
+   ],
+   "interactionIdeas": [
+    "호출 버튼 → indicator + door open animation + cab interior with a floor panel bound to the existing ElevatorButton_nF",
+    "방화문: '문 열기' push-bar sound, auto close",
+    "층별 안내: tap shows venue info/hours"
+   ]
+  }
+ ],
+ "notes": "광안 락볼링클럽 빌딩 (Workspace.Gwangalli.bowling, 10,996 instances). Building AABB x230.4~355.6, z326.6~470.4, rotated ~0.95 deg about Y (rotation entries ±0.0165: walls drift ~+0.0165 x per stud of z). Front facade faces +z (z~469), main AutoDoor at x264.8.\nSCALE: lanes are built 1 stud = 1 ft (LaneLength 60.96, LaneWidth 3.5, ball 0.72, pin 1.27); characters ~5.2 studs. 1F clear height 21.9 (floor top y6.75, ceiling y28.68, dark 16,14,22). Upper floors: 2F floor 30.08 / ceil 39.56, 3F 41.0 / 50.55, 4F 52.0 / 61.95; roof y62.86.\nUPPER FLOORS cover only the front 52.5 studs (z416.2~468.7, plus a 21x12.5 corner x333~354 z415~428 and the lobby/stair/elevator core x333~355 z427~468); behind the back wall z416.1 is a solid 'Core' block 122x33x88 — every restroom/shower/staff door on 2F~4F (Door_restroom, RestroomDoor, LockerRoomDoor, Door_staff) opens into it. New rooms must be carved inside the front zone.\nLOD: three ZoneLOD models hide whole interiors beyond radius — 볼링레인 (318.6,17.6,388.1 r106), 실내 (293.6,17.8,398.1 r136), 상층_2F-4F (293.3,53.5,442.2 r143); 247 NearLOD 'NearDetail'/'Detail' models arrive hidden (GwArrive) and show within ~100~120 studs (DetailLOD writes LocalTransparencyModifier) — a client builder that hides crude parts must not fight those LTM writes (use its own Transparency on its clones or register its models with LOD='near' + NearLOD tag).\nDO NOT rename / move / block (runtime contracts): BowlingLane models and their LaneFrame, PromptAnchor, FoulBarrier, BallRest, Sweep, BumperL/R, Pins/Pin_n/Collider, Ball/BallCore, LaneBed, PinDeck, Approach, MonitorScreen_NN/LaneMonitor_NN, BallRackPrompt, HallLeaderboard/LeaderboardGui, Pit, Cappings; the collision-group rule (any CanCollide part under Lane_XX/Pit/Cappings joins group BowlingLane on first claim); BowlingCosmic-tagged parts; VenueSpot parts (Spot_bowl_shoes, Spot_bowl_snack + PickupCF, Spot_bowl_punch, LockerDoor x6, Spot_gym_water, Spot_gym_trainer); VenueBoard BoardFace (Board_bowling, Board_punch, SurfaceGui BoardGui Row1..5); VenueStaff rigs (shoe_clerk, bowl_cook, gym_trainer, gym_regular x2; GwangalliStaticNpcSkins hides their bodies and clones an avatar); '농구게임' model + FrontCabinet/Hoop/LEDScreen (Play.Arcade.World); LEDScreen Messages; GymStation x25 + moving part names (Bar/Barbell/Weight(s)/WeightStack/Plate(s)/Handle/Dumbbell); SalonChair x5; ShopCounter_salon/_clothing/_gym_store; ElevatorButton x12 + ElevatorStop_1..4; Destination x4; AutoDoor_정문.\nEXISTING PROMPTS (created at runtime): lane '볼링 치기'/'합류하기', '공 고르기', '볼링화 대여' + '색상 바꾸기 ▶', '분식 주문', '펀치! (500원)', 농구게임 (Arcade), gym stations (hold 1 s), '락커 열기', '물 마시기', trainer routine, salon/clothing/gym_store kiosks ('<item> 구매' + '다음 상품 ▶'), elevator buttons, Interact sit on Seats/sofa/stool names (볼링레인 settees excluded).\nBIGGEST GAPS: (1) 2F 당구클럽 has zero gameplay and no clerk although Social/Nav/Taxi send players there (tables aren't 'BilliardTable_n'; sim 12x6 vs cloth 9.06x4.46); (2) ROCK & BOWL BAR has no bartender (BarCounter is a Model, ShopStaff needs a BasePart anchor) and nothing to buy; (3) 1F restrooms have no fixtures/urinals/lights and the office/창고 is empty; (4) 인형뽑기_1..3 not playable (Interact claw needs ^ClawMachine_%d+$); (5) large empty floors: lobby west x253~300 z446~462, lounge centre x255~280 z408~440, select-shop centre x262~292 z430~465, salon window side x297~322 z449~462, billiards aisle z437~448, corridor x254~281 z343~369; (6) static block 'People' mannequins on 2F (4) and 3F (5) look primitive; (7) 3F 스타일링체어_1 lacks the SalonChair tag; (8) gym sign 'Sign_PT · 오늘의 루틴 · 김코치' floats at (327,100,451); (9) elevators are fade-teleports with doors that never open; (10) the 3rd 분식 order is placed at z~380, off the PickupTop shelf.\nSurvey scripts/data: /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/bld/bw/dump.json (all bowling instances with pos/rot/size/material/colour/attrs/tags), summ.py (grouped part summary), models.py (per-model AABB + tags)."
+}

@@ -1,0 +1,780 @@
+{
+ "venues": [
+  {
+   "name": "GS25 광안리점 (매장 / sales floor + eat-in + terrace)",
+   "path": "Workspace.Gwangalli.convenience[\"GS25 광안리점\"]",
+   "bounds": "min(-363.78,7.0,261.76) max(-308.46,18.0,307.17)  [interior; floor top 7.0, ceiling underside 18.0; terrace deck outside x -307.8..-294.9 z 262.0..308.2]",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Sales floor (매장 전체)",
+     "center": [
+      -336.12,
+      12.5,
+      284.47
+     ],
+     "size": [
+      55.32,
+      11.0,
+      45.41
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Cashier zone behind counter (계산대 안쪽: POS x2, back counter, cigarette wall)",
+     "center": [
+      -330.3,
+      12.5,
+      301.4
+     ],
+     "size": [
+      12.1,
+      11.0,
+      10.4
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Counter + queue lane (CounterTop x-327.6..-324.3, queue1-3 z~304.5 x-323..-317)",
+     "center": [
+      -320.0,
+      8.5,
+      302.5
+     ],
+     "size": [
+      11.0,
+      3.0,
+      8.4
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Gondola aisles (Gondola_1..3 along X, aisles 4.6 studs wide)",
+     "center": [
+      -337.4,
+      10.3,
+      283.5
+     ],
+     "size": [
+      33.3,
+      6.6,
+      21.0
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Beverage wall (5 Fridge units, 15 doors, west wall)",
+     "center": [
+      -361.45,
+      11.0,
+      283.5
+     ],
+     "size": [
+      4.5,
+      8.0,
+      35.0
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Open chiller / 도시락 zone (north wall)",
+     "center": [
+      -346.75,
+      11.0,
+      304.85
+     ],
+     "size": [
+      14.7,
+      8.0,
+      3.3
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Eat-in + services strip along south window (standing bar, hot water, 2 microwaves, soup sink, ATM)",
+     "center": [
+      -333.2,
+      12.5,
+      263.95
+     ],
+     "size": [
+      36.4,
+      11.0,
+      4.3
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Front window promo strip (mostly empty floor; ice-cream chest only)",
+     "center": [
+      -314.85,
+      12.5,
+      280.0
+     ],
+     "size": [
+      11.7,
+      11.0,
+      35.0
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Entrance (AutoDoor_GS25, 9 wide x 9.3 tall, EntranceMat)",
+     "center": [
+      -309.1,
+      11.7,
+      302.0
+     ],
+     "size": [
+      1.0,
+      9.3,
+      9.0
+     ],
+     "floorY": 7.0,
+     "ceilingY": 16.9
+    },
+    {
+     "name": "Terrace deck (outdoor, 3 PlasticTable sets, awning above at y16.3)",
+     "center": [
+      -301.37,
+      6.78,
+      285.11
+     ],
+     "size": [
+      12.86,
+      0.44,
+      46.2
+     ],
+     "floorY": 7.0
+    }
+   ],
+   "props": [
+    "Floor x1: one 44.4x0.5x54.5 CeramicTiles slab #d6d6d2 (whole sales floor) - OK tile material but no border/threshold detail",
+    "Ceiling/CeilingBoard x1 44.4x0.3x54.5 SmoothPlastic #ecece8 + TBar x22 (0.16x0.1 metal grid) - flat, no tiles/sprinklers/detectors",
+    "LightPanel x8 Neon: 4 strips 0.9x46 along Z, 2 panels 3.2x16 (SurfaceLight Range32, InteriorLight AlwaysOn), 1 cashier panel 8.8x8.6 (Range18), 1 fridge strip 35x1 (Range14)",
+    "CassetteAC x2 3.8x0.35x3.8 + ACGrille x2 + ACVane x8 (NearDetail) at (-319.4,17.8,285.3) and (-347.4,17.8,284.8) - decent",
+    "WallLining/SideWallLining/BackWall Plaster #dedad0 + BrandBand x2 (GS blue 1-stud band at y16.4) - otherwise blank walls",
+    "AutoDoor_GS25 Model (tag AutoDoor): 2 glass DoorLeaf 4x8.8 + rails/stiles + DoorOperator + MotionSensor + 2 'Sign_자동문 · 어서오세요' decals - functional sliding door",
+    "ShopWindow x14 Glass t0.6 (front x-309 z263..297; side z~262 x-347..-308) + Mullion x19 + Head/SillRail - no window posters inside",
+    "CounterBody 8x3.3x2.6 SmoothPlastic box + CounterTop 8.25x0.3x3.1 Granite + CounterFront blue + CounterFrontStrip Neon + CounterNotice '19세 미만…' - boxy counter",
+    "POSMonitor x2 2x1.4x0.15 (POS 1 tagged GwPosScreen, attrs Job=gs25 Register=1, SurfaceGui PosScreen.Bg.{Head,Lines,Total}); POSStand x2",
+    "CustomerDisplay x2 1.4x1 (one tagged GwPosCustomer) + DisplayStand x2; BarcodeScanner x2 0.34x0.75x0.3 (one tagged GwPosScanner) + ScannerCradle x2 + ScannerWindow neon x2",
+    "ReceiptPrinter x2 0.9x0.65x0.9 (one tagged GwPosPrinter) + ReceiptPaper x2; CashDrawer x2 2.2x0.7x1.05 + DrawerHandle x2; CardTerminal x2 0.7x0.25x0.7 + CardTerminalScreen neon x2",
+    "BagHolder x1 1.1x1x0.5, GumRack x3 0.4x0.55x0.55 cubes (yellow/green/pink) - the only impulse display",
+    "Sign_계산대 · 택배 접수 7x1.3 hanging on 2 SignRod; StaffOnlyChain 1.8x0.6 '직원 외 출입금지'; CashierSideWall 0.3x3.3x9 + CashierSideTop",
+    "BackCounter 10x3.2x2 + BackCounterTop; CashierPartition 10.35x11.5x0.6 Plaster wall behind cashier (x-336.6)",
+    "CoffeeMachine 2.4x2.8x1.7 black box with SurfaceGui '원두커피 / 아메리카노 1,200원' (behind counter - customers cannot reach)",
+    "StaffMicrowave 2.6x1.5x1.7 box + MicrowaveWindow; SteamerGlass 3x1.6x1.5 + SteamerHeader '핫바 · 찐빵' + SteamerBase + HotBar x4 cylinders",
+    "CigaretteCabinet 9.7x6x0.6 + CigaretteBacklight Neon 9.3x4.9 + CigarettePacks x30 strips (0.57-2.3 x0.6x0.2, 8 colours) + CigaretteHeader '담배 · 전자담배 | 신분증을 제시해 주세요'",
+    "Gondola_1..3 Models (LOD=zone, radius ~98): each = Plinth 3.2x0.3x30 + ShelfA/ShelfB (BackPanel 30x5.6, 2 Upright, 5 Board 29.6x0.15x1.2, 4 PriceRail) + EndCap (red, 3 boards) + 2 PriceRail with PriceTags gui (8 tags '1,000원…') + CategoryHeader 0.6x1x30 ('즉석식품 · 라면' / '과자 · 간식' / '생활용품 · 위생') + Sign_1+1 / Sign_2+1; ~286 'Product' each",
+    "Product x950 total (gondolas + endcaps + chiller): plain SmoothPlastic boxes 0.51-0.95 x 0.6-1.1 x 1.05-1.5 in 14 flat colours, CanCollide false - crude coloured bricks",
+    "Gondola end slots x4 (slot_food/snack/life at west ends x~-353, slot_drink at G3 east end x-321): SlotBack 3.2x5, SlotSide x2 red, SlotBoard x3, Sign_📦 <category>, RestockCard '품절 · 채워 주세요', Leftover x3 - intentionally sparse (JobCvsPlus fills them)",
+    "OpenChiller Model (LOD zone r89) x-354.1..-339.4 z303.2..306.5: ChillerPlinth, 2 ChillerSide, ChillerCanopy, ChillerLight neon, AirCurtainLip glass, ChillerHeader '도시락 · 삼각김밥 · 샌드위치', BackPanel/Upright/Board x5, ~77 Product boxes",
+    "Fridge x5 Models (LOD zone r86) x-363.7..-359.2 z266..301: Body 7x1x3.6 (top), Kick, 2 SidePanel, FridgeGlow neon 6.6x6.2 back, FridgeDoor one 6.6x6.2x0.1 glass slab, 2 DoorMullion, 3 DoorHandle, FridgeLamp, 3 WireShelf, 40 Bottle each (200 total: 0.27-dia single-colour cylinders) + FridgeLiner neon x5",
+    "Sign_음료 · 생수 · 유제품 21x1.1 and Sign_맥주 4캔 11,000원 7x1.1 above fridges",
+    "IceCreamFreezer 9x3x3.5 box + FreezerLid glass 8.4x2.9 + FreezerFront '아이스크림 2+1' + IceCream x14 blocks 0.9x0.6x1.1 embedded in the top of the solid body (y9.3..9.9, body top 10.0) under the lid (at front window x-315.7 z285.8..294.9)",
+    "StandingCounterTop 2.8x0.3x22 WoodPlanks + StandingCounterBase (x-337..-315 z262.2..265.5) + TissueBox x3, ChopstickHolder x3, CupRamen x1 - no stools",
+    "HotWaterCabinet 3.4x3.4x7 + HotWaterMachine 2.2x3x1.8 Metal '온수' + HotWaterTap; Microwave x2 2.6x1.4x2.6 stacked + MicrowaveWindow; SoupSink 2.2x0.1x1.1 plate + Sign_라면 국물은 여기에 버려 주세요",
+    "ATM 4.2x6.4x3.2 Metal box + ATMScreen '입금 · 출금 · 이체' + ATMKeypadShelf + CashSlot + Sign_ATM (x-351.4..-347.1 z262.1..265.4)",
+    "Sign_아르바이트 모집 4.2x3.2, Sign_반값택배 3.2x3.2 on north wall (x-320..-312.7); ExitSign over staff door; FireExtinguisher x1 (x-356.3 z305.5); CCTV ball x2 + CCTVMount x2",
+    "QueueMark x2 + QueueText '여기서 기다려 주세요' floor decals at queue1/2; EntranceMat 7.2x4 navy",
+    "StaffDoorJamb x2 + StaffDoorHead + StaffDoorLeaf (swung open, CanCollide false) + Sign_STAFF ONLY at x-364 z301.4..304.9 -> stock room",
+    "Exterior: Sign_GS25 x2, FasciaStripeBlue/Cyan, Awning 43.8x4.3 Fabric blue + AwningValance, Sign_24시 · 택배 · ATM, Sign_LOTTO 6/45, window decal signs (1+1 · 2+1 행사 / 반값택배 접수 / 도시락 · 김밥 할인), IceFreezer '얼음 ICE' outdoor 4.8x3.6x2.8, WaterPack x4, PromoBanner '도시락 할인', RecycleBins (4 Bin + Lid)",
+    "Terrace: Deck 46x0.44x12 WoodPlanks + DeckEdge; PlasticTable x3 (Top 3.4 square, Leg, UmbrellaPole, Umbrella 9-dia cylinder, 4 ChairSeat Seat (Disabled) + 4 ChairBack + 8 ChairLeg each) - green plastic, blocky",
+    "JobStations folder: 24 invisible 1x1x1 Station_* anchors + GwJobSpawn 4x1x4 (see gameplay)",
+    "Destination 4x1x4 invisible at (-304.69,7.06,302.05) DisplayName 'GS25 광안리점' (tag Destination)"
+   ],
+   "gameplay": [
+    "JobWorld (server, job 'gs25'): reads GwJobStation-tagged Station_* parts by attrs Job/Station/Place: counter(-329.04,7.5,304.40), counter_items(-325.93,11.1,304.26, Span 3.2), counter_scanned(-325.88,11.1,301.36), boss(-329.26,7.5,300.20), backroom(-370.70,7.5,291.22), chiller(-346.68,7.5,301.37), chiller_items(-346.73,10.25,303.97, Span 7), slot_food(-353.65,8.25,291.64), slot_snack(-353.50,8.25,283.14), slot_life(-353.34,8.25,274.64), slot_drink(-321.04,8.25,275.24) [slots: Category, Rows 3, RowGap 1.5, Width 2.8; runtime Stock/StockMax attrs], door_out(-299.69,7.5,302.15), door_in(-311.69,7.5,301.92), front(-319.44,7.5,299.28), aisle1(-319.23,7.5,288.03), aisle2(-319.07,7.5,279.53), aisle3(-318.88,7.5,269.28), b3mid(-355.42,7.5,287.36), browse1..4 (attrs Path,Say), queue1(-322.84,7.5,304.72), queue2(-319.84,7.5,304.77), queue3(-316.93,7.5,304.23), buy_drink(-356.42,7.5,276.59, Shop=store_drink), buy_shelf(-319.71,7.5,292.27, Shop=store_shelf); GwJobSpawn(-331.88,7.5,301.15)",
+    "JobWorld cvs.setup: storeModel = counter.Parent.Parent (the GS25 model); creates JobStations/GwCvsRuntime anchors microwave/hotwater/scale/parcel_pile/drawer/card_reader/alarm/wall_clock and SNAPS them by searching storeModel:GetChildren() for DIRECT children named StaffMicrowave (reach 12), HotWaterMachine (70), CashDrawer (5), CardTerminalScreen (6) -> these names must stay direct children at their positions; counter station gets CvsBell/CvsBellSeq attrs",
+    "JobWorld customers walk the station graph door_out->door_in->front->aisleN->browse/slot->queue1..3->counter; carried props RestockBox / ParcelBox welded to the player",
+    "JobCvs (server): 진열 = hold E at backroom (box of emptiest slot) then hold E at the glowing slot (ProximityPrompt 'GwangalliWorkPrompt' with attr GwCvsSlot under workspace.GwangalliWorkPoints); counter 🔔 interrupt; 🙋 greet window after the AutoDoor chime; specials parcel/ask/heat/wrap/charge/find/refund",
+    "JobCvsPlus (server, everyone sees): builds workspace.GwCvsPlus/Display_<slot> product models at each slot anchor (anchor.CFrame * (col x, row*RowGap-0.5, z): 3 rows x 4 cols x 2 deep + PriceTag parts), Stock-driven visibility, '상품 정리' facing prompts; events: spill (aisle near a slot), parcel_driver (backroom), fridge_door (chiller), basket (front), receipt (counter), promo (slot), umbrella (door_in, rain), trash (door_out), quick-button boss_call/cctv/drunk",
+    "GwangalliStaff (점장 mode NPC 알바생 counter/stock/clean): uses gs25 stations; builds a walk visibility graph ONCE by server raycasts against CanCollide parts with Transparency<0.9 plus a 3-stud grid -> any new server-side collidable prop in aisles changes/blocks NPC paths (client-only props are invisible to it)",
+    "GwangalliJobs/World (client): finds GwPosScreen POSMonitor -> PosScreen.Bg.{Head,Lines,Total} text; GwPosCustomer/GwPosScanner/GwPosPrinter tags; frameStation camera framing at counter_items / chiller_items; Highlight on active restock slot; CvsWorld persona cards over customers in workspace.GwangalliNPCs",
+    "ShopLife/Scan (server): GS25 model is a 'venue' candidate because it has direct child Gondola_1 / OpenChiller; reads Gondola_n + Fridge/OpenChiller (FridgeDoor) as pick shelves, CustomerDisplay as POS, CounterTop as counter, Microwave/MicrowaveWindow, ATMScreen, RecycleBins model (bin), HotBar (steamer), AutoDoor_GS25 (door), Terrace 'Top' under PlasticTable as tables + ChairSeat seats. NOTE: looks for 'HotWater' (part is 'HotWaterMachine') and 'IceCreamChest'/'ChestGlass' (part is 'IceCreamFreezer') so those two fixtures get no ShopLife prompt today",
+    "ShopFlows cvs pick ('담기') / pay ('계산하기'), unpaid goods leaving the store put back; JobShop F-prompt '고르기' on Station_buy_drink (cvs_water/cola/banana/coffee/energy/tea) and Station_buy_shelf (cvs_samgak/ramen/dosirak/sandwich/choco/chips), held prop in hand, takes Stock from the matching slot",
+    "Bank: any part named 'ATM' gets an ATM ProximityPrompt (kind cvs from the 'GS25'/'convenience' ancestor) - keep the 'ATM' part",
+    "Law/Crimes: 편의점 슬쩍하기 hold prompt at the Destination of GS25 (SHOP_WORDS 'GS25'); StreetInteract/Places + Play/Manager/StaffSim: NPC shoppers use the station graph, terrace ChairSeat within 60 studs of door_out become NPC seats 'gs25_chairN'; Places opens AutoDoor via AutoDoorOpener proxy",
+    "GwangalliNav: node 3022 'GS25 광안리점' at (-304.7,6.6,302.1); Coach lesson gs25 steps at backroom/chiller/counter/microwave/alarm stations",
+    "DetailLOD (client): Gondola_n/Fridge/OpenChiller are LOD='zone' (TAG ZoneLOD), NearDetail/Detail are LOD='near' (NearLOD) - hidden via LocalTransparencyModifier (Util.setHidden) -> an interior replacer must not hide originals with LTM alone (DetailLOD rewrites it) and should tag its own detail NearLOD",
+    "Lights: SurfaceLights tagged InteriorLight with AlwaysOn=true are enabled by GwangalliWorld/Lights within InteriorRadius; signs tagged GwSurfaceGui / NightGlow, FasciaStripeCyan NeonTube",
+    "Annex skips everything under 'convenience' (HOST_VENUES) -> no generated interior; DO NOT rename/move/block: Station_* + JobStations + GwJobSpawn, Destination, AutoDoor_GS25, StaffMicrowave, HotWaterMachine, CashDrawer, CardTerminalScreen, POSMonitor(+PosScreen gui), CustomerDisplay, BarcodeScanner, ReceiptPrinter, CounterTop, Gondola_1..3, OpenChiller, Fridge(+FridgeDoor), ATM/ATMScreen, Microwave, HotBar, RecycleBins, Terrace ChairSeat; keep 2.2-stud stand spots in front of each slot anchor and the queue lane z~304.5 x-323..-317 clear"
+   ],
+   "emptyOrCrude": [
+    "950 'Product' parts are flat-coloured SmoothPlastic bricks (0.5-0.95 x 0.6-1.1 x 1.05-1.5): no bag/cup/can/bottle/box silhouettes, no labels or brand art, no peg-hook bags, identical depth on every shelf -> reads as Lego blocks, not 과자/라면/생활용품",
+    "200 fridge 'Bottle' parts are single-colour cylinders 0.27 dia: no caps, no PET vs can vs glass vs 우유 carton, no labels, no shelf price strips on the 15 WireShelf; the whole fridge front is ONE 6.6x6.2 glass slab per unit (3 handles, 2 mullions) - doors cannot open, FridgeGlow is a flat neon slab",
+    "Cigarette wall = 30 strip parts (~2 x 0.6) instead of ~150 individual packs with price labels; no e-cigarette devices/sticks, no lighters",
+    "Counter is a single 8x3.3x2.6 box; no lotto terminal / slip stand / pens even though 'LOTTO 6/45 로또 판매점' sign is outside; no 교통카드 charger; no parcel scale / label printer for the 계산대 · 택배 접수 + 반값택배 signage; no 종량제 bag rack; impulse display = 3 GumRack cubes",
+    "Coffee machine and steamer sit behind the counter on the BackCounter: no customer self-coffee station (cups, lids, straws, ice cups)",
+    "IceCreamFreezer is a solid 9x3x3.5 box with a flat glass lid; the 14 IceCream blocks are sunk into the solid body; no wire baskets, no frost, no discount POP besides the front label",
+    "No shopping-basket stack at the entrance (JobCvsPlus 'basket' event refers to one), no umbrella stand/bag dispenser, no bread rack, no promo 평대 - the front window strip x-320.7..-309 z263..285 (~11x22 studs) is empty floor",
+    "No reach-in frozen-food freezer (만두/얼음컵/봉지얼음), no ramen tower/컵라면 wall, no liquor-specific section (only a beer sign on the 5th fridge), no hot-pack/charger/battery peg display",
+    "Eat-in: 22-stud standing bar with no stools; HotWaterMachine/Microwave/SoupSink are plain boxes/plates; recycling bins only outside; no napkin/utensil dispensers beyond 3 TissueBox + 3 ChopstickHolder",
+    "Ceiling: plain board + T-bars + neon strips; no sprinkler heads, smoke detectors, speakers, convex mirror, hanging promo POP; only 2 CCTV balls for a 55x45 store",
+    "Walls: north wall above the open chiller/counter and the west wall above the fridges are blank plaster; no posters/menus (카페25 menu), no wall clock (wall_clock is only an invisible runtime anchor), no category wall graphics, no window posters on the inside of the glass",
+    "Floor: one tile slab, no wet-floor sign/mop for the spill event, only one queue decal set",
+    "Gondola shelves: 4 boards + base, no shelf-edge lips, no hooks, uprights are 0.2 slabs; CategoryHeader is a single 30-long blue bar",
+    "Terrace: blocky green plastic chairs (seat/back slabs + 2 legs each) with 9-dia cylinder umbrellas; ChairSeat Seats are Disabled (cannot sit)"
+   ],
+   "realWorld": [
+    "Entrance: 자동문 + 딩동 차임, 바닥 매트, 24H/영업시간·결제수단 스티커 (삼성페이·카카오페이·네이버페이·제로페이·VISA), 파란 GS25 장바구니 스택, 우산 비닐 커버기·우산꽂이 (비 오는 날), 유리창 안쪽 행사 포스터 (1+1·2+1·반값택배·알바 모집)",
+    "Counter (계산대): POS 2대 + 고객용 디스플레이, 핸드 스캐너 + 거치대, IC 카드단말기/서명패드, 교통카드 충전기, 영수증 프린터, 금전함, 비상벨(112), 신분증 확인·19세 미만 스티커, 종량제/종이봉투 걸이, 계산대 앞 충동구매 매대 (껌·사탕·젤리·초콜릿·핫팩·건전지·충전케이블)",
+    "Lotto (로또 판매점): 로또 단말기 + 슬립/펜 거치대 + 당첨 안내 포스터; 택배: 반값택배/GS Postbox 접수 저울 + 송장 출력, 택배 픽업 선반",
+    "Behind counter: 백라이트 담배장 (개별 갑 ~150 SKU, 가격표), 전자담배 기기·스틱 (IQOS/glo/lil), 라이터 랙, 상품권/기프트카드 랙",
+    "Hot food: 카페25 셀프 원두커피 머신 + 컵/뚜껑/빨대/아이스컵 스테이션, 호빵·찐빵 스티머, 핫바/어묵 워머, (일부) 치킨25 튀김기·워머",
+    "Cold: 워크인 냉장 도어 10~15칸 (탄산·이온·생수·커피·차·우유·요구르트·주스·맥주·소주·막걸리·하이볼), 칸별 가격 레일·행사 POP, 문 닫힘 경보, 오픈 쇼케이스 (도시락·삼각김밥·김밥·샌드위치·햄버거·샐러드·디저트), 리치인 냉동고 (냉동식품·얼음컵·봉지얼음), 슬라이딩 유리 아이스크림 평형 냉동고 + 할인 POP",
+    "Gondolas 1.35-1.6 m, 5단 + 후크: 라면 (봉지 묶음·컵라면 탑), 과자, 초콜릿·사탕, 빵 랙, 즉석밥·통조림·즉석식품, 생활용품 (휴지·물티슈·세제·칫솔·면도기·생리대·마스크·건전지·충전기·우산·양말), 반려동물 간식, 문구; 엔드캡 1+1/2+1, 전자가격표(ESL)/쇼카드",
+    "Eat-in: 창가 바 테이블 + 하이체어, 온수기 (물 붓는 선 안내), 전자레인지 2~3대 + 사용법 스티커, 라면 국물 버리는 통/싱크, 냅킨·젓가락·포크 디스펜서, 분리수거함 (일반·캔·페트·음식물), 콘센트",
+    "Building services: ATM, CCTV 돔 4~8대, 볼록거울, 매장 스피커, 스프링클러·화재감지기·유도등·소화기, 벽시계, 카테고리 행잉 사인, 600각 타일, '미끄럼 주의' A-board",
+    "Terrace: 플라스틱 테이블·의자 + 파라솔, 금연 스티커, 쓰레기통"
+   ],
+   "interactionIdeas": [
+    "Fridge door (each of 15 doors, x≈-359.8): E = swing hinged glass door open (fog/cold light, auto-close after 6 s, door-ajar chime); pick a drink -> routes to existing JobShop buy_drink sheet; JobCvsPlus 'fridge_door' event shows the door visibly ajar",
+    "Gondola product pick: E on a shelf facing = take that item into hand/basket (ShopFlows cvs '담기'), the facing gets a gap until restocked (ties to slot Stock)",
+    "Basket stack at entrance (x-311, z299): E = take a 장바구니 (carried in hand), return it at the stack; 'basket' event = tidy toppled baskets",
+    "Self coffee (move CoffeeMachine-like station to customer side near x-339 z296): place cup -> choose 아메리카노/라떼 (HOT/ICE) -> 25 s brew with steam and sound -> cup in hand",
+    "Microwave (x-342.6 z263.7): E open door, put 도시락, set 1:30, ding; hot-water dispenser: fill 컵라면 to the line, 3-min timer, eat at standing bar (fix: alias HotWaterMachine as ShopLife 'HotWater')",
+    "Soup sink: E = 국물 버리기 after eating; recycling bins: sort cup/lid/chopsticks",
+    "Ice-cream chest: E slide glass lid, choose bar/cone/cup; steamer: open lid, take 호빵/핫바",
+    "Counter extras: lotto terminal (buy 로또 6/45 auto/manual, draw on Saturday 20:35 game time), 교통카드 충전 (special 'charge'), 반값택배 kiosk (weigh parcel on scale, print label - special 'parcel'), cigarette request with ID check (Staff id_check)",
+    "Umbrella stand appears in rain (umbrella event) with 우산 비닐 dispenser; wet-floor A-board + mop for spill event",
+    "Eat-in stools: sit (ShopLife seat), window view to the street; terrace: enable ChairSeat sitting",
+    "CCTV monitor in stock room mirrors 4 camera views (CCTV event)"
+   ]
+  },
+  {
+   "name": "GS25 광안리점 창고 · 직원실 (StockRoom / back room)",
+   "path": "Workspace.Gwangalli.convenience[\"GS25 광안리점\"].StockRoom (+ StaffDoor*, BackDoor, RollCage/Boxes outside)",
+   "bounds": "min(-386.97,7.0,261.33) max(-363.75,18.0,306.14)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Stock room (창고 + 직원 공간)",
+     "center": [
+      -375.36,
+      12.5,
+      283.73
+     ],
+     "size": [
+      23.22,
+      11.0,
+      44.81
+     ],
+     "floorY": 7.0,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Staff door opening (always open, from sales floor)",
+     "center": [
+      -364.12,
+      11.2,
+      303.15
+     ],
+     "size": [
+      1.0,
+      8.0,
+      3.6
+     ],
+     "floorY": 7.0,
+     "ceilingY": 15.0
+    },
+    {
+     "name": "Back door (closed metal slab, to yard)",
+     "center": [
+      -387.41,
+      11.05,
+      284.71
+     ],
+     "size": [
+      0.15,
+      9.1,
+      4.4
+     ],
+     "floorY": 7.0,
+     "ceilingY": 15.6
+    }
+   ],
+   "props": [
+    "StockFloor 44.4x0.5x22.4 Concrete #969692, StockCeiling SmoothPlastic, StockLining Plaster (north)",
+    "LightPanel x2 Neon (16x2 with SurfaceLight Range24 AlwaysOn; 14x2 without light)",
+    "Racks x3 along west wall (x-386.8..-382.8, z265..303): RackPost x12 0.3x8.5 + RackDeck x9 11.3x0.15x3.3 DiamondPlate + Carton x44 blank Cardboard 0.8-2.6 x1.3-2.3 x2.5",
+    "RestockBoxes (NearLOD): RestockBox x5 Cardboard 2.2-2.6 x1.85 (one with '입고 · 진열용' gui) on HandTruckBase 6.4x0.4x3 blue slab at (-373.2,7.2,291) next to Station_backroom",
+    "RollCage 3x5.6x2.6 DiamondPlate t0.5 + CageBoxes",
+    "StaffSink 2.85x3.2x4 solid Metal box (no basin/faucet) at (-367,8.6,263.3)",
+    "StaffDesk 4.4x0.3x4 WoodPlanks + DeskLeg x2 + CCTVMonitor 2.2x1.6 'CCTV 1 · 2 · 3 · 4' text (no chair)",
+    "StaffLocker x4 2x7x1.6 solid metal blocks (x-366.2..-364.5 z268.6..276.9)",
+    "WorkNotice 6x3 '알바 수칙 ① 손님께 인사 ② 유통기한 확인 ③ 박스는 빈 칸부터 진열', TimeClock 1.4x1.6 '출퇴근 기록기', MopBucket cylinder",
+    "Outside the back wall: RollCage x2 + Boxes x2 at x-390 z289..295, OutdoorAC x3 + ACFan x3 at x-389.6 z322..332"
+   ],
+   "gameplay": [
+    "Station_backroom (-370.70,7.5,291.22): JobCvs 진열 phase 1 (hold E, takes the box of the emptiest slot -> RestockBox welded to chest); JobCvsPlus 'parcel_driver' event (hold E '물건 받기'); Coach 'backroom' step; GwangalliStaff stock role walks here",
+    "Staff door gap x-364.1 z301.4..304.9 is the only route sales floor <-> backroom for players and NPC graph - must stay open/walkable",
+    "DetailLOD NearLOD on RestockBoxes/NearDetail; InteriorLight on the 16x2 panel"
+   ],
+   "emptyOrCrude": [
+    "Racks are 4 bare posts + 3 plank decks each - no beams, braces, labels; 44 cartons are blank brown bricks (no tape, print, barcodes)",
+    "No walk-in cooler behind the beverage doors: FridgeGlow backs sit flush on BackWall x-364 and the stock-room side is empty wall - in a real GS25 staff restock drinks from inside the walk-in",
+    "Half the room (x-382..-366, z261..281) is empty concrete; ceiling is a plain board",
+    "Staff sink is a solid box; desk has no chair/PC/발주 단말기; lockers are solid blocks with no doors; no uniform (GS25 조끼) hooks, safe (금고), 폐기 basket, flattened cardboard pile, milk crates, cleaning shelf",
+    "Back door is a flat 4.4x9.1 metal slab with no push bar/handle/closer; hand truck is just a blue slab"
+   ],
+   "realWorld": [
+    "워크인 냉장고 내부 (음료 뒤 보충 통로, 랙에 박스 음료, 냉기 커튼)",
+    "철제 앵글 랙 + 상품 박스 (라면·과자·생수 6입·휴지), 입고 박스 카트(롤테이너), 우유 플라스틱 상자, 도시락 배송 트레이",
+    "발주 단말기/PDA 충전 거치대 + 점포 PC, 금고 (시재), CCTV 모니터, 근무 스케줄표·체크리스트·유통기한 폐기 바구니",
+    "직원 사물함 + GS25 유니폼(조끼) 걸이, 의자, 소형 냉장고/전자레인지 (직원용)",
+    "청소 도구 (대걸레·양동이·빗자루·쓰레기봉투), 개수대 + 수전, 박스칼·테이프, 납작하게 접은 박스 더미, 분전반, 소화기, 비상구 유도등"
+   ],
+   "interactionIdeas": [
+    "TimeClock: E = 출근/퇴근 찍기 (start the gs25 shift from here as an alternative to the counter)",
+    "Locker: E open door -> put on GS25 vest (uniform from GwangalliWorkSpots), store items",
+    "Walk-in cooler (build behind the fridge wall, enter from stock room): push bottles forward -> front facings fill (mirrors slot_drink Stock)",
+    "CCTV monitor: E = view 4 camera feeds (ViewportFrame of the sales floor) - resolves JobCvsPlus 'cctv' event",
+    "Expiry check: E on 폐기 basket = scan expired 삼각김밥 (special 'expiry'), safe: 시재 점검 mini-task",
+    "Back door: E = 택배 기사 receive (parcel_driver event) with a delivery man NPC and sign pad"
+   ]
+  },
+  {
+   "name": "광안로 상가 (GS25) - 1F 공용 로비·계단 + 2F 수영 365 내과의원 + 3F 광안 공인중개사 + 옥상",
+   "path": "Workspace.Gwangalli.convenience[\"광안로 상가 (GS25)\"] (shell/upper floors) + lobby parts inside Workspace.Gwangalli.convenience[\"GS25 광안리점\"] (Door, Transom, DoorHandle, LobbyFloor, LobbyCeiling, LobbyLight, Partition x2, Step x8)",
+   "bounds": "building min(-388.87,6.5,260.51) max(-306.74,46.2,365.99); lobby min(-331.18,6.8,307.56) max(-309.4,19.9,317.97); upper-floor Core min(-388.25,20.5,261.42) max(-308.26,42.5,365.06)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "1F lobby + stair (공용 현관·계단실, sealed)",
+     "center": [
+      -320.29,
+      13.35,
+      312.77
+     ],
+     "size": [
+      21.78,
+      13.1,
+      10.41
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "2F 수영 365 내과의원 (solid Core block, no interior)",
+     "center": [
+      -348.26,
+      26.2,
+      313.24
+     ],
+     "size": [
+      80.0,
+      10.6,
+      103.6
+     ],
+     "floorY": 20.9,
+     "ceilingY": 31.5
+    },
+    {
+     "name": "3F 광안 공인중개사 · 원룸 투룸 상가 (solid Core block, no interior)",
+     "center": [
+      -348.26,
+      37.2,
+      313.24
+     ],
+     "size": [
+      80.0,
+      10.5,
+      103.6
+     ],
+     "floorY": 32.0,
+     "ceilingY": 42.5
+    },
+    {
+     "name": "Roof (parapet, penthouse 11.5x9x10 with RoofDoor, water tank, 3 AC condensers)",
+     "center": [
+      -347.91,
+      43.1,
+      313.25
+     ],
+     "size": [
+      103.9,
+      0.6,
+      79.9
+     ],
+     "floorY": 43.1
+    }
+   ],
+   "props": [
+    "Lobby: Door 7x8.3 Glass t0.3 (solid, CanCollide default true, no prompt) + Transom + DoorHandle 3-stud bar at x-309.3 z309.5..316.5; Sign_광안로 상가 '2F 내과 · 3F 부동산' above",
+    "LobbyFloor 10x0.3x21.6 Granite (x-331.2..-309.4), LobbyCeiling only over the front 9 studs (x-318.4..-309.4), LobbyLight Neon 8x2",
+    "Step x8 Granite 9 wide, run 1.56, rise 0.98 each, solid to the floor, x-330.9..-318.2 rising to y14.6 then a blank Partition at x-331.5 (stair to nowhere)",
+    "Partition (GS25 model) x3: lobby north wall z317.6..318.8 (shared with delivery), lobby west wall x-331.5, GS25 north wall z305.7..308.0",
+    "Upper floors: Core 102.2x22x78.1 solid Concrete #2e2e32 filling 2F+3F; Slab 104x1x80 CeramicTiles at y20.4",
+    "Facade: Window x30 Glass t0.2 (tag NightWindow, LitChance/LitColor/Zone office|corridor), Blinds one 103x2.5 strip, Pier x28, Spandrel x4, Lintel x4, Sash x4, FloorBand x2, WinFrame/WinJamb/WinStile (FacadeDetail), PartyWall x2",
+    "Signs: Sign_수영 365 내과의원 · 건강검진 62x3.4 band (2F), Sign_광안 공인중개사 · 원룸 투룸 상가 62x3.4 band (3F), vertical blade signs Sign_딜리버리 and Sign_내과 0.9x14x3.2 on Brackets",
+    "WallServices: ACUnit, DrainHose, DownPipe, GasPipe, CableBundle; Roof: Roof, Parapet x4, Coping x4, RoofPatch, Penthouse, RoofDoor, TankStand x2, WaterTank 6x5x6, ACSkid + ACCondenser x3 (+ ACFan), VentStack x2"
+   ],
+   "gameplay": [
+    "No gameplay inside. Annex skips it (ancestor 'convenience' is a HOST_VENUE) so no generated 'go upstairs' interior; StreetSigns/SignStyles treat 'convenience' as HOST_ANCESTORS (sign styling only)",
+    "NightWindow tagged windows are lit at night by the environment system (attrs LitChance/LitColor/LitSeed/Zone) - lit glass shows the black Core behind",
+    "The lobby north Partition is the wall behind the delivery office's fake restroom door (Door_restroom at x-331.6 z318.6); an enclosed unused void exists at x-388..-332 z308..316.5 (no floor, only PlotPaving)"
+   ],
+   "emptyOrCrude": [
+    "Lobby is sealed: the glass Door is a static collidable part with no ProximityPrompt; the lobby cannot be reached from street, GS25 or delivery",
+    "Stair to nowhere: 8 solid granite blocks rise 7.8 studs and end against a wall; to reach the 2F slab (top 20.9) needs a landing at ~y13.9 and a return flight (total rise 14.1 studs); no handrail, nosing, wall light, 층별 안내판, 우편함, 소화기, 계량기함",
+    "2F clinic and 3F realtor named on huge signs are one solid dark concrete block behind 20 % transparent glass; Blinds are one continuous strip; nothing to see or enter"
+   ],
+   "realWorld": [
+    "1F 공용 현관: 유리 여닫이문 (당기세요/미세요), 층별 안내판 (2F 수영 365 내과 · 3F 광안 공인중개사), 우편함, 센서등, 계단 핸드레일·논슬립, 소화기, 계량기/분전함, CCTV, 전단지 붙은 게시판",
+    "2F 내과의원: 접수·수납 데스크 (PC, 카드단말기, 번호표/대기 모니터), 대기 의자 열 + TV + 정수기 + 잡지, 진료실 2 (책상·PC·진료 침대·혈압계·청진기), 주사실/수액실 (침대 + 커튼), 건강검진 구역 (채혈실·X-ray·초음파·내시경실·탈의실), 처방전 프린터, 화장실, 손소독제",
+    "3F 공인중개사: 창문/유리 매물 포스터 (원룸·투룸 보증금/월세), 중개사 책상 2~3 + PC, 상담 테이블 + 소파, 매물 지도·단지 배치도, 중개사 자격증·사업자등록증 액자, 서류 캐비닛, 정수기, 화분",
+    "Roof: 옥탑 계단실, 물탱크, 실외기, 안테나, 빨래줄/평상 (부산 상가 옥상 흔함)"
+   ],
+   "interactionIdeas": [
+    "Lobby door: E = 문 열기 (hinged) and a floor directory prompt that teleports/walks to 2F/3F",
+    "Mailboxes (우편함): E = check mail (ties to phone/home systems)",
+    "2F clinic: 접수 kiosk/desk -> wait number on monitor -> 진료 (ties to Health system), 수액 bed rest",
+    "3F realtor: browse listing posters/PC (ties to GwangalliHomesShared housing), 상담 seat with an NPC agent",
+    "Stair landing light sensor (센서등) that turns on when a player approaches"
+   ]
+  },
+  {
+   "name": "광안 딜리버리 사무실 (배차실 · 라이더 대기 · 퀵 출발대)",
+   "path": "Workspace.Gwangalli.delivery[\"광안 딜리버리\"] (office half, x > -341.9)",
+   "bounds": "min(-341.86,6.8,318.18) max(-309.5,18.0,365.16)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Office / dispatch floor (T-bar ceiling)",
+     "center": [
+      -325.68,
+      12.4,
+      341.67
+     ],
+     "size": [
+      32.36,
+      11.2,
+      46.98
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Dispatch table island (table x-325..-320.8 z333.7..346.8, NPC 배차 실장 behind at x-327.5)",
+     "center": [
+      -323.0,
+      8.3,
+      340.25
+     ],
+     "size": [
+      5.0,
+      3.1,
+      13.1
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Rider gear corner (5 lockers + 4 helmet hooks + 4 delivery boxes, SE)",
+     "center": [
+      -319.7,
+      10.3,
+      322.4
+     ],
+     "size": [
+      17.4,
+      7.0,
+      7.4
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Quick shelf (퀵 물건 · 출발 대기, north wall)",
+     "center": [
+      -326.84,
+      10.6,
+      363.3
+     ],
+     "size": [
+      18.1,
+      7.6,
+      3.2
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Waiting benches + water purifier + plant (west side by low wall)",
+     "center": [
+      -337.8,
+      9.0,
+      340.0
+     ],
+     "size": [
+      4.0,
+      4.6,
+      44.0
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Fake restroom door (no room behind)",
+     "center": [
+      -331.6,
+      10.55,
+      318.55
+     ],
+     "size": [
+      3.4,
+      7.5,
+      0.3
+     ],
+     "floorY": 6.8,
+     "ceilingY": 14.3
+    },
+    {
+     "name": "Entrance (AutoDoor_Delivery 6 wide, x-309.8 z339..345)",
+     "center": [
+      -309.83,
+      11.25,
+      341.97
+     ],
+     "size": [
+      1.0,
+      8.9,
+      6.6
+     ],
+     "floorY": 6.8,
+     "ceilingY": 16.9
+    }
+   ],
+   "props": [
+    "Floor x1 46.4x0.3x77.7 SmoothPlastic #b0b6ba shared with the warehouse (no tile/epoxy split)",
+    "Ceiling/CeilingBoard 46.4x0.3x31.5 + TBar x16; LightPanel x5 here (two 4x18 with SurfaceLight Range28 AlwaysOn, three 0.9x26 strips); CassetteAC x3 + ACVanes/ACGrille; SmokeDetector x3; CCTV x1 + mount; ExitSign over door; Baseboard x2",
+    "WallLining Plaster (north 77.7 long, south 22.5) + BrandBand yellow 31.5 on north wall; LowWall x2 15-17 long x4.2 tall + black LowWallCap (half partition to warehouse with 14-stud opening z333.4..347.4) + SortSign '분류장 · 상차장 →'",
+    "DispatchTableTop 13x0.3x4 WoodPlanks + DispatchModesty 12.4x2.8 + DispatchLeg x2 (slabs) + DispatchMonitor x3 3.2x2 static SurfaceGui ('퀵 배차 현황 대기 4 · 진행 7 · 평균 18분', '택배 상차 현황 오늘 128건 …', '광안리 배송 구역 …') + MonitorStand x3 + Keyboard x1 + LabelPrinter + Radio + TablePlate '배차 테이블 · 퀵 / 택배 선택'",
+    "Chair x1: ChairSeat 1.5x0.2x1.5 Wood + ChairBack + 4 ChairLeg",
+    "배차 실장 NPC (anchored R15 rig, tag GwJobStaff, attrs Job=delivery NpcName=배차 실장) at (-327.5,9.89,340.14) with Phone (hidden) + Camera parts",
+    "QuickShelf: ShelfBack 18x7.6x2.8 solid metal box + ShelfDeck x4 + Parcel x40 blank Cardboard bricks (0.7-2 x0.64-1.5 x2) + Sign_퀵 물건 · 출발 대기",
+    "Locker x5 1.65x7x2 solid Metal blocks (x-328.4..-318 z318.6..320.4)",
+    "HelmetHook x4 + Helmet x4 (1.3 Ball parts: white/red/black/yellow) + DeliveryBox x4 1.6 cyan cubes on the floor (x-312.9 z319.9..325.3)",
+    "Bench x2 (Seat, Disabled) 3.4x0.4x1.6 + BenchBase x2; WaterPurifier 1.4x4.6x1.4 box + PurifierLamp neon",
+    "Plant: Pot 4.4 cylinder + Soil + 2 Leaves sphere-mesh LeafyGrass up to y21.98 at (-337.5,*,320.3)",
+    "RouteMap 8x4.8 text panel '광안 배송 구역도 ①…⑤' + MapPin x4; NoticeBoard 5x4 '오늘의 공지 · 헬멧 필수 …'",
+    "FitOut/Door_restroom: DoorCasing 3.4x7.5 + DoorLeaf 2.8x7.2 Wood + DoorHandle + Sign_화장실 남·여",
+    "FireExtinguisher x1 + Sign_소화기 (x-338.8 z363.9)",
+    "Storefront: ShopWindow x6 6.6x9.4 Glass t0.55, Mullion x8, Sign_광안 딜리버리 22x3.2 yellow, Sign_24시 퀵 · 당일 택배, window decals 라이더 · 택배기사 모집 / 퀵 30분 · 광안리 전 지역, Car_Scooter (yellow 125cc with red DeliveryBox) parked outside at x-302.3 z330.5..335.3, Destination"
+   ],
+   "gameplay": [
+    "JobDelivery (server): Station_dispatch (-319.30,7.30,340.29) gets ProximityPrompt 'GwangalliDispatchPrompt' (E, hold 0.3, 10 studs, '퀵 / 택배 고르기' · '🛵 배차 테이블') -> openDispatch -> delivery_quick / delivery_parcel shift start",
+    "Station_shelf (-326.78,7.30,360.25): 퀵 'pickup' task prompt in front of QuickShelf (ParcelBox to the hands); Station_dock / Station_pad / Station_exit in warehouse/yard; GwJobSpawn (-316.21,7.3,329.84) 4x1x4",
+    "배차 실장 model = JS.BOSS delivery staff (tag GwJobStaff); GwangalliWorkSpots delivery_quick/delivery_parcel: sources station 'dispatch' or point 'delivery_quick_dispatch', uniforms '광안 딜리버리'; WorkConfig ranks 신입 라이더..전설의 라이더",
+    "Destination (DisplayName '광안 딜리버리') at (-305.44,7.06,342.05) = ctx.dest(OFFICE) used by JobDelivery.officePos (returns, distance pay)",
+    "AutoDoor_Delivery (tag AutoDoor) opened for NPCs by StreetInteract/Places; Annex skips 'delivery' ancestor; not a ShopLife candidate (no Gondola_1/OpenChiller/Interior) -> WaterPurifier/Bench/Door_restroom have no prompts today",
+    "DetailLOD NearLOD on FitOut/Detail and NearDetail groups; InteriorLight SurfaceLights on 3 panels",
+    "Keep clear: door (x-309.8 z342) -> Station_dispatch walk line; table/NPC island; QuickShelf front (Station_shelf); LowWall opening z333.4..347.4 to the warehouse"
+   ],
+   "emptyOrCrude": [
+    "Floor is one plain SmoothPlastic slab for office + warehouse; no vinyl tile, no entrance mat, no floor markings",
+    "Dispatch desk is a slab table on slab legs with 3 static text monitors, one keyboard, no PCs/mice/headsets/phones/chargers; only one cheap chair for a 13-stud table",
+    "QuickShelf is a solid 18x7.6x2.8 metal block with parcels embedded in its faces, not open shelving; 40 parcels have no tape, waybill labels or size variety",
+    "Lockers are solid blocks (no doors/vents/name tags); helmets are plain spheres on hooks; delivery boxes are bare cyan cubes",
+    "No rider lounge: 2 disabled benches only - no sofa, TV, vending/coffee-mix table, microwave, fridge, phone charging station, rain-gear rack, insulated bag shelf",
+    "Plant clips through geometry: leaves reach y21.98 (ceiling 18.0, slab 19.9-20.9) and z316.7 (south wall at 318.4); pot is a 4.4-stud cylinder",
+    "Restroom door is a facade - no restroom room behind it (the area behind is the sealed lobby/void)",
+    "No customer drop-off counter (scale, label printer, waybills, boxes/tape) despite '24시 퀵 · 당일 택배' and '배달 문의' signs",
+    "Walls: two flat text panels (RouteMap, NoticeBoard) on otherwise bare plaster; no clock, whiteboard of today's rankings, safety posters, rider recruitment poster inside"
+   ],
+   "realWorld": [
+    "접수 카운터: 퀵/택배 접수 PC, 저울, 운송장 프린터, 포장재 (박스·테이프·에어캡), 요금표, 카드단말기, 대기 의자",
+    "배차실: 배차 PC 2~3대 × 듀얼 모니터 (배차 프로그램 지도·콜 리스트), 헤드셋/유선전화, 무전기 충전 거치대, 벽걸이 TV (실시간 콜 현황), 화이트보드 (오늘 건수·라이더 순위), 프린터, 서류함, 사무용 의자 여러 개",
+    "라이더 대기실: 소파·접이식 의자, TV, 정수기, 믹스커피·컵라면·간식 선반, 소형 냉장고, 전자레인지, 휴대폰 멀티 충전 스테이션·거치대, 사물함 (이름표), 헬멧 거치대 다수, 우비·방한복·토시·장갑 걸이, 보온/보냉 배달가방·배달통 선반",
+    "벽: 안전 포스터 (헬멧·신호 준수·보험), 라이더 모집 포스터, 배송 구역 지도 + 핀, 벽시계, 공지 게시판",
+    "정비 코너: 타이어 공기주입기, 공구함, 엔진오일·체인 루브, 전기 오토바이 배터리 충전/교환",
+    "실제 화장실 (세면대·거울·핸드드라이어), 소화기, CCTV, 비상구 유도등"
+   ],
+   "interactionIdeas": [
+    "Dispatch monitors: live SurfaceGui list driven by JobDelivery (waiting / in progress / avg time) - E on a monitor = preview today's calls before choosing",
+    "Helmet rack: E = take/return helmet (wear accessory; NoticeBoard '헬멧 필수' check before quick shift)",
+    "Insulated bag/box shelf: E = take 보온가방 (back accessory) for 퀵",
+    "Locker: E open personal locker (door swings), store/change into the 광안 딜리버리 uniform",
+    "Phone charging station: E = charge phone (phone battery stat), rider lounge sofa sit + TV on/off (channel cycles), coffee mix + water purifier cup",
+    "Reception scale + label printer: E weigh customer parcel -> print waybill (new mini task for delivery_parcel)",
+    "Quick shelf: highlight the specific parcel for the current order (label shows 건물/호수 from JobDelivery)",
+    "Restroom: real small restroom built into the void behind the door (x-388..-332 z308..316.5) with sink/hand-dryer prompts"
+   ]
+  },
+  {
+   "name": "광안 딜리버리 분류장 · 상차장 (sorting warehouse + loading dock)",
+   "path": "Workspace.Gwangalli.delivery[\"광안 딜리버리\"].SortingArea (+ DeckCeiling, LightPanels, FitOut #2, GS25-model GroundBack/DockHeader walls)",
+   "bounds": "min(-388.05,6.8,317.32) max(-341.0,18.0,364.57)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Sort floor (metal deck ceiling #787c80)",
+     "center": [
+      -364.52,
+      12.4,
+      340.95
+     ],
+     "size": [
+      47.05,
+      11.2,
+      47.25
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Conveyor line (x-361.1..-358.2 z327..355.1, belt top y9.6)",
+     "center": [
+      -359.63,
+      8.2,
+      341.04
+     ],
+     "size": [
+      2.9,
+      2.8,
+      28.1
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Pallet zone (4 pallets x 6 cartons, x-381..-370.3 z327.2..358.8)",
+     "center": [
+      -375.65,
+      9.3,
+      343.0
+     ],
+     "size": [
+      10.7,
+      5.0,
+      31.6
+     ],
+     "floorY": 6.8,
+     "ceilingY": 18.0
+    },
+    {
+     "name": "Loading dock opening (shutter rolled up, to yard/pad)",
+     "center": [
+      -387.96,
+      11.75,
+      342.51
+     ],
+     "size": [
+      1.1,
+      9.9,
+      12.0
+     ],
+     "floorY": 6.8,
+     "ceilingY": 16.7
+    }
+   ],
+   "props": [
+    "SortingArea/ConveyorFrame 28x2.6x2.4 solid Metal box + ConveyorBelt 28x0.15x2 Rubber + ConveyorCarton x6 (1.8x1.15x1.3) static on the belt",
+    "Pallet x4 4.4x0.5x4.4 WoodPlanks slabs + PalletCarton x24 2x1.45x3.8 blank Cardboard (3 high x 2)",
+    "RollCage x2 3.2x5.6x2.6 DiamondPlate t0.5 translucent boxes + CageBoxes x2 (x-370 z321..328.5)",
+    "DockStripe 12.8x0.2x7.2 yellow, DockBumper x2 Rubber 0.6x2.2, ShutterRoll 12x0.8x0.6 at y17.1, DockSign '상차장 · 택배 탑차'",
+    "DeckCeiling 46.4x0.3x46.2 Metal; LightPanel 16x4 (SurfaceLight Range30 AlwaysOn) + two 40x0.8 strips; SmokeDetector x3; CCTV + mount (x-343.1 z319.7); ExitSign (x-365 z363.8); FireExtinguisher + Sign_소화기 (x-386 z363)",
+    "Walls: Partition 55.2 long (south, z317.4), WallLining north, GroundBack walls (GS25 model) x-388.3 with DockHeader over the 12-stud opening"
+   ],
+   "gameplay": [
+    "Station_dock (-383.96,7.30,342.58): delivery_parcel task 'load' prompt -> SpawnJobVehicle(player,'parcel_truck', pad CFrame) via ServerStorage.GwangalliEvents; 4 drops planned",
+    "Walk route office -> LowWall opening (x-341, z333.4..347.4) -> dock station -> dock opening (z336.5..348.5) -> Station_pad (-404.46,7.1,342.2) must stay free of collidable props",
+    "DetailLOD NearLOD (SortingArea/NearDetail extra ConveyorCarton x5); InteriorLight 16x4 panel"
+   ],
+   "emptyOrCrude": [
+    "Conveyor is a static solid box: no rollers, side guides, legs, motor, scan arch or E-stop; cartons don't move",
+    "Pallets are flat slabs (no deck boards/blocks); cartons and cage boxes are blank brown bricks; roll cages are 50 % transparent solid boxes instead of wire mesh cages",
+    "47x47-stud hall is ~35 % used: empty floor x-358..-341 (between conveyor and low wall) and the north/south strips z318..327 / z355..364",
+    "No racking, no region sort bays/cages numbered like the RouteMap (① 번화가 ② 민락 ③ 남천 ④ 광남로 ⑤ 해변로), no hand trucks/pallet jack, no PDA chargers, no wrap/tape station",
+    "Dock opening is a plain hole: no shutter rails/curtain, dock leveler, seal or traffic light; floor has no pedestrian/forklift safety lines beyond the dock stripe",
+    "Ceiling is a flat grey metal plate with three lights - no joists, ducts, high-bay fixtures or industrial fans"
+   ],
+   "realWorld": [
+    "하차·분류 컨베이어 (롤러/벨트, 측면 가이드, 다리, 바코드 스캔 터널 또는 핸드 PDA, 비상정지 버튼, 분류 슈트)",
+    "구역별 분류 칸 + 대형 롤테이너 다수 (구역 번호 행잉 사인), 팔레트 + 수동 파렛트 트럭 (핸드자키), 핸드카트 (대차)",
+    "스트레치 필름·테이프건·송장 프린터·저울 작업대, PDA 충전 랙, 파손/반품/보관 구역 (반품 카트), 철제 랙",
+    "상차 도크: 셔터 (레일·커튼·조작 스위치), 도크 레벨러, 도크 실/쉘터, 고무 범퍼, 도크 신호등, 휠 초크, 1톤 탑차 후진 가이드",
+    "바닥 안전선 (노랑 보행 통로·적재 구역), LED 하이베이, 산업용 대형 선풍기/온풍기, 노출 덕트·트러스, 소화기·소화전, CCTV, 출퇴근기"
+   ],
+   "interactionIdeas": [
+    "Conveyor switch: E = start/stop (belt texture scrolls, cartons slide to the end), E-stop button",
+    "PDA scan: E on a carton = beep + show its 구역 number; then E on the matching region cage to sort (a delivery_parcel prep task before 'load')",
+    "Pallet jack: E grab -> move a pallet to the dock; stretch-wrap a pallet (hold E, film spins)",
+    "Shutter switch at the dock: E = roll the shutter curtain up/down (animate ShutterRoll); dock light turns green when the Porter is docked",
+    "Weigh oversize parcel at the scale table and print a label"
+   ]
+  },
+  {
+   "name": "광안 딜리버리 차고 (outdoor parcel-truck pad)",
+   "path": "Workspace.Gwangalli.delivery[\"광안 딜리버리 차고\"]",
+   "bounds": "pad min(-411.62,6.59,333.07) max(-397.29,6.64,351.33) on YardAsphalt min(-426.41,6.56,257.31) max(-387.38,6.61,366.99)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "Truck pad (yellow outline 14x18)",
+     "center": [
+      -404.46,
+      6.62,
+      342.2
+     ],
+     "size": [
+      14.3,
+      0.05,
+      18.3
+     ],
+     "floorY": 6.6
+    },
+    {
+     "name": "Rear yard (shared with GS25 back: parking lines x4, Kia Ray, Porter)",
+     "center": [
+      -406.9,
+      6.6,
+      312.15
+     ],
+     "size": [
+      39.0,
+      0.05,
+      109.7
+     ],
+     "floorY": 6.6
+    }
+   ],
+   "props": [
+    "PadLine x4 yellow 0.4-wide lines, PadText 12x2 '택배 차량 전용' painted on the ground",
+    "GarageSign 8x3x0.2 yellow '광안 딜리버리 차고 · 출구 →' floating at y9.5..12.5 (x-404.8 z362.7) with no post",
+    "Car_Porter II (Hyundai Porter II truck model, VehicleKind truck) parked at x-418.5..-415 z349.4..365.2, outside the pad",
+    "Neighbouring GS25 yard items: ParkingLine x4 (x-424..-408), Car_Kia Ray, Car_Porter II (GS25), RollCage x2 + Boxes x2 at GS25 back door, OutdoorAC x3"
+   ],
+   "gameplay": [
+    "Station_pad (-404.46,7.10,342.20) tags GwJobStation + GwVehiclePad, Kind=parcel_truck: JobDelivery spawns/despawns the 탑차 here (SpawnJobVehicle / DespawnJobVehicle), final 'goto pad' return",
+    "Station_exit (-403.00,7.10,264.21) at the south yard exit",
+    "Pad must stay free of collidable props (vehicle spawn), and the lane dock(x-388)->pad->exit(z264) must stay drivable"
+   ],
+   "emptyOrCrude": [
+    "Called 차고 but there is no garage/canopy: just painted lines on asphalt",
+    "Sign floats in the air without a post or wall",
+    "No wheel stops, cones, lighting pole, CCTV, gate/barrier at the exit, wash area, air pump or EV/battery charging"
+   ],
+   "realWorld": [
+    "택배 차량 주차장: 철골 캐노피 지붕, 차량 번호별 주차칸, 카 스토퍼, 라바콘, 조명 기둥, CCTV, 출입 차단기",
+    "세차 호스·수전, 타이어 공기주입기, 1톤 전기 포터 충전기, 오토바이 주차 라인 + 배터리 교환 스테이션"
+   ],
+   "interactionIdeas": [
+    "Air pump / wash hose: E = 세차 (truck shine) or tyre check mini-task before a parcel route",
+    "EV charger for an electric Porter / battery swap cabinet for e-scooters (E = swap, battery % in HUD)",
+    "Place cones (E) around the truck while loading"
+   ]
+  }
+ ],
+ "notes": "Scale: the anchored 배차 실장 rig is ~5.3 studs tall (feet 6.8, head top ~12.2) -> ~0.32 m/stud; GS25 ceiling 11 studs (~3.5 m), counter top 3.6 studs, gondola 6.6 studs, fridge door 6.2 studs. Layout: one 3-storey shell '광안로 상가 (GS25)' (x -388.9..-306.7, z 260.5..366.0) holds GS25 (south, z 261.8..307.2), a sealed lobby+stair (x -331.2..-309.4, z 307.6..318.0) and 광안 딜리버리 (north, z 317.3..365.2); facades face +X (street at x≈-300). An enclosed unused void with no floor exists at x -388..-332, z 308..316.5 (between GS25 north Partition z305.7..308 and the delivery Partition z316.5..318.4) - a natural place for the delivery restroom (its door already sits at x-331.6 z318.6) and the lobby stair return flight. Exterior walls GroundSide/GroundBack/DockHeader belong to the GS25 model even where they enclose the delivery warehouse. 2F/3F are a solid Core block; Annex and ShopLife ignore everything under 'convenience' and 'delivery' (HOST_VENUES), so any interior there must be built by the new interior system. Implementation constraints found: (1) JobWorld snaps runtime anchors to DIRECT children named StaffMicrowave/HotWaterMachine/CashDrawer/CardTerminalScreen of the GS25 model; (2) GwangalliStaff builds its NPC walk graph once from server raycasts against CanCollide parts - keep new collidable geometry client-side or out of aisles; (3) JobCvsPlus puts server product displays (workspace.GwCvsPlus) at the 4 slot anchors - leave SlotBack/SlotBoard volumes free; (4) DetailLOD hides NearLOD/ZoneLOD models with LocalTransparencyModifier, so hiding crude originals must use another channel (local Transparency/CanQuery writes restored on exit) or re-apply after DetailLOD; (5) ShopLife name lookups miss 'HotWater' and 'IceCreamChest' in this store - adding alias parts/attributes would light up those prompts; (6) all Station_* anchors, Destination, AutoDoor_* models, POS tags and ATM must keep names/positions. Sources read: v7 place.bin via GWPB (full dumps in /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/bld/cvsdl/conv.txt, deliv.txt, conv_c.txt, deliv_c.txt, propsumm.json, allaabb.json) and runtime scripts JobWorld, JobCvs, JobCvsPlus, JobDelivery, JobShop, GwangalliStaff, ShopLife/Scan, ShopFlows, Bank, Law/Crimes, StreetInteract/Places, Annex, DetailLOD, GwangalliJobs/World, CvsWorld, GwangalliWorkSpots, GwangalliCustomerShared."
+}

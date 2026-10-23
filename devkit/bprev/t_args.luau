@@ -1,0 +1,8 @@
+print("args", ...)
+local R = require("./lib/rbx")
+local p = R.Instance.new("Part")
+print(p.Size, p.Material, p.Position)
+local t = R.Instance.new("TextLabel")
+print(t.FontFace, t.Text)
+p.Position = R.G.Vector3.new(1,2,3)
+print(p.CFrame)

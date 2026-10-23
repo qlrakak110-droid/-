@@ -1,0 +1,51 @@
+cafe_mega	/MEGA COFFEE
+cafe_lab	/COFFEE LAB 149
+cafe_haute	/CAFE HAUTE
+cafe_051	/CAFE 051
+bakery_haebyeon	/베이커리 해변
+dessert_bingbing	/BINGBING
+dessert_waffle	/와플 & 젤라또
+dessert_tanghulu	/탕후루 & 젤라또
+pub_happy	/HAPPY MONK
+pub_sunset	/SUNSET PUB
+pub_tap	/광안 탭하우스
+pub_fuzzy	/FUZZY NAVEL
+kor_haejang	/남천 해장국
+kor_gukbap	/광안 돼지국밥
+kor_ramen	/하카타 라멘 광안
+kor_milmyeon	/광안 밀면
+kor_gwgukbap	/shops/행복 돼지국밥
+grill_clam	/광안 조개구이
+grill_gopchang	/광안 곱창
+pocha_haemul	/광안 해물포차
+pocha_minrak	/민락 포장마차
+pocha_saebyeok	/새벽집
+sea_pado	/파도횟집
+sea_jinmi	/진미횟집
+sea_silla	/신라횟집
+sea_jjim	/광안 조개찜
+sea_crab	/민락 대게
+ff_paldo	/팔도통닭
+ff_gwchicken	/shops/광안 치킨
+ff_burger	/광안 수제버거
+ff_subway	/SUBWAY 부산광안비치점
+ff_bunsik	/바다분식
+ff_gwtteok	/shops/광안 떡볶이
+ff_odeng	/오뎅바 어묵
+st_7eleven	/7-ELEVEn
+st_gs25mok	/GS25 광안목화점 · 엘모텔/GS25
+st_olive	/올리브영 광안리점/OLIVE YOUNG
+st_souvenir	/광안 기념품
+st_beach	/비치용품 · 튜브대여
+st_pharm	/해변약국
+st_gwpharm	/shops/바다약국
+sv_centralbay	/HOTEL CENTRAL BAY
+sv_oceanstay	/OCEAN STAY
+sv_mansion	/협진태양맨션/협진태양맨션
+sv_apark	/BELIV A-PARK OCEAN
+sv_realty	/태양공인중개사
+sv_laundry	/남천 크린세탁
+sy_hair	/shops/헤어살롱 물결
+sy_clothes	/shops/바다옷장
+sy_surf	/shops/광안 서프 & SUP
+sy_claw	/인형뽑기

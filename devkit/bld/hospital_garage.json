@@ -1,0 +1,867 @@
+{
+ "key": "hospital_garage",
+ "venues": [
+  {
+   "name": "광안 메디컬 의원 1F (접수·대기실 · 진료실 1 내과 · 주사실/처치실 · 약국 코너 · 후면 계단/엘리베이터 홀)",
+   "path": "Workspace.Gwangalli.hospital['광안 메디컬 의원'].1F (+ Staff, AutoDoor_Hospital, Destination at the venue root)",
+   "bounds": "(-575.5,6.9,263.3)..(-454.8,17.95,340.7)  [floor top 6.9 (Floor 118.4x0.3x73.6 at y 6.75), CeilingBoard bottom 17.95; model rotated ~178.1 deg about Y (local axes ~1.9 deg off world), street facade + AutoDoor face -Z at z~264-267]",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "로비 + 접수·수납 (ReceptionDesk 20 wide, open to the waiting room; entrance AutoDoor at x -495.9)",
+     "center": [
+      -504.5,
+      12.4,
+      278.3
+     ],
+     "size": [
+      47.0,
+      11.05,
+      25.5
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "대기실 (3 WaitingBench x4 seats on WaitingRug 25x22, TV, kids corner, water purifier)",
+     "center": [
+      -468.5,
+      12.4,
+      279.6
+     ],
+     "size": [
+      25.0,
+      11.05,
+      26.1
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "진료실 1 · 내과 (DoctorDesk, ExamBed, BP trolley, sink; FrostedFilm on the street glass; door at x -535 z 293)",
+     "center": [
+      -551.3,
+      12.4,
+      278.1
+     ],
+     "size": [
+      43.4,
+      11.05,
+      26.9
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "1F 복도 (ConsultWall/ReceptionWall/TVWall z~292-294 to PharmHeader/TreatWall z~296.7-298.5; mint WayBand)",
+     "center": [
+      -515.0,
+      12.4,
+      295.6
+     ],
+     "size": [
+      118.0,
+      11.05,
+      3.6
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "약국 코너 staff side (PharmacyCounter 28 wide under PharmHeader opening x -559..-531, MedShelf, DispensingMachine, VaccineFridge)",
+     "center": [
+      -545.3,
+      12.4,
+      308.7
+     ],
+     "size": [
+      57.5,
+      11.05,
+      21.7
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "중앙 통로 (between PharmWall x -515 and TreatWall x -503.8; links corridor to back hall) - completely empty",
+     "center": [
+      -509.5,
+      12.4,
+      310.1
+     ],
+     "size": [
+      11.1,
+      11.05,
+      23.7
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "주사실 · 처치실 (TreatBed1/2, MedicineCabinet, TreatmentCart, sink, sharps; door at x -487 z 298.8)",
+     "center": [
+      -479.5,
+      12.4,
+      311.1
+     ],
+     "size": [
+      45.7,
+      11.05,
+      21.7
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "후면 홀 (stair up to 2F x -497..-519 z 325-336, elevator x -548 z 337.6 (fake), fake doors 남/여 화장실 x -564/-570, STAFF ONLY x -528, 창고 x -538 on the back wall, fire exit x -456.8 z 331.5, bench)",
+     "center": [
+      -515.7,
+      12.4,
+      330.5
+     ],
+     "size": [
+      116.7,
+      11.05,
+      12.5
+     ],
+     "floorY": 6.9,
+     "ceilingY": 17.95
+    }
+   ],
+   "props": [
+    "Shell: Floor one 118.4x73.6 SmoothPlastic slab (222,224,222) for every room; 13 interior walls 11 tall Plaster (222,218,208) 0.6 thick (ReceptionWall 30, TVWall 25.2, ConsultWall x3, TreatWall x3, PharmWall x3, PharmHeader 28x3, BackWall x2); WayBand mint 0.5 strips x3; Ceiling1F = CeilingBoard 118.4x73.6 + 45 TBar (29 along z every 4.1, 16 along x) - a correct 600 grid look",
+    "Lighting: LightPanel neon slabs 24x8 x2 (lobby), 18x8 x2 (waiting), 36x8 + 36x10 (consult), 40x8 x2 (treatment), 36x8 x2 (pharmacy), 32x4 / 64x4 / 112x4 / 112x3 (corridors) - each one huge glowing slab lying over the T-bar grid; only 6 SurfaceLights (Range 20, InteriorLight AlwaysOn) on 1F, none in BackZone/corridors' far ends; CassetteAC x5 (3.8 box + grille + 4 vanes), CCTV ball x3",
+    "Lobby: ReceptionDesk Model (ToeKick, FrontPanel 20x3.3 mint, Ledge 20.4 slab, WorkDesk 20x2.2x4.1, WorkTop, DeskGlow neon) + Detail(NearLOD): 2 Monitor 1.8x1.1 slabs + stands, DeskBell ball; DeskSign '접수 · 수납'; 2 staff chairs (ChairSeat 1.6 slab + ChairBack slab + 1 cylinder leg + disc foot); Printer 3x1.2x2.4 box; FileTray box; TicketKiosk 1.6x4.6x1.2 white box + KioskScreen '번호표 / 터치하세요' + TicketSlot; Sanitizer pole+box; ScreenHousing+LEDScreen 13x3 static '대기 3명 · 진료중 7번 / 다음 8번'; wall Sign_광안 메디컬 의원 22x2.2, Sign_09:00 22:00, Sign_층별 안내 7.6x5.2; StandPoster '독감 예방접종'; Plant x2 (cylinder pot + 2 SpecialMesh leaf blobs); FireExtinguisher cylinder; EntranceMat 8x4.2",
+    "Waiting room: WaitingBench x3 (BenchBar 8.4 + 3 legs + 4 BenchSeat Seats 1.8x0.3x1.8 Sittable + 4 flat BenchBack 1.8x1.8x0.15, teal fabric) = 12 seats in 3 rows facing the TV wall; ScreenHousing+LEDScreen 10x5.6 '건강 정보'; Sign_손 씻기, Sign_금연 4.6x3.6 posters; WaterPurifier 1.6x4.6 box + panel + tap + CupHolder slab; MagazineRack box + 4 Magazine slabs stacked; KidsCorner (PlayMat 8x2.6, round TableTop, 2 cylinder Stools, 3 Block cubes, KidsDivider, KidsSign '어린이 놀이방'); AirPurifier box + LED strip; Plant",
+    "진료실 1: DoctorDesk Model (DeskTop 12x3.6 wood, DeskBody, Kick, Monitor 4x2.3 '진료 차트 · 혈압 118/76', MonitorFoot, Keyboard slab, ChartFiles box, Mug cylinder); doctor chair + patient Seat (both 1.6 slab stools); ExamBed Model (home-style bed: BedFrame, 4 legs, Mattress 3.4x0.6x7, BedSeat Seat 'exam', Blanket, Pillow, WOOD Headboard 3.4x2.7 + Footboard, one SideRail, CurtainRail L + ONE Curtain panel 4.1 wide); BPMonitor trolley (pole, top, BPUnit '120 / 80', cuff slab); OtoscopeUnit wall box + 3 otoscope cylinders; SinkCabinet 5.8x3x4.6 + top + steel Sink box + Tap + Mirror + PaperTowel; MedWasteBin yellow box '의료폐기물' + Bin cylinder; wall frames Sign_인체 해부도, Sign_의사 면허증, Sign_전문의 자격, Sign_손 씻기 6단계; Scale floor slab + ScaleColumn + ScaleDisplay '0.0 kg · 신장'; Plant",
+    "주사실: TreatBed1/2 (same home-style bed + IVPole cylinder 6.2, IVBase, IVBag glass box, IVLine, BedsideCabinet box + wood top + WaterCup; one curtain panel each); MedicineCabinet (base 16x3.4x2.9, top, UpperCabinet 16x5.2x1.7, 39 MedBox ~1.1 cubes in 6 colours behind CabinetGlass t0.55, label '주사제 · 수액 · 소모품'); TreatmentCart (box body, top, 4 wheel cylinders, tray, bottle, gauze); SharpsBin yellow cube on SharpsStand box; SinkCabinet + Sink + Tap; signs '주사 후 5분간 눌러 주세요', '처치실 · TREATMENT', static clock 'Sign_10:24'; Plant",
+    "약국 코너: PharmacyCounter (toe kick, Body 28x2.95x2.7, Top 28.4 slab, LedStrip); PharmSign 28x2.4 '약국 코너 · 처방약 수령'; ShutterBox bar; DeskBell; PrescriptionScreen 4.4x2.3 '처방 접수 / 조제 대기 2건'; 4 SupplementBox cubes on the counter; CounterNote '약사 조제 중 · 벨을 눌러 주세요'; MedShelf (BackPanel 24x7.5, 2 Uprights, 5 Boards 23.6) + Detail(NearLOD) 148 Product boxes (only white/orange/cream/blue, no labels) + 5 PriceRails; DispensingMachine 6x7.4x5.3 box + screen '자동조제기 · 조제 중' + outlet slab; VaccineFridge 4.4x5.6x4.5 box + glass + label '백신 보관 2~8°C'; 1 chair",
+    "후면 홀: 20 Step boxes 10x(0.83..15.0)x1.33 (solid stacked, rising -x from x -497 to -519 at z ~330) + 12 RailPost + 2 Rail + 2 MidRail; Door_남자 화장실 / Door_여자 화장실 / Door_STAFF ONLY / Door_창고 (flat 4x8 leaf + jambs + head + handle + sign, mounted on the exterior back wall z~337-338, nothing behind); ElevatorJamb x2, ElevatorHead, 2 ElevatorDoor slabs 2.16x8.6 (collidable), FloorIndicator neon, CallButton slab, Sign_엘리베이터; FireExitDoor slab + PushBar + ExitSign x2; Sign_2F ↑; WaitingBench (4 seats); FireExtinguisher; Plant x2",
+    "Staff (venue root): 의사 김선생 R15 rig (HospitalStaff, Role doctor) sitting at the DoctorDesk (HRP -554.2,8.9,272.5) with apron, glasses, stethoscope parts, badge; 간호사 박선생 (Role nurse) standing beside ExamBed (HRP -565.8,9.8,283.9) with hidden Syringe/SyringeNeedle/SyringePlunger (GwProp syringe); VialTray + TrayStand + 3 Vial on a stand at (-565.6,9.9,279.4); HospitalPrompt_doctor (-554.4,9.4,278.9) '진료 받기'; HospitalPrompt_desk (-514.5,9.4,281.2) '접수하기'"
+   ],
+   "gameplay": [
+    "GwangalliGameplay/Health (server, place script ServerScriptService.GwangalliGameplay.Health): binds every part tagged HospitalPrompt (Kind doctor|desk) -> opens the hospital UI (HealthEvent 'clinic'); reach G.HEALTH.reach 14 (+6) studs from the anchor; HealthRequest treat/vitamin/checkup fee then choreography: Health.findBed('exam') = ExamBed.BedSeat (Seat, tag HospitalBed, BedKind 'exam') -> player placed 2.6 above the seat and Seat:Sit; nurse 박선생 RightShoulder/RightElbow Motor6D C0 tween + parts with attribute GwProp='syringe' made visible 2.5 s; doctor rig posed seated by Motor6D C0 writes; rigs found by tag HospitalStaff + attribute Role. DO NOT move/rename/hide: ExamBed BedSeat, both HospitalPrompt_* anchors (invisible 2x4x2 parts) and their ProximityPrompts, the two rigs (tag HospitalStaff) and their Motor6Ds, the GwProp syringe parts",
+    "HospitalBed Seats (8): ExamBed 'exam'; TreatBed1, TreatBed2, 2F CheckupBed 'treat'; 2F WardBed_A/B of Ward_201 and Ward_202 'ward'. Health collapse and Arms/KOSystem.wardTarget() -> Health.findBed('ward') wake the player on a ward bed ('광안메디컬 입원실에서 눈을 떴어요'); Play/Ems/Patients.TRANSIT = (-465.3,9.6,304.5) = TreatBed1 (EMS handover, 'unused by Health'). Interact's sittable scan EXCLUDES HospitalBed-tagged parts",
+    "Law/Hospital (server NPC life, owner npc_mind): spawns 접수1 / 의사2 / 간호사3 / 외래 환자3 / 입원 환자1 / 보호자2 when a player is within 170 of CENTER (-515,7,300); walks a named SPOTS graph (1F y 7.2: fore -496,252 · door -496,270 · lobby -505,276 · desk_front -515,281 · desk -503,284 · wait1..3 -466,275/281/287 · hall -505,300 · hall2 -525,294 · bench -520,328 · pharm -540,294 · cons_door -537,297 · cons -545,285 · treat_door -485,296 · treat -478,308 · treat_bed -468,309 · lift1 -548,332; 2F y 21.2: lift2 -548,332 · landing -540,294 · corr2 -520,290 · station -515,284 · w201_door -497,293 · w201 -480,283 · w201_bed -466,282 · w202_door -537,292 · w202 -550,281 · w202_bed -540,281 · check_door -543,298 · check -552,312 · lounge -478,311). At start it builds a 2-stud WALK GRID (x0 -582, z0 250, 70x48 cells) from the SERVER parts (GetPartBoundsInBox; names containing Leaf/Threshold/Track/Prompt/Floor/Rug/Mat and CanCollide=false parts are passable; every Model named Door_* / AutoDoor* is carved open). Client-only props are invisible to that grid -> NPCs will walk through client-built furniture unless it stays off the spot-to-spot corridors; server-side props would re-route/block them. Workspace.Gwangalli.hospital['광안 메디컬 의원'] path is hard-coded",
+    "EMS / 119 + Law: Ems.HOSPITAL = Destination '광안메디컬' (part 'Destination' at -495.8,7.1,261.2, tag Destination); Ems.BASE_POS (-450,7,262), DUTY_POS (-456,7,256), Ambulance PAD (-446,7,254), Law/Rescue BAY (-442,7.2,290) + ENTRANCE (-496,7.2,262); Law/Police.tplData clones AmbulanceBay/Car_Ambulance as the ambulance template (never rename / move it). The Ems duty point (workspace.GwangalliPlay.Ems.DutyPoint) is built outside",
+    "AutoDoor_Hospital (tag AutoDoor, DoorLeaf/LeafStile/Sign parts carry OpenOffset ±3.75 studs): slid by the generic auto-door system - keep the 8-stud doorway x -500..-491.9 z 264.5..268 clear",
+    "Generic tags inside: NearLOD 'Detail' models (GwangalliWorld/DetailLOD hides/shows by distance), InteriorLight (AlwaysOn SurfaceLights), LEDScreen x5 (GwangalliWorld/Screens cycles attribute Messages 'a|b|c' - none set here, so static), GwSurfaceGui x96 (sign gui quality/brightness), NeonTube, NightGlow/NightNeon. StreetSigns: 'hospital' is a HOST_ANCESTOR (boards keep their look; no frames added). Annex HOST_VENUES.hospital = true (no annex). ShopStaff spawns nobody here (no ShopFloor / PosBase anchors) and skips counters within 9 studs of HospitalStaff",
+    "Interact (server): BenchSeat Seats carry Sittable=true; the start scan tags chairs/benches/sofas GwSittable (SitKind) -> keep those parts (or keep them as invisible collision/seat proxies) when replacing visuals"
+   ],
+   "emptyOrCrude": [
+    "Occupancy (furniture band floor+0.3..+7): lobby 25% floor occupied, largest empty square 18x18 centred (-490.0, 275.5); waiting 28% floor occupied, largest empty square 14x14 centred (-475.0, 276.5); 진료실 26% floor occupied, largest empty square 16x16 centred (-540.0, 277.6); 약국 21% floor occupied, largest empty square 16x16 centred (-537.0, 308.8); 주사실 28% floor occupied, largest empty square 14x14 centred (-496.3, 306.2); 중앙 통로 0% floor occupied, largest empty square 12x12 centred (-510.0, 303.2); 후면 홀 22% floor occupied, largest empty square 12x12 centred (-569.0, 329.2); corridor 19% floor occupied, largest empty square 4x4 centred (-573.0, 294.8)",
+    "진료실 1 is a 43x27-stud (~15x9 m) room for ONE desk + one exam bed: a real 의원 진료실 is ~3x4 m. The west half x -548..-529 is bare floor; the street glass is only frosted film. It reads as an empty hall, not a consult room",
+    "Ceiling light = giant neon slabs (24x8 to 112x4 studs) lying on top of the T-bar grid instead of 2x2-stud LED flat panels set in the grid; only 6 real lights on 1F (no light at all in BackZone, mid hall, corridor ends) -> flat glare + dark corners",
+    "Floor: one uniform 118x73 SmoothPlastic slab through lobby, rooms, corridor and pharmacy; no 데코타일/장판 seams, no 걸레받이 (baseboards), no colour coding of corridor vs rooms, no thresholds at room doors",
+    "Walls: bare 11-tall plaster with only a 0.5 WayBand; no 안전손잡이 handrails, corner guards, wall protection rails, outlets, switches, 소화전 cabinet, AED box, bulletin board (진료비 안내/비급여 가격표, 의료진 소개), 진료실 앞 대기 환자 모니터",
+    "Beds (ExamBed, TreatBed1/2) are home beds: wooden headboard 3.4x2.7 + footboard, one side rail, a single curtain panel on an L rail; real clinic uses a padded 진찰대 (vinyl couch, adjustable back, paper roll, step stool) and 수액 recliners / stretcher beds with rails on both sides and full ceiling-track curtains",
+    "Chairs everywhere = 1.6 slab seat + slab back on a single cylinder + flat disc (doctor, staff, patient, pharmacy all identical); no doctor's high-back mesh chair, no patient chair with armrests",
+    "Reception desk has no acrylic partition, card terminal, signature pad, receipt printer, 처방전 printer detail (Printer is a 3x1.2x2.4 box), pen holder, phone, calendar, 접수 순서 screen; no receptionist rig (only Law/Hospital's roaming actor when players are near)",
+    "TicketKiosk is a white 1.6x4.6x1.2 box with a flat label; LEDScreens show frozen text ('대기 3명 · 진료중 7번'); Sign_10:24 is a frozen clock",
+    "약국 코너: 148 identical unlabeled Product boxes in 4 colours; DispensingMachine and VaccineFridge are plain boxes; no pharmacist, no 조제대 (dispensing bench), 약포지 포장기, 약품 서랍장, 일반의약품(OTC) shelf facing customers, 드링크 냉장고, 결제 단말기, 약봉투; customer side is just the corridor",
+    "주사실 is 46x22 studs with 2 beds: real 주사실/수액실 lines 4-6 recliners or beds with curtains between, wall O2/suction outlets, 주사 준비대, 체온계/혈압계, 수액 걸이 on ceiling track",
+    "중앙 통로 (11x24) is 0% furnished; the 후면 홀 has a solid stepped block stair (20 boxes, no nosing/landing/stringer), a fake elevator (2 slabs + neon indicator) and four fake doors painted onto the outside wall (no restroom, staff room or storage behind them)",
+    "No 엑스레이실/검사실/채혈실, no real 화장실, no 탈의실, no wheelchair, umbrella stand, shoe cover dispenser, 열화상 체온계, mask dispenser, 무인수납기 - all standard in a Korean 의원 lobby"
+   ],
+   "realWorld": [
+    "Facade/entrance: 자동문 with 병원 로고 시트지 + 진료시간 스티커, 우산 비닐 포장기, 휠체어 1-2대 보관, 손소독제 스탠드, 열화상 체온 측정 카메라 (코로나 이후 흔함), 마스크 착용 안내",
+    "접수·수납 데스크: 하이카운터 + 로우카운터(휠체어), 아크릴 가림막, 모니터 2-3대, 카드 단말기 + 서명패드, 영수증/처방전 프린터, 신분증 확인 안내 (2024.5~ 본인확인 의무화), 진료비 영수증 봉투, 볼펜 꽂이, 전화기, 접수 대기 번호 표시기, 비급여 진료비 안내판, 개인정보 동의서 클립보드",
+    "무인 접수·수납 키오스크 + 번호표 발권기 (딩동 '00번 고객님 접수창구로'), 대기 순서 TV (진료실별 대기 환자 이름 마스킹 '김*수'), 건강 정보 TV",
+    "대기실: 연결 의자 (팔걸이 있는 3-4인 빔 체어, 인조가죽/패브릭), 정수기 + 종이컵 디스펜서 + 컵 수거통, 잡지/신문 거치대, 어린이 놀이 코너 (매트, 장난감, 그림책), 공기청정기, 화분, 벽걸이 시계, 의료진 소개 액자, 건강검진 / 예방접종 포스터, 금연·손씻기 안내",
+    "진료실: 의사 책상 (L자) + 모니터 2대 (EMR 차트 + PACS 영상), 키보드/마우스, 하이백 의자, 환자용 회전 스툴, 보호자 의자, 진찰대 (일회용 롤 시트) + 발판, 커튼 (천장 레일), 청진기, 이경/검안경 벽걸이 진단세트 (Welch Allyn 2-head), 혈압계, 체온계, 설압자 통, 알콜솜/솜 통, 손세정대 + 페이퍼타올 + 손소독제, 의료폐기물 박스 (노란 골판지), 손상성 폐기물 통, X-ray 판독 모니터, 인체 모형/해부도, 의사 면허증·전문의 자격증 액자, 진료실 앞 '진료 중' 표시등 + 대기 의자",
+    "주사실·처치실 / 수액실: 수액용 리클라이너 또는 침대 3-6대, 천장 커튼 레일 (U자), 수액 거치대, 주사 준비대 (트레이, 알콜솜, 주사기, 앰플), 냉장 약품고, 처치 카트 (드레싱 세트, 거즈, 반창고), 손상성 폐기물 통, 의료폐기물 함, 손세정대, 산소/석션 벽 배관 아울렛, 체온계, '주사 후 5분 문지르지 마세요' 안내",
+    "약국 (의약분업상 보통 같은 건물 1층 별도 약국): 조제실 (약품 서랍장, 약 포장기 ATC/분포기, 조제대, 약품 냉장고), 투약구 카운터 + 상담 창, 일반의약품 진열대 (박카스, 판피린, 타이레놀, 까스활명수, 파스, 밴드, 마스크), 드링크 냉장 쇼케이스, 영양제 진열, 계산대 + 카드단말기, 약봉투, 처방전 수거함, 약사 가운",
+    "검사 공간: 채혈 의자 (팔걸이 테이블), 심전도실, 초음파실, X-ray 촬영실 (납 차폐 문, '촬영중' 빨간 경고등, 방사선 위험 표지), 탈의실 + 검사복 + 사물함",
+    "공용: 남/여 화장실 (세면대, 핸드드라이어), 엘리베이터 (호출 버튼, 층 표시, 거울, 의료용 침대 들어가는 깊은 카), 계단 (논슬립, 층 표시, 유도등), 소화기 + 옥내소화전함, AED 함, 비상구 유도등, CCTV 촬영 중 스티커, 안전 손잡이",
+    "조명/마감: 600x600 매입 LED 평판등 (T-bar), 데코타일 또는 장판 바닥, 걸레받이, 벽 하단 보호 패널, 문 옆 실명판 + 점자"
+   ],
+   "interactionIdeas": [
+    "번호표 발권기 (TicketKiosk): ProximityPrompt '번호표 뽑기' -> printed ticket part pops from TicketSlot, client LEDScreen counts down and plays 딩동 '0NN번 환자분 접수창구로 와주세요' (reuse the ATM 번호표 client pattern in GwangalliFeatures/ATM), then points to HospitalPrompt_desk",
+    "자동 혈압계 (BPMonitor trolley 1F / BPMachine 2F): '혈압 재기' -> arm-in-cuff pose, cuff inflate tween, display counts up to a value derived from the client-readable Player.Fatigue attribute (high fatigue -> 높은 혈압 + '병원 진료를 권해요')",
+    "체중계 (Scale + ScaleDisplay 1F / 2F Scale + HeightRod): '키·몸무게 재기' -> height rod slides down to the character's head, display shows cm / kg / BMI",
+    "시력표 (2F Sign_시 력 표 + EyeLine): '시력 검사' -> stand on EyeLine, a pointer highlights symbols, press arrow keys for the gap of a 란돌트 C; result 1.0 / 0.8 on screen",
+    "청력 검사 부스 (HearingBooth): '청력 검사' -> door opens, sit inside, beeps L/R, click when heard",
+    "정수기 x2 (1F waiting, 2F lounge): '물 마시기' -> paper cup prop + drink pose + gulp sound",
+    "2F VendingMachine x2: tag server-side as Interact kind 'vending' (attributes GwInteractKind/Id/Label + GwItems 'water,ion,coffee,sikhye', tag GwInteract) so the existing server-authoritative purchase flow ('음료 뽑기') works; animate can dropping into the out tray",
+    "MagazineRack: '잡지 보기' -> sit-and-read pose with a local SurfaceGui magazine (광안리 맛집 / 건강 칼럼)",
+    "Sanitizer pole: '손 소독' -> pump animation, sparkle particles, '칙' sound",
+    "TV / LEDScreen: set the Messages attribute ('a|b|c') so GwangalliWorld/Screens cycles 건강 정보 / 대기 번호; lounge TV '채널 바꾸기' (뉴스 / 날씨 / 해수욕장 CCTV)",
+    "Curtains (ExamBed, TreatBeds, WardBeds, CheckupBed): '커튼 치기/걷기' -> client tween of curtain panels along the ceiling rail",
+    "Glass room doors Door_진료실 1 / 주사실 / 입원실 / 건강검진센터: swing open on approach (local, leaves are CanCollide=false already) + '진료 중' lamp over the consult door while a player is being treated (GwTreating attribute)",
+    "Elevator (1F back wall, NPC spots lift1/lift2 at -548,332): '엘리베이터 타기' -> doors slide, FloorIndicator 1->2, fade-teleport to 2F (needs a 2F elevator door on the checkup-centre back wall at x~-548 z~336)",
+    "DeskBell (reception, pharmacy): '벨 누르기' ding; 약국: after a Health 'cured' event show '처방약 수령' at the pharmacy counter -> pharmacist hands a 약봉투 prop",
+    "MedicineCabinet / VaccineFridge / DispensingMachine: glass door opens on prompt, fridge light + hum; dispensing machine plays a 약포지 printing animation",
+    "KidsCorner: '블록 쌓기' (stack the 3 Blocks), 그림책 읽기",
+    "Wheelchair at the entrance (new prop): '휠체어 타기' sit + push",
+    "Fire exit PushBar / fire extinguisher / new AED box: open-door animation + 경보음 (cosmetic)"
+   ]
+  },
+  {
+   "name": "광안 메디컬 의원 2F (입원실 201 · 202 · 간호사실 · 복도 · 휴게실 LOUNGE · 계단홀 · 건강검진센터)",
+   "path": "Workspace.Gwangalli.hospital['광안 메디컬 의원'].2F (shell parts: ['광안 메디컬 의원 (건물)'] Window x14, PartyWall x3, SlabCut, Roof)",
+   "bounds": "(-575.5,21.08,263.0)..(-454.8,29.45,340.7)  [Floor2 top 21.08 (4 slabs leaving the stair void x -519..-497 z 324..336), CeilingBoard bottom 29.45 -> 8.4-stud rooms; 2F street side = Window glazing 14.9x8 x8 + SpandrelGlass]",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "입원실 201 (WardBed_A/B, TV, wardrobe, 2 chairs, blind; door x -494.8 z 290.5)",
+     "center": [
+      -477.5,
+      25.3,
+      278.0
+     ],
+     "size": [
+      43.5,
+      8.4,
+      24.5
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "간호사실 (NurseDesk facing the corridor, med fridge, chart rack, side desk)",
+     "center": [
+      -514.4,
+      25.3,
+      277.3
+     ],
+     "size": [
+      26.9,
+      8.4,
+      25.2
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "입원실 202 (WardBed_A/B; door x -534.8 z 289.2)",
+     "center": [
+      -551.3,
+      25.3,
+      275.9
+     ],
+     "size": [
+      43.5,
+      8.4,
+      23.2
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "2F 병동 복도 (WardWall z~290-292 to BackWall2 z~294-298)",
+     "center": [
+      -514.5,
+      25.3,
+      292.6
+     ],
+     "size": [
+      117.0,
+      8.4,
+      4.4
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "휴게실 · LOUNGE (2 sofas, low table, TV, 2 vending, purifier, 2 table sets)",
+     "center": [
+      -475.2,
+      25.3,
+      317.4
+     ],
+     "size": [
+      38.3,
+      8.4,
+      38.3
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "계단 · 엘리베이터 홀 (stair arrives from 1F at x -519 z~330; glass rail around the void; bench)",
+     "center": [
+      -509.7,
+      25.3,
+      317.8
+     ],
+     "size": [
+      26.4,
+      8.4,
+      40.5
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    },
+    {
+     "name": "건강검진센터 (desk, scale, BP station, eye chart, hearing booth, ECG cart, 1 bed; 8-wide glass door x -543..-535 z 295)",
+     "center": [
+      -549.0,
+      25.3,
+      316.1
+     ],
+     "size": [
+      47.8,
+      8.4,
+      40.4
+     ],
+     "floorY": 21.08,
+     "ceilingY": 29.45
+    }
+   ],
+   "props": [
+    "Shell: Floor2 x4 SmoothPlastic (214,226,222); WardWall x6, BackWall2 x4, LoungeWall 42.6 long, CheckupWall 42.6 long (Plaster 222,218,208, 8.45 tall); WayBand mint 118.4; SoffitLining; Ceiling2F = CeilingBoard + 45 TBar; glass stair balustrade (2 RailGlass 23x2.7 + 2 Rail + 10 RailPost)",
+    "Ward_201 / Ward_202 (69 parts each): 2 WardBed models each (same home-style bed as 1F: wooden Headboard/Footboard, Mattress, BedSeat Seat 'ward' tag HospitalBed, Blanket, Pillow, one SideRail, L CurtainRail + one Curtain panel 4.1x7.35, IVPole + IVBag + IVLine, BedsideCabinet box + wood top + WaterCup); 2 visitor chairs (slab stool); ScreenHousing + LEDScreen 6.4x3.6 'TV 201'; 2 CallPanel 0.8x1 slabs '호출'; Blind 43.4x2.85 flat fabric slab + BlindBox over the street windows (both rooms); Wardrobe 2.4x7.8x5 box + one seam strip; Bin cylinder; LightPanel 36.6x6 x2 + CassetteAC",
+    "NurseStation (40 parts): NurseDesk (ToeKick, FrontPanel 16x3.3 mint, Ledge, WorkDesk, WorkTop, DeskGlow) + Detail 2 Monitors + DeskBell; NurseSign '간호사실'; 2 slab chairs; MedFridge 4x5.6x4 box + glass; ChartRack 6x6x2.2 box + 6 Chart slabs; SideDesk 8x3x3 box + Monitor '병동 현황 · 201 2명 · 202 1명'; Plant; 2 LightPanels (no SurfaceLight)",
+    "Lounge (129 parts): Sofa x2 (plinth, base, backrest, 2 arms, 3/2 Seat Seats, back cushions - decent); LowTableTop + leg block; Detail 4 floor Cushions; ScreenHousing + LEDScreen 9x5 '광안리 뉴스'; VendingMachine x2 (Body 3.4x6.2x2.6 blue / red box, Display slab NightNeon, 15 Can slabs 0.4x0.8x0.2 - no buttons, coin slot or out tray); WaterPurifier + panel; TableSet x2 (round TableTop m83, cylinder leg + disc, 4 Seat + 4 ChairBack + 16 ChairLeg); Plant x2; Sign_조용히 쉬어 가세요; 2 LightPanels 32x8 (no SurfaceLight)",
+    "CheckupCenter (70 parts): reception DeskTop 12x3.4 + DeskBody + Monitor '검진 결과 · 정상'; 4 slab chairs/seats; Scale 3x0.3x3 + HeightRod 7.4 cylinder + ScaleDisplay '체중 · 신장 · BMI'; BPStation 6x2.8x4 box + BPMachine 4x1.8x1.4 '자동 혈압계 / 팔을 넣어 주세요' + BPCuffRing cylinder; Sign_시 력 표 4.2x6.8 (text 'C O ㄷ E / ㅁ O C ㄷ / E ㄷ O ㅁ') + EyeLine floor strip 4 away; CheckupBed (same bed, 'treat'); HearingBooth SOLID 8x8.6x8 metal cube + BoothWindow + sign '청력 검사실'; ECGCart (top, body box, ECGUnit '심전도'); Sign_건강검진 안내 '접수 → 신체계측 → 혈압 → 시력 → 상담'; Plant x2; 3 LightPanels 44x8 (no SurfaceLight); CassetteAC",
+    "LandingHall (22 parts): WaitingBench (4 seats), wayfinding sign '← 휴게실 · 입원실 ↓ · 검진센터 →', ExitSign, FireExtinguisher, Plant, 2 LightPanels",
+    "Corridor: LightPanel 36x4 (the only SurfaceLight on 2F besides the two wards) + 72x4; door models Door_입원실 201 / 202 / 건강검진센터 (aluminium jambs, translucent leaf t0.35 CanCollide=false, rails, handle, mint sign)"
+   ],
+   "gameplay": [
+    "Ward beds (4 x BedSeat, tag HospitalBed, BedKind 'ward'): Health collapse / ambulance and Arms/KOSystem hospital transport seat the player here via Health.findBed('ward'); keep the Seat parts, their CFrames and tags",
+    "CheckupBed BedSeat 'treat' (findBed('treat') candidates); Law/Hospital 2F spots: lift2 (-548,332) [elevator exit - there is NO elevator door on 2F; NPCs pop out near the back wall of the checkup centre], landing (-540,294), corr2 (-520,290), station (-515,284), w201_door (-497,293), w201 (-480,283), w201_bed (-466,282), w202_door (-537,292), w202 (-550,281), w202_bed (-540,281), check_door (-543,298), check (-552,312), lounge (-478,311); nurses do 'typing' at the station, 'clipboard' at the beds, inpatient + guardian sit at w201_bed; floor y F2 = 21.2 and the walk grid is rebuilt from server parts at start",
+    "Sofa/TableSet Seat parts + chairs: Interact sittable scan (GwSittable); LEDScreen tag on the 2 TVs + lounge TV (static, no Messages attribute)",
+    "2F windows (Window x8 front, tag NightWindow, Zone office, LitChance 0.7): GwangalliEnvironment lights them at night from outside - an interior that adds real lights should keep or replace this tag behaviour",
+    "Not used by any system: vending machines, water purifier, eye chart, scale, BP machine, hearing booth, ECG cart (all decoration only)"
+   ],
+   "emptyOrCrude": [
+    "Occupancy: ward 201 27% floor occupied, largest empty square 12x12 centred (-480.2, 272.7); ward 202 28% floor occupied, largest empty square 12x12 centred (-552.0, 271.3); nurse station 51% floor occupied, largest empty square 8x8 centred (-524.8, 273.7); lounge 24% floor occupied, largest empty square 14x14 centred (-488.3, 328.2); stair hall 11% floor occupied, largest empty square 18x18 centred (-512.9, 311.5); checkup centre 19% floor occupied, largest empty square 24x24 centred (-561.9, 312.9); corridor 16% floor occupied, largest empty square 4x4 centred (-572.0, 291.4)",
+    "건강검진센터 is the emptiest room: a 48x40 hall with a 24x24-stud bare square in the middle and no light source at all (3 neon slabs only); the hearing booth is a solid grey cube; the eye chart text is not a real 한천석/란돌트 시력표; no 탈의실, 채혈실, X-ray, 초음파, 내시경, 인바디, 대기 소파",
+    "입원실 201/202 are 43x24 rooms (~15x8 m) holding 2 beds: a real 2인실 is ~4x5 m, a 다인실 holds 4-6 beds. Beds are wooden home beds (headboard/footboard) with one rail and one curtain panel; no 전동침대 controls, overbed table, headwall (산소/석션/조명/호출), 보호자 침대, in-room 화장실, 개인 냉장고, 사물함, 환자 명패 at the door",
+    "No real lights in the nurse station, lounge, stair hall or checkup centre (only 3 SurfaceLights on all of 2F)",
+    "Vending machines = coloured box + flat display + 15 slab cans; lounge low table is a block; no microwave, 커피 자판기, 신문, 충전 스테이션, 정수기 cups",
+    "No 2F elevator door (the 1F elevator leads nowhere visible; Law/Hospital NPCs teleport to lift2 at -548,332 next to the checkup-centre back wall)",
+    "Corridor: bare walls, no handrails, no 손소독제 at ward doors, no room name plates with patient names, no linen cart / 투약 카트 / wheelchair parking"
+   ],
+   "realWorld": [
+    "병동 (입원실): 전동 병원침대 (리모컨, 양측 사이드레일, 바퀴 브레이크, 침대 머리 쪽 회색 플라스틱 패널), 침대 머리 벽 헤드월 유닛 (산소·석션 아울렛, 콘센트, 개별 조명, 간호사 호출 버튼/인터폰), 천장 U자 커튼 레일 + 커튼 (병상별), 오버베드 테이블 (식판), 보호자용 간이침대/접이식 소파, 개인 사물함·옷장, 소형 냉장고, 벽걸이 TV (유료 카드 TV), 병실 화장실 + 샤워, 손소독제 (출입문), 수액 거치대, 휠체어, 병실 문 옆 환자 명패 (이름 마스킹) + 감염 주의 표시, 창문 블라인드, 링거 폴",
+    "간호사 스테이션: 오픈 카운터 + 모니터 여러 대 (EMR), 환자 현황판 (화이트보드/전자 보드), 투약 카트 (서랍 + 노트북), 차트 카트, 약품 냉장고, 전화기, 프린터, 호출벨 수신 패널 (병실 번호 램프), 손소독제, 처치실 문",
+    "휴게실: 소파/의자, 테이블, TV, 음료 자판기 + 커피 자판기, 정수기, 전자레인지, 신문·잡지, 휴대폰 충전기, 화분, 창가 의자 (광안대교 뷰)",
+    "건강검진센터: 검진 접수 데스크 + 순서 안내 모니터 (호명), 탈의실 + 사물함 + 검진복, 신체계측 (자동 신장 체중계, 인바디 체성분 분석기), 자동 혈압계 부스, 시력 검사 (한천석 시력표 or 자동 시력계), 청력 검사 부스 (방음 부스 + 헤드폰 + 응답 버튼), 채혈실 (채혈 의자 + 진공 채혈관 랙 + 원심분리기), 소변 검사 창구, 흉부 X-ray 실 (납문 + '촬영중' 경고등), 심전도 침대, 복부 초음파실 (어두운 방, 초음파 장비 카트), 위·대장 내시경실 + 회복실 (회복 침대 여러 대), 구강 검진 체어, 상담실",
+    "계단·엘리베이터 홀: 엘리베이터 문 + 층 표시 + 호출 버튼 (침대용 엘리베이터), 층 안내도, 비상구 유도등, 소화전, 의자"
+   ],
+   "interactionIdeas": [
+    "Ward bed '병실 휴식': lie on a free ward bed (BedSeat is a Seat; HospitalBed is excluded from Interact sittables, so a client prompt that calls Seat:Sit via a small server op or a GwPose 'lie' request) -> fatigue rest tick, TV turns on, curtain closes",
+    "호출 버튼 (CallPanel): '간호사 호출' -> chime + red lamp at the nurse station board; optional server hook so a Law/Hospital nurse actor walks to w201_bed / w202_bed",
+    "오버베드 테이블 '환자식 먹기' (죽 tray prop, eat pose)",
+    "Ward TV / lounge TV: '채널 변경' local SurfaceGui (뉴스, 드라마, 광안리 해변 CCTV); blind '블라인드 올리기/내리기' (tween Blind size)",
+    "Vending x2: wire to the existing Interact 'vending' purchase (server tag) -> '음료 뽑기' 생수/이온음료/캔커피/식혜, can falls into the tray",
+    "Checkup circuit as a mini quest '건강검진 코스': desk -> 체중계 (height rod animation) -> 혈압계 (cuff) -> 시력표 (Landolt C mini game) -> 청력 부스 (beeps) -> 심전도 bed (ECG line animation) -> result sheet; final step calls the existing HealthRequest 'checkup' op at the desk so the real status report shows",
+    "Nurse station: '차트 보기' local panel listing 201/202 patients (names from Law/Hospital actors), 투약 카트 drawers open",
+    "Elevator (new 2F door at the checkup back wall x~-548): '1층으로' fade ride",
+    "Lounge: 정수기 '물 마시기', 전자레인지 '데우기', 충전 스테이션 '폰 충전', 창가 '광안대교 보기' (camera)"
+   ]
+  },
+  {
+   "name": "광안 메디컬 의원 building shell, roof and exterior service areas (구급차 베이 · 후면 주차/의료폐기물 · 옥상)",
+   "path": "Workspace.Gwangalli.hospital['광안 메디컬 의원 (건물)'] (Floors=2) + ['광안 메디컬 의원'].AmbulanceBay / BackYard / Forecourt / Planter / Bench / StandingSign + PlotPaving",
+   "bounds": "building (-576.5,6.5,261.4)..(-453.8,35.3,341.7); plot PlotPaving 168.6x138 at (-515.8,6.3,322.6); AmbulanceBay (-453.6,6.6,267.9)..(-430.7,15.7,305.9); BackYard (-576.7,6.6,340)..(-457.7,12,391)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "구급차 베이 (BayLine 22x38 yellow, BayFill, 6 hatch stripes, Car_Ambulance 'Hyundai Solati 119', 2 bollards, BaySign '구급차 전용')",
+     "center": [
+      -442.6,
+      9.0,
+      286.9
+     ],
+     "size": [
+      22.0,
+      6.0,
+      38.0
+     ],
+     "floorY": 6.6
+    },
+    {
+     "name": "후면 마당 (YardAsphalt 119x51, 4 parking lines, Car_Sonata + Car_Kia Ray, 4 OutdoorAC on the back wall, WasteStore 의료폐기물 보관소)",
+     "center": [
+      -517.2,
+      8.0,
+      365.5
+     ],
+     "size": [
+      119.0,
+      5.0,
+      51.0
+     ],
+     "floorY": 6.6
+    },
+    {
+     "name": "옥상 (Roof 119.9x75.9, parapet 3.5, Penthouse 9.5x9x10 with RoofDoor, WaterTank, 3 ACCondenser on a skid, VentStack) - no stair reaches it",
+     "center": [
+      -515.1,
+      33.6,
+      301.6
+     ],
+     "size": [
+      119.9,
+      3.5,
+      75.9
+     ],
+     "floorY": 32.1
+    }
+   ],
+   "props": [
+    "Facade 1F: 17 ShopWindow glass panes 6.1-6.6 wide t0.5 + 21 Mullions + Head/Sill rails, Fascia 117.8x3.4 white + FasciaStripe neon + mint stripe, Sign_광안 메디컬 의원 44x3.2, Sign_365일 진료, CrossBox + 2 green CrossNeon, glass-lettering signs (건강검진 · 영양주사 / 독감 예방접종 / 진료 접수 · 번호표 / 응급 진료), Canopy 16x4.6 + 2 CanopyLight + SurfaceLight, Threshold, AutoDoor_Hospital",
+    "Facade 2F: 8 Window 14.9x8 (NightWindow, LitChance 0.7) + 6 small side windows, SpandrelGlass 119.6, Transom, 21 Mullions, glass-lettering band '입원실 · 건강검진센터 · 영양주사', vertical blade sign '광안메디컬의원' 0.9x9.5x3.2 with brackets",
+    "Forecourt 120x9 + edge, 6 Planter (box + 3 bush meshes), 2 Bench, StandingSign 2.4x4.6 + foot; WallServices (AC unit + fan + cage on the back wall, DownPipe, yellow GasPipe)"
+   ],
+   "gameplay": [
+    "AmbulanceBay/Car_Ambulance is the ambulance TEMPLATE for Law/Police.tplData('ambulance') - do not rename, move or strip it; Law/Rescue drives to BAY (-442,7.2,290) then walks to ENTRANCE (-496,7.2,262); EMS base (-450,7,262) radius 40 (clock-in) / 30 (handover)",
+    "Destination '광안메디컬' (-495.8,7.1,261.2) under the canopy: quick travel, Health nearClinic (+20 radius), Patients release point",
+    "BackYard cars are map parked cars (car interior system already handles 'Car_' models)"
+   ],
+   "emptyOrCrude": [
+    "2F has real rooms, but the roof is unreachable (Penthouse/RoofDoor are solid, no stair above 2F)",
+    "No 응급실 entrance from the ambulance bay: the bay ends at the east GroundSide wall (x -455.6) with no door, so paramedics walk round to the front AutoDoor; real clinics with 응급 진료 have a side door with 'EMERGENCY' light box",
+    "Street glass shows the interior directly: whatever is built must look right from outside (lobby, waiting room, consult room behind FrostedFilm 44.6x6.6)"
+   ],
+   "realWorld": [
+    "의원 building: 1층 약국 + 의원 간판 (적십자 대신 녹색 십자는 약국 전용 - 의원은 보통 파란/초록 로고), 층별 안내 간판 (건물 측면), 진료시간 시트지, 주차 안내, 구급차 전용 구역 노면 표시, 의료폐기물 보관 창고 (잠금, 냉장), 실외기 거치대, 옥상 물탱크/실외기"
+   ],
+   "interactionIdeas": [
+    "Side 응급 출입문 on the east wall facing the bay (x -455.6, z ~285) with '응급실' light box: lets EMS players carry patients straight to TreatBed1 (Patients.TRANSIT -465.3,9.6,304.5) - needs a matching interior door in the 주사실 east wall",
+    "Roof access via a new stair flight from the 2F stair hall (optional rooftop 휴게 정원 with benches / 광안대교 view)"
+   ]
+  },
+  {
+   "name": "광안 오토 쇼룸 (신차 · 중고차 전시장 + 상담 데스크 + 고객 라운지)",
+   "path": "Workspace.Gwangalli.garage['광안 오토 정비소 & 중고차'].쇼룸 (+ venue-root GroundSide/GroundBack/Fascia/ShopWindow/AutoDoor_Garage/Staff; 2F = ['광안 오토 (쇼룸 건물)'].Core solid block)",
+   "bounds": "(-601.0,6.67,419.7)..(-528.9,21.45,473.8)  [ShowroomFloor 70.4x51.8 top 6.67 (Marble-like m233, 232,232,228), CeilingBoard bottom 21.45 -> 14.8-stud double-height hall; glass storefront faces +Z at z~472-474 with AutoDoor at x -565.8; inner walls = GroundSide x -599.2 / -530.6 and GroundBack z 422.0 (brick-type m28, 196,188,174); model rotated ~-1.9 deg]",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "전시 홀 (6 turntables 17-stud dia in 2 rows of 3: z~438-440 and ~459-461, x -589/-565/-541)",
+     "center": [
+      -564.9,
+      14.1,
+      450.3
+     ],
+     "size": [
+      68.4,
+      14.8,
+      42.4
+     ],
+     "floorY": 6.67,
+     "ceilingY": 21.45
+    },
+    {
+     "name": "후면 띠: 상담 데스크 (x -593..-579) + 고객 라운지 (x -552..-533) along the back wall z 422-429; Sign_광안 오토 on the wall at x -570",
+     "center": [
+      -564.9,
+      14.1,
+      425.5
+     ],
+     "size": [
+      68.4,
+      14.8,
+      6.9
+     ],
+     "floorY": 6.67,
+     "ceilingY": 21.45
+    },
+    {
+     "name": "상담실 · 계약 (Door_office on the west wall x -599.6 z 429.8) - FAKE, no room behind",
+     "center": [
+      -600.0,
+      10.4,
+      429.8
+     ],
+     "size": [
+      0.2,
+      7.5,
+      3.4
+     ],
+     "floorY": 6.67,
+     "ceilingY": 14.2
+    },
+    {
+     "name": "화장실 남/여 (Door_restroom on the back wall x -531.5 z 421.9) - FAKE",
+     "center": [
+      -531.5,
+      10.4,
+      421.9
+     ],
+     "size": [
+      3.4,
+      7.5,
+      0.2
+     ],
+     "floorY": 6.67,
+     "ceilingY": 14.2
+    },
+    {
+     "name": "2F (Core 70.2x11x52.1 dark solid block behind 2F windows) - not enterable",
+     "center": [
+      -564.9,
+      28.0,
+      446.7
+     ],
+     "size": [
+      70.2,
+      11.0,
+      52.1
+     ],
+     "floorY": 22.9,
+     "ceilingY": 33.5
+    }
+   ],
+   "props": [
+    "6 Display cars (Display_compact 큐비 mint, _luxury 플래그십 black, _sedan 미드 세단 white, _suv 트레일 SUV red, _van 패밀리 9인승 silver, _truck 1톤 트럭 navy; 60-85 parts each with NearLOD Detail + Interior; tag GarageDisplayCar, NoDrive) on 6 Turntable discs (0.34x17x17 cylinder, tag GarageTurntable, attribute Centre, GarageKind) + 6 TurntableRim neon rings 17.5",
+    "6 PriceCard 3.6x2.2 on StandPost 3.2 + StandFoot (tag GaragePrompt, ProximityPrompt '구매 / 시승' moved by the server to Attachment GaragePromptAnchor 1.6 below the card); 2 DiscTag floor stickers '첫 차 추천' / '드림카'; Runway 5x22.9 dark carpet from the door",
+    "SalesDesk (14 parts): DeskBody 14x3.6x3 navy box, DeskTop 14.4x3.4 slab, DeskLED neon, DeskSign '구매 상담 · 렌트 · 내 차 관리', Monitor 2.6x1.85 slab + stand, Keyboard slab, Brochures orange box, 2 customer chairs (ChairSeat 1.8 slab + ChairBack + post, Fabric) standing at the WEST end of the desk (x -595.8) instead of in front of it",
+    "Lounge (10 parts): Sofa = one 14x1.8x3 box + SofaBack 14x2x1 box (Fabric 70,74,84), CoffeeTable 6x1.4x2.2 wood block, one Magazine slab, LoungeTV 10x5.2 '광안 오토 · 이달의 특가', WaterPurifier 1.8x4.2 box, 2 PlantPot cylinders + 2 Plant mesh",
+    "FitOut: 3 CassetteAC + vanes + grille, 3 SmokeDetector, 2 SwitchPlate, 3 Baseboard 0.42 strips, ExitSign, Door_office + Door_restroom (flat leaf on the wall, casing, handle, sign); Sign_광안 오토 16x4.2 on the back wall '믿을 수 있는 중고차 · 정직한 정비'; CCTV; FireExtinguisher",
+    "Lighting: 4 LightPanel neon strips (3 x 0.8x42 along z with SurfaceLight Range 26, 1 x 66x0.8 across) on a plain CeilingBoard; no spotlights on cars",
+    "Storefront: 8 ShopWindow 7.6x11.6 + 10 Mullions + rails, Fascia 69.8x3.4 navy + orange neon FasciaStripe, Sign_광안 오토 정비소 & 중고차 46x3.3, Sign_중고차 할부 OK, glass lettering '오늘의 특가 · 중고 큐비 15만원' / '시승 무료 · 60초' / 'OPEN 09:00-22:00'",
+    "Staff: 박사장 (사장님) rig (tag GarageStaff, Role owner) behind the desk at HRP (-586.2,9.7,422.4); GarageDesk_office invisible 2x4x2 anchor at (-586.4,9.2,428.7) with prompt '상담 · 렌트 · 내 차'"
+   ],
+   "gameplay": [
+    "GwangalliGameplay/Garage (server): venue root found by tag GarageShop / name '광안 오토 정비소 & 중고차' under Workspace.Gwangalli.garage (attributes Place '광안정비소', Route = 11 test-drive points); fixMapBoards at start: moves every GaragePrompt prompt to an Attachment 'GaragePromptAnchor' under the PriceCard, slims PricePylon's PylonPost, trims Mullion/Jamb bars in front of glass lettering, nudges LIVE_BOARDS (LoungeTV, PylonHead, PriceBoard, LEDSign, DeskSign, PriceCard) 0.003 studs and sets GwLiveBoard - keep those part names",
+    "GwangalliGarage client: GaragePrompt -> Sheet '구매' on that kind; GarageDesk Kind office -> Sheet '내 차'; Sheet.startShow(kind) finds the GarageDisplayCar + GarageTurntable of that GarageKind and SPINS disc + car around the disc's Centre attribute (BulkMoveTo every frame) while framing the camera -> keep a clear ~8.75-stud radius cylinder around each Centre (z up to the 14.8 ceiling for the camera) and never weld props to the disc",
+    "ServerScriptService.GwangalliShowroom (server, after SETTLE 6 s): clones one static car per GS.MODELS entry (13 real models: K5, 쏘렌토, G90, GV80, 싼타페, 쏘나타 16/06, 아이오닉 5 N, 아반떼 N, 카니발, K7, EV6, 투스카니, 옵티마) into Workspace.GwangalliShowroom (tag GarageShowroomCar, prompt '신차 보기') on the first FREE 2-stud grid spots of ShowroomFloor, then the apron, then the lot within 95 studs, box-testing against SERVER parts (walls, props, staff, kit cars, markers, turntable sweeps). Client-only furniture is invisible to that test -> read Workspace.GwangalliShowroom at runtime and keep client props out of those cars' boxes (and vice versa: any server-side prop added here pushes those cars out to the lot)",
+    "Destination '광안정비소' (-566,7.1,479), GarageReturn (-560,7.1,478.6) in front of the door (test drivers are put back here), GarageSpawn (-500,7,480.4) 6.6x1x17 lane in front of the bay - all outside but on the path into the showroom; AutoDoor_Garage (tag AutoDoor, OpenOffset ±3.75)",
+    "Interact sittable scan may tag ChairSeat / Sofa parts (GwSittable); Journey quest 'first_car' (find place 광안정비소 radius 40); Work goals price cars via GwangalliGarageShared",
+    "StreetSigns: 'garage' is a HOST_ANCESTOR (the venue's boards keep their look); Annex HOST_VENUES.garage = true"
+   ],
+   "emptyOrCrude": [
+    "Occupancy (turntables excluded, cars counted): 50% floor occupied, largest empty square 12x12 centred (-578.1, 447.1) - the hall is mostly car-filled; the crude part is everything that is NOT a car",
+    "Walls are the building's exterior shell (brick-type m28 beige 196,188,174) on all three inner sides, 14.8 tall and bare except one sign, a TV and two fake doors - real showrooms have white/brand-colour feature walls, LED media wall, graphics, glass offices",
+    "Customer lounge = one 14-stud box sofa + one box back + a block table: the crudest furniture in the venue; no coffee machine, drink fridge, cups, magazines rack, 상담 테이블",
+    "Sales area: a single box desk; the two customer chairs are at its side, not facing the 사장님; no 상담 테이블 sets (round table + 2-4 chairs) at all, no 계약실 (Door_office is painted on the wall), no tablet/kiosk, no paperwork, card terminal, 도장, key box",
+    "Ceiling: a flat white board with 4 neon strips; no track spotlights aimed at the cars, no ceiling grid/baffles, no hanging brand banners",
+    "Restroom door is fake; no 출고 존 (delivery bay) / 출고 세레모니 area, no 휠·타이어 or 액세서리 display, no paint-colour sample board, no 중고차 성능·상태 점검 기록부 board",
+    "2F behind the windows is a solid dark block (Core) - visible as black glass from the street"
+   ],
+   "realWorld": [
+    "Korean new-car showroom (현대 / 기아 / 제네시스 지점 style): glass facade with brand pylon, 4-8 display cars on the floor (some on turntables) each with a 사양 안내 스탠드 or 태블릿, ceiling track spotlights per car, brand wall with logo + LED media wall, 상담 테이블 4-8 sets (round/square tables, 2-4 chairs, brochure holder, tablet), 리셉션 데스크 at the entrance, 계약실 / 상담실 (glass partition, table, chairs, 계약서, 카드단말기), 출고 존 (출고 세레모니: curtain/screen, 꽃다발, 기념 촬영 포토월), 컬러·내장재 샘플 보드 (paint chips, 시트 원단), 휠/타이어 전시, 액세서리 (블랙박스, 틴팅, 매트, 방향제) 진열장, 고객 라운지 (캡슐 커피머신, 음료 냉장고, 정수기, 소파, 잡지, TV, 어린이 놀이 공간), 카달로그 랙, 시승 예약 안내판, 화장실",
+    "Used-car dealer (중고차 매매상사) additions: 시세표 / 가격표 on each car windscreen (연식·주행거리·가격·사고 유무 카드), 성능·상태 점검기록부 게시, 매매 사원증, 할부 · 리스 상담 안내, 차량 키 보관함 (key cabinet), 사무실 책상 여러 개"
+   ],
+   "interactionIdeas": [
+    "Lounge 캡슐 커피머신 '커피 내리기' (cup prop, steam, drink pose), drink fridge '음료 꺼내기' (door opens, local can prop), 정수기 '물 마시기', 잡지 rack '카탈로그 보기' (local SurfaceGui with GS.MODELS specs)",
+    "상담 테이블 tablet / kiosk '차량 비교' -> opens the existing Sheet 쇼룸 tab (same handler as the 신차 보기 prompt)",
+    "Paint sample board: tap a colour chip -> local preview recolour of the nearest display car (Sheet already does colour preview via GS.paintParts)",
+    "Brand media wall / LoungeTV slideshow cycling GS.MODELS names + prices (LEDScreen-style Messages attribute)",
+    "출고 존: after a 'buy' GarageEvent ('cars' changed) play a local delivery ceremony (curtain slides, confetti, 사장님 hands a key prop, photo pose)",
+    "Key cabinet behind the desk: '시승 키 받기' -> key prop, then the existing testdrive op",
+    "Wheel/tyre display & accessory shelf: inspect prompts with price tags (flavour)",
+    "Car doors of the 6 display cars: '운전석 앉아 보기' (NoDrive) if the car-interior module supports it"
+   ]
+  },
+  {
+   "name": "광안 오토 정비 베이 (2-post lift x2 · 공구벽 · 오일 선반) + 타이어 코너",
+   "path": "Workspace.Gwangalli.garage['광안 오토 정비소 & 중고차']['정비 베이'] + .TireCorner + Staff/김기사 (정비사), GarageDesk_service",
+   "bounds": "bay (-524.7,6.66,421.4)..(-473.3,22.5,477.0) [BayFloor 48x54 top 6.66 grey (150,156,160); BayWall x3 16 tall (m3336, 206,210,214); open front at z~476 with two RollUpDrum (rolled up) between 3 BayColumns; BayRoof bottom 22.5, 3 Truss at y 21.6]; tire corner (-474.0,6.6,439.0)..(-469.8,16.3,475.0)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "정비 베이 (리프트 1 x -518..-506 raised with 미드 세단 at 5.2; 리프트 2 x -494..-481 lowered = drive-in; ToolWall along the back wall z 423-426; OilShelf on the east wall)",
+     "center": [
+      -499.0,
+      14.0,
+      450.0
+     ],
+     "size": [
+      46.0,
+      14.6,
+      52.1
+     ],
+     "floorY": 6.66,
+     "ceilingY": 21.3
+    },
+    {
+     "name": "정비 대기 구역 (GarageZone_service 14x8x30 over lift 2 + ZoneMark at z 469.8)",
+     "center": [
+      -488.1,
+      11.0,
+      453.5
+     ],
+     "size": [
+      14.0,
+      8.0,
+      30.0
+     ],
+     "floorY": 6.66,
+     "ceilingY": 15.0
+    },
+    {
+     "name": "타이어 코너 (CornerCanopy 4.8x28 at y 16.1 between the bay and the wash)",
+     "center": [
+      -471.9,
+      11.3,
+      457.0
+     ],
+     "size": [
+      4.2,
+      9.4,
+      36.0
+     ],
+     "floorY": 6.6,
+     "ceilingY": 15.9
+    }
+   ],
+   "props": [
+    "리프트 1 (정비 중) Model (tag GarageLift, Raised true, LiftHeight 5.2, Role display): 2 red LiftPost 1.3x13.2x1.7, 2 LiftFoot, 2 LiftCarriage (LiftMoves), 4 LiftArm 0.6x0.3x7.2 + 4 LiftArmPad (LiftMoves), LiftTopBar 12.6, LiftMotor blue box, 2 SafetyLine; LiftCar = 미드 세단 (tag GarageLiftCar, 75 parts) raised; LooseTyre beside it",
+    "리프트 2 (정비 대기) (Raised false, Role drivein): same 18 parts, arms on the floor",
+    "ToolWall (66 parts): Pegboard 28x7.2 wood + header; 10 Wrench, 6 Screwdriver + tips, Hammer (handle+head), 4 SocketSet squares, TapeMeasure, 7 Plier (all 0.1-thick slabs on the board); Workbench 16x0.3x2.3 + 2 leg slabs, Vise box, PartsTray; ToolChest 4.8x5.64x2 red box + 6 DrawerLine strips + handle; CompressorTank cylinder 4.6 + motor box; HoseReel cylinder; OilShelf 1.2x7x12 + 8 OilCan boxes; FireExtinguisher; Sign_안전제일 · 리프트 하부 출입 금지",
+    "Front: BayFascia 50.4x3.2 navy, Sign_정비 · 수리 · 타이어 · 엔진오일 26x2.4, LEDSign 10x2.5 '● 정비 중 · 친절 정비' (tag GarageLED), ZoneMark 8x2.6 '정비 대기 구역 · 여기에 세우세요'",
+    "Lighting: 4 LightPanel 8x0.14x1 under the trusses (2 with SurfaceLight Range 22) for a 46x52 bay",
+    "TireCorner (34 parts): CornerCanopy + 2 posts, 16 TireStack cylinders 0.9x2.5 (plain black, no tread/rim), TireRackShelf 4x10 + 4 legs + 4 RackTire, 3 OilDrum cylinders (blue/red/yellow) + lids",
+    "Staff: 김기사 (정비사) rig (tag GarageStaff, Role mechanic) at HRP (-504.1,9.7,459.5) with cap, rag, wrench; GarageDesk_service invisible anchor (-482.1,9.2,470.2) prompt '정비 받기'"
+   ],
+   "gameplay": [
+    "Garage server: repair op requires the player's car inside GarageZone_service (tag GarageZone, Zone 'service', 14x8x30 at -488.1,11,453.5) or remotely on the lift car; zone enter/leave events ('zone' + quote) - the drive-in path from the bay mouth (z 476) to lift 2 and the zone box must stay free of collidable props",
+    "GwangalliGarage/Fx (client) repair choreography: raises every part with attribute LiftMoves of the GarageLift models (+ the car via its DriveBase), sparks + wrench clanks at the wheels, GarageLED blinks; staff idle animation on GarageStaff rigs - do not re-parent/rename LiftArm*/LiftCarriage/LiftArmPad or the LED part",
+    "GarageSpawn (-500,7,480.4) 6.6x1x17 just outside the bay mouth: test-drive / towed cars appear there facing the road; its lane must stay clear",
+    "Tow: dead cars are towed 'to the 정비소' (spawned at GarageSpawn)",
+    "Law/Hospital-style NPC grids do not exist here; ShopStaff skips (GarageStaff within 9 studs)"
+   ],
+   "emptyOrCrude": [
+    "Occupancy: bay 21% floor occupied, largest empty square 22x22 centred (-498.0, 435.9) (the area between the lifts and the tool wall); both 54-long side walls are bare 16-tall panels (only the oil shelf + one extinguisher)",
+    "Missing the standard Korean 카센터 / 블루핸즈 equipment: 타이어 탈착기, 휠 밸런서, 4륜 얼라인먼트 리프트, 폐유 수거기 (oil drain caddy), 엔진 진단기 cart (OBD scanner), 배터리 충전기, 플로어 잭 + 잭 스탠드, 크리퍼, 에어 호스 릴 hanging from the trusses, 임팩트 렌치, 부품 선반 (필터·패드 boxes), 폐타이어/폐유 드럼 area, 정비 요금표 board, 안전 표지 posters, 정비 접수 데스크 / 고객 대기실 window",
+    "Floor: one flat grey slab; no epoxy zones, drain channel, oil stains, lift-bay outlines (only 2 yellow SafetyLines each)",
+    "Lighting is dim/sparse: 4 small 8x1 panels for 2,400 sq studs, no high-bay lamps, no work lights on the lifts",
+    "Tools are 0.1-thick coloured slabs on a flat pegboard; tool chest is a red box with painted drawer lines; tyres are plain cylinders"
+   ],
+   "realWorld": [
+    "카센터 / 1급 정비공장 bay: 2주식 리프트 per bay (column-mounted control box, safety locks), 4주식 얼라인먼트 리프트 + 센서 타깃, 타이어 탈착기 + 휠 밸런서 (tyre corner), 질소 충전기, 폐유 수거기 (깔때기 + 탱크 on wheels), 오일 디스펜서 릴 (ceiling hoses for engine oil / ATF / air), 에어 컴프레서 + 에어 라인 drops, 임팩트 렌치, 토크 렌치, 공구 카트 (빨간 툴 카트 with drawers open), 진단기 (스캐너 노트북 cart), 배터리 테스터·충전기, 브레이크 정비기, 에어컨 냉매 충전기, 잭 & 잭스탠드, 크리퍼, 부품 진열 선반 (오일 필터, 에어필터, 와이퍼, 브레이크 패드 박스), 엔진오일 진열 (4L 통), 폐타이어 적치장, 폐유 드럼 + 흡착포, 작업등, 세면대 (기름때 비누), 소화기, 안전 수칙 게시, 정비 요금표 (엔진오일 교환 4만원~, 타이어 교체, 브레이크 패드), 정비 이력 화이트보드 (차량번호 · 작업 · 상태), 고객 대기실 (유리창 너머 작업 확인, TV, 커피) - 블루핸즈/오토큐/스피드메이트 style branding"
+   ],
+   "interactionIdeas": [
+    "Lift control box (new, on each LiftPost): '리프트 올리기/내리기' -> only plays the existing Fx lift motion locally when no repair is running (never fight the repair choreography)",
+    "Tool wall: '공구 집기' -> held wrench/impact-gun prop (cosmetic), sound; tool cart drawers slide open",
+    "Tyre changer / balancer at the tyre corner: '타이어 교체 구경' -> wheel spins on the balancer with a readout",
+    "OBD 진단기 cart: '차량 진단' -> scanner screen shows the player's car condition (DriveCondition/DriveDirt attributes on their owned car) as a fault-code style report, then a button that calls the existing 'repair' op",
+    "정비 현황 board (new, by GarageDesk_service): live list of cars being repaired (GarageRepairing attribute) with 차량번호 and progress",
+    "Compressor: '에어 넣기' (tyre pressure mini interaction on the player's car, cosmetic)",
+    "Oil shelf: inspect '엔진오일 5W-30' price tag; waste-oil drain caddy rolls under the raised lift-1 car with a drip particle"
+   ]
+  },
+  {
+   "name": "광안 오토 자동세차장 (문형 자동세차 1 bay · 진공 청소기)",
+   "path": "Workspace.Gwangalli.garage['광안 오토 정비소 & 중고차'].자동세차장 + Staff/GarageDesk_wash",
+   "bounds": "(-470.3,6.66,427.2)..(-439.9,20.7,478.7)  [WashFloor 28x50 top 6.66 (m397, 176,186,194); WashWall x2 4 tall + WashGlass 8.6 above; WashRoof bottom 20.1; open both ends (z 427 / 478)]",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "세차 레인 (green WashGuideLines x -461.2 / -449.2, WashStopLine at z 441.9, gantry travel z 433.6 -> 468.6)",
+     "center": [
+      -455.1,
+      13.4,
+      452.6
+     ],
+     "size": [
+      25.3,
+      13.4,
+      50.0
+     ],
+     "floorY": 6.66,
+     "ceilingY": 20.1
+    },
+    {
+     "name": "side strips beside the lane (x -467.8..-461.6 and -448.8..-442.3) - bare",
+     "center": [
+      -455.1,
+      9.0,
+      452.6
+     ],
+     "size": [
+      25.3,
+      4.0,
+      48.0
+     ],
+     "floorY": 6.66,
+     "ceilingY": 10.5
+    }
+   ],
+   "props": [
+    "WashGantry Model (tag GarageWashGantry, TravelOffset (-1.15,0,34.98)): 2 GantryLeg boxes 1.6x10.6x2.4 blue, GantryBeam 22x1.4x2.8, SprayBar 18.4x0.4x0.4 metal bar (no nozzles), BrushL / BrushR vertical cylinders 3x9.2 (blue/red fabric, tag GarageWashBrush, Axis y), BrushTop horizontal 2.6x7.6 (Axis x) + 3 steel cores",
+    "2 GantryRail 47 long, DrainGrate 4x24, WashStopLine '정지선 STOP', 2 WashGuideLine 30 long, 4 WashPost, WashFascia + Sign '🫧 자동세차 · 5,000원', WashGuide 5x5 board '1. 녹색 선 안으로 진입 / 2. 정지선에서 정지 / 3. 세차하기', 1 LightPanel 12x1 + SurfaceLight",
+    "VacuumStation 2.5x4.54x2 yellow box + VacuumHose 4.7 cylinder (outside the floor at z 425.5); GarageDesk_wash invisible anchor (-467.2,9.2,473.6) prompt '세차하기'"
+   ],
+   "gameplay": [
+    "Garage server 'wash' op requires the player's car inside GarageZone_wash (tag GarageZone, Zone 'wash', 13x8x31 at -455.2,11,456.1); GwangalliGarage/Fx slides the gantry by TravelOffset over the car and back while spinning the 3 GarageWashBrush parts about their Axis attribute, then the server sets DriveDirt 0 / DriveShineUntil - the lane between the guide lines, the zone box and the gantry's 35-stud travel envelope (z 432..471, y up to 19.8) must stay clear; never re-parent the brushes",
+    "GarageDesk_wash prompt is the payment point (5,000원)"
+   ],
+   "emptyOrCrude": [
+    "Occupancy: 7% floor occupied, largest empty square 26x26 centred (-455.7, 448.2) (the lane must stay open, but both 6-stud side strips are bare)",
+    "No entry signal (전진 / 정지 / 후진 신호등), no payment kiosk (카드·현금 결제기) - the prompt is an invisible box by the wall, no dryer arch (블로워), no pre-wash 고압 분사 gun / foam lance, no tyre rails, no drying zone with towels, no water / foam particles, no mat washer; vacuum station is a yellow box with one hose cylinder",
+    "Brushes are smooth coloured cylinders (no bristle texture/strips); gantry legs are plain boxes"
+   ],
+   "realWorld": [
+    "주유소/정비소 자동세차기 (문형 / 터널식): 입구 결제 키오스크 (카드, 현금, 세차권 바코드), 코스 선택 (일반 / 폼 / 왁스 / 하부세차), LED 진입 유도판 + 신호등 (진입 / 정지 / 후진), 사이드 미러 접기 안내, 바퀴 가이드 레일, 고압 프리워시, 폼 분사, 회전 브러시 (부드러운 천/스펀지 스트립), 드라이어 블로워 아치, 출구 '세차 완료' 표시, 드라잉존 (셀프 타월 닦기 공간), 진공청소기 스테이션 (오버헤드 스윙 붐 호스 여러 대, 동전/카드 결제), 매트 세척기, 타이어 광택제, 세차장 바닥 배수 그레이팅 + 물기"
+   ],
+   "interactionIdeas": [
+    "결제 키오스크 (new prop at GarageDesk_wash): '코스 선택' UI (기본 5,000원 → calls the existing 'wash' op) with a receipt",
+    "Signal board: shows '전진' (green arrow) until the car crosses WashStopLine, then '정지' (red) - client reads the player's car position; '세차 완료 · 출차하세요' after the Fx sequence",
+    "Dryer arch + water/foam ParticleEmitters attached to the SprayBar during the Fx wash (client-only, start/stop with the GarageWashing attribute)",
+    "Vacuum station: '실내 청소' -> hose prop + vacuum sound for 10 s (cosmetic; optionally reduce DriveDirt via a new server op)",
+    "Towel rack at the drying zone: '타월로 닦기' wipe emote beside the car"
+   ]
+  }
+ ],
+ "notes": "Survey of Workspace.Gwangalli.hospital (2,465 instances, 1,901 parts, 49 Seats, 10 lights, 2 prompts) and Workspace.Gwangalli.garage (2,495 instances, 1,855 parts - ~1,300 of them are car models, 6 lights, 9 prompts). Raw dumps: /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/bld/hg/dump.json (every instance with pos/rot/size/material/colour/attrs/tags/par id), trees hosp_tree.txt / gar_tree.txt / h2f.txt, occupancy occ.json (scripts dump.py, ct.py, occ.py in the same folder).\n\nORIENTATION: both models are rotated ~1.9 deg about Y (hospital ~178.1 deg: facade faces -Z at z~264; garage ~-1.9 deg: facade faces +Z at z~473). Bounds above are world AABBs. Material ids in the dump are the place codec's own enum codes (m13 = Glass, m67 = Neon, m10 = Metal, m11 = SmoothPlastic, m45 = Fabric, m77 = Wood, m37 = Plaster, m28 = brick/concrete shell, m233 = marble-like counter/floor) - inferred from usage.\n\nVERDICT - HOSPITAL (광안 메디컬 의원): it is NOT empty in prop count (every room has the right object names: reception desk, kiosk, benches, doctor desk, exam bed, BP trolley, sink, medicine cabinet, pharmacy shelf with 148 boxes, wards, nurse desk, lounge, checkup stations) but it is crude in SCALE and FORM: rooms are 2-4x real size (진료실 43x27 for one desk, wards 43x24 for 2 beds, checkup 48x40 with a 24x24 bare centre), occupancy only 11-28% outside the nurse station, every bed is a wooden home bed with one curtain panel, every chair is a slab stool on a pole, ceiling 'lights' are giant neon slabs over the T-bar grid with just 9 SurfaceLights in the whole building (none in the checkup centre, lounge, nurse station, stair hall, back hall), one uniform floor slab, bare plaster walls without handrails/baseboards/fixtures, frozen LED screens and clock, fake restrooms/staff/storage doors and a fake elevator (no 2F elevator door at all), a solid block stair, a solid-cube hearing booth. Best upgrade: keep every gameplay part (below) and rebuild the furniture/fixtures client-side at real scale, subdividing oversized rooms visually with partitions (e.g. 진료실 1 -> 진료실 + 검사실/채혈실; wards -> 4-bed 다인실 with U curtains + headwall; checkup -> 탈의실/채혈/X-ray/초음파 cubicles), plus real 2x2 LED panels with SurfaceLights.\n\nVERDICT - GARAGE (광안 오토): the showroom floor is ~50% cars (6 detailed display cars on turntables) so it reads busy, but everything around the cars is crude: exterior-brick inner walls, a box sofa and box table lounge, one box sales desk with chairs at its side, fake 상담실/화장실 doors, flat ceiling with 4 neon strips, no spotlights, solid 2F. The service bay has the two lifts and a decent tool wall but is 21% occupied with bare 54-stud side walls, dim lighting (4 small panels), and none of the tyre / alignment / diagnosis equipment; the car wash is a gantry with 3 cylinder brushes and nothing else (no kiosk, signal lights, dryer, water).\n\nMUST-NOT-BREAK CONTRACT (exact names/tags; never destroy, rename, re-parent or move; hiding visuals is OK only via LocalTransparencyModifier/Transparency on the client while keeping collision + attributes):\n Hospital: tags HospitalStaff (2 rigs + Motor6Ds; server poses them), HospitalPrompt (HospitalPrompt_desk -514.5,9.4,281.2; HospitalPrompt_doctor -554.4,9.4,278.9 and their ProximityPrompts), HospitalBed (8 BedSeat Seats: ExamBed exam -569.6,8.8,283.2; TreatBed1 treat -465.3,8.8,308.6 = EMS Patients.TRANSIT; TreatBed2 -479.3,8.8,308.1; CheckupBed -566.1,22.9,329.3; ward 201 A -466.5,22.9,279.1 / B -488.5,22.9,278.3; ward 202 A -540.2,22.9,276.6 / B -562.2,22.9,275.9), GwProp=syringe parts on the nurse, Destination '광안메디컬', AutoDoor_Hospital (+OpenOffset), AmbulanceBay/Car_Ambulance (ambulance template), Door_* model names (Law/Hospital carves them open), path Workspace.Gwangalli.hospital['광안 메디컬 의원'] (hard-coded in Law/Hospital and Law/Police). Law/Hospital NPCs walk the SPOTS listed in the 1F/2F venues on a grid built once from SERVER parts: client-built furniture must leave the spot-to-spot corridors clear (lobby -505..-496 z 252..300, desk_front -515,281, waiting row x~-466 z 275-287, hall x -505/-525, pharmacy window -540,294, consult door -537,297 -> -545,285, treatment door -485,296 -> -478,308 -> -468,309, back hall -520,328 -> lift -548,332; 2F corridor z 290-294, station -515,284, ward doors -497,293 / -537,292 to the beds, checkup door -543,298 -> -552,312, lounge -478,311).\n Garage: tags GarageShop (root, attributes Place/Route), GarageDisplayCar x6, GarageTurntable x6 (Centre attr; client spins disc+car - keep a 8.75-stud radius clear), GaragePrompt x6 PriceCards (+GaragePromptAnchor), GarageDesk x3 (office -586.4,9.2,428.7 / service -482.1,9.2,470.2 / wash -467.2,9.2,473.6), GarageStaff x2, GarageLift x2 (LiftMoves parts), GarageLiftCar, GarageZone x2 (service 14x8x30 @ -488.1,11,453.5; wash 13x8x31 @ -455.2,11,456.1), GarageWashGantry (TravelOffset) + GarageWashBrush x3 (Axis), GarageLED (LEDSign), GarageSpawn (-500,7,480.4), GarageReturn (-560,7.1,478.6), Destination '광안정비소'; LIVE_BOARDS names LoungeTV / PylonHead / PriceBoard / LEDSign / DeskSign / PriceCard; GwangalliShowroom places 13 more cars on free floor found from SERVER parts after 6 s (read Workspace.GwangalliShowroom, tag GarageShowroomCar, and avoid their boxes).\n Both: Interact tags GwSittable on chairs/benches/sofas (BenchSeat Seats also carry Sittable=true) - keep seat parts usable; NearLOD 'Detail' models; InteriorLight; NightWindow (2F glass lit from outside at night); LEDScreen (GwangalliWorld/Screens cycles attribute Messages); GwSurfaceGui; StreetSigns HOST_ANCESTORS include 'hospital' and 'garage'.\n\nRUNTIME BUILDERS: no runtime script builds or edits furniture inside these two venues (only Garage.fixMapBoards trims boards/bars and moves PriceCard prompts; Health poses the rigs; Showroom adds cars). NOTE a SECOND, separate hospital exists at runtime: 광안 종합병원 (GwangalliBuildings/Hospital + Builder/Hospital, site x -704 z 1236, 4F + RF heliport, ShopLife desks 원무과/응급실/외래/주사실/병동/약국, Workspace.GwangalliHospital points, GwB_HOSPITAL attribute) - it is NOT under Workspace.Gwangalli.hospital and was not surveyed here; the life-game Health/EMS/KO systems all target the static 광안 메디컬 의원.\n\nREUSABLE SERVER HOOKS FOR INTERACTIONS: Interact 'vending' purchase (tag GwInteract + GwInteractKind/Id/Label + GwItems) for the 2F vending machines; HealthRequest 'checkup' / 'vitamin' / 'treat' for the checkup circuit and 주사실; Health fatigue (Player.Fatigue attribute, client-readable) for BP/scale readouts; GarageRequest 'repair' / 'wash' / 'testdrive' and GarageEvent for the bay board, wash kiosk/signals and showroom delivery ceremony; the ATM client's 번호표 pattern for the hospital ticket kiosk.",
+ "occupancy": {
+  "h1_lobby": {
+   "area": 1198,
+   "filledPct": 25,
+   "largestEmptySquare": 18.0,
+   "emptyCenter": [
+    -490.0,
+    275.5
+   ]
+  },
+  "h1_waiting": {
+   "area": 653,
+   "filledPct": 28,
+   "largestEmptySquare": 14.0,
+   "emptyCenter": [
+    -475.0,
+    276.5
+   ]
+  },
+  "h1_consult": {
+   "area": 1167,
+   "filledPct": 26,
+   "largestEmptySquare": 16.0,
+   "emptyCenter": [
+    -540.0,
+    277.6
+   ]
+  },
+  "h1_corridor": {
+   "area": 425,
+   "filledPct": 19,
+   "largestEmptySquare": 4.0,
+   "emptyCenter": [
+    -573.0,
+    294.8
+   ]
+  },
+  "h1_pharmacy": {
+   "area": 1248,
+   "filledPct": 21,
+   "largestEmptySquare": 16.0,
+   "emptyCenter": [
+    -537.0,
+    308.8
+   ]
+  },
+  "h1_midhall": {
+   "area": 263,
+   "filledPct": 0,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -510.0,
+    303.2
+   ]
+  },
+  "h1_treatment": {
+   "area": 992,
+   "filledPct": 28,
+   "largestEmptySquare": 14.0,
+   "emptyCenter": [
+    -496.3,
+    306.2
+   ]
+  },
+  "h1_backzone": {
+   "area": 1459,
+   "filledPct": 22,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -569.0,
+    329.2
+   ]
+  },
+  "h2_ward201": {
+   "area": 1066,
+   "filledPct": 27,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -480.2,
+    272.7
+   ]
+  },
+  "h2_nurse": {
+   "area": 678,
+   "filledPct": 51,
+   "largestEmptySquare": 8.0,
+   "emptyCenter": [
+    -524.8,
+    273.7
+   ]
+  },
+  "h2_ward202": {
+   "area": 1009,
+   "filledPct": 28,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -552.0,
+    271.3
+   ]
+  },
+  "h2_corridor": {
+   "area": 515,
+   "filledPct": 16,
+   "largestEmptySquare": 4.0,
+   "emptyCenter": [
+    -572.0,
+    291.4
+   ]
+  },
+  "h2_lounge": {
+   "area": 1467,
+   "filledPct": 24,
+   "largestEmptySquare": 14.0,
+   "emptyCenter": [
+    -488.3,
+    328.2
+   ]
+  },
+  "h2_landing": {
+   "area": 686,
+   "filledPct": 11,
+   "largestEmptySquare": 18.0,
+   "emptyCenter": [
+    -512.9,
+    311.5
+   ]
+  },
+  "h2_checkup": {
+   "area": 1931,
+   "filledPct": 19,
+   "largestEmptySquare": 24.0,
+   "emptyCenter": [
+    -561.9,
+    312.9
+   ]
+  },
+  "g_showroom": {
+   "area": 3379,
+   "filledPct": 50,
+   "largestEmptySquare": 12.0,
+   "emptyCenter": [
+    -578.1,
+    447.1
+   ]
+  },
+  "g_bay": {
+   "area": 2397,
+   "filledPct": 21,
+   "largestEmptySquare": 22.0,
+   "emptyCenter": [
+    -498.0,
+    435.9
+   ]
+  },
+  "g_wash": {
+   "area": 1209,
+   "filledPct": 7,
+   "largestEmptySquare": 26.0,
+   "emptyCenter": [
+    -455.7,
+    448.2
+   ]
+  }
+ }
+}

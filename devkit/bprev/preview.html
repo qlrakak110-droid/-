@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block;width:1280px;height:720px}</style></head>
+<body><canvas id="c" width="1280" height="720"></canvas>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/vendor/three.min.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/00_core.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/10_textures.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/20_materials.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/30_sky.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/40_lighting.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/50_lights.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/55_height.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/60_water.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/65_glow.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/70_post.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/rblx_gfx/90_api.js"></script>
+<script src="/tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/v7pack/core/js/render3d.js"></script>
+<script>
+// window.PREVIEW(scene) -> builds Render3D from {rows, materials, ids, signs, lights, lighting}
+window.PREVIEW = function (sc) {
+  const canvas = document.getElementById('c');
+  Render3D.init({ canvas, staticParts: { parts: sc.rows, materials: sc.materials, ids: sc.ids, signs: sc.signs }, lights: sc.lights, lighting: sc.lighting, quality: sc.quality || 'high', pixelRatio: 1 });
+  Render3D.resize(1280, 720);
+  return 'ok ' + sc.rows.length;
+};
+window.SHOT = function (cam, clock) {
+  const c = Render3D.camera;
+  c.position.fromArray(cam.eye); c.up.set(0, 1, 0); c.lookAt(cam.at[0], cam.at[1], cam.at[2]);
+  c.fov = cam.fov || 70; c.near = 0.05; c.updateProjectionMatrix();
+  if (clock != null) Render3D.setLighting({ ClockTime: clock });
+  Render3D.resize(96, 54);
+  for (let i = 0; i < (cam.warm || 16); i++) Render3D.render(0.016);
+  Render3D.resize(cam.w || 1280, cam.h || 720);
+  Render3D.render(0.016);
+  return Render3D.stats ? JSON.stringify(Render3D.stats()).slice(0, 300) : '';
+};
+</script></body></html>

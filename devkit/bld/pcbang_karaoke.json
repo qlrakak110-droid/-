@@ -1,0 +1,594 @@
+{
+ "key": "pcbang_karaoke",
+ "venues": [
+  {
+   "name": "광안 PC방 (광안타워 1F, 48석 + 흡연실)",
+   "path": "Workspace.Gwangalli.pcbang['광안 PC방']",
+   "bounds": "(89.1,6.85,268.1)..(148.1,17.95,365.6)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Front zone: entrance + counter + kiosk + self bar (open to hall)",
+     "center": [
+      118.6,
+      12.4,
+      279.3
+     ],
+     "size": [
+      59.0,
+      11.1,
+      22.4
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Counter staff aisle (behind CounterBody; fridge/snack shelf/ramen cooker)",
+     "center": [
+      92.7,
+      12.4,
+      278.9
+     ],
+     "size": [
+      7.2,
+      11.1,
+      18.1
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "흡연실 glass room (front-right corner)",
+     "center": [
+      138.4,
+      11.6,
+      282.4
+     ],
+     "size": [
+      19.2,
+      9.6,
+      12.0
+     ],
+     "floorY": 6.83,
+     "ceilingY": 16.4
+    },
+    {
+     "name": "PC hall (6 back-to-back desk rows A-F, 48 PCStation)",
+     "center": [
+      118.6,
+      12.4,
+      318.0
+     ],
+     "size": [
+      59.0,
+      11.1,
+      55.0
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Hall back strip (fake restroom doors, exit, printer) - mostly empty",
+     "center": [
+      118.6,
+      12.4,
+      355.3
+     ],
+     "size": [
+      59.0,
+      11.1,
+      20.6
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    }
+   ],
+   "props": [
+    "PC_01..PC_48 Models (tag PCStation) x48, 23 parts each (1104 parts): MonitorBezel 2.9x1.7x0.15 box + MonitorScreen 2.7x1.5 Neon (SurfaceGui '광안 PC방 / 좌석 NN · 로그인 해주세요'), MonitorNeck 0.36x0.7 box, MonitorFoot 1.6x0.08x0.75, DeskMat 3.4x1.3, Keyboard 1.5x0.12x0.5 box + KeyboardRGB neon slab, Mouse 0.25x0.12x0.4 box, Headset (HeadsetBand + 2 cylinder HeadsetCup) floating 1.3 studs above the desk and clipping the monitor's left edge (no hook), Webcam box, SeatTag, CupHolder 0.45 box, PCTower 0.8x1.9x1.6 box + TowerRGB strip, Seat (Seat 2x0.4x2, top y 8.75), ChairBack 2x3.6x0.4 box, ChairAccent strip, 2 Armrest bars, GasLift cylinder, ChairBase flat 2.1 disc. Quality: readable but all-box; identical seats; seat pitch 4.8 studs",
+    "Desk furniture (PCHall root): DeskTop 19.2x0.2x2.6 x12 (top y 9.7, 6 back-to-back pairs at z~300/303, 319/322, 337/340 in two blocks x 97.6..116.8 and 124.8..144.0), DeskEdgeLED x12, DeskSide x24, Divider 19.2x5.5x0.3 x6 + DividerRGB x6, RowTag x6 (A열..F열)",
+    "Hall ceiling/services: HallCeilingExposed 59.2x75.2 black slab, CeilingLED neon lines x6 (3 across, 3 along), SpiralDuct cylinder 62 long only along x=94, Diffuser x3, LightHolder x4 (PointLight r24, InteriorLight), CCTV ball x3 + mounts, CassetteAC + ACGrille",
+    "Hall walls: WallPanel east (0.15x11.2x97.6) + back (59.2 wide) flat dark (36,38,44), WallAccentLED vertical neon x5, BaseLED floor strips x2, Partition west flat dark; signs: Sign_좌석에서 주문, Sign_금연, Sign_청소년 출입 안내, Sign_신규회원 1시간 무료 (4x5.4 boards); LEDScreen 9x4.2 '광안리 PC방 리그' (tag LEDScreen); Board_pc (BoardFrame + BoardFace VenueBoard 'pc', 5 rows)",
+    "Back strip: RestroomDoor x2 (4x8, on the building's rear wall - no restroom behind), Sign_남 MEN / 여 WOMEN / 화장실, ExitDoor + ExitSign + PanicBar + FireExtinguisher, PrinterTable 4x3.2x2.85 + Printer box + Sign_프린트 1장 100원; HallCarpetTiles 59.2x75.2 single slab",
+    "Front: AutoDoor_PC방 (2 sliding glass leaves, tag AutoDoor), EntranceMat, Threshold; CounterBody 3.5x3.5x13 box + CounterTop 4x0.3x13.4 + CounterLED + CounterFrontSign 'COUNTER · 충전 · 음식 주문'; POSMonitor (static '좌석 현황 32/48'), POSStand, CardTerminal, ReceiptPrinter, CallBell (all small boxes); StaffSeat stool; LEDScreen 11x2.6 price ticker over counter; menu strip sign '컵라면 3,500 · 짜파게티 4,000 · 핫도그 2,500 · 탄산음료 1,500'",
+    "Behind counter: Fridge (3-door reach-in 7x8x3.6, FridgeDoor glass slab, 4 WireShelf, 40 Bottle cylinders 0.27 dia x 0.8 tall in flat colours, FridgeGlow/FridgeLamp), SnackShelf (BackPanel 7x7, 4 Board, 4 PriceRail, 38 Product flat-colour boxes, no labels), Sign_음료 1,500원~ / Sign_과자 · 컵라면, BackCabinet 7.3x3.4x1.2, RamenCooker 2.4x2x1 box + red CookerDisplay, HotWater 1.8x2.8 box + tap, RamenStock x3 boxes + RamenPot cylinder",
+    "Kiosk (KioskBase + KioskPedestal + KioskHead 2.6x3.4x0.7 with '무인 요금 충전' text + KioskCardSlot) at (104.3,·,275.6)",
+    "Self bar at east front corner: SelfBarCabinet 2.85x3.4x4.5 + WaterPurifier 2x3x1.6 box + IceDispenser 1.7x2.2 box + Sign_셀프바 · 물 · 얼음; RecycleCabinet green box '분리수거 · 컵라면 국물'",
+    "흡연실 model (45 parts): SmokingRoomGlass x10 + Mullion/HeadRail/SillRail frame, SmokingRoomDoor glass 3.6 wide (CanCollide false, static), SmokingRoomBulkhead 19.25x1.6x12.4, SmokingRoomFloor, AshtrayStand cylinder x2 + AshtrayTop, ExhaustFan + grille, AirPurifier 1.25x3x3 box, Sign_흡연실 SMOKING ROOM, Sign_전자담배도 흡연실에서, LightPanel + PointLight",
+    "Front ceiling: FrontCeiling model (CeilingBoard 59.2x22.5 dark + 17 TBar), LightPanel x4 (SurfaceLight, InteriorLight)",
+    "Staff: 알바생 지훈 (VenueStaff rig, 21 parts, Act typing, apron) at HomeCF (94.4,9.8,278.9); Spot_pc_counter invisible 2.3x5.5x10 VenueSpot at (101.1,9.6,280.2)",
+    "Outside (not interior): Destination part (108.7,7.1,264.1), StandingSign, Car_Sonata (127.6,·,390.5) and Car_Tucson (103.6,·,390.7) parked in the rear yard"
+   ],
+   "gameplay": [
+    "VenuePC (ServerScriptService.GwangalliGameplay.VenuePC): watches tag PCStation; needs attr PCNo + child Seat (class Seat) + Keyboard (or MonitorScreen); sets Keyboard.CanQuery=true and adds ProximityPrompt 'GwangalliPCPrompt' 'PC 켜기' (ObjectText 'PC NN · 1시간 1,000원', MaxDistance 7, key E); charges V.PC.feePerHour=1000 per in-game hour and auto-extends, Seat:Sit (seat Disabled while free), writes model attr PCUser (UserId/0), fires VenueEvent pcStart/pcEnd/pcRank, racer leaderboard on VenueBoard 'pc' (Board_pc/BoardFace Row1..5 '광안대교 나이트 레이서 랭킹')",
+    "CLIENT GAP: StarterPlayerScripts.GwangalliVenues/PC is an 18-line placeholder addon (its comment wrongly says the PCStations are not built in this place). pcStart has no client handler: no camera on the monitor, no racer game, the screen keeps '로그인 해주세요' after paying. A real PC client (desktop UI, game, in-seat order) is the biggest interaction hole",
+    "VenueLife: VenueSpot Spot_pc_counter (Spot='pc_counter', Label, PickupCF (99.2,10.6,286.1) on the counter top) -> prompt '음식 주문' -> 'menu' event handled by client GwangalliVenues/Spots (menu pcbang: ramen 3500, jjapa 4000, hotdog 2500, pc_soda 1500, prep 6-20 s). Seated players get the food at RamenCF on their desk (≈1.4 studs right of the monitor, desk front edge) carried by the clerk; others at PickupCF; food prop prompt '먹기'/'마시기'",
+    "Clerk delivery (VenueLife.clerkDeliver): VenueStaff 'pc_clerk' 알바생 지훈 walks HomeCF -> Way1 (94.2,6.8,271.1) -> Way2 (108.8,6.8,271.2) -> Way3 (120.7,6.8,292.0) -> PC AislePos -> PC ServePos and back (TweenService on HumanoidRootPart, no pathfinding). BUG: every AislePos is mirrored about z≈266.5 (PC_01 AislePos (120.4,6.8,237.7) vs ServePos z 295.2; rows use z 237.7/224.8/219.2/206.3/200.7/187.8) so the clerk tweens out through the front glass 30-80 studs into the street and back. The correct value is ≈(120.8, 6.8, ServePos.Z)",
+    "ShopStaff (GwangalliGameplay.ShopStaff): the venue Model '광안 PC방' has a ShopFloor child (that is the side shop 광안 분식) so its anchor is the 분식 'Counter' part (63.5,8.4,276.4); kindOf('광안 PC방') = 'game' -> a hoodie 알바생 (typing/phone) stands in the 분식 instead of a 분식 cook. Nothing staffs the PC counter except the VenueStaff rig (skips within 9 studs)",
+    "GwangalliWorld/Screens: LEDScreen tag x2 (counter price ticker, hall league screen) cycle attr Messages; GwangalliWorld/Lights: 8 InteriorLight (LightPanel SurfaceLights, LightHolder PointLights, 흡연실 PointLight) under the global interior budget (nearest 24/16/6 by tier); GwangalliIndoorLight dims lights under a roof x0.55",
+    "DetailLOD: ZoneLOD models PCHall (LODCenter (118.7,12.4,314), radius 110), Fridge and SnackShelf (radius 66), 흡연실 (radius 74); 20 NearLOD models (NearDetail/Detail/ShopDetail) hidden until near (GwArrive pass)",
+    "GwangalliDoors + client: AutoDoor_PC방 leaves with OpenOffset; StreetInteract/Places opens it for NPCs with AutoDoorOpener proxies",
+    "NPC/world references: GwangalliCitizens place 'pcbang' (dest '광안 PC방', r 70, indoor, lane backlane; thugs 13 h, students 20-22 h, errand 'PC방 충전 카드'), GwangalliNav node 3095 (108.7,6.6,264.1), Taxi landmark, ProgressShared FUN_WORDS",
+    "Separate system NOT wired here: GwangalliBuildings ShopFlows 'pcbang' (이용권 + GameViews 30 s reaction game) runs only in the procedural 광안 프라자 2F at the demo district (≈4283,·,-200); can be reused as the monitor game",
+    "Must not block/rename/move: PC_NN models and attrs PCNo/AislePos/ServePos/RamenCF, Seat, Keyboard, MonitorScreen (SurfaceGui face), the RamenCF desk spot and the ServePos aisle behind each chair (z 295.2/308.2/313.7/326.7/332.2/345.2), central aisle x 116.9..124.8, Way1..3 path, Spot_pc_counter + PickupCF, Board_pc BoardFace, both LEDScreens, VenueStaff rig + HomeCF, counter staff aisle x 92.6..96.3, AutoDoor leaves + slide pocket (leaves 4 wide slide ±3.75 -> keep x ≈99..118.6 within 0.6 of z 268 clear), Destination"
+   ],
+   "emptyOrCrude": [
+    "Back third of the hall (z 345..365.6, 59x20 studs) is bare carpet: only a printer table at x 95; the two restroom doors are fake (the back wall z 365.7 is the building's rear), no lounge, lockers, charging or vending",
+    "All 48 seats identical, while the facade promises '커플석' and '240Hz 게이밍 모니터': no couple seats, no premium/FPS zone, no team room, no zone signage",
+    "PC station is boxes: flat box monitor (no curve, thin bezel or VESA stand), slab keyboard with a neon top, box mouse, box tower with one RGB strip, headset floats 1.3 studs over the desk and clips the monitor's left edge, no cables, sockets, USB hub or call button",
+    "Gaming chair: box seat + box back + flat disc base; no 5-star wheelbase, headrest or lumbar pillow, wings or stitching",
+    "Walls are flat dark slabs with 5 vertical LED bars; no esports posters, game key art, branded wall graphics, mirror or clock; a single spiral duct along the west wall only",
+    "Counter is a 3.5x3.5x13 box; there is no real kitchen (no fryer, microwave, induction, sink, order-ready screen, menu photos, tray rack or serving robot); food is a box RamenCooker and box HotWater",
+    "Fridge bottles are 40 uniform single-colour cylinders without caps or labels; the snack shelf is 38 flat-colour boxes; both sit behind the counter so customers cannot browse them",
+    "The kiosk is a box head with text; the self bar is three boxes (no cups, straws, napkins, wet tissue or sauces); the smoking room has only 2 cylinder ashtrays",
+    "POSMonitor text is static ('좌석 현황 32/48') and monitors stay on '로그인 해주세요' even for paying players (no client)",
+    "Lighting relies on 4 hall PointLights + neon; no per-seat desk glow, no screen light spill on faces"
+   ],
+   "realWorld": [
+    "Entrance: auto door, 24시/연중무휴 decal, age notice (청소년 22시 이후 출입 제한), price board, membership/ID check notice, umbrella stand, floor mat",
+    "Self-service kiosk(s) (회원가입/로그인/충전, card + cash + QR), counter with POS, card terminal, receipt printer, call bell, seat-map monitor showing used/free seats",
+    "Open kitchen behind the counter: ramen cooker (자동 라면 조리기), hot water dispenser, fryer, microwave, induction, rice cooker, sink, order screen, photo menu board (라면, 짜파게티, 볶음밥, 떡볶이, 핫도그, 감자튀김, 치즈스틱, 에이드)",
+    "Beverage fridges and a snack/cup-noodle wall, often customer-accessible next to the counter, with price tags",
+    "Self bar: water purifier, ice maker, paper cups, straws, napkins, wet tissue, chopsticks, sauces, trash and liquid-waste sink (국물 버리는 곳)",
+    "Seat zones: 일반석, 커플석 (wide 2-seat desk/sofa), 프리미엄/FPS석 (high-Hz monitors, brand gear), 팀룸 (3-5 seats), sometimes 흡연석 booths",
+    "Station: 24-27\" 165-360 Hz monitor (often curved), mechanical RGB keyboard, gaming mouse on a large desk mat, headset on a hook, webcam, cup holder, power + USB charging, seat number tag, call button, side dividers, ergonomic gaming chair with headrest/lumbar pillows",
+    "Exposed black ceiling with ducts, cable trays, track/line LED, RGB accents; carpet tiles; acoustic treatment; CCTV; cassette AC; air purifiers",
+    "Wall TV/LED showing esports (LCK) or tournament promos, game posters, ranking board",
+    "Glass smoking room with ventilation fan, ashtray tables/standing ledges, air purifier, door closer; vape notice",
+    "Restrooms, printer/scanner corner, fire extinguisher and exit, lost-and-found and phone chargers at the counter; serving robot or staff delivering food to seats"
+   ],
+   "interactionIdeas": [
+    "PC 켜기 (exists, server) -> client: camera to monitor, login screen with seat no. and time left, launcher (광안대교 나이트 레이서 / GameViews reaction game), '음식 주문' button on the monitor (sign promises 모니터 하단 메뉴 → 음식 주문), '자리 비움', '종료'",
+    "Kiosk '요금 충전' (1h/3h/10h/야간 정액) and '회원가입 (1시간 무료)'; counter '충전 카드 구매' for the Citizens errand",
+    "Desk '직원 호출' bell -> clerk walks to ServePos; '헤드셋 쓰기' while seated (weld headset to head); '의자 높이 조절'",
+    "Fridge '음료 꺼내기' and snack shelf '과자 고르기' (move both to a customer-accessible spot or let the clerk hand them over)",
+    "Self bar '물 받기', '얼음 담기' (cup prop -> drink act); recycle cabinet '컵라면 국물 버리기' after eating",
+    "Printer '인쇄하기 (100원)' -> printed sheet prop",
+    "Smoking room glass door '문 열기' (slide), air purifier '공기청정기 켜기'",
+    "League LED / counter '리그 참가 신청' -> joins the racer ranking event",
+    "Restroom door '화장실' fade, as ShopLife does",
+    "Live seat-map monitor fed by PCUser attributes; monitor screens switch to the game when PCUser ~= 0"
+   ]
+  },
+  {
+   "name": "광안타워 1F 엘리베이터 로비 + 2F-5F (스터디카페 · 연합의원 · 태권도 · 수학학원)",
+   "path": "Workspace.Gwangalli.pcbang['광안 PC방'] (Lobby* parts) + Workspace.Gwangalli.pcbang['광안타워 (PC방)']",
+   "bounds": "lobby (78.8,6.85,268.2)..(88.3,17.95,290.0); upper floors solid Core (58.0,20.5,268.0)..(148.2,64.5,366.0)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "1F lobby (glass Door CanCollide default true; no AutoDoor tag; Annex skips host venue 'pcbang')",
+     "center": [
+      83.55,
+      12.4,
+      279.1
+     ],
+     "size": [
+      9.5,
+      11.1,
+      21.8
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "2F-5F floors (Core block 90.2x44x98.1, no interior)",
+     "center": [
+      103.1,
+      42.5,
+      317.0
+     ],
+     "size": [
+      90.2,
+      44.0,
+      98.1
+     ],
+     "floorY": 20.9,
+     "ceilingY": 64.5
+    }
+   ],
+   "props": [
+    "Door 6x8.3 glass slab + Transom + DoorHandle; ShopWindow 1.6 wide x2 + mullions",
+    "LobbyFloor 9.2x21.6, LobbyCeiling 9.2x21.6, LobbyLight neon panel 7.2x2, Partition walls x2 (plaster)",
+    "ElevatorDoor 4.8x8.5 metal slab + ElevatorSeam + Sign_▲ 1F ▼ (fake; no call button, car or indicator)",
+    "Directory sign on facade 'Sign_5F 수학학원 4F 태권도 3F 연합의원 2F 스터디카페 1F PC방'; Fascia + Sign_광안타워 '2F-5F · 엘리베이터'",
+    "Upper floors: 48 Window parts (tag NightWindow, Zone office, LitChance 0.42), Spandrel/SillFlash x4, floor signs Sign_스터디카페 온 / 광안 연합의원 / 해오름 태권도 / 수학의 정석 전문학원, vertical Sign_PC방 and Sign_태권도, roof Penthouse/WaterTank/AC/SolarPanel"
+   ],
+   "gameplay": [
+    "None: no prompts, no tags inside the lobby; Annex HOST_VENUES skips anything under 'pcbang', so no '들어가기' annex door either",
+    "ShopStaff/ShopLife ignore it (no ShopFloor/Interior in the lobby)",
+    "NightWindow lighting (GwangalliWorld) on the 48 upper windows"
+   ],
+   "emptyOrCrude": [
+    "Lobby is a sealed 9.5x21.8 box behind a solid glass door: fake elevator, no mailboxes, call button, floor indicator, directory board, CCTV or fire box",
+    "Upper floors are one solid dark Core block behind lit windows; the 4 tenants exist only as signs"
+   ],
+   "realWorld": [
+    "Korean 근린생활시설 lobby: glass door with door closer/keypad, wall directory (층별 안내), mailboxes, elevator with call button + floor display + inspection certificate, fire hydrant box, CCTV, stair door (비상계단), notice board",
+    "2F 스터디카페 (kiosk, lockers, single desks with lamps), 3F 의원 (reception, waiting chairs, exam room), 4F 태권도장 (mats, mirrors, belt rack), 5F 학원 (classrooms, whiteboards)"
+   ],
+   "interactionIdeas": [
+    "Make the door an AutoDoor/swing door and add '엘리베이터 호출' -> ride with a fade to an annex floor (Annex already supports building archetypes)",
+    "'층별 안내' directory prompt listing tenants; '우편함 확인'"
+   ]
+  },
+  {
+   "name": "광안 분식 (광안타워 1F 옆 가게)",
+   "path": "Workspace.Gwangalli.pcbang['광안 PC방'] (ShopFloor/ShopBackWall/ShopLight/Counter/Sign_광안 분식 at x 57.8..76.8)",
+   "bounds": "(57.8,6.85,268.5)..(76.8,16.0,278.4)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "Shop room 19x9.9 (glass Door collides; not ShopLife: model has ShopFloor but no Interior child)",
+     "center": [
+      67.3,
+      11.4,
+      273.45
+     ],
+     "size": [
+      19.0,
+      9.15,
+      9.9
+     ],
+     "floorY": 6.85,
+     "ceilingY": 16.0
+    }
+   ],
+   "props": [
+    "ShopFloor 19.08x0.3x10.2, ShopBackWall 19.08x9.7 cream slab, ShopLight 17x8.5 slab as ceiling (tag NightNeon), Counter 5.72x3.3x2 orange box",
+    "Door 4.8x7 glass + Handle + ShopDetail/DoorFrame, ShopWindow x3, ShutterBox, Fascia + Sign_광안 분식 '떡볶이 · 김밥 · 순대 · 튀김'"
+   ],
+   "gameplay": [
+    "ShopStaff spawns an 알바생 (kind 'game' from the parent model name '광안 PC방') behind this Counter - wrong persona for a 분식집",
+    "Not a ShopLife walk-in shop (needs a child 'Interior'); Annex skips it (host venue); no ordering"
+   ],
+   "emptyOrCrude": [
+    "Only a box counter in an empty room: no 떡볶이 pan, 어묵 steamer, fryer, 김밥 station, menu board, tables or stools",
+    "Space behind the back wall (x 57.8..78.4, z 278.9..366) is an unreachable void"
+   ],
+   "realWorld": [
+    "즉석 떡볶이 철판 + 어묵 국물통, 튀김기 + 튀김 진열대, 김밥 말이대, 순대 찜기, 메뉴판 with prices, 2-4 small tables with stools, water purifier, 포장 용기, 카드 단말기"
+   ],
+   "interactionIdeas": [
+    "Make it a ShopLife 'snack' counter shop (StreetShops type snack, flow counter) by adding an Interior child or ShopLifeType attr on a wrapper; '떡볶이 주문', '어묵 국물 떠먹기'"
+   ]
+  },
+  {
+   "name": "광안 코인노래연습장 (광안빌딩 1F, 8 rooms)",
+   "path": "Workspace.Gwangalli.karaoke['광안 코인노래연습장']",
+   "bounds": "(-6.6,6.85,268.5)..(41.0,17.95,358.0)",
+   "enterable": true,
+   "rooms": [
+    {
+     "name": "Lobby (coin changer, vending, counter, waiting sofa, TOP100 LED)",
+     "center": [
+      17.2,
+      12.4,
+      280.65
+     ],
+     "size": [
+      47.6,
+      11.1,
+      24.3
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Counter staff zone (behind Counter, StaffCabinet, mic sterilizer)",
+     "center": [
+      33.2,
+      12.4,
+      289.15
+     ],
+     "size": [
+      15.6,
+      11.1,
+      7.3
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Corridor 'ROOM 01 ~ 08' (12 wide, neon)",
+     "center": [
+      17.3,
+      12.4,
+      317.0
+     ],
+     "size": [
+      12.0,
+      11.1,
+      48.0
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_01 (east)",
+     "center": [
+      32.35,
+      12.4,
+      299.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_02 (east)",
+     "center": [
+      32.35,
+      12.4,
+      311.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_03 (east)",
+     "center": [
+      32.35,
+      12.4,
+      323.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_04 (east)",
+     "center": [
+      32.35,
+      12.4,
+      335.0
+     ],
+     "size": [
+      17.3,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_05 (west, mirrored)",
+     "center": [
+      2.17,
+      12.4,
+      299.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_06 (west)",
+     "center": [
+      2.17,
+      12.4,
+      311.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_07 (west)",
+     "center": [
+      2.17,
+      12.4,
+      323.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Booth_08 (west)",
+     "center": [
+      2.17,
+      12.4,
+      335.0
+     ],
+     "size": [
+      17.45,
+      11.1,
+      11.6
+     ],
+     "floorY": 6.83,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "Back zone (fake restroom doors, exit, water purifier) - mostly empty",
+     "center": [
+      17.2,
+      12.4,
+      349.6
+     ],
+     "size": [
+      47.6,
+      11.1,
+      16.8
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    }
+   ],
+   "props": [
+    "Booth_01..08 Models (tags KaraokeRoom + ZoneLOD, attrs RoomNo/RoomName, LODCenter, LODRadius 73), 83 parts each (664). TV wall (far end): TVBezel 9.2x5.4 box + KaraokeScreen 8.84x5.04 (SurfaceGui 'ROOM NN / 문 옆 패널에서 방을 잡고 노래를 골라요', GuiFace Back) + TVUnderglow neon; MachineCabinet 6x2.5x2.16 + CabinetTop + seam; KaraokeMachine 3.4x0.8x1.6 box + MachineDisplay '38131' + 4 MachineLED; MicDock; 2 FloorSpeaker 0.9x5.6x1.4 boxes (2 Woofer + 1 Tweeter discs each), Subwoofer box + cone, 2 ceiling Speaker boxes + cone; MicStand (MicBase disc, MicPole, Mic cylinder, MicHead ball)",
+    "Booth seating: SofaBack (1 Seat, against the corridor wall), SofaLeft (3 Seats), SofaRight (2 Seats) = 6 Sittable Seats per booth, burgundy (130,26,30) box Base/Backrest/Arm/BackCushion + Plinth; table: TableBase + TableGlow neon + glass TableTop 3.2x6 (top y 8.51); on the table: 2 WirelessMic (cylinder + ball head), Tambourine (attr GwKaraoke 'tambourine') + 4 Jingle discs, SongBook + label, Remote + neon keys, MenuStand wedge, 2 Cup cylinders, TissueBox",
+    "Booth shell: Carpet 11.6x17.3 navy, AccentWall (fabric) behind the TV, 2 AcousticPanel 9x15.3 flat fabric on the side walls, 6 AcousticTile 1.1 squares, KaraokeZone invisible 17.3x11.2x11.6 box, MirrorBall 1.5 ball (attr GwKaraoke 'ball') + rod, LaserProjector box + neon lens, 3 LedStrip neon at the ceiling edge, Sign_이달의 신곡 poster; BoothDoor glass 4.7 wide modelled permanently open (swung flat against the partition) + DoorEdge + DoorHandle",
+    "Corridor face of each booth: Sign_NN, 3 DoorNeon frame, StatusLight (green/red), KaraokePanel 1.1x2 (SurfaceGui 'NN / 빈 방 · 터치') + PanelGlow",
+    "Corridor: CorridorWall x10 + CorridorWallLintel x8, BoothPartition x10 (17.3x11.2x0.4 plaster), CorridorRunner carpet 9x47.8, CorridorNeon x5 (PointLights), FloorNeon x2, BoothLightHolder x4 (PointLight r16), ArchLintel + Sign_ROOM 01 ~ 08 + ArchNeon x2",
+    "Lobby west: CoinChanger 3x6.6x2.6 blue box + ChangerDisplay '500원 교환' + BillSlot + CoinTray + signs; VendingMachine 3.4x6.2x2.6 red box + Display + 15 Can slabs 0.4x0.8x0.2; Sign_1곡 500원 · 4곡 1,000원 price board 8x4.2 ('무인 운영 · 24시간 · CCTV 녹화중'); FireExtinguisher",
+    "Lobby east: Counter model (ToeKick/Body 10x3.15x2.1/Top/LedStrip) + CardReader + Sign_카운터 · 마이크 커버 무료 + CCTVMonitor 'CH1 복도 · CH2 로비', StaffCabinet 2x6.5x6.2, MicCoverBox slab, Booth_Lobby MicSterilizer 1.1x2.2x2.2 + UV neon, CatalogPost + CatalogBook (노래 책), Board_karaoke (VenueBoard 'karaoke' '👑 오늘의 노래왕'), LEDScreen 6.4x3.6 'TOP 100 인기차트'",
+    "Lobby front: WaitingSofa (4 Seats, black boxes) against the glass, EntranceMat, AutoDoor_노래연습장 (2 leaves), lobby MirrorBall 2.2, CassetteAC + grille, LightPanel x2 pink (PointLight), LobbyCeiling model (CeilingBoard 47.7x24.5 + 15 TBar), Sign_SING SING neon, Sign_이용 안내, Sign_신곡 입고, CCTV",
+    "Back zone: BackFloorTiles 47.55x17.05, RestroomDoor x2 + DoorKnob (on the rear wall, nothing behind), Sign_남/여/화장실 · TOILET (PointLight), ExitDoor + PanicBar + ExitSign, WaterPurifier 2.4x4.6x2.45 + CupDispenser + WaterTap + Sign_정수기, FireExtinguisher, CCTV",
+    "Shell: Floor 47.7x89.7 single dark purple slab, Ceiling 47.7x65.2 dark, WallLining slabs (the east lobby wall is fabric), Partition west (x=-7.0)",
+    "Outside (not interior): Destination (5.5,7.1,264.5), StandingSign, neon 노래연습장/24H signs, RecycleBins model behind the building, Car_Kia Ray (9.9,·,389.0), Car_Scooter"
+   ],
+   "gameplay": [
+    "VenueKaraoke (ServerScriptService.GwangalliGameplay.VenueKaraoke): tag KaraokeRoom; finds KaraokeZone and KaraokePanel by name (FindFirstChild recursive); KaraokePanel gets ProximityPrompt '방 잡기' (dist 8, E); rent V.KARAOKE.fee=500 per 30 in-game minutes, auto-extended while anyone is inside, released after 20 s empty; room attributes KRenter/KRenterName/KPaidUntil/KSong/KStart/KSerial/KResultName/KResultScore/KResultSerial; ops kSong/kStop/kScore/kLeave; daily 행복 rewards, 90+ 인기도; lobby board '오늘의 노래왕' (VenueBoard 'karaoke')",
+    "Client GwangalliVenues/Karaoke: paints StatusLight (green 60,255,120 / red 255,60,60) and the KaraokePanel SignGui 'Sub' label ('빈 방 · 터치' / '이용 중 · name'); inside test = KaraokeZone local box +0.5 (X/Z) and +3 (Y); builds SurfaceGui 'KaraokeTV' on KaraokeScreen (disables its SignGui): countdown, lyrics wipe, pitch lane, score fanfare, confetti; action bar 노래 선택/탬버린/나가기; rhythm taps (Space/F); chiptune; spins MirrorBall + one local PointLight while singing",
+    "VenueLife emote 'tambourine' welds a NEW tambourine prop to the hands (the table Tambourine stays put); GwKaraoke attributes on Tambourine/MirrorBall are read by no script",
+    "Other systems: Arcade board 'karaoke' (source karaoke, 노래방 최고 점수), Progress quest 'karaoke_song' (1-3 songs), Journey 'karaoke' (find radius 30), Social invite '코노 가자' dest, Citizens place 'karaoke' (r 70, indoor, students/DJ fans), GwangalliNav node 3094 (5.5,6.6,264.5), Taxi landmark '코인노래방이요, PC방 옆'",
+    "ShopStaff: the venue Model has a ShopFloor child (the side shop 광안 마라탕) so its only anchor is the 마라탕 'Counter' part (-37.8,8.4,276.5) -> an 알바생 (kind 'game' from '코인/노래') stands in the 마라탕; the karaoke Counter (a Model, not a BasePart) gets nobody. The sign says 무인 운영 so an empty counter is plausible, but the 마라탕 persona is wrong",
+    "Lights/LOD: 8 InteriorLight PointLights (LightPanel x2, CorridorNeon, BoothLightHolder x4, toilet sign) under the interior budget; DetailLOD hides each Booth_NN beyond 73 studs of its LODCenter and Booth_Lobby (center (30.6,11.2,285.2), r 73); 20 NearLOD models; LEDScreen cycling via GwangalliWorld/Screens",
+    "SIGN/GAMEPLAY MISMATCH: every price sign (facade, lobby board, standing sign) says '1곡 500원 · 4곡 1,000원' but the game rents by time (500원 per 30 in-game min); the 동전교환기 and coin culture have no gameplay",
+    "Separate richer flow NOT wired here: GwangalliBuildings ShopFlows 'karaoke' + GwangalliBuildingsClient KaraokeView/KaraokeRoom/KaraokeMic/KaraokeBand/KaraokeLyrics (리모컨 예약 목록, 에코/키/싱크, voice mode, mic pass, cheers) serve only the procedural 광안 프라자 (GwB_Shop with ShopId attrs) in the demo district",
+    "Must not block/rename/move: Booth_NN names + RoomNo/RoomName, KaraokeZone (keep the room's footprint inside it), KaraokePanel (corridor face, prompt dist 8), KaraokeScreen (TV face is GuiFace Back, the TV gui is client-built on it), StatusLight, MirrorBall, all 6 Seats per booth and the 4 WaitingSofa Seats, TableTop, Board_karaoke BoardFace, CardReader, WaterPurifier, Counter, AutoDoor leaves + pocket (leaves 4.5 wide slide ±4.25 -> keep x ≈-5.3..16.2 within 0.6 of z 268.4 clear), the corridor and door openings (z 299.5..304.5 etc.), Destination"
+   ],
+   "emptyOrCrude": [
+    "Booths are 17.3x11.6 studs (≈5x3.5 m) with a 6-seat U sofa, a normal-노래방 size. A real 코인노래방 booth is ≈1.5-2.5 m² for 1-3 people (bench, small shelf). Missing inside: the coin/bill acceptor and touch song panel that every coin room has, a mic charging cradle, a bag hook, an AC/vent grille, a light/echo control panel and an intercom/call button",
+    "Everything in the booth is boxes: sofas without rounded edges or tufting, box TV bezel, box karaoke machine with a 5-digit display, box speakers with disc cones",
+    "Booth walls are flat: one fabric AccentWall, two flat AcousticPanels and six 1.1-stud tiles; no diffusers, patterned wallpaper, mirror wall or LED wall-wash; plain dark ceiling with 3 LED strips",
+    "The booth door is a static glass slab that stays swung open against the partition: it never closes, has no frame, closer or window strip, so the rooms do not read as soundproof",
+    "Lobby fixtures are flat-colour boxes (blue coin changer, red vending machine with 15 flat can slabs); the counter top is bare (no POS, mic-cover dispenser display or candy bowl); the waiting sofa is boxy; the lobby centre (x 0..20, z 273..290) is empty floor",
+    "Back zone (47.6x16.8 studs) holds only a water purifier and two fake restroom doors on the rear wall",
+    "Price signage contradicts gameplay (per-song signs vs time rental); the GwKaraoke attrs are dead"
+   ],
+   "realWorld": [
+    "Entrance: 24H neon, coin-karaoke price board (1곡 500원 / 4곡 1,000원, or time packs), 무인 운영 + CCTV notice, 동전교환기 (bill -> 500원 coins), drink vending machine, mic-cover dispenser, mic UV sterilizer, hand sanitizer, sometimes a small counter with snacks",
+    "Corridor: narrow (≈1.2-1.5 m), each booth with a room number LED, 사용중/빈방 light, glass door with frosted band and door closer, neon/LED strips",
+    "Booth (coin type): 1-3 person bench, TV 32-50\" on the wall, TJ미디어/금영 machine with per-room coin payment module (coin + bill slot, remaining-song display), touch song-search panel or remote, 2 wireless mics on a charging cradle, speakers + amp, small shelf/cup holder, hooks, ventilation/AC, mirror ball or LED lighting with light modes, acoustic foam/diffuser walls",
+    "General 노래방 room (larger): U sofa, glass table, tambourines, song books, remote, disco lighting, scoring screen with 점수 and 서비스 시간",
+    "Back: restrooms, water purifier with paper cups, fire exit and extinguisher, trash/recycle bins"
+   ],
+   "interactionIdeas": [
+    "Coin changer '지폐 교환' (1,000원 -> 2 x 500원 coin items) and a per-booth coin slot '500원 넣기' that buys songs, matching the signs (or change the signs to time pricing)",
+    "Vending machine '음료 뽑기' (can drops into the tray -> drink act); water purifier '물 마시기'",
+    "Booth 'Remote' / touch panel '곡 검색 · 예약' anchored on the prop (opens the existing picker); song book '노래책 보기'",
+    "Table mic '마이크 들기' (weld mic, show the singer), '마이크 커버 씌우기' at MicCoverBox, '마이크 살균' at MicSterilizer (UV glow 10 s)",
+    "Table tambourine '탬버린 흔들기': hide the table prop while the emote prop is in hand",
+    "Booth door '문 닫기 / 열기' (swing with closer; StatusLight stays the source of truth)",
+    "Light panel '조명 모드' (disco / mood / bright) driving LedStrip, MirrorBall spin and the laser",
+    "Machine '에코 · 키' knobs (reuse KaraokeRoom.roomOp ideas), '점수 보기', 95+ '서비스 1곡'",
+    "Lobby LED '인기차트 보기', board '오늘의 노래왕', waiting sofa '앉아서 기다리기'"
+   ]
+  },
+  {
+   "name": "광안빌딩 1F 계단 로비 + 2F-4F (스크린골프 · 당구클럽 · 필라테스)",
+   "path": "Workspace.Gwangalli.karaoke['광안 코인노래연습장'] (Lobby*/Step/Mailboxes parts) + Workspace.Gwangalli.karaoke['광안빌딩 (코인노래연습장)']",
+   "bounds": "lobby (-16.5,6.85,268.6)..(-7.4,17.95,290.2); upper floors solid Core (-46.1,20.5,268.4)..(41.1,53.5,358.5)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "1F stair lobby (glass Door collides; Annex skips host venue 'karaoke')",
+     "center": [
+      -11.95,
+      12.4,
+      279.4
+     ],
+     "size": [
+      9.1,
+      11.1,
+      21.6
+     ],
+     "floorY": 6.85,
+     "ceilingY": 17.95
+    },
+    {
+     "name": "2F-4F floors (Core 87.2x33x90.1, no interior)",
+     "center": [
+      -2.5,
+      37.0,
+      313.4
+     ],
+     "size": [
+      87.2,
+      33.0,
+      90.1
+     ],
+     "floorY": 20.9,
+     "ceilingY": 53.5
+    }
+   ],
+   "props": [
+    "Door 5.6x8.3 glass + Transom + DoorHandle, ShopWindow x2, Sign_광안빌딩 '2F-4F · 엘리베이터 없음', directory 'Sign_4F 필라테스 3F 당구클럽 2F 스크린골프 1F 코인노래'",
+    "Step x8 (8.2 wide, 1.56 deep, rising to y 14.6 at z 289.9) that run into the Partition at z 290.6 (dead end, no landing or 2F door)",
+    "Mailboxes 0.7x4x5 metal slab (CanCollide false), LobbyFloor, LobbyCeiling (only over z 268.6..277.4), LobbyLight",
+    "Upper: 33 NightWindow windows, Pier/Spandrel/Blinds facade, floor signs Sign_광안 스크린골프 / 큐 당구클럽 / 광안 필라테스 & PT, vertical Sign_코인노래 and Sign_당구장, roof penthouse/tank/AC/antenna"
+   ],
+   "gameplay": [
+    "None inside. Mailboxes is on the R4 protected list (ShopLife '우편함' name) but this lobby is not scanned (no ShopFloor/Interior)",
+    "Annex HOST_VENUES skips everything under 'karaoke', so no annex entrance for 2F-4F"
+   ],
+   "emptyOrCrude": [
+    "Stairs climb into a wall; the 2F-4F tenants are only signs on a solid core",
+    "Bare lobby: no stair rail, handrail, landing light, wall directory, fire box or notice board"
+   ],
+   "realWorld": [
+    "Narrow 계단식 상가 lobby: steel handrail, anti-slip stair nosing, landing with floor sign (2F 스크린골프), wall directory, mailboxes, motion-sensor lights, 소화전, posters for the tenants; 2F screen golf bays, 3F 4-ball billiard tables with 점수판, 4F pilates reformers"
+   ],
+   "interactionIdeas": [
+    "Stair landing '2F 올라가기' -> annex floor (Annex building archetypes / existing 당구 physics ShopFlow), '층별 안내' directory, '우편함 확인'"
+   ]
+  },
+  {
+   "name": "광안 마라탕 (광안빌딩 1F 옆 가게)",
+   "path": "Workspace.Gwangalli.karaoke['광안 코인노래연습장'] (ShopFloor/ShopBackWall/ShopLight/Counter/Sign_광안 마라탕 at x -46.2..-18.4)",
+   "bounds": "(-46.2,6.85,268.6)..(-18.4,16.0,278.5)",
+   "enterable": false,
+   "rooms": [
+    {
+     "name": "Shop room 27.6x9.9 (glass Door collides; not ShopLife)",
+     "center": [
+      -32.3,
+      11.4,
+      273.55
+     ],
+     "size": [
+      27.6,
+      9.15,
+      9.9
+     ],
+     "floorY": 6.85,
+     "ceilingY": 16.0
+    }
+   ],
+   "props": [
+    "ShopFloor 27.58x0.3x10.2, ShopBackWall 27.58x9.7 tan slab, ShopLight 25.6x8.5 slab (NightNeon), Counter 8.27x3.3x2 red box (4 kids)",
+    "Door 4.8x7 glass + Handle + DoorFrame, ShopWindow x4, ShutterBox, Sign_광안 마라탕 '마라샹궈 · 꿔바로우 · 포장 가능'"
+   ],
+   "gameplay": [
+    "ShopStaff spawns an 알바생 (kind 'game' from the parent name '광안 코인노래연습장') behind this Counter - wrong persona for a 마라탕 shop",
+    "MafiaService places its recruiter between 마라탕 and CLUB OCEAN outside (exterior only); StreetShops already has a 'mara' menu (마라탕 1인 12,000원) that could serve it"
+   ],
+   "emptyOrCrude": [
+    "A box counter in an empty room: no self-serve ingredient fridge/bar (마라탕 재료 냉장 쇼케이스), bowls and tongs, scale, wok/soup station, tables or menu board"
+   ],
+   "realWorld": [
+    "마라탕 shop: open ingredient fridge (vegetables, tofu, noodles, meat) with steel bowls + tongs, weigh-and-pay scale at the counter, spice-level chart (0-3단계), kitchen pass with soup pots, 4-8 tables, chopstick/spoon caddies, water purifier, takeout containers"
+   ],
+   "interactionIdeas": [
+    "'재료 담기' at the ingredient fridge -> '무게 재기 · 계산' at the counter (weight-based price) -> '맵기 선택' -> seated eat (ShopLife counter flow with the existing 'mara' dish)"
+   ]
+  }
+ ],
+ "notes": "Scope: Workspace.Gwangalli.pcbang (광안 PC방 + 광안타워) and Workspace.Gwangalli.karaoke (광안 코인노래연습장 + 광안빌딩). Both buildings face -Z (street side z<267); PC방 yaw ≈180.4°, karaoke exactly 180°. Interior floor top y 6.85 and ceiling underside y 17.95 (11.1 studs ≈ 3.3 m) in both; walk-in venues are ground floor only. Upper floors (광안타워 2F-5F, 광안빌딩 2F-4F), both building lobbies and both side shops (광안 분식, 광안 마라탕) cannot be entered: their glass Door parts keep the default CanCollide=true, they have no AutoDoor tag, and Annex skips host venues 'pcbang'/'karaoke'. Biggest gameplay holes: (1) the PC client is a placeholder (GwangalliVenues/PC.luau, 18 lines), so 'PC 켜기' takes 1,000원, seats you and then shows nothing; (2) every PCStation AislePos is mirrored about z≈266.5, so the food clerk tweens out through the front glass into the street and back; (3) ShopStaff treats each venue model's side shop (분식/마라탕) as the storefront and puts a PC방/노래방-style 알바생 there; (4) karaoke signs say 1곡 500원 / 4곡 1,000원 but rental is 500원 per 30 in-game minutes. Part budget today: PC방 ≈1,577 interior parts (PCHall 1,218, of which 48 PCs x 23 = 1,104); karaoke ≈1,149 (8 booths x 83 = 664, 856 including the booth sub-models). Upgrades should be client-local near-only overlays (Workspace.GwInteriorDetailLocal, NearLOD/ZoneLOD radii 66-110), hiding crude originals per rules R1-R7 in bld/systems.json: inside ZoneLOD/NearLOD roots that are not arrive-hidden, use local Transparency=1 and disable SurfaceGuis yourself. Never hide PCStation Seat/Keyboard/MonitorScreen, KaraokePanel/KaraokeZone/KaraokeScreen/StatusLight/MirrorBall, Seats, TableTops or VenueSpot/VenueBoard/VenueStaff; overlay nicer non-colliding copies at the same pose instead. KaraokeScreen and MonitorScreen carry client-built SurfaceGuis (KaraokeTV, future PC desktop): keep the face (Back) and size or move the gui with the overlay. New lights should be few and tagged InteriorLight (global budget nearest 24/16/6) and rely on Neon emissive. Space per real-world scale: 1 stud ≈ 0.3 m; a PC seat pitch of 4.8 studs ≈ 1.45 m is wide (real ≈ 0.9-1.1 m), and karaoke booths ≈ 5.2x3.5 m are normal-노래방 size, not coin-booth size. Keep the existing footprints (gameplay zones depend on them) and fill them with detail, plus couple/premium seating as decoration only, unless the seat graph is rebuilt server-side. Research sources: https://stay.enko.kr/blog/how-to-use-karaoke-in-korea ; https://glasswallet.com/blog/coin-karaoke-startup-cost-guide (each room has 반주기, amp, speakers, wireless mics, monitor and a coin payment module) ; https://www.geconomy.co.kr/mobile/article.html?no=321840 (2026 PC방 with 커플룸/커플석/3인석/5인 팀룸 and per-seat monitor tiers) ; https://www.gamemeca.com/view.php?gid=499245 (brand premium-gear zones in PC방). Working files (read-only dumps): /tmp/claude-0/-home-user--/70cfab65-8cfb-5029-bbdf-07c69ae89ee1/scratchpad/bld/pk/dump.json (every instance in both districts, with world pose/size/colour/attrs/tags), pk/ls.py, pk/aabb.py, pk/nd.py."
+}
