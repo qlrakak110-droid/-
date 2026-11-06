@@ -551,6 +551,7 @@ async function ending(res) {
   await Tw.add(4, (k) => { World.skyU.uCrack.value = lerp(c0, 0, k); }, ease.inOut);
   World.crackOverride = false;
   S.flags.ending = true; World.dawnTarget = 1; World.healTarget = 1;
+  setTimeout(() => refreshWorldEnv(), 4000);
   Snd.play('title');
   await wait(2.5);
   const caught = Object.keys(S.dex.caught).length;
@@ -799,5 +800,5 @@ async function boot() {
 }
 
 // small debugging surface (used by the automated test harness)
-window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends };
+window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera };
 boot().catch((e) => { console.error(e); $('#loadMsg').textContent = '시작하는 중 문제가 생겼어요: ' + e.message; });

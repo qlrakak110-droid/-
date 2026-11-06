@@ -47,7 +47,7 @@ const THEMES = {
   being:    { ground: 0x16172e, ring: 0xffd98a, crack: 0, atm: { top: 0x070d2e, mid: 0x26286a, hor: 0xb07a7a, fog: 0x1e1f44, stars: 1, sun: 0xffe2b8, hemi: 0x9aa4ff }, decor: 'being', rim: 0xffd98a, cloud: 0.5 },
   star:     { ground: 0x070a1e, ring: 0x8fe0ff, crack: 0, atm: { top: 0x01020a, mid: 0x0b1240, hor: 0x2e3478, fog: 0x0a0e26, stars: 1, sun: 0xbfdcff, hemi: 0x6a7ad0 }, decor: 'star', rim: 0x8fe0ff, cloud: 0.18, fog: [24, 110] },
   abyss:    { ground: 0x041820, ring: 0x4ff0ff, crack: 0, atm: { top: 0x00060c, mid: 0x03202e, hor: 0x0b4058, fog: 0x052636, stars: 0, sun: 0x7fe0ff, hemi: 0x2a6a8a }, decor: 'abyss', rim: 0x4ff0ff, cloud: 0, fog: [8, 58] },
-  dawn:     { ground: 0xffe4d6, ring: 0xffa860, crack: 0, atm: { top: 0x2a4a9a, mid: 0xe08a9a, hor: 0xffc070, fog: 0xf2b8a0, stars: 0, sun: 0xffd2a0, hemi: 0xffc8d8 }, decor: 'dawn', rim: 0xffa860, cloud: 1.25, fog: [34, 170], sunDir: [0.55, 0.12, -1], noGround: true },
+  dawn:     { ground: 0xffe4d6, ring: 0xffa860, crack: 0, atm: { top: 0x2a4a9a, mid: 0xe08a9a, hor: 0xffc070, fog: 0xf2b8a0, stars: 0, sun: 0xffd2a0, hemi: 0xffc8d8 }, decor: 'dawn', rim: 0xffa860, cloud: 1.1, fog: [34, 170], sunDir: [-0.9, 0.16, -0.45], noGround: true },
   boundary: { ground: 0x07050d, ring: 0xffffff, crack: 1.1, atm: { top: 0x05061a, mid: 0x2a1a5a, hor: 0x9a7ab8, fog: 0x1a1438, stars: 1, sun: 0xfff0d8, hemi: 0xa89ad8 }, decor: 'boundary', crackDir: [-0.1, 0.5, -1], rim: 0xffffff, cloud: 0.5, noGround: true },
 };
 function setupTheme(name) {
@@ -70,12 +70,14 @@ function setupTheme(name) {
     B.sun.color.setHex(T.atm.sun); B.hemi.color.setHex(T.atm.hemi);
   }
   U.uCloud.value = T.cloud;
-  U.uSunAmt.value = { void: 0.15, being: 0.45, star: 0.1, abyss: 0, dawn: 1.5, boundary: 0.35 }[name] ?? 1;
+  U.uSunAmt.value = { void: 0.15, being: 0.45, star: 0.1, abyss: 0, dawn: 0.7, boundary: 0.35 }[name] ?? 1;
   U.uCrack.value = T.crack === null ? World.skyU.uCrack.value : T.crack;
   U.uSunDir.value.set(...(T.sunDir || [-0.62, 0.32, -0.55])).normalize();
   const cc = T.atm === 'world' ? World.sky.userData.clouds[0].material.color : new THREE.Color(T.atm.hor).lerp(new THREE.Color(T.atm.mid), 0.5);
   for (const c of B.sky.userData.clouds) { c.material.color.copy(cc); c.visible = name !== 'abyss'; }
   U.uCrackDir.value.set(...(T.crackDir || [0.08, 0.5, -1])).normalize();
+  if (B.env) B.env.dispose();
+  B.env = envFromSky(U); B.scene.environment = B.env.texture;
   const fg = T.fog || (name === 'void' || name === 'being' ? [20, 100] : [30, 150]);
   B.scene.fog.near = fg[0]; B.scene.fog.far = fg[1];
   if (B.decor) { B.scene.remove(B.decor); }
@@ -161,7 +163,7 @@ function setupTheme(name) {
     for (let i = 0; i < 3; i++) part(GEO.ring, E(0x4ff0ff, 1.2 + i * 0.15), B.decor, [0, 0.05, -1], [5 + i * 5, 5 + i * 5, 1], [Math.PI / 2, 0, 0]);
   }
   if (T.decor === 'dawn') {
-    const puff = M(0xe6b0a8), puff2 = M(0xc98e9c), puff3 = M(0xf0c8b4);
+    const puff = M(0xcf9c98), puff2 = M(0xae7f92), puff3 = M(0xdcaea8);
     for (let i = 0; i < 150; i++) {
       const a = rng() * Math.PI * 2, rr = 7 + Math.pow(rng(), 0.7) * 50, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 10;
       if (z > 4 && Math.abs(x) < 9) continue;
@@ -172,7 +174,7 @@ function setupTheme(name) {
   }
   if (T.decor === 'boundary') {
     const half = (mat, rot) => { const m = new THREE.Mesh(new THREE.CircleGeometry(150, 64, 0, Math.PI), mat); m.rotation.set(-Math.PI / 2, 0, rot); m.receiveShadow = true; B.decor.add(m); };
-    half(new THREE.MeshLambertMaterial({ color: 0x8c86a6 }), Math.PI / 2);
+    half(new THREE.MeshLambertMaterial({ color: 0x6c6688 }), Math.PI / 2);
     half(new THREE.MeshLambertMaterial({ color: 0x07050d }), -Math.PI / 2);
     part(new THREE.BoxGeometry(0.14, 0.02, 300), E(0xffffff, 2.6), B.decor, [0, 0.02, 0]);
     for (let i = 0; i < 4; i++) {
@@ -196,12 +198,12 @@ function rigTop(r) { const s = r.root.scale.x; return r.root.position.clone().ad
 function placeRig(r, side) {
   const B = Battle, p = side === 'ally' ? B.A : B.F, o = side === 'ally' ? B.F : B.A;
   const legend = SPECIES[r.sp].legend;
-  const FOE_SCALE = { danha: 1.45, limina: 1.5, abyssea: 1.2, asterion: 1.12 };
+  const FOE_SCALE = { nihilos: 1.6, ensia: 1.6, asterion: 1.6, limina: 1.6, danha: 1.45, abyssea: 1.4 };
   const s = side === 'ally' ? (legend ? 0.6 : 1.1) : (legend ? (FOE_SCALE[r.sp] || 1.18) : 1.45);
   r.root.scale.setScalar(s);
   r.root.position.set(p.x, 0.32, p.z);
   r.root.rotation.set(0, Math.atan2(o.x - p.x, o.z - p.z) + (side === 'ally' ? 0.25 : -0.3), 0);
-  if (r.sp === 'limina' && side === 'foe') r.root.rotation.x = 0.5;
+
   r.home = r.root.position.clone(); r.baseScale = s;
   B.scene.add(r.root);
 }
@@ -994,5 +996,5 @@ function updateBattle(dt) {
   B.camera.position.copy(B.camPos); B.camera.lookAt(B.camLook);
   if (B.shake > 0) { B.shake = Math.max(0, B.shake - dt); const s = B.shake * 0.35; B.camera.position.x += rand(-s, s); B.camera.position.y += rand(-s, s); }
   B.sky.position.copy(B.camera.position);
-  sunShafts(B.camera, B.skyU.uSunDir.value, B.theme === 'dawn' ? 1.3 : B.theme === 'field' || B.theme === 'rift' ? 0.6 : 0);
+  sunShafts(B.camera, B.skyU.uSunDir.value, B.theme === 'dawn' ? 0.7 : B.theme === 'field' || B.theme === 'rift' ? 0.6 : 0);
 }

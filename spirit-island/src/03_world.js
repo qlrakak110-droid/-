@@ -704,6 +704,7 @@ function placeRiftState() {
   World.healTarget = S.flags.awakened && !done ? 0.35 : fragCount() / 3; World.heal = World.healTarget;
   World.dawnTarget = done ? 1 : 0; World.dawn = World.dawnTarget;
   recolorTerrain();
+  refreshWorldEnv();
 }
 function fragCount() { return SITES.rifts.reduce((s, r) => s + (S.flags['closed_' + r.id] ? 1 : 0), 0); }
 
@@ -1016,4 +1017,11 @@ function updateTitleRig(dt, on) {
   r.root.position.set(Math.cos(a) * R, 30 + Math.sin(a * 2) * 3, Math.sin(a) * R - 8);
   r.root.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), 0.32);
   rigUpdate(r, dt);
+}
+
+// reflections for PBR materials (the dragons) follow the current sky
+function refreshWorldEnv() {
+  applyAtmos();
+  if (World.env) World.env.dispose();
+  World.env = envFromSky(World.skyU); World.scene.environment = World.env.texture;
 }

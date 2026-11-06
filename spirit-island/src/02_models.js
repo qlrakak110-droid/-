@@ -49,16 +49,45 @@ function eyes(r, parent, { x = 0.15, y = 0.04, z = 0.28, rad = 0.075, pupil = 0x
 function blush(parent, x, y, z, s = 0.06) {
   for (const k of [-1, 1]) { const b = part(GEO.sphere, M(0xff8fa6, { transparent: true, opacity: 0.55 }), parent, [k * x, y, z], [s, s * 0.55, s * 0.3], [0, k * 0.5, 0]); b.userData.noOl = true; }
 }
-function flame(r, parent, pos, s = 1) {
-  const g = grp(parent, pos);
-  const o = part(GEO.cone, E(0xff5a1a, 2.4), g, [0, 0.16 * s, 0], [0.16 * s, 0.44 * s, 0.16 * s]);
-  const i = part(GEO.cone, E(0xffc94a, 3.2), g, [0, 0.11 * s, 0.02 * s], [0.09 * s, 0.3 * s, 0.09 * s]);
-  part(GEO.sphere, E(0xfff3c0, 3.6), g, [0, 0.02 * s, 0], 0.075 * s);
-  const ph = Math.random() * 9;
-  r.fns.push((t) => {
-    const k = 1 + Math.sin(t * 17 + ph) * 0.08 + Math.sin(t * 29 + ph) * 0.06;
-    o.scale.y = 0.44 * s * k; i.scale.y = 0.3 * s * (2 - k); o.rotation.z = Math.sin(t * 7 + ph) * 0.12;
+// animated billboard flame: noise-driven fire shape on a camera-facing quad (additive)
+let _flameMat = null;
+function flameMat() {
+  if (_flameMat) return _flameMat;
+  _flameMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: Shared.time },
+    vertexShader: `attribute float aSeed; varying vec2 vUv; varying float vSeed;
+      void main(){ vUv = uv; vSeed = aSeed;
+        vec4 mv = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        vec3 sx = vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), 1.0);
+        mv.xy += vec2(position.x * sx.x, (position.y + 0.32) * sx.y);
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uTime; varying vec2 vUv; varying float vSeed;
+      ${GLSL_NOISE}
+      void main(){
+        vec2 p = vUv; float t = uTime * 2.6 + vSeed * 17.0;
+        float n = vnoise(vec2(p.x * 5.0 + vSeed * 9.0, p.y * 4.0 - t)) * 0.6 + vnoise(vec2(p.x * 11.0, p.y * 9.0 - t * 1.7)) * 0.4;
+        float w = (1.0 - p.y) * 0.62 + 0.04;
+        float dx = abs(p.x - 0.5 + (n - 0.5) * 0.28 * p.y);
+        float body = smoothstep(w, w * 0.25, dx) * smoothstep(0.0, 0.12, p.y) * smoothstep(1.0, 0.45 + n * 0.25, p.y);
+        float core = smoothstep(w * 0.55, 0.0, dx) * smoothstep(0.75, 0.1, p.y) * smoothstep(0.0, 0.1, p.y);
+        vec3 col = mix(vec3(0.9, 0.16, 0.02), vec3(1.0, 0.5, 0.08), body) + vec3(1.0, 0.8, 0.35) * core * 0.6;
+        float a = clamp(body * 0.9 + core * 0.6, 0.0, 1.0);
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(col * a * 1.15, 1.0);
+      }`,
+    blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, side: THREE.DoubleSide,
   });
+  return _flameMat;
+}
+let _flameGeo = null;
+function flame(r, parent, pos, s = 1) {
+  if (!_flameGeo) { _flameGeo = new THREE.PlaneGeometry(0.42, 0.95); _flameGeo.setAttribute('aSeed', new THREE.BufferAttribute(new Float32Array(4), 1)); }
+  const g = grp(parent, pos);
+  const geo = _flameGeo.clone(); const seed = Math.random(); geo.attributes.aSeed.array.fill(seed);
+  const m = new THREE.Mesh(geo, flameMat()); m.scale.setScalar(s); m.renderOrder = 5; m.frustumCulled = false; g.add(m);
+  const glow = part(GEO.sphere, E(0xff9a3a, 1.5), g, [0, 0.03 * s, 0], 0.05 * s);
+  const ph = Math.random() * 9;
+  r.fns.push((t) => { m.scale.set(s * (1 + Math.sin(t * 9 + ph) * 0.06), s * (1 + Math.sin(t * 13 + ph) * 0.1), s); glow.scale.setScalar(0.07 * s * (1 + Math.sin(t * 11 + ph) * 0.15)); });
   return g;
 }
 function legs4(r, B, { x = 0.2, y = 0.36, z = 0.22, len = 0.2, w = 0.1, col, paw }) {
@@ -434,152 +463,6 @@ function motes(r, parent, n, color, radius, ysp, toCenter = false) {
   const p = new THREE.Points(g, m); p.frustumCulled = false; parent.add(p); return p;
 }
 
-// ---------- 엔시아 : Being
-MODELS.ensia = (r) => {
-  r.float = 1.55; r.floatAmp = 0.12; r.noBreath = true; r.olw = 0.028;
-  const B = grp(r.body);
-  const PEARL = M(0xf7f3ff), GOLD = M(0xe8c063);
-  const prof = [[0.0, -1.45], [0.1, -1.25], [0.24, -0.85], [0.38, -0.35], [0.47, 0.1], [0.45, 0.48], [0.36, 0.78], [0.21, 0.98], [0.0, 1.06]].map(([x, y]) => new THREE.Vector2(x, y));
-  const lathe = new THREE.LatheGeometry(prof, 40);
-  part(lathe, PEARL, B, [0, 0, 0]);
-  part(GEO.torus, GOLD, B, [0, 0.1, 0], [0.47, 0.47, 1.4], [Math.PI / 2, 0, 0]);
-  part(GEO.torus, GOLD, B, [0, -0.6, 0], [0.33, 0.33, 1.4], [Math.PI / 2, 0, 0]);
-  part(GEO.torus, GOLD, B, [0, 0.82, 0], [0.33, 0.33, 1.2], [Math.PI / 2, 0, 0]);
-  const core = grp(B, [0, 0.44, 0.41]);
-  const cs = part(GEO.sphere, E(0xffefb8, 4.2), core, [0, 0, 0], 0.16);
-  part(GEO.torus, E(0xffd27a, 2.6), core, [0, 0, 0], 0.26);
-  for (let i = 0; i < 4; i++) part(GEO.octa, E(0xffe9a8, 3), core, [Math.cos(i * Math.PI / 2) * 0.34, Math.sin(i * Math.PI / 2) * 0.34, 0], [0.03, 0.06, 0.02], [0, 0, i * Math.PI / 2]);
-  spin(r, core, 'z', 0.6);
-  r.fns.push((t) => cs.scale.setScalar(0.16 * (1 + Math.sin(t * 2.2) * 0.12)));
-  // arms
-  for (const s of [-1, 1]) {
-    const a = grp(B, [s * 0.4, 0.78, 0.05], [0.2, 0, s * 0.42]);
-    part(GEO.capsule, PEARL, a, [0, -0.32, 0], [0.12, 0.38, 0.12]);
-    part(GEO.torus, GOLD, a, [0, -0.5, 0], [0.075, 0.075, 0.6], [Math.PI / 2, 0, 0]);
-    part(GEO.sphere, PEARL, a, [0, -0.7, 0.02], [0.07, 0.09, 0.06]);
-    wig(r, a, 'x', 0.1, 0.8, s);
-  }
-  // head
-  const H = grp(B, [0, 1.36, 0.04]);
-  part(GEO.sphere, PEARL, H, [0, 0, 0], [0.25, 0.3, 0.27]);
-  part(GEO.sphere, GOLD, H, [0, 0.02, 0.17], [0.2, 0.24, 0.12]);
-  const eg = grp(H, [0, 0.03, 0.28]);
-  for (const s of [-1, 1]) part(GEO.sphere, E(0xfff8e0, 3.8), eg, [s * 0.08, 0, 0], [0.062, 0.02, 0.02], [0, 0, s * 0.18]);
-  part(GEO.octa, E(0xfff3c4, 3.4), H, [0, 0.17, 0.27], [0.03, 0.06, 0.02]);
-  r.blink.push(eg);
-  // crown of rays
-  for (let i = 0; i < 9; i++) {
-    const a = lerp(-1.25, 1.25, i / 8), L = i % 2 ? 0.42 : 0.62;
-    const ray = grp(H, [Math.sin(a) * 0.24, Math.cos(a) * 0.26, -0.1], [0, 0, -a]);
-    part(GEO.cone, GOLD, ray, [0, L / 2, 0], [0.045, L, 0.03]);
-    part(GEO.sphere, E(0xffe4a0, 3), ray, [0, L + 0.03, 0], 0.035);
-  }
-  const halo = grp(H, [0, 0.05, -0.32]);
-  part(GEO.torus, E(0xffe2a0, 2.6), halo, [0, 0, 0], 0.95);
-  const h2 = grp(halo); part(GEO.torus, E(0xfff0c8, 1.8), h2, [0, 0, 0], [1.18, 1.18, 0.5]);
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; part(GEO.octa, E(0xffd98a, 2.6), h2, [Math.cos(a) * 1.18, Math.sin(a) * 1.18, 0], [0.035, 0.08, 0.03], [0, 0, a]); }
-  spin(r, h2, 'z', 0.25);
-  r.fns.push((t) => { halo.rotation.y = Math.sin(t * 0.5) * 0.15; });
-  // wings (two pairs of feather fans)
-  const featherM = M(0xfffcf4);
-  for (const s of [-1, 1]) {
-    for (const pair of [0, 1]) {
-      const w = grp(B, [s * 0.28, pair ? 0.15 : 0.72, -0.22]);
-      const n = pair ? 5 : 7;
-      for (let i = 0; i < n; i++) {
-        const k = i / (n - 1);
-        const a = pair ? lerp(-0.25, -1.1, k) : lerp(0.05, 1.35, k);
-        const L = (pair ? lerp(1.0, 0.6, k) : lerp(1.75, 0.95, k));
-        const f = grp(w, [0, 0, -i * 0.012], [0, 0, s > 0 ? a : Math.PI - a]);
-        part(GEO.sphere, featherM, f, [L / 2, 0, 0], [L / 2, 0.085, 0.03]);
-        part(GEO.sphere, GOLD, f, [L * 0.62, 0.05, 0], [L * 0.32, 0.025, 0.035]);
-        part(GEO.sphere, E(0xffe7a8, 2.8), f, [L * 0.98, 0, 0], [0.06, 0.04, 0.03]);
-      }
-      w.rotation.y = s * (pair ? 0.35 : 0.45);
-      const base = w.rotation.y;
-      r.fns.push((t) => { w.rotation.y = base + s * Math.sin(t * 1.4 + pair) * 0.18; w.rotation.z = s * Math.sin(t * 1.4 + pair + 0.6) * 0.06; });
-    }
-  }
-  // tail streamers
-  for (const s of [-1, 1]) {
-    let p = grp(B, [s * 0.05, -1.4, -0.02], [0.3, 0, s * 0.25]);
-    for (let k = 0; k < 6; k++) {
-      part(GEO.sphere, E(0xffe7a8, 1 + k * 0.35), p, [0, -0.08, 0], [0.07 - k * 0.008, 0.12, 0.04]);
-      wig(r, p, 'z', 0.18, 1.6, s + k * 0.5); wig(r, p, 'x', 0.1, 1.2, k * 0.4);
-      p = grp(p, [0, -0.17, 0]);
-    }
-  }
-  motes(r, B, 70, 0xffd98a, 1.8, 3.2);
-  r.size = 3.7;
-};
-
-// ---------- 니힐로스 : Void
-MODELS.nihilos = (r) => {
-  r.float = 1.7; r.floatAmp = 0.15; r.noBreath = true; r.olw = 0;
-  const B = grp(r.body);
-  const VM = voidMat(0xb055ff, 2.4), VM2 = voidMat(0xff4fd8, 3.0, 0x05030a, 2.0);
-  // serpent body
-  const segs = [];
-  for (let i = 0; i < 18; i++) {
-    const u = i / 17;
-    const rad = lerp(0.42, 0.07, Math.pow(u, 0.8));
-    const m = part(GEO.sphere, VM, B, [0, 0, 0], rad);
-    segs.push({ m, u, rad });
-    if (i < 12 && i % 2 === 0) part(GEO.cone, VM2, m, [0, 0.95, -0.2], [0.25, 0.9, 0.25], [-0.4, 0, 0]);
-  }
-  const place = (t) => {
-    for (const s of segs) {
-      const u = s.u, a = u * 4.2;
-      s.m.position.set(Math.sin(a + t * 0.9) * 0.75 * (0.4 + u), 0.9 - u * 2.6 + Math.sin(t * 1.3 + u * 6) * 0.05, -0.2 - u * 0.9 + Math.cos(a + t * 0.9) * 0.55 * u);
-    }
-  };
-  place(0); r.fns.push((t) => place(t));
-  // head
-  const H = grp(B, [0, 1.35, 0.35]);
-  part(GEO.sphere, VM, H, [0, 0, 0], [0.56, 0.5, 0.58]);
-  part(GEO.sphere, VM, H, [0, -0.28, 0.2], [0.36, 0.2, 0.34]);
-  for (const [x, y, z, rx, rz, L] of [[0.28, 0.32, -0.15, -0.9, -0.35, 1.0], [-0.28, 0.32, -0.15, -0.9, 0.35, 1.0], [0.44, 0.04, -0.12, -0.6, -1.15, 0.75], [-0.44, 0.04, -0.12, -0.6, 1.15, 0.75], [0, 0.42, -0.3, -1.3, 0, 0.6]]) {
-    const h = grp(H, [x, y, z], [rx, 0, rz]);
-    part(GEO.cone, VM2, h, [0, L / 2, 0], [0.09, L, 0.09]);
-  }
-  // the hollow face: event horizon + accretion rings + singular eye
-  const face = grp(H, [0, 0.02, 0.56]);
-  part(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x000000 }), face, [0, 0, 0.01], 0.32);
-  const ring1 = grp(face); part(GEO.torus, E(0xd06bff, 3.2), ring1, [0, 0, 0], [0.34, 0.34, 1.2]);
-  const ring2 = grp(face); part(GEO.torus, E(0xff6ad5, 2.2), ring2, [0, 0, 0], [0.44, 0.44, 0.5]);
-  const ring3 = grp(face); part(GEO.torus, E(0x8a5cff, 1.6), ring3, [0, 0, 0], [0.55, 0.55, 0.35]);
-  const eye = part(GEO.sphere, E(0xffffff, 6), face, [0, 0, 0.03], 0.035);
-  r.blink.push(eye);
-  r.fns.push((t) => {
-    ring1.rotation.set(Math.sin(t * 0.7) * 0.25, Math.cos(t * 0.5) * 0.25, t * 0.8);
-    ring2.rotation.set(Math.cos(t * 0.6) * 0.5, Math.sin(t * 0.4) * 0.5, -t * 0.5);
-    ring3.rotation.set(1.1 + Math.sin(t * 0.3) * 0.2, 0, t * 0.3);
-    eye.scale.setScalar(0.035 * (1 + Math.max(0, Math.sin(t * 1.7)) * 0.8));
-  });
-  wig(r, H, 'x', 0.06, 0.9); wig(r, H, 'z', 0.05, 0.7, 1);
-  // claws
-  for (const s of [-1, 1]) {
-    const a = grp(B, [s * 0.5, 0.75, 0.25], [0.4, 0, s * 0.8]);
-    part(GEO.sphere, VM, a, [0, -0.3, 0], [0.1, 0.35, 0.1]);
-    for (let k = -1; k <= 1; k++) part(GEO.cone, VM2, a, [k * 0.05, -0.72, 0.03], [0.035, 0.25, 0.035], [0, 0, Math.PI + k * 0.25]);
-    wig(r, a, 'z', 0.15, 1.1, s);
-  }
-  // orbiting shards + orbit ring
-  const orb = grp(B, [0, 0.3, 0]);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2, R = 1.7 + (i % 3) * 0.25;
-    const sh = part(GEO.octa, i % 3 ? VM : VM2, orb, [Math.cos(a) * R, Math.sin(a * 3) * 0.6, Math.sin(a) * R], [0.1 + (i % 3) * 0.05, 0.22 + (i % 2) * 0.1, 0.1]);
-    spin(r, sh, 'y', 1 + i * 0.2); spin(r, sh, 'x', 0.7);
-  }
-  spin(r, orb, 'y', -0.35);
-  const oring = grp(B, [0, 0.35, 0], [1.2, 0, 0.2]);
-  part(GEO.torus, E(0x8a3dff, 1.5), oring, [0, 0, 0], [2.2, 2.2, 0.5]);
-  spin(r, oring, 'z', 0.2);
-  const pm = motes(r, H, 140, 0xb04bff, 1.8, 1.6, true);
-  pm.position.set(0, 0, 0.6);
-  r.size = 3.9;
-};
-
 // ---------- shared helpers for the legends
 function beamBetween(parent, a, b, mat, rad = 0.012) {
   const A = new THREE.Vector3(...a), Bv = new THREE.Vector3(...b), d = Bv.clone().sub(A), L = d.length();
@@ -622,274 +505,6 @@ function cosmicMat(rim = 0x8fe0ff, deep = 0x060a24, neb = 0x4a3a9a, neb2 = 0x1a6
   m.uniforms.uTime = Shared.time;
   _mc.set(k, m); return m;
 }
-
-// ---------- 아스테리온 : the star stag
-MODELS.asterion = (r) => {
-  r.olw = 0; r.hopAmp = 0.3;
-  const B = grp(r.body); B.scale.setScalar(1.85);
-  const CM = cosmicMat(), LINE = E(0xbfeaff, 2.4), NODE = E(0xffffff, 3.6);
-  part(GEO.sphere, CM, B, [0, 0.98, 0], [0.34, 0.33, 0.6]);
-  part(GEO.sphere, CM, B, [0, 1.06, 0.4], [0.3, 0.34, 0.3]);
-  part(GEO.sphere, CM, B, [0, 1.0, -0.42], [0.28, 0.3, 0.28]);
-  for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
-    const hip = grp(B, [sx * 0.18, 0.92, sz * 0.4]);
-    part(GEO.cyl, CM, hip, [0, -0.22, 0], [0.075, 0.46, 0.075]);
-    const knee = grp(hip, [0, -0.45, 0], [sz > 0 ? 0.12 : -0.22, 0, 0]);
-    part(GEO.cyl, CM, knee, [0, -0.22, 0], [0.05, 0.44, 0.05]);
-    part(GEO.octa, NODE, knee, [0, -0.47, 0], [0.06, 0.05, 0.06]);
-    part(GEO.torus, E(0x8fe0ff, 2.2), knee, [0, -0.44, 0], [0.07, 0.07, 0.07], [Math.PI / 2, 0, 0]);
-    wig(r, hip, 'x', 0.5, 1, sx * sz > 0 ? 0 : Math.PI, true);
-  }
-  part(GEO.cyl, CM, B, [0, 1.4, 0.58], [0.1, 0.62, 0.1], [0.55, 0, 0]);
-  const H = grp(B, [0, 1.7, 0.78]);
-  part(GEO.sphere, CM, H, [0, 0, 0], [0.16, 0.17, 0.25]);
-  part(GEO.sphere, CM, H, [0, -0.05, 0.2], [0.1, 0.09, 0.15]);
-  for (const sd of [-1, 1]) {
-    const eg = grp(H, [sd * 0.11, 0.04, 0.14], [0, sd * 0.6, sd * 0.2]);
-    part(GEO.sphere, E(0xcff6ff, 3.8), eg, [0, 0, 0], [0.036, 0.018, 0.03]);
-    r.blink.push(eg);
-    const e = grp(H, [sd * 0.13, 0.12, -0.08], [0, 0, -sd * 0.9]);
-    part(GEO.cone, CM, e, [0, 0.08, 0], [0.05, 0.18, 0.03]);
-    wig(r, e, 'z', 0.1, 2, sd);
-  }
-  const branch = (parent, depth, len, sd) => {
-    part(GEO.cyl, LINE, parent, [0, len / 2, 0], [0.011, len, 0.011]);
-    part(GEO.sphere, NODE, parent, [0, len, 0], depth === 0 ? 0.03 : 0.02);
-    if (depth > 0) {
-      branch(grp(parent, [0, len, 0], [0.25, 0, -sd * 0.55]), depth - 1, len * 0.74, sd);
-      branch(grp(parent, [0, len, 0], [-0.2, 0, sd * 0.42]), depth - 1, len * 0.62, sd);
-    }
-  };
-  for (const sd of [-1, 1]) branch(grp(H, [sd * 0.07, 0.13, -0.05], [-0.3, 0, -sd * 0.45]), 3, 0.3, sd);
-  const pts = [[0, 1.31, -0.5], [0.12, 1.33, -0.1], [-0.05, 1.34, 0.25], [0.16, 1.25, 0.48], [-0.2, 1.12, 0.2], [0.25, 1.0, -0.3], [-0.24, 1.05, -0.55]];
-  for (let i = 0; i < pts.length; i++) { part(GEO.sphere, NODE, B, pts[i], 0.022); if (i > 0) beamBetween(B, pts[i - 1], pts[i], LINE, 0.008); }
-  let p = grp(B, [0, 1.15, -0.62], [0.9, 0, 0]);
-  for (let k = 0; k < 7; k++) {
-    part(GEO.sphere, E([0x8a6aff, 0x6a9aff, 0xb48cff][k % 3], 1.1 + k * 0.15, { transparent: true, opacity: 0.6, depthWrite: false }), p, [0, 0, -0.08], 0.12 - k * 0.012).userData.noOl = true;
-    wig(r, p, 'y', 0.25, 1.6, -k * 0.6);
-    p = grp(p, [0, 0, -0.14], [-0.15, 0, 0]);
-  }
-  const halo = grp(B, [0, 2.15, 0.1]);
-  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; part(GEO.octa, NODE, halo, [Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5], [0.025, 0.05, 0.025]); }
-  part(GEO.ring, E(0x8fe0ff, 1.8), halo, [0, 0, 0], [0.5, 0.5, 2], [Math.PI / 2, 0, 0]);
-  spin(r, halo, 'y', 0.5);
-  motes(r, B, 60, 0x9fd8ff, 0.9, 2.0);
-  r.size = 3.9;
-};
-
-// ---------- 아비세아 : the abyssal whale
-MODELS.abyssea = (r) => {
-  r.float = 1.5; r.floatAmp = 0.22; r.noBreath = true; r.olw = 0;
-  const B = grp(r.body); B.scale.setScalar(1.05);
-  const SKIN = M(0x16365e), BELLY = M(0x3a7aa0), DARK = M(0x0b1e38);
-  const GL = E(0x5ff4ff, 2.8), GL2 = E(0xa98bff, 2.4);
-  const segs = [];
-  for (let i = 0; i < 15; i++) {
-    const u = i / 14, rad = lerp(0.82, 0.13, Math.pow(u, 0.85));
-    const g = grp(B);
-    part(GEO.sphere, SKIN, g, [0, 0, 0], [rad * 1.15, rad * 0.92, rad * 1.25]);
-    part(GEO.sphere, BELLY, g, [0, -rad * 0.38, 0.02], [rad * 0.95, rad * 0.55, rad * 1.1]);
-    if (i % 2 === 0) for (const sx of [-1, 1]) part(GEO.sphere, GL, g, [sx * rad * 1.05, rad * 0.08, 0], rad * 0.1);
-    if (i > 0 && i < 12) part(GEO.box, GL2, g, [0, rad * 0.9, 0], [rad * 0.07, rad * 0.07, rad * 1.0]);
-    if (i % 3 === 1) part(GEO.cone, DARK, g, [0, rad * 1.0, -rad * 0.2], [rad * 0.25, rad * 0.7, rad * 0.4], [-0.7, 0, 0]);
-    segs.push({ g, u, rad });
-  }
-  const tail = segs[segs.length - 1].g;
-  for (const sx of [-1, 1]) {
-    part(GEO.sphere, SKIN, tail, [sx * 0.5, 0, -0.25], [0.62, 0.045, 0.32], [0, sx * 0.6, 0]);
-    part(GEO.box, GL, tail, [sx * 0.62, 0.03, -0.35], [0.7, 0.012, 0.012], [0, sx * 0.6, 0]);
-  }
-  const place = (t) => {
-    for (const sg of segs) {
-      const u = sg.u;
-      sg.g.position.set(Math.sin(t * 0.7 - u * 3.2) * 0.35 * u, Math.sin(t * 1.2 - u * 4.5) * 0.38 * u, 0.2 - u * 6.4);
-      sg.g.rotation.x = Math.cos(t * 1.2 - u * 4.5) * 0.35 * u; sg.g.rotation.y = Math.cos(t * 0.7 - u * 3.2) * 0.22 * u;
-    }
-  };
-  place(0); r.fns.push(place);
-  const H = grp(B, [0, 0.05, 0.75]);
-  part(GEO.sphere, SKIN, H, [0, 0, 0], [0.95, 0.78, 1.15]);
-  part(GEO.sphere, BELLY, H, [0, -0.32, 0.1], [0.85, 0.48, 1.05]);
-  part(GEO.box, E(0x2fd8ff, 1.8), H, [0, -0.2, 1.1], [0.9, 0.02, 0.02]);
-  for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
-    const eg = grp(H, [sx * (0.7 - k * 0.04), 0.2 - k * 0.14, 0.72 - k * 0.24]);
-    part(GEO.sphere, E(0xbff8ff, 3.8), eg, [0, 0, 0], 0.075 - k * 0.015);
-    r.blink.push(eg);
-  }
-  for (let k = 0; k < 5; k++) part(GEO.cone, GL2, H, [(k - 2) * 0.16, 0.72 - Math.abs(k - 2) * 0.06, -0.2], [0.04, 0.5, 0.04], [-1.0, 0, (k - 2) * 0.15]);
-  let lp = grp(H, [0, 0.72, 0.5], [0.4, 0, 0]);
-  for (let k = 0; k < 4; k++) { part(GEO.cyl, DARK, lp, [0, 0.12, 0], [0.025, 0.24, 0.025]); wig(r, lp, 'x', 0.18, 1.4, k * 0.7); lp = grp(lp, [0, 0.24, 0], [0.25, 0, 0]); }
-  part(GEO.sphere, E(0x8ffcff, 3.8), lp, [0, 0.06, 0], 0.11);
-  part(GEO.torus, E(0x5ff4ff, 2), lp, [0, 0.06, 0], 0.17, [Math.PI / 2, 0, 0]);
-  const finM = toonMat({ color: 0x2a7ab8, transparent: true, opacity: 0.62, side: THREE.DoubleSide });
-  for (const sx of [-1, 1]) {
-    const f = grp(B, [sx * 0.85, -0.25, -0.1], [0, sx * 0.25, sx * -0.25]);
-    part(GEO.sphere, finM, f, [sx * 1.3, 0, -0.3], [1.5, 0.04, 0.7]);
-    for (let k = 0; k < 3; k++) part(GEO.box, GL, f, [sx * (0.7 + k * 0.1), 0.02, -0.3 + (k - 1) * 0.25], [1.3 - k * 0.2, 0.012, 0.012], [0, sx * (k - 1) * 0.25, 0]);
-    wig(r, f, 'z', 0.28, 1.1, sx > 0 ? 0 : Math.PI);
-  }
-  motes(r, B, 70, 0x7ff0ff, 2.6, 3.2);
-  r.size = 3.0;
-};
-
-// ---------- 단하 : the dawn dragon
-MODELS.danha = (r) => {
-  r.float = 1.7; r.floatAmp = 0.18; r.noBreath = true; r.olw = 0.018;
-  const B = grp(r.body);
-  const RED = M(0xd2283f), RED2 = M(0xb21d34), GOLD = M(0xf2c35a), CREAM = M(0xffe2a8);
-  const segs = [];
-  for (let i = 0; i < 28; i++) {
-    const u = i / 27, rad = lerp(0.3, 0.07, Math.pow(u, 0.9));
-    const g = grp(B);
-    part(GEO.sphere, i % 2 ? RED : RED2, g, [0, 0, 0], [rad, rad, rad * 1.3]);
-    part(GEO.sphere, CREAM, g, [0, -rad * 0.45, 0], [rad * 0.75, rad * 0.5, rad * 1.15]);
-    if (i % 2 === 0 && i < 25) { const f = flame(r, g, [0, rad * 0.8, -rad * 0.2], Math.max(0.5, rad * 2.8)); f.rotation.x = -0.5; }
-    segs.push({ g, u, rad });
-  }
-  flame(r, segs[27].g, [0, 0, -0.08], 1.1).rotation.x = -1.4;
-  const legAt = (sg, sx) => {
-    const L = grp(sg.g, [sx * sg.rad * 0.9, -sg.rad * 0.4, 0], [0.3, 0, sx * 0.6]);
-    part(GEO.capsule, RED, L, [0, -0.15, 0], [0.08, 0.16, 0.08]);
-    for (let k = -1; k <= 1; k++) part(GEO.cone, GOLD, L, [k * 0.035, -0.33, 0.04], [0.025, 0.09, 0.025], [0.3, 0, Math.PI + k * 0.3]);
-    wig(r, L, 'x', 0.4, 2.2, sx); return L;
-  };
-  const fl = legAt(segs[3], 1); legAt(segs[3], -1); legAt(segs[13], 1); legAt(segs[13], -1);
-  const pearl = grp(fl, [0, -0.38, 0.1]);
-  part(GEO.sphere, E(0xffeab0, 3.8), pearl, [0, 0, 0], 0.13);
-  part(GEO.torus, E(0xffc04a, 2.2), pearl, [0, 0, 0], 0.2);
-  spin(r, pearl, 'y', 1.5);
-  const puffM = toonMat({ color: 0xfff0e6, transparent: true, opacity: 0.92 });
-  for (const [si, sx] of [[7, 1], [15, -1], [21, 1], [25, -1]]) {
-    const c = grp(segs[si].g, [sx * 0.3, -0.25, 0]);
-    for (let k = 0; k < 4; k++) part(GEO.sphere, puffM, c, [k * 0.14 * sx, Math.sin(k) * 0.05, (k % 2) * 0.1], 0.13 + (k % 2) * 0.05);
-  }
-  const H = grp(B);
-  part(GEO.sphere, RED, H, [0, 0, 0], [0.3, 0.25, 0.36]);
-  part(GEO.sphere, RED2, H, [0, -0.04, 0.32], [0.2, 0.15, 0.3]);
-  part(GEO.sphere, GOLD, H, [0, 0.0, 0.6], [0.06, 0.05, 0.05]);
-  const jaw = grp(H, [0, -0.12, 0.1]);
-  part(GEO.sphere, CREAM, jaw, [0, 0, 0.18], [0.17, 0.07, 0.32]);
-  for (const sx of [-1, 1]) part(GEO.cone, M(0xffffff), jaw, [sx * 0.08, 0.06, 0.38], [0.02, 0.06, 0.02], [Math.PI, 0, 0]);
-  wig(r, jaw, 'x', 0.12, 1.4);
-  eyes(r, H, { x: 0.17, y: 0.08, z: 0.2, rad: 0.055, glowc: 0xffc24a, tilt: 0.35 });
-  for (const sx of [-1, 1]) {
-    part(GEO.cone, GOLD, H, [sx * 0.17, 0.15, 0.18], [0.03, 0.12, 0.03], [-1.2, 0, -sx * 0.4]);
-    const a = grp(H, [sx * 0.12, 0.18, -0.08], [-0.55, 0, -sx * 0.35]);
-    part(GEO.cyl, GOLD, a, [0, 0.25, 0], [0.028, 0.5, 0.028]);
-    const b1 = grp(a, [0, 0.22, 0], [0.2, 0, -sx * 0.9]); part(GEO.cyl, GOLD, b1, [0, 0.12, 0], [0.02, 0.24, 0.02]);
-    const b2 = grp(a, [0, 0.38, 0], [-0.3, 0, sx * 0.7]); part(GEO.cyl, GOLD, b2, [0, 0.1, 0], [0.018, 0.2, 0.018]);
-    let w = grp(H, [sx * 0.14, -0.06, 0.48], [0, 0, -sx * 1.2]);
-    for (let k = 0; k < 7; k++) { part(GEO.cyl, E(0xffd27a, 1.5), w, [0, 0.07, 0], [0.008, 0.14, 0.008]); wig(r, w, 'z', 0.25, 1.8, k * 0.6 + sx); w = grp(w, [0, 0.14, 0], [0.15, 0, -sx * 0.12]); }
-    const mf = flame(r, H, [sx * 0.14, 0.1, -0.25], 0.8); mf.rotation.set(-1.0, 0, sx * 0.6);
-  }
-  flame(r, H, [0, 0.2, -0.22], 0.9).rotation.x = -1.1;
-  for (let k = -1; k <= 1; k++) part(GEO.cone, CREAM, H, [k * 0.06, -0.24, 0.2], [0.03, 0.14, 0.03], [Math.PI - 0.3, 0, k * 0.2]);
-  const fwd = new THREE.Vector3(0, 0, 1), dir = new THREE.Vector3();
-  const place = (t) => {
-    for (const sg of segs) {
-      const u = sg.u, a = u * 6.2 + t * 1.1;
-      sg.g.position.set(Math.sin(a) * (0.45 + u * 0.95), 0.35 + Math.cos(a * 0.9) * 0.45 * u - u * 0.7, 0.35 - u * 3.1 + Math.cos(a) * 0.35 * u);
-    }
-    for (let i = 0; i < segs.length; i++) {
-      const a = segs[Math.max(0, i - 1)].g.position, b = segs[Math.min(segs.length - 1, i + 1)].g.position;
-      dir.subVectors(a, b); if (dir.lengthSq() > 1e-6) segs[i].g.quaternion.setFromUnitVectors(fwd, dir.normalize());
-    }
-    H.quaternion.copy(segs[0].g.quaternion);
-    H.position.copy(segs[0].g.position).add(new THREE.Vector3(0, 0.08, 0.22).applyQuaternion(H.quaternion));
-  };
-  place(0); r.fns.push(place);
-  r.size = 3.5;
-};
-
-// ---------- 리미나 : the boundary manta (half Being, half Void)
-let _mantaGeo = null;
-function mantaGeo() {
-  if (_mantaGeo) return _mantaGeo;
-  const g = new THREE.SphereGeometry(1, 96, 48), p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ax = Math.abs(x);
-    p.setXYZ(i, x * 2.9, y * 0.36 * (1 - ax * ax * 0.8) + (1 - ax * ax) * 0.06, z * 1.3 * (1 - ax * 0.62) - Math.pow(ax, 1.7) * 1.15 + 0.35 * (1 - ax));
-  }
-  g.computeVertexNormals(); _mantaGeo = g; return g;
-}
-function mantaMat() {
-  if (_mc.has('manta')) return _mc.get('manta');
-  const m = new THREE.ShaderMaterial({
-    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uSun: { value: new THREE.Vector3(-0.4, 0.8, 0.4).normalize() }, uPearl: { value: new THREE.Color(0xd8cfe8) }, uGold: { value: new THREE.Color(0xffd27a) }, uViolet: { value: new THREE.Color(0xb04bff) }, uPx: { value: 1 }, uTime: { value: 0 } }]),
-    vertexShader: `uniform float uTime; varying vec3 vN; varying vec3 vV; varying vec3 vO; varying vec3 vWN; ${FOG_V}
-      void main(){
-        vec3 p = position; float ax = abs(p.x) / 2.9; float ph = uTime * 1.5 - ax * 2.4;
-        p.y += sin(ph) * ax * ax * 0.95; p.z += cos(ph) * ax * 0.08;
-        vec3 n = normal; n.x -= sign(position.x) * cos(ph) * ax * 0.7; n = normalize(n);
-        vN = normalize(normalMatrix * n); vWN = normalize(mat3(modelMatrix) * n); vO = position;
-        vec4 mvPosition = modelViewMatrix * vec4(p, 1.0); vV = normalize(-mvPosition.xyz);
-        gl_Position = projectionMatrix * mvPosition;
-        #include <fog_vertex>
-      }`,
-    fragmentShader: `uniform vec3 uSun, uPearl, uGold, uViolet; uniform float uTime, uPx; varying vec3 vN; varying vec3 vV; varying vec3 vO; varying vec3 vWN;
-      ${GLSL_NOISE}
-      ${FOG_F}
-      void main(){
-        float side = smoothstep(-0.03, 0.03, vO.x);
-        float nl = max(dot(vWN, normalize(uSun)), 0.0);
-        float toon = nl > 0.55 ? 1.0 : (nl > 0.18 ? 0.78 : 0.58);
-        float top = step(0.0, vO.y);
-        float rings = sin(length(vO.xz * vec2(1.0, 1.7)) * 13.0 - uTime * 0.8);
-        float fil = smoothstep(0.9, 1.0, rings) * top;
-        float spots = smoothstep(0.82, 0.86, vnoise(vO.xz * 3.0)) * top;
-        vec3 being = uPearl * toon * (0.75 + 0.25 * top) + uGold * (fil * 1.6 + spots * 0.9);
-        vec2 fc = gl_FragCoord.xy / uPx; float h = hash12(floor(fc / 3.0));
-        float star = step(0.975, h) * smoothstep(0.55, 0.0, length(fract(fc / 3.0) - 0.5)) * (0.5 + 0.5 * sin(uTime * 2.0 + h * 70.0));
-        vec3 voidc = vec3(0.015, 0.008, 0.035) + uViolet * (fil * 2.0 + spots * 0.8) + vec3(1.5) * star * top;
-        vec3 col = mix(being, voidc, side);
-        float fr = pow(1.0 - max(dot(normalize(vN), normalize(vV)), 0.0), 2.4);
-        col += mix(uGold * 1.7, uViolet * 2.2, side) * fr;
-        col += mix(uGold, uViolet, 0.5) * exp(-abs(vO.x) * 22.0) * 3.2 * top;
-        gl_FragColor = vec4(col, 1.0);
-        #include <fog_fragment>
-      }`,
-    fog: true,
-  });
-  m.uniforms.uTime = Shared.time; m.uniforms.uPx.value = renderer.getPixelRatio();
-  _mc.set('manta', m); return m;
-}
-MODELS.limina = (r) => {
-  r.float = 2.0; r.floatAmp = 0.25; r.noBreath = true; r.olw = 0;
-  const B = grp(r.body); B.scale.setScalar(1.15);
-  const body = new THREE.Mesh(mantaGeo(), mantaMat()); B.add(body);
-  const PEARL = M(0xf4eefc), VM = voidMat(0xb055ff, 2.2);
-  for (const sx of [-1, 1]) {
-    const c = grp(B, [sx * 0.42, 0.05, 1.0], [0, -sx * 0.2, 0]);
-    part(GEO.cone, sx < 0 ? PEARL : VM, c, [0, 0, 0.22], [0.09, 0.5, 0.09], [Math.PI / 2 - 0.4, 0, 0]);
-    part(GEO.cone, sx < 0 ? E(0xffd27a, 2.4) : E(0xc77dff, 2.4), c, [0, -0.13, 0.46], [0.04, 0.16, 0.04], [Math.PI / 2 + 0.6, 0, 0]);
-    wig(r, c, 'x', 0.15, 1.5, sx);
-  }
-  const eye = grp(B, [0, 0.33, 0.55], [-1.2, 0, 0]);
-  part(GEO.circle, new THREE.MeshBasicMaterial({ color: 0x000000 }), eye, [0, 0, 0], 0.13);
-  part(new THREE.TorusGeometry(0.16, 0.025, 8, 32, Math.PI), E(0xffd27a, 3), eye, [0, 0, 0.01], 1, [0, 0, Math.PI / 2]);
-  part(new THREE.TorusGeometry(0.16, 0.025, 8, 32, Math.PI), E(0xc77dff, 3), eye, [0, 0, 0.01], 1, [0, 0, -Math.PI / 2]);
-  const pup = part(GEO.sphere, E(0xffffff, 5), eye, [0, 0, 0.02], 0.03);
-  r.blink.push(eye);
-  r.fns.push((t) => pup.scale.setScalar(0.03 * (1 + Math.max(0, Math.sin(t * 1.3)) * 0.7)));
-  let tp = grp(B, [0, 0.0, -1.35]);
-  for (let k = 0; k < 9; k++) {
-    part(GEO.sphere, k % 2 ? E(0xffd27a, 1.6) : voidMat(0xb055ff, 2.4), tp, [0, 0, -0.1], 0.05 - k * 0.003);
-    wig(r, tp, 'y', 0.16, 1.5, -k * 0.5); wig(r, tp, 'x', 0.08, 1.5, -k * 0.5 + 1);
-    tp = grp(tp, [0, 0, -0.2]);
-  }
-  const orb = grp(tp, [0, 0, -0.05]);
-  part(new THREE.SphereGeometry(0.13, 20, 12, 0, Math.PI), E(0xffeab0, 3), orb, [0, 0, 0], 1, [0, Math.PI / 2, 0]);
-  part(new THREE.SphereGeometry(0.13, 20, 12, 0, Math.PI), voidMat(0xd06bff, 1.8), orb, [0, 0, 0], 1, [0, -Math.PI / 2, 0]);
-  spin(r, orb, 'z', 1.4);
-  const halo = grp(B, [0, 0.95, -0.15]);
-  part(new THREE.TorusGeometry(1.1, 0.03, 8, 64, Math.PI), E(0xffd27a, 2.4), halo, [0, 0, 0], 1, [Math.PI / 2, 0, 0]);
-  part(new THREE.TorusGeometry(1.1, 0.03, 8, 64, Math.PI), E(0xc77dff, 2.6), halo, [0, 0, 0], 1, [Math.PI / 2, 0, Math.PI]);
-  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; part(GEO.octa, i < 4 ? E(0xffe7a8, 2.8) : E(0xd9a6ff, 2.8), halo, [Math.cos(a) * 1.1, 0, Math.sin(a) * 1.1], [0.04, 0.08, 0.04]); }
-  spin(r, halo, 'y', 0.35);
-  motes(r, B, 50, 0xffd98a, 2.4, 1.6);
-  motes(r, B, 50, 0xb04bff, 2.4, 1.6);
-  r.size = 3.0;
-};
 
 // ---------- people
 function buildPerson(o = {}) {
@@ -965,6 +580,7 @@ const FLASH_MAT = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 2.2,
 function flashRig(r, on, mat = FLASH_MAT) {
   r.root.traverse((o) => {
     if (!o.isMesh || o.userData.isOl) return;
+    if (o.material && o.material.userData && o.material.userData.uFlash) { o.material.userData.uFlash.value = on ? 1 : 0; return; }
     if (on) { if (!o.userData.m0) o.userData.m0 = o.material; o.material = mat; }
     else if (o.userData.m0) { o.material = o.userData.m0; o.userData.m0 = null; }
   });
