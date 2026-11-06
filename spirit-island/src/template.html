@@ -241,6 +241,22 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .toast{background:var(--panel-hi);border:1px solid var(--line-hi);padding:10px 18px;border-radius:999px;font-weight:700;font-size:14px;animation:toast 3.2s ease forwards;text-align:center}
 @keyframes toast{0%{opacity:0;transform:translateY(-8px)}10%,85%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-6px)}}
 #fade{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none;z-index:40;transition:opacity .6s ease}
+#cine{position:absolute;inset:0;pointer-events:none;z-index:37}
+#cine i{position:absolute;left:0;right:0;height:0;background:#000;transition:height .55s cubic-bezier(.2,.8,.2,1)}
+#cine i:first-child{top:0}
+#cine i:last-child{bottom:0}
+#cine.on i{height:11vh}
+#split{position:absolute;inset:0;pointer-events:none;z-index:38;opacity:0;background:linear-gradient(90deg,#fff6dc 0 50%,#000 50% 100%)}
+#banner.star .b1{color:#e8f8ff;text-shadow:0 0 30px #8fe0ff,0 0 80px #3a6ad8}
+#banner.abyss .b1{color:#d8fbff;text-shadow:0 0 30px #4ff0ff,0 0 80px #0a5a7a}
+#banner.dawn .b1{color:#fff0e0;text-shadow:0 0 30px #ffa860,0 0 80px #d2283f}
+#banner.limina .b1{background:linear-gradient(90deg,#fff3cf 0 50%,#d9a6ff 50% 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 24px rgba(255,255,255,.55))}
+.dex .leg{border-color:rgba(242,212,138,.55);background:radial-gradient(circle at 50% 30%,rgba(242,212,138,.12),transparent 70%)}
+.dex .leg.myth{border-color:rgba(199,125,255,.6);background:radial-gradient(circle at 50% 30%,rgba(199,125,255,.14),transparent 70%)}
+.dex .tag{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--gold)}
+.dex .myth .tag{color:var(--void)}
+#questLeg{font-size:12px;color:#9fe8ff}
+#questLeg:empty{display:none}
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:41}
 #wipe{position:absolute;inset:0;pointer-events:none;z-index:39;opacity:0;
   background:repeating-conic-gradient(from 0deg at 50% 50%,#07060c 0 10deg,#140a26 10deg 20deg);clip-path:circle(0% at 50% 50%)}
@@ -298,7 +314,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <div id="lore" class="screen" hidden><p id="loreText"></p><button id="loreSkip" class="chip">건너뛰기</button></div>
 
   <div id="hud" hidden>
-    <div id="quest"><span class="q-label">목표</span><span id="questText"></span><span id="questSub"></span></div>
+    <div id="quest"><span class="q-label">목표</span><span id="questText"></span><span id="questSub"></span><span id="questLeg"></span></div>
     <div id="hudBtns">
       <button id="bParty" class="ibtn">정령</button>
       <button id="bBag" class="ibtn">가방</button>
@@ -330,6 +346,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <div id="pops"></div>
   <div id="toasts"></div>
   <div id="banner" class="plain"><div class="b1"></div><div class="b2"></div></div>
+  <div id="cine"><i></i><i></i></div>
+  <div id="split"></div>
   <div id="wipe"></div>
   <div id="fade"></div>
   <div id="flash"></div>

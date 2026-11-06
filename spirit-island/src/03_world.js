@@ -135,8 +135,9 @@ function buildWorld() {
   const htex = new THREE.DataTexture(hd, HT, HT, THREE.RedFormat); htex.magFilter = htex.minFilter = THREE.LinearFilter; htex.needsUpdate = true;
 
   // ---------------- sea
+  W.skyU = makeSkyUniforms();
   W.waterU = {
-    uTime: Shared.time, uH: { value: htex },
+    uTime: Shared.time, uH: { value: htex }, uTop: W.skyU.uTop, uMid: W.skyU.uMid, uHor: W.skyU.uHor,
     uDeep: { value: new THREE.Color(0x0e2a55) }, uShallow: { value: new THREE.Color(0x2cc3c9) }, uFoam: { value: new THREE.Color(0xf4f0ff) },
     uSky: { value: new THREE.Color(0xb48ad0) }, uSunDir: { value: W.sunDir }, uSunCol: { value: new THREE.Color(0xffc29a) },
   };
@@ -146,7 +147,8 @@ function buildWorld() {
       void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW = w.xyz; vec4 mvPosition = viewMatrix*w; gl_Position = projectionMatrix*mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform float uTime; uniform sampler2D uH; uniform vec3 uDeep, uShallow, uFoam, uSky, uSunDir, uSunCol; varying vec3 vW;
+    fragmentShader: `uniform float uTime; uniform sampler2D uH; uniform vec3 uDeep, uShallow, uFoam, uSky, uSunDir, uSunCol, uTop, uMid, uHor; varying vec3 vW;
+      vec3 skyCol(vec3 d){ float y = max(d.y, 0.0); vec3 c = mix(uHor, uMid, smoothstep(-0.04, 0.3, y)); return mix(c, uTop, smoothstep(0.3, 0.9, y)); }
       ${GLSL_NOISE}
       ${FOG_F}
       void main(){
@@ -159,8 +161,8 @@ function buildWorld() {
         vec3 V = normalize(cameraPosition - vW);
         float fres = pow(1.0 - max(dot(N, V), 0.0), 4.0);
         vec3 col = mix(uShallow, uDeep, smoothstep(0.0, 4.5, depth));
-        col = mix(col, uSky, fres * 0.65);
         vec3 Rf = reflect(-V, N);
+        col = mix(col, mix(skyCol(Rf) * 1.08, uSky, 0.3), clamp(fres * 0.85, 0.0, 0.9));
         col += uSunCol * pow(max(dot(Rf, uSunDir), 0.0), 90.0) * 2.6;
         float shore = 1.0 - smoothstep(0.0, 1.1, depth);
         float wave = sin(depth * 7.0 - t * 1.8 + vnoise(vW.xz*0.3)*4.0) * 0.5 + 0.5;
@@ -179,7 +181,6 @@ function buildWorld() {
   floor.position.y = -7.5; scene.add(floor);
 
   // ---------------- sky
-  W.skyU = makeSkyUniforms();
   W.sky = makeSky(W.skyU); scene.add(W.sky);
 
   // ---------------- vegetation & props
@@ -191,6 +192,7 @@ function buildWorld() {
   buildAltar(scene);
   for (const r of SITES.rifts) buildRift(scene, r);
   W.fx = new Particles(scene, 1600);
+  buildLegendSites();
 
   // ---------------- player & follower
   W.player = buildPerson({ top: 0xf1f3fb, bottom: 0x2b2f4a, accent: 0x7d55f0, hair: 0x2a2238, pin: 0xffd98a });
@@ -239,7 +241,7 @@ function makeSkyUniforms() {
     uTime: Shared.time,
     uTop: { value: new THREE.Color(0x0c0a2a) }, uMid: { value: new THREE.Color(0x4a2a6a) }, uHor: { value: new THREE.Color(0xe0728a) },
     uSunDir: { value: new THREE.Vector3(-0.62, 0.32, -0.55).normalize() }, uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
-    uCrackDir: { value: new THREE.Vector3(0.08, 0.5, -1).normalize() }, uCrack: { value: 1 }, uStars: { value: 1 },
+    uCrackDir: { value: new THREE.Vector3(0.08, 0.5, -1).normalize() }, uCrack: { value: 1 }, uStars: { value: 1 }, uCloud: { value: 1 }, uSunAmt: { value: 1 },
   };
 }
 function makeSky(U) {
@@ -247,7 +249,7 @@ function makeSky(U) {
   const mat = new THREE.ShaderMaterial({
     uniforms: U, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position = p.xyww; }`,
-    fragmentShader: `uniform vec3 uTop, uMid, uHor, uSunDir, uMoonDir, uCrackDir; uniform float uTime, uCrack, uStars; varying vec3 vDir;
+    fragmentShader: `uniform vec3 uTop, uMid, uHor, uSunDir, uMoonDir, uCrackDir; uniform float uTime, uCrack, uStars, uCloud, uSunAmt; varying vec3 vDir;
       ${GLSL_NOISE}
       vec2 crackLine(vec2 q, float L, float w, float seed){
         float along = q.y, across = q.x;
@@ -264,7 +266,7 @@ function makeSky(U) {
         col = mix(col, uTop, smoothstep(0.3, 0.9, y));
         col = mix(col, uHor * 0.45, smoothstep(0.0, -0.25, y));
         float s = max(dot(d, uSunDir), 0.0);
-        col += vec3(1.0, 0.55, 0.32) * pow(s, 5.0) * 0.5 + vec3(1.0, 0.82, 0.6) * pow(s, 900.0) * 5.0;
+        col += (vec3(1.0, 0.55, 0.32) * pow(s, 5.0) * 0.5 + vec3(1.0, 0.82, 0.6) * pow(s, 900.0) * 5.0) * uSunAmt;
         float bands = vnoise(vec2(atan(d.z, d.x) * 3.0, y * 14.0)) * smoothstep(0.02, 0.12, y) * smoothstep(0.35, 0.12, y);
         col = mix(col, col * 1.25 + vec3(0.06, 0.02, 0.05), bands * 0.6);
         float md = dot(d, uMoonDir);
@@ -272,6 +274,18 @@ function makeSky(U) {
         vec3 mc = vec3(0.92, 0.9, 1.0) * (0.85 + 0.15 * vnoise(d.xz * 900.0));
         col = mix(col, mc * 1.4, moon * uStars);
         col += vec3(0.5, 0.45, 0.8) * pow(max(md, 0.0), 220.0) * 0.6 * uStars;
+        if (y > 0.0 && uCloud > 0.001) {
+          vec2 cp = d.xz / (y + 0.11) * 1.45 + vec2(uTime * 0.011, uTime * 0.004);
+          float cn = vnoise(cp) * 0.5 + vnoise(cp * 2.1 + 3.7) * 0.27 + vnoise(cp * 4.3 + 9.1) * 0.15 + vnoise(cp * 8.9 + 1.3) * 0.08;
+          float cov = smoothstep(0.47, 0.76, cn) * smoothstep(0.0, 0.07, y) * (1.0 - smoothstep(0.5, 0.92, y)) * min(uCloud, 1.0);
+          vec3 hd = normalize(vec3(d.x, 0.0, d.z) + 1e-4), sd = normalize(vec3(uSunDir.x, 0.0, uSunDir.z) + 1e-4);
+          float sunSide = pow(max(dot(hd, sd), 0.0), 2.0);
+          vec3 lit = mix(uMid * 1.25 + vec3(0.06), uHor * 1.4 + vec3(0.12, 0.06, 0.05), sunSide * 0.85 + 0.15);
+          vec3 shade = uMid * 0.62 + uTop * 0.38;
+          float rimC = smoothstep(0.47, 0.56, cn) - smoothstep(0.56, 0.7, cn);
+          vec3 cc = mix(shade, lit, 0.35 + 0.65 * smoothstep(0.85, 0.5, cn) * (0.4 + 0.6 * sunSide)) + uHor * rimC * (0.25 + sunSide) * 0.7;
+          col = mix(col, cc, cov * (0.82 + 0.1 * uCloud));
+        }
         vec3 c = normalize(uCrackDir);
         vec3 tX = normalize(cross(vec3(0.0, 1.0, 0.0), c)); vec3 tY = cross(c, tX);
         float dc = dot(d, c);
@@ -348,6 +362,16 @@ function buildTrees(scene) {
   const trunks = new THREE.InstancedMesh(trunkG, trunkM, all.length);
   const canG = new THREE.IcosahedronGeometry(1, 1);
   const canM = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+  canM.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = Shared.time;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        float wph = instanceMatrix[3].x * 0.21 + instanceMatrix[3].z * 0.17;
+        float wk = position.y + 1.0;
+        transformed.x += (sin(uTime * 1.3 + wph) * 0.05 + sin(uTime * 2.7 + wph * 2.0) * 0.015) * wk;
+        transformed.z += cos(uTime * 1.1 + wph) * 0.035 * wk;
+      #endif`);
+  };
   const cans = new THREE.InstancedMesh(canG, canM, round.length * 3);
   const pineG = new THREE.ConeGeometry(1, 1.6, 7);
   const pines = new THREE.InstancedMesh(pineG, canM, pine.length * 3);
@@ -456,6 +480,22 @@ function buildGrass(scene, zones) {
   list.forEach(([x, z, h], i) => { m4.compose(v.set(x, groundY(x, z) - 0.05, z), q.setFromEuler(e.set(rand(-0.15, 0.15), rand(0, 6.28), rand(-0.15, 0.15))), sc.set(1.1, h, 1)); im.setMatrixAt(i, m4); });
   im.frustumCulled = false; im.receiveShadow = false;
   scene.add(im);
+  if (Settings.high) {
+    const lawn = [], rng = mulberry32(4242);
+    for (let k = 0; k < 90000 && lawn.length < (isTouch ? 12000 : 26000); k++) {
+      const x = (rng() - 0.5) * 176, z = (rng() - 0.5) * 176, h = groundY(x, z);
+      if (h < 1.05 || h > 9.5 || pathDist(x, z) < 2.4) continue;
+      if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5 || Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 10.5) continue;
+      let bad = false;
+      for (const zz of zones) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) { bad = true; break; }
+      for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 15) { bad = true; break; }
+      if (bad) continue;
+      lawn.push([x, z, h, 0.28 + rng() * 0.3, rng() * 6.28]);
+    }
+    const lm = new THREE.InstancedMesh(blade, mat, lawn.length);
+    lawn.forEach(([x, z, h, s, r], i) => { m4.compose(v.set(x, h - 0.04, z), q.setFromEuler(e.set(rand(-0.2, 0.2), r, rand(-0.2, 0.2))), sc.set(1.25, s, 1)); lm.setMatrixAt(i, m4); });
+    lm.frustumCulled = false; scene.add(lm);
+  }
   return { mesh: im, U: mat.uniforms };
 }
 
@@ -702,6 +742,8 @@ function refreshMarkers() {
   if (!S.party.length) { add(0, 55, groundY(0, 55) + 4.2, 0xffd98a); return; }
   for (const r of SITES.rifts) if (!S.flags['closed_' + r.id]) add(r.x, r.z, groundY(r.x, r.z) + 12, 0xc77dff);
   if (fragCount() >= 3 && !S.flags.ending) add(SITES.altar.x, SITES.altar.z, World.altarY + 9, 0xffd98a);
+  const LC = { asterion: 0x8fe0ff, abyssea: 0x4ff0ff, danha: 0xffa860, limina: 0xffffff };
+  for (const sp in LC) if (legendPresent(sp)) { const st = World.legendSites[sp]; add(st.x, st.z, st.y + 9, LC[sp]); }
 }
 
 // ---------------- camera
@@ -781,6 +823,7 @@ function updateWorld(dt, controllable) {
   }
   if (W.floaters) { W.floaters.rotation.y += dt * 0.08; for (const c of W.floaters.children) c.position.y = 5 + (c.userData.ph % 3) * 2.5 + Math.sin(W.t * 0.8 + c.userData.ph) * 0.6; }
   for (const m of W.markers) { m.g.position.y = m.y + Math.sin(W.t * 2) * 0.4; m.g.rotation.y += dt * 1.5; }
+  updateWorldLegends(dt);
   W.grass.U.uPlayer.value.copy(P.root.position);
   W.heal = damp(W.heal, W.healTarget, 1.2, dt); W.dawn = damp(W.dawn, W.dawnTarget, 0.6, dt);
   applyAtmos();
@@ -801,6 +844,7 @@ function updateWorld(dt, controllable) {
   W.camera.position.copy(W.camPos); W.camera.lookAt(W.camLook);
   if (W.shake > 0) { W.shake = Math.max(0, W.shake - dt); const s = W.shake * 0.5; W.camera.position.x += rand(-s, s); W.camera.position.y += rand(-s, s); }
   W.sky.position.copy(W.camera.position);
+  sunShafts(W.camera, W.skyU.uSunDir.value, 0.8);
   W.sun.position.copy(p).addScaledVector(W.skyU.uSunDir.value, 70); W.sun.target.position.copy(p);
 }
 
@@ -846,4 +890,130 @@ function addNpc(def) {
   World.npcs.push(n);
   World.colliders.push({ x: def.x, z: def.z, r: 0.5 });
   return n;
+}
+
+// ---------------- legend sites: where the four new legends live in the overworld
+function findShore(x0, z0, dx, dz) {
+  const l = Math.hypot(dx, dz); dx /= l; dz /= l;
+  let x = x0, z = z0;
+  for (let i = 0; i < 240; i++) { if (groundY(x, z) < 0.45) break; x += dx * 0.5; z += dz * 0.5; }
+  return { x, z, dx, dz };
+}
+function peakNear(cx, cz, R = 8) {
+  let best = { x: cx, z: cz, y: groundY(cx, cz) };
+  for (let a = 0; a < 24; a++) for (let r = 0; r <= R; r += 1) {
+    const x = cx + Math.cos(a / 24 * Math.PI * 2) * r, z = cz + Math.sin(a / 24 * Math.PI * 2) * r, y = groundY(x, z);
+    if (y > best.y) best = { x, z, y };
+  }
+  return best;
+}
+function sunShafts(cam, dir, strength) {
+  const p = cam.position.clone().addScaledVector(dir, 500).project(cam);
+  const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd);
+  const facing = fwd.dot(dir);
+  let s = strength * smooth(0.05, 0.45, facing);
+  const off = Math.max(Math.abs(p.x), Math.abs(p.y));
+  s *= 1 - smooth(1.0, 1.6, off);
+  Post.U.uSun.value.set((p.x + 1) / 2, (p.y + 1) / 2, Settings.high ? s : 0);
+}
+function buildLegendSites() {
+  const W = World;
+  const pk = peakNear(38, -36, 9);
+  const west = findShore(SITES.rifts[1].x, SITES.rifts[1].z, -1, 0.05);
+  const south = findShore(0, 62, 0, 1);
+  const hill = peakNear(62, 40, 8);
+  W.legendSites = {
+    asterion: { x: pk.x, z: pk.z, y: pk.y, name: '별빛 봉우리' },
+    abyssea: { x: west.x + 4.5, z: west.z, y: groundY(west.x + 4.5, west.z), name: '고래울음 바위', sea: { x: west.x - 24, z: west.z, tx: 0, tz: 1 }, close: { x: west.x - 8, z: west.z } },
+    danha: { x: hill.x, z: hill.z, y: hill.y, name: '해돋이 언덕' },
+    limina: { x: south.x, z: south.z - 4, y: groundY(south.x, south.z - 4), name: '경계의 모래톱', sea: { x: south.x, z: south.z + 22 } },
+  };
+  // the dawn shrine stone on the sunrise hill
+  const sh = grp(W.scene, [hill.x, hill.y, hill.z]);
+  part(GEO.cyl, M(0xa8a2b8), sh, [0, 0.3, 0], [1.3, 0.6, 1.3]);
+  part(GEO.box, M(0x8e88a0), sh, [0, 1.3, 0], [0.7, 1.6, 0.5]);
+  W.dawnStone = part(GEO.octa, E(0xffa860, 2.2), sh, [0, 2.6, 0], [0.32, 0.55, 0.32]);
+  W.colliders.push({ x: hill.x, z: hill.z, r: 1.2 });
+  // the whale rock on the west cliff
+  const wr = grp(W.scene, [west.x + 6.5, groundY(west.x + 6.5, west.z + 2.5), west.z + 2.5]);
+  part(GEO.dodeca, M(0x6f6a78), wr, [0, 0.9, 0], [1.6, 1.2, 1.1]);
+  part(GEO.dodeca, M(0x7f7a88), wr, [0.9, 1.9, 0.2], [0.8, 0.7, 0.7]);
+  part(GEO.cone6, E(0x5ff4ff, 1.6), wr, [-0.6, 2.0, 0.3], [0.15, 0.5, 0.15]);
+  W.colliders.push({ x: west.x + 6.5, z: west.z + 2.5, r: 1.8 });
+  W.legends = {};
+}
+function legendUnlocked(sp) {
+  if (sp === 'asterion') return fragCount() >= 1;
+  if (sp === 'abyssea') return fragCount() >= 2;
+  if (sp === 'danha') return !!S.flags.ending;
+  if (sp === 'limina') return !!(S.dex.caught.nihilos && S.dex.caught.ensia);
+  return false;
+}
+function legendPresent(sp) { return legendUnlocked(sp) && !S.dex.caught[sp]; }
+function refreshWorldLegends() {
+  const W = World;
+  for (const sp of ['asterion', 'abyssea', 'danha', 'limina']) {
+    const want = legendPresent(sp), have = W.legends[sp];
+    if (want && !have) {
+      const site = W.legendSites[sp], r = makeSpiritModel(sp);
+      const L = { sp, rig: r, site, mode: 'idle', t: Math.random() * 10 };
+      if (sp === 'asterion') {
+        r.root.scale.setScalar(0.8); r.root.position.set(site.x, site.y, site.z);
+        r.root.rotation.y = Math.atan2(-site.x, -site.z);
+        const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.6, 140, 20, 1, true), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.6, 1.1, 1.6), transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+        beam.position.set(site.x, site.y + 70, site.z); W.scene.add(beam); L.extra = [beam];
+      }
+      if (sp === 'abyssea') r.root.scale.setScalar(1.35);
+      if (sp === 'danha') r.root.scale.setScalar(2.2);
+      if (sp === 'limina') r.root.scale.setScalar(1.7);
+      W.scene.add(r.root); W.legends[sp] = L;
+    } else if (!want && have) {
+      disposeRig(have.rig); for (const x of have.extra || []) W.scene.remove(x);
+      delete W.legends[sp];
+    }
+  }
+}
+function updateWorldLegends(dt) {
+  const W = World;
+  for (const sp in W.legends) {
+    const L = W.legends[sp], r = L.rig, s = L.site; L.t += dt;
+    if (L.mode === 'idle') {
+      if (sp === 'abyssea') {
+        const T = 15, k = (L.t % T) / 4.5;
+        if (k < 1) {
+          r.root.visible = true;
+          const ox = s.sea.x, oz = s.sea.z + lerp(-14, 14, k), y = -10 + Math.sin(k * Math.PI) * 13;
+          const prevY = r.root.position.y;
+          r.root.position.set(ox, y, oz); r.root.rotation.set(-Math.atan2(y - prevY, 28 * dt / 4.5 + 1e-4) * 0.6, 0, 0);
+          if ((k > 0.14 && k < 0.2) || (k > 0.8 && k < 0.86)) W.fx.burst(new THREE.Vector3(ox, 0.3, oz), 6, { color: [0xdff8ff, 0x7fdcff], speed: 6, up: 4, grav: 9, size: 0.7, life: 1.1, drag: 0.5, intensity: 1.1 });
+          if (k > 0.14 && k < 0.16 && !L.sang) { L.sang = true; if (Math.hypot(W.player.root.position.x - ox, W.player.root.position.z - oz) < 70) Snd.fx('whale'); }
+        } else { r.root.visible = false; L.sang = false; }
+      } else if (sp === 'danha') {
+        const a = L.t * 0.11, R = 72;
+        r.root.position.set(Math.cos(a) * R, 46 + Math.sin(a * 2) * 4, Math.sin(a) * R);
+        r.root.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), -0.35);
+        if (Math.random() < 0.5) W.fx.emit({ x: r.root.position.x + rand(-2, 2), y: r.root.position.y + rand(1, 4), z: r.root.position.z + rand(-2, 2), vy: -rand(0.5, 2), color: [0xff8a3d, 0xffd25a][Math.random() < 0.5 ? 0 : 1], size: 1.1, life: 2.2, intensity: 1.4 });
+      } else if (sp === 'limina') {
+        const t = L.t * 0.28;
+        const x = s.sea.x + Math.sin(t) * 16, z = s.sea.z + Math.sin(t * 2) * 6, y = 6 + Math.sin(t * 1.7) * 1.2;
+        const nx = s.sea.x + Math.sin(t + 0.05) * 16, nz = s.sea.z + Math.sin((t + 0.05) * 2) * 6;
+        r.root.position.set(x, y, z); r.root.rotation.set(0, Math.atan2(nx - x, nz - z), -Math.cos(t) * 0.3);
+      }
+    }
+    rigUpdate(r, dt);
+  }
+  if (W.dawnStone) { W.dawnStone.rotation.y += dt; W.dawnStone.material = W.legends.danha ? E(0xffa860, 3) : E(0x8e88a0, 0.6); }
+}
+// title teaser: the boundary manta gliding over the island
+function updateTitleRig(dt, on) {
+  const W = World;
+  if (on && !W.titleRig) { W.titleRig = makeSpiritModel('limina'); W.titleRig.root.scale.setScalar(2.6); W.scene.add(W.titleRig.root); W.titleT = 0; }
+  if (!on && W.titleRig) { disposeRig(W.titleRig); W.titleRig = null; return; }
+  if (!W.titleRig) return;
+  W.titleT += dt;
+  const a = W.titleT * 0.09 + 2.4, R = 46;
+  const r = W.titleRig;
+  r.root.position.set(Math.cos(a) * R, 30 + Math.sin(a * 2) * 3, Math.sin(a) * R - 8);
+  r.root.rotation.set(0, Math.atan2(-Math.sin(a), Math.cos(a)), 0.32);
+  rigUpdate(r, dt);
 }

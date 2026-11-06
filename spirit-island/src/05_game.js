@@ -79,6 +79,8 @@ function questInfo() {
 }
 function updateHud() {
   const [a, b] = questInfo(); $('#questText').textContent = a; $('#questSub').textContent = b;
+  const legs = Object.keys(World.legends || {}).map((sp) => World.legendSites[sp].name);
+  $('#questLeg').textContent = legs.length ? '✦ 전설의 기척: ' + legs.join(' · ') : '';
   const lc = $('#leadCard'), m = S.party[0];
   if (!m) { lc.hidden = true; return; }
   lc.hidden = false;
@@ -136,7 +138,8 @@ async function talkHealer(n) {
   const gifts = [];
   if (S.items.crystal < 5) { gifts.push(`봉인결정 ×${5 - S.items.crystal}`); S.items.crystal = 5; }
   if (S.items.potion < 3) { gifts.push(`회복약 ×${3 - S.items.potion}`); S.items.potion = 3; }
-  if (S.flags.awakened && (!S.dex.caught.nihilos || !S.dex.caught.ensia) && S.items.origin < 2) { gifts.push(`근원결정 ×${3 - S.items.origin}`); S.items.origin = 3; }
+  const legendWaiting = (S.flags.awakened && (!S.dex.caught.nihilos || !S.dex.caught.ensia)) || Object.keys(World.legends || {}).length > 0;
+  if (legendWaiting && S.items.origin < 2) { gifts.push(`근원결정 ×${3 - S.items.origin}`); S.items.origin = 3; }
   if (gifts.length) { toast(gifts.join(' · ') + '을(를) 받았다'); await say(['모자란 건 채워 뒀어. 조심해서 다녀와!'], n.name); }
   else await say(['언제든 다시 오렴. 샘물은 마르지 않으니까.'], n.name);
   save();
@@ -205,6 +208,7 @@ async function closeRift(n) {
   placeRiftState(); refreshMarkers(); updateHud();
   if (fragCount() === 3) await say(['세 개의 파편이 공명하고 있다… 섬 한가운데, 근원의 제단이 부르고 있다.'], '');
   G.busy = false; save();
+  await checkLegendAwakenings();
 }
 
 // ---------------------------------------------------------------- starter selection
@@ -312,7 +316,8 @@ async function battleFlow(cfg) {
     if (World.follower) World.follower.root.position.set(hx + 1, groundY(hx + 1, hz), hz + 1);
   }
   setFollower(S.party[0] && S.party[0].sp);
-  Snd.play(S.flags.ending ? 'world' : 'world');
+  setLook(0xc0a8ff, 0.55); Post.U.uSun.value.z = 0;
+  Snd.play('world');
   await fadeTo(0, 0.6);
   if (res === 'lose') await say(['정신이 드니? 쓰러져 있는 걸 데려왔어.', '정령들은 샘물로 다 치료해 뒀으니 걱정 마.'], '샘지기 하나');
   showHud(true);
@@ -395,30 +400,120 @@ async function altarAwaken() {
   refreshMarkers(); updateHud(); save();
   await legendBattle('nihilos');
 }
+const LEGENDS = {
+  nihilos:  { theme: 'void', music: 'void', title: '공허, 니힐로스', sub: 'THE VOID', cls: 'void', line: '니힐로스의 얼굴에 뚫린 구멍이 너를 바라본다…', sfx: 'void', flash: '#000000', lv: [0, 18] },
+  ensia:    { theme: 'being', music: 'being', title: '존재, 엔시아', sub: 'THE BEING', cls: 'being', line: '엔시아의 빛이 모든 그림자를 지운다…', sfx: 'genesis', flash: '#fff6dc', lv: [0, 18] },
+  asterion: { theme: 'star', music: 'star', title: '별, 아스테리온', sub: 'THE STARS', cls: 'star', line: '아스테리온의 몸속에서 이름 없는 별들이 흐른다…', sfx: 'chime', flash: '#cfefff', lv: [2, 14] },
+  abyssea:  { theme: 'abyss', music: 'abyss', title: '심해, 아비세아', sub: 'THE ABYSS', cls: 'abyss', line: '바다가 숨을 멈췄다…', sfx: 'whale', flash: '#06263a', lv: [2, 16] },
+  danha:    { theme: 'dawn', music: 'dawn', title: '여명, 단하', sub: 'THE DAWN', cls: 'dawn', line: '단하의 포효에 하늘이 붉게 물든다!', sfx: 'roar', flash: '#ffb070', lv: [3, 22] },
+  limina:   { theme: 'boundary', music: 'limina', title: '경계, 리미나', sub: 'THE BOUNDARY', cls: 'limina', line: '존재와 공허가 한 몸 안에서 함께 숨 쉬고 있다…', sfx: 'void', flash: '#ffffff', lv: [4, 26] },
+};
 async function legendBattle(sp, rematch = false) {
+  const L = LEGENDS[sp];
   const top = Math.max(...S.party.map((m) => m.lv));
-  const lv = clamp(top, 18, 45);
+  const lv = clamp(top + L.lv[0], L.lv[1], 60);
   const foe = makeMon(sp, lv);
-  const isVoid = sp === 'nihilos';
   const res = await battleFlow({
-    kind: 'legend', foes: [foe], theme: isVoid ? 'void' : 'being', music: isVoid ? 'void' : 'being',
+    kind: 'legend', foes: [foe], theme: L.theme, music: L.music,
     intro: async () => {
-      Battle.shake = 1.2; Snd.fx(isVoid ? 'void' : 'genesis');
-      flashScreen(isVoid ? '#000000' : '#fff6dc', 1, 1.2);
-      await banner(isVoid ? '공허, 니힐로스' : '존재, 엔시아', isVoid ? 'THE VOID' : 'THE BEING', isVoid ? 'void' : 'being', 1.8);
-      await bmsg(isVoid ? '니힐로스의 얼굴에 뚫린 구멍이 너를 바라본다…' : '엔시아의 빛이 모든 그림자를 지운다…', 1.6);
+      cinema(true);
+      Battle.shake = 1.2; Snd.fx(L.sfx); if (sp === 'danha') Snd.fx('fire');
+      flashScreen(L.flash, 1, 1.2);
+      Post.shock(rigCenter(Battle.foeRig), Battle.camera, 1.6); Post.kick(0.03);
+      await banner(L.title, L.sub, L.cls, 1.9);
+      await bmsg(L.line, 1.6);
+      cinema(false);
     },
   });
+  if (sp !== 'nihilos' && sp !== 'ensia') {
+    if (res === 'caught') { toast(`전설의 정령 ${josa(SPECIES[sp].n, '을를')} 봉인했다!`); Snd.fx('fragment'); }
+    refreshWorldLegends(); refreshMarkers(); updateHud(); save();
+    if (res === 'caught') await checkLegendAwakenings();
+    return res;
+  }
   if (res === 'caught' || res === 'win') {
     S.flags[sp + 'Done'] = true;
     refreshLegendRig(); refreshMarkers(); updateHud();
-    if (rematch) { save(); return; }
-    if (isVoid) {
+    if (rematch) { save(); await checkLegendAwakenings(); return res; }
+    if (sp === 'nihilos') {
       await say([res === 'caught' ? '니힐로스가 결정 속에서 고요해졌다… 공허가 너를 받아들였다.' : '니힐로스가 균열 속으로 물러났다. 공허는 사라지지 않는다. 다만… 조용해졌을 뿐.'], '');
       await ensiaDescends();
     } else await ending(res);
   } else { refreshLegendRig(); updateHud(); }
+  return res;
 }
+
+// ---- the four wandering legends: announcements and encounters
+const AWAKEN = {
+  asterion: ['어딘가에서 별이 떨어지는 소리가 들렸다…', '북동쪽 별빛 봉우리에 푸른 빛기둥이 내려앉았다.'],
+  abyssea: ['서쪽 바다 깊은 곳에서 길고 낮은 울음소리가 들려온다…', '고래울음 바위로 가 보자. 무언가가 수면 아래를 맴돌고 있다.'],
+  danha: ['새벽 하늘을 붉은 용이 가로지른다!', '동쪽 해돋이 언덕의 제단석이 붉게 빛나고 있다.'],
+  limina: ['존재와 공허가 동시에 너를 부른다…', '남쪽, 경계의 모래톱 앞바다에서 반은 빛이고 반은 어둠인 무언가가 헤엄치고 있다.'],
+};
+async function checkLegendAwakenings(silent = false) {
+  for (const sp of ['asterion', 'abyssea', 'danha', 'limina']) {
+    if (!legendPresent(sp) || S.flags['seen_' + sp]) continue;
+    S.flags['seen_' + sp] = true;
+    refreshWorldLegends(); refreshMarkers();
+    if (!silent) { Snd.fx('chime'); await say(AWAKEN[sp], ''); toast(`전설의 기척: ${World.legendSites[sp].name}`); }
+  }
+  refreshWorldLegends(); refreshMarkers(); updateHud();
+}
+async function legendEncounter(sp) {
+  const L = World.legends[sp]; if (!L) return;
+  G.busy = true; showHud(false);
+  const r = L.rig, site = L.site, P = World.player.root.position;
+  const toP = new THREE.Vector3(P.x - site.x, 0, P.z - site.z).normalize();
+  L.mode = 'scene';
+  if (sp === 'asterion') {
+    World.cine = { pos: new THREE.Vector3(site.x + toP.x * 9 + 3, site.y + 3.5, site.z + toP.z * 9), look: new THREE.Vector3(site.x, site.y + 2.2, site.z), k: 1.8 };
+    r.root.rotation.y = Math.atan2(P.x - site.x, P.z - site.z);
+    await wait(1.0); Snd.fx('chime');
+    await Tw.add(0.6, (k) => { r.root.rotation.x = -Math.sin(k * Math.PI) * 0.45; }, ease.inOut);
+    World.fx.burst(new THREE.Vector3(site.x, site.y + 2, site.z), 120, { color: [0x8fe0ff, 0xffffff, 0xb48cff], speed: 7, size: 0.5, life: 1.4 });
+    await say(['별빛 봉우리 위, 별자리로 이루어진 사슴이 너를 내려다본다.', '그 몸속에서 아직 이름 없는 별들이 반짝이고 있다…'], '');
+  } else if (sp === 'abyssea') {
+    const c = site.close; r.root.visible = true; r.root.scale.setScalar(1.35);
+    World.cine = { pos: new THREE.Vector3(site.x + 6, site.y + 3.5, site.z + 7), look: new THREE.Vector3(c.x, 3, c.z), k: 1.6 };
+    r.root.position.set(c.x, -9, c.z); r.root.rotation.set(-0.6, Math.atan2(P.x - c.x, P.z - c.z), 0);
+    await wait(0.8); Snd.fx('whale');
+    await Tw.add(2.4, (k) => { r.root.position.y = lerp(-9, 2.2, ease.out(k)); r.root.rotation.x = lerp(-0.6, -0.1, k); if (Math.random() < 0.6) World.fx.burst(new THREE.Vector3(c.x + rand(-3, 3), 0.3, c.z + rand(-3, 3)), 4, { color: [0xdff8ff, 0x7fdcff], speed: 6, up: 5, grav: 9, size: 0.8, life: 1.2, drag: 0.5 }); }, ease.lin);
+    World.shake = 0.8;
+    await say(['바다가 갈라지고, 빛나는 무늬를 두른 거대한 고래가 떠올랐다.', '그 울음에 바닷물이 숨을 멈춘다…'], '');
+  } else if (sp === 'danha') {
+    const hover = new THREE.Vector3(site.x + toP.x * -1 + 0, site.y + 6.5, site.z - toP.z);
+    World.cine = { pos: new THREE.Vector3(site.x + toP.x * 12, site.y + 4, site.z + toP.z * 12), look: r.root.position.clone(), k: 2.2 };
+    const from = r.root.position.clone();
+    Snd.fx('roar');
+    await Tw.add(3.2, (k) => {
+      r.root.position.lerpVectors(from, hover, ease.inOut(k)); r.root.scale.setScalar(lerp(2.2, 1.35, k));
+      r.root.rotation.set(0, Math.atan2(P.x - r.root.position.x, P.z - r.root.position.z), -0.35 * (1 - k));
+      World.cine.look.copy(r.root.position).add(new THREE.Vector3(0, 2, 0));
+      if (Math.random() < 0.7) World.fx.emit({ x: r.root.position.x + rand(-1.5, 1.5), y: r.root.position.y + rand(0, 3), z: r.root.position.z + rand(-1.5, 1.5), vy: -rand(0.5, 2), color: [0xff8a3d, 0xffd25a][Math.random() < 0.5 ? 0 : 1], size: 0.9, life: 1.6, intensity: 1.6 });
+    }, ease.lin);
+    World.shake = 1.0; flashScreen('#ffb070', 0.4, 0.6);
+    await say(['붉은 노을을 두른 용이 해돋이 언덕에 내려앉았다!', '앞발에 쥔 여의주에서 아침 햇살이 흘러넘친다.'], '');
+  } else if (sp === 'limina') {
+    const hover = new THREE.Vector3(site.x, 4.5, site.z + 9);
+    const from = r.root.position.clone();
+    World.cine = { pos: new THREE.Vector3(site.x - 7, site.y + 3, site.z - 7), look: hover.clone(), k: 1.6 };
+    Snd.fx('void');
+    await Tw.add(3, (k) => { r.root.position.lerpVectors(from, hover, ease.inOut(k)); r.root.rotation.set(0.25 * k, Math.atan2(P.x - r.root.position.x, P.z - r.root.position.z), 0); }, ease.lin);
+    Snd.fx('genesis'); flashScreen('#ffffff', 0.5, 0.6);
+    await say(['반은 금빛, 반은 공허로 된 거대한 가오리가 수면 위로 미끄러져 왔다.', '존재와 공허, 둘을 모두 품은 너를 알아보는 듯하다.'], '');
+  }
+  const c = await ask(`${SPECIES[sp].n}에게 맞설까?`, ['맞선다', '아직은…']);
+  World.cine = null; G.busy = false;
+  if (c === 0) await legendBattle(sp);
+  const still = World.legends[sp];
+  if (still) {
+    still.mode = 'idle'; still.rig.root.rotation.x = 0;
+    if (sp === 'asterion') { still.rig.root.position.set(site.x, site.y, site.z); still.rig.root.rotation.y = Math.atan2(-site.x, -site.z); }
+    if (sp === 'danha') still.rig.root.scale.setScalar(2.2);
+  }
+  showHud(true);
+}
+
 async function ensiaDescends() {
   G.busy = true; showHud(false);
   const A = SITES.altar, ay = World.altarY;
@@ -468,6 +563,7 @@ async function ending(res) {
   await new Promise((r) => { $('#endOk').onclick = r; });
   el.hidden = true; World.cine = null; refreshLegendRig(); refreshMarkers(); placeRiftState();
   showHud(true); G.busy = false; save();
+  await checkLegendAwakenings();
 }
 
 // ---------------------------------------------------------------- menus (overworld modal)
@@ -518,8 +614,11 @@ function openParty(start = 0) {
       const seen = Object.keys(S.dex.seen).length, caught = Object.keys(S.dex.caught).length;
       body.innerHTML = `<p style="margin:0;color:var(--muted);font-size:13px">본 정령 ${seen} · 봉인한 정령 ${caught} / ${DEX_ORDER.length}</p><div class="dex">${DEX_ORDER.map((sp) => {
         const s = SPECIES[sp], no = String(s.no).padStart(3, '0');
-        if (S.dex.caught[sp]) return `<div><img src="${Icons.get(sp)}" alt=""><b>${s.n}</b><span class="no">No.${no}</span></div>`;
-        if (S.dex.seen[sp]) return `<div class="sil"><img src="${Icons.get(sp)}" alt=""><b>${s.n}</b><span class="no">No.${no} · 봄</span></div>`;
+        const lc = s.legend ? ` class="leg${s.mythic ? ' myth' : ''}"` : '';
+        const tag = s.legend ? `<span class="tag">${s.mythic ? '환상' : '전설'}</span>` : '';
+        if (S.dex.caught[sp]) return `<div${lc}><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no}</span></div>`;
+        if (S.dex.seen[sp]) return `<div class="sil${s.legend ? ' leg' + (s.mythic ? ' myth' : '') : ''}"><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no} · 봄${s.home ? ' · ' + s.home : ''}</span></div>`;
+        if (s.legend && legendPresent(sp)) return `<div class="leg${s.mythic ? ' myth' : ''}"><span class="unk">✦</span>${tag}<b style="color:var(--muted)">???</b><span class="no">${s.home}</span></div>`;
         return `<div><span class="unk">?</span><b style="color:var(--muted)">???</b><span class="no">No.${no}</span></div>`;
       }).join('')}</div>`;
     }
@@ -570,6 +669,7 @@ function interactables() {
   for (const n of World.npcs) L.push({ x: n.x, z: n.z, r: 3, label: `${n.name}`, verb: '대화', fn: () => n.talk(n) });
   L.push({ x: SITES.town.x, z: SITES.town.z, r: 4, label: '치유의 샘', verb: '마시기', fn: async () => { await healAll(true); await say(['샘물이 반짝인다… 정령들이 기운을 되찾았다.'], ''); save(); } });
   L.push({ x: SITES.altar.x, z: SITES.altar.z, r: 3.6, label: '근원의 제단', verb: '살펴보기', fn: altarInteract });
+  for (const sp in World.legends || {}) { const st = World.legendSites[sp]; L.push({ x: st.x, z: st.z, r: sp === 'abyssea' || sp === 'limina' ? 7 : 6.5, label: S.dex.seen[sp] ? SPECIES[sp].n : `${st.name}의 기척`, verb: '다가가기', fn: () => legendEncounter(sp) }); }
   return L;
 }
 function worldTick(dt) {
@@ -624,12 +724,13 @@ async function enterWorld(fresh) {
   World.player.root.rotation.y = Math.PI;
   World.camYaw = S.yaw || 0; World.camDist = 12;
   setFollower(S.party[0] && S.party[0].sp);
-  setupPedestals(); placeRiftState(); refreshMarkers(); refreshLegendRig();
+  setupPedestals(); placeRiftState(); refreshLegendRig(); refreshWorldLegends(); refreshMarkers();
   snapCamera();
   G.mode = 'world';
   Snd.play('world');
   await fadeTo(0, 1.0);
   showHud(true);
+  if (!fresh) setTimeout(() => { if (G.mode === 'world' && !G.busy) checkLegendAwakenings(); }, 1500);
   if (fresh) {
     await banner('윤슬마을', 'THE BOUNDARY ISLE', 'plain', 2.4);
     toast('분수 앞의 장로에게 다가가 E(또는 A)를 눌러 보세요');
@@ -639,13 +740,16 @@ async function enterWorld(fresh) {
 // ---------------------------------------------------------------- main loop
 let lastT = performance.now();
 function frame(now) {
-  const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  const rdt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+  const dt = rdt * timeScale();
+  Post.update(rdt);
   Shared.time.value += dt;
   Tw.update(dt);
   try {
     if (G.mode === 'battle') { updateBattle(dt); renderScene(Battle.scene, Battle.camera); }
     else {
       if (G.mode === 'title' || G.mode === 'lore') titleCam(dt);
+      updateTitleRig(dt, G.mode === 'title' || G.mode === 'lore');
       updateWorld(dt, canMove());
       worldTick(dt);
       renderScene(World.scene, World.camera);
@@ -695,5 +799,5 @@ async function boot() {
 }
 
 // small debugging surface (used by the automated test harness)
-window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud };
+window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends };
 boot().catch((e) => { console.error(e); $('#loadMsg').textContent = '시작하는 중 문제가 생겼어요: ' + e.message; });

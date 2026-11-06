@@ -6,6 +6,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $ = (s) => document.querySelector(s);
@@ -63,12 +64,65 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const composer = new EffectComposer(renderer);
+// multisampled HDR target so the post-processed image keeps clean edges
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: isTouch ? 2 : 4 }));
 const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
 composer.addPass(renderPass);
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.85, 0.55, 0.86);
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.55, 0.86);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
+
+// final cinematic pass (display space): shockwave ripple, chromatic aberration, sun shafts, grade, vignette, grain
+const Post = {
+  U: {
+    tDiffuse: { value: null }, uTime: { value: 0 }, uRes: { value: new THREE.Vector2(1, 1) },
+    uVig: { value: 0.34 }, uCA: { value: 0 }, uGrain: { value: 0.03 }, uSat: { value: 1.1 }, uLift: { value: new THREE.Vector3(0.012, 0.0, 0.035) },
+    uShock: { value: new THREE.Vector4(0.5, 0.5, -1, 0) }, uSun: { value: new THREE.Vector3(0.5, 0.5, 0) }, uTint: { value: new THREE.Vector3(1, 1, 1) },
+  },
+  shockT: -1, shockAmp: 0, caKick: 0,
+  shock(world, cam, amp = 1) {
+    const v = world.clone().project(cam);
+    this.U.uShock.value.set((v.x + 1) / 2, (v.y + 1) / 2, 0, amp); this.shockT = 0; this.shockAmp = amp;
+  },
+  kick(ca = 0.02) { this.caKick = Math.max(this.caKick, ca); },
+  update(dt) {
+    this.U.uTime.value += dt;
+    if (this.shockT >= 0) { this.shockT += dt * 1.25; if (this.shockT >= 1) { this.shockT = -1; this.U.uShock.value.z = -1; } else this.U.uShock.value.z = this.shockT; }
+    this.caKick = Math.max(0, this.caKick - dt * 0.08);
+    this.U.uCA.value = this.caKick;
+  },
+};
+const finalPass = new ShaderPass(new THREE.ShaderMaterial({
+  uniforms: Post.U,
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uTime, uVig, uCA, uGrain, uSat; uniform vec2 uRes; uniform vec4 uShock; uniform vec3 uSun, uLift, uTint; varying vec2 vUv;
+    void main(){
+      vec2 uv = vUv;
+      if (uShock.z >= 0.0) {
+        vec2 d = uv - uShock.xy; d.x *= uRes.x / uRes.y; float r = length(d);
+        float band = smoothstep(0.11, 0.0, abs(r - uShock.z * 0.9)) * (1.0 - uShock.z);
+        uv -= normalize(uv - uShock.xy + 1e-5) * band * uShock.w * 0.035;
+      }
+      vec2 c = uv - 0.5;
+      float ca = uCA + 0.0018 * dot(c, c) * 4.0;
+      vec3 col = vec3(texture2D(tDiffuse, uv + c * ca).r, texture2D(tDiffuse, uv).g, texture2D(tDiffuse, uv - c * ca).b);
+      if (uSun.z > 0.001) {
+        vec2 dl = (uv - uSun.xy) / 30.0; vec2 sp = uv; float decay = 1.0; vec3 acc = vec3(0.0);
+        for (int i = 0; i < 30; i++) { sp -= dl; vec3 s = texture2D(tDiffuse, clamp(sp, 0.001, 0.999)).rgb; float l = max(dot(s, vec3(0.299, 0.587, 0.114)) - 0.7, 0.0); acc += s * l * decay; decay *= 0.935; }
+        col += acc * uSun.z * 0.075 * vec3(1.0, 0.86, 0.7);
+      }
+      float lum = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(vec3(lum), col, uSat);
+      col = col + uLift * (1.0 - col);
+      col *= uTint;
+      float v = smoothstep(0.95, 0.25, length(c * vec2(1.0, 0.9)));
+      col *= mix(1.0 - uVig, 1.0, v);
+      float g = fract(sin(dot(vUv * uRes + fract(uTime) * 61.0, vec2(12.9898, 78.233))) * 43758.5453);
+      col += (g - 0.5) * uGrain;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+}));
+composer.addPass(finalPass);
 
 function applyQuality() {
   const dpr = window.devicePixelRatio || 1;
@@ -82,6 +136,7 @@ function onResize() {
   renderer.setSize(w, h, false);
   composer.setSize(w, h);
   bloomPass.resolution.set(w, h);
+  Post.U.uRes.value.set(w * renderer.getPixelRatio(), h * renderer.getPixelRatio());
   for (const c of Cams) { c.aspect = w / h; c.updateProjectionMatrix(); }
 }
 const Cams = [];
@@ -95,6 +150,11 @@ function renderScene(scene, camera) {
     renderer.render(scene, camera);
   }
 }
+
+// game-time scale: hit-stop freezes and slow motion for cinematic beats
+const Time = { scale: 1, stopUntil: 0, slow: 0.05 };
+function hitStop(sec, slow = 0.04) { Time.stopUntil = performance.now() + sec * 1000; Time.slow = slow; }
+function timeScale() { return performance.now() < Time.stopUntil ? Time.slow : Time.scale; }
 
 // ---------------------------------------------------------------- tweens (game-time)
 const Tw = {
@@ -121,10 +181,32 @@ const toonGrad = (() => {
   const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
 })();
+const Look = { rim: { value: new THREE.Color(0xc0a8ff) }, rimStr: { value: 0.55 }, spec: { value: 0.55 } };
+function setLook(rim, str = 0.55) { Look.rim.value.set(rim); Look.rimStr.value = str; }
+function patchToon(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uRim = Look.rim; sh.uniforms.uRimStr = Look.rimStr; sh.uniforms.uSpec = Look.spec;
+    sh.fragmentShader = 'uniform vec3 uRim; uniform float uRimStr; uniform float uSpec;\n' + sh.fragmentShader.replace('#include <opaque_fragment>', `
+      {
+        vec3 vdir = normalize(vViewPosition);
+        float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
+        outgoingLight += uRim * fr * uRimStr * (0.55 + 0.45 * diffuseColor.rgb);
+        #if NUM_DIR_LIGHTS > 0
+          vec3 hv = normalize(directionalLights[0].direction + vdir);
+          float sp = smoothstep(0.962, 0.978, dot(normal, hv));
+          outgoingLight += directionalLights[0].color * sp * uSpec * 0.35;
+        #endif
+      }
+      #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey = () => 'toonRim1';
+  return m;
+}
+function toonMat(o) { return patchToon(new THREE.MeshToonMaterial(Object.assign({ gradientMap: toonGrad }, o))); }
 const _mc = new Map();
 function M(color, extra) {
   const k = 't' + color + (extra ? JSON.stringify(extra) : '');
-  if (!_mc.has(k)) _mc.set(k, new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad }, extra || {})));
+  if (!_mc.has(k)) _mc.set(k, toonMat(Object.assign({ color }, extra || {})));
   return _mc.get(k);
 }
 function E(color, intensity = 2.5, extra) {
@@ -164,6 +246,7 @@ function voidMat(rim = 0xb055ff, power = 2.6, base = 0x05030a, rimI = 2.4) {
       }`,
     fog: true,
   });
+  m.uniforms.uTime = Shared.time;
   _mc.set(k, m); return m;
 }
 
@@ -546,6 +629,28 @@ const Snd = {
       case 'fragment': [0, 7, 12, 19, 24].forEach((s, i) => tone('sine', this.mf(67 + s), this.mf(67 + s), 0.8, 0.12, i * 0.12)); break;
       case 'rumble': noise(140, 40, 2.5, 0.9, 'lowpass'); tone('sine', 50, 28, 2.4, 0.5); break;
       case 'step': noise(900, 500, 0.05, 0.05); break;
+      case 'roar': {
+        const os = c.createOscillator(); os.type = 'sawtooth'; os.frequency.setValueAtTime(140, t); os.frequency.linearRampToValueAtTime(220, t + 0.25); os.frequency.exponentialRampToValueAtTime(55, t + 1.6);
+        const lfo = c.createOscillator(); lfo.frequency.value = 23; const lg = c.createGain(); lg.gain.value = 30; lfo.connect(lg); lg.connect(os.frequency);
+        const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, t); lp.frequency.exponentialRampToValueAtTime(260, t + 1.6);
+        const g = c.createGain(); this.env(g, t, 0.06, 0.55, 1.6); os.connect(lp); lp.connect(g); g.connect(o);
+        const sg = c.createGain(); sg.gain.value = 0.6; g.connect(sg); sg.connect(this.verb);
+        os.start(t); lfo.start(t); os.stop(t + 1.8); lfo.stop(t + 1.8); noise(600, 120, 1.4, 0.5, 'lowpass'); break;
+      }
+      case 'whale': {
+        for (const [f0, f1, d, at] of [[180, 320, 1.4, 0], [320, 140, 1.8, 1.2]]) {
+          const os = c.createOscillator(); os.type = 'sine'; os.frequency.setValueAtTime(f0, t + at); os.frequency.exponentialRampToValueAtTime(f1, t + at + d);
+          const vib = c.createOscillator(); vib.frequency.value = 5; const vg = c.createGain(); vg.gain.value = 6; vib.connect(vg); vg.connect(os.frequency);
+          const g = c.createGain(); g.gain.setValueAtTime(0.0001, t + at); g.gain.linearRampToValueAtTime(0.32, t + at + 0.4); g.gain.linearRampToValueAtTime(0.0001, t + at + d);
+          os.connect(g); g.connect(o); const sg = c.createGain(); sg.gain.value = 1.2; g.connect(sg); sg.connect(this.verb);
+          os.start(t + at); vib.start(t + at); os.stop(t + at + d + 0.1); vib.stop(t + at + d + 0.1);
+        }
+        break;
+      }
+      case 'meteor': tone('sine', 2400, 300, 0.45, 0.12); noise(6000, 400, 0.45, 0.2, 'bandpass', 0, 4); noise(300, 50, 0.6, 0.7, 'lowpass', 0.4); tone('sine', 90, 35, 0.6, 0.5, 0.4); break;
+      case 'boom': noise(200, 40, 1.2, 1.0, 'lowpass'); tone('sine', 70, 25, 1.1, 0.7); break;
+      case 'chime': [0, 7, 12, 16, 19].forEach((s, i) => tone('sine', this.mf(79 + s), this.mf(79 + s), 1.2, 0.07, i * 0.06)); break;
+      case 'wave': noise(300, 1800, 1.3, 0.7, 'bandpass', 0, 0.8); noise(5000, 2000, 1.2, 0.25, 'highpass', 0.3); break;
     }
   },
 };
@@ -619,6 +724,57 @@ const SONGS = {
       if (s % 2 === 0) v('bell', ch[1 + ((s / 2) % 4)] + 24, spb * 3, 0.22);
       if (s === 8) v('timp', ch[0] - 12, 0, 0.6);
       if (s % 4 === 2) v('hat', 0, 0, 0.3);
+    },
+  },
+  star: {
+    bpm: 68,
+    seq(st, t, spb, v) {
+      const bar = Math.floor(st / 16) % 4, s = st % 16;
+      const prog = [[50, 57, 64, 66, 71], [48, 55, 62, 64, 69], [53, 60, 67, 69, 74], [52, 59, 66, 68, 73]];
+      const ch = prog[bar];
+      if (s === 0) { v('pad', ch[1], spb * 16, 0.6); v('choir', ch[3] + 12, spb * 16, 0.5); v('bass', ch[0] - 12, spb * 16, 0.5); }
+      if (s % 2 === 0) v('bell', ch[(s / 2 + bar) % 5] + 24, spb * 3, 0.2);
+      if (s === 6 || s === 14) v('bell', ch[4] + 31, spb * 6, 0.16);
+    },
+  },
+  abyss: {
+    bpm: 58,
+    seq(st, t, spb, v) {
+      const bar = Math.floor(st / 16) % 4, s = st % 16;
+      const r = [38, 34, 36, 33][bar];
+      if (s === 0) { v('choir', r + 12, spb * 16, 0.8); v('choir', r + 19, spb * 16, 0.55); v('bass', r - 12, spb * 16, 0.9); v('timp', r - 12, 0, 0.8); }
+      if (s === 10) v('timp', r - 12, 0, 0.5);
+      if (s % 4 === 2) v('pluck', r + 24 + [0, 3, 7, 10][(s / 4 | 0) % 4], spb * 4, 0.22);
+      if (s === 8 && bar % 2 === 0) v('bell', r + 36, spb * 10, 0.25);
+    },
+  },
+  dawn: {
+    bpm: 128,
+    seq(st, t, spb, v) {
+      const bar = Math.floor(st / 16) % 8, s = st % 16;
+      const prog = [[45, 57, 61, 64], [41, 53, 57, 60], [43, 55, 59, 62], [40, 52, 56, 59], [45, 57, 61, 64], [38, 50, 54, 57], [41, 53, 57, 60], [43, 55, 59, 62]];
+      const ch = prog[bar];
+      if (s === 0 || s === 6 || s === 10) v('timp', ch[0] - 12, 0, s === 0 ? 1 : 0.7);
+      if (s === 0 || s === 8) v('kick', 0, 0, 0.8);
+      if (s === 4 || s === 12) v('snare', 0, 0, 0.55);
+      v('bass', ch[0] - 12 + (s % 4 === 2 ? 12 : 0), spb * 1.5, s % 4 === 0 ? 0.8 : 0.5);
+      if (s === 0) { v('pad', ch[1] + 12, spb * 16, 0.6); v('pad', ch[2] + 12, spb * 16, 0.5); }
+      const mel = bar % 2 === 0 ? [[0, 76], [3, 79], [6, 81], [8, 83], [12, 81]] : [[0, 79], [4, 76], [8, 74], [12, 76]];
+      for (const [p, m] of mel) if (s === p) v('lead', m + (bar >= 4 ? 0 : -12) + 12, spb * 3, 0.38);
+      if (s % 2 === 1) v('hat', 0, 0, 0.45);
+    },
+  },
+  limina: {
+    bpm: 92,
+    seq(st, t, spb, v) {
+      const bar = Math.floor(st / 16) % 8, s = st % 16;
+      const voidBar = Math.floor(bar / 2) % 2 === 1;
+      const ch = voidBar ? [[37, 49, 52, 56], [33, 45, 48, 52]][bar % 2] : [[40, 52, 56, 59], [45, 57, 61, 64]][bar % 2];
+      if (s === 0) { v('choir', ch[2] + 12, spb * 16, 0.75); v('choir', ch[3] + 12, spb * 16, 0.6); v('bass', ch[0] - 12, spb * 16, 0.8); v('timp', ch[0] - 12, 0, 0.9); }
+      if (s === 8) v('timp', ch[0] - 12, 0, 0.6);
+      if (s % 2 === 0) v(voidBar ? 'pluck' : 'bell', ch[1 + ((s / 2) % 3)] + 24, spb * 2.5, voidBar ? 0.3 : 0.2);
+      if (s === 4 || s === 12) v('snare', 0, 0, 0.35);
+      if (s % 2 === 1) v('hat', 0, 0, 0.3);
     },
   },
   victory: {
