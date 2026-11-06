@@ -99,6 +99,8 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .ibtn{border:1px solid var(--line);background:var(--panel);border-radius:12px;padding:9px 13px;font-size:13px;font-weight:700;min-height:40px;
   backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .ibtn:hover{border-color:var(--line-hi)}
+.ibtn{display:inline-flex;align-items:center;gap:6px}
+.ibtn .hico{width:16px;height:16px;fill:none;stroke:var(--gold);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
 #prompt{position:absolute;left:50%;bottom:calc(var(--sa-b) + 34%);transform:translateX(-50%);background:var(--panel-hi);border:1px solid var(--line-hi);
   padding:9px 16px;border-radius:999px;font-weight:700;font-size:14px;white-space:nowrap;box-shadow:0 0 30px rgba(242,212,138,.25)}
 #prompt kbd{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:6px;background:var(--gold);color:#241603;font-family:var(--f-ui);font-size:12px;margin-right:8px;padding:0 5px}
@@ -314,7 +316,7 @@ body.has-touch #saveInd{bottom:calc(var(--sa-b) + 190px)}
 #dWho.void{border-left-color:var(--void);background:linear-gradient(90deg,rgba(176,107,255,.22),transparent)}
 #dPort.void{border-color:rgba(176,107,255,.5);background:radial-gradient(circle at 50% 35%,rgba(176,107,255,.32),rgba(255,255,255,.03))}
 #dPort.sil{filter:brightness(0) drop-shadow(0 0 6px rgba(176,107,255,.95)) drop-shadow(0 0 14px rgba(120,60,220,.7));border-color:transparent;background:none}
-@media (max-width:640px){ #compass{width:min(300px,74vw);top:calc(var(--sa-t) + 98px)} #dPort{width:54px;height:54px} #area{top:25%;width:92vw} #area .a1{font-size:20px} #area .a1::before,#area .a1::after{width:22px;margin:0 8px} }
+@media (max-width:640px){ #compass{width:min(300px,78vw)} #dPort{width:54px;height:54px} #area{top:25%;width:92vw} #area .a1{font-size:20px} #area .a1::before,#area .a1::after{width:22px;margin:0 8px} }
 /* ---------- overlays ---------- */
 #toasts{position:absolute;top:calc(var(--sa-t) + 84px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;z-index:28;pointer-events:none;width:min(520px,calc(100% - 32px))}
 .toast{background:var(--panel-hi);border:1px solid var(--line-hi);padding:10px 18px;border-radius:999px;font-weight:700;font-size:14px;animation:toast 3.2s ease forwards;text-align:center}
@@ -357,11 +359,15 @@ body.has-touch #saveInd{bottom:calc(var(--sa-b) + 190px)}
   .bp .nm{font-size:15px}
   .bp.ally{bottom:calc(var(--sa-b) + 250px)}
   #dTxt{font-size:15.5px}
-  #quest{max-width:56vw;padding:8px 11px}
+  #quest{padding:8px 11px}
+  #questSub{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
   #questText{font-size:13.5px}
-  .ibtn{padding:8px 10px;font-size:12px}
+  .ibtn{padding:0;width:40px;justify-content:center}
+  .ibtn .hlbl{display:none}
+  .ibtn .hico{width:18px;height:18px}
   .cmd{min-height:52px;padding:8px 12px}
-  #toasts{top:calc(var(--sa-t) + 146px)}
+  .cmd.back.mini{position:static;grid-column:1 / -1;order:-1;min-height:34px;justify-content:center}
+  #battleUI.moves .bp.ally{bottom:calc(var(--sa-b) + 330px)}
 }
 @media (prefers-reduced-motion:reduce){
   .load-mark,#dialog .next,.emblem,#saveInd i{animation:none}
@@ -410,9 +416,9 @@ body.has-touch #saveInd{bottom:calc(var(--sa-b) + 190px)}
     <div id="area"><div class="a1"></div><div class="a2"></div></div>
     <div id="quest"><span class="q-label">목표</span><span id="questText"></span><span id="questSub"></span><span id="questLeg"></span></div>
     <div id="hudBtns">
-      <button id="bParty" class="ibtn">정령</button>
-      <button id="bBag" class="ibtn">가방</button>
-      <button id="bMenu" class="ibtn">설정</button>
+      <button id="bParty" class="ibtn" aria-label="정령"><svg class="hico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2 7 7 3-7 3-2 7-2-7-7-3 7-3z"/></svg><span class="hlbl">정령</span></button>
+      <button id="bBag" class="ibtn" aria-label="가방"><svg class="hico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/></svg><span class="hlbl">가방</span></button>
+      <button id="bMenu" class="ibtn" aria-label="설정"><svg class="hico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg><span class="hlbl">설정</span></button>
     </div>
     <div id="prompt" hidden></div>
     <div id="leadCard" hidden></div>
@@ -3062,12 +3068,19 @@ function sculptToonMaterial(o, D) {
             vec3 hv = normalize(directionalLights[0].direction + vdir);
             outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
           #endif
-          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); outgoingLight += vec3(0.42, 0.46, 0.6) * hr; }
+          if (uHairRing > 0.0) {
+            // soft "angel ring": a broad sheen band broken into strands, strongest where the hair faces the light
+            float ang = atan(vObjPos.x, vObjPos.z);
+            float band = smoothstep(0.05, 0.0, abs(vObjPos.y - uHairRing - 0.03 * sin(ang * 7.0)));
+            float strands = 0.45 + 0.55 * smoothstep(0.2, 0.9, sin(ang * 23.0 + vObjPos.y * 40.0) * 0.5 + 0.5);
+            float hr = band * strands * smoothstep(-0.1, 0.25, vObjPos.z + 0.2);
+            outgoingLight += mix(vec3(0.2, 0.22, 0.3), diffuseColor.rgb * 2.2 + 0.08, 0.5) * hr * 0.55;
+          }
         }
         #include <opaque_fragment>`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
   };
-  m.customProgramCacheKey = () => 'sculptToon-v2';
+  m.customProgramCacheKey = () => 'sculptToon-v3';
   return m;
 }
 
@@ -3601,7 +3614,14 @@ function designPersonBody(C) {
   K.rc([0, 0.76, 0], [0, 1.1, 0], 0.22, 0.24, C.top, { k: 0.1 });
   K.el([0, 0.98, 0.05], [0.25, 0.21, 0.2], C.top, { k: 0.1 });
   K.el([0, 0.98, 0.2], [0.09, 0.18, 0.06], C.shirt, { k: 0.04 });
-  for (const sx of [-1, 1]) K.rc([sx * 0.07, 1.16, 0.19], [sx * 0.12, 0.8, 0.2], 0.03, 0.025, C.trim, { k: 0.02 });
+  // jacket opening: two trim bands that sit on the surface, a leather strap across the chest, a belt pouch
+  for (const sx of [-1, 1]) K.rc([sx * 0.065, 1.14, 0.215], [sx * 0.115, 0.8, 0.228], 0.026, 0.022, C.trim, { k: 0.012 });
+  if (!C.robe) {
+    K.rc([0.17, 1.12, 0.15], [-0.17, 0.79, 0.205], 0.026, 0.026, 0x6a4430, { k: 0.008 });
+    K.el([0.03, 0.96, 0.245], [0.035, 0.035, 0.018], 0xd8b060, { k: 0.006 });
+    K.el([0.2, 0.69, 0.15], [0.075, 0.07, 0.055], 0x7a5038, { k: 0.02 });
+    K.el([0.2, 0.735, 0.19], [0.07, 0.022, 0.03], 0x5a3a26, { k: 0.01 });
+  }
   K.el([0, 1.18, 0.0], [0.21, 0.07, 0.2], C.trim, { k: 0.04 });
   K.el([0, 0.74, 0.0], [0.245, 0.05, 0.21], 0x5a3a26, { k: 0.03 });
   K.el([0, 0.74, 0.205], [0.05, 0.04, 0.025], 0xf2c35a, { k: 0.015 });
@@ -6082,10 +6102,10 @@ function bmsgSet(text) { $('#bMsg').textContent = text; }
 let hotkeyHandler = null;
 function onHotkey(code) { if (hotkeyHandler) hotkeyHandler(code); else if (typeof worldHotkey === 'function') worldHotkey(code); }
 function menu(items, opts = {}) {
-  const box = $('#bCmd'); box.innerHTML = ''; box.classList.toggle('scroll', !!opts.scroll); $('#battleUI').classList.toggle('listing', !!opts.scroll);
+  const box = $('#bCmd'); box.innerHTML = ''; box.classList.toggle('scroll', !!opts.scroll); $('#battleUI').classList.toggle('listing', !!opts.scroll); $('#battleUI').classList.toggle('moves', !!opts.moves);
   return new Promise((res) => {
     const btns = [];
-    const done = (v) => { hotkeyHandler = null; box.innerHTML = ''; $('#battleUI').classList.remove('listing'); res(v); };
+    const done = (v) => { hotkeyHandler = null; box.innerHTML = ''; $('#battleUI').classList.remove('listing', 'moves'); res(v); };
     items.forEach((it, i) => {
       const b = document.createElement('button'); b.className = 'cmd ' + (it.cls || ''); b.innerHTML = it.html; b.disabled = !!it.disabled;
       if (it.style) b.style.cssText = it.style;
@@ -6404,7 +6424,7 @@ async function chooseAction() {
         return { value: id, cls: 'mv', style: `--tc:${TYPES[M.t].c}`, html: `<span class="c-t">${M.n}${M.sig ? ' <span style="color:#f2d48a;font-size:11px">★전용</span>' : ''}</span><span class="c-s">${typeChip(M.t)} ${stats} ${badge}</span>` };
       });
       items.push({ value: null, cls: 'back mini', back: true, html: `<span class="c-t">← 뒤로</span>${isTouch ? '' : '<kbd>Esc</kbd>'}` });
-      const mv = await menu(items);
+      const mv = await menu(items, { moves: true });
       if (mv) return { type: 'move', mv };
     } else if (c === 'bag') {
       const can = (id) => (S.items[id] || 0) > 0;
@@ -6690,6 +6710,7 @@ function updateHud() {
   const [a, b] = questInfo(); $('#questText').textContent = a; $('#questSub').textContent = b;
   const legs = Object.keys(World.legends || {}).map((sp) => World.legendSites[sp].name);
   $('#questLeg').textContent = legs.length ? '✦ 전설의 기척: ' + legs.join(' · ') : '';
+  layoutHud();
   const lc = $('#leadCard'), m = S.party[0];
   if (!m) { lc.hidden = true; return; }
   lc.hidden = false;
@@ -6697,6 +6718,20 @@ function updateHud() {
   lc.innerHTML = `<img src="${Icons.get(m.sp)}" alt=""><div class="lc-body"><div class="lc-name">${monName(m)} <span>Lv.${m.lv} · ${m.hp}/${maxHp(m)}</span></div><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div>`;
 }
 function showHud(on = true) { $('#hud').hidden = !on; $('#touch').hidden = !on || !isTouch; if (on) updateHud(); }
+// keep the objective panel clear of the corner buttons, and drop the compass (and toasts) below it when they would collide
+function layoutHud() {
+  const hud = $('#hud'); if (hud.hidden) return;
+  const q = $('#quest'), b = $('#hudBtns'), c = $('#compass'), t = $('#toasts');
+  const br = b.getBoundingClientRect();
+  q.style.maxWidth = Math.max(170, Math.min(420, br.left - q.getBoundingClientRect().left - 10)) + 'px';
+  const qr = q.getBoundingClientRect(), cw = c.offsetWidth, cl = innerWidth / 2 - cw / 2;
+  if (qr.right + 10 > cl || br.left - 10 < cl + cw) {
+    const top = Math.max(qr.bottom, br.bottom) + 10;
+    c.style.top = top + 'px'; t.style.top = top + 54 + 'px';
+  } else { c.style.top = ''; t.style.top = ''; }
+}
+addEventListener('resize', () => setTimeout(layoutHud, 50));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => layoutHud());
 
 // ---------------------------------------------------------------- story actors
 const NPC_DEFS = [

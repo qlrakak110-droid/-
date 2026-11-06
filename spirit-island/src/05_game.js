@@ -98,6 +98,7 @@ function updateHud() {
   const [a, b] = questInfo(); $('#questText').textContent = a; $('#questSub').textContent = b;
   const legs = Object.keys(World.legends || {}).map((sp) => World.legendSites[sp].name);
   $('#questLeg').textContent = legs.length ? '✦ 전설의 기척: ' + legs.join(' · ') : '';
+  layoutHud();
   const lc = $('#leadCard'), m = S.party[0];
   if (!m) { lc.hidden = true; return; }
   lc.hidden = false;
@@ -105,6 +106,20 @@ function updateHud() {
   lc.innerHTML = `<img src="${Icons.get(m.sp)}" alt=""><div class="lc-body"><div class="lc-name">${monName(m)} <span>Lv.${m.lv} · ${m.hp}/${maxHp(m)}</span></div><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div>`;
 }
 function showHud(on = true) { $('#hud').hidden = !on; $('#touch').hidden = !on || !isTouch; if (on) updateHud(); }
+// keep the objective panel clear of the corner buttons, and drop the compass (and toasts) below it when they would collide
+function layoutHud() {
+  const hud = $('#hud'); if (hud.hidden) return;
+  const q = $('#quest'), b = $('#hudBtns'), c = $('#compass'), t = $('#toasts');
+  const br = b.getBoundingClientRect();
+  q.style.maxWidth = Math.max(170, Math.min(420, br.left - q.getBoundingClientRect().left - 10)) + 'px';
+  const qr = q.getBoundingClientRect(), cw = c.offsetWidth, cl = innerWidth / 2 - cw / 2;
+  if (qr.right + 10 > cl || br.left - 10 < cl + cw) {
+    const top = Math.max(qr.bottom, br.bottom) + 10;
+    c.style.top = top + 'px'; t.style.top = top + 54 + 'px';
+  } else { c.style.top = ''; t.style.top = ''; }
+}
+addEventListener('resize', () => setTimeout(layoutHud, 50));
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => layoutHud());
 
 // ---------------------------------------------------------------- story actors
 const NPC_DEFS = [

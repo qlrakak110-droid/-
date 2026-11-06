@@ -519,11 +519,18 @@ function sculptToonMaterial(o, D) {
             vec3 hv = normalize(directionalLights[0].direction + vdir);
             outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
           #endif
-          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); outgoingLight += vec3(0.42, 0.46, 0.6) * hr; }
+          if (uHairRing > 0.0) {
+            // soft "angel ring": a broad sheen band broken into strands, strongest where the hair faces the light
+            float ang = atan(vObjPos.x, vObjPos.z);
+            float band = smoothstep(0.05, 0.0, abs(vObjPos.y - uHairRing - 0.03 * sin(ang * 7.0)));
+            float strands = 0.45 + 0.55 * smoothstep(0.2, 0.9, sin(ang * 23.0 + vObjPos.y * 40.0) * 0.5 + 0.5);
+            float hr = band * strands * smoothstep(-0.1, 0.25, vObjPos.z + 0.2);
+            outgoingLight += mix(vec3(0.2, 0.22, 0.3), diffuseColor.rgb * 2.2 + 0.08, 0.5) * hr * 0.55;
+          }
         }
         #include <opaque_fragment>`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
   };
-  m.customProgramCacheKey = () => 'sculptToon-v2';
+  m.customProgramCacheKey = () => 'sculptToon-v3';
   return m;
 }

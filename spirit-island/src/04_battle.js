@@ -551,10 +551,10 @@ function bmsgSet(text) { $('#bMsg').textContent = text; }
 let hotkeyHandler = null;
 function onHotkey(code) { if (hotkeyHandler) hotkeyHandler(code); else if (typeof worldHotkey === 'function') worldHotkey(code); }
 function menu(items, opts = {}) {
-  const box = $('#bCmd'); box.innerHTML = ''; box.classList.toggle('scroll', !!opts.scroll); $('#battleUI').classList.toggle('listing', !!opts.scroll);
+  const box = $('#bCmd'); box.innerHTML = ''; box.classList.toggle('scroll', !!opts.scroll); $('#battleUI').classList.toggle('listing', !!opts.scroll); $('#battleUI').classList.toggle('moves', !!opts.moves);
   return new Promise((res) => {
     const btns = [];
-    const done = (v) => { hotkeyHandler = null; box.innerHTML = ''; $('#battleUI').classList.remove('listing'); res(v); };
+    const done = (v) => { hotkeyHandler = null; box.innerHTML = ''; $('#battleUI').classList.remove('listing', 'moves'); res(v); };
     items.forEach((it, i) => {
       const b = document.createElement('button'); b.className = 'cmd ' + (it.cls || ''); b.innerHTML = it.html; b.disabled = !!it.disabled;
       if (it.style) b.style.cssText = it.style;
@@ -873,7 +873,7 @@ async function chooseAction() {
         return { value: id, cls: 'mv', style: `--tc:${TYPES[M.t].c}`, html: `<span class="c-t">${M.n}${M.sig ? ' <span style="color:#f2d48a;font-size:11px">★전용</span>' : ''}</span><span class="c-s">${typeChip(M.t)} ${stats} ${badge}</span>` };
       });
       items.push({ value: null, cls: 'back mini', back: true, html: `<span class="c-t">← 뒤로</span>${isTouch ? '' : '<kbd>Esc</kbd>'}` });
-      const mv = await menu(items);
+      const mv = await menu(items, { moves: true });
       if (mv) return { type: 'move', mv };
     } else if (c === 'bag') {
       const can = (id) => (S.items[id] || 0) > 0;
