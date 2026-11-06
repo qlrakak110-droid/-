@@ -172,3 +172,7 @@ node tools/harness.js <repo> <초> tools/test_bot.luau   # studio.html 이 tools
 (`[MiniGames] ready: 12 stations, 11 NPC hosts, 8 games`), 산책로 테이블 근처로 가면 버튼이 뜹니다.
 다시 만들기: `python3 tools/build_studio.py <원본 스튜디오.html> dist/<출력>.html`
 (스튜디오는 1인 시뮬레이션이라 PvP는 NPC 대결·관전 위주로 확인할 수 있습니다.)
+
+## 별도 게임: 존재와 공허 (정령의 섬)
+`spirit-island/` 폴더에는 브라우저에서 바로 실행되는 오리지널 3D 정령 수집 RPG가 들어 있습니다.
+`spirit-island/index.html` 을 열면 실행됩니다. 자세한 내용은 [`spirit-island/README.md`](spirit-island/README.md)를 보세요.
