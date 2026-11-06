@@ -849,7 +849,11 @@ function updateWorld(dt, controllable) {
       moving = clamp(moved / dt / 6, 0, 1.4);
       W.stepAcc = (W.stepAcc || 0) + moved;
       if (W.stepAcc > (ax.run ? 2.4 : 1.7)) {
-        W.stepAcc = 0; Snd.fx('step');
+        W.stepAcc = 0;
+        // footstep surface: cobbles on the plaza, rustle in the tall grass, soft earth elsewhere
+        const onPlaza = Math.hypot(p.x - SITES.town.x, p.z - SITES.town.z) < 9.6;
+        const inGrass = !onPlaza && ZONES.some((zn) => Math.hypot(p.x - zn.x, p.z - zn.z) < zn.r);
+        Snd.fx(onPlaza ? 'stepStone' : inGrass ? 'stepGrass' : 'step');
         if (ax.run && mag > 0.5) W.dust.emit(p, 3, { speed: 0.9, size: 0.55, life: 0.8, spread: 0.2, vx: -dx * 1.2, vz: -dz * 1.2, up: 0.5, alpha: 0.42 });
       }
       onPlayerMoved(moved);

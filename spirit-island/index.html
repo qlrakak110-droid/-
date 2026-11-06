@@ -1115,6 +1115,8 @@ const Snd = {
       case 'fragment': [0, 7, 12, 19, 24].forEach((s, i) => tone('sine', this.mf(67 + s), this.mf(67 + s), 0.8, 0.12, i * 0.12)); break;
       case 'rumble': noise(140, 40, 2.5, 0.9, 'lowpass'); tone('sine', 50, 28, 2.4, 0.5); break;
       case 'step': noise(900, 500, 0.05, 0.05); break;
+      case 'stepStone': noise(3200, 1600, 0.035, 0.06, 'bandpass', 0, 2.5); tone('sine', 190, 120, 0.04, 0.025); break;
+      case 'stepGrass': noise(2600, 5200, 0.14, 0.045, 'highpass'); break;
       case 'roar': {
         const os = c.createOscillator(); os.type = 'sawtooth'; os.frequency.setValueAtTime(140, t); os.frequency.linearRampToValueAtTime(220, t + 0.25); os.frequency.exponentialRampToValueAtTime(55, t + 1.6);
         const lfo = c.createOscillator(); lfo.frequency.value = 23; const lg = c.createGain(); lg.gain.value = 30; lfo.connect(lg); lg.connect(os.frequency);
@@ -4592,7 +4594,11 @@ function updateWorld(dt, controllable) {
       moving = clamp(moved / dt / 6, 0, 1.4);
       W.stepAcc = (W.stepAcc || 0) + moved;
       if (W.stepAcc > (ax.run ? 2.4 : 1.7)) {
-        W.stepAcc = 0; Snd.fx('step');
+        W.stepAcc = 0;
+        // footstep surface: cobbles on the plaza, rustle in the tall grass, soft earth elsewhere
+        const onPlaza = Math.hypot(p.x - SITES.town.x, p.z - SITES.town.z) < 9.6;
+        const inGrass = !onPlaza && ZONES.some((zn) => Math.hypot(p.x - zn.x, p.z - zn.z) < zn.r);
+        Snd.fx(onPlaza ? 'stepStone' : inGrass ? 'stepGrass' : 'step');
         if (ax.run && mag > 0.5) W.dust.emit(p, 3, { speed: 0.9, size: 0.55, life: 0.8, spread: 0.2, vx: -dx * 1.2, vz: -dz * 1.2, up: 0.5, alpha: 0.42 });
       }
       onPlayerMoved(moved);
@@ -5493,7 +5499,7 @@ function aaAlphaTest(mat, texSize = 256, cutoff = 0.42) {
       #ifdef USE_MAP
         vec2 tsz = vMapUv * ${texSize.toFixed(1)};
         float mipL = max(0.0, 0.5 * log2(max(dot(dFdx(tsz), dFdx(tsz)), dot(dFdy(tsz), dFdy(tsz)))));
-        diffuseColor.a *= 1.0 + mipL * 0.28;
+        diffuseColor.a *= 1.0 + mipL * 0.14;
       #endif
       diffuseColor.a = clamp((diffuseColor.a - ${cutoff.toFixed(3)}) / max(fwidth(diffuseColor.a), 0.0001) + 0.5, 0.0, 1.0);
       if (diffuseColor.a < 0.01) discard;`)

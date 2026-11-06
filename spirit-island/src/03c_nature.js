@@ -180,7 +180,7 @@ function aaAlphaTest(mat, texSize = 256, cutoff = 0.42) {
       #ifdef USE_MAP
         vec2 tsz = vMapUv * ${texSize.toFixed(1)};
         float mipL = max(0.0, 0.5 * log2(max(dot(dFdx(tsz), dFdx(tsz)), dot(dFdy(tsz), dFdy(tsz)))));
-        diffuseColor.a *= 1.0 + mipL * 0.28;
+        diffuseColor.a *= 1.0 + mipL * 0.14;
       #endif
       diffuseColor.a = clamp((diffuseColor.a - ${cutoff.toFixed(3)}) / max(fwidth(diffuseColor.a), 0.0001) + 0.5, 0.0, 1.0);
       if (diffuseColor.a < 0.01) discard;`)

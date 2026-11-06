@@ -645,6 +645,8 @@ const Snd = {
       case 'fragment': [0, 7, 12, 19, 24].forEach((s, i) => tone('sine', this.mf(67 + s), this.mf(67 + s), 0.8, 0.12, i * 0.12)); break;
       case 'rumble': noise(140, 40, 2.5, 0.9, 'lowpass'); tone('sine', 50, 28, 2.4, 0.5); break;
       case 'step': noise(900, 500, 0.05, 0.05); break;
+      case 'stepStone': noise(3200, 1600, 0.035, 0.06, 'bandpass', 0, 2.5); tone('sine', 190, 120, 0.04, 0.025); break;
+      case 'stepGrass': noise(2600, 5200, 0.14, 0.045, 'highpass'); break;
       case 'roar': {
         const os = c.createOscillator(); os.type = 'sawtooth'; os.frequency.setValueAtTime(140, t); os.frequency.linearRampToValueAtTime(220, t + 0.25); os.frequency.exponentialRampToValueAtTime(55, t + 1.6);
         const lfo = c.createOscillator(); lfo.frequency.value = 23; const lg = c.createGain(); lg.gain.value = 30; lfo.connect(lg); lg.connect(os.frequency);
