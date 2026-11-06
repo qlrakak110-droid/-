@@ -969,8 +969,8 @@ function setBattleCamera(force) {
   const legend = B.foeRig && SPECIES[B.foeRig.sp].legend;
   B.camera.fov = aspect < 0.8 ? 64 : aspect < 1.2 ? 54 : 44; B.camera.updateProjectionMatrix();
   const back = aspect < 0.8 ? 1.25 : 1;
-  B.camBasePos.set(-1.2 * back, 3.3 + (legend ? 1.2 : 0) + (aspect < 0.8 ? 1.4 : 0), 9.6 * back + (legend ? 1.5 : 0));
-  const ly = legend && B.foeRig ? clamp(rigCenter(B.foeRig).y * 0.72, 2.0, 4.2) : 1.25;
+  B.camBasePos.set(-1.2 * back, (legend ? 2.2 : 3.3) + (aspect < 0.8 ? 1.4 : 0), 9.6 * back + (legend ? 1.2 : 0));
+  const ly = legend && B.foeRig ? clamp(rigCenter(B.foeRig).y * 0.9, 2.2, 4.6) : 1.25;
   B.camBaseLook.set(aspect < 0.8 ? 0.2 : 0.5, ly, -1.2);
   if (force) { B.camPos.copy(B.camBasePos); B.camLook.copy(B.camBaseLook); }
 }

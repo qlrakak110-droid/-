@@ -123,7 +123,19 @@ function buildWorld() {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   W.terrainGeo = geo; W._noiseV = noiseV; W._pdV = pdV;
   recolorTerrain();
-  const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const tmat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  tmat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vTW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vTW = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vTW;\n' + GLSL_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        float n1 = vnoise(vTW.xz * 0.33), n2 = vnoise(vTW.xz * 1.6 + 7.0), n3 = vnoise(vTW.xz * 5.5 + 3.0), n4 = vnoise(vTW.xz * 17.0);
+        diffuseColor.rgb *= 0.84 + 0.2 * n1 + 0.1 * (n2 - 0.5) + 0.08 * (n3 - 0.5) + 0.05 * (n4 - 0.5);
+        float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 1.0, 0.86), smoothstep(0.55, 0.8, n2) * 0.5);
+        diffuseColor.rgb = mix(vec3(lum), diffuseColor.rgb, 1.12);
+      }`);
+  };
+  const terrain = new THREE.Mesh(geo, tmat);
   terrain.receiveShadow = true; scene.add(terrain); W.terrain = terrain;
 
   // height texture for the sea shader

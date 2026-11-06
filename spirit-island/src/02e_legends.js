@@ -11,7 +11,7 @@ function legendDesign(sp) {
     case 'asterion': d = designWestern({ horns: 'crystal', bulk: 0.9, neck: 1.35, tail: 1.25, spikeScale: 1.1, spikeGlow: 1.0, colors: { body: 0x111a48, belly: 0x1d2e66, horn: 0xa8ecff, spike: 0x8fd8ff, claw: 0x9fe0ff, glowHorn: 1.2 } }); break;
     case 'limina': d = designWestern({ horns: 'swept', bulk: 1.0, neck: 1.1, tail: 1.1, tailBlade: true, spikeGlow: 0.5, colors: { body: 0xe9e2f4, belly: 0xe8d8b8, horn: 0xffd27a, spike: 0xf0d8a0, claw: 0xffd27a, glowHorn: 0.6 } }); break;
     case 'danha': d = designEastern({ antlers: true, legs: true, length: 13, radius: 0.36, ridge: 0.18, ridgeGlow: 0.7, colors: { body: 0xc21d38, belly: 0xf2c35a, horn: 0xf2c35a, spike: 0xff7a2a, claw: 0xf2c35a } }); break;
-    case 'abyssea': d = designEastern({ head: 'whale', fluke: true, radius: 0.5, length: 12, ridge: 0.24, ridgeGlow: 0.9, colors: { body: 0x0c2b4c, belly: 0x2a6a8a, spike: 0x15506e } }); break;
+    case 'abyssea': d = designEastern({ head: 'whale', fluke: true, sail: true, radius: 0.56, length: 12.5, ridge: 0.24, ridgeGlow: 0.9, colors: { body: 0x0b2846, belly: 0x2a6a8a, spike: 0x1a6a8e } }); break;
   }
   _legendDesigns[sp] = d; return d;
 }
@@ -42,7 +42,7 @@ MODELS.ensia = (r) => {
   const D = legendDesign('ensia');
   const B = buildDragon(r, {
     key: 'ensia', design: D, scale: 0.62, float: 1.25, eye: 0xfff2c4,
-    mat: { rough: 0.3, metal: 0.25, coat: 1.0, coatRough: 0.12, sheen: 0.6, sheenCol: 0xffe2a0, irid: 0.3, belly: 0xead7ac, glow: 0xffd27a, vein: 0.5, glowAmt: 2.6, rim: 0xffe6b0, rimAmt: 0.42, scaleFreq: 6, bump: 0.24 },
+    mat: { rough: 0.3, metal: 0.25, coat: 1.0, coatRough: 0.12, sheen: 0.6, sheenCol: 0xffe2a0, irid: 0.3, belly: 0xead7ac, glow: 0xffd27a, vein: 0.5, glowAmt: 2.6, rim: 0xffe6b0, rimAmt: 0.42, scaleFreq: 9, bump: 0.22 },
     wings: [GOLD_WING, GOLD_WING],
   });
   const halo = grp(B, [D.head[0], D.head[1] + 0.25, D.head[2] - 0.55]);

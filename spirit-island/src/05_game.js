@@ -641,12 +641,12 @@ function openSettings() {
   let confirmReset = false;
   openModal('설정', [], (tab, body, redraw) => {
     body.innerHTML = `
-      <div class="item-row"><div><div class="nm">그래픽</div><div class="ds">높음: 블룸 조명·그림자·풍성한 풀숲 / 낮음: 휴대폰 배터리 절약</div></div><button class="chip" id="oGfx">${Settings.high ? '높음' : '낮음'}</button></div>
+      <div class="item-row"><div><div class="nm">그래픽</div><div class="ds">최고: 앰비언트 오클루전까지 / 높음: 블룸 조명·그림자·풍성한 풀숲 / 낮음: 휴대폰 배터리 절약</div></div><button class="chip" id="oGfx">${gfxLabel()}</button></div>
       <div class="item-row"><div><div class="nm">소리</div><div class="ds">배경 음악과 효과음</div></div><button class="chip" id="oSnd">${Settings.sound ? '켬' : '끔'}</button></div>
       <div class="item-row"><div><div class="nm">저장</div><div class="ds">전투가 끝날 때와 중요한 순간마다 자동으로 저장돼요.</div></div><button class="chip" id="oSave">지금 저장</button></div>
       <div class="item-row"><div><div class="nm">조작법</div><div class="ds">${isTouch ? '왼쪽 스틱 이동 · A 상호작용 · 빈 화면을 끌어 시점 회전 · 두 손가락으로 확대' : 'WASD·방향키 이동 · Shift 달리기 · E·Space 상호작용 · 드래그 또는 Q/R 시점 회전 · 휠 확대 · P 정령 · B 가방 · Esc 설정'}</div></div></div>
       <div class="item-row"><div><div class="nm">처음부터</div><div class="ds">${confirmReset ? '한 번 더 누르면 모든 기록이 지워져요.' : '저장된 모험을 지우고 새로 시작해요.'}</div></div><button class="chip" id="oReset">${confirmReset ? '정말 지우기' : '새로 시작'}</button></div>`;
-    $('#oGfx').onclick = () => { Settings.high = !Settings.high; saveSettings(); applyQuality(); redraw(); };
+    $('#oGfx').onclick = () => { cycleGfx(); redraw(); };
     $('#oSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); redraw(); };
     $('#oSave').onclick = () => { save(); toast('저장했어요'); };
     $('#oReset').onclick = () => { if (!confirmReset) { confirmReset = true; redraw(); return; } try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
@@ -664,6 +664,13 @@ function worldHotkey(code) {
   if (code === 'Escape' || code === 'KeyM') openSettings();
 }
 
+function gfxLabel() { return Settings.high ? (Settings.ultra ? '최고' : '높음') : '낮음'; }
+function cycleGfx() {
+  if (Settings.high && Settings.ultra) Settings.ultra = false;
+  else if (Settings.high) Settings.high = false;
+  else { Settings.high = true; Settings.ultra = true; }
+  saveSettings(); applyQuality();
+}
 // ---------------------------------------------------------------- interaction
 function interactables() {
   const L = [];
@@ -768,7 +775,7 @@ async function boot() {
   applyQuality();
   setupPedestals(); placeRiftState(); refreshMarkers();
   G.mode = 'title';
-  $('#btnGfx').textContent = '그래픽: ' + (Settings.high ? '높음' : '낮음');
+  $('#btnGfx').textContent = '그래픽: ' + gfxLabel();
   $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔');
   const existing = loadSave();
   if (existing) $('#btnCont').hidden = false;
@@ -794,7 +801,7 @@ async function boot() {
     await fadeTo(1, 0.6);
     await enterWorld(false);
   };
-  $('#btnGfx').onclick = () => { Settings.high = !Settings.high; saveSettings(); applyQuality(); $('#btnGfx').textContent = '그래픽: ' + (Settings.high ? '높음' : '낮음'); };
+  $('#btnGfx').onclick = () => { cycleGfx(); $('#btnGfx').textContent = '그래픽: ' + gfxLabel(); };
   $('#btnSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔'); };
   window.addEventListener('beforeunload', () => { if (G.mode === 'world' && S.party.length) save(); });
 }

@@ -69,12 +69,12 @@ function dragonMaterial(o, D) {
     uRimCol: { value: new THREE.Color(o.rim ?? 0xffffff) }, uRimAmt: { value: o.rimAmt ?? 0.4 },
     uStars: { value: o.stars ?? 0 }, uSplit: { value: o.split ? 1 : 0 }, uVoidCol: { value: new THREE.Color(o.voidCol ?? 0x07050d) },
     uStripes: { value: o.stripes ?? 0 }, uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
-    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY; uniform vec3 uJawHinge;
+    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
       attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
       varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
       vec3 dragonOffset(float s){
@@ -90,7 +90,9 @@ function dragonMaterial(o, D) {
         vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
         if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
         transformed += dragonOffset(aS);
-        if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = abs(aLeg) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
+        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
+          transformed.z += sin(aph) * uStride * 0.9 * aw; }
+        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
           transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`);
     sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat;
       uniform vec3 uBellyCol, uGlowCol, uRimCol, uVoidCol;
@@ -276,7 +278,7 @@ function wingMaterial(o, side) {
     uMemCol: { value: new THREE.Color(o.mem ?? 0x8a3a3a) }, uEdgeCol: { value: new THREE.Color(o.edge ?? 0xff8a3d) }, uBoneCol: { value: new THREE.Color(o.bone ?? 0x222222) },
     uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
   };
-  m.userData.U = U; m.userData.uFlash = U.uFlash;
+  m.userData.U = U; m.userData.uFlash = U.uFlash; m.userData.noAO = true;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = `uniform float uTime, uSide, uFlapBase, uFlapAmp, uFlapSpeed; attribute float aSpan; attribute float aMem; varying float vMem; varying vec2 vUv2; varying float vSpan;

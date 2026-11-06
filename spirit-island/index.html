@@ -382,6 +382,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $ = (s) => document.querySelector(s);
@@ -426,7 +427,7 @@ function fbm(x, y, o = 4) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i+
 
 // ---------------------------------------------------------------- settings
 const isTouch = (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
-const Settings = { high: !isTouch || Math.min(screen.width, screen.height) > 700, sound: true };
+const Settings = { high: !isTouch || Math.min(screen.width, screen.height) > 700, ultra: !isTouch, sound: true };
 try { const s = JSON.parse(localStorage.getItem('void-being-settings') || 'null'); if (s) Object.assign(Settings, s); } catch (e) {}
 function saveSettings() { try { localStorage.setItem('void-being-settings', JSON.stringify(Settings)); } catch (e) {} }
 
@@ -443,6 +444,19 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: isTouch ? 2 : 4 }));
 const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
 composer.addPass(renderPass);
+// ground-truth ambient occlusion (ultra tier): contact shadows and crevices, computed at half resolution
+const aoCam = new THREE.PerspectiveCamera(50, 1, 0.1, 1600);
+const gtaoPass = new GTAOPass(new THREE.Scene(), aoCam, 256, 256, undefined, { radius: 0.9, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12, distanceFallOff: 1, screenSpaceRadius: false }, { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+gtaoPass.blendIntensity = 0.85;
+{
+  const setSz = gtaoPass.setSize.bind(gtaoPass);
+  gtaoPass.setSize = (w, h) => setSz(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
+  gtaoPass.overrideVisibility = function () {
+    const cache = this._visibilityCache;
+    this.scene.traverse((o) => { cache.set(o, o.visible); if (o.isPoints || o.isLine || o.isSprite || (o.material && (o.material.transparent || o.material.userData.noAO || o.material.isShaderMaterial && !o.material.userData.ao))) o.visible = false; });
+  };
+}
+composer.addPass(gtaoPass);
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.55, 0.86);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
@@ -520,6 +534,8 @@ window.addEventListener('resize', onResize);
 function renderScene(scene, camera) {
   if (Settings.high) {
     renderPass.scene = scene; renderPass.camera = camera;
+    gtaoPass.enabled = !!Settings.ultra;
+    if (gtaoPass.enabled) { gtaoPass.scene = scene; gtaoPass.camera = camera; }
     composer.render();
   } else {
     renderer.render(scene, camera);
@@ -2212,11 +2228,20 @@ function designWestern(o) {
   }
   // ---- horns
   const hornCol = col(C.horn), hg = C.glowHorn;
+  const ridged = o.horns !== 'crystal';
   const hornChain = (pts, r0, r1, k = 0.04) => {
     const n = pts.length;
     for (let i = 0; i < n - 1; i++) {
       const ra = (r0 + (r1 - r0) * (i / (n - 1))) * hs, rb = (r0 + (r1 - r0) * ((i + 1) / (n - 1))) * hs;
       P(SDF.rc(pts[i], pts[i + 1], ra, rb, { k: i === 0 ? 0.06 : k, s0: sH, s1: sH, col: hornCol, glow: hg * ((i + 1) / (n - 1)) }));
+      if (ridged && ra > 0.04) {
+        const a = pts[i], b = pts[i + 1], d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], L = Math.hypot(d[0], d[1], d[2]);
+        for (const t of [0.2, 0.45, 0.7]) {
+          const p0 = [a[0] + d[0] * t, a[1] + d[1] * t, a[2] + d[2] * t], rr = (ra + (rb - ra) * t);
+          const e = [d[0] / L * 0.018, d[1] / L * 0.018, d[2] / L * 0.018];
+          P(SDF.rc([p0[0] - e[0], p0[1] - e[1], p0[2] - e[2]], [p0[0] + e[0], p0[1] + e[1], p0[2] + e[2]], rr * 1.16, rr * 1.12, { k: 0.012, s0: sH, s1: sH, col: hornCol, glow: hg * ((i + t) / (n - 1)) }));
+        }
+      }
     }
   };
   for (const sx of [-1, 1]) {
@@ -2233,17 +2258,35 @@ function designWestern(o) {
     }
   }
   if (o.horns === 'crown') hornChain([H(0, 0.3, 0.12), H(0, 0.55, -0.05), H(0, 0.68, -0.3)], 0.05, 0.004);
+  const IV = col(0xf2ead4);
+  for (const sx of [-1, 1]) {
+    P(SDF.rc(H(sx * 0.1, -0.08, 0.98), H(sx * 0.105, -0.2, 1.0), 0.026 * hs, 0.003, { k: 0.01, s0: sH, s1: sH, col: IV }));
+    P(SDF.rc(H(sx * 0.12, -0.08, 0.74), H(sx * 0.125, -0.17, 0.75), 0.02 * hs, 0.003, { k: 0.01, s0: sH, s1: sH, col: IV }));
+    P(SDF.rc(H(sx * 0.07, -0.17, 0.9), H(sx * 0.075, -0.07, 0.92), 0.02 * hs, 0.003, { k: 0.01, s0: sH, s1: sH, col: IV, jaw: 1 }));
+    P(SDF.rc(H(sx * 0.17, 0.22, 0.6), H(sx * 0.25, 0.25, 0.3), 0.045 * hs, 0.03 * hs, Object.assign({ k: 0.03 }, head)));
+  }
+  // ---- musculature
+  for (const sx of [-1, 1]) {
+    for (const t of [0.35, 0.65]) {
+      const a = ctrl[7], b = ctrl[9], p0 = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      P(SDF.el([sx * 0.15, p0[1] - 0.05, p0[2] - 0.02], [0.13, 0.24, 0.17], { k: 0.14, s0: 0.8 + t * 0.15, s1: 0.8 + t * 0.15, col: col(C.body), belly: 0.6 }));
+    }
+    P(SDF.el([sx * 0.26 * bulk, 1.52, 1.02], [0.26, 0.24, 0.2], { k: 0.15, s0: sChest, s1: sChest, col: col(C.body), belly: 1 }));
+    for (let i = 0; i < 5; i++) P(SDF.el([sx * 0.5 * bulk, 1.62 - i * 0.02, 0.32 - i * 0.24], [0.07, 0.3, 0.065], { k: 0.11, s0: sBelly, s1: sBelly, col: col(C.body) }));
+  }
   // ---- legs
   const leg = (pts, radii, sLeg) => { for (let i = 0; i < pts.length - 1; i++) P(SDF.rc(pts[i], pts[i + 1], radii[i], radii[i + 1], { k: i === 0 ? 0.16 : 0.07, s0: sLeg, s1: sLeg, col: col(C.body) })); };
-  const claws = (base, fw, sLeg) => { for (let c = -1; c <= 1; c++) P(SDF.rc([base[0] + c * 0.09, base[1], base[2]], [base[0] + c * 0.11, 0.015, base[2] + fw], 0.045, 0.004, { k: 0.025, s0: sLeg, s1: sLeg, col: col(C.claw) })); };
+  const claws = (base, fw, sLeg) => { for (let c = -1; c <= 1; c++) P(SDF.rc([base[0] + c * 0.09, base[1] + 0.02, base[2]], [base[0] + c * 0.12, 0.012, base[2] + fw * 1.25], 0.055, 0.004, { k: 0.025, s0: sLeg, s1: sLeg, col: col(C.claw) })); };
   for (const sx of [-1, 1]) {
     const fx = sx * 0.5 * bulk;
     leg([[fx, 1.75, 0.82], [fx * 1.2, 1.05, 0.66], [fx * 1.24, 0.36, 0.98], [fx * 1.27, 0.12, 1.18]], [0.27, 0.17, 0.12, 0.11], sChest);
     P(SDF.el([fx * 1.12, 1.35, 0.78], [0.2, 0.3, 0.22], { k: 0.12, s0: sChest, s1: sChest, col: col(C.body) }));
+    P(SDF.el([fx * 1.23, 0.74, 0.8], [0.12, 0.22, 0.13], { k: 0.1, s0: sChest, s1: sChest, col: col(C.body) }));
     claws([fx * 1.27, 0.1, 1.24], 0.2, sChest);
     const hx = sx * 0.46 * bulk;
     leg([[hx, 1.45, -1.15], [hx * 1.32, 0.95, -0.7], [hx * 1.32, 0.42, -1.25], [hx * 1.34, 0.12, -0.96]], [0.36, 0.19, 0.12, 0.11], sHip);
     P(SDF.el([hx * 1.18, 1.18, -0.95], [0.26, 0.4, 0.36], { k: 0.14, s0: sHip, s1: sHip, col: col(C.body) }));
+    P(SDF.el([hx * 1.31, 0.66, -1.02], [0.12, 0.2, 0.15], { k: 0.1, s0: sHip, s1: sHip, col: col(C.body) }));
     claws([hx * 1.34, 0.1, -0.9], 0.2, sHip);
   }
   // ---- dorsal spikes along the spine (neck → tail tip)
@@ -2252,6 +2295,7 @@ function designWestern(o) {
       const q = sp[i]; if (q.p[2] > 1.9) continue;
       const hgt = (0.13 + 0.34 * Math.min(1, q.r / 0.5)) * (o.spikeScale || 1);
       P(SDF.rc([q.p[0], q.p[1] + q.r * 0.8, q.p[2]], [q.p[0], q.p[1] + q.r * 0.8 + hgt, q.p[2] - hgt * 0.75], q.r * 0.22 + 0.025, 0.003, { k: 0.04, s0: q.s, s1: q.s, col: col(C.spike), glow: o.spikeGlow || 0 }));
+      if (q.s > 0.55) for (const sx of [-1, 1]) P(SDF.rc([q.p[0] + sx * q.r * 0.45, q.p[1] + q.r * 0.65, q.p[2]], [q.p[0] + sx * (q.r * 0.45 + hgt * 0.35), q.p[1] + q.r * 0.65 + hgt * 0.55, q.p[2] - hgt * 0.6], q.r * 0.13 + 0.015, 0.003, { k: 0.03, s0: q.s, s1: q.s, col: col(C.spike), glow: (o.spikeGlow || 0) * 0.6 }));
     }
   }
   // ---- tail blade
@@ -2291,9 +2335,14 @@ function designEastern(o) {
   const hb = ctrl[N - 1], H = (x, y, z) => [x + hb[0], hb[1] + y, hb[2] + z];
   const sH = 1, head = { col: col(C.body), s0: sH, s1: sH };
   if (o.head === 'whale') {
-    P(SDF.el(H(0, 0.05, 0.55), [0.42, 0.36, 0.7], Object.assign({ k: 0.15 }, head)));
-    P(SDF.rc(H(0, 0.0, 0.6), H(0, -0.06, 1.3), 0.34, 0.2, Object.assign({ k: 0.15 }, head)));
-    P(SDF.rc(H(0, -0.2, 0.45), H(0, -0.26, 1.25), 0.22, 0.12, { k: 0.06, s0: sH, s1: sH, col: col(C.belly), jaw: 1 }));
+    P(SDF.el(H(0, 0.06, 0.55), [0.5, 0.42, 0.78], Object.assign({ k: 0.15 }, head)));
+    P(SDF.rc(H(0, 0.02, 0.6), H(0, -0.06, 1.42), 0.4, 0.22, Object.assign({ k: 0.15 }, head)));
+    P(SDF.rc(H(0, -0.24, 0.45), H(0, -0.3, 1.36), 0.26, 0.13, { k: 0.06, s0: sH, s1: sH, col: col(C.belly), jaw: 1 }));
+    for (const sx of [-1, 1]) {
+      P(SDF.rc(H(sx * 0.3, 0.28, 0.75), H(sx * 0.45, 0.32, 0.25), 0.07, 0.04, Object.assign({ k: 0.05 }, head)));
+      for (let k = 0; k < 4; k++) P(SDF.rc(H(sx * 0.42, 0.05 - k * 0.05, 0.25 - k * 0.04), H(sx * (0.85 + k * 0.05), 0.12 - k * 0.12, -0.15 - k * 0.1), 0.05, 0.006, { k: 0.04, s0: sH, s1: sH, col: col(C.spike), glow: (o.ridgeGlow || 0) * 0.7 }));
+      for (const z of [1.05, 0.85]) P(SDF.rc(H(sx * 0.18, -0.12, z), H(sx * 0.19, -0.26, z + 0.02), 0.035, 0.004, { k: 0.01, s0: sH, s1: sH, col: hexRGB(0xdff4ff) }));
+    }
     for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) P(SDF.el(H(sx * (0.33 - k * 0.02), 0.12 - k * 0.07, 0.95 - k * 0.2), [0.05, 0.045, 0.05], { k: 0.03, sub: true }));
   } else {
     P(SDF.el(H(0, 0.1, 0.3), [0.3, 0.27, 0.42], Object.assign({ k: 0.12 }, head)));
@@ -2317,8 +2366,17 @@ function designEastern(o) {
       P(SDF.rc(H(sx * 0.33, 0.95, -0.38), H(sx * 0.2, 1.25, -0.4), 0.03, 0.006, { k: 0.02, s0: sH, s1: sH, col: col(C.horn) }));
     }
   }
+  // dorsal sail and lateral fins (sea dragon)
+  if (o.sail) {
+    for (let i = 5; i < sp.length - 4; i++) {
+      const q = sp[i], h = 0.26 * Math.min(1, q.r / 0.4) * (0.6 + 0.4 * Math.sin(q.s * Math.PI));
+      P(SDF.el([q.p[0], q.p[1] + q.r * 0.85 + h * 0.75, q.p[2]], [0.03, h, 0.17], { k: 0.04, s0: q.s, s1: q.s, col: col(C.spike), glow: (o.ridgeGlow || 0) * 0.5 }));
+      if (i % 4 === 0 && q.s > 0.12 && q.s < 0.85) for (const sx of [-1, 1]) P(SDF.el([q.p[0] + sx * (q.r + 0.16), q.p[1] - q.r * 0.15, q.p[2]], [0.22, 0.034, 0.15], { k: 0.05, s0: q.s, s1: q.s, col: col(C.spike), glow: (o.ridgeGlow || 0) * 0.45 }));
+    }
+  }
   // dorsal ridge
   for (let i = 4; i < sp.length - 3; i += 2) {
+    if (o.sail) break;
     const q = sp[i], hgt = (o.ridge || 0.16) * Math.min(1, q.r / 0.3);
     P(SDF.rc([q.p[0], q.p[1] + q.r * 0.8, q.p[2]], [q.p[0], q.p[1] + q.r * 0.8 + hgt, q.p[2] - hgt * 0.8], q.r * 0.14 + 0.015, 0.003, { k: 0.035, s0: q.s, s1: q.s, col: col(C.spike), glow: o.ridgeGlow || 0 }));
   }
@@ -2421,12 +2479,12 @@ function dragonMaterial(o, D) {
     uRimCol: { value: new THREE.Color(o.rim ?? 0xffffff) }, uRimAmt: { value: o.rimAmt ?? 0.4 },
     uStars: { value: o.stars ?? 0 }, uSplit: { value: o.split ? 1 : 0 }, uVoidCol: { value: new THREE.Color(o.voidCol ?? 0x07050d) },
     uStripes: { value: o.stripes ?? 0 }, uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
-    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY; uniform vec3 uJawHinge;
+    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
       attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
       varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
       vec3 dragonOffset(float s){
@@ -2442,7 +2500,9 @@ function dragonMaterial(o, D) {
         vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
         if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
         transformed += dragonOffset(aS);
-        if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = abs(aLeg) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
+        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
+          transformed.z += sin(aph) * uStride * 0.9 * aw; }
+        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
           transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`);
     sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat;
       uniform vec3 uBellyCol, uGlowCol, uRimCol, uVoidCol;
@@ -2628,7 +2688,7 @@ function wingMaterial(o, side) {
     uMemCol: { value: new THREE.Color(o.mem ?? 0x8a3a3a) }, uEdgeCol: { value: new THREE.Color(o.edge ?? 0xff8a3d) }, uBoneCol: { value: new THREE.Color(o.bone ?? 0x222222) },
     uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
   };
-  m.userData.U = U; m.userData.uFlash = U.uFlash;
+  m.userData.U = U; m.userData.uFlash = U.uFlash; m.userData.noAO = true;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = `uniform float uTime, uSide, uFlapBase, uFlapAmp, uFlapSpeed; attribute float aSpan; attribute float aMem; varying float vMem; varying vec2 vUv2; varying float vSpan;
@@ -2756,7 +2816,7 @@ function legendDesign(sp) {
     case 'asterion': d = designWestern({ horns: 'crystal', bulk: 0.9, neck: 1.35, tail: 1.25, spikeScale: 1.1, spikeGlow: 1.0, colors: { body: 0x111a48, belly: 0x1d2e66, horn: 0xa8ecff, spike: 0x8fd8ff, claw: 0x9fe0ff, glowHorn: 1.2 } }); break;
     case 'limina': d = designWestern({ horns: 'swept', bulk: 1.0, neck: 1.1, tail: 1.1, tailBlade: true, spikeGlow: 0.5, colors: { body: 0xe9e2f4, belly: 0xe8d8b8, horn: 0xffd27a, spike: 0xf0d8a0, claw: 0xffd27a, glowHorn: 0.6 } }); break;
     case 'danha': d = designEastern({ antlers: true, legs: true, length: 13, radius: 0.36, ridge: 0.18, ridgeGlow: 0.7, colors: { body: 0xc21d38, belly: 0xf2c35a, horn: 0xf2c35a, spike: 0xff7a2a, claw: 0xf2c35a } }); break;
-    case 'abyssea': d = designEastern({ head: 'whale', fluke: true, radius: 0.5, length: 12, ridge: 0.24, ridgeGlow: 0.9, colors: { body: 0x0c2b4c, belly: 0x2a6a8a, spike: 0x15506e } }); break;
+    case 'abyssea': d = designEastern({ head: 'whale', fluke: true, sail: true, radius: 0.56, length: 12.5, ridge: 0.24, ridgeGlow: 0.9, colors: { body: 0x0b2846, belly: 0x2a6a8a, spike: 0x1a6a8e } }); break;
   }
   _legendDesigns[sp] = d; return d;
 }
@@ -2787,7 +2847,7 @@ MODELS.ensia = (r) => {
   const D = legendDesign('ensia');
   const B = buildDragon(r, {
     key: 'ensia', design: D, scale: 0.62, float: 1.25, eye: 0xfff2c4,
-    mat: { rough: 0.3, metal: 0.25, coat: 1.0, coatRough: 0.12, sheen: 0.6, sheenCol: 0xffe2a0, irid: 0.3, belly: 0xead7ac, glow: 0xffd27a, vein: 0.5, glowAmt: 2.6, rim: 0xffe6b0, rimAmt: 0.42, scaleFreq: 6, bump: 0.24 },
+    mat: { rough: 0.3, metal: 0.25, coat: 1.0, coatRough: 0.12, sheen: 0.6, sheenCol: 0xffe2a0, irid: 0.3, belly: 0xead7ac, glow: 0xffd27a, vein: 0.5, glowAmt: 2.6, rim: 0xffe6b0, rimAmt: 0.42, scaleFreq: 9, bump: 0.22 },
     wings: [GOLD_WING, GOLD_WING],
   });
   const halo = grp(B, [D.head[0], D.head[1] + 0.25, D.head[2] - 0.55]);
@@ -3374,7 +3434,19 @@ function buildWorld() {
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   W.terrainGeo = geo; W._noiseV = noiseV; W._pdV = pdV;
   recolorTerrain();
-  const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  const tmat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  tmat.onBeforeCompile = (sh) => {
+    sh.vertexShader = 'varying vec3 vTW;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vTW = (modelMatrix * vec4(position, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vTW;\n' + GLSL_NOISE + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        float n1 = vnoise(vTW.xz * 0.33), n2 = vnoise(vTW.xz * 1.6 + 7.0), n3 = vnoise(vTW.xz * 5.5 + 3.0), n4 = vnoise(vTW.xz * 17.0);
+        diffuseColor.rgb *= 0.84 + 0.2 * n1 + 0.1 * (n2 - 0.5) + 0.08 * (n3 - 0.5) + 0.05 * (n4 - 0.5);
+        float lum = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11));
+        diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 1.0, 0.86), smoothstep(0.55, 0.8, n2) * 0.5);
+        diffuseColor.rgb = mix(vec3(lum), diffuseColor.rgb, 1.12);
+      }`);
+  };
+  const terrain = new THREE.Mesh(geo, tmat);
   terrain.receiveShadow = true; scene.add(terrain); W.terrain = terrain;
 
   // height texture for the sea shader
@@ -5249,8 +5321,8 @@ function setBattleCamera(force) {
   const legend = B.foeRig && SPECIES[B.foeRig.sp].legend;
   B.camera.fov = aspect < 0.8 ? 64 : aspect < 1.2 ? 54 : 44; B.camera.updateProjectionMatrix();
   const back = aspect < 0.8 ? 1.25 : 1;
-  B.camBasePos.set(-1.2 * back, 3.3 + (legend ? 1.2 : 0) + (aspect < 0.8 ? 1.4 : 0), 9.6 * back + (legend ? 1.5 : 0));
-  const ly = legend && B.foeRig ? clamp(rigCenter(B.foeRig).y * 0.72, 2.0, 4.2) : 1.25;
+  B.camBasePos.set(-1.2 * back, (legend ? 2.2 : 3.3) + (aspect < 0.8 ? 1.4 : 0), 9.6 * back + (legend ? 1.2 : 0));
+  const ly = legend && B.foeRig ? clamp(rigCenter(B.foeRig).y * 0.9, 2.2, 4.6) : 1.25;
   B.camBaseLook.set(aspect < 0.8 ? 0.2 : 0.5, ly, -1.2);
   if (force) { B.camPos.copy(B.camBasePos); B.camLook.copy(B.camBaseLook); }
 }
@@ -5923,12 +5995,12 @@ function openSettings() {
   let confirmReset = false;
   openModal('설정', [], (tab, body, redraw) => {
     body.innerHTML = `
-      <div class="item-row"><div><div class="nm">그래픽</div><div class="ds">높음: 블룸 조명·그림자·풍성한 풀숲 / 낮음: 휴대폰 배터리 절약</div></div><button class="chip" id="oGfx">${Settings.high ? '높음' : '낮음'}</button></div>
+      <div class="item-row"><div><div class="nm">그래픽</div><div class="ds">최고: 앰비언트 오클루전까지 / 높음: 블룸 조명·그림자·풍성한 풀숲 / 낮음: 휴대폰 배터리 절약</div></div><button class="chip" id="oGfx">${gfxLabel()}</button></div>
       <div class="item-row"><div><div class="nm">소리</div><div class="ds">배경 음악과 효과음</div></div><button class="chip" id="oSnd">${Settings.sound ? '켬' : '끔'}</button></div>
       <div class="item-row"><div><div class="nm">저장</div><div class="ds">전투가 끝날 때와 중요한 순간마다 자동으로 저장돼요.</div></div><button class="chip" id="oSave">지금 저장</button></div>
       <div class="item-row"><div><div class="nm">조작법</div><div class="ds">${isTouch ? '왼쪽 스틱 이동 · A 상호작용 · 빈 화면을 끌어 시점 회전 · 두 손가락으로 확대' : 'WASD·방향키 이동 · Shift 달리기 · E·Space 상호작용 · 드래그 또는 Q/R 시점 회전 · 휠 확대 · P 정령 · B 가방 · Esc 설정'}</div></div></div>
       <div class="item-row"><div><div class="nm">처음부터</div><div class="ds">${confirmReset ? '한 번 더 누르면 모든 기록이 지워져요.' : '저장된 모험을 지우고 새로 시작해요.'}</div></div><button class="chip" id="oReset">${confirmReset ? '정말 지우기' : '새로 시작'}</button></div>`;
-    $('#oGfx').onclick = () => { Settings.high = !Settings.high; saveSettings(); applyQuality(); redraw(); };
+    $('#oGfx').onclick = () => { cycleGfx(); redraw(); };
     $('#oSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); redraw(); };
     $('#oSave').onclick = () => { save(); toast('저장했어요'); };
     $('#oReset').onclick = () => { if (!confirmReset) { confirmReset = true; redraw(); return; } try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
@@ -5946,6 +6018,13 @@ function worldHotkey(code) {
   if (code === 'Escape' || code === 'KeyM') openSettings();
 }
 
+function gfxLabel() { return Settings.high ? (Settings.ultra ? '최고' : '높음') : '낮음'; }
+function cycleGfx() {
+  if (Settings.high && Settings.ultra) Settings.ultra = false;
+  else if (Settings.high) Settings.high = false;
+  else { Settings.high = true; Settings.ultra = true; }
+  saveSettings(); applyQuality();
+}
 // ---------------------------------------------------------------- interaction
 function interactables() {
   const L = [];
@@ -6050,7 +6129,7 @@ async function boot() {
   applyQuality();
   setupPedestals(); placeRiftState(); refreshMarkers();
   G.mode = 'title';
-  $('#btnGfx').textContent = '그래픽: ' + (Settings.high ? '높음' : '낮음');
+  $('#btnGfx').textContent = '그래픽: ' + gfxLabel();
   $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔');
   const existing = loadSave();
   if (existing) $('#btnCont').hidden = false;
@@ -6076,7 +6155,7 @@ async function boot() {
     await fadeTo(1, 0.6);
     await enterWorld(false);
   };
-  $('#btnGfx').onclick = () => { Settings.high = !Settings.high; saveSettings(); applyQuality(); $('#btnGfx').textContent = '그래픽: ' + (Settings.high ? '높음' : '낮음'); };
+  $('#btnGfx').onclick = () => { cycleGfx(); $('#btnGfx').textContent = '그래픽: ' + gfxLabel(); };
   $('#btnSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔'); };
   window.addEventListener('beforeunload', () => { if (G.mode === 'world' && S.party.length) save(); });
 }

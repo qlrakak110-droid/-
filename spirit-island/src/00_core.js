@@ -7,6 +7,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { mergeVertices, mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const $ = (s) => document.querySelector(s);
@@ -51,7 +52,7 @@ function fbm(x, y, o = 4) { let s = 0, a = 0.5, f = 1; for (let i = 0; i < o; i+
 
 // ---------------------------------------------------------------- settings
 const isTouch = (matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window);
-const Settings = { high: !isTouch || Math.min(screen.width, screen.height) > 700, sound: true };
+const Settings = { high: !isTouch || Math.min(screen.width, screen.height) > 700, ultra: !isTouch, sound: true };
 try { const s = JSON.parse(localStorage.getItem('void-being-settings') || 'null'); if (s) Object.assign(Settings, s); } catch (e) {}
 function saveSettings() { try { localStorage.setItem('void-being-settings', JSON.stringify(Settings)); } catch (e) {} }
 
@@ -68,6 +69,19 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: isTouch ? 2 : 4 }));
 const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
 composer.addPass(renderPass);
+// ground-truth ambient occlusion (ultra tier): contact shadows and crevices, computed at half resolution
+const aoCam = new THREE.PerspectiveCamera(50, 1, 0.1, 1600);
+const gtaoPass = new GTAOPass(new THREE.Scene(), aoCam, 256, 256, undefined, { radius: 0.9, distanceExponent: 1.4, thickness: 1.2, scale: 1.15, samples: 12, distanceFallOff: 1, screenSpaceRadius: false }, { lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+gtaoPass.blendIntensity = 0.85;
+{
+  const setSz = gtaoPass.setSize.bind(gtaoPass);
+  gtaoPass.setSize = (w, h) => setSz(Math.max(1, Math.floor(w / 2)), Math.max(1, Math.floor(h / 2)));
+  gtaoPass.overrideVisibility = function () {
+    const cache = this._visibilityCache;
+    this.scene.traverse((o) => { cache.set(o, o.visible); if (o.isPoints || o.isLine || o.isSprite || (o.material && (o.material.transparent || o.material.userData.noAO || o.material.isShaderMaterial && !o.material.userData.ao))) o.visible = false; });
+  };
+}
+composer.addPass(gtaoPass);
 const bloomPass = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.55, 0.86);
 composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
@@ -145,6 +159,8 @@ window.addEventListener('resize', onResize);
 function renderScene(scene, camera) {
   if (Settings.high) {
     renderPass.scene = scene; renderPass.camera = camera;
+    gtaoPass.enabled = !!Settings.ultra;
+    if (gtaoPass.enabled) { gtaoPass.scene = scene; gtaoPass.camera = camera; }
     composer.render();
   } else {
     renderer.render(scene, camera);
