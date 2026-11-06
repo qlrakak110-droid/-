@@ -93,7 +93,7 @@ function showHud(on = true) { $('#hud').hidden = !on; $('#touch').hidden = !on |
 const NPC_DEFS = [
   { id: 'elder', name: '장로 무연', x: 0, z: 55, face: Math.PI, look: { top: 0x6a5a8a, robe: true, hair: 0xe6e2ee, beard: 0xf2eef8, accent: 0xffd98a, pack: false, staff: 0xffd98a }, talk: talkElder },
   { id: 'healer', name: '샘지기 하나', x: -8.2, z: 47, face: Math.PI / 2, look: { top: 0xfafaff, bottom: 0x5a6a9a, accent: 0x5fd8ff, hair: 0x7a4a2a, long: true, pack: false }, pet: 'bandiru', talk: talkHealer },
-  { id: 'kid', name: '꼬마 도윤', x: 6.5, z: 44, face: -Math.PI / 2, look: { top: 0xffb84a, bottom: 0x3a5a8a, accent: 0xff6a6a, hair: 0x3a2a1a, hat: 'band', pack: true }, pet: 'somgu', talk: talkKid },
+  { id: 'kid', name: '꼬마 도윤', x: 6.5, z: 44, face: -Math.PI / 2, look: { top: 0xff9a3a, bottom: 0x3a5a8a, accent: 0xff6a6a, hair: 0x3a2a1a, hat: 'band', pack: true, kid: true, shirt: 0xfff4e0 }, pet: 'somgu', talk: talkKid },
   { id: 'traveler', name: '여행자 루아', x: 7.5, z: -27, face: -Math.PI / 2, look: { top: 0x4a8a6a, bottom: 0x2a2a3a, accent: 0xe8c063, hair: 0xc0603a, hat: 'wide', pack: true }, talk: talkTraveler },
   { id: 'g_east', name: '불씨 수호자 하람', rift: 'east', x: 53.5, z: 6.5, face: -Math.PI / 2, look: { top: 0xb8483a, robe: true, accent: 0xffb84a, hat: 'hood', staff: 0xff8a4c, pack: false, hair: 0x2a1a14 }, pet: 'bawimong', talk: talkGuardian,
     team: [['bawimong', 9], ['geurim', 9], ['hwarr', 11]],
@@ -316,7 +316,7 @@ async function battleFlow(cfg) {
     if (World.follower) World.follower.root.position.set(hx + 1, groundY(hx + 1, hz), hz + 1);
   }
   setFollower(S.party[0] && S.party[0].sp);
-  setLook(0xc0a8ff, 0.55); Post.U.uSun.value.z = 0;
+  setLook(0xbcd4ff, 0.45); Post.U.uSun.value.z = 0;
   Snd.play('world');
   await fadeTo(0, 0.6);
   if (res === 'lose') await say(['정신이 드니? 쓰러져 있는 걸 데려왔어.', '정령들은 샘물로 다 치료해 뒀으니 걱정 마.'], '샘지기 하나');

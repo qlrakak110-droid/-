@@ -19,6 +19,7 @@ function rigUpdate(r, dt) {
   if (r.bt > 0) r.bt -= dt;
   const ey = r.bt > 0 ? 0.12 : 1;
   for (const e of r.blink) e.scale.y = ey;
+  if (r.blinkU) for (const u of r.blinkU) u.value = damp(u.value, r.bt > 0 ? 1 : 0, 40, dt);
   for (const w of r.wig) {
     const amp = w.walk ? w.amp * mv : w.amp * (1 + mv * 0.6);
     const ph = w.walk ? r.walkPhase * (w.f || 1) : t * w.f;
@@ -507,7 +508,7 @@ function cosmicMat(rim = 0x8fe0ff, deep = 0x060a24, neb = 0x4a3a9a, neb2 = 0x1a6
 }
 
 // ---------- people
-function buildPerson(o = {}) {
+function buildPersonToon(o = {}) {
   const r = newRig(); r.hopAmp = 0.45; r.olw = 0.024; r.person = true;
   const C = Object.assign({ skin: 0xffdcc6, hair: 0x2a2238, top: 0xeef1f8, bottom: 0x2b2f4a, accent: 0x8b5cff, shoe: 0x22202e, pack: true }, o);
   const B = r.body;

@@ -60,7 +60,7 @@ function saveSettings() { try { localStorage.setItem('void-being-settings', JSON
 const canvas = $('#gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -197,7 +197,7 @@ const toonGrad = (() => {
   const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
 })();
-const Look = { rim: { value: new THREE.Color(0xc0a8ff) }, rimStr: { value: 0.55 }, spec: { value: 0.55 } };
+const Look = { rim: { value: new THREE.Color(0xbcd4ff) }, rimStr: { value: 0.45 }, spec: { value: 0.55 } };
 function setLook(rim, str = 0.55) { Look.rim.value.set(rim); Look.rimStr.value = str; }
 function patchToon(m) {
   m.onBeforeCompile = (sh) => {

@@ -55,16 +55,22 @@ function buildCritter(r, cfg) {
   const B = grp(r.body); B.scale.setScalar(cfg.scale ?? 1);
   const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D);
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
-  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.25, coatRough: 0.4, sheen: 0.35, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.16, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.35, sat: 1.35 }, cfg.mat), DD);
+  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.25, coatRough: 0.4, sheen: 0.35, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.16, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.35, sat: 1.08 }, cfg.mat), DD);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
+  if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
   const follow = [];
   const glue = (obj, s) => follow.push({ obj, base: obj.position.clone(), s });
   for (const e of D.eyes || []) {
     const g = grp(B, e.p, [e.pitch || 0, e.yaw || 0, e.roll || 0]);
     if (cfg.glowEye) { part(GEO.sphere, E(cfg.glowEye, 2.8), g, [0, 0, 0], [e.r, e.r * 0.7, e.r * 0.55]).userData.noOl = true; part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x0a0612 }), g, [0, 0, e.r * 0.42], [e.r * 0.16, e.r * 1.1, e.r * 0.1]); }
-    else part(GEO.sphere, animeEyeMat(cfg.iris ?? 0x2a1a4a, cfg.iris2 ?? 0x8a6aff), g, [0, 0, 0], [e.r, e.r * 1.18, e.r * 0.62]);
-    r.blink.push(g); glue(g, 1);
+    else {
+      const em = animeEye({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, skin: cfg.lid ?? 0xffffff, lash: cfg.lash ?? 0x1a1020, side: e.p[0] < 0 ? -1 : 1 });
+      part(GEO.sphere, em, g, [0, 0, 0], [e.r * 1.12, e.r * 1.25, e.r * 0.62]);
+      (r.blinkU = r.blinkU || []).push(em.userData.blink);
+    }
+    if (cfg.glowEye) r.blink.push(g);
+    glue(g, 1);
   }
   r.fns.push((t) => {
     U.uWalk.value = r.walkPhase; U.uStride.value = (D.stride ?? 0.12) * r.moving;
@@ -112,7 +118,7 @@ function dFox(st) {
 }
 function foxModel(r, st) {
   const D = dFox(st);
-  const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x7a2a08 : 0x3a1a10, iris2: st === 2 ? 0xffb02e : 0xff9a4a, mat: { sheenCol: 0xffb070 } });
+  const B = buildCritter(r, { key: 'fox' + st, lid: 0xff8a3d, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x7a2a08 : 0x3a1a10, iris2: st === 2 ? 0xffb02e : 0xff9a4a, mat: { sheenCol: 0xffb070 } });
   for (const tp of D.tails) { const f = flame(r, B, tp, st === 2 ? 0.72 : 0.8); r.glue(f, 0); }
   if (st === 2) {
     for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; const f = flame(r, B, [Math.cos(a) * 0.24, 0.78 + Math.sin(a) * 0.05, 0.42 + Math.sin(a) * 0.1], 0.6); f.rotation.set(Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.6); r.glue(f, 0.8); }
@@ -146,7 +152,7 @@ function dSeal(st) {
 }
 function sealModel(r, st) {
   const D = dSeal(st);
-  const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x0a2a5a, iris2: 0x3fb8ff, mat: { coat: 0.6, coatRough: 0.15, sheen: 0.3, rough: 0.35 } });
+  const B = buildCritter(r, { key: 'seal' + st, lid: 0x5cc8ff, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x0a2a5a, iris2: 0x3fb8ff, mat: { coat: 0.6, coatRough: 0.15, sheen: 0.3, rough: 0.35 } });
   const orb = grp(B, add3(D.hc, [0, 0.5, -0.04]));
   part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.5 }), orb, [0, 0, 0], 0.15);
   part(GEO.sphere, E(0x9cf0ff, 2.2), orb, [0, 0, 0], 0.06);
@@ -199,7 +205,7 @@ function dFawn(st) {
 }
 function fawnModel(r, st) {
   const D = dFawn(st);
-  const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x1a3a10, iris2: 0x7ad86a, mat: { sheenCol: 0xffe6c0 } });
+  const B = buildCritter(r, { key: 'fawn' + st, lid: 0xc58a56, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x1a3a10, iris2: 0x7ad86a, mat: { sheenCol: 0xffe6c0 } });
   const sp = grp(B, add3(D.hc, [0, 0.22, 0]));
   part(GEO.cyl, M(0x4fbf5f), sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
   for (const s of [-1, 1]) part(GEO.sphere, M(0x6ee06a), sp, [s * 0.08, 0.18, 0], [0.1, 0.03, 0.06], [0, 0, s * 0.5]);
@@ -226,7 +232,7 @@ MODELS.jjirit = (r) => {
     for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; K.el([Math.cos(a) * 0.45, -0.02, Math.sin(a) * 0.45], [0.08, 0.06, 0.08], 0xffb02e, { k: 0.05 }); }
     return { prims: K.prims, bounds: [-0.65, -0.25, -0.65, 0.65, 0.6, 0.65], hipY: 0, height: 1.0, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.16, 0.22, 0.4], r: 0.08, yaw: sx * 0.3, pitch: -0.2 })) };
   });
-  const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2a00, iris2: 0xffd84a, mat: { rough: 0.15, coat: 1.0, coatRough: 0.05, sheen: 0, soft: 0.45, fuzz: 0.0, rimAmt: 0.45, rim: 0xfff2a0 } });
+  const B = buildCritter(r, { key: 'jelly', lid: 0xffd84a, design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2a00, iris2: 0xffd84a, mat: { rough: 0.15, coat: 1.0, coatRough: 0.05, sheen: 0, soft: 0.45, fuzz: 0.0, rimAmt: 0.45, rim: 0xfff2a0 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.2), B, [0, 0.16, 0], 0.13);
   r.fns.push((t) => core.scale.setScalar(0.13 * (1 + Math.sin(t * 9) * 0.15 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 6; i++) {
@@ -252,7 +258,7 @@ MODELS.bawimong = (r) => {
     }
     return { prims: K.prims, bounds: [-0.85, -0.05, -0.65, 0.85, 1.1, 0.7], hipY: 0.3, height: 1.3, stride: 0.08, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.15, 0.63, 0.44], r: 0.074, yaw: sx * 0.25 })) };
   });
-  const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0x9b7bff, sway: 0.15, mat: { rough: 0.85, sheen: 0.1, coat: 0, soft: 0.25, fuzz: 0.05 } });
+  const B = buildCritter(r, { key: 'rock', lid: 0x9a9184, design: D, hop: 0.35, iris: 0x1a1030, iris2: 0x9b7bff, sway: 0.15, mat: { rough: 0.85, sheen: 0.1, coat: 0, soft: 0.25, fuzz: 0.05 } });
   part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x2a1f1a }), B, [0, 0.48, 0.47], [0.12, 0.025, 0.02]);
   for (const [x, y, z, w, h, rx, rz] of [[0, 1.02, -0.18, 0.13, 0.36, -0.3, 0], [-0.24, 0.9, -0.26, 0.1, 0.27, -0.5, 0.5], [0.26, 0.88, -0.24, 0.1, 0.25, -0.5, -0.5], [0.05, 0.72, -0.5, 0.08, 0.22, -1.2, 0]]) part(GEO.cone6, E(0x9b7bff, 1.9), B, [x, y, z], [w, h, w], [rx, 0, rz]);
   r.size = 1.3;
@@ -267,7 +273,7 @@ MODELS.bandiru = (r) => {
     K.el([0, -0.08, -0.22], [0.16, 0.15, 0.16], 0xffe9b0, { k: 0.08, s0: 0.2, s1: 0.2 });
     return { prims: K.prims, bounds: [-0.45, -0.35, -0.5, 0.45, 0.4, 0.45], hipY: 0, height: 1.0, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.12, 0.05, 0.25], r: 0.088, yaw: sx * 0.3 })) };
   });
-  const B = buildCritter(r, { key: 'firefly', design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1a00, iris2: 0xffb84a, mat: { sheenCol: 0xfff2c0, fuzz: 0.3, soft: 0.3 } });
+  const B = buildCritter(r, { key: 'firefly', lid: 0xfff0c9, design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1a00, iris2: 0xffb84a, mat: { sheenCol: 0xfff2c0, fuzz: 0.3, soft: 0.3 } });
   for (const s of [-1, 1]) { const an = grp(B, [s * 0.1, 0.25, 0.08], [0.3, 0, -s * 0.35]); part(GEO.cyl, M(0x3a2c22), an, [0, 0.13, 0], [0.014, 0.26, 0.014]); part(GEO.sphere, E(0xfff3a0, 3), an, [0, 0.28, 0], 0.045); wig(r, an, 'z', 0.15, 3, s); }
   const wingM = toonMat({ color: 0xe6f8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
   for (const s of [-1, 1]) for (const k of [0, 1]) { const w = grp(B, [s * 0.12, 0.18 - k * 0.08, -0.1 - k * 0.04], [0, 0, s * (0.35 - k * 0.6)]); part(GEO.sphere, wingM, w, [s * 0.3, 0, 0], [0.32 - k * 0.08, 0.02, 0.15]); wig(r, w, 'z', 0.45, 22, k * 1.5 + (s > 0 ? 0 : Math.PI)); }
@@ -317,7 +323,7 @@ MODELS.somgu = (r) => {
     for (const sx of [-1, 1]) K.el(add3(hc, [sx * 0.24, 0.0, -0.04]), [0.11, 0.04, 0.06], LV, Object.assign({ k: 0.04 }, HEAD));
     return { prims: K.prims, bounds: [-0.65, -0.05, -0.7, 0.65, 1.3, 0.75], hipY: 0.32, height: 1.3, stride: 0.08, hc, eyes: [-1, 1].map((sx) => ({ p: add3(hc, [sx * 0.085, 0.03, 0.155]), r: 0.058, yaw: sx * 0.32 })) };
   });
-  const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a2050, iris2: 0x9a8aff, mat: { rough: 0.8, sheen: 0.8, sheenCol: 0xffffff, coat: 0, fuzz: 0.35, soft: 0.3 } });
+  const B = buildCritter(r, { key: 'lamb', lid: 0xcfc4f2, design: D, iris: 0x2a2050, iris2: 0x9a8aff, mat: { rough: 0.8, sheen: 0.8, sheenCol: 0xffffff, coat: 0, fuzz: 0.35, soft: 0.3 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.12, -0.04]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -338,7 +344,7 @@ MODELS.beoseot = (r) => {
     }
     return { prims: K.prims, bounds: [-0.75, -0.05, -0.75, 0.75, 1.2, 0.75], hipY: 0.2, height: 1.2, stride: 0.07, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.11, 0.42, 0.24], r: 0.07, yaw: sx * 0.28 })) };
   });
-  buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff7a6a, sway: 0.2, mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.4, soft: 0.5 } });
+  buildCritter(r, { key: 'shroom', lid: 0xf8ead2, design: D, iris: 0x3a1010, iris2: 0xff7a6a, sway: 0.2, mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.4, soft: 0.5 } });
   r.size = 1.2;
 };
 
@@ -350,7 +356,7 @@ MODELS.byeolssi = (r) => {
     for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + Math.PI / 2; K.rc([0, 0, -0.02], [Math.cos(a) * 0.58, Math.sin(a) * 0.58, -0.04], 0.2, 0.06, 0xffe08a, { k: 0.12, s0: 1, s1: 1 }); }
     return { prims: K.prims, bounds: [-0.75, -0.75, -0.4, 0.75, 0.75, 0.4], hipY: 0, height: 1.2, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.105, 0.04, 0.235], r: 0.066, yaw: sx * 0.3 })) };
   });
-  const B = buildCritter(r, { key: 'star', design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2a00, iris2: 0xffc04a, mat: { sheenCol: 0xfff0b0, soft: 0.35, rim: 0xffe08a, rimAmt: 0.3 } });
+  const B = buildCritter(r, { key: 'star', lid: 0xfff3d0, design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2a00, iris2: 0xffc04a, mat: { sheenCol: 0xfff0b0, soft: 0.35, rim: 0xffe08a, rimAmt: 0.3 } });
   spin(r, B, 'z', 0.0);
   const halo = part(GEO.torus, E(0xffe08a, 2.4), B, [0, 0.62, 0], 0.2, [Math.PI / 2, 0, 0]);
   r.fns.push((t) => { halo.position.y = 0.62 + Math.sin(t * 3) * 0.03; B.rotation.z = Math.sin(t * 0.8) * 0.15; });

@@ -51,6 +51,26 @@ function dragonGeometry(key, design, cellHi = 0.04, cellLo = 0.058) {
   _dragonGeo[ck] = g; return g;
 }
 
+const SCULPT_DECL = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
+      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
+      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
+      vec3 dragonOffset(float s){
+        float tailW = 1.0 - smoothstep(0.0, uTailStart, s);
+        float amp = uWaveAmp * (tailW * tailW + uSerp * (0.4 + 0.6 * (1.0 - s)));
+        float ph = uTime * uWaveSpeed - s * uWaveFreq;
+        float headW = smoothstep(uNeckStart, 1.0, s) * uSway;
+        return vec3(sin(ph) * amp + sin(uTime * 0.6) * 0.14 * headW, sin(ph * 0.8 + 1.3) * amp * 0.35 + sin(uTime * 0.9 + 0.7) * 0.07 * headW, 0.0);
+      }
+      `;
+const SCULPT_BODY = `vec3 transformed = vec3(position);
+        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
+        if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
+        transformed += dragonOffset(aS);
+        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
+          transformed.z += sin(aph) * uStride * 0.9 * aw; }
+        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
+          transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`;
+
 // ---------------------------------------------------------------- body material
 function dragonMaterial(o, D) {
   const m = new THREE.MeshPhysicalMaterial({
@@ -69,32 +89,15 @@ function dragonMaterial(o, D) {
     uRimCol: { value: new THREE.Color(o.rim ?? 0xffffff) }, uRimAmt: { value: o.rimAmt ?? 0.4 },
     uStars: { value: o.stars ?? 0 }, uSplit: { value: o.split ? 1 : 0 }, uVoidCol: { value: new THREE.Color(o.voidCol ?? 0x07050d) },
     uStripes: { value: o.stripes ?? 0 }, uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
-    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uHairRing: { value: o.hairRing ?? -1 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
-      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
-      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
-      vec3 dragonOffset(float s){
-        float tailW = 1.0 - smoothstep(0.0, uTailStart, s);
-        float amp = uWaveAmp * (tailW * tailW + uSerp * (0.4 + 0.6 * (1.0 - s)));
-        float ph = uTime * uWaveSpeed - s * uWaveFreq;
-        float headW = smoothstep(uNeckStart, 1.0, s) * uSway;
-        return vec3(sin(ph) * amp + sin(uTime * 0.6) * 0.14 * headW, sin(ph * 0.8 + 1.3) * amp * 0.35 + sin(uTime * 0.9 + 0.7) * 0.07 * headW, 0.0);
-      }
-      ` + sh.vertexShader
+    sh.vertexShader = SCULPT_DECL + sh.vertexShader
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
-      .replace('#include <begin_vertex>', `vec3 transformed = vec3(position);
-        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
-        if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
-        transformed += dragonOffset(aS);
-        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
-          transformed.z += sin(aph) * uStride * 0.9 * aw; }
-        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
-          transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`);
-    sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat;
+      .replace('#include <begin_vertex>', SCULPT_BODY);
+    sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat, uHairRing;
       uniform vec3 uBellyCol, uGlowCol, uRimCol, uVoidCol;
       varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
       float gScaleH; float gSide; vec3 gScaleGrad; uniform mat3 normalMatrix;
@@ -152,6 +155,7 @@ function dragonMaterial(o, D) {
           vec3 rimC = mix(uRimCol, vec3(0.75, 0.35, 1.0), gSide);
           totalEmissiveRadiance += rimC * fr * uRimAmt;
           totalEmissiveRadiance += diffuseColor.rgb * (uSoft * 0.22 + uFuzz * fr * 0.9);
+          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); totalEmissiveRadiance += vec3(0.32, 0.36, 0.48) * hr; }
           if (uSplit > 0.0) totalEmissiveRadiance += mix(vec3(1.6, 1.3, 0.7), vec3(1.2, 0.5, 2.0), 0.5) * exp(-abs(vObjPos.x) * 38.0) * 2.2;
         }`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
@@ -349,10 +353,8 @@ function envFromSky(U) {
 
 // ---------------------------------------------------------------- assemble a dragon rig
 function slitEye(parent, pos, r, color) {
-  const g = grp(parent, pos);
-  part(GEO.sphere, E(color, 3.2), g, [0, 0, 0], [r * 1.05, r * 0.72, r * 0.9]).userData.noOl = true;
-  part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x050208 }), g, [0, 0, r * 0.62], [r * 0.2, r * 1.2, r * 0.2]);
-  part(GEO.sphere, E(0xffffff, 3.5), g, [r * 0.35, r * 0.3, r * 0.72], r * 0.16);
+  const g = grp(parent, pos, [0, pos[0] < 0 ? -0.55 : 0.55, 0]);
+  part(GEO.sphere, dragonEyeMat(color), g, [0, 0, 0], [r * 1.1, r * 0.78, r * 0.85]).userData.noOl = true;
   return g;
 }
 function buildDragon(r, cfg) {
@@ -390,4 +392,134 @@ function buildDragon(r, cfg) {
   r.glue = glue; r.B = B;
   r.size = D.height * cfg.scale * 0.92;
   return B;
+}
+
+
+// ---------------------------------------------------------------- animated outline for sculpted bodies
+function sculptOutline(mesh, width, color = 0x1a1226) {
+  const U = mesh.material.userData.U;
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  m.userData.noAO = true;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U); sh.uniforms.uOlW = { value: width };
+    sh.vertexShader = SCULPT_DECL + 'uniform float uOlW;\n' + sh.vertexShader.replace('#include <begin_vertex>', SCULPT_BODY + '\n transformed += normalize(normal) * uOlW;');
+  };
+  m.customProgramCacheKey = () => 'sculptOl-v1';
+  const ol = new THREE.Mesh(mesh.geometry, m);
+  ol.userData.isOl = true; ol.castShadow = false; ol.raycast = () => {};
+  mesh.add(ol); return ol;
+}
+
+// ---------------------------------------------------------------- eyes
+// anime eye: lids, thick upper lash line, iris fibres, lid shadow, catch-lights, uniform-driven blink
+function animeEye(o = {}) {
+  const U = { uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) }, uSkin: { value: new THREE.Color(o.skin ?? 0xffe0cc) }, uLash: { value: new THREE.Color(o.lash ?? 0x1a1020) }, uBlink: { value: 0 }, uSide: { value: o.side ?? 1 } };
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
+    vertexShader: `varying vec3 vN; ${FOG_V}
+      void main(){ vN = normalize(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide; varying vec3 vN; ${FOG_F}
+      void main(){
+        vec3 n = normalize(vN); vec2 q = vec2(n.x * uSide, n.y);
+        float front = step(0.0, n.z);
+        float topOpen = 0.6 - 0.42 * q.x * q.x + 0.1 * q.x;
+        float top = mix(topOpen, -0.5 + 0.2 * q.x * q.x, uBlink);
+        float bot = -0.6 + 0.32 * q.x * q.x;
+        vec3 col = uSkin * (0.82 + 0.12 * n.y);
+        if (front > 0.5 && q.y < top && q.y > bot && abs(q.x) < 0.92) {
+          float lidSh = smoothstep(top, top - 0.32, q.y);
+          col = vec3(0.98, 0.97, 1.0) * mix(0.68, 1.0, lidSh);
+          vec2 ic = vec2(0.02, -0.06); float r = length(q - ic), IR = 0.52;
+          if (r < IR) {
+            float t = r / IR, ang = atan(q.y - ic.y, q.x - ic.x);
+            vec3 base = mix(uIris2 * 1.4, uIris * 0.8, smoothstep(-0.5, 0.35, q.y - ic.y));
+            base *= 0.86 + 0.14 * sin(ang * 28.0 + t * 8.0) * (0.6 + 0.4 * t);
+            base += uIris2 * 0.35 * smoothstep(0.55, 0.85, t) * smoothstep(0.1, -0.4, q.y - ic.y);
+            base = mix(base, uIris * 0.18, smoothstep(0.82, 1.0, t));
+            base *= mix(0.45, 1.0, lidSh);
+            base = mix(base, vec3(0.015, 0.01, 0.03), smoothstep(0.25, 0.21, r));
+            col = base;
+          }
+          col = mix(col, vec3(1.35), smoothstep(0.12, 0.085, length(q - vec2(0.16, 0.16))));
+          col = mix(col, vec3(1.15), smoothstep(0.055, 0.03, length(q - vec2(-0.13, -0.27))) * 0.9);
+          col = mix(col, vec3(1.0), smoothstep(0.03, 0.015, length(q - vec2(0.3, -0.02))) * 0.7);
+        }
+        float lw = 0.075 + 0.07 * smoothstep(-0.2, 0.8, q.x);
+        float lash = front * smoothstep(lw, lw * 0.4, abs(q.y - top - lw * 0.45)) * step(-0.9, q.x) * step(q.x, 0.98);
+        lash = max(lash, front * smoothstep(0.06, 0.02, length(q - vec2(0.92, top + 0.06 + 0.12 * (1.0 - uBlink)))) * (1.0 - uBlink));
+        col = mix(col, uLash, lash);
+        float ll = front * smoothstep(0.03, 0.0, abs(q.y - bot)) * step(abs(q.x), 0.55) * 0.55 * (1.0 - uBlink);
+        col = mix(col, uLash, ll);
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }`,
+    fog: true,
+  });
+  Object.assign(m.uniforms, U);
+  m.userData.blink = U.uBlink;
+  return m;
+}
+// dragon eye: glowing iris with radial veins, soft vertical slit, wet highlight
+function dragonEyeMat(color) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uCol: { value: new THREE.Color(color) }, uTime: Shared.time },
+    vertexShader: 'varying vec3 vN; void main(){ vN = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 uCol; uniform float uTime; varying vec3 vN;
+      void main(){
+        vec3 n = normalize(vN); vec2 q = n.xy; float r = length(q);
+        float ang = atan(q.y, q.x);
+        vec3 c = uCol * (1.2 + 1.6 * smoothstep(0.9, 0.1, r)) * (0.85 + 0.15 * sin(ang * 22.0 + r * 9.0));
+        c = mix(c, uCol * 0.15, smoothstep(0.8, 1.0, r));
+        float slit = smoothstep(0.13, 0.05, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
+        c = mix(c, vec3(0.01, 0.0, 0.02), slit * (0.9 + 0.1 * sin(uTime * 0.7)));
+        c += vec3(1.4) * smoothstep(0.16, 0.1, length(q - vec2(0.3, 0.35)));
+        gl_FragColor = vec4(c * step(0.0, n.z) + uCol * 0.3 * step(n.z, 0.0), 1.0);
+      }`,
+  });
+  return m;
+}
+
+// ---------------------------------------------------------------- anime toon skin for sculpted people
+const toonGradSoft = (() => {
+  const d = new Uint8Array([118, 118, 205, 255]);
+  const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
+})();
+function sculptToonMaterial(o, D) {
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradSoft });
+  const U = {
+    uTime: Shared.time, uWaveAmp: { value: o.waveAmp ?? 0 }, uWaveSpeed: { value: 1 }, uWaveFreq: { value: 3 }, uTailStart: { value: D.tailStart ?? 0.01 }, uSerp: { value: 0 },
+    uNeckStart: { value: D.neckStart ?? 0.95 }, uSway: { value: 0.2 }, uJaw: { value: 0 }, uJawHinge: { value: new THREE.Vector3(...(D.jawHinge || [0, 0, 0])) },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.6 }, uShoulderY: { value: o.shoulderY ?? 9 },
+    uHairRing: { value: o.hairRing ?? -1 }, uSat: { value: o.sat ?? 1.15 }, uFlash: { value: 0 }, uRim2: { value: new THREE.Color(o.rim ?? 0xfff4e0) }, uRimAmt2: { value: o.rimAmt ?? 0.35 },
+  };
+  m.userData.U = U; m.userData.uFlash = U.uFlash;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.uniforms.uRim = Look.rim; sh.uniforms.uRimStr = Look.rimStr; sh.uniforms.uSpec = Look.spec;
+    sh.vertexShader = SCULPT_DECL + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
+      .replace('#include <begin_vertex>', SCULPT_BODY);
+    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec; uniform vec3 uRim2, uRim; varying vec3 vObjPos; varying vec3 vObjN;
+      ` + sh.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);`)
+      .replace('#include <opaque_fragment>', `
+        {
+          vec3 vdir = normalize(vViewPosition);
+          float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
+          float rimBand = smoothstep(0.42, 0.5, fr);
+          outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb);
+          #if NUM_DIR_LIGHTS > 0
+            vec3 hv = normalize(directionalLights[0].direction + vdir);
+            outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
+          #endif
+          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); outgoingLight += vec3(0.42, 0.46, 0.6) * hr; }
+        }
+        #include <opaque_fragment>`)
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
+  };
+  m.customProgramCacheKey = () => 'sculptToon-v1';
+  return m;
 }

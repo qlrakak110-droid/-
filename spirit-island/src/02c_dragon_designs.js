@@ -2,7 +2,9 @@
 //  dragon designs: signed-distance blueprints for the six legendary dragons
 //  (pure data → primitives; materials and wings are added in 02d_dragons.js)
 // ============================================================================
-const hexRGB = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
+const srgbToLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+// vertex colours are read as linear values, so convert the designer's sRGB hex here
+const hexRGB = (h) => [srgbToLin(((h >> 16) & 255) / 255), srgbToLin(((h >> 8) & 255) / 255), srgbToLin((h & 255) / 255)];
 const mirrorX = (p) => [-p[0], p[1], p[2]];
 
 // Western dragon: four legs, two wings, long neck and tail. Faces +z, stands on y = 0.

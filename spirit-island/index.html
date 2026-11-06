@@ -435,7 +435,7 @@ function saveSettings() { try { localStorage.setItem('void-being-settings', JSON
 const canvas = $('#gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -572,7 +572,7 @@ const toonGrad = (() => {
   const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat);
   t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
 })();
-const Look = { rim: { value: new THREE.Color(0xc0a8ff) }, rimStr: { value: 0.55 }, spec: { value: 0.55 } };
+const Look = { rim: { value: new THREE.Color(0xbcd4ff) }, rimStr: { value: 0.45 }, spec: { value: 0.55 } };
 function setLook(rim, str = 0.55) { Look.rim.value.set(rim); Look.rimStr.value = str; }
 function patchToon(m) {
   m.onBeforeCompile = (sh) => {
@@ -1388,6 +1388,7 @@ function rigUpdate(r, dt) {
   if (r.bt > 0) r.bt -= dt;
   const ey = r.bt > 0 ? 0.12 : 1;
   for (const e of r.blink) e.scale.y = ey;
+  if (r.blinkU) for (const u of r.blinkU) u.value = damp(u.value, r.bt > 0 ? 1 : 0, 40, dt);
   for (const w of r.wig) {
     const amp = w.walk ? w.amp * mv : w.amp * (1 + mv * 0.6);
     const ph = w.walk ? r.walkPhase * (w.f || 1) : t * w.f;
@@ -1876,7 +1877,7 @@ function cosmicMat(rim = 0x8fe0ff, deep = 0x060a24, neb = 0x4a3a9a, neb2 = 0x1a6
 }
 
 // ---------- people
-function buildPerson(o = {}) {
+function buildPersonToon(o = {}) {
   const r = newRig(); r.hopAmp = 0.45; r.olw = 0.024; r.person = true;
   const C = Object.assign({ skin: 0xffdcc6, hair: 0x2a2238, top: 0xeef1f8, bottom: 0x2b2f4a, accent: 0x8b5cff, shoe: 0x22202e, pack: true }, o);
   const B = r.body;
@@ -2175,7 +2176,9 @@ function spinePath(pts, radii, sub = 4) {
 //  dragon designs: signed-distance blueprints for the six legendary dragons
 //  (pure data → primitives; materials and wings are added in 02d_dragons.js)
 // ============================================================================
-const hexRGB = (h) => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
+const srgbToLin = (c) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+// vertex colours are read as linear values, so convert the designer's sRGB hex here
+const hexRGB = (h) => [srgbToLin(((h >> 16) & 255) / 255), srgbToLin(((h >> 8) & 255) / 255), srgbToLin((h & 255) / 255)];
 const mirrorX = (p) => [-p[0], p[1], p[2]];
 
 // Western dragon: four legs, two wings, long neck and tail. Faces +z, stands on y = 0.
@@ -2461,6 +2464,26 @@ function dragonGeometry(key, design, cellHi = 0.04, cellLo = 0.058) {
   _dragonGeo[ck] = g; return g;
 }
 
+const SCULPT_DECL = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
+      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
+      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
+      vec3 dragonOffset(float s){
+        float tailW = 1.0 - smoothstep(0.0, uTailStart, s);
+        float amp = uWaveAmp * (tailW * tailW + uSerp * (0.4 + 0.6 * (1.0 - s)));
+        float ph = uTime * uWaveSpeed - s * uWaveFreq;
+        float headW = smoothstep(uNeckStart, 1.0, s) * uSway;
+        return vec3(sin(ph) * amp + sin(uTime * 0.6) * 0.14 * headW, sin(ph * 0.8 + 1.3) * amp * 0.35 + sin(uTime * 0.9 + 0.7) * 0.07 * headW, 0.0);
+      }
+      `;
+const SCULPT_BODY = `vec3 transformed = vec3(position);
+        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
+        if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
+        transformed += dragonOffset(aS);
+        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
+          transformed.z += sin(aph) * uStride * 0.9 * aw; }
+        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
+          transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`;
+
 // ---------------------------------------------------------------- body material
 function dragonMaterial(o, D) {
   const m = new THREE.MeshPhysicalMaterial({
@@ -2479,32 +2502,15 @@ function dragonMaterial(o, D) {
     uRimCol: { value: new THREE.Color(o.rim ?? 0xffffff) }, uRimAmt: { value: o.rimAmt ?? 0.4 },
     uStars: { value: o.stars ?? 0 }, uSplit: { value: o.split ? 1 : 0 }, uVoidCol: { value: new THREE.Color(o.voidCol ?? 0x07050d) },
     uStripes: { value: o.stripes ?? 0 }, uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
-    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uHairRing: { value: o.hairRing ?? -1 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
-      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
-      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
-      vec3 dragonOffset(float s){
-        float tailW = 1.0 - smoothstep(0.0, uTailStart, s);
-        float amp = uWaveAmp * (tailW * tailW + uSerp * (0.4 + 0.6 * (1.0 - s)));
-        float ph = uTime * uWaveSpeed - s * uWaveFreq;
-        float headW = smoothstep(uNeckStart, 1.0, s) * uSway;
-        return vec3(sin(ph) * amp + sin(uTime * 0.6) * 0.14 * headW, sin(ph * 0.8 + 1.3) * amp * 0.35 + sin(uTime * 0.9 + 0.7) * 0.07 * headW, 0.0);
-      }
-      ` + sh.vertexShader
+    sh.vertexShader = SCULPT_DECL + sh.vertexShader
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
-      .replace('#include <begin_vertex>', `vec3 transformed = vec3(position);
-        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
-        if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
-        transformed += dragonOffset(aS);
-        if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
-          transformed.z += sin(aph) * uStride * 0.9 * aw; }
-        else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
-          transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`);
-    sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat;
+      .replace('#include <begin_vertex>', SCULPT_BODY);
+    sh.fragmentShader = `uniform float uTime, uScaleFreq, uBump, uVein, uGlowAmt, uRimAmt, uStars, uSplit, uStripes, uFlash, uPx, uFuzz, uSoft, uSat, uHairRing;
       uniform vec3 uBellyCol, uGlowCol, uRimCol, uVoidCol;
       varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
       float gScaleH; float gSide; vec3 gScaleGrad; uniform mat3 normalMatrix;
@@ -2562,6 +2568,7 @@ function dragonMaterial(o, D) {
           vec3 rimC = mix(uRimCol, vec3(0.75, 0.35, 1.0), gSide);
           totalEmissiveRadiance += rimC * fr * uRimAmt;
           totalEmissiveRadiance += diffuseColor.rgb * (uSoft * 0.22 + uFuzz * fr * 0.9);
+          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); totalEmissiveRadiance += vec3(0.32, 0.36, 0.48) * hr; }
           if (uSplit > 0.0) totalEmissiveRadiance += mix(vec3(1.6, 1.3, 0.7), vec3(1.2, 0.5, 2.0), 0.5) * exp(-abs(vObjPos.x) * 38.0) * 2.2;
         }`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
@@ -2759,10 +2766,8 @@ function envFromSky(U) {
 
 // ---------------------------------------------------------------- assemble a dragon rig
 function slitEye(parent, pos, r, color) {
-  const g = grp(parent, pos);
-  part(GEO.sphere, E(color, 3.2), g, [0, 0, 0], [r * 1.05, r * 0.72, r * 0.9]).userData.noOl = true;
-  part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x050208 }), g, [0, 0, r * 0.62], [r * 0.2, r * 1.2, r * 0.2]);
-  part(GEO.sphere, E(0xffffff, 3.5), g, [r * 0.35, r * 0.3, r * 0.72], r * 0.16);
+  const g = grp(parent, pos, [0, pos[0] < 0 ? -0.55 : 0.55, 0]);
+  part(GEO.sphere, dragonEyeMat(color), g, [0, 0, 0], [r * 1.1, r * 0.78, r * 0.85]).userData.noOl = true;
   return g;
 }
 function buildDragon(r, cfg) {
@@ -2800,6 +2805,136 @@ function buildDragon(r, cfg) {
   r.glue = glue; r.B = B;
   r.size = D.height * cfg.scale * 0.92;
   return B;
+}
+
+
+// ---------------------------------------------------------------- animated outline for sculpted bodies
+function sculptOutline(mesh, width, color = 0x1a1226) {
+  const U = mesh.material.userData.U;
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
+  m.userData.noAO = true;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U); sh.uniforms.uOlW = { value: width };
+    sh.vertexShader = SCULPT_DECL + 'uniform float uOlW;\n' + sh.vertexShader.replace('#include <begin_vertex>', SCULPT_BODY + '\n transformed += normalize(normal) * uOlW;');
+  };
+  m.customProgramCacheKey = () => 'sculptOl-v1';
+  const ol = new THREE.Mesh(mesh.geometry, m);
+  ol.userData.isOl = true; ol.castShadow = false; ol.raycast = () => {};
+  mesh.add(ol); return ol;
+}
+
+// ---------------------------------------------------------------- eyes
+// anime eye: lids, thick upper lash line, iris fibres, lid shadow, catch-lights, uniform-driven blink
+function animeEye(o = {}) {
+  const U = { uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) }, uSkin: { value: new THREE.Color(o.skin ?? 0xffe0cc) }, uLash: { value: new THREE.Color(o.lash ?? 0x1a1020) }, uBlink: { value: 0 }, uSide: { value: o.side ?? 1 } };
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
+    vertexShader: `varying vec3 vN; ${FOG_V}
+      void main(){ vN = normalize(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide; varying vec3 vN; ${FOG_F}
+      void main(){
+        vec3 n = normalize(vN); vec2 q = vec2(n.x * uSide, n.y);
+        float front = step(0.0, n.z);
+        float topOpen = 0.6 - 0.42 * q.x * q.x + 0.1 * q.x;
+        float top = mix(topOpen, -0.5 + 0.2 * q.x * q.x, uBlink);
+        float bot = -0.6 + 0.32 * q.x * q.x;
+        vec3 col = uSkin * (0.82 + 0.12 * n.y);
+        if (front > 0.5 && q.y < top && q.y > bot && abs(q.x) < 0.92) {
+          float lidSh = smoothstep(top, top - 0.32, q.y);
+          col = vec3(0.98, 0.97, 1.0) * mix(0.68, 1.0, lidSh);
+          vec2 ic = vec2(0.02, -0.06); float r = length(q - ic), IR = 0.52;
+          if (r < IR) {
+            float t = r / IR, ang = atan(q.y - ic.y, q.x - ic.x);
+            vec3 base = mix(uIris2 * 1.4, uIris * 0.8, smoothstep(-0.5, 0.35, q.y - ic.y));
+            base *= 0.86 + 0.14 * sin(ang * 28.0 + t * 8.0) * (0.6 + 0.4 * t);
+            base += uIris2 * 0.35 * smoothstep(0.55, 0.85, t) * smoothstep(0.1, -0.4, q.y - ic.y);
+            base = mix(base, uIris * 0.18, smoothstep(0.82, 1.0, t));
+            base *= mix(0.45, 1.0, lidSh);
+            base = mix(base, vec3(0.015, 0.01, 0.03), smoothstep(0.25, 0.21, r));
+            col = base;
+          }
+          col = mix(col, vec3(1.35), smoothstep(0.12, 0.085, length(q - vec2(0.16, 0.16))));
+          col = mix(col, vec3(1.15), smoothstep(0.055, 0.03, length(q - vec2(-0.13, -0.27))) * 0.9);
+          col = mix(col, vec3(1.0), smoothstep(0.03, 0.015, length(q - vec2(0.3, -0.02))) * 0.7);
+        }
+        float lw = 0.075 + 0.07 * smoothstep(-0.2, 0.8, q.x);
+        float lash = front * smoothstep(lw, lw * 0.4, abs(q.y - top - lw * 0.45)) * step(-0.9, q.x) * step(q.x, 0.98);
+        lash = max(lash, front * smoothstep(0.06, 0.02, length(q - vec2(0.92, top + 0.06 + 0.12 * (1.0 - uBlink)))) * (1.0 - uBlink));
+        col = mix(col, uLash, lash);
+        float ll = front * smoothstep(0.03, 0.0, abs(q.y - bot)) * step(abs(q.x), 0.55) * 0.55 * (1.0 - uBlink);
+        col = mix(col, uLash, ll);
+        gl_FragColor = vec4(col, 1.0);
+        #include <fog_fragment>
+      }`,
+    fog: true,
+  });
+  Object.assign(m.uniforms, U);
+  m.userData.blink = U.uBlink;
+  return m;
+}
+// dragon eye: glowing iris with radial veins, soft vertical slit, wet highlight
+function dragonEyeMat(color) {
+  const m = new THREE.ShaderMaterial({
+    uniforms: { uCol: { value: new THREE.Color(color) }, uTime: Shared.time },
+    vertexShader: 'varying vec3 vN; void main(){ vN = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `uniform vec3 uCol; uniform float uTime; varying vec3 vN;
+      void main(){
+        vec3 n = normalize(vN); vec2 q = n.xy; float r = length(q);
+        float ang = atan(q.y, q.x);
+        vec3 c = uCol * (1.2 + 1.6 * smoothstep(0.9, 0.1, r)) * (0.85 + 0.15 * sin(ang * 22.0 + r * 9.0));
+        c = mix(c, uCol * 0.15, smoothstep(0.8, 1.0, r));
+        float slit = smoothstep(0.13, 0.05, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
+        c = mix(c, vec3(0.01, 0.0, 0.02), slit * (0.9 + 0.1 * sin(uTime * 0.7)));
+        c += vec3(1.4) * smoothstep(0.16, 0.1, length(q - vec2(0.3, 0.35)));
+        gl_FragColor = vec4(c * step(0.0, n.z) + uCol * 0.3 * step(n.z, 0.0), 1.0);
+      }`,
+  });
+  return m;
+}
+
+// ---------------------------------------------------------------- anime toon skin for sculpted people
+const toonGradSoft = (() => {
+  const d = new Uint8Array([118, 118, 205, 255]);
+  const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
+})();
+function sculptToonMaterial(o, D) {
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradSoft });
+  const U = {
+    uTime: Shared.time, uWaveAmp: { value: o.waveAmp ?? 0 }, uWaveSpeed: { value: 1 }, uWaveFreq: { value: 3 }, uTailStart: { value: D.tailStart ?? 0.01 }, uSerp: { value: 0 },
+    uNeckStart: { value: D.neckStart ?? 0.95 }, uSway: { value: 0.2 }, uJaw: { value: 0 }, uJawHinge: { value: new THREE.Vector3(...(D.jawHinge || [0, 0, 0])) },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.6 }, uShoulderY: { value: o.shoulderY ?? 9 },
+    uHairRing: { value: o.hairRing ?? -1 }, uSat: { value: o.sat ?? 1.15 }, uFlash: { value: 0 }, uRim2: { value: new THREE.Color(o.rim ?? 0xfff4e0) }, uRimAmt2: { value: o.rimAmt ?? 0.35 },
+  };
+  m.userData.U = U; m.userData.uFlash = U.uFlash;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.uniforms.uRim = Look.rim; sh.uniforms.uRimStr = Look.rimStr; sh.uniforms.uSpec = Look.spec;
+    sh.vertexShader = SCULPT_DECL + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
+      .replace('#include <begin_vertex>', SCULPT_BODY);
+    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec; uniform vec3 uRim2, uRim; varying vec3 vObjPos; varying vec3 vObjN;
+      ` + sh.fragmentShader
+      .replace('#include <color_fragment>', `#include <color_fragment>
+        diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);`)
+      .replace('#include <opaque_fragment>', `
+        {
+          vec3 vdir = normalize(vViewPosition);
+          float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
+          float rimBand = smoothstep(0.42, 0.5, fr);
+          outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb);
+          #if NUM_DIR_LIGHTS > 0
+            vec3 hv = normalize(directionalLights[0].direction + vdir);
+            outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
+          #endif
+          if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); outgoingLight += vec3(0.42, 0.46, 0.6) * hr; }
+        }
+        #include <opaque_fragment>`)
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
+  };
+  m.customProgramCacheKey = () => 'sculptToon-v1';
+  return m;
 }
 
 // ---- 02e_legends.js ----
@@ -3006,16 +3141,22 @@ function buildCritter(r, cfg) {
   const B = grp(r.body); B.scale.setScalar(cfg.scale ?? 1);
   const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D);
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
-  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.25, coatRough: 0.4, sheen: 0.35, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.16, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.35, sat: 1.35 }, cfg.mat), DD);
+  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.25, coatRough: 0.4, sheen: 0.35, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.16, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.35, sat: 1.08 }, cfg.mat), DD);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
+  if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
   const follow = [];
   const glue = (obj, s) => follow.push({ obj, base: obj.position.clone(), s });
   for (const e of D.eyes || []) {
     const g = grp(B, e.p, [e.pitch || 0, e.yaw || 0, e.roll || 0]);
     if (cfg.glowEye) { part(GEO.sphere, E(cfg.glowEye, 2.8), g, [0, 0, 0], [e.r, e.r * 0.7, e.r * 0.55]).userData.noOl = true; part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x0a0612 }), g, [0, 0, e.r * 0.42], [e.r * 0.16, e.r * 1.1, e.r * 0.1]); }
-    else part(GEO.sphere, animeEyeMat(cfg.iris ?? 0x2a1a4a, cfg.iris2 ?? 0x8a6aff), g, [0, 0, 0], [e.r, e.r * 1.18, e.r * 0.62]);
-    r.blink.push(g); glue(g, 1);
+    else {
+      const em = animeEye({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, skin: cfg.lid ?? 0xffffff, lash: cfg.lash ?? 0x1a1020, side: e.p[0] < 0 ? -1 : 1 });
+      part(GEO.sphere, em, g, [0, 0, 0], [e.r * 1.12, e.r * 1.25, e.r * 0.62]);
+      (r.blinkU = r.blinkU || []).push(em.userData.blink);
+    }
+    if (cfg.glowEye) r.blink.push(g);
+    glue(g, 1);
   }
   r.fns.push((t) => {
     U.uWalk.value = r.walkPhase; U.uStride.value = (D.stride ?? 0.12) * r.moving;
@@ -3063,7 +3204,7 @@ function dFox(st) {
 }
 function foxModel(r, st) {
   const D = dFox(st);
-  const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x7a2a08 : 0x3a1a10, iris2: st === 2 ? 0xffb02e : 0xff9a4a, mat: { sheenCol: 0xffb070 } });
+  const B = buildCritter(r, { key: 'fox' + st, lid: 0xff8a3d, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x7a2a08 : 0x3a1a10, iris2: st === 2 ? 0xffb02e : 0xff9a4a, mat: { sheenCol: 0xffb070 } });
   for (const tp of D.tails) { const f = flame(r, B, tp, st === 2 ? 0.72 : 0.8); r.glue(f, 0); }
   if (st === 2) {
     for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; const f = flame(r, B, [Math.cos(a) * 0.24, 0.78 + Math.sin(a) * 0.05, 0.42 + Math.sin(a) * 0.1], 0.6); f.rotation.set(Math.sin(a) * 0.4, 0, -Math.cos(a) * 0.6); r.glue(f, 0.8); }
@@ -3097,7 +3238,7 @@ function dSeal(st) {
 }
 function sealModel(r, st) {
   const D = dSeal(st);
-  const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x0a2a5a, iris2: 0x3fb8ff, mat: { coat: 0.6, coatRough: 0.15, sheen: 0.3, rough: 0.35 } });
+  const B = buildCritter(r, { key: 'seal' + st, lid: 0x5cc8ff, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x0a2a5a, iris2: 0x3fb8ff, mat: { coat: 0.6, coatRough: 0.15, sheen: 0.3, rough: 0.35 } });
   const orb = grp(B, add3(D.hc, [0, 0.5, -0.04]));
   part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.5 }), orb, [0, 0, 0], 0.15);
   part(GEO.sphere, E(0x9cf0ff, 2.2), orb, [0, 0, 0], 0.06);
@@ -3150,7 +3291,7 @@ function dFawn(st) {
 }
 function fawnModel(r, st) {
   const D = dFawn(st);
-  const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x1a3a10, iris2: 0x7ad86a, mat: { sheenCol: 0xffe6c0 } });
+  const B = buildCritter(r, { key: 'fawn' + st, lid: 0xc58a56, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x1a3a10, iris2: 0x7ad86a, mat: { sheenCol: 0xffe6c0 } });
   const sp = grp(B, add3(D.hc, [0, 0.22, 0]));
   part(GEO.cyl, M(0x4fbf5f), sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
   for (const s of [-1, 1]) part(GEO.sphere, M(0x6ee06a), sp, [s * 0.08, 0.18, 0], [0.1, 0.03, 0.06], [0, 0, s * 0.5]);
@@ -3177,7 +3318,7 @@ MODELS.jjirit = (r) => {
     for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; K.el([Math.cos(a) * 0.45, -0.02, Math.sin(a) * 0.45], [0.08, 0.06, 0.08], 0xffb02e, { k: 0.05 }); }
     return { prims: K.prims, bounds: [-0.65, -0.25, -0.65, 0.65, 0.6, 0.65], hipY: 0, height: 1.0, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.16, 0.22, 0.4], r: 0.08, yaw: sx * 0.3, pitch: -0.2 })) };
   });
-  const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2a00, iris2: 0xffd84a, mat: { rough: 0.15, coat: 1.0, coatRough: 0.05, sheen: 0, soft: 0.45, fuzz: 0.0, rimAmt: 0.45, rim: 0xfff2a0 } });
+  const B = buildCritter(r, { key: 'jelly', lid: 0xffd84a, design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2a00, iris2: 0xffd84a, mat: { rough: 0.15, coat: 1.0, coatRough: 0.05, sheen: 0, soft: 0.45, fuzz: 0.0, rimAmt: 0.45, rim: 0xfff2a0 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.2), B, [0, 0.16, 0], 0.13);
   r.fns.push((t) => core.scale.setScalar(0.13 * (1 + Math.sin(t * 9) * 0.15 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 6; i++) {
@@ -3203,7 +3344,7 @@ MODELS.bawimong = (r) => {
     }
     return { prims: K.prims, bounds: [-0.85, -0.05, -0.65, 0.85, 1.1, 0.7], hipY: 0.3, height: 1.3, stride: 0.08, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.15, 0.63, 0.44], r: 0.074, yaw: sx * 0.25 })) };
   });
-  const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0x9b7bff, sway: 0.15, mat: { rough: 0.85, sheen: 0.1, coat: 0, soft: 0.25, fuzz: 0.05 } });
+  const B = buildCritter(r, { key: 'rock', lid: 0x9a9184, design: D, hop: 0.35, iris: 0x1a1030, iris2: 0x9b7bff, sway: 0.15, mat: { rough: 0.85, sheen: 0.1, coat: 0, soft: 0.25, fuzz: 0.05 } });
   part(GEO.box, new THREE.MeshBasicMaterial({ color: 0x2a1f1a }), B, [0, 0.48, 0.47], [0.12, 0.025, 0.02]);
   for (const [x, y, z, w, h, rx, rz] of [[0, 1.02, -0.18, 0.13, 0.36, -0.3, 0], [-0.24, 0.9, -0.26, 0.1, 0.27, -0.5, 0.5], [0.26, 0.88, -0.24, 0.1, 0.25, -0.5, -0.5], [0.05, 0.72, -0.5, 0.08, 0.22, -1.2, 0]]) part(GEO.cone6, E(0x9b7bff, 1.9), B, [x, y, z], [w, h, w], [rx, 0, rz]);
   r.size = 1.3;
@@ -3218,7 +3359,7 @@ MODELS.bandiru = (r) => {
     K.el([0, -0.08, -0.22], [0.16, 0.15, 0.16], 0xffe9b0, { k: 0.08, s0: 0.2, s1: 0.2 });
     return { prims: K.prims, bounds: [-0.45, -0.35, -0.5, 0.45, 0.4, 0.45], hipY: 0, height: 1.0, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.12, 0.05, 0.25], r: 0.088, yaw: sx * 0.3 })) };
   });
-  const B = buildCritter(r, { key: 'firefly', design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1a00, iris2: 0xffb84a, mat: { sheenCol: 0xfff2c0, fuzz: 0.3, soft: 0.3 } });
+  const B = buildCritter(r, { key: 'firefly', lid: 0xfff0c9, design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1a00, iris2: 0xffb84a, mat: { sheenCol: 0xfff2c0, fuzz: 0.3, soft: 0.3 } });
   for (const s of [-1, 1]) { const an = grp(B, [s * 0.1, 0.25, 0.08], [0.3, 0, -s * 0.35]); part(GEO.cyl, M(0x3a2c22), an, [0, 0.13, 0], [0.014, 0.26, 0.014]); part(GEO.sphere, E(0xfff3a0, 3), an, [0, 0.28, 0], 0.045); wig(r, an, 'z', 0.15, 3, s); }
   const wingM = toonMat({ color: 0xe6f8ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
   for (const s of [-1, 1]) for (const k of [0, 1]) { const w = grp(B, [s * 0.12, 0.18 - k * 0.08, -0.1 - k * 0.04], [0, 0, s * (0.35 - k * 0.6)]); part(GEO.sphere, wingM, w, [s * 0.3, 0, 0], [0.32 - k * 0.08, 0.02, 0.15]); wig(r, w, 'z', 0.45, 22, k * 1.5 + (s > 0 ? 0 : Math.PI)); }
@@ -3268,7 +3409,7 @@ MODELS.somgu = (r) => {
     for (const sx of [-1, 1]) K.el(add3(hc, [sx * 0.24, 0.0, -0.04]), [0.11, 0.04, 0.06], LV, Object.assign({ k: 0.04 }, HEAD));
     return { prims: K.prims, bounds: [-0.65, -0.05, -0.7, 0.65, 1.3, 0.75], hipY: 0.32, height: 1.3, stride: 0.08, hc, eyes: [-1, 1].map((sx) => ({ p: add3(hc, [sx * 0.085, 0.03, 0.155]), r: 0.058, yaw: sx * 0.32 })) };
   });
-  const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a2050, iris2: 0x9a8aff, mat: { rough: 0.8, sheen: 0.8, sheenCol: 0xffffff, coat: 0, fuzz: 0.35, soft: 0.3 } });
+  const B = buildCritter(r, { key: 'lamb', lid: 0xcfc4f2, design: D, iris: 0x2a2050, iris2: 0x9a8aff, mat: { rough: 0.8, sheen: 0.8, sheenCol: 0xffffff, coat: 0, fuzz: 0.35, soft: 0.3 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.12, -0.04]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -3289,7 +3430,7 @@ MODELS.beoseot = (r) => {
     }
     return { prims: K.prims, bounds: [-0.75, -0.05, -0.75, 0.75, 1.2, 0.75], hipY: 0.2, height: 1.2, stride: 0.07, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.11, 0.42, 0.24], r: 0.07, yaw: sx * 0.28 })) };
   });
-  buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff7a6a, sway: 0.2, mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.4, soft: 0.5 } });
+  buildCritter(r, { key: 'shroom', lid: 0xf8ead2, design: D, iris: 0x3a1010, iris2: 0xff7a6a, sway: 0.2, mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.4, soft: 0.5 } });
   r.size = 1.2;
 };
 
@@ -3301,12 +3442,119 @@ MODELS.byeolssi = (r) => {
     for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + Math.PI / 2; K.rc([0, 0, -0.02], [Math.cos(a) * 0.58, Math.sin(a) * 0.58, -0.04], 0.2, 0.06, 0xffe08a, { k: 0.12, s0: 1, s1: 1 }); }
     return { prims: K.prims, bounds: [-0.75, -0.75, -0.4, 0.75, 0.75, 0.4], hipY: 0, height: 1.2, eyes: [-1, 1].map((sx) => ({ p: [sx * 0.105, 0.04, 0.235], r: 0.066, yaw: sx * 0.3 })) };
   });
-  const B = buildCritter(r, { key: 'star', design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2a00, iris2: 0xffc04a, mat: { sheenCol: 0xfff0b0, soft: 0.35, rim: 0xffe08a, rimAmt: 0.3 } });
+  const B = buildCritter(r, { key: 'star', lid: 0xfff3d0, design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2a00, iris2: 0xffc04a, mat: { sheenCol: 0xfff0b0, soft: 0.35, rim: 0xffe08a, rimAmt: 0.3 } });
   spin(r, B, 'z', 0.0);
   const halo = part(GEO.torus, E(0xffe08a, 2.4), B, [0, 0.62, 0], 0.2, [Math.PI / 2, 0, 0]);
   r.fns.push((t) => { halo.position.y = 0.62 + Math.sin(t * 3) * 0.03; B.rotation.z = Math.sin(t * 0.8) * 0.15; });
   r.size = 1.6;
 };
+
+// ---- 02g_people.js ----
+// ============================================================================
+//  people: sculpted anime adventurers — one smooth body, separate spiky hair,
+//  anime eyes with lids, brows and mouth, animated outline, swinging limbs
+// ============================================================================
+function personKey(C) { return JSON.stringify([C.skin, C.hair, C.top, C.shirt, C.trim, C.bottom, C.shoe, C.glove, C.accent, C.robe, C.beard, C.long, C.pack, C.kid]); }
+function designPersonBody(C) {
+  const K = critterKit(), hd = { s0: 1, s1: 1 };
+  K.el([0, 1.52, 0], [0.35, 0.34, 0.33], C.skin, Object.assign({ k: 0.06 }, hd));
+  K.el([0, 1.36, 0.07], [0.22, 0.13, 0.2], C.skin, Object.assign({ k: 0.12 }, hd));
+  K.el([0, 1.47, 0.33], [0.025, 0.022, 0.02], C.skin, Object.assign({ k: 0.02 }, hd));
+  for (const sx of [-1, 1]) K.el([sx * 0.34, 1.5, 0.02], [0.05, 0.075, 0.05], C.skin, Object.assign({ k: 0.04 }, hd));
+  if (C.beard) { K.el([0, 1.33, 0.2], [0.22, 0.19, 0.14], C.beard, Object.assign({ k: 0.06 }, hd)); K.rc([0, 1.22, 0.24], [0, 1.02, 0.26], 0.13, 0.04, C.beard, Object.assign({ k: 0.05 }, hd)); }
+  K.rc([0, 1.24, 0], [0, 1.3, 0.02], 0.08, 0.075, C.skin, { k: 0.05, s0: 0.9, s1: 0.9 });
+  // torso: jacket over shirt, trim, belt
+  K.rc([0, 0.76, 0], [0, 1.1, 0], 0.22, 0.24, C.top, { k: 0.1 });
+  K.el([0, 0.98, 0.05], [0.25, 0.21, 0.2], C.top, { k: 0.1 });
+  K.el([0, 0.98, 0.2], [0.09, 0.18, 0.06], C.shirt, { k: 0.04 });
+  for (const sx of [-1, 1]) K.rc([sx * 0.07, 1.16, 0.19], [sx * 0.12, 0.8, 0.2], 0.03, 0.025, C.trim, { k: 0.02 });
+  K.el([0, 1.18, 0.0], [0.21, 0.07, 0.2], C.trim, { k: 0.04 });
+  K.el([0, 0.74, 0.0], [0.245, 0.05, 0.21], 0x5a3a26, { k: 0.03 });
+  K.el([0, 0.74, 0.205], [0.05, 0.04, 0.025], 0xf2c35a, { k: 0.015 });
+  // arms with sleeves, cuffs and gloves (swing channel 2)
+  for (const sx of [-1, 1]) {
+    K.el([sx * 0.25, 1.1, 0], [0.11, 0.1, 0.11], C.top, { k: 0.06, leg: sx * 2 });
+    K.rc([sx * 0.26, 1.08, 0], [sx * 0.33, 0.76, 0.03], 0.085, 0.072, C.top, { k: 0.05, leg: sx * 2 });
+    K.el([sx * 0.335, 0.74, 0.03], [0.08, 0.035, 0.08], C.trim, { k: 0.02, leg: sx * 2 });
+    K.el([sx * 0.345, 0.65, 0.045], [0.07, 0.08, 0.07], C.glove, { k: 0.03, leg: sx * 2 });
+  }
+  if (C.robe) {
+    K.rc([0, 0.95, 0], [0, 0.1, 0], 0.24, 0.44, C.top, { k: 0.08 });
+    for (const a of [0.5, 1.6, 2.7, 3.8, 4.9]) K.el([Math.cos(a) * 0.38, 0.22, Math.sin(a) * 0.36], [0.06, 0.14, 0.06], C.trim, { k: 0.08 });
+    K.el([0, 0.06, 0.06], [0.33, 0.06, 0.3], C.shoe, { k: 0.04 });
+  } else {
+    K.el([0, 0.64, 0], [0.23, 0.13, 0.18], C.bottom, { k: 0.08 });
+    for (const sx of [-1, 1]) {
+      K.rc([sx * 0.11, 0.62, 0], [sx * 0.12, 0.42, 0.01], 0.1, 0.085, C.bottom, { k: 0.05, leg: sx });
+      K.rc([sx * 0.12, 0.42, 0.01], [sx * 0.12, 0.22, 0.02], 0.07, 0.065, C.kid ? C.skin : C.bottom, { k: 0.04, leg: sx });
+      K.rc([sx * 0.12, 0.3, 0.02], [sx * 0.12, 0.1, 0.03], 0.085, 0.08, C.shoe, { k: 0.04, leg: sx });
+      K.el([sx * 0.12, 0.3, 0.02], [0.1, 0.035, 0.1], 0x8a5a3a, { k: 0.02, leg: sx });
+      K.el([sx * 0.12, 0.07, 0.08], [0.095, 0.065, 0.15], C.shoe, { k: 0.04, leg: sx });
+    }
+  }
+  if (C.pack) {
+    K.el([0, 0.94, -0.27], [0.19, 0.21, 0.11], 0x8a5a3c, { k: 0.05 });
+    K.el([0, 1.07, -0.33], [0.17, 0.06, 0.05], 0xa8754e, { k: 0.03 });
+    for (const sx of [-1, 1]) K.rc([sx * 0.15, 1.15, 0.12], [sx * 0.17, 0.82, 0.19], 0.025, 0.025, 0x5a3a26, { k: 0.02 });
+  }
+  return { prims: K.prims, bounds: [-0.62, -0.05, -0.6, 0.62, 1.95, 0.6], hipY: 0.62, height: 1.95 };
+}
+function designHair(C) {
+  const K = critterKit(), H = C.hair, hd = { s0: 1, s1: 1 }, o = (k = 0.04) => Object.assign({ k }, hd);
+  K.el([0, 1.6, -0.04], [0.395, 0.385, 0.385], H, o(0.05));
+  K.sub([0, 1.43, 0.24], [0.33, 0.31, 0.3], 0.04);
+  for (const [x, len, tw] of [[-0.22, 0.24, -0.08], [-0.11, 0.3, -0.03], [0.0, 0.27, 0.02], [0.11, 0.31, 0.05], [0.22, 0.23, 0.09]]) K.rc([x * 0.9, 1.86, 0.2], [x + tw, 1.86 - len, 0.33], 0.075, 0.012, H, o(0.035));
+  for (const sx of [-1, 1]) {
+    K.rc([sx * 0.29, 1.72, 0.12], [sx * 0.34, 1.34, 0.2], 0.09, 0.018, H, o(0.04));
+    K.rc([sx * 0.33, 1.66, -0.05], [sx * 0.4, 1.4, -0.08], 0.08, 0.015, H, o(0.04));
+  }
+  for (const [x, y] of [[-0.15, 1.62], [0.15, 1.62], [0, 1.72], [0, 1.5]]) K.rc([x * 0.6, y + 0.08, -0.25], [x, y - 0.12, -0.5], 0.11, 0.015, H, o(0.05));
+  K.rc([0.03, 1.95, 0.0], [0.14, 2.12, 0.16], 0.04, 0.006, H, o(0.03));
+  if (C.long) { K.el([0, 1.3, -0.2], [0.34, 0.4, 0.2], H, o(0.08)); K.rc([0, 1.2, -0.22], [0, 0.88, -0.26], 0.22, 0.08, H, o(0.06)); }
+  return { prims: K.prims, bounds: [-0.55, 0.75, -0.75, 0.55, 2.2, 0.6], hipY: 0, height: 2 };
+}
+function buildPerson(o = {}) {
+  const C = Object.assign({ skin: 0xffdcc6, hair: 0x2a2238, top: 0x2c4a8a, shirt: 0xf2f2f6, trim: 0xf4f0e6, bottom: 0x2a2e3e, shoe: 0x6a4026, glove: 0x3a2a20, accent: 0x8b5cff, pack: true }, o);
+  if (o.top !== undefined && o.trim === undefined) C.trim = 0xf4ecd8;
+  const r = newRig(); r.hopAmp = 0.35; r.olw = 0; r.person = true;
+  const key = personKey(C), B = grp(r.body);
+  const DB = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.01, neckStart: 0.95 }, designPersonBody(C));
+  const body = new THREE.Mesh(dragonGeometry('pb_' + key, DB, 0.016, 0.026), sculptToonMaterial({ hipY: 0.62, shoulderY: 1.12, sat: 1.05, rimAmt: 0.3 }, DB));
+  body.castShadow = true; body.receiveShadow = true; B.add(body);
+  sculptOutline(body, 0.013, 0x1a1220);
+  const DH = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.01, neckStart: 0.95 }, designHair(C));
+  const hair = new THREE.Mesh(dragonGeometry('ph_' + key, DH, 0.015, 0.024), sculptToonMaterial({ sat: 1.05, rimAmt: 0.25, hairRing: 1.76 }, DH));
+  hair.castShadow = true; B.add(hair);
+  sculptOutline(hair, 0.012, 0x1a1220);
+  const U = body.material.userData.U, UH = hair.material.userData.U;
+  U.uSway.value = UH.uSway.value = 0.2;
+  const face = grp(B, [0, 0, 0]);
+  for (const sx of [-1, 1]) {
+    const em = animeEye({ iris: C.eye ?? 0x2a2a6a, iris2: C.eye2 ?? 0x7a9aff, skin: C.skin, lash: 0x1a1020, side: sx });
+    const g = grp(face, [sx * 0.128, 1.49, 0.302], [0, sx * 0.32, 0]);
+    part(GEO.sphere, em, g, [0, 0, 0], [0.072, 0.088, 0.04]);
+    (r.blinkU = r.blinkU || []).push(em.userData.blink);
+    part(GEO.box, M(C.hair), face, [sx * 0.13, 1.6, 0.318], [0.095, 0.018, 0.02], [0, sx * 0.3, -sx * 0.12]);
+  }
+  part(new THREE.TorusGeometry(0.03, 0.007, 6, 14, Math.PI), M(0x8a3a3a), face, [0, 1.395, 0.322], 1, [0, 0, Math.PI]);
+  for (const sx of [-1, 1]) part(GEO.sphere, M(0xff8fa6, { transparent: true, opacity: 0.42 }), face, [sx * 0.2, 1.43, 0.28], [0.05, 0.026, 0.02], [0, sx * 0.5, 0]).userData.noOl = true;
+  const scarf = grp(B, [0.1, 1.17, -0.15], [0.35, 0, 0.15]);
+  part(GEO.box, M(C.accent), scarf, [0, -0.17, 0], [0.1, 0.34, 0.03]);
+  part(GEO.torusFat, M(C.accent), B, [0, 1.2, 0], [0.18, 0.18, 0.16], [Math.PI / 2, 0, 0]);
+  wig(r, scarf, 'x', 0.18, 3.1);
+  if (C.pin) part(GEO.octa, E(C.pin, 2.4), B, [0.27, 1.76, 0.18], [0.05, 0.08, 0.03]);
+  if (o.pendant !== false && !C.robe) part(GEO.octa, E(0xb48cff, 2.2), B, [0, 1.06, 0.255], [0.035, 0.055, 0.02]);
+  if (C.hat === 'hood') part(GEO.sphere, M(C.accent), B, [0, 1.62, -0.14], [0.44, 0.44, 0.38]).castShadow = true;
+  if (C.hat === 'wide') { part(GEO.cyl, M(C.accent), B, [0, 1.92, 0], [0.6, 0.04, 0.6]); part(GEO.cylT, M(C.accent), B, [0, 2.06, 0], [0.25, 0.28, 0.25]); }
+  if (C.hat === 'band') part(GEO.torusFat, M(C.accent), B, [0, 1.74, 0], [0.37, 0.37, 0.25], [Math.PI / 2 - 0.15, 0, 0]);
+  if (C.staff) { const st = grp(B, [0.38, 0.62, 0.08]); part(GEO.cyl, M(0x5a3b26), st, [0, 0.3, 0], [0.025, 1.6, 0.025]); part(GEO.octa, E(C.staff, 2.6), st, [0, 1.12, 0], [0.09, 0.15, 0.09]); }
+  r.fns.push((t, dt, mv) => {
+    U.uWalk.value = UH.uWalk.value = r.walkPhase; U.uStride.value = 0.17 * mv;
+    face.position.copy(dragonOffset(U, 1, Shared.time.value));
+  });
+  r.size = 1.95;
+  return r;
+}
 
 // ---- 03_world.js ----
 // ============================================================================
@@ -3407,14 +3655,14 @@ function buildWorld() {
   scene.fog = new THREE.Fog(0x6a4a7a, 70, 300);
 
   // ---------------- lights
-  W.hemi = new THREE.HemisphereLight(0xb9b0ff, 0x5a463a, 1.15); scene.add(W.hemi);
-  W.sunDir = new THREE.Vector3(-0.62, 0.32, -0.55).normalize();
+  W.hemi = new THREE.HemisphereLight(0x9fb2e6, 0x6a5838, 0.95); scene.add(W.hemi);
+  W.sunDir = new THREE.Vector3(-0.86, 0.4, 0.3).normalize();
   const sun = W.sun = new THREE.DirectionalLight(0xffb98a, 2.7);
   sun.castShadow = true; sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
   const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 160;
   sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04;
   scene.add(sun); scene.add(sun.target);
-  W.rim = new THREE.DirectionalLight(0x8f7bff, 0.7); W.rim.position.set(30, 20, 40); scene.add(W.rim);
+  W.rim = new THREE.DirectionalLight(0x8fb0ff, 0.6); W.rim.position.set(30, 20, 40); scene.add(W.rim);
 
   // ---------------- terrain heights
   const N = W.N, S = W.SIZE, R = N + 1;
@@ -3518,7 +3766,7 @@ function buildWorld() {
   buildLegendSites();
 
   // ---------------- player & follower
-  W.player = buildPerson({ top: 0xf1f3fb, bottom: 0x2b2f4a, accent: 0x7d55f0, hair: 0x2a2238, pin: 0xffd98a });
+  W.player = buildPerson({ accent: 0x8b5cff, hair: 0x25223a, pin: 0xffd98a, eye: 0x24245a, eye2: 0x7aa4ff });
   W.player.root.position.set(SITES.spawn.x, groundY(SITES.spawn.x, SITES.spawn.z), SITES.spawn.z);
   W.player.root.rotation.y = Math.PI;
   scene.add(W.player.root);
@@ -3563,7 +3811,7 @@ function makeSkyUniforms() {
   return {
     uTime: Shared.time,
     uTop: { value: new THREE.Color(0x0c0a2a) }, uMid: { value: new THREE.Color(0x4a2a6a) }, uHor: { value: new THREE.Color(0xe0728a) },
-    uSunDir: { value: new THREE.Vector3(-0.62, 0.32, -0.55).normalize() }, uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
+    uSunDir: { value: new THREE.Vector3(-0.86, 0.4, 0.3).normalize() }, uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
     uCrackDir: { value: new THREE.Vector3(0.08, 0.5, -1).normalize() }, uCrack: { value: 1 }, uStars: { value: 1 }, uCloud: { value: 1 }, uSunAmt: { value: 1 },
   };
 }
@@ -3657,73 +3905,157 @@ function makeSky(U) {
   return g;
 }
 
-// ---------------- trees (instanced)
+// ---------------- foliage: leaf-card trees, fern pines and bushes (instanced, wind, translucency)
+function leafTexture(kind) {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  const rng = mulberry32(kind === 'pine' ? 77 : 33);
+  if (kind === 'pine') {
+    for (let k = 0; k < 3; k++) {
+      const cx = 64 + k * 64;
+      g.strokeStyle = 'rgb(90,90,90)'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, 10); g.lineTo(cx, 246); g.stroke();
+      for (let y = 14; y < 244; y += 5) {
+        const t = (y - 10) / 236, L = 6 + 30 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+        for (const sd of [-1, 1]) {
+          const v = 150 + (rng() * 100 | 0);
+          g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 2;
+          g.beginPath(); g.moveTo(cx, y); g.lineTo(cx + sd * L, y + L * 0.55); g.stroke();
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < 70; i++) {
+      const a0 = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * 96, x = 128 + Math.cos(a0) * rr, y = 128 + Math.sin(a0) * rr;
+      const a = rng() * Math.PI * 2, L = 30 + rng() * 24, W = L * 0.44;
+      const v = 140 + (rng() * 115 | 0);
+      g.save(); g.translate(x, y); g.rotate(a);
+      const grd = g.createLinearGradient(-W, 0, W, 0);
+      grd.addColorStop(0, `rgb(${v * 0.62 | 0},${v * 0.62 | 0},${v * 0.62 | 0})`); grd.addColorStop(0.55, `rgb(${v},${v},${v})`); grd.addColorStop(1, `rgb(${v * 0.78 | 0},${v * 0.78 | 0},${v * 0.78 | 0})`);
+      g.fillStyle = grd; g.beginPath(); g.moveTo(0, -L / 2); g.quadraticCurveTo(W, -L * 0.08, 0, L / 2); g.quadraticCurveTo(-W, -L * 0.08, 0, -L / 2); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(0, -L / 2); g.lineTo(0, L / 2); g.stroke();
+      g.restore();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function foliageMaterial(tex) {
+  const m = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = Shared.time;
+    sh.vertexShader = 'uniform float uTime; attribute vec3 aCenter;\n' + sh.vertexShader
+      .replace('#include <defaultnormal_vertex>', `vec3 cardW = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vec3 transformedNormal = normalMatrix * normalize(cardW - aCenter + vec3(0.0, 0.25, 0.0));`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        float wph = uTime * 1.5 + cardW.x * 0.31 + cardW.z * 0.23;
+        transformed.x += sin(wph) * 0.06 + sin(wph * 2.3) * 0.02; transformed.y += cos(wph * 1.3) * 0.035;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <normal_fragment_begin>', 'vec3 normal = normalize( vNormal ); vec3 nonPerturbedNormal = normal;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        #if NUM_DIR_LIGHTS > 0
+          totalEmissiveRadiance += diffuseColor.rgb * directionalLights[0].color * 0.16 * max(dot(-normal, directionalLights[0].direction), 0.0);
+        #endif
+        totalEmissiveRadiance += diffuseColor.rgb * 0.08;`);
+  };
+  return m;
+}
+// trees: [{ x, y, z, s, r, kind: 'round' | 'pine' | 'bush', tint }]
+function buildForest(parent, trees, opts = {}) {
+  const g = new THREE.Group(); parent.add(g);
+  const rng = mulberry32(opts.seed || 7);
+  const leafTex = leafTexture('leaf'), pineTex = leafTexture('pine');
+  const cards = [], needles = [], trunks = [];
+  const greens = opts.greens || [0x4f9a3e, 0x5aa648, 0x3f8a3a, 0x6aaa4a, 0x5c9e42];
+  for (const t of trees) {
+    const s = t.s;
+    if (t.kind === 'pine') {
+      trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r, pine: true });
+      const tiers = 5;
+      for (let k = 0; k < tiers; k++) {
+        const h = (1.4 + k * 0.85) * s, R = (1.9 - k * 0.33) * s, n = 9 - k;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + rng() * 0.4 + k;
+          needles.push({ p: [t.x + Math.cos(a) * R * 0.45, t.y + h, t.z + Math.sin(a) * R * 0.45], yaw: -a + Math.PI / 2, tilt: 0.95, size: [R * 1.05, R * 1.25], c: [t.x, t.y + h - 0.6 * s, t.z], col: t.tint ?? [0x2f6b4a, 0x3a7a55, 0x2a5f44][(i + k) % 3] });
+        }
+      }
+      needles.push({ p: [t.x, t.y + (1.4 + tiers * 0.85) * s, t.z], yaw: 0, tilt: 0, size: [0.7 * s, 1.2 * s], c: [t.x, t.y + 4 * s, t.z], col: t.tint ?? 0x3a7a55 });
+    } else {
+      const bush = t.kind === 'bush';
+      if (!bush) trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r });
+      const top = bush ? 0.55 * s : 2.85 * s;
+      const clumps = bush ? [[0, top, 0, 0.75]] : [[0, top + 0.35 * s, 0, 1.25], [0.85, top - 0.15 * s, 0.35, 0.95], [-0.75, top - 0.05 * s, -0.4, 0.95], [0.2, top + 0.2 * s, -0.85, 0.9], [-0.35, top - 0.3 * s, 0.75, 0.85]];
+      const base = t.tint ?? greens[(rng() * greens.length) | 0];
+      for (const [ox, oy, oz, cr] of clumps) {
+        const C = [t.x + ox * s, t.y + oy, t.z + oz * s], R = cr * s * (bush ? 1 : 1.05);
+        const n = bush ? 14 : 20;
+        for (let i = 0; i < n; i++) {
+          const th = rng() * Math.PI * 2, ph = Math.acos(rand(-0.55, 1)), rr = R * (0.45 + 0.55 * Math.cbrt(rng()));
+          cards.push({ p: [C[0] + Math.sin(ph) * Math.cos(th) * rr, C[1] + Math.cos(ph) * rr * 0.85, C[2] + Math.sin(ph) * Math.sin(th) * rr], yaw: rng() * 6.28, tilt: rand(-1.2, 1.2), roll: rng() * 6.28, size: [1.15 * s * (0.8 + rng() * 0.5), 1.15 * s * (0.8 + rng() * 0.5)], c: C, col: base, jitter: rng() });
+        }
+      }
+    }
+  }
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const makeCards = (list, tex, flat) => {
+    if (!list.length) return null;
+    const geo = new THREE.PlaneGeometry(1, 1);
+    if (flat) geo.translate(0, -0.5, 0);
+    const im = new THREE.InstancedMesh(geo, foliageMaterial(tex), list.length);
+    const cen = new Float32Array(list.length * 3);
+    list.forEach((c, i) => {
+      e.set(c.tilt, c.yaw, c.roll || 0, flat ? 'YXZ' : 'XYZ');
+      m4.compose(v.set(...c.p), q.setFromEuler(e), sc.set(c.size[0], c.size[1], 1));
+      im.setMatrixAt(i, m4);
+      col.setHex(c.col); const j = (c.jitter ?? 0.5) - 0.5; col.offsetHSL(j * 0.03, j * 0.12, j * 0.12); im.setColorAt(i, col);
+      cen[i * 3] = c.c[0]; cen[i * 3 + 1] = c.c[1]; cen[i * 3 + 2] = c.c[2];
+    });
+    geo.setAttribute('aCenter', new THREE.InstancedBufferAttribute(cen, 3));
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = true; im.receiveShadow = true;
+    im.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.42 });
+    im.frustumCulled = false; g.add(im); return im;
+  };
+  makeCards(cards, leafTex, false);
+  makeCards(needles, pineTex, true);
+  if (trunks.length) {
+    const tg = new THREE.CylinderGeometry(0.15, 0.3, 2.6, 8).translate(0, 1.3, 0);
+    const b1 = new THREE.CylinderGeometry(0.05, 0.11, 1.2, 6).translate(0, 0.6, 0).rotateZ(0.9).translate(0.1, 1.75, 0);
+    const b2 = new THREE.CylinderGeometry(0.05, 0.1, 1.0, 6).translate(0, 0.5, 0).rotateZ(-0.8).rotateY(2.1).translate(-0.05, 2.0, 0);
+    const trunkGeo = mergeGeometries([tg.toNonIndexed(), b1.toNonIndexed(), b2.toNonIndexed()], false);
+    const tm = new THREE.InstancedMesh(trunkGeo, M(0x5e4130), trunks.length);
+    trunks.forEach((t, i) => { m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, t.r, 0, 'XYZ')), sc.set(t.s, t.s * (t.pine ? 1.6 : 1), t.s)); tm.setMatrixAt(i, m4); });
+    tm.castShadow = true; tm.receiveShadow = true; g.add(tm);
+  }
+  return g;
+}
 function buildTrees(scene) {
   const rng = mulberry32(1337);
-  const round = [], pine = [];
-  const ok = (x, z) => {
+  const list = [];
+  const ok = (x, z, minGap) => {
     const h = groundY(x, z); if (h < 1.3 || h > 13) return false;
     if (pathDist(x, z) < 4.5) return false;
     for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + 2.5) return false;
     if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 22) return false;
     if (Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 15) return false;
     for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 12) return false;
-    for (const t of round.concat(pine)) if (Math.hypot(x - t.x, z - t.z) < 3.6) return false;
+    for (const t of list) if (Math.hypot(x - t.x, z - t.z) < minGap) return false;
     return true;
   };
-  for (let k = 0; k < 2600 && round.length + pine.length < 230; k++) {
+  for (let k = 0; k < 2600 && list.length < 230; k++) {
     const x = (rng() - 0.5) * 190, z = (rng() - 0.5) * 190;
-    if (!ok(x, z)) continue;
+    if (!ok(x, z, 3.6)) continue;
     const s = 0.8 + rng() * 0.7;
     const isPine = z < -18 ? rng() < 0.75 : rng() < 0.18;
-    (isPine ? pine : round).push({ x, z, s, r: rng() * 6.28, blossom: !isPine && z > 20 && rng() < 0.35, v: rng() });
+    let tint;
+    if (!isPine && z > 20 && rng() < 0.32) tint = [0xf2a6c8, 0xf7bfd8, 0xffcadb][(rng() * 3) | 0];
+    else if (!isPine && rng() < 0.07) tint = [0xd98a3a, 0xe0a040, 0xc8742e][(rng() * 3) | 0];
+    list.push({ x, y: groundY(x, z), z, s, r: rng() * 6.28, kind: isPine ? 'pine' : 'round', tint });
     World.colliders.push({ x, z, r: 0.7 * s });
   }
-  const trunkG = new THREE.CylinderGeometry(0.18, 0.3, 2.2, 7).translate(0, 1.1, 0);
-  const trunkM = new THREE.MeshToonMaterial({ color: 0x6b4a33, gradientMap: toonGrad });
-  const all = round.concat(pine);
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, all.length);
-  const canG = new THREE.IcosahedronGeometry(1, 1);
-  const canM = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
-  canM.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = Shared.time;
-    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      #ifdef USE_INSTANCING
-        float wph = instanceMatrix[3].x * 0.21 + instanceMatrix[3].z * 0.17;
-        float wk = position.y + 1.0;
-        transformed.x += (sin(uTime * 1.3 + wph) * 0.05 + sin(uTime * 2.7 + wph * 2.0) * 0.015) * wk;
-        transformed.z += cos(uTime * 1.1 + wph) * 0.035 * wk;
-      #endif`);
-  };
-  const cans = new THREE.InstancedMesh(canG, canM, round.length * 3);
-  const pineG = new THREE.ConeGeometry(1, 1.6, 7);
-  const pines = new THREE.InstancedMesh(pineG, canM, pine.length * 3);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
-  all.forEach((t, i) => {
-    const y = groundY(t.x, t.z) - 0.1;
-    m4.compose(v.set(t.x, y, t.z), q.setFromEuler(e.set(0, t.r, 0)), sc.set(t.s, t.s * (pine.includes(t) ? 1.1 : 1), t.s));
-    trunks.setMatrixAt(i, m4);
-  });
-  const greens = [0x3e8f4a, 0x4fa857, 0x5cb25a, 0x357d47], pinks = [0xf2a6c8, 0xf7bfd8, 0xe68fb6];
-  round.forEach((t, i) => {
-    const y = groundY(t.x, t.z) + 2.0 * t.s;
-    const offs = [[0, 0.5, 0, 1.25], [0.7, 0.05, 0.3, 0.95], [-0.6, 0.1, -0.35, 0.9]];
-    offs.forEach(([ox, oy, oz, s], k) => {
-      m4.compose(v.set(t.x + ox * t.s, y + oy * t.s, t.z + oz * t.s), q.setFromEuler(e.set(t.r, t.r * 2, 0)), sc.setScalar(s * t.s * 1.15));
-      cans.setMatrixAt(i * 3 + k, m4);
-      c.setHex(t.blossom ? pinks[(i + k) % 3] : greens[(i + k) % 4]); cans.setColorAt(i * 3 + k, c);
-    });
-  });
-  pine.forEach((t, i) => {
-    const y = groundY(t.x, t.z);
-    for (let k = 0; k < 3; k++) {
-      const s = (1.6 - k * 0.38) * t.s;
-      m4.compose(v.set(t.x, y + (1.9 + k * 1.05) * t.s, t.z), q.setFromEuler(e.set(0, t.r + k, 0)), sc.set(s, s, s));
-      pines.setMatrixAt(i * 3 + k, m4);
-      c.setHex([0x2f6b4a, 0x3a7a55, 0x2a5f44][(i + k) % 3]); pines.setColorAt(i * 3 + k, c);
-    }
-  });
-  for (const im of [trunks, cans, pines]) { im.castShadow = true; im.receiveShadow = true; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; scene.add(im); }
+  for (let k = 0; k < 1800 && list.filter((t) => t.kind === 'bush').length < 140; k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180;
+    if (!ok(x, z, 2.2)) continue;
+    list.push({ x, y: groundY(x, z), z, s: 0.7 + rng() * 0.6, r: 0, kind: 'bush', tint: rng() < 0.15 ? 0x7aa84a : undefined });
+  }
+  buildForest(scene, list, { seed: 99 });
 }
 
 function buildRocksAndFlowers(scene) {
@@ -4033,9 +4365,9 @@ function fragCount() { return SITES.rifts.reduce((s, r) => s + (S.flags['closed_
 
 // ---------------- atmosphere: lerp between corrupted dusk, healed sunset, and dawn
 const ATMOS = {
-  dark:  { top: 0x0c0a2a, mid: 0x4a2a6a, hor: 0xe0728a, fog: 0x6a4a7a, sun: 0xffa27a, hemiS: 0xb0a4ff, hemiG: 0x5a463a, sea: 0xb48ad0, cloud: 0xf0a6c0, sunI: 2.5, stars: 1 },
-  heal:  { top: 0x15204a, mid: 0x6a4a9a, hor: 0xffa47a, fog: 0x8a6a8a, sun: 0xffc08a, hemiS: 0xc8c0ff, hemiG: 0x6a5440, sea: 0xd0a0c8, cloud: 0xffc0b0, sunI: 2.9, stars: 0.8 },
-  dawn:  { top: 0x2f62b0, mid: 0x8fb4ea, hor: 0xffd6a8, fog: 0xc8d0e8, sun: 0xfff0d8, hemiS: 0xe4ecff, hemiG: 0x7a6a50, sea: 0xbfe2ff, cloud: 0xffffff, sunI: 3.3, stars: 0 },
+  dark:  { top: 0x1a2550, mid: 0x5462a0, hor: 0xffad78, fog: 0x8f8fa8, sun: 0xffcf9a, hemiS: 0xb4c0dc, hemiG: 0x7a6440, sea: 0x7fa0cc, cloud: 0xffcfb0, sunI: 3.3, stars: 0.75 },
+  heal:  { top: 0x23407e, mid: 0x6d8cc8, hor: 0xffc48c, fog: 0xa8b0c4, sun: 0xffdcb0, hemiS: 0xc4d0ec, hemiG: 0x7a6644, sea: 0x8fb4dc, cloud: 0xffdcc0, sunI: 3.5, stars: 0.5 },
+  dawn:  { top: 0x3274c0, mid: 0x9cc0ec, hor: 0xffe0b4, fog: 0xc8d4e8, sun: 0xfff0d8, hemiS: 0xdce8ff, hemiG: 0x7a6a50, sea: 0xa8d0f4, cloud: 0xffffff, sunI: 3.7, stars: 0 },
 };
 function applyAtmos() {
   const W = World, a = ATMOS.dark, b = ATMOS.heal, d = ATMOS.dawn, h = W.heal, k = W.dawn;
@@ -4393,7 +4725,7 @@ function buildBattle() {
 }
 
 const THEMES = {
-  field:    { ground: 0x4f9a4a, ring: 0xffd98a, crack: null, atm: 'world', decor: 'trees', rim: 0xc0a8ff, cloud: 1 },
+  field:    { ground: 0x4f9a4a, ring: 0xffd98a, crack: null, atm: 'world', decor: 'trees', rim: 0xbcd4ff, cloud: 1 },
   rift:     { ground: 0x3e2f5a, ring: 0xc77dff, crack: 1.6, atm: 'world', decor: 'rift', crackDir: [0.25, 0.42, -1], rim: 0xc77dff, cloud: 0.8 },
   void:     { ground: 0x07050d, ring: 0xb04bff, crack: 2.6, atm: { top: 0x010006, mid: 0x14062a, hor: 0x5a1a7a, fog: 0x14082a, stars: 1, sun: 0x8a6aff, hemi: 0x6a4aaa }, decor: 'void', crackDir: [0.2, 0.32, -1], rim: 0xb04bff, cloud: 0.35 },
   being:    { ground: 0x16172e, ring: 0xffd98a, crack: 0, atm: { top: 0x070d2e, mid: 0x26286a, hor: 0xb07a7a, fog: 0x1e1f44, stars: 1, sun: 0xffe2b8, hemi: 0x9aa4ff }, decor: 'being', rim: 0xffd98a, cloud: 0.5 },
@@ -4424,7 +4756,7 @@ function setupTheme(name) {
   U.uCloud.value = T.cloud;
   U.uSunAmt.value = { void: 0.15, being: 0.45, star: 0.1, abyss: 0, dawn: 0.7, boundary: 0.35 }[name] ?? 1;
   U.uCrack.value = T.crack === null ? World.skyU.uCrack.value : T.crack;
-  U.uSunDir.value.set(...(T.sunDir || [-0.62, 0.32, -0.55])).normalize();
+  U.uSunDir.value.set(...(T.sunDir || [-0.86, 0.4, 0.3])).normalize();
   const cc = T.atm === 'world' ? World.sky.userData.clouds[0].material.color : new THREE.Color(T.atm.hor).lerp(new THREE.Color(T.atm.mid), 0.5);
   for (const c of B.sky.userData.clouds) { c.material.color.copy(cc); c.visible = name !== 'abyss'; }
   U.uCrackDir.value.set(...(T.crackDir || [0.08, 0.5, -1])).normalize();
@@ -4437,16 +4769,15 @@ function setupTheme(name) {
   const rng = mulberry32(name.length * 77 + 5);
   const additive = (geo, color, op) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   if (T.decor === 'trees' || T.decor === 'rift') {
-    const canM = new THREE.MeshLambertMaterial({ color: T.decor === 'rift' ? 0x4a3a6a : 0x3e8f4a, flatShading: true });
-    for (let i = 0; i < 46; i++) {
-      const a = rng() * Math.PI * 2, rr = 22 + rng() * 26, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 6;
+    const forest = [];
+    for (let i = 0; i < 52; i++) {
+      const a = rng() * Math.PI * 2, rr = 20 + rng() * 26, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 6;
       if (z > 8 && Math.abs(x) < 20) continue;
-      const sc = 1.4 + rng() * 1.6;
-      part(GEO.cyl, M(0x5a3f2c), B.decor, [x, 1.2 * sc, z], [0.25 * sc, 2.4 * sc, 0.25 * sc]);
-      if (T.decor === 'rift' && rng() < 0.5) continue;
-      if (rng() < 0.5) part(GEO.ico1, canM, B.decor, [x, 3.3 * sc, z], 1.6 * sc, [rng(), rng(), 0]);
-      else for (let k = 0; k < 3; k++) part(new THREE.ConeGeometry(1, 1.6, 7), canM, B.decor, [x, (2.6 + k * 1.1) * sc, z], (1.7 - k * 0.4) * sc);
+      const pine = rng() < 0.4;
+      forest.push({ x, y: 0, z, s: 1.3 + rng() * 1.4, r: rng() * 6.28, kind: pine ? 'pine' : 'round', tint: T.decor === 'rift' ? [0x5a4a7a, 0x4a3a6a, 0x6a5a8a][i % 3] : undefined });
     }
+    for (let i = 0; i < 26; i++) { const a = rng() * Math.PI * 2, rr = 7 + rng() * 14, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 2; if (Math.hypot(x - B.A.x, z - B.A.z) < 3.5 || Math.hypot(x - B.F.x, z - B.F.z) < 3.5) continue; forest.push({ x, y: 0, z, s: 0.8 + rng() * 0.6, r: 0, kind: 'bush', tint: T.decor === 'rift' ? 0x5a4a7a : undefined }); }
+    buildForest(B.decor, forest, { seed: 5 });
     const bushM = new THREE.MeshLambertMaterial({ color: T.decor === 'rift' ? 0x4a3a6a : 0x4f9a4a, flatShading: true });
     for (let i = 0; i < 70; i++) {
       const a = rng() * Math.PI * 2, rr = 4.5 + rng() * 18, x = Math.cos(a) * rr, z = Math.sin(a) * rr;
@@ -5447,7 +5778,7 @@ function showHud(on = true) { $('#hud').hidden = !on; $('#touch').hidden = !on |
 const NPC_DEFS = [
   { id: 'elder', name: '장로 무연', x: 0, z: 55, face: Math.PI, look: { top: 0x6a5a8a, robe: true, hair: 0xe6e2ee, beard: 0xf2eef8, accent: 0xffd98a, pack: false, staff: 0xffd98a }, talk: talkElder },
   { id: 'healer', name: '샘지기 하나', x: -8.2, z: 47, face: Math.PI / 2, look: { top: 0xfafaff, bottom: 0x5a6a9a, accent: 0x5fd8ff, hair: 0x7a4a2a, long: true, pack: false }, pet: 'bandiru', talk: talkHealer },
-  { id: 'kid', name: '꼬마 도윤', x: 6.5, z: 44, face: -Math.PI / 2, look: { top: 0xffb84a, bottom: 0x3a5a8a, accent: 0xff6a6a, hair: 0x3a2a1a, hat: 'band', pack: true }, pet: 'somgu', talk: talkKid },
+  { id: 'kid', name: '꼬마 도윤', x: 6.5, z: 44, face: -Math.PI / 2, look: { top: 0xff9a3a, bottom: 0x3a5a8a, accent: 0xff6a6a, hair: 0x3a2a1a, hat: 'band', pack: true, kid: true, shirt: 0xfff4e0 }, pet: 'somgu', talk: talkKid },
   { id: 'traveler', name: '여행자 루아', x: 7.5, z: -27, face: -Math.PI / 2, look: { top: 0x4a8a6a, bottom: 0x2a2a3a, accent: 0xe8c063, hair: 0xc0603a, hat: 'wide', pack: true }, talk: talkTraveler },
   { id: 'g_east', name: '불씨 수호자 하람', rift: 'east', x: 53.5, z: 6.5, face: -Math.PI / 2, look: { top: 0xb8483a, robe: true, accent: 0xffb84a, hat: 'hood', staff: 0xff8a4c, pack: false, hair: 0x2a1a14 }, pet: 'bawimong', talk: talkGuardian,
     team: [['bawimong', 9], ['geurim', 9], ['hwarr', 11]],
@@ -5670,7 +6001,7 @@ async function battleFlow(cfg) {
     if (World.follower) World.follower.root.position.set(hx + 1, groundY(hx + 1, hz), hz + 1);
   }
   setFollower(S.party[0] && S.party[0].sp);
-  setLook(0xc0a8ff, 0.55); Post.U.uSun.value.z = 0;
+  setLook(0xbcd4ff, 0.45); Post.U.uSun.value.z = 0;
   Snd.play('world');
   await fadeTo(0, 0.6);
   if (res === 'lose') await say(['정신이 드니? 쓰러져 있는 걸 데려왔어.', '정령들은 샘물로 다 치료해 뒀으니 걱정 마.'], '샘지기 하나');

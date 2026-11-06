@@ -41,7 +41,7 @@ function buildBattle() {
 }
 
 const THEMES = {
-  field:    { ground: 0x4f9a4a, ring: 0xffd98a, crack: null, atm: 'world', decor: 'trees', rim: 0xc0a8ff, cloud: 1 },
+  field:    { ground: 0x4f9a4a, ring: 0xffd98a, crack: null, atm: 'world', decor: 'trees', rim: 0xbcd4ff, cloud: 1 },
   rift:     { ground: 0x3e2f5a, ring: 0xc77dff, crack: 1.6, atm: 'world', decor: 'rift', crackDir: [0.25, 0.42, -1], rim: 0xc77dff, cloud: 0.8 },
   void:     { ground: 0x07050d, ring: 0xb04bff, crack: 2.6, atm: { top: 0x010006, mid: 0x14062a, hor: 0x5a1a7a, fog: 0x14082a, stars: 1, sun: 0x8a6aff, hemi: 0x6a4aaa }, decor: 'void', crackDir: [0.2, 0.32, -1], rim: 0xb04bff, cloud: 0.35 },
   being:    { ground: 0x16172e, ring: 0xffd98a, crack: 0, atm: { top: 0x070d2e, mid: 0x26286a, hor: 0xb07a7a, fog: 0x1e1f44, stars: 1, sun: 0xffe2b8, hemi: 0x9aa4ff }, decor: 'being', rim: 0xffd98a, cloud: 0.5 },
@@ -72,7 +72,7 @@ function setupTheme(name) {
   U.uCloud.value = T.cloud;
   U.uSunAmt.value = { void: 0.15, being: 0.45, star: 0.1, abyss: 0, dawn: 0.7, boundary: 0.35 }[name] ?? 1;
   U.uCrack.value = T.crack === null ? World.skyU.uCrack.value : T.crack;
-  U.uSunDir.value.set(...(T.sunDir || [-0.62, 0.32, -0.55])).normalize();
+  U.uSunDir.value.set(...(T.sunDir || [-0.86, 0.4, 0.3])).normalize();
   const cc = T.atm === 'world' ? World.sky.userData.clouds[0].material.color : new THREE.Color(T.atm.hor).lerp(new THREE.Color(T.atm.mid), 0.5);
   for (const c of B.sky.userData.clouds) { c.material.color.copy(cc); c.visible = name !== 'abyss'; }
   U.uCrackDir.value.set(...(T.crackDir || [0.08, 0.5, -1])).normalize();
@@ -85,16 +85,15 @@ function setupTheme(name) {
   const rng = mulberry32(name.length * 77 + 5);
   const additive = (geo, color, op) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   if (T.decor === 'trees' || T.decor === 'rift') {
-    const canM = new THREE.MeshLambertMaterial({ color: T.decor === 'rift' ? 0x4a3a6a : 0x3e8f4a, flatShading: true });
-    for (let i = 0; i < 46; i++) {
-      const a = rng() * Math.PI * 2, rr = 22 + rng() * 26, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 6;
+    const forest = [];
+    for (let i = 0; i < 52; i++) {
+      const a = rng() * Math.PI * 2, rr = 20 + rng() * 26, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 6;
       if (z > 8 && Math.abs(x) < 20) continue;
-      const sc = 1.4 + rng() * 1.6;
-      part(GEO.cyl, M(0x5a3f2c), B.decor, [x, 1.2 * sc, z], [0.25 * sc, 2.4 * sc, 0.25 * sc]);
-      if (T.decor === 'rift' && rng() < 0.5) continue;
-      if (rng() < 0.5) part(GEO.ico1, canM, B.decor, [x, 3.3 * sc, z], 1.6 * sc, [rng(), rng(), 0]);
-      else for (let k = 0; k < 3; k++) part(new THREE.ConeGeometry(1, 1.6, 7), canM, B.decor, [x, (2.6 + k * 1.1) * sc, z], (1.7 - k * 0.4) * sc);
+      const pine = rng() < 0.4;
+      forest.push({ x, y: 0, z, s: 1.3 + rng() * 1.4, r: rng() * 6.28, kind: pine ? 'pine' : 'round', tint: T.decor === 'rift' ? [0x5a4a7a, 0x4a3a6a, 0x6a5a8a][i % 3] : undefined });
     }
+    for (let i = 0; i < 26; i++) { const a = rng() * Math.PI * 2, rr = 7 + rng() * 14, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 2; if (Math.hypot(x - B.A.x, z - B.A.z) < 3.5 || Math.hypot(x - B.F.x, z - B.F.z) < 3.5) continue; forest.push({ x, y: 0, z, s: 0.8 + rng() * 0.6, r: 0, kind: 'bush', tint: T.decor === 'rift' ? 0x5a4a7a : undefined }); }
+    buildForest(B.decor, forest, { seed: 5 });
     const bushM = new THREE.MeshLambertMaterial({ color: T.decor === 'rift' ? 0x4a3a6a : 0x4f9a4a, flatShading: true });
     for (let i = 0; i < 70; i++) {
       const a = rng() * Math.PI * 2, rr = 4.5 + rng() * 18, x = Math.cos(a) * rr, z = Math.sin(a) * rr;

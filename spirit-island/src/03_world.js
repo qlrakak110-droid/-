@@ -96,14 +96,14 @@ function buildWorld() {
   scene.fog = new THREE.Fog(0x6a4a7a, 70, 300);
 
   // ---------------- lights
-  W.hemi = new THREE.HemisphereLight(0xb9b0ff, 0x5a463a, 1.15); scene.add(W.hemi);
-  W.sunDir = new THREE.Vector3(-0.62, 0.32, -0.55).normalize();
+  W.hemi = new THREE.HemisphereLight(0x9fb2e6, 0x6a5838, 0.95); scene.add(W.hemi);
+  W.sunDir = new THREE.Vector3(-0.86, 0.4, 0.3).normalize();
   const sun = W.sun = new THREE.DirectionalLight(0xffb98a, 2.7);
   sun.castShadow = true; sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
   const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 160;
   sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.04;
   scene.add(sun); scene.add(sun.target);
-  W.rim = new THREE.DirectionalLight(0x8f7bff, 0.7); W.rim.position.set(30, 20, 40); scene.add(W.rim);
+  W.rim = new THREE.DirectionalLight(0x8fb0ff, 0.6); W.rim.position.set(30, 20, 40); scene.add(W.rim);
 
   // ---------------- terrain heights
   const N = W.N, S = W.SIZE, R = N + 1;
@@ -207,7 +207,7 @@ function buildWorld() {
   buildLegendSites();
 
   // ---------------- player & follower
-  W.player = buildPerson({ top: 0xf1f3fb, bottom: 0x2b2f4a, accent: 0x7d55f0, hair: 0x2a2238, pin: 0xffd98a });
+  W.player = buildPerson({ accent: 0x8b5cff, hair: 0x25223a, pin: 0xffd98a, eye: 0x24245a, eye2: 0x7aa4ff });
   W.player.root.position.set(SITES.spawn.x, groundY(SITES.spawn.x, SITES.spawn.z), SITES.spawn.z);
   W.player.root.rotation.y = Math.PI;
   scene.add(W.player.root);
@@ -252,7 +252,7 @@ function makeSkyUniforms() {
   return {
     uTime: Shared.time,
     uTop: { value: new THREE.Color(0x0c0a2a) }, uMid: { value: new THREE.Color(0x4a2a6a) }, uHor: { value: new THREE.Color(0xe0728a) },
-    uSunDir: { value: new THREE.Vector3(-0.62, 0.32, -0.55).normalize() }, uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
+    uSunDir: { value: new THREE.Vector3(-0.86, 0.4, 0.3).normalize() }, uMoonDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
     uCrackDir: { value: new THREE.Vector3(0.08, 0.5, -1).normalize() }, uCrack: { value: 1 }, uStars: { value: 1 }, uCloud: { value: 1 }, uSunAmt: { value: 1 },
   };
 }
@@ -346,73 +346,157 @@ function makeSky(U) {
   return g;
 }
 
-// ---------------- trees (instanced)
+// ---------------- foliage: leaf-card trees, fern pines and bushes (instanced, wind, translucency)
+function leafTexture(kind) {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  const rng = mulberry32(kind === 'pine' ? 77 : 33);
+  if (kind === 'pine') {
+    for (let k = 0; k < 3; k++) {
+      const cx = 64 + k * 64;
+      g.strokeStyle = 'rgb(90,90,90)'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, 10); g.lineTo(cx, 246); g.stroke();
+      for (let y = 14; y < 244; y += 5) {
+        const t = (y - 10) / 236, L = 6 + 30 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+        for (const sd of [-1, 1]) {
+          const v = 150 + (rng() * 100 | 0);
+          g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 2;
+          g.beginPath(); g.moveTo(cx, y); g.lineTo(cx + sd * L, y + L * 0.55); g.stroke();
+        }
+      }
+    }
+  } else {
+    for (let i = 0; i < 70; i++) {
+      const a0 = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * 96, x = 128 + Math.cos(a0) * rr, y = 128 + Math.sin(a0) * rr;
+      const a = rng() * Math.PI * 2, L = 30 + rng() * 24, W = L * 0.44;
+      const v = 140 + (rng() * 115 | 0);
+      g.save(); g.translate(x, y); g.rotate(a);
+      const grd = g.createLinearGradient(-W, 0, W, 0);
+      grd.addColorStop(0, `rgb(${v * 0.62 | 0},${v * 0.62 | 0},${v * 0.62 | 0})`); grd.addColorStop(0.55, `rgb(${v},${v},${v})`); grd.addColorStop(1, `rgb(${v * 0.78 | 0},${v * 0.78 | 0},${v * 0.78 | 0})`);
+      g.fillStyle = grd; g.beginPath(); g.moveTo(0, -L / 2); g.quadraticCurveTo(W, -L * 0.08, 0, L / 2); g.quadraticCurveTo(-W, -L * 0.08, 0, -L / 2); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(0, -L / 2); g.lineTo(0, L / 2); g.stroke();
+      g.restore();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function foliageMaterial(tex) {
+  const m = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = Shared.time;
+    sh.vertexShader = 'uniform float uTime; attribute vec3 aCenter;\n' + sh.vertexShader
+      .replace('#include <defaultnormal_vertex>', `vec3 cardW = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vec3 transformedNormal = normalMatrix * normalize(cardW - aCenter + vec3(0.0, 0.25, 0.0));`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        float wph = uTime * 1.5 + cardW.x * 0.31 + cardW.z * 0.23;
+        transformed.x += sin(wph) * 0.06 + sin(wph * 2.3) * 0.02; transformed.y += cos(wph * 1.3) * 0.035;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <normal_fragment_begin>', 'vec3 normal = normalize( vNormal ); vec3 nonPerturbedNormal = normal;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        #if NUM_DIR_LIGHTS > 0
+          totalEmissiveRadiance += diffuseColor.rgb * directionalLights[0].color * 0.16 * max(dot(-normal, directionalLights[0].direction), 0.0);
+        #endif
+        totalEmissiveRadiance += diffuseColor.rgb * 0.08;`);
+  };
+  return m;
+}
+// trees: [{ x, y, z, s, r, kind: 'round' | 'pine' | 'bush', tint }]
+function buildForest(parent, trees, opts = {}) {
+  const g = new THREE.Group(); parent.add(g);
+  const rng = mulberry32(opts.seed || 7);
+  const leafTex = leafTexture('leaf'), pineTex = leafTexture('pine');
+  const cards = [], needles = [], trunks = [];
+  const greens = opts.greens || [0x4f9a3e, 0x5aa648, 0x3f8a3a, 0x6aaa4a, 0x5c9e42];
+  for (const t of trees) {
+    const s = t.s;
+    if (t.kind === 'pine') {
+      trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r, pine: true });
+      const tiers = 5;
+      for (let k = 0; k < tiers; k++) {
+        const h = (1.4 + k * 0.85) * s, R = (1.9 - k * 0.33) * s, n = 9 - k;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + rng() * 0.4 + k;
+          needles.push({ p: [t.x + Math.cos(a) * R * 0.45, t.y + h, t.z + Math.sin(a) * R * 0.45], yaw: -a + Math.PI / 2, tilt: 0.95, size: [R * 1.05, R * 1.25], c: [t.x, t.y + h - 0.6 * s, t.z], col: t.tint ?? [0x2f6b4a, 0x3a7a55, 0x2a5f44][(i + k) % 3] });
+        }
+      }
+      needles.push({ p: [t.x, t.y + (1.4 + tiers * 0.85) * s, t.z], yaw: 0, tilt: 0, size: [0.7 * s, 1.2 * s], c: [t.x, t.y + 4 * s, t.z], col: t.tint ?? 0x3a7a55 });
+    } else {
+      const bush = t.kind === 'bush';
+      if (!bush) trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r });
+      const top = bush ? 0.55 * s : 2.85 * s;
+      const clumps = bush ? [[0, top, 0, 0.75]] : [[0, top + 0.35 * s, 0, 1.25], [0.85, top - 0.15 * s, 0.35, 0.95], [-0.75, top - 0.05 * s, -0.4, 0.95], [0.2, top + 0.2 * s, -0.85, 0.9], [-0.35, top - 0.3 * s, 0.75, 0.85]];
+      const base = t.tint ?? greens[(rng() * greens.length) | 0];
+      for (const [ox, oy, oz, cr] of clumps) {
+        const C = [t.x + ox * s, t.y + oy, t.z + oz * s], R = cr * s * (bush ? 1 : 1.05);
+        const n = bush ? 14 : 20;
+        for (let i = 0; i < n; i++) {
+          const th = rng() * Math.PI * 2, ph = Math.acos(rand(-0.55, 1)), rr = R * (0.45 + 0.55 * Math.cbrt(rng()));
+          cards.push({ p: [C[0] + Math.sin(ph) * Math.cos(th) * rr, C[1] + Math.cos(ph) * rr * 0.85, C[2] + Math.sin(ph) * Math.sin(th) * rr], yaw: rng() * 6.28, tilt: rand(-1.2, 1.2), roll: rng() * 6.28, size: [1.15 * s * (0.8 + rng() * 0.5), 1.15 * s * (0.8 + rng() * 0.5)], c: C, col: base, jitter: rng() });
+        }
+      }
+    }
+  }
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const makeCards = (list, tex, flat) => {
+    if (!list.length) return null;
+    const geo = new THREE.PlaneGeometry(1, 1);
+    if (flat) geo.translate(0, -0.5, 0);
+    const im = new THREE.InstancedMesh(geo, foliageMaterial(tex), list.length);
+    const cen = new Float32Array(list.length * 3);
+    list.forEach((c, i) => {
+      e.set(c.tilt, c.yaw, c.roll || 0, flat ? 'YXZ' : 'XYZ');
+      m4.compose(v.set(...c.p), q.setFromEuler(e), sc.set(c.size[0], c.size[1], 1));
+      im.setMatrixAt(i, m4);
+      col.setHex(c.col); const j = (c.jitter ?? 0.5) - 0.5; col.offsetHSL(j * 0.03, j * 0.12, j * 0.12); im.setColorAt(i, col);
+      cen[i * 3] = c.c[0]; cen[i * 3 + 1] = c.c[1]; cen[i * 3 + 2] = c.c[2];
+    });
+    geo.setAttribute('aCenter', new THREE.InstancedBufferAttribute(cen, 3));
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = true; im.receiveShadow = true;
+    im.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.42 });
+    im.frustumCulled = false; g.add(im); return im;
+  };
+  makeCards(cards, leafTex, false);
+  makeCards(needles, pineTex, true);
+  if (trunks.length) {
+    const tg = new THREE.CylinderGeometry(0.15, 0.3, 2.6, 8).translate(0, 1.3, 0);
+    const b1 = new THREE.CylinderGeometry(0.05, 0.11, 1.2, 6).translate(0, 0.6, 0).rotateZ(0.9).translate(0.1, 1.75, 0);
+    const b2 = new THREE.CylinderGeometry(0.05, 0.1, 1.0, 6).translate(0, 0.5, 0).rotateZ(-0.8).rotateY(2.1).translate(-0.05, 2.0, 0);
+    const trunkGeo = mergeGeometries([tg.toNonIndexed(), b1.toNonIndexed(), b2.toNonIndexed()], false);
+    const tm = new THREE.InstancedMesh(trunkGeo, M(0x5e4130), trunks.length);
+    trunks.forEach((t, i) => { m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, t.r, 0, 'XYZ')), sc.set(t.s, t.s * (t.pine ? 1.6 : 1), t.s)); tm.setMatrixAt(i, m4); });
+    tm.castShadow = true; tm.receiveShadow = true; g.add(tm);
+  }
+  return g;
+}
 function buildTrees(scene) {
   const rng = mulberry32(1337);
-  const round = [], pine = [];
-  const ok = (x, z) => {
+  const list = [];
+  const ok = (x, z, minGap) => {
     const h = groundY(x, z); if (h < 1.3 || h > 13) return false;
     if (pathDist(x, z) < 4.5) return false;
     for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + 2.5) return false;
     if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 22) return false;
     if (Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 15) return false;
     for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 12) return false;
-    for (const t of round.concat(pine)) if (Math.hypot(x - t.x, z - t.z) < 3.6) return false;
+    for (const t of list) if (Math.hypot(x - t.x, z - t.z) < minGap) return false;
     return true;
   };
-  for (let k = 0; k < 2600 && round.length + pine.length < 230; k++) {
+  for (let k = 0; k < 2600 && list.length < 230; k++) {
     const x = (rng() - 0.5) * 190, z = (rng() - 0.5) * 190;
-    if (!ok(x, z)) continue;
+    if (!ok(x, z, 3.6)) continue;
     const s = 0.8 + rng() * 0.7;
     const isPine = z < -18 ? rng() < 0.75 : rng() < 0.18;
-    (isPine ? pine : round).push({ x, z, s, r: rng() * 6.28, blossom: !isPine && z > 20 && rng() < 0.35, v: rng() });
+    let tint;
+    if (!isPine && z > 20 && rng() < 0.32) tint = [0xf2a6c8, 0xf7bfd8, 0xffcadb][(rng() * 3) | 0];
+    else if (!isPine && rng() < 0.07) tint = [0xd98a3a, 0xe0a040, 0xc8742e][(rng() * 3) | 0];
+    list.push({ x, y: groundY(x, z), z, s, r: rng() * 6.28, kind: isPine ? 'pine' : 'round', tint });
     World.colliders.push({ x, z, r: 0.7 * s });
   }
-  const trunkG = new THREE.CylinderGeometry(0.18, 0.3, 2.2, 7).translate(0, 1.1, 0);
-  const trunkM = new THREE.MeshToonMaterial({ color: 0x6b4a33, gradientMap: toonGrad });
-  const all = round.concat(pine);
-  const trunks = new THREE.InstancedMesh(trunkG, trunkM, all.length);
-  const canG = new THREE.IcosahedronGeometry(1, 1);
-  const canM = new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
-  canM.onBeforeCompile = (sh) => {
-    sh.uniforms.uTime = Shared.time;
-    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-      #ifdef USE_INSTANCING
-        float wph = instanceMatrix[3].x * 0.21 + instanceMatrix[3].z * 0.17;
-        float wk = position.y + 1.0;
-        transformed.x += (sin(uTime * 1.3 + wph) * 0.05 + sin(uTime * 2.7 + wph * 2.0) * 0.015) * wk;
-        transformed.z += cos(uTime * 1.1 + wph) * 0.035 * wk;
-      #endif`);
-  };
-  const cans = new THREE.InstancedMesh(canG, canM, round.length * 3);
-  const pineG = new THREE.ConeGeometry(1, 1.6, 7);
-  const pines = new THREE.InstancedMesh(pineG, canM, pine.length * 3);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
-  all.forEach((t, i) => {
-    const y = groundY(t.x, t.z) - 0.1;
-    m4.compose(v.set(t.x, y, t.z), q.setFromEuler(e.set(0, t.r, 0)), sc.set(t.s, t.s * (pine.includes(t) ? 1.1 : 1), t.s));
-    trunks.setMatrixAt(i, m4);
-  });
-  const greens = [0x3e8f4a, 0x4fa857, 0x5cb25a, 0x357d47], pinks = [0xf2a6c8, 0xf7bfd8, 0xe68fb6];
-  round.forEach((t, i) => {
-    const y = groundY(t.x, t.z) + 2.0 * t.s;
-    const offs = [[0, 0.5, 0, 1.25], [0.7, 0.05, 0.3, 0.95], [-0.6, 0.1, -0.35, 0.9]];
-    offs.forEach(([ox, oy, oz, s], k) => {
-      m4.compose(v.set(t.x + ox * t.s, y + oy * t.s, t.z + oz * t.s), q.setFromEuler(e.set(t.r, t.r * 2, 0)), sc.setScalar(s * t.s * 1.15));
-      cans.setMatrixAt(i * 3 + k, m4);
-      c.setHex(t.blossom ? pinks[(i + k) % 3] : greens[(i + k) % 4]); cans.setColorAt(i * 3 + k, c);
-    });
-  });
-  pine.forEach((t, i) => {
-    const y = groundY(t.x, t.z);
-    for (let k = 0; k < 3; k++) {
-      const s = (1.6 - k * 0.38) * t.s;
-      m4.compose(v.set(t.x, y + (1.9 + k * 1.05) * t.s, t.z), q.setFromEuler(e.set(0, t.r + k, 0)), sc.set(s, s, s));
-      pines.setMatrixAt(i * 3 + k, m4);
-      c.setHex([0x2f6b4a, 0x3a7a55, 0x2a5f44][(i + k) % 3]); pines.setColorAt(i * 3 + k, c);
-    }
-  });
-  for (const im of [trunks, cans, pines]) { im.castShadow = true; im.receiveShadow = true; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; scene.add(im); }
+  for (let k = 0; k < 1800 && list.filter((t) => t.kind === 'bush').length < 140; k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180;
+    if (!ok(x, z, 2.2)) continue;
+    list.push({ x, y: groundY(x, z), z, s: 0.7 + rng() * 0.6, r: 0, kind: 'bush', tint: rng() < 0.15 ? 0x7aa84a : undefined });
+  }
+  buildForest(scene, list, { seed: 99 });
 }
 
 function buildRocksAndFlowers(scene) {
@@ -722,9 +806,9 @@ function fragCount() { return SITES.rifts.reduce((s, r) => s + (S.flags['closed_
 
 // ---------------- atmosphere: lerp between corrupted dusk, healed sunset, and dawn
 const ATMOS = {
-  dark:  { top: 0x0c0a2a, mid: 0x4a2a6a, hor: 0xe0728a, fog: 0x6a4a7a, sun: 0xffa27a, hemiS: 0xb0a4ff, hemiG: 0x5a463a, sea: 0xb48ad0, cloud: 0xf0a6c0, sunI: 2.5, stars: 1 },
-  heal:  { top: 0x15204a, mid: 0x6a4a9a, hor: 0xffa47a, fog: 0x8a6a8a, sun: 0xffc08a, hemiS: 0xc8c0ff, hemiG: 0x6a5440, sea: 0xd0a0c8, cloud: 0xffc0b0, sunI: 2.9, stars: 0.8 },
-  dawn:  { top: 0x2f62b0, mid: 0x8fb4ea, hor: 0xffd6a8, fog: 0xc8d0e8, sun: 0xfff0d8, hemiS: 0xe4ecff, hemiG: 0x7a6a50, sea: 0xbfe2ff, cloud: 0xffffff, sunI: 3.3, stars: 0 },
+  dark:  { top: 0x1a2550, mid: 0x5462a0, hor: 0xffad78, fog: 0x8f8fa8, sun: 0xffcf9a, hemiS: 0xb4c0dc, hemiG: 0x7a6440, sea: 0x7fa0cc, cloud: 0xffcfb0, sunI: 3.3, stars: 0.75 },
+  heal:  { top: 0x23407e, mid: 0x6d8cc8, hor: 0xffc48c, fog: 0xa8b0c4, sun: 0xffdcb0, hemiS: 0xc4d0ec, hemiG: 0x7a6644, sea: 0x8fb4dc, cloud: 0xffdcc0, sunI: 3.5, stars: 0.5 },
+  dawn:  { top: 0x3274c0, mid: 0x9cc0ec, hor: 0xffe0b4, fog: 0xc8d4e8, sun: 0xfff0d8, hemiS: 0xdce8ff, hemiG: 0x7a6a50, sea: 0xa8d0f4, cloud: 0xffffff, sunI: 3.7, stars: 0 },
 };
 function applyAtmos() {
   const W = World, a = ATMOS.dark, b = ATMOS.heal, d = ATMOS.dawn, h = W.heal, k = W.dawn;
