@@ -493,6 +493,7 @@ function sculptToonMaterial(o, D) {
     uNeckStart: { value: D.neckStart ?? 0.95 }, uSway: { value: 0.2 }, uJaw: { value: 0 }, uJawHinge: { value: new THREE.Vector3(...(D.jawHinge || [0, 0, 0])) },
     uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.6 }, uShoulderY: { value: o.shoulderY ?? 9 },
     uHairRing: { value: o.hairRing ?? -1 }, uSat: { value: o.sat ?? 1.15 }, uFlash: { value: 0 }, uRim2: { value: new THREE.Color(o.rim ?? 0xfff4e0) }, uRimAmt2: { value: o.rimAmt ?? 0.35 },
+    uWarm: { value: o.warm ?? 0 },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.onBeforeCompile = (sh) => {
@@ -501,7 +502,7 @@ function sculptToonMaterial(o, D) {
     sh.vertexShader = SCULPT_DECL + sh.vertexShader
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
       .replace('#include <begin_vertex>', SCULPT_BODY);
-    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec; uniform vec3 uRim2, uRim; varying vec3 vObjPos; varying vec3 vObjN;
+    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec, uWarm; uniform vec3 uRim2, uRim; varying vec3 vObjPos; varying vec3 vObjN;
       ` + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);`)
@@ -511,6 +512,9 @@ function sculptToonMaterial(o, D) {
           float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
           float rimBand = smoothstep(0.42, 0.5, fr);
           outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb);
+          // anime-style warm shadow: the unlit side is filled with a peach tone instead of cold sky ambient
+          float litK = clamp(dot(reflectedLight.directDiffuse, vec3(0.333)) / max(dot(diffuseColor.rgb, vec3(0.333)), 0.002) * 1.6, 0.0, 1.0);
+          outgoingLight += diffuseColor.rgb * vec3(0.34, 0.17, 0.11) * (1.0 - litK) * uWarm;
           #if NUM_DIR_LIGHTS > 0
             vec3 hv = normalize(directionalLights[0].direction + vdir);
             outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
@@ -520,6 +524,6 @@ function sculptToonMaterial(o, D) {
         #include <opaque_fragment>`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
   };
-  m.customProgramCacheKey = () => 'sculptToon-v1';
+  m.customProgramCacheKey = () => 'sculptToon-v2';
   return m;
 }

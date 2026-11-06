@@ -27,7 +27,26 @@ const CHART = {
   void:    { being: 2, light: 2, normal: 2, void: 0.5 },
 };
 function typeEff(atk, defTypes) { let m = 1; for (const d of defTypes) { const v = CHART[atk] && CHART[atk][d]; if (v !== undefined) m *= v; } return m; }
-function typeChip(t) { const T = TYPES[t]; return `<span class="type" style="background:${T.c}">${T.n}</span>`; }
+const TYPE_ICON = {
+  normal: '<circle cx="12" cy="12" r="6"/>',
+  fire: '<path d="M12 2c1 4 6 6 6 11a6 6 0 0 1-12 0c0-3 2-5 3-7 0 2 1 3 2 3 0-3 0-5 1-7z"/>',
+  water: '<path d="M12 2C9 7 6 10 6 14a6 6 0 0 0 12 0c0-4-3-7-6-12z"/>',
+  grass: '<path d="M4 20C4 9 11 4 21 3c0 10-6 17-17 17zm1-1 9-9" />',
+  thunder: '<path d="M13 2 5 13h6l-1 9 8-11h-6l1-9z"/>',
+  earth: '<path d="M2 20 9 8l4 6 2-3 7 9z"/>',
+  light: '<path d="m12 2 2.6 6.6L21 9l-5 4.4 1.5 7.6L12 17l-5.5 4L8 13.4 3 9l6.4-.4z"/>',
+  shadow: '<path d="M15 3a9 9 0 1 0 6 15A8 8 0 0 1 15 3z"/>',
+  being: '<circle cx="12" cy="12" r="4.5"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4M4 4l3 3M17 17l3 3M4 20l3-3M17 7l3-3" stroke="currentColor" stroke-width="2"/>',
+  void: '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z" fill-rule="evenodd"/>',
+};
+function typeChip(t) { const T = TYPES[t]; return `<span class="type" style="background:${T.c}"><svg viewBox="0 0 24 24" aria-hidden="true">${TYPE_ICON[t] || ''}</svg>${T.n}</span>`; }
+const UI_ICON = {
+  fight: '<path d="M4 4l9 9M4 4h4M4 4v4M20 4l-9 9M20 4h-4M20 4v4M8 15l-4 4M16 15l4 4"/>',
+  bag: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/>',
+  party: '<path d="M12 2l2 7 7 3-7 3-2 7-2-7-7-3 7-3z"/>',
+  run: '<path d="M4 12h15M13 6l6 6-6 6"/>',
+};
+const uiIcon = (k) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${UI_ICON[k]}</svg>`;
 
 // fx: dash slash bolt burst beam rain strike aura glare heal drain void genesis
 const MOVES = {

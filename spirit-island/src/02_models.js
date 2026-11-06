@@ -591,29 +591,51 @@ function disposeRig(r) { if (r && r.root.parent) r.root.parent.remove(r.root); }
 // ---------- portrait icons (offscreen renderer, cached data URLs)
 const Icons = {
   cache: {}, rnd: null, scene: null, cam: null,
+  ensure() {
+    if (this.rnd) return;
+    this.rnd = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    this.rnd.setSize(160, 160, false); this.rnd.setPixelRatio(1);
+    this.rnd.outputColorSpace = THREE.SRGBColorSpace; this.rnd.toneMapping = THREE.ACESFilmicToneMapping;
+    this.scene = new THREE.Scene();
+    this.scene.add(new THREE.HemisphereLight(0xdcd6ff, 0x4a3a5a, 1.6));
+    const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(2, 3, 4); this.scene.add(d);
+    const rim = new THREE.DirectionalLight(0xbcd4ff, 1.4); rim.position.set(-3, 2, -2); this.scene.add(rim);
+    this.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  },
+  shot(root, fov, pos, look) {
+    this.scene.add(root);
+    this.cam.fov = fov; this.cam.updateProjectionMatrix();
+    this.cam.position.set(pos[0], pos[1], pos[2]); this.cam.lookAt(look[0], look[1], look[2]);
+    this.rnd.render(this.scene, this.cam);
+    const url = this.rnd.domElement.toDataURL('image/png');
+    this.scene.remove(root);
+    return url;
+  },
   get(sp) {
-    if (this.cache[sp]) return this.cache[sp];
+    if (sp in this.cache) return this.cache[sp];
     try {
-      if (!this.rnd) {
-        this.rnd = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-        this.rnd.setSize(160, 160, false); this.rnd.setPixelRatio(1);
-        this.rnd.outputColorSpace = THREE.SRGBColorSpace; this.rnd.toneMapping = THREE.ACESFilmicToneMapping;
-        this.scene = new THREE.Scene();
-        this.scene.add(new THREE.HemisphereLight(0xdcd6ff, 0x4a3a5a, 1.6));
-        const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(2, 3, 4); this.scene.add(d);
-        this.cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
-      }
+      this.ensure();
       const r = makeSpiritModel(sp);
       rigUpdate(r, 0.01);
       const s = r.size;
       r.root.rotation.y = 0.45;
-      this.scene.add(r.root);
       const cy = (r.float || 0) + s * 0.42;
-      this.cam.position.set(0, cy + s * 0.08, s * 2.35); this.cam.lookAt(0, cy, 0);
-      this.rnd.render(this.scene, this.cam);
-      this.cache[sp] = this.rnd.domElement.toDataURL('image/png');
-      this.scene.remove(r.root);
-    } catch (e) { this.cache[sp] = ''; }
+      this.cache[sp] = this.shot(r.root, 30, [0, cy + s * 0.08, s * 2.35], [0, cy, 0]);
+    } catch (e) { console.warn(e); this.cache[sp] = ''; }
     return this.cache[sp];
+  },
+  // head-and-shoulders portrait of a person (dialogue box)
+  portrait(key, look) {
+    const ck = 'person:' + key;
+    if (ck in this.cache) return this.cache[ck];
+    try {
+      this.ensure();
+      const r = buildPerson(look);
+      rigUpdate(r, 0.01);
+      r.root.rotation.y = 0.32;
+      const top = look.hat === 'wide' ? 1.66 : 1.56;
+      this.cache[ck] = this.shot(r.root, 26, [0.3, top + 0.05, 2.35], [0.02, top, 0]);
+    } catch (e) { console.warn(e); this.cache[ck] = ''; }
+    return this.cache[ck];
   },
 };

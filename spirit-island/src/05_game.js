@@ -11,6 +11,8 @@ function save() {
   try {
     const p = World.player.root.position; S.pos = { x: p.x, z: p.z }; S.yaw = World.camYaw;
     localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    const ind = document.getElementById('saveInd');
+    if (ind && G.mode === 'world') { ind.classList.add('on'); clearTimeout(save.t); save.t = setTimeout(() => ind.classList.remove('on'), 1600); }
   } catch (e) {}
 }
 const G = { mode: 'loading', busy: false, dialog: 0, lock: 0, encDist: 0, encNext: 9, near: null, t: 0 };
@@ -29,19 +31,34 @@ async function typeLine(text) {
   el.textContent = text;
   if (skipped) await nextAction(); else await p;
 }
+// who is speaking: name plate + portrait (people get a rendered head shot, spirits their icon)
+function speakerPortrait(who) {
+  if (!who) return null;
+  const n = NPC_DEFS.find((d) => d.name === who);
+  if (n) return { src: Icons.portrait(n.id, n.look) };
+  if (who === '???') return { src: Icons.get('nihilos'), cls: 'sil' };
+  const sp = Object.keys(SPECIES).find((k) => SPECIES[k].n === who);
+  return sp ? { src: Icons.get(sp) } : null;
+}
+function setSpeaker(who, cls) {
+  $('#dWho').textContent = who; $('#dWho').className = cls;
+  const p = speakerPortrait(who), img = $('#dPort');
+  if (p && p.src) { if (img.getAttribute('src') !== p.src) img.src = p.src; img.className = p.cls || cls || ''; img.hidden = false; }
+  else img.hidden = true;
+}
 async function say(lines, who = '', cls = '') {
   G.dialog++;
   $('#dialog').hidden = false; $('#dChoices').innerHTML = ''; $('#dNext').hidden = false;
   for (const ln of [].concat(lines)) {
     const o = typeof ln === 'string' ? { t: ln } : ln;
-    $('#dWho').textContent = o.who ?? who; $('#dWho').className = o.cls ?? cls;
+    setSpeaker(o.who ?? who, o.cls ?? cls);
     await typeLine(o.t);
   }
   $('#dialog').hidden = true; G.dialog--; G.lock = 0.25; Input.actionQueued = false;
 }
 async function ask(text, options, who = '', cls = '') {
   G.dialog++;
-  $('#dialog').hidden = false; $('#dWho').textContent = who; $('#dWho').className = cls; $('#dNext').hidden = true; $('#dChoices').innerHTML = '';
+  $('#dialog').hidden = false; setSpeaker(who, cls); $('#dNext').hidden = true; $('#dChoices').innerHTML = '';
   const el = $('#dTxt'); el.textContent = '';
   for (let i = 1; i <= text.length; i++) { el.textContent = text.slice(0, i); if (i % 3 === 0) Snd.fx('talk'); await sleep(18); }
   const v = await new Promise((res) => {
@@ -224,6 +241,9 @@ function starterSelect() {
         <div class="sel-head"><h3>${s.n}</h3><div class="types">${s.t.map(typeChip).join('')}</div></div>
         <p class="sel-desc">${s.d}</p>
         <div class="sel-stats">${s.b.map((v, k) => `<span>${names[k]}</span><div class="bar"><i style="width:${v / 80 * 100}%;background:${TYPES[s.t[0]].c}"></i></div><span>${v}</span>`).join('')}</div>
+        <div class="sel-match"><span class="lbl">강한 상대</span>${Object.keys(TYPES).filter((t) => typeEff(s.t[0], [t]) > 1).map(typeChip).join('') || '<em>없음</em>'}
+          <span class="lbl">조심할 상대</span>${Object.keys(TYPES).filter((t) => typeEff(t, s.t) > 1).map(typeChip).join('') || '<em>없음</em>'}</div>
+        <div class="sel-moves"><span class="lbl">처음 기술</span>${s.learn.filter(([lv]) => lv <= 5).map(([, mv]) => `<b style="--tc:${TYPES[MOVES[mv].t].c}">${MOVES[mv].n}</b>`).join('')}</div>
         <div class="sel-row"><button class="sel-nav" id="sPrev" aria-label="이전">◀</button><button class="btn primary" id="sOk">${josa(s.n, '과와')} 함께하기</button><button class="sel-nav" id="sNext" aria-label="다음">▶</button></div>
       </div>`;
       const pd = peds[i], y = pd.y;
@@ -671,6 +691,81 @@ function cycleGfx() {
   else { Settings.high = true; Settings.ultra = true; }
   saveSettings(); applyQuality();
 }
+// ---------------------------------------------------------------- compass & area names
+const Compass = { ticks: [], marks: [], key: '', range: Math.PI * 0.5 };
+const wrapPi = (a) => ((((a + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+function buildCompass() {
+  const T = $('#cTicks'), names = { 0: '북', 90: '동', 180: '남', 270: '서' };
+  T.innerHTML = ''; Compass.ticks = [];
+  for (let a = 0; a < 360; a += 15) {
+    const el = document.createElement(names[a] ? 'span' : 'i');
+    if (names[a]) { el.textContent = names[a]; if (a === 0) el.className = 'N'; } else if (a % 45 === 0) el.className = 'mid';
+    T.appendChild(el); Compass.ticks.push({ el, a: (a * Math.PI) / 180, vis: true, x: '' });
+  }
+}
+function updateCompass() {
+  if (!Compass.ticks.length) buildCompass();
+  const H = -World.camYaw, R = Compass.range, p = World.player.root.position;
+  const place = (o, rel, clampIt) => {
+    const vis = clampIt || Math.abs(rel) < R;
+    if (vis !== o.vis) { o.vis = vis; o.el.style.display = vis ? '' : 'none'; }
+    if (!vis) return;
+    const x = (50 + clamp(rel / R, -0.95, 0.95) * 50).toFixed(1) + '%';
+    if (x !== o.x) { o.x = x; o.el.style.left = x; }
+  };
+  for (const t of Compass.ticks) place(t, wrapPi(t.a - H), false);
+  const M = World.markers, key = M.map((m) => m.label + m.color).join('|');
+  if (key !== Compass.key) {
+    Compass.key = key; const box = $('#cMarks'); box.innerHTML = '';
+    Compass.marks = M.map((m) => {
+      const el = document.createElement('b'); el.style.color = '#' + m.color.toString(16).padStart(6, '0'); el.title = m.label;
+      el.innerHTML = '<em></em><small></small>'; box.appendChild(el);
+      return { el, txt: el.lastChild, vis: true, x: '', d: -1, edge: false };
+    });
+  }
+  M.forEach((m, i) => {
+    const o = Compass.marks[i]; if (!o) return;
+    const dx = m.x - p.x, dz = m.z - p.z, rel = wrapPi(Math.atan2(dx, -dz) - H);
+    place(o, rel, true);
+    const edge = Math.abs(rel) > R * 0.95; if (edge !== o.edge) { o.edge = edge; o.el.classList.toggle('edge', edge); }
+    const d = Math.round(Math.hypot(dx, dz)); if (d !== o.d) { o.d = d; o.txt.textContent = d < 4 ? '' : d + 'm'; }
+  });
+}
+const AREA_EN = {
+  '윤슬마을': 'YUNSEUL VILLAGE', '근원의 제단': 'ALTAR OF ORIGIN', '남쪽 들판': 'SOUTHERN MEADOW', '불씨 언덕': 'EMBER HILLS', '번개 습지': 'THUNDER MARSH',
+  '그림자 숲길': 'SHADOW WOODS', '제단 비탈': 'ALTAR SLOPES', '동쪽 균열': 'EASTERN RIFT', '서쪽 균열': 'WESTERN RIFT', '북쪽 균열': 'NORTHERN RIFT',
+  '별빛 봉우리': 'STARLIGHT PEAK', '고래울음 바위': 'WHALESONG ROCK', '해돋이 언덕': 'SUNRISE HILL', '경계의 모래톱': 'BOUNDARY SHOAL',
+};
+function areaAt(x, z) {
+  const d = (o) => Math.hypot(x - o.x, z - o.z);
+  if (d(SITES.town) < 24) return { n: '윤슬마을', sub: '치유의 샘이 있는 곳' };
+  if (d(SITES.altar) < 15) return { n: '근원의 제단' };
+  for (const r of SITES.rifts) if (d(r) < 15) return { n: r.name, sub: S.flags['closed_' + r.id] ? '닫힌 균열' : '공허가 새어 나오는 곳' };
+  for (const sp in World.legendSites || {}) { const st = World.legendSites[sp]; if (d(st) < 14) return { n: st.name, sub: legendPresent(sp) ? '전설의 기척' : '' }; }
+  for (const zn of ZONES) if (d(zn) < zn.r + 3) {
+    const P = POOLS[zn.pool], lo = Math.min(...P.map((e) => e.lv[0])), hi = Math.max(...P.map((e) => e.lv[1]));
+    return { n: zn.name, sub: `야생 정령 Lv.${lo}–${hi}` };
+  }
+  return null;
+}
+const Area = { cur: null, cand: null, t: 0, shown: {}, timer: 0 };
+function showArea(a1, a2) {
+  const el = $('#area'); el.querySelector('.a1').textContent = a1; el.querySelector('.a2').textContent = a2;
+  el.classList.add('on'); clearTimeout(Area.timer); Area.timer = setTimeout(() => el.classList.remove('on'), 3400);
+}
+function updateArea(dt) {
+  const p = World.player.root.position, a = areaAt(p.x, p.z), n = a ? a.n : null;
+  if (n !== Area.cand) { Area.cand = n; Area.t = 0; return; }
+  Area.t += dt;
+  if (Area.t < 0.6 || n === Area.cur) return;
+  Area.cur = n;
+  if (!n) return;
+  const now = performance.now() / 1000;
+  if (now - (Area.shown[n] ?? -1e9) < 45) return;
+  Area.shown[n] = now;
+  showArea(n, [AREA_EN[n], a.sub].filter(Boolean).join('  ·  '));
+}
+
 // ---------------------------------------------------------------- interaction
 function interactables() {
   const L = [];
@@ -683,7 +778,9 @@ function interactables() {
 function worldTick(dt) {
   G.lock = Math.max(0, G.lock - dt);
   const pr = $('#prompt');
+  if (G.mode === 'world' && !$('#hud').hidden) updateCompass();
   if (!canMove()) { pr.hidden = true; G.near = null; if (G.dialog || G.busy) Input.actionQueued = false; return; }
+  updateArea(dt);
   const p = World.player.root.position;
   let best = null, bd = 1e9;
   for (const it of interactables()) { const d = Math.hypot(p.x - it.x, p.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
@@ -735,6 +832,8 @@ async function enterWorld(fresh) {
   setupPedestals(); placeRiftState(); refreshLegendRig(); refreshWorldLegends(); refreshMarkers();
   snapCamera();
   G.mode = 'world';
+  Area.cur = Area.cand = fresh ? '윤슬마을' : null; Area.t = 0;
+  if (fresh) Area.shown['윤슬마을'] = performance.now() / 1000;
   Snd.play('world');
   await fadeTo(0, 1.0);
   showHud(true);
@@ -772,6 +871,7 @@ async function boot() {
   buildWorld();
   buildBattle();
   for (const d of NPC_DEFS) addNpc(d);
+  for (const d of NPC_DEFS) Icons.portrait(d.id, d.look);
   applyQuality();
   setupPedestals(); placeRiftState(); refreshMarkers();
   G.mode = 'title';
@@ -807,5 +907,5 @@ async function boot() {
 }
 
 // small debugging surface (used by the automated test harness)
-window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera };
+window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera, say, showArea, areaAt, Area, updateCompass, starterSelect };
 boot().catch((e) => { console.error(e); $('#loadMsg').textContent = '시작하는 중 문제가 생겼어요: ' + e.message; });

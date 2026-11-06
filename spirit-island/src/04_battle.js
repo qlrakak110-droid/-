@@ -27,17 +27,39 @@ function buildBattle() {
   sc.add(d);
   B.rim = new THREE.DirectionalLight(0x9b7bff, 1.6); B.rim.position.set(6, 6, -14); sc.add(B.rim);
   B.skyU = makeSkyUniforms(); B.sky = makeSky(B.skyU); sc.add(B.sky);
-  B.ground = new THREE.Mesh(new THREE.CircleGeometry(150, 64).rotateX(-Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0x4f9a4a }));
+  B.groundU = { uA: { value: new THREE.Vector2(B.A.x, B.A.z) }, uF: { value: new THREE.Vector2(B.F.x, B.F.z) }, uDirt: { value: new THREE.Color(0x8a7458) }, uWear: { value: 1 } };
+  const gm = new THREE.MeshLambertMaterial({ color: 0x4f9a4a });
+  gm.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, B.groundU);
+    sh.vertexShader = 'varying vec3 vGw;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vGw = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = 'varying vec3 vGw; uniform vec2 uA, uF; uniform vec3 uDirt; uniform float uWear;\n' + GLSL_NOISE + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      float n1 = vnoise(vGw.xz * 0.07), n2 = vnoise(vGw.xz * 0.33 + 7.0), n3 = vnoise(vGw.xz * 1.6 + 3.0), n4 = vnoise(vGw.xz * 5.0);
+      vec3 gc = diffuseColor.rgb * (0.74 + n1 * 0.36 + (n2 - 0.5) * 0.2 + (n3 - 0.5) * 0.1 + (n4 - 0.5) * 0.06);
+      gc = mix(gc, gc * vec3(1.12, 1.06, 0.78), smoothstep(0.55, 0.8, n2) * 0.5 * uWear);
+      float dP = min(length(vGw.xz - uA), length(vGw.xz - uF));
+      float wear = (1.0 - smoothstep(1.9, 3.3 + n2 * 1.4, dP)) * uWear;
+      gc = mix(gc, uDirt * (0.8 + n3 * 0.3 + (n4 - 0.5) * 0.15), wear * 0.85);
+      diffuseColor.rgb = gc;`);
+  };
+  B.ground = new THREE.Mesh(new THREE.CircleGeometry(150, 64).rotateX(-Math.PI / 2), gm);
   B.ground.receiveShadow = true; sc.add(B.ground);
+  // stone dais: twelve-sided plinth, flagstone top, carved rim and a glowing rune ring
+  const tx = townTextures();
+  const sideTex = tx.stone.clone(); sideTex.repeat.set(7, 0.45); sideTex.needsUpdate = true;
+  const topTex = tx.cobble.clone(); topTex.repeat.set(1.6, 1.6); topTex.needsUpdate = true;
+  const SIDE = toonMat({ color: 0xbab2c8, map: sideTex }), TOP = toonMat({ color: 0xc4bdd2, map: topTex }), RIM = M(0x9a92ae);
   const plat = (p) => {
     const g = grp(sc, [p.x, 0, p.z]);
-    part(GEO.cyl, M(0x8a8399), g, [0, 0.12, 0], [2.0, 0.26, 2.0]).receiveShadow = true;
-    part(GEO.cyl, M(0x6f6884), g, [0, 0.27, 0], [1.75, 0.06, 1.75]).receiveShadow = true;
-    const ring = part(GEO.torus, E(0xffd98a, 1.6), g, [0, 0.3, 0], [1.88, 1.88, 1], [Math.PI / 2, 0, 0]);
+    part(new THREE.CylinderGeometry(1, 1.07, 1, 12), SIDE, g, [0, 0.13, 0], [2.05, 0.32, 2.05], [0, Math.PI / 12, 0]).receiveShadow = true;
+    part(new THREE.CylinderGeometry(1, 1, 1, 48), TOP, g, [0, 0.3, 0], [1.86, 0.04, 1.86]).receiveShadow = true;
+    part(GEO.torus, RIM, g, [0, 0.32, 0], [1.95, 1.95, 1.9], [Math.PI / 2, 0, 0]).receiveShadow = true;
+    const ring = part(GEO.torus, E(0xffd98a, 1.6), g, [0, 0.335, 0], [1.55, 1.55, 0.6], [Math.PI / 2, 0, 0]);
+    for (let i = 0; i < 3; i++) { const a = i * 2.2 + p.x; part(rockGeometry(i), rockMaterial(), g, [Math.cos(a) * 2.3, -0.02, Math.sin(a) * 2.3], 0.22 + i * 0.05, [0, a, 0]).receiveShadow = true; }
     g.userData.ring = ring; return g;
   };
   B.platA = plat(B.A); B.platF = plat(B.F);
   B.fx = new Particles(sc, 2400);
+  B.dust = new Puffs(sc, 200);
 }
 
 const THEMES = {
@@ -54,6 +76,8 @@ function setupTheme(name) {
   const B = Battle, T = THEMES[name] || THEMES.field;
   B.theme = name;
   B.ground.material.color.setHex(T.ground); B.ground.visible = !T.noGround;
+  B.groundU.uWear.value = T.decor === 'trees' ? 1 : T.decor === 'rift' ? 0.6 : 0;
+  B.groundU.uDirt.value.setHex(T.decor === 'rift' ? 0x4a3a5e : 0x8a7458);
   B.platA.userData.ring.material = E(T.ring, 1.6); B.platF.userData.ring.material = E(T.ring, 1.6);
   const LI = { void: [2.0, 0.9, 0.7], being: [1.9, 0.85, 0.7], star: [1.6, 0.7, 0.65], abyss: [1.15, 0.6, 0.45], dawn: [1.35, 0.5, 0.6], boundary: [1.45, 0.65, 0.6] }[name] || [2.1, 0.95, 0.55];
   B.sun.intensity = LI[0]; B.hemi.intensity = LI[1];
@@ -80,7 +104,7 @@ function setupTheme(name) {
   B.env = envFromSky(U); B.scene.environment = B.env.texture;
   const fg = T.fog || (name === 'void' || name === 'being' ? [20, 100] : [30, 150]);
   B.scene.fog.near = fg[0]; B.scene.fog.far = fg[1];
-  if (B.decor) { B.scene.remove(B.decor); }
+  if (B.decor) { B.scene.remove(B.decor); B.decor.traverse((o) => { if (o.isInstancedMesh) o.dispose(); }); }
   B.decor = new THREE.Group(); B.scene.add(B.decor); B.spinners = []; B.swayers = [];
   const rng = mulberry32(name.length * 77 + 5);
   const additive = (geo, color, op) => new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: new THREE.Color(color), transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
@@ -94,15 +118,39 @@ function setupTheme(name) {
     }
     for (let i = 0; i < 26; i++) { const a = rng() * Math.PI * 2, rr = 7 + rng() * 14, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 2; if (Math.hypot(x - B.A.x, z - B.A.z) < 3.5 || Math.hypot(x - B.F.x, z - B.F.z) < 3.5) continue; forest.push({ x, y: 0, z, s: 0.8 + rng() * 0.6, r: 0, kind: 'bush', tint: T.decor === 'rift' ? 0x5a4a7a : undefined }); }
     buildForest(B.decor, forest, { seed: 5 });
-    const bushM = new THREE.MeshLambertMaterial({ color: T.decor === 'rift' ? 0x4a3a6a : 0x4f9a4a, flatShading: true });
-    for (let i = 0; i < 70; i++) {
-      const a = rng() * Math.PI * 2, rr = 4.5 + rng() * 18, x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-      if (Math.hypot(x - B.A.x, z - B.A.z) < 2.6 || Math.hypot(x - B.F.x, z - B.F.z) < 2.6) continue;
-      const sc = 0.35 + rng() * 0.5;
-      part(GEO.ico, bushM, B.decor, [x, sc * 0.35, z], [sc * 1.2, sc * 0.75, sc * 1.1], [0, rng() * 3, 0]);
+    // grass tufts over the whole arena floor, clear of the two platforms
+    const rift = T.decor === 'rift';
+    if (!B.grassMat) B.grassMat = {};
+    const gk = rift ? 'rift' : 'field';
+    if (!B.grassMat[gk]) B.grassMat[gk] = grassMaterial(rift ? { low: 0x1e1630, high: 0x8e78b8, tint: 0xd8b0ff, sunDir: B.sun.position.clone().normalize() } : { low: 0x1f5a2c, high: 0x9fd870, tint: 0xffd0a0, sunDir: B.sun.position.clone().normalize() });
+    const spots = grassClumps(rng, isTouch ? 900 : 2400, () => {
+      for (let t = 0; t < 10; t++) {
+        const a = rng() * Math.PI * 2, rr = 2.2 + Math.sqrt(rng()) * 30, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 2;
+        const dP = Math.min(Math.hypot(x - B.A.x, z - B.A.z), Math.hypot(x - B.F.x, z - B.F.z));
+        if (dP < 2.5) continue;
+        return { x, y: 0, z, h: (0.28 + rng() * 0.3) * (0.6 + smooth(2.5, 6, dP) * 0.6) };
+      }
+      return null;
+    });
+    buildGrassField(B.decor, spots, B.grassMat[gk]);
+    // sculpted rocks: a few boulders framing the arena and pebbles near the platforms
+    const rocks = [];
+    for (let i = 0; i < 9; i++) { const a = rng() * Math.PI * 2, rr = 16 + rng() * 14; rocks.push({ x: Math.cos(a) * rr, y: -0.1, z: Math.sin(a) * rr - 6, s: 1.4 + rng() * 2.2, r: rng() * 6.28 }); }
+    for (let i = 0; i < 14; i++) {
+      const a = rng() * Math.PI * 2, rr = 4 + rng() * 12, x = Math.cos(a) * rr, z = Math.sin(a) * rr - 2;
+      if (Math.min(Math.hypot(x - B.A.x, z - B.A.z), Math.hypot(x - B.F.x, z - B.F.z)) < 2.8 || (z > 4 && Math.abs(x + 1) < 5)) continue;
+      rocks.push({ x, y: -0.03, z, s: 0.25 + rng() * 0.45, r: rng() * 6.28 });
     }
-    const flM = [E(0xffc6e0, 1.3), E(0xfff1a8, 1.3), E(0xd9c8ff, 1.3)];
-    for (let i = 0; i < 90; i++) { const a = rng() * Math.PI * 2, rr = 3 + rng() * 20; part(GEO.octa, flM[i % 3], B.decor, [Math.cos(a) * rr, 0.12, Math.sin(a) * rr], 0.09); }
+    buildRockField(B.decor, rocks, rift ? 0xb8a8dc : undefined);
+    // drifts of petal flowers
+    const fc = rift ? [0xd9c8ff, 0xb48cff, 0xffffff] : [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xff9aa8];
+    const fl = [];
+    for (let c = 0; c < 26; c++) {
+      const a = rng() * Math.PI * 2, rr = 3.5 + rng() * 18, cx = Math.cos(a) * rr, cz = Math.sin(a) * rr - 2, col = fc[c % fc.length];
+      if (Math.min(Math.hypot(cx - B.A.x, cz - B.A.z), Math.hypot(cx - B.F.x, cz - B.F.z)) < 2.6) continue;
+      for (let j = 0; j < 7; j++) fl.push({ x: cx + (rng() - 0.5) * 1.6, y: 0, z: cz + (rng() - 0.5) * 1.6, h: 0.2 + rng() * 0.18, s: 1.2 + rng() * 0.5, col });
+    }
+    buildFlowerField(B.decor, fl);
     if (T.decor === 'rift') {
       for (let i = 0; i < 14; i++) {
         const a = rng() * Math.PI * 2, rr = 8 + rng() * 18;
@@ -468,22 +516,30 @@ function bpRender(side) {
   let extra = '';
   if (side === 'foe' && B.cfg.kind === 'trainer') extra = `<div class="party-dots">${B.foes.map((x) => `<i class="${x.hp > 0 ? '' : 'out'}"></i>`).join('')}</div>`;
   if (side === 'foe' && B.cfg.kind === 'wild' && S.dex.caught[m.sp]) extra = '<div class="party-dots" title="봉인한 적 있음"><i></i></div>';
-  el.className = 'bp ' + side + (sp.legend ? ' legend' + (m.sp === 'ensia' ? ' being' : '') : '');
-  el.innerHTML = `<div class="bp-top"><span class="nm">${sp.n}</span><span class="lv">Lv.${m.lv}</span></div>
+  el.className = 'bp ' + side + (sp.legend ? ' legend' + (m.sp === 'ensia' || m.sp === 'danha' || m.sp === 'asterion' ? ' being' : '') : '');
+  el.style.setProperty('--acc', TYPES[sp.t[0]].c);
+  el.innerHTML = `<div class="bp-top"><span class="nm">${sp.n}</span><span class="lvb">Lv<b>${m.lv}</b></span></div>
     <div class="types">${sp.t.map(typeChip).join('')}${st}${extra}</div>
-    <div class="hpline"><b>HP</b><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div>
+    <div class="hpline"><span class="hp-lbl">HP</span><div class="hpbar"><i class="chip" style="width:${f * 100}%"></i><i class="fill" style="width:${f * 100}%;--hpc:${hpColor(f)}"></i></div></div>
     ${side === 'ally' ? `<div class="hpnum"><span class="hpv">${m.hp}</span> / ${mh}</div><div class="bar xp"><i style="width:${clamp(m.exp / expNeed(m.lv), 0, 1) * 100}%"></i></div>` : ''}`;
   el.dataset.hp = m.hp;
 }
 function bpShow(side, on) { (side === 'ally' ? $('#bpAlly') : $('#bpFoe')).classList.toggle('off', !on); }
 async function animHp(side, from, to) {
   const B = Battle, m = side === 'ally' ? B.ally : B.foe, el = side === 'ally' ? $('#bpAlly') : $('#bpFoe');
-  const bar = el.querySelector('.hpline .bar i'), num = el.querySelector('.hpv'), mh = maxHp(m);
-  await Tw.add(clamp(Math.abs(from - to) / mh * 1.6, 0.25, 0.9), (k) => {
-    const v = lerp(from, to, k), f = v / mh;
-    bar.style.transition = 'none'; bar.style.width = (f * 100) + '%'; bar.style.background = hpColor(f);
-    if (num) num.textContent = Math.round(v);
-  }, ease.out);
+  const fill = el.querySelector('.hpbar i.fill'), chip = el.querySelector('.hpbar i.chip'), num = el.querySelector('.hpv'), mh = maxHp(m);
+  if (!fill) return;
+  const heal = to > from;
+  chip.classList.toggle('heal', heal);
+  const dur = clamp(Math.abs(from - to) / mh * 1.4, 0.35, 1.0) + 0.35;
+  await Tw.add(dur, (k) => {
+    const kf = heal ? ease.out(clamp((k - 0.3) / 0.7, 0, 1)) : ease.out(clamp(k * 2.4, 0, 1));
+    const kc = heal ? 1 : ease.inOut(clamp((k - 0.45) / 0.55, 0, 1));
+    const vf = lerp(from, to, kf), vc = lerp(from, to, kc), f = vf / mh;
+    fill.style.width = (f * 100) + '%'; fill.style.setProperty('--hpc', hpColor(f));
+    chip.style.width = (Math.max(vc, vf) / mh * 100) + '%';
+    if (num) num.textContent = Math.round(vf);
+  }, ease.lin);
 }
 async function bmsg(text, hold = 1.05) {
   const el = $('#bMsg'); el.textContent = text;
@@ -591,6 +647,7 @@ async function useMove(side, mv) {
     Snd.fx(crit || eff > 1 ? 'crit' : eff < 1 ? 'weak' : 'hit');
     const big = crit || eff > 1;
     hitStop(big ? 0.11 : 0.045); Post.shock(rigCenter(tRig), Battle.camera, big ? 1.0 : 0.4); Post.kick(big ? 0.028 : 0.01);
+    if (!['void', 'being', 'star', 'abyss', 'dawn', 'boundary'].includes(Battle.theme)) { const fp = tRig.root.position; Battle.dust.emit(new THREE.Vector3(fp.x, 0.3, fp.z), big ? 14 : 7, { speed: big ? 3 : 1.8, size: big ? 1.2 : 0.8, life: 1.1, spread: 0.8, up: 0.8, alpha: 0.38 }); }
     popAt(rigTop(tRig), `${dmg}${eff > 1 ? '<small>약점!</small>' : eff < 1 ? '<small>반감</small>' : ''}`, eff > 1 || crit ? 'big' : eff < 1 ? 'weak' : '');
     await Promise.all([hitReact(tRig, crit || eff > 1), animHp(tSide, before, target.hp)]);
     if (crit) await bmsg('치명타!', 0.8);
@@ -696,7 +753,8 @@ async function gainExp(foe) {
 async function learnMove(m, mv) {
   if (m.moves.length < 4) { m.moves.push(mv); Snd.fx('confirm'); await bmsg(`${josa(monName(m), '은는')} 새로 ${josa(MOVES[mv].n, '을를')} 배웠다!`, 1.1); return; }
   bmsgSet(`${josa(monName(m), '은는')} ${josa(MOVES[mv].n, '을를')} 배우고 싶어 한다.\n하지만 기술이 이미 4개다. 무엇을 잊을까?`);
-  const items = m.moves.map((id, i) => ({ value: i, cls: 'mv', style: `border-left-color:${TYPES[MOVES[id].t].c}`, html: `<span class="c-t">${MOVES[id].n}</span><span class="c-s">${typeChip(MOVES[id].t)} ${MOVES[id].p ? '위력 ' + MOVES[id].p : '변화'}</span>` }));
+  const card = (id) => { const M = MOVES[id]; return `<span class="c-t">${M.n}${M.sig ? ' <span style="color:#f2d48a;font-size:11px">★전용</span>' : ''}</span><span class="c-s">${typeChip(M.t)} <span class="st2">${M.p ? `위력 ${M.p} · 명중 ${M.a}` : '변화 · ' + M.d.replace(/[.!].*$/, '')}</span></span>`; };
+  const items = m.moves.map((id, i) => ({ value: i, cls: 'mv', style: `--tc:${TYPES[MOVES[id].t].c}`, html: card(id) }));
   items.push({ value: -1, cls: 'back', back: true, html: `<span class="c-t">${MOVES[mv].n} 배우지 않기</span>` });
   const i = await menu(items);
   if (i < 0) { await bmsg(`${josa(monName(m), '은는')} ${josa(MOVES[mv].n, '을를')} 배우지 않았다.`); return; }
@@ -800,19 +858,21 @@ async function chooseAction() {
   while (true) {
     bmsgSet(`${josa(monName(B.ally), '은는')} 무엇을 할까?`);
     const c = await menu([
-      { value: 'fight', html: '<span class="c-t">싸운다</span><span class="c-s">기술 선택</span>' },
-      { value: 'bag', html: '<span class="c-t">가방</span><span class="c-s">결정 · 회복약</span>' },
-      { value: 'party', html: '<span class="c-t">정령</span><span class="c-s">교체</span>' },
-      { value: 'run', html: `<span class="c-t">${B.cfg.kind === 'legend' ? '물러난다' : '도망간다'}</span><span class="c-s">${B.cfg.kind === 'trainer' ? '불가' : ''}</span>` },
+      { value: 'fight', html: `${uiIcon('fight')}<span class="c-t">싸운다</span><span class="c-s">기술 선택</span>` },
+      { value: 'bag', html: `${uiIcon('bag')}<span class="c-t">가방</span><span class="c-s">봉인결정 ${S.items.crystal || 0} · 회복약 ${S.items.potion || 0}</span>` },
+      { value: 'party', html: `${uiIcon('party')}<span class="c-t">정령</span><span class="c-s">교체 · ${S.party.filter((m) => m.hp > 0).length}/${S.party.length} 마리</span>` },
+      { value: 'run', html: `${uiIcon('run')}<span class="c-t">${B.cfg.kind === 'legend' ? '물러난다' : '도망간다'}</span><span class="c-s">${B.cfg.kind === 'trainer' ? '수호자전에선 불가' : ''}</span>` },
     ]);
     if (c === 'fight') {
       bmsgSet('어떤 기술을 쓸까?');
       const items = B.ally.moves.map((id) => {
-        const M = MOVES[id], eff = M.p ? typeEff(M.t, monTypes(B.foe)) : 1;
-        const hint = !M.p ? '변화' : (S.dex.seen[B.foe.sp] ? (eff > 1 ? '효과 좋음' : eff === 0 ? '효과 없음' : eff < 1 ? '효과 약함' : '') : '');
-        return { value: id, cls: 'mv', style: `border-left-color:${TYPES[M.t].c}`, html: `<span class="c-t">${M.n}</span><span class="c-s">${typeChip(M.t)} ${M.p ? '위력 ' + M.p : ''} ${hint ? '· ' + hint : ''}</span>` };
+        const M = MOVES[id], eff = M.p ? typeEff(M.t, monTypes(B.foe)) : 1, stab = monTypes(B.ally).includes(M.t);
+        const known = S.dex.seen[B.foe.sp];
+        const badge = !M.p ? '' : !known ? '' : eff >= 4 ? '<span class="eff up2">▲▲ 효과 굉장</span>' : eff > 1 ? '<span class="eff up">▲ 효과 좋음</span>' : eff === 0 ? '<span class="eff none">✕ 무효</span>' : eff < 1 ? '<span class="eff down">▼ 효과 약함</span>' : '';
+        const stats = M.p ? `<span class="st2">위력 ${M.p}${stab ? '+' : ''} · 명중 ${M.a}</span>` : `<span class="st2">변화 · ${M.d.replace(/[.!].*$/, '')}</span>`;
+        return { value: id, cls: 'mv', style: `--tc:${TYPES[M.t].c}`, html: `<span class="c-t">${M.n}${M.sig ? ' <span style="color:#f2d48a;font-size:11px">★전용</span>' : ''}</span><span class="c-s">${typeChip(M.t)} ${stats} ${badge}</span>` };
       });
-      items.push({ value: null, cls: 'back', back: true, html: '<span class="c-t">뒤로</span>' });
+      items.push({ value: null, cls: 'back mini', back: true, html: `<span class="c-t">← 뒤로</span>${isTouch ? '' : '<kbd>Esc</kbd>'}` });
       const mv = await menu(items);
       if (mv) return { type: 'move', mv };
     } else if (c === 'bag') {
@@ -979,7 +1039,7 @@ function updateBattle(dt) {
   if (B.allyRig) rigUpdate(B.allyRig, dt);
   if (B.foeRig) rigUpdate(B.foeRig, dt);
   for (const s of B.spinners || []) { s.rotation.y += dt * 0.5; s.rotation.x += dt * 0.2; }
-  B.fx.update(dt);
+  B.fx.update(dt); B.dust.update(dt);
   if (B.theme === 'void' && Math.random() < 0.6) B.fx.emit({ x: rand(-12, 12), y: 0, z: rand(-14, 6), vy: rand(1, 3), drag: 0, color: 0x8a3dff, size: 0.3, life: 3 });
   if (B.theme === 'being' && Math.random() < 0.6) B.fx.emit({ x: rand(-12, 12), y: 0, z: rand(-14, 6), vy: rand(1, 2.5), drag: 0, color: 0xffd98a, size: 0.3, life: 3 });
   if (B.theme === 'star' && Math.random() < 0.5) B.fx.emit({ x: rand(-14, 14), y: rand(0, 8), z: rand(-16, 4), vx: rand(-0.2, 0.2), vy: rand(-0.2, 0.2), drag: 0, color: [0x8fe0ff, 0xffffff][Math.random() < 0.5 ? 0 : 1], size: 0.22, life: 2.5 });

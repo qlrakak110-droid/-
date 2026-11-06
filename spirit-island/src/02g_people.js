@@ -61,17 +61,42 @@ function designHair(C) {
   if (C.long) { K.el([0, 1.3, -0.2], [0.34, 0.4, 0.2], H, o(0.08)); K.rc([0, 1.2, -0.22], [0, 0.88, -0.26], 0.22, 0.08, H, o(0.06)); }
   return { prims: K.prims, bounds: [-0.55, 0.75, -0.75, 0.55, 2.2, 0.6], hipY: 0, height: 2 };
 }
+// a strip of cloth hanging from its top edge; bends back, flutters and lifts with speed (vertex shader)
+function clothRibbon(parent, o) {
+  const L = o.length, seg = 8, taper = o.taper ?? 0.3, stiff = o.stiff ?? 1;
+  const g = new THREE.PlaneGeometry(o.width, L, 1, seg); g.translate(0, -L / 2, 0);
+  const p = g.attributes.position, s = new Float32Array(p.count);
+  for (let i = 0; i < p.count; i++) { const t = -p.getY(i) / L; s[i] = t; p.setX(i, p.getX(i) * (1 - t * taper)); }
+  g.setAttribute('aS', new THREE.BufferAttribute(s, 1));
+  const uMove = { value: 0 }, uPh = { value: o.ph || 0 };
+  const mat = toonMat({ color: o.color, side: THREE.DoubleSide });
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, rr) => {
+    prev(sh, rr);
+    sh.uniforms.uTime = Shared.time; sh.uniforms.uMove = uMove; sh.uniforms.uPh = uPh;
+    sh.vertexShader = 'attribute float aS; uniform float uTime, uMove, uPh;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float cs = aS * aS;
+      transformed.z += sin(uTime * 4.2 + uPh - aS * 5.0) * (0.03 + uMove * 0.07) * aS;
+      transformed.x += sin(uTime * 3.1 + uPh * 1.7 - aS * 4.0) * 0.022 * aS;
+      transformed.z -= cs * (0.05 + uMove * 0.42) * ${stiff.toFixed(2)};
+      transformed.y += cs * uMove * 0.15 * ${stiff.toFixed(2)};`);
+  };
+  mat.customProgramCacheKey = () => 'cloth' + stiff.toFixed(2);
+  const m = new THREE.Mesh(g, mat); m.position.set(...o.pos); m.rotation.set(...o.rot); m.castShadow = true;
+  parent.add(m);
+  return { mesh: m, uMove };
+}
 function buildPerson(o = {}) {
   const C = Object.assign({ skin: 0xffdcc6, hair: 0x2a2238, top: 0x2c4a8a, shirt: 0xf2f2f6, trim: 0xf4f0e6, bottom: 0x2a2e3e, shoe: 0x6a4026, glove: 0x3a2a20, accent: 0x8b5cff, pack: true }, o);
   if (o.top !== undefined && o.trim === undefined) C.trim = 0xf4ecd8;
   const r = newRig(); r.hopAmp = 0.35; r.olw = 0; r.person = true;
   const key = personKey(C), B = grp(r.body);
   const DB = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.01, neckStart: 0.95 }, designPersonBody(C));
-  const body = new THREE.Mesh(dragonGeometry('pb_' + key, DB, 0.016, 0.026), sculptToonMaterial({ hipY: 0.62, shoulderY: 1.12, sat: 1.05, rimAmt: 0.3 }, DB));
+  const body = new THREE.Mesh(dragonGeometry('pb_' + key, DB, 0.016, 0.026), sculptToonMaterial({ hipY: 0.62, shoulderY: 1.12, sat: 1.05, rimAmt: 0.3, warm: 1 }, DB));
   body.castShadow = true; body.receiveShadow = true; B.add(body);
   sculptOutline(body, 0.013, 0x1a1220);
   const DH = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.01, neckStart: 0.95 }, designHair(C));
-  const hair = new THREE.Mesh(dragonGeometry('ph_' + key, DH, 0.015, 0.024), sculptToonMaterial({ sat: 1.05, rimAmt: 0.25, hairRing: 1.76 }, DH));
+  const hair = new THREE.Mesh(dragonGeometry('ph_' + key, DH, 0.015, 0.024), sculptToonMaterial({ sat: 1.05, rimAmt: 0.25, hairRing: 1.76, warm: 0.55 }, DH));
   hair.castShadow = true; B.add(hair);
   sculptOutline(hair, 0.012, 0x1a1220);
   const U = body.material.userData.U, UH = hair.material.userData.U;
@@ -86,10 +111,14 @@ function buildPerson(o = {}) {
   }
   part(new THREE.TorusGeometry(0.03, 0.007, 6, 14, Math.PI), M(0x8a3a3a), face, [0, 1.395, 0.322], 1, [0, 0, Math.PI]);
   for (const sx of [-1, 1]) part(GEO.sphere, M(0xff8fa6, { transparent: true, opacity: 0.42 }), face, [sx * 0.2, 1.43, 0.28], [0.05, 0.026, 0.02], [0, sx * 0.5, 0]).userData.noOl = true;
-  const scarf = grp(B, [0.1, 1.17, -0.15], [0.35, 0, 0.15]);
-  part(GEO.box, M(C.accent), scarf, [0, -0.17, 0], [0.1, 0.34, 0.03]);
+  // scarf knot with two cloth tails, and coat tails behind the belt: they trail and lift when running
   part(GEO.torusFat, M(C.accent), B, [0, 1.2, 0], [0.18, 0.18, 0.16], [Math.PI / 2, 0, 0]);
-  wig(r, scarf, 'x', 0.18, 3.1);
+  part(GEO.sphere, M(C.accent), B, [0.03, 1.19, -0.17], [0.06, 0.05, 0.045]);
+  const cloth = [
+    clothRibbon(B, { pos: [0.06, 1.19, -0.18], rot: [0.28, 0.2, 0.1], length: 0.52, width: 0.105, color: C.accent, ph: 0 }),
+    clothRibbon(B, { pos: [0.0, 1.19, -0.185], rot: [0.22, -0.18, -0.07], length: 0.4, width: 0.09, color: C.accent, ph: 1.7 }),
+  ];
+  if (!C.robe) for (const sx of [-1, 1]) cloth.push(clothRibbon(B, { pos: [sx * 0.105, 0.77, -0.2], rot: [0.14, sx * 0.12, sx * 0.07], length: 0.3, width: 0.16, color: C.top, ph: sx * 1.3, stiff: 0.45, taper: 0.1 }));
   if (C.pin) part(GEO.octa, E(C.pin, 2.4), B, [0.27, 1.76, 0.18], [0.05, 0.08, 0.03]);
   if (o.pendant !== false && !C.robe) part(GEO.octa, E(0xb48cff, 2.2), B, [0, 1.06, 0.255], [0.035, 0.055, 0.02]);
   if (C.hat === 'hood') part(GEO.sphere, M(C.accent), B, [0, 1.62, -0.14], [0.44, 0.44, 0.38]).castShadow = true;
@@ -97,6 +126,7 @@ function buildPerson(o = {}) {
   if (C.hat === 'band') part(GEO.torusFat, M(C.accent), B, [0, 1.74, 0], [0.37, 0.37, 0.25], [Math.PI / 2 - 0.15, 0, 0]);
   if (C.staff) { const st = grp(B, [0.38, 0.62, 0.08]); part(GEO.cyl, M(0x5a3b26), st, [0, 0.3, 0], [0.025, 1.6, 0.025]); part(GEO.octa, E(C.staff, 2.6), st, [0, 1.12, 0], [0.09, 0.15, 0.09]); }
   r.fns.push((t, dt, mv) => {
+    for (const c of cloth) c.uMove.value = damp(c.uMove.value, mv, 5, dt);
     U.uWalk.value = UH.uWalk.value = r.walkPhase; U.uStride.value = 0.17 * mv;
     face.position.copy(dragonOffset(U, 1, Shared.time.value));
   });

@@ -53,6 +53,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #title{background:linear-gradient(180deg,rgba(7,6,12,.0) 0%,rgba(7,6,12,.15) 55%,rgba(7,6,12,.85) 100%);justify-content:flex-end;
   padding:calc(var(--sa-t) + 24px) max(var(--edge),var(--sa-r)) calc(var(--sa-b) + 28px) max(var(--edge),var(--sa-l))}
 .title-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;max-width:640px}
+.emblem{width:86px;height:86px;margin-bottom:-4px;filter:drop-shadow(0 0 12px rgba(176,107,255,.55)) drop-shadow(0 0 9px rgba(242,212,138,.45));animation:emblem 7s ease-in-out infinite}
+@keyframes emblem{50%{transform:scale(1.045) rotate(2deg)}}
+@media (max-width:640px){.emblem{width:62px;height:62px}}
 .eyebrow{margin:0;font-family:var(--f-display);font-size:15px;letter-spacing:.6em;text-indent:.6em;color:var(--muted)}
 .logo{margin:0;font-family:var(--f-display);font-weight:700;font-size:clamp(54px,13vw,112px);line-height:1;letter-spacing:-.02em;display:flex;align-items:baseline;gap:.08em}
 .logo .being{background:linear-gradient(180deg,#fffaf0 0%,var(--gold) 55%,#b98a3a 100%);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 22px rgba(242,212,138,.55))}
@@ -143,6 +146,11 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .sel-head h3{margin:0;font-family:var(--f-display);font-size:26px}
 .sel-desc{margin:0;color:#d4cce6;font-family:var(--f-display);line-height:1.65;font-size:15px}
 .sel-row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.sel-match,.sel-moves{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px}
+.sel-match .lbl,.sel-moves .lbl{color:var(--muted);font-weight:700;letter-spacing:.04em;margin-right:2px}
+.sel-match .lbl:not(:first-child){margin-left:10px}
+.sel-match em{font-style:normal;color:var(--muted)}
+.sel-moves b{font-weight:700;padding:3px 9px;border-radius:7px;background:color-mix(in srgb,var(--tc) 22%,rgba(255,255,255,.04));border-left:3px solid var(--tc)}
 .sel-nav{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:18px}
 .sel-stats{display:grid;grid-template-columns:auto 1fr auto;gap:5px 10px;font-size:12px;color:var(--muted);align-items:center;font-variant-numeric:tabular-nums}
 
@@ -175,7 +183,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 #bBox{position:absolute;left:max(var(--edge),var(--sa-l));right:max(var(--edge),var(--sa-r));bottom:calc(var(--sa-b) + 14px);display:flex;gap:12px;align-items:stretch;pointer-events:auto}
 #bMsg{flex:1;min-width:0;background:linear-gradient(180deg,rgba(24,19,42,.94),rgba(12,9,22,.96));border:1px solid var(--line);border-radius:16px;padding:14px 18px;
   font-family:var(--f-display);font-size:17px;line-height:1.6;min-height:84px;display:flex;align-items:center;white-space:pre-wrap}
-#bCmd{width:min(430px,48vw);display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#bCmd{width:min(430px,48vw);display:grid;grid-template-columns:1fr 1fr;gap:8px;position:relative}
+.cmd.back.mini{position:absolute;left:0;right:auto;top:-38px;min-height:30px;padding:4px 14px;border-radius:999px;flex-direction:row;gap:6px}
+.cmd.back.mini .c-t{font-size:12.5px}
+.cmd.back.mini kbd{font-size:10px;font-weight:700;font-family:inherit;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,.12);color:var(--muted)}
 #bCmd:empty{display:none}
 .cmd{border:1px solid var(--line);background:var(--panel-hi);border-radius:14px;padding:10px 14px;text-align:left;display:flex;flex-direction:column;justify-content:center;gap:3px;min-height:56px;
   transition:border-color .15s,transform .12s,background .15s}
@@ -236,6 +247,69 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .item-row .ds{font-size:12px;color:var(--muted);margin-top:3px}
 .item-row .ct{font-variant-numeric:tabular-nums;color:var(--gold);font-weight:700}
 
+/* ---------- autosave indicator ---------- */
+#saveInd{position:absolute;right:max(var(--edge),var(--sa-r));bottom:calc(var(--sa-b) + 16px);display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:#e8e0f6;
+  padding:6px 12px 6px 10px;border-radius:999px;background:rgba(14,11,26,.62);opacity:0;transform:translateY(6px);transition:opacity .35s,transform .35s;pointer-events:none}
+#saveInd.on{opacity:1;transform:none}
+#saveInd i{width:10px;height:10px;transform:rotate(45deg);border:2px solid var(--gold);animation:saveSpin 1.2s linear infinite}
+@keyframes saveSpin{to{transform:rotate(405deg)}}
+body.has-touch #saveInd{bottom:calc(var(--sa-b) + 190px)}
+/* ---------- compass, area banner ---------- */
+#compass{position:absolute;left:50%;top:calc(var(--sa-t) + 14px);transform:translateX(-50%);width:min(440px,46vw);height:28px;pointer-events:none}
+#compass::before{content:"";position:absolute;inset:0;border-radius:999px;background:linear-gradient(90deg,transparent,rgba(14,11,26,.74) 16%,rgba(14,11,26,.74) 84%,transparent);
+  border-top:1px solid rgba(242,212,138,.0)}
+#cTicks{position:absolute;inset:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 13%,#000 87%,transparent);mask-image:linear-gradient(90deg,transparent,#000 13%,#000 87%,transparent)}
+#compass .c-center{position:absolute;left:50%;top:-3px;width:0;height:0;margin-left:-5px;border:5px solid transparent;border-top:6px solid var(--gold)}
+#cTicks span{position:absolute;top:6px;transform:translateX(-50%);font-size:12px;font-weight:800;color:#e4ddf4;letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.6)}
+#cTicks span.N{color:var(--gold)}
+#cTicks i{position:absolute;top:11px;width:1px;height:6px;margin-left:-.5px;background:rgba(220,210,255,.35)}
+#cTicks i.mid{top:9px;height:10px;background:rgba(220,210,255,.65)}
+#cMarks{position:absolute;inset:0}
+#cMarks b{position:absolute;top:8px;width:0;display:flex;flex-direction:column;align-items:center;transition:opacity .3s}
+#cMarks b em{display:block;flex:none;width:9px;height:9px;transform:rotate(45deg);border:2px solid currentColor;background:rgba(10,8,20,.55);box-shadow:0 0 8px currentColor}
+#cMarks b small{margin-top:9px;font-size:10px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums;text-shadow:0 1px 4px rgba(0,0,0,.95),0 0 2px #000;white-space:nowrap}
+#cMarks b.edge{opacity:.6}
+#cMarks b.edge em{transform:rotate(45deg) scale(.8)}
+#area{position:absolute;left:50%;top:21%;transform:translateX(-50%);text-align:center;opacity:0;transition:opacity .9s ease,transform .9s ease;pointer-events:none}
+#area.on{opacity:1;transform:translateX(-50%) translateY(4px)}
+#area .a1{font-family:var(--f-display);font-weight:700;font-size:26px;letter-spacing:.12em;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+#area .a1::before,#area .a1::after{content:"";display:inline-block;width:46px;height:1px;background:linear-gradient(90deg,transparent,var(--gold));vertical-align:middle;margin:0 14px}
+#area .a1::after{background:linear-gradient(90deg,var(--gold),transparent)}
+#area .a2{font-size:12px;color:#e6dcc4;letter-spacing:.18em;margin-top:4px;text-shadow:0 1px 10px rgba(0,0,0,.8)}
+/* ---------- refined battle HUD ---------- */
+.bp{padding:10px 14px 12px 14px;border-radius:14px;background:linear-gradient(160deg,rgba(32,26,56,.9),rgba(12,9,22,.88));border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08)}
+.bp::before{content:"";position:absolute;left:12px;right:12px;top:-1px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--acc,#f2d48a),transparent);opacity:.9}
+.bp .lvb{font-size:11px;color:#cfc6e6;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:1px 7px;font-weight:700;letter-spacing:.04em}
+.bp .lvb b{font-size:14px;color:#fff;margin-left:2px;font-variant-numeric:tabular-nums}
+.hpbar{position:relative;flex:1;height:11px;border-radius:6px;background:rgba(0,0,0,.45);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.6)}
+.hpbar i{position:absolute;left:0;top:0;bottom:0;border-radius:6px}
+.hpbar i.chip{background:#ff5c5c;opacity:.85}
+.hpbar i.chip.heal{background:#9dffb0}
+.hpbar i.fill{background:linear-gradient(180deg,rgba(255,255,255,.35),rgba(255,255,255,0) 55%),var(--hpc,#5fe08c)}
+.bp .hp-lbl{font-size:10px;font-weight:800;color:#f2d48a;letter-spacing:.12em}
+.type{gap:4px;padding:3px 8px 3px 5px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.18)}
+.type svg{width:13px;height:13px;fill:currentColor}
+.bp.legend{--acc:#c77dff;animation:legendGlow 3s ease-in-out infinite}
+.bp.legend.being{--acc:#f2d48a}
+@keyframes legendGlow{50%{box-shadow:0 0 38px rgba(176,107,255,.45),inset 0 1px 0 rgba(255,255,255,.08)}}
+.cmd{position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(44,36,74,.95),rgba(24,19,42,.95));border:1px solid rgba(255,255,255,.12)}
+.cmd .ico{position:absolute;right:12px;top:50%;transform:translateY(-50%);width:26px;height:26px;opacity:.28;stroke:currentColor;fill:none;stroke-width:2}
+.cmd.mv{border-left-width:1px;padding-left:16px}
+.cmd.mv::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--tc)}
+.cmd.mv::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 24%,transparent),transparent 55%);pointer-events:none}
+.cmd .eff{font-size:10px;font-weight:800;padding:1px 6px;border-radius:5px;letter-spacing:.03em}
+.cmd .eff.up{background:#5fe08c;color:#0b2a14}.cmd .eff.up2{background:#ffd84a;color:#2a2000}.cmd .eff.down{background:#6a6286;color:#eee}.cmd .eff.none{background:#3a3450;color:#aaa}
+.cmd .st2{font-size:10px;color:#bdb4d6;font-variant-numeric:tabular-nums}
+/* ---------- dialog portrait ---------- */
+#dialog{display:flex;gap:14px;align-items:flex-start}
+#dialog .dbody{flex:1;min-width:0}
+#dPort{width:74px;height:74px;border-radius:14px;flex:none;background:radial-gradient(circle at 50% 35%,rgba(242,212,138,.25),rgba(255,255,255,.03));border:1px solid rgba(242,212,138,.35)}
+#dWho{display:inline-block;background:linear-gradient(90deg,rgba(242,212,138,.2),transparent);padding:2px 12px 2px 8px;border-left:3px solid var(--gold);border-radius:3px}
+#dWho.void{border-left-color:var(--void);background:linear-gradient(90deg,rgba(176,107,255,.22),transparent)}
+#dPort.void{border-color:rgba(176,107,255,.5);background:radial-gradient(circle at 50% 35%,rgba(176,107,255,.32),rgba(255,255,255,.03))}
+#dPort.sil{filter:brightness(0) drop-shadow(0 0 6px rgba(176,107,255,.95)) drop-shadow(0 0 14px rgba(120,60,220,.7));border-color:transparent;background:none}
+@media (max-width:640px){ #compass{width:min(300px,74vw);top:calc(var(--sa-t) + 98px)} #dPort{width:54px;height:54px} #area{top:25%;width:92vw} #area .a1{font-size:20px} #area .a1::before,#area .a1::after{width:22px;margin:0 8px} }
 /* ---------- overlays ---------- */
 #toasts{position:absolute;top:calc(var(--sa-t) + 84px);left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;align-items:center;z-index:28;pointer-events:none;width:min(520px,calc(100% - 32px))}
 .toast{background:var(--panel-hi);border:1px solid var(--line-hi);padding:10px 18px;border-radius:999px;font-weight:700;font-size:14px;animation:toast 3.2s ease forwards;text-align:center}
@@ -282,9 +356,10 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   #questText{font-size:13.5px}
   .ibtn{padding:8px 10px;font-size:12px}
   .cmd{min-height:52px;padding:8px 12px}
+  #toasts{top:calc(var(--sa-t) + 146px)}
 }
 @media (prefers-reduced-motion:reduce){
-  .load-mark,#dialog .next{animation:none}
+  .load-mark,#dialog .next,.emblem,#saveInd i{animation:none}
   .pop{animation-duration:.01s}
 }
 </style>
@@ -296,6 +371,17 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 
   <div id="title" class="screen" hidden>
     <div class="title-wrap">
+      <svg class="emblem" viewBox="0 0 120 120" aria-hidden="true">
+        <defs>
+          <linearGradient id="emG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6dc"/><stop offset="1" stop-color="#c99a45"/></linearGradient>
+          <linearGradient id="emV" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6d0ff"/><stop offset="1" stop-color="#5a2aa8"/></linearGradient>
+        </defs>
+        <circle cx="60" cy="60" r="53" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+        <path d="M57 14 A46 46 0 0 0 57 106" fill="none" stroke="url(#emG)" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M63 14 A46 46 0 0 1 63 106" fill="none" stroke="url(#emV)" stroke-width="4.5" stroke-linecap="round"/>
+        <path d="M60 2 L56.5 28 L63 44 L57.5 60 L63.5 76 L57.5 93 L60 118" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" opacity=".85"/>
+        <path d="M60 45 L63 57 L75 60 L63 63 L60 75 L57 63 L45 60 L57 57 Z" fill="#fff"/>
+      </svg>
       <p class="eyebrow">정령의 섬</p>
       <h1 class="logo"><span class="being">존재</span><span class="and">와</span><span class="void">공허</span></h1>
       <p class="tag">모든 것을 빚는 빛과, 모든 것을 되돌리는 어둠.<br>하늘이 갈라진 섬에서 정령과 함께 그 경계에 선다.</p>
@@ -314,6 +400,9 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
   <div id="lore" class="screen" hidden><p id="loreText"></p><button id="loreSkip" class="chip">건너뛰기</button></div>
 
   <div id="hud" hidden>
+    <div id="saveInd" aria-hidden="true"><i></i>저장됨</div>
+    <div id="compass" aria-hidden="true"><div id="cTicks"></div><div id="cMarks"></div><i class="c-center"></i></div>
+    <div id="area"><div class="a1"></div><div class="a2"></div></div>
     <div id="quest"><span class="q-label">목표</span><span id="questText"></span><span id="questSub"></span><span id="questLeg"></span></div>
     <div id="hudBtns">
       <button id="bParty" class="ibtn">정령</button>
@@ -338,7 +427,7 @@ button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
     <div id="bBox"><div id="bMsg"></div><div id="bCmd"></div></div>
   </div>
 
-  <div id="dialog" hidden><div id="dWho"></div><div id="dTxt"></div><div id="dChoices"></div><div class="next" id="dNext">▼</div></div>
+  <div id="dialog" hidden><img id="dPort" alt="" hidden><div class="dbody"><div id="dWho"></div><div id="dTxt"></div></div><div id="dChoices"></div><div class="next" id="dNext">▼</div></div>
 
   <div id="modal" hidden><div class="modal-card" role="dialog" aria-modal="true"><header><h2 id="mTitle"></h2><button id="mClose" class="chip">닫기</button></header><nav id="mTabs"></nav><div id="mBody"></div></div></div>
 

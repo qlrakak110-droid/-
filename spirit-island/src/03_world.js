@@ -204,6 +204,7 @@ function buildWorld() {
   buildAltar(scene);
   for (const r of SITES.rifts) buildRift(scene, r);
   W.fx = new Particles(scene, 1600);
+  W.dust = new Puffs(scene, 160);
   buildLegendSites();
 
   // ---------------- player & follower
@@ -351,17 +352,23 @@ function leafTexture(kind) {
   const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
   const rng = mulberry32(kind === 'pine' ? 77 : 33);
   if (kind === 'pine') {
+    g.lineCap = 'round';
     for (let k = 0; k < 3; k++) {
-      const cx = 64 + k * 64;
-      g.strokeStyle = 'rgb(90,90,90)'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx, 10); g.lineTo(cx, 246); g.stroke();
-      for (let y = 14; y < 244; y += 5) {
-        const t = (y - 10) / 236, L = 6 + 30 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+      const cx = 64 + k * 64, wAt = (y) => { const t = (y - 8) / 240; return 3 + 21 * Math.sin(Math.PI * Math.min(1, t * 1.12)); };
+      // a solid tapered core keeps the frond's body when the card shrinks into the distance
+      g.fillStyle = 'rgb(150,150,150)'; g.beginPath(); g.moveTo(cx, 8);
+      for (let y = 8; y <= 248; y += 8) g.lineTo(cx + wAt(y), y + 4);
+      for (let y = 248; y >= 8; y -= 8) g.lineTo(cx - wAt(y), y + 4);
+      g.closePath(); g.fill();
+      for (let y = 12; y < 246; y += 3.5) {
+        const t = (y - 10) / 236, L = 8 + 26 * Math.sin(Math.PI * Math.min(1, t * 1.15));
         for (const sd of [-1, 1]) {
-          const v = 150 + (rng() * 100 | 0);
-          g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 2;
-          g.beginPath(); g.moveTo(cx, y); g.lineTo(cx + sd * L, y + L * 0.55); g.stroke();
+          const v = 165 + (rng() * 90 | 0);
+          g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 3.4;
+          g.beginPath(); g.moveTo(cx + sd * 2, y); g.lineTo(cx + sd * L, y + L * 0.5); g.stroke();
         }
       }
+      g.strokeStyle = 'rgb(115,115,115)'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx, 8); g.lineTo(cx, 248); g.stroke();
     }
   } else {
     for (let i = 0; i < 70; i++) {
@@ -380,6 +387,10 @@ function leafTexture(kind) {
 }
 function foliageMaterial(tex) {
   const m = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide });
+  foliagePatch(m);
+  return aaAlphaTest(m, 256, 0.42);
+}
+function foliagePatch(m) {
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uTime = Shared.time;
     sh.vertexShader = 'uniform float uTime; attribute vec3 aCenter;\n' + sh.vertexShader
@@ -510,24 +521,16 @@ function buildRocksAndFlowers(scene) {
     rocks.push({ x, z, s, h, r: rng() * 6 });
     if (s > 0.9) World.colliders.push({ x, z, r: s * 0.8 });
   }
-  const rm = new THREE.InstancedMesh(GEO.dodeca, new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }), rocks.length);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
-  rocks.forEach((r, i) => {
-    m4.compose(v.set(r.x, r.h + r.s * 0.2, r.z), q.setFromEuler(e.set(r.r, r.r * 1.7, r.r * 0.3)), sc.set(r.s, r.s * 0.75, r.s));
-    rm.setMatrixAt(i, m4); c.setHex([0x8c8378, 0x9a9184, 0x7b746c][i % 3]); rm.setColorAt(i, c);
-  });
-  rm.castShadow = rm.receiveShadow = true; scene.add(rm);
-  // flowers: little glowing dots that catch the bloom at dusk
-  const fl = [];
-  for (let k = 0; k < 3000 && fl.length < 700; k++) {
+  buildRockField(scene, rocks.map((r) => ({ x: r.x, y: r.h - 0.06 * r.s, z: r.z, s: r.s, r: r.r, sy: 0.85 + (r.r % 1) * 0.3 })));
+  // flowers: small petal flowers in loose drifts, bright enough to catch the dusk light
+  const fl = [], fc = [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xa8e6ff, 0xff9aa8];
+  for (let k = 0; k < 4000 && fl.length < (isTouch ? 600 : 1500); k++) {
     const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180, h = groundY(x, z);
-    if (h < 1.1 || h > 9 || pathDist(x, z) < 2.4) continue;
-    fl.push({ x, z, h });
+    if (h < 1.1 || h > 9 || pathDist(x, z) < 2.4 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5) continue;
+    const col = fc[(rng() * fc.length) | 0], n = 1 + ((rng() * 4) | 0);
+    for (let j = 0; j < n; j++) { const fx = x + (rng() - 0.5) * 1.2, fz = z + (rng() - 0.5) * 1.2; fl.push({ x: fx, y: groundY(fx, fz), z: fz, h: 0.18 + rng() * 0.18, s: 1.1 + rng() * 0.6, col }); }
   }
-  const fm = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.11, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(1.3, 1.3, 1.3) }), fl.length);
-  const fc = [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xa8e6ff];
-  fl.forEach((f, i) => { m4.compose(v.set(f.x, f.h + 0.15, f.z), q.identity(), sc.setScalar(0.7 + rng() * 0.6)); fm.setMatrixAt(i, m4); c.setHex(fc[i % fc.length]); fm.setColorAt(i, c); });
-  scene.add(fm);
+  buildFlowerField(scene, fl);
 }
 
 // ---------------- tall grass meadows: instanced blades with wind + player push
@@ -563,13 +566,14 @@ function buildGrass(scene, zones) {
   const dens = Settings.high ? 9 : 4.5;
   const list = [];
   for (const z of zones) {
-    const n = Math.floor(Math.PI * z.r * z.r * dens);
-    for (let i = 0; i < n; i++) {
+    // encounter grass grows in bunches; shorter toward the rim so the patch reads as a soft-edged meadow
+    const n = Math.floor((Math.PI * z.r * z.r * dens) / 8);
+    const pts = grassClumps(Math.random, n, () => {
       const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * z.r;
-      const x = z.x + Math.cos(a) * rr, zz = z.z + Math.sin(a) * rr;
-      const edge = 1 - smooth(z.r * 0.75, z.r, rr);
-      list.push([x, zz, (0.9 + Math.random() * 0.7) * (0.45 + edge * 0.55)]);
-    }
+      const edge = 1 - smooth(z.r * 0.7, z.r, rr);
+      return { x: z.x + Math.cos(a) * rr, y: 0, z: z.z + Math.sin(a) * rr, h: (1.0 + Math.random() * 0.6) * (0.4 + edge * 0.6) };
+    });
+    for (const q of pts) list.push([q.x, q.z, q.h]);
   }
   const im = new THREE.InstancedMesh(blade, mat, list.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
@@ -577,20 +581,21 @@ function buildGrass(scene, zones) {
   im.frustumCulled = false; im.receiveShadow = false;
   scene.add(im);
   if (Settings.high) {
-    const lawn = [], rng = mulberry32(4242);
-    for (let k = 0; k < 90000 && lawn.length < (isTouch ? 12000 : 26000); k++) {
-      const x = (rng() - 0.5) * 176, z = (rng() - 0.5) * 176, h = groundY(x, z);
-      if (h < 1.05 || h > 9.5 || pathDist(x, z) < 2.4) continue;
-      if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5 || Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 10.5) continue;
-      let bad = false;
-      for (const zz of zones) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) { bad = true; break; }
-      for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 15) { bad = true; break; }
-      if (bad) continue;
-      lawn.push([x, z, h, 0.28 + rng() * 0.3, rng() * 6.28]);
-    }
-    const lm = new THREE.InstancedMesh(blade, mat, lawn.length);
-    lawn.forEach(([x, z, h, s, r], i) => { m4.compose(v.set(x, h - 0.04, z), q.setFromEuler(e.set(rand(-0.2, 0.2), r, rand(-0.2, 0.2))), sc.set(1.25, s, 1)); lm.setMatrixAt(i, m4); });
-    lm.frustumCulled = false; scene.add(lm);
+    // lawn: tufts of blades scattered over the open meadows (not on paths, plazas or encounter grass)
+    const rng = mulberry32(4242);
+    const ok = (x, z, h) => {
+      if (h < 1.05 || h > 9.5 || pathDist(x, z) < 2.4) return false;
+      if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5 || Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 10.5) return false;
+      for (const zz of zones) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) return false;
+      for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 15) return false;
+      return true;
+    };
+    const spots = grassClumps(rng, isTouch ? 2200 : 6500, () => {
+      for (let t = 0; t < 12; t++) { const x = (rng() - 0.5) * 176, z = (rng() - 0.5) * 176, h = groundY(x, z); if (ok(x, z, h)) return { x, y: h, z, h: 0.3 + rng() * 0.32 }; }
+      return null;
+    }).filter((p) => ok(p.x, p.z, groundY(p.x, p.z)));
+    spots.forEach((p) => { p.y = groundY(p.x, p.z); });
+    buildGrassField(scene, spots, mat);
   }
   return { mesh: im, U: mat.uniforms };
 }
@@ -614,61 +619,19 @@ function buildFireflies(scene) {
   p.frustumCulled = false; scene.add(p); return p;
 }
 
-// ---------------- town
-function house(scene, x, z, rot, wall, roof, s = 1, opts = {}) {
-  const g = grp(scene, [x, groundY(x, z), z], [0, rot, 0]); g.scale.setScalar(s);
-  part(GEO.box, M(0x8a7f74), g, [0, 0.2, 0], [5.4, 0.4, 4.6]);
-  part(GEO.box, M(wall), g, [0, 2.0, 0], [5, 3.4, 4.2]);
-  for (const sx of [-1, 1]) part(GEO.box, M(0x7a5236), g, [sx * 2.5, 2.0, 2.1], [0.3, 3.4, 0.3]);
-  const rf = part(new THREE.ConeGeometry(4.1, 2.6, 4), M(roof), g, [0, 5.0, 0], [1.05, 1, 0.92], [0, Math.PI / 4, 0]);
-  rf.userData.noOl = true;
-  part(GEO.box, M(0x5a3b26), g, [0, 1.25, 2.12], [1.1, 2.1, 0.12]);
-  part(GEO.sphere, E(0xffd27a, 2), g, [0.38, 1.25, 2.2], 0.06);
-  for (const sx of [-1.6, 1.6]) { part(GEO.box, E(0xffc46b, 1.7), g, [sx, 2.4, 2.12], [0.8, 0.8, 0.08]); part(GEO.box, M(0x5a3b26), g, [sx, 2.4, 2.15], [0.9, 0.08, 0.06]); }
-  part(GEO.box, E(0xffc46b, 1.5), g, [2.52, 2.4, 0], [0.08, 0.8, 0.9]);
-  part(GEO.box, M(0x9a8f88), g, [1.4, 5.4, -0.8], [0.6, 1.6, 0.6]);
-  if (opts.crystal) {
-    const c = part(GEO.octa, E(0x8ff3ff, 2.6), g, [0, 7.4, 0], [0.45, 0.8, 0.45]);
-    World.spinners.push(c);
-    part(GEO.box, E(0x8ff3ff, 1.6), g, [0, 3.95, 2.13], [1.6, 0.35, 0.08]);
-  }
-  g.traverse((o) => { if (o.isMesh && !o.material.isMeshBasicMaterial) { o.castShadow = true; o.receiveShadow = true; } });
-  World.colliders.push({ x, z, r: 3.2 * s });
-  // extra colliders along the long side
-  const cs = Math.cos(rot), sn = Math.sin(rot);
-  for (const off of [-1.8, 1.8]) World.colliders.push({ x: x + cs * off * s, z: z - sn * off * s, r: 2.4 * s });
-  return g;
-}
-function lantern(scene, x, z) {
-  const y = groundY(x, z);
-  const g = grp(scene, [x, y, z]);
-  part(GEO.cyl, M(0x3a3046), g, [0, 1.2, 0], [0.07, 2.4, 0.07]);
-  part(GEO.box, M(0x3a3046), g, [0, 2.45, 0], [0.42, 0.06, 0.42]);
-  part(GEO.sphere, E(0xffcf8a, 3), g, [0, 2.2, 0], 0.17);
-  part(GEO.cone4, M(0x3a3046), g, [0, 2.62, 0], [0.32, 0.3, 0.32], [0, Math.PI / 4, 0]);
-  World.colliders.push({ x, z, r: 0.3 });
-}
+// ---------------- town (cottages, lanterns, plaza and fountain live in 03b_town.js)
 function buildTown(scene) {
   World.spinners = [];
+  TownKit = StaticKit(); TownSmoke = [];
   const T = SITES.town;
-  World.healHouse = house(scene, T.x - 13, T.z - 3, Math.PI / 2, 0xf3e6d2, 0x4e5aa8, 1, { crystal: true });
-  house(scene, T.x + 13, T.z - 4, -Math.PI / 2, 0xf0dcc8, 0xc4584a, 0.95);
-  house(scene, T.x - 12, T.z + 11, Math.PI * 0.85, 0xe8e0d0, 0x4f8a5a, 0.9);
-  house(scene, T.x + 12, T.z + 10, -Math.PI * 0.85, 0xf3e6d2, 0x8a5aa8, 0.9);
-  house(scene, T.x + 10, T.z - 15, -Math.PI * 0.2, 0xe8e0d0, 0xc4584a, 0.85);
-  // fountain of healing
-  const fy = groundY(T.x, T.z);
-  const f = grp(scene, [T.x, fy, T.z]);
-  part(GEO.cyl, M(0xb8b0a8), f, [0, 0.3, 0], [2.4, 0.6, 2.4]);
-  part(GEO.cyl, M(0xa29a92), f, [0, 0.62, 0], [2.5, 0.12, 2.5]);
-  part(GEO.circle, E(0x5fd8ff, 1.15), f, [0, 0.58, 0], 2.15, [-Math.PI / 2, 0, 0]);
-  part(GEO.cyl, M(0xb8b0a8), f, [0, 1.1, 0], [0.35, 1.2, 0.35]);
-  const cr = part(GEO.octa, E(0x8ff3ff, 3), f, [0, 2.4, 0], [0.42, 0.75, 0.42]);
-  World.spinners.push(cr); World.fountainCrystal = cr;
-  f.traverse((o) => { if (o.isMesh && !o.material.isMeshBasicMaterial) { o.castShadow = true; o.receiveShadow = true; } });
-  World.colliders.push({ x: T.x, z: T.z, r: 2.6 });
-  World.fountain = f;
-  const pl = new THREE.PointLight(0x8ff3ff, 18, 16, 1.6); pl.position.set(T.x, fy + 2.6, T.z); scene.add(pl);
+  house(scene, T.x - 13, T.z - 3, Math.PI / 2, 0xf3e6d2, 0x4e5aa8, 1, { crystal: true, shutter: 0x3f6aa8 });
+  house(scene, T.x + 13, T.z - 4, -Math.PI / 2, 0xf0dcc8, 0xc4584a, 0.95, { shutter: 0x4f7a5a });
+  house(scene, T.x - 12, T.z + 11, Math.PI * 0.85, 0xe8e0d0, 0x4f8a5a, 0.9, { shutter: 0x9a5a3a });
+  house(scene, T.x + 12, T.z + 10, -Math.PI * 0.85, 0xf3e6d2, 0x8a5aa8, 0.9, { shutter: 0x3f6aa8 });
+  house(scene, T.x + 10, T.z - 15, -Math.PI * 0.2, 0xe8e0d0, 0xc4584a, 0.85, { shutter: 0x4f7a5a });
+  const { f, cr } = buildFountain(scene);
+  World.spinners.push(cr); World.fountainCrystal = cr; World.fountain = f;
+  buildPlaza(scene);
   // lanterns along the paths
   for (const P of PATHS) for (let i = 0; i < P.length - 1; i++) {
     const [ax, az] = P[i], [bx, bz] = P[i + 1], L = Math.hypot(bx - ax, bz - az), n = Math.floor(L / 13);
@@ -679,6 +642,8 @@ function buildTown(scene) {
       lantern(scene, lx, lz);
     }
   }
+  TownKit.build(scene);
+  World.smoke = buildSmoke(scene, TownSmoke);
   // starter pedestals
   World.pedestals = [];
   [[-3.4, 57.6], [0, 58.4], [3.4, 57.6]].forEach(([x, z], i) => {
@@ -712,10 +677,19 @@ function buildAltar(scene) {
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2 + 0.2, broken = i % 3 === 1;
     const h = broken ? 2.2 : 5.2;
-    part(GEO.cyl, ST, g, [Math.cos(a) * 7.2, h / 2 + 0.4, Math.sin(a) * 7.2], [0.5, h, 0.5]);
-    part(GEO.box, ST2, g, [Math.cos(a) * 7.2, 0.6, Math.sin(a) * 7.2], [1.3, 0.4, 1.3], [0, -a, 0]);
-    if (!broken) part(GEO.box, ST2, g, [Math.cos(a) * 7.2, h + 0.55, Math.sin(a) * 7.2], [1.2, 0.35, 1.2], [0, -a, 0]);
-    else part(GEO.cyl, ST, g, [Math.cos(a) * 7.2, h + 2.2, Math.sin(a) * 7.2], [0.5, 1.2, 0.5], [0.3, 0, 0.2]);
+    const cx = Math.cos(a) * 7.2, cz = Math.sin(a) * 7.2, COL = texMat('plaster', 0xcfc8de);
+    part(flutedColumnGeo(), COL, g, [cx, h / 2 + 0.4, cz], [0.5, h, 0.5]).receiveShadow = true;
+    part(GEO.box, ST2, g, [cx, 0.6, cz], [1.3, 0.4, 1.3], [0, -a, 0]);
+    part(GEO.torusFat, ST, g, [cx, 0.86, cz], [0.5, 0.5, 0.42], [Math.PI / 2, 0, 0]);
+    if (!broken) {
+      part(GEO.torusFat, ST, g, [cx, h + 0.22, cz], [0.47, 0.47, 0.36], [Math.PI / 2, 0, 0]);
+      part(new THREE.CylinderGeometry(1, 0.62, 1, 24), ST, g, [cx, h + 0.36, cz], [0.62, 0.3, 0.62]);
+      part(GEO.box, ST2, g, [cx, h + 0.62, cz], [1.25, 0.24, 1.25], [0, -a, 0]);
+    } else {
+      // jagged break and a levitating drum held by the rift
+      part(GEO.cone6, ST, g, [cx, h + 0.55, cz], [0.42, 0.5, 0.42], [0.2, a, 0.1]);
+      part(flutedColumnGeo(), COL, g, [cx, h + 2.2, cz], [0.5, 1.2, 0.5], [0.3, 0, 0.2]);
+    }
     World.colliders.push({ x: A.x + Math.cos(a) * 7.2, z: A.z + Math.sin(a) * 7.2, r: 0.75 });
   }
   World.colliders.push({ x: A.x, z: A.z, r: 1.4 });
@@ -723,7 +697,7 @@ function buildAltar(scene) {
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2, R = 10 + (i % 3) * 2;
     const rk = grp(fl, [Math.cos(a) * R, 5 + (i % 3) * 2.5, Math.sin(a) * R]);
-    part(GEO.dodeca, M(0x8e88a0), rk, [0, 0, 0], [0.9, 0.6, 0.8]);
+    part(rockGeometry(i), rockMaterial(), rk, [0, 0, 0], [1.1, 0.95, 1.0], [Math.PI, i, 0]);
     part(GEO.cone6, E(0xb48cff, 1.8), rk, [0, -0.7, 0], [0.18, 0.7, 0.18], [Math.PI, 0, 0]);
     rk.userData.ph = i;
   }
@@ -835,12 +809,12 @@ function buildMarker(color) {
 function refreshMarkers() {
   for (const m of World.markers) World.scene.remove(m.g);
   World.markers = [];
-  const add = (x, z, y, color) => { const g = buildMarker(color); g.position.set(x, y, z); World.markers.push({ g, y }); };
-  if (!S.party.length) { add(0, 55, groundY(0, 55) + 4.2, 0xffd98a); return; }
-  for (const r of SITES.rifts) if (!S.flags['closed_' + r.id]) add(r.x, r.z, groundY(r.x, r.z) + 12, 0xc77dff);
-  if (fragCount() >= 3 && !S.flags.ending) add(SITES.altar.x, SITES.altar.z, World.altarY + 9, 0xffd98a);
+  const add = (x, z, y, color, label) => { const g = buildMarker(color); g.position.set(x, y, z); World.markers.push({ g, y, x, z, color, label }); };
+  if (!S.party.length) { add(0, 55, groundY(0, 55) + 4.2, 0xffd98a, '장로 무연'); return; }
+  for (const r of SITES.rifts) if (!S.flags['closed_' + r.id]) add(r.x, r.z, groundY(r.x, r.z) + 12, 0xc77dff, r.name);
+  if (fragCount() >= 3 && !S.flags.ending) add(SITES.altar.x, SITES.altar.z, World.altarY + 9, 0xffd98a, '근원의 제단');
   const LC = { asterion: 0x8fe0ff, abyssea: 0x4ff0ff, danha: 0xffa860, limina: 0xffffff };
-  for (const sp in LC) if (legendPresent(sp)) { const st = World.legendSites[sp]; add(st.x, st.z, st.y + 9, LC[sp]); }
+  for (const sp in LC) if (legendPresent(sp)) { const st = World.legendSites[sp]; add(st.x, st.z, st.y + 9, LC[sp], st.name); }
 }
 
 // ---------------- camera
@@ -862,6 +836,7 @@ function updateWorld(dt, controllable) {
     W.camDist = clamp(W.camDist + Input.zoom, 6.5, 19); Input.zoom = 0;
     if (Input.keys.KeyQ) W.camYaw += dt * 1.8; if (Input.keys.KeyR) W.camYaw -= dt * 1.8;
     const mag = Math.hypot(ax.x, ax.y);
+    W.sprint = !!ax.run && mag > 0.5;
     if (mag > 0.08) {
       const fx = -Math.sin(W.camYaw), fz = -Math.cos(W.camYaw), rx = Math.cos(W.camYaw), rz = -Math.sin(W.camYaw);
       let dx = rx * ax.x + fx * ax.y, dz = rz * ax.x + fz * ax.y; const l = Math.hypot(dx, dz); dx /= l; dz /= l;
@@ -873,11 +848,17 @@ function updateWorld(dt, controllable) {
       P.root.rotation.y = dampAngle(P.root.rotation.y, Math.atan2(dx, dz), 14, dt);
       moving = clamp(moved / dt / 6, 0, 1.4);
       W.stepAcc = (W.stepAcc || 0) + moved;
-      if (W.stepAcc > (ax.run ? 2.4 : 1.7)) { W.stepAcc = 0; Snd.fx('step'); }
+      if (W.stepAcc > (ax.run ? 2.4 : 1.7)) {
+        W.stepAcc = 0; Snd.fx('step');
+        if (ax.run && mag > 0.5) W.dust.emit(p, 3, { speed: 0.9, size: 0.55, life: 0.8, spread: 0.2, vx: -dx * 1.2, vz: -dz * 1.2, up: 0.5, alpha: 0.42 });
+      }
       onPlayerMoved(moved);
     }
   } else { Input.dragDX = 0; Input.zoom = 0; }
   P.moving = damp(P.moving, moving, 10, dt);
+  // speed feel: the lens widens a touch while sprinting
+  const fovT = 52 + (W.sprint && moving > 0.8 ? 5 : 0);
+  if (Math.abs(W.camera.fov - fovT) > 0.01) { W.camera.fov = damp(W.camera.fov, fovT, 3.5, dt); W.camera.updateProjectionMatrix(); }
   P.root.position.y = damp(P.root.position.y, groundY(P.root.position.x, P.root.position.z), 20, dt);
   rigUpdate(P, dt);
 
@@ -909,7 +890,7 @@ function updateWorld(dt, controllable) {
 
   // props
   for (const s of W.spinners) s.rotation.y += dt * 1.2;
-  if (W.fountainCrystal) W.fountainCrystal.position.y = 2.4 + Math.sin(W.t * 2) * 0.15;
+  if (W.fountainCrystal) W.fountainCrystal.position.y = 2.9 + Math.sin(W.t * 2) * 0.15;
   for (const id in W.rifts) {
     const o = W.rifts[id];
     o.tear.rotation.y = Math.atan2(W.camera.position.x - o.g.position.x, W.camera.position.z - o.g.position.z);
@@ -924,7 +905,7 @@ function updateWorld(dt, controllable) {
   W.grass.U.uPlayer.value.copy(P.root.position);
   W.heal = damp(W.heal, W.healTarget, 1.2, dt); W.dawn = damp(W.dawn, W.dawnTarget, 0.6, dt);
   applyAtmos();
-  W.fx.update(dt);
+  W.fx.update(dt); W.dust.update(dt);
 
   // camera
   const p = P.root.position;
@@ -1033,8 +1014,8 @@ function buildLegendSites() {
   W.colliders.push({ x: hill.x, z: hill.z, r: 1.2 });
   // the whale rock on the west cliff
   const wr = grp(W.scene, [west.x + 6.5, groundY(west.x + 6.5, west.z + 2.5), west.z + 2.5]);
-  part(GEO.dodeca, M(0x6f6a78), wr, [0, 0.9, 0], [1.6, 1.2, 1.1]);
-  part(GEO.dodeca, M(0x7f7a88), wr, [0.9, 1.9, 0.2], [0.8, 0.7, 0.7]);
+  part(rockGeometry(2), rockMaterial(), wr, [0, 0.35, 0], [2.0, 2.2, 1.5], [0, 0.6, 0]).receiveShadow = true;
+  part(rockGeometry(4), rockMaterial(), wr, [0.9, 1.75, 0.2], [1.0, 1.2, 0.9], [0, 2.1, 0]).receiveShadow = true;
   part(GEO.cone6, E(0x5ff4ff, 1.6), wr, [-0.6, 2.0, 0.3], [0.15, 0.5, 0.15]);
   W.colliders.push({ x: west.x + 6.5, z: west.z + 2.5, r: 1.8 });
   W.legends = {};
