@@ -234,3 +234,7 @@ class Puffs {
     this.g.attributes.position.needsUpdate = true; this.g.attributes.sa.needsUpdate = true;
   }
 }
+
+// ---------------- hooks called from 03_world.js (buildWorld / updateWorld)
+function buildNatureExtras(scene) {}
+function updateNatureExtras(dt) {}

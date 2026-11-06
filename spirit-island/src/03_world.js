@@ -198,6 +198,7 @@ function buildWorld() {
   // ---------------- vegetation & props
   buildTrees(scene);
   buildRocksAndFlowers(scene);
+  buildNatureExtras(scene);          // 03c_nature.js: extra props/animated life (ferns, logs, butterflies...)
   W.grass = buildGrass(scene, ZONES);
   W.fireflies = buildFireflies(scene);
   buildTown(scene);
@@ -642,6 +643,7 @@ function buildTown(scene) {
       lantern(scene, lx, lz);
     }
   }
+  buildTownExtras(scene, TownKit);    // 03b_town.js: extra village props merged into the same kit
   TownKit.build(scene);
   World.smoke = buildSmoke(scene, TownSmoke);
   // starter pedestals
@@ -910,6 +912,8 @@ function updateWorld(dt, controllable) {
   W.heal = damp(W.heal, W.healTarget, 1.2, dt); W.dawn = damp(W.dawn, W.dawnTarget, 0.6, dt);
   applyAtmos();
   W.fx.update(dt); W.dust.update(dt);
+  updateNatureExtras(dt);             // 03c_nature.js
+  updateTownExtras(dt);               // 03b_town.js
 
   // camera
   const p = P.root.position;

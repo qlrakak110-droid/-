@@ -460,3 +460,8 @@ function flutedColumnGeo() {
   g.computeVertexNormals();
   return (_fluted = g);
 }
+
+// ---------------- hooks called from 03_world.js (buildTown / updateWorld)
+// buildTownExtras(scene, K): add more village props; static parts go into K (StaticKit, base must be set by you), animated parts to the scene
+function buildTownExtras(scene, K) {}
+function updateTownExtras(dt) {}
