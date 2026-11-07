@@ -97,7 +97,9 @@ bloomPass.materialHighPassFilter.fragmentShader = `uniform sampler2D tDiffuse; u
     // the blend uses this alpha as a weight: keep it a tight mask around the threshold so broad mid-bright areas
     // (sky, pale stone) never amplify nearby glows into a wash
     float a = smoothstep(luminosityThreshold - knee * 0.25, luminosityThreshold + knee * 0.5, br);
-    gl_FragColor = vec4(c * w, a);
+    // soft-compress very hot sources (lit-up stone, big emissive columns) so one object can't flood the frame
+    vec3 cw = c * w; cw /= 1.0 + max(cw.r, max(cw.g, cw.b)) * 0.25;
+    gl_FragColor = vec4(cw, a);
   }`;
 bloomPass.materialHighPassFilter.needsUpdate = true;
 composer.addPass(bloomPass);
@@ -111,8 +113,8 @@ THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars
     vec3 g = sqrt( ACESFilmicToneMapping( color ) );
     float L = dot( g, vec3( 0.299, 0.587, 0.114 ) );
     float sat = max( g.r, max( g.g, g.b ) ) - min( g.r, min( g.g, g.b ) );
-    g = clamp( mix( vec3( L ), g, 1.06 + 0.22 * ( 1.0 - smoothstep( 0.05, 0.55, sat ) ) * smoothstep( 0.02, 0.2, L ) ), 0.0, 1.0 );
-    g += 0.26 * g * ( 1.0 - g ) * ( 2.0 * g - 1.0 );
+    g = clamp( mix( vec3( L ), g, 1.02 + 0.16 * ( 1.0 - smoothstep( 0.05, 0.55, sat ) ) * smoothstep( 0.02, 0.2, L ) ), 0.0, 1.0 );
+    g += 0.22 * g * ( 1.0 - g ) * ( 2.0 * g - 1.0 );
     float L2 = dot( g, vec3( 0.299, 0.587, 0.114 ) );
     g += vec3( -0.006, 0.004, 0.022 ) * ( 1.0 - smoothstep( 0.04, 0.5, L2 ) );
     g *= 1.0 + vec3( 0.05, 0.016, -0.045 ) * smoothstep( 0.42, 0.95, L2 );
@@ -133,9 +135,9 @@ const Post = {
     uFlare: { value: 1 },
   },
   presets: {
-    world:  { con: 0.28, vib: 0.22, sat: 1.05, vig: 0.3,  warm: [0.05, 0.016, -0.045], cool: [-0.006, 0.004, 0.024], lift: [0.01, 0.0, 0.024], flare: 1.0, bloom: 0.95, thr: 0.95, knee: 0.55, tint: [1.0, 0.93, 0.82] },
-    battle: { con: 0.33, vib: 0.26, sat: 1.07, vig: 0.34, warm: [0.055, 0.018, -0.05], cool: [-0.008, 0.004, 0.03], lift: [0.01, 0.0, 0.026], flare: 0.85, bloom: 1.0, thr: 0.92, knee: 0.55, tint: [1.0, 0.95, 0.86] },
-    legend: { con: 0.36, vib: 0.18, sat: 1.04, vig: 0.42, warm: [0.04, 0.012, -0.035], cool: [-0.006, 0.006, 0.034], lift: [0.012, 0.004, 0.03], flare: 0.9, bloom: 1.05, thr: 0.9, knee: 0.55, tint: [1.0, 0.97, 0.94] },
+    world:  { con: 0.28, vib: 0.22, sat: 1.05, vig: 0.3,  warm: [0.05, 0.016, -0.045], cool: [-0.006, 0.004, 0.024], lift: [0.01, 0.0, 0.024], flare: 1.0, bloom: 1.05, thr: 0.95, knee: 0.55, tint: [1.0, 0.93, 0.82] },
+    battle: { con: 0.33, vib: 0.26, sat: 1.07, vig: 0.34, warm: [0.055, 0.018, -0.05], cool: [-0.008, 0.004, 0.03], lift: [0.01, 0.0, 0.026], flare: 0.85, bloom: 1.1, thr: 0.92, knee: 0.55, tint: [1.0, 0.95, 0.86] },
+    legend: { con: 0.36, vib: 0.18, sat: 1.04, vig: 0.42, warm: [0.04, 0.012, -0.035], cool: [-0.006, 0.006, 0.034], lift: [0.012, 0.004, 0.03], flare: 0.9, bloom: 1.15, thr: 0.9, knee: 0.55, tint: [1.0, 0.97, 0.94] },
   },
   // per-arena accents layered on the legend look
   themes: {
@@ -200,10 +202,10 @@ const finalPass = new ShaderPass(new THREE.ShaderMaterial({
         vec2 dl = (uv - uSun.xy) / 30.0; vec2 sp = uv; float decay = 1.0; vec3 acc = vec3(0.0);
         for (int i = 0; i < 30; i++) {
           sp -= dl; vec3 s = texture2D(tDiffuse, clamp(sp, 0.001, 0.999)).rgb;
-          float near = 1.0 - smoothstep(0.06, 0.62, length((sp - uSun.xy) * vec2(asp0, 1.0)));
-          acc += s * max(luma(s) - 0.68, 0.0) * near * decay; decay *= 0.962;
+          float near = 1.0 - smoothstep(0.03, 0.32, length((sp - uSun.xy) * vec2(asp0, 1.0)));
+          acc += s * max(luma(s) - 0.74, 0.0) * near * decay; decay *= 0.962;
         }
-        col += acc * uSun.z * 0.1 * vec3(1.0, 0.84, 0.66);
+        col += acc * uSun.z * 0.11 * vec3(1.0, 0.84, 0.66);
         // procedural lens flare: only while the sun disc itself is on screen and not hidden behind something
         vec2 ndc = uSun.xy * 2.0 - 1.0;
         float onS = 1.0 - smoothstep(0.92, 1.1, max(abs(ndc.x), abs(ndc.y)));

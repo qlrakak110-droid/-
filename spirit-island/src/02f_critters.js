@@ -548,7 +548,7 @@ MODELS.supppul = (r) => fawnModel(r, 2);
 // ---------------- 찌릿파리 : storm jelly — glassy bell, glowing lightning band, frilled rim, trailing tendrils
 MODELS.jjirit = (r) => {
   const D = critter('jelly', () => {
-    const K = critterKit(), Y = 0xffc834, Y2 = 0xf5a020;
+    const K = critterKit(), Y = 0xf2b428, Y2 = 0xe8901a;
     K.el([0, 0.05, 0], [0.5, 0.46, 0.5], Y, { k: 0.08 });
     K.el([0, 0.3, 0], [0.32, 0.22, 0.32], 0xfff09a, { k: 0.12 });
     K.sub([0, -0.36, 0], [0.62, 0.36, 0.62], 0.09);
@@ -570,7 +570,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.08, fuzz: 0.0, rimAmt: 0.4, rim: 0xfff2a0, env: 0.4, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.05, fuzz: 0.0, rimAmt: 0.28, rim: 0xfff2a0, env: 0.35, glow: 0xfff3a0, glowAmt: 2.4 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -598,6 +598,7 @@ MODELS.bawimong = (r) => {
     K.el([0, 0.58, 0.27], [0.33, 0.28, 0.2], RK2, { k: 0.08, nz: 0.025, nf: 8, s0: 1, s1: 1 });
     K.el([0, 0.75, 0.37], [0.34, 0.07, 0.11], RK3, { k: 0.06, nz: 0.03, nf: 9, s0: 1, s1: 1 });
     K.el([0.05, 0.98, -0.02], [0.3, 0.08, 0.26], MS, { k: 0.06, nz: 0.035, nf: 11 });
+    for (const sx of [-1, 1]) K.sub([sx * 0.155, 0.612, 0.5], [0.088, 0.078, 0.07], 0.035);
     for (const sx of [-1, 1]) {
       K.el([sx * 0.47, 0.8, -0.04], [0.22, 0.2, 0.22], RK, { k: 0.08, nz: 0.06, nf: 6 });
       K.rc([sx * 0.55, 0.66, 0.04], [sx * 0.62, 0.3, 0.16], 0.16, 0.13, RK, { k: 0.08, nz: 0.04, nf: 7, leg: sx });
@@ -615,7 +616,7 @@ MODELS.bawimong = (r) => {
       tintV(v, cWarm, sst(0.55, 0.8, vn3js(v.x * 2.5 + 3, v.y * 2.5, v.z * 2.5 + 8)) * 0.35);
       // moss creeping over the top
       const mn = vn3js(v.x * 6 + 1, v.y * 6, v.z * 6 + 4);
-      if (v.ny > 0.25 && v.y > 0.72) { const m = sst(0.25, 0.6, v.ny) * sst(0.4, 0.55, mn + (v.y - 0.8)); tintV(v, mn > 0.55 ? cMoss : cMoss2, m); }
+      if (v.ny > 0.2 && v.y > 0.7) { const m = sst(0.2, 0.65, v.ny) * sst(0.3, 0.62, mn + (v.y - 0.8)); tintV(v, cMoss2, m); tintV(v, cMoss, m * sst(0.4, 0.75, vn3js(v.x * 14, v.y * 14, v.z * 14 + 2))); }
       // purple crystal veins cracking through the back and shoulders
       if (v.z < 0.25 || Math.abs(v.x) > 0.35) {
         const vn = Math.abs(vn3js(v.x * 5.5 + 7, v.y * 5.5 + 2, v.z * 5.5) - 0.5);
@@ -625,7 +626,7 @@ MODELS.bawimong = (r) => {
     };
     const face = { mouth: [0, 0.47, 0.42, 0.07], mouthK: 2, line: 0x1e1a24, blush: [0.21, 0.52, 0.38, 0.06], blushCol: 0xc88a9a, hatch: 0 };
     return { prims: K.prims, bounds: [-0.95, -0.05, -0.7, 0.95, 1.2, 0.75], hipY: 0.3, height: 1.3, stride: 0.08, paint, face,
-      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.155, 0.615, 0.435], r: 0.09, yaw: sx * 0.26 })) };
+      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.155, 0.612, 0.425], r: 0.088, yaw: sx * 0.24 })) };
   });
   const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0xa98bff, lash: 0x14101c, sway: 0.15,
     eye: { open: 0.66, tilt: -0.04, wing: 0.15, irisR: 0.62 },
