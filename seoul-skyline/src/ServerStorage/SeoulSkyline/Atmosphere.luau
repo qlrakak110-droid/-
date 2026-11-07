@@ -43,7 +43,7 @@ function Atmosphere.apply()
 	local atm = replace(Lighting, "Atmosphere", "DuskAtmosphere") :: Atmosphere
 	atm.Density = 0.11 -- 실제 스케일(거리 ×1.67)에 맞춘 값
 	atm.Offset = 0.25
-	atm.Color = rgb(228, 150, 108)
+	atm.Color = rgb(214, 146, 118)
 	atm.Decay = rgb(40, 88, 178)
 	atm.Glare = 0.9
 	atm.Haze = 1.0
@@ -77,8 +77,8 @@ function Atmosphere.apply()
 	local dof = replace(Lighting, "DepthOfFieldEffect", "DepthOfField") :: DepthOfFieldEffect
 	dof.Enabled = false -- 포토 스팟/인트로에서만 클라이언트가 켬
 	dof.FarIntensity = 0.08
-	dof.FocusDistance = 600
-	dof.InFocusRadius = 900
+	dof.FocusDistance = 200 -- Roblox 최대값
+	dof.InFocusRadius = 50 -- Roblox 최대값
 	dof.NearIntensity = 0
 	dof.Parent = Lighting
 

@@ -315,7 +315,7 @@ function Kit.reflection(parent: Instance, x: number, z: number, width: number, l
 	local base = math.clamp(transparency or 0.62, 0, 0.95)
 	local zMin, zMax = Config.FarBank.WaterEdge + 3, Config.NearBank.WaterEdge - 6
 	z = math.clamp(z, zMin, zMax)
-	local cam = Config.Viewpoint.HeroCamPos
+	local cam = Config.Viewpoint.ReflectionEye
 	local dir = Vector3.new(cam.X - x, 0, cam.Z - z)
 	if dir.Magnitude < 1 then
 		dir = Vector3.new(0, 0, 1)

@@ -286,7 +286,7 @@ function WaterFx.build(ctx: any)
 			table.insert(existing, { d.Position, (d.Size.X + d.Size.Z) / 2 })
 		end
 	end
-	local cam = Config.Viewpoint.HeroCamPos
+	local cam = Config.Viewpoint.ReflectionEye
 	local function clear(x: number, z: number, len: number, w: number): boolean
 		local a = Vector3.new(x, 0, z)
 		local dir = Vector3.new(cam.X - x, 0, cam.Z - z).Unit

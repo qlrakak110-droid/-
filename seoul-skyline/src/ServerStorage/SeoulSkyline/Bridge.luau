@@ -308,7 +308,7 @@ local function buildLampsAndPosts(parent: Instance, segs: { Seg }, total: number
 		end
 		-- 수면 위 가로등 쌍 → 짧은 반사 스트릭(카메라 쪽 서측 가장자리 앞)
 		if zLamp > F.WaterEdge + m(4) and zLamp < N.WaterEdge - m(10) then
-			Kit.reflection(reflParent, BX - EDGE_X + LAMP_ARM - m(1), zLamp + m(1), m(1.3), rng:NextNumber(m(35), m(58)), LAMP_REF, 0.76)
+			Kit.reflection(reflParent, BX - EDGE_X + LAMP_ARM - m(1), zLamp + m(1), m(1.3), rng:NextNumber(m(35), m(58)), LAMP_REF, 0.8)
 		end
 		s += LAMP_PITCH
 	end
@@ -388,7 +388,7 @@ local function buildPier(parent: Instance, reflParent: Instance, z: number, rng:
 	end
 
 	if isWater then
-		Kit.reflection(reflParent, BX - COL_X, z + FOOT_D / 2 + m(1), m(3.5), rng:NextNumber(m(65), m(100)), PIER_REF, 0.66)
+		Kit.reflection(reflParent, BX - COL_X, z + FOOT_D / 2 + m(1), m(3.5), rng:NextNumber(m(65), m(100)), PIER_REF, 0.74)
 	end
 end
 

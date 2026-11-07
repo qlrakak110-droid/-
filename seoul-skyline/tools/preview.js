@@ -34,7 +34,7 @@ for (let i = 0; i < args.length; i++) {
 
 // name -> "x,y,z:lx,ly,lz:fov"
 const SHOTS = {
-  hero: '133,342,1433:-200,383,-1667:62', // 사진 구도 (Config.Viewpoint)
+  hero: '240,342,1433:-170,250,-1667:62', // 사진 구도 (Config.Viewpoint)
   wide: '0,867,3500:-167,200,-2333:60',
   landmark: '-200,183,-933:-717,700,-1967:65', // 타워 + 몰 근경
   tower_top: '-433,1500,-1367:-717,1700,-1967:55',
@@ -164,6 +164,8 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
   });
   const ev = (c) => p.evaluate((c) => GW.engine.eval(c).then((r) => String(r)).catch((e) => 'ERR ' + e), c);
   console.log('inject map:', await ev(BUILD + `local t = ${toLuau(mapTree)} put(t, svc("ServerStorage")) return "ok"`));
+  // the local player may not exist yet right after boot: wait for its PlayerScripts before injecting client scripts
+  for (let i = 0; i < 120; i++) { const r = await ev(BUILD + `local ok; Sched.runIn(Env.serverCtx, function() ok = S.player ~= nil and S.player:FindFirstChildOfClass("PlayerScripts") ~= nil end) return tostring(ok)`); if (r === 'true') break; await p.waitForTimeout(500); }
   console.log('inject cam:', await ev(BUILD + `local ps; Sched.runIn(Env.serverCtx, function() ps = S.player:FindFirstChildOfClass("PlayerScripts") end)
     local ok, e = pcall(Insert.createScript, ps, "LocalScript", "PreviewCam", ${lstr(CAM_SCRIPT)}) return tostring(ok) .. tostring(e)`));
   const t0 = Date.now();

@@ -130,8 +130,10 @@ Config.Viewpoint = {
 	DeckCenter = Vector3.new(-67, 0, 1167), -- Y 는 Park 모듈이 DeckHeight 로 결정
 	DeckHeight = 200, -- 60 m 전망대
 	-- 히어로 카메라(사진 구도). 포토 스팟/인트로에서 사용.
-	HeroCamPos = Vector3.new(133, 342, 1433),
-	HeroCamLook = Vector3.new(-200, 383, -1667),
+	HeroCamPos = Vector3.new(240, 342, 1433),
+	HeroCamLook = Vector3.new(-170, 250, -1667),
+	-- 수면 반사 스트릭이 향하는 "눈" 위치(XZ): 대표 구도와 전망대(스폰) 시점의 중간 → 두 시점 모두에서 거의 세로로 보임
+	ReflectionEye = Vector3.new(90, 0, 1300),
 	HeroFov = 62,
 }
 

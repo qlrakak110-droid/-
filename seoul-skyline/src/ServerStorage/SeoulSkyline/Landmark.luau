@@ -541,7 +541,7 @@ end
 local REFL_Y = Config.Level.Water + 0.7 -- Kit.reflection(수면 +0.3) 위 0.4 → 겹치는 면 없음
 
 local function streak(m: Model, objX: number, objZ: number, z0: number, z1: number, width: number, c: Color3, tr: number, yOff: number)
-	local cam = Config.Viewpoint.HeroCamPos
+	local cam = Config.Viewpoint.ReflectionEye
 	local k = (objX - cam.X) / (objZ - cam.Z)
 	local zc = (z0 + z1) / 2
 	local xc = cam.X + (zc - cam.Z) * k
