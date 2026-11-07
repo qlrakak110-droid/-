@@ -280,13 +280,18 @@ def bake_colors(objs, occluders=None, rays=24, dist=1.4, strength=1.0, grime_fn=
             p = mw @ v.co
             if name in skip_ao: ao = 1.0
             else:
-                o0 = p + n * 0.006; hit = 0.0; tot = 0.0
+                o0 = p + n * 0.006; hit = 0.0; tot = 0.0; back = 0
                 for d in dirs:
                     if d.dot(n) < 0: d = -d
                     w = d.dot(n); tot += w
                     h = tree.ray_cast(o0, d, dist)
-                    if h[0] is not None: hit += w * (1 - (h[3] / dist) ** 1.5)
+                    if h[0] is None: continue
+                    if h[1].dot(d) > 0: back += 1; continue          # hit the inside of something: this vertex is embedded
+                    hit += w * (1 - (h[3] / dist) ** 1.5)
                 ao = max(0.0, min(1.0, 1 - strength * hit / max(tot, 1e-6)))
+                # embedded vertices (under a beam, inside the ground) only matter through the visible faces that share
+                # them: give them a moderate contact value instead of black, so darkness does not bleed along the face
+                if back > len(dirs) * 0.25: ao = min(ao, 0.72) if ao > 0.72 else max(ao, 0.6)
             g = grime_fn(Vector((p.x, p.z, -p.y)), name) if grime_fn else 0.0
             if cols[i][0] >= 0:
                 c = cols[i]; ca.data[i].color = (c[0] * (0.35 + 0.65 * ao), c[1] * (0.35 + 0.65 * ao), c[2] * (0.35 + 0.65 * ao), 1)

@@ -246,7 +246,7 @@ const ARCH_GLSL = `
 `;
 // material patch: COLOR_0 (AO, variation, grime) -> albedo variation, world-noise grime, AO on ambient (+ a little on direct)
 function archPatch(m, o = {}) {
-  const U = { uArchGrime: { value: new THREE.Color(o.grime ?? 0x5a4a3a) }, uArchVar: { value: o.vary ?? 0.24 }, uArchAO: { value: o.ao ?? 1 } };
+  const U = { uArchGrime: { value: new THREE.Color(o.grime ?? 0x5a4a3a) }, uArchVar: { value: o.vary ?? 0.24 }, uArchAO: { value: o.ao ?? 0.85 } };
   m.userData.archU = U; m.userData.archColor = true; m.vertexColors = true;
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -270,7 +270,7 @@ function archPatch(m, o = {}) {
         #endif`)
       .replace('#include <aomap_fragment>', `#include <aomap_fragment>
         reflectedLight.indirectDiffuse *= archAO; reflectedLight.indirectSpecular *= archAO;
-        reflectedLight.directDiffuse *= mix(1.0, archAO, 0.45);`);
+        reflectedLight.directDiffuse *= mix(1.0, archAO, 0.3);`);
   };
   m.customProgramCacheKey = () => 'arch1';
   return m;
@@ -669,10 +669,11 @@ function buildPlaza(scene) {
 function buildPlazaArch(scene) {
   const T = SITES.town, y = groundY(T.x, T.z), set = pbrSet('arch_cobble'), tx = townTextures();
   const rep = (t, k) => { const c = t.clone(); c.repeat.set(k, k); c.needsUpdate = true; return c; };
-  const R = 9.6, k = (R * 2) / 3.0;
-  const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2da, map: rep(set.albedo, k), normalMap: rep(set.normal, k), roughnessMap: rep(set.orm, k), aoMap: rep(set.orm, k), aoMapIntensity: 0.9,
-    normalScale: new THREE.Vector2(0.9, 0.9), alphaMap: tx.radial, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
-    envMapIntensity: typeof Lighting !== 'undefined' ? Lighting.envFor('ground') : 0.5 });
+  const R = 9.6, k = (R * 2) / 2.1;                      // one 3 m texture tile spread over 2.1 m: setts ~12 cm
+  const mat = new THREE.MeshStandardMaterial({ color: 0xe2dcd2, map: rep(set.albedo, k), normalMap: rep(set.normal, k), roughnessMap: rep(set.orm, k), aoMap: rep(set.orm, k), aoMapIntensity: 0.8,
+    normalScale: new THREE.Vector2(0.75, 0.75), roughness: 1.15, alphaMap: tx.radial, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
+    envMapIntensity: (typeof Lighting !== 'undefined' ? Lighting.envFor('ground') : 0.5) * 0.8 });
+  archPatch(mat, { grime: 0x4a3e32, vary: 0.3, ao: 0.6 });
   // ground-hugging disc: follows the terrain so the feathered edge never floats or cuts in
   const geo = new THREE.CircleGeometry(R, 96, 0, Math.PI * 2);
   const g2 = new THREE.RingGeometry(0.001, R, 96, 12); g2.rotateX(-Math.PI / 2);
@@ -680,6 +681,15 @@ function buildPlazaArch(scene) {
   for (let i = 0; i < pa.count; i++) pa.setY(i, groundY(T.x + pa.getX(i), T.z + pa.getZ(i)) - y + 0.03);
   g2.computeVertexNormals();
   const uv = g2.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, pa.getX(i) / (2 * R) + 0.5, -pa.getZ(i) / (2 * R) + 0.5);
+  // COLOR_0 for the architecture patch: darker, dirtier setts toward the kerb and in a damp ring around the basin
+  const col = new Float32Array(pa.count * 3);
+  for (let i = 0; i < pa.count; i++) {
+    const r = Math.hypot(pa.getX(i), pa.getZ(i));
+    col[i * 3] = 1 - 0.35 * smooth(3.6, 3.0, r);
+    col[i * 3 + 1] = 0.5 + 0.5 * Math.sin(pa.getX(i) * 0.7 + Math.cos(pa.getZ(i) * 0.5) * 2.0);
+    col[i * 3 + 2] = Math.max(smooth(6.5, 9.4, r) * 0.55, smooth(4.2, 3.0, r) * 0.45);
+  }
+  g2.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.dispose();
   const disc = new THREE.Mesh(g2, mat);
   disc.position.set(T.x, y, T.z); disc.receiveShadow = true; disc.renderOrder = -1; scene.add(disc);
@@ -841,4 +851,12 @@ function buildTownExtras(scene, K) {
   archBuildTiles(scene);
   window.__town = Object.assign({}, Arch.stats);
 }
-function updateTownExtras(dt) {}
+function updateTownExtras(dt) {
+  // candle-like flicker on the lantern glass (one shared material for every lantern in the village)
+  const g = Arch.mats.get('glow|');
+  if (g) {
+    Arch.t = (Arch.t || 0) + dt;
+    const t = Arch.t, f = 0.92 + 0.05 * Math.sin(t * 7.3) + 0.03 * Math.sin(t * 13.1 + 1.7) + 0.02 * Math.sin(t * 23.0);
+    g.color.setRGB(1.0, 0.7843, 0.5294).convertSRGBToLinear().multiplyScalar(2.6 * f);
+  }
+}
