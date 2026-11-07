@@ -523,7 +523,8 @@ function ppFace(K, S, C) {
     const c = ppV.add(base, ppV.mul(ax, (zs ?? 0.3 * u) - 0.8 * Rr));
     S.eyes.push({ s, c, yaw, R: Rr });
   }
-  for (const E of S.eyes) K.sub(E.c, [E.R * 1.15, E.R * 1.15, E.R * 1.15], E.R * 0.25);
+  // almond-wide, short socket: the face wraps tightly around the opening, the lid shells only fill the margin
+  for (const E of S.eyes) K.sub(ppV.add(E.c, [0, 0.04 * E.R, 0]), [E.R * 1.27, E.R * 0.84, E.R * 1.15], E.R * 0.2);
   return L;
 }
 
@@ -537,8 +538,8 @@ function ppTorso(K, S, o, col, opt = {}) {
   else if (!S.kid) for (const s of [-1, 1]) K.el([s * 0.19 * u, j.chest[1] + 0.12 * u, 0.1 * u], [0.2 * u + o, 0.16 * u + o, 0.13 * u + o], col, { k: 0.1 * u });
   for (const s of [-1, 1]) {
     const X = s > 0 ? 'L' : 'R';
-    K.rc([s * 0.13 * u, j.neck[1] - 0.04 * u, -0.07 * u], [s * (W.sh - 0.1) * u, S.shY + 0.0 * u, -0.05 * u], 0.12 * u + o, 0.18 * u + o, col, { k: 0.1 * u, ch: 'upper' });
-    K.el([s * (W.sh - 0.01) * u, S.shY - 0.05 * u, -0.03 * u], [0.18 * u + o, 0.2 * u + o, 0.19 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
+    K.rc([s * 0.13 * u, j.neck[1] - 0.02 * u, -0.07 * u], [s * (W.sh - 0.12) * u, S.shY - 0.05 * u, -0.05 * u], 0.12 * u + o, 0.16 * u + o, col, { k: 0.1 * u, ch: 'upper' });
+    K.el([s * (W.sh - 0.03) * u, S.shY - 0.11 * u, -0.03 * u], [0.17 * u + o, 0.19 * u + o, 0.18 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
   }
 }
 function ppSleeve(K, S, s, o, col, opt = {}) {
@@ -878,6 +879,11 @@ function ppOutfit(K, S, C) {
     post.push((F) => {
       const FJ = F('jacket'), out = [];
       out.push(...belt(FJ, j.spine[1] - 0.3 * u, ppLin(0x4a2e1e)));
+      // jacket fronts: trimmed edges running from the collar down the opening to the hem, flap pockets
+      for (const sd of [-1, 1]) {
+        out.push(ppDress(S, ppStrap(FJ, [[sd * 0.17 * u, j.neck[1] + 0.02 * u, 0.3 * u], [sd * 0.08 * u, j.chest[1] - 0.1 * u, 0.5 * u], [sd * 0.035 * u, j.spine[1] - 0.05 * u, 0.5 * u], [sd * 0.03 * u, (coat ? kneeY + 0.2 * u : hemY + 0.06 * u), 0.5 * u]], 0.032 * u, 0.012 * u, { stitch: true, n: 18 }), ppLin(C.trim), PP_M.cloth, 'torso', { stitch: true }));
+        out.push(ppDress(S, ppStrap(FJ, [[sd * 0.16 * u, j.hips[1] - 0.06 * u, 0.5 * u], [sd * 0.3 * u, j.hips[1] - 0.05 * u, 0.42 * u], [sd * 0.42 * u, j.hips[1] - 0.06 * u, 0.3 * u]], 0.05 * u, 0.014 * u, { stitch: true, n: 8 }), ppLin(ppHex(ppV.mul(ppLin(C.top), 0.72))), PP_M.cloth, 'torso', { stitch: true }));
+      }
       out.push(...cuffs(FJ, ppLin(C.trim), PP_M.cloth, (W.arm[3] + 0.09) * u));
       out.push(...bootCuffs(F('boots'), ppLin(dark(C.shoe, 1.25)), bootTop));
       if (!coat) {
@@ -965,12 +971,21 @@ function ppOutfit(K, S, C) {
       K.el([0, j.neck[1] + 0.05 * u, -0.2 * u], [0.46 * u, 0.36 * u, 0.4 * u], mc, { k: 0.12 * u });
       K.sub(ppV.add(S.hc, [0, -0.12 * u, 0.47 * u]), [0.37 * u, 0.53 * u, 0.44 * u], 0.05 * u);
       K.sub(ppV.add(S.hc, [0, -0.02 * u, -0.06 * u]), [0.4 * u, 0.48 * u, 0.48 * u], 0.03 * u);
+      K.rc(ppV.add(S.hc, [0, 0.3 * u, -0.4 * u]), ppV.add(S.hc, [0, 0.12 * u, -0.78 * u]), 0.2 * u, 0.04 * u, mc, { k: 0.1 * u });
     }
     post.push((F) => {
       const out = [], FJ = F('jacket');
       out.push(ppDress(S, ppRing(FJ, [0, j.spine[1] - 0.12 * u, 0], [0, 1, 0], (W.hip + (S.elder ? 0.42 : 0.28)) * u, 0.11 * u, 0.028 * u, { start: 1 }), ppLin(C.accent), PP_M.satin, 'torso'));
       out.push(ppDress(S, ppRing(FJ, [0, 0.2 * u, 0], [0, 1, 0], (W.hip + 0.7) * u, 0.06 * u, 0.018 * u, { stitch: true }), ppLin(C.accent), PP_M.satin, 'skirt', { stitch: true }));
+      const fy = j.spine[1] - 0.28 * u;
+      out.push(ppDress(S, ppStrap(FJ, [[0.14 * u, j.neck[1] + 0.02 * u, 0.3 * u], [0.06 * u, j.chest[1] - 0.05 * u, 0.6 * u], [0.0, fy, 0.7 * u]], 0.05 * u, 0.012 * u, { stitch: true, n: 12 }), ppLin(C.accent), PP_M.satin, 'torso', { stitch: true }));
+      out.push(ppDress(S, ppStrap(FJ, [[0.0, fy - 0.2 * u, 0.7 * u], [0.0, j.hips[1] - 0.6 * u, 0.9 * u], [0.0, 0.2 * u, 1.1 * u]], 0.06 * u, 0.012 * u, { stitch: true, n: 16 }), ppLin(C.accent), PP_M.satin, 'skirt', { stitch: true }));
       out.push(...cuffs(FJ, ppLin(C.accent), PP_M.satin, (W.arm[3] + 0.3) * u, { at: 0.82, hw: 0.055 * u }));
+      if (S.guard) {
+        const rim = [];
+        for (let i = 0; i <= 10; i++) { const a = (-105 + 210 * i / 10) * Math.PI / 180; rim.push(ppV.add(S.hc, [Math.sin(a) * 0.42 * u, -0.1 * u + Math.cos(a) * 0.55 * u, 0.32 * u])); }
+        out.push(ppDress(S, ppStrap(F('hood'), rim, 0.045 * u, 0.016 * u, { stitch: true, n: 20 }), ppLin(C.accent), PP_M.satin, 'neck', { stitch: true }));
+      }
       if (S.guard) out.push(ppDress(S, ppRing(F('mantle'), [0, S.shY - 0.4 * u, -0.03 * u], [0, 1, 0], (W.sh + 0.6) * u, 0.045 * u, 0.016 * u, { stitch: true }), ppLin(C.accent), PP_M.satin, 'upper', { stitch: true }));
       return out;
     });
@@ -1282,15 +1297,17 @@ function ppEyeMat(C, S, side) {
 function ppLids(S, C, E, side) {
   const R = E.R, NP = PP_HI() ? 16 : 11;
   const skin = ppLin(C.skin), lash = ppLin(0x1a1014), lid = ppV.mul(skin, 0.97), crease = ppV.mul(ppMixC(skin, ppLin(0x8a4a48), 0.18), 0.9), rim = ppMixC(skin, ppLin(0xc06a6a), 0.35), low = ppMixC(skin, ppLin(0x5a3a3a), 0.3);
-  const UP = [[0, 1.0, lash], [0.035, 1.06, lash], [0.12, 1.08, lash], [0.12, 1.08, lid], [0.3, 1.1, lid], [0.44, 1.075, crease], [0.6, 1.13, lid], [1.0, 1.32, lid]];
-  const LO = [[0, 1.0, rim], [-0.04, 1.05, low], [-0.1, 1.065, low], [-0.1, 1.065, skin], [-0.38, 1.1, skin], [-0.85, 1.3, skin]];
+  const UP = [[0, 1.0, lash, 0.15], [0.035, 1.06, lash, 0.2], [0.12, 1.08, lash, 0.35], [0.12, 1.08, lid, 0.5], [0.3, 1.1, lid, 0.8], [0.44, 1.075, crease, 0.85], [0.6, 1.13, lid, 1], [1.0, 1.32, lid, 1]];
+  const LO = [[0, 1.0, rim, 0.25], [-0.04, 1.05, low, 0.35], [-0.1, 1.065, low, 0.55], [-0.1, 1.065, skin, 0.7], [-0.38, 1.1, skin, 1], [-0.85, 1.3, skin, 1]];
   const rowsT = UP.length, rowsB = LO.length, nv = NP * (rowsT + rowsB);
-  const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = [];
+  const pos = new Float32Array(nv * 3), col = new Float32Array(nv * 3), idx = [], wN = new Float32Array(nv);
+  // shading normals of the lid skin blend into the face's smooth head-ellipsoid normals away from the lash line
+  const u = S.u, ec = ppV.add(S.hc, [0, -0.05 * u, -0.08 * u]), er = [0.34 * u, 0.5 * u, 0.44 * u], cy = Math.cos(E.yaw), sy = Math.sin(E.yaw);
   const ph0 = -1.25, ph1 = 1.32;
   let o = 0;
   for (const rows of [UP, LO]) {
     const rev = (rows === LO) !== (side < 0);
-    for (let r = 0; r < rows.length; r++) for (let k = 0; k < NP; k++) col.set(rows[r][2], (o + r * NP + k) * 3);
+    for (let r = 0; r < rows.length; r++) for (let k = 0; k < NP; k++) { col.set(rows[r][2], (o + r * NP + k) * 3); wN[o + r * NP + k] = rows[r][3] * 0.85; }
     for (let r = 0; r < rows.length - 1; r++) for (let k = 0; k < NP - 1; k++) {
       const a = o + r * NP + k, b = a + 1, c = a + NP + 1, d = a + NP;
       if (rev) idx.push(a, c, b, a, d, c); else idx.push(a, b, c, a, c, d);
@@ -1334,6 +1351,14 @@ function ppLids(S, C, E, side) {
     // normals must point away from the eyeball (checked once; both lids share one winding convention)
     let flip = 0; for (let i = 0; i < nv; i += 7) flip += n[i * 3] * pos[i * 3] + n[i * 3 + 1] * pos[i * 3 + 1] + n[i * 3 + 2] * pos[i * 3 + 2];
     if (flip < 0) { for (let i = 0; i < n.length; i++) n[i] = -n[i]; const I = g.index.array; for (let t = 0; t < I.length; t += 3) { const a = I[t + 1]; I[t + 1] = I[t + 2]; I[t + 2] = a; } g.index.needsUpdate = true; }
+    for (let i = 0; i < nv; i++) {
+      const lx = pos[i * 3], ly = pos[i * 3 + 1], lz = pos[i * 3 + 2];
+      const wx = E.c[0] + cy * lx + sy * lz, wy = E.c[1] + ly, wz = E.c[2] - sy * lx + cy * lz;
+      const ne = ppV.norm([(wx - ec[0]) / (er[0] * er[0]), (wy - ec[1]) / (er[1] * er[1]), (wz - ec[2]) / (er[2] * er[2])]);
+      const nl = [cy * ne[0] - sy * ne[2], ne[1], sy * ne[0] + cy * ne[2]], k = wN[i];
+      const m = ppV.norm([n[i * 3] + (nl[0] - n[i * 3]) * k, n[i * 3 + 1] + (nl[1] - n[i * 3 + 1]) * k, n[i * 3 + 2] + (nl[2] - n[i * 3 + 2]) * k]);
+      n[i * 3] = m[0]; n[i * 3 + 1] = m[1]; n[i * 3 + 2] = m[2];
+    }
   };
   L.update(0, 0, 0);
   return L;

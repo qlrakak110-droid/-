@@ -849,7 +849,7 @@ function buildTownExtras(scene, K) {
     }
   }
   archBuildTiles(scene);
-  window.__town = Object.assign({}, Arch.stats);
+  window.__town = Object.assign({ smoke: TownSmoke.length }, Arch.stats);
 }
 function updateTownExtras(dt) {
   // candle-like flicker on the lantern glass (one shared material for every lantern in the village)

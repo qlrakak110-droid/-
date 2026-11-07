@@ -5805,8 +5805,8 @@ function ppTorso(K, S, o, col, opt = {}) {
   else if (!S.kid) for (const s of [-1, 1]) K.el([s * 0.19 * u, j.chest[1] + 0.12 * u, 0.1 * u], [0.2 * u + o, 0.16 * u + o, 0.13 * u + o], col, { k: 0.1 * u });
   for (const s of [-1, 1]) {
     const X = s > 0 ? 'L' : 'R';
-    K.rc([s * 0.13 * u, j.neck[1] - 0.04 * u, -0.07 * u], [s * (W.sh - 0.1) * u, S.shY + 0.0 * u, -0.05 * u], 0.12 * u + o, 0.18 * u + o, col, { k: 0.1 * u, ch: 'upper' });
-    K.el([s * (W.sh - 0.01) * u, S.shY - 0.05 * u, -0.03 * u], [0.18 * u + o, 0.2 * u + o, 0.19 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
+    K.rc([s * 0.13 * u, j.neck[1] - 0.02 * u, -0.07 * u], [s * (W.sh - 0.12) * u, S.shY - 0.05 * u, -0.05 * u], 0.12 * u + o, 0.16 * u + o, col, { k: 0.1 * u, ch: 'upper' });
+    K.el([s * (W.sh - 0.03) * u, S.shY - 0.11 * u, -0.03 * u], [0.17 * u + o, 0.19 * u + o, 0.18 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
   }
 }
 function ppSleeve(K, S, s, o, col, opt = {}) {
@@ -6146,6 +6146,11 @@ function ppOutfit(K, S, C) {
     post.push((F) => {
       const FJ = F('jacket'), out = [];
       out.push(...belt(FJ, j.spine[1] - 0.3 * u, ppLin(0x4a2e1e)));
+      // jacket fronts: trimmed edges running from the collar down the opening to the hem, flap pockets
+      for (const sd of [-1, 1]) {
+        out.push(ppDress(S, ppStrap(FJ, [[sd * 0.17 * u, j.neck[1] + 0.02 * u, 0.3 * u], [sd * 0.08 * u, j.chest[1] - 0.1 * u, 0.5 * u], [sd * 0.035 * u, j.spine[1] - 0.05 * u, 0.5 * u], [sd * 0.03 * u, (coat ? kneeY + 0.2 * u : hemY + 0.06 * u), 0.5 * u]], 0.032 * u, 0.012 * u, { stitch: true, n: 18 }), ppLin(C.trim), PP_M.cloth, 'torso', { stitch: true }));
+        out.push(ppDress(S, ppStrap(FJ, [[sd * 0.16 * u, j.hips[1] - 0.06 * u, 0.5 * u], [sd * 0.3 * u, j.hips[1] - 0.05 * u, 0.42 * u], [sd * 0.42 * u, j.hips[1] - 0.06 * u, 0.3 * u]], 0.05 * u, 0.014 * u, { stitch: true, n: 8 }), ppLin(ppHex(ppV.mul(ppLin(C.top), 0.72))), PP_M.cloth, 'torso', { stitch: true }));
+      }
       out.push(...cuffs(FJ, ppLin(C.trim), PP_M.cloth, (W.arm[3] + 0.09) * u));
       out.push(...bootCuffs(F('boots'), ppLin(dark(C.shoe, 1.25)), bootTop));
       if (!coat) {
@@ -6233,12 +6238,21 @@ function ppOutfit(K, S, C) {
       K.el([0, j.neck[1] + 0.05 * u, -0.2 * u], [0.46 * u, 0.36 * u, 0.4 * u], mc, { k: 0.12 * u });
       K.sub(ppV.add(S.hc, [0, -0.12 * u, 0.47 * u]), [0.37 * u, 0.53 * u, 0.44 * u], 0.05 * u);
       K.sub(ppV.add(S.hc, [0, -0.02 * u, -0.06 * u]), [0.4 * u, 0.48 * u, 0.48 * u], 0.03 * u);
+      K.rc(ppV.add(S.hc, [0, 0.3 * u, -0.4 * u]), ppV.add(S.hc, [0, 0.12 * u, -0.78 * u]), 0.2 * u, 0.04 * u, mc, { k: 0.1 * u });
     }
     post.push((F) => {
       const out = [], FJ = F('jacket');
       out.push(ppDress(S, ppRing(FJ, [0, j.spine[1] - 0.12 * u, 0], [0, 1, 0], (W.hip + (S.elder ? 0.42 : 0.28)) * u, 0.11 * u, 0.028 * u, { start: 1 }), ppLin(C.accent), PP_M.satin, 'torso'));
       out.push(ppDress(S, ppRing(FJ, [0, 0.2 * u, 0], [0, 1, 0], (W.hip + 0.7) * u, 0.06 * u, 0.018 * u, { stitch: true }), ppLin(C.accent), PP_M.satin, 'skirt', { stitch: true }));
+      const fy = j.spine[1] - 0.28 * u;
+      out.push(ppDress(S, ppStrap(FJ, [[0.14 * u, j.neck[1] + 0.02 * u, 0.3 * u], [0.06 * u, j.chest[1] - 0.05 * u, 0.6 * u], [0.0, fy, 0.7 * u]], 0.05 * u, 0.012 * u, { stitch: true, n: 12 }), ppLin(C.accent), PP_M.satin, 'torso', { stitch: true }));
+      out.push(ppDress(S, ppStrap(FJ, [[0.0, fy - 0.2 * u, 0.7 * u], [0.0, j.hips[1] - 0.6 * u, 0.9 * u], [0.0, 0.2 * u, 1.1 * u]], 0.06 * u, 0.012 * u, { stitch: true, n: 16 }), ppLin(C.accent), PP_M.satin, 'skirt', { stitch: true }));
       out.push(...cuffs(FJ, ppLin(C.accent), PP_M.satin, (W.arm[3] + 0.3) * u, { at: 0.82, hw: 0.055 * u }));
+      if (S.guard) {
+        const rim = [];
+        for (let i = 0; i <= 10; i++) { const a = (-105 + 210 * i / 10) * Math.PI / 180; rim.push(ppV.add(S.hc, [Math.sin(a) * 0.42 * u, -0.1 * u + Math.cos(a) * 0.55 * u, 0.32 * u])); }
+        out.push(ppDress(S, ppStrap(F('hood'), rim, 0.045 * u, 0.016 * u, { stitch: true, n: 20 }), ppLin(C.accent), PP_M.satin, 'neck', { stitch: true }));
+      }
       if (S.guard) out.push(ppDress(S, ppRing(F('mantle'), [0, S.shY - 0.4 * u, -0.03 * u], [0, 1, 0], (W.sh + 0.6) * u, 0.045 * u, 0.016 * u, { stitch: true }), ppLin(C.accent), PP_M.satin, 'upper', { stitch: true }));
       return out;
     });
@@ -9026,7 +9040,7 @@ function buildTownExtras(scene, K) {
     }
   }
   archBuildTiles(scene);
-  window.__town = Object.assign({}, Arch.stats);
+  window.__town = Object.assign({ smoke: TownSmoke.length }, Arch.stats);
 }
 function updateTownExtras(dt) {
   // candle-like flicker on the lantern glass (one shared material for every lantern in the village)
