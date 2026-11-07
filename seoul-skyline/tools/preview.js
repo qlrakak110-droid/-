@@ -27,6 +27,8 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--settle') opt.settle = +v();
   else if (a === '--timeout') opt.timeout = +v();
   else if (a === '--prefix') opt.prefix = v();
+  else if (a === '--eval') opt.evalLuau = v();
+  else if (a === '--pick') opt.pick = v().split(';').map((q) => q.split(',').map(Number));
   else if (a === '--cam') { const [n, spec] = v().split('='); opt.cams[n] = spec; }
 }
 
@@ -157,6 +159,8 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
     const R = GW.modules.render, T = R.TIERS;
     for (const k of Object.keys(T)) Object.assign(T[k], { base: 2400, k: 40, far: 16000, clip: 26000 });
     R.setQuality(R.getQuality());
+    // the player's light halo sprites (phone substitute for bloom around lamps) do not exist in Roblox
+    if (window.RblxGfx && RblxGfx._ && RblxGfx._.cfg) RblxGfx._.cfg.glow = 0;
   });
   const ev = (c) => p.evaluate((c) => GW.engine.eval(c).then((r) => String(r)).catch((e) => 'ERR ' + e), c);
   console.log('inject map:', await ev(BUILD + `local t = ${toLuau(mapTree)} put(t, svc("ServerStorage")) return "ok"`));
@@ -195,6 +199,7 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
     }, terrain);
     console.log('terrain meshes', n, 'ops', terrain.length);
   }
+  if (opt.evalLuau) console.log('eval:', await ev(BUILD + `local ok, e = pcall(Insert.createScript, svc("ServerScriptService"), "Script", "PreviewEval", ${lstr(opt.evalLuau)}) return tostring(ok)`));
   await p.addStyleTag({ content: '*{visibility:hidden !important} canvas.gw-shot{visibility:visible !important}' });
   await p.evaluate(() => { const c = GW.modules.render.canvas; c.classList.add('gw-shot'); });
   const names = opt.shots || Object.keys(opt.cams).length ? (opt.shots || []).concat(Object.keys(opt.cams)) : ['hero'];
@@ -207,6 +212,14 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
     await p.waitForTimeout(opt.settle * 1000);
     const file = path.join(opt.out, opt.prefix + name + '.png');
     await p.screenshot({ path: file });
+    const sun = await p.evaluate(() => { const R = GW.modules.render; const d = RblxGfx.sunDirection(); const v = d.clone().multiplyScalar(20000).add(R.camera.position).project(R.camera);
+      return { dir: [d.x, d.y, d.z].map((n) => +n.toFixed(3)), screen: [Math.round((v.x + 1) / 2 * innerWidth), Math.round((1 - v.y) / 2 * innerHeight)], inFront: v.z < 1, glow: RblxGfx._.cfg && RblxGfx._.cfg.glow }; });
+    console.log('  sun', JSON.stringify(sun));
+    for (const [x, y] of opt.pick || []) {
+      const id = await p.evaluate(([x, y]) => { const h = GW.modules.render.pick(x, y, { includeTransparent: true }); return h && (h.id != null ? h.id : h); }, [x, y]);
+      const info = id != null ? await ev(BUILD + `local inst; Sched.runIn(Env.serverCtx, function() inst = I.byId(${JSON.stringify(id)}) end) return inst and inst:GetFullName() .. " " .. inst.ClassName .. " " .. tostring(inst.Material) .. " " .. tostring(inst.Size) or "?"`) : 'none';
+      console.log('  pick', x, y, '->', JSON.stringify(id), info);
+    }
     console.log('shot', file);
   }
   const st = await p.evaluate(() => GW.modules.render.stats());

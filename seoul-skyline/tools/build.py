@@ -97,7 +97,7 @@ def main():
     ref[0] = 100000
     lighting_props = (
         '<token name="Technology">4</token>'  # Enum.Technology.Future
-        '<float name="ClockTime">18.2</float>'
+        '<float name="ClockTime">18.08</float>'
         '<float name="GeographicLatitude">8</float>'
         '<float name="Brightness">2.4</float>'
         '<float name="ExposureCompensation">0.15</float>'

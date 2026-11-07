@@ -80,7 +80,8 @@ local function slabOpts(collide: boolean): OptFn
 			shape = if cyl then "Cylinder" else "Block",
 			material = Enum.Material.Glass,
 			color = c,
-			reflectance = 0.24,
+			-- 둥근 모서리(원기둥)는 어떤 태양 각도에서도 정반사 점이 생겨 블룸이 번지므로 반사율을 낮춤
+			reflectance = if cyl then 0.06 else 0.2,
 			collide = collide,
 			query = collide,
 		}
@@ -514,8 +515,19 @@ local function streak(m: Model, objX: number, objZ: number, z0: number, z1: numb
 	local zc = (z0 + z1) / 2
 	local xc = cam.X + (zc - cam.Z) * k
 	local len = math.abs(z1 - z0) * math.sqrt(1 + k * k)
-	local p = Kit.reflection(m, xc, zc, width, len, c, tr)
-	p.CFrame = CFrame.new(xc, Config.Level.Water + 0.25 + yOff, zc) * CFrame.Angles(0, math.atan(k), 0)
+	-- 단일 조각(대시 패턴은 buildReflections 가 직접 만듦) — Kit.reflection 과 같은 재질/야간 규약
+	Kit.part(m, CFrame.new(xc, Config.Level.Water + 0.25 + yOff, zc) * CFrame.Angles(0, math.atan(k), 0), Vector3.new(width, 0.12, len), {
+		name = "WaterGlint",
+		material = Enum.Material.Neon,
+		color = c,
+		transparency = tr,
+		collide = false,
+		query = false,
+		shadow = false,
+		glow = true,
+		dayMaterial = Enum.Material.Glass,
+		dayColor = Color3.fromRGB(40, 60, 80),
+	})
 end
 
 local function buildReflections(m: Model, rng: Random, hallX: number, hallZ: number, eastX: number, eastZ: number)

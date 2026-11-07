@@ -32,9 +32,9 @@ local MASS_INSET = 1.3 -- Facade 코어 inset(0.9~1.0) + 0.4 → 코어 뒤에 �
 local MASS_MIN_H = 120 -- 이보다 낮은 건물은 원거리 매스 생략(어차피 원경에서 안 보임)
 
 -- 창 조명 팔레트 (Neon = 발광 세기. 블룸 대비 한 톤 낮춤)
-local LIT_GOLD = { rgb(206, 148, 80), rgb(182, 130, 70), rgb(156, 112, 64), rgb(224, 172, 104), rgb(104, 110, 132) }
-local LIT_COOL = { rgb(128, 146, 180), rgb(108, 124, 158), rgb(150, 162, 186), rgb(184, 146, 100), rgb(90, 102, 130) }
-local LIT_HOME = { rgb(212, 148, 84), rgb(188, 132, 76), rgb(160, 114, 70), rgb(222, 178, 116), rgb(118, 124, 148) }
+local LIT_GOLD = { rgb(160, 110, 56), rgb(138, 96, 50), rgb(118, 82, 46), rgb(178, 128, 68), rgb(72, 80, 100) }
+local LIT_COOL = { rgb(78, 94, 124), rgb(66, 80, 108), rgb(96, 106, 128), rgb(140, 106, 66), rgb(56, 66, 88) }
+local LIT_HOME = { rgb(166, 112, 60), rgb(146, 100, 54), rgb(124, 86, 50), rgb(180, 134, 80), rgb(82, 88, 108) }
 
 -- 유리 / 프레임
 local NAVY = rgb(28, 42, 66)
@@ -48,7 +48,7 @@ local F_DARK = P.Mullion
 local F_GOLD = rgb(128, 106, 72)
 local F_LIGHT = rgb(132, 140, 152)
 
-local LANTERN_GOLD = rgb(176, 124, 58)
+local LANTERN_GOLD = rgb(168, 116, 52)
 local CROWN_GOLD = rgb(206, 150, 78) -- 원거리 금빛 상층부
 local PODIUM = rgb(64, 66, 74)
 
@@ -84,19 +84,19 @@ type Entry = {
 -- 오른쪽: 초고층 7동이 빽빽하게 (금빛 크라운, 짙은 청색 유리) + 앞줄/사이 중층
 local HERO_RIGHT: { Entry } = {
 	{ name = "R1_GoldCrown", x = 470, z = -1080, w = 74, d = 56, h = 440, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.4, led = P.LedGold, podium = true, lantern = true, light = true, glint = true, gold = true },
-	{ name = "R2_Twin", x = 588, z = -1205, w = 64, d = 58, h = 372, crown = "led", glass = G_DEEP, lit = LIT_COOL, litChance = 0.44, led = P.LedGold, podium = true },
+	{ name = "R2_Twin", x = 588, z = -1205, w = 64, d = 58, h = 372, crown = "led", glass = G_DEEP, lit = LIT_GOLD, litChance = 0.44, led = P.LedGold, podium = true },
 	{ name = "R3_Slant", x = 702, z = -1062, w = 78, d = 56, h = 480, crown = "slant", glass = INK, frame = F_DARK, lit = LIT_GOLD, litChance = 0.44, led = P.LedGold, podium = true, light = true, glint = true },
 	{ name = "R4_Apex", x = 838, z = -1125, w = 76, d = 62, h = 505, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.36, led = P.LedGold, podium = true, lantern = true, light = true, gold = true },
 	{ name = "R5_Cyan", x = 968, z = -1062, w = 68, d = 52, h = 420, crown = "led", glass = G_DEEP, lit = LIT_COOL, litChance = 0.44, led = P.LedCyan, podium = true, glint = true },
-	{ name = "R6_Round", x = 762, z = -1302, w = 60, d = 60, h = 392, style = "round", crown = "led", glass = G_BLUE, lit = LIT_COOL, litChance = 0.4, led = P.LedBlue, podium = true },
+	{ name = "R6_Round", x = 762, z = -1302, w = 60, d = 60, h = 392, style = "round", crown = "led", glass = G_BLUE, lit = LIT_GOLD, litChance = 0.4, led = P.LedBlue, podium = true },
 	{ name = "R7_Spire", x = 642, z = -942, w = 60, d = 48, h = 350, yaw = 18, crown = "spire", glass = G_SILVER, frame = F_LIGHT, lit = LIT_COOL, litChance = 0.48, led = P.LedCyan, podium = true },
 	-- 앞줄/사이 중층 (200~310)
 	{ name = "RM1", x = 300, z = -800, w = 54, d = 40, h = 230, crown = "box", glass = G_DEEP, lit = LIT_COOL, litChance = 0.6 },
 	{ name = "RM2_Round", x = 420, z = -872, w = 50, d = 50, h = 230, style = "round", crown = "led", glass = G_TEAL, lit = LIT_HOME, litChance = 0.48, led = P.LedCyan },
 	{ name = "RM3", x = 704, z = -800, w = 58, d = 40, h = 250, crown = "led", tiers = 2, glass = INK, lit = LIT_GOLD, litChance = 0.44, led = P.LedGold },
 	{ name = "RM4_Officetel", x = 846, z = -862, w = 52, d = 44, h = 280, crown = "frame", glass = G_BRONZE, frame = F_GOLD, lit = LIT_HOME, litChance = 0.48, led = P.LedGold, floorH = 6.5 },
-	{ name = "RM5_Heli", x = 985, z = -800, w = 52, d = 40, h = 236, crown = "helipad", glass = G_BLUE, lit = LIT_COOL, litChance = 0.44 },
-	{ name = "RM6_Slant", x = 262, z = -1040, w = 52, d = 46, h = 290, crown = "slant", glass = G_TEAL, lit = LIT_COOL, litChance = 0.4, led = P.LedCyan },
+	{ name = "RM5_Heli", x = 985, z = -800, w = 52, d = 40, h = 236, crown = "helipad", glass = G_BLUE, lit = LIT_GOLD, litChance = 0.44 },
+	{ name = "RM6_Slant", x = 262, z = -1040, w = 52, d = 46, h = 290, crown = "slant", glass = G_TEAL, lit = LIT_GOLD, litChance = 0.4, led = P.LedCyan },
 	{ name = "RM7", x = 362, z = -1252, w = 52, d = 48, h = 310, yaw = 90, crown = "led", glass = G_DEEP, lit = LIT_GOLD, litChance = 0.4, led = P.LedBlue },
 	{ name = "RM8_Round", x = 1002, z = -1252, w = 50, d = 50, h = 280, style = "round", crown = "led", glass = G_BLUE, lit = LIT_HOME, litChance = 0.44, led = P.LedGold },
 }
@@ -244,6 +244,18 @@ function Skyline.build(ctx: any)
 	local cams = makeCams()
 	local lightsLeft = MAX_LIGHTS
 	local placed = 0
+	local glints: { { number } } = {} -- 수면 반사 띠 X 구간 (같은 높이 Y=0.25 라 겹치면 z-fighting)
+
+	local function claimGlint(x: number, width: number): boolean
+		local x0, x1 = x - width / 2 - 2, x + width / 2 + 2
+		for _, g in glints do
+			if x0 < g[2] and x1 > g[1] then
+				return false
+			end
+		end
+		table.insert(glints, { x0, x1 })
+		return true
+	end
 
 	local function glowOpts(name: string, dayColor: Color3): any
 		return { name = name, collide = false, query = false, shadow = false, glow = true, dayMaterial = Enum.Material.Glass, dayColor = dayColor }
@@ -337,6 +349,8 @@ function Skyline.build(ctx: any)
 		end
 		Kit.reserveRect(e.x, e.z, e.w + pad * 2, e.d + pad * 2, yaw, "Skyline")
 		local cf = CFrame.new(e.x, CITY_Y, e.z) * CFrame.Angles(0, math.rad(yaw), 0)
+		local wantGlint = if e.glint ~= nil then e.glint else (e.z > GLINT_Z and math.abs(e.x - BRIDGE_X) > 70)
+		local glint = wantGlint and claimGlint(e.x, math.min(e.w, e.d) * 0.35) -- Facade 반사 폭과 동일
 		local m = Facade.tower(group, {
 			name = e.name,
 			cf = cf,
@@ -353,7 +367,7 @@ function Skyline.build(ctx: any)
 			crown = e.crown,
 			ledColor = e.led,
 			tiers = e.tiers,
-			glint = if e.glint ~= nil then e.glint else (e.z > GLINT_Z and math.abs(e.x - BRIDGE_X) > 70),
+			glint = glint,
 		})
 		addMass(m, e, cf, style)
 		addExtras(m, e, cf)
