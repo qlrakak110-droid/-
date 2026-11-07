@@ -95,6 +95,37 @@ function groundAt(x, z) {
   return o;
 }
 
+// Automatic contact grounding, run once after the island is built: everything opaque that casts a shadow and stands
+// on dry ground (meshes and every instance of instanced meshes) gets a soft occlusion skirt in the splat map; tall
+// slender things (trunks) also gather leaf litter. Opt out per mesh with mesh.userData.noGroundAO = true.
+function autoGround(root) {
+  const box = new THREE.Box3(), m = new THREE.Matrix4(), T = SITES.town, A = SITES.altar;
+  let n = 0;
+  const consider = (bb) => {
+    const sx = bb.max.x - bb.min.x, sz = bb.max.z - bb.min.z, h = bb.max.y - bb.min.y, rad = Math.max(sx, sz) * 0.5;
+    const slender = h > 2.5 && h > rad * 4;
+    if (rad > 7 || h < 0.25 || rad < (slender ? 0.15 : 0.3)) return;
+    const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2, gy = groundY(cx, cz);
+    if (gy < 0.25 || Math.abs(bb.min.y - gy) > 0.6) return;              // only things standing on dry ground
+    if (slender) {
+      groundStamp(cx, cz, Math.max(1.3, rad * 3.5), { dark: 0.42 }, { soft: 0.75 });
+      if (Math.hypot(cx - T.x, cz - T.z) > 18 && Math.hypot(cx - A.x, cz - A.z) > 12) groundStamp(cx, cz, Math.max(2.2, rad * 7), { forest: 0.6 }, { soft: 0.8, noise: 0.7 });
+    } else groundStamp(cx, cz, rad * 1.2 + 0.45, { dark: 0.5 }, { soft: 0.65 });
+    n++;
+  };
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    if (!o.isMesh || !o.castShadow || !o.geometry || o === World.terrain || o === World.water || o.userData.noGroundAO) return;
+    const mt = Array.isArray(o.material) ? o.material[0] : o.material;
+    if (!mt || mt.transparent || mt.isShaderMaterial) return;            // grass cards, effects, glows
+    const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    if (o.isInstancedMesh) {
+      for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m); m.premultiply(o.matrixWorld); box.copy(g.boundingBox).applyMatrix4(m); consider(box); }
+    } else { box.copy(g.boundingBox).applyMatrix4(o.matrixWorld); consider(box); }
+  });
+  return n;
+}
+
 function buildSplat() {
   const R = Ground.res = Settings.high ? 512 : 256, S = World.SIZE, c = S / R;
   const d0 = Ground.d0 = new Uint8Array(R * R * 4), d1 = Ground.d1 = new Uint8Array(R * R * 4);
@@ -577,6 +608,7 @@ function buildWorld() {
   W.fx = new Particles(scene, 1600);
   W.dust = new Puffs(scene, 160);
   buildLegendSites();
+  try { World.groundContacts = autoGround(scene); } catch (e) { console.warn('autoGround', e); }
 
   // ---------------- player & follower
   W.player = buildPerson({ accent: 0x8b5cff, hair: 0x25223a, pin: 0xffd98a, eye: 0x24245a, eye2: 0x7aa4ff });
