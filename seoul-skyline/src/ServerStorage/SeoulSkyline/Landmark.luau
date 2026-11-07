@@ -44,14 +44,14 @@ local CROWN_TOP_RATIO = 0.32 -- 크라운 꼭대기 폭 / TopWidth (뾰족한 �
 local CROWN_TIERS = 5
 local RIB_W, RIB_D = 1.6, 1.2
 -- 색
-local GLASS = P.GlassSilver:Lerp(P.GlassDeep, 0.42) -- 은청색 반사 유리
+local GLASS = P.GlassBlue:Lerp(P.GlassSilver, 0.25) -- 은청색 반사 유리(하늘을 비춰 밝아 보이므로 조금 어둡게)
 local SEAM_C = rgb(255, 206, 128)
 local RIB_C = rgb(178, 160, 128) -- 블룸이 켜져 있으므로 격자는 중간 밝기
 local RIB_CORNER_C = rgb(214, 196, 158)
 local LANTERN_C = rgb(92, 78, 60)
 local LOBBY_C = rgb(214, 160, 92)
 local CORE_PAL = { P.WindowWarm, P.WindowWarm, P.WindowWarm, P.WindowGold, P.WindowGold, P.WindowWarmDim, rgb(255, 178, 92), P.WindowCoolDim }
-local MALL_LIT = { rgb(196, 148, 92), rgb(184, 136, 84), P.WindowWarmDim, rgb(180, 150, 104), P.WindowCoolDim }
+local MALL_LIT = { rgb(156, 112, 66), rgb(140, 100, 60), rgb(168, 128, 80), rgb(120, 96, 70), rgb(104, 118, 142) }
 local DOME_C = rgb(52, 98, 178)
 local DOME_RIB_C = rgb(120, 182, 255)
 
@@ -336,7 +336,7 @@ local function buildMall(m: Model, rng: Random)
 			bay = 12,
 			glass = b.glass,
 			lit = MALL_LIT,
-			litChance = 0.8,
+			litChance = 0.7,
 			crown = b.crown,
 			ledColor = b.led,
 			beacon = false,
@@ -358,7 +358,7 @@ local function buildMall(m: Model, rng: Random)
 		bay = 14,
 		glass = P.GlassBlue,
 		lit = MALL_LIT,
-		litChance = 0.85,
+		litChance = 0.65,
 		crown = "none",
 		beacon = false,
 	})
@@ -526,12 +526,12 @@ local function buildReflections(m: Model, rng: Random, hallX: number, hallZ: num
 	local zEnd = 150 -- 먼 쪽 절반은 진하게, 가까운 쪽으로 갈수록 옅어지는 꼬리
 	while z < zEnd do
 		local f = (z - zStart) / (zEnd - zStart)
-		local len = rng:NextNumber(24, 44)
+		local len = rng:NextNumber(18, 34)
 		local z1 = math.min(z + len, zEnd)
 		local w = (48 - 18 * f) * rng:NextNumber(0.7, 1.15)
 		local c = if rng:NextNumber() < 0.5 then P.WindowGold else P.WindowWarm
 		streak(m, TC.X, TC.Z, z, z1, w, scale(c, rng:NextNumber(0.8, 1)), 0.6 + 0.24 * f + rng:NextNumber(0, 0.06), 0)
-		z = z1 + rng:NextNumber(4, 9)
+		z = z1 + rng:NextNumber(0.5, 2.5) -- 거의 이어진 기둥(물결 가장자리는 폭 변화로)
 	end
 	streak(m, TC.X, TC.Z, zStart + 4, -120, 6, P.WindowGold, 0.55, 0.35)
 	-- 몰: 파란 돔 + 동쪽 블록(따뜻한 빛)
