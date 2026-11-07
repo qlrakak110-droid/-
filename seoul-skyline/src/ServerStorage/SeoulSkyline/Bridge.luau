@@ -66,6 +66,8 @@ local FOOT_TOP_W = L.Water + 1.2
 -- 색
 local CONC = rgb(176, 172, 166)
 local ASPHALT = P.Asphalt:Lerp(P.AsphaltLight, 0.35)
+local PAINT_W = P.LaneWhite:Lerp(ASPHALT, 0.22) -- 야간 노면 도색(원경에서 점선이 너무 튀지 않게)
+local PAINT_Y = P.LaneYellow:Lerp(ASPHALT, 0.15)
 local CONC_FASCIA = rgb(198, 192, 182)
 local CONC_GIRDER = rgb(118, 118, 122)
 local CONC_PIER = rgb(160, 154, 146)
@@ -212,8 +214,8 @@ local function buildDeck(parent: Instance, segs: { Seg })
 			local w0, w1 = CURB_X, SLAB_HALF + 0.2
 			along(parent, seg, side * (w0 + w1) / 2, -0.4, WALK_TOP, w1 - w0, 0, len, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
 			-- 노면표시: 바깥 실선(흰색), 안쪽 실선(노랑)
-			along(parent, seg, side * (CURB_X - 0.6), MARK_T - 0.5, MARK_T, 0.35, 0, len, decor("EdgeLine", P.LaneWhite, Enum.Material.SmoothPlastic))
-			along(parent, seg, side * (LANE_X0 - 0.4), MARK_T - 0.5, MARK_T, 0.35, 0, len, decor("CenterLine", P.LaneYellow, Enum.Material.SmoothPlastic))
+			along(parent, seg, side * (CURB_X - 0.6), MARK_T - 0.5, MARK_T, 0.35, 0, len, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
+			along(parent, seg, side * (LANE_X0 - 0.4), MARK_T - 0.5, MARK_T, 0.35, 0, len, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
 			-- 난간 레일(상/중간)
 			along(parent, seg, side * EDGE_X, RAIL_TOP - 0.15, RAIL_TOP + 0.15, 0.35, 0, len, solid("RailTop", METAL, Enum.Material.Metal))
 			along(parent, seg, side * EDGE_X, RAIL_MID - 0.1, RAIL_MID + 0.1, 0.25, 0, len, decor("RailMid", METAL, Enum.Material.Metal))
@@ -225,7 +227,7 @@ local function buildDeck(parent: Instance, segs: { Seg })
 					local a = math.max(m * DASH_PITCH + DASH_OFF, seg.s0)
 					local b = math.min(m * DASH_PITCH + DASH_OFF + DASH_LEN, seg.s0 + len)
 					if b - a > 1 then
-						along(parent, seg, x, MARK_T - 0.5, MARK_T, 0.3, a - seg.s0, b - seg.s0, decor("LaneDash", P.LaneWhite, Enum.Material.SmoothPlastic))
+						along(parent, seg, x, MARK_T - 0.5, MARK_T, 0.3, a - seg.s0, b - seg.s0, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic))
 					end
 					m += 1
 				end
@@ -382,10 +384,10 @@ local function buildStub(parent: Instance, z0: number, z1: number)
 	box(0, -0.2, MEDIAN_H * 0.6, MEDIAN_HALF * 2, solid("Median", CONC, Enum.Material.Concrete))
 	for _, side in { -1, 1 } do
 		box(side * (CURB_X + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - CURB_X, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
-		box(side * (CURB_X - 0.6), MARK_T - 0.5, MARK_T, 0.35, decor("EdgeLine", P.LaneWhite, Enum.Material.SmoothPlastic))
-		box(side * (LANE_X0 - 0.4), MARK_T - 0.5, MARK_T, 0.35, decor("CenterLine", P.LaneYellow, Enum.Material.SmoothPlastic))
+		box(side * (CURB_X - 0.6), MARK_T - 0.5, MARK_T, 0.35, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
+		box(side * (LANE_X0 - 0.4), MARK_T - 0.5, MARK_T, 0.35, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
 		for k = 1, 3 do
-			box(side * (LANE_X0 + k * LANE_W), MARK_T - 0.5, MARK_T, 0.3, decor("LaneDash", P.LaneWhite, Enum.Material.SmoothPlastic), math.min(DASH_LEN, len - 4))
+			box(side * (LANE_X0 + k * LANE_W), MARK_T - 0.5, MARK_T, 0.3, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic), math.min(DASH_LEN, len - 4))
 		end
 	end
 end
