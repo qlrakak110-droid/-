@@ -181,7 +181,7 @@ function groundMaterial(arr) {
     // texture repeats per metre: grass 2.6 m, dirt 3 m, rock 6 m (triplanar), sand 4 m, forest litter 3 m
     uScale: { value: [1 / 2.6, 1 / 3.0, 1 / 6.0, 1 / 4.0, 1 / 3.0] },
     uRift: { value: SITES.rifts.map((r) => new THREE.Vector4(r.x, r.z, 1, 0)) },
-    uTime: Shared.time, uGrassTint: { value: new THREE.Vector3(1.0, 1.12, 0.92) }, uNormStr: { value: 1.0 },
+    uTime: Shared.time, uGrassTint: { value: new THREE.Vector3(1.04, 1.32, 0.84) }, uNormStr: { value: 1.0 },
   };
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.5 });
   m.defines = Object.assign({}, m.defines, { GROUND_HQ: Settings.high ? 1 : 0 });   // keep STANDARD
@@ -326,11 +326,11 @@ vec3 gWN; float gRough, gAO; vec3 gEmis = vec3(0.0);
   for (int i = 0; i < 3; i++) { float d = length(xz - uRift[i].xy) + (m3 - 0.5) * 3.0 + (m2 - 0.5) * 5.0; corr = max(corr, uRift[i].z * (1.0 - smoothstep(5.0, 17.0, d))); }
   if (corr > 0.001) {
     float lum = dot(alb, vec3(0.3, 0.59, 0.11));
-    alb = mix(alb, lum * vec3(0.66, 0.48, 1.0) * 0.8, corr * 0.85);
+    alb = mix(alb, lum * vec3(0.7, 0.5, 1.0) * 0.85, corr * 0.72);
     rough = mix(rough, 0.5, corr * 0.35);
     float vein = 1.0 - abs(vnoise(xz * 0.7 + 2.0) * 2.0 - 1.0);
     vein *= 1.0 - abs(vnoise(xz * 2.1 + 5.0) * 2.0 - 1.0) * 0.6;
-    gEmis = vec3(0.55, 0.12, 1.15) * pow(vein, 12.0) * corr * corr * (0.65 + 0.35 * sin(uTime * 1.7 + m2 * 6.0)) * 0.9;
+    gEmis = vec3(0.55, 0.12, 1.15) * pow(vein, 16.0) * corr * corr * (0.65 + 0.35 * sin(uTime * 1.7 + m2 * 6.0)) * 0.75;
   }
   diffuseColor.rgb = alb * mix(1.0, ao, 0.3);
   gRough = clamp(rough, 0.05, 1.0); gAO = clamp(ao, 0.0, 1.0);
