@@ -311,8 +311,8 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 		if not inGaps(x, { GAP_PARK }) then
 			promLamp(parent, x, lampZ, 9, 2.4, false)
 			n += 1
-			if math.abs(x) <= 2100 and n % 3 == 0 then
-				Kit.reflection(glints, x + rng:NextNumber(-2, 2), e + 6, 5.5, rng:NextNumber(80, 100), GLINT_C, 0.55)
+			if math.abs(x) <= 2000 and n % 3 == 0 then
+				Kit.reflection(glints, x + rng:NextNumber(-2, 2), e + 6, 5.0, rng:NextNumber(112, 130), GLINT_C, 0.5)
 			end
 		end
 	end
@@ -327,6 +327,14 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 			tree(parent, rng, x + rng:NextNumber(-4, 4), treeZ(), L.Promenade, rng:NextNumber(1.35, 1.75), if lod3 then 3 else 2)
 		end
 		x += if lod3 then rng:NextNumber(28, 36) else rng:NextNumber(32, 40)
+	end
+	-- 둘째 줄(자전거도로 바로 뒤, 듬성듬성): 띠에 깊이감
+	x = -1600
+	while x <= 2200 do
+		if not inGaps(x, { GAP_PARK }) then
+			tree(parent, rng, x, e + s * rng:NextNumber(47, 52), L.Promenade, rng:NextNumber(1.1, 1.4), 2)
+		end
+		x += rng:NextNumber(62, 80)
 	end
 	for _, dir in { -1, 1 } do
 		local xx = if dir < 0 then -3000 - 60 else 3400 + 60
@@ -473,6 +481,12 @@ local function avenue(parent: Instance, spec: AveSpec)
 	end
 	local m = Kit.group(parent, spec.name)
 	local np = #pts
+	local route = {}
+	for _, p in pts do
+		table.insert(route, string.format("(%d,%d)", p.X, p.Y))
+	end
+	m:SetAttribute("Route", table.concat(route, " "))
+	print("[Riverside] " .. spec.name .. " " .. table.concat(route, " "))
 	for i = 1, np - 1 do
 		local a, b = pts[i], pts[i + 1]
 		if math.abs(a.X - b.X) < 0.5 then
