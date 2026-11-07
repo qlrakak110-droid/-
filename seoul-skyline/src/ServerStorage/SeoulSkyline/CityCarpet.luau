@@ -379,37 +379,43 @@ function CityCarpet.build(ctx: any)
 		low = false,
 	}, rng, left())
 
-	-- 4) 저층 채움: 아파트 띠의 빈 블록 + 아파트 띠 바깥 옆 구간
-	fill(model, {
-		name = "Infill",
-		rects = {
-			AF,
-			{ XMin = -6500, XMax = AF.XMin, ZMin = AF.ZMin, ZMax = F.CityFrom },
-			{ XMin = AF.XMax, XMax = 6500, ZMin = AF.ZMin, ZMax = F.CityFrom },
-			AN,
-			{ XMin = -6000, XMax = AN.XMin, ZMin = N.CityFrom, ZMax = ZN.CarpetNear.ZMin },
-			{ XMin = AN.XMax, XMax = 6000, ZMin = N.CityFrom, ZMax = ZN.CarpetNear.ZMin },
-		},
-		pitch = 120,
-		keep = 0.8,
-		viewer = HERO,
-		frustum = true,
-		budget = BUDGET.Infill,
-		style = function(_z: number, _h: number, _r: Random): string
-			return "mid"
-		end,
-		wMin = 26,
-		wMax = 64,
-		hMin = 14,
-		hMax = 46,
-		hPow = 1.3,
-		clusters = nil,
-		towerChance = 0,
-		towerH = { 46, 46 },
-		beaconFar = false,
-		guard = true,
-		low = true,
-	}, rng, left())
+	-- 4) 저층 채움: 아파트 띠의 빈 블록 + 아파트 띠 바깥 옆 구간 (먼 쪽 / 가까운 쪽)
+	local function lowStyle(_z: number, _h: number, _r: Random): string
+		return "mid"
+	end
+	local function infill(name: string, rects: { Rect }, viewer: Vector3, frustum: boolean, budget: number)
+		fill(model, {
+			name = name,
+			rects = rects,
+			pitch = 120,
+			keep = 0.8,
+			viewer = viewer,
+			frustum = frustum,
+			budget = budget,
+			style = lowStyle,
+			wMin = 26,
+			wMax = 64,
+			hMin = 14,
+			hMax = 46,
+			hPow = 1.3,
+			clusters = nil,
+			towerChance = 0,
+			towerH = { 46, 46 },
+			beaconFar = false,
+			guard = frustum,
+			low = true,
+		}, rng, left())
+	end
+	infill("InfillFar", {
+		AF,
+		{ XMin = -6500, XMax = AF.XMin, ZMin = AF.ZMin, ZMax = F.CityFrom },
+		{ XMin = AF.XMax, XMax = 6500, ZMin = AF.ZMin, ZMax = F.CityFrom },
+	}, HERO, true, BUDGET.Infill * 0.72)
+	infill("InfillNear", {
+		AN,
+		{ XMin = -6000, XMax = AN.XMin, ZMin = N.CityFrom, ZMax = ZN.CarpetNear.ZMin },
+		{ XMin = AN.XMax, XMax = 6000, ZMin = N.CityFrom, ZMax = ZN.CarpetNear.ZMin },
+	}, deckView, false, BUDGET.Infill * 0.28)
 
 	-- 5) 원경 산 능선
 	mountains(Kit.group(model, "Mountains"), rng)
