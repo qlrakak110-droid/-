@@ -70,13 +70,13 @@ local BARRIER_C = rgb(134, 134, 136)
 local WALL_GLASS = rgb(74, 98, 112)
 local POLE_C = rgb(56, 60, 68)
 local STEP1_C, STEP2_C = rgb(98, 98, 96), rgb(116, 114, 110)
-local WALK_C = rgb(132, 126, 116)
+local WALK_C = rgb(120, 114, 106)
 local BIKE_C = rgb(94, 60, 56)
 local SIDEWALK_C = rgb(118, 110, 102)
 local WOOD_C = rgb(110, 82, 58)
 local LEAVES = { rgb(36, 60, 40), rgb(42, 70, 44), rgb(50, 78, 46), rgb(32, 54, 38), rgb(56, 82, 50), rgb(40, 64, 46) }
 local LAMP_PROM = rgb(255, 194, 124) -- 둔치 가로등(작은 머리 → 밝게)
-local LAMP_ROAD = rgb(232, 150, 76) -- 제방 도로 나트륨 빛(T 바 → 약간 어둡게)
+local LAMP_ROAD = rgb(255, 168, 86) -- 제방 도로 나트륨 빛
 local LAMP_AVE = rgb(226, 178, 120) -- 도시 간선
 local LAMP_DAY = rgb(214, 214, 206)
 local GLINT_C = rgb(236, 164, 92)
@@ -197,7 +197,7 @@ local function tiles(parent: Instance, x0: number, x1: number, z0: number, z1: n
 	local dx, dz = (x1 - x0) / nx, (zb - za) / nz
 	for i = 0, nx - 1 do
 		for j = 0, nz - 1 do
-			Kit.box(parent, CFrame.new(x0 + dx * (i + 0.5), L.City - GROUND_T / 2, za + dz * (j + 0.5)), Vector3.new(dx, GROUND_T, dz), GROUND_C, MAT.Concrete, { name = "CityGround" })
+			Kit.box(parent, CFrame.new(x0 + dx * (i + 0.5), L.City - GROUND_T / 2, za + dz * (j + 0.5)), Vector3.new(dx, GROUND_T, dz), GROUND_C, MAT.Concrete, { name = "CityGround", shadow = false })
 		end
 	end
 end
@@ -219,7 +219,7 @@ local function expressway(parent: Instance, name: string, z0: number, z1: number
 	local half = math.abs(z1 - z0) / 2
 	local gaps = { GAP_ROAD }
 	-- 포장
-	stripX(parent, ROAD_X0, ROAD_X1, zc, half * 2, ROAD_TOP, ROAD_TOP - slabBottom, ASPHALT, MAT.Asphalt, { name = "Road" })
+	stripX(parent, ROAD_X0, ROAD_X1, zc, half * 2, ROAD_TOP, ROAD_TOP - slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false })
 	-- 노면표시: 방향별 노란 안쪽선 + 가운데 차로선 + 바깥 실선
 	for _, side in { -1, 1 } do
 		local function line(off: number, w: number, c: Color3)
@@ -240,7 +240,7 @@ local function expressway(parent: Instance, name: string, z0: number, z1: number
 	stripX(parent, ROAD_X0, ROAD_X1, wz, 1.2, ROAD_TOP + 1.8, 2.2, BARRIER_C, MAT.Concrete, { name = "SoundWallBase" }, cg)
 	stripX(parent, ROAD_X0, ROAD_X1, wz, 0.5, ROAD_TOP + 6.6, 5.1, WALL_GLASS, MAT.Glass, deco("SoundWall", { transparency = 0.55, collide = true }), cg)
 	-- 중앙 가로등
-	for _, x in stations(LANE_X0, LANE_X1, -2400, 2400, lampNear, lampFar) do
+	for _, x in stations(LANE_X0, LANE_X1, -2000, 2000, lampNear, lampFar) do
 		if not inGaps(x, { { GAP_ROAD[1] - 4, GAP_ROAD[2] + 4 } }) then
 			lampMedian(parent, x, zc)
 		end
@@ -267,13 +267,13 @@ local function bankEdge(parent: Instance, edge: number, sign: number)
 	end
 	-- 계단 2단 (물속에서 시작) + 산책로
 	local z, w = zr(-4, 3)
-	stripX(parent, STEP_X0, STEP_X1, z, w, L.Water + 0.9, 7.0, STEP1_C, MAT.Concrete, { name = "RevetStep" })
+	stripX(parent, STEP_X0, STEP_X1, z, w, L.Water + 0.9, 7.0, STEP1_C, MAT.Concrete, { name = "RevetStep", shadow = false })
 	z, w = zr(3, PROM_IN)
-	stripX(parent, STEP_X0, STEP_X1, z, w, L.Water + 2.15, 8.2, STEP2_C, MAT.Concrete, { name = "RevetStep" })
+	stripX(parent, STEP_X0, STEP_X1, z, w, L.Water + 2.15, 8.2, STEP2_C, MAT.Concrete, { name = "RevetStep", shadow = false })
 	z, w = zr(PROM_IN, PROM_OUT)
-	stripX(parent, PATH_X0, PATH_X1, z, w, PATH_TOP, 5.5, WALK_C, MAT.Pavement, { name = "Promenade" })
+	stripX(parent, PATH_X0, PATH_X1, z, w, PATH_TOP, 5.5, WALK_C, MAT.Pavement, { name = "Promenade", shadow = false })
 	z, w = zr(BIKE_IN, BIKE_OUT)
-	stripX(parent, PATH_X0, PATH_X1, z, w, PATH_TOP, 3.0, BIKE_C, MAT.Asphalt, { name = "BikePath" })
+	stripX(parent, PATH_X0, PATH_X1, z, w, PATH_TOP, 3.0, BIKE_C, MAT.Asphalt, { name = "BikePath", shadow = false })
 	stripX(parent, PATH_X0, PATH_X1, z, 0.3, PATH_TOP + PAINT_UP, 0.6, PAINT_Y, MAT.SmoothPlastic, deco("BikeLine", { shadow = false }))
 end
 
@@ -304,36 +304,44 @@ end
 local function farBank(parent: Instance, glints: Instance, rng: Random)
 	local e, s = F.WaterEdge, -1
 	bankEdge(parent, e, s)
-	-- 가로등 줄 (산책로 강 쪽 가장자리) + 수면 반사
-	local lampZ = e + s * (PROM_IN + 1.2)
+	-- 가로등 줄 (산책로 강 쪽 가장자리) + 수면 반사(3개에 1개)
+	local lampZ = e + s * (PROM_IN + 1.4)
 	local n = 0
 	for _, x in stations(-5500, 5500, -2600, 2600, 40, 110) do
 		if not inGaps(x, { GAP_PARK }) then
-			promLamp(parent, x, lampZ, 9, 1.9, false)
+			promLamp(parent, x, lampZ, 9, 2.4, false)
 			n += 1
-			if math.abs(x) <= 2200 and n % 2 == 0 then
-				Kit.reflection(glints, x + rng:NextNumber(-2, 2), e + 6, 3.4, 68, GLINT_C, 0.66)
+			if math.abs(x) <= 2100 and n % 3 == 0 then
+				Kit.reflection(glints, x + rng:NextNumber(-2, 2), e + 6, 5.5, rng:NextNumber(80, 100), GLINT_C, 0.55)
 			end
 		end
 	end
-	-- 가로수 줄: 근경 3파트 → 2파트 → 원거리 덤불 매스
+	-- 가로수 줄: 근경 3파트 → 2파트 → 원거리 덤불 매스 (수관이 서로 겹쳐 짙은 녹색 띠)
 	local function treeZ(): number
-		return e + s * rng:NextNumber(52, 84)
+		return e + s * rng:NextNumber(54, 86)
 	end
 	local x = -3000
 	while x <= 3400 do
+		local lod3 = x >= -700 and x <= 1300
 		if not inGaps(x, { GAP_PARK }) then
-			local lod = if x >= -900 and x <= 1500 then 3 else 2
-			tree(parent, rng, x + rng:NextNumber(-4, 4), treeZ(), L.Promenade, rng:NextNumber(0.9, 1.25), lod)
+			tree(parent, rng, x + rng:NextNumber(-4, 4), treeZ(), L.Promenade, rng:NextNumber(1.35, 1.75), if lod3 then 3 else 2)
 		end
-		x += if x >= -900 and x <= 1500 then rng:NextNumber(24, 30) else rng:NextNumber(28, 36)
+		x += if lod3 then rng:NextNumber(28, 36) else rng:NextNumber(32, 40)
 	end
 	for _, dir in { -1, 1 } do
 		local xx = if dir < 0 then -3000 - 60 else 3400 + 60
 		while math.abs(xx) <= 5800 do
-			Kit.ellipsoid(parent, CFrame.new(xx, L.Promenade + 7, e + s * rng:NextNumber(58, 80)), Vector3.new(rng:NextNumber(46, 70), rng:NextNumber(15, 21), rng:NextNumber(20, 30)), LEAVES[rng:NextInteger(1, #LEAVES)], MAT.Grass, deco("TreeMass"))
+			Kit.ellipsoid(parent, CFrame.new(xx, L.Promenade + 8, e + s * rng:NextNumber(58, 80)), Vector3.new(rng:NextNumber(56, 80), rng:NextNumber(18, 24), rng:NextNumber(24, 34)), LEAVES[rng:NextInteger(1, #LEAVES)], MAT.Grass, deco("TreeMass"))
 			xx += dir * rng:NextNumber(80, 105)
 		end
+	end
+	-- 사면 발치 덤불 띠 (나무 줄기 사이 틈을 메움)
+	local hx = -2400
+	while hx <= 2700 do
+		if not inGaps(hx, { GAP_PARK }) then
+			Kit.ellipsoid(parent, CFrame.new(hx, L.Promenade + 2.5, e + s * rng:NextNumber(84, 92)), Vector3.new(rng:NextNumber(40, 60), rng:NextNumber(8, 11), rng:NextNumber(12, 16)), LEAVES[rng:NextInteger(1, #LEAVES)], MAT.Grass, deco("Hedge"))
+		end
+		hx += rng:NextNumber(62, 78)
 	end
 end
 
@@ -350,7 +358,7 @@ local function nearBank(parent: Instance)
 		if not inGaps(px, gaps) then
 			Kit.box(parent, CFrame.new(px, PATH_TOP + 1.6, rz), Vector3.new(0.3, 3.2, 0.3), POLE_C, MAT.Metal, deco("RailPost"))
 		end
-		px += if px > -800 and px < 600 then 16 else 32
+		px += if px > -800 and px < 600 then 20 else 32
 	end
 	-- 가로등 (산책로-자전거도로 사이 잔디 띠) + 벤치
 	local lampZ = e + s * ((PROM_OUT + BIKE_IN) / 2)
@@ -474,7 +482,7 @@ local function avenue(parent: Instance, spec: AveSpec)
 			local zBot = if i + 1 < np then b.Y - (hw + 4) else b.Y
 			local zTopIn = if i > 1 then zTop - 2 * (hw + 4) else zTop - 4
 			local zBotIn = if i + 1 < np then zBot + 2 * (hw + 4) else zBot + 4
-			stripZ(m, zTop, zBot, x, hw * 2, ROAD_TOP, 1.0, ASPHALT, MAT.Asphalt, { name = "Avenue" })
+			stripZ(m, zTop, zBot, x, hw * 2, ROAD_TOP, 1.0, ASPHALT, MAT.Asphalt, { name = "Avenue", shadow = false })
 			if zTopIn - zBotIn > 20 then
 				stripZ(m, zTopIn - 6, zBotIn + 6, x, 1.6, ROAD_TOP + 0.9, 1.3, BARRIER_C, MAT.Concrete, { name = "AveMedian" })
 				for _, off in spec.lines do
@@ -487,7 +495,7 @@ local function avenue(parent: Instance, spec: AveSpec)
 			if spec.walk then
 				-- 다리 축 대로: 다리 토막과 같은 보도(아스팔트 위 +0.6)
 				for _, sd in { -1, 1 } do
-					stripZ(m, zTop, zBot, x + sd * (hw - 4), 8, ROAD_TOP + 0.6, 1.4, SIDEWALK_C, MAT.Pavement, { name = "Sidewalk" })
+					stripZ(m, zTop, zBot, x + sd * (hw - 4), 8, ROAD_TOP + 0.6, 1.4, SIDEWALK_C, MAT.Pavement, { name = "Sidewalk", shadow = false })
 				end
 				edge = hw - 3
 			end
@@ -508,7 +516,7 @@ local function avenue(parent: Instance, spec: AveSpec)
 			local zc = a.Y
 			local xa, xb = math.min(a.X, b.X) + hw, math.max(a.X, b.X) - hw
 			if xb - xa > 1 then
-				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP - 0.5, zc), Vector3.new(xb - xa, 1.0, (hw + 4) * 2 - 8), ASPHALT, MAT.Asphalt, { name = "AveJog" })
+				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP - 0.5, zc), Vector3.new(xb - xa, 1.0, (hw + 4) * 2 - 8), ASPHALT, MAT.Asphalt, { name = "AveJog", shadow = false })
 				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP + PAINT_UP - 0.3, zc), Vector3.new(xb - xa, 0.6, 0.45), PAINT_Y, MAT.SmoothPlastic, deco("Paint", { shadow = false }))
 			end
 			Kit.reserve(math.min(a.X, b.X), zc - hw - 8, math.max(a.X, b.X), zc + hw + 8, spec.name)
@@ -552,10 +560,10 @@ function Riverside.build(ctx: any)
 		table.insert(aveGaps, { ax - AVE_HW - 2, ax + AVE_HW + 2 })
 	end
 	local olympic = Kit.group(model, "OlympicDaero")
-	expressway(olympic, "OlympicDaero", F.RoadFrom, F.RoadTo, 1, L.City - 1.0, aveGaps, 64, 150)
+	expressway(olympic, "OlympicDaero", F.RoadFrom, F.RoadTo, 1, L.City - 1.0, aveGaps, 58, 150)
 	local gangbyeon = Kit.group(model, "GangbyeonBukro")
 	-- 가까운 쪽은 도시 지면이 RoadTo 부터라 도로 슬래브가 제방 사면 끝(지형)까지 깊게 내려감
-	expressway(gangbyeon, "GangbyeonBukro", N.RoadFrom, N.RoadTo, -1, L.City - GROUND_T, {}, 96, 200)
+	expressway(gangbyeon, "GangbyeonBukro", N.RoadFrom, N.RoadTo, -1, L.City - GROUND_T, {}, 128, 260)
 	Kit.reserve(-6500, N.RoadTo, 6500, N.CityFrom, "NearRoadVerge")
 
 	-- 3) 강변 (+ 4) 수면 반사)
