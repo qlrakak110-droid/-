@@ -4,6 +4,7 @@
 --   * Beacons  : SeoulBeacon 항공장애등 1 Hz 맥동
 --   * Boats    : SeoulBoat 유람선 운항(U턴 루프)
 --   * CameraFx : 접속 인트로 시네마틱 + 포토 스팟 사진 모드
+--   * ElevatorFx : 엘리베이터 탑승 시 화면 페이드(서버가 순간 이동 처리)
 -- 맵이 Studio 에서 구워졌든 실행 중 생성되든 동작: Workspace.SeoulSkyline 이 나타날 때까지 기다리고,
 -- 맵이 지워지거나 다시 생성되면(Build() 재실행) 모든 시스템을 정리한 뒤 새 루트로 다시 시작합니다.
 -- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic 로 켜고 끕니다(변경 시 재시작).
@@ -13,6 +14,7 @@ local Traffic = require(script:WaitForChild("Traffic"))
 local Beacons = require(script:WaitForChild("Beacons"))
 local Boats = require(script:WaitForChild("Boats"))
 local CameraFx = require(script:WaitForChild("CameraFx"))
+local ElevatorFx = require(script:WaitForChild("ElevatorFx"))
 
 type System = { start: (Model) -> () -> () }
 local SYSTEMS: { { name: string, mod: System } } = {
@@ -93,6 +95,7 @@ scan = function()
 end
 
 local cameraCleanup = CameraFx.init()
+local elevatorCleanup = ElevatorFx.init()
 local conns: { RBXScriptConnection } = {}
 table.insert(conns, workspace.ChildAdded:Connect(function(c)
 	if c.Name == Util.ROOT_NAME and c:IsA("Model") then
@@ -103,5 +106,6 @@ script.Destroying:Connect(function()
 	Util.disconnectAll(conns)
 	detach()
 	cameraCleanup()
+	elevatorCleanup()
 end)
 scan()

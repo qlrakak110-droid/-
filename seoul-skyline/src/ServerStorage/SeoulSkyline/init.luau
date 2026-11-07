@@ -28,10 +28,12 @@ SeoulSkyline.MODULES = {
 	"Atmosphere",
 	"TerrainPlan",
 	"Landmark",
+	"LandmarkInterior", -- 타워 로비 + 서울스카이 전망대 + 몰 아트리움 (실내)
 	"Skyline",
 	"Bridge",
 	"Riverside",
 	"Park",
+	"ShowHome", -- 한강뷰 아파트 1동: 로비 + 엘리베이터 + 가구가 갖춰진 세대 (실내) — Apartments 보다 먼저 자리 예약
 	"Apartments",
 	"CityCarpet",
 	"WaterFx",

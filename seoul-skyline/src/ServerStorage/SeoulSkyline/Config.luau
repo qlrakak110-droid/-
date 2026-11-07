@@ -31,7 +31,16 @@ Config.Real = {
 	ParkLamp = 4.5 / 0.3, -- 공원 보안등 4.5 m = 15
 	Railing = 1.1 / 0.3, -- 난간 1.1 m        = 3.7
 	Tree = 11 / 0.3, -- 가로수/공원 나무 8~14 m (평균 11 m = 37)
+	-- 실내 실측
+	Door = 2.1 / 0.3, -- 문 높이 2.1 m (폭 0.9 m)
+	HomeCeiling = 2.3 / 0.3, -- 아파트 천장고 2.3 m
+	OfficeCeiling = 2.8 / 0.3, -- 오피스 천장고 2.8 m
+	Counter = 0.9 / 0.3, -- 주방/계산대 0.9 m
+	Table = 0.75 / 0.3, -- 식탁/책상 0.75 m
+	Seat = 0.43 / 0.3, -- 의자/소파 좌면 0.43 m
 }
+-- 실내 모델은 StreamingEnabled 일 때 가까이 가야 로드되도록 Atomic 스트리밍 (Kit.group(parent, name, Config.InteriorStreaming))
+Config.InteriorStreaming = Enum.ModelStreamingMode.Atomic
 Config.ROOT_NAME = "SeoulSkyline" -- Workspace 아래 맵 모델 이름
 Config.SEED = 20260507 -- 결정적 생성: 같은 시드 → 항상 같은 맵
 
@@ -42,7 +51,7 @@ Config.Quality = {
 	-- 0.5 ~ 1.5 : 아파트·도시 카펫 밀도 배율 (모바일 대상이면 0.7 권장)
 	Density = 1.0,
 	-- 실제 광원(PointLight/SpotLight/SurfaceLight) 상한. 나머지 조명은 Neon 발광으로만 표현.
-	MaxLights = 140,
+	MaxLights = 240, -- 실내(로비·전망대·편의점·모델하우스) 조명 포함. Future 조명은 카메라 근처 광원만 계산
 	-- 작은 장식 파트는 그림자를 끔(이 크기 미만의 최대 변 길이)
 	ShadowMinSize = 20,
 	-- 빌드 중 task.wait() 간격(파트 수). 서버/커맨드 바 타임아웃 방지.
