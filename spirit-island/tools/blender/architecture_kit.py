@@ -46,6 +46,14 @@ class Bin:
     def __len__(self): return len(self.F)
 
 
+def world_uv(pts, tile):
+    """planar projection along the face's dominant axis, horizontal texture axis kept horizontal in the world"""
+    n = poly_normal(pts); ax = max(range(3), key=lambda k: abs(n[k]))
+    if ax == 0: return [(p.z / tile, p.y / tile) for p in pts]
+    if ax == 2: return [(p.x / tile, p.y / tile) for p in pts]
+    return [(p.x / tile, p.z / tile) for p in pts]
+
+
 def poly_normal(pts):
     n = Vector((0, 0, 0))
     for i in range(len(pts)):
@@ -63,7 +71,7 @@ class Kit:
         return self.bins[name]
 
     # ------------------------------------------------------------ prisms
-    def prism(self, mat, p0, p1, w, d, nrm, ch=0.0, var=None, uv=(0.5, 2.0), uvoff=None, taper=1.0, cap0=True, cap1=True):
+    def prism(self, mat, p0, p1, w, d, nrm, ch=0.0, var=None, uv=(0.5, 2.0), uvoff=None, taper=1.0, cap0=True, cap1=True, wuv=None):
         """convex prism from p0 to p1: cross-section w (side) x d (along nrm), arrises chamfered by ch.
         UVs: sides u = around the profile / uv[0], v = along the axis / uv[1] (wood grain runs along v)."""
         B = self.bin(mat); r = self.rng
@@ -95,20 +103,22 @@ class Kit:
             u0 = per[i] / uv[0] + uo[0]; u1 = per[i + 1] / uv[0] + uo[0]
             uvs = [(u0, uo[1]), (u1, uo[1]), (u1, uo[1] + L / uv[1]), (u0, uo[1] + L / uv[1])]
             fc = sum((B.V[k] for k in idx), Vector()) / 4
+            if wuv: uvs = world_uv([B.V[k] for k in idx], wuv)
             B.face(idx, uvs, outward=fc - (ctr + a * (fc - ctr).dot(a)))
         for ring, cap, sgn in ((ring0, cap0, -1), (ring1, cap1, 1)):
             if not cap: continue
             uvs = [(x / 0.5 + uo[0], y / 0.5 + uo[1]) for x, y in prof]
+            if wuv: uvs = world_uv([B.V[k] for k in ring], wuv)
             B.face(list(ring), uvs, outward=a * sgn)
 
-    def box(self, mat, c, size, rot=(0, 0, 0), ch=0.0, var=None, uv=(0.5, 2.0), uvoff=None):
+    def box(self, mat, c, size, rot=(0, 0, 0), ch=0.0, var=None, uv=(0.5, 2.0), uvoff=None, wuv=None):
         """axis-aligned (then rotated by game-space Euler XYZ) box built as a prism along its longest side"""
         c = Vector(c); R = Euler(rot, 'XYZ').to_matrix()
         axes = [R @ Vector((1, 0, 0)), R @ Vector((0, 1, 0)), R @ Vector((0, 0, 1))]
         order = sorted(range(3), key=lambda i: -size[i])
         ia, iw, idp = order[0], order[1], order[2]
         a = axes[ia] * size[ia] / 2
-        self.prism(mat, c - a, c + a, size[iw], size[idp], axes[idp], ch=ch, var=var, uv=uv, uvoff=uvoff)
+        self.prism(mat, c - a, c + a, size[iw], size[idp], axes[idp], ch=ch, var=var, uv=uv, uvoff=uvoff, wuv=wuv)
 
     # ------------------------------------------------------------ polygons in a frame
     def poly(self, mat, pts, uvs, outward, var=0.5, keyed=False):

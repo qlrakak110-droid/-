@@ -200,7 +200,7 @@ def cobble():
     face = T.fbm(N, 40, 4, seed=85)
     sand = T.value_noise(N, 400, seed=86)
     joint = 1 - Mk
-    h = (0.32 + 0.55 * Hs + 0.05 * (face - 0.5)) * Mk + joint * (0.14 + 0.06 * sand)
+    h = (0.36 + 0.42 * Hs + 0.06 * (face - 0.5)) * Mk + joint * (0.2 + 0.06 * sand)
     h = np.clip(h, 0, 1)
     ao = np.clip(T.ao_from_height(h, 8, 1.8), 0, 1)
     pal = [('#7f7d78', '#9a9790'), ('#8e8577', '#a89d8b'), ('#66696c', '#7e8184'), ('#9b958b', '#b4ada1'), ('#867565', '#9e8c7a')]
@@ -209,15 +209,15 @@ def cobble():
     rgb = np.zeros((N, N, 3), np.float32)
     for i, (a, b) in enumerate(pal):
         rgb = np.where((k == i)[..., None], T.ramp(tone, [(0, a), (1, b)]), rgb)
-    rgb = rgb * (0.9 + 0.2 * ((ID * 5.77) % 1))[..., None]
+    rgb = rgb * (0.92 + 0.14 * ((ID * 5.77) % 1))[..., None]
     polish = sstep(0.3, 0.8, ED) * Mk
     rgb = T.mix(rgb, rgb * 1.08, polish * 0.5)
-    rgb = T.mix(rgb, rgb * 0.8, (1 - sstep(0.0, 0.25, ED)) * Mk * 0.6)          # dirt along each stone's rim
-    soil = T.ramp(sand, [(0, '#6b5d4c'), (1, '#8a7a64')])
+    rgb = T.mix(rgb, rgb * 0.88, (1 - sstep(0.0, 0.25, ED)) * Mk * 0.5)          # dirt along each stone's rim
+    soil = T.ramp(sand, [(0, '#7a6b58'), (1, '#9a8a72')])
     rgb = T.mix(rgb, soil, joint)
     moss = sstep(0.58, 0.72, T.fbm(N, 5, 4, seed=87)) * joint
     rgb = T.mix(rgb, T.ramp(T.fbm(N, 64, 2, seed=88), [(0, '#45522c'), (1, '#66763a')]), moss * 0.75)
-    rgb = T.mix(rgb, rgb * 0.8, np.clip((1 - ao) * 1.2, 0, 0.45))
+    rgb = T.mix(rgb, rgb * 0.86, np.clip((1 - ao) * 1.0, 0, 0.35))
     rough = (0.74 - 0.2 * polish + 0.06 * (face - 0.5)) * Mk + joint * 0.97
     A.save('arch_cobble', np.clip(rgb, 0, 1), h, np.clip(rough, 0, 1), ao, normal_strength=8.0, q=86)
     print(A.preview('arch_cobble', os.path.join(PREV, '_prev_arch_cobble.jpg')))
