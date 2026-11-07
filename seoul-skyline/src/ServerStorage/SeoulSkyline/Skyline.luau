@@ -2,7 +2,7 @@
 -- SeoulSkyline / Skyline
 -- 먼 쪽(잠실) 강변의 히어로 고층 클러스터 — 사진의 오른쪽 초고층 군, 왼쪽 오피스+주거 고층 군, 타워 뒤/오른쪽 중층.
 --   * 실제 스케일(1 stud = 0.3 m): 발자국은 m, 높이는 "층수 × 실측 층고"(오피스 4.0 m / 주거 2.9 m)로 지정.
---       오른쪽 초고층 55~70층(220~280 m, 최고층 ≈ 롯데타워의 절반), 왼쪽 오피스 45~58층(180~232 m),
+--       오른쪽 초고층 55~64층(220~256 m, 크라운 포함 최고층 ≈ 280 m ≈ 롯데타워의 절반), 왼쪽 오피스 45~58층(180~232 m),
 --       가운데 34~50층, 앞줄·필(fill) 25~45층. 발자국 31~53 m.
 --   * 주요 실루엣은 손으로 배치(HERO_*: 좌표는 Config.Zones 기준 실측 레이아웃), 빈 곳은 Kit.isFreeRect 로 절차적 필
 --   * 모든 발자국 Kit.reserveRect 예약(보도 STREET_PAD 포함 → 이후 모듈과 겹치지 않음)
@@ -109,13 +109,13 @@ type Entry = {
 	terrace: boolean?,
 }
 
--- 오른쪽: 초고층 7동(55~70층)이 빽빽하게 (금빛 크라운, 짙은 청색 유리) + 앞줄/사이 중층(30~42층)
+-- 오른쪽: 초고층 7동(55~64층)이 빽빽하게 (금빛 크라운, 짙은 청색 유리) + 앞줄/사이 중층(30~42층)
 local HERO_RIGHT: { Entry } = {
-	{ name = "R1_GoldCrown", x = 783, z = -1800, wm = 50, dm = 38, floors = 62, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.42, led = P.LedGold, podium = true, lantern = true, light = true, glint = true, gold = true },
-	{ name = "R2_Twin", x = 980, z = -2008, wm = 43, dm = 39, floors = 58, crown = "led", glass = G_DEEP, lit = LIT_GOLD, litChance = 0.46, led = P.LedGold, podium = true },
-	{ name = "R3_Slant", x = 1170, z = -1770, wm = 52, dm = 38, floors = 65, crown = "slant", glass = INK, frame = F_DARK, lit = LIT_GOLD, litChance = 0.46, led = P.LedGold, podium = true, light = true, glint = true },
-	{ name = "R4_Apex", x = 1397, z = -1875, wm = 51, dm = 42, floors = 70, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.4, led = P.LedGold, podium = true, lantern = true, light = true, gold = true },
-	{ name = "R5_Cyan", x = 1613, z = -1770, wm = 46, dm = 35, floors = 60, crown = "led", glass = G_DEEP, lit = LIT_COOL, litChance = 0.46, led = P.LedCyan, podium = true, glint = true },
+	{ name = "R1_GoldCrown", x = 783, z = -1800, wm = 50, dm = 38, floors = 60, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.42, led = P.LedGold, podium = true, lantern = true, light = true, glint = true, gold = true },
+	{ name = "R2_Twin", x = 980, z = -2008, wm = 43, dm = 39, floors = 57, crown = "led", glass = G_DEEP, lit = LIT_GOLD, litChance = 0.46, led = P.LedGold, podium = true },
+	{ name = "R3_Slant", x = 1170, z = -1770, wm = 52, dm = 38, floors = 62, crown = "slant", glass = INK, frame = F_DARK, lit = LIT_GOLD, litChance = 0.46, led = P.LedGold, podium = true, light = true, glint = true },
+	{ name = "R4_Apex", x = 1397, z = -1875, wm = 51, dm = 42, floors = 64, crown = "frame", tiers = 2, glass = NAVY, frame = F_GOLD, lit = LIT_GOLD, litChance = 0.4, led = P.LedGold, podium = true, lantern = true, light = true, gold = true },
+	{ name = "R5_Cyan", x = 1613, z = -1770, wm = 46, dm = 35, floors = 58, crown = "led", glass = G_DEEP, lit = LIT_COOL, litChance = 0.46, led = P.LedCyan, podium = true, glint = true },
 	{ name = "R6_Round", x = 1270, z = -2170, wm = 41, floors = 56, style = "round", crown = "led", glass = G_BLUE, lit = LIT_GOLD, litChance = 0.42, led = P.LedBlue, podium = true },
 	{ name = "R7_Spire", x = 1070, z = -1570, wm = 40, dm = 32, floors = 55, yaw = 18, crown = "spire", glass = G_SILVER, frame = F_LIGHT, lit = LIT_COOL, litChance = 0.5, led = P.LedCyan, podium = true },
 	-- 앞줄/사이 중층 (30~42층). 다리 축 간선도로(X = Bridge.X ± 폭/2) 는 비워 둠
@@ -502,9 +502,9 @@ function Skyline.build(ctx: any)
 		end
 	end
 
-	fill({ zone = Z.SkylineRight, group = gRight, count = 8, cx = 1167, cz = -1833, floorsMin = 28, floorsMax = 45, homeBias = 0.35, midChance = 0.5 })
-	fill({ zone = Z.SkylineLeft, group = gLeft, count = 7, cx = -1833, cz = -1833, floorsMin = 25, floorsMax = 42, homeBias = 0.6, midChance = 0.5 })
-	fill({ zone = Z.SkylineMid, group = gMid, count = 4, cx = -67, cz = -2417, floorsMin = 30, floorsMax = 42, homeBias = 0.4, midChance = 0.5 })
+	fill({ zone = Z.SkylineRight, group = gRight, count = 11, cx = 1167, cz = -1833, floorsMin = 28, floorsMax = 45, homeBias = 0.35, midChance = 0.5 })
+	fill({ zone = Z.SkylineLeft, group = gLeft, count = 9, cx = -1833, cz = -1833, floorsMin = 25, floorsMax = 42, homeBias = 0.6, midChance = 0.5 })
+	fill({ zone = Z.SkylineMid, group = gMid, count = 5, cx = -67, cz = -2417, floorsMin = 30, floorsMax = 42, homeBias = 0.4, midChance = 0.5 })
 
 	ctx.model:SetAttribute("Buildings", placed)
 	ctx.model:SetAttribute("Lights", MAX_LIGHTS - lightsLeft)
