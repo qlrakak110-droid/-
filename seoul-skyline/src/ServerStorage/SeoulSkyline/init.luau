@@ -18,6 +18,7 @@ local Kit = require(script.Kit)
 local Facade = require(script.Facade)
 
 local SeoulSkyline = {}
+local nightState: boolean? = nil -- SetNight 의 마지막 상태(중복 적용 방지)
 SeoulSkyline.Config = Config
 SeoulSkyline.Kit = Kit
 SeoulSkyline.Facade = Facade
@@ -99,7 +100,9 @@ function SeoulSkyline.Build(opts: BuildOpts?): Model
 		task.wait()
 	end
 	root.Parent = o.parent or workspace
-	SeoulSkyline.SetNight(SeoulSkyline.IsNightClock(Config.Lighting.ClockTime))
+	-- 새 파트는 모두 밤 상태로 만들어지므로 캐시를 비우고 현재 하늘 시각으로 다시 맞춤(재빌드 시 낮인데 불이 켜진 채 남는 문제 방지)
+	nightState = nil
+	SeoulSkyline.SetNight(SeoulSkyline.IsNightClock(game:GetService("Lighting").ClockTime))
 	if not o.quiet then
 		print(string.format("[SeoulSkyline] 완료: 파트 %d · 광원 %d · 항공등 %d · 지형 %d · %.1f초\n  %s", Kit.stats.parts, Kit.stats.lights, Kit.stats.beacons, Kit.stats.terrainOps, os.clock() - t0, table.concat(report, "\n  ")))
 	end
@@ -125,7 +128,6 @@ function SeoulSkyline.IsNightClock(t: number): boolean
 	return t >= L.NightFrom or t < L.NightTo
 end
 
-local nightState: boolean? = nil
 function SeoulSkyline.SetNight(on: boolean)
 	if nightState == on then
 		return
