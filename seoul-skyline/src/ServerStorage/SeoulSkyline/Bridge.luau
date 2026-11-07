@@ -377,7 +377,8 @@ local function buildStub(parent: Instance, z0: number, z1: number)
 		local ll = l or len
 		Kit.part(parent, cf * CFrame.new(x, (y0 + y1) / 2, 0), Vector3.new(w, y1 - y0, ll), o)
 	end
-	box(0, -2, 0, B.Width, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
+	-- 도시 지면이 아직 없어도 떠 보이지 않도록 깊게(윗면만 지면 위 0.4)
+	box(0, -10, 0, B.Width, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
 	box(0, -0.2, MEDIAN_H * 0.6, MEDIAN_HALF * 2, solid("Median", CONC, Enum.Material.Concrete))
 	for _, side in { -1, 1 } do
 		box(side * (CURB_X + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - CURB_X, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
