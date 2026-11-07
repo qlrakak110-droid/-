@@ -54,7 +54,7 @@ local CAR_LANES = { 5.0, 16.0 } -- 차량 불빛 차선 오프셋 (2/4차로 느
 local AVE_Z0 = F.RoadTo -- 올림픽대로 도시 쪽 가장자리
 local AVE_Z1 = -3500
 local AVE_HW = 20 -- 일반 간선 반폭(6차로)
-local AVE_LAMP = 110 -- 한쪽 가로등 간격(양쪽 엇갈림)
+local AVE_LAMP = 130 -- 한쪽 가로등 간격(양쪽 엇갈림)
 
 -- 근경 디테일 구간(히어로/산책로 구도에 보이는 X)
 local NEAR_VIEW0, NEAR_VIEW1 = -1400, 1200
@@ -334,7 +334,7 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 		if not inGaps(x, { GAP_PARK }) then
 			tree(parent, rng, x, e + s * rng:NextNumber(47, 52), L.Promenade, rng:NextNumber(1.1, 1.4), 2)
 		end
-		x += rng:NextNumber(62, 80)
+		x += rng:NextNumber(68, 88)
 	end
 	for _, dir in { -1, 1 } do
 		local xx = if dir < 0 then -3000 - 60 else 3400 + 60
@@ -366,11 +366,11 @@ local function nearBank(parent: Instance)
 		if not inGaps(px, gaps) then
 			Kit.box(parent, CFrame.new(px, PATH_TOP + 1.6, rz), Vector3.new(0.3, 3.2, 0.3), POLE_C, MAT.Metal, deco("RailPost"))
 		end
-		px += if px > -800 and px < 600 then 20 else 32
+		px += if px > -800 and px < 600 then 24 else 36
 	end
 	-- 가로등 (산책로-자전거도로 사이 잔디 띠) + 벤치
 	local lampZ = e + s * ((PROM_OUT + BIKE_IN) / 2)
-	for _, x in stations(-4600, 4600, NEAR_VIEW0, NEAR_VIEW1, 32, 120) do
+	for _, x in stations(-4600, 4600, NEAR_VIEW0, NEAR_VIEW1, 32, 150) do
 		if not inGaps(x, gaps) then
 			local near = x >= NEAR_VIEW0 and x <= NEAR_VIEW1
 			local head = promLamp(parent, x, lampZ, 10, 1.3, near)
@@ -573,7 +573,6 @@ local function avenue(parent: Instance, spec: AveSpec)
 		table.insert(route, string.format("%d,%d", p.X, p.Y))
 	end
 	m:SetAttribute("Route", table.concat(route, " "))
-	print("[Riverside] " .. spec.name .. " " .. table.concat(route, " ") .. " wide->" .. tostring(zWide))
 	-- 차량 불빛: 도시로 들어가는 차(-Z) = 후미등(+X 쪽), 강 쪽으로 나오는 차(+Z) = 전조등
 	local rev: { Vector2 } = {}
 	for i = np, 1, -1 do
