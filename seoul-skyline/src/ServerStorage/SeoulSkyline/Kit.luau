@@ -306,23 +306,37 @@ function Kit.label(p: BasePart, face: Enum.NormalId, text: string, opts: LabelOp
 	return g
 end
 
--- 수면 위 빛 번짐: 광원 바로 앞(카메라 쪽 +Z)으로 늘어진 "끊어진" 반투명 Neon 조각들.
--- 물결에 흔들리는 실제 반사처럼 조각마다 폭·위치가 조금씩 다르고, 광원에서 멀어질수록 옅어집니다.
+-- 수면 위 빛 번짐: 광원 바로 앞에서 "대표 구도 카메라" 쪽으로 늘어진 끊어진 반투명 Neon 조각들.
+-- 실제 반사는 화면에서 항상 세로로 서므로, 스트릭을 광원 → 카메라 발밑(HeroCamPos 의 XZ) 방향으로 눕힙니다.
+-- 조각마다 폭·위치가 조금씩 달라 물결처럼 흔들려 보이고, 광원에서 멀어질수록 옅어집니다. 수면 밖으로는 나가지 않음.
 -- 반환: 첫 조각(가장 밝은 것). 결정적(위치 기반 해시)이라 rng 를 받지 않습니다.
-function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart
+function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart?
 	local y = Config.Level.Water + 0.25
 	local base = math.clamp(transparency or 0.62, 0, 0.95)
+	local zMin, zMax = Config.FarBank.WaterEdge + 3, Config.NearBank.WaterEdge - 6
+	z = math.clamp(z, zMin, zMax)
+	local cam = Config.Viewpoint.HeroCamPos
+	local dir = Vector3.new(cam.X - x, 0, cam.Z - z)
+	if dir.Magnitude < 1 then
+		dir = Vector3.new(0, 0, 1)
+	end
+	dir = dir.Unit
 	local n = math.clamp(math.floor(length / 22), 3, 12)
 	local step = length / n
 	local rnd = Random.new(math.floor(x * 7.31 + z * 3.17) % 2147483647)
 	local first: BasePart? = nil
+	local rot = CFrame.lookAt(Vector3.zero, dir) -- 로컬 -Z = 카메라 쪽
+	local side = rot.RightVector
 	for i = 0, n - 1 do
 		local t = i / math.max(1, n - 1)
 		local segL = step * rnd:NextNumber(0.7, 1.05)
-		local w = width * rnd:NextNumber(0.55, 1.15) * (1 - 0.35 * t)
-		local cz = z + step * (i + 0.5) + rnd:NextNumber(-0.15, 0.15) * step
-		local cx = x + rnd:NextNumber(-0.22, 0.22) * width
-		local p = Kit.part(parent, CFrame.new(cx, y, cz), Vector3.new(math.max(0.4, w), 0.12, segL), {
+		local w = math.max(1.2, width * rnd:NextNumber(0.6, 1.2) * (1 - 0.3 * t))
+		local along = step * (i + 0.5) + rnd:NextNumber(-0.15, 0.15) * step
+		local c = Vector3.new(x, y, z) + dir * along + side * (rnd:NextNumber(-0.22, 0.22) * width)
+		if c.Z < zMin or c.Z > zMax then
+			break
+		end
+		local p = Kit.part(parent, CFrame.new(c) * rot, Vector3.new(w, 0.12, segL), {
 			name = "WaterGlint",
 			material = Enum.Material.Neon,
 			color = color:Lerp(Color3.new(0, 0, 0), 0.25 * t),
@@ -336,7 +350,7 @@ function Kit.reflection(parent: Instance, x: number, z: number, width: number, l
 		})
 		first = first or p
 	end
-	return first :: BasePart
+	return first
 end
 
 ------------------------------------------------------------------------------------------------------

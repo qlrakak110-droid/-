@@ -151,6 +151,13 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
   await p.goto('file://' + html + '#quality=' + opt.quality + '&pr=1');
   await p.waitForFunction(() => window.GW && GW.engine && GW.engine.running, null, { timeout: 120000 });
   await p.waitForTimeout(1500);
+  // the player culls small/dynamic parts by a size-based reach (phone tuning, capped at 3000 studs): Roblox at high
+  // graphics quality draws the whole skyline, so widen the reach for previews
+  await p.evaluate(() => {
+    const R = GW.modules.render, T = R.TIERS;
+    for (const k of Object.keys(T)) Object.assign(T[k], { base: 2400, k: 40, far: 16000, clip: 26000 });
+    R.setQuality(R.getQuality());
+  });
   const ev = (c) => p.evaluate((c) => GW.engine.eval(c).then((r) => String(r)).catch((e) => 'ERR ' + e), c);
   console.log('inject map:', await ev(BUILD + `local t = ${toLuau(mapTree)} put(t, svc("ServerStorage")) return "ok"`));
   console.log('inject cam:', await ev(BUILD + `local ps; Sched.runIn(Env.serverCtx, function() ps = S.player:FindFirstChildOfClass("PlayerScripts") end)
