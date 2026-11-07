@@ -310,7 +310,7 @@ function ppKit() {
 // mesh one layer and give every vertex colour / material (soft nearest primitive) and chain-blended skin weights
 // game-density meshing: fine cells only where the eye goes (face, hands), garments coarser (normals come from the
 // smooth field, so shading stays clean); about 25–40k triangles per person on PC
-const PP_DENS = { face: 1.4, hand: 1.4, cap: 1.45, sole: 1.5, pouch: 1.4, packflap: 1.4, bedroll: 1.5, pack: 1.5, socks: 1.5, arms: 1.45, legs: 1.5, shirt: 1.8 };
+const PP_DENS = { face: 1.4, hand: 1.6, cap: 1.45, sole: 1.5, boots: 1.9, pants: 1.9, pouch: 1.4, packflap: 1.4, bedroll: 1.5, pack: 1.5, socks: 1.5, arms: 1.45, legs: 1.5, shirt: 1.8 };
 function ppLayerSurf(S, L) {
   const M = ppSculpt(L.prims, L.cell * (PP_DENS[L.name] || 1.7));
   const s = ppSurf(M.nv, M.idx.length / 3);
@@ -655,7 +655,7 @@ function ppRing(F, c, ax, r0, hw, ht, o = {}) {
   ax = ppV.norm(ax);
   const fz = ppV.sub([0, 0, 1], ppV.mul(ax, ax[2]));
   const e1 = ppV.len(fz) > 1e-3 ? ppV.norm(fz) : [1, 0, 0], e2 = ppV.cross(ax, e1);
-  const n = o.n || 32, gap = o.gap || 0, closed = !gap, N = closed ? n : n + 1, off = o.off ?? ht * 0.55;
+  const n = o.n || (PP_HI() ? 26 : 18), gap = o.gap || 0, closed = !gap, N = closed ? n : n + 1, off = o.off ?? ht * 0.55;
   const pts = [], ups = [];
   for (let i = 0; i < N; i++) {
     const a = closed ? (i / n) * Math.PI * 2 : gap + (Math.PI * 2 - 2 * gap) * (i / n);
@@ -664,7 +664,7 @@ function ppRing(F, c, ax, r0, hw, ht, o = {}) {
     for (; r > 0; r -= st) { const p = ppV.add(c, ppV.mul(dir, r)); if (F(p[0], p[1], p[2]) < off) { let lo = r, hi = r + st; for (let b = 0; b < 6; b++) { const m = (lo + hi) / 2, q = ppV.add(c, ppV.mul(dir, m)); if (F(q[0], q[1], q[2]) < off) lo = m; else hi = m; } hit = (lo + hi) / 2; break; } }
     pts.push(ppV.add(c, ppV.mul(dir, hit + (o.lift || 0)))); ups.push(dir);
   }
-  const s = ppSweep(pts, pts.map(() => hw), pts.map(() => ht), (i) => ups[i], { closed, shape: 'flat', seg: o.seg || 8, uvLen: o.stitch ? 0.012 : 0 });
+  const s = ppSweep(pts, pts.map(() => hw), pts.map(() => ht), (i) => ups[i], { closed, shape: 'flat', seg: o.seg || 6, uvLen: o.stitch ? 0.012 : 0 });
   return s;
 }
 // strap along control points, hugging F
@@ -1082,7 +1082,7 @@ function ppFaceNormals(S, s) {
     const x = s.pos[q * 3], y = s.pos[q * 3 + 1], z = s.pos[q * 3 + 2];
     const ne = ppV.norm([(x - c[0]) / (R[0] * R[0]), (y - c[1]) / (R[1] * R[1]), (z - c[2]) / (R[2] * R[2])]);
     const rel = (y - S.hc[1]) / u;
-    const k = 0.78 * smooth(-0.2, 0.3, ne[2]) * (1 - smooth(0.25 * u, 0.32 * u, Math.abs(x))) * smooth(-0.62, -0.46, rel);
+    const k = 0.78 * smooth(-0.25, 0.35, ne[2]) * (1 - smooth(0.17 * u, 0.36 * u, Math.abs(x))) * smooth(-0.64, -0.44, rel);
     if (k <= 0) continue;
     const n = ppV.norm(ppV.lerp([s.nor[q * 3], s.nor[q * 3 + 1], s.nor[q * 3 + 2]], ne, k));
     s.nor.set(n, q * 3);

@@ -4726,7 +4726,7 @@ function spiritGeometry(key, D, look) {
   project(3); normals(false);
   lap(0.55, true); project(2); normals(true);
   // regions
-  const R = spiritRegions(D, look, pos, nor, nv);
+  const R = spiritRegions(D, look, pos, nor, nv, m);
   // soft, low-frequency crease occlusion only (no curvature / cavity noise): the SDF bake, blurred hard
   let ao = new Float32Array(nv);
   try {
@@ -4762,7 +4762,7 @@ function spiritGeometry(key, D, look) {
 
 // palette slots: classes (one per distinct prim colour, stored as distance above the nearest class) followed by
 // overlays (signed distance). Returns the attributes, a hard per-vertex colour (outline ink) and the slot table.
-function spiritRegions(D, look, pos, nor, nv) {
+function spiritRegions(D, look, pos, nor, nv, m) {
   const add = D.prims.filter((P) => !P.sub);
   const hexOf = (P) => (P.hex != null ? P.hex : linToHex(P.col || [1, 1, 1]));
   const hexes = [];
@@ -4782,7 +4782,7 @@ function spiritRegions(D, look, pos, nor, nv) {
   const a = [new Float32Array(nv * 4), new Float32Array(nv * 4), new Float32Array(nv * 4)];
   const col = new Float32Array(nv * 3), dc = new Float64Array(nc), CL = 0.1;
   const ovLin = over.map((o) => hexRGB(o.col));
-  const v = { x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0 };
+  const v = { x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0, jaw: 0, leg: 0, s: 0 };
   for (let i = 0; i < nv; i++) {
     const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
     dc.fill(1e9);
@@ -4797,7 +4797,7 @@ function spiritRegions(D, look, pos, nor, nv) {
     for (let s = 0; s < SPIRIT_SLOTS; s++) a[s >> 2][i * 4 + (s & 3)] = CL;
     for (let c = 0; c < nc; c++) a[c >> 2][i * 4 + (c & 3)] = Math.min(dc[c] - dm, CL);
     let cr = lin[w][0], cg = lin[w][1], cb = lin[w][2];
-    v.x = x; v.y = y; v.z = z; v.nx = nor[i * 3]; v.ny = nor[i * 3 + 1]; v.nz = nor[i * 3 + 2];
+    v.x = x; v.y = y; v.z = z; v.nx = nor[i * 3]; v.ny = nor[i * 3 + 1]; v.nz = nor[i * 3 + 2]; v.jaw = m.aJaw[i]; v.leg = m.aLeg[i]; v.s = m.aS[i];
     for (let o = 0; o < over.length; o++) {
       const s = nc + o, sd = Math.max(-CL, Math.min(CL, over[o].sd(v)));
       a[s >> 2][i * 4 + (s & 3)] = sd;
@@ -4859,7 +4859,10 @@ const SPIRIT_LIGHT = `
     // fill: ambient + probe + hemisphere taken at a normal bent toward the sky, so the shadow side stays a flat,
     // sky-tinted tone instead of a smeared gradient
     vec3 Na = normalize(N + upV * 1.3);
-    vec3 amb = ambientLightColor + getLightProbeIrradiance(lightProbe, Na);
+    vec3 amb = ambientLightColor;
+    #if defined(USE_LIGHT_PROBES)
+      amb += getLightProbeIrradiance(lightProbe, Na);
+    #endif
     #if NUM_HEMI_LIGHTS > 0
       amb += getHemisphereLightIrradiance(hemisphereLights[0], Na);
     #endif
@@ -5167,10 +5170,32 @@ const eyePair = (hc, x, y, z, rad, yaw = 0.3, extra = {}) => [-1, 1].map((sx) =>
 // shading helpers for paint functions
 const sst = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1); return t * t * (3 - 2 * t); };
 
-// ---------------- 화르르 / 염호 : flame fox — cheek ruff, chest bib, dark socks and ear tips, bushy flame-tipped tail
+// ---------------------------------------------------------------- overlay helpers (signed distances, object units)
+const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const sdP = (P) => (v) => SDF.dist(P, v.x, v.y, v.z);
+// along-axis cut: negative beyond fraction t0 of segment a→b (e.g. a dark ear tip), only on vertices that belong to
+// the part (weight w from the sculpt: ears carry the jaw weight)
+function sdTip(a, b, t0) {
+  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], l = Math.hypot(...ab);
+  return (v) => (t0 - ((v.x - a[0]) * ab[0] + (v.y - a[1]) * ab[1] + (v.z - a[2]) * ab[2]) / (l * l)) * l;
+}
+const sdMin = (...fs) => (v) => { let d = 1e9; for (const f of fs) d = Math.min(d, f(v)); return d; };
+const sdMax = (...fs) => (v) => { let d = -1e9; for (const f of fs) d = Math.max(d, f(v)); return d; };
+// spots: spheres centred on an ellipsoid's surface along given directions
+function sdSpots(c, rr, list) {
+  const pts = list.map(([d, rad]) => {
+    const l = Math.hypot(d[0] / rr[0], d[1] / rr[1], d[2] / rr[2]);
+    return [c[0] + d[0] / l, c[1] + d[1] / l, c[2] + d[2] / l, rad];
+  });
+  return (v) => { let best = 1e9; for (const p of pts) best = Math.min(best, Math.hypot(v.x - p[0], v.y - p[1], v.z - p[2]) - p[3]); return best; };
+}
+const onPart = (key, min = 0.5) => (v) => (min - Math.abs(v[key])) * 0.12;
+
+// ---------------- 화르르 / 염호 : flame fox — big cream cheek ruff and bib, dark socks and ear tips, peach inner ears,
+// one bushy cream-tipped tail with a living flame (염호: three tails, ember ear tips, brow line, forehead gem)
 function dFox(st) {
   return critter('fox' + st, () => {
-    const K = critterKit(), O = st === 2 ? 0xf04a14 : 0xff6418, CR = 0xf6e4cf, DK = 0x3a1812;
+    const K = critterKit(), O = st === 2 ? 0xf2541a : 0xff6a1c, CR = 0xfff0dc, DK = 0x3a1a14, NOSE = 0x2a1210, EAR = 0xffcdb6;
     const L = st === 2 ? 1.22 : 1, by = 0.5 * L, bz = st === 2 ? 0.5 : 0.42;
     K.el([0, by, 0], [0.3, 0.28, bz], O, { k: 0.1 });
     K.el([0, by + 0.04, bz - 0.17], [0.23, 0.25, 0.22], CR, { k: 0.12 });
@@ -5196,66 +5221,65 @@ function dFox(st) {
       K.tuft(add3(hc, [sx * 0.22, -0.15, 0.05]), add3(hc, [sx * 0.38, -0.27, -0.01]), 0.065, CR, Object.assign({}, HEAD));
     }
     K.el(add3(hc, [0, -0.09, 0.24]), [0.13, 0.09, 0.14], CR, Object.assign({ k: 0.06 }, HEAD));
-    K.el(add3(hc, [0, -0.05, 0.37]), [0.05, 0.034, 0.032], DK, Object.assign({ k: 0.02 }, HEAD));
+    K.el(add3(hc, [0, -0.05, 0.37]), [0.05, 0.034, 0.032], NOSE, Object.assign({ k: 0.02 }, HEAD));
     K.tuft(add3(hc, [0.0, 0.2, 0.1]), add3(hc, [0.05, 0.36, 0.17]), 0.06, O, Object.assign({}, HEAD));
-    const eh = st === 2 ? 1.18 : 1;
-    for (const sx of [-1, 1]) K.rc(add3(hc, [sx * 0.14, 0.18, -0.02]), add3(hc, [sx * 0.28, 0.52 * eh, -0.06]), 0.115, 0.012, O, Object.assign({ k: 0.05, jaw: 1 }, HEAD));
-    const tails = st === 2 ? [-0.24, 0, 0.24] : [0];
+    const eh = st === 2 ? 1.18 : 1, ears = [];
+    for (const sx of [-1, 1]) {
+      const a = add3(hc, [sx * 0.14, 0.18, -0.02]), b = add3(hc, [sx * 0.28, 0.52 * eh, -0.06]);
+      K.rc(a, b, 0.115, 0.012, O, Object.assign({ k: 0.05, jaw: 1 }, HEAD)); ears.push([a, b]);
+    }
+    const tails = st === 2 ? [-0.24, 0, 0.24] : [0], tips = [];
     for (const tx of tails) {
       const p0 = [tx * 0.3, by + 0.05, -bz * 0.85], p1 = [tx, by + 0.26, -bz - 0.24], p2 = [tx * 1.25, by + 0.6, -bz - 0.36], p3 = [tx * 1.35, by + 0.86, -bz - 0.26];
       K.rc(p0, p1, 0.1, 0.18, O, { k: 0.07, s0: 0.32, s1: 0.22 });
       K.rc(p1, p2, 0.18, 0.165, O, { k: 0.06, s0: 0.22, s1: 0.1 });
       K.rc(p2, p3, 0.165, 0.035, CR, { k: 0.05, s0: 0.1, s1: 0.0 });
+      tips.push([p2, p3]);
     }
     const hy = hc[1], hz = hc[2];
-    const cDK = hexRGB(DK), cEar = hexRGB(0xffcab4), cBack = hexRGB(st === 2 ? 0xb8300c : 0xd8440e), cGlow = hexRGB(0xffc24a);
-    const paint = (v) => {
-      // dark socks
-      if (v.y < 0.3 * L && Math.abs(v.z) > 0.08) tintV(v, cDK, sst(0.27 * L, 0.13, v.y) * 0.9);
-      // ears: dark tips, peach inner ear
-      const ey = v.y - hy;
-      if (ey > 0.2 && Math.abs(v.x) > 0.06 && v.z < hz + 0.16) {
-        tintV(v, cEar, sst(0.15, 0.55, v.nz) * sst(0.24, 0.32, ey) * (1 - sst(0.38 * eh, 0.44 * eh, ey)));
-        tintV(v, cDK, sst(0.36 * eh, 0.47 * eh, ey));
-      }
-      // darker saddle along the back
-      if (v.ny > 0.35 && v.y < hy - 0.15 && v.y > by) tintV(v, cBack, sst(0.35, 0.95, v.ny) * 0.45);
-      // glowing ember tips on the ear points and tail tip
-      if (st === 2 && ey > 0.44 * eh) v.g = sst(0.44 * eh, 0.56 * eh, ey) * 0.8;
-      if (v.z < -bz - 0.2 && v.y > by + 0.72) v.g = Math.max(v.g, sst(by + 0.72, by + 0.9, v.y) * 0.9);
-      tintV(v, cGlow, v.g * 0.5);
+    // markings: inner ears (a slimmer cone set forward of each ear), ear tips, socks, a warm glow on the tail tip
+    const inner = ears.map(([a, b]) => sdP(SDF.rc(add3(lerp3(a, b, 0.16), [0, 0, 0.066]), add3(lerp3(a, b, 0.8), [0, 0, 0.044]), 0.084, 0.012)));
+    const look = {
+      kind: 'fur',
+      mats: { [NOSE]: 'nose' },
+      shade: { tint: [0.95, 0.64, 0.94], midTint: [1.14, 0.8, 0.74] },
+      over: [
+        { col: DK, sd: sdMax((v) => v.y - 0.2 * L, onPart('leg', 0.45)) },
+        { col: EAR, sd: sdMax(sdMin(...inner), onPart('jaw')) },
+        { col: st === 2 ? 0xffb44a : DK, mat: st === 2 ? 'ember' : undefined, sd: sdMax(sdMin(...ears.map(([a, b]) => sdTip(a, b, st === 2 ? 0.66 : 0.7))), onPart('jaw')) },
+        { col: 0xffe2a0, em: 0.4, sd: sdMin(...tips.map(([a, b]) => sdMax(sdTip(a, b, 0.62), (v) => v.z - b[2] - 0.2))) },
+      ],
     };
     const face = {
-      mouth: [0, hy - 0.125, hz + 0.3, st === 2 ? 0.04 : 0.045], mouthK: 1, line: 0x2a1010,
-      nose: [0.012, hy - 0.033, hz + 0.39, 0.018],
-      blush: [0.19, hy - 0.075, hz + 0.12, 0.065], blushCol: 0xff6f7a,
+      mouth: [0, hy - 0.125, hz + 0.3, st === 2 ? 0.04 : 0.045], mouthK: 1, line: 0x3a1410,
+      blush: [0.19, hy - 0.075, hz + 0.12, 0.06], blushCol: 0xff7a74, blushEdge: 0.7, blushA: 0.42,
       mark: st === 2 ? null : [0, hy + 0.165, hz + 0.15, 0.055], markK: 1, markCol: 0xffd25a, markGlow: 0xffa030,
       brow: st === 2 ? [0.12, hy + 0.115, hz + 0.18, 0.04] : null, browTilt: -0.35, browCol: 0x7a2408,
     };
-    return { prims: K.prims, bounds: [-0.8, -0.05, -bz - 0.8, 0.8, 1.8 * L, bz + 0.75], hipY: by, height: 1.45 * L, stride: 0.12, paint, face,
+    return { prims: K.prims, bounds: [-0.8, -0.05, -bz - 0.8, 0.8, 1.8 * L, bz + 0.75], hipY: by, height: 1.45 * L, stride: 0.12, look, face, socket: 0.7,
       earHinge: add3(hc, [0, 0.16, -0.04]), earAmp: -0.2,
       eyes: eyePair(hc, 0.138, 0.015, 0.252, st === 2 ? 0.086 : 0.094, 0.3), tails: tails.map((tx) => [tx * 1.35, by + 0.92, -bz - 0.26]), hc, eh };
   });
 }
 function foxModel(r, st) {
   const D = dFox(st);
-  const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x6a1a06 : 0x4a1808, iris2: st === 2 ? 0xffb02e : 0xffa040,
-    eye: st === 2 ? { open: 0.66, tilt: 0.14, wing: 0.9, irisR: 0.58 } : { open: 0.82, tilt: 0.05, wing: 0.45, irisR: 0.62 },
-    mat: { kind: 'fur', sheenCol: 0xffb070, glow: 0xff9a3a, glowAmt: 2.2 } });
+  const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0xd4661a : 0xd8801e, iris2: 0xffd468, irisRim: st === 2 ? 0x4a1204 : 0x5a1c06, lash: 0x2a1010,
+    eye: st === 2 ? { open: 0.66, tilt: 0.14, wing: 0.9, irisR: 0.6 } : { open: 0.82, tilt: 0.05, wing: 0.45, irisR: 0.64 } });
   for (const tp of D.tails) { const f = flame(r, B, tp, st === 2 ? 0.66 : 0.8); r.glue(f, 0); }
   if (st === 2) {
     for (const sx of [-1, 1]) { const f = flame(r, B, add3(D.hc, [sx * 0.29, 0.58 * D.eh, -0.06]), 0.32); r.glue(f, 1); }
-    const gem = part(GEO.octa, E(0xffd25a, 2.6), B, add3(D.hc, [0, 0.165, 0.27]), [0.042, 0.068, 0.03]); r.glue(gem, 1);
+    const gem = spiritPart(r, GEO.octa, 0xffd25a, 'glow', B, add3(D.hc, [0, 0.165, 0.27]), [0.042, 0.068, 0.03], [0, 0, 0], { em: 1.6, outline: false }); r.glue(gem, 1);
   }
   r.size = 1.4 * (st === 2 ? 1.25 : 1);
 }
 MODELS.hwarr = (r) => foxModel(r, 1);
 MODELS.yeomho = (r) => foxModel(r, 2);
 
-// ---------------- 물롱 / 파도롱 : sea-pup — whisker pads, spotted back, glossy wet skin, flapping head fins
+// ---------------- 물롱 / 파도롱 : sea-pup — glossy water-jelly skin, white muzzle and belly, pale fins, a few deep-blue
+// spots on the crown and back, a floating bubble (파도롱: crest fins, glowing tide lines, water ring)
 function dSeal(st) {
   return critter('seal' + st, () => {
-    const K = critterKit(), BL = st === 2 ? 0x3596ea : 0x52bcfa, WH = 0xe0f0fa, FN = 0x8fe6ff, DK = 0x14304a;
+    const K = critterKit(), BL = st === 2 ? 0x3a8ff0 : 0x55b8fb, WH = 0xeef8ff, FN = 0x9fe9ff, NOSE = 0x173052, CRS = 0x2f74d4;
     K.el([0, 0.44, 0], [0.46, 0.4, 0.55], BL, { k: 0.12 });
     K.el([0, 0.36, 0.14], [0.35, 0.29, 0.42], WH, { k: 0.12 });
     K.rc([0, 0.36, -0.38], [0, 0.2, -0.62], 0.25, 0.1, BL, { k: 0.1, s0: 0.3, s1: 0.1 });
@@ -5268,54 +5292,43 @@ function dSeal(st) {
     K.el(hc, [0.38, 0.35, 0.35], BL, Object.assign({ k: 0.14 }, HEAD));
     for (const sx of [-1, 1]) K.el(add3(hc, [sx * 0.078, -0.125, 0.27]), [0.1, 0.078, 0.08], WH, Object.assign({ k: 0.05 }, HEAD));
     K.el(add3(hc, [0, -0.2, 0.24]), [0.11, 0.06, 0.08], WH, Object.assign({ k: 0.06 }, HEAD));
-    K.el(add3(hc, [0, -0.07, 0.345]), [0.052, 0.036, 0.034], DK, Object.assign({ k: 0.02 }, HEAD));
+    K.el(add3(hc, [0, -0.07, 0.345]), [0.052, 0.036, 0.034], NOSE, Object.assign({ k: 0.02 }, HEAD));
     const fs = st === 2 ? 1.25 : 1;
     for (const sx of [-1, 1]) {
       K.el(add3(hc, [sx * 0.33, 0.1, -0.02]), [0.2 * fs, 0.055, 0.13], FN, Object.assign({ k: 0.05, jaw: 1 }, HEAD));
       K.tuft(add3(hc, [sx * 0.4, 0.11, -0.04]), add3(hc, [sx * (0.36 + 0.22 * fs), 0.2, -0.12]), 0.07, FN, Object.assign({ jaw: 1 }, HEAD));
     }
-    if (st === 2) for (let i = 0; i < 3; i++) K.rc(add3(hc, [0, 0.3 - i * 0.04, -0.08 - i * 0.12]), add3(hc, [0, 0.58 - i * 0.07, -0.3 - i * 0.14]), 0.065, 0.008, 0x2a78d0, Object.assign({ k: 0.04 }, HEAD));
+    if (st === 2) for (let i = 0; i < 3; i++) K.rc(add3(hc, [0, 0.3 - i * 0.04, -0.08 - i * 0.12]), add3(hc, [0, 0.58 - i * 0.07, -0.3 - i * 0.14]), 0.065, 0.008, CRS, Object.assign({ k: 0.04 }, HEAD));
     const hy = hc[1], hz = hc[2];
-    const cSpot = hexRGB(st === 2 ? 0x1f6cc0 : 0x2f8ad6), cTip = hexRGB(0xd8fbff), cWave = hexRGB(0xbff6ff);
-    const paint = (v) => {
-      // harbour-seal spots on the back and crown
-      if (v.ny > -0.1 && v.nz < 0.75 && v.y > 0.45) {
-        const n = vn3js(v.x * 8.5 + 3, v.y * 8.5, v.z * 8.5 - 2);
-        tintV(v, cSpot, sst(0.66, 0.74, n) * 0.75 * sst(-0.1, 0.3, v.ny + (v.z < 0 ? 0.3 : 0)));
-      }
-      // pale fin and flipper tips
-      if (Math.abs(v.x) > 0.5 || v.z < -0.72) tintV(v, cTip, sst(0.5, 0.75, Math.abs(v.x)) + sst(-0.72, -0.82, v.z));
-      if (v.y > hy - 0.05 && Math.abs(v.x) > 0.45) tintV(v, cTip, sst(0.45, 0.62, Math.abs(v.x)));
-      // tide lines along the flanks glow on the evolved form
-      if (st === 2 && v.y < 0.7 && v.y > 0.2 && Math.abs(v.nx) > 0.3) {
-        const w = Math.abs(v.y - (0.42 + 0.06 * Math.sin(v.z * 9))) ;
-        const g = (1 - sst(0.0, 0.025, w)) * sst(0.3, 0.6, Math.abs(v.nx));
-        v.g = Math.max(v.g, g); tintV(v, cWave, g * 0.6);
-      }
-    };
+    const spotC = st === 2 ? 0x1d5fb8 : 0x2c86d8;
+    const spots = sdMin(
+      sdSpots(hc, [0.38, 0.35, 0.35], [[[0.42, 0.85, -0.3], 0.048], [[-0.34, 0.92, -0.4], 0.04], [[0.06, 0.7, -0.75], 0.056]]),
+      sdSpots([0, 0.44, 0], [0.46, 0.4, 0.55], [[[0.55, 0.62, -0.55], 0.066], [[-0.5, 0.66, -0.62], 0.056], [[0.12, 0.55, -0.85], 0.05], [[-0.78, 0.38, -0.3], 0.046], [[0.8, 0.36, -0.12], 0.04], [[-0.2, 0.42, -0.9], 0.04]]));
+    const over = [{ col: spotC, sd: spots }];
+    if (st === 2) over.push({ col: 0xc6f8ff, mat: 'glow', em: 1.1, sd: sdMax((v) => Math.abs(v.y - (0.4 + 0.045 * Math.sin(v.z * 8 + 0.6))) - 0.014, (v) => 0.3 - Math.abs(v.x), (v) => v.z - 0.18) });
+    const look = { kind: 'water', mats: { [NOSE]: 'nose', [WH]: 'water', [FN]: 'water' }, shade: { tint: [0.6, 0.78, 1.16] }, over };
     const face = {
-      mouth: [0, hy - 0.17, hz + 0.24, 0.055], mouthK: st === 2 ? 1 : 3, line: 0x1a2436,
-      nose: [0.014, hy - 0.052, hz + 0.37, 0.02],
-      blush: [0.215, hy - 0.06, hz + 0.16, 0.07], blushCol: 0xff8aa6,
-          };
-    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, paint, face,
+      mouth: [0, hy - 0.17, hz + 0.24, 0.055], mouthK: st === 2 ? 1 : 3, line: 0x1a2a44,
+      blush: [0.215, hy - 0.06, hz + 0.16, 0.065], blushCol: 0xff8aa8, blushEdge: 0.7, blushA: 0.4,
+    };
+    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, look, face, socket: 0.7,
       earHinge: add3(hc, [0, 0.1, -0.02]), earAmp: 0.3,
       eyes: eyePair(hc, 0.165, 0.045, 0.29, 0.1, 0.32), hc };
   });
 }
 function sealModel(r, st) {
   const D = dSeal(st);
-  const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x072650, iris2: 0x46c6ff, lash: 0x0c1a30,
-    eye: st === 2 ? { open: 0.74, tilt: 0.1, wing: 0.6, irisR: 0.6 } : { open: 0.86, tilt: 0.02, wing: 0.3, irisR: 0.64 },
-    mat: { kind: 'skin', coat: 1.0, coatRough: 0.08, sheen: 0.15, rough: 0.32, env: 0.45, fuzz: 0.02, rim: 0xbff4ff, rimAmt: 0.12, glow: 0x8ff0ff, glowAmt: 1.6, sssCol: [0.55, 0.9, 1.1], transCol: [0.75, 1.1, 1.25], shadeCol: [0.86, 0.96, 1.24], cavCol: [0.42, 0.5, 0.66] } });
+  const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x2a86e8, iris2: 0x9cecff, irisRim: 0x0a2458, lash: 0x0c1a30, olc: 0x10203a,
+    eye: st === 2 ? { open: 0.74, tilt: 0.1, wing: 0.6, irisR: 0.62 } : { open: 0.86, tilt: 0.02, wing: 0.3, irisR: 0.66 } });
   const orb = grp(B, add3(D.hc, [0, 0.5, -0.04]));
-  part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.45 }), orb, [0, 0, 0], 0.15);
-  part(GEO.sphere, E(0x9cf0ff, 2.2), orb, [0, 0, 0], 0.06);
-  part(GEO.sphere, E(0xffffff, 1.8), orb, [0.05, 0.06, 0.08], 0.025);
+  part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.4 }), orb, [0, 0, 0], 0.15);
+  part(GEO.sphere, E(0x9cf0ff, 2.0), orb, [0, 0, 0], 0.06);
+  part(GEO.sphere, E(0xffffff, 1.8), orb, [-0.05, 0.06, 0.08], 0.025);
+  wig(r, orb, 'z', 0.12, 1.7); wig(r, orb, 'x', 0.08, 1.3, 1.1);
   r.glue(orb, 1);
   if (st === 2) {
     const ring = grp(B, [0, 0.42, 0], [Math.PI / 2 + 0.12, 0, 0]);
-    part(GEO.torus, toonMat({ color: 0x8fe8ff, transparent: true, opacity: 0.55, depthWrite: false }), ring, [0, 0, 0], [0.74, 0.74, 1.6]);
+    part(GEO.torus, toonMat({ color: 0x8fe8ff, transparent: true, opacity: 0.5, depthWrite: false }), ring, [0, 0, 0], [0.74, 0.74, 1.6]);
     part(GEO.ring, E(0xc8f8ff, 1.5), ring, [0, 0, 0], 0.76);
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; part(GEO.sphere, E(0xbff6ff, 1.9), ring, [Math.cos(a) * 0.74, Math.sin(a) * 0.74, 0], 0.03 + (i % 2) * 0.015); }
     spin(r, ring, 'z', 0.7);
@@ -5325,10 +5338,11 @@ function sealModel(r, st) {
 MODELS.mullong = (r) => sealModel(r, 1);
 MODELS.padolong = (r) => sealModel(r, 2);
 
-// ---------------- 새싹뿔 / 숲뿔사슴 : sprout fawn — pointed leaf ears, dappled back, cream throat, leafy collar and blossoming antlers
+// ---------------- 새싹뿔 / 숲뿔사슴 : sprout fawn — honey coat with cream dapples, cream muzzle / belly / tail, satin
+// leaf ears with a midrib, a sprout on the crown (숲뿔사슴: antlers with blossoms, leafy collar, glowing sap tips)
 function dFawn(st) {
   return critter('fawn' + st, () => {
-    const K = critterKit(), FW = st === 2 ? 0xa8683c : 0xc8864e, CR = 0xfff1d8, LF = 0x62d860, DK = 0x2e1c12, AN = 0x6b4a2e;
+    const K = critterKit(), FW = st === 2 ? 0xc7843f : 0xdf9d58, CR = 0xfff1d8, LF = 0x62d35a, LF2 = 0x8ee26e, DK = 0x3a2416, NOSE = 0x2a1810, AN = 0x7a5232;
     const LL = st === 2 ? 1.18 : 1;
     K.el([0, 0.78 * LL, 0], [0.28, 0.26, 0.46], FW, { k: 0.1 });
     K.el([0, 0.7 * LL, 0.04], [0.2, 0.16, 0.36], CR, { k: 0.1 });
@@ -5343,13 +5357,15 @@ function dFawn(st) {
     K.rc([0, 0.9 * LL, 0.3], add3(hc, [0, -0.08, -0.06]), 0.12, 0.095, FW, { k: 0.08, s0: 0.7, s1: 0.95 });
     K.el(hc, [0.24, 0.23, 0.25], FW, Object.assign({ k: 0.07 }, HEAD));
     K.el(add3(hc, [0, -0.075, 0.19]), [0.13, 0.11, 0.14], CR, Object.assign({ k: 0.06 }, HEAD));
-    K.el(add3(hc, [0, -0.045, 0.325]), [0.042, 0.03, 0.026], DK, Object.assign({ k: 0.02 }, HEAD));
+    K.el(add3(hc, [0, -0.045, 0.325]), [0.042, 0.03, 0.026], NOSE, Object.assign({ k: 0.02 }, HEAD));
     K.tuft(add3(hc, [0, 0.16, 0.08]), add3(hc, [0.03, 0.27, 0.16]), 0.05, FW, Object.assign({}, HEAD));
+    const ribs = [];
     for (const sx of [-1, 1]) {
       // leaf ears: broad blade + pointed tip, they flick
       K.el(add3(hc, [sx * 0.27, 0.075, -0.03]), [0.15, 0.036, 0.08], LF, Object.assign({ k: 0.05, jaw: 1 }, HEAD));
       K.rc(add3(hc, [sx * 0.36, 0.085, -0.035]), add3(hc, [sx * 0.5, 0.13, -0.055]), 0.055, 0.006, LF, Object.assign({ k: 0.03, jaw: 1 }, HEAD));
       K.tuft(add3(hc, [sx * 0.17, -0.1, 0.0]), add3(hc, [sx * 0.29, -0.18, -0.06]), 0.05, CR, Object.assign({}, HEAD));
+      ribs.push([add3(hc, [sx * 0.15, 0.07, -0.028]), add3(hc, [sx * 0.49, 0.128, -0.053])]);
     }
     if (st === 2) {
       for (const sx of [-1, 1]) {
@@ -5362,57 +5378,65 @@ function dFawn(st) {
       // leafy collar around the neck
       for (let i = 0; i < 9; i++) {
         const a = -2.0 + (i / 8) * 4.0, nc = [0, 1.0 * LL, 0.36];
-        K.rc(add3(nc, [Math.sin(a) * 0.08, 0.02, Math.cos(a) * 0.06]), add3(nc, [Math.sin(a) * 0.27, -0.14, Math.cos(a) * 0.22 + 0.03]), 0.07, 0.008, i % 2 ? 0x4cc458 : 0x78e070, { k: 0.04, s0: 0.85, s1: 0.85 });
+        K.rc(add3(nc, [Math.sin(a) * 0.08, 0.02, Math.cos(a) * 0.06]), add3(nc, [Math.sin(a) * 0.27, -0.14, Math.cos(a) * 0.22 + 0.03]), 0.07, 0.008, i % 2 ? LF : LF2, { k: 0.04, s0: 0.85, s1: 0.85 });
       }
     }
-    K.el([0, 0.86 * LL, -0.47], [0.075, 0.09, 0.065], 0xffffff, { k: 0.04, s0: 0.2, s1: 0.2 });
+    K.el([0, 0.86 * LL, -0.47], [0.075, 0.09, 0.065], CR, { k: 0.04, s0: 0.2, s1: 0.2 });
     const hy = hc[1], hz = hc[2];
-    const cCR = hexRGB(0xfff4dc), cVein = hexRGB(0x2f9a3e), cDark = hexRGB(st === 2 ? 0x7a4a26 : 0x9a6236), cGlow = hexRGB(0xc8ffb0);
-    const spots = [];
-    for (let i = 0; i < 9; i++) for (const sx of [-1, 1]) spots.push([sx * (0.09 + (i % 3) * 0.035), -0.32 + i * 0.07 + (sx > 0 ? 0.03 : 0)]);
-    const paint = (v) => {
-      // dappled fawn spots along the back
-      if (v.ny > 0.15 && v.y > 0.86 * LL && v.y < 1.08 * LL && v.z < 0.36) {
-        let best = 1;
-        for (const s of spots) { const d = Math.hypot(v.x - s[0], v.z - s[1]); if (d < best) best = d; }
-        tintV(v, cCR, (1 - sst(0.022, 0.034, best)) * 0.95);
-      }
-      // darker dorsal stripe
-      if (v.ny > 0.6 && Math.abs(v.x) < 0.07 && v.z < 0.3) tintV(v, cDark, sst(0.07, 0.02, Math.abs(v.x)) * 0.5);
-      // cream throat
-      if (v.nz > 0.35 && Math.abs(v.x) < 0.13 && v.y > 0.86 * LL && v.y < hy - 0.06) tintV(v, cCR, sst(0.13, 0.06, Math.abs(v.x)) * sst(0.35, 0.7, v.nz) * 0.85);
-      // leaf veins on the ears
-      if (Math.abs(v.x) > 0.17 && v.y > hy && v.y < hy + 0.16 && v.z > hz - 0.14) tintV(v, cVein, (1 - sst(0.004, 0.012, Math.abs(v.z - (hz - 0.03 - (Math.abs(v.x) - 0.17) * 0.12)))) * 0.7);
-      // glowing sap at the antler tips
-      if (st === 2 && v.y > hy + 0.5 && Math.abs(v.x) > 0.08) { v.g = sst(hy + 0.55, hy + 0.82, v.y) * 0.9; tintV(v, cGlow, v.g * 0.7); }
+    // dapples: two staggered rows each side of the spine, on the top of the body
+    const spotP = [];
+    for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) for (const [x, dz] of [[0.075, 0], [0.155, 0.06]]) {
+      const z = -0.36 + i * 0.12 + dz + (sx > 0 ? 0.03 : 0), xx = sx * (x + (i % 2) * 0.012);
+      if (z > 0.2) continue;
+      spotP.push([xx, 0.78 * LL + 0.26 * Math.sqrt(Math.max(0, 1 - (xx / 0.28) ** 2 - (z / 0.46) ** 2)), z, 0.027 + ((i + (x > 0.1 ? 1 : 0)) % 2) * 0.006]);
+    }
+    const dapple = (v) => { let b = 1e9; for (const p of spotP) b = Math.min(b, Math.hypot(v.x - p[0], v.y - p[1], v.z - p[2]) - p[3]); return b; };
+    const rib = (a, b) => (v) => {
+      // distance to the midrib in the leaf plane (x/z), so it shows on both faces of the flat blade
+      const ax = b[0] - a[0], az = b[2] - a[2], t = clamp(((v.x - a[0]) * ax + (v.z - a[2]) * az) / (ax * ax + az * az), 0, 1);
+      return Math.hypot(v.x - a[0] - ax * t, v.z - a[2] - az * t) - 0.0065 * (1.2 - t);
     };
+    const over = [
+      { col: CR, sd: sdMax(dapple, (v) => 0.86 * LL - v.y) },
+      { col: 0x2f9a3e, mat: 'leaf', sd: sdMax(sdMin(...ribs.map(([a, b]) => rib(a, b))), onPart('jaw')) },
+    ];
+    if (st === 2) over.push({ col: 0xdcffb8, mat: 'glow', em: 0.9, sd: sdMax((v) => hy + 0.66 - v.y, (v) => 0.06 - Math.abs(v.x)) });
+    const look = { kind: 'fur', mats: { [LF]: 'leaf', [LF2]: 'leaf', [AN]: 'horn', [DK]: 'hoof', [NOSE]: 'nose' }, shade: { tint: [0.95, 0.68, 0.9], midTint: [1.12, 0.84, 0.74] }, over };
     const face = {
       mouth: [0, hy - 0.118, hz + 0.22, 0.034], mouthK: 2, line: 0x3a1a10,
-      nose: [0.01, hy - 0.03, hz + 0.345, 0.015],
-      blush: [0.15, hy - 0.06, hz + 0.1, 0.05], blushCol: 0xff8a8a,
+      blush: [0.15, hy - 0.06, hz + 0.1, 0.048], blushCol: 0xff8a84, blushEdge: 0.7, blushA: 0.4,
     };
-    return { prims: K.prims, bounds: [-0.75, -0.05, -0.8, 0.75, (st === 2 ? 2.45 : 1.8) * LL, 0.95], hipY: 0.66 * LL, height: 1.6 * LL, stride: 0.14, paint, face,
+    return { prims: K.prims, bounds: [-0.75, -0.05, -0.8, 0.75, (st === 2 ? 2.45 : 1.8) * LL, 0.95], hipY: 0.66 * LL, height: 1.6 * LL, stride: 0.14, look, face, socket: 0.7,
       earHinge: add3(hc, [0, 0.07, -0.03]), earAmp: 0.3,
       eyes: eyePair(hc, 0.118, 0.035, 0.192, 0.08, 0.34), hc };
   });
 }
 function fawnModel(r, st) {
   const D = dFawn(st);
-  const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x123a10, iris2: 0x7ae06a, lash: 0x24140c,
-    eye: { open: st === 2 ? 0.72 : 0.84, tilt: st === 2 ? 0.1 : 0.04, wing: 1.0, irisR: 0.62 },
-    mat: { kind: 'fur', fur: 0.55, sheenCol: 0xffe6c0, glow: 0xb8ff9a, glowAmt: 1.8 } });
+  const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x3c9a2e, iris2: 0xb4f07a, irisRim: 0x0f2e0c, lash: 0x24140c,
+    eye: { open: st === 2 ? 0.72 : 0.84, tilt: st === 2 ? 0.1 : 0.04, wing: 1.0, irisR: 0.64 } });
+  // crown sprout: a stem and two satin leaves in the same cel look, swaying
   const sp = grp(B, add3(D.hc, [0, 0.22, 0]));
-  part(GEO.cyl, M(0x4fbf5f), sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
-  for (const s of [-1, 1]) part(GEO.sphere, M(0x6ee06a), sp, [s * 0.08, 0.18, 0], [0.1, 0.03, 0.06], [0, 0, s * 0.5]);
+  spiritPart(r, GEO.cyl, 0x4fbf5f, 'leaf', sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
+  for (const s of [-1, 1]) spiritPart(r, GEO.sphere, 0x74e06a, 'leaf', sp, [s * 0.08, 0.18, 0], [0.1, 0.028, 0.055], [0, 0, s * 0.5]);
   wig(r, sp, 'z', 0.15, 2.8); r.glue(sp, 1);
   if (st === 2) {
-    const leafM = M(0x58c858), leafM2 = M(0x7ee070);
-    for (const sx of [-1, 1]) for (const [x, y, z, k] of [[0.3, 0.88, -0.3, 0], [0.42, 0.58, -0.05, 1], [0.15, 0.8, -0.08, 2]]) {
-      const g = grp(B, add3(D.hc, [sx * x, y, z]));
-      for (let j = 0; j < 4; j++) { const a = j * 1.57 + k; part(GEO.sphere, j % 2 ? leafM2 : leafM, g, [Math.cos(a) * 0.07, 0.015 * j, Math.sin(a) * 0.07], [0.1, 0.022, 0.05], [0.3, -a, 0.35]); }
-      part(GEO.sphere, E([0xffb3e6, 0xfff4b0, 0xc8b3ff][k], 2.0), g, [0.0, 0.05, 0.0], 0.04);
-      for (let j = 0; j < 5; j++) { const a = j * 1.2566; part(GEO.sphere, M([0xffc8ec, 0xfff8d0, 0xe0d0ff][k]), g, [Math.cos(a) * 0.035, 0.05, Math.sin(a) * 0.035], [0.028, 0.012, 0.028]); }
-      wig(r, g, 'z', 0.08, 1.6, k + sx); r.glue(g, 1);
+    // antler blossoms: per side one merged leaf mesh + one merged petal mesh (+ glowing centres), swaying gently
+    for (const sx of [-1, 1]) {
+      const g = grp(B, add3(D.hc, [0, 0, 0]));
+      const leaves = [], petals = [], centres = [];
+      const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), Ee = new THREE.Euler(), Vp = new THREE.Vector3(), Vs = new THREE.Vector3();
+      const put = (list, geo, p, s, rot) => { Ee.set(rot[0], rot[1], rot[2]); Q.setFromEuler(Ee); M4.compose(Vp.set(p[0], p[1], p[2]), Q, Vs.set(s[0], s[1], s[2])); list.push(geo.clone().applyMatrix4(M4)); };
+      for (const [x, y, z, k] of [[0.3, 0.88, -0.3, 0], [0.42, 0.58, -0.05, 1], [0.15, 0.8, -0.08, 2]]) {
+        const c = [sx * x, y, z];
+        for (let j = 0; j < 4; j++) { const a = j * 1.57 + k; put(leaves, GEO.sphereLo, add3(c, [Math.cos(a) * 0.07, 0.015 * j, Math.sin(a) * 0.07]), [0.1, 0.022, 0.05], [0.3, -a, 0.35]); }
+        for (let j = 0; j < 5; j++) { const a = j * 1.2566 + k; put(petals, GEO.sphereLo, add3(c, [Math.cos(a) * 0.036, 0.05, Math.sin(a) * 0.036]), [0.03, 0.013, 0.03], [0, 0, 0]); }
+        put(centres, GEO.sphereLo, add3(c, [0, 0.056, 0]), [0.022, 0.016, 0.022], [0, 0, 0]);
+      }
+      spiritPart(r, mergeGeometries(leaves), 0x5cc95a, 'leaf', g, [0, 0, 0], 1);
+      spiritPart(r, mergeGeometries(petals), 0xffc4e6, 'skin', g, [0, 0, 0], 1);
+      spiritPart(r, mergeGeometries(centres), 0xfff2a8, 'glow', g, [0, 0, 0], 1, [0, 0, 0], { em: 1.2, outline: false, shadow: false });
+      wig(r, g, 'z', 0.03, 1.6, sx); r.glue(g, 1);
     }
   }
   r.size = 1.6 * (st === 2 ? 1.25 : 1);
@@ -6035,7 +6059,7 @@ function ppKit() {
 // mesh one layer and give every vertex colour / material (soft nearest primitive) and chain-blended skin weights
 // game-density meshing: fine cells only where the eye goes (face, hands), garments coarser (normals come from the
 // smooth field, so shading stays clean); about 25–40k triangles per person on PC
-const PP_DENS = { face: 1.4, hand: 1.4, cap: 1.45, sole: 1.5, pouch: 1.4, packflap: 1.4, bedroll: 1.5, pack: 1.5, socks: 1.5, arms: 1.45, legs: 1.5, shirt: 1.8 };
+const PP_DENS = { face: 1.4, hand: 1.6, cap: 1.45, sole: 1.5, boots: 1.9, pants: 1.9, pouch: 1.4, packflap: 1.4, bedroll: 1.5, pack: 1.5, socks: 1.5, arms: 1.45, legs: 1.5, shirt: 1.8 };
 function ppLayerSurf(S, L) {
   const M = ppSculpt(L.prims, L.cell * (PP_DENS[L.name] || 1.7));
   const s = ppSurf(M.nv, M.idx.length / 3);
@@ -6380,7 +6404,7 @@ function ppRing(F, c, ax, r0, hw, ht, o = {}) {
   ax = ppV.norm(ax);
   const fz = ppV.sub([0, 0, 1], ppV.mul(ax, ax[2]));
   const e1 = ppV.len(fz) > 1e-3 ? ppV.norm(fz) : [1, 0, 0], e2 = ppV.cross(ax, e1);
-  const n = o.n || 32, gap = o.gap || 0, closed = !gap, N = closed ? n : n + 1, off = o.off ?? ht * 0.55;
+  const n = o.n || (PP_HI() ? 26 : 18), gap = o.gap || 0, closed = !gap, N = closed ? n : n + 1, off = o.off ?? ht * 0.55;
   const pts = [], ups = [];
   for (let i = 0; i < N; i++) {
     const a = closed ? (i / n) * Math.PI * 2 : gap + (Math.PI * 2 - 2 * gap) * (i / n);
@@ -6389,7 +6413,7 @@ function ppRing(F, c, ax, r0, hw, ht, o = {}) {
     for (; r > 0; r -= st) { const p = ppV.add(c, ppV.mul(dir, r)); if (F(p[0], p[1], p[2]) < off) { let lo = r, hi = r + st; for (let b = 0; b < 6; b++) { const m = (lo + hi) / 2, q = ppV.add(c, ppV.mul(dir, m)); if (F(q[0], q[1], q[2]) < off) lo = m; else hi = m; } hit = (lo + hi) / 2; break; } }
     pts.push(ppV.add(c, ppV.mul(dir, hit + (o.lift || 0)))); ups.push(dir);
   }
-  const s = ppSweep(pts, pts.map(() => hw), pts.map(() => ht), (i) => ups[i], { closed, shape: 'flat', seg: o.seg || 8, uvLen: o.stitch ? 0.012 : 0 });
+  const s = ppSweep(pts, pts.map(() => hw), pts.map(() => ht), (i) => ups[i], { closed, shape: 'flat', seg: o.seg || 6, uvLen: o.stitch ? 0.012 : 0 });
   return s;
 }
 // strap along control points, hugging F
@@ -6807,7 +6831,7 @@ function ppFaceNormals(S, s) {
     const x = s.pos[q * 3], y = s.pos[q * 3 + 1], z = s.pos[q * 3 + 2];
     const ne = ppV.norm([(x - c[0]) / (R[0] * R[0]), (y - c[1]) / (R[1] * R[1]), (z - c[2]) / (R[2] * R[2])]);
     const rel = (y - S.hc[1]) / u;
-    const k = 0.78 * smooth(-0.2, 0.3, ne[2]) * (1 - smooth(0.25 * u, 0.32 * u, Math.abs(x))) * smooth(-0.62, -0.46, rel);
+    const k = 0.78 * smooth(-0.25, 0.35, ne[2]) * (1 - smooth(0.17 * u, 0.36 * u, Math.abs(x))) * smooth(-0.64, -0.44, rel);
     if (k <= 0) continue;
     const n = ppV.norm(ppV.lerp([s.nor[q * 3], s.nor[q * 3 + 1], s.nor[q * 3 + 2]], ne, k));
     s.nor.set(n, q * 3);
