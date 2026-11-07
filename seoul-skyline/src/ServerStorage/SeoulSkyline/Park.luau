@@ -876,8 +876,8 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 	-- pass 1: 히어로 하단 띠(큰 수관, 촘촘) → pass 2: 근경 나머지(그로브) → pass 3: 원경
 	local NEAR0, NEAR1 = VIEW_X - M(530), VIEW_X + M(545)
 	local passes = {
-		{ x0 = BELT_X0, x1 = BELT_X1, z1 = BELT_Z1, tries = 7000, cap = budget * 0.52 },
-		{ x0 = NEAR0, x1 = NEAR1, z1 = Z1 - M(3), tries = 9000, cap = budget * 0.83 },
+		{ x0 = BELT_X0, x1 = BELT_X1, z1 = BELT_Z1, tries = 7000, cap = budget * 0.47 },
+		{ x0 = NEAR0, x1 = NEAR1, z1 = Z1 - M(3), tries = 9000, cap = budget * 0.85 },
 		{ x0 = X0 + M(4), x1 = X1 - M(4), z1 = Z1 - M(3), tries = 10000, cap = budget },
 	}
 	for pi, pass in passes do
@@ -1038,7 +1038,7 @@ function Park.build(ctx: any)
 			if not nearConn and lampOK(x, lz) then
 				local hp = lamp(fx, x, lz)
 				cnt += 1
-				if x > VIEW_X - M(195) and x < VIEW_X + M(215) and cnt % 2 == 0 then
+				if x > VIEW_X - M(195) and x < VIEW_X + M(215) and (cnt % 2 == 0 or math.abs(x - VIEW_X) < M(60)) then
 					lampLight(hp)
 				end
 			end

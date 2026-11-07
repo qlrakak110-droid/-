@@ -122,6 +122,11 @@ function WaterFx.build(ctx: any)
 			Kit.box(parent, cf0 * (cfBand + Vector3.new(0, bandY, 0)), Vector3.new(0.6, bandH, (b - a).Magnitude * 0.9), s.accent, MAT.SmoothPlastic, deco("HullBand"))
 		end
 
+		-- 수선부 짙은 띠(boot-top, 수면 -0.1 ~ +0.4 m)
+		for _, sx in { -1, 1 } do
+			Kit.box(parent, at(sx * (B / 2 + 0.1), m(0.15), (zBowRoot + L / 2) / 2 + m(0.2)), Vector3.new(0.6, m(0.5), mainLen + m(0.2)), rgb(26, 32, 48), MAT.SmoothPlastic, deco("BootTop"))
+		end
+
 		-- 주갑판 유리 난간(선체 가장자리, 1.1 m)
 		local railH = Config.Real.Railing
 		local GLASS_RAIL = rgb(150, 176, 196)
@@ -306,13 +311,13 @@ function WaterFx.build(ctx: any)
 		end
 		local x = rng:NextNumber(-2600, 2600)
 		local z = rng:NextNumber(zNear, zFar)
-		local len = rng:NextNumber(m(12), m(30))
-		local w = rng:NextNumber(m(0.8), m(1.6))
+		local len = rng:NextNumber(m(10), m(26))
+		local w = rng:NextNumber(m(0.6), m(1.2))
 		if math.abs(x - BX) < BRIDGE_CLEAR + m(15) or not clear(x, z, len, w) then
 			continue
 		end
-		local c = GLINT_COLORS[rng:NextInteger(1, #GLINT_COLORS)]:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0.15, 0.4))
-		local first = Kit.reflection(model, x, z, w, len, c, rng:NextNumber(0.8, 0.87))
+		local c = GLINT_COLORS[rng:NextInteger(1, #GLINT_COLORS)]:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0.3, 0.5))
+		local first = Kit.reflection(model, x, z, w, len, c, rng:NextNumber(0.86, 0.91))
 		if first then
 			placed += 1
 			local dir = Vector3.new(cam.X - x, 0, cam.Z - z).Unit
