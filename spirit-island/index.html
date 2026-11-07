@@ -2736,12 +2736,37 @@ function buildPersonToon(o = {}) {
   return r;
 }
 
+// soft contact shadow (ambient-occlusion blob) under every spirit: grounds it on terrain, daises and phones without GTAO
+let _contactTex = null, _contactGeo = null, _contactMat = null;
+function contactShadow(r) {
+  if (!_contactTex) {
+    const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+    const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    gr.addColorStop(0, 'rgba(0,0,0,0.62)'); gr.addColorStop(0.35, 'rgba(0,0,0,0.42)'); gr.addColorStop(0.7, 'rgba(0,0,0,0.12)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+    _contactTex = new THREE.CanvasTexture(c);
+    _contactGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    _contactMat = new THREE.MeshBasicMaterial({ map: _contactTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+  }
+  const box = new THREE.Box3();
+  r.body.updateMatrixWorld(true);
+  r.body.traverse((o) => { if (o.isMesh && !o.userData.isOl && o.geometry) { o.geometry.computeBoundingBox(); box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld)); } });
+  if (box.isEmpty()) return null;
+  const w = clamp((box.max.x - box.min.x) * 0.72, 0.4, r.size * 3), d = clamp((box.max.z - box.min.z) * 0.72, 0.4, r.size * 3);
+  const m = new THREE.Mesh(_contactGeo, _contactMat.clone());
+  m.scale.set(w, 1, d); m.position.set((box.min.x + box.max.x) / 2, 0.025, (box.min.z + box.max.z) / 2);
+  m.material.opacity = r.float ? clamp(1 - r.float * 0.35, 0.35, 0.8) : 1;
+  m.userData.isOl = true; m.userData.noAO = true; m.castShadow = false; m.receiveShadow = false; m.renderOrder = 1; m.raycast = () => {};
+  r.root.add(m); r.contact = m;
+  return m;
+}
 function makeSpiritModel(sp) {
   const r = newRig();
   (MODELS[sp] || MODELS.somgu)(r);
   if (r.olw > 0) addOutlines(r.body, r.olw);
   r.body.traverse((m) => { if (m.isMesh && !m.userData.isOl && m.material && !m.material.isMeshBasicMaterial && !m.material.transparent && !m.material.isShaderMaterial) m.castShadow = true; });
   r.sp = sp;
+  try { contactShadow(r); } catch (e) { console.warn(e); }
   return r;
 }
 
@@ -2785,6 +2810,7 @@ const Icons = {
     try {
       this.ensure();
       const r = makeSpiritModel(sp);
+      if (r.contact) r.contact.visible = false;
       rigUpdate(r, 0.01);
       const s = r.size;
       r.root.rotation.y = 0.45;
