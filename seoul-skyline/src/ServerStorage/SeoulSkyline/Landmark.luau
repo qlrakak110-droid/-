@@ -259,8 +259,8 @@ local function buildBase(m: Model, TF: CFrame)
 	local ly = PLINTH_H + lh / 2
 	rsquare(m, TF * CFrame.new(0, ly, 0), wl, lh, rl, LOBBY_C, LOBBY_C, LOBBY_C, neonOpts("Lobby", Enum.Material.Glass, P.GlassSilver, true))
 	-- 메자닌 띠 (6.5 m): 로비가 2개 층 높이로 읽히게
-	local mz = wl + 1.2
-	rsquare(m, TF * CFrame.new(0, PLINTH_H + m2s(6.5), 0), mz, m2s(0.7), rl + 0.6, GLASS, GLASS, GLASS, slabOpts(false))
+	local mz = wl + 2.0 -- 로비 유리보다 1.0, 멀리언보다 0.3 바깥
+	rsquare(m, TF * CFrame.new(0, PLINTH_H + m2s(6.5), 0), mz, m2s(0.7), rl + 1.0, GLASS, GLASS, GLASS, slabOpts(false))
 	-- 로비 멀리언(관통 핀, 3 m 간격)
 	local span = wl / 2 - rl - m2s(0.6)
 	local n = math.max(1, math.floor(span * 2 / m2s(3)))
