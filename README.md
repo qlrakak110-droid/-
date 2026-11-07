@@ -1,5 +1,9 @@
 # 광안리 해변 미니게임 거리 (Gwangalli Beach MiniGames)
 
+> **새 프로젝트: [서울 한강 야경 · 잠실 맵](seoul-skyline/README.md)** — 노을 진 한강과 잠실 스카이라인(롯데월드타워 모티브)을
+> 재현한 Roblox 맵 빌더(`seoul-skyline/`). place 파일 `seoul-skyline/build/SeoulSkyline.rbxlx`, 브라우저 미리보기
+> `seoul-skyline/dist/SeoulSkyline_Studio.html`.
+
 광안리 오픈월드 인생게임(`광안리 임시 스튜디오 1.0 v2.0` place)에 추가하는 **해변 미니게임 시스템**입니다.
 메뉴에서 고르는 미니게임이 아니라, 광안리 산책로를 걷다가 테이블·오락기·NPC를 만나 **실제 맵 안에서**
 다른 플레이어 또는 NPC와 게임머니를 걸고 노는 콘텐츠입니다.

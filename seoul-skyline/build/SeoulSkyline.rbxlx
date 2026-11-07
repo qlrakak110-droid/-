@@ -1,0 +1,1520 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Workspace" referent="RBX000000000000000000000000000186A1"><Properties><string name="Name">Workspace</string><float name="FallenPartsDestroyHeight">-500</float></Properties></Item><Item class="Lighting" referent="RBX000000000000000000000000000186A2"><Properties><string name="Name">Lighting</string><token name="Technology">4</token><float name="ClockTime">18.2</float><float name="GeographicLatitude">8</float><float name="Brightness">2.4</float><float name="ExposureCompensation">0.15</float><Color3 name="Ambient"><R>0.149020</R><G>0.164706</G><B>0.227451</B></Color3><Color3 name="OutdoorAmbient"><R>0.407843</R><G>0.392157</G><B>0.486275</B></Color3><bool name="GlobalShadows">true</bool></Properties></Item><Item class="ServerStorage" referent="RBX000000000000000000000000000186AA"><Properties><string name="Name">ServerStorage</string></Properties><Item class="ModuleScript" referent="RBX000000000000000000000000000186A9"><Properties><string name="Name">SeoulSkyline</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline — 한강 잠실 야경 맵 빌더 (롯데월드타워 모티브)
+--
+-- 사용법
+--   * Studio 커맨드 바(편집 모드에 맵을 굽기, 권장):
+--       require(game.ServerStorage.SeoulSkyline).Build()
+--     → Workspace.SeoulSkyline + Terrain + Lighting 이 생성됩니다. 그대로 저장(Ctrl+S)하세요.
+--   * 실행 중 자동 생성: ServerScriptService.SeoulSkylineBoot 가 Workspace 에 맵이 없으면 Build() 를 호출합니다.
+--   * SeoulSkyline.Clear()  : 맵 모델 + 맵이 만든 지형 영역 제거
+--   * SeoulSkyline.SetNight(true/false) : 창문/가로등 발광 전환 (DayNightCycle 용)
+--
+-- 모듈 규약: 각 모듈은 build(ctx) 를 가진 ModuleScript.
+--   ctx = { Config, Kit, Facade, root: Model, model: Model(모듈 전용 그룹), rng: Random(모듈별 시드) }
+
+local CollectionService = game:GetService("CollectionService")
+local Config = require(script.Config)
+local Kit = require(script.Kit)
+local Facade = require(script.Facade)
+
+local SeoulSkyline = {}
+SeoulSkyline.Config = Config
+SeoulSkyline.Kit = Kit
+SeoulSkyline.Facade = Facade
+
+-- 빌드 순서 = 발자국 예약 우선순위 (랜드마크/히어로가 먼저 자리를 잡고, 도시가 빈 곳을 채움)
+SeoulSkyline.MODULES = {
+	"Atmosphere",
+	"TerrainPlan",
+	"Landmark",
+	"Skyline",
+	"Bridge",
+	"Riverside",
+	"Park",
+	"Apartments",
+	"CityCarpet",
+	"WaterFx",
+}
+
+local function hash(s: string): number
+	local h = 0
+	for i = 1, #s do
+		h = (h * 31 + string.byte(s, i)) % 2147483647
+	end
+	return h
+end
+
+export type BuildOpts = {
+	only: { [string]: boolean }?, -- 일부 모듈만 (미리보기/디버그)
+	applyTerrain: boolean?, -- false: 지형은 기록만
+	parent: Instance?,
+	quiet: boolean?,
+}
+
+function SeoulSkyline.Build(opts: BuildOpts?): Model
+	local o: BuildOpts = opts or {}
+	local t0 = os.clock()
+	local old = workspace:FindFirstChild(Config.ROOT_NAME)
+	if old then
+		old:Destroy()
+	end
+	local root = Instance.new("Model")
+	root.Name = Config.ROOT_NAME
+	pcall(function()
+		root.ModelStreamingMode = Enum.ModelStreamingMode.Persistent
+	end)
+	root:SetAttribute("Version", Config.VERSION)
+	root:SetAttribute("HeroCamPos", Config.Viewpoint.HeroCamPos)
+	root:SetAttribute("HeroCamLook", Config.Viewpoint.HeroCamLook)
+	root:SetAttribute("HeroFov", Config.Viewpoint.HeroFov)
+	root:SetAttribute("IntroCinematic", Config.Client.IntroCinematic)
+	root:SetAttribute("Traffic", Config.Client.Traffic)
+	root:SetAttribute("TrafficDensity", Config.Client.TrafficDensity)
+	root:SetAttribute("Beacons", Config.Client.Beacons)
+	root:SetAttribute("Boats", Config.Client.Boats)
+	Kit.reset(root)
+	Kit.applyTerrain = o.applyTerrain ~= false
+	local report = {}
+	for _, name in SeoulSkyline.MODULES do
+		if o.only and not o.only[name] then
+			continue
+		end
+		local mod = script:FindFirstChild(name)
+		if not mod then
+			continue
+		end
+		local p0, tm = Kit.stats.parts, os.clock()
+		local ok, err = pcall(function()
+			local M = require(mod :: ModuleScript) :: any
+			local model = Kit.group(root, name)
+			M.build({ Config = Config, Kit = Kit, Facade = Facade, root = root, model = model, rng = Random.new(Config.SEED + hash(name)) })
+			if #model:GetChildren() == 0 then
+				model:Destroy()
+			end
+		end)
+		if not ok then
+			warn(string.format("[SeoulSkyline] %s 빌드 실패: %s", name, tostring(err)))
+		end
+		table.insert(report, string.format("%s %d parts %.1fs", name, Kit.stats.parts - p0, os.clock() - tm))
+		task.wait()
+	end
+	root.Parent = o.parent or workspace
+	SeoulSkyline.SetNight(SeoulSkyline.IsNightClock(Config.Lighting.ClockTime))
+	if not o.quiet then
+		print(string.format("[SeoulSkyline] 완료: 파트 %d · 광원 %d · 항공등 %d · 지형 %d · %.1f초\n  %s", Kit.stats.parts, Kit.stats.lights, Kit.stats.beacons, Kit.stats.terrainOps, os.clock() - t0, table.concat(report, "\n  ")))
+	end
+	return root
+end
+
+function SeoulSkyline.ApplyLighting()
+	require(script.Atmosphere).apply()
+end
+
+function SeoulSkyline.Clear()
+	local old = workspace:FindFirstChild(Config.ROOT_NAME)
+	if old then
+		old:Destroy()
+	end
+	local R, F, N, L = Config.River, Config.FarBank, Config.NearBank, Config.Level
+	local zMin, zMax = F.SlopeTo - 40, N.SlopeTo + 40
+	workspace.Terrain:FillBlock(CFrame.new((R.XMin + R.XMax) / 2, (L.RiverBed - 20 + L.Levee + 20) / 2, (zMin + zMax) / 2), Vector3.new(R.XMax - R.XMin, L.Levee - L.RiverBed + 40, zMax - zMin), Enum.Material.Air)
+end
+
+function SeoulSkyline.IsNightClock(t: number): boolean
+	local L = Config.Lighting
+	return t >= L.NightFrom or t < L.NightTo
+end
+
+local nightState: boolean? = nil
+function SeoulSkyline.SetNight(on: boolean)
+	if nightState == on then
+		return
+	end
+	nightState = on
+	for _, inst in CollectionService:GetTagged(Kit.GLOW_TAG) do
+		if inst:IsA("BasePart") then
+			local key = if on then "Night" else "Day"
+			local mat = inst:GetAttribute(key .. "Material")
+			local col = inst:GetAttribute(key .. "Color")
+			if typeof(mat) == "string" then
+				local ok, m = pcall(function()
+					return (Enum.Material :: any)[mat]
+				end)
+				if ok and m then
+					inst.Material = m
+				end
+			end
+			if typeof(col) == "Color3" then
+				inst.Color = col
+			end
+		elseif inst:IsA("Light") then
+			inst.Enabled = on
+		end
+	end
+end
+
+return SeoulSkyline
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX000000000000000000000000000186A3"><Properties><string name="Name">Atmosphere</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline / Atmosphere
+-- 해질녘(블루아워 직전) 조명·대기·하늘·구름·후처리·수면 색. 맵의 "룩"을 결정하는 모듈.
+--   * Lighting.Technology = Future 는 Studio(커맨드 바/설정)에서만 바꿀 수 있어 pcall 로 시도합니다.
+--   * 기존 Sky/Atmosphere/Clouds/후처리 효과는 이 맵의 값으로 교체됩니다.
+
+local Lighting = game:GetService("Lighting")
+local Config = require(script.Parent.Config)
+
+local Atmosphere = {}
+local rgb = Color3.fromRGB
+
+local function replace(parent: Instance, className: string, name: string): Instance
+	for _, c in parent:GetChildren() do
+		if c:IsA(className) then
+			c:Destroy()
+		end
+	end
+	local inst = Instance.new(className)
+	inst.Name = name
+	return inst
+end
+
+function Atmosphere.apply()
+	local L = Config.Lighting
+	pcall(function()
+		(Lighting :: any).Technology = Enum.Technology.Future
+	end)
+	Lighting.ClockTime = L.ClockTime
+	Lighting.GeographicLatitude = L.GeographicLatitude
+	Lighting.Brightness = 2.4
+	Lighting.ExposureCompensation = 0.15
+	Lighting.Ambient = rgb(38, 42, 58)
+	Lighting.OutdoorAmbient = rgb(104, 100, 124)
+	Lighting.ColorShift_Top = rgb(255, 178, 116)
+	Lighting.ColorShift_Bottom = rgb(78, 92, 140)
+	Lighting.EnvironmentDiffuseScale = 0.55
+	Lighting.EnvironmentSpecularScale = 1
+	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.3
+	Lighting.FogEnd = 100000
+
+	local atm = replace(Lighting, "Atmosphere", "DuskAtmosphere") :: Atmosphere
+	atm.Density = 0.34
+	atm.Offset = 0.12
+	atm.Color = rgb(206, 168, 158)
+	atm.Decay = rgb(98, 104, 150)
+	atm.Glare = 0.6
+	atm.Haze = 1.7
+	atm.Parent = Lighting
+
+	local sky = replace(Lighting, "Sky", "DuskSky") :: Sky
+	sky.StarCount = 1800
+	sky.SunAngularSize = 14
+	sky.MoonAngularSize = 9
+	sky.CelestialBodiesShown = true
+	sky.Parent = Lighting
+
+	local bloom = replace(Lighting, "BloomEffect", "Bloom") :: BloomEffect
+	bloom.Intensity = 0.9
+	bloom.Size = 40
+	bloom.Threshold = 1.25
+	bloom.Parent = Lighting
+
+	local cc = replace(Lighting, "ColorCorrectionEffect", "Grade") :: ColorCorrectionEffect
+	cc.Brightness = 0.02
+	cc.Contrast = 0.14
+	cc.Saturation = 0.12
+	cc.TintColor = rgb(255, 243, 238)
+	cc.Parent = Lighting
+
+	local rays = replace(Lighting, "SunRaysEffect", "SunRays") :: SunRaysEffect
+	rays.Intensity = 0.045
+	rays.Spread = 0.55
+	rays.Parent = Lighting
+
+	local dof = replace(Lighting, "DepthOfFieldEffect", "DepthOfField") :: DepthOfFieldEffect
+	dof.Enabled = false -- 포토 스팟/인트로에서만 클라이언트가 켬
+	dof.FarIntensity = 0.08
+	dof.FocusDistance = 600
+	dof.InFocusRadius = 900
+	dof.NearIntensity = 0
+	dof.Parent = Lighting
+
+	local terrain = workspace.Terrain
+	local clouds = replace(terrain, "Clouds", "DuskClouds") :: Clouds
+	clouds.Cover = 0.5
+	clouds.Density = 0.45
+	clouds.Color = rgb(255, 214, 200)
+	clouds.Parent = terrain
+
+	terrain.WaterColor = rgb(26, 50, 70)
+	terrain.WaterTransparency = 0.12
+	terrain.WaterReflectance = 1
+	terrain.WaterWaveSize = 0.1
+	terrain.WaterWaveSpeed = 7
+	pcall(function()
+		(terrain :: any).Decoration = true -- 잔디 블레이드 (일부 환경에서 스크립트 설정 불가 → pcall)
+	end)
+	pcall(function()
+		terrain:SetMaterialColor(Enum.Material.Grass, rgb(70, 102, 54))
+		terrain:SetMaterialColor(Enum.Material.LeafyGrass, rgb(62, 96, 48))
+		terrain:SetMaterialColor(Enum.Material.Mud, rgb(64, 56, 48))
+		terrain:SetMaterialColor(Enum.Material.Rock, rgb(110, 108, 104))
+		terrain:SetMaterialColor(Enum.Material.Slate, rgb(96, 98, 102))
+		terrain:SetMaterialColor(Enum.Material.Sand, rgb(160, 146, 120))
+		terrain:SetMaterialColor(Enum.Material.Ground, rgb(92, 82, 66))
+	end)
+end
+
+function Atmosphere.build(_ctx: any)
+	Atmosphere.apply()
+end
+
+return Atmosphere
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX000000000000000000000000000186A4"><Properties><string name="Name">Config</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline / Config
+-- 한강 잠실 야경 맵(롯데월드타워 모티브) 공용 설정: 좌표계, 레이아웃, 팔레트, 품질 옵션.
+--
+-- ── 좌표계 (studs) ───────────────────────────────────────────────────────────────────────────────
+--   * 수면(Terrain Water 윗면) = Y 0.  강은 X 축을 따라 흐르고 강 중심선 = Z 0.
+--   * 먼 쪽 강변(잠실, 도시/타워 쪽) = -Z.  가까운 쪽 강변(전망대·공원, 플레이어 스폰) = +Z.
+--   * 대표 구도(히어로 카메라)는 +Z 강변에서 -Z 를 바라봄 → 화면 오른쪽 = +X, 왼쪽 = -X.
+--   * 해는 -X 쪽으로 진다(Roblox 태양 모델): 화면 왼쪽 지평선이 노을빛.
+--   * 1 stud ≈ 0.5 m 정도의 "압축 스케일": 강폭 840, 타워 높이 ~1000(+첨탑).
+--
+-- 모듈은 숫자를 하드코딩하지 말고 여기 값을 읽어 주세요(레이아웃이 바뀌어도 전체가 맞물리도록).
+
+local Config = {}
+
+Config.VERSION = "1.0.0"
+Config.ROOT_NAME = "SeoulSkyline" -- Workspace 아래 맵 모델 이름
+Config.SEED = 20260507 -- 결정적 생성: 같은 시드 → 항상 같은 맵
+
+------------------------------------------------------------------------------------------------------
+-- 품질 / 성능
+------------------------------------------------------------------------------------------------------
+Config.Quality = {
+	-- 0.5 ~ 1.5 : 아파트·도시 카펫 밀도 배율 (모바일 대상이면 0.7 권장)
+	Density = 1.0,
+	-- 실제 광원(PointLight/SpotLight/SurfaceLight) 상한. 나머지 조명은 Neon 발광으로만 표현.
+	MaxLights = 140,
+	-- 작은 장식 파트는 그림자를 끔(이 크기 미만의 최대 변 길이)
+	ShadowMinSize = 12,
+	-- 빌드 중 task.wait() 간격(파트 수). 서버/커맨드 바 타임아웃 방지.
+	YieldEvery = 600,
+}
+
+------------------------------------------------------------------------------------------------------
+-- 레벨(높이) — 모든 모듈 공통
+------------------------------------------------------------------------------------------------------
+Config.Level = {
+	Water = 0, -- 수면
+	RiverBed = -24, -- 강바닥 (지형 복셀 4 stud 격자에 맞춤)
+	Promenade = 3, -- 한강공원 둔치(산책로·잔디) 높이
+	Levee = 14, -- 제방 위 도로(강변북로/올림픽대로)와 도시 지면
+	City = 14, -- 도시 블록 지면
+}
+
+------------------------------------------------------------------------------------------------------
+-- 강 / 강변 띠 (Z 범위, 작은 값 → 큰 값)
+------------------------------------------------------------------------------------------------------
+Config.River = {
+	HalfWidth = 420, -- 수면: Z -420 ~ +420
+	XMin = -7000, -- 강물이 이어지는 X 범위(지평선까지 보이도록 넉넉히)
+	XMax = 7000,
+}
+
+-- 먼 쪽(잠실) 강변: 수면 끝 → 둔치 공원 → 제방 사면 → 올림픽대로 → 도시
+Config.FarBank = {
+	WaterEdge = -420, -- 수면 경계 (계단식 호안)
+	ParkFrom = -420, -- 둔치 공원 Z (Promenade 높이)
+	ParkTo = -520,
+	SlopeTo = -545, -- 제방 사면 끝(Levee 높이)
+	RoadFrom = -545, -- 올림픽대로(왕복 8차로)
+	RoadTo = -600,
+	CityFrom = -620, -- 도시 시작
+	CityTo = -6800, -- 지평선 도시 끝
+}
+
+-- 가까운 쪽(관람자) 강변: 수면 끝 → 산책로/잔디/숲 → 제방 사면 → 강변북로 → 도시(배경)
+Config.NearBank = {
+	WaterEdge = 420,
+	ParkFrom = 420,
+	ParkTo = 760, -- 넓은 한강공원(숲·잔디·전망대)
+	SlopeTo = 790,
+	RoadFrom = 790, -- 강변북로
+	RoadTo = 845,
+	CityFrom = 870,
+	CityTo = 5200,
+}
+
+------------------------------------------------------------------------------------------------------
+-- 주요 랜드마크 배치
+------------------------------------------------------------------------------------------------------
+Config.Landmark = {
+	-- 롯데월드타워 모티브 초고층 (정사각 평면, 위로 갈수록 곡선으로 가늘어짐)
+	Tower = {
+		Center = Vector3.new(-430, 14, -1180),
+		BaseWidth = 190, -- 지상부 한 변
+		TopWidth = 64, -- 크라운 시작부 한 변
+		Height = 980, -- 본체(크라운 시작) 높이, 지면 기준
+		CrownHeight = 120, -- 랜턴 크라운
+		SpireHeight = 60, -- 첨탑
+		Yaw = 45, -- 평면 회전(도) — 모서리가 카메라를 향하는 다이아몬드 실루엣
+	},
+	-- 저층부 몰(타워 앞 오른쪽): 곡면 지붕 파란 조명 건물 포함
+	Mall = {
+		Min = Vector2.new(-360, -1060), -- (X, Z)
+		Max = Vector2.new(60, -820),
+	},
+}
+
+-- 다리(잠실대교 모티브): 강을 수직(Z 방향)으로 가로지름
+Config.Bridge = {
+	X = 560, -- 중심선 X
+	ZFrom = -640, -- 먼 쪽 도시 도로와 연결
+	ZTo = 900, -- 가까운 쪽 도시 도로와 연결
+	DeckTop = 34, -- 상판 윗면 높이 (수면 위)
+	Width = 72, -- 차도 8차로 + 보도
+	PierSpacing = 96,
+}
+
+-- 관람 전망대(스폰) — 사진 구도를 재현하는 위치
+Config.Viewpoint = {
+	-- 전망대 바닥(플레이어가 서는 곳)
+	DeckCenter = Vector3.new(-40, 0, 700), -- Y 는 Park 모듈이 DeckHeight 로 결정
+	DeckHeight = 120,
+	-- 히어로 카메라(사진 구도). 포토 스팟/인트로에서 사용.
+	HeroCamPos = Vector3.new(80, 205, 860),
+	HeroCamLook = Vector3.new(-120, 230, -1000),
+	HeroFov = 62,
+}
+
+------------------------------------------------------------------------------------------------------
+-- 구역 분할 (도시 생성기들이 겹치지 않도록 Kit.reserve 로 발자국을 예약)
+--   Landmark → Skyline → Bridge/Riverside/Park → Apartments → CityCarpet 순서로 빌드됨.
+------------------------------------------------------------------------------------------------------
+Config.Zones = {
+	-- 먼 쪽 강변의 "히어로" 고층 클러스터 (Skyline 모듈)
+	SkylineLeft = { XMin = -1700, XMax = -760, ZMin = -1500, ZMax = -760 },
+	SkylineMid = { XMin = -250, XMax = 140, ZMin = -1750, ZMax = -1180 },
+	SkylineRight = { XMin = 180, XMax = 1050, ZMin = -1350, ZMax = -720 },
+	-- 아파트 단지 띠 (Apartments 모듈) — 먼 쪽 / 가까운 쪽
+	ApartmentsFar = { XMin = -4200, XMax = 4200, ZMin = -2300, ZMax = -640 },
+	ApartmentsNear = { XMin = -3200, XMax = 3200, ZMin = 880, ZMax = 1900 },
+	-- LOD 도시 카펫 (CityCarpet 모듈)
+	CarpetFarMid = { XMin = -6500, XMax = 6500, ZMin = -4000, ZMax = -2300 },
+	CarpetFarFar = { XMin = -9000, XMax = 9000, ZMin = -6800, ZMax = -4000 },
+	CarpetNear = { XMin = -6000, XMax = 6000, ZMin = 1900, ZMax = 5200 },
+	-- 원경 산 능선
+	MountainsFar = { XMin = -11000, XMax = 11000, Z = -8200 },
+	MountainsNear = { XMin = -9000, XMax = 9000, Z = 6400 },
+}
+
+------------------------------------------------------------------------------------------------------
+-- 팔레트 (해질녘 블루아워). Neon 색은 밝기 = 발광 세기이므로 어두운 Neon 색 = 은은한 불빛.
+------------------------------------------------------------------------------------------------------
+local rgb = Color3.fromRGB
+Config.Palette = {
+	-- 실내 조명(창문) — Neon
+	WindowWarm = rgb(255, 196, 120),
+	WindowWarmDim = rgb(178, 128, 74),
+	WindowCool = rgb(214, 228, 255),
+	WindowCoolDim = rgb(128, 146, 178),
+	WindowGold = rgb(255, 214, 140),
+	WindowOff = rgb(28, 34, 46), -- 꺼진 창 (Glass)
+	-- 유리 커튼월
+	GlassDeep = rgb(38, 56, 82),
+	GlassBlue = rgb(70, 104, 140),
+	GlassSilver = rgb(150, 172, 196),
+	GlassTeal = rgb(52, 88, 96),
+	GlassBronze = rgb(92, 76, 62),
+	Mullion = rgb(52, 58, 68),
+	MullionLight = rgb(176, 184, 194),
+	-- 콘크리트 / 아파트
+	ConcreteLight = rgb(214, 208, 198),
+	ConcreteWarm = rgb(196, 184, 168),
+	ConcreteGrey = rgb(150, 150, 152),
+	ConcreteDark = rgb(92, 94, 100),
+	Asphalt = rgb(46, 48, 52),
+	AsphaltLight = rgb(70, 72, 76),
+	LaneWhite = rgb(214, 214, 206),
+	LaneYellow = rgb(232, 184, 64),
+	-- 자연
+	Grass = rgb(66, 98, 52),
+	GrassDark = rgb(46, 74, 40),
+	Leaf1 = rgb(48, 84, 44),
+	Leaf2 = rgb(64, 102, 50),
+	Leaf3 = rgb(86, 116, 58),
+	LeafAutumn = rgb(150, 112, 58),
+	Bark = rgb(74, 58, 46),
+	Soil = rgb(92, 80, 66),
+	Mountain = rgb(44, 56, 66),
+	MountainFar = rgb(70, 82, 102),
+	-- 조명 / 포인트
+	LampWarm = rgb(255, 206, 140),
+	LampSodium = rgb(255, 170, 84),
+	LampWhite = rgb(236, 242, 255),
+	Headlight = rgb(255, 246, 226),
+	Taillight = rgb(255, 46, 36),
+	Beacon = rgb(255, 30, 24),
+	LedBlue = rgb(70, 150, 255),
+	LedCyan = rgb(80, 220, 255),
+	LedMagenta = rgb(220, 90, 255),
+	LedGold = rgb(255, 196, 92),
+}
+
+------------------------------------------------------------------------------------------------------
+-- 조명 / 대기 (해질녘 직후). Atmosphere 모듈이 적용.
+------------------------------------------------------------------------------------------------------
+Config.Lighting = {
+	ClockTime = 18.2,
+	-- 실제 서울 위도는 37.5 이지만 Roblox 태양 모델에서 노을을 화면 왼쪽-앞(서쪽, -X/-Z)에 두기 위해 조정
+	GeographicLatitude = 8,
+	DayNightCycle = false, -- true: 하루가 흐름(MinutesPerDay), 밤/낮에 맞춰 창문 조명 자동 전환
+	MinutesPerDay = 24,
+	NightFrom = 17.6, -- 이 시각부터 창문/가로등 점등
+	NightTo = 6.4,
+}
+
+Config.Client = {
+	IntroCinematic = true, -- 접속 시 7초 시네마틱(스킵 가능)
+	Traffic = true, -- 다리·강변도로 차량 불빛 흐름
+	TrafficDensity = 1.0,
+	Beacons = true, -- 고층 항공장애등 깜빡임
+	Boats = true, -- 유람선
+}
+
+return Config
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX000000000000000000000000000186A5"><Properties><string name="Name">Facade</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline / Facade
+-- 건물 파사드 생성기 — 모든 고층/아파트/원경 건물이 같은 "야경 언어"를 쓰도록 하는 공용 모듈.
+--
+-- 핵심 기법 (z-fighting 0, 파트 수 최소):
+--   * 안쪽 "조명 코어"(Neon, 층 묶음마다 다른 색/밝기 = 켜진 사무실/집)를 외벽보다 inset 만큼 들여서 놓고
+--   * 층마다 코어를 감싸는 "층 슬래브"(유리/콘크리트 띠)가 바깥으로 튀어나와 가로 띠를 만들고
+--   * 건물을 관통하는 "멀리언/벽 핀" 하나가 마주 보는 두 면의 세로선을 동시에 만들어 창 격자를 완성
+--   * 관통하는 어두운 "꺼진 창" 패치가 불 꺼진 집/사무실을 랜덤하게 표현
+--   모든 표면은 서로 최소 0.3 stud 이상 떨어져 있어 원거리에서도 깜빡임이 없음.
+--
+--   Facade.tower(parent, spec) -> Model     (style = "curtain" | "round" | "apartment" | "mid" | "far")
+--   spec: TowerSpec (아래)
+--   반환 모델의 Attribute: Height, Style
+
+local Config = require(script.Parent.Config)
+local Kit = require(script.Parent.Kit)
+
+local P = Config.Palette
+local Facade = {}
+
+export type TowerSpec = {
+	name: string?,
+	cf: CFrame, -- 건물 바닥 중심(지면 높이) + 방향(yaw)
+	w: number, -- 로컬 X 폭
+	d: number, -- 로컬 Z 깊이
+	h: number, -- 높이(지면 → 지붕)
+	style: string,
+	rng: Random,
+	floorH: number?,
+	bay: number?, -- 멀리언/세대 벽 간격
+	glass: Color3?, -- 층 슬래브(외피) 색
+	frame: Color3?, -- 멀리언 색
+	lit: { Color3 }?, -- 켜진 층 색 후보
+	litChance: number?, -- 0..1 켜진 비율
+	crown: string?, -- "flat" | "led" | "spire" | "helipad" | "box" | "frame" | "slant" | "none"
+	ledColor: Color3?,
+	tiers: number?, -- curtain: 1~3 단 셋백
+	label: string?, -- apartment: 측벽 동 번호
+	accent: Color3?, -- apartment: 측벽 슈퍼그래픽 색
+	collide: boolean?, -- 기본 true
+	beacon: boolean?, -- 기본: h >= 200 이면 true
+	glint: boolean?, -- true: 수면 반사 스트릭 생성 (강변 건물)
+}
+
+local LIT_OFFICE = { P.WindowCool, P.WindowCool, P.WindowCoolDim, P.WindowWarm, P.WindowWarmDim }
+local LIT_HOME = { P.WindowWarm, P.WindowWarm, P.WindowWarmDim, P.WindowGold, P.WindowCoolDim }
+
+Facade.LIT_OFFICE = LIT_OFFICE
+Facade.LIT_HOME = LIT_HOME
+
+local function pick<T>(rng: Random, t: { T }): T
+	return t[rng:NextInteger(1, #t)]
+end
+
+local function jitter(rng: Random, c: Color3, amt: number): Color3
+	local k = 1 + (rng:NextNumber() * 2 - 1) * amt
+	return Color3.new(math.clamp(c.R * k, 0, 1), math.clamp(c.G * k, 0, 1), math.clamp(c.B * k, 0, 1))
+end
+
+------------------------------------------------------------------------------------------------------
+-- 공통: 조명 코어 (층 묶음으로 나눈 Neon 블록)
+------------------------------------------------------------------------------------------------------
+local function litCore(m: Model, base: CFrame, cw: number, cd: number, y0: number, y1: number, floorH: number, rng: Random, lit: { Color3 }, litChance: number, round: boolean, offColor: Color3)
+	local y = y0
+	while y < y1 - 0.01 do
+		local floors = rng:NextInteger(2, 7)
+		local hgt = math.min(floors * floorH, y1 - y)
+		local on = rng:NextNumber() < math.clamp(litChance + 0.15, 0, 1)
+		local c = if on then jitter(rng, pick(rng, lit), 0.08) else offColor
+		local cf = base * CFrame.new(0, y + hgt / 2, 0)
+		local opts = {
+			name = "Core",
+			material = if on then Enum.Material.Neon else Enum.Material.Glass,
+			color = c,
+			collide = false,
+			query = false,
+			shadow = false,
+			glow = on,
+			dayMaterial = Enum.Material.Glass,
+			dayColor = P.GlassDeep,
+		}
+		if round then
+			Kit.cylAlongY(m, cf, hgt, cw, c, nil, opts)
+		else
+			Kit.part(m, cf, Vector3.new(cw, hgt, cd), opts)
+		end
+		y += hgt
+	end
+end
+
+------------------------------------------------------------------------------------------------------
+-- 크라운 / 옥상
+------------------------------------------------------------------------------------------------------
+local function crown(m: Model, base: CFrame, w: number, d: number, top: number, spec: TowerSpec, rng: Random, round: boolean)
+	local kind = spec.crown or "flat"
+	local frame = spec.frame or P.Mullion
+	local led = spec.ledColor or P.LedGold
+	local roofC = P.ConcreteDark
+	-- 지붕 슬래브
+	if round then
+		Kit.cylAlongY(m, base * CFrame.new(0, top + 0.6, 0), 1.2, w, roofC, Enum.Material.Concrete, { name = "Roof" })
+	else
+		Kit.box(m, base * CFrame.new(0, top + 0.6, 0), Vector3.new(w, 1.2, d), roofC, Enum.Material.Concrete, { name = "Roof" })
+	end
+	local crownTop = top + 1.2
+	if kind == "led" or kind == "frame" then
+		-- 꼭대기 LED 띠(건물 외곽을 따라 빛나는 링) + 파라펫
+		local ph = math.clamp(spec.h * 0.035, 4, 16)
+		if round then
+			Kit.cylAlongY(m, base * CFrame.new(0, top + ph / 2, 0), ph, w + 0.6, frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
+			Kit.cylAlongY(m, base * CFrame.new(0, top + ph + 0.5, 0), 1, w + 1.2, led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+		else
+			Kit.box(m, base * CFrame.new(0, top + ph / 2, 0), Vector3.new(w + 0.6, ph, d + 0.6), frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
+			Kit.box(m, base * CFrame.new(0, top + ph + 0.5, 0), Vector3.new(w + 1.2, 1, d + 1.2), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+			if kind == "frame" then
+				-- 옥상 장식 프레임(한국 고층 아파트/오피스 특유의 왕관 프레임)
+				local fh = math.clamp(spec.h * 0.08, 10, 34)
+				for _, sx in { -1, 1 } do
+					Kit.box(m, base * CFrame.new(sx * (w / 2 - 1), top + ph + fh / 2, 0), Vector3.new(2, fh, d * 0.9), frame, Enum.Material.Metal, { name = "CrownFrame" })
+				end
+				Kit.box(m, base * CFrame.new(0, top + ph + fh, 0), Vector3.new(w, 2, d * 0.9), frame, Enum.Material.Metal, { name = "CrownFrame" })
+				Kit.box(m, base * CFrame.new(0, top + ph + fh + 1.4, 0), Vector3.new(w + 0.4, 0.8, d * 0.9 + 0.4), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+				crownTop = top + ph + fh + 2
+			else
+				crownTop = top + ph + 1
+			end
+		end
+	elseif kind == "spire" then
+		local sh = math.clamp(spec.h * 0.18, 24, 90)
+		Kit.box(m, base * CFrame.new(0, top + 6, 0), Vector3.new(w * 0.45, 12, d * 0.45), frame, Enum.Material.Metal, { name = "SpireBase" })
+		Kit.cylAlongY(m, base * CFrame.new(0, top + 12 + sh / 2, 0), sh, 2.2, P.MullionLight, Enum.Material.Metal, { name = "Spire" })
+		Kit.box(m, base * CFrame.new(0, top + 12.5, 0), Vector3.new(w * 0.45 + 0.6, 1, d * 0.45 + 0.6), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+		crownTop = top + 12 + sh
+	elseif kind == "helipad" then
+		local r = math.min(w, d) * 0.8
+		Kit.cylAlongY(m, base * CFrame.new(0, top + 4, 0), 1.2, r, P.ConcreteGrey, Enum.Material.Concrete, { name = "Helipad" })
+		Kit.cylAlongY(m, base * CFrame.new(0, top + 4.7, 0), 0.3, r * 0.6, P.LaneYellow, Enum.Material.Neon, { name = "HeliRing", glow = true, collide = false, transparency = 0.35 })
+		Kit.box(m, base * CFrame.new(0, top + 2, 0), Vector3.new(w * 0.5, 4, d * 0.5), P.ConcreteDark, Enum.Material.Concrete, { name = "HeliBase" })
+		crownTop = top + 5
+	elseif kind == "slant" then
+		-- 비스듬히 잘린 지붕(웨지) + 엣지 LED
+		local sh = math.clamp(spec.h * 0.12, 12, 60)
+		local wd = Kit.wedge(m, base * CFrame.new(0, top + sh / 2, 0) * CFrame.Angles(0, if rng:NextNumber() < 0.5 then 0 else math.pi, 0), Vector3.new(w, sh, d), spec.glass or P.GlassBlue, Enum.Material.Glass, { name = "SlantRoof", reflectance = 0.2 })
+		wd.CastShadow = true
+		Kit.box(m, base * CFrame.new(0, top + 0.9, 0), Vector3.new(w + 0.8, 0.8, d + 0.8), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+		crownTop = top + sh
+	elseif kind == "box" then
+		-- 기계실 + 물탱크
+		local bw, bd = w * rng:NextNumber(0.35, 0.6), d * rng:NextNumber(0.35, 0.6)
+		local bh = rng:NextNumber(5, 10)
+		Kit.box(m, base * CFrame.new(rng:NextNumber(-0.15, 0.15) * w, top + 1.2 + bh / 2, rng:NextNumber(-0.15, 0.15) * d), Vector3.new(bw, bh, bd), P.ConcreteGrey, Enum.Material.Concrete, { name = "Mech" })
+		crownTop = top + 1.2 + bh
+	end
+	-- 항공장애등
+	local wantBeacon = if spec.beacon == nil then spec.h >= 200 else spec.beacon
+	if wantBeacon then
+		Kit.beacon(m, (base * CFrame.new(0, crownTop + 1.6, 0)).Position, 2.6)
+		if not round and spec.h >= 320 then
+			for _, s in { { -1, -1 }, { 1, 1 } } do
+				Kit.beacon(m, (base * CFrame.new(s[1] * (w / 2 - 1), top + 2.5, s[2] * (d / 2 - 1))).Position, 2)
+			end
+		end
+	end
+	return crownTop
+end
+
+------------------------------------------------------------------------------------------------------
+-- 커튼월 오피스 (사각)
+------------------------------------------------------------------------------------------------------
+local function curtainBlock(m: Model, base: CFrame, w: number, d: number, y0: number, y1: number, spec: TowerSpec, rng: Random)
+	local floorH = spec.floorH or 8
+	local bay = spec.bay or (if w > 50 then 7.5 else 6)
+	local glass = spec.glass or P.GlassDeep
+	local frame = spec.frame or P.Mullion
+	local lit = spec.lit or LIT_OFFICE
+	local litChance = spec.litChance or 0.7
+	local inset = 0.9
+	local slabRatio = 0.42
+	local h = y1 - y0
+	-- 1) 조명 코어
+	litCore(m, base, w - inset * 2, d - inset * 2, y0, y1, floorH, rng, lit, litChance, false, P.WindowOff)
+	-- 2) 층 슬래브 (반사 유리 띠)
+	local slabH = floorH * slabRatio
+	local nFloors = math.floor(h / floorH)
+	for i = 0, nFloors - 1 do
+		local yb = y0 + i * floorH
+		Kit.box(m, base * CFrame.new(0, yb + slabH / 2, 0), Vector3.new(w, slabH, d), glass, Enum.Material.Glass, {
+			name = "Slab",
+			reflectance = 0.18,
+			collide = (spec.collide ~= false) and i == 0,
+			shadow = false,
+		})
+	end
+	-- 상단 마감 슬래브
+	Kit.box(m, base * CFrame.new(0, y1 - slabH / 2, 0), Vector3.new(w + 0.2, slabH, d + 0.2), glass, Enum.Material.Glass, { name = "SlabTop", reflectance = 0.18, shadow = false })
+	-- 3) 멀리언 (관통 핀 → 마주 보는 두 면에 동시에 세로선)
+	local finW, out = 0.7, 0.35
+	local nx = math.max(1, math.floor(w / bay))
+	for i = 1, nx - 1 do
+		local x = -w / 2 + i * (w / nx)
+		Kit.box(m, base * CFrame.new(x, y0 + h / 2, 0), Vector3.new(finW, h, d + out * 2), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+	end
+	local nz = math.max(1, math.floor(d / bay))
+	for i = 1, nz - 1 do
+		local z = -d / 2 + i * (d / nz)
+		Kit.box(m, base * CFrame.new(0, y0 + h / 2, z), Vector3.new(w + out * 2, h, finW), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+	end
+	-- 모서리 기둥
+	for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		Kit.box(m, base * CFrame.new(s[1] * (w / 2), y0 + h / 2, s[2] * (d / 2)), Vector3.new(1.4, h, 1.4), frame, Enum.Material.Metal, { name = "Corner", collide = false, shadow = false })
+	end
+	-- 4) 꺼진 창 패치 (관통)
+	local cells = nFloors * (nx + nz)
+	local nPatch = math.clamp(math.floor(cells * (1 - litChance) / 9), 0, 26)
+	for _ = 1, nPatch do
+		local alongX = rng:NextNumber() < (w / (w + d))
+		local fl = rng:NextInteger(1, math.max(1, nFloors - 2))
+		local nfl = rng:NextInteger(1, 3)
+		local hh = math.min(nfl, nFloors - fl) * floorH - slabH
+		if hh > 0.5 then
+			local yc = y0 + fl * floorH + slabH + hh / 2
+			if alongX then
+				local nb = rng:NextInteger(1, 3)
+				local i0 = rng:NextInteger(0, math.max(0, nx - nb))
+				local bw = nb * (w / nx) - finW
+				local x = -w / 2 + (i0 + nb / 2) * (w / nx)
+				Kit.box(m, base * CFrame.new(x, yc, 0), Vector3.new(bw, hh, d - inset * 2 + 1.0), P.WindowOff, Enum.Material.Glass, { name = "Off", collide = false, query = false, shadow = false, reflectance = 0.1 })
+			else
+				local nb = rng:NextInteger(1, 3)
+				local i0 = rng:NextInteger(0, math.max(0, nz - nb))
+				local bd = nb * (d / nz) - finW
+				local z = -d / 2 + (i0 + nb / 2) * (d / nz)
+				Kit.box(m, base * CFrame.new(0, yc, z), Vector3.new(w - inset * 2 + 1.0, hh, bd), P.WindowOff, Enum.Material.Glass, { name = "Off", collide = false, query = false, shadow = false, reflectance = 0.1 })
+			end
+		end
+	end
+	-- 충돌용 보이지 않는 몸체 (가벼운 단일 박스)
+	if spec.collide ~= false then
+		Kit.box(m, base * CFrame.new(0, y0 + h / 2, 0), Vector3.new(w - inset * 2, h, d - inset * 2), P.WindowOff, Enum.Material.SmoothPlastic, { name = "Collision", transparency = 1, shadow = false })
+	end
+end
+
+local function curtain(m: Model, spec: TowerSpec, rng: Random): number
+	local base = spec.cf
+	local tiers = math.clamp(spec.tiers or 1, 1, 3)
+	local w, d = spec.w, spec.d
+	local y = 0
+	local h = spec.h
+	-- 로비 (밝은 1~2층 + 캐노피)
+	local lobbyH = math.min(12, h * 0.08)
+	Kit.box(m, base * CFrame.new(0, lobbyH / 2, 0), Vector3.new(w - 2.4, lobbyH, d - 2.4), P.WindowGold, Enum.Material.Neon, { name = "Lobby", glow = true })
+	Kit.box(m, base * CFrame.new(0, lobbyH + 0.5, 0), Vector3.new(w + 4, 1, d + 4), P.ConcreteDark, Enum.Material.Concrete, { name = "Canopy", shadow = false })
+	y = lobbyH + 1
+	local remaining = h - y
+	for t = 1, tiers do
+		local frac = if t == tiers then 1 else (if tiers == 2 then 0.62 else (if t == 1 then 0.5 else 0.6))
+		local th = if t == tiers then h - y else math.floor(remaining * frac)
+		curtainBlock(m, base, w, d, y, y + th, spec, rng)
+		y += th
+		remaining = h - y
+		if t < tiers then
+			-- 셋백 테라스 (LED 테두리)
+			Kit.box(m, base * CFrame.new(0, y + 0.4, 0), Vector3.new(w + 0.6, 0.8, d + 0.6), spec.ledColor or P.LedGold, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+			w *= 0.78
+			d *= 0.78
+		end
+	end
+	return crown(m, base, w, d, h, spec, rng, false)
+end
+
+------------------------------------------------------------------------------------------------------
+-- 원형 타워
+------------------------------------------------------------------------------------------------------
+local function roundTower(m: Model, spec: TowerSpec, rng: Random): number
+	local base = spec.cf
+	local dia = math.min(spec.w, spec.d)
+	local h = spec.h
+	local floorH = spec.floorH or 8
+	local glass = spec.glass or P.GlassBlue
+	local lit = spec.lit or LIT_OFFICE
+	local inset = 1.0
+	local lobbyH = math.min(12, h * 0.08)
+	Kit.cylAlongY(m, base * CFrame.new(0, lobbyH / 2, 0), lobbyH, dia - 2.4, P.WindowGold, Enum.Material.Neon, { name = "Lobby", glow = true })
+	litCore(m, base, dia - inset * 2, dia - inset * 2, lobbyH, h, floorH, rng, lit, spec.litChance or 0.7, true, P.WindowOff)
+	local slabH = floorH * 0.42
+	local n = math.floor((h - lobbyH) / floorH)
+	for i = 0, n - 1 do
+		Kit.cylAlongY(m, base * CFrame.new(0, lobbyH + i * floorH + slabH / 2, 0), slabH, dia, glass, Enum.Material.Glass, { name = "Slab", reflectance = 0.2, shadow = false, collide = i == 0 })
+	end
+	-- 세로 핀 4개(관통): 원형에서도 리듬감
+	local frame = spec.frame or P.Mullion
+	for k = 0, 3 do
+		local a = k * math.pi / 4
+		Kit.box(m, base * CFrame.Angles(0, a, 0) * CFrame.new(0, lobbyH + (h - lobbyH) / 2, 0), Vector3.new(0.8, h - lobbyH, dia + 0.6), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+	end
+	Kit.cylAlongY(m, base * CFrame.new(0, (h + lobbyH) / 2, 0), h - lobbyH, dia - inset * 2, P.WindowOff, Enum.Material.SmoothPlastic, { name = "Collision", transparency = 1, shadow = false })
+	return crown(m, base, dia, dia, h, spec, rng, true)
+end
+
+------------------------------------------------------------------------------------------------------
+-- 한국형 판상 아파트 (발코니 격자 + 측벽 동 번호)
+------------------------------------------------------------------------------------------------------
+local function apartment(m: Model, spec: TowerSpec, rng: Random): number
+	local base = spec.cf
+	local w, d, h = spec.w, spec.d, spec.h
+	local floorH = spec.floorH or 5.6
+	local unit = spec.bay or 9
+	local wall = spec.glass or P.ConcreteLight
+	local lit = spec.lit or LIT_HOME
+	local litChance = spec.litChance or 0.55
+	local inset = 1.1
+	local pilotis = floorH * 1.2 -- 필로티(1층 비움)
+	-- 필로티 기둥 + 1층 로비 불빛
+	Kit.box(m, base * CFrame.new(0, pilotis / 2, 0), Vector3.new(w * 0.3, pilotis, d - 4), P.WindowWarm, Enum.Material.Neon, { name = "Lobby", glow = true })
+	for _, sx in { -0.42, -0.14, 0.14, 0.42 } do
+		Kit.box(m, base * CFrame.new(sx * w, pilotis / 2, 0), Vector3.new(2, pilotis, d - 2), wall, Enum.Material.Concrete, { name = "Pilotis" })
+	end
+	-- 조명 코어 (긴 면만 보이도록 끝벽이 덮음)
+	litCore(m, base, w - 2.4, d - inset * 2, pilotis, h, floorH, rng, lit, litChance, false, Color3.fromRGB(44, 46, 54))
+	-- 층 슬래브 (발코니 난간 띠: 콘크리트)
+	local slabH = floorH * 0.38
+	local n = math.floor((h - pilotis) / floorH)
+	for i = 0, n do
+		local yb = pilotis + i * floorH
+		if yb + slabH > h + 0.01 then
+			break
+		end
+		Kit.box(m, base * CFrame.new(0, yb + slabH / 2, 0), Vector3.new(w, slabH, d), wall, Enum.Material.Concrete, { name = "Slab", shadow = false, collide = i == 0 })
+	end
+	-- 세대 벽(관통 핀)
+	local nu = math.max(2, math.floor(w / unit))
+	for i = 1, nu - 1 do
+		local x = -w / 2 + i * (w / nu)
+		Kit.box(m, base * CFrame.new(x, pilotis + (h - pilotis) / 2, 0), Vector3.new(0.9, h - pilotis, d + 0.6), wall, Enum.Material.Concrete, { name = "Wall", collide = false, query = false, shadow = false })
+	end
+	-- 측벽(끝벽): 두꺼운 콘크리트 + 슈퍼그래픽 띠 + 동 번호
+	local endW = 1.6
+	for _, sx in { -1, 1 } do
+		local e = Kit.box(m, base * CFrame.new(sx * (w / 2 - endW / 2 + 0.3), (h + pilotis) / 2, 0), Vector3.new(endW, h - pilotis, d + 0.4), wall, Enum.Material.Concrete, { name = "EndWall" })
+		if spec.accent then
+			Kit.box(m, base * CFrame.new(sx * (w / 2 + 0.35), h * 0.55, d * 0.18), Vector3.new(0.3, h * 0.6, d * 0.22), spec.accent, Enum.Material.SmoothPlastic, { name = "Accent", collide = false, shadow = false })
+		end
+		if spec.label and sx == 1 then
+			local sign = Kit.box(m, base * CFrame.new(w / 2 + 0.45, h - floorH * 2.2, -d * 0.1), Vector3.new(0.2, floorH * 2.2, d * 0.62), wall, Enum.Material.SmoothPlastic, { name = "NumberPlate", collide = false, shadow = false, transparency = 1 })
+			Kit.label(sign, Enum.NormalId.Right, spec.label, { color = Color3.fromRGB(250, 244, 230), glow = true, pixelsPerStud = 10, maxDistance = 1800 })
+		end
+		local _ = e
+	end
+	-- 꺼진 세대 패치(관통)
+	local cells = n * nu
+	local nPatch = math.clamp(math.floor(cells * (1 - litChance) / 3), 0, 30)
+	for _ = 1, nPatch do
+		local fl = rng:NextInteger(0, math.max(0, n - 1))
+		local nb = rng:NextInteger(1, 2)
+		local i0 = rng:NextInteger(0, math.max(0, nu - nb))
+		local bw = nb * (w / nu) - 0.9
+		local x = -w / 2 + (i0 + nb / 2) * (w / nu)
+		local hh = floorH - slabH
+		local yc = pilotis + fl * floorH + slabH + hh / 2
+		if yc + hh / 2 <= h then
+			Kit.box(m, base * CFrame.new(x, yc, 0), Vector3.new(bw, hh, d - inset * 2 + 1.2), Color3.fromRGB(46, 48, 56), Enum.Material.SmoothPlastic, { name = "Off", collide = false, query = false, shadow = false })
+		end
+	end
+	-- 충돌 몸체
+	Kit.box(m, base * CFrame.new(0, (h + pilotis) / 2, 0), Vector3.new(w - 2.4, h - pilotis, d - inset * 2), wall, Enum.Material.SmoothPlastic, { name = "Collision", transparency = 1, shadow = false })
+	-- 옥상: 엘리베이터 탑 + (선택) 왕관 프레임
+	if spec.crown == "frame" or spec.crown == "led" then
+		return crown(m, base, w, d, h, spec, rng, false)
+	end
+	Kit.box(m, base * CFrame.new(0, h + 0.5, 0), Vector3.new(w, 1, d), P.ConcreteGrey, Enum.Material.Concrete, { name = "Roof" })
+	Kit.box(m, base * CFrame.new(rng:NextNumber(-0.25, 0.25) * w, h + 4, 0), Vector3.new(8, 7, d * 0.7), wall, Enum.Material.Concrete, { name = "ElevatorHouse" })
+	return h + 7.5
+end
+
+------------------------------------------------------------------------------------------------------
+-- 중경 LOD: 몸체 + 링 밴드 몇 개 (3~8 파트)
+------------------------------------------------------------------------------------------------------
+local BODY_MID = { P.ConcreteDark, P.GlassDeep, P.ConcreteGrey, P.GlassTeal, P.GlassBronze, Color3.fromRGB(70, 74, 84) }
+
+local function mid(m: Model, spec: TowerSpec, rng: Random): number
+	local base = spec.cf
+	local w, d, h = spec.w, spec.d, spec.h
+	local body = spec.glass or pick(rng, BODY_MID)
+	Kit.box(m, base * CFrame.new(0, h / 2, 0), Vector3.new(w, h, d), body, if rng:NextNumber() < 0.5 then Enum.Material.Concrete else Enum.Material.Glass, { name = "Body", collide = spec.collide ~= false, reflectance = 0.05 })
+	local lit = spec.lit or LIT_HOME
+	local nb = math.clamp(math.floor(h / 22), 1, 6)
+	for _ = 1, nb do
+		if rng:NextNumber() < (spec.litChance or 0.75) then
+			local bh = rng:NextNumber(1.6, 4.5)
+			local y = rng:NextNumber(4, math.max(5, h - 4))
+			local c = jitter(rng, pick(rng, lit), 0.12) :: Color3
+			c = c:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0, 0.45))
+			Kit.box(m, base * CFrame.new(0, y, 0), Vector3.new(w + 0.6, bh, d + 0.6), c, Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body })
+		end
+	end
+	if spec.crown == "led" then
+		Kit.box(m, base * CFrame.new(0, h + 0.4, 0), Vector3.new(w + 0.8, 0.8, d + 0.8), spec.ledColor or P.LedGold, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
+	end
+	if (spec.beacon == nil and h >= 200) or spec.beacon then
+		Kit.beacon(m, (base * CFrame.new(0, h + 2, 0)).Position, 2.4)
+	end
+	return h
+end
+
+------------------------------------------------------------------------------------------------------
+-- 원경 LOD: 몸체 1개 + (확률) 밴드 1개
+------------------------------------------------------------------------------------------------------
+local function far(m: Model, spec: TowerSpec, rng: Random): number
+	local base = spec.cf
+	local w, d, h = spec.w, spec.d, spec.h
+	local body = spec.glass or pick(rng, BODY_MID)
+	Kit.box(m, base * CFrame.new(0, h / 2, 0), Vector3.new(w, h, d), body, Enum.Material.Concrete, { name = "Body", collide = false, shadow = false })
+	if rng:NextNumber() < (spec.litChance or 0.6) then
+		local c = jitter(rng, pick(rng, spec.lit or LIT_HOME), 0.15):Lerp(Color3.new(0, 0, 0), rng:NextNumber(0.35, 0.7))
+		local bh = math.max(2, h * rng:NextNumber(0.1, 0.3))
+		Kit.box(m, base * CFrame.new(0, rng:NextNumber(bh / 2 + 2, math.max(bh / 2 + 2, h - bh / 2 - 2)), 0), Vector3.new(w + 0.8, bh, d + 0.8), c, Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body, transparency = 0.15 })
+	end
+	if spec.beacon then
+		Kit.beacon(m, (base * CFrame.new(0, h + 2, 0)).Position, 3)
+	end
+	return h
+end
+
+------------------------------------------------------------------------------------------------------
+-- 진입점
+------------------------------------------------------------------------------------------------------
+function Facade.tower(parent: Instance, spec: TowerSpec): Model
+	local m = Instance.new("Model")
+	m.Name = spec.name or ("Bldg_" .. spec.style)
+	local rng = spec.rng
+	local top
+	if spec.style == "curtain" then
+		top = curtain(m, spec, rng)
+	elseif spec.style == "round" then
+		top = roundTower(m, spec, rng)
+	elseif spec.style == "apartment" then
+		top = apartment(m, spec, rng)
+	elseif spec.style == "mid" then
+		top = mid(m, spec, rng)
+	else
+		top = far(m, spec, rng)
+	end
+	m:SetAttribute("Height", top)
+	m:SetAttribute("Style", spec.style)
+	-- 강변 건물: 수면 반사 스트릭
+	if spec.glint then
+		local p = spec.cf.Position
+		local c = pick(rng, spec.lit or LIT_OFFICE)
+		Kit.reflection(m, p.X, Config.FarBank.WaterEdge + 6, math.min(spec.w, spec.d) * 0.35, math.min(380, spec.h * 0.9), c, 0.72)
+	end
+	m.Parent = parent
+	return m
+end
+
+return Facade
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX000000000000000000000000000186A6"><Properties><string name="Name">Kit</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline / Kit
+-- 모든 모듈이 공유하는 파트 팩토리 + 예약(발자국) + 조명 예산 + 야간 조명 태그 + 지형/차선 기록.
+--
+--   Kit.part(parent, cf, size, opts)         -> BasePart  (opts: PartOpts)
+--   Kit.box(parent, cf, size, color, material, opts?)
+--   Kit.vcyl(parent, centerPos, height, diameter, color, material, opts?)   세로 원기둥
+--   Kit.hcyl(parent, cf, length, diameter, color, material, opts?)          cf 의 X 축 방향 원기둥
+--   Kit.ball(parent, pos, diameter, color, material, opts?)
+--   Kit.wedge(parent, cf, size, color, material, opts?)                      WedgePart
+--   Kit.ellipsoid(parent, cf, size, color, material, opts?)                  SpecialMesh 구(타원체), 크기 제한 없음
+--   Kit.glow(part, dayMaterial?, dayColor?)    야간 발광 파트로 등록(태그 SeoulNight) — 낮/밤 전환용
+--   Kit.light(part, "PointLight"|"SpotLight"|"SurfaceLight", props) -> Light?   예산 초과 시 nil
+--   Kit.beacon(parent, pos, diameter?)        빨간 항공장애등(클라이언트가 깜빡임)
+--   Kit.label(part, face, text, opts?)        SurfaceGui 글자(아파트 동 번호, 표지판)
+--   Kit.reflection(parent, x, z, width, length, color, transparency?)       수면 위 빛 번짐(세로 스트릭)
+--   Kit.reserve(x0, z0, x1, z1, tag?) / Kit.isFree(x0, z0, x1, z1, margin?)  도시 생성 충돌 방지
+--   Kit.terrain(kind, cf, size, material)     지형 채우기 기록(+실제 적용)
+--   Kit.lane(name, points, opts)              차량 불빛 차선(클라이언트 Traffic 이 사용)
+--   Kit.group(parent, name, streaming?)       Model (기본 Persistent: 원경도 항상 보이게)
+--   Kit.groundY(x, z)                          레이아웃 기준 지면 높이
+--   Kit.yield()                                주기적 task.wait (Kit.part 가 자동 호출)
+
+local CollectionService = game:GetService("CollectionService")
+local Config = require(script.Parent.Config)
+
+local Kit = {}
+
+export type PartOpts = {
+	name: string?,
+	shape: string?, -- "Block" | "Cylinder" | "Ball" | "Wedge" | "Corner"
+	material: Enum.Material?,
+	color: Color3?,
+	transparency: number?,
+	reflectance: number?,
+	collide: boolean?, -- 기본 true (걷는 곳/건물). 장식은 false 권장
+	shadow: boolean?, -- 기본: 크기 기준 자동, Neon/투명은 항상 false
+	query: boolean?, -- 기본 = collide
+	glow: boolean?, -- true: Kit.glow 등록 (Neon 야간 발광)
+	dayMaterial: Enum.Material?,
+	dayColor: Color3?,
+}
+
+Kit.stats = { parts = 0, lights = 0, beacons = 0, labels = 0, terrainOps = 0 }
+Kit.terrainOps = {} :: { any } -- { kind, cf, size, material } (미리보기/디버그용 기록)
+Kit.applyTerrain = true -- false: 기록만 (미리보기 하네스가 사용)
+Kit.root = nil :: Model?
+Kit.lanesFolder = nil :: Instance?
+
+local reservations: { { number } } = {}
+local sinceYield = 0
+
+function Kit.reset(root: Model)
+	Kit.stats = { parts = 0, lights = 0, beacons = 0, labels = 0, terrainOps = 0 }
+	Kit.terrainOps = {}
+	Kit.root = root
+	Kit.lanesFolder = nil
+	reservations = {}
+	sinceYield = 0
+end
+
+function Kit.yield()
+	sinceYield += 1
+	if sinceYield >= Config.Quality.YieldEvery then
+		sinceYield = 0
+		task.wait()
+	end
+end
+
+------------------------------------------------------------------------------------------------------
+-- 그룹
+------------------------------------------------------------------------------------------------------
+function Kit.group(parent: Instance, name: string, streaming: Enum.ModelStreamingMode?): Model
+	local m = Instance.new("Model")
+	m.Name = name
+	pcall(function()
+		m.ModelStreamingMode = streaming or Enum.ModelStreamingMode.Persistent
+	end)
+	m.Parent = parent
+	return m
+end
+
+------------------------------------------------------------------------------------------------------
+-- 파트
+------------------------------------------------------------------------------------------------------
+local MAX_SIZE = 2048
+local SHAPES = {
+	Cylinder = Enum.PartType.Cylinder,
+	Ball = Enum.PartType.Ball,
+}
+
+local function clampSize(s: Vector3): Vector3
+	if s.X > MAX_SIZE or s.Y > MAX_SIZE or s.Z > MAX_SIZE then
+		warn(string.format("[SeoulSkyline] part size %s clamped to %d", tostring(s), MAX_SIZE))
+		return Vector3.new(math.min(s.X, MAX_SIZE), math.min(s.Y, MAX_SIZE), math.min(s.Z, MAX_SIZE))
+	end
+	return Vector3.new(math.max(s.X, 0.05), math.max(s.Y, 0.05), math.max(s.Z, 0.05))
+end
+
+function Kit.part(parent: Instance, cf: CFrame, size: Vector3, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	local shape = o.shape or "Block"
+	local p: BasePart
+	if shape == "Wedge" then
+		p = Instance.new("WedgePart")
+	elseif shape == "Corner" then
+		p = Instance.new("CornerWedgePart")
+	else
+		local part = Instance.new("Part")
+		local st = SHAPES[shape]
+		if st then
+			part.Shape = st
+		end
+		p = part
+	end
+	local mat = o.material or Enum.Material.SmoothPlastic
+	p.Name = o.name or "Part"
+	p.Anchored = true
+	p.Size = clampSize(size)
+	p.CFrame = cf
+	p.Material = mat
+	p.Color = o.color or Color3.fromRGB(163, 162, 165)
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	local tr = o.transparency or 0
+	if tr ~= 0 then
+		p.Transparency = tr
+	end
+	if o.reflectance then
+		p.Reflectance = o.reflectance
+	end
+	local collide = if o.collide == nil then true else o.collide
+	p.CanCollide = collide
+	p.CanQuery = if o.query == nil then collide else o.query
+	p.CanTouch = false
+	local shadow = o.shadow
+	if shadow == nil then
+		shadow = math.max(size.X, size.Y, size.Z) >= Config.Quality.ShadowMinSize
+	end
+	if mat == Enum.Material.Neon or tr >= 0.5 then
+		shadow = false
+	end
+	p.CastShadow = shadow
+	if o.glow then
+		Kit.glow(p, o.dayMaterial, o.dayColor)
+	end
+	p.Parent = parent
+	Kit.stats.parts += 1
+	Kit.yield()
+	return p
+end
+
+function Kit.box(parent: Instance, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, cf, size, o)
+end
+
+-- 세로 원기둥: center = 중심점, 축 = 월드 Y
+local CYL_UP = CFrame.Angles(0, 0, math.rad(90))
+function Kit.vcyl(parent: Instance, center: Vector3, height: number, diameter: number, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.shape = "Cylinder"
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, CFrame.new(center) * CYL_UP, Vector3.new(height, diameter, diameter), o)
+end
+
+-- 회전된 세로 원기둥(기울어진 기둥 등): cf 의 Y 축 방향
+function Kit.cylAlongY(parent: Instance, cf: CFrame, height: number, diameter: number, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.shape = "Cylinder"
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, cf * CYL_UP, Vector3.new(height, diameter, diameter), o)
+end
+
+-- 가로 원기둥: cf 의 X 축 방향
+function Kit.hcyl(parent: Instance, cf: CFrame, length: number, diameter: number, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.shape = "Cylinder"
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, cf, Vector3.new(length, diameter, diameter), o)
+end
+
+function Kit.ball(parent: Instance, pos: Vector3, diameter: number, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.shape = "Ball"
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, CFrame.new(pos), Vector3.new(diameter, diameter, diameter), o)
+end
+
+function Kit.wedge(parent: Instance, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.shape = "Wedge"
+	o.color = color
+	o.material = material or o.material
+	return Kit.part(parent, cf, size, o)
+end
+
+-- 타원체(나무 수관, 원경 산, 구름 덩어리). 2048 을 넘는 크기는 메시 스케일로 키움.
+function Kit.ellipsoid(parent: Instance, cf: CFrame, size: Vector3, color: Color3, material: Enum.Material?, opts: PartOpts?): BasePart
+	local o: PartOpts = opts or {}
+	o.color = color
+	o.material = material or o.material
+	if o.collide == nil then
+		o.collide = false
+	end
+	local k = math.max(1, math.max(size.X, size.Y, size.Z) / MAX_SIZE)
+	local p = Kit.part(parent, cf, size / k, o)
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Scale = Vector3.new(k, k, k)
+	mesh.Parent = p
+	return p
+end
+
+------------------------------------------------------------------------------------------------------
+-- 야간 발광 / 광원 / 항공장애등 / 글자
+------------------------------------------------------------------------------------------------------
+Kit.GLOW_TAG = "SeoulNight"
+Kit.BEACON_TAG = "SeoulBeacon"
+
+-- 밤에는 현재(Neon) 상태, 낮에는 dayMaterial/dayColor 로 전환되도록 기록
+function Kit.glow(p: BasePart, dayMaterial: Enum.Material?, dayColor: Color3?)
+	p:SetAttribute("NightMaterial", p.Material.Name)
+	p:SetAttribute("NightColor", p.Color)
+	p:SetAttribute("DayMaterial", (dayMaterial or Enum.Material.Glass).Name)
+	p:SetAttribute("DayColor", dayColor or Config.Palette.GlassDeep)
+	CollectionService:AddTag(p, Kit.GLOW_TAG)
+end
+
+export type LightProps = {
+	color: Color3?,
+	brightness: number?,
+	range: number?,
+	angle: number?,
+	face: Enum.NormalId?,
+	shadows: boolean?,
+	force: boolean?, -- 예산 무시(중요 광원)
+}
+
+function Kit.light(p: BasePart, className: string, props: LightProps?): Light?
+	local o: LightProps = props or {}
+	if not o.force and Kit.stats.lights >= Config.Quality.MaxLights then
+		return nil
+	end
+	local L = Instance.new(className) :: any
+	L.Color = o.color or Config.Palette.LampWarm
+	L.Brightness = o.brightness or 1
+	L.Range = o.range or 16
+	L.Shadows = o.shadows == true
+	if className == "SpotLight" or className == "SurfaceLight" then
+		L.Angle = o.angle or 90
+		L.Face = o.face or Enum.NormalId.Bottom
+	end
+	L.Parent = p
+	Kit.stats.lights += 1
+	CollectionService:AddTag(L, Kit.GLOW_TAG)
+	return L :: Light
+end
+
+function Kit.beacon(parent: Instance, pos: Vector3, diameter: number?): BasePart
+	local d = diameter or 3
+	local b = Kit.ball(parent, pos, d, Config.Palette.Beacon, Enum.Material.Neon, { name = "Beacon", collide = false })
+	CollectionService:AddTag(b, Kit.BEACON_TAG)
+	Kit.stats.beacons += 1
+	return b
+end
+
+export type LabelOpts = {
+	color: Color3?,
+	font: Enum.Font?,
+	glow: boolean?, -- true: 빛 영향 0(밤에도 밝게)
+	pixelsPerStud: number?,
+	maxDistance: number?,
+	stroke: boolean?,
+}
+
+function Kit.label(p: BasePart, face: Enum.NormalId, text: string, opts: LabelOpts?): SurfaceGui
+	local o: LabelOpts = opts or {}
+	local g = Instance.new("SurfaceGui")
+	g.Name = "Label"
+	g.Face = face
+	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	g.PixelsPerStud = o.pixelsPerStud or 12
+	g.LightInfluence = if o.glow then 0 else 1
+	g.MaxDistance = o.maxDistance or 2600
+	g.AlwaysOnTop = false
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.fromScale(1, 1)
+	t.Text = text
+	t.TextScaled = true
+	t.Font = o.font or Enum.Font.GothamBold
+	t.TextColor3 = o.color or Color3.fromRGB(240, 240, 240)
+	if o.stroke then
+		t.TextStrokeTransparency = 0.6
+	end
+	t.Parent = g
+	g.Parent = p
+	Kit.stats.labels += 1
+	return g
+end
+
+-- 수면 위 빛 번짐: 광원 바로 앞(카메라 쪽 +Z)으로 길게 늘어진 반투명 Neon 띠
+function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart
+	local y = Config.Level.Water + 0.25
+	return Kit.part(parent, CFrame.new(x, y, z + length / 2), Vector3.new(width, 0.12, length), {
+		name = "WaterGlint",
+		material = Enum.Material.Neon,
+		color = color,
+		transparency = transparency or 0.62,
+		collide = false,
+		query = false,
+		shadow = false,
+		glow = true,
+		dayMaterial = Enum.Material.Glass,
+		dayColor = Color3.fromRGB(40, 60, 80),
+	})
+end
+
+------------------------------------------------------------------------------------------------------
+-- 발자국 예약 (AABB, X/Z)
+------------------------------------------------------------------------------------------------------
+function Kit.reserve(x0: number, z0: number, x1: number, z1: number, _tag: string?)
+	table.insert(reservations, { math.min(x0, x1), math.min(z0, z1), math.max(x0, x1), math.max(z0, z1) })
+end
+
+function Kit.isFree(x0: number, z0: number, x1: number, z1: number, margin: number?): boolean
+	local m = margin or 0
+	local ax0, az0, ax1, az1 = math.min(x0, x1) - m, math.min(z0, z1) - m, math.max(x0, x1) + m, math.max(z0, z1) + m
+	for _, r in reservations do
+		if ax0 < r[3] and ax1 > r[1] and az0 < r[4] and az1 > r[2] then
+			return false
+		end
+	end
+	return true
+end
+
+-- 회전된 사각형(중심, 폭, 깊이, yaw 도)의 AABB 예약/검사
+local function rotatedAABB(cx: number, cz: number, w: number, d: number, yawDeg: number): (number, number, number, number)
+	local a = math.rad(yawDeg)
+	local hx = (math.abs(math.cos(a)) * w + math.abs(math.sin(a)) * d) / 2
+	local hz = (math.abs(math.sin(a)) * w + math.abs(math.cos(a)) * d) / 2
+	return cx - hx, cz - hz, cx + hx, cz + hz
+end
+Kit.rotatedAABB = rotatedAABB
+
+function Kit.reserveRect(cx: number, cz: number, w: number, d: number, yawDeg: number?, tag: string?)
+	local x0, z0, x1, z1 = rotatedAABB(cx, cz, w, d, yawDeg or 0)
+	Kit.reserve(x0, z0, x1, z1, tag)
+end
+
+function Kit.isFreeRect(cx: number, cz: number, w: number, d: number, yawDeg: number?, margin: number?): boolean
+	local x0, z0, x1, z1 = rotatedAABB(cx, cz, w, d, yawDeg or 0)
+	return Kit.isFree(x0, z0, x1, z1, margin)
+end
+
+------------------------------------------------------------------------------------------------------
+-- 지면 높이 (Config 레이아웃 기준; 실제 지형/바닥 파트도 이 단면을 따름)
+------------------------------------------------------------------------------------------------------
+local function lerp(a: number, b: number, t: number): number
+	return a + (b - a) * math.clamp(t, 0, 1)
+end
+
+function Kit.groundY(_x: number, z: number): number
+	local L, F, N = Config.Level, Config.FarBank, Config.NearBank
+	if z > F.WaterEdge and z < N.WaterEdge then
+		return L.Water
+	end
+	if z <= F.WaterEdge then
+		if z > F.ParkTo then
+			return L.Promenade
+		elseif z > F.SlopeTo then
+			return lerp(L.Promenade, L.Levee, (F.ParkTo - z) / (F.ParkTo - F.SlopeTo))
+		end
+		return L.City
+	end
+	if z < N.ParkTo then
+		return L.Promenade
+	elseif z < N.SlopeTo then
+		return lerp(L.Promenade, L.Levee, (z - N.ParkTo) / (N.SlopeTo - N.ParkTo))
+	end
+	return L.City
+end
+
+------------------------------------------------------------------------------------------------------
+-- 지형
+------------------------------------------------------------------------------------------------------
+-- kind: "Block" | "Ball" | "Cylinder" | "Wedge".  Ball: size.X = 지름.  Cylinder: size.Y = 높이, size.X = 지름
+function Kit.terrain(kind: string, cf: CFrame, size: Vector3, material: Enum.Material)
+	table.insert(Kit.terrainOps, { kind = kind, cf = cf, size = size, material = material })
+	Kit.stats.terrainOps += 1
+	if not Kit.applyTerrain then
+		return
+	end
+	local T = workspace.Terrain
+	if kind == "Block" then
+		T:FillBlock(cf, size, material)
+	elseif kind == "Ball" then
+		T:FillBall(cf.Position, size.X / 2, material)
+	elseif kind == "Cylinder" then
+		T:FillCylinder(cf, size.Y, size.X / 2, material)
+	elseif kind == "Wedge" then
+		T:FillWedge(cf, size, material)
+	end
+	sinceYield += 40
+	Kit.yield()
+end
+
+------------------------------------------------------------------------------------------------------
+-- 차선 (클라이언트 Traffic 이 불빛 차량을 흘려보냄)
+--   points: 월드 좌표 경로(차량 불빛 높이 포함). opts.speed(studs/s), opts.density(대/100stud),
+--   opts.kind "head"(흰 전조등, 카메라 쪽으로 옴) | "tail"(붉은 후미등) — 방향은 points 순서.
+------------------------------------------------------------------------------------------------------
+export type LaneOpts = { speed: number?, density: number?, kind: string?, spacing: number? }
+
+function Kit.lane(name: string, points: { Vector3 }, opts: LaneOpts?)
+	local o: LaneOpts = opts or {}
+	local root = Kit.root
+	if not root then
+		return
+	end
+	if not Kit.lanesFolder then
+		local f = Instance.new("Folder")
+		f.Name = "TrafficLanes"
+		f.Parent = root
+		Kit.lanesFolder = f
+	end
+	local lane = Instance.new("Configuration")
+	lane.Name = name
+	lane:SetAttribute("Count", #points)
+	for i, p in points do
+		lane:SetAttribute("P" .. i, p)
+	end
+	lane:SetAttribute("Speed", o.speed or 60)
+	lane:SetAttribute("Density", o.density or 1)
+	lane:SetAttribute("Kind", o.kind or "head")
+	lane:SetAttribute("Spacing", o.spacing or 3.2) -- 전조등 두 개 간격
+	lane.Parent = Kit.lanesFolder
+end
+
+return Kit
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX000000000000000000000000000186A7"><Properties><string name="Name">Skyline</string><ProtectedString name="Source"><![CDATA[-- TEMP facade smoke test (replaced by the Skyline module author)
+local M = {}
+function M.build(ctx)
+	local F, P = ctx.Facade, ctx.Config.Palette
+	F.tower(ctx.model, { style = "curtain", cf = CFrame.new(-200, 14, -800) * CFrame.Angles(0, math.rad(10), 0), w = 60, d = 50, h = 320, rng = ctx.rng, crown = "led", tiers = 2, glint = true })
+	F.tower(ctx.model, { style = "round", cf = CFrame.new(-60, 14, -800), w = 50, d = 50, h = 260, rng = ctx.rng, crown = "spire" })
+	F.tower(ctx.model, { style = "apartment", cf = CFrame.new(80, 14, -760), w = 84, d = 18, h = 90, rng = ctx.rng, label = "101", accent = P.LedBlue, crown = "frame" })
+	F.tower(ctx.model, { style = "mid", cf = CFrame.new(200, 14, -800), w = 40, d = 40, h = 140, rng = ctx.rng, crown = "led" })
+	F.tower(ctx.model, { style = "far", cf = CFrame.new(280, 14, -800), w = 40, d = 40, h = 100, rng = ctx.rng })
+end
+return M
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX000000000000000000000000000186A8"><Properties><string name="Name">TerrainPlan</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkyline / TerrainPlan
+-- 지형: 한강 수면 + 강바닥 + 호안(돌 사면) + 양쪽 둔치 잔디 + 제방 사면.
+-- 도시 지면/도로/산책로 포장은 Riverside/Park 모듈이 파트로 덮습니다.
+
+local Config = require(script.Parent.Config)
+local Kit = require(script.Parent.Kit)
+
+local TerrainPlan = {}
+
+function TerrainPlan.build(_ctx: any)
+	local L, R, F, N = Config.Level, Config.River, Config.FarBank, Config.NearBank
+	local x0, x1 = R.XMin, R.XMax
+	local chunk = 2000
+	-- 1) 강물 (청크로 나눠 채움)
+	local zw0, zw1 = F.WaterEdge - 8, N.WaterEdge + 8
+	local x = x0
+	while x < x1 do
+		local xe = math.min(x + chunk, x1)
+		local cx = (x + xe) / 2
+		Kit.terrain("Block", CFrame.new(cx, (L.RiverBed + L.Water) / 2, (zw0 + zw1) / 2), Vector3.new(xe - x, L.Water - L.RiverBed, zw1 - zw0), Enum.Material.Water)
+		-- 강바닥
+		Kit.terrain("Block", CFrame.new(cx, L.RiverBed - 4, (zw0 + zw1) / 2), Vector3.new(xe - x, 8, zw1 - zw0), Enum.Material.Mud)
+		x = xe
+	end
+	-- 2) 양쪽 둔치: 수면 가장자리 돌 사면(웨지) + 잔디 둔치 + 제방 사면
+	local function bank(sign: number, B: any)
+		-- sign = -1: 먼 쪽(물 → -Z), +1: 가까운 쪽(물 → +Z)
+		local edge = B.WaterEdge
+		local revW = 14 -- 호안 폭
+		local x = x0
+		while x < x1 do
+			local xe = math.min(x + chunk, x1)
+			local cx, w = (x + xe) / 2, xe - x
+			-- 호안: 물속 바닥(-10)에서 둔치 높이까지 비스듬히. WedgePart 규약: 높은 면이 +Z.
+			local hRev = L.Promenade + 10
+			local zc = edge + sign * revW / 2
+			local wedgeCF = CFrame.new(cx, -10 + hRev / 2, zc) * (if sign > 0 then CFrame.new() else CFrame.Angles(0, math.pi, 0))
+			Kit.terrain("Wedge", wedgeCF, Vector3.new(w, hRev, revW), Enum.Material.Slate)
+			-- 둔치 (잔디) : Promenade 높이까지, 두께 18
+			local pz0, pz1 = edge + sign * revW, B.ParkTo
+			Kit.terrain("Block", CFrame.new(cx, L.Promenade - 9, (pz0 + pz1) / 2), Vector3.new(w, 18, math.abs(pz1 - pz0)), Enum.Material.Grass)
+			-- 제방 사면 (Promenade → Levee)
+			local sh = L.Levee - L.Promenade
+			local sz0, sz1 = B.ParkTo, B.SlopeTo
+			local slopeCF = CFrame.new(cx, L.Promenade + sh / 2, (sz0 + sz1) / 2) * (if sign > 0 then CFrame.new() else CFrame.Angles(0, math.pi, 0))
+			Kit.terrain("Wedge", slopeCF, Vector3.new(w, sh, math.abs(sz1 - sz0)), Enum.Material.Grass)
+			-- 제방/도시 아래 흙 (사면 아래 + 도로 아래)
+			Kit.terrain("Block", CFrame.new(cx, L.Promenade - 9, (sz0 + sz1) / 2), Vector3.new(w, 18, math.abs(sz1 - sz0)), Enum.Material.Ground)
+			x = xe
+		end
+	end
+	bank(-1, F)
+	bank(1, N)
+end
+
+return TerrainPlan
+]]></ProtectedString></Properties></Item></Item></Item><Item class="ServerScriptService" referent="RBX000000000000000000000000000186AC"><Properties><string name="Name">ServerScriptService</string></Properties><Item class="Script" referent="RBX000000000000000000000000000186AB"><Properties><string name="Name">SeoulSkylineBoot</string><ProtectedString name="Source"><![CDATA[-- SeoulSkylineBoot — 서버 시작 시 맵 준비
+--   * Workspace 에 SeoulSkyline 이 이미 있으면(커맨드 바로 구워 저장한 경우) 조명만 다시 적용합니다.
+--   * 없으면 즉시 임시 스폰을 만든 뒤 전체 맵을 생성합니다(수 초).
+--   * Config.Lighting.DayNightCycle = true 이면 시간이 흐르고 창문/가로등이 자동 점등/소등됩니다.
+
+local Players = game:GetService("Players")
+local Lighting = game:GetService("Lighting")
+local ServerStorage = game:GetService("ServerStorage")
+
+local SeoulSkyline = require(ServerStorage:WaitForChild("SeoulSkyline"))
+local Config = SeoulSkyline.Config
+
+local existing = workspace:FindFirstChild(Config.ROOT_NAME)
+if existing then
+	SeoulSkyline.ApplyLighting()
+	SeoulSkyline.SetNight(SeoulSkyline.IsNightClock(Lighting.ClockTime))
+else
+	-- 맵이 생성되는 동안 접속한 플레이어가 물에 빠지지 않도록 전망대 위치에 임시 스폰/발판
+	local V = Config.Viewpoint
+	local tempPad = Instance.new("Part")
+	tempPad.Name = "SeoulSkyline_TempPad"
+	tempPad.Anchored = true
+	tempPad.Size = Vector3.new(40, 2, 40)
+	tempPad.Position = Vector3.new(V.DeckCenter.X, V.DeckHeight - 1, V.DeckCenter.Z)
+	tempPad.Transparency = 1
+	tempPad.Parent = workspace
+	local tempSpawn = Instance.new("SpawnLocation")
+	tempSpawn.Name = "SeoulSkyline_TempSpawn"
+	tempSpawn.Anchored = true
+	tempSpawn.Size = Vector3.new(8, 1, 8)
+	tempSpawn.Position = tempPad.Position + Vector3.new(0, 1.5, 0)
+	tempSpawn.Transparency = 1
+	tempSpawn.CanCollide = false
+	tempSpawn.Parent = workspace
+
+	SeoulSkyline.Build()
+
+	tempSpawn:Destroy()
+	tempPad:Destroy()
+	-- 생성 전에 스폰된 캐릭터는 정식 스폰으로 옮김
+	local root = workspace:FindFirstChild(Config.ROOT_NAME)
+	local spawn = root and root:FindFirstChildWhichIsA("SpawnLocation", true)
+	if spawn then
+		for _, plr in Players:GetPlayers() do
+			local char = plr.Character
+			if char and char.PrimaryPart then
+				char:PivotTo(spawn.CFrame + Vector3.new(0, 4, 0))
+			end
+		end
+	end
+end
+
+if Config.Lighting.DayNightCycle then
+	local secondsPerHour = Config.Lighting.MinutesPerDay * 60 / 24
+	task.spawn(function()
+		while true do
+			local dt = task.wait(0.25)
+			Lighting.ClockTime = (Lighting.ClockTime + dt / secondsPerHour) % 24
+			SeoulSkyline.SetNight(SeoulSkyline.IsNightClock(Lighting.ClockTime))
+		end
+	end)
+end
+]]></ProtectedString></Properties></Item></Item><Item class="StarterPlayer" referent="RBX000000000000000000000000000186AE"><Properties><string name="Name">StarterPlayer</string></Properties><Item class="StarterPlayerScripts" referent="RBX000000000000000000000000000186AD"><Properties><string name="Name">StarterPlayerScripts</string></Properties></Item></Item></roblox>

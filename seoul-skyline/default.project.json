@@ -1,0 +1,29 @@
+{
+  "name": "SeoulSkyline",
+  "tree": {
+    "$className": "DataModel",
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": { "Technology": "Future" }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "SeoulSkyline": { "$path": "src/ServerStorage/SeoulSkyline" }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "SeoulSkylineBoot": { "$path": "src/ServerScriptService/SeoulSkylineBoot.server.luau" }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "SeoulSkylineClient": { "$path": "src/StarterPlayer/StarterPlayerScripts/SeoulSkylineClient" }
+      }
+    }
+  }
+}
