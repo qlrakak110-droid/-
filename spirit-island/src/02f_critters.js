@@ -284,8 +284,8 @@ function critter(key, fn) { if (!_critterDesigns[key]) _critterDesigns[key] = fn
 const SPIRIT_SLOTS = 12;
 // per region material: [emissive, specular strength, specular size (1 − N·H threshold), terminator half-width]
 const SPIRIT_MATS = {
-  fur: [0, 0, 0, 0.07], fluff: [0, 0, 0, 0.1], skin: [0, 0.22, 0.05, 0.045], water: [0, 1.0, 0.024, 0.04],
-  leaf: [0, 0.34, 0.1, 0.045], horn: [0, 0.45, 0.04, 0.04], hoof: [0, 0.5, 0.03, 0.035], nose: [0, 0.95, 0.03, 0.035],
+  fur: [0, 0, 0, 0.07], fluff: [0, 0, 0, 0.1], skin: [0, 0.22, 0.04, 0.045], water: [0, 1.1, 0.011, 0.04],
+  leaf: [0, 0.3, 0.08, 0.045], horn: [0, 0.45, 0.03, 0.04], hoof: [0, 0.5, 0.025, 0.035], nose: [0, 1.0, 0.02, 0.035],
   glow: [0.9, 0, 0, 0.08], ember: [1.4, 0, 0, 0.08],
 };
 // per species shading presets (by look.kind); look.shade overrides any field
@@ -496,8 +496,8 @@ function spiritRegions(D, look, pos, nor, nv, m) {
 // ---- the cel material
 const SPIRIT_DECL = `uniform vec3 uPal[${SPIRIT_SLOTS}]; uniform vec4 uPalP[${SPIRIT_SLOTS}]; uniform float uPalS[${SPIRIT_SLOTS}]; uniform int uNC, uNS;
   uniform float uShade, uShadeSat, uMid, uMidW, uRim, uRimT, uTerm, uAOk, uAOs, uForm, uAmbHue, uKeyK, uAmbK, uFlash;
-  uniform float uKeySat;
-  uniform vec3 uShadeTint, uMidTint;
+  uniform float uKeySat, uShadeHueK;
+  uniform vec3 uShadeTint, uMidTint, uShadeHue;
   varying vec4 vR0, vR1, vR2, vNm; varying vec3 vObjPos; varying vec3 vObjN; varying vec3 vBake;
   vec4 gPP;
 `;
@@ -564,7 +564,9 @@ const SPIRIT_LIGHT = `
     float LL = dot(litE, vec3(0.2126, 0.7152, 0.0722));
     vec3 litT = alb * litE * (1.0 - uForm * (1.0 - smoothstep(0.0, 0.85, ndl)));
     vec3 ambH = amb / max(dot(amb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
-    vec3 sA = max(mix(vec3(dot(alb, vec3(0.2126, 0.7152, 0.0722))), alb, uShadeSat), 0.0) * uShadeTint;
+    float aLum = dot(alb, vec3(0.2126, 0.7152, 0.0722));
+    vec3 sA = max(mix(vec3(aLum), alb, uShadeSat), 0.0) * uShadeTint;
+    sA = mix(sA, uShadeHue * (aLum / max(dot(uShadeHue, vec3(0.2126, 0.7152, 0.0722)), 1e-3)), uShadeHueK);
     float upk = smoothstep(-0.6, 0.75, dot(N, upV));
     vec3 shT = sA * mix(vec3(1.0), ambH, uAmbHue) * (LL * uShade * mix(0.86, 1.05, upk) * (1.0 - vBake.x * uAOs));
     float band = smoothstep(-uMidW - aw, -uMidW + aw, tt) * (1.0 - litF) * shS;
@@ -580,7 +582,9 @@ const SPIRIT_LIGHT = `
     #endif
     col += rimC * (0.3 + 0.7 * alb) * rimB * uRim * mix(0.45, 1.0, shS);
     // one shaped specular, glossy regions only
-    float nh = dot(N, normalize(keyD + Vv)), nhw = fwidth(nh) + 0.002, th = 1.0 - gPP.z;
+    // the highlight rides on the big form only (macro normal), so it is one clean shape, never shards on small details
+    vec3 Nsp = normalize(mix(N0, normalize(vNm.xyz), clamp(vNm.w * 1.6, 0.0, 1.0)));
+    float nh = dot(Nsp, normalize(keyD + Vv)), nhw = fwidth(nh) + 0.002, th = 1.0 - gPP.z;
     float sp = smoothstep(th - nhw, th + nhw, nh) * lit * max(gPP.y, 0.0);
     col += (keyC * 0.95 + 0.05) * sp;
     reflectedLight.directDiffuse = col;
@@ -605,7 +609,7 @@ function spiritMaterial(D, look, cfg = {}, solid = null) {
     uPal: { value: P3 }, uPalP: { value: P4 }, uPalS: { value: PS }, uNC: { value: solid ? 1 : D.nc }, uNS: { value: solid ? 1 : D.ns },
     uShade: { value: S.shade }, uShadeSat: { value: S.sat }, uShadeTint: { value: new THREE.Vector3(...S.tint) }, uMid: { value: S.mid }, uMidW: { value: S.midW },
     uMidTint: { value: new THREE.Vector3(...S.midTint) }, uRim: { value: S.rim }, uRimT: { value: S.rimT }, uTerm: { value: S.term }, uAOk: { value: S.aoK }, uAOs: { value: S.aoS },
-    uForm: { value: S.form }, uAmbHue: { value: S.ambHue }, uKeyK: { value: S.key }, uAmbK: { value: S.amb }, uKeySat: { value: S.keySat ?? 0.6 }, uFlash: { value: 0 },
+    uForm: { value: S.form }, uAmbHue: { value: S.ambHue }, uKeyK: { value: S.key }, uAmbK: { value: S.amb }, uKeySat: { value: S.keySat ?? 0.6 }, uShadeHue: { value: new THREE.Color(S.hue ?? 0x6a4a8a) }, uShadeHueK: { value: S.hueK ?? 0.22 }, uFlash: { value: 0 },
   };
   // face decals (mouth, blush, brows, crest mark) — crisp object-space shapes, see CRITTER_FACE
   const F = solid ? {} : (D.face || {}), v4 = (a) => new THREE.Vector4(...(a || [0, 0, 0, 0]));
@@ -724,6 +728,8 @@ function spiritEye(o = {}) {
   });
   Object.assign(m.uniforms, U);
   m.alphaToCoverage = true;
+  // the lens sits in a shallow socket: a small depth offset keeps it from z-fighting with the socket floor
+  m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2;
   m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash; m.userData.gaze = U.uGaze; m.userData.expr = U.uExpr; m.userData.skin = U.uSkin;
   if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, o.gazeLim || {});
   return m;
@@ -923,7 +929,7 @@ function dFox(st) {
     const look = {
       kind: 'fur',
       mats: { [NOSE]: 'nose' },
-      shade: { tint: [0.95, 0.64, 0.94], midTint: [1.14, 0.8, 0.74] },
+      shade: { tint: [0.95, 0.66, 0.92], midTint: [1.14, 0.8, 0.74], hue: 0x7a3c78, hueK: 0.24 },
       over: [
         { col: DK, sd: sdMax((v) => v.y - 0.2 * L, onPart('leg', 0.45)) },
         { col: EAR, sd: sdMax(sdMin(...inner), onPart('jaw')) },
@@ -937,7 +943,7 @@ function dFox(st) {
       mark: st === 2 ? null : [0, hy + 0.165, hz + 0.15, 0.055], markK: 1, markCol: 0xffd25a, markGlow: 0xffa030,
       brow: st === 2 ? [0.12, hy + 0.115, hz + 0.18, 0.04] : null, browTilt: -0.35, browCol: 0x7a2408,
     };
-    return { prims: K.prims, bounds: [-0.8, -0.05, -bz - 0.8, 0.8, 1.8 * L, bz + 0.75], hipY: by, height: 1.45 * L, stride: 0.12, look, face, socket: 0.7,
+    return { prims: K.prims, bounds: [-0.8, -0.05, -bz - 0.8, 0.8, 1.8 * L, bz + 0.75], hipY: by, height: 1.45 * L, stride: 0.12, look, face, socket: 0.35, lidFold: 0,
       earHinge: add3(hc, [0, 0.16, -0.04]), earAmp: -0.2,
       eyes: eyePair(hc, 0.138, 0.015, 0.252, st === 2 ? 0.086 : 0.094, 0.3), tails: tails.map((tx) => [tx * 1.35, by + 0.92, -bz - 0.26]), hc, eh };
   });
@@ -988,12 +994,12 @@ function dSeal(st) {
     const belly = (v) => Math.max((Math.hypot(v.x / 0.27, (v.y - 0.33) / 0.3) - 1) * 0.24, (0.06 - v.z) * 0.4);
     const over = [{ col: WH, mat: 'water', sd: belly }, { col: spotC, sd: spots }];
     if (st === 2) over.push({ col: 0xc6f8ff, mat: 'glow', em: 1.1, sd: sdMax((v) => Math.abs(v.y - (0.4 + 0.045 * Math.sin(v.z * 8 + 0.6))) - 0.014, (v) => 0.3 - Math.abs(v.x), (v) => v.z - 0.18) });
-    const look = { kind: 'water', mats: { [NOSE]: 'nose', [WH]: 'water', [FN]: 'water' }, shade: { tint: [0.7, 0.84, 1.12] }, over };
+    const look = { kind: 'water', mats: { [NOSE]: 'nose', [WH]: 'water', [FN]: 'water' }, shade: { tint: [0.72, 0.85, 1.1], hue: 0x2a46a8, hueK: 0.2 }, over };
     const face = {
       mouth: [0, hy - 0.17, hz + 0.24, 0.055], mouthK: st === 2 ? 1 : 3, line: 0x1a2a44,
       blush: [0.215, hy - 0.06, hz + 0.16, 0.065], blushCol: 0xff8aa8, blushEdge: 0.7, blushA: 0.4,
     };
-    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, look, face, socket: 0.4, lidFold: 0.7,
+    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, look, face, socket: 0.35, lidFold: 0,
       earHinge: add3(hc, [0, 0.1, -0.02]), earAmp: 0.3,
       eyes: eyePair(hc, 0.165, 0.045, 0.29, 0.1, 0.32), hc };
   });
@@ -1083,12 +1089,12 @@ function dFawn(st) {
       { col: 0x2f9a3e, mat: 'leaf', sd: sdMax(sdMin(...ribs.map(([a, b]) => rib(a, b))), onPart('jaw')) },
     ];
     if (st === 2) over.push({ col: 0xdcffb8, mat: 'glow', em: 0.9, sd: sdMax((v) => hy + 0.66 - v.y, (v) => 0.06 - Math.abs(v.x)) });
-    const look = { kind: 'fur', mats: { [LF]: 'leaf', [LF2]: 'leaf', [AN]: 'horn', [DK]: 'hoof', [NOSE]: 'nose' }, shade: { tint: [0.95, 0.68, 0.9], midTint: [1.12, 0.84, 0.74] }, over };
+    const look = { kind: 'fur', mats: { [LF]: 'leaf', [LF2]: 'leaf', [AN]: 'horn', [DK]: 'hoof', [NOSE]: 'nose' }, shade: { tint: [0.95, 0.7, 0.9], midTint: [1.12, 0.84, 0.74], hue: 0x6c4a86, hueK: 0.22 }, over };
     const face = {
       mouth: [0, hy - 0.118, hz + 0.22, 0.034], mouthK: 2, line: 0x3a1a10,
       blush: [0.15, hy - 0.06, hz + 0.1, 0.048], blushCol: 0xff8a84, blushEdge: 0.7, blushA: 0.4,
     };
-    return { prims: K.prims, bounds: [-0.75, -0.05, -0.8, 0.75, (st === 2 ? 2.45 : 1.8) * LL, 0.95], hipY: 0.66 * LL, height: 1.6 * LL, stride: 0.14, look, face, socket: 0.7,
+    return { prims: K.prims, bounds: [-0.75, -0.05, -0.8, 0.75, (st === 2 ? 2.45 : 1.8) * LL, 0.95], hipY: 0.66 * LL, height: 1.6 * LL, stride: 0.14, look, face, socket: 0.35, lidFold: 0,
       earHinge: add3(hc, [0, 0.07, -0.03]), earAmp: 0.3,
       eyes: eyePair(hc, 0.118, 0.035, 0.192, 0.08, 0.34), hc };
   });

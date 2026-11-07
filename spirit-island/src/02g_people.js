@@ -64,7 +64,13 @@ function ppSculpt(prims, cell) {
   const at = (i, j, k) => grid[k * sxy + j * nx + i];
   const sample = (x, y, z) => {
     let fx = (x - x0) / cell, fy = (y - y0) / cell, fz = (z - z0) / cell;
-    if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1.001 || fy > ny - 1.001 || fz > nz - 1.001) return 1e3;
+    if (fx < 0 || fy < 0 || fz < 0 || fx > nx - 1.001 || fy > ny - 1.001 || fz > nz - 1.001) {
+      // outside the grid: distance to the box plus the field at the nearest inside point (an upper bound whose
+      // gradient still points at the body, so hair and straps can be pulled back onto it)
+      const cx = Math.min(Math.max(x, x0), x0 + (nx - 1.001) * cell), cy = Math.min(Math.max(y, y0), y0 + (ny - 1.001) * cell), cz = Math.min(Math.max(z, z0), z0 + (nz - 1.001) * cell);
+      const v = sample(cx, cy, cz);
+      return (v > 50 ? 1e3 : v) + Math.hypot(x - cx, y - cy, z - cz);
+    }
     const i = fx | 0, j = fy | 0, k = fz | 0, u = fx - i, v = fy - j, w = fz - k;
     const c00 = at(i, j, k) * (1 - u) + at(i + 1, j, k) * u, c10 = at(i, j + 1, k) * (1 - u) + at(i + 1, j + 1, k) * u;
     const c01 = at(i, j, k + 1) * (1 - u) + at(i + 1, j, k + 1) * u, c11 = at(i, j + 1, k + 1) * (1 - u) + at(i + 1, j + 1, k + 1) * u;
@@ -180,7 +186,9 @@ function ppSweep(P, w, t, up, o = {}) {
   for (let i = 0; i < n; i++) {
     const pv = closed ? P[(i - 1 + n) % n] : P[Math.max(0, i - 1)], nx = closed ? P[(i + 1) % n] : P[Math.min(n - 1, i + 1)];
     const T = ppV.norm(ppV.sub(nx, pv));
-    let U = up(i, T); U = ppV.sub(U, ppV.mul(T, ppV.dot(U, T))); const N0 = ppV.norm(U);
+    let U = up(i, T); U = ppV.sub(U, ppV.mul(T, ppV.dot(U, T)));
+    if (ppV.len(U) < 1e-6) U = ppV.cross(T, Math.abs(T[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]);
+    const N0 = ppV.norm(U);
     const B = ppV.cross(T, N0);
     if (i > 0) along += ppV.len(ppV.sub(P[i], P[i - 1]));
     for (let k = 0; k < seg; k++) {
@@ -443,7 +451,7 @@ function ppGrad(F, p) {
 function ppUnion(fields) {
   return (x, y, z) => {
     let f = 1e3;
-    for (const fl of fields) { if (!fl) continue; const b = fl.b; if (x < b[0] || y < b[1] || z < b[2] || x > b[3] || y > b[4] || z > b[5]) continue; const v = fl.sample(x, y, z); if (v < f) f = v; }
+    for (const fl of fields) { if (!fl) continue; const v = fl.sample(x, y, z); if (v < f) f = v; }
     return f;
   };
 }
@@ -718,6 +726,7 @@ function ppHair(S, C, FH, FB, out) {
       const off = w0 * (o.flat ?? 0.4) * taper(t + 1 / n) + 0.006 * u + (o.hover || 0) * Math.sin(Math.PI * t);
       const f = F(p[0], p[1], p[2]);
       if (f < off) { const g2 = ppGrad(F, p); p = ppV.add(p, ppV.mul(g2, off - f)); }
+      else if (o.stick && f < 3 * u) { const g2 = ppGrad(F, p); p = ppV.sub(p, ppV.mul(g2, (f - off) * o.stick * smooth(0.15, 0.5, t))); }
     }
     const s = ppSweep(pts, ws, ts, (i) => ppGrad(F, pts[i]), { seg: hi ? 6 : 4, shape: 'lens' });
     for (let q = 0; q < s.nv; q++) {
@@ -750,7 +759,7 @@ function ppHair(S, C, FH, FB, out) {
       const rad = ppV.add(ppV.mul(e1, Math.cos(a)), ppV.mul(e2, Math.sin(a)));
       const rd = ppV.norm(ppV.add(ppV.mul(Wd, Math.cos(pol)), ppV.mul(rad, Math.sin(pol))));
       const fd = ppV.norm(ppV.sub(ppV.mul(rad, Math.cos(pol)), ppV.mul(Wd, Math.sin(pol))));
-      clump(ppV.add(hc, ppV.mul(rd, 0.5 * u)), fd, lenF(A) * u * (0.9 + rnd() * 0.2), w0 * (0.9 + rnd() * 0.25), o);
+      clump(ppV.add(hc, ppV.mul(rd, 0.5 * u)), fd, lenF(A) * u * (0.9 + rnd() * 0.2), w0 * (0.9 + rnd() * 0.25), o.curlF ? Object.assign({}, o, { curl: o.curlF(A) }) : o);
     }
   };
   const ring = (n, el0, el1, len, w0, o = {}) => {
@@ -780,7 +789,8 @@ function ppHair(S, C, FH, FB, out) {
     ring(hi ? 12 : 7, -2, 20, 0.34 * u, 0.16 * u, { flick: 0.4 });
     bangs(hi ? 7 : 5, 0.42 * u, 0.15 * u, { flick: 0.3 });
   } else if (style === 'long') {
-    flow(hi ? 40 : 24, 0.05, 0.38, (A) => sideLen(A, 0.78, 1.7, 2.7), 0.23 * u, { grav: 0.9, lift: 0.08, flick: 0.0, flat: 0.36, spring: 0.7 });
+    // long hair: the back locks are steered behind the shoulders so they fall down the back instead of sliding off sideways
+    flow(hi ? 40 : 24, 0.05, 0.38, (A) => sideLen(A, 0.78, 1.05, 2.6), 0.23 * u, { grav: 1.2, lift: 0.04, flick: 0.0, flat: 0.36, spring: 0.7, hover: 0.02 * u, stick: 1.0, curlF: (A) => [-Math.sin(A) * 0.1, 0, -0.3 * smooth(0.45, 0.8, Math.abs(A) / Math.PI)] });
     for (const s of [-1, 1]) for (let i = 0; i < (hi ? 3 : 2); i++) clump(rootAt(s * (66 + i * 12) * deg, (30 - i * 8) * deg), [s * 0.1, -0.95, 0.3], (1.45 + 0.12 * i) * u, 0.18 * u, { grav: 1.4, lift: 0.05, flat: 0.36, spring: 0.55 });
     bangs(hi ? 7 : 5, 0.58 * u, 0.15 * u, { part: -0.5, flick: 0.05 });
   } else if (style === 'hat') {
