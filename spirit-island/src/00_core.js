@@ -94,7 +94,9 @@ bloomPass.materialHighPassFilter.fragmentShader = `uniform sampler2D tDiffuse; u
     float rq = clamp(br - luminosityThreshold + knee, 0.0, 2.0 * knee);
     rq = rq * rq / (4.0 * knee);
     float w = max(rq, br - luminosityThreshold) / max(br, 1e-4);
-    float a = clamp((br - luminosityThreshold + knee) / (2.0 * knee), 0.0, 1.0);
+    // the blend uses this alpha as a weight: keep it a tight mask around the threshold so broad mid-bright areas
+    // (sky, pale stone) never amplify nearby glows into a wash
+    float a = smoothstep(luminosityThreshold - knee * 0.25, luminosityThreshold + knee * 0.5, br);
     gl_FragColor = vec4(c * w, a);
   }`;
 bloomPass.materialHighPassFilter.needsUpdate = true;
@@ -133,7 +135,7 @@ const Post = {
   presets: {
     world:  { con: 0.28, vib: 0.22, sat: 1.05, vig: 0.3,  warm: [0.05, 0.016, -0.045], cool: [-0.006, 0.004, 0.024], lift: [0.01, 0.0, 0.024], flare: 1.0, bloom: 0.95, thr: 0.95, knee: 0.55, tint: [1.0, 0.93, 0.82] },
     battle: { con: 0.33, vib: 0.26, sat: 1.07, vig: 0.34, warm: [0.055, 0.018, -0.05], cool: [-0.008, 0.004, 0.03], lift: [0.01, 0.0, 0.026], flare: 0.85, bloom: 1.0, thr: 0.92, knee: 0.55, tint: [1.0, 0.95, 0.86] },
-    legend: { con: 0.36, vib: 0.18, sat: 1.04, vig: 0.42, warm: [0.04, 0.012, -0.035], cool: [-0.006, 0.006, 0.034], lift: [0.012, 0.004, 0.03], flare: 0.9, bloom: 1.15, thr: 0.88, knee: 0.6, tint: [1.0, 0.97, 0.94] },
+    legend: { con: 0.36, vib: 0.18, sat: 1.04, vig: 0.42, warm: [0.04, 0.012, -0.035], cool: [-0.006, 0.006, 0.034], lift: [0.012, 0.004, 0.03], flare: 0.9, bloom: 1.05, thr: 0.9, knee: 0.55, tint: [1.0, 0.97, 0.94] },
   },
   // per-arena accents layered on the legend look
   themes: {

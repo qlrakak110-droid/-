@@ -55,19 +55,19 @@ function critterEye(o = {}) {
         #include <fog_vertex>
       }`,
     fragmentShader: `uniform vec3 uIris, uIris2, uLash; uniform float uBlink, uSide, uGlow, uSlit, uFlash; uniform vec4 uShape; varying vec3 vN; ${FOG_F}
+      float cov(float sd, float pw) { return clamp(0.5 - sd / pw, 0.0, 1.0); }
       void main(){
         vec3 n = normalize(vN);
         if (n.z < 0.02) discard;
         vec2 q = vec2(n.x * uSide, n.y), p = n.xy;
-        float px = max(fwidth(q.x), fwidth(q.y)) * 1.2 + 1e-4;
+        float pw = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
         float H = uShape.x, tilt = uShape.y, IR = uShape.w;
         float xx = clamp(q.x / 0.9, -1.0, 1.0);
         float arc = sqrt(max(1.0 - pow(abs(xx), 2.6), 0.0));
-        float topO = H * arc + tilt * xx + 0.03;
-        float bot = -H * 0.86 * arc + tilt * xx * 0.4;
         float shut = -0.1 - 0.16 * arc;
-        float top = mix(topO, shut, uBlink);
-        float inside = smoothstep(-px, px, top - q.y) * smoothstep(-px, px, q.y - bot) * smoothstep(-px, px, 0.9 - abs(q.x));
+        float top = mix(H * arc + tilt * xx + 0.03, shut, uBlink);
+        float bot = mix(-H * 0.86 * arc + tilt * xx * 0.4, shut - 0.002, uBlink);
+        float inside = cov(max(max(q.y - top, bot - q.y), abs(q.x) - 0.9), pw);
         // sclera with the upper lid's soft shadow
         float lidSh = smoothstep(top - 0.36, top - 0.02, q.y);
         vec3 col = vec3(0.98, 0.97, 1.0) * mix(1.0, 0.6, lidSh);
@@ -77,25 +77,25 @@ function critterEye(o = {}) {
         vec2 d = (q - ic) / vec2(1.0, 1.1);
         float r = length(d), t = r / IR, ang = atan(d.y, d.x);
         vec3 ir = mix(uIris2 * 1.3, uIris * 0.8, smoothstep(-0.6, 0.5, d.y / IR));
-        ir *= 0.84 + 0.16 * sin(ang * 26.0 + t * 7.0) * smoothstep(0.3, 0.75, t);
+        ir *= 0.84 + 0.16 * sin(ang * 26.0 + t * 7.0) * smoothstep(0.3, 0.75, t) * smoothstep(0.35, 0.15, pw);
         ir += uIris2 * 1.1 * smoothstep(0.5, 0.86, t) * smoothstep(0.05, -0.65, d.y / IR) * (1.0 - smoothstep(0.9, 1.0, t));
         ir = mix(ir, uIris * 0.22, smoothstep(0.82, 0.99, t));
         float pr = uSlit > 0.5 ? length(vec2(d.x / (0.17 * IR), d.y / (0.8 * IR))) : r / (0.44 * IR);
         ir = mix(ir, vec3(0.025, 0.014, 0.04), smoothstep(1.06, 0.92, pr));
         ir *= mix(1.0, 0.45, lidSh) * (1.0 + uGlow);
-        col = mix(col, ir, smoothstep(IR + px, IR - px, r));
+        col = mix(col, ir, cov(r - IR, pw));
         // catch-lights share one light direction on both eyes
         vec2 pc = p - vec2(0.0, ic.y);
         float hs = IR / 0.6;
-        col = mix(col, vec3(1.5), smoothstep(0.14 + px, 0.14 - px, length((pc - vec2(0.2, 0.21) * hs) / (vec2(1.0, 1.2) * hs))) * (1.0 - uBlink));
-        col = mix(col, vec3(1.2), smoothstep(0.065 + px, 0.065 - px, length(pc - vec2(-0.17, -0.25) * hs) / hs) * 0.9);
-        col = mix(col, vec3(1.1), smoothstep(0.035 + px, 0.035 - px, length(pc - vec2(0.3, -0.12) * hs) / hs) * 0.7);
-        // lash: thick upper line growing toward the outer corner, wing flick, thin lower lash
-        float lw = mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * uBlink);
-        float upper = smoothstep(lw + px, lw - px, abs(q.y - top - lw * 0.3)) * smoothstep(0.99, 0.93, abs(q.x));
+        col = mix(col, vec3(1.5), cov(length((pc - vec2(0.2, 0.21) * hs) / vec2(1.0, 1.2)) - 0.14 * hs, pw) * (1.0 - uBlink));
+        col = mix(col, vec3(1.2), cov(length(pc - vec2(-0.17, -0.25) * hs) - 0.065 * hs, pw) * 0.9);
+        col = mix(col, vec3(1.1), cov(length(pc - vec2(0.3, -0.12) * hs) - 0.035 * hs, pw) * 0.7);
+        // lash: thick upper line growing toward the outer corner (never thinner than ~1px), wing flick, thin lower lash
+        float lw = max(mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * uBlink), pw * 0.55);
+        float upper = cov(abs(q.y - top - lw * 0.3) - lw, pw) * smoothstep(0.99, 0.93, abs(q.x));
         vec2 w = q - vec2(0.9, top + 0.05); w = vec2(w.x * 0.8 + w.y * 0.6, -w.x * 0.6 + w.y * 0.8);
-        float wing = smoothstep(1.0, 0.75, length(w / vec2(0.15, 0.045))) * uShape.z;
-        float lower = smoothstep(0.03 + px, 0.03 - px, abs(q.y - bot)) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - uBlink);
+        float wing = cov((length(w / vec2(0.15, 0.045)) - 0.85) * 0.045, pw) * uShape.z;
+        float lower = cov(abs(q.y - bot) - max(0.03, pw * 0.4), pw) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - uBlink);
         float lash = max(max(upper, wing), lower);
         col = mix(col, uLash, lash);
         float a = max(inside, lash);
@@ -295,7 +295,7 @@ const sst = (a, b, x) => { const t = Math.min(Math.max((x - a) / (b - a), 0), 1)
 // ---------------- 화르르 / 염호 : flame fox — cheek ruff, chest bib, dark socks and ear tips, bushy flame-tipped tail
 function dFox(st) {
   return critter('fox' + st, () => {
-    const K = critterKit(), O = st === 2 ? 0xf04a14 : 0xff6418, CR = 0xfff2e0, DK = 0x3a1812;
+    const K = critterKit(), O = st === 2 ? 0xf04a14 : 0xff6418, CR = 0xf6e4cf, DK = 0x3a1812;
     const L = st === 2 ? 1.22 : 1, by = 0.5 * L, bz = st === 2 ? 0.5 : 0.42;
     K.el([0, by, 0], [0.3, 0.28, bz], O, { k: 0.1 });
     K.el([0, by + 0.04, bz - 0.17], [0.23, 0.25, 0.22], CR, { k: 0.12 });
@@ -380,7 +380,7 @@ MODELS.yeomho = (r) => foxModel(r, 2);
 // ---------------- 물롱 / 파도롱 : sea-pup — whisker pads, spotted back, glossy wet skin, flapping head fins
 function dSeal(st) {
   return critter('seal' + st, () => {
-    const K = critterKit(), BL = st === 2 ? 0x3596ea : 0x52bcfa, WH = 0xeefaff, FN = 0x8fe6ff, DK = 0x14304a;
+    const K = critterKit(), BL = st === 2 ? 0x3596ea : 0x52bcfa, WH = 0xe0f0fa, FN = 0x8fe6ff, DK = 0x14304a;
     K.el([0, 0.44, 0], [0.46, 0.4, 0.55], BL, { k: 0.12 });
     K.el([0, 0.36, 0.14], [0.35, 0.29, 0.42], WH, { k: 0.12 });
     K.rc([0, 0.36, -0.38], [0, 0.2, -0.62], 0.25, 0.1, BL, { k: 0.1, s0: 0.3, s1: 0.1 });
@@ -422,8 +422,7 @@ function dSeal(st) {
       mouth: [0, hy - 0.17, hz + 0.24, 0.055], mouthK: st === 2 ? 1 : 3, line: 0x1a2436,
       nose: [0.014, hy - 0.052, hz + 0.37, 0.02],
       blush: [0.215, hy - 0.06, hz + 0.16, 0.07], blushCol: 0xff8aa6,
-      brow: st === 2 ? [0.14, hy + 0.17, hz + 0.2, 0.045] : null, browTilt: -0.25, browCol: 0x1a4a8a,
-    };
+          };
     return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, paint, face,
       earHinge: add3(hc, [0, 0.1, -0.02]), earAmp: 0.3,
       eyes: eyePair(hc, 0.165, 0.045, 0.29, 0.1, 0.32), hc };
@@ -535,8 +534,9 @@ function fawnModel(r, st) {
     const leafM = M(0x58c858), leafM2 = M(0x7ee070);
     for (const sx of [-1, 1]) for (const [x, y, z, k] of [[0.3, 0.88, -0.3, 0], [0.42, 0.58, -0.05, 1], [0.15, 0.8, -0.08, 2]]) {
       const g = grp(B, add3(D.hc, [sx * x, y, z]));
-      for (let j = 0; j < 3; j++) { const a = j * 2.1 + k; part(GEO.sphere, j % 2 ? leafM2 : leafM, g, [Math.cos(a) * 0.05, 0.02 * j, Math.sin(a) * 0.05], [0.075, 0.02, 0.04], [0.3, -a, 0.4]); }
-      part(GEO.sphere, E([0xffb3e6, 0xfff4b0, 0xc8b3ff][k], 2.0), g, [0.0, 0.04, 0.0], 0.03);
+      for (let j = 0; j < 4; j++) { const a = j * 1.57 + k; part(GEO.sphere, j % 2 ? leafM2 : leafM, g, [Math.cos(a) * 0.07, 0.015 * j, Math.sin(a) * 0.07], [0.1, 0.022, 0.05], [0.3, -a, 0.35]); }
+      part(GEO.sphere, E([0xffb3e6, 0xfff4b0, 0xc8b3ff][k], 2.0), g, [0.0, 0.05, 0.0], 0.04);
+      for (let j = 0; j < 5; j++) { const a = j * 1.2566; part(GEO.sphere, M([0xffc8ec, 0xfff8d0, 0xe0d0ff][k]), g, [Math.cos(a) * 0.035, 0.05, Math.sin(a) * 0.035], [0.028, 0.012, 0.028]); }
       wig(r, g, 'z', 0.08, 1.6, k + sx); r.glue(g, 1);
     }
   }
@@ -569,7 +569,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.12, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.4, fuzz: 0.0, rimAmt: 0.5, rim: 0xfff2a0, env: 0.5, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { rough: 0.12, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.2, fuzz: 0.0, rimAmt: 0.35, rim: 0xfff2a0, env: 0.5, glow: 0xfff3a0, glowAmt: 2.4 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -591,7 +591,7 @@ MODELS.jjirit = (r) => {
 // ---------------- 바위몽 : boulder golem — stacked boulders, brow ridge, knuckle fists, moss cap, glowing crystal veins
 MODELS.bawimong = (r) => {
   const D = critter('rock', () => {
-    const K = critterKit(), RK = 0x7f8494, RK2 = 0x9ea4b2, RK3 = 0x666b7a, MS = 0x6fa24a;
+    const K = critterKit(), RK = 0x878992, RK2 = 0xa3a6ae, RK3 = 0x5f626c, MS = 0x6fa24a;
     K.el([0, 0.55, 0], [0.52, 0.45, 0.48], RK, { k: 0.1, nz: 0.09, nf: 4.5 });
     K.el([0, 0.86, -0.18], [0.36, 0.26, 0.32], RK2, { k: 0.1, nz: 0.06, nf: 6 });
     K.el([0, 0.58, 0.27], [0.33, 0.28, 0.2], RK2, { k: 0.08, nz: 0.025, nf: 8, s0: 1, s1: 1 });
@@ -613,14 +613,14 @@ MODELS.bawimong = (r) => {
       if (v.ny > 0.25 && v.y > 0.72) { const m = sst(0.25, 0.6, v.ny) * sst(0.4, 0.55, mn + (v.y - 0.8)); tintV(v, mn > 0.55 ? cMoss : cMoss2, m); }
       // purple crystal veins cracking through the back and shoulders
       if (v.z < 0.25 || Math.abs(v.x) > 0.35) {
-        const vn = Math.abs(vn3js(v.x * 3.2 + 7, v.y * 3.2 + 2, v.z * 3.2) - 0.5);
-        const vein = (1 - sst(0.012, 0.035, vn)) * sst(0.35, 0.6, vn3js(v.x * 1.4, v.y * 1.4 + 5, v.z * 1.4)) * (1 - sst(0.4, 0.75, v.ny));
-        if (vein > 0) { v.g = Math.max(v.g, vein); tintV(v, cVein, vein * 0.8); }
+        const vn = Math.abs(vn3js(v.x * 5.5 + 7, v.y * 5.5 + 2, v.z * 5.5) - 0.5);
+        const vein = (1 - sst(0.008, 0.022, vn)) * sst(0.58, 0.72, vn3js(v.x * 2.2, v.y * 2.2 + 5, v.z * 2.2)) * (1 - sst(0.3, 0.7, v.ny));
+        if (vein > 0) { v.g = Math.max(v.g, vein * 0.75); tintV(v, cVein, vein * 0.7); }
       }
     };
     const face = { mouth: [0, 0.47, 0.42, 0.07], mouthK: 2, line: 0x1e1a24, blush: [0.21, 0.52, 0.38, 0.06], blushCol: 0xc88a9a, hatch: 0 };
     return { prims: K.prims, bounds: [-0.95, -0.05, -0.7, 0.95, 1.2, 0.75], hipY: 0.3, height: 1.3, stride: 0.08, paint, face,
-      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.15, 0.62, 0.44], r: 0.078, yaw: sx * 0.25 })) };
+      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.155, 0.615, 0.435], r: 0.09, yaw: sx * 0.26 })) };
   });
   const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0xa98bff, lash: 0x14101c, sway: 0.15,
     eye: { open: 0.66, tilt: -0.04, wing: 0.15, irisR: 0.62 },
@@ -710,8 +710,8 @@ MODELS.geurim = (r) => {
       if (v.ny > 0.4 && v.y < hy - 0.15) tintV(v, cBack, sst(0.4, 0.9, v.ny) * 0.5);
       if (v.y < 0.1) tintV(v, cSock, sst(0.1, 0.06, v.y) * 0.7);
       // starlight speckles across the coat
-      const n = vn3js(v.x * 22 + 5, v.y * 22, v.z * 22 - 3);
-      if (n > 0.8 && v.ny > -0.3) { const s = sst(0.8, 0.88, n); v.g = Math.max(v.g, s); tintV(v, cStar, s * 0.8); }
+      const n = vn3js(v.x * 30 + 5, v.y * 30, v.z * 30 - 3);
+      if (n > 0.86 && v.ny > 0.1 && v.y < hy - 0.12) { const s = sst(0.86, 0.92, n) * sst(0.1, 0.5, v.ny); v.g = Math.max(v.g, s); tintV(v, cStar, s * 0.8); }
     };
     const face = {
       mouth: [0, hy - 0.115, hz + 0.24, 0.042], mouthK: 1, line: 0xb89ae8,
@@ -738,7 +738,7 @@ MODELS.geurim = (r) => {
 // ---------------- 솜구름 : cloud lamb — puffy wool with lavender shading, wool bangs, droopy ears, sleepy smile
 MODELS.somgu = (r) => {
   const D = critter('lamb', () => {
-    const K = critterKit(), W = 0xf0edf9, LV = 0xcfc2f2, HF = 0x4a4368;
+    const K = critterKit(), W = 0xe6e2f2, LV = 0xcfc2f2, HF = 0x4a4368;
     for (const [x, y, z, s] of [[0, 0.62, 0, 0.4], [0.25, 0.7, 0.1, 0.24], [-0.25, 0.7, 0.1, 0.24], [0.2, 0.85, -0.15, 0.25], [-0.2, 0.85, -0.15, 0.25], [0, 0.96, 0.02, 0.26], [0.3, 0.52, -0.2, 0.21], [-0.3, 0.52, -0.2, 0.21], [0, 0.6, -0.35, 0.25], [0, 0.84, 0.22, 0.2], [0.18, 0.5, 0.2, 0.2], [-0.18, 0.5, 0.2, 0.2], [0.36, 0.72, -0.08, 0.17], [-0.36, 0.72, -0.08, 0.17], [0, 0.42, -0.1, 0.24]]) K.el([x, y, z], [s, s, s], W, { k: 0.05 });
     for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
       const leg = sx * sz > 0 ? 1 : -1;
