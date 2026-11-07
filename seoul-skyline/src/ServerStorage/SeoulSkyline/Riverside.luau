@@ -568,7 +568,7 @@ local function avenue(parent: Instance, spec: AveSpec)
 			Kit.reserve(math.min(a.X, b.X), zc - hw - 8, math.max(a.X, b.X), zc + hw + 8, spec.name)
 		end
 	end
-	local route = {}
+	local route: { string } = {}
 	for _, p in pts do
 		table.insert(route, string.format("%d,%d", p.X, p.Y))
 	end
