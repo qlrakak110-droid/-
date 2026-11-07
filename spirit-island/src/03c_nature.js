@@ -410,7 +410,22 @@ function grassMaterial(o = {}) {
 }
 // spots: [{ x, y, z, h }] → one instanced mesh
 let _blade = null;
+// With the cover atlas, most spots become textured grass tufts (tinted from the material's tip colour, so a purple
+// rift arena stays purple) and only a quarter stay as blades.
 function buildGrassField(parent, spots, mat) {
+  if (vegHasCover() && spots.length) {
+    const ref = new THREE.Color(0x9fd870), hc = (mat.uniforms && mat.uniforms.uHigh && mat.uniforms.uHigh.value) || ref;
+    const tint = [clamp(hc.r / ref.r, 0.3, 2.5) * 0.92, clamp(hc.g / ref.g, 0.3, 2.5) * 1.1, clamp(hc.b / ref.b, 0.3, 2.5) * 0.8];
+    const list = [];
+    for (let i = 0; i < spots.length; i += 4) {
+      const s = spots[i], h = 0.18 + s.h * 0.55, j = ((i * 37) % 11) / 11 - 0.5;
+      list.push({ p: [s.x, s.y - 0.03, s.z, i * 2.399, h * (1.6 + (j + 0.5) * 0.5), h, h * 1.7], rect: COVER_RECT[i % 13 === 0 ? 'tuss' : 'lawn'],
+        tint: [tint[0] * (1 + j * 0.12), tint[1] * (1 + j * 0.06), tint[2] * (1 + j * 0.1), 0.7] });
+    }
+    const tm = vegInstanced(vegTuft(), vegCoverMat(), list, { rect: true });
+    tm.frustumCulled = false; parent.add(tm);
+    spots = spots.filter((_, i) => i % 4 === 1);
+  }
   _blade = _blade || grassBladeGeometry();
   const im = new THREE.InstancedMesh(_blade, mat, spots.length);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
@@ -683,7 +698,7 @@ function buildGrassBlades(scene, zones) {
       }`,
   });
   Object.assign(mat.uniforms, U);
-  const cards = vegHasCover(), dens = (Settings.high ? 9 : 4.5) * (cards ? 0.4 : 1);
+  const cards = vegHasCover(), dens = (Settings.high ? 9 : 4.5) * (cards ? 0.18 : 1);
   const list = [];
   for (const z of zones) {
     // encounter grass grows in bunches; shorter toward the rim so the patch reads as a soft-edged meadow
@@ -959,7 +974,7 @@ function buildGroundCover(scene) {
   // tints: lawn matched to the terrain grass, lush meadows deeper, dry straw, shade cooler
   const grassTint = (ga, sh, j) => {
     const dry = ga.dry, lush = ga.lush;
-    let r = 0.9 + j * 0.14, g = 1.08 + j * 0.08, b = 0.8 + j * 0.1;
+    let r = 0.92 + j * 0.14, g = 1.2 + j * 0.1, b = 0.8 + j * 0.1;
     r = lerp(r, 0.76, lush * 0.6); b = lerp(b, 0.7, lush * 0.6);
     r = lerp(r, 1.35, dry * 0.8); g = lerp(g, 1.12, dry * 0.8); b = lerp(b, 0.7, dry * 0.8);
     const s = 1 - sh * 0.3; return [r * s, g * s, b * (s + sh * 0.1)];
@@ -977,7 +992,7 @@ function buildGroundCover(scene) {
   };
   let n = 0;
   // ---- 1. lawn, verge plants, dune grass, reeds, scattered tall clumps (jittered grid over the island)
-  const step = hi ? 0.76 : 1.25;
+  const step = hi ? 0.76 : 1.45;
   for (let gz = -92; gz < 92; gz += step) for (let gx = -92; gx < 92; gx += step) {
     const x = gx + (rng() - 0.5) * step * 0.9, z = gz + (rng() - 0.5) * step * 0.9;
     if (x * x + z * z > 100 * 100) continue;
@@ -1002,8 +1017,8 @@ function buildGroundCover(scene) {
       if (u < 0.2) add('lawn', x, z, { w: 0.5, h: 0.2 + rng() * 0.12, tint: grassTint(ga, sh, j), flex: 0.5 });
       continue;
     }
-    if (u < 0.022 * (1 + ga.lush)) add('wild', x, z, { w: 0.42 + rng() * 0.2, h: 0.7 + rng() * 0.4, tint: grassTint(ga, sh, j), flex: 1 });
-    else if (u < 0.045) add('tuss', x, z, { w: 0.48 + rng() * 0.25, h: 0.5 + rng() * 0.35, tint: grassTint(ga, sh, j), flex: 0.85 });
+    if (u < 0.012 * (1 + ga.lush)) add('wild', x, z, { w: 0.42 + rng() * 0.2, h: 0.7 + rng() * 0.4, tint: grassTint(ga, sh, j), flex: 1 });
+    else if (u < 0.034) add('tuss', x, z, { w: 0.48 + rng() * 0.25, h: 0.5 + rng() * 0.35, tint: grassTint(ga, sh, j), flex: 0.85 });
     else if (u < 0.06 && ga.lush + (1 - sh) > 0.8) add('clover', x, z, { flat: true, w: 0.55 + rng() * 0.5 });
     else { const hh = (0.22 + rng() * 0.18) * (1 + ga.lush * 0.35) * (1 - sh * 0.4); add('lawn', x, z, { w: hh * (1.6 + rng() * 0.5), h: hh, tint: grassTint(ga, sh, j), flex: 0.6 }); }
     n++;
@@ -1100,7 +1115,7 @@ function buildGrass(scene, zones) {
     for (let i = 0; i < n; i++) {
       const a = rng() * 6.283, rr = Math.sqrt(rng()) * z.r, x = z.x + Math.cos(a) * rr, zz = z.z + Math.sin(a) * rr;
       const edge = 1 - smooth(z.r * 0.72, z.r, rr), j = rng();
-      const kind = rng() < 0.55 ? 'wild' : 'tuss';
+      const kind = rng() < 0.4 ? 'wild' : 'tuss';
       const H = (0.8 + rng() * 0.45) * (0.5 + edge * 0.5) * (kind === 'tuss' ? 0.8 : 1);
       list.push({ p: [x, groundY(x, zz) - 0.04, zz, rng() * 6.28, H * (0.5 + rng() * 0.15), H, H * 0.55], rect: COVER_RECT[kind],
         tint: [0.86 + j * 0.16, 0.95 + j * 0.08, 0.8 + j * 0.12, 1] });
@@ -1149,7 +1164,8 @@ function buildRocksAndFlowers(scene) {
   }
   const ims = buildRockField(scene, rocks);
   Veg.rocks = rocks;
-  window.__nature = Object.assign(window.__nature || {}, { rocks: rocks.length, rockAssets: vegHasRocks(), trees: Veg.trees.length, treeAssets: vegHasTrees() });
+  window.__nature = Object.assign(window.__nature || {}, { rocks: rocks.length, rockAssets: vegHasRocks(), trees: Veg.trees.length, treeAssets: vegHasTrees(),
+    bigRocks: rocks.filter((r) => r.s > 1.25 && Math.abs(r.x) < 60 && r.z > -10).slice(0, 6).map((r) => [+r.x.toFixed(1), +r.z.toFixed(1), +r.s.toFixed(2)]) });
   if (!vegHasCover()) buildFlowersProc(scene, rng);
   return ims;
 }

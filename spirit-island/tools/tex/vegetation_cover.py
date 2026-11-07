@@ -54,7 +54,7 @@ def lawn(reg):
             lean = (off / (Wd * 0.5)) * h * 0.9 + R.normal(0, 0.18) * h
             lean = max(min(lean, (x1 - 10) - bx), (x0 + 10) - bx)
             w = R.uniform(4.5, 8)
-            c0 = pick(GREENS) * 0.55 * dark; c1 = (pick(TIPS) if R.random() > 0.1 else pick(STRAW)) * dark * R.uniform(0.85, 1.05)
+            c0 = pick(GREENS) * 0.82 * (0.75 + 0.25 * dark); c1 = (pick(TIPS) if R.random() > 0.1 else pick(STRAW)) * (0.8 + 0.2 * dark) * R.uniform(0.85, 1.05)
             blade(reg, bx, y1 - 2, h, lean, w, c0, c1, bend=R.uniform(0.3, 0.9), seg=6, z=0.2 + 0.2 * layer)
 
 
@@ -76,19 +76,20 @@ def wild(reg, tuss=False):
             blade(reg, bx, y1 - 2, h, lean, w, c0, c1, bend=R.uniform(0.5, 1.0) if tuss else R.uniform(0.1, 0.5), seg=9, z=0.2 + 0.3 * layer)
     if tuss: return
     # seed heads: slender stems with drooping panicles of spikelets
-    for k in range(9):
+    for k in range(5):
         bx = cx + R.normal(0, Wd * 0.07); h = R.uniform(0.75, 0.97) * H; lean = R.normal(0, 0.12) * h
         lean = max(min(lean, (x1 - 30) - bx), (x0 + 30) - bx)
         pts = bez((bx, y1 - 2), (bx + lean * 0.2, y1 - h * 0.6), (bx + lean, y1 - h), 12)
         cv.stem(pts, 3.2, 1.6, C('#7f8f47') * R.uniform(0.85, 1.1), z=0.6, shadow=0.1, clip_rect=reg)
         tx, ty = pts[-1]
-        for j in range(16):
-            t = j / 16; px, py = pts[-1 - int(t * 4)] if t < 0.9 else pts[-1]
-            px = tx + (px - tx) * 0.5; py = ty + t * h * 0.16
+        SEED = [C('#a9a46a'), C('#9a9a62'), C('#b4a874'), C('#8f9a5a')]
+        for j in range(11):
+            t = j / 11; px, py = pts[-1 - int(t * 4)] if t < 0.9 else pts[-1]
+            px = tx + (px - tx) * 0.5; py = ty + t * h * 0.14
             for sd in (-1, 1):
-                a = -math.pi / 2 + sd * R.uniform(0.35, 0.9) + R.normal(0, 0.1)
-                L = R.uniform(10, 18)
-                cv.leaf(px, py, a, L, 5, pick(STRAW) * R.uniform(0.85, 1.1), shape='elliptic', veins=0, z=0.75, shadow=0.15, blotch=0.05, clip_rect=reg)
+                a = -math.pi / 2 + sd * R.uniform(0.25, 0.7) + R.normal(0, 0.1)
+                L = R.uniform(6, 11)
+                cv.leaf(px, py, a, L, 3.4, pick(SEED) * R.uniform(0.85, 1.1), shape='elliptic', veins=0, z=0.75, shadow=0.12, blotch=0.05, clip_rect=reg)
 
 
 # ---------------------------------------------------------------- fern frond

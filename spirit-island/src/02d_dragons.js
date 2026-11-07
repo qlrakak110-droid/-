@@ -100,7 +100,7 @@ function bakeSculpt(m, opt = {}) {
   }
   const cs = R * 0.22;
   for (let q = 0; q < nv; q++) {
-    out[q * 3] = Math.min(1, Math.max(0, ao[q] * 1.6));
+    out[q * 3] = Math.min(1, Math.max(0, ao[q] * 1.85));
     out[q * 3 + 1] = Math.tanh(curv[q] * cs);
     out[q * 3 + 2] = Math.min(1, Math.max(0, 1 - thick[q] / tRef));
   }
@@ -169,10 +169,10 @@ const CREATURE_KINDS = {
   fur: { wrap: 0.5, cel: 0.62, band: 0.12, ao: 1.0, cav: 0.42, edge: 0.1, sss: 0.42, trans: 0.8, fur: 1, aniso: 0, inner: 0, shade: 0.7, rimL: 0.5, shadeCol: [1.1, 0.8, 1.12], sssCol: [1.0, 0.42, 0.26], transCol: [1.35, 0.72, 0.45], cavCol: [0.46, 0.3, 0.33] },
   wool: { wrap: 0.55, cel: 0.48, band: 0.17, ao: 1.25, cav: 0.55, edge: 0.08, sss: 0.3, trans: 0.4, fur: 0.55, aniso: 0, inner: 0, shade: 0.65, rimL: 0.55, shadeCol: [0.98, 0.88, 1.2], sssCol: [1.0, 0.6, 0.7], transCol: [1.2, 0.9, 1.0], cavCol: [0.62, 0.54, 0.8] },
   skin: { wrap: 0.38, cel: 0.6, band: 0.09, ao: 0.95, cav: 0.32, edge: 0.15, sss: 0.55, trans: 0.65, fur: 0, aniso: 0, inner: 0, shade: 0.6, rimL: 0.15, shadeCol: [0.94, 0.92, 1.2], sssCol: [1.0, 0.45, 0.35], transCol: [1.25, 0.8, 0.6], cavCol: [0.5, 0.45, 0.58] },
-  jelly: { wrap: 0.6, cel: 0.35, band: 0.16, ao: 0.45, cav: 0.12, edge: 0.1, sss: 0.5, trans: 1.3, fur: 0, aniso: 0, inner: 0.9, shade: 0.4, rimL: 0.2, shadeCol: [1.08, 0.9, 1.05], sssCol: [1.0, 0.7, 0.3], transCol: [1.25, 1.0, 0.55], cavCol: [0.7, 0.55, 0.45] },
-  rock: { wrap: 0.02, cel: 0.8, band: 0.045, ao: 1.5, cav: 0.85, edge: 0.55, sss: 0, trans: 0, fur: 0, aniso: 0, inner: 0, shade: 0.5, rimL: 0, shadeCol: [0.92, 0.95, 1.18], sssCol: [1, 1, 1], transCol: [1, 1, 1], cavCol: [0.34, 0.32, 0.38] },
+  jelly: { diff: 0.55, wrap: 0.6, cel: 0.35, band: 0.16, ao: 0.45, cav: 0.12, edge: 0.1, sss: 0.5, trans: 1.6, fur: 0, aniso: 0, inner: 1.4, shade: 0.4, rimL: 0.2, shadeCol: [1.08, 0.9, 1.05], sssCol: [1.0, 0.7, 0.3], transCol: [1.25, 1.0, 0.55], cavCol: [0.7, 0.55, 0.45] },
+  rock: { wrap: 0.02, cel: 0.8, band: 0.045, ao: 1.5, cav: 0.65, edge: 0.55, sss: 0, trans: 0, fur: 0, aniso: 0, inner: 0, shade: 0.5, rimL: 0, shadeCol: [0.92, 0.95, 1.18], sssCol: [1, 1, 1], transCol: [1, 1, 1], cavCol: [0.34, 0.32, 0.38] },
   plush: { wrap: 0.5, cel: 0.55, band: 0.14, ao: 1.0, cav: 0.38, edge: 0.1, sss: 0.38, trans: 0.55, fur: 0.32, aniso: 0, inner: 0, shade: 0.62, rimL: 0.35, shadeCol: [1.08, 0.86, 1.08], sssCol: [1.0, 0.5, 0.3], transCol: [1.3, 0.9, 0.5], cavCol: [0.55, 0.4, 0.38] },
-  scale: { wrap: 0.15, cel: 0.4, band: 0.08, ao: 1.0, cav: 0.55, edge: 0.35, sss: 0.18, trans: 0.4, fur: 0, aniso: 0.6, inner: 0, shade: 0.5, rimL: 0.1, shadeCol: [1.0, 0.88, 1.2], sssCol: [1.0, 0.45, 0.3], transCol: [1.3, 0.85, 0.6], cavCol: [0.4, 0.36, 0.46] },
+  scale: { wrap: 0.15, cel: 0.4, band: 0.08, ao: 1.0, cav: 0.55, edge: 0.35, sss: 0.18, trans: 0.4, fur: 0, aniso: 0.6, inner: 0, shade: 0.5, rimL: 0.06, shadeCol: [1.0, 0.88, 1.2], sssCol: [1.0, 0.45, 0.3], transCol: [1.3, 0.85, 0.6], cavCol: [0.4, 0.36, 0.46] },
 };
 // light loop with the key light's cast-shadow factor and unshadowed colour kept apart (for hue-shifted shade)
 const CR_LIGHTS_BEGIN = (() => {
@@ -187,7 +187,7 @@ const CR_LIGHTS_BEGIN = (() => {
   }
   return s;
 })();
-const CR_DECL = `uniform float uWrap, uCel, uBand, uAOk, uCav, uEdge, uSSS, uTrans, uFurK, uFurF, uAniso, uInner, uShadeK, uRimL;
+const CR_DECL = `uniform float uAmbK, uDiff, uWrap, uCel, uBand, uAOk, uCav, uEdge, uSSS, uTrans, uFurK, uFurF, uAniso, uInner, uShadeK, uRimL;
   uniform vec3 uShadeCol, uSSSCol, uTransCol, uCavCol, uInnerCol;
   varying vec3 vBake;
   float gShK = 1.0; vec3 gLc0 = vec3(-1.0); float gLit = 0.0; float gVis = 1.0; float gThin = 0.0; vec3 gAxisV = vec3(0.0, 0.0, 1.0);
@@ -225,7 +225,7 @@ const CR_BRDF = `
     vec3 lc0 = gLc0.r < 0.0 ? lc : gLc0;
     gLit = max(gLit, dif * clamp(crLum(lc) / max(crLum(lc0), 1e-4), 0.0, 1.0));
     vec3 alb = material.diffuseColor;
-    reflectedLight.directDiffuse += lc * dif * BRDF_Lambert(alb);
+    reflectedLight.directDiffuse += lc * (dif * uDiff) * BRDF_Lambert(alb);
     float tw = smoothstep(-0.5, 0.0, ndl) * (1.0 - smoothstep(0.0, 0.42, ndl));
     reflectedLight.directDiffuse += lc * (tw * uSSS) * BRDF_Lambert(alb * uSSSCol);
     vec3 Lt = normalize(L + N * 0.35);
@@ -233,7 +233,7 @@ const CR_BRDF = `
     reflectedLight.directDiffuse += lc * (back * gThin * gThin * uTrans * 2.5) * BRDF_Lambert(alb * uTransCol);
     float nv = clamp(dot(N, V), 0.0, 1.0);
     float fz = pow(1.0 - nv, 2.5) * smoothstep(-0.25, 0.5, ndl);
-    reflectedLight.directDiffuse += lc * (fz * uRimL * 1.6) * BRDF_Lambert(alb + 0.04);
+    reflectedLight.directDiffuse += lc * (fz * uRimL * 1.6) * BRDF_Lambert(alb);
     float dotNL = saturate(ndl);
     vec3 irr = dotNL * lc;
     #ifdef USE_CLEARCOAT
@@ -261,7 +261,11 @@ const CR_INDIRECT = `
     vec3 shadeAlb = max(mix(vec3(crLum(albI)), albI, 1.45), 0.0) * uShadeCol;
     vec3 ratio = clamp(shadeAlb / max(albI, vec3(1e-3)), 0.0, 2.0);
     float shk = (1.0 - clamp(gLit, 0.0, 1.0)) * uShadeK;
-    reflectedLight.indirectDiffuse *= mix(vec3(1.0), ratio, shk) * gVis;
+    // top-lit ambient ramp: in shade (or under an overcast sky) forms still read — upward planes take the sky,
+    // downward planes fall off in a soft band
+    float upk = dot(geometryNormal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
+    float ramp = mix(1.0, mix(0.55, 1.14, smoothstep(-0.4, 0.5, upk)), uAmbK);
+    reflectedLight.indirectDiffuse *= mix(vec3(1.0), ratio, shk) * gVis * ramp;
     float soV = computeSpecularOcclusion(saturate(dot(geometryNormal, geometryViewDir)), gVis, material.roughness);
     reflectedLight.indirectSpecular *= soV;
     #ifdef USE_CLEARCOAT
@@ -276,7 +280,7 @@ function creatureUniforms(o) {
   const K = CREATURE_KINDS[o.kind] || CREATURE_KINDS.vinyl, v = (k, d) => o[k] ?? K[k] ?? d;
   const c = (k) => (typeof o[k] === 'number' ? new THREE.Color(o[k]) : new THREE.Color(...(Array.isArray(o[k]) ? o[k] : K[k])));
   return {
-    uWrap: { value: v('wrap') }, uCel: { value: v('cel') }, uBand: { value: v('band') }, uAOk: { value: v('ao') }, uCav: { value: v('cav') }, uEdge: { value: v('edge') },
+    uAmbK: { value: v('amb', 0.75) }, uDiff: { value: v('diff', 1) }, uWrap: { value: v('wrap') }, uCel: { value: v('cel') }, uBand: { value: v('band') }, uAOk: { value: v('ao') }, uCav: { value: v('cav') }, uEdge: { value: v('edge') },
     uSSS: { value: v('sss') }, uTrans: { value: v('trans') }, uFurK: { value: v('fur') }, uFurF: { value: o.furF ?? 70 }, uAniso: { value: v('aniso') },
     uInner: { value: v('inner') }, uInnerCol: { value: new THREE.Color(o.innerCol ?? o.glow ?? 0xfff2c0) }, uShadeK: { value: v('shade') }, uRimL: { value: v('rimL') },
     uShadeCol: { value: c('shadeCol') }, uSSSCol: { value: c('sssCol') }, uTransCol: { value: c('transCol') }, uCavCol: { value: c('cavCol') },
@@ -384,7 +388,11 @@ function dragonMaterial(o, D) {
           vec3 rimC = mix(uRimCol, vec3(0.75, 0.35, 1.0), gSide);
           totalEmissiveRadiance += rimC * fr * uRimAmt * mix(1.0, gVis, 0.6);
           totalEmissiveRadiance += diffuseColor.rgb * (uSoft * 0.22 + uFuzz * fr * 0.9) * gVis;
-          if (uInner > 0.0) totalEmissiveRadiance += uInnerCol * uInner * (pow(ndv, 1.6) * (0.35 + 0.65 * (1.0 - gThin)) * 0.55 + gThin * 0.25);
+          if (uInner > 0.0) {
+            // jelly: a living glow inside the body (slow caustic ripples), strongest looking straight through it
+            float rip = 0.55 + 0.45 * vn3(vObjPos * 5.0 + vec3(0.0, uTime * 0.35, uTime * 0.2));
+            totalEmissiveRadiance += uInnerCol * uInner * (pow(ndv, 1.6) * (0.35 + 0.65 * (1.0 - gThin)) * 0.55 * rip + gThin * 0.25 + fr * 0.35);
+          }
           if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); totalEmissiveRadiance += vec3(0.32, 0.36, 0.48) * hr; }
           if (uSplit > 0.0) totalEmissiveRadiance += mix(vec3(1.6, 1.3, 0.7), vec3(1.2, 0.5, 2.0), 0.5) * exp(-abs(vObjPos.x) * 38.0) * 2.2;
         }`)
@@ -598,6 +606,8 @@ function buildDragon(r, cfg) {
   const B = grp(r.body); B.scale.setScalar(cfg.scale);
   const geo = dragonGeometry(cfg.key, D), mat = dragonMaterial(cfg.mat, D);
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
+  // thin inked silhouette: the legends share the spirits' line language without turning into flat cartoons
+  if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.03, cfg.olc ?? 0x140c1c, { minPx: 0.8, maxPx: 1.8, ink: 0.6 });
   const U = mat.userData.U;
   r.dragon = { D, U, mat, wings: [] };
   const follow = [];
@@ -747,17 +757,18 @@ const EYE_F = `varying vec3 vN; varying vec3 vNv; varying vec3 vVo; varying vec3
 `;
 // anime eye (people): lids, thick upper lash line, iris fibres seen through a refracting cornea, lid shadow, gaze,
 // view-space catch-lights, uniform-driven blink. Options (all optional): iris, iris2, skin, lash, side, irisR (iris
-// radius in eye units, 0.52), pupil (fraction of the iris, 0.48), cornea (parallax depth, 0.36), gaze (false = fixed stare)
+// radius in eye units, 0.52), pupil (fraction of the iris, 0.48), cornea (parallax depth, 0.36), gaze (false = fixed stare),
+// cutout (false = paint skin outside the opening, the old look)
 function animeEye(o = {}) {
   const U = { uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) }, uSkin: { value: new THREE.Color(o.skin ?? 0xffe0cc) }, uLash: { value: new THREE.Color(o.lash ?? 0x1a1020) },
-    uBlink: { value: 0 }, uSide: { value: o.side ?? 1 }, uGaze: { value: new THREE.Vector2() }, uIrisR: { value: o.irisR ?? 0.52 }, uPupil: { value: o.pupil ?? 0.48 }, uDepth: { value: o.cornea ?? 0.36 } };
+    uBlink: { value: 0 }, uSide: { value: o.side ?? 1 }, uGaze: { value: new THREE.Vector2() }, uIrisR: { value: o.irisR ?? 0.52 }, uPupil: { value: o.pupil ?? 0.48 }, uDepth: { value: o.cornea ?? 0.36 }, uCut: { value: o.cutout === false ? 0 : 1 } };
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
     vertexShader: `${EYE_V} ${FOG_V}
       void main(){ eyeVaryings(normalize(position)); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide, uIrisR, uPupil, uDepth; uniform vec2 uGaze; ${EYE_F} ${FOG_F}
+    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide, uIrisR, uPupil, uDepth, uCut; uniform vec2 uGaze; ${EYE_F} ${FOG_F}
       void main(){
         vec3 n = normalize(vN); vec2 q = vec2(n.x * uSide, n.y);
         float front = step(0.0, n.z);
@@ -766,8 +777,10 @@ function animeEye(o = {}) {
         float top = mix(topOpen, -0.5 + 0.2 * q.x * q.x, uBlink);
         float bot = -0.6 + 0.32 * q.x * q.x;
         vec3 col = uSkin * (0.82 + 0.12 * n.y);
-        if (front > 0.5 && q.y < top && q.y > bot && abs(q.x) < 0.92) {
+        float inside = front * clamp(0.5 - max(max(q.y - top, bot - q.y), abs(q.x) - 0.92) / px, 0.0, 1.0);
+        if (inside > 0.0) {
           float lidSh = smoothstep(top, top - 0.32, q.y);
+          vec3 skinC = col;
           col = vec3(0.98, 0.97, 1.0) * mix(0.66, 1.0, lidSh) * (0.84 + 0.16 * n.z);
           vec2 ip = eyeIris(n, uDepth) - uGaze;
           vec2 ic = vec2(0.0, -0.06); vec2 d = ip - ic; float r = length(d), IR = uIrisR;
@@ -787,6 +800,7 @@ function animeEye(o = {}) {
           col += vec3(0.55, 0.62, 0.75) * ct.z * 0.35 * lidSh;
           col = mix(col, vec3(1.45), ct.x * (1.0 - uBlink));
           col = mix(col, vec3(1.15), ct.y * 0.85 * (1.0 - uBlink));
+          if (uCut < 0.5) col = mix(skinC, col, inside);
         }
         float lw = 0.075 + 0.07 * smoothstep(-0.2, 0.8, q.x);
         float lash = front * smoothstep(lw, lw * 0.4, abs(q.y - top - lw * 0.45)) * step(-0.9, q.x) * step(q.x, 0.98);
@@ -794,12 +808,17 @@ function animeEye(o = {}) {
         col = mix(col, uLash, lash);
         float ll = front * smoothstep(0.03, 0.0, abs(q.y - bot)) * step(abs(q.x), 0.55) * 0.55 * (1.0 - uBlink);
         col = mix(col, uLash, ll);
-        gl_FragColor = vec4(col, 1.0);
+        // cut-out: only the opening and the lash lines are drawn, the sculpted face shows around them (and closes
+        // over the eye when it blinks) — no skin-coloured disc stuck on the face
+        float a = uCut > 0.5 ? max(inside, max(lash, ll)) : 1.0;
+        if (a < 0.02) discard;
+        gl_FragColor = vec4(col, a);
         #include <fog_fragment>
       }`,
     fog: true,
   });
   Object.assign(m.uniforms, U);
+  m.alphaToCoverage = o.cutout !== false;
   m.userData.blink = U.uBlink; m.userData.gaze = U.uGaze;
   if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, { inward: 0.12, outward: 0.2, up: 0.1, down: 0.12 });
   return m;
@@ -819,16 +838,17 @@ function dragonEyeMat(color, side = 1) {
         vec2 q = eyeIris(n, 0.5) - uGaze;
         float r = length(q), ang = atan(q.y, q.x);
         float aa = smoothstep(0.4, 0.15, px);
-        vec3 c = uCol * (1.2 + 1.6 * smoothstep(0.9, 0.1, r)) * (1.0 + 0.15 * sin(ang * 22.0 + r * 9.0) * aa);
-        c += uCol * 0.8 * smoothstep(0.42, 0.18, abs(r - 0.32)) * aa * 0.4;
-        c = mix(c, uCol * 0.12, smoothstep(0.78, 0.98, r));
-        float slit = smoothstep(0.13 + px, 0.05, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
+        vec3 c = uCol * (0.75 + 1.1 * smoothstep(0.9, 0.1, r)) * (1.0 + 0.18 * sin(ang * 22.0 + r * 9.0) * aa);
+        c += uCol * smoothstep(0.42, 0.18, abs(r - 0.3)) * aa * 0.35;
+        c = mix(c, uCol * 0.06, smoothstep(0.7, 0.92, r));
+        float sw = max(0.13, px * 1.2);
+        float slit = smoothstep(sw + px, sw * 0.4, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
         c = mix(c, vec3(0.01, 0.0, 0.02), slit * (0.9 + 0.1 * sin(uTime * 0.7)));
         c *= mix(1.0, 0.3, smoothstep(0.3, 0.85, n.y));
         vec3 ct = eyeCatch(n.xy, uGaze, 0.72, px);
         c += vec3(0.5, 0.55, 0.65) * ct.z * 0.5;
-        c = mix(c, vec3(2.2), ct.x);
-        c = mix(c, vec3(1.4), ct.y * 0.8);
+        c = mix(c, vec3(1.8), ct.x);
+        c = mix(c, vec3(1.2), ct.y * 0.7);
         gl_FragColor = vec4(c, 1.0);
       }`,
   });
@@ -844,7 +864,8 @@ const toonGradSoft = (() => {
 })();
 // Backward compatible: same signature and defaults; adds baked AO (contact shading under hair, chin, arms, folds) on
 // indirect light and lightly on direct light, cavity-darkened albedo, and a hue-shifted (saturated, slightly cool)
-// shade on the unlit side. New options: ao (0.8), cav (0.3), shade (0.35), shadeCol ([0.95, 0.9, 1.14]).
+// shade on the unlit side and a top-lit ambient ramp. New options: ao (0.8), cav (0.3), shade (0.35),
+// shadeCol ([0.95, 0.9, 1.14]), amb (0.5).
 function sculptToonMaterial(o, D) {
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradSoft });
   const U = {
@@ -853,7 +874,7 @@ function sculptToonMaterial(o, D) {
     uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.6 }, uShoulderY: { value: o.shoulderY ?? 9 },
     uHairRing: { value: o.hairRing ?? -1 }, uSat: { value: o.sat ?? 1.15 }, uFlash: { value: 0 }, uRim2: { value: new THREE.Color(o.rim ?? 0xfff4e0) }, uRimAmt2: { value: o.rimAmt ?? 0.35 },
     uWarm: { value: o.warm ?? 0 },
-    uTAO: { value: o.ao ?? 0.8 }, uTCav: { value: o.cav ?? 0.3 }, uTShade: { value: o.shade ?? 0.35 }, uTShadeCol: { value: new THREE.Color(...(o.shadeCol || [0.95, 0.9, 1.14])) },
+    uTAmb: { value: o.amb ?? 0.5 }, uTAO: { value: o.ao ?? 0.8 }, uTCav: { value: o.cav ?? 0.3 }, uTShade: { value: o.shade ?? 0.35 }, uTShadeCol: { value: new THREE.Color(...(o.shadeCol || [0.95, 0.9, 1.14])) },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
   m.defaultAttributeValues = { aBake: [0, 0, 0] };
@@ -863,7 +884,7 @@ function sculptToonMaterial(o, D) {
     sh.vertexShader = SCULPT_DECL + sh.vertexShader
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
       .replace('#include <begin_vertex>', SCULPT_BODY);
-    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec, uWarm, uTAO, uTCav, uTShade; uniform vec3 uRim2, uRim, uTShadeCol; varying vec3 vObjPos; varying vec3 vObjN; varying vec3 vBake;
+    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec, uWarm, uTAO, uTCav, uTShade, uTAmb; uniform vec3 uRim2, uRim, uTShadeCol; varying vec3 vObjPos; varying vec3 vObjN; varying vec3 vBake;
       ` + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);
@@ -882,6 +903,9 @@ function sculptToonMaterial(o, D) {
           // hue-shifted shade: saturated, slightly cool albedo on the unlit side
           vec3 alb = diffuseColor.rgb, shA = max(mix(vec3(dot(alb, vec3(0.2126, 0.7152, 0.0722))), alb, 1.4), 0.0) * uTShadeCol;
           outgoingLight += reflectedLight.indirectDiffuse * gVisT * (clamp(shA / max(alb, vec3(1e-3)), 0.0, 2.0) - 1.0) * (1.0 - litK) * uTShade;
+          // top-lit ambient ramp so shaded forms keep their volume
+          float upk = dot(normal, normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz));
+          outgoingLight += reflectedLight.indirectDiffuse * gVisT * (mix(0.6, 1.12, smoothstep(-0.4, 0.5, upk)) - 1.0) * uTAmb;
           outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb) * mix(0.4, 1.0, gVisT);
           // anime-style warm shadow: the unlit side is filled with a peach tone instead of cold sky ambient
           outgoingLight += diffuseColor.rgb * vec3(0.34, 0.17, 0.11) * (1.0 - litK) * uWarm * gVisT;

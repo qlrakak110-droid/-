@@ -301,7 +301,7 @@ function eyeSockets(D, eo = {}) {
     extra.push(SDF.el(c, [1.12 * r, 0.62 * r + 0.3 * r * H, 0.82 * r], { k: 0.32 * r, sub: true }));
     const lid = at(ts - 0.14 * r);
     const up = (1.25 * H + 0.2) * r;
-    extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.95 * r, 0.24 * r, 0.34 * r], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
+    extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.92 * r, 0.2 * r, 0.28 * r], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
   }
   return { extra, skins };
 }
@@ -320,7 +320,8 @@ function buildCritter(r, cfg) {
   if (D.earHinge) DD.jawHinge = D.earHinge;
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
   if (D.paint) paintCritter(geo, D.paint);
-  const mat = dragonMaterial(Object.assign({ kind: 'vinyl', scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.2, coatRough: 0.4, sheen: 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
+  const kind = (cfg.mat && cfg.mat.kind) || 'vinyl', soft = kind === 'fur' || kind === 'wool' || kind === 'plush';
+  const mat = dragonMaterial(Object.assign({ kind, scaleFreq: 0, rough: soft ? 0.74 : 0.55, metal: 0, coat: soft ? 0 : 0.2, coatRough: 0.4, sheen: soft ? 0.45 : 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
   critterSkin(mat, D.face);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
