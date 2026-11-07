@@ -1,0 +1,1290 @@
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="LocalScript" referent="RBX00000000000000000000000000000015"><Properties><string name="Name">SeoulSkylineClient</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient — 한강 잠실 야경 맵의 클라이언트 연출 (서버 의존 없음, RemoteEvent 없음)
+--   * Traffic  : TrafficLanes 차선을 따라 흐르는 차량 불빛(클라이언트 전용 Neon 파트 ≤ 400)
+--   * Beacons  : SeoulBeacon 항공장애등 1 Hz 맥동
+--   * Boats    : SeoulBoat 유람선 운항(U턴 루프)
+--   * CameraFx : 접속 인트로 시네마틱 + 포토 스팟 사진 모드
+-- 맵이 Studio 에서 구워졌든 실행 중 생성되든 동작: Workspace.SeoulSkyline 이 나타날 때까지 기다리고,
+-- 맵이 지워지거나 다시 생성되면(Build() 재실행) 모든 시스템을 정리한 뒤 새 루트로 다시 시작합니다.
+-- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic 로 켜고 끕니다(변경 시 재시작).
+
+local Util = require(script:WaitForChild("Util"))
+local Traffic = require(script:WaitForChild("Traffic"))
+local Beacons = require(script:WaitForChild("Beacons"))
+local Boats = require(script:WaitForChild("Boats"))
+local CameraFx = require(script:WaitForChild("CameraFx"))
+
+type System = { start: (Model) -> () -> () }
+local SYSTEMS: { { name: string, mod: System } } = {
+	{ name = "Traffic", mod = Traffic :: any },
+	{ name = "Beacons", mod = Beacons :: any },
+	{ name = "Boats", mod = Boats :: any },
+}
+local RESTART_ATTRS = { Traffic = true, Beacons = true, Boats = true }
+
+local current: Model? = nil
+local stops: { () -> () } = {}
+local rootConns: { RBXScriptConnection } = {}
+local restartQueued = false
+
+local function stopSystems()
+	for _, stop in stops do
+		local ok, err = pcall(stop)
+		if not ok then
+			warn("[SeoulSkylineClient] stop failed: " .. tostring(err))
+		end
+	end
+	table.clear(stops)
+end
+
+local function startSystems(root: Model)
+	for _, sys in SYSTEMS do
+		local ok, res = pcall(sys.mod.start, root)
+		if ok and type(res) == "function" then
+			table.insert(stops, res)
+		elseif not ok then
+			warn(string.format("[SeoulSkylineClient] %s start failed: %s", sys.name, tostring(res)))
+		end
+	end
+end
+
+local scan: () -> ()
+
+local function detach()
+	Util.disconnectAll(rootConns)
+	stopSystems()
+	current = nil
+	CameraFx.setRoot(nil)
+end
+
+local function attach(root: Model)
+	if current == root then
+		return
+	end
+	detach()
+	current = root
+	startSystems(root)
+	CameraFx.setRoot(root)
+	table.insert(rootConns, root.AncestryChanged:Connect(function()
+		if current == root and not root:IsDescendantOf(workspace) then
+			detach()
+			task.defer(scan)
+		end
+	end))
+	table.insert(rootConns, root.AttributeChanged:Connect(function(name)
+		if RESTART_ATTRS[name] and not restartQueued then
+			restartQueued = true
+			task.defer(function()
+				restartQueued = false
+				if current == root then
+					stopSystems()
+					startSystems(root)
+				end
+			end)
+		end
+	end))
+end
+
+scan = function()
+	local r = workspace:FindFirstChild(Util.ROOT_NAME)
+	if r and r:IsA("Model") then
+		attach(r)
+	end
+end
+
+local cameraCleanup = CameraFx.init()
+local conns: { RBXScriptConnection } = {}
+table.insert(conns, workspace.ChildAdded:Connect(function(c)
+	if c.Name == Util.ROOT_NAME and c:IsA("Model") then
+		attach(c)
+	end
+end))
+script.Destroying:Connect(function()
+	Util.disconnectAll(conns)
+	detach()
+	cameraCleanup()
+end)
+scan()
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000000000000000000000000000010"><Properties><string name="Name">Beacons</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / Beacons — 고층 항공장애등(태그 SeoulBeacon) 깜빡임
+--   부드러운 1 Hz 맥동: Transparency/Color 를 Sine InOut 으로 0.5 초 동안 어둡게 → 되돌림(Reverses, 무한 반복).
+--   같은 건물(같은 부모 모델)의 등은 함께 깜빡이고, 건물마다 위상이 다름(이름 해시). 스트리밍으로 늦게 오거나
+--   사라지는 등도 CollectionService 신호로 처리하고, 중지 시 원래 색/투명도로 복구합니다.
+
+local CollectionService = game:GetService("CollectionService")
+local TweenService = game:GetService("TweenService")
+local Util = require(script.Parent.Util)
+
+local Beacons = {}
+
+local TAG = "SeoulBeacon"
+local PULSE = TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true)
+local DIM = Color3.fromRGB(40, 4, 4)
+
+type Entry = { tween: Tween, color: Color3, transparency: number, alive: boolean }
+
+function Beacons.start(root: Model): () -> ()
+	if root:GetAttribute("Beacons") == false then
+		return function() end
+	end
+	local active: { [BasePart]: Entry } = {}
+	local conns: { RBXScriptConnection } = {}
+
+	local function add(inst: Instance)
+		if not inst:IsA("BasePart") or active[inst] or not inst:IsDescendantOf(root) then
+			return
+		end
+		local part = inst :: BasePart
+		local base = part.Color
+		local baseT = part.Transparency
+		local tween = TweenService:Create(part, PULSE, {
+			Color = base:Lerp(DIM, 0.85),
+			Transparency = math.max(baseT, 0.78),
+		})
+		local e: Entry = { tween = tween, color = base, transparency = baseT, alive = true }
+		active[part] = e
+		local key = if part.Parent then part.Parent:GetFullName() else part:GetFullName()
+		local phase = (Util.hash(key) % 997) / 997 -- 0 ~ 1 초
+		task.delay(phase, function()
+			if e.alive then
+				tween:Play()
+			end
+		end)
+	end
+
+	local function remove(inst: Instance, restore: boolean)
+		local part = inst :: BasePart
+		local e = active[part]
+		if not e then
+			return
+		end
+		active[part] = nil
+		e.alive = false
+		e.tween:Cancel()
+		if restore and part.Parent then
+			part.Color = e.color
+			part.Transparency = e.transparency
+		end
+	end
+
+	table.insert(conns, CollectionService:GetInstanceAddedSignal(TAG):Connect(add))
+	table.insert(conns, CollectionService:GetInstanceRemovedSignal(TAG):Connect(function(inst)
+		remove(inst, false)
+	end))
+	for _, inst in CollectionService:GetTagged(TAG) do
+		add(inst)
+	end
+
+	return function()
+		Util.disconnectAll(conns)
+		local list = {}
+		for part in active do
+			table.insert(list, part)
+		end
+		for _, part in list do
+			remove(part, true)
+		end
+	end
+end
+
+return Beacons
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000011"><Properties><string name="Name">Boats</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / Boats — 한강 유람선(태그 SeoulBoat 모델) 운항
+--   속성 PathA / PathB (Vector3, 수선면), Speed (stud/s), TurnRadius (stud, 기본 30 m), Phase (0~1, A→B 구간 시작점).
+--   경로 = 경기장형 루프: A→B 직선 → 강 중심 쪽으로 반원 U턴 → 평행한 복귀 직선 → 반원 U턴 → A.
+--   U턴에서는 속도를 55 % 로 부드럽게 줄이고(전후 60 m 램프), 선회 방향 반대로 살짝 기울며, 잔물결에 따라
+--   아주 작게 상하·좌우로 흔들립니다. 매 프레임 Model:PivotTo (카메라에서 9 km 밖이면 갱신 생략).
+
+local CollectionService = game:GetService("CollectionService")
+local RunService = game:GetService("RunService")
+local Util = require(script.Parent.Util)
+
+local Boats = {}
+
+local TAG = "SeoulBoat"
+local STEP_NAME = "SeoulSkylineBoats"
+local FAR = 9000
+
+type Boat = {
+	model: Model,
+	original: CFrame,
+	A: Vector3,
+	dir: Vector3,
+	n: Vector3,
+	R: number,
+	Ls: number,
+	total: number,
+	speed: number,
+	s: number,
+	ramp: number,
+	bob: number,
+	turnSign: number,
+}
+
+local function smooth(x: number): number
+	x = math.clamp(x, 0, 1)
+	return x * x * (3 - 2 * x)
+end
+
+-- s → 위치, 진행 방향
+local function sample(b: Boat, s: number): (Vector3, Vector3)
+	local Ls, R, A, dir, n = b.Ls, b.R, b.A, b.dir, b.n
+	local half = math.pi * R
+	if s < Ls then
+		return A + dir * s, dir
+	end
+	s -= Ls
+	local B = A + dir * Ls
+	if s < half then
+		local th = s / R
+		local c = B + n * R
+		return c - n * (R * math.cos(th)) + dir * (R * math.sin(th)), dir * math.cos(th) + n * math.sin(th)
+	end
+	s -= half
+	local B2 = B + n * (2 * R)
+	if s < Ls then
+		return B2 - dir * s, -dir
+	end
+	s -= Ls
+	local th = math.min(s / R, math.pi)
+	local c = A + n * R
+	return c + n * (R * math.cos(th)) - dir * (R * math.sin(th)), -dir * math.cos(th) - n * math.sin(th)
+end
+
+-- 루프 위 s 에서 가장 가까운 U턴까지의 (순환) 거리 → 감속/기울기 가중(0~1)
+local function turnWeight(b: Boat, s: number): number
+	local T, Ls, half = b.total, b.Ls, math.pi * b.R
+	local function circ(x: number): number
+		local d = math.abs(s - x) % T
+		return math.min(d, T - d)
+	end
+	local d = math.huge
+	for _, seg in { { Ls, Ls + half }, { 2 * Ls + half, T } } do
+		if s >= seg[1] and s <= seg[2] then
+			return 1
+		end
+		d = math.min(d, circ(seg[1]), circ(seg[2]))
+	end
+	return 1 - smooth(d / b.ramp)
+end
+
+local function makeBoat(model: Model, root: Model): Boat?
+	local A, B = model:GetAttribute("PathA"), model:GetAttribute("PathB")
+	if typeof(A) ~= "Vector3" or typeof(B) ~= "Vector3" then
+		return nil
+	end
+	local flat = Vector3.new(B.X - A.X, 0, B.Z - A.Z)
+	if flat.Magnitude < 10 then
+		return nil
+	end
+	local dir = flat.Unit
+	local n = Vector3.new(-dir.Z, 0, dir.X)
+	if n:Dot(Vector3.new(0, 0, -A.Z)) < 0 then -- 강 중심(Z = 0) 쪽으로 U턴
+		n = -n
+	end
+	local R = model:GetAttribute("TurnRadius")
+	local speed = model:GetAttribute("Speed")
+	local phase = model:GetAttribute("Phase")
+	local rr = if typeof(R) == "number" and R > 1 then R else Util.m(30, root)
+	local Ls = flat.Magnitude
+	local b: Boat = {
+		model = model,
+		original = model:GetPivot(),
+		A = A,
+		dir = dir,
+		n = n,
+		R = rr,
+		Ls = Ls,
+		total = 2 * Ls + 2 * math.pi * rr,
+		speed = if typeof(speed) == "number" and speed > 0 then speed else Util.m(5, root),
+		s = (if typeof(phase) == "number" then math.clamp(phase, 0, 1) else 0) * Ls,
+		ramp = Util.m(60, root),
+		bob = (Util.hash(model:GetFullName()) % 628) / 100,
+		turnSign = if n:Dot(dir:Cross(Vector3.yAxis)) > 0 then 1 else -1, -- 선회 바깥쪽으로 기움
+	}
+	return b
+end
+
+function Boats.start(root: Model): () -> ()
+	if root:GetAttribute("Boats") == false then
+		return function() end
+	end
+	local boats: { [Model]: Boat } = {}
+	local conns: { RBXScriptConnection } = {}
+
+	local function add(inst: Instance)
+		if not inst:IsA("Model") or boats[inst] or not inst:IsDescendantOf(root) then
+			return
+		end
+		local b = makeBoat(inst, root)
+		if b then
+			boats[inst] = b
+		end
+	end
+	table.insert(conns, CollectionService:GetInstanceAddedSignal(TAG):Connect(add))
+	table.insert(conns, CollectionService:GetInstanceRemovedSignal(TAG):Connect(function(inst)
+		boats[inst :: Model] = nil
+	end))
+	for _, inst in CollectionService:GetTagged(TAG) do
+		add(inst)
+	end
+
+	local clock = 0
+	local function step(dt: number)
+		dt = math.min(dt, 0.1)
+		clock += dt
+		local cam = workspace.CurrentCamera
+		local cp = if cam then cam.CFrame.Position else Vector3.zero
+		for model, b in boats do
+			if not model.Parent then
+				boats[model] = nil
+				continue
+			end
+			local w = turnWeight(b, b.s)
+			b.s = (b.s + b.speed * (1 - 0.45 * w) * dt) % b.total
+			local pos, fwd = sample(b, b.s)
+			if (pos - cp).Magnitude > FAR then
+				continue
+			end
+			local ph = b.bob + clock
+			local heave = 0.12 * math.sin(ph * 0.9)
+			local pitch = math.rad(0.25) * math.sin(ph * 0.7 + 1.3)
+			local roll = math.rad(0.35) * math.sin(ph * 0.55) + math.rad(1.6) * w * b.turnSign
+			local cf = CFrame.lookAt(pos, pos + fwd) * CFrame.new(0, heave, 0) * CFrame.Angles(pitch, 0, roll)
+			model:PivotTo(cf)
+		end
+	end
+	RunService:BindToRenderStep(STEP_NAME, Enum.RenderPriority.Camera.Value + 3, step)
+
+	return function()
+		pcall(function()
+			RunService:UnbindFromRenderStep(STEP_NAME)
+		end)
+		Util.disconnectAll(conns)
+		for model, b in boats do
+			if model.Parent then
+				model:PivotTo(b.original)
+			end
+		end
+		table.clear(boats)
+	end
+end
+
+return Boats
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000012"><Properties><string name="Name">CameraFx</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / CameraFx — 접속 인트로 시네마틱 + 포토 스팟(사진 모드)
+--
+--   인트로: 루트 속성 IntroCinematic ~= false 일 때, 세션에서 처음 캐릭터가 생기면 7초 시네마틱.
+--     수면 가까이 낮게 떠서 타워를 올려다보는 구도 → 강과 공원 위로 뒤로 물러나며 상승 → 히어로 구도(루트 속성
+--     HeroCamPos/HeroCamLook/HeroFov)에서 끝남. 레터박스 + 제목, 아무 입력이나 누르면 즉시 건너뜀.
+--     다른 스크립트가 도중에 카메라를 가져가면(CFrame 이 외부에서 바뀜) 조용히 양보합니다.
+--   사진 모드: ProximityPromptService.PromptTriggered 에서 ActionText "사진 구도" 인 프롬프트 → 히어로 구도로 트윈,
+--     Lighting 의 DepthOfFieldEffect 를 은은하게 켬(없으면 임시 생성), 안내 문구 표시.
+--     아무 키/클릭/터치 또는 캐릭터 이동 시 카메라·피사계 심도·프롬프트를 원래대로 복구.
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local Lighting = game:GetService("Lighting")
+local Util = require(script.Parent.Util)
+
+local CameraFx = {}
+
+local PHOTO_ACTION = "사진 구도"
+local PHOTO_HINT = "사진 모드 · 아무 키나 눌러 나가기"
+local INTRO_SECONDS = 7
+local INTRO_STEP = "SeoulSkylineIntro"
+local PLAYED_ATTR = "SeoulIntroPlayed"
+
+local player = Players.LocalPlayer
+local root: Model? = nil
+local introState = "idle" -- idle | running | done
+local stopIntro: ((boolean) -> ())? = nil
+local photo: { [string]: any }? = nil
+
+local function heroOf(src: Instance?): (Vector3?, Vector3?, number)
+	for _, inst in { src, root } do
+		if inst then
+			local p, l, f = inst:GetAttribute("HeroCamPos"), inst:GetAttribute("HeroCamLook"), inst:GetAttribute("HeroFov")
+			if typeof(p) == "Vector3" and typeof(l) == "Vector3" then
+				return p, l, if typeof(f) == "number" then f else 62
+			end
+		end
+	end
+	return nil, nil, 62
+end
+
+local function humanoid(): Humanoid?
+	local char = player.Character
+	return char and char:FindFirstChildOfClass("Humanoid")
+end
+
+local function restoreCamera(saved: { [string]: any })
+	local cam = workspace.CurrentCamera
+	if not cam then
+		return
+	end
+	local t = saved.type
+	cam.CameraType = if t == nil or t == Enum.CameraType.Scriptable then Enum.CameraType.Custom else t
+	cam.FieldOfView = saved.fov or 70
+	cam.CameraSubject = humanoid() or saved.subject
+end
+
+local function label(parent: Instance, text: string, size: number, pos: UDim2, anchor: Vector2, align: Enum.TextXAlignment): TextLabel
+	local t = Instance.new("TextLabel")
+	t.BackgroundTransparency = 1
+	t.Size = UDim2.new(0.6, 0, 0, size + 6)
+	t.Position = pos
+	t.AnchorPoint = anchor
+	t.Font = Enum.Font.GothamMedium
+	t.TextSize = size
+	t.TextColor3 = Color3.fromRGB(240, 236, 228)
+	t.TextXAlignment = align
+	t.TextTransparency = 1
+	t.Text = text
+	t.Parent = parent
+	return t
+end
+
+------------------------------------------------------------------------------------------------------
+-- 인트로
+------------------------------------------------------------------------------------------------------
+local function bezier(p0: Vector3, p1: Vector3, p2: Vector3, p3: Vector3, t: number): Vector3
+	local u = 1 - t
+	return p0 * (u * u * u) + p1 * (3 * u * u * t) + p2 * (3 * u * t * t) + p3 * (t * t * t)
+end
+
+local function smoother(t: number): number
+	t = math.clamp(t, 0, 1)
+	return t * t * t * (t * (t * 6 - 15) + 10)
+end
+
+local function playIntro()
+	if introState ~= "idle" then
+		return
+	end
+	local r = root
+	local cam = workspace.CurrentCamera
+	if not r or not cam or r:GetAttribute("IntroCinematic") == false or player:GetAttribute(PLAYED_ATTR) then
+		return
+	end
+	local H, K, F = heroOf(nil)
+	if not H or not K then
+		return
+	end
+	introState = "running"
+	player:SetAttribute(PLAYED_ATTR, true)
+
+	-- 경로(히어로 구도 기준 상대 좌표): 강 위 낮은 곳에서 타워를 올려다봄 → 뒤로 물러나며 상승 → 히어로
+	local flat = Vector3.new(K.X - H.X, 0, K.Z - H.Z)
+	local dist = flat.Magnitude
+	local fwd = flat.Unit
+	local right = fwd:Cross(Vector3.yAxis)
+	local P0 = H + fwd * (dist * 0.5) - right * (dist * 0.2)
+	P0 = Vector3.new(P0.X, math.max(H.Y * 0.18, 45), P0.Z)
+	local C1 = P0:Lerp(H, 0.35) + Vector3.new(0, 20, 0)
+	local C2 = H + fwd * (dist * 0.12) + right * (dist * 0.02) - Vector3.new(0, 30, 0)
+	local L0 = K - right * (dist * 0.16) + Vector3.new(0, dist * 0.1, 0)
+	local FOV0 = math.max(F - 22, 30)
+
+	local saved = { type = cam.CameraType, fov = cam.FieldOfView, subject = cam.CameraSubject }
+	local conns: { RBXScriptConnection } = {}
+	local gui = Util.screenGui("SeoulIntro", 50)
+	local bars: { Frame } = {}
+	local texts: { TextLabel } = {}
+	if gui then
+		for i, y in { 0, 1 } do
+			local f = Instance.new("Frame")
+			f.BackgroundColor3 = Color3.new(0, 0, 0)
+			f.BorderSizePixel = 0
+			f.AnchorPoint = Vector2.new(0, y)
+			f.Position = UDim2.fromScale(0, y)
+			f.Size = UDim2.fromScale(1, 0)
+			f.Parent = gui
+			bars[i] = f
+			TweenService:Create(f, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.fromScale(1, 0.1) }):Play()
+		end
+		texts[1] = label(gui, "잠실 · 한강", 26, UDim2.new(0, 36, 0.9, 8), Vector2.new(0, 0), Enum.TextXAlignment.Left)
+		texts[2] = label(gui, "SEOUL  ·  BLUE HOUR", 13, UDim2.new(0, 38, 0.9, 42), Vector2.new(0, 0), Enum.TextXAlignment.Left)
+		texts[3] = label(gui, "아무 키나 눌러 건너뛰기", 13, UDim2.new(1, -36, 0.9, 20), Vector2.new(1, 0), Enum.TextXAlignment.Right)
+		for i, t in texts do
+			TweenService:Create(t, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, false, 0.6 + i * 0.25), { TextTransparency = if i == 3 then 0.35 else 0.05 }):Play()
+		end
+	end
+
+	local t0 = os.clock()
+	local lastSet: CFrame? = nil
+	local finished = false
+
+	local function finish(restore: boolean)
+		if finished then
+			return
+		end
+		finished = true
+		introState = "done"
+		stopIntro = nil
+		pcall(function()
+			RunService:UnbindFromRenderStep(INTRO_STEP)
+		end)
+		Util.disconnectAll(conns)
+		if restore then
+			restoreCamera(saved)
+		end
+		if gui then
+			for _, f in bars do
+				TweenService:Create(f, TweenInfo.new(0.5), { Size = UDim2.fromScale(1, 0) }):Play()
+			end
+			for _, t in texts do
+				TweenService:Create(t, TweenInfo.new(0.4), { TextTransparency = 1 }):Play()
+			end
+			task.delay(0.6, function()
+				gui:Destroy()
+			end)
+		end
+	end
+	stopIntro = finish
+
+	cam.CameraType = Enum.CameraType.Scriptable
+	RunService:BindToRenderStep(INTRO_STEP, Enum.RenderPriority.Camera.Value + 1, function()
+		local c = workspace.CurrentCamera
+		if not c then
+			return
+		end
+		-- 다른 스크립트가 카메라를 가져갔으면 양보
+		if lastSet and (c.CFrame.Position - lastSet.Position).Magnitude > 0.05 then
+			finish(false)
+			return
+		end
+		local k = math.clamp((os.clock() - t0) / INTRO_SECONDS, 0, 1)
+		local e = smoother(k)
+		local pos = bezier(P0, C1, C2, H, e)
+		local lookAt = L0:Lerp(K, smoother(math.min(1, k * 1.12)))
+		local cf = CFrame.lookAt(pos, lookAt)
+		c.CameraType = Enum.CameraType.Scriptable
+		c.CFrame = cf
+		c.FieldOfView = FOV0 + (F - FOV0) * e
+		lastSet = cf
+		if k >= 1 then
+			finish(true)
+		end
+	end)
+	table.insert(conns, UserInputService.InputBegan:Connect(function(input)
+		if Util.isUserInput(input) then
+			finish(true)
+		end
+	end))
+	table.insert(conns, player.CharacterRemoving:Connect(function()
+		finish(true)
+	end))
+end
+
+local function tryIntro()
+	if introState ~= "idle" or not root or not player.Character then
+		return
+	end
+	task.delay(0.5, playIntro)
+end
+
+------------------------------------------------------------------------------------------------------
+-- 사진 모드
+------------------------------------------------------------------------------------------------------
+local exitPhoto: () -> ()
+
+local function enterPhoto(prompt: ProximityPrompt)
+	if photo then
+		return
+	end
+	if stopIntro then
+		stopIntro(true)
+	end
+	local H, K, F = heroOf(prompt.Parent)
+	local cam = workspace.CurrentCamera
+	if not H or not K or not cam then
+		return
+	end
+	local st: { [string]: any } = {
+		type = cam.CameraType,
+		fov = cam.FieldOfView,
+		subject = cam.CameraSubject,
+		prompt = prompt,
+		conns = {},
+		t0 = os.clock(),
+	}
+	photo = st
+	prompt.Enabled = false
+	cam.CameraType = Enum.CameraType.Scriptable
+	st.camTween = TweenService:Create(cam, TweenInfo.new(1.6, Enum.EasingStyle.Quart, Enum.EasingDirection.InOut), { CFrame = CFrame.lookAt(H, K), FieldOfView = F })
+	st.camTween:Play()
+
+	-- 은은한 피사계 심도: 가까운 전경만 살짝, 원경은 아주 약하게
+	local dof = Lighting:FindFirstChildOfClass("DepthOfFieldEffect")
+	if dof then
+		st.dofSaved = { Enabled = dof.Enabled, FarIntensity = dof.FarIntensity, NearIntensity = dof.NearIntensity, FocusDistance = dof.FocusDistance, InFocusRadius = dof.InFocusRadius }
+	else
+		dof = Instance.new("DepthOfFieldEffect")
+		dof.Name = "SeoulPhotoDOF"
+		st.dofCreated = true
+	end
+	local d = dof :: DepthOfFieldEffect
+	d.FarIntensity = 0
+	d.NearIntensity = 0
+	d.FocusDistance = 200
+	d.InFocusRadius = 50
+	d.Enabled = true
+	d.Parent = Lighting
+	st.dof = d
+	st.dofTween = TweenService:Create(d, TweenInfo.new(1.4, Enum.EasingStyle.Sine), { FarIntensity = 0.06, NearIntensity = 0.3 })
+	st.dofTween:Play()
+
+	local gui = Util.screenGui("SeoulPhotoMode", 40)
+	if gui then
+		local pill = Instance.new("Frame")
+		pill.AnchorPoint = Vector2.new(0.5, 1)
+		pill.Position = UDim2.new(0.5, 0, 1, -28)
+		pill.Size = UDim2.fromOffset(300, 34)
+		pill.BackgroundColor3 = Color3.fromRGB(12, 14, 20)
+		pill.BackgroundTransparency = 1
+		pill.BorderSizePixel = 0
+		pill.Parent = gui
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0.5, 0)
+		corner.Parent = pill
+		local t = Instance.new("TextLabel")
+		t.BackgroundTransparency = 1
+		t.Size = UDim2.fromScale(1, 1)
+		t.Font = Enum.Font.GothamMedium
+		t.TextSize = 14
+		t.TextColor3 = Color3.fromRGB(240, 236, 228)
+		t.TextTransparency = 1
+		t.Text = PHOTO_HINT
+		t.Parent = pill
+		TweenService:Create(pill, TweenInfo.new(0.6), { BackgroundTransparency = 0.45 }):Play()
+		TweenService:Create(t, TweenInfo.new(0.6), { TextTransparency = 0.05 }):Play()
+		st.gui = gui
+	end
+
+	table.insert(st.conns, UserInputService.InputBegan:Connect(function(input)
+		if os.clock() - st.t0 > 0.5 and Util.isUserInput(input) then
+			exitPhoto()
+		end
+	end))
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hrpPos = if hrp then hrp.Position else nil
+	table.insert(st.conns, RunService.Heartbeat:Connect(function()
+		local hum = humanoid()
+		if not hum or hum.Health <= 0 then
+			exitPhoto()
+		elseif os.clock() - st.t0 > 0.3 and hum.MoveDirection.Magnitude > 0.1 then
+			exitPhoto() -- 이동 입력
+		elseif hrp and hrpPos and (hrp.Position - hrpPos).Magnitude > 3 then
+			exitPhoto() -- 밀리거나 점프로 자리를 벗어남
+		end
+	end))
+	table.insert(st.conns, player.CharacterRemoving:Connect(function()
+		exitPhoto()
+	end))
+end
+
+exitPhoto = function()
+	local st = photo
+	if not st then
+		return
+	end
+	photo = nil
+	Util.disconnectAll(st.conns)
+	if st.camTween then
+		st.camTween:Cancel()
+	end
+	if st.dofTween then
+		st.dofTween:Cancel()
+	end
+	restoreCamera(st)
+	local d: DepthOfFieldEffect = st.dof
+	if d then
+		local fade = TweenService:Create(d, TweenInfo.new(0.35), { FarIntensity = 0, NearIntensity = 0 })
+		fade.Completed:Once(function()
+			if st.dofCreated then
+				d:Destroy()
+			elseif st.dofSaved then
+				for k, v in st.dofSaved do
+					(d :: any)[k] = v
+				end
+			end
+		end)
+		fade:Play()
+	end
+	if st.gui then
+		local g = st.gui :: ScreenGui
+		g:Destroy()
+	end
+	local prompt = st.prompt :: ProximityPrompt
+	if prompt and prompt.Parent then
+		prompt.Enabled = true
+	end
+end
+
+------------------------------------------------------------------------------------------------------
+-- 수명
+------------------------------------------------------------------------------------------------------
+-- init: 세션 단위 연결. 반환 = 정리 함수
+function CameraFx.init(): () -> ()
+	local conns: { RBXScriptConnection } = {}
+	table.insert(conns, ProximityPromptService.PromptTriggered:Connect(function(prompt, who)
+		if who == player and prompt.ActionText == PHOTO_ACTION then
+			enterPhoto(prompt)
+		end
+	end))
+	table.insert(conns, player.CharacterAdded:Connect(tryIntro))
+	return function()
+		Util.disconnectAll(conns)
+		if stopIntro then
+			stopIntro(true)
+		end
+		exitPhoto()
+	end
+end
+
+-- 다른 로컬 스크립트(예: UI 버튼)에서 사진 모드를 열고 닫을 수 있게 공개
+function CameraFx.enterPhoto(prompt: ProximityPrompt)
+	enterPhoto(prompt)
+end
+function CameraFx.exitPhoto()
+	exitPhoto()
+end
+function CameraFx.isPhotoMode(): boolean
+	return photo ~= nil
+end
+
+-- 맵 루트가 생기거나(재생성 포함) 사라질 때 init.client 가 호출
+function CameraFx.setRoot(r: Model?)
+	root = r
+	if not r then
+		exitPhoto()
+		return
+	end
+	tryIntro()
+end
+
+return CameraFx
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000013"><Properties><string name="Name">Traffic</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / Traffic — 다리·강변도로 차량 불빛 흐름 (클라이언트 전용 파트)
+--
+--   맵 루트의 TrafficLanes 폴더 안 Configuration(차선)마다:
+--     Count, P1..Pn (Vector3, 불빛 높이 포함 경로), Speed (stud/s), Density (대/100 stud), Kind "head"|"tail", Spacing (좌우 등 간격)
+--   * 차선마다 결정적 "가상 차량" 배열(길이 × Density × 루트 TrafficDensity)을 만들고 위치는 시간의 함수로 계산 → 경로 끝에서 처음으로 순환.
+--   * 실제 파트는 풀(최대 400개)에서 카메라 근처/화면 안 차량에만 배정. 한 번의 BindToRenderStep 루프에서
+--     workspace:BulkMoveTo(..., FireCFrameChanged) 한 번으로 모두 이동(사용 안 하는 파트는 지하로 주차).
+--   * 거리 LOD: 700 stud 안 = 전조등/후미등 2개(간격 = Spacing, 실측 1.4~2.0 m), 그 밖 = 한 덩어리 글레어,
+--     2400 stud 밖 = 더 큰 글레어(원거리에서 화소 아래로 사라지지 않게). 멀수록 차량을 결정적으로 솎아내고,
+--     예산을 넘으면 솎아내기 거리를 자동으로 줄임. 7000 stud 밖 차선은 건너뛰고, 2500 stud 밖 차선은 20 Hz 로 갱신.
+--   * 루트 속성 ClientDebug = true 이면 2초마다 통계를 출력.
+
+local RunService = game:GetService("RunService")
+local Util = require(script.Parent.Util)
+
+local Traffic = {}
+
+local MAX_PARTS = 400
+local FAR = 7000 -- 이보다 먼 차량/차선은 그리지 않음
+local NEAR_PAIR = 700 -- 이보다 가까우면 등 2개
+local BIG_GLARE = 2400 -- 이보다 멀면 큰 글레어
+local SLOW_LANE = 2500 -- 카메라에서 이보다 먼 차선은 저빈도 갱신
+local SLOW_DT = 0.05
+local LOD_BASE = 1600 -- 이 거리 안 차량은 모두 표시(예산 초과 시 자동 축소)
+local PARK = CFrame.new(0, -450, 0) -- 사용하지 않는 파트 주차 위치(지형 아래)
+local STEP_NAME = "SeoulSkylineTraffic"
+
+type Lane = {
+	name: string,
+	kind: number, -- 0 head, 1 tail
+	speed: number,
+	half: number, -- 등 간격 / 2
+	pts: { Vector3 },
+	cum: { number },
+	dirs: { Vector3 },
+	rots: { CFrame },
+	nseg: number,
+	len: number,
+	minB: Vector3,
+	maxB: Vector3,
+	s0: { number },
+	rank: { number },
+	seg: { number },
+	n: number,
+	active: boolean,
+	slow: boolean,
+	nextSample: number,
+	recPool: { number },
+	recCF: { CFrame },
+	recN: number,
+}
+
+type Pool = {
+	parts: { BasePart },
+	used: number,
+	lastUsed: number,
+	demand: number,
+	peakAcc: number,
+	peak: number,
+	size: Vector3,
+	color: Color3,
+}
+
+local function parseLane(cfg: Instance, density: number): Lane?
+	local count = cfg:GetAttribute("Count")
+	if typeof(count) ~= "number" or count < 2 then
+		return nil
+	end
+	local raw: { Vector3 } = {}
+	for i = 1, count do
+		local p = cfg:GetAttribute("P" .. i)
+		if typeof(p) ~= "Vector3" then
+			return nil
+		end
+		if #raw == 0 or (p - raw[#raw]).Magnitude > 0.01 then
+			table.insert(raw, p)
+		end
+	end
+	if #raw < 2 then
+		return nil
+	end
+	local cum, dirs, rots = { 0 }, {}, {}
+	local minB, maxB = raw[1], raw[1]
+	for k = 1, #raw - 1 do
+		local d = raw[k + 1] - raw[k]
+		local u = d.Unit
+		dirs[k] = u
+		rots[k] = if math.abs(u.Y) > 0.99 then CFrame.new() else CFrame.lookAt(Vector3.zero, u)
+		cum[k + 1] = cum[k] + d.Magnitude
+		minB = minB:Min(raw[k + 1])
+		maxB = maxB:Max(raw[k + 1])
+	end
+	local len = cum[#raw]
+	local kindAttr = cfg:GetAttribute("Kind")
+	local speed = cfg:GetAttribute("Speed")
+	local dens = cfg:GetAttribute("Density")
+	local spacing = cfg:GetAttribute("Spacing")
+	local sp = if typeof(spacing) == "number" then spacing else Util.m(1.6)
+	sp = math.clamp(sp, Util.m(1.4), Util.m(2.0)) -- 실제 승용차 전조등 간격 1.4~2.0 m
+	local lane: Lane = {
+		name = cfg.Name,
+		kind = if kindAttr == "tail" then 1 else 0,
+		speed = if typeof(speed) == "number" then speed else 60,
+		half = sp / 2,
+		pts = raw,
+		cum = cum,
+		dirs = dirs,
+		rots = rots,
+		nseg = #raw - 1,
+		len = len,
+		minB = minB,
+		maxB = maxB,
+		s0 = {},
+		rank = {},
+		seg = {},
+		n = 0,
+		active = false,
+		slow = false,
+		nextSample = 0,
+		recPool = {},
+		recCF = {},
+		recN = 0,
+	}
+	local perStud = (if typeof(dens) == "number" then dens else 1) / 100 * density
+	local n = math.clamp(math.floor(len * perStud + 0.5), 0, 800)
+	local rng = Random.new(Util.hash(cfg.Name) % 2147483647)
+	for i = 1, n do
+		lane.s0[i] = ((i - 1) + rng:NextNumber(-0.38, 0.38)) * len / n % len
+		lane.rank[i] = rng:NextNumber()
+		lane.seg[i] = 1
+	end
+	lane.n = n
+	return lane
+end
+
+local function aabbDistance(p: Vector3, a: Vector3, b: Vector3): number
+	local c = p:Max(a):Min(b)
+	return (p - c).Magnitude
+end
+
+function Traffic.start(root: Model): () -> ()
+	if root:GetAttribute("Traffic") == false then
+		return function() end
+	end
+
+	local folder = Instance.new("Folder")
+	folder.Name = "SeoulSkylineTraffic"
+	folder.Parent = workspace
+
+	local head = Util.color(root, "HeadlightColor", Util.Palette.Headlight)
+	local tail = Util.color(root, "TaillightColor", Util.Palette.Taillight)
+	-- 풀: (kind*3 + band), band 1 = 근거리 등 하나, 2 = 중거리 글레어(차 한 대), 3 = 원거리 글레어
+	local lampSize = Vector3.new(Util.m(0.34), Util.m(0.2), Util.m(0.26))
+	local glareSize = Vector3.new(Util.m(2.1), Util.m(0.4), Util.m(0.5))
+	local pools: { Pool } = {}
+	for kind = 0, 1 do
+		for band = 1, 3 do
+			pools[kind * 3 + band] = {
+				parts = {},
+				used = 0,
+				lastUsed = 0,
+				demand = 0,
+				peakAcc = 0,
+				peak = 0,
+				size = if band == 1 then lampSize elseif band == 2 then glareSize else glareSize * 1.8,
+				color = if kind == 0 then head else tail,
+			}
+		end
+	end
+	local total = 0
+
+	local function style(p: BasePart, pool: Pool)
+		p.Size = pool.size
+		p.Color = pool.color
+	end
+
+	local function grow(pool: Pool): BasePart?
+		if total < MAX_PARTS then
+			local p = Instance.new("Part")
+			p.Name = "CarLight"
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.CastShadow = false
+			p.Material = Enum.Material.Neon
+			p.TopSurface = Enum.SurfaceType.Smooth
+			p.BottomSurface = Enum.SurfaceType.Smooth
+			style(p, pool)
+			p.CFrame = PARK
+			p.Parent = folder
+			total += 1
+			table.insert(pool.parts, p)
+			return p
+		end
+		-- 예산 소진: 최근 1초간 여유가 있던 풀에서 주차 중인 파트를 빌려옴
+		for _, donor in pools do
+			if donor ~= pool and #donor.parts > math.max(donor.peak, donor.used, donor.lastUsed) + 1 then
+				local p = table.remove(donor.parts) :: BasePart
+				style(p, pool)
+				table.insert(pool.parts, p)
+				return p
+			end
+		end
+		return nil
+	end
+
+	local lanes: { Lane } = {}
+	local laneConns: { RBXScriptConnection } = {}
+	local conns: { RBXScriptConnection } = {}
+	local dirty = true
+	local lanesFolder: Instance? = nil
+
+	local function markDirty()
+		dirty = true
+	end
+
+	local function rebuild()
+		dirty = false
+		Util.disconnectAll(laneConns)
+		table.clear(lanes)
+		local f = lanesFolder
+		if not f then
+			return
+		end
+		local td = root:GetAttribute("TrafficDensity")
+		local density = if typeof(td) == "number" then math.clamp(td, 0, 4) else 1
+		local list = f:GetChildren()
+		table.sort(list, function(a, b)
+			return a.Name < b.Name
+		end)
+		for _, cfg in list do
+			if cfg:IsA("Configuration") then
+				table.insert(laneConns, cfg.AttributeChanged:Connect(markDirty))
+				local lane = parseLane(cfg, density)
+				if lane then
+					table.insert(lanes, lane)
+				end
+			end
+		end
+	end
+
+	local function hookFolder(f: Instance)
+		if lanesFolder == f then
+			return
+		end
+		lanesFolder = f
+		table.insert(conns, f.ChildAdded:Connect(markDirty))
+		table.insert(conns, f.ChildRemoved:Connect(markDirty))
+		dirty = true
+	end
+	local existing = root:FindFirstChild("TrafficLanes")
+	if existing then
+		hookFolder(existing)
+	end
+	table.insert(conns, root.ChildAdded:Connect(function(c)
+		if c.Name == "TrafficLanes" then
+			hookFolder(c)
+		end
+	end))
+	table.insert(conns, root:GetAttributeChangedSignal("TrafficDensity"):Connect(markDirty))
+
+	local partsBuf: { BasePart } = {}
+	local cfBuf: { CFrame } = {}
+	local lastN = 0
+	local lodScale = 1
+	local nextLaneCheck = 0
+	local nextPeak = 0
+	local nextDebug = 0
+	local rebuildAt = 0
+	local t0 = os.clock()
+
+	local function step()
+		local now = os.clock()
+		if dirty and now >= rebuildAt then
+			rebuildAt = now + 0.5
+			rebuild()
+			nextLaneCheck = 0
+		end
+		local cam = workspace.CurrentCamera
+		if not cam then
+			return
+		end
+		local t = now - t0
+		local ccf = cam.CFrame
+		local cp = ccf.Position
+		local look = ccf.LookVector
+		local vp = cam.ViewportSize
+		local aspect = vp.X / math.max(vp.Y, 1)
+		local tanV = math.tan(math.rad(cam.FieldOfView) / 2)
+		local cosCone = math.cos(math.min(math.atan(tanV * math.sqrt(1 + aspect * aspect)) + math.rad(6), math.pi * 0.49))
+
+		if now >= nextLaneCheck then
+			nextLaneCheck = now + 0.25
+			for _, lane in lanes do
+				local d = aabbDistance(cp, lane.minB, lane.maxB)
+				lane.active = d < FAR and lane.n > 0
+				lane.slow = d > SLOW_LANE
+			end
+		end
+
+		for _, pool in pools do
+			pool.used = 0
+			pool.demand = 0
+		end
+		local lodNear = LOD_BASE * lodScale
+		local n = 0
+		local demand = 0
+		for _, lane in lanes do
+			if not lane.active then
+				continue
+			end
+			if not lane.slow or now >= lane.nextSample then
+				lane.nextSample = now + SLOW_DT
+				local rn = 0
+				local recPool, recCF = lane.recPool, lane.recCF
+				local L, cum, dirs, pts, rots, nseg = lane.len, lane.cum, lane.dirs, lane.pts, lane.rots, lane.nseg
+				local dist = lane.speed * t
+				local half = lane.half
+				local pbase = lane.kind * 3
+				for i = 1, lane.n do
+					local s = (lane.s0[i] + dist) % L
+					local k = lane.seg[i]
+					if s < cum[k] then
+						k = 1
+					end
+					while k < nseg and s >= cum[k + 1] do
+						k += 1
+					end
+					lane.seg[i] = k
+					local pos = pts[k] + dirs[k] * (s - cum[k])
+					local rel = pos - cp
+					local d = rel.Magnitude
+					if d > FAR or (d > 80 and rel:Dot(look) < d * cosCone) then
+						continue
+					end
+					if d > lodNear and lane.rank[i] > math.max(0.04, (lodNear / d) ^ 1.2) then
+						continue
+					end
+					local cf = rots[k] + pos
+					if d < NEAR_PAIR then
+						rn += 1
+						recPool[rn] = pbase + 1
+						recCF[rn] = cf * CFrame.new(-half, 0, 0)
+						rn += 1
+						recPool[rn] = pbase + 1
+						recCF[rn] = cf * CFrame.new(half, 0, 0)
+					else
+						rn += 1
+						recPool[rn] = pbase + (if d < BIG_GLARE then 2 else 3)
+						recCF[rn] = cf
+					end
+				end
+				lane.recN = rn
+			end
+			local recPool, recCF = lane.recPool, lane.recCF
+			for r = 1, lane.recN do
+				local pool = pools[recPool[r]]
+				pool.demand += 1
+				demand += 1
+				local u = pool.used + 1
+				local part = pool.parts[u] or grow(pool)
+				if part then
+					pool.used = u
+					n += 1
+					partsBuf[n] = part
+					cfBuf[n] = recCF[r]
+				end
+			end
+		end
+		for _, pool in pools do
+			for u = pool.used + 1, math.min(pool.lastUsed, #pool.parts) do
+				n += 1
+				partsBuf[n] = pool.parts[u]
+				cfBuf[n] = PARK
+			end
+			pool.lastUsed = pool.used
+			pool.peakAcc = math.max(pool.peakAcc, pool.demand)
+		end
+		for i = n + 1, lastN do
+			partsBuf[i] = nil :: any
+			cfBuf[i] = nil :: any
+		end
+		lastN = n
+		if n > 0 then
+			workspace:BulkMoveTo(partsBuf, cfBuf, Enum.BulkMoveMode.FireCFrameChanged)
+		end
+
+		-- 예산 피드백: 수요가 예산을 넘으면 "전부 표시" 거리를 줄이고, 여유가 있으면 천천히 되돌림
+		if demand > MAX_PARTS then
+			lodScale = math.max(0.08, lodScale * 0.97)
+		elseif demand < MAX_PARTS * 0.8 and lodScale < 1 then
+			lodScale = math.min(1, lodScale * 1.01)
+		end
+		if now >= nextPeak then
+			nextPeak = now + 1
+			for _, pool in pools do
+				pool.peak = pool.peakAcc
+				pool.peakAcc = 0
+			end
+		end
+		if now >= nextDebug and root:GetAttribute("ClientDebug") == true then
+			nextDebug = now + 2
+			local cars, active = 0, 0
+			for _, lane in lanes do
+				cars += lane.n
+				if lane.active then
+					active += 1
+				end
+			end
+			local first = pools[1].parts[1] or pools[2].parts[1] or pools[4].parts[1]
+			print(string.format("[SeoulSkylineClient] traffic lanes=%d active=%d cars=%d parts=%d/%d shown=%d lod=%.2f first=%s", #lanes, active, cars, total, MAX_PARTS, n, lodScale, if first then tostring(first.Position) else "-"))
+		end
+	end
+
+	RunService:BindToRenderStep(STEP_NAME, Enum.RenderPriority.Camera.Value + 2, step)
+
+	return function()
+		pcall(function()
+			RunService:UnbindFromRenderStep(STEP_NAME)
+		end)
+		Util.disconnectAll(conns)
+		Util.disconnectAll(laneConns)
+		table.clear(lanes)
+		table.clear(partsBuf)
+		table.clear(cfBuf)
+		folder:Destroy()
+	end
+end
+
+return Traffic
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000014"><Properties><string name="Name">Util</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / Util — 클라이언트 공용 상수·도우미
+--   클라이언트는 ServerStorage(Config)를 읽을 수 없으므로 필요한 값은 맵 루트 속성(WaterFx 가 기록)에서 읽고,
+--   없으면 아래 기본값(Config.Palette 와 동일)을 씁니다.
+
+local Util = {}
+
+Util.ROOT_NAME = "SeoulSkyline"
+Util.METERS_PER_STUD = 0.3
+
+local rgb = Color3.fromRGB
+Util.Palette = {
+	Headlight = rgb(255, 246, 226),
+	Taillight = rgb(255, 46, 36),
+	Beacon = rgb(255, 30, 24),
+}
+
+-- 실측 m → stud (루트 속성 MetersPerStud 가 있으면 그 값)
+function Util.m(meters: number, root: Instance?): number
+	local mps = root and root:GetAttribute("MetersPerStud")
+	return meters / (if typeof(mps) == "number" and mps > 0 then mps else Util.METERS_PER_STUD)
+end
+
+function Util.color(root: Instance?, attr: string, fallback: Color3): Color3
+	local v = root and root:GetAttribute(attr)
+	return if typeof(v) == "Color3" then v else fallback
+end
+
+function Util.hash(s: string): number
+	local h = 2166136261
+	for i = 1, #s do
+		h = bit32.bxor(h, string.byte(s, i))
+		h = (h * 16777619) % 4294967296
+	end
+	return h
+end
+
+-- "아무 입력": 키보드/마우스 버튼/터치/게임패드 버튼 (마우스 이동·휠·스틱 이동은 제외)
+local UIT = Enum.UserInputType
+local ACCEPT: { [EnumItem]: boolean } = {
+	[UIT.Keyboard] = true,
+	[UIT.MouseButton1] = true,
+	[UIT.MouseButton2] = true,
+	[UIT.MouseButton3] = true,
+	[UIT.Touch] = true,
+}
+local STICKS: { [EnumItem]: boolean } = {
+	[Enum.KeyCode.Thumbstick1] = true,
+	[Enum.KeyCode.Thumbstick2] = true,
+}
+function Util.isUserInput(input: InputObject): boolean
+	local t = input.UserInputType
+	if ACCEPT[t] then
+		return true
+	end
+	if string.sub(t.Name, 1, 7) == "Gamepad" then
+		return not STICKS[input.KeyCode]
+	end
+	return false
+end
+
+function Util.disconnectAll(list: { RBXScriptConnection })
+	for _, c in list do
+		c:Disconnect()
+	end
+	table.clear(list)
+end
+
+-- 로컬 ScreenGui (리스폰에도 유지)
+function Util.screenGui(name: string, order: number): ScreenGui?
+	local plr = game:GetService("Players").LocalPlayer
+	local pg = plr and plr:FindFirstChildOfClass("PlayerGui")
+	if not pg then
+		return nil
+	end
+	local g = Instance.new("ScreenGui")
+	g.Name = name
+	g.ResetOnSpawn = false
+	g.IgnoreGuiInset = true
+	g.DisplayOrder = order
+	g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	g.Parent = pg
+	return g
+end
+
+return Util
+]]></ProtectedString></Properties></Item></Item></roblox>
