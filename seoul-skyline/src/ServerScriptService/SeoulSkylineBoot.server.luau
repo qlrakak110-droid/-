@@ -50,6 +50,36 @@ else
 	end
 end
 
+-- 전망대 엘리베이터: 호출 버튼(태그 SeoulElevator, Attribute ElevatorTarget)을 누르면 반대편 층으로 이동
+local CollectionService = game:GetService("CollectionService")
+local lastRide: { [Player]: number } = {}
+local function hookElevator(button: Instance)
+	local prompt = button:FindFirstChildWhichIsA("ProximityPrompt")
+	local target = button:GetAttribute("ElevatorTarget")
+	if not prompt or typeof(target) ~= "Vector3" then
+		return
+	end
+	prompt.Triggered:Connect(function(plr: Player)
+		local now = os.clock()
+		if (lastRide[plr] or 0) > now - 1.5 then
+			return
+		end
+		lastRide[plr] = now
+		local char = plr.Character
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if char and hum and hum.Health > 0 then
+			char:PivotTo(CFrame.lookAt(target, target + Vector3.new(0, 0, -1)))
+		end
+	end)
+end
+for _, b in CollectionService:GetTagged("SeoulElevator") do
+	hookElevator(b)
+end
+CollectionService:GetInstanceAddedSignal("SeoulElevator"):Connect(hookElevator)
+Players.PlayerRemoving:Connect(function(plr)
+	lastRide[plr] = nil
+end)
+
 if Config.Lighting.DayNightCycle then
 	local secondsPerHour = Config.Lighting.MinutesPerDay * 60 / 24
 	task.spawn(function()

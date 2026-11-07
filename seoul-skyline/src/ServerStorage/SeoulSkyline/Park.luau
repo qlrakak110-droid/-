@@ -493,6 +493,24 @@ local function buildDeck(parent: Instance)
 	end
 	local cab = Kit.box(parent, CFrame.new(sx, PLAZA_TOP + shaftH * 0.42, sz), Vector3.new(M(1.5), M(2.3), M(1.5)), CAB_GLOW, MAT.Neon, glowOpts("ElevatorCab", rgb(200, 200, 196)))
 	tryLight(cab, "PointLight", { color = CAB_GLOW, brightness = 1.4, range = M(10) })
+	-- 작동하는 엘리베이터: 호출 버튼(ProximityPrompt) → SeoulSkylineBoot 이 플레이어를 반대편 층으로 이동
+	local function callButton(pos: Vector3, target: Vector3, action: string)
+		local b = Kit.box(parent, CFrame.new(pos), Vector3.new(M(0.45), M(0.6), M(0.45)), CAB_GLOW, MAT.Neon, glowOpts("ElevatorCall", STEEL_LIGHT))
+		b.CanQuery = true
+		b:SetAttribute("ElevatorTarget", target)
+		local pp = Instance.new("ProximityPrompt")
+		pp.ActionText = action
+		pp.ObjectText = "전망대 엘리베이터"
+		pp.HoldDuration = 0.3
+		pp.MaxActivationDistance = 12
+		pp.RequiresLineOfSight = false
+		pp.Parent = b
+		game:GetService("CollectionService"):AddTag(b, "SeoulElevator")
+	end
+	local downAt = Vector3.new(sx, PLAZA_TOP + M(1.1), sz + STAIR_ROUT + M(1.2))
+	local upAt = Vector3.new(cx + hw - M(1.6), DY + M(1.1), z1 - M(1.4))
+	callButton(downAt, Vector3.new(cx, DY + 3.5, cz), "전망대로 올라가기")
+	callButton(upAt, Vector3.new(sx, PLAZA_TOP + 3.5, sz + STAIR_ROUT + M(3.5)), "공원으로 내려가기")
 	Kit.vcyl(parent, Vector3.new(sx, shaftTop + M(0.2), sz), M(0.4), SHAFT_R * 2 + M(0.4), STEEL_LIGHT, MAT.Metal, { name = "ShaftCap" })
 	local ring = Kit.vcyl(parent, Vector3.new(sx, PLAZA_TOP, sz), 0.6, (STAIR_ROUT + 0.6) * 2, STEEL, MAT.Metal, { name = "TowerBase" })
 	tryLight(ring, "PointLight", { color = P.LampWarm, brightness = 1.2, range = M(12) })
