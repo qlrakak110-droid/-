@@ -40,7 +40,7 @@ local PLAZA_TOP = GROUND + 1.0 -- 4.0
 
 local BRIDGE_HALF = B.Width / 2
 local VIEW_X = 60 -- 히어로 화면 하단 중앙 X 근처
-local BELT_X0, BELT_X1, BELT_Z1 = -460, 660, 562 -- 히어로 하단 숲 띠
+local BELT_X0, BELT_X1, BELT_Z1 = -470, 680, 592 -- 히어로 하단 숲 띠 (큰 수관, 촘촘)
 
 -- 산책로
 local MAIN_W = 8
@@ -62,7 +62,7 @@ local PLAZA_R = 38
 
 -- 매점 / 피크닉 / 주차장
 local KIOSK_X = -300
-local PICNIC = { -380, 500, -220, 578 } -- x0, z0, x1, z1 (나무 없는 잔디밭)
+local PICNIC = { -346, 498, -254, 536 } -- x0, z0, x1, z1 (나무 없는 잔디밭)
 local LOT = { -600, 676, -470, 752 }
 
 -- 색
@@ -70,10 +70,10 @@ local WOOD = rgb(104, 78, 56)
 local STEEL = rgb(58, 62, 70)
 local STEEL_LIGHT = rgb(150, 156, 164)
 local RAMP_C = rgb(168, 164, 156)
-local GLASS_C = rgb(176, 206, 226)
-local RAIL_GLOW = rgb(128, 98, 66)
+local GLASS_C = rgb(124, 154, 176)
+local RAIL_GLOW = rgb(104, 80, 54)
 local UNDER_GLOW = rgb(214, 176, 126)
-local FASCIA_GLOW = rgb(150, 116, 76)
+local FASCIA_GLOW = rgb(124, 96, 62)
 local HELIX_GLOW = rgb(176, 132, 84)
 local CAB_GLOW = rgb(226, 196, 150)
 local LAMP_HEAD = P.LampWarm
@@ -428,7 +428,7 @@ local function buildDeck(parent: Instance)
 	-- 유리 난간 + 발광 손잡이
 	local gTop = slabTop + 4.6
 	local function rail(cfr: CFrame, len: number)
-		Kit.box(parent, cfr * CFrame.new(0, (slabTop + gTop) / 2 - cfr.Position.Y, 0), Vector3.new(len, gTop - slabTop, 0.3), GLASS_C, MAT.Glass, { name = "GlassRail", transparency = 0.6 })
+		Kit.box(parent, cfr * CFrame.new(0, (slabTop + gTop) / 2 - cfr.Position.Y, 0), Vector3.new(len, gTop - slabTop, 0.3), GLASS_C, MAT.Glass, { name = "GlassRail", transparency = 0.72 })
 		Kit.box(parent, cfr * CFrame.new(0, gTop + 0.2 - cfr.Position.Y, 0), Vector3.new(len + 0.4, 0.4, 0.5), RAIL_GLOW, MAT.Neon, glowOpts("Handrail", STEEL_LIGHT))
 	end
 	local ry = slabTop
@@ -442,7 +442,7 @@ local function buildDeck(parent: Instance)
 	rail(CFrame.new(bX0 + 0.4, ry, (z1 + bZ1) / 2) * turn, bZ1 - z1)
 
 	-- 원형 유리 엘리베이터 (+ 세로 LED 4, 발광 캐빈, 상부 캡, 하부 링)
-	local shaftTop = DY + 8
+	local shaftTop = DY + 5
 	Kit.vcyl(parent, Vector3.new(sx, (PLAZA_TOP + shaftTop) / 2, sz), shaftTop - PLAZA_TOP, SHAFT_R * 2, GLASS_C, MAT.Glass, { name = "ElevatorShaft", transparency = 0.5, shadow = false })
 	for k = 0, 3 do
 		local a = math.rad(45 + 90 * k)
@@ -450,7 +450,7 @@ local function buildDeck(parent: Instance)
 	end
 	local cab = Kit.box(parent, CFrame.new(sx, 64, sz), Vector3.new(5, 7, 5), CAB_GLOW, MAT.Neon, glowOpts("ElevatorCab", rgb(200, 200, 196)))
 	tryLight(cab, "PointLight", { color = CAB_GLOW, brightness = 1.4, range = 22 })
-	Kit.vcyl(parent, Vector3.new(sx, shaftTop + 0.6, sz), 1.2, SHAFT_R * 2 + 1.4, STEEL, MAT.Metal, { name = "ShaftCap" })
+	Kit.vcyl(parent, Vector3.new(sx, shaftTop + 0.6, sz), 1.2, SHAFT_R * 2 + 1.4, STEEL_LIGHT, MAT.Metal, { name = "ShaftCap" })
 	local ring = Kit.vcyl(parent, Vector3.new(sx, PLAZA_TOP + 0.5, sz), 1.0, SHAFT_R * 2 + 1.2, STEEL, MAT.Metal, { name = "ShaftBase" })
 	tryLight(ring, "PointLight", { color = P.LampWarm, brightness = 1.2, range = 24 })
 
@@ -608,7 +608,7 @@ local function buildKiosk(parent: Instance, rng: Random, mainPts: { Vector2 })
 	markRect(kx - W / 2 - 8, tz0 - 2, kx + W / 2 + 14, tz1, 2)
 
 	-- 피크닉장 (매점 강 쪽 잔디밭): 테이블 세트 + 파라솔 + 돗자리
-	local sets = { { -350, 548 }, { -322, 562 }, { -292, 546 }, { -262, 560 }, { -238, 540 } }
+	local sets = { { -330, 511 }, { -320, 528 }, { -280, 530 }, { -268, 511 } }
 	for i, s in sets do
 		local x, z = s[1], s[2]
 		local gy = groundAt(x, z)
@@ -618,15 +618,15 @@ local function buildKiosk(parent: Instance, rng: Random, mainPts: { Vector2 })
 		Kit.box(parent, cf * CFrame.new(0, 1.2, 0), Vector3.new(4.4, 2.4, 0.6), BENCH_BASE, MAT.Concrete, opts("PicnicLeg"))
 		Kit.box(parent, cf * CFrame.new(0, 1.5, 2.6), Vector3.new(6, 0.4, 1.1), BENCH_WOOD, MAT.WoodPlanks, opts("PicnicSeat", { collide = true }))
 		Kit.box(parent, cf * CFrame.new(0, 1.5, -2.6), Vector3.new(6, 0.4, 1.1), BENCH_WOOD, MAT.WoodPlanks, opts("PicnicSeat", { collide = true }))
-		if i % 2 == 1 then
-			parasol(parent, x, gy, z, cols[(i // 2) % 3 + 1])
+		if z > 522 then
+			parasol(parent, x, gy, z, cols[i % 3 + 1])
 		end
 	end
-	local mats = { { -330, 522, rgb(214, 120, 60) }, { -276, 528, rgb(70, 140, 190) }, { -246, 514, rgb(220, 196, 90) } }
+	local mats = { { -300, 507, rgb(214, 120, 60) }, { -338, 526, rgb(70, 140, 190) }, { -298, 532, rgb(220, 196, 90) } }
 	for _, m in mats do
 		Kit.box(parent, CFrame.new(m[1] :: number, GROUND + 0.15, m[2] :: number) * CFrame.Angles(0, math.rad(rng:NextNumber(-30, 30)), 0), Vector3.new(6, 0.3, 5), m[3] :: Color3, MAT.Fabric, opts("PicnicMat"))
 	end
-	local pl = lamp(parent, -300, 572, 10.5, 1.5)
+	local pl = lamp(parent, -258, 532, 10.5, 1.5)
 	lampLight(pl, 26)
 	for _, s in sets do
 		markSeg(s[1], s[2], s[1], s[2], 5, 1)
@@ -787,27 +787,29 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 
 	local trees = newHash(32)
 	local used, count = 0, 0
-	-- pass 1: 히어로 띠 + 근경, pass 2: 원경
+	-- pass 1: 히어로 하단 띠(큰 수관, 촘촘) → pass 2: 근경 나머지(그로브) → pass 3: 원경
+	local NEAR0, NEAR1 = -1000, 1150
 	local passes = {
-		{ x0 = -1000, x1 = 1150, tries = 9000 },
-		{ x0 = X0 + 8, x1 = X1 - 8, tries = 9000 },
+		{ x0 = BELT_X0, x1 = BELT_X1, z1 = BELT_Z1, tries = 5000, cap = budget * 0.5 },
+		{ x0 = NEAR0, x1 = NEAR1, z1 = Z1 - 6, tries = 8000, cap = budget * 0.82 },
+		{ x0 = X0 + 8, x1 = X1 - 8, z1 = Z1 - 6, tries = 9000, cap = budget },
 	}
 	for pi, pass in passes do
 		for _ = 1, pass.tries do
-			if used >= budget - 4 then
+			if used >= pass.cap - 4 then
 				break
 			end
 			local x = rng:NextNumber(pass.x0, pass.x1)
-			if pi == 2 and x > -1000 and x < 1150 then
+			local z = rng:NextNumber(Z0 + 8, pass.z1)
+			local belt = x > BELT_X0 and x < BELT_X1 and z < BELT_Z1
+			if (pi == 2 and belt) or (pi == 3 and x > NEAR0 and x < NEAR1) then
 				continue
 			end
-			local z = rng:NextNumber(Z0 + 8, Z1 - 6)
-			local belt = x > BELT_X0 and x < BELT_X1 and z < BELT_Z1
-			local p = if belt then 0.95 else densX(x) * (0.2 + 0.8 * groveField(x, z))
+			local p = if belt then 1 else densX(x) * (0.2 + 0.8 * groveField(x, z))
 			if rng:NextNumber() > p then
 				continue
 			end
-			local D = if belt then rng:NextNumber(22, 30) else rng:NextNumber(14, 24)
+			local D = if belt then rng:NextNumber(24, 34) else rng:NextNumber(14, 24)
 			local r = D / 2
 			if z + r * 0.9 > Z1 - 2 then
 				continue
@@ -821,7 +823,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			if hashHit(lamps, x, z, r * 0.85, 1, 1.2) then
 				continue
 			end
-			if hashHit(trees, x, z, r, if belt then 0.58 else 0.64, 0) then
+			if hashHit(trees, x, z, r, if belt then 0.6 else 0.64, 0) then
 				continue
 			end
 			if not Kit.isFree(x - r * 0.7, z - r * 0.7, x + r * 0.7, z + r * 0.7) then
@@ -829,7 +831,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			end
 			local gy = groundAt(x, z)
 			local near = math.abs(x - VIEW_X) < 950
-			local lod = if near and D >= 15 then 3 else 2
+			local lod = if belt or (near and D >= 19) then 3 else 2
 			used += tree(parent, rng, x, z, gy, D, lod)
 			count += 1
 			hashAdd(trees, x, z, r)
@@ -875,7 +877,7 @@ function Park.build(ctx: any)
 		Vector2.new(1600, 620),
 	}
 	local function stepAt(x: number): number
-		return if math.abs(x - VIEW_X) < 950 then 22 else 60
+		return if math.abs(x - VIEW_X) < 950 then 22 else 90
 	end
 	local mainPts = catmull(ctrl, stepAt)
 
@@ -943,13 +945,13 @@ function Park.build(ctx: any)
 					lampLight(hp, 26)
 				end
 			end
-			x += if x > BELT_X0 and x < BELT_X1 then 32 else 72
+			x += if x > BELT_X0 and x < BELT_X1 then 32 else 110
 		end
 	end
 	-- 메인 산책로: 양쪽 엇갈림
 	local side = 1
 	for _, st in stations(mainPts, function(x: number): number
-		return if math.abs(x - VIEW_X) < 950 then 38 else 96
+		return if math.abs(x - VIEW_X) < 950 then 40 else 150
 	end, 10) do
 		local p, dir = st[1], st[2]
 		local nrm = Vector2.new(-dir.Y, dir.X) * side
@@ -965,8 +967,8 @@ function Park.build(ctx: any)
 	-- 연결로
 	for ci, pts in connectors do
 		local sd = if ci % 2 == 0 then 1 else -1
-		for _, st in stations(pts, function(_x: number): number
-			return 34
+		for _, st in stations(pts, function(x: number): number
+			return if math.abs(x - VIEW_X) < 950 then 34 else 70
 		end, 24) do
 			local p, dir = st[1], st[2]
 			local q = p + Vector2.new(-dir.Y, dir.X) * sd * (CONN_W / 2 + 1.5)
@@ -982,10 +984,10 @@ function Park.build(ctx: any)
 	-- 벤치: 메인 산책로 근경
 	local bside = 1
 	for _, st in stations(mainPts, function(_x: number): number
-		return 46
+		return 60
 	end, 30) do
 		local p, dir = st[1], st[2]
-		if math.abs(p.X - VIEW_X) < 900 then
+		if math.abs(p.X - VIEW_X) < 820 then
 			local nrm = Vector2.new(-dir.Y, dir.X) * bside
 			local q = p + nrm * (MAIN_W / 2 + 2.4)
 			if not inBridge(q.X, 8) and not occupied(q.X, q.Y, 2, 2) and not hashHit(lamps, q.X, q.Y, 0, 1, 4) then
