@@ -40,18 +40,18 @@ local SEAM_W = 4 -- 면 중앙 솔기 폭
 local SEAM_FROM = 0.1 -- 솔기가 시작하는 높이(비율)
 -- 크라운
 local CROWN_BASE_RATIO = 0.92 -- 크라운 시작 폭 / TopWidth (둥근 모서리 안쪽에 리브가 앉도록)
-local CROWN_TOP_RATIO = 0.45 -- 크라운 꼭대기 폭 / TopWidth
+local CROWN_TOP_RATIO = 0.32 -- 크라운 꼭대기 폭 / TopWidth (뾰족한 실루엣)
 local CROWN_TIERS = 5
 local RIB_W, RIB_D = 1.6, 1.2
 -- 색
-local GLASS = P.GlassSilver:Lerp(P.GlassBlue, 0.3)
+local GLASS = P.GlassSilver:Lerp(P.GlassDeep, 0.42) -- 은청색 반사 유리
 local SEAM_C = rgb(255, 206, 128)
-local RIB_C = rgb(226, 212, 182)
-local RIB_CORNER_C = rgb(246, 234, 206)
-local LANTERN_C = rgb(150, 128, 98)
+local RIB_C = rgb(178, 160, 128) -- 블룸이 켜져 있으므로 격자는 중간 밝기
+local RIB_CORNER_C = rgb(214, 196, 158)
+local LANTERN_C = rgb(92, 78, 60)
 local LOBBY_C = rgb(214, 160, 92)
-local CORE_PAL = { P.WindowWarm, P.WindowWarm, P.WindowGold, P.WindowWarmDim, P.WindowCool, P.WindowWarm }
-local MALL_LIT = { P.WindowWarm, P.WindowWarm, P.WindowWarmDim, P.WindowGold, P.WindowCoolDim }
+local CORE_PAL = { P.WindowWarm, P.WindowWarm, P.WindowWarm, P.WindowGold, P.WindowGold, P.WindowWarmDim, rgb(255, 178, 92), P.WindowCoolDim }
+local MALL_LIT = { rgb(196, 148, 92), rgb(184, 136, 84), P.WindowWarmDim, rgb(180, 150, 104), P.WindowCoolDim }
 local DOME_C = rgb(52, 98, 178)
 local DOME_RIB_C = rgb(120, 182, 255)
 
@@ -260,14 +260,12 @@ local function buildCrown(m: Model, TF: CFrame)
 		return T.TopWidth * (CROWN_BASE_RATIO + (CROWN_TOP_RATIO - CROWN_BASE_RATIO) * a)
 	end
 	-- 안쪽 등불(아래 3단): 격자 사이로 은은하게
-	for i = 0, 2 do
+	for i = 0, 1 do
 		local u0, u1 = i * CHc / CROWN_TIERS, (i + 1) * CHc / CROWN_TIERS
-		local dia = cw(u1) * 0.6
-		local c = scale(LANTERN_C, 1 + i * 0.12)
+		local dia = cw(u1) * 0.55
+		local c = scale(LANTERN_C, 1 + i * 0.15)
 		local p = Kit.part(m, TF * CFrame.new(0, yc0 + (u0 + u1) / 2, 0) * CYL_UP, Vector3.new(u1 - u0, dia, dia), neonOpts("Lantern", Enum.Material.Glass, P.GlassSilver)(c, true))
-		if i ~= 1 then
-			Kit.light(p, "PointLight", { color = P.LampWarm, brightness = 2.2, range = 54 })
-		end
+		Kit.light(p, "PointLight", { color = P.LampWarm, brightness = 1.8, range = 50 })
 	end
 	-- 4면 격자 리브
 	for f = 0, 3 do
@@ -525,18 +523,17 @@ local function buildReflections(m: Model, rng: Random, hallX: number, hallZ: num
 	local zStart = Config.FarBank.WaterEdge + 6
 	-- 타워: 끊어진 금빛 대시(물결) + 가운데 가는 밝은 줄(솔기) — 서로 0.35 높이차, 대시끼리는 간격
 	local z = zStart
-	local zEnd = -20
-	local i = 0
+	local zEnd = 150 -- 먼 쪽 절반은 진하게, 가까운 쪽으로 갈수록 옅어지는 꼬리
 	while z < zEnd do
-		local len = rng:NextNumber(44, 70)
+		local f = (z - zStart) / (zEnd - zStart)
+		local len = rng:NextNumber(24, 44)
 		local z1 = math.min(z + len, zEnd)
-		local w = 46 - i * 2.6 + rng:NextNumber(-8, 8)
+		local w = (48 - 18 * f) * rng:NextNumber(0.7, 1.15)
 		local c = if rng:NextNumber() < 0.5 then P.WindowGold else P.WindowWarm
-		streak(m, TC.X, TC.Z, z, z1, math.max(18, w), scale(c, rng:NextNumber(0.8, 1)), rng:NextNumber(0.62, 0.74), 0)
-		z = z1 + rng:NextNumber(5, 12)
-		i += 1
+		streak(m, TC.X, TC.Z, z, z1, w, scale(c, rng:NextNumber(0.8, 1)), 0.6 + 0.24 * f + rng:NextNumber(0, 0.06), 0)
+		z = z1 + rng:NextNumber(4, 9)
 	end
-	streak(m, TC.X, TC.Z, zStart + 4, -160, 7, P.WindowGold, 0.55, 0.35)
+	streak(m, TC.X, TC.Z, zStart + 4, -120, 6, P.WindowGold, 0.55, 0.35)
 	-- 몰: 파란 돔 + 동쪽 블록(따뜻한 빛)
 	streak(m, hallX, hallZ, zStart, zStart + 120, 30, P.LedBlue, 0.7, 0)
 	streak(m, hallX, hallZ, zStart + 130, zStart + 210, 22, P.LedBlue, 0.78, 0)
