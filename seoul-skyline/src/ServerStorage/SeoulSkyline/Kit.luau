@@ -470,7 +470,7 @@ function Kit.lane(name: string, points: { Vector3 }, opts: LaneOpts?)
 	lane:SetAttribute("Speed", o.speed or 60)
 	lane:SetAttribute("Density", o.density or 1)
 	lane:SetAttribute("Kind", o.kind or "head")
-	lane:SetAttribute("Spacing", o.spacing or 3.2) -- 전조등 두 개 간격
+	lane:SetAttribute("Spacing", o.spacing or Config.m(1.5)) -- 전조등 두 개 간격 1.5 m
 	lane.Parent = Kit.lanesFolder
 end
 
