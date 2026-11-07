@@ -51,7 +51,7 @@ local EDGE_Z = Z0 + 3.5 -- 강변 쪽 산책로 중심선 (491 ~ 496)
 -- 전망대
 local DC = V.DeckCenter
 local DY = V.DeckHeight -- 바닥 윗면
-local DECK_W, DECK_D = 48, 36
+local DECK_W, DECK_D = 40, 30
 local SHAFT = Vector2.new(DC.X, DC.Z + 38) -- 엘리베이터/나선 중심 (X, Z)
 local SHAFT_R = 4.5
 local RAMP_RIN, RAMP_ROUT = 6.5, 13.5
@@ -66,14 +66,14 @@ local PICNIC = { -380, 500, -220, 578 } -- x0, z0, x1, z1 (나무 없는 잔디�
 local LOT = { -600, 676, -470, 752 }
 
 -- 색
-local WOOD = rgb(124, 92, 64)
+local WOOD = rgb(104, 78, 56)
 local STEEL = rgb(58, 62, 70)
 local STEEL_LIGHT = rgb(150, 156, 164)
 local RAMP_C = rgb(168, 164, 156)
 local GLASS_C = rgb(176, 206, 226)
-local RAIL_GLOW = rgb(196, 156, 104)
-local UNDER_GLOW = rgb(232, 196, 146)
-local FASCIA_GLOW = rgb(214, 170, 112)
+local RAIL_GLOW = rgb(128, 98, 66)
+local UNDER_GLOW = rgb(214, 176, 126)
+local FASCIA_GLOW = rgb(150, 116, 76)
 local HELIX_GLOW = rgb(176, 132, 84)
 local CAB_GLOW = rgb(226, 196, 150)
 local LAMP_HEAD = P.LampWarm
@@ -86,18 +86,18 @@ local PLAZA_C = rgb(108, 104, 98)
 local BENCH_WOOD = rgb(110, 82, 58)
 local BENCH_BASE = rgb(116, 114, 110)
 local BARK = P.Bark
-local LEAF_LIGHT = rgb(104, 128, 64)
-local LEAF_DARK = rgb(24, 44, 32)
+local LEAF_LIGHT = rgb(124, 146, 70)
+local LEAF_DARK = rgb(30, 54, 38)
 local LEAVES = {
-	rgb(40, 72, 42),
-	rgb(50, 84, 46),
-	rgb(36, 64, 40),
-	rgb(58, 92, 50),
-	rgb(44, 76, 52),
-	rgb(64, 98, 52),
-	rgb(32, 58, 40),
-	rgb(72, 104, 56),
-	rgb(54, 88, 58),
+	rgb(52, 90, 50),
+	rgb(64, 104, 54),
+	rgb(46, 80, 48),
+	rgb(74, 112, 58),
+	rgb(56, 96, 64),
+	rgb(82, 118, 60),
+	rgb(42, 74, 48),
+	rgb(90, 124, 64),
+	rgb(66, 106, 68),
 }
 local CAR_COLORS = { rgb(222, 222, 224), rgb(150, 154, 160), rgb(28, 30, 34), rgb(36, 44, 70), rgb(132, 30, 30), rgb(92, 94, 98), rgb(210, 206, 196) }
 
@@ -400,8 +400,8 @@ local function buildDeck(parent: Instance)
 	Kit.box(parent, CFrame.new((landX1 + x1) / 2, fy, z1 + 0.2), Vector3.new(x1 - landX1, 0.7, 0.4), FASCIA_GLOW, MAT.Neon, glowOpts("DeckFascia", STEEL_LIGHT))
 
 	-- 하부 다운라이트 6 + SpotLight 2
-	for _, dx in { -15, 15 } do
-		for j, dz in { -10, 0, 10 } do
+	for _, dx in { -(hw - 8), hw - 8 } do
+		for j, dz in { -8, 0, 8 } do
 			local dl = Kit.box(parent, CFrame.new(cx + dx, slabBot - 0.35, cz + dz), Vector3.new(2.4, 0.3, 2.4), UNDER_GLOW, MAT.Neon, glowOpts("DeckDownlight", STEEL_LIGHT))
 			if j == 2 then
 				tryLight(dl, "SpotLight", { face = Enum.NormalId.Bottom, angle = 80, range = 60, brightness = 2.4, color = P.LampWarm })
@@ -409,11 +409,13 @@ local function buildDeck(parent: Instance)
 		end
 	end
 
-	-- 받침: 앞쪽 기둥 2 + 엘리베이터까지 이어지는 중앙 보
-	for _, dx in { -16, 16 } do
+	-- 받침: 앞쪽 기둥 2(+ 중간 연결보) + 엘리베이터까지 이어지는 중앙 보
+	local colX = hw - 6
+	for _, dx in { -colX, colX } do
 		local h = slabBot - PLAZA_TOP
-		Kit.vcyl(parent, Vector3.new(cx + dx, PLAZA_TOP + h / 2, cz - 8), h, 2.6, STEEL_LIGHT, MAT.Metal, { name = "DeckColumn" })
+		Kit.vcyl(parent, Vector3.new(cx + dx, PLAZA_TOP + h / 2, cz - 6), h, 3.6, STEEL_LIGHT, MAT.Metal, { name = "DeckColumn" })
 	end
+	Kit.box(parent, CFrame.new(cx, 58, cz - 6), Vector3.new(colX * 2, 2.4, 2.2), STEEL_LIGHT, MAT.Metal, { name = "DeckTie" })
 	Kit.box(parent, CFrame.new(cx, slabBot - 1.5, (cz - 6 + sz - SHAFT_R) / 2), Vector3.new(8, 3, sz - SHAFT_R - (cz - 6)), STEEL, MAT.Metal, { name = "DeckBeam" })
 
 	-- 착지판: A = 나선 끝(+X 쪽) → 데크, B = 엘리베이터 문 → 데크
@@ -474,12 +476,12 @@ local function buildDeck(parent: Instance)
 	end
 
 	-- 데크 소품: 쌍안경 2, 벤치 2
-	for _, dx in { -13, 13 } do
+	for _, dx in { -16, 16 } do
 		Kit.vcyl(parent, Vector3.new(cx + dx, DY + 1.6, z0 + 3), 3.2, 0.7, STEEL_LIGHT, MAT.Metal, opts("ScopePost", { collide = true }))
 		Kit.box(parent, CFrame.new(cx + dx, DY + 3.6, z0 + 3) * CFrame.Angles(math.rad(8), 0, 0), Vector3.new(1.4, 1.1, 2.0), rgb(40, 96, 110), MAT.Metal, opts("Binocular"))
 	end
-	for _, dx in { -17, 17 } do
-		local bx, bz = cx + dx, cz + 9
+	for _, dx in { -13, 13 } do
+		local bx, bz = cx + dx, cz + 8
 		local cf = CFrame.new(bx, DY, bz)
 		Kit.box(parent, cf * CFrame.new(0, 0.6, 0), Vector3.new(6, 1.2, 1.2), BENCH_BASE, MAT.Concrete, opts("DeckBenchBase"))
 		Kit.box(parent, cf * CFrame.new(0, 1.4, 0), Vector3.new(7, 0.4, 2), BENCH_WOOD, MAT.WoodPlanks, opts("DeckBenchSeat", { collide = true }))
@@ -487,7 +489,7 @@ local function buildDeck(parent: Instance)
 	end
 
 	-- 포토 스팟: 바닥 표지판 + 삼각대 + 카메라(PhotoSpot, ProximityPrompt)
-	local px, pz = cx, z0 + 6
+	local px, pz = cx - 9, z0 + 5
 	local plate = Kit.box(parent, CFrame.new(px, DY + 0.15, pz + 2.6), Vector3.new(5, 0.3, 2.2), rgb(34, 36, 42), MAT.SmoothPlastic, opts("PhotoSpotSign"))
 	Kit.label(plate, Enum.NormalId.Top, "포토 스팟", { glow = true, color = rgb(255, 214, 150), pixelsPerStud = 24 })
 	tryLight(plate, "PointLight", { color = P.LampWarm, brightness = 0.9, range = 12 })
@@ -801,11 +803,11 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			end
 			local z = rng:NextNumber(Z0 + 8, Z1 - 6)
 			local belt = x > BELT_X0 and x < BELT_X1 and z < BELT_Z1
-			local p = if belt then 0.95 else densX(x) * (0.1 + 0.9 * groveField(x, z))
+			local p = if belt then 0.95 else densX(x) * (0.2 + 0.8 * groveField(x, z))
 			if rng:NextNumber() > p then
 				continue
 			end
-			local D = if belt then rng:NextNumber(17, 25) else rng:NextNumber(13, 23)
+			local D = if belt then rng:NextNumber(22, 30) else rng:NextNumber(14, 24)
 			local r = D / 2
 			if z + r * 0.9 > Z1 - 2 then
 				continue
@@ -819,7 +821,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			if hashHit(lamps, x, z, r * 0.85, 1, 1.2) then
 				continue
 			end
-			if hashHit(trees, x, z, r, if belt then 0.6 else 0.68, 0) then
+			if hashHit(trees, x, z, r, if belt then 0.58 else 0.64, 0) then
 				continue
 			end
 			if not Kit.isFree(x - r * 0.7, z - r * 0.7, x + r * 0.7, z + r * 0.7) then
