@@ -196,6 +196,7 @@ const Arch = { geo: null, meta: {}, mats: new Map(), tiles: [], ridges: [], hous
 // Blender's convention (our textures load with flipY), node extras kept as meta (roof planes, ridges, smoke points)
 function archGeos() {
   if (Arch.geo) return Arch.geo;
+  if (!Assets.ready) return {};                                  // never memoise before the loader finished
   const G = {};
   for (const key of ['arch_houses', 'arch_props', 'arch_tiles']) {
     const gl = assetGltf(key); if (!gl) continue;
@@ -260,8 +261,10 @@ function archPatch(m, o = {}) {
         float archAO = 1.0;
         #ifdef USE_COLOR
           diffuseColor.rgb *= 1.0 + (vColor.g - 0.5) * uArchVar;
-          float archN = archNoise(vArchW.xz * 1.3 + vArchW.y * 0.7) * 0.55 + archNoise(vec2((vArchW.x + vArchW.z) * 5.0, vArchW.y * 0.7)) * 0.45;
-          float archG = clamp(vColor.b * (0.35 + 1.0 * archN), 0.0, 1.0);
+          // large weathering patches (a few metres) so long walls never read as one flat colour
+          diffuseColor.rgb *= 0.92 + 0.16 * archNoise(vArchW.xz * 0.45 + vArchW.y * 0.3);
+          float archN = archNoise(vArchW.xz * 1.3 + vArchW.y * 0.7) * 0.5 + archNoise(vec2((vArchW.x + vArchW.z) * 5.0, vArchW.y * 0.6)) * 0.5;
+          float archG = clamp(vColor.b * (0.55 + 1.15 * archN), 0.0, 1.0);
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uArchGrime, archG);
           archAO = mix(1.0, vColor.r, uArchAO);
         #endif`)
@@ -274,7 +277,7 @@ function archPatch(m, o = {}) {
 }
 // PBR material for a bin kind, tinted (cached). kinds: plaster timber wood door paint stone ashlar iron clay glass cloth glow flora soil cobble
 const ARCH_KIND = {
-  plaster: { set: 'plaster', tint: 0xf3e6d2, env: 'plaster', ns: 0.9, grime: 0x6b5a46 },
+  plaster: { set: 'plaster', tint: 0xf3e6d2, env: 'plaster', ns: 0.9, grime: 0x5e4c3a },
   timber: { set: 'wood', tint: 0x7c5e47, env: 'wood', ns: 1.0, vary: 0.34, grime: 0x4a3c30 },
   wood: { set: 'wood', tint: 0xb39578, env: 'wood', ns: 1.0, vary: 0.3, grime: 0x5a4a3a },
   door: { set: 'wood', tint: 0xa8724a, env: 'wood', ns: 1.0, vary: 0.2 },
@@ -292,7 +295,7 @@ function archMat(kind, tint) {
   let m;
   const envK = (k) => (typeof Lighting !== 'undefined' ? Lighting.envFor(k) : 0.6);
   if (kind === 'glass') {
-    m = new THREE.MeshStandardMaterial({ color: 0x0d1114, roughness: 0.06, metalness: 0.0, emissive: new THREE.Color(0xffa860), emissiveIntensity: 0.12, envMapIntensity: 1.6 });
+    m = new THREE.MeshStandardMaterial({ color: 0x0d1114, roughness: 0.06, metalness: 0.0, emissive: new THREE.Color(0xffa860), emissiveIntensity: 0.05, envMapIntensity: 1.8 });
     m.userData.archColor = true; m.userData.keepEnv = true;
   } else if (kind === 'water') {
     m = new THREE.MeshStandardMaterial({ color: 0x14202a, roughness: 0.04, metalness: 0.0, envMapIntensity: 1.3 });
@@ -335,7 +338,7 @@ function archTileMat() {
 // queue roof tiles for one roof: meta roof planes (o, u, v, U, V) and ridges (o, dir, L) in local coords, M = local->world
 function archQueueRoof(meta, M, roofHex, rng) {
   const R = meta.roof || [], Rg = meta.ridge || [];
-  const base = new THREE.Color(roofHex).multiplyScalar(1.12);
+  const base = new THREE.Color(roofHex).multiplyScalar(1.12).offsetHSL(0, -0.08, 0);   // glaze reads a touch less saturated in daylight
   const o = new THREE.Vector3(), u = new THREE.Vector3(), v = new THREE.Vector3(), n = new THREE.Vector3(), p = new THREE.Vector3();
   const x = new THREE.Vector3(), y = new THREE.Vector3(), z = new THREE.Vector3(), L = new THREE.Matrix4();
   const tint = (k) => {
@@ -668,7 +671,7 @@ function buildPlazaArch(scene) {
   const rep = (t, k) => { const c = t.clone(); c.repeat.set(k, k); c.needsUpdate = true; return c; };
   const R = 9.6, k = (R * 2) / 3.0;
   const mat = new THREE.MeshStandardMaterial({ color: 0xe8e2da, map: rep(set.albedo, k), normalMap: rep(set.normal, k), roughnessMap: rep(set.orm, k), aoMap: rep(set.orm, k), aoMapIntensity: 0.9,
-    normalScale: new THREE.Vector2(1.2, 1.2), alphaMap: tx.radial, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
+    normalScale: new THREE.Vector2(0.9, 0.9), alphaMap: tx.radial, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -6,
     envMapIntensity: typeof Lighting !== 'undefined' ? Lighting.envFor('ground') : 0.5 });
   // ground-hugging disc: follows the terrain so the feathered edge never floats or cuts in
   const geo = new THREE.CircleGeometry(R, 96, 0, Math.PI * 2);

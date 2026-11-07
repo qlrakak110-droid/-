@@ -36,7 +36,7 @@ VARIANTS = {
               boxes={('front', -1.71), ('front', 1.71), ('right', 0.0)}, lean=False, lantern=0.95, seed=11),
     'B': dict(rise=2.9, ov=0.5, gov=0.55, brace='k', chimney=('gable', 0.95), porch='pent', attic='pair',
               door=-1.0, windows=[('front', 1.25, 1.3), ('back', -1.5), ('back', 1.5), ('right', -1.0), ('right', 1.0), ('left', -1.0), ('left', 1.0)],
-              boxes={('front', 1.25), ('right', -1.0), ('left', 1.0)}, lean=False, lantern=-0.15, seed=12),
+              boxes={('front', 1.25), ('right', -1.0)}, lean=False, lantern=-0.15, seed=12),
     'C': dict(rise=2.0, ov=0.4, gov=0.45, brace='d', chimney=('slope', 1.2, 0.55), porch='none', attic='vent',
               door=0.0, windows=[('front', -1.71), ('front', 1.71), ('back', -1.71), ('back', 1.71), ('right', 0.0)],
               boxes={('front', -1.71), ('front', 1.71)}, lean=True, lantern=0.95, seed=13),
@@ -156,6 +156,8 @@ class House:
                     c = P(face, u, -0.04, e + r.uniform(0.02, 0.16))
                     k.stone('stone', c, sz, rot_y=r.uniform(0, 3.14), seed=1000 + n + self.v['seed'] * 100, sub=1, rough=0.25, flat_bottom=0.4)
                     n += 1
+                if r.random() < 0.6:
+                    weeds(k, r, P(face, u + r.uniform(-0.2, 0.2), 0.0, e + r.uniform(0.05, 0.3)), n=r.randint(5, 9))
                 u += r.uniform(0.35, 0.8)
 
     # ------------------------------------------------------------------ timber frame
@@ -598,6 +600,27 @@ def plant_bed(k, r, at, n, leaves=(6, 9), scale=1.0):
                     ring.append(B.vert(cc + (a1 * math.cos(ang) + a2 * math.sin(ang)) * rad, 0.5, col=fc))
                 for m_ in range(8):
                     B.face([ctr, ring[m_], ring[(m_ + 1) % 8]], [(0.5, 0.5), (0, 0), (1, 0)], outward=fn)
+
+
+def weeds(k, r, p, n=7, h=(0.18, 0.4)):
+    """a clump of grass / weed blades (thin bent triangles, painted colour, double-sided at runtime)"""
+    B = k.bin('flora')
+    base_c = (0.24 + r.uniform(-0.05, 0.05), 0.36 + r.uniform(-0.06, 0.05), 0.12 + r.uniform(-0.03, 0.03))
+    if r.random() < 0.3: base_c = (0.42, 0.42, 0.2)                       # a dry, straw-coloured clump
+    for i in range(n):
+        ang = r.uniform(0, 2 * math.pi); lean = r.uniform(0.15, 0.75); L = r.uniform(*h)
+        d = Vector((math.sin(lean) * math.cos(ang), math.cos(lean), math.sin(lean) * math.sin(ang)))
+        side = d.cross(UP); side = side.normalized() if side.length > 1e-4 else Vector((1, 0, 0))
+        b0 = p + Vector((r.uniform(-0.05, 0.05), -0.02, r.uniform(-0.05, 0.05)))
+        w = r.uniform(0.012, 0.022)
+        mid = b0 + d * L * 0.55 + Vector((d.x, 0, d.z)) * L * 0.12
+        tip = b0 + d * L + Vector((d.x, -0.3 * L * lean, d.z)) * 0.6
+        sh = r.uniform(0.85, 1.2)
+        cb = tuple(c * 0.5 for c in base_c); cm = tuple(min(1, c * sh) for c in base_c); ct = tuple(min(1, c * sh * 1.25) for c in base_c)
+        ids = [B.vert(b0 - side * w, 0.5, col=cb), B.vert(b0 + side * w, 0.5, col=cb), B.vert(mid + side * w * 0.7, 0.5, col=cm), B.vert(tip, 0.5, col=ct), B.vert(mid - side * w * 0.7, 0.5, col=cm)]
+        nrm = side.cross(d)
+        if nrm.y < 0: nrm = -nrm
+        B.face(ids, [(0, 0), (1, 0), (1, 0.5), (0.5, 1), (0, 0.5)], outward=nrm)
 
 
 def clip_below(poly, f):

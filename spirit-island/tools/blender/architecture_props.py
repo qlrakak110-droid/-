@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bpy
 from mathutils import Vector
 import architecture_kit as K
-from architecture_houses import plant_bed, sstep
+from architecture_houses import plant_bed, sstep, weeds
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'models', 'architecture'))
 UP = Vector((0, 1, 0)); X = Vector((1, 0, 0)); Z = Vector((0, 0, 1))
@@ -98,6 +98,8 @@ def well(k, r):
     for i in range(10):
         a = r.uniform(0, 6.28)
         k.stone('stone', Vector((math.cos(a) * 1.0, -0.02, math.sin(a) * 1.0)), (r.uniform(0.22, 0.36), 0.18, r.uniform(0.2, 0.3)), rot_y=a, seed=500 + i, flat_bottom=0.4)
+    for i in range(8):
+        a = r.uniform(0, 6.28); weeds(k, r, Vector((math.cos(a) * 1.08, 0.0, math.sin(a) * 1.08)), n=r.randint(5, 8))
     for s in (-1, 1):
         k.prism('timber', Vector((s * 0.86, 0.3, 0)), Vector((s * 0.86, 2.15, 0)), 0.14, 0.14, X, ch=0.015)
         k.prism('timber', Vector((s * 0.86, 0.95, 0.0)), Vector((s * 0.86, 1.25, 0.0)), 0.18, 0.22, X, ch=0.02)
