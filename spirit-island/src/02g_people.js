@@ -1147,7 +1147,8 @@ void RE_Direct_Toon( const in IncidentLight directLight, const in vec3 geometryP
   reflectedLight.directSpecular += directLight.color * acc;
 }
 void RE_IndirectDiffuse_Toon( const in vec3 irradiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in ToonMaterial material, inout ReflectedLight reflectedLight ) {
-  reflectedLight.indirectDiffuse += irradiance * BRDF_Lambert(ppShade(material.diffuseColor)) * mix(1.0, vAO, 0.85);
+  // characters get a little more fill than the set (readable faces on the shade side)
+  reflectedLight.indirectDiffuse += irradiance * BRDF_Lambert(ppShade(material.diffuseColor)) * mix(1.0, vAO, 0.85) * mix(1.12, 1.4, vM.z);
 }
 #define RE_Direct RE_Direct_Toon
 #define RE_IndirectDiffuse RE_IndirectDiffuse_Toon
@@ -1505,8 +1506,8 @@ function ppAnimator(r, S, B, eyes, extras) {
     if (Math.abs(yaw * 0.75 - st.hy) > 0.45 && st.bl < 0) st.blT = 0;
     st.hy = damp(st.hy, yaw * 0.75, 3.2, dt); st.hp = damp(st.hp, pitch * 0.6, 3.2, dt); st.gp = pitch;
     const comp = lean + (elder ? 0.08 : 0);
-    B.neck.rotation.set(-comp * 0.45 + st.hp * 0.35 + (elder ? 0.12 : 0), st.hy * 0.4, 0);
-    B.head.rotation.set(-comp * 0.45 + st.hp * 0.65 - (elder ? 0.18 : 0) + walk * 0.03 * Math.cos(2 * ph), st.hy * 0.6, idle * 0.03 * Math.sin(T * 0.37));
+    B.neck.rotation.set(-comp * 0.45 - st.hp * 0.35 + (elder ? 0.12 : 0), st.hy * 0.4, 0);
+    B.head.rotation.set(-comp * 0.45 - st.hp * 0.65 - (elder ? 0.18 : 0) + walk * 0.03 * Math.cos(2 * ph), st.hy * 0.6, idle * 0.03 * Math.sin(T * 0.37));
     // ---- arms (opposite to the legs), elbows bend more when running
     for (const [X, off, sg] of [['L', 0, 1], ['R', Math.PI, -1]]) {
       const p = ph + off, sp = Math.sin(p);

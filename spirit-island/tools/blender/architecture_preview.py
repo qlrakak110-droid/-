@@ -111,7 +111,7 @@ for o in list(bpy.data.objects):
             for r_ in range(rows):
                 s = -0.06 + r_ * 0.3
                 for c in range(cols):
-                    p = org + u * ((c + 0.5) * w + rnd.uniform(-0.006, 0.006)) + vv * s + n * 0.012
+                    p = org + u * ((c + 0.5) * w + rnd.uniform(-0.006, 0.006)) + vv * s + n * 0.034
                     z = (vv * 0.4 - n * 0.016).normalized(); x = u * (w / 0.3); y = z.cross(u).normalized()
                     Mg = Matrix(((x.x, y.x, z.x, p.x), (x.y, y.y, z.y, p.y), (x.z, y.z, z.z, p.z), (0, 0, 0, 1)))
                     C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))       # game -> blender
@@ -121,7 +121,7 @@ for o in list(bpy.data.objects):
             org, d, Ln = Vector(Rg[i:i + 3]), Vector(Rg[i + 3:i + 6]), Rg[i + 6]
             n = int(Ln / 0.36) + 1
             for k in range(n):
-                p = org + d * (k * Ln / n); z = d; x = Vector((0, 1, 0)).cross(z).normalized(); y = z.cross(x)
+                p = org + d * (k * Ln / n) + Vector((0, 0.07, 0)); z = d; x = Vector((0, 1, 0)).cross(z).normalized(); y = z.cross(x)
                 Mg = Matrix(((x.x, y.x, z.x, p.x), (x.y, y.y, z.y, p.y), (x.z, y.z, z.z, p.z), (0, 0, 0, 1)))
                 C = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
                 place(tiles['ridge_hi'], Matrix.Translation(off) @ C @ Mg @ C.inverted(), tm)

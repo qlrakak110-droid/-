@@ -39,14 +39,36 @@ const TYPE_ICON = {
   being: '<circle cx="12" cy="12" r="4.5"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4M4 4l3 3M17 17l3 3M4 20l3-3M17 7l3-3" stroke="currentColor" stroke-width="2"/>',
   void: '<path d="M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z" fill-rule="evenodd"/>',
 };
-function typeChip(t) { const T = TYPES[t]; return `<span class="type" style="background:${T.c}"><svg viewBox="0 0 24 24" aria-hidden="true">${TYPE_ICON[t] || ''}</svg>${T.n}</span>`; }
+// type chip: icon + label on the type colour (class "type" is shared with the battle HUD; data-t allows per-type tweaks)
+function typeChip(t) { const T = TYPES[t]; if (!T) return ''; return `<span class="type" data-t="${t}" style="background:${T.c}"><svg viewBox="0 0 24 24" aria-hidden="true">${TYPE_ICON[t] || ''}</svg>${T.n}</span>`; }
+// UI icons: 24×24 stroke icons (the stroke/fill comes from CSS), item icons (i_*) carry their own colours
 const UI_ICON = {
   fight: '<path d="M4 4l9 9M4 4h4M4 4v4M20 4l-9 9M20 4h-4M20 4v4M8 15l-4 4M16 15l4 4"/>',
   bag: '<path d="M5 8h14l-1 12H6L5 8zM9 8V6a3 3 0 0 1 6 0v2"/>',
   party: '<path d="M12 2l2 7 7 3-7 3-2 7-2-7-7-3 7-3z"/>',
   run: '<path d="M4 12h15M13 6l6 6-6 6"/>',
+  close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  chevL: '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  chevR: '<path d="M9.5 5.5 16 12l-6.5 6.5"/>',
+  chevD: '<path d="M6 9.5l6 6 6-6"/>',
+  play: '<path d="M8 5.8v12.4a.8.8 0 0 0 1.2.7l9.6-6.2a.8.8 0 0 0 0-1.4L9.2 5.1a.8.8 0 0 0-1.2.7z"/>',
+  spark: '<path d="M12 3.5l1.9 6.6 6.6 1.9-6.6 1.9-1.9 6.6-1.9-6.6L3.5 12l6.6-1.9z"/>',
+  gear: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  gfx: '<rect x="3" y="4.5" width="18" height="12" rx="2.2"/><path d="M8.5 20h7M12 16.5V20"/>',
+  sound: '<path d="M4 9.5h3.6L12.5 5.5v13l-4.9-4H4z"/><path d="M15.8 9a4.2 4.2 0 0 1 0 6M18.4 6.6a7.6 7.6 0 0 1 0 10.8"/>',
+  mute: '<path d="M4 9.5h3.6L12.5 5.5v13l-4.9-4H4z"/><path d="M16.5 9.5l5 5M21.5 9.5l-5 5"/>',
+  save: '<path d="M5.5 3.5h10.2l2.8 2.8v14.2h-13z"/><path d="M8.5 3.5v4.5h6V3.5M8.5 20.5v-6h7v6"/>',
+  keys: '<rect x="2.5" y="6" width="19" height="12" rx="2.2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/>',
+  reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.3-5.4"/><path d="M4.5 4.5v4h4"/>',
+  dex: '<path d="M5 4.6A2.1 2.1 0 0 1 7.1 2.5H19.5v16H7.1A2.1 2.1 0 0 0 5 20.6z"/><path d="M5 20.6a2.1 2.1 0 0 0 2.1.9h12.4M9 7h6.5M9 10.5h4"/>',
+  box: '<rect x="3" y="4" width="18" height="5" rx="1.2"/><path d="M5 9v10.5h14V9M10 13h4"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  i_crystal: '<path d="M12 2.2 19.2 10 12 21.8 4.8 10z" fill="#f2d48a"/><path d="M12 2.2 19.2 10H4.8z" fill="#fff6dc"/><path d="M12 21.8 19.2 10H12z" fill="#c99a45"/><path d="M12 2.2v19.6M4.8 10h14.4" stroke="#fff" stroke-opacity=".55" stroke-width=".7" fill="none"/>',
+  i_origin: '<path d="M12 2.2 4.8 10 12 21.8z" fill="#f2d48a"/><path d="M12 2.2 19.2 10 12 21.8z" fill="#9b5cff"/><path d="M12 2.2 4.8 10h14.4z" fill="#fff" fill-opacity=".38"/><path d="M12 2.2v19.6" stroke="#fff" stroke-width=".9" fill="none"/><circle cx="12" cy="10.6" r="1.6" fill="#fff"/>',
+  i_potion: '<rect x="9" y="1.8" width="6" height="2.6" rx="1" fill="#c9925a"/><path d="M9.8 4.4h4.4v4.2l4.3 7.2a3.6 3.6 0 0 1-3.1 5.4H8.6a3.6 3.6 0 0 1-3.1-5.4l4.3-7.2z" fill="#ffffff" fill-opacity=".12" stroke="#e4f7ea" stroke-width="1.2"/><path d="M6.6 14.2h10.8l1 1.7a2.8 2.8 0 0 1-2.4 4.2H8a2.8 2.8 0 0 1-2.4-4.2z" fill="#5fe08c"/><circle cx="10" cy="17" r=".9" fill="#d8ffe4"/>',
+  i_elixir: '<rect x="9" y="1.8" width="6" height="2.6" rx="1" fill="#c9925a"/><path d="M9.8 4.4h4.4v4.2l4.3 7.2a3.6 3.6 0 0 1-3.1 5.4H8.6a3.6 3.6 0 0 1-3.1-5.4l4.3-7.2z" fill="#ffffff" fill-opacity=".12" stroke="#fff3cf" stroke-width="1.2"/><path d="M6.2 12.6h11.6l1.4 2.6a3 3 0 0 1-2.6 4.8H7.4a3 3 0 0 1-2.6-4.8z" fill="#ffd36a"/><path d="M12 13.6l.7 1.9 1.9.7-1.9.7-.7 1.9-.7-1.9-1.9-.7 1.9-.7z" fill="#fff"/>',
 };
-const uiIcon = (k) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${UI_ICON[k]}</svg>`;
+const uiIcon = (k, cls = 'ico') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${UI_ICON[k] || ''}</svg>`;
 
 // fx: dash slash bolt burst beam rain strike aura glare heal drain void genesis
 const MOVES = {

@@ -20,15 +20,19 @@ function canMove() { return G.mode === 'world' && !G.busy && !G.dialog && $('#mo
 
 // ---------------------------------------------------------------- dialogue
 $('#dialog').addEventListener('click', (e) => { if (e.target.closest('#dChoices')) return; fireAction(); });
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// typewriter that keeps the final layout from the first frame: the untyped rest is laid out but invisible,
+// so Korean words never jump to the next line while they are being typed
+function typeSet(el, text, i) { el.innerHTML = i >= text.length ? escHtml(text) : escHtml(text.slice(0, i)) + '<span class="un">' + escHtml(text.slice(i)) + '</span>'; }
 async function typeLine(text) {
-  const el = $('#dTxt'); el.textContent = '';
+  const el = $('#dTxt'), dl = $('#dialog'); typeSet(el, text, 0); dl.classList.add('typing');
   let skipped = false; const p = nextAction().then(() => { skipped = true; });
   for (let i = 1; i <= text.length && !skipped; i++) {
-    el.textContent = text.slice(0, i);
+    typeSet(el, text, i);
     if (i % 3 === 0 && text[i - 1] !== ' ') Snd.fx('talk');
     await sleep(text[i - 1] === '.' || text[i - 1] === '…' ? 70 : 24);
   }
-  el.textContent = text;
+  el.textContent = text; dl.classList.remove('typing');
   if (skipped) await nextAction(); else await p;
 }
 // who is speaking: name plate + portrait (people get a rendered head shot, spirits their icon)
@@ -38,13 +42,14 @@ function speakerPortrait(who) {
   if (n) return { src: Icons.portrait(n.id, n.look) };
   if (who === '???') return { src: Icons.get('nihilos'), cls: 'sil' };
   const sp = Object.keys(SPECIES).find((k) => SPECIES[k].n === who);
-  return sp ? { src: Icons.get(sp) } : null;
+  return sp ? { src: Icons.get(sp), cls: SPECIES[sp].t.includes('void') ? 'void' : '' } : null;
 }
 function setSpeaker(who, cls) {
   $('#dWho').textContent = who; $('#dWho').className = cls;
   const p = speakerPortrait(who), img = $('#dPort');
   if (p && p.src) { if (img.getAttribute('src') !== p.src) img.src = p.src; img.className = p.cls || cls || ''; img.hidden = false; }
   else img.hidden = true;
+  $('#dialog').classList.toggle('has-port', !img.hidden);
 }
 async function say(lines, who = '', cls = '') {
   G.dialog++;
@@ -58,31 +63,48 @@ async function say(lines, who = '', cls = '') {
 }
 async function ask(text, options, who = '', cls = '') {
   G.dialog++;
-  $('#dialog').hidden = false; setSpeaker(who, cls); $('#dNext').hidden = true; $('#dChoices').innerHTML = '';
-  const el = $('#dTxt'); el.textContent = '';
-  for (let i = 1; i <= text.length; i++) { el.textContent = text.slice(0, i); if (i % 3 === 0) Snd.fx('talk'); await sleep(18); }
+  const dl = $('#dialog'); dl.hidden = false; setSpeaker(who, cls); $('#dNext').hidden = true; $('#dChoices').innerHTML = '';
+  const el = $('#dTxt'); typeSet(el, text, 0); dl.classList.add('typing');
+  for (let i = 1; i <= text.length; i++) { typeSet(el, text, i); if (i % 3 === 0) Snd.fx('talk'); await sleep(18); }
+  dl.classList.remove('typing');
   const v = await new Promise((res) => {
     const btns = options.map((o, i) => {
-      const b = document.createElement('button'); b.textContent = o;
+      const b = document.createElement('button'); b.innerHTML = `${isTouch ? '' : `<kbd>${i + 1}</kbd>`}<span>${escHtml(o)}</span>`;
       b.addEventListener('click', () => { Snd.fx('select'); hotkeyHandler = null; res(i); });
       $('#dChoices').appendChild(b); return b;
     });
     if (!isTouch) btns[0].focus({ preventScroll: true });
     hotkeyHandler = (code) => {
       const n = parseInt(code.replace('Digit', ''), 10); if (btns[n - 1]) btns[n - 1].click();
-      if (code.startsWith('Arrow')) { let i = btns.indexOf(document.activeElement); i = (i + (code === 'ArrowRight' || code === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length; btns[i].focus(); }
+      if (code.startsWith('Arrow')) { let i = btns.indexOf(document.activeElement); i = (i + (code === 'ArrowRight' || code === 'ArrowDown' ? 1 : -1) + btns.length) % btns.length; btns[i].focus(); Snd.fx('select'); }
       if ((code === 'KeyE' || code === 'KeyZ') && btns.includes(document.activeElement)) document.activeElement.click();
     };
   });
-  $('#dChoices').innerHTML = ''; $('#dialog').hidden = true; G.dialog--; G.lock = 0.25; Input.actionQueued = false;
+  $('#dChoices').innerHTML = ''; dl.hidden = true; G.dialog--; G.lock = 0.25; Input.actionQueued = false;
   return v;
 }
-function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 3300); }
+// toasts: kind '' (gold) | 'legend' | 'heal'; they slide in, then fade out before removal
+function toast(t, kind = '') {
+  const d = document.createElement('div'); d.className = 'toast' + (kind ? ' ' + kind : ''); d.textContent = t; d.setAttribute('role', 'status');
+  const box = $('#toasts'); box.appendChild(d);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  setTimeout(() => d.classList.add('out'), 3000); setTimeout(() => d.remove(), 3360);
+}
 async function banner(b1, b2, cls = 'plain', hold = 2.2) {
   const el = $('#banner'); el.className = cls; el.querySelector('.b1').textContent = b1; el.querySelector('.b2').textContent = b2;
-  el.style.opacity = '1'; await wait(hold); el.style.opacity = '0'; await wait(0.6);
+  void el.offsetWidth; el.classList.add('show');
+  el.style.opacity = '1'; await wait(hold); el.style.opacity = '0'; await wait(0.6); el.classList.remove('show');
 }
 function fadeTo(v, dur = 0.6) { const f = $('#fade'); f.style.transitionDuration = dur + 's'; f.style.opacity = String(v); return sleep(dur * 1000 + 30); }
+// count a number up/down inside an element (tabular figures keep the width steady)
+function tickNum(el, to, dur = 0.6, fmt = (v) => String(v)) {
+  if (!el) return;
+  const from = +(el.dataset.v ?? to); el.dataset.v = to;
+  if (from === to || matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = fmt(to); return; }
+  const t0 = performance.now();
+  const step = (now) => { const k = Math.min(1, (now - t0) / (dur * 1000)), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(Math.round(from + (to - from) * e)); if (k < 1 && el.dataset.v == to) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 
 // ---------------------------------------------------------------- HUD
 function questInfo() {
@@ -95,28 +117,43 @@ function questInfo() {
   return [`자유 탐험 · 도감 ${Object.keys(S.dex.caught).length}/${DEX_ORDER.length}`, '하늘은 닫혔다. 아직 만나지 못한 정령이 있다.'];
 }
 function updateHud() {
-  const [a, b] = questInfo(); $('#questText').textContent = a; $('#questSub').textContent = b;
+  const [a, b] = questInfo(), q = $('#quest');
+  if ($('#questText').textContent !== a) {
+    const had = $('#questText').textContent; $('#questText').textContent = a;
+    if (had && !$('#hud').hidden) { q.classList.remove('upd'); void q.offsetWidth; q.classList.add('upd'); }
+  }
+  $('#questSub').textContent = b;
   const legs = Object.keys(World.legends || {}).map((sp) => World.legendSites[sp].name);
   $('#questLeg').textContent = legs.length ? '✦ 전설의 기척: ' + legs.join(' · ') : '';
   layoutHud();
   const lc = $('#leadCard'), m = S.party[0];
   if (!m) { lc.hidden = true; return; }
   lc.hidden = false;
-  const f = m.hp / maxHp(m);
-  lc.innerHTML = `<img src="${Icons.get(m.sp)}" alt=""><div class="lc-body"><div class="lc-name">${monName(m)} <span>Lv.${m.lv} · ${m.hp}/${maxHp(m)}</span></div><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div>`;
+  const mh = maxHp(m), f = m.hp / mh, tc = TYPES[SPECIES[m.sp].t[0]].c;
+  // rebuild only when the lead changes; otherwise animate bars and count the HP number
+  if (lc.dataset.uid !== m.uid) {
+    lc.dataset.uid = m.uid;
+    lc.innerHTML = `<div class="lc-av" style="--tc:${tc}"><img src="${Icons.get(m.sp)}" alt=""></div><div class="lc-body"><div class="lc-name">${monName(m)} <span class="lv">Lv.<b></b></span></div><div class="lc-hp"><div class="bar"><i></i></div><span><b class="hpv" data-v="${m.hp}">${m.hp}</b>/<span class="hpm"></span></span></div><div class="bar xp"><i></i></div></div>`;
+  }
+  lc.querySelector('.lv b').textContent = m.lv; lc.querySelector('.hpm').textContent = mh;
+  const hb = lc.querySelector('.lc-hp .bar > i'); hb.style.width = f * 100 + '%'; hb.style.background = hpColor(f);
+  lc.querySelector('.bar.xp > i').style.width = clamp(m.exp / expNeed(m.lv), 0, 1) * 100 + '%';
+  tickNum(lc.querySelector('.hpv'), m.hp, 0.7);
 }
 function showHud(on = true) { $('#hud').hidden = !on; $('#touch').hidden = !on || !isTouch; if (on) updateHud(); }
-// keep the objective panel clear of the corner buttons, and drop the compass (and toasts) below it when they would collide
+// keep the objective panel clear of the corner buttons; fit the compass into the gap between them (narrowing it if
+// needed) or drop it below when there is no room; toasts always start under whatever sits at the top
 function layoutHud() {
   const hud = $('#hud'); if (hud.hidden) return;
   const q = $('#quest'), b = $('#hudBtns'), c = $('#compass'), t = $('#toasts');
   const br = b.getBoundingClientRect();
-  q.style.maxWidth = Math.max(170, Math.min(420, br.left - q.getBoundingClientRect().left - 10)) + 'px';
-  const qr = q.getBoundingClientRect(), cw = c.offsetWidth, cl = innerWidth / 2 - cw / 2;
-  if (qr.right + 10 > cl || br.left - 10 < cl + cw) {
-    const top = Math.max(qr.bottom, br.bottom) + 10;
-    c.style.top = top + 'px'; t.style.top = top + 54 + 'px';
-  } else { c.style.top = ''; t.style.top = ''; }
+  q.style.maxWidth = Math.max(170, Math.min(420, br.left - q.getBoundingClientRect().left - 12)) + 'px';
+  const qr = q.getBoundingClientRect(), cx = innerWidth / 2;
+  const room = 2 * Math.min(cx - (qr.right + 12), br.left - 12 - cx), want = Math.min(440, innerWidth * 0.46);
+  let bottom;
+  if (room >= 240) { c.style.width = Math.min(want, room) + 'px'; c.style.top = ''; bottom = Math.max(qr.bottom, br.bottom); }
+  else { c.style.width = ''; const top = Math.max(qr.bottom, br.bottom) + 10; c.style.top = top + 'px'; bottom = top + 44; }
+  t.style.top = Math.round((innerWidth > 640 ? br.bottom : bottom) + 12) + 'px';   // wide: a notification column under the buttons
 }
 addEventListener('resize', () => setTimeout(layoutHud, 50));
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => layoutHud());
@@ -182,7 +219,7 @@ async function healAll(fx) {
     Snd.fx('heal');
     const p = World.player.root.position;
     World.fx.burst(new THREE.Vector3(p.x, p.y + 1, p.z), 60, { color: [0x9dffb0, 0x8ff3ff, 0xffffff], speed: 3, size: 0.35, life: 1.2, up: 2 });
-    toast('정령들의 체력이 모두 회복되었다');
+    toast('정령들의 체력이 모두 회복되었다', 'heal');
   }
   updateHud();
 }
@@ -244,35 +281,47 @@ async function closeRift(n) {
 }
 
 // ---------------------------------------------------------------- starter selection
+// stat bars + numbers shared by the starter card and the party detail (bar colour comes from --tc)
+function statRows(vals, max, extra = []) {
+  const names = ['체력', '공격', '방어', '속도'];
+  return vals.map((v, k) => `<span>${names[k]}</span><div class="bar"><i style="width:${clamp(v / (Array.isArray(max) ? max[k] : max), 0.04, 1) * 100}%"></i></div><b>${extra[k] ?? v}</b>`).join('');
+}
 function starterSelect() {
   return new Promise((resolve) => {
     G.busy = true;
     const el = $('#select'); el.hidden = false; showHud(false);
-    let i = 1;
+    let i = 1, dir = 0, first = true;
     const peds = World.pedestals;
     const render = () => {
-      const sp = STARTERS[i], s = SPECIES[sp], names = ['체력', '공격', '방어', '속도'];
-      el.innerHTML = `<div class="sel-card">
-        <div class="sel-head"><h3>${s.n}</h3><div class="types">${s.t.map(typeChip).join('')}</div></div>
+      const sp = STARTERS[i], s = SPECIES[sp], tc = TYPES[s.t[0]].c;
+      const strong = Object.keys(TYPES).filter((t) => typeEff(s.t[0], [t]) > 1), weak = Object.keys(TYPES).filter((t) => typeEff(t, s.t) > 1);
+      el.innerHTML = `<div class="sel-card${first ? '' : ' swap' + (dir < 0 ? ' l' : '')}" style="--tc:${tc};${first ? '' : 'animation:none'}" role="dialog" aria-label="첫 동료 고르기">
+        <div class="sel-head"><div><span class="sel-eye">첫 동료 · No.${String(s.no).padStart(3, '0')}</span><h3>${s.n}</h3></div><div class="types">${s.t.map(typeChip).join('')}</div></div>
         <p class="sel-desc">${s.d}</p>
-        <div class="sel-stats">${s.b.map((v, k) => `<span>${names[k]}</span><div class="bar"><i style="width:${v / 80 * 100}%;background:${TYPES[s.t[0]].c}"></i></div><span>${v}</span>`).join('')}</div>
-        <div class="sel-match"><span class="lbl">강한 상대</span>${Object.keys(TYPES).filter((t) => typeEff(s.t[0], [t]) > 1).map(typeChip).join('') || '<em>없음</em>'}
-          <span class="lbl">조심할 상대</span>${Object.keys(TYPES).filter((t) => typeEff(t, s.t) > 1).map(typeChip).join('') || '<em>없음</em>'}</div>
-        <div class="sel-moves"><span class="lbl">처음 기술</span>${s.learn.filter(([lv]) => lv <= 5).map(([, mv]) => `<b style="--tc:${TYPES[MOVES[mv].t].c}">${MOVES[mv].n}</b>`).join('')}</div>
-        <div class="sel-row"><button class="sel-nav" id="sPrev" aria-label="이전">◀</button><button class="btn primary" id="sOk">${josa(s.n, '과와')} 함께하기</button><button class="sel-nav" id="sNext" aria-label="다음">▶</button></div>
+        <div class="sel-grid">
+          <div><p class="sel-h">기본 능력</p><div class="sel-stats">${statRows(s.b, 80)}</div></div>
+          <div class="sel-match"><div><span class="lbl">강한 상대</span>${strong.map(typeChip).join('') || '<em>없음</em>'}</div><div><span class="lbl">조심할 상대</span>${weak.map(typeChip).join('') || '<em>없음</em>'}</div></div>
+          <div><p class="sel-h">처음 기술</p><div class="sel-moves">${s.learn.filter(([lv]) => lv <= 5).map(([, mv]) => `<b style="--tc:${TYPES[MOVES[mv].t].c}">${MOVES[mv].n}</b>`).join('')}</div></div>
+        </div>
+        <div class="sel-dots" aria-hidden="true">${STARTERS.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="sel-row"><button class="sel-nav" id="sPrev" aria-label="이전 정령">${uiIcon('chevL', 'ui-ico')}</button><button class="btn primary" id="sOk">${uiIcon('check', 'ui-ico')}<span>${josa(s.n, '과와')} 함께하기</span></button><button class="sel-nav" id="sNext" aria-label="다음 정령">${uiIcon('chevR', 'ui-ico')}</button></div>
+        <p class="sel-keys"><kbd>←</kbd><kbd>→</kbd> 고르기 · <kbd>Enter</kbd> 결정</p>
       </div>`;
-      const pd = peds[i], y = pd.y;
-      World.cine = { pos: new THREE.Vector3(pd.x * 0.55, y + 2.3, pd.z + 5.4), look: new THREE.Vector3(pd.x, y + 0.9, pd.z), k: 3 };
+      first = false;
+      // wide screens: the card sits on the right, so frame the spirit left of centre
+      const pd = peds[i], y = pd.y, side = matchMedia('(min-width:900px) and (min-aspect-ratio:4/3)').matches ? 1.25 : 0;
+      World.cine = { pos: new THREE.Vector3(pd.x * 0.55 + side, y + 2.3, pd.z + 5.4), look: new THREE.Vector3(pd.x + side, y + 0.9, pd.z), k: 3 };
       peds.forEach((p, k) => { if (p.rig) p.rig.moving = k === i ? 1 : 0; });
-      $('#sPrev').onclick = () => { Snd.fx('select'); i = (i + 2) % 3; render(); };
-      $('#sNext').onclick = () => { Snd.fx('select'); i = (i + 1) % 3; render(); };
+      $('#sPrev').onclick = () => { Snd.fx('select'); i = (i + 2) % 3; dir = -1; render(); };
+      $('#sNext').onclick = () => { Snd.fx('select'); i = (i + 1) % 3; dir = 1; render(); };
       $('#sOk').onclick = async () => {
         Snd.fx('confirm');
         el.hidden = true; hotkeyHandler = null;
         const c = await ask(`정말 ${josa(s.n, '으로')} 할까?`, ['응, 이 아이로 할래', '다시 고를래']);
         if (c === 0) { peds.forEach((p) => { if (p.rig) p.rig.moving = 0; }); resolve(sp); }
-        else { el.hidden = false; render(); bindKeys(); }
+        else { el.hidden = false; first = true; render(); bindKeys(); }
       };
+      if (!isTouch) $('#sOk').focus({ preventScroll: true });
     };
     const bindKeys = () => {
       hotkeyHandler = (code) => {
@@ -461,7 +510,7 @@ async function legendBattle(sp, rematch = false) {
     },
   });
   if (sp !== 'nihilos' && sp !== 'ensia') {
-    if (res === 'caught') { toast(`전설의 정령 ${josa(SPECIES[sp].n, '을를')} 봉인했다!`); Snd.fx('fragment'); }
+    if (res === 'caught') { toast(`전설의 정령 ${josa(SPECIES[sp].n, '을를')} 봉인했다!`, 'legend'); Snd.fx('fragment'); }
     refreshWorldLegends(); refreshMarkers(); updateHud(); save();
     if (res === 'caught') await checkLegendAwakenings();
     return res;
@@ -490,7 +539,7 @@ async function checkLegendAwakenings(silent = false) {
     if (!legendPresent(sp) || S.flags['seen_' + sp]) continue;
     S.flags['seen_' + sp] = true;
     refreshWorldLegends(); refreshMarkers();
-    if (!silent) { Snd.fx('chime'); await say(AWAKEN[sp], ''); toast(`전설의 기척: ${World.legendSites[sp].name}`); }
+    if (!silent) { Snd.fx('chime'); await say(AWAKEN[sp], ''); toast(`전설의 기척: ${World.legendSites[sp].name}`, 'legend'); }
   }
   refreshWorldLegends(); refreshMarkers(); updateHud();
 }
@@ -575,6 +624,27 @@ async function ensiaDescends() {
   G.busy = false;
   await legendBattle('ensia');
 }
+// the emblem (being | void halves split by the crack), reusable outside the title screen
+function emblemSvg(id = 'e') {
+  return `<svg class="emblem" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="${id}G" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff6dc"/><stop offset="1" stop-color="#c99a45"/></linearGradient><linearGradient id="${id}V" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e6d0ff"/><stop offset="1" stop-color="#5a2aa8"/></linearGradient></defs>
+    <g class="em-ring"><circle cx="60" cy="60" r="56" fill="none" stroke="rgba(242,212,138,.28)" stroke-width="1" stroke-dasharray="1.5 6.3"/></g><g class="em-core"><circle cx="60" cy="60" r="51" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="1"/>
+    <path d="M57 14 A46 46 0 0 0 57 106" fill="none" stroke="url(#${id}G)" stroke-width="4.5" stroke-linecap="round"/><path d="M63 14 A46 46 0 0 1 63 106" fill="none" stroke="url(#${id}V)" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M60 2 L56.5 28 L63 44 L57.5 60 L63.5 76 L57.5 93 L60 118" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round" opacity=".85"/><path d="M60 45 L63 57 L75 60 L63 63 L60 75 L57 63 L45 60 L57 57 Z" fill="#fff"/></g></svg>`;
+}
+// ending card: emblem, title, epilogue, run stats counting up; resolves when the player continues
+function showEndingCard() {
+  const caught = Object.keys(S.dex.caught).length, friends = S.party.length + S.box.length;
+  const top = Math.max(1, ...S.party.concat(S.box).map((m) => m.lv));
+  const el = $('#ending'); el.hidden = false;
+  el.innerHTML = `<div class="end-card" role="dialog" aria-labelledby="endT">${emblemSvg('end')}<p class="eyebrow">정령의 섬 · 에필로그</p><h2 id="endT">경계 위의 아이</h2>
+    <p>존재는 빚고, 공허는 비운다. 그 사이에서 숨 쉬는 모든 것이 바로 세계다.<br>하늘의 균열은 닫혔고, 섬에는 처음으로 새벽이 왔다.</p>
+    <div class="end-stats"><div><b><span class="n" data-v="0">0</span><small>/${DEX_ORDER.length}</small></b><span>도감</span></div><div><b><span class="n" data-v="0">0</span></b><span>함께한 정령</span></div><div><b><span class="n" data-v="0">0</span></b><span>최고 레벨</span></div></div>
+    <button class="btn primary" id="endOk">${uiIcon('play', 'ui-ico')}<span>계속 탐험하기</span></button></div>`;
+  const ns = el.querySelectorAll('.end-stats .n');
+  setTimeout(() => { tickNum(ns[0], caught, 1.4); tickNum(ns[1], friends, 1.2); tickNum(ns[2], top, 1.6); }, 1300);
+  if (!isTouch) setTimeout(() => { const b = $('#endOk'); if (b) b.focus({ preventScroll: true }); }, 1400);
+  return new Promise((r) => { $('#endOk').onclick = () => { Snd.fx('confirm'); r(); }; });
+}
 async function ending(res) {
   G.busy = true; showHud(false);
   const A = SITES.altar, ay = World.altarY;
@@ -589,117 +659,181 @@ async function ending(res) {
   setTimeout(() => refreshWorldEnv(), 4000);
   Snd.play('title');
   await wait(2.5);
-  const caught = Object.keys(S.dex.caught).length;
-  const el = $('#ending'); el.hidden = false;
-  el.innerHTML = `<p class="eyebrow">정령의 섬</p><h2>경계 위의 아이</h2>
-    <p>존재는 빚고, 공허는 비운다. 그 사이에서 숨 쉬는 모든 것이 바로 세계다.<br>하늘의 균열은 닫혔고, 섬에는 처음으로 새벽이 왔다.</p>
-    <p style="font-size:14px;color:var(--muted);font-family:var(--f-ui)">도감 ${caught} / ${DEX_ORDER.length} · 함께한 정령 ${S.party.length + S.box.length}</p>
-    <button class="btn primary" id="endOk">계속 탐험하기</button>`;
-  el.style.opacity = '0'; el.style.transition = 'opacity 1.4s'; requestAnimationFrame(() => { el.style.opacity = '1'; });
-  await new Promise((r) => { $('#endOk').onclick = r; });
+  await showEndingCard();
   el.hidden = true; World.cine = null; refreshLegendRig(); refreshMarkers(); placeRiftState();
   showHud(true); G.busy = false; save();
   await checkLegendAwakenings();
 }
 
 // ---------------------------------------------------------------- menus (overworld modal)
-function openModal(title, tabs, renderTab, start = 0) {
-  const md = $('#modal'); md.hidden = false; $('#mTitle').textContent = title;
-  const nav = $('#mTabs'); nav.innerHTML = '';
-  let cur = start;
-  const draw = () => { [...nav.children].forEach((b, i) => b.classList.toggle('on', i === cur)); renderTab(cur, $('#mBody'), draw); };
-  tabs.forEach((t, i) => { const b = document.createElement('button'); b.textContent = t; b.onclick = () => { cur = i; Snd.fx('select'); draw(); }; nav.appendChild(b); });
-  draw();
+// openModal(title, tabs, renderTab, start, icon): tabs = [label | [label, icon, count]] or a function returning that list
+// (re-read on every draw so counts stay current). renderTab(tab, body, redraw) fills #mBody.
+const Modal = { closeT: 0, tab: null, ntabs: 0 };
+function modalFocusables() { return [...$('#mBody').querySelectorAll('button:not(:disabled)')]; }
+function modalFocusFirst() {
+  const b = $('#mBody'), f = b.querySelector('.mon-row.sel') || modalFocusables()[0] || $('#mClose');
+  if (f) f.focus({ preventScroll: true });
 }
-function closeModal() { $('#modal').hidden = true; G.lock = 0.2; Input.actionQueued = false; updateHud(); }
+function openModal(title, tabs, renderTab, start = 0, icon = '') {
+  const md = $('#modal'), card = md.querySelector('.modal-card'), body = $('#mBody'), nav = $('#mTabs');
+  clearTimeout(Modal.closeT); md.classList.remove('closing'); md.hidden = false;
+  for (const e of [md, card]) { e.style.animation = 'none'; void e.offsetWidth; e.style.animation = ''; }
+  $('#mTitle').textContent = title; $('#mIco').innerHTML = icon ? uiIcon(icon, 'ui-ico') : '';
+  const tabsOf = typeof tabs === 'function' ? tabs : () => tabs;
+  nav.innerHTML = ''; nav.setAttribute('role', 'tablist');
+  let cur = start;
+  const draw = (anim) => {
+    tabsOf().forEach((t, i) => {
+      const [lbl, ico, cnt] = Array.isArray(t) ? t : [t], b = nav.children[i];
+      const h = `${ico ? uiIcon(ico, 'ui-ico') : ''}<span>${lbl}</span>${cnt != null ? `<small>${cnt}</small>` : ''}`;
+      if (b.dataset.h !== h) { b.innerHTML = h; b.dataset.h = h; }
+      b.classList.toggle('on', i === cur); b.setAttribute('aria-selected', String(i === cur));
+    });
+    // keep keyboard focus on the "same" control across a re-render
+    const ae = document.activeElement; let key = null;
+    if (!anim && ae && body.contains(ae)) key = ae.id ? '#' + ae.id : ae.dataset.i != null ? `[data-i="${ae.dataset.i}"]` : ae.dataset.q ? `[data-q="${ae.dataset.q}"]` : ae.dataset.id ? `[data-id="${ae.dataset.id}"]` : null;
+    body.classList.toggle('anim', !!anim);
+    renderTab(cur, body, () => draw(false));
+    if (key) { const n = body.querySelector(key); if (n) n.focus({ preventScroll: true }); }
+  };
+  tabsOf().forEach((t, i) => {
+    const b = document.createElement('button'); b.setAttribute('role', 'tab');
+    b.onclick = () => { if (cur === i) return; cur = i; Snd.fx('select'); body.scrollTop = 0; draw(true); };
+    nav.appendChild(b);
+  });
+  Modal.ntabs = nav.children.length;
+  Modal.tab = (d) => { if (!Modal.ntabs) return; cur = (cur + d + Modal.ntabs) % Modal.ntabs; Snd.fx('select'); body.scrollTop = 0; draw(true); if (!isTouch) modalFocusFirst(); };
+  body.scrollTop = 0; draw(true);
+  if (!isTouch) modalFocusFirst();
+}
+function closeModal() {
+  const md = $('#modal'); if (md.hidden || md.classList.contains('closing')) return;
+  md.classList.add('closing'); G.lock = 0.2; Input.actionQueued = false;
+  clearTimeout(Modal.closeT);
+  Modal.closeT = setTimeout(() => { md.hidden = true; md.classList.remove('closing'); updateHud(); }, 170);
+}
 $('#mClose').onclick = () => { Snd.fx('back'); closeModal(); };
-$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+$('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') { Snd.fx('back'); closeModal(); } });
 
+function monAvatar(m, cls = 'av') { return `<div class="${cls}" style="--tc:${TYPES[SPECIES[m.sp].t[0]].c}"><img src="${Icons.get(m.sp)}" alt=""></div>`; }
+function monRow(m, i, { sel = false, lead = false, tag = 'button', extra = '' } = {}) {
+  const mh = maxHp(m), f = m.hp / mh;
+  return `<${tag} class="mon-row${sel ? ' sel' : ''}${m.hp <= 0 ? ' fainted' : ''}" data-i="${i}"${tag === 'button' ? ` aria-pressed="${sel}"` : ''}${extra}>${monAvatar(m)}<div class="grow"><div class="top"><b>${monName(m)}${lead ? '<span class="badge">선두</span>' : ''}</b><span class="lvb2">Lv.<b>${m.lv}</b></span></div><div class="hprow"><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div><span>${m.hp}/${mh}</span></div></div></${tag}>`;
+}
 function monDetail(m, actions) {
-  const s = SPECIES[m.sp], names = ['체력', '공격', '방어', '속도'];
-  const vals = [maxHp(m), stat(m, 1), stat(m, 2), stat(m, 3)];
-  return `<div class="detail">
-    <div style="display:flex;gap:14px;align-items:center"><img src="${Icons.get(m.sp)}" alt="" style="width:96px;height:96px;border-radius:14px;background:rgba(255,255,255,.04)">
-      <div style="display:flex;flex-direction:column;gap:6px;min-width:0"><b style="font-family:var(--f-display);font-size:22px">${s.n} <span style="font-size:13px;color:var(--muted);font-family:var(--f-ui)">Lv.${m.lv}</span></b><div class="types" style="display:flex;gap:5px">${s.t.map(typeChip).join('')}</div>
-      <span style="font-size:12px;color:var(--muted)">다음 레벨까지 ${expNeed(m.lv) - m.exp} EXP${s.evo ? ` · Lv.${s.evo.lv}에 진화` : ''}</span></div></div>
+  const s = SPECIES[m.sp], tc = TYPES[s.t[0]].c, mh = maxHp(m);
+  const vals = [mh, stat(m, 1), stat(m, 2), stat(m, 3)], need = expNeed(m.lv);
+  return `<div class="detail" style="--tc:${tc}">
+    <div class="d-hero">${monAvatar(m)}
+      <div class="d-meta"><div class="d-name"><b>${s.n}</b><span class="lvb2">Lv.<b>${m.lv}</b></span></div><div class="types">${s.t.map(typeChip).join('')}</div>
+      <div class="d-xp"><span>다음 레벨까지 ${Math.max(0, need - m.exp)} EXP${s.evo ? ` · Lv.${s.evo.lv}에 진화` : ''}</span><div class="bar xp"><i style="width:${clamp(m.exp / need, 0, 1) * 100}%"></i></div></div></div></div>
     <p>${s.d}</p>
-    <div class="sel-stats">${vals.map((v, k) => `<span>${names[k]}</span><div class="bar"><i style="width:${clamp(v / (k ? 90 : 150), 0, 1) * 100}%;background:${TYPES[s.t[0]].c}"></i></div><span>${k === 0 ? m.hp + '/' : ''}${v}</span>`).join('')}</div>
+    <div class="section-h">능력치</div>
+    <div class="sel-stats">${statRows(vals, [150, 90, 90, 90], [`${m.hp}<small>/${mh}</small>`])}</div>
     <div class="section-h">기술</div>
-    <div class="moves">${m.moves.map((id) => `<div><span>${MOVES[id].n}</span>${typeChip(MOVES[id].t)}</div>`).join('')}</div>
+    <div class="moves">${m.moves.map((id) => { const M = MOVES[id]; return `<div class="mv-card" style="--tc:${TYPES[M.t].c}"><div class="mv-top"><b>${M.n}</b>${typeChip(M.t)}</div><small>${M.p ? `위력 ${M.p} · 명중 ${M.a}` : '변화 · ' + M.d.replace(/[.!].*$/, '')}</small></div>`; }).join('')}</div>
     ${actions ? `<div class="acts">${actions}</div>` : ''}
   </div>`;
 }
 function openParty(start = 0) {
   let sel = 0;
-  openModal('정령', ['동료', '보관함', '도감'], (tab, body, redraw) => {
+  const tabs = () => [['동료', 'party', S.party.length], ['보관함', 'box', S.box.length], ['도감', 'dex', `${Object.keys(S.dex.caught).length}/${DEX_ORDER.length}`]];
+  openModal('정령', tabs, (tab, body, redraw) => {
     if (tab === 0) {
-      body.innerHTML = S.party.map((m, i) => {
-        const f = m.hp / maxHp(m);
-        return `<button class="mon-row ${i === sel ? 'sel' : ''}" data-i="${i}"><img src="${Icons.get(m.sp)}" alt=""><div class="grow"><div class="top"><b>${monName(m)}${i === 0 ? '<span class="badge">선두</span>' : ''}</b><span>Lv.${m.lv} · ${m.hp}/${maxHp(m)}</span></div><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div></button>`;
-      }).join('') || '<p style="color:var(--muted)">아직 함께하는 정령이 없어요. 마을의 장로와 이야기해 보세요.</p>';
+      if (!S.party.length) { body.innerHTML = '<p class="m-empty">아직 함께하는 정령이 없어요.<br>마을 광장의 장로와 이야기해 보세요.</p>'; return; }
+      sel = Math.min(sel, S.party.length - 1);
       const m = S.party[sel];
-      if (m) body.insertAdjacentHTML('beforeend', monDetail(m, `${sel > 0 ? '<button class="chip" id="aLead">선두로 세우기</button>' : ''}${S.party.length > 1 ? '<button class="chip" id="aBox">보관함으로 보내기</button>' : ''}`));
-      body.querySelectorAll('.mon-row').forEach((b) => (b.onclick = () => { sel = +b.dataset.i; Snd.fx('select'); redraw(); }));
-      const al = $('#aLead'); if (al) al.onclick = () => { const [x] = S.party.splice(sel, 1); S.party.unshift(x); sel = 0; setFollower(x.sp); Snd.fx('confirm'); save(); redraw(); };
+      const acts = `${sel > 0 ? `<button class="chip gold" id="aLead">${uiIcon('party', 'ui-ico')}선두로 세우기</button>` : ''}${S.party.length > 1 ? `<button class="chip" id="aBox">${uiIcon('box', 'ui-ico')}보관함으로 보내기</button>` : ''}`;
+      body.innerHTML = `<div class="party-grid"><div class="plist">${S.party.map((p, i) => monRow(p, i, { sel: i === sel, lead: i === 0 })).join('')}</div>${monDetail(m, acts)}</div>`;
+      body.querySelectorAll('.mon-row').forEach((b) => (b.onclick = () => { if (sel === +b.dataset.i) return; sel = +b.dataset.i; Snd.fx('select'); redraw(); }));
+      const al = $('#aLead'); if (al) al.onclick = () => { const [x] = S.party.splice(sel, 1); S.party.unshift(x); sel = 0; setFollower(x.sp); Snd.fx('confirm'); toast(`${josa(monName(x), '이가')} 앞장선다`); save(); redraw(); };
       const ab = $('#aBox'); if (ab) ab.onclick = () => { const [x] = S.party.splice(sel, 1); S.box.push(x); sel = 0; setFollower(S.party[0].sp); Snd.fx('confirm'); save(); redraw(); };
     } else if (tab === 1) {
-      body.innerHTML = S.box.length ? S.box.map((m, i) => `<div class="mon-row"><img src="${Icons.get(m.sp)}" alt=""><div class="grow"><div class="top"><b>${monName(m)}</b><span>Lv.${m.lv}</span></div><div class="types" style="display:flex;gap:5px">${monTypes(m).map(typeChip).join('')}</div></div><button class="chip" data-i="${i}" ${S.party.length >= 6 ? 'disabled' : ''}>${S.party.length >= 6 ? '동료 가득' : '데려오기'}</button></div>`).join('')
-        : '<p style="color:var(--muted)">보관함이 비어 있어요. 동료가 6마리를 넘으면 새로 봉인한 정령이 이곳으로 와요.</p>';
+      const full = S.party.length >= 6;
+      body.innerHTML = S.box.length ? `<div class="box-grid">${S.box.map((m, i) => `<div class="mon-row">${monAvatar(m)}<div class="grow"><div class="top"><b>${monName(m)}</b><span class="lvb2">Lv.<b>${m.lv}</b></span></div><div class="types">${monTypes(m).map(typeChip).join('')}</div></div><button class="chip${full ? '' : ' gold'}" data-i="${i}" ${full ? 'disabled' : ''}>${full ? '동료 가득' : '데려오기'}</button></div>`).join('')}</div>`
+        : '<p class="m-empty">보관함이 비어 있어요.<br>동료가 6마리를 넘으면 새로 봉인한 정령이 이곳으로 와요.</p>';
       body.querySelectorAll('button[data-i]').forEach((b) => (b.onclick = () => { const [x] = S.box.splice(+b.dataset.i, 1); x.hp = maxHp(x); S.party.push(x); Snd.fx('confirm'); save(); redraw(); }));
     } else {
       const seen = Object.keys(S.dex.seen).length, caught = Object.keys(S.dex.caught).length;
-      body.innerHTML = `<p style="margin:0;color:var(--muted);font-size:13px">본 정령 ${seen} · 봉인한 정령 ${caught} / ${DEX_ORDER.length}</p><div class="dex">${DEX_ORDER.map((sp) => {
-        const s = SPECIES[sp], no = String(s.no).padStart(3, '0');
-        const lc = s.legend ? ` class="leg${s.mythic ? ' myth' : ''}"` : '';
-        const tag = s.legend ? `<span class="tag">${s.mythic ? '환상' : '전설'}</span>` : '';
-        if (S.dex.caught[sp]) return `<div${lc}><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no}</span></div>`;
-        if (S.dex.seen[sp]) return `<div class="sil${s.legend ? ' leg' + (s.mythic ? ' myth' : '') : ''}"><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no} · 봄${s.home ? ' · ' + s.home : ''}</span></div>`;
-        if (s.legend && legendPresent(sp)) return `<div class="leg${s.mythic ? ' myth' : ''}"><span class="unk">✦</span>${tag}<b style="color:var(--muted)">???</b><span class="no">${s.home}</span></div>`;
-        return `<div><span class="unk">?</span><b style="color:var(--muted)">???</b><span class="no">No.${no}</span></div>`;
+      body.innerHTML = `<div class="dex-head"><div class="dh-top"><span><b>${caught}</b> / ${DEX_ORDER.length} 봉인</span><span>발견 ${seen}</span></div><div class="bar"><i style="width:${caught / DEX_ORDER.length * 100}%"></i></div></div><div class="dex">${DEX_ORDER.map((sp) => {
+        const s = SPECIES[sp], no = String(s.no).padStart(3, '0'), lg = s.legend ? ' leg' + (s.mythic ? ' myth' : '') : '';
+        const tag = s.legend ? `<span class="dtag">${s.mythic ? '환상' : '전설'}</span>` : '';
+        if (S.dex.caught[sp]) return `<div class="${lg.trim()}" style="--tc:${TYPES[s.t[0]].c}"><span class="got" title="봉인함">${uiIcon('check', 'ui-ico')}</span><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no}</span></div>`;
+        if (S.dex.seen[sp]) return `<div class="sil${lg}"><img src="${Icons.get(sp)}" alt="">${tag}<b>${s.n}</b><span class="no">No.${no} · 봄${s.home ? ' · ' + s.home : ''}</span></div>`;
+        if (s.legend && legendPresent(sp)) return `<div class="${lg.trim()}"><span class="unk">✦</span>${tag}<b style="color:var(--muted)">???</b><span class="no">${s.home}</span></div>`;
+        return `<div class="none"><span class="unk">?</span><b style="color:var(--muted)">???</b><span class="no">No.${no}</span></div>`;
       }).join('')}</div>`;
     }
-  }, start);
+  }, start, 'party');
 }
+const ITEM_TINT = { crystal: '#f2d48a', origin: '#b06bff', potion: '#5fe08c', elixir: '#ffd36a' };
 function openBag() {
   openModal('가방', [], (tab, body, redraw) => {
     const ids = ['crystal', 'origin', 'potion', 'elixir'];
-    body.innerHTML = ids.map((id) => `<div class="item-row"><div><div class="nm">${ITEMS[id].n}</div><div class="ds">${ITEMS[id].d}</div></div><div style="display:flex;gap:10px;align-items:center"><span class="ct">×${S.items[id] || 0}</span>${ITEMS[id].field ? `<button class="chip" data-id="${id}" ${(S.items[id] || 0) > 0 ? '' : 'disabled'}>사용</button>` : ''}</div></div>`).join('');
+    body.innerHTML = ids.map((id) => {
+      const n = S.items[id] || 0;
+      return `<div class="item-row"><div class="item-ico" style="--ic:${ITEM_TINT[id]}">${uiIcon('i_' + id, 'it')}</div><div class="grow"><div class="nm">${ITEMS[id].n}</div><div class="ds">${ITEMS[id].d}</div></div><div class="ctl"><span class="ct${n ? '' : ' zero'}"><small>×</small>${n}</span>${ITEMS[id].field ? `<button class="chip gold" data-id="${id}" ${n > 0 && S.party.length ? '' : 'disabled'}>사용</button>` : ''}</div></div>`;
+    }).join('');
     body.querySelectorAll('button[data-id]').forEach((b) => (b.onclick = () => {
-      const id = b.dataset.id;
-      body.innerHTML = `<p style="margin:0;color:var(--muted)">${ITEMS[id].n}을(를) 누구에게 쓸까요?</p>` + S.party.map((m, i) => { const f = m.hp / maxHp(m); return `<button class="mon-row" data-i="${i}" ${m.hp >= maxHp(m) && !m.status ? 'disabled style="opacity:.45"' : ''}><img src="${Icons.get(m.sp)}" alt=""><div class="grow"><div class="top"><b>${monName(m)}</b><span>${m.hp}/${maxHp(m)}</span></div><div class="bar"><i style="width:${f * 100}%;background:${hpColor(f)}"></i></div></div></button>`; }).join('') + '<button class="chip" id="bBack">뒤로</button>';
-      body.querySelectorAll('.mon-row').forEach((r) => (r.onclick = () => { const m = S.party[+r.dataset.i]; S.items[id]--; m.hp = Math.min(maxHp(m), m.hp + ITEMS[id].heal); if (ITEMS[id].heal > 999) m.status = null; Snd.fx('heal'); toast(`${monName(m)}의 체력이 회복되었다`); save(); redraw(); }));
-      $('#bBack').onclick = () => redraw();
+      const id = b.dataset.id; Snd.fx('select');
+      body.innerHTML = `<div class="item-row"><div class="item-ico" style="--ic:${ITEM_TINT[id]}">${uiIcon('i_' + id, 'it')}</div><div class="grow"><div class="nm">${ITEMS[id].n} <span class="lvb2">×<b>${S.items[id] || 0}</b></span></div><div class="ds">${josa(ITEMS[id].n, '을를')} 누구에게 쓸까요?</div></div></div>`
+        + `<div class="plist">${S.party.map((m, i) => monRow(m, i, { extra: m.hp >= maxHp(m) && !m.status ? ' disabled' : '' })).join('')}</div><div class="acts"><button class="chip" id="bBack">${uiIcon('chevL', 'ui-ico')}뒤로</button></div>`;
+      body.querySelectorAll('.mon-row').forEach((r) => (r.onclick = () => { const m = S.party[+r.dataset.i]; S.items[id]--; m.hp = Math.min(maxHp(m), m.hp + ITEMS[id].heal); if (ITEMS[id].heal > 999) m.status = null; Snd.fx('heal'); toast(`${monName(m)}의 체력이 회복되었다`, 'heal'); save(); redraw(); }));
+      $('#bBack').onclick = () => { Snd.fx('back'); redraw(); };
+      if (!isTouch) modalFocusFirst();
     }));
-  });
+  }, 0, 'bag');
+}
+function keysHtml() {
+  const K = (k) => k.map((x) => `<kbd>${x}</kbd>`).join('');
+  const rows = isTouch ? [['', '왼쪽 스틱 이동'], ['', 'A 버튼 상호작용'], ['', '화면 끌어 시점 회전'], ['', '두 손가락 확대']]
+    : [[K(['W', 'A', 'S', 'D']), '이동'], [K(['Shift']), '달리기'], [K(['E']), '상호작용'], [K(['Q', 'R']), '시점'], [K(['P']), '정령'], [K(['B']), '가방'], [K(['Esc']), '설정'], ['', '드래그 시점 · 휠 확대']];
+  return rows.map(([k, t]) => `<span>${k}${t}</span>`).join('');
 }
 function openSettings() {
   let confirmReset = false;
   openModal('설정', [], (tab, body, redraw) => {
+    const lv = gfxLabel();
     body.innerHTML = `
-      <div class="item-row"><div><div class="nm">그래픽</div><div class="ds">최고: 앰비언트 오클루전까지 / 높음: 블룸 조명·그림자·풍성한 풀숲 / 낮음: 휴대폰 배터리 절약</div></div><button class="chip" id="oGfx">${gfxLabel()}</button></div>
-      <div class="item-row"><div><div class="nm">소리</div><div class="ds">배경 음악과 효과음</div></div><button class="chip" id="oSnd">${Settings.sound ? '켬' : '끔'}</button></div>
-      <div class="item-row"><div><div class="nm">저장</div><div class="ds">전투가 끝날 때와 중요한 순간마다 자동으로 저장돼요.</div></div><button class="chip" id="oSave">지금 저장</button></div>
-      <div class="item-row"><div><div class="nm">조작법</div><div class="ds">${isTouch ? '왼쪽 스틱 이동 · A 상호작용 · 빈 화면을 끌어 시점 회전 · 두 손가락으로 확대' : 'WASD·방향키 이동 · Shift 달리기 · E·Space 상호작용 · 드래그 또는 Q/R 시점 회전 · 휠 확대 · P 정령 · B 가방 · Esc 설정'}</div></div></div>
-      <div class="item-row"><div><div class="nm">처음부터</div><div class="ds">${confirmReset ? '한 번 더 누르면 모든 기록이 지워져요.' : '저장된 모험을 지우고 새로 시작해요.'}</div></div><button class="chip" id="oReset">${confirmReset ? '정말 지우기' : '새로 시작'}</button></div>`;
-    $('#oGfx').onclick = () => { cycleGfx(); redraw(); };
-    $('#oSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); redraw(); };
-    $('#oSave').onclick = () => { save(); toast('저장했어요'); };
-    $('#oReset').onclick = () => { if (!confirmReset) { confirmReset = true; redraw(); return; } try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
-  });
+      <div class="item-row"><div class="item-ico">${uiIcon('gfx', 'ui-ico')}</div><div class="grow"><div class="nm">그래픽</div><div class="ds">최고: 앰비언트 오클루전까지 · 높음: 블룸·그림자·풍성한 풀숲 · 낮음: 배터리 절약</div></div>
+        <div class="ctl"><div class="seg" role="radiogroup" aria-label="그래픽 품질">${['낮음', '높음', '최고'].map((l) => `<button role="radio" aria-checked="${l === lv}" class="${l === lv ? 'on' : ''}" data-q="${l}">${l}</button>`).join('')}</div></div></div>
+      <div class="item-row"><div class="item-ico">${uiIcon(Settings.sound ? 'sound' : 'mute', 'ui-ico')}</div><div class="grow"><div class="nm">소리</div><div class="ds">배경 음악과 효과음 · ${Settings.sound ? '켜짐' : '꺼짐'}</div></div><div class="ctl"><button class="switch" id="oSnd" role="switch" aria-checked="${!!Settings.sound}" aria-label="소리"></button></div></div>
+      <div class="item-row"><div class="item-ico">${uiIcon('save', 'ui-ico')}</div><div class="grow"><div class="nm">저장</div><div class="ds">전투가 끝날 때와 중요한 순간마다 자동으로 저장돼요.</div></div><div class="ctl"><button class="chip" id="oSave">${uiIcon('check', 'ui-ico')}지금 저장</button></div></div>
+      <div class="item-row"><div class="item-ico">${uiIcon('keys', 'ui-ico')}</div><div class="grow"><div class="nm">조작법</div><div class="keys">${keysHtml()}</div></div></div>
+      <div class="item-row"><div class="item-ico" style="--ic:#ff5a6a">${uiIcon('reset', 'ui-ico')}</div><div class="grow"><div class="nm">처음부터</div><div class="ds">${confirmReset ? '한 번 더 누르면 모든 기록이 지워져요.' : '저장된 모험을 지우고 새로 시작해요.'}</div></div><div class="ctl"><button class="chip danger${confirmReset ? ' armed' : ''}" id="oReset">${confirmReset ? '정말 지우기' : '새로 시작'}</button></div></div>`;
+    body.querySelectorAll('.seg button').forEach((b) => (b.onclick = () => { if (b.dataset.q === gfxLabel()) return; Snd.fx('select'); setGfx(b.dataset.q); redraw(); }));
+    $('#oSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); Snd.fx('select'); redraw(); };
+    $('#oSave').onclick = () => { save(); Snd.fx('confirm'); toast('저장했어요'); };
+    $('#oReset').onclick = () => { if (!confirmReset) { confirmReset = true; Snd.fx('select'); redraw(); return; } try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); };
+  }, 0, 'gear');
 }
 $('#bParty').onclick = () => { if (canMove()) { Snd.fx('select'); openParty(); } };
 $('#bBag').onclick = () => { if (canMove()) { Snd.fx('select'); openBag(); } };
 $('#bMenu').onclick = () => { if (canMove() || G.mode === 'world') { Snd.fx('select'); openSettings(); } };
 function worldHotkey(code) {
   if (G.mode !== 'world') return;
-  if (!$('#modal').hidden) { if (code === 'Escape' || code === 'KeyP' || code === 'KeyB') closeModal(); return; }
+  if (!$('#modal').hidden) {
+    if (code === 'Escape' || code === 'KeyP' || code === 'KeyB' || code === 'KeyM' || code === 'KeyI') { Snd.fx('back'); closeModal(); return; }
+    const hor = code === 'ArrowLeft' || code === 'ArrowRight', ver = code === 'ArrowUp' || code === 'ArrowDown';
+    if (hor && Modal.ntabs && !document.activeElement.closest('.seg')) { Modal.tab(code === 'ArrowRight' ? 1 : -1); return; }
+    if (hor || ver) {
+      const L = modalFocusables(); if (!L.length) return;
+      const i = L.indexOf(document.activeElement), d = code === 'ArrowDown' || code === 'ArrowRight' ? 1 : -1;
+      const n = L[i < 0 ? 0 : clamp(i + d, 0, L.length - 1)]; n.focus(); n.scrollIntoView({ block: 'nearest' });
+    }
+    return;
+  }
   if (!canMove()) return;
-  if (code === 'KeyP' || code === 'KeyI') openParty();
-  if (code === 'KeyB') openBag();
-  if (code === 'Escape' || code === 'KeyM') openSettings();
+  if (code === 'KeyP' || code === 'KeyI') { Snd.fx('select'); openParty(); }
+  if (code === 'KeyB') { Snd.fx('select'); openBag(); }
+  if (code === 'Escape' || code === 'KeyM') { Snd.fx('select'); openSettings(); }
 }
 
 function gfxLabel() { return Settings.high ? (Settings.ultra ? '최고' : '높음') : '낮음'; }
+function setGfx(l) {
+  Settings.high = l !== '낮음'; Settings.ultra = l === '최고';
+  saveSettings(); applyQuality();
+}
 function cycleGfx() {
   if (Settings.high && Settings.ultra) Settings.ultra = false;
   else if (Settings.high) Settings.high = false;
@@ -766,7 +900,8 @@ function areaAt(x, z) {
 const Area = { cur: null, cand: null, t: 0, shown: {}, timer: 0 };
 function showArea(a1, a2) {
   const el = $('#area'); el.querySelector('.a1').textContent = a1; el.querySelector('.a2').textContent = a2;
-  el.classList.add('on'); clearTimeout(Area.timer); Area.timer = setTimeout(() => el.classList.remove('on'), 3400);
+  if (el.classList.contains('on')) { el.classList.remove('on'); void el.offsetWidth; }
+  el.classList.add('on'); clearTimeout(Area.timer); Area.timer = setTimeout(() => el.classList.remove('on'), 3600);
 }
 function updateArea(dt) {
   const p = World.player.root.position, a = areaAt(p.x, p.z), n = a ? a.n : null;
@@ -800,7 +935,11 @@ function worldTick(dt) {
   let best = null, bd = 1e9;
   for (const it of interactables()) { const d = Math.hypot(p.x - it.x, p.z - it.z); if (d < it.r && d < bd) { bd = d; best = it; } }
   G.near = best;
-  if (best) { pr.hidden = false; pr.innerHTML = `<kbd>${isTouch ? 'A' : 'E'}</kbd>${best.label} · ${best.verb}`; } else pr.hidden = true;
+  if (best) {
+    const h = `<kbd>${isTouch ? 'A' : 'E'}</kbd><b>${best.label}</b><span>${best.verb}</span>`;
+    if (pr.dataset.h !== h) { pr.innerHTML = h; pr.dataset.h = h; }
+    pr.hidden = false;
+  } else pr.hidden = true;
   if (Input.actionQueued) {
     Input.actionQueued = false;
     if (best) { pr.hidden = true; Snd.fx('select'); Promise.resolve(best.fn()).catch((e) => console.error(e)).finally(() => updateHud()); }
@@ -823,18 +962,24 @@ function titleCam(dt) {
 }
 async function playLore() {
   G.mode = 'lore';
-  const el = $('#lore'), tx = $('#loreText'); el.hidden = false;
-  let skip = false;
-  $('#loreSkip').onclick = () => { skip = true; };
-  for (const line of LORE) {
-    if (skip) break;
-    tx.style.opacity = '0'; await sleep(450); if (skip) break;
-    tx.innerHTML = line; tx.style.opacity = '1';
-    for (let i = 0; i < 32 && !skip; i++) await sleep(100);
+  const el = $('#lore'), tx = $('#loreText'), dots = $('#loreDots'); el.hidden = false;
+  dots.innerHTML = LORE.map(() => '<i></i>').join('');
+  $('#loreHint').textContent = isTouch ? '화면을 누르면 다음 문장' : '클릭 · Enter 다음 문장 · Esc 건너뛰기';
+  let skip = false, adv = false;
+  $('#loreSkip').onclick = (e) => { e.stopPropagation(); Snd.fx('select'); skip = true; };
+  el.onclick = () => { adv = true; };
+  const key = (e) => { if (e.code === 'Escape') skip = true; else if (['Enter', 'Space', 'KeyE', 'KeyZ', 'ArrowRight'].includes(e.code)) adv = true; };
+  addEventListener('keydown', key);
+  for (let n = 0; n < LORE.length && !skip; n++) {
+    tx.classList.remove('on'); await sleep(n ? 560 : 250); if (skip) break;
+    tx.innerHTML = LORE[n]; void tx.offsetWidth; tx.classList.add('on'); adv = false;
+    [...dots.children].forEach((d, k) => { d.className = k < n ? 'done' : k === n ? 'on' : ''; });
+    for (let i = 0; i < 34 && !skip && !adv; i++) await sleep(100);
   }
-  tx.style.opacity = '0';
+  removeEventListener('keydown', key); el.onclick = null;
+  tx.classList.remove('on');
   await fadeTo(1, 0.8);
-  el.hidden = true;
+  el.hidden = true; Input.actionQueued = false;
 }
 async function enterWorld(fresh) {
   World.cine = null;
@@ -855,13 +1000,15 @@ async function enterWorld(fresh) {
   if (!fresh) setTimeout(() => { if (G.mode === 'world' && !G.busy) checkLegendAwakenings(); }, 1500);
   if (fresh) {
     await banner('윤슬마을', 'THE BOUNDARY ISLE', 'plain', 2.4);
-    toast('분수 앞의 장로에게 다가가 E(또는 A)를 눌러 보세요');
+    toast(isTouch ? '분수 앞의 장로에게 다가가 A 버튼으로 말을 걸어 보세요' : '분수 앞의 장로에게 다가가 E 키로 말을 걸어 보세요');
   } else toast('모험을 이어서 시작합니다');
 }
 
 // ---------------------------------------------------------------- main loop
 let lastT = performance.now();
 function frame(now) {
+  G.frames = (G.frames || 0) + 1;
+  if (G.freeze) { lastT = now; requestAnimationFrame(frame); return; }   // test harness: hold the last rendered frame (UI keeps animating)
   const rdt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
   const dt = rdt * timeScale();
   Post.update(rdt);
@@ -880,30 +1027,58 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+// loading screen: real progress (asset loader d/t, then the world-building stages)
+const LOAD_TIPS = [
+  '<b>공허</b>에는 빛과 존재가, <b>존재</b>에는 공허와 그림자가 강하다.',
+  '체력을 빨간색까지 깎은 뒤 봉인결정을 던지면 봉인이 훨씬 잘 된다.',
+  '마을의 <b>치유의 샘</b>에서 정령들의 체력을 모두 회복할 수 있다.',
+  '마비나 화상에 걸린 정령은 봉인하기가 더 쉽다.',
+  '나침반의 마름모 표식이 다음 목적지를 가리킨다.',
+];
+function loadProgress(d, t, msg) {
+  const k = t ? clamp(d / t, 0, 1) : 0, bar = $('#loadBar');
+  if (!bar) return;
+  bar.classList.remove('indet'); $('#loadFill').style.width = (k * 100).toFixed(1) + '%'; bar.setAttribute('aria-valuenow', String(Math.round(k * 100)));
+  $('#loadPct').textContent = Math.round(k * 100) + '%';
+  if (msg) $('#loadMsg').textContent = msg;
+}
+const nextPaint = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+function setTitleLabels() {
+  $('#btnGfx .lbl').textContent = '그래픽: ' + gfxLabel();
+  $('#btnSnd .lbl').textContent = '소리: ' + (Settings.sound ? '켬' : '끔');
+  $('#btnSnd svg').innerHTML = UI_ICON[Settings.sound ? 'sound' : 'mute'];
+}
 async function boot() {
-  $('#loadMsg').textContent = '에셋을 불러오는 중…';
-  await Assets.loadAll((d, t) => { $('#loadMsg').textContent = `에셋을 불러오는 중… ${d}/${t}`; });
-  $('#loadMsg').textContent = '섬을 빚는 중…';
-  await sleep(30);
+  $('#loadTip').innerHTML = LOAD_TIPS[Math.floor(Math.random() * LOAD_TIPS.length)];
+  const stage = (k, msg) => loadProgress(k, 1, msg);
+  stage(0.03, '에셋을 불러오는 중…');
+  await Assets.loadAll((d, t) => stage(0.03 + 0.75 * d / t, `에셋을 불러오는 중… ${d}/${t}`));
+  stage(0.8, '섬을 빚는 중…'); await nextPaint();
   buildWorld();
+  stage(0.9, '전투 무대를 세우는 중…'); await nextPaint();
   buildBattle();
   for (const d of NPC_DEFS) addNpc(d);
+  stage(0.95, '섬의 사람들을 깨우는 중…'); await nextPaint();
   for (const d of NPC_DEFS) Icons.portrait(d.id, d.look);
   applyQuality();
   setupPedestals(); placeRiftState(); refreshMarkers();
+  stage(1, '준비 완료');
   G.mode = 'title';
-  $('#btnGfx').textContent = '그래픽: ' + gfxLabel();
-  $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔');
+  setTitleLabels();
   const existing = loadSave();
-  if (existing) $('#btnCont').hidden = false;
+  if (existing) { $('#btnCont').hidden = false; $('#btnCont').classList.add('primary'); $('#btnNew').classList.remove('primary'); $('#btnCont').style.order = '-1'; }
   if (isTouch) { $('#keysHelp').textContent = '왼쪽 스틱으로 이동 · A 버튼으로 상호작용 · 화면을 끌어 시점 회전'; document.body.classList.add('has-touch'); }
   requestAnimationFrame(frame);
   window.__booted = true; clearTimeout(window.__bootTimer);
-  await sleep(120);
-  $('#loading').hidden = true; $('#title').hidden = false;
+  await sleep(160);
+  $('#title').hidden = false; $('#loading').classList.add('out');
+  setTimeout(() => { $('#loading').hidden = true; $('#loading').classList.remove('out'); }, 560);
+  // Enter / Space on the title starts (or continues) without having to reach for the mouse
+  hotkeyHandler = (code) => { if (G.mode === 'title' && (code === 'Enter' || code === 'Space')) (existing ? $('#btnCont') : $('#btnNew')).click(); };
   let armed = false;
   $('#btnNew').onclick = async () => {
-    if (existing && !armed) { armed = true; $('#btnNew').textContent = '한 번 더 누르면 새로 시작'; return; }
+    if (existing && !armed) { armed = true; $('#btnNew .lbl').textContent = '한 번 더 누르면 새로 시작'; Snd.fx('select'); return; }
+    hotkeyHandler = null;
     Snd.init(); Snd.play('title'); Snd.fx('confirm');
     S = newState(); setupPedestals(); placeRiftState(); refreshMarkers();
     $('#title').hidden = true;
@@ -912,17 +1087,20 @@ async function boot() {
     save();
   };
   $('#btnCont').onclick = async () => {
+    hotkeyHandler = null;
     Snd.init(); Snd.fx('confirm');
     S = existing;
     $('#title').hidden = true;
     await fadeTo(1, 0.6);
     await enterWorld(false);
   };
-  $('#btnGfx').onclick = () => { cycleGfx(); $('#btnGfx').textContent = '그래픽: ' + gfxLabel(); };
-  $('#btnSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); $('#btnSnd').textContent = '소리: ' + (Settings.sound ? '켬' : '끔'); };
+  $('#btnGfx').onclick = () => { cycleGfx(); Snd.fx('select'); setTitleLabels(); };
+  $('#btnSnd').onclick = () => { Snd.init(); Snd.setOn(!Settings.sound); Snd.fx('select'); setTitleLabels(); };
   window.addEventListener('beforeunload', () => { if (G.mode === 'world' && S.party.length) save(); });
 }
+// touch: the interact prompt itself is a button too
+$('#prompt').addEventListener('click', () => { if (isTouch) fireAction(); });
 
 // small debugging surface (used by the automated test harness)
-window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera, say, showArea, areaAt, Area, updateCompass, starterSelect, Assets, assetModel, assetTex, pbrSet, triplanarPBR, registerAssets };
+window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera, say, ask, toast, showArea, areaAt, Area, updateCompass, starterSelect, showEndingCard, loadProgress, openParty, openBag, openSettings, closeModal, Assets, assetModel, assetTex, pbrSet, triplanarPBR, registerAssets };
 boot().catch((e) => { console.error(e); $('#loadMsg').textContent = '시작하는 중 문제가 생겼어요: ' + e.message; });

@@ -357,9 +357,11 @@ function archQueueRoof(meta, M, roofHex, rng) {
       if (s > VL - 0.08) break;
       const eave = 1 - Math.min(1, r / 3);
       for (let c = 0; c < cols; c++) {
-        p.copy(o).addScaledVector(u, (c + 0.5) * w + (rng() - 0.5) * 0.012).addScaledVector(v, s + (rng() - 0.5) * 0.01).addScaledVector(n, 0.012 + rng() * 0.006);
+        // each course rests on the one below (lip lifted by one tile thickness, head dropped), and sits high enough
+        // that the head of a tile in the pan never dips under the deck boards
+        p.copy(o).addScaledVector(u, (c + 0.5) * w + (rng() - 0.5) * 0.012).addScaledVector(v, s + (rng() - 0.5) * 0.01).addScaledVector(n, 0.032 + rng() * 0.004);
         x.copy(u).multiplyScalar(w / 0.3);
-        z.copy(v).multiplyScalar(0.4).addScaledVector(n, -0.016 - rng() * 0.008).normalize();
+        z.copy(v).multiplyScalar(0.4).addScaledVector(n, -0.016 - rng() * 0.003).normalize();
         z.applyAxisAngle(n, (rng() - 0.5) * 0.03);
         y.crossVectors(z, u).normalize();
         L.makeBasis(x, y, z).setPosition(p).premultiply(M);
@@ -372,7 +374,7 @@ function archQueueRoof(meta, M, roofHex, rng) {
     const len = Rg[i + 6], cnt = Math.max(1, Math.ceil(len / 0.36));
     x.set(0, 1, 0).cross(z).normalize(); y.crossVectors(z, x);
     for (let k = 0; k < cnt; k++) {
-      p.copy(o).addScaledVector(z, (k * len) / cnt);
+      p.copy(o).addScaledVector(z, (k * len) / cnt).y += 0.07;          // clears the rolls of the top course
       L.makeBasis(x, y, z).setPosition(p).premultiply(M);
       Arch.ridges.push(L.clone(), tint(0.92));
     }
