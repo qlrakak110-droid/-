@@ -31,8 +31,8 @@ local MAT = Enum.Material
 -- 상수 (실측 m → stud)
 ------------------------------------------------------------------------------------------------------
 local BUDGET_TOTAL = 9000 -- 모듈 전체 파트 상한(하드 캡)
-local BUDGET_FAR = 6400 -- 먼 쪽 띠 계획 예산(추정치)
-local BUDGET_NEAR = 2450 -- 가까운 쪽 띠
+local BUDGET_FAR = 7050 -- 먼 쪽 띠 계획 예산(추정치는 실제보다 ~10% 큼)
+local BUDGET_NEAR = 2700 -- 가까운 쪽 띠
 local FULL_FAR = 3300 -- 먼 쪽 정밀 모델 예산
 local FULL_NEAR = 1250
 local FULL_RANGE_FAR = 4700 -- 히어로 카메라 가중 거리 이내 단지만 정밀
@@ -848,7 +848,7 @@ function Apartments.build(ctx: any)
 	for _, pr in plans do
 		local g = pr[1] :: Model
 		for _, cx in pr[2] :: { Complex } do
-			if Kit.stats.parts - start + cx.cost > BUDGET_TOTAL then
+			if Kit.stats.parts - start + cx.cost > BUDGET_TOTAL - 40 then -- 추정 오차 여유
 				continue
 			end
 			buildComplex(g, cx, rng)

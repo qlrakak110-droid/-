@@ -297,12 +297,17 @@ local function enterPhoto(prompt: ProximityPrompt)
 			exitPhoto()
 		end
 	end))
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local hrpPos = if hrp then hrp.Position else nil
 	table.insert(st.conns, RunService.Heartbeat:Connect(function()
 		local hum = humanoid()
 		if not hum or hum.Health <= 0 then
 			exitPhoto()
 		elseif os.clock() - st.t0 > 0.3 and hum.MoveDirection.Magnitude > 0.1 then
-			exitPhoto()
+			exitPhoto() -- 이동 입력
+		elseif hrp and hrpPos and (hrp.Position - hrpPos).Magnitude > 3 then
+			exitPhoto() -- 밀리거나 점프로 자리를 벗어남
 		end
 	end))
 	table.insert(st.conns, player.CharacterRemoving:Connect(function()
@@ -367,6 +372,17 @@ function CameraFx.init(): () -> ()
 		end
 		exitPhoto()
 	end
+end
+
+-- 다른 로컬 스크립트(예: UI 버튼)에서 사진 모드를 열고 닫을 수 있게 공개
+function CameraFx.enterPhoto(prompt: ProximityPrompt)
+	enterPhoto(prompt)
+end
+function CameraFx.exitPhoto()
+	exitPhoto()
+end
+function CameraFx.isPhotoMode(): boolean
+	return photo ~= nil
 end
 
 -- 맵 루트가 생기거나(재생성 포함) 사라질 때 init.client 가 호출

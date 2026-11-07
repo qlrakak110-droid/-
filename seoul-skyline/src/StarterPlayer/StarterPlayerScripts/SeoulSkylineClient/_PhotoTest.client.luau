@@ -1,8 +1,14 @@
 -- TEMP test (removed after verification)
 local plr = game:GetService("Players").LocalPlayer
+local CameraFx = require(script.Parent:WaitForChild("CameraFx"))
 local root = workspace:WaitForChild("SeoulSkyline")
-task.wait(1.2)
-print("PHOTO_TEST introPlayed", plr:GetAttribute("SeoulIntroPlayed"), "camType", workspace.CurrentCamera.CameraType)
+for i = 1, 6 do
+	task.wait(0.25)
+	local c = workspace.CurrentCamera
+	print("PHOTO_TEST t", i, c.CameraType, c.FieldOfView, c.CFrame.Position)
+end
+local introGui = plr.PlayerGui:FindFirstChild("SeoulIntro")
+print("PHOTO_TEST intro", plr:GetAttribute("SeoulIntroPlayed"), "introGui", introGui ~= nil, "cam", workspace.CurrentCamera.CameraType, workspace.CurrentCamera.FieldOfView)
 local prompt
 for _, d in root:GetDescendants() do
 	if d:IsA("ProximityPrompt") and d.ActionText == "사진 구도" then
@@ -10,21 +16,12 @@ for _, d in root:GetDescendants() do
 		break
 	end
 end
-print("PHOTO_TEST prompt", prompt and prompt:GetFullName())
-local char = plr.Character
-char:PivotTo(prompt.Parent.CFrame * CFrame.new(0, 0, 5))
-task.wait(0.5)
-prompt:InputHoldBegin()
-task.wait(0.1)
-prompt:InputHoldEnd()
-task.wait(2)
+print("PHOTO_TEST pcall", pcall(CameraFx.enterPhoto, prompt))
+print("PHOTO_TEST waiting", CameraFx.isPhotoMode())
+task.wait(1.5)
+local cam = workspace.CurrentCamera
 local dof = game:GetService("Lighting"):FindFirstChildOfClass("DepthOfFieldEffect")
-print("PHOTO_TEST in", "dof", dof and dof.Enabled, dof and dof.FarIntensity, dof and dof.NearIntensity, "gui", plr.PlayerGui:FindFirstChild("SeoulPhotoMode") ~= nil, "promptEnabled", prompt.Enabled, "camType", workspace.CurrentCamera.CameraType, "fov", workspace.CurrentCamera.FieldOfView)
-local hum = char:FindFirstChildOfClass("Humanoid")
-hum:Move(Vector3.new(1, 0, 0))
-task.wait(1)
-hum:Move(Vector3.zero)
-print("PHOTO_TEST out", "dof", dof and dof.Enabled, dof and dof.FarIntensity, "gui", plr.PlayerGui:FindFirstChild("SeoulPhotoMode") ~= nil, "promptEnabled", prompt.Enabled, "camType", workspace.CurrentCamera.CameraType)
-local n = 0
-for _, b in game:GetService("CollectionService"):GetTagged("SeoulBoat") do n += 1 end
-print("PHOTO_TEST boats", n, "beacons", #game:GetService("CollectionService"):GetTagged("SeoulBeacon"))
+print("PHOTO_TEST in", CameraFx.isPhotoMode(), "gui", plr.PlayerGui:FindFirstChild("SeoulPhotoMode") ~= nil, "dof", dof.Enabled, dof.FarIntensity, dof.NearIntensity, "prompt", prompt.Enabled, "cam", cam.CameraType, cam.FieldOfView, cam.CFrame.Position, "introGui", plr.PlayerGui:FindFirstChild("SeoulIntro") ~= nil)
+CameraFx.exitPhoto()
+task.wait(1.5)
+print("PHOTO_TEST out", CameraFx.isPhotoMode(), "gui", plr.PlayerGui:FindFirstChild("SeoulPhotoMode") ~= nil, "dof", dof.Enabled, dof.FarIntensity, "prompt", prompt.Enabled, "cam", cam.CameraType, cam.FieldOfView)

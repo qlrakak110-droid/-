@@ -30,8 +30,8 @@ local MAT = Enum.Material
 -- 상수
 ------------------------------------------------------------------------------------------------------
 local BUDGET_TOTAL = 5500 -- 모듈 하드 캡
-local BUDGET = { FarMid = 1900, FarFar = 1250, Near = 1000, InfillFar = 650, InfillNear = 380 } -- 구역별(밀도 배율 적용 전)
-local RESERVE_TAIL = 260 -- 산 + 바닥 판 몫
+local BUDGET = { FarMid = 2000, FarFar = 650, Near = 1050, InfillFar = 830, InfillNear = 650 } -- 구역별(밀도 배율 적용 전)
+local RESERVE_TAIL = 320 -- 산(~250) + 바닥 판(64) 몫
 local GAP = M(4) -- 건물 사이 최소 간격(예약 여유) 4 m
 
 -- 층고(실측): 오피스 4.0 m, 주거/상가 혼합 3.3 m
@@ -343,13 +343,13 @@ local function arcRange(parent: Instance, o: ArcOpts, rng: Random): number
 		-- 산자락(넓고 낮게, 주봉의 38~46%)
 		dome(parent, F, o.out, 0, 0, W, Hp * rng:NextNumber(0.38, 0.46), D, 0.3, rng:NextNumber(-3, 3), tone)
 		n += 1
-		-- 봉우리 3~5개(주봉 1 + 보조봉): 폭/높이 1.8~3.0, 기울기 ±6~20도 → 둥근 모래 언덕이 아니라 솟은 능선
-		local np = rng:NextInteger(3, 5)
+		-- 봉우리 4~6개(주봉 1 + 보조봉): 폭/높이 2.0~3.2, 기울기 ±6~20도 → 둥근 모래 언덕이 아니라 굴곡진 능선
+		local np = rng:NextInteger(4, 6)
 		for i = 1, np do
-			local ph = Hp * (if i == 1 then 1 else rng:NextNumber(0.55, 0.85))
-			local pw = ph * rng:NextNumber(1.8, 3.0)
+			local ph = Hp * (if i == 1 then 1 else rng:NextNumber(0.58, 0.9))
+			local pw = ph * rng:NextNumber(2.0, 3.2)
 			local pd = math.min(pw * rng:NextNumber(0.5, 0.7), D)
-			local lx = rng:NextNumber(-0.36, 0.36) * W
+			local lx = rng:NextNumber(-0.42, 0.42) * W
 			local tilt = rng:NextNumber(6, 20) * (if rng:NextNumber() < 0.5 then -1 else 1)
 			dome(parent, F, o.out, lx, D * rng:NextNumber(0.04, 0.16), pw, ph, pd, 0.14, tilt, tone:Lerp(o.color, 0.5))
 			n += 1
@@ -360,19 +360,26 @@ local function arcRange(parent: Instance, o: ArcOpts, rng: Random): number
 end
 
 -- 산자락 반지름(시점 기준) — 카펫이 산 속에 묻히지 않도록 fill 의 maxDist 로도 사용
-local FAR_FOOT = { front = 11000, mid = 12000, back = 12900 }
-local NEAR_FOOT = { front = 8600, back = 9900 }
+--   REACH: 산괴 중심이 시점에서 이 거리 안(원거리 컬링 ~16000 stud). 뒤 겹 = Config 산 능선 Z 와 REACH 중 가까운 쪽.
+local REACH = 15600
+local FAR_FOOT = {} :: { front: number, mid: number, back: number }
+FAR_FOOT.back = math.min(HERO.Z - ZN.MountainsFar.Z, REACH - 2700) -- 12900
+FAR_FOOT.mid = FAR_FOOT.back - 900 -- 12000
+FAR_FOOT.front = math.min(HERO.Z - Config.FarBank.CityTo - 1700, FAR_FOOT.mid - 1000) -- 11000 (도시 끝 뒤)
+local NEAR_FOOT = {} :: { front: number, back: number }
+NEAR_FOOT.back = math.min(ZN.MountainsNear.Z - DECK.Z + 400, REACH - 2700) -- 9900
+NEAR_FOOT.front = NEAR_FOOT.back - 1300 -- 8600 (가까운 쪽 도시 끝 뒤)
 
 local function mountains(parent: Instance, rng: Random, deckView: Vector3)
 	-- 대기 원근: 먼 겹일수록 밝고 푸른 회색. 기준 팔레트 Mountain / MountainFar 보다 어둡게 → 주황 대기 산란을 받아도 청회색.
-	local back = P.MountainFar:Lerp(rgb(30, 38, 52), 0.25)
-	local mid = P.Mountain:Lerp(P.MountainFar, 0.35):Lerp(rgb(20, 26, 36), 0.2)
-	local front = P.Mountain:Lerp(rgb(16, 22, 30), 0.35)
+	local back = P.MountainFar:Lerp(rgb(24, 32, 50), 0.35) -- ≈ (54, 64, 84)
+	local mid = P.Mountain:Lerp(rgb(18, 24, 38), 0.3) -- ≈ (36, 46, 58)
+	local front = P.Mountain:Lerp(rgb(12, 16, 26), 0.45) -- ≈ (30, 38, 48)
 	local far = Kit.group(parent, "MountainsFar")
-	-- 높이 300~600 m(1000~2000 stud), 산괴 폭 3~8 km
-	arcRange(far, { origin = HERO, out = -1, b0 = -76, b1 = 70, radius = FAR_FOOT.back, hMin = M(450), hMax = M(600), wMin = M(4500), wMax = M(8000), depthMax = 4400, color = back, phase = 1.3, freq = 9 }, rng)
-	arcRange(far, { origin = HERO, out = -1, b0 = -74, b1 = 66, radius = FAR_FOOT.mid, hMin = M(330), hMax = M(500), wMin = M(3500), wMax = M(6000), depthMax = 4000, color = mid, phase = 4.1, freq = 12 }, rng)
-	arcRange(far, { origin = HERO, out = -1, b0 = -70, b1 = 62, radius = FAR_FOOT.front, hMin = M(220), hMax = M(380), wMin = M(3000), wMax = M(5000), depthMax = 3600, color = front, phase = 2.6, freq = 15 }, rng)
+	-- 높이 200~540 m(호 배치로 실제보다 가까우므로 300~600 m 범위의 중하단), 산괴 폭 3~8 km
+	arcRange(far, { origin = HERO, out = -1, b0 = -76, b1 = 70, radius = FAR_FOOT.back, hMin = M(380), hMax = M(540), wMin = M(4500), wMax = M(8000), depthMax = 4400, color = back, phase = 1.3, freq = 9 }, rng)
+	arcRange(far, { origin = HERO, out = -1, b0 = -74, b1 = 66, radius = FAR_FOOT.mid, hMin = M(300), hMax = M(440), wMin = M(3500), wMax = M(6000), depthMax = 4000, color = mid, phase = 4.1, freq = 12 }, rng)
+	arcRange(far, { origin = HERO, out = -1, b0 = -70, b1 = 62, radius = FAR_FOOT.front, hMin = M(200), hMax = M(320), wMin = M(3000), wMax = M(5000), depthMax = 3600, color = front, phase = 2.6, freq = 15 }, rng)
 	local near = Kit.group(parent, "MountainsNear")
 	arcRange(near, { origin = deckView, out = 1, b0 = -82, b1 = 82, radius = NEAR_FOOT.back, hMin = M(400), hMax = M(580), wMin = M(4000), wMax = M(7000), depthMax = 4400, color = mid, phase = 0.4, freq = 10 }, rng)
 	arcRange(near, { origin = deckView, out = 1, b0 = -78, b1 = 78, radius = NEAR_FOOT.front, hMin = M(250), hMax = M(400), wMin = M(3000), wMax = M(5000), depthMax = 3600, color = front, phase = 3.3, freq = 14 }, rng)

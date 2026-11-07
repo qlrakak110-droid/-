@@ -559,6 +559,15 @@ local function buildDeck(parent: Instance)
 	for _, dx in { -M(4.5), M(4.5) } do
 		benchAt(parent, CFrame.new(cx + dx, DY, cz + M(3.4)), "Deck")
 	end
+	-- 볼라드 조명 2 (0.9 m): 데크 바닥을 따뜻하게 (히어로 좌하단에서 불 켜진 전망대로 읽히도록)
+	for i, dx in { -(hw - M(1)), hw - M(1) } do
+		local bx, bz = cx + dx, z1 - M(1)
+		Kit.vcyl(parent, Vector3.new(bx, DY + M(0.4) - 0.15, bz), M(0.8) + 0.3, M(0.2), STEEL, MAT.Metal, opts("Bollard", { collide = true }))
+		local bh = Kit.vcyl(parent, Vector3.new(bx, DY + M(0.85), bz), M(0.1), M(0.2), LAMP_HEAD, MAT.Neon, glowOpts("BollardLight"))
+		if i == 1 then
+			tryLight(bh, "PointLight", { color = P.LampWarm, brightness = 1.6, range = M(11) })
+		end
+	end
 
 	-- 포토 스팟: 바닥 표지판 + 삼각대(1.5 m) + 카메라(PhotoSpot, ProximityPrompt)
 	local px, pz = cx - M(2.6), z0 + M(1.6)
@@ -820,6 +829,9 @@ local function tree(parent: Instance, rng: Random, x: number, z: number, gy: num
 	Kit.vcyl(parent, Vector3.new(x, gy - 1 + trunkH / 2, z), trunkH, trunkD, BARK, MAT.Wood, { name = "Trunk", shadow = false, collide = true })
 	n += 1
 	local c = LEAVES[rng:NextInteger(1, #LEAVES)]
+	if lod >= 3 then
+		c = c:Lerp(LEAF_LIGHT, rng:NextNumber(0.12, 0.32)) -- 히어로 띠: 위에서 보이는 수관을 조금 밝게
+	end
 	local mat = if rng:NextNumber() < 0.6 then MAT.Grass else MAT.LeafyGrass
 	local cy = gy + th + hc * 0.5
 	local yaw = CFrame.Angles(0, rng:NextNumber(0, math.pi * 2), 0)
@@ -917,7 +929,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			end
 			local gy = groundAt(x, z)
 			local near = math.abs(x - VIEW_X) < M(475)
-			local lod = if belt or (near and D >= M(6.5)) then 3 else 2
+			local lod = if belt then 3 elseif near then 2 else 1
 			used += tree(parent, rng, x, z, gy, D, lod)
 			count += 1
 			hashAdd(trees, x, z, r)
