@@ -288,77 +288,94 @@ local function groundPad(parent: Instance, x0: number, x1: number, z0: number, z
 end
 
 ------------------------------------------------------------------------------------------------------
--- 산 능선
+-- 산 능선 — 대표 시점(히어로 카메라 / 전망대)을 중심으로 한 호(arc)를 따라 배치.
+--   서울은 산으로 둘러싸인 분지: 정면에서는 도시 끝 뒤로, 화면 양 끝에서는 조금 더 가까이 감싸 들어옴.
+--   호 배치 덕분에 모든 산괴 중심이 시점에서 ~15 km(대략 1만 5천 stud) 안 → Roblox/미리보기 원거리 컬링에 걸리지 않음.
 ------------------------------------------------------------------------------------------------------
-type RangeOpts = {
-	xMin: number,
-	xMax: number,
-	foot: number, -- 산자락이 땅에 닿는 앞쪽 Z (관람자 쪽 경계)
-	away: number, -- 관람자에서 멀어지는 Z 부호(먼 쪽 -1 / 가까운 쪽 +1)
-	hMin: number, -- 봉우리 높이(지면 위)
+type ArcOpts = {
+	origin: Vector3, -- 호 중심(대표 시점)
+	out: number, -- 바깥(시점 반대) 방향 Z 부호: 먼 쪽 -1 / 가까운 쪽 +1
+	b0: number, -- 방위각 범위(도, 시점 기준 정면 = 0)
+	b1: number,
+	radius: number, -- 산자락 앞 가장자리 반지름
+	hMin: number, -- 주봉 높이(지면 위)
 	hMax: number,
-	wMin: number, -- 산괴 폭
+	wMin: number, -- 산괴 폭(3~8 km)
 	wMax: number,
+	depthMax: number, -- 산괴 깊이 상한(원거리 컬링 반경 안에 중심을 두기 위함)
 	color: Color3,
 	phase: number,
-	freq: number,
+	freq: number, -- 방위각(도)당 높이 물결
 }
 
 local MOUNTAIN_MAT = MAT.Fabric -- 무광(스페큘러 없음): 노을빛에 모래 언덕처럼 번들거리지 않게
 
--- 땅에 묻힌 타원체: 지면 위 높이 H, sink = 반높이 중 땅 아래 비율. 앞쪽(관람자 쪽) 가장자리 = footZ.
-local function dome(parent: Instance, x: number, footZ: number, away: number, w: number, H: number, d: number, sink: number, c: Color3)
-	local halfY = H / (1 - sink)
-	local cy = CITY_Y + H - halfY
-	local zc = footZ + away * (d / 2) * math.sqrt(1 - sink * sink) -- 지면 단면 반지름만큼 뒤로
-	Kit.ellipsoid(parent, CFrame.new(x, cy, zc), Vector3.new(w, halfY * 2, d), c, MOUNTAIN_MAT, { name = "Ridge", shadow = false, query = false, collide = false })
+-- 호 위 방위각 bdeg 의 산괴 프레임: 위치 = 산자락 앞 가장자리, local X = 접선, local Z * out = 바깥
+local function arcFrame(o: ArcOpts, bdeg: number): CFrame
+	local t = math.rad(bdeg)
+	if o.out < 0 then
+		return CFrame.new(o.origin.X + o.radius * math.sin(t), 0, o.origin.Z - o.radius * math.cos(t)) * CFrame.Angles(0, -t, 0)
+	end
+	return CFrame.new(o.origin.X + o.radius * math.sin(t), 0, o.origin.Z + o.radius * math.cos(t)) * CFrame.Angles(0, t, 0)
 end
 
-local function range(parent: Instance, o: RangeOpts, rng: Random): number
+-- 땅에 묻힌 타원체: 지면 위 높이 H, sink = 반높이 중 땅 아래 비율, foot = 프레임 기준 앞 가장자리에서 바깥으로 민 거리,
+-- tilt = 접선 방향 기울기(도) → 한쪽은 가파르고 한쪽은 완만한 비대칭 봉우리
+local function dome(parent: Instance, F: CFrame, out: number, lx: number, foot: number, w: number, H: number, d: number, sink: number, tilt: number, c: Color3)
+	local halfY = H / (1 - sink)
+	local cy = CITY_Y + H - halfY
+	local lz = out * (foot + (d / 2) * math.sqrt(1 - sink * sink))
+	local cf = F * CFrame.new(lx, cy, lz) * CFrame.Angles(0, 0, math.rad(tilt))
+	Kit.ellipsoid(parent, cf, Vector3.new(w, halfY * 2, d), c, MOUNTAIN_MAT, { name = "Ridge", shadow = false, query = false, collide = false })
+end
+
+local function arcRange(parent: Instance, o: ArcOpts, rng: Random): number
 	local n = 0
-	local x = o.xMin - rng:NextNumber(0.3, 0.5) * o.wMax
-	while x < o.xMax do
+	local b = o.b0 - math.deg(o.wMax * 0.3 / o.radius)
+	while b < o.b1 do
 		local W = rng:NextNumber(o.wMin, o.wMax)
-		local cx = x + W / 2
-		local wave = 0.5 + 0.5 * math.sin(cx * o.freq + o.phase) * math.cos(cx * o.freq * 0.41 + o.phase * 1.7)
+		local bc = b + math.deg(W * 0.5 / o.radius)
+		local F = arcFrame(o, bc)
+		local wave = 0.5 + 0.5 * math.sin(bc * o.freq + o.phase) * math.cos(bc * o.freq * 0.43 + o.phase * 1.7)
 		local Hp = (o.hMin + (o.hMax - o.hMin) * wave) * rng:NextNumber(0.88, 1.08)
-		local foot = o.foot + o.away * rng:NextNumber(0, 0.12) * W
-		local tone = o.color:Lerp(rgb(26, 32, 42), rng:NextNumber(0, 0.14))
-		-- 산자락(넓고 낮게, 40~48%)
-		dome(parent, cx, foot, o.away, W, Hp * rng:NextNumber(0.4, 0.48), W * rng:NextNumber(0.42, 0.55), 0.3, tone)
+		local D = math.min(W * rng:NextNumber(0.32, 0.42), o.depthMax)
+		local tone = o.color:Lerp(rgb(20, 26, 36), rng:NextNumber(0, 0.15))
+		-- 산자락(넓고 낮게, 주봉의 38~46%)
+		dome(parent, F, o.out, 0, 0, W, Hp * rng:NextNumber(0.38, 0.46), D, 0.3, rng:NextNumber(-3, 3), tone)
 		n += 1
-		-- 봉우리 2~4개 (주봉 1 + 보조봉): 폭/높이 2.2~3.4 → 둥근 모래 언덕이 아니라 솟은 능선
-		local np = rng:NextInteger(2, 4)
+		-- 봉우리 3~5개(주봉 1 + 보조봉): 폭/높이 1.8~3.0, 기울기 ±6~20도 → 둥근 모래 언덕이 아니라 솟은 능선
+		local np = rng:NextInteger(3, 5)
 		for i = 1, np do
-			local ph = Hp * (if i == 1 then 1 else rng:NextNumber(0.58, 0.86))
-			local pw = ph * rng:NextNumber(2.2, 3.4)
-			local px = cx + rng:NextNumber(-0.34, 0.34) * W
-			local pf = foot + o.away * rng:NextNumber(0.06, 0.22) * W
-			dome(parent, px, pf, o.away, pw, ph, pw * rng:NextNumber(0.6, 0.85), 0.12, tone:Lerp(o.color, 0.5))
+			local ph = Hp * (if i == 1 then 1 else rng:NextNumber(0.55, 0.85))
+			local pw = ph * rng:NextNumber(1.8, 3.0)
+			local pd = math.min(pw * rng:NextNumber(0.5, 0.7), D)
+			local lx = rng:NextNumber(-0.36, 0.36) * W
+			local tilt = rng:NextNumber(6, 20) * (if rng:NextNumber() < 0.5 then -1 else 1)
+			dome(parent, F, o.out, lx, D * rng:NextNumber(0.04, 0.16), pw, ph, pd, 0.14, tilt, tone:Lerp(o.color, 0.5))
 			n += 1
 		end
-		x += W * rng:NextNumber(0.5, 0.72)
+		b += math.deg(W * rng:NextNumber(0.5, 0.7) / o.radius)
 	end
 	return n
 end
 
-local function mountains(parent: Instance, rng: Random)
-	local MF, MN = ZN.MountainsFar, ZN.MountainsNear
-	local F, N = Config.FarBank, Config.NearBank
-	-- 대기 원근: 먼 겹일수록 밝고 푸른 회색. 기준 팔레트 Mountain / MountainFar.
-	local farBack = P.MountainFar:Lerp(rgb(104, 116, 140), 0.35)
-	local farMid = P.MountainFar
-	local farFront = P.Mountain
+-- 산자락 반지름(시점 기준) — 카펫이 산 속에 묻히지 않도록 fill 의 maxDist 로도 사용
+local FAR_FOOT = { front = 11000, mid = 12000, back = 12900 }
+local NEAR_FOOT = { front = 8600, back = 9900 }
+
+local function mountains(parent: Instance, rng: Random, deckView: Vector3)
+	-- 대기 원근: 먼 겹일수록 밝고 푸른 회색. 기준 팔레트 Mountain / MountainFar 보다 어둡게 → 주황 대기 산란을 받아도 청회색.
+	local back = P.MountainFar:Lerp(rgb(30, 38, 52), 0.25)
+	local mid = P.Mountain:Lerp(P.MountainFar, 0.35):Lerp(rgb(20, 26, 36), 0.2)
+	local front = P.Mountain:Lerp(rgb(16, 22, 30), 0.35)
 	local far = Kit.group(parent, "MountainsFar")
-	local frontFoot = math.min(F.CityTo - M(150), MF.Z + M(600))
-	-- 먼 겹 → 가까운 겹 (그리기 순서와 무관하지만 읽기 쉽게). 높이 300~600 m, 산괴 폭 3~8 km
-	range(far, { xMin = MF.XMin, xMax = MF.XMax, foot = MF.Z - M(800), away = -1, hMin = M(430), hMax = M(600), wMin = M(5000), wMax = M(8000), color = farBack, phase = 1.3, freq = 1 / 4200 }, rng)
-	range(far, { xMin = MF.XMin, xMax = MF.XMax, foot = MF.Z, away = -1, hMin = M(340), hMax = M(520), wMin = M(4000), wMax = M(6500), color = farMid, phase = 4.1, freq = 1 / 3300 }, rng)
-	range(far, { xMin = MF.XMin * 0.8, xMax = MF.XMax * 0.8, foot = frontFoot, away = -1, hMin = M(220), hMax = M(380), wMin = M(3000), wMax = M(5000), color = farFront, phase = 2.6, freq = 1 / 2600 }, rng)
+	-- 높이 300~600 m(1000~2000 stud), 산괴 폭 3~8 km
+	arcRange(far, { origin = HERO, out = -1, b0 = -76, b1 = 70, radius = FAR_FOOT.back, hMin = M(450), hMax = M(600), wMin = M(4500), wMax = M(8000), depthMax = 4400, color = back, phase = 1.3, freq = 9 }, rng)
+	arcRange(far, { origin = HERO, out = -1, b0 = -74, b1 = 66, radius = FAR_FOOT.mid, hMin = M(330), hMax = M(500), wMin = M(3500), wMax = M(6000), depthMax = 4000, color = mid, phase = 4.1, freq = 12 }, rng)
+	arcRange(far, { origin = HERO, out = -1, b0 = -70, b1 = 62, radius = FAR_FOOT.front, hMin = M(220), hMax = M(380), wMin = M(3000), wMax = M(5000), depthMax = 3600, color = front, phase = 2.6, freq = 15 }, rng)
 	local near = Kit.group(parent, "MountainsNear")
-	local nearFoot = math.max(N.CityTo + M(150), MN.Z - M(500))
-	range(near, { xMin = MN.XMin, xMax = MN.XMax, foot = MN.Z + M(600), away = 1, hMin = M(400), hMax = M(580), wMin = M(4500), wMax = M(7500), color = farMid, phase = 0.4, freq = 1 / 3800 }, rng)
-	range(near, { xMin = MN.XMin * 0.85, xMax = MN.XMax * 0.85, foot = nearFoot, away = 1, hMin = M(250), hMax = M(400), wMin = M(3000), wMax = M(5000), color = farFront, phase = 3.3, freq = 1 / 2800 }, rng)
+	arcRange(near, { origin = deckView, out = 1, b0 = -82, b1 = 82, radius = NEAR_FOOT.back, hMin = M(400), hMax = M(580), wMin = M(4000), wMax = M(7000), depthMax = 4400, color = mid, phase = 0.4, freq = 10 }, rng)
+	arcRange(near, { origin = deckView, out = 1, b0 = -78, b1 = 78, radius = NEAR_FOOT.front, hMin = M(250), hMax = M(400), wMin = M(3000), wMax = M(5000), depthMax = 3600, color = front, phase = 3.3, freq = 14 }, rng)
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -401,6 +418,7 @@ function CityCarpet.build(ctx: any)
 		beaconFar = true,
 		guard = false,
 		low = false,
+		maxDist = FAR_FOOT.front - 150,
 	}, rng, left())
 
 	-- 2) 원경(먼 쪽): far — 5~25층(16~80 m), 블록 단위로 크게
@@ -428,6 +446,7 @@ function CityCarpet.build(ctx: any)
 		beaconFar = true,
 		guard = false,
 		low = false,
+		maxDist = FAR_FOOT.front - 150,
 	}, rng, left())
 
 	-- 3) 관람자 뒤쪽 도시: 가까운 줄 mid, 먼 줄 far
@@ -459,13 +478,14 @@ function CityCarpet.build(ctx: any)
 		beaconFar = true,
 		guard = false,
 		low = false,
+		maxDist = NEAR_FOOT.front - 150,
 	}, rng, left())
 
 	-- 4) 저층 채움: 아파트 띠의 빈 블록 + 아파트 띠 바깥 옆 구간 (먼 쪽 / 가까운 쪽) — 2~10층 상가/빌라
 	local function lowStyle(_z: number, _h: number, _r: Random): string
 		return "mid"
 	end
-	local function infill(name: string, rects: { Rect }, viewer: Vector3, frustum: boolean, budget: number)
+	local function infill(name: string, rects: { Rect }, viewer: Vector3, frustum: boolean, budget: number, maxDist: number)
 		fill(model, {
 			name = name,
 			rects = rects,
@@ -488,18 +508,19 @@ function CityCarpet.build(ctx: any)
 			beaconFar = false,
 			guard = frustum,
 			low = true,
+			maxDist = maxDist,
 		}, rng, left())
 	end
 	infill("InfillFar", {
 		AF,
 		{ XMin = CFM.XMin, XMax = AF.XMin, ZMin = AF.ZMin, ZMax = F.CityFrom },
 		{ XMin = AF.XMax, XMax = CFM.XMax, ZMin = AF.ZMin, ZMax = F.CityFrom },
-	}, HERO, true, BUDGET.Infill * 0.72)
+	}, HERO, true, BUDGET.InfillFar, FAR_FOOT.front - 150)
 	infill("InfillNear", {
 		AN,
 		{ XMin = CN.XMin, XMax = AN.XMin, ZMin = N.CityFrom, ZMax = CN.ZMin },
 		{ XMin = AN.XMax, XMax = CN.XMax, ZMin = N.CityFrom, ZMax = CN.ZMin },
-	}, deckView, false, BUDGET.Infill * 0.28)
+	}, deckView, false, BUDGET.InfillNear, NEAR_FOOT.front - 150)
 
 	-- 5) 카펫 바닥 판(도시 지면 바깥 좌우 구간): 먼 쪽 |X| 8800 ~ CarpetFarFar 끝, 가까운 쪽 |X| 6300 ~ CarpetNear 끝
 	local pads = Kit.group(model, "CarpetGround")
@@ -510,7 +531,7 @@ function CityCarpet.build(ctx: any)
 	groundPad(pads, 6300, CN.XMax, N.CityFrom, N.CityTo)
 
 	-- 6) 원경 산 능선
-	mountains(Kit.group(model, "Mountains"), rng)
+	mountains(Kit.group(model, "Mountains"), rng, deckView)
 
 	model:SetAttribute("Parts", Kit.stats.parts - start)
 	print(string.format("[CityCarpet] 파트 %d", Kit.stats.parts - start))

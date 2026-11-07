@@ -386,7 +386,7 @@ local function tree(parent: Instance, rng: Random, x: number, z: number, y0: num
 	end
 end
 
--- 둔치 보안등 4.5 m: 기둥 + 등 머리(0.6 m) (+ 갓)
+-- 둔치 보안등 4.5 m: 기둥 + 등 머리(0.5 m) (+ 갓)
 local function parkLamp(parent: Instance, x: number, z: number, cap: boolean): BasePart
 	local head = m(0.5)
 	local ground = L.Promenade - 0.5
@@ -403,6 +403,10 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 	local e, s = F.WaterEdge, -1
 	bankEdge(parent, e, s)
 	local gaps = { GAP_PARK }
+	-- 난간 1.1 m (원경: 손잡이 + 중간 레일만)
+	local rz = e + s * (PROM_IN + m(0.12))
+	stripX(parent, -6000, 6000, rz, m(0.1), PATH_TOP + Config.Real.Railing, m(0.08), POLE_C, MAT.Metal, { name = "RailTop", shadow = false }, gaps)
+	stripX(parent, -6000, 6000, rz, m(0.05), PATH_TOP + m(0.5), m(0.05), POLE_C, MAT.Metal, deco("RailMid", { shadow = false }), gaps)
 	-- 보안등 줄 (산책로-자전거도로 사이 녹지) + 수면 반사(2개에 1개, 히어로 화면 안)
 	local lampZ = e + s * VERGE_U
 	local n = 0
