@@ -458,7 +458,8 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, l
 	local toward = frame:VectorToObjectSpace(Vector3.new(0, 0, o.waterSign))
 	local shopLocal: Vector3
 	local shopYaw = frameYaw
-	local edgeW, edgeD = if useLawn then lawnW else blockW, if useLawn then lawnD else blockD
+	local edgeW: number = (if useLawn then lawnW else blockW)
+	local edgeD: number = (if useLawn then lawnD else blockD)
 	if math.abs(toward.Z) >= math.abs(toward.X) then
 		local sgn = if toward.Z > 0 then 1 else -1
 		shopLocal = Vector3.new(rng:NextNumber(-0.3, 0.3) * blockW, 0, sgn * (edgeD / 2 + SHOP_GAP + shopD / 2))
@@ -831,7 +832,7 @@ function Apartments.build(ctx: any)
 		fullRange = FULL_RANGE_NEAR,
 		liteRange = LITE_RANGE_NEAR,
 		towerChance = 0.14,
-		waterZ = N.CityFrom + M(110),
+		waterZ = N.CityFrom + M(150),
 		waterSign = -1,
 		labelFace = -1,
 		guard = false,

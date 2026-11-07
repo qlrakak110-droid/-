@@ -39,7 +39,7 @@ local LOBBY_H = m2s(13.5) -- 지면 → 첫 오피스 층 슬래브 (로비 2개
 local PLINTH_H = m2s(0.36) -- 화강석 기단 (포장보다 0.8 stud 높은 낮은 단)
 local TAPER_POW = 1.4 -- >1 : 중간이 불룩, 꼭대기 쪽에서 빠르게 가늘어짐
 local CORNER_R = 0.12 -- 모서리 반경 / 폭
-local SLAB_RATIO = 0.4 -- 층 높이 중 유리 슬래브(스팬드럴) 비율 → 1.7 m 띠 + 2.5 m 창
+local SLAB_RATIO = 0.46 -- 층 높이 중 유리 슬래브(스팬드럴) 비율 → 1.9 m 띠 + 2.3 m 창
 local CORE_INSET = m2s(0.3) -- 코어가 바로 위 슬래브보다 들어간 깊이
 local SEAM_W = m2s(2.0) -- 면 중앙 솔기 폭
 local SEAM_FROM = 0.1 -- 솔기가 시작하는 높이(비율)
@@ -57,12 +57,12 @@ local LAMP_H = m2s(7) -- 광장 가로등
 local PLANTER_H = m2s(0.55) -- 앉을 수 있는 화단 턱
 -- 색
 local GLASS = P.GlassBlue:Lerp(P.GlassSilver, 0.25) -- 은청색 반사 유리(하늘을 비춰 밝아 보이므로 조금 어둡게)
-local SEAM_C = rgb(255, 206, 128)
+local SEAM_C = rgb(236, 188, 114)
 local RIB_C = rgb(178, 160, 128) -- 블룸이 켜져 있으므로 격자는 중간 밝기
 local RIB_CORNER_C = rgb(214, 196, 158)
 local LANTERN_C = rgb(92, 78, 60)
 local LOBBY_C = rgb(214, 160, 92)
-local CORE_PAL = { P.WindowWarm, P.WindowWarm, P.WindowWarm, P.WindowGold, P.WindowGold, P.WindowWarmDim, rgb(255, 178, 92), P.WindowCoolDim }
+local CORE_PAL = { P.WindowWarm, P.WindowWarm, P.WindowGold, P.WindowGold, P.WindowWarmDim, P.WindowWarmDim, rgb(255, 178, 92), P.WindowCoolDim, P.WindowCool }
 local MALL_LIT = { rgb(156, 112, 66), rgb(140, 100, 60), rgb(168, 128, 80), rgb(120, 96, 70), rgb(104, 118, 142) }
 local DOME_C = rgb(52, 98, 178)
 local DOME_RIB_C = rgb(120, 182, 255)
@@ -182,7 +182,7 @@ end
 ------------------------------------------------------------------------------------------------------
 local function coreColor(rng: Random, t: number, faceK: number, refuge: boolean): Color3
 	local c = CORE_PAL[rng:NextInteger(1, #CORE_PAL)]
-	local k = faceK * rng:NextNumber(0.6, 0.88)
+	local k = faceK * rng:NextNumber(0.5, 0.82)
 	if rng:NextNumber() < 0.12 then
 		k *= 0.5 -- 드문드문 불 꺼진 층 묶음
 	end
@@ -219,7 +219,7 @@ local function buildShaft(m: Model, TF: CFrame, rng: Random): number
 		-- 2) 조명 코어: 이 세그먼트 위의(더 좁은) 슬래브 기준으로 inset → 모든 슬래브보다 안쪽
 		local wTop = widthAt(y1 + slabH / 2)
 		local refuge = (k % REFUGE_EVERY) == REFUGE_EVERY - 1
-		local cA, cB = coreColor(rng, t, 1.0, refuge), coreColor(rng, t, 0.84, refuge)
+		local cA, cB = coreColor(rng, t, 1.0, refuge), coreColor(rng, t, 0.7, refuge) -- ±Z 면은 어둡게(면 대비)
 		rsquare(m, TF * CFrame.new(0, (y0 + y1) / 2, 0), wTop - 2 * CORE_INSET, hs, wTop * CORNER_R - CORE_INSET, cA, cB, cA:Lerp(cB, 0.5), coreMk)
 		-- 3) 면 중앙 솔기 (관통 핀 2개 → 4면)
 		if y0 >= H * SEAM_FROM then
