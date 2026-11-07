@@ -7,7 +7,8 @@
 --     그 강 쪽 가장자리 산책로의 공원등(4.5 m) 줄이 수관을 아래에서 비춤.
 --   * 높이 층(겹치는 면 없음): 잔디(지형) 5.0 / 연결 산책로 +0.4 (이음 원판 +0.1) / 메인·강변 산책로 +0.8
 --     (이음 +0.5) / 광장·매점 테라스·주차장 +1.2 / 주차선 +1.5.  교차부는 위층이 아래층을 덮음.
---   * 전망대(60 m): DeckCenter 위 20 x 14 m 데크(유리 난간 1.15 m, 망원경 1.3 m, 벤치 0.45 m) + 4 기둥.
+--   * 전망대(60 m): DeckCenter 위 16 x 12 m 데크(유리 난간 1.15 m, 망원경 1.3 m, 벤치 0.45 m), 콘크리트 코어 Ø 3.2 m
+--     + 경사 버팀대 4.
 --     뒤쪽 원통 유리 계단탑: 가운데 유리 엘리베이터 샤프트(Ø 2.7 m) + 둘레 나선 계단(유효폭 1.6 m,
 --     챌판 0.17 m / 디딤판 0.30 m, 한 바퀴 48 단 = 8.2 m) → 꼭대기 착지판 → 데크. 지붕 없음(히어로 좌하단 가림 방지).
 --   * 나무: 줄기 1 + 수관 타원체 1~3 개. 높이 8 ~ 14 m, 줄기 Ø 0.3 ~ 0.6 m, 수관 Ø 5 ~ 9 m.
@@ -62,13 +63,14 @@ local TREE_Z0 = EDGE_Z + EDGE_W / 2 + M(1)
 -- 전망대
 local DC = V.DeckCenter
 local DY = V.DeckHeight -- 데크 바닥 윗면 (60 m)
-local DECK_W, DECK_D = M(20), M(14)
+local DECK_W, DECK_D = M(16), M(12)
+local DECK_DZ = M(1) -- 데크 중심을 DeckCenter 보다 1 m 뒤(+Z)로: 앞 난간 5 m 앞, 히어로 좌하단에서 작게
 local RAIL_H = M(1.15) -- 유리 난간 높이 (바닥 기준)
 local STAIR_RIN, STAIR_ROUT = M(1.45), M(3.05) -- 나선 계단 (유효폭 1.6 m)
 local SHAFT_R = M(1.35) -- 엘리베이터 샤프트 Ø 2.7 m
 local RISER, TREAD = M(0.17), M(0.30)
 local LAND_W = M(1.6) -- 꼭대기 착지판 폭
-local TOWER = Vector2.new(DC.X, DC.Z + DECK_D / 2 + M(2.4) + STAIR_ROUT) -- 계단탑 중심 (X, Z)
+local TOWER = Vector2.new(DC.X, DC.Z + DECK_DZ + DECK_D / 2 + M(2.4) + STAIR_ROUT) -- 계단탑 중심 (X, Z)
 local PLAZA = Vector2.new(DC.X, DC.Z + M(8))
 local PLAZA_R = M(19)
 
@@ -103,15 +105,15 @@ local BARK = P.Bark
 local LEAF_LIGHT = rgb(124, 146, 70)
 local LEAF_DARK = rgb(30, 54, 38)
 local LEAVES = {
-	rgb(52, 90, 50),
-	rgb(64, 104, 54),
-	rgb(46, 80, 48),
-	rgb(74, 112, 58),
-	rgb(56, 96, 64),
-	rgb(82, 118, 60),
-	rgb(42, 74, 48),
-	rgb(90, 124, 64),
-	rgb(66, 106, 68),
+	rgb(60, 102, 56),
+	rgb(74, 118, 62),
+	rgb(54, 92, 54),
+	rgb(84, 126, 66),
+	rgb(64, 108, 72),
+	rgb(94, 132, 68),
+	rgb(50, 86, 54),
+	rgb(102, 138, 72),
+	rgb(76, 120, 76),
 }
 local CAR_COLORS = { rgb(222, 222, 224), rgb(150, 154, 160), rgb(28, 30, 34), rgb(36, 44, 70), rgb(132, 30, 30), rgb(92, 94, 98), rgb(210, 206, 196) }
 
@@ -406,7 +408,7 @@ end
 -- 1) 전망대 (스폰) — 데크 + 유리 계단탑(엘리베이터 + 나선 계단) + 하부 광장
 ------------------------------------------------------------------------------------------------------
 local function buildDeck(parent: Instance)
-	local cx, cz = DC.X, DC.Z
+	local cx, cz = DC.X, DC.Z + DECK_DZ
 	local hw, hd = DECK_W / 2, DECK_D / 2
 	local x0, x1, z0, z1 = cx - hw, cx + hw, cz - hd, cz + hd
 	local slabTop = DY - M(0.25) -- 목재 바닥 0.25 m
@@ -434,7 +436,7 @@ local function buildDeck(parent: Instance)
 
 	-- 하부 다운라이트 6 (+ SpotLight 2)
 	for _, dx in { -(hw - M(3)), hw - M(3) } do
-		for j, dz in { -M(3.5), 0, M(3.5) } do
+		for j, dz in { -M(3), 0, M(3) } do
 			local dl = Kit.box(parent, CFrame.new(cx + dx, slabBot - 0.1, cz + dz), Vector3.new(M(0.7), 0.3, M(0.7)), UNDER_GLOW, MAT.Neon, glowOpts("DeckDownlight", STEEL_LIGHT))
 			if j == 2 then
 				tryLight(dl, "SpotLight", { face = Enum.NormalId.Bottom, angle = 70, range = 60, brightness = 2.6, color = P.LampWarm })
@@ -442,21 +444,20 @@ local function buildDeck(parent: Instance)
 		end
 	end
 
-	-- 받침: 강관 기둥 4 (Ø 1.1 m) + 2 단 테두리 보
-	local colX, colZ = hw - M(3), hd - M(2.5)
-	local colTop = slabBot + 0.3
-	local colH = colTop - (PLAZA_TOP - 0.5)
-	for _, dx in { -colX, colX } do
-		for _, dz in { -colZ, colZ } do
-			Kit.vcyl(parent, Vector3.new(cx + dx, colTop - colH / 2, cz + dz), colH, M(1.1), STEEL_LIGHT, MAT.Metal, { name = "DeckColumn" })
-		end
-	end
-	for _, f in { 0.36, 0.68 } do
-		local by = PLAZA_TOP + (slabBot - PLAZA_TOP) * f
-		Kit.box(parent, CFrame.new(cx, by, cz - colZ), Vector3.new(colX * 2, M(0.6), M(0.45)), STEEL_LIGHT, MAT.Metal, { name = "DeckTie" })
-		Kit.box(parent, CFrame.new(cx, by, cz + colZ), Vector3.new(colX * 2, M(0.6), M(0.45)), STEEL_LIGHT, MAT.Metal, { name = "DeckTie" })
-		Kit.box(parent, CFrame.new(cx - colX, by, cz), Vector3.new(M(0.45), M(0.6), colZ * 2), STEEL_LIGHT, MAT.Metal, { name = "DeckTie" })
-		Kit.box(parent, CFrame.new(cx + colX, by, cz), Vector3.new(M(0.45), M(0.6), colZ * 2), STEEL_LIGHT, MAT.Metal, { name = "DeckTie" })
+	-- 받침: 가운데 콘크리트 코어(Ø 3.2 m) + 머리 확대부(Ø 5 m) + 경사 강관 버팀대 4 + 세로 LED 4
+	local coreR = M(1.6)
+	local capH = M(1.2)
+	local coreTop = slabBot - capH + 0.3
+	local coreBot = PLAZA_TOP - 0.5
+	Kit.vcyl(parent, Vector3.new(cx, (coreTop + coreBot) / 2, cz), coreTop - coreBot, coreR * 2, rgb(200, 196, 188), MAT.Concrete, { name = "DeckCore" })
+	Kit.vcyl(parent, Vector3.new(cx, slabBot - capH / 2 + 0.15, cz), capH + 0.3, M(5), rgb(186, 182, 174), MAT.Concrete, { name = "DeckCoreCap" })
+	for q = 0, 3 do
+		local a = math.rad(45 + 90 * q)
+		Kit.box(parent, CFrame.new(cx + math.cos(a) * (coreR + 0.05), (PLAZA_TOP + coreTop) / 2, cz + math.sin(a) * (coreR + 0.05)) * CFrame.Angles(0, -a, 0), Vector3.new(0.3, coreTop - PLAZA_TOP, 0.4), FASCIA_GLOW, MAT.Neon, glowOpts("CoreLed", STEEL_LIGHT))
+		local sxq, szq = if q == 0 or q == 3 then 1 else -1, if q <= 1 then 1 else -1
+		local pa = Vector3.new(cx + sxq * coreR * 0.6, slabBot - M(10), cz + szq * coreR * 0.6)
+		local pb = Vector3.new(cx + sxq * (hw - M(2)), slabBot + 0.3, cz + szq * (hd - M(1.8)))
+		Kit.cylAlongY(parent, CFrame.lookAt((pa + pb) / 2, pb) * CFrame.Angles(math.rad(90), 0, 0), (pb - pa).Magnitude, M(0.45), STEEL_LIGHT, MAT.Metal, { name = "DeckStrut" })
 	end
 
 	-- 착지판: 계단 꼭대기(탑 -Z 쪽) → 데크 뒤 가장자리 (바닥 윗면 = DY)
@@ -550,17 +551,17 @@ local function buildDeck(parent: Instance)
 	end
 
 	-- 데크 소품: 유료 망원경 3 (높이 1.3 m), 벤치 2
-	for _, dx in { -M(6.5), 0, M(6.5) } do
-		local tx, tz = cx + dx + M(1.5), z0 + M(0.9)
+	for _, dx in { -M(6.2), M(1.2), M(5.4) } do
+		local tx, tz = cx + dx, z0 + M(0.9)
 		Kit.vcyl(parent, Vector3.new(tx, DY + M(0.525) - 0.15, tz), M(1.05) + 0.3, M(0.16), STEEL_LIGHT, MAT.Metal, opts("ScopePost", { collide = true }))
 		Kit.box(parent, CFrame.new(tx, DY + M(1.15), tz) * CFrame.Angles(math.rad(10), 0, 0), Vector3.new(M(0.32), M(0.28), M(0.5)), rgb(40, 96, 110), MAT.Metal, opts("Binocular"))
 	end
-	for _, dx in { -M(5.5), M(5.5) } do
-		benchAt(parent, CFrame.new(cx + dx, DY, cz + M(3.2)), "Deck")
+	for _, dx in { -M(4.5), M(4.5) } do
+		benchAt(parent, CFrame.new(cx + dx, DY, cz + M(3.4)), "Deck")
 	end
 
 	-- 포토 스팟: 바닥 표지판 + 삼각대(1.5 m) + 카메라(PhotoSpot, ProximityPrompt)
-	local px, pz = cx - M(3.2), z0 + M(1.6)
+	local px, pz = cx - M(2.6), z0 + M(1.6)
 	local plate = Kit.box(parent, CFrame.new(px, DY + 0.1, pz + M(0.9)), Vector3.new(M(1.5), 0.4, M(0.7)), rgb(34, 36, 42), MAT.SmoothPlastic, opts("PhotoSpotSign"))
 	Kit.label(plate, Enum.NormalId.Top, "포토 스팟", { glow = true, color = rgb(255, 214, 150), pixelsPerStud = 40 })
 	tryLight(plate, "PointLight", { color = P.LampWarm, brightness = 0.9, range = M(4) })
@@ -585,7 +586,7 @@ local function buildDeck(parent: Instance)
 	sp.Name = "DeckSpawn"
 	sp.Anchored = true
 	sp.Size = Vector3.new(M(2), 0.4, M(2))
-	sp.CFrame = CFrame.new(cx + M(2), DY + 0.15, cz + M(0.5))
+	sp.CFrame = CFrame.new(cx + M(2), DY + 0.15, DC.Z + M(0.8))
 	sp.Material = MAT.SmoothPlastic
 	sp.Color = rgb(232, 204, 160)
 	sp.Transparency = 0.8
@@ -890,7 +891,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			if (pi == 2 and belt) or (pi == 3 and x > NEAR0 and x < NEAR1) then
 				continue
 			end
-			local p = if belt then 1 else densX(x) * (0.2 + 0.8 * groveField(x, z))
+			local p = if belt then 1 else densX(x) * (0.32 + 0.68 * groveField(x, z))
 			if rng:NextNumber() > p then
 				continue
 			end
