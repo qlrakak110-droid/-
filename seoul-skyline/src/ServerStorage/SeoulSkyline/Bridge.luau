@@ -89,8 +89,10 @@ local METAL = rgb(78, 84, 92)
 local POLE_C = rgb(64, 68, 74)
 local EDGE_LED = rgb(226, 164, 100) -- 가장자리 빛띠(길어서 중간 밝기)
 local LAMP_LENS = P.LampWarm
+local LAMP_GLARE = rgb(255, 190, 118)
 local UPLIGHT = rgb(255, 172, 92)
-local SHEATH_C = rgb(170, 104, 50) -- 기둥 세척광 외피(반투명)
+local SHEATH_C = rgb(178, 110, 54) -- 기둥 세척광 외피(반투명, 아래쪽)
+local SHEATH_TOP = rgb(150, 100, 64) -- 위쪽(빛이 옅어짐)
 local WASH_C = rgb(150, 96, 52)
 local PIER_REF = rgb(255, 156, 78)
 local LAMP_REF = rgb(255, 168, 96)
@@ -286,14 +288,17 @@ local function buildLampsAndPosts(parent: Instance, segs: { Seg }, total: number
 			-- 등기구 머리(암 끝) + 아래 발광 렌즈
 			local hx = -side * (LAMP_ARM - headL / 2 + m(0.1))
 			Kit.box(parent, CFrame.new(base + Vector3.new(hx, LAMP_H + headH / 2 - m(0.03), 0)), Vector3.new(headL, headH, headD), POLE_C, Enum.Material.Metal, { name = "LampHead", collide = false, query = false })
+			local lensPos = base + Vector3.new(hx, LAMP_H - m(0.08), 0)
 			local lens = Kit.box(
 				parent,
-				CFrame.new(base + Vector3.new(hx, LAMP_H - m(0.06), 0)),
-				Vector3.new(headL - m(0.1), m(0.08), headD - m(0.06)),
+				CFrame.new(lensPos),
+				Vector3.new(headL - m(0.08), m(0.12), headD - m(0.05)),
 				LAMP_LENS,
 				Enum.Material.Neon,
 				neon("LampLens", LAMP_LENS, Enum.Material.Glass, rgb(200, 200, 192))
 			)
+			-- 글레어(눈부심 번짐): 실물 아님. 원경에서 등 머리가 사진처럼 빛점으로 읽히도록 하는 반투명 Neon 구
+			Kit.ball(parent, lensPos - Vector3.new(0, m(0.1), 0), m(1.1), LAMP_GLARE, Enum.Material.Neon, neon("LampGlare", LAMP_GLARE, Enum.Material.Glass, rgb(200, 200, 192), 0.62))
 			-- 실제 광원: 가까운 쪽에서 쌍마다 한쪽씩(번갈아)
 			if lights < LAMP_LIGHTS and zLamp > -m(120) and (idx % 2 == 0) == (side < 0) then
 				if Kit.light(lens, "SpotLight", { color = P.LampSodium, brightness = 2.6, range = 50, angle = 115, face = Enum.NormalId.Bottom }) then
@@ -359,8 +364,11 @@ local function buildPier(parent: Instance, reflParent: Instance, z: number, rng:
 		local cx = BX + side * COL_X
 		local y0, y1 = footTop - 0.2, capBot + 0.2
 		Kit.vcyl(parent, Vector3.new(cx, (y0 + y1) / 2, z), y1 - y0, COL_D, CONC_PIER, Enum.Material.Concrete, { name = "Column" })
+		-- 업라이트 감쇠: 아래(밝음) 55 % + 위(옅음) 45 %
 		local s0, s1 = footTop + 0.3, capBot - 0.3
-		Kit.vcyl(parent, Vector3.new(cx, (s0 + s1) / 2, z), s1 - s0, COL_D + 0.8, SHEATH_C, Enum.Material.Neon, neon("ColumnWash", SHEATH_C, Enum.Material.Glass, CONC_PIER, 0.62))
+		local sm = s0 + (s1 - s0) * 0.55
+		Kit.vcyl(parent, Vector3.new(cx, (s0 + sm) / 2, z), sm - s0, COL_D + 0.8, SHEATH_C, Enum.Material.Neon, neon("ColumnWash", SHEATH_C, Enum.Material.Glass, CONC_PIER, 0.56))
+		Kit.vcyl(parent, Vector3.new(cx, (sm + 0.1 + s1) / 2, z), s1 - sm - 0.1, COL_D + 0.8, SHEATH_TOP, Enum.Material.Neon, neon("ColumnWashTop", SHEATH_TOP, Enum.Material.Glass, CONC_PIER, 0.74))
 		uplightFixture(parent, Vector3.new(cx, footTop + m(0.09), z + COL_D / 2 + m(0.6)), isWater and side < 0)
 	end
 	-- 해머헤드 캡 + 아래쪽 테이퍼(웨지: 평면이 위, 두꺼운 쪽이 기둥)

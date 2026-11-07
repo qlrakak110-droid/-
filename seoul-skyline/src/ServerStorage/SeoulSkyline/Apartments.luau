@@ -1,12 +1,14 @@
 --!strict
 -- SeoulSkyline / Apartments
--- 한국형 아파트 단지(아파트 단지) — 먼 쪽 잠실 강변 띠(ApartmentsFar) + 관람자 뒤 강북 띠(ApartmentsNear).
---   * 단지 = 같은 벽색 + 측벽 슈퍼그래픽 강조색 + 동 번호(101, 102 … / 대단지는 1201 …)를 공유하는
---     판상 4~10동(평행/엇갈림) 또는 신축 35~49층 타워 3~6동(커튼월/원형 + 왕관 프레임).
---   * 배치: 도로 격자 블록(로트) → 로트 안에 단지 배치. 방향은 대부분 0/90도, 일부 단지 15~30도.
---     모든 동/상가/나무/잔디는 Kit.isFreeRect 검사 후 Kit.reserveRect (앞서 빌드된 랜드마크·고층·도로를 피함).
---   * LOD: 히어로 카메라/전망대에서 가까운 단지부터 Facade "apartment" 정밀 모델(층 슬래브·세대 벽·동 번호),
---     예산이 차면 경량 모델(벽색 몸체 + 어두운 창 면 + 겹치지 않는 켜진 세대 줄 Neon). 파트 예산을 넘지 않게 계획.
+-- 한국형 아파트 단지 — 먼 쪽 잠실 강변 띠(ApartmentsFar) + 관람자 뒤 강북 띠(ApartmentsNear). 실제 스케일(1 stud = 0.3 m).
+--   * 판상 동: 길이 40~70 m(137~227 stud) × 깊이 12~15 m(40~50 stud), 15~35층, 층고 2.9 m(Config.Real.HomeFloor)
+--     + 필로티 3.5 m → 높이 = 필로티 + 층수 × 2.9 m + 옥상 파라펫 1.2 m (15층 ≈ 48 m, 35층 ≈ 106 m).
+--   * 신축 타워형 단지: 35~49층(층고 3.0 m, 높이 110~153 m), 평면 26~36 m, 원형/커튼월 + 왕관 프레임.
+--   * 단지 = 같은 벽색 + 측벽 슈퍼그래픽 강조색 + 동 번호("101동", 대단지 "1201동" — 글자 높이 3 m)를 공유하는 4~10동.
+--     동 간격: 앞뒤 30~50 m(인동 거리, 높이에 비례), 좌우 10~22 m. 단지(로트) 사이 도로 = 4차로(3.5 m) + 보도 3 m × 2.
+--   * 모든 동/잔디/상가/나무는 Kit.isFreeRect 검사 후 Kit.reserveRect (앞서 빌드된 랜드마크·고층·도로를 피함).
+--   * LOD: 히어로 카메라/전망대에서 가까운 단지부터 "full"(Facade apartment: 층 슬래브·세대 벽·동 번호) →
+--     "lite"(벽색 몸체 + 층 묶음 불빛 + 발코니 띠) → "min"(몸체 + 불빛 면 하나 + 꺼진 세대 몇 개). 파트 예산 안에서 계획.
 --   * 강변 앞줄은 밀도를 낮추고(몇 개 대단지만), 히어로 구도에서 롯데타워·몰 앞을 가리는 동은 배치하지 않음.
 --   * 실제 광원 0개 — 불빛은 모두 Neon(glow 태그로 낮/밤 전환).
 
@@ -19,29 +21,39 @@ local Apartments = {}
 local rgb = Color3.fromRGB
 local P = Config.Palette
 local ZN = Config.Zones
+local R = Config.Real
+local M = Config.m
 local CITY_Y = Config.Level.City
 local BLACK = Color3.new(0, 0, 0)
 local MAT = Enum.Material
 
 ------------------------------------------------------------------------------------------------------
--- 상수
+-- 상수 (실측 m → stud)
 ------------------------------------------------------------------------------------------------------
 local BUDGET_TOTAL = 9000 -- 모듈 전체 파트 상한(하드 캡)
-local BUDGET_FAR = 6300 -- 먼 쪽 띠 계획 예산(추정치)
+local BUDGET_FAR = 6400 -- 먼 쪽 띠 계획 예산(추정치)
 local BUDGET_NEAR = 2450 -- 가까운 쪽 띠
-local FULL_FAR = 3100 -- 먼 쪽 정밀 모델 예산
-local FULL_NEAR = 1400
-local FULL_RANGE_FAR = 2700 -- 히어로 카메라 가중 거리 이내 단지만 정밀
-local FULL_RANGE_NEAR = 1100 -- 전망대 거리
+local FULL_FAR = 3300 -- 먼 쪽 정밀 모델 예산
+local FULL_NEAR = 1250
+local FULL_RANGE_FAR = 4700 -- 히어로 카메라 가중 거리 이내 단지만 정밀
+local FULL_RANGE_NEAR = 1900 -- 전망대 거리
+local LITE_RANGE_FAR = 7800 -- 이보다 멀면 min LOD
+local LITE_RANGE_NEAR = 3200
 
-local FLOOR_H = 4.4 -- 판상 아파트 층고(압축 스케일: 15~32층 → 높이 70~146)
-local PILOTIS = FLOOR_H * 1.2 -- Facade 필로티 높이와 동일
-local TOWER_FLOOR_H = 4.6 -- 신축 타워 층고(35~49층 → 160~225)
-local UNIT = 10 -- 세대 폭(세대 벽 간격)
-local PAD = 6 -- 동 둘레 보도 여유(예약)
-local STREET = 44 -- 로트(블록) 사이 도로 폭
-local LAWN_T = 0.4 -- 단지 잔디 두께(도시 지면 14.0 위)
-local END_W = 1.6 -- 경량 모델 측벽 두께
+local FLOOR_H = R.HomeFloor -- 아파트 층고 2.9 m (Facade apartment 기본값과 동일)
+local PILOTIS = FLOOR_H * 1.2 -- 필로티 3.5 m (Facade 와 동일)
+local PARAPET = FLOOR_H * 0.4 -- 옥상 파라펫 슬래브 1.2 m
+local TOWER_FLOOR_H = M(3.0) -- 신축 타워형 층고 3.0 m
+local TOWER_LOBBY = 20 -- Facade curtain/round 로비 높이(6 m) — 타워 높이 계산용
+local UNIT = 15 -- Facade apartment 세대 벽 간격(4.5 m) 기본값
+local PAD = M(3) -- 동 둘레 보도 여유(예약)
+local STREET = R.Lane * 4 + M(3) * 2 -- 로트 사이 도로: 4차로 + 양쪽 보도 = 20 m
+local LAWN_T = 0.5 -- 단지 잔디 두께(도시 지면 위)
+local LAWN_MX, LAWN_MZ = M(10), M(12) -- 동 배열 둘레 잔디/산책로 여유
+local SHOP_ROOM = M(18) -- 단지 상가 자리(로트 안에서 비워 둠)
+local SHOP_GAP = M(4)
+local END_W = M(0.6) -- 경량 모델 측벽 두께
+local LABEL_H = M(3) -- 동 번호 글자 높이 3 m
 
 local HERO = Config.Viewpoint.HeroCamPos
 local HERO_LOOK = Config.Viewpoint.HeroCamLook
@@ -114,7 +126,7 @@ type Extra = { kind: string, x: number, z: number, w: number, d: number, h: numb
 type Complex = {
 	name: string,
 	kind: string, -- "slab" | "tower"
-	full: boolean,
+	lod: string, -- "full" | "lite" | "min"
 	wall: Color3,
 	accent: Color3,
 	dark: Color3,
@@ -142,6 +154,7 @@ type ZoneOpts = {
 	budget: number,
 	fullBudget: number,
 	fullRange: number,
+	liteRange: number,
 	towerChance: number,
 	waterZ: number, -- 강변 앞줄 경계(이보다 강 쪽 = 앞줄)
 	waterSign: number, -- 강 방향(+1 = +Z)
@@ -170,9 +183,9 @@ local LOOK_BEARING = bearing(HERO_LOOK.X, HERO_LOOK.Z)
 -- 타워 시야 보호: 히어로 카메라에서 롯데타워 + 몰을 덮는 방위각 구간 (타워보다 카메라 쪽에 있는 동만 거부)
 local GUARD_B0, GUARD_B1 = math.huge, -math.huge
 do
-	local T, M = Config.Landmark.Tower, Config.Landmark.Mall
+	local T, Mall = Config.Landmark.Tower, Config.Landmark.Mall
 	local r = T.BaseWidth * 0.75
-	for _, c in { { T.Center.X - r, T.Center.Z - r }, { T.Center.X + r, T.Center.Z - r }, { T.Center.X - r, T.Center.Z + r }, { T.Center.X + r, T.Center.Z + r }, { M.Min.X, M.Min.Y }, { M.Max.X, M.Min.Y }, { M.Min.X, M.Max.Y }, { M.Max.X, M.Max.Y } } do
+	for _, c in { { T.Center.X - r, T.Center.Z - r }, { T.Center.X + r, T.Center.Z - r }, { T.Center.X - r, T.Center.Z + r }, { T.Center.X + r, T.Center.Z + r }, { Mall.Min.X, Mall.Min.Y }, { Mall.Max.X, Mall.Min.Y }, { Mall.Min.X, Mall.Max.Y }, { Mall.Max.X, Mall.Max.Y } } do
 		local b = bearing(c[1], c[2])
 		GUARD_B0 = math.min(GUARD_B0, b - 1.2)
 		GUARD_B1 = math.max(GUARD_B1, b + 1.2)
@@ -215,42 +228,58 @@ local function placeable(o: ZoneOpts, x: number, z: number, w: number, d: number
 	return true
 end
 
+-- 판상 동 높이: 필로티 + 층수 × 층고 + 옥상 파라펫(Facade 의 마지막 슬래브가 딱 맞게)
+local function slabHeight(floors: number): number
+	return PILOTIS + floors * FLOOR_H + PARAPET
+end
+local function towerHeight(floors: number): number
+	return TOWER_LOBBY + 1.6 + floors * TOWER_FLOOR_H
+end
+
 -- 정밀 모델 파트 수 추정(계획 단계 예산용; 실제 수는 빌드 때 측정)
 local function estFull(s: Slab, lc: number, crown: string?): number
 	if s.style == "apartment" then
 		local nu = math.max(2, math.floor(s.w / UNIT))
 		local n = s.floors
-		return 14 + n + math.ceil(n / 4.5) + (nu - 1) + math.min(30, math.floor(n * nu * (1 - lc) / 3)) + (if crown then 7 else 0)
+		return 14 + n + math.ceil(n / 4.5) + nu + math.min(30, math.floor(n * nu * (1 - lc) / 3)) + (if crown then 7 else 0)
 	end
-	local n = math.floor((s.h - 13) / TOWER_FLOOR_H)
+	local n = s.floors
 	if s.style == "round" then
 		return 12 + n + math.ceil(n / 4.5)
 	end
-	local nx = math.max(1, math.floor(s.w / 6))
-	local nz = math.max(1, math.floor(s.d / 6))
+	local bay = if s.w > 90 then 12 else 10
+	local nx = math.max(1, math.floor(s.w / bay))
+	local nz = math.max(1, math.floor(s.d / bay))
 	return 18 + n + math.ceil(n / 4.5) + nx + nz + math.min(26, math.floor(n * (nx + nz) * (1 - lc) / 9))
 end
 
 -- 경량 동 구성: 발코니 띠 간격(층) / 꺼진 세대 패치 수
 local function bandStep(floors: number): number
-	return if floors <= 14 then 2 else 3
+	return if floors <= 18 then 2 else 3
 end
 local function nOff(s: Slab, lc: number): number
 	local nu = math.max(2, math.floor((s.w - 2 * END_W) / UNIT))
-	return math.clamp(math.floor(s.floors * nu * (1 - lc) / 14), 2, 7)
+	return math.clamp(math.floor(s.floors * nu * (1 - lc) / 16), 2, 7)
 end
 
 local function estLite(s: Slab, lc: number, crown: string?): number
 	if s.style ~= "apartment" then
-		return 3 + math.clamp(math.floor(s.h / 22), 1, 6)
+		return 3 + math.clamp(math.floor(s.h / 36), 1, 6)
 	end
 	return 6 + math.floor(s.floors / bandStep(s.floors)) + nOff(s, lc) + (if crown then 1 else 0)
+end
+
+local function estMin(s: Slab): number
+	if s.style ~= "apartment" then
+		return 3
+	end
+	return 6
 end
 
 ------------------------------------------------------------------------------------------------------
 -- 계획: 로트 하나에 단지 하나
 ------------------------------------------------------------------------------------------------------
-local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, full: boolean, big: boolean, waterfront: boolean): Complex?
+local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, lod: string, big: boolean, waterfront: boolean): Complex?
 	local lx, lz = (lot.x0 + lot.x1) / 2, (lot.z0 + lot.z1) / 2
 	local LW, LD = lot.x1 - lot.x0, lot.z1 - lot.z0
 	local isTower = (not big) and rng:NextNumber() < o.towerChance
@@ -258,19 +287,22 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 	local r = rng:NextNumber()
 	local orient = if r < 0.6 then 0 elseif r < 0.82 then 90 else 1
 	local frameYaw = 0
-	local ext = { LW, LD } -- 단지 로컬 X(동 긴 축) / Z 범위
+	local ex, ez = LW, LD -- 단지 로컬 X(동 긴 축) / Z 범위
 	if orient == 90 then
 		frameYaw = 90
-		ext = { LD, LW }
+		ex, ez = LD, LW
 	elseif orient == 1 then
 		frameYaw = rng:NextNumber(15, 30) * (if rng:NextNumber() < 0.5 then -1 else 1)
-		ext = { LW * 0.8, LD * 0.8 }
+		ex, ez = LW * 0.8, LD * 0.8
 	end
+	-- 잔디 둘레 + 상가 자리
+	ex -= 2 * LAWN_MX + SHOP_ROOM * 0.5
+	ez -= 2 * LAWN_MZ + SHOP_ROOM * 0.5
 
 	local cx: Complex = {
 		name = string.format("Danji_%s%02d", o.key, serial),
 		kind = if isTower then "tower" else "slab",
-		full = full,
+		lod = lod,
 		wall = pick(rng, WALLS),
 		accent = pick(rng, ACCENTS),
 		dark = rgb(40, 42, 50),
@@ -287,38 +319,37 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 	}
 	cx.dark = cx.wall:Lerp(rgb(30, 32, 40), 0.72)
 
-	-- 동 치수 / 간격
+	-- 동 치수 / 간격 (실측)
 	local w, d, floors, colGap, rowGap
 	local stagger = false
 	if isTower then
-		w = rng:NextNumber(36, 48)
+		w = M(rng:NextNumber(26, 36)) -- 평면 26~36 m
 		d = w * rng:NextNumber(0.82, 1.0)
-		floors = rng:NextInteger(35, 49)
-		colGap = rng:NextNumber(40, 70)
-		rowGap = rng:NextNumber(50, 80)
+		floors = rng:NextInteger(36, 49)
+		colGap = M(rng:NextNumber(20, 34))
+		rowGap = M(rng:NextNumber(32, 50))
 		stagger = true
 		cx.crown = "frame"
 	else
-		w = UNIT * rng:NextInteger(6, 9) + 2
-		d = rng:NextNumber(16, 22)
+		w = UNIT * rng:NextInteger(9, 15) + 2 -- 137~227 stud = 41~68 m
+		d = M(rng:NextNumber(12, 15)) -- 깊이 12~15 m
 		if big then
-			floors = rng:NextInteger(24, 32)
+			floors = rng:NextInteger(27, 35)
 		elseif waterfront or rng:NextNumber() < 0.15 then
-			floors = rng:NextInteger(9, 16) -- 강변 앞줄 / 오래된 저층 단지
+			floors = rng:NextInteger(15, 21) -- 강변 앞줄 / 오래된 단지
 		else
-			floors = rng:NextInteger(15, 30)
+			floors = rng:NextInteger(18, 32)
 		end
-		colGap = rng:NextNumber(16, 34)
-		rowGap = math.clamp(floors * FLOOR_H * 0.42, 34, 64)
+		colGap = M(rng:NextNumber(10, 22))
+		rowGap = math.clamp(slabHeight(floors) * 0.48, M(30), M(50)) -- 인동 거리 30~50 m
 		stagger = rng:NextNumber() < 0.4
-		if floors >= 20 and rng:NextNumber() < 0.22 then
+		if floors >= 22 and rng:NextNumber() < 0.24 then
 			cx.crown = if rng:NextNumber() < 0.5 then "frame" else "led" -- 신축 브랜드 아파트 옥상 왕관/LED
 		end
 	end
-	local hNominal = if isTower then floors * TOWER_FLOOR_H + 13 else PILOTIS + floors * FLOOR_H + 1
 
-	local maxCols = math.clamp(math.floor((ext[1] + colGap) / (w + colGap)), 0, if isTower then 3 else 4)
-	local maxRows = math.clamp(math.floor((ext[2] + rowGap) / (d + rowGap)), 0, 4)
+	local maxCols = math.clamp(math.floor((ex + colGap) / (w + colGap)), 0, if isTower then 3 else 4)
+	local maxRows = math.clamp(math.floor((ez + rowGap) / (d + rowGap)), 0, 4)
 	if maxCols < 1 or maxRows < 1 then
 		return nil
 	end
@@ -349,12 +380,12 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 	-- 블록(동 배열) 로컬 크기 → 로트 안에서 무작위 위치
 	local blockW = cols * w + (cols - 1) * colGap + (if stagger then (w + colGap) * 0.5 else 0)
 	local blockD = rows * d + (rows - 1) * rowGap
-	if blockW > ext[1] then
+	if blockW > ex then
 		stagger = false
 		blockW = cols * w + (cols - 1) * colGap
 	end
-	local ox = rng:NextNumber(-0.5, 0.5) * math.max(0, ext[1] - blockW)
-	local oz = rng:NextNumber(-0.5, 0.5) * math.max(0, ext[2] - blockD)
+	local ox = rng:NextNumber(-0.5, 0.5) * math.max(0, ex - blockW)
+	local oz = rng:NextNumber(-0.5, 0.5) * math.max(0, ez - blockD)
 	local frame = CFrame.new(lx, 0, lz) * CFrame.Angles(0, math.rad(frameYaw), 0) * CFrame.new(ox, 0, oz)
 
 	-- 동 번호면(+X 측벽)이 관람자 쪽을 향하도록 개별 yaw (판상: 0/180 또는 ±90)
@@ -368,7 +399,7 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 	end
 
 	-- 잔디(단지 전체): 블록 + 여유 → 비어 있으면 통째로 예약
-	local lawnW, lawnD = blockW + 36, blockD + 40
+	local lawnW, lawnD = blockW + 2 * LAWN_MX, blockD + 2 * LAWN_MZ
 	local lawnPos = frame.Position
 	local useLawn = placeable(o, lawnPos.X, lawnPos.Z, lawnW, lawnD, frameYaw)
 	if useLawn then
@@ -378,32 +409,27 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 	-- 동 번호: 101.. (대단지 = 1201..)
 	local labelBase = if big or rng:NextNumber() < 0.15 then rng:NextInteger(10, 13) * 100 else 100
 	local n = 0
-	local frontSign = o.waterSign
 	for ri = 0, rows - 1 do
-		-- 강(카메라) 쪽 줄일수록 낮게 (뒤 동이 앞 동 위로 보이도록)
-		local frontness = if rows > 1 then ri / (rows - 1) else 0.5
 		local shift = if stagger and ri % 2 == 1 then (w + colGap) * 0.5 else 0
-		local ncols = cols
-		for ci = 0, ncols - 1 do
+		for ci = 0, cols - 1 do
 			local lxp = -blockW / 2 + w / 2 + ci * (w + colGap) + shift
 			local lzp = -blockD / 2 + d / 2 + ri * (d + rowGap)
 			local wp = frame * CFrame.new(lxp, 0, lzp)
 			local x, z = wp.Position.X, wp.Position.Z
 			local fl = floors + rng:NextInteger(-2, 2)
-			-- 앞줄(강 쪽) 동은 조금 낮게
-			local zFront = (if frontSign > 0 then lzp else -lzp) / math.max(1, blockD)
+			-- 앞줄(강 쪽) 동은 조금 낮게 (뒤 동이 앞 동 위로 보이도록)
+			local zFront = (if o.waterSign > 0 then lzp else -lzp) / math.max(1, blockD)
 			if not isTower and orient ~= 90 then
-				fl -= math.floor(math.max(0, zFront) * 4)
+				fl -= math.floor(math.max(0, zFront) * 5)
 			end
-			local _ = frontness
-			fl = math.max(if isTower then 33 else 8, fl)
-			local h = if isTower then fl * TOWER_FLOOR_H + 13 else PILOTIS + fl * FLOOR_H + 1
+			fl = math.max(if isTower then 35 else 15, fl)
+			local h = if isTower then towerHeight(fl) else slabHeight(fl)
 			local yaw = slabYaw(x)
 			local fw, fd = w + 2 * PAD, d + 2 * PAD
 			local ok = if useLawn then insideZone(o.zone, x, z, fw, fd, yaw) else placeable(o, x, z, fw, fd, yaw)
 			if ok then
 				n += 1
-				local s: Slab = {
+				table.insert(cx.slabs, {
 					x = x,
 					z = z,
 					w = w,
@@ -413,90 +439,105 @@ local function planComplex(o: ZoneOpts, lot: Lot, rng: Random, serial: number, f
 					yaw = yaw,
 					style = if isTower then (if rng:NextNumber() < 0.5 then "round" else "curtain") else "apartment",
 					label = tostring(labelBase + n),
-				}
-				table.insert(cx.slabs, s)
+				})
 				if not useLawn then
 					Kit.reserveRect(x, z, fw, fd, yaw, cx.name)
 				end
 			end
 		end
 	end
-	local _ = hNominal
-	if #cx.slabs < 3 then
-		-- 실패: 잔디 예약 전이므로 개별 예약만 남음(작은 빈 터 → 이후 도시 카펫이 채우지 않음, 무해)
-		if #cx.slabs == 0 then
-			return nil
-		end
+	if #cx.slabs == 0 then
+		return nil
 	end
 	if useLawn then
 		Kit.reserveRect(lawnPos.X, lawnPos.Z, lawnW, lawnD, frameYaw, cx.name)
 	end
 
-	-- 상가(단지 입구, 강 쪽 모서리) + 나무
-	local shopW, shopD = rng:NextNumber(36, 60), rng:NextNumber(16, 24)
-	local shopCF = frame * CFrame.new(rng:NextNumber(-0.35, 0.35) * blockW, 0, frontSign * (blockD / 2 + 14 + shopD / 2) * (if frameYaw == 90 or frameYaw == -90 then 0 else 1))
-	if frameYaw == 90 then
-		shopCF = frame * CFrame.new(-(blockW / 2 + 14 + shopW / 2) * frontSign, 0, rng:NextNumber(-0.3, 0.3) * blockD)
+	-- 단지 상가(2층 근린생활시설, 관람자/강 쪽 잔디 가장자리 밖)
+	local shopW, shopD = M(rng:NextNumber(25, 40)), M(rng:NextNumber(12, 16))
+	local toward = frame:VectorToObjectSpace(Vector3.new(0, 0, o.waterSign))
+	local shopLocal: Vector3
+	local shopYaw = frameYaw
+	local edgeW, edgeD = if useLawn then lawnW else blockW, if useLawn then lawnD else blockD
+	if math.abs(toward.Z) >= math.abs(toward.X) then
+		local sgn = if toward.Z > 0 then 1 else -1
+		shopLocal = Vector3.new(rng:NextNumber(-0.3, 0.3) * blockW, 0, sgn * (edgeD / 2 + SHOP_GAP + shopD / 2))
+	else
+		local sgn = if toward.X > 0 then 1 else -1
+		shopLocal = Vector3.new(sgn * (edgeW / 2 + SHOP_GAP + shopD / 2), 0, rng:NextNumber(-0.3, 0.3) * blockD)
+		shopYaw = frameYaw + 90
 	end
-	local sp = shopCF.Position
-	local shopFits = if useLawn
-		then insideZone(o.zone, sp.X, sp.Z, shopW, shopD, frameYaw) and math.abs((frame:PointToObjectSpace(sp)).Z) + shopD / 2 <= lawnD / 2 and math.abs((frame:PointToObjectSpace(sp)).X) + shopW / 2 <= lawnW / 2
-		else placeable(o, sp.X, sp.Z, shopW + 8, shopD + 8, frameYaw)
-	if shopFits then
-		table.insert(cx.extras, { kind = "shop", x = sp.X, z = sp.Z, w = shopW, d = shopD, h = rng:NextNumber(8, 12), yaw = frameYaw, color = pick(rng, SIGNS) })
-		if not useLawn then
-			Kit.reserveRect(sp.X, sp.Z, shopW + 8, shopD + 8, frameYaw, cx.name)
-		end
+	local sp = (frame * CFrame.new(shopLocal)).Position
+	if placeable(o, sp.X, sp.Z, shopW + 8, shopD + 8, shopYaw) then
+		table.insert(cx.extras, { kind = "shop", x = sp.X, z = sp.Z, w = shopW, d = shopD, h = M(rng:NextNumber(7.5, 9)), yaw = shopYaw, color = pick(rng, SIGNS) })
+		Kit.reserveRect(sp.X, sp.Z, shopW + 8, shopD + 8, shopYaw, cx.name)
 	end
+
+	-- 나무(동 사이 줄 = 인동 공간의 조경): full = 키 8~13 m 가로수(수관 6~9 m), lite/min = 나무 덩어리
 	if useLawn then
-		-- 나무 덩어리: 동 사이 줄(row gap)에 배치
-		local nt = if full then rng:NextInteger(4, 7) else rng:NextInteger(2, 4)
+		local nt = if lod == "full" then rng:NextInteger(7, 11) elseif lod == "lite" then rng:NextInteger(3, 5) else rng:NextInteger(1, 2)
 		for _ = 1, nt do
-			local ts = rng:NextNumber(18, 34)
 			local gi = rng:NextInteger(0, math.max(0, rows - 1))
-			local lzp = -blockD / 2 + d + gi * (d + rowGap) + rowGap * 0.5
+			local lzp = -blockD / 2 + d + gi * (d + rowGap) + rowGap * 0.5 + rng:NextNumber(-0.18, 0.18) * rowGap
 			if rows <= 1 or gi >= rows - 1 then
-				lzp = (if rng:NextNumber() < 0.5 then -1 else 1) * (blockD / 2 + 10)
+				lzp = (if rng:NextNumber() < 0.5 then -1 else 1) * (blockD / 2 + LAWN_MZ * 0.5)
 			end
 			local lxp = rng:NextNumber(-0.5, 0.5) * blockW
 			local tp = (frame * CFrame.new(lxp, 0, lzp)).Position
-			table.insert(cx.extras, { kind = "tree", x = tp.X, z = tp.Z, w = ts, d = ts * rng:NextNumber(0.75, 1.1), h = ts * rng:NextNumber(0.55, 0.75), yaw = 0, color = pick(rng, LEAVES) })
+			if lod == "full" then
+				local cw = M(rng:NextNumber(6, 9))
+				table.insert(cx.extras, { kind = "tree", x = tp.X, z = tp.Z, w = cw, d = cw * rng:NextNumber(0.85, 1.1), h = M(rng:NextNumber(8, 13)), yaw = 0, color = pick(rng, LEAVES) })
+			else
+				local cw = M(rng:NextNumber(10, 18))
+				table.insert(cx.extras, { kind = "clump", x = tp.X, z = tp.Z, w = cw, d = cw * rng:NextNumber(0.6, 0.9), h = M(rng:NextNumber(8, 11)), yaw = 0, color = pick(rng, LEAVES) })
+			end
 		end
 	end
 
 	-- 비용 추정
 	local cost = (if cx.lawn then 1 else 0)
 	for _, s in cx.slabs do
-		cost += if full then estFull(s, cx.litChance, cx.crown) else estLite(s, cx.litChance, cx.crown)
+		cost += if lod == "full" then estFull(s, cx.litChance, cx.crown) elseif lod == "lite" then estLite(s, cx.litChance, cx.crown) else estMin(s)
 	end
 	for _, e in cx.extras do
-		cost += if e.kind == "shop" then 3 else 1
+		cost += if e.kind == "shop" then (if lod == "min" then 2 else 3) elseif e.kind == "tree" then 2 else 1
 	end
 	cx.cost = cost
 	return cx
 end
 
 ------------------------------------------------------------------------------------------------------
--- 빌드: 정밀 / 경량 동, 상가, 나무, 잔디
+-- 빌드: 정밀 / 경량 / 최소 동, 상가, 나무, 잔디
 ------------------------------------------------------------------------------------------------------
-local function deco(name: string, extra: { [string]: any }?): Kit.PartOpts
-	local o: Kit.PartOpts = { name = name, collide = false, query = false, shadow = false }
-	if extra then
-		for k, v in extra do
-			(o :: any)[k] = v
-		end
-	end
-	return o
+local function deco(name: string): Kit.PartOpts
+	return { name = name, collide = false, query = false, shadow = false }
 end
 
 local function glowOpts(name: string, dayColor: Color3): Kit.PartOpts
 	return { name = name, material = MAT.Neon, collide = false, query = false, shadow = false, glow = true, dayMaterial = MAT.Glass, dayColor = dayColor }
 end
 
--- 경량 판상 동(Facade "apartment" 의 저해상도판, 약 1/3 파트):
+local function slabCF(s: Slab): CFrame
+	return CFrame.new(s.x, CITY_Y, s.z) * CFrame.Angles(0, math.rad(s.yaw), 0)
+end
+
+-- 측벽(+X) 동 번호 "101동": 글자 높이 3 m, 꼭대기 두 층 아래. 투명 판 + SurfaceGui(자체 발광).
+local function dongLabel(m: Model, s: Slab, cf: CFrame)
+	local pw = math.min(s.d * 0.72, LABEL_H * 3.6)
+	local plate = Kit.box(m, cf * CFrame.new(s.w / 2 + 1.6, s.h - FLOOR_H * 2, -s.d * 0.06), Vector3.new(0.2, LABEL_H, pw), P.ConcreteLight, MAT.SmoothPlastic, {
+		name = "NumberPlate",
+		collide = false,
+		query = false,
+		shadow = false,
+		transparency = 1,
+	})
+	Kit.label(plate, Enum.NormalId.Right, s.label .. "동", { color = rgb(250, 244, 230), glow = true, pixelsPerStud = 8, maxDistance = 3000 })
+end
+
+-- 경량 판상 동(Facade "apartment" 의 저해상도판, 약 1/4 파트):
 --   벽색 몸체(측벽·지붕·필로티) → 조명 코어 2~3 덩어리(Neon, 창 면 0.3 돌출) → 꺼진 세대 패치(0.6) → 발코니 띠(0.9, 2~3층마다)
 local function liteSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
-	local cf = CFrame.new(s.x, CITY_Y, s.z) * CFrame.Angles(0, math.rad(s.yaw), 0)
+	local cf = slabCF(s)
 	local m = Instance.new("Model")
 	m.Name = "Dong" .. s.label
 	local w, d, h = s.w, s.d, s.h
@@ -525,30 +566,55 @@ local function liteSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
 		local y0 = PILOTIS + f0 * FLOOR_H
 		Kit.box(m, cf * CFrame.new(-fw / 2 + (u0 + len / 2) * uw, y0 + nf * FLOOR_H / 2, 0), Vector3.new(len * uw - 0.8, nf * FLOOR_H, d + 1.2), cx.dark, MAT.SmoothPlastic, deco("Off"))
 	end
-	-- 발코니 띠(벽색): 2~3층마다 → 멀리서 층 리듬
+	-- 발코니 띠(벽색, 1.2 m): 2~3층마다 → 멀리서 층 리듬
 	local step = bandStep(fl)
-	local bandH = FLOOR_H * 0.55
+	local bandH = FLOOR_H * 0.42
 	for k = step, fl, step do
 		local y = PILOTIS + k * FLOOR_H - bandH / 2
 		Kit.box(m, cf * CFrame.new(0, y, 0), Vector3.new(fw, bandH, d + 1.8), cx.wall, MAT.Concrete, deco("Band"))
 	end
-	-- 1층 로비 불빛
+	-- 1층(필로티) 로비 불빛
 	Kit.box(m, cf * CFrame.new(rng:NextNumber(-0.25, 0.25) * w, PILOTIS * 0.45, 0), Vector3.new(w * 0.22, PILOTIS * 0.7, d + 0.6), dim(P.WindowWarm, 0.25), MAT.Neon, glowOpts("Lobby", cx.dark))
 	-- 측벽 슈퍼그래픽(+X 측벽 = 관람자 쪽)
 	Kit.box(m, cf * CFrame.new(w / 2 + 0.3, h * 0.55, d * 0.18), Vector3.new(0.6, h * 0.55, d * 0.26), cx.accent, MAT.SmoothPlastic, deco("Accent"))
-	-- 옥상: 엘리베이터 탑 / LED 띠(지붕 면보다 0.2 아래 → 위에서 보면 가는 테두리만 빛남)
-	Kit.box(m, cf * CFrame.new(rng:NextNumber(-0.25, 0.25) * w, h + 3, 0), Vector3.new(8, 6, d * 0.6), cx.wall, MAT.Concrete, { name = "ElevatorHouse" })
+	-- 옥상: 엘리베이터 기계실(4 x 3.5 m) / LED 띠(지붕 면보다 아래 → 위에서 보면 가는 테두리만 빛남)
+	Kit.box(m, cf * CFrame.new(rng:NextNumber(-0.25, 0.25) * w, h + M(1.75), 0), Vector3.new(M(4), M(3.5), d * 0.6), cx.wall, MAT.Concrete, { name = "ElevatorHouse" })
 	if cx.crown then
 		Kit.box(m, cf * CFrame.new(0, h - 0.7, 0), Vector3.new(w + 0.6, 1, d + 0.6), cx.led, MAT.Neon, glowOpts("Led", cx.wall))
 	end
 	m.Parent = parent
 end
 
+-- 최소 판상 동(원경): 몸체 + 불빛 면 하나(어둡게) + 꺼진 세대 3개 + 기계실
+local function minSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
+	local cf = slabCF(s)
+	local m = Instance.new("Model")
+	m.Name = "Dong" .. s.label
+	local w, d, h = s.w, s.d, s.h
+	local fl = s.floors
+	Kit.box(m, cf * CFrame.new(0, h / 2, 0), Vector3.new(w, h, d), cx.wall, MAT.Concrete, { name = "Body", shadow = false })
+	local fw = w - 2 * END_W
+	local y0, y1 = PILOTIS, h - PARAPET
+	Kit.box(m, cf * CFrame.new(0, (y0 + y1) / 2, 0), Vector3.new(fw, y1 - y0, d + 0.6), dim(jitter(rng, pick(rng, cx.lit), 0.08), 0.32), MAT.Neon, glowOpts("Core", cx.dark))
+	local nu = math.max(2, math.floor(fw / UNIT))
+	local uw = fw / nu
+	for _ = 1, 3 do
+		local len = rng:NextInteger(1, math.min(4, nu))
+		local u0 = rng:NextInteger(0, nu - len)
+		local nf = rng:NextInteger(2, math.max(2, math.floor(fl / 3)))
+		local f0 = rng:NextInteger(0, math.max(0, fl - nf))
+		Kit.box(m, cf * CFrame.new(-fw / 2 + (u0 + len / 2) * uw, PILOTIS + (f0 + nf / 2) * FLOOR_H, 0), Vector3.new(len * uw - 0.8, nf * FLOOR_H, d + 1.2), cx.dark, MAT.SmoothPlastic, deco("Off"))
+	end
+	Kit.box(m, cf * CFrame.new(rng:NextNumber(-0.25, 0.25) * w, h + M(1.75), 0), Vector3.new(M(4), M(3.5), d * 0.6), cx.wall, MAT.Concrete, deco("ElevatorHouse"))
+	m.Parent = parent
+end
+
 local function buildSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
-	local cf = CFrame.new(s.x, CITY_Y, s.z) * CFrame.Angles(0, math.rad(s.yaw), 0)
+	local cf = slabCF(s)
 	if s.style == "apartment" then
-		if cx.full then
-			Facade.tower(parent, {
+		if cx.lod == "full" then
+			-- Facade 기본 층고 2.9 m / 세대 벽 4.5 m / 필로티 3.5 m
+			local mdl = Facade.tower(parent, {
 				name = "Dong" .. s.label,
 				cf = cf,
 				w = s.w,
@@ -556,23 +622,24 @@ local function buildSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
 				h = s.h,
 				style = "apartment",
 				rng = rng,
-				floorH = FLOOR_H,
-				bay = UNIT,
 				glass = cx.wall,
 				lit = cx.lit,
 				litChance = cx.litChance,
 				accent = cx.accent,
-				label = s.label,
 				crown = cx.crown,
 				ledColor = cx.led,
+				lobbyColor = dim(P.WindowWarm, 0.3),
 			})
-		else
+			dongLabel(mdl, s, cf)
+		elseif cx.lod == "lite" then
 			liteSlab(parent, s, cx, rng)
+		else
+			minSlab(parent, s, cx, rng)
 		end
 		return
 	end
-	-- 신축 타워
-	if cx.full then
+	-- 신축 타워형
+	if cx.lod == "full" then
 		Facade.tower(parent, {
 			name = "Dong" .. s.label,
 			cf = cf,
@@ -582,13 +649,13 @@ local function buildSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
 			style = s.style,
 			rng = rng,
 			floorH = TOWER_FLOOR_H,
-			bay = 6,
 			glass = cx.glass,
 			frame = cx.frame,
 			lit = cx.lit,
 			litChance = cx.litChance,
 			crown = "frame",
 			ledColor = cx.led,
+			lobbyColor = dim(P.WindowWarm, 0.3),
 		})
 	else
 		Facade.tower(parent, {
@@ -597,34 +664,44 @@ local function buildSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
 			w = s.w,
 			d = s.d,
 			h = s.h,
-			style = "mid",
+			style = if cx.lod == "lite" then "mid" else "far",
 			rng = rng,
 			glass = cx.glass,
 			lit = LIT_LITE,
 			litChance = 0.8,
 			crown = "led",
 			ledColor = cx.led,
+			beacon = true, -- 35층 이상(> 100 m) 항공장애등
 		})
 	end
 end
 
-local function buildExtra(parent: Instance, e: Extra, cx: Complex, rng: Random)
+local function buildExtra(parent: Instance, e: Extra, cx: Complex)
 	local cf = CFrame.new(e.x, CITY_Y, e.z) * CFrame.Angles(0, math.rad(e.yaw), 0)
 	if e.kind == "shop" then
-		-- 단지 상가: 2~3층 몸체 + 1층 쇼윈도 불빛 + 간판 띠
+		-- 단지 상가: 2층 몸체 + 1층 쇼윈도 불빛(3 m) + 간판 띠(1.2 m)
 		local body = cx.wall:Lerp(rgb(70, 70, 76), 0.45)
 		Kit.box(parent, cf * CFrame.new(0, e.h / 2, 0), Vector3.new(e.w, e.h, e.d), body, MAT.Concrete, { name = "Shop" })
-		Kit.box(parent, cf * CFrame.new(0, 2.1, 0), Vector3.new(e.w - 2, 3, e.d + 0.6), dim(P.WindowCool, 0.3), MAT.Neon, glowOpts("ShopFront", body))
-		Kit.box(parent, cf * CFrame.new(0, e.h - 1.6, 0), Vector3.new(e.w - 3, 1.8, e.d + 0.6), dim(e.color, 0.2), MAT.Neon, glowOpts("ShopSign", body))
+		Kit.box(parent, cf * CFrame.new(0, M(1.6), 0), Vector3.new(e.w - 2, M(3), e.d + 0.6), dim(P.WindowCool, 0.3), MAT.Neon, glowOpts("ShopFront", body))
+		if cx.lod ~= "min" then
+			Kit.box(parent, cf * CFrame.new(0, e.h - M(0.9), 0), Vector3.new(e.w - 3, M(1.2), e.d + 0.6), dim(e.color, 0.2), MAT.Neon, glowOpts("ShopSign", body))
+		end
+	elseif e.kind == "tree" then
+		-- 조경수: 줄기(지름 0.4 m) + 수관(지면 2.5 m 위부터)
+		local trunkH = M(3.2)
+		local base = CITY_Y + LAWN_T
+		Kit.vcyl(parent, Vector3.new(e.x, base + trunkH / 2, e.z), trunkH, M(0.4), P.Bark, MAT.Wood, deco("Trunk"))
+		local ch = e.h - M(2.5)
+		Kit.ellipsoid(parent, CFrame.new(e.x, base + M(2.5) + ch / 2, e.z), Vector3.new(e.w, ch, e.d), e.color, MAT.Grass, { name = "Tree", shadow = false, query = false })
 	else
-		local _ = rng
-		Kit.ellipsoid(parent, CFrame.new(e.x, CITY_Y + LAWN_T + e.h / 2 - 1.2, e.z), Vector3.new(e.w, e.h, e.d), e.color, MAT.Grass, { name = "Trees", shadow = false, query = false })
+		-- 나무 덩어리(원경): 지면에서 1 m 띄운 수관 묶음
+		Kit.ellipsoid(parent, CFrame.new(e.x, CITY_Y + LAWN_T + M(1) + e.h / 2, e.z), Vector3.new(e.w, e.h, e.d), e.color, MAT.Grass, { name = "Trees", shadow = false, query = false })
 	end
 end
 
 local function buildComplex(parent: Instance, cx: Complex, rng: Random)
 	local g = Kit.group(parent, cx.name)
-	g:SetAttribute("Lod", if cx.full then "full" else "lite")
+	g:SetAttribute("Lod", cx.lod)
 	if cx.lawn then
 		local l = cx.lawn
 		Kit.box(g, CFrame.new(l[1], CITY_Y + LAWN_T / 2, l[2]) * CFrame.Angles(0, math.rad(l[5]), 0), Vector3.new(l[3], LAWN_T, l[4]), P.GrassDark, MAT.Grass, { name = "Lawn", shadow = false })
@@ -633,7 +710,7 @@ local function buildComplex(parent: Instance, cx: Complex, rng: Random)
 		buildSlab(g, s, cx, rng)
 	end
 	for _, e in cx.extras do
-		buildExtra(g, e, cx, rng)
+		buildExtra(g, e, cx)
 	end
 end
 
@@ -691,15 +768,20 @@ local function planZone(o: ZoneOpts, rng: Random): { Complex }
 				continue
 			end
 		elseif rng:NextNumber() < 0.1 then
-			continue -- 학교/공원/저층 블록 자리
+			continue -- 학교/공원/저층 블록 자리(도시 카펫이 채움)
 		end
-		local full = lot.prio < o.fullRange and fullUsed < fullBudget
+		local lod = "min"
+		if lot.prio < o.fullRange and fullUsed < fullBudget then
+			lod = "full"
+		elseif lot.prio < o.liteRange then
+			lod = "lite"
+		end
 		serial += 1
-		local cx = planComplex(o, lot, rng, serial, full, big, waterfront)
+		local cx = planComplex(o, lot, rng, serial, lod, big, waterfront)
 		if cx then
 			table.insert(out, cx)
 			used += cx.cost
-			if full then
+			if lod == "full" then
 				fullUsed += cx.cost
 			end
 		end
@@ -715,23 +797,24 @@ function Apartments.build(ctx: any)
 	local rng: Random = ctx.rng
 	local start = Kit.stats.parts
 	local B = Config.Bridge
-	local N = Config.NearBank
+	local N, F = Config.NearBank, Config.FarBank
 
 	-- 다리 축 연장(가까운 쪽 도시로 들어가는 길)은 비워 둠
-	Kit.reserve(B.X - B.Width / 2 - 20, N.CityFrom, B.X + B.Width / 2 + 20, ZN.ApartmentsNear.ZMax, "BridgeAxisNear")
+	Kit.reserve(B.X - B.Width / 2 - M(6), N.CityFrom, B.X + B.Width / 2 + M(6), ZN.ApartmentsNear.ZMax, "BridgeAxisNear")
 
 	local far: ZoneOpts = {
 		key = "F",
 		zone = ZN.ApartmentsFar,
-		pitchX = 460,
-		pitchZ = 400,
+		pitchX = M(270), -- 단지 블록 약 270 x 230 m (도로 중심 간격)
+		pitchZ = M(230),
 		viewer = HERO,
 		frustum = true,
 		budget = BUDGET_FAR,
 		fullBudget = FULL_FAR,
 		fullRange = FULL_RANGE_FAR,
+		liteRange = LITE_RANGE_FAR,
 		towerChance = 0.16,
-		waterZ = -900,
+		waterZ = F.CityFrom - M(140), -- 도시 앞 140 m 안쪽 = 강변 앞줄
 		waterSign = 1,
 		labelFace = 1,
 		guard = true,
@@ -739,15 +822,16 @@ function Apartments.build(ctx: any)
 	local near: ZoneOpts = {
 		key = "N",
 		zone = ZN.ApartmentsNear,
-		pitchX = 440,
-		pitchZ = 340,
+		pitchX = M(265),
+		pitchZ = M(255),
 		viewer = Vector3.new(DECK.X, Config.Viewpoint.DeckHeight, DECK.Z),
 		frustum = false,
 		budget = BUDGET_NEAR,
 		fullBudget = FULL_NEAR,
 		fullRange = FULL_RANGE_NEAR,
+		liteRange = LITE_RANGE_NEAR,
 		towerChance = 0.14,
-		waterZ = 1080,
+		waterZ = N.CityFrom + M(110),
 		waterSign = -1,
 		labelFace = -1,
 		guard = false,
@@ -768,7 +852,7 @@ function Apartments.build(ctx: any)
 			end
 			buildComplex(g, cx, rng)
 			nSlabs += #cx.slabs
-			if cx.full then
+			if cx.lod == "full" then
 				nFull += #cx.slabs
 			end
 		end
