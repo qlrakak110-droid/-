@@ -128,19 +128,22 @@ def grain(n, seed, amp=1.0):
     return ((rng(seed).random((n, n)).astype(np.float32) - 0.5) * 2 * amp)
 
 
-def save_set(name, albedo, height, rough, ao, normal_strength=4.0, normal=None, outdir=OUT, q=87):
+def save_set(name, albedo, height, rough, ao, normal_strength=4.0, normal=None, outdir=OUT, q=85, blend_h=None):
+    """height -> normal map; ORM.b stores `blend_h` (default: a softened height) because the terrain shader uses it
+    for height-based layer blending, where mid-scale structure matters and per-pixel noise only costs bytes"""
     os.makedirs(outdir, exist_ok=True)
     nrm = T.normal_from_height(height, normal_strength) if normal is None else normal
     rough = np.broadcast_to(np.asarray(rough, np.float32), height.shape)
-    orm = np.stack([ao, rough, height], -1)
+    if blend_h is None: blend_h = T.norm01(0.65 * T.blur(height, 3) + 0.35 * height)
+    orm = np.stack([T.blur(ao, 1), T.blur(rough, 1), blend_h], -1)
     out = {}
-    for suf, arr, sub, qq in (('albedo', albedo, 2, q), ('normal', nrm, 0, 88), ('orm', orm, 0, 85)):
+    for suf, arr, sub, qq in (('albedo', albedo, 2, q), ('normal', nrm, 0, 86), ('orm', orm, 0, 80)):
         a = np.clip(arr * 255 + 0.5, 0, 255).astype(np.uint8)
         im = Image.fromarray(a)
         p = os.path.join(outdir, f'{name}_{suf}.jpg')
         im.save(p, quality=qq, subsampling=sub, optimize=True)
         lo = im.resize((im.width // 2, im.height // 2), Image.LANCZOS)
-        lo.save(os.path.join(outdir, f'{name}_{suf}_512.jpg'), quality=min(qq, 88), subsampling=sub, optimize=True)
+        lo.save(os.path.join(outdir, f'{name}_{suf}_512.jpg'), quality=min(qq, 84), subsampling=sub, optimize=True)
         out[suf] = p
     return out
 
