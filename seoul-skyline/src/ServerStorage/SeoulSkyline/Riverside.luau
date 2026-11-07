@@ -58,7 +58,7 @@ local BANK_X0, BANK_X1 = R.XMin, R.XMax -- 호안·산책로 = 강 길이
 -- 다리 입구(교차로): 분리대·방호벽·방음벽·차선이 끊기는 X 범위
 local BRIDGE_HALF = B.Width / 2
 local GAP_MOUTH: Span = { B.X - BRIDGE_HALF, B.X + BRIDGE_HALF }
-local GAP_PARK: Span = { B.X - BRIDGE_HALF - m(4), B.X + BRIDGE_HALF + m(4) } -- 둔치: 다리 밑 나무/가로등 비움
+local GAP_PARK: Span = { B.X - BRIDGE_HALF - m(4), B.X + BRIDGE_HALF + m(4) } -- 둔치: 다리 밑 나무/보안등/난간 비움
 
 -- 제방 고속화도로 단면: 강 쪽 가장자리(RoadFrom)에서 도시 쪽으로 u (m)
 local XS = {
@@ -304,7 +304,7 @@ local function expressway(parent: Instance, spec: RoadSpec)
 	table.insert(cg, GAP_MOUTH)
 	zc, w = zMid(XS.wall)
 	stripX(parent, x0, x1, zc, w, ROAD_TOP + WALL_BASE_H, WALL_BASE_H + 0.3, BARRIER_C, MAT.Concrete, { name = "SoundWallBase" }, cg)
-	stripX(parent, x0, x1, zc, m(0.15), ROAD_TOP + WALL_H, WALL_H - WALL_BASE_H, WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false }, cg)
+	stripX(parent, x0, x1, zc, m(0.15), ROAD_TOP + WALL_H, WALL_H - WALL_BASE_H + 0.3, WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false }, cg)
 	-- 중앙 쌍가로등 (11 m, 38 m 간격): 기둥 + 양팔 LED 등기구(멀리서는 한 점의 불빛)
 	local zMed = zMid(XS.median)
 	local lit = 0
@@ -314,7 +314,7 @@ local function expressway(parent: Instance, spec: RoadSpec)
 	end)
 	for _, x in xs do
 		if not inGaps(x, mouth, m(3)) then
-			local base = ROAD_TOP + MEDIAN_H
+			local base = ROAD_TOP + MEDIAN_H - 0.3
 			Kit.vcyl(parent, Vector3.new(x, (base + XLAMP_H + ROAD_TOP) / 2, zMed), XLAMP_H + ROAD_TOP - base, m(0.25), POLE_C, MAT.Metal, deco("LampPole"))
 			local head = Kit.box(parent, CFrame.new(x, ROAD_TOP + XLAMP_H + m(0.1), zMed), Vector3.new(m(0.5), m(0.3), XLAMP_ARM), LAMP_ROAD, MAT.Neon, glowOpts("LampArm"))
 			if lit < spec.lampLights then
@@ -410,7 +410,7 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 		if not inGaps(x, gaps) then
 			parkLamp(parent, x, lampZ, false)
 			n += 1
-			if math.abs(x - 0) <= 2200 and n % 2 == 0 then
+			if math.abs(x) <= 2200 and n % 3 == 0 then
 				Kit.reflection(glints, x + rng:NextNumber(-2, 2), e + 8, m(2.0), m(rng:NextNumber(52, 64)), GLINT_C, 0.5)
 			end
 		end
@@ -431,7 +431,7 @@ local function farBank(parent: Instance, glints: Instance, rng: Random)
 	x = -1300
 	while x <= 1600 do
 		if not inGaps(x, gaps) then
-			tree(parent, rng, x, e + s * rng:NextNumber(m(36), m(44)), L.Promenade, 2, 1.15)
+			tree(parent, rng, x, e + s * rng:NextNumber(m(36), m(44)), L.Promenade, 2)
 		end
 		x += rng:NextNumber(m(22), m(28))
 	end
@@ -467,7 +467,7 @@ local function nearBank(parent: Instance, rng: Random)
 	stripX(parent, rx0, rx1, rz, m(0.05), PATH_TOP + m(0.7), m(0.05), POLE_C, MAT.Metal, deco("RailMid", { shadow = false }), gaps)
 	stripX(parent, rx0, rx1, rz, m(0.05), PATH_TOP + m(0.3), m(0.05), POLE_C, MAT.Metal, deco("RailMid", { shadow = false }), gaps)
 	local postH = Config.Real.Railing - m(0.08)
-	for _, px in stations(NEAR_VIEW0, NEAR_VIEW1, -1100, 500, m(3), m(9)) do
+	for _, px in stations(NEAR_VIEW0, NEAR_VIEW1, -1000, 200, m(3), m(15)) do
 		if not inGaps(px, gaps, 1) then
 			Kit.box(parent, CFrame.new(px, PATH_TOP + postH / 2 - 0.15, rz), Vector3.new(m(0.07), postH + 0.3, m(0.07)), POLE_C, MAT.Metal, deco("RailPost"))
 		end
