@@ -5375,9 +5375,9 @@ function buildWorld() {
   const scene = W.scene = new THREE.Scene();
   const cam = W.camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, 0.1, 1600);
   Cams.push(cam);
-  scene.fog = new THREE.Fog(0x6a4a7a, 60, 330);
+  scene.fog = new THREE.Fog(0x6a4a7a, 65, 360);
   // aerial perspective (see patchFogChunks): sun in-scatter + height fog only while the island renders
-  W.fogSun = 0.85; W.fogHeight = Settings.high ? 0.0065 : 0.005;
+  W.fogSun = 0.85; W.fogHeight = 0.0048;
   scene.onBeforeRender = () => { FogAtmo.dir.w = W.fogSun; FogAtmo.height.x = W.fogHeight; FogAtmo.height.w = 1.4; };
   scene.onAfterRender = () => { FogAtmo.dir.w = 0; FogAtmo.height.x = 0; };
 
