@@ -264,7 +264,7 @@ function Kit.light(p: BasePart, className: string, props: LightProps?): Light?
 end
 
 function Kit.beacon(parent: Instance, pos: Vector3, diameter: number?): BasePart
-	local d = diameter or 3
+	local d = diameter or 5
 	local b = Kit.ball(parent, pos, d, Config.Palette.Beacon, Enum.Material.Neon, { name = "Beacon", collide = false })
 	CollectionService:AddTag(b, Kit.BEACON_TAG)
 	Kit.stats.beacons += 1
@@ -311,7 +311,7 @@ end
 -- 조각마다 폭·위치가 조금씩 달라 물결처럼 흔들려 보이고, 광원에서 멀어질수록 옅어집니다. 수면 밖으로는 나가지 않음.
 -- 반환: 첫 조각(가장 밝은 것). 결정적(위치 기반 해시)이라 rng 를 받지 않습니다.
 function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart?
-	local y = Config.Level.Water + 0.25
+	local y = Config.Level.Water + 0.3
 	local base = math.clamp(transparency or 0.62, 0, 0.95)
 	local zMin, zMax = Config.FarBank.WaterEdge + 3, Config.NearBank.WaterEdge - 6
 	z = math.clamp(z, zMin, zMax)
@@ -321,7 +321,7 @@ function Kit.reflection(parent: Instance, x: number, z: number, width: number, l
 		dir = Vector3.new(0, 0, 1)
 	end
 	dir = dir.Unit
-	local n = math.clamp(math.floor(length / 22), 3, 12)
+	local n = math.clamp(math.floor(length / 36), 3, 12)
 	local step = length / n
 	local rnd = Random.new(math.floor(x * 7.31 + z * 3.17) % 2147483647)
 	local first: BasePart? = nil
@@ -330,7 +330,7 @@ function Kit.reflection(parent: Instance, x: number, z: number, width: number, l
 	for i = 0, n - 1 do
 		local t = i / math.max(1, n - 1)
 		local segL = step * rnd:NextNumber(0.7, 1.05)
-		local w = math.max(1.2, width * rnd:NextNumber(0.6, 1.2) * (1 - 0.3 * t))
+		local w = math.max(2, width * rnd:NextNumber(0.6, 1.2) * (1 - 0.3 * t))
 		local along = step * (i + 0.5) + rnd:NextNumber(-0.15, 0.15) * step
 		local c = Vector3.new(x, y, z) + dir * along + side * (rnd:NextNumber(-0.22, 0.22) * width)
 		if c.Z < zMin or c.Z > zMax then

@@ -622,7 +622,7 @@ local function buildKiosk(parent: Instance, rng: Random, mainPts: { Vector2 })
 			parasol(parent, x, gy, z, cols[i % 3 + 1])
 		end
 	end
-	local mats = { { -300, 507, rgb(214, 120, 60) }, { -338, 526, rgb(70, 140, 190) }, { -298, 532, rgb(220, 196, 90) } }
+	local mats = { { -326, 504, rgb(214, 120, 60) }, { -338, 526, rgb(70, 140, 190) }, { -298, 532, rgb(220, 196, 90) } }
 	for _, m in mats do
 		Kit.box(parent, CFrame.new(m[1] :: number, GROUND + 0.15, m[2] :: number) * CFrame.Angles(0, math.rad(rng:NextNumber(-30, 30)), 0), Vector3.new(6, 0.3, 5), m[3] :: Color3, MAT.Fabric, opts("PicnicMat"))
 	end
@@ -817,7 +817,7 @@ local function buildTrees(parent: Instance, rng: Random, budget: number): number
 			if inBridge(x, 5 + r) or inPicnic(x, z, r * 0.5) then
 				continue
 			end
-			if occupied(x, z, 2.5, 1) or occupied(x, z, r * 0.7, 2) then
+			if occupied(x, z, 2.5, 1) or occupied(x, z, r * 0.7, 2) or (belt and occupied(x, z, r * 0.8, 3)) then
 				continue
 			end
 			if hashHit(lamps, x, z, r * 0.85, 1, 1.2) then
@@ -895,7 +895,8 @@ function Park.build(ctx: any)
 	drawPath(paths, mainPts, MAIN_W, MAIN_TOP, BRICK_C, MAT.Brick, "MainPath")
 
 	local connectors: { { Vector2 } } = {}
-	local connX = { -1240, -760, -180, 380, 760, 1180 }
+	-- 히어로 하단에 보이는 연결로(-100, 120)는 숲 띠 안에서 수관이 덮지 않는 "빛길"(가로등 줄)
+	local connX = { -1240, -760, -100, 120, 560, 1180 }
 	for _, cx in connX do
 		local xe = cx + rng:NextNumber(-30, 30)
 		local ze = zOnPath(mainPts, xe)
@@ -910,6 +911,12 @@ function Park.build(ctx: any)
 		end)
 		drawPath(paths, pts, CONN_W, CONN_TOP, PAVE_C, MAT.Pavement, "ConnPath")
 		table.insert(connectors, pts)
+		for i = 1, #pts - 1 do
+			local a, b = pts[i], pts[i + 1]
+			if (a.Y + b.Y) / 2 < BELT_Z1 + 10 and a.X > BELT_X0 and a.X < BELT_X1 then
+				markSeg(a.X, a.Y, b.X, b.Y, CONN_W / 2 + 1, 3)
+			end
+		end
 	end
 	-- 광장 진입로 (메인 → 광장 안쪽)
 	local spur = catmull({ Vector2.new(DC.X + 22, zOnPath(mainPts, DC.X + 22)), Vector2.new(DC.X + 12, PLAZA.Y - PLAZA_R + 8) }, function(_x: number): number
@@ -968,8 +975,8 @@ function Park.build(ctx: any)
 	for ci, pts in connectors do
 		local sd = if ci % 2 == 0 then 1 else -1
 		for _, st in stations(pts, function(x: number): number
-			return if math.abs(x - VIEW_X) < 950 then 34 else 70
-		end, 24) do
+			return if math.abs(x - VIEW_X) < 500 then 26 elseif math.abs(x - VIEW_X) < 950 then 34 else 70
+		end, 14) do
 			local p, dir = st[1], st[2]
 			local q = p + Vector2.new(-dir.Y, dir.X) * sd * (CONN_W / 2 + 1.5)
 			if q.Y < zOnPath(mainPts, q.X) - MAIN_W and lampOK(q.X, q.Y) then

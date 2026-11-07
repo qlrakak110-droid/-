@@ -41,7 +41,7 @@ function Atmosphere.apply()
 	Lighting.FogEnd = 100000
 
 	local atm = replace(Lighting, "Atmosphere", "DuskAtmosphere") :: Atmosphere
-	atm.Density = 0.18
+	atm.Density = 0.11 -- 실제 스케일(거리 ×1.67)에 맞춘 값
 	atm.Offset = 0.25
 	atm.Color = rgb(228, 150, 108)
 	atm.Decay = rgb(40, 88, 178)
