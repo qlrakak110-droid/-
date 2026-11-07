@@ -41,8 +41,8 @@ function Atmosphere.apply()
 	Lighting.FogEnd = 100000
 
 	local atm = replace(Lighting, "Atmosphere", "DuskAtmosphere") :: Atmosphere
-	atm.Density = 0.34
-	atm.Offset = 0.12
+	atm.Density = 0.18
+	atm.Offset = 0.25
 	atm.Color = rgb(228, 150, 108)
 	atm.Decay = rgb(40, 88, 178)
 	atm.Glare = 0.9

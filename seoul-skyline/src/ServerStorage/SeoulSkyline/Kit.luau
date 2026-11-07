@@ -306,21 +306,37 @@ function Kit.label(p: BasePart, face: Enum.NormalId, text: string, opts: LabelOp
 	return g
 end
 
--- 수면 위 빛 번짐: 광원 바로 앞(카메라 쪽 +Z)으로 길게 늘어진 반투명 Neon 띠
+-- 수면 위 빛 번짐: 광원 바로 앞(카메라 쪽 +Z)으로 늘어진 "끊어진" 반투명 Neon 조각들.
+-- 물결에 흔들리는 실제 반사처럼 조각마다 폭·위치가 조금씩 다르고, 광원에서 멀어질수록 옅어집니다.
+-- 반환: 첫 조각(가장 밝은 것). 결정적(위치 기반 해시)이라 rng 를 받지 않습니다.
 function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart
 	local y = Config.Level.Water + 0.25
-	return Kit.part(parent, CFrame.new(x, y, z + length / 2), Vector3.new(width, 0.12, length), {
-		name = "WaterGlint",
-		material = Enum.Material.Neon,
-		color = color,
-		transparency = transparency or 0.62,
-		collide = false,
-		query = false,
-		shadow = false,
-		glow = true,
-		dayMaterial = Enum.Material.Glass,
-		dayColor = Color3.fromRGB(40, 60, 80),
-	})
+	local base = math.clamp(transparency or 0.62, 0, 0.95)
+	local n = math.clamp(math.floor(length / 22), 3, 12)
+	local step = length / n
+	local rnd = Random.new(math.floor(x * 7.31 + z * 3.17) % 2147483647)
+	local first: BasePart? = nil
+	for i = 0, n - 1 do
+		local t = i / math.max(1, n - 1)
+		local segL = step * rnd:NextNumber(0.7, 1.05)
+		local w = width * rnd:NextNumber(0.55, 1.15) * (1 - 0.35 * t)
+		local cz = z + step * (i + 0.5) + rnd:NextNumber(-0.15, 0.15) * step
+		local cx = x + rnd:NextNumber(-0.22, 0.22) * width
+		local p = Kit.part(parent, CFrame.new(cx, y, cz), Vector3.new(math.max(0.4, w), 0.12, segL), {
+			name = "WaterGlint",
+			material = Enum.Material.Neon,
+			color = color:Lerp(Color3.new(0, 0, 0), 0.25 * t),
+			transparency = base + (0.95 - base) * t * 0.85,
+			collide = false,
+			query = false,
+			shadow = false,
+			glow = true,
+			dayMaterial = Enum.Material.Glass,
+			dayColor = Color3.fromRGB(40, 60, 80),
+		})
+		first = first or p
+	end
+	return first :: BasePart
 end
 
 ------------------------------------------------------------------------------------------------------
