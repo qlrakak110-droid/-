@@ -308,8 +308,11 @@ function ppKit() {
   return K;
 }
 // mesh one layer and give every vertex colour / material (soft nearest primitive) and chain-blended skin weights
+// game-density meshing: fine cells only where the eye goes (face, hands), garments coarser (normals come from the
+// smooth field, so shading stays clean); about 25–40k triangles per person on PC
+const PP_DENS = { face: 1.4, hand: 1.4, cap: 1.45, sole: 1.5, pouch: 1.4, packflap: 1.4, bedroll: 1.5, pack: 1.5, socks: 1.5, arms: 1.45, legs: 1.5, shirt: 1.8 };
 function ppLayerSurf(S, L) {
-  const M = ppSculpt(L.prims, L.cell);
+  const M = ppSculpt(L.prims, L.cell * (PP_DENS[L.name] || 1.7));
   const s = ppSurf(M.nv, M.idx.length / 3);
   s.pos = M.pos; s.nor = M.nor; s.idx = M.idx;
   const add = L.prims.filter((P) => !P.sub), boxes = add.map((P) => SDF.aabb(P)), ds = new Float64Array(add.length);
@@ -341,6 +344,23 @@ function ppLayerSurf(S, L) {
   s.field = { sample: M.sample, b: M.bounds };
   s.aoR = L.aoR;
   return s;
+}
+function ppCompact(s, hid) {
+  const I = s.idx, keep = [];
+  for (let t = 0; t < I.length; t += 3) if (!(hid[I[t]] && hid[I[t + 1]] && hid[I[t + 2]])) keep.push(t);
+  if (keep.length * 3 === I.length) return s;
+  const map = new Int32Array(s.nv).fill(-1); let nv = 0;
+  for (const t of keep) for (let e = 0; e < 3; e++) { const v = I[t + e]; if (map[v] < 0) map[v] = nv++; }
+  const o = ppSurf(nv, keep.length);
+  for (let v = 0; v < s.nv; v++) {
+    const m = map[v]; if (m < 0) continue;
+    for (let c = 0; c < 3; c++) { o.pos[m * 3 + c] = s.pos[v * 3 + c]; o.nor[m * 3 + c] = s.nor[v * 3 + c]; o.col[m * 3 + c] = s.col[v * 3 + c]; o.tan[m * 3 + c] = s.tan[v * 3 + c]; }
+    for (let c = 0; c < 4; c++) { o.m[m * 4 + c] = s.m[v * 4 + c]; o.sk[m * 4 + c] = s.sk[v * 4 + c]; o.sw[m * 4 + c] = s.sw[v * 4 + c]; }
+    o.uv[m * 2] = s.uv[v * 2]; o.uv[m * 2 + 1] = s.uv[v * 2 + 1]; o.ao[m] = s.ao[v];
+  }
+  keep.forEach((t, i) => { o.idx[i * 3] = map[I[t]]; o.idx[i * 3 + 1] = map[I[t + 1]]; o.idx[i * 3 + 2] = map[I[t + 2]]; });
+  o.field = s.field; o.aoR = s.aoR;
+  return o;
 }
 // soft crease occlusion from every sculpted layer's field (cross-layer: under hems, collars, hair, chin, arms)
 function ppAO(s, fields0, R) {
@@ -383,7 +403,8 @@ function ppMerge(list) {
   for (const s of list) { nv += s.nv; ni += s.idx.length; }
   const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), m = new Float32Array(nv * 4), uv = new Float32Array(nv * 2), tan = new Float32Array(nv * 3), ao = new Float32Array(nv), sk = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni);
   let ov = 0, oi = 0;
-  if (window.__ppDebug) list.forEach((s, i) => { let bad = 0; for (let q = 0; q < s.pos.length; q++) if (!Number.isFinite(s.pos[q])) bad++; if (bad) console.log('LAB nan surf', i, s.nv, bad, s.tag || ''); });
+  // safety: a degenerate generated strand must never poison the whole mesh (bounding volumes, shadows)
+  for (const s of list) for (let q = 0; q < s.pos.length; q++) if (!Number.isFinite(s.pos[q])) { s.pos[q] = 0; s.nor[q] = 0; }
   for (const s of list) {
     pos.set(s.pos, ov * 3); nor.set(s.nor, ov * 3); col.set(s.col, ov * 3); m.set(s.m, ov * 4); uv.set(s.uv, ov * 2); tan.set(s.tan, ov * 3); ao.set(s.ao, ov); sk.set(s.sk, ov * 4); sw.set(s.sw, ov * 4);
     for (let i = 0; i < s.idx.length; i++) idx[oi + i] = s.idx[i] + ov;
@@ -658,6 +679,13 @@ function ppStrap(F, ctrl, hw, ht, o = {}) {
   return ppSweep(pts, pts.map(() => hw), pts.map(() => ht), (i) => ppGrad(F, pts[i]), { shape: 'flat', seg: 8, uvLen: o.stitch ? 0.012 : 0 });
 }
 // colour / material / flags / weights for a generated surface
+// small metal buckle / clasp: a bevelled frame resting on a field at p, facing out along the field normal
+function ppBuckle(S, F, p, w, h, col, ch) {
+  const n = ppGrad(F, p), up = [0, 1, 0], X = ppV.norm(ppV.cross(up, n)), Y = ppV.cross(n, X), t = 0.012 * S.u;
+  const pts = [[-w, -h], [w, -h], [w, h], [-w, h]].map(([a, b]) => ppV.add(ppV.add(ppV.add(p, ppV.mul(X, a)), ppV.mul(Y, b)), ppV.mul(n, t)));
+  const s = ppSweep(pts, pts.map(() => 0.012 * S.u), pts.map(() => 0.009 * S.u), () => n, { closed: true, seg: 6 });
+  return ppDress(S, s, col, PP_M.metal, ch, { flag: -1 });
+}
 function ppDress(S, s, col, m, ch, o = {}) {
   ppFill(s, col, m);
   if (o.stitch) for (let q = 0; q < s.nv; q++) s.uv[q * 2 + 1] = 1.5 + 0.49 * clamp(s.uv[q * 2 + 1], -1, 1);
@@ -780,7 +808,7 @@ function ppFaceStrokes(S, C, FF, out) {
   const u = S.u, hc = S.hc, ey = hc[1] + S.eyeY * u;
   const browC = S.elder ? ppLin(0xe8e4ec) : ppV.mul(ppLin(C.hair), 0.72);
   for (const s of [-1, 1]) {
-    const arch = S.fem ? 0.06 : S.kid ? 0.05 : 0.035, lift = S.kid ? 0.17 : S.elder ? 0.2 : 0.2, wd = S.eyeW;
+    const arch = S.fem ? 0.06 : S.kid ? 0.05 : 0.035, lift = S.kid ? 0.15 : S.elder ? 0.2 : 0.2, wd = S.eyeW;
     const pts = [];
     for (let i = 0; i < 8; i++) {
       const t = i / 7, x = s * (wd * 0.42 + wd * 1.3 * t) * u, y = ey + (lift + arch * Math.sin(Math.PI * Math.pow(t, 0.8)) - (S.hero ? 0.03 * (1 - t) : 0) - 0.05 * t * t) * u;
@@ -879,6 +907,8 @@ function ppOutfit(K, S, C) {
     post.push((F) => {
       const FJ = F('jacket'), out = [];
       out.push(...belt(FJ, j.spine[1] - 0.3 * u, ppLin(0x4a2e1e)));
+      out.push(ppBuckle(S, FJ, ppProject(FJ, [0, j.spine[1] - 0.3 * u, 0.6 * u], 0.03 * u, 6), 0.05 * u, 0.06 * u, ppLin(0xd8b060), 'torso'));
+      if (!coat) out.push(ppBuckle(S, FJ, ppProject(FJ, [0.09 * u, j.chest[1] + 0.05 * u, 0.6 * u], 0.035 * u, 6), 0.04 * u, 0.035 * u, ppLin(0xc8a050), 'torso'));
       // jacket fronts: trimmed edges running from the collar down the opening to the hem, flap pockets
       for (const sd of [-1, 1]) {
         out.push(ppDress(S, ppStrap(FJ, [[sd * 0.17 * u, j.neck[1] + 0.02 * u, 0.3 * u], [sd * 0.08 * u, j.chest[1] - 0.1 * u, 0.5 * u], [sd * 0.035 * u, j.spine[1] - 0.05 * u, 0.5 * u], [sd * 0.03 * u, (coat ? kneeY + 0.2 * u : hemY + 0.06 * u), 0.5 * u]], 0.032 * u, 0.012 * u, { stitch: true, n: 18 }), ppLin(C.trim), PP_M.cloth, 'torso', { stitch: true }));
@@ -1008,6 +1038,18 @@ function ppBuild(C) {
   const PF = window.__ppProf, tm = (k, t) => { if (PF) PF[k] = (PF[k] || 0) + performance.now() - t; };
   let t1 = performance.now();
   for (const L of K.layers) { const tl = performance.now(); const s = ppLayerSurf(S, L); surfs.push(s); fields[L.name] = s.field; if (L.name === 'face') ppFaceNormals(S, s); tm('L_' + L.name, tl); }
+  // hidden-surface removal: triangles buried inside another garment's solid (cranium under the hair cap, trousers
+  // under the jacket and in the boots, neck under the collar…) are dropped and the vertex streams compacted
+  for (let li = 0; li < K.layers.length; li++) {
+    const sf = surfs[li], others = surfs.filter((o, k) => k !== li && o.field).map((o) => o.field);
+    const hid = new Uint8Array(sf.nv), eps = 0.004;
+    for (let q = 0; q < sf.nv; q++) {
+      const x = sf.pos[q * 3], y = sf.pos[q * 3 + 1], z = sf.pos[q * 3 + 2];
+      for (const f of others) { const b = f.b; if (x < b[0] || y < b[1] || z < b[2] || x > b[3] || y > b[4] || z > b[5]) continue; if (f.sample(x, y, z) < -eps) { hid[q] = 1; break; } }
+    }
+    surfs[li] = ppCompact(sf, hid);
+  }
+  if (PF) K.layers.forEach((L, i) => { PF['n_' + L.name] = surfs[i].nv; });
   tm('layers', t1); t1 = performance.now();
   const F = (name) => ppUnion([fields[name]]);
   const all = Object.values(fields);
@@ -1023,6 +1065,7 @@ function ppBuild(C) {
   const glove = S.kind === 'hero';
   for (const s of [1, -1]) surfs.push(ppHand(S, C, s, glove));
   tm('strokes+hands', t1); t1 = performance.now();
+  if (PF) { PF.n_extra = extra.reduce((a, x) => a + x.nv, 0); PF.n_post = surfs.reduce((a, x) => a + x.nv, 0); }
   for (const s of surfs) if (s.aoR) ppAO(s, all, s.aoR);
   tm('ao', t1); t1 = performance.now();
   const geo = ppMerge(surfs.concat(extra)); tm('merge', t1);
@@ -1339,8 +1382,8 @@ function ppLids(S, C, E, side) {
         const thc = lerp(c0, c1, uc), inside = uu > 0 && uu < 1;
         const sT = inside ? Math.pow(Math.sin(Math.PI * Math.pow(uc, 0.85)), 0.75) : 0, sB = inside ? Math.pow(Math.sin(Math.PI * uc), 0.9) : 0;
         let eT = thc + ht * sT, eB = thc - hb * sB;
-        const close = eB + (eT - eB) * 0.18;
-        eT = lerp(eT, close, blink); eB = lerp(eB, close, blink * 0.9);
+        const close = eB + (eT - eB) * 0.12;
+        eT = lerp(eT, close - 0.04, blink); eB = lerp(eB, close, blink * 0.85);
         const th = (part === 0 ? eT : eB) + rows[r][0], rr = R * rows[r][1];
         pos[q * 3] = side * rr * Math.cos(th) * Math.sin(ph); pos[q * 3 + 1] = rr * Math.sin(th); pos[q * 3 + 2] = rr * Math.cos(th) * Math.cos(ph);
       }

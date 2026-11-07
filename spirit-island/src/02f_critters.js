@@ -134,7 +134,7 @@ function critterEye(o = {}) {
 
 // ---------------------------------------------------------------- face layer on the body material
 // Object-space decals evaluated per pixel, so they stay crisp and follow every vertex deformation.
-const CRITTER_FACE_DECL = `uniform vec4 uMouth, uNose, uBlush, uBrow, uMark; uniform float uMouthK, uMarkK, uBrowTilt, uHatch;
+const CRITTER_FACE_DECL = `uniform vec4 uMouth, uNose, uBlush, uBrow, uMark; uniform float uMouthK, uMarkK, uBrowTilt, uHatch, uBlushEdge, uBlushA;
   uniform vec3 uLineCol, uBlushCol, uBrowCol, uMarkCol, uMarkGlow; vec3 gDecalE;
 `;
 const CRITTER_FACE = `
@@ -174,8 +174,8 @@ const CRITTER_FACE = `
     if (uBlush.w > 0.0) {
       vec2 bq = (vec2(abs(P.x), P.y) - uBlush.xy) / vec2(uBlush.w, uBlush.w * 0.58);
       float e = length(bq);
-      float bm = smoothstep(1.0, 0.15, e) * step(uBlush.z, P.z) * smoothstep(-0.3, 0.2, Nn.z);
-      diffuseColor.rgb = mix(diffuseColor.rgb, uBlushCol, bm * 0.6);
+      float bm = smoothstep(1.0, uBlushEdge, e) * step(uBlush.z, P.z) * smoothstep(-0.3, 0.2, Nn.z);
+      diffuseColor.rgb = mix(diffuseColor.rgb, uBlushCol, bm * uBlushA);
       float hs = smoothstep(0.55, 0.9, sin((bq.x * 0.85 - bq.y * 0.5) * 7.5 + 1.2)) * smoothstep(0.8, 0.35, e) * step(abs(bq.x), 0.75);
       diffuseColor.rgb = mix(diffuseColor.rgb, uBlushCol * vec3(0.85, 0.55, 0.6), hs * uHatch * step(uBlush.z, P.z) * 0.8);
     }
@@ -214,7 +214,7 @@ function critterSkin(mat, F = {}) {
   const U = mat.userData.U, v4 = (a) => new THREE.Vector4(...(a || [0, 0, 0, 0]));
   Object.assign(U, {
     uMouth: { value: v4(F.mouth) }, uMouthK: { value: F.mouth ? (F.mouthK ?? 1) : 0 }, uLineCol: { value: new THREE.Color(F.line ?? 0x2a1216) },
-    uNose: { value: v4(F.nose) }, uBlush: { value: v4(F.blush) }, uBlushCol: { value: new THREE.Color(F.blushCol ?? 0xff7f96) }, uHatch: { value: F.hatch ?? 1 },
+    uNose: { value: v4(F.nose) }, uBlush: { value: v4(F.blush) }, uBlushCol: { value: new THREE.Color(F.blushCol ?? 0xff7f96) }, uHatch: { value: F.hatch ?? 1 }, uBlushEdge: { value: F.blushEdge ?? 0.15 }, uBlushA: { value: F.blushA ?? 0.6 },
     uBrow: { value: v4(F.brow) }, uBrowTilt: { value: F.browTilt ?? 0 }, uBrowCol: { value: new THREE.Color(F.browCol ?? 0x3a1a14) },
     uMark: { value: v4(F.mark) }, uMarkK: { value: F.mark ? (F.markK ?? 1) : 0 }, uMarkCol: { value: new THREE.Color(F.markCol ?? 0xffd27a) }, uMarkGlow: { value: new THREE.Color(F.markGlow ?? 0x000000) },
   });
@@ -252,17 +252,459 @@ function critterKit() {
   const prims = [], c = (h) => hexRGB(h);
   return {
     prims,
-    el(p, r, col, o = {}) { prims.push(SDF.el(p, r, Object.assign({ k: 0.06, s0: 0.5, s1: 0.5, col: c(col) }, o))); },
-    rc(a, b, r1, r2, col, o = {}) { prims.push(SDF.rc(a, b, r1, r2, Object.assign({ k: 0.05, s0: 0.5, s1: 0.5, col: c(col) }, o))); },
+    el(p, r, col, o = {}) { prims.push(SDF.el(p, r, Object.assign({ k: 0.06, s0: 0.5, s1: 0.5, col: c(col), hex: col }, o))); },
+    rc(a, b, r1, r2, col, o = {}) { prims.push(SDF.rc(a, b, r1, r2, Object.assign({ k: 0.05, s0: 0.5, s1: 0.5, col: c(col), hex: col }, o))); },
     sub(p, r, k = 0.03) { prims.push(SDF.el(p, r, { k, sub: true })); },
     // pointed fur tuft from a (root, buried in the body) to b (tip)
-    tuft(a, b, r, col, o = {}) { prims.push(SDF.rc(a, b, r, r * 0.14, Object.assign({ k: 0.035, s0: 0.5, s1: 0.5, col: c(col) }, o))); },
+    tuft(a, b, r, col, o = {}) { prims.push(SDF.rc(a, b, r, r * 0.14, Object.assign({ k: 0.035, s0: 0.5, s1: 0.5, col: c(col), hex: col }, o))); },
   };
 }
 const HEAD = { s0: 1, s1: 1 };
 const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const _critterDesigns = {};
 function critter(key, fn) { if (!_critterDesigns[key]) _critterDesigns[key] = fn(); return _critterDesigns[key]; }
+
+// ============================================================================
+//  MAINLINE SPIRIT LOOK — clean sculpt → flat colour regions → soft cel shading, data-driven per species.
+//  A species opts in by giving its design a `look` (see SPIRIT_MATS / SPIRIT_SHADE below):
+//    look.kind   default region material ('fur' | 'skin' | 'water' | 'leaf' | …) and shading preset
+//    look.mats   { [primHex]: material } per colour region (e.g. the nose glossy, antlers horn, leaves satin)
+//    look.over   overlay markings [{ col, sd(v) → signed distance in object units (negative inside), mat?, em?, soft? }]
+//    look.shade  overrides of the species shading (tint = hue-shifted shadow multiplier, mid band, rim …)
+//  1. spiritGeometry: surface nets → Taubin smoothing → projection onto the EXACT sculpt field (every vertex on the
+//     true smooth surface: no stair-steps, lumps or wobbly outlines; creases the sculpt intends stay crisp) →
+//     tangential relaxation → normals from the exact field gradient (clean, curved terminators).
+//  2. Regions: every distinct prim colour is a class; per vertex the distance to each class and the signed distance
+//     of each overlay are stored (3 × vec4). The fragment shader resolves them per pixel with a ~1 px antialiased
+//     edge, so colour boundaries are clean curves — no vertex-colour blur, no noise, no baked blotches.
+//  3. spiritMaterial: 2-tone cel (+ narrow mid band) from the scene's key light incl. its cast shadow, hemisphere /
+//     ambient fill, per-species hue-shifted shadow, subtle sky+sun rim, one shaped specular on glossy regions only,
+//     small emissive accents. Same shader on phones (no post needed).
+// ============================================================================
+const SPIRIT_SLOTS = 12;
+// per region material: [emissive, specular strength, specular size (1 − N·H threshold), terminator half-width]
+const SPIRIT_MATS = {
+  fur: [0, 0, 0, 0.07], fluff: [0, 0, 0, 0.1], skin: [0, 0.22, 0.05, 0.045], water: [0, 1.0, 0.024, 0.04],
+  leaf: [0, 0.34, 0.1, 0.045], horn: [0, 0.45, 0.04, 0.04], hoof: [0, 0.5, 0.03, 0.035], nose: [0, 0.95, 0.03, 0.035],
+  glow: [0.9, 0, 0, 0.08], ember: [1.4, 0, 0, 0.08],
+};
+// per species shading presets (by look.kind); look.shade overrides any field
+//   shade: shadow luminance relative to the lit plateau · sat/tint: hue-shifted shadow albedo · mid/midW/midTint: the
+//   narrow band on the shadow side of the terminator · rim/rimT: sky+sun rim strength / fresnel threshold ·
+//   term: terminator offset (more lit area) · aoK/aoS: low-frequency crease occlusion (terminator push / shade dim) ·
+//   form: gentle falloff on the lit plateau toward the terminator · ambHue: how much the shadow takes the sky colour
+const SPIRIT_SHADE = {
+  fur: { shade: 0.6, sat: 1.25, tint: [0.94, 0.7, 0.96], mid: 0.55, midW: 0.17, midTint: [1.12, 0.84, 0.8], rim: 0.32, rimT: 0.68, term: 0.14, aoK: 0.5, aoS: 0.3, form: 0.12, ambHue: 0.35, key: 1, amb: 1 },
+  water: { shade: 0.6, sat: 1.15, tint: [0.62, 0.8, 1.14], mid: 0.6, midW: 0.2, midTint: [0.92, 1.1, 1.14], rim: 0.45, rimT: 0.64, term: 0.1, aoK: 0.4, aoS: 0.25, form: 0.15, ambHue: 0.4, key: 1, amb: 1 },
+  skin: { shade: 0.6, sat: 1.2, tint: [0.92, 0.74, 1.0], mid: 0.5, midW: 0.15, midTint: [1.1, 0.88, 0.86], rim: 0.3, rimT: 0.68, term: 0.12, aoK: 0.45, aoS: 0.3, form: 0.13, ambHue: 0.35, key: 1, amb: 1 },
+};
+
+// ---- exact sculpt field (same smooth union / subtraction order as sculptMesh), culled per 8 cm bucket
+function spiritField(prims, bounds) {
+  const B = 0.08, pad = 0.25, x0 = bounds[0] - pad, y0 = bounds[1] - pad, z0 = bounds[2] - pad;
+  const nx = Math.ceil((bounds[3] - x0 + pad) / B) + 1, ny = Math.ceil((bounds[4] - y0 + pad) / B) + 1, nz = Math.ceil((bounds[5] - z0 + pad) / B) + 1;
+  const cells = new Array(nx * ny * nz);
+  const ci = (v, o, n) => Math.min(n - 1, Math.max(0, Math.floor((v - o) / B)));
+  prims.forEach((P, pi) => {
+    const bb = SDF.aabb(P);
+    for (let k = ci(bb[2], z0, nz), k1 = ci(bb[5], z0, nz); k <= k1; k++) for (let j = ci(bb[1], y0, ny), j1 = ci(bb[4], y0, ny); j <= j1; j++) for (let i = ci(bb[0], x0, nx), i1 = ci(bb[3], x0, nx); i <= i1; i++) {
+      const c = (k * ny + j) * nx + i; (cells[c] || (cells[c] = [])).push(pi);
+    }
+  });
+  return (x, y, z) => {
+    const L = cells[(ci(z, z0, nz) * ny + ci(y, y0, ny)) * nx + ci(x, x0, nx)];
+    if (!L) return 0.5;
+    let g = 1e3;
+    for (let q = 0; q < L.length; q++) {
+      const P = prims[L[q]], d = SDF.dist(P, x, y, z), k = P.k;
+      if (P.sub) { const h = Math.max(k - Math.abs(-d - g), 0) / k; g = Math.max(g, -d) + h * h * k * 0.25; }
+      else if (d < g + k) { const h = Math.max(k - Math.abs(g - d), 0) / k; g = Math.min(g, d) - h * h * k * 0.25; }
+    }
+    return g;
+  };
+}
+
+// ---- clean geometry: smoothing + exact projection + relaxation, exact normals, region distances, soft crease AO
+const _spiritGeo = {};
+function spiritGeometry(key, D, look) {
+  const hi = Settings.high && !isTouch, cell = hi ? (D.cellHi ?? 0.02) : (D.cellLo ?? 0.03);
+  const ck = key + '@' + cell;
+  if (_spiritGeo[ck]) return _spiritGeo[ck];
+  const m = sculptMesh(D.prims, D.bounds, cell);
+  const nv = m.nv, idx = m.idx, pos = m.pos, F = spiritField(D.prims, D.bounds);
+  // 1-ring adjacency (each interior edge listed twice: uniform weights stay uniform)
+  const st = new Uint32Array(nv + 1);
+  for (let t = 0; t < idx.length; t++) st[idx[t] + 1] += 2;
+  for (let i = 0; i < nv; i++) st[i + 1] += st[i];
+  const nb = new Uint32Array(st[nv]), fill = st.slice(0, nv);
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t], b = idx[t + 1], c = idx[t + 2];
+    nb[fill[a]++] = b; nb[fill[a]++] = c; nb[fill[b]++] = a; nb[fill[b]++] = c; nb[fill[c]++] = a; nb[fill[c]++] = b;
+  }
+  const tmp = new Float32Array(nv * 3), nor = new Float32Array(nv * 3);
+  const lap = (fac, tang) => {
+    for (let i = 0; i < nv; i++) {
+      const s = st[i], e = st[i + 1], i3 = i * 3;
+      if (e === s) { tmp[i3] = pos[i3]; tmp[i3 + 1] = pos[i3 + 1]; tmp[i3 + 2] = pos[i3 + 2]; continue; }
+      let ax = 0, ay = 0, az = 0;
+      for (let q = s; q < e; q++) { const j = nb[q] * 3; ax += pos[j]; ay += pos[j + 1]; az += pos[j + 2]; }
+      const inv = 1 / (e - s);
+      let dx = ax * inv - pos[i3], dy = ay * inv - pos[i3 + 1], dz = az * inv - pos[i3 + 2];
+      if (tang) { const dn = dx * nor[i3] + dy * nor[i3 + 1] + dz * nor[i3 + 2]; dx -= dn * nor[i3]; dy -= dn * nor[i3 + 1]; dz -= dn * nor[i3 + 2]; }
+      tmp[i3] = pos[i3] + dx * fac; tmp[i3 + 1] = pos[i3 + 1] + dy * fac; tmp[i3 + 2] = pos[i3 + 2] + dz * fac;
+    }
+    pos.set(tmp);
+  };
+  const h = 0.0012, maxStep = cell * 0.7;
+  const project = (iters) => {
+    for (let i = 0; i < nv; i++) {
+      const i3 = i * 3; let x = pos[i3], y = pos[i3 + 1], z = pos[i3 + 2];
+      for (let k = 0; k < iters; k++) {
+        const f = F(x, y, z);
+        if (Math.abs(f) < 2e-5) break;
+        const gx = (F(x + h, y, z) - f) / h, gy = (F(x, y + h, z) - f) / h, gz = (F(x, y, z + h) - f) / h;
+        const g2 = gx * gx + gy * gy + gz * gz; if (g2 < 1e-6) break;
+        let sx = gx * f / g2, sy = gy * f / g2, sz = gz * f / g2;
+        const sl = Math.hypot(sx, sy, sz); if (sl > maxStep) { const r = maxStep / sl; sx *= r; sy *= r; sz *= r; }
+        x -= sx; y -= sy; z -= sz;
+      }
+      pos[i3] = x; pos[i3 + 1] = y; pos[i3 + 2] = z;
+    }
+  };
+  const normals = (central) => {
+    for (let i = 0; i < nv; i++) {
+      const i3 = i * 3, x = pos[i3], y = pos[i3 + 1], z = pos[i3 + 2];
+      let gx, gy, gz;
+      if (central) { gx = F(x + h, y, z) - F(x - h, y, z); gy = F(x, y + h, z) - F(x, y - h, z); gz = F(x, y, z + h) - F(x, y, z - h); }
+      else { const f = F(x, y, z); gx = F(x + h, y, z) - f; gy = F(x, y + h, z) - f; gz = F(x, y, z + h) - f; }
+      const l = Math.hypot(gx, gy, gz);
+      if (l > 1e-9) { nor[i3] = gx / l; nor[i3 + 1] = gy / l; nor[i3 + 2] = gz / l; } else { nor[i3] = m.nor[i3]; nor[i3 + 1] = m.nor[i3 + 1]; nor[i3 + 2] = m.nor[i3 + 2]; }
+    }
+  };
+  const its = D.smooth ?? 4;
+  for (let k = 0; k < its; k++) { lap(0.5); lap(-0.53); }
+  project(3); normals(false);
+  lap(0.55, true); project(2); normals(true);
+  // regions
+  const R = spiritRegions(D, look, pos, nor, nv);
+  // soft, low-frequency crease occlusion only (no curvature / cavity noise): the SDF bake, blurred hard
+  let ao = new Float32Array(nv);
+  try {
+    const b = D.bounds, diag = Math.hypot(b[3] - b[0], b[4] - b[1], b[5] - b[2]);
+    const bk = bakeSculpt({ pos, nor, idx, nv, sample: m.sample }, { aoR: D.aoR || clamp(diag * 0.07, 0.12, 0.3) });
+    for (let i = 0; i < nv; i++) ao[i] = bk[i * 3];
+    const a2 = new Float32Array(nv);
+    for (let pass = 0; pass < 6; pass++) {
+      for (let i = 0; i < nv; i++) { const s = st[i], e = st[i + 1]; let acc = ao[i] * 2; for (let q = s; q < e; q++) acc += ao[nb[q]]; a2[i] = acc / (e - s + 2); }
+      ao.set(a2);
+    }
+  } catch (e) { console.warn('spirit ao skipped', key, e && e.message); ao.fill(0); }
+  const bake = new Float32Array(nv * 3);
+  for (let i = 0; i < nv; i++) bake[i * 3] = clamp((ao[i] - 0.08) * 1.4, 0, 1);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(R.col, 3));
+  g.setAttribute('aR0', new THREE.BufferAttribute(R.a[0], 4));
+  g.setAttribute('aR1', new THREE.BufferAttribute(R.a[1], 4));
+  g.setAttribute('aR2', new THREE.BufferAttribute(R.a[2], 4));
+  g.setAttribute('aBake', new THREE.BufferAttribute(bake, 3));
+  g.setAttribute('aS', new THREE.BufferAttribute(m.aS, 1));
+  g.setAttribute('aJaw', new THREE.BufferAttribute(m.aJaw, 1));
+  g.setAttribute('aGlow', new THREE.BufferAttribute(m.aGlow, 1));
+  g.setAttribute('aBelly', new THREE.BufferAttribute(m.aBelly, 1));
+  g.setAttribute('aLeg', new THREE.BufferAttribute(m.aLeg, 1));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeBoundingSphere(); g.boundingSphere.radius *= 1.3;
+  g.userData.palette = R.palette;
+  _spiritGeo[ck] = g; return g;
+}
+
+// palette slots: classes (one per distinct prim colour, stored as distance above the nearest class) followed by
+// overlays (signed distance). Returns the attributes, a hard per-vertex colour (outline ink) and the slot table.
+function spiritRegions(D, look, pos, nor, nv) {
+  const add = D.prims.filter((P) => !P.sub);
+  const hexOf = (P) => (P.hex != null ? P.hex : linToHex(P.col || [1, 1, 1]));
+  const hexes = [];
+  for (const P of add) { const hx = hexOf(P); if (!hexes.includes(hx)) hexes.push(hx); }
+  const over = (look.over || []).slice(0, Math.max(0, SPIRIT_SLOTS - Math.min(hexes.length, SPIRIT_SLOTS)));
+  const nc = Math.min(hexes.length, SPIRIT_SLOTS - over.length);
+  // classes beyond the budget fold into the nearest kept colour
+  const lin = hexes.map((hx) => hexRGB(hx));
+  const clsOfHex = hexes.map((hx, i) => {
+    if (i < nc) return i;
+    let b = 0, bd = 1e9;
+    for (let j = 0; j < nc; j++) { const d = (lin[i][0] - lin[j][0]) ** 2 + (lin[i][1] - lin[j][1]) ** 2 + (lin[i][2] - lin[j][2]) ** 2; if (d < bd) { bd = d; b = j; } }
+    return b;
+  });
+  const cls = add.map((P) => clsOfHex[hexes.indexOf(hexOf(P))]);
+  const boxes = add.map((P) => SDF.aabb(P));
+  const a = [new Float32Array(nv * 4), new Float32Array(nv * 4), new Float32Array(nv * 4)];
+  const col = new Float32Array(nv * 3), dc = new Float64Array(nc), CL = 0.1;
+  const ovLin = over.map((o) => hexRGB(o.col));
+  const v = { x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0 };
+  for (let i = 0; i < nv; i++) {
+    const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+    dc.fill(1e9);
+    for (let p = 0; p < add.length; p++) {
+      const b = boxes[p];
+      if (x < b[0] - 0.2 || y < b[1] - 0.2 || z < b[2] - 0.2 || x > b[3] + 0.2 || y > b[4] + 0.2 || z > b[5] + 0.2) continue;
+      const d = SDF.dist(add[p], x, y, z), c = cls[p];
+      if (d < dc[c]) dc[c] = d;
+    }
+    let dm = 1e9, w = 0;
+    for (let c = 0; c < nc; c++) if (dc[c] < dm) { dm = dc[c]; w = c; }
+    for (let s = 0; s < SPIRIT_SLOTS; s++) a[s >> 2][i * 4 + (s & 3)] = CL;
+    for (let c = 0; c < nc; c++) a[c >> 2][i * 4 + (c & 3)] = Math.min(dc[c] - dm, CL);
+    let cr = lin[w][0], cg = lin[w][1], cb = lin[w][2];
+    v.x = x; v.y = y; v.z = z; v.nx = nor[i * 3]; v.ny = nor[i * 3 + 1]; v.nz = nor[i * 3 + 2];
+    for (let o = 0; o < over.length; o++) {
+      const s = nc + o, sd = Math.max(-CL, Math.min(CL, over[o].sd(v)));
+      a[s >> 2][i * 4 + (s & 3)] = sd;
+      if (sd < 0) { cr = ovLin[o][0]; cg = ovLin[o][1]; cb = ovLin[o][2]; }
+    }
+    col[i * 3] = cr; col[i * 3 + 1] = cg; col[i * 3 + 2] = cb;
+  }
+  const kind = look.kind || 'fur', mats = look.mats || {};
+  const mp = (k) => SPIRIT_MATS[k] || SPIRIT_MATS[kind] || SPIRIT_MATS.fur;
+  const palette = [];
+  for (let c = 0; c < nc; c++) palette.push({ col: hexes[c], p: mp(mats[hexes[c]]).slice() });
+  for (const o of over) {
+    const p = o.mat ? mp(o.mat).slice() : [0, -1, 0, 0];
+    if (o.em != null) p[0] = o.em;
+    palette.push({ col: o.col, p, soft: o.soft || 0 });
+  }
+  return { a, col, palette, nc, ns: nc + over.length };
+}
+
+// ---- the cel material
+const SPIRIT_DECL = `uniform vec3 uPal[${SPIRIT_SLOTS}]; uniform vec4 uPalP[${SPIRIT_SLOTS}]; uniform float uPalS[${SPIRIT_SLOTS}]; uniform int uNC, uNS;
+  uniform float uShade, uShadeSat, uMid, uMidW, uRim, uRimT, uTerm, uAOk, uAOs, uForm, uAmbHue, uKeyK, uAmbK, uFlash;
+  uniform vec3 uShadeTint, uMidTint;
+  varying vec4 vR0, vR1, vR2; varying vec3 vObjPos; varying vec3 vObjN; varying vec3 vBake;
+  vec4 gPP;
+`;
+const SPIRIT_RESOLVE = `
+  {
+    float Dv[${SPIRIT_SLOTS}];
+    vec4 f0 = fwidth(vR0), f1 = fwidth(vR1), f2 = fwidth(vR2);
+    float Fw[${SPIRIT_SLOTS}];
+    Dv[0] = vR0.x; Dv[1] = vR0.y; Dv[2] = vR0.z; Dv[3] = vR0.w; Dv[4] = vR1.x; Dv[5] = vR1.y; Dv[6] = vR1.z; Dv[7] = vR1.w; Dv[8] = vR2.x; Dv[9] = vR2.y; Dv[10] = vR2.z; Dv[11] = vR2.w;
+    Fw[0] = f0.x; Fw[1] = f0.y; Fw[2] = f0.z; Fw[3] = f0.w; Fw[4] = f1.x; Fw[5] = f1.y; Fw[6] = f1.z; Fw[7] = f1.w; Fw[8] = f2.x; Fw[9] = f2.y; Fw[10] = f2.z; Fw[11] = f2.w;
+    float dm = 1.0;
+    for (int i = 0; i < ${SPIRIT_SLOTS}; i++) { if (i < uNC) dm = min(dm, Dv[i]); }
+    vec3 c = vec3(0.0); vec4 pp = vec4(0.0); float ws = 0.0;
+    for (int i = 0; i < ${SPIRIT_SLOTS}; i++) {
+      if (i < uNC) {
+        float w = clamp(1.0 - (Dv[i] - dm) / max(Fw[i] * 0.85, 1e-5), 0.0, 1.0);
+        c += uPal[i] * w; pp += uPalP[i] * w; ws += w;
+      }
+    }
+    c /= max(ws, 1e-4); pp /= max(ws, 1e-4);
+    for (int i = 0; i < ${SPIRIT_SLOTS}; i++) {
+      if (i >= uNC && i < uNS) {
+        float mk = clamp(0.5 - Dv[i] / max(Fw[i] * 0.85, uPalS[i]), 0.0, 1.0);
+        c = mix(c, uPal[i], mk);
+        if (uPalP[i].y < 0.0) pp.x = mix(pp.x, uPalP[i].x, mk); else pp = mix(pp, uPalP[i], mk);
+      }
+    }
+    diffuseColor.rgb = c; gPP = pp;
+  }
+`;
+const SPIRIT_LIGHT = `
+  {
+    vec3 N = normalize(normal), Vv = normalize(vViewPosition);
+    vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+    vec3 alb = diffuseColor.rgb;
+    // fill: ambient + probe + hemisphere taken at a normal bent toward the sky, so the shadow side stays a flat,
+    // sky-tinted tone instead of a smeared gradient
+    vec3 Na = normalize(N + upV * 1.3);
+    vec3 amb = ambientLightColor + getLightProbeIrradiance(lightProbe, Na);
+    #if NUM_HEMI_LIGHTS > 0
+      amb += getHemisphereLightIrradiance(hemisphereLights[0], Na);
+    #endif
+    amb *= RECIPROCAL_PI;
+    vec3 keyC = vec3(0.0), keyD = normalize(upV + Vv); float shw = 1.0;
+    #if NUM_DIR_LIGHTS > 0
+      keyC = directionalLights[0].color * RECIPROCAL_PI; keyD = directionalLights[0].direction;
+      #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS > 0
+        shw = receiveShadow ? getShadow(directionalShadowMap[0], directionalLightShadows[0].shadowMapSize, directionalLightShadows[0].shadowBias, directionalLightShadows[0].shadowRadius, vDirectionalShadowCoord[0]) : 1.0;
+      #endif
+    #endif
+    float ndl = dot(N, keyD);
+    float tt = ndl + uTerm - vBake.x * uAOk;
+    float aw = max(fwidth(tt) * 0.9, gPP.w);
+    float litF = smoothstep(-aw, aw, tt);
+    float shS = smoothstep(0.3, 0.7, shw);
+    float lit = litF * shS;
+    vec3 litE = keyC * uKeyK + amb * uAmbK;
+    float LL = dot(litE, vec3(0.2126, 0.7152, 0.0722));
+    vec3 litT = alb * litE * (1.0 - uForm * (1.0 - smoothstep(0.0, 0.85, ndl)));
+    vec3 ambH = amb / max(dot(amb, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+    vec3 sA = max(mix(vec3(dot(alb, vec3(0.2126, 0.7152, 0.0722))), alb, uShadeSat), 0.0) * uShadeTint;
+    float upk = smoothstep(-0.6, 0.75, dot(N, upV));
+    vec3 shT = sA * mix(vec3(1.0), ambH, uAmbHue) * (LL * uShade * mix(0.86, 1.05, upk) * (1.0 - vBake.x * uAOs));
+    float band = smoothstep(-uMidW - aw, -uMidW + aw, tt) * (1.0 - litF) * shS;
+    vec3 col = mix(shT, litT, lit);
+    col = mix(col, mix(shT, litT, 0.5) * uMidTint, band * uMid);
+    // rim: a thin, clean band on the silhouette facing the sun / sky
+    float fr = 1.0 - clamp(dot(N, Vv), 0.0, 1.0);
+    float rw = fwidth(fr) * 0.75 + 0.012;
+    float rimB = smoothstep(uRimT - rw, uRimT + rw, fr) * smoothstep(-0.2, 0.5, dot(N, normalize(keyD + upV * 0.8)));
+    vec3 rimC = keyC * 0.5 + amb * 0.8;
+    #if NUM_DIR_LIGHTS > 1
+      rimC += directionalLights[1].color * RECIPROCAL_PI * 0.5;
+    #endif
+    col += rimC * (0.3 + 0.7 * alb) * rimB * uRim * mix(0.45, 1.0, shS);
+    // one shaped specular, glossy regions only
+    float nh = dot(N, normalize(keyD + Vv)), nhw = fwidth(nh) + 0.002, th = 1.0 - gPP.z;
+    float sp = smoothstep(th - nhw, th + nhw, nh) * lit * max(gPP.y, 0.0);
+    col += (keyC * 0.95 + 0.05) * sp;
+    reflectedLight.directDiffuse = col;
+    totalEmissiveRadiance += alb * gPP.x + gDecalE;
+  }
+`;
+function spiritMaterial(D, look, cfg = {}, solid = null) {
+  const m = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const S = Object.assign({}, SPIRIT_SHADE[look.kind] || SPIRIT_SHADE.fur, look.shade || {});
+  const pal = solid ? [{ col: solid.col, p: (SPIRIT_MATS[solid.mat] || SPIRIT_MATS[look.kind] || SPIRIT_MATS.fur).slice(), soft: 0 }] : D.palette;
+  const P3 = [], P4 = [], PS = [];
+  for (let i = 0; i < SPIRIT_SLOTS; i++) {
+    const e = pal[i];
+    P3.push(new THREE.Color(e ? e.col : 0xff00ff)); P4.push(new THREE.Vector4(...(e ? e.p : [0, 0, 0, 0.05]))); PS.push(e ? e.soft || 0 : 0);
+  }
+  if (solid && solid.em != null) P4[0].x = solid.em;
+  const U = {
+    uTime: Shared.time, uWaveAmp: { value: solid ? 0 : cfg.waveAmp ?? 0.1 }, uWaveSpeed: { value: cfg.waveSpeed ?? 3.4 }, uWaveFreq: { value: cfg.waveFreq ?? 3.2 },
+    uTailStart: { value: D.tailStart ?? 0.32 }, uSerp: { value: 0 }, uNeckStart: { value: D.neckStart ?? 0.9 }, uSway: { value: solid ? 0 : 1 },
+    uJaw: { value: 0 }, uJawHinge: { value: new THREE.Vector3(...(D.jawHinge || [0, 0, 0])) },
+    uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: D.hipY ?? 0.5 }, uShoulderY: { value: D.shoulderY ?? 9 },
+    uPal: { value: P3 }, uPalP: { value: P4 }, uPalS: { value: PS }, uNC: { value: solid ? 1 : D.nc }, uNS: { value: solid ? 1 : D.ns },
+    uShade: { value: S.shade }, uShadeSat: { value: S.sat }, uShadeTint: { value: new THREE.Vector3(...S.tint) }, uMid: { value: S.mid }, uMidW: { value: S.midW },
+    uMidTint: { value: new THREE.Vector3(...S.midTint) }, uRim: { value: S.rim }, uRimT: { value: S.rimT }, uTerm: { value: S.term }, uAOk: { value: S.aoK }, uAOs: { value: S.aoS },
+    uForm: { value: S.form }, uAmbHue: { value: S.ambHue }, uKeyK: { value: S.key }, uAmbK: { value: S.amb }, uFlash: { value: 0 },
+  };
+  // face decals (mouth, blush, brows, crest mark) — crisp object-space shapes, see CRITTER_FACE
+  const F = solid ? {} : (D.face || {}), v4 = (a) => new THREE.Vector4(...(a || [0, 0, 0, 0]));
+  Object.assign(U, {
+    uMouth: { value: v4(F.mouth) }, uMouthK: { value: F.mouth ? (F.mouthK ?? 1) : 0 }, uLineCol: { value: new THREE.Color(F.line ?? 0x2a1216) },
+    uNose: { value: v4(F.nose) }, uBlush: { value: v4(F.blush) }, uBlushCol: { value: new THREE.Color(F.blushCol ?? 0xff7f96) }, uHatch: { value: F.hatch ?? 0 }, uBlushEdge: { value: F.blushEdge ?? 0.72 }, uBlushA: { value: F.blushA ?? 0.5 },
+    uBrow: { value: v4(F.brow) }, uBrowTilt: { value: F.browTilt ?? 0 }, uBrowCol: { value: new THREE.Color(F.browCol ?? 0x3a1a14) },
+    uMark: { value: v4(F.mark) }, uMarkK: { value: F.mark ? (F.markK ?? 1) : 0 }, uMarkCol: { value: new THREE.Color(F.markCol ?? 0xffd27a) }, uMarkGlow: { value: new THREE.Color(F.markGlow ?? 0x000000) },
+  });
+  m.userData.U = U; m.userData.uFlash = U.uFlash; m.userData.kind = 'spirit';
+  m.defaultAttributeValues = { aBake: [0, 0, 0], aR0: [0, 0.1, 0.1, 0.1], aR1: [0.1, 0.1, 0.1, 0.1], aR2: [0.1, 0.1, 0.1, 0.1] };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = SCULPT_DECL + 'attribute vec4 aR0, aR1, aR2; varying vec4 vR0, vR1, vR2;\n' + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal; vR0 = aR0; vR1 = aR1; vR2 = aR2;')
+      .replace('#include <begin_vertex>', SCULPT_BODY);
+    sh.fragmentShader = SPIRIT_DECL + CRITTER_FACE_DECL + sh.fragmentShader
+      .replace('#include <color_fragment>', SPIRIT_RESOLVE + CRITTER_FACE)
+      .replace('#include <lights_fragment_begin>', SPIRIT_LIGHT)
+      .replace('#include <lights_fragment_maps>', '')
+      .replace('#include <lights_fragment_end>', '')
+      .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
+  };
+  m.customProgramCacheKey = () => 'spiritCel-v1';
+  return m;
+}
+// single-colour parts (sprouts, blossoms, gems) in the same cel look; outline with the same screen-space ink line
+function spiritPart(r, geo, hex, mat, parent, pos, scl, rot, o = {}) {
+  const look = r.spiritLook || { kind: 'fur' };
+  const sm = spiritMaterial({}, look, {}, { col: hex, mat, em: o.em });
+  const p = part(geo, sm, parent, pos, scl, rot);
+  p.castShadow = o.shadow !== false;
+  if (o.outline !== false) sculptOutline(p, o.olw ?? 0.01, o.olc ?? 0x24161c, { minPx: 0.7, maxPx: 1.4, ink: 0.7 });
+  if (r.flashMats) r.flashMats.push(sm);
+  return p;
+}
+
+// ---- eyes: flat-layered iris (dark limbal ring · main colour · light lower crescent · round or slit pupil), flat
+// sclera with a crisp lid-shadow band, one big + one small catch-light from ONE screen-space key (same on both eyes),
+// clean lash line + wing; blink / happy squint / hurt squeeze; converging gaze with saccades (eyeGaze in 02d)
+function spiritEye(o = {}) {
+  const U = {
+    uIris: { value: new THREE.Color(o.iris ?? 0x8a4a12) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0xffc04a) }, uIrisRim: { value: new THREE.Color(o.irisRim ?? 0x2a1006) },
+    uPupilC: { value: new THREE.Color(o.pupilCol ?? 0x120a0c) }, uSclera: { value: new THREE.Color(o.sclera ?? 0xfafaff) }, uLidTint: { value: new THREE.Color(o.lidTint ?? 0xc9c4e6) },
+    uLash: { value: new THREE.Color(o.lash ?? 0x1c1018) }, uBlink: { value: 0 }, uSide: { value: o.side ?? 1 },
+    uShape: { value: new THREE.Vector4(o.open ?? 0.8, o.tilt ?? 0.05, o.wing ?? 0.5, o.irisR ?? 0.62) },
+    uSlit: { value: o.slit ?? 0 }, uFlash: { value: 0 }, uGlow: { value: o.glow ?? 0 },
+    uGaze: { value: new THREE.Vector2() }, uExpr: { value: new THREE.Vector2() }, uSkin: { value: new THREE.Color(o.skin ?? 0xd8c8c0) },
+    uPupil: { value: o.pupil ?? 1 }, uDepth: { value: o.cornea ?? 0.36 },
+  };
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
+    vertexShader: `${EYE_V} ${FOG_V}
+      void main(){ eyeVaryings(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 uIris, uIris2, uIrisRim, uPupilC, uSclera, uLidTint, uLash, uSkin; uniform float uBlink, uSide, uSlit, uFlash, uPupil, uDepth, uGlow; uniform vec4 uShape; uniform vec2 uGaze, uExpr; ${EYE_F} ${FOG_F}
+      float cov(float sd, float pw) { return clamp(0.5 - sd / pw, 0.0, 1.0); }
+      void main(){
+        vec3 n = normalize(vN);
+        if (n.z < 0.02) discard;
+        vec2 q = vec2(n.x * uSide, n.y);
+        float pw = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
+        float H = uShape.x, tilt = uShape.y, IR = uShape.w;
+        float xx = clamp(q.x / 0.9, -1.0, 1.0);
+        float arc = sqrt(max(1.0 - pow(abs(xx), 2.6), 0.0));
+        float topO = H * arc + tilt * xx + 0.03, botO = -H * 0.86 * arc + tilt * xx * 0.4;
+        float hap = uExpr.x, hurt = uExpr.y, cl = max(uBlink, hurt);
+        float shutB = -0.1 - 0.16 * arc, shutS = -0.05 - 0.08 * arc + 0.12 * xx, shutH = -0.2 + 0.36 * arc;
+        float shut = mix(shutB, shutS, clamp(hurt / max(cl, 1e-3), 0.0, 1.0));
+        float top = mix(topO, shut, cl), bot = mix(botO, shut - 0.002, cl);
+        bot = mix(bot, max(shutH, bot), hap); top = mix(top, max(top * 0.7 + shutH * 0.3, bot + 0.02), hap);
+        float lensSD = max(max(q.y - topO, botO - q.y), abs(q.x) - 0.9);
+        float openA = cov(lensSD, pw);
+        float inside = cov(max(max(q.y - top, bot - q.y), abs(q.x) - 0.9), pw);
+        // sclera: flat, with a crisp cool lid-shadow band under the upper lid
+        float lidB = cov((top - 0.2 - 0.05 * arc) - q.y, pw);
+        vec3 col = mix(uSclera, uSclera * uLidTint, lidB);
+        // iris on a plane behind the cornea, rotated by the gaze; never mirrored between the eyes
+        vec2 ip = eyeIris(n, uDepth) - uGaze;
+        vec2 d = (ip - vec2(0.0, -0.04)) / vec2(1.0, 1.08);
+        float r = length(d);
+        vec3 ir = uIris;
+        ir = mix(ir, uIris2, cov(length((d - vec2(0.0, -0.46 * IR)) / vec2(1.0, 0.8)) - 0.64 * IR, pw));
+        ir = mix(ir, uIrisRim, cov(0.84 * IR - r, pw));
+        float pr = uSlit > 0.5 ? length(vec2(d.x / (0.2 * IR * uPupil), d.y / (0.78 * IR))) - 1.0 : (r - 0.42 * IR * uPupil) / (0.42 * IR * uPupil);
+        ir = mix(ir, uPupilC, cov(pr * 0.42 * IR * uPupil, pw));
+        ir = mix(ir, ir * vec3(0.62, 0.6, 0.72), lidB);
+        ir *= 1.0 + uGlow;
+        col = mix(col, ir, cov(r - IR, pw));
+        // catch-lights: one big (key, upper left of the screen) + one small (opposite) — shared by both eyes
+        vec3 ct = eyeCatch(n.xy, vec2(0.0, -0.04) + uGaze, IR, pw);
+        col = mix(col, vec3(1.35), ct.x * (1.0 - cl) * (1.0 - hap * 0.5));
+        col = mix(col, vec3(1.15), ct.y * 0.95 * (1.0 - cl));
+        // lids: skin over the eyeball wherever the lids have closed over the open lens
+        vec3 skin = uSkin * 0.92;
+        col = mix(skin, col, inside);
+        // lash: clean upper line thickening toward the outer corner + wing; thin lower line on the outer half
+        float lw = max(mix(0.05, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * cl), pw * 0.6);
+        float upper = cov(abs(q.y - top - lw * 0.3) - lw, pw) * smoothstep(0.99, 0.93, abs(q.x));
+        vec2 w = q - vec2(0.9, top + 0.05); w = vec2(w.x * 0.8 + w.y * 0.6, -w.x * 0.6 + w.y * 0.8);
+        float wing = cov((length(w / vec2(0.15, 0.045)) - 0.85) * 0.045, pw) * uShape.z;
+        float lower = cov(abs(q.y - bot) - max(0.026, pw * 0.45), pw) * smoothstep(-0.1, 0.4, q.x) * smoothstep(0.92, 0.8, q.x) * 0.85 * (1.0 - cl);
+        lower = max(lower, cov(abs(q.y - bot) - max(0.035, pw * 0.5), pw) * hap * smoothstep(0.92, 0.6, abs(q.x)));
+        float lash = max(max(upper, wing), lower);
+        col = mix(col, uLash, lash);
+        float a = max(openA, lash);
+        if (a < 0.02) discard;
+        col = mix(col, vec3(2.2), uFlash);
+        gl_FragColor = vec4(col, a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+    fog: true,
+  });
+  Object.assign(m.uniforms, U);
+  m.alphaToCoverage = true;
+  m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash; m.userData.gaze = U.uGaze; m.userData.expr = U.uExpr; m.userData.skin = U.uSkin;
+  if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, o.gazeLim || {});
+  return m;
+}
 
 // ---------------------------------------------------------------- eye sockets
 // Exact replay of the sculpt's field (same smooth union / subtraction order as sculptMesh), to find where the face
@@ -302,7 +744,7 @@ function eyeSockets(D, eo = {}) {
     const lid = at(ts - 0.14 * r);
     const up = (1.25 * H + 0.2) * r;
     const lf = D.lidFold ?? 1;
-    if (lf > 0) extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.9 * r, 0.18 * r * lf, 0.25 * r * lf], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
+    if (lf > 0) extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.9 * r, 0.18 * r * lf, 0.25 * r * lf], { k: 0.2 * r, s0: 1, s1: 1, col, hex: best && best.hex, jaw: 0 }));
   }
   return { extra, skins };
 }
@@ -319,21 +761,36 @@ function buildCritter(r, cfg) {
   if (!D._sock) D._sock = eyeSockets(D, eo);
   const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D, { prims: D.prims.concat(D._sock.extra) });
   if (D.earHinge) DD.jawHinge = D.earHinge;
-  const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
-  if (D.paint) paintCritter(geo, D.paint);
-  const kind = (cfg.mat && cfg.mat.kind) || 'vinyl', soft = kind === 'fur' || kind === 'wool' || kind === 'plush';
-  const mat = dragonMaterial(Object.assign({ kind, scaleFreq: 0, rough: soft ? 0.74 : 0.55, metal: 0, coat: soft ? 0 : 0.2, coatRough: 0.4, sheen: soft ? 0.22 : 0.3, sheenRough: soft ? 0.85 : 0.5, env: soft ? 0.24 : 0.32, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
-  critterSkin(mat, D.face);
+  const L = D.look;
+  let geo, mat;
+  if (L) {
+    // mainline look: clean geometry, flat colour regions, soft cel (see spiritGeometry / spiritMaterial)
+    geo = spiritGeometry('s_' + cfg.key, DD, L);
+    const pal = geo.userData.palette;
+    mat = spiritMaterial(Object.assign({}, DD, { palette: pal, nc: pal.filter((p) => p.soft === undefined).length, ns: pal.length }), L, cfg);
+    r.spiritLook = L;
+  } else {
+    geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
+    if (D.paint) paintCritter(geo, D.paint);
+    const kind = (cfg.mat && cfg.mat.kind) || 'vinyl', soft = kind === 'fur' || kind === 'wool' || kind === 'plush';
+    mat = dragonMaterial(Object.assign({ kind, scaleFreq: 0, rough: soft ? 0.74 : 0.55, metal: 0, coat: soft ? 0 : 0.2, coatRough: 0.4, sheen: soft ? 0.22 : 0.3, sheenRough: soft ? 0.85 : 0.5, env: soft ? 0.24 : 0.32, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
+    critterSkin(mat, D.face);
+  }
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
-  if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
+  if (cfg.outline !== false) {
+    if (L) sculptOutline(body, cfg.olw ?? 0.012, cfg.olc ?? 0x2a1a22, { minPx: 0.75, maxPx: 1.75, ink: cfg.olInk ?? 0.72 });
+    else sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
+  }
   const follow = [];
   const glue = (obj, s) => follow.push({ obj, base: obj.position.clone(), s });
   const eyeU = [];
   (D.eyes || []).forEach((e, i) => {
     const g = grp(B, e.p, [e.pitch || 0, e.yaw || 0, e.roll || 0]);
     const sk = D._sock.skins[i] || [1, 1, 1];
-    const em = critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side: e.p[0] < 0 ? -1 : 1, skin: linToHex(sk) }, eo));
+    const side = e.p[0] < 0 ? -1 : 1;
+    const em = L ? spiritEye(Object.assign({ iris: cfg.iris ?? 0x8a4a12, iris2: cfg.iris2 ?? 0xffc04a, irisRim: cfg.irisRim ?? 0x2a1006, lash: cfg.lash ?? 0x1c1018, side, skin: linToHex(sk) }, eo))
+      : critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side, skin: linToHex(sk) }, eo));
     part(GEO.sphere, em, g, [0, 0, 0], [e.r * 1.12, e.r * 1.25, e.r * (eo.depth ?? 0.5)]).userData.noOl = true;
     (r.blinkU = r.blinkU || []).push(em.userData.blink);
     eyeU.push(em.userData.expr);
