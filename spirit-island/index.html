@@ -4299,6 +4299,173 @@ MODELS.bandiru = (r) => {
   r.size = 1.35;
 };
 
+// ---------------- 그림냥 : shade cat — ear and cheek tufts, starlit speckles, glowing crescent, slit-pupil lantern eyes
+MODELS.geurim = (r) => {
+  const D = critter('cat', () => {
+    const K = critterKit(), SH = 0x3a2a5c, SD = 0x221838, LT = 0x56437e;
+    K.el([0, 0.45, 0], [0.28, 0.25, 0.43], SH, { k: 0.1 });
+    K.el([0, 0.4, 0.2], [0.17, 0.18, 0.16], LT, { k: 0.1 });
+    K.tuft([0, 0.46, 0.33], [0, 0.32, 0.44], 0.07, LT);
+    for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const leg = sx * sz > 0 ? 1 : -1;
+      const hip = [sx * 0.15, 0.4, sz * 0.24], paw = [sx * 0.16, 0.06, sz * 0.25 + 0.03];
+      K.rc(hip, paw, 0.085, 0.058, SH, { k: 0.06, leg });
+      K.el([paw[0], 0.045, paw[2] + 0.02], [0.07, 0.045, 0.085], SD, { k: 0.03, leg });
+    }
+    const hc = [0, 0.86, 0.3];
+    K.rc([0, 0.55, 0.25], add3(hc, [0, -0.1, -0.05]), 0.15, 0.14, SH, { k: 0.08, s0: 0.7, s1: 0.95 });
+    K.el(hc, [0.32, 0.27, 0.28], SH, Object.assign({ k: 0.08 }, HEAD));
+    K.el(add3(hc, [0, -0.1, 0.18]), [0.15, 0.1, 0.12], LT, Object.assign({ k: 0.06 }, HEAD));
+    K.el(add3(hc, [0, -0.06, 0.295]), [0.035, 0.024, 0.02], 0x9a6ac8, Object.assign({ k: 0.02 }, HEAD));
+    for (const sx of [-1, 1]) {
+      K.rc(add3(hc, [sx * 0.15, 0.16, -0.02]), add3(hc, [sx * 0.25, 0.46, -0.04]), 0.115, 0.012, SH, Object.assign({ k: 0.05, jaw: 1 }, HEAD));
+      K.tuft(add3(hc, [sx * 0.245, 0.42, -0.04]), add3(hc, [sx * 0.29, 0.58, -0.06]), 0.025, SH, Object.assign({ jaw: 1 }, HEAD));
+      K.tuft(add3(hc, [sx * 0.24, -0.06, 0.02]), add3(hc, [sx * 0.43, -0.12, -0.04]), 0.07, SH, Object.assign({}, HEAD));
+      K.tuft(add3(hc, [sx * 0.22, -0.13, 0.03]), add3(hc, [sx * 0.37, -0.23, -0.01]), 0.06, SH, Object.assign({}, HEAD));
+    }
+    const t0 = [0, 0.5, -0.42], t1 = [0, 0.64, -0.64], t2 = [0.05, 0.94, -0.74], t3 = [0.17, 1.16, -0.62], t4 = [0.27, 1.17, -0.48];
+    K.rc(t0, t1, 0.08, 0.075, SH, { k: 0.05, s0: 0.32, s1: 0.24 });
+    K.rc(t1, t2, 0.075, 0.068, SH, { k: 0.04, s0: 0.24, s1: 0.14 });
+    K.rc(t2, t3, 0.068, 0.055, SH, { k: 0.04, s0: 0.14, s1: 0.05 });
+    K.rc(t3, t4, 0.055, 0.025, LT, { k: 0.04, s0: 0.05, s1: 0 });
+    const hy = hc[1], hz = hc[2];
+    const cIn = hexRGB(0x9a64c8), cStar = hexRGB(0xf0e0ff), cSock = hexRGB(0x7a64aa), cBack = hexRGB(0x221838);
+    const paint = (v) => {
+      const ey = v.y - hy;
+      if (ey > 0.16 && v.nz > 0.1 && Math.abs(v.x) > 0.08) tintV(v, cIn, sst(0.1, 0.55, v.nz) * sst(0.2, 0.28, ey) * (1 - sst(0.38, 0.44, ey)) * 0.85);
+      if (v.ny > 0.4 && v.y < hy - 0.15) tintV(v, cBack, sst(0.4, 0.9, v.ny) * 0.5);
+      if (v.y < 0.1) tintV(v, cSock, sst(0.1, 0.06, v.y) * 0.7);
+      // starlight speckles across the coat
+      const n = vn3js(v.x * 22 + 5, v.y * 22, v.z * 22 - 3);
+      if (n > 0.8 && v.ny > -0.3) { const s = sst(0.8, 0.88, n); v.g = Math.max(v.g, s); tintV(v, cStar, s * 0.8); }
+    };
+    const face = {
+      mouth: [0, hy - 0.115, hz + 0.24, 0.042], mouthK: 1, line: 0xb89ae8,
+      nose: [0.008, hy - 0.05, hz + 0.31, 0.012],
+      blush: [0.18, hy - 0.07, hz + 0.1, 0.055], blushCol: 0xb45ac8, hatch: 0.6,
+      mark: [0, hy + 0.165, hz + 0.12, 0.05], markK: 2, markCol: 0xffe08a, markGlow: 0xffc84a,
+    };
+    return { prims: K.prims, bounds: [-0.65, -0.05, -0.95, 0.65, 1.45, 0.75], hipY: 0.4, height: 1.3, stride: 0.12, tip: t4, paint, face,
+      earHinge: add3(hc, [0, 0.15, -0.03]), earAmp: -0.2,
+      eyes: eyePair(hc, 0.13, 0.025, 0.24, 0.088, 0.3, { roll: 0.12 }) };
+  });
+  const B = buildCritter(r, { key: 'cat', design: D, iris: 0xd88a10, iris2: 0xfff07a, lash: 0x0c0614,
+    eye: { open: 0.62, tilt: 0.16, wing: 0.7, irisR: 0.95, glow: 1.4, slit: 1 },
+    mat: { sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.3, rim: 0xb48cff, rimAmt: 0.35, glow: 0xd8c0ff, glowAmt: 2.4 } });
+  const smoke = grp(B, D.tip);
+  for (let k = 0; k < 4; k++) part(GEO.sphere, E([0x7a4bd6, 0xa77bff, 0x5b3f8f, 0xc7a6ff][k], 1.2 + k * 0.2, { transparent: true, opacity: 0.55 - k * 0.1, depthWrite: false }), smoke, [Math.sin(k) * 0.05, k * 0.08, -k * 0.03], 0.07 - k * 0.012);
+  wig(r, smoke, 'z', 0.3, 2); r.glue(smoke, 0);
+  const coll = grp(B, [0, 0.66, 0.24], [1.2, 0, 0]);
+  part(GEO.torus, E(0xb48cff, 1.6), coll, [0, 0, 0], [0.18, 0.18, 0.5]);
+  part(GEO.octa, E(0xffe08a, 2.4), B, [0, 0.55, 0.42], [0.03, 0.045, 0.02]);
+  r.size = 1.3;
+};
+
+// ---------------- 솜구름 : cloud lamb — puffy wool with lavender shading, wool bangs, droopy ears, sleepy smile
+MODELS.somgu = (r) => {
+  const D = critter('lamb', () => {
+    const K = critterKit(), W = 0xf0edf9, LV = 0xcfc2f2, HF = 0x4a4368;
+    for (const [x, y, z, s] of [[0, 0.62, 0, 0.4], [0.25, 0.7, 0.1, 0.24], [-0.25, 0.7, 0.1, 0.24], [0.2, 0.85, -0.15, 0.25], [-0.2, 0.85, -0.15, 0.25], [0, 0.96, 0.02, 0.26], [0.3, 0.52, -0.2, 0.21], [-0.3, 0.52, -0.2, 0.21], [0, 0.6, -0.35, 0.25], [0, 0.84, 0.22, 0.2], [0.18, 0.5, 0.2, 0.2], [-0.18, 0.5, 0.2, 0.2], [0.36, 0.72, -0.08, 0.17], [-0.36, 0.72, -0.08, 0.17], [0, 0.42, -0.1, 0.24]]) K.el([x, y, z], [s, s, s], W, { k: 0.05 });
+    for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const leg = sx * sz > 0 ? 1 : -1;
+      K.rc([sx * 0.17, 0.32, sz * 0.18], [sx * 0.18, 0.05, sz * 0.19], 0.065, 0.055, HF, { k: 0.04, leg });
+      K.el([sx * 0.18, 0.04, sz * 0.19 + 0.01], [0.062, 0.04, 0.07], 0x2e2844, { k: 0.02, leg });
+    }
+    const hc = [0, 0.66, 0.43];
+    K.el(hc, [0.23, 0.21, 0.19], LV, Object.assign({ k: 0.07 }, HEAD));
+    K.el(add3(hc, [0, -0.07, 0.12]), [0.12, 0.09, 0.1], 0xdcd2f8, Object.assign({ k: 0.06 }, HEAD));
+    for (const [x, y, z, s] of [[0, 0.17, 0.02, 0.1], [0.1, 0.15, 0.0, 0.085], [-0.1, 0.15, 0.0, 0.085], [0.05, 0.19, -0.06, 0.08], [-0.06, 0.19, -0.06, 0.08]]) K.el(add3(hc, [x, y, z]), [s, s, s], W, Object.assign({ k: 0.04 }, HEAD));
+    for (const sx of [-1, 1]) K.rc(add3(hc, [sx * 0.17, 0.03, -0.03]), add3(hc, [sx * 0.34, -0.06, -0.02]), 0.06, 0.035, LV, Object.assign({ k: 0.04, jaw: 1 }, HEAD));
+    const cShade = hexRGB(0xc4b8ea), cPink = hexRGB(0xf6c8e0), cHoof = hexRGB(0x7a70a0);
+    const paint = (v) => {
+      // wool: lavender in the crevices (approximated by low-frequency noise and underside), soft pink sunrise on top
+      if (v.y > 0.25 && Math.abs(v.x) + Math.abs(v.z - 0.43) > 0.1) {
+        const n = vn3js(v.x * 9, v.y * 9 + 2, v.z * 9);
+        tintV(v, cShade, sst(0.5, 0.25, n) * 0.35 + sst(0.0, -0.7, v.ny) * 0.45);
+        if (v.ny > 0.5) tintV(v, cPink, sst(0.5, 0.95, v.ny) * 0.18);
+      }
+      if (v.y < 0.32 && v.y > 0.1) tintV(v, cHoof, sst(0.32, 0.12, v.y) * 0.3);
+    };
+    const face = { mouth: [0, hc[1] - 0.105, hc[2] + 0.17, 0.035], mouthK: 2, line: 0x4a3070, nose: [0.008, hc[1] - 0.06, hc[2] + 0.215, 0.012],
+      blush: [0.14, hc[1] - 0.05, hc[2] + 0.08, 0.05], blushCol: 0xff9ac0 };
+    return { prims: K.prims, bounds: [-0.7, -0.05, -0.72, 0.7, 1.32, 0.78], hipY: 0.32, height: 1.3, stride: 0.08, hc, paint, face,
+      earHinge: add3(hc, [0, 0.03, -0.03]), earAmp: 0.35,
+      eyes: eyePair(hc, 0.09, 0.025, 0.16, 0.066, 0.34) };
+  });
+  const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
+    eye: { open: 0.6, tilt: -0.04, wing: 0.25, irisR: 0.62 },
+    mat: { rough: 0.85, sheen: 0.7, sheenCol: 0xffffff, coat: 0, fuzz: 0.32, soft: 0.18, env: 0.25 } });
+  const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
+  for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
+  r.size = 1.35;
+};
+
+// ---------------- 버섯콩 : mushroom sprite — spotted cap with gills, stubby arms, rosy face
+MODELS.beoseot = (r) => {
+  const D = critter('shroom', () => {
+    const K = critterKit(), RD = 0xe63c52, CR = 0xf8ead2;
+    K.el([0, 0.36, 0.01], [0.3, 0.34, 0.28], CR, { k: 0.08 });
+    K.el([0, 0.68, 0], [0.62, 0.42, 0.62], RD, { k: 0.06, s0: 0.9, s1: 0.9 });
+    K.sub([0, 0.47, 0], [0.68, 0.2, 0.68], 0.05);
+    K.el([0, 0.64, 0], [0.5, 0.035, 0.5], 0xf2d6b0, { k: 0.04 });
+    for (const [a, ph, s] of [[0, 0.95, 1], [0.9, 0.55, 1.1], [2.1, 0.6, 0.9], [3.3, 0.5, 1.2], [4.4, 0.62, 1], [5.4, 0.55, 0.85], [1.5, 1.05, 0.8], [3.9, 1.0, 0.9], [2.7, 1.1, 0.7], [5.9, 1.05, 0.75], [0.3, 0.25, 1.0]]) K.el([Math.cos(a) * Math.sin(ph) * 0.6, 0.68 + Math.cos(ph) * 0.42, Math.sin(a) * Math.sin(ph) * 0.6], [0.085 * s, 0.045, 0.085 * s], 0xfff8ee, { k: 0.02, s0: 0.9, s1: 0.9 });
+    for (const sx of [-1, 1]) {
+      K.el([sx * 0.13, 0.06, 0.05], [0.1, 0.07, 0.13], 0xd9b98f, { k: 0.05, leg: sx });
+      K.rc([sx * 0.24, 0.36, 0.02], [sx * 0.36, 0.26, 0.08], 0.06, 0.05, CR, { k: 0.05 });
+    }
+    const cGill = hexRGB(0xe8c89a), cGill2 = hexRGB(0xc89a70), cTop = hexRGB(0xff6070), cStem = hexRGB(0xe8d0b0);
+    const paint = (v) => {
+      // gills under the cap
+      if (v.ny < -0.35 && v.y > 0.45 && v.y < 0.72 && Math.hypot(v.x, v.z) > 0.25) {
+        const ang = Math.atan2(v.z, v.x);
+        tintV(v, cGill, 0.85); tintV(v, cGill2, sst(0.5, 0.9, Math.sin(ang * 46)) * 0.7);
+      }
+      // cap: brighter crown, darker rim
+      if (v.y > 0.7 && v.ny > 0.2) tintV(v, cTop, sst(0.3, 0.95, v.ny) * 0.25);
+      if (v.y < 0.3 && v.ny < 0) tintV(v, cStem, 0.4);
+    };
+    const face = { mouth: [0, 0.31, 0.25, 0.045], mouthK: 3, line: 0x3a1a10, blush: [0.17, 0.35, 0.18, 0.055], blushCol: 0xff7a8a };
+    return { prims: K.prims, bounds: [-0.78, -0.05, -0.78, 0.78, 1.2, 0.78], hipY: 0.2, height: 1.2, stride: 0.07, paint, face,
+      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.115, 0.4, 0.255], r: 0.078, yaw: sx * 0.3 })) };
+  });
+  buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff8a6a, lash: 0x2a1008, sway: 0.2,
+    eye: { open: 0.86, wing: 0.4, irisR: 0.64 },
+    mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.3, soft: 0.3 } });
+  r.size = 1.2;
+};
+
+// ---------------- 별씨 : starseed plush — cream heart, gold glowing tips, rosy cheeks, halo
+MODELS.byeolssi = (r) => {
+  const D = critter('star', () => {
+    const K = critterKit();
+    K.el([0, 0, 0], [0.31, 0.31, 0.27], 0xfff3d0, { k: 0.1, s0: 1, s1: 1 });
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2 + Math.PI / 2; K.rc([0, 0, -0.02], [Math.cos(a) * 0.6, Math.sin(a) * 0.6, -0.04], 0.21, 0.065, 0xffe08a, { k: 0.12, s0: 1, s1: 1 }); }
+    const cIn = hexRGB(0xfff8e6), cTip = hexRGB(0xffb83a), cGlow = hexRGB(0xfff0b0);
+    const paint = (v) => {
+      const rr = Math.hypot(v.x, v.y);
+      tintV(v, cIn, sst(0.3, 0.1, rr) * 0.6);
+      tintV(v, cTip, sst(0.32, 0.58, rr) * 0.7);
+      v.g = sst(0.45, 0.62, rr) * 0.85; tintV(v, cGlow, v.g * 0.4);
+      // a soft seam ridge highlight
+      if (v.nz < 0.2 && v.nz > -0.2) tintV(v, cGlow, 0.15);
+    };
+    const face = { mouth: [0, -0.07, 0.2, 0.04], mouthK: 1, line: 0x5a3008, blush: [0.17, -0.03, 0.15, 0.055], blushCol: 0xff8a7a };
+    return { prims: K.prims, bounds: [-0.78, -0.78, -0.42, 0.78, 0.78, 0.42], hipY: 0, height: 1.2, paint, face,
+      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.11, 0.045, 0.24], r: 0.074, yaw: sx * 0.3 })) };
+  });
+  const B = buildCritter(r, { key: 'star', design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2600, iris2: 0xffc04a, lash: 0x3a2008,
+    eye: { open: 0.84, wing: 0.5, irisR: 0.64 },
+    mat: { sheenCol: 0xfff0b0, soft: 0.3, rim: 0xffe08a, rimAmt: 0.3, glow: 0xffd070, glowAmt: 2.0 } });
+  const halo = part(GEO.torus, E(0xffe08a, 2.4), B, [0, 0.64, 0], 0.2, [Math.PI / 2, 0, 0]);
+  const tw = [];
+  for (let i = 0; i < 3; i++) tw.push(part(GEO.octa, E(0xfff4c0, 2.6), B, [Math.cos(i * 2.1) * 0.75, Math.sin(i * 2.1) * 0.75, 0.1], [0.03, 0.06, 0.03]));
+  r.fns.push((t) => {
+    halo.position.y = 0.64 + Math.sin(t * 3) * 0.03; B.rotation.z = Math.sin(t * 0.8) * 0.15;
+    tw.forEach((s, i) => { const k = Math.max(0, Math.sin(t * 2.2 + i * 2.1)); s.scale.set(0.03 * k + 0.001, 0.07 * k + 0.001, 0.03 * k + 0.001); });
+  });
+  r.size = 1.6;
+};
+
 // ---- 02g_people.js ----
 // ============================================================================
 //  people: sculpted anime adventurers — one smooth body, separate spiky hair,
