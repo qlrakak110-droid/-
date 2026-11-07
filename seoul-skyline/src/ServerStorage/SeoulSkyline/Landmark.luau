@@ -68,6 +68,34 @@ local DOME_C = rgb(52, 98, 178)
 local DOME_RIB_C = rgb(120, 182, 255)
 local PAVE_C = rgb(118, 116, 112)
 
+-- 실내 연결부 (LandmarkInterior 가 Landmark.layout 으로 받아 실내를 채움)
+--   로비 홀: 정면(+Z 로컬 면 = 강/히어로 쪽) 가운데 32 × 25 m, 천장 13.5 m. 뒷벽 가운데 엘리베이터 알코브 8.4 × 10 m, 천장 4.2 m.
+local LOBBY_HALL_W = m2s(32)
+local LOBBY_HALL_D = m2s(25)
+local LOBBY_ALCOVE_W = m2s(8.4)
+local LOBBY_ALCOVE_D = m2s(10)
+local LOBBY_FLOOR = PLINTH_H + 0.3 -- 로비 바닥 마감 윗면 (기단 + 0.3)
+local LOBBY_ALCOVE_TOP = LOBBY_FLOOR + m2s(4.2) + 2.2 -- 알코브 천장고 4.2 m + 천장 마감 공간
+local DOOR_W, DOOR_H = m2s(2.4), m2s(2.7) -- 자동 미닫이문 유효 폭 2.4 m, 높이 2.7 m
+--   서울스카이 전망대: 본체 꼭대기 2 세그먼트(≈ 25 m)를 유리 커튼월 2개 층(118F 전망대 / 123F 라운지)으로
+local OBS_SEGS = 2
+local OBS_SLAB_MID = m2s(2.4) -- 두 층 사이 슬래브(라운지 바닥)
+local OBS_SLAB_TOP = m2s(3.3) -- 라운지 위 슬래브(크라운 데크 아래)
+local OBS_GLASS_IN = 0.6 -- 유리면이 바로 위 슬래브보다 들어간 깊이
+local OBS_GLASS_T = 0.4
+local OBS_GLASS_C = rgb(168, 190, 210)
+local OBS_PIT_W, OBS_PIT_D, OBS_PIT_GAP = m2s(7.2), m2s(3.6), m2s(1.0) -- 스카이데크 유리 바닥 7.2 × 3.6 m, 창에서 1 m
+--   몰 홀(파란 곡면 지붕): 가운데 2개 층 갤러리아(아트리움) 66 × 21.6 m + 양쪽 상점 + 정면 입구 통로
+local HALL_GX = m2s(33) -- 갤러리아 반길이(X)
+local HALL_GZ = m2s(10.8) -- 갤러리아 반폭(상점 전면선)
+local HALL_VZ = m2s(6.6) -- 보이드 반폭(메자닌 난간선)
+local HALL_SD = m2s(18.6) -- 상점 뒷벽
+local HALL_SHOPS = 7 -- 한 줄 상점 수 (가운데 칸 = 정면 입구 통로)
+local HALL_FY1 = PAVE_UP + 0.3 -- 1층 바닥 마감 윗면
+local HALL_FY2 = HALL_FY1 + m2s(6) -- 2층(메자닌) 바닥 윗면, 층고 6 m
+local HALL_ET = HALL_FY2 - 3 -- 입구 통로 천장 구조 하단
+local HALL_ST = HALL_FY2 + m2s(4.5) + 0.8 -- 2층 상점 천장 위
+
 local CYL_UP = CFrame.Angles(0, 0, math.rad(90))
 local CORNERS = { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }
 
@@ -132,6 +160,31 @@ local function rsquare(parent: Instance, cf: CFrame, w: number, h: number, r: nu
 	end
 end
 
+-- 둥근 정사각 프리즘에서 축 정렬 직사각형 구멍(로컬 x0..x1, z0..z1; |x| <= w/2 - r 안쪽, z 는 면까지 가능)을 뺀 조각들.
+-- 조각끼리는 맞닿기만 하고(같은 색) 보이는 면이 겹치지 않음.
+local function rsquareCut(parent: Instance, cf: CFrame, w: number, h: number, r: number, hole: { number }, c: Color3, mk: OptFn)
+	local rr = math.clamp(r, 0.4, w * 0.45)
+	local W = w / 2
+	local o = W - rr
+	local hx0, hx1, hz0, hz1 = hole[1], hole[2], hole[3], hole[4]
+	local function blk(x0: number, x1: number, z0: number, z1: number)
+		if x1 - x0 > 0.05 and z1 - z0 > 0.05 then
+			Kit.part(parent, cf * CFrame.new((x0 + x1) / 2, 0, (z0 + z1) / 2), Vector3.new(x1 - x0, h, z1 - z0), mk(c, false))
+		end
+	end
+	blk(-W, -o, -o, o)
+	blk(o, W, -o, o)
+	blk(-o, hx0, -W, W)
+	blk(hx1, o, -W, W)
+	blk(hx0, hx1, -W, hz0)
+	blk(hx0, hx1, hz1, W)
+	for _, s in CORNERS do
+		Kit.part(parent, cf * CFrame.new(s[1] * o, 0, s[2] * o) * CYL_UP, Vector3.new(h, 2 * rr, 2 * rr), mk(c, true))
+	end
+end
+Landmark.rsquareCut = rsquareCut
+Landmark.rsquare = rsquare
+
 -- a → b 를 잇는 얇은 Neon 리브. up = 리브 두께 방향 힌트(면 법선)
 local function rib(parent: Instance, a: Vector3, b: Vector3, w: number, d: number, up: Vector3, c: Color3, name: string): BasePart
 	local len = (b - a).Magnitude + w * 0.5
@@ -195,7 +248,79 @@ local function coreColor(rng: Random, t: number, faceK: number, refuge: boolean)
 	return scale(c, k)
 end
 
-local function buildShaft(m: Model, TF: CFrame, rng: Random): number
+------------------------------------------------------------------------------------------------------
+-- 서울스카이 전망대 띠 (꼭대기 2 세그먼트): 슬래브 A(바닥, 스카이데크 구멍) / 118F 유리 / 슬래브 B / 123F 유리 / 슬래브 C
+-- 층 사이 조명 코어 대신 바닥부터 천장까지 투명 유리 커튼월 + 1.8 m 간격 슬림 멀리언 → 밤에는 밝은 유리 띠로 읽힘.
+------------------------------------------------------------------------------------------------------
+local function glassBand(m: Model, TF: CFrame, yb: number, yt: number, w: number, seamMk: OptFn)
+	local h = yt - yb + 0.6 -- 위아래 슬래브 속으로 0.3 씩
+	local yc = (yb + yt) / 2
+	local r = w * CORNER_R
+	local W = w / 2
+	local o = W - r
+	local t = OBS_GLASS_T
+	local gO: PartOpts = { name = "ObsGlass", material = Enum.Material.Glass, color = OBS_GLASS_C, transparency = 0.62, reflectance = 0.05, collide = true, shadow = false }
+	local mO: PartOpts = { name = "ObsMullion", material = Enum.Material.Metal, color = P.Mullion, collide = false, query = false, shadow = false }
+	local n = math.max(2, math.floor(2 * o / m2s(1.8) + 0.5))
+	if n % 2 == 1 then
+		n += 1 -- 면 가운데 = 솔기 자리
+	end
+	local da = math.pi / 6
+	local fw = 2 * r * math.sin(da / 2)
+	for f = 0, 3 do
+		local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+		Kit.part(m, FR * CFrame.new(0, yc, W - t / 2), Vector3.new(2 * o + 0.1, h, t), gO)
+		for i = 0, n do
+			if i ~= n / 2 then
+				Kit.part(m, FR * CFrame.new(-o + i * 2 * o / n, yc, W - 0.15), Vector3.new(0.35, h, 1.2), mO)
+			end
+		end
+		local CC = FR * CFrame.new(o, yc, o)
+		for k = 0, 2 do
+			Kit.part(m, CC * CFrame.Angles(0, (k + 0.5) * da, 0) * CFrame.new(0, 0, r * math.cos(da / 2) - t / 2), Vector3.new(fw + 0.15, h, t), gO)
+		end
+		for k = 1, 2 do
+			Kit.part(m, CC * CFrame.Angles(0, k * da, 0) * CFrame.new(0, 0, r - 0.15), Vector3.new(0.35, h, 1.2), mO)
+		end
+		-- 솔기: 유리 밖 가는 금빛 선(전망을 가리지 않게 0.3 m)
+		Kit.part(m, FR * CFrame.new(0, yc, W + 0.55), Vector3.new(1.0, h - 0.6, 1.0), seamMk(SEAM_C, false))
+	end
+end
+
+local function buildObservatory(m: Model, TF: CFrame, y0: number, slabH: number, seamMk: OptFn): { [string]: any }
+	local H = T.Height
+	local yA = y0 + slabH -- 118F 바닥(슬래브 A 윗면)
+	local rest = H - yA - OBS_SLAB_MID - OBS_SLAB_TOP
+	local yA1 = yA + rest * 0.52 -- 118F 천장(슬래브 B 아랫면): 약 9 m 2개 층 높이 전망 홀
+	local yB = yA1 + OBS_SLAB_MID -- 123F 라운지 바닥
+	local yB1 = H - OBS_SLAB_TOP -- 라운지 천장
+	local wB = widthAt(yA1 + OBS_SLAB_MID / 2)
+	local wC = widthAt(yB1 + OBS_SLAB_TOP / 2)
+	local gw1 = wB - 2 * OBS_GLASS_IN
+	local gw2 = wC - 2 * OBS_GLASS_IN
+	-- 슬래브 A (스카이데크 유리 바닥 구멍)
+	local wA = widthAt(y0 + slabH / 2)
+	local pz1 = gw1 / 2 - OBS_PIT_GAP
+	local pit = { -OBS_PIT_W / 2, OBS_PIT_W / 2, pz1 - OBS_PIT_D, pz1 }
+	rsquareCut(m, TF * CFrame.new(0, y0 + slabH / 2, 0), wA, slabH, wA * CORNER_R, pit, GLASS, slabOpts(true))
+	rsquare(m, TF * CFrame.new(0, yA1 + OBS_SLAB_MID / 2, 0), wB, OBS_SLAB_MID, wB * CORNER_R, GLASS, GLASS, GLASS, slabOpts(true))
+	rsquare(m, TF * CFrame.new(0, yB1 + OBS_SLAB_TOP / 2, 0), wC, OBS_SLAB_TOP, wC * CORNER_R, GLASS, GLASS, GLASS, slabOpts(true))
+	-- 슬래브 솔기: A 는 면마다(구멍을 지나지 않게), B·C 는 관통 핀(슬래브 속에 숨음)
+	for f = 0, 3 do
+		local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+		Kit.part(m, FR * CFrame.new(0, y0 + slabH / 2, wA / 2 + 0.05), Vector3.new(SEAM_W, slabH - 0.4, 1.3), seamMk(SEAM_C, false))
+	end
+	for _, s in { { yA1 + OBS_SLAB_MID / 2, OBS_SLAB_MID, wB }, { yB1 + OBS_SLAB_TOP / 2, OBS_SLAB_TOP, wC } } do
+		local cf = TF * CFrame.new(0, s[1], 0)
+		Kit.part(m, cf, Vector3.new(SEAM_W, s[2] - 0.4, s[3] + 1.4), seamMk(SEAM_C, false))
+		Kit.part(m, cf, Vector3.new(s[3] + 1.4, s[2] - 0.4, SEAM_W), seamMk(SEAM_C, false))
+	end
+	glassBand(m, TF, yA, yA1, gw1, seamMk)
+	glassBand(m, TF, yB, yB1, gw2, seamMk)
+	return { y0 = y0, yA = yA, yA1 = yA1, yB = yB, yB1 = yB1, gw1 = gw1, gw2 = gw2, glassT = OBS_GLASS_T, pit = pit, cornerR = CORNER_R }
+end
+
+local function buildShaft(m: Model, TF: CFrame, rng: Random): (number, { [string]: any })
 	local H = T.Height
 	local shaftH = H - LOBBY_H
 	local nSeg = math.max(1, math.floor(shaftH / (FLOOR_TARGET * FLOORS_PER_SEG) + 0.5))
@@ -204,10 +329,18 @@ local function buildShaft(m: Model, TF: CFrame, rng: Random): number
 	local slabH = floorH * SLAB_RATIO
 	local coreMk = neonOpts("Core", Enum.Material.Glass, P.GlassBlue)
 	local seamMk = neonOpts("Seam", Enum.Material.Metal, P.MullionLight)
+	local obsFrom = nSeg - OBS_SEGS
 	for k = 0, nSeg - 1 do
 		local y0 = LOBBY_H + k * hs
 		local y1 = y0 + hs
 		local t = (y0 + hs / 2) / H
+		if k >= obsFrom then
+			-- 전망대 띠(buildObservatory)가 대신함. rng 소비만 맞춰 아래 몰/광장 배치를 그대로 유지.
+			local refuge = (k % REFUGE_EVERY) == REFUGE_EVERY - 1
+			coreColor(rng, t, 1.0, refuge)
+			coreColor(rng, t, 0.7, refuge)
+			continue
+		end
 		-- 1) 층 슬래브(반사 유리 링) — 층마다 하나
 		local wsMax = 0
 		for j = 0, FLOORS_PER_SEG - 1 do
@@ -238,43 +371,113 @@ local function buildShaft(m: Model, TF: CFrame, rng: Random): number
 		local a = i * math.pi / 2
 		Kit.beacon(m, (TF * CFrame.Angles(0, a + math.pi / 4, 0) * CFrame.new(0, yb, diag)).Position, 5)
 	end
-	return nSeg * FLOORS_PER_SEG
+	local obs = buildObservatory(Kit.group(m, "SeoulSkyShell"), TF, LOBBY_H + obsFrom * hs, slabH, seamMk)
+	return nSeg * FLOORS_PER_SEG, obs
 end
 
 ------------------------------------------------------------------------------------------------------
 -- 로비 / 기단 / 캐노피
 ------------------------------------------------------------------------------------------------------
-local function buildBase(m: Model, TF: CFrame)
+local function buildBase(m: Model, TF: CFrame): { [string]: any }
 	-- 화강석 기단 (포장 위로 0.8 stud 낮은 단: 아바타가 걸어 오를 수 있음)
 	local pw = T.BaseWidth + m2s(8)
 	rsquare(m, TF * CFrame.new(0, PLINTH_H / 2, 0), pw, PLINTH_H, pw * CORNER_R, P.ConcreteGrey, P.ConcreteGrey, P.ConcreteGrey, function(c: Color3, cyl: boolean): PartOpts
 		return { name = "Plinth", shape = if cyl then "Cylinder" else "Block", material = Enum.Material.Slate, color = c, collide = true, shadow = false }
 	end)
-	-- 로비 유리 상자(금빛 발광, 13.5 m): 첫 슬래브보다 1.5 m 안쪽. 바깥에서 들어갈 수 없는 단단한 벽.
+	-- 로비 유리 상자(금빛 발광, 13.5 m): 첫 슬래브보다 1.5 m 안쪽.
+	-- 정면(+Z) 가운데는 걸어 들어갈 수 있는 로비 홀(32 × 25 m, 천장 13.5 m) + 뒷벽 엘리베이터 알코브로 비워 둠.
+	-- 나머지는 이전처럼 금빛 발광 덩어리(코어/후방 공간) — 조각끼리 맞닿기만 함.
 	local w0 = widthAt(LOBBY_H)
 	local inset = m2s(1.5)
 	local wl = w0 - 2 * inset
 	local rl = w0 * CORNER_R - inset
 	local lh = LOBBY_H - PLINTH_H
 	local ly = PLINTH_H + lh / 2
-	rsquare(m, TF * CFrame.new(0, ly, 0), wl, lh, rl, LOBBY_C, LOBBY_C, LOBBY_C, neonOpts("Lobby", Enum.Material.Glass, P.GlassSilver, true))
-	-- 메자닌 띠 (6.5 m): 로비가 2개 층 높이로 읽히게
-	local mz = wl + 2.0 -- 로비 유리보다 1.0, 멀리언보다 0.3 바깥
-	rsquare(m, TF * CFrame.new(0, PLINTH_H + m2s(6.5), 0), mz, m2s(0.7), rl + 1.0, GLASS, GLASS, GLASS, slabOpts(false))
-	-- 로비 멀리언(관통 핀, 3 m 간격)
+	local W = wl / 2
+	local rr = math.clamp(rl, 0.4, wl * 0.45)
+	local o = W - rr
+	local HX = LOBBY_HALL_W / 2
+	local ZB = W - LOBBY_HALL_D
+	local AX = LOBBY_ALCOVE_W / 2
+	local AZ0 = ZB - LOBBY_ALCOVE_D
+	local lobbyMk = neonOpts("Lobby", Enum.Material.Glass, P.GlassSilver, true)
+	local function vol(x0: number, x1: number, z0: number, z1: number, y0: number, y1: number)
+		Kit.part(m, TF * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Vector3.new(x1 - x0, y1 - y0, z1 - z0), lobbyMk(LOBBY_C, false))
+	end
+	vol(-W, -o, -o, o, PLINTH_H, LOBBY_H)
+	vol(o, W, -o, o, PLINTH_H, LOBBY_H)
+	vol(-o, -HX, -W, W, PLINTH_H, LOBBY_H)
+	vol(HX, o, -W, W, PLINTH_H, LOBBY_H)
+	vol(-HX, -AX, -W, ZB, PLINTH_H, LOBBY_H)
+	vol(AX, HX, -W, ZB, PLINTH_H, LOBBY_H)
+	vol(-AX, AX, -W, AZ0, PLINTH_H, LOBBY_H)
+	vol(-AX, AX, AZ0, ZB, LOBBY_ALCOVE_TOP, LOBBY_H)
+	for _, s in CORNERS do
+		Kit.part(m, TF * CFrame.new(s[1] * o, ly, s[2] * o) * CYL_UP, Vector3.new(lh, 2 * rr, 2 * rr), lobbyMk(LOBBY_C, true))
+	end
+	-- 메자닌 띠 (6.5 m): 로비가 2개 층 높이로 읽히게. 홀을 가로지르지 않도록 외곽 링(면 4 + 모서리 원기둥 4)으로.
+	local my = PLINTH_H + m2s(6.5)
+	local bandMk = slabOpts(false)
+	for f = 0, 3 do
+		local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+		Kit.part(m, FR * CFrame.new(0, my, W + 0.2), Vector3.new(2 * o, m2s(0.7), 1.6), bandMk(GLASS, false))
+	end
+	for _, s in CORNERS do
+		Kit.part(m, TF * CFrame.new(s[1] * o, my, s[2] * o) * CYL_UP, Vector3.new(m2s(0.7), 2 * (rr + 1), 2 * (rr + 1)), bandMk(GLASS, true))
+	end
+	-- 로비 멀리언(3 m 간격): 면마다 짧은 핀(유리 안팎 0.4 m) — 홀 안을 가로지르지 않음
 	local span = wl / 2 - rl - m2s(0.6)
 	local n = math.max(1, math.floor(span * 2 / m2s(3)))
-	local finO: PartOpts = { name = "LobbyFin", collide = false, query = false, shadow = false }
-	for i = 0, n do
-		local x = -span + i * (span * 2 / n)
-		Kit.box(m, TF * CFrame.new(x, ly, 0), Vector3.new(m2s(0.25), lh, wl + 1.4), P.Mullion, Enum.Material.Metal, table.clone(finO))
-		Kit.box(m, TF * CFrame.new(0, ly, x), Vector3.new(wl + 1.4, lh, m2s(0.25)), P.Mullion, Enum.Material.Metal, table.clone(finO))
+	if n % 2 == 0 then
+		n += 1 -- 정면 가운데가 유리 칸(양옆 칸에 문)
+	end
+	local step = span * 2 / n
+	local finO: PartOpts = { name = "LobbyFin", material = Enum.Material.Metal, color = P.Mullion, collide = false, query = false, shadow = false }
+	for f = 0, 3 do
+		local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+		for i = 0, n do
+			Kit.part(m, FR * CFrame.new(-span + i * step, ly, W - 0.3), Vector3.new(m2s(0.25), lh, 2.0), finO)
+		end
+	end
+	-- 홀 정면 유리(두께 0.4, 투명) + 자동문 2곳(멀리언 사이 칸, 유효 폭 2.4 m × 2.7 m) 위 트랜섬/문틀 헤더
+	local gz = W - 0.3
+	local doorXs = { -step, step }
+	local glassO: PartOpts = { name = "LobbyGlass", material = Enum.Material.Glass, color = rgb(176, 194, 208), transparency = 0.62, reflectance = 0.06, collide = true, shadow = false }
+	local gy0, gy1 = PLINTH_H - 0.3, LOBBY_H + 0.3
+	local function pane(x0: number, x1: number, y0: number, y1: number)
+		Kit.part(m, TF * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, gz), Vector3.new(x1 - x0, y1 - y0, OBS_GLASS_T), glassO)
+	end
+	local dTop = LOBBY_FLOOR + DOOR_H
+	pane(-HX, doorXs[1] - DOOR_W / 2, gy0, gy1)
+	pane(doorXs[1] + DOOR_W / 2, doorXs[2] - DOOR_W / 2, gy0, gy1)
+	pane(doorXs[2] + DOOR_W / 2, HX, gy0, gy1)
+	for _, dx in doorXs do
+		pane(dx - DOOR_W / 2, dx + DOOR_W / 2, dTop + 0.8, gy1)
+		Kit.box(m, TF * CFrame.new(dx, dTop + 0.45, gz - 0.25), Vector3.new(DOOR_W + 0.6, 0.9, 1.3), P.Mullion, Enum.Material.Metal, { name = "DoorHeader", collide = true, shadow = false })
 	end
 	-- 각 면 중앙 출입구 캐노피(16 m × 8 m, 하부 5.5 m) + 조명 띠 + 기둥 + 실제 광원
 	for f = 0, 3 do
 		local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
 		canopy(m, FR * CFrame.new(0, PAVE_UP, wl / 2 - 1), m2s(16), m2s(8), true, true)
 	end
+	return {
+		W = W, -- 로비 외곽 반폭(정면 유리 바깥면)
+		HX = HX, -- 홀 반폭
+		ZB = ZB, -- 홀 뒷벽
+		AX = AX, -- 알코브 반폭
+		AZ0 = AZ0, -- 알코브 안쪽 끝벽
+		alcoveTop = LOBBY_ALCOVE_TOP,
+		plinthY = PLINTH_H,
+		floorY = LOBBY_FLOOR,
+		ceilY = LOBBY_H,
+		glassZ = gz,
+		doorXs = doorXs,
+		doorW = DOOR_W,
+		doorH = DOOR_H,
+		mezzY = my,
+		finStep = step,
+		finSpan = span,
+	}
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -345,6 +548,207 @@ end
 ------------------------------------------------------------------------------------------------------
 -- 몰 (롯데월드몰 모티브: 8~12층 블록 + 곡면 지붕 홀)
 ------------------------------------------------------------------------------------------------------
+-- 몰 홀 외피: Facade "curtain" 과 같은 야경 언어(층 슬래브 띠 + 1.4 안쪽 조명 코어 + 6 m 멀리언 + 꺼진 창)를 쓰되,
+-- 조명 코어를 실내 공간(갤러리아/상점/입구 통로)을 비운 8 덩어리로 나누고, 슬래브·멀리언은 외곽 링/면별 핀으로 만듦.
+local function buildHall(m: Model, rng: Random, HF: CFrame, hw: number, hd: number, hh: number): { [string]: any }
+	local HXo, HZo = hw / 2, hd / 2
+	local inset = 1.4
+	local HXi, HZi = HXo - inset, HZo - inset
+	local GX, GZ, SD = HALL_GX, HALL_GZ, HALL_SD
+	local EX = GX / HALL_SHOPS -- 가운데 상점 칸 반폭 = 입구 통로 반폭
+	local floorH = m2s(5.5)
+	local slabH = floorH * 0.4
+	local lobbyH = math.min(20, hh * 0.06)
+	local fy0 = lobbyH + 1.6
+	-- 1) 조명 코어 (실내를 비운 8 덩어리, 같은 색 → 바깥에서는 이전과 같은 따뜻한 층 불빛)
+	local cF = MALL_LIT[rng:NextInteger(1, #MALL_LIT)]
+	local coreO: PartOpts = { name = "Core", material = Enum.Material.Neon, color = cF, collide = true, shadow = false, glow = true, dayMaterial = Enum.Material.Glass, dayColor = P.GlassDeep }
+	local function core(x0: number, x1: number, z0: number, z1: number, y0: number, y1: number)
+		Kit.part(m, HF * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), Vector3.new(x1 - x0, y1 - y0, z1 - z0), coreO)
+	end
+	core(-HXi, -GX, -HZi, HZi, 0, hh)
+	core(GX, HXi, -HZi, HZi, 0, hh)
+	core(-GX, GX, -HZi, -SD, 0, hh)
+	core(-GX, -EX, SD, HZi, 0, hh)
+	core(EX, GX, SD, HZi, 0, hh)
+	core(-EX, EX, SD, HZi, HALL_ET, hh)
+	core(-GX, GX, GZ, SD, HALL_ST, hh)
+	core(-GX, GX, -SD, -GZ, HALL_ST, hh)
+	-- 2) 외곽 링(캐노피 띠 / 층 슬래브 / 상단 마감): out = 외벽 밖 돌출, depth = 안쪽 깊이, gap = 정면 입구 통로
+	local function ring(y0: number, y1: number, out: number, depth: number, gap: number?, opts: PartOpts)
+		local yc, yh = (y0 + y1) / 2, y1 - y0
+		local xo, zo, xi, zi = HXo + out, HZo + out, HXo - depth, HZo - depth
+		local function b(x0: number, x1: number, z0: number, z1: number)
+			Kit.part(m, HF * CFrame.new((x0 + x1) / 2, yc, (z0 + z1) / 2), Vector3.new(x1 - x0, yh, z1 - z0), opts)
+		end
+		b(-xo, -xi, -zo, zo)
+		b(xi, xo, -zo, zo)
+		b(-xi, xi, -zo, -zi)
+		if gap then
+			b(-xi, -gap, zi, zo)
+			b(gap, xi, zi, zo)
+		else
+			b(-xi, xi, zi, zo)
+		end
+	end
+	ring(lobbyH, lobbyH + 1.6, 3, 2, EX, { name = "Canopy", material = Enum.Material.Concrete, color = P.ConcreteDark, collide = true, shadow = false })
+	local slabO: PartOpts = { name = "Slab", material = Enum.Material.Glass, color = P.GlassBlue, reflectance = 0.18, collide = true, shadow = false }
+	local nFloors = math.floor((hh - fy0) / floorH)
+	for i = 0, nFloors - 1 do
+		local yb = fy0 + i * floorH
+		ring(yb, yb + slabH, 0, 2, if yb < HALL_ET then EX else nil, slabO)
+	end
+	ring(hh - slabH, hh, 0.2, 2, nil, slabO)
+	-- 3) 멀리언(6 m): 면마다 짧은 핀(외벽 -1.1 ~ +0.5). 입구 칸은 통로 천장 위부터.
+	local bay = m2s(6)
+	local nx = math.max(1, math.floor(hw / bay))
+	local nz = math.max(1, math.floor(hd / bay))
+	local finO: PartOpts = { name = "Fin", material = Enum.Material.Metal, color = P.Mullion, collide = false, query = false, shadow = false }
+	for i = 1, nx - 1 do
+		local x = -HXo + i * (hw / nx)
+		for _, sz in { -1, 1 } do
+			local yb = if sz == 1 and math.abs(x) < EX + 0.6 then HALL_ET else fy0
+			Kit.part(m, HF * CFrame.new(x, (yb + hh) / 2, sz * (HZo - 0.3)), Vector3.new(1.1, hh - yb, 1.6), finO)
+		end
+	end
+	for i = 1, nz - 1 do
+		local z = -HZo + i * (hd / nz)
+		for _, sx in { -1, 1 } do
+			Kit.part(m, HF * CFrame.new(sx * (HXo - 0.3), (fy0 + hh) / 2, z), Vector3.new(1.6, hh - fy0, 1.1), finO)
+		end
+	end
+	for _, s in CORNERS do
+		Kit.part(m, HF * CFrame.new(s[1] * HXo, (fy0 + hh) / 2, s[2] * HZo), Vector3.new(2.2, hh - fy0, 2.2), { name = "Corner", material = Enum.Material.Metal, color = P.Mullion, collide = false, shadow = false })
+	end
+	-- 4) 꺼진 창 패치(위 불빛 띠, 코어 앞 0.1)
+	local s1 = fy0 + floorH + slabH
+	local s2 = math.min(hh - slabH, s1 + floorH - slabH)
+	local offO: PartOpts = { name = "Off", material = Enum.Material.Glass, color = P.WindowOff, reflectance = 0.1, collide = false, query = false, shadow = false }
+	for _ = 1, 8 do
+		local face = rng:NextInteger(1, 3)
+		local nb = rng:NextInteger(1, 3)
+		if face <= 2 then
+			local i0 = rng:NextInteger(0, nx - nb)
+			local x = -HXo + (i0 + nb / 2) * (hw / nx)
+			local sz = if face == 1 then 1 else -1
+			Kit.part(m, HF * CFrame.new(x, (s1 + s2) / 2, sz * (HZo - 0.95)), Vector3.new(nb * (hw / nx) - 1.1, s2 - s1, 0.7), offO)
+		else
+			local i0 = rng:NextInteger(0, nz - nb)
+			local z = -HZo + (i0 + nb / 2) * (hd / nz)
+			local sx = if rng:NextNumber() < 0.5 then 1 else -1
+			Kit.part(m, HF * CFrame.new(sx * (HXo - 0.95), (s1 + s2) / 2, z), Vector3.new(0.7, s2 - s1, nb * (hd / nz) - 1.1), offO)
+		end
+	end
+	-- 5) 지붕 슬래브(갤러리아 위는 열림 → 돔 볼트가 실내에서 보임)
+	local roofO: PartOpts = { name = "Roof", material = Enum.Material.Concrete, color = P.ConcreteDark, collide = true }
+	local function roof(x0: number, x1: number, z0: number, z1: number)
+		Kit.part(m, HF * CFrame.new((x0 + x1) / 2, hh + 1, (z0 + z1) / 2), Vector3.new(x1 - x0, 2, z1 - z0), roofO)
+	end
+	roof(-HXo, HXo, GZ, HZo)
+	roof(-HXo, HXo, -HZo, -GZ)
+	roof(-HXo, -GX, -GZ, GZ)
+	roof(GX, HXo, -GZ, GZ)
+	-- 6) 정면 입구: 통로 폭 전체 유리(두께 0.4) + 자동문 2곳 + 문틀 헤더 + 양끝 문설주
+	local ez = HZo - 0.3
+	local dx = EX * 0.45
+	local glassO: PartOpts = { name = "EntranceGlass", material = Enum.Material.Glass, color = rgb(176, 194, 208), transparency = 0.62, reflectance = 0.06, collide = true, shadow = false }
+	local gy0, gy1 = 0, HALL_ET + 0.3
+	local function pane(x0: number, x1: number, y0: number, y1: number)
+		Kit.part(m, HF * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, ez), Vector3.new(x1 - x0, y1 - y0, OBS_GLASS_T), glassO)
+	end
+	local dTop = HALL_FY1 + DOOR_H
+	pane(-EX, -dx - DOOR_W / 2, gy0, gy1)
+	pane(-dx + DOOR_W / 2, dx - DOOR_W / 2, gy0, gy1)
+	pane(dx + DOOR_W / 2, EX, gy0, gy1)
+	for _, sx in { -1, 1 } do
+		pane(sx * dx - DOOR_W / 2, sx * dx + DOOR_W / 2, dTop + 0.8, gy1)
+		Kit.box(m, HF * CFrame.new(sx * dx, dTop + 0.45, ez - 0.25), Vector3.new(DOOR_W + 0.6, 0.9, 1.3), P.Mullion, Enum.Material.Metal, { name = "DoorHeader", collide = true, shadow = false })
+		Kit.box(m, HF * CFrame.new(sx * EX, HALL_ET / 2, (HZi + HZo) / 2 - 0.1), Vector3.new(1.2, HALL_ET, inset + 0.4), P.Mullion, Enum.Material.Metal, { name = "Jamb", collide = true, shadow = false })
+	end
+	return {
+		cf = HF,
+		HX = HXo,
+		HZ = HZo,
+		H = hh,
+		GX = GX,
+		GZ = GZ,
+		VZ = HALL_VZ,
+		SD = SD,
+		EX = EX,
+		ET = HALL_ET,
+		ST = HALL_ST,
+		FY1 = HALL_FY1,
+		FY2 = HALL_FY2,
+		shops = HALL_SHOPS,
+		doorXs = { -dx, dx },
+		doorW = DOOR_W,
+		doorH = DOOR_H,
+		glassZ = ez,
+	}
+end
+
+-- 다면 타원 돔(위 반쪽만): 경도(u) 14 × 위도(θ) 8 패널 + 아치 리브 15 + 용마루. 패널은 Neon(밤) → 밖에서는 이전 타원체 돔과 같고,
+-- 안(갤러리아)에서는 파랗게 빛나는 볼트와 밝은 리브가 보임. 같은 색 패널끼리는 가장자리만 살짝 겹침.
+local function buildDome(m: Model, HF: CFrame, a: number, bR: number, c: number, ey: number)
+	local NU, NT = 14, 8
+	local UMAX = 0.995
+	local function pt(u: number, th: number): Vector3
+		local s = math.sqrt(math.max(0, 1 - u * u))
+		return Vector3.new(a * u, ey + bR * s * math.sin(th), c * s * math.cos(th))
+	end
+	local function nrmAt(p: Vector3): Vector3
+		return Vector3.new(p.X / (a * a), (p.Y - ey) / (bR * bR), p.Z / (c * c)).Unit
+	end
+	local us = {}
+	for i = 0, NU do
+		us[i + 1] = UMAX * math.sin(-math.pi / 2 + math.pi * i / NU)
+	end
+	local panelO: PartOpts = { name = "Dome", material = Enum.Material.Neon, color = DOME_C, collide = true, shadow = false, glow = true, dayMaterial = Enum.Material.Glass, dayColor = P.GlassBlue }
+	local center = Vector3.new(0, ey, 0)
+	for i = 1, NU do
+		for j = 0, NT - 1 do
+			local t0, t1 = math.pi * j / NT, math.pi * (j + 1) / NT
+			local p00, p10, p01, p11 = pt(us[i], t0), pt(us[i + 1], t0), pt(us[i], t1), pt(us[i + 1], t1)
+			local ctr = (p00 + p10 + p01 + p11) / 4
+			local eu = (p10 + p11 - p00 - p01) / 2
+			local et = (p01 + p11 - p00 - p10) / 2
+			local nrm = eu:Cross(et)
+			if nrm.Magnitude > 1e-3 and eu.Magnitude > 1e-3 then
+				nrm = nrm.Unit
+				if nrm:Dot(ctr - center) < 0 then
+					nrm = -nrm
+				end
+				local ex = eu.Unit
+				local ez = ex:Cross(nrm).Unit
+				local wU = math.max((p10 - p00).Magnitude, (p11 - p01).Magnitude) + 0.6
+				local wT = math.max(math.abs((p01 - p00):Dot(ez)), math.abs((p11 - p10):Dot(ez))) + 0.6
+				Kit.part(m, HF * CFrame.fromMatrix(ctr, ex, nrm, ez), Vector3.new(wU, 0.8, wT), panelO)
+			end
+		end
+	end
+	-- 양 끝 마개(얇은 타원판, 아랫반은 지붕/코어 속)
+	local sEnd = math.sqrt(1 - UMAX * UMAX)
+	for _, sx in { -1, 1 } do
+		Kit.ellipsoid(m, HF * CFrame.new(sx * a * UMAX, ey, 0), Vector3.new(1.2, 2 * bR * sEnd + 1, 2 * c * sEnd + 1), DOME_C, Enum.Material.Neon, { name = "DomeCap", shadow = false, glow = true, dayMaterial = Enum.Material.Glass, dayColor = P.GlassBlue })
+	end
+	-- 아치 리브(약 8 m 간격) + 용마루: 패널을 안팎으로 1 stud 씩 관통하는 띠 → 밖과 안 모두에서 빛나는 선
+	local ribO: PartOpts = { name = "DomeRib", material = Enum.Material.Neon, color = DOME_RIB_C, collide = false, query = false, shadow = false, glow = true, dayMaterial = Enum.Material.Metal, dayColor = P.MullionLight }
+	local function seg(q0: Vector3, q1: Vector3)
+		local mid = (q0 + q1) / 2
+		Kit.part(m, HF * CFrame.lookAt(mid, q1, nrmAt(mid)), Vector3.new(m2s(0.7), 2.0, (q1 - q0).Magnitude + 0.8), ribO)
+	end
+	local nR = 15
+	for i = 1, nR do
+		local u = -1 + 2 * i / (nR + 1)
+		for j = 0, NT - 1 do
+			seg(pt(u, math.pi * j / NT), pt(u, math.pi * (j + 1) / NT))
+		end
+	end
+	for i = 1, NU do
+		seg(pt(us[i], math.pi / 2), pt(us[i + 1], math.pi / 2))
+	end
+end
+
 type Block = { name: string, x0: number, x1: number, z0: number, z1: number, h: number, glass: Color3, crown: string, led: Color3? }
 
 local function buildMall(m: Model, rng: Random)
@@ -384,62 +788,17 @@ local function buildMall(m: Model, rng: Random)
 	local hh = m2s(17)
 	local hcx, hcz = (hx0 + hx1) / 2, (hz0 + hz1) / 2
 	local hw, hd = hx1 - hx0, hz1 - hz0
-	Facade.tower(m, {
-		name = "Hall",
-		style = "curtain",
-		cf = CFrame.new(hcx, CITY_Y, hcz),
-		w = hw,
-		d = hd,
-		h = hh,
-		rng = rng,
-		floorH = m2s(5.5),
-		bay = m2s(6),
-		glass = P.GlassBlue,
-		lit = MALL_LIT,
-		litChance = 0.65,
-		crown = "none",
-		beacon = false,
-	})
-	-- 타원체 돔(아랫반은 건물 속): 적도면이 지붕 슬래브(Facade "none" 지붕: top..top+2) 안에 있어 틈/겹침 없음
-	local ey = CITY_Y + hh + 0.8
-	local a, bR, c = (hw - m2s(5)) / 2, m2s(10), (hd - m2s(7)) / 2
-	Kit.ellipsoid(m, CFrame.new(hcx, ey, hcz), Vector3.new(a * 2, bR * 2, c * 2), DOME_C, Enum.Material.Neon, {
-		name = "Dome",
-		shadow = false,
-		glow = true,
-		dayMaterial = Enum.Material.Glass,
-		dayColor = P.GlassBlue,
-	})
-	-- 아치 리브(약 8 m 간격): 각 x 단면의 돔 타원보다 2 stud 큰 얇은 렌즈 → 표면 위 빛나는 아치선
-	local nR = 15
-	for i = 1, nR do
-		local x = -a + (2 * a) * i / (nR + 1)
-		local s = math.sqrt(math.max(0, 1 - (x / a) ^ 2))
-		Kit.ellipsoid(m, CFrame.new(hcx + x, ey, hcz), Vector3.new(m2s(0.7), 2 * bR * s + 2, 2 * c * s + 2), DOME_RIB_C, Enum.Material.Neon, {
-			name = "DomeRib",
-			shadow = false,
-			query = false,
-			glow = true,
-			dayMaterial = Enum.Material.Metal,
-			dayColor = P.MullionLight,
-		})
-	end
-	-- 용마루 선
-	Kit.ellipsoid(m, CFrame.new(hcx, ey, hcz), Vector3.new(a * 2 + 2, bR * 2 + 2, m2s(0.7)), DOME_RIB_C, Enum.Material.Neon, {
-		name = "DomeRidge",
-		shadow = false,
-		query = false,
-		glow = true,
-		dayMaterial = Enum.Material.Metal,
-		dayColor = P.MullionLight,
-	})
+	-- 홀 외피(Facade 커튼월과 같은 층 띠/멀리언/불빛) + 속을 비운 갤러리아 + 정면 입구, 다면 타원 돔(안에서도 보이는 파란 볼트)
+	local HF = CFrame.new(hcx, CITY_Y, hcz)
+	local hall = buildHall(Kit.group(m, "Hall"), rng, HF, hw, hd, hh)
+	buildDome(Kit.group(m, "HallRoof"), HF, (hw - m2s(5)) / 2, m2s(10), (hd - m2s(7)) / 2, hh + 0.8)
 	-- 홀 정면 출입구: 30 m × 9 m 캐노피 + 빛 띠 + 광원
 	canopy(m, CFrame.new(hcx, CITY_Y + PAVE_UP, hz1 - 1), m2s(30), m2s(9), true, true)
 	-- 동쪽 블록 출입구 (MallEast 앞면, 파빌리온과의 사이 통로 쪽)
 	local eb = blocks[3]
 	local ex = (eb.x0 + eb.x1) / 2
 	canopy(m, CFrame.new(ex, CITY_Y + PAVE_UP, eb.z1 - 1), m2s(20), m2s(7), false, true)
-	return hcx, hcz, ex, (eb.z0 + eb.z1) / 2
+	return hcx, hcz, ex, (eb.z0 + eb.z1) / 2, hall
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -601,13 +960,15 @@ function Landmark.build(ctx: any)
 	Kit.reserve(M.Min.X, M.Min.Y, M.Max.X, M.Max.Y, "LandmarkMall")
 
 	local tower = Kit.group(root, "Tower")
-	buildBase(tower, TF)
-	local floors = buildShaft(tower, TF, rng)
+	local lobby = buildBase(tower, TF)
+	local floors, obs = buildShaft(tower, TF, rng)
 	local crown = Kit.group(tower, "Crown")
 	buildCrown(crown, TF)
 
 	local mall = Kit.group(root, "Mall")
-	local hallX, hallZ, eastX, eastZ = buildMall(mall, rng)
+	local hallX, hallZ, eastX, eastZ, hall = buildMall(mall, rng)
+	-- 실내 모듈(LandmarkInterior)이 쓰는 배치 정보
+	Landmark.layout = { TF = TF, lobby = lobby, obs = obs, hall = hall }
 
 	local plaza = Kit.group(root, "Plaza")
 	buildPlaza(plaza, rng, TF, px0, pz0, px1, pz1)
