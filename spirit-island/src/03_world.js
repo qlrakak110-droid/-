@@ -181,7 +181,7 @@ function groundMaterial(arr) {
     // texture repeats per metre: grass 2.6 m, dirt 3 m, rock 6 m (triplanar), sand 4 m, forest litter 3 m
     uScale: { value: [1 / 2.6, 1 / 3.0, 1 / 6.0, 1 / 4.0, 1 / 3.0] },
     uRift: { value: SITES.rifts.map((r) => new THREE.Vector4(r.x, r.z, 1, 0)) },
-    uTime: Shared.time, uGrassTint: { value: new THREE.Vector3(1.04, 1.32, 0.84) }, uNormStr: { value: 1.0 },
+    uTime: Shared.time, uGrassTint: { value: new THREE.Vector3(1.3, 1.75, 0.98) }, uNormStr: { value: 1.0 },
   };
   const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.5 });
   m.defines = Object.assign({}, m.defines, { GROUND_HQ: Settings.high ? 1 : 0 });   // keep STANDARD
@@ -230,8 +230,11 @@ vec3 gWN; float gRough, gAO; vec3 gEmis = vec3(0.0);
   float sandW = max(1.0 - smoothstep(0.5, 1.05, P.y + (m2 - 0.5) * 0.5 + (m3 - 0.5) * 0.12), s1.a);
   float rockW = max(s0.b, smoothstep(0.85, 0.7, Ng.y + (m2 - 0.5) * 0.1 + (m3 - 0.5) * 0.04));
   float W[5]; W[0] = 1.0; W[1] = 0.0; W[2] = 0.0; W[3] = 0.0; W[4] = 0.0;
-  gPaint(W, 4, s0.g);
-  gPaint(W, 1, s0.r);
+  float hf = (vnoise(xz * 1.9 + 4.2) - 0.5) * 0.7 + (vnoise(xz * 5.3 - 1.7) - 0.5) * 0.35;
+  float edgeR = s0.r + hf * 4.0 * s0.r * (1.0 - s0.r);
+  float edgeF = s0.g + hf * 3.0 * s0.g * (1.0 - s0.g);
+  gPaint(W, 4, edgeF);
+  gPaint(W, 1, edgeR);
   gPaint(W, 2, rockW);
   gPaint(W, 3, sandW);
   // ---- sample the active layers (two scales on PC to break tiling) and height-blend them
@@ -259,11 +262,11 @@ vec3 gWN; float gRough, gAO; vec3 gEmis = vec3(0.0);
         a = textureGrad(tGA, vec3(uv, fl), dX * s, dY * s);
         n = textureGrad(tGN, vec3(uv, fl), dX * s, dY * s);
 #if GROUND_HQ
-        float s2 = s * 0.31;
+        float s2 = s * 0.61;
         vec2 uv2 = rot * xz * s2 + vec2(0.37, 0.71) * fl;
         vec2 gx2 = rot * dX * s2, gy2 = rot * dY * s2;
         vec4 a2 = textureGrad(tGA, vec3(uv2, fl), gx2, gy2), n2 = textureGrad(tGN, vec3(uv2, fl), gx2, gy2);
-        float k = clamp(0.2 + 0.6 * m2, 0.0, 1.0);
+        float k = clamp(0.12 + 0.5 * m2 + smoothstep(10.0, 60.0, dist) * 0.2, 0.0, 0.85);
         a = mix(a, a2, k); n = mix(n, n2, k);
         float kc = 1.0 + 0.6 * k * (1.0 - k);                 // averaging two tiles flattens contrast: restore it
         a.rgb = uMean[L] + (a.rgb - uMean[L]) * kc; a.a = 0.5 + (a.a - 0.5) * kc;
@@ -271,12 +274,12 @@ vec3 gWN; float gRough, gAO; vec3 gEmis = vec3(0.0);
 #endif
       }
       LA[L] = a; LN[L] = n;
-      V[L] = W[L] + a.a * 0.6;
+      V[L] = W[L] + (a.a - 0.5) * 0.9;
       vmax = max(vmax, V[L]);
     }
   }
   float Bw[5]; float bs = 0.0;
-  for (int L = 0; L < 5; L++) { Bw[L] = W[L] > 0.004 ? max(V[L] - vmax + 0.2, 0.0) : 0.0; bs += Bw[L]; }
+  for (int L = 0; L < 5; L++) { Bw[L] = W[L] > 0.004 ? max(V[L] - vmax + 0.16, 0.0) : 0.0; bs += Bw[L]; }
   // ---- regional colour: lush meadows deeper, north cooler, highlands and the ember hills drier, marsh olive
   float mb = 0.84 + 0.24 * m1 + 0.1 * (m2 - 0.5);
   vec3 tg = uGrassTint;
@@ -292,7 +295,7 @@ vec3 gWN; float gRough, gAO; vec3 gEmis = vec3(0.0);
   for (int L = 0; L < 5; L++) {
     float b = Bw[L] / max(bs, 1e-4);
     if (b > 0.0) {
-      vec3 tint = L == 0 ? tg : L == 1 ? tdirt : L == 2 ? trock : vec3(1.0);
+      vec3 tint = L == 0 ? tg : L == 1 ? tdirt : L == 2 ? trock : L == 4 ? vec3(1.25, 1.2, 1.1) : vec3(1.0);
       alb += gLin(clamp(LA[L].rgb, 0.0, 1.0)) * tint * b;
       meanC += gLin(uMean[L]) * tint * b;
       rough += LN[L].a * b; ao += LN[L].b * b;
