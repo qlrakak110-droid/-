@@ -293,7 +293,7 @@ function dragonMaterial(o, D) {
     vertexColors: true, roughness: o.rough ?? 0.35, metalness: o.metal ?? 0.2,
     clearcoat: o.coat ?? 0.8, clearcoatRoughness: o.coatRough ?? 0.25,
     iridescence: o.irid ?? 0, iridescenceIOR: 1.7, iridescenceThicknessRange: [180, 620],
-    sheen: o.sheen ?? 0, sheenColor: new THREE.Color(o.sheenCol ?? 0xffffff), sheenRoughness: 0.5,
+    sheen: o.sheen ?? 0, sheenColor: new THREE.Color(o.sheenCol ?? 0xffffff), sheenRoughness: o.sheenRough ?? 0.5,
     envMapIntensity: o.env ?? 1.1,
   });
   const scales = (o.scaleFreq ?? 5.5) > 0;
@@ -604,6 +604,7 @@ function buildDragon(r, cfg) {
   const D = cfg.design;
   r.olw = 0; r.noBreath = true; r.float = cfg.float ?? 1.0; r.floatAmp = cfg.floatAmp ?? 0.18; r.hopAmp = 0.2;
   const B = grp(r.body); B.scale.setScalar(cfg.scale);
+  Object.defineProperty(B.userData, 'rig', { value: r, enumerable: false, writable: true, configurable: true }); // eyes look at r.gazeAt if set
   const geo = dragonGeometry(cfg.key, D), mat = dragonMaterial(cfg.mat, D);
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
   // thin inked silhouette: the legends share the spirits' line language without turning into flat cartoons

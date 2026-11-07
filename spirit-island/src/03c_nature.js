@@ -424,7 +424,7 @@ function buildGrassField(parent, spots, mat) {
     }
     const tm = vegInstanced(vegTuft(), vegCoverMat(), list, { rect: true });
     tm.frustumCulled = false; parent.add(tm);
-    spots = spots.filter((_, i) => i % 4 === 1);
+    spots = spots.filter((_, i) => i % 8 === 1);
   }
   _blade = _blade || grassBladeGeometry();
   const im = new THREE.InstancedMesh(_blade, mat, spots.length);
@@ -786,12 +786,13 @@ function buildForest(parent, trees, opts = {}) {
     (groups[vname] || (groups[vname] = [])).push(it);
     if (opts.ground) {
       // contact: dark root collar, litter under the crown, a soft canopy shadow on the grass
+      // (wide, weak stamps first: a stamp pulls its channel toward its value, so the tight collar must come last)
       const R = S.R * s;
-      groundStamp(t.x, t.z, 0.75 * s + 0.35, { dark: 0.55 }, { soft: 0.75 });
       if (sp !== 'bush') {
         groundStamp(t.x, t.z, R * 0.95, { dark: 0.2 }, { soft: 0.9, noise: 0.5 });
         groundStamp(t.x, t.z, R * (sp === 'fir' ? 1.0 : 0.85), { forest: sp === 'fir' ? 0.8 : sp === 'birch' ? 0.35 : 0.55 }, { soft: 0.85, noise: 0.75 });
       } else groundStamp(t.x, t.z, 0.9 * s, { forest: 0.3 }, { soft: 0.8, noise: 0.6 });
+      groundStamp(t.x, t.z, 0.75 * s + 0.35, { dark: 0.55 }, { soft: 0.75 });
     }
   }
   const forest = { g, sets: [], lod: !!opts.lod, cx: 1e9, cz: 1e9, t: 0 };
@@ -964,7 +965,7 @@ function buildGroundCover(scene) {
   };
   const T = SITES.town, A = SITES.altar, big = World.colliders.filter((c) => c.r > 1.1);
   const blocked = (x, z) => {
-    if (Math.hypot(x - T.x, z - T.z) < 10.5 || Math.hypot(x - A.x, z - A.z) < 10.5) return true;
+    if (Math.hypot(x - T.x, z - T.z) < 10 || Math.hypot(x - A.x, z - A.z) < 9.2) return true;
     for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 9) return true;
     for (const c of big) if (Math.abs(x - c.x) < c.r && Math.abs(z - c.z) < c.r && Math.hypot(x - c.x, z - c.z) < c.r * 0.92) return true;   // houses, big rocks, props
     return false;
@@ -1020,7 +1021,7 @@ function buildGroundCover(scene) {
     if (u < 0.012 * (1 + ga.lush)) add('wild', x, z, { w: 0.42 + rng() * 0.2, h: 0.7 + rng() * 0.4, tint: grassTint(ga, sh, j), flex: 1 });
     else if (u < 0.034) add('tuss', x, z, { w: 0.48 + rng() * 0.25, h: 0.5 + rng() * 0.35, tint: grassTint(ga, sh, j), flex: 0.85 });
     else if (u < 0.06 && ga.lush + (1 - sh) > 0.8) add('clover', x, z, { flat: true, w: 0.55 + rng() * 0.5 });
-    else { const hh = (0.22 + rng() * 0.18) * (1 + ga.lush * 0.35) * (1 - sh * 0.4); add('lawn', x, z, { w: hh * (1.6 + rng() * 0.5), h: hh, tint: grassTint(ga, sh, j), flex: 0.6 }); }
+    else { const hh = (0.17 + Math.pow(rng(), 1.6) * 0.32) * (1 + ga.lush * 0.35) * (1 - sh * 0.4); add('lawn', x, z, { w: hh * (1.6 + rng() * 0.5), h: hh, tint: grassTint(ga, sh, j), flex: 0.6 }); }
     n++;
   }
   // ---- 2. encounter-zone rims: a band of tall clumps easing into the meadow
@@ -1033,13 +1034,13 @@ function buildGroundCover(scene) {
     }
   }
   // ---- 3. flowers in drifts: one species per drift, dense centre thinning outward, only in sunny meadow
-  const drifts = Math.round(80 * (hi ? 1 : 0.5));
+  const drifts = Math.round(110 * (hi ? 1 : 0.5));
   for (let d = 0, tries = 0; d < drifts && tries < 3000; tries++) {
     const cx = (rng() - 0.5) * 170, cz = (rng() - 0.5) * 170, h = groundY(cx, cz);
     if (h < 1.2 || h > 10 || blocked(cx, cz) || inZone(cx, cz, 1) || pathDist(cx, cz) < 2.8 || vegShade(cx, cz) > 0.15) continue;
     const ga = groundAt(cx, cz); if (ga.dirt > 0.3 || ga.sand > 0.1 || ga.rock > 0.3) continue;
     const sp = cx > 25 ? (rng() < 0.6 ? 'pink' : 'butter') : cx < -25 ? (rng() < 0.6 ? 'bell' : 'daisy') : cz > 10 ? (rng() < 0.55 ? 'daisy' : 'butter') : cz < -18 ? 'bell' : ['daisy', 'butter', 'bell', 'pink'][(rng() * 4) | 0];
-    const R = 1.2 + rng() * 2.6, cnt = Math.round((10 + rng() * 26) * (hi ? 1 : 0.5));
+    const R = 1.2 + rng() * 2.8, cnt = Math.round((14 + rng() * 30) * (hi ? 1 : 0.5));
     for (let i = 0; i < cnt; i++) {
       const a = rng() * 6.283, rr = R * Math.sqrt(-2 * Math.log(1 - rng() * 0.95)) * 0.5, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
       if (blocked(x, z) || pathDist(x, z) < 2.2 || groundY(x, z) < 1.1) continue;

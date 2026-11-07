@@ -301,7 +301,8 @@ function eyeSockets(D, eo = {}) {
     extra.push(SDF.el(c, [1.12 * r, 0.62 * r + 0.3 * r * H, 0.82 * r], { k: 0.32 * r, sub: true }));
     const lid = at(ts - 0.14 * r);
     const up = (1.25 * H + 0.2) * r;
-    extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.92 * r, 0.2 * r, 0.28 * r], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
+    const lf = D.lidFold ?? 1;
+    if (lf > 0) extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.9 * r, 0.18 * r * lf, 0.25 * r * lf], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
   }
   return { extra, skins };
 }
@@ -313,7 +314,7 @@ function buildCritter(r, cfg) {
   r.olw = 0; r.hopAmp = cfg.hop ?? 0.6;
   if (cfg.float) { r.float = cfg.float; r.floatAmp = cfg.floatAmp ?? 0.1; }
   const B = grp(r.body); B.scale.setScalar(cfg.scale ?? 1);
-  B.userData.rig = r;
+  Object.defineProperty(B.userData, 'rig', { value: r, enumerable: false, writable: true, configurable: true }); // gaze target lookup (r.gazeAt); hidden from userData clones
   const eo = cfg.eye || {};
   if (!D._sock) D._sock = eyeSockets(D, eo);
   const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D, { prims: D.prims.concat(D._sock.extra) });
@@ -321,7 +322,7 @@ function buildCritter(r, cfg) {
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
   if (D.paint) paintCritter(geo, D.paint);
   const kind = (cfg.mat && cfg.mat.kind) || 'vinyl', soft = kind === 'fur' || kind === 'wool' || kind === 'plush';
-  const mat = dragonMaterial(Object.assign({ kind, scaleFreq: 0, rough: soft ? 0.74 : 0.55, metal: 0, coat: soft ? 0 : 0.2, coatRough: 0.4, sheen: soft ? 0.45 : 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
+  const mat = dragonMaterial(Object.assign({ kind, scaleFreq: 0, rough: soft ? 0.74 : 0.55, metal: 0, coat: soft ? 0 : 0.2, coatRough: 0.4, sheen: soft ? 0.22 : 0.3, sheenRough: soft ? 0.85 : 0.5, env: soft ? 0.24 : 0.32, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
   critterSkin(mat, D.face);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
@@ -741,7 +742,7 @@ MODELS.bandiru = (r) => {
   });
   const B = buildCritter(r, { key: 'firefly', design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1600, iris2: 0xffb84a, lash: 0x2a1808,
     eye: { open: 0.86, wing: 0.5, irisR: 0.64 },
-    mat: { kind: 'plush', fur: 0.7, sheenCol: 0xfff2c0, sheen: 0.45, fuzz: 0.08, soft: 0.06, glow: 0xfff0a0, glowAmt: 3.2 } });
+    mat: { kind: 'plush', fur: 0.7, sheenCol: 0xfff2c0, sheen: 0.3, fuzz: 0.08, soft: 0.06, glow: 0xfff0a0, glowAmt: 3.2 } });
   for (const s of [-1, 1]) { const an = grp(B, [s * 0.1, 0.25, 0.1], [0.3, 0, -s * 0.35]); part(GEO.cyl, M(0x3a2c22), an, [0, 0.13, 0], [0.014, 0.26, 0.014]); part(GEO.sphere, E(0xfff3a0, 3), an, [0, 0.28, 0], 0.045); wig(r, an, 'z', 0.15, 3, s); }
   const wingM = toonMat({ color: 0xeaf6ff, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false });
   const veinM = E(0xfff6d8, 1.1, { transparent: true, opacity: 0.6, depthWrite: false });
@@ -803,12 +804,12 @@ MODELS.geurim = (r) => {
       mark: [0, hy + 0.165, hz + 0.12, 0.05], markK: 2, markCol: 0xffe08a, markGlow: 0xffc84a,
     };
     return { prims: K.prims, bounds: [-0.65, -0.05, -0.95, 0.65, 1.45, 0.75], hipY: 0.4, height: 1.3, stride: 0.12, tip: t4, paint, face,
-      earHinge: add3(hc, [0, 0.15, -0.03]), earAmp: -0.2,
+      earHinge: add3(hc, [0, 0.15, -0.03]), earAmp: -0.2, lidFold: 0.6,
       eyes: eyePair(hc, 0.13, 0.025, 0.24, 0.088, 0.3, { roll: 0.12 }) };
   });
   const B = buildCritter(r, { key: 'cat', design: D, iris: 0xd88a10, iris2: 0xfff07a, lash: 0x0c0614,
     eye: { open: 0.62, tilt: 0.16, wing: 0.7, irisR: 0.95, glow: 1.4, slit: 1 },
-    mat: { kind: 'fur', rimL: 0.7, sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.1, rim: 0xb48cff, rimAmt: 0.24, glow: 0xd8c0ff, glowAmt: 2.4, shadeCol: [0.95, 0.85, 1.25] } });
+    mat: { kind: 'fur', rimL: 0.7, sheenCol: 0xb48cff, sheen: 0.4, fuzz: 0.1, rim: 0xb48cff, rimAmt: 0.24, glow: 0xd8c0ff, glowAmt: 2.4, shadeCol: [0.95, 0.85, 1.25] } });
   const smoke = grp(B, D.tip);
   for (let k = 0; k < 4; k++) part(GEO.sphere, E([0x7a4bd6, 0xa77bff, 0x5b3f8f, 0xc7a6ff][k], 1.2 + k * 0.2, { transparent: true, opacity: 0.55 - k * 0.1, depthWrite: false }), smoke, [Math.sin(k) * 0.05, k * 0.08, -k * 0.03], 0.07 - k * 0.012);
   wig(r, smoke, 'z', 0.3, 2); r.glue(smoke, 0);
@@ -851,7 +852,7 @@ MODELS.somgu = (r) => {
   });
   const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
     eye: { open: 0.66, tilt: -0.04, wing: 0.25, irisR: 0.63 },
-    mat: { kind: 'wool', rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.08, soft: 0.04, env: 0.26 } });
+    mat: { kind: 'wool', rough: 0.85, sheen: 0.3, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.08, soft: 0.04, env: 0.26 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
