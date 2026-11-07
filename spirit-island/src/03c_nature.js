@@ -238,3 +238,266 @@ class Puffs {
 // ---------------- hooks called from 03_world.js (buildWorld / updateWorld)
 function buildNatureExtras(scene) {}
 function updateNatureExtras(dt) {}
+
+// ============================================================================
+//  vegetation builders (moved from 03_world.js): forests, lawn & encounter grass, rocks & flowers
+// ============================================================================
+// ---------------- foliage: leaf-card trees, fern pines and bushes (instanced, wind, translucency)
+function leafTexture(kind) {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  const rng = mulberry32(kind === 'pine' ? 77 : 33);
+  if (kind === 'pine') {
+    g.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const cx = 64 + k * 64, wAt = (y) => { const t = (y - 8) / 240; return 3 + 21 * Math.sin(Math.PI * Math.min(1, t * 1.12)); };
+      // a solid tapered core keeps the frond's body when the card shrinks into the distance
+      g.fillStyle = 'rgb(150,150,150)'; g.beginPath(); g.moveTo(cx, 8);
+      for (let y = 8; y <= 248; y += 8) g.lineTo(cx + wAt(y), y + 4);
+      for (let y = 248; y >= 8; y -= 8) g.lineTo(cx - wAt(y), y + 4);
+      g.closePath(); g.fill();
+      for (let y = 12; y < 246; y += 3.5) {
+        const t = (y - 10) / 236, L = 8 + 26 * Math.sin(Math.PI * Math.min(1, t * 1.15));
+        for (const sd of [-1, 1]) {
+          const v = 165 + (rng() * 90 | 0);
+          g.strokeStyle = `rgb(${v},${v},${v})`; g.lineWidth = 3.4;
+          g.beginPath(); g.moveTo(cx + sd * 2, y); g.lineTo(cx + sd * L, y + L * 0.5); g.stroke();
+        }
+      }
+      g.strokeStyle = 'rgb(115,115,115)'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx, 8); g.lineTo(cx, 248); g.stroke();
+    }
+  } else {
+    for (let i = 0; i < 70; i++) {
+      const a0 = rng() * Math.PI * 2, rr = Math.sqrt(rng()) * 96, x = 128 + Math.cos(a0) * rr, y = 128 + Math.sin(a0) * rr;
+      const a = rng() * Math.PI * 2, L = 30 + rng() * 24, W = L * 0.44;
+      const v = 140 + (rng() * 115 | 0);
+      g.save(); g.translate(x, y); g.rotate(a);
+      const grd = g.createLinearGradient(-W, 0, W, 0);
+      grd.addColorStop(0, `rgb(${v * 0.62 | 0},${v * 0.62 | 0},${v * 0.62 | 0})`); grd.addColorStop(0.55, `rgb(${v},${v},${v})`); grd.addColorStop(1, `rgb(${v * 0.78 | 0},${v * 0.78 | 0},${v * 0.78 | 0})`);
+      g.fillStyle = grd; g.beginPath(); g.moveTo(0, -L / 2); g.quadraticCurveTo(W, -L * 0.08, 0, L / 2); g.quadraticCurveTo(-W, -L * 0.08, 0, -L / 2); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 1.3; g.beginPath(); g.moveTo(0, -L / 2); g.lineTo(0, L / 2); g.stroke();
+      g.restore();
+    }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+
+function foliageMaterial(tex) {
+  const m = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.42, side: THREE.DoubleSide });
+  foliagePatch(m);
+  return aaAlphaTest(m, 256, 0.42);
+}
+
+function foliagePatch(m) {
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = Shared.time;
+    sh.vertexShader = 'uniform float uTime; attribute vec3 aCenter;\n' + sh.vertexShader
+      .replace('#include <defaultnormal_vertex>', `vec3 cardW = (instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vec3 transformedNormal = normalMatrix * normalize(cardW - aCenter + vec3(0.0, 0.25, 0.0));`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        float wph = uTime * 1.5 + cardW.x * 0.31 + cardW.z * 0.23;
+        transformed.x += sin(wph) * 0.06 + sin(wph * 2.3) * 0.02; transformed.y += cos(wph * 1.3) * 0.035;`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <normal_fragment_begin>', 'vec3 normal = normalize( vNormal ); vec3 nonPerturbedNormal = normal;')
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        #if NUM_DIR_LIGHTS > 0
+          totalEmissiveRadiance += diffuseColor.rgb * directionalLights[0].color * 0.16 * max(dot(-normal, directionalLights[0].direction), 0.0);
+        #endif
+        totalEmissiveRadiance += diffuseColor.rgb * 0.08;`);
+  };
+  return m;
+}
+// trees: [{ x, y, z, s, r, kind: 'round' | 'pine' | 'bush', tint }]
+
+function buildForest(parent, trees, opts = {}) {
+  const g = new THREE.Group(); parent.add(g);
+  const rng = mulberry32(opts.seed || 7);
+  const leafTex = leafTexture('leaf'), pineTex = leafTexture('pine');
+  const cards = [], needles = [], trunks = [];
+  const greens = opts.greens || [0x4f9a3e, 0x5aa648, 0x3f8a3a, 0x6aaa4a, 0x5c9e42];
+  for (const t of trees) {
+    const s = t.s;
+    if (t.kind === 'pine') {
+      trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r, pine: true });
+      const tiers = 5;
+      for (let k = 0; k < tiers; k++) {
+        const h = (1.4 + k * 0.85) * s, R = (1.9 - k * 0.33) * s, n = 9 - k;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + rng() * 0.4 + k;
+          needles.push({ p: [t.x + Math.cos(a) * R * 0.45, t.y + h, t.z + Math.sin(a) * R * 0.45], yaw: -a + Math.PI / 2, tilt: 0.95, size: [R * 1.05, R * 1.25], c: [t.x, t.y + h - 0.6 * s, t.z], col: t.tint ?? [0x2f6b4a, 0x3a7a55, 0x2a5f44][(i + k) % 3] });
+        }
+      }
+      needles.push({ p: [t.x, t.y + (1.4 + tiers * 0.85) * s, t.z], yaw: 0, tilt: 0, size: [0.7 * s, 1.2 * s], c: [t.x, t.y + 4 * s, t.z], col: t.tint ?? 0x3a7a55 });
+    } else {
+      const bush = t.kind === 'bush';
+      if (!bush) trunks.push({ x: t.x, y: t.y, z: t.z, s, r: t.r });
+      const top = bush ? 0.55 * s : 2.85 * s;
+      const clumps = bush ? [[0, top, 0, 0.75]] : [[0, top + 0.35 * s, 0, 1.25], [0.85, top - 0.15 * s, 0.35, 0.95], [-0.75, top - 0.05 * s, -0.4, 0.95], [0.2, top + 0.2 * s, -0.85, 0.9], [-0.35, top - 0.3 * s, 0.75, 0.85]];
+      const base = t.tint ?? greens[(rng() * greens.length) | 0];
+      for (const [ox, oy, oz, cr] of clumps) {
+        const C = [t.x + ox * s, t.y + oy, t.z + oz * s], R = cr * s * (bush ? 1 : 1.05);
+        const n = bush ? 14 : 20;
+        for (let i = 0; i < n; i++) {
+          const th = rng() * Math.PI * 2, ph = Math.acos(rand(-0.55, 1)), rr = R * (0.45 + 0.55 * Math.cbrt(rng()));
+          cards.push({ p: [C[0] + Math.sin(ph) * Math.cos(th) * rr, C[1] + Math.cos(ph) * rr * 0.85, C[2] + Math.sin(ph) * Math.sin(th) * rr], yaw: rng() * 6.28, tilt: rand(-1.2, 1.2), roll: rng() * 6.28, size: [1.15 * s * (0.8 + rng() * 0.5), 1.15 * s * (0.8 + rng() * 0.5)], c: C, col: base, jitter: rng() });
+        }
+      }
+    }
+  }
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3(), col = new THREE.Color();
+  const makeCards = (list, tex, flat) => {
+    if (!list.length) return null;
+    const geo = new THREE.PlaneGeometry(1, 1);
+    if (flat) geo.translate(0, -0.5, 0);
+    const im = new THREE.InstancedMesh(geo, foliageMaterial(tex), list.length);
+    const cen = new Float32Array(list.length * 3);
+    list.forEach((c, i) => {
+      e.set(c.tilt, c.yaw, c.roll || 0, flat ? 'YXZ' : 'XYZ');
+      m4.compose(v.set(...c.p), q.setFromEuler(e), sc.set(c.size[0], c.size[1], 1));
+      im.setMatrixAt(i, m4);
+      col.setHex(c.col); const j = (c.jitter ?? 0.5) - 0.5; col.offsetHSL(j * 0.03, j * 0.12, j * 0.12); im.setColorAt(i, col);
+      cen[i * 3] = c.c[0]; cen[i * 3 + 1] = c.c[1]; cen[i * 3 + 2] = c.c[2];
+    });
+    geo.setAttribute('aCenter', new THREE.InstancedBufferAttribute(cen, 3));
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = true; im.receiveShadow = true;
+    im.customDepthMaterial = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: tex, alphaTest: 0.42 });
+    im.frustumCulled = false; g.add(im); return im;
+  };
+  makeCards(cards, leafTex, false);
+  makeCards(needles, pineTex, true);
+  if (trunks.length) {
+    const tg = new THREE.CylinderGeometry(0.15, 0.3, 2.6, 8).translate(0, 1.3, 0);
+    const b1 = new THREE.CylinderGeometry(0.05, 0.11, 1.2, 6).translate(0, 0.6, 0).rotateZ(0.9).translate(0.1, 1.75, 0);
+    const b2 = new THREE.CylinderGeometry(0.05, 0.1, 1.0, 6).translate(0, 0.5, 0).rotateZ(-0.8).rotateY(2.1).translate(-0.05, 2.0, 0);
+    const trunkGeo = mergeGeometries([tg.toNonIndexed(), b1.toNonIndexed(), b2.toNonIndexed()], false);
+    const tm = new THREE.InstancedMesh(trunkGeo, M(0x5e4130), trunks.length);
+    trunks.forEach((t, i) => { m4.compose(v.set(t.x, t.y - 0.1, t.z), q.setFromEuler(e.set(0, t.r, 0, 'XYZ')), sc.set(t.s, t.s * (t.pine ? 1.6 : 1), t.s)); tm.setMatrixAt(i, m4); });
+    tm.castShadow = true; tm.receiveShadow = true; g.add(tm);
+  }
+  return g;
+}
+
+function buildTrees(scene) {
+  const rng = mulberry32(1337);
+  const list = [];
+  const ok = (x, z, minGap) => {
+    const h = groundY(x, z); if (h < 1.3 || h > 13) return false;
+    if (pathDist(x, z) < 4.5) return false;
+    for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + 2.5) return false;
+    if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 22) return false;
+    if (Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 15) return false;
+    for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 12) return false;
+    for (const t of list) if (Math.hypot(x - t.x, z - t.z) < minGap) return false;
+    return true;
+  };
+  for (let k = 0; k < 2600 && list.length < 230; k++) {
+    const x = (rng() - 0.5) * 190, z = (rng() - 0.5) * 190;
+    if (!ok(x, z, 3.6)) continue;
+    const s = 0.8 + rng() * 0.7;
+    const isPine = z < -18 ? rng() < 0.75 : rng() < 0.18;
+    let tint;
+    if (!isPine && z > 20 && rng() < 0.32) tint = [0xf2a6c8, 0xf7bfd8, 0xffcadb][(rng() * 3) | 0];
+    else if (!isPine && rng() < 0.07) tint = [0xd98a3a, 0xe0a040, 0xc8742e][(rng() * 3) | 0];
+    list.push({ x, y: groundY(x, z), z, s, r: rng() * 6.28, kind: isPine ? 'pine' : 'round', tint });
+    World.colliders.push({ x, z, r: 0.7 * s });
+  }
+  for (let k = 0; k < 1800 && list.filter((t) => t.kind === 'bush').length < 140; k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180;
+    if (!ok(x, z, 2.2)) continue;
+    list.push({ x, y: groundY(x, z), z, s: 0.7 + rng() * 0.6, r: 0, kind: 'bush', tint: rng() < 0.15 ? 0x7aa84a : undefined });
+  }
+  buildForest(scene, list, { seed: 99 });
+}
+
+
+function buildRocksAndFlowers(scene) {
+  const rng = mulberry32(99);
+  const rocks = [];
+  for (let k = 0; k < 900 && rocks.length < 70; k++) {
+    const x = (rng() - 0.5) * 200, z = (rng() - 0.5) * 200, h = groundY(x, z);
+    if (h < 0.4 || pathDist(x, z) < 3.5 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 16) continue;
+    let bad = false; for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) bad = true; if (bad) continue;
+    const s = 0.35 + Math.pow(rng(), 2) * 1.8;
+    rocks.push({ x, z, s, h, r: rng() * 6 });
+    if (s > 0.9) World.colliders.push({ x, z, r: s * 0.8 });
+  }
+  buildRockField(scene, rocks.map((r) => ({ x: r.x, y: r.h - 0.06 * r.s, z: r.z, s: r.s, r: r.r, sy: 0.85 + (r.r % 1) * 0.3 })));
+  // flowers: small petal flowers in loose drifts, bright enough to catch the dusk light
+  const fl = [], fc = [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xa8e6ff, 0xff9aa8];
+  for (let k = 0; k < 4000 && fl.length < (isTouch ? 600 : 1500); k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180, h = groundY(x, z);
+    if (h < 1.1 || h > 9 || pathDist(x, z) < 2.4 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5) continue;
+    const col = fc[(rng() * fc.length) | 0], n = 1 + ((rng() * 4) | 0);
+    for (let j = 0; j < n; j++) { const fx = x + (rng() - 0.5) * 1.2, fz = z + (rng() - 0.5) * 1.2; fl.push({ x: fx, y: groundY(fx, fz), z: fz, h: 0.18 + rng() * 0.18, s: 1.1 + rng() * 0.6, col }); }
+  }
+  buildFlowerField(scene, fl);
+}
+
+
+// ---------------- tall grass meadows: instanced blades with wind + player push
+function buildGrass(scene, zones) {
+  const blade = new THREE.BufferGeometry();
+  blade.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.07, 0, 0, 0.07, 0, 0, -0.05, 0.5, 0, 0.05, 0.5, 0, 0, 1, 0]), 3));
+  blade.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4]);
+  const U = { uTime: Shared.time, uPlayer: { value: new THREE.Vector3() }, uLow: { value: new THREE.Color(0x1f5a2c) }, uHigh: { value: new THREE.Color(0x9ad86a) }, uTint: { value: new THREE.Color(0xffc8a0) } };
+  const mat = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), side: THREE.DoubleSide, fog: true,
+    vertexShader: `uniform float uTime; uniform vec3 uPlayer; varying float vH; varying float vV; ${FOG_V}
+      void main(){
+        vec3 p = position; vH = p.y;
+        vec4 wp = modelMatrix * instanceMatrix * vec4(p, 1.0);
+        vec3 base = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+        vV = fract(sin(dot(base.xz, vec2(12.9898, 78.233))) * 43758.5453);
+        float k = p.y * p.y;
+        float sway = sin(uTime * 1.7 + base.x * 0.32 + base.z * 0.25) * 0.22 + sin(uTime * 3.3 + base.x * 1.1) * 0.06;
+        wp.x += sway * k; wp.z += sway * 0.4 * k;
+        vec2 d = base.xz - uPlayer.xz; float dist = length(d);
+        float push = (1.0 - smoothstep(0.0, 1.5, dist)) * k;
+        wp.xz += normalize(d + 1e-4) * push * 0.75; wp.y -= push * 0.35;
+        vec4 mvPosition = viewMatrix * wp; gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `uniform vec3 uLow, uHigh, uTint; varying float vH; varying float vV; ${FOG_F}
+      void main(){ vec3 c = mix(uLow, uHigh * (0.8 + vV * 0.4), smoothstep(0.0, 1.0, vH)); c = mix(c, c * uTint * 1.15, smoothstep(0.6, 1.0, vH) * 0.5);
+        gl_FragColor = vec4(c, 1.0);
+        #include <fog_fragment>
+      }`,
+  });
+  Object.assign(mat.uniforms, U);
+  const dens = Settings.high ? 9 : 4.5;
+  const list = [];
+  for (const z of zones) {
+    // encounter grass grows in bunches; shorter toward the rim so the patch reads as a soft-edged meadow
+    const n = Math.floor((Math.PI * z.r * z.r * dens) / 8);
+    const pts = grassClumps(Math.random, n, () => {
+      const a = Math.random() * Math.PI * 2, rr = Math.sqrt(Math.random()) * z.r;
+      const edge = 1 - smooth(z.r * 0.7, z.r, rr);
+      return { x: z.x + Math.cos(a) * rr, y: 0, z: z.z + Math.sin(a) * rr, h: (1.0 + Math.random() * 0.6) * (0.4 + edge * 0.6) };
+    });
+    for (const q of pts) list.push([q.x, q.z, q.h]);
+  }
+  const im = new THREE.InstancedMesh(blade, mat, list.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  list.forEach(([x, z, h], i) => { m4.compose(v.set(x, groundY(x, z) - 0.05, z), q.setFromEuler(e.set(rand(-0.15, 0.15), rand(0, 6.28), rand(-0.15, 0.15))), sc.set(1.1, h, 1)); im.setMatrixAt(i, m4); });
+  im.frustumCulled = false; im.receiveShadow = false;
+  scene.add(im);
+  if (Settings.high) {
+    // lawn: tufts of blades scattered over the open meadows (not on paths, plazas or encounter grass)
+    const rng = mulberry32(4242);
+    const ok = (x, z, h) => {
+      if (h < 1.05 || h > 9.5 || pathDist(x, z) < 2.4) return false;
+      if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5 || Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 10.5) return false;
+      for (const zz of zones) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) return false;
+      for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 15) return false;
+      return true;
+    };
+    const spots = grassClumps(rng, isTouch ? 2200 : 6500, () => {
+      for (let t = 0; t < 12; t++) { const x = (rng() - 0.5) * 176, z = (rng() - 0.5) * 176, h = groundY(x, z); if (ok(x, z, h)) return { x, y: h, z, h: 0.3 + rng() * 0.32 }; }
+      return null;
+    }).filter((p) => ok(p.x, p.z, groundY(p.x, p.z)));
+    spots.forEach((p) => { p.y = groundY(p.x, p.z); });
+    buildGrassField(scene, spots, mat);
+  }
+  return { mesh: im, U: mat.uniforms };
+}
+

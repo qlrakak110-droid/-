@@ -881,6 +881,8 @@ function frame(now) {
 }
 
 async function boot() {
+  $('#loadMsg').textContent = '에셋을 불러오는 중…';
+  await Assets.loadAll((d, t) => { $('#loadMsg').textContent = `에셋을 불러오는 중… ${d}/${t}`; });
   $('#loadMsg').textContent = '섬을 빚는 중…';
   await sleep(30);
   buildWorld();
@@ -922,5 +924,5 @@ async function boot() {
 }
 
 // small debugging surface (used by the automated test harness)
-window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera, say, showArea, areaAt, Area, updateCompass, starterSelect };
+window.__game = { get S() { return S; }, set S(v) { S = v; }, G, World, Battle, startWild, battleFlow, legendBattle, makeMon, enterWorld, setupPedestals, placeRiftState, refreshMarkers, refreshLegendRig, setFollower, closeRift, NPC_DEFS, altarAwaken, ensiaDescends, ending, SPECIES, Icons, updateHud, legendEncounter, checkLegendAwakenings, refreshWorldLegends, makeSpiritModel, snapCamera, say, showArea, areaAt, Area, updateCompass, starterSelect, Assets, assetModel, assetTex, pbrSet, triplanarPBR, registerAssets };
 boot().catch((e) => { console.error(e); $('#loadMsg').textContent = '시작하는 중 문제가 생겼어요: ' + e.message; });

@@ -621,7 +621,7 @@ MODELS.bawimong = (r) => {
       if (v.z < 0.25 || Math.abs(v.x) > 0.35) {
         const vn = Math.abs(vn3js(v.x * 5.5 + 7, v.y * 5.5 + 2, v.z * 5.5) - 0.5);
         const vein = (1 - sst(0.008, 0.022, vn)) * sst(0.58, 0.72, vn3js(v.x * 2.2, v.y * 2.2 + 5, v.z * 2.2)) * (1 - sst(0.3, 0.7, v.ny));
-        if (vein > 0) { v.g = Math.max(v.g, vein * 0.75); tintV(v, cVein, vein * 0.7); }
+        if (vein > 0) { v.g = Math.max(v.g, vein * 0.6); tintV(v, cVein, vein * 0.6); }
       }
     };
     const face = { mouth: [0, 0.47, 0.42, 0.07], mouthK: 2, line: 0x1e1a24, blush: [0.21, 0.52, 0.38, 0.06], blushCol: 0xc88a9a, hatch: 0 };
@@ -630,7 +630,7 @@ MODELS.bawimong = (r) => {
   });
   const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0xa98bff, lash: 0x14101c, sway: 0.15,
     eye: { open: 0.66, tilt: -0.04, wing: 0.15, irisR: 0.62 },
-    mat: { rough: 0.9, sheen: 0.05, coat: 0, soft: 0.1, fuzz: 0.03, env: 0.25, glow: 0xa98bff, glowAmt: 2.6 } });
+    mat: { rough: 0.92, sheen: 0.05, coat: 0, soft: 0.1, fuzz: 0.02, env: 0.2, rimAmt: 0.05, glow: 0xa98bff, glowAmt: 2.0 } });
   const cm = E(0x9b7bff, 1.9), cm2 = E(0xc8b0ff, 2.2);
   for (const [x, y, z, w, h, rx, rz, b] of [[0, 1.02, -0.22, 0.12, 0.38, -0.35, 0, 0], [-0.22, 0.96, -0.3, 0.09, 0.27, -0.55, 0.5, 1], [0.24, 0.95, -0.28, 0.1, 0.25, -0.5, -0.55, 0], [0.06, 0.78, -0.52, 0.08, 0.22, -1.2, 0, 1], [-0.1, 1.04, -0.08, 0.06, 0.16, -0.2, 0.35, 1], [0.5, 0.95, -0.12, 0.07, 0.18, -0.3, -0.8, 0], [-0.48, 0.94, -0.1, 0.065, 0.16, -0.3, 0.8, 1]]) part(GEO.cone6, b ? cm2 : cm, B, [x, y, z], [w, h, w], [rx, 0, rz]);
   r.size = 1.3;
@@ -784,11 +784,12 @@ MODELS.somgu = (r) => {
 MODELS.beoseot = (r) => {
   const D = critter('shroom', () => {
     const K = critterKit(), RD = 0xe63c52, CR = 0xf8ead2;
-    K.el([0, 0.36, 0.01], [0.3, 0.34, 0.28], CR, { k: 0.08 });
-    K.el([0, 0.68, 0], [0.62, 0.42, 0.62], RD, { k: 0.06, s0: 0.9, s1: 0.9 });
-    K.sub([0, 0.47, 0], [0.68, 0.2, 0.68], 0.05);
-    K.el([0, 0.64, 0], [0.5, 0.035, 0.5], 0xf2d6b0, { k: 0.04 });
-    for (const [a, ph, s] of [[0, 0.95, 1], [0.9, 0.55, 1.1], [2.1, 0.6, 0.9], [3.3, 0.5, 1.2], [4.4, 0.62, 1], [5.4, 0.55, 0.85], [1.5, 1.05, 0.8], [3.9, 1.0, 0.9], [2.7, 1.1, 0.7], [5.9, 1.05, 0.75], [0.3, 0.25, 1.0]]) K.el([Math.cos(a) * Math.sin(ph) * 0.6, 0.68 + Math.cos(ph) * 0.42, Math.sin(a) * Math.sin(ph) * 0.6], [0.085 * s, 0.045, 0.085 * s], 0xfff8ee, { k: 0.02, s0: 0.9, s1: 0.9 });
+    // cap first, carve its underside, then the stem so the carve can't cut through it
+    K.el([0, 0.7, 0], [0.62, 0.42, 0.62], RD, { k: 0.06, s0: 0.9, s1: 0.9 });
+    K.sub([0, 0.49, 0], [0.68, 0.2, 0.68], 0.05);
+    K.el([0, 0.66, 0], [0.5, 0.035, 0.5], 0xf2d6b0, { k: 0.04 });
+    K.el([0, 0.37, 0.01], [0.3, 0.36, 0.28], CR, { k: 0.08 });
+    for (const [a, ph, s] of [[0, 0.95, 1], [0.9, 0.55, 1.1], [2.1, 0.6, 0.9], [3.3, 0.5, 1.2], [4.4, 0.62, 1], [5.4, 0.55, 0.85], [1.5, 1.05, 0.8], [3.9, 1.0, 0.9], [2.7, 1.1, 0.7], [5.9, 1.05, 0.75], [0.3, 0.25, 1.0]]) K.el([Math.cos(a) * Math.sin(ph) * 0.6, 0.7 + Math.cos(ph) * 0.42, Math.sin(a) * Math.sin(ph) * 0.6], [0.085 * s, 0.045, 0.085 * s], 0xfff8ee, { k: 0.02, s0: 0.9, s1: 0.9 });
     for (const sx of [-1, 1]) {
       K.el([sx * 0.13, 0.06, 0.05], [0.1, 0.07, 0.13], 0xd9b98f, { k: 0.05, leg: sx });
       K.rc([sx * 0.24, 0.36, 0.02], [sx * 0.36, 0.26, 0.08], 0.06, 0.05, CR, { k: 0.05 });
@@ -796,17 +797,17 @@ MODELS.beoseot = (r) => {
     const cGill = hexRGB(0xe8c89a), cGill2 = hexRGB(0xc89a70), cTop = hexRGB(0xff6070), cStem = hexRGB(0xe8d0b0);
     const paint = (v) => {
       // gills under the cap
-      if (v.ny < -0.35 && v.y > 0.45 && v.y < 0.72 && Math.hypot(v.x, v.z) > 0.25) {
+      if (v.ny < -0.35 && v.y > 0.47 && v.y < 0.74 && Math.hypot(v.x, v.z) > 0.3) {
         const ang = Math.atan2(v.z, v.x);
         tintV(v, cGill, 0.85); tintV(v, cGill2, sst(0.5, 0.9, Math.sin(ang * 46)) * 0.7);
       }
       // cap: brighter crown, darker rim
-      if (v.y > 0.7 && v.ny > 0.2) tintV(v, cTop, sst(0.3, 0.95, v.ny) * 0.25);
+      if (v.y > 0.72 && v.ny > 0.2) tintV(v, cTop, sst(0.3, 0.95, v.ny) * 0.25);
       if (v.y < 0.3 && v.ny < 0) tintV(v, cStem, 0.4);
     };
-    const face = { mouth: [0, 0.31, 0.25, 0.045], mouthK: 3, line: 0x3a1a10, blush: [0.17, 0.35, 0.18, 0.055], blushCol: 0xff7a8a };
+    const face = { mouth: [0, 0.3, 0.24, 0.048], mouthK: 3, line: 0x3a1a10, blush: [0.17, 0.33, 0.18, 0.058], blushCol: 0xff7a8a };
     return { prims: K.prims, bounds: [-0.78, -0.05, -0.78, 0.78, 1.2, 0.78], hipY: 0.2, height: 1.2, stride: 0.07, paint, face,
-      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.115, 0.4, 0.255], r: 0.078, yaw: sx * 0.3 })) };
+      eyes: [-1, 1].map((sx) => ({ p: [sx * 0.112, 0.4, 0.262], r: 0.08, yaw: sx * 0.3, pitch: -0.12 })) };
   });
   buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff8a6a, lash: 0x2a1008, sway: 0.2,
     eye: { open: 0.86, wing: 0.4, irisR: 0.64 },
