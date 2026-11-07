@@ -66,8 +66,14 @@ function WaterFx.build(ctx: any)
 		return o
 	end
 
-	local function glowOpts(name: string, dayColor: Color3?): any
-		return deco(name, { shadow = false, glow = true, dayMaterial = MAT.Glass, dayColor = dayColor or P.GlassDeep })
+	local function glowOpts(name: string, dayColor: Color3?, extra: { [string]: any }?): any
+		local o = deco(name, { shadow = false, glow = true, dayMaterial = MAT.Glass, dayColor = dayColor or P.GlassDeep })
+		if extra then
+			for k, v in extra do
+				o[k] = v
+			end
+		end
+		return o
 	end
 
 	--------------------------------------------------------------------------------------------------
@@ -108,8 +114,8 @@ function WaterFx.build(ctx: any)
 			local b = Vector3.new(0, 0, -L / 2)
 			local mid = (a + b) / 2
 			local along = (b - a).Unit
-			local out = Vector3.new(sx * along.Z * -1, 0, sx * along.X)
-			if out:Dot(Vector3.new(sx, 0, 0)) < 0 then
+			local out = Vector3.new(along.Z, 0, -along.X)
+			if out.X * sx < 0 then
 				out = -out
 			end
 			local cfBand = CFrame.lookAt(mid, mid + along) + out * 0.1
@@ -190,36 +196,19 @@ function WaterFx.build(ctx: any)
 		Kit.box(parent, at(w2 / 2 + 0.6, y3 - m(0.4), z2a + m(0.6)), Vector3.new(0.6, 0.9, 1.4), rgb(40, 255, 110), MAT.Neon, glowOpts("StarboardLight"))
 		-- 선미등(백색)
 		Kit.box(parent, at(0, yT + railH + 0.6, L / 2 - 0.8), Vector3.new(1.0, 0.9, 0.6), P.LampWhite, MAT.Neon, glowOpts("SternLight"))
-		-- 장식 전구줄: 마스트 꼭대기 → 선수 끝 / 선미
-		local function string_(a: Vector3, b: Vector3)
-			local mid = (a + b) / 2
-			Kit.part(parent, CFrame.lookAt(mid, b) * CFrame.Angles(0, math.rad(90), 0), Vector3.new((b - a).Magnitude, 0.35, 0.35), glowOpts("LightString"))
-		end
+		-- 장식 전구줄: 마스트 꼭대기 → 선수 끝 / 선미 (원기둥 축 = 로컬 X)
 		local bowTip = at(0, yT + railH, -L / 2 + 1.0).Position
 		local sternTop = at(0, yT + railH + 1.2, L / 2 - 1.5).Position
-		for _, pair in { { mastTop, bowTip }, { mastTop, sternTop } } do
-			string_(pair[1], pair[2])
-		end
-		for _, c in parent:GetChildren() do
-			if c:IsA("BasePart") and c.Name == "LightString" then
-				c.Shape = Enum.PartType.Cylinder
-				c.Material = MAT.Neon
-				c.Color = P.LampWarm
-				c:SetAttribute("NightMaterial", "Neon")
-				c:SetAttribute("NightColor", P.LampWarm)
-			end
+		for _, b in { bowTip, sternTop } do
+			local mid = (mastTop + b) / 2
+			Kit.part(parent, CFrame.lookAt(mid, b) * CFrame.Angles(0, math.rad(90), 0), Vector3.new((b - mastTop).Magnitude, 0.35, 0.35), glowOpts("LightString", nil, { shape = "Cylinder", material = MAT.Neon, color = P.LampWarm }))
 		end
 
 		-- 수면에 번진 창 불빛(배와 함께 이동) + 선미 항적
 		for _, sx in { -1, 1 } do
-			Kit.box(parent, at(sx * (B / 2 + m(2.2)), 0.3, (z1a + z1b) / 2), Vector3.new(m(3.2), 0.12, (z1b - z1a) * 0.9), P.WindowWarmDim, MAT.Neon, glowOpts("BoatGlow", rgb(40, 60, 80)))
+			Kit.box(parent, at(sx * (B / 2 + m(2.2)), 0.3, (z1a + z1b) / 2), Vector3.new(m(3.2), 0.12, (z1b - z1a) * 0.9), P.WindowWarmDim, MAT.Neon, glowOpts("BoatGlow", rgb(40, 60, 80), { transparency = 0.84 }))
 			local wa = at(sx * B * 0.32, 0.22, L / 2 + m(9))
 			Kit.box(parent, wa * CFrame.Angles(0, math.rad(sx * 7), 0), Vector3.new(m(1.6), 0.12, m(18)), rgb(214, 226, 236), MAT.SmoothPlastic, deco("Wake", { transparency = 0.72, shadow = false }))
-		end
-		for _, c in parent:GetChildren() do
-			if c:IsA("BasePart") and c.Name == "BoatGlow" then
-				c.Transparency = 0.84
-			end
 		end
 
 		-- 선실 실내광(물 위를 비춤) — 광원 예산 안에서만
@@ -286,10 +275,10 @@ function WaterFx.build(ctx: any)
 	--------------------------------------------------------------------------------------------------
 	local F = Config.FarBank
 	local zNear, zFar = F.WaterEdge + 30, F.WaterEdge + 170
-	local existing: { Vector3 } = {}
+	local existing: { { any } } = {} -- { 위치, 반경 }
 	for _, d in root:GetDescendants() do
 		if d:IsA("BasePart") and d.Name == "WaterGlint" and d.Position.Z < zFar + 400 then
-			table.insert(existing, d.Position)
+			table.insert(existing, { d.Position, (d.Size.X + d.Size.Z) / 2 })
 		end
 	end
 	local cam = Config.Viewpoint.HeroCamPos
@@ -298,11 +287,12 @@ function WaterFx.build(ctx: any)
 		local dir = Vector3.new(cam.X - x, 0, cam.Z - z).Unit
 		local b = a + dir * len
 		local ab = b - a
-		for _, q in existing do
+		for _, e in existing do
+			local q: Vector3 = e[1]
 			local qa = Vector3.new(q.X, 0, q.Z) - a
 			local t = math.clamp(qa:Dot(ab) / ab:Dot(ab), 0, 1)
 			local d = (Vector3.new(q.X, 0, q.Z) - (a + ab * t)).Magnitude
-			if d < w + 14 then
+			if d < w + e[2] + 6 then
 				return false
 			end
 		end
@@ -327,7 +317,7 @@ function WaterFx.build(ctx: any)
 			placed += 1
 			local dir = Vector3.new(cam.X - x, 0, cam.Z - z).Unit
 			for k = 0, 3 do
-				table.insert(existing, Vector3.new(x, 0, z) + dir * (len * k / 3))
+				table.insert(existing, { Vector3.new(x, 0, z) + dir * (len * k / 3), len / 6 + w })
 			end
 		end
 	end
