@@ -30,7 +30,7 @@ local MAT = Enum.Material
 -- 상수
 ------------------------------------------------------------------------------------------------------
 local BUDGET_TOTAL = 5500 -- 모듈 하드 캡
-local BUDGET = { FarMid = 2150, FarFar = 1500, Near = 1100, Infill = 420 } -- 구역별(밀도 배율 적용 전)
+local BUDGET = { FarMid = 1900, FarFar = 1250, Near = 1000, InfillFar = 650, InfillNear = 380 } -- 구역별(밀도 배율 적용 전)
 local RESERVE_TAIL = 260 -- 산 + 바닥 판 몫
 local GAP = M(4) -- 건물 사이 최소 간격(예약 여유) 4 m
 
@@ -64,10 +64,11 @@ local CLUSTERS_NEAR: { Cluster } = {
 }
 
 -- 몸체 색(콘크리트·유리 톤)과 창 불빛(따뜻/차가운 혼합; Facade 가 무작위로 어둡게 함)
-local BODY = { P.ConcreteDark, P.GlassDeep, P.ConcreteGrey, P.GlassTeal, P.GlassBronze, rgb(70, 74, 84), rgb(104, 100, 96), rgb(58, 66, 80) }
-local LOW_BODY = { rgb(118, 110, 102), rgb(96, 92, 90), rgb(132, 124, 112), rgb(84, 86, 92), rgb(110, 100, 92) }
+-- 해질녘 원경 건물은 어두운 실루엣 + 불빛: 몸체는 어둡게(대기 산란이 밝혀 줌)
+local BODY = { rgb(52, 56, 66), P.GlassDeep, rgb(70, 72, 78), rgb(40, 62, 70), rgb(72, 62, 54), rgb(60, 64, 74), rgb(80, 78, 76), rgb(46, 54, 68) }
+local LOW_BODY = { rgb(96, 90, 84), rgb(78, 76, 76), rgb(104, 98, 90), rgb(68, 70, 76), rgb(88, 80, 74) }
 local LIT_CITY = { P.WindowWarm, P.WindowWarm, P.WindowWarmDim, P.WindowGold, P.WindowCool, P.WindowCoolDim }
-local LIT_LOW = { P.WindowWarm, P.WindowCool, P.WindowGold, P.LedCyan, P.WindowWarmDim, rgb(240, 120, 160) }
+local LIT_LOW = { P.WindowWarm, P.WindowWarmDim, P.WindowGold, P.WindowCoolDim, P.WindowWarm, rgb(200, 120, 150) }
 
 ------------------------------------------------------------------------------------------------------
 -- 보조
@@ -142,6 +143,7 @@ type FillOpts = {
 	beaconFar: boolean, -- far 스타일 고층에 항공등
 	guard: boolean,
 	low: boolean, -- 저층 채움(상가/빌라 색)
+	maxDist: number?, -- 관람자에서 이보다 먼 후보는 버림(산자락 안/뒤 = 보이지 않음)
 }
 
 type Cand = { x: number, z: number, w: number, d: number, h: number, yaw: number, prio: number, idx: number, tall: boolean }
@@ -166,6 +168,9 @@ local function fill(parent: Instance, o: FillOpts, rng: Random, hardLeft: number
 				end
 				local x = r.XMin + (i + 0.5) * px + rng:NextNumber(-0.22, 0.22) * px
 				local z = r.ZMin + (j + 0.5) * pz + rng:NextNumber(-0.22, 0.22) * pz
+				if o.maxDist and (Vector2.new(x, z) - Vector2.new(o.viewer.X, o.viewer.Z)).Magnitude > o.maxDist then
+					continue
+				end
 				local b = if o.clusters then boost(o.clusters, x, z) else 0
 				local w = rng:NextNumber(o.wMin, o.wMax)
 				local d = math.clamp(w * rng:NextNumber(0.6, 1.25), o.wMin * 0.7, o.wMax)
