@@ -138,6 +138,12 @@ JS = r'''<script>
       await wait(500);
     }
     if (!(window.GW && GW.engine && GW.engine.running)) { console.warn('[SeoulSkyline] engine not running; not injected'); return; }
+    // real-scale skyline (1 stud = 0.3 m, tower 1850 studs, city to ~11 km): widen the player's size-based draw reach
+    try {
+      var R = GW.modules.render, T = R.TIERS;
+      Object.keys(T).forEach(function (k) { T[k].far = Math.max(T[k].far, 14000); T[k].base = Math.max(T[k].base, 900); T[k].k = Math.max(T[k].k, 28); T[k].clip = Math.max(T[k].clip, 26000); });
+      R.setQuality(R.getQuality());
+    } catch (e) { /* */ }
     document.body.appendChild(overlay);
     overlay.textContent = '서울 한강 야경 맵 생성 중… (수십 초)';
     await wait(800);
