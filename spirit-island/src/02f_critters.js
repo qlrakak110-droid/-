@@ -548,12 +548,12 @@ MODELS.supppul = (r) => fawnModel(r, 2);
 // ---------------- 찌릿파리 : storm jelly — glassy bell, glowing lightning band, frilled rim, trailing tendrils
 MODELS.jjirit = (r) => {
   const D = critter('jelly', () => {
-    const K = critterKit(), Y = 0xffd440, Y2 = 0xffb02e;
+    const K = critterKit(), Y = 0xffc834, Y2 = 0xf5a020;
     K.el([0, 0.05, 0], [0.5, 0.46, 0.5], Y, { k: 0.08 });
     K.el([0, 0.3, 0], [0.32, 0.22, 0.32], 0xfff09a, { k: 0.12 });
     K.sub([0, -0.36, 0], [0.62, 0.36, 0.62], 0.09);
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; K.el([Math.cos(a) * 0.46, -0.02, Math.sin(a) * 0.46], [0.075, 0.06, 0.075], Y2, { k: 0.05 }); }
-    const cBolt = hexRGB(0xfffbe0), cDeep = hexRGB(0xf09a1a);
+    const cBolt = hexRGB(0xfffbe0), cDeep = hexRGB(0xe08a10), cCap = hexRGB(0xfff0a8);
     const paint = (v) => {
       // zig-zag lightning band around the bell
       const ang = Math.atan2(v.z, v.x), zz = Math.abs(((ang * 7 / Math.PI) % 2 + 2) % 2 - 1);
@@ -561,7 +561,8 @@ MODELS.jjirit = (r) => {
       if (v.ny > -0.3) { v.g = Math.max(v.g, band); tintV(v, cBolt, band); }
       // deeper amber toward the rim, glowing dots on the frill
       if (v.y < 0.08) tintV(v, cDeep, sst(0.08, -0.05, v.y) * 0.45);
-      if (Math.hypot(v.x, v.z) > 0.45 && v.y < 0.05) v.g = Math.max(v.g, 0.35);
+      if (Math.hypot(v.x, v.z) > 0.45 && v.y < 0.05) v.g = Math.max(v.g, 0.22);
+      if (v.y > 0.3 && v.ny > 0.5) tintV(v, cCap, sst(0.5, 0.95, v.ny) * 0.5);
     };
     const face = { mouth: [0, 0.06, 0.38, 0.06], mouthK: 3, line: 0x4a2a00, blush: [0.25, 0.12, 0.3, 0.06], blushCol: 0xff8a5a };
     return { prims: K.prims, bounds: [-0.65, -0.25, -0.65, 0.65, 0.6, 0.65], hipY: 0, height: 1.0, paint, face,
@@ -569,7 +570,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.12, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.2, fuzz: 0.0, rimAmt: 0.35, rim: 0xfff2a0, env: 0.5, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.08, fuzz: 0.0, rimAmt: 0.4, rim: 0xfff2a0, env: 0.4, glow: 0xfff3a0, glowAmt: 2.4 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -603,11 +604,15 @@ MODELS.bawimong = (r) => {
       K.el([sx * 0.63, 0.2, 0.2], [0.18, 0.16, 0.19], RK2, { k: 0.06, nz: 0.04, nf: 8, leg: sx });
       K.el([sx * 0.24, 0.12, 0.02], [0.17, 0.13, 0.2], RK3, { k: 0.06, nz: 0.03, nf: 8, leg: -sx });
     }
-    const cMoss = hexRGB(0x7cb04e), cMoss2 = hexRGB(0x4f8a3a), cTop = hexRGB(0xb2b8c4), cLow = hexRGB(0x4e5262), cVein = hexRGB(0xd2b8ff);
+    const cWarm = hexRGB(0x9a8a7a), cMoss = hexRGB(0x7cb04e), cMoss2 = hexRGB(0x4f8a3a), cTop = hexRGB(0xb2b8c4), cLow = hexRGB(0x4e5262), cVein = hexRGB(0xd2b8ff);
     const paint = (v) => {
       // cool stone: lit tops, darker underside
       tintV(v, cTop, sst(0.3, 0.9, v.ny) * 0.3);
       tintV(v, cLow, sst(-0.2, -0.8, v.ny) * 0.5);
+      // granite: crevices of the displaced surface darken, fine flecks and broad mineral patches
+      shadeV(v, 1 - sst(0.5, 0.85, vn3js(v.x * 4.5, v.y * 4.5, v.z * 4.5)) * 0.4);
+      shadeV(v, 0.86 + 0.28 * sst(0.25, 0.75, vn3js(v.x * 26 + 9, v.y * 26, v.z * 26)));
+      tintV(v, cWarm, sst(0.55, 0.8, vn3js(v.x * 2.5 + 3, v.y * 2.5, v.z * 2.5 + 8)) * 0.35);
       // moss creeping over the top
       const mn = vn3js(v.x * 6 + 1, v.y * 6, v.z * 6 + 4);
       if (v.ny > 0.25 && v.y > 0.72) { const m = sst(0.25, 0.6, v.ny) * sst(0.4, 0.55, mn + (v.y - 0.8)); tintV(v, mn > 0.55 ? cMoss : cMoss2, m); }
@@ -738,7 +743,7 @@ MODELS.geurim = (r) => {
 // ---------------- 솜구름 : cloud lamb — puffy wool with lavender shading, wool bangs, droopy ears, sleepy smile
 MODELS.somgu = (r) => {
   const D = critter('lamb', () => {
-    const K = critterKit(), W = 0xe6e2f2, LV = 0xcfc2f2, HF = 0x4a4368;
+    const K = critterKit(), W = 0xdcd8ea, LV = 0xcfc2f2, HF = 0x4a4368;
     for (const [x, y, z, s] of [[0, 0.62, 0, 0.4], [0.25, 0.7, 0.1, 0.24], [-0.25, 0.7, 0.1, 0.24], [0.2, 0.85, -0.15, 0.25], [-0.2, 0.85, -0.15, 0.25], [0, 0.96, 0.02, 0.26], [0.3, 0.52, -0.2, 0.21], [-0.3, 0.52, -0.2, 0.21], [0, 0.6, -0.35, 0.25], [0, 0.84, 0.22, 0.2], [0.18, 0.5, 0.2, 0.2], [-0.18, 0.5, 0.2, 0.2], [0.36, 0.72, -0.08, 0.17], [-0.36, 0.72, -0.08, 0.17], [0, 0.42, -0.1, 0.24]]) K.el([x, y, z], [s, s, s], W, { k: 0.05 });
     for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
       const leg = sx * sz > 0 ? 1 : -1;
@@ -764,11 +769,11 @@ MODELS.somgu = (r) => {
       blush: [0.14, hc[1] - 0.05, hc[2] + 0.08, 0.05], blushCol: 0xff9ac0 };
     return { prims: K.prims, bounds: [-0.7, -0.05, -0.72, 0.7, 1.32, 0.78], hipY: 0.32, height: 1.3, stride: 0.08, hc, paint, face,
       earHinge: add3(hc, [0, 0.03, -0.03]), earAmp: 0.35,
-      eyes: eyePair(hc, 0.09, 0.025, 0.16, 0.066, 0.34) };
+      eyes: eyePair(hc, 0.092, 0.02, 0.158, 0.074, 0.34) };
   });
   const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
-    eye: { open: 0.6, tilt: -0.04, wing: 0.25, irisR: 0.62 },
-    mat: { rough: 0.85, sheen: 0.7, sheenCol: 0xffffff, coat: 0, fuzz: 0.32, soft: 0.18, env: 0.25 } });
+    eye: { open: 0.66, tilt: -0.04, wing: 0.25, irisR: 0.63 },
+    mat: { rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.28, soft: 0.12, env: 0.22 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -835,7 +840,7 @@ MODELS.byeolssi = (r) => {
   for (let i = 0; i < 3; i++) tw.push(part(GEO.octa, E(0xfff4c0, 2.6), B, [Math.cos(i * 2.1) * 0.75, Math.sin(i * 2.1) * 0.75, 0.1], [0.03, 0.06, 0.03]));
   r.fns.push((t) => {
     halo.position.y = 0.64 + Math.sin(t * 3) * 0.03; B.rotation.z = Math.sin(t * 0.8) * 0.15;
-    tw.forEach((s, i) => { const k = Math.max(0, Math.sin(t * 2.2 + i * 2.1)); s.scale.set(0.03 * k + 0.001, 0.07 * k + 0.001, 0.03 * k + 0.001); });
+    tw.forEach((s, i) => { const k = Math.sin(t * 2.2 + i * 2.1); s.visible = k > 0.08; if (s.visible) s.scale.set(0.03 * k, 0.07 * k, 0.03 * k); });
   });
   r.size = 1.6;
 };

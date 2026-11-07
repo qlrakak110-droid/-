@@ -1154,6 +1154,9 @@ const Snd = {
     this.echo.connect(dL); dL.connect(elp); elp.connect(dR); dR.connect(fb); fb.connect(dL);
     dL.connect(mg, 0, 0); dR.connect(mg, 0, 1); mg.connect(eg); eg.connect(comp);
     const ev = c.createGain(); ev.gain.value = 0.3; eg.connect(ev); ev.connect(this.verb);
+    // music-side sends follow the music fader, so song changes and fades take their reverb/echo tails with them
+    this.mverb = c.createGain(); this.mverb.gain.value = this.musicVol * 2; this.mverb.connect(this.verb);
+    this.mecho = c.createGain(); this.mecho.gain.value = this.musicVol * 2; this.mecho.connect(this.echo);
     this.noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const nd = this.noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     this.timer = setInterval(() => { try { this.tick(); } catch (e) { console.warn(e); this.song = null; } }, 25);
@@ -1191,7 +1194,8 @@ const Snd = {
   voice(inst, midi, t, dur, vol = 1, out, o) {
     const c = this.ctx; if (!c) return; out = out || this.music; o = o || {};
     const f = this.mf(midi); if (!isFinite(f) || !isFinite(t) || !isFinite(dur) || !isFinite(vol)) return;
-    const send = (node, amt, bus) => { bus = bus || this.verb; if (amt > 0 && bus) { const s = c.createGain(); s.gain.value = amt; node.connect(s); s.connect(bus); } };
+    const isM = out === this.music, VB = isM ? this.mverb : this.verb, EB = isM ? this.mecho : this.echo;
+    const send = (node, amt, echo) => { const bus = echo ? EB : VB; if (amt > 0 && bus) { const s = c.createGain(); s.gain.value = amt; node.connect(s); s.connect(bus); } };
     const osc = (type, fr, det) => { const x = c.createOscillator(); x.type = type; x.frequency.value = fr; if (det) x.detune.value = det; return x; };
     const filt = (type, fr, q) => { const x = c.createBiquadFilter(); x.type = type; x.frequency.value = fr; x.Q.value = q ?? 0.7; return x; };
     const gain = (v) => { const g = c.createGain(); g.gain.value = v ?? 1; return g; };
@@ -1206,21 +1210,21 @@ const Snd = {
         const g = gain(0); this.env(g, t, 0.004, 0.2 * vol, dur * 1.5);
         const lp = filt('lowpass', 0, 1.2); lp.frequency.setValueAtTime(Math.min(f * 7, 9000), t); lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.4, 180), t + Math.max(dur, 0.08) * 0.9);
         const a = osc('sawtooth', f), b = osc('triangle', f, 5), bg = gain(0.9);
-        a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.28); send(n, 0.2, this.echo);
+        a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.28); send(n, 0.2, true);
         const e = t + dur * 1.7 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'harp': {
         const g = gain(0); this.env(g, t, 0.003, 0.22 * vol, dur * 2.2);
         const g2 = gain(0); this.env(g2, t, 0.002, 0.07 * vol, dur * 0.5);
         const a = osc('triangle', f), b = osc('sine', f * 2), lp = filt('lowpass', Math.min(f * 5, 7000));
-        a.connect(lp); lp.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.42); send(n, 0.22, this.echo);
+        a.connect(lp); lp.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.42); send(n, 0.22, true);
         const e = t + dur * 2.4 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'celesta': {
         const g = gain(0); this.env(g, t, 0.002, 0.14 * vol, dur * 1.8);
         const g2 = gain(0); this.env(g2, t, 0.001, 0.05 * vol, 0.12);
         const a = osc('sine', f), b = osc('sine', f * 4.01);
-        a.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.5); send(n, 0.32, this.echo);
+        a.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.5); send(n, 0.32, true);
         const e = t + dur * 2 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'lead': {
@@ -1228,7 +1232,7 @@ const Snd = {
         const a = osc('square', f), b = osc('sawtooth', f, 6), lp = filt('lowpass', 2400, 1.6), bg = gain(0.55);
         a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g);
         const vb = vib(5.6, 14, 0.25); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 0.35); send(n, 0.12, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 0.35); send(n, 0.12, true);
         const e = t + dur + 0.3; a.start(t); b.start(t); a.stop(e); b.stop(e); stopL(e); break;
       }
       case 'flute': {
@@ -1238,7 +1242,7 @@ const Snd = {
         const ns = noiseSrc(), bp = filt('bandpass', Math.min(f * 2, 8000), 2), ng = gain(0); this.ahr(ng, t, 0.05, 0.035 * vol, dur * 0.6, 0.2);
         ns.connect(bp); bp.connect(ng); ng.connect(g);
         const vb = vib(5.2, 12, 0.35); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 0.45); send(n, 0.15, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 0.45); send(n, 0.15, true);
         const e = t + dur + 0.35; a.start(t); b.start(t); ns.start(t, Math.random() * 0.5); a.stop(e); b.stop(e); ns.stop(e); stopL(e); break;
       }
       case 'brass': {
@@ -1293,7 +1297,7 @@ const Snd = {
         a.frequency.setValueAtTime(f0, t); a.frequency.exponentialRampToValueAtTime(f, t + dur * 0.35);
         b.frequency.setValueAtTime(f0, t); b.frequency.exponentialRampToValueAtTime(f, t + dur * 0.35);
         a.connect(g); b.connect(bg); bg.connect(g); const vb = vib(4.2, 18, dur * 0.4); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 1.0); send(n, 0.25, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 1.0); send(n, 0.25, true);
         const e = t + dur * 1.25 + 0.1; a.start(t); b.start(t); a.stop(e); b.stop(e); stopL(e); break;
       }
       case 'bass': {
@@ -1310,7 +1314,7 @@ const Snd = {
       case 'bell': {
         for (const [mul, amp, dd] of [[1, 0.15, 2.5], [2.76, 0.05, 1.4], [5.4, 0.022, 0.8], [0.5, 0.03, 2.8]]) {
           const a = osc('sine', f * mul), g = gain(0); this.env(g, t, 0.004, amp * vol, dur * dd);
-          a.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.6); if (mul === 1) send(n, 0.25, this.echo);
+          a.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.6); if (mul === 1) send(n, 0.25, true);
           a.start(t); a.stop(t + dur * dd + 0.12);
         }
         break;
@@ -1368,9 +1372,9 @@ const Snd = {
     if (this.song && this.song.name === name) return;
     const next = SONGS[name]; if (!next) return;
     const now = this.ctx.currentTime;
-    this.music.gain.cancelScheduledValues(now);
-    this.music.gain.setValueAtTime(0.0, now);
-    this.music.gain.linearRampToValueAtTime(this.musicVol, now + 1.2);
+    for (const [g, v] of [[this.music, this.musicVol], [this.mverb, this.musicVol * 2], [this.mecho, this.musicVol * 2]]) {
+      g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(0.0, now); g.gain.linearRampToValueAtTime(v, now + 1.2);
+    }
     this.song = Object.assign({ name }, next); this.step = 0; this.nextT = now + 0.12;
   },
   stop() { this.song = null; },
@@ -4176,12 +4180,12 @@ MODELS.supppul = (r) => fawnModel(r, 2);
 // ---------------- 찌릿파리 : storm jelly — glassy bell, glowing lightning band, frilled rim, trailing tendrils
 MODELS.jjirit = (r) => {
   const D = critter('jelly', () => {
-    const K = critterKit(), Y = 0xffd440, Y2 = 0xffb02e;
+    const K = critterKit(), Y = 0xffc834, Y2 = 0xf5a020;
     K.el([0, 0.05, 0], [0.5, 0.46, 0.5], Y, { k: 0.08 });
     K.el([0, 0.3, 0], [0.32, 0.22, 0.32], 0xfff09a, { k: 0.12 });
     K.sub([0, -0.36, 0], [0.62, 0.36, 0.62], 0.09);
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; K.el([Math.cos(a) * 0.46, -0.02, Math.sin(a) * 0.46], [0.075, 0.06, 0.075], Y2, { k: 0.05 }); }
-    const cBolt = hexRGB(0xfffbe0), cDeep = hexRGB(0xf09a1a);
+    const cBolt = hexRGB(0xfffbe0), cDeep = hexRGB(0xe08a10), cCap = hexRGB(0xfff0a8);
     const paint = (v) => {
       // zig-zag lightning band around the bell
       const ang = Math.atan2(v.z, v.x), zz = Math.abs(((ang * 7 / Math.PI) % 2 + 2) % 2 - 1);
@@ -4189,7 +4193,8 @@ MODELS.jjirit = (r) => {
       if (v.ny > -0.3) { v.g = Math.max(v.g, band); tintV(v, cBolt, band); }
       // deeper amber toward the rim, glowing dots on the frill
       if (v.y < 0.08) tintV(v, cDeep, sst(0.08, -0.05, v.y) * 0.45);
-      if (Math.hypot(v.x, v.z) > 0.45 && v.y < 0.05) v.g = Math.max(v.g, 0.35);
+      if (Math.hypot(v.x, v.z) > 0.45 && v.y < 0.05) v.g = Math.max(v.g, 0.22);
+      if (v.y > 0.3 && v.ny > 0.5) tintV(v, cCap, sst(0.5, 0.95, v.ny) * 0.5);
     };
     const face = { mouth: [0, 0.06, 0.38, 0.06], mouthK: 3, line: 0x4a2a00, blush: [0.25, 0.12, 0.3, 0.06], blushCol: 0xff8a5a };
     return { prims: K.prims, bounds: [-0.65, -0.25, -0.65, 0.65, 0.6, 0.65], hipY: 0, height: 1.0, paint, face,
@@ -4197,7 +4202,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.12, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.2, fuzz: 0.0, rimAmt: 0.35, rim: 0xfff2a0, env: 0.5, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.08, fuzz: 0.0, rimAmt: 0.4, rim: 0xfff2a0, env: 0.4, glow: 0xfff3a0, glowAmt: 2.4 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -4231,11 +4236,15 @@ MODELS.bawimong = (r) => {
       K.el([sx * 0.63, 0.2, 0.2], [0.18, 0.16, 0.19], RK2, { k: 0.06, nz: 0.04, nf: 8, leg: sx });
       K.el([sx * 0.24, 0.12, 0.02], [0.17, 0.13, 0.2], RK3, { k: 0.06, nz: 0.03, nf: 8, leg: -sx });
     }
-    const cMoss = hexRGB(0x7cb04e), cMoss2 = hexRGB(0x4f8a3a), cTop = hexRGB(0xb2b8c4), cLow = hexRGB(0x4e5262), cVein = hexRGB(0xd2b8ff);
+    const cWarm = hexRGB(0x9a8a7a), cMoss = hexRGB(0x7cb04e), cMoss2 = hexRGB(0x4f8a3a), cTop = hexRGB(0xb2b8c4), cLow = hexRGB(0x4e5262), cVein = hexRGB(0xd2b8ff);
     const paint = (v) => {
       // cool stone: lit tops, darker underside
       tintV(v, cTop, sst(0.3, 0.9, v.ny) * 0.3);
       tintV(v, cLow, sst(-0.2, -0.8, v.ny) * 0.5);
+      // granite: crevices of the displaced surface darken, fine flecks and broad mineral patches
+      shadeV(v, 1 - sst(0.5, 0.85, vn3js(v.x * 4.5, v.y * 4.5, v.z * 4.5)) * 0.4);
+      shadeV(v, 0.86 + 0.28 * sst(0.25, 0.75, vn3js(v.x * 26 + 9, v.y * 26, v.z * 26)));
+      tintV(v, cWarm, sst(0.55, 0.8, vn3js(v.x * 2.5 + 3, v.y * 2.5, v.z * 2.5 + 8)) * 0.35);
       // moss creeping over the top
       const mn = vn3js(v.x * 6 + 1, v.y * 6, v.z * 6 + 4);
       if (v.ny > 0.25 && v.y > 0.72) { const m = sst(0.25, 0.6, v.ny) * sst(0.4, 0.55, mn + (v.y - 0.8)); tintV(v, mn > 0.55 ? cMoss : cMoss2, m); }
@@ -4366,7 +4375,7 @@ MODELS.geurim = (r) => {
 // ---------------- 솜구름 : cloud lamb — puffy wool with lavender shading, wool bangs, droopy ears, sleepy smile
 MODELS.somgu = (r) => {
   const D = critter('lamb', () => {
-    const K = critterKit(), W = 0xe6e2f2, LV = 0xcfc2f2, HF = 0x4a4368;
+    const K = critterKit(), W = 0xdcd8ea, LV = 0xcfc2f2, HF = 0x4a4368;
     for (const [x, y, z, s] of [[0, 0.62, 0, 0.4], [0.25, 0.7, 0.1, 0.24], [-0.25, 0.7, 0.1, 0.24], [0.2, 0.85, -0.15, 0.25], [-0.2, 0.85, -0.15, 0.25], [0, 0.96, 0.02, 0.26], [0.3, 0.52, -0.2, 0.21], [-0.3, 0.52, -0.2, 0.21], [0, 0.6, -0.35, 0.25], [0, 0.84, 0.22, 0.2], [0.18, 0.5, 0.2, 0.2], [-0.18, 0.5, 0.2, 0.2], [0.36, 0.72, -0.08, 0.17], [-0.36, 0.72, -0.08, 0.17], [0, 0.42, -0.1, 0.24]]) K.el([x, y, z], [s, s, s], W, { k: 0.05 });
     for (const [sx, sz] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
       const leg = sx * sz > 0 ? 1 : -1;
@@ -4392,11 +4401,11 @@ MODELS.somgu = (r) => {
       blush: [0.14, hc[1] - 0.05, hc[2] + 0.08, 0.05], blushCol: 0xff9ac0 };
     return { prims: K.prims, bounds: [-0.7, -0.05, -0.72, 0.7, 1.32, 0.78], hipY: 0.32, height: 1.3, stride: 0.08, hc, paint, face,
       earHinge: add3(hc, [0, 0.03, -0.03]), earAmp: 0.35,
-      eyes: eyePair(hc, 0.09, 0.025, 0.16, 0.066, 0.34) };
+      eyes: eyePair(hc, 0.092, 0.02, 0.158, 0.074, 0.34) };
   });
   const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
-    eye: { open: 0.6, tilt: -0.04, wing: 0.25, irisR: 0.62 },
-    mat: { rough: 0.85, sheen: 0.7, sheenCol: 0xffffff, coat: 0, fuzz: 0.32, soft: 0.18, env: 0.25 } });
+    eye: { open: 0.66, tilt: -0.04, wing: 0.25, irisR: 0.63 },
+    mat: { rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.28, soft: 0.12, env: 0.22 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -4463,7 +4472,7 @@ MODELS.byeolssi = (r) => {
   for (let i = 0; i < 3; i++) tw.push(part(GEO.octa, E(0xfff4c0, 2.6), B, [Math.cos(i * 2.1) * 0.75, Math.sin(i * 2.1) * 0.75, 0.1], [0.03, 0.06, 0.03]));
   r.fns.push((t) => {
     halo.position.y = 0.64 + Math.sin(t * 3) * 0.03; B.rotation.z = Math.sin(t * 0.8) * 0.15;
-    tw.forEach((s, i) => { const k = Math.max(0, Math.sin(t * 2.2 + i * 2.1)); s.scale.set(0.03 * k + 0.001, 0.07 * k + 0.001, 0.03 * k + 0.001); });
+    tw.forEach((s, i) => { const k = Math.sin(t * 2.2 + i * 2.1); s.visible = k > 0.08; if (s.visible) s.scale.set(0.03 * k, 0.07 * k, 0.03 * k); });
   });
   r.size = 1.6;
 };

@@ -682,6 +682,9 @@ const Snd = {
     this.echo.connect(dL); dL.connect(elp); elp.connect(dR); dR.connect(fb); fb.connect(dL);
     dL.connect(mg, 0, 0); dR.connect(mg, 0, 1); mg.connect(eg); eg.connect(comp);
     const ev = c.createGain(); ev.gain.value = 0.3; eg.connect(ev); ev.connect(this.verb);
+    // music-side sends follow the music fader, so song changes and fades take their reverb/echo tails with them
+    this.mverb = c.createGain(); this.mverb.gain.value = this.musicVol * 2; this.mverb.connect(this.verb);
+    this.mecho = c.createGain(); this.mecho.gain.value = this.musicVol * 2; this.mecho.connect(this.echo);
     this.noiseBuf = c.createBuffer(1, c.sampleRate, c.sampleRate);
     const nd = this.noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     this.timer = setInterval(() => { try { this.tick(); } catch (e) { console.warn(e); this.song = null; } }, 25);
@@ -719,7 +722,8 @@ const Snd = {
   voice(inst, midi, t, dur, vol = 1, out, o) {
     const c = this.ctx; if (!c) return; out = out || this.music; o = o || {};
     const f = this.mf(midi); if (!isFinite(f) || !isFinite(t) || !isFinite(dur) || !isFinite(vol)) return;
-    const send = (node, amt, bus) => { bus = bus || this.verb; if (amt > 0 && bus) { const s = c.createGain(); s.gain.value = amt; node.connect(s); s.connect(bus); } };
+    const isM = out === this.music, VB = isM ? this.mverb : this.verb, EB = isM ? this.mecho : this.echo;
+    const send = (node, amt, echo) => { const bus = echo ? EB : VB; if (amt > 0 && bus) { const s = c.createGain(); s.gain.value = amt; node.connect(s); s.connect(bus); } };
     const osc = (type, fr, det) => { const x = c.createOscillator(); x.type = type; x.frequency.value = fr; if (det) x.detune.value = det; return x; };
     const filt = (type, fr, q) => { const x = c.createBiquadFilter(); x.type = type; x.frequency.value = fr; x.Q.value = q ?? 0.7; return x; };
     const gain = (v) => { const g = c.createGain(); g.gain.value = v ?? 1; return g; };
@@ -734,21 +738,21 @@ const Snd = {
         const g = gain(0); this.env(g, t, 0.004, 0.2 * vol, dur * 1.5);
         const lp = filt('lowpass', 0, 1.2); lp.frequency.setValueAtTime(Math.min(f * 7, 9000), t); lp.frequency.exponentialRampToValueAtTime(Math.max(f * 1.4, 180), t + Math.max(dur, 0.08) * 0.9);
         const a = osc('sawtooth', f), b = osc('triangle', f, 5), bg = gain(0.9);
-        a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.28); send(n, 0.2, this.echo);
+        a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.28); send(n, 0.2, true);
         const e = t + dur * 1.7 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'harp': {
         const g = gain(0); this.env(g, t, 0.003, 0.22 * vol, dur * 2.2);
         const g2 = gain(0); this.env(g2, t, 0.002, 0.07 * vol, dur * 0.5);
         const a = osc('triangle', f), b = osc('sine', f * 2), lp = filt('lowpass', Math.min(f * 5, 7000));
-        a.connect(lp); lp.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.42); send(n, 0.22, this.echo);
+        a.connect(lp); lp.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.42); send(n, 0.22, true);
         const e = t + dur * 2.4 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'celesta': {
         const g = gain(0); this.env(g, t, 0.002, 0.14 * vol, dur * 1.8);
         const g2 = gain(0); this.env(g2, t, 0.001, 0.05 * vol, 0.12);
         const a = osc('sine', f), b = osc('sine', f * 4.01);
-        a.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.5); send(n, 0.32, this.echo);
+        a.connect(g); b.connect(g2); g2.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.5); send(n, 0.32, true);
         const e = t + dur * 2 + 0.15; a.start(t); b.start(t); a.stop(e); b.stop(e); break;
       }
       case 'lead': {
@@ -756,7 +760,7 @@ const Snd = {
         const a = osc('square', f), b = osc('sawtooth', f, 6), lp = filt('lowpass', 2400, 1.6), bg = gain(0.55);
         a.connect(lp); b.connect(bg); bg.connect(lp); lp.connect(g);
         const vb = vib(5.6, 14, 0.25); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 0.35); send(n, 0.12, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 0.35); send(n, 0.12, true);
         const e = t + dur + 0.3; a.start(t); b.start(t); a.stop(e); b.stop(e); stopL(e); break;
       }
       case 'flute': {
@@ -766,7 +770,7 @@ const Snd = {
         const ns = noiseSrc(), bp = filt('bandpass', Math.min(f * 2, 8000), 2), ng = gain(0); this.ahr(ng, t, 0.05, 0.035 * vol, dur * 0.6, 0.2);
         ns.connect(bp); bp.connect(ng); ng.connect(g);
         const vb = vib(5.2, 12, 0.35); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 0.45); send(n, 0.15, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 0.45); send(n, 0.15, true);
         const e = t + dur + 0.35; a.start(t); b.start(t); ns.start(t, Math.random() * 0.5); a.stop(e); b.stop(e); ns.stop(e); stopL(e); break;
       }
       case 'brass': {
@@ -821,7 +825,7 @@ const Snd = {
         a.frequency.setValueAtTime(f0, t); a.frequency.exponentialRampToValueAtTime(f, t + dur * 0.35);
         b.frequency.setValueAtTime(f0, t); b.frequency.exponentialRampToValueAtTime(f, t + dur * 0.35);
         a.connect(g); b.connect(bg); bg.connect(g); const vb = vib(4.2, 18, dur * 0.4); vb.connect(a.detune); vb.connect(b.detune);
-        const n = this.pan(g, P); n.connect(out); send(n, 1.0); send(n, 0.25, this.echo);
+        const n = this.pan(g, P); n.connect(out); send(n, 1.0); send(n, 0.25, true);
         const e = t + dur * 1.25 + 0.1; a.start(t); b.start(t); a.stop(e); b.stop(e); stopL(e); break;
       }
       case 'bass': {
@@ -838,7 +842,7 @@ const Snd = {
       case 'bell': {
         for (const [mul, amp, dd] of [[1, 0.15, 2.5], [2.76, 0.05, 1.4], [5.4, 0.022, 0.8], [0.5, 0.03, 2.8]]) {
           const a = osc('sine', f * mul), g = gain(0); this.env(g, t, 0.004, amp * vol, dur * dd);
-          a.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.6); if (mul === 1) send(n, 0.25, this.echo);
+          a.connect(g); const n = this.pan(g, P); n.connect(out); send(n, 0.6); if (mul === 1) send(n, 0.25, true);
           a.start(t); a.stop(t + dur * dd + 0.12);
         }
         break;
@@ -896,9 +900,9 @@ const Snd = {
     if (this.song && this.song.name === name) return;
     const next = SONGS[name]; if (!next) return;
     const now = this.ctx.currentTime;
-    this.music.gain.cancelScheduledValues(now);
-    this.music.gain.setValueAtTime(0.0, now);
-    this.music.gain.linearRampToValueAtTime(this.musicVol, now + 1.2);
+    for (const [g, v] of [[this.music, this.musicVol], [this.mverb, this.musicVol * 2], [this.mecho, this.musicVol * 2]]) {
+      g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(0.0, now); g.gain.linearRampToValueAtTime(v, now + 1.2);
+    }
     this.song = Object.assign({ name }, next); this.step = 0; this.nextT = now + 0.12;
   },
   stop() { this.song = null; },
