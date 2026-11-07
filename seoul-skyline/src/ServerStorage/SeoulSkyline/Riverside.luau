@@ -417,7 +417,7 @@ local function routeAvenue(x0: number, zA: number, zB: number, checkFrom: number
 		local bestX: number? = nil
 		local bestZ = zb
 		if lastZ - zb >= 2 * hw + 20 then
-			for k = 0, 16 do
+			for k = 0, 30 do
 				for _, sg in { -1, 1 } do
 					local nx = x + sg * (2 * hw + 12 + k * 20)
 					if Kit.isFree(math.min(x, nx) - hw, zb, math.max(x, nx) + hw, zb + 2 * hw) then
@@ -471,71 +471,109 @@ local function offsetPolyline(pts: { Vector2 }, d: number): { Vector2 }
 	return out
 end
 
-type AveSpec = { name: string, x: number, hw: number, z0: number, checkFrom: number, walk: boolean, lines: { number }, lanes: { number } }
+type AveSpec = {
+	name: string,
+	x: number,
+	hw: number, -- 일반 단면 반폭(경로 탐색 기준)
+	wideHw: number?, -- 첫 직선 구간을 다리 토막과 같은 넓은 단면(보도 포함)으로
+	z0: number,
+	checkFrom: number,
+	lines: { number },
+	wideLines: { number }?,
+	lanes: { number },
+}
+
+-- 세로(Z) 도로 한 토막: 포장 [zTop, zBot], 분리대/노면표시/가로등은 [inTop, inBot]
+local function avenuePiece(m: Instance, name: string, x: number, zTop: number, zBot: number, inTop: number, inBot: number, hw: number, walk: boolean, lines: { number })
+	stripZ(m, zTop, zBot, x, hw * 2, ROAD_TOP, 1.0, ASPHALT, MAT.Asphalt, { name = "Avenue", shadow = false })
+	if inTop - inBot > 20 then
+		stripZ(m, inTop - 6, inBot + 6, x, 1.6, ROAD_TOP + 0.9, 1.3, BARRIER_C, MAT.Concrete, { name = "AveMedian" })
+		for _, off in lines do
+			for _, sd in { -1, 1 } do
+				stripZ(m, inTop, inBot, x + sd * off, 0.35, ROAD_TOP + PAINT_UP, 0.6, PAINT_W, MAT.SmoothPlastic, deco("Paint", { shadow = false }))
+			end
+		end
+	end
+	local edge = hw + 1.2
+	local baseY = L.City
+	if walk then
+		-- 다리 토막과 같은 보도(아스팔트 위 +0.6), 가로등은 보도 위
+		for _, sd in { -1, 1 } do
+			stripZ(m, zTop, zBot, x + sd * (hw - 4), 8, ROAD_TOP + 0.6, 1.4, SIDEWALK_C, MAT.Pavement, { name = "Sidewalk", shadow = false })
+		end
+		edge = hw - 3
+		baseY = ROAD_TOP + 0.6
+	end
+	-- 가로등 (양쪽 엇갈림)
+	for _, sd in { -1, 1 } do
+		local zz = inTop - 30 - (if sd > 0 then AVE_LAMP / 2 else 0)
+		while zz > inBot + 10 do
+			local lx = x + sd * edge
+			Kit.vcyl(m, Vector3.new(lx, baseY + 6, zz), 12.4, 0.6, POLE_C, MAT.Metal, deco("LampPole"))
+			Kit.box(m, CFrame.new(lx - sd * 1.6, baseY + 12.45, zz), Vector3.new(3.6, 0.5, 1.1), LAMP_AVE, MAT.Neon, glowOpts("LampHead"))
+			zz -= AVE_LAMP
+		end
+	end
+	Kit.reserve(x - hw - 8, math.min(zTop, zBot), x + hw + 8, math.max(zTop, zBot), name)
+end
 
 local function avenue(parent: Instance, spec: AveSpec)
 	local hw = spec.hw
-	local pts = routeAvenue(spec.x, spec.z0, AVE_Z1, spec.checkFrom, hw + 4)
-	if #pts < 2 or math.abs(pts[1].Y - pts[#pts].Y) < 60 then
+	local hc = hw + 4 -- 경로/모서리 기준 반폭
+	local pts = routeAvenue(spec.x, spec.z0, AVE_Z1, spec.checkFrom, hc)
+	local np = #pts
+	if np < 2 or math.abs(pts[1].Y - pts[np].Y) < 60 then
 		return
 	end
 	local m = Kit.group(parent, spec.name)
-	local np = #pts
-	local route = {}
-	for _, p in pts do
-		table.insert(route, string.format("(%d,%d)", p.X, p.Y))
+	-- 넓은 단면이 들어가는 첫 직선 구간 끝 (첫 꺾임 모서리 전까지, 비어 있는 만큼)
+	local zWide: number? = nil
+	local wHw = spec.wideHw
+	if wHw then
+		local limit = if np > 2 then pts[2].Y + hc else pts[2].Y
+		local zb = spec.checkFrom
+		while zb - 20 >= limit and Kit.isFree(spec.x - wHw - 4, zb - 20, spec.x + wHw + 4, zb) do
+			zb -= 20
+		end
+		if zb < spec.z0 - 40 then
+			zWide = zb
+		end
 	end
-	m:SetAttribute("Route", table.concat(route, " "))
-	print("[Riverside] " .. spec.name .. " " .. table.concat(route, " "))
 	for i = 1, np - 1 do
 		local a, b = pts[i], pts[i + 1]
 		if math.abs(a.X - b.X) < 0.5 then
-			-- 세로(Z) 구간: 꺾임 모서리는 세로 구간이 포함
+			-- 세로(Z) 구간: 꺾임 모서리 정사각형은 세로 구간이 포함
 			local x = a.X
-			local zTop = if i > 1 then a.Y + hw + 4 else a.Y
-			local zBot = if i + 1 < np then b.Y - (hw + 4) else b.Y
-			local zTopIn = if i > 1 then zTop - 2 * (hw + 4) else zTop - 4
-			local zBotIn = if i + 1 < np then zBot + 2 * (hw + 4) else zBot + 4
-			stripZ(m, zTop, zBot, x, hw * 2, ROAD_TOP, 1.0, ASPHALT, MAT.Asphalt, { name = "Avenue", shadow = false })
-			if zTopIn - zBotIn > 20 then
-				stripZ(m, zTopIn - 6, zBotIn + 6, x, 1.6, ROAD_TOP + 0.9, 1.3, BARRIER_C, MAT.Concrete, { name = "AveMedian" })
-				for _, off in spec.lines do
-					for _, sd in { -1, 1 } do
-						stripZ(m, zTopIn, zBotIn, x + sd * off, 0.35, ROAD_TOP + PAINT_UP, 0.6, PAINT_W, MAT.SmoothPlastic, deco("Paint", { shadow = false }))
-					end
+			local zTop = if i > 1 then a.Y + hc else a.Y
+			local zBot = if i + 1 < np then b.Y - hc else b.Y
+			local inTop = if i > 1 then zTop - 2 * hc else zTop - 4
+			local inBot = if i + 1 < np then zBot + 2 * hc else zBot + 4
+			local zw = zWide
+			if i == 1 and zw and wHw then
+				avenuePiece(m, spec.name, x, zTop, zw, inTop, zw, wHw, true, spec.wideLines or spec.lines)
+				if zw - zBot > 1 then
+					avenuePiece(m, spec.name, x, zw, zBot, zw, inBot, hw, false, spec.lines)
 				end
+			else
+				avenuePiece(m, spec.name, x, zTop, zBot, inTop, inBot, hw, false, spec.lines)
 			end
-			local edge = hw
-			if spec.walk then
-				-- 다리 축 대로: 다리 토막과 같은 보도(아스팔트 위 +0.6)
-				for _, sd in { -1, 1 } do
-					stripZ(m, zTop, zBot, x + sd * (hw - 4), 8, ROAD_TOP + 0.6, 1.4, SIDEWALK_C, MAT.Pavement, { name = "Sidewalk", shadow = false })
-				end
-				edge = hw - 3
-			end
-			-- 가로등 (양쪽 엇갈림), 기둥은 도로/보도 가장자리 바깥 1.2
-			for _, sd in { -1, 1 } do
-				local zz = zTopIn - 30 - (if sd > 0 then AVE_LAMP / 2 else 0)
-				while zz > zBotIn + 10 do
-					local lx = x + sd * (edge + (if spec.walk then 0 else 1.2))
-					local baseY = if spec.walk then ROAD_TOP + 0.6 else L.City
-					Kit.vcyl(m, Vector3.new(lx, baseY + 6, zz), 12.4, 0.6, POLE_C, MAT.Metal, deco("LampPole"))
-					Kit.box(m, CFrame.new(lx - sd * 1.6, baseY + 12.45, zz), Vector3.new(3.6, 0.5, 1.1), LAMP_AVE, MAT.Neon, glowOpts("LampHead"))
-					zz -= AVE_LAMP
-				end
-			end
-			Kit.reserve(x - hw - 8, zBot, x + hw + 8, zTop, spec.name)
 		else
-			-- 가로(X) 구간: 모서리 정사각형은 제외
+			-- 가로(X) 구간: 모서리 정사각형 제외
 			local zc = a.Y
 			local xa, xb = math.min(a.X, b.X) + hw, math.max(a.X, b.X) - hw
 			if xb - xa > 1 then
-				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP - 0.5, zc), Vector3.new(xb - xa, 1.0, (hw + 4) * 2 - 8), ASPHALT, MAT.Asphalt, { name = "AveJog", shadow = false })
+				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP - 0.5, zc), Vector3.new(xb - xa, 1.0, hw * 2), ASPHALT, MAT.Asphalt, { name = "AveJog", shadow = false })
 				Kit.box(m, CFrame.new((xa + xb) / 2, ROAD_TOP + PAINT_UP - 0.3, zc), Vector3.new(xb - xa, 0.6, 0.45), PAINT_Y, MAT.SmoothPlastic, deco("Paint", { shadow = false }))
 			end
 			Kit.reserve(math.min(a.X, b.X), zc - hw - 8, math.max(a.X, b.X), zc + hw + 8, spec.name)
 		end
 	end
+	local route = {}
+	for _, p in pts do
+		table.insert(route, string.format("%d,%d", p.X, p.Y))
+	end
+	m:SetAttribute("Route", table.concat(route, " "))
+	print("[Riverside] " .. spec.name .. " " .. table.concat(route, " ") .. " wide->" .. tostring(zWide))
 	-- 차량 불빛: 도시로 들어가는 차(-Z) = 후미등(+X 쪽), 강 쪽으로 나오는 차(+Z) = 전조등
 	local rev: { Vector2 } = {}
 	for i = np, 1, -1 do
@@ -588,9 +626,10 @@ function Riverside.build(ctx: any)
 	-- 5) 간선도로: 다리 축(다리 토막 끝 ZFrom 에서 같은 폭으로) + 좌우 2개
 	local avenues = Kit.group(model, "Avenues")
 	local bLines = { 8.2, 14.6, 21.0 }
-	avenue(avenues, { name = "JamsilAve", x = B.X, hw = BRIDGE_HALF, z0 = B.ZFrom, checkFrom = B.ZFrom, walk = true, lines = bLines, lanes = { 11.4, 24.2 } })
-	avenue(avenues, { name = "WestAve", x = aveXs[1], hw = AVE_HW, z0 = AVE_Z0, checkFrom = F.CityFrom, walk = false, lines = { 7.2, 13.6 }, lanes = { 4.4, 10.8 } })
-	avenue(avenues, { name = "EastAve", x = aveXs[2], hw = AVE_HW, z0 = AVE_Z0, checkFrom = F.CityFrom, walk = false, lines = { 7.2, 13.6 }, lanes = { 4.4, 10.8 } })
+	local aLines, aLanes = { 7.2, 13.6 }, { 4.4, 10.8 }
+	avenue(avenues, { name = "JamsilAve", x = B.X, hw = AVE_HW, wideHw = BRIDGE_HALF, z0 = B.ZFrom, checkFrom = B.ZFrom, lines = aLines, wideLines = bLines, lanes = aLanes })
+	avenue(avenues, { name = "WestAve", x = aveXs[1], hw = AVE_HW, z0 = AVE_Z0, checkFrom = F.CityFrom, lines = aLines, lanes = aLanes })
+	avenue(avenues, { name = "EastAve", x = aveXs[2], hw = AVE_HW, z0 = AVE_Z0, checkFrom = F.CityFrom, lines = aLines, lanes = aLanes })
 
 	model:SetAttribute("Lights", lightsUsed)
 end
