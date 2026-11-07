@@ -294,9 +294,9 @@ const SPIRIT_MATS = {
 //   term: terminator offset (more lit area) · aoK/aoS: low-frequency crease occlusion (terminator push / shade dim) ·
 //   form: gentle falloff on the lit plateau toward the terminator · ambHue: how much the shadow takes the sky colour
 const SPIRIT_SHADE = {
-  fur: { shade: 0.6, sat: 1.25, tint: [0.94, 0.7, 0.96], mid: 0.55, midW: 0.17, midTint: [1.12, 0.84, 0.8], rim: 0.32, rimT: 0.68, term: 0.14, aoK: 0.5, aoS: 0.3, form: 0.12, ambHue: 0.35, key: 1, amb: 1 },
-  water: { shade: 0.6, sat: 1.15, tint: [0.62, 0.8, 1.14], mid: 0.6, midW: 0.2, midTint: [0.92, 1.1, 1.14], rim: 0.45, rimT: 0.64, term: 0.1, aoK: 0.4, aoS: 0.25, form: 0.15, ambHue: 0.4, key: 1, amb: 1 },
-  skin: { shade: 0.6, sat: 1.2, tint: [0.92, 0.74, 1.0], mid: 0.5, midW: 0.15, midTint: [1.1, 0.88, 0.86], rim: 0.3, rimT: 0.68, term: 0.12, aoK: 0.45, aoS: 0.3, form: 0.13, ambHue: 0.35, key: 1, amb: 1 },
+  fur: { shade: 0.6, sat: 1.25, tint: [0.94, 0.7, 0.96], mid: 0.55, midW: 0.17, midTint: [1.12, 0.84, 0.8], rim: 0.34, rimT: 0.72, term: 0.14, aoK: 0.5, aoS: 0.3, form: 0.12, ambHue: 0.35, key: 1, amb: 1 },
+  water: { shade: 0.6, sat: 1.15, tint: [0.62, 0.8, 1.14], mid: 0.6, midW: 0.2, midTint: [0.92, 1.1, 1.14], rim: 0.42, rimT: 0.7, term: 0.1, aoK: 0.4, aoS: 0.25, form: 0.15, ambHue: 0.4, key: 1, amb: 1 },
+  skin: { shade: 0.6, sat: 1.2, tint: [0.92, 0.74, 1.0], mid: 0.5, midW: 0.15, midTint: [1.1, 0.88, 0.86], rim: 0.3, rimT: 0.72, term: 0.12, aoK: 0.45, aoS: 0.3, form: 0.13, ambHue: 0.35, key: 1, amb: 1 },
 };
 
 // ---- exact sculpt field (same smooth union / subtraction order as sculptMesh), culled per 8 cm bucket
@@ -553,7 +553,7 @@ const SPIRIT_LIGHT = `
     // rim: a thin, clean band on the silhouette facing the sun / sky
     float fr = 1.0 - clamp(dot(N, Vv), 0.0, 1.0);
     float rw = fwidth(fr) * 0.75 + 0.012;
-    float rimB = smoothstep(uRimT - rw, uRimT + rw, fr) * smoothstep(-0.2, 0.5, dot(N, normalize(keyD + upV * 0.8)));
+    float rimB = smoothstep(uRimT - rw, uRimT + rw, fr) * smoothstep(-0.3, 0.3, dot(N, normalize(keyD + upV * 0.8))) * (1.0 - 0.8 * lit);
     vec3 rimC = keyC * 0.5 + amb * 0.8;
     #if NUM_DIR_LIGHTS > 1
       rimC += directionalLights[1].color * RECIPROCAL_PI * 0.5;
@@ -941,7 +941,7 @@ function dSeal(st) {
   return critter('seal' + st, () => {
     const K = critterKit(), BL = st === 2 ? 0x3a8ff0 : 0x55b8fb, WH = 0xeef8ff, FN = 0x9fe9ff, NOSE = 0x173052, CRS = 0x2f74d4;
     K.el([0, 0.44, 0], [0.46, 0.4, 0.55], BL, { k: 0.12 });
-    K.el([0, 0.36, 0.14], [0.35, 0.29, 0.42], WH, { k: 0.12 });
+    K.el([0, 0.36, 0.14], [0.35, 0.29, 0.42], BL, { k: 0.12 });
     K.rc([0, 0.36, -0.38], [0, 0.2, -0.62], 0.25, 0.1, BL, { k: 0.1, s0: 0.3, s1: 0.1 });
     for (const sx of [-1, 1]) {
       K.el([sx * 0.15, 0.17, -0.7], [0.17, 0.045, 0.12], FN, { k: 0.05, s0: 0.05, s1: 0.05 });
@@ -964,14 +964,15 @@ function dSeal(st) {
     const spots = sdMin(
       sdSpots(hc, [0.38, 0.35, 0.35], [[[0.42, 0.85, -0.3], 0.048], [[-0.34, 0.92, -0.4], 0.04], [[0.06, 0.7, -0.75], 0.056]]),
       sdSpots([0, 0.44, 0], [0.46, 0.4, 0.55], [[[0.55, 0.62, -0.55], 0.066], [[-0.5, 0.66, -0.62], 0.056], [[0.12, 0.55, -0.85], 0.05], [[-0.78, 0.38, -0.3], 0.046], [[0.8, 0.36, -0.12], 0.04], [[-0.2, 0.42, -0.9], 0.04]]));
-    const over = [{ col: spotC, sd: spots }];
+    const belly = (v) => Math.max((Math.hypot(v.x / 0.27, (v.y - 0.36) / 0.34) - 1) * 0.24, (0.06 - v.z) * 0.4);
+    const over = [{ col: WH, mat: 'water', sd: belly }, { col: spotC, sd: spots }];
     if (st === 2) over.push({ col: 0xc6f8ff, mat: 'glow', em: 1.1, sd: sdMax((v) => Math.abs(v.y - (0.4 + 0.045 * Math.sin(v.z * 8 + 0.6))) - 0.014, (v) => 0.3 - Math.abs(v.x), (v) => v.z - 0.18) });
     const look = { kind: 'water', mats: { [NOSE]: 'nose', [WH]: 'water', [FN]: 'water' }, shade: { tint: [0.6, 0.78, 1.16] }, over };
     const face = {
       mouth: [0, hy - 0.17, hz + 0.24, 0.055], mouthK: st === 2 ? 1 : 3, line: 0x1a2a44,
       blush: [0.215, hy - 0.06, hz + 0.16, 0.065], blushCol: 0xff8aa8, blushEdge: 0.7, blushA: 0.4,
     };
-    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, look, face, socket: 0.7,
+    return { prims: K.prims, bounds: [-0.9, -0.05, -0.95, 0.9, 1.5, 0.75], hipY: 0.3, height: 1.4, stride: 0.06, look, face, socket: 0.4, lidFold: 0.7,
       earHinge: add3(hc, [0, 0.1, -0.02]), earAmp: 0.3,
       eyes: eyePair(hc, 0.165, 0.045, 0.29, 0.1, 0.32), hc };
   });
@@ -1002,7 +1003,7 @@ MODELS.padolong = (r) => sealModel(r, 2);
 // leaf ears with a midrib, a sprout on the crown (숲뿔사슴: antlers with blossoms, leafy collar, glowing sap tips)
 function dFawn(st) {
   return critter('fawn' + st, () => {
-    const K = critterKit(), FW = st === 2 ? 0xc7843f : 0xdf9d58, CR = 0xfff1d8, LF = 0x62d35a, LF2 = 0x8ee26e, DK = 0x3a2416, NOSE = 0x2a1810, AN = 0x7a5232;
+    const K = critterKit(), FW = st === 2 ? 0xc8925a : 0xe2b37c, CR = 0xfff3dc, LF = 0x62d35a, LF2 = 0x8ee26e, DK = 0x3a2416, NOSE = 0x2a1810, AN = 0x7a5232;
     const LL = st === 2 ? 1.18 : 1;
     K.el([0, 0.78 * LL, 0], [0.28, 0.26, 0.46], FW, { k: 0.1 });
     K.el([0, 0.7 * LL, 0.04], [0.2, 0.16, 0.36], CR, { k: 0.1 });
