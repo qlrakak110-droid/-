@@ -39,7 +39,10 @@ function animeEyeMat(iris = 0x2a1a4a, iris2 = 0x7a5aff) {
 
 // ---------------------------------------------------------------- critter eye
 // Only the lens-shaped opening (plus the lash line) of the eye sphere is drawn; everything else is cut away with
-// alpha-to-coverage so the sculpted face shows through. Blink lowers the upper lid into a closed "‿" lash curve.
+// alpha-to-coverage so the sculpted face (with its carved socket) shows through. The iris lies on a plane behind a
+// refracting cornea (parallax: the eye reads as a wet, deep ball) and rotates with the gaze (see eyeGaze in 02d);
+// catch-lights come from one view-space key light, so both eyes agree. Lids: blink lowers a skin-coloured upper lid
+// over the eyeball into a "‿" lash curve, a happy squint raises the lower lid into an arch, a hit squeezes them shut.
 function critterEye(o = {}) {
   const U = {
     uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) },
@@ -47,58 +50,72 @@ function critterEye(o = {}) {
     // x: opening half-height, y: outer-corner lift, z: lash wing, w: iris radius
     uShape: { value: new THREE.Vector4(o.open ?? 0.8, o.tilt ?? 0.05, o.wing ?? 0.5, o.irisR ?? 0.6) },
     uGlow: { value: o.glow ?? 0 }, uSlit: { value: o.slit ?? 0 }, uFlash: { value: 0 },
+    uGaze: { value: new THREE.Vector2() }, uExpr: { value: new THREE.Vector2() }, uSkin: { value: new THREE.Color(o.skin ?? 0xd8c8c0) },
+    uPupil: { value: o.pupil ?? 1 }, uDepth: { value: o.cornea ?? 0.42 },
   };
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
-    vertexShader: `varying vec3 vN; ${FOG_V}
-      void main(){ vN = position; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+    vertexShader: `${EYE_V} ${FOG_V}
+      void main(){ eyeVaryings(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform vec3 uIris, uIris2, uLash; uniform float uBlink, uSide, uGlow, uSlit, uFlash; uniform vec4 uShape; varying vec3 vN; ${FOG_F}
+    fragmentShader: `uniform vec3 uIris, uIris2, uLash, uSkin; uniform float uBlink, uSide, uGlow, uSlit, uFlash, uPupil, uDepth; uniform vec4 uShape; uniform vec2 uGaze, uExpr; ${EYE_F} ${FOG_F}
       float cov(float sd, float pw) { return clamp(0.5 - sd / pw, 0.0, 1.0); }
       void main(){
         vec3 n = normalize(vN);
         if (n.z < 0.02) discard;
-        vec2 q = vec2(n.x * uSide, n.y), p = n.xy;
+        vec2 q = vec2(n.x * uSide, n.y);
         float pw = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
         float H = uShape.x, tilt = uShape.y, IR = uShape.w;
         float xx = clamp(q.x / 0.9, -1.0, 1.0);
         float arc = sqrt(max(1.0 - pow(abs(xx), 2.6), 0.0));
-        float shut = -0.1 - 0.16 * arc;
-        float top = mix(H * arc + tilt * xx + 0.03, shut, uBlink);
-        float bot = mix(-H * 0.86 * arc + tilt * xx * 0.4, shut - 0.002, uBlink);
+        float topO = H * arc + tilt * xx + 0.03, botO = -H * 0.86 * arc + tilt * xx * 0.4;
+        // closed-lid lines: blink "‿", hit squeeze (tilted crease), happy squint arch "∩"
+        float hap = uExpr.x, hurt = uExpr.y, cl = max(uBlink, hurt);
+        float shutB = -0.1 - 0.16 * arc, shutS = -0.05 - 0.08 * arc + 0.12 * xx, shutH = -0.2 + 0.36 * arc;
+        float shut = mix(shutB, shutS, clamp(hurt / max(cl, 1e-3), 0.0, 1.0));
+        float top = mix(topO, shut, cl), bot = mix(botO, shut - 0.002, cl);
+        bot = mix(bot, max(shutH, bot), hap); top = mix(top, max(top * 0.7 + shutH * 0.3, bot + 0.02), hap);
+        float lensSD = max(max(q.y - topO, botO - q.y), abs(q.x) - 0.9);
+        float openA = cov(lensSD, pw);
         float inside = cov(max(max(q.y - top, bot - q.y), abs(q.x) - 0.9), pw);
-        // sclera with the upper lid's soft shadow
+        // sclera: a ball (darker toward the corners), the upper lid's soft shadow band, cool lower half
         float lidSh = smoothstep(top - 0.36, top - 0.02, q.y);
-        vec3 col = vec3(0.98, 0.97, 1.0) * mix(1.0, 0.6, lidSh);
+        vec3 col = vec3(0.98, 0.97, 1.0) * mix(1.0, 0.58, lidSh) * (0.8 + 0.2 * n.z);
         col = mix(col, vec3(0.84, 0.86, 0.98), smoothstep(-0.2, -0.75, q.y) * 0.35);
-        // iris: dark top, bright lower half, glowing crescent, fibres, limbal ring, big pupil
-        vec2 ic = vec2(0.03, -0.05);
-        vec2 d = (q - ic) / vec2(1.0, 1.1);
+        // iris on a plane behind the cornea, rotated by the gaze; never mirrored between the eyes
+        vec2 ip = eyeIris(n, uDepth) - uGaze;
+        vec2 d = (ip - vec2(0.0, -0.05)) / vec2(1.0, 1.1);
         float r = length(d), t = r / IR, ang = atan(d.y, d.x);
-        vec3 ir = mix(uIris2 * 1.3, uIris * 0.8, smoothstep(-0.6, 0.5, d.y / IR));
-        ir *= 0.84 + 0.16 * sin(ang * 26.0 + t * 7.0) * smoothstep(0.3, 0.75, t) * smoothstep(0.35, 0.15, pw);
+        float aaI = smoothstep(0.35, 0.15, pw);
+        vec3 ir = mix(uIris2 * 1.3, uIris * 0.78, smoothstep(-0.6, 0.5, d.y / IR));
+        ir *= 1.0 + (0.16 * sin(ang * 26.0 + t * 7.0) + 0.07 * sin(ang * 59.0 - t * 4.0)) * smoothstep(0.3, 0.75, t) * aaI;
         ir += uIris2 * 1.1 * smoothstep(0.5, 0.86, t) * smoothstep(0.05, -0.65, d.y / IR) * (1.0 - smoothstep(0.9, 1.0, t));
-        ir = mix(ir, uIris * 0.22, smoothstep(0.82, 0.99, t));
-        float pr = uSlit > 0.5 ? length(vec2(d.x / (0.17 * IR), d.y / (0.8 * IR))) : r / (0.44 * IR);
+        ir += uIris2 * 0.3 * smoothstep(0.5, 0.56, t) * (1.0 - smoothstep(0.56, 0.7, t)) * aaI;
+        ir = mix(ir, uIris * 0.2, smoothstep(0.8, 0.99, t));
+        float pr = uSlit > 0.5 ? length(vec2(d.x / (0.17 * IR * uPupil), d.y / (0.8 * IR))) : r / (0.44 * IR * uPupil);
         ir = mix(ir, vec3(0.025, 0.014, 0.04), smoothstep(1.06, 0.92, pr));
-        ir *= mix(1.0, 0.45, lidSh) * (1.0 + uGlow);
+        ir *= mix(1.0, 0.42, lidSh) * (1.0 + uGlow);
         col = mix(col, ir, cov(r - IR, pw));
-        // catch-lights share one light direction on both eyes
-        vec2 pc = p - vec2(0.0, ic.y);
-        float hs = IR / 0.6;
-        col = mix(col, vec3(1.5), cov(length((pc - vec2(0.2, 0.21) * hs) / vec2(1.0, 1.2)) - 0.14 * hs, pw) * (1.0 - uBlink));
-        col = mix(col, vec3(1.2), cov(length(pc - vec2(-0.17, -0.25) * hs) - 0.065 * hs, pw) * 0.9);
-        col = mix(col, vec3(1.1), cov(length(pc - vec2(0.3, -0.12) * hs) - 0.035 * hs, pw) * 0.7);
+        // wet cornea: sky sheen at grazing angles + catch-lights (key upper-left, small bounce lower-right)
+        vec3 ct = eyeCatch(n.xy, vec2(0.0, -0.05) + uGaze, IR, pw);
+        col += vec3(0.5, 0.58, 0.72) * ct.z * 0.3 * (1.0 - lidSh * 0.6);
+        col = mix(col, vec3(1.55), ct.x * (1.0 - cl) * (1.0 - hap * 0.4));
+        col = mix(col, vec3(1.2), ct.y * 0.9 * (1.0 - cl));
+        // lids: skin over the eyeball wherever the lids have closed over the open lens
+        vec3 skin = uSkin * (0.78 + 0.22 * n.z) * (0.88 + 0.14 * n.y);
+        skin *= 1.0 - 0.3 * smoothstep(0.12, 0.0, abs(q.y - top)) * (1.0 - inside);
+        col = mix(skin, col, inside);
         // lash: thick upper line growing toward the outer corner (never thinner than ~1px), wing flick, thin lower lash
-        float lw = max(mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * uBlink), pw * 0.55);
+        float lw = max(mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * cl), pw * 0.55);
         float upper = cov(abs(q.y - top - lw * 0.3) - lw, pw) * smoothstep(0.99, 0.93, abs(q.x));
         vec2 w = q - vec2(0.9, top + 0.05); w = vec2(w.x * 0.8 + w.y * 0.6, -w.x * 0.6 + w.y * 0.8);
         float wing = cov((length(w / vec2(0.15, 0.045)) - 0.85) * 0.045, pw) * uShape.z;
-        float lower = cov(abs(q.y - bot) - max(0.03, pw * 0.4), pw) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - uBlink);
+        float lower = cov(abs(q.y - bot) - max(0.03, pw * 0.4), pw) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - cl);
+        lower = max(lower, cov(abs(q.y - bot) - max(0.035, pw * 0.5), pw) * hap * smoothstep(0.92, 0.6, abs(q.x)));
         float lash = max(max(upper, wing), lower);
         col = mix(col, uLash, lash);
-        float a = max(inside, lash);
+        float a = max(openA, lash);
         if (a < 0.02) discard;
         col = mix(col, vec3(2.2), uFlash);
         gl_FragColor = vec4(col, a);
@@ -110,7 +127,8 @@ function critterEye(o = {}) {
   });
   Object.assign(m.uniforms, U);
   m.alphaToCoverage = true;
-  m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash;
+  m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash; m.userData.gaze = U.uGaze; m.userData.expr = U.uExpr; m.userData.skin = U.uSkin;
+  if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, o.gazeLim || {});
   return m;
 }
 
@@ -208,7 +226,7 @@ function critterSkin(mat, F = {}) {
       .replace('#include <alphamap_fragment>', CRITTER_FACE + '\n#include <alphamap_fragment>')
       .replace('#include <lights_physical_fragment>', 'totalEmissiveRadiance += gDecalE;\n#include <lights_physical_fragment>');
   };
-  mat.customProgramCacheKey = () => 'critter-skin-v1';
+  mat.customProgramCacheKey = () => 'critter-skin-v2';
   return mat;
 }
 
@@ -246,30 +264,79 @@ const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const _critterDesigns = {};
 function critter(key, fn) { if (!_critterDesigns[key]) _critterDesigns[key] = fn(); return _critterDesigns[key]; }
 
+// ---------------------------------------------------------------- eye sockets
+// Exact replay of the sculpt's field (same smooth union / subtraction order as sculptMesh), to find where the face
+// surface really is along each eye's axis.
+function sculptField(prims, x, y, z) {
+  let g = 1e3;
+  for (const P of prims) {
+    const d = SDF.dist(P, x, y, z), k = P.k;
+    if (P.sub) { const h = Math.max(k - Math.abs(-d - g), 0) / k; g = Math.max(g, -d) + h * h * k * 0.25; }
+    else if (d < g + k) { const h = Math.max(k - Math.abs(g - d), 0) / k; g = Math.min(g, d) - h * h * k * 0.25; }
+  }
+  return g;
+}
+// The eyeball should sit IN the head: carve a shallow almond dish behind each eye (the baked AO then darkens its rim)
+// and add a soft upper-lid fold above it, coloured like the skin around the eye. Returns the extra primitives and
+// the skin colour per eye (used for the lid that closes over the eyeball when blinking).
+function eyeSockets(D, eo = {}) {
+  const k = D.socket ?? 1, extra = [], skins = [];
+  const add = D.prims.filter((P) => !P.sub);
+  const E3 = new THREE.Euler(), vz = new THREE.Vector3(), vy = new THREE.Vector3();
+  for (const e of D.eyes || []) {
+    const r = e.r;
+    E3.set(e.pitch || 0, e.yaw || 0, e.roll || 0); vz.set(0, 0, 1).applyEuler(E3); vy.set(0, 1, 0).applyEuler(E3);
+    const P = e.p, at = (t) => [P[0] + vz.x * t, P[1] + vz.y * t, P[2] + vz.z * t];
+    // nearest additive primitive at the eye → skin colour
+    let best = null, bd = 1e9;
+    for (const Q of add) { const d = SDF.dist(Q, P[0], P[1], P[2]); if (d < bd) { bd = d; best = Q; } }
+    const col = (best && best.col) || [1, 1, 1];
+    skins.push(col);
+    if (!(k > 0)) continue;
+    // surface along the eye axis
+    let ts = null;
+    for (let t = -1.6 * r; t <= 1.6 * r; t += 0.05 * r) { const p = at(t); if (sculptField(D.prims, p[0], p[1], p[2]) > 0) { ts = t; break; } }
+    if (ts === null) continue;
+    const dep = 0.48 * r * k, c = at(ts - dep), H = (eo.open ?? 0.8);
+    extra.push(SDF.el(c, [1.12 * r, 0.62 * r + 0.3 * r * H, 0.82 * r], { k: 0.32 * r, sub: true }));
+    const lid = at(ts - 0.14 * r);
+    const up = (1.25 * H + 0.2) * r;
+    extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.95 * r, 0.24 * r, 0.34 * r], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
+  }
+  return { extra, skins };
+}
+
+const linToHex = (c) => { const f = (v) => { v = Math.max(0, Math.min(1, v)); const s = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return Math.round(s * 255); }; return (f(c[0]) << 16) | (f(c[1]) << 8) | f(c[2]); };
+
 function buildCritter(r, cfg) {
   const D = cfg.design;
   r.olw = 0; r.hopAmp = cfg.hop ?? 0.6;
   if (cfg.float) { r.float = cfg.float; r.floatAmp = cfg.floatAmp ?? 0.1; }
   const B = grp(r.body); B.scale.setScalar(cfg.scale ?? 1);
-  const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D);
+  B.userData.rig = r;
+  const eo = cfg.eye || {};
+  if (!D._sock) D._sock = eyeSockets(D, eo);
+  const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D, { prims: D.prims.concat(D._sock.extra) });
   if (D.earHinge) DD.jawHinge = D.earHinge;
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
   if (D.paint) paintCritter(geo, D.paint);
-  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.2, coatRough: 0.4, sheen: 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.12, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
+  const mat = dragonMaterial(Object.assign({ kind: 'vinyl', scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.2, coatRough: 0.4, sheen: 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
   critterSkin(mat, D.face);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
   if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
   const follow = [];
   const glue = (obj, s) => follow.push({ obj, base: obj.position.clone(), s });
-  const eo = cfg.eye || {};
-  for (const e of D.eyes || []) {
+  const eyeU = [];
+  (D.eyes || []).forEach((e, i) => {
     const g = grp(B, e.p, [e.pitch || 0, e.yaw || 0, e.roll || 0]);
-    const em = critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side: e.p[0] < 0 ? -1 : 1 }, eo));
+    const sk = D._sock.skins[i] || [1, 1, 1];
+    const em = critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side: e.p[0] < 0 ? -1 : 1, skin: linToHex(sk) }, eo));
     part(GEO.sphere, em, g, [0, 0, 0], [e.r * 1.12, e.r * 1.25, e.r * (eo.depth ?? 0.5)]).userData.noOl = true;
     (r.blinkU = r.blinkU || []).push(em.userData.blink);
+    eyeU.push(em.userData.expr);
     glue(g, 1);
-  }
+  });
   // ear flicks: ear primitives carry the (otherwise unused) jaw weight and rotate about the ear hinge
   if (D.earHinge) {
     const amp = D.earAmp ?? -0.22;
@@ -280,9 +347,18 @@ function buildCritter(r, cfg) {
       if (ph >= 0) { ph += dt * 3.2; U.uJaw.value = ph < 1 ? Math.sin(ph * Math.PI) * amp * (1 + 0.35 * Math.sin(ph * Math.PI * 4)) : 0; if (ph >= 1) ph = -1; }
     });
   }
-  r.fns.push((t) => {
+  // expressions: a hit (flash) squeezes the eyes shut for a moment; r.expr = 'happy' | 'hurt' holds one; and an
+  // occasional double blink so the rhythm never looks mechanical
+  let hurtT = 0, prevBt = 0;
+  r.fns.push((t, dt) => {
     U.uWalk.value = r.walkPhase; U.uStride.value = (D.stride ?? 0.12) * r.moving;
     for (const f of follow) f.obj.position.copy(f.base).add(dragonOffset(U, f.s, Shared.time.value).multiplyScalar(1));
+    if (U.uFlash.value > 0.15) hurtT = 0.5;
+    hurtT = Math.max(0, hurtT - dt);
+    const hap = r.expr === 'happy' ? 1 : 0, hurt = hurtT > 0 || r.expr === 'hurt' ? 1 : 0;
+    for (const x of eyeU) { x.value.x = damp(x.value.x, hap, 9, dt); x.value.y = damp(x.value.y, hurt, 22, dt); }
+    if (prevBt > 0 && r.bt <= 0 && Math.random() < 0.22) r.nb = 0.09;
+    prevBt = r.bt;
   });
   r.glue = glue; r.B = B; r.critter = { U, mat };
   r.size = (D.height ?? 1.3) * (cfg.scale ?? 1);
@@ -366,7 +442,7 @@ function foxModel(r, st) {
   const D = dFox(st);
   const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x6a1a06 : 0x4a1808, iris2: st === 2 ? 0xffb02e : 0xffa040,
     eye: st === 2 ? { open: 0.66, tilt: 0.14, wing: 0.9, irisR: 0.58 } : { open: 0.82, tilt: 0.05, wing: 0.45, irisR: 0.62 },
-    mat: { sheenCol: 0xffb070, glow: 0xff9a3a, glowAmt: 2.2 } });
+    mat: { kind: 'fur', sheenCol: 0xffb070, glow: 0xff9a3a, glowAmt: 2.2 } });
   for (const tp of D.tails) { const f = flame(r, B, tp, st === 2 ? 0.66 : 0.8); r.glue(f, 0); }
   if (st === 2) {
     for (const sx of [-1, 1]) { const f = flame(r, B, add3(D.hc, [sx * 0.29, 0.58 * D.eh, -0.06]), 0.32); r.glue(f, 1); }
@@ -432,7 +508,7 @@ function sealModel(r, st) {
   const D = dSeal(st);
   const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x072650, iris2: 0x46c6ff, lash: 0x0c1a30,
     eye: st === 2 ? { open: 0.74, tilt: 0.1, wing: 0.6, irisR: 0.6 } : { open: 0.86, tilt: 0.02, wing: 0.3, irisR: 0.64 },
-    mat: { coat: 1.0, coatRough: 0.08, sheen: 0.15, rough: 0.32, env: 0.45, fuzz: 0.04, rim: 0xbff4ff, rimAmt: 0.25, glow: 0x8ff0ff, glowAmt: 1.6 } });
+    mat: { kind: 'skin', coat: 1.0, coatRough: 0.08, sheen: 0.15, rough: 0.32, env: 0.45, fuzz: 0.02, rim: 0xbff4ff, rimAmt: 0.12, glow: 0x8ff0ff, glowAmt: 1.6, sssCol: [0.55, 0.9, 1.1], transCol: [0.75, 1.1, 1.25], shadeCol: [0.86, 0.96, 1.24], cavCol: [0.42, 0.5, 0.66] } });
   const orb = grp(B, add3(D.hc, [0, 0.5, -0.04]));
   part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.45 }), orb, [0, 0, 0], 0.15);
   part(GEO.sphere, E(0x9cf0ff, 2.2), orb, [0, 0, 0], 0.06);
@@ -525,7 +601,7 @@ function fawnModel(r, st) {
   const D = dFawn(st);
   const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x123a10, iris2: 0x7ae06a, lash: 0x24140c,
     eye: { open: st === 2 ? 0.72 : 0.84, tilt: st === 2 ? 0.1 : 0.04, wing: 1.0, irisR: 0.62 },
-    mat: { sheenCol: 0xffe6c0, glow: 0xb8ff9a, glowAmt: 1.8 } });
+    mat: { kind: 'fur', fur: 0.55, sheenCol: 0xffe6c0, glow: 0xb8ff9a, glowAmt: 1.8 } });
   const sp = grp(B, add3(D.hc, [0, 0.22, 0]));
   part(GEO.cyl, M(0x4fbf5f), sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
   for (const s of [-1, 1]) part(GEO.sphere, M(0x6ee06a), sp, [s * 0.08, 0.18, 0], [0.1, 0.03, 0.06], [0, 0, s * 0.5]);
@@ -570,7 +646,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.05, fuzz: 0.0, rimAmt: 0.28, rim: 0xfff2a0, env: 0.35, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { kind: 'jelly', rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.03, fuzz: 0.0, rimAmt: 0.22, rim: 0xfff2a0, env: 0.4, glow: 0xfff3a0, glowAmt: 2.4, innerCol: 0xffd870 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -630,7 +706,7 @@ MODELS.bawimong = (r) => {
   });
   const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0xa98bff, lash: 0x14101c, sway: 0.15,
     eye: { open: 0.66, tilt: -0.04, wing: 0.15, irisR: 0.62 },
-    mat: { rough: 0.92, sheen: 0.05, coat: 0, soft: 0.1, fuzz: 0.02, env: 0.2, rimAmt: 0.05, glow: 0xa98bff, glowAmt: 2.0 } });
+    mat: { kind: 'rock', rough: 0.92, sheen: 0.05, coat: 0, soft: 0.02, fuzz: 0.0, env: 0.24, rimAmt: 0.03, glow: 0xa98bff, glowAmt: 2.0 } });
   const cm = E(0x9b7bff, 1.9), cm2 = E(0xc8b0ff, 2.2);
   for (const [x, y, z, w, h, rx, rz, b] of [[0, 1.02, -0.22, 0.12, 0.38, -0.35, 0, 0], [-0.22, 0.96, -0.3, 0.09, 0.27, -0.55, 0.5, 1], [0.24, 0.95, -0.28, 0.1, 0.25, -0.5, -0.55, 0], [0.06, 0.78, -0.52, 0.08, 0.22, -1.2, 0, 1], [-0.1, 1.04, -0.08, 0.06, 0.16, -0.2, 0.35, 1], [0.5, 0.95, -0.12, 0.07, 0.18, -0.3, -0.8, 0], [-0.48, 0.94, -0.1, 0.065, 0.16, -0.3, 0.8, 1]]) part(GEO.cone6, b ? cm2 : cm, B, [x, y, z], [w, h, w], [rx, 0, rz]);
   r.size = 1.3;
@@ -664,7 +740,7 @@ MODELS.bandiru = (r) => {
   });
   const B = buildCritter(r, { key: 'firefly', design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1600, iris2: 0xffb84a, lash: 0x2a1808,
     eye: { open: 0.86, wing: 0.5, irisR: 0.64 },
-    mat: { sheenCol: 0xfff2c0, sheen: 0.45, fuzz: 0.3, soft: 0.2, glow: 0xfff0a0, glowAmt: 3.2 } });
+    mat: { kind: 'plush', fur: 0.7, sheenCol: 0xfff2c0, sheen: 0.45, fuzz: 0.08, soft: 0.06, glow: 0xfff0a0, glowAmt: 3.2 } });
   for (const s of [-1, 1]) { const an = grp(B, [s * 0.1, 0.25, 0.1], [0.3, 0, -s * 0.35]); part(GEO.cyl, M(0x3a2c22), an, [0, 0.13, 0], [0.014, 0.26, 0.014]); part(GEO.sphere, E(0xfff3a0, 3), an, [0, 0.28, 0], 0.045); wig(r, an, 'z', 0.15, 3, s); }
   const wingM = toonMat({ color: 0xeaf6ff, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false });
   const veinM = E(0xfff6d8, 1.1, { transparent: true, opacity: 0.6, depthWrite: false });
@@ -731,7 +807,7 @@ MODELS.geurim = (r) => {
   });
   const B = buildCritter(r, { key: 'cat', design: D, iris: 0xd88a10, iris2: 0xfff07a, lash: 0x0c0614,
     eye: { open: 0.62, tilt: 0.16, wing: 0.7, irisR: 0.95, glow: 1.4, slit: 1 },
-    mat: { sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.3, rim: 0xb48cff, rimAmt: 0.35, glow: 0xd8c0ff, glowAmt: 2.4 } });
+    mat: { kind: 'fur', rimL: 0.7, sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.1, rim: 0xb48cff, rimAmt: 0.24, glow: 0xd8c0ff, glowAmt: 2.4, shadeCol: [0.95, 0.85, 1.25] } });
   const smoke = grp(B, D.tip);
   for (let k = 0; k < 4; k++) part(GEO.sphere, E([0x7a4bd6, 0xa77bff, 0x5b3f8f, 0xc7a6ff][k], 1.2 + k * 0.2, { transparent: true, opacity: 0.55 - k * 0.1, depthWrite: false }), smoke, [Math.sin(k) * 0.05, k * 0.08, -k * 0.03], 0.07 - k * 0.012);
   wig(r, smoke, 'z', 0.3, 2); r.glue(smoke, 0);
@@ -774,7 +850,7 @@ MODELS.somgu = (r) => {
   });
   const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
     eye: { open: 0.66, tilt: -0.04, wing: 0.25, irisR: 0.63 },
-    mat: { rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.28, soft: 0.12, env: 0.22 } });
+    mat: { kind: 'wool', rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.08, soft: 0.04, env: 0.26 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -811,7 +887,7 @@ MODELS.beoseot = (r) => {
   });
   buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff8a6a, lash: 0x2a1008, sway: 0.2,
     eye: { open: 0.86, wing: 0.4, irisR: 0.64 },
-    mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.3, soft: 0.3 } });
+    mat: { kind: 'skin', rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.3, soft: 0.05 } });
   r.size = 1.2;
 };
 
@@ -836,7 +912,7 @@ MODELS.byeolssi = (r) => {
   });
   const B = buildCritter(r, { key: 'star', design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2600, iris2: 0xffc04a, lash: 0x3a2008,
     eye: { open: 0.84, wing: 0.5, irisR: 0.64 },
-    mat: { sheenCol: 0xfff0b0, soft: 0.3, rim: 0xffe08a, rimAmt: 0.3, glow: 0xffd070, glowAmt: 2.0 } });
+    mat: { kind: 'plush', sheenCol: 0xfff0b0, soft: 0.08, rim: 0xffe08a, rimAmt: 0.2, glow: 0xffd070, glowAmt: 2.0 } });
   const halo = part(GEO.torus, E(0xffe08a, 2.4), B, [0, 0.64, 0], 0.2, [Math.PI / 2, 0, 0]);
   const tw = [];
   for (let i = 0; i < 3; i++) tw.push(part(GEO.octa, E(0xfff4c0, 2.6), B, [Math.cos(i * 2.1) * 0.75, Math.sin(i * 2.1) * 0.75, 0.1], [0.03, 0.06, 0.03]));

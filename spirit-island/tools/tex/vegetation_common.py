@@ -227,3 +227,87 @@ def preview_atlas(name, outdir=OUT, dest=None, bg=(0.55, 0.62, 0.72)):
     dest = dest or os.path.join(os.environ.get('TEX_PREVIEW', os.getcwd()), f'_preview_{name}.jpg')
     Image.fromarray(np.clip(sheet * 255, 0, 255).astype(np.uint8)).save(dest, quality=88)
     return dest
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+#  anisotropic tileable noise + PBR saving with JPEG normals (bark, rock)
+# ---------------------------------------------------------------------------------------------------------------------
+def aperlin(H, Wd, py, px, seed=0):
+    """periodic gradient noise with separate lattice periods along y (py cells) and x (px cells); output (H, Wd) in [0,1]"""
+    r = np.random.default_rng(seed); ang = r.random((py, px)) * 2 * np.pi
+    gx, gy = np.cos(ang).astype(np.float32), np.sin(ang).astype(np.float32)
+    ty = np.arange(H, dtype=np.float32) * py / H; tx = np.arange(Wd, dtype=np.float32) * px / Wd
+    iy0 = np.floor(ty).astype(int); fy = (ty - iy0)[:, None]; iy1 = (iy0 + 1) % py; iy0 %= py
+    ix0 = np.floor(tx).astype(int); fx = (tx - ix0)[None, :]; ix1 = (ix0 + 1) % px; ix0 %= px
+    def dot(iy, ix, oy, ox): return gx[np.ix_(iy, ix)] * ox + gy[np.ix_(iy, ix)] * oy
+    n00 = dot(iy0, ix0, fy, fx); n01 = dot(iy0, ix1, fy, fx - 1); n10 = dot(iy1, ix0, fy - 1, fx); n11 = dot(iy1, ix1, fy - 1, fx - 1)
+    sx = fx * fx * fx * (fx * (fx * 6 - 15) + 10); sy = fy * fy * fy * (fy * (fy * 6 - 15) + 10)
+    v = (n00 * (1 - sx) + n01 * sx) * (1 - sy) + (n10 * (1 - sx) + n11 * sx) * sy
+    return np.clip(v * 0.7071 + 0.5, 0, 1).astype(np.float32)
+
+
+def afbm(H, Wd, py, px, octaves=5, seed=0, gain=0.5):
+    out = np.zeros((H, Wd), np.float32); amp = 1.0; tot = 0.0
+    for o in range(octaves):
+        out += amp * aperlin(H, Wd, py, px, seed + o * 101); tot += amp; amp *= gain; py *= 2; px *= 2
+        if px > Wd // 2 or py > H // 2: break
+    return out / tot
+
+
+def aworley(H, Wd, py, px, seed=0, jitter=0.9, sy=1.0, sx=1.0):
+    """periodic cellular noise on a (py, px) grid; distances measured with axis scales (sy, sx) in CELL units.
+    returns F1, F2 (in cell units) and the id (0..1 random per cell) of the nearest cell"""
+    r = np.random.default_rng(seed)
+    pts = r.random((py, px, 2)) * jitter + (1 - jitter) * 0.5
+    ids = r.random((py, px)).astype(np.float32)
+    ty = (np.arange(H, dtype=np.float32) + 0.5) * py / H; tx = (np.arange(Wd, dtype=np.float32) + 0.5) * px / Wd
+    cy = np.floor(ty).astype(int); cx = np.floor(tx).astype(int)
+    F1 = np.full((H, Wd), 1e9, np.float32); F2 = np.full((H, Wd), 1e9, np.float32); ID = np.zeros((H, Wd), np.float32)
+    ry = int(np.ceil(1.0 / min(sy, 1.0))) + 1; rx = int(np.ceil(1.0 / min(sx, 1.0))) + 1
+    for oy in range(-ry, ry + 1):
+        for ox in range(-rx, rx + 1):
+            gy_ = cy + oy; gx_ = cx + ox
+            p = pts[np.ix_(gy_ % py, gx_ % px)]
+            dy = (gy_[:, None] + p[..., 0] - ty[:, None]) * sy; dx = (gx_[None, :] + p[..., 1] - tx[None, :]) * sx
+            d = np.sqrt(dx * dx + dy * dy)
+            idv = ids[np.ix_(gy_ % py, gx_ % px)]
+            closer = d < F1
+            F2 = np.where(closer, F1, np.minimum(F2, d)); ID = np.where(closer, idv, ID); F1 = np.where(closer, d, F1)
+    return F1, F2, ID
+
+
+def wrap_blur(a, r):
+    return T.blur(a, r)
+
+
+def save_pbr_jpg(name, albedo, height, rough, ao, outdir=OUT, normal_strength=4.0, lo_div=2, q=88, nrm=None):
+    """<name>_albedo.jpg (sRGB) <name>_normal.jpg <name>_orm.jpg (R=AO G=rough B=height) + _512 (1/lo_div size)"""
+    os.makedirs(outdir, exist_ok=True)
+    n = T.normal_from_height(height, normal_strength) if nrm is None else nrm
+    rough = np.broadcast_to(np.asarray(rough, np.float32), height.shape)
+    orm = np.stack([ao, rough, height], -1)
+    out = []
+    for suf, arr, qq in (('albedo', albedo, q), ('normal', n, q), ('orm', orm, q - 4)):
+        a8 = np.clip(arr * 255 + 0.5, 0, 255).astype(np.uint8)
+        im = Image.fromarray(a8)
+        p = os.path.join(outdir, f'{name}_{suf}.jpg'); im.save(p, quality=qq, subsampling=0, optimize=True)
+        im.resize((im.width // lo_div, im.height // lo_div), Image.LANCZOS).save(os.path.join(outdir, f'{name}_{suf}_512.jpg'), quality=min(qq, 85), subsampling=0, optimize=True)
+        out.append(p)
+    return out
+
+
+def lit_preview(name, outdir=OUT, dest=None, reps=2):
+    """albedo tiled reps x reps, lit by its normal map from the upper left, next to the plain albedo"""
+    al = np.asarray(Image.open(os.path.join(outdir, f'{name}_albedo.jpg')).convert('RGB'), np.float32) / 255
+    nm = np.asarray(Image.open(os.path.join(outdir, f'{name}_normal.jpg')).convert('RGB'), np.float32) / 255
+    orm = np.asarray(Image.open(os.path.join(outdir, f'{name}_orm.jpg')).convert('RGB'), np.float32) / 255
+    L = np.array([-0.55, 0.55, 0.62]); L /= np.linalg.norm(L)
+    lit = np.clip(((nm * 2 - 1) * L).sum(-1), 0, 1)[..., None]
+    sh = al * (0.25 + 0.95 * lit) * (0.5 + 0.5 * orm[..., :1])
+    tile = lambda a: np.tile(a, (reps, reps, 1))
+    sheet = np.concatenate([tile(sh), tile(al)], 1)
+    dest = dest or os.path.join(os.environ.get('TEX_PREVIEW', os.getcwd()), f'_preview_{name}.jpg')
+    im = Image.fromarray(np.clip(sheet * 255, 0, 255).astype(np.uint8))
+    if im.width > 2048: im = im.resize((2048, int(im.height * 2048 / im.width)), Image.LANCZOS)
+    im.save(dest, quality=88)
+    return dest

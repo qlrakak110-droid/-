@@ -3266,6 +3266,82 @@ function dragonOffset(U, s, t) {
   return new THREE.Vector3(Math.sin(ph) * amp + Math.sin(t * 0.6) * 0.14 * headW, Math.sin(ph * 0.8 + 1.3) * amp * 0.35 + Math.sin(t * 0.9 + 0.7) * 0.07 * headW, 0);
 }
 
+// ---------------------------------------------------------------- build-time bake: SDF ambient occlusion, curvature, thickness
+// Per vertex, in object space before any deformation, from the sculpt's own distance grid (no ray tracing, ~0.1 s):
+//   x  occlusion (0 open … 1 buried) — a cone of 7 rays (normal + 6 tilted 50°) marched through the SDF, each step
+//      compared with what a flat open surface would read, so only real creases, cavities and contacts darken
+//   y  mean curvature (−1 cavity … +1 sharp ridge) — normal divergence along mesh edges, smoothed, squashed
+//   z  thinness (0 thick … 1 paper thin) — inscribed radius found by marching inward along −n (ears, fins, frills)
+// Every channel is 0 where nothing is baked, so materials on unbaked geometry look exactly like before.
+function bakeSculpt(m, opt = {}) {
+  const { pos, nor, idx, nv, sample } = m;
+  const R = opt.aoR || 0.2, tMax = opt.thickMax || R * 3, tRef = opt.thinRef || R * 0.9;
+  const out = new Float32Array(nv * 3);
+  const steps = [0.12, 0.28, 0.55, 1.0].map((k) => k * R), sw = [1.0, 0.8, 0.6, 0.45];
+  let swSum = 0; for (const w of sw) swSum += w;
+  const tilt = 0.87, ct = Math.cos(tilt), st = Math.sin(tilt);
+  const D = [[0, 0]]; for (let i = 0; i < 6; i++) D.push([Math.cos(i * Math.PI / 3 + 0.3), Math.sin(i * Math.PI / 3 + 0.3)]);
+  const ao = new Float32Array(nv), thick = new Float32Array(nv);
+  for (let q = 0; q < nv; q++) {
+    const px = pos[q * 3], py = pos[q * 3 + 1], pz = pos[q * 3 + 2], nx = nor[q * 3], ny = nor[q * 3 + 1], nz = nor[q * 3 + 2];
+    let tx, ty, tz; if (Math.abs(ny) < 0.9) { tx = nz; ty = 0; tz = -nx; } else { tx = 0; ty = -nz; tz = ny; }
+    const l = Math.hypot(tx, ty, tz) || 1; tx /= l; ty /= l; tz /= l;
+    const bx = ny * tz - nz * ty, by = nz * tx - nx * tz, bz = nx * ty - ny * tx;
+    let occ = 0, wsum = 0;
+    for (let d = 0; d < D.length; d++) {
+      const ca = D[d][0], sa = D[d][1];
+      let dx, dy, dz, cosn;
+      if (d === 0) { dx = nx; dy = ny; dz = nz; cosn = 1; }
+      else { dx = nx * ct + (tx * ca + bx * sa) * st; dy = ny * ct + (ty * ca + by * sa) * st; dz = nz * ct + (tz * ca + bz * sa) * st; cosn = ct; }
+      const dw = d === 0 ? 1.5 : 1;
+      for (let k = 0; k < steps.length; k++) {
+        const s = steps[k], f = sample(px + dx * s, py + dy * s, pz + dz * s);
+        const o = (s * cosn - f) / s;
+        occ += (o > 1 ? 1 : o > 0 ? o : 0) * sw[k] * dw;
+      }
+      wsum += swSum * dw;
+    }
+    ao[q] = occ / wsum;
+    let best = 0;
+    for (let t = R * 0.06; t <= tMax; t *= 1.45) {
+      const f = -sample(px - nx * t, py - ny * t, pz - nz * t);
+      if (f > best) best = f;
+      if (f < best * 0.5 && t > best * 2.2) break;
+    }
+    thick[q] = best;
+  }
+  // curvature from normal divergence along edges
+  const acc = new Float32Array(nv), cnt = new Float32Array(nv);
+  const edge = (i, j) => {
+    const ex = pos[j * 3] - pos[i * 3], ey = pos[j * 3 + 1] - pos[i * 3 + 1], ez = pos[j * 3 + 2] - pos[i * 3 + 2];
+    const l2 = ex * ex + ey * ey + ez * ez; if (l2 < 1e-12) return;
+    const k = ((nor[j * 3] - nor[i * 3]) * ex + (nor[j * 3 + 1] - nor[i * 3 + 1]) * ey + (nor[j * 3 + 2] - nor[i * 3 + 2]) * ez) / l2;
+    acc[i] += k; acc[j] += k; cnt[i]++; cnt[j]++;
+  };
+  for (let t = 0; t < idx.length; t += 3) { const a = idx[t], b = idx[t + 1], c = idx[t + 2]; edge(a, b); edge(b, c); edge(c, a); }
+  const curv = new Float32Array(nv);
+  for (let q = 0; q < nv; q++) curv[q] = cnt[q] ? acc[q] / cnt[q] : 0;
+  // smoothing (surface-nets vertices are slightly irregular): curvature twice, AO and thickness once
+  for (let pass = 0; pass < 2; pass++) {
+    const sc = new Float32Array(nv), sa = new Float32Array(nv), sth = new Float32Array(nv), n = new Float32Array(nv);
+    for (let t = 0; t < idx.length; t += 3) for (let e = 0; e < 3; e++) {
+      const i = idx[t + e], j = idx[t + (e + 1) % 3];
+      sc[i] += curv[j]; sc[j] += curv[i]; sa[i] += ao[j]; sa[j] += ao[i]; sth[i] += thick[j]; sth[j] += thick[i]; n[i]++; n[j]++;
+    }
+    for (let q = 0; q < nv; q++) if (n[q]) {
+      curv[q] = (curv[q] + sc[q] / n[q]) * 0.5;
+      if (pass === 0) { ao[q] = (ao[q] * 2 + sa[q] / n[q]) / 3; thick[q] = (thick[q] + sth[q] / n[q]) * 0.5; }
+    }
+  }
+  const cs = R * 0.22;
+  for (let q = 0; q < nv; q++) {
+    out[q * 3] = Math.min(1, Math.max(0, ao[q] * 1.6));
+    out[q * 3 + 1] = Math.tanh(curv[q] * cs);
+    out[q * 3 + 2] = Math.min(1, Math.max(0, 1 - thick[q] / tRef));
+  }
+  return out;
+}
+
 const _dragonGeo = {};
 function dragonGeometry(key, design, cellHi = 0.04, cellLo = 0.058) {
   const cell = Settings.high && !isTouch ? cellHi : cellLo;
@@ -3281,14 +3357,21 @@ function dragonGeometry(key, design, cellHi = 0.04, cellLo = 0.058) {
   g.setAttribute('aGlow', new THREE.BufferAttribute(m.aGlow, 1));
   g.setAttribute('aBelly', new THREE.BufferAttribute(m.aBelly, 1));
   g.setAttribute('aLeg', new THREE.BufferAttribute(m.aLeg, 1));
+  if (design.bake !== false) {
+    try {
+      const b = design.bounds, diag = Math.hypot(b[3] - b[0], b[4] - b[1], b[5] - b[2]);
+      const aoR = design.aoR || clamp(diag * 0.06, 0.1, 0.45);
+      g.setAttribute('aBake', new THREE.BufferAttribute(bakeSculpt(m, { aoR }), 3));
+    } catch (e) { console.warn('sculpt bake skipped', key, e && e.message); }
+  }
   g.setIndex(new THREE.BufferAttribute(m.idx, 1));
   g.computeBoundingSphere(); g.boundingSphere.radius *= 1.3;
   _dragonGeo[ck] = g; return g;
 }
 
 const SCULPT_DECL = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTailStart, uSerp, uNeckStart, uSway, uJaw, uWalk, uStride, uHipY, uShoulderY; uniform vec3 uJawHinge;
-      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg;
-      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
+      attribute float aS; attribute float aJaw; attribute float aGlow; attribute float aBelly; attribute float aLeg; attribute vec3 aBake;
+      varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS; varying vec3 vBake;
       vec3 dragonOffset(float s){
         float tailW = 1.0 - smoothstep(0.0, uTailStart, s);
         float amp = uWaveAmp * (tailW * tailW + uSerp * (0.4 + 0.6 * (1.0 - s)));
@@ -3298,13 +3381,142 @@ const SCULPT_DECL = `uniform float uTime, uWaveAmp, uWaveSpeed, uWaveFreq, uTail
       }
       `;
 const SCULPT_BODY = `vec3 transformed = vec3(position);
-        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS;
+        vObjPos = position; vGlow = aGlow; vBelly = aBelly; vS = aS; vBake = aBake;
         if (aJaw > 0.001) { vec3 q = transformed - uJawHinge; float ja = uJaw * aJaw; float cj = cos(ja), sj = sin(ja); q.yz = mat2(cj, sj, -sj, cj) * q.yz; transformed = uJawHinge + q; }
         transformed += dragonOffset(aS);
         if (abs(aLeg) > 1.5) { float aph = uWalk + (aLeg > 0.0 ? 3.14159 : 0.0); float aw = (abs(aLeg) - 1.0) * clamp((uShoulderY - position.y) / 0.5, 0.0, 1.0);
           transformed.z += sin(aph) * uStride * 0.9 * aw; }
         else if (abs(aLeg) > 0.01) { float lph = uWalk + (aLeg > 0.0 ? 0.0 : 3.14159); float lw = min(abs(aLeg), 1.0) * clamp((uHipY - position.y) / max(uHipY, 0.01), 0.0, 1.0);
           transformed.z += sin(lph) * uStride * lw; transformed.y += max(0.0, cos(lph)) * uStride * 0.45 * lw; }`;
+
+// ---------------------------------------------------------------- creature shading model
+// Material identity on top of three's physical BRDF (GGX spec, clearcoat, sheen, iridescence and sky IBL all stay):
+//   · wrapped, softly banded diffuse terminator (cel/PBR hybrid: shapes read as lit / shade planes, edges stay soft)
+//   · hue-shifted shade: the unlit side keeps a saturated, hue-rotated albedo instead of greying out
+//   · red-shifted scattering where light turns into shadow (skin, fur, flesh)
+//   · light bleeding through thin parts when back-lit (ears, fins, frills, horn tips) from the baked thickness
+//   · baked AO on all indirect light + specular occlusion; cavity-darkened albedo (dark fur roots, dirt in cracks);
+//     worn, lighter convex edges from the baked curvature
+//   · fur strands, a light-driven fuzz rim, body-long anisotropic sheen for scales, inner glow for jelly
+// Presets per kind; every value can be overridden per creature (o.wrap, o.cel, o.shadeCol …).
+const CREATURE_KINDS = {
+  vinyl: { wrap: 0.3, cel: 0.55, band: 0.1, ao: 0.9, cav: 0.3, edge: 0.15, sss: 0.25, trans: 0.35, fur: 0, aniso: 0, inner: 0, shade: 0.55, rimL: 0.15, shadeCol: [1.02, 0.88, 1.16], sssCol: [1.0, 0.5, 0.36], transCol: [1.2, 0.85, 0.65], cavCol: [0.55, 0.42, 0.5] },
+  fur: { wrap: 0.5, cel: 0.62, band: 0.12, ao: 1.0, cav: 0.42, edge: 0.1, sss: 0.42, trans: 0.8, fur: 1, aniso: 0, inner: 0, shade: 0.7, rimL: 0.5, shadeCol: [1.1, 0.8, 1.12], sssCol: [1.0, 0.42, 0.26], transCol: [1.35, 0.72, 0.45], cavCol: [0.46, 0.3, 0.33] },
+  wool: { wrap: 0.55, cel: 0.48, band: 0.17, ao: 1.25, cav: 0.55, edge: 0.08, sss: 0.3, trans: 0.4, fur: 0.55, aniso: 0, inner: 0, shade: 0.65, rimL: 0.55, shadeCol: [0.98, 0.88, 1.2], sssCol: [1.0, 0.6, 0.7], transCol: [1.2, 0.9, 1.0], cavCol: [0.62, 0.54, 0.8] },
+  skin: { wrap: 0.38, cel: 0.6, band: 0.09, ao: 0.95, cav: 0.32, edge: 0.15, sss: 0.55, trans: 0.65, fur: 0, aniso: 0, inner: 0, shade: 0.6, rimL: 0.15, shadeCol: [0.94, 0.92, 1.2], sssCol: [1.0, 0.45, 0.35], transCol: [1.25, 0.8, 0.6], cavCol: [0.5, 0.45, 0.58] },
+  jelly: { wrap: 0.6, cel: 0.35, band: 0.16, ao: 0.45, cav: 0.12, edge: 0.1, sss: 0.5, trans: 1.3, fur: 0, aniso: 0, inner: 0.9, shade: 0.4, rimL: 0.2, shadeCol: [1.08, 0.9, 1.05], sssCol: [1.0, 0.7, 0.3], transCol: [1.25, 1.0, 0.55], cavCol: [0.7, 0.55, 0.45] },
+  rock: { wrap: 0.02, cel: 0.8, band: 0.045, ao: 1.5, cav: 0.85, edge: 0.55, sss: 0, trans: 0, fur: 0, aniso: 0, inner: 0, shade: 0.5, rimL: 0, shadeCol: [0.92, 0.95, 1.18], sssCol: [1, 1, 1], transCol: [1, 1, 1], cavCol: [0.34, 0.32, 0.38] },
+  plush: { wrap: 0.5, cel: 0.55, band: 0.14, ao: 1.0, cav: 0.38, edge: 0.1, sss: 0.38, trans: 0.55, fur: 0.32, aniso: 0, inner: 0, shade: 0.62, rimL: 0.35, shadeCol: [1.08, 0.86, 1.08], sssCol: [1.0, 0.5, 0.3], transCol: [1.3, 0.9, 0.5], cavCol: [0.55, 0.4, 0.38] },
+  scale: { wrap: 0.15, cel: 0.4, band: 0.08, ao: 1.0, cav: 0.55, edge: 0.35, sss: 0.18, trans: 0.4, fur: 0, aniso: 0.6, inner: 0, shade: 0.5, rimL: 0.1, shadeCol: [1.0, 0.88, 1.2], sssCol: [1.0, 0.45, 0.3], transCol: [1.3, 0.85, 0.6], cavCol: [0.4, 0.36, 0.46] },
+};
+// light loop with the key light's cast-shadow factor and unshadowed colour kept apart (for hue-shifted shade)
+const CR_LIGHTS_BEGIN = (() => {
+  let s = THREE.ShaderChunk.lights_fragment_begin;
+  const a = 'getDirectionalLightInfo( directionalLight, directLight );';
+  const b = 'directLight.color *= ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ]';
+  const c = 'vDirectionalShadowCoord[ i ] ) : 1.0;';
+  if (s.split(a).length === 2 && s.split(b).length === 2 && s.split(c).length === 2) {
+    s = s.replace(a, a + '\n\t\tgShK = 1.0; gLc0 = directLight.color;')
+      .replace(b, 'gShK = ( directLight.visible && receiveShadow ) ? getShadow( directionalShadowMap[ i ]')
+      .replace(c, c + '\n\t\tdirectLight.color *= gShK;');
+  }
+  return s;
+})();
+const CR_DECL = `uniform float uWrap, uCel, uBand, uAOk, uCav, uEdge, uSSS, uTrans, uFurK, uFurF, uAniso, uInner, uShadeK, uRimL;
+  uniform vec3 uShadeCol, uSSSCol, uTransCol, uCavCol, uInnerCol;
+  varying vec3 vBake;
+  float gShK = 1.0; vec3 gLc0 = vec3(-1.0); float gLit = 0.0; float gVis = 1.0; float gThin = 0.0; vec3 gAxisV = vec3(0.0, 0.0, 1.0);
+  float crLum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+`;
+// albedo: cavities, worn edges, fur strands (object space, so it sticks to the deforming body)
+const CR_ALBEDO = `
+  {
+    float occ = vBake.x, curv = vBake.y; gThin = vBake.z;
+    gVis = clamp(1.0 - occ * uAOk, 0.1, 1.0);
+    float cav = clamp(occ * 1.25 + max(-curv, 0.0) * 0.6, 0.0, 1.0) * uCav;
+    diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uCavCol, cav);
+    diffuseColor.rgb *= 1.0 + max(curv, 0.0) * uEdge;
+    if (uFurK > 0.0) {
+      vec3 Pn = vObjPos * uFurF;
+      vec3 fl = vec3(0.0, -0.8, -0.6);
+      vec3 ps = Pn - fl * dot(Pn, fl) * 0.82;
+      float aaF = 1.0 - smoothstep(0.3, 1.0, length(fwidth(ps)));
+      float strand = vn3(ps) * 0.62 + vn3(ps * 2.3 + 11.0) * 0.38;
+      diffuseColor.rgb *= mix(1.0, 0.78 + 0.44 * strand, uFurK * aaF);
+    }
+    gAxisV = normalize(normalMatrix * vec3(0.0, 0.0, 1.0));
+  }
+`;
+const CR_BRDF = `
+  void RE_Direct_Creature( const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight ) {
+    vec3 N = geometryNormal, L = directLight.direction, V = geometryViewDir;
+    float ndl = dot(N, L);
+    // wrapped, two-band diffuse: main terminator + a soft plateau step, blended with the smooth wrap by uCel
+    float wr = (ndl + uWrap) / (1.0 + uWrap);
+    float b1 = smoothstep(0.04 - uBand, 0.04 + uBand, wr);
+    float b2 = smoothstep(0.52 - uBand * 1.5, 0.52 + uBand * 1.5, wr);
+    float dif = mix(max(wr, 0.0), b1 * (0.68 + 0.32 * b2), uCel);
+    vec3 lc = directLight.color;
+    vec3 lc0 = gLc0.r < 0.0 ? lc : gLc0;
+    gLit = max(gLit, dif * clamp(crLum(lc) / max(crLum(lc0), 1e-4), 0.0, 1.0));
+    vec3 alb = material.diffuseColor;
+    reflectedLight.directDiffuse += lc * dif * BRDF_Lambert(alb);
+    float tw = smoothstep(-0.5, 0.0, ndl) * (1.0 - smoothstep(0.0, 0.42, ndl));
+    reflectedLight.directDiffuse += lc * (tw * uSSS) * BRDF_Lambert(alb * uSSSCol);
+    vec3 Lt = normalize(L + N * 0.35);
+    float back = pow(clamp(dot(V, -Lt), 0.0, 1.0), 3.0) * 1.6 + clamp(-ndl, 0.0, 1.0) * 0.3;
+    reflectedLight.directDiffuse += lc * (back * gThin * gThin * uTrans * 2.5) * BRDF_Lambert(alb * uTransCol);
+    float nv = clamp(dot(N, V), 0.0, 1.0);
+    float fz = pow(1.0 - nv, 2.5) * smoothstep(-0.25, 0.5, ndl);
+    reflectedLight.directDiffuse += lc * (fz * uRimL * 1.6) * BRDF_Lambert(alb + 0.04);
+    float dotNL = saturate(ndl);
+    vec3 irr = dotNL * lc;
+    #ifdef USE_CLEARCOAT
+      float dotNLcc = saturate(dot(geometryClearcoatNormal, L));
+      clearcoatSpecularDirect += dotNLcc * lc * BRDF_GGX_Clearcoat(L, V, geometryClearcoatNormal, material);
+    #endif
+    #ifdef USE_SHEEN
+      sheenSpecularDirect += irr * BRDF_Sheen(L, V, N, material.sheenColor, material.sheenRoughness);
+    #endif
+    reflectedLight.directSpecular += irr * BRDF_GGX(L, V, N, material);
+    if (uAniso > 0.0) {
+      vec3 T = cross(N, gAxisV); float tl = length(T); T = tl > 1e-4 ? T / tl : vec3(1.0, 0.0, 0.0);
+      vec3 H = normalize(L + V); float th = dot(T, H);
+      float an = pow(sqrt(max(1.0 - th * th, 0.0)), 90.0) * smoothstep(0.0, 0.3, ndl);
+      reflectedLight.directSpecular += lc * (an * uAniso * 0.3) * mix(vec3(1.0), alb * 2.0 + 0.25, 0.45);
+    }
+  }
+  #undef RE_Direct
+  #define RE_Direct RE_Direct_Creature
+`;
+// after all light: AO on indirect light (diffuse + specular occlusion), hue-shifted saturated shade on the unlit side
+const CR_INDIRECT = `
+  {
+    vec3 albI = material.diffuseColor;
+    vec3 shadeAlb = max(mix(vec3(crLum(albI)), albI, 1.45), 0.0) * uShadeCol;
+    vec3 ratio = clamp(shadeAlb / max(albI, vec3(1e-3)), 0.0, 2.0);
+    float shk = (1.0 - clamp(gLit, 0.0, 1.0)) * uShadeK;
+    reflectedLight.indirectDiffuse *= mix(vec3(1.0), ratio, shk) * gVis;
+    float soV = computeSpecularOcclusion(saturate(dot(geometryNormal, geometryViewDir)), gVis, material.roughness);
+    reflectedLight.indirectSpecular *= soV;
+    #ifdef USE_CLEARCOAT
+      clearcoatSpecularIndirect *= soV;
+    #endif
+    #ifdef USE_SHEEN
+      sheenSpecularIndirect *= gVis;
+    #endif
+  }
+`;
+function creatureUniforms(o) {
+  const K = CREATURE_KINDS[o.kind] || CREATURE_KINDS.vinyl, v = (k, d) => o[k] ?? K[k] ?? d;
+  const c = (k) => (typeof o[k] === 'number' ? new THREE.Color(o[k]) : new THREE.Color(...(Array.isArray(o[k]) ? o[k] : K[k])));
+  return {
+    uWrap: { value: v('wrap') }, uCel: { value: v('cel') }, uBand: { value: v('band') }, uAOk: { value: v('ao') }, uCav: { value: v('cav') }, uEdge: { value: v('edge') },
+    uSSS: { value: v('sss') }, uTrans: { value: v('trans') }, uFurK: { value: v('fur') }, uFurF: { value: o.furF ?? 70 }, uAniso: { value: v('aniso') },
+    uInner: { value: v('inner') }, uInnerCol: { value: new THREE.Color(o.innerCol ?? o.glow ?? 0xfff2c0) }, uShadeK: { value: v('shade') }, uRimL: { value: v('rimL') },
+    uShadeCol: { value: c('shadeCol') }, uSSSCol: { value: c('sssCol') }, uTransCol: { value: c('transCol') }, uCavCol: { value: c('cavCol') },
+  };
+}
 
 // ---------------------------------------------------------------- body material
 function dragonMaterial(o, D) {
@@ -3315,6 +3527,8 @@ function dragonMaterial(o, D) {
     sheen: o.sheen ?? 0, sheenColor: new THREE.Color(o.sheenCol ?? 0xffffff), sheenRoughness: 0.5,
     envMapIntensity: o.env ?? 1.1,
   });
+  const scales = (o.scaleFreq ?? 5.5) > 0;
+  if (!o.kind) o = Object.assign({ kind: scales ? 'scale' : 'vinyl' }, o);
   const U = {
     uTime: Shared.time, uWaveAmp: { value: o.waveAmp ?? 0.28 }, uWaveSpeed: { value: o.waveSpeed ?? 1.4 }, uWaveFreq: { value: o.waveFreq ?? 4.5 },
     uTailStart: { value: D.tailStart ?? 0.35 }, uSerp: { value: o.serp ?? 0 }, uNeckStart: { value: D.neckStart ?? 0.75 }, uSway: { value: 1 },
@@ -3326,7 +3540,11 @@ function dragonMaterial(o, D) {
     uStripes: { value: o.stripes ?? 0 }, uFlash: { value: 0 }, uPx: { value: renderer.getPixelRatio() },
     uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.5 }, uShoulderY: { value: o.shoulderY ?? 9 }, uHairRing: { value: o.hairRing ?? -1 }, uFuzz: { value: o.fuzz ?? 0 }, uSoft: { value: o.soft ?? 0 }, uSat: { value: o.sat ?? 1 },
   };
-  m.userData.U = U; m.userData.uFlash = U.uFlash;
+  Object.assign(U, creatureUniforms(o));
+  if (!Settings.high) U.uFurK.value = 0; // strands are sub-pixel on phones: skip their two noise taps
+  m.userData.U = U; m.userData.uFlash = U.uFlash; m.userData.kind = o.kind;
+  m.defaultAttributeValues = { aBake: [0, 0, 0] };
+  if (scales) m.defines = Object.assign({}, m.defines, { CR_SCALES: '' });
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = SCULPT_DECL + sh.vertexShader
@@ -3337,10 +3555,12 @@ function dragonMaterial(o, D) {
       varying vec3 vObjPos; varying vec3 vObjN; varying float vGlow; varying float vBelly; varying float vS;
       float gScaleH; float gSide; vec3 gScaleGrad; uniform mat3 normalMatrix;
       ${GLSL_NOISE3}
+      ${CR_DECL}
       ` + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
         {
           float bellyW = vBelly * smoothstep(-0.12, -0.55, normalize(vObjN).y);
+          #ifdef CR_SCALES
           vec3 SS = vec3(1.0, 1.15, 0.72) * max(uScaleFreq, 0.001);
           vec3 sp = vObjPos * SS;
           vec4 vi; vec3 eg = vorEdgeGrad(sp, vi);
@@ -3353,21 +3573,29 @@ function dragonMaterial(o, D) {
           hScale = mix(0.8, hScale, aaS);
           float plates = smoothstep(0.0, 0.12, fract(vObjPos.z * 3.2 + vObjPos.y * 0.4)) * smoothstep(1.0, 0.82, fract(vObjPos.z * 3.2 + vObjPos.y * 0.4));
           gScaleH = mix(hScale, plates, bellyW);
-          if (uScaleFreq <= 0.0) { gScaleH = 1.0; gScaleGrad = vec3(0.0); }
+          #else
+          vec3 vo = vec3(0.5); gScaleH = 1.0; gScaleGrad = vec3(0.0);
+          #endif
           diffuseColor.rgb = mix(diffuseColor.rgb, uBellyCol, bellyW);
           gSide = smoothstep(-0.025, 0.025, vObjPos.x) * uSplit;
           diffuseColor.rgb = mix(diffuseColor.rgb, uVoidCol, gSide);
-          diffuseColor.rgb *= uScaleFreq > 0.0 ? mix(0.5, 1.06, gScaleH) * (0.9 + 0.2 * vo.z) : 1.0;
+          #ifdef CR_SCALES
+          diffuseColor.rgb *= mix(0.5, 1.06, gScaleH) * (0.9 + 0.2 * vo.z);
+          #endif
           diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);
-        }`)
+        }
+        ${CR_ALBEDO}`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(mix(roughnessFactor + 0.3, roughnessFactor, gScaleH), 0.04, 1.0);`)
+        roughnessFactor = clamp(mix(roughnessFactor + 0.3, roughnessFactor, gScaleH) + vBake.x * 0.15, 0.04, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         {
           vec3 gv = normalMatrix * gScaleGrad * (uBump * 0.012);
           float gl = length(gv); if (gl > 0.6) gv *= 0.6 / gl;
           normal = normalize(normal - (gv - normal * dot(normal, gv)));
         }`)
+      .replace('#include <lights_physical_pars_fragment>', '#include <lights_physical_pars_fragment>\n' + CR_BRDF)
+      .replace('#include <lights_fragment_begin>', CR_LIGHTS_BEGIN)
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + CR_INDIRECT)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         {
           float vein = 1.0 - smoothstep(0.0, 0.045, abs(vn3(vObjPos * 1.6 + vec3(0.0, uTime * 0.04, 0.0)) - 0.5));
@@ -3386,17 +3614,19 @@ function dragonMaterial(o, D) {
             totalEmissiveRadiance += (vec3(1.6) * st + mix(vec3(0.05, 0.08, 0.3), vec3(0.35, 0.15, 0.6), neb) * 0.35) * uStars;
           }
           vec3 vdir = normalize(vViewPosition);
-          float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
+          float ndv = clamp(dot(normal, vdir), 0.0, 1.0);
+          float fr = pow(1.0 - ndv, 3.0);
           vec3 rimC = mix(uRimCol, vec3(0.75, 0.35, 1.0), gSide);
-          totalEmissiveRadiance += rimC * fr * uRimAmt;
-          totalEmissiveRadiance += diffuseColor.rgb * (uSoft * 0.22 + uFuzz * fr * 0.9);
+          totalEmissiveRadiance += rimC * fr * uRimAmt * mix(1.0, gVis, 0.6);
+          totalEmissiveRadiance += diffuseColor.rgb * (uSoft * 0.22 + uFuzz * fr * 0.9) * gVis;
+          if (uInner > 0.0) totalEmissiveRadiance += uInnerCol * uInner * (pow(ndv, 1.6) * (0.35 + 0.65 * (1.0 - gThin)) * 0.55 + gThin * 0.25);
           if (uHairRing > 0.0) { float hr = smoothstep(0.022, 0.0, abs(vObjPos.y - uHairRing - 0.025 * sin(atan(vObjPos.x, vObjPos.z) * 7.0))) * smoothstep(-0.1, 0.25, vObjPos.z + 0.2); totalEmissiveRadiance += vec3(0.32, 0.36, 0.48) * hr; }
           if (uSplit > 0.0) totalEmissiveRadiance += mix(vec3(1.6, 1.3, 0.7), vec3(1.2, 0.5, 2.0), 0.5) * exp(-abs(vObjPos.x) * 38.0) * 2.2;
         }`)
       .replace('#include <dithering_fragment>', `#include <dithering_fragment>
         gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);`);
   };
-  m.customProgramCacheKey = () => 'dragon-v1';
+  m.customProgramCacheKey = () => 'creature-v2' + (scales ? 'S' : '');
   return m;
 }
 
@@ -3558,8 +3788,13 @@ function wingMaterial(o, side) {
           if (vMem > 1.5) totalEmissiveRadiance += diffuseColor.rgb * 0.38;
           if (vMem > 0.5 && vMem < 1.5) {
             #if NUM_DIR_LIGHTS > 0
-              float back = max(dot(-normal, directionalLights[0].direction), 0.0);
+              // membrane: the sun shines through it (strongest looking toward the light), veins block it
+              vec3 Ld = directionalLights[0].direction;
+              float back = max(dot(-normal, Ld), 0.0);
+              float through = pow(clamp(dot(normalize(vViewPosition), -Ld), 0.0, 1.0), 3.0);
+              float vT = smoothstep(0.92, 1.0, sin(vUv2.y * 40.0 + sin(vUv2.x * 9.0) * 1.5)) * 0.6 + smoothstep(0.95, 1.0, sin(vUv2.x * 26.0)) * 0.4;
               totalEmissiveRadiance += uMemCol * back * 0.55;
+              totalEmissiveRadiance += uMemCol * vec3(1.25, 0.95, 0.8) * directionalLights[0].color * (back * 0.06 + through * 0.22) * (1.0 - vT * 0.8) * (0.4 + 0.6 * vSpan);
             #endif
             if (uStyle > 0.5 && uStyle < 2.5) {
               vec2 fc = gl_FragCoord.xy / uPx; float hs = fract(sin(dot(floor(fc / 3.0), vec2(12.9898, 78.233))) * 43758.5453);
@@ -3572,7 +3807,7 @@ function wingMaterial(o, side) {
         }`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
   };
-  m.customProgramCacheKey = () => 'wing-v1';
+  m.customProgramCacheKey = () => 'wing-v2';
   return m;
 }
 
@@ -3589,7 +3824,7 @@ function envFromSky(U) {
 // ---------------------------------------------------------------- assemble a dragon rig
 function slitEye(parent, pos, r, color) {
   const g = grp(parent, pos, [0, pos[0] < 0 ? -0.55 : 0.55, 0]);
-  part(GEO.sphere, dragonEyeMat(color), g, [0, 0, 0], [r * 1.1, r * 0.78, r * 0.85]).userData.noOl = true;
+  part(GEO.sphere, dragonEyeMat(color, pos[0] < 0 ? -1 : 1), g, [0, 0, 0], [r * 1.1, r * 0.78, r * 0.85]).userData.noOl = true;
   return g;
 }
 function buildDragon(r, cfg) {
@@ -3631,57 +3866,162 @@ function buildDragon(r, cfg) {
 
 
 // ---------------------------------------------------------------- animated outline for sculpted bodies
-function sculptOutline(mesh, width, color = 0x1a1226) {
+// Inverted hull that follows every vertex deformation (same SCULPT_BODY as the body). The authored width is in object
+// units, but the hull is clamped to a screen-space band (≈0.9–2.6 px at 900 px tall), so lines stay clean and
+// unbroken at battle distance and never turn into thick borders in close-ups. The ink is a dark, saturated version
+// of the local albedo (coloured line art), blended with the given line colour.
+const CS_RES = { value: new THREE.Vector2(1280, 720) };
+const _csRes = new THREE.Vector2();
+function sculptOutline(mesh, width, color = 0x1a1226, o = {}) {
   const U = mesh.material.userData.U;
   const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });
   m.userData.noAO = true;
+  m.defaultAttributeValues = { aBake: [0, 0, 0], color: [1, 1, 1] };
+  const OU = { uOlW: { value: width }, uOlRes: CS_RES, uOlMin: { value: o.minPx ?? 0.9 }, uOlMax: { value: o.maxPx ?? 2.6 }, uOlInk: { value: o.ink ?? 0.5 } };
+  m.userData.OU = OU;
   m.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U); sh.uniforms.uOlW = { value: width };
-    sh.vertexShader = SCULPT_DECL + 'uniform float uOlW;\n' + sh.vertexShader.replace('#include <begin_vertex>', SCULPT_BODY + '\n transformed += normalize(normal) * uOlW;');
+    Object.assign(sh.uniforms, U, OU);
+    sh.vertexShader = SCULPT_DECL + 'uniform float uOlW, uOlMin, uOlMax; uniform vec2 uOlRes; varying vec3 vInk; float gOlPx = 0.0;\n#ifndef USE_COLOR\nattribute vec3 color;\n#endif\n' + sh.vertexShader
+      .replace('#include <begin_vertex>', SCULPT_BODY + `
+        vInk = color;
+        {
+          vec3 nO = normalize(normal);
+          vec4 mv0 = modelViewMatrix * vec4(transformed, 1.0);
+          float sN = max(length(mat3(modelViewMatrix) * nO), 1e-5);
+          float depth = projectionMatrix[3][3] > 0.5 ? 1.0 : max(-mv0.z, 0.01);
+          gOlPx = 2.0 * depth / (projectionMatrix[1][1] * max(uOlRes.y, 1.0));
+          float ref = max(uOlRes.y / 900.0, 0.6);
+          float wPx = uOlW * sN / gOlPx;
+          float tPx = clamp(wPx, uOlMin * ref, uOlMax * ref);
+          transformed += nO * (tPx * gOlPx / sN);
+        }`)
+      .replace('#include <project_vertex>', `#include <project_vertex>
+        gl_Position = projectionMatrix * vec4(mvPosition.xyz + normalize(mvPosition.xyz) * gOlPx * 2.0, 1.0);`);
+    sh.fragmentShader = 'uniform float uOlInk; varying vec3 vInk;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec3 inkC = max(mix(vec3(dot(vInk, vec3(0.2126, 0.7152, 0.0722))), vInk, 1.3), 0.0);
+        diffuseColor.rgb = mix(diffuseColor.rgb, inkC * inkC * 0.2 + diffuseColor.rgb * 0.35, uOlInk);
+      }`);
   };
-  m.customProgramCacheKey = () => 'sculptOl-v1';
+  m.customProgramCacheKey = () => 'sculptOl-v2';
   const ol = new THREE.Mesh(mesh.geometry, m);
   ol.userData.isOl = true; ol.castShadow = false; ol.raycast = () => {};
+  ol.onBeforeRender = (rr) => { rr.getDrawingBufferSize(_csRes); if (_csRes.y > 0) CS_RES.value.copy(_csRes); };
   mesh.add(ol); return ol;
 }
 
-// ---------------------------------------------------------------- eyes
-// anime eye: lids, thick upper lash line, iris fibres, lid shadow, catch-lights, uniform-driven blink
+// ---------------------------------------------------------------- eyes: gaze, cornea, catch-lights
+// Gaze: every eye material calls eyeGaze() from onBeforeRender. The target (rig.gazeAt / any ancestor's
+// userData.gazeAt — an Object3D or Vector3 — else the camera that is drawing, so portraits and close-ups look at the
+// viewer) is taken into the eye group's frame and turned into an iris offset (the eyeball's rotation). Offsets toward
+// the nose are clamped tighter than outward ones, so a pair converges on near targets but never goes cross- or
+// wall-eyed; targets behind the head fade back to a neutral stare. Both eyes of a face share one saccade generator
+// (keyed by the face group): a small conjugate jump every 1–3 s.
+const _gzV = new THREE.Vector3(), _gzM = new THREE.Matrix4(), _gzSac = new WeakMap();
+function eyeGaze(object, camera, uGaze, side = 1, lim = {}) {
+  const eg = object.parent; if (!eg || !uGaze) return;
+  const face = eg.parent || eg;
+  let tgt = null;
+  for (let o = face, k = 0; o && k < 8 && !tgt; o = o.parent, k++) {
+    const g = (o.userData && o.userData.gazeAt) || (o.userData && o.userData.rig && o.userData.rig.gazeAt);
+    if (g) tgt = g.isObject3D ? g.getWorldPosition(_gzV) : _gzV.copy(g);
+  }
+  if (!tgt) tgt = _gzV.setFromMatrixPosition(camera.matrixWorld);
+  tgt.applyMatrix4(_gzM.copy(eg.matrixWorld).invert());
+  const l = tgt.length() || 1, dx = tgt.x / l, dy = tgt.y / l, dz = tgt.z / l;
+  const w = sstep(0.0, 0.5, dz);
+  const k = lim.gain ?? 0.9, mIn = lim.inward ?? 0.15, mOut = lim.outward ?? 0.24, mUp = lim.up ?? 0.12, mDn = lim.down ?? 0.16;
+  // side: +1 when the eye's outer corner is local +x; inward = toward the nose
+  let gx = dx * k, gy = dy * k;
+  gx = side > 0 ? clamp(gx, -mIn, mOut) : clamp(gx, -mOut, mIn);
+  gy = clamp(gy, -mDn, mUp);
+  const now = Shared.time.value;
+  let S = _gzSac.get(face);
+  if (!S) { S = { t: now + Math.random() * 2, x: 0, y: 0 }; _gzSac.set(face, S); }
+  if (now > S.t || now < S.t - 6) {
+    S.t = now + 1 + Math.random() * 2;
+    const still = Math.random() < 0.3;
+    S.x = still ? 0 : (Math.random() - 0.5) * 0.09; S.y = still ? 0 : (Math.random() - 0.5) * 0.06;
+  }
+  uGaze.value.set((gx + S.x) * w, (gy + S.y) * w);
+}
+// shared eye GLSL: object-space view vector (for cornea refraction) without inverse(), and view-space catch-lights
+const EYE_V = `varying vec3 vN; varying vec3 vNv; varying vec3 vVo; varying vec3 vVp; varying vec2 vKey;
+  void eyeVaryings(vec3 pos) {
+    vN = pos;
+    vec4 mv = modelViewMatrix * vec4(pos, 1.0); vVp = mv.xyz;
+    vNv = normalize(normalMatrix * pos);
+    mat3 m3 = mat3(modelViewMatrix); vec3 s2 = max(vec3(dot(m3[0], m3[0]), dot(m3[1], m3[1]), dot(m3[2], m3[2])), vec3(1e-8));
+    vec3 vv = -mv.xyz; vVo = vec3(dot(m3[0], vv), dot(m3[1], vv), dot(m3[2], vv)) / s2;
+    // the studio key light (upper left of the screen) projected into this eye's own plane
+    vec3 Lv = vec3(-0.6, 0.66, 0.45); vec3 Lo = vec3(dot(m3[0], Lv), dot(m3[1], Lv), dot(m3[2], Lv)) / s2;
+    vKey = Lo.xy;
+  }
+`;
+const EYE_F = `varying vec3 vN; varying vec3 vNv; varying vec3 vVo; varying vec3 vVp; varying vec2 vKey;
+  // point on the iris plane (depth d below the apex of the unit eyeball) seen through the cornea
+  vec2 eyeIris(vec3 n, float d) {
+    vec3 V = normalize(vVo);
+    vec3 rd = refract(-V, n, 0.75);
+    float t = max(n.z - (1.0 - d), 0.0) / max(-rd.z, 0.3);
+    return n.xy + rd.xy * t;
+  }
+  // catch-lights on the cornea, placed around the visible iris centre c (radius IR) from one screen-space studio key
+  // (upper left) — the same direction on both eyes, never mirrored, never smaller than ~1.5 px so they read at range.
+  // x: key highlight, y: small bounce highlight (lower right), z: cornea fresnel
+  vec3 eyeCatch(vec2 p, vec2 c, float IR, float px) {
+    vec2 k = vKey; float kl = length(k); k = kl > 1e-4 ? k / kl : vec2(-0.7, 0.7);
+    vec2 d1 = p - (c + k * IR * 0.4);
+    vec2 r1v = vec2(k.x * d1.x + k.y * d1.y, -k.y * d1.x + k.x * d1.y) / vec2(0.82, 1.0);
+    float r1 = max(IR * 0.24, px * 1.6);
+    vec2 d2 = p - (c - k * IR * 0.5 + vec2(k.y, -k.x) * IR * 0.14);
+    float r2 = max(IR * 0.1, px * 1.0);
+    float fr = pow(1.0 - clamp(dot(normalize(vNv), normalize(-vVp)), 0.0, 1.0), 3.0);
+    return vec3(smoothstep(r1 + px, r1 - px, length(r1v)), smoothstep(r2 + px, r2 - px, length(d2)), fr);
+  }
+`;
+// anime eye (people): lids, thick upper lash line, iris fibres seen through a refracting cornea, lid shadow, gaze,
+// view-space catch-lights, uniform-driven blink. Options (all optional): iris, iris2, skin, lash, side, irisR (iris
+// radius in eye units, 0.52), pupil (fraction of the iris, 0.48), cornea (parallax depth, 0.36), gaze (false = fixed stare)
 function animeEye(o = {}) {
-  const U = { uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) }, uSkin: { value: new THREE.Color(o.skin ?? 0xffe0cc) }, uLash: { value: new THREE.Color(o.lash ?? 0x1a1020) }, uBlink: { value: 0 }, uSide: { value: o.side ?? 1 } };
+  const U = { uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) }, uSkin: { value: new THREE.Color(o.skin ?? 0xffe0cc) }, uLash: { value: new THREE.Color(o.lash ?? 0x1a1020) },
+    uBlink: { value: 0 }, uSide: { value: o.side ?? 1 }, uGaze: { value: new THREE.Vector2() }, uIrisR: { value: o.irisR ?? 0.52 }, uPupil: { value: o.pupil ?? 0.48 }, uDepth: { value: o.cornea ?? 0.36 } };
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
-    vertexShader: `varying vec3 vN; ${FOG_V}
-      void main(){ vN = normalize(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+    vertexShader: `${EYE_V} ${FOG_V}
+      void main(){ eyeVaryings(normalize(position)); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide; varying vec3 vN; ${FOG_F}
+    fragmentShader: `uniform vec3 uIris, uIris2, uSkin, uLash; uniform float uBlink, uSide, uIrisR, uPupil, uDepth; uniform vec2 uGaze; ${EYE_F} ${FOG_F}
       void main(){
         vec3 n = normalize(vN); vec2 q = vec2(n.x * uSide, n.y);
         float front = step(0.0, n.z);
+        float px = max(length(fwidth(n.xy)), 1e-4);
         float topOpen = 0.6 - 0.42 * q.x * q.x + 0.1 * q.x;
         float top = mix(topOpen, -0.5 + 0.2 * q.x * q.x, uBlink);
         float bot = -0.6 + 0.32 * q.x * q.x;
         vec3 col = uSkin * (0.82 + 0.12 * n.y);
         if (front > 0.5 && q.y < top && q.y > bot && abs(q.x) < 0.92) {
           float lidSh = smoothstep(top, top - 0.32, q.y);
-          col = vec3(0.98, 0.97, 1.0) * mix(0.68, 1.0, lidSh);
-          vec2 ic = vec2(0.02, -0.06); float r = length(q - ic), IR = 0.52;
-          if (r < IR) {
-            float t = r / IR, ang = atan(q.y - ic.y, q.x - ic.x);
-            vec3 base = mix(uIris2 * 1.4, uIris * 0.8, smoothstep(-0.5, 0.35, q.y - ic.y));
-            base *= 0.86 + 0.14 * sin(ang * 28.0 + t * 8.0) * (0.6 + 0.4 * t);
-            base += uIris2 * 0.35 * smoothstep(0.55, 0.85, t) * smoothstep(0.1, -0.4, q.y - ic.y);
-            base = mix(base, uIris * 0.18, smoothstep(0.82, 1.0, t));
-            base *= mix(0.45, 1.0, lidSh);
-            base = mix(base, vec3(0.015, 0.01, 0.03), smoothstep(0.25, 0.21, r));
-            col = base;
+          col = vec3(0.98, 0.97, 1.0) * mix(0.66, 1.0, lidSh) * (0.84 + 0.16 * n.z);
+          vec2 ip = eyeIris(n, uDepth) - uGaze;
+          vec2 ic = vec2(0.0, -0.06); vec2 d = ip - ic; float r = length(d), IR = uIrisR;
+          float aaI = smoothstep(0.35, 0.12, px);
+          if (r < IR + px) {
+            float t = r / IR, ang = atan(d.y, d.x);
+            vec3 base = mix(uIris2 * 1.4, uIris * 0.78, smoothstep(-0.5, 0.35, d.y));
+            base *= 1.0 + (0.14 * sin(ang * 28.0 + t * 8.0) + 0.06 * sin(ang * 63.0 - t * 5.0)) * (0.6 + 0.4 * t) * aaI;
+            base += uIris2 * 0.4 * smoothstep(0.55, 0.85, t) * smoothstep(0.1, -0.4, d.y);
+            base = mix(base, uIris * 0.16, smoothstep(0.8, 1.0, t));
+            base *= mix(0.42, 1.0, lidSh);
+            float pr = IR * uPupil;
+            base = mix(base, vec3(0.015, 0.01, 0.03), smoothstep(pr + px, pr - px, r));
+            col = mix(col, base, smoothstep(IR + px, IR - px, r));
           }
-          // catch-lights in UN-mirrored eye space: both eyes share one light direction (mirroring them read as cross-eyed)
-          vec2 hp = n.xy;
-          col = mix(col, vec3(1.35), smoothstep(0.12, 0.085, length(hp - vec2(-0.16, 0.16))));
-          col = mix(col, vec3(1.15), smoothstep(0.055, 0.03, length(hp - vec2(0.13, -0.27))) * 0.9);
-          col = mix(col, vec3(1.0), smoothstep(0.03, 0.015, length(hp - vec2(-0.3, -0.02))) * 0.7);
+          vec3 ct = eyeCatch(n.xy, ic + uGaze, IR, px);
+          col += vec3(0.55, 0.62, 0.75) * ct.z * 0.35 * lidSh;
+          col = mix(col, vec3(1.45), ct.x * (1.0 - uBlink));
+          col = mix(col, vec3(1.15), ct.y * 0.85 * (1.0 - uBlink));
         }
         float lw = 0.075 + 0.07 * smoothstep(-0.2, 0.8, q.x);
         float lash = front * smoothstep(lw, lw * 0.4, abs(q.y - top - lw * 0.45)) * step(-0.9, q.x) * step(q.x, 0.98);
@@ -3695,26 +4035,40 @@ function animeEye(o = {}) {
     fog: true,
   });
   Object.assign(m.uniforms, U);
-  m.userData.blink = U.uBlink;
+  m.userData.blink = U.uBlink; m.userData.gaze = U.uGaze;
+  if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, { inward: 0.12, outward: 0.2, up: 0.1, down: 0.12 });
   return m;
 }
-// dragon eye: glowing iris with radial veins, soft vertical slit, wet highlight
-function dragonEyeMat(color) {
+// dragon eye: glowing iris with radial veins under a refracting cornea, vertical slit pupil that follows the gaze,
+// darker lid-shaded top, wet view-space catch-lights
+function dragonEyeMat(color, side = 1) {
+  const U = { uCol: { value: new THREE.Color(color) }, uTime: Shared.time, uGaze: { value: new THREE.Vector2() } };
   const m = new THREE.ShaderMaterial({
-    uniforms: { uCol: { value: new THREE.Color(color) }, uTime: Shared.time },
-    vertexShader: 'varying vec3 vN; void main(){ vN = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `uniform vec3 uCol; uniform float uTime; varying vec3 vN;
+    uniforms: U,
+    vertexShader: `${EYE_V} void main(){ eyeVaryings(normalize(position)); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 uCol; uniform float uTime; uniform vec2 uGaze; ${EYE_F}
       void main(){
-        vec3 n = normalize(vN); vec2 q = n.xy; float r = length(q);
-        float ang = atan(q.y, q.x);
-        vec3 c = uCol * (1.2 + 1.6 * smoothstep(0.9, 0.1, r)) * (0.85 + 0.15 * sin(ang * 22.0 + r * 9.0));
-        c = mix(c, uCol * 0.15, smoothstep(0.8, 1.0, r));
-        float slit = smoothstep(0.13, 0.05, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
+        vec3 n = normalize(vN);
+        if (n.z < 0.0) { gl_FragColor = vec4(uCol * 0.3, 1.0); return; }
+        float px = max(length(fwidth(n.xy)), 1e-4);
+        vec2 q = eyeIris(n, 0.5) - uGaze;
+        float r = length(q), ang = atan(q.y, q.x);
+        float aa = smoothstep(0.4, 0.15, px);
+        vec3 c = uCol * (1.2 + 1.6 * smoothstep(0.9, 0.1, r)) * (1.0 + 0.15 * sin(ang * 22.0 + r * 9.0) * aa);
+        c += uCol * 0.8 * smoothstep(0.42, 0.18, abs(r - 0.32)) * aa * 0.4;
+        c = mix(c, uCol * 0.12, smoothstep(0.78, 0.98, r));
+        float slit = smoothstep(0.13 + px, 0.05, abs(q.x) / (1.0 - q.y * q.y * 0.6 + 0.001)) * smoothstep(0.95, 0.7, abs(q.y));
         c = mix(c, vec3(0.01, 0.0, 0.02), slit * (0.9 + 0.1 * sin(uTime * 0.7)));
-        c += vec3(1.4) * smoothstep(0.16, 0.1, length(q - vec2(0.3, 0.35)));
-        gl_FragColor = vec4(c * step(0.0, n.z) + uCol * 0.3 * step(n.z, 0.0), 1.0);
+        c *= mix(1.0, 0.3, smoothstep(0.3, 0.85, n.y));
+        vec3 ct = eyeCatch(n.xy, uGaze, 0.72, px);
+        c += vec3(0.5, 0.55, 0.65) * ct.z * 0.5;
+        c = mix(c, vec3(2.2), ct.x);
+        c = mix(c, vec3(1.4), ct.y * 0.8);
+        gl_FragColor = vec4(c, 1.0);
       }`,
   });
+  m.userData.gaze = U.uGaze;
+  m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, side, { gain: 0.7, inward: 0.12, outward: 0.2, up: 0.08, down: 0.12 });
   return m;
 }
 
@@ -3723,6 +4077,9 @@ const toonGradSoft = (() => {
   const d = new Uint8Array([118, 118, 205, 255]);
   const t = new THREE.DataTexture(d, 4, 1, THREE.RedFormat); t.minFilter = t.magFilter = THREE.NearestFilter; t.needsUpdate = true; return t;
 })();
+// Backward compatible: same signature and defaults; adds baked AO (contact shading under hair, chin, arms, folds) on
+// indirect light and lightly on direct light, cavity-darkened albedo, and a hue-shifted (saturated, slightly cool)
+// shade on the unlit side. New options: ao (0.8), cav (0.3), shade (0.35), shadeCol ([0.95, 0.9, 1.14]).
 function sculptToonMaterial(o, D) {
   const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: toonGradSoft });
   const U = {
@@ -3731,30 +4088,41 @@ function sculptToonMaterial(o, D) {
     uWalk: { value: 0 }, uStride: { value: 0 }, uHipY: { value: o.hipY ?? 0.6 }, uShoulderY: { value: o.shoulderY ?? 9 },
     uHairRing: { value: o.hairRing ?? -1 }, uSat: { value: o.sat ?? 1.15 }, uFlash: { value: 0 }, uRim2: { value: new THREE.Color(o.rim ?? 0xfff4e0) }, uRimAmt2: { value: o.rimAmt ?? 0.35 },
     uWarm: { value: o.warm ?? 0 },
+    uTAO: { value: o.ao ?? 0.8 }, uTCav: { value: o.cav ?? 0.3 }, uTShade: { value: o.shade ?? 0.35 }, uTShadeCol: { value: new THREE.Color(...(o.shadeCol || [0.95, 0.9, 1.14])) },
   };
   m.userData.U = U; m.userData.uFlash = U.uFlash;
+  m.defaultAttributeValues = { aBake: [0, 0, 0] };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.uniforms.uRim = Look.rim; sh.uniforms.uRimStr = Look.rimStr; sh.uniforms.uSpec = Look.spec;
     sh.vertexShader = SCULPT_DECL + sh.vertexShader
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n vObjN = objectNormal;')
       .replace('#include <begin_vertex>', SCULPT_BODY);
-    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec, uWarm; uniform vec3 uRim2, uRim; varying vec3 vObjPos; varying vec3 vObjN;
+    sh.fragmentShader = `uniform float uHairRing, uSat, uFlash, uRimAmt2, uRimStr, uSpec, uWarm, uTAO, uTCav, uTShade; uniform vec3 uRim2, uRim, uTShadeCol; varying vec3 vObjPos; varying vec3 vObjN; varying vec3 vBake;
       ` + sh.fragmentShader
       .replace('#include <color_fragment>', `#include <color_fragment>
-        diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);`)
+        diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, uSat), 0.0);
+        diffuseColor.rgb *= 1.0 - clamp(vBake.x * 1.2 + max(-vBake.y, 0.0) * 0.6, 0.0, 1.0) * uTCav * 0.6;
+        diffuseColor.rgb *= 1.0 + max(vBake.y, 0.0) * 0.12;`)
       .replace('#include <opaque_fragment>', `
         {
           vec3 vdir = normalize(vViewPosition);
           float fr = pow(1.0 - clamp(dot(normal, vdir), 0.0, 1.0), 3.0);
+          float gVisT = clamp(1.0 - vBake.x * uTAO, 0.15, 1.0);
           float rimBand = smoothstep(0.42, 0.5, fr);
-          outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb);
-          // anime-style warm shadow: the unlit side is filled with a peach tone instead of cold sky ambient
+          // how much key light reaches this pixel (0 on the shade side and inside cast shadows)
           float litK = clamp(dot(reflectedLight.directDiffuse, vec3(0.333)) / max(dot(diffuseColor.rgb, vec3(0.333)), 0.002) * 1.6, 0.0, 1.0);
-          outgoingLight += diffuseColor.rgb * vec3(0.34, 0.17, 0.11) * (1.0 - litK) * uWarm;
+          // baked AO: full on ambient, a little on the key so creases under hair / chin / arms stay grounded
+          outgoingLight -= reflectedLight.indirectDiffuse * (1.0 - gVisT) + reflectedLight.directDiffuse * (1.0 - gVisT) * 0.3;
+          // hue-shifted shade: saturated, slightly cool albedo on the unlit side
+          vec3 alb = diffuseColor.rgb, shA = max(mix(vec3(dot(alb, vec3(0.2126, 0.7152, 0.0722))), alb, 1.4), 0.0) * uTShadeCol;
+          outgoingLight += reflectedLight.indirectDiffuse * gVisT * (clamp(shA / max(alb, vec3(1e-3)), 0.0, 2.0) - 1.0) * (1.0 - litK) * uTShade;
+          outgoingLight += uRim2 * rimBand * uRimAmt2 * (0.5 + 0.5 * diffuseColor.rgb) * mix(0.4, 1.0, gVisT);
+          // anime-style warm shadow: the unlit side is filled with a peach tone instead of cold sky ambient
+          outgoingLight += diffuseColor.rgb * vec3(0.34, 0.17, 0.11) * (1.0 - litK) * uWarm * gVisT;
           #if NUM_DIR_LIGHTS > 0
             vec3 hv = normalize(directionalLights[0].direction + vdir);
-            outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25;
+            outgoingLight += directionalLights[0].color * smoothstep(0.965, 0.98, dot(normal, hv)) * uSpec * 0.25 * litK;
           #endif
           if (uHairRing > 0.0) {
             // soft "angel ring": a broad sheen band broken into strands, strongest where the hair faces the light
@@ -3768,7 +4136,7 @@ function sculptToonMaterial(o, D) {
         #include <opaque_fragment>`)
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(2.2), uFlash);');
   };
-  m.customProgramCacheKey = () => 'sculptToon-v3';
+  m.customProgramCacheKey = () => 'sculptToon-v4';
   return m;
 }
 
@@ -3960,7 +4328,10 @@ function animeEyeMat(iris = 0x2a1a4a, iris2 = 0x7a5aff) {
 
 // ---------------------------------------------------------------- critter eye
 // Only the lens-shaped opening (plus the lash line) of the eye sphere is drawn; everything else is cut away with
-// alpha-to-coverage so the sculpted face shows through. Blink lowers the upper lid into a closed "‿" lash curve.
+// alpha-to-coverage so the sculpted face (with its carved socket) shows through. The iris lies on a plane behind a
+// refracting cornea (parallax: the eye reads as a wet, deep ball) and rotates with the gaze (see eyeGaze in 02d);
+// catch-lights come from one view-space key light, so both eyes agree. Lids: blink lowers a skin-coloured upper lid
+// over the eyeball into a "‿" lash curve, a happy squint raises the lower lid into an arch, a hit squeezes them shut.
 function critterEye(o = {}) {
   const U = {
     uIris: { value: new THREE.Color(o.iris ?? 0x2a1a4a) }, uIris2: { value: new THREE.Color(o.iris2 ?? 0x8a6aff) },
@@ -3968,58 +4339,72 @@ function critterEye(o = {}) {
     // x: opening half-height, y: outer-corner lift, z: lash wing, w: iris radius
     uShape: { value: new THREE.Vector4(o.open ?? 0.8, o.tilt ?? 0.05, o.wing ?? 0.5, o.irisR ?? 0.6) },
     uGlow: { value: o.glow ?? 0 }, uSlit: { value: o.slit ?? 0 }, uFlash: { value: 0 },
+    uGaze: { value: new THREE.Vector2() }, uExpr: { value: new THREE.Vector2() }, uSkin: { value: new THREE.Color(o.skin ?? 0xd8c8c0) },
+    uPupil: { value: o.pupil ?? 1 }, uDepth: { value: o.cornea ?? 0.42 },
   };
   const m = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]),
-    vertexShader: `varying vec3 vN; ${FOG_V}
-      void main(){ vN = position; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+    vertexShader: `${EYE_V} ${FOG_V}
+      void main(){ eyeVaryings(position); vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
-    fragmentShader: `uniform vec3 uIris, uIris2, uLash; uniform float uBlink, uSide, uGlow, uSlit, uFlash; uniform vec4 uShape; varying vec3 vN; ${FOG_F}
+    fragmentShader: `uniform vec3 uIris, uIris2, uLash, uSkin; uniform float uBlink, uSide, uGlow, uSlit, uFlash, uPupil, uDepth; uniform vec4 uShape; uniform vec2 uGaze, uExpr; ${EYE_F} ${FOG_F}
       float cov(float sd, float pw) { return clamp(0.5 - sd / pw, 0.0, 1.0); }
       void main(){
         vec3 n = normalize(vN);
         if (n.z < 0.02) discard;
-        vec2 q = vec2(n.x * uSide, n.y), p = n.xy;
+        vec2 q = vec2(n.x * uSide, n.y);
         float pw = max(max(fwidth(q.x), fwidth(q.y)), 1e-4);
         float H = uShape.x, tilt = uShape.y, IR = uShape.w;
         float xx = clamp(q.x / 0.9, -1.0, 1.0);
         float arc = sqrt(max(1.0 - pow(abs(xx), 2.6), 0.0));
-        float shut = -0.1 - 0.16 * arc;
-        float top = mix(H * arc + tilt * xx + 0.03, shut, uBlink);
-        float bot = mix(-H * 0.86 * arc + tilt * xx * 0.4, shut - 0.002, uBlink);
+        float topO = H * arc + tilt * xx + 0.03, botO = -H * 0.86 * arc + tilt * xx * 0.4;
+        // closed-lid lines: blink "‿", hit squeeze (tilted crease), happy squint arch "∩"
+        float hap = uExpr.x, hurt = uExpr.y, cl = max(uBlink, hurt);
+        float shutB = -0.1 - 0.16 * arc, shutS = -0.05 - 0.08 * arc + 0.12 * xx, shutH = -0.2 + 0.36 * arc;
+        float shut = mix(shutB, shutS, clamp(hurt / max(cl, 1e-3), 0.0, 1.0));
+        float top = mix(topO, shut, cl), bot = mix(botO, shut - 0.002, cl);
+        bot = mix(bot, max(shutH, bot), hap); top = mix(top, max(top * 0.7 + shutH * 0.3, bot + 0.02), hap);
+        float lensSD = max(max(q.y - topO, botO - q.y), abs(q.x) - 0.9);
+        float openA = cov(lensSD, pw);
         float inside = cov(max(max(q.y - top, bot - q.y), abs(q.x) - 0.9), pw);
-        // sclera with the upper lid's soft shadow
+        // sclera: a ball (darker toward the corners), the upper lid's soft shadow band, cool lower half
         float lidSh = smoothstep(top - 0.36, top - 0.02, q.y);
-        vec3 col = vec3(0.98, 0.97, 1.0) * mix(1.0, 0.6, lidSh);
+        vec3 col = vec3(0.98, 0.97, 1.0) * mix(1.0, 0.58, lidSh) * (0.8 + 0.2 * n.z);
         col = mix(col, vec3(0.84, 0.86, 0.98), smoothstep(-0.2, -0.75, q.y) * 0.35);
-        // iris: dark top, bright lower half, glowing crescent, fibres, limbal ring, big pupil
-        vec2 ic = vec2(0.03, -0.05);
-        vec2 d = (q - ic) / vec2(1.0, 1.1);
+        // iris on a plane behind the cornea, rotated by the gaze; never mirrored between the eyes
+        vec2 ip = eyeIris(n, uDepth) - uGaze;
+        vec2 d = (ip - vec2(0.0, -0.05)) / vec2(1.0, 1.1);
         float r = length(d), t = r / IR, ang = atan(d.y, d.x);
-        vec3 ir = mix(uIris2 * 1.3, uIris * 0.8, smoothstep(-0.6, 0.5, d.y / IR));
-        ir *= 0.84 + 0.16 * sin(ang * 26.0 + t * 7.0) * smoothstep(0.3, 0.75, t) * smoothstep(0.35, 0.15, pw);
+        float aaI = smoothstep(0.35, 0.15, pw);
+        vec3 ir = mix(uIris2 * 1.3, uIris * 0.78, smoothstep(-0.6, 0.5, d.y / IR));
+        ir *= 1.0 + (0.16 * sin(ang * 26.0 + t * 7.0) + 0.07 * sin(ang * 59.0 - t * 4.0)) * smoothstep(0.3, 0.75, t) * aaI;
         ir += uIris2 * 1.1 * smoothstep(0.5, 0.86, t) * smoothstep(0.05, -0.65, d.y / IR) * (1.0 - smoothstep(0.9, 1.0, t));
-        ir = mix(ir, uIris * 0.22, smoothstep(0.82, 0.99, t));
-        float pr = uSlit > 0.5 ? length(vec2(d.x / (0.17 * IR), d.y / (0.8 * IR))) : r / (0.44 * IR);
+        ir += uIris2 * 0.3 * smoothstep(0.5, 0.56, t) * (1.0 - smoothstep(0.56, 0.7, t)) * aaI;
+        ir = mix(ir, uIris * 0.2, smoothstep(0.8, 0.99, t));
+        float pr = uSlit > 0.5 ? length(vec2(d.x / (0.17 * IR * uPupil), d.y / (0.8 * IR))) : r / (0.44 * IR * uPupil);
         ir = mix(ir, vec3(0.025, 0.014, 0.04), smoothstep(1.06, 0.92, pr));
-        ir *= mix(1.0, 0.45, lidSh) * (1.0 + uGlow);
+        ir *= mix(1.0, 0.42, lidSh) * (1.0 + uGlow);
         col = mix(col, ir, cov(r - IR, pw));
-        // catch-lights share one light direction on both eyes
-        vec2 pc = p - vec2(0.0, ic.y);
-        float hs = IR / 0.6;
-        col = mix(col, vec3(1.5), cov(length((pc - vec2(0.2, 0.21) * hs) / vec2(1.0, 1.2)) - 0.14 * hs, pw) * (1.0 - uBlink));
-        col = mix(col, vec3(1.2), cov(length(pc - vec2(-0.17, -0.25) * hs) - 0.065 * hs, pw) * 0.9);
-        col = mix(col, vec3(1.1), cov(length(pc - vec2(0.3, -0.12) * hs) - 0.035 * hs, pw) * 0.7);
+        // wet cornea: sky sheen at grazing angles + catch-lights (key upper-left, small bounce lower-right)
+        vec3 ct = eyeCatch(n.xy, vec2(0.0, -0.05) + uGaze, IR, pw);
+        col += vec3(0.5, 0.58, 0.72) * ct.z * 0.3 * (1.0 - lidSh * 0.6);
+        col = mix(col, vec3(1.55), ct.x * (1.0 - cl) * (1.0 - hap * 0.4));
+        col = mix(col, vec3(1.2), ct.y * 0.9 * (1.0 - cl));
+        // lids: skin over the eyeball wherever the lids have closed over the open lens
+        vec3 skin = uSkin * (0.78 + 0.22 * n.z) * (0.88 + 0.14 * n.y);
+        skin *= 1.0 - 0.3 * smoothstep(0.12, 0.0, abs(q.y - top)) * (1.0 - inside);
+        col = mix(skin, col, inside);
         // lash: thick upper line growing toward the outer corner (never thinner than ~1px), wing flick, thin lower lash
-        float lw = max(mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * uBlink), pw * 0.55);
+        float lw = max(mix(0.045, 0.1, smoothstep(-0.8, 0.9, q.x)) * (1.0 - 0.25 * cl), pw * 0.55);
         float upper = cov(abs(q.y - top - lw * 0.3) - lw, pw) * smoothstep(0.99, 0.93, abs(q.x));
         vec2 w = q - vec2(0.9, top + 0.05); w = vec2(w.x * 0.8 + w.y * 0.6, -w.x * 0.6 + w.y * 0.8);
         float wing = cov((length(w / vec2(0.15, 0.045)) - 0.85) * 0.045, pw) * uShape.z;
-        float lower = cov(abs(q.y - bot) - max(0.03, pw * 0.4), pw) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - uBlink);
+        float lower = cov(abs(q.y - bot) - max(0.03, pw * 0.4), pw) * smoothstep(-0.25, 0.35, q.x) * smoothstep(0.92, 0.8, q.x) * 0.8 * (1.0 - cl);
+        lower = max(lower, cov(abs(q.y - bot) - max(0.035, pw * 0.5), pw) * hap * smoothstep(0.92, 0.6, abs(q.x)));
         float lash = max(max(upper, wing), lower);
         col = mix(col, uLash, lash);
-        float a = max(inside, lash);
+        float a = max(openA, lash);
         if (a < 0.02) discard;
         col = mix(col, vec3(2.2), uFlash);
         gl_FragColor = vec4(col, a);
@@ -4031,7 +4416,8 @@ function critterEye(o = {}) {
   });
   Object.assign(m.uniforms, U);
   m.alphaToCoverage = true;
-  m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash;
+  m.userData.blink = U.uBlink; m.userData.uFlash = U.uFlash; m.userData.gaze = U.uGaze; m.userData.expr = U.uExpr; m.userData.skin = U.uSkin;
+  if (o.gaze !== false) m.onBeforeRender = (rr, sc, cam, geo, obj) => eyeGaze(obj, cam, U.uGaze, U.uSide.value, o.gazeLim || {});
   return m;
 }
 
@@ -4129,7 +4515,7 @@ function critterSkin(mat, F = {}) {
       .replace('#include <alphamap_fragment>', CRITTER_FACE + '\n#include <alphamap_fragment>')
       .replace('#include <lights_physical_fragment>', 'totalEmissiveRadiance += gDecalE;\n#include <lights_physical_fragment>');
   };
-  mat.customProgramCacheKey = () => 'critter-skin-v1';
+  mat.customProgramCacheKey = () => 'critter-skin-v2';
   return mat;
 }
 
@@ -4167,30 +4553,79 @@ const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 const _critterDesigns = {};
 function critter(key, fn) { if (!_critterDesigns[key]) _critterDesigns[key] = fn(); return _critterDesigns[key]; }
 
+// ---------------------------------------------------------------- eye sockets
+// Exact replay of the sculpt's field (same smooth union / subtraction order as sculptMesh), to find where the face
+// surface really is along each eye's axis.
+function sculptField(prims, x, y, z) {
+  let g = 1e3;
+  for (const P of prims) {
+    const d = SDF.dist(P, x, y, z), k = P.k;
+    if (P.sub) { const h = Math.max(k - Math.abs(-d - g), 0) / k; g = Math.max(g, -d) + h * h * k * 0.25; }
+    else if (d < g + k) { const h = Math.max(k - Math.abs(g - d), 0) / k; g = Math.min(g, d) - h * h * k * 0.25; }
+  }
+  return g;
+}
+// The eyeball should sit IN the head: carve a shallow almond dish behind each eye (the baked AO then darkens its rim)
+// and add a soft upper-lid fold above it, coloured like the skin around the eye. Returns the extra primitives and
+// the skin colour per eye (used for the lid that closes over the eyeball when blinking).
+function eyeSockets(D, eo = {}) {
+  const k = D.socket ?? 1, extra = [], skins = [];
+  const add = D.prims.filter((P) => !P.sub);
+  const E3 = new THREE.Euler(), vz = new THREE.Vector3(), vy = new THREE.Vector3();
+  for (const e of D.eyes || []) {
+    const r = e.r;
+    E3.set(e.pitch || 0, e.yaw || 0, e.roll || 0); vz.set(0, 0, 1).applyEuler(E3); vy.set(0, 1, 0).applyEuler(E3);
+    const P = e.p, at = (t) => [P[0] + vz.x * t, P[1] + vz.y * t, P[2] + vz.z * t];
+    // nearest additive primitive at the eye → skin colour
+    let best = null, bd = 1e9;
+    for (const Q of add) { const d = SDF.dist(Q, P[0], P[1], P[2]); if (d < bd) { bd = d; best = Q; } }
+    const col = (best && best.col) || [1, 1, 1];
+    skins.push(col);
+    if (!(k > 0)) continue;
+    // surface along the eye axis
+    let ts = null;
+    for (let t = -1.6 * r; t <= 1.6 * r; t += 0.05 * r) { const p = at(t); if (sculptField(D.prims, p[0], p[1], p[2]) > 0) { ts = t; break; } }
+    if (ts === null) continue;
+    const dep = 0.48 * r * k, c = at(ts - dep), H = (eo.open ?? 0.8);
+    extra.push(SDF.el(c, [1.12 * r, 0.62 * r + 0.3 * r * H, 0.82 * r], { k: 0.32 * r, sub: true }));
+    const lid = at(ts - 0.14 * r);
+    const up = (1.25 * H + 0.2) * r;
+    extra.push(SDF.el([lid[0] + vy.x * up, lid[1] + vy.y * up, lid[2] + vy.z * up], [0.95 * r, 0.24 * r, 0.34 * r], { k: 0.2 * r, s0: 1, s1: 1, col, jaw: 0 }));
+  }
+  return { extra, skins };
+}
+
+const linToHex = (c) => { const f = (v) => { v = Math.max(0, Math.min(1, v)); const s = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return Math.round(s * 255); }; return (f(c[0]) << 16) | (f(c[1]) << 8) | f(c[2]); };
+
 function buildCritter(r, cfg) {
   const D = cfg.design;
   r.olw = 0; r.hopAmp = cfg.hop ?? 0.6;
   if (cfg.float) { r.float = cfg.float; r.floatAmp = cfg.floatAmp ?? 0.1; }
   const B = grp(r.body); B.scale.setScalar(cfg.scale ?? 1);
-  const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D);
+  B.userData.rig = r;
+  const eo = cfg.eye || {};
+  if (!D._sock) D._sock = eyeSockets(D, eo);
+  const DD = Object.assign({ jawHinge: [0, 0, 0], tailStart: 0.32, neckStart: 0.9 }, D, { prims: D.prims.concat(D._sock.extra) });
   if (D.earHinge) DD.jawHinge = D.earHinge;
   const geo = dragonGeometry('c_' + cfg.key, DD, 0.021, 0.03);
   if (D.paint) paintCritter(geo, D.paint);
-  const mat = dragonMaterial(Object.assign({ scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.2, coatRough: 0.4, sheen: 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.1, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.12, fuzz: 0.12, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
+  const mat = dragonMaterial(Object.assign({ kind: 'vinyl', scaleFreq: 0, rough: 0.55, metal: 0, coat: 0.2, coatRough: 0.4, sheen: 0.3, sheenCol: 0xfff0e0, rim: 0xffffff, rimAmt: 0.06, waveAmp: 0.1, waveFreq: 3.2, waveSpeed: 3.4, soft: 0.03, fuzz: 0.04, hipY: D.hipY ?? 0.5, env: 0.32, sat: 1.12, glowAmt: 1.6 }, cfg.mat), DD);
   critterSkin(mat, D.face);
   const U = mat.userData.U; U.uSway.value = cfg.sway ?? 0.3;
   const body = new THREE.Mesh(geo, mat); body.castShadow = true; body.receiveShadow = true; B.add(body);
   if (cfg.outline !== false) sculptOutline(body, cfg.olw ?? 0.016, cfg.olc ?? 0x24161c);
   const follow = [];
   const glue = (obj, s) => follow.push({ obj, base: obj.position.clone(), s });
-  const eo = cfg.eye || {};
-  for (const e of D.eyes || []) {
+  const eyeU = [];
+  (D.eyes || []).forEach((e, i) => {
     const g = grp(B, e.p, [e.pitch || 0, e.yaw || 0, e.roll || 0]);
-    const em = critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side: e.p[0] < 0 ? -1 : 1 }, eo));
+    const sk = D._sock.skins[i] || [1, 1, 1];
+    const em = critterEye(Object.assign({ iris: cfg.iris ?? 0x2a1a4a, iris2: cfg.iris2 ?? 0x8a6aff, lash: cfg.lash ?? 0x1c1018, side: e.p[0] < 0 ? -1 : 1, skin: linToHex(sk) }, eo));
     part(GEO.sphere, em, g, [0, 0, 0], [e.r * 1.12, e.r * 1.25, e.r * (eo.depth ?? 0.5)]).userData.noOl = true;
     (r.blinkU = r.blinkU || []).push(em.userData.blink);
+    eyeU.push(em.userData.expr);
     glue(g, 1);
-  }
+  });
   // ear flicks: ear primitives carry the (otherwise unused) jaw weight and rotate about the ear hinge
   if (D.earHinge) {
     const amp = D.earAmp ?? -0.22;
@@ -4201,9 +4636,18 @@ function buildCritter(r, cfg) {
       if (ph >= 0) { ph += dt * 3.2; U.uJaw.value = ph < 1 ? Math.sin(ph * Math.PI) * amp * (1 + 0.35 * Math.sin(ph * Math.PI * 4)) : 0; if (ph >= 1) ph = -1; }
     });
   }
-  r.fns.push((t) => {
+  // expressions: a hit (flash) squeezes the eyes shut for a moment; r.expr = 'happy' | 'hurt' holds one; and an
+  // occasional double blink so the rhythm never looks mechanical
+  let hurtT = 0, prevBt = 0;
+  r.fns.push((t, dt) => {
     U.uWalk.value = r.walkPhase; U.uStride.value = (D.stride ?? 0.12) * r.moving;
     for (const f of follow) f.obj.position.copy(f.base).add(dragonOffset(U, f.s, Shared.time.value).multiplyScalar(1));
+    if (U.uFlash.value > 0.15) hurtT = 0.5;
+    hurtT = Math.max(0, hurtT - dt);
+    const hap = r.expr === 'happy' ? 1 : 0, hurt = hurtT > 0 || r.expr === 'hurt' ? 1 : 0;
+    for (const x of eyeU) { x.value.x = damp(x.value.x, hap, 9, dt); x.value.y = damp(x.value.y, hurt, 22, dt); }
+    if (prevBt > 0 && r.bt <= 0 && Math.random() < 0.22) r.nb = 0.09;
+    prevBt = r.bt;
   });
   r.glue = glue; r.B = B; r.critter = { U, mat };
   r.size = (D.height ?? 1.3) * (cfg.scale ?? 1);
@@ -4287,7 +4731,7 @@ function foxModel(r, st) {
   const D = dFox(st);
   const B = buildCritter(r, { key: 'fox' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: st === 2 ? 0x6a1a06 : 0x4a1808, iris2: st === 2 ? 0xffb02e : 0xffa040,
     eye: st === 2 ? { open: 0.66, tilt: 0.14, wing: 0.9, irisR: 0.58 } : { open: 0.82, tilt: 0.05, wing: 0.45, irisR: 0.62 },
-    mat: { sheenCol: 0xffb070, glow: 0xff9a3a, glowAmt: 2.2 } });
+    mat: { kind: 'fur', sheenCol: 0xffb070, glow: 0xff9a3a, glowAmt: 2.2 } });
   for (const tp of D.tails) { const f = flame(r, B, tp, st === 2 ? 0.66 : 0.8); r.glue(f, 0); }
   if (st === 2) {
     for (const sx of [-1, 1]) { const f = flame(r, B, add3(D.hc, [sx * 0.29, 0.58 * D.eh, -0.06]), 0.32); r.glue(f, 1); }
@@ -4353,7 +4797,7 @@ function sealModel(r, st) {
   const D = dSeal(st);
   const B = buildCritter(r, { key: 'seal' + st, design: D, scale: st === 2 ? 1.36 : 1, hop: 0.5, iris: 0x072650, iris2: 0x46c6ff, lash: 0x0c1a30,
     eye: st === 2 ? { open: 0.74, tilt: 0.1, wing: 0.6, irisR: 0.6 } : { open: 0.86, tilt: 0.02, wing: 0.3, irisR: 0.64 },
-    mat: { coat: 1.0, coatRough: 0.08, sheen: 0.15, rough: 0.32, env: 0.45, fuzz: 0.04, rim: 0xbff4ff, rimAmt: 0.25, glow: 0x8ff0ff, glowAmt: 1.6 } });
+    mat: { kind: 'skin', coat: 1.0, coatRough: 0.08, sheen: 0.15, rough: 0.32, env: 0.45, fuzz: 0.02, rim: 0xbff4ff, rimAmt: 0.12, glow: 0x8ff0ff, glowAmt: 1.6, sssCol: [0.55, 0.9, 1.1], transCol: [0.75, 1.1, 1.25], shadeCol: [0.86, 0.96, 1.24], cavCol: [0.42, 0.5, 0.66] } });
   const orb = grp(B, add3(D.hc, [0, 0.5, -0.04]));
   part(GEO.sphere, toonMat({ color: 0xa6f0ff, transparent: true, opacity: 0.45 }), orb, [0, 0, 0], 0.15);
   part(GEO.sphere, E(0x9cf0ff, 2.2), orb, [0, 0, 0], 0.06);
@@ -4446,7 +4890,7 @@ function fawnModel(r, st) {
   const D = dFawn(st);
   const B = buildCritter(r, { key: 'fawn' + st, design: D, scale: st === 2 ? 1.25 : 1, iris: 0x123a10, iris2: 0x7ae06a, lash: 0x24140c,
     eye: { open: st === 2 ? 0.72 : 0.84, tilt: st === 2 ? 0.1 : 0.04, wing: 1.0, irisR: 0.62 },
-    mat: { sheenCol: 0xffe6c0, glow: 0xb8ff9a, glowAmt: 1.8 } });
+    mat: { kind: 'fur', fur: 0.55, sheenCol: 0xffe6c0, glow: 0xb8ff9a, glowAmt: 1.8 } });
   const sp = grp(B, add3(D.hc, [0, 0.22, 0]));
   part(GEO.cyl, M(0x4fbf5f), sp, [0, 0.08, 0], [0.02, 0.18, 0.02]);
   for (const s of [-1, 1]) part(GEO.sphere, M(0x6ee06a), sp, [s * 0.08, 0.18, 0], [0.1, 0.03, 0.06], [0, 0, s * 0.5]);
@@ -4491,7 +4935,7 @@ MODELS.jjirit = (r) => {
   });
   const B = buildCritter(r, { key: 'jelly', design: D, float: 1.0, floatAmp: 0.12, iris: 0x3a2400, iris2: 0xffd84a, lash: 0x3a2000,
     eye: { open: 0.84, wing: 0.3, irisR: 0.64 },
-    mat: { rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.05, fuzz: 0.0, rimAmt: 0.28, rim: 0xfff2a0, env: 0.35, glow: 0xfff3a0, glowAmt: 2.4 } });
+    mat: { kind: 'jelly', rough: 0.14, coat: 1.0, coatRough: 0.04, sheen: 0, soft: 0.03, fuzz: 0.0, rimAmt: 0.22, rim: 0xfff2a0, env: 0.4, glow: 0xfff3a0, glowAmt: 2.4, innerCol: 0xffd870 } });
   const core = part(GEO.sphere, E(0xfff6c8, 3.0), B, [0, 0.12, -0.05], 0.11);
   r.fns.push((t) => core.scale.setScalar(0.11 * (1 + Math.sin(t * 9) * 0.18 * Math.max(0, Math.sin(t * 1.3)))));
   for (let i = 0; i < 7; i++) {
@@ -4551,7 +4995,7 @@ MODELS.bawimong = (r) => {
   });
   const B = buildCritter(r, { key: 'rock', design: D, hop: 0.35, iris: 0x1a1030, iris2: 0xa98bff, lash: 0x14101c, sway: 0.15,
     eye: { open: 0.66, tilt: -0.04, wing: 0.15, irisR: 0.62 },
-    mat: { rough: 0.92, sheen: 0.05, coat: 0, soft: 0.1, fuzz: 0.02, env: 0.2, rimAmt: 0.05, glow: 0xa98bff, glowAmt: 2.0 } });
+    mat: { kind: 'rock', rough: 0.92, sheen: 0.05, coat: 0, soft: 0.02, fuzz: 0.0, env: 0.24, rimAmt: 0.03, glow: 0xa98bff, glowAmt: 2.0 } });
   const cm = E(0x9b7bff, 1.9), cm2 = E(0xc8b0ff, 2.2);
   for (const [x, y, z, w, h, rx, rz, b] of [[0, 1.02, -0.22, 0.12, 0.38, -0.35, 0, 0], [-0.22, 0.96, -0.3, 0.09, 0.27, -0.55, 0.5, 1], [0.24, 0.95, -0.28, 0.1, 0.25, -0.5, -0.55, 0], [0.06, 0.78, -0.52, 0.08, 0.22, -1.2, 0, 1], [-0.1, 1.04, -0.08, 0.06, 0.16, -0.2, 0.35, 1], [0.5, 0.95, -0.12, 0.07, 0.18, -0.3, -0.8, 0], [-0.48, 0.94, -0.1, 0.065, 0.16, -0.3, 0.8, 1]]) part(GEO.cone6, b ? cm2 : cm, B, [x, y, z], [w, h, w], [rx, 0, rz]);
   r.size = 1.3;
@@ -4585,7 +5029,7 @@ MODELS.bandiru = (r) => {
   });
   const B = buildCritter(r, { key: 'firefly', design: D, float: 0.9, floatAmp: 0.1, iris: 0x2a1600, iris2: 0xffb84a, lash: 0x2a1808,
     eye: { open: 0.86, wing: 0.5, irisR: 0.64 },
-    mat: { sheenCol: 0xfff2c0, sheen: 0.45, fuzz: 0.3, soft: 0.2, glow: 0xfff0a0, glowAmt: 3.2 } });
+    mat: { kind: 'plush', fur: 0.7, sheenCol: 0xfff2c0, sheen: 0.45, fuzz: 0.08, soft: 0.06, glow: 0xfff0a0, glowAmt: 3.2 } });
   for (const s of [-1, 1]) { const an = grp(B, [s * 0.1, 0.25, 0.1], [0.3, 0, -s * 0.35]); part(GEO.cyl, M(0x3a2c22), an, [0, 0.13, 0], [0.014, 0.26, 0.014]); part(GEO.sphere, E(0xfff3a0, 3), an, [0, 0.28, 0], 0.045); wig(r, an, 'z', 0.15, 3, s); }
   const wingM = toonMat({ color: 0xeaf6ff, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false });
   const veinM = E(0xfff6d8, 1.1, { transparent: true, opacity: 0.6, depthWrite: false });
@@ -4652,7 +5096,7 @@ MODELS.geurim = (r) => {
   });
   const B = buildCritter(r, { key: 'cat', design: D, iris: 0xd88a10, iris2: 0xfff07a, lash: 0x0c0614,
     eye: { open: 0.62, tilt: 0.16, wing: 0.7, irisR: 0.95, glow: 1.4, slit: 1 },
-    mat: { sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.3, rim: 0xb48cff, rimAmt: 0.35, glow: 0xd8c0ff, glowAmt: 2.4 } });
+    mat: { kind: 'fur', rimL: 0.7, sheenCol: 0xb48cff, sheen: 0.6, fuzz: 0.1, rim: 0xb48cff, rimAmt: 0.24, glow: 0xd8c0ff, glowAmt: 2.4, shadeCol: [0.95, 0.85, 1.25] } });
   const smoke = grp(B, D.tip);
   for (let k = 0; k < 4; k++) part(GEO.sphere, E([0x7a4bd6, 0xa77bff, 0x5b3f8f, 0xc7a6ff][k], 1.2 + k * 0.2, { transparent: true, opacity: 0.55 - k * 0.1, depthWrite: false }), smoke, [Math.sin(k) * 0.05, k * 0.08, -k * 0.03], 0.07 - k * 0.012);
   wig(r, smoke, 'z', 0.3, 2); r.glue(smoke, 0);
@@ -4695,7 +5139,7 @@ MODELS.somgu = (r) => {
   });
   const B = buildCritter(r, { key: 'lamb', design: D, iris: 0x2a1c56, iris2: 0xa08cff, lash: 0x2a1840,
     eye: { open: 0.66, tilt: -0.04, wing: 0.25, irisR: 0.63 },
-    mat: { rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.28, soft: 0.12, env: 0.22 } });
+    mat: { kind: 'wool', rough: 0.85, sheen: 0.45, sheenCol: 0xfff4ff, coat: 0, fuzz: 0.08, soft: 0.04, env: 0.26 } });
   const horn = new THREE.TorusGeometry(0.1, 0.035, 8, 18, Math.PI * 1.35);
   for (const s of [-1, 1]) { const h = part(horn, M(0xe6c27a), B, add3(D.hc, [s * 0.2, 0.13, -0.05]), 1, [0, s * 1.3, s > 0 ? 0.5 : 2.6]); r.glue(h, 1); }
   r.size = 1.35;
@@ -4732,7 +5176,7 @@ MODELS.beoseot = (r) => {
   });
   buildCritter(r, { key: 'shroom', design: D, iris: 0x3a1010, iris2: 0xff8a6a, lash: 0x2a1008, sway: 0.2,
     eye: { open: 0.86, wing: 0.4, irisR: 0.64 },
-    mat: { rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.3, soft: 0.3 } });
+    mat: { kind: 'skin', rough: 0.5, coat: 0.5, coatRough: 0.3, sheen: 0.3, soft: 0.05 } });
   r.size = 1.2;
 };
 
@@ -4757,7 +5201,7 @@ MODELS.byeolssi = (r) => {
   });
   const B = buildCritter(r, { key: 'star', design: D, float: 1.05, floatAmp: 0.12, iris: 0x4a2600, iris2: 0xffc04a, lash: 0x3a2008,
     eye: { open: 0.84, wing: 0.5, irisR: 0.64 },
-    mat: { sheenCol: 0xfff0b0, soft: 0.3, rim: 0xffe08a, rimAmt: 0.3, glow: 0xffd070, glowAmt: 2.0 } });
+    mat: { kind: 'plush', sheenCol: 0xfff0b0, soft: 0.08, rim: 0xffe08a, rimAmt: 0.2, glow: 0xffd070, glowAmt: 2.0 } });
   const halo = part(GEO.torus, E(0xffe08a, 2.4), B, [0, 0.64, 0], 0.2, [Math.PI / 2, 0, 0]);
   const tw = [];
   for (let i = 0; i < 3; i++) tw.push(part(GEO.octa, E(0xfff4c0, 2.6), B, [Math.cos(i * 2.1) * 0.75, Math.sin(i * 2.1) * 0.75, 0.1], [0.03, 0.06, 0.03]));
@@ -6712,13 +7156,275 @@ function updateTownExtras(dt) {}
 
 // ---- 03c_nature.js ----
 // ============================================================================
-//  nature kit shared by the island and the battle arenas: sculpted mossy rocks,
-//  petal flowers, clumped grass fields, and an anti-aliased foliage alpha test.
+//  nature kit shared by the island and the battle arenas.
+//  Authored assets (tools/tex/vegetation_*.py, tools/blender/vegetation_*.py): Blender trees with branching trunks,
+//  bark PBR and leaf-cluster cards (2 LODs), bushes, ferns, granite boulders and pebbles, and a ground-cover atlas
+//  (lawn, wild grass, tussock, reeds, clover, plantain, moss, leaf litter, four flowering plants).
+//  Every builder keeps the older procedural path as a fallback (file://, missing files).
 // ============================================================================
+registerAssets({
+  textures: Object.assign({},
+    ...['foliage', 'cover'].flatMap((n) => ['albedo', 'alpha', 'normal'].map((s) => ({ [`${n}_${s}`]: { file: `tex/vegetation/${n}_${s}.jpg`, lo: `tex/vegetation/${n}_${s}_512.jpg`, srgb: s === 'albedo' } }))),
+    ...['bark_oak', 'bark_birch', 'bark_pine', 'rock_granite'].flatMap((n) => ['albedo', 'normal', 'orm'].map((s) => ({ [`${n}_${s}`]: { file: `tex/vegetation/${n}_${s}.jpg`, lo: `tex/vegetation/${n}_${s}_512.jpg`, srgb: s === 'albedo' } })))),
+  models: { veg_trees: 'models/vegetation/trees.glb', veg_rocks: 'models/vegetation/rocks.glb' },
+});
+
+const Veg = {
+  geo: null, mats: {}, forests: [], cover: [], pendingCover: null, trees: [], rocks: [], grid: null, t: 0,
+  lodDist: 46, coverDist: 60,
+  U: { uPlayer: { value: new THREE.Vector3(1e5, 0, 1e5) }, uFade: { value: new THREE.Vector2(44, 60) } },
+};
+
+// glTF meshes -> plain Float32 geometries (quantized normals / colours expanded), COLOR_0 renamed aVeg
+// (R ambient occlusion, G sway weight, B phase, A leaf flutter), uv flipped to match flipY-loaded atlases.
+function vegGeos() {
+  if (Veg.geo) return Veg.geo;
+  const G = {};
+  for (const key of ['veg_trees', 'veg_rocks']) {
+    const gl = assetGltf(key); if (!gl) continue;
+    gl.scene.updateMatrixWorld(true);
+    gl.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const src = o.geometry, g = new THREE.BufferGeometry();
+      for (const name in src.attributes) {
+        const a = src.attributes[name], n = a.count, s = a.itemSize, arr = new Float32Array(n * s);
+        for (let i = 0; i < n; i++) {
+          arr[i * s] = a.getX(i); if (s > 1) arr[i * s + 1] = a.getY(i); if (s > 2) arr[i * s + 2] = a.getZ(i); if (s > 3) arr[i * s + 3] = a.getW(i);
+        }
+        if (name === 'uv') for (let i = 0; i < n; i++) arr[i * 2 + 1] = 1 - arr[i * 2 + 1];
+        g.setAttribute(name === 'color' ? 'aVeg' : name, new THREE.BufferAttribute(arr, s));
+      }
+      if (!g.attributes.aVeg) { const v = new Float32Array(g.attributes.position.count * 4); for (let i = 0; i < v.length; i += 4) { v[i] = 1; v[i + 2] = 0.5; } g.setAttribute('aVeg', new THREE.BufferAttribute(v, 4)); }
+      if (src.index) g.setIndex(new THREE.BufferAttribute(src.index.array.slice(), 1));
+      g.applyMatrix4(o.matrixWorld);
+      g.computeBoundingBox(); g.computeBoundingSphere();
+      G[o.name] = g;
+    });
+  }
+  return (Veg.geo = G);
+}
+const vegHasTrees = () => !!(vegGeos().oak_a_wood && assetTex('foliage_albedo') && assetTex('foliage_alpha'));
+const vegHasCover = () => !!(assetTex('cover_albedo') && assetTex('cover_alpha'));
+const vegHasRocks = () => !!(vegGeos().rock_0 && pbrSet('rock_granite'));
+
+// ---------------- shader patches: wind / AO / tint / translucency for trees, cover cards and rocks
+//  kind: 'leaf' | 'wood' | 'depth' (leaf shadow caster) | 'cover' | 'rock'
+function vegPatch(mat, kind, o = {}) {
+  const U = { uWind: { value: o.wind ?? 1 }, uTrans: { value: o.trans ?? 1 }, uMoss: { value: o.moss ?? 0.8 } };
+  mat.userData.vegU = U;
+  const prev = mat.onBeforeCompile, prevKey = mat.customProgramCacheKey();
+  const tree = kind === 'leaf' || kind === 'wood' || kind === 'depth';
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    Object.assign(sh.uniforms, U, { uTime: Shared.time, uPlayer: Veg.U.uPlayer, uFade: Veg.U.uFade });
+    let v = sh.vertexShader, f = sh.fragmentShader;
+    v = `attribute vec4 aVeg; varying float vAO; varying float vVegH; uniform float uTime, uWind; uniform vec3 uPlayer; uniform vec2 uFade;
+      #ifdef VEG_TINT
+        attribute vec4 aTint; varying vec4 vTint;
+      #endif
+      #ifdef VEG_RECT
+        attribute vec4 aRect;
+      #endif
+      ` + v;
+    if (tree) {
+      v = v.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vAO = aVeg.r; vVegH = aVeg.g;
+        #ifdef VEG_TINT
+          vTint = aTint;
+        #endif
+        #ifdef USE_INSTANCING
+          vec3 vegI = instanceMatrix[3].xyz;
+        #else
+          vec3 vegI = vec3(0.0);
+        #endif
+        float vegPh = aVeg.b * 6.2831 + vegI.x * 0.13 + vegI.z * 0.17;
+        float vegG = 0.55 + 0.45 * sin(uTime * 0.37 + vegI.x * 0.021 + vegI.z * 0.017);
+        float vegW = aVeg.g * aVeg.g;
+        vec2 vegS = vec2(sin(uTime * 0.83 + vegI.x * 0.05) + 0.35 * sin(uTime * 1.9 + vegPh * 0.3), cos(uTime * 0.71 + vegI.z * 0.05)) * vegW * 0.12 * uWind * vegG;
+        transformed.xz += vegS; transformed.y -= dot(vegS, vegS) * 0.6;
+        transformed += vec3(sin(uTime * 2.3 + vegPh), sin(uTime * 1.9 + vegPh * 1.3) * 0.6, cos(uTime * 2.1 + vegPh)) * aVeg.g * 0.02 * uWind * vegG;
+        #ifdef VEG_FLUTTER
+          transformed += objectNormal * sin(uTime * 7.0 + vegPh * 3.0 + position.y * 3.0) * aVeg.a * 0.035 * uWind * (0.5 + vegG);
+        #endif`);
+    }
+    if (kind === 'cover') {
+      v = v.replace('#include <uv_vertex>', `#include <uv_vertex>
+        #ifdef VEG_RECT
+          #ifdef USE_MAP
+            vMapUv = aRect.xy + vMapUv * aRect.zw;
+          #endif
+          #ifdef USE_ALPHAMAP
+            vAlphaMapUv = aRect.xy + vAlphaMapUv * aRect.zw;
+          #endif
+          #ifdef USE_NORMALMAP
+            vNormalMapUv = aRect.xy + vNormalMapUv * aRect.zw;
+          #endif
+        #endif`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>
+          vAO = aVeg.r; vVegH = aVeg.g;
+          vec3 vegB = (modelMatrix * vec4(instanceMatrix[3].xyz, 1.0)).xyz;
+          float vegF = 1.0 - smoothstep(uFade.x, uFade.y, distance(cameraPosition.xz, vegB.xz));
+          transformed.y *= vegF; transformed.xz *= mix(0.35, 1.0, vegF);
+          #ifdef VEG_TINT
+            vTint = aTint;
+          #endif`)
+        .replace('#include <project_vertex>', `
+          vec4 vegWp = modelMatrix * instanceMatrix * vec4(transformed, 1.0);
+          {
+            float k = aVeg.g * aTint.a, hgt = length(instanceMatrix[1].xyz);
+            float gust = sin(uTime * 0.6 + vegB.x * 0.05 + vegB.z * 0.04) * 0.5 + 0.5;
+            vec2 sway = vec2(sin(uTime * 1.6 + vegB.x * 0.3 + vegB.z * 0.22) * 0.13 + sin(uTime * 3.1 + vegB.x * 1.1 + aVeg.b * 6.0) * 0.04,
+                             cos(uTime * 1.3 + vegB.z * 0.27) * 0.06) * (0.55 + gust * 0.9);
+            vegWp.xz += sway * k * hgt;
+            vec2 d = vegB.xz - uPlayer.xz; float dist = length(d);
+            float push = (1.0 - smoothstep(0.0, 1.3, dist)) * k;
+            vegWp.xz += normalize(d + 1e-4) * push * 0.55 * hgt; vegWp.y -= push * 0.3 * hgt;
+          }
+          vec4 mvPosition = viewMatrix * vegWp;
+          gl_Position = projectionMatrix * mvPosition;`);
+    }
+    if (kind === 'rock') {
+      v = 'varying float vRockY;\n' + v.replace('tpW = (modelMatrix * vec4(transformed, 1.0)).xyz; tpNw = normalize(mat3(modelMatrix) * objectNormal);', `
+        #ifdef USE_INSTANCING
+          tpW = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz; tpNw = normalize(mat3(modelMatrix) * mat3(instanceMatrix) * objectNormal);
+        #else
+          tpW = (modelMatrix * vec4(transformed, 1.0)).xyz; tpNw = normalize(mat3(modelMatrix) * objectNormal);
+        #endif`).replace('#include <begin_vertex>', '#include <begin_vertex>\n vAO = aVeg.r; vVegH = aVeg.g; vRockY = position.y;');
+    }
+    // ---- fragment
+    f = `varying float vAO; varying float vVegH; uniform float uTrans, uMoss;
+      #ifdef VEG_TINT
+        varying vec4 vTint;
+      #endif
+      ` + (kind === 'rock' ? 'varying float vRockY;\n' : '') + f;
+    if (kind === 'leaf' || kind === 'cover') {
+      f = f.replace('#include <normal_fragment_begin>', THREE.ShaderChunk.normal_fragment_begin.replace('normal *= faceDirection;', ''))
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          #ifdef VEG_TINT
+            ${kind === 'leaf' ? '{ float l = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(diffuseColor.rgb, l * vTint.rgb * 2.4, vTint.a); }' : 'diffuseColor.rgb *= vTint.rgb;'}
+          #endif
+          diffuseColor.rgb *= ${kind === 'leaf' ? '0.28 + 0.72 * vAO' : '0.66 + 0.34 * vAO'};`)
+        .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+          #if NUM_DIR_LIGHTS > 0
+          {
+            vec3 vegL = directionalLights[0].direction, vegV = normalize(vViewPosition);
+            float back = pow(max(dot(-vegV, vegL), 0.0), 3.0), thru = max(dot(-normal, vegL), 0.0);
+            totalEmissiveRadiance += diffuseColor.rgb * directionalLights[0].color * (back * 0.5 + thru * 0.2) * uTrans * (0.25 + 0.75 * vAO);
+          }
+          #endif`);
+    }
+    if (kind === 'wood' || kind === 'rock') {
+      f = f.replace('#include <aomap_fragment>', `#include <aomap_fragment>
+        reflectedLight.indirectDiffuse *= vAO; reflectedLight.indirectSpecular *= vAO; reflectedLight.directDiffuse *= mix(1.0, vAO, ${kind === 'wood' ? '0.55' : '0.35'});`);
+    }
+    if (kind === 'rock') {
+      f = f.replace('#include <color_fragment>', `{
+          float up = normalize(tpNw).y;
+          float moss = smoothstep(0.45, 0.82, up * 0.85 + (0.55 - tpOrm.b) * 0.55 + (vAO - 0.75) * 0.5) * uMoss;
+          vec3 mossC = mix(vec3(0.075, 0.12, 0.03), vec3(0.2, 0.26, 0.07), tpAl.g * 1.4);
+          diffuseColor.rgb = mix(diffuseColor.rgb, mossC, moss);
+          diffuseColor.rgb *= 0.88 + 0.3 * (vVegH - 0.5);                                   // edge wear on ridges
+          float soil = 1.0 - smoothstep(-0.2, 0.2, vRockY);                                 // soil splashed on the foot
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.5, 0.42, 0.33), soil * 0.75);
+        }
+        #include <color_fragment>`);
+    }
+    sh.vertexShader = v; sh.fragmentShader = f;
+  };
+  mat.customProgramCacheKey = () => prevKey + '|veg:' + kind;
+  mat.needsUpdate = true;
+  return mat;
+}
+
+function vegMat(key, make) { return Veg.mats[key] || (Veg.mats[key] = make()); }
+function vegLeafMat(species, o = {}) {
+  return vegMat('leaf_' + species, () => {
+    const a = assetTex('foliage_albedo'), al = assetTex('foliage_alpha'), n = assetTex('foliage_normal');
+    const m = new THREE.MeshLambertMaterial({ map: a, alphaMap: al, normalMap: Settings.high ? n : null, normalScale: new THREE.Vector2(0.55, 0.55), alphaTest: 0.45, side: THREE.DoubleSide });
+    m.defines = { VEG_TINT: 1, VEG_FLUTTER: 1 };
+    aaAlphaTest(m, (a.image && a.image.width) || 1024, 0.45);
+    return vegPatch(m, 'leaf', o);
+  });
+}
+function vegLeafDepth(species, o = {}) {
+  return vegMat('leafd_' + species, () => {
+    const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, alphaMap: assetTex('foliage_alpha'), alphaTest: 0.5 });
+    return vegPatch(m, 'depth', o);
+  });
+}
+function vegBarkMat(bark, o = {}) {
+  return vegMat('bark_' + bark, () => {
+    const set = pbrSet(bark);
+    const m = new THREE.MeshStandardMaterial({ color: o.color ?? 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.5 });
+    if (set) { m.map = set.albedo; m.normalMap = set.normal; m.normalScale = new THREE.Vector2(1.1, 1.1); m.roughnessMap = set.orm; m.aoMap = set.orm; m.aoMapIntensity = 0.9; }
+    else m.color.setHex(bark === 'bark_birch' ? 0xe6e0d4 : bark === 'bark_pine' ? 0x6a4030 : 0x5e5048);
+    return vegPatch(m, 'wood', o);
+  });
+}
+function vegCoverMat() {
+  return vegMat('cover', () => {
+    const a = assetTex('cover_albedo');
+    const m = new THREE.MeshLambertMaterial({ map: a, alphaMap: assetTex('cover_alpha'), normalMap: Settings.high ? assetTex('cover_normal') : null, normalScale: new THREE.Vector2(0.4, 0.4), alphaTest: 0.42, side: THREE.DoubleSide });
+    m.defines = { VEG_TINT: 1, VEG_RECT: 1 };
+    aaAlphaTest(m, (a.image && a.image.width) || 1024, 0.42);
+    vegPatch(m, 'cover', { trans: 0.7 });
+    m.receiveShadow = true;
+    return m;
+  });
+}
+function vegRockMat(o = {}) {
+  return vegMat('rock' + (o.key || ''), () => {
+    const m = new THREE.MeshStandardMaterial({ color: o.color ?? 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.55 });
+    triplanarPBR(m, pbrSet('rock_granite'), o.scale ?? 0.42, { normalStrength: 1.25 });
+    return vegPatch(m, 'rock', o);
+  });
+}
+
+// shallow geometry clone sharing the vertex buffers (each InstancedMesh needs its own per-instance attributes)
+function vegShare(geo) {
+  const g = new THREE.BufferGeometry();
+  for (const k in geo.attributes) g.setAttribute(k, geo.attributes[k]);
+  g.setIndex(geo.index); g.boundingBox = geo.boundingBox; g.boundingSphere = geo.boundingSphere;
+  return g;
+}
+// list: [{ m: Matrix4, tint?: [r,g,b,a], rect?: [u,v,du,dv], col?: Color }]
+function vegInstanced(geo, mat, list, o = {}) {
+  const g = vegShare(geo), n = list.length;
+  const im = new THREE.InstancedMesh(g, mat, Math.max(1, n));
+  const tint = new Float32Array(Math.max(1, n) * 4), rect = o.rect ? new Float32Array(Math.max(1, n) * 4) : null;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  list.forEach((it, i) => {
+    const p = it.p;
+    im.setMatrixAt(i, it.m || m4.compose(v.set(p[0], p[1], p[2]), q.setFromEuler(e.set(p[7] || 0, p[3], p[8] || 0, 'YXZ')), sc.set(p[4], p[5], p[6])));
+    if (it.col) im.setColorAt(i, it.col);
+    tint.set(it.tint || [1, 1, 1, 0], i * 4);
+    if (rect) rect.set(it.rect || [0, 0, 1, 1], i * 4);
+  });
+  im.count = n;
+  g.setAttribute('aTint', new THREE.InstancedBufferAttribute(tint, 4));
+  if (rect) g.setAttribute('aRect', new THREE.InstancedBufferAttribute(rect, 4));
+  im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  if (n) im.computeBoundingSphere();
+  im.castShadow = !!o.cast; im.receiveShadow = o.receive !== false;
+  im.userData.noGroundAO = true;
+  return im;
+}
+
+// ---------------- rocks: Blender granite boulders (triplanar PBR, baked AO, moss on top, soil on the foot);
+// procedural noise-displaced icosphere as the fallback.  rockGeometry(i) / rockMaterial() are also used by the
+// altar floaters, the whale rock and the battle plinths.
+function rockGeometry(i) {
+  i = ((i % 5) + 5) % 5;
+  if (vegHasRocks()) return vegGeos()['rock_' + i];
+  return rockGeometryProc(i);
+}
+function rockMaterial() {
+  return vegHasRocks() ? vegRockMat() : rockMaterialProc();
+}
 
 // ---------------- rocks: noise-displaced icosphere, flat underside, moss on top
 const _rockGeo = [];
-function rockGeometry(i) {
+function rockGeometryProc(i) {
   i %= 5;
   if (_rockGeo[i]) return _rockGeo[i];
   const rng = mulberry32(1000 + i * 17);
@@ -6755,7 +7461,7 @@ function rockGeometry(i) {
   return (_rockGeo[i] = geo);
 }
 let _rockMat = null;
-function rockMaterial() {
+function rockMaterialProc() {
   return _rockMat || (_rockMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, metalness: 0, envMapIntensity: 0.32 }));
 }
 // rocks: [{ x, y, z, s, r }] → a few instanced meshes (one per shape)
@@ -6768,11 +7474,11 @@ function buildRockField(parent, rocks, tint) {
     if (!list.length) return;
     const im = new THREE.InstancedMesh(rockGeometry(b), rockMaterial(), list.length);
     list.forEach((r, i) => {
-      m4.compose(v.set(r.x, r.y, r.z), q.setFromEuler(e.set(0, r.r, 0)), sc.set(r.s, r.s * (r.sy || 1), r.s));
+      m4.compose(v.set(r.x, r.y, r.z), q.setFromEuler(e.set(r.tx || 0, r.r, r.tz || 0, 'YXZ')), sc.set(r.s, r.s * (r.sy || 1), r.s));
       im.setMatrixAt(i, m4);
       c.setHex(tint ?? 0xffffff).multiplyScalar(0.88 + ((i * 37) % 10) / 40); im.setColorAt(i, c);
     });
-    im.castShadow = im.receiveShadow = true; parent.add(im); out.push(im);
+    im.castShadow = im.receiveShadow = true; im.userData.noGroundAO = true; parent.add(im); out.push(im);
   });
   return out;
 }
@@ -6794,8 +7500,8 @@ function flowerGeometry() {
   _stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 1, 4).translate(0, 0.5, 0);
   return _flowerGeo;
 }
-// flowers: [{ x, y, z, h, col }]
-function buildFlowerField(parent, flowers) {
+// flowers: [{ x, y, z, h, col }] (procedural petal flowers)
+function buildFlowerFieldProc(parent, flowers) {
   const fg = flowerGeometry();
   const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   mat.onBeforeCompile = (sh) => { sh.fragmentShader = sh.fragmentShader.replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += diffuseColor.rgb * 0.3;'); };
@@ -6948,12 +7654,25 @@ class Puffs {
   }
 }
 
-// ---------------- hooks called from 03_world.js (buildWorld / updateWorld)
-function buildNatureExtras(scene) {}
-function updateNatureExtras(dt) {}
+// flowers: [{ x, y, z, h, col, s }] -> flowering-plant cards from the cover atlas (species picked from the colour),
+// or the procedural petal flowers when the atlas is missing
+function buildFlowerField(parent, flowers) {
+  if (!vegHasCover() || !flowers.length) return buildFlowerFieldProc(parent, flowers);
+  const c = new THREE.Color(), hsl = {};
+  const list = flowers.map((f, i) => {
+    c.setHex(f.col ?? 0xffffff).getHSL(hsl);
+    const sp = hsl.s < 0.3 && hsl.l > 0.7 ? 'daisy' : hsl.h > 0.1 && hsl.h < 0.2 ? 'butter' : hsl.h > 0.55 && hsl.h < 0.8 ? 'bell' : 'pink';
+    const s = f.s || 1, H = (0.3 + (f.h || 0.25) * 0.6) * s * 0.9, Wd = H * 0.5;
+    const tint = sp === 'pink' && (hsl.h < 0.05 || hsl.h > 0.95) && hsl.l < 0.75 ? [1.15, 0.75, 0.8, 0.9] : [1, 1, 1, 0.9];
+    return { m: vegM4(f.x, f.y - 0.02, f.z, i * 2.399, Wd, H, Wd), rect: COVER_RECT[sp], tint };
+  });
+  const im = vegInstanced(vegTuft(), vegCoverMat(), list, { rect: true, cast: false });
+  parent.add(im);
+  return [im];
+}
 
 // ============================================================================
-//  vegetation builders (moved from 03_world.js): forests, lawn & encounter grass, rocks & flowers
+//  legacy leaf-card foliage (fallback when the authored models are missing) and the encounter-grass blades
 // ============================================================================
 // ---------------- foliage: leaf-card trees, fern pines and bushes (instanced, wind, translucency)
 function leafTexture(kind) {
@@ -7021,7 +7740,7 @@ function foliagePatch(m) {
 }
 // trees: [{ x, y, z, s, r, kind: 'round' | 'pine' | 'bush', tint }]
 
-function buildForest(parent, trees, opts = {}) {
+function buildForestLegacy(parent, trees, opts = {}) {
   const g = new THREE.Group(); parent.add(g);
   const rng = mulberry32(opts.seed || 7);
   const leafTex = leafTexture('leaf'), pineTex = leafTexture('pine');
@@ -7090,69 +7809,13 @@ function buildForest(parent, trees, opts = {}) {
   return g;
 }
 
-function buildTrees(scene) {
-  const rng = mulberry32(1337);
-  const list = [];
-  const ok = (x, z, minGap) => {
-    const h = groundY(x, z); if (h < 1.3 || h > 13) return false;
-    if (pathDist(x, z) < 4.5) return false;
-    for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + 2.5) return false;
-    if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 22) return false;
-    if (Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 15) return false;
-    for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 12) return false;
-    for (const t of list) if (Math.hypot(x - t.x, z - t.z) < minGap) return false;
-    return true;
-  };
-  for (let k = 0; k < 2600 && list.length < 230; k++) {
-    const x = (rng() - 0.5) * 190, z = (rng() - 0.5) * 190;
-    if (!ok(x, z, 3.6)) continue;
-    const s = 0.8 + rng() * 0.7;
-    const isPine = z < -18 ? rng() < 0.75 : rng() < 0.18;
-    let tint;
-    if (!isPine && z > 20 && rng() < 0.32) tint = [0xf2a6c8, 0xf7bfd8, 0xffcadb][(rng() * 3) | 0];
-    else if (!isPine && rng() < 0.07) tint = [0xd98a3a, 0xe0a040, 0xc8742e][(rng() * 3) | 0];
-    list.push({ x, y: groundY(x, z), z, s, r: rng() * 6.28, kind: isPine ? 'pine' : 'round', tint });
-    World.colliders.push({ x, z, r: 0.7 * s });
-  }
-  for (let k = 0; k < 1800 && list.filter((t) => t.kind === 'bush').length < 140; k++) {
-    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180;
-    if (!ok(x, z, 2.2)) continue;
-    list.push({ x, y: groundY(x, z), z, s: 0.7 + rng() * 0.6, r: 0, kind: 'bush', tint: rng() < 0.15 ? 0x7aa84a : undefined });
-  }
-  buildForest(scene, list, { seed: 99 });
-}
-
-
-function buildRocksAndFlowers(scene) {
-  const rng = mulberry32(99);
-  const rocks = [];
-  for (let k = 0; k < 900 && rocks.length < 70; k++) {
-    const x = (rng() - 0.5) * 200, z = (rng() - 0.5) * 200, h = groundY(x, z);
-    if (h < 0.4 || pathDist(x, z) < 3.5 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 16) continue;
-    let bad = false; for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) bad = true; if (bad) continue;
-    const s = 0.35 + Math.pow(rng(), 2) * 1.8;
-    rocks.push({ x, z, s, h, r: rng() * 6 });
-    if (s > 0.9) World.colliders.push({ x, z, r: s * 0.8 });
-  }
-  buildRockField(scene, rocks.map((r) => ({ x: r.x, y: r.h - 0.06 * r.s, z: r.z, s: r.s, r: r.r, sy: 0.85 + (r.r % 1) * 0.3 })));
-  // flowers: small petal flowers in loose drifts, bright enough to catch the dusk light
-  const fl = [], fc = [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xa8e6ff, 0xff9aa8];
-  for (let k = 0; k < 4000 && fl.length < (isTouch ? 600 : 1500); k++) {
-    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180, h = groundY(x, z);
-    if (h < 1.1 || h > 9 || pathDist(x, z) < 2.4 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5) continue;
-    const col = fc[(rng() * fc.length) | 0], n = 1 + ((rng() * 4) | 0);
-    for (let j = 0; j < n; j++) { const fx = x + (rng() - 0.5) * 1.2, fz = z + (rng() - 0.5) * 1.2; fl.push({ x: fx, y: groundY(fx, fz), z: fz, h: 0.18 + rng() * 0.18, s: 1.1 + rng() * 0.6, col }); }
-  }
-  buildFlowerField(scene, fl);
-}
-
-
 // ---------------- tall grass meadows: instanced blades with wind + player push
-function buildGrass(scene, zones) {
+function buildGrassBlades(scene, zones) {
+  const cards0 = vegHasCover();
   const blade = new THREE.BufferGeometry();
   blade.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-0.07, 0, 0, 0.07, 0, 0, -0.05, 0.5, 0, 0.05, 0.5, 0, 0, 1, 0]), 3));
   blade.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4]);
-  const U = { uTime: Shared.time, uPlayer: { value: new THREE.Vector3() }, uLow: { value: new THREE.Color(0x1f5a2c) }, uHigh: { value: new THREE.Color(0x9ad86a) }, uTint: { value: new THREE.Color(0xffc8a0) } };
+  const U = { uTime: Shared.time, uPlayer: { value: new THREE.Vector3() }, uLow: { value: new THREE.Color(cards0 ? 0x0e2814 : 0x1f5a2c) }, uHigh: { value: new THREE.Color(cards0 ? 0x4a7430 : 0x9ad86a) }, uTint: { value: new THREE.Color(0xffc8a0) } };
   const mat = new THREE.ShaderMaterial({
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog]), side: THREE.DoubleSide, fog: true,
     vertexShader: `uniform float uTime; uniform vec3 uPlayer; varying float vH; varying float vV; ${FOG_V}
@@ -7177,7 +7840,7 @@ function buildGrass(scene, zones) {
       }`,
   });
   Object.assign(mat.uniforms, U);
-  const dens = Settings.high ? 9 : 4.5;
+  const cards = vegHasCover(), dens = (Settings.high ? 9 : 4.5) * (cards ? 0.4 : 1);
   const list = [];
   for (const z of zones) {
     // encounter grass grows in bunches; shorter toward the rim so the patch reads as a soft-edged meadow
@@ -7194,7 +7857,7 @@ function buildGrass(scene, zones) {
   list.forEach(([x, z, h], i) => { m4.compose(v.set(x, groundY(x, z) - 0.05, z), q.setFromEuler(e.set(rand(-0.15, 0.15), rand(0, 6.28), rand(-0.15, 0.15))), sc.set(1.1, h, 1)); im.setMatrixAt(i, m4); });
   im.frustumCulled = false; im.receiveShadow = false;
   scene.add(im);
-  if (Settings.high) {
+  if (Settings.high && !cards) {
     // lawn: tufts of blades scattered over the open meadows (not on paths, plazas or encounter grass)
     const rng = mulberry32(4242);
     const ok = (x, z, h) => {
@@ -7214,6 +7877,473 @@ function buildGrass(scene, zones) {
   return { mesh: im, U: mat.uniforms };
 }
 
+
+// ============================================================================
+//  trees & bushes: Blender models (tools/blender/vegetation_trees.py), instanced per variant with two LODs.
+//  trees: [{ x, y, z, s, r, kind, tint }]
+//    kind: 'oak' | 'birch' | 'cherry' | 'fir' (= 'pine') | 'bush' | 'round' (oak or birch; pink tint -> cherry)
+//    tint: optional hex; recolours the leaves (autumn, rift purple). opts: { seed, lod, ground, center, lodDist }
+// ============================================================================
+const VEG_SPECIES = {
+  oak:    { vars: ['oak_a', 'oak_b'], bark: 'bark_oak', wind: 1.0, R: 2.7, dens: 0.9, collide: 0.62 },
+  birch:  { vars: ['birch_a', 'birch_b'], bark: 'bark_birch', wind: 1.35, R: 1.9, dens: 0.6, collide: 0.42 },
+  cherry: { vars: ['cherry_a'], bark: 'bark_oak', wind: 0.9, R: 3.0, dens: 0.75, collide: 0.55 },
+  fir:    { vars: ['fir_a', 'fir_b'], bark: 'bark_pine', wind: 0.55, R: 2.3, dens: 1.0, collide: 0.58 },
+  bush:   { vars: ['bush_a', 'bush_b'], bark: 'bark_oak', wind: 0.8, R: 1.0, dens: 0.55, collide: 0 },
+};
+const _vm4 = new THREE.Matrix4(), _vq = new THREE.Quaternion(), _ve = new THREE.Euler(), _vv = new THREE.Vector3(), _vs = new THREE.Vector3();
+function vegM4(x, y, z, ry, sx, sy, sz, tx = 0, tz = 0) {
+  return new THREE.Matrix4().compose(_vv.set(x, y, z), _vq.setFromEuler(_ve.set(tx, ry, tz, 'YXZ')), _vs.set(sx, sy, sz));
+}
+function vegIsPink(hex) { const c = new THREE.Color(hex), h = {}; c.getHSL(h); return (h.h > 0.85 || h.h < 0.02) && h.l > 0.6; }
+function vegSpeciesOf(t, rng) {
+  const k = t.kind;
+  if (k === 'pine' || k === 'fir') return 'fir';
+  if (k === 'birch' || k === 'oak' || k === 'cherry' || k === 'bush') return k;
+  if (t.tint !== undefined && vegIsPink(t.tint)) return 'cherry';
+  return rng() < 0.3 ? 'birch' : 'oak';
+}
+
+function buildForest(parent, trees, opts = {}) {
+  if (!vegHasTrees()) {
+    // legacy cards: map the new kinds onto the old ones
+    return buildForestLegacy(parent, trees.map((t) => (t.kind === 'fir' ? { ...t, kind: 'pine' } : t.kind === 'oak' || t.kind === 'birch' ? { ...t, kind: 'round' }
+      : t.kind === 'cherry' ? { ...t, kind: 'round', tint: t.tint ?? 0xf7bfd8 } : t)), opts);
+  }
+  const G = vegGeos(), rng = mulberry32(opts.seed || 7);
+  const g = new THREE.Group(); g.name = 'forest'; parent.add(g);
+  const groups = {};                                     // variant -> instances
+  const col = new THREE.Color(), tc = new THREE.Color();
+  for (const t of trees) {
+    const sp = vegSpeciesOf(t, rng), S = VEG_SPECIES[sp];
+    t.sp = sp;
+    const vname = sp === 'bush' ? (t.tint === undefined && rng() < 0.35 ? 'bush_b' : 'bush_a') : S.vars[(rng() * S.vars.length) | 0];
+    const s = t.s * (sp === 'fir' ? 0.92 : sp === 'birch' ? 0.95 : 1);
+    let tint = [1, 1, 1, 0];
+    if (t.tint !== undefined && sp !== 'cherry') { tc.setHex(t.tint); tint = [tc.r, tc.g, tc.b, sp === 'bush' && !vegIsPink(t.tint) && tc.g > tc.r ? 0.35 : 0.82]; }
+    const j = rng();
+    col.setRGB(0.92 + j * 0.14, 0.94 + rng() * 0.1, 0.9 + rng() * 0.12);          // per-tree leaf colour drift
+    // lean a little with the slope, sink the root flare
+    const it = { x: t.x, z: t.z, m: vegM4(t.x, t.y - 0.04 * s, t.z, t.r || 0, s, s, s, (rng() - 0.5) * 0.05, (rng() - 0.5) * 0.05), tint, col: col.clone(), sp, s };
+    (groups[vname] || (groups[vname] = [])).push(it);
+    if (opts.ground) {
+      // contact: dark root collar, litter under the crown, a soft canopy shadow on the grass
+      const R = S.R * s;
+      groundStamp(t.x, t.z, 0.75 * s + 0.35, { dark: 0.55 }, { soft: 0.75 });
+      if (sp !== 'bush') {
+        groundStamp(t.x, t.z, R * 0.95, { dark: 0.2 }, { soft: 0.9, noise: 0.5 });
+        groundStamp(t.x, t.z, R * (sp === 'fir' ? 1.0 : 0.85), { forest: sp === 'fir' ? 0.8 : sp === 'birch' ? 0.35 : 0.55 }, { soft: 0.85, noise: 0.75 });
+      } else groundStamp(t.x, t.z, 0.9 * s, { forest: 0.3 }, { soft: 0.8, noise: 0.6 });
+    }
+  }
+  const forest = { g, sets: [], lod: !!opts.lod, cx: 1e9, cz: 1e9, t: 0 };
+  for (const vname in groups) {
+    const list = groups[vname], S = VEG_SPECIES[list[0].sp];
+    const set = { list, meshes: [] };
+    for (const lod of [0, 1]) {
+      const sfx = lod ? '_lod1' : '';
+      const wood = G[vname + '_wood' + sfx], leaf = G[vname + '_leaf' + sfx];
+      if (!wood || !leaf) continue;
+      const mw = vegInstanced(wood, vegBarkMat(S.bark), list, { cast: true });
+      const ml = vegInstanced(leaf, vegLeafMat(list[0].sp, { wind: S.wind }), list, { cast: true });
+      ml.customDepthMaterial = vegLeafDepth(list[0].sp, { wind: S.wind });
+      if (lod === 1) { mw.castShadow = false; ml.castShadow = !opts.lod; }
+      set.meshes.push([mw, ml]);
+      g.add(mw, ml);
+    }
+    forest.sets.push(set);
+  }
+  // static LOD (battle arenas): far trees use LOD1 once; the island re-partitions as the camera moves
+  const c = opts.center || { x: 0, z: 0 }, ld = opts.lodDist ?? 30;
+  vegPartition(forest, c.x, c.z, opts.lod ? Veg.lodDist : ld);
+  if (opts.lod) Veg.forests.push(forest);
+  g.userData.vegForest = forest;
+  return g;
+}
+// split each variant's instances into near (LOD0) and far (LOD1) by distance to (cx, cz)
+function vegPartition(forest, cx, cz, dist) {
+  forest.cx = cx; forest.cz = cz;
+  const d2 = dist * dist;
+  for (const set of forest.sets) {
+    if (set.meshes.length < 2) continue;
+    const [m0w, m0l] = set.meshes[0], [m1w, m1l] = set.meshes[1];
+    let n0 = 0, n1 = 0;
+    for (const it of set.list) {
+      const near = (it.x - cx) ** 2 + (it.z - cz) ** 2 < d2 * (it.sp === 'bush' ? 0.45 : 1);
+      const [mw, ml, k] = near ? [m0w, m0l, n0++] : [m1w, m1l, n1++];
+      for (const m of [mw, ml]) {
+        m.setMatrixAt(k, it.m); m.setColorAt(k, it.col);
+        m.geometry.attributes.aTint.array.set(it.tint, k * 4);
+      }
+    }
+    for (const [m, n] of [[m0w, n0], [m0l, n0], [m1w, n1], [m1l, n1]]) {
+      m.count = n; m.visible = n > 0;
+      m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.geometry.attributes.aTint.needsUpdate = true;
+      if (n) m.computeBoundingSphere();
+    }
+  }
+}
+function vegShade(x, z) {                               // 0..1 canopy cover from the island's trees
+  const G = Veg.grid; if (!G) return 0;
+  const cx = Math.floor(x / 8), cz = Math.floor(z / 8);
+  let s = 0;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const L = G.get((cx + i) * 1000 + (cz + j)); if (!L) continue;
+    for (const t of L) { const d = Math.hypot(x - t.x, z - t.z); if (d < t.R) s = Math.max(s, (1 - d / t.R) * t.dens); }
+  }
+  return s;
+}
+function vegIndexTrees(list) {
+  Veg.trees = list; Veg.grid = new Map();
+  for (const t of list) {
+    const sp = t.sp || vegSpeciesOf(t, () => 0.5), S = VEG_SPECIES[sp];
+    const e = { x: t.x, z: t.z, R: S.R * t.s * 0.95, dens: S.dens, sp, s: t.s };
+    t.sp = sp;
+    const key = Math.floor(t.x / 8) * 1000 + Math.floor(t.z / 8);
+    (Veg.grid.get(key) || Veg.grid.set(key, []).get(key)).push(e);
+  }
+}
+
+function buildTrees(scene) {
+  const rng = mulberry32(1337);
+  const list = [];
+  const ok = (x, z, minGap) => {
+    const h = groundY(x, z); if (h < 1.3 || h > 13) return false;
+    if (pathDist(x, z) < 4.5) return false;
+    for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + 2.5) return false;
+    if (Math.hypot(x - SITES.town.x, z - SITES.town.z) < 22) return false;
+    if (Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 15) return false;
+    for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 12) return false;
+    for (const t of list) if (Math.hypot(x - t.x, z - t.z) < minGap) return false;
+    return true;
+  };
+  // groves: a woodland density field (dense north woods, scattered copses, open meadows between)
+  const grove = (x, z) => clamp(smooth(0.44, 0.66, fbm(x * 0.022 + 7.1, z * 0.022 - 3.3, 3)) * 0.85 + smooth(-14, -34, z) * 0.7, 0, 1);
+  for (let k = 0; k < 9000 && list.length < 250; k++) {
+    const x = (rng() - 0.5) * 190, z = (rng() - 0.5) * 190, gd = grove(x, z);
+    if (rng() > 0.08 + gd) continue;                                   // a few solitary trees in the open
+    if (!ok(x, z, 3.0 + (1 - gd) * 3.0)) continue;
+    const north = z < -18, r0 = rng();
+    let kind = north ? (r0 < 0.66 ? 'fir' : r0 < 0.86 ? 'birch' : 'oak') : (r0 < 0.14 ? 'fir' : r0 < 0.4 ? 'birch' : 'oak'), tint;
+    if (kind === 'oak' && z > 20 && rng() < 0.38) kind = 'cherry';
+    else if (kind === 'oak' && rng() < 0.08) tint = [0xd98a3a, 0xe0a040, 0xc8742e][(rng() * 3) | 0];
+    const s = 0.8 + rng() * 0.7;
+    list.push({ x, y: groundY(x, z), z, s, r: rng() * 6.28, kind, tint });
+    World.colliders.push({ x, z, r: VEG_SPECIES[kind].collide * s + 0.1 });
+  }
+  // bushes: woodland edges, path verges and the odd shrub in the open
+  let nb = 0;
+  for (let k = 0; k < 6000 && nb < 170; k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180, gd = grove(x, z), pd = pathDist(x, z);
+    const edge = gd > 0.12 && gd < 0.62 ? 0.55 : 0.08, verge = pd > 4.5 && pd < 7.5 ? 0.35 : 0;
+    if (rng() > edge + verge) continue;
+    if (!ok(x, z, 2.2)) continue;
+    list.push({ x, y: groundY(x, z), z, s: 0.7 + rng() * 0.6, r: rng() * 6.28, kind: 'bush', tint: rng() < 0.12 ? 0x7aa84a : undefined });
+    nb++;
+  }
+  Veg.lodDist = Settings.high ? 40 : 24;
+  buildForest(scene, list, { seed: 99, lod: true, ground: true });
+  vegIndexTrees(list);
+}
+
+// ============================================================================
+//  ground cover: lawn tufts, wild grass, tussocks, reeds, flowers in drifts, ferns, clover / plantain / moss /
+//  leaf-litter patches and pebbles, placed by ecology rules (paths, canopy shade, rocks, trunks, marsh, beach).
+//  Instanced per 24 m chunk; chunks beyond Veg.coverDist are hidden and cards shrink into the ground before that.
+// ============================================================================
+const _cr = (x0, y0, x1, y1) => [(x0 + 2) / 1024, 1 - (y1 - 2) / 1024, (x1 - x0 - 4) / 1024, (y1 - y0 - 4) / 1024];
+const COVER_RECT = {
+  lawn: _cr(0, 0, 512, 256), wild: _cr(0, 256, 256, 768), tuss: _cr(256, 256, 512, 768), fern: _cr(512, 0, 768, 512), reed: _cr(768, 0, 1024, 512),
+  clover: _cr(512, 512, 768, 768), rosette: _cr(768, 512, 1024, 768), daisy: _cr(0, 768, 128, 1024), butter: _cr(128, 768, 256, 1024),
+  bell: _cr(256, 768, 384, 1024), pink: _cr(384, 768, 512, 1024), moss: _cr(512, 768, 768, 1024), leafbed: _cr(768, 768, 1024, 1024),
+};
+// three crossed vertical cards (base at y = 0, 1 x 1), normals bent up so the clump lights like a soft mound
+let _tuft = null, _flat = null;
+function vegTuft() {
+  if (_tuft) return _tuft;
+  const P = [], N = [], UV = [], A = [], I = [];
+  for (let q = 0; q < 3; q++) {
+    const a = (q / 3) * Math.PI + 0.3, cx = Math.cos(a) * 0.5, cz = Math.sin(a) * 0.5, nx = -Math.sin(a), nz = Math.cos(a);
+    const b = P.length / 3;
+    const sg = q === 1 ? -1 : 1;                                       // each card leans out of the clump: reads as a fan from above
+    for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
+      const lean = v * 0.14, tilt = v * 0.3 * sg;
+      P.push((u * 2 - 1) * cx * (1 + lean) + nx * tilt, v * 0.96, (u * 2 - 1) * cz * (1 + lean) + nz * tilt);
+      const n = new THREE.Vector3(nx * 0.3 * sg, 1, nz * 0.3 * sg).normalize(); N.push(n.x, n.y, n.z);
+      UV.push(u, v); A.push(0.42 + 0.58 * Math.pow(v, 0.7), v * v, q / 3, 0);
+    }
+    I.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute('aVeg', new THREE.Float32BufferAttribute(A, 4)); g.setIndex(I);
+  g.computeBoundingBox(); g.computeBoundingSphere();
+  return (_tuft = g);
+}
+// ground patch: 1 x 1 quad on XZ, slightly domed, normals up
+function vegFlat() {
+  if (_flat) return _flat;
+  const g = new THREE.PlaneGeometry(1, 1, 2, 2).rotateX(-Math.PI / 2);
+  const p = g.attributes.position, A = [];
+  for (let i = 0; i < p.count; i++) { const r = Math.hypot(p.getX(i), p.getZ(i)); p.setY(i, 0.025 * (1 - r * 1.4)); A.push(0.78 + 0.22 * (1 - r), 0, 0.5, 0); }
+  g.computeVertexNormals();
+  const n = g.attributes.normal; for (let i = 0; i < n.count; i++) n.setXYZ(i, 0, 1, 0);
+  g.setAttribute('aVeg', new THREE.Float32BufferAttribute(A, 4));
+  g.computeBoundingBox(); g.computeBoundingSphere();
+  return (_flat = g);
+}
+
+function buildGroundCover(scene) {
+  const t0 = performance.now();
+  const hi = Settings.high, D = hi ? 1 : 0.4;
+  const G = vegGeos(), rng = mulberry32(4242);
+  const CH = 24, chunks = new Map();
+  const chunk = (x, z) => {
+    const key = Math.floor(x / CH) * 1000 + Math.floor(z / CH);
+    let c = chunks.get(key);
+    if (!c) chunks.set(key, (c = { x: (Math.floor(x / CH) + 0.5) * CH, z: (Math.floor(z / CH) + 0.5) * CH, tuft: [], flat: [], fern_a: [], fern_b: [], pebble_0: [], pebble_1: [] }));
+    return c;
+  };
+  const T = SITES.town, A = SITES.altar, big = World.colliders.filter((c) => c.r > 1.1);
+  const blocked = (x, z) => {
+    if (Math.hypot(x - T.x, z - T.z) < 10.5 || Math.hypot(x - A.x, z - A.z) < 10.5) return true;
+    for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 9) return true;
+    for (const c of big) if (Math.abs(x - c.x) < c.r && Math.abs(z - c.z) < c.r && Math.hypot(x - c.x, z - c.z) < c.r * 0.92) return true;   // houses, big rocks, props
+    return false;
+  };
+  const inZone = (x, z, pad = 0) => { for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r + pad) return true; return false; };
+  const slopeTilt = (x, z) => { const e = 0.5, gx = (groundY(x + e, z) - groundY(x - e, z)) / (2 * e), gz = (groundY(x, z + e) - groundY(x, z - e)) / (2 * e); return [Math.atan(gz), -Math.atan(gx)]; };
+  // tints: lawn matched to the terrain grass, lush meadows deeper, dry straw, shade cooler
+  const grassTint = (ga, sh, j) => {
+    const dry = ga.dry, lush = ga.lush;
+    let r = 0.9 + j * 0.14, g = 1.08 + j * 0.08, b = 0.8 + j * 0.1;
+    r = lerp(r, 0.76, lush * 0.6); b = lerp(b, 0.7, lush * 0.6);
+    r = lerp(r, 1.35, dry * 0.8); g = lerp(g, 1.12, dry * 0.8); b = lerp(b, 0.7, dry * 0.8);
+    const s = 1 - sh * 0.3; return [r * s, g * s, b * (s + sh * 0.1)];
+  };
+  const add = (kind, x, z, o) => {
+    const y = o.y ?? groundY(x, z), c = chunk(x, z);
+    if (o.flat) {
+      const [tx, tz] = slopeTilt(x, z);
+      c.flat.push({ p: [x, y + 0.012, z, rng() * 6.28, o.w, 1, o.w, tx, tz], rect: COVER_RECT[kind], tint: [...(o.tint || [1, 1, 1]), 0] });
+    } else if (kind === 'fern_a' || kind === 'fern_b' || kind === 'pebble_0' || kind === 'pebble_1') {
+      c[kind].push({ p: [x, y - (o.sink || 0.02), z, rng() * 6.28, o.w, o.w * (o.sy || 1), o.w], rect: [0, 0, 1, 1], tint: [...(o.tint || [1, 1, 1]), o.flex ?? 0.5] });
+    } else {
+      c.tuft.push({ p: [x, y - 0.03, z, rng() * 6.28, o.w, o.h, o.w], rect: COVER_RECT[kind], tint: [...(o.tint || [1, 1, 1]), o.flex ?? 0.8] });
+    }
+  };
+  let n = 0;
+  // ---- 1. lawn, verge plants, dune grass, reeds, scattered tall clumps (jittered grid over the island)
+  const step = hi ? 0.76 : 1.25;
+  for (let gz = -92; gz < 92; gz += step) for (let gx = -92; gx < 92; gx += step) {
+    const x = gx + (rng() - 0.5) * step * 0.9, z = gz + (rng() - 0.5) * step * 0.9;
+    if (x * x + z * z > 100 * 100) continue;
+    const h = groundY(x, z); if (h < 0.9 || h > 14) continue;
+    if (blocked(x, z) || inZone(x, z)) continue;
+    const ga = groundAt(x, z), sh = vegShade(x, z), j = rng() - 0.5, u = rng();
+    if (ga.rock > 0.5) { if (u < 0.05) add('tuss', x, z, { w: 0.5, h: 0.5 + rng() * 0.3, tint: [1.15, 1.05, 0.8] }); continue; }
+    if (ga.sand > 0.12) {                                              // beach: dune tussocks at the grass line
+      if (ga.sand < 0.45 && u < 0.3) add('tuss', x, z, { w: 0.5 + rng() * 0.3, h: 0.45 + rng() * 0.35, tint: [1.4, 1.2, 0.75], flex: 0.9 });
+      continue;
+    }
+    if (ga.dirt > 0.62) { if (u < 0.012) add(rng() < 0.5 ? 'pebble_0' : 'pebble_1', x, z, { w: 0.6 + rng() * 0.6, sink: 0.01, flex: 0 }); continue; }
+    if (ga.marsh > 0.3 && u < 0.35 * ga.marsh) { add('reed', x, z, { w: 0.55 + rng() * 0.25, h: 0.9 + rng() * 0.5, tint: [1, 1, 0.9], flex: 0.7 }); n++; continue; }
+    if (ga.dirt > 0.3) {                                               // path verge: trodden short grass, plantain, clover, pebbles
+      if (u < 0.08) add('rosette', x, z, { flat: true, w: 0.28 + rng() * 0.16 });
+      else if (u < 0.12) add('clover', x, z, { flat: true, w: 0.5 + rng() * 0.4 });
+      else if (u < 0.15) add(rng() < 0.5 ? 'pebble_0' : 'pebble_1', x, z, { w: 0.7 + rng() * 0.6, sink: 0.01, flex: 0 });
+      else if (u < 0.55) add('lawn', x, z, { w: 0.45 + rng() * 0.2, h: 0.14 + rng() * 0.1, tint: grassTint(ga, sh, j), flex: 0.5 });
+      continue;
+    }
+    if (sh > 0.55) {                                                   // under the canopy: sparse grass, litter, moss
+      if (u < 0.2) add('lawn', x, z, { w: 0.5, h: 0.2 + rng() * 0.12, tint: grassTint(ga, sh, j), flex: 0.5 });
+      continue;
+    }
+    if (u < 0.022 * (1 + ga.lush)) add('wild', x, z, { w: 0.42 + rng() * 0.2, h: 0.7 + rng() * 0.4, tint: grassTint(ga, sh, j), flex: 1 });
+    else if (u < 0.045) add('tuss', x, z, { w: 0.48 + rng() * 0.25, h: 0.5 + rng() * 0.35, tint: grassTint(ga, sh, j), flex: 0.85 });
+    else if (u < 0.06 && ga.lush + (1 - sh) > 0.8) add('clover', x, z, { flat: true, w: 0.55 + rng() * 0.5 });
+    else { const hh = (0.22 + rng() * 0.18) * (1 + ga.lush * 0.35) * (1 - sh * 0.4); add('lawn', x, z, { w: hh * (1.6 + rng() * 0.5), h: hh, tint: grassTint(ga, sh, j), flex: 0.6 }); }
+    n++;
+  }
+  // ---- 2. encounter-zone rims: a band of tall clumps easing into the meadow
+  for (const zz of ZONES) {
+    const m = Math.floor(zz.r * 9 * D);
+    for (let i = 0; i < m; i++) {
+      const a = rng() * 6.283, rr = zz.r + 0.2 + rng() * 2.2, x = zz.x + Math.cos(a) * rr, z = zz.z + Math.sin(a) * rr;
+      if (blocked(x, z) || groundY(x, z) < 0.9) continue;
+      add(rng() < 0.5 ? 'wild' : 'tuss', x, z, { w: 0.45 + rng() * 0.2, h: (0.55 + rng() * 0.4) * (1 - (rr - zz.r) / 3), tint: [0.92, 1, 0.88], flex: 1 });
+    }
+  }
+  // ---- 3. flowers in drifts: one species per drift, dense centre thinning outward, only in sunny meadow
+  const drifts = Math.round(80 * (hi ? 1 : 0.5));
+  for (let d = 0, tries = 0; d < drifts && tries < 3000; tries++) {
+    const cx = (rng() - 0.5) * 170, cz = (rng() - 0.5) * 170, h = groundY(cx, cz);
+    if (h < 1.2 || h > 10 || blocked(cx, cz) || inZone(cx, cz, 1) || pathDist(cx, cz) < 2.8 || vegShade(cx, cz) > 0.15) continue;
+    const ga = groundAt(cx, cz); if (ga.dirt > 0.3 || ga.sand > 0.1 || ga.rock > 0.3) continue;
+    const sp = cx > 25 ? (rng() < 0.6 ? 'pink' : 'butter') : cx < -25 ? (rng() < 0.6 ? 'bell' : 'daisy') : cz > 10 ? (rng() < 0.55 ? 'daisy' : 'butter') : cz < -18 ? 'bell' : ['daisy', 'butter', 'bell', 'pink'][(rng() * 4) | 0];
+    const R = 1.2 + rng() * 2.6, cnt = Math.round((10 + rng() * 26) * (hi ? 1 : 0.5));
+    for (let i = 0; i < cnt; i++) {
+      const a = rng() * 6.283, rr = R * Math.sqrt(-2 * Math.log(1 - rng() * 0.95)) * 0.5, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+      if (blocked(x, z) || pathDist(x, z) < 2.2 || groundY(x, z) < 1.1) continue;
+      const H = 0.34 + rng() * 0.2; add(sp, x, z, { w: H * 0.5, h: H, flex: 0.9 });
+    }
+    d++;
+  }
+  // ---- 4. under the trees: ferns, leaf litter, moss; clumps hugging the trunk to break the ground line
+  for (const t of Veg.trees) {
+    const S = VEG_SPECIES[t.sp], R = S.R * t.s;
+    const north = t.z < -18;
+    if (t.sp === 'bush') { if (rng() < 0.6) add('tuss', t.x + (rng() - 0.5) * 0.8, t.z + (rng() - 0.5) * 0.8, { w: 0.5, h: 0.5 + rng() * 0.2, flex: 0.8 }); continue; }
+    const nf = Math.round((t.sp === 'fir' || north ? 3 + rng() * 5 : t.sp === 'cherry' ? 0 : 1 + rng() * 3) * (hi ? 1 : 0.5));
+    for (let i = 0; i < nf; i++) {
+      const a = rng() * 6.283, rr = (0.7 + rng() * 0.75) * R, x = t.x + Math.cos(a) * rr, z = t.z + Math.sin(a) * rr;
+      if (blocked(x, z) || pathDist(x, z) < 2.6 || groundY(x, z) < 1.0) continue;
+      add(rng() < 0.5 ? 'fern_a' : 'fern_b', x, z, { w: 0.65 + rng() * 0.55, flex: 0.6, tint: north ? [0.85, 0.95, 0.85] : [1, 1, 1] });
+    }
+    const nl = t.sp === 'fir' ? 1 + (rng() * 2 | 0) : 2 + (rng() * 3 | 0);
+    for (let i = 0; i < nl; i++) {
+      const a = rng() * 6.283, rr = rng() * R * 0.75, x = t.x + Math.cos(a) * rr, z = t.z + Math.sin(a) * rr;
+      if (blocked(x, z) || pathDist(x, z) < 2.4) continue;
+      add(t.sp === 'fir' ? 'moss' : 'leafbed', x, z, { flat: true, w: 0.8 + rng() * 0.8, tint: t.sp === 'cherry' ? [1.1, 0.9, 0.9] : [1, 1, 1] });
+    }
+    const nt = 2 + (rng() * 3 | 0);
+    for (let i = 0; i < nt; i++) {
+      const a = rng() * 6.283, rr = (0.38 + rng() * 0.35) * t.s, x = t.x + Math.cos(a) * rr, z = t.z + Math.sin(a) * rr;
+      add(rng() < 0.6 ? 'tuss' : 'wild', x, z, { w: 0.4 + rng() * 0.2, h: 0.4 + rng() * 0.3, tint: [0.9, 0.95, 0.85], flex: 0.7 });
+    }
+  }
+  // ---- 5. around rocks: grass collar, moss on the shaded foot, pebbles that broke off
+  for (const r of Veg.rocks) {
+    const nr = Math.round((5 + r.s * 9) * (hi ? 1 : 0.6));
+    for (let i = 0; i < nr; i++) {
+      const a = rng() * 6.283, rr = r.s * (0.85 + rng() * 0.45), x = r.x + Math.cos(a) * rr, z = r.z + Math.sin(a) * rr;
+      if (blocked(x, z) && r.s < 1.1) continue;
+      const ga = groundAt(x, z); if (ga.sand > 0.3 || ga.dirt > 0.6) continue;
+      const kind = rng() < 0.45 ? 'tuss' : rng() < 0.5 ? 'wild' : 'lawn';
+      add(kind, x, z, { w: kind === 'lawn' ? 0.6 : 0.45 + rng() * 0.2, h: kind === 'lawn' ? 0.3 + rng() * 0.12 : 0.45 + rng() * 0.35, tint: [0.92, 0.98, 0.86], flex: 0.8 });
+    }
+    if (rng() < 0.7) { const a = 0.3 + rng() * 0.8; add('moss', r.x + Math.cos(a) * r.s * 0.95, r.z + Math.sin(a) * r.s * 0.95, { flat: true, w: 0.5 + r.s * 0.4 }); }
+    const np = 1 + (rng() * 2.2 | 0);
+    for (let i = 0; i < np; i++) { const a = rng() * 6.283, rr = r.s * (1.1 + rng() * 0.7); add(rng() < 0.5 ? 'pebble_0' : 'pebble_1', r.x + Math.cos(a) * rr, r.z + Math.sin(a) * rr, { w: 0.7 + rng() * 0.7, sink: 0.01, flex: 0 }); }
+  }
+  // ---- build the chunk meshes
+  const mat = vegCoverMat(), rockM = vegHasRocks() ? vegRockMat() : null;
+  const root = new THREE.Group(); root.name = 'groundCover'; scene.add(root);
+  let inst = 0;
+  for (const c of chunks.values()) {
+    const meshes = [];
+    const mk = (geo, list, m, o) => { if (!geo || !list.length) return; const im = vegInstanced(geo, m, list, o); im.receiveShadow = hi; root.add(im); meshes.push(im); inst += list.length; };
+    mk(vegTuft(), c.tuft, mat, { rect: true });
+    mk(vegFlat(), c.flat, mat, { rect: true });
+    mk(G.fern_a_leaf, c.fern_a, mat, { rect: true });
+    mk(G.fern_b_leaf, c.fern_b, mat, { rect: true });
+    if (rockM) { mk(G.pebble_0, c.pebble_0, rockM, {}); mk(G.pebble_1, c.pebble_1, rockM, {}); }
+    if (meshes.length) Veg.cover.push({ x: c.x, z: c.z, r: CH * 0.71, meshes, vis: true });
+  }
+  Veg.coverStats = { instances: inst, chunks: Veg.cover.length, ms: Math.round(performance.now() - t0) };
+  window.__nature = Object.assign(window.__nature || {}, { cover: Veg.coverStats });
+}
+
+// ---------------- encounter grass (ZONES): tall wild grass and tussock cards over a bed of blades, pushed aside by the player
+function buildGrass(scene, zones) {
+  const old = buildGrassBlades(scene, zones);
+  Veg.U.uPlayer = old.U.uPlayer;                                     // the world loop feeds the player position here
+  if (!vegHasCover()) return old;
+  const rng = mulberry32(5150), dens = Settings.high ? 2.4 : 1.1;
+  const mat = vegCoverMat();
+  for (const z of zones) {
+    const list = [];
+    const n = Math.floor(Math.PI * z.r * z.r * dens);
+    for (let i = 0; i < n; i++) {
+      const a = rng() * 6.283, rr = Math.sqrt(rng()) * z.r, x = z.x + Math.cos(a) * rr, zz = z.z + Math.sin(a) * rr;
+      const edge = 1 - smooth(z.r * 0.72, z.r, rr), j = rng();
+      const kind = rng() < 0.55 ? 'wild' : 'tuss';
+      const H = (0.8 + rng() * 0.45) * (0.5 + edge * 0.5) * (kind === 'tuss' ? 0.8 : 1);
+      list.push({ p: [x, groundY(x, zz) - 0.04, zz, rng() * 6.28, H * (0.5 + rng() * 0.15), H, H * 0.55], rect: COVER_RECT[kind],
+        tint: [0.86 + j * 0.16, 0.95 + j * 0.08, 0.8 + j * 0.12, 1] });
+    }
+    const im = vegInstanced(vegTuft(), mat, list, { rect: true });
+    im.receiveShadow = Settings.high;
+    scene.add(im);
+  }
+  return old;
+}
+
+// ---------------- island rocks: boulders sunk into the ground (contact AO + soil in the splat map), clustered with
+// smaller satellites, preferring slopes, hilltops and the coast. Flowers now grow in drifts with the ground cover.
+function buildRocksAndFlowers(scene) {
+  const rng = mulberry32(99);
+  const rocks = [];
+  const okAt = (x, z) => {
+    const h = groundY(x, z);
+    if (h < 0.4 || pathDist(x, z) < 3.2 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 16 || Math.hypot(x - SITES.altar.x, z - SITES.altar.z) < 11) return false;
+    for (const zz of ZONES) if (Math.hypot(x - zz.x, z - zz.z) < zz.r) return false;
+    for (const r of SITES.rifts) if (Math.hypot(x - r.x, z - r.z) < 8) return false;
+    return true;
+  };
+  const addRock = (x, z, s) => {
+    const h = groundY(x, z), e = 0.6, gx = (groundY(x + e, z) - groundY(x - e, z)) / (2 * e), gz = (groundY(x, z + e) - groundY(x, z - e)) / (2 * e);
+    rocks.push({ x, y: h - 0.1 * s, z, s, r: rng() * 6.28, sy: 0.8 + rng() * 0.45, tx: Math.atan(gz) * 0.6, tz: -Math.atan(gx) * 0.6 });
+    if (s > 0.9) World.colliders.push({ x, z, r: s * 0.8 });
+    groundStamp(x, z, s * 1.35 + 0.25, { dark: 0.6 }, { soft: 0.6 });
+    groundStamp(x, z, s * 1.1 + 0.1, { dirt: 0.28 }, { soft: 0.55, noise: 0.6 });
+  };
+  for (let k = 0; k < 2400 && rocks.length < 100; k++) {
+    const x = (rng() - 0.5) * 200, z = (rng() - 0.5) * 200;
+    if (!okAt(x, z)) continue;
+    const h = groundY(x, z), e = 1, sl = Math.hypot(groundY(x + e, z) - groundY(x - e, z), groundY(x, z + e) - groundY(x, z - e)) / (2 * e);
+    if (rng() > 0.18 + sl * 1.6 + (h > 6 ? 0.25 : 0) + (h < 1.7 ? 0.2 : 0)) continue;
+    let near = false; for (const r of rocks) if (Math.hypot(x - r.x, z - r.z) < r.s + 2) near = true; if (near) continue;
+    const s = 0.35 + Math.pow(rng(), 2) * 1.8;
+    addRock(x, z, s);
+    if (s > 0.75 && rng() < 0.65) {                                   // satellites: broken-off pieces leaning on the parent
+      const m = 1 + ((rng() * 3) | 0);
+      for (let i = 0; i < m; i++) {
+        const a = rng() * 6.283, d = s * (1.05 + rng() * 0.7), x2 = x + Math.cos(a) * d, z2 = z + Math.sin(a) * d;
+        if (okAt(x2, z2)) addRock(x2, z2, s * (0.22 + rng() * 0.3));
+      }
+    }
+  }
+  const ims = buildRockField(scene, rocks);
+  Veg.rocks = rocks;
+  window.__nature = Object.assign(window.__nature || {}, { rocks: rocks.length, rockAssets: vegHasRocks(), trees: Veg.trees.length, treeAssets: vegHasTrees() });
+  if (!vegHasCover()) buildFlowersProc(scene, rng);
+  return ims;
+}
+function buildFlowersProc(scene, rng) {
+  const fl = [], fc = [0xffc6e0, 0xfff1a8, 0xd9c8ff, 0xffffff, 0xa8e6ff, 0xff9aa8];
+  for (let k = 0; k < 4000 && fl.length < (isTouch ? 600 : 1500); k++) {
+    const x = (rng() - 0.5) * 180, z = (rng() - 0.5) * 180, h = groundY(x, z);
+    if (h < 1.1 || h > 9 || pathDist(x, z) < 2.4 || Math.hypot(x - SITES.town.x, z - SITES.town.z) < 10.5) continue;
+    const col = fc[(rng() * fc.length) | 0], n = 1 + ((rng() * 4) | 0);
+    for (let j = 0; j < n; j++) { const fx = x + (rng() - 0.5) * 1.2, fz = z + (rng() - 0.5) * 1.2; fl.push({ x: fx, y: groundY(fx, fz), z: fz, h: 0.18 + rng() * 0.18, s: 1.1 + rng() * 0.6, col }); }
+  }
+  buildFlowerFieldProc(scene, fl);
+}
+
+// ---------------- hooks called from 03_world.js (buildWorld / updateWorld)
+function buildNatureExtras(scene) {
+  Veg.coverDist = Settings.high ? 60 : 32;
+  Veg.U.uFade.value.set(Veg.coverDist * 0.72, Veg.coverDist);
+  // the ground cover needs the finished island (town colliders, splat stamps): built on the first world update
+  if (vegHasCover()) Veg.pendingCover = scene;
+}
+function updateNatureExtras(dt) {
+  if (Veg.pendingCover) {
+    const sc = Veg.pendingCover; Veg.pendingCover = null;
+    try { buildGroundCover(sc); } catch (e) { console.warn('ground cover', e); }
+  }
+  const cam = World.camera; if (!cam) return;
+  const cx = cam.position.x, cz = cam.position.z;
+  Veg.t += dt;
+  for (const f of Veg.forests) {
+    if ((cx - f.cx) ** 2 + (cz - f.cz) ** 2 > 16 || (Veg.t - f.t > 1.5 && (cx - f.cx) ** 2 + (cz - f.cz) ** 2 > 0.25)) { f.t = Veg.t; vegPartition(f, cx, cz, Veg.lodDist); }
+  }
+  for (const c of Veg.cover) {
+    const vis = Math.hypot(cx - c.x, cz - c.z) - c.r < Veg.coverDist;
+    if (vis !== c.vis) { c.vis = vis; for (const m of c.meshes) m.visible = vis; }
+  }
+}
 
 // ---- 04_battle.js ----
 // ============================================================================

@@ -164,13 +164,13 @@ def blossom(reg, seed):
     petal_cols = [C('#f7d9e4'), C('#f3c7d8'), C('#fbe9ef'), C('#eebbd0'), C('#f9dfe8')]
     centres = []
     for tw in twigs:
-        nfl = 13 if tw is twigs[0] else 9
+        nfl = 30 if tw is twigs[0] else 20
         for j in range(nfl):
             px, py, a = along(tw, 0.3 + 0.7 * (j + r.random() * 0.5) / nfl)
-            for k in range(2 + int(r.integers(3))):          # flowers hang in little clusters on short pedicels
-                aa = r.random() * 2 * math.pi; dd = 8 + r.random() * 30
+            for k in range(3 + int(r.integers(3))):          # flowers hang in dense clusters on short pedicels (full bloom)
+                aa = r.random() * 2 * math.pi; dd = 6 + r.random() * 38
                 fx, fy = px + math.cos(aa) * dd, py + math.sin(aa) * dd
-                rad = 14 + r.random() * 8
+                rad = 13 + r.random() * 7
                 if inside(reg, [(fx - rad, fy - rad), (fx + rad, fy + rad)], 5): centres.append((px, py, fx, fy, rad))
     r.shuffle(centres)
     for (px, py, fx, fy, rad) in centres:

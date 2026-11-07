@@ -15,21 +15,21 @@ FOLIAGE = {
 }
 
 # ground cover atlas: assets/tex/vegetation/cover_{albedo,alpha,normal}.jpg
+# side cards have their base at the bottom-centre of the region; top-down patches are centred
 COVER = {
-    'lawn':    (0, 0, 512, 256),       # short dense meadow blades (card strip)
-    'wild':    (512, 0, 1024, 256),    # tall wild grass with seed heads
-    'fern_a':  (0, 256, 256, 768),     # fern frond (base at bottom)
-    'fern_b':  (256, 256, 512, 768),
-    'clover':  (512, 256, 768, 512),   # top-down clover patch
-    'rosette': (768, 256, 1024, 512),  # top-down plantain / moss rosette
-    'daisy':   (512, 512, 640, 768),   # flowering plant side cards (base at bottom)
-    'butter':  (640, 512, 768, 768),
-    'bell':    (768, 512, 896, 768),
-    'pink':    (896, 512, 1024, 768),
-    'reed':    (0, 768, 256, 1024),    # reeds / sedge for water edges
-    'sedge':   (256, 768, 512, 1024),
-    'leafbed': (512, 768, 768, 1024),  # fallen leaves / litter decal (top-down)
-    'moss':    (768, 768, 1024, 1024), # moss cushion (top-down)
+    'lawn':    (0, 0, 512, 256),       # short dense meadow blades (wide strip, base along the bottom)
+    'wild':    (0, 256, 256, 768),     # tall wild grass clump with seed heads
+    'tuss':    (256, 256, 512, 768),   # tussock: broad arching blades, dry tips
+    'fern':    (512, 0, 768, 512),     # one fern frond (rachis from the bottom centre), bent into fans by the mesh
+    'reed':    (768, 0, 1024, 512),    # sedge / reeds with a couple of cattails (water edges)
+    'clover':  (512, 512, 768, 768),   # top-down clover patch
+    'rosette': (768, 512, 1024, 768),  # top-down plantain rosette (path edges)
+    'daisy':   (0, 768, 128, 1024),    # flowering plant side cards
+    'butter':  (128, 768, 256, 1024),
+    'bell':    (256, 768, 384, 1024),
+    'pink':    (384, 768, 512, 1024),
+    'moss':    (512, 768, 768, 1024),  # moss cushion (top-down)
+    'leafbed': (768, 768, 1024, 1024), # fallen leaves (top-down)
 }
 
 
