@@ -5301,14 +5301,18 @@ const PP_M = { skin: [0.2, 0.3, 1, 0], lip: [0.42, 0.5, 1, 0], cloth: [0, 0, 0, 
 const PP_HI = () => Settings.high && !isTouch;
 
 // ---------------------------------------------------------------- sculpt: SDF field → surface nets (no attributes)
+function ppAabb(P, cell) {
+  const a = SDF.aabb(P), sh = Math.max(0, 0.02 - cell * 1.5);
+  return [a[0] + sh, a[1] + sh, a[2] + sh, a[3] - sh, a[4] - sh, a[5] - sh];
+}
 function ppSculpt(prims, cell) {
   let x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
-  for (const P of prims) if (!P.sub) { const a = SDF.aabb(P); x0 = Math.min(x0, a[0]); y0 = Math.min(y0, a[1]); z0 = Math.min(z0, a[2]); x1 = Math.max(x1, a[3]); y1 = Math.max(y1, a[4]); z1 = Math.max(z1, a[5]); }
+  for (const P of prims) if (!P.sub) { const a = ppAabb(P, cell); x0 = Math.min(x0, a[0]); y0 = Math.min(y0, a[1]); z0 = Math.min(z0, a[2]); x1 = Math.max(x1, a[3]); y1 = Math.max(y1, a[4]); z1 = Math.max(z1, a[5]); }
   x0 -= cell * 2; y0 -= cell * 2; z0 -= cell * 2; x1 += cell * 2; y1 += cell * 2; z1 += cell * 2;
   const nx = Math.ceil((x1 - x0) / cell) + 1, ny = Math.ceil((y1 - y0) / cell) + 1, nz = Math.ceil((z1 - z0) / cell) + 1;
   const N = nx * ny * nz, grid = new Float32Array(N).fill(1e3), sxy = nx * ny;
   for (const P of prims) {
-    const bb = SDF.aabb(P);
+    const bb = ppAabb(P, cell);
     const ia = Math.max(0, Math.floor((bb[0] - x0) / cell)), ib = Math.min(nx - 1, Math.ceil((bb[3] - x0) / cell));
     const ja = Math.max(0, Math.floor((bb[1] - y0) / cell)), jb = Math.min(ny - 1, Math.ceil((bb[4] - y0) / cell));
     const ka = Math.max(0, Math.floor((bb[2] - z0) / cell)), kb = Math.min(nz - 1, Math.ceil((bb[5] - z0) / cell));
@@ -5583,7 +5587,7 @@ function ppLayerSurf(S, L) {
     let dmin = 1e9;
     for (let p = 0; p < add.length; p++) {
       const b = boxes[p];
-      if (x < b[0] - 0.1 || y < b[1] - 0.1 || z < b[2] - 0.1 || x > b[3] + 0.1 || y > b[4] + 0.1 || z > b[5] + 0.1) { ds[p] = 1e9; continue; }
+      if (x < b[0] - 0.045 || y < b[1] - 0.045 || z < b[2] - 0.045 || x > b[3] + 0.045 || y > b[4] + 0.045 || z > b[5] + 0.045) { ds[p] = 1e9; continue; }
       ds[p] = SDF.dist(add[p], x, y, z); if (ds[p] < dmin) dmin = ds[p];
     }
     let W = 0, cr = 0, cg = 0, cb = 0, m0 = 0, m1 = 0, m2 = 0, m3 = 0, flag = 0, fw = 0;
@@ -5607,9 +5611,12 @@ function ppLayerSurf(S, L) {
   return s;
 }
 // soft crease occlusion from every sculpted layer's field (cross-layer: under hems, collars, hair, chin, arms)
-function ppAO(s, fields, R) {
+function ppAO(s, fields0, R) {
   if (!R) return;
-  const n = s.nv, ao = s.ao, steps = [0.3, 0.7, 1.3], sw = [1, 0.7, 0.45];
+  const n = s.nv, ao = s.ao, steps = [0.45, 1.1], sw = [1, 0.6];
+  let bx0 = 1e9, by0 = 1e9, bz0 = 1e9, bx1 = -1e9, by1 = -1e9, bz1 = -1e9;
+  for (let q = 0; q < n; q++) { const x = s.pos[q * 3], y = s.pos[q * 3 + 1], z = s.pos[q * 3 + 2]; if (x < bx0) bx0 = x; if (y < by0) by0 = y; if (z < bz0) bz0 = z; if (x > bx1) bx1 = x; if (y > by1) by1 = y; if (z > bz1) bz1 = z; }
+  const m = R * 1.4, fields = fields0.filter((f) => f && !(f.b[0] > bx1 + m || f.b[3] < bx0 - m || f.b[1] > by1 + m || f.b[4] < by0 - m || f.b[2] > bz1 + m || f.b[5] < bz0 - m));
   const F = (x, y, z) => {
     let f = 1e3;
     for (const fl of fields) { const b = fl.b; if (x < b[0] || y < b[1] || z < b[2] || x > b[3] || y > b[4] || z > b[5]) continue; const v = fl.sample(x, y, z); if (v < f) f = v; }
@@ -5624,7 +5631,7 @@ function ppAO(s, fields, R) {
     for (let d = 0; d < 5; d++) {
       let dx = nx, dy = ny, dz = nz, cs = 1;
       if (d > 0) { const a = d * Math.PI / 2 + 0.4, ca = Math.cos(a) * 0.62, sa = Math.sin(a) * 0.62; dx = nx * 0.78 + tx * ca + bx * sa; dy = ny * 0.78 + ty * ca + by * sa; dz = nz * 0.78 + tz * ca + bz * sa; cs = 0.78; }
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < 2; k++) {
         const st = steps[k] * R, f = F(px + dx * st, py + dy * st, pz + dz * st);
         occ += clamp((st * cs - f) / st, 0, 1) * sw[k]; tot += sw[k];
       }
@@ -5697,7 +5704,7 @@ function ppSpec(C) {
   const A = kid ? { neck: 0.13, sh: 0.4, chest: 1.62, waist: 2.05, hips: 2.33, hipJ: 2.52 } : { neck: 0.26, sh: 0.47, chest: 2.0, waist: 2.75, hips: 3.18, hipJ: hero ? 3.42 : 3.48 };
   const W = kid ? { sh: 0.6, chest: 0.5, chestD: 0.36, waist: 0.46, waistD: 0.36, hip: 0.48, hipD: 0.37, hipX: 0.27, neck: 0.15, arm: [0.13, 0.105, 0.11, 0.085], leg: [0.2, 0.14, 0.15, 0.1] }
     : fem ? { sh: 0.7, chest: 0.52, chestD: 0.34, waist: 0.36, waistD: 0.27, hip: 0.58, hipD: 0.37, hipX: 0.36, neck: 0.15, arm: [0.13, 0.105, 0.11, 0.08], leg: [0.3, 0.17, 0.18, 0.1] }
-    : { sh: hero ? 0.86 : guard ? 0.92 : elder ? 0.76 : 0.82, chest: hero ? 0.64 : guard ? 0.7 : 0.6, chestD: 0.37, waist: hero ? 0.43 : elder ? 0.5 : 0.47, waistD: elder ? 0.37 : 0.31, hip: 0.5, hipD: 0.35, hipX: 0.32, neck: 0.18, arm: [0.165, 0.13, 0.14, 0.1], leg: [0.3, 0.185, 0.2, 0.115] };
+    : { sh: hero ? 0.8 : guard ? 0.86 : elder ? 0.72 : 0.77, chest: hero ? 0.64 : guard ? 0.7 : 0.6, chestD: 0.37, waist: hero ? 0.43 : elder ? 0.5 : 0.47, waistD: elder ? 0.37 : 0.31, hip: 0.5, hipD: 0.35, hipX: 0.32, neck: 0.18, arm: [0.165, 0.13, 0.14, 0.1], leg: [0.3, 0.185, 0.2, 0.115] };
   const y = (h) => H - h * u, shY = y(1 + A.sh), j = {};
   j.base = [0, 0, 0];
   j.hips = [0, y(A.hips), 0];
@@ -5731,7 +5738,7 @@ function ppSpec(C) {
     caps['thigh' + X] = cap(j['thigh' + X], j['shin' + X], 0.3); caps['shin' + X] = cap(j['shin' + X], j['foot' + X], 0.2); caps['foot' + X] = cap(j['foot' + X], j['toe' + X], 0.16);
   }
   const eyeW = kid ? 0.235 : fem ? 0.205 : elder ? 0.165 : 0.19;
-  return { C, H, u, kid, elder, guard, fem, hero, trav, robe: !!C.robe, W, j, hc: [0, H - 0.5 * u, 0], shY, caps, A, eyeW, eyeY: kid ? -0.09 : -0.035, Q: PP_HI() ? 1 : 1.5 };
+  return { C, H, u, kid, elder, guard, fem, hero, trav, robe: !!C.robe, W, j, hc: [0, H - 0.5 * u, 0], shY, caps, A, eyeW, eyeY: kid ? -0.1 : -0.06, Q: PP_HI() ? 1 : 1.5 };
 }
 
 // ---------------------------------------------------------------- face: one fine layer (skull, brow, cheekbones, nose, lips, jaw, ears, neck)
@@ -5739,7 +5746,7 @@ function ppFace(K, S, C) {
   const u = S.u, hc = S.hc;
   const P = (x, y, z) => [hc[0] + x * u, hc[1] + y * u, hc[2] + z * u], R = (x, y, z) => [x * u, y * u, z * u], k = (v, o = {}) => Object.assign({ k: v * u }, o);
   const skin = C.skin, lip = ppHex(ppMixC(ppLin(C.skin), ppLin(0xb04858), S.fem ? 0.42 : S.kid ? 0.3 : 0.2));
-  const L = K.layer('face', { cell: u * 0.0165 * S.Q, ch: 'head', m: PP_M.skin, aoR: 0.07 * u, soft: 0.0016 });
+  const L = K.layer('face', { cell: u * 0.018 * S.Q, ch: 'head', m: PP_M.skin, aoR: 0.07 * u, soft: 0.0016 });
   if (S.kid) {
     K.el(P(0, 0.06, -0.05), R(0.4, 0.45, 0.46), skin, k(0.1));
     for (const s of [-1, 1]) K.el(P(s * 0.19, -0.17, 0.15), R(0.17, 0.16, 0.17), skin, k(0.14));
@@ -5757,21 +5764,21 @@ function ppFace(K, S, C) {
     K.el(P(0, 0.13, 0.1), R(0.28, 0.25, 0.25), skin, k(0.1));
     K.el(P(0, -0.1, 0.14), R(f ? 0.255 : 0.265, 0.26, 0.21), skin, k(0.1));
     for (const s of [-1, 1]) {
-      K.rc(P(s * 0.24, -0.1, -0.06), P(s * (f ? 0.07 : 0.08), -0.41, 0.16), (f ? 0.08 : 0.095) * u, (f ? 0.045 : 0.06) * u, skin, k(0.1));
+      K.rc(P(s * 0.24, -0.1, -0.06), P(s * (f ? 0.07 : 0.08), -0.385, 0.16), (f ? 0.08 : 0.095) * u, (f ? 0.045 : 0.06) * u, skin, k(0.1));
       K.el(P(s * 0.17, f ? -0.05 : -0.06, 0.22), R(0.1, 0.065, 0.09), skin, k(0.07));
       K.el(P(s * 0.14, 0.075, 0.27), R(0.12, e ? 0.055 : 0.045, e ? 0.07 : 0.06), skin, k(0.06));
       K.el(P(s * 0.335, -0.03, -0.03), R(0.055, 0.14, 0.085), skin, k(0.04));
       K.sub(P(s * 0.37, -0.03, 0.0), R(0.03, 0.085, 0.05), 0.02 * u);
     }
-    K.el(P(0, f ? -0.43 : -0.44, f ? 0.17 : 0.18), R(f ? 0.075 : 0.09, f ? 0.055 : 0.065, f ? 0.065 : 0.075), skin, k(0.08));
-    K.el(P(0, -0.25, 0.2), R(0.14, 0.12, 0.13), skin, k(0.08));
+    K.el(P(0, f ? -0.41 : -0.415, f ? 0.17 : 0.18), R(f ? 0.075 : 0.09, f ? 0.055 : 0.065, f ? 0.065 : 0.075), skin, k(0.08));
+    K.el(P(0, -0.24, 0.2), R(0.14, 0.12, 0.13), skin, k(0.08));
     const ns = f ? 0.85 : e ? 1.15 : 1;
-    K.rc(P(0, 0.0, 0.31), P(0, -0.12, 0.31 + 0.05 * ns), 0.022 * u * ns, 0.03 * u * ns, skin, k(0.05));
+    K.rc(P(0, -0.03, 0.3), P(0, -0.12, 0.305 + 0.05 * ns), 0.02 * u * ns, 0.03 * u * ns, skin, k(0.06));
     K.el(P(0, -0.135, 0.315 + 0.05 * ns), R(0.036 * ns, 0.031 * ns, 0.033 * ns), skin, k(0.04));
     for (const s of [-1, 1]) K.el(P(s * 0.034 * ns, -0.152, 0.33), R(0.026 * ns, 0.022 * ns, 0.024), skin, k(0.03));
-    K.el(P(0, -0.262, 0.312), R(f ? 0.07 : 0.075, f ? 0.026 : 0.021, 0.035), lip, k(0.03, { m: PP_M.lip }));
-    K.el(P(0, -0.297, 0.302), R(f ? 0.064 : 0.066, f ? 0.032 : 0.026, 0.034), lip, k(0.03, { m: PP_M.lip }));
-    K.rc(P(0, -0.42, -0.12), P(0, -1.25, -0.08), S.W.neck * u, (S.W.neck + 0.025) * u, skin, k(0.12, { ch: 'neck' }));
+    K.el(P(0, -0.25, 0.312), R(f ? 0.07 : 0.075, f ? 0.026 : 0.021, 0.035), lip, k(0.03, { m: PP_M.lip }));
+    K.el(P(0, -0.283, 0.302), R(f ? 0.064 : 0.066, f ? 0.032 : 0.026, 0.034), lip, k(0.03, { m: PP_M.lip }));
+    K.rc(P(0, -0.42, -0.12), P(0, -1.0, -0.08), S.W.neck * u, (S.W.neck + 0.02) * u, skin, k(0.12, { ch: 'neck' }));
   }
   // eye sockets: find the face surface along each eye axis, sink the eyeball 0.8 R behind it, carve the socket
   const Rr = S.eyeW * u / 1.68;
@@ -5791,15 +5798,15 @@ function ppFace(K, S, C) {
 // ---------------------------------------------------------------- garments
 function ppTorso(K, S, o, col, opt = {}) {
   const u = S.u, j = S.j, W = S.W;
-  K.el([0, j.chest[1] + 0.15 * u, -0.03 * u], [W.chest * u + o, 0.66 * u + o, W.chestD * u + o], col, { k: 0.12 * u });
+  K.el([0, j.chest[1] + 0.1 * u, -0.03 * u], [W.chest * u + o, 0.6 * u + o, W.chestD * u + o], col, { k: 0.12 * u });
   K.el([0, j.spine[1], 0], [W.waist * u + o, 0.6 * u + o, W.waistD * u + o], col, { k: 0.15 * u });
   if (opt.pelvis !== false) K.el([0, j.hips[1] - 0.06 * u, -0.02 * u], [W.hip * u + o + (opt.hipX || 0), 0.42 * u + o, W.hipD * u + o + (opt.hipZ || 0)], col, { k: 0.14 * u });
   if (S.fem && !S.kid) for (const s of [-1, 1]) K.el([s * 0.17 * u, j.chest[1] + 0.02 * u, 0.12 * u], [0.17 * u + o, 0.16 * u + o, 0.15 * u + o], col, { k: 0.1 * u });
   else if (!S.kid) for (const s of [-1, 1]) K.el([s * 0.19 * u, j.chest[1] + 0.12 * u, 0.1 * u], [0.2 * u + o, 0.16 * u + o, 0.13 * u + o], col, { k: 0.1 * u });
   for (const s of [-1, 1]) {
     const X = s > 0 ? 'L' : 'R';
-    K.rc([s * 0.1 * u, j.neck[1] + 0.12 * u, -0.07 * u], [s * (W.sh - 0.08) * u, S.shY + 0.04 * u, -0.05 * u], 0.15 * u + o, 0.2 * u + o, col, { k: 0.1 * u, ch: 'upper' });
-    K.el([s * (W.sh + 0.01) * u, S.shY - 0.03 * u, -0.03 * u], [0.2 * u + o, 0.22 * u + o, 0.21 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
+    K.rc([s * 0.13 * u, j.neck[1] - 0.04 * u, -0.07 * u], [s * (W.sh - 0.1) * u, S.shY + 0.0 * u, -0.05 * u], 0.12 * u + o, 0.18 * u + o, col, { k: 0.1 * u, ch: 'upper' });
+    K.el([s * (W.sh - 0.01) * u, S.shY - 0.05 * u, -0.03 * u], [0.18 * u + o, 0.2 * u + o, 0.19 * u + o], col, { k: 0.08 * u, ch: 'arm' + X });
   }
 }
 function ppSleeve(K, S, s, o, col, opt = {}) {
@@ -5929,7 +5936,8 @@ function ppDress(S, s, col, m, ch, o = {}) {
 // ---------------------------------------------------------------- hair: lens clumps grown over the scalp
 function ppHair(S, C, FH, FB, out) {
   const u = S.u, hc = S.hc, hi = S.Q === 1;
-  const col = ppLin(C.hair), rnd = mulberry32(((C.hair * 7) ^ ((C.skin || 0) >> 3) ^ (S.kid ? 99 : 0)) >>> 0);
+  let col = ppLin(C.hair); { const l = 0.2126 * col[0] + 0.7152 * col[1] + 0.0722 * col[2]; if (l < 0.04) col = ppV.add(ppV.mul(col, 0.04 / Math.max(l, 1e-4) * 0.7), [0.006, 0.006, 0.008]); }
+  const rnd = mulberry32(((C.hair * 7) ^ ((C.skin || 0) >> 3) ^ (S.kid ? 99 : 0)) >>> 0);
   const style = S.kid ? 'kid' : S.elder ? 'elder' : S.guard ? 'hood' : S.fem ? 'long' : S.trav ? 'hat' : 'short';
   const F = (x, y, z) => Math.min(FH(x, y, z), FB(x, y, z));
   const W = ppV.norm([0, 0.8, -0.6]);
@@ -5970,73 +5978,68 @@ function ppHair(S, C, FH, FB, out) {
   };
   const sph = (az, el) => [Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)];
   const rootAt = (az, el) => ppV.add(hc, ppV.mul(sph(az, el), 0.5 * u));
-  const flowAt = (az, el, down) => {
-    const r = sph(az, el); let f = ppV.sub(r, ppV.mul(W, ppV.dot(r, W)));
-    f = ppV.add(ppV.norm(f), [0, -down, 0]);
-    return ppV.norm(ppV.sub(f, ppV.mul(r, ppV.dot(f, r))));
-  };
   const deg = Math.PI / 180, J = (a) => (rnd() - 0.5) * a;
-  const crown = (len, w0, o, els, skipFront = 70, skipTop = 99) => {
-    for (const el of els) {
-      if (el > skipTop) continue;
-      const cnt = Math.max(3, Math.round((hi ? 11 : 7) * Math.cos(el * deg) + 2));
-      for (let i = 0; i < cnt; i++) {
-        const az = (i / cnt) * Math.PI * 2 + el * 0.05 + J(0.25);
-        let a = ((az / deg) % 360 + 360) % 360; if (a > 180) a -= 360;
-        if (Math.abs(a) < skipFront && el < 48) continue;
-        const e = (el + J(8)) * deg;
-        clump(rootAt(az, e), flowAt(az, e, o.down ?? 0.5), len * (0.85 + rnd() * 0.3) * (o.lenK ? o.lenK(a, el) : 1), w0 * (0.9 + rnd() * 0.25), o);
-      }
+  // crown flow: long clumps fanning out from the whorl over the skull, so their tips end only at the hairline,
+  // over the ears and at the nape (a smooth top with strand definition, spiky only at the perimeter)
+  const Wd = ppV.norm([0.06, 0.86, -0.5]), e1 = ppV.norm(ppV.sub([0, 0, 1], ppV.mul(Wd, Wd[2]))), e2 = ppV.cross(Wd, e1);
+  const flow = (n, pol0, pol1, lenF, w0, o = {}) => {
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 + J(0.25), pol = pol0 + (pol1 - pol0) * rnd();
+      let A = a % (Math.PI * 2); if (A > Math.PI) A -= Math.PI * 2;
+      const rad = ppV.add(ppV.mul(e1, Math.cos(a)), ppV.mul(e2, Math.sin(a)));
+      const rd = ppV.norm(ppV.add(ppV.mul(Wd, Math.cos(pol)), ppV.mul(rad, Math.sin(pol))));
+      const fd = ppV.norm(ppV.sub(ppV.mul(rad, Math.cos(pol)), ppV.mul(Wd, Math.sin(pol))));
+      clump(ppV.add(hc, ppV.mul(rd, 0.5 * u)), fd, lenF(A) * u * (0.9 + rnd() * 0.2), w0 * (0.9 + rnd() * 0.25), o);
+    }
+  };
+  const ring = (n, el0, el1, len, w0, o = {}) => {
+    for (let i = 0; i < n; i++) {
+      const az = (i / n) * Math.PI * 2 + J(0.3), el = (el0 + (el1 - el0) * rnd()) * deg;
+      let A = az % (Math.PI * 2); if (A > Math.PI) A -= Math.PI * 2;
+      if (Math.abs(A) < (o.front ?? 70) * deg) continue;
+      clump(rootAt(az, el), [Math.sin(az) * 0.3, -0.9, Math.cos(az) * 0.3], len * (0.85 + rnd() * 0.3), w0, Object.assign({ grav: 1.0, lift: 0.1, flat: 0.38 }, o));
     }
   };
   const bangs = (n, len, w0, o = {}) => {
     const part = o.part ?? 0.25;
     for (let i = 0; i < n; i++) {
-      const t = i / (n - 1), az = (-48 + 96 * t + J(6)) * deg, el = (o.el ?? 52) * deg;
+      const t = i / (n - 1), az = (-50 + 100 * t + J(6)) * deg, el = (o.el ?? 50) * deg;
       const side = Math.sin(az - part);
-      const dir = [side * 0.35 + J(0.15), -0.55, 0.85];
       const L = len * (0.82 + 0.3 * Math.sin(Math.PI * t) + rnd() * 0.15);
-      clump(rootAt(az, el), dir, L, w0 * (0.9 + rnd() * 0.2), Object.assign({ grav: 0.9, lift: 0.18, flick: 0.12, flat: 0.34 }, o));
+      clump(rootAt(az, el), [side * 0.4 + J(0.15), -0.5, 0.85], L, w0 * (0.9 + rnd() * 0.2), Object.assign({ grav: 0.9, lift: 0.15, flick: 0.12, flat: 0.34 }, o));
     }
   };
-  const sides = (len, w0, o = {}) => {
-    for (const s of [-1, 1]) for (let i = 0; i < (hi ? 4 : 3); i++) {
-      const az = s * (72 + i * 14 + J(6)) * deg, el = (28 - i * 9 + J(6)) * deg;
-      clump(rootAt(az, el), [s * 0.25, -0.9, 0.3 - i * 0.15], len * (0.9 + rnd() * 0.25), w0, Object.assign({ grav: 1.0, lift: 0.12, flick: 0.1, flat: 0.36 }, o));
-    }
-  };
+  const sideLen = (A, f, sd, b) => { const c = Math.abs(A) / Math.PI; return c < 0.25 ? lerp(f, sd, smooth(0.0, 0.25, c)) : lerp(sd, b, smooth(0.3, 0.85, c)); };
   if (style === 'short') {
-    crown(0.5 * u, 0.17 * u, { grav: 0.5, lift: 0.22, flick: 0.4, down: 0.35 }, [84, 68, 52, 36, 20, 4, -12, -28]);
-    sides(0.42 * u, 0.15 * u, { flick: 0.25 });
-    bangs(hi ? 9 : 6, 0.55 * u, 0.15 * u, { flick: 0.2 });
+    flow(hi ? 38 : 22, 0.05, 0.4, (A) => sideLen(A, 0.95, 0.8, 1.0), 0.21 * u, { grav: 0.6, lift: 0.05, flick: 0.4, flat: 0.34 });
+    ring(hi ? 14 : 8, 0, 22, 0.4 * u, 0.16 * u, { flick: 0.3 });
+    bangs(hi ? 8 : 5, 0.52 * u, 0.15 * u, { flick: 0.2 });
   } else if (style === 'kid') {
-    crown(0.38 * u, 0.17 * u, { grav: 0.4, lift: 0.3, flick: 0.6, down: 0.25 }, [82, 64, 46, 28, 10, -8, -24]);
-    sides(0.32 * u, 0.15 * u, { flick: 0.35 });
-    bangs(hi ? 8 : 5, 0.42 * u, 0.15 * u, { flick: 0.3 });
+    flow(hi ? 34 : 20, 0.05, 0.4, (A) => sideLen(A, 0.85, 0.72, 0.8), 0.22 * u, { grav: 0.5, lift: 0.08, flick: 0.6, flat: 0.36 });
+    ring(hi ? 12 : 7, -2, 20, 0.34 * u, 0.16 * u, { flick: 0.4 });
+    bangs(hi ? 7 : 5, 0.42 * u, 0.15 * u, { flick: 0.3 });
   } else if (style === 'long') {
-    crown(0.55 * u, 0.19 * u, { grav: 0.85, lift: 0.1, flick: 0.0, down: 0.8, spring: 0.7, lenK: (a) => 1 + 2.4 * smooth(80, 150, Math.abs(a)) }, [82, 66, 50, 34, 18, 2, -14]);
-    for (const s of [-1, 1]) for (let i = 0; i < (hi ? 4 : 3); i++) {
-      const az = s * (64 + i * 11) * deg, el = (30 - i * 8) * deg;
-      clump(rootAt(az, el), [s * 0.1, -0.95, 0.3], (1.45 + 0.12 * i) * u, 0.18 * u, { grav: 1.4, lift: 0.05, flat: 0.36, spring: 0.55 });
-    }
-    bangs(hi ? 8 : 5, 0.6 * u, 0.15 * u, { part: -0.5, flick: 0.05 });
+    flow(hi ? 40 : 24, 0.05, 0.38, (A) => sideLen(A, 0.78, 1.7, 2.7), 0.23 * u, { grav: 0.9, lift: 0.08, flick: 0.0, flat: 0.36, spring: 0.7 });
+    for (const s of [-1, 1]) for (let i = 0; i < (hi ? 3 : 2); i++) clump(rootAt(s * (66 + i * 12) * deg, (30 - i * 8) * deg), [s * 0.1, -0.95, 0.3], (1.45 + 0.12 * i) * u, 0.18 * u, { grav: 1.4, lift: 0.05, flat: 0.36, spring: 0.55 });
+    bangs(hi ? 7 : 5, 0.58 * u, 0.15 * u, { part: -0.5, flick: 0.05 });
   } else if (style === 'hat') {
-    crown(0.46 * u, 0.17 * u, { grav: 0.6, lift: 0.2, flick: 0.35, down: 0.5 }, [36, 20, 4, -12, -28], 70, 40);
-    sides(0.44 * u, 0.15 * u, { flick: 0.3 });
-    bangs(hi ? 7 : 4, 0.5 * u, 0.15 * u, { el: 40, flick: 0.25 });
-    for (let i = 0; i < 4; i++) { const az = Math.PI + (i - 1.5) * 0.18; clump(rootAt(az, -0.28), [J(0.2), -1, -0.25], 0.85 * u, 0.12 * u, { grav: 1.3, lift: 0.05, spring: 0.8 }); }
+    flow(hi ? 30 : 18, 0.45, 0.75, (A) => sideLen(A, 0.6, 0.6, 0.65), 0.2 * u, { grav: 0.7, lift: 0.15, flick: 0.35, flat: 0.36 });
+    ring(hi ? 12 : 7, 0, 20, 0.4 * u, 0.16 * u, { flick: 0.25 });
+    bangs(hi ? 7 : 4, 0.48 * u, 0.15 * u, { el: 40, flick: 0.2 });
+    for (let i = 0; i < 4; i++) { const az = Math.PI + (i - 1.5) * 0.18; clump(rootAt(az, -0.28), [J(0.2), -1, -0.25], 0.85 * u, 0.13 * u, { grav: 1.3, lift: 0.05, spring: 0.8 }); }
   } else if (style === 'hood') {
     bangs(hi ? 7 : 4, 0.52 * u, 0.15 * u, { el: 42, flick: 0.15 });
-    if (S.fem) for (const s of [-1, 1]) for (let i = 0; i < 3; i++) clump(rootAt(s * (58 + i * 10) * deg, (26 - i * 6) * deg), [s * 0.15, -0.95, 0.4], (1.5 + i * 0.12) * u, 0.15 * u, { grav: 1.4, lift: 0.1, flat: 0.36, spring: 0.4, hover: 0.05 * u });
+    if (S.fem) for (const s of [-1, 1]) for (let i = 0; i < 3; i++) clump(rootAt(s * (58 + i * 10) * deg, (26 - i * 6) * deg), [s * 0.15, -0.95, 0.4], (1.5 + i * 0.12) * u, 0.17 * u, { grav: 1.4, lift: 0.1, flat: 0.36, spring: 0.4, hover: 0.04 * u });
   } else if (style === 'elder') {
-    crown(0.32 * u, 0.16 * u, { grav: 0.9, lift: 0.1, flick: 0.15, down: 0.8 }, [34, 18, 2, -14, -28], 75, 40);
+    ring(hi ? 30 : 16, 6, 40, 0.38 * u, 0.12 * u, { front: 62, flick: 0.12, grav: 0.9, flat: 0.45 });
     // beard: from the jaw and chin, falling onto the chest; moustache from under the nose
-    for (let i = 0; i < (hi ? 11 : 7); i++) {
-      const t = i / ((hi ? 11 : 7) - 1), az = (-80 + 160 * t) * deg, el = (-38 - 18 * Math.sin(Math.PI * t)) * deg;
-      const L = (0.45 + 0.75 * Math.pow(Math.sin(Math.PI * t), 1.5)) * u;
-      clump(ppV.add(hc, ppV.mul(sph(az, el), 0.45 * u)), [Math.sin(az) * 0.2, -0.9, 0.35], L, 0.16 * u, { grav: 1.5, lift: 0.25, flick: 0.1, flat: 0.45, chain: 'neck' });
+    const nb = hi ? 17 : 9;
+    for (let i = 0; i < nb; i++) {
+      const t = i / (nb - 1), az = (-80 + 160 * t + J(5)) * deg, el = (-36 - 18 * Math.sin(Math.PI * t) + J(6)) * deg;
+      const L = (0.4 + 0.8 * Math.pow(Math.sin(Math.PI * t), 1.5)) * u * (0.9 + rnd() * 0.2);
+      clump(ppV.add(hc, ppV.mul(sph(az, el), 0.45 * u)), [Math.sin(az) * 0.2, -0.9, 0.35], L, 0.13 * u, { grav: 1.5, lift: 0.22, flick: 0.08, flat: 0.5, chain: 'neck' });
     }
-    for (const s of [-1, 1]) clump(ppV.add(hc, [s * 0.05 * u, -0.235 * u, 0.36 * u]), [s * 0.7, -0.6, 0.3], 0.3 * u, 0.075 * u, { grav: 0.8, lift: 0.1, flat: 0.5 });
+    for (const s of [-1, 1]) clump(ppV.add(hc, [s * 0.05 * u, -0.215 * u, 0.35 * u]), [s * 0.7, -0.6, 0.3], 0.3 * u, 0.08 * u, { grav: 0.8, lift: 0.1, flat: 0.5 });
   }
 }
 // brows and the mouth line: thin strokes resting on the face
@@ -6050,11 +6053,11 @@ function ppFaceStrokes(S, C, FF, out) {
       const t = i / 7, x = s * (wd * 0.42 + wd * 1.3 * t) * u, y = ey + (lift + arch * Math.sin(Math.PI * Math.pow(t, 0.8)) - (S.hero ? 0.03 * (1 - t) : 0) - 0.05 * t * t) * u;
       pts.push(ppProject(FF, [x, y, hc[2] + 0.45 * u], 0.007 * u, 8));
     }
-    const W0 = (S.elder ? 0.05 : S.fem ? 0.024 : 0.032) * u;
+    const W0 = (S.elder ? 0.038 : S.fem ? 0.024 : 0.032) * u;
     const sf = ppSweep(pts, pts.map((p, i) => W0 * (1 - 0.6 * Math.pow(i / 7, 1.4))), pts.map(() => 0.011 * u), (i) => ppGrad(FF, pts[i]), { seg: 6 });
     out.push(ppDress(S, sf, browC, PP_M.hair, 'head', { flag: -1 }));
   }
-  const my = hc[1] + (S.kid ? -0.285 : -0.279) * u, mw = (S.kid ? 0.06 : S.fem ? 0.072 : 0.078) * u, pts = [];
+  const my = hc[1] + (S.kid ? -0.285 : -0.266) * u, mw = (S.kid ? 0.06 : S.fem ? 0.072 : 0.078) * u, pts = [];
   for (let i = 0; i < 9; i++) { const t = i / 8 * 2 - 1; pts.push(ppProject(FF, [t * mw, my + (Math.abs(t) * Math.abs(t) * 0.012 - 0.002) * u, hc[2] + 0.45 * u], 0.001 * u, 8)); }
   const lipC = ppV.mul(ppMixC(ppLin(C.skin), ppLin(0x6a2030), 0.75), 0.6);
   const ms = ppSweep(pts, pts.map((p, i) => 0.0085 * u * Math.pow(Math.sin(Math.PI * (i + 0.5) / 9), 0.6)), pts.map(() => 0.004 * u), (i) => ppGrad(FF, pts[i]), { seg: 6 });
@@ -6065,7 +6068,7 @@ function ppFaceStrokes(S, C, FF, out) {
 function ppHairCap(K, S, C) {
   const u = S.u, hc = S.hc, col = ppHex(ppV.mul(ppLin(C.hair), 0.78)), kw = S.kid ? 0.415 : 0.355;
   const P = (x, y, z) => [hc[0] + x * u, hc[1] + y * u, hc[2] + z * u];
-  K.layer('cap', { cell: u * 0.026 * S.Q, ch: 'head', m: PP_M.hair, aoR: 0.06 * u, soft: 0.002 });
+  K.layer('cap', { cell: u * 0.032 * S.Q, ch: 'head', m: PP_M.hair, aoR: 0.06 * u, soft: 0.002 });
   K.el(P(0, 0.1, -0.06), [kw * u, (S.kid ? 0.475 : 0.445) * u, (S.kid ? 0.48 : 0.455) * u], col, { k: 0.04 * u });
   K.sub(S.kid ? P(0, -0.3, 0.4) : P(0, -0.24, 0.36), [(kw + 0.03) * u, 0.38 * u, 0.32 * u], 0.07 * u);
   for (const s of [-1, 1]) K.sub(P(s * (kw + 0.01), -0.13, 0.0), [0.08 * u, 0.15 * u, 0.12 * u], 0.03 * u);
@@ -6108,7 +6111,7 @@ function ppOutfit(K, S, C) {
     const coat = kind === 'traveler';
     K.layer('shirt', { cell: 0.012 * S.Q, ch: 'upper', aoR: 0.05 });
     K.el([0, j.chest[1] + 0.3 * u, 0.0], [0.34 * u, 0.6 * u, (W.chestD - 0.02) * u], C.shirt, { k: 0.05 * u });
-    K.rc([0, j.neck[1] - 0.12 * u, -0.05 * u], [0, j.neck[1] + 0.14 * u, -0.06 * u], (W.neck + 0.05) * u, (W.neck + 0.035) * u, C.shirt, { k: 0.05 * u, ch: 'neck' });
+    K.rc([0, j.neck[1] - 0.12 * u, -0.05 * u], [0, j.neck[1] + 0.06 * u, -0.06 * u], (W.neck + 0.05) * u, (W.neck + 0.035) * u, C.shirt, { k: 0.05 * u, ch: 'neck' });
     K.layer('jacket', { cell: 0.0125 * S.Q, ch: 'torso', aoR: 0.07 });
     ppTorso(K, S, 0.05 * u, C.top, { hipX: 0.04 * u, hipZ: 0.03 * u });
     for (const s of [-1, 1]) ppSleeve(K, S, s, 0.045 * u, C.top);
@@ -6123,11 +6126,11 @@ function ppOutfit(K, S, C) {
     const bootTop = kneeY - 0.26 * u;
     shoes(C.shoe, 0.012 * u, bootTop, (W.leg[2] + 0.08) * u, (W.leg[3] + 0.065) * u);
     if (!coat) {
-      K.layer('scarf', { cell: 0.011 * S.Q, ch: 'upper', aoR: 0.05, m: PP_M.satin });
-      const ny = j.neck[1] + 0.03 * u, R0 = (W.neck + 0.15) * u, ring = (a) => [Math.sin(a) * R0 * 1.06, ny - 0.05 * u * Math.cos(a), Math.cos(a) * R0 * 0.96 - 0.05 * u];
-      for (let i = 0; i < 12; i++) K.rc(ring(i / 12 * Math.PI * 2), ring((i + 1) / 12 * Math.PI * 2), 0.095 * u, 0.095 * u, C.accent, { k: 0.05 * u });
-      K.el([0.12 * u, ny - 0.17 * u, (W.neck + 0.22) * u], [0.1 * u, 0.11 * u, 0.08 * u], C.accent, { k: 0.05 * u });
-      K.rc([0.12 * u, ny - 0.2 * u, (W.neck + 0.22) * u], [0.2 * u, ny - 0.5 * u, (W.chestD + 0.1) * u], 0.07 * u, 0.05 * u, C.accent, { k: 0.04 * u });
+      K.layer('scarf', { cell: 0.011 * S.Q, ch: 'upper', aoR: 0.05, m: PP_M.cloth });
+      const ny = j.neck[1] + 0.0 * u, R0 = (W.neck + 0.16) * u, ring = (a) => [Math.sin(a) * R0 * 1.08, ny - 0.07 * u * Math.cos(a), Math.cos(a) * R0 * 0.98 - 0.06 * u];
+      for (let i = 0; i < 12; i++) { const a0 = i / 12 * Math.PI * 2, a1 = (i + 1) / 12 * Math.PI * 2; K.rc(ring(a0), ring(a1), (0.1 + 0.02 * Math.cos(a0)) * u, (0.1 + 0.02 * Math.cos(a1)) * u, C.accent, { k: 0.05 * u }); }
+      K.el([0.15 * u, ny - 0.15 * u, (W.neck + 0.2) * u], [0.095 * u, 0.1 * u, 0.085 * u], C.accent, { k: 0.04 * u });
+      K.rc([0.16 * u, ny - 0.2 * u, (W.neck + 0.23) * u], [0.24 * u, ny - 0.42 * u, (W.chestD + 0.1) * u], 0.07 * u, 0.04 * u, C.accent, { k: 0.03 * u });
     } else {
       K.layer('scarf', { cell: 0.0105 * S.Q, ch: 'upper', aoR: 0.05, m: PP_M.satin });
       const ny = j.neck[1] + 0.0 * u, R0 = (W.neck + 0.1) * u, ring = (a) => [Math.sin(a) * R0 * 1.05, ny - 0.06 * u * Math.cos(a), Math.cos(a) * R0 * 0.95 - 0.05 * u];
@@ -6255,21 +6258,27 @@ function ppBuild(C) {
   ppHairCap(K, S, C);
   const post = ppOutfit(K, S, C);
   const surfs = [], fields = {};
-  for (const L of K.layers) { const s = ppLayerSurf(S, L); surfs.push(s); fields[L.name] = s.field; if (L.name === 'face') ppFaceNormals(S, s); }
+  const PF = window.__ppProf, tm = (k, t) => { if (PF) PF[k] = (PF[k] || 0) + performance.now() - t; };
+  let t1 = performance.now();
+  for (const L of K.layers) { const tl = performance.now(); const s = ppLayerSurf(S, L); surfs.push(s); fields[L.name] = s.field; if (L.name === 'face') ppFaceNormals(S, s); tm('L_' + L.name, tl); }
+  tm('layers', t1); t1 = performance.now();
   const F = (name) => ppUnion([fields[name]]);
   const all = Object.values(fields);
   for (const fn of post) for (const s of fn(F)) surfs.push(s);
   const extra = [];
   if (fields.jacket) S.pendant = ppProject(F('jacket'), [0, S.j.chest[1] - (S.kind === 'hero' ? 0.32 : S.kind === 'healer' ? -0.25 : 0.05) * S.u, 0.8 * S.u], 0.025 * S.u, 8);
   const FH = ppUnion([fields.face, fields.cap]), FB = ppUnion(Object.keys(fields).filter((n) => n !== 'face' && n !== 'cap').map((n) => fields[n]));
-  ppHair(S, C, FH, FB, extra);
+  tm('post', t1); t1 = performance.now();
+  ppHair(S, C, FH, FB, extra); tm('hair', t1); t1 = performance.now();
   if (C.pin) S.pinPos = ppProject(FH, ppV.add(S.hc, [0.3 * S.u, 0.14 * S.u, 0.16 * S.u]), 0.05 * S.u, 8);
   ppFaceStrokes(S, C, F('face'), extra);
   if (C.hat === 'wide') extra.push(ppHatWide(S, C));
   const glove = S.kind === 'hero';
   for (const s of [1, -1]) surfs.push(ppHand(S, C, s, glove));
+  tm('strokes+hands', t1); t1 = performance.now();
   for (const s of surfs) if (s.aoR) ppAO(s, all, s.aoR);
-  const geo = ppMerge(surfs.concat(extra));
+  tm('ao', t1); t1 = performance.now();
+  const geo = ppMerge(surfs.concat(extra)); tm('merge', t1);
   geo.computeBoundingSphere();
   const res = { S, geo, ms: performance.now() - t0, tris: geo.index.count / 3 };
   _ppCache[key] = res;
@@ -6342,8 +6351,8 @@ void RE_Direct_Toon( const in IncidentLight directLight, const in vec3 geometryP
     vec3 T1 = normalize(T + N * 0.18), T2 = normalize(T - N * 0.25);
     float d1 = dot(T1, H), d2 = dot(T2, H);
     float s1 = pow(sqrt(max(1.0 - d1 * d1, 0.0)), 110.0), s2 = pow(sqrt(max(1.0 - d2 * d2, 0.0)), 28.0);
-    float hs = (smoothstep(0.22, 0.62, s1) * 0.42 + s2 * 0.12) * vM.w * mix(0.25, 1.0, cel) * strong;
-    acc += hs * mix(vec3(1.0), material.diffuseColor * 1.8 + 0.2, 0.55);
+    float hs = (smoothstep(0.3, 0.7, s1) * 0.2 + s2 * 0.04) * vM.w * mix(0.25, 1.0, cel) * strong;
+    acc += hs * (material.diffuseColor * 3.0 + vec3(0.07, 0.075, 0.09));
   }
   reflectedLight.directSpecular += directLight.color * acc;
 }
@@ -6540,7 +6549,7 @@ function ppEyeMat(C, S, side) {
 // when blink / squint / gaze change. Corners close; the outer rows tuck under the sculpted socket.
 function ppLids(S, C, E, side) {
   const R = E.R, NP = PP_HI() ? 16 : 11;
-  const skin = ppLin(C.skin), lash = ppLin(0x1a1014), lid = ppV.mul(skin, 0.97), crease = ppV.mul(ppMixC(skin, ppLin(0x8a4a48), 0.25), 0.82), rim = ppMixC(skin, ppLin(0xc06a6a), 0.35), low = ppMixC(skin, ppLin(0x5a3a3a), 0.3);
+  const skin = ppLin(C.skin), lash = ppLin(0x1a1014), lid = ppV.mul(skin, 0.97), crease = ppV.mul(ppMixC(skin, ppLin(0x8a4a48), 0.18), 0.9), rim = ppMixC(skin, ppLin(0xc06a6a), 0.35), low = ppMixC(skin, ppLin(0x5a3a3a), 0.3);
   const UP = [[0, 1.0, lash], [0.035, 1.06, lash], [0.12, 1.08, lash], [0.12, 1.08, lid], [0.3, 1.1, lid], [0.44, 1.075, crease], [0.6, 1.13, lid], [1.0, 1.32, lid]];
   const LO = [[0, 1.0, rim], [-0.04, 1.05, low], [-0.1, 1.065, low], [-0.1, 1.065, skin], [-0.38, 1.1, skin], [-0.85, 1.3, skin]];
   const rowsT = UP.length, rowsB = LO.length, nv = NP * (rowsT + rowsB);
@@ -6566,7 +6575,7 @@ function ppLids(S, C, E, side) {
   g.setAttribute('aAO', new THREE.BufferAttribute(new Float32Array(nv).fill(1), 1));
   g.setIndex(idx);
   const L = { g, tT: 0.5, tB: 0.42, c0: -0.04, c1: 0.08, phA: -0.95, phB: 1.0, last: '' };
-  const Ht = S.kid ? 0.6 : S.fem ? 0.52 : 0.48, Hb = S.kid ? 0.5 : 0.42, c0 = -0.05, c1 = S.fem ? 0.12 : 0.08;
+  const Ht = S.kid ? 0.5 : S.fem ? 0.44 : S.elder ? 0.34 : 0.4, Hb = S.kid ? 0.36 : S.elder ? 0.24 : 0.28, c0 = -0.06, c1 = S.fem ? 0.12 : 0.08;
   L.update = (blink, squint, gy) => {
     const key = blink.toFixed(3) + squint.toFixed(3) + gy.toFixed(3);
     if (key === L.last) return; L.last = key;
@@ -6701,9 +6710,9 @@ function ppAnimator(r, S, B, eyes, extras) {
     // ---- arms (opposite to the legs), elbows bend more when running
     for (const [X, off, sg] of [['L', 0, 1], ['R', Math.PI, -1]]) {
       const p = ph + off, sp = Math.sin(p);
-      const Aa = walk * (0.42 + 0.38 * run + 0.15 * spr);
-      let ax = Aa * sp + idle * 0.035 * Math.sin(T * 0.8 + off), az = -sg * (0.11 - 0.05 * run) + sg * idle * 0.012 * br;
-      let fx = -(0.14 * idle + walk * (0.28 + 1.05 * run + 0.15 * spr) + walk * (0.25 + 0.3 * run) * Math.max(0, -sp)), fy = 0;
+      const Aa = walk * (0.4 + 0.22 * run + 0.12 * spr);
+      let ax = Aa * sp * (sp < 0 ? 0.75 : 1.15) + idle * (0.035 * Math.sin(T * 0.8 + off) - 0.05), az = -sg * (0.13 - 0.07 * run) + sg * idle * 0.012 * br;
+      let fx = -(0.24 * idle + walk * (0.28 + 1.05 * run + 0.15 * spr) + walk * (0.25 + 0.3 * run) * Math.max(0, -sp)), fy = 0;
       if (staff && X === 'R') { ax = -0.32 + 0.06 * sp * walk; az = 0.04; fx = -1.25; fy = 0.1; }
       if (kid) ax *= 1.15;
       B['arm' + X].rotation.set(ax, 0, az);
@@ -6824,8 +6833,8 @@ function buildPerson(o = {}) {
   if (o.pendant !== false && !C.robe && S.pendant) { const gm = part(GEO.octa, E(0xb48cff, 2.2), B.chest, ppV.sub(S.pendant, j.chest), [0.05 * u, 0.08 * u, 0.03 * u]); gm.userData.noOl = true; }
   if (C.pin && S.pinPos) {
     const pg = grp(B.head, ppV.sub(S.pinPos, j.head), [0.2, 0.3, -0.5]);
-    part(GEO.box, M(0xd8b060), pg, [0, 0, 0], [0.05 * u, 0.2 * u, 0.03 * u]);
-    part(GEO.octa, E(C.pin, 2.4), pg, [0, 0.12 * u, 0.02 * u], [0.06 * u, 0.09 * u, 0.04 * u]).userData.noOl = true;
+    part(GEO.box, M(0xd8b060), pg, [0, 0, 0], [0.03 * u, 0.13 * u, 0.02 * u]);
+    part(GEO.octa, E(C.pin, 2.4), pg, [0, 0.08 * u, 0.015 * u], [0.04 * u, 0.06 * u, 0.025 * u]).userData.noOl = true;
   }
   r.fns.push(ppAnimator(r, S, B, eyes, extras));
   r.bones = B; r.skel = skel; r.pp.S = S;
