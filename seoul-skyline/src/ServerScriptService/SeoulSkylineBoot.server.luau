@@ -68,6 +68,8 @@ local function hookElevator(button: Instance)
 		local char = plr.Character
 		local hum = char and char:FindFirstChildOfClass("Humanoid")
 		if char and hum and hum.Health > 0 then
+			-- StreamingEnabled: 도착 층의 실내(Atomic)를 미리 받아 두어 순간이동 직후 실내가 늦게 나타나지 않게
+			pcall(plr.RequestStreamAroundAsync, plr, target, 4)
 			char:PivotTo(CFrame.lookAt(target, target + Vector3.new(0, 0, -1)))
 		end
 	end)

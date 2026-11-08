@@ -424,7 +424,7 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	for k = 2, FLOORS do
 		local y = yb(k) + SLAB_UP
 		local fx0 = if k == UNIT_FL then LINE_W - FIN_T / 2 else 0
-		bx(ext, fx0, y, -0.07, BL, y + 1.0, -0.03, RAIL_GLASS, MAT.Glass, glassO("RailGlass", 0.55))
+		bx(ext, fx0, y, -0.07, BL, y + 1.0, -0.03, rgb(132, 150, 164), MAT.Glass, glassO("RailGlass", 0.3))
 		bx(ext, fx0, y + 1.0, -0.1, BL, y + 1.06, 0.0, STEEL_D, MAT.Metal, { name = "Handrail", shadow = false })
 		local bx0 = if k == UNIT_FL then CORE_A1 else -END_T
 		bx(ext, bx0, y, DEPTH - 0.25, BL + END_T, y + 0.85, DEPTH + 0.15, WALL_EXT, MAT.Concrete, { name = "BackSpandrel", shadow = false })
@@ -463,8 +463,19 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	-- 전면 창 멀리언(안방 | 거실 경계, 짝수 라인은 대칭) — 2001호에서는 안방 벽과 같은 자리
 	for line = 1, NLINES do
 		local base = (line - 1) * LINE_W
-		local mx = if line % 2 == 1 then base + 8.075 else base + LINE_W - 8.075
-		bx(ext, mx - 0.075, yb(2) + SLAB_UP, -0.14, mx + 0.075, ROOF - SLAB_UP, 0.0, STEEL_D, MAT.Metal, { name = "Mullion", collide = false, query = false, shadow = false })
+		for _, rel in { 3.6, 8.075, 10.275 } do
+			local mx = if line % 2 == 1 then base + rel else base + LINE_W - rel
+			local w = if rel == 8.075 then 0.075 else 0.04
+			local y0, y1 = yb(2) + SLAB_UP, ROOF - SLAB_UP
+			local mo = { name = "Mullion", collide = false, query = false, shadow = false }
+			if line == 1 and rel == 3.6 then
+				-- 2001호 발코니 앞은 비움(히어로 전망)
+				bx(ext, mx - w, y0, -0.14, mx + w, yb(UNIT_FL) - SLAB_DN, 0.0, STEEL_D, MAT.Metal, mo)
+				bx(ext, mx - w, yb(UNIT_FL + 1) - SLAB_DN, -0.14, mx + w, y1, 0.0, STEEL_D, MAT.Metal, { name = "Mullion", collide = false, query = false, shadow = false })
+			else
+				bx(ext, mx - w, y0, -0.14, mx + w, y1, 0.0, STEEL_D, MAT.Metal, mo)
+			end
+		end
 	end
 	-- 측벽(서쪽: 2001호 식당 창 개구부) / 동쪽
 	local wy0, wy1, wz0, wz1 = UF + 0.9, UF + 2.1, 2.0, 4.6
@@ -1105,6 +1116,17 @@ local function unitInterior(g: Model, rng: Random)
 		table.insert(dls, cyl(g, p[1], CEIL - 0.015, p[2], 0.03, 0.12, PANEL_WARM, MAT.Neon, neon("DownLight")))
 	end
 	light(dls[3], "PointLight", { color = rgb(255, 214, 168), brightness = 0.9, range = M(5) })
+	local bh = CEIL - 0.1
+	local COVE = rgb(176, 142, 96)
+	bx(g, 3.1, bh, 1.8, 7.9, CEIL, 2.15, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.1, bh, 4.65, 7.9, CEIL, 5.0, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.1, bh, 2.15, 3.45, CEIL, 4.65, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 7.55, bh, 2.15, 7.9, CEIL, 4.65, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.45, bh + 0.02, 2.15, 7.55, bh + 0.05, 2.19, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 3.45, bh + 0.02, 4.61, 7.55, bh + 0.05, 4.65, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 3.45, bh + 0.02, 2.19, 3.49, bh + 0.05, 4.61, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 7.51, bh + 0.02, 2.19, 7.55, bh + 0.05, 4.61, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 0.1, CEIL - 0.08, 1.755, 7.9, CEIL - 0.06, 1.79, COVE, MAT.Neon, neon("CurtainBoxLed"))
 	switchPlate(g, "x", w0, -1, 4.95, UF + 1.15)
 
 	--------------------------------------------------------------------------------------------------
@@ -1150,6 +1172,17 @@ local function unitInterior(g: Model, rng: Random)
 	bx(g, -0.15, UF + 0.86, 1.95, 0.05, UF + 0.9, 4.65, MARBLE_W, MAT.Marble, deco("WinSill"))
 	bx(g, 0.03, UF + 1.5, 2.0, 0.06, UF + 2.08, 4.6, LINEN, MAT.Fabric, deco("RollerBlind"))
 	bx(g, 0.03, UF + 1.48, 2.0, 0.07, UF + 1.51, 4.6, rgb(200, 200, 198), MAT.Metal, deco("BlindBar"))
+	bx(g, 0.02, UF + 0.12, 4.7, 0.46, UF + 0.72, 6.0, WALNUT, MAT.Wood, solid("Sideboard"))
+	bx(g, 0.06, UF, 4.76, 0.42, UF + 0.12, 5.94, rgb(40, 40, 42), MAT.Metal, deco("SideboardBase"))
+	for _, z in { 5.13, 5.57 } do
+		bx(g, 0.46, UF + 0.15, z - 0.007, 0.472, UF + 0.69, z + 0.007, rgb(70, 50, 36), MAT.Wood, deco("DoorSeam"))
+	end
+	cyl(g, 0.24, UF + 0.72, 4.95, 0.3, 0.12, rgb(216, 206, 190), MAT.SmoothPlastic, deco("Vase"))
+	for i = 0, 2 do
+		Kit.cylAlongY(g, LCF(0.24 + (i - 1) * 0.03, UF + 1.15, 4.95 + (i - 1) * 0.02) * CFrame.Angles(math.rad((i - 1) * 9), 0, math.rad((1 - i) * 7)), M(0.3), M(0.012), rgb(110, 92, 62), MAT.Wood, deco("DriedBranch"))
+	end
+	cyl(g, 0.24, UF + 0.72, 5.75, 0.04, 0.14, rgb(200, 180, 150), MAT.Metal, deco("CandleTray"))
+	cyl(g, 0.24, UF + 0.76, 5.75, 0.08, 0.06, rgb(244, 240, 230), MAT.SmoothPlastic, deco("Candle"))
 	picture(g, "x", 0.02, 1, 4.85, 5.65, UF + 1.3, UF + 1.95, rgb(64, 110, 150), rgb(214, 170, 90))
 	-- 벽시계 (주방/복도 칸막이, 18:05)
 	local ck = V(6.25 - 0.03, UF + 1.95, 7.65)

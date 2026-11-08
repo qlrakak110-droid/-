@@ -83,7 +83,7 @@ local OBS_SLAB_MID = m2s(2.4) -- 두 층 사이 슬래브(라운지 바닥)
 local OBS_SLAB_TOP = m2s(3.3) -- 라운지 위 슬래브(크라운 데크 아래)
 local OBS_GLASS_IN = 0.6 -- 유리면이 바로 위 슬래브보다 들어간 깊이
 local OBS_GLASS_T = 0.4
-local OBS_GLASS_C = rgb(168, 190, 210)
+local OBS_GLASS_C = rgb(196, 208, 218)
 local OBS_PIT_W, OBS_PIT_D, OBS_PIT_GAP = m2s(7.2), m2s(3.6), m2s(1.0) -- 스카이데크 유리 바닥 7.2 × 3.6 m, 창에서 1 m
 --   몰 홀(파란 곡면 지붕): 가운데 2개 층 갤러리아(아트리움) 66 × 21.6 m + 양쪽 상점 + 정면 입구 통로
 local HALL_GX = m2s(33) -- 갤러리아 반길이(X)
@@ -259,7 +259,7 @@ local function glassBand(m: Model, TF: CFrame, yb: number, yt: number, w: number
 	local W = w / 2
 	local o = W - r
 	local t = OBS_GLASS_T
-	local gO: PartOpts = { name = "ObsGlass", material = Enum.Material.Glass, color = OBS_GLASS_C, transparency = 0.62, reflectance = 0.05, collide = true, shadow = false }
+	local gO: PartOpts = { name = "ObsGlass", material = Enum.Material.Glass, color = OBS_GLASS_C, transparency = 0.66, reflectance = 0.05, collide = true, shadow = false }
 	local mO: PartOpts = { name = "ObsMullion", material = Enum.Material.Metal, color = P.Mullion, collide = false, query = false, shadow = false }
 	local n = math.max(2, math.floor(2 * o / m2s(1.8) + 0.5))
 	if n % 2 == 1 then
@@ -282,8 +282,9 @@ local function glassBand(m: Model, TF: CFrame, yb: number, yt: number, w: number
 		for k = 1, 2 do
 			Kit.part(m, CC * CFrame.Angles(0, k * da, 0) * CFrame.new(0, 0, r - 0.15), Vector3.new(0.35, h, 1.2), mO)
 		end
-		-- 솔기: 유리 밖 가는 금빛 선(전망을 가리지 않게 0.3 m)
-		Kit.part(m, FR * CFrame.new(0, yc, W + 0.55), Vector3.new(1.0, h - 0.6, 1.0), seamMk(SEAM_C, false))
+		-- 솔기: 유리 밖 가는 금빛 선(0.3 m) + 안쪽 어두운 덮개(실내에서는 멀리언처럼 보임)
+		Kit.part(m, FR * CFrame.new(0, yc, W + 0.08), Vector3.new(1.2, h - 0.6, 0.12), mO)
+		Kit.part(m, FR * CFrame.new(0, yc, W + 0.65), Vector3.new(1.0, h - 0.6, 1.0), seamMk(SEAM_C, false))
 	end
 end
 

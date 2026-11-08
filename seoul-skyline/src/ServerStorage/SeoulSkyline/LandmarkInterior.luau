@@ -588,6 +588,19 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 		end
 		local fy = if lv == 1 then FY1 else FY2
 		local top = if lv == 1 then Ob.yA1 else Ob.yB1
+		-- 커튼월 둘레 빛 선: 천장 창머리 슬롯 + 바닥 창가 선 → 밖에서 보면 밝은 유리 띠
+		local gw = if lv == 1 then Ob.gw1 else Ob.gw2
+		local rC = gw * cr
+		local inset = 1.3
+		for _, ly in { top - 0.95, fy + 0.06 } do
+			for f = 0, 3 do
+				local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+				N(gm, FR * CFrame.new(0, ly, gIn - inset), Vector3.new(2 * o, 0.12, 0.6), rgb(255, 238, 210), "PerimeterLight")
+				local cc = FR * CFrame.new(o, ly, o) * CFrame.Angles(0, math.pi / 4, 0)
+				local R = rC - gT - inset
+				N(gm, cc * CFrame.new(0, 0, R * math.cos(math.pi / 4)), Vector3.new(2 * R * math.sin(math.pi / 4) + 0.6, 0.12, 0.6), rgb(255, 238, 210), "PerimeterLight")
+			end
+		end
 		S(gm, at(0, (fy - 0.2 + top + 0.3) / 2, 0), Vector3.new(2 * CH, top + 0.5 - fy, 2 * CH), C.walnut, MAT.Wood, "Core")
 		D(m, at(0, fy + 0.25, 0), Vector3.new(2 * CH + 0.3, 0.5, 2 * CH + 0.3), C.bronze, MAT.Metal, "CoreSkirting")
 		for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
@@ -616,11 +629,11 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 	local pw, pd = px1 - px0, pz1 - pz0
 	local pcx, pcz = (px0 + px1) / 2, (pz0 + pz1) / 2
 	local wallH, wy = Ob.yA - pb, (pb + Ob.yA) / 2
-	local MIR = rgb(16, 18, 26)
-	D(m, at(px0 + 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(px1 - 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(pcx, wy, pz0 + 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(pcx, wy, pz1 - 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.Glass, "PitMirror", 0.5)
+	local MIR = rgb(12, 14, 20)
+	D(m, at(px0 + 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(px1 - 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(pcx, wy, pz0 + 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(pcx, wy, pz1 - 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.SmoothPlastic, "PitMirror")
 	D(m, at(pcx, pb - 0.25, pcz), Vector3.new(pw, 0.5, pd), rgb(8, 10, 16), MAT.SmoothPlastic, "PitFloor")
 	N(m, at(pcx, pb + 0.03, pz0 + pd * 0.32), Vector3.new(pw - 0.8, 0.06, pd * 0.22), rgb(18, 34, 72), "PitRiver")
 	N(m, at(pcx + pw * 0.2, pb + 0.15, pcz), Vector3.new(0.2, 0.04, pd - 0.8), rgb(255, 200, 120), "PitBridge")
