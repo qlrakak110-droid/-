@@ -32,8 +32,8 @@ local C = {
 	trim = rgb(22, 23, 26),
 	seam = rgb(12, 12, 14),
 	tyre = rgb(26, 26, 28),
-	rim = rgb(168, 171, 176),
-	rimDark = rgb(70, 72, 76),
+	rim = rgb(132, 135, 140),
+	rimDark = rgb(58, 60, 64),
 	well = rgb(10, 10, 11),
 	under = rgb(6, 6, 7),
 	grille = rgb(30, 31, 34),
@@ -112,11 +112,11 @@ local SPECS: { [string]: CarSpec } = {
 		r = 0.335, rimR = 0.23, tw = 0.225, track = 1.60,
 		sill = 0.17, archGap = 0.06, hoodF = 0.78, cowl = 0.955, belt = 0.99, nx = 0.15, nz = 0.13,
 		hoodZ1 = 1.50, roofZ0 = 2.38, roofZ1 = 3.42, rearZ = 4.16,
-		ghW = 0.77, roofW = 0.68, roofT = 0.06, rails = false,
+		ghW = 0.77, roofW = 0.725, roofT = 0.06, rails = false,
 		fbb = 0.22, rbb = 0.28,
 		head = { 0.50, 0.835, 0.645, 0.745 }, drl = { 0.80, 0.752, 0.772 }, tail = { 0.56, 0.885, 0.86, 0.965 }, tailBar = { 0.58, 0.905, 0.935 },
 		grille = { 0.42, 0.30, 0.66 }, plateFY = 0.42, plateRY = 0.64,
-		zB = 2.84, seams = { { 1.53, 0 }, { 2.84, 0 }, { 3.62, 1 } }, handles = { 2.40, 3.47 },
+		zB = 2.84, seams = { { 1.53, 0 }, { 2.84, 0 } }, handles = {},
 	},
 	-- 소형 해치백 4.00 x 1.75 x 1.48
 	compact = {
@@ -124,11 +124,11 @@ local SPECS: { [string]: CarSpec } = {
 		r = 0.315, rimR = 0.205, tw = 0.205, track = 1.53,
 		sill = 0.16, archGap = 0.06, hoodF = 0.77, cowl = 0.945, belt = 0.98, nx = 0.14, nz = 0.12,
 		hoodZ1 = 1.24, roofZ0 = 2.06, roofZ1 = 3.30, rearZ = 3.83,
-		ghW = 0.72, roofW = 0.64, roofT = 0.06, rails = false,
+		ghW = 0.72, roofW = 0.675, roofT = 0.06, rails = false,
 		fbb = 0.22, rbb = 0.30,
 		head = { 0.44, 0.79, 0.655, 0.755 }, drl = nil, tail = { 0.56, 0.84, 0.82, 0.965 }, tailBar = nil,
 		grille = { 0.38, 0.28, 0.62 }, plateFY = 0.42, plateRY = 0.62,
-		zB = 2.62, seams = { { 1.27, 0 }, { 2.62, 0 }, { 3.20, 1 } }, handles = { 2.22, 3.08 },
+		zB = 2.62, seams = { { 1.27, 0 }, { 2.62, 0 } }, handles = {},
 		spoiler = true,
 	},
 	-- 소형 SUV 4.40 x 1.85 x 1.65 (루프레일 포함)
@@ -137,12 +137,11 @@ local SPECS: { [string]: CarSpec } = {
 		r = 0.36, rimR = 0.235, tw = 0.235, track = 1.61,
 		sill = 0.26, archGap = 0.07, hoodF = 0.88, cowl = 1.035, belt = 1.07, nx = 0.15, nz = 0.13,
 		hoodZ1 = 1.42, roofZ0 = 2.20, roofZ1 = 3.80, rearZ = 4.20,
-		ghW = 0.76, roofW = 0.70, roofT = 0.06, rails = true,
+		ghW = 0.76, roofW = 0.72, roofT = 0.06, rails = true,
 		fbb = 0.30, rbb = 0.36,
 		head = { 0.50, 0.835, 0.745, 0.815 }, drl = { 0.82, 0.83, 0.855 }, tail = { 0.56, 0.885, 0.92, 1.045 }, tailBar = { 0.60, 0.965, 0.995 },
 		grille = { 0.48, 0.36, 0.80 }, plateFY = 0.48, plateRY = 0.70,
-		zB = 2.96, cSlab = 3.56, seams = { { 1.45, 0 }, { 2.96, 0 }, { 3.74, 1 } }, handles = { 2.65, 3.55 },
-		rocker = true,
+		zB = 2.96, cSlab = 3.56, seams = { { 1.45, 0 }, { 2.96, 0 } }, handles = {},
 	},
 	-- 대형 SUV 4.90 x 1.95 x 1.75
 	suvL = {
@@ -150,11 +149,11 @@ local SPECS: { [string]: CarSpec } = {
 		r = 0.375, rimR = 0.25, tw = 0.245, track = 1.69,
 		sill = 0.27, archGap = 0.07, hoodF = 0.96, cowl = 1.115, belt = 1.15, nx = 0.15, nz = 0.13,
 		hoodZ1 = 1.48, roofZ0 = 2.28, roofZ1 = 4.38, rearZ = 4.70,
-		ghW = 0.81, roofW = 0.75, roofT = 0.06, rails = true,
+		ghW = 0.81, roofW = 0.77, roofT = 0.06, rails = true,
 		fbb = 0.32, rbb = 0.38,
 		head = { 0.55, 0.88, 0.80, 0.885 }, drl = { 0.86, 0.905, 0.93 }, tail = { 0.62, 0.935, 0.98, 1.125 }, tailBar = { 0.66, 1.04, 1.07 },
 		grille = { 0.56, 0.38, 0.88 }, plateFY = 0.50, plateRY = 0.76,
-		zB = 3.10, cSlab = 3.98, seams = { { 1.51, 0 }, { 3.10, 0 }, { 3.98, 1 } }, handles = { 2.80, 3.85 },
+		zB = 3.10, cSlab = 3.98, seams = { { 1.51, 0 }, { 3.10, 0 } }, handles = {},
 		rocker = true, darkRims = true,
 	},
 	-- 미니밴 5.15 x 2.00 x 1.74 (슬라이딩 도어 레일)
@@ -163,11 +162,11 @@ local SPECS: { [string]: CarSpec } = {
 		r = 0.37, rimR = 0.24, tw = 0.235, track = 1.74,
 		sill = 0.20, archGap = 0.06, hoodF = 0.90, cowl = 1.035, belt = 1.06, nx = 0.16, nz = 0.13,
 		hoodZ1 = 1.30, roofZ0 = 2.18, roofZ1 = 4.72, rearZ = 5.00,
-		ghW = 0.84, roofW = 0.79, roofT = 0.06, rails = false,
+		ghW = 0.84, roofW = 0.80, roofT = 0.06, rails = false,
 		fbb = 0.24, rbb = 0.32,
 		head = { 0.52, 0.90, 0.745, 0.845 }, drl = { 0.90, 0.855, 0.88 }, tail = { 0.64, 0.965, 0.87, 1.04 }, tailBar = { 0.66, 0.965, 0.995 },
 		grille = { 0.56, 0.30, 0.74 }, plateFY = 0.44, plateRY = 0.72,
-		zB = 2.62, cSlab = 3.72, seams = { { 1.34, 0 }, { 2.62, 0 }, { 3.72, 1 } }, handles = { 2.16, 2.70 },
+		zB = 2.62, cSlab = 3.72, seams = { { 1.34, 0 }, { 2.62, 0 } }, handles = {},
 		slider = { 3.72, 4.80 },
 	},
 }
@@ -408,9 +407,11 @@ local function buildCar(ctx: Ctx, P: CarSpec, lite: boolean, taxi: boolean)
 	sbox(ctx, "Paint", hw, P.rbb, aT, zr + aH, L - P.nz, paint, nil, true)
 	-- 어깨 띠(아치 위 ~ 보닛 앞선 높이), 앞/뒤 페시아 + 평면 모서리 깎기
 	sbox(ctx, "Paint", hw, aT, P.hoodF, P.nz, L - P.nz, paint, nil, true)
-	sbox(ctx, "Paint", hw - P.nx, P.fbb, P.hoodF, 0, P.nz, paint, nil, true)
-	chamfer(ctx, "Paint", 1, -1, hw - P.nx, hw, P.fbb, P.hoodF, 0, P.nz, paint)
-	chamfer(ctx, "Paint", -1, -1, hw - P.nx, hw, P.fbb, P.hoodF, 0, P.nz, paint)
+	local noseTop = P.hoodF - 0.07
+	sbox(ctx, "Paint", hw - P.nx, P.fbb, noseTop, 0, P.nz, paint, nil, true)
+	wedgeF(ctx, "Paint", -(hw - P.nx), hw - P.nx, noseTop, P.hoodF, 0, P.nz, paint) -- 보닛 앞선 둥글림
+	chamfer(ctx, "Paint", 1, -1, hw - P.nx, hw, P.fbb, noseTop, 0, P.nz, paint)
+	chamfer(ctx, "Paint", -1, -1, hw - P.nx, hw, P.fbb, noseTop, 0, P.nz, paint)
 	sbox(ctx, "Paint", hw - P.nx, P.rbb, P.belt, L - P.nz, L, paint, nil, true)
 	chamfer(ctx, "Paint", 1, 1, hw - P.nx, hw, P.rbb, P.belt, L - P.nz, L, paint)
 	chamfer(ctx, "Paint", -1, 1, hw - P.nx, hw, P.rbb, P.belt, L - P.nz, L, paint)
@@ -441,6 +442,12 @@ local function buildCar(ctx: Ctx, P: CarSpec, lite: boolean, taxi: boolean)
 	-- 휠하우스(검정, 차체 폭보다 안쪽) · 타이어 · 림
 	sbox(ctx, "Well", hw - 0.06, 0.12, aT - 0.005, zf - aH, zf + aH, C.well)
 	sbox(ctx, "Well", hw - 0.06, 0.12, aT - 0.005, zr - aH, zr + aH, C.well)
+	-- 휠아치 위 두 모서리를 차체색 관통 쐐기로 채워 둥근 아치처럼(타이어와 ≥ 8 cm 간격)
+	local cw, ch = 0.21, 0.19
+	for _, za in { zf, zr } do
+		newPart(ctx, "Wedge", "Paint", Vector3.new(P.W, ch, cw), Vector3.new(0, aT - ch / 2, za - aH + cw / 2 - ctx.zc), CFrame.Angles(math.pi, 0, 0), paint)
+		newPart(ctx, "Wedge", "Paint", Vector3.new(P.W, ch, cw), Vector3.new(0, aT - ch / 2, za + aH - cw / 2 - ctx.zc), CFrame.Angles(0, 0, math.pi), paint)
+	end
 	local tl = P.track + P.tw
 	local rimC = if P.darkRims then C.rimDark else C.rim
 	axle(ctx, "Tyre", tl, P.r, P.r, zf, C.tyre)
@@ -459,7 +466,7 @@ local function buildCar(ctx: Ctx, P: CarSpec, lite: boolean, taxi: boolean)
 	-- 뒤: 후미등 한 쌍 + (연결형) 후미등 띠
 	local t = P.tail
 	pair(ctx, "Tail", t[1], t[2], t[3], t[4], L - 0.02, L + 0.025, C.tailRun, MAT.Neon)
-	if P.tailBar then
+	if P.tailBar and not taxi then
 		local b = P.tailBar
 		sbox(ctx, "Tail", b[1], b[2], b[3], L - 0.02, L + 0.02, C.tailRun, MAT.Neon)
 	end
@@ -467,9 +474,14 @@ local function buildCar(ctx: Ctx, P: CarSpec, lite: boolean, taxi: boolean)
 	plate(ctx, "PlateF", P.plateFY, -0.06, -0.04, Enum.NormalId.Front)
 	plate(ctx, "PlateR", P.plateRY, L + 0.03, L + 0.05, Enum.NormalId.Back)
 	-- 사이드미러
-	pair(ctx, "Paint", P.ghW - 0.03, hw + 0.10, P.belt - 0.015, P.belt + 0.115, P.hoodZ1 + 0.16, P.hoodZ1 + 0.33, paint)
+	-- 좌우 미러(관통 막대: 앞유리 경사면 아래에 숨도록 앞유리 밑변에서 충분히 뒤)
+	local mz = P.hoodZ1 + math.max(0.16, 0.125 * (P.roofZ0 - P.hoodZ1) / (roofBot - P.belt))
+	sbox(ctx, "Paint", hw + 0.10, P.belt + 0.005, P.belt + 0.115, mz, mz + 0.15, paint)
 	-- 도어 이음선(관통 슬래브, 옆면 밖으로 0.016 m) · 손잡이
-	for _, sm in P.seams do
+	for si, sm in P.seams do
+		if taxi and si > 1 then
+			break
+		end
 		local y0 = if sm[2] == 1 then aT + 0.01 else P.sill + 0.05
 		sbox(ctx, "Seam", hw + 0.016, y0, P.belt - 0.012, sm[1] - 0.006, sm[1] + 0.006, C.seam)
 	end

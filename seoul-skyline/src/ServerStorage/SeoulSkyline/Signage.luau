@@ -446,7 +446,8 @@ function Signage.shapes(parent: Instance, F: CFrame, W: number, H: number, list:
 	local m = mat or MAT.SmoothPlastic
 	for _, s in list do
 		local z = s.z or 0
-		local d0, d1 = base - 0.02, base + GAP * (z + 1)
+		-- 뒷면 = 판 앞면(묻지 않음): 판 가장자리에 닿는 도형의 옆면이 판 옆면과 같은 평면에서 겹치지 않도록
+		local d0, d1 = base, base + GAP * (z + 1)
 		top = math.max(top, d1)
 		local u, v = (s.u - 0.5) * W, (s.v - 0.5) * H
 		local col = s.c or defaultColor
@@ -1001,8 +1002,8 @@ local function posterDesign(design: string, rng: Random): PDesign
 				-- 쇼핑백(상품 사진 대용): 몸통 + 손잡이
 				{ k = "r", u = 0.26, v = 0.36, w = 0.24, h = 0.22, c = rgb(242, 236, 224), z = 0 },
 				{ k = "r", u = 0.26, v = 0.49, w = 0.12, h = 0.035, c = rgb(242, 236, 224), z = 0 },
-				{ k = "r", u = 0.47, v = 0.33, w = 0.2, h = 0.17, c = rgb(30, 30, 34), z = 0 },
-				{ k = "r", u = 0.47, v = 0.43, w = 0.1, h = 0.03, c = rgb(30, 30, 34), z = 0 },
+				{ k = "r", u = 0.5, v = 0.33, w = 0.2, h = 0.17, c = rgb(30, 30, 34), z = 0 },
+				{ k = "r", u = 0.5, v = 0.43, w = 0.1, h = 0.03, c = rgb(30, 30, 34), z = 0 },
 			},
 			gui = { { k = "r", u = 0.5, v = 0.62, w = 0.9, h = 0.006, c = rgb(255, 255, 255) } },
 			texts = {

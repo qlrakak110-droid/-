@@ -1151,7 +1151,7 @@ local function unitBalcony(g: Model, rng: Random)
 	bx(g, 0.0, UF + 0.57, 1.28, 0.08, UF + 0.6, 1.32, CHROME, MAT.Metal, deco("UtilityTapArm"))
 	outlet(g, "x", 0, 1, 1.32, UF + 1.15)
 	bx(g, 0.0, UF + 1.45, 1.2, 0.25, UF + 1.47, 1.45, rgb(220, 220, 218), MAT.SmoothPlastic, deco("DetergentShelf"))
-	Props.fillShelf(g, frameAt(0.25, UF + 1.47, 1.325, 90), 0.22, 0.22, 0.3, "drink", rng, { maxItems = 3, front = true })
+	Props.fillShelf(g, frameAt(0.25, UF + 1.47, 1.325, -90), 0.22, 0.22, 0.3, "drink", rng, { maxItems = 3, front = true })
 	-- 빨래 바구니
 	cyl(g, 1.15, dk, 1.2, 0.42, 0.4, rgb(190, 164, 120), MAT.Fabric, solid("LaundryBasket"))
 	for i = 0, 2 do
@@ -1306,6 +1306,13 @@ local function unitLiving(g: Model, rng: Random)
 	cyl(g, 3.4, UF + 1.36, 4.3, 0.32, 0.42, rgb(240, 230, 210), MAT.Fabric, { name = "LampShade", collide = false, query = false, shadow = false, transparency = 0.1 })
 	local bulb = Kit.ball(g, V(3.4, UF + 1.45, 4.3), M(0.1), LAMP, MAT.Neon, neon("LampBulb"))
 	light(bulb, "PointLight", { color = rgb(255, 196, 130), brightness = 1.2, range = M(3.6) })
+	-- 공기청정기(소파 끝) + 로봇청소기 · 충전 독(식당 서쪽 벽)
+	bx(g, 3.22, UF, 4.72, 3.5, UF + 0.66, 5.0, rgb(240, 240, 238), MAT.SmoothPlastic, solid("AirPurifier"))
+	bx(g, 3.24, UF + 0.66, 4.74, 3.48, UF + 0.675, 4.98, rgb(200, 202, 206), MAT.SmoothPlastic, deco("PurifierGrille"))
+	bx(g, 3.29, UF + 0.5, 4.705, 3.43, UF + 0.56, 4.72, rgb(90, 200, 140), MAT.Neon, deco("PurifierLed"))
+	bx(g, 0.036, UF, 5.25, 0.15, UF + 0.1, 5.45, rgb(36, 36, 38), MAT.SmoothPlastic, deco("RobotDock"))
+	cyl(g, 0.33, UF, 5.35, 0.09, 0.35, rgb(44, 44, 48), MAT.SmoothPlastic, solid("RobotVacuum"))
+	cyl(g, 0.33, UF + 0.09, 5.35, 0.02, 0.08, rgb(120, 122, 126), MAT.Metal, deco("RobotLidar"))
 	-- 관엽식물: 몬스테라(창가, 식당 쪽) · 떡갈고무나무(창가, TV 쪽)
 	bigPlant(g, "monstera", 2.75, UF, 2.1, 1.25, rng, rgb(240, 238, 232))
 	bigPlant(g, "fiddle", 6.95, UF, 2.12, 1.75, rng, rgb(214, 208, 198))
@@ -1934,6 +1941,48 @@ end
 --------------------------------------------------------------------------------------------------
 -- 5-8) 서재: 2칸 6단 책장(책 + 소품) · 책상(27" 모니터 · 키보드 · 마우스 · 스탠드) · 프린터 장 · 사무 의자 · 러그
 --------------------------------------------------------------------------------------------------
+-- 책 줄(책장 앞면 x = fx, 책은 +X 쪽 안으로): z0 → z1 로 세운 책(축 정렬, 2~4 mm 틈) + 가끔 눕힌 책 더미 · 끝에 기댄 책.
+-- (Props.fillShelf 의 책은 권마다 미세 회전 + 폭 검사가 앞 권 기준이라 칸막이를 넘을 수 있어 직접 채움)
+local BOOK_PAL = { rgb(150, 52, 44), rgb(42, 70, 110), rgb(212, 196, 160), rgb(60, 92, 70), rgb(30, 30, 34), rgb(196, 140, 60), rgb(110, 84, 120), rgb(232, 228, 216), rgb(176, 92, 64), rgb(84, 110, 130), rgb(220, 214, 200), rgb(122, 40, 46) }
+local function bookRow(g: Instance, fx: number, y: number, z0: number, z1: number, maxH: number, rng: Random)
+	local z = z0 + 0.012
+	local n = 0
+	while z < z1 - 0.05 do
+		local col = jitter(rng, BOOK_PAL[rng:NextInteger(1, #BOOK_PAL)], 0.08)
+		if n > 4 and rng:NextNumber() < 0.07 and z + 0.24 < z1 - 0.01 then
+			-- 눕혀 쌓은 책 2~3권
+			local yy = y
+			local w = rng:NextNumber(0.17, 0.22)
+			for _ = 1, rng:NextInteger(2, 3) do
+				local th = rng:NextNumber(0.025, 0.04)
+				local ww = w - rng:NextNumber(0, 0.03)
+				bx(g, fx + 0.02, yy, z, fx + 0.02 + rng:NextNumber(0.14, 0.2), yy + th, z + ww, jitter(rng, BOOK_PAL[rng:NextInteger(1, #BOOK_PAL)], 0.08), MAT.SmoothPlastic, deco("Book"))
+				yy += th
+			end
+			z += w + 0.01
+			n = 0
+			continue
+		end
+		local t = rng:NextNumber(0.022, 0.045)
+		if z + t > z1 - 0.01 then
+			break
+		end
+		local h = math.min(maxH, rng:NextNumber(0.2, 0.29))
+		local f = fx + rng:NextNumber(0.01, 0.03)
+		bx(g, f, y, z, f + rng:NextNumber(0.15, 0.21), y + h, z + t, col, MAT.SmoothPlastic, deco("Book"))
+		z += t + rng:NextNumber(0.002, 0.004)
+		n += 1
+		if rng:NextNumber() < 0.05 then
+			z += rng:NextNumber(0.06, 0.12) -- 빈 자리(빌려 간 책)
+		end
+	end
+	-- 끝에 기댄 책 한 권
+	if z < z1 - 0.1 then
+		local h = math.min(maxH, 0.24)
+		Kit.box(g, LCF(fx + 0.11, y + h / 2 * math.cos(math.rad(14)) + 0.01, z + 0.04) * CFrame.Angles(math.rad(-14), 0, 0), SZ(0.16, h, 0.03), jitter(rng, BOOK_PAL[rng:NextInteger(1, #BOOK_PAL)], 0.08), MAT.SmoothPlastic, deco("Book"))
+	end
+end
+
 local function unitStudy(g: Model, rng: Random)
 	local w1, ex = W4X1, EXW - 0.02
 	local bz = 9.58
@@ -1961,10 +2010,10 @@ local function unitStudy(g: Model, rng: Random)
 	local bays = { (kz0 + 0.025 + km - 0.0125) / 2, (km + 0.0125 + kz1 - 0.025) / 2 }
 	for li, top in levels do
 		for bi, bc in bays do
-			local cf = frameAt(kx0, top, bc, 90)
+			local bz0, bz1 = bc - bayW / 2, bc + bayW / 2
 			if (li == 3 and bi == 2) or (li == 4 and bi == 1) or (li == 5 and bi == 2) then
 				-- 소품 칸: 책 몇 권 + 화분/수납박스/액자
-				Props.fillShelf(g, cf * CFrame.new(M(bayW * 0.25), 0, 0), bayW * 0.45, 0.33, 0.37, "book", rng, { maxItems = 6, front = true })
+				bookRow(g, kx0, top, bz0, bc, 0.35, rng)
 				if li == 3 then
 					smallPlant(g, kx0 + 0.18, top, bc + bayW * 0.25, 0.14, 0.13, 0.22, rng, rgb(232, 228, 220))
 				elseif li == 4 then
@@ -1973,8 +2022,7 @@ local function unitStudy(g: Model, rng: Random)
 					picture(g, "x", ex - 0.015, -1, bc + bayW * 0.12, bc + bayW * 0.42, top + 0.03, top + 0.3, rgb(170, 120, 90), nil)
 				end
 			else
-				-- 폭 여유 4 cm: fillShelf 는 책마다 폭이 달라 마지막 권이 칸막이에 닿을 수 있음
-				Props.fillShelf(g, cf, bayW - 0.08, 0.33, 0.37, "book", rng, { maxItems = 14, front = true })
+				bookRow(g, kx0, top, bz0, bz1, 0.35, rng)
 			end
 		end
 	end

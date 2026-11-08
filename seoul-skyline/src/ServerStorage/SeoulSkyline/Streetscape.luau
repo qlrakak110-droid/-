@@ -469,7 +469,7 @@ local function busStop(parent: Instance, cf: CFrame, poleCf: CFrame, rng: Random
 		return Kit.part(mdl, F, size, o)
 	end
 	-- 기둥 3 (뒤쪽) + 지붕 (앞으로 캔틸레버, 차도 쪽 약간 기울어짐)
-	for _, u in { -Lg / 2 + m(0.1), 0, Lg / 2 - m(0.1) } do
+	for _, u in { 0, Lg / 2 - m(0.1) } do -- 왼쪽 끝은 광고 라이트박스가 벽·기둥 역할
 		part(at(cf, u, Ht / 2, -D / 2 + m(0.12)), Vector3.new(m(0.1), Ht, m(0.1)), FRAME_C, MAT.Metal, "ShelterPost", { collide = true, query = true })
 	end
 	local roof = part(at(cf, 0, Ht + m(0.06), 0) * CFrame.Angles(math.rad(3), 0, 0), Vector3.new(Lg + m(0.2), m(0.12), D + m(0.25)), FRAME_C, MAT.Metal, "ShelterRoof")
@@ -486,8 +486,8 @@ local function busStop(parent: Instance, cf: CFrame, poleCf: CFrame, rng: Random
 	for _, sd in { -1, 1 } do
 		part(at(cf, sd * Lg / 4, Ht * 0.52, -D / 2 + m(0.12)), Vector3.new(Lg / 2 - m(0.16), Ht * 0.8, m(0.02) + 0.06), rgb(150, 176, 190), MAT.Glass, "ShelterGlass", { transparency = 0.7, reflectance = 0.15, shadow = false })
 	end
-	local adF = cf * CFrame.new(-(-Lg / 2 + m(0.06)), 0, 0) * CFrame.Angles(0, math.rad(90), 0) -- 오른쪽 끝(보는 사람 기준 왼쪽) 측판, 앞 = 다가오는 보행자
-	part(at(adF, 0, m(1.2), 0), Vector3.new(D - m(0.15), m(1.9), m(0.16)), FRAME_C, MAT.Metal, "AdBox")
+	local adF = cf * CFrame.new(-(-Lg / 2 + m(0.06)), 0, 0) * CFrame.Angles(0, math.rad(90), 0) -- 보는 사람 기준 왼쪽 끝 측판(양면 광고)
+	part(at(adF, 0, (m(0.03) + Ht) / 2, 0), Vector3.new(D - m(0.15), Ht - m(0.03), m(0.16)), FRAME_C, MAT.Metal, "AdBox", { collide = true, query = true })
 	Signage.poster(mdl, at(adF, 0, m(1.2), m(0.08)), 1.18, 1.75, "exhibition", rng, { frame = "none", lit = true, name = "ShelterAd" })
 	Signage.poster(mdl, at(adF * CFrame.Angles(0, math.pi, 0), 0, m(1.2), m(0.08)), 1.18, 1.75, "sale", rng, { frame = "none", lit = true, name = "ShelterAdBack" })
 	-- 벤치(스테인리스, 좌면 0.45 m) + 노선도 판(뒤 유리 안쪽)
@@ -499,8 +499,8 @@ local function busStop(parent: Instance, cf: CFrame, poleCf: CFrame, rng: Random
 	local gF = -D / 2 + m(0.12) + (m(0.02) + 0.06) / 2 -- 유리 앞면 d
 	part(at(cf, -Lg / 4, m(1.45), gF + 0.06), Vector3.new(m(1.0), m(0.7), 0.1), rgb(244, 244, 240), MAT.SmoothPlastic, "RouteMapPanel")
 	local mf0 = gF + 0.11
-	part(at(cf, -Lg / 4, m(1.67), mf0 + 0.01), Vector3.new(m(0.9), m(0.035), 0.06), rgb(0, 90, 200), MAT.SmoothPlastic, "RouteLine")
-	part(at(cf, -Lg / 4, m(1.47), mf0 + 0.01), Vector3.new(m(0.9), m(0.035), 0.06), rgb(40, 170, 60), MAT.SmoothPlastic, "RouteLine")
+	part(at(cf, -Lg / 4, m(1.67), mf0 + 0.03), Vector3.new(m(0.9), m(0.035), 0.06), rgb(0, 90, 200), MAT.SmoothPlastic, "RouteLine")
+	part(at(cf, -Lg / 4, m(1.47), mf0 + 0.03), Vector3.new(m(0.9), m(0.035), 0.06), rgb(40, 170, 60), MAT.SmoothPlastic, "RouteLine")
 	Signage.text(mdl, at(cf, -Lg / 4, m(1.73), mf0 + 0.09), m(0.9), m(0.07), "302  잠실역 - 잠실대교 - 자양동 - 건대입구", { color = SC.ink, font = "gothic", maxDistance = 60 })
 	Signage.text(mdl, at(cf, -Lg / 4, m(1.53), mf0 + 0.09), m(0.9), m(0.07), "3216  잠실대교북단 - 구의역 - 광나루역", { color = SC.ink, font = "gothic", maxDistance = 60 })
 	Signage.text(mdl, at(cf, -Lg / 4, m(1.25), mf0 + 0.09), m(0.8), m(0.16), "버스 노선 안내\nBus Route Map", { color = SC.ink, font = "medium", maxDistance = 60 })

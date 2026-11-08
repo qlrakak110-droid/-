@@ -1,6 +1,8 @@
 --!strict
 -- SeoulSkylineClient — 한강 잠실 야경 맵의 클라이언트 연출 (서버 의존 없음, RemoteEvent 없음)
---   * Traffic  : TrafficLanes 차선을 따라 흐르는 차량 불빛(클라이언트 전용 Neon 파트 ≤ 400)
+--   * Traffic  : TrafficLanes 차선을 따라 달리는 실제 차량(Vehicles 절차적 모델, 차간 거리 모델·신호 교차로)
+--                + 원거리 차량 불빛(클라이언트 전용 Neon 파트 ≤ 400)
+--   * ParkedCars : 주차장 칸(StallLine)을 실측 주차 차량으로 채움
 --   * Beacons  : SeoulBeacon 항공장애등 1 Hz 맥동
 --   * Boats    : SeoulBoat 유람선 운항(U턴 루프)
 --   * CameraFx : 접속 인트로 시네마틱 + 포토 스팟 사진 모드
@@ -8,7 +10,8 @@
 --   * AutoDoors : 편의점 등 자동 미닫이문(태그 SeoulAutoDoor) 근접 감지 열림/닫힘
 -- 맵이 Studio 에서 구워졌든 실행 중 생성되든 동작: Workspace.SeoulSkyline 이 나타날 때까지 기다리고,
 -- 맵이 지워지거나 다시 생성되면(Build() 재실행) 모든 시스템을 정리한 뒤 새 루트로 다시 시작합니다.
--- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic 로 켜고 끕니다(변경 시 재시작).
+-- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic / Vehicles / VehicleBudget / ParkedCars 등으로
+-- 켜고 끕니다(변경 시 재시작).
 
 local Util = require(script:WaitForChild("Util"))
 local Traffic = require(script:WaitForChild("Traffic"))
@@ -17,6 +20,7 @@ local Boats = require(script:WaitForChild("Boats"))
 local CameraFx = require(script:WaitForChild("CameraFx"))
 local ElevatorFx = require(script:WaitForChild("ElevatorFx"))
 local AutoDoors = require(script:WaitForChild("AutoDoors"))
+local ParkedCars = require(script:WaitForChild("ParkedCars"))
 
 type System = { start: (Model) -> () -> () }
 local SYSTEMS: { { name: string, mod: System } } = {
@@ -24,8 +28,20 @@ local SYSTEMS: { { name: string, mod: System } } = {
 	{ name = "Beacons", mod = Beacons :: any },
 	{ name = "Boats", mod = Boats :: any },
 	{ name = "AutoDoors", mod = AutoDoors :: any },
+	{ name = "ParkedCars", mod = ParkedCars :: any },
 }
-local RESTART_ATTRS = { Traffic = true, Beacons = true, Boats = true }
+local RESTART_ATTRS = {
+	Traffic = true,
+	Beacons = true,
+	Boats = true,
+	Vehicles = true,
+	VehicleBudget = true,
+	VehicleLiteBudget = true,
+	VehicleRange = true,
+	TrafficSignals = true,
+	ParkedCars = true,
+	ParkedCarBudget = true,
+}
 
 local current: Model? = nil
 local stops: { () -> () } = {}

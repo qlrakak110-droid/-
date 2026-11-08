@@ -70,25 +70,6 @@ local function decal(m: Instance, cf: CFrame, w: number, h: number, text: string
 	return p
 end
 
--- 면 위 색 사각형(Frame) 그림: rects = { {x, y, w, h, Color3} } (0..1, y 는 위에서부터). 책등·상품 페이싱·접은 옷·안경 벽.
-local function rectGui(p: BasePart, face: Enum.NormalId, rects: { any }, ppS: number?)
-	local g = Instance.new("SurfaceGui")
-	g.Name = "Facings"
-	g.Face = face
-	g.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-	g.PixelsPerStud = ppS or 20
-	g.LightInfluence = 1
-	g.MaxDistance = 180
-	for _, r in rects do
-		local f = Instance.new("Frame")
-		f.BorderSizePixel = 0
-		f.BackgroundColor3 = r[5]
-		f.Position = UDim2.fromScale(r[1], r[2])
-		f.Size = UDim2.fromScale(r[3], r[4])
-		f.Parent = g
-	end
-	g.Parent = p
-end
 
 ------------------------------------------------------------------------------------------------------
 -- 팔레트
@@ -112,118 +93,6 @@ local STONE = { rgb(230, 224, 212), rgb(224, 217, 204), rgb(234, 229, 219), rgb(
 local GROUT = rgb(150, 144, 136)
 local YELLOW = rgb(250, 200, 30)
 local KRAFT = rgb(196, 160, 112)
-
-------------------------------------------------------------------------------------------------------
--- 상품 그림 생성(Frame 사각형)
-------------------------------------------------------------------------------------------------------
--- 세로 페이싱(아래 정렬): 같은 SKU 2~5 개 연속 + 가끔 빈 자리, band = 라벨 띠
-local function facingRects(rng: Random, L: number, wMin: number, wMax: number, hMin: number, hMax: number, pal: { Color3 }, band: boolean?): { any }
-	local out = {}
-	local x = 0.04
-	while x < L - wMin - 0.04 do
-		local w = rng:NextNumber(wMin, wMax)
-		local h = rng:NextNumber(hMin, hMax)
-		local c = pick(rng, pal)
-		local lc = pick(rng, pal)
-		if rng:NextNumber() < 0.07 then
-			x += w * 1.5
-			continue
-		end
-		for _ = 1, rng:NextInteger(2, 5) do
-			if x + w > L - 0.04 then
-				break
-			end
-			local cc = jit(rng, c, 0.04)
-			table.insert(out, { x / L, 1 - h, w / L, h, cc })
-			if band then
-				table.insert(out, { x / L, 1 - h * 0.62, w / L, h * 0.2, lc })
-			end
-			x += w + 0.03
-		end
-		x += 0.06
-	end
-	return out
-end
--- 책등(높이·두께 제각각)
-local function bookRects(rng: Random, L: number): { any }
-	local out = {}
-	local x = 0.05
-	while x < L - 0.12 do
-		if rng:NextNumber() < 0.04 then
-			x += rng:NextNumber(0.3, 0.7)
-			continue
-		end
-		local w = math.min(rng:NextNumber(0.08, 0.2), L - 0.05 - x)
-		local h = rng:NextNumber(0.62, 0.97)
-		table.insert(out, { x / L, 1 - h, w / L, h, jit(rng, pick(rng, BOOK_C), 0.12) })
-		x += w + 0.008
-	end
-	return out
-end
--- 접은 옷 더미(층 0.16 stud)
-local function stackRects(rng: Random, L: number, H: number, pal: { Color3 }): { any }
-	local out = {}
-	local x = 0.15
-	while x + 1.0 < L - 0.1 do
-		local c = pick(rng, pal)
-		local sw = rng:NextNumber(0.95, 1.15)
-		local n = math.max(2, math.floor(H / 0.16 * rng:NextNumber(0.55, 1.0)))
-		for k = 0, n - 1 do
-			local y = H - (k + 1) * 0.16
-			if y < 0 then
-				break
-			end
-			table.insert(out, { x / L, y / H, sw / L, 0.135 / H, jit(rng, c, 0.05) })
-		end
-		x += sw + rng:NextNumber(0.25, 0.5)
-	end
-	return out
-end
--- 안경 벽: 아크릴 레일 + 안경(선글라스 = 채운 렌즈, 안경테 = 밝은 렌즈 + 윗테)
-local function glassesRects(rng: Random, L: number, H: number, rows: number): { any }
-	local out = {}
-	for r = 1, rows do
-		local yc = (r - 0.5) * H / rows
-		table.insert(out, { 0.01, (yc + 0.2) / H, 0.98, 0.05 / H, rgb(206, 208, 212) })
-		local x = 0.3
-		while x + 0.55 < L - 0.2 do
-			local c = pick(rng, GLASSES_C)
-			local lh = rng:NextNumber(0.12, 0.17)
-			local sun = rng:NextNumber() < 0.45
-			local lens = if sun then dark(c, 0.3) else rgb(222, 228, 232)
-			for _, lx in { x, x + 0.26 } do
-				table.insert(out, { lx / L, (yc - lh / 2) / H, 0.2 / L, lh / H, lens })
-			end
-			table.insert(out, { x / L, (yc - lh / 2) / H, 0.46 / L, 0.035 / H, c })
-			table.insert(out, { (x + 0.2) / L, (yc - lh / 2 + 0.02) / H, 0.06 / L, 0.03 / H, c })
-			x += 0.46 + rng:NextNumber(0.28, 0.42)
-		end
-	end
-	return out
-end
--- 위에서 본 격자(젤라또 통 / 보석 트레이 / 김밥): cols × rows 칸, 칸마다 색
-local function gridRects(rng: Random, cols: number, rows: number, pal: { Color3 }, fill: number, rim: Color3?): { any }
-	local out = {}
-	for i = 0, cols - 1 do
-		for j = 0, rows - 1 do
-			local px, pz = 1 / cols, 1 / rows
-			if rim then
-				table.insert(out, { i * px + px * 0.04, j * pz + pz * 0.04, px * 0.92, pz * 0.92, rim })
-			end
-			local f = fill * rng:NextNumber(0.85, 1.0)
-			table.insert(out, { i * px + px * (1 - f) / 2, j * pz + pz * (1 - f) / 2, px * f, pz * f, jit(rng, pick(rng, pal), 0.06) })
-		end
-	end
-	return out
-end
--- 레코드 판(위에서 본 얇은 재킷 모서리)
-local function edgeRects(rng: Random, n: number, pal: { Color3 }): { any }
-	local out = {}
-	for k = 0, n - 1 do
-		table.insert(out, { 0.04, (k + 0.15) / n, 0.92, 0.6 / n, jit(rng, pick(rng, pal), 0.1) })
-	end
-	return out
-end
 
 ------------------------------------------------------------------------------------------------------
 -- 상점 정의
@@ -282,9 +151,9 @@ local TAGLINE: { [string]: string } = {
 }
 
 ------------------------------------------------------------------------------------------------------
--- 상점 공용 집기
+-- 상점 공용 집기 (모두 실물 파트. 상품은 "같은 SKU 묶음" 덩어리로 파트 수를 아낌)
 ------------------------------------------------------------------------------------------------------
--- 계산대: 몸통 0.9 m + 상판 + POS(받침·모니터, 직원 쪽 +Z) + 카드단말(손님 쪽) + 종이 쇼핑백
+-- 계산대: 몸통 0.9 m + 상판 + POS(받침·모니터, 직원 쪽 +Z) + 종이 쇼핑백
 local function counterPOS(sh: any, x: number, z: number, yaw: number, len: number, body: Color3, bodyMat: Enum.Material, top: Color3, topMat: Enum.Material)
 	local m = sh.m
 	local cf = sh.F(x, 0, z, yaw)
@@ -293,15 +162,24 @@ local function counterPOS(sh: any, x: number, z: number, yaw: number, len: numbe
 	local px = -len / 2 + 1.1
 	D(m, cf * CFrame.new(px, 3.35, 0.3), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 	D(m, cf * CFrame.new(px, 3.95, 0.34) * CFrame.Angles(math.rad(14), 0, 0), Vector3.new(1.25, 0.85, 0.1), rgb(30, 30, 34), MAT.SmoothPlastic, "PosScreen")
-	D(m, cf * CFrame.new(px + 1.35, 3.27, -0.55) * CFrame.Angles(math.rad(-18), 0, 0), Vector3.new(0.32, 0.14, 0.52), rgb(40, 42, 46), MAT.SmoothPlastic, "CardTerminal")
 	D(m, cf * CFrame.new(len / 2 - 1.0, 3.72, 0.25), Vector3.new(1.05, 1.1, 0.45), KRAFT, MAT.SmoothPlastic, "ShoppingBag")
 end
 
--- 상품 열: cfFront = 선반 윗면 앞 가장자리 가운데(로컬 -Z = 매장 쪽). 파트 1 + 앞면 Frame 그림
-local function facings(m: Instance, cfFront: CFrame, L: number, H: number, dep: number, rects: { any }, back: Color3, ppS: number?): BasePart
-	local p = D(m, cfFront * CFrame.new(0, H / 2, 0.08 + dep / 2), Vector3.new(L, H, dep), back, MAT.SmoothPlastic, "Facings")
-	rectGui(p, FRONT, rects, ppS or 24)
-	return p
+-- 상품 묶음 줄: cf = 선반 윗면 앞 가장자리 가운데(로컬 -Z = 매장 쪽), 폭 w 를 n 덩어리(폭·높이·색 제각각, 틈 0.12)로 채움
+local function goodsRun(m: Instance, cf: CFrame, w: number, n: number, hMin: number, hMax: number, dep: number, pal: { Color3 }, rng: Random, mat: Enum.Material?, name: string?)
+	local ws = {}
+	local tot = 0
+	for i = 1, n do
+		ws[i] = rng:NextNumber(0.6, 1.4)
+		tot += ws[i]
+	end
+	local x = -w / 2
+	for i = 1, n do
+		local seg = ws[i] / tot * w
+		local h = rng:NextNumber(hMin, hMax)
+		D(m, cf * CFrame.new(x + seg / 2, h / 2, 0.1 + dep / 2), Vector3.new(seg - 0.12, h, dep), jit(rng, pick(rng, pal), 0.06), mat or MAT.SmoothPlastic, name or "Goods")
+		x += seg
+	end
 end
 
 -- 벽 선반 유닛: cf = 벽면 바닥 기준(로컬 -Z = 매장 쪽), ys = 선반 윗면 높이. fill(i, 선반 앞 가장자리 cf, 폭, 높이 여유)
@@ -314,48 +192,21 @@ local function shelfUnit(m: Instance, cf: CFrame, w: number, hTop: number, ys: {
 	end
 end
 
--- 옷걸이에 촘촘히 건 옷(사이드 행): cfRail = 봉 중심(로컬 X = 봉 방향), 파트 1 + 옷 단면 줄무늬
-local function garments(m: Instance, cfRail: CFrame, L: number, H: number, pal: { Color3 }, rng: Random, both: boolean)
-	D(m, cfRail * CFrame.new(0, -0.15, 0), Vector3.new(L, 0.1, 1.25), rgb(86, 64, 46), MAT.Wood, "Hangers")
-	local p = D(m, cfRail * CFrame.new(0, -0.2 - H / 2, 0), Vector3.new(L, H, 1.45), dark(pick(rng, pal), 0.3), MAT.Fabric, "Garments")
-	local rects = {}
-	local x = 0.02
-	while x < L - 0.08 do
-		local w = math.min(rng:NextNumber(0.1, 0.24), L - 0.02 - x)
-		table.insert(rects, { x / L, 0, w / L, rng:NextNumber(0.88, 1.0), jit(rng, pick(rng, pal), 0.08) })
-		x += w + 0.012
-	end
-	rectGui(p, FRONT, rects, 24)
-	if both then
-		rectGui(p, BACK, rects, 24)
-	end
-end
-
--- 접은 옷 한 더미(테이블 위): 층 줄무늬 + 윗면 색
+-- 접은 옷 한 더미(셔츠 4~7 장, 0.15 stud/장)
 local function foldedStack(m: Instance, cf: CFrame, rng: Random, pal: { Color3 })
-	local n = rng:NextInteger(4, 7)
-	local h = n * 0.15
-	local c = pick(rng, pal)
-	local p = D(m, cf * CFrame.new(0, h / 2, 0), Vector3.new(1.1, h, 0.95), dark(c, 0.35), MAT.Fabric, "FoldedStack")
-	local rects = {}
-	for k = 0, n - 1 do
-		table.insert(rects, { 0, k / n, 1, 0.8 / n, jit(rng, c, 0.06) })
-	end
-	rectGui(p, FRONT, rects, 30)
-	rectGui(p, TOP, { { 0, 0, 1, 1, c } }, 10)
+	local h = rng:NextInteger(4, 7) * 0.15
+	D(m, cf * CFrame.new(0, h / 2, 0), Vector3.new(1.1, h, 0.95), jit(rng, pick(rng, pal), 0.05), MAT.Fabric, "FoldedStack")
 end
 
--- 마네킹(1.8 m): 받침 + 다리 2 + 몸통(옷) + 머리
+-- 마네킹(1.8 m): 받침 + 하의 + 상의(몸통) + 머리
 local function mannequin(m: Instance, cf: CFrame, top: Color3, bottom: Color3)
 	cyl(m, cf * CFrame.new(0, 0.06, 0), 0.12, 1.5, rgb(60, 60, 64), MAT.Metal, "MannequinBase")
-	for _, sx in { -0.24, 0.24 } do
-		D(m, cf * CFrame.new(sx, 1.58, 0), Vector3.new(0.42, 2.96, 0.48), bottom, MAT.Fabric, "MannequinLeg")
-	end
-	ell(m, cf * CFrame.new(0, 3.95, 0), Vector3.new(1.55, 2.4, 0.9), top, MAT.Fabric, "MannequinTorso")
-	ball(m, (cf * CFrame.new(0, 5.5, 0)).Position, 0.78, rgb(238, 234, 228), MAT.SmoothPlastic, "MannequinHead")
+	D(m, cf * CFrame.new(0, 1.58, 0), Vector3.new(0.9, 2.96, 0.5), bottom, MAT.Fabric, "MannequinLegs")
+	ell(m, cf * CFrame.new(0, 3.95, 0), Vector3.new(1.5, 2.4, 0.82), top, MAT.Fabric, "MannequinTorso")
+	ball(m, (cf * CFrame.new(0, 5.48, 0)).Position, 0.74, rgb(238, 234, 228), MAT.SmoothPlastic, "MannequinHead")
 end
 
--- 운동화 1 짝(진열용 한 짝): 흰 밑창 + 경사진 갑피
+-- 운동화 한 짝(진열용): sole = 흰 밑창 따로
 local function shoe(m: Instance, cf: CFrame, col: Color3, sole: boolean?)
 	if sole then
 		D(m, cf * CFrame.new(0, 0.06, 0), Vector3.new(0.44, 0.12, 1.08), rgb(240, 238, 232), MAT.Rubber, "ShoeSole")
@@ -390,7 +241,18 @@ end
 local function stool(m: Instance, cf: CFrame, col: Color3, hgt: number?)
 	local hs = hgt or SEAT
 	VC(m, cf * CFrame.new(0, hs - 0.1, 0), 0.2, 1.25, col, MAT.Wood, true, "StoolSeat")
-	VC(m, cf * CFrame.new(0, (hs - 0.2) / 2, 0), hs - 0.2, 0.22, C.black, MAT.Metal, false, "StoolLeg")
+	VC(m, cf * CFrame.new(0, (hs - 0.2) / 2 + 0.05, 0), hs - 0.2, 0.22, C.black, MAT.Metal, false, "StoolLeg")
+end
+
+-- 백라이트 선반 유닛(화장품/향수/약국): 하부장 + 발광 뒤판 + 유리 선반 + 상품 묶음
+local function litUnit(sh: any, cf: CFrame, w: number, ys: { number }, runs: number, pal: { Color3 }, base: Color3, glow: Color3, shelfC: Color3, shelfMat: Enum.Material)
+	local m, rng = sh.m, sh.rng
+	S(m, cf * CFrame.new(0, 1.0, -0.8), Vector3.new(w, 1.9, 1.6), base, MAT.SmoothPlastic, "BaseCabinet")
+	N(m, cf * CFrame.new(0, 6.0, -0.06), Vector3.new(w - 0.4, 7.6, 0.12), glow, "BacklitPanel")
+	for _, y in ys do
+		D(m, cf * CFrame.new(0, y - 0.05, -0.6), Vector3.new(w - 0.6, 0.1, 1.0), shelfC, shelfMat, "GlassShelf")
+		goodsRun(m, cf * CFrame.new(0, y, -1.1), w - 1.2, runs, 0.45, 0.95, 0.5, pal, rng, MAT.SmoothPlastic, "Products")
+	end
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -399,157 +261,144 @@ end
 local function fxFashion(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	local pal = CLOTH[sh.kind] or CLOTH.fashion
-	-- 1) 왼쪽 벽 사이드 행거(상의 / 아우터)
+	local dk = sh.kind == "men" or sh.kind == "outdoor"
+	-- 1) 왼쪽 벽 행거: 봉 + 색별 옷 묶음 4(상의 2.4~2.8 / 아우터 3.4~3.9)
 	local z0, z1 = 5.5, Dp - 5.0
 	local len = z1 - z0
 	local cfW = F(-WL, 0, (z0 + z1) / 2, FACE_PX)
 	hcyl(m, cfW * CFrame.new(0, 5.7, -1.0), len, 0.14, C.steel, MAT.Metal, "Rail")
-	for _, ex in { -1, 1 } do
-		D(m, cfW * CFrame.new(ex * (len / 2 - 0.3), 5.7, -0.55), Vector3.new(0.12, 0.12, 1.1), C.steel, MAT.Metal, "RailBracket")
+	local seg = (len - 0.6) / 3
+	for i = 1, 3 do
+		local H = if i <= 1 then rng:NextNumber(2.4, 2.8) else rng:NextNumber(3.4, 3.9)
+		D(m, cfW * CFrame.new(-len / 2 + 0.3 + (i - 0.5) * seg, 5.6 - H / 2, -1.0), Vector3.new(seg - 0.3, H, 1.4), jit(rng, pick(rng, pal), 0.05), MAT.Fabric, "GarmentRun")
 	end
-	garments(m, cfW * CFrame.new(-len / 4, 5.7, -1.0), len / 2 - 0.4, 2.6, pal, rng, false)
-	garments(m, cfW * CFrame.new(len / 4, 5.7, -1.0), len / 2 - 0.4, 3.8, pal, rng, false)
-	-- 2) 오른쪽 벽: 접은 옷 선반 3 단
-	local shelfC = if sh.kind == "men" or sh.kind == "outdoor" then rgb(58, 46, 38) else C.oak
-	shelfUnit(m, F(WL, 0, 12.5, FACE_NX), 11, 9.0, { 2.2, 4.8, 7.4 }, 1.25, dark(sh.K.wall, 0.08), sh.K.wallMat, shelfC, function(_i, cf, w, h)
-		local hh = math.min(h, 1.3)
-		facings(m, cf, w, hh, 1.0, stackRects(rng, w, hh, pal), dark(shelfC, 0.4), 30)
-	end)
-	-- 3) 뒷벽: 그래픽 라이트박스 + 접은 옷 좌대, 계산대, 피팅룸 + 거울
+	-- 2) 오른쪽 벽: 떠 있는 선반 2 × 접은 옷 3
+	local shelfC = if dk then rgb(58, 46, 38) else C.oak
+	local cfR = F(WL, 0, 12.5, FACE_NX)
+	for _, y in { 4.2, 6.6 } do
+		D(m, cfR * CFrame.new(0, y - 0.07, -0.65), Vector3.new(9.0, 0.14, 1.3), shelfC, MAT.Wood, "Shelf")
+		for k = -1, 1, 2 do
+			foldedStack(m, cfR * CFrame.new(k * 2.2 + rng:NextNumber(-0.2, 0.2), y, -0.7), rng, pal)
+		end
+	end
+	-- 3) 뒷벽: 그래픽 라이트박스 + 좌대 위 접은 옷 3 / 계산대 / 피팅룸 + 거울
 	sign(m, F(1.0, 9.8, Dp - 0.12), Vector3.new(12, 5.4, 0.2), rgb(214, 206, 196), MAT.Neon, TAGLINE[sh.kind] or "NEW SEASON", rgb(40, 38, 36), 20)
 	S(m, F(1.0, 0.85, Dp - 1.6), Vector3.new(10, 1.6, 2.6), dark(sh.K.wall, 0.15), MAT.SmoothPlastic, "Plinth")
-	facings(m, F(1.0, 1.65, Dp - 2.6), 9.4, 0.9, 1.6, stackRects(rng, 9.4, 0.9, pal), dark(pick(rng, pal), 0.4), 30)
-	counterPOS(sh, -WL + 5.2, Dp - 3.4, 0, 6.5, if sh.kind == "men" then rgb(46, 38, 32) else rgb(30, 30, 32), MAT.Wood, C.marble, MAT.Marble)
+	for k = -1, 1, 2 do
+		foldedStack(m, F(1.0 + k * 2.4, 1.65, Dp - 1.7), rng, pal)
+	end
+	counterPOS(sh, -WL + 5.2, Dp - 3.4, 0, 6.5, if dk then rgb(46, 38, 32) else rgb(30, 30, 32), MAT.Wood, C.marble, MAT.Marble)
 	D(m, F(WL - 6, 4.0, Dp - 3.25), Vector3.new(0.3, 8.0, 6.5), dark(sh.K.wall, 0.05), MAT.SmoothPlastic, "FittingWall")
 	D(m, F(WL - 3, 3.95, Dp - 6.35), Vector3.new(5.6, 7.5, 0.25), rgb(120, 112, 100), MAT.Fabric, "FittingCurtain")
 	local fs = D(m, F(WL - 3, 8.3, Dp - 6.4), Vector3.new(3.4, 0.6, 0.1), rgb(30, 30, 32), MAT.SmoothPlastic, "FittingSign")
 	Kit.label(fs, FRONT, "FITTING ROOM 피팅룸", { color = rgb(240, 240, 236), glow = true, pixelsPerStud = 40, maxDistance = 160 })
 	D(m, F(WL - 6.19, 3.7, Dp - 3.25), Vector3.new(0.08, 5.8, 2.0), rgb(206, 214, 218), MAT.Glass, "Mirror", 0.4)
-	-- 4) 가운데: 네스팅 테이블 2 + 접은 옷
-	table_(m, F(-2.2, 0, 10.5), 6.5, 3.6, 2.65, C.oak, MAT.Wood, rgb(60, 50, 42))
-	table_(m, F(3.4, 0, 13.2), 4.6, 3.0, 1.7, C.oak, MAT.Wood, rgb(60, 50, 42))
-	for k = -1, 1 do
-		foldedStack(m, F(-2.2 + k * 1.9, 2.65, 10.5 + (if k == 0 then 0.6 else -0.5)), rng, pal)
-	end
+	-- 4) 가운데: 네스팅 테이블 + 접은 옷 3
+	table_(m, F(-1.5, 0, 11.0), 6.5, 3.6, 2.65, C.oak, MAT.Wood, rgb(60, 50, 42))
 	for k = -1, 1, 2 do
-		foldedStack(m, F(3.4 + k * 1.1, 1.7, 13.2), rng, pal)
-	end
-	-- 5) 1층: 가운데 이동식 행거(양면)
-	if sh.l1 then
-		local rcf = F(0.5, 0, 18.5)
-		for _, ex in { -1, 1 } do
-			D(m, rcf * CFrame.new(ex * 3.6, 2.75, 0), Vector3.new(0.14, 5.4, 0.14), C.steel, MAT.Metal, "RackPost")
-			D(m, rcf * CFrame.new(ex * 3.6, 0.1, 0), Vector3.new(0.2, 0.1, 1.6), C.steel, MAT.Metal, "RackFoot")
-		end
-		hcyl(m, rcf * CFrame.new(0, 5.3, 0), 7.4, 0.14, C.steel, MAT.Metal, "Rail")
-		garments(m, rcf * CFrame.new(0, 5.3, 0), 6.8, 2.8, pal, rng, true)
+		foldedStack(m, F(-1.5 + k * 1.5, 2.65, 11.0 + k * 0.4), rng, pal)
 	end
 end
 
+local SHOE_C = { rgb(240, 240, 236), rgb(30, 30, 32), rgb(200, 60, 50), rgb(60, 90, 160), rgb(230, 200, 60), rgb(120, 130, 120), rgb(236, 120, 60) }
 local function fxShoes(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	local sports = sh.kind == "sports"
-	local SHOE_C = { rgb(240, 240, 236), rgb(30, 30, 32), rgb(200, 60, 50), rgb(60, 90, 160), rgb(230, 200, 60), rgb(120, 130, 120), rgb(236, 120, 60) }
-	-- 1) 뒷벽 슈월: 패널 + 떠 있는 선반 3 단 × 5
+	-- 1) 뒷벽 슈월: 패널 + 떠 있는 선반 3 단 × 3
 	local cfB = F(0, 0, Dp)
-	D(m, cfB * CFrame.new(0, 6.2, -0.12), Vector3.new(18, 8.6, 0.24), if sports then rgb(30, 30, 32) else rgb(170, 130, 92), if sports then MAT.SmoothPlastic else MAT.Wood, "ShoeWall")
+	D(m, cfB * CFrame.new(0, 6.2, -0.12), Vector3.new(16, 8.6, 0.24), if sports then rgb(30, 30, 32) else rgb(170, 130, 92), if sports then MAT.SmoothPlastic else MAT.Wood, "ShoeWall")
 	for r = 0, 2 do
 		local y = 3.3 + r * 2.4
-		D(m, cfB * CFrame.new(0, y - 0.06, -0.24 - 0.65), Vector3.new(16.6, 0.12, 1.3), rgb(240, 240, 236), MAT.SmoothPlastic, "ShoeShelf")
-		for k = 0, 4 do
-			shoe(m, cfB * CFrame.new(-6.4 + k * 3.2, y, -0.9) * CFrame.Angles(0, rng:NextNumber(-0.25, 0.25), 0), pick(rng, SHOE_C), false)
+		D(m, cfB * CFrame.new(0, y - 0.06, -0.89), Vector3.new(14.6, 0.12, 1.3), rgb(240, 240, 236), MAT.SmoothPlastic, "ShoeShelf")
+		for k = -1, 1 do
+			shoe(m, cfB * CFrame.new(k * 4.6 + rng:NextNumber(-0.4, 0.4), y, -0.9) * CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0), pick(rng, SHOE_C), false)
 		end
 	end
 	local hs = sign(m, cfB * CFrame.new(0, 11.4, -0.15), Vector3.new(10, 1.6, 0.1), rgb(18, 18, 20), MAT.SmoothPlastic, TAGLINE[sh.kind] or "NEW", rgb(255, 255, 255), 30)
 	hs.Name = "WallHeader"
-	-- 2) 왼쪽 벽: 신발 상자 재고 벽
-	local box = D(m, F(-WL + 0.7, 3.55, 13.5), Vector3.new(1.2, 7.0, 10.5), rgb(60, 50, 40), MAT.Cardboard, "ShoeBoxes")
-	local rects = {}
-	for r = 0, 13 do
-		local x = rng:NextNumber(-0.05, 0)
-		while x < 1 do
-			local w = rng:NextNumber(0.09, 0.11)
-			table.insert(rects, { x, r / 14, math.min(w - 0.005, 1 - x), 1 / 14 - 0.006, jit(rng, pick(rng, { rgb(236, 110, 40), rgb(30, 30, 32), rgb(236, 234, 228), rgb(196, 40, 44), rgb(70, 110, 170) }), 0.06) })
-			x += w
-		end
+	-- 2) 왼쪽 벽: 신발 상자 재고 벽(벽돌 결 = 상자 줄)
+	D(m, F(-WL + 0.7, 3.55, 13.5), Vector3.new(1.2, 7.0, 10.5), if sports then rgb(214, 96, 40) else rgb(196, 120, 60), MAT.Brick, "ShoeBoxes")
+	-- 3) 시착 벤치 + 거울
+	bench(m, F(-2.5, 0, 12.5), 6, if sports then rgb(40, 40, 44) else C.leather)
+	if not sports then
+		bench(m, F(3.5, 0, 17.5), 5, rgb(40, 40, 44))
 	end
-	rectGui(box, RIGHT, rects, 16)
-	-- 3) 시착 벤치 2 + 바닥 거울 + 디스플레이 큐브
-	bench(m, F(-2.5, 0, 12.5), 6, C.leather)
-	bench(m, F(3.5, 0, 17.5), 5, rgb(40, 40, 44))
 	D(m, F(WL - 0.3, 2.4, 9.0) * CFrame.Angles(0, 0, math.rad(-8)), Vector3.new(0.12, 4.6, 2.0), rgb(206, 214, 218), MAT.Glass, "FloorMirror", 0.4)
-	S(m, F(3.5, 1.25, 9.5), Vector3.new(2.4, 2.4, 2.4), rgb(240, 240, 236), MAT.SmoothPlastic, "DisplayCube")
-	shoe(m, F(3.0, 2.45, 9.5, 0.4), pick(rng, SHOE_C), true)
-	shoe(m, F(4.0, 2.45, 9.4, -0.3), pick(rng, SHOE_C), true)
-	-- 4) 오른쪽 벽: (스포츠) 유니폼 페이스아웃 + 공 바스켓 / (신발) 슈케어 선반
+	-- 4) 오른쪽 벽: (스포츠) 유니폼 페이스아웃 + 공 바스켓 / (신발) 신발 선반 2 단
+	local cfR = F(WL, 0, 15, FACE_NX)
 	if sports then
-		local cfR = F(WL, 0, 14, FACE_NX)
 		D(m, cfR * CFrame.new(0, 6.6, -0.5), Vector3.new(7.5, 0.12, 0.12), C.steel, MAT.Metal, "FaceOutBar")
 		for k = -1, 1 do
 			D(m, cfR * CFrame.new(k * 2.4, 5.2, -0.55), Vector3.new(1.9, 2.6, 0.18), pick(rng, { rgb(200, 36, 40), rgb(30, 60, 140), rgb(240, 240, 236) }), MAT.Fabric, "Jersey")
 		end
-		G(m, F(WL - 2.2, 1.0, 20.5), Vector3.new(2.4, 1.9, 2.4), rgb(150, 150, 156), 0.55, true, "BallBin")
-		for k = 0, 2 do
-			ball(m, (F(WL - 2.8 + k * 0.6, 1.95 + (k % 2) * 0.3, 20.5 + (k - 1) * 0.5)).Position, 0.75, pick(rng, { rgb(236, 120, 40), rgb(240, 240, 236), rgb(30, 30, 32) }), MAT.SmoothPlastic, "Ball")
+		G(m, F(WL - 2.2, 1.0, 21.0), Vector3.new(2.4, 1.9, 2.4), rgb(150, 150, 156), 0.55, true, "BallBin")
+		for k = 0, 1 do
+			ball(m, (F(WL - 2.6 + k * 0.8, 2.0, 21.0 + (k - 0.5) * 0.6)).Position, 0.75, pick(rng, { rgb(236, 120, 40), rgb(240, 240, 236), rgb(30, 30, 32) }), MAT.SmoothPlastic, "Ball")
 		end
 	else
-		shelfUnit(m, F(WL, 0, 15, FACE_NX), 6, 7.0, { 3.0, 5.0 }, 1.0, rgb(54, 54, 58), MAT.SmoothPlastic, rgb(230, 230, 228), function(_i, cf, w, h)
-			facings(m, cf, w, math.min(h, 0.9), 0.6, facingRects(rng, w, 0.3, 0.5, 0.55, 0.95, PACK_C, true), rgb(40, 40, 42))
-		end)
+		for _, y in { 3.6, 5.6 } do
+			D(m, cfR * CFrame.new(0, y - 0.06, -0.65), Vector3.new(6.0, 0.12, 1.3), rgb(240, 240, 236), MAT.SmoothPlastic, "ShoeShelf")
+			for k = -1, 1, 2 do
+				shoe(m, cfR * CFrame.new(k * 1.6, y, -0.7) * CFrame.Angles(0, rng:NextNumber(-0.3, 0.3), 0), pick(rng, SHOE_C), false)
+			end
+		end
 	end
 	counterPOS(sh, WL - 4.6, Dp - 3.3, 0, 6.5, rgb(30, 30, 32), MAT.SmoothPlastic, rgb(170, 130, 92), MAT.Wood)
 end
 
 local function fxCafe(sh: any)
-	local m, F, rng, WL, Dp, CH = sh.m, sh.F, sh.rng, sh.WL, sh.Dp, sh.CH
+	local m, F, rng, Dp, CH = sh.m, sh.F, sh.rng, sh.Dp, sh.CH
 	local tea = sh.kind == "tea"
 	local wood = if tea then rgb(150, 112, 74) else rgb(70, 50, 36)
 	-- 1) 앞 카운터 + 상판
 	local cx, cz, cl = -2.0, Dp - 5.4, 17.0
 	S(m, F(cx, 1.6, cz), Vector3.new(cl, 3.1, 2.4), wood, MAT.Wood, "Counter")
 	D(m, F(cx, 3.22, cz - 0.1), Vector3.new(cl + 0.3, 0.14, 2.8), if tea then rgb(96, 70, 48) else C.marble, if tea then MAT.Wood else MAT.Marble, "CounterTop")
-	-- 2) 페이스트리 쇼케이스(왼쪽 끝)
+	-- 2) 쇼케이스(왼쪽 끝): 유리 + 발광 선반 + 디저트
 	local px = cx - cl / 2 + 2.6
 	G(m, F(px, 4.44, cz - 0.1), Vector3.new(4.6, 2.3, 2.4), rgb(220, 232, 240), 0.6, false, "PastryCase")
 	N(m, F(px, 4.42, cz - 0.1), Vector3.new(4.3, 0.08, 2.1), rgb(255, 230, 190), "CaseShelf")
-	for k = 0, 5 do
-		local lx = px - 1.5 + (k % 3) * 1.5
-		local ly = if k < 3 then 3.29 else 4.46
-		if k % 2 == 0 then
+	for k = 0, (if tea then 2 else 3) do
+		local lx = px - 1.4 + (k % 2) * 2.8
+		local ly = if k < 2 then 3.29 else 4.46
+		if tea then
+			VC(m, F(lx, ly + 0.25, cz - 0.3), 0.5, 0.9, pick(rng, { rgb(120, 160, 80), rgb(200, 120, 90), rgb(240, 230, 200) }), MAT.SmoothPlastic, false, "Dessert")
+		elseif k % 2 == 0 then
 			ell(m, F(lx, ly + 0.2, cz - 0.3, rng:NextNumber(0, 3)), Vector3.new(0.95, 0.4, 0.55), rgb(214, 150, 70), MAT.SmoothPlastic, "Croissant")
 		else
 			VC(m, F(lx, ly + 0.3, cz - 0.3), 0.6, 0.85, pick(rng, { rgb(250, 240, 230), rgb(110, 70, 50), rgb(240, 180, 190) }), MAT.SmoothPlastic, false, "Cake")
 		end
 	end
-	-- 3) 에스프레소 머신(그룹 2) + 컵 + 그라인더 + POS
+	-- 3) 에스프레소 머신 + 컵 / 그라인더 (찻집: 주전자 + 다관) + POS
 	local ex = cx + 2.5
-	D(m, F(ex, 4.08, cz), Vector3.new(2.8, 1.6, 1.6), C.steel, MAT.Metal, "Espresso", 0.25)
-	D(m, F(ex, 4.98, cz + 0.1), Vector3.new(2.4, 0.22, 1.2), rgb(250, 250, 248), MAT.SmoothPlastic, "CupRow")
-	for _, gx in { -0.7, 0.7 } do
-		cyl(m, F(ex + gx, 3.62, cz + 0.95), 0.35, 0.36, C.black, MAT.Metal, "GroupHead")
+	if tea then
+		VC(m, F(ex, 3.84, cz), 1.1, 1.3, C.steel, MAT.Metal, false, "HotWaterUrn")
+		ball(m, (F(ex + 2.2, 3.75, cz)).Position, 0.95, rgb(120, 100, 80), MAT.SmoothPlastic, "Teapot")
+	else
+		D(m, F(ex, 4.08, cz), Vector3.new(2.8, 1.6, 1.6), C.steel, MAT.Metal, "Espresso", 0.25)
+		D(m, F(ex, 4.98, cz + 0.1), Vector3.new(2.4, 0.22, 1.2), rgb(250, 250, 248), MAT.SmoothPlastic, "CupRow")
+		D(m, F(ex + 2.6, 4.08, cz + 0.3), Vector3.new(0.7, 1.6, 0.9), rgb(30, 30, 32), MAT.Metal, "Grinder")
+		cyl(m, F(ex + 2.6, 5.27, cz + 0.3), 0.8, 0.7, rgb(110, 70, 44), MAT.Glass, "Hopper")
 	end
-	D(m, F(ex + 2.6, 4.08, cz + 0.3), Vector3.new(0.7, 1.6, 0.9), rgb(30, 30, 32), MAT.Metal, "Grinder")
-	cyl(m, F(ex + 2.6, 5.27, cz + 0.3), 0.8, 0.7, rgb(110, 70, 44), MAT.Glass, "Hopper")
 	D(m, F(ex + 5.0, 3.47, cz - 0.2), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 	D(m, F(ex + 5.0, 4.05, cz - 0.15) * CFrame.Angles(math.rad(-14), 0, 0), Vector3.new(1.2, 0.85, 0.1), rgb(30, 30, 34), MAT.SmoothPlastic, "PosScreen")
-	-- 4) 백바(뒷벽): 하부장 + 선반 2 + 원두/컵 + 메뉴판 2
+	-- 4) 백바(뒷벽): 하부장 + 선반 2 × 묶음 2 + 메뉴판 2
 	S(m, F(cx, 1.55, Dp - 1.05), Vector3.new(cl, 3.0, 2.0), wood, MAT.Wood, "BackBar")
 	for i, y in { 5.9, 7.5 } do
 		D(m, F(cx, y - 0.06, Dp - 0.5), Vector3.new(cl - 2, 0.12, 1.0), if tea then rgb(120, 90, 60) else rgb(30, 30, 32), MAT.Wood, "Shelf")
-		facings(m, F(cx, y, Dp - 1.0), cl - 3, 0.9, 0.7, facingRects(rng, cl - 3, 0.35, 0.6, 0.5, 0.95, if i == 1 then { rgb(250, 250, 248), rgb(236, 232, 224), rgb(60, 60, 64) } else { KRAFT, rgb(40, 40, 42), rgb(150, 60, 40), rgb(60, 90, 70) }, i == 2), dark(wood, 0.3))
+		goodsRun(m, F(cx, y, Dp - 1.0), cl - 3, 2, 0.5, 0.95, 0.7, if i == 1 then { rgb(250, 250, 248), rgb(236, 232, 224) } else { KRAFT, rgb(40, 40, 42), rgb(150, 60, 40) }, rng, MAT.SmoothPlastic, "Merch")
 	end
 	local menuC = if tea then rgb(60, 70, 50) else rgb(24, 24, 26)
 	sign(m, F(cx - 4.0, 10.4, Dp - 0.12), Vector3.new(7.2, 3.6, 0.12), menuC, MAT.SmoothPlastic, if tea then "TEA  차\n녹차 5,000\n보이차 6,000\n유자차 5,500\n대추차 6,500" else "COFFEE  커피\n아메리카노 4,500\n카페라떼 5,000\n바닐라라떼 5,500\n콜드브루 5,000", rgb(255, 236, 204), 30)
 	sign(m, F(cx + 4.0, 10.4, Dp - 0.12), Vector3.new(7.2, 3.6, 0.12), menuC, MAT.SmoothPlastic, if tea then "DESSERT  다과\n약과 3,000\n인절미 4,500\n양갱 3,500\n떡 세트 9,000" else "NON-COFFEE  음료\n말차라떼 5,500\n자몽에이드 6,000\n밀크티 5,500\n딸기라떼 6,000", rgb(255, 236, 204), 30)
-	-- 5) 펜던트 조명(카운터 위)
+	-- 5) 펜던트 조명(카운터 위, 1층)
 	if sh.l1 then
 		for _, gx in { -4.5, 0, 4.5 } do
 			D(m, F(cx + gx, (CH + 9.0) / 2, cz), Vector3.new(0.05, CH - 9.0, 0.05), C.black, MAT.Metal, "PendantCord")
 			cyl(m, F(cx + gx, 8.7, cz), 0.7, 1.2, rgb(150, 112, 70), MAT.Metal, "PendantShade")
-			ball(m, (F(cx + gx, 8.3, cz)).Position, 0.5, rgb(255, 214, 160), MAT.Neon, "PendantBulb")
 		end
 	end
-	-- 6) 좌석: 긴 공용 테이블 + 스툴 4, 원탁 + 의자 2
+	-- 6) 좌석: 긴 공용 테이블 + 스툴 4 (1층: 원탁 + 의자 2 추가)
 	table_(m, F(4.5, 0, 12.0), 9.0, 3.2, TABLE_H, if tea then rgb(120, 86, 56) else C.oak, MAT.Wood, rgb(40, 34, 30))
 	for k = 0, 3 do
 		stool(m, F(4.5 + (if k % 2 == 0 then -2.4 else 2.4), 0, 12.0 + (if k < 2 then -2.5 else 2.5)), if tea then rgb(150, 112, 74) else C.oak)
@@ -564,173 +413,161 @@ end
 local function fxBakery(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	local dessert = sh.kind == "dessert"
-	-- 1) 가운데 빵 아일랜드(트레이 4 × 빵 3) / 디저트: 케이크 스탠드 테이블
+	-- 1) 가운데 아일랜드: 빵 트레이 4 × 2 / 디저트: 케이크 스탠드 3
 	local ix, iz = -2.0, 11.5
 	S(m, F(ix, 1.3, iz), Vector3.new(8.4, 2.5, 4.2), if dessert then rgb(250, 246, 244) else C.oak, MAT.Wood, "Island")
 	D(m, F(ix, 2.62, iz), Vector3.new(9.0, 0.16, 4.8), if dessert then C.marble else rgb(214, 190, 150), if dessert then MAT.Marble else MAT.Wood, "IslandTop")
 	if dessert then
 		for k = -1, 1 do
-			VC(m, F(ix + k * 2.8, 3.15, iz), 0.9, 0.3, C.steel, MAT.Metal, false, "CakeStandStem")
-			VC(m, F(ix + k * 2.8, 3.63, iz), 0.08, 2.0, rgb(250, 250, 248), MAT.SmoothPlastic, false, "CakePlate")
-			VC(m, F(ix + k * 2.8, 4.12, iz), 0.9, 1.5, pick(rng, { rgb(250, 240, 230), rgb(110, 70, 50), rgb(240, 180, 190), rgb(200, 230, 200) }), MAT.SmoothPlastic, false, "Cake")
+			VC(m, F(ix + k * 2.8, 3.1, iz), 0.8, 0.3, C.steel, MAT.Metal, false, "CakeStandStem")
+			VC(m, F(ix + k * 2.8, 3.54, iz), 0.08, 2.0, rgb(250, 250, 248), MAT.SmoothPlastic, false, "CakePlate")
+			VC(m, F(ix + k * 2.8, 4.03, iz), 0.9, 1.5, pick(rng, { rgb(250, 240, 230), rgb(110, 70, 50), rgb(240, 180, 190), rgb(200, 230, 200) }), MAT.SmoothPlastic, false, "Cake")
 		end
 	else
 		for i = 0, 3 do
 			local tx, tz = ix + (if i % 2 == 0 then -2.2 else 2.2), iz + (if i < 2 then -1.15 else 1.15)
 			D(m, F(tx, 2.76, tz), Vector3.new(4.0, 0.12, 2.0), rgb(150, 110, 70), MAT.Wood, "BreadTray")
-			for k = -1, 1 do
-				bread(m, F(tx + k * 1.25, 2.82, tz), rng)
+			for k = -1, 1, 2 do
+				bread(m, F(tx + k * 0.95, 2.82, tz), rng)
 			end
 		end
 	end
-	-- 2) 뒷벽 빵 선반 3 단 × 4 개 + 상단 사인
-	shelfUnit(m, F(-2.0, 0, Dp), 15, 8.4, { 2.4, 4.6, 6.8 }, 1.6, rgb(150, 112, 74), MAT.Wood, rgb(170, 130, 88), function(_i, cf, w, _h)
-		for k = 0, 3 do
+	-- 2) 뒷벽 선반 2 단 × 3 + 상단 사인
+	shelfUnit(m, F(-2.0, 0, Dp), 15, 7.6, { 3.0, 5.4 }, 1.6, rgb(150, 112, 74), MAT.Wood, rgb(170, 130, 88), function(_i, cf, w, _h)
+		for k = -1, 1 do
 			if dessert then
-				VC(m, cf * CFrame.new(-w / 2 + 1.6 + k * (w - 3.2) / 3, 0.4, 0.8), 0.8, 1.3, pick(rng, { rgb(250, 230, 236), rgb(110, 70, 50), rgb(250, 240, 210), rgb(200, 230, 200) }), MAT.SmoothPlastic, false, "GiftBox")
+				VC(m, cf * CFrame.new(k * w / 3, 0.4, 0.8), 0.8, 1.3, pick(rng, { rgb(250, 230, 236), rgb(110, 70, 50), rgb(250, 240, 210), rgb(200, 230, 200) }), MAT.SmoothPlastic, false, "GiftBox")
 			else
-				bread(m, cf * CFrame.new(-w / 2 + 1.6 + k * (w - 3.2) / 3, 0, 0.8), rng)
+				bread(m, cf * CFrame.new(k * w / 3, 0, 0.8), rng)
 			end
 		end
 	end)
-	sign(m, F(-2.0, 10.4, Dp - 0.12), Vector3.new(12, 2.0, 0.12), sh.K.fascia, MAT.SmoothPlastic, if dessert then "PÂTISSERIE  케이크 · 마카롱" else "매일 아침 굽는 빵  FRESH DAILY", sh.K.text, 30)
-	-- 3) 냉장 쇼케이스(오른쪽, 매장 쪽을 봄) + 케이크 4
+	sign(m, F(-2.0, 9.6, Dp - 0.12), Vector3.new(12, 2.0, 0.12), sh.K.fascia, MAT.SmoothPlastic, if dessert then "PÂTISSERIE  케이크 · 마카롱" else "매일 아침 굽는 빵  FRESH DAILY", sh.K.text, 30)
+	-- 3) 냉장 쇼케이스(오른쪽, 매장 쪽을 봄) + 케이크 3
 	local cfS = F(WL - 1.6, 0, 13.0, FACE_NX)
 	S(m, cfS * CFrame.new(0, 1.4, 0), Vector3.new(6.4, 2.7, 2.6), rgb(240, 240, 236), MAT.SmoothPlastic, "Showcase")
 	G(m, cfS * CFrame.new(0, 3.75, 0), Vector3.new(6.4, 2.0, 2.6), rgb(220, 232, 240), 0.6, false, "ShowcaseGlass")
 	N(m, cfS * CFrame.new(0, 4.62, 0.2), Vector3.new(6.0, 0.08, 1.8), rgb(255, 244, 226), "ShowcaseLight")
-	for k = 0, 3 do
-		VC(m, cfS * CFrame.new(-2.3 + k * 1.55, 3.18, 0), 0.75, 1.1, pick(rng, { rgb(250, 240, 230), rgb(110, 70, 50), rgb(240, 180, 190), rgb(250, 220, 120) }), MAT.SmoothPlastic, false, "Cake")
+	for k = -1, 1 do
+		VC(m, cfS * CFrame.new(k * 1.9, 3.18, 0), 0.75, 1.1, pick(rng, { rgb(250, 240, 230), rgb(110, 70, 50), rgb(240, 180, 190), rgb(250, 220, 120) }), MAT.SmoothPlastic, false, "Cake")
 	end
 	-- 4) 트레이·집게 스테이션 + 계산대
-	S(m, F(-WL + 1.6, 1.5, 6.0), Vector3.new(2.6, 2.9, 1.8), C.oak, MAT.Wood, "TrayStation")
-	D(m, F(-WL + 1.6, 3.1, 6.0), Vector3.new(1.7, 0.3, 1.3), rgb(150, 110, 70), MAT.Wood, "TrayStack")
-	D(m, F(-WL + 1.6, 3.32, 5.8) * CFrame.Angles(0, 0.4, 0), Vector3.new(0.12, 0.1, 1.0), C.steel, MAT.Metal, "Tongs")
+	if not dessert then
+		S(m, F(-WL + 1.6, 1.5, 6.0), Vector3.new(2.6, 2.9, 1.8), C.oak, MAT.Wood, "TrayStation")
+		D(m, F(-WL + 1.6, 3.1, 6.0), Vector3.new(1.7, 0.3, 1.3), rgb(150, 110, 70), MAT.Wood, "TrayStack")
+	end
 	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.6, rgb(240, 240, 236), MAT.SmoothPlastic, C.oak, MAT.Wood)
 end
 
 local function fxGelato(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
-	-- 디핑 케이비닛: 몸통 + 통(위에서 본 14 색) + 기울어진 유리 + 위 조명
+	-- 디핑 케이비닛: 몸통 + 젤라또 통 8(위가 살짝 볼록) + 기울어진 유리
 	local cz = Dp - 6.0
 	S(m, F(-1, 1.45, cz), Vector3.new(13, 2.8, 3.2), rgb(250, 250, 248), MAT.SmoothPlastic, "GelatoCabinet")
-	local tubs = D(m, F(-1.5, 2.95, cz + 0.1), Vector3.new(10.4, 0.3, 2.4), rgb(200, 202, 206), MAT.Metal, "GelatoTubs")
-	rectGui(tubs, TOP, gridRects(rng, 7, 2, GELATO_C, 0.86, rgb(210, 212, 216)), 16)
+	for k = 0, 7 do
+		local tx = -1 - 5.25 + (k % 4) * 3.5
+		local tz = cz + (if k < 4 then -0.55 else 0.65)
+		D(m, F(tx, 2.88, tz), Vector3.new(3.1, 0.2, 1.05), jit(rng, GELATO_C[k + 1], 0.04), MAT.SmoothPlastic, "GelatoTub")
+	end
 	G(m, F(-1, 3.75, cz - 1.25) * CFrame.Angles(math.rad(-35), 0, 0), Vector3.new(13, 1.6, 0.14), rgb(226, 236, 240), 0.55, false, "SneezeGlass")
 	D(m, F(4.6, 3.03, cz + 1.0), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 	D(m, F(4.6, 3.6, cz + 1.05) * CFrame.Angles(math.rad(14), 0, 0), Vector3.new(1.2, 0.85, 0.1), rgb(30, 30, 34), MAT.SmoothPlastic, "PosScreen")
 	sign(m, F(-1, 9.4, Dp - 0.12), Vector3.new(11, 3.4, 0.12), rgb(110, 186, 176), MAT.Neon, "GELATO  젤라또\n싱글 4,500 · 더블 6,500 · 트리플 8,500", rgb(255, 255, 255), 30)
-	shelfUnit(m, F(-1, 0, Dp), 10, 6.6, { 5.2 }, 1.0, rgb(236, 230, 220), MAT.SmoothPlastic, rgb(240, 240, 236), function(_i, cf, w, _h)
-		facings(m, cf, w, 0.9, 0.7, facingRects(rng, w, 0.5, 0.7, 0.6, 0.9, { rgb(214, 170, 110), rgb(250, 250, 246), rgb(110, 186, 176) }, true), rgb(200, 196, 190))
-	end)
-	-- 좌석 + 파인트 냉동고
+	D(m, F(-1, 5.14, Dp - 0.74), Vector3.new(9.6, 0.12, 1.0), rgb(240, 240, 236), MAT.SmoothPlastic, "Shelf")
+	goodsRun(m, F(-1, 5.2, Dp - 1.24), 9, 3, 0.6, 0.9, 0.7, { rgb(214, 170, 110), rgb(250, 250, 246), rgb(110, 186, 176) }, rng, MAT.SmoothPlastic, "Cones")
+	-- 좌석
 	for k, p in { { -8, 10.5 }, { 3, 11.5 } } do
 		roundTable(m, F(p[1], 0, p[2]), m2s(0.6), TABLE_H, rgb(250, 250, 248), MAT.SmoothPlastic)
-		stool(m, F(p[1] - 2.0, 0, p[2]), rgb(110, 186, 176))
-		stool(m, F(p[1] + 2.0, 0, p[2] + (if k == 1 then 0.4 else -0.4)), rgb(250, 220, 90))
+		stool(m, F(p[1] + (if k == 1 then 2.0 else -2.0), 0, p[2]), if k == 1 then rgb(110, 186, 176) else rgb(250, 220, 90))
 	end
-	S(m, F(WL - 2, 1.5, 9), Vector3.new(2.6, 2.9, 5.0), rgb(250, 250, 248), MAT.SmoothPlastic, "Freezer")
-	local lid = G(m, F(WL - 2, 3.12, 9), Vector3.new(2.3, 0.14, 4.6), rgb(220, 232, 240), 0.5, false, "FreezerLid")
-	lid.Name = "FreezerLid"
-	local pints = D(m, F(WL - 2, 2.75, 9), Vector3.new(2.2, 0.5, 4.4), rgb(230, 230, 228), MAT.SmoothPlastic, "Pints")
-	rectGui(pints, TOP, gridRects(rng, 4, 8, { rgb(110, 186, 176), rgb(250, 240, 210), rgb(110, 70, 50), rgb(236, 130, 150) }, 0.9), 16)
+	local _ = WL
 end
 
 local function fxFlowers(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
-	-- 1) 뒷벽 3 단 스탠드 + 양동이 꽃다발
+	-- 1) 뒷벽 3 단 스탠드 + 양동이 꽃다발 2 씩
 	for i, st in { { 1.4, 6.0 }, { 2.8, 4.0 }, { 4.2, 2.0 } } do
 		S(m, F(-1.5, st[1] / 2, Dp - st[2] / 2), Vector3.new(16, st[1], st[2]), rgb(120, 92, 64), MAT.WoodPlanks, "FlowerStep")
-		for k = 0, 2 do
-			local bx, bz = -1.5 + (k - 1) * 5.0 + (i - 2) * 0.6, Dp - st[2] + 1.0
+		for k = -1, 1, 2 do
+			local bx, bz = -1.5 + k * 3.6 + (i - 2) * 1.2, Dp - st[2] + 1.0
 			VC(m, F(bx, st[1] + 0.75, bz), 1.5, 1.5, rgb(170, 172, 176), MAT.Metal, false, "Bucket")
-			local c = pick(rng, FLOWER_C)
-			ell(m, F(bx, st[1] + 2.1, bz) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Vector3.new(2.3, 1.5, 2.0), c, MAT.Fabric, "Bouquet")
-			if k == 1 then
-				ell(m, F(bx + 0.5, st[1] + 2.5, bz + 0.3), Vector3.new(1.2, 1.4, 1.0), rgb(70, 110, 60), MAT.Grass, "Greens")
-			end
+			ell(m, F(bx, st[1] + 2.1, bz) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Vector3.new(2.3, 1.5, 2.0), pick(rng, FLOWER_C), MAT.Fabric, "Bouquet")
+		end
+		if i < 3 then
+			ell(m, F(-1.5 + (i - 1.5) * 1.5, st[1] + 2.4, Dp - st[2] + 1.0), Vector3.new(1.4, 1.6, 1.2), rgb(70, 110, 60), MAT.Grass, "Greens")
 		end
 	end
-	-- 2) 왼쪽 벽 꽃 냉장고(유리문)
+	-- 2) 왼쪽 벽 꽃 냉장고: 몸통(뒤) + 유리문 + 천장 조명 + 안의 꽃 2
 	local cfF = F(-WL, 0, 13.0, FACE_PX)
-	S(m, cfF * CFrame.new(0, 4.1, -0.9), Vector3.new(6.2, 8.0, 1.8), rgb(230, 232, 234), MAT.Metal, "FlowerCooler")
-	G(m, cfF * CFrame.new(0, 4.1, -1.85), Vector3.new(5.6, 7.2, 0.14), rgb(220, 236, 240), 0.55, false, "CoolerDoor")
-	N(m, cfF * CFrame.new(0, 7.75, -1.4), Vector3.new(5.4, 0.1, 0.4), rgb(240, 248, 255), "CoolerLight")
+	S(m, cfF * CFrame.new(0, 4.05, -0.5), Vector3.new(6.2, 8.0, 1.0), rgb(230, 232, 234), MAT.Metal, "FlowerCooler")
+	D(m, cfF * CFrame.new(0, 7.75, -1.45), Vector3.new(6.2, 0.6, 0.9), rgb(230, 232, 234), MAT.Metal, "CoolerTop")
+	D(m, cfF * CFrame.new(0, 0.5, -1.45), Vector3.new(6.2, 0.9, 0.9), rgb(230, 232, 234), MAT.Metal, "CoolerBase")
+	G(m, cfF * CFrame.new(0, 4.1, -1.95), Vector3.new(6.2, 6.4, 0.12), rgb(220, 236, 240), 0.55, false, "CoolerDoor")
+	N(m, cfF * CFrame.new(0, 7.42, -1.45), Vector3.new(5.6, 0.1, 0.5), rgb(240, 248, 255), "CoolerLight")
 	for k = -1, 1, 2 do
-		ell(m, cfF * CFrame.new(k * 1.5, 4.6, -1.3), Vector3.new(2.0, 1.6, 0.9), pick(rng, FLOWER_C), MAT.Fabric, "CoolerFlowers")
+		ell(m, cfF * CFrame.new(k * 1.5, 2.6 + (k + 1) * 1.6, -1.4), Vector3.new(2.0, 1.6, 0.8), pick(rng, FLOWER_C), MAT.Fabric, "CoolerFlowers")
 	end
-	-- 3) 작업대(포장지 롤 + 포장 중 꽃다발) + 계산대
+	-- 3) 작업대(포장지 롤 + 포장 중 꽃다발) + 계산대 + 관엽 화분 2
 	table_(m, F(5.5, 0, 12.0), 6.0, 3.0, 3.0, rgb(200, 176, 140), MAT.Wood, rgb(90, 70, 54))
-	hcyl(m, F(5.5, 3.3, 13.0), 5.0, 0.6, KRAFT, MAT.SmoothPlastic, "PaperRoll")
-	D(m, F(4.6, 2.95, 11.8) * CFrame.Angles(0, 0.3, 0), Vector3.new(2.2, 0.06, 1.6), rgb(236, 226, 210), MAT.SmoothPlastic, "WrapSheet")
-	ell(m, F(4.6, 3.6, 11.8), Vector3.new(1.4, 1.1, 1.2), pick(rng, FLOWER_C), MAT.Fabric, "Bouquet")
+	hcyl(m, F(5.5, 3.2, 13.0), 5.0, 0.6, KRAFT, MAT.SmoothPlastic, "PaperRoll")
+	ell(m, F(4.4, 3.5, 11.6), Vector3.new(1.4, 1.1, 1.2), pick(rng, FLOWER_C), MAT.Fabric, "Bouquet")
 	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.0, rgb(90, 70, 54), MAT.Wood, rgb(200, 176, 140), MAT.Wood)
-	-- 4) 관엽(피들리프) 1
-	Props.fiddle(m, F(-WL + 2.2, 0.05, 6.5), 1.7, rng, rgb(232, 228, 220))
+	IK.pottedPlant(m, F(-WL + 2.0, 0.05, 6.0), 5.0, rgb(232, 228, 220))
+	IK.pottedPlant(m, F(1.5, 0.05, 17.5), 3.6, rgb(150, 110, 80))
 end
 
 local function fxEyewear(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
-	local function wallPanel(cf: CFrame, w: number, h: number, y0: number, rows: number)
-		local p = D(m, cf * CFrame.new(0, y0 + h / 2, -0.1), Vector3.new(w, h, 0.2), rgb(250, 250, 250), MAT.SmoothPlastic, "GlassesWall")
-		rectGui(p, FRONT, glassesRects(rng, w, h, rows), 30)
-		S(m, cf * CFrame.new(0, (y0 - 0.2) / 2 + 0.05, -0.8), Vector3.new(w, y0 - 0.2, 1.6), rgb(236, 236, 234), MAT.SmoothPlastic, "DrawerCabinet")
+	-- 뒷벽 안경 벽: 흰 패널 + 아크릴 레일 3 × 안경 5 + 하부 서랍장
+	local cfB = F(-1.5, 0, Dp)
+	D(m, cfB * CFrame.new(0, 6.3, -0.1), Vector3.new(18, 6.6, 0.2), rgb(250, 250, 250), MAT.SmoothPlastic, "GlassesWall")
+	S(m, cfB * CFrame.new(0, 1.45, -0.8), Vector3.new(18, 2.8, 1.6), rgb(236, 236, 234), MAT.SmoothPlastic, "DrawerCabinet")
+	for r = 0, 2 do
+		local y = 4.4 + r * 1.9
+		D(m, cfB * CFrame.new(0, y - 0.35, -0.3), Vector3.new(16, 0.08, 0.2), rgb(206, 208, 212), MAT.Glass, "AcrylicRail")
+		for k = 0, 4 do
+			D(m, cfB * CFrame.new(-6.4 + k * 3.2 + rng:NextNumber(-0.3, 0.3), y, -0.26), Vector3.new(0.5, 0.17, 0.08), pick(rng, GLASSES_C), MAT.SmoothPlastic, "Glasses")
+		end
 	end
-	wallPanel(F(-1.5, 0, Dp), 18, 6.6, 3.0, 7)
-	wallPanel(F(-WL, 0, 13.5, FACE_PX), 12, 6.0, 3.0, 6)
-	wallPanel(F(WL, 0, 11.0, FACE_NX), 8, 6.0, 3.0, 6)
-	D(m, F(WL - 0.1, 3.8, 17.0), Vector3.new(0.08, 6.0, 2.2), rgb(206, 214, 218), MAT.Glass, "Mirror", 0.4)
-	sign(m, F(-1.5, 11.2, Dp - 0.12), Vector3.new(8, 1.4, 0.1), rgb(20, 20, 22), MAT.SmoothPlastic, "EYEWEAR · 시력검사 무료", rgb(255, 255, 255), 30)
-	-- 가운데 진열 테이블 2 + 안경 트레이 + 탁상 거울
-	for i, p in { { -4.0, 11.0 }, { 3.5, 15.0 } } do
+	sign(m, F(-1.5, 10.9, Dp - 0.12), Vector3.new(8, 1.4, 0.1), rgb(20, 20, 22), MAT.SmoothPlastic, "EYEWEAR · 시력검사 무료", rgb(255, 255, 255), 30)
+	local ps = sign(m, F(-WL + 0.12, 5.6, 13.0, FACE_PX), Vector3.new(6, 7.0, 0.12), rgb(226, 222, 214), MAT.Neon, "SUNGLASSES\n2026 S/S\n선글라스 신상", rgb(40, 40, 44), 20)
+	ps.Name = "PosterLightbox"
+	D(m, F(WL - 0.1, 3.8, 15.0), Vector3.new(0.08, 6.0, 2.2), rgb(206, 214, 218), MAT.Glass, "Mirror", 0.4)
+	-- 가운데 진열 테이블 2 + 안경
+	for _, p in { { -4.0, 11.0 }, { 3.5, 15.0 } } do
 		table_(m, F(p[1], 0, p[2]), 5.0, 2.6, 3.1, rgb(250, 250, 250), MAT.SmoothPlastic, rgb(200, 200, 198))
-		local tray = D(m, F(p[1], 3.09, p[2]), Vector3.new(3.6, 0.08, 1.6), rgb(30, 30, 32), MAT.Fabric, "GlassesTray")
-		rectGui(tray, TOP, glassesRects(rng, 3.6, 1.6, 3), 30)
-		cyl(m, F(p[1] + 2.0, 3.7, p[2] + (if i == 1 then 0.6 else -0.6)) * CFrame.Angles(math.rad(80), 0, 0), 0.06, 1.2, rgb(206, 214, 218), MAT.Glass, "TableMirror")
+		for k = -1, 1, 2 do
+			D(m, F(p[1] + k * 1.2, 3.12, p[2] + rng:NextNumber(-0.4, 0.4), rng:NextNumber(-0.4, 0.4)), Vector3.new(0.5, 0.08, 0.17), pick(rng, GLASSES_C), MAT.SmoothPlastic, "Glasses")
+		end
 	end
 	-- 시력검사 코너(왼쪽 뒤): 테이블 + 자동굴절검사기 + 스툴
-	S(m, F(-WL + 3, 1.5, Dp - 3), Vector3.new(3.4, 2.9, 2.0), rgb(236, 236, 234), MAT.SmoothPlastic, "ExamTable")
-	D(m, F(-WL + 3, 3.55, Dp - 3.2), Vector3.new(1.4, 1.1, 1.8), rgb(240, 240, 240), MAT.SmoothPlastic, "Refractor")
-	D(m, F(-WL + 3, 4.35, Dp - 3.7), Vector3.new(0.9, 0.5, 0.7), rgb(60, 62, 66), MAT.SmoothPlastic, "RefractorHead")
-	stool(m, F(-WL + 3, 0, Dp - 5.3), rgb(60, 62, 66), 2.0)
-	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.0, rgb(250, 250, 250), MAT.SmoothPlastic, rgb(60, 62, 66), MAT.SmoothPlastic)
+	S(m, F(-WL + 3, 1.5, Dp - 4.6), Vector3.new(3.4, 2.9, 2.0), rgb(236, 236, 234), MAT.SmoothPlastic, "ExamTable")
+	D(m, F(-WL + 3, 3.5, Dp - 4.8), Vector3.new(1.4, 1.1, 1.8), rgb(240, 240, 240), MAT.SmoothPlastic, "Refractor")
+	D(m, F(-WL + 3, 4.3, Dp - 5.3), Vector3.new(0.9, 0.5, 0.7), rgb(60, 62, 66), MAT.SmoothPlastic, "RefractorHead")
+	stool(m, F(-WL + 3, 0, Dp - 6.9), rgb(60, 62, 66), 2.0)
+	counterPOS(sh, WL - 4.6, Dp - 3.6, 0, 6.0, rgb(250, 250, 250), MAT.SmoothPlastic, rgb(60, 62, 66), MAT.SmoothPlastic)
 end
 
 local function fxBooks(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	local wood = rgb(92, 64, 44)
-	local function bookFill(_i: number, cf: CFrame, w: number, _h: number)
-		facings(m, cf, w, 1.05, 0.7, bookRects(rng, w), rgb(36, 28, 22), 36)
+	local function bookFill(i: number, cf: CFrame, w: number, _h: number)
+		local n = if i == 3 or i == 4 then math.floor(w / 2.8) else math.floor(w / 4.2)
+		goodsRun(m, cf, w, n, 0.72, 1.02, 0.65, BOOK_C, rng, MAT.SmoothPlastic, "Books")
 	end
-	shelfUnit(m, F(0, 0, Dp), 22, 9.6, { 0.9, 2.35, 3.8, 5.25, 6.7, 8.15 }, 0.9, wood, MAT.Wood, wood, bookFill)
-	shelfUnit(m, F(-WL, 0, 14.5, FACE_PX), 14, 8.1, { 0.9, 2.35, 3.8, 5.25, 6.7 }, 0.9, wood, MAT.Wood, wood, bookFill)
-	sign(m, F(0, 10.6, Dp - 0.12), Vector3.new(9, 1.4, 0.1), rgb(28, 52, 42), MAT.SmoothPlastic, "BEST SELLER  베스트셀러", rgb(236, 230, 200), 30)
-	-- 오른쪽 벽: 잡지 랙(표지 페이스아웃)
-	local rack = D(m, F(WL - 0.6, 2.75, 12.5) * CFrame.Angles(0, 0, math.rad(-12)), Vector3.new(0.5, 5.2, 8.0), rgb(60, 46, 36), MAT.Wood, "MagazineRack")
-	local covers = {}
-	for r = 0, 2 do
-		for c = 0, 5 do
-			table.insert(covers, { c / 6 + 0.012, r / 3 + 0.02, 1 / 6 - 0.024, 1 / 3 - 0.06, jit(rng, pick(rng, BOOK_C), 0.1) })
-		end
-	end
-	rectGui(rack, LEFT, covers, 20)
-	-- 가운데 진열 테이블 2 + 평대 책 더미(앞 = 책등 줄무늬, 위 = 표지)
+	shelfUnit(m, F(0, 0, Dp), 20, 8.9, { 0.9, 2.35, 3.8, 5.25, 6.7 }, 0.9, wood, MAT.Wood, wood, bookFill)
+	shelfUnit(m, F(-WL, 0, 14.5, FACE_PX), 12, 6.7, { 2.35, 3.8, 5.25 }, 0.9, wood, MAT.Wood, wood, function(_i, cf, w, h)
+		bookFill(3, cf, w, h)
+	end)
+	sign(m, F(0, 10.0, Dp - 0.12), Vector3.new(9, 1.4, 0.1), rgb(28, 52, 42), MAT.SmoothPlastic, "BEST SELLER  베스트셀러", rgb(236, 230, 200), 30)
+	-- 가운데 진열 테이블 2 + 평대 책 더미
 	for _, p in { { -4.0, 10.5 }, { 4.0, 14.5 } } do
 		table_(m, F(p[1], 0, p[2]), 6.2, 3.4, 2.7, rgb(170, 130, 88), MAT.Wood, rgb(80, 60, 44))
-		for k = -1, 1 do
-			local n = rng:NextInteger(4, 8)
-			local hS = n * 0.12
-			local c = pick(rng, BOOK_C)
-			local st = D(m, F(p[1] + k * 2.0, 2.7 + hS / 2, p[2] + rng:NextNumber(-0.4, 0.4), rng:NextNumber(-0.15, 0.15)), Vector3.new(1.5, hS, 2.1), dark(c, 0.2), MAT.SmoothPlastic, "BookStack")
-			local rr = {}
-			for j = 0, n - 1 do
-				table.insert(rr, { 0.02, j / n, 0.96, 0.85 / n, jit(rng, pick(rng, BOOK_C), 0.1) })
-			end
-			rectGui(st, FRONT, rr, 30)
-			rectGui(st, TOP, { { 0, 0, 1, 1, c }, { 0.1, 0.12, 0.8, 0.18, rgb(250, 248, 240) } }, 12)
+		for k = -1, 1, 2 do
+			local hS = rng:NextInteger(4, 8) * 0.12
+			D(m, F(p[1] + k * 1.6, 2.7 + hS / 2, p[2] + rng:NextNumber(-0.4, 0.4), rng:NextNumber(-0.15, 0.15)), Vector3.new(1.5, hS, 2.1), pick(rng, BOOK_C), MAT.SmoothPlastic, "BookStack")
 		end
 	end
-	S(m, F(0, 0.75, 19.5), Vector3.new(6, 1.4, 1.8), rgb(170, 130, 88), MAT.Wood, "ReadingBench")
 	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.5, wood, MAT.Wood, C.oak, MAT.Wood)
 end
 
@@ -739,21 +576,20 @@ local function fxRecords(sh: any)
 	for _, p in { { -4.5, 11.0 }, { 4.5, 11.0 } } do
 		table_(m, F(p[1], 0, p[2]), 4.6, 6.4, 2.6, rgb(120, 92, 64), MAT.Wood, rgb(50, 40, 32))
 		for k = -1, 1, 2 do
-			local crate = D(m, F(p[1], 3.05, p[2] + k * 1.5), Vector3.new(3.6, 0.9, 2.8), rgb(150, 112, 74), MAT.Wood, "RecordCrate")
-			rectGui(crate, TOP, edgeRects(rng, 22, BOOK_C), 24)
+			D(m, F(p[1], 3.05, p[2] + k * 1.5), Vector3.new(3.6, 0.9, 2.8), rgb(150, 112, 74), MAT.Wood, "RecordCrate")
+			for j = -1, 1, 2 do
+				D(m, F(p[1] + j * 0.85, 3.6, p[2] + k * 1.5), Vector3.new(1.5, 0.3, 2.5), pick(rng, BOOK_C), MAT.SmoothPlastic, "Records")
+			end
 		end
 	end
-	local wall = D(m, F(0, 6.6, Dp - 0.1), Vector3.new(18, 6.4, 0.2), rgb(30, 30, 32), MAT.SmoothPlastic, "AlbumWall")
-	local covers = {}
-	for r = 0, 3 do
-		for c = 0, 9 do
-			table.insert(covers, { c / 10 + 0.008, r / 4 + 0.03, 0.084, 0.2, jit(rng, pick(rng, BOOK_C), 0.15) })
+	D(m, F(0, 6.6, Dp - 0.1), Vector3.new(16, 5.0, 0.2), rgb(30, 30, 32), MAT.SmoothPlastic, "AlbumWall")
+	for r = 0, 1 do
+		for c = 0, 2 do
+			D(m, F(-5 + c * 5, 5.4 + r * 2.4, Dp - 0.25), Vector3.new(2.0, 2.0, 0.1), pick(rng, BOOK_C), MAT.SmoothPlastic, "AlbumCover")
 		end
 	end
-	rectGui(wall, FRONT, covers, 20)
 	local neon = sign(m, F(-WL + 0.12, 9.0, 13.0, FACE_PX), Vector3.new(7, 1.6, 0.1), rgb(30, 30, 32), MAT.SmoothPlastic, "RECORDS · LP · CD", rgb(255, 140, 70), 30)
 	neon.Name = "NeonSign"
-	-- 청음 코너
 	S(m, F(-WL + 1.6, 1.6, 19.0), Vector3.new(2.6, 3.1, 5.0), rgb(60, 46, 36), MAT.Wood, "ListeningDesk")
 	D(m, F(-WL + 1.6, 3.27, 18.4), Vector3.new(1.8, 0.24, 1.6), rgb(30, 30, 32), MAT.SmoothPlastic, "Turntable")
 	cyl(m, F(-WL + 1.6, 3.42, 18.4), 0.06, 1.3, rgb(20, 20, 22), MAT.SmoothPlastic, "Platter")
@@ -764,44 +600,38 @@ end
 local function fxCosmetics(sh: any)
 	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	local perf = sh.kind == "perfume"
+	local pal = if perf then { rgb(230, 200, 140), rgb(250, 240, 220), rgb(170, 120, 70), rgb(40, 40, 44) } else COSM_C
+	local base = if perf then rgb(24, 24, 26) else rgb(250, 250, 250)
+	local glow = if perf then rgb(250, 232, 200) else rgb(255, 250, 250)
 	local shelfC = if perf then rgb(200, 170, 110) else rgb(250, 250, 250)
-	local function lit(cf: CFrame, w: number, ys: { number })
-		S(m, cf * CFrame.new(0, 1.0, -0.8), Vector3.new(w, 1.9, 1.6), if perf then rgb(24, 24, 26) else rgb(250, 250, 250), MAT.SmoothPlastic, "BaseCabinet")
-		N(m, cf * CFrame.new(0, 6.0, -0.06), Vector3.new(w - 0.4, 7.6, 0.12), if perf then rgb(250, 232, 200) else rgb(255, 250, 250), "BacklitPanel")
-		for _, y in ys do
-			D(m, cf * CFrame.new(0, y - 0.05, -0.6), Vector3.new(w - 0.6, 0.1, 1.0), shelfC, if perf then MAT.Metal else MAT.Glass, "GlassShelf")
-			facings(m, cf * CFrame.new(0, y, -1.1), w - 1.2, 0.9, 0.5, facingRects(rng, w - 1.2, 0.16, 0.34, 0.45, 0.95, if perf then { rgb(230, 200, 140), rgb(250, 240, 220), rgb(170, 120, 70), rgb(40, 40, 44) } else COSM_C), dark(shelfC, 0.6), 36)
-		end
-	end
-	lit(F(0, 0, Dp), 14, { 3.4, 5.0, 6.6, 8.2 })
-	lit(F(-WL, 0, 13.5, FACE_PX), 10, { 3.4, 5.0, 6.6 })
+	litUnit(sh, F(0, 0, Dp), 14, { 3.6, 5.6, 7.6 }, 3, pal, base, glow, shelfC, if perf then MAT.Metal else MAT.Glass)
+	litUnit(sh, F(-WL, 0, 13.5, FACE_PX), 10, { 4.2, 6.6 }, 3, pal, base, glow, shelfC, if perf then MAT.Metal else MAT.Glass)
 	-- 테스터 아일랜드 2
 	for _, p in { { -3.5, 10.5 }, { 4.0, 15.0 } } do
-		S(m, F(p[1], 1.45, p[2]), Vector3.new(5.6, 2.8, 2.8), if perf then rgb(24, 24, 26) else rgb(250, 250, 250), MAT.SmoothPlastic, "TesterIsland")
+		S(m, F(p[1], 1.45, p[2]), Vector3.new(5.6, 2.8, 2.8), base, MAT.SmoothPlastic, "TesterIsland")
 		D(m, F(p[1], 2.92, p[2]), Vector3.new(6.0, 0.14, 3.2), if perf then rgb(200, 170, 110) else rgb(236, 210, 214), if perf then MAT.Metal else MAT.SmoothPlastic, "IslandTop")
 		if perf then
-			for k = 0, 3 do
-				local bx = p[1] - 2.1 + k * 1.4
+			for k = -1, 1 do
+				local bx = p[1] + k * 1.6
 				D(m, F(bx, 3.4, p[2]), Vector3.new(0.7, 0.8, 0.45), pick(rng, { rgb(236, 200, 140), rgb(220, 230, 236), rgb(240, 190, 200) }), MAT.Glass, "PerfumeBottle")
 				cyl(m, F(bx, 3.95, p[2]), 0.32, 0.36, pick(rng, { rgb(200, 170, 110), rgb(30, 30, 32) }), MAT.Metal, "PerfumeCap")
 			end
 		else
-			facings(m, F(p[1], 2.99, p[2] - 0.6), 5.2, 0.7, 0.6, facingRects(rng, 5.2, 0.16, 0.3, 0.5, 0.95, COSM_C), rgb(220, 220, 220), 36)
+			goodsRun(m, F(p[1], 2.99, p[2] - 0.8), 5.2, 3, 0.4, 0.75, 0.6, COSM_C, rng, MAT.SmoothPlastic, "Testers")
 			D(m, F(p[1], 3.25, p[2] + 0.55), Vector3.new(4.6, 0.6, 1.0), rgb(240, 240, 240), MAT.SmoothPlastic, "Riser")
-			facings(m, F(p[1], 3.55, p[2] + 0.1), 4.4, 0.7, 0.6, facingRects(rng, 4.4, 0.16, 0.3, 0.5, 0.95, COSM_C), rgb(220, 220, 220), 36)
 		end
-		cyl(m, F(p[1] + 2.3, 3.75, p[2] + 0.9) * CFrame.Angles(math.rad(80), 0, 0), 0.06, 1.3, rgb(206, 214, 218), MAT.Glass, "TableMirror")
+		cyl(m, F(p[1] + 2.3, 3.6, p[2] + 0.9) * CFrame.Angles(math.rad(80), 0, 0), 0.06, 1.3, rgb(206, 214, 218), MAT.Glass, "TableMirror")
 	end
-	-- 오른쪽 벽 메이크업 스테이션: 화장대 + 조명 거울 + 스툴 2
-	local cfR = F(WL, 0, 12.0, FACE_NX)
-	D(m, cfR * CFrame.new(0, 2.9, -1.1), Vector3.new(7.0, 0.2, 2.0), rgb(250, 250, 250), MAT.SmoothPlastic, "Vanity")
-	D(m, cfR * CFrame.new(0, 1.4, -0.4), Vector3.new(7.0, 2.8, 0.6), rgb(236, 236, 234), MAT.SmoothPlastic, "VanityBase")
-	D(m, cfR * CFrame.new(0, 5.4, -0.1), Vector3.new(6.4, 3.4, 0.12), rgb(206, 214, 218), MAT.Glass, "VanityMirror", 0.4)
-	N(m, cfR * CFrame.new(0, 7.25, -0.12), Vector3.new(6.6, 0.25, 0.14), rgb(255, 246, 232), "VanityLight")
-	for k = -1, 1, 2 do
-		stool(m, cfR * CFrame.new(k * 1.8, 0, -2.6), rgb(236, 210, 214), 2.2)
+	-- 오른쪽 벽 메이크업 스테이션(화장품): 화장대 + 조명 거울 + 스툴
+	if not perf then
+		local cfR = F(WL, 0, 12.0, FACE_NX)
+		D(m, cfR * CFrame.new(0, 2.9, -1.1), Vector3.new(7.0, 0.2, 2.0), rgb(250, 250, 250), MAT.SmoothPlastic, "Vanity")
+		D(m, cfR * CFrame.new(0, 1.4, -0.4), Vector3.new(7.0, 2.8, 0.6), rgb(236, 236, 234), MAT.SmoothPlastic, "VanityBase")
+		D(m, cfR * CFrame.new(0, 5.4, -0.1), Vector3.new(6.4, 3.4, 0.12), rgb(206, 214, 218), MAT.Glass, "VanityMirror", 0.4)
+		N(m, cfR * CFrame.new(0, 7.25, -0.12), Vector3.new(6.6, 0.25, 0.14), rgb(255, 246, 232), "VanityLight")
+		stool(m, cfR * CFrame.new(0, 0, -2.6), rgb(236, 210, 214), 2.2)
 	end
-	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.0, if perf then rgb(24, 24, 26) else rgb(250, 250, 250), MAT.SmoothPlastic, if perf then rgb(200, 170, 110) else rgb(236, 210, 214), MAT.SmoothPlastic)
+	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.0, base, MAT.SmoothPlastic, if perf then rgb(200, 170, 110) else rgb(236, 210, 214), MAT.SmoothPlastic)
 end
 
 local function fxPharmacy(sh: any)
@@ -809,20 +639,17 @@ local function fxPharmacy(sh: any)
 	N(m, F(-WL + 2.6, 9.8, Dp - 0.12), Vector3.new(0.9, 2.7, 0.12), rgb(40, 190, 90), "PharmacyCross")
 	N(m, F(-WL + 2.6, 9.8, Dp - 0.16), Vector3.new(2.7, 0.9, 0.2), rgb(40, 190, 90), "PharmacyCross")
 	shelfUnit(m, F(1.5, 0, Dp), 16, 9.0, { 1.2, 3.2, 5.2, 7.2 }, 1.0, rgb(250, 250, 250), MAT.SmoothPlastic, rgb(240, 240, 240), function(_i, cf, w, _h)
-		facings(m, cf, w, 1.0, 0.8, facingRects(rng, w, 0.4, 0.8, 0.5, 0.95, MED_C, true), rgb(200, 200, 200))
+		goodsRun(m, cf, w, 2, 0.6, 0.95, 0.8, MED_C, rng, MAT.SmoothPlastic, "Boxes")
 	end)
 	S(m, F(1.5, 1.6, Dp - 4.4), Vector3.new(14, 3.1, 2.2), rgb(250, 250, 250), MAT.SmoothPlastic, "RxCounter")
 	D(m, F(1.5, 3.22, Dp - 4.5), Vector3.new(14.3, 0.14, 2.6), rgb(36, 140, 80), MAT.SmoothPlastic, "RxTop")
 	D(m, F(-3.0, 3.47, Dp - 4.2), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 	D(m, F(-3.0, 4.05, Dp - 4.15) * CFrame.Angles(math.rad(14), 0, 0), Vector3.new(1.2, 0.85, 0.1), rgb(30, 30, 34), MAT.SmoothPlastic, "PosScreen")
 	decal(m, F(4.0, 2.3, Dp - 5.56), 6, 0.9, "처방전 접수  PRESCRIPTION", rgb(36, 140, 80), false, 40)
-	-- 가운데 곤돌라(양면)
+	-- 가운데 곤돌라(양면 상품 띠 2 단)
 	S(m, F(-1, 2.3, 11.5), Vector3.new(9, 4.5, 2.4), rgb(240, 240, 240), MAT.SmoothPlastic, "Gondola")
 	for _, y in { 1.2, 3.0 } do
-		local r = D(m, F(-1, y + 0.5, 11.5), Vector3.new(8.6, 1.0, 3.0), rgb(200, 200, 200), MAT.SmoothPlastic, "Facings")
-		local rects = facingRects(rng, 8.6, 0.4, 0.8, 0.5, 0.95, MED_C, true)
-		rectGui(r, FRONT, rects, 24)
-		rectGui(r, BACK, rects, 24)
+		D(m, F(-1, y + 0.45, 11.5), Vector3.new(8.6, 0.9, 3.0), pick(rng, MED_C), MAT.SmoothPlastic, "Boxes")
 	end
 end
 
@@ -833,9 +660,14 @@ local function fxJewelry(sh: any)
 		S(m, cf * CFrame.new(0, 1.35, 0), Vector3.new(len, 2.6, 2.2), rgb(20, 20, 22), MAT.SmoothPlastic, "CaseBase")
 		G(m, cf * CFrame.new(0, 3.3, 0), Vector3.new(len, 1.3, 2.2), rgb(226, 236, 244), 0.65, false, "JewelCase")
 		N(m, cf * CFrame.new(0, 3.88, 0.4), Vector3.new(len - 0.4, 0.06, 0.6), rgb(255, 244, 228), "CaseLight")
-		local tray = D(m, cf * CFrame.new(0, 2.7, 0), Vector3.new(len - 0.5, 0.1, 1.8), if watch then rgb(70, 60, 50) else rgb(30, 34, 50), MAT.Fabric, "JewelTray")
-		local items = gridRects(rng, math.floor(len / 0.9), 2, if watch then { rgb(220, 220, 224), rgb(200, 170, 110), rgb(30, 30, 32) } else { rgb(236, 210, 140), rgb(230, 230, 236), rgb(250, 250, 255), rgb(220, 190, 200) }, if watch then 0.5 else 0.3)
-		rectGui(tray, TOP, items, 30)
+		D(m, cf * CFrame.new(0, 2.7, 0), Vector3.new(len - 0.5, 0.1, 1.8), if watch then rgb(70, 60, 50) else rgb(30, 34, 50), MAT.Fabric, "JewelTray")
+		for k = -1, 1, 2 do
+			if watch then
+				cyl(m, cf * CFrame.new(k * len / 4, 2.82, 0) * CFrame.Angles(math.rad(70), 0, 0), 0.12, 0.7, pick(rng, { rgb(220, 220, 224), rgb(200, 170, 110) }), MAT.Metal, "Watch")
+			else
+				ell(m, cf * CFrame.new(k * len / 4, 2.8, 0), Vector3.new(0.8, 0.12, 0.6), pick(rng, { rgb(236, 210, 140), rgb(230, 230, 236) }), MAT.Metal, "Jewel")
+			end
+		end
 	end
 	case(F(0, 0, Dp - 5.5), 12)
 	case(F(-WL + 2.0, 0, 12.5, FACE_PX), 8)
@@ -848,7 +680,6 @@ local function fxJewelry(sh: any)
 		G(m, F(k * 7.5, 5.6, Dp - 0.6), Vector3.new(3.0, 3.0, 0.9), rgb(226, 236, 244), 0.6, false, "WallVitrine")
 		N(m, F(k * 7.5, 7.06, Dp - 0.6), Vector3.new(2.8, 0.08, 0.7), rgb(255, 244, 228), "VitrineLight")
 	end
-	D(m, F(3.5, 4.12, Dp - 5.3), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 end
 
 local function fxLiving(sh: any)
@@ -860,7 +691,7 @@ local function fxLiving(sh: any)
 	VC(m, F(-10.2, 2.9, 15.6), 5.7, 0.18, rgb(40, 40, 42), MAT.Metal, false, "FloorLampPole")
 	cyl(m, F(-10.2, 5.9, 15.6), 1.2, 1.6, rgb(236, 226, 206), MAT.Fabric, "FloorLampShade")
 	shelfUnit(m, F(2.0, 0, Dp), 14, 9.0, { 1.6, 4.1, 6.6 }, 1.4, rgb(214, 200, 176), MAT.Wood, rgb(170, 130, 88), function(_i, cf, w, h)
-		facings(m, cf, w, math.min(h, 1.6), 1.1, facingRects(rng, w, 0.5, 1.2, 0.4, 0.95, HOME_C), rgb(150, 140, 126), 24)
+		goodsRun(m, cf, w, 2, 0.6, math.min(h, 1.6), 1.1, HOME_C, rng, MAT.SmoothPlastic, "Homeware")
 	end)
 	table_(m, F(4.0, 0, 12.0), 6.0, 3.2, 2.6, C.oak, MAT.Wood, rgb(70, 56, 44))
 	for k = 0, 3 do
@@ -874,14 +705,13 @@ local function fxStationery(sh: any)
 	for _, gx in { -5.0, 3.5 } do
 		S(m, F(gx, 2.3, 12.5), Vector3.new(2.4, 4.5, 9.0), rgb(250, 250, 248), MAT.SmoothPlastic, "Gondola")
 		for _, y in { 1.0, 2.9 } do
-			local r = D(m, F(gx, y + 0.45, 12.5, FACE_PX), Vector3.new(8.6, 0.9, 3.0), rgb(210, 210, 206), MAT.SmoothPlastic, "Facings")
-			local rects = facingRects(rng, 8.6, 0.25, 0.6, 0.5, 0.95, PACK_C, true)
-			rectGui(r, FRONT, rects, 24)
-			rectGui(r, BACK, rects, 24)
+			for j = -1, 1, 2 do
+				D(m, F(gx, y + 0.42, 12.5 + j * 2.2), Vector3.new(3.0, 0.84, 4.2), pick(rng, PACK_C), MAT.SmoothPlastic, "Goods")
+			end
 		end
 	end
-	shelfUnit(m, F(0, 0, Dp), 18, 9.0, { 1.2, 3.4, 5.6, 7.8 }, 1.0, rgb(250, 248, 244), MAT.SmoothPlastic, C.oak, function(_i, cf, w, _h)
-		facings(m, cf, w, 1.1, 0.8, facingRects(rng, w, 0.3, 0.9, 0.45, 0.95, PACK_C, true), rgb(200, 196, 190))
+	shelfUnit(m, F(0, 0, Dp), 18, 9.0, { 1.2, 3.4, 5.6 }, 1.0, rgb(250, 248, 244), MAT.SmoothPlastic, C.oak, function(_i, cf, w, _h)
+		goodsRun(m, cf, w, 3, 0.5, 1.1, 0.8, PACK_C, rng, MAT.SmoothPlastic, "Goods")
 	end)
 	counterPOS(sh, WL - 4.6, Dp - 4.0, 0, 6.0, rgb(250, 248, 244), MAT.SmoothPlastic, rgb(250, 210, 60), MAT.SmoothPlastic)
 end
@@ -895,7 +725,7 @@ local function fxTech(sh: any)
 			if i == 1 then
 				D(m, F(tx, 3.03, tz), Vector3.new(1.1, 0.06, 0.78), rgb(200, 202, 206), MAT.Metal, "LaptopBase")
 				N(m, F(tx, 3.38, tz + 0.42) * CFrame.Angles(math.rad(-15), 0, 0), Vector3.new(1.1, 0.72, 0.05), rgb(120, 170, 230), "LaptopScreen")
-			else
+			elseif k ~= 1 then
 				D(m, F(tx - 0.8, 3.03, tz), Vector3.new(0.85, 0.05, 0.62), rgb(30, 30, 32), MAT.Glass, "Tablet")
 				D(m, F(tx + 0.9, 3.03, tz), Vector3.new(0.28, 0.05, 0.55), rgb(30, 30, 32), MAT.Glass, "Phone")
 			end
@@ -905,30 +735,31 @@ local function fxTech(sh: any)
 	local scr = N(m, F(0, 8.0, Dp - 0.38), Vector3.new(13.4, 5.5, 0.06), rgb(60, 110, 200), "VideoWall")
 	Kit.label(scr, FRONT, TAGLINE.tech, { color = rgb(255, 255, 255), glow = true, pixelsPerStud = 16, maxDistance = 400 })
 	shelfUnit(m, F(-WL, 0, 14.0, FACE_PX), 10, 6.0, { 1.6, 3.4 }, 1.0, rgb(244, 244, 246), MAT.SmoothPlastic, rgb(250, 250, 250), function(_i, cf, w, _h)
-		facings(m, cf, w, 1.0, 0.6, facingRects(rng, w, 0.4, 0.7, 0.6, 0.95, { rgb(250, 250, 250), rgb(30, 30, 32), rgb(200, 202, 206), rgb(90, 140, 220) }, true), rgb(220, 220, 222))
+		goodsRun(m, cf, w, 2, 0.6, 1.0, 0.6, { rgb(250, 250, 250), rgb(30, 30, 32), rgb(200, 202, 206), rgb(90, 140, 220) }, rng, MAT.SmoothPlastic, "Accessories")
 	end)
 	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.5, rgb(250, 250, 250), MAT.SmoothPlastic, rgb(214, 190, 150), MAT.Wood)
-	stool(m, F(WL - 6.0, 0, Dp - 5.6), rgb(214, 190, 150), 2.4)
 end
 
-local function fxBags(sh: any)
-	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
-	local BAG_C = { rgb(110, 70, 46), rgb(30, 30, 32), rgb(196, 160, 120), rgb(150, 40, 40), rgb(230, 222, 206), rgb(60, 70, 90) }
-	local function bag(cf: CFrame)
-		local c = pick(rng, BAG_C)
-		local w, h = rng:NextNumber(1.2, 1.6), rng:NextNumber(0.9, 1.2)
-		D(m, cf * CFrame.new(0, h / 2, 0), Vector3.new(w, h, 0.55), c, MAT.Leather, "Bag")
+local BAG_C = { rgb(110, 70, 46), rgb(30, 30, 32), rgb(196, 160, 120), rgb(150, 40, 40), rgb(230, 222, 206), rgb(60, 70, 90) }
+local function bag(m: Instance, cf: CFrame, rng: Random, handle: boolean)
+	local c = pick(rng, BAG_C)
+	local w, h = rng:NextNumber(1.2, 1.6), rng:NextNumber(0.9, 1.2)
+	D(m, cf * CFrame.new(0, h / 2, 0), Vector3.new(w, h, 0.55), c, MAT.Leather, "Bag")
+	if handle then
 		D(m, cf * CFrame.new(0, h + 0.25, 0), Vector3.new(w * 0.55, 0.5, 0.08), dark(c, 0.2), MAT.Leather, "BagHandle")
 	end
+end
+local function fxBags(sh: any)
+	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
 	shelfUnit(m, F(0, 0, Dp), 15, 9.4, { 1.6, 4.4, 7.2 }, 1.6, rgb(240, 236, 228), MAT.SmoothPlastic, rgb(110, 70, 46), function(_i, cf, w, _h)
 		for k = -1, 1 do
-			bag(cf * CFrame.new(k * w / 3, 0, 0.7))
+			bag(m, cf * CFrame.new(k * w / 3, 0, 0.7), rng, false)
 		end
 	end)
 	for _, p in { { -4.0, 11.5 }, { 4.0, 15.0 } } do
 		S(m, F(p[1], 1.0, p[2]), Vector3.new(4.0, 1.9, 2.4), rgb(240, 236, 228), MAT.SmoothPlastic, "Plinth")
-		bag(F(p[1] - 0.9, 1.95, p[2]))
-		bag(F(p[1] + 1.0, 1.95, p[2] + 0.2, 0.3))
+		bag(m, F(p[1] - 0.9, 1.95, p[2]), rng, true)
+		bag(m, F(p[1] + 1.0, 1.95, p[2] + 0.2, 0.3), rng, true)
 	end
 	D(m, F(-WL + 0.1, 3.8, 12.0), Vector3.new(0.08, 6.0, 2.2), rgb(206, 214, 218), MAT.Glass, "Mirror", 0.4)
 	counterPOS(sh, WL - 4.6, Dp - 3.6, 0, 6.0, rgb(110, 70, 46), MAT.Leather, rgb(240, 236, 228), MAT.SmoothPlastic)
@@ -949,13 +780,13 @@ local function fxPopup(sh: any)
 	sign(m, F(0, 8.0, Dp - 0.12), Vector3.new(16, 7.0, 0.12), rgb(255, 196, 80), MAT.Neon, "BEAR POP-UP STORE\n곰돌이 팝업스토어\n11.01 – 11.30", rgb(36, 60, 110), 16)
 	for _, p in { { -9.0, 10.0 }, { 9.0, 17.0 } } do
 		table_(m, F(p[1], 0, p[2]), 4.6, 3.0, 2.6, rgb(250, 250, 248), MAT.SmoothPlastic, rgb(36, 60, 110))
-		facings(m, F(p[1], 2.6, p[2] - 0.9), 4.0, 0.9, 1.6, facingRects(rng, 4.0, 0.5, 0.8, 0.7, 1.0, { fur, rgb(250, 230, 200), rgb(36, 60, 110), rgb(255, 196, 80) }), rgb(230, 226, 220), 24)
+		goodsRun(m, F(p[1], 2.6, p[2] - 0.9), 4.0, 3, 0.6, 1.0, 1.4, { fur, rgb(250, 230, 200), rgb(36, 60, 110), rgb(255, 196, 80) }, rng, MAT.Fabric, "Plush")
 	end
 	counterPOS(sh, WL - 4.6, Dp - 3.0, 0, 6.0, rgb(36, 60, 110), MAT.SmoothPlastic, rgb(250, 250, 248), MAT.SmoothPlastic)
 end
 
 local function fxFoodCourt(sh: any)
-	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
+	local m, F, WL, Dp = sh.m, sh.F, sh.WL, sh.Dp
 	D(m, F(0, 6.0, Dp - 0.1), Vector3.new(sh.W - 0.6, 6.0, 0.2), rgb(190, 192, 196), MAT.Metal, "KitchenBack", 0.15)
 	local STALLS = { { "한식  KOREAN", "비빔밥 9,000\n김치찌개 8,500\n불고기 11,000" }, { "일식  JAPANESE", "돈까스 10,000\n라멘 9,500\n우동 8,000" }, { "중식  CHINESE", "짜장면 7,500\n짬뽕 9,000\n탕수육 16,000" } }
 	for i, st in STALLS do
@@ -980,18 +811,16 @@ local function fxFoodCourt(sh: any)
 	Kit.label(tr, RIGHT, "퇴식구\nTRAY RETURN", { color = rgb(255, 255, 255), glow = true, pixelsPerStud = 20, maxDistance = 200 })
 	S(m, F(WL - 1.0, 2.15, 8.0), Vector3.new(1.4, 4.2, 1.4), rgb(230, 230, 232), MAT.Metal, "WaterDispenser")
 	cyl(m, F(WL - 1.0, 4.95, 8.0), 1.4, 1.0, rgb(180, 210, 230), MAT.Glass, "WaterBottle")
-	local _ = rng
 end
 
 local function fxSnack(sh: any)
-	local m, F, rng, WL, Dp = sh.m, sh.F, sh.rng, sh.WL, sh.Dp
+	local m, F, WL, Dp = sh.m, sh.F, sh.WL, sh.Dp
 	S(m, F(-1, 1.6, Dp - 4.5), Vector3.new(16, 3.1, 2.6), rgb(230, 90, 40), MAT.SmoothPlastic, "SnackCounter")
 	D(m, F(-1, 3.22, Dp - 4.6), Vector3.new(16.3, 0.14, 3.0), rgb(200, 202, 206), MAT.Metal, "CounterTop", 0.2)
 	VC(m, F(-5.5, 3.45, Dp - 4.6), 0.3, 4.2, rgb(30, 30, 32), MAT.Metal, false, "TteokPan")
 	VC(m, F(-5.5, 3.6, Dp - 4.6), 0.1, 3.8, rgb(200, 50, 30), MAT.SmoothPlastic, false, "Tteokbokki")
 	VC(m, F(-0.5, 3.75, Dp - 4.6), 0.9, 2.0, C.steel, MAT.Metal, false, "EomukPot")
-	local gb = D(m, F(4.0, 3.37, Dp - 4.6), Vector3.new(3.0, 0.16, 1.6), rgb(196, 150, 100), MAT.Wood, "GimbapBoard")
-	rectGui(gb, TOP, gridRects(rng, 8, 2, { rgb(250, 230, 120), rgb(240, 120, 60), rgb(90, 150, 70) }, 0.5, rgb(30, 34, 30)), 30)
+	hcyl(m, F(4.0, 3.55, Dp - 4.6), 2.6, 0.5, rgb(30, 34, 30), MAT.SmoothPlastic, "Gimbap")
 	sign(m, F(-1, 9.6, Dp - 0.12), Vector3.new(14, 3.6, 0.12), rgb(230, 90, 40), MAT.Neon, "떡볶이 4,500  순대 5,000  어묵 1,000\n김밥 3,500  튀김 3,000  라면 4,500", rgb(255, 255, 255), 24)
 	D(m, F(-WL + 1.0, 3.3, 13.0), Vector3.new(1.6, 0.16, 9.0), rgb(250, 250, 248), MAT.SmoothPlastic, "WallBar")
 	for k = 0, 2 do
@@ -1009,7 +838,7 @@ local FIXTURES: { [string]: (any) -> () } = {
 	bags = fxBags, popup = fxPopup, food = fxFoodCourt, snack = fxSnack,
 }
 
--- 진열창 연출(양쪽 창 뒤 z ≈ 0.6 ~ 4.6)
+-- 진열창 연출(양쪽 창 뒤 z ≈ 0.6 ~ 4.6). 2층은 한쪽만(나머지 한쪽은 매장 안이 보이게)
 local function windowDisplay(sh: any)
 	local m, F, rng, kind, K = sh.m, sh.F, sh.rng, sh.kind, sh.K
 	local xw = (sh.ew / 2 + sh.W / 2) / 2
@@ -1017,19 +846,18 @@ local function windowDisplay(sh: any)
 	local fashion = kind == "fashion" or kind == "outdoor" or kind == "kids" or kind == "men"
 	for side, sx in { -1, 1 } do
 		local x = sx * xw
+		if not sh.l1 and side == 2 and kind ~= "cafe" and kind ~= "tea" then
+			break
+		end
 		if fashion then
 			S(m, F(x, 0.4, 2.8), Vector3.new(gw - 2, 0.7, 3.2), dark(K.wall, 0.12), MAT.SmoothPlastic, "WindowPlinth")
 			local pal = CLOTH[kind] or CLOTH.fashion
-			mannequin(m, F(x - sx * 1.2, 0.75, 2.8, rng:NextNumber(-0.3, 0.3)), pick(rng, pal), pick(rng, pal))
-			if side == 2 then
-				D(m, F(x + 1.6, 1.3, 2.6), Vector3.new(1.4, 1.1, 0.55), pick(rng, pal), MAT.Leather, "Bag")
-			end
+			mannequin(m, F(x - sx * 1.0, 0.75, 2.8, rng:NextNumber(-0.3, 0.3)), pick(rng, pal), pick(rng, pal))
 		elseif kind == "shoes" or kind == "sports" then
 			if side == 1 then
 				S(m, F(x, 0.6, 2.6), Vector3.new(gw - 1, 1.1, 2.6), rgb(240, 240, 236), MAT.SmoothPlastic, "Riser")
-				S(m, F(x + 1.5, 1.6, 3.3), Vector3.new(gw - 4, 0.9, 1.2), rgb(240, 240, 236), MAT.SmoothPlastic, "Riser")
 				for k = -1, 1 do
-					shoe(m, F(x + k * 2.4, (if k == 1 then 2.05 else 1.15), 2.4 + (if k == 1 then 0.9 else 0), rng:NextNumber(-0.5, 0.5)), pick(rng, { rgb(240, 240, 236), rgb(200, 60, 50), rgb(60, 90, 160) }), true)
+					shoe(m, F(x + k * 2.4, 1.15, 2.4, rng:NextNumber(-0.5, 0.5)), pick(rng, SHOE_C), true)
 				end
 			else
 				local st = sign(m, F(x, 3.55, 2.4), Vector3.new(4.2, 6.4, 0.25), rgb(18, 18, 20), MAT.SmoothPlastic, TAGLINE[kind] or "NEW", rgb(255, 255, 255), 20)
@@ -1037,48 +865,58 @@ local function windowDisplay(sh: any)
 				D(m, F(x, 0.2, 2.4), Vector3.new(3.0, 0.3, 1.2), rgb(18, 18, 20), MAT.Metal, "StandeeFoot")
 			end
 		elseif kind == "cafe" or kind == "tea" then
-			D(m, F(x, 3.5, 1.2), Vector3.new(gw, 0.14, 1.5), if kind == "tea" then rgb(120, 86, 56) else C.oak, MAT.Wood, "WindowBar")
-			D(m, F(x, 1.75, 1.45), Vector3.new(gw - 1, 3.4, 0.2), rgb(40, 34, 30), MAT.Wood, "BarSupport")
-			for k = -1, 1, 2 do
-				stool(m, F(x + k * gw / 4, 0, 2.8), rgb(40, 34, 30), 2.45)
+			if kind == "tea" and side == 2 then
+				IK.pottedPlant(m, F(x, 0.05, 2.6), 4.4, rgb(120, 90, 60))
+			else
+				D(m, F(x, 3.5, 1.2), Vector3.new(gw, 0.14, 1.5), if kind == "tea" then rgb(120, 86, 56) else C.oak, MAT.Wood, "WindowBar")
+				D(m, F(x, 1.75, 1.45), Vector3.new(gw - 1, 3.4, 0.2), rgb(40, 34, 30), MAT.Wood, "BarSupport")
+				for k = -1, 1, 2 do
+					stool(m, F(x + k * gw / 4, 0, 2.8), rgb(40, 34, 30), 2.45)
+				end
 			end
 		elseif kind == "bakery" or kind == "dessert" or kind == "gelato" then
 			S(m, F(x, 1.3, 2.6), Vector3.new(gw - 3, 2.5, 2.4), if kind == "bakery" then C.oak else rgb(250, 250, 248), MAT.Wood, "WindowTable")
-			VC(m, F(x - 1.2, 2.95, 2.6), 0.8, 0.25, C.steel, MAT.Metal, false, "CakeStandStem")
-			VC(m, F(x - 1.2, 3.39, 2.6), 0.08, 1.8, rgb(250, 250, 248), MAT.SmoothPlastic, false, "CakePlate")
-			VC(m, F(x - 1.2, 3.83, 2.6), 0.8, 1.3, pick(rng, { rgb(250, 240, 230), rgb(240, 180, 190), rgb(110, 70, 50) }), MAT.SmoothPlastic, false, "Cake")
-			if kind == "bakery" then
-				D(m, F(x + 1.5, 2.66, 2.6), Vector3.new(2.4, 0.3, 1.6), rgb(150, 110, 70), MAT.Wood, "BreadBasket")
-				bread(m, F(x + 1.1, 2.8, 2.6), rng)
-				bread(m, F(x + 2.0, 2.8, 2.5), rng)
+			if kind == "gelato" then
+				cyl(m, F(x, 3.55, 2.6) * CFrame.Angles(math.pi, 0, 0), 2.0, 0.9, rgb(214, 170, 110), MAT.SmoothPlastic, "ConeProp")
+				ball(m, (F(x, 4.75, 2.6)).Position, 1.3, pick(rng, GELATO_C), MAT.SmoothPlastic, "ScoopProp")
+			elseif kind == "bakery" and side == 2 then
+				D(m, F(x, 2.66, 2.6), Vector3.new(2.4, 0.3, 1.6), rgb(150, 110, 70), MAT.Wood, "BreadBasket")
+				bread(m, F(x - 0.5, 2.8, 2.6), rng)
+				bread(m, F(x + 0.5, 2.8, 2.5), rng)
+			else
+				VC(m, F(x, 2.95, 2.6), 0.8, 0.25, C.steel, MAT.Metal, false, "CakeStandStem")
+				VC(m, F(x, 3.39, 2.6), 0.08, 1.8, rgb(250, 250, 248), MAT.SmoothPlastic, false, "CakePlate")
+				VC(m, F(x, 3.83, 2.6), 0.8, 1.3, pick(rng, { rgb(250, 240, 230), rgb(240, 180, 190), rgb(110, 70, 50) }), MAT.SmoothPlastic, false, "Cake")
 			end
 		elseif kind == "flowers" then
-			for k = -1, 1 do
-				local bx = x + k * 2.6
-				VC(m, F(bx, 0.85 + (k + 1) * 0.15, 2.6), 1.6 + (k + 1) * 0.3, 1.4, rgb(170, 172, 176), MAT.Metal, false, "Bucket")
-				ell(m, F(bx, 2.4 + (k + 1) * 0.3, 2.6) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Vector3.new(2.1, 1.4, 1.9), pick(rng, FLOWER_C), MAT.Fabric, "Bouquet")
+			for k = -1, 1, 2 do
+				local bx = x + k * 1.6
+				VC(m, F(bx, 1.0, 2.6), 1.9, 1.4, rgb(170, 172, 176), MAT.Metal, false, "Bucket")
+				ell(m, F(bx, 2.5 + (k + 1) * 0.15, 2.6) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Vector3.new(2.1, 1.4, 1.9), pick(rng, FLOWER_C), MAT.Fabric, "Bouquet")
 			end
 		elseif kind == "eyewear" then
-			S(m, F(x, 1.0, 2.6), Vector3.new(gw - 3, 1.9, 2.0), rgb(250, 250, 250), MAT.SmoothPlastic, "WindowPlinth")
-			for k = -1, 1, 2 do
-				VC(m, F(x + k * 1.6, 2.45, 2.6), 1.0, 0.3, rgb(200, 202, 206), MAT.Metal, false, "GlassesStand")
-				D(m, F(x + k * 1.6, 3.02, 2.55), Vector3.new(0.5, 0.15, 0.06), pick(rng, GLASSES_C), MAT.SmoothPlastic, "Glasses")
+			if side == 1 then
+				S(m, F(x, 1.0, 2.6), Vector3.new(gw - 3, 1.9, 2.0), rgb(250, 250, 250), MAT.SmoothPlastic, "WindowPlinth")
+				for k = -1, 1, 2 do
+					VC(m, F(x + k * 1.6, 2.45, 2.6), 1.0, 0.3, rgb(200, 202, 206), MAT.Metal, false, "GlassesStand")
+					D(m, F(x + k * 1.6, 3.02, 2.55), Vector3.new(0.5, 0.15, 0.06), pick(rng, GLASSES_C), MAT.SmoothPlastic, "Glasses")
+				end
+			else
+				local pst = sign(m, F(x, 3.0, 1.0), Vector3.new(4.0, 5.9, 0.2), rgb(226, 222, 214), MAT.Neon, "NEW FRAMES\n안경테 신상\n최대 30%", rgb(40, 40, 44), 20)
+				pst.Name = "PosterLightbox"
 			end
 		elseif kind == "books" or kind == "records" then
 			S(m, F(x, 1.3, 2.6), Vector3.new(gw - 3, 2.5, 2.2), rgb(170, 130, 88), MAT.Wood, "WindowTable")
-			for k = -1, 1 do
-				local c = pick(rng, BOOK_C)
-				D(m, F(x + k * 1.6, 3.2, 2.7) * CFrame.Angles(math.rad(-12), 0, 0), Vector3.new(1.3, 1.6, 0.15), c, MAT.SmoothPlastic, "BookFaceOut")
+			for k = -1, 1, 2 do
+				D(m, F(x + k * 1.4, 3.2, 2.7) * CFrame.Angles(math.rad(-12), 0, 0), Vector3.new(1.3, 1.6, 0.15), pick(rng, BOOK_C), MAT.SmoothPlastic, "BookFaceOut")
 			end
-		elseif kind == "cosmetics" or kind == "perfume" or kind == "pharmacy" then
-			if kind == "pharmacy" then
-				local pst = sign(m, F(x, 3.0, 1.0), Vector3.new(4.0, 5.9, 0.2), rgb(36, 140, 80), MAT.Neon, "건강기능식품\n종합비타민\n1+1", rgb(255, 255, 255), 20)
-				pst.Name = "PosterLightbox"
-			else
-				S(m, F(x, 0.9, 2.6), Vector3.new(gw - 3, 1.7, 2.2), if kind == "perfume" then rgb(24, 24, 26) else rgb(250, 240, 242), MAT.SmoothPlastic, "WindowPlinth")
-				D(m, F(x, 2.85, 2.6), Vector3.new(1.4, 2.2, 0.9), if kind == "perfume" then rgb(236, 200, 140) else rgb(240, 180, 196), MAT.Glass, "HeroBottle")
-				cyl(m, F(x, 4.2, 2.6), 0.55, 0.7, rgb(200, 170, 110), MAT.Metal, "HeroCap")
-			end
+		elseif kind == "cosmetics" or kind == "perfume" then
+			S(m, F(x, 0.9, 2.6), Vector3.new(gw - 3, 1.7, 2.2), if kind == "perfume" then rgb(24, 24, 26) else rgb(250, 240, 242), MAT.SmoothPlastic, "WindowPlinth")
+			D(m, F(x, 2.85, 2.6), Vector3.new(1.4, 2.2, 0.9), if kind == "perfume" then rgb(236, 200, 140) else rgb(240, 180, 196), MAT.Glass, "HeroBottle")
+			cyl(m, F(x, 4.2, 2.6), 0.55, 0.7, rgb(200, 170, 110), MAT.Metal, "HeroCap")
+		elseif kind == "pharmacy" or kind == "snack" then
+			local pst = sign(m, F(x, 3.0, 1.0), Vector3.new(4.0, 5.9, 0.2), if kind == "pharmacy" then rgb(36, 140, 80) else rgb(230, 90, 40), MAT.Neon, if kind == "pharmacy" then "건강기능식품\n종합비타민\n1+1" else "떡볶이\n4,500", rgb(255, 255, 255), 20)
+			pst.Name = "PosterLightbox"
 		elseif kind == "jewelry" or kind == "watches" then
 			S(m, F(x, 1.4, 2.6), Vector3.new(2.4, 2.7, 2.0), rgb(20, 20, 22), MAT.SmoothPlastic, "VitrineBase")
 			G(m, F(x, 3.75, 2.6), Vector3.new(2.4, 2.0, 2.0), rgb(226, 236, 244), 0.65, false, "Vitrine")
@@ -1092,17 +930,16 @@ local function windowDisplay(sh: any)
 			G(m, F(x, 4.0, 2.6), Vector3.new(gw - 1, 2.1, 2.0), rgb(226, 236, 244), 0.6, false, "FoodCase")
 			for k = -1, 1 do
 				VC(m, F(x + k * 2.4, 3.2, 2.6), 0.5, 1.4, rgb(250, 250, 248), MAT.SmoothPlastic, false, "Bowl")
-				VC(m, F(x + k * 2.4, 3.52, 2.6), 0.08, 1.2, pick(rng, { rgb(200, 60, 30), rgb(220, 170, 90), rgb(120, 70, 40) }), MAT.SmoothPlastic, false, "Dish")
+				VC(m, F(x + k * 2.4, 3.47, 2.6), 0.08, 1.2, pick(rng, { rgb(200, 60, 30), rgb(220, 170, 90), rgb(120, 70, 40) }), MAT.SmoothPlastic, false, "Dish")
 			end
-		elseif kind == "snack" then
-			local pst = sign(m, F(x, 3.0, 1.0), Vector3.new(4.0, 5.9, 0.2), rgb(230, 90, 40), MAT.Neon, "떡볶이\n4,500", rgb(255, 255, 255), 20)
-			pst.Name = "PosterLightbox"
 		else -- living / stationery / tech / bags / popup
 			S(m, F(x, 0.9, 2.6), Vector3.new(gw - 3, 1.7, 2.2), dark(K.wall, 0.06), MAT.SmoothPlastic, "WindowPlinth")
 			for k = -1, 1, 2 do
 				local c = pick(rng, if kind == "living" then HOME_C else PACK_C)
 				if kind == "living" then
 					VC(m, F(x + k * 1.4, 2.6, 2.6), 1.8, 0.9 + (k + 1) * 0.15, c, MAT.SmoothPlastic, false, "Vase")
+				elseif kind == "bags" then
+					bag(m, F(x + k * 1.4, 1.75, 2.6, rng:NextNumber(-0.3, 0.3)), rng, true)
 				else
 					D(m, F(x + k * 1.4, 2.35, 2.6, rng:NextNumber(-0.3, 0.3)), Vector3.new(1.3, 1.3, 0.9), c, MAT.SmoothPlastic, "Product")
 				end
@@ -1115,8 +952,7 @@ end
 -- 상점 한 칸: 셸(바닥·벽·천장·헤더) + 진열창 + 간판 + 천장 설비 + 집기 + 진열창 연출
 ------------------------------------------------------------------------------------------------------
 local function sprinkler(m: Instance, cf: CFrame)
-	cyl(m, cf * CFrame.new(0, -0.12, 0), 0.3, 0.2, rgb(206, 208, 212), MAT.Metal, "Sprinkler")
-	cyl(m, cf * CFrame.new(0, -0.27, 0), 0.04, 0.3, rgb(206, 208, 212), MAT.Metal, "SprinklerDeflector")
+	cyl(m, cf * CFrame.new(0, -0.13, 0), 0.32, 0.22, rgb(206, 208, 212), MAT.Metal, "Sprinkler")
 end
 local function smokeDetector(m: Instance, cf: CFrame): BasePart
 	return cyl(m, cf * CFrame.new(0, -0.05, 0), 0.16, 0.45, rgb(244, 244, 240), MAT.SmoothPlastic, "SmokeDetector")
@@ -1158,12 +994,11 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 	end
 	if l1 then
 		D(m, F(0, (fy + CH + 0.1) / 2, 0.85), Vector3.new(W + 0.4, CH + 0.1 - fy, 0.3), K.ceil, MAT.SmoothPlastic, "ShopHeader")
-		D(m, F(0, 0.3, Dp - 0.08), Vector3.new(W - 0.4, 0.5, 0.16), dark(K.wall, 0.35), MAT.SmoothPlastic, "Skirting")
 	end
 
-	-- 간판: 브랜드 띠(0.9 m) + 띄운 글자(0.33 m)
-	Kit.part(m, F(0, fy + 1.5, -0.25), Vector3.new(W, 3.0, 0.5), { name = "Fascia", material = MAT.SmoothPlastic, color = K.fascia, collide = false, query = false, shadow = false })
-	decal(m, F(0, fy + 1.5, -0.56), math.min(W - 8, 18), 1.15, spec.ko .. "  " .. spec.en, K.text, true, 30)
+	-- 간판: 브랜드 띠(0.9 m), 한글/영문 두 줄(글자 ≈ 0.35 m)
+	local fas = Kit.part(m, F(0, fy + 1.5, -0.25), Vector3.new(W, 3.0, 0.5), { name = "Fascia", material = MAT.SmoothPlastic, color = K.fascia, collide = false, query = false, shadow = false })
+	Kit.label(fas, FRONT, spec.ko .. "\n" .. spec.en, { color = K.text, glow = true, pixelsPerStud = 20, maxDistance = 700, font = Enum.Font.GothamBold })
 
 	-- 진열창: 상부 헤드 + 하부 실 + 유리 2(헤드·실·필라스터에 묻힘) + 문설주 2 + 문턱 + 영업시간 시트
 	local frameC = if K.fascia.R + K.fascia.G + K.fascia.B > 2.4 then rgb(200, 202, 206) else rgb(40, 40, 44)
@@ -1175,26 +1010,27 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 		D(m, F(sx * a, (fy - 0.2) / 2, 0), Vector3.new(0.4, fy - 0.2, 0.7), frameC, MAT.Metal, "DoorMullion")
 	end
 	D(m, F(0, 0.06, 0), Vector3.new(ew - 0.4, 0.08, 0.7), C.steel, MAT.Metal, "Threshold", 0.2)
-	if l1 then
-		decal(m, F(ew / 2 + 1.7, 5.2, -0.2), 2.4, 0.9, "OPEN 10:30 – 22:00\n영업시간", rgb(250, 250, 250), false, 50, Enum.Font.Gotham)
-	end
 
-	-- 천장: 트랙 레일 2 × 스폿 3 + 월워셔 + 스프링클러 2 + 감지기 + 슬롯 디퓨저 (+1층: 피난구유도등·CCTV)
+	-- 천장: 트랙 레일 2 × 스폿 2 + 월워셔 + 스프링클러 + 감지기 + 슬롯 디퓨저 (+1층: 피난구유도등, 고가 매장: CCTV)
 	for _, tx in { -W / 4, W / 4 } do
 		local z0, z1 = 3.0, Dp - 2.5
 		D(m, F(tx, CH - 0.06, (z0 + z1) / 2), Vector3.new(0.2, 0.18, z1 - z0), K.track, MAT.Metal, "TrackRail")
-		for k = 0, 2 do
-			local z = z0 + 2 + k * (z1 - z0 - 4) / 2
+		for k = 0, 1 do
+			local z = z0 + 3 + k * (z1 - z0 - 6)
 			cyl(m, F(tx, CH - 0.47, z) * CFrame.Angles(0, 0, (if tx > 0 then 1 else -1) * math.rad(26)), 0.62, 0.34, K.track, MAT.Metal, "Spot")
 		end
 	end
 	N(m, F(0, CH - 0.04, Dp - 0.9), Vector3.new(W - 3, 0.1, 0.3), K.lamp, "WallWasher")
 	sprinkler(m, F(-3.6, CH, Dp * 0.32))
-	sprinkler(m, F(3.6, CH, Dp * 0.7))
 	local det = smokeDetector(m, F(0, CH, Dp * 0.5))
-	D(m, F(0, CH - 0.02, 2.2), Vector3.new(W - 6, 0.08, 0.35), if darkCeil then rgb(30, 30, 32) else rgb(70, 70, 72), MAT.SmoothPlastic, "SlotDiffuser")
+	if l1 then
+		D(m, F(0, CH - 0.02, 2.2), Vector3.new(W - 6, 0.08, 0.35), if darkCeil then rgb(30, 30, 32) else rgb(70, 70, 72), MAT.SmoothPlastic, "SlotDiffuser")
+	end
 	if l1 then
 		Props.exitSign(m, F(0, fy + 1.0, 1.0, math.pi))
+	end
+	local k = spec.kind
+	if k == "jewelry" or k == "watches" or k == "perfume" or k == "cosmetics" or k == "tech" or k == "eyewear" then
 		Props.cctv(m, F(sh.WL - 1.6, CH, 3.0))
 	end
 	if lit then
@@ -1203,8 +1039,7 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 	-- 1층: 메자닌 아래 천장에 매단 돌출 간판(양면)
 	if bladeY then
 		local by = bladeY - yf
-		D(m, F(W / 2 - 2.6, by - 0.6, -2.4), Vector3.new(0.1, 1.2, 0.1), rgb(60, 60, 64), MAT.Metal, "BladeRod")
-		local bl = Kit.part(m, F(W / 2 - 2.6, by - 2.05, -2.4), Vector3.new(0.25, 1.7, 3.6), { name = "BladeSign", material = MAT.SmoothPlastic, color = K.fascia, collide = false, query = false, shadow = false })
+		local bl = Kit.part(m, F(W / 2 - 2.6, by - 0.82, -2.4), Vector3.new(0.25, 1.7, 3.6), { name = "BladeSign", material = MAT.SmoothPlastic, color = K.fascia, collide = false, query = false, shadow = false })
 		Kit.label(bl, RIGHT, spec.ko .. "\n" .. spec.en, { color = K.text, glow = true, pixelsPerStud = 30, maxDistance = 300 })
 		Kit.label(bl, LEFT, spec.ko .. "\n" .. spec.en, { color = K.text, glow = true, pixelsPerStud = 30, maxDistance = 300 })
 	end
@@ -1216,11 +1051,9 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 	end
 	windowDisplay(sh)
 	-- EAS 도난방지 게이트(옷·신발·화장품·서점·잡화)
-	local k = spec.kind
-	if k == "fashion" or k == "outdoor" or k == "kids" or k == "men" or k == "shoes" or k == "sports" or k == "cosmetics" or k == "perfume" or k == "books" or k == "bags" or k == "tech" then
+	if l1 and (k == "fashion" or k == "outdoor" or k == "shoes" or k == "cosmetics" or k == "perfume" or k == "books") then
 		for _, sx in { -1, 1 } do
-			D(m, F(sx * (ew / 2 - 0.9), 0.14, 1.9), Vector3.new(0.5, 0.18, 1.9), rgb(120, 122, 128), MAT.Metal, "EasBase")
-			G(m, F(sx * (ew / 2 - 0.9), 2.6, 1.9), Vector3.new(0.14, 4.8, 1.6), rgb(220, 230, 236), 0.45, false, "EasGate")
+			G(m, F(sx * (ew / 2 - 0.9), 2.45, 1.9), Vector3.new(0.14, 4.8, 1.6), rgb(220, 230, 236), 0.45, false, "EasGate")
 		end
 	end
 end
@@ -1280,8 +1113,17 @@ local function escalator(m: Instance, HF: CFrame, xb: number, xt: number, zc: nu
 			D(m, at(ex, ey + 1.76, sz * 2.13), Vector3.new(hl, 0.12, 0.72), rgb(196, 198, 202), MAT.Metal, "Deck", 0.2)
 			G(m, at(ex, ey + 2.7, sz * 2.55), Vector3.new(hl, 2.0, 0.2), rgb(206, 222, 230), 0.55, true, "EscalatorGlass")
 			D(m, at(ex, ey + 3.76, sz * 2.55), Vector3.new(hl, 0.32, 0.42), C.black, MAT.Rubber, "Handrail")
-			local nx = ex + sg * hl / 2
-			Kit.part(m, at(nx, ey + 2.64, sz * 2.55) * CFrame.Angles(0, math.pi / 2, 0), Vector3.new(0.42, 2.6, 2.6), { name = "NewelEnd", shape = "Cylinder", material = MAT.Rubber, color = C.black, collide = false, query = false, shadow = false })
+			-- 뉴얼: 핸드레일이 반지름 0.95 반원으로 감겨 내려감(60° 마디 3)
+			local nx, r = ex + sg * hl / 2, 0.95
+			local ycen = ey + 3.76 - r
+			for j = 0, 2 do
+				local a0, a1 = math.rad(90 - j * 60), math.rad(30 - j * 60)
+				local p0 = Vector3.new(nx + sg * r * math.cos(a0), ycen + r * math.sin(a0), 0)
+				local p1 = Vector3.new(nx + sg * r * math.cos(a1), ycen + r * math.sin(a1), 0)
+				local mid = (p0 + p1) / 2
+				local dir = (p1 - p0).Unit
+				D(m, at(mid.X, mid.Y, sz * 2.55) * CFrame.Angles(0, 0, math.atan2(dir.Y, dir.X)), Vector3.new(r + 0.12, 0.32, 0.42), C.black, MAT.Rubber, "NewelHandrail")
+			end
 		end
 	end
 	-- 비상정지 버튼(데크 위) + 운행 방향 표시(양 끝) + 안전 안내판(타는 쪽, 손님을 봄)
@@ -1297,9 +1139,9 @@ local function escalator(m: Instance, HF: CFrame, xb: number, xt: number, zc: nu
 	Kit.label(sgn, FRONT, "손잡이를 잡으세요\nHOLD THE HANDRAIL", { color = rgb(20, 20, 22), glow = false, pixelsPerStud = 60, maxDistance = 120 })
 end
 
--- 유리 난간(2.4 m 패널, 줄눈 0.12): cf = 바닥 위 중심, 로컬 X = 길이
+-- 유리 난간(≈3.6 m 패널, 줄눈 0.12): cf = 바닥 위 중심, 로컬 X = 길이
 local function balustrade(m: Instance, cf: CFrame, len: number)
-	local n = math.max(1, math.floor(len / 8 + 0.5))
+	local n = math.max(1, math.floor(len / 12 + 0.5))
 	local pw = len / n
 	for i = 0, n - 1 do
 		G(m, cf * CFrame.new(-len / 2 + (i + 0.5) * pw, 1.9, 0), Vector3.new(pw - 0.12, 3.2, 0.25), rgb(206, 222, 230), 0.6, true, "Balustrade")
@@ -1345,25 +1187,25 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	--------------------------------------------------------------------------------------------------
 	S(m, at(0, FY1 - 0.36, 0), Vector3.new(2 * GX, 0.6, 2 * GZ), GROUT, MAT.Concrete, "FloorBase")
 	S(m, at(0, FY1 - 0.36, (GZ + HZ + 0.3) / 2), Vector3.new(2 * EX, 0.6, HZ + 0.3 - GZ), GROUT, MAT.Concrete, "PassageFloorBase")
-	slabField(m, at, -GX, GX, -GZ + 4, GZ - 4, FY1, 26, 8, rng, STONE, "FloorSlab")
+	slabField(m, at, -GX, GX, -GZ + 4, GZ - 4, FY1, 24, 8, rng, STONE, "FloorSlab")
 	for _, sz in { -1, 1 } do
 		D(m, at(0, FY1 - 0.15, sz * (GZ - 2)), Vector3.new(2 * GX - 0.12, 0.3, 3.88), rgb(64, 62, 62), MAT.Granite, "GraniteBand")
 	end
-	slabField(m, at, -PW, PW, GZ, HZ - 10.5, FY1, 4, 6, rng, STONE, "FloorSlab")
+	slabField(m, at, -PW, PW, GZ, HZ - 10.5, FY1, 4, 5, rng, STONE, "FloorSlab")
 
 	--------------------------------------------------------------------------------------------------
 	-- 메자닌(2층 보행로 + 2층 상점 바닥) + 슬래브 패턴 + 보이드 띠(1층 천장 아래까지 내림) + LED, 다리 2
 	--------------------------------------------------------------------------------------------------
 	for _, sz in { -1, 1 } do
 		S(m, at(0, FY2 - 1.53, sz * (VZ + SD) / 2), Vector3.new(2 * GX, 2.94, SD - VZ), C.marble, MAT.Marble, "Mezzanine", 0.05)
-		slabField(m, at, -GX, GX, sz > 0 and VZ + 0.8 or -GZ, sz > 0 and GZ or -(VZ + 0.8), FY2, 16, 2, rng, STONE, "MezzSlab")
+		slabField(m, at, -GX, GX, sz > 0 and VZ + 0.8 or -GZ, sz > 0 and GZ or -(VZ + 0.8), FY2, 10, 2, rng, STONE, "MezzSlab")
 		D(m, at(0, (yS - 0.4 + FY2 + 0.25) / 2, sz * (VZ - 0.1)), Vector3.new(2 * GX - 28, FY2 + 0.25 - (yS - 0.4), 0.4), C.white, MAT.SmoothPlastic, "MezzFascia")
 		N(m, at(0, FY2 - 2.6, sz * (VZ - 0.33)), Vector3.new(2 * GX - 28, 0.14, 0.06), C.coolLight, "MezzLed")
 		balustrade(m, at(0, FY2, sz * (VZ + 0.5)), 2 * GX - 28)
 	end
 	for _, sx in { -1, 1 } do
 		S(m, at(sx * (GX - 7), FY2 - 1.53, 0), Vector3.new(14, 2.94, 2 * VZ), C.marble, MAT.Marble, "Bridge", 0.05)
-		slabField(m, at, sx > 0 and GX - 13.25 or -GX, sx > 0 and GX or -(GX - 13.25), -VZ, VZ, FY2, 2, 4, rng, STONE, "MezzSlab")
+		slabField(m, at, sx > 0 and GX - 13.25 or -GX, sx > 0 and GX or -(GX - 13.25), -VZ, VZ, FY2, 2, 3, rng, STONE, "MezzSlab")
 		D(m, at(sx * (GX - 13.9), (yS - 0.4 + FY2 + 0.25) / 2, 0), Vector3.new(0.4, FY2 + 0.25 - (yS - 0.4), 2 * VZ + 0.6), C.white, MAT.SmoothPlastic, "BridgeFascia")
 		N(m, at(sx * (GX - 14.13), FY2 - 2.6, 0), Vector3.new(0.06, 0.14, 2 * VZ), C.coolLight, "MezzLed")
 		-- 다리 아래 천장 + 선형 조명
@@ -1386,24 +1228,20 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 		for _, zz in { VZ + 4.0, GZ - 4.0 } do
 			N(m, at(0, yS - 0.04, sz * zz), Vector3.new(2 * GX - 8, 0.1, 0.4), C.warmLight, "SoffitLight")
 		end
-		for k = 0, 14 do
-			sprinkler(m, at(-105 + k * 15, yS, zc))
+		for k = 0, 7 do
+			sprinkler(m, at(-96.25 + k * 27.5, yS, zc))
 		end
-		for _, x in { -97.5, -37.5, 22.5, 82.5 } do
+		for _, x in { -66, 44 } do
 			smokeDetector(m, at(x, yS, zc))
 		end
-		for _, x in { -67.5, -7.5, 52.5 } do
+		for _, x in { -22, 88 } do
 			speaker(m, at(x, yS, zc))
 		end
-		for _, x in { -40, 80 } do
-			Props.cctv(m, at(x, yS, sz * (VZ + 2.0)))
-		end
+		Props.cctv(m, at(if sz > 0 then -40 else 80, yS, sz * (VZ + 2.0)))
 		-- 행잉 안내 사인(양면, 진행 방향 기준 ↑ = 앞으로)
 		for _, sp in { { -60, "↑ 정문 MAIN ENTRANCE · 에스컬레이터 ESCALATOR", "↑ 고객센터 INFORMATION · 화장실 RESTROOM" }, { 30, "↑ 에스컬레이터 ESCALATOR · 2F 푸드코트 FOOD COURT", "↑ 정문 MAIN ENTRANCE · 고객센터 INFORMATION" } } do
 			local hx = sp[1] + (if sz < 0 then 8 else 0)
-			for _, rz in { -2.6, 2.6 } do
-				D(m, at(hx, yS - 0.55, zc + rz), Vector3.new(0.08, 1.1, 0.08), rgb(60, 60, 64), MAT.Metal, "SignRod")
-			end
+			D(m, at(hx, yS - 0.55, zc), Vector3.new(0.1, 1.1, 0.1), rgb(60, 60, 64), MAT.Metal, "SignRod")
 			local hs = Kit.part(m, at(hx, yS - 1.65, zc, FACE_NX), Vector3.new(7.6, 1.15, 0.2), { name = "HangingSign", material = MAT.SmoothPlastic, color = rgb(40, 42, 46), collide = false, query = false, shadow = false })
 			Kit.label(hs, FRONT, sp[2], { color = rgb(244, 244, 240), glow = true, pixelsPerStud = 30, maxDistance = 400 })
 			Kit.label(hs, BACK, sp[3], { color = rgb(244, 244, 240), glow = true, pixelsPerStud = 30, maxDistance = 400 })
@@ -1455,7 +1293,7 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	sign(m, at(-GX + 0.45, FY1 + 11.0, 0, FACE_PX), Vector3.new(16, 2.0, 0.12), rgb(24, 26, 32), MAT.SmoothPlastic, "← 화장실 RESTROOM   ·   수유실 NURSING ROOM →", C.textWarm, 30)
 	local scr0, scr1 = FY2 + 7, FY2 + 25
 	S(m, at(GX - 0.65, (scr0 + scr1) / 2, 0), Vector3.new(0.5, scr1 - scr0 + 1.2, 2 * VZ + 1.2), C.black, MAT.SmoothPlastic, "ScreenFrame")
-	local cols, rows = 6, 3
+	local cols, rows = 3, 2
 	local cw, rh = 2 * VZ / cols, (scr1 - scr0) / rows
 	for i = 0, cols - 1 do
 		for j = 0, rows - 1 do
@@ -1475,7 +1313,7 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	for _, sx in { -1, 1 } do
 		S(m, at(sx * (EX - 0.1), (FY1 - 0.3 + c1B + 0.6) / 2, (SD + HZ - 1.6) / 2), Vector3.new(1.0, c1B + 0.9 - FY1, HZ - 1.6 - SD), C.travertine, MAT.Limestone, "PassageWall")
 		D(m, at(sx * (PW - 0.05), (FY1 + c1B) / 2, (pz0 + pz1) / 2), Vector3.new(0.1, c1B - FY1, pz1 - pz0), rgb(60, 58, 56), MAT.SmoothPlastic, "RevealBacking")
-		local ncol, nrow = 8, 2
+		local ncol, nrow = 7, 2
 		local pwid = (pz1 - pz0) / ncol
 		local ph = (c1B + 0.1 - (FY1 + 0.55)) / nrow
 		for i = 0, ncol - 1 do
@@ -1496,7 +1334,7 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	if psLamp then
 		light(psLamp, "PointLight", { color = rgb(255, 228, 190), brightness = 1.2, range = 30 })
 	end
-	for _, x in { -9.5, 0, 9.5 } do
+	for _, x in { -9.5, 9.5 } do
 		for k = 0, 4 do
 			sprinkler(m, at(x, c1B, 40 + k * 10.7))
 		end
@@ -1504,8 +1342,7 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	local det2 = smokeDetector(m, at(0, c1B, 45.3))
 	smokeDetector(m, at(0, c1B, 66.7))
 	for _, p in { { -9.5, 45.3 }, { 9.5, 45.3 }, { -9.5, 66.7 }, { 9.5, 66.7 } } do
-		D(m, at(p[1], c1B - 0.03, p[2]), Vector3.new(2.0, 0.1, 2.0), rgb(240, 240, 236), MAT.SmoothPlastic, "Diffuser")
-		D(m, at(p[1], c1B - 0.1, p[2]), Vector3.new(0.9, 0.06, 0.9), rgb(206, 206, 202), MAT.SmoothPlastic, "DiffuserCore")
+		D(m, at(p[1], c1B - 0.03, p[2]), Vector3.new(2.0, 0.12, 2.0), rgb(214, 214, 210), MAT.DiamondPlate, "Diffuser")
 	end
 	speaker(m, at(0, c1B, 56.0))
 	speaker(m, at(0, c1B, 77.4))
@@ -1618,8 +1455,8 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 		VC(m, cf * CFrame.new(0, 1.34, 0), 0.18, 14.4, C.oak, MAT.Wood, true, "SeatRim")
 		local top = Props.planter(m, cf * CFrame.new(0, 1.43, 0), "round", 2.7, 0.55, rgb(206, 202, 194), MAT.Concrete)
 		Props.tree(m, cf * CFrame.new(0, 1.43 + top, 0), 7.2, rng, { collide = true })
-		for a = 0, 2 do
-			local ang = a * math.pi * 2 / 3 + 0.4
+		for a = 0, 1 do
+			local ang = a * math.pi + 0.4
 			local up = cf * CFrame.new(math.cos(ang) * 3.4, 1.43 + top + 0.1, math.sin(ang) * 3.4)
 			cyl(m, up, 0.3, 0.4, rgb(60, 60, 64), MAT.Metal, "Uplight")
 			N(m, up * CFrame.new(0, 0.28, 0), Vector3.new(0.28, 0.05, 0.28), rgb(255, 236, 200), "UplightLens")
@@ -1635,7 +1472,7 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 	D(m, kc * CFrame.new(0, 9.1, 0), Vector3.new(10, 0.5, 5.2), rgb(196, 54, 42), MAT.SmoothPlastic, "KioskRoof")
 	local ks2 = sign(m, kc * CFrame.new(0, 8.2, 0), Vector3.new(9, 1.3, 4.6), rgb(250, 246, 240), MAT.SmoothPlastic, "팝업스토어  POP-UP", rgb(196, 54, 42), 30)
 	Kit.label(ks2, BACK, "팝업스토어  POP-UP", { color = rgb(196, 54, 42), glow = true, pixelsPerStud = 30, maxDistance = 500 })
-	facings(m, kc * CFrame.new(0, 3.56, -0.6), 8.0, 0.9, 1.6, facingRects(rng, 8.0, 0.4, 0.8, 0.6, 0.95, PACK_C, true), rgb(220, 216, 210), 24)
+	goodsRun(m, kc * CFrame.new(0, 3.56, -1.4), 8.0, 3, 0.5, 1.0, 1.4, PACK_C, rng, MAT.SmoothPlastic, "Goods")
 	D(m, kc * CFrame.new(3.2, 3.74, 1.5), Vector3.new(0.5, 0.36, 0.5), C.black, MAT.SmoothPlastic, "PosBase")
 	D(m, kc * CFrame.new(3.2, 4.32, 1.55) * CFrame.Angles(math.rad(14), 0, 0), Vector3.new(1.2, 0.85, 0.1), rgb(30, 30, 34), MAT.SmoothPlastic, "PosScreen")
 	-- 안내 데스크(서쪽 끝, 다리 아래)
@@ -1651,19 +1488,17 @@ local function buildMall(m: Model, Hl: any, rng: Random)
 		bench(m, at(bp[1], FY1, bp[2] * (VZ + 4), if bp[2] > 0 then FACE_NZ else FACE_PZ), m2s(2.4), C.oak)
 	end
 	Props.bin(m, at(-38, FY1, VZ + 4.2, FACE_NZ))
-	Props.bin(m, at(12, FY1, -(VZ + 4.2), FACE_PZ))
 	Props.signTotem(m, at(46, FY1, -10.5, FACE_PX), "층별 안내 FLOOR GUIDE", "2F  푸드코트 FOOD COURT\n      리빙 · 전자 · 스포츠\n1F  카페 · 베이커리 · 꽃\n      화장품 · 서점 · 주얼리", rgb(196, 40, 44))
 	-- 2층 보행로: 벤치 + 긴 화분(관목) + 분리수거
-	for _, bp in { { -60, 1 }, { 20, 1 }, { -20, -1 }, { 60, -1 } } do
+	for _, bp in { { -60, 1 }, { 60, -1 } } do
 		bench(m, at(bp[1], FY2, bp[2] * (GZ - 4), if bp[2] > 0 then FACE_NZ else FACE_PZ), m2s(2.4), C.oak)
 	end
-	for _, pp in { { -40, 1 }, { 40, 1 }, { -40, -1 }, { 40, -1 } } do
+	for _, pp in { { -40, 1 }, { 40, -1 } } do
 		local pcf = at(pp[1], FY2, pp[2] * (VZ + 2.6))
 		local ptop = Props.planter(m, pcf, "trough", 1.0, 0.6, rgb(70, 68, 66), MAT.Concrete)
-		Props.shrub(m, pcf * CFrame.new(0, ptop, 0), 2.2, 0.8, rng)
+		Props.shrub(m, pcf * CFrame.new(0, ptop, 0), 1.6, 0.8, rng)
 	end
 	Props.bin(m, at(-2, FY2, GZ - 4.0, FACE_NZ))
-	Props.signTotem(m, at(103, FY2, 10.5, FACE_NX), "2F 안내 FLOOR GUIDE", "푸드코트 FOOD COURT →\n리빙 · 전자 · 음반\n남성 · 가방 · 팝업\n찻집 · 약국 · 분식", rgb(36, 60, 110))
 
 	--------------------------------------------------------------------------------------------------
 	-- 클리어스토리 행잉 배너 6 + 벽 조명
