@@ -1,4 +1,4 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Script" referent="RBX0000000000000000000000000000000F"><Properties><string name="Name">SeoulSkylineBoot</string><ProtectedString name="Source"><![CDATA[-- SeoulSkylineBoot — 서버 시작 시 맵 준비
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="Script" referent="RBX00000000000000000000000000000011"><Properties><string name="Name">SeoulSkylineBoot</string><ProtectedString name="Source"><![CDATA[-- SeoulSkylineBoot — 서버 시작 시 맵 준비
 --   * Workspace 에 SeoulSkyline 이 이미 있으면(커맨드 바로 구워 저장한 경우) 조명만 다시 적용합니다.
 --   * 없으면 즉시 임시 스폰을 만든 뒤 전체 맵을 생성합니다(수 초).
 --   * Config.Lighting.DayNightCycle = true 이면 시간이 흐르고 창문/가로등이 자동 점등/소등됩니다.

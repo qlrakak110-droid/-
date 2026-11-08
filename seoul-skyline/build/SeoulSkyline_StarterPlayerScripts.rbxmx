@@ -1,9 +1,10 @@
-<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="LocalScript" referent="RBX00000000000000000000000000000015"><Properties><string name="Name">SeoulSkylineClient</string><ProtectedString name="Source"><![CDATA[--!strict
+<roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="4"><Item class="LocalScript" referent="RBX00000000000000000000000000000018"><Properties><string name="Name">SeoulSkylineClient</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient — 한강 잠실 야경 맵의 클라이언트 연출 (서버 의존 없음, RemoteEvent 없음)
 --   * Traffic  : TrafficLanes 차선을 따라 흐르는 차량 불빛(클라이언트 전용 Neon 파트 ≤ 400)
 --   * Beacons  : SeoulBeacon 항공장애등 1 Hz 맥동
 --   * Boats    : SeoulBoat 유람선 운항(U턴 루프)
 --   * CameraFx : 접속 인트로 시네마틱 + 포토 스팟 사진 모드
+--   * ElevatorFx : 엘리베이터 탑승 시 화면 페이드(서버가 순간 이동 처리)
 -- 맵이 Studio 에서 구워졌든 실행 중 생성되든 동작: Workspace.SeoulSkyline 이 나타날 때까지 기다리고,
 -- 맵이 지워지거나 다시 생성되면(Build() 재실행) 모든 시스템을 정리한 뒤 새 루트로 다시 시작합니다.
 -- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic 로 켜고 끕니다(변경 시 재시작).
@@ -13,6 +14,7 @@ local Traffic = require(script:WaitForChild("Traffic"))
 local Beacons = require(script:WaitForChild("Beacons"))
 local Boats = require(script:WaitForChild("Boats"))
 local CameraFx = require(script:WaitForChild("CameraFx"))
+local ElevatorFx = require(script:WaitForChild("ElevatorFx"))
 
 type System = { start: (Model) -> () -> () }
 local SYSTEMS: { { name: string, mod: System } } = {
@@ -93,6 +95,7 @@ scan = function()
 end
 
 local cameraCleanup = CameraFx.init()
+local elevatorCleanup = ElevatorFx.init()
 local conns: { RBXScriptConnection } = {}
 table.insert(conns, workspace.ChildAdded:Connect(function(c)
 	if c.Name == Util.ROOT_NAME and c:IsA("Model") then
@@ -103,9 +106,10 @@ script.Destroying:Connect(function()
 	Util.disconnectAll(conns)
 	detach()
 	cameraCleanup()
+	elevatorCleanup()
 end)
 scan()
-]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000000000000000000000000000010"><Properties><string name="Name">Beacons</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties><Item class="ModuleScript" referent="RBX00000000000000000000000000000012"><Properties><string name="Name">Beacons</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient / Beacons — 고층 항공장애등(태그 SeoulBeacon) 깜빡임
 --   부드러운 1 Hz 맥동: Transparency/Color 를 Sine InOut 으로 0.5 초 동안 어둡게 → 되돌림(Reverses, 무한 반복).
 --   같은 건물(같은 부모 모델)의 등은 함께 깜빡이고, 건물마다 위상이 다름(이름 해시). 스트리밍으로 늦게 오거나
@@ -188,7 +192,7 @@ function Beacons.start(root: Model): () -> ()
 end
 
 return Beacons
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000011"><Properties><string name="Name">Boats</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000013"><Properties><string name="Name">Boats</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient / Boats — 한강 유람선(태그 SeoulBoat 모델) 운항
 --   속성 PathA / PathB (Vector3, 수선면), Speed (stud/s), TurnRadius (stud, 기본 30 m), Phase (0~1, A→B 구간 시작점).
 --   경로 = 경기장형 루프: A→B 직선 → 강 중심 쪽으로 반원 U턴 → 평행한 복귀 직선 → 반원 U턴 → A.
@@ -371,7 +375,7 @@ function Boats.start(root: Model): () -> ()
 end
 
 return Boats
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000012"><Properties><string name="Name">CameraFx</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000014"><Properties><string name="Name">CameraFx</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient / CameraFx — 접속 인트로 시네마틱 + 포토 스팟(사진 모드)
 --
 --   인트로: 루트 속성 IntroCinematic ~= false 일 때, 세션에서 처음 캐릭터가 생기면 7초 시네마틱.
@@ -781,7 +785,104 @@ function CameraFx.setRoot(r: Model?)
 end
 
 return CameraFx
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000013"><Properties><string name="Name">Traffic</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000015"><Properties><string name="Name">ElevatorFx</string><ProtectedString name="Source"><![CDATA[--!strict
+-- SeoulSkylineClient / ElevatorFx — 엘리베이터 탑승 연출
+--   서버(SeoulSkylineBoot)가 태그 "SeoulElevator" 버튼의 ProximityPrompt 로 캐릭터를 순간 이동시키는 동안,
+--   클라이언트는 화면을 부드럽게 어둡게 했다가(문 닫힘) 이동이 끝나면 다시 밝힙니다(문 열림).
+--   이동 완료 = HumanoidRootPart 가 크게 움직임(> 20 stud) 또는 1.4 초 경과.
+
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+
+local ElevatorFx = {}
+
+local TAG = "SeoulElevator"
+local player = Players.LocalPlayer
+local busy = false
+
+local function makeGui(): (ScreenGui, Frame, TextLabel)
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SeoulElevatorFade"
+	gui.IgnoreGuiInset = true
+	gui.ResetOnSpawn = false
+	gui.DisplayOrder = 50
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.fromScale(1, 1)
+	frame.BackgroundColor3 = Color3.fromRGB(6, 8, 12)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.Parent = gui
+	local label = Instance.new("TextLabel")
+	label.AnchorPoint = Vector2.new(0.5, 0.5)
+	label.Position = UDim2.fromScale(0.5, 0.5)
+	label.Size = UDim2.fromOffset(420, 40)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.GothamMedium
+	label.TextSize = 18
+	label.TextColor3 = Color3.fromRGB(236, 238, 244)
+	label.TextTransparency = 1
+	label.Parent = frame
+	gui.Parent = player:WaitForChild("PlayerGui")
+	return gui, frame, label
+end
+
+local function ride(prompt: ProximityPrompt)
+	if busy then
+		return
+	end
+	busy = true
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local start = hrp and hrp.Position
+	local gui, frame, label = makeGui()
+	label.Text = prompt.ActionText ~= "" and (prompt.ActionText .. " …") or "이동 중 …"
+	local tin = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(frame, tin, { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(label, tin, { TextTransparency = 0.1 }):Play()
+	local t0 = os.clock()
+	while os.clock() - t0 < 1.4 do
+		RunService.RenderStepped:Wait()
+		if start and hrp and hrp.Parent and (hrp.Position - start).Magnitude > 20 and os.clock() - t0 > 0.45 then
+			break
+		end
+	end
+	task.wait(0.15)
+	local tout = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	TweenService:Create(label, tout, { TextTransparency = 1 }):Play()
+	local fade = TweenService:Create(frame, tout, { BackgroundTransparency = 1 })
+	fade:Play()
+	fade.Completed:Wait()
+	gui:Destroy()
+	busy = false
+end
+
+-- init: 세션 단위 연결. 반환 = 정리 함수
+function ElevatorFx.init(): () -> ()
+	local conn = ProximityPromptService.PromptTriggered:Connect(function(prompt: ProximityPrompt, who: Player)
+		if who ~= player then
+			return
+		end
+		local button = prompt.Parent
+		if button and CollectionService:HasTag(button, TAG) then
+			task.spawn(ride, prompt)
+		end
+	end)
+	return function()
+		conn:Disconnect()
+		local g = player:FindFirstChild("PlayerGui")
+		local f = g and g:FindFirstChild("SeoulElevatorFade")
+		if f then
+			f:Destroy()
+		end
+		busy = false
+	end
+end
+
+return ElevatorFx
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000016"><Properties><string name="Name">Traffic</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient / Traffic — 다리·강변도로 차량 불빛 흐름 (클라이언트 전용 파트)
 --
 --   맵 루트의 TrafficLanes 폴더 안 Configuration(차선)마다:
@@ -1213,7 +1314,7 @@ function Traffic.start(root: Model): () -> ()
 end
 
 return Traffic
-]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000014"><Properties><string name="Name">Util</string><ProtectedString name="Source"><![CDATA[--!strict
+]]></ProtectedString></Properties></Item><Item class="ModuleScript" referent="RBX00000000000000000000000000000017"><Properties><string name="Name">Util</string><ProtectedString name="Source"><![CDATA[--!strict
 -- SeoulSkylineClient / Util — 클라이언트 공용 상수·도우미
 --   클라이언트는 ServerStorage(Config)를 읽을 수 없으므로 필요한 값은 맵 루트 속성(WaterFx 가 기록)에서 읽고,
 --   없으면 아래 기본값(Config.Palette 와 동일)을 씁니다.
