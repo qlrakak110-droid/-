@@ -737,7 +737,7 @@ local FLOOR_TILE = rgb(212, 210, 204)
 local GROUT = rgb(160, 158, 152)
 local LED_COOL = rgb(232, 242, 255)
 local LED_DAY = rgb(226, 228, 230)
-local GLASS_STORE = rgb(150, 178, 196)
+local GLASS_STORE = rgb(176, 200, 214)
 local FRAME_DARK = rgb(44, 48, 54)
 local WHITE_LABEL = rgb(255, 255, 255)
 
@@ -751,63 +751,83 @@ local C_DRINK = { rgb(74, 30, 22), rgb(236, 120, 30), rgb(70, 150, 230), rgb(176
 local C_CAN = { rgb(200, 204, 210), rgb(36, 80, 170), rgb(214, 170, 60), rgb(40, 120, 60), rgb(200, 40, 40), rgb(30, 30, 34), rgb(240, 240, 236) }
 local C_CIG = { rgb(240, 240, 236), rgb(196, 200, 206), rgb(30, 46, 96), rgb(200, 36, 40), rgb(206, 168, 80), rgb(110, 170, 220), rgb(40, 110, 70), rgb(26, 26, 30), rgb(120, 70, 140) }
 
-local G_BAG = { colors = C_SNACK, w = { 0.17, 0.24 }, h = { 0.24, 0.31 }, run = { 1, 3 }, gap = 0.012, d = 0.26 }
-local G_BOX = { colors = C_SWEET, w = { 0.2, 0.36 }, h = { 0.12, 0.26 }, run = { 1, 3 }, gap = 0.015, d = 0.24 }
-local G_MULTI = { colors = C_SNACK, w = { 0.34, 0.5 }, h = { 0.22, 0.32 }, run = { 1, 2 }, gap = 0.02, d = 0.28 }
-local G_RAMEN5 = { colors = C_RAMEN, w = { 0.36, 0.44 }, h = { 0.16, 0.22 }, run = { 1, 3 }, gap = 0.015, d = 0.27 }
-local G_CUP = { colors = C_RAMEN, w = { 0.13, 0.15 }, h = { 0.13, 0.17 }, run = { 2, 5 }, gap = 0.012, d = 0.15, cyl = true }
-local G_BOWL = { colors = C_RAMEN, w = { 0.17, 0.19 }, h = { 0.18, 0.2 }, run = { 2, 4 }, gap = 0.01, d = 0.18, cyl = true } -- 큰사발 2단
-local G_PACK = { colors = C_RAMEN, w = { 0.17, 0.19 }, h = { 0.2, 0.22 }, run = { 2, 5 }, gap = 0.008, d = 0.26 } -- 봉지라면 세워 진열
-local G_DAILY = { colors = C_DAILY, w = { 0.12, 0.3 }, h = { 0.12, 0.28 }, run = { 1, 3 }, gap = 0.015, d = 0.22 }
-local G_ROLL = { colors = C_DAILY, w = { 0.38, 0.46 }, h = { 0.26, 0.33 }, run = { 1, 2 }, gap = 0.02, d = 0.3 }
-local G_SWEET = { colors = C_SWEET, w = { 0.13, 0.22 }, h = { 0.08, 0.16 }, run = { 2, 4 }, gap = 0.012, d = 0.2 }
-local G_BREAD = { colors = C_BREAD, w = { 0.18, 0.26 }, h = { 0.12, 0.2 }, run = { 1, 3 }, gap = 0.015, d = 0.25 }
+-- 진열 패턴 (실측 m): w = 한 개 폭, h = 높이, d = 앞뒤 줄 깊이, gap = 개별 상품 사이 틈(≥ 2 cm, 낱개로 읽힘),
+-- run = 같은 상품 연속 수(페이싱), fill = 페이싱이 채워질 확률(빈 자리 = 팔린 칸), stack = 세로 적층, lid = 컵 뚜껑 색
+local G_MULTI = { colors = C_SNACK, w = { 0.26, 0.34 }, h = { 0.22, 0.3 }, run = { 1, 2 }, gap = 0.03, d = 0.28, fill = 0.9 } -- 묶음 과자
+local G_BOX = { colors = C_SWEET, w = { 0.12, 0.18 }, h = { 0.15, 0.22 }, run = { 2, 4 }, gap = 0.025, d = 0.24, fill = 0.85 } -- 쿠키·비스킷 상자
+local G_BAG = { colors = C_SNACK, w = { 0.17, 0.19 }, h = { 0.24, 0.26 }, run = { 2, 4 }, gap = 0.025, d = 0.26, fill = 0.85 } -- 봉지 과자 18 x 25 cm
+local G_BAG_S = { colors = C_SNACK, w = { 0.14, 0.16 }, h = { 0.2, 0.23 }, run = { 2, 3 }, gap = 0.025, d = 0.24, fill = 0.6 } -- 작은 봉지(반쯤 팔림)
+local G_RAMEN5 = { colors = C_RAMEN, w = { 0.36, 0.4 }, h = { 0.16, 0.2 }, run = { 1, 2 }, gap = 0.03, d = 0.27, fill = 0.9 } -- 5 입 묶음
+local G_BOWL = { colors = C_RAMEN, w = { 0.15, 0.16 }, h = { 0.085, 0.095 }, run = { 2, 4 }, gap = 0.02, d = 0.16, cyl = true, stack = 2, fill = 0.85 } -- 큰사발 2 단
+local G_CUP = { colors = C_RAMEN, w = { 0.1, 0.1 }, h = { 0.11, 0.11 }, run = { 3, 5 }, gap = 0.018, d = 0.1, cyl = true, lid = rgb(236, 236, 232), fill = 0.85 } -- 컵라면 Ø 10 x 11 cm + 뚜껑
+local G_PACK = { colors = C_RAMEN, w = { 0.15, 0.15 }, h = { 0.2, 0.2 }, run = { 2, 4 }, gap = 0.025, d = 0.24, fill = 0.85 } -- 봉지라면 15 x 20 cm 세워 진열
+local G_DAILY = { colors = C_DAILY, w = { 0.2, 0.26 }, h = { 0.1, 0.13 }, run = { 1, 3 }, gap = 0.025, d = 0.22, fill = 0.85 } -- 티슈·물티슈
+local G_SMALL = { colors = C_DAILY, w = { 0.06, 0.09 }, h = { 0.16, 0.21 }, run = { 3, 5 }, gap = 0.025, d = 0.06, cyl = true, fill = 0.8 } -- 샴푸·세제 병
+local G_ROLL = { colors = C_DAILY, w = { 0.3, 0.36 }, h = { 0.26, 0.3 }, run = { 1, 2 }, gap = 0.03, d = 0.3, fill = 0.9 } -- 화장지 묶음
+local G_SWEET = { colors = C_SWEET, w = { 0.09, 0.14 }, h = { 0.08, 0.14 }, run = { 3, 5 }, gap = 0.02, d = 0.2, fill = 0.7 } -- 초콜릿·사탕
+local G_BREAD = { colors = C_BREAD, w = { 0.16, 0.2 }, h = { 0.1, 0.14 }, run = { 1, 3 }, gap = 0.025, d = 0.25, fill = 0.75 } -- 빵
 -- 냉장고 (500 ml PET Ø 6.8 cm × 21 cm, 캔 Ø 6.6 × 12.3 cm, 소주병 Ø 6.5 × 22 cm, 1.5 L Ø 9 × 31 cm)
-local F_PET = { colors = C_DRINK, w = { 0.068, 0.072 }, h = { 0.2, 0.23 }, run = { 4, 8 }, gap = 0.035, d = 0.07, cyl = true }
-local F_WATER = { colors = { rgb(196, 226, 250) }, w = { 0.07, 0.075 }, h = { 0.21, 0.23 }, run = { 8, 14 }, gap = 0.035, d = 0.07, cyl = true, tr = 0.35 }
+local F_PET = { colors = C_DRINK, w = { 0.068, 0.072 }, h = { 0.23, 0.25 }, run = { 3, 6 }, gap = 0.03, d = 0.07, cyl = true, fill = 0.9 }
+local F_WATER = { colors = { rgb(196, 226, 250) }, w = { 0.07, 0.075 }, h = { 0.23, 0.25 }, run = { 8, 14 }, gap = 0.03, d = 0.07, cyl = true, tr = 0.35 }
 local F_SOJU = { colors = { rgb(56, 132, 78), rgb(46, 116, 70) }, w = { 0.065, 0.066 }, h = { 0.22, 0.22 }, run = { 6, 10 }, gap = 0.035, d = 0.065, cyl = true, tr = 0.25, mat = MAT.Glass }
-local F_CAN = { colors = C_CAN, w = { 0.066, 0.066 }, h = { 0.123, 0.123 }, run = { 3, 7 }, gap = 0.028, d = 0.066, cyl = true, mat = MAT.Metal }
+local F_CAN = { colors = C_CAN, w = { 0.066, 0.066 }, h = { 0.123, 0.123 }, run = { 3, 6 }, gap = 0.025, d = 0.066, cyl = true, mat = MAT.Metal, stack = 2, fill = 0.85 }
 local F_BIG = { colors = { rgb(74, 30, 22), rgb(120, 196, 110), rgb(236, 120, 30), rgb(196, 226, 250) }, w = { 0.09, 0.095 }, h = { 0.3, 0.32 }, run = { 2, 4 }, gap = 0.035, d = 0.09, cyl = true }
-local F_CASE = { colors = { rgb(214, 170, 60), rgb(36, 80, 170), rgb(200, 204, 210), rgb(40, 120, 60), rgb(200, 40, 40) }, w = { 0.25, 0.3 }, h = { 0.13, 0.25 }, run = { 1, 2 }, gap = 0.02, d = 0.3 }
+local F_CASE = { colors = { rgb(214, 170, 60), rgb(36, 80, 170), rgb(200, 204, 210), rgb(40, 120, 60), rgb(200, 40, 40) }, w = { 0.2, 0.26 }, h = { 0.13, 0.25 }, run = { 1, 2 }, gap = 0.03, d = 0.3, fill = 0.85 }
 local F_MILK = { colors = { rgb(240, 240, 236), rgb(250, 220, 120), rgb(240, 180, 200), rgb(180, 120, 70), rgb(150, 200, 240) }, w = { 0.07, 0.08 }, h = { 0.16, 0.2 }, run = { 3, 6 }, gap = 0.025, d = 0.07 }
 
 -- 선반 한 칸 진열: 진열 축(alongZ 이면 Z) a0..a1, 바닥 y, 선반 앞 가장자리 front, 안쪽 방향 inward(±1).
--- 같은 상품을 run 개씩 묶어 색/크기를 바꿔 가며 채움(반복 패턴). 반환: 파트 수
+-- 같은 상품을 run 개씩(페이싱) 낱개 파트로 놓되 이웃 낱개는 명도를 번갈아(14 %) 바꾸고 2 cm 이상 띄워 개별 상품으로 읽히게 함.
+-- 페이싱 일부는 비움(fill). 반환: 파트 수
+local DARKEN = Color3.new(0, 0, 0)
 local function fillShelf(parent: Instance, a0: number, a1: number, y: number, front: number, inward: number, kind: any, alongZ: boolean?): number
 	local n = 0
 	local a = a0 + 0.02
 	local left = 0
 	local col: Color3 = kind.colors[1]
 	local w, h = 0.2, 0.2
+	local empty = false
+	local idx = 0
 	local mat = kind.mat or MAT.SmoothPlastic
 	local o = if kind.tr then { transparency = kind.tr } else nil
+	local stack = kind.stack or 1
 	while true do
 		if left <= 0 then
 			col = kind.colors[irng:NextInteger(1, #kind.colors)]
 			left = irng:NextInteger(kind.run[1], kind.run[2])
 			w = irng:NextNumber(kind.w[1], kind.w[2])
 			h = irng:NextNumber(kind.h[1], kind.h[2])
+			empty = irng:NextNumber() > (kind.fill or 1)
 		end
 		if a + w > a1 - 0.02 then
 			break
 		end
-		local f0 = front + inward * 0.025
-		if kind.cyl then
-			local c = f0 + inward * w / 2
-			if alongZ then
-				CY(parent, c, a + w / 2, y, y + h, w * 0.94, col, mat, opts("Goods", o))
-			else
-				CY(parent, a + w / 2, c, y, y + h, w * 0.94, col, mat, opts("Goods", o))
-			end
-		else
-			local f1 = f0 + inward * kind.d
-			if alongZ then
-				BX(parent, f0, y, a, f1, y + h, a + w, col, mat, opts("Goods", o))
-			else
-				BX(parent, a, y, f0, a + w, y + h, f1, col, mat, opts("Goods", o))
+		if not empty then
+			idx += 1
+			local c = if idx % 2 == 0 then col:Lerp(DARKEN, 0.14) else col
+			local f0 = front + inward * 0.025
+			for k = 0, stack - 1 do
+				local yb = y + k * h
+				local ck = if k % 2 == 1 then c:Lerp(DARKEN, 0.1) else c
+				if kind.cyl then
+					local cc = f0 + inward * w / 2
+					local px, pz = if alongZ then cc else a + w / 2, if alongZ then a + w / 2 else cc
+					CY(parent, px, pz, yb, yb + h, w * 0.94, ck, mat, opts("Goods", o))
+					n += 1
+					if kind.lid and k == stack - 1 then
+						CY(parent, px, pz, yb + h, yb + h + 0.012, w * 0.98, kind.lid, MAT.SmoothPlastic, opts("GoodsLid"))
+						n += 1
+					end
+				else
+					local f1 = f0 + inward * kind.d
+					if alongZ then
+						BX(parent, f0, yb, a, f1, yb + h, a + w, ck, mat, opts("Goods", o))
+					else
+						BX(parent, a, yb, f0, a + w, yb + h, f1, ck, mat, opts("Goods", o))
+					end
+					n += 1
+				end
 			end
 		end
-		n += 1
 		left -= 1
 		a += w + kind.gap
 	end
@@ -831,7 +851,7 @@ local function gondola(parent: Instance, xa: number, xb: number, zc: number, kin
 	local base = rgb(70, 74, 82)
 	local body = rgb(226, 228, 230)
 	BX(parent, xa, 0, zc - GD + 0.02, xb, LV[1], zc + GD - 0.02, base, MAT.SmoothPlastic, solid("GondolaBase"))
-	BX(parent, xa, LV[1], zc - 0.025, xb, GH, zc + 0.025, body, MAT.SmoothPlastic, solid("GondolaSpine"))
+	BX(parent, xa, LV[1], zc - 0.025, xb, GH, zc + 0.025, rgb(104, 108, 116), MAT.SmoothPlastic, solid("GondolaSpine")) -- 어두운 타공판: 상품 사이 틈이 보임
 	BX(parent, xa - 0.03, 0, zc - GD, xa, GH + 0.03, zc + GD, body, MAT.SmoothPlastic, solid("GondolaEnd"))
 	BX(parent, xb, 0, zc - GD, xb + 0.03, GH + 0.03, zc + GD, body, MAT.SmoothPlastic, solid("GondolaEnd"))
 	BX(parent, xa, GH, zc - 0.07, xb, GH + 0.03, zc + 0.07, body, MAT.SmoothPlastic, opts("GondolaTop"))
@@ -843,9 +863,10 @@ local function gondola(parent: Instance, xa: number, xb: number, zc: number, kin
 				BX(parent, xa, lv - 0.025, zc + s * 0.025, xb, lv, zf, rgb(200, 202, 206), MAT.Metal, opts("Shelf"))
 				BX(parent, xa, lv - 0.055, zf - s * 0.01, xb, lv - 0.004, zf + s * 0.015, rgb(246, 246, 240), MAT.SmoothPlastic, opts("PriceRail"))
 				n += 2
-				for k = 1, 2 do
-					local tx = xa + (xb - xa) * (k - 0.5) / 2 + irng:NextNumber(-0.6, 0.6)
-					priceTag(parent, tx, lv - 0.008, zf + s * 0.015, s, li >= 3)
+				local nt = if li >= 3 then 4 else 2
+				for k = 1, nt do
+					local tx = xa + (xb - xa) * (k - 0.5) / nt + irng:NextNumber(-0.3, 0.3)
+					priceTag(parent, tx, lv - 0.008, zf + s * 0.015, s, li >= 3 and k % 2 == 1)
 					n += 1
 				end
 			else
@@ -853,7 +874,14 @@ local function gondola(parent: Instance, xa: number, xb: number, zc: number, kin
 				BX(parent, xa, 0.02, zp - s * 0.01, xb, 0.1, zp + s * 0.015, rgb(246, 246, 240), MAT.SmoothPlastic, opts("PriceRail"))
 				n += 1
 			end
-			n += fillShelf(parent, xa, xb, lv, zf, -s, kinds[si][li])
+			local kd = kinds[si][li]
+			if kd.split then -- 한 칸을 반씩 두 상품군으로
+				local xm = (xa + xb) / 2
+				n += fillShelf(parent, xa, xm, lv, zf, -s, kd.split[1])
+				n += fillShelf(parent, xm, xb, lv, zf, -s, kd.split[2])
+			else
+				n += fillShelf(parent, xa, xb, lv, zf, -s, kd)
+			end
 		end
 	end
 	return n
@@ -925,11 +953,11 @@ local function storeInterior(inner: Instance)
 
 	-- 곤돌라 2 (x -3.8 ~ 1.0, 높이 1.8 m): 창가 통로 1.55 m / 가운데 1.1 m / 냉장고 앞 1.85 m
 	gondola(inner, -3.8, 1.0, -1.0, {
-		{ G_MULTI, G_BOX, G_BAG, G_BAG },
-		{ G_RAMEN5, G_BOWL, G_PACK, G_CUP },
+		{ G_MULTI, G_BOX, G_BAG, G_BAG_S },
+		{ G_RAMEN5, G_BOWL, { split = { G_CUP, G_PACK } }, G_PACK },
 	})
 	gondola(inner, -3.8, 1.0, 0.8, {
-		{ G_ROLL, G_DAILY, G_DAILY, G_SWEET },
+		{ G_ROLL, G_DAILY, G_SMALL, G_SWEET },
 		{ G_MULTI, G_BREAD, G_BAG, G_BOX },
 	})
 	-- 엔드캡 행사 매대 (+X 끝, 입구 쪽): 음료 박스 / 컵라면 박스 + "2+1" "1+1"
@@ -966,6 +994,7 @@ local function storeInterior(inner: Instance)
 	for li, lv in levels do
 		if li > 1 then
 			BX(inner, fx0, lv - 0.02, 3.06, fx1, lv, 3.7, rgb(190, 194, 200), MAT.Metal, opts("FridgeShelf"))
+			BX(inner, fx0, lv - 0.05, 3.045, fx1, lv - 0.004, 3.07, rgb(246, 246, 240), MAT.SmoothPlastic, opts("PriceRail"))
 		end
 		for seg = 1, 3 do
 			local a0 = fx0 + (seg - 1) * dw * 2
@@ -1024,6 +1053,7 @@ local function storeInterior(inner: Instance)
 	-- 벽 라면 진열대 (스테인리스 3 단): 봉지라면 2 단 + 5 입 묶음 1 단
 	for li, lv in { 1.62, 1.88, 2.14 } do
 		BX(inner, -5.8, lv - 0.02, -2.4, -5.5, lv, 2.4, SS, MAT.Metal, opts("RamenRack"))
+		BX(inner, -5.51, lv - 0.05, -2.4, -5.485, lv - 0.004, 2.4, rgb(252, 222, 60), MAT.SmoothPlastic, opts("PriceRail"))
 		fillShelf(inner, -2.38, 2.38, lv, -5.5, -1, if li == 3 then G_RAMEN5 else G_PACK, true)
 	end
 	BX(inner, -5.8, 1.55, -2.43, -5.5, 2.16, -2.4, SS_DARK, MAT.Metal, opts("RackSide"))
@@ -1094,17 +1124,20 @@ local function storeInterior(inner: Instance)
 	BX(inner, 5.6, 0.9, -2.2, 5.8, 2.4, 1.6, rgb(36, 38, 44), MAT.SmoothPlastic, solid("CigWall"))
 	local chd = BX(inner, 5.5, 2.4, -2.2, 5.8, 2.7, 1.6, rgb(36, 38, 44), MAT.SmoothPlastic, opts("CigHeader"))
 	Kit.label(chd, Enum.NormalId.Left, "담배 · 전자담배", { glow = true, color = rgb(230, 230, 230), pixelsPerStud = 30 })
-	for r = 0, 3 do
-		local y = 1.0 + r * 0.33
+	-- 담뱃갑 낱개 5.5 x 8.8 cm, 11.5 cm 간격 3 단 (아크릴 칸막이 뒤 어두운 배경, 일부 품절)
+	for r = 0, 2 do
+		local y = 1.05 + r * 0.4
 		BX(inner, 5.48, y - 0.03, -2.15, 5.6, y, 1.55, rgb(232, 238, 246), MAT.Neon, glowOpts("CigShelfLed", LED_DAY))
-		local z = -2.12
-		while true do
-			local w = irng:NextNumber(0.22, 0.36)
-			if z + w > 1.52 then
-				break
+		local z = -2.1
+		local col = C_CIG[1]
+		while z + 0.055 <= 1.52 do
+			if irng:NextNumber() < 0.35 then
+				col = C_CIG[irng:NextInteger(1, #C_CIG)]
 			end
-			BX(inner, 5.5, y, z, 5.58, y + 0.09, z + w, C_CIG[irng:NextInteger(1, #C_CIG)], MAT.SmoothPlastic, opts("CigPacks"))
-			z += w + 0.02
+			if irng:NextNumber() > 0.08 then
+				BX(inner, 5.52, y, z, 5.58, y + 0.088, z + 0.055, col, MAT.SmoothPlastic, opts("CigPack"))
+			end
+			z += 0.115
 		end
 	end
 	BX(inner, 4.62, 0, -2.0, 5.33, 0.016, 1.4, rgb(30, 30, 32), MAT.Fabric, opts("CashierMat"))
@@ -1141,13 +1174,13 @@ local function storeInterior(inner: Instance)
 	for row = 0, 1 do
 		local x = 2.37
 		while true do
-			local w = irng:NextNumber(0.12, 0.2)
+			local w = irng:NextNumber(0.1, 0.16)
 			if x + w > 3.63 then
 				break
 			end
 			local zA = if row == 0 then qz0 + 0.07 else qz0 + 0.37
 			BX(inner, x, 0.62, zA, x + w, 0.62 + irng:NextNumber(0.06, 0.15), zA + 0.26, C_SWEET[irng:NextInteger(1, #C_SWEET)]:Lerp(rgb(255, 255, 255), 0.15), MAT.SmoothPlastic, opts("IceCream"))
-			x += w + 0.015
+			x += w + 0.025
 		end
 	end
 	BX(inner, 2.35, 0.81, qz0 + 0.05, 3.65, 0.83, qz1 - 0.05, rgb(210, 230, 245), MAT.Glass, opts("FreezerLid", { transparency = 0.65 }))
@@ -1185,9 +1218,9 @@ local function storeShell(shell: Instance, TY: number)
 	BX(shell, 3.66, 0, -4.0, 5.8, 0.08, -3.8, FRAME_DARK, MAT.Metal, solid("StoreSill"))
 	BX(shell, 1.8, 0, -4.05, 3.6, 0.016, -3.75, SS, MAT.Metal, solid("DoorThreshold"))
 	BX(shell, -5.8, 2.85, -4.0, 5.8, 3.15, -3.8, WHITE_WALL, MAT.SmoothPlastic, solid("StoreHeadBand"))
-	BX(shell, -5.8, 0.08, -3.92, 1.77, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.62 }))
-	BX(shell, 3.63, 0.08, -3.92, 5.8, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.62 }))
-	BX(shell, 1.77, 2.35, -3.92, 3.63, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.62 }))
+	BX(shell, -5.8, 0.08, -3.92, 1.77, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.8 }))
+	BX(shell, 3.63, 0.08, -3.92, 5.8, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.8 }))
+	BX(shell, 1.77, 2.35, -3.92, 3.63, 2.85, -3.88, GLASS_STORE, MAT.Glass, solid("StoreGlass", { transparency = 0.8 }))
 	for _, x in { -4.28, -2.76, -1.24, 0.28, 4.7 } do
 		BX(shell, x - 0.03, 0.08, -4.0, x + 0.03, 2.85, -3.8, FRAME_DARK, MAT.Metal, solid("Mullion"))
 	end

@@ -1477,7 +1477,8 @@ local function unitInterior(g: Model, rng: Random)
 	fb(g, SC, 0, 0.8, 0.22, 0.44, 0.56, 0.05, rgb(30, 30, 32), MAT.Fabric, deco("OfficeBack"))
 	picture(g, "z", sz0, 1, 9.3, 10.3, UF + 1.3, UF + 1.9, rgb(214, 170, 90), nil)
 	bx(g, 8.6, UF, 7.6, 9.6, UF + 0.015, 9.2, rgb(120, 110, 104), MAT.Carpet, deco("StudyRug"))
-	cyl(g, 10.3, CEIL - 0.02, 8.4, 0.035, 0.4, rgb(150, 136, 110), MAT.Neon, neon("StudyLight"))
+	local stl = cyl(g, 10.3, CEIL - 0.02, 8.4, 0.035, 0.4, rgb(170, 152, 120), MAT.Neon, neon("StudyLight"))
+	light(stl, "PointLight", { color = rgb(255, 218, 176), brightness = 0.7, range = M(3.5) })
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -1533,7 +1534,7 @@ function ShowHome.build(ctx: any)
 	model:SetAttribute("Entrance", V(12.6, LOBBY_FL, -1.0))
 	model:SetAttribute("UnitTarget", unitTarget)
 	model:SetAttribute("LobbyTarget", lobbyTarget)
-	model:SetAttribute("ViewCamPos", V(5.6, UF + EYE, 4.6))
+	model:SetAttribute("ViewCamPos", V(5.0, UF + EYE, 2.3))
 	model:SetAttribute("ViewCamLook", Config.Landmark.Tower.Center + Vector3.new(0, 520, 0))
 	if used() > PART_BUDGET then
 		warn(string.format("[ShowHome] 파트 예산 초과: %d / %d", used(), PART_BUDGET))
