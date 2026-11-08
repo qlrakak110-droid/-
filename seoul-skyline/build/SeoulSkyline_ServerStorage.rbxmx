@@ -3456,7 +3456,7 @@ local OBS_SLAB_MID = m2s(2.4) -- 두 층 사이 슬래브(라운지 바닥)
 local OBS_SLAB_TOP = m2s(3.3) -- 라운지 위 슬래브(크라운 데크 아래)
 local OBS_GLASS_IN = 0.6 -- 유리면이 바로 위 슬래브보다 들어간 깊이
 local OBS_GLASS_T = 0.4
-local OBS_GLASS_C = rgb(168, 190, 210)
+local OBS_GLASS_C = rgb(210, 216, 222) -- 밝은 무채색 유리: 밤에 실내 빛과 함께 밝은 띠로 읽힘(안에서는 맑게)
 local OBS_PIT_W, OBS_PIT_D, OBS_PIT_GAP = m2s(7.2), m2s(3.6), m2s(1.0) -- 스카이데크 유리 바닥 7.2 × 3.6 m, 창에서 1 m
 --   몰 홀(파란 곡면 지붕): 가운데 2개 층 갤러리아(아트리움) 66 × 21.6 m + 양쪽 상점 + 정면 입구 통로
 local HALL_GX = m2s(33) -- 갤러리아 반길이(X)
@@ -3632,7 +3632,7 @@ local function glassBand(m: Model, TF: CFrame, yb: number, yt: number, w: number
 	local W = w / 2
 	local o = W - r
 	local t = OBS_GLASS_T
-	local gO: PartOpts = { name = "ObsGlass", material = Enum.Material.Glass, color = OBS_GLASS_C, transparency = 0.62, reflectance = 0.05, collide = true, shadow = false }
+	local gO: PartOpts = { name = "ObsGlass", material = Enum.Material.Glass, color = OBS_GLASS_C, transparency = 0.7, reflectance = 0.05, collide = true, shadow = false }
 	local mO: PartOpts = { name = "ObsMullion", material = Enum.Material.Metal, color = P.Mullion, collide = false, query = false, shadow = false }
 	local n = math.max(2, math.floor(2 * o / m2s(1.8) + 0.5))
 	if n % 2 == 1 then
@@ -3655,8 +3655,9 @@ local function glassBand(m: Model, TF: CFrame, yb: number, yt: number, w: number
 		for k = 1, 2 do
 			Kit.part(m, CC * CFrame.Angles(0, k * da, 0) * CFrame.new(0, 0, r - 0.15), Vector3.new(0.35, h, 1.2), mO)
 		end
-		-- 솔기: 유리 밖 가는 금빛 선(전망을 가리지 않게 0.3 m)
-		Kit.part(m, FR * CFrame.new(0, yc, W + 0.55), Vector3.new(1.0, h - 0.6, 1.0), seamMk(SEAM_C, false))
+		-- 솔기: 유리 밖 가는 금빛 선(0.3 m) + 안쪽 어두운 덮개(실내에서는 멀리언처럼 보임)
+		Kit.part(m, FR * CFrame.new(0, yc, W + 0.08), Vector3.new(1.2, h - 0.6, 0.12), mO)
+		Kit.part(m, FR * CFrame.new(0, yc, W + 0.65), Vector3.new(1.0, h - 0.6, 1.0), seamMk(SEAM_C, false))
 	end
 end
 
@@ -4946,6 +4947,19 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 		end
 		local fy = if lv == 1 then FY1 else FY2
 		local top = if lv == 1 then Ob.yA1 else Ob.yB1
+		-- 커튼월 둘레 빛 선: 천장 창머리 슬롯 + 바닥 창가 선 → 밖에서 보면 밝은 유리 띠
+		local gw = if lv == 1 then Ob.gw1 else Ob.gw2
+		local rC = gw * cr
+		local inset = 1.3
+		for _, ly in { top - 0.95, fy + 0.06 } do
+			for f = 0, 3 do
+				local FR = TF * CFrame.Angles(0, f * math.pi / 2, 0)
+				N(gm, FR * CFrame.new(0, ly, gIn - inset), Vector3.new(2 * o, 0.12, 0.6), rgb(255, 238, 210), "PerimeterLight")
+				local cc = FR * CFrame.new(o, ly, o) * CFrame.Angles(0, math.pi / 4, 0)
+				local R = rC - gT - inset
+				N(gm, cc * CFrame.new(0, 0, R * math.cos(math.pi / 4)), Vector3.new(2 * R * math.sin(math.pi / 4) + 0.6, 0.12, 0.6), rgb(255, 238, 210), "PerimeterLight")
+			end
+		end
 		S(gm, at(0, (fy - 0.2 + top + 0.3) / 2, 0), Vector3.new(2 * CH, top + 0.5 - fy, 2 * CH), C.walnut, MAT.Wood, "Core")
 		D(m, at(0, fy + 0.25, 0), Vector3.new(2 * CH + 0.3, 0.5, 2 * CH + 0.3), C.bronze, MAT.Metal, "CoreSkirting")
 		for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
@@ -4974,11 +4988,11 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 	local pw, pd = px1 - px0, pz1 - pz0
 	local pcx, pcz = (px0 + px1) / 2, (pz0 + pz1) / 2
 	local wallH, wy = Ob.yA - pb, (pb + Ob.yA) / 2
-	local MIR = rgb(16, 18, 26)
-	D(m, at(px0 + 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(px1 - 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(pcx, wy, pz0 + 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.Glass, "PitMirror", 0.5)
-	D(m, at(pcx, wy, pz1 - 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.Glass, "PitMirror", 0.5)
+	local MIR = rgb(12, 14, 20)
+	D(m, at(px0 + 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(px1 - 0.2, wy, pcz), Vector3.new(0.4, wallH, pd), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(pcx, wy, pz0 + 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.SmoothPlastic, "PitMirror")
+	D(m, at(pcx, wy, pz1 - 0.2), Vector3.new(pw - 0.8, wallH, 0.4), MIR, MAT.SmoothPlastic, "PitMirror")
 	D(m, at(pcx, pb - 0.25, pcz), Vector3.new(pw, 0.5, pd), rgb(8, 10, 16), MAT.SmoothPlastic, "PitFloor")
 	N(m, at(pcx, pb + 0.03, pz0 + pd * 0.32), Vector3.new(pw - 0.8, 0.06, pd * 0.22), rgb(18, 34, 72), "PitRiver")
 	N(m, at(pcx + pw * 0.2, pb + 0.15, pcz), Vector3.new(0.2, 0.04, pd - 0.8), rgb(255, 200, 120), "PitBridge")
@@ -5163,14 +5177,33 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 		{ -24, -gIn2 + 8, FACE_NZ },
 		{ 26, -gIn2 + 8, FACE_NZ },
 	}
+	-- 모서리 4곳(대각선으로 창을 봄)
+	local dg = (Ob.gw2 / 2 - Ob.gw2 * cr) + 2.5
+	for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		table.insert(sets, { s[1] * dg, s[2] * dg, math.atan2(-s[1], -s[2]) })
+	end
 	for i, st in sets do
 		local cf = at(st[1], FY2, st[2], st[3])
 		local col = if i % 2 == 0 then C.fabricBlue else C.fabricSand
+		D(m, cf * CFrame.new(0, 0.03, -1.0), Vector3.new(9.5, 0.06, 8), rgb(132, 120, 104), MAT.Fabric, "Rug")
 		for _, sx in { -1, 1 } do
-			sofa(m, cf * CFrame.new(sx * 2.4, 0, 0), m2s(0.85), col)
+			sofa(m, cf * CFrame.new(sx * 2.4, 0.06, 0), m2s(0.85), col)
 		end
-		roundTable(m, cf * CFrame.new(0, 0, -3.0), 2.2, 1.6, C.marble, MAT.Marble)
-		N(m, cf * CFrame.new(0, 1.85, -3.0), Vector3.new(0.3, 0.4, 0.3), rgb(255, 196, 120), "Candle")
+		roundTable(m, cf * CFrame.new(0, 0.06, -3.0), 2.2, 1.6, C.marble, MAT.Marble)
+		N(m, cf * CFrame.new(0, 1.91, -3.0), Vector3.new(0.3, 0.4, 0.3), rgb(255, 196, 120), "Candle")
+	end
+	-- 공용 테이블(창가 +X 면 가운데) + 화분/스탠드
+	S(m, at(gIn2 - 9, FY2 + TABLE_H - 0.1, 0), Vector3.new(3.2, 0.2, 14), C.walnut, MAT.Wood, "CommunalTable")
+	for _, dz in { -5, 5 } do
+		D(m, at(gIn2 - 9, FY2 + (TABLE_H - 0.2) / 2, dz), Vector3.new(2.4, TABLE_H - 0.2, 0.4), C.black, MAT.Metal, "TableLeg")
+	end
+	for _, dz in { -4.5, -1.5, 1.5, 4.5 } do
+		for _, sx in { -1, 1 } do
+			chair(m, at(gIn2 - 9 + sx * 2.6, FY2, dz, if sx < 0 then FACE_PX else FACE_NX), C.oak)
+		end
+	end
+	for _, pp in { { 30, 0 }, { -30, 30 }, { 0, -40 } } do
+		pottedPlant(m, at(pp[1], FY2, pp[2]), 6, rgb(60, 58, 56))
 	end
 	pottedPlant(m, at(16, FY2, CH + 5), 6, rgb(60, 58, 56))
 	pottedPlant(m, at(-16, FY2, CH + 5), 6, rgb(60, 58, 56))
@@ -5356,7 +5389,7 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 	local gw = inner / 2 - ew / 2
 	for _, sx in { -1, 1 } do
 		local wx = sx * (ew / 2 + gw / 2)
-		G(m, sp(wx, fy / 2, 0), Vector3.new(gw, fy, 0.3), rgb(200, 216, 226), 0.7, true, "ShopWindow")
+		G(m, sp(wx, fy / 2, 0), Vector3.new(gw, fy, 0.3), rgb(206, 220, 228), 0.8, true, "ShopWindow")
 		D(m, sp(sx * ew / 2, fy / 2, 0), Vector3.new(0.35, fy, 0.5), C.steelDark, MAT.Metal, "Mullion")
 		S(m, sp(wx, 0.6, 2.6), Vector3.new(gw - 2.4, 1.2, 3.0), K.wall:Lerp(C.white, 0.6), MAT.SmoothPlastic, "WindowPlinth")
 		windowItem(m, sp(wx, 1.2, 2.6), spec.kind, rng)
@@ -8959,7 +8992,7 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	for k = 2, FLOORS do
 		local y = yb(k) + SLAB_UP
 		local fx0 = if k == UNIT_FL then LINE_W - FIN_T / 2 else 0
-		bx(ext, fx0, y, -0.07, BL, y + 1.0, -0.03, RAIL_GLASS, MAT.Glass, glassO("RailGlass", 0.55))
+		bx(ext, fx0, y, -0.07, BL, y + 1.0, -0.03, rgb(132, 150, 164), MAT.Glass, glassO("RailGlass", 0.3))
 		bx(ext, fx0, y + 1.0, -0.1, BL, y + 1.06, 0.0, STEEL_D, MAT.Metal, { name = "Handrail", shadow = false })
 		local bx0 = if k == UNIT_FL then CORE_A1 else -END_T
 		bx(ext, bx0, y, DEPTH - 0.25, BL + END_T, y + 0.85, DEPTH + 0.15, WALL_EXT, MAT.Concrete, { name = "BackSpandrel", shadow = false })
@@ -8998,8 +9031,19 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	-- 전면 창 멀리언(안방 | 거실 경계, 짝수 라인은 대칭) — 2001호에서는 안방 벽과 같은 자리
 	for line = 1, NLINES do
 		local base = (line - 1) * LINE_W
-		local mx = if line % 2 == 1 then base + 8.075 else base + LINE_W - 8.075
-		bx(ext, mx - 0.075, yb(2) + SLAB_UP, -0.14, mx + 0.075, ROOF - SLAB_UP, 0.0, STEEL_D, MAT.Metal, { name = "Mullion", collide = false, query = false, shadow = false })
+		for _, rel in { 3.6, 8.075, 10.275 } do
+			local mx = if line % 2 == 1 then base + rel else base + LINE_W - rel
+			local w = if rel == 8.075 then 0.075 else 0.04
+			local y0, y1 = yb(2) + SLAB_UP, ROOF - SLAB_UP
+			local mo = { name = "Mullion", collide = false, query = false, shadow = false }
+			if line == 1 and rel == 3.6 then
+				-- 2001호 발코니 앞은 비움(히어로 전망)
+				bx(ext, mx - w, y0, -0.14, mx + w, yb(UNIT_FL) - SLAB_DN, 0.0, STEEL_D, MAT.Metal, mo)
+				bx(ext, mx - w, yb(UNIT_FL + 1) - SLAB_DN, -0.14, mx + w, y1, 0.0, STEEL_D, MAT.Metal, { name = "Mullion", collide = false, query = false, shadow = false })
+			else
+				bx(ext, mx - w, y0, -0.14, mx + w, y1, 0.0, STEEL_D, MAT.Metal, mo)
+			end
+		end
 	end
 	-- 측벽(서쪽: 2001호 식당 창 개구부) / 동쪽
 	local wy0, wy1, wz0, wz1 = UF + 0.9, UF + 2.1, 2.0, 4.6
@@ -9640,6 +9684,17 @@ local function unitInterior(g: Model, rng: Random)
 		table.insert(dls, cyl(g, p[1], CEIL - 0.015, p[2], 0.03, 0.12, PANEL_WARM, MAT.Neon, neon("DownLight")))
 	end
 	light(dls[3], "PointLight", { color = rgb(255, 214, 168), brightness = 0.9, range = M(5) })
+	local bh = CEIL - 0.1
+	local COVE = rgb(176, 142, 96)
+	bx(g, 3.1, bh, 1.8, 7.9, CEIL, 2.15, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.1, bh, 4.65, 7.9, CEIL, 5.0, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.1, bh, 2.15, 3.45, CEIL, 4.65, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 7.55, bh, 2.15, 7.9, CEIL, 4.65, CEIL_C, MAT.SmoothPlastic, deco("Bulkhead"))
+	bx(g, 3.45, bh + 0.02, 2.15, 7.55, bh + 0.05, 2.19, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 3.45, bh + 0.02, 4.61, 7.55, bh + 0.05, 4.65, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 3.45, bh + 0.02, 2.19, 3.49, bh + 0.05, 4.61, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 7.51, bh + 0.02, 2.19, 7.55, bh + 0.05, 4.61, COVE, MAT.Neon, neon("CoveLed"))
+	bx(g, 0.1, CEIL - 0.08, 1.755, 7.9, CEIL - 0.06, 1.79, COVE, MAT.Neon, neon("CurtainBoxLed"))
 	switchPlate(g, "x", w0, -1, 4.95, UF + 1.15)
 
 	--------------------------------------------------------------------------------------------------
@@ -9685,6 +9740,17 @@ local function unitInterior(g: Model, rng: Random)
 	bx(g, -0.15, UF + 0.86, 1.95, 0.05, UF + 0.9, 4.65, MARBLE_W, MAT.Marble, deco("WinSill"))
 	bx(g, 0.03, UF + 1.5, 2.0, 0.06, UF + 2.08, 4.6, LINEN, MAT.Fabric, deco("RollerBlind"))
 	bx(g, 0.03, UF + 1.48, 2.0, 0.07, UF + 1.51, 4.6, rgb(200, 200, 198), MAT.Metal, deco("BlindBar"))
+	bx(g, 0.02, UF + 0.12, 4.7, 0.46, UF + 0.72, 6.0, WALNUT, MAT.Wood, solid("Sideboard"))
+	bx(g, 0.06, UF, 4.76, 0.42, UF + 0.12, 5.94, rgb(40, 40, 42), MAT.Metal, deco("SideboardBase"))
+	for _, z in { 5.13, 5.57 } do
+		bx(g, 0.46, UF + 0.15, z - 0.007, 0.472, UF + 0.69, z + 0.007, rgb(70, 50, 36), MAT.Wood, deco("DoorSeam"))
+	end
+	cyl(g, 0.24, UF + 0.72, 4.95, 0.3, 0.12, rgb(216, 206, 190), MAT.SmoothPlastic, deco("Vase"))
+	for i = 0, 2 do
+		Kit.cylAlongY(g, LCF(0.24 + (i - 1) * 0.03, UF + 1.15, 4.95 + (i - 1) * 0.02) * CFrame.Angles(math.rad((i - 1) * 9), 0, math.rad((1 - i) * 7)), M(0.3), M(0.012), rgb(110, 92, 62), MAT.Wood, deco("DriedBranch"))
+	end
+	cyl(g, 0.24, UF + 0.72, 5.75, 0.04, 0.14, rgb(200, 180, 150), MAT.Metal, deco("CandleTray"))
+	cyl(g, 0.24, UF + 0.76, 5.75, 0.08, 0.06, rgb(244, 240, 230), MAT.SmoothPlastic, deco("Candle"))
 	picture(g, "x", 0.02, 1, 4.85, 5.65, UF + 1.3, UF + 1.95, rgb(64, 110, 150), rgb(214, 170, 90))
 	-- 벽시계 (주방/복도 칸막이, 18:05)
 	local ck = V(6.25 - 0.03, UF + 1.95, 7.65)

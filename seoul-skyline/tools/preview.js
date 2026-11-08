@@ -123,6 +123,9 @@ for _, o in Kit.terrainOps do
   local c = { o.cf:GetComponents() }
   table.insert(rows, string.format('["%s",%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,%.5f,"%s"]', o.kind, o.size.X, o.size.Y, o.size.Z, c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12], o.material.Name))
 end
+-- the player draws SurfaceGui text only for GUIs that change after the map is in the Workspace: re-toggle them
+task.wait(0.5)
+for _, g in workspace:GetDescendants() do if g:IsA("SurfaceGui") then g.Enabled = false g.Enabled = true end end
 print("TERRAIN_JSON[" .. table.concat(rows, ",") .. "]")
 print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.stats.parts, Kit.stats.lights, Kit.stats.beacons, os.clock() - t0))
 `;

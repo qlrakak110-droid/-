@@ -818,14 +818,33 @@ local function buildObservatory(m: Model, gm: Model, TF: CFrame, Ob: any, lobbyT
 		{ -24, -gIn2 + 8, FACE_NZ },
 		{ 26, -gIn2 + 8, FACE_NZ },
 	}
+	-- 모서리 4곳(대각선으로 창을 봄)
+	local dg = (Ob.gw2 / 2 - Ob.gw2 * cr) + 2.5
+	for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
+		table.insert(sets, { s[1] * dg, s[2] * dg, math.atan2(-s[1], -s[2]) })
+	end
 	for i, st in sets do
 		local cf = at(st[1], FY2, st[2], st[3])
 		local col = if i % 2 == 0 then C.fabricBlue else C.fabricSand
+		D(m, cf * CFrame.new(0, 0.03, -1.0), Vector3.new(9.5, 0.06, 8), rgb(132, 120, 104), MAT.Fabric, "Rug")
 		for _, sx in { -1, 1 } do
-			sofa(m, cf * CFrame.new(sx * 2.4, 0, 0), m2s(0.85), col)
+			sofa(m, cf * CFrame.new(sx * 2.4, 0.06, 0), m2s(0.85), col)
 		end
-		roundTable(m, cf * CFrame.new(0, 0, -3.0), 2.2, 1.6, C.marble, MAT.Marble)
-		N(m, cf * CFrame.new(0, 1.85, -3.0), Vector3.new(0.3, 0.4, 0.3), rgb(255, 196, 120), "Candle")
+		roundTable(m, cf * CFrame.new(0, 0.06, -3.0), 2.2, 1.6, C.marble, MAT.Marble)
+		N(m, cf * CFrame.new(0, 1.91, -3.0), Vector3.new(0.3, 0.4, 0.3), rgb(255, 196, 120), "Candle")
+	end
+	-- 공용 테이블(창가 +X 면 가운데) + 화분/스탠드
+	S(m, at(gIn2 - 9, FY2 + TABLE_H - 0.1, 0), Vector3.new(3.2, 0.2, 14), C.walnut, MAT.Wood, "CommunalTable")
+	for _, dz in { -5, 5 } do
+		D(m, at(gIn2 - 9, FY2 + (TABLE_H - 0.2) / 2, dz), Vector3.new(2.4, TABLE_H - 0.2, 0.4), C.black, MAT.Metal, "TableLeg")
+	end
+	for _, dz in { -4.5, -1.5, 1.5, 4.5 } do
+		for _, sx in { -1, 1 } do
+			chair(m, at(gIn2 - 9 + sx * 2.6, FY2, dz, if sx < 0 then FACE_PX else FACE_NX), C.oak)
+		end
+	end
+	for _, pp in { { 30, 0 }, { -30, 30 }, { 0, -40 } } do
+		pottedPlant(m, at(pp[1], FY2, pp[2]), 6, rgb(60, 58, 56))
 	end
 	pottedPlant(m, at(16, FY2, CH + 5), 6, rgb(60, 58, 56))
 	pottedPlant(m, at(-16, FY2, CH + 5), 6, rgb(60, 58, 56))
@@ -1011,7 +1030,7 @@ local function buildShop(m: Instance, HF: CFrame, x0: number, x1: number, s: num
 	local gw = inner / 2 - ew / 2
 	for _, sx in { -1, 1 } do
 		local wx = sx * (ew / 2 + gw / 2)
-		G(m, sp(wx, fy / 2, 0), Vector3.new(gw, fy, 0.3), rgb(200, 216, 226), 0.7, true, "ShopWindow")
+		G(m, sp(wx, fy / 2, 0), Vector3.new(gw, fy, 0.3), rgb(206, 220, 228), 0.8, true, "ShopWindow")
 		D(m, sp(sx * ew / 2, fy / 2, 0), Vector3.new(0.35, fy, 0.5), C.steelDark, MAT.Metal, "Mullion")
 		S(m, sp(wx, 0.6, 2.6), Vector3.new(gw - 2.4, 1.2, 3.0), K.wall:Lerp(C.white, 0.6), MAT.SmoothPlastic, "WindowPlinth")
 		windowItem(m, sp(wx, 1.2, 2.6), spec.kind, rng)
