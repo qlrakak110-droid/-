@@ -553,7 +553,9 @@ local function liteSlab(parent: Instance, s: Slab, cx: Complex, rng: Random)
 		local hh = nf * FLOOR_H
 		local on = rng:NextNumber() < cx.litChance + 0.2
 		local c = if on then jitter(rng, pick(rng, cx.lit), 0.08) else cx.dark
-		Kit.box(m, cf * CFrame.new(0, y0 + hh / 2, 0), Vector3.new(fw, hh, d + 0.6), c, if on then MAT.Neon else MAT.SmoothPlastic, if on then glowOpts("Core", cx.dark) else deco("CoreOff"))
+		-- 덩어리끼리 맞닿는 층 경계: 위 덩어리 바닥을 0.02 올려 같은 평면(창 면·측면)이 겹치지 않게(틈 6 mm, 뒤는 몸체 벽)
+		local yb = if f > 0 then y0 + 0.02 else y0
+		Kit.box(m, cf * CFrame.new(0, (yb + y0 + hh) / 2, 0), Vector3.new(fw, y0 + hh - yb, d + 0.6), c, if on then MAT.Neon else MAT.SmoothPlastic, if on then glowOpts("Core", cx.dark) else deco("CoreOff"))
 		f += nf
 	end
 	-- 꺼진 세대(1~3세대 x 1~3층)

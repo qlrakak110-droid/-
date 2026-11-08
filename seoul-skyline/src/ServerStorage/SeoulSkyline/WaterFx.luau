@@ -106,9 +106,10 @@ function WaterFx.build(ctx: any)
 
 		-- 선체 색 띠(현측 + 선수 사면), 선체 면에서 0.4 stud 돌출
 		local bandY, bandH = m(0.55), m(0.45)
+		-- 선미 끝은 선체 선미면보다 0.1 안쪽(같은 평면 회피)
 		local mainLen = L / 2 - zBowRoot - m(0.6)
 		for _, sx in { -1, 1 } do
-			Kit.box(parent, at(sx * (B / 2 + 0.1), bandY, (zBowRoot + L / 2) / 2 + m(0.3)), Vector3.new(0.6, bandH, mainLen), s.accent, MAT.SmoothPlastic, deco("HullBand"))
+			Kit.box(parent, at(sx * (B / 2 + 0.1), bandY, (zBowRoot + L / 2) / 2 + m(0.3) - 0.05), Vector3.new(0.6, bandH, mainLen - 0.1), s.accent, MAT.SmoothPlastic, deco("HullBand"))
 			-- 선수 사면: (sx*B/2, zBowRoot) → (0, -L/2)
 			local a = Vector3.new(sx * B / 2, 0, zBowRoot)
 			local b = Vector3.new(0, 0, -L / 2)
@@ -122,9 +123,10 @@ function WaterFx.build(ctx: any)
 			Kit.box(parent, cf0 * (cfBand + Vector3.new(0, bandY, 0)), Vector3.new(0.6, bandH, (b - a).Magnitude * 0.9), s.accent, MAT.SmoothPlastic, deco("HullBand"))
 		end
 
-		-- 수선부 짙은 띠(boot-top, 수면 -0.1 ~ +0.4 m)
+		-- 수선부 짙은 띠(boot-top, 수면 -0.1 ~ +0.4 m): 색 띠보다 0.08 안쪽(겹치는 높이에서는 색 띠 속에 묻힘),
+		-- 선미 끝은 선체 선미면보다 0.15 안쪽 → 보이는 면이 서로 같은 평면에 놓이지 않음
 		for _, sx in { -1, 1 } do
-			Kit.box(parent, at(sx * (B / 2 + 0.1), m(0.15), (zBowRoot + L / 2) / 2 + m(0.2)), Vector3.new(0.6, m(0.5), mainLen + m(0.2)), rgb(26, 32, 48), MAT.SmoothPlastic, deco("BootTop"))
+			Kit.box(parent, at(sx * (B / 2 + 0.02), m(0.15), (zBowRoot + L / 2) / 2 + m(0.2) - 0.075), Vector3.new(0.6, m(0.5), mainLen + m(0.2) - 0.15), rgb(26, 32, 48), MAT.SmoothPlastic, deco("BootTop"))
 		end
 
 		-- 주갑판 유리 난간(선체 가장자리, 1.1 m)
@@ -211,8 +213,9 @@ function WaterFx.build(ctx: any)
 
 		-- 수면에 번진 창 불빛(배와 함께 이동) + 선미 항적
 		for _, sx in { -1, 1 } do
-			Kit.box(parent, at(sx * (B / 2 + m(2.2)), 0.3, (z1a + z1b) / 2), Vector3.new(m(3.2), 0.12, (z1b - z1a) * 0.9), P.WindowWarmDim, MAT.Neon, glowOpts("BoatGlow", rgb(40, 60, 80), { transparency = 0.84 }))
-			local wa = at(sx * B * 0.32, 0.22, L / 2 + m(9))
+			-- 높이: Kit.reflection 수면 반사 레벨(0.3 ~ 0.615) 아래 → 움직이는 배가 반사 조각 위를 지나도 같은 평면 없음
+			Kit.box(parent, at(sx * (B / 2 + m(2.2)), 0.25, (z1a + z1b) / 2), Vector3.new(m(3.2), 0.12, (z1b - z1a) * 0.9), P.WindowWarmDim, MAT.Neon, glowOpts("BoatGlow", rgb(40, 60, 80), { transparency = 0.84 }))
+			local wa = at(sx * B * 0.32, 0.19, L / 2 + m(9))
 			Kit.box(parent, wa * CFrame.Angles(0, math.rad(sx * 7), 0), Vector3.new(m(1.6), 0.12, m(18)), rgb(214, 226, 236), MAT.SmoothPlastic, deco("Wake", { transparency = 0.72, shadow = false }))
 		end
 

@@ -310,8 +310,42 @@ end
 -- 실제 반사는 화면에서 항상 세로로 서므로, 스트릭을 광원 → 카메라 발밑(HeroCamPos 의 XZ) 방향으로 눕힙니다.
 -- 조각마다 폭·위치가 조금씩 달라 물결처럼 흔들려 보이고, 광원에서 멀어질수록 옅어집니다. 수면 밖으로는 나가지 않음.
 -- 반환: 첫 조각(가장 밝은 것). 결정적(위치 기반 해시)이라 rng 를 받지 않습니다.
+--
+-- z-fighting 방지(조각은 모두 수면 바로 위 얇은 판이라 XZ 로 겹치면 깜빡임):
+--   * 한 스트릭 안: 조각을 길이 방향으로 겹치지 않게 다듬음(앞 조각 끝 + GLINT_GAP 부터 시작, 끝은 그대로).
+--   * 스트릭끼리: 높이 레벨 GLINT_LEVELS 개(수면 +0.3 부터 GLINT_DY 간격) 중, 이미 놓인 조각과 XZ 로 겹치지 않는
+--     가장 낮은 레벨을 고름(빌드 순서대로 → 결정적). 대부분 레벨 0(= 이전과 같은 높이).
+--     최고 레벨 윗면(0.675)은 Landmark 반사(수면 +0.7 ± 0.06)와 면이 겹치지 않음. 유람선 BoatGlow/Wake 는 레벨 아래.
+local GLINT_LEVELS = 8
+local GLINT_DY = 0.045
+local GLINT_GAP = 0.25
+type GlintStreak = { x0: number, z0: number, x1: number, z1: number, boxes: { { number } } }
+type GlintSeg = { c: Vector3, len: number, w: number, t: number, box: { number } }
+local glintRoot: Instance? = nil -- 빌드(루트)가 바뀌면 레벨 기록을 비움
+local glintLevels: { { GlintStreak } } = {} -- [레벨] = 그 레벨에 놓인 스트릭들(AABB + 조각 OBB)
+
+-- 2D 방향 사각형(OBB) 겹침(분리축): b = { cx, cz, ux, uz, hl, hw } (u = 길이 방향 단위벡터, hl/hw = 반길이/반폭)
+local function glintOverlap(a: { number }, b: { number }, margin: number): boolean
+	local dx, dz = b[1] - a[1], b[2] - a[2]
+	for _, ax in { { a[3], a[4] }, { -a[4], a[3] }, { b[3], b[4] }, { -b[4], b[3] } } do
+		local nx, nz = ax[1], ax[2]
+		local ra = a[5] * math.abs(a[3] * nx + a[4] * nz) + a[6] * math.abs(-a[4] * nx + a[3] * nz)
+		local rb = b[5] * math.abs(b[3] * nx + b[4] * nz) + b[6] * math.abs(-b[4] * nx + b[3] * nz)
+		if math.abs(dx * nx + dz * nz) > ra + rb + margin then
+			return false
+		end
+	end
+	return true
+end
+
 function Kit.reflection(parent: Instance, x: number, z: number, width: number, length: number, color: Color3, transparency: number?): BasePart?
-	local y = Config.Level.Water + 0.3
+	if glintRoot ~= Kit.root then
+		glintRoot = Kit.root
+		glintLevels = {}
+		for k = 1, GLINT_LEVELS do
+			glintLevels[k] = {}
+		end
+	end
 	local base = math.clamp(transparency or 0.62, 0, 0.95)
 	local zMin, zMax = Config.FarBank.WaterEdge + 3, Config.NearBank.WaterEdge - 6
 	z = math.clamp(z, zMin, zMax)
@@ -327,15 +361,71 @@ function Kit.reflection(parent: Instance, x: number, z: number, width: number, l
 	local first: BasePart? = nil
 	local rot = CFrame.lookAt(Vector3.zero, dir) -- 로컬 -Z = 카메라 쪽
 	local side = rot.RightVector
+	-- 1) 조각 배치(난수 순서는 이전과 동일) + 길이 방향 겹침 제거
+	local segs: { GlintSeg } = {}
+	local prevEnd = -math.huge
+	local x0, z0, x1, z1 = math.huge, math.huge, -math.huge, -math.huge
 	for i = 0, n - 1 do
 		local t = i / math.max(1, n - 1)
 		local segL = step * rnd:NextNumber(0.7, 1.05)
 		local w = math.max(2, width * rnd:NextNumber(0.6, 1.2) * (1 - 0.3 * t))
 		local along = step * (i + 0.5) + rnd:NextNumber(-0.15, 0.15) * step
-		local c = Vector3.new(x, y, z) + dir * along + side * (rnd:NextNumber(-0.22, 0.22) * width)
-		if c.Z < zMin or c.Z > zMax then
+		local off = side * (rnd:NextNumber(-0.22, 0.22) * width)
+		local c0 = Vector3.new(x, 0, z) + dir * along + off
+		if c0.Z < zMin or c0.Z > zMax then
 			break
 		end
+		local a0, a1 = along - segL / 2, along + segL / 2
+		a0 = math.max(a0, prevEnd + GLINT_GAP)
+		if a1 - a0 >= 1 then
+			prevEnd = a1
+			local c = Vector3.new(x, 0, z) + dir * ((a0 + a1) / 2) + off
+			local box = { c.X, c.Z, dir.X, dir.Z, (a1 - a0) / 2, w / 2 }
+			local ex = box[5] * math.abs(dir.X) + box[6] * math.abs(dir.Z)
+			local ez = box[5] * math.abs(dir.Z) + box[6] * math.abs(dir.X)
+			x0, z0, x1, z1 = math.min(x0, c.X - ex), math.min(z0, c.Z - ez), math.max(x1, c.X + ex), math.max(z1, c.Z + ez)
+			table.insert(segs, { c = c, len = a1 - a0, w = w, t = t, box = box })
+		end
+	end
+	if #segs == 0 then
+		return nil
+	end
+	-- 2) 높이 레벨: 겹치는 조각이 없는 가장 낮은 레벨(없으면 겹침이 가장 적은 레벨)
+	local MARGIN = 0.3
+	local level: number? = nil
+	local bestK, bestHits = 1, math.huge
+	for k = 1, GLINT_LEVELS do
+		local hits = 0
+		for _, st in glintLevels[k] do
+			if st.x0 <= x1 + MARGIN and st.x1 >= x0 - MARGIN and st.z0 <= z1 + MARGIN and st.z1 >= z0 - MARGIN then
+				for _, s in segs do
+					for _, b in st.boxes do
+						if glintOverlap(s.box, b, MARGIN) then
+							hits += 1
+						end
+					end
+				end
+			end
+		end
+		if hits == 0 then
+			level = k
+			break
+		elseif hits < bestHits then
+			bestK, bestHits = k, hits
+		end
+	end
+	local lv = level or bestK
+	local boxes: { { number } } = {}
+	for _, s in segs do
+		table.insert(boxes, s.box)
+	end
+	table.insert(glintLevels[lv], { x0 = x0, z0 = z0, x1 = x1, z1 = z1, boxes = boxes })
+	local y = Config.Level.Water + 0.3 + (lv - 1) * GLINT_DY
+	-- 3) 파트
+	for _, s in segs do
+		local t = s.t
+		local c = Vector3.new(s.c.X, y, s.c.Z)
+		local w, segL = s.w, s.len
 		local p = Kit.part(parent, CFrame.new(c) * rot, Vector3.new(w, 0.12, segL), {
 			name = "WaterGlint",
 			material = Enum.Material.Neon,

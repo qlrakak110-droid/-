@@ -8,6 +8,8 @@
 --   * 건물을 관통하는 "멀리언/벽 핀" 하나가 마주 보는 두 면의 세로선을 동시에 만들어 창 격자를 완성
 --   * 관통하는 어두운 "꺼진 창" 패치가 불 꺼진 집/사무실을 랜덤하게 표현
 --   모든 표면은 서로 최소 0.3 stud 이상 떨어져 있어 원거리에서도 깜빡임이 없음.
+--   같은 높이에서 끝나는 면(코어 위·아래, 핀/모서리 기둥 꼭대기, 파라펫 바닥)은 0.05~0.16 엇갈려 한쪽이 다른 파트 속에
+--   묻히게 함(층 슬래브·상단 마감·지붕 속) → 같은 평면에서 겹치는 보이는 면 0.
 --
 --   Facade.tower(parent, spec) -> Model     (style = "curtain" | "round" | "apartment" | "mid" | "far")
 --   spec: TowerSpec (아래)
@@ -64,14 +66,19 @@ end
 ------------------------------------------------------------------------------------------------------
 -- 공통: 조명 코어 (층 묶음으로 나눈 Neon 블록)
 ------------------------------------------------------------------------------------------------------
-local function litCore(m: Model, base: CFrame, cw: number, cd: number, y0: number, y1: number, floorH: number, rng: Random, lit: { Color3 }, litChance: number, round: boolean, offColor: Color3)
+--   코어 묶음 경계는 항상 층 슬래브 바닥(yb)과 같은 높이 → 각 묶음 아래를 CORE_SINK 만큼 올려 슬래브 속에서 시작하게 함
+--   (묶음끼리·슬래브 바닥과 같은 평면 없음, 이음매는 슬래브가 가림). topSink: 맨 위 묶음 윗면을 상단 마감 슬래브 속으로.
+local CORE_SINK = 0.05
+local function litCore(m: Model, base: CFrame, cw: number, cd: number, y0: number, y1: number, floorH: number, rng: Random, lit: { Color3 }, litChance: number, round: boolean, offColor: Color3, topSink: number?)
 	local y = y0
 	while y < y1 - 0.01 do
 		local floors = rng:NextInteger(2, 7)
 		local hgt = math.min(floors * floorH, y1 - y)
 		local on = rng:NextNumber() < math.clamp(litChance + 0.15, 0, 1)
 		local c = if on then jitter(rng, pick(rng, lit), 0.08) else offColor
-		local cf = base * CFrame.new(0, y + hgt / 2, 0)
+		local yb = y + CORE_SINK
+		local yt = if y + hgt >= y1 - 0.01 then y1 - (topSink or 0) else y + hgt
+		local cf = base * CFrame.new(0, (yb + yt) / 2, 0)
 		local opts = {
 			name = "Core",
 			material = if on then Enum.Material.Neon else Enum.Material.Glass,
@@ -84,9 +91,9 @@ local function litCore(m: Model, base: CFrame, cw: number, cd: number, y0: numbe
 			dayColor = P.GlassDeep,
 		}
 		if round then
-			Kit.cylAlongY(m, cf, hgt, cw, c, nil, opts)
+			Kit.cylAlongY(m, cf, yt - yb, cw, c, nil, opts)
 		else
-			Kit.part(m, cf, Vector3.new(cw, hgt, cd), opts)
+			Kit.part(m, cf, Vector3.new(cw, yt - yb, cd), opts)
 		end
 		y += hgt
 	end
@@ -110,11 +117,12 @@ local function crown(m: Model, base: CFrame, w: number, d: number, top: number, 
 	if kind == "led" or kind == "frame" then
 		-- 꼭대기 LED 띠(건물 외곽을 따라 빛나는 링) + 파라펫
 		local ph = math.clamp(spec.h * 0.03, 7, 27)
+		-- 파라펫 바닥은 지붕 바닥보다 0.05 위(지붕이 파라펫 속에 묻힘 → 아래에서 보이는 바닥면이 같은 평면에 겹치지 않음)
 		if round then
-			Kit.cylAlongY(m, base * CFrame.new(0, top + ph / 2, 0), ph, w + 0.6, frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
+			Kit.cylAlongY(m, base * CFrame.new(0, top + (ph + 0.05) / 2, 0), ph - 0.05, w + 0.6, frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
 			Kit.cylAlongY(m, base * CFrame.new(0, top + ph + 0.8, 0), 1.6, w + 2, led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
 		else
-			Kit.box(m, base * CFrame.new(0, top + ph / 2, 0), Vector3.new(w + 0.6, ph, d + 0.6), frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
+			Kit.box(m, base * CFrame.new(0, top + (ph + 0.05) / 2, 0), Vector3.new(w + 0.6, ph - 0.05, d + 0.6), frame, Enum.Material.Glass, { name = "Parapet", reflectance = 0.15 })
 			Kit.box(m, base * CFrame.new(0, top + ph + 0.8, 0), Vector3.new(w + 2, 1.6, d + 2), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
 			if kind == "frame" then
 				-- 옥상 장식 프레임(한국 고층 아파트/오피스 특유의 왕관 프레임)
@@ -122,7 +130,8 @@ local function crown(m: Model, base: CFrame, w: number, d: number, top: number, 
 				for _, sx in { -1, 1 } do
 					Kit.box(m, base * CFrame.new(sx * (w / 2 - 1.6), top + ph + fh / 2, 0), Vector3.new(3.2, fh, d * 0.9), frame, Enum.Material.Metal, { name = "CrownFrame" })
 				end
-				Kit.box(m, base * CFrame.new(0, top + ph + fh, 0), Vector3.new(w, 3.2, d * 0.9), frame, Enum.Material.Metal, { name = "CrownFrame" })
+				-- 상부 보는 기둥보다 0.05 씩 크게(기둥 윗부분이 보 속에 묻힘 → 바깥면이 같은 평면에 겹치지 않음)
+				Kit.box(m, base * CFrame.new(0, top + ph + fh, 0), Vector3.new(w + 0.1, 3.2, d * 0.9 + 0.1), frame, Enum.Material.Metal, { name = "CrownFrame" })
 				Kit.box(m, base * CFrame.new(0, top + ph + fh + 2.2, 0), Vector3.new(w + 0.6, 1.3, d * 0.9 + 0.6), led, Enum.Material.Neon, { name = "Led", glow = true, collide = false })
 				crownTop = top + ph + fh + 3
 			else
@@ -182,7 +191,7 @@ local function curtainBlock(m: Model, base: CFrame, w: number, d: number, y0: nu
 	local slabRatio = 0.4
 	local h = y1 - y0
 	-- 1) 조명 코어
-	litCore(m, base, w - inset * 2, d - inset * 2, y0, y1, floorH, rng, lit, litChance, false, P.WindowOff)
+	litCore(m, base, w - inset * 2, d - inset * 2, y0, y1, floorH, rng, lit, litChance, false, P.WindowOff, CORE_SINK)
 	-- 2) 층 슬래브 (반사 유리 띠)
 	local slabH = floorH * slabRatio
 	local nFloors = math.floor(h / floorH)
@@ -198,20 +207,21 @@ local function curtainBlock(m: Model, base: CFrame, w: number, d: number, y0: nu
 	-- 상단 마감 슬래브
 	Kit.box(m, base * CFrame.new(0, y1 - slabH / 2, 0), Vector3.new(w + 0.4, slabH, d + 0.4), glass, Enum.Material.Glass, { name = "SlabTop", reflectance = 0.18, shadow = false })
 	-- 3) 멀리언 (관통 핀 → 마주 보는 두 면에 동시에 세로선)
+	--    꼭대기는 상단 마감 슬래브 윗면보다 낮게(X 핀 0.1, Z 핀 0.16 → 교차부에서도 서로 다른 높이)
 	local finW, out = 1.1, 0.5
 	local nx = math.max(1, math.floor(w / bay))
 	for i = 1, nx - 1 do
 		local x = -w / 2 + i * (w / nx)
-		Kit.box(m, base * CFrame.new(x, y0 + h / 2, 0), Vector3.new(finW, h, d + out * 2), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+		Kit.box(m, base * CFrame.new(x, y0 + (h - 0.1) / 2, 0), Vector3.new(finW, h - 0.1, d + out * 2), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
 	end
 	local nz = math.max(1, math.floor(d / bay))
 	for i = 1, nz - 1 do
 		local z = -d / 2 + i * (d / nz)
-		Kit.box(m, base * CFrame.new(0, y0 + h / 2, z), Vector3.new(w + out * 2, h, finW), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+		Kit.box(m, base * CFrame.new(0, y0 + (h - 0.16) / 2, z), Vector3.new(w + out * 2, h - 0.16, finW), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
 	end
-	-- 모서리 기둥
+	-- 모서리 기둥 (꼭대기는 상단 마감 슬래브 윗면보다 0.1 아래)
 	for _, s in { { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } } do
-		Kit.box(m, base * CFrame.new(s[1] * (w / 2), y0 + h / 2, s[2] * (d / 2)), Vector3.new(2.2, h, 2.2), frame, Enum.Material.Metal, { name = "Corner", collide = false, shadow = false })
+		Kit.box(m, base * CFrame.new(s[1] * (w / 2), y0 + (h - 0.1) / 2, s[2] * (d / 2)), Vector3.new(2.2, h - 0.1, 2.2), frame, Enum.Material.Metal, { name = "Corner", collide = false, shadow = false })
 	end
 	-- 4) 꺼진 창 패치 (관통)
 	local cells = nFloors * (nx + nz)
@@ -297,7 +307,8 @@ local function roundTower(m: Model, spec: TowerSpec, rng: Random): number
 	local frame = spec.frame or P.Mullion
 	for k = 0, 3 do
 		local a = k * math.pi / 4
-		Kit.box(m, base * CFrame.Angles(0, a, 0) * CFrame.new(0, lobbyH + (h - lobbyH) / 2, 0), Vector3.new(1.3, h - lobbyH, dia + 1), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
+		-- 바닥은 첫 슬래브 속(0.06 위): 로비 위 슬래브 아랫면과 같은 평면 없음
+		Kit.box(m, base * CFrame.Angles(0, a, 0) * CFrame.new(0, lobbyH + 0.06 + (h - lobbyH - 0.06) / 2, 0), Vector3.new(1.3, h - lobbyH - 0.06, dia + 1), frame, Enum.Material.Metal, { name = "Fin", collide = false, query = false, shadow = false })
 	end
 	Kit.cylAlongY(m, base * CFrame.new(0, (h + lobbyH) / 2, 0), h - lobbyH, dia - inset * 2, P.WindowOff, Enum.Material.SmoothPlastic, { name = "Collision", transparency = 1, shadow = false })
 	return crown(m, base, dia, dia, h, spec, rng, true)
@@ -317,7 +328,12 @@ local function apartment(m: Model, spec: TowerSpec, rng: Random): number
 	local inset = 1.8
 	local pilotis = floorH * 1.2 -- 필로티(1층 비움)
 	-- 필로티 기둥 + 1층 로비 불빛
-	Kit.box(m, base * CFrame.new(0, pilotis / 2, 0), Vector3.new(w * 0.3, pilotis, d - 6), spec.lobbyColor or P.WindowWarmDim, Enum.Material.Neon, { name = "Lobby", glow = true })
+	-- 로비 옆면(0.15w)이 안쪽 필로티 기둥 바깥면(0.14w + 1.7)과 0.2 안으로 붙으면(w ≈ 150~190) 기둥 속으로 0.2 들임
+	local lobbyHalf = w * 0.15
+	if math.abs(lobbyHalf - (w * 0.14 + 1.7)) < 0.2 then
+		lobbyHalf = w * 0.14 + 1.5
+	end
+	Kit.box(m, base * CFrame.new(0, pilotis / 2, 0), Vector3.new(lobbyHalf * 2, pilotis, d - 6), spec.lobbyColor or P.WindowWarmDim, Enum.Material.Neon, { name = "Lobby", glow = true })
 	for _, sx in { -0.42, -0.14, 0.14, 0.42 } do
 		Kit.box(m, base * CFrame.new(sx * w, pilotis / 2, 0), Vector3.new(3.4, pilotis, d - 3), wall, Enum.Material.Concrete, { name = "Pilotis" })
 	end
@@ -337,12 +353,13 @@ local function apartment(m: Model, spec: TowerSpec, rng: Random): number
 	local nu = math.max(2, math.floor(w / unit))
 	for i = 1, nu - 1 do
 		local x = -w / 2 + i * (w / nu)
-		Kit.box(m, base * CFrame.new(x, pilotis + (h - pilotis) / 2, 0), Vector3.new(1.5, h - pilotis, d + 1), wall, Enum.Material.Concrete, { name = "Wall", collide = false, query = false, shadow = false })
+		Kit.box(m, base * CFrame.new(x, pilotis + 0.1 + (h - pilotis - 0.1) / 2, 0), Vector3.new(1.5, h - pilotis - 0.1, d + 1), wall, Enum.Material.Concrete, { name = "Wall", collide = false, query = false, shadow = false })
 	end
-	-- 측벽(끝벽): 두꺼운 콘크리트 + 슈퍼그래픽 띠 + 동 번호
+	-- 측벽(끝벽): 두꺼운 콘크리트 + 슈퍼그래픽 띠 + 동 번호. 세대 벽·측벽 바닥은 필로티 천장(첫 슬래브 바닥)보다 0.1 위
+	-- (첫 슬래브 속에서 시작 → 필로티 아래에서 보이는 천장면이 같은 평면에 겹치지 않음)
 	local endW = 2.6
 	for _, sx in { -1, 1 } do
-		local e = Kit.box(m, base * CFrame.new(sx * (w / 2 - endW / 2 + 0.5), (h + pilotis) / 2, 0), Vector3.new(endW, h - pilotis, d + 0.7), wall, Enum.Material.Concrete, { name = "EndWall" })
+		local e = Kit.box(m, base * CFrame.new(sx * (w / 2 - endW / 2 + 0.5), (h + pilotis + 0.1) / 2, 0), Vector3.new(endW, h - pilotis - 0.1, d + 0.7), wall, Enum.Material.Concrete, { name = "EndWall" })
 		if spec.accent then
 			Kit.box(m, base * CFrame.new(sx * (w / 2 + 0.95), h * 0.55, d * 0.18), Vector3.new(0.5, h * 0.6, d * 0.22), spec.accent, Enum.Material.SmoothPlastic, { name = "Accent", collide = false, shadow = false })
 		end
@@ -390,13 +407,30 @@ local function mid(m: Model, spec: TowerSpec, rng: Random): number
 	Kit.box(m, base * CFrame.new(0, h / 2, 0), Vector3.new(w, h, d), body, if rng:NextNumber() < 0.5 then Enum.Material.Concrete else Enum.Material.Glass, { name = "Body", collide = spec.collide ~= false, reflectance = 0.05 })
 	local lit = spec.lit or LIT_HOME
 	local nb = math.clamp(math.floor(h / 36), 1, 6)
+	-- 띠는 모두 같은 단면(w+1 × d+1)이라 높이가 겹치면 옆면 4개가 같은 평면에서 깜빡임 →
+	-- 난수는 그대로 뽑은 뒤 아래 끝 순으로 훑어 겹친 부분을 위 띠에서 잘라냄(합친 모양은 그대로, 이음매 0.02)
+	local bands: { { any } } = {}
 	for _ = 1, nb do
 		if rng:NextNumber() < (spec.litChance or 0.75) then
 			local bh = rng:NextNumber(2.6, 7.5)
 			local y = rng:NextNumber(7, math.max(8, h - 7))
 			local c = jitter(rng, pick(rng, lit), 0.12) :: Color3
 			c = c:Lerp(Color3.new(0, 0, 0), rng:NextNumber(0, 0.45))
-			Kit.box(m, base * CFrame.new(0, y, 0), Vector3.new(w + 1, bh, d + 1), c, Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body })
+			table.insert(bands, { y - bh / 2, y + bh / 2, c, #bands })
+		end
+	end
+	table.sort(bands, function(a: { any }, b: { any }): boolean
+		if a[1] ~= b[1] then
+			return a[1] < b[1]
+		end
+		return a[4] < b[4]
+	end)
+	local covered = -math.huge
+	for _, b in bands do
+		local y0, y1 = math.max(b[1], covered + 0.02), b[2]
+		if y1 - y0 >= 0.2 then
+			Kit.box(m, base * CFrame.new(0, (y0 + y1) / 2, 0), Vector3.new(w + 1, y1 - y0, d + 1), b[3], Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body })
+			covered = y1
 		end
 	end
 	if spec.crown == "led" then

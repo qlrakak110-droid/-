@@ -20,6 +20,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Config = require(script.Parent.Config)
 local Kit = require(script.Parent.Kit)
+local Props = require(script.Parent.Props)
 
 local ShowHome = {}
 
@@ -83,6 +84,11 @@ local LOBBY_CEIL = 3.9
 local LOBBY_TOP = LOBBY_H - SLAB_DN -- 4.4 (2층 슬래브 아랫면)
 local PAVE = 0.06
 local HALL_CEIL = HF + 2.35
+-- 2001호 거실 우물천장(천장 개구 + 위층 슬래브를 그만큼 얇게): 깊이 12 cm, 간접 LED 코브
+local REC = 0.12
+local RX0, RX1, RZ0, RZ1 = 3.7, 7.4, 2.05, 5.55
+-- 주방 창(뒷벽) 개구: x, UF 기준 높이
+local KW_X0, KW_X1, KW_Y0, KW_Y1 = 0.8, 2.6, 1.05, 2.1
 
 -- 색 / 재질
 local WALL_EXT = rgb(226, 220, 208) -- 외벽 크림
@@ -267,75 +273,100 @@ local function doorLeaf(parent: Instance, hx: number, hz: number, y0: number, w:
 	return F
 end
 
--- X 에 수직인 벽(두께 x0..x1)의 문틀: 개구부 z a..b, 바닥 y0 부터 DOOR_H
-local function casingX(parent: Instance, x0: number, x1: number, a: number, b: number, y0: number, color: Color3)
-	bx(parent, x0 - 0.02, y0, a - 0.06, x1 + 0.02, y0 + DOOR_H + 0.06, a + 0.02, color, MAT.SmoothPlastic, deco("Casing"))
-	bx(parent, x0 - 0.02, y0, b - 0.02, x1 + 0.02, y0 + DOOR_H + 0.06, b + 0.06, color, MAT.SmoothPlastic, deco("Casing"))
-	bx(parent, x0 - 0.02, y0 + DOOR_H - 0.02, a - 0.06, x1 + 0.02, y0 + DOOR_H + 0.06, b + 0.06, color, MAT.SmoothPlastic, deco("CasingHead"))
+-- X 에 수직인 벽(두께 x0..x1)의 문틀: 개구부 z a..b, 바닥 y0 부터 DOOR_H. e0/e1 = 벽면에서 -X/+X 쪽으로 튀어나온 두께(m)
+local function casingX(parent: Instance, x0: number, x1: number, a: number, b: number, y0: number, color: Color3, e0: number?, e1: number?)
+	local xa, xb = x0 - (e0 or 0.02), x1 + (e1 or 0.02)
+	bx(parent, xa, y0, a - 0.06, xb, y0 + DOOR_H + 0.06, a + 0.02, color, MAT.SmoothPlastic, deco("Casing"))
+	bx(parent, xa, y0, b - 0.02, xb, y0 + DOOR_H + 0.06, b + 0.06, color, MAT.SmoothPlastic, deco("Casing"))
+	bx(parent, xa, y0 + DOOR_H - 0.02, a + 0.02, xb, y0 + DOOR_H + 0.06, b - 0.02, color, MAT.SmoothPlastic, deco("CasingHead"))
 end
 -- Z 에 수직인 벽(z0..z1)의 문틀: 개구부 x a..b
 local function casingZ(parent: Instance, z0: number, z1: number, a: number, b: number, y0: number, color: Color3)
 	bx(parent, a - 0.06, y0, z0 - 0.02, a + 0.02, y0 + DOOR_H + 0.06, z1 + 0.02, color, MAT.Metal, deco("Casing"))
 	bx(parent, b - 0.02, y0, z0 - 0.02, b + 0.06, y0 + DOOR_H + 0.06, z1 + 0.02, color, MAT.Metal, deco("Casing"))
-	bx(parent, a - 0.06, y0 + DOOR_H - 0.02, z0 - 0.02, b + 0.06, y0 + DOOR_H + 0.06, z1 + 0.02, color, MAT.Metal, deco("CasingHead"))
+	bx(parent, a + 0.02, y0 + DOOR_H - 0.02, z0 - 0.02, b - 0.02, y0 + DOOR_H + 0.06, z1 + 0.02, color, MAT.Metal, deco("CasingHead"))
+end
+
+-- 벽에 붙는 판: axis "x" → 벽면 x = w, 방 쪽 방향 s(±1). off0..off1 = 벽면에서 방 쪽으로 거리(m), a = 벽을 따라, y = 높이
+local function wb(parent: Instance, axis: string, w: number, s: number, off0: number, off1: number, a0: number, a1: number, y0: number, y1: number, color: Color3, mat: Enum.Material, o: any?): BasePart
+	if axis == "x" then
+		return bx(parent, w + s * off0, y0, a0, w + s * off1, y1, a1, color, mat, o)
+	end
+	return bx(parent, a0, y0, w + s * off0, a1, y1, w + s * off1, color, mat, o)
+end
+-- 벽면 위 한 점의 CFrame(로컬 -Z = 방 쪽): Props.outlet / exitSign / hydrant 규약
+local function wallCF(axis: string, w: number, s: number, along: number, y: number, off: number?): CFrame
+	local o = off or 0
+	local p = if axis == "x" then V(w + s * o, y, along) else V(along, y, w + s * o)
+	local d = if axis == "x" then Vector3.new(s, 0, 0) else Vector3.new(0, 0, s)
+	return CFrame.lookAt(p, p + d)
+end
+local function outlet(parent: Instance, axis: string, w: number, s: number, along: number, y: number, kind: string?)
+	Props.outlet(parent, wallCF(axis, w, s, along, y), kind)
+end
+
+-- 천장 설비: 감지기(Props.ceilingKit 의 감지기 1개), 스프링클러(공용부 = 하향식 크롬 / 세대 = 컨실드 백색 커버)
+local function detector(parent: Instance, x: number, z: number, ceilY: number)
+	Props.ceilingKit(parent, CFrame.new(V(x - 0.4, ceilY, z)), 0.5, 0.02, { sprinkler = 0, smoke = 1 })
+end
+local function pendantSprinkler(parent: Instance, x: number, z: number, ceilY: number)
+	Props.ceilingKit(parent, CFrame.new(V(x, ceilY, z)), 1, 1, { sprinkler = 1, smoke = 0 })
+end
+local function concealedSprinkler(parent: Instance, x: number, z: number, ceilY: number)
+	-- 컨실드형 헤드: 지름 75 mm 백색 커버 플레이트(천장 1.6 cm 아래로) + 링
+	cyl(parent, x, ceilY - 0.016, z, 0.02, 0.075, rgb(246, 246, 244), MAT.SmoothPlastic, deco("SprinklerCover"))
+	cyl(parent, x, ceilY - 0.008, z, 0.016, 0.09, rgb(226, 226, 222), MAT.SmoothPlastic, deco("SprinklerRing"))
+end
+-- 매입 다운라이트(Neon 퍽, 천장 1.5 cm 아래로)
+local function downlight(parent: Instance, x: number, z: number, ceilY: number, d: number?): BasePart
+	return cyl(parent, x, ceilY - 0.015, z, 0.025, d or 0.09, PANEL_WARM, MAT.Neon, neon("DownLight"))
 end
 
 -- 스위치 판 (벽면 법선 축 axis "x"/"z", 벽면 좌표 w, 바깥 방향 s = ±1)
 local function switchPlate(parent: Instance, axis: string, w: number, s: number, along: number, y: number)
-	if axis == "x" then
-		bx(parent, w, y, along - 0.04, w + s * 0.012, y + 0.12, along + 0.04, rgb(246, 246, 244), MAT.SmoothPlastic, deco("Switch"))
-	else
-		bx(parent, along - 0.04, y, w, along + 0.04, y + 0.12, w + s * 0.012, rgb(246, 246, 244), MAT.SmoothPlastic, deco("Switch"))
-	end
+	outlet(parent, axis, w, s, along, y + 0.06, "switch")
 end
 
--- 액자 (벽면 법선 축, 벽면 좌표 w, 방향 s): 테두리 + 매트 + 그림
+-- 액자 (벽면 법선 축, 벽면 좌표 w, 방향 s): 테두리 4변(3.5 cm) + 매트(1.5 cm) + 그림(3 cm, 2색이면 위아래로 나눔)
 local function picture(parent: Instance, axis: string, w: number, s: number, a0: number, a1: number, y0: number, y1: number, art: Color3, art2: Color3?)
-	local function slab(off0: number, off1: number, b0: number, b1: number, c0: number, c1: number, col: Color3, mat: Enum.Material, name: string)
-		if axis == "x" then
-			bx(parent, w + s * off0, c0, b0, w + s * off1, c1, b1, col, mat, deco(name))
-		else
-			bx(parent, b0, c0, w + s * off0, b1, c1, w + s * off1, col, mat, deco(name))
-		end
+	local fw = 0.03
+	local FR = rgb(34, 32, 30)
+	local function sl(off0: number, off1: number, b0: number, b1: number, c0: number, c1: number, col: Color3, mat: Enum.Material, name: string)
+		wb(parent, axis, w, s, off0, off1, b0, b1, c0, c1, col, mat, deco(name))
 	end
-	slab(0, 0.03, a0, a1, y0, y1, rgb(34, 32, 30), MAT.Wood, "Frame")
-	slab(0.03, 0.036, a0 + 0.03, a1 - 0.03, y0 + 0.03, y1 - 0.03, rgb(244, 242, 236), MAT.SmoothPlastic, "Mat")
-	local ma, mb = a0 + (a1 - a0) * 0.2, a1 - (a1 - a0) * 0.2
-	local mc, md = y0 + (y1 - y0) * 0.2, y1 - (y1 - y0) * 0.2
-	slab(0.036, 0.042, ma, mb, mc, md, art, MAT.SmoothPlastic, "Art")
+	sl(0, 0.035, a0, a1, y1 - fw, y1, FR, MAT.Wood, "Frame")
+	sl(0, 0.035, a0, a1, y0, y0 + fw, FR, MAT.Wood, "Frame")
+	sl(0, 0.035, a0, a0 + fw, y0 + fw, y1 - fw, FR, MAT.Wood, "Frame")
+	sl(0, 0.035, a1 - fw, a1, y0 + fw, y1 - fw, FR, MAT.Wood, "Frame")
+	sl(0, 0.015, a0 + fw, a1 - fw, y0 + fw, y1 - fw, rgb(244, 242, 236), MAT.SmoothPlastic, "Mat")
+	local ma, mb = a0 + (a1 - a0) * 0.18, a1 - (a1 - a0) * 0.18
+	local mc, md = y0 + (y1 - y0) * 0.18, y1 - (y1 - y0) * 0.18
 	if art2 then
-		slab(0.042, 0.048, ma, (ma + mb) / 2, mc, (mc + md) / 2, art2, MAT.SmoothPlastic, "Art")
+		local split = mc + (md - mc) * 0.42
+		sl(0.005, 0.03, ma, mb, mc, split, art2, MAT.SmoothPlastic, "Art")
+		sl(0.005, 0.03, ma, mb, split, md, art, MAT.SmoothPlastic, "Art")
+	else
+		sl(0.005, 0.03, ma, mb, mc, md, art, MAT.SmoothPlastic, "Art")
 	end
 end
 
--- 화분 식물: 화분 + 흙 + (작은 것) 둥근 잎 덩어리 / (큰 것) 줄기 + 납작한 잎이 나선으로 펼쳐진 관엽식물
+-- 작은 화분(다육/허브): 흙 윗면은 화분 테두리보다 1.5 cm 낮음
 local HOUSE_LEAVES = { rgb(38, 82, 46), rgb(52, 98, 54), rgb(30, 70, 40), rgb(62, 110, 58) }
-local function plant(parent: Instance, x: number, y0: number, z: number, potD: number, potH: number, leafD: number, leafH: number, rng: Random, potColor: Color3?)
-	cyl(parent, x, y0, z, potH, potD, potColor or rgb(232, 228, 220), MAT.SmoothPlastic, { name = "Pot", collide = potD > 0.3, query = potD > 0.3, shadow = false })
-	cyl(parent, x, y0 + potH - 0.02, z, 0.03, potD * 0.86, rgb(70, 54, 42), MAT.Ground, deco("Soil"))
-	local top = y0 + potH
-	if leafD < 0.4 then
-		for _ = 1, 3 do
-			local s = leafD * rng:NextNumber(0.45, 0.7)
-			Kit.ellipsoid(parent, LCF(x + rng:NextNumber(-0.25, 0.25) * leafD, top + leafH * rng:NextNumber(0.3, 0.8), z + rng:NextNumber(-0.25, 0.25) * leafD), SZ(s, s * 0.8, s), HOUSE_LEAVES[rng:NextInteger(1, #HOUSE_LEAVES)], MAT.SmoothPlastic, deco("Leaves"))
-		end
-		return
+local function smallPlant(parent: Instance, x: number, y0: number, z: number, potD: number, potH: number, leafD: number, rng: Random, potColor: Color3?)
+	cyl(parent, x, y0, z, potH, potD, potColor or rgb(232, 228, 220), MAT.SmoothPlastic, deco("Pot"))
+	cyl(parent, x, y0 + potH - 0.035, z, 0.02, potD * 0.84, rgb(70, 54, 42), MAT.Ground, deco("Soil"))
+	local top = y0 + potH - 0.015
+	for i = 1, 4 do
+		local a = i * 1.7 + rng:NextNumber(-0.3, 0.3)
+		local s = leafD * rng:NextNumber(0.45, 0.65)
+		local r = leafD * 0.22
+		Kit.ellipsoid(parent, LCF(x + math.cos(a) * r, top + s * 0.35 + (i % 2) * leafD * 0.15, z + math.sin(a) * r), SZ(s, s * 0.75, s), HOUSE_LEAVES[rng:NextInteger(1, #HOUSE_LEAVES)], MAT.SmoothPlastic, deco("Leaves"))
 	end
-	for i = 1, 3 do
-		local a = i * 2.1
-		cyl(parent, x + math.cos(a) * 0.04, top, z + math.sin(a) * 0.04, leafH * (0.55 + 0.15 * i), 0.025, rgb(70, 92, 52), MAT.SmoothPlastic, deco("Stem"))
-	end
-	local n = if leafD > 0.9 then 11 else 8
-	for i = 1, n do
-		local a = i * 2.4 + rng:NextNumber(-0.3, 0.3) -- 황금각 나선
-		local t = i / n
-		local hh = top + leafH * (0.3 + 0.7 * t)
-		local r = leafD * (0.12 + 0.28 * (1 - t) + rng:NextNumber(0, 0.08))
-		local len = leafD * rng:NextNumber(0.38, 0.55)
-		local droop = rng:NextNumber(10, 38) + 20 * (1 - t)
-		local cf = LCF(x + math.cos(a) * r, hh, z + math.sin(a) * r) * CFrame.Angles(0, -a, 0) * CFrame.Angles(0, 0, math.rad(-droop))
-		Kit.ellipsoid(parent, cf, SZ(len, 0.03, len * rng:NextNumber(0.55, 0.75)), HOUSE_LEAVES[rng:NextInteger(1, #HOUSE_LEAVES)], MAT.SmoothPlastic, deco("Leaf"))
-	end
+end
+-- 큰 관엽식물(Props): kind "monstera" | "fiddle" | "areca" | "sansevieria", h = 전체 높이(m)
+local function bigPlant(parent: Instance, kind: string, x: number, y0: number, z: number, h: number, rng: Random, potColor: Color3?)
+	local f = (Props :: any)[kind]
+	f(parent, LCF(x, y0, z) * CFrame.Angles(0, rng:NextNumber(0, 6.28), 0), h, rng, potColor)
 end
 
 -- 나무(조경): 줄기 + 수관 2~3
@@ -403,12 +434,17 @@ local function stairDoor(parent: Instance, fl: number, x0: number)
 	bx(parent, x0 - 0.06, fl, zf - 0.08, x0, fl + DOOR_H + 0.06, zf, STEEL_D, MAT.Metal, deco("StairFrame"))
 	bx(parent, x1, fl, zf - 0.08, x1 + 0.06, fl + DOOR_H + 0.06, zf, STEEL_D, MAT.Metal, deco("StairFrame"))
 	bx(parent, x0 - 0.06, fl + DOOR_H, zf - 0.08, x1 + 0.06, fl + DOOR_H + 0.06, zf, STEEL_D, MAT.Metal, deco("StairFrame"))
-	bx(parent, x0 + 0.1, fl + 0.98, zf - 0.11, x1 - 0.08, fl + 1.03, zf - 0.07, STEEL, MAT.Metal, deco("PushBar"))
-	local ex = bx(parent, x0 + 0.2, fl + DOOR_H + 0.14, zf - 0.08, x1 - 0.2, fl + DOOR_H + 0.3, zf, rgb(40, 200, 90), MAT.Neon, { name = "ExitSign", collide = false, query = false, shadow = false })
-	Kit.label(ex, NID.Front, "비상구", { color = rgb(255, 255, 255), glow = true, pixelsPerStud = 80, maxDistance = 120 })
-	-- 소화기
-	cyl(parent, x1 + 0.3, fl, zf - 0.15, 0.48, 0.16, rgb(196, 30, 30), MAT.SmoothPlastic, deco("Extinguisher"))
-	cyl(parent, x1 + 0.3, fl + 0.48, zf - 0.15, 0.08, 0.06, rgb(40, 40, 40), MAT.Metal, deco("ExtinguisherValve"))
+	-- 패닉바(문 안쪽 면에서 1.5 cm 이상 떨어진 손잡이 막대 + 브래킷)
+	bx(parent, x0 + 0.12, fl + 0.98, zf - 0.115, x1 - 0.1, fl + 1.03, zf - 0.085, STEEL, MAT.Metal, deco("PushBar"))
+	for _, px in { x0 + 0.14, x1 - 0.12 } do
+		bx(parent, px - 0.02, fl + 0.96, zf - 0.085, px + 0.02, fl + 1.05, zf - 0.06, STEEL_D, MAT.Metal, deco("PushBarBracket"))
+	end
+	bx(parent, x0 + 0.06, fl + 1.02, zf - 0.08, x0 + 0.1, fl + 1.12, zf - 0.06, STEEL_D, MAT.Metal, deco("DoorHinge"))
+	bx(parent, x0 + 0.08, fl + DOOR_H - 0.12, zf - 0.11, x0 + 0.45, fl + DOOR_H - 0.06, zf - 0.06, rgb(60, 60, 62), MAT.Metal, deco("DoorCloser"))
+	-- 피난구유도등(문 위) + 소화기(받침대 + 표지)
+	Props.exitSign(parent, CFrame.lookAt(V((x0 + x1) / 2, fl + DOOR_H + 0.155, zf - 0.04), V((x0 + x1) / 2, fl + DOOR_H + 0.155, zf - 1)))
+	local ezf = zf - 0.04 - 0.125
+	Props.extinguisher(parent, CFrame.lookAt(V(x1 + 0.35, fl, ezf), V(x1 + 0.35, fl, ezf - 1)), true)
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -418,12 +454,23 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	-- 층 슬래브(2층~지붕): 앞뒤로 튀어나온 가로 띠 + 실제 바닥
 	for k = 2, FLOORS + 1 do
 		local y = yb(k)
-		bx(ext, -END_T, y - SLAB_DN, -0.25, BL + END_T, y + SLAB_UP, DEPTH + 0.15, WALL_EXT, MAT.Concrete, { name = "Slab" .. k, shadow = k == FLOORS + 1 })
+		local so = { name = "Slab" .. k, shadow = k == FLOORS + 1 }
+		if k == UNIT_FL + 1 then
+			-- 2001호 거실 우물천장 자리: 슬래브 아랫면을 REC + 5 cm 만큼 얇게(개구 둘레 4장 + 얇은 판)
+			local y0, y1 = y - SLAB_DN, y + SLAB_UP
+			bx(ext, -END_T, y0, -0.25, BL + END_T, y1, RZ0, WALL_EXT, MAT.Concrete, so)
+			bx(ext, -END_T, y0, RZ1, BL + END_T, y1, DEPTH + 0.15, WALL_EXT, MAT.Concrete, { name = "Slab" .. k, shadow = false })
+			bx(ext, -END_T, y0, RZ0, RX0, y1, RZ1, WALL_EXT, MAT.Concrete, { name = "Slab" .. k, shadow = false })
+			bx(ext, RX1, y0, RZ0, BL + END_T, y1, RZ1, WALL_EXT, MAT.Concrete, { name = "Slab" .. k, shadow = false })
+			bx(ext, RX0, CEIL + REC + 0.05, RZ0, RX1, y1, RZ1, WALL_EXT, MAT.Concrete, { name = "Slab" .. k, shadow = false })
+		else
+			bx(ext, -END_T, y - SLAB_DN, -0.25, BL + END_T, y + SLAB_UP, DEPTH + 0.15, WALL_EXT, MAT.Concrete, so)
+		end
 	end
 	-- 앞면 유리 난간 + 손스침 / 뒷면 창 아래 띠 (20층 2001호 구간 제외)
 	for k = 2, FLOORS do
 		local y = yb(k) + SLAB_UP
-		local fx0 = if k == UNIT_FL then LINE_W - FIN_T / 2 else 0
+		local fx0 = if k == UNIT_FL then LINE_W - FIN_T / 2 + 0.05 else 0
 		bx(ext, fx0, y, -0.07, BL, y + 1.0, -0.03, RAIL_GLASS, MAT.Glass, glassO("RailGlass", 0.55))
 		bx(ext, fx0, y + 1.0, -0.1, BL, y + 1.06, 0.0, STEEL_D, MAT.Metal, { name = "Handrail", shadow = false })
 		local bx0 = if k == UNIT_FL then CORE_A1 else -END_T
@@ -468,11 +515,11 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	end
 	-- 측벽(서쪽: 2001호 식당 창 개구부) / 동쪽
 	local wy0, wy1, wz0, wz1 = UF + 0.9, UF + 2.1, 2.0, 4.6
-	bx(ext, -END_T, 0, -0.35, 0, wy0, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallW"))
+	bx(ext, -END_T, 0.02, -0.35, 0, wy0, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallW"))
 	bx(ext, -END_T, wy0, -0.35, 0, wy1, wz0, WALL_EXT, MAT.Concrete, solid("EndWallW"))
 	bx(ext, -END_T, wy0, wz1, 0, wy1, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallW"))
 	bx(ext, -END_T, wy1, -0.35, 0, PARAPET, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallW"))
-	bx(ext, BL, 0, -0.35, BL + END_T, PARAPET, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallE"))
+	bx(ext, BL, 0.02, -0.35, BL + END_T, PARAPET, DEPTH + 0.25, WALL_EXT, MAT.Concrete, solid("EndWallE"))
 	-- 서쪽 창(식당): 흰 PVC 샷시 + 유리
 	bx(ext, -0.24, wy0, wz0, -0.12, wy0 + 0.06, wz1, rgb(240, 240, 238), MAT.SmoothPlastic, deco("WinFrame"))
 	bx(ext, -0.24, wy1 - 0.06, wz0, -0.12, wy1, wz1, rgb(240, 240, 238), MAT.SmoothPlastic, deco("WinFrame"))
@@ -496,10 +543,10 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 	end
 	sign(ext, 17.6, ROOF + 1.4, 0.45, 32.8, ROOF + 4.0, 0.55, NID.Front, "한강뷰", { bg = rgb(36, 38, 42), mat = MAT.Metal, color = rgb(250, 238, 214), glow = true, pps = 8, maxd = 3500, name = "RoofSign", font = Enum.Font.GothamBlack })
 	-- 계단실·승강로 코어 (뒤로 돌출, 기계실까지)
-	bx(ext, CORE_A0, 0, CORE_SPLIT, CORE_A1, CORE_TOP, CORE_Z1, WALL_CORE, MAT.Concrete, solid("CoreA"))
-	bx(ext, CORE_A0, LOBBY_TOP - 0.05, DEPTH, CORE_A1, SLAB_TOP, CORE_SPLIT, WALL_CORE, MAT.Concrete, solid("CoreAFront"))
-	bx(ext, CORE_A0, TOPY, DEPTH, CORE_A1, CORE_TOP, CORE_SPLIT, WALL_CORE, MAT.Concrete, solid("CoreAFront"))
-	bx(ext, CORE_B0, 0, CORE_SPLIT, CORE_B1, CORE_TOP, CORE_Z1, WALL_CORE, MAT.Concrete, solid("CoreB"))
+	bx(ext, CORE_A0, 0.02, CORE_SPLIT, CORE_A1, CORE_TOP, CORE_Z1, WALL_CORE, MAT.Concrete, solid("CoreA"))
+	bx(ext, CORE_A0, LOBBY_TOP - 0.05, DEPTH, CORE_A1, SLAB_TOP - 0.05, CORE_SPLIT, WALL_CORE, MAT.Concrete, solid("CoreAFront"))
+	bx(ext, CORE_A0, TOPY + 0.05, DEPTH, CORE_A1, CORE_TOP, CORE_SPLIT, WALL_CORE, MAT.Concrete, solid("CoreAFront"))
+	bx(ext, CORE_B0, 0.02, CORE_SPLIT, CORE_B1, CORE_TOP, CORE_Z1, WALL_CORE, MAT.Concrete, solid("CoreB"))
 	bx(ext, CORE_B0, LOBBY_TOP - 0.05, DEPTH, CORE_B1, CORE_TOP, CORE_SPLIT, WALL_CORE, MAT.Concrete, solid("CoreBFront"))
 	for _, cx in { CORE_A1 - 2.0, CORE_B1 - 2.0 } do
 		bx(ext, cx - 0.5, LOBBY_H, CORE_Z1 + 0.02, cx + 0.5, ROOF, CORE_Z1 + 0.12, rgb(120, 104, 80), MAT.Neon, neon("StairWindow", GLASS_C))
@@ -514,14 +561,14 @@ local function shell(ext: Model, rng: Random, lit: { Color3 })
 		end
 	end
 	-- 3·4호 라인 로비(외관만: 불 켜진 유리 상자)
-	bx(ext, CORE_B0, PAVE, 1.0, CORE_B0 + 0.25, LOBBY_TOP, CORE_SPLIT, LIMESTONE, MAT.Limestone, solid("LobbyBWall"))
-	bx(ext, CORE_B1 - 0.25, PAVE, 1.0, CORE_B1, LOBBY_TOP, CORE_SPLIT, LIMESTONE, MAT.Limestone, solid("LobbyBWall"))
+	bx(ext, CORE_B0, PAVE, 1.0, CORE_B0 + 0.25, LOBBY_TOP - 0.05, CORE_SPLIT, LIMESTONE, MAT.Limestone, solid("LobbyBWall"))
+	bx(ext, CORE_B1 - 0.25, PAVE, 1.0, CORE_B1, LOBBY_TOP - 0.05, CORE_SPLIT, LIMESTONE, MAT.Limestone, solid("LobbyBWall"))
 	bx(ext, CORE_B0 + 0.45, PAVE + 0.1, 1.6, CORE_B1 - 0.45, LOBBY_CEIL, CORE_SPLIT - 0.2, rgb(150, 122, 86), MAT.Neon, neon("LobbyBGlow", LIMESTONE))
 	bx(ext, CORE_B0 + 0.25, PAVE, 1.0, CORE_B1 - 0.25, LOBBY_CEIL, 1.05, GLASS_C, MAT.Glass, glassO("LobbyBGlass", 0.55))
-	bx(ext, CORE_B0, LOBBY_CEIL, 0.95, CORE_B1, LOBBY_TOP, 1.1, STEEL_D, MAT.Metal, solid("LobbyBFascia"))
+	bx(ext, CORE_B0 - 0.03, LOBBY_CEIL - 0.03, 0.95, CORE_B1 + 0.03, LOBBY_TOP - 0.02, 1.1, STEEL_D, MAT.Metal, solid("LobbyBFascia"))
 	for i = 1, 5 do
 		local x = CORE_B0 + 0.25 + i * (CORE_B1 - CORE_B0 - 0.5) / 6
-		bx(ext, x - 0.03, PAVE, 0.97, x + 0.03, LOBBY_CEIL, 1.08, STEEL_D, MAT.Metal, deco("Mullion"))
+		bx(ext, x - 0.03, PAVE + 0.02, 0.97, x + 0.03, LOBBY_CEIL + 0.05, 1.08, STEEL_D, MAT.Metal, deco("Mullion"))
 	end
 	bx(ext, 35.4, 3.2, -2.2, 40.2, 3.45, 0.9, STEEL_D, MAT.Metal, solid("CanopyB"))
 	sign(ext, 36.6, 3.22, -2.27, 39.0, 3.43, -2.22, NID.Front, "101동 3·4호", { bg = STEEL_D, mat = MAT.Metal, color = rgb(250, 236, 210), glow = true, pps = 30, maxd = 400 })
@@ -603,28 +650,32 @@ local DOOR_X0, DOOR_X1 = 11.7, 13.5 -- 자동문 개구부 1.8 m
 
 local function lobbyEnvelope(ext: Model)
 	-- 좌우 벽(외부 쪽은 콘크리트)
-	bx(ext, CORE_A0, 0, 1.0, LX0, LOBBY_TOP, LZ1, WALL_CORE, MAT.Concrete, solid("LobbyWallW"))
-	bx(ext, LX1, 0, 1.0, CORE_A1, LOBBY_TOP, LZ1, WALL_CORE, MAT.Concrete, solid("LobbyWallE"))
-	-- 정면 유리벽 + 멀리언 + 자동문 상부
-	bx(ext, LX0, LOBBY_FL, 1.0, DOOR_X0, LOBBY_CEIL, 1.04, GLASS_C, MAT.Glass, glassO("LobbyGlass", 0.62))
-	bx(ext, DOOR_X1, LOBBY_FL, 1.0, LX1, LOBBY_CEIL, 1.04, GLASS_C, MAT.Glass, glassO("LobbyGlass", 0.62))
+	bx(ext, CORE_A0, 0.02, 1.0, LX0, LOBBY_TOP, LZ1, WALL_CORE, MAT.Concrete, solid("LobbyWallW"))
+	bx(ext, LX1, 0.02, 1.0, CORE_A1, LOBBY_TOP, LZ1, WALL_CORE, MAT.Concrete, solid("LobbyWallE"))
+	-- 정면 유리벽: 하부 걸레받이 채널(유리 아래 끝을 물고 있음) + 멀리언(위는 파사드 띠 속) + 자동문 상부 고정창
+	local BASE_C = rgb(52, 54, 58)
+	bx(ext, LX0, PAVE + 0.01, 0.97, DOOR_X0 - 0.04, LOBBY_FL + 0.08, 1.07, BASE_C, MAT.Metal, solid("GlassBase"))
+	bx(ext, DOOR_X1 + 0.04, PAVE + 0.01, 0.97, LX1, LOBBY_FL + 0.08, 1.07, BASE_C, MAT.Metal, solid("GlassBase"))
+	bx(ext, LX0, LOBBY_FL + 0.05, 1.0, DOOR_X0, LOBBY_CEIL, 1.04, GLASS_C, MAT.Glass, glassO("LobbyGlass", 0.62))
+	bx(ext, DOOR_X1, LOBBY_FL + 0.05, 1.0, LX1, LOBBY_CEIL, 1.04, GLASS_C, MAT.Glass, glassO("LobbyGlass", 0.62))
 	bx(ext, DOOR_X0, 2.42, 1.0, DOOR_X1, LOBBY_CEIL, 1.04, GLASS_C, MAT.Glass, glassO("LobbyTransom", 0.62))
 	for _, x in { 8.1, 9.95, DOOR_X0, DOOR_X1, 15.25, 17.1 } do
-		bx(ext, x - 0.04, LOBBY_FL, 0.96, x + 0.04, LOBBY_CEIL, 1.1, STEEL_D, MAT.Metal, solid("LobbyMullion"))
+		bx(ext, x - 0.04, PAVE + 0.02, 0.96, x + 0.04, LOBBY_CEIL + 0.1, 1.1, STEEL_D, MAT.Metal, solid("LobbyMullion"))
 	end
-	bx(ext, CORE_A0, LOBBY_CEIL, 0.94, CORE_A1, LOBBY_TOP, 1.12, STEEL_D, MAT.Metal, solid("LobbyFascia"))
-	-- 자동문: 문 상부 구동부 + 열린 상태의 두 짝(고정 유리 안쪽으로 겹쳐 밀림)
+	bx(ext, CORE_A0 - 0.03, LOBBY_CEIL - 0.03, 0.94, CORE_A1 + 0.03, LOBBY_TOP - 0.02, 1.12, STEEL_D, MAT.Metal, solid("LobbyFascia"))
+	-- 자동문: 문 상부 구동부 + 열린 상태의 두 짝(고정 유리 안쪽으로 겹쳐 밀림). 짝 = 스테인리스 프레임 4변 + 유리(프레임 속에 물림)
 	bx(ext, DOOR_X0 - 1.05, 2.22, 1.1, DOOR_X1 + 1.05, 2.42, 1.26, rgb(150, 152, 156), MAT.Metal, solid("DoorOperator"))
-	cyl(ext, (DOOR_X0 + DOOR_X1) / 2, 2.17, 1.18, 0.05, 0.08, rgb(30, 30, 30), MAT.SmoothPlastic, deco("DoorSensor"))
+	cyl(ext, (DOOR_X0 + DOOR_X1) / 2, 2.16, 1.18, 0.06, 0.08, rgb(30, 30, 30), MAT.SmoothPlastic, deco("DoorSensor"))
 	for _, s in { -1, 1 } do
 		local x0 = if s < 0 then DOOR_X0 - 0.98 else DOOR_X1 - 0.02
-		bx(ext, x0, LOBBY_FL, 1.12, x0 + 1.0, 2.2, 1.16, GLASS_C, MAT.Glass, glassO("AutoDoor", 0.6))
-		local edge = if s < 0 then x0 + 1.0 - 0.05 else x0
-		bx(ext, edge, LOBBY_FL, 1.11, edge + 0.05, 2.2, 1.17, STEEL, MAT.Metal, deco("AutoDoorStile"))
-		local back = if s < 0 then x0 else x0 + 1.0 - 0.04
-		bx(ext, back, LOBBY_FL, 1.11, back + 0.04, 2.2, 1.17, STEEL, MAT.Metal, deco("AutoDoorStile"))
+		local y0, y1 = LOBBY_FL + 0.01, 2.2
+		bx(ext, x0 + 0.03, y0 + 0.05, 1.125, x0 + 0.97, y1 - 0.04, 1.155, GLASS_C, MAT.Glass, glassO("AutoDoor", 0.6))
+		bx(ext, x0, y0, 1.11, x0 + 0.05, y1, 1.17, STEEL, MAT.Metal, deco("AutoDoorStile"))
+		bx(ext, x0 + 0.95, y0, 1.11, x0 + 1.0, y1, 1.17, STEEL, MAT.Metal, deco("AutoDoorStile"))
+		bx(ext, x0 + 0.05, y0, 1.11, x0 + 0.95, y0 + 0.09, 1.17, STEEL, MAT.Metal, deco("AutoDoorRail"))
+		bx(ext, x0 + 0.05, y1 - 0.07, 1.11, x0 + 0.95, y1, 1.17, STEEL, MAT.Metal, deco("AutoDoorRail"))
 	end
-	bx(ext, DOOR_X0, PAVE, 0.96, DOOR_X1, LOBBY_FL + 0.005, 1.2, STEEL, MAT.Metal, solid("Threshold"))
+	bx(ext, DOOR_X0, PAVE + 0.01, 0.96, DOOR_X1, LOBBY_FL + 0.005, 1.05, STEEL, MAT.Metal, solid("Threshold"))
 	-- 캐노피 + 기둥 + 동 번호 사인 + 하부 조명
 	local canopy = bx(ext, 9.4, 3.25, -3.2, 15.8, 3.5, 0.9, rgb(58, 60, 66), MAT.Metal, solid("Canopy"))
 	for _, x in { 9.65, 15.55 } do
@@ -669,7 +720,21 @@ local function lobbyInterior(g: Model, rng: Random, unitTarget: Vector3)
 	end
 	light(panels[2], "PointLight", { color = rgb(255, 222, 180), brightness = 1.1, range = M(8) })
 	light(panels[5], "PointLight", { color = rgb(255, 222, 180), brightness = 1.1, range = M(8) })
-	Kit.ball(g, V(17.6, LOBBY_CEIL - 0.06, 10.8), M(0.14), rgb(20, 20, 24), MAT.Glass, deco("CCTV"))
+	-- 천장 설비: 하향식 스프링클러(격자 ≈3 m, 조명 피함) + 연기감지기 + 디퓨저/스피커 + CCTV 2
+	for _, x in { 7.9, 10.9, 14.3, 17.3 } do
+		for _, z in { 2.5, 5.0, 8.2, 10.9 } do
+			pendantSprinkler(g, x, z, LOBBY_CEIL)
+		end
+	end
+	detector(g, 10.2, 6.6, LOBBY_CEIL)
+	detector(g, 15.0, 3.3, LOBBY_CEIL)
+	Props.ceilingKit(g, CFrame.new(V(9.6, LOBBY_CEIL, 8.6)), 1.6, 1.6, { sprinkler = 0, smoke = 0, diffusers = 1, speakers = 1 })
+	Props.ceilingKit(g, CFrame.new(V(15.6, LOBBY_CEIL, 5.6)), 1.6, 1.6, { sprinkler = 0, smoke = 0, diffusers = 1 })
+	Props.cctv(g, CFrame.new(V(17.6, LOBBY_CEIL, 10.9)))
+	Props.cctv(g, CFrame.new(V(7.0, LOBBY_CEIL, 1.7)))
+	-- 옥내소화전(서쪽 월넛 벽, 엘리베이터 쪽) + 소화기
+	Props.hydrant(g, wallCF("x", LX0 + 0.04, 1, 9.2, LOBBY_FL))
+	Props.extinguisher(g, CFrame.lookAt(V(LX0 + 0.04 + 0.125, LOBBY_FL, 10.2), V(LX0 + 1, LOBBY_FL, 10.2)), true)
 
 	-- 우편함 54칸 (서쪽 벽, 9열 × 6행: 201~2802호)
 	local mz0, mz1, my0, my1 = 3.2, 7.0, 0.8, 2.0
@@ -731,7 +796,7 @@ local function lobbyInterior(g: Model, rng: Random, unitTarget: Vector3)
 			local scr = bx(g, px0 - 0.012, 1.25, z0 + 0.1, px0, 1.62, z0 + cw - 0.1, SCREEN, MAT.Neon, { name = "LockerScreen", collide = false, query = false, shadow = false })
 			Kit.label(scr, NID.Left, "택배 찾기\n동·호수 입력", { color = rgb(255, 255, 255), glow = true, pixelsPerStud = 80, maxDistance = 60 })
 			bx(g, px0 - 0.012, 0.95, z0 + 0.15, px0, 1.18, z0 + cw - 0.15, rgb(40, 42, 46), MAT.Metal, deco("LockerKeypad"))
-			bx(g, px0 - 0.006, 0.3, z0 + 0.04, px0, 0.85, z0 + cw - 0.04, rgb(200, 204, 208), MAT.Metal, deco("LockerDoor"))
+			bx(g, px0 - 0.02, 0.3, z0 + 0.04, px0, 0.85, z0 + cw - 0.04, rgb(200, 204, 208), MAT.Metal, deco("LockerDoor"))
 		else
 			local hgt = (py1 - py0 - 0.1) / nrows
 			for ri = 0, nrows - 1 do
@@ -753,12 +818,16 @@ local function lobbyInterior(g: Model, rng: Random, unitTarget: Vector3)
 
 	-- 대기 벤치 + 사이드 테이블 + 대형 화분
 	local BF = frameAt(8.5, LOBBY_FL, 2.15, 180)
-	fb(g, BF, 0, 0.21, 0, 2.2, 0.32, 0.55, rgb(40, 38, 36), MAT.Metal, solid("LobbyBenchBase"))
-	fb(g, BF, 0, SEAT - 0.05, 0, 2.16, 0.1, 0.53, rgb(150, 98, 64), MAT.Leather, solid("LobbyBenchSeat"))
+	fb(g, BF, 0, 0.2, 0, 2.0, 0.3, 0.42, rgb(40, 38, 36), MAT.Metal, solid("LobbyBenchBase"))
+	fb(g, BF, 0, SEAT - 0.05, 0, 2.2, 0.1, 0.52, rgb(150, 98, 64), MAT.Leather, solid("LobbyBenchSeat"))
+	for i = 0, 3 do
+		fb(g, BF, -0.825 + i * 0.55, SEAT + 0.012, 0.02, 0.53, 0.024, 0.46, rgb(140, 90, 58), MAT.Leather, deco("BenchCushion"))
+	end
 	cyl(g, 10.05, LOBBY_FL, 2.2, 0.45, 0.42, MARBLE_W, MAT.Marble, solid("SideTable"))
-	plant(g, 10.4, LOBBY_FL, 1.55, 0.5, 0.55, 0.95, 1.2, rng, rgb(60, 58, 56))
-	plant(g, 14.8, LOBBY_FL, 1.55, 0.5, 0.55, 0.95, 1.2, rng, rgb(60, 58, 56))
-	plant(g, 7.3, LOBBY_FL, 11.5, 0.45, 0.5, 0.8, 1.0, rng, rgb(60, 58, 56))
+	cyl(g, 10.0, LOBBY_FL + 0.45, 2.15, 0.12, 0.12, rgb(30, 30, 32), MAT.SmoothPlastic, deco("Vase"))
+	bigPlant(g, "fiddle", 10.55, LOBBY_FL, 1.6, 1.9, rng, rgb(60, 58, 56))
+	bigPlant(g, "fiddle", 14.7, LOBBY_FL, 1.6, 1.9, rng, rgb(60, 58, 56))
+	bigPlant(g, "areca", 7.1, LOBBY_FL, 11.4, 1.5, rng, rgb(60, 58, 56))
 	-- 엘리베이터 2대 + 비상구
 	elevatorBank(g, LOBBY_FL, "1", unitTarget, "20층으로 올라가기")
 	stairDoor(g, LOBBY_FL, 17.25)
@@ -811,8 +880,9 @@ local function hallInterior(g: Model, rng: Random, lobbyTarget: Vector3)
 	bx(g, LINE_W + FIN_T / 2, HF, fz, HX1, HALL_CEIL, fz + 0.03, STONE_L, MAT.Marble, deco("HallPanel"))
 	-- 핀(세대 경계벽) 돌출부 마감
 	bx(g, LINE_W - FIN_T / 2 - 0.02, HF, DEPTH + 0.25, LINE_W + FIN_T / 2 + 0.02, HALL_CEIL, DEPTH + 0.28, STONE_L, MAT.Marble, deco("PilasterCap"))
-	bx(g, HX0, HF, fz + 0.03, FD_X0 - 0.07, HF + 0.1, fz + 0.045, rgb(60, 58, 56), MAT.Marble, deco("Skirting"))
-	bx(g, FD_X1 + 0.07, HF, fz + 0.03, HX1, HF + 0.1, fz + 0.045, rgb(60, 58, 56), MAT.Marble, deco("Skirting"))
+	for _, r in { { HX0, FD_X0 - 0.07 }, { FD_X1 + 0.07, LINE_W - FIN_T / 2 - 0.03 }, { LINE_W + FIN_T / 2 + 0.03, ND_X0 - 0.07 }, { ND_X0 + DOOR_W + 0.07, HX1 - 0.03 } } do
+		bx(g, r[1], HF, fz + 0.03, r[2], HF + 0.1, fz + 0.045, rgb(60, 58, 56), MAT.Marble, deco("Skirting"))
+	end
 	casingZ(g, fz, fz + 0.05, FD_X0, FD_X1, HF, BRONZE)
 	-- 뒷벽 라임스톤 + 엘리베이터 + 비상구
 	bx(g, HX0, HF, HZ1 - 0.04, 8.6, HALL_CEIL, HZ1, STONE_L, MAT.Marble, deco("HallPanel"))
@@ -828,20 +898,36 @@ local function hallInterior(g: Model, rng: Random, lobbyTarget: Vector3)
 	bx(g, n0 + 0.095, HF + 1.18, fz + 0.115, n0 + 0.145, HF + 1.26, fz + 0.125, rgb(80, 150, 220), MAT.Neon, deco("DoorLockPad"))
 	bx(g, n0 + 0.06, HF + 1.0, fz + 0.08, n0 + 0.2, HF + 1.02, fz + 0.12, STEEL, MAT.Metal, deco("DoorPull"))
 	sign(g, n1 + 0.15, HF + 1.55, fz + 0.03, n1 + 0.4, HF + 1.67, fz + 0.045, NID.Back, "2002", { bg = rgb(40, 40, 42), color = rgb(230, 220, 200), pps = 100, maxd = 40 })
-	bx(g, n0 + 0.1, HF, fz + 0.35, n0 + 0.5, HF + 0.28, fz + 0.65, rgb(176, 136, 92), MAT.Cardboard, solid("Parcel"))
-	bx(g, n0 + 0.14, HF + 0.28, fz + 0.4, n0 + 0.4, HF + 0.42, fz + 0.6, rgb(190, 152, 104), MAT.Cardboard, deco("Parcel"))
+	bx(g, n0 - 0.55, HF, fz + 0.1, n0 - 0.1, HF + 0.3, fz + 0.42, rgb(176, 136, 92), MAT.Cardboard, solid("Parcel"))
+	bx(g, n0 - 0.5, HF + 0.3, fz + 0.14, n0 - 0.22, HF + 0.45, fz + 0.36, rgb(190, 152, 104), MAT.Cardboard, deco("Parcel"))
+	bx(g, n0 - 0.42, HF + 0.08, fz + 0.085, n0 - 0.2, HF + 0.2, fz + 0.105, rgb(240, 240, 236), MAT.SmoothPlastic, deco("ParcelLabel"))
 	-- 2001호 문패 + 초인종(카메라)
 	sign(g, FD_X1 + 0.15, HF + 1.55, fz + 0.03, FD_X1 + 0.4, HF + 1.67, fz + 0.045, NID.Back, "2001", { bg = rgb(40, 40, 42), color = rgb(230, 220, 200), pps = 100, maxd = 40 })
 	bx(g, FD_X1 + 0.2, HF + 1.25, fz + 0.03, FD_X1 + 0.32, HF + 1.42, fz + 0.06, rgb(30, 30, 32), MAT.SmoothPlastic, deco("DoorBell"))
-	-- 소화전함 (동쪽 벽)
-	local hb = bx(g, HX1 - 0.16, HF + 0.55, 10.45, HX1, HF + 1.45, 11.25, rgb(196, 34, 30), MAT.Metal, solid("Hydrant"))
-	Kit.label(hb, NID.Left, "소화전", { color = rgb(255, 255, 255), pixelsPerStud = 60, maxDistance = 60 })
-	Kit.ball(g, V(HX1 - 0.06, HF + 1.6, 10.85), M(0.09), rgb(255, 40, 30), MAT.Neon, deco("HydrantLamp"))
-	-- 천장 감지등 2 + 광원
-	local l1 = cyl(g, 9.6, HALL_CEIL - 0.02, 11.05, 0.03, 0.3, PANEL_WARM, MAT.Neon, neon("SensorLight"))
-	cyl(g, 15.6, HALL_CEIL - 0.02, 11.05, 0.03, 0.3, PANEL_WARM, MAT.Neon, neon("SensorLight"))
-	light(l1, "PointLight", { color = rgb(255, 224, 186), brightness = 1.0, range = M(6) })
-	plant(g, 6.75, HF, 11.75, 0.34, 0.4, 0.6, 0.8, rng, rgb(70, 68, 64))
+	-- 핀(세대 경계벽) 옆면도 석재로 감쌈
+	for _, sx in { -1, 1 } do
+		local x0 = if sx < 0 then LINE_W - FIN_T / 2 - 0.03 else LINE_W + FIN_T / 2
+		bx(g, x0, HF, fz + 0.03, x0 + 0.03, HALL_CEIL, DEPTH + 0.25, STONE_L, MAT.Marble, deco("PilasterSide"))
+	end
+	-- 동쪽 벽 석재 + 옥내소화전함(바닥 위 0.3 m) + 표시등
+	bx(g, HX1 - 0.03, HF, fz + 0.03, HX1, HALL_CEIL, HZ1 - 0.04, STONE_L, MAT.Marble, deco("HallPanel"))
+	Props.hydrant(g, wallCF("x", HX1 - 0.03, -1, 10.75, HF))
+	-- 천장: 센서 감지등 2(광원 2) + 하향식 스프링클러 4 + 연기감지기 + CCTV + 점검구
+	local CY = HALL_CEIL
+	for i, x in { 9.6, 15.6 } do
+		local l = cyl(g, x, CY - 0.02, 11.05, 0.04, 0.32, PANEL_WARM, MAT.Neon, neon("SensorLight"))
+		cyl(g, x + 0.3, CY - 0.025, 11.05, 0.04, 0.07, rgb(244, 244, 240), MAT.SmoothPlastic, deco("MotionSensor"))
+		light(l, "PointLight", { color = rgb(255, 224, 186), brightness = if i == 1 then 1.0 else 0.8, range = M(6) })
+	end
+	for _, x in { 7.6, 11.0, 14.0, 17.4 } do
+		pendantSprinkler(g, x, 11.05, CY)
+	end
+	detector(g, 12.6, 10.6, CY)
+	Props.cctv(g, CFrame.new(V(18.5, CY, 11.9)))
+	bx(g, 12.3, CY - 0.012, 11.35, 12.75, CY + 0.01, 11.8, rgb(236, 236, 232), MAT.SmoothPlastic, deco("AccessPanel"))
+	bigPlant(g, "sansevieria", 6.7, HF, 11.8, 0.85, rng, rgb(70, 68, 64))
+	-- 세대 현관 앞 매트(2002호) + 우산꽂이
+	bx(g, ND_X0 + 0.05, HF, fz + 0.12, ND_X0 + DOOR_W - 0.05, HF + 0.015, fz + 0.62, rgb(70, 66, 62), MAT.Carpet, deco("DoorMat"))
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -875,11 +961,11 @@ local function unitEnvelope(ext: Model)
 	bx(ext, FD_X0, HF, z0, FD_X0 + 0.05, HF + DOOR_H, z1, BRONZE, MAT.Metal, solid("DoorFrame"))
 	bx(ext, FD_X1 - 0.05, HF, z0, FD_X1, HF + DOOR_H, z1, BRONZE, MAT.Metal, solid("DoorFrame"))
 	bx(ext, FD_X0, HF + DOOR_H - 0.05, z0, FD_X1, HF + DOOR_H, z1, BRONZE, MAT.Metal, solid("DoorFrame"))
-	bx(ext, FD_X0, SLAB_TOP, z0, FD_X1, HF + 0.008, z1, MARBLE_D, MAT.Marble, solid("DoorThreshold"))
+	bx(ext, FD_X0, SLAB_TOP, z0, FD_X1, HF + 0.015, z1, MARBLE_D, MAT.Marble, solid("DoorThreshold"))
 	-- 안방 전면 창(확장형: 바닥~천장 유리, 가운데 멀리언, 안전 바)
 	local bx0, bx1 = W4X1, LINE_W - FIN_T / 2
 	bx(ext, bx0, SLAB_TOP, 0.0, bx1, UF + 0.05, 0.2, rgb(70, 72, 76), MAT.Metal, solid("WinSill"))
-	bx(ext, bx0, CEIL, 0.0, bx1, TOPY, 0.2, rgb(70, 72, 76), MAT.Metal, solid("WinHead"))
+	bx(ext, bx0, CEIL - 0.03, 0.0, bx1, TOPY, 0.2, rgb(70, 72, 76), MAT.Metal, solid("WinHead"))
 	bx(ext, (bx0 + bx1) / 2 - 0.03, UF + 0.05, 0.02, (bx0 + bx1) / 2 + 0.03, CEIL, 0.18, rgb(70, 72, 76), MAT.Metal, solid("WinMullion"))
 	bx(ext, bx0, UF + 0.05, 0.08, bx1, CEIL, 0.12, GLASS_C, MAT.Glass, glassO("BedroomGlass", 0.68))
 	bx(ext, bx0, UF + 0.92, 0.0, bx1, UF + 0.96, 0.05, rgb(70, 72, 76), MAT.Metal, deco("SafetyBar"))
