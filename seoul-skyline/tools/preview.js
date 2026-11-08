@@ -28,6 +28,9 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--timeout') opt.timeout = +v();
   else if (a === '--prefix') opt.prefix = v();
   else if (a === '--eval') opt.evalLuau = v();
+  else if (a === '--dump') opt.dump = path.resolve(v()); // 빌드된 파트 전체를 JSON 으로 저장(tools/audit_geom.py 입력)
+  else if (a === '--dump-filter') opt.dumpFilter = v(); // 루아 패턴: 경로(GetFullName)가 맞는 파트만
+  else if (a === '--shotfile') { for (const ln of fs.readFileSync(v(), 'utf8').split('\n')) { const t = ln.trim(); if (!t || t.startsWith('#')) continue; const [n, spec] = t.split('='); opt.cams[n.trim()] = spec.trim(); } }
   else if (a === '--pick') opt.pick = v().split(';').map((q) => q.split(',').map(Number));
   else if (a === '--cam') { const [n, spec] = v().split('='); opt.cams[n] = spec; }
 }
@@ -143,6 +146,7 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
     const t = m.text();
     if (t.includes('TERRAIN_JSON[')) { terrain = JSON.parse(t.slice(t.indexOf('TERRAIN_JSON[') + 12)); return; }
     if (t.includes('BUILD_DONE')) done = t;
+    if (t.includes('DUMP_ROWS[')) return;
     if (/GL Driver|quality tier/.test(t)) return;
     if (t.startsWith('[luau]') || t.startsWith('[shell]')) {
       if (/error|Error|실패|ERROR/.test(t)) errors.push(t);
@@ -200,6 +204,61 @@ print(string.format("BUILD_DONE parts=%d lights=%d beacons=%d secs=%.1f", Kit.st
       return n;
     }, terrain);
     console.log('terrain meshes', n, 'ops', terrain.length);
+  }
+  // 에뮬레이터 한정: 빌드 중 부모가 늦게 붙은 SurfaceGui 는 글자 텍스처를 만들지 않음 → Enabled 를 껐다 켜서 다시 그리게 함
+  {
+    const TOGGLE = `
+local root = workspace:WaitForChild("SeoulSkyline")
+local guis = {}
+for _, g in root:GetDescendants() do if g:IsA("SurfaceGui") then g.Enabled = false table.insert(guis, g) end end
+task.wait(0.2)
+for _, g in guis do g.Enabled = true end
+print("GUI_TOGGLED " .. #guis)
+`;
+    let toggled = false;
+    const onT = (m) => { if (m.text().includes('GUI_TOGGLED')) toggled = true; };
+    p.on('console', onT);
+    await ev(BUILD + `local ok, e = pcall(Insert.createScript, svc("ServerScriptService"), "Script", "PreviewGuiToggle", ${lstr(TOGGLE)}) return tostring(ok)`);
+    for (let i = 0; i < 60 && !toggled; i++) await p.waitForTimeout(250);
+    p.off('console', onT);
+  }
+  if (opt.dump) {
+    // 파트 덤프: 한 줄에 200 개씩 DUMP_ROWS[...] 로 출력 → 합쳐서 JSON 저장
+    const filt = opt.dumpFilter ? lstr(opt.dumpFilter) : 'nil';
+    const DUMP = `
+local root = workspace:WaitForChild("SeoulSkyline")
+local filt = ${filt}
+local rows, n = {}, 0
+local function flush() if #rows > 0 then print("DUMP_ROWS[" .. table.concat(rows, ",") .. "]") rows = {} end end
+for _, p in root:GetDescendants() do
+  if p:IsA("BasePart") then
+    local full = string.gsub(p:GetFullName(), '[%c"' .. string.char(92) .. ']', "_")
+    if filt == nil or string.find(full, filt) then
+      local c = { p.CFrame:GetComponents() }
+      local shape = "Block"
+      if p:IsA("WedgePart") then shape = "Wedge" elseif p:IsA("CornerWedgePart") then shape = "Corner" elseif p:IsA("Part") then shape = p.Shape.Name end
+      if p:FindFirstChildOfClass("SpecialMesh") then shape = "Mesh" end
+      local col = p.Color
+      table.insert(rows, string.format('["%s","%s",%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f,%q,%.2f,%d,%d,%d,%d,%d]',
+        full, shape, p.Size.X, p.Size.Y, p.Size.Z, c[1], c[2], c[3], c[4], c[5], c[6], c[7], c[8], c[9], c[10], c[11], c[12],
+        p.Material.Name, p.Transparency, math.floor(col.R * 255 + 0.5), math.floor(col.G * 255 + 0.5), math.floor(col.B * 255 + 0.5), p.CanCollide and 1 or 0, #p:GetChildren()))
+      n += 1
+      if #rows >= 200 then flush() end
+    end
+  end
+end
+flush()
+print("DUMP_DONE " .. n)
+`;
+    const dumpRows = []; let dumpDone = false;
+    const onMsg = (m) => { const t = m.text(); const i = t.indexOf('DUMP_ROWS['); if (i >= 0) dumpRows.push(...JSON.parse(t.slice(i + 9))); else if (t.includes('DUMP_DONE')) dumpDone = true; };
+    p.on('console', onMsg);
+    await ev(BUILD + `local ok, e = pcall(Insert.createScript, svc("ServerScriptService"), "Script", "PreviewDump", ${lstr(DUMP)}) return tostring(ok)`);
+    for (let i = 0; i < 600 && !dumpDone; i++) await p.waitForTimeout(500);
+    p.off('console', onMsg);
+    const cols = ['path', 'shape', 'sx', 'sy', 'sz', 'x', 'y', 'z', 'r00', 'r01', 'r02', 'r10', 'r11', 'r12', 'r20', 'r21', 'r22', 'material', 'transparency', 'r', 'g', 'b', 'collide', 'children'];
+    fs.writeFileSync(opt.dump, JSON.stringify({ cols, rows: dumpRows }));
+    console.log('dump', opt.dump, dumpRows.length, dumpDone ? 'parts' : 'parts (INCOMPLETE)');
   }
   if (opt.evalLuau) console.log('eval:', await ev(BUILD + `local ok, e = pcall(Insert.createScript, svc("ServerScriptService"), "Script", "PreviewEval", ${lstr(opt.evalLuau)}) return tostring(ok)`));
   await p.addStyleTag({ content: '*{visibility:hidden !important} canvas.gw-shot{visibility:visible !important}' });

@@ -5,6 +5,7 @@
 --   * Boats    : SeoulBoat 유람선 운항(U턴 루프)
 --   * CameraFx : 접속 인트로 시네마틱 + 포토 스팟 사진 모드
 --   * ElevatorFx : 엘리베이터 탑승 시 화면 페이드(서버가 순간 이동 처리)
+--   * AutoDoors : 편의점 등 자동 미닫이문(태그 SeoulAutoDoor) 근접 감지 열림/닫힘
 -- 맵이 Studio 에서 구워졌든 실행 중 생성되든 동작: Workspace.SeoulSkyline 이 나타날 때까지 기다리고,
 -- 맵이 지워지거나 다시 생성되면(Build() 재실행) 모든 시스템을 정리한 뒤 새 루트로 다시 시작합니다.
 -- 루트 속성 Traffic / Beacons / Boats / TrafficDensity / IntroCinematic 로 켜고 끕니다(변경 시 재시작).
@@ -15,12 +16,14 @@ local Beacons = require(script:WaitForChild("Beacons"))
 local Boats = require(script:WaitForChild("Boats"))
 local CameraFx = require(script:WaitForChild("CameraFx"))
 local ElevatorFx = require(script:WaitForChild("ElevatorFx"))
+local AutoDoors = require(script:WaitForChild("AutoDoors"))
 
 type System = { start: (Model) -> () -> () }
 local SYSTEMS: { { name: string, mod: System } } = {
 	{ name = "Traffic", mod = Traffic :: any },
 	{ name = "Beacons", mod = Beacons :: any },
 	{ name = "Boats", mod = Boats :: any },
+	{ name = "AutoDoors", mod = AutoDoors :: any },
 }
 local RESTART_ATTRS = { Traffic = true, Beacons = true, Boats = true }
 

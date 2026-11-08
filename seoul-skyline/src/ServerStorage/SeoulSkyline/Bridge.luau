@@ -403,30 +403,45 @@ local function buildAbutment(parent: Instance, zToe: number, zCrest: number)
 end
 
 ------------------------------------------------------------------------------------------------------
--- 양끝 도시 도로 토막 (제방 도로 바깥 ~ ZFrom/ZTo, 평탄 Y_END)
+-- 양끝 도시 도로 토막 (ZFrom/ZTo ~ 제방 도로 띠, 평탄 Y_END)
+--   제방 고속화도로(Riverside)는 실제 8차로 폭 W_ROAD_REAL(32.8 m)로 Config 의 RoadFrom..RoadTo(27 m)보다 도시 쪽으로 넘침.
+--   다리 입구에서 Riverside 는 넘친 부분을 비워 두므로 토막의 포장은 RoadTo 까지 덮되, 분리대·보도·차선은 고속도로의
+--   실제 가장자리(zEdge = RoadFrom ∓ 32.8 m)에서 끝내고, 고속도로로 들어가는 차로에 정지선(폭 0.45 m)을 그림.
 ------------------------------------------------------------------------------------------------------
-local function buildStub(parent: Instance, z0: number, z1: number)
-	local len = math.abs(z1 - z0)
-	if len < 1 then
-		return
+local W_ROAD_REAL = m(32.8) -- Riverside XS.wall[2] (방음벽 바깥면) 과 같은 값
+
+local function buildStub(parent: Instance, zCity: number, zRoad: number, zEdge: number)
+	local function span(za: number, zb: number): (number, number)
+		return (za + zb) / 2, math.abs(zb - za)
 	end
-	local zc = (z0 + z1) / 2
-	local cf = CFrame.new(BX, Y_END, zc)
-	local function box(x: number, y0: number, y1: number, w: number, o: PartOpts, l: number?)
-		local ll = l or len
-		Kit.part(parent, cf * CFrame.new(x, (y0 + y1) / 2, 0), Vector3.new(w, y1 - y0, ll), o)
+	local function box(x: number, y0: number, y1: number, w: number, za: number, zb: number, o: PartOpts)
+		local zc, len = span(za, zb)
+		if len < 0.5 then
+			return
+		end
+		Kit.part(parent, CFrame.new(BX + x, Y_END + (y0 + y1) / 2, zc), Vector3.new(w, y1 - y0, len), o)
 	end
-	-- 도시 지면이 아직 없어도 떠 보이지 않도록 깊게(윗면만 지면 위 0.4)
-	box(0, -m(3), 0, B.Width, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
-	box(0, -0.2, BARRIER_H, BARRIER_HALF * 2, solid("MedianBarrier", CONC, Enum.Material.Concrete), len - m(3))
+	local dir = if zRoad > zCity then 1 else -1 -- 도시 → 강(고속도로) 방향
+	-- 포장: 도시 끝 ~ 제방 도로 띠(RoadTo). 도시 지면이 아직 없어도 떠 보이지 않도록 깊게(윗면만 지면 위 0.4)
+	box(0, -m(3), 0, B.Width, zCity, zRoad, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
+	-- 분리대·보도·노면표시: 도시 끝 ~ 고속도로 실제 가장자리
+	local zM = zEdge - dir * m(1.5) -- 분리대 끝은 가장자리에서 1.5 m 물림(정지선 앞)
+	box(0, -0.2, BARRIER_H, BARRIER_HALF * 2, zCity + dir * m(1.5), zM, solid("MedianBarrier", CONC, Enum.Material.Concrete))
 	for _, side in { -1, 1 } do
-		box(side * (CURB_X + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - CURB_X, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
-		box(side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
-		box(side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
+		box(side * (CURB_X + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - CURB_X, zCity, zEdge, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
+		box(side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zCity, zEdge - dir * m(0.6), decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
+		box(side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zCity, zEdge - dir * m(0.6), decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
+		local len = math.abs(zEdge - zCity)
 		for k = 1, 3 do
-			box(side * (LANE_X0 + k * LANE_W), MARK_T - 0.5, MARK_T, LINE_W, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic), math.min(DASH_LEN, len - m(2)))
+			local dl = math.min(DASH_LEN, len - m(4))
+			local z0 = zCity + dir * m(1)
+			box(side * (LANE_X0 + k * LANE_W), MARK_T - 0.5, MARK_T, LINE_W, z0, z0 + dir * dl, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic))
 		end
 	end
+	-- 정지선: 고속도로 쪽으로 진행하는 차로(+Z 진행 = -X 쪽, -Z 진행 = +X 쪽; 우측통행)
+	local stopSide = if dir > 0 then -1 else 1
+	local zs = zEdge - dir * m(0.6)
+	box(stopSide * (LANE_X0 + 2 * LANE_W), MARK_T - 0.5, MARK_T, 4 * LANE_W - LINE_W, zs - dir * m(0.45), zs, decor("StopLine", PAINT_W, Enum.Material.SmoothPlastic))
 end
 
 ------------------------------------------------------------------------------------------------------
@@ -486,8 +501,8 @@ function Bridge.build(ctx: any)
 	end
 	buildAbutment(endF, F.ParkTo, Z_A)
 	buildAbutment(endF, N.ParkTo, Z_B)
-	buildStub(endF, B.ZFrom, F.RoadTo)
-	buildStub(endF, N.RoadTo, B.ZTo)
+	buildStub(endF, B.ZFrom, F.RoadTo, F.RoadFrom - W_ROAD_REAL)
+	buildStub(endF, B.ZTo, N.RoadTo, N.RoadFrom + W_ROAD_REAL)
 
 	registerLanes(zs)
 
