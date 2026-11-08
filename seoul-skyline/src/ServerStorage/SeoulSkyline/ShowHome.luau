@@ -88,7 +88,7 @@ local HALL_CEIL = HF + 2.35
 local REC = 0.12
 local RX0, RX1, RZ0, RZ1 = 3.7, 7.4, 2.05, 5.55
 -- 주방 창(뒷벽) 개구: x, UF 기준 높이
-local KW_X0, KW_X1, KW_Y0, KW_Y1 = 0.8, 2.6, 1.05, 2.1
+local KW_X0, KW_X1, KW_Y0, KW_Y1 = 0.8, 2.6, 1.3, 2.1
 
 -- 색 / 재질
 local WALL_EXT = rgb(226, 220, 208) -- 외벽 크림
@@ -942,11 +942,11 @@ local W4X0, W4X1 = 8.0, 8.15 -- 거실/복도 ↔ 안방·욕실·서재 벽
 local function unitEnvelope(ext: Model)
 	-- 뒷벽(z 9.6..9.85): 주방 창 + 현관문 개구부
 	local z0, z1 = 9.6, DEPTH
-	local ky0, ky1 = UF + 1.05, UF + 2.1
-	bx(ext, 0, SLAB_TOP, z0, 0.8, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
-	bx(ext, 0.8, SLAB_TOP, z0, 2.6, ky0, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
-	bx(ext, 0.8, ky1, z0, 2.6, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
-	bx(ext, 2.6, SLAB_TOP, z0, FD_X0, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
+	local ky0, ky1 = UF + KW_Y0, UF + KW_Y1
+	bx(ext, 0, SLAB_TOP, z0, KW_X0, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
+	bx(ext, KW_X0, SLAB_TOP, z0, KW_X1, ky0, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
+	bx(ext, KW_X0, ky1, z0, KW_X1, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
+	bx(ext, KW_X1, SLAB_TOP, z0, FD_X0, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
 	bx(ext, FD_X0, HF + DOOR_H, z0, FD_X1, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
 	bx(ext, FD_X1, SLAB_TOP, z0, LINE_W - FIN_T / 2, TOPY, z1, WALL_EXT, MAT.Concrete, solid("BackWall"))
 	-- 주방 창

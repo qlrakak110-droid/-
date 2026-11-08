@@ -273,13 +273,14 @@ local function expressway(parent: Instance, spec: RoadSpec)
 	local mouth = { GAP_MOUTH }
 	local x0, x1 = spec.x0, spec.x1
 	-- 포장: Config 띠 안쪽은 연속, 도시 쪽 넘친 부분은 다리 입구에서 비움
+	-- 포장 양끝(맵 끝)은 0.05 안쪽: 도시 지면 타일 끝면과 같은 평면 회피
 	local uBand = math.abs(spec.bandEnd - e)
 	local zb0, zb1 = e, e + s * uBand
-	stripX(parent, x0, x1, (zb0 + zb1) / 2, uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false })
+	stripX(parent, x0 + 0.05, x1 - 0.05, (zb0 + zb1) / 2, uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false })
 	if W_ROAD > uBand + 0.5 then
 		-- 도시 쪽 끝은 방음벽 기단 바깥면보다 0.05 안쪽(기단 속) → 두 면이 같은 평면에 겹치지 않음
 		local ze = e + s * (W_ROAD - 0.05)
-		stripX(parent, x0, x1, (zb1 + ze) / 2, W_ROAD - 0.05 - uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false }, mouth)
+		stripX(parent, x0 + 0.05, x1 - 0.05, (zb1 + ze) / 2, W_ROAD - 0.05 - uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false }, mouth)
 	end
 	-- 노면표시: 안쪽 노란 실선 + 바깥 흰 실선 + 차로 구분선(흰색, 원거리는 생략)
 	local function line(um: number, wm: number, c: Color3, lim: number)
@@ -305,14 +306,23 @@ local function expressway(parent: Instance, spec: RoadSpec)
 	-- 도시 쪽 방음벽 (콘크리트 기단 1 m + 반투명 패널) — 간선도로 접속부·다리 입구에서 끊김
 	local cg = table.clone(spec.cityGaps)
 	table.insert(cg, GAP_MOUTH)
-	-- 투명 패널은 기단보다 끊기는 곳마다 0.1 짧게(끝면이 기단 끝면과 같은 평면에 겹치지 않음)
-	local cgPanel: { Span } = {}
-	for _, g in cg do
-		table.insert(cgPanel, { g[1] - 0.1, g[2] + 0.1 })
-	end
 	zc, w = zMid(XS.wall)
 	stripX(parent, x0 + 0.1, x1 - 0.1, zc, w, ROAD_TOP + WALL_BASE_H, WALL_BASE_H + 0.3, BARRIER_C, MAT.Concrete, { name = "SoundWallBase" }, cg)
-	stripX(parent, x0 + 0.2, x1 - 0.2, zc, m(0.15), ROAD_TOP + WALL_H, WALL_H - WALL_BASE_H + 0.3, WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false }, cgPanel)
+	-- 투명 패널: 기단과 같은 조각으로 나누되, 끊기는 곳(간선 접속부·다리 입구·맵 끝)에서는 0.1 짧게
+	-- (끝면이 기단 끝면과 같은 평면에 겹치지 않음; 조각 사이 이음은 기단과 같은 위치라 기단 속에 숨음)
+	local wallSpans = spans(x0 + 0.1, x1 - 0.1, MAXP, cg)
+	local panelH = WALL_H - WALL_BASE_H + 0.3
+	for i, sp in wallSpans do
+		local a, b = sp[1], sp[2]
+		local prev, nxt = wallSpans[i - 1], wallSpans[i + 1]
+		if not (prev and prev[2] == a) then
+			a += 0.1
+		end
+		if not (nxt and nxt[1] == b) then
+			b -= 0.1
+		end
+		Kit.box(parent, CFrame.new((a + b) / 2, ROAD_TOP + WALL_H - panelH / 2, zc), Vector3.new(b - a, panelH, m(0.15)), WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false })
+	end
 	-- 중앙 쌍가로등 (11 m, 38 m 간격): 기둥 + 양팔 LED 등기구(멀리서는 한 점의 불빛)
 	local zMed = zMid(XS.median)
 	local lit = 0

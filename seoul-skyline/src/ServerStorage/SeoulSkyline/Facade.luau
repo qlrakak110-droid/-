@@ -408,7 +408,9 @@ local function mid(m: Model, spec: TowerSpec, rng: Random): number
 	local lit = spec.lit or LIT_HOME
 	local nb = math.clamp(math.floor(h / 36), 1, 6)
 	-- 띠는 모두 같은 단면(w+1 × d+1)이라 높이가 겹치면 옆면 4개가 같은 평면에서 깜빡임 →
-	-- 난수는 그대로 뽑은 뒤 아래 끝 순으로 훑어 겹친 부분을 위 띠에서 잘라냄(합친 모양은 그대로, 이음매 0.02)
+	-- 난수는 그대로 뽑은 뒤 아래 끝 순으로 훑어 겹친 부분을 위 띠에서 잘라냄(합친 모양은 그대로, 이음매 0.02).
+	-- 앞 띠들에 완전히 덮이는 띠도 파트는 그대로 만듦(CityCarpet/Apartments 가 실제 파트 수로 예산을 재므로 수가 바뀌면
+	-- 배치·난수 흐름이 달라짐) — 단면을 0.15 씩 줄여 덮는 띠 속에 묻음.
 	local bands: { { any } } = {}
 	for _ = 1, nb do
 		if rng:NextNumber() < (spec.litChance or 0.75) then
@@ -431,6 +433,8 @@ local function mid(m: Model, spec: TowerSpec, rng: Random): number
 		if y1 - y0 >= 0.2 then
 			Kit.box(m, base * CFrame.new(0, (y0 + y1) / 2, 0), Vector3.new(w + 1, y1 - y0, d + 1), b[3], Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body })
 			covered = y1
+		else
+			Kit.box(m, base * CFrame.new(0, (b[1] + b[2]) / 2, 0), Vector3.new(w + 0.7, b[2] - b[1], d + 0.7), b[3], Enum.Material.Neon, { name = "Band", glow = true, collide = false, query = false, dayColor = body })
 		end
 	end
 	if spec.crown == "led" then
