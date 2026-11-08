@@ -1219,7 +1219,7 @@ local function unitLiving(g: Model, rng: Random)
 	-- 65" 벽걸이 TV(1.45 × 0.83, 두께 2.5 cm) + 숨은 브래킷
 	local ty0 = UF + 0.8
 	bx(g, sx - 0.035, ty0 + 0.2, tvz - 0.25, sx, ty0 + 0.63, tvz + 0.25, rgb(30, 30, 32), MAT.Metal, deco("TVBracket"))
-	bx(g, sx - 0.06, ty0, tvz - 0.725, sx - 0.035, ty0 + 0.83, tvz + 0.725, rgb(14, 14, 16), MAT.SmoothPlastic, { name = "TV65", reflectance = 0.12, shadow = false })
+	bx(g, sx - 0.06, ty0, tvz - 0.725, sx - 0.035, ty0 + 0.83, tvz + 0.725, rgb(14, 14, 16), MAT.SmoothPlastic, { name = "TV65", reflectance = 0.02, shadow = false })
 	-- 낮은 TV 콘솔(월넛, 1.7 m): 몸통 + 들어간 받침 + 앞판 4짝
 	local cx0 = sx - 0.42
 	local cz0, cz1 = tvz - 0.85, tvz + 0.85
