@@ -383,10 +383,23 @@ end
 ------------------------------------------------------------------------------------------------------
 local function buildBase(m: Model, TF: CFrame): { [string]: any }
 	-- 화강석 기단 (포장 위로 0.8 stud 낮은 단: 아바타가 걸어 오를 수 있음)
+	-- rsquare 와 같은 십자 블록 2 + 모서리 원기둥 4. 모서리 원기둥 윗면만 0.05 낮춤: 원기둥 윗면(원)이 십자 블록 윗면과
+	-- 같은 평면에서 겹치면 걸어 다니는 기단 모서리에서 Slate 무늬가 깜빡임(1.5 cm 단차는 눈에 띄지 않음)
 	local pw = T.BaseWidth + m2s(8)
-	rsquare(m, TF * CFrame.new(0, PLINTH_H / 2, 0), pw, PLINTH_H, pw * CORNER_R, P.ConcreteGrey, P.ConcreteGrey, P.ConcreteGrey, function(c: Color3, cyl: boolean): PartOpts
-		return { name = "Plinth", shape = if cyl then "Cylinder" else "Block", material = Enum.Material.Slate, color = c, collide = true, shadow = false }
-	end)
+	do
+		local function plinthO(cyl: boolean): PartOpts
+			return { name = "Plinth", shape = if cyl then "Cylinder" else "Block", material = Enum.Material.Slate, color = P.ConcreteGrey, collide = true, shadow = false }
+		end
+		local rr = math.clamp(pw * CORNER_R, 0.4, pw * 0.45)
+		local cf = TF * CFrame.new(0, PLINTH_H / 2, 0)
+		Kit.part(m, cf, Vector3.new(pw, PLINTH_H, pw - 2 * rr), plinthO(false))
+		Kit.part(m, cf, Vector3.new(pw - 2 * rr, PLINTH_H, pw), plinthO(false))
+		local o = pw / 2 - rr
+		local ch = PLINTH_H - 0.05
+		for _, s in CORNERS do
+			Kit.part(m, TF * CFrame.new(s[1] * o, ch / 2, s[2] * o) * CYL_UP, Vector3.new(ch, 2 * rr, 2 * rr), plinthO(true))
+		end
+	end
 	-- 로비 유리 상자(금빛 발광, 13.5 m): 첫 슬래브보다 1.5 m 안쪽.
 	-- 정면(+Z) 가운데는 걸어 들어갈 수 있는 로비 홀(32 × 25 m, 천장 13.5 m) + 뒷벽 엘리베이터 알코브로 비워 둠.
 	-- 나머지는 이전처럼 금빛 발광 덩어리(코어/후방 공간) — 조각끼리 맞닿기만 함.

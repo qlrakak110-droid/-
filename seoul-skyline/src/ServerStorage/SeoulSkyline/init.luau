@@ -37,6 +37,7 @@ SeoulSkyline.MODULES = {
 	"Apartments",
 	"CityCarpet",
 	"WaterFx",
+	"Streetscape", -- 잠실대교 일대 도로 안내 표지(문형·교명주·도로명판·버스정류소·공원 안내) — 기존 지오메트리를 읽어 배치하므로 마지막
 }
 
 local function hash(s: string): number
