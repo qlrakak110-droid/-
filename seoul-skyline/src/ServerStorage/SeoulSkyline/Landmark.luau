@@ -353,13 +353,16 @@ local function buildShaft(m: Model, TF: CFrame, rng: Random): (number, { [string
 		local wTop = widthAt(y1 + slabH / 2)
 		local refuge = (k % REFUGE_EVERY) == REFUGE_EVERY - 1
 		local cA, cB = coreColor(rng, t, 1.0, refuge), coreColor(rng, t, 0.7, refuge) -- ±Z 면은 어둡게(면 대비)
-		rsquare(m, TF * CFrame.new(0, (y0 + y1) / 2, 0), wTop - 2 * CORE_INSET, hs, wTop * CORNER_R - CORE_INSET, cA, cB, cA:Lerp(cB, 0.5), coreMk)
+		-- 바닥은 첫 슬래브 속 0.05 위(슬래브 아랫면·아래 코어 윗면과 같은 평면 없음; 로비 홀 천장에서도 깜빡임 없음)
+		rsquare(m, TF * CFrame.new(0, (y0 + 0.05 + y1) / 2, 0), wTop - 2 * CORE_INSET, hs - 0.05, wTop * CORNER_R - CORE_INSET, cA, cB, cA:Lerp(cB, 0.5), coreMk)
 		-- 3) 면 중앙 솔기 (관통 핀 2개 → 4면)
 		if y0 >= H * SEAM_FROM then
+			-- 전망대 바로 아래 세그먼트: 윗면이 코어 윗면(스카이데크 유리 바닥 아래로 보임)과 같은 평면이 되지 않게 0.06 낮춤
+			local sh = if k == obsFrom - 1 then hs - 0.06 else hs
 			local L = wsMax + 1.4
-			local cf = TF * CFrame.new(0, (y0 + y1) / 2, 0)
-			Kit.part(m, cf, Vector3.new(SEAM_W, hs, L), seamMk(SEAM_C, false))
-			Kit.part(m, cf, Vector3.new(L, hs, SEAM_W), seamMk(SEAM_C, false))
+			local cf = TF * CFrame.new(0, y0 + sh / 2, 0)
+			Kit.part(m, cf, Vector3.new(SEAM_W, sh, L), seamMk(SEAM_C, false))
+			Kit.part(m, cf, Vector3.new(L, sh, SEAM_W), seamMk(SEAM_C, false))
 		end
 	end
 	-- 항공장애등: 중간 높이 모서리 4개
@@ -448,9 +451,10 @@ local function buildBase(m: Model, TF: CFrame): { [string]: any }
 		Kit.part(m, TF * CFrame.new((x0 + x1) / 2, (y0 + y1) / 2, gz), Vector3.new(x1 - x0, y1 - y0, OBS_GLASS_T), glassO)
 	end
 	local dTop = LOBBY_FLOOR + DOOR_H
-	pane(-HX, doorXs[1] - DOOR_W / 2, gy0, gy1)
+	-- 양끝 유리는 옆 로비 벽 덩어리 속으로 0.05(끝면이 홀 바닥 옆면과 같은 평면에 놓이지 않게)
+	pane(-HX - 0.05, doorXs[1] - DOOR_W / 2, gy0, gy1)
 	pane(doorXs[1] + DOOR_W / 2, doorXs[2] - DOOR_W / 2, gy0, gy1)
-	pane(doorXs[2] + DOOR_W / 2, HX, gy0, gy1)
+	pane(doorXs[2] + DOOR_W / 2, HX + 0.05, gy0, gy1)
 	for _, dx in doorXs do
 		pane(dx - DOOR_W / 2, dx + DOOR_W / 2, dTop + 0.8, gy1)
 		Kit.box(m, TF * CFrame.new(dx, dTop + 0.45, gz - 0.25), Vector3.new(DOOR_W + 0.6, 0.9, 1.3), P.Mullion, Enum.Material.Metal, { name = "DoorHeader", collide = true, shadow = false })
@@ -600,6 +604,8 @@ local function buildHall(m: Model, rng: Random, HF: CFrame, hw: number, hd: numb
 	end
 	ring(hh - slabH, hh, 0.2, 2, nil, slabO)
 	-- 3) 멀리언(6 m): 면마다 짧은 핀(외벽 -1.1 ~ +0.5). 입구 칸은 통로 천장 위부터.
+	--    꼭대기는 상단 슬래브 윗면보다 0.1 아래(전망대에서 내려다보는 지붕 테두리에서 같은 평면 없음)
+	local finTop = hh - 0.1
 	local bay = m2s(6)
 	local nx = math.max(1, math.floor(hw / bay))
 	local nz = math.max(1, math.floor(hd / bay))
@@ -608,17 +614,17 @@ local function buildHall(m: Model, rng: Random, HF: CFrame, hw: number, hd: numb
 		local x = -HXo + i * (hw / nx)
 		for _, sz in { -1, 1 } do
 			local yb = if sz == 1 and math.abs(x) < EX + 0.6 then HALL_ET else fy0
-			Kit.part(m, HF * CFrame.new(x, (yb + hh) / 2, sz * (HZo - 0.3)), Vector3.new(1.1, hh - yb, 1.6), finO)
+			Kit.part(m, HF * CFrame.new(x, (yb + finTop) / 2, sz * (HZo - 0.3)), Vector3.new(1.1, finTop - yb, 1.6), finO)
 		end
 	end
 	for i = 1, nz - 1 do
 		local z = -HZo + i * (hd / nz)
 		for _, sx in { -1, 1 } do
-			Kit.part(m, HF * CFrame.new(sx * (HXo - 0.3), (fy0 + hh) / 2, z), Vector3.new(1.6, hh - fy0, 1.1), finO)
+			Kit.part(m, HF * CFrame.new(sx * (HXo - 0.3), (fy0 + finTop) / 2, z), Vector3.new(1.6, finTop - fy0, 1.1), finO)
 		end
 	end
 	for _, s in CORNERS do
-		Kit.part(m, HF * CFrame.new(s[1] * HXo, (fy0 + hh) / 2, s[2] * HZo), Vector3.new(2.2, hh - fy0, 2.2), { name = "Corner", material = Enum.Material.Metal, color = P.Mullion, collide = false, shadow = false })
+		Kit.part(m, HF * CFrame.new(s[1] * HXo, (fy0 + finTop) / 2, s[2] * HZo), Vector3.new(2.2, finTop - fy0, 2.2), { name = "Corner", material = Enum.Material.Metal, color = P.Mullion, collide = false, shadow = false })
 	end
 	-- 4) 꺼진 창 패치(위 불빛 띠, 코어 앞 0.1)
 	local s1 = fy0 + floorH + slabH
@@ -663,7 +669,8 @@ local function buildHall(m: Model, rng: Random, HF: CFrame, hw: number, hd: numb
 	for _, sx in { -1, 1 } do
 		pane(sx * dx - DOOR_W / 2, sx * dx + DOOR_W / 2, dTop + 0.8, gy1)
 		Kit.box(m, HF * CFrame.new(sx * dx, dTop + 0.45, ez - 0.25), Vector3.new(DOOR_W + 0.6, 0.9, 1.3), P.Mullion, Enum.Material.Metal, { name = "DoorHeader", collide = true, shadow = false })
-		Kit.box(m, HF * CFrame.new(sx * EX, HALL_ET / 2, (HZi + HZo) / 2 - 0.1), Vector3.new(1.2, HALL_ET, inset + 0.4), P.Mullion, Enum.Material.Metal, { name = "Jamb", collide = true, shadow = false })
+		-- 문설주 안쪽 면은 통로 벽 마감 면(EX - 0.6)보다 0.05 통로 쪽(같은 평면 회피)
+		Kit.box(m, HF * CFrame.new(sx * (EX - 0.025), HALL_ET / 2, (HZi + HZo) / 2 - 0.1), Vector3.new(1.25, HALL_ET, inset + 0.4), P.Mullion, Enum.Material.Metal, { name = "Jamb", collide = true, shadow = false })
 	end
 	return {
 		cf = HF,
@@ -836,10 +843,11 @@ local function buildPlaza(m: Model, rng: Random, TF: CFrame, px0: number, pz0: n
 	local function pave(x0: number, z0: number, x1: number, z1: number, c: Color3, mat: Enum.Material)
 		Kit.box(m, CFrame.new((x0 + x1) / 2, (top + bot) / 2, (z0 + z1) / 2), Vector3.new(x1 - x0, top - bot, z1 - z0), c, mat, { name = "Paving", collide = true })
 	end
-	-- 서로 겹치지 않는 3장: 타워 광장(뒤) / 타워 광장(앞) / 몰 포디움
+	-- 서로 겹치지 않는 3장: 타워 광장(뒤) / 타워 광장(앞) / 몰 포디움 — 맞닿는 변은 0.005 띄움(윗면이 같은 평면에서 겹치지 않게)
+	local SEAM = 0.005
 	pave(px0, pz0, px1, mz0, PAVE_C, Enum.Material.Slate)
-	pave(px0, mz0, mx0, pz1, PAVE_C, Enum.Material.Slate)
-	pave(mx0, mz0, mx1, mz1, rgb(108, 108, 110), Enum.Material.Concrete)
+	pave(px0, mz0 + SEAM, mx0, pz1, PAVE_C, Enum.Material.Slate)
+	pave(mx0 + SEAM, mz0 + SEAM, mx1, mz1, rgb(108, 108, 110), Enum.Material.Concrete)
 	-- 타워 둘레: 밝은 돌띠(바깥, 2 m) + 바닥 조명 띠(안쪽, 0.6 m) — 포장보다 0.3 위. 모서리가 겹치지 않게 짝/홀 면 길이를 다르게.
 	local function ring(side: number, wdt: number, c: Color3, neon: boolean)
 		for f = 0, 3 do

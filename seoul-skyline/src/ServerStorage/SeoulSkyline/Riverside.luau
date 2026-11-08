@@ -277,8 +277,9 @@ local function expressway(parent: Instance, spec: RoadSpec)
 	local zb0, zb1 = e, e + s * uBand
 	stripX(parent, x0, x1, (zb0 + zb1) / 2, uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false })
 	if W_ROAD > uBand + 0.5 then
-		local ze = e + s * W_ROAD
-		stripX(parent, x0, x1, (zb1 + ze) / 2, W_ROAD - uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false }, mouth)
+		-- 도시 쪽 끝은 방음벽 기단 바깥면보다 0.05 안쪽(기단 속) → 두 면이 같은 평면에 겹치지 않음
+		local ze = e + s * (W_ROAD - 0.05)
+		stripX(parent, x0, x1, (zb1 + ze) / 2, W_ROAD - 0.05 - uBand, ROAD_TOP, ROAD_TOP - spec.slabBottom, ASPHALT, MAT.Asphalt, { name = "Road", shadow = false }, mouth)
 	end
 	-- 노면표시: 안쪽 노란 실선 + 바깥 흰 실선 + 차로 구분선(흰색, 원거리는 생략)
 	local function line(um: number, wm: number, c: Color3, lim: number)
@@ -294,17 +295,24 @@ local function expressway(parent: Instance, spec: RoadSpec)
 			line(cw[1] + LANE_M * k, 0.15, PAINT_W, DIV_X)
 		end
 	end
-	-- 중앙분리대 / 강 쪽 방호벽 (다리 입구에서 끊김)
+	-- 중앙분리대 / 강 쪽 방호벽 (다리 입구에서 끊김). 도로 양끝(맵 끝)에서는 0.1 안쪽에서 끝남(도로 끝면과 같은 평면 회피).
+	-- 방호벽은 도로 강 쪽 면보다 0.1 강 쪽으로 나와 그 면을 덮음(같은 평면 회피).
 	local zc, w = zMid(XS.median)
-	stripX(parent, x0, x1, zc, w, ROAD_TOP + MEDIAN_H, MEDIAN_H + 0.3, BARRIER_C, MAT.Concrete, { name = "Median" }, mouth)
+	stripX(parent, x0 + 0.1, x1 - 0.1, zc, w, ROAD_TOP + MEDIAN_H, MEDIAN_H + 0.3, BARRIER_C, MAT.Concrete, { name = "Median" }, mouth)
 	zc, w = zMid(XS.parapet)
-	stripX(parent, x0, x1, zc, w, ROAD_TOP + PARAPET_H, PARAPET_H + 0.3, BARRIER_C, MAT.Concrete, { name = "Parapet" }, mouth)
+	zc, w = zc - s * 0.05, w + 0.1
+	stripX(parent, x0 + 0.1, x1 - 0.1, zc, w, ROAD_TOP + PARAPET_H, PARAPET_H + 0.3, BARRIER_C, MAT.Concrete, { name = "Parapet" }, mouth)
 	-- 도시 쪽 방음벽 (콘크리트 기단 1 m + 반투명 패널) — 간선도로 접속부·다리 입구에서 끊김
 	local cg = table.clone(spec.cityGaps)
 	table.insert(cg, GAP_MOUTH)
+	-- 투명 패널은 기단보다 끊기는 곳마다 0.1 짧게(끝면이 기단 끝면과 같은 평면에 겹치지 않음)
+	local cgPanel: { Span } = {}
+	for _, g in cg do
+		table.insert(cgPanel, { g[1] - 0.1, g[2] + 0.1 })
+	end
 	zc, w = zMid(XS.wall)
-	stripX(parent, x0, x1, zc, w, ROAD_TOP + WALL_BASE_H, WALL_BASE_H + 0.3, BARRIER_C, MAT.Concrete, { name = "SoundWallBase" }, cg)
-	stripX(parent, x0, x1, zc, m(0.15), ROAD_TOP + WALL_H, WALL_H - WALL_BASE_H + 0.3, WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false }, cg)
+	stripX(parent, x0 + 0.1, x1 - 0.1, zc, w, ROAD_TOP + WALL_BASE_H, WALL_BASE_H + 0.3, BARRIER_C, MAT.Concrete, { name = "SoundWallBase" }, cg)
+	stripX(parent, x0 + 0.2, x1 - 0.2, zc, m(0.15), ROAD_TOP + WALL_H, WALL_H - WALL_BASE_H + 0.3, WALL_GLASS, MAT.Glass, { name = "SoundWall", transparency = 0.55, shadow = false }, cgPanel)
 	-- 중앙 쌍가로등 (11 m, 38 m 간격): 기둥 + 양팔 LED 등기구(멀리서는 한 점의 불빛)
 	local zMed = zMid(XS.median)
 	local lit = 0
@@ -732,7 +740,8 @@ function Riverside.build(ctx: any)
 
 	-- 1) 도시 지면 (먼 쪽: 올림픽대로 아래부터 / 가까운 쪽: 강변북로 뒤부터)
 	local ground = Kit.group(model, "CityGround")
-	tiles(ground, Z.CarpetFarFar.XMin, Z.CarpetFarFar.XMax, F.RoadFrom, F.CityTo)
+	-- 강 쪽 끝은 제방 도로 강 쪽 면보다 0.05 안쪽(도로 슬래브 속) → 두 면이 같은 평면에 겹치지 않음
+	tiles(ground, Z.CarpetFarFar.XMin, Z.CarpetFarFar.XMax, F.RoadFrom - 0.05, F.CityTo)
 	tiles(ground, NEAR_X0, NEAR_X1, N.RoadTo, N.CityTo)
 
 	-- 간선도로 단면: 다리 축은 다리 폭(4+4 차로 3.5 m, 분리 1 m, 보도 3.5 m = 36 m), 일반 간선 6차로(3.25 m) + 보도 3 m

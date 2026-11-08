@@ -275,7 +275,10 @@ end
 local GROUND_C = rgb(52, 54, 60)
 local function groundPad(parent: Instance, x0: number, x1: number, z0: number, z1: number)
 	local MAXP = 2000
-	local za, zb = math.min(z0, z1), math.max(z0, z1)
+	-- 사방 0.5 안쪽: 도시 지면(Riverside CityGround)과 끝면이 같은 평면에 놓이지 않게(지면 속에 완전히 묻힘)
+	local INSET = 0.5
+	x0, x1 = x0 + INSET, x1 - INSET
+	local za, zb = math.min(z0, z1) + INSET, math.max(z0, z1) - INSET
 	local nx = math.max(1, math.ceil((x1 - x0) / MAXP))
 	local nz = math.max(1, math.ceil((zb - za) / MAXP))
 	local dx, dz = (x1 - x0) / nx, (zb - za) / nz

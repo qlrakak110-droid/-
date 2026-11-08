@@ -214,29 +214,36 @@ end
 ------------------------------------------------------------------------------------------------------
 -- 상판 (세그먼트별 단면)
 ------------------------------------------------------------------------------------------------------
+-- 세그먼트 끝(지점 위 이음부)에서 각 부재가 물러나는 양: 슬래브만 끝까지, 나머지는 서로 다른 양만큼 물러나 끝면끼리
+-- 같은 평면에 겹치지 않음(기울기가 바뀌는 이음부에 생기는 쐐기 틈으로 보이던 깜빡임 제거). 보도 0.1 = 3 cm 신축이음.
+local JOINT_PULL = 0.05
+local JOINT_PULL_WALK = 0.1
+local JOINT_PULL_WEB = 0.08
+
 local function buildDeck(parent: Instance, segs: { Seg })
 	local webY0, webY1 = -GIRDER_D, -SLAB_T + 0.2
 	local webW = WEB_TOP_HALF - GIRDER_HALF + 0.3
+	local jp, jw = JOINT_PULL, JOINT_PULL_WALK
 	for _, seg in segs do
 		local len = seg.len
 		-- 슬래브(아스팔트 노면) + 박스거더(하부) + 경사 웹(웨지: 윗면 전체, 안쪽 수직면, 바깥으로 얇아짐)
 		along(parent, seg, 0, -SLAB_T, 0, SLAB_HALF * 2, 0, len, solid("DeckSlab", ASPHALT, Enum.Material.Asphalt))
-		along(parent, seg, 0, webY0, webY1, GIRDER_HALF * 2, 0, len, solid("BoxGirder", CONC_GIRDER, Enum.Material.Concrete))
+		along(parent, seg, 0, webY0, webY1, GIRDER_HALF * 2, jp, len - jp, solid("BoxGirder", CONC_GIRDER, Enum.Material.Concrete))
 		-- 중앙분리대 방호벽
-		along(parent, seg, 0, -0.2, BARRIER_H, BARRIER_HALF * 2, 0, len, solid("MedianBarrier", CONC, Enum.Material.Concrete))
+		along(parent, seg, 0, -0.2, BARRIER_H, BARRIER_HALF * 2, jp, len - jp, solid("MedianBarrier", CONC, Enum.Material.Concrete))
 		for _, side in { -1, 1 } do
 			local wx = side * (GIRDER_HALF - 0.3 + webW / 2)
 			local cf = seg.cf * CFrame.new(wx, (webY0 + webY1) / 2, 0) * CFrame.Angles(0, -side * math.pi / 2, 0) * CFrame.Angles(0, 0, math.pi)
-			Kit.wedge(parent, cf, Vector3.new(len, webY1 - webY0, webW), CONC_GIRDER, Enum.Material.Concrete, { name = "GirderWeb" })
+			Kit.wedge(parent, cf, Vector3.new(len - 2 * JOINT_PULL_WEB, webY1 - webY0, webW), CONC_GIRDER, Enum.Material.Concrete, { name = "GirderWeb" })
 			-- 가장자리보(난간 기초) + 빛띠
-			along(parent, seg, side * EDGE_X, FASCIA_BOT, FASCIA_TOP, FASCIA_W, 0, len, solid("Fascia", CONC_FASCIA, Enum.Material.Concrete))
+			along(parent, seg, side * EDGE_X, FASCIA_BOT, FASCIA_TOP, FASCIA_W, jp, len - jp, solid("Fascia", CONC_FASCIA, Enum.Material.Concrete))
 			along(parent, seg, side * (HALF_W + 0.15), FASCIA_BOT + 0.6, FASCIA_BOT + 0.6 + m(0.3), 0.3, 0, len, neon("EdgeLight", EDGE_LED, Enum.Material.Concrete, CONC_FASCIA))
 			-- 보도(연석 높이 WALK_TOP, 가장자리보 속으로 0.3 겹침)
 			local w0, w1 = CURB_X, SLAB_HALF
-			along(parent, seg, side * (w0 + w1) / 2, -0.4, WALK_TOP, w1 - w0, 0, len, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
+			along(parent, seg, side * (w0 + w1) / 2, -0.4, WALK_TOP, w1 - w0, jw, len - jw, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
 			-- 노면표시: 바깥 실선(흰색), 안쪽 실선(노랑)
-			along(parent, seg, side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, 0, len, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
-			along(parent, seg, side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, 0, len, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
+			along(parent, seg, side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, jp, len - jp, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
+			along(parent, seg, side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, jp, len - jp, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
 			-- 난간 레일(상/중간) — 상단 레일은 충돌(추락 방지)
 			along(parent, seg, side * EDGE_X, RAIL_TOP - m(0.05), RAIL_TOP + m(0.05), m(0.1), 0, len, solid("RailTop", METAL, Enum.Material.Metal))
 			along(parent, seg, side * EDGE_X, RAIL_MID - m(0.03), RAIL_MID + m(0.03), m(0.06), 0, len, decor("RailMid", METAL, Enum.Material.Metal))
@@ -248,7 +255,11 @@ local function buildDeck(parent: Instance, segs: { Seg })
 					local a = math.max(mm * DASH_PITCH + DASH_OFF, seg.s0)
 					local b = math.min(mm * DASH_PITCH + DASH_OFF + DASH_LEN, seg.s0 + len)
 					if b - a > 2 then
-						along(parent, seg, x, MARK_T - 0.5, MARK_T, LINE_W, a - seg.s0, b - seg.s0, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic))
+						-- 세그먼트 경계에서 잘린 끝은 슬래브 끝면에서 물러남
+						local la, lb = a - seg.s0, b - seg.s0
+						la = if la < jp then jp else la
+						lb = if lb > len - jp then len - jp else lb
+						along(parent, seg, x, MARK_T - 0.5, MARK_T, LINE_W, la, lb, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic))
 					end
 					mm += 1
 				end
@@ -283,8 +294,8 @@ local function buildLampsAndPosts(parent: Instance, segs: { Seg }, total: number
 			local base = worldAt(seg, side * EDGE_X, FASCIA_TOP, l)
 			zLamp = base.Z
 			Kit.vcyl(parent, base + Vector3.new(0, (LAMP_H + 0.2) / 2 - 0.2, 0), LAMP_H + 0.2, m(0.2), POLE_C, Enum.Material.Metal, { name = "LampPole", collide = true })
-			-- 암: 기둥 꼭대기에서 차도 쪽으로
-			Kit.box(parent, CFrame.new(base + Vector3.new(-side * LAMP_ARM / 2, LAMP_H, 0)), Vector3.new(LAMP_ARM + m(0.1), m(0.1), m(0.12)), POLE_C, Enum.Material.Metal, { name = "LampArm", collide = false, query = false })
+			-- 암: 기둥 꼭대기에서 차도 쪽으로. 끝은 등기구 머리/렌즈 속(렌즈 끝면과 0.2 떨어짐)
+			Kit.box(parent, CFrame.new(base + Vector3.new(-side * LAMP_ARM / 2, LAMP_H, 0)), Vector3.new(LAMP_ARM, m(0.1), m(0.12)), POLE_C, Enum.Material.Metal, { name = "LampArm", collide = false, query = false })
 			-- 등기구 머리(암 끝) + 아래 발광 렌즈
 			local hx = -side * (LAMP_ARM - headL / 2 + m(0.1))
 			Kit.box(parent, CFrame.new(base + Vector3.new(hx, LAMP_H + headH / 2 - m(0.03), 0)), Vector3.new(headL, headH, headD), POLE_C, Enum.Material.Metal, { name = "LampHead", collide = false, query = false })
@@ -423,14 +434,21 @@ local function buildStub(parent: Instance, zCity: number, zRoad: number, zEdge: 
 	end
 	local dir = if zRoad > zCity then 1 else -1 -- 도시 → 강(고속도로) 방향
 	-- 포장: 도시 끝 ~ 제방 도로 띠(RoadTo). 도시 지면이 아직 없어도 떠 보이지 않도록 깊게(윗면만 지면 위 0.4)
-	box(0, -m(3), 0, B.Width, zCity, zRoad, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
+	-- 도시 쪽 끝은 0.02 물림(이어지는 간선도로 포장과 윗면이 겹치지 않게)
+	box(0, -m(3), 0, B.Width, zCity + dir * 0.02, zRoad, solid("RoadSlab", ASPHALT, Enum.Material.Asphalt))
+	-- 보도·노면표시는 포장 끝면/옆면에서 0.05 안쪽(포장과 끝면·옆면이 같은 평면에 겹치지 않게)
+	local zIn = zCity + dir * 0.07
 	-- 분리대·보도·노면표시: 도시 끝 ~ 고속도로 실제 가장자리
 	local zM = zEdge - dir * m(1.5) -- 분리대 끝은 가장자리에서 1.5 m 물림(정지선 앞)
 	box(0, -0.2, BARRIER_H, BARRIER_HALF * 2, zCity + dir * m(1.5), zM, solid("MedianBarrier", CONC, Enum.Material.Concrete))
+	-- 정지선: 고속도로 쪽으로 진행하는 차로(+Z 진행 = -X 쪽, -Z 진행 = +X 쪽; 우측통행). 그쪽 실선은 정지선 앞에서 끝남.
+	local stopSide = if dir > 0 then -1 else 1
+	local zs = zEdge - dir * m(0.6)
 	for _, side in { -1, 1 } do
-		box(side * (CURB_X + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - CURB_X, zCity, zEdge, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
-		box(side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zCity, zEdge - dir * m(0.6), decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
-		box(side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zCity, zEdge - dir * m(0.6), decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
+		local zLine = if side == stopSide then zs - dir * m(0.45) else zs
+		box(side * (CURB_X - 0.05 + HALF_W) / 2, -0.4, WALK_TOP, HALF_W - 0.05 - CURB_X, zIn, zEdge, solid("Sidewalk", WALK_C, Enum.Material.Pavement))
+		box(side * (CURB_X - 0.5 - LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zIn, zLine, decor("EdgeLine", PAINT_W, Enum.Material.SmoothPlastic))
+		box(side * (LANE_X0 + LINE_W / 2), MARK_T - 0.5, MARK_T, LINE_W, zIn, zLine, decor("CenterLine", PAINT_Y, Enum.Material.SmoothPlastic))
 		local len = math.abs(zEdge - zCity)
 		for k = 1, 3 do
 			local dl = math.min(DASH_LEN, len - m(4))
@@ -438,9 +456,6 @@ local function buildStub(parent: Instance, zCity: number, zRoad: number, zEdge: 
 			box(side * (LANE_X0 + k * LANE_W), MARK_T - 0.5, MARK_T, LINE_W, z0, z0 + dir * dl, decor("LaneDash", PAINT_W, Enum.Material.SmoothPlastic))
 		end
 	end
-	-- 정지선: 고속도로 쪽으로 진행하는 차로(+Z 진행 = -X 쪽, -Z 진행 = +X 쪽; 우측통행)
-	local stopSide = if dir > 0 then -1 else 1
-	local zs = zEdge - dir * m(0.6)
 	box(stopSide * (LANE_X0 + 2 * LANE_W), MARK_T - 0.5, MARK_T, 4 * LANE_W - LINE_W, zs - dir * m(0.45), zs, decor("StopLine", PAINT_W, Enum.Material.SmoothPlastic))
 end
 
