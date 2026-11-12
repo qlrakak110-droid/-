@@ -107,6 +107,7 @@ export function installRibbons(vfx, shared) {
   const idx = new Uint16Array(VMAX * 3);
   const attr = (arr, n) => { const a = new THREE.BufferAttribute(arr, n); a.setUsage(THREE.DynamicDrawUsage); return a; };
   const aPos = attr(pos, 3), aOth = attr(oth, 3), aA = attr(A, 4), aB = attr(B, 4), aIdx = attr(idx, 1);
+  const ATTRS = [aPos, aOth, aA, aB, aIdx];
   geo.setAttribute('position', aPos); geo.setAttribute('aOther', aOth); geo.setAttribute('aA', aA); geo.setAttribute('aB', aB);
   geo.setIndex(aIdx);
   geo.setDrawRange(0, 0);
@@ -248,9 +249,12 @@ export function installRibbons(vfx, shared) {
   let nv = 0, ni = 0;
   const K = new Float32Array(4);
   /** centripetal Catmull-Rom on component arrays: points i0..i3 of arr (xyz), parameter u in [0,1] between i1 and i2 */
+  function knot(arr, a, b) {
+    const x = arr[a * 3] - arr[b * 3], y = arr[a * 3 + 1] - arr[b * 3 + 1], z = arr[a * 3 + 2] - arr[b * 3 + 2];
+    return Math.max(1e-4, Math.pow(x * x + y * y + z * z, 0.25));
+  }
   function crKnots(arr, i0, i1, i2, i3) {
-    const d = (a, b) => { const x = arr[a * 3] - arr[b * 3], y = arr[a * 3 + 1] - arr[b * 3 + 1], z = arr[a * 3 + 2] - arr[b * 3 + 2]; return Math.max(1e-4, Math.pow(x * x + y * y + z * z, 0.25)); };
-    K[0] = 0; K[1] = d(i0, i1); K[2] = K[1] + d(i1, i2); K[3] = K[2] + d(i2, i3);
+    K[0] = 0; K[1] = knot(arr, i0, i1); K[2] = K[1] + knot(arr, i1, i2); K[3] = K[2] + knot(arr, i2, i3);
   }
   const out3 = new Float32Array(3);
   function crEval(arr, i0, i1, i2, i3, u) {
@@ -362,9 +366,10 @@ export function installRibbons(vfx, shared) {
       table.commit();
       geo.setDrawRange(0, ni);
       if (ni > 0) {
-        for (const a of [aPos, aOth]) { a.clearUpdateRanges(); a.addUpdateRange(0, nv * 3); a.needsUpdate = true; }
-        for (const a of [aA, aB]) { a.clearUpdateRanges(); a.addUpdateRange(0, nv * 4); a.needsUpdate = true; }
-        aIdx.clearUpdateRanges(); aIdx.addUpdateRange(0, ni); aIdx.needsUpdate = true;
+        for (let k = 0; k < ATTRS.length; k++) {
+          const a = ATTRS[k];
+          a.clearUpdateRanges(); a.addUpdateRange(0, a === aIdx ? ni : nv * a.itemSize); a.needsUpdate = true;
+        }
       }
       mesh.visible = ni > 0;
       dmesh.visible = ni > 0 && anyDistort;

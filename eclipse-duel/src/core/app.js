@@ -97,26 +97,49 @@ export function createApp(opts = {}) {
       events.emit('resize', v);
     },
 
+    /** Frame-rate target (60 by default; `#fps=120` / `#fps=30` override, `#fps=0` uncapped). */
+    targetFps: flags.fps === undefined || flags.fps === true ? 60 : Number(flags.fps) || 0,
+    /** Live frame statistics (real time): fps (smoothed), ms (smoothed frame time), scale (dynamic resolution). */
+    stats: { fps: 60, ms: 16.7, scale: 1 },
+
     _running: false,
     start() {
       if (test || ctx._running) return;
       ctx._running = true;
       let last = performance.now();
       let slowAcc = 0, fastAcc = 0;
+      const st = ctx.stats;
       const loop = (now) => {
         if (!ctx._running) return;
         requestAnimationFrame(loop);
+        // 60 fps cap: on 90/120/144 Hz displays skip vsyncs so the game runs at a steady 60 (tolerance keeps a 60 Hz
+        // display from ever skipping a frame).
+        const tf = ctx.targetFps;
+        if (tf > 0 && now - last < 1000 / tf - 2.5) return;
         const dt = clamp((now - last) / 1000, 0.001, 1 / 15);
         last = now;
-        // dynamic resolution: drop the scene scale when frames stay slow, raise it again when there is headroom
-        if (!flags.nodrs) {
-          if (dt > 1 / 45) { slowAcc += dt; fastAcc = 0; } else if (dt < 1 / 58) { fastAcc += dt; slowAcc = Math.max(0, slowAcc - dt); } else { fastAcc = 0; }
-          if (slowAcc > 1.2) { ctx.post.setRenderScale(ctx.post.renderScale * 0.85); slowAcc = 0; }
-          if (fastAcc > 6) { ctx.post.setRenderScale(ctx.post.renderScale / 0.92); fastAcc = 0; }
+        st.ms += (dt * 1000 - st.ms) * 0.08;
+        st.fps = 1000 / st.ms;
+        // dynamic resolution keeps 60 fps: drop the scene scale when frames run long, raise it again when there is headroom
+        if (!flags.nodrs && tf > 0) {
+          const budget = 1 / tf;
+          if (dt > budget * 1.12) { slowAcc += dt; fastAcc = 0; } else if (dt < budget * 1.04) { fastAcc += dt; slowAcc = Math.max(0, slowAcc - dt * 0.5); } else { fastAcc = 0; }
+          if (slowAcc > 0.75) { ctx.post.setRenderScale(ctx.post.renderScale * 0.88); slowAcc = 0; }
+          if (fastAcc > 4) { ctx.post.setRenderScale(ctx.post.renderScale / 0.94); fastAcc = 0; }
+          st.scale = ctx.post.renderScale;
         }
         ctx.frame(dt, true);
       };
       requestAnimationFrame(loop);
+      if (flags.fpsmeter) {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:absolute;right:8px;top:8px;z-index:50;font:12px/1.3 ui-monospace,Menlo,monospace;color:#9fe;background:rgba(0,0,0,.55);padding:4px 6px;border-radius:4px;pointer-events:none';
+        (document.getElementById('app') || document.body).appendChild(el);
+        setInterval(() => {
+          const i = renderer.info.render;
+          el.textContent = `${st.fps.toFixed(0)} fps  ${st.ms.toFixed(1)} ms  res ${(st.scale * 100).toFixed(0)}%  ${i.calls} dc  ${(i.triangles / 1000).toFixed(0)}k tri`;
+        }, 250);
+      }
     },
     stop() { ctx._running = false; },
 

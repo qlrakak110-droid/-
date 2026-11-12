@@ -19,7 +19,7 @@ void main() {
 const FAR_FRAG = /* glsl */ `
 ${SKY_BASE}
 ${FOG}
-uniform vec3 uFarCol, uCorona, uRim;
+uniform vec3 uFarCol, uCorona, uRim, uKeyDir;
 uniform float uCloudY;
 varying vec3 vW; varying vec3 vN; varying vec3 vC;
 void main() {
@@ -32,6 +32,7 @@ void main() {
   float fres = pow(1.0 - max(dot(n, v), 0.0), 2.5);
   col += uRim * max(ndl, 0.0) * (0.04 + 0.9 * fres) * smoothstep(-25.0, 10.0, vW.y);
   col += uGlow * 0.25 * smoothstep(uCloudY + 25.0, uCloudY, vW.y) * vC;
+  col += uFarCol * vC * 1.6 * max(dot(n, uKeyDir), 0.0);
   vec3 dir = -v;
   float f = 1.0 - exp(-dist * 0.0042);
   f = max(f, smoothstep(uCloudY + 9.0, uCloudY - 1.0, vW.y));
@@ -194,7 +195,7 @@ export function createFar(U, rng, tier) {
     fragmentShader: FAR_FRAG,
     uniforms: {
       uZenith: U.uZenith, uSkyMid: U.uSkyMid, uHorizon: U.uHorizon, uGlow: U.uGlow, uSunHalo: U.uSunHalo, uSunDir: U.uSunDir,
-      uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uCorona: U.uCorona, uRim: U.uRimFar,
+      uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uCorona: U.uCorona, uRim: U.uRimFar, uKeyDir: U.uKeyDir,
       uFarCol: { value: new THREE.Color(0.012, 0.013, 0.018) },
       uCloudY: { value: cy },
     },

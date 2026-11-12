@@ -114,13 +114,20 @@ export function createVfx(ctx) {
     /** Current time on the VFX game clock (or real clock), seconds since the last clear(). */
     now(realtime = false) { return realtime ? clock.real : clock.game; },
 
-    /** Compile every VFX program and upload every VFX texture now (call once while loading). */
-    prewarm() {
+    /**
+     * Compile every VFX program and upload every VFX texture now (call once while loading, after defining presets).
+     * `defs` (optional): particle definitions to register up front so no definition row is uploaded mid-fight.
+     */
+    prewarm(defs = []) {
+      for (const d of defs) vfx.particles.compile(d);
+      for (const k in LIB) vfx.particles.compile(LIB[k]);
       for (const m of modules) if (m.prewarm) m.prewarm();
       const r = ctx.renderer;
       r.compile(ctx.scene, ctx.camera);
       if (ctx.post && ctx.post.distortionScene) r.compile(ctx.post.distortionScene, ctx.camera, ctx.scene);
       for (const m of modules) if (m.textures) for (const t of m.textures) r.initTexture(t);
+      r.initTexture(vfx.particles.table.texture);
+      r.initTexture(vfx.ribbons.table.texture);
     },
 
     /** Kill everything (round reset): particles, ribbons, lights, flares, distortion, scheduled callbacks. */

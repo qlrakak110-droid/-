@@ -90,6 +90,12 @@ Every module directory must contain a `README.md`: the API reference downstream 
   `performance.now()` / `Date.now()` for simulation.
 - **Determinism.** No `Math.random()` — use `ctx.rng` (or `makeRng(seed)` from `core/math.js`). In test mode the
   harness advances fixed 1/60 s frames, and the same inputs must produce the same picture.
+- **60 fps is a hard requirement** (client request). The loop is capped at 60 (`ctx.targetFps`; `#fps=120` / `#fps=0`
+  override) and dynamic resolution lowers the scene render scale when frames run over 16.7 ms. That is the safety net,
+  not the plan: the frame budget is 16.7 ms on a mid-range phone at `low`/`mid` and on an integrated-GPU laptop at
+  `high`. CPU budget per frame for all JS (logic + animation + IK + cloth + VFX + UI) <= 4 ms on desktop, <= 8 ms on
+  phones. Game logic advances in fixed 1/60 s steps; animation, cloth and VFX must look identical at 60 fps and when a
+  frame is dropped (dt 1/30). `#fpsmeter` shows fps, frame time, resolution scale, draw calls and triangles.
 - **Performance (phones matter).** Budget for the whole game on the `high` tier: <= 160 draw calls, <= 350k triangles.
   Characters: <= 60k triangles and <= 6 draw calls each (merge into few skinned meshes). Environment: <= 45 draw
   calls. VFX: one draw call per particle layer / effect type (instancing), and watch overdraw — a few big soft

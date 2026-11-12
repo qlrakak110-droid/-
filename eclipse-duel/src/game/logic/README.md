@@ -81,6 +81,11 @@ node src/game/logic/test/framedata.mjs src/fighters/kael/moves.js   # frame-data
   (cancels and counter follow-ups included) first turns toward the opponent.
 * Times inside a move are seconds from the move start; comparisons use a tolerance `EPS = 1e-6` so a 0.1 s startup is
   active on exactly the 6th 60 fps step.
+* **Scale is a parameter** (boss-mode roadmap): nothing in the engine assumes a 1.9 m human. Body hurtboxes (standing,
+  airborne, lying), the push-box vertical overlap, the default projectile height, the corner-roll thresholds, the
+  cinematic victim placement and the validator's size sanity limits all derive from each fighter's `stats`
+  (`height`, `hurtWidth`, `pushWidth`, `weight`). An 8 m colossus is just a definition with bigger stats, boxes and
+  movement distances (covered by a test).
 
 ---
 
@@ -217,8 +222,8 @@ Controllers report **held** state: `{ move: -1|0|1 (world X), up, down, light, h
 * **Command map** (`def.commands`): `[d+|u+|f+|b+]light|heavy|skill1|skill2|skill3|ult` → move id. A press resolves
   `d+X`, then `u+X`, `f+X`, `b+X`, then plain `X`; a missing slot is simply unavailable (the press is dropped).
 * **Movement**: dodge alone → `dodge`; dodge + forward or double-tap forward (within `rules.doubleTapWindow`) →
-  `dash`; dodge + back or double-tap back → `backstep`. A forward dash with the back within 1.1 m of a wall and the
-  opponent in your face becomes a **`roll`** that passes through (the corner escape). Dash / dodge accept attacks from
+  `dash`; dodge + back or double-tap back → `backstep`. A forward dash with the back within 2.75 × pushWidth (1.1 m)
+  of a wall and the opponent in your face becomes a **`roll`** that passes through (the corner escape). Dash / dodge accept attacks from
   their `cancelFrom` time.
 * **Guard** is held: in neutral, holding guard enters `guard` (no walking). Attack and dodge presses override it.
 * **Cancels**: during a move, open cancel windows are checked every substep against the buffered presses:
@@ -353,7 +358,7 @@ Only `t`, `box` and `damage` are required; the rest default by `level` (`HIT_DEF
 | `t` | s | required | spawn time in the move |
 | `kind` | string | `'<move>.<i>'` | presentation key (VFX by kind) |
 | `at` | `'self' \| 'opponent'` | `'self'` | spawn origin: the owner, or the opponent's x on the floor (targeted strikes) |
-| `offset` | `{f, u}` m | `{f: 0, u: 1.2}` | spawn offset (forward relative to the owner's facing) |
+| `offset` | `{f, u}` m | `{f: 0, u: 0.65 × owner height}` | spawn offset (forward relative to the owner's facing) |
 | `box` | `{f, u}` m | required | hit box relative to the projectile, `f` along its travel direction |
 | `velocity` | `{x, y}` m/s | 0 | x along the owner's forward |
 | `gravity` | m/s² | 0 | |
@@ -424,7 +429,8 @@ same substep = double KO (drawn round).
   keeps ageing (no mashing through the freeze). Then `superFreezeEnd`.
 * **Cinematic lock** (`cinematic`): when hit `cinematic.hit` (index into `hits`) connects **unblocked** (armour does
   not stop it), the trigger hit deals its damage (never lethal) and the lock starts: `cinematicStart`. The victim
-  (`locked`) is placed `distance` m in front of the attacker (both pushed off a wall if needed); both are frozen and
+  (`locked`) is placed `distance` m in front of the attacker (default: both push-widths + 0.5 m; both pushed off a
+  wall if needed); both are frozen and
   invulnerable; projectiles and the round clock pause. On the lock's own clock (t = 0 at the trigger):
   * `ticks: [{t, damage, hitstop?, marker?, data?}]` deal damage (never below 1 HP) and emit `cinematicTick` (+ a
     `marker` named `marker`); `hitstop` is for the presentation to stutter its animation.
@@ -647,7 +653,8 @@ positions are on the fight line (`z = 0`).
   (timeline spawn, lifetime, clash, victim-only hit-stop, opponent-anchored telegraph, shared cooldown), combo scaling
   and hitstun decay, juggle limit, counter hits, corner pushback transfer, corner roll escape, push-boxes, wall bounce,
   tech roll, FP / ULT / cooldowns / HUD slots, super-freeze, cinematic lock (hit, blocked, whiffed, lethal), rounds,
-  time-up, draws, reset paths, markers.
+  time-up, draws, reset paths, debug boxes, markers, a giant-scale definition, the AI on a bare definition (no hints,
+  no skills) and the AI's reaction delay.
 * determinism (`test/determinism.test.mjs`): same seed → identical event-log hash and snapshot; interleaved matches
   equal solo runs; jittered dt with 0.1 s spikes is reproducible and sane.
 * soak (`test/soak.mjs`, 300 AI-vs-AI matches across all 16 difficulty pairings): no exceptions, no NaN, invariants

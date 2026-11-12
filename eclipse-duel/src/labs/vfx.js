@@ -75,7 +75,7 @@ function definePresets(ctx, lab, vfx) {
     v.flare({ kind: 'flash', pos: p, size: 5 * s, life: 0.07, attack: 0, decay: 3, color: [3, 1.2, 0.3], intensity: 0.4 });
     v.flare({ kind: 'glow', pos: p, size: 1.6 * s, life: 0.06, attack: 0, color: [10, 6, 2.5] });
     v.light({ pos: [p.x, p.y + 0.4, p.z + 0.6], color: PALETTE.ember.core, intensity: 200, range: 10, duration: 0.9, flicker: 0.35, decay: 'outCubic' });
-    v.burst({ ...LIB.fireball, count: 20 }, { pos: p, dir: [0, 1, 0], scale: s });
+    v.burst({ ...LIB.fireball, count: 16, size: [0.9, 1.7, 1.3] }, { pos: p, dir: [0, 1, 0], scale: s });
     v.burst(LIB.fireLicks, { pos: p, dir: [0, 1, 0], scale: s });
     v.burst({ ...LIB.sparks, count: 70, spread: 180, emit: 'radial', speed: [4, 14, 1.4], life: [0.3, 1.1, 1.4] }, { pos: p, scale: s });
     v.burst({ ...LIB.embers, count: 46, life: [1.4, 3.2, 0.8], speed: [1, 5, 1.4], gravity: 1.3 }, { pos: p, scale: s });

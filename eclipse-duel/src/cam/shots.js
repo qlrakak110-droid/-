@@ -17,12 +17,14 @@ const two = (v) => (Array.isArray(v) ? v : [v, v]);
 /** [f, u, s] at `deg` from straight-on, `dist` metres out, `height` above the frame origin. */
 const polar = (deg, dist, height) => [Math.sin(deg * DEG) * dist, height, Math.cos(deg * DEG) * dist];
 
-/** Copy the common shot fields the caller set. Builders that author their own shake / kick merge them first. */
+/** Fields a builder may author itself (merged through own()), so finish() does not overwrite them. */
+const OWN = { shake: 1, kick: 1 };
+
+/** Copy the common shot fields the caller set. */
 function finish(shot, o) {
   for (const k of PASS) if (o[k] !== undefined && !(k in OWN && shot[k] !== undefined)) shot[k] = o[k];
   return shot;
 }
-const OWN = { shake: 1, kick: 1 };
 
 /** A builder's default shake / kick, overridden by the caller: number = amount, object / array / false = replace. */
 function own(v, def) {

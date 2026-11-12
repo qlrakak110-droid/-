@@ -22,7 +22,8 @@ export function startCinematic(m, a, d, scale) {
   d.hitstop = a.hitstop = 0;
   d.hitstopShake = a.hitstopShake = false;
   // place the victim in front of the attacker; push the pair off the wall when needed
-  let dx = a.x + a.facing * c.distance;
+  const dist = c.distance !== null ? c.distance : a.def.stats.pushWidth + d.def.stats.pushWidth + 0.5;
+  let dx = a.x + a.facing * dist;
   const lim = L - d.def.stats.pushWidth;
   if (dx > lim) { a.x -= dx - lim; dx = lim; } else if (dx < -lim) { a.x += -lim - dx; dx = -lim; }
   d.x = dx;
@@ -48,7 +49,7 @@ export function updateCinematic(m, h) {
     cs.damage += lost;
     cs.ticks++;
     addCombo(m, a, d, lost);
-    m.emit('cinematicTick', { attacker: a.index, defender: d.index, move: cs.move, index: i, t: tk.t, damage: lost, hitstop: tk.hitstop, marker: tk.marker, data: tk.data, final: false, x: d.x, y: 1.2 });
+    m.emit('cinematicTick', { attacker: a.index, defender: d.index, move: cs.move, index: i, t: tk.t, damage: lost, hitstop: tk.hitstop, marker: tk.marker, data: tk.data, final: false, x: d.x, y: d.def.stats.height * 0.65 });
     if (tk.marker) m.emit('marker', { fighter: a.index, move: cs.move, name: tk.marker, t: tk.t, data: tk.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
   });
   const fin = c.finish;
@@ -58,7 +59,7 @@ export function updateCinematic(m, h) {
     const lost = loseHp(m, d, dmg, 0);
     cs.damage += lost;
     addCombo(m, a, d, lost);
-    m.emit('cinematicTick', { attacker: a.index, defender: d.index, move: cs.move, index: c.ticks.length, t: fin.t, damage: lost, hitstop: fin.hitstop, marker: fin.marker, data: fin.data, final: true, x: d.x, y: 1.0 });
+    m.emit('cinematicTick', { attacker: a.index, defender: d.index, move: cs.move, index: c.ticks.length, t: fin.t, damage: lost, hitstop: fin.hitstop, marker: fin.marker, data: fin.data, final: true, x: d.x, y: d.def.stats.height * 0.55 });
     if (fin.marker) m.emit('marker', { fighter: a.index, move: cs.move, name: fin.marker, t: fin.t, data: fin.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
   }
   if (t1 >= cs.duration - EPS) endCinematic(m);

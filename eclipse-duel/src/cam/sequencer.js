@@ -25,15 +25,15 @@ const asList = (v) => (v == null || v === false ? [] : Array.isArray(v) ? v : [v
 
 /**
  * @param {object} ctx  app context
- * @param {object} dir  director services: { shaker, letterboxTo(v, dur), letterboxValue(), targets: [srcA, srcB], fight }
+ * @param {object} dir  director services: { shaker, fight, letterboxTo(v, dur), letterboxValue(), stop(blend) }
  */
 export function createSequencer(ctx, dir) {
   const pose = new Pose();
   const refs = { anchor: new SpaceRef('anchor'), target: new SpaceRef('target'), mid: new SpaceRef('mid'), world: new SpaceRef('world'), arena: new SpaceRef('arena') };
-  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _o = new THREE.Vector3(), _o2 = new THREE.Vector3(), _w = new THREE.Vector3();
+  const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _o2 = new THREE.Vector3(), _w = new THREE.Vector3();
 
   const S = {
-    active: false, shots: null, i: 0, t: 0, fresh: false, facing: 1, opts: null, handle: null,
+    active: false, shots: null, i: 0, t: 0, fresh: false, facing: 1, opts: null,
     transition: null, ended: false, slowH: null, lbTouched: false, lbBefore: 0, gen: 0,
   };
 
@@ -245,7 +245,7 @@ export function createSequencer(ctx, dir) {
     enter(0);
     S.fresh = true;
     const gen = S.gen;
-    S.handle = {
+    return {
       /** Stop now and blend back to fight framing over `blend` seconds (0 = cut). */
       stop: (blend) => { if (S.gen === gen && S.active) dir.stop(blend ?? opts.blendOut ?? 0.35); },
       /** Jump to shot `i` now (its own cut / blend applies): cut on a gameplay event instead of a timer. */
@@ -256,7 +256,6 @@ export function createSequencer(ctx, dir) {
       get index() { return S.gen === gen ? S.i : -1; },
       get time() { return S.gen === gen ? S.t : 0; },
     };
-    return S.handle;
   }
 
   function jump(i) {

@@ -14,6 +14,7 @@ export function spawnProjectile(m, f, spec, mv) {
   const facing = f.facing;
   const baseX = spec.at === 'opponent' ? o.x : f.x;
   const baseY = spec.at === 'opponent' ? 0 : f.y;
+  const ou = spec.ou !== null ? spec.ou : f.def.stats.height * 0.65; // default: chest height of the owner
   const L = m.rules.arenaHalfWidth;
   const p = {
     id: m.nextProjectileId++,
@@ -21,7 +22,7 @@ export function spawnProjectile(m, f, spec, mv) {
     kind: spec.kind,
     move: mv.id,
     x: Math.max(-L, Math.min(L, baseX + facing * spec.of)),
-    y: baseY + spec.ou,
+    y: baseY + ou,
     vx: spec.vx * facing,
     vy: spec.vy,
     facing,

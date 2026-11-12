@@ -342,13 +342,15 @@ function tryActions(m, f, allowDodge = true) {
 }
 
 /**
- * Start a movement action: 'dash' | 'backstep' | 'dodge'. A forward dash with the back to the wall and the opponent
- * right in front becomes a 'roll' that passes through the opponent (the corner escape).
+ * Start a movement action: 'dash' | 'backstep' | 'dodge'. A forward dash with the back to the wall (within
+ * 2.75 x pushWidth) and the opponent right in front becomes a 'roll' that passes through the opponent (the corner
+ * escape).
  */
 function startMovement(m, f, kind) {
   const o = m.fighters[1 - f.index];
   faceOpponent(m, f);
-  if (kind === 'dash' && backToWall(m, f, 1.1) && gap(f, o) < f.def.stats.pushWidth + o.def.stats.pushWidth + 0.6 && o.y < 0.5) kind = 'roll';
+  const pw = f.def.stats.pushWidth;
+  if (kind === 'dash' && backToWall(m, f, pw * 2.75) && gap(f, o) < pw * 2.5 + o.def.stats.pushWidth && o.y < o.def.stats.height * 0.27) kind = 'roll';
   const spec = f.def.movement[kind];
   f.mov = { kind, dist: spec.distance || 0, dur: spec.duration, dir: kind === 'backstep' ? -1 : 1 };
   f.perfectDodged = false;

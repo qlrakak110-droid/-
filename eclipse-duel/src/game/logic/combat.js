@@ -18,16 +18,19 @@ const HURT_EXTEND_AFTER = 0.12;
 
 /**
  * Fill the module hurtbox list with fighter `f`'s world hurtboxes. Returns the count.
- * Standing: x +- hurtWidth, feet to head. Airborne victims: a lower, wider body. Attacks add their own `hurt` boxes
- * and, for hits with hurtExtend, the attacking limb from its active start until HURT_EXTEND_AFTER after it.
+ * Every body box derives from the fighter's stats (hurtWidth, height), so a giant needs no engine change.
+ * Standing: x +- hurtWidth, feet to head. Airborne victims: a lower, wider body (1.3 x width, 5 %..73 % of height).
+ * Lying (knockdown, ko): half-height-wide, a quarter of the height tall. Attacks add their own `hurt` boxes and, for
+ * hits with hurtExtend, the attacking limb from its active start until HURT_EXTEND_AFTER after it.
  */
 function hurtboxes(f) {
   const s = f.def.stats;
   let n = 0;
   const b0 = hurt[n++];
-  if (f.state === 'launched') { b0[0] = f.x - 0.55; b0[1] = f.x + 0.55; b0[2] = f.y + 0.1; b0[3] = f.y + 1.35; }
-  else if (f.state === 'knockdown' || f.state === 'ko') { b0[0] = f.x - 0.9; b0[1] = f.x + 0.9; b0[2] = 0; b0[3] = 0.45; }
-  else { b0[0] = f.x - s.hurtWidth; b0[1] = f.x + s.hurtWidth; b0[2] = f.y; b0[3] = f.y + s.height; }
+  const w = s.hurtWidth, h = s.height;
+  if (f.state === 'launched') { b0[0] = f.x - w * 1.3; b0[1] = f.x + w * 1.3; b0[2] = f.y + h * 0.05; b0[3] = f.y + h * 0.73; }
+  else if (f.state === 'knockdown' || f.state === 'ko') { b0[0] = f.x - h * 0.49; b0[1] = f.x + h * 0.49; b0[2] = 0; b0[3] = h * 0.245; }
+  else { b0[0] = f.x - w; b0[1] = f.x + w; b0[2] = f.y; b0[3] = f.y + h; }
   if (f.state === 'attack') {
     const mv = f.moveData, t = f.moveTime;
     for (const w of mv.hurt) {

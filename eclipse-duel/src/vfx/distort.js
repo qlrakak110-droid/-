@@ -149,22 +149,24 @@ export function installDistort(vfx, shared) {
     return handle;
   }
 
+  function visit(s) {
+      if (s.stopping) {
+        const k = s.i * ring.stride, nl = Math.min(s.life, pool.age(s) + 0.15);
+        ring.f32[k + 7] = s.realtime ? -nl : nl; s.life = nl; s.stopping = false;
+        ring.dirty(s.i, 1);
+      }
+      if (pool.place(s)) {
+        const k = s.i * ring.stride;
+        ring.f32[k] = s.pos.x; ring.f32[k + 1] = s.pos.y; ring.f32[k + 2] = s.pos.z;
+        ring.dirty(s.i, 1);
+      }
+  }
+
   return {
     name: 'distort',
     api: { distort },
     update() {
-      pool.forEach((s) => {
-        if (s.stopping) {
-          const k = s.i * ring.stride, nl = Math.min(s.life, pool.age(s) + 0.15);
-          ring.f32[k + 7] = s.realtime ? -nl : nl; s.life = nl; s.stopping = false;
-          ring.dirty(s.i, 1);
-        }
-        if (pool.place(s)) {
-          const k = s.i * ring.stride;
-          ring.f32[k] = s.pos.x; ring.f32[k + 1] = s.pos.y; ring.f32[k + 2] = s.pos.z;
-          ring.dirty(s.i, 1);
-        }
-      });
+      pool.forEach(visit);
       ring.commit();
       mesh.visible = pool.live > 0 && (clock.game < maxDeath || clock.real < maxDeathReal);
     },

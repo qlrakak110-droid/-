@@ -10,7 +10,7 @@
 // above the floor) -> kicks, shake, handheld drift -> ctx.camera. See README.md.
 
 import * as THREE from 'three';
-import { clamp, lerp, DEG, Ease } from '../core/math.js';
+import { clamp, lerp, Ease } from '../core/math.js';
 import { Pose, orient, readPoint, softFloor, damp1 } from './pose.js';
 import { defaultFight, createFightRig } from './framing.js';
 import { createShaker, handheld } from './shake.js';
@@ -265,16 +265,17 @@ export function createCameraDirector(ctx, opts = {}) {
       }
       const hud = o.hud !== false;
       const onDone = o.onDone;
-      if (hud && ctx.ui && ctx.ui.hud && ctx.ui.hud.cinematic) ctx.ui.hud.cinematic(true);
-      ctx.events.emit('cam:cine', true);
-      return seq.play(shots, {
+      const announce = (on) => {
+        if (hud && ctx.ui && ctx.ui.hud && ctx.ui.hud.cinematic) ctx.ui.hud.cinematic(on);
+        ctx.events.emit('cam:cine', on);
+      };
+      // seq.play finishes a running sequence first (its onDone fires), then this one announces itself
+      const h = seq.play(shots, {
         ...o, anchor, target, facing,
-        onDone(completed) {
-          if (hud && ctx.ui && ctx.ui.hud && ctx.ui.hud.cinematic) ctx.ui.hud.cinematic(false);
-          ctx.events.emit('cam:cine', false);
-          if (onDone) onDone(completed);
-        },
+        onDone(completed) { announce(false); if (onDone) onDone(completed); },
       });
+      announce(true);
+      return h;
     },
 
     stop,

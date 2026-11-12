@@ -60,13 +60,14 @@ export function createEnvironment(ctx, opts = {}) {
     uCorona: { value: PALETTE.corona.clone() },
     uChromo: { value: PALETTE.chromo.clone() },
     uRim: { value: PALETTE.rim.clone().multiplyScalar(0.5) },
-    uRimFar: { value: new THREE.Color(0.12, 0.135, 0.17) },
+    uRimFar: { value: new THREE.Color(0.3, 0.34, 0.44) },
+    uKeyDir: { value: KEY_DIR.clone() },
     // density at y=0, height falloff, far boost, max
     uFogP: { value: new THREE.Vector4(0.024, 0.1, 0.6, 0.92) },
     uFogNear: { value: PALETTE.fogNear.clone() },
     uMood: { value: new THREE.Vector4(1, 1, 1, 0) },
     uFire: { value: new THREE.Vector4(PALETTE.fire.r, PALETTE.fire.g, PALETTE.fire.b, tier.pointLights > 0 ? 0.3 : 1.1) },
-    uKeyMask: { value: new THREE.Vector4(0, 8.5, 16.5, 0.05) },
+    uKeyMask: { value: new THREE.Vector4(0, 8.5, 16.5, 0.12) },
   };
 
   // ---- baked textures ----------------------------------------------------------------------------------------------
@@ -101,7 +102,7 @@ export function createEnvironment(ctx, opts = {}) {
   root.add(sky);
 
   // ---- lights (fixed set, created once) ------------------------------------------------------------------------------
-  const base = { key: 3.0, rim: 2.6, hemi: 0.55, point: 20 };
+  const base = { key: 3.0, rim: 2.6, hemi: 0.65, point: 20 };
   const target = new THREE.Object3D();
   target.name = 'env.lightTarget';
   target.position.set(0, 1, 0);

@@ -634,6 +634,26 @@ test('markers and moveEvent: timeline markers are emitted at their time with wor
   eq(mk[0].data.armour, true);
 });
 
+test('scale: a giant definition needs no engine change (bodies, push-boxes, validation scale with its stats)', () => {
+  const giant = {
+    id: 'giant', name: 'Giant',
+    stats: { hp: 6000, height: 8, hurtWidth: 1.6, pushWidth: 1.5, weight: 4, walkSpeed: 1.2, backSpeed: 0.8 },
+    movement: { dash: { distance: 6 }, backstep: { distance: 4 }, roll: { distance: 7 } },
+    commands: { light: 'stomp' },
+    moves: { stomp: { duration: 1.6, hits: [{ t: [0.7, 0.85], box: { f: [0, 5], u: [0, 7] }, damage: 150, level: 'knockdown' }] } },
+  };
+  const v = validateFighterDef(giant);
+  eq(v.ok, true, v.errors.join('; '));
+  eq(v.warnings.length, 0, v.warnings.join('; '));
+  const { m, log } = duel({ defs: [S, giant], s0: [{ t: 0, dur: 1, move: 1 }, { t: 1, light: true }], s1: [{ t: 0.2, light: true }], x: [-4, 2] });
+  near(m.boxes(1).push[1] - m.boxes(1).push[0], 3, 1e-9);
+  near(m.boxes(1).hurt[0][3], 8, 1e-9);
+  run(m, 2);
+  assert(m.fighters[1].x - m.fighters[0].x >= 0.4 + 1.5 - 1e-9, 'push-boxes keep the sum of the widths');
+  const proj = first(log, 'hit', (e) => e.attacker === 1);
+  assert(proj && proj.move === 'stomp', 'the stomp reaches with its 5 m box');
+});
+
 // ------------------------------------------------------------------------------------------------ AI
 
 test('AI: generic over any definition (no ai hints, no skills, no ultimate)', () => {

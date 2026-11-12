@@ -84,7 +84,7 @@ void main() {
     float sl = length(sd);
     vec2 ax = sl > 1e-4 ? sd / sl : vec2(0.0, 1.0);
     float stretch = 1.0 + min(sl * 2.2, 6.0);
-    off = ax * corner.y * size * stretch + vec2(-ax.y, ax.x) * corner.x * size;
+    off = ax * (corner.y * size * stretch) + vec2(ax.y, -ax.x) * (corner.x * size); // keep the quad's winding
   }
   mv.xy += off;
   float near = smoothstep(0.8, 2.5, -mv.z);
@@ -117,8 +117,8 @@ export function createParticles(U, rng, tier, brazierTops, floorUniforms) {
   const n0 = tier.ash, nE = tier.embers;
   const nAmb = Math.round(nE * 0.35), nBraz = nE - nAmb;
   for (let i = 0; i < n0; i++) { seeds.push(rng(), rng(), rng(), rng()); info.push(0, rng.range(0.018, 0.05), 0, 0); }
-  for (let i = 0; i < nAmb; i++) { seeds.push(rng(), rng(), rng(), rng()); info.push(1, rng.range(0.012, 0.024), rng.range(5, 9), 0); }
-  for (let i = 0; i < nBraz; i++) { seeds.push(rng(), rng(), rng(), rng()); info.push(2, rng.range(0.01, 0.022), rng.range(1.6, 3.4), i % brazierTops.length); }
+  for (let i = 0; i < nAmb; i++) { seeds.push(rng(), rng(), rng(), rng()); info.push(1, rng.range(0.022, 0.04), rng.range(5, 9), 0); }
+  for (let i = 0; i < nBraz; i++) { seeds.push(rng(), rng(), rng(), rng()); info.push(2, rng.range(0.02, 0.042), rng.range(1.6, 3.4), i % brazierTops.length); }
   g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(new Float32Array(seeds), 4));
   g.setAttribute('aInfo', new THREE.InstancedBufferAttribute(new Float32Array(info), 4));
   g.instanceCount = n0 + nE;

@@ -127,7 +127,7 @@ S('hit_slash_heavy', {
   k.modal({ f: k.j(1180, 0.05), partials: STEEL, beat: 2.5, gain: 0.4, bend: 0.6, bendTime: 0.025 });
   k.hiss({ len: 0.4, type: 'lowpass', f: [[0, 2400], [0.25, 600]], env: { a: 0.001, d: 0.18 }, gain: 0.95, drive: 2.5 });
   k.thump({ f0: 250, f1: 115, drop: 0.03, len: 0.14, gain: 0.6, drive: 2 });
-  k.thump({ f0: 120, f1: 45, drop: 0.07, len: 0.42, gain: 0.6, drive: 2.2 });
+  k.thump({ f0: 120, f1: 45, drop: 0.07, len: 0.32, gain: 0.6, drive: 2.2 });
   k.hiss({ len: 0.6, type: 'highpass', f: 6000, env: { a: 0.004, d: 0.4 }, gain: 0.12 });
 });
 
@@ -236,15 +236,17 @@ S('body_fall', {
 
 S('fire_ignite', {
   group: 'fire', role: 'element', len: 1.0, level: -15, poly: 3, throttle: 0.06, pitchVar: 1, verb: 0.15, prio: 5,
-  desc: 'flame catching: gas pop, filter-sweeping whoomph with turbulence, low roar, first crackles',
+  desc: 'flame catching: soft gas inhale, pop, whoomph swelling through an opening filter (peak ~0.1 s), roar, crackles',
 }, (k) => {
-  k.thump({ f0: 180, f1: 70, drop: 0.03, len: 0.15, gain: 0.5 });
-  k.hiss({ len: 0.12, type: 'lowpass', f: 1200, env: { a: 0.001, d: 0.06 }, gain: 0.4 });
-  const sw = [[0, 0], [0.05, 1, 'outQuad'], [0.9, 0, 'inOutQuad']];
-  k.hiss({ len: 0.95, color: 'pink', type: 'lowpass', f: [[0, 300], [0.09, 2600, 'outQuad'], [0.8, 650]], env: sw, gain: 0.9, am: { rate: 22, depth: 0.35 }, stereo: true });
-  k.hiss({ len: 0.95, color: 'brown', type: 'lowpass', f: 300, env: sw, gain: 0.35, drive: 1.5 });
-  k.hiss({ len: 0.95, f: [[0, 500], [0.09, 1400, 'outQuad'], [0.8, 700]], q: 0.7, env: sw, gain: 0.45, am: { rate: 16, depth: 0.4 } });
-  crackle(k, { len: 0.95, rate: [[0, 0], [0.1, 70], [0.9, 8]], gain: 0.4 });
+  const P = 0.11;
+  k.hiss({ len: 0.06, color: 'pink', f: 900, q: 0.8, env: [[0, 0], [0.05, 1, 'inQuad'], [0.06, 0]], gain: 0.25 });
+  k.thump({ at: 0.04, f0: 190, f1: 75, drop: 0.03, len: 0.15, gain: 0.45 });
+  k.click({ at: 0.04, gain: 0.5, f: 900, type: 'bandpass', q: 0.8, d: 0.008 });
+  const sw = [[0, 0], [P, 1, 'inQuad'], [0.3, 0.7, 'outQuad'], [0.9, 0, 'inOutQuad']];
+  k.hiss({ at: 0.03, len: 0.92, color: 'pink', type: 'lowpass', f: [[0, 180], [P, 3200, 'inQuad'], [0.35, 1300, 'outQuad'], [0.85, 550]], env: sw, gain: 0.95, am: { rate: 22, depth: 0.35 }, stereo: true });
+  k.hiss({ at: 0.03, len: 0.92, color: 'brown', type: 'lowpass', f: 300, env: sw, gain: 0.35, drive: 1.5 });
+  k.hiss({ at: 0.03, len: 0.92, f: [[0, 300], [P, 1500, 'inQuad'], [0.8, 650]], q: 0.7, env: sw, gain: 0.5, am: { rate: 16, depth: 0.4 } });
+  crackle(k, { at: 0.06, len: 0.9, rate: [[0, 0], [0.12, 90], [0.85, 10]], gain: 0.6 });
 });
 
 S('fire_burst', {
@@ -474,9 +476,9 @@ S('ult_start', {
   desc: 'ultimate super-freeze: dark gong hit, true reversed hall swell + riser peaking at 0.85 s, shimmer tail',
 }, async (k) => {
   const P = 0.85;
-  k.thump({ f0: 62, f1: 28, drop: 0.3, len: 1.2, gain: 0.6, drive: 2 });
-  k.hiss({ len: 0.5, type: 'lowpass', f: 700, env: { a: 0.002, d: 0.4 }, gain: 0.6, drive: 1.5 });
-  k.modal({ f: 98, partials: GONG, gain: 0.4, beat: 0.6 });
+  k.thump({ f0: 62, f1: 28, drop: 0.3, len: 1.0, gain: 0.35, drive: 2 });
+  k.hiss({ len: 0.4, type: 'lowpass', f: 700, env: { a: 0.002, d: 0.3 }, gain: 0.35, drive: 1.5 });
+  k.modal({ f: 98, partials: GONG, gain: 0.25, beat: 0.6 });
   const fwd = await k.sub(1.6, 2, (s) => {
     s.verb(0.9, 1.8);
     s.hiss({ len: 1.5, type: 'highpass', f: 2500, env: { a: 0.002, d: 1.3 }, gain: 0.7, stereo: true });
@@ -484,10 +486,10 @@ S('ult_start', {
     s.thump({ f0: 90, f1: 40, drop: 0.1, len: 0.6, gain: 0.6 });
   });
   const rev = k.reverse(fwd);
-  k.play(rev, { at: Math.max(0, P - rev.duration), offset: Math.max(0, rev.duration - P) });
+  k.play(rev, { at: Math.max(0, P - rev.duration), offset: Math.max(0, rev.duration - P), gain: 2.2 });
   const env = [[0, 0], [P, 1, 'inCubic'], [P + 0.02, 0]];
-  k.saws({ len: P + 0.03, f: [[0, 55], [P, 220, 'inQuad']], voices: 4, spread: 20, filter: { type: 'lowpass', f: [[0, 300], [P, 4000, 'inQuad']] }, env, gain: 0.4 });
-  k.hiss({ len: P + 0.03, color: 'pink', f: [[0, 300], [P, 4000, 'inQuad']], q: 1.2, env, gain: 0.4, stereo: true });
+  k.saws({ len: P + 0.03, f: [[0, 55], [P, 220, 'inQuad']], voices: 4, spread: 20, filter: { type: 'lowpass', f: [[0, 300], [P, 4000, 'inQuad']] }, env, gain: 0.6 });
+  k.hiss({ len: P + 0.03, color: 'pink', f: [[0, 300], [P, 4000, 'inQuad']], q: 1.2, env, gain: 0.6, stereo: true });
   k.grains({ at: P, len: 1.2, count: 30, tau: 0.4, kind: 'glass', f: [3000, 9000], decay: [0.05, 0.3], amp: [0.1, 1], gain: 0.15 });
   k.modal({ at: P, f: 1174.7, partials: [[1, 0.4, 1.2], [2.01, 0.15, 0.8], [2.76, 0.1, 0.5]], gain: 0.15, beat: 1.5 });
 });

@@ -289,7 +289,8 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
   function resolvePush() {
     const [a, b] = m.fighters;
     if (passesThrough(m, a) || passesThrough(m, b)) return;
-    if (Math.abs(a.y - b.y) > 1.3) return;
+    // one fighter well above the other (juggles, leaps): no pushing; scales with the shorter body
+    if (Math.abs(a.y - b.y) > 0.7 * Math.min(a.def.stats.height, b.def.stats.height)) return;
     const pa = a.def.stats.pushWidth, pb = b.def.stats.pushWidth;
     const dx = b.x - a.x;
     const side = dx > 1e-6 ? 1 : dx < -1e-6 ? -1 : m.side;

@@ -141,6 +141,8 @@ function makeReporter() {
  */
 export function validateFighterDef(def) {
   const r = makeReporter();
+  // body scale relative to the 1.85 m reference: size-related sanity limits grow with it (giant bosses)
+  r.scale = isObj(def) && isObj(def.stats) && isNum(def.stats.height) && def.stats.height > 0 ? def.stats.height / DEFAULT_STATS.height : 1;
   if (!isObj(def)) { r.err('def', `expected a fighter definition object, got ${fmt(def)}`); return { ok: false, errors: r.errors, warnings: r.warnings }; }
   r.unknown(def, F.top, 'def');
   if (typeof def.id !== 'string' || !/^[a-z0-9_-]+$/i.test(def.id)) r.err('def.id', `expected an id string of letters, digits, '_' or '-', got ${fmt(def.id)}`);
@@ -223,7 +225,7 @@ function validateMovement(mv, r) {
     if (!isObj(v)) { r.err(p, `expected an object, got ${fmt(v)}`); continue; }
     r.unknown(v, F[k], p);
     r.num(v, 'duration', p, { min: 0.05, max: 2 });
-    if ('distance' in v) r.num(v, 'distance', p, { min: 0, max: 8 });
+    if ('distance' in v) r.num(v, 'distance', p, { min: 0, max: 8 * r.scale });
     if ('cancelFrom' in v) r.num(v, 'cancelFrom', p, { min: 0 });
     if ('cooldown' in v) r.num(v, 'cooldown', p, { min: 0 });
     if (v.invuln !== undefined) r.range(v.invuln, `${p}.invuln`, { lo: 0, hi: v.duration || DEFAULT_MOVEMENT[k].duration, what: 'time window' });
@@ -268,8 +270,8 @@ function validateHitFields(h, p, r, { projectile = false, duration = Infinity } 
 function validateBox(b, p, r) {
   if (!isObj(b)) { r.err(p, `expected a box {f: [min, max], u: [min, max]} in fighter-local metres, got ${fmt(b)}`); return; }
   r.unknown(b, ['f', 'u'], p);
-  if (r.range(b.f, `${p}.f`, { strict: true, what: 'forward range (m)' }) && (b.f[1] > 8 || b.f[0] < -3)) r.warn(`${p}.f`, `unusual reach ${fmt(b.f)} m`);
-  if (r.range(b.u, `${p}.u`, { strict: true, what: 'height range (m)' }) && (b.u[0] < -0.5 || b.u[1] > 6)) r.warn(`${p}.u`, `unusual height ${fmt(b.u)} m`);
+  if (r.range(b.f, `${p}.f`, { strict: true, what: 'forward range (m)' }) && (b.f[1] > 8 * r.scale || b.f[0] < -3 * r.scale)) r.warn(`${p}.f`, `unusual reach ${fmt(b.f)} m for a ${(DEFAULT_STATS.height * r.scale).toFixed(2)} m fighter`);
+  if (r.range(b.u, `${p}.u`, { strict: true, what: 'height range (m)' }) && (b.u[0] < -0.5 || b.u[1] > 6 * r.scale)) r.warn(`${p}.u`, `unusual height ${fmt(b.u)} m for a ${(DEFAULT_STATS.height * r.scale).toFixed(2)} m fighter`);
 }
 
 function windows(list, p, r, dur, fields, extra) {
@@ -479,7 +481,7 @@ function validateMove(mv, p, ids, moves, r) {
       r.unknown(c, F.cinematic, q);
       if (r.num(c, 'hit', q, { min: 0, int: true }) && (!Array.isArray(mv.hits) || !mv.hits[c.hit])) r.err(`${q}.hit`, `hit index ${c.hit} does not exist in ${p}.hits`);
       r.num(c, 'duration', q, { min: 0, exclusiveMin: true, max: 12, required: true });
-      r.num(c, 'distance', q, { min: 0, max: 4 });
+      r.num(c, 'distance', q, { min: 0, max: 4 * r.scale });
       r.num(c, 'recovery', q, { min: 0, max: 3 });
       const cd = isNum(c.duration) ? c.duration : Infinity;
       if (c.ticks !== undefined) {
@@ -624,7 +626,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
     kind: s.kind || `${id}.${i}`,
     at: s.at || 'self',
     of: s.offset ? s.offset.f || 0 : 0,
-    ou: s.offset ? s.offset.u || 0 : 1.2,
+    ou: s.offset && s.offset.u !== undefined ? s.offset.u : null, // null: the owner's chest height (0.65 x height)
     f0: s.box.f[0], f1: s.box.f[1], u0: s.box.u[0], u1: s.box.u[1],
     vx: s.velocity ? s.velocity.x || 0 : 0,
     vy: s.velocity ? s.velocity.y || 0 : 0,
@@ -644,7 +646,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
   const cinematic = cin ? {
     hit: cin.hit || 0,
     duration: cin.duration,
-    distance: cin.distance !== undefined ? cin.distance : 1.3,
+    distance: cin.distance !== undefined ? cin.distance : null, // null: both push-widths + 0.5 m
     recovery: cin.recovery !== undefined ? cin.recovery : 0.5,
     ticks: (cin.ticks || []).map((t) => ({ t: t.t, damage: t.damage, hitstop: t.hitstop || 0, marker: t.marker || null, data: t.data === undefined ? null : t.data })).sort((a, b) => a.t - b.t),
     finish: {
