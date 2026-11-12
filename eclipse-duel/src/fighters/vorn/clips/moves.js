@@ -258,8 +258,8 @@ const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
   k(0.7, { ease: 'inOutSine', hips: { pos: [0.08, -0.16, 0], rot: [0, -14, -3] }, ik: { handR: sp([0.74, 1.1, 0.14], [0.88, -0.44, -0.18]) } });
   k(0.4, { grip: 1, curl: [1, 1], bones: LARM0 });
   k(0.45, { grip: 0, curl: [0.4, 1], bones: { upperArmL: [-20, 0, -30], foreArmL: [0, 0, 70], handL: [0, 0, 10] } });
-  k(0.7, { grip: 0, bones: { upperArmL: [-20, 0, -30], foreArmL: [0, 0, 70], handL: [0, 0, 10] } });
-  k(0.8, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.76, { grip: 0, bones: { upperArmL: [-14, 0, -12], foreArmL: [0, 0, 60], handL: [0, 0, 10] } });
+  k(0.86, { grip: 1, curl: [1, 1], bones: LARM0 });
   k.step('footL', 0.32, 0.45, FL, FL, YL, YL, 0.09);
   k(0.32, { ik: { footR: ft(FR, YR) } });
   settle(k, 0.86, 0);

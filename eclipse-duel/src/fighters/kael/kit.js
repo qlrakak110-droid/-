@@ -43,14 +43,16 @@ export function polyline(pts, sharpIdx = []) {
     const f = (d - s[i - 1]) / ((s[i] - s[i - 1]) || 1);
     return [lerp(pts[i - 1][0], pts[i][0], f), lerp(pts[i - 1][1], pts[i][1], f), lerp(pts[i - 1][2], pts[i][2], f)];
   };
-  return { at, sharp: sharpIdx.map((i) => s[i] / L), length: L };
+  return { at, sharp: sharpIdx.map((i) => s[i] / L) };
 }
 
 /**
  * Double-faced forged fin: a ruled plate from a root curve (hidden in the part it grows from) to a flame edge.
  * base, top: { at(t) } curves (t 0..1, matched by parameter); o: { normal [x,y,z] (front face direction), thick=0.008,
- * edgeR=0.006, nu=24, nv=4, sharp: [t] (hard ridges from the root into each tip / notch), ridge=0.0035 (ridge height),
- * ridgeW=0.06 (half width in t), cup(u, v) -> m (displacement along the normal: curl), edgeSegs=2 }
+ * edgeR=0.006, nu=24, nv=4, sharp: [t] (hard crease lines from the root to each tip / notch), tips: [t] (raised ridges
+ * running up into these tips, both faces), ridge=0.0035 (ridge height), ridgeW=0.06 (half width in t),
+ * cup(u, v) -> m (displacement along the normal: curl), edgeSegs=2 }. userData: { front (the front skin's surface,
+ * for strip() / onSurface()), tips }
  */
 export function forgedFin(base, top, o = {}) {
   const N = new THREE.Vector3(...(o.normal || [0, 0, 1])).normalize();
@@ -81,8 +83,9 @@ export function forgedFin(base, top, o = {}) {
 
 /**
  * Swept flame crest for a greatHelm (head frame). The root follows the crown's front-back line (sunk `sink` m into the
- * shell), the edge rises from the brow into one tall tongue leaning back and two lower ones, the last trailing past the
- * nape. o: { scale=1 (height), sink=0.009, thick, nu, nv }
+ * shell) from above the brow to high on the back; the edge rises off the brow, arches over the crown and streams back
+ * into a long tail hooked over open space behind the helm, with flame licks trailing under it.
+ * o: { scale=1 (height), sink=0.009, thick, nu, nv }
  */
 export function flameCrest(H, o = {}) {
   const C = H.S.crown;
@@ -92,7 +95,7 @@ export function flameCrest(H, o = {}) {
   const sink = o.sink ?? 0.009;
   const onCrown = (u, v) => { const f = C.normalAt(u, v); return [f.p.x - f.n.x * sink, f.p.y - f.n.y * sink, 0]; };
   for (let i = 0; i <= 12; i++) root.push(onCrown(0.5, lerp(0.22, 0.995, i / 12)));
-  for (let i = 12; i >= 0; i--) root.push(onCrown(0.0005, lerp(0.06, 0.995, i / 12)));
+  for (let i = 12; i >= 0; i--) root.push(onCrown(0.0005, lerp(0.42, 0.995, i / 12))); // ends high on the back: open space under the tail
   const base = polyline(root);
   const f0 = base.at(0), f1 = base.at(1);
   const top = (x, y) => [x, y, 0];
@@ -100,14 +103,14 @@ export function flameCrest(H, o = {}) {
   const edge = flameOutline([
     // one smooth top line: off the brow, high over the crown, streaming back into a long tail that lifts at its point
     // (the tail stays under the corridor where the resting greatsword passes behind the helm)
-    [top(f0[0] + 0.008, f0[1] + 0.01), top(0.152, Y(0.238)), top(0.11, Y(0.306)), top(0.04, Y(0.35)), top(-0.04, Y(0.372)), top(-0.12, Y(0.374)), top(-0.19, Y(0.36)), top(-0.245, Y(0.346)), top(-0.3, Y(0.356))],
+    [top(f0[0] + 0.008, f0[1] + 0.01), top(0.154, Y(0.242)), top(0.116, Y(0.318)), top(0.05, Y(0.372)), top(-0.03, Y(0.398)), top(-0.11, Y(0.396)), top(-0.185, Y(0.37)), top(-0.245, Y(0.348)), top(-0.3, Y(0.356))],
     // underside: flame licks trailing back, each notch cutting toward the shell
     [top(-0.3, Y(0.356)), top(-0.262, Y(0.33)), top(-0.232, Y(0.322))],
     [top(-0.232, Y(0.322)), top(-0.255, Y(0.3)), top(-0.276, Y(0.278))],
     [top(-0.276, Y(0.278)), top(-0.232, Y(0.28)), top(-0.196, Y(0.272))],
     [top(-0.196, Y(0.272)), top(-0.212, Y(0.252)), top(-0.23, Y(0.232))],
     [top(-0.23, Y(0.232)), top(-0.185, Y(0.236)), top(-0.152, Y(0.228))],
-    [top(-0.152, Y(0.228)), top(-0.135, Y(0.207)), top(-0.124, Y(0.186)), top(f1[0] - 0.01, f1[1] + 0.004)],
+    [top(-0.152, Y(0.228)), top(-0.132, Y(0.216)), top(f1[0] - 0.008, f1[1] + 0.006)],
   ], 10);
   const tips = [edge.sharp[0], edge.sharp[2], edge.sharp[4]];
   return forgedFin(base, edge, {

@@ -27,22 +27,6 @@ export function dir(az, el) {
 }
 
 /**
- * Blade orientation on a swing from direction `a` to direction `b` (great-circle), at fraction k (may be < 0 or > 1
- * for wind-up / overshoot). The true edge leads the motion: `up` (the back edge) faces where the blade comes from.
- * @returns {{aim:number[], up:number[]}}
- */
-export function arc(a, b, k) {
-  a = norm(a); b = norm(b);
-  const n = norm(cross(a, b));
-  const om = Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
-  const th = om * k;
-  // rotate a about n by th (Rodrigues; a is perpendicular to n)
-  const c = Math.cos(th), s = Math.sin(th), nxa = cross(n, a);
-  const aim = norm([a[0] * c + nxa[0] * s, a[1] * c + nxa[1] * s, a[2] * c + nxa[2] * s]);
-  return { aim: r3(aim), up: r3(norm(cross(aim, n))) };
-}
-
-/**
  * A swing plane through direction `a` (angle 0) and `b` (the next direction the blade passes, less than 180 deg on):
  * returns blade(deg) = the blade direction `deg` degrees along the swing (any angle: wind-up < 0, follow-through past
  * b), with the true edge leading (`flip`: the other edge leads — the greatsword is double-edged, and for chops that end
@@ -72,9 +56,6 @@ export function grip(pos, aim, sh = [-0.12, 1.4, 0.2]) {
   if (Math.hypot(up[0], up[1], up[2]) < 1e-4) up = [0, 1, 0];
   return { pos, aim: r3(aim), up: r3(norm(up)) };
 }
-
-/** Linear interpolation of two points. */
-export const mix = (p, q, k) => r3([p[0] + (q[0] - p[0]) * k, p[1] + (q[1] - p[1]) * k, p[2] + (q[2] - p[2]) * k]);
 
 // ---- the stance -------------------------------------------------------------------------------------------------
 /** Right fist on the grip in front of the right shoulder, blade sloping back over the pauldron, true edge forward-up. */

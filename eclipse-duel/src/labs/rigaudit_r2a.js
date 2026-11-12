@@ -22,9 +22,7 @@
 //   __ED.r2a.look(focus, yaw, dist, pitch)   camera on a bone ('w<x>_<y>_<z>' = fixed model point)
 //   __ED.r2a.holes(slots?)                   GPU see-through pixels (front faces vs double-sided silhouette) + overlay
 //   __ED.r2a.show(slots)                     show only some material slots
-//   __ED.r2a.hullInfo(id)                    the fitted hulls (bone, centre, semi-axes)
-//   __ED.r2a.volume(id, poses)               elbow / knee helper scale + suit ring area around the joint (bulge check)
-//   __ED.r2a.dtCloth(id, clip)               the same clip at 30 / 60 / 120 Hz and alternating 60/30 dt: cloth deviation
+//   __ED.r2a.hullInfo(id)                    the fitted body cores (bone, axis ends, radius)
 
 import * as THREE from 'three';
 import { createLab, ORDER } from '../core/lab.js';
@@ -479,8 +477,8 @@ createLab({
         ch.teleport();
         ch.play('r2a.vol', { fade: 0, restart: true });
         for (let i = 0; i < 3; i++) ch.update(1 / 60, 1 / 60);
-        const j = rig.index[joint], par = rig.parent[j], c1 = rig.index[{ foreArmR: 'handR', shinR: 'footR' }[joint]];
-        const helper = ch.skeleton.bones.find((b) => b.name === (joint === 'foreArmR' ? 'elbowVolR' : 'kneeVolR'));
+        const j = rig.index[joint], par = rig.parent[j], c1 = rig.index[{ foreArmR: 'handR', shinR: 'footR', thighR: 'shinR', upperArmR: 'foreArmR' }[joint]];
+        const helper = ch.skeleton.bones.find((b) => b.name === ({ foreArmR: 'elbowVolR', shinR: 'kneeVolR' }[joint]));
         const B0 = [bindPos(par), bindPos(j), bindPos(c1)];
         // region + bind data
         const reg = new Uint8Array(S.n), d0 = new Float32Array(S.n);
@@ -521,6 +519,7 @@ createLab({
           return { n, minR: +(minR * 1000).toFixed(1), minRatio: +minRatio.toFixed(3), maxR: +(maxR * 1000).toFixed(1), maxRatio: +maxRatio.toFixed(3), folds, tris };
         };
         const shipped = measureNow();
+        if (!helper) { out.push({ pose: name, joint, shipped }); continue; }
         const hs = helper.scale.toArray().map((x) => +x.toFixed(3));
         helper.scale.set(1, 1, 1); ch.root.updateMatrixWorld(true);
         const unscaled = measureNow();
@@ -607,7 +606,10 @@ createLab({
       }
       const s = per.slice().sort((a, b) => a - b);
       const cl = C.cloths.reduce((a, c) => a + c.n, 0);
-      return { id, frames: per.length, clothParticles: cl, iters: C.cloths.map((c) => c.iters), meanOfMin: +(per.reduce((a, b) => a + b, 0) / per.length).toFixed(3), p50: +s[s.length >> 1].toFixed(3), p95: +s[Math.floor(s.length * 0.95)].toFixed(3) };
+      // frames whose fastest replay still costs > 3 ms (deterministic work, not contention): frame index and clip
+      const bounds = []; let acc = 0; for (const clip of chain) { bounds.push([acc, clip]); acc += Math.round(getClip(ch.rig, clip).duration * 60); }
+      const slow = per.map((v, i) => [i, v]).filter(([, v]) => v > 3).map(([i, v]) => { const b = bounds.filter(([a]) => a <= i).pop(); return `${b[1]}+${i - b[0]}f:${v.toFixed(1)}ms`; });
+      return { id, slow, frames: per.length, clothParticles: cl, iters: C.cloths.map((c) => c.iters), meanOfMin: +(per.reduce((a, b) => a + b, 0) / per.length).toFixed(3), p50: +s[s.length >> 1].toFixed(3), p95: +s[Math.floor(s.length * 0.95)].toFixed(3) };
     }
 
     window.__ED.r2a = {

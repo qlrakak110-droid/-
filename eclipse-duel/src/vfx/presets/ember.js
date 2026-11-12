@@ -34,13 +34,13 @@ const BLAST = def({ tex: 'smoke', blend: 'alpha', count: 16, life: [0.7, 1.4], s
   speed: [1, 4.5, 1.2], drag: 3.8, gravity: 1.8, size: [1.1, 2.0, 1.3], sizeOverLife: [[0, 0.3], [0.15, 0.8, 'outQuad'], [1, 1.25]], spin: [0.2, 0.9],
   turbulence: { amp: 0.4, freq: 0.8, speed: 1 }, heat: 0.3, shade: 0.85, erode: [[0, 0], [0.4, 0.08], [1, 0.95]], erodeSoft: 0.3,
   additive: [[0, 0.85], [0.15, 0.7], [0.35, 0.12], [1, 0]],
-  color: [[0, 3.0, 1.25, 0.28, 0.9], [0.08, 2.0, 0.55, 0.07, 1], [0.22, 0.8, 0.15, 0.025, 0.95], [0.4, 0.12, 0.06, 0.04, 0.9], [1, 0.045, 0.04, 0.04, 0]] });
+  color: [[0, 2.3, 0.95, 0.2, 0.9], [0.08, 1.5, 0.4, 0.05, 1], [0.22, 0.65, 0.12, 0.02, 0.95], [0.4, 0.11, 0.06, 0.04, 0.9], [1, 0.045, 0.04, 0.04, 0]] });
 /** fireball puffs launched up a column */
 const PLUME = def({ ...BLAST, count: 12, emit: 'axis', spread: 14, speed: [2.5, 8, 1.2], drag: 2.4, gravity: 3, lift: 0, size: [0.9, 1.6, 1.3] });
 /** flames thrown up an eruption column: they stand upright as they rise (velocity-aligned they fan out like feathers) */
 const ERUPT_LICKS = def({ ...LIB.fireLicks, align: 'axis', spread: 22, speed: [2.5, 7], size: [0.45, 1.1, 1.4] });
 /** radial flame petals (fire flower / explosion) */
-const PETALS = def({ ...LIB.fireLicks, count: 14, spread: 50, speed: [3, 8], size: [0.6, 1.2], life: [0.25, 0.55] });
+const PETALS = def({ ...LIB.fireLicks, count: 14, spread: 50, speed: [3, 8], size: [0.45, 1.0, 1.3], life: [0.2, 0.5, 1.3], align: 'axis' });
 /** radial sparks (explosions) */
 const SPARKS_RADIAL = def({ ...LIB.sparks, count: 90, spread: 180, emit: 'radial', speed: [4, 15, 1.4], life: [0.3, 1.1, 1.4] });
 /** long-lived embers rising after a blast */
@@ -247,11 +247,12 @@ export function defineEmber(vfx, P) {
 
   /** fire flower: the burst when a fire crescent or fireball hits (also used by ember.wave's impact) */
   function flower(v, p, d, s, i) {
-    v.burst(KIT.ember.flash, { pos: p, scale: 0.8 * s, intensity: i });
-    v.flare({ kind: 'star', pos: p, size: 1.8 * s, life: 0.14, decay: 3, color: E.core, intensity: 0.9 * i, rotation: rng() });
-    v.light({ pos: vec([p.x, p.y, p.z + 1.0]), color: E.core, intensity: 130 * i, range: 8, duration: 0.6, decay: 'outCubic', flicker: 0.3 });
+    v.burst(KIT.ember.flash, { pos: p, scale: 0.6 * s, intensity: i });
+    v.flare({ kind: 'star', pos: p, size: 1.5 * s, life: 0.12, decay: 3, color: E.core, intensity: 0.75 * i, rotation: rng() });
+    v.burst(KIT.ember.lines, { pos: p, count: n(14, i), scale: s });
+    v.light({ pos: lightAt(p, 1.8), color: E.core, intensity: 100 * i, range: 8, duration: 0.6, decay: 'outCubic', flicker: 0.3 });
     v.burst(BLAST, { pos: p, count: n(11, i), scale: 0.75 * s });
-    v.burst(PETALS, { pos: p, dir: d, count: n(14, i), scale: s });
+    v.burst(PETALS, { pos: p, count: n(14, i), scale: s });
     v.burst(SPARKS_RADIAL, { pos: p, count: n(70, i), scale: s });
     v.burst(EMBERS_LONG, { pos: p, count: n(24, i), scale: s });
     v.ring({ normal: d, look: 'fire', pos: p, radius: [0.2 * s, 1.3 * s], width: [0.25 * s, 0.4 * s], life: 0.4, intensity: 0.5 * i });

@@ -8,8 +8,8 @@ import { clips } from './clips/index.js';      // registers every iska.* clip an
 export default { id: 'iska', design, def, clips, present };
 ```
 
-All 34 clips below are registered (`hasClip` is true for every name). Files: `common.js` (stance, guard pose,
-helpers), `locomotion.js`, `moves.js`, `ult.js`, `ceremony.js`.
+All 38 clips below are registered (`hasClip` is true for every name). Files: `common.js` (stance, guard pose,
+helpers), `locomotion.js`, `moves.js`, `ult.js`, `ceremony.js` (ceremony + hit / air / lying reactions).
 
 ## Moves (sampled at the rules' move time; duration = move duration, `impact` event at the first active frame)
 
@@ -47,6 +47,10 @@ for the current frame data and keeps the impact on the first active frame if the
 | `iska.intro` | intro | 2.4 s: kneeling prayer with crossed blades, rises 1.2, fans the blades open 1.6, settles in the stance |
 | `iska.victory` | victory | 2.0 s: frost flick, right crescent raised to the sky (held) |
 | `iska.defeat` | defeat | 1.6 s: staggers, sinks to one knee, blades on the floor, head bowed (held) |
+| `iska.launched` / `iska.fall` | launched / fall | loops 0.8 s: arched rising / tipping back to horizontal; FK legs, both crescents trailing along the body |
+| `iska.down` / `iska.ko` | down / ko | loops: lying on the back (`iska.downPose`), crescents flat beside her; KO is still, head turned away |
+
+Not authored (the generic twin-blade fallback plays): `locked` (Iska as the victim of an opponent's lock).
 
 Poses: `iska.stance` (every clip starts / ends here), `iska.block`, `iska.downPose`, `iska.ult.snapPose` (= frozen_star at .75).
 
@@ -63,6 +67,5 @@ Poses: `iska.stance` (every clip starts / ends here), `iska.block`, `iska.downPo
 | `iska.ult.frostWave` | 4.15 | 0.50 | — | rises, both blades swept wide |
 | `iska.ult.blendBack` | 4.65 | 0.75 | `flick` 0.24 | gathers, flicks the frost off both blades, back into `iska.stance` |
 
-Not authored (the generic twin-blade fallbacks play): launched, fall, down, ko, locked.
 
 Root: every lock clip keeps the root still; leaps / descents / dashes are `h.offset` moves of the choreographer.

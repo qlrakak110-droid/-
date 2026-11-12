@@ -18,7 +18,7 @@ src/game/prof.js       #prof: per update-group CPU timing
 src/game/tests/        capture.mjs (screens / fight / heavy / KO / ult / result), moves.mjs (every move of a fighter, guard,
                        guard break, knockdown), input.mjs (every human action + the whole menu flow, PASS / FAIL),
                        soak.mjs (CPU matches with per-frame invariants + session churn memory), poses.mjs, api.mjs,
-                       profile.mjs (fight + ultimate peaks)
+                       profile.mjs (fight + ultimate peaks), ultcost.mjs (per-frame render cost of an ultimate)
 src/fighters/registry.js  roster (menu data) + loader of src/fighters/<id>/ with fallbacks
 ```
 
@@ -42,6 +42,10 @@ FIGHTERS=iska GUARD=1 DOWN=1 node tools/shot.mjs game --size 960x540 --scenario 
 SECTIONS=ult ULT=kael,iska,vorn node tools/shot.mjs game --scenario src/game/tests/capture.mjs --sheet 4 --sheet-only --out shots/game/ult
 MEMORY=1 MATCHES=4 node tools/shot.mjs game --size 320x180 --scenario src/game/tests/soak.mjs   # invariants + memory churn
 ```
+
+On a loaded build machine the page can take minutes to boot (it parses ~2 MB and builds both fighters): the harness's
+120 s navigation timeout then fails. A private copy of `tools/shot.mjs` with `page.goto(..., { timeout: 900000,
+waitUntil: 'commit' })` works around it (`tools/` is the lead's).
 
 URL flags (besides the core ones `#test #q=low|mid|high #fps #fpsmeter #nodrs`):
 
@@ -383,21 +387,35 @@ export const present = {
 
 ## 6. Performance
 
-Measured with `src/game/tests/profile.mjs` (headless Chromium + SwiftShader on the 4-core build container: CPU numbers
-are real JS cost; GPU time is not meaningful there), 240 rendered frames of a hard-AI Kael vs Iska match (both with
-their art-team designs):
+Measured with `src/game/tests/profile.mjs` (headless Chromium + SwiftShader on the 4-core build container) with the
+fighters' own content (designs, clips, choreography), Kael vs Iska: **fight** = 240 rendered frames of a hard-AI match,
+**ult** = 420 frames through Kael's whole ultimate (super-freeze, 5.2 s lock, aftermath). Triangles (shadow pass
+included), draw calls and program counts are exact; CPU milliseconds are wall-clock JS time and scale with the load of
+the shared container (all groups inflate together, by ~5–10x at load average 50–90).
 
-| tier | JS / frame (avg) | CHAR | GAME | VFX | CAM | UI | draw calls (avg / peak) | triangles incl. shadow pass (avg / peak) |
-|---|---|---|---|---|---|---|---|---|
-| high | 2.8 ms quiet machine · 6.1 ms at load avg 17 | 2.1 · 4.8 | 0.26 · 0.34 | 0.14 · 0.54 | 0.08 · 0.22 | 0.08 | 44 / 47 | 354k / 369k |
-| mid | 2.9 ms · 6.8 ms | 2.4 · 5.2 | 0.20 · 0.73 | 0.13 · 0.59 | 0.07 | 0.07 · 0.15 | 40 / 43 | 345k / 359k |
-| low | 1.1 ms · 3.0 ms | 0.7 · 2.0 | 0.18 · 0.59 | 0.10 · 0.20 | 0.05 · 0.11 | 0.03 · 0.07 | 31 / 34 | 201k / 215k |
+| tier | draw calls fight avg / peak | ult avg / peak | triangles fight avg / peak | ult avg / peak | programs before → after the ultimate |
+|---|---|---|---|---|---|
+| high | 42 / 51 | 47 / 60 | 365k / 445k | 442k / 592k | 49 → 49 |
+| mid | 40 / 49 | 45 / 58 | 355k / 434k | 424k / 569k | 47 → 47 |
+| low | 33 / 42 | 38 / 51 | 207k / 283k | 267k / 403k | 46 → 46 |
 
-(First number: an earlier run on an idle machine with the tinted knight as Iska; second: the current content while
-other jobs loaded the container.) Per-character `update()` measured alone: Kael 0.78 ms, Iska 1.02 ms (two cloths each).
-Characters: Kael 58.4k triangles / 4 draw calls, Iska 64.0k / 3 (over the 60k budget); the arena 13 calls / 103k
-triangles on high. The game layer itself (session + actors + feel + HUD binding) is ~0.3 ms.
+CPU, low tier, through the ultimate in the quietest window of the session: **2.2 ms JS per frame** (CHAR 1.76, GAME
+0.12, VFX 0.15, CAM 0.08, UI 0.08, INPUT 0.03), 4.6 ms wall per frame including the render submit. Earlier quiet-ish
+runs on high: 2.8–3.0 ms per fight frame (CHAR ~2.5). The game layer (session, actors, feel, presenter, HUD binding)
+stays at 0.1–0.3 ms; the characters (animation, IK, two cloths each) are ~80 % of the JS.
+
+Over budget: triangles on high average 365k in neutral (budget 350k) and peak at 445k (fight) / 592k (ultimate). The
+peaks are afterimage ghosts: every ghost is a full copy of a character (~58k triangles, one draw per mesh, additive,
+no depth write), and choreographies spawn several at once (Kael's ultimate leap, Iska's blink). The generic layer
+rate-limits its own ghosts to one per fighter per 0.25 s. Under SwiftShader the ultimate costs ~300x the GPU time of
+neutral fighting (fill: stacked ghosts, close-up cameras inside pillars and rings); verify on real hardware.
 
 Hitch prevention: every clip a fighter can play is compiled when its actor is created; every program is compiled at
 boot and again behind the VS splash when new characters are built (`renderer.compile` on the scene and the distortion
-scene), plus one warm frame at boot (shadow programs). No per-frame allocations in the session / actor / HUD paths.
+scene), plus one warm frame at boot (shadow programs). Verified: no program is compiled during a fight or an ultimate
+(counts above, and soak.mjs renders through whole matches). No per-frame allocations in the session / actor / HUD paths
+(the walk speed and the music intensity are written in place / only on change).
+
+Memory (soak.mjs `MEMORY=1`: ten session builds across every pairing, each also rematched): geometries 35, textures 66,
+programs 49, scene children 4 and JS heap 98 MB from match 2 to match 10 (no growth). A disposed session clears the
+VFX (ghosts share their character's geometry).

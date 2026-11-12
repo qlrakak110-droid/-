@@ -58,8 +58,10 @@ defineClip('kael.defeat', {
   duration: 1.8, breath: 1.8, gripAt: 'pommel',
   keys: [
     { t: 0, ...stance() },
+    // the blade comes off the shoulder up in front of him, then its point drops to the floor
+    { t: 0.16, ease: 'inOutSine', ik: { handR: G([0.32, 1.3, 0.2], dir(-60, 80)) } },
     { t: 0.35, ease: 'inOutSine', hips: { pos: [-0.06, -0.2, 0], rot: [0, -16, 0] }, bones: { spine: [0, -3, -8], chest: [0, -4, -8], neck: [0, 6, -6], head: [0, 8, -10] },
-      ik: { handR: G([0.42, 1.0, 0.04], dir(0, -70)) } },
+      ik: { handR: G([0.46, 1.06, 0.06], dir(0, -70)) } },
     { t: 0.6, ease: 'inQuad', ik: { handR: { ...PLANTED_HAND, pos: [0.44, 0.86, 0.03] } } },
     // down on one knee: the right knee to the floor, the left foot planted ahead
     { t: 1.1, ease: 'inOutCubic', hips: { pos: [-0.1, -0.5, 0.02], rot: [0, -16, 0] }, bones: { spine: [0, -3, -14], chest: [0, -4, -14], neck: [0, 4, -16], head: [0, 6, -26], shoulderR: [6, 0, 0], shoulderL: [6, 0, 0] },

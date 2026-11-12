@@ -117,7 +117,7 @@ a continuous stream. `at` as for `burst` plus `duration` (s, auto-`stop()`; defa
 Registers a named definition (then `vfx.burst('name', at)` works) and returns the compiled definition.
 Definitions are compiled once and cached by identity *and* by content, so inline literals do not leak rows, but define
 them at module scope anyway (an inline literal is hashed on every call): 384 definition rows exist (the preset library
-uses about 150, the game's generic set about 45) and the least recently used dead row is recycled when full.
+uses 175, the game's generic set about 45) and the least recently used dead row is recycled when full.
 
 ---
 
@@ -921,7 +921,7 @@ additive, alpha-blended or anything in between.
 - Draw calls: one per layer / effect type: particles (alpha, add, distortion), flares, distortion sprites, ribbons (+
   refraction), slash (+ refraction), ring, pillar, beam, bolt, decal, debris, spikes, speed lines: about 17 if every
   type is alive at once, plus one per afterimage ghost mesh; **zero when idle** (every layer hides itself).
-- Triangles: the mesh-effect templates are dense (slash 1.5k, ring 1.5k, beam 0.8k, pillar 5.1k triangles per
+- Triangles: the mesh-effect templates are dense (slash 1.5k, ring 1.5k, beam 0.8k, pillar 3.1k triangles per
   instance) and the vertex shader culls dead instances, so each layer draws only up to its **highest live slot**
   (slots are taken lowest-first), recomputed every frame: an idle-then-busy history never leaves 24 dead slashes in
   the draw.
@@ -932,11 +932,15 @@ additive, alpha-blended or anything in between.
   shards, debris 256 / 192 / 128 chunks (high / mid / low), speed lines 4, afterimage 40 / 28 / 16 ghost meshes. The
   oldest instance is stolen when full.
 - **Preset library** (measured, `node tools/shot.mjs vfx --scenario ...`, lab stage of 15 draw calls): a hit costs
-  45–160 live particles and 3–8 VFX draw calls; skills 40–290; ultimates 450–700 at their peak. Worst case, all three
-  ultimates overlapping (`overlap` scenario): **1149 additive + 242 alpha + 16 distortion particles** (capacities 8192 /
-  4096 / 512), **12 VFX draw calls**, 86k triangles for the whole frame; on `low` 523 / 98 / 7 particles and the same 12
-  calls. 26 programs before and after playing everything (nothing compiles on first use). The presets register 164
-  particle definitions; a full game uses about 208 of the 384 rows.
+  50–200 live particles and 3–8 VFX draw calls; skills 40–290; ultimates 500–1050 at their peak. Worst case, all three
+  ultimates overlapping (`overlap` scenario, peak over 4.4 s): **high 1665 additive + 241 alpha + 16 distortion
+  particles** (capacities 8192 / 4096 / 512), **12 VFX draw calls**, 68k triangles for the whole frame; **mid**
+  1134 / 187 / 11, 12 calls, 62k triangles; **low** 736 / 95 / 7, 12 calls, 56k triangles. 26 programs before and after
+  playing everything (nothing compiles on first use). The presets register 175 particle definitions; a full game uses
+  about 220 of the 384 rows.
+- Soak (measured): 300 random preset plays with random `kill()` / `stop()` / `clear()`, hit-stops and slow motion,
+  rendering every step, return to the idle baseline (no visible VFX mesh, every pooled light at 0, no live particle,
+  emitter or ribbon, same draw calls, geometries, textures and programs) within the longest decal life.
 - Preset CPU: everything is computed at spawn (and in the few scheduled callbacks); per frame only the pooled motion
   anchors (24, projectiles / meteors / travelling fronts), followed emitters and the aura bolt ticks run. Spawning
   allocates a little (`at` objects, closures for scheduled layers); nothing allocates per frame.
@@ -976,7 +980,8 @@ Lessons baked into the library (verified on captures):
   which reads as both fighters turning white.
 - **No flat camera-facing rings.** A camera-facing ring reads as a UI circle or a bubble. Tilt shock rings around the
   action axis (`normal: strikeDir`: an ellipse that carries the direction), lay them on the floor, or let distortion
-  carry the shock.
+  carry the shock. A big axial disc seen edge-on from the fight camera becomes a tall glowing loop: keep axial discs
+  small (≤ 1 m) and short (≤ 0.2 s); for radial releases tilt the disc toward the ground (`normal [0.15, 1, 0.5]`).
 - **Minimum size at fight distance.** At 8–12 m, sprites under ~0.03 m vanish; use ≥ 0.04 m or velocity stretch.
 - **First frames.** The hit kits' flash sprite lives 2–3 frames (0.03–0.05 s); keep its `scale` ≤ 0.8 and any
   `flare` `'flash'` ≤ 0.2 intensity and ≤ 0.07 s. A glow puff, a flash flare and a long light stacked on the same 3–4
@@ -1111,8 +1116,11 @@ smoke need something to read against) and a swinging two-socket weapon rig. Scen
 | `families(names)` | one preset per family side by side (default `hit.crit`, `ember.eruption`, `frost.nova`, `volt.strike`), camera pulled back |
 | `overlap(names)` | three ultimates at once (default `ember.inferno`, `frost.blizzard`, `volt.storm`) for performance checks |
 | `stats()` | live particles per layer, draw calls and triangles of the last render, program count |
+| `idle()` | what is still drawing: visible VFX meshes, lit pooled lights, live particles, emitters and ribbons (all empty / 0 when idle) |
+| `soak(n = 300, seed = 7)` | robustness soak: `n` random preset plays with random `kill()` / `stop()` / `clear()`, hit-stop and slow motion, rendering every step; returns counts, errors and peak calls / triangles / programs. Advance ~8 s, then `idle()` must be empty |
 
 ```
 node tools/shot.mjs vfx --do "__ED.lab.play('swordImpact')" --at 0,0.033,0.083,0.15,0.3,0.5,0.8 --sheet-only --out shots/vfx/impact
 node tools/shot.mjs vfx --do "__ED.lab.play('presetView','ember.eruption','fight'); __ED.lab.play('preset','ember.eruption')" --at 0.05,0.25,0.6,1.3 --sheet-only --out shots/vfx/s3/eruption
+node tools/shot.mjs vfx --size 480x270 --do "__ED.lab.play('soak', 300)" --at 8 --eval "__ED.lab.play('idle')" --out shots/vfx/soak
 ```

@@ -38,12 +38,14 @@ defineClip('kael.ult.cuts', {
     { t: 0.3, hips: { pos: [0.06, -0.17, 0.01], rot: [1, -10, 2] }, bones: { spine: [1, -6, -3], chest: [1, -8, 0], neck: [0, 8, 0], head: [0, 10, -2] },
       ik: { handR: { pos: [0.64, 1.32, 0.08], ...DIAG(126) } } },
     { t: 0.35, ease: 'outQuad', hips: { pos: [-0.02, -0.12, 0.02], rot: [1, -26, 2] }, bones: { spine: [0, -6, 6], chest: [0, -6, 10], neck: [0, 10, -6], head: [0, 12, -10] },
-      ik: { handR: G([0.12, 1.92, 0.14], OVER(20)) } },
+      ik: { handR: G([0.2, 1.9, 0.16], OVER(20)) } },
     // cut 3: straight down the middle, the X's crossing stroke
-    { t: 0.41, ik: { handR: G([0.34, 1.86, 0.08], OVER(85)) } },
+    { t: 0.41, ik: { handR: G([0.5, 1.82, 0.08], OVER(85)) } },
     { t: 0.45, ease: 'inQuad', hips: { pos: [-0.04, -0.3, 0], rot: [0, -12, 0] }, bones: { spine: [0, -2, -20], chest: [0, -2, -16], neck: [0, 4, 12], head: [0, 6, 14] },
       ik: { handR: G([0.64, 0.86, 0.05], OVER(166)), footR: BACK_FOOT_UP } },
     { t: 0.52, ease: 'outQuad', ik: { handR: G([0.62, 0.82, 0.05], OVER(170)) } },
+    // the point lifts off the floor and swings around the right side
+    { t: 0.61, ease: 'inOutSine', hips: { pos: [-0.06, -0.26, 0.02], rot: [0, -40, -1] }, ik: { handR: G([0.24, 0.98, 0.32], dir(-95, -8)) } },
     // coil for the hurl: the blade swings back low on the right, point down by the rear foot
     { t: 0.7, ease: 'inOutSine', hips: { pos: [-0.08, -0.3, 0.03], rot: [0, -62, -2] }, bones: { spine: [0, -12, -12], chest: [0, -14, -10], neck: [0, 26, 8], head: [0, 32, 8] },
       ik: { handR: G([-0.08, 0.86, 0.34], dir(-160, -30)), footR: FEET.footR } },
@@ -63,7 +65,7 @@ defineClip('kael.ult.cuts', {
         ik: { handR: G([-0.1, 0.85, 0.34], dir(-165, -30)), ...FEET }, grip: 1, curl: [1, 1] },
       // tension: sinks further, the blade grinds along the floor behind him
       { t: 0.24, ease: 'inOutSine', hips: { pos: [-0.12, -0.36, 0.03], rot: [0, -76, -3] }, bones: { spine: [0, -13, -14], chest: [0, -15, -12] },
-        ik: { handR: { pos: [-0.14, 0.82, 0.33], ...RISE(-4) }, footR: { pos: FR, rot: [0, -60, 0] } } },
+        ik: { handR: G([-0.14, 0.82, 0.33], dir(-172, -30)), footR: { pos: FR, rot: [0, -60, 0] } } },
       // release along the right side and up through the victim
       { t: 0.3, hips: { pos: [-0.04, -0.28, 0.02], rot: [0, -40, 0] }, ik: { handR: { pos: [0.08, 0.88, 0.36], ...RISE(80) } } },
       { t: 0.35, hips: { pos: [0.04, -0.16, 0], rot: [0, -6, 0] }, bones: { spine: [0, -2, -4], chest: [0, 0, 0], neck: [0, 4, -2], head: [0, 4, -6] },
@@ -103,7 +105,7 @@ defineClip('kael.ult.leapAfter', {
 // ---- spin: one full turn in the air, blade at arm's length = the ring of fire (lock 2.40 -> 2.72) ------------------
 {
   const T = 0.32;
-  const ring = { space: 'chest', pos: [0.18, -0.08, 0.58], aim: [0.42, 0.05, 0.9], up: [0, 1, 0] };
+  const ring = { space: 'chest', pos: [0.18, -0.12, 0.58], aim: [0.42, -0.4, 0.82], up: [0, 1, 0] };
   defineClip('kael.ult.spin', {
     duration: T, breath: 0,
     keys: [

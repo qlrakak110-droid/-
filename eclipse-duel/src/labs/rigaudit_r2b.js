@@ -17,6 +17,7 @@
 //   scenarios (captures): clip(fighter, name, view) look(clip) feasible(seed) floorpole layer
 
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { createLab, ORDER } from '../core/lab.js';
 import { makeRng } from '../core/math.js';
 import { createCharacter, defineClip, invalidateClips, listClips } from '../char/index.js';
@@ -483,15 +484,22 @@ function loopSeam() {
 }
 
 function cpu() {
+  // full knight (two cloths): one clip vs four clips cross-fading (a play every 4 frames, fade 0.3 s); per-update
+  // percentiles over 5 x 160 frames (p10 approximates the uncontended cost on a loaded machine)
   const c = createCharacter(CTX, knight, { parent: null, name: 'r2b_cpu' });
-  qa.resetForQA(c, 'demo.combo3', { breath: 1 });
-  c.play('demo.combo3', { fade: 0, restart: true, loop: true });
-  for (let i = 0; i < 120; i++) c.update(1 / 60, 1 / 60);
-  const ms = [];
-  for (let rep = 0; rep < 5; rep++) for (let i = 0; i < 160; i++) { const t0 = performance.now(); c.update(1 / 60, 1 / 60); ms.push(performance.now() - t0); }
-  ms.sort((a, b) => a - b);
+  const seq = ['demo.combo1', 'demo.combo2', 'demo.combo3', 'demo.slam'];
+  const time = (each) => {
+    qa.resetForQA(c, 'demo.combo3', { breath: 1 });
+    c.play('demo.combo3', { fade: 0, restart: true, loop: true });
+    for (let i = 0; i < 120; i++) { each(i); c.update(1 / 60, 1 / 60); }
+    const ms = [];
+    for (let rep = 0; rep < 5; rep++) for (let i = 0; i < 160; i++) { each(i); const t0 = performance.now(); c.update(1 / 60, 1 / 60); ms.push(performance.now() - t0); }
+    ms.sort((a, b) => a - b);
+    return { p10: r(ms[Math.floor(ms.length * 0.1)], 3), p50: r(ms[ms.length >> 1], 3), p90: r(ms[Math.floor(ms.length * 0.9)], 3) };
+  };
+  const out = { oneClip: time(() => {}), fourClips: time((i) => { if (i % 4 === 0) c.play(seq[(i / 4) % 4], { fade: 0.3, restart: true }); }) };
   c.dispose();
-  return { p10: r(ms[Math.floor(ms.length * 0.1)], 3), p50: r(ms[ms.length >> 1], 3), p90: r(ms[Math.floor(ms.length * 0.9)], 3) };
+  return out;
 }
 
 const TESTS = { realClips, demoClips, feasible, lookSpin, layerIK, floorPole, clavicle, loopSeam, cpu, measure: (id, name, o) => measureClip(mk(id), name, o) };
@@ -500,6 +508,17 @@ createLab({
   view: { target: [0, 1.05, 0], dist: 5.0, yaw: 0, pitch: 4, fov: 40 },
   setup(ctx, lab) {
     CTX = ctx;
+    const pm = new THREE.PMREMGenerator(ctx.renderer);
+    ctx.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    ctx.scene.environmentIntensity = 0.45;
+    pm.dispose();
+    lab.lights.key.intensity = 3.2;
+    lab.skel = (c) => {
+      const h = new THREE.SkeletonHelper(c.root);
+      h.material.linewidth = 2; h.material.color = new THREE.Color(0x40ff60);
+      ctx.scene.add(h); lab.helpers.push(h);
+    };
+    lab.helpers = [];
     const live = [];
     const st = { tick: null };
     lab.live = live; lab.st = st;
@@ -510,7 +529,7 @@ createLab({
       live.push(c);
       return c;
     };
-    lab.clear = () => { for (const c of live) c.dispose(); live.length = 0; st.tick = null; };
+    lab.clear = () => { for (const c of live) c.dispose(); live.length = 0; st.tick = null; for (const h of lab.helpers) h.removeFromParent(); lab.helpers.length = 0; };
     ctx.onUpdate((dg, dr) => { if (st.tick) st.tick(dg); for (const c of live) c.update(dg, dr); }, ORDER.CHAR);
     window.__ED.audit = {
       run(name, ...args) { const t = TESTS[name]; if (!t) throw new Error('no test ' + name + ' (' + Object.keys(TESTS).join(', ') + ')'); return t(...args); },
@@ -518,10 +537,11 @@ createLab({
     };
   },
   scenarios: {
-    clip(ctx, lab, id, name, view = null, look = false) {
+    clip(ctx, lab, id, name, view = null, look = false, skel = false) {
       lab.clear(); const c = lab.add(id);
       c.play(name, { fade: 0, restart: true }); c.teleport();
       if (look) c.lookAt(new THREE.Vector3(2.6, 1.75, 0), 0.85);
+      if (skel) lab.skel(c);
       if (view) lab.view(view);
     },
     pose(ctx, lab, id, name, t, view = null, look = false) {
@@ -535,7 +555,7 @@ createLab({
       lab.st.tick = () => c.setClipTime(t);
       if (view) lab.view(view);
     },
-    layer(ctx, lab) {
+    layer(ctx, lab, view = null) {
       // left: demo.combo1 alone; right: demo.walkF with demo.combo1 as an upper-body override layer (same clip time)
       lab.clear();
       const a = lab.add('knight'), b = lab.add('knight');
@@ -543,13 +563,14 @@ createLab({
       a.play('demo.combo1', { fade: 0, restart: true }); a.teleport();
       b.play('demo.walkF', { fade: 0, restart: true }); b.teleport();
       b.layer('atk', 'demo.combo1', { mask: 'upper', fade: 0 });
-      lab.view({ target: [0, 1.1, 0], dist: 6.2, yaw: 0, pitch: 4 });
+      lab.view(view || { target: [0, 1.1, 0], dist: 6.2, yaw: 0, pitch: 4 });
     },
-    floorpole(ctx, lab) {
+    floorpole(ctx, lab, view = null) {
       floorPole();
       lab.clear(); const c = lab.add('knight');
       c.play('r2b.fp', { fade: 0, restart: true }); c.teleport();
-      lab.view({ target: [0.05, 0.5, 0.2], dist: 2.4, yaw: 25, pitch: 15 });
+      lab.skel(c);
+      lab.view(view || { target: [0.05, 0.5, 0.2], dist: 2.4, yaw: 25, pitch: 15 });
     },
   },
 });

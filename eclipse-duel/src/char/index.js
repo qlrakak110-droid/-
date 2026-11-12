@@ -5,16 +5,16 @@
 // bones and verlet cloth. See README.md.
 
 import * as THREE from 'three';
-import { createRig, bindMatrices, fk, driveHelpers, bodyScale } from './skeleton.js';
+import { createRig, bindMatrices, fk, driveHelpers, bodyScale, DEFAULT_PROPORTIONS } from './skeleton.js';
 import { createKit } from './build.js';
 import * as shapes from './shapes.js';
 import { createKitMaterial } from './materials.js';
 import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE, defineClip } from './anim.js';
-import { makeLimbs, solveLimb, floorFoot, solveLook, SOFT } from './ik.js';
+import { makeLimbs, solveLimb, floorFoot, lookAngles, applyLook, lookFade, lookYaw, lookPitch, commitMem, SOFT, MEM } from './ik.js';
 import { SpringChain } from './spring.js';
 import { Cloth, clothLayout, clothGeometry } from './cloth.js';
 import { createCapsules, updateCapsules } from './collide.js';
-import { qmul, qmulInv, qrot, qslerp, qaxis, qidentity, qcopy, eulerToQuat, sampleTrack, softRamp, softLimit, smooth01, twistAngle } from './rigmath.js';
+import { qmul, qmulInv, qrot, qslerp, qaxis, qidentity, qcopy, eulerToQuat, sampleTrack, softRamp, softLimit, softLimitInv, smooth01, twistAngle } from './rigmath.js';
 
 export { defineClip, definePose, mirrorClip, mirrorPose, listClips, listPoses, hasClip, invalidateClips } from './anim.js';
 export { createKitMaterial, shapes };
@@ -30,6 +30,44 @@ const MAX_STATES = 4;
 /** Shortest time (s) the off hand takes to move between two grip points of one weapon during a crossfade. */
 const GRIP_FADE = 0.35;
 
+const warned = new Set();
+function warnOnce(key, msg) { if (warned.has(key)) return; warned.add(key); console.warn(msg); }
+
+/**
+ * Rig defaults a design may leave out (the design object itself is not modified):
+ *  - gripAngle: design.gripAngle, else the main weapon spec's gripAngle, else 0 (with a warning when there is a weapon)
+ *  - head / neck colliders for designs with cloth (a cape or tails thrown up by a spin would pass through the head)
+ *  - `tasset*` bones parented to the hips without `follow` follow 55% of the swing of the thigh on their side
+ */
+function withRigDefaults(d) {
+  const out = { ...d };
+  const weapons = d.weapons || (d.weapon ? [d.weapon] : []);
+  const wa = weapons[0] && weapons[0].gripAngle;
+  out.gripAngle = d.gripAngle ?? wa ?? 0;
+  if (weapons.length && d.gripAngle === undefined && wa === undefined) {
+    warnOnce('grip:' + d.id, `char ${d.id}: the design has a weapon but no gripAngle (0 = the blade continues the knuckles; 30-45 keeps the wrists of sword / spear clips in range; FK weapon-bone tilts in clips must go when it is set)`);
+  }
+  const cols = d.colliders || [];
+  if ((d.cloth || []).length) {
+    const k = bodyScale({ ...DEFAULT_PROPORTIONS, ...(d.proportions || {}) });
+    const add = [];
+    if (!cols.some((c) => c.name === 'head')) add.push({ name: 'head', a: ['head', [0.01 * k, 0.07 * k, 0]], b: ['head', [0, 0.16 * k, 0]], r: 0.125 * k });
+    if (!cols.some((c) => c.name === 'neck')) add.push({ name: 'neck', a: ['neck', [0.01 * k, 0.03 * k, 0]], b: ['neck', [0.01 * k, 0.1 * k, 0]], r: 0.065 * k });
+    if (add.length) {
+      out.colliders = [...cols, ...add];
+      warnOnce('col:' + d.id, `char ${d.id}: cloth but no ${add.map((c) => c.name).join(' / ')} collider: default capsule(s) added (a spin throws cloth over the head; add them to the design)`);
+    }
+  }
+  if (d.bones) {
+    out.bones = d.bones.map((b) => {
+      if (b.follow || b.parent !== 'hips' || !/^tasset/i.test(b.name)) return b;
+      const side = /R$/.test(b.name) ? 'R' : /L$/.test(b.name) ? 'L' : b.at && b.at[2] < 0 ? 'L' : 'R';
+      return { ...b, follow: { bone: 'thigh' + side, k: 0.55 } };
+    });
+  }
+  return out;
+}
+
 /**
  * Build a character from a design (see README "Design format").
  * @param {object} ctx  app context
@@ -37,12 +75,13 @@ const GRIP_FADE = 0.35;
  * @param {object} [opts] { parent = ctx.scene (null: do not add), name }
  * @returns {object} Character
  */
-export function createCharacter(ctx, design, opts = {}) {
+export function createCharacter(ctx, design0, opts = {}) {
   const quality = ctx.quality || { cloth: 1 };
   const tv = new Float32Array(32);
+  const design = withRigDefaults(design0);
 
   // ---- rig ----------------------------------------------------------------------------------------------------
-  const rigOpts = { gripAngle: design.gripAngle ?? 0 };
+  const rigOpts = { gripAngle: design.gripAngle };
   const rig0 = createRig(design.proportions, design.bones || [], rigOpts);
   const bind0 = bindMatrices(rig0);
   const anchorPos = (bone, off) => {
@@ -165,14 +204,15 @@ export function createCharacter(ctx, design, opts = {}) {
   const lastWorld = new THREE.Matrix4(), curWorld = new THREE.Matrix4(), invWorld = new THREE.Matrix4(), tmpM = new THREE.Matrix4();
   let haveLast = false;
   const gravL = new Float32Array(3), windL = new Float32Array(3), footBuf = new Float32Array(8), gripT = new Float32Array(12);
-  const gripQ = new Float32Array(8), twistMem = new Float32Array(4), poleBuf = new Float32Array(3), gripMem = new Float32Array(3);
+  const gripQ = new Float32Array(8), twistMem = new Float32Array(4), poleBuf = new Float32Array(3), gripMem = new Float32Array(MEM);
+  const aimBuf = new Float32Array(1), gripBase = new Float32Array(4);
   // torso capsule the elbows keep out of (design collider 'torso', radius + the arm's own radius)
   const torsoDef = (design.colliders || []).find((c) => c.name === 'torso');
   const body = torsoDef ? new Float32Array(8) : null;
   const torsoA = torsoDef ? [ix[torsoDef.a[0]], ...(torsoDef.a[1] || [0, 0, 0])] : null, torsoB = torsoDef ? [ix[torsoDef.b[0]], ...(torsoDef.b[1] || [0, 0, 0])] : null;
-  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, body };
+  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body };
   // per clip: the off hand may roll around the handle; after blending: the blended (already rolled) target is kept
-  const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), body };
+  const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), mem: null, dt: 0, clavBase: null, body };
   /** Update the torso capsule from the current FK (mq / mp). */
   function bodyPoint(d, o) {
     qrot(body, o, mq, d[0] * 4, d[1], d[2], d[3]);
@@ -268,7 +308,7 @@ export function createCharacter(ctx, design, opts = {}) {
     if (cur && cur.name === name && cur.loop && loop && !o.restart && !cur.frozen) { if (Number.isFinite(o.speed)) cur.speed = o.speed; return char; }
     if (states.length >= MAX_STATES) collapseOldest();
     const s = statePool.pop() || { pose: new Pose(rig) };
-    s.c = c; s.name = name; s.speed = Number.isFinite(o.speed) ? o.speed : 1; s.loop = loop; s.external = false; s.frozen = false;
+    s.c = c; s.name = name; s.speed = Number.isFinite(o.speed) ? o.speed : 1; s.loop = loop; s.external = false; s.frozen = false; s.extWraps = 0;
     s.scale = o.scale ?? design.clipScale ?? 1;
     s.time = s.lastT = Math.max(0, o.startAt || 0); s.fresh = true; s.resolved = false;
     s.fade = Math.max(0, o.fade ?? 0.1); s.age = 0; s.w = s.gw = s.fade > 0 ? 0 : 1;
@@ -303,7 +343,14 @@ export function createCharacter(ctx, design, opts = {}) {
     if (!s || !Number.isFinite(t) || s.frozen) return char;
     s.external = true;
     const d = s.c.duration;
-    s.time = s.loop ? ((t % d) + d) % d : Math.max(0, Math.min(d, t));
+    if (s.loop) {
+      const tm = ((t % d) + d) % d;
+      // a loop driven from outside that wraps forward (the new time is earlier, but less than half a cycle ahead
+      // modulo the loop) is a wrap, not a backward scrub: its events and root motion are produced like a self-advancing
+      // loop's
+      if (tm < s.time - 1e-9 && ((tm - s.time) % d + d) % d < 0.5 * d) s.extWraps++;
+      s.time = tm;
+    } else s.time = Math.max(0, Math.min(d, t));
     return char;
   }
 
@@ -338,7 +385,7 @@ export function createCharacter(ctx, design, opts = {}) {
       if (s.loop) {
         if (s.time >= d) { wraps = Math.floor(s.time / d); s.time -= wraps * d; if (s.time >= d) s.time = 0; }
       } else if (s.time > d) s.time = d;
-    }
+    } else if (s.extWraps) { wraps = s.extWraps; s.extWraps = 0; }
     if (current) {
       // events of the newest clip (a huge dt on a loop emits at most two cycles)
       if (wraps > 0) {

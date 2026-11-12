@@ -36,12 +36,17 @@ const LOOKING = new Set(['idle', 'walk', 'guard', 'blockstun', 'dash', 'backstep
  */
 export function createActor(ctx, session, index, fighter) {
   const match = session.match;
-  let char;
-  try { char = createCharacter(ctx, fighter.design, { name: 'p' + (index + 1) }); } catch (e) {
+  let char, design = fighter.design;
+  try { char = createCharacter(ctx, design, { name: 'p' + (index + 1) }); } catch (e) {
     console.warn('[ed] design of ' + fighter.id + ' failed (' + (e && e.message) + '), using the tinted knight');
-    char = createCharacter(ctx, fighter.fallbackDesign(), { name: 'p' + (index + 1) });
+    design = fighter.fallbackDesign();
+    char = createCharacter(ctx, design, { name: 'p' + (index + 1) });
   }
   char.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  // design runtime hook (art team): living glow channels (ember flicker, flares), VORN's arc crackle -> char.glow
+  if (design && typeof design.attach === 'function') {
+    try { design.attach(char); } catch (e) { console.warn('[ed] ' + fighter.id + ' design.attach failed: ' + (e && e.message)); }
+  }
   const env = ctx.env;
   if (env && env.wind) char.wind = [env.wind.x * 2.4, 0, env.wind.z * 2.4];
   const weapons = [];

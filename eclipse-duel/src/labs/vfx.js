@@ -633,6 +633,50 @@ createLab({
     slowmo(ctx, lab, s = 0.2, d = 2) { ctx.time.slowmo(s, d, { easeIn: 0, easeOut: 0 }); },
     hitstop(ctx, lab, d = 0.3) { ctx.time.hitstop(d); },
     clear(ctx) { ctx.vfx.clear(); },
+    /** what is still drawing: visible VFX meshes, lit pooled lights, live particles / emitters / ribbons (all 0 when idle) */
+    idle(ctx, lab) {
+      const v = ctx.vfx, out = { vis: [], lights: 0 };
+      const visit = (o) => { if (o.isLight) { if (o.intensity > 0) out.lights++; return; } if (o.isMesh && o.visible) out.vis.push(o.name || o.type); };
+      v.root.traverse(visit);
+      ctx.post.distortionScene.traverse(visit);
+      const st = lab.play('stats');
+      out.add = st.add; out.alpha = st.alpha; out.distort = st.distort;
+      out.emitters = v.particles.emitters.length; out.ribbons = v.ribbons.live.length;
+      return out;
+    },
+    /**
+     * Robustness soak: n random preset plays (lab demos and raw presets) with random kill / stop / clear, hit-stop and
+     * slow motion, rendering every step; then everything is stopped. Returns counts and errors; advance ~8 s and call
+     * idle() to check the scene returned to its idle baseline.
+     */
+    soak(ctx, lab, n = 300, seed = 7) {
+      const v = ctx.vfx, names = Object.keys(DEMOS).concat(v.presets());
+      let r = seed >>> 0;
+      const rnd = () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; };
+      const live = [], st = { plays: 0, kills: 0, stops: 0, clears: 0, errors: [], maxCalls: 0, maxTris: 0, maxPrograms: 0 };
+      for (let i = 0; i < n; i++) {
+        const name = names[Math.floor(rnd() * names.length)], f = rnd() < 0.5 ? -1 : 1;
+        try {
+          const h = DEMOS[name] ? lab.play('preset', name, (rnd() - 0.5) * 4, f)
+            : v.play(name, { pos: [(rnd() - 0.5) * 6, rnd() * 2, 0], dir: [rnd() - 0.5, rnd() - 0.5, 0.3], facing: f, target: rnd() < 0.5 ? lab.dummyB : undefined },
+              { intensity: 0.5 + rnd(), realtime: rnd() < 0.1, element: ['ember', 'frost', 'volt', 'steel'][Math.floor(rnd() * 4)] });
+          if (h) live.push(h);
+        } catch (e) { st.errors.push(name + ': ' + (e && e.message)); }
+        st.plays++;
+        const x = rnd();
+        if (x < 0.06) ctx.time.hitstop(0.08 + rnd() * 0.2); else if (x < 0.1) ctx.time.slowmo(0.15 + rnd() * 0.5, 0.4 + rnd());
+        window.__ED.advance(Math.floor(rnd() * 20) / 60);
+        const inf = window.__ED.render();
+        st.maxCalls = Math.max(st.maxCalls, inf.calls); st.maxTris = Math.max(st.maxTris, inf.tris);
+        st.maxPrograms = Math.max(st.maxPrograms, (ctx.renderer.info.programs || []).length);
+        if (live.length && rnd() < 0.22) { const k = Math.floor(rnd() * live.length); live[k].kill(); live.splice(k, 1); st.kills++; }
+        if (live.length && rnd() < 0.2) { live[Math.floor(rnd() * live.length)].stop(); st.stops++; }
+        if (rnd() < 0.012) { v.clear(); live.length = 0; st.clears++; }
+      }
+      for (const h of live) h.stop();
+      for (const o of [lab.dummyA, lab.dummyB, lab.figure.root, lab.rig.pivot]) o.visible = false;
+      return st;
+    },
     /** live VFX counts: particles per layer (alive now), draw calls of the last render, live pooled effects */
     stats(ctx) {
       const v = ctx.vfx, out = {};

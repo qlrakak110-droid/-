@@ -6,7 +6,10 @@
 // (order ZXY) relative to that frame; left-side bones (`...L`) are mirrored (X and Y negated) so equal numbers give the
 // mirror-image pose. The BIND pose (arms in an A-pose) is only used to build the smooth under-suit.
 
-import { eulerToQuat, qmul, qrot, qaxis, qslerp, qidentity, qcopy, twistAngle, swingAngle, smooth01 } from './rigmath.js';
+import { eulerToQuat, qmul, qrot, qaxis, qslerp, qidentity, qcopy, twistAngle, swingAngle, smooth01, limitTwist } from './rigmath.js';
+
+/** Largest hand pronation / supination (rad) of an FK-authored forearm twist (the IK wrist range, ik.js WRIST.twist). */
+const PRONATION = Math.PI / 2;
 
 /** Default heroic proportions (metres). A design may override any of these. */
 export const DEFAULT_PROPORTIONS = {
@@ -161,9 +164,11 @@ export function createRig(proportions = {}, extra = [], opts = {}) {
     for (const b of ['shoulder', 'upperArm', 'foreArm', 'hand', 'thigh', 'shin', ...HELPERS('').map((h) => h[0])]) o[b] = rig.index[b + s];
     return o;
   });
-  rig.helperScale = new Float32Array(count * 3).fill(1);
+  // per-frame local translation of the joint-crease helpers (elbowVol / kneeVol), added to their rest offsets
+  rig.helperOffset = new Float32Array(count * 3);
+  rig.creaseBones = HELPER_NAMES.filter((n) => /^(elbowVol|kneeVol)[RL]$/.test(n)).map((n) => rig.index[n]);
   driveHelpers(rig, rig.bindLocal, null);
-  rig.bindHelperScale = Float32Array.from(rig.helperScale);
+  rig.bindHelperOffset = Float32Array.from(rig.helperOffset);
   return rig;
 }
 
@@ -212,14 +217,17 @@ function halfRot(out, oo, q, qo, r, ro) {
 
 /**
  * Drive the helper bones from the animated bones (local rotations in lq): forearm twist moved into the hand (the
- * forearm stays a hinge), deltoid = half of the arm swing, upper-arm / thigh twist helpers cancel half of the twist
- * near the shoulder / hip, elbow / knee half-joints, forearm twist helper = 65% of the wrist pronation, hip joint =
- * half of the thigh swing, elbow / knee volume helpers = half-joint + an inflation scale (rig.helperScale) that keeps
- * the inside of a flexed joint from collapsing onto the bone. `mem` (Float32Array(4) or null) keeps the last forearm /
- * upper-arm twist per side, so the twist helpers never jump across +-180 deg.
+ * forearm stays a hinge; the hand's pronation is limited to +-90 deg, continuous around the circle: an FK key asking
+ * for more turns the hand back toward neutral instead of wringing the forearm), deltoid = half of the arm swing,
+ * upper-arm / thigh twist helpers cancel half of the twist near the shoulder / hip, elbow / knee half-joints, forearm
+ * twist helper = 65% of the wrist pronation, hip joint = half of the thigh swing, elbow / knee crease helpers =
+ * half-joint moved out of the crease along the joint bisector (rig.helperOffset, growing with flexion; the loft weights
+ * only the flexor side of the joint ring to them, so the inside of a flexed joint keeps its volume and the olecranon /
+ * kneecap side does not balloon). `mem` (Float32Array(4) or null) keeps the last forearm / upper-arm twist per side,
+ * so the twist helpers never jump across +-180 deg.
  */
 export function driveHelpers(rig, lq, mem) {
-  const HS = rig.helperScale;
+  const HO = rig.helperOffset, P = rig.P;
   for (let k = 0; k < 2; k++) {
     const D = rig.helperBones[k], ua = D.upperArm, fa = D.foreArm, ha = D.hand, th = D.thigh;
     // forearm twist -> hand
@@ -230,6 +238,7 @@ export function driveHelpers(rig, lq, mem) {
       qaxis(hq, 0, 0, 1, 0, ft);
       qmul(lq, ha * 4, hq, 0, lq, ha * 4);
     }
+    limitTwist(lq, ha * 4, PRONATION);
     qidentity(hq, 8);
     // deltoid: half of the arm swing. Twist removed where it is well defined, the half taken on the branch of a
     // reference raise (scaption, DELT_REF); next to that reference's singular wall (|dot| small: an arm pointing back
@@ -249,11 +258,11 @@ export function driveHelpers(rig, lq, mem) {
     }
     qcopy(lq, D.deltoid * 4, hq, 12);
     qaxis(lq, D.upperArmTwist * 4, 0, 1, 0, -0.5 * ut);
-    // elbow half-joint + volume helper
+    // elbow half-joint + crease helper (the crease is on the +X side: the forearm flexes forward)
     qslerp(lq, D.elbow * 4, hq, 8, lq, fa * 4, 0.5);
     qcopy(lq, D.elbowVol * 4, lq, D.elbow * 4);
-    const eflex = Math.max(0, swingAngle(lq, fa * 4, 0, -1, 0) - 0.25);
-    HS[D.elbowVol * 3] = 1 + 0.22 * eflex; HS[D.elbowVol * 3 + 1] = 1; HS[D.elbowVol * 3 + 2] = 1 + 0.08 * eflex;
+    const eflex = swingAngle(lq, fa * 4, 0, -1, 0);
+    qrot(HO, D.elbowVol * 3, lq, D.elbowVol * 4, 0.06 * P.upperArm * smooth01(eflex, 0.35, 2.6), 0, 0);
     // forearm twist helper: 65% of the wrist pronation, unwrapped against the previous frame near +-180 deg
     qaxis(lq, D.foreArmTwist * 4, 0, 1, 0, 0.65 * unwrap(mem, k, twistAngle(lq, ha * 4, 0, 1, 0)));
     // legs: hip joint half-swing, thigh twist helper, knee half-joint + volume helper
@@ -264,8 +273,9 @@ export function driveHelpers(rig, lq, mem) {
     qaxis(lq, D.thighTwist * 4, 0, 1, 0, -0.5 * tt);
     qslerp(lq, D.knee * 4, hq, 8, lq, D.shin * 4, 0.5);
     qcopy(lq, D.kneeVol * 4, lq, D.knee * 4);
-    const kflex = Math.max(0, swingAngle(lq, D.shin * 4, 0, -1, 0) - 0.2);
-    HS[D.kneeVol * 3] = 1 + 0.2 * kflex; HS[D.kneeVol * 3 + 1] = 1; HS[D.kneeVol * 3 + 2] = 1 + 0.08 * kflex;
+    // knee crease helper: the crease is on the -X side (the shin flexes backward)
+    const kflex = swingAngle(lq, D.shin * 4, 0, -1, 0), legLen = P.hipHeight - P.ankleHeight;
+    qrot(HO, D.kneeVol * 3, lq, D.kneeVol * 4, -0.022 * legLen * smooth01(kflex, 0.3, 2.7), 0, 0);
   }
 }
 
@@ -292,7 +302,9 @@ export function fk(rig, lq, lp, mq, mp, from = 0, to = rig.count) {
 export function bindMatrices(rig) {
   const n = rig.count;
   const mq = new Float32Array(n * 4), mp = new Float32Array(n * 3);
-  fk(rig, rig.bindLocal, rig.offset, mq, mp);
+  const lp = Float32Array.from(rig.offset);
+  if (rig.bindHelperOffset) for (let i = 0; i < n * 3; i++) lp[i] += rig.bindHelperOffset[i];
+  fk(rig, rig.bindLocal, lp, mq, mp);
   const out = new Float32Array(n * 16);
   for (let i = 0; i < n; i++) composeMatrix(out, i * 16, mq, i * 4, mp, i * 3);
   return { matrices: out, mq, mp };

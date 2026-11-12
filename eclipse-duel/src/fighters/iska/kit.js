@@ -8,8 +8,9 @@
 //   deltoid:     crescentSpaulder { crescent, cap, lames, trim, rivets }
 //   forearm:     crescentVambrace          shin: oracleGreave
 //
-// Silhouette intent (vs KAEL's heavy, blocky asymmetry): tall hood point + standing crescent crest, narrow shoulders with
-// small swept crescent fins, a cinched lamellar waist, long slender legs, twin cape tails and a long front tabard.
+// Silhouette intent (vs KAEL's heavy, blocky asymmetry): a soft cowl draped over the skull and folded back into a swept
+// teardrop point, crowned by a crescent-moon crest cradling a star; narrow shoulders under tall crescent spaulder points, a
+// cinched lamellar waist, long slender legs, twin cape tails and a long front tabard.
 
 import { profile } from '../../char/shapes.js';
 import { plate, sweep, lathe, extrude, strip, studs, onSurface, merge, circle, rrect, curve } from '../../char/kit/geo.js';
@@ -143,8 +144,9 @@ const hoodB = profile([[-0.25, -0.205], [-0.16, -0.167], [-0.1, -0.124], [-0.05,
 const hoodW = profile([[-0.25, 0.182], [-0.16, 0.152], [-0.1, 0.117], [-0.05, 0.099], [0.0, 0.099], [0.06, 0.104], [0.12, 0.104], [0.17, 0.096], [0.196, 0.08], [0.212, 0.06], [0.223, 0.038], [HOOD_TOP, 0.0]]);
 // widest point of each ring (front half F..C keeps the fitted temple / brim shape, back half C..B stretches into the tip)
 const hoodC = profile([[-0.25, -0.035], [-0.16, -0.022], [-0.1, -0.008], [-0.05, -0.004], [0.0, 0.0], [0.06, 0.0], [0.12, -0.006], [0.17, -0.014], [0.198, -0.02], [0.215, -0.024], [HOOD_TOP, -0.024]]);
-/** Hood height at surface parameter v (rows gather toward the crown: the rounded top and the folded-back tip stay smooth). */
-const hoodY = (v) => lerp(HOOD_TOP, -0.25, Math.pow(v, 1.45));
+/** Hood height at surface parameter v (rows gather toward the crown: the rounded top and the folded-back tip stay smooth;
+ * the coarser low-tier grid gathers them harder). */
+const hoodY = (v, k = 1.45) => lerp(HOOD_TOP, -0.25, Math.pow(v, k));
 /** Face-opening half angle (deg) of the hood at height y: an oval around the face, a narrow front opening below the chin. */
 function hoodOpen(y) {
   const t = (y - 0.052) / 0.118;
@@ -160,8 +162,9 @@ function hoodOpen(y) {
  * edge around the face opening; vArch = v of the opening's pointed top).
  */
 export function hood(o = {}) {
+  const k = (o.nv ?? 16) < 16 ? 1.7 : 1.45;
   const S = (u, v) => {
-    const y0 = hoodY(v);
+    const y0 = hoodY(v, k);
     const ao = hoodOpen(y0);
     const a = lerp(ao, 360 - ao, u), ar = a * DEG;
     // hem: deeper point at the back (where the cape tails hang), shallower over the shoulders
@@ -175,8 +178,11 @@ export function hood(o = {}) {
     // drape folds: radiating from the tip down the back of the cowl, broad folds over the crown, mantle folds
     const tipW = bump(y0, 0.0, HOOD_TOP - 0.01);
     const fold = 0.007 * Math.sin(a * DEG * 9) * sstep(-0.06, -0.2, y0)
-      + 0.0055 * Math.sin(a * DEG * 7 + 1.3) * tipW * back * (1 - 0.5 * sstep(0.12, 0.2, y0))
-      + 0.004 * Math.sin(a * DEG * 4 + 0.4) * sstep(0.12, 0.2, y0) * (1 - back2) * (1 - Math.pow(Math.max(0, Math.cos(ar)), 4));
+      // drape folds fanning from the tip (a fold crest on the centre-back line keeps the tip pointed)
+      - 0.007 * Math.cos(a * DEG * 5) * tipW * Math.pow(Math.max(0, -Math.cos(ar)), 1.5) * (1 - 0.4 * sstep(0.12, 0.2, y0))
+      + 0.004 * Math.sin(a * DEG * 4 + 0.4) * sstep(0.12, 0.2, y0) * (1 - back2) * (1 - Math.pow(Math.max(0, Math.cos(ar)), 4))
+      // centre-back seam: a soft raised ridge from the crown over the folded-back tip down to the nape
+      + 0.003 * Math.exp(-(((a - 180) / 8) ** 2)) * bump(y0, -0.04, HOOD_TOP + 0.01);
     const r = Math.hypot(x, z) || 1;
     return [c + x * (1 + fold / r), y, z * (1 + fold / r)];
   };
@@ -187,18 +193,19 @@ export function hood(o = {}) {
   });
   // rolled hem around the face opening: up the left edge to the pointed arch over the brow, down the right edge
   // (the hood stays seamless above the arch; the two u edges coincide there)
-  const vTop = vArch();
+  const vTop = vArch(k);
   const hemPts = [];
   for (let i = 0; i <= 30; i++) hemPts.push(S(0, 1 - (1 - vTop) * (i / 30)));
   for (let i = 1; i <= 30; i++) hemPts.push(S(1, vTop + (1 - vTop) * (i / 30)));
-  const hem = sweep(hemPts.map((p) => [p[0] - 0.002, p[1], p[2]]), circle(6), { scale: 0.0068, caps: true, cavScale: 0.003 });
+  // a full soft roll (the brim turned back on itself) rather than a piping cord
+  const hem = sweep(hemPts.map((p) => [p[0] - 0.003, p[1], p[2]]), circle(6), { scale: 0.0088, caps: true, cavScale: 0.003 });
   return { hood: g, hem, S: g.userData, vArch: vTop };
 }
 
 /** v parameter of the hood surface where the face opening closes (the top of the pointed arch). */
-function vArch() {
+function vArch(k) {
   let lo = 0, hi = 0.6;
-  for (let k = 0; k < 30; k++) { const m = (lo + hi) / 2; if (hoodOpen(hoodY(m)) > 0.5) hi = m; else lo = m; }
+  for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (hoodOpen(hoodY(m, k)) > 0.5) hi = m; else lo = m; }
   return hi;
 }
 
@@ -216,8 +223,8 @@ export function hoodWeights(kit) {
 // ---- circlet: crescent-and-star diadem over the hood brim ------------------------------------------------------------------
 /**
  * Circlet: a thin silver band across the forehead (over the mask's top edge, vanishing under the hood at the temples),
- * a standing crescent crest (horns up) leaning back against the hood brim, a star in the crescent's cup, crystal drops
- * at the temples. Returns { band, crest, star, drops, studs }.
+ * a standing crescent-moon crest (points up, curling toward each other) leaning back over the cowl's brim, a star in the
+ * crescent's cup, crystal drops at the temples. Returns { band, crest, star, starPos, drops, studs }.
  */
 export function circlet(o = {}) {
   const out = {};

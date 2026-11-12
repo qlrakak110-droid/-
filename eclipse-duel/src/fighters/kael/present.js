@@ -53,11 +53,43 @@ function accent(h, k, dir = [1, -0.15, 0.3], cut = 30) {
   h.fx('kael.flower', { pos: 'contact', dir }, { k, cut, accent: true, fallback: null });
 }
 
+/**
+ * A launch hit without the generic impact frame (Fault Eruption juggles: four inverted frames in 0.3 s would read as
+ * white flashes). Keeps the generic bookkeeping: stats, combo counter, sound, flinch, shake.
+ */
+function quietHit(h, e, first) {
+  h.fx('combat.hit.heavy', { pos: 'contact', dir: [0.2, 1, 0.3] }, { element: 'ember', intensity: 0.6, k: 1 });
+  accent(h, 0.7, [0.2, 1, 0.3], 90);
+  h.foe.impulse([-1, 0.5, 0.12], first ? 1.6 : 1.1);
+  h.foe.flash([0.8, 0.66, 0.56], 0.3, 0.12);
+  h.cam.shake(first ? 0.45 : 0.25, { freq: 14 });
+  h.post.chroma(first ? 0.4 : 0.25, { release: 0.22 });
+  if (first) h.post.impact({ duration: 0.034, invert: 0, mono: 1 });
+  h.audio('hit_slash_heavy', { pos: h.pos('contact') });
+  h.audio('hit_blunt', { pos: h.pos('contact'), volume: 0.6 });
+  const g = h.ctx.game, s = g && g.session, hud = h.ctx.ui && h.ctx.ui.hud;
+  if (s && s.stats && s.stats.hit) s.stats.hit(e);
+  if (hud && e.combo >= 2) hud.combo(e.attacker, e.combo, e.comboDamage);
+}
+
 // ---- ultimate helpers ----------------------------------------------------------------------------------------------
+/**
+ * Dissolve the ULT cut-in card early (workaround: the hud card runs a fixed 1.9 s). Fades the card's `.an-fit` wrapper,
+ * which the hud's own tween never writes, so its entrance / exit animation and removal stay untouched.
+ */
+function fadeUltCard(dur) {
+  if (typeof document === 'undefined') return;
+  const list = document.querySelectorAll('.ann.st-ult > .an-fit');
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i].style;
+    s.transition = `opacity ${dur}s ease-in`;
+    s.opacity = '0';
+  }
+}
 /** Play an ultimate beat clip (kael.ult.<beat>) when the animator registered it, else a move clip of Kael's set. */
 function beat(h, name, fallbackMove, lead = 0.1, o = {}) {
-  const full = 'kael.ult.' + name;
-  if (hasClip(full)) { h.play(full, { fade: 0.06, ...o }); return; }
+  const full = name ? 'kael.ult.' + name : null;
+  if (full && hasClip(full)) { h.play(full, { fade: 0.06, ...o }); return; }
   if (!fallbackMove) return;
   const mc = h.self.actor.clips.move(fallbackMove);
   h.play(mc.name, { fade: 0.05, startAt: Math.max(0, mc.map(mc.startup) - lead), ...o });
@@ -123,7 +155,7 @@ const moves = {
       h.cam.kick({ fov: -2, duration: 0.3 });
     },
     sparks(h) {
-      h.burst(WALL, [1.2, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]), count: 70 });
+      h.burst(WALL, [1.0, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]), count: 40 });
       h.distort([1.0, 1.0, 0.2], { kind: 'shock', radius: [0.3, 2.6], life: 0.4, strength: 0.03 });
       h.spawn('ring', 'floor', { look: 'fire', radius: [0.4, 2.6], life: 0.5, intensity: 0.45 });
     },
@@ -162,9 +194,12 @@ const moves = {
       h.fx('ember.slash', { pos: [0.25, 1.15, 0.14] }, { arc: [-82, 92], radius: 1.6, width: 0.5, sweep: 0.08, normal: [0, -0.25, 1], roll: 6, intensity: 0.38 });
     },
     geyser(h) {
-      h.fx('kael.geyser', floorAt(h, 1.3), { k: 0.8, fallback: null });
-      h.cam.shake(0.3, { freq: 13, dir: [0, 1, 0] });
-      h.audio('fire_roar', { volume: 0.7 });
+      // the geyser blooms just after the hit flash (game time: after the hit-stop) so the two never stack into one blob
+      h.after(0.05, (h2) => {
+        h2.fx('kael.geyser', floorAt(h2, 1.15), { k: 0.7, fallback: null });
+        h2.cam.shake(0.3, { freq: 13, dir: [0, 1, 0] });
+        h2.audio('fire_roar', { volume: 0.7 });
+      });
     },
     hit(h) { accent(h, 1.0, [0.3, 1, 0.3], 90); },
   },
@@ -242,14 +277,25 @@ const moves = {
     end(h) { cleanup(h); },
   },
   bulwark_burst: {
+    /** the counter catches: crash-zoom onto Kael (0.25 s; the marker's generic cue would frame the opponent) */
+    counter(h) {
+      if (h.ctx.cam && h.ctx.cam.mode === 'fight') {
+        h.cam.play([h.shots.crashZoom({ dur: 0.25, subject: 'anchor', angle: 22, dist: [9, 3.6], height: [1.7, 1.4], look: 1.3, fov: [46, 32], shake: 0.4 })],
+          { blendOut: 0.45, hud: false });
+      }
+      return false;
+    },
     explode(h) {
-      h.fx('ember.explosion', 'hips', { scale: 1.05 });
+      h.fx('ember.explosion', 'hips', { scale: 1.0, intensity: 0.5 });
       h.spawn('ring', 'floor', { look: 'fire', radius: [0.6, 4.4], width: [0.5, 1.2], life: 0.8, height: 0.7, intensity: 0.85 });
       h.after(0.3, (h2) => h2.fx('kael.ashfall', 'floor', { radius: 1.8, fallback: null }));
       h.pulse('floor', null, 1.4);
       h.audio('fire_burst');
+      h.cam.shake(0.5, { freq: 14 });
+      h.post.impact({ duration: 0.05, invert: 0, mono: 1 });
+      return false;                                         // the marker's generic impact frame is an inverted (white) one
     },
-    hit(h) { accent(h, 1.2, [1, 0.35, 0.3], 30); },
+    hit(h, e) { quietHit(h, e, false); return false; },     // no second inverted frame from the generic finisher feel
   },
   // 일식의 장작 Pyre of the Black Sun — the opener on the move clock (the lock is `ult` below)
   pyre: {
@@ -259,6 +305,9 @@ const moves = {
       h.audio('fire_roar', { volume: 0.8 });
     },
     leap(h) {
+      // the ULT cut-in card (hud 'ult' style, 1.9 s from the freeze) would sit across the 1.00 punch-in and the X cuts:
+      // it has been read for 0.6 s, so it dissolves on this cut instead
+      fadeUltCard(0.22);
       // storyboard 0.60: cut to a wide side shot with a slight orbit for the leap-slash (held until the hit lands)
       h.cam.play([h.shots.orbitSweep({ dur: 0.5, cut: true, subject: 'mid', from: -6, to: 8, radius: [7.4, 6.6], height: [1.3, 1.6], look: 1.2, fov: 38, hold: true })], { blendOut: 0.4, keepLetterbox: true });
       h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.45, intensity: 0.55, inner: 0.6 });
@@ -305,36 +354,37 @@ const ult = {
   /** camera of the lock (anchored on Kael, victim at cinematic.distance 1.7 m in front) */
   shots: (h) => [
     // 1.00 impact punch-in on the victim (lock 0 - 0.25)
-    h.shots.impactPunchIn({ dur: 0.25, shake: 0.5 }),
+    h.shots.impactPunchIn({ dur: 0.25, dist: [5.0, 3.7], height: [1.5, 1.45], shake: 0.5 }),
     // 1.25 orbit sweep 70 degrees around both: the X cuts (lock 0.25 - 1.30)
     h.shots.orbitSweep({ dur: 1.05, cut: true, subject: 'mid', from: -40, to: 30, radius: [5.0, 4.4], height: [1.25, 1.75], look: 1.3, fov: 38, handheld: 0.35 }),
     // 2.30 top-down slam view: the hurl, a geyser shooting at the lens (lock 1.30 - 1.80)
     h.shots.topDownSlam({ dur: 0.5, cut: true, subject: 'target', height: [6.8, 6.0], toward: [1.6, 1.3], fov: [44, 40], roll: [0, 8] }),
     // 2.80 ground-level skim looking up, slow motion 0.3: the leap after the victim, the spin (lock 1.80 - 2.74)
     { dur: 0.94, cut: true, space: 'anchor',
-      from: { pos: [-0.9, 0.3, 3.7], look: [1.0, 2.9, 0], fov: 52, roll: -4 },
-      to: { pos: [0.1, 0.42, 3.3], look: [1.1, 3.6, 0], fov: 47, roll: 1 },
+      from: { pos: [-1.3, 0.3, 4.9], look: [1.0, 2.8, 0], fov: 50, roll: -4 },
+      to: { pos: [-0.2, 0.42, 4.5], look: [1.1, 3.5, 0], fov: 45, roll: 1 },
       ease: 'outSine', handheld: 0.4, slowmo: { scale: 0.3, at: 0.18, dur: 0.5, easeIn: 0.06, easeOut: 0.16 } },
     // 3.90 crash zoom from far onto the meteor slam (cut at lock 2.74 so the descent reads; impact at 2.90)
-    h.shots.crashZoom({ dur: 0.56, cut: true, subject: 'target', angle: -14, dist: [12, 4.0], height: [3.4, 1.15], look: 0.75, fov: [48, 34], shake: false }),
+    h.shots.crashZoom({ dur: 0.56, cut: true, subject: 'target', angle: -14, dist: [14, 7.6], height: [3.8, 1.8], look: 1.0, fov: [48, 40], shake: false }),
     // 4.30 wide establishing: the shockwave crosses the arena (lock 3.30 - 4.20), then blend back
     h.shots.wideEstablishing({ dur: 0.9, cut: true, dist: [11.5, 12.5], height: [2.6, 3.1], look: [1.6, 1.5], drift: 1.2, shake: false }),
   ],
   blendOut: 1.0,
 
-  /** 1.00 the blade connects: impact frame (3 frames), white flash, hit-stop 0.2, chroma 1, radial 0.8 */
+  /** 1.00 the blade connects: impact frame (3 monochrome frames), a short white flash, hit-stop 0.2, chroma, radial
+   *  (storyboard chroma 1 / radial 0.8, tempered to 0.7 / 0.55 so the close punch-in stays readable) */
   start(h) {
     cleanup(h);
     // the leap-slash crescent would fill the punch-in frame: the impact replaces it with a crisp, readable hit
     const x = st(h);
     if (x.slash) { x.slash.kill(); x.slash = null; }
     const dir = [1, -0.35, 0.3];
-    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.45 });
-    h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 0.9, cut: -50, accent: true, fallback: null });
+    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.35 });
+    h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 0.6, cut: -50, accent: true, fallback: null });
     h.post.impact({ duration: 0.05, invert: 0, mono: 1 });     // 3 hard monochrome frames (no inverted white frame)
     h.post.flash(0xffffff, 0.14, { release: 0.2 });
-    h.post.chroma(1.0, { release: 0.45 });
-    h.post.radial('foe.chest', 0.8, { release: 0.35 });
+    h.post.chroma(0.5, { release: 0.4 });
+    h.post.radial('foe.chest', 0.5, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
     h.audio('hit_crit');
     h.audio('fire_burst', { volume: 0.7 });
@@ -366,7 +416,7 @@ const ult = {
       h.offset([0.85, 2.75], 0.42, 'outCubic');
       h.foeOffset([-0.35, 3.05], 0.7, 'outSine');
       h.mood({ darken: 0.86, tint: 0xff2a10, duration: 0.5 });
-      h.fx('ember.inferno', 'foe.floor', { radius: 2.3, duration: 1.8, intensity: 0.85 });
+      h.fx('ember.inferno', 'foe.floor', { radius: 1.7, duration: 1.95, intensity: 0.45 });   // its centre detonates at 0.8 T = lock 3.36: the shockwave
       h.fx('combat.dust.land', 'floor', { k: 1.2, heavy: true, fallback: null });
       h.afterimage({ count: 2, interval: 0.05, life: 0.3, palette: 'ember' });
       h.audio('fire_roar');
@@ -374,15 +424,15 @@ const ult = {
     { t: 2.4, do(h) { beat(h, 'spin', 'sweep', 0.12); } },
     // 3.90 the meteor: both bodies come down as one burning mass; the crater opens at the finish (lock 2.90)
     { t: 2.7, do(h) { beat(h, 'meteor', 'light3', 0.2); } },
-    { t: 2.8, do(h) { trailOn(h, 'overhead', 0.16); } },
     { t: 2.72, do(h) {
       h.offset([0.6, 0], 0.18, 'inQuad');
       h.foeOffset([-0.3, 0], 0.18, 'inQuad');
       foeState(h, 'fall', { fade: 0.04 });
-      h.fx('ember.meteor', 'foe.floor', { fall: 0.18, height: 4.6, intensity: 0.75 });
-      h.spawn('speedlines', 'foe.floor', { mode: 'focus', life: 0.24, intensity: 0.5, inner: 0.55 });
+      h.fx('ember.meteor', 'foe.floor', { fall: 0.18, height: 4.6, intensity: 0.25 });
+      h.spawn('speedlines', 'foe.floor', { mode: 'focus', life: 0.2, intensity: 0.25, inner: 0.65 });
       st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.55, life: 0.2, color: STREAK });
     } },
+    { t: 2.8, do(h) { trailOn(h, 'overhead', 0.16); } },
     // 5.20 Kael rises from the crater, sword onto the shoulder; embers and smoke linger 3 s
     { t: 4.2, do(h) {
       beat(h, 'rise', null);
@@ -451,17 +501,16 @@ const ult = {
       const x = st(h);
       if (x.streak) { x.streak.stop(); x.streak = null; }
       h.spawn('decal', 'foe.floor', { kind: 'scorch', radius: 3.6, life: 8, magma: 1 });
-      h.spawn('spikes', 'foe.floor', { kind: 'magma', pattern: 'ring', radius: 2.3, count: 9, height: [0.7, 1.5], tilt: 30, stagger: 0.02, hold: 1.6 });
       h.post.impact({ duration: 0.05, invert: 0, mono: 1 });
-      h.post.flash(0xffffff, 0.14, { release: 0.3 });
-      h.post.chroma(0.9, { release: 0.4 });
-      h.post.radial('foe.floor', 0.7, { release: 0.4 });
+      h.post.flash(0xffffff, 0.08, { release: 0.25 });
+      h.post.chroma(0.45, { release: 0.4 });
+      h.post.radial('foe.floor', 0.45, { release: 0.4 });
       h.cam.shake(0.8, { freq: 11, dir: [0, 1, 0] });
       foeState(h, 'down', { fade: 0.05 });
       h.foe.impulse([0, -1, 0], 2);
       h.audio('explosion');
       h.audio('fire_burst', { volume: 0.8 });
-      h.hitstop(e.hitstop || 0.22);
+      h.hitstop(Math.min(0.14, e.hitstop || 0.14));         // the rules hold the bodies 0.22; the picture breathes sooner
       return false;
     }
     return undefined;
@@ -493,6 +542,10 @@ const projectiles = {
     spawn(h, e) {
       const at = new h.THREE.Vector3(e.x, 0.02, 0);
       const last = !!(e.data && e.data.last);
+      const x = st(h);
+      if (!x.cols) x.cols = new Map();
+      if (x.cols.size > 16) x.cols.clear();
+      x.cols.set(e.id, (e.data && e.data.index) || 1);
       h.after(Math.max(0, (e.delay || 0) - 0.04), (h2) => {
         h2.fx('kael.column', at, { last, fallback: null });
         h2.cam.shake(last ? 0.35 : 0.2, { freq: 14, dir: [0, 1, 0] });
@@ -501,7 +554,12 @@ const projectiles = {
       });
       return false;
     },
-    hit(h) { accent(h, 0.7, [0.2, 1, 0.3], 90); },
+    hit(h, e) {
+      const x = st(h);
+      const first = !x.cols || (x.cols.get(e.projectile) ?? 1) === 1;
+      quietHit(h, e, first);
+      return false;
+    },
   },
 };
 

@@ -122,6 +122,47 @@ export function softLimit(x, knee, max) {
   return Math.sign(x) * (knee + r * Math.tanh((a - knee) / r));
 }
 
+/** Inverse of softLimit for |y| < max (the input that softLimit maps to y). */
+export function softLimitInv(y, knee, max) {
+  const a = Math.abs(y);
+  if (a <= knee || max <= knee) return y;
+  const r = max - knee, t = Math.min(0.999999, (a - knee) / r);
+  return Math.sign(y) * (knee + r * 0.5 * Math.log((1 + t) / (1 - t)));
+}
+
+/**
+ * Rewrite quaternion q[o..] (components x, y, z, w with twist tw about its local Y) as swing * twist(tw2), the swing
+ * rescaled to angle sw2 (sw2 < 0: unchanged).
+ */
+export function setSwingTwist(q, o, x, y, z, w, tw, tw2, sw2) {
+  // swing = q * conj(twist), twist = (0, sin(tw/2), 0, cos(tw/2))
+  const ct = Math.cos(tw / 2), st = Math.sin(tw / 2);
+  let sx = x * ct + z * st, sz = z * ct - x * st, sw0 = w * ct + y * st;
+  const sl = Math.hypot(sx, sz);
+  if (sw2 >= 0 && sl > 1e-9) { const h = Math.sin(sw2 / 2) / sl; sx *= h; sz *= h; sw0 = Math.cos(sw2 / 2); }
+  // q' = swing' * twist'
+  const c2 = Math.cos(tw2 / 2), s2 = Math.sin(tw2 / 2);
+  q[o] = sx * c2 - sz * s2;
+  q[o + 1] = sw0 * s2;
+  q[o + 2] = sz * c2 + sx * s2;
+  q[o + 3] = sw0 * c2;
+}
+
+/**
+ * Limit the twist (about local Y) of q[o..] to +-max (rad): identity within the range; beyond it the twist saturates
+ * at max and, past ~140 deg, eases back so that +180 and -180 meet at neutral (continuous around the circle). Used for
+ * the hand's pronation of FK-authored arms. True if changed.
+ */
+export function limitTwist(q, o, max) {
+  let x = q[o], y = q[o + 1], z = q[o + 2], w = q[o + 3];
+  if (w < 0) { x = -x; y = -y; z = -z; w = -w; }
+  const tw = 2 * Math.atan2(y, w), at = Math.abs(tw);
+  if (at <= max + 1e-6) return false;
+  const tw2 = Math.sign(tw) * max * (1 - smooth01(at, 2.44, Math.PI));
+  setSwingTwist(q, o, x, y, z, w, tw, tw2, -1);
+  return true;
+}
+
 /** C1 ramp: 0 below -e, x above e, a quadratic blend in between (smooth max(0, x)). */
 export function softRamp(x, e) {
   if (x <= -e) return 0;
@@ -197,19 +238,29 @@ export function sampleTrack(track, t, out, o) {
 export function computeTangents(track, loop, duration) {
   const { n, dim, times, values, tangents } = track;
   const flat = track.flat;
+  // quaternion tracks: a neighbour key in the other hemisphere than key i (the loop wrap reaches across the closing
+  // key, which may be stored negated) is read negated, so the slopes describe the rotation and not a sign flip
+  const quat = !!track.quat && dim === 4;
   for (let i = 0; i < n; i++) {
     if (flat && (flat[i] || (loop && n > 2 && (i === 0 || i === n - 1) && (flat[0] || flat[n - 1])))) {
       for (let d = 0; d < dim; d++) tangents[i * dim + d] = 0;
       continue;
     }
+    const ip = i > 0 ? i - 1 : loop && n > 2 ? n - 2 : -1, inx = i < n - 1 ? i + 1 : loop && n > 2 ? 1 : -1;
+    let sp = 1, sn = 1;
+    if (quat) {
+      const dotq = (j) => values[j * 4] * values[i * 4] + values[j * 4 + 1] * values[i * 4 + 1] + values[j * 4 + 2] * values[i * 4 + 2] + values[j * 4 + 3] * values[i * 4 + 3];
+      if (ip >= 0 && dotq(ip) < 0) sp = -1;
+      if (inx >= 0 && dotq(inx) < 0) sn = -1;
+    }
     for (let d = 0; d < dim; d++) {
       let m = 0;
       const v = values[i * dim + d];
       let prev, next, tp, tn;
-      if (i > 0) { prev = values[(i - 1) * dim + d]; tp = times[i - 1]; }
-      else if (loop && n > 2) { prev = values[(n - 2) * dim + d]; tp = times[n - 2] - duration; }
-      if (i < n - 1) { next = values[(i + 1) * dim + d]; tn = times[i + 1]; }
-      else if (loop && n > 2) { next = values[1 * dim + d]; tn = times[1] + duration; }
+      if (i > 0) { prev = sp * values[(i - 1) * dim + d]; tp = times[i - 1]; }
+      else if (loop && n > 2) { prev = sp * values[(n - 2) * dim + d]; tp = times[n - 2] - duration; }
+      if (i < n - 1) { next = sn * values[(i + 1) * dim + d]; tn = times[i + 1]; }
+      else if (loop && n > 2) { next = sn * values[1 * dim + d]; tn = times[1] + duration; }
       if (prev !== undefined && next !== undefined) {
         const sl = (v - prev) / Math.max(1e-6, times[i] - tp);
         const sr = (next - v) / Math.max(1e-6, tn - times[i]);

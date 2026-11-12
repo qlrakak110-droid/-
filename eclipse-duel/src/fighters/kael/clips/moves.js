@@ -5,6 +5,7 @@
 // the blade) -> IMPACT -> AFTERMATH (follow-through, overshoot, weight on the front foot) -> SETTLE (back to the stance).
 
 import { defineClip, definePose } from '../../../char/index.js';
+import { def as rules } from '../moves.js';
 import { FL, FR, YAW_L, YAW_R, FEET, SHOULDER_HAND, STANCE_BODY, dir, grip, plane, stance, sorted } from './common.js';
 
 const H = (pos, o) => ({ pos, ...o });                         // hand target: position + blade orientation (keyed roll)
@@ -14,6 +15,8 @@ const impact = (t) => [[t, 'impact'], [t, 'hit']];
 /** Origin-space feet (planted in the world while the rules move the root). */
 const oL = (f, u = 0, p = 0, yaw = YAW_L) => ({ space: 'origin', pos: [f, u, FL[2]], rot: [0, yaw, p] });
 const oR = (f, u = 0, p = 0, yaw = YAW_R) => ({ space: 'origin', pos: [f, u, FR[2]], rot: [0, yaw, p] });
+/** Root keys of a move's keyed rules motion (moves.js `motion.keys` [t, f, u?]), linear like the rules. */
+const rulesMotion = (id) => rules.moves[id].motion.keys.map(([t, f, u = 0]) => ({ t, interp: 'linear', root: { pos: [f, u] } }));
 /** Root keys for a constant-velocity rules motion segment [t0, t1] covering d metres. */
 const travel = (t0, t1, d) => [{ t: t0, interp: 'linear', root: { pos: [0, 0] } }, { t: t1, interp: 'linear', root: { pos: [d, 0] } }];
 /** The blade back onto the shoulder: body + hand of the stance (feet untouched). */
@@ -93,7 +96,7 @@ defineClip('kael.light2', {
     { t: 0.19, ik: { footR: oR(FR[0] + 0.15, 0.06, -6) } },
     { t: 0.23, ease: 'inQuad', ik: { footR: oR(FR[0] + 0.25) } },
     { t: 0.46, ik: { footL: oL(FL[0] + 0.25), footR: oR(FR[0] + 0.25) } },
-    ...travel(0, 0.1, 0.25),
+    ...travel(rules.moves.light2.motion[0].t[0], rules.moves.light2.motion[0].t[1], 0.25),
   ]),
   events: ev([[0.07, 'trailOn'], ...impact(0.13), [0.1, 'step', { foot: 'footL' }], [0.22, 'trailOff'], [0.23, 'step', { foot: 'footR' }]]),
 });
@@ -101,7 +104,7 @@ defineClip('kael.light2', {
 // ---- light3 · Cinder Drop (0.70; active 0.24-0.29; steps 0.35 m in 0.04-0.2) --------------------------------------
 {
   const OVER = plane(dir(180, 28), dir(0, 85));                 // 0 = behind, 60 = straight up, 150 = forward, 175 = point on the floor ahead
-  const d = 2.2 * 0.16;
+  const [{ t: [m0, m1], v: mv }] = rules.moves.light3.motion, d = mv * (m1 - m0);
   defineClip('kael.light3', {
     duration: 0.7, breath: 0.2, base: 'kael.l2end',
     keys: sorted([
@@ -130,7 +133,7 @@ defineClip('kael.light2', {
       { t: 0.55, ik: { footR: oR(FR[0] + d * 0.5, 0.07, -6) } },
       { t: 0.63, ease: 'inQuad', ik: { footR: oR(FR[0] + d) } },
       { t: 0.7, ik: { footL: oL(FL[0] + d), footR: oR(FR[0] + d) } },
-      ...travel(0.04, 0.2, d),
+      ...travel(m0, m1, d),
     ]),
     events: ev([[0.13, 'trailOn'], [0.2, 'step', { foot: 'footL' }], ...impact(0.24), [0.33, 'trailOff'], [0.63, 'step', { foot: 'footR' }]]),
   });
@@ -163,9 +166,12 @@ defineClip('kael.light2', {
       { t: 0.47, ease: 'outQuad', hips: { pos: [0.06, -0.2, -0.03], rot: [-2, 58, -3] }, bones: { spine: [-2, 16, -6], chest: [-3, 18, -4], neck: [0, -26, 6], head: [0, -32, 6] },
         ik: { handR: H(ring(112, 0.36, 1.12), FLAT(296)), footL: { pos: FL, rot: [0, 30, 0] }, footR: { pos: [FR[0] + 0.03, 0.03, FR[2] - 0.02], rot: [0, 6, -22] } } },
       { t: 0.56, ease: 'inOutSine', hips: { pos: [0.05, -0.19, -0.03], rot: [-2, 54, -3] }, ik: { handR: H(ring(108, 0.36, 1.16), FLAT(290)) } },
-      // haul the blade up over the head and back onto the shoulder
-      { t: 0.7, ease: 'inOutSine', hips: { pos: [-0.01, -0.15, 0], rot: [0, 8, 0] }, bones: { spine: [0, 2, -2], chest: [0, 2, 2], neck: [0, 4, -2], head: [0, 4, -4] },
-        ik: { handR: G([0.06, 1.68, -0.02], dir(178, 62)), footL: FEET.footL, footR: { pos: FR, rot: [0, -30, -4] } } },
+      { t: 0.6, ik: { handR: H(ring(84, 0.52, 1.12), FLAT(266)) } },
+      // haul: the blade swings back round to the front, rises in front of the body and drops onto the shoulder
+      { t: 0.65, ease: 'inOutSine', hips: { pos: [0.03, -0.18, -0.02], rot: [-1, 30, -2] }, bones: { spine: [-1, 10, -6], chest: [-1, 10, -4], neck: [0, -12, 4], head: [0, -14, 4] },
+        ik: { handR: G([0.52, 1.04, -0.26], dir(45, 12)), footL: FEET.footL, footR: { pos: FR, rot: [0, -30, -4] } } },
+      { t: 0.74, ease: 'inOutSine', hips: { pos: [0.0, -0.15, 0], rot: [0, -6, 0] }, bones: { spine: [0, -2, -4], chest: [0, -3, -2], neck: [0, 6, 2], head: [0, 8, 0] },
+        ik: { handR: lifting([0.32, 1.22, 0.16]) } },
       { ...home(0.86), ik: { handR: SHOULDER_HAND, ...FEET } },
     ],
     events: ev([[0.23, 'trailOn'], ...impact(0.32), [0.47, 'trailOff']]),
@@ -174,19 +180,18 @@ defineClip('kael.light2', {
 
 // ---- lunge · Molten Lunge (0.78; travels 3.2 m; active 0.26-0.34) ---------------------------------------------------
 {
-  const motion = [[0, 0], [0.06, 0], [0.22, 2.4], [0.3, 3.05], [0.36, 3.2]];
   const thrust = (el = 2, az = 0) => ({ aim: dir(az, el), up: [0, 0.3, 0.95] });
   defineClip('kael.lunge', {
     duration: 0.78, breath: 0.1,
     keys: sorted([
       { t: 0, ...stance(), ik: { handR: SHOULDER_HAND, footL: oL(FL[0]), footR: oR(FR[0]) } },
-      // wind-up: the left shoulder drops and leads, the blade is chambered at the right hip, point at the foe
-      { t: 0.06, ease: 'outCubic', hips: { pos: [0.02, -0.22, 0.02], rot: [0, -58, 0] }, bones: { spine: [0, -10, -14], chest: [0, -10, -12], neck: [0, 26, 10], head: [0, 32, 8] },
-        ik: { handR: H([0.1, 1.0, 0.28], thrust(3, 18)) } },
-      // the charge: low and flat, the front knee driving, the rear toe dragging along the floor
-      { t: 0.14, hips: { pos: [0.08, -0.26, 0.02], rot: [0, -54, 0] }, bones: { spine: [0, -9, -16], chest: [0, -9, -13] }, ik: { handR: H([0.1, 0.98, 0.28], thrust(2, 18)) } },
-      { t: 0.22, hips: { pos: [0.12, -0.26, 0.01], rot: [0, -40, 0] }, bones: { spine: [0, -6, -14], chest: [0, -6, -11], neck: [0, 20, 8], head: [0, 24, 6] },
-        ik: { handR: H([0.2, 1.04, 0.24], thrust(2, 16)) } },
+      // wind-up: the left shoulder drops and leads, the blade is chambered low at the right side of the chest, point at the foe
+      { t: 0.06, ease: 'outCubic', hips: { pos: [0.02, -0.22, 0.02], rot: [0, -40, 0] }, bones: { spine: [0, -6, -12], chest: [0, -4, -10], neck: [0, 20, 10], head: [0, 26, 8] },
+        ik: { handR: H([0.3, 1.12, 0.24], thrust(-2, 10)) } },
+      // the charge: a low flying lunge, the front knee driving, the rear leg trailing just off the floor
+      { t: 0.14, hips: { pos: [0.08, -0.26, 0.02], rot: [0, -38, 0] }, bones: { spine: [0, -5, -14], chest: [0, -4, -11] }, ik: { handR: H([0.44, 1.1, 0.22], thrust(-3, 10)) } },
+      { t: 0.22, hips: { pos: [0.12, -0.26, 0.01], rot: [0, -30, 0] }, bones: { spine: [0, -4, -13], chest: [0, -3, -10], neck: [0, 16, 8], head: [0, 20, 6] },
+        ik: { handR: H([0.46, 1.1, 0.18], thrust(-2, 12)) } },
       // thrust: hips unwind, both arms drive the point through, full extension
       { t: 0.26, hips: { pos: [0.16, -0.3, 0], rot: [0, -10, 0] }, bones: { spine: [0, 0, -12], chest: [0, 2, -9], neck: [0, 6, 6], head: [0, 8, 4] },
         ik: { handR: H([0.56, 1.1, 0.08], thrust(1, 14)) } },
@@ -196,18 +201,18 @@ defineClip('kael.light2', {
       { t: 0.6, ease: 'inOutSine', hips: { pos: [0.02, -0.18, 0], rot: [0, -18, 0] }, bones: { spine: [0, -4, -6], chest: [0, -5, -4], neck: [0, 12, 2], head: [0, 15, 0] },
         ik: { handR: lifting([0.3, 1.2, 0.2]) } },
       { ...home(0.78) },
-      // feet: left foot driven forward through the air, lands on the thrust; right foot drags then steps up
+      // feet: left foot driven forward through the air, lands on the thrust; right foot trails, plants, then steps up
       { t: 0.06, ik: { footL: oL(FL[0]), footR: oR(FR[0]) } },
-      { t: 0.14, ik: { footL: { pos: [0.62, 0.22, -0.16], rot: [0, YAW_L, 10] }, footR: { pos: [-0.78, 0.02, 0.2], rot: [0, YAW_R, -40] } } },
-      { t: 0.24, ik: { footL: { pos: [0.74, 0.1, -0.16], rot: [0, YAW_L, 8] }, footR: { pos: [-0.86, 0.02, 0.2], rot: [0, YAW_R, -44] } } },
-      { t: 0.3, ease: 'inQuad', ik: { footL: oL(3.05 + 0.76) } },
-      { t: 0.34, ease: 'inQuad', ik: { footR: oR(3.2 - 0.84, 0, -32) } },
-      { t: 0.52, ik: { footL: oL(3.05 + 0.76), footR: oR(3.2 - 0.84, 0, -24) } },
-      { t: 0.6, ik: { footR: oR(3.2 - 0.6, 0.08, -6) } },
-      { t: 0.68, ease: 'inQuad', ik: { footR: oR(3.2 + FR[0]), footL: oL(3.05 + 0.76) } },
+      { t: 0.14, ik: { footL: { pos: [0.48, 0.2, -0.16], rot: [0, YAW_L, 10] }, footR: { pos: [-0.62, 0.09, 0.2], rot: [0, YAW_R, -40] } } },
+      { t: 0.24, ik: { footL: { pos: [0.6, 0.1, -0.16], rot: [0, YAW_L, 8] }, footR: { pos: [-0.68, 0.07, 0.2], rot: [0, YAW_R, -44] } } },
+      { t: 0.3, ease: 'inQuad', ik: { footL: oL(3.05 + 0.62) } },
+      { t: 0.34, ease: 'inQuad', ik: { footR: oR(3.2 - 0.7, 0.02, -32) } },
+      { t: 0.52, ik: { footL: oL(3.05 + 0.62), footR: oR(3.2 - 0.7, 0.02, -24) } },
+      { t: 0.6, ik: { footR: oR(3.2 - 0.54, 0.08, -6) } },
+      { t: 0.68, ease: 'inQuad', ik: { footR: oR(3.2 + FR[0]), footL: oL(3.05 + 0.62) } },
       { t: 0.72, ik: { footL: oL(3.2 + FL[0] + 0.1, 0.05, 0) } },
       { t: 0.78, ease: 'inQuad', ik: { footL: oL(3.2 + FL[0]), footR: oR(3.2 + FR[0]) } },
-      ...motion.map(([t, f]) => ({ t, interp: 'linear', root: { pos: [f, 0] } })),
+      ...rulesMotion('lunge'),
     ]),
     events: ev([[0.18, 'trailOn'], ...impact(0.26), [0.3, 'step', { foot: 'footL' }], [0.4, 'trailOff'], [0.68, 'step', { foot: 'footR' }]]),
   });
@@ -290,7 +295,7 @@ defineClip('kael.light2', {
       { t: 0.3, ease: 'inOutSine', hips: { pos: [-0.07, -0.06, 0], rot: [0, -17, 0] }, bones: { spine: [0, -3, 8], chest: [0, -3, 13], neck: [0, 9, -10], head: [0, 11, -16] },
         ik: { handR: G([0.1, 2.0, 0.12], DOWN(-12)) } },
       // drive: the blade comes over and down, point-first, into the floor at ~1.3 m
-      { t: 0.36, ik: { handR: G([0.36, 1.86, 0.08], DOWN(60)) } },
+      { t: 0.36, bones: { neck: [0, 8, 0], head: [0, 10, 2] }, ik: { handR: G([0.52, 1.8, 0.08], DOWN(60)) } },
       { t: 0.4, ease: 'inQuad', hips: { pos: [-0.12, -0.34, -0.01], rot: [0, -16, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -20], neck: [0, 6, 14], head: [0, 8, 18] },
         ik: { handR: G([0.56, 0.98, 0.04], DOWN(144)), footR: { pos: FR, rot: [0, YAW_R, -26] } } },
       // leaning over the planted blade: the cracks race away, the weight shudders down onto it
@@ -361,7 +366,10 @@ defineClip('kael.bulwark_burst', {
   const air = (k) => ({ footL: { pos: FL, w: k }, footR: { pos: FR, w: k } });
   defineClip('kael.pyre', {
     duration: 1.65, breath: 0.3,
-    keys: [
+    keys: sorted([
+      // the rules' leap as root motion (not applied in game, where the rules lift the root; it keeps QA / labs that
+      // apply clip root motion airborne exactly when the game is)
+      ...rulesMotion('pyre'),
       { t: 0, ...stance() },
       // the sword is lifted to the eclipse: arms fully up, blade vertical, head thrown back to the sky
       { t: 0.22, ease: 'outCubic', hips: { pos: [-0.06, -0.06, 0], rot: [0, -14, 0] }, bones: { spine: [0, -3, 8], chest: [0, -4, 14], neck: [0, 6, -14], head: [0, 8, -22] },
@@ -379,12 +387,15 @@ defineClip('kael.bulwark_burst', {
         ik: { handR: G([-0.08, 1.86, 0.16], BACK(4)), ...air(0) } },
       { t: 0.8, ease: 'inOutSine', hips: { pos: [0.0, -0.04, 0], rot: [0, -12, 0] }, bones: { spine: [0, -2, 10], chest: [0, -3, 15],
         thighL: [0, 0, 80], shinL: [0, 0, -100], thighR: [0, 0, 30], shinR: [0, 0, -110] },
-        ik: { handR: G([-0.1, 1.9, 0.14], BACK(-4)) } },
+        ik: { handR: G([-0.02, 2.0, 0.14], BACK(-4)) } },
+      { t: 0.83, bones: { neck: [0, 4, 2], head: [0, 4, 4] }, ik: { handR: G([0.22, 2.04, 0.12], BACK(40)) } },
       // the slash comes down out of the air
       { t: 0.85, hips: { pos: [0.04, -0.06, 0], rot: [0, -6, 0] }, bones: { spine: [0, 0, -4], chest: [0, 0, -2], neck: [0, 2, 4], head: [0, 2, 6] },
         ik: { handR: G([0.44, 1.8, 0.08], SLASH(115)) } },
       { t: 0.93, hips: { pos: [0.05, -0.16, 0] }, bones: { spine: [0, 0, -16], chest: [0, 0, -12], thighL: [0, 0, 60], shinL: [0, 0, -60], thighR: [0, 0, 6], shinR: [0, 0, -60] },
         ik: { handR: G([0.62, 1.12, 0.05], SLASH(152)), ...air(0) } },
+      // the legs reach for the floor: the feet come back onto IK just before the touch-down
+      { t: 0.97, ik: { footL: { pos: FL, rot: [0, YAW_L, -10], w: 0.7 }, footR: { pos: [FR[0], 0.02, FR[2]], rot: [0, YAW_R, -30], w: 0.7 } } },
       // landing slam: blade into the floor, deep crouch
       { t: 1.0, ease: 'inQuad', hips: { pos: [-0.04, -0.36, 0], rot: [0, -14, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -18], neck: [0, 4, 14], head: [0, 6, 18],
         thighL: [0, 0, 0], shinL: [0, 0, 0], thighR: [0, 0, 0], shinR: [0, 0, 0] },
@@ -393,7 +404,7 @@ defineClip('kael.bulwark_burst', {
       { t: 1.4, ease: 'inOutSine', hips: { pos: [-0.04, -0.18, 0], rot: [0, -20, 0] }, bones: { spine: [0, -4, -6], chest: [0, -5, -4], neck: [0, 12, 2], head: [0, 15, 0] },
         ik: { handR: lifting([0.32, 1.24, 0.18]), ...FEET } },
       { ...home(1.65), ik: { handR: SHOULDER_HAND, ...FEET } },
-    ],
+    ]),
     events: ev([[0.56, 'trailOn'], [0.6, 'leap'], ...impact(0.85), [1.0, 'slam'], [1.06, 'trailOff']]),
   });
 }

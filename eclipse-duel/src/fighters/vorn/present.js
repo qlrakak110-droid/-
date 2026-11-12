@@ -68,18 +68,17 @@ function tipCharge(h, dur, k = 1, pop = false) {
 function spearArc(h, life = 0.25, k = 0.8, width = 0.2) {
   const a = sock(h, 'weaponBase'), b = sock(h, 'weaponTip');
   if (!a || !b || !h.vfx) return null;
-  return h.vfx.beam({ look: 'volt', from: a, to: b, width, extend: 0.05, release: 0.08, life, wiggle: 0.04, flareSize: 0.6, intensity: k });
+  return h.vfx.beam({ look: 'volt', from: a, to: b, width, extend: 0.05, release: 0.08, life, wiggle: 0.04, flares: false, intensity: k });
 }
 /** Lock-only clip of a beat: 'vorn.ult.<beat>' when the animator authored it, else a move clip held near `t`. */
 function beat(h, name, fb, o = {}) {
   const clip = 'vorn.ult.' + name;
-  if (hasClip(clip)) { h.play(clip, { fade: 0.06, ...o }); return true; }
+  if (hasClip(clip)) { h.play(clip, { fade: 0.06, ...o }); return; }
   const A = h.self.actor;
-  if (!fb || !A || !A.clips) return false;
-  if (fb.state) { h.play(A.clips.state(fb.state).name, { fade: fb.fade ?? 0.12 }); return false; }
+  if (!fb || !A || !A.clips) return;
+  if (fb.state) { h.play(A.clips.state(fb.state).name, { fade: fb.fade ?? 0.12 }); return; }
   const mc = A.clips.move(fb.move);
   h.play(mc.name, { fade: fb.fade ?? 0.08, startAt: mc.map(fb.t ?? mc.startup), speed: fb.speed ?? 1 });
-  return false;
 }
 /** Victim clip of a state slot during the lock. */
 function foeClip(h, slot, o = {}) {
@@ -118,7 +117,7 @@ const ULT_SHOTS = (h) => {
       from: { pos: [-1.6, 0.8, 8.4], look: [0.3, 4.4, 0], fov: 52 }, to: { pos: [-0.3, 1.0, 7.8], look: [0.5, 4.9, 0], fov: 48 },
       slowmo: { scale: 0.35, at: 0.04, dur: 0.42, easeIn: 0.05, easeOut: 0.15 } },
     S.crashZoom({ dur: 0.25, subject: 'target', dist: [9, 4.2], height: [3.6, 2.0], look: 1.4, fov: [52, 40], shake: 0.25, follow: 'look', followY: true }),
-    S.topDownSlam({ dur: 0.9, subject: 'target', height: [5.2, 6.8], toward: [4.6, 5.8], ahead: -0.8, look: 0.4, fov: [50, 56], roll: [0, 10] }),
+    S.topDownSlam({ dur: 0.9, subject: 'target', height: [5.0, 6.4], toward: [5.4, 6.6], ahead: -1.0, look: 0.6, fov: [50, 56], roll: [0, 10] }),
   ];
 };
 
@@ -127,12 +126,12 @@ function slam(h, e) {
   book(h, e);
   const g = floorAt(h, 'foe.floor');
   h.fx('vorn.pillar', { pos: g }, { intensity: 1 });
-  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 1.3, pierce: true });
-  h.post.flash(VIOLET, 0.2, { release: 0.35 });
+  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 1.0, pierce: true });
+  h.post.flash(VIOLET, 0.14, { release: 0.35 });
   h.post.impact({ duration: 0.05, invert: 0, mono: 1 });   // a monochrome beat, not an inverted (white) frame
-  h.post.pulse('exposure', 0.12, { attack: 0.02, release: 0.5 });
-  h.post.chroma(1.0, { release: 0.5 });
-  h.post.radial(g, 0.9, { release: 0.5 });
+  h.post.pulse('exposure', 0.05, { attack: 0.02, release: 0.5 });
+  h.post.chroma(0.3, { release: 0.4 });
+  h.post.radial(g, 0.6, { release: 0.45 });
   h.cam.shake(1, { freq: 11, duration: 1.1, dir: [0, 1, 0] });
   h.pulse(g, V.core, 2);
   h.audio('ult_impact');
@@ -192,7 +191,7 @@ const ult = {
       h.foeOffset([-0.5, 3.4], 0.55, 'outCubic');
       foeClip(h, 'launched');
       flower(h, 1.0, { pos: 'foe.chest', dir: [0.3, 1, 0.2] });
-      h.fx('vorn.skybolt', 'weaponTip', { intensity: 0.7 });
+      h.after(0.03, (h2) => h2.fx('vorn.skybolt', { socket: 'weaponTip', offset: [0.1, 0.7, 0] }, { intensity: 0.7 }));
       h.cam.shake(0.4, { freq: 15 });
       h.audio('swing_heavy');
       h.audio('hit_blunt', { volume: 0.7 });
@@ -229,7 +228,7 @@ const ult = {
         h2.offset([0.4, 2.2], 0.45, 'outCubic');
         h2.fx('combat.dust.land', 'floor', { heavy: true, k: 1.2 });
         h2.spawn('ring', h2.pos('floor'), { look: 'volt', radius: [0.2, 2.2], life: 0.4, intensity: 0.8 });
-        h2.afterimage({ life: 0.4, count: 3, interval: 0.05 });
+        h2.afterimage({ life: 0.35, count: 1 });
         h2.audio('dodge');
       });
     } },
@@ -263,7 +262,7 @@ const ult = {
       h.foeOffset([-0.3, 0], 0.25, 'inQuad');
       foeClip(h, 'fall', { fade: 0.04 });
       spearArc(h, 0.32, 1.1, 0.3);
-      h.afterimage({ life: 0.3, count: 3, interval: 0.05 });
+      h.afterimage({ life: 0.3, count: 2, interval: 0.06 });
       if (h.vfx) h.vfx.speedlines({ pos: foeSock(h, 'chest'), life: 0.28, intensity: 0.5 });
       h.audio('swing_huge');
     } },
@@ -352,11 +351,10 @@ const moves = {
       const tip = h.pos('weaponTip');
       const end = h.at(3.3, 1.28, 0.1);
       if (h.vfx) {
-        h.vfx.beam({ look: 'volt', from: tip, to: end, width: 0.15, extend: 0.025, release: 0.08, life: 0.16, flares: false, intensity: 0.6 });
+        h.vfx.beam({ look: 'volt', from: tip, to: end, width: 0.1, extend: 0.025, release: 0.08, life: 0.16, flares: false, intensity: 0.5 });
         h.vfx.bolt({ from: end, to: h.at(4.0, 1.4, 0.2), width: 0.07, branches: 2, strikes: 2, detail: 5, life: 0.18, leader: 0, impact: false, intensity: 0.7 });
       }
       h.flare(end, { kind: 'streak', size: 0.1, aspect: 20, life: 0.12, dir: h.dir([1, 0, 0]), intensity: 0.4 });
-      h.spawn('ring', end, { look: 'volt', normal: h.dir([1, 0, 0]), radius: [0.04, 0.42], width: [0.05, 0.09], life: 0.18, intensity: 0.55 });
       h.cam.kick({ fov: -1.6, duration: 0.25 });
       h.audio('volt_zap', { volume: 0.8 });
       runes(h, 2, 0.4);
@@ -397,7 +395,7 @@ const moves = {
       tipCharge(h, 0.06, 0.6);
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 3, intensity: 0.6 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 2, intensity: 0.6 });
       h.cam.kick({ fov: -2.5, push: 0.4, duration: 0.3 });
       h.audio('volt_zap');
       h.audio('dodge', { volume: 0.7 });
@@ -420,7 +418,8 @@ const moves = {
     },
     swing(h) { arc(h, [0.2, 0.85, 0.12], { arc: [-55, 98], radius: 1.8, width: 0.2, sweep: 0.06, normal: [0, -0.15, 1], intensity: 0.75, life: 0.24 }); },
     bolt(h) {
-      h.fx('vorn.skybolt', 'weaponTip');
+      // a beat after the hit flash, from just above the tip, so the two never pile up on the victim
+      h.after(0.04, (h2) => h2.fx('vorn.skybolt', { socket: 'weaponTip', offset: [0.1, 0.6, 0] }));
       h.cam.kick({ fov: -2, duration: 0.3 });
       h.audio('volt_strike', { volume: 0.55, pitch: 1.15 });
     },
@@ -431,12 +430,12 @@ const moves = {
   thunder_javelin: {
     form(h) {
       runes(h, 2, 0.5, 'all');
-      tipCharge(h, 0.22, 0.8, true);
+      tipCharge(h, 0.2, 0.7);
       spearArc(h, 0.24, 0.55, 0.14);
     },
     release(h) {
       const p = h.at(0.9, 1.55, 0.05);
-      h.spawn('ring', p, { look: 'volt', normal: h.dir([1, 0.05, 0]), radius: [0.05, 0.6], width: [0.05, 0.1], life: 0.2, intensity: 0.6 });
+      h.spawn('ring', p, { look: 'volt', normal: h.dir([1, 0.05, 0]), radius: [0.04, 0.32], width: [0.03, 0.06], life: 0.16, intensity: 0.4 });
       h.burst('vorn.goldCone', p, { dir: [1, 0.1, 0.1], count: 14 });
       h.light(h.at(0.9, 1.7, 1.4), { intensity: 30, duration: 0.18, flicker: 0.5 });
     },
@@ -456,8 +455,8 @@ const moves = {
       if (cam && cam.mode === 'fight') {
         h.cam.play([
           { dur: 0.41, space: 'mid', ease: 'inOutSine', handheld: 0.3, cut: 0.12,
-            from: { pos: [-2.4, 1.3, 6.4], look: [0.4, 1.9, 0], fov: 42 }, to: { pos: [-2.0, 0.7, 5.6], look: [1.3, 5.2, -1.5], fov: 50 } },
-          h.shots.crashZoom({ dur: 0.36, subject: 'target', dist: [8.5, 5.4], height: [3.0, 1.6], look: 1.4, fov: [54, 40], angle: -14, shake: 0.2 }),
+            from: { pos: [-2.4, 1.3, 6.4], look: [0.4, 1.9, 0], fov: 42 }, to: { pos: [-2.2, 0.6, 6.0], look: [1.1, 3.8, -1.0], fov: 50 } },
+          h.shots.crashZoom({ dur: 0.36, subject: 'target', dist: [9.5, 6.8], height: [3.0, 1.8], look: 1.3, fov: [54, 44], angle: -14, shake: 0.2 }),
         ], { blendOut: 0.45, hud: false });
       }
     },
@@ -477,7 +476,6 @@ const moves = {
       s.blinkX = e && typeof e.x === 'number' ? e.x : h.pos('floor').x;
       const a = h.pos('floor');
       h.fx('volt.dash', { pos: a }, { to: h.at(4.0, 0, 0), intensity: 0.6 });
-      h.fx('vorn.reform', a, { intensity: 0.45 });
       h.after(0.017, (h2) => h2.self.setVisible(false));   // after the generic afterimage snapshot of this frame
       h.audio('volt_zap');
       h.cam.kick({ fov: -1.5, duration: 0.22 });
@@ -518,7 +516,7 @@ const moves = {
       h.emitter('vorn.motesUp', h.at(0, 0.05, 0), { dir: [0, 1, 0], scale: 1.1, duration: 0.4 });
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 4, speedlines: true, intensity: 0.75 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 2, speedlines: true, intensity: 0.75 });
       h.fx('vorn.rain', { pos: h.at(3, 0, 0) }, { duration: 1.4 });
       h.fx('combat.dust.dash', 'floor', { k: 1 });
       h.audio('volt_zap');
@@ -526,7 +524,7 @@ const moves = {
     swing(h) { h.after(0.03, (h2) => thrust(h2, 1, { width: 0.1, reach: 0.4 })); },
     overrun(h) {   // whiff / block: the dash ends in a big but harmless lightning burst
       h.fx('volt.burst', 'weaponTip', { intensity: 0.6 });
-      h.fx('volt.strike', { pos: floorAt(h, 'weaponTip') }, { huge: true, intensity: 0.7 });
+      h.fx('vorn.skystrike', { pos: floorAt(h, 'weaponTip') }, { k: 1.4 });
       h.audio('volt_strike', { volume: 0.7 });
     },
     options: { whoosh: false },
@@ -553,11 +551,11 @@ const projectiles = {
       if (idx === 1) h.fx('vorn.mark', { pos: g }, { warn: delay });
       h.after(delay, (h2) => {
         const huge = !!d.huge;
-        h2.fx('volt.strike', { pos: g }, { huge, intensity: huge ? 0.9 : 0.7 });
-        h2.fx('vorn.strikeX', { pos: g }, { k: huge ? 1.5 : 1 });
+        h2.fx('vorn.skystrike', { pos: g }, { k: huge ? 1.5 : 1 });
+        h2.fx('vorn.strikeX', { pos: g }, { k: huge ? 1.4 : 0.9 });
         h2.cam.shake(huge ? 0.6 : 0.35, { freq: 13, dir: [0, 1, 0] });
         h2.pulse(g, V.core, huge ? 1.6 : 0.8);
-        if (huge) { h2.post.chroma(0.6, { release: 0.3 }); h2.post.flash(VIOLET, 0.08, { release: 0.2 }); }
+        if (huge) h2.post.flash(VIOLET, 0.06, { release: 0.2 });
         if (idx === 1) h2.post.pulse('exposure', 0.06, { release: 0.2 });
       });
       return false;
@@ -602,7 +600,7 @@ const on = {
     if (e && e.cinematic) return undefined;
     // the last hit calls a bolt down onto the fallen opponent
     h.after(0.12, (h2) => {
-      h2.fx('volt.strike', { pos: floorAt(h2, 'foe.floor') }, { intensity: 0.8, realtime: true });
+      h2.fx('vorn.skystrike', { pos: floorAt(h2, 'foe.floor') }, { k: 1.2 });
       runes(h2, 3, 1.5, 'all');
     });
     return undefined;

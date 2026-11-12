@@ -73,12 +73,96 @@ export function arcRune(plateGeo, u0, v0, u1, v1, o = {}) {
 
 // ---- trim ---------------------------------------------------------------------------------------------------------------
 
+/**
+ * Engraved arc-rune inlay: the zig-zag bolt (and its forks) as a glowing core sunk in a dark engraved channel with raised,
+ * edge-worn lips (the groove is cut into the plate; the light lives at its bottom). Same (u, v) path rules as arcRune.
+ * o: arcPath options + { width = 0.003 (glowing core), channel = width * 5.5 (full channel width), lip = 0.0019 (lip
+ *    height over the plate), forks, step = 0.022 (m: max world length between samples; chords never cut into a curved
+ *    plate) }
+ * Returns { rune (core strips: put with an inlay look), channel (groove walls / floor: put with a dark engraved-steel
+ *           look; cav marks the worn lips and the grimy floor) }
+ */
+export function arcInlay(plateGeo, u0, v0, u1, v1, o = {}) {
+  const S = plateGeo.userData;
+  const main = arcPath(u0, v0, u1, v1, o);
+  const w = o.width ?? 0.003, cw = o.channel ?? w * 5.5;
+  const paths = [[main, 1]];
+  for (const [k, ang, len] of o.forks || []) {
+    const a = main[Math.max(1, Math.min(main.length - 2, k))], b = main[Math.min(main.length - 1, k + 1)];
+    const d = Math.atan2(b[1] - a[1], b[0] - a[0]) + ang * DEG;
+    const end = [a[0] + Math.cos(d) * len, a[1] + Math.sin(d) * len];
+    paths.push([arcPath(a[0], a[1], end[0], end[1], { segs: 3, amp: (o.amp ?? 0.03) * 0.6, seed: (o.seed ?? 1) * 5 + k }), 0.72]);
+  }
+  const runes = [], chans = [];
+  for (const [p, k] of paths) {
+    const g = groove(S, p, { width: w * k, channel: cw * (0.75 + 0.25 * k), lip: o.lip, step: o.step });
+    runes.push(g.core); chans.push(g.channel);
+  }
+  return { rune: merge(runes), channel: merge(chans) };
+}
+
+// channel section across (x in half-widths, h = height over the plate in units of the lip, cav, normal tilt across)
+const CHANNEL = [[-1, 0.0, 0.95, -0.75], [-0.84, 1, 1.9, -0.25], [-0.66, 0.1, 0.18, 0.8], [0.66, 0.1, 0.18, -0.8], [0.84, 1, 1.9, 0.25], [1, 0.0, 0.95, 0.75]];
+// glowing core: low edges, raised centre (three columns: the core is small, flat emissive)
+const CORE = [[-1, 0.3, 1.0, -0.4], [0, 0.85, 1.3, 0], [1, 0.3, 1.0, 0.4]];
+
+/**
+ * One engraved groove (channel + glowing core) along a (u, v) polyline on a plate surface, sampled adaptively (`step` m)
+ * with mitred corners (constant width through the zig-zag) and tapered graver ends.
+ */
+export function groove(S, uv, o = {}) {
+  const w = (o.width ?? 0.003) / 2, cw = (o.channel ?? w * 11) / 2, lip = o.lip ?? 0.0019, step = o.step ?? 0.022;
+  // densify: each segment split so no chord is longer than `step` in the world
+  const dense = [];
+  for (let i = 0; i < uv.length - 1; i++) {
+    const a = uv[i], b = uv[i + 1];
+    const L = S.normalAt(clamp(a[0], 0, 1), clamp(a[1], 0, 1)).p.distanceTo(S.normalAt(clamp(b[0], 0, 1), clamp(b[1], 0, 1)).p);
+    const sub = Math.max(1, Math.ceil(L / step));
+    for (let s = 0; s < sub; s++) dense.push([lerp(a[0], b[0], s / sub), lerp(a[1], b[1], s / sub)]);
+  }
+  dense.push(uv[uv.length - 1]);
+  const F = dense.map(([u, v]) => S.normalAt(clamp(u, 0, 1), clamp(v, 0, 1)));
+  const n = F.length;
+  const build = (sec, half, hk, liftBase) => {
+    const pos = [], nor = [], cav = [], idx = [];
+    for (let i = 0; i < n; i++) {
+      const nn = F[i].n;
+      const t0 = new THREE.Vector3().subVectors(F[Math.min(n - 1, i + 1)].p, F[Math.max(0, i - 1)].p).normalize();
+      const side = new THREE.Vector3().crossVectors(nn, t0).normalize();
+      // mitre: keep the width constant through the corners (capped)
+      let mit = 1;
+      if (i > 0 && i < n - 1) {
+        const ta = new THREE.Vector3().subVectors(F[i].p, F[i - 1].p).normalize(), tb = new THREE.Vector3().subVectors(F[i + 1].p, F[i].p).normalize();
+        const c = Math.sqrt(Math.max(0.05, (1 + ta.dot(tb)) / 2));
+        mit = Math.min(1.7, 1 / c);
+      }
+      const end = i === 0 || i === n - 1 ? 0.45 : 1; // tapered graver ends
+      for (const [x, h, cv, tilt] of sec) {
+        const p = F[i].p.clone().addScaledVector(side, x * half * mit * end).addScaledVector(nn, liftBase + h * hk * (end < 1 ? 0.6 : 1));
+        pos.push(p.x, p.y, p.z);
+        const q = nn.clone().addScaledVector(side, tilt).normalize();
+        nor.push(q.x, q.y, q.z);
+        cav.push(cv);
+      }
+    }
+    const m = sec.length;
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < m - 1; k++) { const a = i * m + k, b = a + 1, c = a + m, d = c + 1; idx.push(a, c, b, b, c, d); }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('cav', new THREE.Float32BufferAttribute(cav, 1));
+    g.setIndex(idx);
+    return fixWinding(g);
+  };
+  return { channel: build(CHANNEL, cw, lip, 0.0003), core: build(CORE, w, lip * 0.5, 0.0004) };
+}
+
 /** Rim bead section: angles (deg) of a rounded crown around the plate normal (open underneath, tucked into the plate). */
-const BEAD = [-108, -60, -20, 20, 60, 108].map((d) => [Math.cos(d * DEG), Math.sin(d * DEG)]);
+const BEAD = [-104, -52, 0, 52, 104].map((d) => [Math.cos(d * DEG), Math.sin(d * DEG)]);
 
 /**
  * Rolled trim bead along one edge of a plate (sits over the plate's own bead / roll: a gold rim on a steel plate).
- * Rounded crown section framed by the plate normal at every sample (no twist drift), 10 triangles per sample.
+ * Rounded crown section framed by the plate normal at every sample (no twist drift), 8 triangles per sample.
  * side: 'v0' | 'v1' | 'u0' | 'u1'; r: bead radius; o: { n = 32 samples, from = 0, to = 1 (edge range), closed,
  * lift (outward along the plate normal; default r * 0.2 - thick / 2), out (past the edge; default r * 0.3), thick }
  */
@@ -502,32 +586,74 @@ export function poleynLames(o = {}) {
   }));
 }
 
-/** Cuisse (thigh frame): open shell over the front and outside of the thigh with a ridge. */
+/**
+ * Cuisse (thigh frame): open shell over the front and outside of the thigh. Not a stovepipe: a waisted profile (flared
+ * over the hip, pinched above the knee, kicking out again over the poleyn), a hard medial keel flanked by two creased
+ * flutes that fade toward the knee, an outer ridge, and a top edge rising into a point over the outside of the hip.
+ */
 export function cuisse(o = {}) {
   const r = o.r ?? 0.11;
+  const fade = (k) => (v) => k * (1 - 0.75 * sstep(0.15, 1, v));
   return hoop({
     y0: o.y0 ?? -0.035, y1: o.y1 ?? -0.42, a0: -112, a1: 128,
-    rx: [[0, r * 1.02], [0.5, r * 0.94], [1, r * 0.8]], rz: [[0, r * 1.04], [0.5, r * 0.95], [1, r * 0.8]], ox: 0.006, n: 2.15,
-    nu: o.nu ?? 15, nv: o.nv ?? 6, thick: 0.007, edgeR: 0.005, roll: { v0: 0.0055 },
-    ridge: { at: 8, h: 0.008, w: 22 },
-    top: (a) => 0.03 * Math.pow(Math.max(0, Math.sin(a * DEG)), 2) - 0.02 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
+    rx: [[0, r * 1.08], [0.3, r * 1.0], [0.72, r * 0.82], [0.9, r * 0.8], [1, r * 0.86]],
+    rz: [[0, r * 1.1], [0.3, r * 1.0], [0.72, r * 0.84], [0.9, r * 0.8], [1, r * 0.86]], ox: [[0, 0.004], [0.5, 0.008], [1, 0.004]], n: 2.2,
+    nu: o.nu ?? 22, nv: o.nv ?? 5, thick: 0.007, edgeR: 0.005,
+    ridges: [
+      { at: 8, h: 0.017, w: 20 },
+      { at: -26, h: fade(-0.008), w: 15 }, { at: 42, h: fade(-0.008), w: 15 }, // flutes (sunk) either side of the keel
+      { at: 76, h: fade(0.01), w: 14 }, { at: 106, h: 0.005, w: 16 },
+    ],
+    top: (a) => 0.036 * Math.pow(Math.max(0, Math.sin(a * DEG)), 3) - 0.018 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
+    bot: (a) => 0.012 * Math.pow(Math.max(0, Math.cos(a * DEG)), 3),
   });
 }
 
-/** Greave (shin frame): closed tube, calf swell, shin ridge (crease), flared ankle, pointed knee edge. */
+/**
+ * Greave (shin frame): a forged, ridged shell instead of a tube: a deep calf swell and a pinched ankle that flares again
+ * over the sabaton, a hard shin keel flanked by sunk flutes and two creased side ridges (strong up the shin, fading toward
+ * the ankle), a faceted calf with its own seam ridge, a pointed knee tongue under the poleyn and a raised instep arch.
+ */
 export function greave(o = {}) {
   const r = o.r ?? 0.072;
+  const fade = (k) => (v) => k * (1 - 0.7 * sstep(0.3, 1, v));
   return hoop({
     y0: o.y0 ?? -0.07, y1: o.y1 ?? -0.44, closed: true,
-    rx: [[0, r], [0.28, r * 1.08], [0.75, r * 0.84], [1, r * 0.88]],
-    rz: [[0, r * 0.96], [0.28, r * 1.02], [0.75, r * 0.8], [1, r * 0.84]],
+    rx: [[0, r * 1.1], [0.09, r * 0.99], [0.3, r * 1.1], [0.62, r * 0.88], [0.86, r * 0.77], [1, r * 0.98]],
+    rz: [[0, r * 1.06], [0.09, r * 0.95], [0.3, r * 1.04], [0.62, r * 0.85], [0.86, r * 0.75], [1, r * 0.94]],
     ox: [[0, -0.004], [0.3, -0.012], [1, 0.002]],
-    bulge: (u, v) => 0.012 * Math.pow(Math.max(0, -Math.cos((u * 360 - 180) * DEG)), 2) * Math.sin(Math.PI * clamp(v * 1.3, 0, 1)),
-    n: 2.1, nu: o.nu ?? 16, nv: o.nv ?? 6, thick: 0.006, edgeR: 0.0045, roll: { v0: 0.005 },
-    ridge: { at: 0, h: 0.01, w: 24 },
-    top: (a) => 0.016 * Math.pow(Math.max(0, Math.cos(a * DEG)), 3),
-    bot: (a) => 0.012 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
+    bulge: (u, v) => 0.014 * Math.pow(Math.max(0, -Math.cos((u * 360 - 180) * DEG)), 2) * Math.sin(Math.PI * clamp(v * 1.25, 0, 1)),
+    n: 2.15, nu: o.nu ?? 24, nv: o.nv ?? 7, thick: 0.006, edgeR: 0.0045,
+    ridges: [
+      { at: 0, h: 0.02, w: 21 },
+      { at: -29, h: fade(-0.0075), w: 13 }, { at: 29, h: fade(-0.0075), w: 13 },
+      { at: -54, h: fade(0.01), w: 16 }, { at: 54, h: fade(0.01), w: 16 },
+      { at: 180, h: 0.006, w: 24 },
+    ],
+    top: (a) => 0.024 * Math.pow(Math.max(0, Math.cos(a * DEG)), 4) - 0.01 * Math.pow(Math.max(0, -Math.cos(a * DEG)), 2),
+    bot: (a) => 0.016 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
   });
+}
+
+/**
+ * Fluted backplate options (chest frame, the back half) for A.backplate: the torso-following plate with a hard spine keel, a fan of
+ * creased flutes over the shoulder blades fading into the waist, and a pointed lower edge over the spine.
+ * o: { body, yTop, yBot, nu = 24, nv = 6 } + plate options -> A.backplate options
+ */
+export function flutedBack(o = {}) {
+  const fade = (k) => (v) => k * (1 - 0.8 * sstep(0.2, 1, v));
+  return {
+    a0: 98, a1: 262, nu: o.nu ?? 24, nv: o.nv ?? 6, thick: 0.007, edgeR: 0.0045,
+    roll: { v0: 0.0055 },
+    ridges: [
+      { at: 180, h: 0.014, w: 12 },
+      { at: 161, h: fade(-0.007), w: 10 }, { at: 199, h: fade(-0.007), w: 10 },
+      { at: 142, h: fade(0.009), w: 12 }, { at: 218, h: fade(0.009), w: 12 },
+      { at: 123, h: fade(-0.005), w: 10 }, { at: 237, h: fade(-0.005), w: 10 },
+    ],
+    botBack: 0.022,
+    ...o,
+  };
 }
 
 // ---- spur ------------------------------------------------------------------------------------------------------------------

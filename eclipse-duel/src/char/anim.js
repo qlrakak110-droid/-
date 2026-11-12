@@ -186,6 +186,7 @@ function finalizeTrack(tr, loop, duration, isQuat) {
     }
   }
   tr.modes = Uint8Array.from(tr.modes);
+  tr.quat = !!isQuat;
   computeTangents(tr, loop, duration);
   return tr;
 }
@@ -434,15 +435,22 @@ export class Pose {
     this.feetSoft = new Float32Array(2);    // soft reach per foot (-1 = rig default)
     this.gripT = new Float32Array([0, 0, 0, 0, 0, 0, 1]); // off-hand target in the main weapon frame: pos (3) + quat (4)
     this.gripW = new Float32Array(2);       // grip IK weight of the right / left hand
+    this.gripLift = 0;                      // off hand moving between two grip points: 0..1 lift away from the torso
     this.drop = 0;                          // automatic pelvis drop applied while resolving (m)
-    this.swivel = new Float32Array(9);      // arm IK memory (handR, handL, grip): [swivel, valid, wrist twist] each
-    this.swivelR = this.swivel.subarray(0, 3); this.swivelL = this.swivel.subarray(3, 6); this.swivelG = this.swivel.subarray(6, 9);
+    this.clavBase = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1]); // clavicle local rotations before the IK assist (R, L)
+    this.clavBaseR = this.clavBase.subarray(0, 4); this.clavBaseL = this.clavBase.subarray(4, 8);
+    this.aimErr = new Float32Array(2);      // weapon frame vs the keyed one after the wrist clamp (rad, R / L hand)
+    this.footSlide = new Float32Array(2);   // horizontal move of an out-of-reach planted foot target (m, R / L)
+    // arm IK memory (handR, handL, off-hand grip): MEM floats each (ik.js: last / this frame's elbow direction)
+    this.swivel = new Float32Array(30);
+    this.swivelR = this.swivel.subarray(0, 10); this.swivelL = this.swivel.subarray(10, 20); this.swivelG = this.swivel.subarray(20, 30);
   }
   copy(p) {
     this.lq.set(p.lq); this.hips.set(p.hips); this.ik.set(p.ik); this.grip = p.grip;
     this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root); this.feet.set(p.feet);
     this.feetIK.set(p.feetIK); this.feetPole.set(p.feetPole); this.feetSoft.set(p.feetSoft);
-    this.gripT.set(p.gripT); this.gripW.set(p.gripW); this.drop = p.drop;
+    this.gripT.set(p.gripT); this.gripW.set(p.gripW); this.gripLift = p.gripLift; this.drop = p.drop;
+    this.clavBase.set(p.clavBase); this.aimErr.set(p.aimErr); this.footSlide.set(p.footSlide);
     return this;
   }
 }

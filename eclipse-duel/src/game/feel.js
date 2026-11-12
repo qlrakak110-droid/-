@@ -424,7 +424,8 @@ export function createFeel(ctx, session) {
       post.impactFrame({ duration: 0.06 });
       if (cam.mode !== 'cine') {
         cam.play([
-          SHOTS.impactPunchIn({ dur: 0.75, clock: 'real', shake: 0.8 }),
+          // framed wide enough that the falling victim reads (2.4 m filled the frame with its own weapon and the burst)
+          SHOTS.impactPunchIn({ dur: 0.75, clock: 'real', shake: 0.8, dist: [5.2, 3.8], height: [1.5, 1.35], look: 1.1, fov: [40, 34] }),
           SHOTS.orbitSweep({ dur: 1.8, clock: 'real', cut: 0.3, subject: 'target', from: -30, to: 10, radius: [4.6, 4.0], height: [1.0, 1.6], look: 0.9 }),
         ], { anchor: e.by, blendOut: 0.9 });
       }

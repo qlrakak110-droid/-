@@ -49,7 +49,7 @@ const flags = [realtime ? '' : 'test', opt('view', null) ? 'view=' + opt('view')
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const touch = has('touch');
 const page = await browser.newPage({ viewport: { width: W, height: H }, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
-page.setDefaultTimeout(120000);
+page.setDefaultTimeout(600000);
 let errors = 0;
 page.on('console', (m) => {
   const t = m.type();
@@ -58,8 +58,9 @@ page.on('console', (m) => {
 });
 page.on('pageerror', (e) => { errors++; console.log('[page exception]', String(e.stack || e.message).slice(0, 1800)); });
 
-await page.goto('file://' + file + (flags ? '#' + flags : ''));
-await page.waitForFunction(() => window.__ED && window.__ED.ready, null, { timeout: 120000 }).catch(() => { console.log('[harness] page never became ready (window.__ED.ready)'); });
+// 'commit' + long timeouts: booting the 2 MB bundle and building the fighters can take minutes on a loaded machine
+await page.goto('file://' + file + (flags ? '#' + flags : ''), { waitUntil: 'commit', timeout: 900000 });
+await page.waitForFunction(() => window.__ED && window.__ED.ready, null, { timeout: 900000, polling: 500 }).catch(() => { console.log('[harness] page never became ready (window.__ED.ready)'); });
 
 const evalJs = (code) => page.evaluate(async (c) => { const r = await (0, eval)('(async () => { return (' + c + '\n); })()'); try { return r === undefined ? null : JSON.parse(JSON.stringify(r)); } catch (e) { return String(r); } }, code);
 const evalStmt = (code) => page.evaluate(async (c) => { await (0, eval)('(async () => { ' + c + '\n })()'); }, code);

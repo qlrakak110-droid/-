@@ -1,9 +1,12 @@
 // KAEL 카엘 — 잿불의 집행자 · Cinder Warden. Character design (src/char/README.md "Design format").
 //
 // Scorched, fire-blackened plate whose cracks and inlays glow like banked embers; a massive layered right pauldron
-// (camera side) with a standing neck guard and forged flame fins, a lighter left pauldron under a soot-black fur mantle
-// and a tattered, burnt half-cape; a great helm with a forged flame crest and a glowing visor slit; burnt waist cloth
-// between laminated tassets; the greatsword (src/char/weapons.js). ~1.95 m, heavy build.
+// (camera side) with a forged flame wing flaring out of it and streaming back, a lighter left pauldron under a heavy
+// soot-black fur mantle and a tattered, burnt half-cape held off the back in deep folds; a great helm with a swept
+// flame crest (its tail hooked behind the helm) and a glowing visor slit; burnt waist cloth between laminated tassets;
+// the greatsword (src/char/weapons.js). ~1.95 m, heavy build. Silhouette language: everything streams back like a
+// flame driven forward (crest tail, shoulder wing, cape), against VORN's upright spikes and ISKA's slender hood.
+// The fins are KAEL's own kit pieces (./kit.js) and stay clear of the resting greatsword (stance: blade on the pauldron).
 //
 // Slots (draw calls): plate (all rigid armour), suit (under-layers), cloth (cape, waist cloth, fur: alpha-cut), blade.
 // Glow: kael.glow = { inlay, vein, eye } HDR colours; attach a runtime control with kael.attach(char) (char.glow).
@@ -110,16 +113,16 @@ export const kael = {
     clothSpec({
       name: 'cape',
       top: [['chest', [0.07, 0.205, -0.17]], ['chest', [-0.05, 0.25, -0.215]], ['chest', [-0.19, 0.225, -0.11]], ['chest', [-0.205, 0.21, 0.02]], ['chest', [-0.18, 0.19, 0.13]]],
-      cols: 11, rows: 13, length: 1.1, drape: [-0.3, -1, -0.1], flare: 0.5, thickness: 0.016,
-      // rest folds: three deep pipe folds deepening toward the hem plus a smaller offset fold (the grid holds both), a
+      cols: 11, rows: 13, length: 1.1, drape: [-0.3, -1, -0.1], flare: 0.62, thickness: 0.016,
+      // rest folds: two deep pipe folds deepening toward the hem plus a smaller offset fold (the grid holds both), a
       // belly away from the legs, the hem dropping lower at the centre back, the left end gathered toward the arm
       offset: (u, v) => [
-        -0.06 * Math.sin(v * Math.PI) * (0.6 + 0.4 * Math.sin(u * Math.PI)) - 0.05 * v + (0.066 * Math.sin(u * Math.PI * 4.6 + 0.5) + 0.018 * Math.sin(u * Math.PI * 7 + 2.1)) * (0.2 + 0.8 * v),
+        -0.06 * Math.sin(v * Math.PI) * (0.6 + 0.4 * Math.sin(u * Math.PI)) - 0.05 * v + (0.074 * Math.sin(u * Math.PI * 4.2 + 0.5) + 0.018 * Math.sin(u * Math.PI * 7 + 2.1)) * (0.2 + 0.8 * v),
         -0.07 * Math.pow(Math.sin(u * Math.PI), 2) * v,
         -0.035 * v * (1 - u),
       ],
       // heavy wool: a stiffer bend keeps the pipe folds from ironing flat against the back
-      bend: 0.6, damping: 0.032, margin: 0.03, wind: 1,
+      bend: 0.65, damping: 0.032, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),
     // burnt waist cloth hanging from the belt between the tassets
@@ -127,7 +130,9 @@ export const kael = {
       name: 'waist',
       top: [['hips', [0.15, 0.085, -0.085]], ['hips', [0.168, 0.085, 0]], ['hips', [0.15, 0.085, 0.085]]],
       cols: 6, rows: 8, length: 0.58, drape: [0.12, -1, 0], flare: 0.22, thickness: 0.011,
-      damping: 0.045, margin: 0.024, wind: 0.6,
+      // rest folds: one and a half soft pleats, a slight belly off the faulds, the hem dipping at the centre
+      offset: (u, v) => [0.018 * Math.sin(u * Math.PI * 3 + 0.3) * (0.3 + 0.7 * v) + 0.02 * Math.sin(v * Math.PI), -0.03 * Math.pow(Math.sin(u * Math.PI), 2) * v, 0],
+      bend: 0.5, damping: 0.045, margin: 0.024, wind: 0.6,
       outer: CLOTH, inner: LINING,
     }),
   ],
@@ -283,7 +288,8 @@ export const kael = {
     put(kit, 'plate', 'head', H.slit, L.slit);
     put(kit, 'plate', 'head', H.eye, L.eye, { glow: (p) => { const e = Math.max(Math.exp(-((p[2] - 0.033) ** 2) / 0.0001), Math.exp(-((p[2] + 0.033) ** 2) / 0.0001)); return [0, 0, 0.1 + 0.9 * e]; } });
     put(kit, 'plate', 'head', helmBreaths(H), L.slit);
-    // swept flame crest: one tall tongue leaning back off the brow, two lower ones, the tail trailing past the nape
+    // swept flame crest: off the brow, arching over the crown into a long tail hooked behind the helm, flame licks
+    // under it, an engraved bronze band (both faces) under its top line
     const crest = flameCrest(H);
     put(kit, 'plate', 'head', crest, L.dark, { glow: veins(0.85, 1.2, 9) });
     const crestTrim = finTrim(crest, { width: 0.01, v: 0.8 });

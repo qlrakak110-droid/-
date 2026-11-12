@@ -72,7 +72,7 @@ function tickBook(h, e) {
 
 // ---- per-match state (projectiles and the ultimate; reset by ambient() at every round start) ------------------------
 const state = [mk(), mk()];
-function mk() { return { shots: new Map(), statue: null, ult: null }; }
+function mk() { return { shots: new Map(), ult: null }; }
 const st = (h) => state[h.index];
 
 // ---- the ultimate's sky: a constellation over the crystal (victim-local [f, u, s]) ------------------------------------
@@ -128,12 +128,12 @@ export const present = {
       shards(h) {
         // the knockback cut throws a fan of crystal shards forward
         cut(h, { heavy: true, arc: [150, -28], radius: 1.4, normal: [0, -0.1, 1] });
-        h.burst(D.shardFan, { pos: h.at(0.7, 1.15, 0.2), dir: [1, 0.08, 0.15], scale: 1.3 }, { count: 26 });
+        h.burst(D.shardFan, { pos: h.at(0.7, 1.15, 0.2), dir: [1, 0.08, 0.15], scale: 1.2 }, { count: 18 });
         h.burst(D.glint, { pos: h.at(1.1, 1.2, 0.2) }, { count: 12, scale: 1.4 });
         h.cam.kick({ fov: -1.5, duration: 0.25 });
       },
       hit(h, e) {
-        if (e.label === 'shards') { flower(h, e, 1.0, { floor: true }); h.spawn('debris', 'contact', { kind: 'ice', dir: [h.facing, 0.6, 0.2], count: 6, speed: [2, 5], spread: 40, size: [0.04, 0.11, 2] }); }
+        if (e.label === 'shards') { flower(h, e, 0.8, { floor: true }); h.spawn('debris', 'contact', { kind: 'ice', dir: [h.facing, 0.6, 0.2], count: 6, speed: [2, 5], spread: 40, size: [0.04, 0.11, 2] }); }
         else flower(h, e, 0.55);
       },
     },
@@ -172,7 +172,7 @@ export const present = {
           const a = v.emitter(D.skid, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.6, 0.3]), duration: 0.32 }); a.follow(s);
           const b = v.emitter(D.skidMist, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.3, 0.2]), duration: 0.32 }); b.follow(s);
         }
-        h.afterimage({ count: 4, interval: 0.05, life: 0.28, intensity: 0.6 });
+        h.afterimage({ count: 3, interval: 0.06, life: 0.26, intensity: 0.42 });
         h.audio('frost_wind', { volume: 0.5 });
       },
       swing(h) { cut(h, { heavy: true, arc: [-150, 25], radius: 1.35, normal: [0, 0.35, 1] }); },
@@ -182,8 +182,8 @@ export const present = {
         h.spawn('decal', 'floor', { kind: 'frost', radius: 1.0, reveal: 0.12, life: 2 });
       },
       hit(h, e) {
-        flower(h, e, 0.9);
-        h.flare('contact', { kind: 'streak', size: 0.1, aspect: 24, life: 0.16, color: F.core, intensity: 0.5, dir: h.dir([1, 0, 0]) });
+        flower(h, e, 0.7);
+        h.flare('contact', { kind: 'streak', size: 0.08, aspect: 24, life: 0.14, color: F.core, intensity: 0.35, dir: h.dir([1, 0, 0]) });
       },
     },
     rising_crescent: {
@@ -198,8 +198,8 @@ export const present = {
       },
       land(h) { h.burst(D.mistLow, { pos: h.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 4, scale: 0.6 }); glint(h, 'weaponTip', 0.3, 0.35); },
       hit(h, e) {
-        flower(h, e, 1.05, { dir: [0.25, 1, 0.3] });
-        h.burst(D.shards, { pos: 'contact', dir: [0.15, 1, 0.2] }, { count: 14, scale: 0.9 });
+        flower(h, e, 0.8, { dir: [0.25, 1, 0.3] });
+        h.burst(D.shards, { pos: 'contact', dir: [0.15, 1, 0.2] }, { count: 10, scale: 0.9 });
         h.spawn('pillar', h.at(foeF(h), 0, 0.05), { look: 'frost', radius: 0.16, height: 2.6, life: 0.36, intensity: 0.26 });
         h.cam.kick({ fov: -2, duration: 0.28 });
       },
@@ -266,10 +266,9 @@ export const present = {
         h.burst(D.glitter, { pos: 'chest' }, { count: 18, scale: 1.0 });
         h.afterimage({ count: 1, life: 0.22, intensity: 0.8 });
         h.cam.kick({ fov: -2.5, roll: 2.5 * h.facing, duration: 0.3 });
-        if (h.ctx.cam && h.ctx.cam.mode === 'fight') h.cam.zoom(0.86, 0.45);
       },
-      swing(h) { cut(h, { heavy: true, arc: [150, -40], radius: 1.4, normal: [0, -0.15, 1] }); },
-      hit(h, e) { flower(h, e, 1.05); h.cam.kick({ fov: -3, duration: 0.3 }); },
+      swing(h) { cut(h, { arc: [150, -40], radius: 1.25, normal: [0, -0.15, 1], intensity: 0.9 }); },
+      hit(h, e) { flower(h, e, 0.8); h.cam.kick({ fov: -3, duration: 0.3 }); },
       end(h) { h.self.setVisible(true); },
     },
 
@@ -287,8 +286,8 @@ export const present = {
         const f = Math.max(0.6, Math.min(range, foeF(h)));
         const g = h.at(f, 0, 0);
         u.runeAt = g;
-        u.handles.push(h.spawn('decal', g, { kind: 'rune', palette: 'frost', radius: 1.8, reveal: 0.2, life: 1.2, fadeOut: 0.25, spin: 2.2, intensity: 0.5 }));
-        u.handles.push(h.spawn('decal', g, { kind: 'frost', radius: 1.5, reveal: 0.35, life: 4 }));
+        u.handles.push(h.spawn('decal', g, { kind: 'rune', palette: 'frost', radius: 1.8, reveal: 0.2, life: 1.2, fadeOut: 0.25, spin: 2.2, intensity: 0.35 }));
+        u.handles.push(h.spawn('decal', g, { kind: 'frost', radius: 1.2, reveal: 0.35, life: 4, intensity: 0.6 }));
         u.handles.push(h.flare(W(h, g.x, 0.25, 0.4), { kind: 'glow', size: [0.3, 1.8], life: 0.45, attack: 0.35, decay: 3, color: F.mid, intensity: 0.3 }));
         h.burst(D.glint, { pos: W(h, g.x, 0.4, 0) }, { count: 20, scale: 2.2 });
         h.light(W(h, g.x, 0.7, 1.4), { intensity: 80, range: 7, duration: 0.45, attack: 0.3 });
@@ -390,14 +389,13 @@ export const present = {
         h.burst(D.shardFan, { pos: p, dir: [1, 0.15, 0.2] }, { count: 18, scale: 1.0 });
         h.burst(D.glitter, { pos: p }, { count: 16, scale: 1.0 });
         h.spawn('debris', p, { kind: 'ice', dir: [h.facing, 0.5, 0.2], count: 6, speed: [2, 5], spread: 45, size: [0.05, 0.12, 2] });
-        const body = h.fx('frost.shard', { pos: p, dir: [1, 0, 0], scale: 1.1 }, { speed: 16, life: 0.26, intensity: 0.45 });
+        const body = h.fx('frost.shard', { pos: p, dir: [1, 0, 0], scale: 0.9 }, { speed: 16, life: 0.26, intensity: 0.35 });
         if (s) s.body = body;
         h.audio('ice_shatter', { volume: 0.7 });
       },
       hit(h, e) {
         const s = st(h).shots.get(e.projectile);
         if (s && s.body && typeof s.body.impact === 'function' && !s.impacted) { s.impacted = true; s.body.impact(h.pos('contact')); }
-        if (!e.blocked) flower(h, e, 0.9);
       },
       guard(h, e) {
         const s = st(h).shots.get(e.projectile);
@@ -507,7 +505,7 @@ export const present = {
       const g = h.at(foeF(h), 0, 0);
       u.vf = foeF(h);
       // the circle closes into a crystal: a ring of ice snaps up around the victim, a cold ring sweeps out, mist rolls
-      h.spawn('ring', g, { look: 'frost', radius: [0.3, 3.0], life: 0.7, distort: 0.03, intensity: 0.55 });
+      h.spawn('ring', g, { look: 'frost', radius: [0.3, 2.6], life: 0.6, distort: 0.03, intensity: 0.3 });
       h.burst(D.flash, { pos: h.at(u.vf, 1.0, 0.3) }, { scale: 0.35, intensity: 0.6 });
       h.burst(D.sparksRadial, { pos: h.at(u.vf, 0.8, 0.1) }, { count: 40, scale: 0.9 });
       h.burst(D.glint, { pos: h.at(u.vf, 1.2, 0) }, { count: 22, scale: 1.8 });
@@ -558,7 +556,7 @@ export const present = {
         });
         EDGES.forEach(([a, b], k) => {
           h.after(0.18 + k * 0.06, (h2) => {
-            h2.vfx.beam({ look: 'frost', palette: 'frost', core: STAR, from: u.stars[a], to: u.stars[b], width: 0.07, coreWidth: 0.35, extend: 0.1, release: 0.25, life: 1.5 - k * 0.06, flares: false, intensity: 0.7 });
+            h2.vfx.beam({ look: 'frost', palette: 'frost', core: STAR, from: u.stars[a], to: u.stars[b], width: 0.09, coreWidth: 0.35, extend: 0.1, release: 0.25, life: 1.5 - k * 0.06, flares: false, intensity: 1.0 });
           });
         });
         h.burst(D.skyDust, { pos: W(h, vx, 7.8, -2.8) }, { count: 50 });
@@ -642,13 +640,13 @@ export const present = {
         if (u.cage && u.cage.stop) u.cage.stop();
         if (u.shell && u.shell.kill) u.shell.kill();
         h.foe.glow(null);
-        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.65 });
-        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 1.2 });
+        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.45 });
+        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 0.95 });
         h.spawn('ring', h.at(vf, 0, 0), { look: 'frost', radius: [0.4, 5.5], life: 0.9, distort: 0.04, intensity: 1 });
         h.spawn('ring', h.at(vf, 0.05, 0), { look: 'shock', palette: 'frost', radius: [0.3, 4.5], life: 0.45, intensity: 0.6 });
         h.spawn('decal', h.at(vf, 0, 0), { kind: 'frost', radius: 4.2, reveal: 0.35, life: 6 });
         h.flare(c, { kind: 'star', size: 2.4, life: 0.4, decay: 2.4, color: STAR, intensity: 0.5, rotation: 0.25 });
-        h.light(W(h, c.x, 1.6, 2.0), { intensity: 150, range: 11, duration: 0.6, decay: 'outCubic' });
+        h.light(W(h, c.x, 1.8, 2.4), { intensity: 90, range: 11, duration: 0.6, decay: 'outCubic' });
         h.distort(c, { kind: 'shock', radius: [0.3, 4.2], strength: 0.05, life: 0.55 });
         h.post.impact({ duration: 0.05, invert: 1 });
         h.post.flash(0xcfe6ff, 0.12, { release: 0.25 });

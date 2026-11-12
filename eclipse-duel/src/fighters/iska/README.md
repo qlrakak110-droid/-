@@ -22,17 +22,31 @@ c.glow.flare('all', 1.5, 0.4);       // skill wind-up: runes, stars and crystals
 
 ## Look
 
-~1.78 m, slender and long-legged (narrow shoulders, defined waist). Fitted silver-white armour over a dark indigo
+~1.78 m, slender and long-legged (narrow shoulders, defined waist). Fitted cool pearl-silver armour over a dark indigo
 bodysuit; frost / starlight glow (roster palette: core `(1.5, 4, 8)` -> `(0.3, 1.2, 3)` -> white mist).
+
+**Silhouette (black-on-grey read).** Head: a soft cowl rounded low over the crown that falls back over the occiput into
+a swept-back teardrop point and tucks in at the nape (no vertical back wall, no standing peak), crowned by the crescent
+crest - in front silhouette the moon's two fine points and the eight-point star between them stand clear of the cowl
+(crescent - star - crescent, not a pair of horns). Shoulders: tall crescent spaulders whose points sweep up front and
+back. Waist cinched, long legs, twin swallow-tail cape tails and a long pointed tabard hanging with rest folds.
+
+**Metal read.** Pearl-silver = a bright, faintly blue colour (`silver [0.62, 0.67, 0.76]`, crescents
+`[0.66, 0.7, 0.79]`) at a satin roughness (0.38-0.42) with a partly dielectric response (metal 0.72 on the plates and
+crescents, 0.78 on the engraved trims, lamellae and scales) and `envMapIntensity 0.95`: the plates keep a light, cool
+base instead of going dark mirroring the arena's night floor, with a metal sheen on top; the mask is a near-dielectric
+pearl (`[0.64, 0.7, 0.82]`, metal 0.06).
+Blued steel stays dark for the value contrast. The studio key is warm and its ember bounce tints the lower mask gold:
+judge colour with `#arena`.
 
 | area | pieces |
 |---|---|
-| head | indigo cowl (rounded over the brow, peaked at the back) with a rolled hem framing the face in a pointed arch, embroidered silver bands along the opening and the mantle hem; pearl-silver oracle half-mask (brow plate + nose / cheek plate meeting around almond eye openings), glowing frost eyes behind the openings, frost liners and starlight "tears" (inlay); a fine veil under the nose; crescent-and-star circlet: thin engraved band, a standing crescent crest (horns up) leaning on the hood brim with a glowing eight-point star in its hollow, crystal drops at the temples |
+| head | soft indigo cowl draped over the skull: rounded low crown, the back falling over the occiput into a swept-back teardrop point (the hood's tip folded back, gathered narrow from above, drape folds radiating from it), tucked in under the skull at the nape, flaring into the shoulder mantle, a soft centre-back seam from the crown over the tip; a full rolled brim (turned back on itself) framing the face in a pointed arch, embroidered silver bands along the opening and the mantle hem; pearl oracle half-mask (brow plate + nose / cheek plate meeting around almond eye openings), glowing frost eyes behind the openings, frost liners and starlight "tears" (inlay); a fine veil under the nose; crescent-and-star circlet: thin engraved band, a standing crescent-moon crest (a true crescent: both arcs run to their intersections, so the points taper fine and curl toward each other) leaning back over the brim with a glowing eight-point star in its hollow, crystal drops at the temples |
 | neck | high silver collar up to the nose (notch at the throat, swept points behind the jaw, flutes, engraved band), gorget flare over the collarbones, crystal clasp |
 | torso | sculpted bodice (bust form, medial line, armholes), engraved neckline and lower bands, star medallion on the sternum with frost vines; blued-steel backplate; four laced lamellar rows cinching the waist (hourglass), leather belt with a star buckle and crystal |
-| shoulders / arms | crescent spaulders (a crescent moon over each shoulder, horns rising front and back; engraved, frost-lit grooves) over a blued cap and two lames; crystal cluster on the right (camera side); silver arm bands over blued half-tube rerebraces (outer ridge); fitted indigo leather sleeves and leggings; small pointed couters; slim vambraces rising into a crescent point over the elbow, frost inlay line + star; slim articulated gauntlets |
+| shoulders / arms | crescent spaulders (a crescent moon over each shoulder, tall points sweeping up front and back to blade-fine tips; engraved, frost-lit grooves) over a blued cap and two lames; crystal cluster on the right (camera side); silver arm bands over blued half-tube rerebraces (outer ridge); fitted indigo leather sleeves and leggings; small pointed couters; slim vambraces rising into a crescent point over the elbow, frost inlay line + star; slim articulated gauntlets |
 | hips / legs | scale tassets on spring bones; slim lower-thigh cuisses with a pointed top; pointed knee cops; slim greaves with a point over the knee; fitted sabatons (`sabaton({ P: rig.P })`: silver / blued lames, blued heel cup, pointed toe) |
-| cloth | twin cape tails (swallow-tail hems, outer edges longest) hung under the mantle; a long front tabard with a pointed hem; indigo outer, pale frost-silk lining (flashes in spins), silver embroidered borders (engraved, vein-lit), glowing four-point star stitches, crystal weights at the points |
+| cloth | twin cape tails (deep swallow-tail hems, outer edges longest: the inner edge is cut 28 % shorter) hung under the mantle; a long front tabard with a pointed hem (sides 22 % shorter); rest folds in the simulated shape (`tailFold`: one pleat wave across each tail, `tabardFold`: a box pleat, both zero at the pinned row and deepening toward the hem) so the cloth hangs with depth; indigo outer, pale frost-silk lining (flashes in spins), silver embroidered borders (engraved, vein-lit), glowing four-point star stitches, crystal weights at the points |
 | ribbons | four frost-blue silk ribbons on spring chains (two from the belt sides, 0.75 m; two from the arm bands, 0.4 m) weighted with crystals |
 | weapons | twin crescent blades (`src/char/weapons.js`, `WEAPON_SPECS.crescents`): right on `weaponR`, left on `weaponL` |
 
@@ -41,7 +55,7 @@ bodysuit; frost / starlight glow (roster palette: core `(1.5, 4, 8)` -> `(0.3, 1
 | field | value |
 |---|---|
 | `proportions` | `hipHeight 0.95, pelvisDrop 0.055, hipWidth 0.088, thighRatio 0.515, ankleHeight 0.078, footLength 0.125, footDrop 0.05, toeLength 0.07, heelLength 0.058, spine 0.1, chest 0.155, neck 0.24, head 0.09, shoulderHeight 0.19, clavicleRoot 0.028, clavicle 0.162, shoulderBack 0.012, upperArm 0.295, foreArm 0.255, hand 0.078, palm 0.02` |
-| heights (zero pose) | hips pivot 1.005, hip joints 0.95 (`s = ±0.088`), waist (spine) 1.105, chest 1.26, shoulder joints 1.45 (`s = ±0.19`), neck base 1.50, head pivot 1.59, head top ~1.78 (hood crown ~1.87: rounded over the brow, peak at the back), fist centre ~0.82, knees 0.50 |
+| heights (zero pose) | hips pivot 1.005, hip joints 0.95 (`s = ±0.088`), waist (spine) 1.105, chest 1.26, shoulder joints 1.45 (`s = ±0.19`), neck base 1.50, head pivot 1.59, head top ~1.78 (cowl crown ~1.82, its folded-back point ~1.74 high and ~17 cm behind the head pivot; crescent points ~1.84, star top ~1.83), spaulder points ~0.165 above the shoulder joints, fist centre ~0.82, knees 0.50 |
 | slots | `plate` (silver armour, embroidery, crystals, every glow), `suit` (bodysuit, hood, veil, cloth bodies, ribbons), `blade` (crescents, `WEAPON_MATERIALS.crescents`) = **3 draw calls** (+3 in the shadow pass) |
 | `glow` | `{ inlay: [1.0, 2.7, 5.8], vein: [0.3, 1.05, 2.7], eye: [2.2, 5.2, 9.4] }` HDR: `inlay` = stars, tears, liners, inlay lines, crystals (partial mask), `vein` = engraved grooves of the crescents, embroidery, trims, `eye` = the frost eyes |
 | `bones` | `tassetR/L` (hips), `ribbonR1..5` / `ribbonL1..5` (hips, belt sides), `armRibbonR1..3` / `armRibbonL1..3` (`upperArmTwist`) |
@@ -56,14 +70,18 @@ bodysuit; frost / starlight glow (roster palette: core `(1.5, 4, 8)` -> `(0.3, 1
 
 | tier | triangles | draw calls | cloth particles | notes |
 |---|---|---|---|---|
-| high / mid (`quality.cloth` 1) | **~59.2k** | 3 | 180 (tails 2 x 65, tabard 50) + 18 spring tips | crescents 5.8k, lamellar waist 4.1k, cloth panels 3.2k, hood 2.4k + trims 1.5k, spaulders 4.4k, bodice 3.5k, mask 2.1k, gauntlets 3.5k, vambraces / greaves with bands 4.6k |
-| low (`quality.cloth` 0.5) | **~50.8k** | 3 | 76 (tails 2 x 4 x 7, tabard 4 x 5) | lighter variant (below) |
+| high / mid (`quality.cloth` 1) | **59,164** | 3 | 180 (tails 2 x 65, tabard 50) + 18 spring tips | crescents 5.8k, lamellar waist 4.1k, cloth panels 3.2k, hood 2.4k + trims 1.5k, spaulders 4.4k, bodice 3.5k, mask 2.1k, gauntlets 3.5k, vambraces / greaves with bands 4.6k, circlet crest 0.64k |
+| low (`quality.cloth` 0.5) | **51,096** | 3 | 76 (tails 2 x 4 x 7, tabard 4 x 5) | lighter variant (below) |
+
+Measured with the art lab (`__ED.lab.play('budget')`); `__ED.lab.play('leaks')` (3 create / dispose cycles of the
+roster) returns to the same GPU geometries / textures / programs (11 / 12 / 9).
 
 **Low-tier variant.** The design format passes no quality to `build()`, but the rig scales cloth grids by
 `ctx.quality.cloth` before building, so `build()` reads the tail grid it was given (`clothGrid(rig, 'tailL')`): fewer
 rows than authored = low tier. It then builds coarser hood / collar / spaulder / cloth panels, 11 instead of 16
 lamellae per row without lacing, two tasset rows, fewer star stitches, no rivets / studs, no bodice vines, no
-vambrace / greave bands. If the rig
+vambrace / greave bands. The low-tier hood (22 x 12) gathers its rows harder toward the crown (`v^1.7` instead of
+`v^1.45`) so the rounded top stays round. If the rig
 starts passing `quality` to `build()`, switch the test to `quality.tier === 'low'` (see requests below).
 
 ## Tailored cloth (`tailor.js`)
@@ -87,13 +105,13 @@ curves) and `EYE` (eye line / opening angles) are exported for pieces that must 
 |---|---|---|
 | `headBase()` | head | dark under-face / skull form |
 | `oracleMask()` | head | `{ brow, lower, eyes, veil, tears, arcs, browS, lowerS }`; `eyeGlow(k)` = eye-channel mask for `eyes` |
-| `hood({ nu, nv })` | head (skin with `hoodWeights(kit)`) | `{ hood, hem, S, vArch }` |
+| `hood({ nu, nv })` | head (skin with `hoodWeights(kit)`) | `{ hood, hem, S, vArch }`. Shape = side-view profiles by height (head frame): `hoodF` front extent, `hoodB` back extent (rounds over the crown, folds back into the tip at `HOOD_TIP` 0.146, tucks in at the nape), `hoodW` half width, `hoodC` widest point of each ring (front half keeps the fitted temple / brim shape, back half stretches into the tip). Mantle (y <= -0.05) unchanged |
 | `circlet({ tilt })` | head | `{ band, crest, star, starPos, drops, studs }` |
 | `highCollar({ top, bottom, nu })` | neck (skin chest -> neck) | `{ collar, flare, clasp, claspGem, collarS }` |
 | `lamellarRow(o)` | any (around local Y) | `{ plates, lace }`: `y0, h, count, a0, a1, rx(y), rz(y), ox(y), gap, cover, point, lift, flare, lace` |
 | `scaleRows(o)` | any | merged roof-tile scales: `rows, perRow, y0, rowStep, h, a0, a1, rx/rz/ox/oz(y), gap, flare, ridge` |
 | `crystal(o)`, `crystalCluster(list)` | any (+Y) | hexagonal frost crystals |
-| `crescentSpaulder({ R, nu })` | deltoidR | `{ crescent, cap, lames, trim, rivets, crescentS }` |
+| `crescentSpaulder({ R, nu })` | deltoidR | `{ crescent, cap, lames, trim, rivets, crescentS }`; points span x -0.126 .. 0.116, rise to y 0.165 |
 | `crescentVambrace({ r, y0, y1 })` | foreArmTwistR | tube with a crescent point over the elbow |
 | `oracleGreave({ r, y0, y1 })` | shinR | slim greave with a point over the knee |
 | `starShape(ro, ri, n)` | — | star outline for `extrude()` |

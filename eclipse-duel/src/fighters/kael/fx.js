@@ -95,9 +95,20 @@ const HAZE = { ...LIB.heatHaze, count: 4 };
 /** heat haze around the shell (emitter) */
 const SHELL_HAZE = { ...LIB.heatHaze, count: 0, rate: 5 };
 
+/** ult firestorm under the airborne pair (kael.inferno): flame tongues swirling up, embers, a smoke ceiling, haze */
+const VORTEX = { ...LIB.fire, rate: 40, shape: { type: 'ring', radius: 1.6, thickness: 0.8 }, emit: 'tangent', spread: 15, lift: 1.4, speed: [2, 4], swirl: 2.6,
+  size: [0.45, 1.1, 1.4], life: [0.5, 1.0], gravity: 3.4, drag: 0.6, align: 'axis', erode: [[0, 0], [0.35, 0.15], [1, 1]] };
+const STORM_EMBERS = { ...LIB.embers, count: 0, rate: 70, delay: 0, shape: { type: 'ring', radius: 2.4, thickness: 2.0 }, emit: 'tangent', spread: 20, lift: 0.8,
+  speed: [2, 5], swirl: 1.8, gravity: 1.6, life: [1.0, 2.2] };
+const CEILING = { ...LIB.smokeLinger, count: 0, rate: 4.5, delay: 0, shape: { type: 'disc', radius: 2.6 }, emit: 'axis', spread: 30, speed: [0.4, 1.2], swirl: 0.5, life: [2.0, 3.2] };
+const STORM_HAZE = { ...LIB.heatHaze, count: 0, rate: 5, shape: { type: 'disc', radius: 2.4 }, size: [1.2, 2.2], life: [1.0, 1.6] };
+/** meteor crater: radial sparks thrown low and wide, a dark smoke blast rolling out of the crater */
+const CRATER_SPARKS = { ...LIB.sparks, count: 110, spread: [80, 30], spreadPow: 0.8, speed: [5, 15, 1.3], life: [0.3, 1.0, 1.4], gravity: -9, color: RAMP };
+const CRATER_SMOKE = { ...LIB.smoke, count: 12, shape: { type: 'disc', radius: 1.0 }, emit: 'radial', spread: 25, speed: [2, 5, 1.2], drag: 2.2, size: [1.0, 2.0, 1.3], life: [1.0, 1.8] };
+
 /** Every module-scope definition (compiled up front by defineKaelFx). */
 export const DEFS = [DRIP, RISE, CUT_SPRAY, CINDERS, PETALS, PUFF, ASH, SPRAY, SPIT, COLUMN_SPARKS, PLUME, SCRAPE, GROOVE, SHELL_FIRE, CRACKS, ORBIT,
-  UPDRAFT, CORONA, FLOOR_GLOW, EMBERS_LONG, WALL, HAZE, SHELL_HAZE, SPEAR, LINGER];
+  UPDRAFT, CORONA, FLOOR_GLOW, EMBERS_LONG, WALL, HAZE, SHELL_HAZE, SPEAR, LINGER, VORTEX, STORM_EMBERS, CEILING, STORM_HAZE, CRATER_SPARKS, CRATER_SMOKE];
 
 const n = (c, k) => Math.max(1, Math.round(c * k));
 const lightPos = (p, dz = 1.1, dy = 0.2) => [p.x, p.y + dy, p.z + dz];
@@ -153,8 +164,8 @@ export function defineKaelFx(vfx) {
   vfx.define('kael.geyser', (v, at, o) => {
     const k = o.k ?? 1, s = at.scale, g = [at.pos.x, 0.02, at.pos.z];
     v.burst(FLOOR_GLOW, { pos: [g[0], 0.03, g[2]], dir: [0, 1, 0], scale: 0.6 * s });
-    v.pillar({ look: 'fire', pos: g, height: (3.2 + 1.4 * k) * s, radius: (0.36 + 0.12 * k) * s, life: 0.8 + 0.2 * k, rise: 0.07, intensity: 0.42 });
-    v.burst(KIT.ember.flash, { pos: [g[0], 0.4, g[2]], scale: 0.5 * s, intensity: 0.6 });
+    v.pillar({ look: 'fire', pos: g, height: (3.2 + 1.4 * k) * s, radius: (0.34 + 0.1 * k) * s, life: 0.8 + 0.2 * k, rise: 0.09, intensity: 0.3 });
+    v.burst(KIT.ember.flash, { pos: [g[0], 0.3, g[2]], scale: 0.4 * s, intensity: 0.45 });
     v.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: n(4 + 4 * k, 1), scale: 0.8 * s, delay: 0.05 });
     v.burst(COLUMN_SPARKS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: n(40 + 40 * k, 1), scale: s });
     v.debris({ kind: 'ember', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: n(6 + 6 * k, 1), speed: [3, 9, 1.3], spread: 30, size: [0.05, 0.2, 2], scale: s });
@@ -176,7 +187,7 @@ export function defineKaelFx(vfx) {
     v.decal({ kind: 'crack', pos: g, radius: (big ? 1.7 : 1.3) * s, magma: 1, reveal: 0.06, life: 3.5, cool: 2.4 });
     v.burst(SPIT, { pos: [g[0], 0.05, g[2]], dir: [0, 1, 0], scale: s });
     v.schedule(0.04, (w) => {
-      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.45 * s, life: big ? 1.1 : 0.9, rise: 0.06, intensity: big ? 0.55 : 0.45 });
+      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.45 * s, life: big ? 1.1 : 0.9, rise: 0.07, intensity: big ? 0.45 : 0.36 });
       w.burst(KIT.ember.flash, { pos: [g[0], 0.5, g[2]], scale: (big ? 0.8 : 0.55) * s, intensity: 0.6 });
       w.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: big ? 7 : 4, scale: 0.85 * s, delay: 0.05 });
       w.burst(COLUMN_SPARKS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: big ? 80 : 50, scale: s });
@@ -297,9 +308,9 @@ export function defineKaelFx(vfx) {
   /** arena shockwave: racing fire + dust rings, ground distortion, pillars of fire around the centre */
   vfx.define('kael.shockwave', (v, at, o) => {
     const g = [at.pos.x, 0.02, at.pos.z], P = o.pillars ?? 6;
-    v.ring({ look: 'fire', pos: g, radius: [1.0, 9.5], width: [0.6, 1.6], life: 1.1, height: 0.7, distort: 0.04, intensity: 0.85 });
+    v.ring({ look: 'fire', pos: g, radius: [1.0, 9.5], width: [0.6, 1.6], life: 1.1, height: 0.7, distort: 0.04, intensity: 0.6 });
     v.ring({ look: 'dust', pos: g, radius: [1.2, 11], life: 1.8 });
-    v.ring({ look: 'shock', pos: g, radius: [0.8, 8], life: 0.6, intensity: 0.6, palette: 'ember' });
+    v.ring({ look: 'shock', pos: g, radius: [0.8, 8], life: 0.6, intensity: 0.4, palette: 'ember' });
     v.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [1, 10], life: 0.8, strength: 0.05 });
     v.burst(DUST, { pos: g, dir: [0, 1, 0], count: 18, scale: 2.2 });
     for (let k = 0; k < P; k++) {

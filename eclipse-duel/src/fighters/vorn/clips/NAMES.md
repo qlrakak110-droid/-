@@ -25,7 +25,7 @@ as moves.js) and `step` events. Root motion keys (`root`) match the rules `motio
 | `vorn.lightning_charge` | f+heavy | 0.20 | crouch, explosive 4 m glide (body pitched into the run, one-handed couched lance, left arm swept back), skid stop 0.38 |
 | `vorn.skyward_lance` | d+heavy | 0.18 | crouch, upward thrust to the sky |
 | `vorn.thunder_javelin` | skill1 | 0.26 (release) | spear drawn back over the shoulder, one-handed overhand throw motion (spear kept) |
-| `vorn.stormfall` | skill2 | 0.45 (release) | spear raised to the sky in both hands 0.04-0.36, brought down one-handed to point at the marker at 0.45 (front foot stamps), re-grip 0.8 |
+| `vorn.stormfall` | skill2 | 0.45 (release) | spear raised to the sky in both hands 0.04-0.36, brought down one-handed to point at the marker at 0.45 (front foot stamps), re-grip by the end |
 | `vorn.arc_step` | skill3 | 0.08 (blink) | coil, burst forward (the body is hidden by the choreography while in bolt form), re-form crouch at 0.18 |
 | `vorn.ninefold_storm` | ult (opener) | 0.70 | super-freeze pose 0-0.6 (spear raised, sky bolt into the tip), dash-thrust 0.6-0.9, skewer hold |
 

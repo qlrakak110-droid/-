@@ -88,7 +88,7 @@ function easeOutRoot(dur, dist) {
       { t: 0, ...stance(), ik: { footL: L(FL[0], 0), footR: R(FR[0], 0) } },
       // drive: shoulder drops, blade pulled tight to the shoulder, front knee drives forward
       { t: 0.07, ease: 'outCubic', hips: { pos: [0.1, -0.2, 0.01], rot: [-2, -32, -3] }, bones: { spine: [0, -6, -16], chest: [-2, -6, -12], neck: [0, 12, 12], head: [0, 16, 16] },
-        ik: { handR: { pos: [0.27, 1.22, 0.28], aim: [-0.42, 0.9, 0.08] }, footL: L(0.78, 0.13, YAW_L, 12), footR: R(FR[0] + 0.06, 0.03, YAW_R, -30) } },
+        ik: { handR: shoulderHand(0.06, -0.08, 0.02), footL: L(0.78, 0.13, YAW_L, -16), footR: R(FR[0] + 0.06, 0.03, YAW_R, -30) } },
       { t: 0.15, ease: 'inOutSine', ik: { footL: L(1.6, 0.09, YAW_L, 6), footR: R(0.62, 0.11, YAW_R, -14) } },
       // front foot lands, rear foot drags through
       { t: 0.22, ease: 'inQuad', hips: { pos: [0.12, -0.22, 0], rot: [-1, -28, -2] }, bones: { spine: [0, -5, -12], chest: [-1, -6, -8], neck: [0, 13, 8], head: [0, 17, 10] },

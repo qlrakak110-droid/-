@@ -20,7 +20,7 @@ import * as A from '../../char/kit/armor.js';
 import { put, putPair, putSkinned, merge, mirror, extrude, kitOpts } from '../../char/kit/geo.js';
 import { clothEdges, clothSpec } from '../../char/kit/cloth.js';
 import { spear, WEAPON_SPECS, WEAPON_MATERIALS, WEAPON_LOOKS } from '../../char/weapons.js';
-import { stormHelm, stormHornTips, stormFins, arcRune, rim, combAlong, mailSkirt, spur, crackle, gorget, rerebrace, vambrace, cuisse, greave, couterLames, poleynLames } from './kit.js';
+import { stormHelm, stormHornTips, stormFins, arcRune, arcInlay, rim, combAlong, mailSkirt, spur, crackle, gorget, rerebrace, vambrace, cuisse, greave, flutedBack, couterLames, poleynLames } from './kit.js';
 
 const DEG = Math.PI / 180;
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
@@ -33,7 +33,7 @@ const GLOW = { inlay: [2.6, 1.75, 6.6], vein: [1.6, 0.8, 4.6], eye: [6.0, 4.9, 1
 const L = {
   plate: { color: [0.15, 0.16, 0.19], rough: 0.36, metal: 0.95, set: 'hammered', amt: 0.42 },
   lame: { color: [0.11, 0.118, 0.142], rough: 0.35, metal: 0.95, set: 'hammered', amt: 0.55 },
-  legPlate: { color: [0.14, 0.15, 0.178], rough: 0.47, metal: 0.95, set: 'hammered', amt: 0.6 },
+  legPlate: { color: [0.14, 0.15, 0.178], rough: 0.38, metal: 0.95, set: 'hammered', amt: 0.42 },
   dark: { color: [0.058, 0.063, 0.078], rough: 0.38, metal: 0.92, set: 'hammered', amt: 0.7 },
   bronze: { color: [0.21, 0.12, 0.05], rough: 0.34, metal: 1, set: 'engraved', amt: 0.9 },
   bronzeDark: { color: [0.12, 0.07, 0.034], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.08 },
@@ -41,6 +41,8 @@ const L = {
   rimGold: { color: [0.56, 0.38, 0.12], rough: 0.25, metal: 1, set: 'hammered', amt: 0.35, wear: 0.9 },
   rivet: { color: [0.5, 0.34, 0.11], rough: 0.3, metal: 1, set: 'hammered', amt: 0.4, wear: 1.2 },
   rune: { color: [0.02, 0.016, 0.03], rough: 0.45, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
+  // engraved channel the arc-runes sit in: blackened, grimy floor; its lips catch the light (cav: edge wear)
+  groove: { color: [0.03, 0.031, 0.04], rough: 0.5, metal: 0.9, set: 'hammered', amt: 0.3, occ: 0.55, wear: 1.2 },
   slit: { color: [0.003, 0.003, 0.004], rough: 0.95, metal: 0, set: 'hammered', amt: 0, occ: 0.3 },
   eye: { color: [0.02, 0.016, 0.03], rough: 0.6, metal: 0, set: 'hammered', amt: 0, eye: 1 },
   leather: { color: [0.026, 0.02, 0.018], rough: 0.64, metal: 0, set: 'leather', amt: 1 },
@@ -68,8 +70,23 @@ const BODY = A.torsoShape({
   n: 2.35,
 });
 
+/**
+ * Rest folds of a back tail (5 columns): two deep pleats (columns alternately out / in) opening toward the hem, a slow
+ * secondary wave and the tail's sweep away from the legs; ph / ph2 decorrelate the two tails. The cloth's bend
+ * constraints hold the rest shape, so the tails keep their folds at rest instead of hanging as flat sheets.
+ */
+function tailFolds(u, v, ph, ph2) {
+  const open = 0.15 + 0.85 * sstep(0, 0.85, v);
+  const pleat = 0.05 * Math.cos(u * Math.PI * 4 + ph) * open;
+  const wave = 0.014 * Math.sin(u * Math.PI * 2 + ph2) * (0.3 + 0.7 * v);
+  return [-0.03 * Math.sin(v * Math.PI) - 0.03 * v + pleat + wave, 0, 0.016 * Math.sin(u * Math.PI * 4 + ph) * open];
+}
+
 const HELM = { rx: 0.124, rz: 0.106, top: 0.282, bottom: -0.08, eyeY: 0.08, eyeH: 0.018 };
 const HORN_TIPS = stormHornTips(HELM);
+
+/** Engraved arc-rune: dark channel + glowing core (put / putPair through `fn`, optional geometry transform `xf`). */
+function inlay(fn, I, xf = (g) => g) { fn(xf(I.channel), L.groove); fn(xf(I.rune), L.rune); }
 
 /** The design's build at a detail level ('high' | 'low'). */
 function buildVorn(kit, S, rig, lod) {
@@ -106,12 +123,12 @@ function buildVorn(kit, S, rig, lod) {
   put(kit, 'plate', 'chest', breast, L.plate);
   put(kit, 'plate', 'chest', rim(breast, 'v0', 0.0072, { n: R(48), thick: 0.007 }), L.rimGold);
   // the storm bolt down the sternum ridge, forking over the pectorals
-  put(kit, 'plate', 'chest', arcRune(breast, 0.5, 0.1, 0.5, 0.9, { segs: 9, amp: 0.028, seed: 11, width: 0.0026, forks: [[2, 58, 0.16], [3, -62, 0.15], [6, 55, 0.1]] }), L.rune);
+  inlay((g, l) => put(kit, 'plate', 'chest', g, l), arcInlay(breast, 0.5, 0.1, 0.5, 0.9, { segs: 9, amp: 0.028, seed: 11, width: 0.0032, channel: 0.017, forks: [[2, 58, 0.16], [3, -62, 0.15], [6, 55, 0.1]] }));
   const plack = A.plackart({ body: BODY, yTop: 0.0, yBot: -0.142, topPoint: 0.12, grow: 0.011, nu: 18, nv: 5 });
   put(kit, 'plate', 'chest', plack, L.dark);
   put(kit, 'plate', 'chest', rim(plack, 'v0', 0.0055, { n: R(36) }), L.rimGold);
   put(kit, 'plate', 'chest', A.runes(plack, { u0: 0.44, u1: 0.56, v0: 0.08, v1: 0.24, glyphs: [3], width: 0.0034, gap: 0.05 }), L.rune);
-  const back = A.backplate({ body: BODY, yTop: 0.21, yBot: -0.128, nu: 16, nv: 7 });
+  const back = A.backplate(flutedBack({ body: BODY, yTop: 0.21, yBot: -0.128, nu: hi ? 24 : 18, nv: 6 }));
   put(kit, 'plate', 'chest', back, L.lame);
   put(kit, 'plate', 'chest', rim(back, 'v0', 0.0062, { n: R(28) }), L.rimGold);
   if (hi) {
@@ -164,7 +181,7 @@ function buildVorn(kit, S, rig, lod) {
   const PL = A.pauldron({ R: 0.15, lames: hi ? 4 : 3, lameH: 0.06, lameStep: hi ? 0.042 : 0.056, flare: 0.07, haute: 0.1, tilt: 30, nu: hi ? 20 : 16, nv: 6, lameNu: hi ? 12 : 10 });
   put(kit, 'plate', 'deltoidL', mirror(PL.cop), L.dark);
   put(kit, 'plate', 'deltoidL', mirror(PL.over), L.plate);
-  put(kit, 'plate', 'deltoidL', mirror(arcRune(PL.over, 0.12, 0.22, 0.86, 0.5, { segs: 10, amp: 0.07, seed: 5, width: 0.0025, forks: [[3, 50, 0.1], [7, -50, 0.09]] })), L.rune);
+  inlay((g, l) => put(kit, 'plate', 'deltoidL', g, l), arcInlay(PL.over, 0.12, 0.22, 0.86, 0.5, { segs: 10, amp: 0.07, seed: 5, width: 0.003, channel: 0.016, forks: [[3, 50, 0.1], [7, -50, 0.09]] }), mirror);
   put(kit, 'plate', 'deltoidL', mirror(PL.trim), L.gold);
   put(kit, 'plate', 'deltoidL', mirror(rim(PL.over, 'v1', 0.0078, { n: R(44), thick: 0.008 })), L.rimGold);
   PL.lames.forEach((g, k) => {
@@ -184,7 +201,7 @@ function buildVorn(kit, S, rig, lod) {
   const PR = A.pauldron({ R: 0.122, lames: 3, lameH: 0.054, lameStep: 0.04, tilt: 32, nu: hi ? 20 : 16, nv: hi ? 8 : 6, lameNu: hi ? 12 : 10 });
   put(kit, 'plate', 'deltoidR', PR.cop, L.plate);
   put(kit, 'plate', 'deltoidR', rim(PR.cop, 'v1', 0.0068, { n: R(40), closed: true, thick: 0.008 }), L.rimGold);
-  put(kit, 'plate', 'deltoidR', arcRune(PR.cop, 0.56, 0.14, 0.8, 0.88, { segs: 7, amp: 0.04, seed: 9, width: 0.0024, forks: [[3, -55, 0.1]] }), L.rune);
+  inlay((g, l) => put(kit, 'plate', 'deltoidR', g, l), arcInlay(PR.cop, 0.56, 0.14, 0.8, 0.88, { segs: 7, amp: 0.04, seed: 9, width: 0.003, channel: 0.015, forks: [[3, -55, 0.1]] }));
   PR.lames.forEach((g, k) => {
     const w = lameBlend(k, PR.lames.length, 'R');
     putBlend(kit, 'plate', 'deltoidR', g, w, k % 2 ? L.plate : L.lame);
@@ -206,7 +223,7 @@ function buildVorn(kit, S, rig, lod) {
   const vam = vambrace({ r: 0.06, y0: 0.13, y1: -0.13 });
   putPair(kit, 'plate', 'foreArmTwist', vam, L.plate);
   putPair(kit, 'plate', 'foreArmTwist', rim(vam, 'v1', 0.0046, { n: R(26), closed: true }), L.rimGold);
-  putPair(kit, 'plate', 'foreArmTwist', arcRune(vam, 0.7, 0.12, 0.7, 0.86, { segs: 7, amp: 0.035, seed: 21, width: 0.0023, forks: [[3, 50, 0.1]] }), L.rune);
+  inlay((g, l) => putPair(kit, 'plate', 'foreArmTwist', g, l), arcInlay(vam, 0.7, 0.12, 0.7, 0.86, { segs: 7, amp: 0.035, seed: 21, width: 0.0028, channel: 0.0135, forks: [[3, 50, 0.1]] }));
   const g = A.gauntlet();
   putPair(kit, 'plate', 'hand', g.cuff, L.plate);
   putPair(kit, 'plate', 'hand', rim(g.cuff, 'v1', 0.0038, { n: R(22), closed: true, thick: 0.005 }), L.rimGold);
@@ -217,18 +234,18 @@ function buildVorn(kit, S, rig, lod) {
   putPair(kit, 'plate', 'thumb', g.thumb, L.dark);
 
   // ---- legs -----------------------------------------------------------------------------------------------------------------------
-  const cui = cuisse({ r: 0.116, y0: -0.035, y1: -0.43 });
+  const cui = cuisse({ r: 0.116, y0: -0.035, y1: -0.43, nu: hi ? 22 : 16 });
   putPair(kit, 'plate', 'thigh', cui, L.legPlate);
   putPair(kit, 'plate', 'thigh', rim(cui, 'v0', 0.0052, { n: R(24) }), L.rimGold);
-  putPair(kit, 'plate', 'thigh', arcRune(cui, 0.66, 0.16, 0.6, 0.86, { segs: 8, amp: 0.04, seed: 31, width: 0.0024, forks: [[4, 55, 0.1]] }), L.rune);
+  inlay((g, l) => putPair(kit, 'plate', 'thigh', g, l), arcInlay(cui, 0.655, 0.14, 0.635, 0.86, { segs: 8, amp: 0.026, seed: 31, width: 0.003, channel: 0.016, forks: [[4, 55, 0.1]] }));
   const pol = A.poleyn({ r: 0.084, wing: 0.098 });
   putPair(kit, 'plate', 'knee', pol.cop, L.bronze);
   putPair(kit, 'plate', 'knee', pol.wing, L.plate);
   poleynLames({ r: 0.084 }).forEach((x) => putPair(kit, 'plate', 'knee', x, L.dark));
-  const grv = greave({ r: 0.075, y0: -0.07, y1: -0.448 });
+  const grv = greave({ r: 0.075, y0: -0.07, y1: -0.448, nu: hi ? 24 : 18, nv: hi ? 7 : 5 });
   putPair(kit, 'plate', 'shin', grv, L.legPlate);
   putPair(kit, 'plate', 'shin', rim(grv, 'v0', 0.0048, { n: R(28), closed: true }), L.rimGold);
-  putPair(kit, 'plate', 'shin', arcRune(grv, 0.535, 0.1, 0.535, 0.82, { segs: 9, amp: 0.022, seed: 41, width: 0.0024, forks: [[3, 50, 0.08], [6, -50, 0.07]] }), L.rune);
+  inlay((g, l) => putPair(kit, 'plate', 'shin', g, l), arcInlay(grv, 0.582, 0.08, 0.578, 0.8, { segs: 9, amp: 0.013, seed: 41, width: 0.003, channel: 0.016, forks: [[3, 50, 0.08], [6, -50, 0.07]] }));
   const sab = A.sabaton({ P: rig.P, width: 0.048, scale: 1.04, point: 0.7 });
   sab.lames.forEach((x, k) => putPair(kit, 'plate', 'foot', x, k % 2 ? L.lame : L.legPlate));
   putPair(kit, 'plate', 'foot', sab.heel, L.dark);
@@ -349,6 +366,9 @@ export const vorn = {
       name: 'surcoatF',
       top: [['hips', [0.138, 0.03, -0.095]], ['hips', [0.156, 0.03, 0]], ['hips', [0.138, 0.03, 0.095]]],
       cols: 6, rows: 10, length: 0.64, drape: [0.1, -1, 0], flare: 0.22, thickness: 0.011,
+      // rest pleats (alternate columns in / out, deepening toward the hem; biased outward, clear of the thighs): the bend
+      // constraints keep them, so the panel never hangs as a flat sheet
+      offset: (u, v) => [0.02 * (0.08 + 0.92 * v) * (Math.cos(u * Math.PI * 5) + 0.7) + 0.006 * Math.sin(u * Math.PI * 2 + 0.6) * v, 0, 0],
       damping: 0.045, margin: 0.024, wind: 0.6,
       outer: CLOTH, inner: LINING,
     }),
@@ -357,7 +377,7 @@ export const vorn = {
       name: 'tailL',
       top: [['hips', [-0.09, 0.05, -0.158]], ['hips', [-0.15, 0.05, -0.088]], ['hips', [-0.168, 0.05, -0.014]]],
       cols: 5, rows: 12, length: 1.0, drape: [-0.17, -1, -0.05], flare: 0.3, thickness: 0.012,
-      offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.03 * v + (0.026 * Math.sin(u * Math.PI * 3 + 0.4) + 0.01 * Math.sin(u * Math.PI * 7 + 1.3)) * (0.3 + 0.7 * v), 0, 0],
+      offset: (u, v) => tailFolds(u, v, 0.2, 0.4),
       damping: 0.034, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),
@@ -365,7 +385,7 @@ export const vorn = {
       name: 'tailR',
       top: [['hips', [-0.168, 0.05, 0.014]], ['hips', [-0.15, 0.05, 0.088]], ['hips', [-0.09, 0.05, 0.158]]],
       cols: 5, rows: 12, length: 0.9, drape: [-0.17, -1, 0.05], flare: 0.3, thickness: 0.012,
-      offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.03 * v + (0.026 * Math.sin(u * Math.PI * 3 + 1.9) + 0.01 * Math.sin(u * Math.PI * 7 + 0.2)) * (0.3 + 0.7 * v), 0, 0],
+      offset: (u, v) => tailFolds(u, v, 0.55, 1.9),
       damping: 0.034, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),

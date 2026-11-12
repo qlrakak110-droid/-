@@ -20,13 +20,13 @@ const n = (c, i = 1) => Math.max(1, Math.round(c * i));
 // ---- particle definitions ------------------------------------------------------------------------------------------
 export const D = {
   /** four-point star glints that pop, twinkle, hang and drift down */
-  glint: { tex: 'star4', blend: 'add', count: 14, life: [0.5, 1.3], shape: { type: 'sphere', radius: 0.3 }, emit: 'random', speed: [0.1, 0.9],
+  glint: { nearFade: 0.9, tex: 'star4', blend: 'add', count: 14, life: [0.5, 1.3], shape: { type: 'sphere', radius: 0.3 }, emit: 'random', speed: [0.1, 0.9],
     size: [0.05, 0.16, 2.2], gravity: -0.35, drag: 2.5, turbulence: { amp: 0.25, freq: 1.5, speed: 1 }, flicker: { amount: 0.7, rate: 12 }, rotation: [-0.3, 0.3], groundFade: 0.05,
     color: [key(0, STAR, 0), key(0.05, STAR, 1), key(0.4, F.core, 0.9, 0.7), key(1, F.mid, 0, 0.5)] },
   /** fine glitter dust that hangs */
   glitter: { ...LIB.glitter, count: 24, color: [key(0, STAR, 0, 0.6), key(0.1, STAR, 1, 0.6), key(1, F.mid, 0, 0.6)] },
   /** snowflakes drifting and spinning */
-  snow: { tex: 'snow', blend: 'add', count: 10, life: [0.9, 2.0], shape: { type: 'sphere', radius: 0.5 }, emit: 'random', speed: [0.1, 0.7],
+  snow: { nearFade: 0.9, tex: 'snow', blend: 'add', count: 10, life: [0.9, 2.0], shape: { type: 'sphere', radius: 0.5 }, emit: 'random', speed: [0.1, 0.7],
     size: [0.04, 0.1, 1.6], spin: [0.5, 2.2], gravity: -0.45, drag: 2.2, turbulence: { amp: 0.4, freq: 1.2, speed: 0.8 }, groundFade: 0.03,
     color: [[0, 1.6, 2.2, 3, 0], [0.1, 1.6, 2.2, 3, 0.9], [1, 0.5, 0.8, 1.2, 0]] },
   /** pale cold mist: puffs that sink and spread (alpha, faintly luminous) */
@@ -65,19 +65,19 @@ export const D = {
     size: [0.4, 0.8, 1.3], sizeOverLife: 'puff', gravity: -0.2, drag: 2.4, spin: [0.1, 0.4], shade: 0.5, additive: 0.2, erode: 'erodeLate', erodeSoft: 0.4, groundFade: 0.25,
     color: [[0, 0.9, 1.1, 1.4, 0], [0.12, 0.6, 0.74, 0.9, 0.24], [1, 0.45, 0.55, 0.65, 0]] },
   // ---- ambient (idle): "a slow snowfall of glittering motes around her" --------------------------------------------
-  ambSnow: { tex: 'snow', blend: 'add', count: 0, rate: 6, life: [1.6, 2.4], shape: { type: 'disc', radius: 0.75 }, emit: 'axis', dir: [0, -1, 0], spread: 20, speed: [0.25, 0.5],
+  ambSnow: { nearFade: 0.9, tex: 'snow', blend: 'add', count: 0, rate: 6, life: [1.6, 2.4], shape: { type: 'disc', radius: 0.75 }, emit: 'axis', dir: [0, -1, 0], spread: 20, speed: [0.25, 0.5],
     size: [0.035, 0.08, 1.6], spin: [0.5, 1.8], drag: 0.6, turbulence: { amp: 0.25, freq: 1.2, speed: 0.6 }, groundFade: 0.05,
     color: [[0, 1.4, 2, 2.8, 0], [0.15, 1.4, 2, 2.8, 0.75], [1, 0.4, 0.7, 1.1, 0]] },
-  ambMotes: { tex: 'star4', blend: 'add', count: 0, rate: 5, life: [0.9, 1.6], shape: { type: 'sphere', radius: 0.6, inner: 0.65 }, emit: 'tangent', spread: 10, speed: [0.2, 0.5],
+  ambMotes: { nearFade: 0.9, tex: 'star4', blend: 'add', count: 0, rate: 5, life: [0.9, 1.6], shape: { type: 'sphere', radius: 0.6, inner: 0.65 }, emit: 'tangent', spread: 10, speed: [0.2, 0.5],
     swirl: 1.1, gravity: -0.1, size: [0.04, 0.11, 2], flicker: { amount: 0.7, rate: 10 }, rotation: [-0.3, 0.3], groundFade: 0.05,
     color: [key(0, STAR, 0, 0.7), key(0.15, STAR, 0.9, 0.7), key(1, F.mid, 0, 0.5)] },
-  ambTip: { tex: 'star4', blend: 'add', count: 0, rate: 2.5, life: [0.5, 0.9], shape: { type: 'point' }, emit: 'random', speed: [0.05, 0.25], gravity: -0.25, drag: 2,
+  ambTip: { nearFade: 0.9, tex: 'star4', blend: 'add', count: 0, rate: 2.5, life: [0.5, 0.9], shape: { type: 'point' }, emit: 'random', speed: [0.05, 0.25], gravity: -0.25, drag: 2,
     size: [0.03, 0.08, 2], flicker: { amount: 0.6, rate: 12 }, rotation: [-0.3, 0.3], groundFade: 0.05,
     color: [key(0, STAR, 0, 0.8), key(0.1, STAR, 1, 0.8), key(1, F.mid, 0, 0.6)] },
   ambPool: { ...LIB.dustRing, count: 0, rate: 1.6, shape: { type: 'ring', radius: 0.25, thickness: 0.2 }, speed: [0.2, 0.6], life: [1.8, 2.8], size: [0.7, 1.2], sizeOverLife: [[0, 0.4], [1, 1.3]],
     additive: 0.35, shade: 0.4, color: [[0, 1.0, 1.3, 1.7, 0], [0.15, 0.6, 0.78, 1.0, 0.16], [0.6, 0.55, 0.66, 0.8, 0.1], [1, 0.5, 0.6, 0.72, 0]] },
   /** super-freeze: snow motes swirling around her, drawn in (vortex) */
-  vortex: { tex: 'snow', blend: 'add', count: 0, rate: 40, life: [0.5, 0.8], shape: { type: 'sphere', radius: 1.4, inner: 0.7 }, emit: 'tangent', spread: 20, speed: [1, 2.2],
+  vortex: { nearFade: 0.9, tex: 'snow', blend: 'add', count: 0, rate: 40, life: [0.5, 0.8], shape: { type: 'sphere', radius: 1.4, inner: 0.7 }, emit: 'tangent', spread: 20, speed: [1, 2.2],
     swirl: 3.2, attract: 0.8, attractPow: 1.8, size: [0.04, 0.1, 1.6], spin: [1, 3], groundFade: 0.05,
     color: [[0, 0.9, 1.4, 2.0, 0], [0.2, 0.9, 1.4, 2.0, 0.8], [1, 1.3, 2.0, 2.8, 0.5]] },
   /** constellation star dust (hangs in the sky) */

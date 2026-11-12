@@ -12,7 +12,7 @@
 //
 // Glow channels (material option `glow`): inlay = runes / fuller core / star inlays, vein = ember cracks of the blade.
 
-import { sweep, lathe, extrude, circle, rrect, curve, put, putPair, mk, fixWinding } from './kit/geo.js';
+import { sweep, lathe, extrude, circle, rrect, curve, put, putPair, mk, fixWinding, creased, autoCav } from './kit/geo.js';
 
 const DEG = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -178,6 +178,41 @@ export function bladeSweep(o) {
   return g;
 }
 
+/**
+ * Close-up blade: an explicit faceted cross-section swept along a path (forged facets, crisp creases).
+ * pts: path [[x, y, z]...]; sec(t) -> { top, face, bot } with points [x, z, hard] (x across the blade along the frame
+ * normal, z toward the +Z flat): top = the +x end (spine / edge) from z = 0 upward (a single [w, 0] = edge), face = the +Z
+ * flat from +x to -x, bot = the -x end from +z to -z. The -Z flat mirrors the +Z one. Point count must not change with t
+ * (collapse a feature to zero size instead). Returns geometry.
+ */
+function facetBlade(pts, sec, o = {}) {
+  const loop = (t) => {
+    const { top, face, bot } = sec(t);
+    const lo = top.filter((p) => p[1] > 0).reverse().map(([x, z, h]) => [x, -z, h]);
+    return [...top, ...face, ...bot, ...face.slice().reverse().map(([x, z, h]) => [x, -z, h]), ...lo];
+  };
+  const hard = [];
+  loop(0.5).forEach((p, i) => { if (p[2]) hard.push(i); });
+  return sweep(pts, (t) => loop(t).map(([x, z]) => [x, z]), { up: o.up ?? [0, 1, 0], hard, caps: o.caps ?? true, cavScale: o.cavScale ?? 0.003 });
+}
+
+/** z of a section's +Z flat at x (piecewise linear over the face points; x outside -> the nearest end). */
+function faceZ(face, x) {
+  for (let i = 0; i < face.length - 1; i++) {
+    const [x0, z0] = face[i], [x1, z1] = face[i + 1];
+    if ((x <= x0 && x >= x1) && x0 - x1 > 1e-9) return lerp(z0, z1, (x0 - x) / (x0 - x1));
+  }
+  return x > face[0][0] ? face[0][1] : face[face.length - 1][1];
+}
+
+/** Lightning glyph polygon: centreline [[x, y, halfWidth]...] (x increasing) -> outline offset across y (never folds). */
+function boltShape(cl) {
+  const up = cl.map(([x, y, w]) => [x, y + w]), dn = cl.map(([x, y, w]) => [x, y - w]).reverse();
+  const out = [...up, ...dn];
+  // drop the duplicate point at a zero-width end
+  return out.filter((p, i) => { const q = out[(i + 1) % out.length]; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7; });
+}
+
 // ---- KAEL: greatsword ---------------------------------------------------------------------------------------------------
 
 /** Build KAEL's greatsword on `bone` (default weaponR). looks: WEAPON_LOOKS.greatsword (override any key). */
@@ -192,12 +227,24 @@ export function greatsword(kit, o = {}) {
     if (t > 0.86) { const k = (t - 0.86) / 0.14; return lerp(mid * 0.92, 0.0008, Math.pow(k, 0.85)); }
     return lerp(base, mid * 0.92, t / 0.86) + 0.004 * Math.sin(Math.PI * t / 0.86);
   };
-  const blade = bladeSweep({
-    x0: XR, x1: X1, segs: 28,
-    w: bw, th: (t) => lerp(0.0085, 0.0045, t) * (t > 0.9 ? 1 - (t - 0.9) * 6 : 1) + 0.0006,
-    bevel: (t) => lerp(0.016, 0.01, t),
-    fuller: { from: 0.0, to: 0.62, w: 0.015, depth: 0.0035 },
-  });
+  // close-up section: hollow-ground edge bevels (hard bevel line), crowned flats, a crisp fuller (hard lips, steep walls,
+  // flat floor) that runs out in a point at 0.62, then a hard medial ridge to the point (diamond section)
+  const bth = (t) => lerp(0.0085, 0.0045, t) * (t > 0.9 ? 1 - (t - 0.9) * 6 : 1) + 0.0006;
+  const bbev = (t) => lerp(0.016, 0.01, t);
+  const FT = 0.62, FW = 0.0145, FD = 0.0034;
+  const ful = (t) => { if (t >= FT) return [0, 0]; const k = clamp(Math.min(t / 0.03, (FT - t) / 0.07), 0, 1); return [FW * Math.sqrt(k), FD * Math.min(1, k * 1.6)]; };
+  const gsec = (t) => {
+    const w = Math.max(0.0008, bw(t)), th = Math.max(0.0004, bth(t)), e = Math.min(bbev(t), w * 0.8), [fw, fd] = ful(t);
+    const rdg = sstep(FT - 0.04, FT + 0.1, t), crown = Math.max(fw * 1.45, (w - e) * 0.55), zc = th * (1 - 0.14 * rdg);
+    return {
+      top: [[w, 0, 1]],
+      face: [[w - e, th * 0.64, 1], [crown, zc, 0], [fw, th, 1], [fw * 0.74, th - fd, 1], [0, th - fd * 1.04, 1], [-fw * 0.74, th - fd, 1], [-fw, th, 1], [-crown, zc, 0], [-(w - e), th * 0.64, 1]],
+      bot: [[-w, 0, 1]],
+    };
+  };
+  const GS = 26, gpts = [];
+  for (let i = 0; i <= GS; i++) gpts.push([lerp(XR, X1, i / GS), 0, 0]);
+  const blade = facetBlade(gpts, gsec);
   // vertex glow: ember cracks concentrated along the core, fading toward the edges and the tip
   const crack = (p) => {
     const t = (p[0] - XR) / (X1 - XR), off = Math.abs(p[1]);
@@ -205,19 +252,32 @@ export function greatsword(kit, o = {}) {
     const v = core * (1 - sstep(0.55, 0.95, t)) * (0.55 + 0.45 * Math.sin(p[0] * 23.0 + 1.3) * Math.sin(p[0] * 7.1));
     return [0, Math.max(0, v), 0];
   };
-  const edgeK = (p) => { const t = clamp((p[0] - XR) / (X1 - XR), 0, 1); return Math.abs(p[1]) > bw(t) - lerp(0.016, 0.01, t) * 0.8 ? 1 : 0; };
-  const ec = L.edge.color, bc = L.blade.color;
-  add(blade, L.blade, { glow: crack, color: (p) => (edgeK(p) ? ec : bc) });
-  // fuller floor: a glowing molten seam inside the fuller (thin strip on both flats)
+  const tOf = (p) => clamp((p[0] - XR) / (X1 - XR), 0, 1);
+  const edgeK = (p) => { const t = tOf(p); return Math.abs(p[1]) > bw(t) - bbev(t) * 0.8 ? 1 : 0; };
+  // fuller channel (walls + floor): blackened, grimy steel so the molten seam sits in a dark groove
+  const fulK = (p) => { const t = tOf(p), [fw, fd] = ful(t); return fd > 0.0004 && Math.abs(p[1]) < fw * 0.96 && Math.abs(p[2]) < bth(t) - fd * 0.3 ? 1 : 0; };
+  const ec = L.edge.color, bc = L.blade.color, fcol = L.fuller.color;
+  add(blade, L.blade, { glow: crack, color: (p) => (edgeK(p) ? ec : fulK(p) ? fcol : bc), cav: (p) => (fulK(p) ? 0.55 : 1) });
+  // fuller floor: a glowing molten seam laid on the floor of the fuller (both flats), narrowing with the run-out
   for (const s of [1, -1]) {
-    const pts = [];
-    for (let i = 0; i <= 18; i++) { const t = (i / 18) * 0.6; pts.push([lerp(XR + 0.02, X1, t), 0, s * (lerp(0.0085, 0.0045, t) + 0.0006 - 0.0035 * 1.05 + 0.0004)]); }
-    const seam = sweep(pts, rrect(0.0035, 0.0006, 0, 0), { up: [0, 1, 0], caps: true, scale: 1 });
+    const pts = [], TS = 0.6;
+    for (let i = 0; i <= 18; i++) { const t = 0.02 + (i / 18) * (TS - 0.02), fd = ful(t)[1]; pts.push([lerp(XR, X1, t), 0, s * (bth(t) - fd * 1.04 + 0.0003)]); }
+    const seam = sweep(pts, (t) => rrect(Math.max(0.0005, Math.min(0.0034, ful(lerp(0.02, TS, t))[0] * 0.36)), 0.0005, 0, 0), { up: [0, 1, 0], caps: true, scale: 1 });
     add(seam, L.fuller, { glow: (p) => { const t = (p[0] - XR) / (X1 - XR); return [0.55 + 0.45 * Math.sin(p[0] * 31.0) * Math.sin(p[0] * 9.0 + 0.7), 0.6, 0].map((x, k) => (k === 0 ? x * (1 - sstep(0.45, 0.62, t)) : x)); } });
   }
-  // ricasso: blunt thick block between the guard and the blade with two parrying lugs
-  const ric = sweep([[X0 - 0.005, 0, 0], [XR + 0.004, 0, 0]], rrect(0.048, 0.0115, 0.006, 2), { up: [0, 1, 0], hard: [] });
+  // ricasso: blunt thick block between the guard and the blade, chamfered (hard facets) so the light breaks crisply on
+  // its corners, with two parrying lugs
+  const ricS = [[0.048, 0.0035], [0.0435, 0.0115], [-0.0435, 0.0115], [-0.048, 0.0035], [-0.048, -0.0035], [-0.0435, -0.0115], [0.0435, -0.0115], [0.048, -0.0035]];
+  const ric = sweep([[X0 - 0.005, 0, 0], [XR + 0.004, 0, 0]], ricS, { up: [0, 1, 0], hard: [0, 1, 2, 3, 4, 5, 6, 7] });
   add(ric, L.iron);
+  // maker's mark on the ricasso (both flats): an eclipse ring (bronze) over a sunk ember pip
+  for (const s of [1, -1]) {
+    const ring = sweep(circle(10).map(([c, d]) => [XR - 0.05 + c * 0.0095, d * 0.0095, s * 0.0118]), [[0.0016, 0], [0, 0.0009], [-0.0016, 0], [0, -0.0009]], { closed: true, up: [0, 0, 1] });
+    add(ring, L.bronze);
+    const pip = lathe([[0.0, 0.0012], [0.0042, 0.0008], [0.0058, 0.0], [0.0, 0.0]], { segs: 7 });
+    pip.rotateX(s * 90 * DEG); pip.translate(XR - 0.05 + 0.0024, 0.0024, s * 0.0113);
+    add(pip, L.gem);
+  }
   for (const s of [1, -1]) {
     const lug = extrude([[0, 0], [0.018, 0], [0.034, 0.024], [0.026, 0.03], [0.006, 0.02]], { depth: 0.013, bevel: 0.0025, bevelSegs: 2 });
     lug.scale(1, s, 1);
@@ -231,16 +291,18 @@ export function greatsword(kit, o = {}) {
   add(esc, L.iron);
   // ember gem in the escutcheon (both faces)
   for (const s of [1, -1]) {
-    const gem = lathe([[0.0, 0.0095], [0.006, 0.0088], [0.011, 0.0068], [0.0145, 0.0038], [0.016, 0.0008], [0.016, 0], [0.0, 0]], { segs: 14, hard: [4] });
+    const gem = lathe([[0.0, 0.0095], [0.006, 0.0088], [0.011, 0.0068], [0.0145, 0.0038], [0.016, 0.0008], [0.016, 0], [0.0, 0]], { segs: 12, hard: [4] });
     gem.rotateX(s * 90 * DEG);
     gem.translate(X0 + 0.004, 0, s * 0.0215);
     add(gem, L.gem);
-    const bez = sweep(circle(16).map(([c, d]) => [X0 + 0.004 + c * 0.0195, d * 0.0195, s * 0.021]), circle(5), { scale: 0.0028, closed: true, up: [0, 0, 1] });
+    const bez = sweep(circle(14).map(([c, d]) => [X0 + 0.004 + c * 0.0195, d * 0.0195, s * 0.021]), circle(4), { scale: 0.0028, closed: true, up: [0, 0, 1] });
     add(bez, L.bronze);
   }
   for (const s of [1, -1]) {
     const q = curve([[X0 - 0.012, s * 0.045, 0], [X0 - 0.008, s * 0.11, 0], [X0 + 0.006, s * 0.175, 0], [X0 + 0.036, s * 0.215, 0]], 12);
-    const quill = sweep(q, rrect(1, 1, 0.45, 1), {
+    // forged section: a hard ridge runs along both faces of each quillon (catches a crisp highlight in close-ups)
+    const quill = sweep(q, [[1, 0], [0.62, 0.72], [0, 1], [-0.62, 0.72], [-1, 0], [-0.62, -0.72], [0, -1], [0.62, -0.72]], {
+      hard: [2, 6],
       scale: (t) => { const k = 1 - 0.32 * sstep(0, 0.8, t) + 0.55 * sstep(0.82, 1, t); return [0.019 * k, 0.024 * k]; },
       up: [1, 0, 0], caps: true,
     });
@@ -248,7 +310,7 @@ export function greatsword(kit, o = {}) {
     // forked tip: two short flame prongs
     for (const f of [-1, 1]) {
       const pr = curve([[X0 + 0.03, s * 0.212, f * 0.006], [X0 + 0.046 + f * 0.01, s * 0.236, f * 0.012], [X0 + 0.056 + f * 0.022, s * 0.244, f * 0.014]], 6);
-      add(sweep(pr, circle(6), { scale: (t) => 0.011 * (1 - t * 0.85), caps: true, up: [0, 0, 1] }), L.iron);
+      add(sweep(pr, circle(5), { scale: (t) => 0.011 * (1 - t * 0.85), caps: true, up: [0, 0, 1] }), L.iron);
     }
     // langet plates running onto the blade (both flats)
     const lg = extrude([[0, -0.016], [0.07, -0.012], [0.085, 0], [0.07, 0.012], [0, 0.016]], { depth: 0.003, bevel: 0.0012, bevelSegs: 1 });
@@ -260,7 +322,7 @@ export function greatsword(kit, o = {}) {
   const core = lathe([[0.0, 0], [0.0175, 0], [0.0165, 0.08], [0.0158, 0.15], [0.0168, 0.23], [0.0182, 0.27], [0.0, 0.27]], { segs: 14 });
   core.rotateZ(90 * DEG); core.translate(GX0, 0, 0);
   add(core, L.leather);
-  add(helixWrap({ x0: GX0 - 0.008, x1: GX1 + 0.014, r: (t) => 0.0172 + 0.0012 * Math.sin(t * Math.PI), turns: 13, width: 0.019, thick: 0.0022, seg: 9 }), L.leather);
+  add(helixWrap({ x0: GX0 - 0.008, x1: GX1 + 0.014, r: (t) => 0.0172 + 0.0012 * Math.sin(t * Math.PI), turns: 13, width: 0.019, thick: 0.0022, seg: 8 }), L.leather);
   for (const xw of [-0.088, -0.1]) add(sweep(circle(14).map(([c, d]) => [xw, c * 0.02, d * 0.02]), circle(4), { scale: 0.0013, closed: true, up: [1, 0, 0] }), L.wire);
   for (const [xf, r] of [[GX0 + 0.004, 0.0215], [GX1 - 0.002, 0.022]]) {
     const fe = lathe([[r * 0.9, -0.009], [r, -0.006], [r * 1.04, 0], [r, 0.006], [r * 0.9, 0.009]], { segs: 16 });
@@ -269,12 +331,16 @@ export function greatsword(kit, o = {}) {
   }
   // pommel: heavy faceted wheel with an ember core, peen block
   const PX = GX1 - 0.045;
-  const wheel = lathe([[0.0, -0.022], [0.026, -0.022], [0.036, -0.014], [0.041, 0], [0.036, 0.014], [0.026, 0.022], [0.0, 0.022]], { segs: 10, hard: [1, 2, 4, 5] });
+  // octagonal forged wheel (flat facets), raised rim with a hard apex, dished faces holding the ember cores
+  const wheel0 = lathe([[0.0, -0.0165], [0.0165, -0.0165], [0.0205, -0.0225], [0.029, -0.0225], [0.038, -0.0135], [0.0425, 0], [0.038, 0.0135], [0.029, 0.0225], [0.0205, 0.0225], [0.0165, 0.0165], [0.0, 0.0165]], { segs: 8, hard: [1, 2, 3, 4, 5, 6, 7, 8, 9] });
+  wheel0.rotateY(22.5 * DEG);
+  const wheel = autoCav(creased(wheel0, 30), 0.004);
+  wheel0.dispose();
   wheel.rotateX(90 * DEG); wheel.translate(PX, 0, 0);
   add(wheel, L.iron);
   for (const s of [1, -1]) {
-    const core2 = lathe([[0.0, 0.006], [0.006, 0.0052], [0.011, 0.0032], [0.0135, 0.0], [0.0, 0.0]], { segs: 12 });
-    core2.rotateX(s * 90 * DEG); core2.translate(PX, 0, s * 0.0222);
+    const core2 = lathe([[0.0, 0.0062], [0.006, 0.0054], [0.011, 0.0034], [0.0145, 0.0], [0.0, 0.0]], { segs: 12 });
+    core2.rotateX(s * 90 * DEG); core2.translate(PX, 0, s * 0.0163);
     add(core2, L.gem);
   }
   const peen = lathe([[0.0, 0], [0.012, 0], [0.014, 0.008], [0.009, 0.016], [0.0, 0.018]], { segs: 8, hard: [1] });
@@ -297,26 +363,59 @@ function crescentGeo(L) {
   // crescent moon blade: widest in the middle, both ends pointed; curves toward +Y (the back), true edge -Y outside
   const W = (t) => 0.004 + 0.034 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.04)), 0.75) * (1 - 0.3 * t);
   const TH = (t) => 0.0042 * (1 - 0.6 * t) + 0.0008;
-  const blade = bladeSweep({
-    x0: CX0, x1: CX0, segs: 40, path: crescentArc,
-    w: W, th: TH, bevel: () => 0.009, fuller: { from: 0.1, to: 0.72, w: 0.006, depth: 0.0016 },
-  });
-  parts.push([blade, L.blade]);
-  // starlight seam in the fuller (both flats) and a scatter of small four-point stars
+  // close-up section: blued spine on the concave (+x) side with chamfers, narrowing to a false edge at the point; a
+  // fuller toward the spine (hard lips, flat floor) holding the starlight seam as an inset; hollow-ground flat and a
+  // polished bevel to the true edge on the convex outside
+  const FC0 = 0.1, FC1 = 0.74;
+  const cful = (t, w) => { const k = clamp(Math.min((t - FC0) / 0.06, (FC1 - t) / 0.1), 0, 1); return [w * 0.3, Math.min(0.0058, w * 0.2) * Math.sqrt(k), 0.0017 * Math.min(1, k * 1.5)]; };
+  const SP = (t) => TH(t) * 0.8 * (1 - sstep(0.7, 0.93, t)) + 0.00015;
+  const csec = (t) => {
+    const w = Math.max(0.0012, W(t)), th = TH(t), sp = Math.min(SP(t), th * 0.9), ch = Math.min(0.0028, w * 0.14), e = Math.min(0.0095, w * 0.42);
+    const [fc, fw, fd] = cful(t, w);
+    return {
+      top: [[w, sp, 1]],
+      face: [[w - ch, th * 0.96, 1], [fc + fw, th, 1], [fc + fw * 0.62, th - fd, 1], [fc - fw * 0.62, th - fd, 1], [fc - fw, th, 1], [lerp(fc - fw, -(w - e), 0.5), th * 0.74, 0], [-(w - e), th * 0.5, 1]],
+      bot: [[-w, 0, 1]],
+    };
+  };
+  const CS = 40, cpts = [];
+  for (let i = 0; i <= CS; i++) { const [dx, dy] = crescentArc(i / CS); cpts.push([CX0 + dx, dy, 0]); }
+  const blade = facetBlade(cpts, csec);
+  // section coordinates of a point (right-hand frame): t along the arc, a across (toward the concave side)
+  const loc = (p) => { const dx = p[0] - CX0, dy = CR - p[1]; return [clamp(Math.atan2(dx, dy) / CA, 0, 1), CR - Math.hypot(dx, dy)]; };
+  const kind = (p) => {
+    const [t, a] = loc(p), w = Math.max(0.0012, W(t)), e = Math.min(0.0095, w * 0.42), ch = Math.min(0.0028, w * 0.14), [fc, fw, fd] = cful(t, w);
+    if (a < -(w - e * 0.85)) return 1;                                                              // polished bevel
+    if (fd > 0.0004 && Math.abs(a - fc) < fw * 0.9 && Math.abs(p[2]) < TH(t) - fd * 0.3) return 3;   // fuller groove
+    if (a > w - ch * 1.1 && SP(t) > 0.0009) return 2;                                               // spine + chamfers
+    return 0;
+  };
+  const arr = (c) => (Array.isArray(c) ? c : [0.6, 0.64, 0.7]);
+  const bc = arr(L.blade.color), sc = arr(L.spine.color), ec = bc.map((c) => Math.min(1, c * 1.2 + 0.05));
+  parts.push([blade, L.blade, { color: (p) => [bc, ec, sc, sc][kind(p)], cav: (p) => (kind(p) === 3 ? 0.6 : 1) }]);
+  // starlight seam inset on the fuller floor (both flats), narrowing with the fuller
+  const nrmAt = (t) => [-Math.sin(t * CA), Math.cos(t * CA)];
   for (const s of [1, -1]) {
-    const pts = [];
-    for (let i = 0; i <= 20; i++) { const t = 0.13 + (i / 20) * 0.55, [dx, dy] = crescentArc(t); pts.push([CX0 + dx, dy, s * (TH(t) - 0.0016 + 0.0004)]); }
-    parts.push([sweep(pts, rrect(0.0022, 0.0004, 0, 0), { up: [0, 0, 1] }), L.star]);
+    const pts = [], T0 = 0.14, T1 = 0.7;
+    for (let i = 0; i <= 22; i++) {
+      const t = lerp(T0, T1, i / 22), [dx, dy] = crescentArc(t), [fc, , fd] = cful(t, W(t)), [nx, ny] = nrmAt(t);
+      pts.push([CX0 + dx + nx * fc, dy + ny * fc, s * (TH(t) - fd + 0.0003)]);
+    }
+    parts.push([sweep(pts, (u) => rrect(Math.max(0.0004, cful(lerp(T0, T1, u), W(lerp(T0, T1, u)))[1] * 0.42), 0.00045, 0, 0), { up: [0, 1, 0] }), L.star]);
   }
+  // small four-point stars set into the hollow-ground flat (tilted to lie on it), crisp unbevelled cut
   const star4 = [];
   for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2, rr = k % 2 ? 0.0012 : 0.0042; star4.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
-  for (const [t, off, sc] of [[0.25, 0.018, 1], [0.38, -0.016, 0.7], [0.5, 0.02, 0.85], [0.62, -0.012, 0.6], [0.78, 0.008, 0.75]]) {
-    const [dx, dy] = crescentArc(t), [ex, ey] = crescentArc(t + 0.01);
-    const nx = -(ey - dy), ny = ex - dx, l = Math.hypot(nx, ny);
+  for (const [t, f, sc4] of [[0.24, 0.45, 1], [0.36, 0.62, 0.7], [0.49, 0.42, 0.85], [0.61, 0.6, 0.62], [0.77, 0.42, 0.75]]) {
+    const face = csec(t).face, a = lerp(face[4][0], face[6][0], f), z = faceZ(face, a);
+    const slope = (faceZ(face, a + 0.001) - faceZ(face, a - 0.001)) / 0.002;
+    const [dx, dy] = crescentArc(t), [nx, ny] = nrmAt(t);
     for (const s of [1, -1]) {
-      const st = extrude(star4, { depth: 0.0008, bevel: 0.0004, bevelSegs: 1 });
-      st.scale(sc, sc, 1);
-      st.translate(CX0 + dx + (nx / l) * off, dy + (ny / l) * off, s * (TH(t) + 0.0004));
+      const st = extrude(star4, { depth: 0.0007, bevel: 0 });
+      st.scale(sc4, sc4, 1);
+      st.rotateX(s * Math.atan(slope));
+      st.rotateZ(t * CA);
+      st.translate(CX0 + dx + nx * a, dy + ny * a, s * (z + 0.00025));
       parts.push([st, L.star]);
     }
   }
@@ -345,7 +444,7 @@ function crescentGeo(L) {
 export function crescents(kit, o = {}) {
   const L = { ...WEAPON_LOOKS.crescents, ...(o.looks || {}) };
   const slot = o.slot ?? 'blade';
-  for (const [g, look] of crescentGeo(L)) putPair(kit, slot, 'weapon', g, look);
+  for (const [g, look, extra] of crescentGeo(L)) putPair(kit, slot, 'weapon', g, look, extra);
   return WEAPON_SPECS.crescents;
 }
 

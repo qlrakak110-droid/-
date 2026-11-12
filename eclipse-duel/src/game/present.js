@@ -321,7 +321,11 @@ export function createPresenter(ctx, session, feel) {
     if (ctx.audio) ctx.audio.music('ultimate');
     h.glow(h.color('mid', 0.035), 1, e.duration + 0.5, 0.15);
     h.weaponGlow(0.4, e.duration + 0.6);
-    session.fx.play('combat.ult.flash', { pos: h.socket('chest'), facing: h.facing, scale: 0.55 }, { element: h.element, intensity: 0.4 }, null);
+    // the eclipse corona backlights the user: 1 m behind the chest (the preset pulls its disc 0.6 m toward the camera,
+    // which at the hero push-in's 2.5 m hid the fighter behind it)
+    const behind = h.socket('chest');
+    behind.z -= 1.0; behind.y += 0.15;
+    session.fx.play('combat.ult.flash', { pos: behind, facing: h.facing, scale: 0.55 }, { element: h.element, intensity: 0.4 }, null);
     if (session.fx.has('combat.charge.gather')) session.fx.play('combat.charge.gather', { pos: h.socket('weaponTip'), facing: h.facing }, { element: h.element, duration: e.duration * 0.9, follow: session.actors[i].char.sockets.weaponTip });
     else {
       const em = session.fx.call('emitter', session.fx.defsOf(h.element).charge, { pos: h.socket('weaponTip'), duration: e.duration * 0.9, realtime: true });
