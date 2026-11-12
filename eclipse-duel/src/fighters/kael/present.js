@@ -340,7 +340,7 @@ const moves = {
       fadeUltCard(0.22);
       // storyboard 0.60: cut to a wide side shot with a slight orbit for the leap-slash (held until the hit lands)
       h.cam.play([h.shots.orbitSweep({ dur: 0.5, cut: true, subject: 'mid', from: -6, to: 8, radius: [7.4, 6.6], height: [1.3, 1.6], look: 1.2, fov: 38, hold: true })], { blendOut: 0.4, keepLetterbox: true });
-      h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.45, intensity: 0.55, inner: 0.6 });
+      h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.4, intensity: 0.32, inner: 0.66 });
       h.fx('combat.dust.dash', 'floor', { k: 1, fallback: null });
       h.afterimage({ count: 3, interval: 0.06, life: 0.32, palette: 'ember' });
       st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.5, life: 0.26, color: STREAK });
@@ -357,6 +357,11 @@ const moves = {
       h.fx('kael.geyser', floorAt(h, 2.0), { k: 0.6, fallback: null });
       return undefined;
     },
+    /**
+     * the leap-slash connects: the lock's `start` owns the impact (punch-in, monochrome frames, crit); the generic ult
+     * hit (crit at full intensity + an inverted frame) stacked on it and whited out the first 0.3 s of the punch-in
+     */
+    hit(h, e) { return hitFeel(h, e, { dir: [1, -0.35, 0.3], intensity: 0.28, shake: 0.4 }); },
     end(h) { cleanup(h); },
     options: { whoosh: false },
   },
@@ -409,10 +414,10 @@ const ult = {
     const x = st(h);
     if (x.slash) { x.slash.kill(); x.slash = null; }
     const dir = [1, -0.35, 0.3];
-    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.35 });
+    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.3 });
     h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 0.6, cut: -50, accent: true, fallback: null });
     h.post.impact({ duration: 0.05, invert: 0, mono: 1 });     // 3 hard monochrome frames (no inverted white frame)
-    h.post.flash(0xffffff, 0.14, { release: 0.2 });
+    h.post.flash(0xffffff, 0.07, { release: 0.2 });
     h.post.chroma(0.5, { release: 0.4 });
     h.post.radial('foe.chest', 0.5, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
@@ -565,8 +570,10 @@ const projectiles = {
     },
     hit(h, e) {
       h.spawn('decal', new h.THREE.Vector3(e.x, 0, 0), { kind: 'scorch', radius: 1.3, life: 3.5, magma: 0.9 });
-      h.cam.shake(0.3, { freq: 15 });
-      h.hitstop(0.08);
+      accent(h, 0.65, [1, 0.25, 0.3], 35);                  // the wave bursts into a fire flower on the victim
+      h.hitstop(0.12);                                      // MOVES.md: 0.12 hit-stop (projectile hits get none generically)
+      // tempered feel: the generic skill hit (element hit at full intensity) over the wave's own burst washed the frame
+      return hitFeel(h, e, { dir: [1, 0.25, 0.3], intensity: 0.38, shake: 0.3 });
     },
     guard(h) { h.cam.shake(0.18); },
   },

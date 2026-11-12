@@ -167,7 +167,7 @@ export function createRig(proportions = {}, extra = [], opts = {}) {
   // per-frame local translation of the joint-crease helpers (elbowVol / kneeVol), added to their rest offsets
   rig.helperOffset = new Float32Array(count * 3);
   rig.creaseBones = HELPER_NAMES.filter((n) => /^(elbowVol|kneeVol)[RL]$/.test(n)).map((n) => rig.index[n]);
-  driveHelpers(rig, rig.bindLocal, null);
+  driveHelpers(rig, rig.bindLocal);
   rig.bindHelperOffset = Float32Array.from(rig.helperOffset);
   return rig;
 }
@@ -175,25 +175,16 @@ export function createRig(proportions = {}, extra = [], opts = {}) {
 // ---- helper bones -------------------------------------------------------------------------------------------------
 const hq = new Float32Array(24);
 /**
- * A twist angle near +-180 deg continues on the branch of the previous frame (mem[i]) instead of jumping to the other
- * sign; only acts in that band, so poses inside the human range never depend on history.
+ * Twist (rad) about the bone's own Y axis for the helpers, faded out where it is ill-defined: near 180 deg of swing
+ * (the decomposition is ill-conditioned) and near +-180 deg of twist (no human joint gets there; the decomposition
+ * wraps). Continuous for every rotation, no history.
  */
-function unwrap(mem, i, a) {
-  if (!mem) return a;
-  const prev = mem[i];
-  if (Math.abs(a) > 2.6 && Math.abs(prev) > 2.0 && Math.sign(a) !== Math.sign(prev)) a += a < 0 ? 2 * Math.PI : -2 * Math.PI;
-  mem[i] = a;
-  return a;
-}
-
-/**
- * Twist (rad) about the bone's own Y axis, faded out where swing-twist is ill-conditioned (swing near 180 deg); the
- * raw twist is unwrapped against last frame (mem slot i) before fading.
- */
-function fadedTwist(q, o, mem = null, i = 0) {
+function fadedTwist(q, o) {
   const sw = swingAngle(q, o, 0, -1, 0);
   const f = smooth01(sw, 2.62, 1.75); // full below 100 deg of swing, zero above 150 deg
-  return f > 0 ? unwrap(mem, i, twistAngle(q, o, 0, 1, 0)) * f : 0;
+  if (!(f > 0)) return 0;
+  const a = twistAngle(q, o, 0, 1, 0);
+  return a * f * (1 - smooth01(Math.abs(a), 1.75, 3.05)); // full below 100 deg of twist, zero above 175 deg
 }
 
 // reference raise for the deltoid half-swing: the arm raised 60 deg in the scapular plane (between flexion and
@@ -223,10 +214,9 @@ function halfRot(out, oo, q, qo, r, ro) {
  * twist helper = 65% of the wrist pronation, hip joint = half of the thigh swing, elbow / knee crease helpers =
  * half-joint moved out of the crease along the joint bisector (rig.helperOffset, growing with flexion; the loft weights
  * only the flexor side of the joint ring to them, so the inside of a flexed joint keeps its volume and the olecranon /
- * kneecap side does not balloon). `mem` (Float32Array(4) or null) keeps the last forearm / upper-arm twist per side,
- * so the twist helpers never jump across +-180 deg.
+ * kneecap side does not balloon). Every helper is a continuous function of the pose (no history).
  */
-export function driveHelpers(rig, lq, mem) {
+export function driveHelpers(rig, lq) {
   const HO = rig.helperOffset, P = rig.P;
   for (let k = 0; k < 2; k++) {
     const D = rig.helperBones[k], ua = D.upperArm, fa = D.foreArm, ha = D.hand, th = D.thigh;
@@ -243,7 +233,7 @@ export function driveHelpers(rig, lq, mem) {
     // deltoid: half of the arm swing. Twist removed where it is well defined, the half taken on the branch of a
     // reference raise (scaption, DELT_REF); next to that reference's singular wall (|dot| small: an arm pointing back
     // and in, or wrung far past its twist range) the plain half-elevation in the arm's own plane takes over
-    const ut = fadedTwist(lq, ua * 4, mem, 2 + k);
+    const ut = fadedTwist(lq, ua * 4);
     qaxis(hq, 0, 0, 1, 0, -ut);
     qmul(hq, 4, lq, ua * 4, hq, 0);
     const dr = Math.abs(halfRot(hq, 12, hq, 4, DELT_REF, k * 4));
@@ -263,8 +253,8 @@ export function driveHelpers(rig, lq, mem) {
     qcopy(lq, D.elbowVol * 4, lq, D.elbow * 4);
     const eflex = swingAngle(lq, fa * 4, 0, -1, 0);
     qrot(HO, D.elbowVol * 3, lq, D.elbowVol * 4, 0.06 * P.upperArm * smooth01(eflex, 0.35, 2.6), 0, 0);
-    // forearm twist helper: 65% of the wrist pronation, unwrapped against the previous frame near +-180 deg
-    qaxis(lq, D.foreArmTwist * 4, 0, 1, 0, 0.65 * unwrap(mem, k, twistAngle(lq, ha * 4, 0, 1, 0)));
+    // forearm twist helper: 65% of the wrist pronation (within +-90 deg: limited above)
+    qaxis(lq, D.foreArmTwist * 4, 0, 1, 0, 0.65 * twistAngle(lq, ha * 4, 0, 1, 0));
     // legs: hip joint half-swing, thigh twist helper, knee half-joint + volume helper
     const tt = fadedTwist(lq, th * 4);
     qaxis(hq, 0, 0, 1, 0, -tt);

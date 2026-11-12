@@ -551,7 +551,7 @@ const projectiles = {
       if (idx === 1) h.fx('vorn.mark', { pos: g }, { warn: delay });
       h.after(delay, (h2) => {
         const huge = !!d.huge;
-        h2.fx('vorn.skystrike', { pos: g }, { k: huge ? 1.5 : 1, intensity: huge ? 0.8 : 0.75 });
+        h2.fx('vorn.skystrike', { pos: g }, { k: huge ? 1.4 : 1, intensity: huge ? 0.6 : 0.7 });
         h2.fx('vorn.strikeX', { pos: g }, { k: huge ? 1.4 : 0.9 });
         h2.cam.shake(huge ? 0.6 : 0.35, { freq: 13, dir: [0, 1, 0] });
         h2.pulse(g, V.core, huge ? 1.6 : 0.8);
@@ -560,7 +560,7 @@ const projectiles = {
       });
       return false;
     },
-    hit(h, e) { flower(h, e.label === 'bolt3' ? 1.0 : 0.6, { pos: 'foe.chest', dir: [0.1, -1, 0.3] }); },
+    hit(h, e) { flower(h, e.label === 'bolt3' ? 0.8 : 0.6, { pos: 'foe.chest', dir: [0.1, -1, 0.3], intensity: e.label === 'bolt3' ? 0.8 : 1 }); },
   },
   // Arc Step's detonation along the line he left behind
   'volt.chain': {

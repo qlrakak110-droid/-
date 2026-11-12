@@ -401,7 +401,7 @@ function crescentGeo(L) {
       const t = lerp(T0, T1, i / 22), [dx, dy] = crescentArc(t), [fc, , fd] = cful(t, W(t)), [nx, ny] = nrmAt(t);
       pts.push([CX0 + dx + nx * fc, dy + ny * fc, s * (TH(t) - fd + 0.0003)]);
     }
-    parts.push([sweep(pts, (u) => rrect(Math.max(0.0004, cful(lerp(T0, T1, u), W(lerp(T0, T1, u)))[1] * 0.42), 0.00045, 0, 0), { up: [0, 1, 0] }), L.star]);
+    parts.push([sweep(pts, (u) => rrect(Math.max(0.0003, Math.min(0.00095, cful(lerp(T0, T1, u), W(lerp(T0, T1, u)))[1] * 0.17)), 0.00045, 0, 0), { up: [0, 1, 0] }), L.star, { glow: () => [0.75, 0, 0] }]);
   }
   // small four-point stars set into the hollow-ground flat (tilted to lie on it), crisp unbevelled cut
   const star4 = [];
@@ -526,13 +526,13 @@ export function spear(kit, o = {}) {
   add(head, L.head, {
     color: (p) => [hc, hec, groove][hkind(p)],
     cav: (p) => (hkind(p) === 2 ? 0.45 : 1),
-    glow: (p) => (hkind(p) === 2 ? [0.06, 0, 0] : [0, 0, 0]),          // faint spill of the rune on the groove floor
+    glow: (p) => (hkind(p) === 2 ? [0.012, 0, 0] : [0, 0, 0]),         // the faintest spill of the rune on the groove floor
   });
   // the lightning rune: a tapered bolt glyph (long strokes, short sharp returns, a point toward the tip) inlaid on the
   // channel floor of both flats, its top below the lips
   const bolt = boltShape([
-    [HX0 + 0.046, 0.0016, 0.0029], [HX0 + 0.118, -0.0024, 0.0025], [HX0 + 0.125, 0.0019, 0.0023],
-    [HX0 + 0.196, -0.0019, 0.0019], [HX0 + 0.202, 0.0013, 0.0015], [HX0 + 0.262, 0.0001, 0.0004], [HX0 + 0.282, 0.0, 0.0],
+    [HX0 + 0.042, 0.0026, 0.0013], [HX0 + 0.09, -0.0032, 0.0012], [HX0 + 0.096, 0.0028, 0.0011], [HX0 + 0.145, -0.003, 0.001],
+    [HX0 + 0.151, 0.0024, 0.0009], [HX0 + 0.2, -0.0024, 0.0008], [HX0 + 0.206, 0.0016, 0.0007], [HX0 + 0.262, 0.0, 0.0],
   ]);
   for (const s of [1, -1]) {
     const g = extrude(bolt, { depth: 0.0008, bevel: 0 });
@@ -540,7 +540,7 @@ export function spear(kit, o = {}) {
     const P = g.attributes.position.array;
     for (let i = 0; i < P.length; i += 3) { const t = clamp((P[i] - HX0) / (XT - HX0), 0, 1), [, d] = chan(t); P[i + 2] += s * (hth(t) - d * 1.04 + 0.00045); }
     g.attributes.position.needsUpdate = true;
-    add(g, L.rune);
+    add(g, L.rune, { glow: () => [0.6, 0, 0] });   // a thin hot line: the dark groove must stay readable around it
   }
   // counterweight: heavy bulb + short spike
   const cw = lathe([[0.0, 0.0], [0.016, 0.0], [0.026, 0.03], [0.03, 0.06], [0.024, 0.085], [0.019, 0.1], [0.0175, 0.11]], { segs: 12, hard: [3] });

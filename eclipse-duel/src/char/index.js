@@ -212,7 +212,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const lastWorld = new THREE.Matrix4(), curWorld = new THREE.Matrix4(), invWorld = new THREE.Matrix4(), tmpM = new THREE.Matrix4();
   let haveLast = false;
   const gravL = new Float32Array(3), windL = new Float32Array(3), footBuf = new Float32Array(8), gripT = new Float32Array(12);
-  const gripQ = new Float32Array(8), twistMem = new Float32Array(4), poleBuf = new Float32Array(3), gripMem = new Float32Array(MEM);
+  const gripQ = new Float32Array(8), poleBuf = new Float32Array(3), gripMem = new Float32Array(MEM);
   const aimBuf = new Float32Array(1), gripBase = new Float32Array(4);
   // torso capsule the elbows keep out of (design collider 'torso', radius + the arm's own radius)
   const torsoDef = (design.colliders || []).find((c) => c.name === 'torso');
@@ -782,8 +782,12 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (L.mask[ix.weaponR] || L.mask[ix.handL]) { // the layer owns the hands: its grip target and weight
         const gl = L.pose.gripW[0] + L.pose.gripW[1];
         if (gl > 0) {
-          if (final.gripW[0] + final.gripW[1] <= 0) final.gripT.set(L.pose.gripT);
-          else { for (let k = 0; k < 3; k++) final.gripT[k] += (L.pose.gripT[k] - final.gripT[k]) * L.w; qslerp(final.gripT, 3, final.gripT, 3, L.pose.gripT, 3, L.w); }
+          if (final.gripW[0] + final.gripW[1] <= 0) { final.gripT.set(L.pose.gripT); final.gripM.set(L.pose.gripM); final.gripMix = 1; }
+          else {
+            for (let k = 0; k < 3; k++) { final.gripT[k] += (L.pose.gripT[k] - final.gripT[k]) * L.w; final.gripM[k] += (L.pose.gripM[k] - final.gripM[k]) * L.w; }
+            qslerp(final.gripT, 3, final.gripT, 3, L.pose.gripT, 3, L.w); qslerp(final.gripM, 3, final.gripM, 3, L.pose.gripM, 3, L.w);
+            final.gripMix += (1 - final.gripMix) * L.w;
+          }
         }
         final.gripW[0] += (L.pose.gripW[0] - final.gripW[0]) * L.w; final.gripW[1] += (L.pose.gripW[1] - final.gripW[1]) * L.w;
         final.grip += (L.pose.grip - final.grip) * L.w;
@@ -923,7 +927,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     haveLast = false;
     for (const s of states) s.pose.swivel.fill(0);
     for (const L of layers.values()) { L.pose.swivel.fill(0); if (L.mem) L.mem.swivel.fill(0); }
-    gripMem.fill(0); twistMem.fill(0); dropHold = dropVel = dropGoal = 0; breathPhase = 0;
+    gripMem.fill(0); dropHold = dropVel = dropGoal = 0; breathPhase = 0;
     lookRT.yaw = lookRT.pitch = 0;
     footLock[0].on = footLock[1].on = false; footLock[0].w = footLock[1].w = 0; footPlanted.fill(0);
     for (const k of ['th', 'om', 'hth', 'hom', 'x', 'v']) springsBody[k].fill(0);
@@ -1178,7 +1182,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       lookRT.pitch += Math.max(-lim, Math.min(lim, (gp - lookRT.pitch) * k));
       applyLook(rig, lq, A[2], A[3], lookRT.yaw, lookRT.pitch);
     }
-    driveHelpers(rig, lq, twistMem);
+    driveHelpers(rig, lq);
     for (let k = 0; k < crease.length; k++) { // crease helpers move out of the joint (skeleton.js driveHelpers)
       const i = crease[k] * 3;
       lp[i] = rig.offset[i] + rig.helperOffset[i]; lp[i + 1] = rig.offset[i + 1] + rig.helperOffset[i + 1]; lp[i + 2] = rig.offset[i + 2] + rig.helperOffset[i + 2];

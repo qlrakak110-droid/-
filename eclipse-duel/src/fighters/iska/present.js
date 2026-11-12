@@ -172,7 +172,7 @@ export const present = {
           const a = v.emitter(D.skid, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.6, 0.3]), duration: 0.32 }); a.follow(s);
           const b = v.emitter(D.skidMist, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.3, 0.2]), duration: 0.32 }); b.follow(s);
         }
-        h.afterimage({ count: 3, interval: 0.06, life: 0.26, intensity: 0.42 });
+        h.afterimage({ count: 2, interval: 0.08, life: 0.22, intensity: 0.45 });  // ghosts cost a full character each (tri budget)
         h.audio('frost_wind', { volume: 0.5 });
       },
       swing(h) { cut(h, { heavy: true, arc: [-150, 25], radius: 1.35, normal: [0, 0.35, 1] }); },
@@ -249,7 +249,7 @@ export const present = {
     moonlit_afterimage: {
       windup(h) { const g = glowOf(h); if (g) g.flare('all', 1.5, 0.35); },
       blink(h) {
-        h.afterimage({ count: 3, interval: 0.03, life: 0.3, intensity: 0.6 });
+        h.afterimage({ count: 2, interval: 0.05, life: 0.2, intensity: 0.6 });  // + the statue: at most 3 ghosts alive
         h.burst(D.glint, { pos: 'chest' }, { count: 10, scale: 1.2 });
         h.audio('frost_wind', { volume: 0.55 });
       },
@@ -258,6 +258,11 @@ export const present = {
         h.burst(D.mist, { pos: h.at(0, 0.9, 0) }, { count: 3, scale: 0.8 });
         h.flare('chest', { kind: 'star', size: 1.0, life: 0.14, decay: 2.5, color: STAR, intensity: 0.6, rotation: 0.4 });
         h.self.setVisible(false);
+        // MOVES.md camera: a whip-pan following the blink (0.2 s) from where she vanished to the opponent she
+        // reappears behind (fight framing only; the hit's FOV kick is the punch-in)
+        if (h.ctx.cam && h.ctx.cam.mode === 'fight') {
+          h.cam.play([h.shots.whipPan({ dur: 0.22, pos: [-0.9, 1.45, 4.6], look: 1.25, fov: [42, 37], bank: 3 })], { blendOut: 0.35, hud: false });
+        }
       },
       reappear(h) {
         h.self.setVisible(true);
@@ -486,8 +491,9 @@ export const present = {
         { dur: 0.6, cut: true, space: 'target', ease: 'linear', handheld: 0.3, orbit: { pivot: [0, 1.0, 0], from: -78, to: -28, radius: [3.4, 3.0], height: [0.34, 0.5] }, from: { fov: 52 }, to: { fov: 48 } },
         { dur: 0.6, cut: true, space: 'target', ease: 'linear', handheld: 0.3, orbit: { pivot: [0, 1.05, 0], from: 34, to: 82, radius: [3.3, 3.0], height: [0.45, 0.75] }, from: { fov: 50 }, to: { fov: 46 } },
         // 1.65 .. 2.65 (2.40 row): wide low angle looking up toward the eclipse as she leaps, slow motion 0.4
+        // (closer than a true wide so she stays readable against the night sky as she rises past the eclipse)
         { dur: 1.0, cut: true, space: 'target', ease: 'outSine', slowmo: { scale: 0.42, at: 0.03, dur: 0.45 },
-          from: { pos: [-1.2, 0.55, 7.2], look: [-0.8, 2.6, 0], fov: 52 }, to: { pos: [-1.0, 0.5, 6.8], look: [-0.6, 4.7, 0], fov: 54 } },
+          from: { pos: [-1.1, 0.5, 5.6], look: [-0.75, 2.3, 0], fov: 50 }, to: { pos: [-0.95, 0.45, 5.2], look: [-0.65, 4.4, 0], fov: 52 } },
         // 2.65 .. 3.65 (3.40 row): over the shoulder from Iska in the air down onto the crystal
         { dur: 1.0, cut: true, space: 'target', ease: 'inOutSine', handheld: 0.4,
           from: { pos: [-4.2, 7.4, 2.4], look: [-0.35, 3.3, 0], fov: 54 }, to: { pos: [-3.8, 7.0, 2.1], look: [-0.3, 3.0, 0], fov: 50 } },
@@ -506,11 +512,11 @@ export const present = {
       u.vf = foeF(h);
       // the circle closes into a crystal: a ring of ice snaps up around the victim, a cold ring sweeps out, mist rolls
       h.spawn('ring', g, { look: 'frost', radius: [0.3, 2.6], life: 0.6, distort: 0.03, intensity: 0.3 });
-      h.burst(D.flash, { pos: h.at(u.vf, 1.0, 0.3) }, { scale: 0.35, intensity: 0.6 });
-      h.burst(D.sparksRadial, { pos: h.at(u.vf, 0.8, 0.1) }, { count: 40, scale: 0.9 });
-      h.burst(D.glint, { pos: h.at(u.vf, 1.2, 0) }, { count: 22, scale: 1.8 });
+      h.burst(D.flash, { pos: h.at(u.vf, 1.0, 0.3) }, { scale: 0.3, intensity: 0.4 });
+      h.burst(D.sparksRadial, { pos: h.at(u.vf, 0.8, 0.1) }, { count: 28, scale: 0.9 });
+      h.burst(D.glint, { pos: h.at(u.vf, 1.2, 0) }, { count: 14, scale: 1.6 });
       h.burst(D.mistLow, { pos: g, dir: [0, 1, 0] }, { count: 10, scale: 1.0 });
-      h.light(h.at(u.vf, 1.4, 1.4), { intensity: 70, range: 7, duration: 0.6, decay: 'outCubic' });
+      h.light(h.at(u.vf, 1.4, 1.4), { intensity: 45, range: 7, duration: 0.6, decay: 'outCubic' });
       h.distort(h.at(u.vf, 0.05, 0), { kind: 'shock', normal: [0, 1, 0], radius: [0.3, 3.2], strength: 0.035, life: 0.5 });
       u.cage = h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 0.55, count: 6, height: [0.55, 1.15], width: 0.13, tilt: 10, stagger: 0.014, rise: 0.08, hold: 4.2 });
       u.shell = h.vfx.afterimage(h.foe.char.root, { life: 3.9, palette: 'frost', fill: 0.14, fresnel: 2.2, intensity: 0.75, swell: 0.035, alpha: 0.85 });
@@ -537,7 +543,7 @@ export const present = {
         const own = beat(h, 'leap', 'rising_crescent', { at: 0.1, speed: 0.55 });
         const up = (h2) => {
           h2.offset([(u.vf ?? 1.7) - 0.7, 4.3], 0.55, 'outCubic');
-          h2.afterimage({ count: 2, interval: 0.05, life: 0.35, intensity: 0.6 });
+          h2.afterimage({ count: 1, life: 0.3, intensity: 0.65 });  // the crystal shell is already one ghost (tri budget)
           h2.spawn('ring', h2.at(0, 0, 0), { look: 'frost', radius: [0.3, 2.6], life: 0.6, intensity: 0.7 });
           h2.burst(D.mistLow, { pos: h2.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 8, scale: 1 });
           h2.audio('frost_wind', { volume: 0.8 });
@@ -575,7 +581,7 @@ export const present = {
         const u = st(h).ult || {};
         beat(h, 'land', null);
         h.offset([(u.vf ?? 1.7) - 0.85, 0], 0.12, 'inQuad');
-        h.afterimage({ count: 2, interval: 0.03, life: 0.25, intensity: 0.7 });
+        h.afterimage({ count: 1, life: 0.2, intensity: 0.75 });
       } },
       // 4.90 row: the frost wave rolls across the arena, everything rimed; letterbox out
       { t: 4.15, do(h) {
@@ -604,7 +610,7 @@ export const present = {
         const k = Math.max(0, Math.min(5, (parseInt(name.slice(5), 10) || 1) - 1));
         const [df, hop, face] = ORBIT[k];
         const from = h.socket('chest');
-        h.afterimage({ count: 1, life: 0.2, intensity: 0.65 });
+        h.afterimage({ count: 1, life: 0.16, intensity: 0.65 });
         h.offset([vf + df, hop], 0.05, 'outCubic');
         h.self.char.setFacing(h.facing * face);
         if (!hasClip('iska.ult.orbit')) beat(h, 'slash', ['rime_flick', 'twin_moons', 'star_fan'][k % 3], { fade: 0.03 });
@@ -642,15 +648,16 @@ export const present = {
         if (u.shell && u.shell.kill) u.shell.kill();
         h.foe.glow(null);
         h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.45 });
-        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 0.95 });
+        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 0.8 });
         h.spawn('ring', h.at(vf, 0, 0), { look: 'frost', radius: [0.4, 5.5], life: 0.9, distort: 0.04, intensity: 1 });
         h.spawn('ring', h.at(vf, 0.05, 0), { look: 'shock', palette: 'frost', radius: [0.3, 4.5], life: 0.45, intensity: 0.6 });
         h.spawn('decal', h.at(vf, 0, 0), { kind: 'frost', radius: 4.2, reveal: 0.35, life: 6 });
-        h.flare(c, { kind: 'star', size: 2.4, life: 0.4, decay: 2.4, color: STAR, intensity: 0.5, rotation: 0.25 });
-        h.light(W(h, c.x, 1.8, 2.4), { intensity: 90, range: 11, duration: 0.6, decay: 'outCubic' });
+        // kept below a white-out: the punch-in camera is ~3 m away, the star and the light fill the frame otherwise
+        h.flare(c, { kind: 'star', size: 1.5, life: 0.35, decay: 2.6, color: STAR, intensity: 0.32, rotation: 0.25 });
+        h.light(W(h, c.x, 1.8, 2.4), { intensity: 55, range: 11, duration: 0.6, decay: 'outCubic' });
         h.distort(c, { kind: 'shock', radius: [0.3, 4.2], strength: 0.05, life: 0.55 });
         h.post.impact({ duration: 0.05, invert: 1 });
-        h.post.flash(0xcfe6ff, 0.12, { release: 0.25 });
+        h.post.flash(0xcfe6ff, 0.07, { release: 0.25 });
         h.post.radial(c, 0.55);
         h.post.chroma(0.9, { release: 0.5 });
         h.post.pulse('exposure', 0.12, { release: 0.5 });

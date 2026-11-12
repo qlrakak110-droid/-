@@ -12,12 +12,14 @@ export const SOFT = 0.006;
 /** Wrist range used by the arm solver (radians): swing of the hand off the forearm axis, pronation / supination. */
 export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180, swingKnee: (68 * Math.PI) / 180, twistKnee: (74 * Math.PI) / 180 };
 /**
- * Elbow swivel continuity (arm memory, see solveLimb opt.mem): the swivel follows the minimum of the basin it is in at
- * up to TRACK rad/s, and moves to a better basin only after that basin has been cheaper by SWITCH_MARGIN for
- * SWITCH_HOLD s, at SWITCH rad/s (a visible roll of the elbow instead of a one-frame flip). Rates are per second of
- * game time, so the path is the same at 30 / 60 / 120 Hz.
+ * Elbow swivel continuity (arm memory, see solveLimb opt.mem): the swivel follows the minimum of the cost basin it is
+ * in (a minimum that moved more than TRACK x dt since last frame - its basin merged into another - is travelled to),
+ * and moves to a better basin only when its own is strained (cost > SWITCH_MIN) and the other has been clearly cheaper
+ * (by max(SWITCH_MARGIN, 40%)) for SWITCH_HOLD s, travelling at up to SWITCH rad/s (eased in and out: the elbow rolls
+ * over instead of flipping in one frame). Rates are per second of game time, so the path is the same at 30 / 60 /
+ * 120 Hz.
  */
-export const SWIVEL = { TRACK: (2500 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_HOLD: 0.06 };
+export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
  * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll] + this frame
  * (the same 6).
@@ -150,6 +152,27 @@ function rollBy(endQ, eo, gx, gy, gz, psi) {
 }
 
 const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+/** |humeral rotation| (rad) of the upper arm at swivel f (the frame set up for swivelCost). */
+function humeralAt(f) {
+  limbAt(f, S.sign, S.bend, S.er, S.eo, sv, 20);
+  qmulInv(sv, 28, S.mq, S.po, sv, 20);
+  let uw = sv[31], uy = sv[29];
+  if (uw < 0) { uw = -uw; uy = -uy; }
+  return Math.abs(2 * Math.atan2(uy, uw));
+}
+/**
+ * Direction (+1 / -1) to travel from swivel a to b: the way on which the humeral rotation stays smaller (the elbow rolls
+ * over through a strained wrist, which the wrist clamp keeps human, rather than through an upper arm wrung past
+ * 150 deg, which no shoulder can do); ties: the shorter way.
+ */
+function travelDir(a, b) {
+  const ccw = ((b - a) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI), cw = 2 * Math.PI - ccw;
+  let mp = 0, mn = 0;
+  for (let k = 1; k <= 8; k++) { mp = Math.max(mp, humeralAt(a + (ccw * k) / 8)); mn = Math.max(mn, humeralAt(a - (cw * k) / 8)); }
+  if (Math.min(mp, mn) < 2.6 && Math.abs(mp - mn) > 0.2) return mp < mn ? 1 : -1;
+  return ccw <= Math.PI ? 1 : -1;
+}
+
 const GOLD = 0.381966;
 /** Golden-section refine of swivelCost on [lo, hi] (8 iterations): returns the best angle, its cost in sw[1]. */
 const sw = new Float64Array(2);
@@ -274,15 +297,30 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const span = Math.PI / 12;
     let gPhi = refine(best - span, best + span), gC = sw[1];
     if (gC > bc) { gPhi = best; gC = bc; }
-    if (hasMem) {
+    if (hasMem) { // timer >= 0: how long another basin has been better; < 0: travelling (-1 - time travelled)
       const dt = Math.max(0, opt.dt || 0);
       const lPhi = basinMin(phiP), lC = sw[1];
+      // a better basin: clearly cheaper than a strained one (a comfortable elbow is never moved for a small gain)
+      const better = lC > SWIVEL.SWITCH_MIN && gC < lC - Math.max(SWIVEL.SWITCH_MARGIN, 0.4 * lC) && Math.abs(wrapA(gPhi - lPhi)) > Math.PI / 12;
+      let goal = lPhi;
       timer = mem[4];
-      const other = Math.abs(wrapA(gPhi - lPhi)) > Math.PI / 12;
-      if (other && gC < lC - SWIVEL.SWITCH_MARGIN) timer += dt; else timer = 0;
-      const switching = timer >= SWIVEL.SWITCH_HOLD;
-      const goal = switching ? gPhi : lPhi, rate = (switching ? SWIVEL.SWITCH : SWIVEL.TRACK) * dt;
-      phi = phiP + Math.max(-rate, Math.min(rate, wrapA(goal - phiP)));
+      if (timer >= 0) {
+        timer = better ? timer + dt : 0;
+        if (timer >= SWIVEL.SWITCH_HOLD) { timer = -1; goal = gPhi; }
+        else if (Math.abs(wrapA(lPhi - phiP)) > SWIVEL.TRACK * dt) timer = -1; // the basin merged away: travel to the new one
+      } else if (better) goal = gPhi;
+      let d = wrapA(goal - phiP);
+      if (timer < 0) {
+        if (timer === -1 || Math.sign(d) !== Math.sign(mem[4] < -1 ? mem[2 + 9] : d)) { /* direction fixed at the start */ }
+        // travel: eases in over 80 ms, SWITCH for a bent arm (the elbow rolls over at ~2.4 m/s x body), faster as the arm
+        // straightens (a straight arm's swivel is only its twist), and settles exponentially on arrival
+        const e = -1 - timer, x = Math.min(1, (e + dt) / 0.08);
+        const rate = (SWIVEL.SWITCH * dt * x * x * (3 - 2 * x)) / Math.max(0.12, sv[10]);
+        const near = Math.abs(d) * (1 - Math.exp(-30 * dt));
+        d = Math.sign(d) * Math.min(rate, near);
+        timer = Math.abs(wrapA(goal - phiP - d)) < 0.02 ? 0 : timer - dt;
+      }
+      phi = phiP + d;
     } else phi = gPhi;
     phi = wrapA(phi);
     if (roll) {

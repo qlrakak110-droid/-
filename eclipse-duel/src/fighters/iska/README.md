@@ -1,7 +1,8 @@
-# src/fighters/iska — ISKA 이스카, 서릿별 무녀 · Froststar Oracle (character design)
+# src/fighters/iska — ISKA 이스카, 서릿별 무녀 · Froststar Oracle (design, motion, choreography)
 
 The character design of ISKA (format: `src/char/README.md` section 6) plus the pieces only she uses. The fighter
-registry picks `design.js` up automatically (default export) until `index.js` replaces the stub.
+registry loads `index.js` (the full fighter module); her motion, choreography and ultimate are documented in
+"Fighter content" at the end of this file.
 
 ```
 design.js   iska: proportions, materials (3 slots), extra bones, springs, colliders, cloth, weapons, sockets, glow, build()
@@ -9,6 +10,11 @@ kit.js      her kit pieces: head base, oracle mask, frost eyes, hood + mantle, c
             rows, crystals, crescent spaulder, crescent vambrace, slim greave, star shapes
 tailor.js   tailored cloth: shaped double-sided cloth panels with embroidered borders, star stitches and charms skinned to
             the rig's cloth particles (replaces the rig's rectangular cloth mesh)
+index.js    the fighter module: { id 'iska', element 'frost', design, def, clips, present } (see "Fighter content" below)
+moves.js    rules definition: frame data, timeline markers, the ultimate's lock clock (BALANCE.md sections 7-9)
+clips/      her motion library: 38 clips + 4 poses (iska.*), registered on import; names and timings in clips/NAMES.md
+present.js  choreography: per-move marker handlers, projectile bodies, ceremony hooks, the ultimate's shot table
+fxlib.js    her particle rows (module scope, registered in setup before prewarm) and 7 composed presets (iska.*)
 src/labs/art_iska.js   her look-dev lab (lab-only poses with the twin crescents, spins, line-up with KAEL, rig QA)
 ```
 
@@ -153,3 +159,112 @@ left unset, so her own clips play unscaled.
    bone naming `<name>_<i>_<j>` (same internals KAEL's torn hems use).
 3. Call `design.attach?.(char)` in `createCharacter` so the game gets `char.glow` (flares for skills / ULT).
 4. Document the new helper bones (`hipJoint`, `thighTwist`, `elbowVol`, `kneeVol`) so the suit lofts can weight onto them.
+
+
+---
+
+# Fighter content (motion, choreography, ultimate)
+
+## Module wiring (`index.js`)
+
+`export default { id: 'iska', element: 'frost', design, def, clips, present }`.
+
+* `import './clips/index.js'` registers every `iska.*` clip and pose before the clip resolver runs.
+* `clips({ hasClip })` builds the slot / move -> clip map. Every state slot maps to its `iska.*` clip when it exists
+  (missing ones fall back to the generic twin-blade clips: today only `locked`). Every move id maps to
+  `iska.<moveId>`; strikes get `{ clip, hit }` with `hit` read from the clip's own `impact` event (`getClipDef`), so the
+  impact pose always lands on the first active frame even if the frame data changes. Projectile skills (no `hits`:
+  Starshard Volley, Crystal Procession, Moonlit Afterimage) play 1:1 on the move clock.
+* `__ED.game.roster()` reports the live sources for her as `iska/...`.
+
+## Clips (`clips/`, full table with timings in `clips/NAMES.md`)
+
+| file | clips |
+|---|---|
+| `common.js` | poses `iska.stance` (every clip starts / ends here), `iska.block`, `iska.downPose`; shared helpers |
+| `locomotion.js` | `iska.idle` (2.4 s loop, on the balls of the feet), `walkF` / `walkB` (root speed 3.1 / 2.4 m/s, playback 1), `dash`, `backstep`, `dodge`, `roll`, `guard` |
+| `moves.js` | the 10 moves `iska.<moveId>`: duration = move duration, `impact` on the first active frame, swing inside trailOn / trailOff, ends on `iska.stance` |
+| `ult.js` | lock beats `iska.ult.crystal / orbit / leap / constellation / starfall / land / frostWave / blendBack`, pose `iska.ult.snapPose` |
+| `ceremony.js` | `intro`, `victory`, `defeat`, `hitLight`, `hitHeavy`, `guardBreak`, `crumple`, `getup` (also `tech`), `launched`, `fall`, `down`, `ko` |
+
+Strikes go coil -> hang -> 2-4 frame smear -> long extension line -> follow-through -> settle. Both hands always hold
+their own crescent (`grip: 0`, fists curled). Root keys copy the rules' motion so origin-space feet stay planted.
+
+## Choreography per move (`present.js`, effects in `fxlib.js`)
+
+Layering: Iska's handlers add to the generic feel (sound, hit-stop, shake, HUD, stats stay generic). Her signature
+pieces are `iska.cut` (thin crystalline crescent with a starlight edge; point light only on heavy cuts), `iska.flower`
+(frost impact flower on the contact point: cold flash, four-point star, shard fan, tilted ring, mist, optional floor
+frost), `iska.gather` (wind-up tell), `iska.crystallise`, `iska.spike`, `iska.iceLine`, `iska.lance`.
+Ambient (every round): snowfall over her, orbiting motes, glints on both blade tips, a pool of cold mist; no light.
+
+| move | WIND-UP | RELEASE | IMPACT | AFTERMATH / SETTLE |
+|---|---|---|---|---|
+| light1 Rime Flick | glint on the right blade | forehand crescent (`swing`) | flower 0.55, slightly downward | — |
+| light2 Twin Moons | glint on the left blade | left crescent (`slashL`), right crescent (`slashR`) | flower 0.5 / 0.62 per cut | trail-foot drag in the clip |
+| light3 Star Fan | gather at chest | horizontal spin ring (`spin`), heavy twin crescent + shard fan + glints, FOV kick (`shards`) | flower 0.8 with floor frost + ice debris on the knockback hit | — |
+| heavy Glacier Pirouette | frost decal + mist at her feet, gather | two spin rings (`spin1`, `spin2`); `frostRing`: wide low ring, ground ring, crown of 11 ice spikes, frost decal, glints, short light, shake | flower 0.55 / 0.95 (frost ring) | glint on `recover` |
+| f+heavy Frostline Step | small frost decal, glint | racing ice line 3.7 m (`iceLine`), skid spray + mist on both feet, 3 afterimages (`slide`), heavy crescent (`swing`) | flower 0.7 + a thin streak | braking spray, mist, frost decal (`stop`) |
+| d+heavy Rising Crescent | frost decal, gather low | floor ring + mist on `flip`, tall rising crescent drawn by the backflip (`swing`) | flower upward, shard burst, a thin frost pillar, FOV kick | mist + glint on `land` |
+| skill1 Starshard Volley | weapon glow | three shards crystallise in a fan (kindle until 0.18 / 0.24 / 0.30), FOV kick | her own `frost.shard` bodies (dimmer, impact on hit / guard / clash); flower 0.6; third shard freezes: ice cage, crystal shell, floor frost, flower 1.2 | glints on both blades |
+| skill2 Crystal Procession | gather at the floor | `stab`: flash, shards, ring, short light, vertical shake; `frost`: frost decal + turning rune + mist; `release`: ice line 6.6 m + side tracking shot along the spikes | five `iska.spike` clusters, each larger, the last one huge (+ chroma, slow-mo 0.7 from the rules' `spike5` set piece) | spikes hold, then shatter |
+| skill3 Moonlit Afterimage | all glow channels flare | `blink`: afterimages + glints; `vanish`: glitter, star, she disappears; frozen statue (`frost.statue`) left behind | `reappear`: star, ring, glitter, FOV + roll kick; crescent (`swing`), flower 0.8 + kick; the statue bursts forward as a shard lance | — |
+| ult opener Frozen Star | `aura`: glints, frost decal | `rune`: star rune + frost decal under the opponent, light; `release`: the circle closes | `snap`: flash, sparks, `ice_form` | whiff: the rune shatters harmlessly (spikes, glitter, mist) |
+
+Ceremony hooks (`on`): intro (frost decal, turning rune, snow vortex, eye / inlay flare), victory (snow, blade glints,
+star), KO flourish (frost shatter on the victim, skipped when the KO comes from the lock), perfect dodge, dodge glint,
+block glint; the generic teleport burst is suppressed (Moonlit presents its own blink).
+
+## Ultimate: 떨어지는 서릿별 Fall of the Frozen Star (as implemented)
+
+Move clock 0 .. 0.75 (super-freeze + rune), then the lock clock (storyboard t = 0.75 + lock t). `ult.freeze` replaces
+the default super-freeze; `ult.start` replaces the default trigger impact; `ult.tick` presents every tick itself
+(returns false and books stats / HUD combo via `tickBook`).
+
+| storyboard | lock t | shot (camera) | Iska (clip) | VFX / post / audio |
+|---|---|---|---|---|
+| 0.00 | (move 0 .. 0.6) | `faceCloseUp` (real-time clock, letterbox, slow push 1.3 -> 0.92 m, FOV 30 -> 26) | `iska.frozen_star`: head bowed, rises, blade twirls, points at the rune | silver-blue mood, eye + inlay flares, snow vortex, cold halo behind the head, exposure dip, `ult_start`, ultimate music |
+| 0.60 | (move 0.6 .. 0.75) + 0 .. 0.45 | `topDownSlam` held on the rune (7.2 -> 6.6 m), continued after the trigger (6.4 -> 5.4 m, roll 6 -> 12) | blades overhead, snap pose (0.75); `iska.ult.crystal` at the trigger | rune decal, circle closes; on the trigger: frost ring, flash, sparks, glints, mist, light, shock distortion, ice cage (6 spikes) + crystal shell on the victim, victim held in its hit pose, impact frame, chroma, shake, hit-stop 0.16, `hit_crit` + `ice_form` |
+| 1.20 | 0.45 .. 1.65 | two ground-skim orbit cuts around the crystal (0.6 s each, handheld) | `iska.ult.orbit` started at lock 0.42 (fade 0.03) so its six cuts (clip 0.03 + 0.2 k) land on slash1..slash6 (0.45 .. 1.45) | per slash: blink offset around the crystal (facing flips when behind it), afterimage, a short starlight beam, `iska.cut` across the crystal (last one twin), flower, victim impulse + flash, chroma, shake, `hit_slash_heavy` / `ice_crack` |
+| 2.40 | 1.65 .. 2.65 | low angle looking up toward the eclipse as she rises (5.6 -> 5.2 m from the crystal, closer than a true wide so she reads against the night sky), slow-mo 0.42 | `iska.ult.leap` (takeoff 0.12 -> offset up 4.3 m over 0.55 s), `iska.ult.constellation` at 1.95 | floor ring, mist, afterimages, `frost_wind`; 9 stars + 7 beams joining them, sky dust, glow flare, light, `charge_up` |
+| 3.40 | 2.65 .. 3.65 | over the shoulder from the air down onto the crystal (handheld) | `iska.ult.starfall` (a fling per lance) | 12 `iska.lance` star lances, each leaving an ice crystal stuck in the floor around the victim; flashes, chroma, shake, alternating `ice_crack` / `hit_slash_light` |
+| 4.40 | 3.65 .. 4.15 | `impactPunchIn`, slow-mo 0.22, shake 0.9 | `iska.ult.land` started at 3.53 (impact 0.12 = the shatter at 3.65), offset back to the floor over 0.12 s | cage + shell shatter, `frost.shatter`, flower, frost + shock rings, frost decal, star, light, distortion, inverted impact frame, cold flash (0.07; star and light kept below a white-out at the 3 m punch-in), radial blur, chroma, shake 1.0, `ult_impact` + `ice_shatter`; victim thrown out and slammed down |
+| 4.90 | 4.15 .. 4.65 | `wideEstablishing` (11 m, drifting) | `iska.ult.frostWave` | `frost.blizzard` frost wave, letterbox out, `frost_wind` |
+| 5.40 | 4.65 .. 5.40 | blend back (0.75 s) | `iska.ult.blendBack` (flicks the frost off both blades), offset back to 0 | glitter on both blade tips, snow |
+
+Whiff (dodged / airborne victim): the rune shatters harmlessly (`ult.whiff`).
+
+## Budgets
+
+* No per-frame code in the choreography: everything is spawned on markers / events (spawn-time allocations only); the
+  ambient emitters are created once per round. Lights are short flashes from the pooled `h.light` (never added).
+* Afterimage ghosts copy whole character meshes (about 59k triangles for Iska, 59k for VORN), so ghost counts are kept
+  low: Frostline Step 2, Moonlit Afterimage 2 + the frozen statue + 1 on reappear, ultimate orbit 1 per slash (0.16 s),
+  leap 1, landing 1, plus the crystal shell on the victim for the whole lock.
+* Profile results: see "Known issues" (triangles) and the director report.
+
+## Known issues / requests to other modules
+
+* **Triangles (VFX / rig):** the fight alone already sits at about 344k triangles on `high` including the shadow pass
+  (budget 350k). Every afterimage ghost adds a full character copy, so the ultimate (crystal shell on the victim + one
+  ghost per blink) runs over the budget while ghosts are alive. A cheaper ghost (body mesh only, a decimated proxy) is a
+  VFX afterimage change; note also that `meshesOf` caches the mesh list per object on first use, so a `filter` option
+  passed later is ignored.
+* **Generic hit feel (integration):** on heavy / skill / launch hits the generic `combat.hit.*` starburst, the victim's
+  white flash and the hit light are the brightest layer; Iska only adds on top.
+* **`design.attach` (integration):** the game actor does not call `design.attach(char)`; `present.js` calls it itself in
+  `ambient()` (idempotent) so the glow channels (eye / inlay / vein flares) exist in-game.
+* **`ult.tick` returning false** also skips the session's stats tick and HUD combo; `present.js` books them itself
+  (`tickBook`). An `h.book(e)` helper would be cleaner.
+* **HUD:** the ultimate banner covers the middle of the frame during the super-freeze close-up and the top-down shot.
+* **design.js:** `design.idle` is still `'demo.idle'` (the lab / non-game idle); it should be `'iska.idle'`.
+* **`locked`** (Iska as the victim of an opponent's lock) uses the generic fallback clip.
+* **Rig (src/char), worked around in the clips:** foot IK in `'hips'` space with the pelvis inverted twists the thighs
+  180 deg (Rising Crescent's tuck uses FK legs); blending a foot effector between `'hips'` and `'root'` space across a
+  large hips yaw sweeps the target through the body (spins hold hips-space keys until 1-2 frames before landing);
+  with `gripAngle 0` hand-IK aims beyond ~50 deg from the thumb-side perpendicular are clamped silently; a clip whose
+  foot IK keys are all `{ w: 0 }` throws "IK footR has no pos key"; `qa.jointLimits` reports overhead arms as false
+  violations (Euler wrap).
+* **Stylisation:** during Star Fan / Glacier Pirouette the pivot foot rides the pelvis while the rules drift her 0.3 /
+  0.54 m (the pivot glides on the frost); Frostline Step's feet glide 3.5 m by design. Arms touch where the blades cross
+  (Star Fan tuck, guard, orbit) for 2-3 frames.

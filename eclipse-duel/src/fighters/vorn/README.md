@@ -70,10 +70,12 @@ spear head every 0.7-1.8 s while idle / walking / guarding), `intro` (a bolt fin
 `victory` (sky bolt), `ko` (a bolt onto the fallen opponent), `dodge` (crackle).
 
 **VORN's hit feel (`hitFeel`, `on.hit` returns false).** The generic `feel.hit` beats unchanged (hit-stop, flinch,
-shake, fov kick, chroma / radial, sounds, combo HUD, stats), with the light event tamed: the shared hit preset at ~60 %
-intensity / 85 % size (the volt flower carries the brightness), a violet-tinted body flash, a **monochrome
-(non-inverted)** impact frame on finishers / ult hits and a 0.07 violet flash instead of the 0.18 white one. In this
-dark arena the inverted impact frame and the stacked flashes read as white-outs (director review).
+shake, fov kick, sounds, combo HUD, stats), with the light event tamed: the shared hit preset at intensity 0.55 / size
+0.85 on light hits and 0.36 / 0.7 on heavier levels (the volt flower carries the signature; a bisect showed the shared
+preset's flash core was the white blob that swallowed the victim on Gale Sweep / Skyward Lance), softer chroma and
+radial, a violet-tinted body flash, a **half-strength monochrome, non-inverted** impact frame on finishers / counters /
+ult hits (the full mono threshold turns a lightning strike's bloom into an all-white frame; the inverted one whites out
+the dark arena) and a 0.07 violet flash instead of the 0.18 white one.
 
 ### Ultimate 천벌의 뇌창 Lance of the Ninefold Storm — as implemented
 
@@ -118,8 +120,18 @@ PAIR=vorn:kael node tools/shot.mjs game --as vorn-dir --size 960x540 --scenario 
 
 ## Known issues
 
-See the end of this file's history in the director report; the ones that remain open:
+Director review (2026-11-12, in-game captures at 640x360: every skill start → aftermath, the full ultimate, a demo
+match vs ISKA; zero page errors, zero `[ed] … threw`):
 
+* **Brightness** — fixed in our files: VORN's own hit feel (above), the ult skewer / slam / storm charge / dash, the
+  Lightning Charge streak (1 ghost, intensity 0.35), the Arc Step detonation (0.72) and Stormfall's strikes (0.7, the
+  huge one 0.6) were toned down; the victim now reads through every hit flash of Gale Sweep, Skyward Lance, Thunder
+  Pierce and the lock. **Still bright (not ours):** the Thunder Javelin impact is the VFX team's `volt.javelin`
+  projectile body (`javelinImpact`, played by the generic projectile layer at intensity 1 with no way to pass a
+  scale): a white burst over the victim for ~3 frames. Request: an intensity for projectile bodies (moves.js data or
+  `projectiles[kind].body` opts), or a smaller `burst` in `javelinImpact`.
+* **Stormfall's third strike** stays the brightest frame of the kit (a huge sky bolt + bloom), readable for Vorn, the
+  victim mostly hidden for 2-3 frames.
 * **Rig (not ours)**: the spear spec has no forward off-hand grip point, so the brief's "right hand at the rear, left hand
   forward" hold is impossible; VORN uses right-hand-forward + left hand on `choke`. The off-hand grip arm is solved
   without a pole (`ik.handL.pole` ignored) and can flip its elbow in one frame; the clips work around it (left hand
@@ -149,8 +161,9 @@ apart from ISKA's indigo), rowel spurs and the war spear of `src/char/weapons.js
 blackened haft, violet wraps).
 
 No stovepipes: the greaves, cuisses and backplate are forged shapes (waisted profiles, a hard keel flanked by sunk
-flutes and creased ridges, flared cuffs, pointed edges), and every body arc-rune is a glowing core sunk in a dark
-engraved channel with edge-worn lips (`arcInlay`), not a line laid on the plate. The surcoat panel and the two back tails
+flutes and creased ridges, flared cuffs, pointed edges), and the six body arc-runes (sternum, both pauldrons, vambraces,
+cuisses, greaves) are glowing cores sunk in dark engraved channels with edge-worn lips (`arcInlay`), not lines laid on the
+plate. The surcoat panel and the two back tails
 carry rest pleats (held by the cloth's bend constraints), so they never hang as flat sheets.
 
 Art pass 2 (art director's issues 3 and 4; body proportions, skeleton, sockets, weapon, grips untouched):

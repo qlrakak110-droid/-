@@ -187,9 +187,9 @@ export function defineKaelFx(vfx) {
     v.decal({ kind: 'crack', pos: g, radius: (big ? 1.7 : 1.3) * s, magma: 1, reveal: 0.06, life: 3.5, cool: 2.4 });
     v.burst(SPIT, { pos: [g[0], 0.05, g[2]], dir: [0, 1, 0], scale: s });
     v.schedule(0.04, (w) => {
-      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.45 * s, life: big ? 1.1 : 0.9, rise: 0.07, intensity: big ? 0.45 : 0.36 });
-      w.burst(KIT.ember.flash, { pos: [g[0], 0.5, g[2]], scale: (big ? 0.8 : 0.55) * s, intensity: 0.6 });
-      w.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: big ? 7 : 4, scale: 0.85 * s, delay: 0.05 });
+      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.45 * s, life: big ? 1.1 : 0.9, rise: 0.07, intensity: big ? 0.38 : 0.3 });
+      w.burst(KIT.ember.flash, { pos: [g[0], 0.5, g[2]], scale: (big ? 0.8 : 0.55) * s, intensity: 0.42 });
+      w.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: big ? 5 : 3, scale: 0.85 * s, delay: 0.05 });
       w.burst(COLUMN_SPARKS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: big ? 80 : 50, scale: s });
       w.debris({ kind: 'rock', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: big ? 12 : 7, speed: [2.5, 7.5, 1.3], spread: 40, size: [0.07, 0.24, 2], scale: s });
       w.debris({ kind: 'ember', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: big ? 10 : 5, speed: [3, 9, 1.3], spread: 30, size: [0.05, 0.18, 2], scale: s });
