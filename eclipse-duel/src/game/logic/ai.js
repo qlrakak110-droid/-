@@ -477,7 +477,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     if (!th) return false;
     let choice = st.decided.get(th.key);
     if (choice === undefined) {
-      const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x) && x.mv.counter.t0 < th.tta + 0.02);
+      const counter = mine.pressable.find((x) => x.role === 'counter' && x.mv.counter && usable(match, me, x) && x.mv.counter.t0 < th.tta + 0.02);
       const opts = [
         { k: 'guard', w: th.unblockable ? 0 : lv.guard * (me.guard / me.guardMax > 0.25 ? 1 : 0.4) },
         { k: 'dodge', w: me.dodgeCooldown <= 0 ? lv.dodge * (th.unblockable ? 2.5 : 1) : 0 },

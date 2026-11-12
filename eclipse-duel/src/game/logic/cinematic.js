@@ -31,7 +31,7 @@ export function startCinematic(m, a, d, scale) {
     d.facing = -a.facing;
     m.emit('turn', { fighter: d.index, facing: d.facing });
   }
-  m.cinematic = { attacker: a.index, defender: d.index, move: a.move, t: 0, duration: c.duration, def: c, scale, damage: 0, ticks: 0, finished: false };
+  m.cinematic = { attacker: a.index, defender: d.index, move: a.move, t: 0, duration: c.duration, def: c, scale, damage: 0, ticks: 0, finished: false, stepped: false };
   m.emit('cinematicStart', { attacker: a.index, defender: d.index, move: a.move, duration: c.duration, x: a.x, facing: a.facing, victimX: d.x, victimFacing: d.facing, scale });
 }
 
@@ -40,7 +40,9 @@ export function updateCinematic(m, h) {
   const cs = m.cinematic;
   const a = m.fighters[cs.attacker], d = m.fighters[cs.defender];
   const c = cs.def;
-  const t0 = cs.t;
+  // the first step starts just before 0 so timeline items at lock t = 0 fire too
+  const t0 = cs.stepped ? cs.t : -1;
+  cs.stepped = true;
   const t1 = cs.t = Math.min(cs.duration, cs.t + h);
   for (const k of c.markers) {
     if (passes(k.t, t0, t1)) m.emit('marker', { fighter: a.index, move: cs.move, name: k.name, t: k.t, data: k.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });

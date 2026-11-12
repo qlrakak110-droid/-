@@ -263,7 +263,7 @@ export const iska = {
     // ---- lamellar waist (spine): four laced rows, hourglass ------------------------------------------------------------------
     for (let k = 0; k < 4; k++) {
       const y0 = 0.135 - k * 0.04;
-      const row = K.lamellarRow({ y0, h: 0.05, count: lite ? 11 : 16, a0: -168, a1: 168, ...bodyIn(Y_SPINE, 0), gap: 0.007 + 0.002 * k, point: 0.4, lace: !lite });
+      const row = K.lamellarRow({ y0, h: 0.05, count: lite ? 11 : 14, a0: -168, a1: 168, ...bodyIn(Y_SPINE, 0), gap: 0.007 + 0.002 * k, point: 0.4, lace: !lite });
       put(kit, 'plate', 'spine', row.plates, k % 2 ? L.blued : L.lamella);
       if (row.lace) put(kit, 'plate', 'spine', row.lace, L.lace);
     }
@@ -298,6 +298,9 @@ export const iska = {
     put(kit, 'plate', 'deltoidR', cl, L.crystal, { at: [-0.03, 0.07, 0.045] });
 
     // ---- arms ------------------------------------------------------------------------------------------------------------------
+    // rerebrace: a blued half-tube with an outer ridge below the engraved band (the upper arm no longer reads as a bare tube)
+    const reb = A.hoop({ y0: -0.142, y1: -0.25, a0: -60, a1: 160, rx: [[0, 0.045], [1, 0.041]], rz: [[0, 0.047], [1, 0.043]], n: 2.1, nu: lite ? 8 : 10, nv: 2, thick: 0.004, edgeR: 0.003, edgeSegs: 2, roll: { v1: 0.0026 }, rollSegs: 4, ridge: { at: 80, h: 0.0035, w: 22 }, bot: (a) => 0.012 * Math.pow(Math.max(0, Math.sin(a * DEG)), 3) });
+    putPair(kit, 'plate', 'upperArmTwist', reb, L.blued);
     const band = A.hoop({ y0: -0.118, y1: -0.14, closed: true, rx: 0.041, rz: 0.044, n: 2.1, nu: 16, nv: 1, thick: 0.004, edgeR: 0.003, roll: { v1: 0.0026 } });
     putPair(kit, 'plate', 'upperArmTwist', band, L.silverEngr);
     const cou = A.couter({ r: 0.04, wing: 0.05 });

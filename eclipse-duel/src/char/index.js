@@ -171,6 +171,7 @@ export function createCharacter(ctx, design, opts = {}) {
   const body = torsoDef ? new Float32Array(8) : null;
   const torsoA = torsoDef ? [ix[torsoDef.a[0]], ...(torsoDef.a[1] || [0, 0, 0])] : null, torsoB = torsoDef ? [ix[torsoDef.b[0]], ...(torsoDef.b[1] || [0, 0, 0])] : null;
   const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, body };
+  // per clip: the off hand may roll around the handle; after blending: the blended (already rolled) target is kept
   const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), body };
   /** Update the torso capsule from the current FK (mq / mp). */
   function bodyPoint(d, o) {
@@ -507,6 +508,7 @@ export function createCharacter(ctx, design, opts = {}) {
     gripOpt.roll[0] = ga[0]; gripOpt.roll[1] = ga[1]; gripOpt.roll[2] = ga[2];
     const limb = side === 'R' ? limbs.handR : limbs.handL;
     gripOpt.mem = mem;
+    gripOpt.rollKeep = relOut ? 0.25 : 1;
     solveLimb(rig, limb, lq, mq, mp, gripT, 0, gripT, 4, null, 0, w, SOFT, gripOpt);
     fk(rig, lq, lp, mq, mp, limb.first, animCount);
     if (relOut) { // store the rolled target relative to the weapon
@@ -948,18 +950,18 @@ export function createCharacter(ctx, design, opts = {}) {
       lockV.applyMatrix4(curWorld);
       footWorld[f * 3] = lockV.x; footWorld[f * 3 + 1] = lockV.y; footWorld[f * 3 + 2] = lockV.z;
     }
-    // two-handed grip on the blended grip target (a single state with nothing added on top already holds it exactly:
-    // its own grip solve is the pose; the final solve then starts from that state's swivel)
+    // two-handed grip on the blended grip target; the newest clip's own grip solve then follows this one's swivel, so
+    // the arm cannot switch solutions when a crossfade ends
     char.diag.gripErr = 0;
     updateBody();
-    if (!moved) gripMem.set(cur.pose.swivelG);
-    for (let hi = 0; hi < 2 && moved; hi++) {
+    for (let hi = 0; hi < 2; hi++) {
       const w = final.gripW[hi];
       if (!(w > 0)) continue;
       const side = hi === 0 ? 'R' : 'L';
       const g = grips.grip || Object.values(grips)[0];
       if (!g || rig.parent[g.bone] === (hi === 0 ? limbs.handR : limbs.handL).end) continue; // never IK a hand onto the weapon it holds
       char.diag.gripErr = Math.max(char.diag.gripErr, solveGrip(final.gripT, side, w, null, gripMem) * (w >= 1 ? 1 : w));
+      cur.pose.swivelG.set(gripMem);
     }
     // look-at: clip channel first, then the runtime target
     let lw = 0;

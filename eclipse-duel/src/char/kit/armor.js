@@ -516,7 +516,7 @@ export function sabaton(o = {}) {
     nu: 8, nv: 2, thick: 0.004, edgeR: 0.003, edgeSegs: 2, roll: { v0: 0.0026 }, rollSegs: 4,
   });
   // toe cap (toe frame): from under the last lame to a prow point past the toe tip
-  const ytb = -(AH - FD) + ST, xs = xb + 0.008 - FL, xt = TL + 0.008;
+  const ytb = -(AH - FD) + ST, xs = xb + 0.008 - FL, xt = TL + 0.002;
   const h0 = top(FL) + FD - ytb;
   const toe = plate((u, v) => {
     const x = lerp(xs, xt, v), q = clamp((x - TL * 0.15) / (xt - TL * 0.15), 0, 1);
@@ -530,13 +530,13 @@ export function sabaton(o = {}) {
     for (let i = 0; i <= m; i++) { const x = lerp(x0, x1, i / m), w = wf(x); L.push([x, -w]); R.push([x, w]); }
     return [...L, ...R.reverse()];
   };
-  const sole = extrude(outline(-HL * 0.9, FL - 0.004, (x) => (x < -HL * 0.45 ? half(0) * 0.8 * Math.sqrt(Math.max(0.15, 1 - ((x + HL * 0.45) / (HL * 0.45)) ** 2)) : half(x)) + 0.003, 5), { depth: ST, bevel: 0.0025, bevelSegs: 1 });
-  sole.rotateX(-90 * DEG); sole.translate(0, -AH + ST / 2, 0);
+  const sole = extrude(outline(-HL * 0.9, FL - 0.004, (x) => (x < -HL * 0.45 ? half(0) * 0.8 * Math.sqrt(Math.max(0.15, 1 - ((x + HL * 0.45) / (HL * 0.45)) ** 2)) : half(x)) + 0.003, 5), { depth: ST - 0.002, bevel: 0.0025, bevelSegs: 1 });
+  sole.rotateX(-90 * DEG); sole.translate(0, -AH + ST / 2 + 0.0025, 0);
   const toeSole = extrude(outline(-0.004, xt - 0.004, (x) => {
     const q = clamp((x - TL * 0.15) / (xt - TL * 0.15), 0, 1);
     return W * Math.max(0.12, lerp(Math.sqrt(Math.max(0, 1 - q * q)), 1 - q, pt)) + 0.003;
-  }, 4), { depth: ST, bevel: 0.0025, bevelSegs: 1 });
-  toeSole.rotateX(-90 * DEG); toeSole.translate(0, -(AH - FD) + ST / 2, 0);
+  }, 4), { depth: ST - 0.002, bevel: 0.0025, bevelSegs: 1 });
+  toeSole.rotateX(-90 * DEG); toeSole.translate(0, -(AH - FD) + ST / 2 + 0.0025, 0);
   return { lames, heel, toe, sole, toeSole };
 }
 

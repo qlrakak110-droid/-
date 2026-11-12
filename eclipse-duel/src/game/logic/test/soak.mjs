@@ -113,7 +113,7 @@ export function runSoak({ matches = 300, log = () => {}, def = sampleFighter, dt
   const secs = (Date.now() - t0) / 1000;
   const stats = summarize(S, secs);
   print(stats, S, log);
-  const checks = sanity(stats, S);
+  const checks = sanity(stats, S, def);
   for (const c of checks) if (!c.ok) fail(`sanity: ${c.what} (${c.value})`);
   if (failures.length) { log('\nSOAK FAILURES:'); for (const f of failures) log('  - ' + f); }
   else log(`\nsoak ok: ${S.matches} matches, ${S.rounds} rounds, ${S.steps} steps in ${secs.toFixed(1)} s (${Math.round(S.steps / secs)} steps/s)`);
@@ -171,12 +171,12 @@ function print(st, S, log) {
 }
 
 /** Broad "looks like a real fight" checks (the tuning targets). */
-function sanity(st, S) {
-  const used = Object.keys(sampleFighter.moves).filter((id) => !S.moves[id]);
+function sanity(st, S, def = sampleFighter) {
+  const used = Object.keys(def.moves).filter((id) => !S.moves[id]);
   const top = Object.values(st.moveShare)[0] || 0;
   return [
     { what: 'average round length within 20..60 s', ok: st.avgRound >= 20 && st.avgRound <= 60, value: st.avgRound.toFixed(1) },
-    { what: 'every move of the sample fighter is used', ok: used.length === 0, value: used.join(',') || 'all' },
+    { what: 'every move of the fighter is used', ok: used.length === 0, value: used.join(',') || 'all' },
     { what: 'no single move above 35 % of all moves', ok: top <= 0.35, value: pct(top) },
     { what: 'not a pure turtle: guarding below 35 % of the time', ok: st.guardShare < 0.35, value: pct(st.guardShare) },
     { what: 'not a pure rush: blocked contacts above 20 %', ok: st.blockedRate > 0.2, value: pct(st.blockedRate) },

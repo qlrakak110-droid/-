@@ -261,7 +261,7 @@ export const kael = {
     putPair(kit, 'plate', 'toe', sab.toeSole, L.leather);
 
     // ---- great helm -----------------------------------------------------------------------------------------------------------
-    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.019, prow: 0.04, prowW: 46, muzzle: 0.012, crestH: 0.068, teeth: 4, crestT: 0.006 });
+    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.019, prow: 0.04, prowW: 46, muzzle: 0.012, crestH: 0.088, teeth: 4, crestT: 0.007 });
     put(kit, 'plate', 'head', H.crown, L.iron, { glow: veins(0.6, 1, 8) });
     put(kit, 'plate', 'head', H.brow, L.bronzeDark);
     put(kit, 'plate', 'head', H.face, L.plate, { glow: veins(0.75, 1.1, 8) });
