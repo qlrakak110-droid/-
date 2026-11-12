@@ -14,7 +14,7 @@ export const LIGHTS_BEGIN_KEYMASK = THREE.ShaderChunk.lights_fragment_begin.repl
 );
 if (LIGHTS_BEGIN_KEYMASK === THREE.ShaderChunk.lights_fragment_begin) throw new Error('env: lights chunk patch failed');
 
-export const WORLD_VARYING_VERT = /* glsl */ `
+const WORLD_VARYING_VERT = /* glsl */ `
   vec4 envWp = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
   envWp = instanceMatrix * envWp;

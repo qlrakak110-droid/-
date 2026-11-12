@@ -3,11 +3,15 @@
 // Layout is computed in CSS pixels on resize only; per-frame work is limited to cached transform / opacity writes.
 
 import { h } from './anim.js';
-import { icon } from './icons.js';
+import { icon, corona } from './icons.js';
 import { makePie, setPie, put, putText, putClass } from './hud.js';
+import { Ease, clamp } from '../core/math.js';
 
 // Buttons: action, icon, label, diameter (design px). Positions are offsets of each centre from the light button's
-// centre, per layout (y down). Values were tuned on captures at 844x390 (landscape) and 390x844 (portrait).
+// centre, per layout (y down); `anchor` places the light button from the bottom-right corner (inside the safe area).
+// Landscape keeps the whole cluster in the right third and low (fighters stand in the middle band); dodge and guard
+// sit beside the light button on the screen edge, the skills arc above it, the ULT on top. Portrait keeps every
+// button right of the stick and within the right thumb's arc. Tuned on captures at 844x390, 800x360, 390x844, 360x740.
 const BUTTONS = [
   { a: 'light', ico: 'light', ko: '약공', d: 88 },
   { a: 'heavy', ico: 'heavy', ko: '강공', d: 68 },
@@ -22,12 +26,14 @@ const BUTTONS = [
 const polar = (r, deg) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r];
 const LAYOUT = {
   landscape: {
-    light: [0, 0], heavy: polar(126, 180), skill1: polar(126, 146), skill2: polar(126, 112), skill3: polar(126, 78),
-    ult: [-152, -152], guard: [-212, -80], dodge: [-226, 12],
+    anchor: [132, 84],
+    light: [0, 0], heavy: [-112, 12], dodge: [86, 30], guard: [80, -64],
+    skill1: polar(114, 150), skill2: polar(114, 114), skill3: polar(114, 78), ult: [-36, -188],
   },
   portrait: {
-    light: [0, 0], heavy: polar(118, 206), skill1: polar(120, 164), skill2: polar(120, 126), skill3: polar(120, 88),
-    ult: polar(214, 97), dodge: polar(214, 125), guard: polar(218, 152),
+    anchor: [84, 140],
+    light: [0, 0], heavy: polar(108, 200), dodge: [-30, 100],
+    skill1: polar(108, 155), skill2: polar(108, 115), skill3: polar(108, 75), guard: polar(205, 130), ult: polar(204, 95),
   },
 };
 const STICK_R = 54;     // knob travel (design px)
@@ -60,12 +66,15 @@ export function createTouch(ui) {
       b.state = { iconName: def.ico, cd: -1, ready: null, cost: -1 };
     }
     if (def.a === 'ult') {
-      // back to front: rays, glow, gauge ring, then the button face (covers the ring's centre), icon, label
+      // back to front: glow, corona, gauge ring, then the button face (covers the ring's centre), icon, label, burst
       b.ring = makePie('pb-ring');
       b.glow = h('i.pb-glow');
-      b.rays = h('i.pb-rays', { html: '<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M50 2v9M50 89v9M2 50h9M89 50h9M16 16l6 6M78 78l6 6M16 84l6-6M78 22l6-6"/></svg>' });
-      el.prepend(b.rays, b.glow, b.ring);
+      b.rays = h('i.pb-rays', { html: corona({ n: 36, r0: 36, len: 12, w: 1.6 }) });
+      b.burst = h('i.pb-burst');
+      el.prepend(b.glow, b.rays, b.ring);
+      el.append(b.burst);
       b.full = false;
+      b.raysS = 1;
     }
     if (!def.ko) label.remove();
     const press = (on) => {
@@ -168,19 +177,19 @@ export function createTouch(ui) {
     const { W, H, safe } = L;
     const portrait = L.portrait;
     const pos = portrait ? LAYOUT.portrait : LAYOUT.landscape;
-    // scale: fit the cluster's reach into the available height / width
-    const s = portrait ? Math.min(1.25, Math.max(0.82, (W - safe.l - safe.r) / 390)) : Math.min(1.3, Math.max(0.78, (H - safe.t - safe.b) / 390));
+    // scale: fit the cluster's reach into the available height (landscape) / width (portrait); smallest button >= 48 px
+    const s = portrait ? clamp((W - safe.l - safe.r) / 410, 0.84, 1.2) : clamp((H - safe.t - safe.b) / 390, 0.84, 1.3);
     stick.s = s;
-    const ax = W - safe.r - (portrait ? 80 : 82) * s;
-    const ay = H - safe.b - (portrait ? 156 : 80) * s;
+    const ax = W - safe.r - pos.anchor[0] * s;
+    const ay = H - safe.b - pos.anchor[1] * s;
     for (const b of btns) {
       const p = pos[b.def.a];
       const d = b.def.d * s;
       b.el.style.cssText = `left:${(ax + p[0] * s - d / 2).toFixed(1)}px;top:${(ay + p[1] * s - d / 2).toFixed(1)}px;width:${d.toFixed(1)}px;height:${d.toFixed(1)}px`;
     }
-    // stick zone: left part of the pad area; base rests at a comfortable thumb spot
+    // stick zone: left part of the pad area (clear of the cluster); base rests at a comfortable thumb spot
     const zTop = portrait ? L.padTop : Math.round(H * 0.3);
-    const zW = portrait ? Math.round(W * 0.46) : Math.round(W * 0.42);
+    const zW = Math.round(W * 0.42);
     zone.style.cssText = `left:0;top:${zTop}px;width:${zW}px;height:${H - zTop}px`;
     const bs = (STICK_R * 2 + 36) * s;
     base.style.width = base.style.height = bs.toFixed(1) + 'px';
@@ -222,7 +231,19 @@ export function createTouch(ui) {
     if (full !== b.full) {
       b.full = full;
       putClass(b.el, 'is-full', full);
-      if (!full) { put(b.glow, 'opacity', ''); put(b.rays, 'transform', ''); }
+      if (full) {
+        // ignition: a shock ring leaves the button and the corona snaps open
+        anim.add(0.7, (k, t) => {
+          put(b.burst, 'transform', `scale(${(1 + 1.1 * Ease.outQuart(t)).toFixed(3)})`);
+          put(b.burst, 'opacity', (1 - t).toFixed(3));
+          b.raysS = 0.5 + 0.5 * Ease.outBack(clamp(t / 0.8));
+        }, { key: b.burst, ease: 'linear' });
+      } else {
+        anim.kill(b.burst);
+        put(b.burst, 'opacity', '');
+        put(b.glow, 'opacity', '');
+        put(b.rays, 'transform', '');
+      }
     }
     if (fp !== touch._fp) {
       touch._fp = fp;
@@ -239,12 +260,19 @@ export function createTouch(ui) {
     skills,
     meter,
     releaseAll,
+    /** Show the fighter's own ULT icon on the ULT button. */
+    setUltIcon(name) {
+      const b = byAction.ult;
+      if (name === b.iconName) return;
+      b.iconName = name;
+      b.ico.innerHTML = icon(name) || icon('ult');
+    },
     update(dt, cine) {
       clock += dt;
       const b = byAction.ult;
       if (b.full) {
         put(b.glow, 'opacity', (0.55 + 0.45 * Math.sin(clock * 5.2)).toFixed(3));
-        put(b.rays, 'transform', `rotate(${((clock * 30) % 360).toFixed(1)}deg)`);
+        put(b.rays, 'transform', `rotate(${((clock * 24) % 360).toFixed(1)}deg) scale(${b.raysS.toFixed(3)})`);
       }
       for (let j = 1; j <= 3; j++) {
         const sb = byAction['skill' + j];

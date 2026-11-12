@@ -19,7 +19,9 @@ Clocks: framing, shake, kicks, zoom, letterbox and every **blend** run on **real
 hit-stop and slow-motion). Shot timelines run on **game time** by default (they stay in sync with the choreography and
 freeze with hit-stop); set `clock: 'real'` on a shot (or the whole sequence) to override, e.g. for a super-freeze.
 Determinism: no `Math.random()`; the shake noise is seeded (`createCameraDirector(ctx, { seed })`).
-Cost: ~25 µs CPU per frame, no per-frame allocations, no draw calls.
+Cost: ~25 µs CPU per frame, no per-frame allocations, no draw calls. Every filter is dt-exact (critically damped
+springs, phase-accumulated noise, exponential velocity smoothing), so a dropped frame (dt 1/30) follows the same
+path as two 1/60 frames (lab check: within 3 cm in calm motion, within one frame of motion in launches / impacts).
 
 ---
 
@@ -75,7 +77,8 @@ cam.setTargets(p1.sockets.chest, p2.sockets.chest);
 
 | member | description |
 |---|---|
-| `setTargets(a, b)` | the two fighters: point sources at **chest height** (Object3D, `() => Vector3`, Vector3, `[x,y,z]`). Read every frame. Index 0 / 1 elsewhere refers to these. |
+| `setTargets(a, b, { scale })` | the two fighters: point sources at **chest height** (Object3D, `() => Vector3`, Vector3, `[x,y,z]`), read every frame; index 0 / 1 elsewhere refers to these. `scale`: number or `[a, b]`, body size relative to the 1.9 m reference (default 1; e.g. `[1, 4.5]` against a colossal boss) |
+| `targetScale` | live `[a, b]` body scales (see above). Chest / head / width margins of each target and the follow-lift in shots scale with it |
 | `fight` | live framing parameters (table below) |
 | `shake(amount, opts) -> {stop()}` | trauma shake (table below) |
 | `kick(opts) -> {stop()}` | impulse on fov / dolly / roll / position (table below) |
@@ -106,11 +109,11 @@ letterbox are part of the solve (Hor+: ultra-wide shows more width, portrait / 1
 
 | param | default | unit | meaning |
 |---|---|---|---|
-| `near` / `mid` / `far` | `{sep 1, fov 34, fill .6, feet .13, pitch 4.5}` / `{4.5, 37, .46, .17, 6.5}` / `{10, 40, .36, .2, 8.5}` | m, deg, frac, frac, deg | look by separation `sep`: vertical fov, standing fighter height as a fraction of frame height (`fill`), floor line from the bottom (`feet`), down-tilt. Blended near→mid→far (pushes in on a clinch, pulls back as they part) |
+| `near` / `mid` / `far` | `{sep 1, fov 34, fill .6, feet .13, pitch 4.5}` / `{4.5, 37, .46, .17, 6.5}` / `{10, 40, .36, .2, 8.5}` | m, deg, frac, frac, deg | look by separation `sep` (measured in units of the larger target's scale): vertical fov, standing height of the larger target as a fraction of frame height (`fill`), floor line from the bottom (`feet`), down-tilt. Blended near→mid→far (pushes in on a clinch, pulls back as they part) |
 | `air` | `{top .8, feet .08, pan 2}` | frac, frac, m | a jump first spends the headroom up to `top` and pans up by lowering the floor line toward `feet` over `pan` metres of lift; only then pulls back |
-| `chestHeight` / `headTop` | 1.35 / 0.62 | m | target point height / chest → top of head + margin |
-| `sideMargin` / `edgePad` | 1.15 / 0.04 | m / frac | soft width: each fighter's outer side keeps this much room, plus a screen-edge pad |
-| `bodyMargin`, `hardTop`, `hardPad`, `hardPadTop` | 0.55, 0.5, 0.03, 0.1 | m, m, frac, frac | walls: body half-width, chest → head top, edge pads (top pad keeps heads clear of the HUD) |
+| `chestHeight` / `headTop` | 1.35 / 0.62 | m at scale 1 | target point height / chest → top of head + margin |
+| `sideMargin` / `edgePad` | 1.15 / 0.04 | m at scale 1 / frac | soft width: each fighter's outer side keeps this much room, plus a screen-edge pad |
+| `bodyMargin`, `hardTop`, `hardPad`, `hardPadTop` | 0.55, 0.5, 0.03, 0.1 | m at scale 1, m at scale 1, frac, frac | walls: body half-width, chest → head top, edge pads (top pad keeps heads clear of the HUD) |
 | `wallMargin`, `pushSpeed` | 0.1, 8 | frac, m/s | how early the springs steer away from a wall; speed cap of a wall-pushed spring |
 | `lead` | 0.14 | s | look-ahead on the highest fighter's climb rate |
 | `minDist` / `maxDist` | 3.2 / 24 | m | soft distance range (walls may exceed `maxDist`: both fighters always win) |
@@ -208,7 +211,9 @@ side-on to top-down never flips.
 ## Shot vocabulary — `src/cam/shots.js`
 
 Every builder returns plain shot data, takes the parameters below plus any common shot field (`cut, hold, clock,
-ease, lookEase, fovEase, shake, kick, slowmo, letterbox, handheld, follow, followY, followLag`). Pairs `[a, b]` are
+ease, lookEase, fovEase, shake, kick, slowmo, letterbox, handheld, follow, followY, followLag`) and `scale`: the
+subject's size relative to 1.9 m — every authored distance, height and orbit radius is multiplied by it
+(`shots.heroPushIn({ scale: 4.5 })` frames an 8.5 m colossus the way the default frames a human). Pairs `[a, b]` are
 from → to; a single value means constant. `subject`: `'anchor' | 'target' | 'mid' |` point source. Builders that
 author their own `shake` / `kick` accept a number (new amount, same character) or an object / array / `false`
 (replace). `shots.SHOTS` maps names to builders.
@@ -276,7 +281,8 @@ framing channels). Scenarios: `clinch near mid far veryFar edgeL edgeR offCentre
 (framing), `shakeLight shakeHeavy shakeSkill shakeUlt shakeDir shakeStack kickFov kickPush kickRoll zoom letterbox`,
 `shot_<name>` / `shotM_<name>` for every vocabulary entry (M = anchored on the right-hand fighter, i.e. mirrored),
 `ult` / `ultM` (4-second sample ultimate: 5 shots, cuts, an event-driven cut, a blend, slow-motion, letterbox),
-`blendBack` (stop a top-down shot mid-way), `overview` (plan view of the director's camera frustum and path).
+`blendBack` (stop a top-down shot mid-way), `overview` (plan view of the director's camera frustum and path),
+`giant` / `giantShots` (a 4.5x colossus: fight framing and scaled vocabulary shots).
 
 ```
 node tools/shot.mjs cam --do "__ED.lab.play('ult')" --at 0.02,0.4,1.2,2.1,3.2,4.4 --sheet --sheet-only --out shots/cam/ult
@@ -289,3 +295,5 @@ node tools/shot.mjs cam --size 800x500 --hash hud --do "__ED.lab.play('walk')" -
   very narrow viewport) and cinematic shots go to ~14 m / 7.5 m high: keep the +Z side of the arena free of
   occluders up to z ≈ 20 below y ≈ 6 (or fade them), as nothing needs to look good from behind.
 - Pass chest-height sockets to `setTargets`; airborne / knocked-down fighters are handled from those points.
+- Boss mode: `cam.setTargets(player.chest, boss.chest, { scale: [1, bossHeight / 1.9] })` and author the boss's shots
+  with `scale`; nothing in the director assumes the 1.9 m human.

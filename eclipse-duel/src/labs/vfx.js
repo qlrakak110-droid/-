@@ -4,40 +4,16 @@ import * as THREE from 'three';
 import { createLab } from '../core/lab.js';
 import { createVfx } from '../vfx/index.js';
 import { LIB, PALETTE } from '../vfx/library.js';
-import { heatRamp } from '../vfx/util.js';
 
 const P = (p, d) => (p ? new THREE.Vector3(...p) : new THREE.Vector3(...d));
 
+// primitive scenarios use the tuned library layers
 const D = {
-  sparks: {
-    tex: 'spark', blend: 'add', count: 70, life: [0.18, 0.75, 1.6], shape: { type: 'sphere', radius: 0.05 },
-    spread: 38, spreadPow: 1.6, speed: [3, 15, 1.8], size: [0.025, 0.07, 2], stretch: 0.035, maxStretch: 1.1,
-    gravity: -11, drag: 2.2, collide: 'ground', bounce: 0.35, friction: 0.6, rotation: 0,
-    color: [[0, 12, 9, 6, 1], [0.15, 9, 4, 1.2, 1], [0.6, 3, 0.7, 0.1, 1], [1, 0.4, 0.05, 0.0, 0]],
-  },
-  embers: {
-    tex: 'ember', blend: 'add', count: 26, life: [0.8, 2.2], shape: { type: 'sphere', radius: 0.25 }, emit: 'radial', spread: 60, lift: 0.8,
-    speed: [0.3, 2.2, 1.5], size: [0.025, 0.07, 2.5], gravity: 0.6, drag: 1.6, turbulence: { amp: 0.9, freq: 1.4, speed: 1.4 },
-    flicker: { amount: 0.6, rate: 9 }, sizeOverLife: 'shrinkSlow',
-    color: [[0, 9, 4, 1, 1], [0.4, 5, 1.4, 0.2, 1], [1, 1, 0.12, 0.0, 0]],
-  },
-  smoke: {
-    tex: 'smoke', blend: 'alpha', count: 10, life: [1.4, 2.6], shape: { type: 'sphere', radius: 0.25 }, emit: 'radial', spread: 50, lift: 1.2,
-    speed: [0.3, 1.2], size: [0.7, 1.4, 1.5], sizeOverLife: 'puff', gravity: 0.35, drag: 1.4, spin: [0.1, 0.5], turbulence: { amp: 0.25, freq: 0.6, speed: 0.6 },
-    erode: 'erodeLate', erodeSoft: 0.3, heat: 0.0, shade: 1,
-    color: [[0, 0.09, 0.08, 0.075, 0], [0.08, 0.08, 0.07, 0.065, 0.85], [0.6, 0.06, 0.06, 0.06, 0.6], [1, 0.05, 0.05, 0.05, 0]],
-  },
-  fire: {
-    tex: 'flame', blend: 'alpha', rate: 40, life: [0.45, 0.9], shape: { type: 'disc', radius: 0.25 }, spread: 12, speed: [0.8, 2.0],
-    size: [0.45, 0.9, 1.4], sizeOverLife: [[0, 0.5], [0.25, 1], [1, 0.6]], align: 'axis', gravity: 1.5, drag: 1.2, turbulence: { amp: 0.5, freq: 1.6, speed: 2 },
-    fps: 9, erode: [[0, 0], [0.4, 0.15], [1, 0.95]], erodeSoft: 0.2, heat: 0.25, additive: [[0, 1], [0.55, 0.9], [1, 0.3]],
-    color: [[0, 10, 6, 2.5, 1], [0.2, 7, 2.2, 0.35, 1], [0.6, 2.2, 0.35, 0.05, 0.9], [1, 0.2, 0.06, 0.03, 0]],
-  },
-  converge: {
-    tex: 'spark', blend: 'add', rate: 140, life: [0.5, 0.9], shape: { type: 'sphere', radius: 1.6, inner: 0.7 }, emit: 'tangent', spread: 20,
-    speed: [0.5, 1.5], size: [0.02, 0.05], stretch: 0.05, attract: 1, attractPow: 2.2, swirl: 2.5, rotation: 0,
-    color: [[0, 0.5, 1.5, 4, 0], [0.3, 1, 3, 8, 1], [1, 6, 8, 12, 1]],
-  },
+  sparks: LIB.sparks,
+  embers: LIB.embers,
+  smoke: { ...LIB.smoke, count: 10, delay: 0 },
+  fire: LIB.fire,
+  converge: LIB.chargeStreaks,
 };
 
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -107,22 +83,36 @@ function definePresets(ctx, lab, vfx) {
     v.light({ pos: [p.x, p.y, p.z + 0.4], color: VOLT.core, intensity: 90, range: 6, duration: T, curve: [[0, 0], [0.85, 1], [1, 1]], flicker: 0.25 });
     v.schedule(T, (v2) => {
       streaks.stop(); motes.stop(); sparkles.stop();
-      v2.burst({ ...LIB.flashCore, color: [[0, 10, 9, 14, 1], [0.3, 4, 2.6, 9, 0.75], [1, 0.4, 0.2, 1.4, 0]] }, { pos: p, scale: 1.4 * s });
-      v2.flare({ kind: 'glow', pos: p, size: 1.4 * s, life: 0.1, attack: 0, color: [9, 7, 14] });
-      v2.flare({ kind: 'streak', pos: p, size: 0.45 * s, aspect: 14, life: 0.2, attack: 0, decay: 2.5, color: [4, 2.8, 8] });
-      v2.flare({ kind: 'ring', pos: p, size: [0.4, 3 * s], life: 0.24, attack: 0, decay: 1.5, color: [1.6, 1.1, 3.6] });
+      v2.burst({ ...LIB.flashCore, color: [[0, 10, 9, 14, 1], [0.3, 4, 2.6, 9, 0.75], [1, 0.4, 0.2, 1.4, 0]] }, { pos: p, scale: 1.1 * s });
+      v2.flare({ kind: 'glow', pos: p, size: 1.0 * s, life: 0.07, attack: 0, color: [9, 7, 14] });
+      v2.flare({ kind: 'streak', pos: p, size: 0.28 * s, aspect: 18, life: 0.16, attack: 0, decay: 3, color: [4, 2.8, 8] });
+      v2.flare({ kind: 'ring', pos: p, size: [0.4, 2.6 * s], life: 0.17, attack: 0, decay: 2, color: [0.8, 0.55, 1.8] });
       v2.burst({ ...LIB.sparks, count: 90, spread: 180, emit: 'radial', speed: [5, 18, 1.4], color: [[0, 12, 10, 6, 1], [0.15, ...VOLT.spark, 1], [0.6, 2.5, 1.2, 0.15, 1], [1, 0.4, 0.15, 0, 0]] }, { pos: p, scale: s });
       v2.burst({ tex: 'arc', blend: 'add', count: 14, life: [0.08, 0.2], shape: { type: 'sphere', radius: 0.3 }, emit: 'radial', spread: 10, speed: [8, 14], size: [0.5, 1.1], aspect: 2.2,
         align: 'velocity', stretch: 0.01, rotation: 0, flicker: { amount: 0.7, rate: 40 }, groundFade: 0, color: [[0, 8, 6, 14, 1], [1, 2, 1, 6, 0]] }, { pos: p, scale: s });
       v2.burst({ ...LIB.glitter, count: 40, color: [[0, 6, 5, 10, 0], [0.1, 6, 5, 10, 1], [1, 2, 1.5, 4, 0]] }, { pos: p, scale: 1.6 * s });
       v2.burst({ ...LIB.smoke, count: 8, size: [0.8, 1.5], speed: [1.5, 4], emit: 'radial', shape: { type: 'sphere', radius: 0.3 }, color: [[0, 0.3, 0.2, 0.6, 0], [0.08, 0.07, 0.05, 0.12, 0.6], [1, 0.04, 0.04, 0.06, 0]] }, { pos: p, scale: s });
       v2.burst({ ...LIB.dustRing, count: 14 }, { pos: g, scale: s });
-      v2.light({ pos: p, color: VOLT.core, intensity: 220, range: 9, duration: 0.4 });
-      v2.distort({ kind: 'shock', pos: p, radius: [0.2, 3 * s], life: 0.5, strength: 0.06 });
+      v2.light({ pos: p, color: VOLT.core, intensity: 160, range: 9, duration: 0.4 });
+      v2.distort({ kind: 'shock', pos: p, radius: [0.3, 3 * s], life: 0.5, strength: 0.05 });
       v2.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [0.3, 4 * s], life: 0.6, strength: 0.04 });
       post.pulse('chroma', 0.7, { release: 0.3 });
       post.pulse('radial', 0.35, { release: 0.3 });
     });
+  });
+
+  // ---- frost hit (README worked example 1): library layers recoloured with the frost palette -----------------------
+  const F = vfx.palette.frost;
+  const iceSparks = { ...vfx.lib.sparks, color: vfx.util.heatRamp(F.core, F.mid, F.tail), gravity: -6 };
+  const shards = { tex: 'shard', blend: 'add', count: 14, life: [0.4, 0.9], spread: 40, speed: [3, 9], size: [0.08, 0.2, 2],
+    spin: [4, 12], gravity: -9, collide: 'ground', erode: 'erodeLate', erodeChannel: 'cracks', color: vfx.util.heatRamp(F.core, F.mid, F.tail) };
+  vfx.define('frost.hit', (v, at) => {
+    v.burst(vfx.lib.flashCore, { pos: at.pos, color: [0.5, 0.9, 1.6] });
+    v.burst(iceSparks, { pos: at.pos, dir: at.dir });
+    v.burst(shards, { pos: at.pos, dir: at.dir, scale: at.scale });
+    v.burst({ ...vfx.lib.glitter, color: [[0, 3, 6, 9, 0], [0.1, 3, 6, 9, 1], [1, 1, 2, 3, 0]] }, { pos: at.pos });
+    v.light({ pos: at.pos, color: F.core, intensity: 120, duration: 0.3 });
+    v.schedule(0.05, (v2) => v2.distort({ kind: 'shock', pos: at.pos, radius: [0.2, 1.4] }));
   });
 
   // ---- swing trail with ember spray off the tip and a refraction twin --------------------------------------------
@@ -217,7 +207,17 @@ createLab({
     sparks(ctx, lab, p) { return ctx.vfx.burst(D.sparks, { pos: P(p, [0, 1.2, 0]), dir: [0.6, 0.5, 0.3] }); },
     embers(ctx, lab, p) { return ctx.vfx.burst(D.embers, { pos: P(p, [0, 0.8, 0]) }); },
     smoke(ctx, lab, p) { return ctx.vfx.burst(D.smoke, { pos: P(p, [0, 0.6, 0]) }); },
-    fire(ctx, lab, p) { return ctx.vfx.emitter(D.fire, { pos: P(p, [0, 0.05, 0]) }); },
+    fire(ctx, lab, p) {
+      // standing fire: flames + rising smoke + embers + a flickering light, all following one point
+      const at = { pos: P(p, [0, 0.02, 0]) };
+      const v = ctx.vfx;
+      return [
+        v.emitter(D.fire, at),
+        v.emitter({ ...LIB.smokeLinger, rate: 5, delay: 0, size: [0.7, 1.4], life: [1.6, 2.6], speed: [0.6, 1.2], shape: { type: 'disc', radius: 0.25 }, emit: 'axis', spread: 10 }, { pos: at.pos.clone().setY(0.7) }),
+        v.emitter({ ...LIB.embers, rate: 12, delay: 0, speed: [0.5, 2] }, { pos: at.pos.clone().setY(0.5) }),
+        v.light({ pos: at.pos.clone().setY(0.6), color: PALETTE.ember.core, intensity: 25, range: 5, duration: Infinity, flicker: 0.4, flickerRate: 9 }),
+      ];
+    },
     converge(ctx, lab, p) { return ctx.vfx.emitter(D.converge, { pos: P(p, [0, 1.2, 0]) }); },
     trail(ctx, lab, opts = {}) {
       const r = lab.rig;
@@ -237,7 +237,7 @@ createLab({
       const off = ctx.onUpdate((dt) => { t += dt; o.position.set(-4 + t * 7, 1.3 + Math.sin(t * 6) * 0.35, Math.cos(t * 4) * 0.4); if (t > 1.3) off(); }, ctx.ORDER.CHAR);
       o.position.set(-4, 1.3, 0.4);
       ctx.vfx.ribbon({ follow: o, width: 0.22, life: 0.5 });
-      ctx.vfx.emitter(D.embers2 || { ...D.embers, rate: 60, count: undefined, speed: [0.1, 0.6], life: [0.3, 0.9] }, { pos: o.position }).follow(o);
+      ctx.vfx.emitter({ ...D.embers, rate: 60, delay: 0, speed: [0.1, 0.6], life: [0.3, 0.9] }, { pos: o.position }).follow(o);
       return o;
     },
     flare(ctx, lab) {
@@ -261,6 +261,7 @@ createLab({
     fireBurst(ctx, lab, p) { return ctx.vfx.play('demo.fireBurst', { pos: P(p, [0, 0.9, 0]) }); },
     chargeRelease(ctx, lab, p, charge) { return ctx.vfx.play('demo.chargeRelease', { pos: P(p, [0, 1.4, 0]) }, { charge }); },
     swingTrail(ctx) { return ctx.vfx.play('demo.swingTrail'); },
+    frostHit(ctx, lab, p, d) { return ctx.vfx.play('frost.hit', { pos: P(p, [0, 1.35, 0]), dir: d || [-1, 0.2, 0.3] }); },
     slowmo(ctx, lab, s = 0.2, d = 2) { ctx.time.slowmo(s, d, { easeIn: 0, easeOut: 0 }); },
     hitstop(ctx, lab, d = 0.3) { ctx.time.hitstop(d); },
     clear(ctx) { ctx.vfx.clear(); },

@@ -96,7 +96,8 @@ export function createFightRig(P) {
 
   /**
    * Advance the rig. A, B: chest points (Vector3). view: { aspect, letterbox (0..1), zoom (distance factor),
-   * focusX, focusW (zoom focus point / weight), snap (jump straight to the ideal) }.
+   * focusX, focusW (zoom focus point / weight), snap (jump straight to the ideal), scaleA, scaleB (body size of each
+   * target relative to the 1.9 m reference: chest / head / width margins scale with it, e.g. 4.5 for a giant) }.
    */
   function update(dtReal, A, B, view) {
     snap = view.snap || !primed;
@@ -104,12 +105,14 @@ export function createFightRig(P) {
     dt = dtReal;
     for (let i = 0; i < SPRINGS.length; i++) SPRINGS[i].prev = SPRINGS[i].v;
     const L = P.lag;
-    const xL = Math.min(A.x, B.x), xR = Math.max(A.x, B.x);
-    const sep = xR - xL, mid = 0.5 * (xL + xR);
+    const sA = view.scaleA || 1, sB = view.scaleB || 1, sMax = Math.max(sA, sB);
+    // soft extent (side margins) and body extent (walls) along the fight line, per target size
+    const softL = Math.min(A.x - P.sideMargin * sA, B.x - P.sideMargin * sB), softR = Math.max(A.x + P.sideMargin * sA, B.x + P.sideMargin * sB);
+    const bl = Math.min(A.x - P.bodyMargin * sA, B.x - P.bodyMargin * sB), br = Math.max(A.x + P.bodyMargin * sA, B.x + P.bodyMargin * sB);
+    const sep = Math.abs(A.x - B.x) / sMax, mid = 0.5 * (softL + softR);
     const zPlane = 0.5 * (A.z + B.z);
-    const hiChest = Math.max(A.y, B.y), loChest = Math.min(A.y, B.y);
-    const lowFeet = Math.max(0, loChest - P.chestHeight);
-    const top = hiChest + P.headTop;
+    const lowFeet = Math.max(0, Math.min(A.y - P.chestHeight * sA, B.y - P.chestHeight * sB));
+    const top = Math.max(A.y + P.headTop * sA, B.y + P.headTop * sB);
     const aspect = Math.max(0.3, view.aspect);
     const band = 1 - 2 * 0.115 * clamp(view.letterbox || 0);
     const zoom = view.zoom || 1;
@@ -118,15 +121,15 @@ export function createFightRig(P) {
     // ---- smoothed inputs and separation-dependent look ----
     const dS = step(S.sep, sep, L.sep);
     // rising fighters are led by their (smoothed) climb rate so a launch is anticipated rather than chased
-    if (!snap && dt > 0) damp1(S.climb, (hiChest - S.climb.last) / dt, 0.05, dt); else S.climb.v = 0;
-    S.climb.last = hiChest;
+    if (!snap && dt > 0) damp1(S.climb, (top - S.climb.last) / dt, 0.09, dt); else S.climb.v = 0;
+    S.climb.last = top;
     const lead = Math.max(0, S.climb.v) * P.lead;
     const topS = step(S.top, top + lead, top + lead > S.top.v ? L.rise : L.fall);
     const lowS = step(S.low, lowFeet, lowFeet > S.low.v ? L.lift : L.land);
     const fov = step(S.fov, clamp(sepParam(P, 'fov', dS) + Math.max(0, P.aspectRef - aspect) * P.aspectFov, 10, 75), L.fov);
     const fill = sepParam(P, 'fill', dS), pitch = sepParam(P, 'pitch', dS) * DEG;
     const tanV = Math.tan(fov * DEG * 0.5), tanH = tanV * aspect;
-    const standTop = P.chestHeight + P.headTop;
+    const standTop = (P.chestHeight + P.headTop) * sMax;
     const feet0 = sepParam(P, 'feet', dS);
     const feet = lerp(feet0, Math.min(feet0, P.air.feet), smoothstep(0, P.air.pan, Math.max(0, topS - lowS - standTop)));
     tanV0 = tanV; band0 = band; pitch0 = pitch;
@@ -135,10 +138,9 @@ export function createFightRig(P) {
     // ---- walls from the two bodies ----
     const aV = Math.atan(band * (1 - P.hardPad) * tanV), aT = Math.atan(band * (1 - P.hardPadTop) * tanV);
     const aH = Math.atan((1 - P.hardPad) * tanH * Math.cos(pitch));
-    const lowY = lowFeet - 0.04, highY = hiChest + P.hardTop;
-    const bl = xL - P.bodyMargin, br = xR + P.bodyMargin;
+    const lowY = lowFeet - 0.04, highY = Math.max(A.y + P.hardTop * sA, B.y + P.hardTop * sB);
     const Dv = Math.max(standTop / Math.max(1e-3, tF - tAt(feet + fill)), (topS - lowS) / Math.max(1e-3, tF - tAt(Math.max(feet + fill, P.air.top))));
-    const Dh = (sep * 0.5 + P.sideMargin) / ((1 - P.edgePad) * tanH * Math.cos(pitch));
+    const Dh = (0.5 * (softR - softL)) / ((1 - P.edgePad) * tanH * Math.cos(pitch));
     const Dideal = clamp(Math.max(Dv, Dh), P.minDist, P.maxDist);
     // ideal aim: the midpoint, held back so the frame does not run far past the arena walls, pulled by zoom focus
     const Wv = Dideal * zoom * tanH;
@@ -180,7 +182,7 @@ export function createFightRig(P) {
     pose.look.set(focus, hc - D * Math.tan(pitch), zPlane);
     pose.fov = fov;
     pose.roll = 0;
-    info.dist = D; info.focus = focus; info.camX = camX; info.height = hc; info.sep = sep; info.fov = fov;
+    info.dist = D; info.focus = focus; info.camX = camX; info.height = hc; info.sep = sep * sMax; info.fov = fov;
     return pose;
   }
 

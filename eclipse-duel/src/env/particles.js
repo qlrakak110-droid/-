@@ -87,7 +87,7 @@ void main() {
     off = ax * (corner.y * size * stretch) + vec2(ax.y, -ax.x) * (corner.x * size); // keep the quad's winding
   }
   mv.xy += off;
-  float near = smoothstep(0.8, 2.5, -mv.z);
+  float near = smoothstep(1.2, 4.0, -mv.z);
   vCol = col * near;
   vType = type;
   vUv = corner;

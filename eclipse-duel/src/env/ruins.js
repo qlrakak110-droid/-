@@ -12,7 +12,7 @@ const ringPos = (r, th, y = 0) => new THREE.Vector3(r * Math.sin(th), y, -r * Ma
 /**
  * @param {Function} rng   deterministic rng (makeRng)
  * @param {object} tier    tierSettings()
- * @returns {{stone: THREE.BufferGeometry, metal: THREE.BufferGeometry, banners: Array, braziers: Array, pillars: Array}}
+ * @returns {{stone: THREE.BufferGeometry, metal: THREE.BufferGeometry, banners: Array, braziers: THREE.Vector3[]}}
  */
 export function buildRuins(rng, tier) {
   const S = new Builder();   // stone
@@ -92,9 +92,9 @@ export function buildRuins(rng, tier) {
       const th = -thetaMax + (2 * thetaMax * i) / segs;
       const re = edgeR(th);
       for (let j = 0; j <= rows; j++) {
-        const r = wallR - 0.2 + (re - wallR + 0.2) * (j / rows);
+        const r = wallR - 0.1 + (re - wallR + 0.1) * (j / rows);
         const p = ringPos(r, th, 0);
-        pos.push(p.x, j === rows ? -0.05 : 0, p.z);
+        pos.push(p.x, j === rows ? -0.06 : -0.012, p.z); // just under the floor disc: no z-fight where they overlap
       }
     }
     for (let i = 0; i < segs; i++) for (let j = 0; j < rows; j++) {
@@ -137,7 +137,7 @@ export function buildRuins(rng, tier) {
   // per slot: H = height (null = gone), cap = intact with capital
   const slotDeg = 360 / LAYOUT.pillarCount;
   const slotState = {
-    3: { H: 5.6 }, 4: { cap: true }, 5: { cap: true }, 6: { cap: true }, 7: { cap: true }, 8: { H: 9.6 }, 9: { H: 4.4 },
+    3: { H: 5.6 }, 4: { cap: true }, 5: { cap: true }, 6: { cap: true }, 7: { cap: true }, 8: { H: 5.9 }, 9: { H: 4.4 },
     10: { H: 1.7 }, 11: null, 12: { H: 6.6 }, 13: { cap: true }, 14: { cap: true }, 15: { H: 10.8 }, 16: { cap: true },
     17: { cap: true }, 18: { H: 3.1 },
   };
@@ -357,5 +357,5 @@ export function buildRuins(rng, tier) {
     M.add(chamferBox(0.05, 0.05, 0.42, 0.01), trs(top.x - inward.x * 0.2, top.y + 0.05, top.z - inward.z * 0.2, -ang + Math.PI / 2), { color: [0.8, 0.8, 0.8] });
   }
 
-  return { stone: S.build(), metal: M.build(), banners, braziers: brazierTops, pillars, edgeR };
+  return { stone: S.build(), metal: M.build(), banners, braziers: brazierTops };
 }

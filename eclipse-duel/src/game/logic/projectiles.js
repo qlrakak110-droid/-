@@ -14,13 +14,15 @@ export function spawnProjectile(m, f, spec, mv) {
   const facing = f.facing;
   const baseX = spec.at === 'opponent' ? o.x : f.x;
   const baseY = spec.at === 'opponent' ? 0 : f.y;
-  const ou = spec.ou !== null ? spec.ou : f.def.stats.height * 0.65; // default: chest height of the owner
+  // default height: the owner's chest for a shot, the floor for a strike anchored at the opponent (eruptions, pillars)
+  const ou = spec.ou !== null ? spec.ou : spec.at === 'opponent' ? 0 : f.def.stats.height * 0.65;
   const L = m.rules.arenaHalfWidth;
   const p = {
     id: m.nextProjectileId++,
     owner: f.index,
     kind: spec.kind,
     move: mv.id,
+    serial: f.moveSerial, // the move instance that spawned it (its hits count as that move connecting)
     x: Math.max(-L, Math.min(L, baseX + facing * spec.of)),
     y: baseY + ou,
     vx: spec.vx * facing,

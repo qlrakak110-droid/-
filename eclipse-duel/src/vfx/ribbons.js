@@ -274,7 +274,7 @@ export function installRibbons(vfx, shared) {
 
   const ordered = new Int32Array(CAP);
   const bx = new Float32Array(3), tx = new Float32Array(3), prevTip = new Float32Array(3);
-  function emitRow(r, base, tip, other, birth, speed, dist, side) {
+  function emitRow(r, base, tip, other, birth, speed, dist) {
     if (nv + 2 > VMAX) return false;
     const mode = r.mode + (r.realtime ? 2 : 0);
     for (let k = 0; k < 2; k++) {
@@ -319,14 +319,14 @@ export function installRibbons(vfx, shared) {
         const birth = r.T[i1] + (r.T[i2] - r.T[i1]) * u;
         const spd = r.S[i1] + (r.S[i2] - r.S[i1]) * u;
         let ok;
-        if (r.mode === 0) ok = emitRow(r, bx, tx, null, birth, spd, dist, 0);
+        if (r.mode === 0) ok = emitRow(r, bx, tx, null, birth, spd, dist);
         else {
           // tangent from the neighbouring samples
           const ia = ordered[s], ib = ordered[s + 1];
           tx[0] = r.P[ib * 3] - r.P[ia * 3]; tx[1] = r.P[ib * 3 + 1] - r.P[ia * 3 + 1]; tx[2] = r.P[ib * 3 + 2] - r.P[ia * 3 + 2];
           const l = Math.hypot(tx[0], tx[1], tx[2]) || 1;
           tx[0] /= l; tx[1] /= l; tx[2] /= l;
-          ok = emitRow(r, bx, bx, tx, birth, spd, dist, 0);
+          ok = emitRow(r, bx, bx, tx, birth, spd, dist);
         }
         if (!ok) break;
       }

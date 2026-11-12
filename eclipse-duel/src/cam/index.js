@@ -30,6 +30,7 @@ export function createCameraDirector(ctx, opts = {}) {
   const shaker = createShaker(opts.seed ?? 0xca3e);
   const limits = { minZ: 0.5, minY: 0.12, knee: 0.4 };
   const targets = [null, null];
+  const targetScale = [1, 1];
   const A = new THREE.Vector3(), B = new THREE.Vector3(), _p = new THREE.Vector3();
 
   const base = new Pose();
@@ -142,6 +143,7 @@ export function createCameraDirector(ctx, opts = {}) {
     view.aspect = camera.aspect;
     view.letterbox = lbCurrent();
     view.zoom = zoom.s.v;
+    view.scaleA = targetScale[0]; view.scaleB = targetScale[1];
     view.snap = snapReq || settleReq;
     const fightPose = rig.update(dtReal, A, B, view);
     if (snapReq) { cutPending = true; blend.on = false; }
@@ -164,7 +166,7 @@ export function createCameraDirector(ctx, opts = {}) {
     // velocity of the shown (pre-shake) camera, for inertial blends
     if (cut || !(dtReal > 0)) { if (cut) { vel.valid = false; vel.pos.set(0, 0, 0); vel.look.set(0, 0, 0); vel.fov = vel.roll = 0; } }
     else {
-      const k = vel.valid ? 0.6 : 1, inv = 1 / dtReal;
+      const k = vel.valid ? 1 - Math.exp(-dtReal / 0.018) : 1, inv = 1 / dtReal; // frame-rate independent smoothing
       vel.pos.lerp(_p.subVectors(base.pos, prev.pos).multiplyScalar(inv), k);
       vel.look.lerp(_p.subVectors(base.look, prev.look).multiplyScalar(inv), k);
       vel.fov = lerp(vel.fov, (base.fov - prev.fov) * inv, k);
@@ -226,9 +228,17 @@ export function createCameraDirector(ctx, opts = {}) {
 
     get mode() { return state.mode; },
     get targets() { return targets; },
+    /** Body size of each target relative to the 1.9 m reference (live; e.g. [1, 4.5] against a colossal boss). */
+    targetScale,
 
-    /** Two things with a world position at chest height: Object3D, () => Vector3, Vector3 or [x,y,z]. */
-    setTargets(a, b) { targets[0] = a; targets[1] = b; },
+    /**
+     * Two things with a world position at chest height: Object3D, () => Vector3, Vector3 or [x,y,z].
+     * opts.scale: number | [a, b] body size relative to the 1.9 m reference (default 1).
+     */
+    setTargets(a, b, opts = {}) {
+      targets[0] = a; targets[1] = b;
+      if (opts.scale != null) { const sc = opts.scale; targetScale[0] = Array.isArray(sc) ? sc[0] : sc; targetScale[1] = Array.isArray(sc) ? sc[1] : sc; }
+    },
 
     /** Trauma shake on real time. See README for options. Returns {stop()}. */
     shake(amount, o) { return shaker.shake(amount, o); },
@@ -270,8 +280,9 @@ export function createCameraDirector(ctx, opts = {}) {
         ctx.events.emit('cam:cine', on);
       };
       // seq.play finishes a running sequence first (its onDone fires), then this one announces itself
+      const scaleOf = (src) => (src === targets[0] ? targetScale[0] : src === targets[1] ? targetScale[1] : 1);
       const h = seq.play(shots, {
-        ...o, anchor, target, facing,
+        ...o, anchor, target, facing, anchorScale: scaleOf(anchor), targetScale: scaleOf(target),
         onDone(completed) { announce(false); if (onDone) onDone(completed); },
       });
       announce(true);

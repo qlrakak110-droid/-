@@ -62,6 +62,9 @@ function gridIndex(W, H, flip) {
  *   n=2               superellipse exponent (curve; 2 ellipse, 3-5 boxier)
  *   a0=0, a1=360      angular coverage in degrees (curve): 0 = +X front, 90 = +Z, 180 = back, 270 = -Z
  *   bulge(u, v)       extra radius factor (fn)      ridge {at: deg, w: deg, h: m | fn(v)} or ridges: [...]
+ *   dy(u, v, deg)     extra height per vertex (shaped edges: V necklines, pointed lames)
+ *   inner             build the inner surface (default: only for open plates; closed tubes keep edge thickness only)
+ *   rimSegs=5, rimTop  rim tube sides; rimTop = bead radius of the top (v=0) edge if different
  *   thick=0.006       inward thickness               rim: bead radius (0 = none), rimEdges: 'tbs' (top/bottom/sides)
  *   part='all'        'plate' (no rims) | 'rim' (only the rolled rims: colour them separately as trim)
  *   segs=[24, 10]     radial, ring segments
@@ -78,10 +81,11 @@ export function shell(o = {}) {
   const part = o.part || 'all';
   const P = new Float32Array(W * H * 3);
   for (let j = 0; j < H; j++) {
-    const v = j / rings, y = lerp(y0, y1, v);
+    const v = j / rings, yv = lerp(y0, y1, v);
     const rx = RX(v), rz = RZ(v), ox = OX(v), oz = OZ(v), e = 2 / NE(v), a0 = A0(v), a1 = A1(v);
     for (let i = 0; i < W; i++) {
       const u = i / radial, th = lerp(a0, a1, u) * DEG;
+      const y = o.dy ? yv + o.dy(u, v, lerp(a0, a1, u)) : yv;
       const c = Math.cos(th), s = Math.sin(th);
       const ex = Math.sign(c) * Math.pow(Math.abs(c), e), ez = Math.sign(s) * Math.pow(Math.abs(s), e);
       let k = 1 + (o.bulge ? o.bulge(u, v) : 0);
@@ -120,7 +124,8 @@ export function shell(o = {}) {
   if (thick > 0 && part !== 'rim') {
     const PI = new Float32Array(P.length), NI = new Float32Array(P.length);
     for (let k = 0; k < P.length; k++) { PI[k] = P[k] - N[k] * thick; NI[k] = -N[k]; }
-    parts.push(makeGeo(PI, NI, gridIndex(W, H, !flipped)));
+    // the inside of a closed tube is hidden by whatever it wraps: keep only the edge thickness unless asked
+    if (o.inner ?? !closed) parts.push(makeGeo(PI, NI, gridIndex(W, H, !flipped)));
     // thin side strips joining outer and inner borders
     const strip = (ids) => {
       const pos = [];
@@ -155,11 +160,12 @@ export function shell(o = {}) {
     const edges = o.rimEdges || 'tbs';
     const take = (ids) => ids.map((id) => new THREE.Vector3(P[id * 3] - N[id * 3] * thick * 0.5, P[id * 3 + 1] - N[id * 3 + 1] * thick * 0.5, P[id * 3 + 2] - N[id * 3 + 2] * thick * 0.5));
     const rr = Math.max(o.rim, thick * 0.7);
-    if (edges.includes('t')) parts.push(tube(take([...Array(W).keys()]), rr, 6, { closed }));
-    if (edges.includes('b')) parts.push(tube(take([...Array(W).keys()].map((i) => (H - 1) * W + i)), rr, 6, { closed }));
+    const rs = o.rimSegs || 5, rr2 = o.rimTop || rr;
+    if (edges.includes('t')) parts.push(tube(take([...Array(W).keys()]), rr2, rs, { closed }));
+    if (edges.includes('b')) parts.push(tube(take([...Array(W).keys()].map((i) => (H - 1) * W + i)), rr, rs, { closed }));
     if (edges.includes('s') && !closed) {
-      parts.push(tube(take([...Array(H).keys()].map((j) => j * W)), rr, 6));
-      parts.push(tube(take([...Array(H).keys()].map((j) => j * W + W - 1)), rr, 6));
+      parts.push(tube(take([...Array(H).keys()].map((j) => j * W)), rr, rs));
+      parts.push(tube(take([...Array(H).keys()].map((j) => j * W + W - 1)), rr, rs));
     }
   }
   return merge(parts);

@@ -53,11 +53,11 @@ function makeDummy(scene, { accent, visor, metal }) {
   scene.add(root);
   const d = {
     root, body, weapon, chest,
-    x: 0, y: 0, facing: 1, weaponDeg: 35, tilt: 0, lean: 0,
+    x: 0, y: 0, facing: 1, weaponDeg: 35, tilt: 0, lean: 0, size: 1,
     apply() {
       root.position.set(d.x, d.y, 0);
       root.rotation.y = d.facing > 0 ? 0 : Math.PI;
-      root.scale.z = d.facing > 0 ? 1 : -1;           // true mirror: the weapon stays on the camera side
+      root.scale.set(d.size, d.size, d.facing > 0 ? d.size : -d.size); // true mirror: the weapon stays on the camera side
       body.rotation.z = d.tilt * DEG - d.lean * DEG;
       weapon.rotation.z = (d.weaponDeg - 90) * DEG;
     },
@@ -255,7 +255,8 @@ createLab({
       cam.letterbox(0, 0);
       lab.debugView(false);
       S.t = 0; S.fired.clear(); S.motion = motion;
-      for (const [d, x, f] of [[p1, x1, x1 <= x2 ? 1 : -1], [p2, x2, x1 <= x2 ? -1 : 1]]) { d.x = x; d.y = 0; d.facing = f; d.weaponDeg = 35; d.tilt = 0; d.lean = 0; }
+      for (const [d, x, f] of [[p1, x1, x1 <= x2 ? 1 : -1], [p2, x2, x1 <= x2 ? -1 : 1]]) { d.x = x; d.y = 0; d.facing = f; d.weaponDeg = 35; d.tilt = 0; d.lean = 0; d.size = 1; }
+      cam.setTargets(p1.chest, p2.chest, { scale: 1 });
       if (motion) motion(0, () => {});
       p1.apply(); p2.apply();
       cam.snap();
@@ -349,6 +350,27 @@ function buildScenarios() {
     zoom(ctx, lab) { lab.reset(-1.6, 1.6, idle(lab)); ctx.cam.zoom(0.72, 1.0, { focus: 0 }); },
     letterbox(ctx, lab) { lab.reset(-2.5, 2.5, idle(lab)); ctx.cam.letterbox(true, 0.4); },
 
+    /** Roadmap check: a 4.5x (8.5 m) colossus. P1 dashes in, jumps at its head, the giant stomps forward. */
+    giant(ctx, lab) {
+      lab.reset(-4, 4, (t) => {
+        lab.p2.size = 4.5; lab.p2.lean = 4 * Math.sin(t * 1.3); lab.p2.weaponDeg = 20 + 25 * Math.sin(t * 0.9);
+        lab.p2.x = 4 - 1.5 * seg(t, 2.5, 3.5);
+        lab.p1.x = lerp(-4, 0.5, seg(t, 0.3, 1.2, Ease.outCubic));
+        const j = clamp((t - 1.4) / 1.0);
+        lab.p1.y = 5.5 * Math.sin(Math.PI * j);
+      });
+      lab.p2.size = 4.5; lab.p2.apply();
+      ctx.cam.setTargets(lab.p1.chest, lab.p2.chest, { scale: [1, 4.5] });
+      ctx.cam.snap();
+    },
+    /** Vocabulary shots scaled to the colossus: hero push-in on it, then an orbit around both. */
+    giantShots(ctx, lab) {
+      lab.reset(-3, 4, (t) => { lab.p2.size = 4.5; lab.p2.lean = 4 * Math.sin(t * 1.3); });
+      lab.p2.size = 4.5; lab.p2.apply();
+      ctx.cam.setTargets(lab.p1.chest, lab.p2.chest, { scale: [1, 4.5] });
+      ctx.cam.snap();
+      ctx.cam.play([shots.heroPushIn({ scale: 4.5, dur: 1.2 }), shots.orbitSweep({ scale: 3, look: 1.45, dur: 1.4 })], { anchor: 1, blendOut: 0.6 });
+    },
     ult(ctx, lab) { playUlt(ctx, lab, false); },
     ultM(ctx, lab) { playUlt(ctx, lab, true); },
     /** A top-down slam stopped half-way, blending back to the fight framing from a vertical view. */

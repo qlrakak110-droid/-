@@ -70,7 +70,7 @@ export const DEFAULT_RULES = {
     maxHits: 40,        // safety net: past this many hits (or maxTime) every hit becomes a knockdown
     maxTime: 8,
   },
-  juggle: { limit: 6, gravityStep: 0.08, pop: 4.2 },
+  juggle: { limit: 6, gravityStep: 0.08, pop: 4.2, apex: 3 },
   counterHit: { damage: 1.2, hitstun: 1.3, hitstop: 1.35 },
   block: { hitstopScale: 0.75, pushbackScale: 0.85, perfectWindow: 0.12, perfectStunScale: 0.5, chipCanKO: false },
   chip: { normal: 0, skill: 0.15, ult: 0.2 },

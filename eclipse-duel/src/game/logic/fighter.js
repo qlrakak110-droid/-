@@ -50,6 +50,7 @@ export function createFighter(m, def, index) {
     perfectDodged: false,
     mov: null,
     _moveAdvanced: false,
+    _started: false,
   };
   return f;
 }
@@ -62,6 +63,7 @@ export function resetFighter(m, f, x, facing, resetUlt) {
   f.fp = Math.min(s.fpMax, m.rules.meters.fpStart);
   f.guard = s.guardMax;
   if (resetUlt) f.ult = 0;
+  if (f.state !== 'intro') m.emit('state', { fighter: f.index, from: f.state, to: 'intro' });
   f.state = 'intro'; f.stateTime = 0; f.timer = 0; f.stunKind = null; f.walkDir = 0;
   f.move = null; f.moveData = null; f.moveTime = 0; f.movePrevTime = 0;
   f.moveConnected = false; f.moveHit = false;
@@ -129,17 +131,33 @@ function autoFace(m, f, h) {
 }
 
 /**
+ * Do the two push-boxes interact now? Not while either passes through (roll, lying, locked, pass-through windows) or
+ * while one is well above the other (juggles, leaps; scales with the shorter body).
+ */
+export function pushActive(m) {
+  const [a, b] = m.fighters;
+  if (passesThrough(m, a) || passesThrough(m, b)) return false;
+  return Math.abs(a.y - b.y) <= 0.7 * Math.min(a.def.stats.height, b.def.stats.height);
+}
+
+/**
  * Move along X, clamped to the arena walls (and, when `limitSep`, to rules.maxSeparation from the opponent).
- * Returns the displacement actually applied.
+ * While the push-boxes interact, a fighter never moves past the opponent's centre in one go, so no speed tunnels
+ * through (the push-boxes then shove the pair apart on the original sides). Returns the displacement applied.
  */
 function moveX(m, f, dx, limitSep) {
   if (!dx) return 0;
   const L = m.rules.arenaHalfWidth - f.def.stats.pushWidth;
+  const o = m.fighters[1 - f.index];
   let nx = f.x + dx;
   if (limitSep) {
-    const o = m.fighters[1 - f.index];
     const maxS = m.rules.maxSeparation;
     if (Math.abs(nx - o.x) > maxS && Math.abs(nx - o.x) > Math.abs(f.x - o.x)) nx = f.x;
+  }
+  if (pushActive(m)) {
+    const d0 = o.x - f.x;
+    const side = Math.abs(d0) > 1e-6 ? Math.sign(d0) : (f.index === 0 ? m.side : -m.side);
+    if (side > 0 ? nx > o.x : nx < o.x) nx = o.x;
   }
   if (nx < -L) nx = -L; else if (nx > L) nx = L;
   const moved = nx - f.x;
@@ -165,7 +183,8 @@ export function moveBlockReason(m, f, mv) {
   if (f.fp + 1e-9 < mv.fpCost) return 'fp';
   if (mv.ultCost > 0 && f.ult + 1e-9 < mv.ultCost) return 'ult';
   if ((f.cooldowns[mv.cooldownKey] || 0) > 0) return 'cooldown';
-  if (mv.superFreeze && m.freeze) return 'freeze';
+  // a running super-freeze blocks other ultimates, except one pressed in the very same substep (both start: fair)
+  if (mv.superFreeze && m.freeze && !(m.freeze.startTime === m.time && !m.freeze.owners.includes(f.index))) return 'freeze';
   const rq = mv.requires;
   if (rq) {
     const o = m.fighters[1 - f.index];
@@ -198,11 +217,13 @@ export function startMove(m, f, id, { cancelFrom = null, forced = false } = {}) 
   f.moveData = mv;
   f.moveTime = 0;
   f.movePrevTime = 0;
+  f._started = false;
   f.moveSerial++;
   f.moveConnected = false;
   f.moveHit = false;
   f.armourUsed = 0;
   f.endPending = false;
+  f._moveAdvanced = false; // a move never strikes on the substep it starts
   const n = mv.hits.length;
   if (f.hitCounts.length !== n) { f.hitCounts = new Array(n); f.hitLast = new Array(n); }
   f.hitCounts.fill(0);
@@ -214,8 +235,24 @@ export function startMove(m, f, id, { cancelFrom = null, forced = false } = {}) 
     duration: mv.duration, serial: f.moveSerial,
   });
   if (mv.superFreeze) {
-    m.freeze = { owner: f.index, move: id, remaining: mv.superFreeze.duration, duration: mv.superFreeze.duration, userAnimates: mv.superFreeze.userAnimates };
-    m.emit('superFreezeStart', { fighter: f.index, move: id, duration: mv.superFreeze.duration, x: f.x, y: f.y, facing: f.facing });
+    const sf = mv.superFreeze;
+    const fz = m.freeze;
+    if (fz) {
+      // both ultimates started in the same substep: one shared freeze, each user animates for its own duration
+      fz.owners.push(f.index);
+      fz.left[f.index] = sf.duration;
+      fz.animates[f.index] = sf.userAnimates;
+      fz.moves[f.index] = id;
+      fz.remaining = fz.duration = Math.max(fz.remaining, sf.duration);
+    } else {
+      const left = [0, 0], animates = [false, false], moves = [null, null];
+      left[f.index] = sf.duration; animates[f.index] = sf.userAnimates; moves[f.index] = id;
+      m.freeze = {
+        owner: f.index, move: id, remaining: sf.duration, duration: sf.duration, userAnimates: sf.userAnimates,
+        owners: [f.index], left, animates, moves, startTime: m.time,
+      };
+    }
+    m.emit('superFreezeStart', { fighter: f.index, move: id, duration: sf.duration, x: f.x, y: f.y, facing: f.facing, simultaneous: !!fz });
     m.emit('marker', { fighter: f.index, move: id, name: 'superFreeze', t: 0, data: { duration: mv.superFreeze.duration }, x: f.x, y: f.y, facing: f.facing });
   }
   runTimeline(m, f, -1, 0);
@@ -353,6 +390,8 @@ function startMovement(m, f, kind) {
   if (kind === 'dash' && backToWall(m, f, pw * 2.75) && gap(f, o) < pw * 2.5 + o.def.stats.pushWidth && o.y < o.def.stats.height * 0.27) kind = 'roll';
   const spec = f.def.movement[kind];
   f.mov = { kind, dist: spec.distance || 0, dur: spec.duration, dir: kind === 'backstep' ? -1 : 1 };
+  // the dodge cooldown runs from the start, so cancelling the dodge or being hit out of it cannot skip it
+  if (kind === 'dodge') f.dodgeCooldown = spec.duration + (spec.cooldown || 0);
   f.perfectDodged = false;
   f.vx = 0;
   setState(m, f, kind);
@@ -409,11 +448,17 @@ function slide(m, f, h) {
   if (!f.vx) f.slideFrom = -1;
 }
 
-/** Put a fighter into the air (launch / juggle / knockdown flight). */
+/**
+ * Put a fighter into the air (launch / juggle / knockdown flight). The upward speed is capped so the flight apex stays
+ * below rules.juggle.apex body heights (light victims and huge knockbacks cannot leave the arena's sky).
+ */
 export function launch(m, f, vx, vy, hard) {
   if (f.state !== 'launched') setState(m, f, 'launched');
+  const J = m.rules.juggle;
+  const g = m.rules.gravity * (1 + J.gravityStep * f.recv.juggle);
+  const vMax = Math.sqrt(2 * g * Math.max(0, J.apex * f.def.stats.height - f.y));
   f.vx = vx;
-  f.vy = vy;
+  f.vy = Math.min(vy, vMax);
   f.hard = !!hard;
   if (f.y <= 0) f.y = 0.001;
   f.airborne = true;
@@ -438,7 +483,10 @@ function airborne(m, f, h) {
     } else f.vx = 0;
   }
   f.vx *= Math.max(0, 1 - R.airDrag * h);
-  if (f.y <= 0 && f.vy <= 0) land(m, f);
+  if (f.y <= 0) {
+    if (f.vy <= 0) land(m, f);
+    else f.y = 0; // bounced off the wall in the substep it reached the floor: still rising
+  }
 }
 
 function land(m, f) {
@@ -466,10 +514,9 @@ function land(m, f) {
  */
 export function updateFighter(m, f, h) {
   f._moveAdvanced = false;
-  if (f.endPending) finishMove(m, f);
+  if (f.endPending && !tryCancel(m, f)) finishMove(m, f);
   const st0 = f.stateTime;
   f.stateTime += h;
-  if (f.recv.active) f.recv.time += h;
   switch (f.state) {
     case 'idle': case 'walk': case 'guard':
       if (m.phase === 'fight') neutral(m, f, h);
@@ -489,7 +536,6 @@ export function updateFighter(m, f, h) {
       }
       const spec = f.def.movement[mv.kind];
       if (f.stateTime >= mv.dur) {
-        if (mv.kind === 'dodge') f.dodgeCooldown = spec.cooldown;
         f.mov = null;
         toNeutral(m, f);
       } else if (spec.cancelFrom !== undefined && f.stateTime >= spec.cancelFrom && m.phase === 'fight') {
@@ -547,10 +593,12 @@ function finishMove(m, f) {
 function advanceMove(m, f, h) {
   const mv = f.moveData;
   const fz = m.freeze;
-  if (fz && fz.owner === f.index && !fz.userAnimates) return;
+  if (fz && fz.owners.includes(f.index) && !(fz.animates[f.index] && fz.left[f.index] > 0)) return;
   const t0 = f.moveTime;
   const t1 = Math.min(mv.duration, t0 + h);
-  f.movePrevTime = t0;
+  // the first advance covers t = 0 itself, so a window [0, 0] (or a hit at the very start) is struck once
+  f.movePrevTime = f._started ? t0 : -1;
+  f._started = true;
   f.moveTime = t1;
   f._moveAdvanced = true;
   if (mv.motion) {
@@ -561,21 +609,34 @@ function advanceMove(m, f, h) {
   }
   runTimeline(m, f, t0, t1);
   if (f.state !== 'attack' || f.moveData !== mv) return;
-  if (tryCancel(m, f)) return;
   if (t1 >= mv.duration - EPS) {
-    // keep the move alive for this substep when a hit window touches it, so the final hit can still be collected
-    let pending = false;
-    for (const ht of mv.hits) if (crosses(ht.t0, ht.t1, t0, t1)) { pending = true; break; }
+    // keep the move alive through this substep's contacts when a hit window or an open cancel window touches its
+    // last moment: the final hit can still land and the cancel can still be taken (settleMove settles it)
+    let pending = mv.cancels.length > 0;
+    if (!pending) for (const ht of mv.hits) if (crosses(ht.t0, ht.t1, f.movePrevTime, t1)) { pending = true; break; }
     if (pending) f.endPending = true;
     else finishMove(m, f);
   }
+}
+
+/**
+ * Second half of a fighter's substep, run by the match after contacts are resolved: cancels are taken only once this
+ * substep's strike has been collected (a cancel on the same frame as a hit never swallows the hit), and a move kept
+ * alive for its last-frame contact ends. Nothing happens while the fighter is in hit-stop (a cancel pressed during
+ * hit-stop comes out once the freeze ends).
+ */
+export function settleMove(m, f) {
+  if (!f._moveAdvanced || f.state !== 'attack' || f.hitstop > 0) return;
+  f._moveAdvanced = false;
+  if (tryCancel(m, f)) return;
+  if (f.endPending) finishMove(m, f);
 }
 
 /** Is fighter `f` invulnerable to `kind` ('strike' | 'projectile') right now? */
 export function isInvulnerable(m, f, kind) {
   if (m.phase !== 'fight') return true;
   if (m.cinematic) return true;
-  if (m.freeze && m.freeze.owner === f.index) return true;
+  if (m.freeze && m.freeze.owners.includes(f.index)) return true;
   switch (f.state) {
     case 'knockdown': case 'getup': case 'locked': case 'ko': case 'intro': case 'victory': case 'defeat': case 'roll':
       return true;
@@ -600,9 +661,12 @@ export function isInvulnerable(m, f, kind) {
   }
 }
 
-/** Are push-boxes off for this fighter now (roll, pass-through windows, cinematic)? */
+/**
+ * Are push-boxes off for this fighter now? Roll, lying on the floor (knockdown, ko: the opponent may step over the
+ * body, which is how okizeme cross-ups happen), cinematic lock, and the move's pass-through windows.
+ */
 export function passesThrough(m, f) {
-  if (f.state === 'roll' || f.state === 'locked' || f.state === 'ko') return true;
+  if (f.state === 'roll' || f.state === 'locked' || f.state === 'ko' || f.state === 'knockdown') return true;
   if (f.state === 'attack') return !!windowAt(f.moveData.passThrough, f.moveTime);
   return false;
 }

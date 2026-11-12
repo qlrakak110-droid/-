@@ -83,6 +83,24 @@ export function weaponArt(kind, cls = '') {
 }
 
 /**
+ * Corona of fine rays around a disc (the eclipse motif used by the timer, the ULT orb and the announcer): `n` rays
+ * starting at radius `r0` on a 100x100 grid, lengths from a fixed pattern (every 6th ray long), so it is identical
+ * everywhere. Drawn with currentColor.
+ * @param {{ n?: number, r0?: number, len?: number, w?: number }} [o]
+ */
+export function corona({ n = 48, r0 = 38, len = 10, w = 1 } = {}) {
+  let d = '', dl = '';
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    const major = i % 6 === 0;
+    const l = len * (0.35 + ((i * 37) % 11) / 16) + (major ? len * 0.7 : 0);
+    const seg = `M${(50 + Math.cos(a) * r0).toFixed(2)} ${(50 + Math.sin(a) * r0).toFixed(2)}L${(50 + Math.cos(a) * (r0 + l)).toFixed(2)} ${(50 + Math.sin(a) * (r0 + l)).toFixed(2)}`;
+    if (major) dl += seg; else d += seg;
+  }
+  return `<svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-linecap="round" aria-hidden="true"><path d="${d}" stroke-width="${(w * 0.7).toFixed(2)}" opacity=".6"/><path d="${dl}" stroke-width="${(w * 1.3).toFixed(2)}"/></svg>`;
+}
+
+/**
  * The eclipse emblem (logo mark): black disc, engraved rings, a corona of fine rays and the diamond-ring bead.
  * Rays come from a fixed pattern so the mark is identical everywhere.
  */

@@ -386,7 +386,8 @@ export function createAudio(ctx = {}) {
 
     /**
      * Play a one-shot. o = { volume = 1, pitch = 1 (rate), pan (-1..1) | pos (world position -> pan),
-     * delay = 0 (s, audio clock), reverb = 1 (send multiplier), noSlowmo }. Returns a handle { name, stop(fade) } or null.
+     * delay = 0 (s, audio clock), reverb = 1 (send multiplier), noSlowmo, maxLate (s, default per sound) }.
+     * Returns a handle { name, stop(fade) } or null.
      */
     play(name, o = {}) {
       if (!live()) return null;
@@ -402,7 +403,7 @@ export function createAudio(ctx = {}) {
       const go = (r) => {
         if (!r || h.cancelled || !live()) return;
         const t = Math.max(when, ac.currentTime);
-        if (t - when > def.maxLate || !admit(def)) return;
+        if (t - when > (o.maxLate ?? def.maxLate) || !admit(def)) return;
         const v = startVoice(g, def, r.buffer, p, t);
         v.src.onended = () => release(v);
         voices.push(v);
@@ -449,7 +450,7 @@ export function createAudio(ctx = {}) {
       if (live()) applyMusic(o.fade ?? 1.5);
     },
 
-    /** Battle music intensity 0..1 (layers fade in: drums from 0.15, brass / choir / horn from 0.5). */
+    /** Battle music intensity 0..1: drums fade in over 0.1-0.5, brass / choir / violins over 0.45-0.85, horn line above 0.8. */
     setIntensity(x, tc = 0.5) {
       intensity = clamp(+x || 0);
       if (mus.base && mus.base.seq) mus.base.seq.setIntensity(intensity, tc);
@@ -561,7 +562,7 @@ export function createAudio(ctx = {}) {
       if (disposed) return;
       audio.stopAll(0.02);
       disposed = true;
-      queue.length = 0;
+      for (const e of queue.splice(0)) { e.done = true; e.resolve(null); }
       clearInterval(timer);
       if (offUpdate) offUpdate();
       if (typeof window !== 'undefined') for (const e of GESTURES) window.removeEventListener(e, onGesture, { capture: true });

@@ -3,14 +3,18 @@
 //
 //   __ED.lab.play('clip', 'demo.combo1')          play a clip from the start (lab applies root motion)
 //   __ED.lab.play('pose', 'demo.combo1', 0.3)     freeze a clip at a time
-//   __ED.lab.play('chain', ['demo.combo1', ...])  play clips back to back (each starts when the previous finishes)
+//   __ED.lab.play('chain', ['demo.combo1', ...], [0.4, 0.44])  play clips back to back; each starts when the previous
+//                                                 finishes or reaches its cancel time (optional array)
 //   __ED.lab.play('turn', 45)                     orbit the camera around the fighter (degrees)
 //   __ED.lab.play('flip') / ('duel') / ('cloth') / ('reset')
+//   __ED.lab.play('joints') / ('bones')           joint torture pose / toggle the skeleton overlay
 //   __ED.char, __ED.chars                         the characters
+//   __ED.anim                                     defineClip / definePose / ... for live authoring (call invalidateClips()
+//                                                 after re-defining a clip, then play it again)
 
 import * as THREE from 'three';
 import { createLab, ORDER } from '../core/lab.js';
-import { createCharacter } from '../char/index.js';
+import { createCharacter, defineClip, definePose, mirrorClip, mirrorPose, invalidateClips, listClips, listPoses } from '../char/index.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
 
@@ -60,15 +64,17 @@ createLab({
           if (Math.abs(c.root.position.x) > 8) c.root.position.x = Math.sign(c.root.position.x) * 8;
         }
       }
-      if (st.chain && a.finished) {
+      // chains advance when the clip finishes, or at its cancel time (game-style combo cancel)
+      if (st.chain && (a.finished || (st.chainAt && st.chainAt[st.chainIdx] !== undefined && a.clipTime >= st.chainAt[st.chainIdx]))) {
         st.chainIdx++;
-        if (st.chainIdx < st.chain.length) a.play(st.chain[st.chainIdx], { fade: 0.08 });
+        if (st.chainIdx < st.chain.length) a.play(st.chain[st.chainIdx], { fade: 0.06, restart: true });
         else st.chain = null;
       }
       if (st.stress) st.stress(dg);
     }, ORDER.CHAR);
     window.__ED.char = a;
     window.__ED.chars = chars;
+    window.__ED.anim = { defineClip, definePose, mirrorClip, mirrorPose, invalidateClips, listClips, listPoses };
     lab.chars = chars;
     lab.makeSecond = () => {
       if (chars.length > 1) return chars[1];
@@ -99,9 +105,9 @@ createLab({
       a.play(name, { fade: 0, restart: true });
       a.setClipTime(t);
     },
-    chain(ctx, lab, names) {
+    chain(ctx, lab, names, cancelAt = null) {
       const a = lab.chars[0];
-      lab.st.chain = names; lab.st.chainIdx = 0;
+      lab.st.chain = names; lab.st.chainIdx = 0; lab.st.chainAt = cancelAt;
       a.play(names[0], { fade: 0.1, restart: true });
     },
     turn(ctx, lab, deg = 45, dist) {
@@ -120,6 +126,26 @@ createLab({
       a.play('demo.guard', { fade: 0 }); b.play('demo.idle', { fade: 0 });
       a.lookAt(b.sockets.head); b.lookAt(a.sockets.head);
       lab.view({ target: [0, 1.1, 0], dist: 7.2, yaw: 0, pitch: 5 });
+    },
+    joints(ctx, lab) {
+      // extreme FK angles on every major joint: checks skin blending, twist distribution, plate overlaps
+      definePose('lab.joints', {
+        hips: { pos: [0, -0.12, 0], rot: [0, -20, 0] },
+        bones: {
+          spine: [0, 20, -10], chest: [6, 22, -8], neck: [0, -20, 10], head: [10, -25, 12],
+          shoulderR: [-12, 0, 8], upperArmR: [-75, 20, 35], foreArmR: [0, 70, 130], handR: [30, 60, -20],
+          shoulderL: [-15, 0, 0], upperArmL: [-10, -30, 165], foreArmL: [0, -60, 95], handL: [-20, 0, 40],
+          thighR: [-10, 15, 105], shinR: [0, 0, -135], footR: [0, 0, -30],
+          thighL: [-35, -20, -25], shinL: [0, 0, -60], footL: [0, 0, 20],
+        },
+        grip: 0, curl: [0.3, 1],
+      });
+      invalidateClips();
+      lab.chars[0].play('lab.joints', { fade: 0, restart: true });
+    },
+    bones(ctx, lab) {
+      if (!lab.skel) { lab.skel = new THREE.SkeletonHelper(lab.chars[0].root); ctx.scene.add(lab.skel); }
+      else lab.skel.visible = !lab.skel.visible;
     },
     cloth(ctx, lab) {
       // stress: run back and forth, teleport, flip facing, while attacking

@@ -50,6 +50,17 @@ const COMMAND_RE = /^(?:([dufb])\+)?(light|heavy|skill1|skill2|skill3|ult)$/;
 // small checkers
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * A deep-frozen copy of author data (marker / projectile / tick `data`): events hand it to presentation listeners,
+ * which must never be able to change the definition (or the next event) through it.
+ */
+function frozen(v) {
+  if (v === undefined) return null;
+  if (v === null || typeof v !== 'object') return v;
+  const out = Array.isArray(v) ? v.map(frozen) : Object.fromEntries(Object.entries(v).map(([k, x]) => [k, frozen(x)]));
+  return Object.freeze(out);
+}
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const fmt = (v) => {
   try {
@@ -154,6 +165,8 @@ export function validateFighterDef(def) {
     else {
       r.unknown(def.stats, F.stats, 'def.stats');
       for (const k of F.stats) r.num(def.stats, k, 'def.stats', { min: 0, exclusiveMin: true });
+      // knockback is divided by the weight: tiny weights turn every hit into a rocket
+      if (isNum(def.stats.weight) && def.stats.weight > 0) r.num(def.stats, 'weight', 'def.stats', { min: 0.2, max: 50 });
       if (isNum(def.stats.walkSpeed) && isNum(def.stats.backSpeed) && def.stats.backSpeed > def.stats.walkSpeed) r.warn('def.stats.backSpeed', 'walking back is faster than walking forward');
     }
   }
@@ -174,7 +187,7 @@ export function validateFighterDef(def) {
   else if (!ids.length) r.err('def.moves', 'a fighter needs at least one move');
   for (const id of ids) {
     if (!/^[a-z0-9_.-]+$/i.test(id)) r.err(`def.moves.${id}`, 'move ids may only use letters, digits, _ . -');
-    validateMove(moves[id], `moves.${id}`, ids, moves, r);
+    validateMove(moves[id], `moves.${id}`, ids, moves, r, { ...DEFAULT_STATS, ...(isObj(def.stats) ? def.stats : {}) });
   }
 
   const reachable = new Set();
@@ -274,19 +287,21 @@ function validateBox(b, p, r) {
   if (r.range(b.u, `${p}.u`, { strict: true, what: 'height range (m)' }) && (b.u[0] < -0.5 || b.u[1] > 6 * r.scale)) r.warn(`${p}.u`, `unusual height ${fmt(b.u)} m for a ${(DEFAULT_STATS.height * r.scale).toFixed(2)} m fighter`);
 }
 
-function windows(list, p, r, dur, fields, extra) {
+/** A list of timeline windows `{t: [from, to], ...}`; with `shorthand`, a bare `[from, to]` is accepted too. */
+function windows(list, p, r, dur, fields, extra, shorthand = false) {
   if (list === undefined) return;
   if (!Array.isArray(list)) { r.err(p, `expected an array, got ${fmt(list)}`); return; }
   list.forEach((w, i) => {
     const q = `${p}[${i}]`;
-    if (!isObj(w)) { r.err(q, `expected an object, got ${fmt(w)}`); return; }
+    if (shorthand && Array.isArray(w)) { r.range(w, q, { lo: 0, hi: dur, what: 'time window (s)' }); return; }
+    if (!isObj(w)) { r.err(q, `expected ${shorthand ? '[from, to] or ' : ''}an object {t: [from, to], ...}, got ${fmt(w)}`); return; }
     r.unknown(w, fields, q);
     r.range(w.t, `${q}.t`, { lo: 0, hi: dur, what: 'time window (s)' });
     if (extra) extra(w, q);
   });
 }
 
-function validateMove(mv, p, ids, moves, r) {
+function validateMove(mv, p, ids, moves, r, stats) {
   if (!isObj(mv)) { r.err(p, `expected a move object, got ${fmt(mv)}`); return; }
   r.unknown(mv, F.move, p);
   if (!r.num(mv, 'duration', p, { min: 0, exclusiveMin: true, max: 12, required: true })) return;
@@ -294,6 +309,9 @@ function validateMove(mv, p, ids, moves, r) {
   if (mv.name !== undefined && typeof mv.name !== 'string') r.err(`${p}.name`, `expected a string, got ${fmt(mv.name)}`);
   r.oneOf(mv, 'group', GROUPS, p);
   for (const k of ['fpCost', 'ultCost', 'cooldown']) r.num(mv, k, p, { min: 0 });
+  if (isNum(mv.fpCost) && isNum(stats.fpMax) && mv.fpCost > stats.fpMax) r.err(`${p}.fpCost`, `${mv.fpCost} can never be paid (stats.fpMax is ${stats.fpMax})`);
+  if (isNum(mv.ultCost) && isNum(stats.ultMax) && mv.ultCost > stats.ultMax) r.err(`${p}.ultCost`, `${mv.ultCost} can never be paid (stats.ultMax is ${stats.ultMax})`);
+  if ((mv.cinematic !== undefined || mv.superFreeze !== undefined) && !(mv.ultCost > 0)) r.warn(`${p}.ultCost`, 'an ultimate (superFreeze / cinematic) without an ultCost is free to spam');
   if (mv.cooldownKey !== undefined && typeof mv.cooldownKey !== 'string') r.err(`${p}.cooldownKey`, `expected a string, got ${fmt(mv.cooldownKey)}`);
 
   // hits
@@ -305,6 +323,9 @@ function validateMove(mv, p, ids, moves, r) {
       if (!isObj(h)) { r.err(q, `expected a hit object, got ${fmt(h)}`); return; }
       validateHitFields(h, q, r, { duration: dur });
       if (Array.isArray(h.t) && isNum(h.t[0])) firstActive = Math.min(firstActive, h.t[0]);
+      if (isObj(h.box) && Array.isArray(h.box.f) && isNum(h.box.f[1]) && h.box.f[1] <= 0) r.warn(`${q}.box.f`, `${fmt(h.box.f)} only reaches behind the fighter (f is forward-positive) - a sign mistake?`);
+      if (h.cinematic === true && mv.cinematic === undefined) r.err(`${q}.cinematic`, 'a cinematic trigger needs the move\'s `cinematic` block');
+      if (h.cinematic === true && isObj(mv.cinematic) && isNum(mv.cinematic.hit) && mv.cinematic.hit !== i) r.warn(`${q}.cinematic`, `hit ${i} is flagged as a trigger but cinematic.hit is ${mv.cinematic.hit}: both will trigger`);
     });
   }
 
@@ -362,8 +383,8 @@ function validateMove(mv, p, ids, moves, r) {
   windows(mv.armour, `${p}.armour`, r, dur, F.armour, (a, q) => {
     r.num(a, 'hits', q, { min: 1, int: true });
     r.num(a, 'damageScale', q, { min: 0, max: 2 });
-  });
-  windows(mv.invuln, `${p}.invuln`, r, dur, F.invuln, (a, q) => r.oneOf(a, 'vs', VS, q));
+  }, true);
+  windows(mv.invuln, `${p}.invuln`, r, dur, F.invuln, (a, q) => r.oneOf(a, 'vs', VS, q), true);
   windows(mv.hurt, `${p}.hurt`, r, dur, F.hurt, (a, q) => validateBox(a.box, `${q}.box`, r));
   if (mv.passThrough !== undefined) {
     if (!Array.isArray(mv.passThrough)) r.err(`${p}.passThrough`, `expected an array of [from, to] windows, got ${fmt(mv.passThrough)}`);
@@ -381,8 +402,17 @@ function validateMove(mv, p, ids, moves, r) {
       if (typeof c.move !== 'string' || !ids.includes(c.move)) { const s = typeof c.move === 'string' ? suggest(c.move, ids) : null; r.err(`${q}.move`, `unknown move ${fmt(c.move)}${s ? ` - did you mean '${s}'?` : ''}`); }
       else {
         const cm = moves[c.move];
-        const inv = isObj(cm) && Array.isArray(cm.invuln) && cm.invuln.some((w) => isObj(w) && Array.isArray(w.t) && w.t[0] <= 0.001);
+        const inv = isObj(cm) && Array.isArray(cm.invuln) && cm.invuln.some((w) => { const wt = Array.isArray(w) ? w : isObj(w) ? w.t : null; return Array.isArray(wt) && wt[0] <= 0.001; });
         if (!inv) r.warn(`${q}.move`, `counter follow-up '${c.move}' has no invulnerability at t = 0; it can be stuffed by multi-hit attacks`);
+      }
+      // invulnerability is checked before the counter stance: a hit the move is invulnerable to just passes through
+      if (Array.isArray(c.t) && Array.isArray(mv.invuln)) {
+        const cvs = c.vs || 'strike';
+        mv.invuln.forEach((w, i) => {
+          const wt = Array.isArray(w) ? w : isObj(w) ? w.t : null;
+          const wvs = isObj(w) && w.vs ? w.vs : 'all';
+          if (Array.isArray(wt) && wt[0] < c.t[1] && c.t[0] < wt[1] && (wvs === 'all' || cvs === 'all' || wvs === cvs)) r.warn(`${q}.t`, `overlaps invuln[${i}]: hits pass through an invulnerable fighter, so the counter cannot trigger there`);
+        });
       }
     }
   }
@@ -458,6 +488,7 @@ function validateMove(mv, p, ids, moves, r) {
       r.num(mv.requires, 'maxDistance', q, { min: 0 });
       r.num(mv.requires, 'hpBelow', q, { min: 0, max: 1 });
       r.bool(mv.requires, 'opponentAirborne', q);
+      if (isNum(mv.requires.minDistance) && isNum(mv.requires.maxDistance) && mv.requires.minDistance > mv.requires.maxDistance) r.err(q, `minDistance ${mv.requires.minDistance} > maxDistance ${mv.requires.maxDistance}: the move can never start`);
     }
   }
 
@@ -504,6 +535,7 @@ function validateMove(mv, p, ids, moves, r) {
         r.oneOf(c.finish, 'level', ['launch', 'knockdown'], `${q}.finish`);
         r.num(c.finish, 'hitstop', `${q}.finish`, { min: 0, max: 0.6 });
         if (c.finish.knockback !== undefined && !isObj(c.finish.knockback)) r.err(`${q}.finish.knockback`, `expected {x, y}, got ${fmt(c.finish.knockback)}`);
+        if (isNum(c.finish.t) && Array.isArray(c.ticks)) c.ticks.forEach((tk, i) => { if (isObj(tk) && isNum(tk.t) && tk.t > c.finish.t) r.warn(`${q}.ticks[${i}].t`, `${tk.t} s comes after the finish (${c.finish.t} s): damage after the climax`); });
       }
       if (c.markers !== undefined) {
         if (!Array.isArray(c.markers)) r.err(`${q}.markers`, `expected an array, got ${fmt(c.markers)}`);
@@ -639,7 +671,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
     pierce: !!s.pierce,
     durability: s.durability || 1,
     clash: s.clash !== false,
-    data: s.data === undefined ? null : s.data,
+    data: frozen(s.data),
   }));
   for (const p of projectiles) if (!p.multiInterval && p.hit.multiInterval) p.multiInterval = p.hit.multiInterval;
   const cin = mv.cinematic;
@@ -648,7 +680,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
     duration: cin.duration,
     distance: cin.distance !== undefined ? cin.distance : null, // null: both push-widths + 0.5 m
     recovery: cin.recovery !== undefined ? cin.recovery : 0.5,
-    ticks: (cin.ticks || []).map((t) => ({ t: t.t, damage: t.damage, hitstop: t.hitstop || 0, marker: t.marker || null, data: t.data === undefined ? null : t.data })).sort((a, b) => a.t - b.t),
+    ticks: (cin.ticks || []).map((t) => ({ t: t.t, damage: t.damage, hitstop: t.hitstop || 0, marker: t.marker || null, data: frozen(t.data) })).sort((a, b) => a.t - b.t),
     finish: {
       t: cin.finish.t,
       damage: cin.finish.damage,
@@ -657,9 +689,9 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
       ky: cin.finish.knockback && cin.finish.knockback.y !== undefined ? cin.finish.knockback.y : 5,
       hitstop: cin.finish.hitstop || 0.2,
       marker: cin.finish.marker || null,
-      data: cin.finish.data === undefined ? null : cin.finish.data,
+      data: frozen(cin.finish.data),
     },
-    markers: (cin.markers || []).map((k) => ({ t: k.t, name: k.name, data: k.data === undefined ? null : k.data })).sort((a, b) => a.t - b.t),
+    markers: (cin.markers || []).map((k) => ({ t: k.t, name: k.name, data: frozen(k.data) })).sort((a, b) => a.t - b.t),
   } : null;
   const c = mv.counter;
   const lastHitEnd = hits.reduce((m, h) => Math.max(m, h.t1), 0);
@@ -679,7 +711,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
     counter: c ? { t0: c.t[0], t1: c.t[1], move: c.move, vs: c.vs || 'strike', hitstop: c.hitstop !== undefined ? c.hitstop : 0.12 } : null,
     teleports: (mv.teleport || []).map((tp) => ({ t: tp.t, to: tp.to, distance: tp.distance !== undefined ? tp.distance : 1, face: tp.face !== false })).sort((a, b) => a.t - b.t),
     projectiles,
-    markers: (mv.markers || []).map((k) => ({ t: k.t, name: k.name, data: k.data === undefined ? null : k.data })).sort((a, b) => a.t - b.t),
+    markers: (mv.markers || []).map((k) => ({ t: k.t, name: k.name, data: frozen(k.data) })).sort((a, b) => a.t - b.t),
     fpCost: mv.fpCost || 0,
     ultCost: mv.ultCost || 0,
     cooldown: mv.cooldown || 0,
@@ -693,7 +725,7 @@ export function compileMove(id, mv, rules = DEFAULT_RULES) {
       projectiles.length ? Math.min(...projectiles.map((p) => p.t + p.delay)) : Infinity,
     ),
     lastActive: Math.max(lastHitEnd, projectiles.length ? Math.max(...projectiles.map((p) => p.t)) : 0),
-    meta: mv.meta === undefined ? null : mv.meta,
+    meta: frozen(mv.meta),
   };
   return out;
 }

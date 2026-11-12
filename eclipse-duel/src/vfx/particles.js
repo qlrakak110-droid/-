@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { InstanceRing } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
-import { toCurveFn, toRampFn, toVec3, toColor, sampleRange, rangeMax, makeFrame, normalizeAt, makeAt, defKey, RENDER_ORDER } from './util.js';
+import { toCurveFn, toRampFn, toVec3, sampleRange, rangeMax, makeFrame, normalizeAt, makeAt, defKey, RENDER_ORDER } from './util.js';
 import { TAU, DEG } from '../core/math.js';
 
 const LAYOUT = { iPosT: 4, iVelL: 4, iOrgD: 4, iAxisS: 4, iMisc: 4, iTint: 4 };

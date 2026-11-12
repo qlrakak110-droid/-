@@ -7,7 +7,7 @@
 //   demo.combo1 -> demo.combo2 -> demo.combo3   forehand diagonal / rising backhand / spinning sweep finisher
 //   demo.slam     heavy overhead slam into the floor with a lunge (root motion)
 //   demo.hit      heavy hit reaction from the front (root motion back)
-//   demo.combo1M  mirrorClip() demo: left-handed version of combo1
+//   demo.combo1M  mirrorClip(..., { hands: 'keep' }) demo: combo1's mirrored diagonal with the same sword hand
 // Events: trailOn / hit / trailOff on attacks, impact on the slam, step on foot plants.
 
 import { definePose, defineClip, mirrorClip } from '../anim.js';
@@ -212,7 +212,7 @@ defineClip('demo.combo2', {
   around.forEach(([t, a]) => {
     const r = (a * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
     const fx = piv[0] + rel[0] * c + rel[1] * s, fz = piv[2] - rel[0] * s + rel[1] * c;
-    const lift = a > 0 && a < 360 ? 0.09 : 0;
+    const lift = a > 0 ? 0.09 * Math.sin(Math.min(1, a / 330) * Math.PI) + 0.03 : 0;
     keys.push({ t, ik: { footR: { space: 'origin', pos: [fx + (a / 360) * 0.18, lift, fz], rot: [0, -60 + a, 0] }, footL: { space: 'origin', pos: piv, rot: yawL(a) } } });
   });
   keys.push({ t: 0.86, ik: { footL: { space: 'origin', pos: piv, rot: [0, 12, 0] }, footR: { space: 'origin', pos: [-0.12, 0, 0.17], rot: [0, -50, 0] } } });
@@ -278,5 +278,5 @@ defineClip('demo.hit', {
   events: [{ t: 0.24, name: 'step', data: { foot: 'footR' } }, { t: 0.58, name: 'step', data: { foot: 'footL' } }],
 });
 
-// mirrored-clip helper demo: left-handed combo1
-mirrorClip('demo.combo1', 'demo.combo1M');
+// mirrored-clip helper demo: the same right-handed knight cuts the mirrored diagonal (high left -> low right)
+mirrorClip('demo.combo1', 'demo.combo1M', { hands: 'keep' });

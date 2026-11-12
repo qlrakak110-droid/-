@@ -77,6 +77,8 @@ createLab({
     };
     lab.startHud = (m, touch = touchDefault) => {
       ui.touch.setVisible(touch);
+      ui.hud.hints(false);
+      ui.hud.cinematic(false);
       ui.show('hud', { p1: R.kael, p2: R.iska, roundsToWin: 2 });
       lab.push(m);
     };

@@ -259,6 +259,8 @@ export function createPost(ctx) {
     /** Tween persistent fx values (numbers; tint/lift colours) over `duration` real seconds. */
     to(params, duration = 0.3, easing = 'inOutQuad') {
       for (const k in params) {
+        // a newer tween on the same key replaces the running one (it starts from the current value)
+        for (let i = tweens.length - 1; i >= 0; i--) if (tweens[i].key === k) tweens.splice(i, 1);
         if (k === 'tint' || k === 'lift') tweens.push({ key: k, color: true, from: fx[k].clone(), to: new THREE.Color().set(params[k]), t: 0, dur: Math.max(1e-4, duration), ease: resolveEase(easing) });
         else if (k in DEFAULT_FX) tweens.push({ key: k, from: fx[k], to: params[k], t: 0, dur: Math.max(1e-4, duration), ease: resolveEase(easing) });
       }

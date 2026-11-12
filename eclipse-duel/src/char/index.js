@@ -141,7 +141,6 @@ export function createCharacter(ctx, design, opts = {}) {
   const cloths = layouts.map((L) => new Cloth(rig, L, quality.cloth ?? 1));
   cloths.forEach((c) => c.setBind(bind.mq, bind.mp));
   const final = new Pose(rig);
-  const layerPose = new Pose(rig);
   const statePool = [];
   const states = [];
   const layers = new Map();
@@ -150,7 +149,7 @@ export function createCharacter(ctx, design, opts = {}) {
   const boneSprings = new Map();
   const flashState = { color: new THREE.Color(), amount: 0, dur: 0.15, t: 1 };
   const flashCol = new THREE.Color();
-  const lookRT = { target: null, weight: 0, w: 0, pos: new Float32Array(3), has: false };
+  const lookRT = { target: null, weight: 0, w: 0, pos: new Float32Array(3) };
   const inertiaM = new Float32Array(12);
   const lastWorld = new THREE.Matrix4(), curWorld = new THREE.Matrix4(), invWorld = new THREE.Matrix4(), tmpM = new THREE.Matrix4();
   let haveLast = false;
@@ -279,6 +278,8 @@ export function createCharacter(ctx, design, opts = {}) {
     lp[0] = rig.offset[0] + pose.hips[0]; lp[1] = rig.offset[1] + pose.hips[1]; lp[2] = rig.offset[2] + pose.hips[2];
     applyCurl(pose.curl, pose.grip, gripHand);
     fk(rig, lq, lp, mq, mp, 0, animCount);
+    // feet first: drop the pelvis if a foot target is out of reach (planted feet must land exactly, never slide)
+    if (pelvisDrop(pose.ik, 2 * EFF_STRIDE, 3 * EFF_STRIDE)) fk(rig, lq, lp, mq, mp, 0, animCount);
     let any = false;
     for (let e = 0; e < EFFECTORS.length; e++) {
       const o = e * EFF_STRIDE, w = pose.ik[o];
@@ -309,6 +310,30 @@ export function createCharacter(ctx, design, opts = {}) {
       qcopy(pose.feet, f * 7 + 3, mq, e * 4);
     }
     pose.lq.set(lq.subarray(0, animCount * 4));
+  }
+
+  /**
+   * Lower the hips so foot targets (sole point + rotation in an IK buffer at offsets oR / oL, layout like Pose.ik:
+   * w, pos(3), quat(4), hasRot) stay within 97% of the leg's reach. Returns true if the hips moved.
+   */
+  function pelvisDrop(buf, oR, oL, stride = 1) {
+    let drop = 0;
+    for (let f = 0; f < 2; f++) {
+      const o = f === 0 ? oR : oL, limb = f === 0 ? limbs.footR : limbs.footL;
+      const w = stride ? buf[o] : 1;
+      if (w <= 0) continue;
+      const po = stride ? o + 1 : o, ro = stride ? o + 4 : o + 3;
+      const hasRot = stride ? buf[o + 8] : 1;
+      qrot(tv, 0, hasRot ? buf : mq, hasRot ? ro : limb.end * 4, limb.endOff[0], limb.endOff[1], limb.endOff[2]);
+      const ax = buf[po] - tv[0], ay = buf[po + 1] - tv[1], az = buf[po + 2] - tv[2];
+      const h = limb.root * 3, dx = ax - mp[h], dz = az - mp[h + 2], dy = mp[h + 1] - ay;
+      const R = (limb.l1 + limb.l2) * 0.97, hz2 = dx * dx + dz * dz;
+      if (dx * dx + dy * dy + dz * dz <= R * R || hz2 >= R * R) continue;
+      drop = Math.max(drop, (dy - Math.sqrt(R * R - hz2)) * w);
+    }
+    if (drop <= 1e-5) return false;
+    lp[1] -= drop;
+    return true;
   }
 
   function blendInto(a, b, w) {
@@ -453,9 +478,16 @@ export function createCharacter(ctx, design, opts = {}) {
   }
 
   // ---- drivers ------------------------------------------------------------------------------------------------------
+  const driven = ['R', 'L'].map((s) => {
+    const o = {};
+    for (const b of ['upperArm', 'foreArm', 'hand', 'deltoid', 'upperArmTwist', 'elbow', 'foreArmTwist', 'knee', 'shin']) o[b] = ix[b + s];
+    return o;
+  });
+  const materialList = Object.values(materials);
+  /** Helper bones: forearm twist moved into the hand, then deltoid / twist / half-joint helpers from their sources. */
   function drive() {
-    for (const s of ['R', 'L']) {
-      const ua = ix['upperArm' + s], fa = ix['foreArm' + s], ha = ix['hand' + s];
+    for (let k = 0; k < 2; k++) {
+      const D = driven[k], ua = D.upperArm, fa = D.foreArm, ha = D.hand;
       // move any forearm twist into the hand (the forearm bone stays a pure hinge; helpers spread the twist)
       const ft = twistAngle(lq, fa * 4, 0, 1, 0);
       if (Math.abs(ft) > 1e-4) {
@@ -469,11 +501,11 @@ export function createCharacter(ctx, design, opts = {}) {
       qaxis(tv, 0, 0, 1, 0, -ut);
       qmul(tv, 4, lq, ua * 4, tv, 0);
       qidentity(tv, 8);
-      qslerp(lq, ix['deltoid' + s] * 4, tv, 8, tv, 4, 0.5);
-      qaxis(lq, ix['upperArmTwist' + s] * 4, 0, 1, 0, -0.5 * ut);
-      qslerp(lq, ix['elbow' + s] * 4, tv, 8, lq, fa * 4, 0.5);
-      qaxis(lq, ix['foreArmTwist' + s] * 4, 0, 1, 0, 0.65 * twistAngle(lq, ha * 4, 0, 1, 0));
-      qslerp(lq, ix['knee' + s] * 4, tv, 8, lq, ix['shin' + s] * 4, 0.5);
+      qslerp(lq, D.deltoid * 4, tv, 8, tv, 4, 0.5);
+      qaxis(lq, D.upperArmTwist * 4, 0, 1, 0, -0.5 * ut);
+      qslerp(lq, D.elbow * 4, tv, 8, lq, fa * 4, 0.5);
+      qaxis(lq, D.foreArmTwist * 4, 0, 1, 0, 0.65 * twistAngle(lq, ha * 4, 0, 1, 0));
+      qslerp(lq, D.knee * 4, tv, 8, lq, D.shin * 4, 0.5);
     }
   }
 
@@ -593,6 +625,7 @@ export function createCharacter(ctx, design, opts = {}) {
     additive(dt, breathK);
     fk(rig, lq, lp, mq, mp, 0, animCount);
     // re-plant feet where the blended animation put them, then keep them on the floor
+    if (pelvisDrop(final.feet, 0, 7, 0)) fk(rig, lq, lp, mq, mp, 0, animCount);
     for (let f = 0; f < 2; f++) {
       const limb = f === 0 ? limbs.footR : limbs.footL;
       const h = final.feet[f * 7 + 1] - floorY;
@@ -608,7 +641,7 @@ export function createCharacter(ctx, design, opts = {}) {
     if (gripW > 0 && cur) {
       const g = grips[cur.c.gripAt] || grips.grip;
       const limb = limbs['hand' + cur.c.gripHand];
-      if (g && limb) {
+      if (g && limb && rig.parent[g.bone] !== limb.end) { // never IK a hand onto the weapon it holds
         qrot(gripT, 0, mq, g.bone * 4, g.pos[0], g.pos[1], g.pos[2]);
         gripT[0] += mp[g.bone * 3]; gripT[1] += mp[g.bone * 3 + 1]; gripT[2] += mp[g.bone * 3 + 2];
         qmul(gripT, 4, mq, g.bone * 4, g.q, 0);
@@ -647,7 +680,7 @@ export function createCharacter(ctx, design, opts = {}) {
       flashState.t = Math.min(1, flashState.t + (dtReal || 0) / flashState.dur);
       const k = (1 - flashState.t) * (1 - flashState.t) * flashState.amount;
       flashCol.copy(flashState.color).multiplyScalar(k);
-      for (const m of Object.values(materials)) m.userData.kit.uFlash.value.copy(flashCol);
+      for (let i = 0; i < materialList.length; i++) materialList[i].userData.kit.uFlash.value.copy(flashCol);
     }
     return char;
   }

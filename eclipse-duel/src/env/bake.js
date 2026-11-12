@@ -143,8 +143,9 @@ Fl floorField(vec2 p) {
 
   // ---- height --------------------------------------------------------------------------------------------------
   float h = (hs - 0.5) * 0.007 * (1.0 - 0.6 * worn) + dot((hash22(id) - 0.5) * 0.014, lc);
-  h += 0.0045 * smoothstep(0.0, 0.1, dj);
-  h -= 0.017 * (1.0 - smoothstep(0.003, 0.02, dj));
+  h += 0.0045 * smoothstep(0.0, 0.12, dj);
+  float aaw = 2.0 * uExtent * uTexel.x; // one texel in metres
+  h -= 0.011 * (1.0 - smoothstep(0.004, 0.03 + aaw, dj));
   float grain = fbm2(p * 6.5 + hs * 13.0, 4);
   h += (grain - 0.5) * 0.005 * (1.0 - 0.5 * worn) + (vnoise(p * 34.0) - 0.5) * 0.0012;
   float sunk = step(0.955, hs2) * step(1.5, kind == 0.0 ? 2.0 : 0.0);
@@ -157,6 +158,7 @@ Fl floorField(vec2 p) {
   // ---- albedo ---------------------------------------------------------------------------------------------------
   vec3 stone = vec3(0.056, 0.058, 0.064) * (0.62 + 0.76 * hs);
   stone *= 0.62 + 0.6 * fbm2(p * 0.33 + 1.7, 3);
+  stone *= mix(1.0, 0.68, smoothstep(9.0, 14.8, r0));
   stone *= mix(vec3(1.0), vec3(1.09, 1.0, 0.9), hs3);
   stone *= 0.82 + 0.36 * fbm2(p * 2.6 + hs * 9.0, 3);
   float rough = mix(0.78, 0.6, worn) + (grain - 0.5) * 0.2;
@@ -169,16 +171,18 @@ Fl floorField(vec2 p) {
     if (kind == 3.0) {
       float rays = abs(fract(an * 16.0 + 0.25) - 0.5);
       strip = 0.0;
-      strip = max(strip, step(abs(r0 - 0.6), 0.045));
-      strip = max(strip, step(rays, 0.05 * (1.15 - r0)) * step(0.72, r0) * step(r0, 1.12));
-      stone = mix(stone * 0.75, vec3(0.02, 0.021, 0.024), step(r0, 0.36));
-      rough = mix(rough, 0.3, step(r0, 0.36));
-      h += 0.002 * step(r0, 0.36);
+      float aa = 2.0 * uExtent * uTexel.x;
+      strip = max(strip, smoothstep(0.045 + aa, 0.045 - aa, abs(r0 - 0.6)));
+      strip = max(strip, smoothstep(0.05 * (1.15 - r0) * 6.2832 * r0 + aa, 0.05 * (1.15 - r0) * 6.2832 * r0 - aa, rays * 6.2832 * r0) * smoothstep(0.71, 0.73, r0) * smoothstep(1.13, 1.11, r0));
+      float disc = smoothstep(0.36 + aa, 0.36 - aa, r0);
+      stone = mix(stone * 0.75, vec3(0.02, 0.021, 0.024), disc);
+      rough = mix(rough, 0.3, disc);
+      h += 0.002 * disc;
     }
     float gone = smoothstep(0.62, 0.7, vnoise(vec2(an * 70.0, r0 * 3.0)));
     float verd = smoothstep(0.5, 0.75, fbm2(p * 3.5, 3));
     strip *= 1.0 - gone;
-    h -= strip * 0.001 + gone * 0.004 * (kind == 1.0 ? 1.0 : 0.0);
+    h -= strip * 0.0006 + gone * 0.003 * (kind == 1.0 ? 1.0 : 0.0);
     vec3 inlay = mix(bronze * (0.6 + 0.5 * grain), vec3(0.045, 0.075, 0.068), verd);
     stone = mix(stone, inlay, strip);
     if (kind == 1.0) stone = mix(stone, vec3(0.02), gone);

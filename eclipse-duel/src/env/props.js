@@ -17,10 +17,10 @@ vec3 clothOff(float hang, float u, vec3 N, vec3 X) {
   float k = hang / aCloth.w;
   float pin = smoothstep(0.0, 0.35, hang);
   float gust = 0.55 + 0.45 * sin(t * 0.63 + s) * sin(t * 0.37 + s * 1.7);
-  float billow = (0.18 + 0.32 * gust) * k * k;
-  float wave = sin(hang * 1.9 - t * 2.6 + s + u * 1.2) * (0.05 + 0.14 * k) * gust;
+  float billow = (0.22 + 0.42 * gust) * k * k;
+  float wave = sin(hang * 1.9 - t * 2.6 + s + u * 1.2) * (0.06 + 0.2 * k) * gust;
   float flutter = sin(hang * 5.5 - t * 6.8 + u * 5.0 + s * 2.0) * 0.045 * k * k * (0.4 + gust);
-  float side = sin(t * 0.8 + s * 0.7) * 0.12 * k * k + sin(hang * 2.3 - t * 3.3 + s) * 0.04 * k;
+  float side = sin(t * 0.8 + s * 0.7) * 0.18 * k * k + sin(hang * 2.3 - t * 3.3 + s) * 0.06 * k;
   float curl = (u * u - 0.08) * 0.25 * k;
   return (N * (billow + wave + flutter + curl) + X * side + vec3(0.0, -0.06 * k * k * gust, 0.0)) * pin;
 }

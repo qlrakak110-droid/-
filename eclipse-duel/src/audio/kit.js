@@ -70,23 +70,44 @@ const specFn = (spec, log) => (typeof spec === 'function' ? spec : Array.isArray
 
 // ---- scratch noise (seamless, per sample rate / colour / channel count; released once the render queue drains) ----
 const NOISE = new Map();
+/** Fill `out` with white / pink / brown noise from an xorshift32 state; returns the sum of squares. */
+function fillNoise(out, color, seed) {
+  let x = seed >>> 0 || 1, e = 0;
+  const n = out.length;
+  if (color === 'pink') {
+    let p0 = 0, p1 = 0, p2 = 0;
+    for (let i = 0; i < n; i++) {
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      const w = (x >>> 0) / 2147483648 - 1;
+      p0 = 0.99765 * p0 + w * 0.099046; p1 = 0.963 * p1 + w * 0.2965164; p2 = 0.57 * p2 + w * 1.0526913;
+      const v = p0 + p1 + p2 + w * 0.1848;
+      out[i] = v; e += v * v;
+    }
+  } else if (color === 'brown') {
+    let br = 0;
+    for (let i = 0; i < n; i++) {
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      br = (br + 0.02 * ((x >>> 0) / 2147483648 - 1)) / 1.02;
+      out[i] = br; e += br * br;
+    }
+  } else {
+    for (let i = 0; i < n; i++) {
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      const v = (x >>> 0) / 2147483648 - 1;
+      out[i] = v; e += v * v;
+    }
+  }
+  return e;
+}
 function noiseBuffer(ac, color, channels) {
   const key = color + ':' + channels + ':' + ac.sampleRate;
   let b = NOISE.get(key);
   if (b) return b;
-  const sr = ac.sampleRate, len = Math.round(sr * 3), xf = Math.round(sr * 0.08);
+  const sr = ac.sampleRate, len = Math.round(sr * 2.5), xf = Math.round(sr * 0.08);
   b = ac.createBuffer(channels, len, sr);
-  const rng = makeRng(0x6e01 + channels * 31 + color.charCodeAt(0) * 977);
   const tmp = new Float32Array(len + xf);
   for (let c = 0; c < channels; c++) {
-    let p0 = 0, p1 = 0, p2 = 0, br = 0, e = 0;
-    for (let i = 0; i < len + xf; i++) {
-      const w = rng() * 2 - 1;
-      let v = w;
-      if (color === 'pink') { p0 = 0.99765 * p0 + w * 0.099046; p1 = 0.963 * p1 + w * 0.2965164; p2 = 0.57 * p2 + w * 1.0526913; v = p0 + p1 + p2 + w * 0.1848; }
-      else if (color === 'brown') { br = (br + 0.02 * w) / 1.02; v = br; }
-      tmp[i] = v; e += v * v;
-    }
+    const e = fillNoise(tmp, color, 0x6e01 + channels * 31 + color.charCodeAt(0) * 977 + c * 7919);
     const d = b.getChannelData(c), s = 0.3 / Math.sqrt(e / (len + xf));
     for (let i = 0; i < len; i++) d[i] = tmp[i] * s;
     // equal-power crossfade of the overrun into the head: the buffer loops without a seam
@@ -139,14 +160,16 @@ export function hallIR(ac, { seconds = 3.2, predelay = 0.024, damp = 0.6, seed =
       const i = pd + Math.round(t * sr * (c ? 1.06 : 0.97));
       if (i < len) d[i] += (rng() < 0.5 ? -1 : 1) * (0.7 - t * 4) * (0.5 + 0.5 * rng());
     }
-    let l1 = 0, l2 = 0;
+    // per-sample multipliers instead of exp(): cutoff glide, RT60 decay, diffusion build-up
+    const kc = Math.exp(-(1.2 + damp) / sr), ka = Math.exp(-1 / (tau * sr)), kb = Math.exp(-1 / (0.03 * sr)), w0 = (2 * Math.PI) / sr;
+    let l1 = 0, l2 = 0, ec = 1, ea = 1, eb = 1, x = (seed * 2654435761 + c * 97) >>> 0 || 1;
     for (let i = pd; i < len; i++) {
-      const t = (i - pd) / sr;
-      const cutoff = 900 + 7600 * Math.exp(-t * (1.2 + damp));
-      const a = 1 - Math.exp((-2 * Math.PI * cutoff) / sr);
-      l1 += a * (rng() * 2 - 1 - l1);
+      const wc = w0 * (900 + 7600 * ec), a = wc / (1 + wc);
+      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+      l1 += a * ((x >>> 0) / 2147483648 - 1 - l1);
       l2 += a * (l1 - l2);
-      d[i] += l2 * Math.exp(-t / tau) * (1 - Math.exp(-t / 0.03)) * 2.2;
+      d[i] += l2 * ea * (1 - eb) * 2.2;
+      ec *= kc; ea *= ka; eb *= kb;
     }
   }
   return buf;
@@ -224,6 +247,7 @@ export function makeKit(ac, rng, dur) {
   hp.type = 'highpass'; hp.frequency.value = 22; hp.Q.value = -3; // DC / infrasonic guard (Q in dB for HP/LP)
   out.connect(hp); hp.connect(ac.destination);
   const stereoOK = typeof ac.createStereoPanner === 'function';
+  const curves = new Map();
 
   const k = {
     ac, sr, dur, rng, out,
@@ -234,18 +258,33 @@ export function makeKit(ac, rng, dur) {
     /** piecewise curve function (see pointsFn) */
     fn: pointsFn,
 
-    /** Drive an AudioParam with a number / function / points over [at, at + len]. */
+    /**
+     * Drive an AudioParam with a number / function / points over [at, at + len]. Curves are sampled at 400 points/s
+     * (setValueCurveAtTime costs per point; transients use native ramps in env()), or at `fn.res` for functions made
+     * with k.fast(). Constant point lists collapse to a value; identical curves are shared (e.g. across a saws stack).
+     */
     set(param, spec, at = 0, len = dur - at, log = false) {
       if (typeof spec === 'number') { param.value = spec; return param; }
-      const f = specFn(spec, log);
+      if (Array.isArray(spec) && spec.every((p) => p[1] === spec[0][1])) { param.value = spec[0][1]; return param; }
       len = Math.max(0.002, len);
-      const n = Math.max(2, Math.min(32768, Math.ceil(len * 1500)));
-      const arr = new Float32Array(n);
-      for (let i = 0; i < n; i++) { const v = f((i / (n - 1)) * len); arr[i] = Number.isFinite(v) ? v : 0; }
+      let byLen = curves.get(spec);
+      if (!byLen) curves.set(spec, (byLen = new Map()));
+      const key = len.toFixed(4) + (log ? 'L' : '');
+      let arr = byLen.get(key);
+      if (!arr) {
+        const f = specFn(spec, log);
+        const n = Math.max(2, Math.min(16384, Math.ceil(len * ((typeof spec === 'function' && spec.res) || 400))));
+        arr = new Float32Array(n);
+        for (let i = 0; i < n; i++) { const v = f((i / (n - 1)) * len); arr[i] = Number.isFinite(v) ? v : 0; }
+        byLen.set(key, arr);
+      }
       param.value = arr[0];
       param.setValueCurveAtTime(arr, at, len);
       return param;
     },
+
+    /** Mark a function spec as fast-moving: it is sampled at `res` points per second instead of 400. */
+    fast(fn, res) { fn.res = res; return fn; },
 
     /** Smooth value noise in [0, 1] with `rate` knots per second (cosine interpolation). */
     smooth(rate) {
@@ -443,20 +482,39 @@ export function makeKit(ac, rng, dur) {
         const p = (rng() * 2 - 1) * spread;
         const gl = A * Math.cos(((p + 1) * Math.PI) / 4), gr = A * Math.sin(((p + 1) * Math.PI) / 4);
         const i0 = Math.floor(t0 * sr), m = Math.min(n - i0, Math.ceil(dec * sr));
-        const k60 = 6.9 / (dec * sr), atk = Math.max(1, attack * sr);
+        if (m <= 0) continue;
+        // recurrences only (no per-sample transcendental): decay multiplier, rotating phasors for the partials
+        const dk = Math.exp(-6.9 / (dec * sr)), atk = Math.max(1, attack * sr);
+        let e = 1;
+        if (kind === 'noise') {
+          let st = 0, x = (rng() * 4294967295) >>> 0 || 1;
+          for (let j = 0; j < m; j++) {
+            x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+            st += lp * ((x >>> 0) / 2147483648 - 1 - st);
+            const v = st * e * (j < atk ? j / atk : 1);
+            L[i0 + j] += v * gl; R[i0 + j] += v * gr;
+            e *= dk;
+          }
+          continue;
+        }
         const w = (2 * Math.PI * Math.min(fr, nyq)) / sr, ph = rng() * 6.283;
         const g2 = kind === 'glass' && fr * 2.756 < nyq ? 0.45 : 0, g3 = kind === 'glass' && fr * 5.404 < nyq ? 0.22 : 0;
-        let s = 0;
+        let c1 = Math.cos(ph), s1 = Math.sin(ph), c2 = Math.cos(ph * 1.7), s2 = Math.sin(ph * 1.7), c3 = Math.cos(ph * 2.3), s3 = Math.sin(ph * 2.3);
+        const r1c = Math.cos(w), r1s = Math.sin(w), r2c = Math.cos(w * 2.756), r2s = Math.sin(w * 2.756), r3c = Math.cos(w * 5.404), r3s = Math.sin(w * 5.404);
+        const dk2 = Math.pow(dk, 0.7), dk3 = Math.pow(dk, 1.4);
+        let e2 = g2, e3 = g3;
         for (let j = 0; j < m; j++) {
-          const e = Math.exp(-j * k60) * (j < atk ? j / atk : 1);
-          let v;
-          if (kind === 'noise') { s += lp * (rng() * 2 - 1 - s); v = s; }
-          else {
-            v = Math.sin(ph + w * j);
-            if (g2) v += g2 * Math.sin(ph * 1.7 + 2.756 * w * j) * Math.exp(-j * k60 * 0.7) + g3 * Math.sin(ph * 2.3 + 5.404 * w * j) * Math.exp(-j * k60 * 1.4);
+          let v = s1;
+          if (g2) {
+            v += s2 * e2 + s3 * e3;
+            let t = c2 * r2c - s2 * r2s; s2 = s2 * r2c + c2 * r2s; c2 = t;
+            t = c3 * r3c - s3 * r3s; s3 = s3 * r3c + c3 * r3s; c3 = t;
+            e2 *= dk2; e3 *= dk3;
           }
-          v *= e;
+          v *= e * (j < atk ? j / atk : 1);
           L[i0 + j] += v * gl; R[i0 + j] += v * gr;
+          const t = c1 * r1c - s1 * r1s; s1 = s1 * r1c + c1 * r1s; c1 = t;
+          e *= dk;
         }
       }
       const src = ac.createBufferSource();
@@ -524,7 +582,7 @@ export function makeKit(ac, rng, dur) {
       return k.hiss({ at, len, color, stereo, type: 'lowpass', f, q, env: env || { a: 0.02, d: len }, gain, am: { rate, depth }, drive });
     },
 
-    /** Detuned oscillator stack through optional filters, envelope and drive. `vibrato` = {rate, depth cents, delay}. */
+    /** Detuned oscillator stack through optional filters, envelope, drive and `am`. `vibrato` = {rate, depth cents, delay}. */
     saws({ at = 0, len, f, voices = 3, spread = 12, type = 'sawtooth', gain = 1, filter, env, drive = 0, pan = 0, vibrato, am, stagger = 0.004 } = {}) {
       len = len ?? dur - at;
       const sum = ac.createGain();

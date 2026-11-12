@@ -183,21 +183,23 @@ export function createUI(ctx, opts = {}) {
   // layout: scale unit, portrait stage rectangle, safe areas
 
   let touchOn = opts.touch !== undefined ? !!opts.touch : (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) || !!(ctx.quality && ctx.quality.mobile);
-  const layoutState = { W: 0, H: 0, portrait: false, safe: { t: 0, r: 0, b: 0, l: 0 }, padTop: 0 };
+  const layoutState = { W: 0, H: 0, portrait: false, padPortrait: false, safe: { t: 0, r: 0, b: 0, l: 0 }, padTop: 0, k: 1 };
   function readSafe() {
     const cs = getComputedStyle(safeProbe);
     return { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0, b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
   }
+  /** The fight is on screen (HUD, or a pause / move list over it). */
+  const fightShown = () => ui.screen === 'hud' || ui.screen === 'pause' || (ui.screen === 'movelist' && !!ui.data.fromPause);
   function layout() {
     const W = window.innerWidth, H = window.innerHeight;
     const portrait = H > W * 1.08;
-    const padPortrait = portrait && touchOn;
+    // the stage becomes a 16:10 strip above the pad only while the fight is on screen; menus keep the full backdrop
+    const padPortrait = portrait && touchOn && fightShown();
     const safe = readSafe();
     const L = layoutState;
-    L.W = W; L.H = H; L.portrait = portrait; L.safe = safe;
+    L.W = W; L.H = H; L.portrait = portrait; L.padPortrait = padPortrait; L.safe = safe;
     // stage: full screen, or a 16:10 strip at the top with the pad below it
     const stageH = padPortrait ? Math.round(Math.min(W * 0.625, H * 0.5)) : H;
-    L.padTop = padPortrait ? safe.t + stageH : 0;
     html.classList.toggle('ed-pad-portrait', padPortrait);
     root.style.setProperty('--stage-h', stageH + 'px');
     html.style.setProperty('--ed-stage-h', stageH + 'px');
@@ -212,9 +214,12 @@ export function createUI(ctx, opts = {}) {
     else if (touchOn) k = clamp(Math.min(W / 1080, H / 540), 0.66, 1.25);
     else k = clamp(Math.min(W / 1280, H / 720), 0.62, 1.7);
     root.style.setProperty('--k', k.toFixed(4) + 'px');
-    L.k = k;
-    if (touchOn) touch.layout(L);
+    L.k = ui.k = k;
     hud.setLayout({ portrait: padPortrait });
+    // portrait: the bars and meters form a deck under the stage; the pad's stick zone starts below it
+    L.padTop = padPortrait ? Math.round(hud.topBottom()) + 8 : 0;
+    root.style.setProperty('--pad-deck', L.padTop + 'px');
+    if (touchOn) touch.layout(L);
     for (const n in screens) if (screens[n].layout) screens[n].layout(L);
   }
   function syncDeviceClass() {
@@ -236,8 +241,12 @@ export function createUI(ctx, opts = {}) {
   const screens = createScreens(ui);
   for (const n in screens) { screens[n].el.classList.add('scr', 'scr-' + n); screens[n].el.style.display = 'none'; screenLayer.appendChild(screens[n].el); }
 
-  const hudSet = hud.set, hudSkills = hud.skills;
+  const hudSet = hud.set, hudSkills = hud.skills, hudSetup = hud.setup;
   let p1Skills = null;
+  hud.setup = (o) => {
+    hudSetup(o);
+    touch.setUltIcon(hud.ultIcon(0));
+  };
   // the touch pad mirrors P1's meters and skills
   hud.set = (o) => {
     hudSet(o);
@@ -270,7 +279,8 @@ export function createUI(ctx, opts = {}) {
 
   function syncVisibility() {
     const s = ui.screen;
-    const hudOn = s === 'hud' || s === 'pause' || (s === 'movelist' && ui.data.fromPause);
+    const hudOn = fightShown();
+    if (layoutState.portrait && touchOn && hudOn !== layoutState.padPortrait) layout();
     root.classList.toggle('show-hud', hudOn);
     root.classList.toggle('show-pad', touchOn && s === 'hud');
     root.classList.toggle('hud-dim', hudOn && s !== 'hud');
@@ -295,15 +305,20 @@ export function createUI(ctx, opts = {}) {
       const old = shown;
       if (old.exit) old.exit(screen);
       const el = old.el;
+      // a screen that is fading out never takes a tap meant for the HUD / pad underneath
+      el.style.pointerEvents = 'none';
       anim.add(0.16, (k) => { el.style.opacity = (1 - k).toFixed(3); }, { key: el, ease: 'linear', done: () => { el.style.display = 'none'; } });
       shown = null;
     }
+    // screens keep their elements between visits: drop the old focus mark so a return visit shows one focus only
+    if (nav.cur) nav.cur.classList.remove('is-focus');
     nav.items = []; nav.cur = null;
     const scr = screens[screen];
     if (scr) {
       anim.kill(scr.el);
       scr.el.style.display = '';
       scr.el.style.opacity = '1';
+      scr.el.style.pointerEvents = '';
       scr.enter(ui.data, prev);
       shown = scr;
     }

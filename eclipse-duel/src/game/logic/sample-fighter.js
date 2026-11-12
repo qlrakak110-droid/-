@@ -62,7 +62,8 @@ export const sampleFighter = {
     ult: 'verdict',
   },
 
-  // Optional AI personality: aggression 0..1 (rushdown vs patient), zoning 0..1 (how much it likes projectiles).
+  // Optional AI personality: aggression 0..1 (rushdown vs patient), zoning 0..1 (how much it likes projectiles),
+  // preferredRange m (footsies distance it tries to hold; default: just inside its longest poke).
   ai: { aggression: 0.55, zoning: 0.45 },
 
   moves: {
@@ -198,7 +199,7 @@ export const sampleFighter = {
       projectiles: [{
         t: 0.3,
         kind: 'grave_pillar',
-        at: 'opponent',                            // anchored at the opponent's x when spawned
+        at: 'opponent',                            // anchored at the opponent's x, on the floor (no offset needed)
         box: { f: [-0.6, 0.6], u: [0, 2.6] },
         velocity: { x: 0, y: 0 },
         delay: 0.45,                               // harmless telegraph, then active
@@ -252,7 +253,7 @@ export const sampleFighter = {
       name: 'Ember Ward — Burst',
       group: 'skill',                              // not in the command map: reached through the counter only
       duration: 0.6,
-      invuln: [{ t: [0, 0.3] }],                   // vs 'all' by default
+      invuln: [{ t: [0, 0.3] }],                   // vs 'all' by default (shorthand: invuln: [[0, 0.3]])
       hits: [{
         t: [0.06, 0.14], box: { f: [-1.2, 2.2], u: [0, 2.2] },
         damage: 110, level: 'knockdown', knockback: { x: 5, y: 4 }, hitstop: 0.18, unblockable: true,
@@ -261,7 +262,8 @@ export const sampleFighter = {
     },
 
     // COMMAND DASH (f+skill3): passes through the opponent (push-boxes off) while invulnerable; attacks may
-    // cancel the end of it (light / heavy / launcher), and every move faces the opponent at its start.
+    // cancel the end of it (light / heavy / launcher), and every move faces the opponent at its start. Without the
+    // passThrough window the motion would stop at the opponent's centre and shove it (nothing tunnels through).
     phase_step: {
       name: 'Phase Step',
       duration: 0.5,

@@ -3,12 +3,13 @@
 //   node tools/build.mjs audio                     -> build/audio.html (open it, click anything: audio unlocks)
 //   node tools/shot.mjs audio --eval "__ED.lab.play('report')"      measured table of every sound + music
 //   node tools/shot.mjs audio --eval "__ED.lab.play('selftest')"    API safety checks
+//   node tools/shot.mjs audio --eval "__ED.lab.play('prewarmCost', 'low')"   main-thread cost per asset
 //   node tools/shot.mjs audio --do "__ED.lab.play('sheet')" --size 1800x1300 --out shots/audio/sheet        every SFX
 //   node tools/shot.mjs audio --do "__ED.lab.play('musicSheet')" --size 1800x1300 --out shots/audio/music  every track
 
 import { createLab } from '../core/lab.js';
 import { createAudio } from '../audio/index.js';
-import { runReport, selfTest, spectrogram, measure } from '../audio/analyze.js';
+import { runReport, selfTest, prewarmCost, spectrogram, measure } from '../audio/analyze.js';
 
 const GROUPS = [['weapon', '무기 · Weapon'], ['combat', '타격 · Combat'], ['move', '움직임 · Movement'], ['fire', '불 · Fire'], ['ice', '얼음 · Ice'],
   ['volt', '번개 · Lightning'], ['magic', '마법 · Magic'], ['ult', '궁극기 · Ultimate'], ['time', '시간 · Time'], ['ui', 'UI'], ['announce', '알림 · Announcer']];
@@ -120,7 +121,7 @@ function buildPanel(ctx, audio) {
   button(tools, 'slow-mo 0.3 / 3 s', () => ctx.time.slowmo(0.3, 3, { easeIn: 0.15, easeOut: 0.4 }));
   button(tools, 'spam ×30', () => { for (let i = 0; i < 30; i++) audio.play('hit_slash_heavy', { delay: i * 0.01 }); });
   let tour = 0;
-  button(tools, '▶ play all', () => { const t = ++tour; audio.list().forEach((n, i) => setTimeout(() => { if (t === tour) { audio.play(n); show(n); } }, i * 1400)); });
+  button(tools, '▶ play all', () => { const t = ++tour; audio.list().forEach((n, i) => setTimeout(() => { if (t === tour) { audio.play(n, { maxLate: 3 }); show(n); } }, i * 1400)); });
   button(tools, '■ stop all', () => { tour++; audio.stopAll(0.2); for (const b of root.querySelectorAll('button.live')) b.classList.remove('live'); loopHandles.clear(); });
 
   // sound groups
@@ -134,7 +135,7 @@ function buildPanel(ctx, audio) {
       const info = audio.info(n);
       const b = button(bb, n, (el) => {
         show(n);
-        if (!info.loop) { audio.play(n); return; }
+        if (!info.loop) { audio.play(n, { maxLate: 3 }); return; }
         const h = loopHandles.get(n);
         if (h) { h.stop(0.5); loopHandles.delete(n); el.classList.remove('live'); } else { loopHandles.set(n, audio.loop(n)); el.classList.add('live'); }
       }, info.loop ? 'loop' : '');
@@ -158,6 +159,7 @@ function buildPanel(ctx, audio) {
   rc.appendChild(out);
   button(rb, 'run report', async () => { out.textContent = 'rendering every sound + 8 s of every track ...'; const r = await runReport(audio); out.textContent = r.table; });
   button(rb, 'self-test', async () => { out.textContent = 'running ...'; out.textContent = JSON.stringify(await selfTest(ctx), null, 1); });
+  button(rb, 'prewarm cost', async () => { out.textContent = 'rendering every asset ...'; out.textContent = JSON.stringify(await prewarmCost(ctx.quality.tier), null, 1); });
 
   let showing = 0;
   async function show(name) {
@@ -189,7 +191,7 @@ function buildPanel(ctx, audio) {
 }
 
 /** Full-screen grid of every sound's waveform + spectrogram (for captures). */
-async function drawSheet(ctx, audio, names = audio.list()) {
+async function drawSheet(audio, names = audio.list()) {
   let cv = document.querySelector('canvas.al-sheet');
   if (!cv) { cv = document.createElement('canvas'); cv.className = 'al-sheet'; document.getElementById('ui').appendChild(cv); }
   const n = names.length, cols = n <= 4 ? n : n <= 9 ? 3 : 6, rowsN = Math.ceil(n / cols);
@@ -216,7 +218,7 @@ async function drawSheet(ctx, audio, names = audio.list()) {
 }
 
 /** Full-screen rows of 8 s music renders (through the mix chain) at several intensities (for captures). */
-async function drawMusicSheet(ctx, audio) {
+async function drawMusicSheet(audio) {
   let cv = document.querySelector('canvas.al-sheet');
   if (!cv) { cv = document.createElement('canvas'); cv.className = 'al-sheet'; document.getElementById('ui').appendChild(cv); }
   const W = Math.max(640, window.innerWidth), H = Math.max(480, window.innerHeight);
@@ -252,8 +254,9 @@ createLab({
   scenarios: {
     report: (ctx) => runReport(ctx.audio),
     selftest: (ctx) => selfTest(ctx),
-    sheet: (ctx, lab, names) => drawSheet(ctx, ctx.audio, names),
-    musicSheet: (ctx) => drawMusicSheet(ctx, ctx.audio),
-    play: (ctx, lab, name = 'hit_crit') => { ctx.audio.unlock(); return ctx.audio.play(name) ? name : null; },
+    prewarmCost: (ctx, lab, tier) => prewarmCost(tier),
+    sheet: (ctx, lab, names) => drawSheet(ctx.audio, names),
+    musicSheet: (ctx) => drawMusicSheet(ctx.audio),
+    play: (ctx, lab, name = 'hit_crit') => { ctx.audio.unlock(); return ctx.audio.play(name, { maxLate: 3 }) ? name : null; },
   },
 });

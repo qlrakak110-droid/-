@@ -61,9 +61,12 @@ void main() {
   float lr = log(1.0 + k);
   float t = uTime;
 
-  // streamers flowing slowly outward, brighter along a tilted "equator"
-  float st1 = fbm3(vec3(cp * 2.2, lr * 1.6 - t * 0.035), 4);
-  float st2 = vnoise3(vec3(cp * 7.0, lr * 3.0 - t * 0.06));
+  // streamers flowing slowly outward, brighter along a tilted "equator" (noise only near the sun)
+  float st1 = 0.0, st2 = 0.5;
+  if (rr < 9.0) {
+    st1 = fbm3(vec3(cp * 2.2, lr * 1.6 - t * 0.035), 4);
+    st2 = vnoise3(vec3(cp * 7.0, lr * 3.0 - t * 0.06));
+  }
   float eq = 0.55 + 0.45 * pow(abs(cos(phi - 0.35)), 2.0);
   float streak = smoothstep(0.3, 0.85, st1) * eq;
   float shimmer = 0.85 + 0.15 * sin(t * 2.3 + st2 * 9.0);
@@ -88,6 +91,13 @@ void main() {
   rays += exp(-abs(dq.y) / 0.0005) * exp(-abs(dq.x) / 0.05) * 0.6;
   float beadPulse = 0.85 + 0.15 * sin(t * 1.7) * sin(t * 2.9 + 1.0);
   bead = (bead + rays) * beadPulse * (1.0 - smoothstep(0.985, 0.94, rr));
+
+  // crepuscular rays fanning out from the corona, slowly turning
+  float crep = 0.0;
+  if (rr < 20.0) {
+    float rn = vnoise(vec2(phi * 7.0, 0.5 + t * 0.02)) * vnoise(vec2(phi * 19.0 + 4.0, 1.5 - t * 0.03));
+    crep = rn * rn * exp(-k * 0.2) * smoothstep(1.3, 3.5, rr) * 0.07 * (1.0 - smoothstep(14.0, 20.0, rr));
+  }
 
   // ---- clouds: two thin layers projected on planes, drifting with the wind ----------------------------------------
   float cloudA = 0.0;
@@ -115,12 +125,12 @@ void main() {
   col += vec3(0.75, 0.82, 1.0) * sv * (1.0 - cloudA);
 
   // ---- composite ------------------------------------------------------------------------------------------------
-  vec3 sun = uCorona * corona + uChromo * chromo + vec3(1.0, 0.96, 0.9) * bead;
+  vec3 sun = uCorona * (corona + crep) + uChromo * chromo + vec3(1.0, 0.96, 0.9) * bead;
   sun *= 1.0 - cloudA * 0.6;
   col = col * (1.0 - disc) + vec3(0.0004, 0.00045, 0.0006) * disc;
   col += sun;
   col = mix(col, cloudC + sun * 0.25, cloudA * 0.85 * (1.0 - disc * 0.75));
-  if (env > 0.5) col = min(col - sun * 0.7, vec3(1.2));
+  if (env > 0.5) col = min((col - sun * 0.7) * (1.0 - cloudA * 0.5), vec3(1.2));
   float d = uMood.a;
   col *= mix(vec3(1.0), uMood.rgb, d) * (1.0 - 0.8 * d);
   col += sun * d * 0.5;

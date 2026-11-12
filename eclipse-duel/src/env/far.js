@@ -32,7 +32,7 @@ void main() {
   float fres = pow(1.0 - max(dot(n, v), 0.0), 2.5);
   col += uRim * max(ndl, 0.0) * (0.04 + 0.9 * fres) * smoothstep(-25.0, 10.0, vW.y);
   col += uGlow * 0.25 * smoothstep(uCloudY + 25.0, uCloudY, vW.y) * vC;
-  col += uFarCol * vC * 1.6 * max(dot(n, uKeyDir), 0.0);
+  col += uFarCol * vC * 0.7 * max(dot(n, uKeyDir), 0.0);
   vec3 dir = -v;
   float f = 1.0 - exp(-dist * 0.0042);
   f = max(f, smoothstep(uCloudY + 9.0, uCloudY - 1.0, vW.y));
@@ -91,10 +91,10 @@ function statue(B, rng, mirror, damage, place) {
   const s = mirror;
   const flat = (parts) => parts.map((g) => flatNormals(g.index ? g.toNonIndexed() : g));
   // robe: wide hem, folds deepening toward the ground, broad mantle at the shoulders
-  const prof = [[0, 5.4], [3, 4.6], [9, 4.0], [15, 3.75], [20, 4.0], [23.5, 4.6], [26.2, 5.3], [27.6, 4.2], [28.6, 2.6]];
+  const prof = [[0, 6.2], [4, 5.0], [10, 4.1], [15, 3.6], [19, 3.7], [22.5, 4.9], [25.2, 6.6], [26.6, 6.1], [27.7, 4.0], [28.6, 2.4]];
   const lerpProf = (y) => { for (let i = 1; i < prof.length; i++) if (y <= prof[i][0]) { const a = prof[i - 1], b = prof[i]; const t = (y - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return prof[prof.length - 1][1]; };
   addAll(B, flat(latheGrid({
-    rows: 18, segs: 22, squash: 0.64,
+    rows: 20, segs: 22, squash: 0.58,
     profile: (t) => { const y = t * 28.6; return [lerpProf(y), y]; },
     rmod: (phi, y) => {
       const foldAmt = 0.09 * (1 - y / 30);
@@ -119,12 +119,12 @@ function statue(B, rng, mirror, damage, place) {
   for (const side of [-1, 1]) {
     if (damage.arm === side) {
       // broken stump at the elbow
-      const { m, len } = tubeMatrix(new THREE.Vector3(side * 4.3, 25.6, 0.6), new THREE.Vector3(side * 3.9, 21.8, 1.8));
-      addAll(B, flat(latheGrid({ rows: 3, segs: 9, profile: (t) => [1.5 - t * 0.2, t * len], topY: (phi) => len - Math.abs(noise3(Math.cos(phi), Math.sin(phi), 4)) * 1.2, capTop: len - 0.6 })), M(m), { color: col(0.95) });
+      const { m, len } = tubeMatrix(new THREE.Vector3(side * 5.4, 24.6, 0.5), new THREE.Vector3(side * 6.4, 19.6, 1.4));
+      addAll(B, flat(latheGrid({ rows: 3, segs: 9, profile: (t) => [1.9 - t * 0.2, t * len], topY: (phi) => len - Math.abs(noise3(Math.cos(phi), Math.sin(phi), 4)) * 1.2, capTop: len - 0.6 })), M(m), { color: col(0.95) });
       continue;
     }
-    const sh = new THREE.Vector3(side * 4.4, 25.4, 0.5), el = new THREE.Vector3(side * 5.0, 19.6, 1.9), ha = new THREE.Vector3(side * 0.9, 21.4, 3.9);
-    for (const [a, b, r0, r1] of [[sh, el, 1.6, 1.45], [el, ha, 1.45, 1.1]]) {
+    const sh = new THREE.Vector3(side * 5.4, 24.6, 0.5), el = new THREE.Vector3(side * 6.6, 18.6, 1.6), ha = new THREE.Vector3(side * 1.0, 21.2, 3.9);
+    for (const [a, b, r0, r1] of [[sh, el, 1.9, 1.7], [el, ha, 1.7, 1.15]]) {
       const { m, len } = tubeMatrix(a, b);
       addAll(B, flat(latheGrid({ rows: 3, segs: 9, profile: (t) => [r0 + (r1 - r0) * t, t * len], capTop: true, capBottom: true })), M(m), { color: col(0.95) });
     }
@@ -133,14 +133,17 @@ function statue(B, rng, mirror, damage, place) {
   // the sword planted point-down
   B.add(flatNormals(new THREE.SphereGeometry(1.05, 8, 6).toNonIndexed()), M(trs(0, 23.2, 3.95)), { color: col(0.85) });
   addAll(B, flat(latheGrid({ rows: 1, segs: 6, profile: (t) => [0.42, 19.9 + t * 2.4] })), M(new THREE.Matrix4().makeTranslation(0, 0, 3.95)), { color: col(0.85) });
-  const guardL = damage.guard ? 2.4 : 4.4;
-  B.add(chamferBox(4.4 + guardL, 0.9, 1.0, 0.14), M(trs((guardL - 4.4) / 2, 19.5, 3.95, 0, 0, 0)), { color: col(0.9) });
+  const guardL = damage.guard ? 2.6 : 5.8;
+  B.add(chamferBox(5.8 + guardL, 1.0, 1.1, 0.16), M(trs((guardL - 5.8) / 2, 19.4, 3.95, 0, 0, 0)), { color: col(0.9) });
+  // broken halo ring behind the hood: the eclipse cult's sigil
+  const halo = new THREE.TorusGeometry(7.4, 0.75, 6, 40, Math.PI * 2 * (damage.hood ? 0.72 : 0.84));
+  B.add(flatNormals(halo.toNonIndexed()), M(trs(0, 30.2, -2.2, 0, 0, damage.hood ? 2.1 : -0.6)), { color: col(0.85) });
   addAll(B, flat(latheGrid({ rows: 4, segs: 4, squash: 0.26, profile: (t) => [1.25 * (1 - t) + 0.15 * t, 19.1 - t * 19.0], capTop: true })), M(trs(0, 0, 3.95, Math.PI / 4)), { color: col(0.9) });
 }
 
 /**
  * Build far silhouettes + cloud sea.
- * @returns {{ far: THREE.Mesh, clouds: THREE.Mesh, colossi: THREE.Vector3[] }}
+ * @returns {{ far: THREE.Mesh, clouds: THREE.Mesh }}
  */
 export function createFar(U, rng, tier) {
   const B = new Builder();
@@ -162,11 +165,11 @@ export function createFar(U, rng, tier) {
     [-38, 150, 44, 14], [-47, 125, 30, 11], [-58, 175, 70, 18], [-70, 140, 38, 12], [-84, 210, 92, 24], [-102, 160, 55, 16], [-121, 190, 40, 14],
     [36, 170, 52, 15], [49, 140, 34, 10], [61, 200, 84, 22], [74, 155, 46, 13], [90, 230, 66, 20], [108, 170, 50, 15], [124, 200, 36, 12],
     [-16, 420, 30, 16], [12, 470, 24, 14], [-27, 330, 46, 18], [25, 360, 40, 16], [-64, 380, 110, 30], [70, 420, 120, 34],
+    [-12, 230, 30, 12], [10.5, 255, 24, 10], [-3, 390, 17, 12], [16, 300, 34, 13],
   ];
   for (const [az, d, h, r] of spires) spire(az, d, h, r, rng.range(0, 50), d > 300 ? 0.8 : 1);
 
   // colossi on their rock pedestals, facing the arena
-  const colossi = [];
   for (const [az, mirror, damage] of [[-21, -1, { arm: 1, hood: true }], [21.5, 1, { shoulder: true, guard: true }]]) {
     const dist = 160;
     const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -2, -Math.cos(az * DEG) * dist);
@@ -181,7 +184,6 @@ export function createFar(U, rng, tier) {
       capTop: true,
     });
     addAll(B, g.map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(base.x, base.y, base.z, 0, 0, 0, 1, 1, 1), { color: rockCol(0.9) });
-    colossi.push(base);
   }
   // a distant broken watchtower on the far right spire
   {
@@ -196,7 +198,7 @@ export function createFar(U, rng, tier) {
     uniforms: {
       uZenith: U.uZenith, uSkyMid: U.uSkyMid, uHorizon: U.uHorizon, uGlow: U.uGlow, uSunHalo: U.uSunHalo, uSunDir: U.uSunDir,
       uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uCorona: U.uCorona, uRim: U.uRimFar, uKeyDir: U.uKeyDir,
-      uFarCol: { value: new THREE.Color(0.012, 0.013, 0.018) },
+      uFarCol: { value: new THREE.Color(0.006, 0.0065, 0.009) },
       uCloudY: { value: cy },
     },
   });
@@ -224,5 +226,5 @@ export function createFar(U, rng, tier) {
   clouds.name = 'env.cloudsea';
   clouds.frustumCulled = false;
   clouds.renderOrder = 20;
-  return { far, clouds, colossi };
+  return { far, clouds };
 }

@@ -45,16 +45,13 @@ export const PALETTE = {
   glow: new THREE.Color(0.17, 0.08, 0.042),     // 360-degree eclipse "sunset" band at the horizon
   corona: new THREE.Color(0.82, 0.9, 1.0),
   chromo: new THREE.Color(1.0, 0.24, 0.3),
-  fogNear: new THREE.Color(0.0075, 0.0088, 0.0135),
-  fogFar: new THREE.Color(0.03, 0.03, 0.042),
+  fogNear: new THREE.Color(0.0105, 0.0125, 0.018),
   sunHalo: new THREE.Color(0.03, 0.036, 0.05),    // fog in-scatter around the eclipse
   key: new THREE.Color(0.86, 0.9, 1.0),
   rim: new THREE.Color(0.55, 0.68, 1.0),
   hemiSky: new THREE.Color(0.1, 0.12, 0.19),
   hemiGround: new THREE.Color(0.06, 0.04, 0.03),
   fire: new THREE.Color(1.0, 0.5, 0.18),
-  stone: new THREE.Color(0.06, 0.062, 0.07),
-  banner: new THREE.Color(0.16, 0.022, 0.026),
 };
 
 /** Per-tier knobs derived from ctx.quality (envDetail 0..2). */

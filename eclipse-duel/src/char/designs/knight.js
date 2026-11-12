@@ -1,5 +1,5 @@
-// Demo design: blackened full-plate knight with a two-handed greatsword, crimson cape, horsehair plume and swinging
-// tassets. A design is data (proportions, materials, extra bones, springs, colliders, cloth, weapon) plus one build()
+// Demo design: blackened full-plate knight with a two-handed greatsword, crimson cape and front tabard (verlet cloth),
+// horsehair plume and swinging tassets (spring bones). A design is data (proportions, materials, extra bones, springs, colliders, cloth, weapon) plus one build()
 // function that adds pieces through the kit. Pieces are authored in each bone's zero-pose frame:
 // +X forward, +Y up, +Z toward the camera (the fighter's right side). Left pieces are mirrored with addPair / loftPair.
 
@@ -28,7 +28,7 @@ export const knight = {
   materials: {
     plate: { roughness: 1, metalness: 1, envMapIntensity: 1.2, detailScale: 4.5, bump: 0.1 },
     suit: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 26, bump: 0.25 },
-    blade: { roughness: 1, metalness: 1, envMapIntensity: 1.0, detailScale: 5, bump: 0.05 },
+    blade: { roughness: 1, metalness: 1, envMapIntensity: 0.85, detailScale: 5, bump: 0.05 },
   },
   bones: [
     { name: 'plume1', parent: 'head', at: [-0.03, 0.245, 0] },
@@ -40,8 +40,8 @@ export const knight = {
   ],
   springs: [
     { bones: ['plume1', 'plume2', 'plume3', 'plume4'], stiffness: 50, damping: 3.5, gravity: 0.45, tip: [-0.07, -0.08, 0], limit: 75, collide: false },
-    { bones: ['tassetR'], stiffness: 150, damping: 10, gravity: 0.4, tip: [0.0, -0.25, 0], radius: 0.035, limit: 70 },
-    { bones: ['tassetL'], stiffness: 150, damping: 10, gravity: 0.4, tip: [0.0, -0.25, 0], radius: 0.035, limit: 70 },
+    { bones: ['tassetR'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.03, limit: 38 },
+    { bones: ['tassetL'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.03, limit: 38 },
   ],
   colliders: [
     { name: 'torso', a: ['spine', [-0.01, 0, 0]], b: ['chest', [-0.015, 0.15, 0]], r: 0.17 },
@@ -64,11 +64,18 @@ export const knight = {
     offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.03 * v, 0, 0],
     damping: 0.03, margin: 0.03, wind: 1,
     surface: { outer: { color: 0x5e0d13, rough: 0.82, detail: 0.7 }, inner: { color: 0x1c0d0d, rough: 0.9, cavity: 0.75 } },
+  }, {
+    // front tabard flap hanging from the belt between the tassets; the thigh capsules push it around
+    name: 'tabard', slot: 'suit',
+    top: [['hips', [0.148, 0.078, -0.082]], ['hips', [0.16, 0.078, 0]], ['hips', [0.148, 0.078, 0.082]]],
+    cols: 5, rows: 7, length: 0.5, drape: [0.12, -1, 0], flare: 0.18, thickness: 0.01, subdiv: 2,
+    damping: 0.045, margin: 0.022, wind: 0.6,
+    surface: { outer: { color: 0x4f0b10, rough: 0.85, detail: 0.7 }, inner: { color: 0x170a0a, rough: 0.9, cavity: 0.7 } },
   }],
   weapon: {
     hand: 'R', slot: 'blade',
     base: [0.09, 0, 0], tip: [1.47, 0, 0],
-    grips: { grip: { pos: [-0.155, 0, 0] } },
+    grips: { grip: { pos: [-0.155, 0, 0] }, blade: { pos: [0.56, 0, 0] } },
   },
   sockets: {},
 
@@ -102,9 +109,14 @@ export const knight = {
     const chestRX = [[0, 0.105], [0.22, 0.158], [0.6, 0.152], [1, 0.128]];
     const chestRZ = [[0, 0.155], [0.3, 0.19], [0.7, 0.172], [1, 0.152]];
     plate(kit, S, 'chest', { y0: 0.22, y1: -0.13, rx: chestRX, rz: chestRZ, ox: 0.008, n: 2.25, a0: -104, a1: 104,
-      ridge: { at: 0, w: 22, h: (v) => 0.004 + 0.012 * Math.sin(v * Math.PI) }, thick: 0.008, rim: 0.0065, segs: [40, 16] }, STEEL);
+      dy: (u, v, a) => -0.05 * (1 - v) * (1 - v) * Math.pow(Math.max(0, Math.cos(a * Math.PI / 180)), 3),
+      ridge: { at: 0, w: 22, h: (v) => 0.004 + 0.012 * Math.sin(v * Math.PI) }, thick: 0.008, rim: 0.0065, segs: [32, 14] }, STEEL);
+    // plackart: pointed belly plate over the lower cuirass
+    plate(kit, S, 'chest', { y0: 0.03, y1: -0.137, rx: [[0, 0.157], [1, 0.134]], rz: [[0, 0.176], [1, 0.158]], ox: 0.008, n: 2.25, a0: -96, a1: 96,
+      dy: (u, v, a) => 0.085 * (1 - v) * Math.pow(Math.max(0, Math.cos(a * Math.PI / 180)), 6),
+      thick: 0.007, rim: 0.0055, rimEdges: 't', segs: [32, 6] }, DARK);
     plate(kit, S, 'chest', { y0: 0.215, y1: -0.125, rx: [[0, 0.12], [0.3, 0.15], [1, 0.13]], rz: chestRZ, ox: -0.005, n: 2.3, a0: 96, a1: 264,
-      ridges: [{ at: 180, w: 14, h: 0.006 }], thick: 0.008, rim: 0.006, rimEdges: 'tb', segs: [32, 14] }, DARK);
+      ridges: [{ at: 180, w: 14, h: 0.006 }], thick: 0.008, rim: 0.006, rimEdges: 'tb', segs: [26, 12] }, DARK);
     // gorget: skinned between chest and neck so it bends with the neck
     const gorget = S.merge([
       S.shell({ y0: 0.0, y1: -0.07, rx: [[0, 0.075], [1, 0.135]], rz: [[0, 0.078], [1, 0.15]], ox: 0.004, a0: 0, a1: 360, thick: 0.006, segs: [32, 4] }),
@@ -129,20 +141,24 @@ export const knight = {
     kit.add('plate', 'hips', S.box(0.012, 0.05, 0.06, 0.004), { ...BRASS, at: [0.152, 0.1, 0], rot: [0, 0, 0] });
 
     // tassets (spring bones): three lames curving around the front-outside of each thigh
-    for (let k = 0; k < 3; k++) {
-      const y0 = -k * 0.075, y1 = y0 - 0.1, r = 0.15 + k * 0.006;
-      plate(kit, S, 'tassetR', { y0, y1, rx: r, rz: r, ox: -0.065, oz: -0.005, a0: -38, a1: 78, thick: 0.006, rim: 0.005, rimEdges: 'b', segs: [16, 3] }, k % 2 ? DARK : STEEL, BRASS, true);
+    for (let k = 0; k < 2; k++) {
+      const y0 = -k * 0.08, y1 = y0 - 0.105, r = 0.138 + k * 0.006;
+      plate(kit, S, 'tassetR', { y0, y1, rx: r, rz: r, ox: -0.06, oz: -0.01, a0: -32, a1: 66, thick: 0.006, rim: 0.005, rimEdges: 'bs', segs: [14, 3],
+        dy: (u, v) => v * 0.012 * Math.sin(u * Math.PI) }, k % 2 ? DARK : STEEL, BRASS, true);
     }
 
     // ---- shoulders & arms ---------------------------------------------------------------------------------------------
-    // pauldron: dome + 3 lames + raised neck guard, on the half-swing deltoid helper
-    plate(kit, S, 'deltoidR', { y0: -0.03, y1: 0.105, rx: [[0, 0.128], [0.5, 0.112], [0.85, 0.07], [1, 0.0]], rz: [[0, 0.13], [0.5, 0.115], [0.85, 0.07], [1, 0.0]], a0: 0, a1: 360, thick: 0.008, rim: 0.007, rimEdges: 't', segs: [30, 10], ridge: { at: 90, w: 20, h: 0.008 } }, STEEL, BRASS, true);
-    for (let k = 0; k < 3; k++) {
-      const y0 = -0.035 - k * 0.045, y1 = y0 - 0.06;
-      plate(kit, S, 'deltoidR', { y0, y1, rx: [[0, 0.1 - k * 0.006], [1, 0.108 - k * 0.006]], rz: [[0, 0.104 - k * 0.006], [1, 0.112 - k * 0.006]], oz: 0.008, a0: -45, a1: 225, thick: 0.006, rim: 0.005, rimEdges: 'b', segs: [24, 3] }, k % 2 ? STEEL : DARK, BRASS, true);
+    // spaulder: one plate swept back-to-front over the shoulder (axis along X), rolled neck-side ridge, two lames below
+    const spaulder = { y0: -0.135, y1: 0.125, rx: [[0, 0.088], [0.35, 0.13], [0.65, 0.132], [1, 0.094]], rz: [[0, 0.088], [0.35, 0.13], [0.65, 0.132], [1, 0.094]],
+      ox: 0.012, oz: -0.012, n: 2.3, a0: 52, a1: 240, thick: 0.008, segs: [24, 12], ridge: { at: 140, w: 26, h: 0.008 } };
+    kit.addPair('plate', 'deltoidR', S.shell({ ...spaulder, part: 'plate' }), { ...STEEL, rot: [0, 0, -90] });
+    kit.addPair('plate', 'deltoidR', S.shell({ ...spaulder, part: 'rim', rim: 0.0065, rimEdges: 'tbs' }), { ...BRASS, rot: [0, 0, -90] });
+    kit.addPair('plate', 'deltoidR', S.shell({ ...spaulder, a0: 236, a1: 240, part: 'rim', rim: 0.012, rimEdges: 's', segs: [2, 12] }), { ...DARK, rot: [0, 0, -90] });
+    for (let k = 0; k < 2; k++) {
+      const y0 = -0.07 - k * 0.05, y1 = y0 - 0.065;
+      plate(kit, S, 'deltoidR', { y0, y1, rx: [[0, 0.106 - k * 0.007], [1, 0.112 - k * 0.007]], rz: [[0, 0.11 - k * 0.007], [1, 0.116 - k * 0.007]], oz: 0.01, a0: -55, a1: 215, thick: 0.006, rim: 0.005, rimEdges: 'b', segs: [22, 3],
+        dy: (u, v) => -v * 0.014 * Math.sin(u * Math.PI) }, k % 2 ? STEEL : DARK, BRASS, true);
     }
-    plate(kit, S, 'deltoidR', { y0: 0.17, y1: 0.06, rx: 0.19, rz: 0.19, oz: -0.2, ox: -0.01, a0: 48, a1: 128, thick: 0.007, rim: 0.006, rimEdges: 'tsb', segs: [16, 4],
-      bulge: (u, v) => -0.04 * v }, DARK, BRASS, true);
     // rerebrace
     plate(kit, S, 'upperArmTwistR', { y0: -0.1, y1: -0.215, rx: [[0, 0.064], [1, 0.059]], rz: [[0, 0.066], [1, 0.061]], a0: 0, a1: 360, thick: 0.006, rim: 0.005, rimEdges: 'b', segs: [24, 4] }, STEEL, BRASS, true);
     // couter: elbow cop + outer wing + bridging lames
@@ -181,14 +197,15 @@ export const knight = {
     kit.addPair('plate', 'footR', S.shell({ y0: 0.0, y1: -0.07, rx: 0.07, rz: 0.06, ox: 0.0, a0: 115, a1: 245, thick: 0.006, segs: [12, 3] }), DARK);
 
     // ---- helmet ---------------------------------------------------------------------------------------------------
-    plate(kit, S, 'head', { y0: -0.035, y1: 0.255, rx: [[0, 0.116], [0.45, 0.124], [0.78, 0.106], [0.92, 0.07], [1, 0.0]], rz: [[0, 0.1], [0.45, 0.108], [0.78, 0.096], [0.92, 0.062], [1, 0.0]], ox: 0.02, n: 2.15, a0: 0, a1: 360, thick: 0.008, segs: [36, 16], ridges: [{ at: 0, w: 16, h: 0.012 }, { at: 180, w: 16, h: 0.012 }] }, DARK);
-    // brow band (visor top) and eye slit glow
-    plate(kit, S, 'head', { y0: 0.11, y1: 0.068, rx: [[0, 0.131], [1, 0.136]], rz: [[0, 0.113], [1, 0.116]], ox: 0.022, n: 1.85, a0: -96, a1: 96, thick: 0.008, rim: 0.006, rimEdges: 'tb', segs: [30, 3] }, STEEL);
-    kit.add('plate', 'head', S.shell({ y0: 0.066, y1: 0.05, rx: 0.122, rz: 0.105, ox: 0.02, n: 1.85, a0: -60, a1: 60, thick: 0, segs: [24, 1] }), { color: 0x050505, rough: 0.9, metal: 0, detail: 0, glow: EMBER });
-    // bevor: prow-shaped face plate
-    plate(kit, S, 'head', { y0: 0.05, y1: -0.125, rx: [[0, 0.13], [0.35, 0.142], [0.75, 0.125], [1, 0.1]], rz: [[0, 0.112], [0.4, 0.114], [1, 0.096]], ox: 0.022, n: 1.6, a0: -112, a1: 112, thick: 0.008, rim: 0.006, rimEdges: 'tb', segs: [32, 10], ridge: { at: 0, w: 14, h: 0.006 } }, STEEL);
-    // breaths: small slots on the right cheek (glowing faintly)
-    for (let k = 0; k < 4; k++) kit.add('plate', 'head', S.box(0.004, 0.024, 0.012, 0.002), { color: 0x050505, rough: 0.9, metal: 0, detail: 0, glow: [EMBER[0] * 0.25, EMBER[1] * 0.25, EMBER[2] * 0.25], at: [0.105 - k * 0.017, -0.04, 0.098 - k * 0.006], rot: [0, -38 - k * 6, 0] });
+    plate(kit, S, 'head', { y0: -0.035, y1: 0.236, rx: [[0, 0.113], [0.4, 0.122], [0.75, 0.105], [0.9, 0.068], [1, 0.0]], rz: [[0, 0.099], [0.4, 0.107], [0.75, 0.095], [0.9, 0.06], [1, 0.0]], ox: [[0, 0.016], [1, 0.0]], n: 2.15, a0: 0, a1: 360, thick: 0.008, segs: [32, 12], ridges: [{ at: 0, w: 13, h: 0.017 }, { at: 180, w: 13, h: 0.017 }] }, DARK);
+    // brow (upper visor), recessed glowing eye slit, prow-shaped bevor
+    plate(kit, S, 'head', { y0: 0.122, y1: 0.088, rx: [[0, 0.13], [1, 0.138]], rz: [[0, 0.112], [1, 0.117]], ox: 0.021, n: 1.8, a0: -98, a1: 98, thick: 0.007, rim: 0.0045, rimEdges: 'tb', segs: [28, 3],
+      dy: (u, v, a) => (1 - v) * 0.012 * Math.pow(Math.max(0, Math.cos(a * Math.PI / 180)), 4) }, STEEL);
+    kit.add('plate', 'head', S.shell({ y0: 0.092, y1: 0.032, rx: 0.126, rz: 0.109, ox: 0.02, n: 1.8, a0: -72, a1: 72, thick: 0, segs: [24, 4] }), { color: 0x040404, rough: 0.9, metal: 0, detail: 0, glow: (p) => { const k = Math.max(0, 1 - Math.abs(p[1] - 0.061) / 0.02); return [EMBER[0] * k, EMBER[1] * k, EMBER[2] * k]; } });
+    plate(kit, S, 'head', { y0: 0.036, y1: -0.13, rx: [[0, 0.132], [0.3, 0.15], [0.75, 0.13], [1, 0.1]], rz: [[0, 0.112], [0.4, 0.115], [1, 0.097]], ox: 0.022, n: [[0, 1.75], [0.3, 1.45], [1, 1.7]], a0: -115, a1: 115, thick: 0.008, rim: 0.0045, rimEdges: 'tb', segs: [30, 9], ridge: { at: 0, w: 14, h: 0.008 },
+      dy: (u, v, a) => -(1 - v) * 0.008 * Math.pow(Math.max(0, Math.cos(a * Math.PI / 180)), 4) }, STEEL);
+    // breaths: small slots on the right cheek (faint glow)
+    for (let k = 0; k < 4; k++) kit.add('plate', 'head', S.box(0.004, 0.026, 0.012, 0.002), { color: 0x050505, rough: 0.9, metal: 0, detail: 0, glow: [EMBER[0] * 0.3, EMBER[1] * 0.3, EMBER[2] * 0.3], at: [0.108 - k * 0.017, -0.035, 0.098 - k * 0.006], rot: [0, -38 - k * 6, 0] });
     // neck guard (tail)
     plate(kit, S, 'head', { y0: -0.02, y1: -0.1, rx: [[0, 0.112], [1, 0.135]], rz: [[0, 0.1], [1, 0.12]], ox: 0.02, a0: 112, a1: 248, thick: 0.007, rim: 0.005, rimEdges: 'bs', segs: [20, 3] }, DARK);
     kit.add('plate', 'head', S.cylinder(0.016, 0.02, 0.04, 10), { ...BRASS, at: [-0.03, 0.24, 0], rot: [0, 0, 70] });
@@ -201,7 +218,7 @@ export const knight = {
     }, PLUME);
 
     // ---- greatsword (on weaponR; blade along +X, edges along +-Y) ----------------------------------------------------
-    kit.add('blade', 'weaponR', S.blade({ length: 1.39, width: [[0, 0.034], [0.15, 0.032], [0.7, 0.026], [0.93, 0.016], [1, 0.0005]], thick: [[0, 0.0065], [0.7, 0.0045], [1, 0.0012]], edge: 0.011, fuller: { from: 0.05, to: 0.62, w: 0.0095, depth: 0.0028 }, sections: 30 }), { color: 0x9aa1ab, rough: 0.2, metal: 1, detail: 0.6, at: [0.085, 0, 0] });
+    kit.add('blade', 'weaponR', S.blade({ length: 1.39, width: [[0, 0.034], [0.15, 0.032], [0.7, 0.026], [0.93, 0.016], [1, 0.0005]], thick: [[0, 0.0065], [0.7, 0.0045], [1, 0.0012]], edge: 0.011, fuller: { from: 0.05, to: 0.62, w: 0.0095, depth: 0.0028 }, sections: 30 }), { color: 0x8d939c, rough: 0.26, metal: 1, detail: 0.6, at: [0.085, 0, 0] });
     kit.add('blade', 'weaponR', S.box(0.03, 0.078, 0.022, 0.006), { ...DARK, at: [0.07, 0, 0] });
     kit.add('blade', 'weaponR', S.tube(S.path([[0.1, -0.205, 0], [0.072, -0.12, 0], [0.068, 0, 0], [0.072, 0.12, 0], [0.1, 0.205, 0]], 20), [[0, 0.008], [0.5, 0.014], [1, 0.008]], 8, { scaleZ: 1.3 }), DARK);
     kit.add('blade', 'weaponR', S.sphere(0.013, 10, 8), { ...BRASS, at: [0.1, -0.205, 0] });

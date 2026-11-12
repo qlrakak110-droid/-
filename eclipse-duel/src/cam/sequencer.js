@@ -13,6 +13,7 @@ class SpaceRef {
   constructor(kind, src = null) {
     this.kind = kind;        // 'anchor' | 'target' | 'mid' | 'world' | 'arena' | 'custom'
     this.src = src;
+    this.scale = 1;          // body size relative to the 1.9 m reference (fighter frames)
     this.snap = new THREE.Vector3();
     this.live = new Damp3();
     this.raw = new THREE.Vector3();
@@ -52,7 +53,7 @@ export function createSequencer(ctx, dir) {
   /** Frame origin of a fighter frame: under the fighter on the floor (or lifted with it when followY). */
   function fighterPoint(ref, followY, out) {
     if (!readPoint(ref.src, out)) { out.set(0, 0, 0); return out; }
-    out.y = followY ? Math.max(0, out.y - dir.fight.chestHeight) : 0;
+    out.y = followY ? Math.max(0, out.y - dir.fight.chestHeight * ref.scale) : 0;
     return out;
   }
 
@@ -233,6 +234,8 @@ export function createSequencer(ctx, dir) {
     S.opts = opts;
     refs.anchor.src = opts.anchor;
     refs.target.src = opts.target;
+    refs.anchor.scale = opts.anchorScale || 1;
+    refs.target.scale = opts.targetScale || 1;
     S.shots = (Array.isArray(shots) ? shots : [shots]).map((s) => normalize(s, opts.clock || 'game', custom));
     S.facing = opts.facing;
     S.active = true;

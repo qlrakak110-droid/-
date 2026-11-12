@@ -85,11 +85,13 @@ try {
     await shot('rt');
   } else {
     if (opt('do', null)) await run(String(opt('do')));
-    const times = String(opt('at', '0')).split(',').map(Number).filter((x) => !Number.isNaN(x)).sort((a, b) => a - b);
-    for (const t of times) {
-      await advance(t - simT);
+    // capture times snap to whole 1/60 s frames (the simulation steps in frames); labels show the simulated time
+    const times = [...new Set(String(opt('at', '0')).split(',').map(Number).filter((x) => !Number.isNaN(x)).map((x) => Math.round(x * 60)))].sort((a, b) => a - b);
+    let frame = 0;
+    for (const f of times) {
+      if (f > frame) { await page.evaluate((n) => window.__ED.advance(n / 60), f - frame); frame = f; simT = f / 60; }
       if (opt('each', null)) await run(String(opt('each')));
-      await shot(t.toFixed(3));
+      await shot((f / 60).toFixed(3));
     }
   }
   if (opt('eval', null)) console.log('[eval]', JSON.stringify(await run(String(opt('eval')))));

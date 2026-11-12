@@ -12,7 +12,6 @@ export const PALETTE = {
   volt: { core: [5, 3.5, 9], mid: [1.6, 0.8, 4], tail: [0.25, 0.08, 0.6], spark: [8, 5, 1], smoke: [0.05, 0.04, 0.07] },
 };
 
-const E = PALETTE.ember;
 
 export const LIB = {
   /** 1-3 frame white-hot core flash: a single big burst sprite (spawn 1-2). */
@@ -44,9 +43,9 @@ export const LIB = {
   /** Slow glowing embers that drift up and meander, flickering (lingering layer). */
   embers: {
     tex: 'ember', blend: 'add', count: 22, life: [0.9, 2.4, 0.8], shape: { type: 'sphere', radius: 0.3 }, emit: 'radial', spread: 70, lift: 0.9,
-    speed: [0.4, 2.6, 1.6], size: [0.04, 0.11, 2.4], gravity: 0.7, drag: 1.4, turbulence: { amp: 1.0, freq: 1.3, speed: 1.3 },
+    speed: [0.4, 2.6, 1.6], size: [0.06, 0.16, 2.2], gravity: 0.7, drag: 1.4, turbulence: { amp: 1.0, freq: 1.3, speed: 1.3 },
     flicker: { amount: 0.55, rate: 8 }, sizeOverLife: 'shrinkSlow', delay: [0.02, 0.08],
-    color: [[0, 12, 5, 1.2, 1], [0.35, 6, 1.6, 0.25, 1], [0.8, 2, 0.3, 0.03, 0.8], [1, 0.6, 0.06, 0.0, 0]],
+    color: [[0, 14, 6, 1.4, 1], [0.35, 8, 2.1, 0.3, 1], [0.8, 2.6, 0.4, 0.04, 0.8], [1, 0.6, 0.06, 0.0, 0]],
   },
   /** Dark, slowly expanding smoke puffs (alpha): value contrast next to additive glows. */
   smoke: {
@@ -83,14 +82,14 @@ export const LIB = {
     size: [0.5, 1.05, 1.4], sizeOverLife: [[0, 0.45], [0.25, 1], [1, 0.7]], align: 'axis', gravity: 1.6, drag: 1.2,
     turbulence: { amp: 0.45, freq: 1.4, speed: 1.8 }, fps: 8, erode: [[0, 0], [0.45, 0.12], [1, 0.95]], erodeSoft: 0.22, heat: 0.15,
     additive: [[0, 1], [0.6, 0.85], [1, 0.4]],
-    color: [[0, 7, 3, 0.7, 0], [0.08, 6, 2.2, 0.4, 1], [0.45, 2.2, 0.38, 0.04, 0.9], [1, 0.15, 0.04, 0.02, 0]],
+    color: [[0, 4, 1.6, 0.35, 0], [0.1, 3.2, 1.1, 0.18, 1], [0.45, 1.4, 0.24, 0.03, 0.85], [1, 0.12, 0.04, 0.02, 0]],
   },
   /** Ground dust kicked radially along the floor (alpha). Spawn at floor height with dir up. */
   dustRing: {
     tex: 'smoke', blend: 'alpha', count: 14, life: [0.8, 1.6], shape: { type: 'ring', radius: 0.35, thickness: 0.2 }, emit: 'radial', spread: 12, lift: 0.18,
-    speed: [2.2, 5.5], size: [0.5, 1.0, 1.3], sizeOverLife: 'puff', gravity: 0.25, drag: 3.2, spin: [0.1, 0.5], groundFade: 0.25,
-    erode: 'erodeLate', erodeSoft: 0.35,
-    color: [[0, 0.24, 0.2, 0.16, 0], [0.08, 0.2, 0.17, 0.14, 0.7], [0.5, 0.13, 0.12, 0.1, 0.45], [1, 0.1, 0.1, 0.09, 0]],
+    speed: [2.2, 5.5], size: [0.6, 1.2, 1.3], sizeOverLife: 'puff', gravity: 0.25, drag: 3.2, spin: [0.1, 0.5], groundFade: 0.25,
+    erode: 'erodeLate', erodeSoft: 0.4, shade: 0.45,
+    color: [[0, 0.24, 0.21, 0.17, 0], [0.08, 0.21, 0.18, 0.15, 0.4], [0.5, 0.15, 0.13, 0.11, 0.26], [1, 0.1, 0.09, 0.08, 0]],
   },
   /** Chunky lit pebbles thrown up, falling and bouncing (alpha). */
   pebbles: {

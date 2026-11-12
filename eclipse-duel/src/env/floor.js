@@ -10,7 +10,7 @@ import { LAYOUT } from './config.js';
 const MAX_PULSES = 4;
 
 const FRAG_HEAD = /* glsl */ `
-uniform sampler2D tFloorA, tFloorB, tDetailB, tRefl;
+uniform sampler2D tFloorA, tFloorB, tDetailA, tDetailB, tRefl;
 uniform float uFloorE;
 uniform vec4 uWet;        // x dampness, y puddle scale, z ripple amount, w reflection on
 uniform vec4 uBand;       // x sigma (m), y darkening, z unused, w key factor away from the fight line
@@ -28,20 +28,22 @@ vec2 fuv = vEnvWorld.xz / (2.0 * uFloorE) + 0.5;
 vec4 fA = texture2D(tFloorA, fuv);
 vec4 fB = texture2D(tFloorB, fuv);
 vec4 dB = texture2D(tDetailB, vEnvWorld.xz / 1.3);
+vec3 dA = texture2D(tDetailA, vEnvWorld.xz / 1.3).rgb;
 envPuddle = fA.a * uWet.y;
 float band = exp(-vEnvWorld.z * vEnvWorld.z / (2.0 * uBand.x * uBand.x)) * (1.0 - smoothstep(9.5, 13.0, abs(vEnvWorld.x)));
-vec3 alb = fA.rgb;
+vec3 alb = fA.rgb * (0.5 + 0.85 * dA);
 alb *= mix(1.0, 1.0 - uBand.y, band);
 alb *= mix(1.0, 0.7, uWet.x);
 alb = mix(alb, alb * 0.72, envPuddle);
 diffuseColor.rgb *= alb;
 envRough = mix(fB.b, fB.b * 0.8, uWet.x) * mix(1.0, 0.88, band);
+envRough = clamp(envRough + (dB.a - 0.5) * 0.25, 0.05, 1.0);
 envRough = mix(envRough, 0.045, envPuddle);
 envMetal = fB.a * (1.0 - envPuddle);
 
 // normal (world): baked macro + tiling detail, flattened by water, rippled by wind and pulses
 vec2 nxz = fB.rg * 2.0 - 1.0;
-nxz += (dB.rg * 2.0 - 1.0) * 0.22 * (1.0 - envPuddle);
+nxz += (dB.rg * 2.0 - 1.0) * 0.4 * (1.0 - envPuddle);
 nxz *= 1.0 - envPuddle * 0.94;
 vec2 wp = vEnvWorld.xz;
 float t = uTime;
@@ -59,7 +61,7 @@ for (int i = 0; i < ${MAX_PULSES}; i++) {
   float ring = exp(-pow((dist - R) / width, 2.0)) * exp(-age * 1.6);
   float core = exp(-dist * dist / (0.5 + age * 3.0)) * exp(-age * 3.5);
   float wetBoost = 0.45 + 0.55 * max(uWet.x, envPuddle);
-  envEmissive += uPulseC[i].rgb * P.w * (ring * 0.35 + core * 0.9) * wetBoost;
+  envEmissive += uPulseC[i].rgb * P.w * (ring * 0.4 + core * 1.5) * wetBoost;
   nxz += (d / dist) * sin((dist - R) * 13.0) * ring * P.w * 0.22 * (0.3 + 0.7 * envPuddle);
 }
 // brazier light pools (bounce + baked warmth; the real point lights add the speculars)
@@ -104,7 +106,7 @@ if (uWet.w > 0.5) {
 
 /**
  * Build the floor mesh.
- * @returns {{ mesh, material, pulse(pos,color,strength), update(dtGame), setReflection(texture, viewProj) }}
+ * @returns {{ mesh, uniforms, pulse(pos, color, strength, speed), update(dtGame), setBrazierPool(strengths) }}
  */
 export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
   const pulseP = [], pulseC = [];
@@ -114,6 +116,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
   const extra = {
     tFloorA: { value: maps.a.texture },
     tFloorB: { value: maps.b.texture },
+    tDetailA: { value: stoneMaps.a.texture },
     tDetailB: { value: stoneMaps.b.texture },
     tRefl: { value: null },
     uFloorE: { value: LAYOUT.floorTexExtent },
@@ -124,7 +127,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     uBraz: { value: braz },
     uReflVP: { value: new THREE.Matrix4() },
   };
-  const mat = new THREE.MeshStandardMaterial({ name: 'env.floor', color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 1.0 });
+  const mat = new THREE.MeshStandardMaterial({ name: 'env.floor', color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.85 });
   if (tier.reflection) mat.defines = { ENV_SSR: '' };
   patchStandard(mat, U, {
     key: tier.reflection ? 'floor-ssr' : 'floor',
@@ -132,7 +135,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     fragHead: FRAG_HEAD,
     keyMask: false,
     // key light: full on the fight band, dimmer toward the far floor and the wall
-    keyMaskExtra: 'envRimMask = 0.22; envKeyMask = mix(uBand.w, 1.0, exp(-vEnvWorld.z * vEnvWorld.z / 14.0) * (1.0 - smoothstep(7.0, 14.0, abs(vEnvWorld.x - uKeyMask.x))));',
+    keyMaskExtra: 'envRimMask = 0.14; envKeyMask = mix(uBand.w, 0.9, exp(-vEnvWorld.z * vEnvWorld.z / 14.0) * (1.0 - smoothstep(7.0, 14.0, abs(vEnvWorld.x - uKeyMask.x))));',
     fragReplace: {
       map_fragment: MAP,
       roughnessmap_fragment: 'float roughnessFactor = envRough;',
@@ -152,7 +155,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
   let next = 0;
   const pulses = pulseP.map(() => ({ age: 99, strength: 0 }));
   return {
-    mesh, material: mat, uniforms: extra,
+    mesh, uniforms: extra,
     /** Start a floor pulse (oldest slot is recycled). */
     pulse(pos, color, strength, speed) {
       const i = next; next = (next + 1) % MAX_PULSES;

@@ -27,9 +27,12 @@ export function startCinematic(m, a, d, scale) {
   const lim = L - d.def.stats.pushWidth;
   if (dx > lim) { a.x -= dx - lim; dx = lim; } else if (dx < -lim) { a.x += -lim - dx; dx = -lim; }
   d.x = dx;
-  d.facing = -a.facing;
+  if (d.facing !== -a.facing) {
+    d.facing = -a.facing;
+    m.emit('turn', { fighter: d.index, facing: d.facing });
+  }
   m.cinematic = { attacker: a.index, defender: d.index, move: a.move, t: 0, duration: c.duration, def: c, scale, damage: 0, ticks: 0, finished: false };
-  m.emit('cinematicStart', { attacker: a.index, defender: d.index, move: a.move, duration: c.duration, x: a.x, facing: a.facing, victimX: d.x, scale });
+  m.emit('cinematicStart', { attacker: a.index, defender: d.index, move: a.move, duration: c.duration, x: a.x, facing: a.facing, victimX: d.x, victimFacing: d.facing, scale });
 }
 
 /** Advance the lock by `h` seconds. */

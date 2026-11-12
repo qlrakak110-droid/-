@@ -18,31 +18,47 @@ import { forwardAt } from './moves.js';
 import { backToWall } from './fighter.js';
 import { toRng } from './rng.js';
 
-/** Difficulty presets. Every field can be overridden through createAIController({ overrides }). */
+/**
+ * Difficulty presets. Every field can be overridden through createAIController({ overrides }).
+ * Probabilities are per decision (each perceived attack, punish window, combo step ... is judged once).
+ *   reaction   s     perception delay: the AI sees its opponent this many seconds late
+ *   think      [s,s] interval between neutral decisions
+ *   tempo      0..1  how often a neutral decision is an attack (easy waits and walks much more)
+ *   guard / dodge / counter / backoff   chance to answer a perceived attack with guard / dodge / counter stance / retreat
+ *   holdGuard  keep blocking through a block string     perfect  time guards and dodges at the impact (perfect guard)
+ *   punish / whiffPunish   punish blocked / whiffed recovery     read   respect counter stances (wait, then punish)
+ *   confirm    s     hit-confirm delay before a cancel   combo / blockString / mash   continue on hit / on block / on whiff
+ *   depth      max cancels in one combo                   juggle   follow a launch       meaty   time attacks on get-up
+ *   tech / wakeGuard / reversal   tech roll, guard on wake-up, counter-stance reversal on wake-up
+ *   spacing    footsies discipline (hold the preferred range, back off)   variety  avoid repeating the same move
+ *   skill / ult   appetite for FP skills / the ultimate   mistake  chance a neutral decision is random
+ *   aggression 0..1 rushdown vs patience (mixed with the fighter's own ai.aggression)   patience  waiting / guarding
+ *   noise      random spread of option weights
+ */
 export const AI_LEVELS = {
   easy: {
-    reaction: 0.42, think: [0.16, 0.32], guard: 0.3, dodge: 0.06, counter: 0.05, backoff: 0.15, holdGuard: 0.45,
-    punish: 0.18, whiffPunish: 0.12, confirm: 0.32, combo: 0.35, blockString: 0.35, mash: 0.35, juggle: 0.25,
-    tech: 0.1, wakeGuard: 0.3, reversal: 0.03, spacing: 0.15, skill: 0.3, ult: 0.35, mistake: 0.2, aggression: 0.5,
-    patience: 0.35, perfect: 0, noise: 0.5,
+    reaction: 0.42, think: [0.22, 0.45], tempo: 0.5, guard: 0.3, dodge: 0.05, counter: 0.04, backoff: 0.15, holdGuard: 0.45,
+    perfect: 0, punish: 0.15, whiffPunish: 0.08, read: 0.05, confirm: 0.32, combo: 0.35, blockString: 0.3, mash: 0.3,
+    depth: 1, juggle: 0.2, meaty: 0.1, tech: 0.1, wakeGuard: 0.3, reversal: 0.03, spacing: 0.15, variety: 0.3,
+    skill: 0.3, ult: 0.35, mistake: 0.2, aggression: 0.45, patience: 0.35, noise: 0.5,
   },
   normal: {
-    reaction: 0.28, think: [0.1, 0.2], guard: 0.5, dodge: 0.12, counter: 0.1, backoff: 0.25, holdGuard: 0.65,
-    punish: 0.45, whiffPunish: 0.3, confirm: 0.2, combo: 0.65, blockString: 0.45, mash: 0.18, juggle: 0.55,
-    tech: 0.35, wakeGuard: 0.55, reversal: 0.08, spacing: 0.45, skill: 0.55, ult: 0.65, mistake: 0.08, aggression: 0.55,
-    patience: 0.55, perfect: 0.1, noise: 0.3,
+    reaction: 0.26, think: [0.12, 0.24], tempo: 0.8, guard: 0.5, dodge: 0.12, counter: 0.1, backoff: 0.25, holdGuard: 0.65,
+    perfect: 0.1, punish: 0.52, whiffPunish: 0.3, read: 0.35, confirm: 0.2, combo: 0.72, blockString: 0.45, mash: 0.15,
+    depth: 3, juggle: 0.55, meaty: 0.35, tech: 0.35, wakeGuard: 0.55, reversal: 0.08, spacing: 0.45, variety: 0.45,
+    skill: 0.55, ult: 0.65, mistake: 0.08, aggression: 0.55, patience: 0.55, noise: 0.3,
   },
   hard: {
-    reaction: 0.2, think: [0.07, 0.14], guard: 0.66, dodge: 0.2, counter: 0.14, backoff: 0.32, holdGuard: 0.8,
-    punish: 0.72, whiffPunish: 0.55, confirm: 0.12, combo: 0.85, blockString: 0.5, mash: 0.08, juggle: 0.8,
-    tech: 0.6, wakeGuard: 0.7, reversal: 0.12, spacing: 0.7, skill: 0.7, ult: 0.85, mistake: 0.035, aggression: 0.6,
-    patience: 0.7, perfect: 0.3, noise: 0.18,
+    reaction: 0.22, think: [0.07, 0.14], tempo: 0.86, guard: 0.62, dodge: 0.2, counter: 0.14, backoff: 0.32, holdGuard: 0.8,
+    perfect: 0.2, punish: 0.66, whiffPunish: 0.55, read: 0.6, confirm: 0.12, combo: 0.88, blockString: 0.5, mash: 0.08,
+    depth: 3, juggle: 0.8, meaty: 0.6, tech: 0.6, wakeGuard: 0.7, reversal: 0.12, spacing: 0.7, variety: 0.65,
+    skill: 0.7, ult: 0.85, mistake: 0.035, aggression: 0.6, patience: 0.7, noise: 0.18,
   },
   nightmare: {
-    reaction: 0.14, think: [0.04, 0.09], guard: 0.76, dodge: 0.28, counter: 0.18, backoff: 0.38, holdGuard: 0.9,
-    punish: 0.92, whiffPunish: 0.8, confirm: 0.07, combo: 0.97, blockString: 0.55, mash: 0.02, juggle: 0.95,
-    tech: 0.85, wakeGuard: 0.8, reversal: 0.15, spacing: 0.92, skill: 0.85, ult: 0.95, mistake: 0.012, aggression: 0.62,
-    patience: 0.8, perfect: 0.6, noise: 0.1,
+    reaction: 0.14, think: [0.04, 0.09], tempo: 1, guard: 0.76, dodge: 0.28, counter: 0.18, backoff: 0.38, holdGuard: 0.9,
+    perfect: 0.6, punish: 0.93, whiffPunish: 0.8, read: 0.9, confirm: 0.07, combo: 0.97, blockString: 0.55, mash: 0.02,
+    depth: 8, juggle: 0.95, meaty: 0.8, tech: 0.85, wakeGuard: 0.8, reversal: 0.15, spacing: 0.92, variety: 0.8,
+    skill: 0.85, ult: 0.95, mistake: 0.012, aggression: 0.62, patience: 0.8, noise: 0.1,
   },
 };
 
@@ -74,11 +90,15 @@ function knowledge(def) {
   let k = KNOW.get(def);
   if (k) return k;
   const moves = {};
+  // moves reached only through a chain route (light1 -> light2 -> light3) are combo parts unless the author says otherwise
+  const commanded = new Set(Object.values(def.commands));
+  const routed = new Set();
+  for (const mv of Object.values(def.moves)) for (const c of mv.cancels) if (c.on) routed.add(c.route);
   for (const id of Object.keys(def.moves)) {
     const mv = def.moves[id];
     const fd = deriveFrameData(mv);
     const ai = mv.ai || {};
-    const role = ai.role || inferRole(mv, fd);
+    const role = ai.role || (routed.has(id) && !commanded.has(id) ? 'combo' : inferRole(mv, fd));
     const reach = fd.projectile ? fd.reach : fd.strikeReach;
     const range = ai.range || (fd.projectile ? [2.5, Math.min(9, reach)] : [0, reach]);
     moves[id] = { id, mv, fd, role, range, reach, weight: ai.weight !== undefined ? ai.weight : 1, comboOnly: !!ai.comboOnly, keys: [] };
@@ -131,6 +151,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     lastMoveId: null, lastState: 'idle',
     init: 'none', initUntil: 0,         // initiative: 'me' | 'them' | 'none'
     opAggro: 0.5, opGuard: 0.3, opSerial: -1,
+    mySerial: -1, chain: 0, lastNeutral: null, streak: 0, // own moves: cancels in this combo, repeated neutral moves
     prevOut: { ...NEUTRAL_INPUT },
   };
   const out = { ...NEUTRAL_INPUT };
@@ -140,6 +161,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     st.nextThink = 0; st.busyUntil = 0; st.holdMove = 0; st.holdUntil = 0; st.holdGuard = false; st.holdGuardUntil = 0;
     st.presses.length = 0; st.decided.clear(); st.comboSerial = -1; st.hitSerial = -1; st.hitSeenAt = -1;
     st.lastMoveId = null; st.lastState = 'idle'; st.init = 'none'; st.initUntil = 0;
+    st.mySerial = -1; st.chain = 0; st.lastNeutral = null; st.streak = 0;
     Object.assign(st.prevOut, NEUTRAL_INPUT);
   }
 
@@ -211,6 +233,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const C = { match, me, op, opNow, mine: knowledge(me.def), theirs: knowledge(opNow.def), now, lag, opX, dist: Math.abs(opX - me.x) };
 
     if (st.holdGuard && now > st.holdGuardUntil) st.holdGuard = false;
+    trackSelf(me);
     trackInitiative(C);
     trackOpponent(C);
 
@@ -269,6 +292,33 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     if (now > st.initUntil) st.init = 'none';
   }
 
+  /**
+   * Own moves: cancels taken in the current string (combo depth; chain routes such as light1 -> light2 are free: any
+   * beginner mashes them out) and repeats of the same neutral move (variety).
+   */
+  function trackSelf(me) {
+    if (me.state !== 'attack' || me.moveSerial === st.mySerial) return;
+    st.mySerial = me.moveSerial;
+    if (st.lastState === 'attack') {
+      const prev = st.lastMoveId && me.def.moves[st.lastMoveId];
+      if (!(prev && prev.cancels.some((c) => c.on && c.route === me.move))) st.chain++;
+      return;
+    }
+    st.chain = 0;
+    st.streak = me.move === st.lastNeutral ? st.streak + 1 : 1;
+    st.lastNeutral = me.move;
+  }
+
+  /** Is the opponent (as perceived) inside a counter-stance window, or about to be? */
+  function inStance(C) {
+    const { op, theirs, lag } = C;
+    if (op.state !== 'attack' || !op.move) return false;
+    const x = theirs.moves[op.move];
+    const ct = x && x.mv.counter;
+    const est = op.moveTime + lag;
+    return !!ct && est <= ct.t1 + 0.02;
+  }
+
   /** Light opponent model: how often it attacks and how often it guards (shifts neutral weights). */
   function trackOpponent(C) {
     const { op } = C;
@@ -293,7 +343,8 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const key = 'wake' + Math.floor(now - me.stateTime);
     if (st.decided.has(key)) return;
     remember(key, true);
-    const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
+    // wake-up reversal: a counter stance or a move tagged 'reversal' (invulnerable start)
+    const counter = mine.pressable.find((x) => x.role === 'reversal' && usable(match, me, x)) || mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
     const left = me.state === 'knockdown' ? me.timer + match.rules.getupTime : me.timer;
     if (counter && dist < 3 && R() < lv.reversal) { pressMove(counter, now + Math.max(0, left - 0.15)); return; }
     if (R() < lv.wakeGuard) guardFor(left + 0.2 + R() * 0.3, now);
@@ -324,18 +375,19 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     // nothing connects on a hard-knockdown flight or a KO: do not waste a cancel (or FP) on it
     if (opNow.state === 'launched' && (opNow.hard || opNow.koFall)) return;
     if (me.moveHit && st.hitSerial !== me.moveSerial) { st.hitSerial = me.moveSerial; st.hitSeenAt = now; }
+    if (st.chain >= lv.depth) return; // easy stops after a cancel or two; nightmare runs the full route
     let mode;
     if (me.moveHit) {
       if (now - st.hitSeenAt < lv.confirm * (0.7 + R() * 0.6)) return;
       mode = 'hit';
     } else if (me.moveConnected) mode = 'block';
+    else if (!mv.hits.length && !mv.projectiles.length) mode = 'follow'; // mobility / teleport: built to lead into an attack
     else {
-      const last = mv.hits.length ? Math.max(...mv.hits.map((h) => h.t1)) : 0;
-      if (me.moveTime < last) return;
+      if (me.moveTime < mv.lastActive) return;
       mode = 'whiff';
     }
     st.comboSerial = me.moveSerial;
-    const p = mode === 'hit' ? lv.combo : mode === 'block' ? lv.blockString : lv.mash;
+    const p = mode === 'hit' ? lv.combo : mode === 'block' ? lv.blockString : mode === 'follow' ? lv.combo * 0.85 : lv.mash;
     if (R() >= p) return;
     let best = null;
     for (const o of comboOptions(C, mode)) if (!best || o.w > best.w) best = o;
@@ -349,11 +401,11 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const t = me.moveTime;
     const air = opNow.state === 'launched';
     const ultReady = me.ult >= me.ultMax - 1e-6;
-    const add = (id, button, dir, from) => {
+    const add = (id, button, dir, from, route = false) => {
       const x = mine.moves[id];
       if (!x || match.canUse(me.index, id) !== null) return;
       const f = x.fd;
-      let w = f.damage * 0.01 + 0.5;
+      let w = f.damage * 0.01 + 0.5 + (route ? 0.5 : 0); // designed chains are worth finishing
       if (mode === 'hit') {
         if (x.role === 'finisher') w = ultReady && R() < lv.ult ? 6 + opNow.recv.scale * 4 : 0;
         else if (x.role === 'launcher') w = air ? 0.2 : 2.2;
@@ -366,12 +418,16 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
         if (x.role === 'finisher' || x.role === 'launcher') w = 0;
         else if (f.onBlock !== null && f.onBlock < -0.15) w *= 0.25;
         if (f.projectile) w += 0.6;
+      } else if (mode === 'follow') {
+        // after a dash-through / teleport: a fast strike that reaches, never another movement
+        const d = Math.abs(opNow.x - me.x);
+        w = !x.mv.hits.length || f.projectile ? 0 : d <= x.reach + 0.2 ? 2 + (0.4 - Math.min(0.4, f.startup || 0.4)) * 5 : 0.1;
       } else w = x.role === 'combo' ? 0.8 : 0.1;
       if (w > 0) res.push({ id, button, dir, from, w: w * (1 + (R() - 0.5) * lv.noise) });
     };
     for (const c of mv.cancels) {
       if (c.t1 < t || (c.onHit && !me.moveHit) || (c.onContact && !me.moveConnected)) continue;
-      if (c.on) { add(c.route, c.on, c.dir, c.t0); continue; }
+      if (c.on) { add(c.route, c.on, c.dir, c.t0, true); continue; }
       for (const x of mine.pressable) {
         if (c.ids.has(x.id) || c.groups.has('any') || c.groups.has(x.mv.group)) add(x.id, keyOf(x).button, keyOf(x).dir, c.t0);
       }
@@ -437,9 +493,14 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       if (o && o.x) remember(th.key + 'c', o.x);
     }
     switch (choice) {
-      case 'guard':
+      case 'guard': {
+        // the stronger levels hold off and press guard just before the impact: a perfect guard
+        // (already guarding: let go and press again at the impact - the press is what counts)
+        if (st.decided.get(th.key + 'p') === undefined) remember(th.key + 'p', R() < lv.perfect && th.tta > 0.12);
+        if (st.decided.get(th.key + 'p') && th.tta > 0.07) { st.holdGuard = false; st.holdMove = 0; return true; }
         guardFor(th.tta + th.until, now);
         return true;
+      }
       case 'dodge': {
         if (st.decided.get(th.key + 'd')) return true;
         // aim the invulnerable window at the impact (the stronger levels time it for a perfect dodge)
@@ -473,7 +534,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       if (!x.mv.hits.length || x.fd.startup === null || x.fd.startup > window) continue;
       if (dist > x.reach + 0.1 || dist < x.range[0] - 0.4) continue;
       if (!usable(match, me, x)) continue;
-      let w = x.fd.damage + (x.role === 'launcher' ? 90 : 0) + (x.fd.cancellable ? 40 : 0);
+      let w = x.fd.damage + (x.role === 'launcher' ? 90 : 0) + (x.role === 'punish' ? 80 : 0) + (x.fd.cancellable ? 40 : 0);
       if (x.role === 'finisher') w = R() < lv.ult ? 600 : 0;
       if (x.fd.fpCost && R() > lv.skill) w *= 0.3;
       if (w > bw) { bw = w; best = x; }
@@ -487,7 +548,10 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     if (op.state === 'attack' && op.move) {
       const x = theirs.moves[op.move];
       const est = op.moveTime + lag;
-      if (x && x.fd.activeEnd !== null && est > x.fd.activeEnd + 0.02 && !x.mv.counter) {
+      if (x && x.mv.counter && !x.mv.hits.length) {
+        // a counter stance that caught nothing: its recovery after the window is free (the 'read' skill)
+        if (est > x.mv.counter.t1 + 0.02) { window = x.mv.duration - est; key = 'pun' + op.serial; p = lv.read; }
+      } else if (x && x.fd.activeEnd !== null && est > x.fd.activeEnd + 0.02 && !x.mv.counter) {
         window = x.mv.duration - est;
         key = 'pun' + op.serial;
         p = op.connected ? lv.punish : lv.whiffPunish;
@@ -520,7 +584,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     for (const x of mine.pressable) {
       if (!x.mv.hits.length || x.fd.startup === null || x.fd.startup > land - 0.03) continue;
       if (!x.mv.hits.some((h) => h.air) || dist > x.reach + 0.2 || !usable(match, me, x)) continue;
-      let w = x.fd.damage + (x.role === 'combo' ? 60 : 0) + (x.role === 'poke' ? 30 : 0);
+      let w = x.fd.damage + (x.role === 'combo' ? 60 : 0) + (x.role === 'poke' ? 30 : 0) + (x.role === 'juggle' || x.role === 'antiair' ? 70 : 0);
       if (x.role === 'finisher') w = me.ult >= me.ultMax && R() < lv.ult ? 400 : 0;
       if (x.role === 'launcher') w *= 0.6;
       if (w > bw) { bw = w; best = x; }
@@ -566,6 +630,12 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const init = st.init;
     const opts = [];
     const add = (k, w, x) => { if (w > 0) opts.push({ k, w, x }); };
+    // an opponent that cannot be hit right now (down, airborne out of reach of the juggle logic, invulnerable flight)
+    const opDown = op.state === 'knockdown' || op.state === 'getup' || op.state === 'launched' || op.state === 'ko';
+    // a perceived counter stance: the levels that read it hold their attacks and wait for its recovery
+    const stance = inStance(C) && once('stance' + op.serial, lv.read);
+    // footsies: hold the preferred range (def.ai.preferredRange, else just inside the own poke reach)
+    const pref = me.def.ai.preferredRange !== undefined ? me.def.ai.preferredRange : myPoke * 0.9;
 
     if (zone === 'far') {
       add('approach', 1.0 + A + (protect ? -0.8 : 0));
@@ -573,8 +643,8 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       add('wait', 0.3 + (1 - A) * 0.4 + (protect ? 1.2 : 0));
       add('retreat', protect ? 0.6 : 0.05);
     } else if (zone === 'mid') {
-      add('step', 0.7 + A * 0.6);
-      add('retreat', cornered ? 0 : 0.25 + lv.spacing * 0.5 + (protect ? 0.6 : 0));
+      add('step', 0.7 + A * 0.6 + (dist > pref + 0.5 ? lv.spacing * 0.6 : 0));
+      add('retreat', cornered ? 0 : 0.25 + lv.spacing * 0.5 + (protect ? 0.6 : 0) + (dist < pref - 0.5 ? lv.spacing * 0.8 : 0));
       add('wait', 0.3 + lv.patience * 0.5);
       add('guard', 0.15 + st.opAggro * 0.5 * lv.patience);
       add('dash', 0.1 + A * 0.2);
@@ -582,15 +652,17 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       const theirTurn = init === 'them', myTurn = init === 'me';
       add('guard', (theirTurn ? 1.2 + lv.holdGuard : 0.45 + (1 - A) * 0.5 + st.opAggro * 0.6 + lv.patience * 0.3) * (me.guard / me.guardMax < 0.25 ? 0.4 : 1));
       add('backstep', cornered ? 0 : lv.spacing * (theirTurn ? 0.5 : 0.25));
-      add('retreat', cornered ? 0 : lv.spacing * 0.35);
+      add('retreat', cornered ? 0 : lv.spacing * (dist < pref - 0.5 ? 0.6 : 0.35));
       add('escape', cornered ? 0.3 + lv.spacing * 0.6 : 0);
       add('dodge', me.dodgeCooldown <= 0 ? lv.dodge * (theirTurn ? 0.6 : 0.2) : 0);
       add('wait', 0.15);
       opts.attackBias = myTurn ? 1.8 : theirTurn ? 0.35 - lv.holdGuard * 0.25 : 1;
     }
 
-    // attacks from data; patience lowers how often a think tick turns into an attack
-    const bias = (opts.attackBias !== undefined ? opts.attackBias : 1) * (0.25 + 0.6 * A) * (1.25 - lv.patience * 0.6);
+    if (stance) { add('wait', 1.5); add('retreat', cornered ? 0 : 0.6); }
+    // attacks from data; tempo (level) and patience lower how often a think tick turns into an attack
+    const bias = (opts.attackBias !== undefined ? opts.attackBias : 1) * (0.25 + 0.6 * A) * (1.25 - lv.patience * 0.6) *
+      lv.tempo * (stance ? 0.04 : 1) * (opDown ? 0 : 1);
     for (const x of mine.pressable) {
       if (x.role === 'finisher' || x.role === 'counter' || !usable(match, me, x)) continue;
       if (dist < x.range[0] - 0.05 || dist > x.range[1] + 0.05) continue;
@@ -603,16 +675,23 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
         case 'zoning': w *= (0.3 + me.def.ai.zoning * 1.2) * (zone === 'far' ? 1.4 : 0.4); break;
         case 'combo': w *= 0.2; break;
         case 'mobility': w *= cornered ? 0.8 : 0.15 + A * 0.2; break;
+        case 'starter': w *= 0.6 + A * 0.5; break;
+        case 'punish': w *= 0.2; break;                    // kept for punish windows
+        case 'juggle': case 'antiair': w *= 0.1; break;    // kept for airborne opponents
+        case 'reversal': w *= 0.15; break;                 // kept for wake-up
         default: w *= 0.4;
       }
       if (x.fd.fpCost) w *= lv.skill * (me.fp > x.fd.fpCost + 20 ? 1 : 0.4);
       if (op.invuln) w *= 0.15;
+      // variety: the same neutral move again and again gets less likely (easy spams, nightmare mixes it up)
+      if (x.id === st.lastNeutral) w *= Math.pow(1 - 0.55 * lv.variety, st.streak);
       add('attack', w, x);
     }
     const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
-    if (counter && zone !== 'far') add('attack', st.opAggro * lv.counter * 1.5 * (st.init === 'them' ? 2 : 1), counter);
+    // a counter stance only where the opponent's fast attacks can actually reach
+    if (counter && dist <= tReach && !opDown && !stance) add('attack', st.opAggro * lv.counter * 1.5 * (st.init === 'them' ? 2 : 1), counter);
     const ult = mine.pressable.find((x) => x.role === 'finisher' && usable(match, me, x));
-    if (ult && dist <= ult.range[1]) add('attack', lv.ult * (difficulty === 'easy' ? 0.35 : 0.05), ult);
+    if (ult && dist <= ult.range[1] && !opDown && !stance) add('attack', lv.ult * (difficulty === 'easy' ? 0.35 : 0.05), ult);
 
     const o = R() < lv.mistake ? opts[Math.floor(R() * opts.length)] : pick(opts);
     if (!o) return;

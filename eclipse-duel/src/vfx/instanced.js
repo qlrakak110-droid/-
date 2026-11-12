@@ -22,8 +22,10 @@ export class InstanceRing {
   /**
    * @param {number} capacity  number of instance slots
    * @param {Object<string, number>} layout  attribute name -> component count; total is padded to a multiple of 4
+   * @param {THREE.InstancedBufferGeometry} [base]  per-vertex geometry to instance (default: the unit quad). Mesh
+   *   effects pass their own template (arc strip, cylinder grid ...); the instance attributes are added to it.
    */
-  constructor(capacity, layout) {
+  constructor(capacity, layout, base = null) {
     let stride = 0;
     const offs = {};
     for (const k in layout) { offs[k] = stride; stride += layout[k]; }
@@ -33,7 +35,7 @@ export class InstanceRing {
     this.f32 = new Float32Array(capacity * stride);
     this.buffer = new THREE.InstancedInterleavedBuffer(this.f32, stride, 1);
     this.buffer.setUsage(THREE.DynamicDrawUsage);
-    this.geometry = makeQuadGeometry();
+    this.geometry = base || makeQuadGeometry();
     for (const k in layout) this.geometry.setAttribute(k, new THREE.InterleavedBufferAttribute(this.buffer, layout[k], offs[k]));
     this.geometry.instanceCount = 0;
     this.offsets = offs;

@@ -2,7 +2,7 @@
 // update?(dt), onAction?(action, info) }. Focus and navigation come from ui.item / ui.setItems (index.js).
 
 import { h, esc } from './anim.js';
-import { icon, weaponArt, eclipseMark } from './icons.js';
+import { icon, weaponArt, eclipseMark, corona } from './icons.js';
 import { DIFFICULTIES, QUALITIES, ELEMENTS } from './roster.js';
 import { Ease, clamp, makeRng } from '../core/math.js';
 import { put } from './hud.js';
@@ -113,7 +113,7 @@ export function createScreens(ui) {
       update(dt) {
         t += dt;
         put(rays, 'transform', `rotate(${(t * 2.2).toFixed(2)}deg)`);
-        if (t > 1.2) put(startTxt, 'opacity', (0.55 + 0.45 * Math.cos((t - 1.2) * 2.6)).toFixed(3));
+        if (t > 1.2) put(startTxt, 'opacity', (0.7 + 0.3 * Math.cos((t - 1.2) * 2.6)).toFixed(3));
       },
       onAction(action) {
         // any face button starts, unless the player is adjusting quality
@@ -356,7 +356,9 @@ export function createScreens(ui) {
       ui.emit('toTitle');
     }, 'is-danger');
     const panel = h('div.panel.pz-panel', { html: corners() }, h('div.ph', { html: '<i class="ph-line"></i><b>일시정지</b><em>PAUSED</em><i class="ph-line"></i>' }), h('div.pz-list', null, resume, moves, quality, toTitle));
-    const el = h('div', null, h('div.scr-shade.pz-shade'), panel);
+    const emblem = h('div.pz-emblem', { html: eclipseMark() });
+    const el = h('div', null, h('div.scr-shade.pz-shade'), emblem, panel);
+    let t = 0;
     let data = {};
     function openMoves() { ui.show('movelist', { fighters: data.fighters, index: 0, fromPause: true, pause: data }); }
     return {
@@ -372,7 +374,14 @@ export function createScreens(ui) {
         if (prev !== 'movelist') {
           panel.style.opacity = '0';
           anim.add(0.28, (k) => { panel.style.opacity = k.toFixed(3); panel.style.transform = `scale(${(0.96 + 0.04 * k).toFixed(4)})`; }, { key: panel, ease: 'outCubic' });
+          t = 0;
         }
+      },
+      update(dt) {
+        // the black sun behind the panel turns slowly while the fight is frozen
+        t += dt;
+        put(emblem, 'transform', `rotate(${(t * 2).toFixed(2)}deg) scale(${(0.94 + 0.06 * Ease.outCubic(clamp(t / 0.6))).toFixed(4)})`);
+        put(emblem, 'opacity', (0.11 * clamp(t / 0.4)).toFixed(3));
       },
       back() { ui.emit('resume'); },
       onAction(action) {
@@ -477,7 +486,8 @@ export function createScreens(ui) {
     const reselect = menuBtn('캐릭터 선택', 'CHARACTER SELECT', 'people', () => ui.emit('select'));
     const toTitle = menuBtn('타이틀로', 'TITLE', 'home', () => ui.emit('toTitle'));
     const menu = h('div.rs-menu', null, rematch, reselect, toTitle);
-    const main = h('div.rs-main', null, kicker, name, sub, score, rounds, stats);
+    const halo = h('div.rs-halo', { html: corona({ n: 72, r0: 30, len: 16, w: 0.4 }) });
+    const main = h('div.rs-main', null, halo, kicker, name, sub, score, rounds, stats);
     const el = h('div', null, h('i.rs-tint'), art, h('div.scr-shade.rs-shade'), h('div.rs-wrap', null, main, menu));
     const howName = { ko: ['K.O.', 'KO'], time: ['시간 종료', 'TIME'], perfect: ['완벽', 'PERFECT'], draw: ['무승부', 'DRAW'] };
     return {
@@ -504,6 +514,8 @@ export function createScreens(ui) {
         ui.setItems([rematch, reselect, toTitle], rematch);
         art.style.opacity = '0';
         anim.add(1.4, (k) => { art.style.opacity = k.toFixed(3); art.style.transform = `translate(-50%,-50%) rotate(${(-24 + 6 * k).toFixed(2)}deg) scale(${(1.12 - 0.12 * k).toFixed(4)})`; }, { key: art, ease: 'outCubic' });
+        halo.style.opacity = '0';
+        anim.add(1.6, (k) => { halo.style.opacity = (0.34 * Math.min(1, k * 1.5)).toFixed(3); halo.style.transform = `rotate(${(-30 + 30 * k).toFixed(2)}deg) scale(${(0.7 + 0.3 * k).toFixed(4)})`; }, { key: halo, delay: 0.1, ease: 'outCubic' });
         name.style.opacity = '0';
         anim.add(0.7, (k) => { name.style.opacity = Math.min(1, k * 1.4).toFixed(3); name.style.transform = `scale(${(1.25 - 0.25 * k).toFixed(4)})`; }, { key: name, delay: 0.15, ease: 'outQuart' });
         rise([kicker], { dist: 10, dur: 0.5 });

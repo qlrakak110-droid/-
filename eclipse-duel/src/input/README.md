@@ -117,4 +117,7 @@ const off = ctx.input.on((action, down, player, info) => {
 
 Verified in the UI lab (`src/labs/ui.js`): edges, intra-frame taps, axis cancel, auto-repeat timing, blur release,
 P2 virtual frames, versus remap, OS key-repeat suppression, and multi-touch (stick + two buttons) through CDP touch
-events.
+events. The repeatable part runs as `src/ui/tests/interaction.mjs` (real Playwright keyboard / CDP touch input, see
+`src/ui/README.md`): key down → held + pressed for one frame then held only; left + right cancel; blur releases keys
+and pad buttons with a released edge; a tap inside one frame reads as pressed exactly once; touch buttons and the
+stick feed `held` / `pressed` independently per finger.

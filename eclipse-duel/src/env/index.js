@@ -63,7 +63,7 @@ export function createEnvironment(ctx, opts = {}) {
     uRimFar: { value: new THREE.Color(0.3, 0.34, 0.44) },
     uKeyDir: { value: KEY_DIR.clone() },
     // density at y=0, height falloff, far boost, max
-    uFogP: { value: new THREE.Vector4(0.024, 0.1, 0.6, 0.92) },
+    uFogP: { value: new THREE.Vector4(0.03, 0.1, 0.6, 0.92) },
     uFogNear: { value: PALETTE.fogNear.clone() },
     uMood: { value: new THREE.Vector4(1, 1, 1, 0) },
     uFire: { value: new THREE.Vector4(PALETTE.fire.r, PALETTE.fire.g, PALETTE.fire.b, tier.pointLights > 0 ? 0.3 : 1.1) },
@@ -126,14 +126,14 @@ export function createEnvironment(ctx, opts = {}) {
   hemi.name = 'env.hemi';
   // key first: directional light #0 is the key in every env shader (shadow casters sort first as well)
   root.add(target, sun, rim, hemi);
+  // brazier lights: the first `pointLights` braziers (the +-37 degree pair in frame comes first); the rest are baked
   const points = [];
-  const order = [0, 1, 2, 3];
   for (let i = 0; i < tier.pointLights; i++) {
-    const b = ruins.braziers[order[i]];
+    const b = ruins.braziers[i];
     const l = new THREE.PointLight(PALETTE.fire, base.point, 16, 2);
     l.name = 'env.brazier' + i;
     l.position.set(b.x, b.y + 0.55, b.z);
-    l.userData.brazier = order[i];
+    l.userData.brazier = i;
     points.push(l);
     root.add(l);
   }

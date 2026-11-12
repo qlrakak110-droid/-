@@ -251,7 +251,7 @@ S('fire_ignite', {
 
 S('fire_burst', {
   group: 'fire', role: 'hit', len: 1.5, level: -10, poly: 3, throttle: 0.05, pitchVar: 0.8, verb: 0.2, clip: 1.6, prio: 7,
-  desc: 'fireball detonation: driven transient, wide whoomph (LP sweep), sub thump, fluttering roar, dense-to-sparse crackle',
+  desc: 'fireball detonation: driven transient, big whoomph (LP sweep), mid + sub thump, fluttering roar, dense-to-sparse crackle',
 }, (k) => {
   k.click({ gain: 1.3, f: 1200, type: 'bandpass', q: 0.7, d: 0.006 });
   k.hiss({ len: 0.05, type: 'highpass', f: 2500, env: { a: 0, d: 0.02 }, gain: 1, drive: 4 });
@@ -343,7 +343,7 @@ S('ice_crack', {
     t += k.r(0.05, 0.11);
   }
   const jit = k.smooth(8);
-  k.hiss({ len: 0.55, f: 420, q: 3, env: [[0, 0], [0.05, 1], [0.5, 0, 'outQuad']], gain: 0.35, am: (tt) => Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * 58 * tt + 4 * jit(tt)), 3) });
+  k.hiss({ len: 0.55, f: 420, q: 3, env: [[0, 0], [0.05, 1], [0.5, 0, 'outQuad']], gain: 0.35, am: k.fast((tt) => Math.pow(0.5 + 0.5 * Math.sin(2 * Math.PI * 58 * tt + 4 * jit(tt)), 3), 1400) });
   k.thump({ f0: 140, f1: 70, drop: 0.03, len: 0.15, gain: 0.25 });
 });
 
@@ -368,7 +368,7 @@ S('volt_zap', {
   k.hiss({ len: 0.05, type: 'highpass', f: 4000, env: { a: 0, d: 0.02 }, gain: 0.5 });
   const jit = k.smooth(45);
   k.saws({ len: 0.35, f: (t) => 140 * (0.75 + 0.5 * jit(t)), voices: 2, spread: 40, filter: { type: 'bandpass', f: 1800, q: 0.7 }, env: { a: 0.001, h: 0.06, d: 0.22 }, drive: 4, gain: 0.6 });
-  k.hiss({ len: 0.3, type: 'highpass', f: 3000, env: { a: 0.001, h: 0.04, d: 0.18 }, gain: 0.45, am: (t) => (Math.sin(t * 2 * Math.PI * 85) > 0 ? 1 : 0.15), stereo: true });
+  k.hiss({ len: 0.3, type: 'highpass', f: 3000, env: { a: 0.001, h: 0.04, d: 0.18 }, gain: 0.45, am: k.fast((t) => (Math.sin(t * 2 * Math.PI * 85) > 0 ? 1 : 0.15), 2000), stereo: true });
   k.grains({ len: 0.3, count: 30, tau: 0.1, kind: 'noise', lp: 1, decay: [0.0003, 0.0015], amp: [0.1, 1], gain: 0.35, filter: { type: 'highpass', f: 2000 } });
 });
 
@@ -380,7 +380,7 @@ S('volt_strike', {
   k.hiss({ len: 0.05, type: 'highpass', f: 2500, env: { a: 0, d: 0.02 }, gain: 1, drive: 6 });
   k.hiss({ len: 0.08, f: 1200, q: 0.6, env: { a: 0, d: 0.04 }, gain: 0.9, drive: 4 });
   const gate = k.smooth(140);
-  k.hiss({ len: 0.55, f: 2200, q: 0.5, env: [[0, 0.5], [0.04, 0.6], [0.35, 0.18, 'outQuad'], [0.5, 0]], gain: 0.7, drive: 3, am: (t) => (gate(t) > 0.45 ? 1 : 0.1), stereo: true });
+  k.hiss({ len: 0.55, f: 2200, q: 0.5, env: [[0, 0.5], [0.04, 0.6], [0.35, 0.18, 'outQuad'], [0.5, 0]], gain: 0.7, drive: 3, am: k.fast((t) => (gate(t) > 0.45 ? 1 : 0.1), 2000), stereo: true });
   k.grains({ len: 0.5, times: k.poisson(0.5, [[0, 900], [0.3, 200], [0.5, 0]]), kind: 'noise', lp: 1, decay: [0.0002, 0.002], amp: [0.05, 1], pow: 2.5, gain: 0.5, filter: { type: 'highpass', f: 1500 } });
   k.thump({ f0: 90, f1: 30, drop: 0.2, len: 1.0, gain: 0.8, drive: 2 });
   k.rumble({ at: 0.05, len: 2.6, f: [[0, 900], [0.4, 260], [2.4, 110]], env: [[0, 0], [0.2, 1, 'outQuad'], [0.6, 0.7], [2.55, 0, 'inOutQuad']], gain: 0.55, rate: 3, depth: 0.7 });
@@ -406,7 +406,8 @@ S('volt_loop', {
   k.saws({ len: d, f: 100, voices: 2, spread: 12, filter: { type: 'bandpass', f: 600, q: 1 }, env: FLAT(d), drive: 2, gain: 0.3, am: { rate: 8, depth: 0.3 } });
   k.grains({ len: d, times: k.poisson(d, 60), kind: 'noise', lp: 1, decay: [0.0002, 0.0012], amp: [0.05, 1], gain: 0.35, filter: { type: 'highpass', f: 2000 } });
   k.hiss({ len: d, type: 'highpass', f: 4000, env: FLAT(d), gain: 0.25, am: (t) => Math.max(0, gate(t) - 0.55) * 2.2, stereo: true });
-  for (let i = 0; i < 3; i++) k.hiss({ at: k.r(0.1, d - 0.3), len: 0.12, f: 2000, q: 0.8, env: { a: 0.001, d: 0.06 }, gain: 0.3, am: (t) => (Math.sin(t * 2 * Math.PI * 100) > 0 ? 1 : 0.2), pan: k.r(-0.6, 0.6) });
+  const arc = k.fast((t) => (Math.sin(t * 2 * Math.PI * 100) > 0 ? 1 : 0.2), 2400);
+  for (let i = 0; i < 3; i++) k.hiss({ at: k.r(0.1, d - 0.3), len: 0.12, f: 2000, q: 0.8, env: { a: 0.001, d: 0.06 }, gain: 0.3, am: arc, pan: k.r(-0.6, 0.6) });
 });
 
 // ============================================================================================ magic / skills
@@ -424,7 +425,7 @@ S('charge_up', {
 
 S('release', {
   group: 'magic', role: 'hit', len: 1.1, level: -11, poly: 3, throttle: 0.06, pitchVar: 0.6, verb: 0.2, clip: 1.6, prio: 7,
-  desc: 'energy release: punchy thoom, down-sweeping driven zap, outward air burst (wide), spark glitter',
+  desc: 'energy release: punchy thoom, down-sweeping driven zap, outward air burst, spark glitter',
 }, (k) => {
   k.click({ gain: 0.9, f: 2000 });
   k.thump({ f0: 240, f1: 110, drop: 0.03, len: 0.15, gain: 0.5, drive: 2 });

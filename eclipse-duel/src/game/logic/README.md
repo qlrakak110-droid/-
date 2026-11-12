@@ -22,7 +22,7 @@ ai.js             AI controller (easy / normal / hard / nightmare)
 sample-fighter.js complete, commented sample definition — the template for real fighters
 constants.js      DEFAULT_RULES, DEFAULT_STATS, DEFAULT_MOVEMENT, HIT_DEFAULTS, enums
 rng.js            seeded streams (makeRng from core/math.js)
-test/             run.mjs (runner), unit / determinism tests, soak, frame-data CLI
+test/             run.mjs (runner), unit / edge-case / AI / determinism tests, fuzzer, soak, AI commentator, frame data
 ```
 
 ---
@@ -62,9 +62,10 @@ console.log(m.fighters[1].hp, m.snapshot());
 ```
 
 ```sh
-node src/game/logic/test/run.mjs            # unit + determinism tests, then the 300-match AI soak with statistics
+node src/game/logic/test/run.mjs            # all tests, the 60-match fuzzer, then the 300-match AI soak with statistics
 node src/game/logic/test/run.mjs --quick    # tests only
 node src/game/logic/test/framedata.mjs src/fighters/kael/moves.js   # frame-data table of any definition module
+node src/game/logic/test/watch.mjs easy hard --seed 3 --rounds 1      # commentated AI-vs-AI timeline + behaviour report
 ```
 
 ---
@@ -100,6 +101,14 @@ node src/game/logic/test/framedata.mjs src/fighters/kael/moves.js   # frame-data
 * Events raised during the call are **queued and dispatched when it returns** (listeners never see a half-resolved
   substep, and a throwing listener cannot corrupt the simulation; the first error is re-thrown after dispatch).
 
+**Order inside one substep** (`match.js`): (1) intro gate, or a super-freeze / cinematic substep instead of the rest;
+(2) each fighter advances by the substep minus its remaining hit-stop (move clock, motion, timeline, stun timers,
+neutral actions); (3) push-boxes; cooldowns; (4) projectiles move, expire, clash; (5) both fighters' strikes and every
+projectile contact are collected, then resolved together (trades); (6) **moves settle**: cancel windows are checked
+against the buffered presses and moves that reached their end finish — *after* the substep's strike was collected,
+so a cancel on the same frame as a hit never swallows the hit (and a cancel never happens while the fighter is in
+hit-stop: it comes out when the freeze ends); (7) push-boxes again; meters regenerate; round clock; KO / time-up.
+
 **Hit-stop is part of the rules.** On a strike, attacker and victim freeze for the hit's `hitstop`; on a projectile hit
 only the victim (and the projectile) freeze. A frozen fighter's move clock, stun timer, motion and input-buffer ageing
 stop; everything else (the other fighter if not frozen, projectiles, the round clock, cooldowns, regen) keeps running.
@@ -110,7 +119,9 @@ stop; everything else (the other fighter if not frozen, projectiles, the round c
 > `fighter.hitstop > 0` and shake it while `hitstopShake`. A global `ctx.time.hitstop(e.hitstop)` for VFX on `hit`
 > events is fine as long as the match itself is stepped with `dtReal`.
 
-Super-freeze and cinematic lock pause the round clock; hit-stop does not.
+Super-freeze and cinematic lock pause the round clock; hit-stop does not. Combo length (`fighter.recv.time`, the
+`rules.combo.maxTime` cap, `comboEnd.duration`) runs on match time **including hit-stop** (not during a freeze or a
+lock), so long hit-stops cannot stretch a combo past the cap.
 
 **Determinism.** No `Math.random`, no wall clock. The engine never rolls dice; AI controllers draw from their own
 streams forked from the match seed (`createMatch({ rng })`). Same definitions + rules + seed + inputs + dt sequence =
@@ -134,7 +145,7 @@ the same event log, bit for bit (tested by hashing the log, also with two matche
 | `clock` | round clock, seconds left (starts at `rules.roundTime`) |
 | `roundWinner`, `roundReason` | set when a round is decided: index or `-1` (draw); `'ko' \| 'doubleKo' \| 'time'` |
 | `winner` | match winner once `phase === 'end'` (index or `-1` = drawn match), else `null` |
-| `freeze` | active super-freeze `{owner, move, remaining, duration, userAnimates}` or `null` |
+| `freeze` | active super-freeze `{owner, move, remaining, duration, userAnimates, owners, moves, startTime}` or `null`. `owners` lists both fighters when both ultimates started in the same substep (§11); `owner` / `move` / `userAnimates` describe the first |
 | `cinematic` | active lock `{attacker, defender, move, t, duration, scale, damage, ...}` or `null` |
 | `time` | match time (s) since creation / reset |
 | `rules`, `defs` | merged rules; compiled definitions (`defs[i].moves[id]`, `.commands`, `.stats`, `.warnings`) |
@@ -164,10 +175,10 @@ the same event log, bit for bit (tested by hashing the log, also with two matche
 | `stunKind` | in `hitstun`: `'light'` flinch, `'heavy'` stagger, `'crumple'` |
 | `walkDir` | in `walk`: `+1` forward, `-1` back |
 | `move`, `moveData`, `moveTime`, `moveSerial` | current move id, compiled move (`duration`, `hits`, ...), seconds into it, a counter that increments per move start |
-| `moveConnected`, `moveHit` | the current move touched the opponent (hit or block) / landed a clean hit |
+| `moveConnected`, `moveHit` | the current move touched the opponent (hit or block) / landed a clean hit — strikes, and projectiles it fired that connect while it is still running |
 | `hitstop`, `hitstopShake` | remaining hit-stop (s); true on the victim side |
 | `combo` | the combo this fighter is **dealing**: `{hits, damage, active}` (kept after it ends for the HUD) |
-| `recv` | the combo this fighter is **receiving**: `{active, hits, damage, juggle, time, scale, wallBounces, attacker}` |
+| `recv` | the combo this fighter is **receiving**: `{active, hits, damage, juggle, time (s of match time, hit-stop included), scale, wallBounces, attacker}` |
 | `cooldowns` | `{cooldownKey: seconds left}` |
 | `dodgeCooldown` | seconds before the next neutral dodge |
 | `rounds` | rounds won |
@@ -203,8 +214,14 @@ the same event log, bit for bit (tested by hashing the log, also with two matche
 ```
 
 Invulnerable: `knockdown`, `getup`, `roll`, `locked`, `ko`, the dodge's `invuln` window, the backstep's `invuln`
-window (strikes only), `recovery` after a cinematic, move `invuln` windows, the super-freeze owner, everyone during a
+window (strikes only), `recovery` after a cinematic, move `invuln` windows, the super-freeze owner(s), everyone during a
 cinematic, airborne victims that are `hard` (knockdown flight) or out of juggle points, everyone outside `'fight'`.
+
+Push-boxes are off (the opponent can pass) for `roll`, `locked`, move `passThrough` windows, and bodies **lying on the
+floor** (`knockdown`, `ko`): a standing fighter steps over a downed opponent, which is how wake-up cross-ups happen. The
+riser is solid again in `getup` (invulnerable); if the two overlap then, they are pushed apart on their actual sides and
+the riser turns to face its opponent. Every state change is announced by a `state` event, including the reset to
+`intro` at a new round.
 
 ---
 
@@ -223,17 +240,21 @@ Controllers report **held** state: `{ move: -1|0|1 (world X), up, down, light, h
   `d+X`, then `u+X`, `f+X`, `b+X`, then plain `X`; a missing slot is simply unavailable (the press is dropped).
 * **Movement**: dodge alone → `dodge`; dodge + forward or double-tap forward (within `rules.doubleTapWindow`) →
   `dash`; dodge + back or double-tap back → `backstep`. A forward dash with the back within 2.75 × pushWidth (1.1 m)
-  of a wall and the opponent in your face becomes a **`roll`** that passes through (the corner escape). Dash / dodge accept attacks from
-  their `cancelFrom` time.
+  of a wall and the opponent in your face becomes a **`roll`** that passes through (the corner escape). Dash / dodge
+  accept attacks from their `cancelFrom` time. The dodge **cooldown starts with the dodge** (`duration + cooldown`
+  from its start), so cancelling a dodge into an attack or being hit out of it cannot skip it.
 * **Guard** is held: in neutral, holding guard enters `guard` (no walking). Attack and dodge presses override it.
-* **Cancels**: during a move, open cancel windows are checked every substep against the buffered presses:
+* **Cancels**: during a move, open cancel windows are checked every substep — after that substep's contacts (§3) —
+  against the buffered presses:
   1. *Routes* — a window with `on: 'light'` (and optional `dir`) sends that button to its single `into` move
      (`light1 → light2 → light3` chains). Routes with a matching `dir` win over routes without.
   2. *General cancels* — the press is resolved through the command map; the resulting move may start if a window lists
      it (`into: ['launcher']`) or its group (`'@normal' '@skill' '@ult' '@any'`).
   3. `'@dodge'` / `'@dash'` windows let dodge (+ direction) cancel the move.
-  `onHit: true` windows need a clean hit by this move, `onContact: true` a hit or a block. Cancels pay the target's
-  costs like any start.
+  `onHit: true` windows need a clean hit by this move, `onContact: true` a hit or a block (a projectile fired by the
+  move counts while the move is still running). Cancels pay the target's costs like any start. A move whose last
+  moment touches a hit window or that has cancel windows stays alive through its final substep's contacts, so a
+  last-frame hit lands and a window that runs to the end can still be taken.
 
 ---
 
@@ -253,7 +274,7 @@ Units: seconds, metres, m/s, HP. `sample-fighter.js` is the annotated template.
 | `movement` | object | §8.3 | dash / backstep / dodge / roll tuning |
 | `commands` | object | required | command key → move id (§7). `null` value = explicitly unavailable |
 | `moves` | object | required | move id (`[a-z0-9_.-]`) → move (§9) |
-| `ai` | object | `{aggression: 0.5, zoning: 0.5}` | AI personality: `aggression` 0..1 (rush vs patient), `zoning` 0..1 (projectile appetite), `preferredRange` m |
+| `ai` | object | `{aggression: 0.5, zoning: 0.5}` | AI personality: `aggression` 0..1 (rush vs patient), `zoning` 0..1 (projectile appetite), `preferredRange` m (footsies distance the AI tries to hold; default 0.9 × its longest poke reach) |
 | `meta` | any | — | free data for presentation (ignored by the rules) |
 
 ### 8.2 `stats`
@@ -266,7 +287,7 @@ Units: seconds, metres, m/s, HP. `sample-fighter.js` is the annotated template.
 | `guardMax` | 100 | pts | guard gauge |
 | `walkSpeed` | 2.5 | m/s | forward walk |
 | `backSpeed` | 1.8 | m/s | back walk (should be slower) |
-| `weight` | 1 | × | knockback received is divided by this |
+| `weight` | 1 | × (0.2 .. 50) | knockback received is divided by this |
 | `pushWidth` | 0.4 | m | push-box half-width |
 | `hurtWidth` | 0.42 | m | standing hurtbox half-width |
 | `height` | 1.85 | m | standing hurtbox height |
@@ -307,9 +328,9 @@ heavy: {
 | `hits` | array | `[]` | hit windows (§9.1) |
 | `motion` | segments or keys | none | `[{t: [a, b], v}]` forward velocity m/s inside windows, or `{keys: [[t, f], [t, f, u], ...]}` cumulative forward displacement (m) and optional height (m), linear between keys. A height track should end at 0 |
 | `cancels` | array | `[]` | `{t: [from, to], into, on?, dir?, onHit?, onContact?}` (§7). `into`: move id, ids, or tokens `@normal @skill @ult @any @dodge @dash`. With `on` (an attack button) it is a route with exactly one target |
-| `armour` | array | `[]` | hyper-armour `{t: [a, b], hits = ∞, damageScale = 1}`: hits taken in the window deal `damage × damageScale` but cause no flinch, up to `hits` per move start. `armourPierce` hits and cinematic triggers ignore it |
-| `invuln` | array | `[]` | `{t: [a, b], vs = 'all' \| 'strike' \| 'projectile'}` |
-| `passThrough` | array | `[]` | `[a, b]` windows with push-boxes off (dash through the opponent) |
+| `armour` | array | `[]` | hyper-armour `{t: [a, b], hits = ∞, damageScale = 1}` (or the shorthand `[a, b]`): hits taken in the window deal `damage × damageScale` but cause no flinch, up to `hits` per move start. `armourPierce` hits and cinematic triggers ignore it |
+| `invuln` | array | `[]` | `{t: [a, b], vs = 'all' \| 'strike' \| 'projectile'}` (or the shorthand `[a, b]`, vs all). Checked before counter stances: a hit the fighter is invulnerable to passes through |
+| `passThrough` | array | `[]` | `[a, b]` (or `{t: [a, b]}`) windows with push-boxes off (dash through the opponent). Without one, motion of any speed stops at the opponent's centre and shoves it: nothing tunnels through a solid opponent |
 | `hurt` | array | `[]` | extra hurtboxes `{t: [a, b], box: {f, u}}` (extended limbs). Strikes of `normal` moves also extend the hurtbox automatically from their start to 0.12 s after their end (70 % of the reach), so whiffs can be punished |
 | `counter` | object | none | counter stance `{t: [a, b], move, vs = 'strike', hitstop = 0.12}`: a non-unblockable hit landing in the window is nullified, both freeze `hitstop`, and `move` starts at once (forced: no cost). Give the follow-up `invuln` from t = 0 |
 | `teleport` | array | `[]` | `{t, to: 'forward' \| 'behind', distance = 1, face = true}`: at `t`, jump `distance` forward, or to `distance` past the opponent; `face` turns toward the opponent afterwards. Emits `teleport` |
@@ -331,7 +352,7 @@ Only `t`, `box` and `damage` are required; the rest default by `level` (`HIT_DEF
 
 | field | unit | default (light / heavy / launch / crumple / knockdown) | meaning |
 |---|---|---|---|
-| `t` | `[t0, t1]` s | required | active window (inside the duration) |
+| `t` | `[t0, t1]` s | required | active window (inside the duration). Zero-length windows (`[0.2, 0.2]`, also `[0, 0]`) strike exactly once at any dt |
 | `box` | `{f: [a, b], u: [c, d]}` m | required | fighter-local hit box |
 | `damage` | HP | required | before combo scaling / counter bonus |
 | `level` | enum | `'light'` | reaction: `light` flinch, `heavy` stagger, `launch` airborne juggle, `crumple` long stun then falls (once per combo; a second becomes a knockdown), `knockdown` hard knockdown flight (no juggle) |
@@ -357,8 +378,8 @@ Only `t`, `box` and `damage` are required; the rest default by `level` (`HIT_DEF
 |---|---|---|---|
 | `t` | s | required | spawn time in the move |
 | `kind` | string | `'<move>.<i>'` | presentation key (VFX by kind) |
-| `at` | `'self' \| 'opponent'` | `'self'` | spawn origin: the owner, or the opponent's x on the floor (targeted strikes) |
-| `offset` | `{f, u}` m | `{f: 0, u: 0.65 × owner height}` | spawn offset (forward relative to the owner's facing) |
+| `at` | `'self' \| 'opponent'` | `'self'` | spawn origin: the owner (at its height), or the opponent's x on the floor (targeted strikes: pillars, eruptions) |
+| `offset` | `{f, u}` m | `{f: 0, u: 0.65 × owner height}` for `'self'`, `{f: 0, u: 0}` for `'opponent'` | spawn offset (forward relative to the owner's facing) |
 | `box` | `{f, u}` m | required | hit box relative to the projectile, `f` along its travel direction |
 | `velocity` | `{x, y}` m/s | 0 | x along the owner's forward |
 | `gravity` | m/s² | 0 | |
@@ -375,9 +396,11 @@ Only `t`, `box` and `damage` are required; the rest default by `level` (`HIT_DEF
 
 ## 10. Combat rules
 
-**Order inside a substep:** both fighters move → push-boxes → projectiles move and clash → both fighters' strikes and
-every projectile contact are **collected**, then resolved together (so trades happen: both hits land) → push-boxes are
-settled again. Cinematic triggers resolve first; once a lock starts, the substep's other contacts are dropped. Each
+**Order inside a substep:** see §3. Both fighters' strikes and every projectile contact are **collected**, then
+resolved together, so trades happen: both hits land, both are counter hits (each victim was in its startup), both
+fighters freeze, and both can be KO'd on the same step (double KO). Cinematic triggers resolve first; once a lock
+starts, the substep's other contacts are dropped — except when **both** fighters' triggers connect in the same substep
+(simultaneous ultimates): they clash, neither lock starts and both resolve as ordinary hits (`hit.clash`). Each
 attacker connects at most one hit window per substep.
 
 **Resolution of one contact** (`combat.js resolveContact`):
@@ -397,6 +420,11 @@ attacker connects at most one hit window per substep.
 **Pinned victims:** when a grounded victim's pushback slide is stopped by the wall, the remaining slide is passed to the
 attacker (× 0.85), so corner pressure pushes the attacker out instead of locking both in place.
 
+**Bodies:** solid fighters never pass each other: any movement (walk, dash, motion, slide, flight) that would carry a
+fighter past the opponent's centre stops there, and the push-boxes split the overlap. Passing needs a pass-through
+window, a roll, a teleport, a lying opponent or enough height (one fighter more than 0.7 × the shorter height above the
+other: juggles).
+
 **Combos** (`fighter.recv` on the victim, `fighter.combo` on the attacker): a combo starts with the first clean hit
 and lasts while the victim stays in `hitstun` / `launched` / `guardbreak` / `locked`; leaving those states emits
 `comboEnd`. Damage scale: the first `combo.fullHits` (2) hits 100 %, then −`combo.step` (10 %) per hit (or the hit's
@@ -408,11 +436,12 @@ guard break or recovery.
 **Juggles:** a `launch` hit (or any hit on an airborne victim) sends the victim into `launched`; every air hit adds its
 `juggle` points (launch from the ground: 1). Air hits pop the victim up by `max(knockback.y, juggle.pop 4.2)` m/s with
 half the horizontal knockback. Gravity grows 8 % per juggle point. At `rules.juggle.limit` (6) points the victim is
-invulnerable until it lands. **Wall bounce**: a juggled / knocked-down victim hitting the wall at ≥ 5.5 m/s bounces
+invulnerable until it lands. Launch speed is capped so no flight rises above `rules.juggle.apex` (3) × the victim's
+height, whatever the knockback and weight. **Wall bounce**: a juggled / knocked-down victim hitting the wall at ≥ 5.5 m/s bounces
 once per combo (+1 juggle point, re-opens a hard knockdown). **Landing** → `knockdown` (0.7 s, invulnerable) →
 `getup` (0.45 s, invulnerable) → neutral; a dodge press buffered on landing from a non-hard juggle **tech rolls**
-(straight to `getup`, sliding away). Safety net: after 40 hits or 8 s every hit of the combo becomes a knockdown — no
-infinite exists.
+(straight to `getup`, sliding away). Safety net: after 40 hits or 8 s of combo (match time, hit-stop included) every
+hit of the combo becomes a knockdown — a non-juggleable flight — so no infinite exists.
 
 **KO:** HP 0 → the victim flies (hard) and lies in `ko`; `ko` event; the round goes to phase `'ko'`. Both at 0 in the
 same substep = double KO (drawn round).
@@ -426,7 +455,13 @@ same substep = double KO (drawn round).
   cooldowns and regen are frozen. With `userAnimates: true` (default) the user's move clock keeps running so the
   wind-up plays on its timeline (hits must start after the freeze — the validator enforces it); the user is
   invulnerable during the freeze. With `false` the user's move clock also waits. The frozen opponent's input buffer
-  keeps ageing (no mashing through the freeze). Then `superFreezeEnd`.
+  keeps ageing (no mashing through the freeze: only a press in the last `rules.inputBuffer` seconds comes out when it
+  ends). Then `superFreezeEnd`.
+* **Simultaneous ultimates**: an ultimate pressed while a freeze runs is refused (`moveDenied` `'freeze'`; in practice
+  the frozen opponent never gets to try) — except in the very substep the freeze started: then both start (no player
+  priority), share one freeze lasting the longer duration (`freeze.owners` = both, `superFreezeStart.simultaneous`),
+  each user animates for exactly its own freeze duration, and each gets its `superFreezeEnd`. If both triggers then
+  connect in the same substep they clash (§10).
 * **Cinematic lock** (`cinematic`): when hit `cinematic.hit` (index into `hits`) connects **unblocked** (armour does
   not stop it), the trigger hit deals its damage (never lethal) and the lock starts: `cinematicStart`. The victim
   (`locked`) is placed `distance` m in front of the attacker (default: both push-widths + 0.5 m; both pushed off a
@@ -501,23 +536,35 @@ whiffed recovery, guard breaks, juggle, okizeme (meaty on get-up) → on think t
 (`far` / `mid` / `close` vs the opponent's threat reach) and initiative (who is plus after a block / hit): approach,
 dash, step in and out, wait, anticipatory guard, pokes, pressure, launchers, zoning, mobility, skills, ultimate.
 
-| level | reaction (s) | guard | dodge | punish | hit-confirm (s) | combo | spacing | mistakes |
-|---|---|---|---|---|---|---|---|---|
-| easy | 0.42 | 0.30 | 0.06 | 0.18 | 0.32 | 0.35 | 0.15 | 0.20 |
-| normal | 0.28 | 0.50 | 0.12 | 0.45 | 0.20 | 0.65 | 0.45 | 0.08 |
-| hard | 0.20 | 0.66 | 0.20 | 0.72 | 0.12 | 0.85 | 0.70 | 0.035 |
-| nightmare | 0.14 | 0.76 | 0.28 | 0.92 | 0.07 | 0.97 | 0.92 | 0.012 |
+| level | reaction (s) | tempo | guard | perfect | punish | read | combo | depth | spacing | variety | mistakes |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| easy | 0.42 | 0.5 | 0.30 | 0 | 0.15 | 0.05 | 0.35 | 1 | 0.15 | 0.3 | 0.20 |
+| normal | 0.26 | 0.8 | 0.50 | 0.1 | 0.52 | 0.35 | 0.72 | 3 | 0.45 | 0.45 | 0.08 |
+| hard | 0.22 | 0.86 | 0.62 | 0.2 | 0.66 | 0.6 | 0.88 | 3 | 0.70 | 0.65 | 0.035 |
+| nightmare | 0.14 | 1 | 0.76 | 0.6 | 0.93 | 0.9 | 0.97 | 8 | 0.92 | 0.8 | 0.012 |
 
-All fields (`AI_LEVELS` in `ai.js`: also counter, backoff, holdGuard, whiffPunish, blockString, mash, juggle, tech,
-wakeGuard, reversal, skill, ult, aggression, patience, perfect, noise, think interval) can be overridden:
-`createAIController({ difficulty: 'hard', overrides: { reaction: 0.25 } })`.
+What the levels mean in play (sample fighter mirror, measured with `test/watch.mjs`, `test/soak.mjs` and 40-match
+ladders): **easy** throws about 23 attacks a minute, waits and walks a lot, ends its combos after one cancel (chain
+routes such as light1 → light2 → light3 are free at every level), rarely punishes, walks into counter stances and
+perfect-guards only by luck (~15 % of its blocks). **Normal** ~30 attacks a minute, medium combos, punishes about half
+the unsafe moves it blocks. **Hard** ~34, long combos, punishes reliably, reads stances, holds its footsies range.
+**Nightmare** ~38: perfect-guards about 30 % of everything it blocks (two thirds of the slow, reactable attacks),
+perfect-dodges, punishes stance recoveries, lands about 95 % of its ultimates (inside combos). Each level beats the
+one below most of the time: easy takes roughly 5 % of matches from normal, normal 15–20 % from hard, hard 20–30 % from
+nightmare (300-match soak and 40-match ladders).
+
+Every field of `AI_LEVELS` (`ai.js`, documented there) can be overridden:
+`createAIController({ difficulty: 'hard', overrides: { reaction: 0.25 } })`. Fields: `reaction`, `think` [s, s],
+`tempo`, `guard`, `dodge`, `counter`, `backoff`, `holdGuard`, `perfect`, `punish`, `whiffPunish`, `read`, `confirm` (s),
+`combo`, `blockString`, `mash`, `depth`, `juggle`, `meaty`, `tech`, `wakeGuard`, `reversal`, `spacing`, `variety`,
+`skill`, `ult`, `mistake`, `aggression`, `patience`, `noise`.
 
 ### 14.2 AI hints (`move.ai`)
 
 | field | meaning | when absent |
 |---|---|---|
 | `range: [min, max]` | centre-to-centre distance (m) where the move is a good idea | `[0, reach]` from frame data; projectiles `[2.5, min(9, reach)]` |
-| `role` | `poke` (fast, safe-ish neutral), `pressure` (frame traps, guard drain), `approach` (closes distance), `launcher`, `combo` (used mostly in combos), `juggle`, `finisher` (ultimate: combo ender / punish), `punish`, `antiair`, `zoning` (projectiles), `counter` (counter stance), `mobility` (dashes, teleports), `reversal` | inferred: cinematic → finisher, counter → counter, projectile → zoning, no hits → mobility, launch → launcher, ≥ 1.5 m of motion → approach, startup ≤ 0.13 s → poke, else pressure |
+| `role` | `poke` (fast, safe-ish neutral), `starter` (neutral opener, like a poke), `pressure` (frame traps, guard drain; more against a low gauge or a cornered opponent), `approach` (closes distance), `launcher`, `combo` (used mostly in combos), `juggle` / `antiair` (preferred on airborne opponents, rare in neutral), `finisher` (ultimate: combo ender / punish), `punish` (preferred in punish windows, rare in neutral), `zoning` (projectiles, at range), `counter` (counter stance: against perceived attacks, on wake-up), `mobility` (dashes, teleports: always followed by an attack when the move has a cancel window for one), `reversal` (wake-up reversal, preferred over a counter stance) | inferred: cinematic → finisher, counter → counter, reached only through a chain route (not in the command map) → combo, projectile → zoning, no hits → mobility, launch → launcher, ≥ 1.5 m of motion → approach, startup ≤ 0.13 s → poke, else pressure |
 | `weight` | relative preference (1 = normal) | 1 |
 | `comboOnly` | never thrown raw from neutral (chain parts) | false |
 
@@ -532,9 +579,13 @@ it derives from the move data, for both its own moves and the opponent's (threat
   `moves.light2.hits[0].t: hit window (s) [0.1,0.9] must lie inside [0, 0.4]`,
   `moves.heavy.cancels[0].into: unknown move 'lunj' - did you mean 'lunge'?`,
   `moves.verdict.superFreeze: the first active time 0.82 s falls inside the 0.9 s super-freeze; hits must start after the freeze`.
+  Errors also catch moves that can never start (`fpCost` / `ultCost` above the stat maximum, `minDistance` >
+  `maxDistance`), a `cinematic: true` hit without a `cinematic` block, and absurd `stats.weight`.
   Warnings: unknown fields with suggestions (`moves.heavy.hit: unknown field (ignored) - did you mean 'hits'?`),
   multi-hit windows too short for their hit count, unreachable moves, counter follow-ups without invulnerability,
-  height tracks that end in the air, very long hit-stops.
+  counter windows hidden by the move's own `invuln` (hits pass through before the counter is checked), an ultimate
+  without `ultCost`, hit boxes that only reach behind the fighter (sign slip), cinematic ticks after the finish, two
+  trigger hits, height tracks that end in the air, very long hit-stops.
 * `deriveFrameData(move)` → `{startup, activeEnd, active, recovery, duration, damage, hits, reach, strikeReach, level,
   onHit, onBlock, knockdown, cancellable, armour, invuln, counter, teleport, cinematic, projectile, unblockable, fpCost,
   ultCost, cooldown, motion, frames: {startup, active, recovery, duration, onHit, onBlock}}` (seconds; `frames` at
@@ -566,7 +617,7 @@ verdict     ult            49      10     37     96   80     1    5.87    -20   
 | `maxSubstep` / `maxStep` | 1/60 / 0.1 s | sub-stepping (§3) |
 | `inputBuffer` / `doubleTapWindow` / `turnDelay` | 0.2 / 0.22 / 0.05 s | input |
 | `combo` | `{fullHits 2, step 0.1, floor 0.4, hitstunStep 0.03, hitstunFloor 0.5, hitstunTime 3, hitstunTimeRate 0.15, maxHits 40, maxTime 8}` | §10 |
-| `juggle` | `{limit 6, gravityStep 0.08, pop 4.2}` | §10 |
+| `juggle` | `{limit 6, gravityStep 0.08, pop 4.2, apex 3}` | §10 (`apex`: highest flight, in victim heights) |
 | `counterHit` | `{damage 1.2, hitstun 1.3, hitstop 1.35}` | multipliers |
 | `block` | `{hitstopScale 0.75, pushbackScale 0.85, perfectWindow 0.12, perfectStunScale 0.5, chipCanKO false}` | §10 |
 | `chip` | `{normal 0, skill 0.15, ult 0.2}` | default chip ratio by move group |
@@ -583,8 +634,9 @@ Unknown rule names throw (`rules.roundTim: unknown rule`).
 
 ## 17. Events
 
-Every payload is a fresh plain object with `time` (match time, s). Fighter references are indices (0 / 1). World
-positions are on the fight line (`z = 0`).
+Every payload is a fresh plain object with `time` (match time, s; never decreasing). Fighter references are indices
+(0 / 1). World positions are on the fight line (`z = 0`). Author `data` / `meta` echoed in events are deep-frozen
+copies: a listener cannot change the definition (or the next event) through them.
 
 | event | payload |
 |---|---|
@@ -603,7 +655,7 @@ positions are on the fight line (`z = 0`).
 | `teleport` | `fighter, move, from, to, facing` |
 | `dodge` | `fighter, kind 'dash' \| 'backstep' \| 'dodge' \| 'roll', x, facing, duration` |
 | `perfectDodge` | `fighter, attacker, move, projectile (id \| null), x` |
-| `hit` | `attacker, defender, kind 'strike' \| 'projectile', move, hit (index), projectile, label, damage, chip, blocked, perfect, armoured, counter, punish, unblockable, guardBreak, cinematic, ko, level, x, y (contact point), facing (attacker), combo (hits so far), comboDamage, scaling, juggle, hitstop, guard (victim gauge)` |
+| `hit` | `attacker, defender, kind 'strike' \| 'projectile', move, hit (index), projectile, label, damage, chip, blocked, perfect, armoured, counter, punish, unblockable, guardBreak, cinematic (lock trigger), clash (simultaneous triggers), ko (this hit kills: clean, armoured or chip), level, reaction (defender state after the hit: 'hitstun' 'launched' 'blockstun' 'guardbreak' 'locked', or its move state for armour), x, y (contact point), facing (attacker), defenderFacing, front (false: hit from behind), combo (hits so far), comboDamage, scaling, juggle, hitstop, guard (victim gauge)` |
 | `guard` | `fighter, attacker, move, perfect, chip, gauge, guardBreak, x, y` |
 | `guardBreak` | `fighter, attacker, move, x, y` |
 | `counter` | `fighter, attacker, move (stance), into (follow-up), against (attacker move), projectile, x, y` |
@@ -620,8 +672,8 @@ positions are on the fight line (`z = 0`).
 | `projectileHit` | `id, owner, defender, result 'hit' \| 'blocked' \| 'armoured', x, y` |
 | `projectileClash` | `a, b, owners, x, y, survivor (id \| null)` |
 | `projectileExpire` | `id, owner, kind, x, y, reason` |
-| `superFreezeStart` / `superFreezeEnd` | `fighter, move, duration, x, y, facing` / `fighter, move` |
-| `cinematicStart` | `attacker, defender, move, duration, x, facing, victimX, scale` |
+| `superFreezeStart` / `superFreezeEnd` | `fighter, move, duration, x, y, facing, simultaneous` / `fighter, move` (one pair per ultimate user) |
+| `cinematicStart` | `attacker, defender, move, duration, x, facing, victimX, victimFacing, scale` (a `turn` event precedes it when the victim is turned to face the attacker) |
 | `cinematicTick` | `attacker, defender, move, index, t, damage, hitstop, marker, data, final, x, y` |
 | `cinematicEnd` | `attacker, defender, move, damage (lock total), ko, x` |
 
@@ -632,8 +684,9 @@ positions are on the fight line (`z = 0`).
 * Drive each character from `state` / `stateTime` (locomotion, stun, knockdown) and `move` / `moveTime` (the move
   clip, sampled at `moveTime`, so hit-stop and cancels stay in sync). Name clips after move ids; time VFX, trails,
   audio and camera from `marker` names.
-* `hit` gives the contact point, level, counter / punish / armour / perfect flags and the hit-stop to scale shakes,
-  flashes and impact frames. `blocked` + `perfect` deserve a distinct spark; `guardBreak` a big one.
+* `hit` gives the contact point, level, the defender's resulting `reaction`, `front` (pick a front or back flinch),
+  counter / punish / armour / perfect / ko flags and the hit-stop to scale shakes, flashes and impact frames.
+  `blocked` + `perfect` deserve a distinct spark; `guardBreak` a big one; `ko` the slow-motion finisher.
 * Ultimates: `superFreezeStart` → darken the world, letterbox, cut to the user; `cinematicStart` → play the shot list
   anchored on `attacker` (choreograph freely: the rules hold both fighters in place); `cinematicTick` → impacts;
   `cinematicEnd` → blend back to the logic positions (`fighters[i].x`). Whiff / block → no lock.
@@ -655,8 +708,34 @@ positions are on the fight line (`z = 0`).
   tech roll, FP / ULT / cooldowns / HUD slots, super-freeze, cinematic lock (hit, blocked, whiffed, lethal), rounds,
   time-up, draws, reset paths, debug boxes, markers, a giant-scale definition, the AI on a bare definition (no hints,
   no skills) and the AI's reaction delay.
+* edge cases (`test/edge.test.mjs`): trades (simultaneous jabs, double KO, simultaneous ultimates and trigger clash),
+  hits on the last active frame and at the move end, zero-length windows at t = 0 / mid / end at four dts, markers at
+  0 and at the end, a cancel on the same frame as a hit, presses buffered through a long hit-stop and through a
+  super-freeze (late ones come out, early ones expire), hits in dodge recovery and the dodge cooldown, guard released
+  during blockstun, the owner's projectile during its cinematic, time-up vs a running lock (and a lethal lock), lock
+  release overlap, corner pass-through and pushback, no tunnelling at any speed, stepping over a knocked-down
+  opponent, launch apex cap, combo cap with long hit-stops, wall bounce at the floor, projectile spawn heights and
+  on-hit cancels from projectiles, hit payload flags, immutable event data, state-event continuity across rounds, dt
+  1/30 vs 1/60 vs 1/120 equivalence, a whole idle match, extreme data, and the validator's authoring checks.
+* AI (`test/ai.test.mjs`): every level defines every field the AI reads; counter stances are read and their recovery
+  punished; mobility moves are followed up; activity is ordered easy < normal < nightmare; nobody stands still for
+  long or repeats one move; `preferredRange` moves its footsies distance; a 10-move fighter with a cinematic ultimate
+  written from this README with no `ai` hints (`authoredFighter` in `test/fixtures.mjs`) validates warning-free and
+  the AI uses every one of its moves.
 * determinism (`test/determinism.test.mjs`): same seed → identical event-log hash and snapshot; interleaved matches
   equal solo runs; jittered dt with 0.1 s spikes is reproducible and sane.
+* fuzz (`test/fuzz.mjs`, 60 matches, several thousand simulated seconds): random-input controllers (mashers, holders,
+  mixed) and the AI on the sample, an extreme-data fixture, an 8 m giant and the authored fighter (`test/fixtures.mjs`), random dt patterns
+  (1/30, 1/60, 1/120, jitter, 0.1–0.4 s spikes) and rule variations. Every step: finite numbers, bodies inside the
+  arena and above the floor, meters / timers / cooldowns in range, 'attack' ⇔ a move whose clock lies in its
+  duration, solid push-boxes never overlapping, nothing stuck, clock and HP never rising inside a round; every event:
+  known name, non-decreasing time, valid indices, `state` chains (from = previous to), moveStart / moveEnd pairing,
+  projectile ids spawned once and expired once, super-freeze and cinematic pairing, one KO per fighter per round, the
+  combo cap. `--fuzz N`, `--fuzz-seed S`.
+* `node src/game/logic/test/watch.mjs [level] [level] [--seed N] [--rounds N] [--def module] [--quiet]` prints a
+  commentated AI-vs-AI timeline (throws, cancels, hits, blocks, whiffs, punishes, combos, ultimates, KOs, standing
+  still) and a per-fighter report (move mix, moves per minute, whiff rate, punishes, perfect guards / dodges, idle
+  share and longest idle, longest same-move streak, guard share, distance zones).
 * soak (`test/soak.mjs`, 300 AI-vs-AI matches across all 16 difficulty pairings): no exceptions, no NaN, invariants
   (arena, meters, juggle cap, push-boxes), no stuck state (> 8 s), every round ends; prints round length, KO / time-up
   rates, win rates per level and pairing, move usage, time share per state, block rate, combo stats, ULT / cinematic /

@@ -169,7 +169,7 @@ export function createAtmosphere(U, rng, tier) {
       uZenith: U.uZenith, uSkyMid: U.uSkyMid, uHorizon: U.uHorizon, uGlow: U.uGlow, uSunHalo: U.uSunHalo, uSunDir: U.uSunDir,
       uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uTime: U.uTime, uWind: U.uWind,
       uShaft: { value: new THREE.Color(0.32, 0.38, 0.5) },
-      uMist: { value: new THREE.Color(0.006, 0.007, 0.01) },
+      uMist: { value: new THREE.Color(0.012, 0.015, 0.022) },
       uCloudY: { value: cy },
     },
     transparent: true,

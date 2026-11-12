@@ -11,6 +11,8 @@ import { qrot, qfromBasis } from './rigmath.js';
 import { pushOutCapsules } from './collide.js';
 import { shift } from './spring.js';
 
+const ZERO3 = new Float32Array(3);
+
 /**
  * Lay out a cloth grid in bind space.
  * spec: { name, top: [[bone, [x,y,z]], ...] (pinned edge, ordered from the fighter's LEFT (-Z) to RIGHT (+Z)),
@@ -229,36 +231,36 @@ export class Cloth {
     }
   }
 
-  /** Place the cloth at its rest shape relative to the current anchors (no motion). */
+  /** Hang the cloth from its current anchors (rest offsets below the pinned row, unrotated), then pre-settle. */
   _snap(mq, mp) {
-    // rigidly carry the rest layout with the first anchor bone's transform
-    const L = this.layout, b = L.anchorBone[0], tmp = new Float32Array(3), bq = this._bindQ;
-    const iq = [-bq[0], -bq[1], -bq[2], bq[3]];
+    const L = this.layout, C = this.C, pinN = C * L.pinRows, p = this.p, pp = this.pp;
+    this._anchors(mq, mp, this.anchorTarget);
     for (let k = 0; k < this.n; k++) {
-      // rest offset from the bone's bind position, re-expressed with its current transform
-      const dx = L.rest[k * 3] - this._bindP[0], dy = L.rest[k * 3 + 1] - this._bindP[1], dz = L.rest[k * 3 + 2] - this._bindP[2];
-      qrot(tmp, 0, iq, 0, dx, dy, dz);
-      qrot(tmp, 0, mq, b * 4, tmp[0], tmp[1], tmp[2]);
-      this.p[k * 3] = this.pp[k * 3] = mp[b * 3] + tmp[0];
-      this.p[k * 3 + 1] = this.pp[k * 3 + 1] = mp[b * 3 + 1] + tmp[1];
-      this.p[k * 3 + 2] = this.pp[k * 3 + 2] = mp[b * 3 + 2] + tmp[2];
+      const top = k < pinN ? k : k % C;
+      const ax = this.anchorTarget[top * 3], ay = this.anchorTarget[top * 3 + 1], az = this.anchorTarget[top * 3 + 2];
+      if (k < pinN) { p[k * 3] = ax; p[k * 3 + 1] = ay; p[k * 3 + 2] = az; }
+      else {
+        p[k * 3] = ax + L.rest[k * 3] - L.rest[top * 3];
+        p[k * 3 + 1] = ay + L.rest[k * 3 + 1] - L.rest[top * 3 + 1];
+        p[k * 3 + 2] = az + L.rest[k * 3 + 2] - L.rest[top * 3 + 2];
+      }
     }
+    pp.set(p);
     this.ready = true;
+    // pre-settle against the body so a pose capture or a respawn never starts in a stiff, intersecting shape
+    const g = this._settleG;
+    for (let i = 0; i < 24; i++) this.update(1 / 60, mq, mp, g, ZERO3, this._caps, this._floor, 0, true);
+    pp.set(p);
   }
 
-  /** Remember the bind transform of the main anchor bone (for snapping). */
-  setBind(mq, mp) {
-    const b = this.layout.anchorBone[0];
-    this._bindQ = [mq[b * 4], mq[b * 4 + 1], mq[b * 4 + 2], mq[b * 4 + 3]];
-    this._bindP = [mp[b * 3], mp[b * 3 + 1], mp[b * 3 + 2]];
-    this.bindAnchors(mq, mp);
-  }
+  /** Bind the pinned particles to their bones (bind-pose model transforms). */
+  setBind(mq, mp) { this.bindAnchors(mq, mp); }
 
   /**
    * Step the simulation. gravity / wind: model-space accelerations (m/s^2); capsules from collide.js; floorY model.
    */
-  update(dt, mq, mp, gravity, wind, capsules, floorY, time) {
-    if (!this.ready) this._snap(mq, mp);
+  update(dt, mq, mp, gravity, wind, capsules, floorY, time, settling = false) {
+    if (!this.ready && !settling) { this._settleG = gravity; this._caps = capsules; this._floor = floorY; this._snap(mq, mp); }
     const s = this.spec, C = this.C, n = this.n, p = this.p, pp = this.pp, inv = this.inv;
     const pinN = C * this.layout.pinRows;
     this.anchorStart.set(p.subarray(0, pinN * 3));
@@ -321,7 +323,7 @@ export class Cloth {
     }
     // failsafe
     for (let k = 0; k < n * 3; k++) {
-      if (!(Math.abs(p[k]) < 50)) { this.ready = false; this._snap(mq, mp); break; }
+      if (!(Math.abs(p[k]) < 50)) { this.ready = false; break; }
     }
   }
 

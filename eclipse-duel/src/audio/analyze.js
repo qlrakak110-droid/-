@@ -3,10 +3,13 @@
 //   measure(buffer)          -> { dur, eff, peak, rms, loud, attack, centroid, low, high, dc, nan, endDb }
 //   runReport(audio)         -> every one-shot + 8 s of every music track measured and flagged, a stress mix, a table
 //   selfTest(ctx)            -> createAudio in test mode / without WebAudio / before and after unlock, voice limits
+//   prewarmCost(tier)        -> main-thread stall per asset while everything pre-renders
 //   spectrogram(buffer, o)   -> log-frequency dB image data for drawing
 
-import { loudness } from './kit.js';
+import { loudness, renderSound } from './kit.js';
 import { createAudio } from './index.js';
+import { SOUNDS } from './sfx.js';
+import { INSTRUMENTS, midiHz } from './music.js';
 
 /** Expected effective length (s) per role, plus attack (ms) / low-end share minimums for impacts. */
 export const ROLES = {
@@ -284,6 +287,32 @@ export async function selfTest(ctx) {
     return r;
   });
   return out;
+}
+
+/**
+ * Main-thread cost of pre-rendering: every SFX (variant 0) and instrument sample is rendered one by one while a 1 ms
+ * heartbeat records the longest main-thread stall during each render (what a frame would feel while the background
+ * prewarm runs). Returns totals and the worst offenders.
+ * @param {string} [tier] 'low' | 'mid' | 'high' (sample rates / mono as the engine uses them)
+ */
+export async function prewarmCost(tier = 'high') {
+  const T = { low: [26000, 22050, true], mid: [40000, 32000, false], high: [48000, 48000, false] }[tier];
+  const jobs = Object.values(SOUNDS).map((d) => [d.name, () => renderSound(d, { sr: T[0], mono: T[2] })]);
+  for (const [n, d] of Object.entries(INSTRUMENTS)) for (const r of d.roots) jobs.push(['@' + n + r, () => renderSound({ ...d, name: n + r, clip: 1 }, { sr: Math.min(T[1], d.rate || T[1]), arg: midiHz(r), mono: T[2] })]);
+  let last = performance.now(), worst = 0;
+  const hb = setInterval(() => { const now = performance.now(); worst = Math.max(worst, now - last); last = now; }, 1);
+  const rows = [];
+  const t0 = performance.now();
+  for (const [key, run] of jobs) {
+    await new Promise((r) => setTimeout(r, 4));
+    last = performance.now(); worst = 0;
+    await run();
+    await new Promise((r) => setTimeout(r, 2));
+    rows.push({ key, stallMs: Math.round(Math.max(worst, performance.now() - last)) });
+  }
+  clearInterval(hb);
+  rows.sort((x, y) => y.stallMs - x.stallMs);
+  return { tier, totalMs: Math.round(performance.now() - t0), over16ms: rows.filter((r) => r.stallMs > 16).length, worst: rows.slice(0, 10) };
 }
 
 /**

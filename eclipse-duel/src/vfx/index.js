@@ -124,8 +124,8 @@ export function createVfx(ctx) {
       for (const m of modules) if (m.prewarm) m.prewarm();
       const r = ctx.renderer;
       r.compile(ctx.scene, ctx.camera);
-      if (ctx.post && ctx.post.distortionScene) r.compile(ctx.post.distortionScene, ctx.camera, ctx.scene);
-      for (const m of modules) if (m.textures) for (const t of m.textures) r.initTexture(t);
+      // the post pass renders the distortion scene on its own (no lights): compile it the same way so the cache keys match
+      if (ctx.post && ctx.post.distortionScene) r.compile(ctx.post.distortionScene, ctx.camera);
       r.initTexture(vfx.particles.table.texture);
       r.initTexture(vfx.ribbons.table.texture);
     },

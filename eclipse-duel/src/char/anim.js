@@ -3,7 +3,7 @@
 // exact key format and the bone axis conventions.
 
 import { ease as resolveEase } from '../core/math.js';
-import { eulerToQuat, computeTangents, sampleTrack, qnormalize } from './rigmath.js';
+import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis } from './rigmath.js';
 
 const rawClips = new Map();
 const rawPoses = new Map();
@@ -47,11 +47,14 @@ const swapName = (n) => (n.endsWith('R') ? n.slice(0, -1) + 'L' : n.endsWith('L'
 const negS = (v) => (v ? [v[0], v[1], -v[2]] : v);
 const mirE = (v) => (v ? [-v[0], -v[1], v[2]] : v);
 
-function mirrorChannels(k) {
+const ARM = /^(shoulder|upperArm|foreArm|hand|fingers|fingerTips|thumb)[RL]$/;
+
+function mirrorChannels(k, keepHands = false) {
   const o = { ...k };
   if (k.bones) {
     o.bones = {};
     for (const [b, v] of Object.entries(k.bones)) {
+      if (keepHands && ARM.test(b)) { o.bones[b] = v; continue; }
       const isObj = !Array.isArray(v);
       const r = isObj ? v.r : v;
       const r2 = CENTER.has(b) ? mirE(r) : r;
@@ -62,11 +65,12 @@ function mirrorChannels(k) {
   if (k.ik) {
     o.ik = {};
     for (const [e, v] of Object.entries(k.ik)) {
-      o.ik[swapName(e)] = v && { ...v, pos: negS(v.pos), pole: negS(v.pole), aim: negS(v.aim), up: negS(v.up), rot: mirE(v.rot) };
+      const name = keepHands && e.startsWith('hand') ? e : swapName(e);
+      o.ik[name] = v && { ...v, pos: negS(v.pos), pole: negS(v.pole), aim: negS(v.aim), up: negS(v.up), rot: mirE(v.rot) };
     }
   }
   if (k.look) o.look = { ...k.look, at: negS(k.look.at) };
-  if (k.curl) o.curl = [k.curl[1], k.curl[0]];
+  if (k.curl && !keepHands) o.curl = [k.curl[1], k.curl[0]];
   return o;
 }
 
@@ -84,18 +88,21 @@ function resolveKey(k) {
 }
 
 /**
- * Register `dst` as the mirror image of clip `src` (left <-> right swapped, side axis negated).
+ * Register `dst` as the mirror image of clip `src` (side axis negated, left <-> right swapped).
  * opts.events: optional map { srcEventName: dstEventName }.
+ * opts.hands: 'swap' (default: the other hand does the work - twin blades, unarmed) or 'keep' (body, legs and the
+ * hand / weapon paths are mirrored but each hand keeps its job: a right-handed weapon swings the mirrored arc).
  */
 export function mirrorClip(src, dst, opts = {}) {
   const d = rawClips.get(src);
   if (!d) throw new Error('mirrorClip: unknown clip ' + src);
+  const keep = opts.hands === 'keep';
   const m = {
     ...d, name: dst,
-    mainHand: d.mainHand === 'L' ? 'R' : 'L',
-    gripHand: (d.gripHand || 'L') === 'L' ? 'R' : 'L',
-    keys: d.keys.map((k) => mirrorChannels(resolveKey(k))),
-    base: d.base ? { mirrorOf: d.base } : { mirrorOf: 'neutral' },
+    mainHand: keep ? d.mainHand || 'R' : d.mainHand === 'L' ? 'R' : 'L',
+    gripHand: keep ? d.gripHand || 'L' : (d.gripHand || 'L') === 'L' ? 'R' : 'L',
+    keys: d.keys.map((k) => mirrorChannels(resolveKey(k), keep)),
+    base: d.base ? { mirrorOf: d.base, keepHands: keep } : { mirrorOf: 'neutral', keepHands: keep },
     events: (d.events || []).map((e) => ({ ...e, name: (opts.events && opts.events[e.name]) || e.name })),
   };
   rawClips.set(dst, m);
@@ -153,20 +160,12 @@ function aimUpToQuat(out, aim, up) {
   ux -= ax * d; uy -= ay * d; uz -= az * d;
   l = Math.hypot(ux, uy, uz) || 1; ux /= l; uy /= l; uz /= l;
   const zx = ay * uz - az * uy, zy = az * ux - ax * uz, zz = ax * uy - ay * ux;
-  // quaternion from basis columns (aim, up, z)
-  const m00 = ax, m10 = ay, m20 = az, m01 = ux, m11 = uy, m21 = uz, m02 = zx, m12 = zy, m22 = zz;
-  const tr = m00 + m11 + m22;
-  if (tr > 0) { const s = 0.5 / Math.sqrt(tr + 1); out[3] = 0.25 / s; out[0] = (m21 - m12) * s; out[1] = (m02 - m20) * s; out[2] = (m10 - m01) * s; }
-  else if (m00 > m11 && m00 > m22) { const s = 2 * Math.sqrt(1 + m00 - m11 - m22); out[3] = (m21 - m12) / s; out[0] = 0.25 * s; out[1] = (m01 + m10) / s; out[2] = (m02 + m20) / s; }
-  else if (m11 > m22) { const s = 2 * Math.sqrt(1 + m11 - m00 - m22); out[3] = (m02 - m20) / s; out[0] = (m01 + m10) / s; out[1] = 0.25 * s; out[2] = (m12 + m21) / s; }
-  else { const s = 2 * Math.sqrt(1 + m22 - m00 - m11); out[3] = (m10 - m01) / s; out[0] = (m02 + m20) / s; out[1] = (m12 + m21) / s; out[2] = 0.25 * s; }
-  qnormalize(out, 0);
-  return out;
+  return qfromBasis(out, 0, [ax, ay, az], [ux, uy, uz], [zx, zy, zz]);
 }
 
 function baseKeyOf(base) {
   if (!base) return {};
-  if (typeof base === 'object' && base.mirrorOf) return mirrorChannels(baseKeyOf(base.mirrorOf));
+  if (typeof base === 'object' && base.mirrorOf) return mirrorChannels(baseKeyOf(base.mirrorOf), !!base.keepHands);
   if (typeof base === 'object') return resolveKey(base);
   if (rawPoses.has(base)) return resolveKey({ pose: base });
   if (rawClips.has(base)) return resolveKey(rawClips.get(base).keys[0]);
@@ -174,7 +173,7 @@ function baseKeyOf(base) {
 }
 
 function compile(rig, def) {
-  const duration = Math.max(1e-3, def.duration ?? def.keys[def.keys.length - 1].t ?? 1);
+  const duration = Math.max(1e-3, def.duration ?? Math.max(...def.keys.map((k) => k.t ?? 0)));
   const loop = !!def.loop;
   const keys = def.keys.map(resolveKey).sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
   const base = baseKeyOf(def.base ?? 'neutral');

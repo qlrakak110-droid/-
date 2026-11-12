@@ -6,7 +6,8 @@
 //   3. push-boxes and walls, cooldowns (push-boxes are settled again after contacts)
 //   4. projectiles move, expire and clash
 //   5. contacts: both fighters' strikes and every projectile are collected first, then resolved together (trades)
-//   6. meters regenerate, the round clock runs, KO / time-up / round transitions
+//   6. moves settle: cancels are taken and last-frame moves end, after this substep's strike was collected
+//   7. meters regenerate, the round clock runs, KO / time-up / round transitions
 
 import { DEFAULT_RULES, NEUTRAL_INPUT } from './constants.js';
 import { compileFighterDef } from './defs.js';
@@ -14,7 +15,7 @@ import { createEventQueue } from './events.js';
 import { normalizeInput, feedInput, ageInput, clearInput } from './input.js';
 import { toRng, forkRng } from './rng.js';
 import {
-  createFighter, resetFighter, updateFighter, setState, passesThrough, refreshFlags, moveBlockReason, endMove,
+  createFighter, resetFighter, updateFighter, setState, pushActive, refreshFlags, moveBlockReason, endMove, settleMove,
 } from './fighter.js';
 import { collectStrikes, resolveContacts, hurtContact, debugBoxes } from './combat.js';
 import { updateProjectiles, collectProjectileHits, compactProjectiles, clearProjectiles, projectileBox } from './projectiles.js';
@@ -138,10 +139,13 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
     if (m.cinematic) {
       updateCinematic(m, h);
       for (const f of F) ageInput(f.input, h, R);
+      resolvePush(); // the release can leave the pair overlapping (authored lock distance)
       afterContacts(h, false);
       return;
     }
     for (const f of F) {
+      // combo length runs on match time (hit-stop included), so rules.combo.maxTime is a real cap
+      if (f.recv.active) f.recv.time += h;
       let fh = h;
       if (f.hitstop > 0) {
         const u = Math.min(f.hitstop, h);
@@ -165,26 +169,36 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
       collectStrikes(m, F[1], contacts);
       collectProjectileHits(m, contacts);
       resolveContacts(m, contacts);
-      // a hit can end a pass-through window mid-overlap (or start a cinematic): settle the push-boxes again
-      resolvePush();
     }
+    settleMove(m, F[0]);
+    settleMove(m, F[1]);
+    // a hit or a cancel can end a pass-through window mid-overlap (or start a cinematic): settle the push-boxes again
+    resolvePush();
     compactProjectiles(m);
     afterContacts(h, true);
   }
 
+  /**
+   * Super-freeze substep: everything waits except the ultimate users' own timelines (userAnimates), each for exactly its
+   * own freeze duration. Non-owners' input buffers keep ageing (no mashing through the freeze).
+   */
   function freezeStep(h) {
     const fz = m.freeze;
-    const o = m.fighters[fz.owner], v = m.fighters[1 - fz.owner];
     fz.remaining -= h;
-    if (fz.userAnimates) {
-      ageInput(o.input, h, R);
-      updateFighter(m, o, h);
+    for (const f of m.fighters) {
+      const i = f.index;
+      if (!fz.owners.includes(i)) { ageInput(f.input, h, R); continue; }
+      if (!fz.animates[i] || fz.left[i] <= 1e-9) continue;
+      const u = Math.min(h, fz.left[i]);
+      ageInput(f.input, u, R);
+      updateFighter(m, f, u);
+      settleMove(m, f);
+      fz.left[i] -= u;
     }
-    ageInput(v.input, h, R);
     resolvePush();
     if (fz.remaining <= 1e-9) {
       m.freeze = null;
-      m.emit('superFreezeEnd', { fighter: fz.owner, move: fz.move });
+      for (const i of fz.owners) m.emit('superFreezeEnd', { fighter: i, move: fz.moves[i] });
     }
     for (const f of m.fighters) refreshFlags(m, f);
   }
@@ -287,10 +301,8 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
   }
 
   function resolvePush() {
+    if (!pushActive(m)) return;
     const [a, b] = m.fighters;
-    if (passesThrough(m, a) || passesThrough(m, b)) return;
-    // one fighter well above the other (juggles, leaps): no pushing; scales with the shorter body
-    if (Math.abs(a.y - b.y) > 0.7 * Math.min(a.def.stats.height, b.def.stats.height)) return;
     const pa = a.def.stats.pushWidth, pb = b.def.stats.pushWidth;
     const dx = b.x - a.x;
     const side = dx > 1e-6 ? 1 : dx < -1e-6 ? -1 : m.side;
@@ -315,7 +327,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
     return {
       time: r3(m.time), phase: m.phase, round: m.round, clock: r3(m.clock), winner: m.winner,
       roundWinner: m.roundWinner, roundReason: m.roundReason,
-      freeze: m.freeze ? { owner: m.freeze.owner, move: m.freeze.move, remaining: r3(m.freeze.remaining) } : null,
+      freeze: m.freeze ? { owner: m.freeze.owner, owners: m.freeze.owners.slice(), move: m.freeze.move, remaining: r3(m.freeze.remaining) } : null,
       cinematic: m.cinematic ? { attacker: m.cinematic.attacker, defender: m.cinematic.defender, move: m.cinematic.move, t: r3(m.cinematic.t), duration: m.cinematic.duration } : null,
       fighters: m.fighters.map((f) => ({
         index: f.index, id: f.id, x: r3(f.x), y: r3(f.y), vx: r3(f.vx), vy: r3(f.vy), facing: f.facing,

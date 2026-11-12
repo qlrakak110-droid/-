@@ -7,7 +7,8 @@
 // the target's front (the target faces -f).
 //
 // Every builder also passes through the common shot fields: cut, hold, clock, ease, lookEase, fovEase, shake, kick,
-// slowmo, letterbox, handheld, follow, followY, followLag (see README).
+// slowmo, letterbox, handheld, follow, followY, followLag (see README), and takes `scale`: the subject's size relative
+// to the 1.9 m reference (every authored distance and height is multiplied by it, e.g. 4.5 for a colossal boss).
 
 import { DEG } from '../core/math.js';
 
@@ -20,9 +21,25 @@ const polar = (deg, dist, height) => [Math.sin(deg * DEG) * dist, height, Math.c
 /** Fields a builder may author itself (merged through own()), so finish() does not overwrite them. */
 const OWN = { shake: 1, kick: 1 };
 
-/** Copy the common shot fields the caller set. */
+/** Copy the common shot fields the caller set; apply `o.scale` (subject size relative to 1.9 m) to every distance. */
 function finish(shot, o) {
   for (const k of PASS) if (o[k] !== undefined && !(k in OWN && shot[k] !== undefined)) shot[k] = o[k];
+  const k = o.scale;
+  if (k && k !== 1) {
+    const mul = (a) => a.map((v) => v * k);
+    for (const key of [shot.from, shot.to]) {
+      if (!key) continue;
+      if (key.pos) key.pos = mul(key.pos);
+      if (key.look) key.look = mul(key.look);
+    }
+    if (shot.via) shot.via = mul(shot.via);
+    if (shot.orbit) {
+      const ob = shot.orbit;
+      ob.pivot = mul(ob.pivot);
+      ob.radius = Array.isArray(ob.radius) ? mul(ob.radius) : ob.radius * k;
+      ob.height = Array.isArray(ob.height) ? mul(ob.height) : ob.height * k;
+    }
+  }
   return shot;
 }
 

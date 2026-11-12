@@ -136,6 +136,7 @@ function resolveContact(m, c) {
   const front = proj
     ? (proj.vx ? proj.vx * d.facing < 0 : (srcX - d.x) * d.facing >= -0.15)
     : (srcX - d.x) * d.facing >= -0.15;
+  c.front = front;
   if ((d.state === 'guard' || d.state === 'blockstun') && !air && front && !hit.unblockable) {
     block(m, c, dirX, moveId, group);
     return 'blocked';
@@ -152,8 +153,9 @@ function resolveContact(m, c) {
     if (proj) proj.hitstop = hs; else { freeze(a, hs, false); a.moveConnected = true; }
     gainUlt(m, d, dmg * m.rules.meters.ultTake);
     if (group !== 'ult') gainUlt(m, a, dmg * m.rules.meters.ultDeal);
-    m.emit('hit', hitPayload(m, c, moveId, { damage: dmg, blocked: false, armoured: true, level: hit.level, hitstop: hs }));
-    if (d.hp <= 0) knockOut(m, d, a, dirX);
+    const ko = d.hp <= 0;
+    m.emit('hit', hitPayload(m, c, moveId, { damage: dmg, blocked: false, armoured: true, level: hit.level, hitstop: hs, ko }));
+    if (ko) knockOut(m, d, a, dirX);
     return 'armoured';
   }
 
@@ -161,14 +163,19 @@ function resolveContact(m, c) {
   return 'hit';
 }
 
+/**
+ * The 'hit' event payload. `reaction` is the defender's state right after the hit ('hitstun', 'launched',
+ * 'blockstun', 'guardbreak', 'locked', or its own state for armour), `front` false for a hit from behind.
+ */
 function hitPayload(m, c, moveId, extra) {
   const d = c.defender;
   return {
     attacker: c.attacker.index, defender: d.index, kind: c.kind, move: moveId, hit: c.hit.index,
     projectile: c.projectile ? c.projectile.id : null, label: c.hit.label,
     damage: 0, chip: 0, blocked: false, perfect: false, armoured: false, counter: false, punish: false,
-    unblockable: c.hit.unblockable, guardBreak: false, cinematic: false, ko: false,
-    level: c.hit.level, x: c.cx, y: c.cy, facing: c.attacker.facing,
+    unblockable: c.hit.unblockable, guardBreak: false, cinematic: false, clash: false, ko: false,
+    level: c.hit.level, reaction: d.state, x: c.cx, y: c.cy, facing: c.attacker.facing, defenderFacing: d.facing,
+    front: c.front !== false,
     combo: d.recv.active ? d.recv.hits : 0, comboDamage: d.recv.active ? d.recv.damage : 0, scaling: d.recv.active ? d.recv.scale : 1,
     juggle: d.recv.juggle, hitstop: 0, guard: d.guard,
     ...extra,
@@ -202,9 +209,10 @@ function block(m, c, dirX, moveId, group) {
   const M = R.meters;
   gainUlt(m, d, (lost + gd) * M.ultBlockTake);
   if (group !== 'ult') gainUlt(m, a, (lost + gd) * M.ultBlockDeal);
-  m.emit('hit', hitPayload(m, c, moveId, { damage: lost, chip: lost, blocked: true, perfect, guardBreak: broke, hitstop: hs }));
+  const ko = d.hp <= 0;
+  m.emit('hit', hitPayload(m, c, moveId, { damage: lost, chip: lost, blocked: true, perfect, guardBreak: broke, hitstop: hs, ko }));
   m.emit('guard', { fighter: d.index, attacker: a.index, move: moveId, perfect, chip: lost, gauge: d.guard, guardBreak: broke, x: c.cx, y: c.cy });
-  if (d.hp <= 0) knockOut(m, d, a, dirX);
+  if (ko) knockOut(m, d, a, dirX);
 }
 
 function clean(m, c, dirX, moveId, group, air) {
@@ -223,7 +231,7 @@ function clean(m, c, dirX, moveId, group, air) {
   const CH = R.counterHit;
   let dmg = hit.damage * r.scale * (counter ? CH.damage : 1);
   dmg = Math.max(hit.damage > 0 ? 1 : 0, Math.round(dmg));
-  const trigger = !proj && hit.cinematic && c.move.cinematic;
+  const trigger = !proj && hit.cinematic && c.move.cinematic && !c.clash;
   const lost = loseHp(m, d, dmg, trigger ? 1 : 0);
   r.damage += lost;
   a.combo.hits = r.hits; a.combo.damage = r.damage; a.combo.active = true;
@@ -237,7 +245,7 @@ function clean(m, c, dirX, moveId, group, air) {
   let hs = hit.hitstop * (counter ? CH.hitstop : 1);
   let level = hit.level;
   if (trigger) {
-    m.emit('hit', hitPayload(m, c, moveId, { damage: lost, counter, punish, level, hitstop: hs, cinematic: true }));
+    m.emit('hit', hitPayload(m, c, moveId, { damage: lost, counter, punish, level, hitstop: hs, cinematic: true, reaction: 'locked' }));
     a.moveConnected = a.moveHit = true;
     startCinematic(m, a, d, Math.max(R.cinematicScaleFloor, r.scale));
     return;
@@ -275,7 +283,7 @@ function clean(m, c, dirX, moveId, group, air) {
   if (proj) proj.hitstop = hs;
   else { freeze(a, hs, false); a.moveConnected = a.moveHit = true; }
   const ko = d.hp <= 0;
-  m.emit('hit', hitPayload(m, c, moveId, { damage: lost, counter, punish, level, hitstop: hs, ko }));
+  m.emit('hit', hitPayload(m, c, moveId, { damage: lost, counter, punish, level, hitstop: hs, ko, clash: !!c.clash }));
   if (ko) knockOut(m, d, a, dirX);
 }
 
@@ -291,12 +299,20 @@ export function knockOut(m, d, a, dirX, cinematic = false) {
   m.emit('ko', { fighter: d.index, by: a.index, x: d.x, y: d.y, cinematic });
 }
 
+const isTrigger = (c) => c.kind === 'strike' && c.hit.cinematic && !!c.move.cinematic;
+
 /**
  * Resolve every contact collected this substep. Cinematic triggers resolve first; once a cinematic starts, the
- * remaining contacts of the substep are dropped (both fighters are locked).
+ * remaining contacts of the substep are dropped (both fighters are locked). Both fighters' triggers in the same
+ * substep (simultaneous ultimates) clash: neither lock starts and both resolve as ordinary hits (`hit.clash`).
  */
 export function resolveContacts(m, list) {
-  if (list.length > 1) list.sort((x, y) => (y.hit.cinematic ? 1 : 0) - (x.hit.cinematic ? 1 : 0));
+  if (list.length > 1) {
+    let who = 0;
+    for (const c of list) if (isTrigger(c)) who |= 1 << c.attacker.index;
+    if (who === 3) { for (const c of list) if (isTrigger(c)) c.clash = true; }
+    else list.sort((x, y) => (isTrigger(y) ? 1 : 0) - (isTrigger(x) ? 1 : 0));
+  }
   for (const c of list) {
     if (m.cinematic) break;
     const res = resolveContact(m, c);
@@ -309,6 +325,13 @@ export function resolveContacts(m, list) {
     } else {
       const p = c.projectile;
       if (!p.alive) continue;
+      // a projectile connecting while its owner is still in the move that fired it counts for that move
+      // (moveConnected / moveHit, so onHit / onContact cancels work for projectile moves)
+      const o = c.attacker;
+      if (o.move && o.moveSerial === p.serial && res !== 'countered') {
+        o.moveConnected = true;
+        if (res === 'hit') o.moveHit = true;
+      }
       p.hits++;
       p.lastHit = p.age;
       if (p.hits >= p.spec.multiMax && !p.spec.pierce) expireProjectile(m, p, 'hit');
