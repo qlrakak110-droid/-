@@ -395,7 +395,7 @@ const moves = {
       tipCharge(h, 0.06, 0.6);
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 2, intensity: 0.42 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 1, intensity: 0.35 });
       h.cam.kick({ fov: -2.5, push: 0.4, duration: 0.3 });
       h.audio('volt_zap');
       h.audio('dodge', { volume: 0.7 });
@@ -601,8 +601,8 @@ function hitFeel(h, e) {
   const finisher = group !== 'normal' && (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple');
   // the shared hit at ~60 % light and 85 % size: sparks / cut / shock read, the flash core no longer swallows the victim
   const names = e.counter || group === 'ult' ? ['combat.hit.crit', `combat.hit.${lvl}`] : group === 'skill' ? ['volt.hit', `combat.hit.${lvl}`] : [`combat.hit.${lvl}`];
-  HIT_AT.scale = lvl === 'light' ? 0.9 : 0.82;
-  const inten = e.armoured ? 0.45 : (0.5 + 0.12 * Math.min(1, k)) * (lvl === 'light' ? 1.1 : 1);
+  HIT_AT.scale = lvl === 'light' ? 0.85 : 0.7;
+  const inten = e.armoured ? 0.35 : lvl === 'light' ? 0.55 : 0.36;
   h.fx(names, HIT_AT, { k: Math.min(k, 1.25), level: lvl, intensity: inten, fallback: 'game.hit' });
   if (!e.armoured) {
     h.foe.impulse([e.front === false ? 1 : -1, lvl === 'launch' ? 0.5 : 0.1, 0.12], FLINCH[lvl] ?? 1);
@@ -610,10 +610,11 @@ function hitFeel(h, e) {
   } else h.foe.flash([1.4, 1.0, 2.2], 0.45, 0.12);
   h.cam.shake(lvl === 'light' ? 0.15 + (e.counter ? 0.12 : 0) : finisher ? 0.5 : 0.35 + (e.counter ? 0.15 : 0), { freq: lvl === 'light' ? 20 : 15 });
   if (k >= 0.9) h.cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
-  post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
-  if (k >= 0.9) { h.post.radial('contact', 0.22 + 0.35 * Math.min(1, k - 0.9), { release: 0.22 }); }
+  post.pulse('chroma', 0.12 + 0.2 * Math.max(0, k - 0.55), { release: 0.2 });
+  if (k >= 0.9) { h.post.radial('contact', 0.14 + 0.2 * Math.min(1, k - 0.9), { release: 0.2 }); }
   // impact frame: monochrome (no invert: the inverted frame of this dark arena is a white-out), violet flash not white
-  if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 1 });
+  // half-strength mono: at full strength the bloom of a lightning strike thresholds to an all-white frame
+  if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 0.5 });
   if (finisher) post.flash(VIOLET, 0.07, { release: 0.15 });
   const at = h.pos('contact');
   s.sound(lvl === 'light' ? 'hit_slash_light' : 'hit_slash_heavy', { pos: at });

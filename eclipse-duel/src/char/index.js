@@ -512,14 +512,14 @@ export function createCharacter(ctx, design0, opts = {}) {
     if (any) fk(rig, lq, lp, mq, mp, 0, animCount);
     // two-handed grip of this state (the blended grip target is solved again after blending)
     pose.gripW[0] = pose.gripW[1] = 0;
-    pose.gripLift = 0;
+    pose.gripLift = 0; pose.gripMix = 1;
     if (pose.grip > 0) {
       const g = grips[c.gripAt] || grips.grip;
       const hi = c.gripHand === 'R' ? 0 : 1, limb = hi === 0 ? limbs.handR : limbs.handL;
       if (g && limb && rig.parent[g.bone] !== limb.end) {
         reachGrip(pose, c, g, limb);
         pose.gripT.set(g.pos, 0); pose.gripT.set(g.q, 3);
-        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG, hi === 0 ? pose.clavBaseR : pose.clavBaseL, 0);
+        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG, hi === 0 ? pose.clavBaseR : pose.clavBaseL, 0, pose.gripM, 1);
         pose.gripW[hi] = pose.grip;
       }
     }
@@ -563,13 +563,20 @@ export function createCharacter(ctx, design0, opts = {}) {
   /**
    * Off hand onto the main weapon: target = weapon frame * rel (rel = pos (3) + quat (4) in the weapon frame), the
    * hand may roll around the grip axis to keep its wrist in range. The rolled target is written back into relOut.
-   * clavBase: the off clavicle's pre-assist rotation; lift (0..1): the hand is travelling between two grip points and
-   * its target bows out of the torso (by >= 10 cm x body at lift 1).
+   * clavBase: the off clavicle's pre-assist rotation. Changing grip point: gm = the model-space target the hand left,
+   * mix (0..1) = how far it has come toward the weapon target (the hand travels on its own instead of being swung with
+   * the weapon), lift (0..1) = the path bows out of the torso (by >= 10 cm x body at lift 1). With relOut, gm receives
+   * this solve's model-space target.
    */
-  function solveGrip(rel, side, w, relOut, mem, clavBase, lift) {
+  function solveGrip(rel, side, w, relOut, mem, clavBase, lift, gm, mix) {
     const wb = grips.grip ? grips.grip.bone : Object.values(grips)[0].bone;
     qrot(gripT, 0, mq, wb * 4, rel[0], rel[1], rel[2]);
     gripT[0] += mp[wb * 3]; gripT[1] += mp[wb * 3 + 1]; gripT[2] += mp[wb * 3 + 2];
+    qmul(gripQ, 0, mq, wb * 4, rel, 3);                   // off-hand weapon-frame target (model)
+    if (!relOut && mix < 1) {
+      for (let k = 0; k < 3; k++) gripT[k] = gm[k] + (gripT[k] - gm[k]) * mix;
+      qslerp(gripQ, 0, gm, 3, gripQ, 0, mix);
+    }
     if (lift > 0 && body) { // away from the torso axis: the hand lets go and comes round the body, not through it
       const B = body, sx = B[3] - B[0], sy = B[4] - B[1], sz = B[5] - B[2];
       const qx = gripT[0] - B[0], qy = gripT[1] - B[1], qz = gripT[2] - B[2];
@@ -585,7 +592,6 @@ export function createCharacter(ctx, design0, opts = {}) {
       push = disc > 0 ? Math.min(push, Math.max(0, -ao + Math.sqrt(disc))) : 0;
       gripT[0] += ox * push; gripT[1] += oy * push; gripT[2] += oz * push;
     }
-    qmul(gripQ, 0, mq, wb * 4, rel, 3);                   // off-hand weapon-frame target (model)
     const wr = weaponRest[side];
     tv[8] = -wr[0]; tv[9] = -wr[1]; tv[10] = -wr[2]; tv[11] = wr[3];
     qmul(gripT, 4, gripQ, 0, tv, 8);                      // hand target
@@ -597,10 +603,11 @@ export function createCharacter(ctx, design0, opts = {}) {
     gripOpt.rollKeep = relOut ? 0.25 : 1;
     solveLimb(rig, limb, lq, mq, mp, gripT, 0, gripT, 4, null, 0, w, SOFT, gripOpt);
     fk(rig, lq, lp, mq, mp, limb.first, animCount);
-    if (relOut) { // store the rolled target relative to the weapon
+    if (relOut) { // store the rolled target relative to the weapon, and in model space
       qmul(gripQ, 4, gripOpt.out, 0, wr, 0);
       qmulInv(tv, 12, mq, wb * 4, gripQ, 4);
       relOut[3] = tv[12]; relOut[4] = tv[13]; relOut[5] = tv[14]; relOut[6] = tv[15];
+      gm[0] = gripT[0]; gm[1] = gripT[1]; gm[2] = gripT[2]; qcopy(gm, 3, gripQ, 4);
     }
     // residual error (diagnostics)
     const e = limb.end;
@@ -685,17 +692,24 @@ export function createCharacter(ctx, design0, opts = {}) {
     if (a.lookW <= 0) a.look.set(b.look);
     else if (b.lookW > 0) for (let k = 0; k < 3; k++) a.look[k] += (b.look[k] - a.look[k]) * w;
     a.lookW += (b.lookW - a.lookW) * w;
-    // grip target (weapon frame): position lerp, orientation slerp (at the grip weight gw); a state without grip
-    // contributes no target. Changing grip point (pommel -> blade): the off hand stays IK-driven and travels between
-    // the two points over the (slower) grip fade on a path that bows out of the torso (gripLift, solveGrip)
+    // grip target (weapon frame): position lerp, orientation slerp; a state without grip contributes no target.
+    // Changing grip point (pommel -> blade): the off hand lets go where it was (model space: it is not swung along
+    // with the weapon) and reaches the new point over the (slower) grip fade gw, on a path that bows out of the torso
+    // (gripM / gripMix / gripLift, solveGrip)
     const ga = a.gripW[0] + a.gripW[1], gb = b.gripW[0] + b.gripW[1];
     let lift = 0;
-    if (gb > 0 && ga <= 0) a.gripT.set(b.gripT);
+    if (gb > 0 && ga <= 0) { a.gripT.set(b.gripT); a.gripM.set(b.gripM); a.gripMix = b.gripMix; }
     else if (gb > 0) {
       const d = Math.hypot(b.gripT[0] - a.gripT[0], b.gripT[1] - a.gripT[1], b.gripT[2] - a.gripT[2]);
-      lift = 4 * gw * (1 - gw) * Math.min(1, d / (0.15 * K));
-      for (let k = 0; k < 3; k++) a.gripT[k] += (b.gripT[k] - a.gripT[k]) * gw;
-      qslerp(a.gripT, 3, a.gripT, 3, b.gripT, 3, gw);
+      if (gw < 1 && d > 0.05 * K) {
+        lift = 4 * gw * (1 - gw) * Math.min(1, d / (0.15 * K));
+        a.gripT.set(b.gripT);
+        a.gripMix *= gw;
+      } else {
+        for (let k = 0; k < 3; k++) { a.gripT[k] += (b.gripT[k] - a.gripT[k]) * gw; a.gripM[k] += (b.gripM[k] - a.gripM[k]) * w; }
+        qslerp(a.gripT, 3, a.gripT, 3, b.gripT, 3, gw); qslerp(a.gripM, 3, a.gripM, 3, b.gripM, 3, w);
+        a.gripMix += (b.gripMix - a.gripMix) * w;
+      }
     }
     a.gripLift = Math.max(a.gripLift + (b.gripLift - a.gripLift) * w, lift);
     a.gripW[0] += (b.gripW[0] - a.gripW[0]) * w; a.gripW[1] += (b.gripW[1] - a.gripW[1]) * w;
@@ -1137,7 +1151,8 @@ export function createCharacter(ctx, design0, opts = {}) {
       const ci = (hi === 0 ? ix.shoulderR : ix.shoulderL) * 4;
       qmulInv(gripBase, 0, final.lq, ci, final.clavBase, hi * 4);
       qmul(gripBase, 0, lq, ci, gripBase, 0);
-      char.diag.gripErr = Math.max(char.diag.gripErr, solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift) * (w >= 1 ? 1 : w));
+      const err = solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift, final.gripM, final.gripMix);
+      if (final.gripMix >= 0.999) char.diag.gripErr = Math.max(char.diag.gripErr, err * (w >= 1 ? 1 : w)); // (not while it changes grip)
       cur.pose.swivelG.set(gripMem);
     }
     char.diag.aimErr[0] = final.aimErr[0] * R2D; char.diag.aimErr[1] = final.aimErr[1] * R2D;

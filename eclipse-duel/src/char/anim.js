@@ -436,6 +436,8 @@ export class Pose {
     this.gripT = new Float32Array([0, 0, 0, 0, 0, 0, 1]); // off-hand target in the main weapon frame: pos (3) + quat (4)
     this.gripW = new Float32Array(2);       // grip IK weight of the right / left hand
     this.gripLift = 0;                      // off hand moving between two grip points: 0..1 lift away from the torso
+    this.gripM = new Float32Array([0, 0, 0, 0, 0, 0, 1]); // off-hand weapon-frame target in model space (pos + quat)
+    this.gripMix = 1;                       // 1 = off hand on the weapon (gripT); < 1: on its way from gripM
     this.drop = 0;                          // automatic pelvis drop applied while resolving (m)
     this.clavBase = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1]); // clavicle local rotations before the IK assist (R, L)
     this.clavBaseR = this.clavBase.subarray(0, 4); this.clavBaseL = this.clavBase.subarray(4, 8);
@@ -450,6 +452,7 @@ export class Pose {
     this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root); this.feet.set(p.feet);
     this.feetIK.set(p.feetIK); this.feetPole.set(p.feetPole); this.feetSoft.set(p.feetSoft);
     this.gripT.set(p.gripT); this.gripW.set(p.gripW); this.gripLift = p.gripLift; this.drop = p.drop;
+    this.gripM.set(p.gripM); this.gripMix = p.gripMix;
     this.clavBase.set(p.clavBase); this.aimErr.set(p.aimErr); this.footSlide.set(p.footSlide);
     return this;
   }
