@@ -65,7 +65,7 @@ export const LIB = {
   /** Fireball body: dense puffs that start additive and white-orange, cool through orange into dark smoke (alpha). */
   fireball: {
     tex: 'smoke', blend: 'alpha', count: 26, life: [0.6, 1.3], shape: { type: 'sphere', radius: 0.3 }, emit: 'radial', spread: 30, lift: 0.5,
-    speed: [0.8, 4.2, 1.2], size: [0.8, 1.6, 1.3], sizeOverLife: 'puff', gravity: 2.4, drag: 3.0, spin: [0.2, 1.0],
+    speed: [0.8, 4.2, 1.2], size: [0.8, 1.6, 1.3], sizeOverLife: [[0, 0.25], [0.2, 0.75], [1, 1.1, 'outQuad']], gravity: 2.4, drag: 3.0, spin: [0.2, 1.0],
     turbulence: { amp: 0.4, freq: 0.8, speed: 1.0 }, heat: 0.25, shade: 0.85, erode: [[0, 0], [0.55, 0.1], [1, 0.9]], erodeSoft: 0.3,
     additive: [[0, 1], [0.25, 0.9], [0.55, 0.15], [1, 0]],
     color: [[0, 4, 1.7, 0.4, 0.9], [0.12, 3, 0.9, 0.12, 1], [0.32, 1.3, 0.25, 0.035, 0.95], [0.55, 0.3, 0.08, 0.03, 0.85], [1, 0.05, 0.045, 0.04, 0]],

@@ -170,11 +170,11 @@ const HORN = [[8, 0, 65, 8], [8, 8, 67, 4], [8, 12, 69, 4], [9, 0, 67, 12], [9, 
 function battleStep(n, t, P, st) {
   const bar = Math.floor(n / 16), s = n % 16, bi = bar % 16, sec = bi >= 8, c = B_PROG[bi], I = st.intensity, bd = P.barDur, sd = P.stepDur;
   const ivOf = (o) => (o === 't' ? c.t : o === 'T' ? c.t + 12 : o);
-  const [o, v] = OST[s];
-  const iv = ivOf(o);
+  const [o, v0] = OST[s];
+  const iv = ivOf(o), v = v0 * (1.2 - 0.2 * I);  // the bed carries more weight when the other layers are out
   // base: low strings + violas an octave up on the galloping ostinato, quiet contrabass pedal, downbeat drum, shime 8ths
-  P.note('str_short', c.r + iv, t, { vel: v * 0.72, dur: sd * 0.9, pan: -0.2 });
-  P.note('str_short', c.r + 12 + iv, t, { vel: v * 0.62, dur: sd * 0.85, pan: 0.2 });
+  P.note('str_short', c.r + iv, t, { vel: v * 0.8, dur: sd * 0.9, pan: -0.2 });
+  P.note('str_short', c.r + 12 + iv, t, { vel: v * 0.7, dur: sd * 0.85, pan: 0.2 });
   if (s === 0) { P.note('str_long', c.r - 12, t, { vel: 0.22, dur: bd * 0.98 }); P.note('taiko', 36, t, { vel: 0.55 }); }
   if (s % 4 === 2) P.note('shime', 72, t, { vel: 0.3, pan: -0.35 });
   // drums layer
@@ -251,8 +251,8 @@ function victoryStep(n, t, P) {
  * (non-looping tracks). overlay: plays over the current track instead of replacing it.
  */
 export const TRACKS = {
-  title: { bpm: 54, gain: 1.7, verb: 0.55, layers: { base: null }, instruments: ['choir', 'str_long', 'bell', 'taiko', 'air'], step: titleStep },
-  battle: { bpm: 140, gain: 1, verb: 0.2, fadeIn: 0.05, layers: { base: null, drums: [0.15, 0.5], lift: [0.5, 0.85] }, instruments: ['str_short', 'str_long', 'taiko', 'ka', 'shime', 'tick', 'brass', 'choir', 'crash', 'swell'], step: battleStep },
+  title: { bpm: 54, gain: 2.4, verb: 0.55, layers: { base: null }, instruments: ['choir', 'str_long', 'bell', 'taiko', 'air'], step: titleStep },
+  battle: { bpm: 140, gain: 1, verb: 0.2, fadeIn: 0.05, layers: { base: null, drums: [0.1, 0.5], lift: [0.45, 0.85] }, instruments: ['str_short', 'str_long', 'taiko', 'ka', 'shime', 'tick', 'brass', 'choir', 'crash', 'swell'], step: battleStep },
   ultimate: { bpm: 140, gain: 1.5, verb: 0.3, overlay: true, layers: { base: null }, instruments: ['drone', 'pulse', 'trem', 'swell', 'brass'], step: ultimateStep },
   victory: { bpm: 84, gain: 1, verb: 0.4, fadeIn: 0.05, steps: 64, layers: { base: null }, instruments: ['brass', 'choir', 'str_long', 'taiko', 'crash', 'bell'], step: victoryStep },
 };

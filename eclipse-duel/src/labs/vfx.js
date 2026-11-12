@@ -62,7 +62,7 @@ function definePresets(ctx, lab, vfx) {
     v.burst(LIB.embers, { pos: p, dir: d, scale: s });
     v.burst(LIB.smoke, { pos: p, dir: d, scale: s });
     v.light({ pos: p, color: PALETTE.ember.core, intensity: 140, range: 6, duration: 0.3 });
-    v.distort({ kind: 'shock', pos: p, radius: [0.1, 1.6 * s], life: 0.4, strength: 0.05 });
+    v.schedule(0.05, (v2) => v2.distort({ kind: 'shock', pos: p, radius: [0.25, 1.7 * s], life: 0.38, strength: 0.05 }));
     v.schedule(0.034, (v2) => v2.burst(LIB.dustRing, { pos: [p.x, 0.02, p.z], scale: 0.55 * s, count: 9 }));
     post.pulse('chroma', 0.35, { release: 0.25 });
   });
@@ -72,10 +72,10 @@ function definePresets(ctx, lab, vfx) {
     const p = at.pos, s = at.scale;
     const g = V3(p.x, 0.02, p.z);
     v.burst(LIB.flashCore, { pos: p, scale: 1.7 * s });
-    v.flare({ kind: 'flash', pos: p, size: 5 * s, life: 0.12, attack: 0, color: [3, 1.2, 0.3], intensity: 0.4 });
-    v.flare({ kind: 'glow', pos: p, size: 1.6 * s, life: 0.09, attack: 0, color: [10, 6, 2.5] });
+    v.flare({ kind: 'flash', pos: p, size: 5 * s, life: 0.07, attack: 0, decay: 3, color: [3, 1.2, 0.3], intensity: 0.4 });
+    v.flare({ kind: 'glow', pos: p, size: 1.6 * s, life: 0.06, attack: 0, color: [10, 6, 2.5] });
     v.light({ pos: [p.x, p.y + 0.4, p.z + 0.6], color: PALETTE.ember.core, intensity: 200, range: 10, duration: 0.9, flicker: 0.35, decay: 'outCubic' });
-    v.burst(LIB.fireball, { pos: p, dir: [0, 1, 0], scale: s });
+    v.burst({ ...LIB.fireball, count: 20 }, { pos: p, dir: [0, 1, 0], scale: s });
     v.burst(LIB.fireLicks, { pos: p, dir: [0, 1, 0], scale: s });
     v.burst({ ...LIB.sparks, count: 70, spread: 180, emit: 'radial', speed: [4, 14, 1.4], life: [0.3, 1.1, 1.4] }, { pos: p, scale: s });
     v.burst({ ...LIB.embers, count: 46, life: [1.4, 3.2, 0.8], speed: [1, 5, 1.4], gravity: 1.3 }, { pos: p, scale: s });
@@ -84,8 +84,10 @@ function definePresets(ctx, lab, vfx) {
     v.burst({ tex: 'glow', blend: 'add', align: 'flat', count: 1, life: [1.6, 1.6], speed: 0, size: 3.4 * s, groundFade: 0, rotation: 0,
       color: [[0, 4, 1.2, 0.2, 1], [0.15, 2, 0.4, 0.04, 0.8], [1, 0.2, 0.02, 0, 0]] }, { pos: [g.x, 0.03, g.z], dir: [0, 1, 0] });
     v.burst(LIB.heatHaze, { pos: p, dir: [0, 1, 0], scale: s, count: 8, delay: 0.1 });
-    v.distort({ kind: 'shock', pos: p, radius: [0.3, 3.2 * s], life: 0.55, strength: 0.05 });
-    v.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [0.4, 4 * s], life: 0.7, strength: 0.04 });
+    v.schedule(0.06, (v2) => {
+      v2.distort({ kind: 'shock', pos: p, radius: [0.5, 3.4 * s], life: 0.55, strength: 0.05 });
+      v2.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [0.6, 4.2 * s], life: 0.7, strength: 0.04 });
+    });
     post.pulse('chroma', 0.5, { release: 0.3 });
     post.pulse('exposure', 0.25, { release: 0.35 });
   });

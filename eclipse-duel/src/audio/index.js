@@ -5,7 +5,7 @@
 //   voice -> gain -> pan -> world bus -> slow-mo low-pass -\
 //                        -> ui bus ------------------------+-> sfx -> master -> glue comp -> limiter -> clipper -> out
 //                        -> reverb send -> stone-hall convolver -> return -/
-//   music tracks -> layer gains -> fade -> muffle / low-pass -> music -> duck -/
+//   music tracks -> layer gains -> fade -> muffle / low-pass -> music -> low shelf -> duck -/
 //
 // Silent and exception-free when WebAudio is missing, before unlock() and in test mode (#test): play() returns null,
 // loop() returns an inert handle. Offline rendering (render / renderScene) works in test mode for measurements.
@@ -23,7 +23,7 @@ const TIERS = {
   high: { voices: 40, ir: 3.2, rate: 48000, variants: 4, mono: false },
 };
 const MASTER_TRIM = 1.0;    // single hits pass the glue untouched; stacks get glued, then limited and soft-clipped
-const MUSIC_TRIM = 0.22;     // music sits ~5 dB under heavy hits at default volumes (measured: analyze.js "as heard")
+const MUSIC_TRIM = 0.3;     // music sits ~5 dB under heavy hits at default volumes (measured: analyze.js "as heard")
 const VERB_RETURN = 0.3;
 const LOOKAHEAD = 0.3;      // music scheduling horizon (s)
 const SLOWMO_PITCH = 0.35;  // world one-shots play at rate * timeScale^this during slow motion
@@ -48,7 +48,11 @@ function buildGraph(ac, { ir, vol }) {
   g.slow.type = 'lowpass'; g.slow.frequency.value = nyq; g.slow.Q.value = -3;
   g.world = G(); g.world.connect(g.slow); g.slow.connect(g.sfx);
   g.ui = G(); g.ui.connect(g.sfx);
-  g.music = G(vol.music * MUSIC_TRIM); g.duck = G(); g.music.connect(g.duck); g.duck.connect(g.master);
+  // music: a low shelf carves room under the music for the SFX sub drops, then the duck
+  g.music = G(vol.music * MUSIC_TRIM); g.duck = G();
+  const shelf = ac.createBiquadFilter();
+  shelf.type = 'lowshelf'; shelf.frequency.value = 140; shelf.gain.value = -4;
+  g.music.connect(shelf); shelf.connect(g.duck); g.duck.connect(g.master);
   g.verbIn = G();
   const conv = ac.createConvolver();
   conv.buffer = hallIR(ac, { seconds: ir });

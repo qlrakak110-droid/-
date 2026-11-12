@@ -51,7 +51,9 @@ void main() {
   vP = c;
   float atk = iMisc.y;
   float env = tau < atk ? tau / max(atk, 1e-4) : pow(max(0.0, 1.0 - (tau - atk) / max(life - atk, 1e-4)), iMisc.z);
-  vK = vec4(iShape.x, iShape.w * env, R / half_, iMisc.x);
+  // a ring cannot push pixels further than its own size: strength ramps in as a shock expands
+  float ramp = kind == 0 ? smoothstep(0.0, 0.45, grow) : 1.0;
+  vK = vec4(iShape.x, iShape.w * env * ramp, R / half_, iMisc.x);
   vT = tau + iMisc.w * 17.0;
 }`;
 

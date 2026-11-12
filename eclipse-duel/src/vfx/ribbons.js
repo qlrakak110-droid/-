@@ -146,7 +146,7 @@ export function installRibbons(vfx, shared) {
     if (st.row < 0) st.row = 0;
     const r = st.row;
     const life = o.life != null ? o.life : ribbonMode ? 0.45 : 0.2;
-    const defRamp = ribbonMode ? [[0, 5, 2.4, 0.8, 1], [0.15, 3, 1, 0.2, 0.9], [0.5, 1, 0.2, 0.03, 0.6], [1, 0.15, 0.03, 0.01, 0]] : [[0, 2.6, 1.0, 0.25, 0.85], [0.15, 1.4, 0.35, 0.05, 0.75], [0.5, 0.6, 0.1, 0.015, 0.45], [1, 0.1, 0.02, 0.0, 0]];
+    const defRamp = ribbonMode ? [[0, 5, 2.4, 0.8, 1], [0.15, 3, 1, 0.2, 0.9], [0.5, 1, 0.2, 0.03, 0.6], [1, 0.15, 0.03, 0.01, 0]] : [[0, 2.6, 1.0, 0.25, 0.8], [0.12, 1.5, 0.38, 0.05, 0.5], [0.45, 0.6, 0.1, 0.015, 0.22], [1, 0.1, 0.02, 0.0, 0]];
     table.writeRamp(r, toRampFn(o.color != null ? o.color : defRamp, o.alpha));
     const inten = o.intensity != null ? o.intensity : 1;
     const wc = toCurveFn(ribbonMode ? (o.widthOverLife != null ? o.widthOverLife : [[0, 1], [1, 0.1]]) : (o.width != null ? o.width : [[0, 1], [0.35, 0.75], [1, 0.12]]), 1);
@@ -154,11 +154,11 @@ export function installRibbons(vfx, shared) {
     const ac = toCurveFn(o.blend === 'alpha' ? (o.additive != null ? o.additive : 0) : 1, 1);
     table.writeCurves(r, wc, ec, ac, () => inten);
     const nz = o.noise || {};
-    const ns = nz.scale || [ribbonMode ? 1.2 : 1.6, 1.0];
+    const ns = nz.scale || [ribbonMode ? 1.2 : 0.9, 0.55];
     table.param(r, 0, life, ns[0], ns[1], nz.speed != null ? nz.speed : 1.2);
     const edge = o.edge === false ? [0, 0, 0] : o.edge != null ? toColor(o.edge).toArray() : ribbonMode ? [0, 0, 0] : [8, 4, 1.2];
     table.param(r, 1, edge[0], edge[1], edge[2], o.edgeWidth != null ? o.edgeWidth : 0.07);
-    table.param(r, 2, o.fadeBase != null ? o.fadeBase : ribbonMode ? 0.0 : 0.6, o.gradient != null ? o.gradient : ribbonMode ? 0 : 0.6, nz.amount != null ? nz.amount : 0.5, o.erodeSoft != null ? o.erodeSoft : 0.25);
+    table.param(r, 2, o.fadeBase != null ? o.fadeBase : ribbonMode ? 0.0 : 0.6, o.gradient != null ? o.gradient : ribbonMode ? 0 : 0.75, nz.amount != null ? nz.amount : 0.4, o.erodeSoft != null ? o.erodeSoft : 0.25);
     table.param(r, 3, o.distort || 0, 0, 0, 0);
     table.param(r, 4, o.width != null && ribbonMode ? o.width : 0.15, 0, 0, 0);
     st.life = life;

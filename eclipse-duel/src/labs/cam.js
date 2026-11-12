@@ -226,7 +226,8 @@ createLab({
     scene.add(helper, trail);
     let trailCount = 0;
     /** Show / hide the director-camera proxy and restart its path. */
-    lab.debugView = (on) => { helper.visible = trail.visible = on; trailCount = 0; trailGeo.setDrawRange(0, 0); };
+    const fog = scene.fog;
+    lab.debugView = (on) => { helper.visible = trail.visible = on; trailCount = 0; trailGeo.setDrawRange(0, 0); scene.fog = on ? null : fog; };
 
     const S = { t: 0, motion: null, fired: new Set() };
     /** Run fn once when the scenario clock passes `at`. */

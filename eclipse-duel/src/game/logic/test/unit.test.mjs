@@ -6,6 +6,7 @@ import { validateFighterDef } from '../defs.js';
 import { deriveFrameData, frameDataTable } from '../framedata.js';
 import { createMatch } from '../match.js';
 import { createScriptedController } from '../controllers.js';
+import { createAIController } from '../ai.js';
 
 const S = sampleFighter;
 
@@ -620,4 +621,38 @@ test('markers and moveEvent: timeline markers are emitted at their time with wor
   eq(JSON.stringify(viaAlias), JSON.stringify(['windup', 'swing', 'impact']), "'moveEvent' (contract name) subscribes to markers");
   near(mk[2].time - ms.time, 0.34, 1 / 60 + 1e-9);
   eq(mk[0].data.armour, true);
+});
+
+// ------------------------------------------------------------------------------------------------ AI
+
+test('AI: generic over any definition (no ai hints, no skills, no ultimate)', () => {
+  const bare = clone(S);
+  for (const mv of Object.values(bare.moves)) delete mv.ai;
+  delete bare.ai;
+  bare.commands = { light: 'light1', heavy: 'heavy', 'd+heavy': 'launcher' };
+  for (const id of Object.keys(bare.moves)) if (!['light1', 'light2', 'light3', 'heavy', 'launcher'].includes(id)) delete bare.moves[id];
+  bare.moves.light1.cancels = bare.moves.light1.cancels.slice(0, 1);
+  bare.moves.light2.cancels = bare.moves.light2.cancels.slice(0, 1);
+  bare.moves.light3.cancels = [];
+  bare.moves.heavy.cancels = [];
+  bare.moves.launcher.cancels = [];
+  eq(validateFighterDef(bare).ok, true, validateFighterDef(bare).errors.join('; '));
+  for (const lv of ['easy', 'nightmare']) {
+    const m = createMatch({ fighters: [bare, S], controllers: [createAIController({ difficulty: lv }), createAIController({ difficulty: 'normal' })], rng: 3 });
+    let hits = 0;
+    m.on('hit', (e) => { if (e.attacker === 0) hits++; });
+    run(m, 60);
+    assert(hits > 5, `${lv} AI with a bare definition lands hits (${hits})`);
+  }
+});
+
+test('AI: reacts to a perceived attack no sooner than its reaction delay', () => {
+  const ai = createAIController({ difficulty: 'nightmare', overrides: { guard: 1, dodge: 0, counter: 0, backoff: 0, think: [30, 30] } });
+  const { m, log } = duel({ controllers: [createScriptedController([{ t: 1, heavy: true }]), ai], x: [-1, 1] });
+  run(m, 1.6);
+  const atk = first(log, 'moveStart', (e) => e.fighter === 0 && e.move === 'heavy');
+  const g = first(log, 'state', (e) => e.fighter === 1 && e.to === 'guard' && e.time > atk.time);
+  assert(g, 'the AI guards');
+  assert(g.time - atk.time >= ai.level.reaction - 1e-9, `reaction ${(g.time - atk.time).toFixed(3)} s >= ${ai.level.reaction}`);
+  eq(first(log, 'hit').blocked, true, 'and blocks the heavy');
 });

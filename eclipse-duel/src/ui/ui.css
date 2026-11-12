@@ -697,9 +697,8 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
   content: ""; position: absolute; left: 0; right: 0; bottom: 0; top: calc(var(--sa-t) + var(--stage-h));
   background:
     var(--noise),
-    radial-gradient(circle at 50% 30%, transparent 0 54px, rgba(216, 180, 106, .16) 55px 56px, transparent 57px 84px, rgba(216, 180, 106, .07) 85px 86px, transparent 87px),
-    radial-gradient(circle at 50% 30%, rgba(3, 3, 6, .9) 0 54px, transparent 55px),
-    radial-gradient(circle at 50% 30%, rgba(216, 180, 106, .07), transparent 140px),
+    radial-gradient(circle at 50% 34px, transparent 0 29px, rgba(246, 226, 174, .38) 30px 31px, transparent 32px 44px, rgba(216, 180, 106, .12) 45px 46px, transparent 47px),
+    radial-gradient(circle at 50% 34px, rgba(216, 180, 106, .1), transparent 110px),
     radial-gradient(ellipse 80% 60% at 50% 100%, rgba(216, 180, 106, .06), transparent 70%),
     linear-gradient(180deg, #0a0b10, #050507);
   border-top: 1px solid var(--line);

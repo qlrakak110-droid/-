@@ -70,26 +70,39 @@ export function createFightRig(P) {
     sep: { v: 5, vel: 0 }, top: { v: 1.97, vel: 0 }, low: { v: 0, vel: 0 }, fov: { v: 37, vel: 0 },
     dist: { v: 7, vel: 0 }, focus: { v: 0, vel: 0 }, camX: { v: 0, vel: 0 }, pan: { v: 0, vel: 0 },
   };
+  const SPRINGS = Object.values(S);
   S.climb = { v: 0, vel: 0, last: 0 };
   const pose = new Pose();
   /** Live readout for debugging / labs (hardD / hardH / hardV: a wall clamped this frame). */
   const info = { dist: 0, focus: 0, camX: 0, height: 0, sep: 0, fov: 0, hardD: false, hardH: false, hardV: false };
   let primed = false;
+  // per-frame context shared by the helpers below (no closures allocated per frame)
+  let snap = false, dt = 0, tanV0 = 0, band0 = 1, pitch0 = 0, camX0 = 0, D0 = 1;
+
+  /** Spring toward target (or jump to it on a snap). */
+  function step(s, target, lag) {
+    if (snap) { s.v = target; s.vel = 0; return target; }
+    return damp1(s, target, lag, dt);
+  }
+  /** Clamp a spring onto a wall, keeping the velocity it just had (speed-limited). */
+  function wall(s, value) {
+    s.vel = snap ? 0 : clamp((value - s.prev) / Math.max(dt, 1e-4), -P.pushSpeed, P.pushSpeed);
+    s.v = value;
+  }
+  /** tan of the angle below the horizon of the ray through frame-height fraction `frac` (0 bottom .. 1 top). */
+  const tAt = (frac) => Math.tan(pitch0 + Math.atan(-(2 * frac - 1) * band0 * tanV0));
+  /** Aim x on the fight plane for an aim angle `th` (rad) from the dolly. */
+  const fAt = (th) => camX0 + D0 * Math.tan(clamp(th, -1.2, 1.2));
 
   /**
    * Advance the rig. A, B: chest points (Vector3). view: { aspect, letterbox (0..1), zoom (distance factor),
    * focusX, focusW (zoom focus point / weight), snap (jump straight to the ideal) }.
    */
-  function update(dt, A, B, view) {
-    const snap = view.snap || !primed;
+  function update(dtReal, A, B, view) {
+    snap = view.snap || !primed;
     primed = true;
-    const step = (s, target, lag) => (snap ? ((s.v = target), (s.vel = 0), target) : damp1(s, target, lag, dt));
-    /** Clamp a spring onto a wall, keeping the velocity it just had (speed-limited). */
-    const wall = (s, value) => {
-      if (!snap) s.vel = clamp((value - s.prev) / Math.max(dt, 1e-4), -P.pushSpeed, P.pushSpeed); else s.vel = 0;
-      s.v = value;
-    };
-    for (const k in S) S[k].prev = S[k].v;
+    dt = dtReal;
+    for (let i = 0; i < SPRINGS.length; i++) SPRINGS[i].prev = SPRINGS[i].v;
     const L = P.lag;
     const xL = Math.min(A.x, B.x), xR = Math.max(A.x, B.x);
     const sep = xR - xL, mid = 0.5 * (xL + xR);
@@ -116,7 +129,7 @@ export function createFightRig(P) {
     const standTop = P.chestHeight + P.headTop;
     const feet0 = sepParam(P, 'feet', dS);
     const feet = lerp(feet0, Math.min(feet0, P.air.feet), smoothstep(0, P.air.pan, Math.max(0, topS - lowS - standTop)));
-    const tAt = (frac) => Math.tan(pitch + Math.atan(-(2 * frac - 1) * band * tanV));
+    tanV0 = tanV; band0 = band; pitch0 = pitch;
     const tF = tAt(feet);
 
     // ---- walls from the two bodies ----
@@ -145,7 +158,7 @@ export function createFightRig(P) {
 
     // ---- aim (focus) ----
     const thLo = Math.atan((br - camX) / D) - aH, thHi = Math.atan((bl - camX) / D) + aH;
-    const fAt = (th) => camX + D * Math.tan(clamp(th, -1.2, 1.2));
+    camX0 = camX; D0 = D;
     const mth = Math.min(m * aH, 0.5 * Math.max(0, thHi - thLo));
     step(S.focus, thLo <= thHi ? clamp(fx, fAt(thLo + mth), fAt(thHi - mth)) : fAt(0.5 * (thLo + thHi)), L.focus);
     const fLo = fAt(thLo), fHi = fAt(thHi);

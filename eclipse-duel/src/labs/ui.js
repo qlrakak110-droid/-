@@ -48,6 +48,7 @@ createLab({
     createInput(ctx);
     const ui = createUI(ctx);
     lab.ui = ui;
+    const touchDefault = ui.touch.visible;
 
     // scenario driver: one function of (t, dt) at a time, on real time
     let drive = null, t = 0;
@@ -74,7 +75,8 @@ createLab({
       ui.hud.skills(0, skillState(R.kael, m.cd1, m.p1.fp));
       ui.hud.skills(1, skillState(R.iska, m.cd2, m.p2.fp));
     };
-    lab.startHud = (m) => {
+    lab.startHud = (m, touch = touchDefault) => {
+      ui.touch.setVisible(touch);
       ui.show('hud', { p1: R.kael, p2: R.iska, roundsToWin: 2 });
       lab.push(m);
     };
@@ -117,9 +119,9 @@ createLab({
     none(ctx, lab) { lab.drive(null); lab.ui.show('none'); },
 
     /** Static mid-fight HUD. */
-    hud(ctx, lab) {
+    hud(ctx, lab, touch) {
       const m = lab.match({ p1: { hp: 640, ult: 72 }, p2: { hp: 410, fp: 30, ult: 100 } });
-      lab.startHud(m);
+      lab.startHud(m, touch);
       lab.ui.hud.combo(0, 7, 186);
       lab.drive(null);
     },
@@ -207,8 +209,7 @@ createLab({
     hints(ctx, lab) { lab.play('hud'); lab.ui.hud.hints(true); },
     /** Touch pad over the HUD; a few buttons held so pressed states show. */
     touch(ctx, lab) {
-      lab.ui.touch.setVisible(true);
-      lab.play('hud');
+      lab.play('hud', true);
       ctx.input.noteDevice('touch');
     },
     touchPressed(ctx, lab) {

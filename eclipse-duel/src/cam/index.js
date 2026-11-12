@@ -123,6 +123,11 @@ export function createCameraDirector(ctx, opts = {}) {
     if (eb) { fight.bounds.minX = eb.minX; fight.bounds.maxX = eb.maxX; }
     if (!readPoint(targets[0], A)) A.set(-2.5, fight.chestHeight, 0);
     if (!readPoint(targets[1], B)) B.set(2.5, fight.chestHeight, 0);
+    // auto blend-out once the last shot has been shown in full (before the rig update, so it settles this frame)
+    if (seq.ended) {
+      const bo = seq.opts.blendOut;
+      if (bo !== false && bo !== null) stop(bo ?? 0.5, true);
+    }
     stepLetterbox(dtReal);
 
     // zoom envelope (critically damped in and out)
@@ -142,11 +147,6 @@ export function createCameraDirector(ctx, opts = {}) {
     if (snapReq) { cutPending = true; blend.on = false; }
     snapReq = settleReq = false;
 
-    // auto blend-out once the last shot has been shown in full
-    if (seq.ended) {
-      const bo = seq.opts.blendOut;
-      if (bo !== false && bo !== null) stop(bo ?? 0.5, true);
-    }
     let dest = fightPose;
     if (seq.active) {
       dest = seq.update(dtGame, dtReal);
@@ -209,7 +209,7 @@ export function createCameraDirector(ctx, opts = {}) {
   function stop(blendSec = 0.35, completed = false) {
     // the rig kept tracking (airborne phases, swaps) while hidden: hand back to its settled ideal, not its lag
     if (seq.active) { seq.finish(completed, blendSec); settleReq = true; }
-    if (!free) startBlend(blendSec);
+    startBlend(blendSec);
   }
 
   const cam = {
