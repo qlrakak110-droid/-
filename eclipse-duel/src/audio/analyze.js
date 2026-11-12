@@ -207,7 +207,7 @@ export async function runReport(audio) {
     `\n\nloudness (mean K-weighted 100 ms max): impacts ${groups.impacts.toFixed(1)} dB > whooshes ${groups.whooshes.toFixed(1)} dB > ui ${groups.ui.toFixed(1)} dB : ${groups.impacts > groups.whooshes && groups.whooshes > groups.ui ? 'OK' : 'WRONG ORDER'}` +
     `\nas heard through the mix chain (K-weighted 100 ms max): ${Object.entries(heard).map(([k, v]) => k + ' ' + v.toFixed(1)).join(' | ')}` +
     `\nstress (30 heavy hits in 120 ms over battle i=1, no voice limit): peak ${stress.peak} loud ${stress.loud} dB ${stress.clipped ? 'CLIPPED' : 'no clip'}` +
-    `\nall assets at this tier (every variant + instrument): ${stats.buffers} buffers, ${(stats.bytes / 1048576).toFixed(1)} MB`;
+    `\nall assets at this tier (every variant + instrument): ${stats.buffers} buffers, ${(stats.bytes / 1048576).toFixed(1)} MB (music ${(stats.musicBytes / 1048576).toFixed(1)} MB)`;
   return {
     sounds: sounds.map((s) => (s.error ? s : { name: s.name, role: s.role, dur: r1(s.dur, 3), eff: r1(s.eff, 3), peak: r1(s.peak, 3), rms: r1(s.rms), loud: r1(s.loud), attackMs: s.attack, centroid: Math.round(s.centroid), low: r1(s.low, 3), high: r1(s.high, 3), dc: r1(s.dc, 5), nan: s.nan, endDb: r1(s.endDb), norm: r1(s.norm), channels: s.channels, flags: s.flags })),
     music: music.map((m) => ({ name: m.name, peak: r1(m.peak, 3), rms: r1(m.rms), loud: r1(m.loud), centroid: Math.round(m.centroid), low: r1(m.low, 3), high: r1(m.high, 3), dc: r1(m.dc, 5), nan: m.nan, flags: m.flags })),

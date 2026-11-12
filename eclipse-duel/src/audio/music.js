@@ -63,7 +63,14 @@ export const INSTRUMENTS = {
       k.hiss({ len: 3, f: 1500, q: 1, env, gain: 0.03 });
     },
   },
-  taiko: { roots: [36], len: 1.4, level: -10, rel: 0.2, recipe(k) { k.taiko({ f: 62, len: 1.35 }); } },
+  taiko: {
+    roots: [36], len: 1.4, level: -10, rel: 0.2,
+    recipe(k) {
+      k.taiko({ f: 62, len: 1.35, gain: 0.7 });
+      k.thump({ f0: 300, f1: 170, drop: 0.02, len: 0.12, gain: 0.35, drive: 1.5 });
+      k.hiss({ len: 0.2, f: 1200, q: 0.8, env: { a: 0.0005, d: 0.06 }, gain: 0.5 });
+    },
+  },
   ka: {
     roots: [72], len: 0.25, level: -16, rel: 0.05,
     recipe(k) {
@@ -171,7 +178,7 @@ function battleStep(n, t, P, st) {
   if (s === 0) { P.note('str_long', c.r - 12, t, { vel: 0.22, dur: bd * 0.98 }); P.note('taiko', 36, t, { vel: 0.55 }); }
   if (s % 4 === 2) P.note('shime', 72, t, { vel: 0.3, pan: -0.35 });
   // drums layer
-  if (BIG[s]) P.note('taiko', 36, t, { vel: BIG[s] * 0.85, layer: 'drums' });
+  if (BIG[s]) P.note('taiko', 36, t, { vel: BIG[s] * 0.75, layer: 'drums' });
   if (s === 12 || s === 14) P.note('taiko', 43, t, { vel: s === 12 ? 0.5 : 0.62, layer: 'drums', pan: 0.25 });
   if (s === 4 || s === 12) P.note('ka', 72, t, { vel: 0.8, layer: 'drums', pan: 0.15 });
   if (s === 7 || s === 15) P.note('ka', 72, t, { vel: 0.35, layer: 'drums', pan: 0.15 });

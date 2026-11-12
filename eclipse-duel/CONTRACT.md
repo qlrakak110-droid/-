@@ -13,6 +13,23 @@ Do not recreate or reference any existing game's characters, named skills, items
 as much as pixels: anticipation → smear → impact → follow-through → settle. If a screenshot looks like a tech demo
 (flat lighting, uniform particle sizes, single-layer effects, mannequin poses), it is not done.
 
+**Flagship standard (raised by the client: "a flagship-class AAA dark-fantasy action game").** The reference class is
+the best-reviewed dark-fantasy action RPGs of the last decade (as a quality level and genre, never as material to copy).
+Concretely, every module is judged on:
+- *Characters*: a cinematic close-up (bust filling the frame) must hold up: layered forms (big → medium → small detail),
+  engraved and worn metal that reacts to light, cloth with weight, a silhouette you can recognise in black.
+- *Motion*: every attack reads as dangerous at fight distance: weight shift, anticipation, a smear-fast strike, an
+  impact pose held for a beat, follow-through, recovery. Idle and locomotion breathe; nothing moves like a puppet.
+- *Skills / VFX*: each skill is a small set piece: multiple layers, a light event, ground interaction, a lingering
+  aftermath, camera and sound punctuation. Ultimates are 4–6 s directed sequences that end on a screenshot-worthy frame.
+- *World*: the arena is a place with history and scale (colossal ruins, atmosphere, light shafts), not a stage set.
+- *Sound*: weighty, layered, spatial; music that rises with the fight.
+- *Feel*: hit-stop, camera shake, slow-motion and impact frames tuned so that every hit lands.
+
+**Roadmap (design for it now).** After the 1v1 duel is complete, a second mode adds an original colossal boss encounter
+in the same arena (a ~7–9 m eclipse-born giant with multi-phase attacks). Do not hard-code the 1.9 m human scale into
+systems that a giant would also need (rig/animation, camera framing, VFX scale, hit boxes); keep scale a parameter.
+
 ## Roster and setting (fixed)
 
 | id | name | title | weapon | element / palette (linear HDR hints) | feel |

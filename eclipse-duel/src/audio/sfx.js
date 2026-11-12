@@ -106,7 +106,7 @@ S('swing_huge', {
 // ============================================================================================ combat impacts
 
 S('hit_slash_light', {
-  group: 'combat', role: 'hit', len: 0.5, level: -14, variants: 4, poly: 5, throttle: 0.035, pitchVar: 1, verb: 0.12, clip: 1.3, prio: 7,
+  group: 'combat', role: 'hit', len: 0.5, level: -14, variants: 4, poly: 5, throttle: 0.035, pitchVar: 1, verb: 0.12, clip: 1.8, prio: 7,
   desc: 'clean cut: hard click, bright slice, short steel ring, flesh body, small sub knock',
 }, (k) => {
   k.click({ gain: 0.9, f: 2500 });
@@ -119,7 +119,7 @@ S('hit_slash_light', {
 });
 
 S('hit_slash_heavy', {
-  group: 'combat', role: 'hit', len: 0.95, level: -10, variants: 3, poly: 4, throttle: 0.035, pitchVar: 0.8, verb: 0.16, clip: 1.4, prio: 8,
+  group: 'combat', role: 'hit', len: 0.95, level: -10, variants: 3, poly: 4, throttle: 0.035, pitchVar: 0.8, verb: 0.16, clip: 2, prio: 8,
   desc: 'heavy cleave: click + driven crack, bending steel ring, chunky body, saturated sub drop, sizzle tail',
 }, (k) => {
   k.click({ gain: 1, f: 2000 });
@@ -132,7 +132,7 @@ S('hit_slash_heavy', {
 });
 
 S('hit_blunt', {
-  group: 'combat', role: 'hit', len: 0.75, level: -11, variants: 3, poly: 4, throttle: 0.035, pitchVar: 0.8, verb: 0.14, clip: 1.4, prio: 7,
+  group: 'combat', role: 'hit', len: 0.75, level: -11, variants: 3, poly: 4, throttle: 0.035, pitchVar: 0.8, verb: 0.14, clip: 2, prio: 7,
   desc: 'dull bone-and-armour impact: crunch grains, saturated low body, double thud with sub',
 }, (k) => {
   k.click({ gain: 0.8, f: 1500, type: 'bandpass', q: 0.8, d: 0.006 });
@@ -143,7 +143,7 @@ S('hit_blunt', {
 });
 
 S('hit_crit', {
-  group: 'combat', role: 'hit', len: 1.7, level: -8, poly: 2, throttle: 0.06, pitchVar: 0.6, verb: 0.22, clip: 1.5, prio: 9,
+  group: 'combat', role: 'hit', len: 1.7, level: -8, poly: 2, throttle: 0.06, pitchVar: 0.6, verb: 0.22, clip: 2, prio: 9,
   desc: 'critical / counter hit: double transient, long bending ring + shimmer, deep sub drop, boom tail, spark glitter',
 }, (k) => {
   k.click({ gain: 1, f: 1800, d: 0.005 });
@@ -159,7 +159,7 @@ S('hit_crit', {
 });
 
 S('guard', {
-  group: 'combat', role: 'hit', len: 0.85, level: -13, variants: 3, poly: 4, throttle: 0.04, pitchVar: 0.8, verb: 0.18, clip: 1.2, prio: 7,
+  group: 'combat', role: 'hit', len: 0.85, level: -13, variants: 3, poly: 4, throttle: 0.04, pitchVar: 0.8, verb: 0.18, clip: 1.5, prio: 7,
   desc: 'blocked strike: metal-on-metal clang (plate partials with strike bend), scrape, short thud, sparks',
 }, (k) => {
   k.click({ gain: 0.7, f: 3000, d: 0.003 });
@@ -170,7 +170,7 @@ S('guard', {
 });
 
 S('guard_break', {
-  group: 'combat', role: 'hit', len: 1.5, level: -9, channels: 2, poly: 2, throttle: 0.1, pitchVar: 0.5, verb: 0.22, clip: 1.4, prio: 8,
+  group: 'combat', role: 'hit', len: 1.5, level: -9, channels: 2, poly: 2, throttle: 0.1, pitchVar: 0.5, verb: 0.22, clip: 1.8, prio: 8,
   desc: 'guard shattered: crack, low clang, glassy-metal shatter cloud, deflating energy sweep, sub, tinkle tail',
 }, (k) => {
   k.click({ gain: 1, f: 2200, d: 0.005 });
@@ -248,7 +248,7 @@ S('fire_ignite', {
 });
 
 S('fire_burst', {
-  group: 'fire', role: 'hit', len: 1.5, level: -10, poly: 3, throttle: 0.05, pitchVar: 0.8, verb: 0.2, clip: 1.3, prio: 7,
+  group: 'fire', role: 'hit', len: 1.5, level: -10, poly: 3, throttle: 0.05, pitchVar: 0.8, verb: 0.2, clip: 1.6, prio: 7,
   desc: 'fireball detonation: driven transient, wide whoomph (LP sweep), sub thump, fluttering roar, dense-to-sparse crackle',
 }, (k) => {
   k.click({ gain: 1.3, f: 1200, type: 'bandpass', q: 0.7, d: 0.006 });
@@ -316,7 +316,7 @@ S('ice_form', {
 });
 
 S('ice_shatter', {
-  group: 'ice', role: 'hit', len: 1.7, level: -10, channels: 2, poly: 3, throttle: 0.05, pitchVar: 0.8, verb: 0.24, clip: 1.3, prio: 8,
+  group: 'ice', role: 'hit', len: 1.7, level: -10, channels: 2, poly: 3, throttle: 0.05, pitchVar: 0.8, verb: 0.24, clip: 1.6, prio: 8,
   desc: 'crystal shattering: crack transient, thump, glass body partials, dense shard cloud, long tinkle tail',
 }, (k) => {
   k.click({ gain: 1, f: 3000, d: 0.004 });
@@ -421,7 +421,7 @@ S('charge_up', {
 });
 
 S('release', {
-  group: 'magic', role: 'hit', len: 1.1, level: -11, poly: 3, throttle: 0.06, pitchVar: 0.6, verb: 0.2, clip: 1.3, prio: 7,
+  group: 'magic', role: 'hit', len: 1.1, level: -11, poly: 3, throttle: 0.06, pitchVar: 0.6, verb: 0.2, clip: 1.6, prio: 7,
   desc: 'energy release: punchy thoom, down-sweeping driven zap, outward air burst (wide), spark glitter',
 }, (k) => {
   k.click({ gain: 0.9, f: 2000 });

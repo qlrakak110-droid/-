@@ -23,7 +23,7 @@ const TIERS = {
   high: { voices: 40, ir: 3.2, rate: 48000, variants: 4, mono: false },
 };
 const MASTER_TRIM = 1.0;    // single hits pass the glue untouched; stacks get glued, then limited and soft-clipped
-const MUSIC_TRIM = 0.4;     // music sits ~5 dB under heavy hits at default volumes (measured: analyze.js "as heard")
+const MUSIC_TRIM = 0.22;     // music sits ~5 dB under heavy hits at default volumes (measured: analyze.js "as heard")
 const VERB_RETURN = 0.3;
 const LOOKAHEAD = 0.3;      // music scheduling horizon (s)
 const SLOWMO_PITCH = 0.35;  // world one-shots play at rate * timeScale^this during slow motion
@@ -528,10 +528,15 @@ export function createAudio(ctx = {}) {
 
     /** Engine statistics. */
     stats() {
-      let bytes = 0, buffers = 0;
-      for (const e of store.values()) if (e.result) { buffers++; bytes += e.result.buffer.length * e.result.buffer.numberOfChannels * 4; }
+      let bytes = 0, musicBytes = 0, buffers = 0;
+      for (const e of store.values()) {
+        if (!e.result) continue;
+        const b = e.result.buffer.length * e.result.buffer.numberOfChannels * 4;
+        buffers++; bytes += b;
+        if (e.key[0] === '@') musicBytes += b;
+      }
       return {
-        state: audio.state, voices: voices.filter((v) => !v.dead).length, maxVoices: tier.voices, loops: loops.size, buffers, bytes, pending: queue.length,
+        state: audio.state, voices: voices.filter((v) => !v.dead).length, maxVoices: tier.voices, loops: loops.size, buffers, bytes, musicBytes, pending: queue.length,
         music: { base: mus.base && mus.base.name, overlay: mus.over && mus.over.name, intensity }, slow, duck: duckLevel,
       };
     },
