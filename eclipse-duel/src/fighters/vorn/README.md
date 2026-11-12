@@ -148,6 +148,23 @@ hauberk skirt, a storm-violet surcoat (front panel + two long back tails with li
 apart from ISKA's indigo), rowel spurs and the war spear of `src/char/weapons.js` (VORN looks: storm-blued head,
 blackened haft, violet wraps).
 
+No stovepipes: the greaves, cuisses and backplate are forged shapes (waisted profiles, a hard keel flanked by sunk
+flutes and creased ridges, flared cuffs, pointed edges), and every body arc-rune is a glowing core sunk in a dark
+engraved channel with edge-worn lips (`arcInlay`), not a line laid on the plate. The surcoat panel and the two back tails
+carry rest pleats (held by the cloth's bend constraints), so they never hang as flat sheets.
+
+Art pass 2 (art director's issues 3 and 4; body proportions, skeleton, sockets, weapon, grips untouched):
+
+| area | before | after |
+|---|---|---|
+| greaves (`greave`) | closed tube, one shallow shin ridge | flared cuff under the poleyn, deep calf swell, pinched ankle flaring over the sabaton; 2 cm shin keel, sunk flutes at +-29 deg, creased side ridges at +-54 deg (fading toward the ankle), calf seam ridge; pointed knee tongue, instep arch |
+| cuisses (`cuisse`) | open shell, one ridge | waisted (flared over the hip, pinched above the knee, kicking out over the poleyn), 1.7 cm keel, two sunk flutes, outer ridges, pointed top edge over the outside of the hip |
+| backplate (`flutedBack`) | smooth half shell, low spine ridge | spine keel, a fan of creased flutes / ridges over the shoulder blades fading into the waist, pointed lower edge |
+| runes (`arcInlay`) | glowing strip on the plate | glowing core inside a dark engraved channel (blackened floor, raised edge-worn lips; mitred zig-zag corners, tapered graver ends, adaptive sampling so no chord cuts into a curved plate); the greave and cuisse bolts run down the sunk flutes |
+| cloth | tails: shallow 2.6 cm waves; front panel flat | tails: two deep pleats each (5 cm, opening toward the hem) + a slow wave and a sideways component; front panel: 2 cm pleats biased outward (clear of the thighs) |
+| left pauldron fins | h 0.25 / len 0.26 | h 0.29 / len 0.29 (slightly taller spikes in the front and 3/4 silhouettes, a small change; `finL` socket unchanged, now mid-fin) |
+| budget | rims 10 tris / sample | rims 8 tris / sample (5-point bead) pays for the flutes and channels: **+206 tris** net (58,420 -> 58,626 in today's lab) |
+
 ### Usage
 
 ```js
@@ -166,19 +183,19 @@ c.play(name, { scale: c.bodyScale });        // shared clips authored for the 1.
 | field | value |
 |---|---|
 | slots / draw calls | `plate` (all rigid armour), `suit` (mail torso, quilted arms, leather legs, mail skirt), `cloth` (cut-out surcoat), `blade` (spear) = **4** |
-| triangles (high) | **59.5k** (≤ 60k): arms + gauntlets 10.2k, legs + sabatons + spurs 10.1k, helm 8.3k, pauldrons 10.6k (left 7.1k), cuirass 4.2k, faulds / belt 3.3k, gorget 2.0k, mail skirt 0.8k, spear 5.0k, lofts 2.4k, cloth 2.6k |
-| triangles (low) | **53.2k** (`vornLow`, or `build(kit, S, rig, { tier: 'low' })`): no rivets, 3 feathers per wing, fewer pauldron lames, coarser plates and rims |
+| triangles (high) | **58.6k** (≤ 60k, art lab `budget` 2026-11-12 after the art pass 2; 59.7k with the cloth grids of the earlier rig build): legs + sabatons + spurs ~10.6k (greaves 1.27k + channels / runes 0.67k + rims 0.45k per pair), arms + gauntlets ~10k, helm ~8.1k, pauldrons ~10.4k, cuirass ~4.5k (fluted backplate 1.05k), faulds / belt ~3.2k, gorget ~1.8k, mail skirt 0.8k, spear 5.0k, lofts, cloth |
+| triangles (low) | ~**52k** (`vornLow`, or `build(kit, S, rig, { tier: 'low' })`; headless kit count 48.1k vs 54.7k high): no rivets, 3 feathers per wing, fewer pauldron lames, coarser plates, rims and flute columns |
 | proportions | the rig team's VORN audit set (`src/labs/rigqa.js` body `vorn`): hipHeight 1.05, pelvisDrop 0.064, hipWidth 0.104, ankleHeight 0.09, footLength 0.145, footDrop 0.058, toeLength 0.086, heelLength 0.07, spine 0.116, chest 0.18, neck 0.265, head 0.11, shoulderHeight 0.21, clavicleRoot 0.032, clavicle 0.2, shoulderBack 0.016, upperArm 0.325, foreArm 0.29, hand 0.09, palm 0.023 (head top ~2.0 m, helm apex ~2.07 m, horn tips ~2.32 m; `bodyScale` 1.071) |
 | weapon | `WEAPON_SPECS.spear`: sockets `weaponBase` [1.02,0,0], `weaponTip` [1.5,0,0]; grips `grip` -0.52, `choke` -0.26, `butt` -0.86, `head` +0.78 (weapon bone frame) |
 | design sockets | `visor` (head, T-visor centre), `hornR` / `hornL` (horn tips: idle arcs), `finL` (top of the left pauldron fins), `runes` (sternum bolt) |
-| cloth | `surcoatF` (front, 6 x 10, 0.64 m), `tailL` (5 x 12, 1.0 m), `tailR` (5 x 12, 0.9 m): 180 particles, torn hems via `clothEdges` (vein-lit edges) |
+| cloth | `surcoatF` (front, 6 x 10, 0.64 m), `tailL` (5 x 12, 1.0 m), `tailR` (5 x 12, 0.9 m): 180 particles, torn hems via `clothEdges` (vein-lit edges); rest pleats in `offset` (`tailFolds(u, v, ph, ph2)` for the tails) |
 | colliders | torso r 0.19, pelvis 0.168, shoulders 0.13 / 0.15 (left: heavy pauldron), arms 0.074 / 0.065, thighs 0.118, shins 0.084 |
 
 ### Glow (`vorn.glow`, linear HDR)
 
 | channel | colour | where |
 |---|---|---|
-| `inlay` | (2.6, 1.75, 6.6) | arc-runes: sternum bolt with forks, pauldron bolts, vambraces, cuisses, greaves, fins, feathers, horn seams, cheek "tears", belt plaque cores, plackart glyph |
+| `inlay` | (2.6, 1.75, 6.6) | arc-runes: sternum bolt with forks, pauldron bolts, vambraces, cuisses, greaves (all six in engraved channels: `L.groove`), fins, feathers, horn seams, cheek "tears", belt plaque cores, plackart glyph |
 | `vein` | (1.6, 0.8, 4.6) | charge: engraved grooves of the gold trim (0.06) and the bronze horns (0.08): near dark at rest, they light on a flare; the scorched surcoat hems |
 | `eye` | (6.0, 4.9, 11.5) | T-visor (eye hot spots, dimmer breath slot), cheek breath slits (0.12) |
 
@@ -198,10 +215,14 @@ Frames: a bone's zero-pose frame (+X forward, +Y up, +Z right / camera side); ri
 | `stormHornTips(o)` | horn tip positions `[R, L]` in the head frame (sockets) |
 | `stormFins(o)` | jagged lightning fins for a pauldron (deltoid frame, R side): `at, h, len, lean, yaw, count, gap, depth` -> `{ fins (userData.edge), runes }` |
 | `feather(o)`, `blade2d(outline, o)` | bevelled flat blades with an outline mask (`userData.edge`) for gold edging by vertex index |
-| `arcPath(u0, v0, u1, v1, o)`, `arcRune(plate, u0, v0, u1, v1, o)` | deterministic zig-zag lightning paths / glowing strips (+ `forks: [[index, deg, length]]`) in a plate's (u, v) space |
-| `rim(plate, side, r, o)` | gold rolled bead along a plate edge (`v0 / v1 / u0 / u1`), framed by the plate normal, 10 tris per sample |
+| `arcPath(u0, v0, u1, v1, o)`, `arcRune(plate, u0, v0, u1, v1, o)` | deterministic zig-zag lightning paths / glowing strips (+ `forks: [[index, deg, length]]`) in a plate's (u, v) space (helm, fins, feathers) |
+| `arcInlay(plate, u0, v0, u1, v1, o)` | engraved arc-rune: `{ rune, channel }` — glowing core (put with the inlay look) sunk in a dark channel with raised edge-worn lips (put with `L.groove`). Options: arcPath + `width` (core, 0.003), `channel` (full width, 5.5 x core), `lift` (0.0009), `lip` (0.0019), `forks`, `step` (0.022 m max chord) |
+| `groove(surf, uv, o)` | one channel + core along a (u, v) polyline: adaptive sampling, mitred corners, tapered ends; 14 tris per sample |
+| `rim(plate, side, r, o)` | gold rolled bead along a plate edge (`v0 / v1 / u0 / u1`), framed by the plate normal, 8 tris per sample |
 | `combAlong(plate, uv, o)` | forged comb standing on a plate surface along a (u, v) path |
-| `gorget, rerebrace, vambrace, cuisse, greave, couterLames, poleynLames` | the shared shapes at VORN's segment budget (the shared builders fix their segment counts) |
+| `gorget, rerebrace, vambrace, couterLames, poleynLames` | the shared shapes at VORN's segment budget (the shared builders fix their segment counts) |
+| `cuisse(o)`, `greave(o)` | VORN's forged leg shells (see the art pass table above): `r, y0, y1, nu, nv`; flutes are creased columns, so the plate mesh and the rune paths agree |
+| `flutedBack(o)` | options for `A.backplate`: spine keel + fan of creased flutes / ridges fading into the waist, pointed lower edge (`nu`, `nv` + plate options) |
 | `mailSkirt(o)` | one half of the split hauberk skirt (hips frame, R side), skinned hips -> thigh by the design |
 | `spur(o)` | rowel spur on the heel (foot frame) |
 | `crackle(t, seed)` | the arc flicker multiplier (0.82 .. ~2.0) |
@@ -230,6 +251,16 @@ Flags `#design=vorn|vornLow|kael`, `#arena`, `#tex=256|512`. Scenarios: `full, b
 fight, pose(name, yaw, dist, ty), clip, silhouette, lineup(sil) (KAEL - VORN - ISKA), glow, joints, feet, hands, stats, grip,
 feetContact, qa`. Lab-only poses (not game clips): `vornlab.rest` (spear upright, forward-right), `vornlab.portrait` (spear
 at the side, clear of the face), `vornlab.guard`, `vornlab.thrust`, `vornlab.sky` (Stormfall), `vornlab.brace` (choke grip).
+
+### Known issues (art)
+
+* The rig's new cloth check reports `surcoatF` / `tailL` / `tailR` particles resting inside the torso, pelvis and thigh
+  capsules in the bind pose (masked per particle). Same counts with the old flat offsets (12/8, 11/10, 10/11), so it is
+  not caused by the pleats; the hip-pinned tails sit inside the pelvis capsule by design. The rig also adds default
+  head / neck capsules for cloth: VORN could declare his own (`colliders`), left to the rig team's guidance.
+* Silhouette: in pure side profile the left pauldron fins are hidden behind the torso (VORN reads there by the horned,
+  feathered crown, the spear and the streaming tails); the fins carry the shoulder in front and 3/4 views.
+* The helm, fin and feather runes still use `arcRune` (raised strips); the six body runes are the engraved ones.
 
 ### Requests to other teams (art)
 

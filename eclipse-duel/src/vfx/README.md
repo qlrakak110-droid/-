@@ -573,7 +573,7 @@ Fading ghost copies of a hierarchy. A snapshot copies every visible `Mesh`'s wor
 its current bone matrices into a frozen skeleton (the pose of that instant), sharing the source geometry. Look:
 additive fresnel shell (rim-lit silhouette, faint fill), core → mid colours, drifting, eroding with world-space noise.
 Slots (a plain and a skinned mesh, a preallocated 64-bone frozen skeleton and a material instance of one shared
-program each) are pooled: 10 high / 8 mid / 4 low ghost meshes, and one afterimage copies at most 4 / 3 / 2 of a hero's meshes (largest first in traversal order): a ghost re-draws whole character meshes (~58k triangles per hero), so the pool is the per-tier geometry cap (the oldest ghost mesh is recycled first).
+program each) are pooled: 10 high / 8 mid / 4 low ghost meshes, and one afterimage copies at most 4 / 3 / 2 of a hero's meshes (in traversal order): a ghost re-draws whole character meshes (~58k triangles per hero), so the pool is the per-tier geometry cap (the oldest ghost mesh is recycled first).
 
 | option | default | units | meaning |
 |---|---|---|---|
