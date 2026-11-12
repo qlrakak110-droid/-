@@ -6,7 +6,7 @@
 // (order ZXY) relative to that frame; left-side bones (`...L`) are mirrored (X and Y negated) so equal numbers give the
 // mirror-image pose. The BIND pose (arms in an A-pose) is only used to build the smooth under-suit.
 
-import { eulerToQuat, qmul, qrot } from './rigmath.js';
+import { eulerToQuat, qmul, qrot, qaxis, qslerp, qidentity, qcopy, twistAngle, swingAngle, smooth01 } from './rigmath.js';
 
 /** Default heroic proportions (metres). A design may override any of these. */
 export const DEFAULT_PROPORTIONS = {
@@ -45,43 +45,55 @@ const LEG = (s) => [['thigh' + s, 'hips'], ['shin' + s, 'thigh' + s], ['foot' + 
 const HELPERS = (s) => [
   ['deltoid' + s, 'shoulder' + s], ['upperArmTwist' + s, 'upperArm' + s], ['elbow' + s, 'upperArm' + s],
   ['foreArmTwist' + s, 'foreArm' + s], ['knee' + s, 'thigh' + s],
+  ['hipJoint' + s, 'hips'], ['thighTwist' + s, 'thigh' + s], ['elbowVol' + s, 'upperArm' + s], ['kneeVol' + s, 'thigh' + s],
 ];
 
 /** Bones whose rotation the runtime computes from others every frame (never author them). */
-export const HELPER_NAMES = ['deltoidR', 'deltoidL', 'upperArmTwistR', 'upperArmTwistL', 'elbowR', 'elbowL', 'foreArmTwistR', 'foreArmTwistL', 'kneeR', 'kneeL'];
+export const HELPER_NAMES = ['R', 'L'].flatMap((s) => HELPERS(s).map((h) => h[0]));
 
-/** A-pose used to build the smooth-skinned suit (authoring convention, degrees). */
+/**
+ * A-pose used to build the smooth-skinned suit (authoring convention, degrees). Close to the mean of the poses the
+ * arms actually take (28 deg abduction), so the suit deforms least on average.
+ */
 export const BIND_POSE = {
-  upperArmR: [-42, 0, 6], upperArmL: [-42, 0, 6],
-  foreArmR: [0, 0, 12], foreArmL: [0, 0, 12],
+  upperArmR: [-28, 0, 8], upperArmL: [-28, 0, 8],
+  foreArmR: [0, 0, 14], foreArmL: [0, 0, 14],
   thighR: [-3, 0, 0], thighL: [-3, 0, 0],
 };
+
+/** Body scale of a proportion set: hips pivot height / 1.04 m (1 = the default 1.95 m fighter). */
+export function bodyScale(P) { return (P.hipHeight + P.pelvisDrop) / 1.04; }
 
 function offsetsFor(P) {
   const leg = P.hipHeight - P.ankleHeight;
   const thigh = leg * P.thighRatio, shin = leg - thigh;
+  const k = bodyScale(P), kh = P.hand / 0.085; // every constant below is a fraction of a body / hand size
   const o = {
     hips: [0, P.hipHeight + P.pelvisDrop, 0],
-    spine: [0, P.spine, 0], chest: [0, P.chest, 0], neck: [-0.01, P.neck, 0], head: [0.01, P.head, 0],
+    spine: [0, P.spine, 0], chest: [0, P.chest, 0], neck: [-0.01 * k, P.neck, 0], head: [0.01 * k, P.head, 0],
   };
   for (const [s, z] of [['R', 1], ['L', -1]]) {
     o['shoulder' + s] = [0, P.shoulderHeight, z * P.clavicleRoot];
     o['upperArm' + s] = [-P.shoulderBack, 0, z * P.clavicle];
     o['foreArm' + s] = [0, -P.upperArm, 0];
     o['hand' + s] = [0, -P.foreArm, 0];
-    o['fingers' + s] = [0.004, -P.hand - 0.012, -z * 0.004];
-    o['fingerTips' + s] = [0, -0.048, 0];
-    o['thumb' + s] = [0.026, -0.035, -z * 0.016];
+    o['fingers' + s] = [0.004 * kh, -P.hand - 0.012 * kh, -z * 0.004 * kh];
+    o['fingerTips' + s] = [0, -0.048 * kh, 0];
+    o['thumb' + s] = [0.026 * kh, -0.035 * kh, -z * 0.016 * kh];
     o['weapon' + s] = [0, -P.hand, -z * P.palm];
     o['thigh' + s] = [0, -P.pelvisDrop, z * P.hipWidth];
     o['shin' + s] = [0, -thigh, 0];
     o['foot' + s] = [0, -shin, 0];
     o['toe' + s] = [P.footLength, -P.footDrop, 0];
     o['deltoid' + s] = [-P.shoulderBack, 0, z * P.clavicle];
-    o['upperArmTwist' + s] = [0, -0.04, 0];
+    o['upperArmTwist' + s] = [0, -P.upperArm * 0.1333, 0];
     o['elbow' + s] = [0, -P.upperArm, 0];
     o['foreArmTwist' + s] = [0, -P.foreArm * 0.5, 0];
     o['knee' + s] = [0, -thigh, 0];
+    o['hipJoint' + s] = [0, -P.pelvisDrop, z * P.hipWidth];
+    o['thighTwist' + s] = [0, -thigh * 0.12, 0];
+    o['elbowVol' + s] = [0, -P.upperArm, 0];
+    o['kneeVol' + s] = [0, -thigh, 0];
   }
   return { o, thigh, shin };
 }
@@ -89,9 +101,10 @@ function offsetsFor(P) {
 /**
  * Build the rig description.
  * @param {object} proportions  overrides of DEFAULT_PROPORTIONS
- * @param {Array} extra  design bones: [{ name, parent, at:[x,y,z] (parent zero frame), rot?:[x,y,z] deg | quat?:[x,y,z,w] rest rotation }]
+ * @param {Array} extra  design bones: [{ name, parent, at:[x,y,z] (parent zero frame), rot?:[x,y,z] deg | quat?:[x,y,z,w] rest rotation,
+ *                       follow?: { bone, k } (driven: k x that bone's swing; `at` defaults to its position) }]
  */
-export function createRig(proportions = {}, extra = []) {
+export function createRig(proportions = {}, extra = [], opts = {}) {
   const P = { ...DEFAULT_PROPORTIONS, ...proportions };
   const { o, thigh, shin } = offsetsFor(P);
   const list = [...CORE];
@@ -113,6 +126,8 @@ export function createRig(proportions = {}, extra = []) {
     bindLocal: new Float32Array(count * 4),
     helper: new Uint8Array(count),
     lengths: { upperArm: P.upperArm, foreArm: P.foreArm, thigh, shin, hand: P.hand },
+    k: bodyScale(P),                 // body scale (constants in metres are multiplied by it)
+    gripAngle: opts.gripAngle ?? 0,  // weapon bone rest pitch in the fist (deg, toward the little finger)
   };
   list.forEach(([name], i) => { rig.index[name] = i; });
   list.forEach(([name, parent, side], i) => {
@@ -120,10 +135,13 @@ export function createRig(proportions = {}, extra = []) {
     rig.parent[i] = parent ? rig.index[parent] : -1;
     rig.side[i] = side;
     const ex = extra.find((e) => e.name === name);
-    const off = ex ? ex.at || [0, 0, 0] : o[name];
+    // a follower without `at` sits where the bone it follows sits (same parent)
+    const fo = ex && !ex.at && ex.follow ? rig.index[ex.follow.bone] : undefined;
+    const off = ex ? ex.at || (fo !== undefined ? Array.from(rig.offset.subarray(fo * 3, fo * 3 + 3)) : [0, 0, 0]) : o[name];
     rig.offset.set(off, i * 3);
     if (ex && ex.quat) rig.restRot.set(ex.quat, i * 4);
     else if (ex && ex.rot) eulerToQuat(rig.restRot, i * 4, ex.rot[0], ex.rot[1], ex.rot[2]);
+    else if (/^weapon[RL]$/.test(name) && rig.gripAngle) eulerToQuat(rig.restRot, i * 4, 0, 0, -rig.gripAngle);
     else rig.restRot.set([0, 0, 0, 1], i * 4);
     rig.helper[i] = HELPER_NAMES.includes(name) ? 1 : 0;
   });
@@ -131,13 +149,124 @@ export function createRig(proportions = {}, extra = []) {
     const m = name.endsWith('R') ? name.slice(0, -1) + 'L' : name.endsWith('L') ? name.slice(0, -1) + 'R' : name;
     rig.mirror[i] = rig.index[m] ?? i;
   });
-  // bind pose local rotations
+  // bind pose local rotations; helper bones take the values the drivers give them in the bind pose (the suit is
+  // undeformed in its own bind pose)
   for (let i = 0; i < count; i++) {
     const b = BIND_POSE[rig.names[i]];
     if (b) eulerToQuat(rig.bindLocal, i * 4, b[0], b[1], b[2], rig.side[i] < 0);
     else rig.bindLocal.set(rig.restRot.subarray(i * 4, i * 4 + 4), i * 4);
   }
+  rig.helperBones = ['R', 'L'].map((s) => {
+    const o = { side: s === 'R' ? 1 : -1 };
+    for (const b of ['shoulder', 'upperArm', 'foreArm', 'hand', 'thigh', 'shin', ...HELPERS('').map((h) => h[0])]) o[b] = rig.index[b + s];
+    return o;
+  });
+  rig.helperScale = new Float32Array(count * 3).fill(1);
+  driveHelpers(rig, rig.bindLocal, null);
+  rig.bindHelperScale = Float32Array.from(rig.helperScale);
   return rig;
+}
+
+// ---- helper bones -------------------------------------------------------------------------------------------------
+const hq = new Float32Array(24);
+/**
+ * A twist angle near +-180 deg continues on the branch of the previous frame (mem[i]) instead of jumping to the other
+ * sign; only acts in that band, so poses inside the human range never depend on history.
+ */
+function unwrap(mem, i, a) {
+  if (!mem) return a;
+  const prev = mem[i];
+  if (Math.abs(a) > 2.6 && Math.abs(prev) > 2.0 && Math.sign(a) !== Math.sign(prev)) a += a < 0 ? 2 * Math.PI : -2 * Math.PI;
+  mem[i] = a;
+  return a;
+}
+
+/**
+ * Twist (rad) about the bone's own Y axis, faded out where swing-twist is ill-conditioned (swing near 180 deg); the
+ * raw twist is unwrapped against last frame (mem slot i) before fading.
+ */
+function fadedTwist(q, o, mem = null, i = 0) {
+  const sw = swingAngle(q, o, 0, -1, 0);
+  const f = smooth01(sw, 2.62, 1.75); // full below 100 deg of swing, zero above 150 deg
+  return f > 0 ? unwrap(mem, i, twistAngle(q, o, 0, 1, 0)) * f : 0;
+}
+
+// reference raise for the deltoid half-swing: the arm raised 60 deg in the scapular plane (between flexion and
+// abduction). Rotations 180 deg away from it (arm pointing back and in, or twisted ~160 deg) are out of the arm's range.
+const DELT_REF = new Float32Array(8);
+eulerToQuat(DELT_REF, 0, -45, 0, 45);
+eulerToQuat(DELT_REF, 4, -45, 0, 45, true);
+
+/**
+ * out = normalised (identity + q) with q's sign chosen against reference r (the half rotation of q). Returns the dot
+ * product of q and r (0 = on the reference's singular wall).
+ */
+function halfRot(out, oo, q, qo, r, ro) {
+  const dot = q[qo] * r[ro] + q[qo + 1] * r[ro + 1] + q[qo + 2] * r[ro + 2] + q[qo + 3] * r[ro + 3];
+  const sg = dot < 0 ? -1 : 1;
+  const x = q[qo] * sg, y = q[qo + 1] * sg, z = q[qo + 2] * sg, w = q[qo + 3] * sg + 1;
+  const l = 1 / (Math.hypot(x, y, z, w) || 1);
+  out[oo] = x * l; out[oo + 1] = y * l; out[oo + 2] = z * l; out[oo + 3] = w * l;
+  return dot;
+}
+
+/**
+ * Drive the helper bones from the animated bones (local rotations in lq): forearm twist moved into the hand (the
+ * forearm stays a hinge), deltoid = half of the arm swing, upper-arm / thigh twist helpers cancel half of the twist
+ * near the shoulder / hip, elbow / knee half-joints, forearm twist helper = 65% of the wrist pronation, hip joint =
+ * half of the thigh swing, elbow / knee volume helpers = half-joint + an inflation scale (rig.helperScale) that keeps
+ * the inside of a flexed joint from collapsing onto the bone. `mem` (Float32Array(4) or null) keeps the last forearm /
+ * upper-arm twist per side, so the twist helpers never jump across +-180 deg.
+ */
+export function driveHelpers(rig, lq, mem) {
+  const HS = rig.helperScale;
+  for (let k = 0; k < 2; k++) {
+    const D = rig.helperBones[k], ua = D.upperArm, fa = D.foreArm, ha = D.hand, th = D.thigh;
+    // forearm twist -> hand
+    const ft = twistAngle(lq, fa * 4, 0, 1, 0);
+    if (Math.abs(ft) > 1e-4) {
+      qaxis(hq, 0, 0, 1, 0, -ft);
+      qmul(lq, fa * 4, lq, fa * 4, hq, 0);
+      qaxis(hq, 0, 0, 1, 0, ft);
+      qmul(lq, ha * 4, hq, 0, lq, ha * 4);
+    }
+    qidentity(hq, 8);
+    // deltoid: half of the arm swing. Twist removed where it is well defined, the half taken on the branch of a
+    // reference raise (scaption, DELT_REF); next to that reference's singular wall (|dot| small: an arm pointing back
+    // and in, or wrung far past its twist range) the plain half-elevation in the arm's own plane takes over
+    const ut = fadedTwist(lq, ua * 4, mem, 2 + k);
+    qaxis(hq, 0, 0, 1, 0, -ut);
+    qmul(hq, 4, lq, ua * 4, hq, 0);
+    const dr = Math.abs(halfRot(hq, 12, hq, 4, DELT_REF, k * 4));
+    if (dr < 0.3) {
+      qrot(hq, 16, lq, ua * 4, 0, -1, 0);                               // arm direction (shoulder frame)
+      const el = Math.acos(Math.max(-1, Math.min(1, -hq[17])));
+      let nx = -hq[18], nz = hq[16];
+      const nl = Math.hypot(nx, nz);
+      if (nl > 1e-6) { nx /= nl; nz /= nl; } else { nx = 1; nz = 0; }
+      qaxis(hq, 20, nx, 0, nz, 0.5 * el);
+      qslerp(hq, 12, hq, 20, hq, 12, smooth01(dr, 0.12, 0.3));
+    }
+    qcopy(lq, D.deltoid * 4, hq, 12);
+    qaxis(lq, D.upperArmTwist * 4, 0, 1, 0, -0.5 * ut);
+    // elbow half-joint + volume helper
+    qslerp(lq, D.elbow * 4, hq, 8, lq, fa * 4, 0.5);
+    qcopy(lq, D.elbowVol * 4, lq, D.elbow * 4);
+    const eflex = Math.max(0, swingAngle(lq, fa * 4, 0, -1, 0) - 0.25);
+    HS[D.elbowVol * 3] = 1 + 0.22 * eflex; HS[D.elbowVol * 3 + 1] = 1; HS[D.elbowVol * 3 + 2] = 1 + 0.08 * eflex;
+    // forearm twist helper: 65% of the wrist pronation, unwrapped against the previous frame near +-180 deg
+    qaxis(lq, D.foreArmTwist * 4, 0, 1, 0, 0.65 * unwrap(mem, k, twistAngle(lq, ha * 4, 0, 1, 0)));
+    // legs: hip joint half-swing, thigh twist helper, knee half-joint + volume helper
+    const tt = fadedTwist(lq, th * 4);
+    qaxis(hq, 0, 0, 1, 0, -tt);
+    qmul(hq, 4, lq, th * 4, hq, 0);
+    halfRot(lq, D.hipJoint * 4, hq, 4, hq, 8);
+    qaxis(lq, D.thighTwist * 4, 0, 1, 0, -0.5 * tt);
+    qslerp(lq, D.knee * 4, hq, 8, lq, D.shin * 4, 0.5);
+    qcopy(lq, D.kneeVol * 4, lq, D.knee * 4);
+    const kflex = Math.max(0, swingAngle(lq, D.shin * 4, 0, -1, 0) - 0.2);
+    HS[D.kneeVol * 3] = 1 + 0.2 * kflex; HS[D.kneeVol * 3 + 1] = 1; HS[D.kneeVol * 3 + 2] = 1 + 0.08 * kflex;
+  }
 }
 
 /**

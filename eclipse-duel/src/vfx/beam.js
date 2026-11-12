@@ -147,7 +147,7 @@ export function installBeam(vfx, shared) {
   const { uniforms, textures } = shared;
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const layer = new MeshLayer(shared, {
-    name: 'beam', capacity: 12, layout: LAYOUT, geometry: gridGeometry(64, 6), lifeAt: 7, renderOrder: RENDER_ORDER.meshAdd,
+    name: 'beam', capacity: 12, layout: LAYOUT, geometry: gridGeometry(64, 6), lifeAt: 7, renderOrder: RENDER_ORDER.meshBeam,
     material: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: U, side: THREE.DoubleSide, ...PREMUL }),
   });
   const C = makeColors();

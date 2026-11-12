@@ -8,7 +8,7 @@
 //   light1  light1         light            재가르기 Ash Cleave           0.14 startup, diagonal down-right cut
 //   light2  light2         (light route)    역날베기 Back Edge            0.13, rising backhand that continues the arc
 //   light3  light3         (light route)    잿불내려찍기 Cinder Drop       0.24, overhead into the floor, knockdown
-//   heavy   sweep          heavy            용광로 휘두르기 Furnace Sweep   0.32, armour 0.12-0.32 (2 hits), 300° spin
+//   heavy   sweep          heavy            용광로 휘두르기 Furnace Sweep   0.32, armour 0.12-0.32 (1 hit), 300° spin
 //   fheavy  lunge          f+heavy          돌진 찌르기 Molten Lunge       0.26, travels 3.2 m, shoulder armour, crumple
 //   dheavy  vent           d+heavy          분화 올려베기 Vent Launcher     0.22, upward cut, fire geyser, launch
 //   skill1  crescent       skill1           잿불 초승달 Ember Crescent      FP 25, CD 4 s: 2.2 m crescent wave, 11 m/s
@@ -19,10 +19,13 @@
 //
 // COMBO GRAMMAR (cancel routes; every target is listed by id, so nothing unsafe or useless is ever offered)
 //   light1 -> light2 -> light3                       chain (also on whiff / block: a real string; light3 knocks down)
-//   light1 / light2 on hit -> d+heavy, f+heavy, heavy, skill1, ult     (d+heavy, f+heavy, skill1: true combos)
+//   light1 / light2 on hit -> d+heavy, f+heavy, heavy, skill1          (d+heavy, f+heavy, skill1: true combos)
+//                                                    The ultimate is the payoff of a big hit, never of a jab: it is
+//                                                    offered after heavy, f+heavy, d+heavy and the skills (balance
+//                                                    pass, see src/fighters/BALANCE.md)
 //   light3 on hit or block -> skill1 / skill2         (the wave covers the -12 recovery on block)
 //   heavy on hit -> skill1, skill2, ult               (Furnace Sweep -> Fault Eruption launches)
-//   f+heavy on hit (crumple) -> d+heavy, heavy, skill1, skill2, ult
+//   f+heavy on hit (crumple) -> d+heavy, skill1, skill2, ult   (no heavy: the lunge also juggles, the sweep would whiff)
 //   d+heavy on hit (launch) -> skill1, skill2, ult    (the wave and the columns reach an airborne victim)
 //   skill1 on hit -> ult ;  skill2 on hit -> ult      (the leap-slash catches the juggled victim)
 //   e.g.  light1 > light2 > light3                                  3 hits, knockdown
@@ -79,7 +82,7 @@ export const def = {
   // Big armoured body: the most HP of the roster, pushed around a little less (weight > 1), but a wide hurtbox and
   // the slowest feet. Short dash, short backstep.
   stats: {
-    hp: 1100,
+    hp: 1230,
     fpMax: 100,
     ultMax: 100,
     guardMax: 100,
@@ -87,7 +90,7 @@ export const def = {
     backSpeed: 1.55,
     weight: 1.15,
     pushWidth: 0.44,
-    hurtWidth: 0.47,
+    hurtWidth: 0.52,   // the widest target of the roster (pauldrons, the blade across the body): weak to fast pressure
     height: 1.95,
   },
 
@@ -123,11 +126,11 @@ export const def = {
       hits: [{
         // diagonal down-right cut: from above the head down through the hip, out to the blade's tip
         t: [0.14, 0.19], box: { f: [0.35, 1.95], u: [0.45, 1.95] },
-        damage: 48, level: 'light', hitstun: 0.34, blockstun: 0.2, knockback: { x: 2.8, y: 0 }, hitstop: 0.065, guardDamage: 13,
+        damage: 51, level: 'light', hitstun: 0.34, blockstun: 0.2, knockback: { x: 2.8, y: 0 }, hitstop: 0.065, guardDamage: 13,
       }],
       cancels: [
         { t: [0.17, 0.4], on: 'light', into: 'light2' },
-        { t: [0.16, 0.36], into: ['vent', 'lunge', 'sweep', 'crescent', '@ult'], onHit: true },
+        { t: [0.16, 0.36], into: ['vent', 'lunge', 'sweep', 'crescent'], onHit: true },
       ],
       markers: [
         { t: 0, name: 'windup' },
@@ -147,11 +150,11 @@ export const def = {
       hits: [{
         // rising backhand: from the floor up past the head, the trail continues light1's arc
         t: [0.13, 0.18], box: { f: [0.3, 1.9], u: [0.15, 2.15] },
-        damage: 52, level: 'light', hitstun: 0.37, blockstun: 0.21, knockback: { x: 3.0, y: 0 }, hitstop: 0.065, guardDamage: 14,
+        damage: 55, level: 'light', hitstun: 0.37, blockstun: 0.21, knockback: { x: 3.0, y: 0 }, hitstop: 0.065, guardDamage: 14,
       }],
       cancels: [
         { t: [0.16, 0.42], on: 'light', into: 'light3' },
-        { t: [0.15, 0.38], into: ['vent', 'lunge', 'sweep', 'crescent', '@ult'], onHit: true },
+        { t: [0.15, 0.38], into: ['vent', 'lunge', 'sweep', 'crescent'], onHit: true },
       ],
       markers: [
         { t: 0, name: 'windup', data: { continues: 'light1' } },
@@ -171,7 +174,7 @@ export const def = {
       hits: [{
         // overhead into the floor: tall box down to the ground at the blade's full length
         t: [0.24, 0.29], box: { f: [0.3, 2.0], u: [0, 2.3] },
-        damage: 84, level: 'knockdown', knockback: { x: 5.5, y: 3.6 }, hitstop: 0.12, blockstun: 0.26, guardDamage: 24,
+        damage: 89, level: 'knockdown', knockback: { x: 5.5, y: 3.6 }, hitstop: 0.12, blockstun: 0.26, guardDamage: 24,
       }],
       // hit or block: the wave or the columns keep the -12 f recovery covered
       cancels: [{ t: [0.27, 0.42], into: ['crescent', 'eruption'], onContact: true }],
@@ -192,13 +195,13 @@ export const def = {
     sweep: {
       name: '용광로 휘두르기 · Furnace Sweep',
       duration: 0.86,
-      // hyper-armour through the wind-up: takes the damage of up to two hits without flinching (a fast multi-hit
-      // string still breaks it: Kael is weak to fast pressure)
-      armour: [{ t: [0.12, 0.32], hits: 2 }],
+      // hyper-armour through the wind-up: takes the damage of one hit without flinching. It eats a poke, but a fast
+      // multi-hit string breaks it: Kael is weak to fast pressure (balance pass: 2 hits made him beat Iska's strings)
+      armour: [{ t: [0.12, 0.32], hits: 1 }],
       hits: [{
         // full horizontal 300° spin: the arc starts behind him (catches cross-ups) and ends at the tip, waist to chest
         t: [0.32, 0.4], box: { f: [-0.6, 2.25], u: [0.3, 1.8] },
-        damage: 118, level: 'heavy', hitstun: 0.6, blockstun: 0.3, knockback: { x: 4.6, y: 0 }, hitstop: 0.12, guardDamage: 32,
+        damage: 125, level: 'heavy', hitstun: 0.6, blockstun: 0.3, knockback: { x: 4.6, y: 0 }, hitstop: 0.12, guardDamage: 32,
       }],
       cancels: [{ t: [0.36, 0.56], into: ['crescent', 'eruption', '@ult'], onHit: true }],
       markers: [
@@ -223,9 +226,10 @@ export const def = {
       hits: [{
         // the thrust at the end of the charge: chest height, the blade's full length
         t: [0.26, 0.34], box: { f: [0.3, 1.9], u: [0.7, 1.7] },
-        damage: 96, level: 'crumple', hitstun: 0.95, blockstun: 0.24, knockback: { x: 1.5, y: 0 }, hitstop: 0.12, guardDamage: 26,
+        damage: 102, level: 'crumple', hitstun: 0.95, blockstun: 0.24, knockback: { x: 1.5, y: 0 }, hitstop: 0.12, guardDamage: 26,
       }],
-      cancels: [{ t: [0.3, 0.54], into: ['vent', 'sweep', 'crescent', 'eruption', '@ult'], onHit: true }],
+      // (no heavy follow-up: the lunge is also a juggle tool, and the sweep whiffs on an airborne victim)
+      cancels: [{ t: [0.3, 0.54], into: ['vent', 'crescent', 'eruption', '@ult'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.06, name: 'charge', data: { vfx: 'magma streak', afterimage: true } },
@@ -244,7 +248,7 @@ export const def = {
       hits: [{
         // upward cut out of the floor: floor to well above the head
         t: [0.22, 0.3], box: { f: [0.25, 1.85], u: [0, 2.6] },
-        damage: 80, level: 'launch', knockback: { x: 1.2, y: 9 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
+        damage: 85, level: 'launch', knockback: { x: 1.2, y: 9 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
       }],
       cancels: [{ t: [0.28, 0.5], into: ['crescent', 'eruption', '@ult'], onHit: true }],
       markers: [
@@ -272,7 +276,7 @@ export const def = {
         t: 0.28, kind: 'ember.wave', offset: { f: 1.0, u: 0 }, box: { f: [-0.45, 0.45], u: [0, 2.2] },
         velocity: { x: 11, y: 0 }, lifetime: 0.85, durability: 1,
         data: { height: 2.2, scorch: true, cinders: true, impact: { vfx: 'fire flower', decal: 'slash', shake: 0.3 } },
-        hit: { damage: 76, level: 'heavy', hitstun: 0.5, blockstun: 0.26, knockback: { x: 3.6, y: 0 }, hitstop: 0.12, guardDamage: 22 },
+        hit: { damage: 81, level: 'heavy', hitstun: 0.5, blockstun: 0.26, knockback: { x: 3.6, y: 0 }, hitstop: 0.12, guardDamage: 22 },
       }],
       cancels: [{ t: [0.32, 0.62], into: ['@ult'], onHit: true }],
       markers: [
@@ -304,22 +308,22 @@ export const def = {
         {
           t: 0.4, kind: 'ember.column', offset: { f: 1.5, u: 0 }, box: { f: [-0.9, 0.9], u: [0, 2.8] },
           velocity: { x: 0.5, y: 0 }, delay: 0.04, lifetime: 0.16, pierce: true, clash: false, data: { index: 1, debris: true, ring: true },
-          hit: { damage: 52, level: 'launch', knockback: { x: 4, y: 8 }, hitstop: 0.15, blockstun: 0.22, guardDamage: 14, juggle: 0.5 },
+          hit: { damage: 55, level: 'launch', knockback: { x: 4, y: 8 }, hitstop: 0.15, blockstun: 0.22, guardDamage: 14, juggle: 0.5 },
         },
         {
           t: 0.4, kind: 'ember.column', offset: { f: 3.0, u: 0 }, box: { f: [-0.9, 0.9], u: [0, 2.8] },
           velocity: { x: 0.5, y: 0 }, delay: 0.12, lifetime: 0.16, pierce: true, clash: false, data: { index: 2, debris: true, ring: true },
-          hit: { damage: 46, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
+          hit: { damage: 49, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
         },
         {
           t: 0.4, kind: 'ember.column', offset: { f: 4.5, u: 0 }, box: { f: [-0.9, 0.9], u: [0, 2.8] },
           velocity: { x: 0.5, y: 0 }, delay: 0.2, lifetime: 0.16, pierce: true, clash: false, data: { index: 3, debris: true, ring: true },
-          hit: { damage: 46, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
+          hit: { damage: 49, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
         },
         {
           t: 0.4, kind: 'ember.column', offset: { f: 6.0, u: 0 }, box: { f: [-0.9, 0.9], u: [0, 2.8] },
           velocity: { x: 0.5, y: 0 }, delay: 0.28, lifetime: 0.16, pierce: true, clash: false, data: { index: 4, debris: true, ring: true, last: true },
-          hit: { damage: 46, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
+          hit: { damage: 49, level: 'launch', knockback: { x: 4, y: 7 }, hitstop: 0.06, blockstun: 0.18, guardDamage: 12, juggle: 0.5, scaleStep: 0.05 },
         },
       ],
       cancels: [{ t: [0.5, 0.9], into: ['@ult'], onHit: true }],

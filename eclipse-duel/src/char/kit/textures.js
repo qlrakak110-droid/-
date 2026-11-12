@@ -8,7 +8,8 @@
 //              mail: ring coverage; quilted: stitch lines)
 //
 // Generated once per page (deterministic: seeded RNG, pure JS, no canvas readback), shared by every character.
-// Size 512 (default) costs ~16 MB of GPU memory with mips; configureTextureSets({ size: 256 }) for the low tier.
+// Size 256 (default): ~0.4-0.5 s to generate on desktop, ~5.3 MB of GPU memory with mips. configureTextureSets({ size:
+// 512 }) before the first character for crisper cinematic close-ups (~2 s, ~21 MB).
 
 import * as THREE from 'three';
 import { makeRng } from '../../core/math.js';
@@ -19,9 +20,9 @@ export const SET_COUNT = 8;
 /** Default tiles per metre of each set (index = set id). */
 export const SET_SCALE = [0, 4.2, 3.4, 7.5, 9, 22, 6, 7.5, 6.5];
 /** Normal strength of each set (index = set id). */
-export const SET_BUMP = [0, 0.75, 0.75, 1.2, 1.0, 0.9, 0.8, 1.6, 1.1];
+export const SET_BUMP = [0, 0.55, 0.7, 1.2, 1.0, 0.6, 0.8, 1.6, 1.1];
 
-let config = { size: 512 };
+let config = { size: 256 };
 let cached = null;
 
 /** Choose the texture resolution before the first character is built (`size`: 256 | 512). */
@@ -258,23 +259,30 @@ function scratchSegs(N, rng, count, scale = 1) {
 
 // ---- sets --------------------------------------------------------------------------------------------------------------
 
-/** 1 hammered plate steel: overlapping hammer dents, fine grain, scratches. */
+/**
+ * 1 hammered plate steel: small planishing-hammer facets that come and go in patches (most of a plate reads smooth and
+ * forged, not crumpled), directional polish streaks and smudges in the roughness, fine grain, scratches.
+ */
 function hammered(N, rng) {
   const s = N / 512;
-  const w1 = worley(N, 13, rng), w2 = worley(N, 24, rng);
+  const w1 = worley(N, 20, rng), w2 = worley(N, 36, rng);
   const grain = fbm(N, 64, 3, rng), mott = fbm(N, 4, 4, rng, 0.55), wear = fbm(N, 8, 5, rng, 0.6);
+  const patch = fbm(N, 4, 3, rng, 0.5), smudge = fbm(N, 8, 3, rng, 0.55);
+  const polish = vnoiseAniso(N, 4, 128, rng), polish2 = vnoiseAniso(N, 8, 256, rng);
   const scr = new Float32Array(N * N);
   lines(scr, N, scratchSegs(N, rng, 320));
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hb = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) {
-    const d1 = Math.min(1, w1.f1[i] * 1.25), d2 = Math.min(1, w2.f1[i] * 1.25);
-    const dent = d1 * d1 * 0.42 + d2 * d2 * 0.2;            // bowls: low centre, ridges between dents
-    h[i] = dent * 0.9 + grain[i] * 0.08 - scr[i] * 0.12;
-    hb[i] = dent * 0.8;
-    alb[i] = 0.5 + (mott[i] - 0.5) * 0.5 + (w1.id[i] - 0.5) * 0.08 + scr[i] * 0.18;
-    rough[i] = 0.5 + (mott[i] - 0.5) * 0.35 + (grain[i] - 0.5) * 0.25 + scr[i] * 0.22 - dent * 0.05;
+    const d1 = Math.min(1, w1.f1[i] * 1.2), d2 = Math.min(1, w2.f1[i] * 1.2);
+    const vis = 0.25 + 0.75 * sstep(0.38, 0.72, patch[i]);   // hammered patches vs planished areas
+    const dent = (d1 * d1 * 0.15 + d2 * d2 * 0.07) * vis;   // shallow facets: low centre, faint ridges between dents
+    const streak = (polish[i] - 0.5) * 0.7 + (polish2[i] - 0.5) * 0.3;
+    h[i] = dent + grain[i] * 0.05 - scr[i] * 0.1;
+    hb[i] = dent * 2.2;
+    alb[i] = 0.5 + (mott[i] - 0.5) * 0.45 + (w1.id[i] - 0.5) * 0.05 * vis + scr[i] * 0.16 - sstep(0.55, 0.8, smudge[i]) * 0.08;
+    rough[i] = 0.5 + (mott[i] - 0.5) * 0.25 + streak * 0.32 + (grain[i] - 0.5) * 0.15 + scr[i] * 0.22 + sstep(0.5, 0.8, smudge[i]) * 0.18;
   }
-  return pack(N, alb, rough, hb, wear, h, 1.9 * s, null);
+  return pack(N, alb, rough, hb, wear, h, 1.6 * s, null);
 }
 
 /** 2 scorched / fire-blackened plate: soot flakes, pitting, warped crack network (mask), heat halo (proximity). */
@@ -311,7 +319,7 @@ function scorched(N, rng) {
     const d = Math.min(1, dent.f1[i] * 1.2);
     const pit = (1 - sstep(0.0, 0.1, pits.f1[i])) * sstep(0.62, 0.75, pitKeep[i]);
     const flake = sstep(0.5, 0.62, soot[i]);
-    h[i] = d * d * 0.2 + grain[i] * 0.08 - pit * 0.18 - Math.min(1, halo2[i] * 2.5) * 0.42 - scr[i] * 0.06 + flake * 0.05;
+    h[i] = d * d * 0.09 + grain[i] * 0.07 - pit * 0.18 - Math.min(1, halo2[i] * 2.5) * 0.42 - scr[i] * 0.06 + flake * 0.05;
     hb[i] = Math.pow(halo[i], 0.8);
     alb[i] = 0.5 + (soot[i] - 0.5) * 0.7 - flake * 0.12 - pit * 0.15 + scr[i] * 0.12;
     rough[i] = 0.5 + flake * 0.25 + (grain[i] - 0.5) * 0.2 + pit * 0.2 - scr[i] * 0.05;
@@ -441,7 +449,7 @@ function cloth(N, rng) {
       h[k] = v * 0.85 + (fib - 0.5) * 0.18;
       gap[k] = 1 - sstep(0.05, 0.35, v);
       const tv = warpTop ? warpV[i] : weftV[j];
-      alb[k] = 0.5 + (tv - 0.5) * 0.22 + (fib - 0.5) * 0.25 + (mott[k] - 0.5) * 0.35 - gap[k] * 0.25;
+      alb[k] = 0.5 + (tv - 0.5) * 0.16 + (fib - 0.5) * 0.2 + (mott[k] - 0.5) * 0.45 - gap[k] * 0.12;
       rough[k] = 0.55 + (fib - 0.5) * 0.2 + gap[k] * 0.2;
     }
   }
@@ -487,9 +495,9 @@ function mail(N, rng) {
   const h = new Float32Array(N * N).fill(-1), cov = new Float32Array(N * N), id = new Float32Array(N * N);
   const ro = sp * 0.62, wid = sp * 0.15;
   for (let row = 0; row < R * 2; row++) {
-    const cy0 = (row + 0.5) * sp * 0.5, off = (row & 1) * sp * 0.5, tilt = row & 1 ? 1 : -1, ringId = rng;
+    const cy0 = (row + 0.5) * sp * 0.5, off = (row & 1) * sp * 0.5, tilt = row & 1 ? 1 : -1;
     for (let col = 0; col < R; col++) {
-      const cx0 = (col + 0.5) * sp + off, rid = ringId();
+      const cx0 = (col + 0.5) * sp + off, rid = rng();
       const base = (row % 2) * 0.12;
       for (let y = Math.floor(cy0 - ro - wid - 2); y <= Math.ceil(cy0 + ro + wid + 2); y++) {
         for (let x = Math.floor(cx0 - ro - wid - 2); x <= Math.ceil(cx0 + ro + wid + 2); x++) {

@@ -7,7 +7,7 @@
 
 import * as THREE from 'three';
 import { fnOf } from '../shapes.js';
-import { plate, sweep, lathe, extrude, strip, studs, onSurface, merge, circle, rrect, curve, occlude, mk, fixWinding, autoCav } from './geo.js';
+import { plate, sweep, lathe, extrude, strip, studs, onSurface, merge, circle, rrect, curve, mk, fixWinding, autoCav } from './geo.js';
 
 const DEG = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -88,18 +88,20 @@ export function sweepPlate(o) {
 
 /**
  * Dome / cop (elbow, knee, rivet boss, pommel cap): lathe of a thick shell around +Y.
- * o: r (rim radius), h (height), thick=0.006, rim=0 (rolled bead radius), segs=20, sx / sz (scale), lip=0 (rim flare)
+ * o: r (rim radius), h (height), thick=0.006, rim=0 (rolled bead radius), segs=20, sx / sz (scale), lip=0 (rim flare),
+ *    point=0 (> 0: ogival profile y = h (1 - sin a)^point, a pointed cop; 0.8-1.0 typical)
  */
 export function dome(o) {
   const r = o.r ?? 0.06, h = o.h ?? 0.04, t = o.thick ?? 0.006, rim = o.rim ?? 0, lip = o.lip ?? 0;
   const prof = [];
-  const K = 6;
-  for (let k = 0; k <= K; k++) { const a = (k / K) * (Math.PI / 2); prof.push([r * Math.sin(a) + lip * Math.pow(k / K, 6), h * Math.cos(a)]); }
+  const K = 6, prof0 = (a) => (o.point ? h * Math.pow(1 - Math.sin(a), o.point) : h * Math.cos(a));
+  for (let k = 0; k <= K; k++) { const a = (k / K) * (Math.PI / 2); prof.push([r * Math.sin(a) + lip * Math.pow(k / K, 6), prof0(a)]); }
   const rb = Math.max(rim, t * 0.6);
   const [er, ey] = prof[prof.length - 1];
   for (let k = 1; k <= 4; k++) { const a = (k / 4) * Math.PI; prof.push([er + Math.sin(a) * rb, ey - rb + Math.cos(a) * rb]); }
-  for (let k = K; k >= 0; k--) { const a = (k / K) * (Math.PI / 2); prof.push([(r - t) * Math.sin(a) + lip * Math.pow(k / K, 6), (h - t) * Math.cos(a) - rb * 2 * (k / K)]); }
-  const g = lathe(prof.map(([x, y]) => [x, y]), { segs: o.segs ?? 20 });
+  for (let k = K; k >= 0; k--) { const a = (k / K) * (Math.PI / 2); prof.push([(r - t) * Math.sin(a) + lip * Math.pow(k / K, 6), prof0(a) * (h - t) / h - rb * 2 * (k / K)]); }
+  // walk inner apex -> inner arc -> rim bead -> outer arc -> outer apex: the outside is always on the right
+  const g = lathe(prof.slice().reverse(), { segs: o.segs ?? 20, auto: false });
   const C = g.attributes.cav.array, P = g.attributes.position.array;
   for (let i = 0; i < C.length; i++) if (P[i * 3 + 1] < ey - rb * 1.2) C[i] = Math.min(C[i], 0.45);
   if (o.sx || o.sz) g.scale(o.sx ?? 1, 1, o.sz ?? 1);
@@ -276,19 +278,22 @@ export function gorget(o = {}) {
  * the outside of the arm (hoops around the arm's Y axis, open toward the body), optional standing haute-piece.
  * o: R=0.115 (cap radius), cy=0.012, cz=-0.008 (cap centre), tilt=32 (deg outward), elong=1.18 (front-back), cover=74
  *    (deg, cap rim), lames=3, lameH=0.052, lameStep=0.04, flare=0 (over-plate flare, m), haute=0 (height), nu, nv
- * Returns { cop, boss, over, lames: [...], haute, rivets, copS }
+ * Returns { cop, boss, over, trim (engraved band on the over-plate), lames: [...], haute, rivets, copS }
  */
 export function pauldron(o = {}) {
   const R = o.R ?? 0.115, cy = o.cy ?? 0.012, cz = o.cz ?? -0.008;
   const tilt = (o.tilt ?? 32) * DEG, ex = o.elong ?? 1.18, th0 = 0.09, th1 = (o.cover ?? 74) * DEG;
   const out = { lames: [] };
   // cap frame: axis d = up tilted outward (+Z), e1 = +X (front), e2 = d x e1
-  const d = [0, Math.cos(tilt), Math.sin(tilt)], e1 = [1, 0, 0], e2 = [0, d[2], -d[1]];
-  const cap = (Rf, phiA, phiB, thA, thB, flare = 0, drop = 0) => (u, v) => {
-    const ph = lerp(phiA, phiB, u) * DEG, th = lerp(thA, thB, v);
-    // neck side (e2 negative = toward -Z?) sits lower and tighter; outer side drops further (drop)
-    const side = Math.sin(ph);                          // +1 outward-down side, -1 neck side
-    const r = Rf + flare * v * v * Math.max(0, 0.4 + 0.6 * side);
+  const d = [0, Math.cos(tilt), Math.sin(tilt)], e1 = [1, 0, 0], e2 = [0, -d[2], d[1]];
+  // ridges: azimuths (deg) of raised radial ridges; lap(phi) -> extra rim angle (rad): pointed lappets
+  const cap = (Rf, phiA, phiB, thA, thB, flare = 0, drop = 0, ridges = [], lap = null) => (u, v) => {
+    const phd = lerp(phiA, phiB, u), ph = phd * DEG;
+    const th = lerp(thA, thB + (lap ? lap(phd) : 0), v);
+    // e2 points outward-down: side +1 = outer side (drops further), -1 = neck side
+    const side = Math.sin(ph);
+    let r = Rf + flare * v * v * Math.max(0, 0.4 + 0.6 * side);
+    for (const rg of ridges) { const q = Math.abs(phd - rg) / 9; if (q < 1) r += (o.ridgeH ?? 0.007) * Math.pow(1 - q, 1.3) * sstep(0.02, 0.35, v); }
     const thx = th * (1 + drop * Math.max(0, side) * v);
     const s = Math.sin(thx) * r, c = Math.cos(thx) * r;
     const a = Math.cos(ph) * s * ex, b = side * s;
@@ -305,12 +310,18 @@ export function pauldron(o = {}) {
   boss.translate(d[0] * R * Math.cos(th0) * 0.985, cy + d[1] * R * Math.cos(th0) * 0.985, cz + d[2] * R * Math.cos(th0) * 0.985);
   out.boss = boss;
   if (o.flare) {
-    // over-plate: wing over the outer half, flaring out over the lames
-    out.over = plate(cap(R + 0.014, -150, 150, 0.32, th1 + 0.12, o.flare, 0.18), {
-      nu: o.nu ?? 22, nv: 7, thick: 0.008, edgeR: 0.0065, roll: { v1: 0.0075, v0: 0.005 }, inner: true,
+    // over-plate: wing over the outer half with three forged ridges, flaring into pointed lappets over the lames
+    const rg = [12, 90, 168], A0 = -48, A1 = 228;
+    const lap = (phd) => { let k = 0; for (const c of [30, 90, 150]) k = Math.max(k, Math.pow(Math.max(0, 1 - Math.abs(phd - c) / 26), 1.6)); return 0.16 * k; };
+    out.over = plate(cap(R + 0.014, A0, A1, 0.3, th1 + 0.1, o.flare, 0.2, rg, lap), {
+      nu: o.nu ?? 26, nv: 7, thick: 0.008, edgeR: 0.0065, roll: { v1: 0.0072, v0: 0.005 }, inner: true,
+      creaseU: rg.map((x) => (x - A0) / (A1 - A0)), ridgeWear: 0.9,
       out: (p) => [p[0], p[1] - cy, p[2] - cz],
       occ: (u, v) => 0.8 + 0.2 * sstep(0.0, 0.3, v),
     });
+    const band = [];
+    for (let i = 0; i <= 40; i++) band.push([0.02 + (i / 40) * 0.96, 0.8]);
+    out.trim = strip(out.over.userData, band, { width: 0.016, lift: 0.0012, bead: 0.0012, smooth: 2 });
   }
   // lames: hoops around the arm, open toward the body (a ~ 270 = -Z), stepping down and out
   const nL = o.lames ?? 3, LH = o.lameH ?? 0.052, LS = o.lameStep ?? 0.04;
@@ -320,18 +331,20 @@ export function pauldron(o = {}) {
       y0, y1: y0 - LH, a0: -70, a1: 250,
       rx: [[0, rr * 0.94], [1, rr * 0.97 + 0.004]], rz: [[0, rr], [1, rr + 0.007]], ox: -0.002, oz: 0.008 + 0.002 * k, n: 2.1,
       bot: (a) => -0.012 * Math.pow(Math.max(0, Math.sin(a * DEG)), 2),
-      nu: 18, nv: 2, thick: 0.006, edgeR: 0.0045, roll: { v1: 0.0045 },
+      nu: o.lameNu ?? 14, nv: 2, thick: 0.006, edgeR: 0.0045, roll: { v1: 0.0045 },
       occ: (u, v) => 0.58 + 0.42 * sstep(0.15, 0.6, v),
     }));
   }
-  // haute-piece: standing neck guard rising from the cap's neck-side rim, flaring outward at the top
+  // haute-piece: standing fin at the neck side of the cap (broad face toward the side: solid in silhouette), its top
+  // edge sweeping up toward the back like a flame
   if (o.haute) {
-    const H = o.haute, base = cap(R, -180, 180, th0, th1, 0, 0.12);
+    const H = o.haute, L0 = -R * 0.95, L1 = R * 0.8;
+    const y0 = cy + R * 0.55, z0 = cz - R * 0.42;
     out.haute = plate((u, v) => {
-      const p = base(lerp(0.62, 0.88, u), 0.72);
-      const e = 2 * u - 1, hgt = H * Math.pow(Math.max(0, 1 - e * e), 0.45) * (1 - 0.2 * e);
-      return [p[0], p[1] + v * hgt, p[2] - 0.01 + 0.022 * v * v];
-    }, { nu: 14, nv: 4, thick: 0.007, edgeR: 0.0055, roll: { v1: 0.0065 }, out: () => [0, 0, -1], edge: { v0: 'none' } });
+      const x = lerp(L1, L0, u);
+      const hgt = H * (0.35 + 0.65 * Math.pow(Math.sin(Math.PI * Math.min(1, u * 1.15)), 0.7)) * (0.7 + 0.45 * u);
+      return [x, y0 + v * hgt - 0.02 * Math.pow(2 * u - 1, 2), z0 + 0.02 * v * v - 0.012 * (1 - v) * Math.pow(2 * u - 1, 2)];
+    }, { nu: 14, nv: 4, thick: 0.008, edgeR: 0.006, roll: { v1: 0.0065 }, out: () => [0, 0, -1], edge: { v0: 'none' } });
   }
   const ruv = [];
   for (let i = 0; i < 9; i++) ruv.push([o.flare ? 0.12 + i * 0.095 : i / 9, 0.86]);
@@ -351,17 +364,18 @@ export function rerebrace(o = {}) {
   });
 }
 
-/** Couter (elbow frame): cop + fan wing on the outside + two articulation lames. Returns { cop, wing, lames } */
+/** Couter (elbow frame): cop over the point of the elbow (-X), fan wing on the outside, lames tucked behind the cop. */
 export function couter(o = {}) {
   const r = o.r ?? 0.062;
-  const cop = dome({ r, h: r * 0.9, thick: 0.006, rim: 0.0045, segs: 16, lip: 0.004 });
+  const cop = dome({ r: r * 0.92, h: r * 0.8, thick: 0.006, rim: 0.0045, segs: 16, lip: 0.005, sz: 1.08, point: 0.85 });
   cop.rotateZ(90 * DEG); // dome axis +Y -> -X (point of the elbow toward the back)
-  cop.translate(-0.004, 0, 0);
+  cop.translate(-0.026, 0, 0);
+  // wing on the outside (+Z), fanning toward the inner crook of the elbow
   const wing = fan({ r0: 0.01, r1: o.wing ?? 0.072, a0: -75, a1: 80, cup: 0.014, flutes: 5, fluteH: 0.0032, scallop: 0.006 });
-  wing.translate(-0.012, 0, r * 0.62);
+  wing.translate(-0.03, 0, r * 0.74);
   const lames = [];
-  for (const [y0, y1] of [[0.065, 0.028], [-0.03, -0.068]]) {
-    lames.push(hoop({ y0, y1, closed: true, rx: r * 0.98, rz: r, n: 2.1, nu: 18, nv: 1, thick: 0.005, edgeR: 0.0035 }));
+  for (const [y0, y1] of [[0.072, 0.036], [-0.036, -0.072]]) {
+    lames.push(hoop({ y0, y1, closed: true, rx: r * 0.9, rz: r * 0.92, n: 2.1, nu: 18, nv: 1, thick: 0.005, edgeR: 0.0035 }));
   }
   return { cop, wing, lames };
 }
@@ -373,7 +387,7 @@ export function vambrace(o = {}) {
     y0: o.y0 ?? 0.12, y1: o.y1 ?? -0.11, closed: true,
     rx: [[0, r * 0.98], [0.35, r * 1.02], [0.85, r * 0.84], [1, r * 0.9]],
     rz: [[0, r * 1.04], [0.35, r * 1.08], [0.85, r * 0.88], [1, r * 0.95]],
-    n: 2.15, nu: 22, nv: 6, thick: 0.006, edgeR: 0.0045, roll: { v0: 0.005 },
+    n: 2.15, nu: 18, nv: 6, thick: 0.006, edgeR: 0.0045, roll: { v0: 0.005 },
     ridge: { at: 90, h: 0.007, w: 22 },
     top: (a) => 0.018 * Math.pow(Math.max(0, Math.sin(a * DEG)), 2),
   });
@@ -424,23 +438,26 @@ export function cuisse(o = {}) {
   return hoop({
     y0: o.y0 ?? -0.03, y1: o.y1 ?? -0.39, a0: -112, a1: 128,
     rx: [[0, r * 1.02], [0.5, r * 0.94], [1, r * 0.8]], rz: [[0, r * 1.04], [0.5, r * 0.95], [1, r * 0.8]], ox: 0.006, n: 2.15,
-    nu: 22, nv: 7, thick: 0.007, edgeR: 0.005, roll: { v0: 0.0055 },
+    nu: 18, nv: 7, thick: 0.007, edgeR: 0.005, roll: { v0: 0.0055 },
     ridge: { at: 8, h: 0.008, w: 20 },
     top: (a) => 0.03 * Math.pow(Math.max(0, Math.sin(a * DEG)), 2) - 0.02 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
   });
 }
 
-/** Poleyn (knee frame): cop + side wing + articulation lames. Returns { cop, wing, lames } */
+/** Poleyn (knee frame): pointed cop standing proud of the knee, side wing fanning back, lames tucked behind the cop. */
 export function poleyn(o = {}) {
   const r = o.r ?? 0.074;
-  const cop = dome({ r, h: r * 0.82, thick: 0.007, rim: 0.005, segs: 16, lip: 0.005 });
+  const cop = dome({ r: r * 0.9, h: r * 0.82, thick: 0.007, rim: 0.0055, segs: 16, lip: 0.006, sz: 1.12, point: 0.85 });
   cop.rotateZ(-90 * DEG); // axis +Y -> +X (front of the knee)
-  cop.translate(0.02, 0, 0);
-  const wing = fan({ r0: 0.012, r1: o.wing ?? 0.085, a0: -80, a1: 80, cup: 0.016, flutes: 5, fluteH: 0.0034, scallop: 0.007 });
-  wing.translate(-0.005, 0, r * 0.66);
+  cop.translate(0.032, 0, 0);
+  // wing on the outside (+Z): hinged near the cop, fanning toward the back of the knee
+  const wing = fan({ r0: 0.012, r1: o.wing ?? 0.085, a0: 100, a1: 255, cup: 0.016, flutes: 5, fluteH: 0.0034, scallop: 0.007 });
+  wing.translate(0.03, 0, r * 0.78);
   const lames = [];
-  for (const [y0, y1, k] of [[0.08, 0.035, 1], [-0.03, -0.075, -1]]) {
-    lames.push(hoop({ y0, y1, a0: -115, a1: 125, rx: r * 1.12, rz: r * 1.06, ox: 0.008, n: 2.1, nu: 16, nv: 1, thick: 0.006, edgeR: 0.0045 }));
+  for (const [y0, y1, k] of [[0.085, 0.045, 1], [-0.04, -0.08, -1]]) {
+    lames.push(hoop({ y0, y1, a0: -105, a1: 115, rx: r * 0.98, rz: r * 0.98, ox: 0.004, n: 2.1, nu: 16, nv: 1, thick: 0.006, edgeR: 0.0045,
+      bot: (a) => (k > 0 ? -0.012 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2) : 0),
+      top: (a) => (k < 0 ? 0.012 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2) : 0) }));
   }
   return { cop, wing, lames };
 }
@@ -454,38 +471,73 @@ export function greave(o = {}) {
     rz: [[0, r * 0.96], [0.28, r * 1.02], [0.75, r * 0.8], [1, r * 0.84]],
     ox: [[0, -0.004], [0.3, -0.012], [1, 0.002]],
     bulge: (u, v) => 0.012 * Math.pow(Math.max(0, -Math.cos((u * 360 - 180) * DEG)), 2) * Math.sin(Math.PI * clamp(v * 1.3, 0, 1)),
-    n: 2.1, nu: 24, nv: 8, thick: 0.006, edgeR: 0.0045, roll: { v0: 0.005 },
+    n: 2.1, nu: 20, nv: 7, thick: 0.006, edgeR: 0.0045, roll: { v0: 0.005 },
     ridge: { at: 0, h: 0.009, w: 22 },
     bot: (a) => 0.012 * Math.pow(Math.max(0, Math.cos(a * DEG)), 2),
   });
 }
 
-/** Sabaton (foot / toe frames): overlapping lames along the foot + pointed toe cap. Returns { lames, toe, sole } */
+/**
+ * Sabaton (foot / toe frames) fitted to the rig's foot: arched lames over the instep, each tucked under the one behind
+ * (rolled front edges, medial ridge), a heel cup, a ridged toe cap tapering to a prow point on the toe bone, and thin
+ * leather soles following the foot outline (the plates stand on them: nothing overhangs, nothing dips under the floor).
+ * Returns { lames (foot), heel (foot), toe (toe), sole (foot), toeSole (toe) }. ~1k triangles per foot.
+ * o: P (rig proportions: ankleHeight, footLength, footDrop, toeLength, heelLength; default rig when omitted),
+ *    width=0.046 (half width at the ball), count=3 (lames), point=0.55 (toe: 0 round .. 1 sharp prow), ridge=0.004,
+ *    scale=1 (multiplies the widths and heights of the plates; the lengths follow P)
+ */
 export function sabaton(o = {}) {
+  const P = o.P || {};
+  const AH = P.ankleHeight ?? 0.085, FL = P.footLength ?? 0.135, FD = P.footDrop ?? 0.055, TL = P.toeLength ?? 0.08, HL = P.heelLength ?? 0.065;
+  const k = o.scale ?? 1, W = (o.width ?? 0.046) * k, n = o.count ?? 3, pt = o.point ?? 0.55, rH = (o.ridge ?? 0.004) * k;
+  const ST = 0.01;                                           // sole thickness
+  const yb = -AH + ST;                                       // top of the sole (foot frame): the plates stand on it
+  const top = (x) => lerp(0.012 * k, -FD + 0.03 * k, sstep(-0.01, FL + 0.01, x)); // instep line (foot frame)
+  const half = (x) => lerp(W * 0.92, W, sstep(0, FL, x));
+  // cross-section: superellipse arch on the sole, t in [-1, 1] (-1 = inside -Z, +1 = outside +Z), medial ridge at t = 0
+  const arch = (x, t, base, h, w, off) => {
+    const a = t * Math.PI / 2, c = Math.cos(a), s = Math.sin(a), e = 2 / 2.7;
+    const ridge = rH * Math.max(0, 1 - Math.abs(t) / 0.22) * sstep(0, 0.1, h);
+    return [x, base + (h + off + ridge) * Math.pow(Math.abs(c), e), (w + off) * Math.sign(s) * Math.pow(Math.abs(s), e)];
+  };
+  const out = (base) => (p) => [0, p[1] - base, p[2]];
   const lames = [];
-  for (let k = 0; k < 4; k++) {
-    const x0 = -0.01 + k * 0.034, r = 0.072 - k * 0.008;
-    lames.push(sweepPlate({
-      x0, x1: x0 + 0.046, al0: -95, al1: 95, r: [[0, r], [1, r]], taper: 0, cy: -0.05, cz: 0,
-      nu: 2, nv: 8, thick: 0.005, edgeR: 0.0035,
-      occ: (u) => 0.65 + 0.35 * sstep(0.1, 0.6, u),
+  const xa = 0.0, xb = FL - 0.03, step = (xb - xa) / n;
+  for (let j = 0; j < n; j++) {
+    const x0 = xa + j * step, x1 = x0 + step + 0.014, off = 0.003 * (n - 1 - j) + 0.0015;
+    lames.push(plate((u, v) => { const x = lerp(x0, x1, v); return arch(x, u * 2 - 1, yb, top(x) - yb, half(x), off); }, {
+      nu: 8, nv: 1, thick: 0.004, edgeR: 0.003, edgeSegs: 2, roll: { v1: 0.0026 }, rollSegs: 4, creaseU: [0.5], out: out(yb),
+      occ: (u, v) => 0.6 + 0.4 * sstep(0.0, 0.7, v),
     }));
   }
-  const toe = sweepPlate({
-    x0: -0.012, x1: 0.1, al0: -96, al1: 96, r: [[0, 0.05], [1, 0.05]], taper: 0, cy: -0.026, cz: 0,
-    nu: 6, nv: 10, thick: 0.005, edgeR: 0.0035,
+  // heel cup: back half-hoop around the heel, rolled top edge
+  const heel = hoop({
+    y0: top(0) - 0.02 * k, y1: yb + 0.001, a0: 92, a1: 268, rx: [[0, HL * 0.78], [1, HL * 0.86]], rz: [[0, W * 0.86], [1, W * 0.94]], ox: -0.004, n: 2.3,
+    nu: 8, nv: 2, thick: 0.004, edgeR: 0.003, edgeSegs: 2, roll: { v0: 0.0026 }, rollSegs: 4,
   });
-  // taper the toe to a blunt point
-  {
-    const P = toe.attributes.position.array;
-    for (let i = 0; i < P.length; i += 3) {
-      const t = clamp((P[i] + 0.012) / 0.112, 0, 1), k = 1 - 0.72 * Math.pow(t, 1.6);
-      P[i + 1] = -0.026 + (P[i + 1] + 0.026) * k - 0.012 * t * t; P[i + 2] *= k;
-    }
-    toe.computeVertexNormals();
-    autoCav(toe);
-  }
-  return { lames, toe };
+  // toe cap (toe frame): from under the last lame to a prow point past the toe tip
+  const ytb = -(AH - FD) + ST, xs = xb + 0.008 - FL, xt = TL + 0.008;
+  const h0 = top(FL) + FD - ytb;
+  const toe = plate((u, v) => {
+    const x = lerp(xs, xt, v), q = clamp((x - TL * 0.15) / (xt - TL * 0.15), 0, 1);
+    const round = Math.sqrt(Math.max(0, 1 - q * q)), taper = lerp(round, 1 - q, pt);
+    const h = h0 * lerp(1, 0.42, sstep(xs, xt, x)) * lerp(1, Math.max(taper, 0.25), 0.6);
+    return arch(x, u * 2 - 1, ytb, h, W * Math.max(taper, 0.004), 0.0012);
+  }, { nu: 8, nv: 4, thick: 0.004, edgeR: 0.003, edgeSegs: 2, creaseU: [0.5], out: out(ytb), occ: (u, v) => 0.7 + 0.3 * sstep(0, 0.3, v) });
+  // soles: thin, following the outline (+3 mm lip), heel block
+  const outline = (x0, x1, wf, m) => {
+    const L = [], R = [];
+    for (let i = 0; i <= m; i++) { const x = lerp(x0, x1, i / m), w = wf(x); L.push([x, -w]); R.push([x, w]); }
+    return [...L, ...R.reverse()];
+  };
+  const sole = extrude(outline(-HL * 0.9, FL - 0.004, (x) => (x < -HL * 0.45 ? half(0) * 0.8 * Math.sqrt(Math.max(0.15, 1 - ((x + HL * 0.45) / (HL * 0.45)) ** 2)) : half(x)) + 0.003, 5), { depth: ST, bevel: 0.0025, bevelSegs: 1 });
+  sole.rotateX(-90 * DEG); sole.translate(0, -AH + ST / 2, 0);
+  const toeSole = extrude(outline(-0.004, xt - 0.004, (x) => {
+    const q = clamp((x - TL * 0.15) / (xt - TL * 0.15), 0, 1);
+    return W * Math.max(0.12, lerp(Math.sqrt(Math.max(0, 1 - q * q)), 1 - q, pt)) + 0.003;
+  }, 4), { depth: ST, bevel: 0.0025, bevelSegs: 1 });
+  toeSole.rotateX(-90 * DEG); toeSole.translate(0, -(AH - FD) + ST / 2, 0);
+  return { lames, heel, toe, sole, toeSole };
 }
 
 // ---- belts, straps, buckles, rivets ----------------------------------------------------------------------------------------
@@ -565,7 +617,8 @@ export function inlayLine(plateGeo, uvPts, o = {}) {
  * breaths, back plate, forged crest. Returns named geometries:
  * { crown, brow, face, back, slit (dark recess), eye (glow strip), crest, breaths, rivets, skirt }
  * o: rx=0.128, rz=0.112 (max half depth / width), top=0.29 (crown apex y), bottom=-0.07, slitY=0.075 (centre), slitH=0.016,
- *    crest=true (fin), crestH=0.05, prow=0.022 (face ridge height), flare=0.016 (skirt flare)
+ *    crest=true (fin), crestH=0.05, prow=0.022 (face ridge height), prowW=18 (deg half width of the
+ *    keel: 40-50 = two angled cheek planes), muzzle=0 (m, forward swell over the mouth), flare=0.016 (skirt flare)
  */
 export function greatHelm(o = {}) {
   const rx = o.rx ?? 0.128, rz = o.rz ?? 0.112, top = o.top ?? 0.29, bottom = o.bottom ?? -0.07;
@@ -583,11 +636,11 @@ export function greatHelm(o = {}) {
     return rz * (1 - 0.05 * t * t) + flare * 0.8 * Math.pow(t, 4);
   };
   const N = (y) => (y > 0.13 ? 2.2 : y > sy ? 2.0 : 1.62);
-  const ridgeK = (a, h) => h * Math.pow(Math.max(0, 1 - Math.abs(a) / 18), 1.5);
-  const P = (a, y, grow = 0, ridge = 0) => {
+  const ridgeK = (a, h, w = 18) => h * Math.pow(Math.max(0, 1 - Math.abs(a) / w), 1.5);
+  const P = (a, y, grow = 0, ridge = 0, rw = 18) => {
     const ar = a * DEG;
     const [x, z] = se(ar, Math.max(1e-4, RX(y) + grow), Math.max(1e-4, RZ(y) + grow), N(y));
-    const rr = Math.hypot(x, z) || 1, k = (ridgeK(((a + 540) % 360) - 180, ridge)) / rr;
+    const rr = Math.hypot(x, z) || 1, k = (ridgeK(((a + 540) % 360) - 180, ridge, rw)) / rr;
     return [ox * (y > 0.13 ? 1 - (y - 0.13) / (top - 0.13) * 0.5 : 1) + x * (1 + k), y, z * (1 + k)];
   };
   const out = {};
@@ -604,11 +657,12 @@ export function greatHelm(o = {}) {
     p[1] += 0.008 * Math.pow(Math.max(0, Math.cos(a * DEG)), 6) * (1 - v);
     return p;
   }, { nu: 28, nv: 3, thick: 0.008, edgeR: 0.0055, roll: { v1: 0.0055 }, creaseU: [0.5], axis: [ox, 0] });
-  // face plate: below the slit, prow ridge (crease), flares into the skirt
-  const yf0 = sy - sh * 0.5 - 0.002;
+  // face plate: below the slit, prow ridge (crease) between two angled cheek planes (prowW = their half angle: wider =
+  // a keeled, faceted face instead of a flat front), the muzzle swelling forward over the mouth, flaring into the skirt
+  const yf0 = sy - sh * 0.5 - 0.002, pw = o.prowW ?? 18, muzzle = o.muzzle ?? 0;
   out.face = plate((u, v) => {
     const a = lerp(-112, 112, u), y = lerp(yf0, bottom, v);
-    const p = P(a, y, 0.004, prow * (0.6 + 0.4 * Math.sin(Math.PI * clamp(v * 0.9 + 0.1, 0, 1))));
+    const p = P(a, y, 0.004 + muzzle * Math.sin(Math.PI * clamp(v * 1.1, 0, 1)) * Math.pow(Math.max(0, Math.cos(a * DEG)), 2), prow * (0.6 + 0.4 * Math.sin(Math.PI * clamp(v * 0.9 + 0.1, 0, 1))), pw);
     return p;
   }, { nu: 28, nv: 9, thick: 0.008, edgeR: 0.005, roll: { v1: 0.006 }, creaseU: [0.5], axis: [ox, 0] });
   // back plate: from the slit height down to the nape, behind the face plate edges
@@ -623,13 +677,13 @@ export function greatHelm(o = {}) {
   }, { nu: 20, nv: 1, thick: 0, axis: [ox, 0] });
   // eye glow: a thin strip deeper in the slit (glowing), with a vertical breath slot below the centre
   out.eye = plate((u, v) => {
-    const a = lerp(-62, 62, u), y = lerp(sy + sh * 0.22, sy - sh * 0.22, v);
+    const a = lerp(-62, 62, u), y = lerp(sy + sh * 0.3, sy - sh * 0.3, v);
     return P(a, y, -0.0085, 0);
   }, { nu: 16, nv: 1, thick: 0, axis: [ox, 0] });
   // breaths: dark round holes (inset discs with a lip) in a flame-shaped cluster on both cheeks
   const br = [];
   const fS = out.face.userData;
-  const hole = lathe([[0.0, -0.0015], [0.0032, -0.0015], [0.0034, 0.0003], [0.0046, 0.0004], [0.0048, 0.0]], { segs: 8, hard: [1] });
+  const hole = lathe([[0.0048, 0.0], [0.0046, 0.0004], [0.0034, 0.0003], [0.0032, -0.0015], [0.0, -0.0015]], { segs: 8, hard: [3], auto: false });
   const cluster = [[0, 0], [1, 0], [2, 0], [0.5, 1], [1.5, 1], [2.5, 1], [1, 2], [2, 2], [1.5, 3], [2.5, 3]];
   for (const side of [1, -1]) for (const [cx, cy] of cluster) {
     const u = 0.5 + side * (0.16 + cx * 0.042), v = 0.24 + cy * 0.115;
@@ -718,18 +772,26 @@ export function stormHelm(o = {}) {
 export function hoodedMask(o = {}) {
   const r = o.r ?? 0.125;
   const out = {};
-  // hood: shell around the head, face opening at the front, peak at the top-front, drapes past the neck
-  const hood = plate((u, v) => {
-    const a = lerp(-128, 128, u) + 180;               // opening faces +X
-    const y = lerp(0.3, -0.2, v);
-    const cr = r * (v < 0.25 ? 0.75 + v : 1.0 + (v - 0.25) * 0.45) * (1 + 0.05 * Math.sin(u * Math.PI * 9) * v);
-    const [x, z] = se(a * DEG, cr * 1.05, cr, 2);
-    const peak = 0.035 * Math.pow(Math.max(0, 1 - v * 4), 2);
-    return [x - 0.015 + peak, y + 0.02 * Math.cos(u * Math.PI * 2) * (1 - v), z];
-  }, { nu: 32, nv: 14, thick: 0.006, edgeR: 0.004, axis: [-0.015, 0] });
+  // hood: cowl around the head with a face opening (+X), a soft peak over the brow, flaring over the shoulders
+  const hood = hoop({
+    y0: 0.31, y1: -0.22, a0: 34, a1: 326,
+    rx: [[0, 0.012], [0.08, r * 0.78], [0.22, r * 1.06], [0.5, r * 1.12], [0.72, r * 1.24], [1, r * 1.85]],
+    rz: [[0, 0.012], [0.08, r * 0.74], [0.22, r * 0.98], [0.5, r * 1.02], [0.72, r * 1.16], [1, r * 1.75]],
+    ox: [[0, -0.02], [0.3, -0.012], [1, -0.03]], n: 2,
+    bulge: (u, v) => 0.012 * Math.sin(u * Math.PI * 11) * v * v,
+    nu: 30, nv: 14, thick: 0.006, edgeR: 0.004, edge: { v0: 'none' },
+  });
+  // pull the face opening's top edge forward into a peak
+  {
+    const P = hood.attributes.position.array;
+    for (let i = 0; i < P.length; i += 3) {
+      const y = P[i + 1], fwd = Math.max(0, P[i]) / r;
+      if (y > 0.05 && y < 0.28) P[i] += 0.03 * fwd * Math.sin(((y - 0.05) / 0.23) * Math.PI);
+    }
+  }
   const n = hood.attributes.position.count, uvw = new Float32Array(n * 3);
   const Pp = hood.attributes.position.array;
-  for (let i = 0; i < n; i++) { uvw[i * 3] = 0.5 + Math.atan2(Pp[i * 3 + 2], -Pp[i * 3]) / (Math.PI * 2); uvw[i * 3 + 1] = clamp((0.3 - Pp[i * 3 + 1]) / 0.5, 0, 1); uvw[i * 3 + 2] = 0; }
+  for (let i = 0; i < n; i++) { uvw[i * 3] = 0.5 + Math.atan2(Pp[i * 3 + 2], -Pp[i * 3]) / (Math.PI * 2); uvw[i * 3 + 1] = clamp((0.31 - Pp[i * 3 + 1]) / 0.53, 0, 1); uvw[i * 3 + 2] = 0; }
   hood.setAttribute('uvw', new THREE.BufferAttribute(uvw, 3));
   out.hood = hood;
   out.mask = hoop({
@@ -784,4 +846,3 @@ export function furRing(o) {
   return merge(out);
 }
 
-export { occlude };

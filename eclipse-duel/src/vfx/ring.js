@@ -16,7 +16,7 @@ export const RING_LOOKS = {
   /** energy shockwave: thin hot leading edge, soft inner glow, noise breakup */
   shock: { palette: 'ember', life: 0.45, radius: [0.2, 3], width: [0.5, 0.9], ease: 4, height: 0.12, fill: 1.6, over: 0.35, noise: 0.5, tiles: 6, edgeWidth: 0.08, erodeStart: 0.25, tailAdditive: 1 },
   /** ground dust wave: billowing alpha band, densest at the rolling front, rises as a low curtain */
-  dust: { palette: 'dust', life: 1.1, radius: [0.3, 3.2], width: [0.5, 1.4], ease: 3, height: 0.5, fill: 1.1, over: 0.45, noise: 0.8, tiles: 5, edgeWidth: 0.25, erodeStart: 0.1, tailAdditive: 0 },
+  dust: { palette: 'dust', life: 1.1, radius: [0.3, 3.2], width: [0.5, 1.4], ease: 3, height: 0.5, fill: 2.2, over: 0.45, noise: 0.9, tiles: 3, edgeWidth: 0.25, erodeStart: 0.1, tailAdditive: 0 },
   /** fire ring: flame tongues licking outward from a hot front, cooling into smoke */
   fire: { palette: 'ember', tailFrom: 'smoke', life: 0.7, radius: [0.3, 3], width: [0.6, 1.1], ease: 3, height: 0.55, fill: 1.3, over: 0.7, noise: 0.7, tiles: 6, edgeWidth: 0.12, erodeStart: 0.15, tailAdditive: 0.1 },
   /** frost ring: crystalline cells and fracture lines with a cold glowing front */
@@ -91,9 +91,9 @@ void main() {
     float b1 = texture2D(uFlow, vec2(u * tiles, xm * 0.25 - age * 0.35) + seed).g;
     float b2 = texture2D(uFlow, vec2(u * tiles * 2.0, xm * 0.6 - age * 0.6) + seed * 2.0).g;
     xe = x - (b1 - 0.45) * noiseAmt * 1.1;
-    gain = 0.35 + 0.9 * b1 * b2 + 0.3 * n2;
+    gain = (0.1 + 1.1 * smoothstep(0.3, 0.75, b1 * 0.7 + b2 * 0.3)) * (0.6 + 0.5 * n2);
     shade = 0.55 + 0.75 * smoothstep(0.35, 0.8, b2);
-    erodeN = b1 * 0.6 + n2 * 0.4;
+    erodeN = b1 * 0.5 + n2 * 0.5;
   } else if (look == 2) {
     float f1 = texture2D(uFlow, vec2(u * tiles, xm * 0.5 - age * 1.6) + seed).g;
     float f2 = texture2D(uFlow, vec2(u * tiles * 2.0, xm * 1.3 - age * 2.8) + seed * 3.0).g;
@@ -144,7 +144,7 @@ void main() {
     rgb += vCore.rgb * line * (1.0 - t) * flick;
   }
   rgb += vCore.rgb * (1.0 - smoothstep(th, th + 0.1, resist)) * vis * (look == 2 || look == 3 ? 0.8 : 0.0) * (1.0 - t);
-  float a = sat(dens * (0.75 + 0.4 * line) * (look == 1 ? gain : 1.0)) * vis * vCore.a;
+  float a = sat(dens * (0.75 + 0.4 * line) * (look == 1 ? gain * 0.75 : 1.0)) * vis * vCore.a;
   extra *= vCore.a * mix(1.0, vis, glint) * smoothstep(-1.0, -0.6, x) * (1.0 - smoothstep(0.0, over, x));
   float addF = mix(vMid.a, 1.0, sat(1.0 - k * 1.1));
   if (look == 1) addF = 0.0;
@@ -160,7 +160,7 @@ export function installRing(vfx, shared) {
   const { uniforms, textures } = shared;
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const layer = new MeshLayer(shared, {
-    name: 'ring', capacity: 24, layout: LAYOUT, geometry: gridGeometry(128, 6), lifeAt: 12, renderOrder: RENDER_ORDER.meshAdd,
+    name: 'ring', capacity: 32, layout: LAYOUT, geometry: gridGeometry(128, 6), lifeAt: 12, renderOrder: RENDER_ORDER.meshRing,
     material: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: U, side: THREE.DoubleSide, ...PREMUL }),
   });
   const q = new THREE.Quaternion();

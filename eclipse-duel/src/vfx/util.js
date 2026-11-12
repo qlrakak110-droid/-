@@ -12,7 +12,14 @@ export const V_Z = Object.freeze(new THREE.Vector3(0, 0, 1));
 export const RENDER_ORDER = {
   alphaParticles: 10, // premultiplied smoke / dust / debris particles
   meshAlpha: 12,      // alpha-blended mesh effects (decals ...)
-  meshAdd: 16,        // additive mesh effects (slash arcs, rings, pillars, beams)
+  meshAdd: 16,        // additive mesh effects (default band)
+  // every VFX mesh sits at the origin, so within a band three orders them by these values: big volumes first,
+  // blade effects last (their occluding parts, e.g. the eclipse looks, then darken what is behind them)
+  meshRing: 14,       // shockwave rings
+  meshPillar: 15,     // columns
+  meshBeam: 16,       // beams, afterimage ghosts
+  meshSlash: 17,      // slash arcs
+  meshBolt: 19,       // lightning (just under the additive particles)
   addParticles: 20,   // additive particles (sparks, embers, glows)
   ribbons: 22,        // weapon trails and ribbons
   flares: 30,         // camera-facing flares (drawn last, on top of everything they light)

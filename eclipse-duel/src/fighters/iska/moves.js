@@ -19,8 +19,11 @@
 //   light1 -> light2 -> light3                       chain (also on whiff / block: a real string)
 //   light1 / light2 on hit -> heavy, d+heavy, any skill, ult      (light1 also -> f+heavy)
 //   light3 on hit -> any skill, ult ;  light3 on block -> skill1 (shards keep the pressure safe)
-//   heavy on hit -> d+heavy, any skill, ult
-//   f+heavy on hit (Iska ends behind the victim) -> light1, heavy, d+heavy, any skill, ult
+//   heavy on hit -> any skill, ult                   (no second launcher: the spin also extends juggles, where a
+//                                                    Rising Crescent off an airborne victim whiffs)
+//   f+heavy on hit (Iska ends behind the victim) -> light1, heavy, d+heavy, any skill
+//                                                    (no ult: the slide is the juggle extender after d+heavy, and the
+//                                                    ground rune misses an airborne victim)
 //   d+heavy on hit (launch) -> skill1 / skill2 / f+heavy (juggles; the ult rune cannot touch an airborne victim)
 //   skill1 on hit -> skill2, ult ;  skill2 on hit -> skill1 (juggle) ;  skill3 on hit -> ult
 //   e.g.  light1 > light2 > heavy > d+heavy > skill1        10 hits, ~180 damage
@@ -59,18 +62,22 @@
 //                              release = the super-freeze ends and the circle starts to close; snap = first active frame.
 //                              On a hit the lock takes over at snap (moveEnd 'cinematic'): trailOff / recover fire only
 //                              on a whiff (the rune shatters harmlessly, 0.5 s recovery)
-//   frozen_star (lock clock, `cinematic: true` markers; ticks emit their own `marker`)
+//   frozen_star (lock clock, `cinematic: true` markers; ticks and the finish emit their own `marker`)
 //                              crystal (0.01: the engine emits no lock marker at exactly t = 0; cinematicStart is that
 //                              instant) orbit slash1..slash6 leap constellation starfall lance1..lance12 land shatter
-//                              frostWave blendBack
+//                              frostWave blendBack settle
 //
-// ULTIMATE TIMING. The storyboard rows 0.00 and 0.60 are the opener on the MOVE clock: super-freeze 0..0.6 s (face
-// close-up), then the top-down rune shot while the circle snaps shut (unblockable, active 0.75..0.95). Every row from
-// 1.20 on is on the LOCK clock (t = 0 at the trigger = the rune snapping on its first active frame, move time 0.75), so
-// the cinematic ticks and markers below carry the table times verbatim and the lock lasts exactly 5.4 s: the 5.40 row
-// (blend back) is cinematicEnd. Lock 0 .. 1.20 is the crystal-encasing beat of the top-down shot (frost.nova, ice_form).
-//   1.20 orbit: 6 slashes 0.20 s apart (1.20 .. 2.20) | 2.40 leap | 2.70 constellation | 3.40 starfall: 12 lances
-//   0.08 s apart (3.40 .. 4.28) | 4.40 land + shatter (finish) | 4.90 frostWave | 5.40 blendBack.
+// ULTIMATE TIMING (roster convention, the same for Kael and Vorn: MOVES.md times are seconds from MOVE start, and the
+// lock continues that clock from the trigger, so storyboard t = trigger move time + lock t; every lock marker / tick
+// carries its storyboard time in data.storyboard, the anchor is meta.storyboardAtTrigger). Rows 0.00 and 0.60 are the
+// opener on the move clock: super-freeze 0..0.6 s (face close-up), then the top-down rune shot while the circle snaps
+// shut (unblockable, active 0.75..0.95). The trigger is the rune's first active frame, move time 0.75, so
+// storyboard t = 0.75 + lock t. Lock 0 .. 0.45 is the crystal-encasing beat of the top-down shot (frost.nova,
+// ice_form; meta.impact). The lock lasts 5.4 s: the 5.40 row (blend back, Iska flicks the frost off her blades) starts
+// at lock 4.65 and runs to cinematicEnd at lock 5.40 (storyboard 6.15).
+//   lock 0.45 orbit: 6 slashes 0.20 s apart (0.45 .. 1.45) | 1.65 leap (slow-mo 0.4) | 1.95 constellation |
+//   2.65 starfall: 12 lances 0.08 s apart (2.65 .. 3.53) | 3.65 land + shatter (finish, slow-mo 0.2) | 4.15 frostWave |
+//   4.65 blendBack | 5.40 settle (= cinematicEnd)
 //   Damage 60 (rune) + 6 x 25 + 12 x 10 + 200 = 530 (lock damage x max(0.7, combo scale at the trigger)).
 
 /** Iska's fighter definition (author format, validated by validateFighterDef). */
@@ -207,7 +214,7 @@ export const def = {
     // HEAVIES
     glacier_pirouette: {
       name: '빙결 회전 · Glacier Pirouette',
-      duration: 0.74,
+      duration: 0.78,                         // -9 on block: the three-hit spin is a commitment, not free pressure
       motion: [{ t: [0.12, 0.42], v: 1.8 }],  // the pirouette drifts 0.54 m forward: strings stay in range
       hits: [
         {
@@ -221,7 +228,8 @@ export const def = {
           damage: 34, level: 'heavy', hitstun: 0.5, blockstun: 0.24, knockback: { x: 3.2, y: 0 }, hitstop: 0.11, guardDamage: 14,
         },
       ],
-      cancels: [{ t: [0.4, 0.56], into: ['rising_crescent', '@skill', '@ult'], onHit: true }],
+      // skills / ult only: the spin is also a juggle extender, and a second Rising Crescent off an airborne victim whiffs
+      cancels: [{ t: [0.4, 0.56], into: ['@skill', '@ult'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.14, name: 'trailOn', data: { blades: 'both', style: 'spin' } },
@@ -249,7 +257,8 @@ export const def = {
         t: [0.18, 0.34], box: { f: [0.25, 1.3], u: [0.4, 1.7] }, multi: { interval: 0.05, max: 2 }, label: 'slash',
         damage: 22, level: 'heavy', hitstun: 0.55, blockstun: 0.2, knockback: { x: 0.5, y: 0 }, hitstop: 0.1, scaleStep: 0.05,
       }],
-      cancels: [{ t: [0.4, 0.58], into: ['rime_flick', 'glacier_pirouette', 'rising_crescent', '@skill', '@ult'], onHit: true }],
+      // no ult: the slide is her main juggle extender (after Rising Crescent), and the ground rune misses an airborne victim
+      cancels: [{ t: [0.4, 0.58], into: ['rime_flick', 'glacier_pirouette', 'rising_crescent', '@skill'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.06, name: 'iceLine' },
@@ -451,42 +460,45 @@ export const def = {
         distance: 1.7,
         recovery: 0.5,
         ticks: [
-          // 1.20 orbit: Iska dashes around the crystal slashing 6 times (frost.slash, afterimages)
-          { t: 1.2, damage: 25, hitstop: 0.05, marker: 'slash1', data: { vfx: 'frost.slash' } },
-          { t: 1.4, damage: 25, hitstop: 0.05, marker: 'slash2', data: { vfx: 'frost.slash' } },
-          { t: 1.6, damage: 25, hitstop: 0.05, marker: 'slash3', data: { vfx: 'frost.slash' } },
-          { t: 1.8, damage: 25, hitstop: 0.05, marker: 'slash4', data: { vfx: 'frost.slash' } },
-          { t: 2.0, damage: 25, hitstop: 0.05, marker: 'slash5', data: { vfx: 'frost.slash' } },
-          { t: 2.2, damage: 25, hitstop: 0.05, marker: 'slash6', data: { vfx: 'frost.slash' } },
-          // 3.40 starfall: 12 star lances rain down (each a ring + shard burst)
-          { t: 3.4, damage: 10, hitstop: 0.03, marker: 'lance1', data: { vfx: 'frost.starfall' } },
-          { t: 3.48, damage: 10, hitstop: 0.03, marker: 'lance2', data: { vfx: 'frost.starfall' } },
-          { t: 3.56, damage: 10, hitstop: 0.03, marker: 'lance3', data: { vfx: 'frost.starfall' } },
-          { t: 3.64, damage: 10, hitstop: 0.03, marker: 'lance4', data: { vfx: 'frost.starfall' } },
-          { t: 3.72, damage: 10, hitstop: 0.03, marker: 'lance5', data: { vfx: 'frost.starfall' } },
-          { t: 3.8, damage: 10, hitstop: 0.03, marker: 'lance6', data: { vfx: 'frost.starfall' } },
-          { t: 3.88, damage: 10, hitstop: 0.03, marker: 'lance7', data: { vfx: 'frost.starfall' } },
-          { t: 3.96, damage: 10, hitstop: 0.03, marker: 'lance8', data: { vfx: 'frost.starfall' } },
-          { t: 4.04, damage: 10, hitstop: 0.03, marker: 'lance9', data: { vfx: 'frost.starfall' } },
-          { t: 4.12, damage: 10, hitstop: 0.03, marker: 'lance10', data: { vfx: 'frost.starfall' } },
-          { t: 4.2, damage: 10, hitstop: 0.03, marker: 'lance11', data: { vfx: 'frost.starfall' } },
-          { t: 4.28, damage: 10, hitstop: 0.03, marker: 'lance12', data: { vfx: 'frost.starfall' } },
+          // 1.20 orbit (ground skim, 90°): Iska dashes around the crystal slashing 6 times (frost.slash, afterimages)
+          { t: 0.45, damage: 25, hitstop: 0.05, marker: 'slash1', data: { storyboard: 1.2, vfx: 'frost.slash' } },
+          { t: 0.65, damage: 25, hitstop: 0.05, marker: 'slash2', data: { storyboard: 1.4, vfx: 'frost.slash' } },
+          { t: 0.85, damage: 25, hitstop: 0.05, marker: 'slash3', data: { storyboard: 1.6, vfx: 'frost.slash' } },
+          { t: 1.05, damage: 25, hitstop: 0.05, marker: 'slash4', data: { storyboard: 1.8, vfx: 'frost.slash' } },
+          { t: 1.25, damage: 25, hitstop: 0.05, marker: 'slash5', data: { storyboard: 2.0, vfx: 'frost.slash' } },
+          { t: 1.45, damage: 25, hitstop: 0.05, marker: 'slash6', data: { storyboard: 2.2, vfx: 'frost.slash' } },
+          // 3.40 starfall (over the shoulder from the air): 12 star lances rain down, each a ring + shard burst
+          { t: 2.65, damage: 10, hitstop: 0.03, marker: 'lance1', data: { storyboard: 3.4, vfx: 'frost.starfall' } },
+          { t: 2.73, damage: 10, hitstop: 0.03, marker: 'lance2', data: { storyboard: 3.48, vfx: 'frost.starfall' } },
+          { t: 2.81, damage: 10, hitstop: 0.03, marker: 'lance3', data: { storyboard: 3.56, vfx: 'frost.starfall' } },
+          { t: 2.89, damage: 10, hitstop: 0.03, marker: 'lance4', data: { storyboard: 3.64, vfx: 'frost.starfall' } },
+          { t: 2.97, damage: 10, hitstop: 0.03, marker: 'lance5', data: { storyboard: 3.72, vfx: 'frost.starfall' } },
+          { t: 3.05, damage: 10, hitstop: 0.03, marker: 'lance6', data: { storyboard: 3.8, vfx: 'frost.starfall' } },
+          { t: 3.13, damage: 10, hitstop: 0.03, marker: 'lance7', data: { storyboard: 3.88, vfx: 'frost.starfall' } },
+          { t: 3.21, damage: 10, hitstop: 0.03, marker: 'lance8', data: { storyboard: 3.96, vfx: 'frost.starfall' } },
+          { t: 3.29, damage: 10, hitstop: 0.03, marker: 'lance9', data: { storyboard: 4.04, vfx: 'frost.starfall' } },
+          { t: 3.37, damage: 10, hitstop: 0.03, marker: 'lance10', data: { storyboard: 4.12, vfx: 'frost.starfall' } },
+          { t: 3.45, damage: 10, hitstop: 0.03, marker: 'lance11', data: { storyboard: 4.2, vfx: 'frost.starfall' } },
+          { t: 3.53, damage: 10, hitstop: 0.03, marker: 'lance12', data: { storyboard: 4.28, vfx: 'frost.starfall' } },
         ],
-        // 4.40 Iska lands and crosses her blades: crystal and victim shatter (inverted impact frame, white flash)
+        // 4.40 impact punch-in, slow-mo 0.2: Iska lands and crosses her blades, crystal and victim shatter (inverted
+        // impact frame, white flash, ice_shatter)
         finish: {
-          t: 4.4, damage: 200, level: 'knockdown', knockback: { x: 3.0, y: 5.5 }, hitstop: 0.22, marker: 'shatter',
-          data: { vfx: 'frost.shatter', impactFrame: 'invert' },
+          t: 3.65, damage: 200, level: 'knockdown', knockback: { x: 3.0, y: 5.5 }, hitstop: 0.22, marker: 'shatter',
+          data: { storyboard: 4.4, vfx: 'frost.shatter', impactFrame: 'invert', audio: 'ice_shatter' },
         },
         markers: [
-          // first lock frame (the engine does not emit a lock marker at exactly t = 0; cinematicStart is that instant)
-          { t: 0.01, name: 'crystal', data: { vfx: 'frost.nova', audio: 'ice_form' } },
-          { t: 1.2, name: 'orbit' },
-          { t: 2.4, name: 'leap', data: { slowmo: 0.4 } },
-          { t: 2.7, name: 'constellation' },
-          { t: 3.4, name: 'starfall' },
-          { t: 4.4, name: 'land', data: { slowmo: 0.2 } },
-          { t: 4.9, name: 'frostWave', data: { vfx: 'frost.blizzard' } },
-          { t: 5.4, name: 'blendBack' },
+          // 0.60 row, continued: the circle has snapped shut (the trigger, storyboard 0.75); the ice crystal encases the
+          // victim (lock 0 .. 0.45). First lock frame: the engine emits no lock marker at exactly t = 0.
+          { t: 0.01, name: 'crystal', data: { storyboard: 0.76, vfx: 'frost.nova', audio: 'ice_form' } },
+          { t: 0.45, name: 'orbit', data: { storyboard: 1.2, cam: { shot: 'groundSkimOrbit', degrees: 90 } } },
+          { t: 1.65, name: 'leap', data: { storyboard: 2.4, slowmo: 0.4, cam: { shot: 'wideLowEclipse' } } },
+          { t: 1.95, name: 'constellation', data: { storyboard: 2.7 } },
+          { t: 2.65, name: 'starfall', data: { storyboard: 3.4, cam: { shot: 'overShoulderDown' } } },
+          { t: 3.65, name: 'land', data: { storyboard: 4.4, slowmo: 0.2 } },
+          { t: 4.15, name: 'frostWave', data: { storyboard: 4.9, vfx: 'frost.blizzard', letterbox: false } },
+          { t: 4.65, name: 'blendBack', data: { storyboard: 5.4, cam: { shot: 'blendBack', dur: 0.75 }, linger: { glitter: 2 } } },
+          { t: 5.4, name: 'settle', data: { storyboard: 6.15 } },
         ],
       },
       markers: [
@@ -500,7 +512,13 @@ export const def = {
         { t: 1.05, name: 'recover' },
       ],
       ai: { range: [0, 6.0], role: 'finisher', weight: 1 },
-      meta: { slot: 'ult' },
+      // storyboard t = 0.75 + lock t (the rune's first active frame is the trigger; see ULTIMATE TIMING above)
+      meta: {
+        slot: 'ult',
+        storyboardAtTrigger: 0.75,
+        mood: { darken: 0.8, tint: 0x8fc8ff },
+        impact: { shot: 'topDownRune', vfx: 'frost.nova', audio: 'ice_form', encase: true },
+      },
     },
   },
 };

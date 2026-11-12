@@ -36,14 +36,18 @@ import { installDebris } from './debris.js';
 import { installSpikes } from './spikes.js';
 import { installSpeedlines } from './speedlines.js';
 import { installAfterimage } from './afterimage.js';
+import { installPresets } from './presets/index.js';
 import { EffectPool } from './pool.js';
 import { InstanceRing, makeQuadGeometry } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
 import * as util from './util.js';
 import { LIB, PALETTE } from './library.js';
 
-/** Built-in sub-modules, in update order. Mesh effects append their installers here. */
-export const MODULES = [installScheduler, installParticles, installRibbons, installLights, installFlares, installDistort, installSlash, installRing, installPillar, installBeam, installBolt, installDecal, installDebris, installSpikes, installSpeedlines, installAfterimage];
+/**
+ * Built-in sub-modules, in update order. The presets module runs right after the scheduler so its moving anchors are
+ * placed before the layers that follow them sample their positions.
+ */
+export const MODULES = [installScheduler, installPresets, installParticles, installRibbons, installLights, installFlares, installDistort, installSlash, installRing, installPillar, installBeam, installBolt, installDecal, installDebris, installSpikes, installSpeedlines, installAfterimage];
 
 /**
  * Create the VFX system, store it on ctx.vfx and register its per-frame update at ctx.ORDER.VFX.
@@ -159,14 +163,21 @@ export function createVfx(ctx) {
       return vfx;
     },
 
-    /** Play a preset. Returns a group handle { kill(), stop(), alive, handles } covering everything it spawns. */
+    /**
+     * Play a preset. Returns a group handle { kill(), stop(), alive, handles } covering everything it spawns.
+     * A preset may return an object of extra members (e.g. a projectile's impact(), a live `pos` getter): they are
+     * merged onto the group; its functions run inside the group (what they spawn is killed with it). A returned
+     * `stop` runs before the default stop (which stops every handle of the group).
+     */
     play(name, at, opts = {}) {
       const fn = presets.get(name);
       if (!fn) throw new Error('vfx: unknown preset "' + name + '" (have: ' + [...presets.keys()].join(', ') + ')');
       const group = makeGroup(name);
       const prev = capture;
       capture = group;
-      try { fn(vfx, presetAt(at), opts); } finally { capture = prev; }
+      let api;
+      try { api = fn(vfx, presetAt(at), opts || {}); } finally { capture = prev; }
+      if (api && typeof api === 'object') extendGroup(group, api);
       shared.track(group);
       return group;
     },
@@ -180,6 +191,18 @@ export function createVfx(ctx) {
       root.removeFromParent();
     },
   };
+
+  function extendGroup(group, api) {
+    const ds = Object.getOwnPropertyDescriptors(api);
+    for (const k in ds) {
+      const d = ds[k];
+      if (d.get) { Object.defineProperty(group, k, { get: d.get, enumerable: true, configurable: true }); continue; }
+      if (typeof d.value !== 'function') { group[k] = d.value; continue; }
+      const m = d.value;
+      const inGroup = (...a) => { let r; shared.runInGroup(group, () => { r = m(...a); }); return r; };
+      if (k === 'stop') { const base = group.stop; group.stop = () => { inGroup(); base(); }; } else group[k] = inGroup;
+    }
+  }
 
   function presetAt(src) {
     const a = {

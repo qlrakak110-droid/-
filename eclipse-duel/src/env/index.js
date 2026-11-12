@@ -7,11 +7,12 @@
 import * as THREE from 'three';
 import { makeRng, clamp, lerp } from '../core/math.js';
 import { SUN_DIR, RIM_DIR, KEY_DIR, WIND, LAYOUT, PALETTE, tierSettings } from './config.js';
-import { bakeFloor, bakeStone, bakeBanner } from './bake.js';
+import { bakeFloor, bakeStone, bakeBanner, releaseBakeQuad } from './bake.js';
 import { createSky } from './sky.js';
 import { buildRuins } from './ruins.js';
-import { createStoneMaterial, createIronMaterial } from './materials.js';
-import { createFloor } from './floor.js';
+import { createStoneMaterial, createIronMaterial, createPropMaterial } from './materials.js';
+import { createFloor, createReflectionOverlay } from './floor.js';
+import { bakeOrnament } from './ornament.js';
 import { createFar } from './far.js';
 import { createAtmosphere } from './atmosphere.js';
 import { createParticles } from './particles.js';
@@ -74,17 +75,22 @@ export function createEnvironment(ctx, opts = {}) {
   const floorMaps = bakeFloor(renderer, tier.floorTex);
   const stoneMaps = bakeStone(renderer, tier.stoneTex);
   const bannerRT = bakeBanner(renderer);
-  owned.rt.push(floorMaps.a, floorMaps.b, stoneMaps.a, stoneMaps.b, bannerRT);
+  const ornMaps = bakeOrnament(renderer, tier.ornTex);
+  releaseBakeQuad();
+  owned.rt.push(floorMaps.a, floorMaps.b, stoneMaps.a, stoneMaps.b, bannerRT, ornMaps.atlas, ornMaps.weather);
 
   // ---- ruins -------------------------------------------------------------------------------------------------------
   const ruins = buildRuins(rng, tier);
-  const stoneMat = createStoneMaterial(U, stoneMaps);
+  const stoneMat = createStoneMaterial(U, stoneMaps, ornMaps, [1, tier.detail >= 1 ? 1 : 0.7, 1, 1]);
   const ironMat = createIronMaterial(U);
+  const propMat = createPropMaterial(U);
   const stone = new THREE.Mesh(ruins.stone, stoneMat);
   stone.name = 'env.ruins';
   const iron = new THREE.Mesh(ruins.metal, ironMat);
   iron.name = 'env.iron';
-  root.add(stone, iron);
+  const props = new THREE.Mesh(ruins.props, propMat);
+  props.name = 'env.props';
+  root.add(stone, iron, props);
 
   const floor = createFloor(U, floorMaps, stoneMaps, tier, ruins.braziers);
   root.add(floor.mesh);
@@ -93,7 +99,7 @@ export function createEnvironment(ctx, opts = {}) {
   root.add(far.far, far.clouds);
 
   const banners = createBanners(U, ruins.banners, bannerRT.texture);
-  const fire = createFire(U, ruins.braziers, rng);
+  const fire = createFire(U, ruins.braziers, rng, ruins.flames);
   const atmosphere = createAtmosphere(U, rng, tier);
   const particles = createParticles(U, rng, tier, ruins.braziers, floor.uniforms);
   root.add(banners, fire, atmosphere, particles);
@@ -167,6 +173,12 @@ export function createEnvironment(ctx, opts = {}) {
   const envMap = envRT.texture;
   owned.rt.push(envRT);
   const prevScene = { fog: scene.fog, background: scene.background, environmentIntensity: scene.environmentIntensity };
+  // bind the PMREM on the env's own materials: with only scene.environment, three r170 replaces every material's
+  // envMapIntensity by scene.environmentIntensity, and the authored strengths (stone 0.35 ...) would be lost.
+  // update() scales them with the mood like scene.environmentIntensity.
+  const envMats = [];
+  root.traverse((o) => { const m = o.material; if (m && m.isMeshStandardMaterial && !envMats.some((e) => e.m === m)) envMats.push({ m, k: m.envMapIntensity }); });
+  for (const e of envMats) { e.m.envMap = envMap; e.m.needsUpdate = true; }
   scene.environment = envMap;
   scene.environmentIntensity = 1;
   scene.fog = new THREE.FogExp2(PALETTE.fogNear.clone(), 0.008);
@@ -177,9 +189,12 @@ export function createEnvironment(ctx, opts = {}) {
   const baseline = { exposure: 1.1, vignette: 0.4, grain: 0.032, saturation: 0.94, contrast: 1.05, bloom: 0.95, bloomThreshold: 1.0, bloomKnee: 0.55, bloomRadius: 1.0, tint: new THREE.Color(1.0, 0.985, 1.0), lift: new THREE.Color(0.0025, 0.003, 0.0055) };
   if (opts.post !== false && ctx.post) ctx.post.setBaseline(baseline);
 
-  // ---- reflection (high tier): previous frame's HDR scene, re-projected by the floor shader ------------------------------
+  // ---- reflection (high tier): this frame's HDR scene, copied and re-projected onto the puddles ------------------------
+  // post.onAfterScene runs right after the scene render (MSAA already resolved into sceneTarget.texture): copy it at
+  // half resolution with mips, then draw the puddle pass into the same (multisampled) target, depth-tested against
+  // the scene; post resolves again before bloom. No frame of lag, correct on camera cuts.
   let refl = null;
-  if (tier.reflection && ctx.post) {
+  if (tier.reflection && ctx.post && ctx.post.onAfterScene) {
     const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false });
     const mat = new THREE.ShaderMaterial({ vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: COPY_FRAG, uniforms: { tSrc: { value: null } }, depthTest: false, depthWrite: false });
     const g = new THREE.BufferGeometry();
@@ -189,34 +204,30 @@ export function createEnvironment(ctx, opts = {}) {
     q.frustumCulled = false;
     const qs = new THREE.Scene();
     qs.add(q);
-    refl = { rt, mat, g, qs, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), vp: new THREE.Matrix4(), valid: false };
-    owned.rt.push(rt); owned.mat.add(mat); owned.geo.add(g);
-    floor.uniforms.tRefl.value = rt.texture;
+    const overlay = createReflectionOverlay(U, floor, envMap, rt.texture);
+    const os = new THREE.Scene();
+    os.add(overlay.mesh);
+    refl = { rt, mat, g, qs, os, overlay, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), off: null };
+    owned.rt.push(rt); owned.mat.add(mat); owned.mat.add(overlay.mesh.material); owned.geo.add(g);
+    refl.off = ctx.post.onAfterScene((r, target, camera) => {
+      if (!target || camera !== ctx.camera || !root.visible) return;
+      const w = Math.max(2, target.width >> 1), h = Math.max(2, target.height >> 1);
+      if (rt.width !== w || rt.height !== h) rt.setSize(w, h);
+      mat.uniforms.tSrc.value = target.texture;
+      const prevAuto = r.autoClear;
+      r.setRenderTarget(rt);
+      r.render(qs, refl.cam);
+      camera.updateMatrixWorld();
+      overlay.uniforms.uVP.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      overlay.uniforms.uEnvI.value = floor.mesh.material.envMapIntensity;
+      r.autoClear = false;
+      r.setRenderTarget(target);
+      r.render(os, camera);
+      r.autoClear = prevAuto;
+    });
   }
-  const vpNow = new THREE.Matrix4();
-  /** Copy the last rendered HDR frame for the puddle reflection (automatic each frame; `renderFirst` for tests). */
-  function captureReflection(renderFirst = false) {
-    if (!refl) return;
-    const cam = ctx.camera;
-    if (renderFirst) { ctx.resize(); ctx.post.render(scene, cam); refl.valid = true; }
-    const src = ctx.post.sceneTarget;
-    if (!src || !refl.valid) { floor.uniforms.uWet.value.w = 0; }
-    else {
-      const w = Math.max(2, src.width >> 1), h = Math.max(2, src.height >> 1);
-      if (refl.rt.width !== w || refl.rt.height !== h) refl.rt.setSize(w, h);
-      refl.mat.uniforms.tSrc.value = src.texture;
-      const prev = renderer.getRenderTarget();
-      renderer.setRenderTarget(refl.rt);
-      renderer.render(refl.qs, refl.cam);
-      renderer.setRenderTarget(prev);
-      floor.uniforms.uReflVP.value.copy(refl.vp);
-      floor.uniforms.uWet.value.w = 1;
-    }
-    cam.updateMatrixWorld();
-    vpNow.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
-    refl.vp.copy(vpNow);
-    refl.valid = true;
-  }
+  /** Kept for compatibility: the puddle reflection is now taken from the current frame (post.onAfterScene). */
+  function captureReflection() {}
 
   // ---- mood --------------------------------------------------------------------------------------------------------
   const white = new THREE.Color(1, 1, 1);
@@ -295,8 +306,8 @@ export function createEnvironment(ctx, opts = {}) {
     rim.intensity = base.rim * (1 - 0.1 * d);
     rim.color.copy(PALETTE.rim).lerp(tmpC.copy(mood.tint).multiplyScalar(0.8), d * 0.6);
     scene.environmentIntensity = 1 - 0.65 * d;
+    for (let i = 0; i < envMats.length; i++) envMats[i].m.envMapIntensity = envMats[i].k * scene.environmentIntensity;
     scene.fog.color.copy(PALETTE.fogNear).multiply(tmpC.copy(white).lerp(mood.tint, d)).multiplyScalar(1 - 0.86 * d);
-    if (refl) captureReflection(false);
   }
   const off = ctx.onUpdate(update, ctx.ORDER.ENV);
 
@@ -332,16 +343,20 @@ export function createEnvironment(ctx, opts = {}) {
         calls += 1;
         tris += (n / 3) * inst;
       });
-      return { calls: calls + (refl ? 1 : 0), tris: Math.round(tris), tier: tier.detail, pointLights: points.length };
+      // + the reflection copy and the puddle pass (high tier)
+      if (refl) { calls += 2; tris += 1 + floor.mesh.geometry.index.count / 3; }
+      return { calls, tris: Math.round(tris), tier: tier.detail, pointLights: points.length, sections: ruins.sections };
     },
     dispose() {
       off();
+      if (refl && refl.off) refl.off();
       scene.remove(root);
       if (scene.environment === envMap) scene.environment = null;
       scene.fog = prevScene.fog;
       scene.background = prevScene.background;
       scene.environmentIntensity = prevScene.environmentIntensity;
       root.traverse((o) => { if (o.geometry) owned.geo.add(o.geometry); if (o.material) owned.mat.add(o.material); });
+      if (refl) refl.os.remove(refl.overlay.mesh);
       for (const g of owned.geo) g.dispose();
       for (const m of owned.mat) m.dispose();
       for (const r of owned.rt) r.dispose();

@@ -13,7 +13,7 @@ export const PALETTE = {
   /** corona gold-white around a black core (the arena's eclipse; ultimates, the colossus) */
   eclipse: { core: [9, 6.5, 3.2], mid: [2.6, 1.2, 0.35], tail: [0.18, 0.06, 0.02], smoke: [0.012, 0.01, 0.014] },
   /** ground dust / rubble (alpha looks: lit top, body, settled tail) */
-  dust: { core: [0.42, 0.37, 0.31], mid: [0.2, 0.175, 0.15], tail: [0.1, 0.09, 0.08], smoke: [0.08, 0.075, 0.07] },
+  dust: { core: [0.3, 0.27, 0.23], mid: [0.15, 0.135, 0.115], tail: [0.07, 0.064, 0.058], smoke: [0.08, 0.075, 0.07] },
 };
 
 

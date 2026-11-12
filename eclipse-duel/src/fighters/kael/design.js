@@ -10,7 +10,7 @@
 
 import { attachGlow, surfDetail } from '../../char/materials.js';
 import * as A from '../../char/kit/armor.js';
-import { put, putPair, putSkinned, merge, sweep, curve, rrect, circle, lathe, extrude, studs, onSurface, occlude, mirror } from '../../char/kit/geo.js';
+import { put, putPair, putSkinned, merge, lathe, strip, mirror } from '../../char/kit/geo.js';
 import { clothEdges, clothSpec } from '../../char/kit/cloth.js';
 import { greatsword, WEAPON_SPECS, WEAPON_MATERIALS } from '../../char/weapons.js';
 
@@ -42,6 +42,7 @@ const L = {
   iron: { color: [0.048, 0.045, 0.045], rough: 0.54, metal: 0.82, set: 'hammered', amt: 1 },
   dark: { color: [0.032, 0.03, 0.03], rough: 0.6, metal: 0.75, set: 'scorched', amt: 1 },
   bronze: { color: [0.2, 0.105, 0.042], rough: 0.38, metal: 1, set: 'engraved', amt: 1, vein: 0.55 },
+  bronzeDark: { color: [0.085, 0.05, 0.026], rough: 0.42, metal: 1, set: 'engraved', amt: 1, vein: 0.3 },
   rivet: { color: [0.24, 0.13, 0.05], rough: 0.32, metal: 1, set: 'hammered', amt: 0.5, wear: 1.3 },
   leather: { color: [0.034, 0.02, 0.014], rough: 0.66, metal: 0, set: 'leather', amt: 1 },
   strap: { color: [0.045, 0.026, 0.016], rough: 0.6, metal: 0, set: 'leather', amt: 1 },
@@ -50,16 +51,16 @@ const L = {
   slit: { color: [0.003, 0.003, 0.003], rough: 0.95, metal: 0, set: 'hammered', amt: 0, occ: 0.3 },
   eye: { color: [0.02, 0.008, 0.004], rough: 0.6, metal: 0, set: 'hammered', amt: 0, eye: 1 },
   ember: { color: [0.02, 0.008, 0.004], rough: 0.5, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
-  emberDim: { color: [0.02, 0.008, 0.004], rough: 0.5, metal: 0, set: 'hammered', amt: 0, inlay: 0.4 },
-  fur: { color: [0.034, 0.029, 0.026], rough: 0.85, metal: 0, set: 'fur', amt: 1 },
+  emberDim: { color: [0.02, 0.008, 0.004], rough: 0.5, metal: 0, set: 'hammered', amt: 0, inlay: 0.3 },
+  fur: { color: [0.021, 0.017, 0.015], rough: 0.85, metal: 0, set: 'fur', amt: 1 },
 };
 const CLOTH = { color: [0.04, 0.013, 0.01], rough: 0.92, set: 'cloth', amt: 1 };
 const LINING = { color: [0.016, 0.008, 0.007], rough: 0.95, cavity: 0.5 };
 
 // ---- torso shape (chest frame) ---------------------------------------------------------------------------------------------
 const BODY = A.torsoShape({
-  rx: [[-0.18, 0.13], [-0.1, 0.133], [0.0, 0.146], [0.08, 0.158], [0.16, 0.152], [0.24, 0.118]],
-  rz: [[-0.18, 0.168], [-0.1, 0.172], [0.0, 0.183], [0.08, 0.193], [0.16, 0.19], [0.24, 0.16]],
+  rx: [[-0.18, 0.135], [-0.1, 0.138], [0.0, 0.153], [0.08, 0.166], [0.16, 0.16], [0.24, 0.122]],
+  rz: [[-0.18, 0.172], [-0.1, 0.177], [0.0, 0.192], [0.08, 0.205], [0.16, 0.202], [0.24, 0.17]],
   ox: [[-0.18, 0.0], [0.06, 0.012], [0.24, 0.0]],
   n: 2.35,
 });
@@ -71,13 +72,13 @@ export const kael = {
   idle: 'demo.idle',
   proportions: {
     hipHeight: 1.0, spine: 0.115, chest: 0.18, neck: 0.26, head: 0.105, shoulderHeight: 0.205,
-    clavicle: 0.205, upperArm: 0.31, foreArm: 0.28, hipWidth: 0.105,
+    clavicle: 0.215, upperArm: 0.31, foreArm: 0.28, hipWidth: 0.108,
   },
   glow: GLOW,
   materials: {
-    plate: { envMapIntensity: 0.95, bump: 1, glow: GLOW, rim: [0.2, 0.27, 0.42, 3.2], wear: [0.9, 0.85, 0.45, 0.9], wearColor: [0.3, 0.295, 0.29], grimeColor: [0.22, 0.17, 0.14], heatColor: [0.2, 0.075, 0.035] },
-    suit: { envMapIntensity: 0.8, bump: 1, rim: [0.12, 0.16, 0.25, 3.5], wear: [0.7, 0.9, 0.5, 0], wearColor: [0.3, 0.3, 0.3] },
-    cloth: { envMapIntensity: 0.6, bump: 1, cutout: true, glow: GLOW, rim: [0.1, 0.12, 0.2, 3.0], wear: [0.4, 0.9, 0.55, 0] },
+    plate: { envMapIntensity: 0.95, bump: 1, glow: GLOW, rim: [0.32, 0.42, 0.66, 3.0], wear: [0.9, 0.85, 0.45, 0.9], wearColor: [0.3, 0.295, 0.29], grimeColor: [0.22, 0.17, 0.14], heatColor: [0.2, 0.075, 0.035] },
+    suit: { envMapIntensity: 0.8, bump: 1, rim: [0.2, 0.26, 0.4, 3.2], wear: [0.7, 0.9, 0.5, 0], wearColor: [0.3, 0.3, 0.3] },
+    cloth: { envMapIntensity: 0.6, bump: 1, cutout: true, glow: GLOW, rim: [0.16, 0.2, 0.32, 3.0], wear: [0.4, 0.9, 0.55, 0] },
     blade: { ...WEAPON_MATERIALS.greatsword },
   },
   bones: [
@@ -108,7 +109,8 @@ export const kael = {
       name: 'cape',
       top: [['chest', [0.07, 0.205, -0.17]], ['chest', [-0.04, 0.24, -0.2]], ['chest', [-0.16, 0.215, -0.1]], ['chest', [-0.175, 0.2, 0.02]], ['chest', [-0.15, 0.18, 0.12]]],
       cols: 10, rows: 13, length: 1.05, drape: [-0.22, -1, -0.12], flare: 0.38, thickness: 0.014,
-      offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.04 * v + 0.028 * v * Math.sin(u * Math.PI * 5 + 0.6), 0, -0.03 * v * (1 - u)],
+      // rest folds: vertical pleats deepening toward the hem (two frequencies, so they do not read as a regular wave)
+      offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.04 * v + (0.034 * Math.sin(u * Math.PI * 5 + 0.6) + 0.014 * Math.sin(u * Math.PI * 11 + 2.1)) * (0.25 + 0.75 * v), 0, -0.03 * v * (1 - u)],
       damping: 0.032, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),
@@ -157,11 +159,14 @@ export const kael = {
     // ---- cuirass ----------------------------------------------------------------------------------------------------------
     const breast = A.breastplate({ body: BODY, yTop: 0.215, yBot: -0.13, ridgeH: 0.014, swell: 0.014 });
     put(kit, 'plate', 'chest', breast, L.plate, { glow: veins(0.9, 1.15) });
+    // engraved bronze band following the neckline and armholes
+    const neck = [];
+    for (let i = 0; i <= 48; i++) neck.push([0.03 + (i / 48) * 0.94, 0.07]);
+    put(kit, 'plate', 'chest', strip(breast.userData, neck, { width: 0.018, lift: 0.0014, bead: 0.0012, smooth: 2 }), L.bronzeDark);
     const plack = A.plackart({ body: BODY, yTop: 0.02, yBot: -0.142, topPoint: 0.11, grow: 0.011 });
     put(kit, 'plate', 'chest', plack, L.dark, { glow: veins(0.75) });
     // ember rune in the plackart's point + a flowing inlay along the medial ridge
     put(kit, 'plate', 'chest', A.runes(plack, { u0: 0.44, u1: 0.56, v0: 0.06, v1: 0.2, glyphs: [5], width: 0.003, gap: 0.05 }), L.ember);
-    put(kit, 'plate', 'chest', A.runes(breast, { u0: 0.4, u1: 0.6, v0: 0.13, v1: 0.21, glyphs: [3, 0, 6], width: 0.0022, gap: 0.35 }), L.emberDim);
     const back = A.backplate({ body: BODY, yTop: 0.21, yBot: -0.128 });
     put(kit, 'plate', 'chest', back, L.iron);
     // rivets along the plackart edge
@@ -178,38 +183,36 @@ export const kael = {
     }, { frame: 'neck' });
 
     // ---- faulds, belt, tassets --------------------------------------------------------------------------------------------
-    const f1 = A.faulds({ y0: 0.065, lame: 0.07, count: 1, rx: 0.136, rz: 0.17, ox: 0.01, a0: -170, a1: 170, point: 0.012 });
+    const f1 = A.faulds({ y0: 0.065, lame: 0.07, count: 1, rx: 0.141, rz: 0.177, ox: 0.01, a0: -170, a1: 170, point: 0.012 });
     put(kit, 'plate', 'spine', f1[0], L.lame);
-    const f2 = A.faulds({ y0: 0.13, lame: 0.062, overlap: 0.016, count: 2, rx: 0.142, rz: 0.176, ox: 0.012, a0: -160, a1: 160, point: 0.02 });
+    const f2 = A.faulds({ y0: 0.13, lame: 0.062, overlap: 0.016, count: 2, rx: 0.148, rz: 0.184, ox: 0.012, a0: -160, a1: 160, point: 0.02 });
     f2.forEach((g, k) => put(kit, 'plate', 'hips', g, k ? L.lame : L.iron));
-    const beltG = A.belt({ y: 0.112, rx: 0.152, rz: 0.186, ox: 0.012, h: 0.048, t: 0.0055, tilt: -0.012 });
+    const beltG = A.belt({ y: 0.112, rx: 0.158, rz: 0.193, ox: 0.012, h: 0.048, t: 0.0055, tilt: -0.012 });
     put(kit, 'plate', 'hips', beltG, L.strap);
     const bk = A.buckle({ w: 0.05, h: 0.056, r: 0.0042 });
-    put(kit, 'plate', 'hips', bk, L.bronze, { rot: [0, 90, 0], at: [0.17, 0.1, 0] });
+    put(kit, 'plate', 'hips', bk, L.bronze, { rot: [0, 90, 0], at: [0.176, 0.1, 0] });
     // belt plaques with ember cores
     for (const a of [-55, 55, 125, -125]) {
-      const [x, z] = A.se(a * DEG, 0.157, 0.192, 2.3);
+      const [x, z] = A.se(a * DEG, 0.163, 0.199, 2.3);
       const pl = lathe([[0.0, 0.006], [0.014, 0.005], [0.018, 0.0], [0.0, 0.0]], { segs: 10 });
       pl.rotateZ(-90 * DEG);
       put(kit, 'plate', 'hips', pl, L.rivet, { rot: [0, -a, 0], at: [x + 0.012, 0.1, z] });
     }
-    for (const [i, g] of A.tasset({ count: 3, h: 0.088, r: 0.15, point: 0.034 }).entries()) {
+    for (const [i, g] of A.tasset({ count: 3, h: 0.094, r: 0.158, point: 0.036, a0: -40, a1: 70 }).entries()) {
       put(kit, 'plate', 'tassetR', g, i === 1 ? L.lame : L.plate, { glow: veins(0.4) });
       put(kit, 'plate', 'tassetL', mirror(g), i === 1 ? L.lame : L.plate, { glow: veins(0.4) });
     }
 
     // ---- right pauldron: massive, layered (cop + flared over-plate + 4 lames), standing neck guard ----------------------
-    const PR = A.pauldron({ R: 0.118, lames: 4, lameH: 0.056, lameStep: 0.04, flare: 0.045, haute: 0.07 });
+    const PR = A.pauldron({ R: 0.136, lames: 4, lameH: 0.06, lameStep: 0.044, flare: 0.06 });
     put(kit, 'plate', 'deltoidR', PR.cop, L.dark, { glow: veins(0.5) });
     put(kit, 'plate', 'deltoidR', PR.over, L.plate, { glow: veins(1.0, 1.2, 7) });
     PR.lames.forEach((g, k) => put(kit, 'plate', 'deltoidR', g, k % 2 ? L.plate : L.lame, { glow: veins(0.4) }));
-    put(kit, 'plate', 'deltoidR', PR.haute, L.dark, { glow: veins(0.7) });
     put(kit, 'plate', 'deltoidR', PR.rivets, L.rivet);
     put(kit, 'plate', 'deltoidR', PR.boss, L.bronze);
-    put(kit, 'plate', 'deltoidR', A.inlayLine(PR.over, [[0.2, 0.42], [0.38, 0.36], [0.5, 0.4], [0.62, 0.36], [0.8, 0.42]], { width: 0.003 }), L.emberDim);
-    put(kit, 'plate', 'deltoidR', A.runes(PR.haute, { u0: 0.25, u1: 0.75, v0: 0.3, v1: 0.62, glyphs: [1, 7, 4], width: 0.0024 }), L.emberDim);
+    put(kit, 'plate', 'deltoidR', PR.trim, L.bronze);
     // left pauldron: lighter, two lames (under the fur mantle and the cape)
-    const PL = A.pauldron({ R: 0.104, lames: 2, nu: 18, nv: 7 });
+    const PL = A.pauldron({ R: 0.118, lames: 2, nu: 18, nv: 7, lameNu: 12 });
     put(kit, 'plate', 'deltoidL', mirror(PL.cop), L.iron, { glow: veins(0.4) });
     PL.lames.forEach((g) => put(kit, 'plate', 'deltoidL', mirror(g), L.lame));
     put(kit, 'plate', 'deltoidL', mirror(PL.rivets), L.rivet);
@@ -222,16 +225,16 @@ export const kael = {
     core.rotateX(-90 * DEG);
     put(kit, 'plate', 'chest', core, L.ember, { at: [0.075, 0.2, -0.19] });
     // fur mantle around the left shoulder and the back of the neck (alpha-cut cards)
-    const fur = A.furRing({ center: [-0.03, 0.235, -0.01], rx: 0.15, rz: 0.17, a0: 110, a1: 300, count: 22, len: 0.11, width: 0.07, droop: 0.9, layers: 2, lift: 0.012 });
+    const fur = A.furRing({ center: [-0.03, 0.235, -0.01], rx: 0.15, rz: 0.175, a0: 108, a1: 302, count: 24, len: 0.16, width: 0.1, droop: 0.85, layers: 2, lift: 0.022 });
     put(kit, 'cloth', 'chest', fur, L.fur);
 
     // ---- arms ---------------------------------------------------------------------------------------------------------------
-    putPair(kit, 'plate', 'upperArmTwist', A.rerebrace({ r: 0.064, y0: -0.07, y1: -0.21 }), L.iron, { glow: veins(0.4) });
-    const cou = A.couter({ r: 0.064, wing: 0.078 });
+    putPair(kit, 'plate', 'upperArmTwist', A.rerebrace({ r: 0.069, y0: -0.07, y1: -0.21 }), L.iron, { glow: veins(0.4) });
+    const cou = A.couter({ r: 0.067, wing: 0.084 });
     putPair(kit, 'plate', 'elbow', cou.cop, L.iron, { glow: veins(0.5) });
     putPair(kit, 'plate', 'elbow', cou.wing, L.dark);
     cou.lames.forEach((g) => putPair(kit, 'plate', 'elbow', g, L.lame));
-    const vam = A.vambrace({ r: 0.057, y0: 0.125, y1: -0.115 });
+    const vam = A.vambrace({ r: 0.062, y0: 0.125, y1: -0.115 });
     putPair(kit, 'plate', 'foreArmTwist', vam, L.plate, { glow: veins(0.7, 1.1) });
     putPair(kit, 'plate', 'foreArmTwist', A.inlayLine(vam, [[0.18, 0.15], [0.24, 0.45], [0.2, 0.8]], { width: 0.0026 }), L.emberDim);
     const g = A.gauntlet();
@@ -244,26 +247,27 @@ export const kael = {
     putPair(kit, 'plate', 'thumb', g.thumb, L.lame);
 
     // ---- legs -----------------------------------------------------------------------------------------------------------------
-    putPair(kit, 'plate', 'thigh', A.cuisse({ r: 0.112, y0: -0.035, y1: -0.4 }), L.iron, { glow: veins(0.45) });
-    const pol = A.poleyn({ r: 0.076, wing: 0.088 });
+    putPair(kit, 'plate', 'thigh', A.cuisse({ r: 0.122, y0: -0.035, y1: -0.4 }), L.iron, { glow: veins(0.45) });
+    const pol = A.poleyn({ r: 0.082, wing: 0.094 });
     putPair(kit, 'plate', 'knee', pol.cop, L.iron, { glow: veins(0.6) });
     putPair(kit, 'plate', 'knee', pol.wing, L.dark);
     pol.lames.forEach((x) => putPair(kit, 'plate', 'knee', x, L.lame));
-    putPair(kit, 'plate', 'shin', A.greave({ r: 0.07, y0: -0.065, y1: -0.415 }), L.plate, { glow: veins(0.55) });
-    const sab = A.sabaton();
+    putPair(kit, 'plate', 'shin', A.greave({ r: 0.077, y0: -0.065, y1: -0.415 }), L.plate, { glow: veins(0.55) });
+    const sab = A.sabaton({ P: rig.P, width: 0.05, scale: 1.06 });
     sab.lames.forEach((x, k) => putPair(kit, 'plate', 'foot', x, k % 2 ? L.lame : L.iron));
+    putPair(kit, 'plate', 'foot', sab.heel, L.lame);
     putPair(kit, 'plate', 'toe', sab.toe, L.iron);
-    putPair(kit, 'plate', 'foot', S.box(0.23, 0.026, 0.1, 0.008), L.leather, { at: [0.038, -0.072, 0] });
-    putPair(kit, 'plate', 'toe', S.box(0.09, 0.024, 0.092, 0.008), L.leather, { at: [0.036, -0.019, 0] });
+    putPair(kit, 'plate', 'foot', sab.sole, L.leather);
+    putPair(kit, 'plate', 'toe', sab.toeSole, L.leather);
 
     // ---- great helm -----------------------------------------------------------------------------------------------------------
-    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.015, prow: 0.034, crestH: 0.042 });
+    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.019, prow: 0.04, prowW: 46, muzzle: 0.012, crestH: 0.068, teeth: 4, crestT: 0.006 });
     put(kit, 'plate', 'head', H.crown, L.iron, { glow: veins(0.6, 1, 8) });
-    put(kit, 'plate', 'head', H.brow, L.dark, { glow: veins(0.4) });
+    put(kit, 'plate', 'head', H.brow, L.bronzeDark);
     put(kit, 'plate', 'head', H.face, L.plate, { glow: veins(0.75, 1.1, 8) });
     put(kit, 'plate', 'head', H.back, L.lame);
     put(kit, 'plate', 'head', H.slit, L.slit);
-    put(kit, 'plate', 'head', H.eye, L.eye, { glow: (p) => { const e = Math.max(Math.exp(-((p[2] - 0.034) ** 2) / 0.00018), Math.exp(-((p[2] + 0.034) ** 2) / 0.00018)); return [0, 0, 0.16 + 0.84 * e]; } });
+    put(kit, 'plate', 'head', H.eye, L.eye, { glow: (p) => { const e = Math.max(Math.exp(-((p[2] - 0.033) ** 2) / 0.0001), Math.exp(-((p[2] + 0.033) ** 2) / 0.0001)); return [0, 0, 0.1 + 0.9 * e]; } });
     put(kit, 'plate', 'head', H.breaths, L.slit);
     if (H.crest) put(kit, 'plate', 'head', H.crest, L.dark);
     put(kit, 'plate', 'head', H.rivets, L.rivet);

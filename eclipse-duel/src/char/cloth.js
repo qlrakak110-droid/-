@@ -62,8 +62,9 @@ export function clothLayout(spec, quality, anchorPos, rigIndexOf) {
 }
 
 /** Per-particle orientation: X = surface normal, Y = up along the cloth, Z = across (left -> right). */
+const FX = [0, 0, 0], FY = [0, 0, 0], FZ = [0, 0, 0];
 export function computeFrames(p, C, R, out) {
-  const X = [0, 0, 0], Y = [0, 0, 0], Z = [0, 0, 0];
+  const X = FX, Y = FY, Z = FZ;
   for (let j = 0; j < R; j++) for (let i = 0; i < C; i++) {
     const a = (j * C + Math.max(0, i - 1)) * 3, b = (j * C + Math.min(C - 1, i + 1)) * 3;
     const c = (Math.max(0, j - 1) * C + i) * 3, d = (Math.min(R - 1, j + 1) * C + i) * 3;
@@ -126,29 +127,44 @@ export function clothGeometry(layout, firstBone, outward) {
     idx.push(bo + a, bo + c, bo + b, bo + b, bo + c, bo + d);
     idx.push(bi + a, bi + b, bi + c, bi + b, bi + d, bi + c);
   }
-  // rim: walk the border and stitch outer to inner
+  // orientation: outer faces must point along +outward particle normal (decided on the layers alone)
+  const P = pos;
+  {
+    qrot(n, 0, frames, Math.floor(C / 2) * 4 + Math.floor(R / 2) * C * 4, 1, 0, 0);
+    const m = bo + Math.floor(NV / 2) * NU + Math.floor(NU / 2), a = m, b2 = m + 1, c2 = m + NU;
+    const ux = P[b2 * 3] - P[a * 3], uy = P[b2 * 3 + 1] - P[a * 3 + 1], uz = P[b2 * 3 + 2] - P[a * 3 + 2];
+    const vx = P[c2 * 3] - P[a * 3], vy = P[c2 * 3 + 1] - P[a * 3 + 1], vz = P[c2 * 3 + 2] - P[a * 3 + 2];
+    // triangle (a, c, b) of the outer layer: normal = (c - a) x (b - a)
+    const fx = vy * uz - vz * uy, fy = vz * ux - vx * uz, fz = vx * uy - vy * ux;
+    if ((fx * n[0] + fy * n[1] + fz * n[2]) * outward < 0) for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+  }
+  // rim: walk the border and stitch outer to inner; every quad faces away from the cloth (outward along the sheet)
   const border = [];
   for (let gu = 0; gu < NU; gu++) border.push(gu);
   for (let gv = 1; gv < NV; gv++) border.push(gv * NU + NU - 1);
   for (let gu = NU - 2; gu >= 0; gu--) border.push((NV - 1) * NU + gu);
   for (let gv = NV - 2; gv >= 1; gv--) border.push(gv * NU);
+  const inward = (v) => { // a grid neighbour one step toward the inside of the sheet
+    const gu = v % NU, gv = (v / NU) | 0;
+    return Math.min(NV - 2, Math.max(1, gv)) * NU + Math.min(NU - 2, Math.max(1, gu));
+  };
   for (let k = 0; k < border.length; k++) {
     const a = border[k], b = border[(k + 1) % border.length];
-    idx.push(bo + a, bi + a, bo + b, bo + b, bi + a, bi + b);
+    const A = bo + a, B = bo + b, Ai = bi + a;
+    // outward direction of this edge = edge midpoint - inner neighbours' midpoint
+    const ia = bo + inward(a), ib = bo + inward(b);
+    const ox = (P[A * 3] + P[B * 3] - P[ia * 3] - P[ib * 3]), oy = (P[A * 3 + 1] + P[B * 3 + 1] - P[ia * 3 + 1] - P[ib * 3 + 1]), oz = (P[A * 3 + 2] + P[B * 3 + 2] - P[ia * 3 + 2] - P[ib * 3 + 2]);
+    // triangle (A, Ai, B): normal = (Ai - A) x (B - A)
+    const ux = P[Ai * 3] - P[A * 3], uy = P[Ai * 3 + 1] - P[A * 3 + 1], uz = P[Ai * 3 + 2] - P[A * 3 + 2];
+    const vx = P[B * 3] - P[A * 3], vy = P[B * 3 + 1] - P[A * 3 + 1], vz = P[B * 3 + 2] - P[A * 3 + 2];
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+    if (fx * ox + fy * oy + fz * oz >= 0) idx.push(A, Ai, B, B, Ai, bi + b);
+    else idx.push(A, B, Ai, B, bi + b, Ai);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(idx);
-  // orientation: outer faces must point along +outward particle normal
   geo.computeVertexNormals();
-  const N = geo.attributes.normal.array;
-  qrot(n, 0, frames, Math.floor(C / 2) * 4 + Math.floor(R / 2) * C * 4, 1, 0, 0);
-  const mid = bo + Math.floor(NV / 2) * NU + Math.floor(NU / 2);
-  if ((N[mid * 3] * n[0] + N[mid * 3 + 1] * n[1] + N[mid * 3 + 2] * n[2]) * outward < 0) {
-    const a = geo.index.array;
-    for (let i = 0; i < a.length; i += 3) { const t = a[i + 1]; a[i + 1] = a[i + 2]; a[i + 2] = t; }
-    geo.computeVertexNormals();
-  }
   return { geo, weights: (i) => wts[i], layer: (i) => layer[i] };
 }
 
@@ -165,7 +181,7 @@ export class Cloth {
     const { C, R } = layout;
     this.C = C; this.R = R; this.n = C * R;
     this.first = rig.index[layout.bones[0].name];
-    this.iters = Math.max(4, Math.round(5 + 5 * Math.min(1, quality)));
+    this.iters = Math.max(4, Math.round(4 + 4 * Math.min(1, quality)));
     this.p = new Float32Array(this.n * 3);
     this.pp = new Float32Array(this.n * 3);
     this.inv = new Float32Array(this.n).fill(1);
@@ -213,7 +229,7 @@ export class Cloth {
     this._bindReady = true;
   }
 
-  reset() { this.ready = false; }
+  reset() { this.ready = false; this.hPrev = 0; this.capReady = false; }
 
   inertia(m) {
     if (!this.ready) return;
@@ -249,8 +265,10 @@ export class Cloth {
     this.ready = true;
     // pre-settle against the body so a pose capture or a respawn never starts in a stiff, intersecting shape
     const g = this._settleG;
-    for (let i = 0; i < 24; i++) this.update(1 / 60, mq, mp, g, ZERO3, this._caps, this._floor, 0, true);
+    this.capReady = false;
+    for (let i = 0; i < 10; i++) this.update(1 / 30, mq, mp, g, ZERO3, this._caps, this._floor, 0, true);
     pp.set(p);
+    this.hPrev = 0;
   }
 
   /** Bind the pinned particles to their bones (bind-pose model transforms). */
@@ -263,7 +281,7 @@ export class Cloth {
     if (!this.ready && !settling) { this._settleG = gravity; this._caps = capsules; this._floor = floorY; this._snap(mq, mp); }
     const s = this.spec, C = this.C, n = this.n, p = this.p, pp = this.pp, inv = this.inv;
     const pinN = C * this.layout.pinRows;
-    this.anchorStart.set(p.subarray(0, pinN * 3));
+    for (let k = 0; k < pinN * 3; k++) this.anchorStart[k] = p[k];
     this._anchors(mq, mp, this.anchorTarget);
     if (dt <= 0) { // frozen (hit-stop): keep pins attached, nothing else moves
       p.set(this.anchorTarget, 0); pp.set(this.anchorTarget, 0);
@@ -271,11 +289,27 @@ export class Cloth {
     }
     dt = Math.min(dt, 1 / 30);
     const steps = dt > 1 / 55 ? 3 : 2, h = dt / steps, h2 = h * h;
-    const damp = 1 - s.damping;
+    // damping per 1/120 s (the same decay at any frame rate); verlet velocities rescaled when the step changes
+    const damp = Math.pow(1 - s.damping, h * 120);
+    const vs = this.hPrev > 0 ? h / this.hPrev : 1;
     const vmax = s.maxSpeed * h;
     const cons = this.cons, nc = cons.length;
+    // capsules move from where they were last frame to where they are now across the sub-steps
+    let caps = capsules;
+    if (capsules && capsules.count) {
+      if (!this.capPrev || this.capPrev.length !== capsules.data.length) {
+        this.capPrev = new Float32Array(capsules.data.length);
+        this.capTmp = { count: capsules.count, data: new Float32Array(capsules.data.length) };
+      }
+      if (!this.capReady || settling) this.capPrev.set(capsules.data);
+      caps = this.capTmp;
+    }
     for (let st = 1; st <= steps; st++) {
       const f = st / steps;
+      if (caps !== capsules) {
+        const a0 = this.capPrev, b0 = capsules.data, o0 = caps.data;
+        for (let i = 0; i < o0.length; i++) o0[i] = a0[i] + (b0[i] - a0[i]) * f;
+      }
       for (let k = 0; k < pinN; k++) {
         const o = k * 3;
         pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
@@ -284,10 +318,11 @@ export class Cloth {
         p[o + 2] = this.anchorStart[o + 2] + (this.anchorTarget[o + 2] - this.anchorStart[o + 2]) * f;
       }
       const tt = time + h * st;
+      const vk = (st === 1 ? vs : 1) * damp;
       for (let k = pinN; k < n; k++) {
         const o = k * 3, i = k % C, j = (k / C) | 0;
-        let vx = (p[o] - pp[o]) * damp, vy = (p[o + 1] - pp[o + 1]) * damp, vz = (p[o + 2] - pp[o + 2]) * damp;
-        const vl = Math.hypot(vx, vy, vz);
+        let vx = (p[o] - pp[o]) * vk, vy = (p[o + 1] - pp[o + 1]) * vk, vz = (p[o + 2] - pp[o + 2]) * vk;
+        const vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
         if (vl > vmax) { const c = vmax / vl; vx *= c; vy *= c; vz *= c; }
         const gust = s.wind * (0.65 + 0.35 * Math.sin(tt * 1.7 + i * 0.45 + j * 0.3) * Math.sin(tt * 0.63 + j * 0.21));
         pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
@@ -306,14 +341,16 @@ export class Cloth {
           p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
           p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
         }
+        // collision inside the last iteration: the sheet settles around a limb instead of being torn across it
+        if (caps && it === this.iters - 1) for (let k = pinN; k < n; k++) pushOutCapsules(p, k * 3, caps, s.margin);
       }
-      // tethers + collision
+      // tethers + collision + floor
       for (let k = pinN; k < n; k++) {
         const o = k * 3, t = (k % C) * 3, maxd = this.tether[k] * s.tether;
         const dx = p[o] - p[t], dy = p[o + 1] - p[t + 1], dz = p[o + 2] - p[t + 2];
         const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (l > maxd) { const c = maxd / l; p[o] = p[t] + dx * c; p[o + 1] = p[t + 1] + dy * c; p[o + 2] = p[t + 2] + dz * c; }
-        if (capsules) pushOutCapsules(p, o, capsules, s.margin);
+        if (caps) pushOutCapsules(p, o, caps, s.margin);
         const fy = floorY + s.margin * 0.6;
         if (p[o + 1] < fy) {
           p[o + 1] = fy;
@@ -321,6 +358,8 @@ export class Cloth {
         }
       }
     }
+    this.hPrev = h;
+    if (caps !== capsules) { this.capPrev.set(capsules.data); this.capReady = true; }
     // failsafe
     for (let k = 0; k < n * 3; k++) {
       if (!(Math.abs(p[k]) < 50)) { this.ready = false; break; }

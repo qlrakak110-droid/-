@@ -10,7 +10,6 @@
 // match is stepped with game time so the lock clock, the camera shots and the VFX stay in sync with the stutter
 // hit-stops of the choreography (the rules hold both fighters during a lock, so nothing is applied twice).
 
-import * as THREE from 'three';
 import * as SHOTS from '../cam/shots.js';
 import { createMatch, createAIController, createHumanController, createIdleController } from './logic/index.js';
 import { clamp } from '../core/math.js';
@@ -44,6 +43,8 @@ export function createSession(ctx, fighters, opts = {}) {
   const controllers = mode === 'versus' || mode === 'training' ? [inputController(ctx, 0), mode === 'training' ? createIdleController() : ai(difficulty)]
     : mode === 'demo' ? [ai(opts.difficulty1 || difficulty), ai(difficulty)] : [null, null];
   const seed = opts.seed ?? (Number(ctx.flags.seed) || Math.floor(ctx.rng() * 1e9));
+  /** real time each sound name was last played (marker hints skip a sound the generic layer just played) */
+  const soundAt = new Map();
   const match = createMatch({ fighters: fighters.map((f) => f.def), controllers, rules: opts.rules || {}, rng: seed });
 
   const session = {
@@ -53,11 +54,29 @@ export function createSession(ctx, fighters, opts = {}) {
     stats: null, presenter: null, feel: null,
     result: null,
     ended: false,
+    /** the match is stepped only once start() ran (built behind the VS splash, idle until then) */
+    running: false,
     /** presentation events seen this round (test API) */
     log: [],
     presentOf: (i) => fighters[i].present || {},
+    /** choreography of a move: present.moves[moveId] or present.moves[slot] */
+    moveHandlers(i, id) {
+      const t = (fighters[i].present || {}).moves;
+      if (!t || !id) return null;
+      if (t[id]) return t[id];
+      const a = session.actors[i];
+      return a ? t[a.clips.move(id).slot] || null : null;
+    },
     projectileKind: (id) => projKinds.get(id) || '',
-    sound(name, o) { if (ctx.audio) { try { return ctx.audio.play(name, o); } catch (e) { /* optional peer */ } } return null; },
+    /** A controller reading ctx.input for player i (held state; the rules derive presses). */
+    humanController: (i) => inputController(ctx, i),
+    sound(name, o) {
+      soundAt.set(name, ctx.time.real);
+      if (ctx.audio) { try { return ctx.audio.play(name, o); } catch (e) { /* optional peer */ } }
+      return null;
+    },
+    /** Was `name` played through session.sound within the last `sec` real seconds. */
+    playedRecently(name, sec) { const t = soundAt.get(name); return t !== undefined && ctx.time.real - t < sec; },
     onStep, onVictory,
     start, rematch, update, animate, dispatchQueued, dispose, restartRound,
   };
@@ -69,12 +88,17 @@ export function createSession(ctx, fighters, opts = {}) {
   session.presenter = createPresenter(ctx, session, session.feel);
   if (ctx.cam) ctx.cam.setTargets(session.actors[0].char.sockets.chest, session.actors[1].char.sockets.chest);
 
-  // fighter ambient presentation (auras, idle particles): present.ambient(h) may return handles to kill on dispose
+  // fighter ambient presentation (auras, idle particles): present.ambient(h) may return handles; it runs again at every
+  // round start (the round reset clears the VFX)
   const ambient = [];
-  for (let i = 0; i < 2; i++) {
-    const fn = session.presentOf(i).ambient;
-    if (typeof fn !== 'function') continue;
-    try { const r = fn(session.presenter.helper(i)); if (r) ambient.push(...(Array.isArray(r) ? r : [r])); } catch (e) { console.warn('[ed] ambient of ' + fighters[i].id + ': ' + e.message); }
+  function startAmbient() {
+    for (const h of ambient) { try { h.kill(); } catch (e) { /* ignore */ } }
+    ambient.length = 0;
+    for (let i = 0; i < 2; i++) {
+      const fn = session.presentOf(i).ambient;
+      if (typeof fn !== 'function') continue;
+      try { const r = fn(session.presenter.helper(i)); if (r) ambient.push(...(Array.isArray(r) ? r : [r])); } catch (e) { console.warn('[ed] ambient of ' + fighters[i].id + ': ' + e.message); }
+    }
   }
 
   // ---- events: queued by the listener, dispatched after the characters updated (fresh sockets) ----------------------
@@ -84,9 +108,7 @@ export function createSession(ctx, fighters, opts = {}) {
     queue.push(name, e);
     if (name === 'hit' && !e.blocked && !e.armoured) { const a = session.actors[e.defender]; a.react++; a.reactFront = e.front !== false; }
     else if (name === 'projectileSpawn') projKinds.set(e.id, e.kind);
-    else if (name === 'roundStart') roundStartPending = true;
   });
-  let roundStartPending = false;
 
   function dispatchQueued() {
     if (!queue.length) return;
@@ -96,6 +118,8 @@ export function createSession(ctx, fighters, opts = {}) {
       const name = q[k], e = q[k + 1];
       if (session.log.length < 400) session.log.push(name);
       try { flow(name, e); session.presenter.dispatch(name, e); } catch (err) { console.warn('[ed] presentation of ' + name + ' failed: ' + (err && (err.stack || err.message))); }
+      // the kind is needed until the expiry itself was presented (hits of that frame are dispatched before it)
+      if (name === 'projectileExpire') projKinds.delete(e.id);
     }
   }
 
@@ -139,6 +163,7 @@ export function createSession(ctx, fighters, opts = {}) {
     session.feel.clearProjectiles();
     session.presenter.reset();
     if (ctx.vfx) ctx.vfx.clear();
+    startAmbient();
     if (ctx.env) ctx.env.setMood(null);
     ctx.post.reset(0.2);
     if (ctx.cam) { ctx.cam.clearFx(); ctx.cam.letterbox(false, 0.2); }
@@ -149,6 +174,9 @@ export function createSession(ctx, fighters, opts = {}) {
       hud.announce(final ? 'final' : 'round', { round: e.round });
     }
     if (mode !== 'showcase') {
+      // a lethal ultimate lock leaves its music overlay on (cinematicEnd keeps it for the KO): every round starts on
+      // the plain battle track (a no-op when it is already playing)
+      if (ctx.audio && e.round > 1) ctx.audio.music('battle', { fade: 1.2 });
       session.sound('announce_round');
       if (e.round === 1) session.sound('bell', { delay: 0.1, volume: 0.6 });
       introCamera(e.round);
@@ -181,12 +209,14 @@ export function createSession(ctx, fighters, opts = {}) {
     const f = match.fighters[actor.index];
     if (f.state === 'walk' || f.state === 'dash' || f.state === 'intro' || f.state === 'backstep') {
       session.sound('step', { pos: actor.pos, volume: f.state === 'walk' ? 0.4 : 0.6 });
+      session.feel.step(actor);
       void data;
     }
   }
 
   // ---- per frame ----------------------------------------------------------------------------------------------------
   let lastScale = 1;
+  let lastIntensity = -1;
   /** Match dt for this frame (see the header: real time x slow motion; game time during a lock; 0 when paused). */
   function stepDt(dtGame, dtReal) {
     const T = ctx.time;
@@ -212,16 +242,17 @@ export function createSession(ctx, fighters, opts = {}) {
   }
 
   function update(dtGame, dtReal) {
-    if (mode !== 'showcase' && !session.ended) {
+    if (session.running && !session.ended) {
       const dt = stepDt(dtGame, dtReal);
       if (dt > 0) match.step(dt);
     }
-    if (roundStartPending) roundStartPending = false;
     for (const a of session.actors) a.update(dtGame, dtReal);
     const f0 = match.fighters[0], f1 = match.fighters[1];
     if (ctx.env) ctx.env.setFocus((session.actors[0].pos.x + session.actors[1].pos.x) * 0.5);
     if (mode === 'showcase') return;
-    if (ctx.audio && ctx.audio.setIntensity) ctx.audio.setIntensity(clamp(1.15 - Math.min(f0.hp / f0.hpMax, f1.hp / f1.hpMax) + (match.round - 1) * 0.1, 0.25, 1));
+    // battle music intensity: only real changes reach WebAudio (each call schedules parameter automation)
+    const intensity = clamp(1.15 - Math.min(f0.hp / f0.hpMax, f1.hp / f1.hpMax) + (match.round - 1) * 0.1, 0.25, 1);
+    if (ctx.audio && ctx.audio.setIntensity && Math.abs(intensity - lastIntensity) > 0.01) { lastIntensity = intensity; ctx.audio.setIntensity(intensity); }
     updateHud();
     if (match.phase === 'end' && !session.ended) {
       session.ended = true;
@@ -233,7 +264,7 @@ export function createSession(ctx, fighters, opts = {}) {
   function updateHud() {
     const hud = ctx.ui && ctx.ui.hud;
     if (!hud) return;
-    hudState.time = match.clock;
+    hudState.time = mode === 'training' ? Infinity : match.clock;
     for (let i = 0; i < 2; i++) {
       const f = match.fighters[i], o = i ? hudState.p2 : hudState.p1;
       o.hp = f.hp; o.hpMax = f.hpMax; o.fp = f.fp; o.fpMax = f.fpMax; o.ult = f.ult; o.ultMax = f.ultMax; o.rounds = f.rounds;
@@ -270,6 +301,7 @@ export function createSession(ctx, fighters, opts = {}) {
 
   // ---- lifecycle ----------------------------------------------------------------------------------------------------
   function start() {
+    session.running = mode !== 'showcase';
     session.ended = false;
     session.result = null;
     rounds.length = 0;
@@ -278,7 +310,9 @@ export function createSession(ctx, fighters, opts = {}) {
       ctx.ui.hud.setup({ p1: fighters[0].roster, p2: fighters[1].roster, roundsToWin: match.rules.roundsToWin });
     }
     if (ctx.audio && mode !== 'showcase') ctx.audio.music('battle', { fade: 1.2 });
-    // createMatch already announced round 1 before we listened
+    // createMatch / match.reset() already announced round 1 (before we listened / into the queue): run it once here
+    queue.length = 0;
+    projKinds.clear();
     onRoundStart({ round: match.round });
     for (const a of session.actors) a.restartRound();
   }
@@ -306,6 +340,8 @@ export function createSession(ctx, fighters, opts = {}) {
     for (const o of offs) o();
     for (const h of ambient) { try { h.kill(); } catch (e) { /* ignore */ } }
     session.feel.clearProjectiles();
+    // nothing of this match may outlive its characters (afterimage ghosts share their geometry)
+    if (ctx.vfx) ctx.vfx.clear();
     for (const a of session.actors) a.dispose();
     session.actors.length = 0;
   }
@@ -323,6 +359,5 @@ function createStats(session) {
     ko(e) { s.kos[e.by]++; },
   };
   session.match.on('cinematicStart', (e) => { s.ults[e.attacker]++; });
-  void THREE;
   return s;
 }

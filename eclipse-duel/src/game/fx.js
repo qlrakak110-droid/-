@@ -66,18 +66,17 @@ const NULL_HANDLE = Object.freeze({ kill() {}, stop() {}, alive: false, handles:
  */
 export function createFx(ctx) {
   const vfx = ctx.vfx;
-  let known = new Set();
-  let knownCount = -1;
   const failed = new Set();
-
-  /** Is a preset registered (cheap: refreshes the cached name set only when the registry grew). */
-  function has(name) {
-    if (!vfx || !name) return false;
-    if (known.has(name)) return true;
-    const list = vfx.presets();
-    if (list.length !== knownCount) { known = new Set(list); knownCount = list.length; }
-    return known.has(name);
+  // registered preset names: the library's now, and every later vfx.define (fighter setup hooks) through a wrapper,
+  // so has() is one Set lookup with no allocation (it runs on every hit)
+  const known = new Set(vfx ? vfx.presets() : []);
+  if (vfx) {
+    const define = vfx.define;
+    vfx.define = (name, fn) => { known.add(name); return define.call(vfx, name, fn); };
   }
+
+  /** Is a preset registered. */
+  function has(name) { return !!name && known.has(name); }
 
   /**
    * Play a preset; unknown or throwing presets fall back to `fallback` (default: the generic hit burst).
@@ -119,13 +118,14 @@ function defineGeneric(vfx, call) {
   // impact burst: flash, directional splash + sparks, glow puff, light, streak flare, slash mark, delayed shock
   vfx.define('game.hit', (v, at, o) => {
     const e = el(o), k = o.k ?? 1, D = DEFS[e] || DEFS.ember, P = PALETTE[e] || PALETTE.ember;
-    v.burst(D.flash, { pos: at.pos, scale: 0.32 + 0.3 * k, intensity: 0.55 + 0.25 * k });
+    // flash, glow and light run on real time: they bloom and decay through the hit-stop while the sparks wait for it
+    v.burst(D.flash, { pos: at.pos, scale: 0.28 + 0.26 * k, intensity: 0.5 + 0.2 * k, realtime: true });
     v.burst(D.splash, { pos: at.pos, dir: at.dir, count: Math.round(5 + 8 * k), intensity: 0.8 });
     v.burst(D.sparks, { pos: at.pos, dir: at.dir, count: Math.round(22 + 40 * k), scale: 0.7 + 0.25 * k });
     if (k > 0.75) v.burst(D.fine, { pos: at.pos, dir: at.dir, count: Math.round(16 * k) });
-    v.burst(D.puff, { pos: at.pos, scale: 0.3 + 0.3 * k, intensity: 0.6 });
-    v.light({ pos: at.pos, color: P.core, intensity: 22 + 40 * k, range: 3.5 + 1.5 * k, duration: 0.12 + 0.1 * k });
-    call('flare', { kind: 'streak', pos: at.pos, color: P.core, intensity: 0.35 + 0.25 * k, size: 0.08 + 0.1 * k, life: 0.07 + 0.04 * k, dir: [1, 0, 0] });
+    v.burst(D.puff, { pos: at.pos, scale: 0.3 + 0.3 * k, intensity: 0.6, realtime: true });
+    v.light({ pos: at.pos, color: P.core, intensity: 22 + 40 * k, range: 3.5 + 1.5 * k, duration: 0.14 + 0.1 * k, realtime: true });
+    call('flare', { kind: 'streak', pos: at.pos, color: P.core, intensity: 0.35 + 0.25 * k, size: 0.08 + 0.1 * k, life: 0.08 + 0.05 * k, dir: [1, 0, 0], realtime: true });
     if (k >= 0.85 && typeof v.slash === 'function') {
       call('slash', { pos: at.pos, look: SLASH_LOOK[e] || 'razor', palette: e, facing: at.facing, normal: [0, 0, 1], forward: [1, 0, 0], roll: 0,
         arc: [-55, 55], radius: 0.55 + 0.35 * k, width: 0.35, life: 0.22 + 0.1 * k, scale: 1 });
@@ -154,8 +154,8 @@ function defineGeneric(vfx, call) {
     v.burst(D.fine, { pos: at.pos, dir: at.dir, count: 18 });
     v.light({ pos: at.pos, color: STEEL.core, intensity: perfect ? 120 : 50, range: 4, duration: 0.16 });
     if (perfect) {
-      call('flare', { kind: 'star', pos: at.pos, color: [5, 7, 10], intensity: 1.2, size: [0.4, 1.4], life: 0.28 });
-      call('flare', { kind: 'ring', pos: at.pos, color: [2, 3.5, 6], intensity: 1, size: [0.3, 1.6], life: 0.3 });
+      call('flare', { kind: 'star', pos: at.pos, color: [5, 7, 10], intensity: 1, size: [0.3, 1.0], life: 0.26 });
+      call('flare', { kind: 'ring', pos: at.pos, color: [2, 3.5, 6], intensity: 0.7, size: [0.2, 0.95], life: 0.26 });
     }
   });
 
@@ -192,22 +192,22 @@ function defineGeneric(vfx, call) {
     v.burst(D.pillar, { pos: [at.pos.x, 0.05, at.pos.z], dir: [0, 1, 0], count: Math.round(70 * k) });
     v.burst(DUST, { pos: [at.pos.x, 0.03, at.pos.z], dir: [0, 1, 0], scale: k });
     v.light({ pos: [at.pos.x, 1, at.pos.z], color: P.core, intensity: 90 * k, range: 7, duration: 0.4 });
-    call('pillar', { pos: [at.pos.x, 0, at.pos.z], palette: e, height: 3.2 * k, radius: 0.5 * k, life: 0.6 });
+    call('pillar', { pos: [at.pos.x, 0, at.pos.z], palette: e, height: 2.4 * k, radius: 0.32 * k, life: 0.55, intensity: 0.6 });
     v.schedule(0.04, (v2) => v2.distort({ kind: 'shock', pos: [at.pos.x, 0.05, at.pos.z], normal: [0, 1, 0], radius: [0.3, 3 * k], strength: 0.04 }));
     if (ctxEnv(v)) ctxEnv(v).pulse([at.pos.x, 0, at.pos.z], P.core, 0.8 * k);
   });
 
   // big finisher (KO, ultimate climax)
   vfx.define('game.finisher', (v, at, o) => {
-    const e = el(o), D = DEFS[e] || DEFS.ember, P = PALETTE[e] || PALETTE.ember, rt = !!(o && o.realtime);
-    v.burst(D.flash, { pos: at.pos, scale: 0.9, intensity: 0.7, realtime: rt });
-    v.burst(D.splash, { pos: at.pos, dir: at.dir, count: 24 });
-    v.burst(D.sparks, { pos: at.pos, dir: at.dir, count: 160, scale: 1.3 });
-    v.burst({ ...D.sparks, emit: 'radial', spread: 180 }, { pos: at.pos, count: 90, scale: 1.1 });
+    const e = el(o), D = DEFS[e] || DEFS.ember, P = PALETTE[e] || PALETTE.ember, rt = !!(o && o.realtime), k = (o && o.k) || 1;
+    v.burst(D.flash, { pos: at.pos, scale: 0.6, intensity: 0.5, realtime: rt });
+    v.burst(D.splash, { pos: at.pos, dir: at.dir, count: Math.round(24 * k) });
+    v.burst(D.sparks, { pos: at.pos, dir: at.dir, count: Math.round(160 * k), scale: 1.3 });
+    v.burst({ ...D.sparks, emit: 'radial', spread: 180 }, { pos: at.pos, count: Math.round(90 * k), scale: 1.1 });
     v.burst(D.motes, { pos: at.pos, count: 30, scale: 1.4 });
     v.burst(SMOKE, { pos: at.pos, dir: at.dir, count: 8, scale: 1.2 });
     v.light({ pos: at.pos, color: P.core, intensity: 140, range: 9, duration: 0.5, realtime: rt });
-    call('flare', { kind: 'flash', pos: at.pos, color: P.core, intensity: 0.5, size: [0.6, 2.2], life: 0.25, realtime: rt });
+    call('flare', { kind: 'flash', pos: at.pos, color: P.core, intensity: 0.28, size: [0.5, 1.6], life: 0.22, realtime: rt });
     call('flare', { kind: 'streak', pos: at.pos, color: P.core, intensity: 0.8, size: 0.3, life: 0.22, dir: [1, 0, 0], realtime: rt });
     v.schedule(0.03, (v2) => v2.distort({ kind: 'shock', pos: at.pos, radius: [0.3, 3.5], strength: 0.05 }));
     v.burst(DUST, { pos: [at.pos.x, 0.03, at.pos.z], dir: [0, 1, 0], scale: 1.6 });

@@ -45,9 +45,15 @@ export function updateCapsules(caps, mq, mp) {
 export function pushOutCapsules(p, o, caps, margin) {
   const d = caps.data;
   let moved = false;
+  const x = p[o], y = p[o + 1], z = p[o + 2];
   for (let i = 0; i < caps.count; i++) {
     const c = i * CAP_STRIDE;
     const ax = d[c], ay = d[c + 1], az = d[c + 2];
+    // early out: farther than radius + margin + half the segment from the segment's midpoint
+    const mx = x - 0.5 * (ax + d[c + 3]), my = y - 0.5 * (ay + d[c + 4]), mz = z - 0.5 * (az + d[c + 5]);
+    const hx = 0.5 * (d[c + 3] - ax), hy = 0.5 * (d[c + 4] - ay), hz = 0.5 * (d[c + 5] - az);
+    const reach = d[c + 6] + margin;
+    if (mx * mx + my * my + mz * mz > reach * reach + 2 * reach * Math.sqrt(hx * hx + hy * hy + hz * hz) + hx * hx + hy * hy + hz * hz) continue;
     const ex = d[c + 3] - ax, ey = d[c + 4] - ay, ez = d[c + 5] - az;
     const px = p[o] - ax, py = p[o + 1] - ay, pz = p[o + 2] - az;
     const ee = ex * ex + ey * ey + ez * ez;

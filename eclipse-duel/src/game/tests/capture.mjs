@@ -37,13 +37,18 @@ export default async ({ evalJs, advance, shot, log }) => {
     await frames('ko', [0.2, 0.3, 0.45, 0.8, 1.4, 2.2, 3.2, 4.5]);
   }
   if (want.has('ult')) {
-    await A("__ED.game.start('kael', 'iska', { mode: 'demo', seed: 11 })");
-    await A("__ED.game.skipIntro()");
-    await A("__ED.game.controller(0, 'idle'); __ED.game.controller(1, 'idle'); __ED.game.place(0, -1.6, 1); __ED.game.place(1, 0.6, -1); __ED.game.meters(0, { ult: 100 })");
-    await advance(1.1);
-    const id = await A("__ED.game.moveFor(0, 'ult')");
-    await A(`__ED.game.forceMove(0, '${id}')`);
-    await frames('ult', [0.1, 0.4, 0.75, 0.95, 1.3, 1.9, 2.6, 3.4, 4.2, 5.0, 5.8, 6.6]);
+    // ULT=kael,iska,vorn picks the users (default kael); each against the next roster fighter
+    const users = String(process.env.ULT || 'kael').split(',');
+    for (const u of users) {
+      const foe = u === 'kael' ? 'iska' : u === 'iska' ? 'vorn' : 'kael';
+      await A(`__ED.game.start('${u}', '${foe}', { mode: 'demo', seed: 11 })`);
+      await A("__ED.game.skipIntro()");
+      await A("__ED.game.controller(0, 'idle'); __ED.game.controller(1, 'idle'); __ED.game.place(0, -1.6, 1); __ED.game.place(1, 0.6, -1); __ED.game.meters(0, { ult: 100 })");
+      await advance(1.1);
+      const id = await A("__ED.game.moveFor(0, 'ult')");
+      await A(`__ED.game.forceMove(0, '${id}')`);
+      await frames(`ult_${u}`, [0.1, 0.4, 0.75, 0.95, 1.3, 1.9, 2.6, 3.4, 4.2, 5.0, 5.8, 6.6, 7.4]);
+    }
   }
   if (want.has('result')) {
     await A("__ED.game.start('vorn', 'kael', { mode: 'demo', seed: 9 })");

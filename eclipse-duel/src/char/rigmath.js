@@ -102,6 +102,39 @@ export function twistAngle(q, o, ax, ay, az) {
   return 2 * Math.atan2(p, w);
 }
 
+/**
+ * Swing angle (radians) of quaternion q away from its own local axis (ax,ay,az): the angle between that axis before
+ * and after the rotation (0 = pure twist, PI = the axis is reversed).
+ */
+export function swingAngle(q, o, ax, ay, az) {
+  const x = q[o], y = q[o + 1], z = q[o + 2], w = q[o + 3];
+  // rotated axis . axis
+  const tx = 2 * (y * az - z * ay), ty = 2 * (z * ax - x * az), tz = 2 * (x * ay - y * ax);
+  const rx = ax + w * tx + y * tz - z * ty, ry = ay + w * ty + z * tx - x * tz, rz = az + w * tz + x * ty - y * tx;
+  return Math.acos(Math.max(-1, Math.min(1, rx * ax + ry * ay + rz * az)));
+}
+
+/** Smooth saturation: identity below `knee`, then approaches `max` asymptotically (C1). Works on |x|, keeps the sign. */
+export function softLimit(x, knee, max) {
+  const a = Math.abs(x);
+  if (a <= knee || max <= knee) return a <= max ? x : Math.sign(x) * max;
+  const r = max - knee;
+  return Math.sign(x) * (knee + r * Math.tanh((a - knee) / r));
+}
+
+/** C1 ramp: 0 below -e, x above e, a quadratic blend in between (smooth max(0, x)). */
+export function softRamp(x, e) {
+  if (x <= -e) return 0;
+  if (x >= e) return x;
+  return ((x + e) * (x + e)) / (4 * e);
+}
+
+/** Smoothstep of x between edges a and b (a may be > b). */
+export function smooth01(x, a, b) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
 /** Axis-angle (unit axis) -> quaternion. */
 export function qaxis(out, o, ax, ay, az, ang) {
   const s = Math.sin(ang * 0.5);
@@ -125,7 +158,9 @@ export function qfromTo(out, o, ax, ay, az, bx, by, bz) {
 /**
  * Sample a keyed track of `dim`-dimensional values with clamped Catmull-Rom (Hermite) interpolation.
  *   track = { n, dim, times: Float32Array(n), values: Float32Array(n*dim), tangents: Float32Array(n*dim),
- *             eases: Array(n) (fn applied to the segment ENDING at key i), modes: Uint8Array(n) (0 auto, 1 linear, 2 step) }
+ *             eases: Array(n) (null, or a time-remap fn applied to the segment ENDING at key i: only the eases that cannot
+ *             be expressed as tangents), modes: Uint8Array(n) (0 auto, 1 linear, 2 step), flat: Uint8Array(n) (1 = zero
+ *             tangent at key i, shared by both segments: C1) }
  * Writes dim values into out[o..]. `t` is clip time (clamped to the key range).
  */
 export function sampleTrack(track, t, out, o) {
@@ -138,26 +173,35 @@ export function sampleTrack(track, t, out, o) {
   track._last = i;
   const t0 = times[i], t1 = times[i + 1], dt = t1 - t0;
   let u = dt > 1e-9 ? (t - t0) / dt : 1;
-  u = track.eases[i + 1](u);
+  const remap = track.eases[i + 1];
+  if (remap) u = remap(u); // legacy time remap (back / elastic / bounce / snap / custom fn): deliberate C1 break
   const mode = track.modes[i + 1];
   const a = i * dim, b = (i + 1) * dim;
   if (mode === 2) { for (let d = 0; d < dim; d++) out[o + d] = u >= 1 ? values[b + d] : values[a + d]; return out; }
   if (mode === 1) { for (let d = 0; d < dim; d++) out[o + d] = values[a + d] + (values[b + d] - values[a + d]) * u; return out; }
   const u2 = u * u, u3 = u2 * u;
   const h00 = 2 * u3 - 3 * u2 + 1, h10 = u3 - 2 * u2 + u, h01 = -2 * u3 + 3 * u2, h11 = u3 - u2;
+  const tin = track.tin || tangents; // arrival tangents differ only at impact keys
   for (let d = 0; d < dim; d++) {
-    out[o + d] = h00 * values[a + d] + h10 * dt * tangents[a + d] + h01 * values[b + d] + h11 * dt * tangents[b + d];
+    out[o + d] = h00 * values[a + d] + h10 * dt * tangents[a + d] + h01 * values[b + d] + h11 * dt * tin[b + d];
   }
   return out;
 }
 
 /**
  * Compute clamped Catmull-Rom tangents (value per second) for a track. Components that are a local extremum at a key
- * get a flat tangent (no overshoot past keyed values; holds stop dead). Loops wrap; open ends are flat.
+ * get a flat tangent (no overshoot past keyed values; holds stop dead). Loops wrap; open ends are flat. Keys flagged in
+ * track.flat (eases: 'out*' into a key, 'in*' out of a key, 'inOut*' both) get a zero tangent on BOTH sides, so the
+ * velocity stays continuous (C1) through every key.
  */
 export function computeTangents(track, loop, duration) {
   const { n, dim, times, values, tangents } = track;
+  const flat = track.flat;
   for (let i = 0; i < n; i++) {
+    if (flat && (flat[i] || (loop && n > 2 && (i === 0 || i === n - 1) && (flat[0] || flat[n - 1])))) {
+      for (let d = 0; d < dim; d++) tangents[i * dim + d] = 0;
+      continue;
+    }
     for (let d = 0; d < dim; d++) {
       let m = 0;
       const v = values[i * dim + d];
@@ -177,6 +221,35 @@ export function computeTangents(track, loop, duration) {
         }
       }
       tangents[i * dim + d] = m;
+    }
+  }
+  // impact keys ('in*' eases): the segment arrives fast (k x its mean velocity, the shape of the ease) and the next
+  // one leaves from rest - a deliberate stop (blade into the floor, a foot landing)
+  const imp = track.impact;
+  track.tin = null;
+  if (imp) {
+    for (let i = 1; i < n; i++) {
+      if (!imp[i]) continue;
+      if (!track.tin) track.tin = Float32Array.from(tangents);
+      const h = Math.max(1e-6, times[i] - times[i - 1]);
+      for (let d = 0; d < dim; d++) {
+        track.tin[i * dim + d] = (imp[i] * (values[i * dim + d] - values[(i - 1) * dim + d])) / h;
+        if (i < n - 1) tangents[i * dim + d] = 0;
+      }
+    }
+  }
+  // a key next to a 'linear' segment takes that segment's slope on both sides, so a curve flows into / out of a
+  // linear run (a walk's planted foot sliding back at root speed, root motion) without a velocity step; two linear
+  // segments with different slopes keep their corner
+  const modes = track.modes;
+  if (!modes) return;
+  for (let i = 0; i < n; i++) {
+    const linL = i > 0 && modes[i] === 1, linR = i < n - 1 && modes[i + 1] === 1;
+    if (linL === linR) continue;
+    const j = linR ? i : i - 1, h = Math.max(1e-6, times[j + 1] - times[j]);
+    for (let d = 0; d < dim; d++) {
+      tangents[i * dim + d] = (values[(j + 1) * dim + d] - values[j * dim + d]) / h;
+      if (track.tin) track.tin[i * dim + d] = tangents[i * dim + d];
     }
   }
 }

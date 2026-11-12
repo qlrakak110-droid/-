@@ -121,7 +121,7 @@ void main() {
     vec3 right = vec3(toCam.z, 0.0, -toCam.x);
     float y = position.y;
     wp = base + right * (position.x * aShape.x) + vec3(0.0, y * aShape.y, 0.0);
-    wp.xz += uWind.xz * 0.12 * y * y * aShape.y + vec2(sin(uTime * 3.1 + aFire.w), cos(uTime * 2.7 + aFire.w)) * 0.04 * y;
+    wp.xz += uWind.xz * 0.12 * y * y * aShape.y + vec2(sin(uTime * 3.1 + aFire.w), cos(uTime * 2.7 + aFire.w)) * 0.04 * y * clamp(aShape.y * 2.0, 0.0, 1.0);
   } else {
     vec3 f = normalize(toCam);
     vec3 r = normalize(cross(vec3(0.0, 1.0, 0.0), f));
@@ -167,8 +167,11 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-/** Flames for the brazier bowls (positions = bowl rims). */
-export function createFire(U, tops, rng) {
+/**
+ * Flames for the brazier bowls (positions = bowl rims) plus small tongues for votive candles
+ * (`candles`: [{ pos, w, h, i }] from the ruins dressing).
+ */
+export function createFire(U, tops, rng, candles = []) {
   const quad = new THREE.PlaneGeometry(1, 1);
   quad.translate(0, 0.5, 0);
   const g = new THREE.InstancedBufferGeometry();
@@ -181,6 +184,7 @@ export function createFire(U, tops, rng) {
     fire.push(p.x + 0.12, p.y - 0.04, p.z + 0.05, rng.range(0, 50)); shape.push(0.6, 0.75, 0, 0.6);
     fire.push(p.x - 0.14, p.y - 0.05, p.z - 0.04, rng.range(0, 50)); shape.push(0.5, 0.6, 0, 0.55);
   }
+  for (const c of candles) { fire.push(c.pos.x, c.pos.y, c.pos.z, rng.range(0, 50)); shape.push(c.w, c.h, 0, c.i); }
   g.setAttribute('aFire', new THREE.InstancedBufferAttribute(new Float32Array(fire), 4));
   g.setAttribute('aShape', new THREE.InstancedBufferAttribute(new Float32Array(shape), 4));
   g.instanceCount = fire.length / 4;

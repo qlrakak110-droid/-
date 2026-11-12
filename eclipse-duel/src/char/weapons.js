@@ -12,8 +12,7 @@
 //
 // Glow channels (material option `glow`): inlay = runes / fuller core / star inlays, vein = ember cracks of the blade.
 
-import * as THREE from 'three';
-import { sweep, lathe, extrude, merge, circle, rrect, curve, put, putPair, mk, fixWinding, autoCav, studs } from './kit/geo.js';
+import { sweep, lathe, extrude, circle, rrect, curve, put, putPair, mk, fixWinding } from './kit/geo.js';
 
 const DEG = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -29,7 +28,7 @@ const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t 
  *          blade [0.56, 0, 0] half-swording on the flat (guard / bind)    ricasso [0.17, 0, 0] choked grip on the ricasso
  * crescents (ISKA, one per hand; mirrored for the left hand):
  *   weaponBase  [0.07, 0, 0] (right blade) / weaponBase2 (left blade)    blade root at the guard ring
- *   weaponTip   [0.5, 0.21, 0] / weaponTip2                              crescent point (the blade curves toward +Y)
+ *   weaponTip   [0.449, 0.263, 0] / weaponTip2                           crescent point (the blade curves toward +Y; = CRESCENT_TIP)
  *   grips: grip [0, 0, 0] (own fist; twin blades never two-hand), pommel [-0.075, 0, 0]
  * spear (VORN, two-handed, right hand forward of centre):
  *   weaponBase [1.02, 0, 0]  head root above the socket                 weaponTip [1.5, 0, 0]  point
@@ -43,8 +42,8 @@ export const WEAPON_SPECS = {
     grips: { grip: { pos: [-0.17, 0, 0] }, pommel: { pos: [-0.27, 0, 0] }, blade: { pos: [0.56, 0, 0] }, ricasso: { pos: [0.17, 0, 0] } },
   },
   crescents: [
-    { name: 'crescentR', hand: 'R', slot: 'blade', base: [0.07, 0, 0], tip: [0.5, 0.21, 0], grips: { grip: { pos: [0, 0, 0] }, pommel: { pos: [-0.075, 0, 0] } } },
-    { name: 'crescentL', hand: 'L', slot: 'blade', base: [0.07, 0, 0], tip: [0.5, 0.21, 0], grips: { grip: { pos: [0, 0, 0] }, pommel: { pos: [-0.075, 0, 0] } } },
+    { name: 'crescentR', hand: 'R', slot: 'blade', base: [0.07, 0, 0], tip: [0.449, 0.263, 0], grips: { grip: { pos: [0, 0, 0] }, pommel: { pos: [-0.075, 0, 0] } } },
+    { name: 'crescentL', hand: 'L', slot: 'blade', base: [0.07, 0, 0], tip: [0.449, 0.263, 0], grips: { grip: { pos: [0, 0, 0] }, pommel: { pos: [-0.075, 0, 0] } } },
   ],
   spear: {
     name: 'spear', hand: 'R', slot: 'blade',
@@ -63,17 +62,17 @@ export const WEAPON_LOOKS = {
     bronze: { color: [0.32, 0.19, 0.08], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.5 },
     leather: { color: [0.05, 0.028, 0.018], rough: 0.72, metal: 0, set: 'leather', amt: 1 },
     wire: { color: [0.3, 0.2, 0.1], rough: 0.3, metal: 1, set: 'hammered', amt: 0.3 },
-    gem: { color: [0.08, 0.02, 0.005], rough: 0.15, metal: 0, set: 'hammered', amt: 0, inlay: 1.2 },
+    gem: { color: [0.05, 0.004, 0.003], rough: 0.06, metal: 0, set: 'hammered', amt: 0, inlay: 0.012 },
   },
   crescents: {
-    blade: { color: [0.62, 0.66, 0.72], rough: 0.16, metal: 1, set: 'hammered', amt: 0.5, wear: 0.4 },
+    blade: { color: [0.62, 0.66, 0.72], rough: 0.14, metal: 1, set: 'hammered', amt: 0.12, wear: 0.4 },
     spine: { color: [0.16, 0.2, 0.28], rough: 0.3, metal: 1, set: 'engraved', amt: 0.8 },
     star: { color: [0.6, 0.8, 1.0], rough: 0.2, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
     silver: { color: [0.55, 0.57, 0.6], rough: 0.25, metal: 1, set: 'engraved', amt: 0.9, vein: 0.35 },
     wrap: { color: [0.06, 0.07, 0.1], rough: 0.7, metal: 0, set: 'leather', amt: 1 },
   },
   spear: {
-    head: { color: [0.28, 0.27, 0.3], rough: 0.24, metal: 1, set: 'hammered', amt: 0.7 },
+    head: { color: [0.28, 0.27, 0.3], rough: 0.22, metal: 1, set: 'hammered', amt: 0.25 },
     edge: { color: [0.55, 0.55, 0.58], rough: 0.18, metal: 1, set: 'hammered', amt: 0.3 },
     rune: { color: [0.05, 0.03, 0.08], rough: 0.4, metal: 0.3, set: 'hammered', amt: 0, inlay: 1 },
     haft: { color: [0.06, 0.04, 0.035], rough: 0.6, metal: 0, set: 'leather', amt: 0.5 },
@@ -82,6 +81,40 @@ export const WEAPON_LOOKS = {
     gold: { color: [0.55, 0.36, 0.12], rough: 0.28, metal: 1, set: 'engraved', amt: 0.8 },
   },
 };
+
+// ---- grip wraps -----------------------------------------------------------------------------------------------------------
+
+/**
+ * Shingled helical leather wrap around the X axis: a flat band whose leading edge sits higher than its trailing edge so
+ * consecutive turns overlap like real wrapped leather. Radial frames (no twist). Returns geometry.
+ * o: x0, x1 (extent), r (core radius, number or fn(t)), turns, width (band width along the axis), thick, seg (samples per turn)
+ */
+export function helixWrap(o) {
+  const turns = o.turns ?? 12, seg = o.seg ?? 10, n = Math.ceil(turns * seg), w = o.width ?? 0.016, th = o.thick ?? 0.0018;
+  const R = typeof o.r === 'function' ? o.r : () => o.r ?? 0.018;
+  const across = [-0.5, -0.2, 0.25, 0.5];
+  const lift = [0.15, 0.45, 0.9, 1.0];
+  const pos = [], nor = [], idx = [], cav = [];
+  for (let i = 0; i <= n; i++) {
+    const t = i / n, a = t * turns * Math.PI * 2, xc = lerp(o.x0, o.x1, t);
+    const c = Math.cos(a), sn = Math.sin(a), r = R(t);
+    for (let k = 0; k < across.length; k++) {
+      const x = xc + across[k] * w, rr = r + th * lift[k];
+      pos.push(x, c * rr, sn * rr);
+      // normal tilts toward the raised edge on the shingle step
+      const tilt = k === 3 ? 0.8 : k === 0 ? -0.15 : 0.12;
+      const nx = -tilt * Math.sign(o.x1 - o.x0), l = Math.hypot(nx, 1);
+      nor.push(nx / l, (c) / l, (sn) / l);
+      cav.push(k === 3 ? 1.35 : k === 0 ? 0.55 : 1);
+    }
+  }
+  const K = across.length;
+  for (let i = 0; i < n; i++) for (let k = 0; k < K - 1; k++) {
+    const a0 = i * K + k, b0 = a0 + 1, c0 = a0 + K, d0 = c0 + 1;
+    idx.push(a0, c0, b0, b0, c0, d0);
+  }
+  return fixWinding(mk(pos, nor, idx, cav));
+}
 
 // ---- blade cross-section sweep ----------------------------------------------------------------------------------------
 
@@ -160,7 +193,7 @@ export function greatsword(kit, o = {}) {
     return lerp(base, mid * 0.92, t / 0.86) + 0.004 * Math.sin(Math.PI * t / 0.86);
   };
   const blade = bladeSweep({
-    x0: XR, x1: X1, segs: 34,
+    x0: XR, x1: X1, segs: 28,
     w: bw, th: (t) => lerp(0.0085, 0.0045, t) * (t > 0.9 ? 1 - (t - 0.9) * 6 : 1) + 0.0006,
     bevel: (t) => lerp(0.016, 0.01, t),
     fuller: { from: 0.0, to: 0.62, w: 0.015, depth: 0.0035 },
@@ -172,7 +205,9 @@ export function greatsword(kit, o = {}) {
     const v = core * (1 - sstep(0.55, 0.95, t)) * (0.55 + 0.45 * Math.sin(p[0] * 23.0 + 1.3) * Math.sin(p[0] * 7.1));
     return [0, Math.max(0, v), 0];
   };
-  add(blade, L.blade, { glow: crack });
+  const edgeK = (p) => { const t = clamp((p[0] - XR) / (X1 - XR), 0, 1); return Math.abs(p[1]) > bw(t) - lerp(0.016, 0.01, t) * 0.8 ? 1 : 0; };
+  const ec = L.edge.color, bc = L.blade.color;
+  add(blade, L.blade, { glow: crack, color: (p) => (edgeK(p) ? ec : bc) });
   // fuller floor: a glowing molten seam inside the fuller (thin strip on both flats)
   for (const s of [1, -1]) {
     const pts = [];
@@ -183,13 +218,6 @@ export function greatsword(kit, o = {}) {
   // ricasso: blunt thick block between the guard and the blade with two parrying lugs
   const ric = sweep([[X0 - 0.005, 0, 0], [XR + 0.004, 0, 0]], rrect(0.048, 0.0115, 0.006, 2), { up: [0, 1, 0], hard: [] });
   add(ric, L.iron);
-  // leather wrap on the ricasso (choked grip)
-  const rwrap = [];
-  for (let i = 0; i <= 44; i++) {
-    const a = i * 0.98, x = X0 + 0.02 + (i / 44) * 0.11;
-    rwrap.push([x, Math.cos(a) * 0.05, Math.sin(a) * 0.0135]);
-  }
-  add(sweep(rwrap, circle(5).map(([c, d]) => [c * 0.0022, d * 0.0042]), { up: [1, 0, 0] }), L.leather);
   for (const s of [1, -1]) {
     const lug = extrude([[0, 0], [0.018, 0], [0.034, 0.024], [0.026, 0.03], [0.006, 0.02]], { depth: 0.013, bevel: 0.0025, bevelSegs: 2 });
     lug.scale(1, s, 1);
@@ -203,7 +231,7 @@ export function greatsword(kit, o = {}) {
   add(esc, L.iron);
   // ember gem in the escutcheon (both faces)
   for (const s of [1, -1]) {
-    const gem = lathe([[0.0, 0.009], [0.012, 0.007], [0.017, 0.002], [0.017, 0], [0.0, 0]], { segs: 12, hard: [2] });
+    const gem = lathe([[0.0, 0.0095], [0.006, 0.0088], [0.011, 0.0068], [0.0145, 0.0038], [0.016, 0.0008], [0.016, 0], [0.0, 0]], { segs: 14, hard: [4] });
     gem.rotateX(s * 90 * DEG);
     gem.translate(X0 + 0.004, 0, s * 0.0215);
     add(gem, L.gem);
@@ -211,16 +239,16 @@ export function greatsword(kit, o = {}) {
     add(bez, L.bronze);
   }
   for (const s of [1, -1]) {
-    const q = curve([[X0 - 0.01, s * 0.045, 0], [X0 - 0.005, s * 0.12, 0], [X0 + 0.02, s * 0.2, 0], [X0 + 0.062, s * 0.25, 0]], 16);
-    const quill = sweep(q, rrect(1, 1, 0.55, 1), {
-      scale: (t) => { const k = 1 - 0.45 * sstep(0, 0.85, t) + 0.5 * sstep(0.85, 1, t); return [0.0145 * k, 0.017 * k]; },
+    const q = curve([[X0 - 0.012, s * 0.045, 0], [X0 - 0.008, s * 0.11, 0], [X0 + 0.006, s * 0.175, 0], [X0 + 0.036, s * 0.215, 0]], 12);
+    const quill = sweep(q, rrect(1, 1, 0.45, 1), {
+      scale: (t) => { const k = 1 - 0.32 * sstep(0, 0.8, t) + 0.55 * sstep(0.82, 1, t); return [0.019 * k, 0.024 * k]; },
       up: [1, 0, 0], caps: true,
     });
     add(quill, L.iron);
     // forked tip: two short flame prongs
     for (const f of [-1, 1]) {
-      const pr = curve([[X0 + 0.055, s * 0.243, 0], [X0 + 0.075 + f * 0.012, s * 0.265, f * 0.004], [X0 + 0.09 + f * 0.022, s * 0.272, f * 0.006]], 6);
-      add(sweep(pr, circle(6), { scale: (t) => 0.0085 * (1 - t * 0.85), caps: true, up: [0, 0, 1] }), L.iron);
+      const pr = curve([[X0 + 0.03, s * 0.212, f * 0.006], [X0 + 0.046 + f * 0.01, s * 0.236, f * 0.012], [X0 + 0.056 + f * 0.022, s * 0.244, f * 0.014]], 6);
+      add(sweep(pr, circle(6), { scale: (t) => 0.011 * (1 - t * 0.85), caps: true, up: [0, 0, 1] }), L.iron);
     }
     // langet plates running onto the blade (both flats)
     const lg = extrude([[0, -0.016], [0.07, -0.012], [0.085, 0], [0.07, 0.012], [0, 0.016]], { depth: 0.003, bevel: 0.0012, bevelSegs: 1 });
@@ -232,14 +260,7 @@ export function greatsword(kit, o = {}) {
   const core = lathe([[0.0, 0], [0.0175, 0], [0.0165, 0.08], [0.0158, 0.15], [0.0168, 0.23], [0.0182, 0.27], [0.0, 0.27]], { segs: 14 });
   core.rotateZ(90 * DEG); core.translate(GX0, 0, 0);
   add(core, L.leather);
-  const wrap = [];
-  const nW = 96;
-  for (let i = 0; i <= nW; i++) {
-    const t = i / nW, a = t * Math.PI * 2 * 12, x = lerp(GX0 - 0.006, GX1 + 0.012, t);
-    const r = 0.0182 + 0.0012 * Math.sin(t * Math.PI);
-    wrap.push([x, Math.cos(a) * r, Math.sin(a) * r]);
-  }
-  add(sweep(wrap, circle(6).map(([c, d]) => [c * 0.0013, d * 0.0052]), { up: [1, 0, 0] }), L.leather);
+  add(helixWrap({ x0: GX0 - 0.008, x1: GX1 + 0.014, r: (t) => 0.0172 + 0.0012 * Math.sin(t * Math.PI), turns: 13, width: 0.019, thick: 0.0022, seg: 9 }), L.leather);
   for (const xw of [-0.088, -0.1]) add(sweep(circle(14).map(([c, d]) => [xw, c * 0.02, d * 0.02]), circle(4), { scale: 0.0013, closed: true, up: [1, 0, 0] }), L.wire);
   for (const [xf, r] of [[GX0 + 0.004, 0.0215], [GX1 - 0.002, 0.022]]) {
     const fe = lathe([[r * 0.9, -0.009], [r, -0.006], [r * 1.04, 0], [r, 0.006], [r * 0.9, 0.009]], { segs: 16 });
@@ -252,7 +273,7 @@ export function greatsword(kit, o = {}) {
   wheel.rotateX(90 * DEG); wheel.translate(PX, 0, 0);
   add(wheel, L.iron);
   for (const s of [1, -1]) {
-    const core2 = lathe([[0.0, 0.004], [0.011, 0.003], [0.015, 0.0], [0.0, 0.0]], { segs: 10 });
+    const core2 = lathe([[0.0, 0.006], [0.006, 0.0052], [0.011, 0.0032], [0.0135, 0.0], [0.0, 0.0]], { segs: 12 });
     core2.rotateX(s * 90 * DEG); core2.translate(PX, 0, s * 0.0222);
     add(core2, L.gem);
   }
@@ -264,29 +285,43 @@ export function greatsword(kit, o = {}) {
 
 // ---- ISKA: crescent blade -------------------------------------------------------------------------------------------------
 
-/** One crescent blade authored for the right hand (mirror for the left: pass side 'L'). */
+/** Crescent geometry constants: the spine follows an arc of radius CR through CA, starting at CX0 on the grip axis. */
+const CR = 0.42, CA = 68 * DEG, CX0 = 0.06;
+const crescentArc = (t) => [Math.sin(t * CA) * CR, (1 - Math.cos(t * CA)) * CR];
+/** Tip of the crescent in the weapon bone frame (also WEAPON_SPECS.crescents[*].tip). */
+export const CRESCENT_TIP = [CX0 + crescentArc(1)[0], crescentArc(1)[1], 0];
+
+/** One crescent blade authored for the right hand (the left one is its mirror image). */
 function crescentGeo(L) {
   const parts = [];
-  // crescent: the spine follows an arc curving toward +Y (the back); the edge (-Y) is the outer, convex side
-  const R = 0.36, A = 62 * DEG, X0 = 0.06;
-  const arc = (t) => { const a = t * A; return [Math.sin(a) * R, (1 - Math.cos(a)) * R]; };
+  // crescent moon blade: widest in the middle, both ends pointed; curves toward +Y (the back), true edge -Y outside
+  const W = (t) => 0.004 + 0.034 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.04)), 0.75) * (1 - 0.3 * t);
+  const TH = (t) => 0.0042 * (1 - 0.6 * t) + 0.0008;
   const blade = bladeSweep({
-    x0: X0, x1: X0, segs: 44, back: false,
-    path: (t) => arc(t),
-    w: (t) => 0.004 + 0.034 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.05)), 0.8) * (1 - 0.25 * t),
-    th: (t) => 0.0042 * (1 - 0.6 * t) + 0.0008,
-    bevel: () => 0.009,
-    fuller: { from: 0.08, to: 0.7, w: 0.006, depth: 0.0018 },
+    x0: CX0, x1: CX0, segs: 40, path: crescentArc,
+    w: W, th: TH, bevel: () => 0.009, fuller: { from: 0.1, to: 0.72, w: 0.006, depth: 0.0016 },
   });
-  parts.push([blade, L.blade, (p) => {
-    // starlight: a scatter of points and a constellation line along the flat
-    const s = Math.sin(p[0] * 97.0) * Math.sin(p[1] * 131.0 + p[0] * 17.0);
-    return [s > 0.93 ? 1 : 0, 0.2, 0];
-  }]);
-  // guard ring around the fist knuckles + short quillon
-  const ring = sweep(curve(circle(16).map(([c, d]) => [0.0 + c * 0.0, 0.0 + c * 0.055 - 0.0, d * 0.03 + 0]), 32, true), circle(6), { scale: 0.005, closed: true, up: [1, 0, 0] });
-  ring.translate(0.05, -0.02, 0);
-  parts.push([ring, L.silver]);
+  parts.push([blade, L.blade]);
+  // starlight seam in the fuller (both flats) and a scatter of small four-point stars
+  for (const s of [1, -1]) {
+    const pts = [];
+    for (let i = 0; i <= 20; i++) { const t = 0.13 + (i / 20) * 0.55, [dx, dy] = crescentArc(t); pts.push([CX0 + dx, dy, s * (TH(t) - 0.0016 + 0.0004)]); }
+    parts.push([sweep(pts, rrect(0.0022, 0.0004, 0, 0), { up: [0, 0, 1] }), L.star]);
+  }
+  const star4 = [];
+  for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2, rr = k % 2 ? 0.0012 : 0.0042; star4.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
+  for (const [t, off, sc] of [[0.25, 0.018, 1], [0.38, -0.016, 0.7], [0.5, 0.02, 0.85], [0.62, -0.012, 0.6], [0.78, 0.008, 0.75]]) {
+    const [dx, dy] = crescentArc(t), [ex, ey] = crescentArc(t + 0.01);
+    const nx = -(ey - dy), ny = ex - dx, l = Math.hypot(nx, ny);
+    for (const s of [1, -1]) {
+      const st = extrude(star4, { depth: 0.0008, bevel: 0.0004, bevelSegs: 1 });
+      st.scale(sc, sc, 1);
+      st.translate(CX0 + dx + (nx / l) * off, dy + (ny / l) * off, s * (TH(t) + 0.0004));
+      parts.push([st, L.star]);
+    }
+  }
+  // knuckle bow from the guard around the fingers (-Y side) to the pommel
+  parts.push([sweep(curve([[0.05, -0.024, 0], [0.032, -0.058, 0], [-0.015, -0.066, 0], [-0.058, -0.042, 0], [-0.068, -0.014, 0]], 16), circle(6), { scale: 0.0045, caps: true, up: [0, 0, 1] }), L.silver]);
   const guard = extrude([[0, -0.03], [0.02, -0.028], [0.03, 0], [0.02, 0.03], [0, 0.034], [-0.01, 0]], { depth: 0.018, bevel: 0.003, bevelSegs: 2 });
   guard.translate(0.045, 0, 0);
   parts.push([guard, L.silver]);
@@ -310,7 +345,7 @@ function crescentGeo(L) {
 export function crescents(kit, o = {}) {
   const L = { ...WEAPON_LOOKS.crescents, ...(o.looks || {}) };
   const slot = o.slot ?? 'blade';
-  for (const [g, look, glow] of crescentGeo(L)) putPair(kit, slot, 'weapon', g, look, glow ? { glow } : {});
+  for (const [g, look] of crescentGeo(L)) putPair(kit, slot, 'weapon', g, look);
   return WEAPON_SPECS.crescents;
 }
 
@@ -358,7 +393,7 @@ export function spear(kit, o = {}) {
     th: (t) => 0.009 * (1 - t) + 0.001,
     bevel: () => 0.012,
   });
-  add(head, L.head, { glow: (p) => [0, 0, 0] });
+  add(head, L.head);
   // arc-rune strip along the ridge (both flats)
   for (const s of [1, -1]) {
     const pts = [];
@@ -390,4 +425,3 @@ export const WEAPON_MATERIALS = {
   spear: { envMapIntensity: 1.15, bump: 0.9, glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [0, 0, 0] }, rim: [0.3, 0.32, 0.5, 3.5] },
 };
 
-export { studs, mk, autoCav, merge };

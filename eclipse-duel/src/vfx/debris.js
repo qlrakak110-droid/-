@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import { InstanceRing } from './instanced.js';
 import { GLSL_COMMON, GLSL_BALLISTIC } from './glsl.js';
-import { toVec3, toColor, sampleRange, normalizeAt, makeAt, makeFrame } from './util.js';
+import { toColor, sampleRange, normalizeAt, makeAt, makeFrame } from './util.js';
 import { opt } from './meshfx.js';
 import { makeRng, TAU, DEG } from '../core/math.js';
 import { LIB } from './library.js';
@@ -171,7 +171,8 @@ export function installDebris(vfx, shared) {
   mesh.name = 'vfx.debris';
   root.add(mesh);
 
-  let maxDeath = -1, maxDeathReal = -1, serial = 1;
+  let serial = 1;
+  const active = [];
   const atN = makeAt();
   const X = new THREE.Vector3(), Y = new THREE.Vector3(), Z = new THREE.Vector3(), D = new THREE.Vector3(), P = new THREE.Vector3(), A = new THREE.Vector3();
   const qa = new THREE.Quaternion(), alb = new THREE.Color(), emit = new THREE.Color();
@@ -216,6 +217,7 @@ export function installDebris(vfx, shared) {
     const grav = opt(opts.gravity, kd.gravity), drag = opt(opts.drag, 0.4), bounce = opt(opts.bounce, kd.bounce), fric = opt(opts.friction, 0.55);
     const dust = opt(opts.dust, kd.dust) && vfx.burst;
     let end = now, dusts = 0;
+    const children = [];
     const f = ring.f32, st = ring.stride;
     for (let i = 0; i < n; i++) {
       const j = (s0 + i) % CAP, k = j * st;
@@ -250,25 +252,26 @@ export function installDebris(vfx, shared) {
         if (tl > 0.05) {
           dusts++;
           const lp = [xzAt(P.x, vx, drag, tl), 0.02, xzAt(P.z, vz, drag, tl)];
-          vfx.schedule(t0 - now + tl, (v) => v.burst(dustDef, { pos: lp, dir: [0, 1, 0], scale: Math.min(1.5, size * 6), realtime }), { realtime });
+          children.push(vfx.schedule(t0 - now + tl, (v) => { children.push(v.burst(dustDef, { pos: lp, dir: [0, 1, 0], scale: Math.min(1.5, size * 6), realtime })); }, { realtime }));
         }
       }
     }
     ring.dirty(s0, n);
     ring.commit();
     mesh.visible = true;
-    if (realtime) maxDeathReal = Math.max(maxDeathReal, end); else maxDeath = Math.max(maxDeath, end);
     const h = {
       _dead: false,
       get alive() { return !h._dead && (realtime ? clock.real : clock.game) < end; },
       kill() {
         if (h._dead) return;
         h._dead = true;
+        for (const c of children) c.kill();
         for (let i = 0; i < n; i++) { const j = (s0 + i) % CAP; if (ring.owner[j] === own) f[j * st + 7] = 0; }
         ring.dirty(s0, n);
       },
       stop() {},
     };
+    active.push(h);
     shared.track(h);
     return h;
   }
@@ -277,14 +280,16 @@ export function installDebris(vfx, shared) {
     name: 'debris',
     api: { debris, debrisKinds: DEBRIS_KINDS },
     update() {
+      for (let i = active.length - 1; i >= 0; i--) if (!active[i].alive) active.splice(i, 1);
       ring.commit();
-      mesh.visible = clock.game < maxDeath || clock.real < maxDeathReal;
+      mesh.visible = active.length > 0;
     },
     clear() {
       for (let i = 0; i < CAP; i++) ring.f32[i * ring.stride + 7] = 0;
       ring.dirty(0, CAP);
       ring.commit();
-      maxDeath = maxDeathReal = -1;
+      for (const h of active) h._dead = true;
+      active.length = 0;
       mesh.visible = false;
     },
     dispose() { ring.dispose(); mat.dispose(); mesh.removeFromParent(); },

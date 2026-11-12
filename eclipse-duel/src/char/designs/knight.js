@@ -25,6 +25,8 @@ export const knight = {
   name: 'Iron Knight',
   idle: 'demo.idle',
   proportions: {},
+  // the handle crosses the palm diagonally (blade tilted 40 deg toward the little finger): wrists stay in range
+  gripAngle: 40,
   materials: {
     plate: { roughness: 1, metalness: 1, envMapIntensity: 1.2, detailScale: 4.5, bump: 0.1 },
     suit: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 26, bump: 0.25 },
@@ -35,16 +37,20 @@ export const knight = {
     { name: 'plume2', parent: 'plume1', at: [-0.075, 0.02, 0] },
     { name: 'plume3', parent: 'plume2', at: [-0.085, -0.025, 0] },
     { name: 'plume4', parent: 'plume3', at: [-0.08, -0.06, 0] },
-    { name: 'tassetR', parent: 'hips', at: [0.075, -0.035, 0.105] },
-    { name: 'tassetL', parent: 'hips', at: [0.075, -0.035, -0.105] },
+    // tassets ride 55% of the thigh's swing (plus their spring), so a raised thigh does not cut through them
+    { name: 'tassetR', parent: 'hips', at: [0.075, -0.035, 0.105], follow: { bone: 'thighR', k: 0.55 } },
+    { name: 'tassetL', parent: 'hips', at: [0.075, -0.035, -0.105], follow: { bone: 'thighL', k: 0.55 } },
   ],
   springs: [
     { bones: ['plume1', 'plume2', 'plume3', 'plume4'], stiffness: 50, damping: 3.5, gravity: 0.45, tip: [-0.07, -0.08, 0], limit: 75, collide: false },
-    { bones: ['tassetR'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.03, limit: 38 },
-    { bones: ['tassetL'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.03, limit: 38 },
+    { bones: ['tassetR'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.05, limit: 45 },
+    { bones: ['tassetL'], stiffness: 230, damping: 13, gravity: 0.4, tip: [0.0, -0.2, 0], radius: 0.05, limit: 45 },
   ],
   colliders: [
     { name: 'torso', a: ['spine', [-0.01, 0, 0]], b: ['chest', [-0.015, 0.15, 0]], r: 0.17 },
+    // head and neck: keep the cape off the helmet when it is thrown up (spins)
+    { name: 'head', a: ['head', [0.01, 0.04, 0]], b: ['head', [0.0, 0.16, 0]], r: 0.135 },
+    { name: 'neck', a: ['neck', [0, 0.0, 0]], b: ['neck', [0.005, 0.1, 0]], r: 0.08 },
     { name: 'pelvis', a: ['hips', [-0.02, -0.04, -0.08]], b: ['hips', [-0.02, -0.04, 0.08]], r: 0.155 },
     { name: 'shoulderR', a: ['chest', [-0.03, 0.18, 0.09]], b: ['upperArmR', [0, -0.06, 0]], r: 0.115 },
     { name: 'shoulderL', a: ['chest', [-0.03, 0.18, -0.09]], b: ['upperArmL', [0, -0.06, 0]], r: 0.115 },
@@ -91,14 +97,16 @@ export const knight = {
     }, MAIL);
     kit.loftPair('suit', {
       path: [['shoulderR', [0, -0.02, 0.1]], ['upperArmR', [0, 0, 0]], ['upperArmR', [0, -0.15, 0]], ['foreArmR', [0, 0, 0]], ['foreArmR', [0, -0.135, 0]], ['handR', [0, 0, 0]], ['handR', [0, -0.03, 0]]],
-      weights: [[0, 'shoulderR'], [0.7, 'deltoidR'], [1.15, 'upperArmTwistR'], [1.9, 'upperArmR'], [2.75, 'upperArmR'], [3, 'elbowR'], [3.25, 'foreArmR'], [3.6, 'foreArmR'], [4.4, 'foreArmTwistR'], [4.85, 'foreArmTwistR'], [5.15, 'handR']],
+      // wide bands around the shoulder (deltoid half-swing, twist helper) and the elbow (half-joint volume helper)
+      weights: [[0, 'shoulderR'], [0.55, 'deltoidR'], [1.4, 'upperArmTwistR'], [2.05, 'upperArmR'], [2.55, 'upperArmR'], [3, 'elbowVolR'], [3.45, 'foreArmR'], [3.7, 'foreArmR'], [4.4, 'foreArmTwistR'], [4.85, 'foreArmTwistR'], [5.15, 'handR']],
       rx: [[0, 0.07], [1, 0.064], [2, 0.058], [3, 0.05], [4, 0.05], [5, 0.04], [6, 0.038]],
       rz: [[0, 0.075], [1, 0.066], [2, 0.06], [3, 0.052], [4, 0.054], [5, 0.04], [6, 0.038]],
       segs: [16, 34],
     }, PADDING);
     kit.loftPair('suit', {
       path: [['hips', [0, -0.03, 0.075]], ['thighR', [0, 0, 0]], ['thighR', [0, -0.23, 0]], ['shinR', [0, 0, 0]], ['shinR', [0, -0.21, 0]], ['footR', [0, 0, 0]], ['footR', [0, -0.04, 0]]],
-      weights: [[0, 'hips'], [0.75, 'hips'], [1.3, 'thighR'], [2.75, 'thighR'], [3, 'kneeR'], [3.25, 'shinR'], [4.8, 'shinR'], [5.15, 'footR']],
+      // groin: hips -> hip-joint half-swing -> thigh twist helper -> thigh; knee: half-joint volume helper
+      weights: [[0, 'hips'], [0.5, 'hips'], [1.0, 'hipJointR'], [1.45, 'thighTwistR'], [2.0, 'thighR'], [2.6, 'thighR'], [3, 'kneeVolR'], [3.4, 'shinR'], [4.8, 'shinR'], [5.15, 'footR']],
       rx: [[0, 0.1], [1, 0.1], [2, 0.085], [3, 0.062], [4, 0.066], [5, 0.048], [6, 0.046]],
       rz: [[0, 0.1], [1, 0.098], [2, 0.08], [3, 0.06], [4, 0.06], [5, 0.045], [6, 0.044]],
       ox: [[0, 0], [4, -0.008], [5, 0]],
@@ -175,7 +183,7 @@ export const knight = {
     for (let f = 0; f < 4; f++) {
       const x = 0.027 - f * 0.018, w = f === 3 ? 0.0085 : 0.0095;
       kit.addPair('plate', 'fingersR', S.shell({ y0: 0.004, y1: -0.05, rx: w, rz: 0.0105, a0: 0, a1: 360, thick: 0, segs: [8, 2] }), { ...STEEL, at: [x, 0, 0] });
-      kit.addPair('plate', 'fingerTipsR', S.shell({ y0: 0.004, y1: -0.042 + f * 0.002, rx: [[0, w], [1, w * 0.75]], rz: [[0, 0.0095], [1, 0.007]], a0: 0, a1: 360, thick: 0, segs: [8, 2] }), { ...DARK, at: [x, 0, 0] });
+      kit.addPair('plate', 'fingerTipsR', S.shell({ y0: 0.004, y1: -0.042 + f * 0.002, rx: [[0, w], [1, w * 0.75]], rz: [[0, 0.0095], [1, 0.007]], a0: 0, a1: 360, thick: 0, caps: [false, true], segs: [8, 2] }), { ...DARK, at: [x, 0, 0] });
     }
     kit.addPair('plate', 'thumbR', S.tube(S.path([[0, 0, 0], [0.012, -0.03, -0.006], [0.018, -0.058, -0.012]], 6), [[0, 0.012], [1, 0.008]], 8), STEEL);
 

@@ -23,6 +23,10 @@ const FEET = { footL: { pos: FL, rot: [0, 14, 0] }, footR: { pos: FR, rot: [0, -
 const STANCE_HAND = { pos: [0.33, 1.08, 0.1], aim: [0.8, 0.45, -0.15], up: [-0.4, 0.85, 0] };
 const LOOSE_ARMS = { upperArmR: [-28, 0, 10], foreArmR: [0, 0, 30], upperArmL: [-30, 0, 14], foreArmL: [0, 0, 26] };
 const NO_FEET = { footL: { pos: FL, w: 0 }, footR: { pos: FR, w: 0 } };
+/** Weapon hand riding the torso (chest frame) while lying: blade flat on the floor beside the body, toward the feet. */
+const LYING_HAND = { space: 'chest', pos: [-0.08, -0.42, 0.42], aim: [-0.08, -0.92, 0.38], up: [0, 0.38, 0.92] };
+/** Weapon hand while airborne: blade trailing along the body. */
+const AIR_HAND = { space: 'chest', pos: [0.05, -0.5, 0.36], aim: [-0.5, -0.82, 0.25], up: [0.82, -0.5, 0] };
 
 // lying on the back, head away from the opponent, one knee up, arms out
 definePose('game.downPose', {
@@ -30,8 +34,9 @@ definePose('game.downPose', {
   bones: {
     spine: [0, 0, 4], chest: [0, -4, 6], neck: [0, 10, -6], head: [6, 24, -10],
     thighR: [-8, 0, 8], shinR: [0, 0, -14], footR: [0, 0, -30], thighL: [10, 0, 34], shinL: [0, 0, -64], footL: [0, 0, -10],
-    upperArmR: [-62, 0, 8], foreArmR: [0, 0, 26], handR: [0, 0, 0], upperArmL: [-48, 0, 20], foreArmL: [0, 0, 34],
+    upperArmL: [-48, 0, 20], foreArmL: [0, 0, 34],
   },
+  ik: { handR: LYING_HAND },
   grip: 0, curl: [0.5, 1],
 });
 definePose('game.koPose', {
@@ -39,8 +44,9 @@ definePose('game.koPose', {
   bones: {
     spine: [2, 0, 2], chest: [2, -2, 3], neck: [0, 18, -2], head: [10, 40, -6],
     thighR: [-12, 0, 2], shinR: [0, 0, -6], footR: [0, 0, -36], thighL: [6, 0, 14], shinL: [0, 0, -26], footL: [0, 0, -30],
-    upperArmR: [-78, 0, 2], foreArmR: [0, 0, 12], upperArmL: [-70, 0, 6], foreArmL: [0, 0, 18],
+    upperArmL: [-70, 0, 6], foreArmL: [0, 0, 18],
   },
+  ik: { handR: { ...LYING_HAND, pos: [-0.06, -0.38, 0.5] } },
   grip: 0, curl: [0.2, 1],
 });
 // airborne, rising: arched back, limbs trailing
@@ -49,8 +55,9 @@ definePose('game.airRisePose', {
   bones: {
     spine: [0, 0, 10], chest: [0, -4, 12], neck: [0, 8, 14], head: [4, 10, 18],
     thighR: [-6, 0, 18], shinR: [0, 0, -48], footR: [0, 0, -24], thighL: [6, 0, 36], shinL: [0, 0, -70], footL: [0, 0, -20],
-    ...LOOSE_ARMS, upperArmR: [-60, 0, -16], upperArmL: [-64, 0, 26],
+    ...LOOSE_ARMS, upperArmL: [-64, 0, 26],
   },
+  ik: { handR: AIR_HAND },
   grip: 0, curl: [0.4, 1],
 });
 // airborne, falling: body near horizontal, ready to hit the floor on the back
@@ -59,12 +66,13 @@ definePose('game.airFallPose', {
   bones: {
     spine: [0, 0, 6], chest: [0, -2, 6], neck: [0, 6, -10], head: [2, 12, -14],
     thighR: [-4, 0, 30], shinR: [0, 0, -36], footR: [0, 0, -20], thighL: [8, 0, 48], shinL: [0, 0, -58], footL: [0, 0, -16],
-    ...LOOSE_ARMS, upperArmR: [-70, 0, 30], upperArmL: [-58, 0, 40],
+    ...LOOSE_ARMS, upperArmL: [-58, 0, 40],
   },
+  ik: { handR: { ...AIR_HAND, pos: [0.12, -0.42, 0.4], aim: [-0.2, -0.75, 0.62] } },
   grip: 0, curl: [0.4, 1],
 });
 
-/** Step-drag stance walk with planted feet (no sliding at `D / T` m/s; the game scales the speed). */
+/** Step-drag stance walk with planted feet (no sliding at `D / T` m/s; D < 0 walks backward, trail foot first). */
 function walk(name, dir, D, T) {
   const v = D / T, h = 0.09;
   const lead = dir > 0 ? 'footL' : 'footR', trail = dir > 0 ? 'footR' : 'footL';
@@ -95,7 +103,24 @@ function walk(name, dir, D, T) {
   });
 }
 walk('game.walkF', 1, 0.5, 0.46);
-walk('game.walkB', -1, 0.42, 0.5);
+walk('game.walkB', -1, -0.42, 0.5);
+
+/**
+ * The generic walk re-authored for a rules walk speed v (m/s): the cadence rises a little with speed (period
+ * T0 / (v / v0)^0.3, at most 1.4x) and the stride takes the rest, so the planted feet move exactly with the root at
+ * playback speed 1 (no foot slide whatever the fighter's walkSpeed / backSpeed). Defined once per speed.
+ * @returns {string} clip name
+ */
+export function walkClipFor(dir, v) {
+  const [T0, v0] = dir > 0 ? [0.46, 0.5 / 0.46] : [0.5, 0.42 / 0.5];
+  if (!(v > 0)) return dir > 0 ? 'game.walkF' : 'game.walkB';
+  const name = `game.walk${dir > 0 ? 'F' : 'B'}@${v.toFixed(2)}`;
+  if (!hasClip(name)) {
+    const T = T0 / Math.min(1.4, Math.max(1, Math.pow(v / v0, 0.3)));
+    walk(name, dir, dir * v * T, T);
+  }
+  return name;
+}
 
 defineClip('game.dash', {
   duration: 0.3, breath: 0,
@@ -173,11 +198,11 @@ defineClip('game.guardbreak', {
 
 defineClip('game.airRise', { duration: 0.8, loop: true, breath: 0, keys: [
   { t: 0, pose: 'game.airRisePose', ease: 'inOutSine' },
-  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -20, 36] }, bones: { upperArmR: [-66, 0, -22], upperArmL: [-70, 0, 30], head: [4, 12, 22] } },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -20, 36] }, bones: { upperArmL: [-70, 0, 30], head: [4, 12, 22] } },
 ] });
 defineClip('game.airFall', { duration: 0.8, loop: true, breath: 0, keys: [
   { t: 0, pose: 'game.airFallPose', ease: 'inOutSine' },
-  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -10, 70] }, bones: { upperArmR: [-74, 0, 36], upperArmL: [-62, 0, 46] } },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -10, 70] }, bones: { upperArmL: [-62, 0, 46] } },
 ] });
 defineClip('game.down', { duration: 2.4, loop: true, breath: 1.4, keys: [
   { t: 0, pose: 'game.downPose', ease: 'inOutSine' },
@@ -313,12 +338,28 @@ function fallbackMoveClip(id, mv, fd) {
 }
 
 /**
+ * A fallback clip for a fighter with a weapon in each hand: the generic / demo clips hold a two-handed greatsword (the
+ * off hand IKs onto the main weapon's grip), which would glue twin blades together. The variant drops the grip and
+ * closes both fists on their own weapons. Defined once per clip.
+ * @returns {string} clip name
+ */
+export function twinVariant(name) {
+  const d = getClipDef(name);
+  if (!d || !Array.isArray(d.keys)) return name;
+  const v = name + '@twin';
+  if (!hasClip(v)) defineClip(v, { ...d, keys: d.keys.map((k) => ({ ...k, grip: 0, curl: [1, 1] })) });
+  return v;
+}
+
+/**
  * Build the clip resolver of one fighter.
  * @param {object} fighter registry fighter ({ clips, def })
  * @param {object} compiled compiled rules definition (match.defs[i])
+ * @param {{ twin?: boolean }} [o] twin: the character holds a weapon in each hand (fallback clips use twinVariant)
  * @returns {{ state(slot): {name, speed}, move(id): {name, map(t) -> clip time, fade}, has(slot) }}
  */
-export function createClipSet(fighter, compiled) {
+export function createClipSet(fighter, compiled, o = {}) {
+  const fallback = o.twin ? twinVariant : (n) => n;
   let map = fighter.clips || {};
   if (typeof map === 'function') {
     try { map = map({ defineClip, definePose, hasClip }) || {}; } catch (e) { console.warn('[ed] clips of ' + fighter.id + ' failed: ' + e.message); map = {}; }
@@ -332,10 +373,13 @@ export function createClipSet(fighter, compiled) {
     return o;
   };
   const states = {};
+  const stats = (compiled && compiled.stats) || {};
   const state = (slot) => {
     if (states[slot]) return states[slot];
     const o = entry(slot);
-    const name = o ? o.clip : GENERIC[slot] && hasClip(GENERIC[slot]) ? GENERIC[slot] : 'demo.idle';
+    const walkDir = slot === 'walkF' ? 1 : slot === 'walkB' ? -1 : 0;
+    const name = o ? o.clip : fallback(walkDir ? walkClipFor(walkDir, walkDir > 0 ? stats.walkSpeed : stats.backSpeed)
+      : GENERIC[slot] && hasClip(GENERIC[slot]) ? GENERIC[slot] : 'demo.idle');
     return (states[slot] = { name, speed: (o && o.speed) || 1, own: !!o, duration: clipDuration(name), rootSpeed: clipRootSpeed(name) });
   };
   const moves = {};
@@ -347,9 +391,10 @@ export function createClipSet(fighter, compiled) {
     let fd;
     try { fd = deriveFrameData(mv); } catch (e) { fd = { startup: mv ? mv.duration * 0.4 : 0.2, level: null }; }
     const dur = mv ? mv.duration : 1;
-    const name = o ? o.clip : fallbackMoveClip(slot, mv || {}, fd);
+    const base = o ? o.clip : fallbackMoveClip(slot, mv || {}, fd);
+    const name = o ? base : fallback(base);
     const cd = clipDuration(name);
-    let impact = o ? (o.hit ?? null) : impactTime(name);
+    let impact = o ? (o.hit ?? null) : impactTime(base);
     const startup = fd.startup ?? (mv && mv.markers && mv.markers.length ? mv.markers[mv.markers.length - 1].t : dur * 0.4);
     let mapFn;
     if (o && impact === null) {

@@ -63,7 +63,8 @@ function gridIndex(W, H, flip) {
  *   a0=0, a1=360      angular coverage in degrees (curve): 0 = +X front, 90 = +Z, 180 = back, 270 = -Z
  *   bulge(u, v)       extra radius factor (fn)      ridge {at: deg, w: deg, h: m | fn(v)} or ridges: [...]
  *   dy(u, v, deg)     extra height per vertex (shaped edges: V necklines, pointed lames)
- *   inner             build the inner surface (default: only for open plates; closed tubes keep edge thickness only)
+ *   inner             build the inner surface (default: open plates, and closed tubes that flare open at an end)
+ *   caps              closed tubes: [top, bottom] end discs (finger / toe tips)
  *   rimSegs=5, rimTop  rim tube sides; rimTop = bead radius of the top (v=0) edge if different
  *   thick=0.006       inward thickness               rim: bead radius (0 = none), rimEdges: 'tbs' (top/bottom/sides)
  *   part='all'        'plate' (no rims) | 'rim' (only the rolled rims: colour them separately as trim)
@@ -124,8 +125,11 @@ export function shell(o = {}) {
   if (thick > 0 && part !== 'rim') {
     const PI = new Float32Array(P.length), NI = new Float32Array(P.length);
     for (let k = 0; k < P.length; k++) { PI[k] = P[k] - N[k] * thick; NI[k] = -N[k]; }
-    // the inside of a closed tube is hidden by whatever it wraps: keep only the edge thickness unless asked
-    if (o.inner ?? !closed) parts.push(makeGeo(PI, NI, gridIndex(W, H, !flipped)));
+    // the inside of a closed tube is hidden by whatever it wraps, unless it flares open at an end (cuffs, bells): then
+    // the far inside wall is seen through the opening and must exist
+    const rad = (v) => Math.max(RX(v), RZ(v));
+    const flared = closed && Math.max(rad(0), rad(1)) > 1.08 * Math.min(rad(0.5), Math.min(rad(0), rad(1)) * 1.08 + 1e-9);
+    if (o.inner ?? (!closed || flared)) parts.push(makeGeo(PI, NI, gridIndex(W, H, !flipped)));
     // thin side strips joining outer and inner borders
     const strip = (ids) => {
       const pos = [];
@@ -153,6 +157,24 @@ export function shell(o = {}) {
       const gn = g.attributes.normal.array, k = Math.floor(L / 2) * 3;
       const dx = P[m * 3] - P[inner * 3], dy = P[m * 3 + 1] - P[inner * 3 + 1], dz = P[m * 3 + 2] - P[inner * 3 + 2];
       if (gn[k] * dx + gn[k + 1] * dy + gn[k + 2] * dz < 0) { flipWinding(g); g.computeVertexNormals(); }
+      parts.push(g);
+    }
+  }
+  // end caps of a closed tube (finger and toe tips): [top (v = 0), bottom (v = 1)]
+  if (closed && o.caps && part !== 'rim') {
+    for (const [end, on] of [[0, o.caps[0]], [H - 1, o.caps[1]]]) {
+      if (!on) continue;
+      const cx = OX(end / rings), cz = OZ(end / rings);
+      let cy = 0;
+      for (let i = 0; i < W; i++) cy += P[(end * W + i) * 3 + 1];
+      cy /= W;
+      const pos = [cx, cy, cz], idx = [];
+      for (let i = 0; i < W; i++) pos.push(P[(end * W + i) * 3], P[(end * W + i) * 3 + 1], P[(end * W + i) * 3 + 2]);
+      for (let i = 0; i < W - 1; i++) idx.push(0, 1 + i, 2 + i);
+      const g = makeGeo(pos, null, idx);
+      // face away from the tube: along -Y at the top (v = 0 is y0), +Y ... decided by the span direction
+      const out = (end === 0 ? Math.sign(y0 - y1) : Math.sign(y1 - y0)) || 1;
+      if (g.attributes.normal.array[1] * out < 0) { flipWinding(g); g.computeVertexNormals(); }
       parts.push(g);
     }
   }

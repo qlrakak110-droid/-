@@ -5,7 +5,7 @@
 //   scorch  burnt blast mark with radial streaks, a ragged edge and smouldering embers that die out
 //   frost   frost spreading from the centre: crystalline lines, milky patches, a cold glowing front and twinkles;
 //           melts away with noise erosion
-//   rune    magic circle: layered rings rotating at different speeds, a band of procedural glyphs, a hexagram, tick
+//   rune    magic circle: layered rings rotating at different speeds, a band of procedural glyphs, a heptagram, tick
 //           rings and spokes, each layer drawn on in turn, pulsing, eroding away at the end
 //   glow    soft flickering light pool on the floor
 // Premultiplied output: dark parts occlude (alpha), hot parts add (glow), in the same fragment.
@@ -22,7 +22,7 @@ const KIND = { crack: 0, scorch: 1, frost: 2, rune: 3, glow: 4 };
 export const DECAL_KINDS = {
   crack: { palette: 'ember', radius: 1.8, life: 4, fadeIn: 0, fadeOut: 1.2, reveal: 0.14, cool: 2.2, magma: 0, spin: 0, density: 1, dark: [0.012, 0.01, 0.009] },
   scorch: { palette: 'ember', radius: 1.4, life: 5, fadeIn: 0.05, fadeOut: 1.5, reveal: 0.08, cool: 1.4, magma: 1, spin: 0, density: 1, dark: [0.014, 0.011, 0.009] },
-  frost: { palette: 'frost', radius: 2, life: 4, fadeIn: 0, fadeOut: 1.3, reveal: 0.45, cool: 0.6, magma: 1, spin: 0, density: 1, dark: [0.55, 0.72, 0.95] },
+  frost: { palette: 'frost', radius: 2, life: 4, fadeIn: 0, fadeOut: 1.3, reveal: 0.45, cool: 0.6, magma: 1, spin: 0, density: 1, dark: [0.32, 0.44, 0.58] },
   rune: { palette: 'eclipse', radius: 1.6, life: 2.5, fadeIn: 0.1, fadeOut: 0.5, reveal: 0.45, cool: 1, magma: 1, spin: 0.7, density: 1, dark: [0, 0, 0] },
   glow: { palette: 'ember', radius: 2, life: 1, fadeIn: 0.02, fadeOut: 0.7, reveal: 0, cool: 1, magma: 1, spin: 0, density: 1, dark: [0, 0, 0] },
 };
@@ -145,10 +145,10 @@ void main() {
     vec2 gc = floor(q * 9.0);
     vec2 gf = fract(q * 9.0) - 0.5 - (h22(gc + seed) - 0.5) * 0.6;
     float tw = pow(h12(gc + floor(age * 7.0) * 3.1 + seed), 22.0) * exp(-dot(gf, gf) * 120.0);
-    glow = vCore.rgb * (lines * 0.12 * inside + frontGlow * 0.5 * edgeFade + tw * 2.5 * inside) * vis + vMid.rgb * dendr * inside * 0.15 * vis;
+    glow = vCore.rgb * (lines * 0.1 * inside + frontGlow * 0.28 * edgeFade + tw * 2.5 * inside) * vis + vMid.rgb * dendr * inside * 0.12 * vis;
     dark = mix(dark, dark * 1.25 + 0.1, lines);
   } else if (kind == 3) {
-    // ---- rune circle: layered rotating rings, glyph band, hexagram, ticks, spokes; drawn on in turn ------------------
+    // ---- rune circle: layered rotating rings, glyph band, heptagram, ticks, spokes; drawn on in turn -----------------
     float t0 = age;
     float a1 = ang + t0 * spin, a2 = ang - t0 * spin * 0.6, a3 = ang + t0 * spin * 1.6;
     float d = 1e3;
@@ -179,12 +179,12 @@ void main() {
     }
     d = min(d, abs(r - 0.64) + (1.0 - ON(2)) * 9.0);
     d = min(d, abs(r - 0.6) * 1.4 + (1.0 - ON(3)) * 9.0);
-    // hexagram (two triangles) inscribed in r = 0.6, rotating the other way
+    // heptagram {7/2} inscribed in r = 0.6 (each edge is a chord 0.6 cos(2 pi / 7) from the centre), counter-rotating
     float hx = 1e3;
-    for (int k = 0; k < 6; k++) {
-      float a = -t0 * spin * 0.9 + float(k) * PI / 3.0 + PI / 6.0;
+    for (int k = 0; k < 7; k++) {
+      float a = -t0 * spin * 0.9 + float(k) * TAU / 7.0;
       vec2 n = vec2(cos(a), sin(a));
-      hx = min(hx, abs(dot(p, n) - 0.3));
+      hx = min(hx, abs(dot(p, n) - 0.374));
     }
     if (r < 0.6) d = min(d, hx + (1.0 - ON(3)) * 9.0);
     // inner ring + spokes
@@ -223,7 +223,7 @@ export function installDecal(vfx, shared) {
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const geo = makeQuadGeometry();
   const layer = new MeshLayer(shared, {
-    name: 'decal', capacity: 32, layout: LAYOUT, geometry: geo, lifeAt: 8, renderOrder: RENDER_ORDER.meshAlpha,
+    name: 'decal', capacity: 48, layout: LAYOUT, geometry: geo, lifeAt: 8, renderOrder: RENDER_ORDER.meshAlpha,
     material: new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: U, ...PREMUL,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4,

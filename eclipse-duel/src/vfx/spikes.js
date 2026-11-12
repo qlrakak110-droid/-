@@ -179,8 +179,8 @@ const FRAG_EMISSIVE = /* glsl */ `
  * @param {object} shared
  */
 export function installSpikes(vfx, shared) {
-  const { ctx, root, uniforms, textures, rng, clock } = shared;
-  const CAP = 64;
+  const { root, uniforms, textures, rng, clock } = shared;
+  const CAP = 96;
   const ring = new InstanceRing(CAP, LAYOUT, crystalGeometry());
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2, metalness: 0.0, flatShading: true, envMapIntensity: 1.0 });
   mat.onBeforeCompile = (sh) => {
@@ -205,7 +205,8 @@ export function installSpikes(vfx, shared) {
   mesh.name = 'vfx.spikes';
   root.add(mesh);
 
-  let maxDeath = -1, maxDeathReal = -1, serial = 1;
+  let serial = 1;
+  const active = [];
   const P = new THREE.Vector3(), D = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), O = new THREE.Vector3();
   const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), alb = new THREE.Color(), emit = new THREE.Color();
   const UP = new THREE.Vector3(0, 1, 0);
@@ -259,12 +260,12 @@ export function installSpikes(vfx, shared) {
     const own = serial++;
     const f = ring.f32, st = ring.stride;
     let lastEnd = now;
-    const sched = [], parts = [];
+    const sched = [], parts = [], children = [];
     const burstAt = (pt, delay) => vfx.schedule(delay, (v) => {
-      if (opts.debris !== false && v.debris) v.debris({ kind: kd.debris, pos: pt.mid, dir: [0, 1, 0], count: Math.round(3 + pt.h * 5), size: [0.04, 0.05 + pt.r * 0.9, 1.6], speed: [1.5, 4.5], spread: 75, shape: { type: 'sphere', radius: pt.h * 0.3 }, realtime });
+      if (opts.debris !== false && v.debris) children.push(v.debris({ kind: kd.debris, pos: pt.mid, dir: [0, 1, 0], count: Math.round(3 + pt.h * 5), size: [0.04, 0.05 + pt.r * 0.9, 1.6], speed: [1.5, 4.5], spread: 75, shape: { type: 'sphere', radius: pt.h * 0.3 }, realtime }));
       if (opts.shards !== false && v.burst) {
-        v.burst(shardDef(kindName, [emit.r, emit.g, emit.b]), { pos: pt.mid, dir: [0, 1, 0], count: Math.round(5 + pt.h * 6), realtime });
-        v.burst(glintDef, { pos: pt.mid, color: [emit.r * 0.25 + 0.4, emit.g * 0.25 + 0.4, emit.b * 0.25 + 0.4], count: 6, realtime });
+        children.push(v.burst(shardDef(kindName, [emit.r, emit.g, emit.b]), { pos: pt.mid, dir: [0, 1, 0], count: Math.round(5 + pt.h * 6), realtime }));
+        children.push(v.burst(glintDef, { pos: pt.mid, color: [emit.r * 0.25 + 0.4, emit.g * 0.25 + 0.4, emit.b * 0.25 + 0.4], count: 6, realtime }));
       }
     }, { realtime });
     for (let i = 0; i < n; i++) {
@@ -313,7 +314,7 @@ export function installSpikes(vfx, shared) {
       lastEnd = Math.max(lastEnd, now + life);
       // ground interaction at the eruption, and the shatter burst
       const pos = [P.x, P.y + 0.02, P.z], mid = [P.x + Math.sin(tl) * lean.x * h * 0.4, P.y + h * 0.45, P.z + Math.sin(tl) * lean.z * h * 0.4];
-      if (opts.dust !== false && vfx.burst) sched.push(vfx.schedule(delay, (v) => v.burst(dustDef, { pos, dir: [0, 1, 0], scale: 0.6 + h * 0.5, color: kindName === 'ice' ? [2.6, 3, 3.6] : null, realtime }), { realtime }));
+      if (opts.dust !== false && vfx.burst) sched.push(vfx.schedule(delay, (v) => { children.push(v.burst(dustDef, { pos, dir: [0, 1, 0], scale: 0.6 + h * 0.5, color: kindName === 'ice' ? [2.6, 3, 3.6] : null, realtime })); }, { realtime }));
       const pt = { j, mid, h, r, burst: null };
       if (!end) pt.burst = burstAt(pt, delay + rise + hold + endT * 0.3);
       parts.push(pt);
@@ -321,7 +322,6 @@ export function installSpikes(vfx, shared) {
     ring.dirty(s0, n);
     ring.commit();
     mesh.visible = true;
-    if (realtime) maxDeathReal = Math.max(maxDeathReal, lastEnd); else maxDeath = Math.max(maxDeath, lastEnd);
     const h = {
       _dead: false,
       get alive() { return !h._dead && (realtime ? clock.real : clock.game) < lastEnd; },
@@ -330,6 +330,7 @@ export function installSpikes(vfx, shared) {
         h._dead = true;
         for (const s of sched) s.kill();
         for (const pt of parts) if (pt.burst) pt.burst.kill();
+        for (const c of children) c.kill();
         for (let i = 0; i < n; i++) { const j = (s0 + i) % CAP; if (ring.owner[j] === own) f[j * st + 12] = 0; }
         ring.dirty(s0, n);
       },
@@ -346,13 +347,13 @@ export function installSpikes(vfx, shared) {
             f[k + 14] = e;
             const life = f[k + 10] + e + f[k + 15] + 0.02;
             f[k + 12] = realtime ? -life : life;
-            lastEnd = Math.min(lastEnd, Math.max(lastEnd - 1e9, f[k + 3] + life));
             if (pt.burst) { pt.burst.kill(); pt.burst = burstAt(pt, Math.max(0, f[k + 3] + f[k + 10] + e + f[k + 15] * 0.3 - t)); }
           }
         }
         ring.dirty(s0, n);
       },
     };
+    active.push(h);
     shared.track(h);
     return h;
   }
@@ -361,14 +362,16 @@ export function installSpikes(vfx, shared) {
     name: 'spikes',
     api: { spikes, spikeKinds: SPIKE_KINDS },
     update() {
+      for (let i = active.length - 1; i >= 0; i--) if (!active[i].alive) active.splice(i, 1);
       ring.commit();
-      mesh.visible = clock.game < maxDeath || clock.real < maxDeathReal;
+      mesh.visible = active.length > 0;
     },
     clear() {
       for (let i = 0; i < CAP; i++) ring.f32[i * ring.stride + 12] = 0;
       ring.dirty(0, CAP);
       ring.commit();
-      maxDeath = maxDeathReal = -1;
+      for (const h of active) h._dead = true;
+      active.length = 0;
       mesh.visible = false;
     },
     dispose() { ring.dispose(); mat.dispose(); mesh.removeFromParent(); },

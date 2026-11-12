@@ -13,7 +13,7 @@ import { GLSL_COMMON, CULL } from './glsl.js';
 import { toVec3, RENDER_ORDER } from './util.js';
 import { PREMUL, resolveColors, makeColors, opt, first, second } from './meshfx.js';
 
-const SLOTS = 16;
+const SLOTS = 24;
 const MAXP = 360;           // points per slot (main channel + branches)
 const VPS = MAXP * 2;       // vertices per slot
 const IPS = (MAXP - 1) * 6; // indices per slot
@@ -110,16 +110,18 @@ export function installBolt(vfx, shared) {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.frustumCulled = false;
   mesh.visible = false;
-  mesh.renderOrder = RENDER_ORDER.addParticles - 1;
+  mesh.renderOrder = RENDER_ORDER.meshBolt;
   mesh.name = 'vfx.bolt';
   root.add(mesh);
 
   const pool = new EffectPool(shared, SLOTS, () => ({
     // channel memory: per main point, offsets in the (e1, e2) plane and along the axis (re-strokes keep the coarse shape)
     ox: new Float32Array(257), oy: new Float32Array(257), oz: new Float32Array(257),
-    P: new Float32Array(MAXP * 3), np: 0, lines: [], A: new THREE.Vector3(), B: new THREE.Vector3(), core: new THREE.Color(), mid: new THREE.Color(),
+    P: new Float32Array(MAXP * 3), np: 0, lines: [], children: [], A: new THREE.Vector3(), B: new THREE.Vector3(), core: new THREE.Color(), mid: new THREE.Color(),
   }));
   pool.onFree = (s) => {
+    for (const c of s.children) c.kill();
+    s.children.length = 0;
     const base = s.i * VPS;
     for (let v = 0; v < VPS; v++) time[(base + v) * 4 + 2] = 0;
     upload(s.i, VPS, false);
@@ -281,7 +283,7 @@ export function installBolt(vfx, shared) {
     s.np = used;
     s.nextAt += s.interval[0] + (s.interval[1] - s.interval[0]) * rng();
     // per-stroke light and impact flare (the first one when the leader connects)
-    if (first && s.leader > 0 && vfx.schedule) vfx.schedule(s.leader, () => flash(s, true), { realtime: s.realtime });
+    if (first && s.leader > 0 && vfx.schedule) { const my = s.serial; s.children.push(vfx.schedule(s.leader, () => { if (s.serial === my) flash(s, true); }, { realtime: s.realtime })); }
     else flash(s, first);
     mesh.visible = true;
     drawMax = Math.max(drawMax, s.i + 1);
@@ -289,10 +291,12 @@ export function installBolt(vfx, shared) {
   }
   function flash(s, first) {
     if (!s.live) return;
-    if (s.lightI > 0 && vfx.light) vfx.light({ pos: s.B, color: s.core, intensity: s.lightI * (first ? 1 : 0.7), range: s.lightRange, duration: 0.14, realtime: s.realtime });
+    const ch = s.children;
+    if (ch.length > 24) ch.splice(0, ch.length - 12);
+    if (s.lightI > 0 && vfx.light) ch.push(vfx.light({ pos: s.B, color: s.core, intensity: s.lightI * (first ? 1 : 0.7), range: s.lightRange, duration: 0.14, realtime: s.realtime }));
     if (s.impact && vfx.flare) {
-      vfx.flare({ kind: 'glow', pos: s.B, size: s.width * 7, life: 0.09, color: s.core, intensity: first ? 0.7 : 0.45, realtime: s.realtime });
-      if (first) vfx.flare({ kind: 'flash', pos: s.B, size: s.width * 26, life: 0.12, color: s.mid, intensity: 0.35, realtime: s.realtime });
+      ch.push(vfx.flare({ kind: 'glow', pos: s.B, size: s.width * 7, life: 0.09, color: s.core, intensity: first ? 0.7 : 0.45, realtime: s.realtime }));
+      if (first) ch.push(vfx.flare({ kind: 'flash', pos: s.B, size: s.width * 26, life: 0.12, color: s.mid, intensity: 0.35, realtime: s.realtime }));
     }
   }
   let drawMax = 0;

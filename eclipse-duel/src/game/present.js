@@ -27,7 +27,8 @@ export function createPresenter(ctx, session, feel) {
   const ultState = [null, null];
 
   const presentOf = (i) => session.presentOf(i);
-  const movesOf = (i) => presentOf(i).moves || {};
+  /** Handlers of a move: present.moves[moveId], else present.moves[MOVES.md slot] ('skill1', 'heavy' ...). */
+  const handlersOf = (i, id) => session.moveHandlers(i, id);
 
   /** Call a content handler safely; returns its result (undefined when missing). */
   function call(i, fn, key, e, extra) {
@@ -68,7 +69,7 @@ export function createPresenter(ctx, session, feel) {
         if (Array.isArray(c)) w.color.setRGB(c[0] * 0.25, c[1] * 0.25, c[2] * 0.25); else w.color.set(c);
         w.amount = amount; w.dur = dur; w.t = 0; w.on = amount > 0;
       },
-      afterimage(o = {}) { return session.fx.call('afterimage', A().char.root, { color: A().palette.mid, ...o }); },
+      afterimage(o = {}) { return session.fx.call('afterimage', A().char.root, { palette: A().element, intensity: 0.7, ...o }); },
       setVisible(b) { A().char.setVisible(b); },
     };
   }
@@ -142,7 +143,12 @@ export function createPresenter(ctx, session, feel) {
       // VFX (facing applied; unknown presets fall back to a generic element burst, never throw)
       fx(name, where, opts = {}) { return session.fx.play(name, atObj(where), { element: h.element, ...opts }, opts.fallback ?? 'game.burst'); },
       burst(def, where, o = {}) { return session.fx.call('burst', def, { ...atObj(where), ...o, pos: atObj(where).pos }); },
-      emitter(def, where, o = {}) { const a = atObj(where); const em = session.fx.call('emitter', def, { ...a, ...o }); if (o.follow && em.follow) em.follow(typeof o.follow === 'string' ? (o.follow.startsWith('foe.') ? foe.char.sockets[o.follow.slice(4)] : self.char.sockets[o.follow]) : o.follow); return em; },
+      emitter(def, where, o = {}) {
+        const { follow, ...rest } = o;
+        const em = session.fx.call('emitter', def, { ...atObj(where), ...rest });
+        if (follow && em.follow) em.follow(typeof follow === 'string' ? (follow.startsWith('foe.') ? foe.char.sockets[follow.slice(4)] : self.char.sockets[follow]) : follow);
+        return em;
+      },
       /** any vfx primitive with a pos: h.spawn('ring', where, { radius: [0.2, 3] }) (no-op if it does not exist yet) */
       spawn(kind, where, o = {}) { const a = atObj(where); return session.fx.call(kind, { palette: h.element, facing: a.facing, dir: a.dir, ...o, pos: a.pos }); },
       light(where, o = {}) { return session.fx.call('light', { color: h.palette.core, intensity: 120, range: 6, duration: 0.3, ...o, pos: pos(where) }); },
@@ -203,13 +209,13 @@ export function createPresenter(ctx, session, feel) {
   function dispatch(name, e) {
     switch (name) {
       case 'moveStart': {
-        const mh = movesOf(e.fighter)[e.move];
+        const mh = handlersOf(e.fighter, e.move);
         if (mh) call(e.fighter, mh.start, e.move + '.start', e);
         feel.moveStart(e);
         break;
       }
       case 'marker': {
-        const mh = movesOf(e.fighter)[e.move];
+        const mh = handlersOf(e.fighter, e.move);
         let r;
         if (mh && typeof mh[e.name] === 'function') r = call(e.fighter, mh[e.name], e.move + '.' + e.name, e);
         const on = presentOf(e.fighter).markers;
@@ -219,7 +225,7 @@ export function createPresenter(ctx, session, feel) {
         break;
       }
       case 'moveEnd': {
-        const mh = movesOf(e.fighter)[e.move];
+        const mh = handlersOf(e.fighter, e.move);
         if (mh) {
           if (!e.connected && e.reason === 'complete') call(e.fighter, mh.whiff, e.move + '.whiff', e);
           call(e.fighter, mh.end, e.move + '.end', e);
@@ -232,7 +238,7 @@ export function createPresenter(ctx, session, feel) {
         const a = e.attacker;
         let handler;
         if (e.kind === 'projectile') handler = (presentOf(a).projectiles || {})[session.projectileKind(e.projectile)];
-        else handler = movesOf(a)[e.move];
+        else handler = handlersOf(a, e.move);
         const key = e.blocked ? 'guard' : 'hit';
         const r = handler ? call(a, handler[key], e.move + '.' + key, e) : undefined;
         const onAll = presentOf(a).on && presentOf(a).on[key];
@@ -241,7 +247,7 @@ export function createPresenter(ctx, session, feel) {
         break;
       }
       case 'counter': {
-        const mh = movesOf(e.fighter)[e.move];
+        const mh = handlersOf(e.fighter, e.move);
         const r = mh ? call(e.fighter, mh.counter, e.move + '.counter', e) : undefined;
         if (r !== false) feel.counter(e);
         break;
@@ -274,7 +280,7 @@ export function createPresenter(ctx, session, feel) {
         break;
       }
       case 'dodge': case 'perfectDodge': case 'land': case 'tech': case 'wallBounce': case 'guardBreak': case 'comboEnd': case 'turn': case 'teleport': {
-        const who = e.fighter !== undefined ? e.fighter : e.attacker;
+        const who = name === 'guardBreak' ? e.attacker : e.fighter !== undefined ? e.fighter : e.attacker;
         const on = who !== undefined ? presentOf(who).on : null;
         const r = on && on[name] ? call(who, on[name], 'on.' + name, e) : undefined;
         if (r !== false && feel[name]) feel[name](e);
@@ -312,10 +318,14 @@ export function createPresenter(ctx, session, feel) {
     if (ctx.ui && ctx.ui.hud) ctx.ui.hud.announce(n.name, { style: 'ult', side: i, sub: n.nameEn });
     session.sound('ult_start');
     if (ctx.audio) ctx.audio.music('ultimate');
-    h.glow(h.palette.core, 0.35, e.duration + 0.5, 0.15);
-    h.weaponGlow(1.2, e.duration + 0.6);
-    const em = session.fx.call('emitter', session.fx.defsOf(h.element).charge, { pos: h.socket('weaponTip'), duration: e.duration * 0.9, realtime: true });
-    if (em.follow) em.follow(session.actors[i].char.sockets.weaponTip);
+    h.glow(h.color('mid', 0.035), 1, e.duration + 0.5, 0.15);
+    h.weaponGlow(0.4, e.duration + 0.6);
+    session.fx.play('combat.ult.flash', { pos: h.socket('chest'), facing: h.facing, scale: 0.55 }, { element: h.element, intensity: 0.4 }, null);
+    if (session.fx.has('combat.charge.gather')) session.fx.play('combat.charge.gather', { pos: h.socket('weaponTip'), facing: h.facing }, { element: h.element, duration: e.duration * 0.9, follow: session.actors[i].char.sockets.weaponTip });
+    else {
+      const em = session.fx.call('emitter', session.fx.defsOf(h.element).charge, { pos: h.socket('weaponTip'), duration: e.duration * 0.9, realtime: true });
+      if (em.follow) em.follow(session.actors[i].char.sockets.weaponTip);
+    }
     ctx.post.pulse('exposure', -0.15, { attack: 0.1, hold: e.duration - 0.2, release: 0.3 });
   }
 
@@ -407,8 +417,14 @@ export function createPresenter(ctx, session, feel) {
 
   /** Default choreography of a lock for fighters without `ult.at`: cuts on every tick, slam on the finish. */
   const CUT_SLOTS = ['light1', 'light2', 'light3', 'heavy'];
+  /** Attacker clip `name` started at `startAt`: settle into idle when it ends, unless something else was played. */
+  function settleAfter(A, name, startAt) {
+    const dur = A.char.clip === name ? A.char.clipDuration : 0.6;
+    helpers[A.index].after(Math.max(0.1, dur - startAt - 0.05), () => { if (A.cine && A.char.clip === name) A.play(A.clips.state('idle').name, { fade: 0.25 }); });
+  }
   function genericCine(phase, e) {
     const A = session.actors[cine.attacker], B = session.actors[cine.defender];
+    const H = helpers[cine.attacker];
     if (phase === 'start') {
       B.play(B.clips.state('locked').name, { fade: 0.05, restart: true });
       return;
@@ -418,21 +434,33 @@ export function createPresenter(ctx, session, feel) {
       const id = ids.length ? ids[cine.ticks % ids.length] : null;
       if (id) {
         const mc = A.clips.move(id);
-        A.play(mc.name, { fade: 0.05, restart: true, startAt: Math.max(0, mc.map(mc.startup) - 0.1) });
+        const startAt = Math.max(0, mc.map(mc.startup) - 0.1);
+        A.play(mc.name, { fade: 0.05, restart: true, startAt });
+        settleAfter(A, mc.name, startAt);
       }
       const hc = B.clips.state('hitHeavy');
       B.play(hc.name, { fade: 0, restart: true, startAt: 0.06 });
       B.impulse([-1, 0.1, 0.15], 1.1);
       A.trailStart({ life: 0.16 });
-      helpers[cine.attacker].after(0.12, () => A.trailStop());
+      H.after(0.12, () => A.trailStop());
       return;
     }
     if (phase === 'finish') {
       const mc = A.clips.move(cine.move);
-      A.play(mc.name, { fade: 0.05, restart: true, startAt: Math.max(0, mc.map(mc.startup) - 0.08) });
+      const startAt = Math.max(0, mc.map(mc.startup) - 0.08);
+      A.play(mc.name, { fade: 0.05, restart: true, startAt });
+      settleAfter(A, mc.name, startAt);
+      // the victim is thrown, slammed into the floor and stays down until the lock releases it
       B.play(B.clips.state('fall').name, { fade: 0.04, restart: true });
-      B.setOffset([-0.5, 0.25], 0.25, 'outQuad');
+      B.setOffset([-0.5, 0.35], 0.16, 'outQuad');
       B.impulse([-1, -0.3, 0], 2);
+      H.after(0.18, () => { if (B.cine) B.setOffset([-0.75, 0], 0.14, 'inQuad'); });
+      H.after(0.32, () => {
+        if (!B.cine) return;
+        B.play(B.clips.state('down').name, { fade: 0.08, restart: true });
+        B.impulse([0, -1, 0], 1.2);
+        feel.land({ fighter: B.index, hard: true });
+      });
     }
   }
 

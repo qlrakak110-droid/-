@@ -25,21 +25,29 @@
 //
 // COMBO GRAMMAR (cancel routes; every target is listed by id, so only follow-ups that connect are offered)
 //   light1 -> light2 -> light3                       chain (also on whiff / block: a real string)
-//   light1 / light2 on hit -> d+heavy, f+heavy, heavy, ult        (light2 also -> skill1: the javelin at point blank)
-//   light3 on hit -> f+heavy, skill2, ult ;  on hit or block -> skill1, skill3
-//                                                    (the spike knocks the victim out to spear range: the javelin, the
-//                                                    charge, the sky bolts or the ult dash catch them there; on block the
-//                                                    javelin keeps them guarding and Arc Step crosses through them)
+//   light1 / light2 on hit -> d+heavy, f+heavy, heavy              (light2 also -> skill1: the javelin at point blank)
+//   light3 on hit or block -> skill1, skill3         (the spike knocks the victim out to spear range: the javelin
+//                                                    catches them there (and leads to the ult), on block it keeps them
+//                                                    guarding and Arc Step crosses through them. No sky bolts: the
+//                                                    victim recovers and walks off the marker before they land)
+//   The ultimate is the payoff of a big hit, never of the jab chain: it is offered after f+heavy, d+heavy, skill1,
+//   skill2 and the Arc Step detonation (balance pass, see src/fighters/BALANCE.md).
 //   heavy on hit or block -> skill3                  (step over the tripped opponent for a wake-up cross-up / bail out)
-//   f+heavy on hit (crumple, Vorn in their face) -> light1, heavy, d+heavy, skill1, skill2, ult
+//   f+heavy on hit (crumple, Vorn in their face) -> heavy (knockdown ender), d+heavy (launcher), ult
+//                                                    (the charge is a ground thrust: it never hits a juggled victim, so
+//                                                    its follow-ups always start from a standing, crumpled one)
 //   d+heavy on hit (launch) -> skill2, ult           (the sky bolts juggle the floating victim)
-//   skill1 on hit (crumple at range) -> f+heavy, skill2, ult
+//   skill1 on hit (crumple at range) -> skill2, ult
 //   skill2 on hit (the third bolt launches) -> ult ; skill3 after the detonation -> light1, heavy, f+heavy, d+heavy,
 //   skill1 (whatever happened), ult (on hit)
 //   e.g.  light1 > light2 > light3 > skill1 > ult                 the long-range route into the lock
-//         light1 > d+heavy > skill2 > ult                         launcher, 3 sky bolts, lock
-//         f+heavy > d+heavy > skill2                              from 6 m: charge, launch, bolts (~6 hits)
+//         light1 > d+heavy > skill2 > ult                         up close (the launcher reaches 2.05 m): launch,
+//                                                                 3 sky bolts, lock
+//         f+heavy > d+heavy > skill2                              from 6 m: charge, launch, bolts (5 hits)
 //         skill1 (crumple) > skill2 > ult                         full screen
+//   Every route ends in a knockdown, a launch into the ult or the lock, at most four cancels deep like the rest of the
+//   roster; the sky bolts scale a running combo hard (a juggle extender, not a second combo). Haft Spin steps 0.72 m in
+//   so the chain holds from a jab landed at the spear's tip, but it is -10 on block: the string's weak link.
 //
 // TIMELINE MARKERS (`marker` events: presentation hangs clips, trails, VFX, camera and audio on these names; the rules
 // never read them). Beat notation of MOVES.md: WIND-UP -> RELEASE -> IMPACT -> AFTERMATH -> SETTLE.
@@ -61,12 +69,12 @@
 //   thunder_javelin     form detach                      the lightning javelin forms on the spear / it leaves the hand
 //                                                        (`volt.javelin`, 20 m/s, crackling ribbon: follow the projectile,
 //                                                        kind 'volt.javelin'; impact = bolt explosion + chain arcs)
-//   stormfall           raise clouds mark strike1..strike3
-//                                                        spear to the sky (camera tilts up) / the clouds above the arena
-//                                                        flicker / the marker scorches under the opponent (the bolts are
-//                                                        anchored there: projectileSpawn kind 'volt.strike', data.index
-//                                                        1..3, same x) / each sky bolt (`volt.strike`; camera crash-down cut
-//                                                        on strike1, shake 0.6 on the huge strike3)
+//   stormfall           raise mark clouds strike1..strike3
+//                                                        spear to the sky (camera tilts up) / the marker scorches under the
+//                                                        opponent at 0.08 (the bolts are anchored there: projectileSpawn kind
+//                                                        'volt.strike', data.index 1..3, same x) / the clouds above the
+//                                                        arena flicker / each sky bolt (`volt.strike`; camera crash-down
+//                                                        cut on strike1, shake 0.6 on the huge strike3)
 //   arc_step            blink reappear detonate          dissolves into a bolt (`volt.dash`) / re-forms 4 m forward (the
 //                                                        lightning line runs from blink.x to reappear.x: both markers carry
 //                                                        x) / the line detonates (`volt.chain`; the hit is the projectile
@@ -106,10 +114,11 @@ export const def = {
   name: '볼른 · VORN',
   title: '뇌명의 창기사 · Stormcaller Lancer',
 
-  // Tall, lean lancer in plate with a horned helm (the horns are not hurtbox): average HP and weight, a slim body,
-  // medium feet, the most explosive dash of the roster (long and quick) and a long backstep to reset spear range.
+  // Tall, lean lancer in plate with a horned helm (the horns are not hurtbox): a little less HP than average (lean
+  // armour: the price of the reach), average weight, a slim body, medium feet, an explosive dash (2.9 m in 0.26 s) and
+  // a long backstep to reset spear range.
   stats: {
-    hp: 1000,
+    hp: 960,
     fpMax: 100,
     ultMax: 100,
     guardMax: 100,
@@ -139,9 +148,10 @@ export const def = {
     ult: 'ninefold_storm',
   },
 
-  // Spacing fighter: holds the tip of his spear (~2.3 m, outside most pokes), zones with the javelin and the sky
-  // bolts from afar, and closes the gap in one explosive burst when he sees an opening.
-  ai: { aggression: 0.5, zoning: 0.55, preferredRange: 2.3 },
+  // Spacing fighter: holds the tip of his spear (~2.1 m centre to centre, where the jab still reaches and most pokes
+  // do not), zones with the javelin and the sky bolts from afar, and closes the gap in one explosive burst when he
+  // sees an opening.
+  ai: { aggression: 0.52, zoning: 0.55, preferredRange: 2.1 },
 
   meta: { element: 'volt', weapon: 'war spear' },
 
@@ -155,11 +165,11 @@ export const def = {
       hits: [{
         // straight one-handed thrust at chest height: the spear's full length (2.3 m + the lean = 2.4 m)
         t: [0.11, 0.15], box: { f: [0.4, 2.3], u: [0.95, 1.6] }, label: 'jab',
-        damage: 34, level: 'light', hitstun: 0.32, blockstun: 0.18, knockback: { x: 2.2, y: 0 }, hitstop: 0.055, guardDamage: 10,
+        damage: 36, level: 'light', hitstun: 0.32, blockstun: 0.18, knockback: { x: 2.2, y: 0 }, hitstop: 0.055, guardDamage: 10,
       }],
       cancels: [
         { t: [0.14, 0.36], on: 'light', into: 'haft_spin' },
-        { t: [0.13, 0.3], into: ['skyward_lance', 'lightning_charge', 'gale_sweep', '@ult'], onHit: true },
+        { t: [0.13, 0.3], into: ['skyward_lance', 'lightning_charge', 'gale_sweep'], onHit: true },
       ],
       markers: [
         { t: 0, name: 'windup' },
@@ -175,15 +185,17 @@ export const def = {
     haft_spin: {
       name: '회전 쳐올리기 · Haft Spin',
       duration: 0.44,
-      motion: [{ t: [0, 0.12], v: 3.75 }],                       // steps 0.45 m in while the spear whirls
+      // steps 0.72 m in while the spear whirls, so the chain holds from a jab that landed at the spear's tip
+      motion: [{ t: [0, 0.12], v: 6 }],
       hits: [{
-        // the spear spins in the hands and the butt-end rises from the hip to the jaw (shorter than the blade end)
+        // the spear spins in the hands and the butt-end rises from the hip to the jaw (shorter than the blade end).
+        // Stepped in and -10 on block: the string's weak link, a gap a fast jab can punish
         t: [0.12, 0.16], box: { f: [0.2, 1.8], u: [0.6, 1.95] }, label: 'butt',
-        damage: 38, level: 'light', hitstun: 0.36, blockstun: 0.2, knockback: { x: 2.4, y: 0 }, hitstop: 0.06, guardDamage: 12,
+        damage: 32, level: 'light', hitstun: 0.36, blockstun: 0.15, knockback: { x: 2.4, y: 0 }, hitstop: 0.06, guardDamage: 12,
       }],
       cancels: [
         { t: [0.15, 0.4], on: 'light', into: 'thunder_pierce' },
-        { t: [0.14, 0.32], into: ['skyward_lance', 'lightning_charge', 'gale_sweep', 'thunder_javelin', '@ult'], onHit: true },
+        { t: [0.14, 0.32], into: ['skyward_lance', 'lightning_charge', 'gale_sweep', 'thunder_javelin'], onHit: true },
       ],
       markers: [
         { t: 0, name: 'windup', data: { continues: 'flash_jab' } },
@@ -205,20 +217,19 @@ export const def = {
         {
           // the lunging two-handed thrust
           t: [0.2, 0.24], box: { f: [0.4, 2.5], u: [0.8, 1.7] }, label: 'thrust',
-          damage: 30, level: 'light', hitstun: 0.3, blockstun: 0.18, knockback: { x: 1.2, y: 0 }, hitstop: 0.06, guardDamage: 10,
+          damage: 26, level: 'light', hitstun: 0.3, blockstun: 0.18, knockback: { x: 1.2, y: 0 }, hitstop: 0.06, guardDamage: 10,
         },
         {
           // the lightning spike: runs down the whole shaft and shoots 0.7 m out of the tip; blasts the victim back to
-          // spear range (slide ~1.6 m). Armour-piercing like every Vorn thrust.
+          // spear range (slide ~1.6 m). Armour-piercing, like the charge and the ultimate.
           t: [0.25, 0.3], box: { f: [0.4, 3.2], u: [0.7, 1.8] }, label: 'spike',
-          damage: 42, level: 'heavy', hitstun: 0.55, blockstun: 0.26, knockback: { x: 7, y: 0 }, hitstop: 0.11, guardDamage: 16,
+          damage: 40, level: 'heavy', hitstun: 0.55, blockstun: 0.26, knockback: { x: 7, y: 0 }, hitstop: 0.11, guardDamage: 16,
           armourPierce: true,
         },
       ],
-      cancels: [
-        { t: [0.28, 0.5], into: ['thunder_javelin', 'arc_step'], onContact: true },
-        { t: [0.28, 0.5], into: ['lightning_charge', 'stormfall', '@ult'], onHit: true },
-      ],
+      // hit or block: the javelin (which leads to the ult on hit) or Arc Step. No sky bolts (the blasted victim recovers
+      // and walks off the marker first) and no direct ult (the ultimate is the payoff of a big hit, not of the jab chain)
+      cancels: [{ t: [0.28, 0.5], into: ['thunder_javelin', 'arc_step'], onContact: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.04, name: 'lunge' },
@@ -241,8 +252,9 @@ export const def = {
       hits: [{
         // wide low sweep at ankle-to-knee height: the arc starts at his side (catches a close cross-up) and ends at the
         // blade's full length; trips the opponent into a knockdown
-        t: [0.28, 0.36], box: { f: [-0.5, 2.45], u: [0, 0.7] }, label: 'sweep',
-        damage: 100, level: 'knockdown', knockback: { x: 3, y: 3.2 }, hitstop: 0.12, blockstun: 0.28, guardDamage: 28,
+        // a trip: it cannot catch an airborne opponent (air: false - also keeps it out of juggles, where it whiffs)
+        t: [0.28, 0.36], box: { f: [-0.5, 2.45], u: [0, 0.7] }, label: 'sweep', air: false,
+        damage: 105, level: 'knockdown', knockback: { x: 3, y: 3.2 }, hitstop: 0.12, blockstun: 0.28, guardDamage: 28,
       }],
       cancels: [{ t: [0.38, 0.6], into: ['arc_step'], onContact: true }],
       markers: [
@@ -266,11 +278,13 @@ export const def = {
       motion: { keys: [[0, 0], [0.06, 0.05], [0.2, 1.6], [0.32, 3.8], [0.38, 4.0]] },
       hits: [{
         // the thrust at the head of the streak: chest height, the spear's length
-        t: [0.2, 0.32], box: { f: [0.2, 2.3], u: [0.6, 1.8] }, label: 'charge',
+        // a ground charge (air: false): it runs under a juggled opponent instead of whiffing a thrust into the air, so
+        // its follow-ups (the sweep ender, the launcher) always start from a crumpled, standing victim
+        t: [0.2, 0.32], box: { f: [0.2, 2.3], u: [0.6, 1.8] }, label: 'charge', air: false,
         damage: 68, level: 'crumple', hitstun: 0.95, blockstun: 0.24, knockback: { x: 1.5, y: 0 }, hitstop: 0.12, guardDamage: 26,
         armourPierce: true,
       }],
-      cancels: [{ t: [0.32, 0.58], into: ['flash_jab', 'gale_sweep', 'skyward_lance', 'thunder_javelin', 'stormfall', '@ult'], onHit: true }],
+      cancels: [{ t: [0.32, 0.58], into: ['gale_sweep', 'skyward_lance', '@ult'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.06, name: 'dash', data: { afterimage: true, fx: 'volt.dash' } },
@@ -287,11 +301,11 @@ export const def = {
     skyward_lance: {
       name: '하늘 꿰뚫기 · Skyward Lance',
       duration: 0.64,
-      motion: [{ t: [0.02, 0.14], v: 2.5 }],                     // 0.3 m drive from the crouch
+      motion: [{ t: [0.02, 0.14], v: 1.0 }],                     // 12 cm drive out of the crouch
       hits: [{
         // upward thrust from a crouch: from the hips to well above the head along the spear's angle (anti-air too)
         t: [0.18, 0.25], box: { f: [0.2, 1.95], u: [0.3, 3.0] }, label: 'lance',
-        damage: 60, level: 'launch', knockback: { x: 1.0, y: 9.5 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
+        damage: 58, level: 'launch', knockback: { x: 1.0, y: 9.5 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
       }],
       cancels: [{ t: [0.24, 0.5], into: ['stormfall', '@ult'], onHit: true }],
       markers: [
@@ -302,7 +316,7 @@ export const def = {
         { t: 0.3, name: 'trailOff' },
         { t: 0.42, name: 'recover' },
       ],
-      ai: { range: [0, 2.2], role: 'launcher', weight: 0.65 },
+      ai: { range: [0, 2.0], role: 'launcher', weight: 0.65 },
       meta: { slot: 'dheavy' },
     },
 
@@ -320,9 +334,12 @@ export const def = {
         t: 0.26, kind: 'volt.javelin', offset: { f: 0.8, u: 1.55 }, box: { f: [-0.75, 0.45], u: [-0.3, 0.3] },
         velocity: { x: 20, y: 0 }, lifetime: 0.45, durability: 1,
         data: { ribbon: 'crackle', impact: { fx: 'bolt explosion', chainArcs: true, shake: 0.35 } },
-        hit: { damage: 72, level: 'crumple', hitstun: 0.9, blockstun: 0.22, knockback: { x: 1.2, y: 0 }, hitstop: 0.15, guardDamage: 20, label: 'javelin' },
+        hit: {
+          damage: 72, level: 'crumple', hitstun: 0.9, blockstun: 0.22, knockback: { x: 1.2, y: 0 }, hitstop: 0.15,
+          guardDamage: 20, label: 'javelin',
+        },
       }],
-      cancels: [{ t: [0.3, 0.66], into: ['lightning_charge', 'stormfall', '@ult'], onHit: true }],
+      cancels: [{ t: [0.3, 0.66], into: ['stormfall', '@ult'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
         { t: 0.04, name: 'form', data: { fx: 'volt.charge', audio: 'volt_charge' } },
@@ -341,26 +358,37 @@ export const def = {
       duration: 0.86,
       fpCost: 35,
       cooldown: 7,
-      // WIND-UP 0-0.45: the spear rises to the sky, the clouds flicker, and at 0.08 a marker scorches under the opponent
-      // (all three bolts are anchored there: 0.37 s to get off it - a dash, a backstep, a well-timed dodge or a walk
-      // toward Vorn escape; walking away only for the quickest feet). RELEASE 0.45: a sky bolt strikes the marker, then two more 0.12 s apart,
-      // the last one huge and wider (launches: the ult dash or a juggle follows). Columns reach 5 m up, so they also
-      // strike a victim floating in a juggle. No drift: blocked from the side the victim faces.
+      // WIND-UP 0-0.45: the spear rises to the sky; at 0.08 a marker scorches under the opponent (all three bolts are
+      // anchored there: 0.37 s to get off it - a dash, a backstep, a well-timed dodge or a walk toward Vorn escape;
+      // walking away only for the quickest feet) and the clouds above the arena flicker. RELEASE 0.45: a sky bolt
+      // strikes the marker, then two more 0.12 s apart, the last one huge and wider (launches: the ult dash or a juggle
+      // follows). Columns reach 5 m up, so they also strike a victim floating in a juggle, but the first two scale a
+      // running combo hard (scaleStep 0.18): a full-damage set piece raw, a modest juggle extender. No drift: blocked
+      // from the side the victim faces.
       projectiles: [
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.4, 0.4], u: [0, 5.0] }, delay: 0.37, lifetime: 0.08,
           clash: false, data: { index: 1 },
-          hit: { damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 1, label: 'bolt1' },
+          hit: {
+            damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07,
+            guardDamage: 10, juggle: 1, scaleStep: 0.18, label: 'bolt1',
+          },
         },
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.4, 0.4], u: [0, 5.0] }, delay: 0.49, lifetime: 0.08,
           clash: false, data: { index: 2 },
-          hit: { damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 1, label: 'bolt2' },
+          hit: {
+            damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07,
+            guardDamage: 10, juggle: 1, scaleStep: 0.18, label: 'bolt2',
+          },
         },
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.55, 0.55], u: [0, 5.0] }, delay: 0.61, lifetime: 0.1,
           clash: false, data: { index: 3, huge: true },
-          hit: { damage: 56, level: 'launch', knockback: { x: 0.8, y: 8.5 }, blockstun: 0.26, hitstop: 0.16, guardDamage: 20, juggle: 1, label: 'bolt3' },
+          hit: {
+            damage: 56, level: 'launch', knockback: { x: 0.8, y: 8.5 }, blockstun: 0.26, hitstop: 0.16, guardDamage: 20,
+            juggle: 1, label: 'bolt3',
+          },
         },
       ],
       cancels: [{ t: [0.5, 0.84], into: ['@ult'], onHit: true }],
@@ -398,7 +426,10 @@ export const def = {
       projectiles: [{
         t: 0.43, kind: 'volt.chain', offset: { f: -2.0, u: 0 }, box: { f: [-2.0, 2.0], u: [0, 1.9] },
         velocity: { x: -0.3, y: 0 }, lifetime: 0.08, clash: false, data: { length: 4, detonate: true },
-        hit: { damage: 55, level: 'heavy', hitstun: 0.5, blockstun: 0.22, knockback: { x: 1.2, y: 0 }, hitstop: 0.14, guardDamage: 16, label: 'detonation' },
+        hit: {
+          damage: 55, level: 'heavy', hitstun: 0.5, blockstun: 0.22, knockback: { x: 1.2, y: 0 }, hitstop: 0.14,
+          guardDamage: 16, label: 'detonation',
+        },
       }],
       cancels: [
         { t: [0.44, 0.6], into: ['flash_jab', 'gale_sweep', 'lightning_charge', 'skyward_lance', 'thunder_javelin'] },

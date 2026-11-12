@@ -101,7 +101,7 @@ void main() {
  */
 export function installRibbons(vfx, shared) {
   const { ctx, clock, root, uniforms, textures } = shared;
-  const table = new ParamTable(48, 'ribbon styles');
+  const table = new ParamTable(64, 'ribbon styles');
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(VMAX * 3), oth = new Float32Array(VMAX * 3), A = new Float32Array(VMAX * 4), B = new Float32Array(VMAX * 4);
   const idx = new Uint16Array(VMAX * 3);

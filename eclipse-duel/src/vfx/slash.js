@@ -10,7 +10,7 @@ import { GLSL_COMMON, GLSL_VORONOI, CULL } from './glsl.js';
 import { toVec3, RENDER_ORDER } from './util.js';
 import { DEG } from '../core/math.js';
 
-const LOOK_ID = { razor: 0, flame: 1, ice: 2, electric: 3, eclipse: 0 };
+const LOOK_ID = { razor: 0, flame: 1, ice: 2, electric: 3, eclipse: 4 };
 
 /** Look presets: every field can be overridden per call (see README "Slash"). */
 export const SLASH_LOOKS = {
@@ -143,13 +143,18 @@ const FRAG_BODY = /* glsl */ `
     flick = 0.78 + 0.22 * h11(fr * 3.1 + seed);
     extra += vCore.rgb * bolts * 1.3 * (1.0 - le * le);
     erodeN = streak * 0.5 + fb * 0.5;
+  } else if (look == 4) {
+    // eclipse: a near-opaque black body (it must win against HDR light behind it), corona on the cutting edge
+    gain = 0.6 + 0.6 * streak;
+    erodeN = fb * 0.7 + streak * 0.3;
+    xe = x + (fb - 0.5) * noiseAmt * 0.25;
   } else {
     gain = 0.3 + 1.25 * streak * streak * (0.55 + 0.45 * streak2);
   }
   // density across the band: 0 at the inner edge, 1 at the cutting edge, a short glow outside it
   float inner = sat(1.0 + xe);
   float edgeness = inner * inner;
-  float dens = xe <= 0.0 ? pow(inner, vP.z) : exp(-xe * 9.0) * 0.5;
+  float dens = xe <= 0.0 ? (look == 4 ? smoothstep(0.0, 0.45, inner) : pow(inner, vP.z)) : exp(-xe * 9.0) * 0.5;
   dens *= 1.0 - smoothstep(0.5, 1.0, x / max(vP.w, 1e-3));
   float line = exp(-(xe * xe) / (edgeW * edgeW));
   // erosion: rises with local age; the inside and the tips go first, the edge last
@@ -158,14 +163,14 @@ const FRAG_BODY = /* glsl */ `
   float vis = smoothstep(th - 0.06, th + 0.06, resist);
   float smear = exp(-max(behind, 0.0) / (0.1 + arcLen * 0.06)) * sweeping;
   // the body starts at the saturated mid colour and cools to the tail; only the edge line and the head are hot
-  float k = 0.3 + cool * 0.75 + (1.0 - edgeness) * 0.3 - line * 0.25 - smear * 0.2 - hot;
+  float k = 0.3 + cool * 0.75 + (1.0 - edgeness) * 0.3 - line * 0.25 - smear * 0.2 - hot + (look == 4 ? 0.6 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
   rgb += vCore.rgb * line * (1.0 - cool * 0.8) * flick;
   rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
   rgb += vCore.rgb * dissolveEdge * (look == 1 ? 0.9 : look == 2 ? 1.2 : 0.4) * (1.0 - le);
   float tips = smoothstep(0.0, 0.22, prof);
-  float a = sat(dens * (0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
+  float a = sat(dens * (look == 4 ? 1.0 : 0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
   extra *= reveal * tips * vCore.a * mix(1.0, vis, glint);
   float addF = mix(vMid.a, 1.0, sat(1.0 - k * 1.1));
 `;
@@ -209,7 +214,7 @@ export function installSlash(vfx, shared) {
   const { uniforms, textures } = shared;
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const layer = new MeshLayer(shared, {
-    name: 'slash', capacity: 24, layout: LAYOUT, geometry: gridGeometry(96, 8), lifeAt: 12, renderOrder: RENDER_ORDER.meshAdd,
+    name: 'slash', capacity: 24, layout: LAYOUT, geometry: gridGeometry(96, 8), lifeAt: 12, renderOrder: RENDER_ORDER.meshSlash,
     material: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: U, side: THREE.DoubleSide, ...PREMUL }),
     distortMaterial: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_DISTORT, uniforms: U, side: THREE.DoubleSide, ...ADDITIVE }),
   });

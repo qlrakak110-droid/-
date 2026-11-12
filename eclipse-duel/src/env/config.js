@@ -71,6 +71,7 @@ export function tierSettings(quality, override) {
     detail: d,
     floorTex: d >= 2 ? 2048 : 1024,
     stoneTex: d >= 1 ? 1024 : 512,
+    ornTex: d >= 1 ? 1024 : 512,
     pointLights: d >= 2 ? 4 : d >= 1 ? 2 : 0,
     banners: d >= 1 ? 8 : 5,
     ash: Math.round((d >= 2 ? 650 : d >= 1 ? 480 : 300) * (quality.particleScale || 1)),

@@ -209,7 +209,7 @@ export function installParticles(vfx, shared) {
   const { ctx, textures, clock, rng } = shared;
   const q = ctx.quality;
   const capScale = q.tier === 'low' ? 0.5 : q.tier === 'mid' ? 0.75 : 1;
-  const table = new ParamTable(192, 'particle definitions');
+  const table = new ParamTable(384, 'particle definitions');
   const U = {
     uTime: shared.uniforms.uTime, uTimeReal: shared.uniforms.uTimeReal,     uDefs: { value: table.texture }, uAtlas: { value: textures.atlas }, uNoise: { value: textures.noise }, uFlow: { value: textures.flow },
     uMaxScreen: { value: q.tier === 'low' ? 0.45 : 0.7 },

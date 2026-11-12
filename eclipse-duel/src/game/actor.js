@@ -9,7 +9,8 @@
 import * as THREE from 'three';
 import { createCharacter } from '../char/index.js';
 import { Ease, clamp } from '../core/math.js';
-import { createClipSet } from './clips.js';
+import { createClipSet, GENERIC } from './clips.js';
+import { getClip } from '../char/anim.js';
 import { paletteOf, defsOf } from './fx.js';
 
 /** Weapon-trail looks per element (ramp over age, hot edge). */
@@ -20,7 +21,9 @@ const TRAILS = {
 };
 
 /** Trail life (s) per moves.js trailOn style. */
-const TRAIL_LIFE = { light: 0.15, rising: 0.18, overhead: 0.2, huge: 0.22, thrust: 0.12, drag: 0.26 };
+const TRAIL_LIFE = { light: 0.15, rising: 0.18, overhead: 0.2, huge: 0.22, heavy: 0.22, spin: 0.2, thrust: 0.12, drag: 0.26 };
+/** trailOn data.blades -> weapon index ('R' = the first design weapon, 'L' = the second). */
+const BLADES = { R: 0, L: 1, both: 'all', all: 'all' };
 
 const NEUTRAL = new Set(['idle', 'walk', 'guard', 'blockstun', 'dash', 'backstep', 'intro', 'recovery', 'attack', 'dodge']);
 const LOOKING = new Set(['idle', 'walk', 'guard', 'blockstun', 'dash', 'backstep', 'intro', 'recovery', 'attack', 'hitstun', 'guardbreak', 'dodge']);
@@ -41,10 +44,6 @@ export function createActor(ctx, session, index, fighter) {
   char.root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   const env = ctx.env;
   if (env && env.wind) char.wind = [env.wind.x * 2.4, 0, env.wind.z * 2.4];
-  const clips = createClipSet(fighter, match.defs[index]);
-  const element = fighter.element;
-  const pal = paletteOf(element);
-  const trailLook = TRAILS[element] || TRAILS.ember;
   const weapons = [];
   for (let k = 0; ; k++) {
     const sfx = k === 0 ? '' : String(k + 1);
@@ -52,6 +51,11 @@ export function createActor(ctx, session, index, fighter) {
     if (!a || !b) break;
     weapons.push({ a, b });
   }
+  // a weapon in each hand: the fallback clips must not glue the off hand to the main weapon's grip
+  const clips = createClipSet(fighter, match.defs[index], { twin: weapons.length > 1 });
+  const element = fighter.element;
+  const pal = paletteOf(element);
+  const trailLook = TRAILS[element] || TRAILS.ember;
 
   const actor = {
     index, fighter, char, clips, element, palette: pal, weapons,
@@ -108,6 +112,7 @@ export function createActor(ctx, session, index, fighter) {
     }
   }
 
+  const walkOpts = { speed: 1 };
   function select(f) {
     const st = f.state;
     if (st === 'attack' && f.move) {
@@ -123,7 +128,8 @@ export function createActor(ctx, session, index, fighter) {
         setKey(slot, c.name, { fade: 0.16 });
         const v = slot === 'walkF' ? f.def.stats.walkSpeed : f.def.stats.backSpeed;
         const rs = Math.abs(c.rootSpeed) || v;
-        char.play(c.name, { speed: clamp(v / rs, 0.7, 1.55) });
+        walkOpts.speed = clamp(v / rs, 0.7, 1.55);
+        char.play(c.name, walkOpts);
         return;
       }
       case 'dash': case 'backstep': case 'dodge': case 'roll': {
@@ -253,7 +259,7 @@ export function createActor(ctx, session, index, fighter) {
     if (id in specCache) return specCache[id];
     const mv = f0().def.moves[id];
     const mc = clips.move(id);
-    const opts = (session.presentOf(index).moves || {})[id];
+    const opts = session.moveHandlers(index, id);
     const o = (opts && opts.options) || {};
     let spec = null;
     if (mv) {
@@ -277,7 +283,10 @@ export function createActor(ctx, session, index, fighter) {
         if (mOff) spec.t1 = mOff.t;
         const style = mOn.data && mOn.data.style;
         if (style === 'glow') spec.trail = false;
-        if (typeof o.trail !== 'object') spec.trailOpts = { life: TRAIL_LIFE[style] ?? spec.trailOpts.life };
+        if (typeof o.trail !== 'object') {
+          const blades = mOn.data && BLADES[mOn.data.blades];
+          spec.trailOpts = { life: TRAIL_LIFE[style] ?? spec.trailOpts.life, weapon: blades !== undefined && (blades === 'all' || blades < weapons.length) ? blades : 'all' };
+        }
       }
       if (mSwing) spec.whooshAt = Math.max(0, mSwing.t - 0.03);
       if (o.trail && o.trail.t) { spec.t0 = o.trail.t[0]; spec.t1 = o.trail.t[1]; }
@@ -361,6 +370,10 @@ export function createActor(ctx, session, index, fighter) {
     trailStop();
     char.dispose();
   }
+
+  // compile every clip this fighter can play now (clips compile lazily per rig: no first-use hitch mid-fight)
+  for (const slot in GENERIC) { try { getClip(char.rig, clips.state(slot).name); } catch (e) { /* reported when played */ } }
+  for (const id in match.defs[index].moves) { try { getClip(char.rig, clips.move(id).name); } catch (e) { /* reported when played */ } }
 
   char.onEvent((name, data) => {
     if (name === 'step' && !actor.cine) session.onStep(actor, data);

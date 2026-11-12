@@ -21,10 +21,3 @@ export const LOOKS = {
   emberInlay: { color: [0.03, 0.01, 0.005], rough: 0.5, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
 };
 
-/** Cloth surface spec for the rig's verlet cloth (`design.cloth[i].surface`), with a texture set. */
-export function clothSurface(outer, inner, surfDetail) {
-  return {
-    outer: { color: outer.color, rough: outer.rough ?? 0.85, detail: surfDetail(outer.set ?? 'cloth', outer.amt ?? 1), cavity: outer.cavity ?? 1 },
-    inner: { color: inner.color, rough: inner.rough ?? 0.9, cavity: inner.cavity ?? 0.6 },
-  };
-}

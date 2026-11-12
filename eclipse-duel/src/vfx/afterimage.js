@@ -55,7 +55,8 @@ void main() {
   float th = mix(-0.15, 1.0, pow(vT, 1.3));
   float vis = smoothstep(th - 0.08, th + 0.08, n * 0.85 + fres * 0.15);
   float edge = (1.0 - smoothstep(th, th + 0.12, n * 0.85 + fres * 0.15)) * vis;
-  vec3 col = mix(mix(uMid, uCore, fres * (1.0 - vT)), uMid * 0.6, smoothstep(0.2, 0.9, vT));
+  // layered armour stacks several shells per ghost and ghosts overlap: keep each one dim (mid colour, core on the rim)
+  vec3 col = mix(mix(uMid * 0.5, uCore * 0.32, fres * (1.0 - vT)), uMid * 0.25, smoothstep(0.2, 0.9, vT));
   float I = (fres * 0.9 + uLook.x) * (1.0 - vT) * (1.0 - vT * 0.3);
   vec3 rgb = col * I * vis * uLook.z + uCore * edge * 0.6 * (1.0 - vT);
   if (dot(rgb, rgb) < 1e-6) discard;
@@ -105,7 +106,7 @@ export function installAfterimage(vfx, shared) {
       m.matrixAutoUpdate = false;
       m.frustumCulled = false;
       m.visible = false;
-      m.renderOrder = RENDER_ORDER.meshAdd;
+      m.renderOrder = RENDER_ORDER.meshBeam;
       m.name = 'vfx.afterimage' + i;
       root.add(m);
     }

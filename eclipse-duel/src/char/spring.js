@@ -1,6 +1,6 @@
 // Spring bones (plumes, tassets, straps): each bone's tip is a damped verlet particle pulled toward where the
-// animation puts it, with gravity, inertia from root motion, an angle limit and capsule collision. Simulated in model
-// (fighter-local) space so facing flips are free.
+// animation puts it (the bone's rest rotation, or its keyed rotation when a clip keys it), with gravity, inertia from
+// root motion, an angle limit and capsule collision. Simulated in model (fighter-local) space so facing flips are free.
 
 import { qmul, qmulInv, qrot, qfromTo } from './rigmath.js';
 import { pushOutCapsules } from './collide.js';
@@ -33,7 +33,7 @@ export class SpringChain {
     this.t = new Float32Array(16);
   }
 
-  reset() { this.ready = false; }
+  reset() { this.ready = false; this.hPrev = 0; }
 
   /** Shift particle state by the per-frame inertial transform m (3x4, column-major 12 floats) scaled by inertia. */
   inertia(m) {
@@ -48,42 +48,48 @@ export class SpringChain {
    */
   update(dt, lq, lp, mq, mp, gravity, capsules) {
     const rig = this.rig, s = this.spec, n = this.idx.length, t = this.t;
-    const k = s.stiffness, damp = Math.exp(-s.damping * dt), lim = Math.cos((s.limit * Math.PI) / 180);
+    const lim = Math.cos((s.limit * Math.PI) / 180);
+    // sub-steps of <= 1/120 s; verlet velocities are rescaled when the step changes (dt spikes, slow motion)
+    const ns = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / ns;
+    const vs = this.hPrev > 0 && h > 0 ? h / this.hPrev : 1;
+    const k = s.stiffness, damp = Math.exp(-s.damping * h);
     for (let c = 0; c < n; c++) {
       const i = this.idx[c], par = rig.parent[i];
-      // bone position and rest rotation from the (already simulated) parent
+      // bone position and animated rotation from the (already simulated) parent
       qrot(mp, i * 3, mq, par * 4, lp[i * 3], lp[i * 3 + 1], lp[i * 3 + 2]);
       mp[i * 3] += mp[par * 3]; mp[i * 3 + 1] += mp[par * 3 + 1]; mp[i * 3 + 2] += mp[par * 3 + 2];
-      qmul(t, 0, mq, par * 4, rig.restRot, i * 4);                    // rest model rotation
+      qmul(t, 0, mq, par * 4, lq, i * 4);                             // animated model rotation (rest unless keyed)
       qrot(t, 4, t, 0, this.tipOff[c * 3], this.tipOff[c * 3 + 1], this.tipOff[c * 3 + 2]);
       const bx = mp[i * 3], by = mp[i * 3 + 1], bz = mp[i * 3 + 2], L = this.len[c];
       const rx = t[4] / L, ry = t[5] / L, rz = t[6] / L;              // rest direction
       const tx = bx + t[4], ty = by + t[5], tz = bz + t[6];           // rest tip
       const o = c * 3, p = this.p, pp = this.pp;
-      if (!this.ready || dt <= 0) {
-        if (!this.ready) { p[o] = pp[o] = tx; p[o + 1] = pp[o + 1] = ty; p[o + 2] = pp[o + 2] = tz; }
-      } else {
-        const vx = (p[o] - pp[o]) * damp, vy = (p[o + 1] - pp[o + 1]) * damp, vz = (p[o + 2] - pp[o + 2]) * damp;
-        pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
-        const dt2 = dt * dt;
-        p[o] += vx + (k * (tx - p[o]) + gravity[0] * s.gravity) * dt2;
-        p[o + 1] += vy + (k * (ty - p[o + 1]) + gravity[1] * s.gravity) * dt2;
-        p[o + 2] += vz + (k * (tz - p[o + 2]) + gravity[2] * s.gravity) * dt2;
-      }
-      // length + collision + cone limit
-      for (let it = 0; it < 2; it++) {
-        let dx = p[o] - bx, dy = p[o + 1] - by, dz = p[o + 2] - bz;
-        let l = Math.hypot(dx, dy, dz) || 1e-6;
-        dx /= l; dy /= l; dz /= l;
-        const cs = dx * rx + dy * ry + dz * rz;
-        if (cs < lim) { // pull back inside the cone
-          let ox = dx - rx * cs, oy = dy - ry * cs, oz = dz - rz * cs;
-          const ol = Math.hypot(ox, oy, oz) || 1;
-          const sl = Math.sqrt(1 - lim * lim);
-          dx = rx * lim + (ox / ol) * sl; dy = ry * lim + (oy / ol) * sl; dz = rz * lim + (oz / ol) * sl;
+      if (!this.ready) { p[o] = pp[o] = tx; p[o + 1] = pp[o + 1] = ty; p[o + 2] = pp[o + 2] = tz; }
+      for (let st = 0; st < (this.ready && dt > 0 ? ns : 1); st++) {
+        if (this.ready && dt > 0) {
+          const sc = (st === 0 ? vs : 1) * damp;
+          const vx = (p[o] - pp[o]) * sc, vy = (p[o + 1] - pp[o + 1]) * sc, vz = (p[o + 2] - pp[o + 2]) * sc;
+          pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
+          const h2 = h * h;
+          p[o] += vx + (k * (tx - p[o]) + gravity[0] * s.gravity) * h2;
+          p[o + 1] += vy + (k * (ty - p[o + 1]) + gravity[1] * s.gravity) * h2;
+          p[o + 2] += vz + (k * (tz - p[o + 2]) + gravity[2] * s.gravity) * h2;
         }
-        p[o] = bx + dx * L; p[o + 1] = by + dy * L; p[o + 2] = bz + dz * L;
-        if (s.collide && capsules) pushOutCapsules(p, o, capsules, s.radius);
+        // length + collision + cone limit
+        for (let it = 0; it < 2; it++) {
+          let dx = p[o] - bx, dy = p[o + 1] - by, dz = p[o + 2] - bz;
+          const l = Math.hypot(dx, dy, dz) || 1e-6;
+          dx /= l; dy /= l; dz /= l;
+          const cs = dx * rx + dy * ry + dz * rz;
+          if (cs < lim) { // pull back inside the cone
+            const ox = dx - rx * cs, oy = dy - ry * cs, oz = dz - rz * cs;
+            const ol = Math.hypot(ox, oy, oz) || 1;
+            const sl = Math.sqrt(1 - lim * lim);
+            dx = rx * lim + (ox / ol) * sl; dy = ry * lim + (oy / ol) * sl; dz = rz * lim + (oz / ol) * sl;
+          }
+          p[o] = bx + dx * L; p[o + 1] = by + dy * L; p[o + 2] = bz + dz * L;
+          if (s.collide && capsules) pushOutCapsules(p, o, capsules, s.radius);
+        }
       }
       // orient the bone toward the particle
       let dx = p[o] - bx, dy = p[o + 1] - by, dz = p[o + 2] - bz;
@@ -93,6 +99,7 @@ export class SpringChain {
       qmul(mq, i * 4, t, 8, t, 0);
       qmulInv(lq, i * 4, mq, par * 4, mq, i * 4);
     }
+    if (dt > 0) this.hPrev = h;
     this.ready = true;
   }
 }

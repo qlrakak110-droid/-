@@ -60,7 +60,7 @@ export function installProfiler(ctx, opts = {}) {
   function reset() {
     for (const g of GROUPS) { acc[g] = 0; peak[g] = 0; }
     acc.RENDER = 0; peak.RENDER = 0;
-    frames = 0; frameJs = 0; framePeak = 0; calls = 0; tris = 0; last = now();
+    frames = 0; frameJs = 0; framePeak = 0; cur = 0; calls = 0; tris = 0; last = now();
   }
   return { report, reset };
 }

@@ -153,7 +153,7 @@ export function installPillar(vfx, shared) {
   const { uniforms, textures } = shared;
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const layer = new MeshLayer(shared, {
-    name: 'pillar', capacity: 12, layout: LAYOUT, geometry: gridGeometry(40, 32, 2), lifeAt: 12, renderOrder: RENDER_ORDER.meshAdd,
+    name: 'pillar', capacity: 16, layout: LAYOUT, geometry: gridGeometry(40, 32, 2), lifeAt: 12, renderOrder: RENDER_ORDER.meshPillar,
     material: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: U, side: THREE.FrontSide, ...PREMUL }),
   });
   const q = new THREE.Quaternion();

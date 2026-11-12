@@ -416,7 +416,7 @@ export function rrect(w, h, r = 0, cs = 2) {
   return out;
 }
 
-/** Diamond / lozenge section (half width w along x, half height h along y) with optional bevel b. */
+/** Diamond / lozenge section (half width w along x, half height h along y). */
 export function lozenge(w, h) { return [[w, 0], [0, h], [-w, 0], [0, -h]]; }
 
 /** Catmull-Rom resample of control points [[x,y,z]...] -> n+1 points (arrays). */
@@ -501,12 +501,6 @@ export function sweep(path, section, o = {}) {
       N[a] = N[b] = x / l; N[a + 1] = N[b + 1] = y / l; N[a + 2] = N[b + 2] = z / l;
     }
   }
-  if (closed) {
-    for (let k = 0; k <= m; k++) {
-      const a = k * 3, b = ((n - 1) * ring + k) * 3;
-      if (a === b) continue;
-    }
-  }
   g = mk(pos, Array.from(N), idx);
   fixWinding(g);
   // outward check: section centroid -> vertex vs normal
@@ -545,7 +539,7 @@ export function sweep(path, section, o = {}) {
 
 /**
  * Surface of revolution around +Y. profile: [[r, y], ...] (any direction; outside faces away from the axis).
- * o: { segs = 16, a0 = 0, a1 = 360 (deg, 0 = +X), hard: [profile indices with hard normals], cavScale }
+ * o: { segs = 16, a0 = 0, a1 = 360 (deg, 0 = +X), hard: [profile indices with hard normals], auto = true, cavScale }
  */
 export function lathe(profile, o = {}) {
   const segs = o.segs || 16, a0 = o.a0 ?? 0, a1 = o.a1 ?? 360;
@@ -565,10 +559,11 @@ export function lathe(profile, o = {}) {
     const l = Math.hypot(nr, ny) || 1;
     pn.push([nr / l, ny / l]);
   }
-  // orientation: outward = away from the axis on average
+  // orientation: outward = away from the axis on average (auto), or the right-hand side of the walking direction
+  // (auto: false; required for profiles that fold back on themselves, e.g. thick shells)
   let s = 0;
   for (let j = 0; j < H; j++) s += pn[j][0] * prof[j][0];
-  const sg = s >= 0 ? 1 : -1;
+  const sg = o.auto === false || s >= 0 ? 1 : -1;
   const pos = [], nor = [], idx = [];
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {

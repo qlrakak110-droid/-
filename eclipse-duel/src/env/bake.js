@@ -10,6 +10,10 @@ import * as THREE from 'three';
 import { NOISE } from './glsl.js';
 import { LAYOUT } from './config.js';
 
+const DEG = Math.PI / 180;
+/** brazier floor positions as GLSL vec2 constants (ash spilled around their bases) */
+const BRAZ_GLSL = LAYOUT.braziers.map(([d, r]) => `vec2(${(r * Math.sin(d * DEG)).toFixed(3)}, ${(-r * Math.cos(d * DEG)).toFixed(3)})`).join(', ');
+
 const VERT = /* glsl */ `varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 let fsGeo = null;
@@ -20,6 +24,11 @@ function fullscreen() {
     fsGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array([0, 0, 2, 0, 0, 2]), 2));
   }
   return fsGeo;
+}
+
+/** Free the bake pass's fullscreen triangle once an environment has finished baking (rebuilt on the next bake). */
+export function releaseBakeQuad() {
+  if (fsGeo) { fsGeo.dispose(); fsGeo = null; }
 }
 
 /**
@@ -102,6 +111,34 @@ float blobs(vec2 p) {
 
 struct Fl { float h; vec3 alb; float rough; float metal; float puddle; };
 
+// old battle scars: blade gouges weathered into the stone (a few in threes, like claws), tapering at both ends
+float gouges(vec2 p, out float lip) {
+  float g = 0.0; lip = 0.0;
+  vec2 cell = floor(p / 2.3);
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 c = cell + vec2(float(i), float(j));
+    float hs = hash12(c * 1.37 + 4.1);
+    if (hs > 0.4) continue;
+    vec2 o = (c + hash22(c + 2.7)) * 2.3;
+    float ang = hash12(c + 9.3) * 6.2832;
+    vec2 d = vec2(cos(ang), sin(ang));
+    float len = mix(0.35, 0.85, hash12(c + 1.9));
+    int n = hs < 0.07 ? 3 : 1;
+    for (int k = 0; k < 3; k++) {
+      if (k >= n) break;
+      vec2 q = p - o - vec2(-d.y, d.x) * (float(k) - float(n - 1) * 0.5) * 0.1;
+      float t = clamp(dot(q, d) / len, -1.0, 1.0);
+      float along = 1.0 - t * t;
+      float dist = length(q - d * t * len);
+      float w = 0.008 + 0.012 * along;
+      g = max(g, (1.0 - smoothstep(0.0, w, dist)) * along);
+      lip = max(lip, smoothstep(w * 3.0, w, dist) * smoothstep(w * 0.8, w * 1.4, dist) * along);
+    }
+  }
+  return g;
+}
+const vec2 BRAZ[4] = vec2[4](${BRAZ_GLSL});
+
 Fl floorField(vec2 p) {
   Fl o;
   float r0 = length(p);
@@ -178,9 +215,15 @@ Fl floorField(vec2 p) {
   float gapW = mix(0.002, 0.016, imp) * (0.6 + 0.8 * ch.x);
   float shard = (1.0 - smoothstep(gapW * 0.5, gapW + aaw * 1.5, fe)) * smoothstep(0.1, 0.35, imp);
   vec2 cc = (cellId + hash22(cellId)) / 3.4 - 3.3 / 3.4;
-  h += imp * ((ch.y - 0.5) * 0.016 + dot(ch - 0.5, p - cc) * 0.03) - imp * imp * 0.01;
+  h += imp * ((ch.y - 0.5) * 0.016 + dot(ch - 0.5, p - cc) * 0.03) - imp * imp * 0.022;
   h -= shard * 0.02;
   crack = max(crack, shard);
+  // long radial fractures running out of the crater, and a ring fracture at its lip
+  float iang = atan(ip.y, ip.x);
+  float rad = abs(fract(iang / TAU * 13.0 + (vnoise(vec2(iD * 1.3, iang * 2.0)) - 0.5) * 0.35) - 0.5) * TAU * iD / 13.0;
+  float radial = (1.0 - smoothstep(0.004, 0.012 + aaw, rad)) * smoothstep(IMPACT.z * 0.5, IMPACT.z * 0.8, iD) * (1.0 - smoothstep(IMPACT.z * 1.3, IMPACT.z * 2.1, iD)) * step(0.35, hash12(vec2(floor(iang / TAU * 13.0 + 0.5), 3.0)));
+  float ringF = (1.0 - smoothstep(0.006, 0.016 + aaw, abs(iD - IMPACT.z * 1.04))) * step(0.3, vnoise(vec2(iang * 5.0, 1.0)));
+  crack = max(crack, max(radial, ringF));
   h -= crack * 0.008;
 
   // ---- albedo ---------------------------------------------------------------------------------------------------
@@ -269,11 +312,40 @@ Fl floorField(vec2 p) {
   rough = mix(rough, rough * 0.6, damp);
   stone = mix(stone, vec3(0.1, 0.094, 0.084) * (0.75 + 0.5 * grain), dust * 0.5);
   rough = mix(rough, 0.96, dust);
-  // soot around the impact, ash in its fractures
-  float soot = imp * (0.55 + 0.45 * vnoise(p * 3.0));
-  stone = mix(stone, stone * 0.5 + vec3(0.004, 0.0035, 0.003), soot * 0.6);
+  // soot around the impact (a wide halo), a fused glassy core, pale ejecta rays beyond the halo, ash in the fractures
+  float halo = 1.0 - smoothstep(IMPACT.z * 0.6, IMPACT.z * 1.9, iD + (vnoise(p * 1.7) - 0.5) * 0.8);
+  float soot = max(imp, halo * 0.75) * (0.55 + 0.45 * vnoise(p * 3.0));
+  stone = mix(stone, stone * 0.4 + vec3(0.003, 0.0028, 0.0025), soot * 0.75);
+  float core = 1.0 - smoothstep(IMPACT.z * 0.18, IMPACT.z * 0.42, iD);
+  stone = mix(stone, vec3(0.008, 0.0075, 0.008), core * 0.85);
+  rough = mix(rough, 0.3, core * 0.8);
+  float rays = smoothstep(0.55, 0.85, vnoise(vec2(iang * 7.0, 0.5)) * 0.7 + vnoise(vec2(iang * 23.0, iD * 0.4)) * 0.3);
+  rays *= smoothstep(IMPACT.z * 1.0, IMPACT.z * 1.5, iD) * (1.0 - smoothstep(IMPACT.z * 1.8, IMPACT.z * 3.4, iD + vnoise(p * 2.0) * 0.6));
+  stone = mix(stone, vec3(0.1, 0.095, 0.088) * (0.8 + 0.4 * grain), rays * 0.6);
+  rough = mix(rough, 0.95, rays * 0.6);
   stone = mix(stone, vec3(0.016, 0.013, 0.011), shard * 0.9);
   rough = mix(rough, 0.97, shard);
+  // old battle scars: gouges and their worn lips, a few scorch blooms from old fires
+  float lip;
+  float gg = gouges(p, lip) * (1.0 - smoothstep(10.5, 13.5, r0)) * (1.0 - step(r0, 1.3));
+  h -= gg * 0.006;
+  stone = mix(stone, stone * 0.42, gg * 0.85);
+  stone = mix(stone, stone * 1.3 + vec3(0.006), lip * 0.55);
+  rough = mix(rough, 0.95, gg * 0.5);
+  float scorch = 0.0;
+  scorch = max(scorch, 1.0 - smoothstep(0.2, 1.5, length(p - vec2(5.4, -3.6)) + (vnoise(p * 2.2) - 0.5) * 0.7));
+  scorch = max(scorch, 1.0 - smoothstep(0.2, 1.2, length(p - vec2(-7.8, 2.4)) + (vnoise(p * 2.6 + 3.0) - 0.5) * 0.7));
+  scorch = max(scorch, (1.0 - smoothstep(0.1, 0.9, length((p - vec2(2.9, 5.6)) * vec2(1.0, 1.8)) + (vnoise(p * 3.0 + 1.0) - 0.5) * 0.5)) * 0.8);
+  stone = mix(stone, stone * 0.35 + vec3(0.002), scorch * 0.7);
+  rough = mix(rough, 0.97, scorch * 0.5);
+  // ash: drifted against the wall base in dunes, spilled around the brazier bases, dusting the crater's lee
+  float ashW = smoothstep(13.4, 15.3, r0 + (fbm2(p * 0.7 + 5.0, 3) - 0.5) * 1.8) * smoothstep(0.32, 0.62, fbm2(vec2(p.x * 0.9 - p.y * 0.4, p.y * 2.1 + p.x * 0.5) + 13.0, 3));
+  float ashB = 0.0;
+  for (int i = 0; i < 4; i++) { vec2 d = p - BRAZ[i]; ashB = max(ashB, exp(-dot(d, d) / 1.1) * (0.6 + 0.4 * vnoise(p * 4.0 + float(i)))); }
+  float ash = clamp(ashW + ashB * 0.85 + halo * 0.25 * smoothstep(0.5, 0.8, vnoise(p * 1.4 + 7.0)), 0.0, 1.0) * (1.0 - smoothstep(0.1, 0.5, zone));
+  stone = mix(stone, vec3(0.105, 0.1, 0.094) * (0.8 + 0.4 * grain), ash * 0.7);
+  rough = mix(rough, 0.97, ash);
+  h += ash * 0.0035;
 
   o.h = h;
   o.alb = stone;

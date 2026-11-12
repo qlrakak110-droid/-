@@ -145,6 +145,7 @@ uniform vec3 uGlowA;
 uniform vec3 uGlowB;
 uniform vec3 uGlowC;
 uniform vec4 uRim;
+uniform vec2 uRimFade;
 uniform vec4 uWear;
 uniform vec3 uWearColor;
 uniform vec3 uGrimeColor;
@@ -312,6 +313,8 @@ const FRAG_SURFACE = /* glsl */ `
  *   glowScale=1           emissive multiplier
  *   glow                  channel mode: { inlay: [r,g,b], vein: [r,g,b], eye: [r,g,b] } HDR colours (vertex glow = masks)
  *   rim=[0,0,0,3]         fresnel rim: [r, g, b, power] HDR colour (0 = off)
+ *   rimFade=[0.1, 0.62]   bind-space heights (m) over which the rim fades in from the floor (scale with the body: a giant
+ *                         sets its own)
  *   wear=[0.9, 0.8, 0.35, 0.6]   [edge wear, crevice grime, albedo variation, heat tint] strengths
  *   wearColor=0x8a8d93    bare-metal colour revealed by edge wear (sRGB hex or linear [r,g,b])
  *   grimeColor=[0.28,0.24,0.21]  albedo multiplier in crevices      heatColor=[0.16,0.1,0.18] temper tint near cracks
@@ -349,6 +352,7 @@ export function createKitMaterial(o = {}) {
     uGlowB: { value: lin(g && g.vein, [0, 0, 0]) },
     uGlowC: { value: lin(g && g.eye, [0, 0, 0]) },
     uRim: { value: new THREE.Vector4(rim[0], rim[1], rim[2], rim[3] ?? 3) },
+    uRimFade: { value: new THREE.Vector2(...(o.rimFade || [0.1, 0.62])) },
     uWear: { value: new THREE.Vector4(wear[0], wear[1], wear[2], wear[3]) },
     uWearColor: { value: lin(o.wearColor, [0.26, 0.27, 0.29]) },
     uGrimeColor: { value: lin(o.grimeColor, [0.28, 0.24, 0.21]) },
@@ -387,7 +391,10 @@ export function createKitMaterial(o = {}) {
     float edNdV = saturate(dot(normal, normalize(vViewPosition)));
     float edFres = pow(1.0 - edNdV, 2.0);
     totalEmissiveRadiance += edEmis + uFlash * (0.3 + 0.7 * edFres);
-    totalEmissiveRadiance += uRim.rgb * pow(1.0 - edNdV, uRim.w) * saturate(normal.y * 0.55 + 0.6) * edOcc;
+    // rim: silhouettes against the dark arena. Faded out near the floor (the grazing tops of the feet / sabatons lit up
+    // pale at the fight camera's low angle) and only slightly biased toward up-facing normals (no hot shoulder caps)
+    float edRimK = smoothstep(uRimFade.x, uRimFade.y, vRestPos.y) * saturate(0.8 + 0.2 * normal.y - 0.3 * abs(normal.y));
+    totalEmissiveRadiance += uRim.rgb * pow(1.0 - edNdV, uRim.w) * edRimK * edOcc;
   }`);
   };
   mat.customProgramCacheKey = () => (o.cutout ? 'edkit-v2-cut' : 'edkit-v2');

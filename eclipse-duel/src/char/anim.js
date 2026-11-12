@@ -3,7 +3,7 @@
 // exact key format and the bone axis conventions.
 
 import { ease as resolveEase } from '../core/math.js';
-import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis } from './rigmath.js';
+import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
 
 const rawClips = new Map();
 const rawPoses = new Map();
@@ -11,7 +11,8 @@ let compiledByRig = new WeakMap();
 
 /** IK effectors in Pose.ik order. */
 export const EFFECTORS = ['handR', 'handL', 'footR', 'footL'];
-// per effector: w, posA(3), quatA(4), hasRotA, pole(3), hasPole, -, spaceB, k, posB(3), quatB(4), hasRotB
+// per effector: w, posA(3), quatA(4), hasRotA, pole(3), hasPole, soft, spaceB, k, posB(3), quatB(4), hasRotB
+// (soft = soft-reach fraction of the limb length, 0 = may lock straight; -1 = not keyed: the rig default)
 // A = fighter frame (root / origin, resolved at sampling), B = hips / chest frame, k = blend A -> B
 export const EFF_STRIDE = 24;
 /** IK target spaces: 0 root (fighter frame), 1 origin (root at clip start), 2 hips bone frame, 3 chest bone frame. */
@@ -47,14 +48,23 @@ const swapName = (n) => (n.endsWith('R') ? n.slice(0, -1) + 'L' : n.endsWith('L'
 const negS = (v) => (v ? [v[0], v[1], -v[2]] : v);
 const mirE = (v) => (v ? [-v[0], -v[1], v[2]] : v);
 
-const ARM = /^(shoulder|upperArm|foreArm|hand|fingers|fingerTips|thumb)[RL]$/;
+const ARM = /^(shoulder|upperArm|foreArm|hand|fingers|fingerTips|thumb|weapon)[RL]$/;
 
-function mirrorChannels(k, keepHands = false) {
+function mirrorChannels(k, keepHands = false, fromBase = false, mainHand = 'R') {
   const o = { ...k };
   if (k.bones) {
     o.bones = {};
     for (const [b, v] of Object.entries(k.bones)) {
-      if (keepHands && ARM.test(b)) { o.bones[b] = v; continue; }
+      if (keepHands && ARM.test(b)) {
+        // a kept weapon hand does the mirrored motion with the same arm: an FK pose of that arm has no mirror image
+        // (only an IK target does). Off-hand FK keys are kept as they are (loose arm).
+        const ikOn = k.ik && k.ik['hand' + mainHand] && k.ik['hand' + mainHand].w !== 0;
+        if (!fromBase && b.endsWith(mainHand) && !ikOn) {
+          throw new Error(`mirrorClip(hands: 'keep'): FK key on ${b} of the weapon hand; key that hand by IK (ik.hand${mainHand}) instead`);
+        }
+        o.bones[b] = v;
+        continue;
+      }
       const isObj = !Array.isArray(v);
       const r = isObj ? v.r : v;
       const r2 = CENTER.has(b) ? mirE(r) : r;
@@ -65,8 +75,10 @@ function mirrorChannels(k, keepHands = false) {
   if (k.ik) {
     o.ik = {};
     for (const [e, v] of Object.entries(k.ik)) {
-      const name = keepHands && e.startsWith('hand') ? e : swapName(e);
-      o.ik[name] = v && { ...v, pos: negS(v.pos), pole: negS(v.pole), aim: negS(v.aim), up: negS(v.up), rot: mirE(v.rot) };
+      const kept = keepHands && e.startsWith('hand');
+      const name = kept ? e : swapName(e);
+      // a kept hand's elbow pole is mirrored about that arm's own shoulder (resolved per rig at compile: poleKeep)
+      o.ik[name] = v && { ...v, pos: negS(v.pos), pole: kept ? undefined : negS(v.pole), poleKeep: kept && v.pole ? negS(v.pole) : v.poleKeep, aim: negS(v.aim), up: negS(v.up), rot: mirE(v.rot) };
     }
   }
   if (k.look) o.look = { ...k.look, at: negS(k.look.at) };
@@ -101,7 +113,7 @@ export function mirrorClip(src, dst, opts = {}) {
     ...d, name: dst,
     mainHand: keep ? d.mainHand || 'R' : d.mainHand === 'L' ? 'R' : 'L',
     gripHand: keep ? d.gripHand || 'L' : (d.gripHand || 'L') === 'L' ? 'R' : 'L',
-    keys: d.keys.map((k) => mirrorChannels(resolveKey(k), keep)),
+    keys: d.keys.map((k) => mirrorChannels(resolveKey(k), keep, false, d.mainHand || 'R')),
     base: d.base ? { mirrorOf: d.base, keepHands: keep } : { mirrorOf: 'neutral', keepHands: keep },
     events: (d.events || []).map((e) => ({ ...e, name: (opts.events && opts.events[e.name]) || e.name })),
   };
@@ -116,13 +128,33 @@ export function mirrorPose(src, dst) {
 }
 
 // ---- compile ---------------------------------------------------------------------------------------------------
-function newTrack(dim) { return { n: 0, dim, times: [], values: [], eases: [], modes: [], _last: 0 }; }
+function newTrack(dim) { return { n: 0, dim, times: [], values: [], eases: [], modes: [], fs: [], fe: [], fi: [], _last: 0 }; }
 const MODES = { auto: 0, smooth: 0, linear: 1, step: 2 };
+const SHAPES = '(Quad|Cubic|Quart|Quint|Expo|Sine|Circ)';
+const RE_INOUT = new RegExp('^inOut' + SHAPES + '$'), RE_IN = new RegExp('^in' + SHAPES + '$'), RE_OUT = new RegExp('^out' + SHAPES + '$');
+const ARRIVE = { Quad: 2, Cubic: 3, Quart: 3, Quint: 3, Expo: 3, Sine: 1.57, Circ: 3 };
+/**
+ * Eases become tangent constraints instead of time remaps: [flat at the segment's start key, flat at its end key,
+ * impact arrival factor]. 'out*' / 'inOut*' stop at their keys with the velocity continuous on both sides (C1);
+ * 'in*' leaves its start key from rest and hits its end key at k x the segment's mean speed, then the next segment
+ * starts from rest (an impact: the one deliberate velocity step). null = no tangent form (back / elastic / bounce /
+ * snap / custom fn): legacy time remap.
+ */
+export function easeFlags(e) {
+  if (e === undefined || e === null || e === 'linear') return [0, 0, 0];
+  if (typeof e !== 'string') return null;
+  if (RE_INOUT.test(e)) return [1, 1, 0];
+  if (RE_IN.test(e)) return [1, 0, ARRIVE[e.slice(2)]];
+  if (RE_OUT.test(e)) return [0, 1, 0];
+  return null;
+}
 
 function pushKey(tr, t, vals, ease, mode) {
   tr.times.push(t);
   for (const v of vals) tr.values.push(v);
-  tr.eases.push(resolveEase(ease || 'linear'));
+  const f = easeFlags(ease);
+  tr.eases.push(f ? null : resolveEase(ease));
+  tr.fs.push(f ? f[0] : 0); tr.fe.push(f ? f[1] : 0); tr.fi.push(f ? f[2] : 0);
   tr.modes.push(MODES[mode || 'auto'] ?? 0);
 }
 
@@ -132,9 +164,16 @@ function finalizeTrack(tr, loop, duration, isQuat) {
     tr.times.push(duration);
     for (let d = 0; d < tr.dim; d++) tr.values.push(tr.values[d]);
     tr.eases.push(tr.eases[0]);
+    tr.fs.push(tr.fs[0]); tr.fe.push(tr.fe[0]); tr.fi.push(tr.fi[0]);
     tr.modes.push(tr.modes[0]);
   }
   tr.n = tr.times.length;
+  // flat key i: the segment ending at i eases out, or the segment starting at i (ending at i + 1) eases in
+  tr.flat = new Uint8Array(tr.n);
+  for (let i = 0; i < tr.n; i++) tr.flat[i] = (tr.fe[i] || (i + 1 < tr.n && tr.fs[i + 1])) ? 1 : 0;
+  if (loop && tr.n > 1 && tr.fs[1]) tr.flat[tr.n - 1] = 1;
+  tr.impact = tr.fi.some((x) => x > 0) ? Float32Array.from(tr.fi) : null;
+  if (tr.impact) tr.impact[0] = 0;
   tr.times = Float32Array.from(tr.times);
   tr.values = Float32Array.from(tr.values);
   tr.tangents = new Float32Array(tr.values.length);
@@ -163,9 +202,47 @@ function aimUpToQuat(out, aim, up) {
   return qfromBasis(out, 0, [ax, ay, az], [ux, uy, uz], [zx, zy, zz]);
 }
 
+/** Rotate vector v by the minimal rotation taking direction a to direction b (parallel transport of an up vector). */
+function transport(v, a, b) {
+  const la = Math.hypot(a[0], a[1], a[2]) || 1, lb = Math.hypot(b[0], b[1], b[2]) || 1;
+  const q = qfromTo(new Float32Array(4), 0, a[0] / la, a[1] / la, a[2] / la, b[0] / lb, b[1] / lb, b[2] / lb);
+  const o = qrot(new Float32Array(3), 0, q, 0, v[0], v[1], v[2]);
+  return [o[0], o[1], o[2]];
+}
+
+/**
+ * Hand / foot keys with `aim` but no `up` keep the blade roll of the neighbouring keys: the previous key's up is
+ * parallel-transported to the new aim (minimal rotation), the first such key borrows the next key's up, and only an
+ * effector that never keys `up` falls back to world +Y. Works on the sorted, pose-resolved keys (copies the key objects
+ * it changes). Per effector and space group (fighter frame / hips-chest frame).
+ */
+function fillUps(keys) {
+  const out = keys.map((k) => (k.ik ? { ...k, ik: { ...k.ik } } : k));
+  for (const e of EFFECTORS) {
+    for (const group of [0, 1]) {
+      const list = out.filter((k) => {
+        const v = k.ik && k.ik[e];
+        return v && v.aim && ((SPACES[v.space || 'root'] >= 2 ? 1 : 0) === group);
+      });
+      if (!list.length) continue;
+      let first = list.findIndex((k) => k.ik[e].up);
+      if (first < 0) continue; // never keys up: world +Y (aimUpToQuat default)
+      for (let i = first - 1; i >= 0; i--) {
+        const v = list[i].ik[e], n = list[i + 1].ik[e];
+        list[i].ik[e] = { ...v, up: transport(n.up, n.aim, v.aim) };
+      }
+      for (let i = first + 1; i < list.length; i++) {
+        const v = list[i].ik[e], p = list[i - 1].ik[e];
+        if (!v.up) list[i].ik[e] = { ...v, up: transport(p.up, p.aim, v.aim) };
+      }
+    }
+  }
+  return out;
+}
+
 function baseKeyOf(base) {
   if (!base) return {};
-  if (typeof base === 'object' && base.mirrorOf) return mirrorChannels(baseKeyOf(base.mirrorOf), !!base.keepHands);
+  if (typeof base === 'object' && base.mirrorOf) return mirrorChannels(baseKeyOf(base.mirrorOf), !!base.keepHands, true);
   if (typeof base === 'object') return resolveKey(base);
   if (rawPoses.has(base)) return resolveKey({ pose: base });
   if (rawClips.has(base)) return resolveKey(rawClips.get(base).keys[0]);
@@ -175,7 +252,7 @@ function baseKeyOf(base) {
 function compile(rig, def) {
   const duration = Math.max(1e-3, def.duration ?? Math.max(...def.keys.map((k) => k.t ?? 0)));
   const loop = !!def.loop;
-  const keys = def.keys.map(resolveKey).sort((a, b) => (a.t ?? 0) - (b.t ?? 0));
+  const keys = fillUps(def.keys.map(resolveKey).sort((a, b) => (a.t ?? 0) - (b.t ?? 0)));
   const base = baseKeyOf(def.base ?? 'neutral');
   const q = new Float32Array(4);
   const boneTracks = new Map();
@@ -203,7 +280,7 @@ function compile(rig, def) {
       for (const [e, v] of Object.entries(k.ik)) {
         if (!EFFECTORS.includes(e)) throw new Error('clip ' + def.name + ': unknown IK effector ' + e);
         if (!ik[e]) {
-          ik[e] = { A: { pos: newTrack(3), rot: newTrack(4), space: [] }, B: { pos: newTrack(3), rot: newTrack(4) }, pole: newTrack(3), w: newTrack(1), k: newTrack(1), origin: false, spaceB: 0 };
+          ik[e] = { A: { pos: newTrack(3), rot: newTrack(4), space: [] }, B: { pos: newTrack(3), rot: newTrack(4) }, pole: newTrack(3), w: newTrack(1), k: newTrack(1), soft: newTrack(1), origin: false, spaceB: 0 };
         }
         const E = ik[e];
         const ee = (v && v.ease) || ke, em = (v && v.interp) || km;
@@ -225,6 +302,11 @@ function compile(rig, def) {
         if (v.aim) pushKey(S.rot, t, aimUpToQuat(q, v.aim, v.up), ee, em);
         else if (v.rot) pushKey(S.rot, t, eulerToQuat(q, 0, v.rot[0] || 0, v.rot[1] || 0, v.rot[2] || 0), ee, em);
         if (v.pole) pushKey(E.pole, t, v.pole, ee, em);
+        else if (v.poleKeep) { // kept hand of a mirrorClip(hands: 'keep'): mirror the pole about the arm's own shoulder
+          const sz = (e === 'handR' ? 1 : -1) * (rig.P.clavicleRoot + rig.P.clavicle);
+          pushKey(E.pole, t, [v.poleKeep[0], v.poleKeep[1], 2 * sz + v.poleKeep[2]], ee, em);
+        }
+        if (v.soft !== undefined) pushKey(E.soft, t, [Math.max(0, v.soft)], ee, em);
       }
     }
     const num = (x) => (typeof x === 'number' ? { v: x } : x);
@@ -286,6 +368,7 @@ function compile(rig, def) {
         posA: fin(E.A.pos), rotA: fin(E.A.rot, true), posB: fin(E.B.pos), rotB: fin(E.B.rot, true),
         k: E.A.pos.times.length && E.B.pos.times.length ? fin(E.k) : null,
         pole: fin(E.pole),
+        soft: fin(E.soft),
         w: finalizeTrack(E.w, loop, duration),
       };
     }),
@@ -334,10 +417,20 @@ export class Pose {
     this.curl = new Float32Array([0.25, 1]);
     this.root = new Float32Array(2);
     this.feet = new Float32Array(14);       // resolved sole point (3) + model rotation (4) per foot (R, L)
+    this.feetIK = new Float32Array(2);      // IK weight of each foot (0 = FK leg)
+    this.feetPole = new Float32Array(8);    // authored knee pole (model space, 3) + weight (1) per foot
+    this.feetSoft = new Float32Array(2);    // soft reach per foot (-1 = rig default)
+    this.gripT = new Float32Array([0, 0, 0, 0, 0, 0, 1]); // off-hand target in the main weapon frame: pos (3) + quat (4)
+    this.gripW = new Float32Array(2);       // grip IK weight of the right / left hand
+    this.drop = 0;                          // automatic pelvis drop applied while resolving (m)
+    this.swivel = new Float32Array(9);      // arm IK memory (handR, handL, grip): [swivel, valid, wrist twist] each
+    this.swivelR = this.swivel.subarray(0, 3); this.swivelL = this.swivel.subarray(3, 6); this.swivelG = this.swivel.subarray(6, 9);
   }
   copy(p) {
     this.lq.set(p.lq); this.hips.set(p.hips); this.ik.set(p.ik); this.grip = p.grip;
     this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root); this.feet.set(p.feet);
+    this.feetIK.set(p.feetIK); this.feetPole.set(p.feetPole); this.feetSoft.set(p.feetSoft);
+    this.gripT.set(p.gripT); this.gripW.set(p.gripW); this.drop = p.drop;
     return this;
   }
 }
@@ -345,8 +438,12 @@ export class Pose {
 const tmp4 = new Float32Array(4);
 const tmpR = new Float32Array(2);
 
-/** Sample compiled clip `c` at time t into pose (FK bones not keyed keep their previous value: reset first). */
-export function sampleClip(rig, c, t, pose) {
+/**
+ * Sample compiled clip `c` at time t into pose (FK bones not keyed keep their previous value: reset first). `scale`
+ * multiplies every positional channel (hips offset, root motion, IK positions / poles, look target): retargets a clip
+ * authored for one body size to another (Character.play(name, { scale })).
+ */
+export function sampleClip(rig, c, t, pose, scale = 1) {
   pose.lq.set(rig.restRot);
   for (const b of c.bones) {
     sampleTrack(b.tr, t, pose.lq, b.i * 4);
@@ -378,9 +475,20 @@ export function sampleClip(rig, c, t, pose) {
       if (E.k) { sampleTrack(E.k, t, tmpR, 0); ik[o + 15] = Math.max(0, Math.min(1, tmpR[0])); } else ik[o + 15] = 1;
     }
     if (E.pole) { sampleTrack(E.pole, t, ik, o + 9); ik[o + 12] = 1; }
+    if (E.soft) { sampleTrack(E.soft, t, ik, o + 13); } else ik[o + 13] = -1;
+    if (scale !== 1) {
+      for (const k of [1, 2, 3, 9, 10, 11, 16, 17, 18]) ik[o + k] *= scale;
+    }
+  }
+  if (scale !== 1) {
+    pose.hips[0] *= scale; pose.hips[1] *= scale; pose.hips[2] *= scale;
+    pose.root[0] *= scale; pose.root[1] *= scale;
   }
   if (c.grip) { sampleTrack(c.grip, t, tmpR, 0); pose.grip = Math.max(0, Math.min(1, tmpR[0])); } else pose.grip = 0;
-  if (c.lookW) { sampleTrack(c.lookW, t, tmpR, 0); pose.lookW = Math.max(0, Math.min(1, tmpR[0])); if (c.look) sampleTrack(c.look, t, pose.look, 0); } else pose.lookW = 0;
+  if (c.lookW) {
+    sampleTrack(c.lookW, t, tmpR, 0); pose.lookW = Math.max(0, Math.min(1, tmpR[0]));
+    if (c.look) { sampleTrack(c.look, t, pose.look, 0); if (scale !== 1) { pose.look[0] *= scale; pose.look[1] *= scale; pose.look[2] *= scale; } }
+  } else pose.lookW = 0;
   if (c.curl) sampleTrack(c.curl, t, pose.curl, 0); else { pose.curl[0] = 0.25; pose.curl[1] = 1; }
   return pose;
 }

@@ -7,9 +7,49 @@ import { createLab } from '../core/lab.js';
 import { DEG } from '../core/math.js';
 import { createEnvironment } from '../env/index.js';
 import { createCameraDirector } from '../cam/index.js';
+import * as shots from '../cam/shots.js';
 
 /** Hand the camera back to the lab orbit (the real fight director, if a `game*` scenario started it, goes idle). */
 function freeCam(lab) { if (lab.ctx.cam) lab.ctx.cam.setMode('free', 0); }
+/** The real camera director on the dummies (created on first use). */
+function director(ctx, lab) {
+  if (!ctx.cam) {
+    const chest = (m) => { const v = new THREE.Vector3(); return () => v.set(m.position.x, 1.35, m.position.z); };
+    createCameraDirector(ctx).setTargets(chest(lab.dummies[0]), chest(lab.dummies[1]));
+    ctx.cam.fight.breathe = 0;
+  }
+  return ctx.cam;
+}
+/**
+ * The cinematic vocabulary on the dummies (src/cam/shots.js), held on its last frame: advance the clock to sample a
+ * moment of the move. `anchor` 1 mirrors the shot (authored around P2). Handheld drift is switched off so captures
+ * are repeatable.
+ */
+function cine(ctx, lab, list, anchor = 0) {
+  lab.dummies[0].position.x = -2.5;
+  lab.dummies[1].position.x = 2.5;
+  ctx.env.setFocus(0);
+  const cam = director(ctx, lab);
+  cam.setMode('fight', 0);
+  cam.snap();
+  cam.play(list.map((s) => ({ ...s, handheld: 0 })), { anchor, blendOut: false, hud: false });
+}
+/** Flagship review set: [name, shot list, anchor, sample time (s)] (README: "Cinematic review"). */
+const CINE = {
+  heroL: () => [[shots.heroPushIn()], 0, 0.9],
+  heroR: () => [[shots.heroPushIn()], 1, 0.9],
+  otsL: () => [[shots.overShoulder()], 0, 1.0],
+  otsR: () => [[shots.overShoulder()], 1, 1.0],
+  sideL: () => [[{ dur: 2, space: 'mid', orbit: { pivot: [0, 1.25, 0], from: -68, to: -68, radius: 7.2, height: 1.45 }, from: { fov: 38 } }], 0, 0.5],
+  sideR: () => [[{ dur: 2, space: 'mid', orbit: { pivot: [0, 1.25, 0], from: 68, to: 68, radius: 7.2, height: 1.45 }, from: { fov: 38 } }], 0, 0.5],
+  sideLow: () => [[{ dur: 2, space: 'mid', orbit: { pivot: [0, 1.7, 0], from: -55, to: -55, radius: 5.5, height: 0.45 }, from: { fov: 44 } }], 0, 0.5],
+  crane: () => [[shots.wideEstablishing()], 0, 1.6],
+  craneHigh: () => [[shots.topDownSlam({ height: [9, 8] })], 0, 0.5],
+  orbit: () => [[shots.orbitSweep()], 0, 1.25],
+  skim: () => [[shots.groundSkim()], 0, 0.85],
+  face: () => [[shots.faceCloseUp()], 0, 1.0],
+  dutch: () => [[shots.dutchDrift()], 0, 1.4],
+};
 /** Fight-camera framing: camera at (x, h, d) looking at (x, look, 0). */
 function fight(lab, d, h, look, x = 0, fov = 40) {
   freeCam(lab);
@@ -27,13 +67,10 @@ function gameCam(ctx, lab, sep, mid = 0) {
   lab.dummies[0].position.x = mid - sep / 2;
   lab.dummies[1].position.x = mid + sep / 2;
   ctx.env.setFocus(mid);
-  if (!ctx.cam) {
-    const chest = (m) => { const v = new THREE.Vector3(); return () => v.set(m.position.x, 1.35, m.position.z); };
-    createCameraDirector(ctx).setTargets(chest(lab.dummies[0]), chest(lab.dummies[1]));
-    ctx.cam.fight.breathe = 0;
-  }
-  ctx.cam.setMode('fight', 0);
-  ctx.cam.snap();
+  const cam = director(ctx, lab);
+  if (cam.mode === 'cine') cam.stop(0);
+  cam.setMode('fight', 0);
+  cam.snap();
 }
 
 createLab({
@@ -87,6 +124,20 @@ createLab({
     sideR(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.2, 0], dist: 9, yaw: 60, pitch: 4, fov: 40 }); },
     sideLowL(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
     overview(ctx, lab) { lookFrom(lab, [0, 22, 30], [0, 0, -8], 50); },
+    /** close inspection of the architecture: podium frieze + cornice, a capital and arch, the tier, a brazier shrine */
+    inspWall(ctx, lab) { lookFrom(lab, [9.0, 1.5, -5.2], [13.6, 2.2, -7.9], 42); },
+    inspCapital(ctx, lab) { lookFrom(lab, [6.6, 1.8, -9.0], [11.5, 8.6, -13.2], 46); },
+    inspTier(ctx, lab) { lookFrom(lab, [-3.5, 7.5, -1.5], [-20.0, 6.0, -12.5], 46); },
+    inspBrazier(ctx, lab) { lookFrom(lab, [6.6, 0.85, -8.6], [8.3, 0.55, -10.9], 40); },
+    inspImpact(ctx, lab) { lookFrom(lab, [-1.6, 1.6, -1.2], [-4.6, 0.1, -6.6], 46); },
+    inspTierHigh(ctx, lab, side = -1) { lookFrom(lab, [side * -3, 12.5, 3], [side * 22, 5.5, -8], 52); },
+    inspImpactTop(ctx, lab) { lookFrom(lab, [-2.6, 9.5, 0.5], [-4.4, 0, -6.2], 50); },
+    inspVista(ctx, lab) { lookFrom(lab, [2.0, 1.4, -9.0], [-4.0, 1.0, -16.5], 50); },
+    /** telephoto hero shots of the colossi from the vista edge: whole figure / cowl and hands */
+    colossusL(ctx, lab) { lookFrom(lab, [-2, 1.8, -13.5], [-53.7, 10.5, -223.6], 15); },
+    colossusR(ctx, lab) { lookFrom(lab, [2, 1.8, -13.5], [61.5, 10.5, -221.6], 15); },
+    colossusStudy(ctx, lab, yaw = 0) { const a = Math.atan2(53.7, 223.6) + yaw; lookFrom(lab, [-53.7 + Math.sin(a) * 75, 16, -223.6 + Math.cos(a) * 75], [-53.7, 14, -223.6], 32); },
+    colossusHead(ctx, lab) { lookFrom(lab, [-2, 1.8, -13.5], [-53.0, 18.5, -223.8], 6); },
     /** telephoto on the far left colossus (inspect the far silhouettes) */
     colossus(ctx, lab) { lookFrom(lab, [-1, 2.4, 4], [-53.7, 16, -223.6], 12); },
     mood(ctx) { ctx.env.setMood({ darken: 0.85, tint: 0x8fa0ff, duration: 0.3 }); },
@@ -105,5 +156,15 @@ createLab({
       });
     },
     stats(ctx) { return ctx.env.stats(); },
+    /**
+     * `cine(name)`: a held cinematic from the review set (CINE: heroL heroR otsL otsR sideL sideR sideLow crane
+     * craneHigh orbit skim face dutch). Returns the sample time to advance before capturing.
+     */
+    cine(ctx, lab, name) {
+      const [list, anchor, at] = CINE[name]();
+      cine(ctx, lab, list, anchor);
+      return at;
+    },
+    cineList() { return Object.keys(CINE); },
   },
 });

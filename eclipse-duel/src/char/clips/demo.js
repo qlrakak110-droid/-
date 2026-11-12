@@ -57,7 +57,7 @@ definePose('demo.c2end', {
   bones: { spine: [2, -10, 5], chest: [2, -12, 6], neck: [0, 16, 0], head: [0, 22, -6] },
   ik: {
     handR: { pos: [0.02, 1.72, 0.27], aim: [-0.72, 0.42, 0.5], up: [0.2, -0.8, 0.5] },
-    footL: { pos: [0.4, 0, -0.15], rot: [0, 12, 0] }, footR: { pos: FR, rot: [0, -50, 0] },
+    footL: { pos: [0.42, 0, -0.15], rot: [0, 12, 0] }, footR: { pos: FR, rot: [0, -50, 0] },
   },
   grip: 1, curl: [1, 1],
 });
@@ -105,8 +105,9 @@ function walk(name, dir) {
   const add = (t, ik, interp, ease, extra = {}) => keys.push({ t, ik, interp, ease, ...extra });
   for (const [t, k, interp, ease] of step(lead, 0.04 * T, 0.42 * T)) add(t, { [lead]: k }, interp, ease);
   for (const [t, k, interp, ease] of step(trail, 0.5 * T, 0.88 * T)) add(t, { [trail]: k }, interp, ease);
-  // body: bob up during each swing, surge after each plant, slight sway of the blade
-  const hy = -0.09;
+  // body: bob up during each swing, surge after each plant, slight sway of the blade; the hips sit low enough for
+  // the stride (no automatic pelvis drop at the plants)
+  const hy = -0.125;
   keys.push({ t: 0.23 * T, ease: 'inOutSine', hips: { pos: [-0.03 + 0.02 * dir, hy + 0.018, -0.008], rot: [-1.5, -27 + 3 * dir, -1] }, ik: { handR: { pos: [0.33, 1.095, 0.1] } } });
   keys.push({ t: 0.46 * T, ease: 'inOutSine', hips: { pos: [-0.03 + 0.03 * dir, hy - 0.012, 0], rot: [0, -26, 0] }, ik: { handR: { pos: [0.335, 1.07, 0.1] } } });
   keys.push({ t: 0.69 * T, ease: 'inOutSine', hips: { pos: [-0.03 - 0.005 * dir, hy + 0.015, 0.008], rot: [1.5, -25 - 3 * dir, 1] }, ik: { handR: { pos: [0.325, 1.09, 0.1] } } });
@@ -170,8 +171,8 @@ defineClip('demo.combo2', {
     { t: 0.28, ik: { handR: { pos: [0.26, 1.72, 0.25], aim: [-0.2, 0.9, 0.38], up: [-0.6, -0.3, 0.7] } } },
     { t: 0.38, ease: 'outQuad', pose: 'demo.c2end' },
     { t: 0.5, ease: 'inOutSine', hips: { pos: [0.02, -0.085, 0.02], rot: [2, -44, 3] }, ik: { handR: { pos: [0.04, 1.69, 0.27], aim: [-0.7, 0.38, 0.52] } } },
-    { t: 0.6, ease: 'inOutSine', ik: { footL: { pos: [0.4, 0, -0.15], rot: [0, 12, 0] } } },
-    { t: 0.71, ease: 'inOutSine', ik: { footL: { pos: [0.35, 0.05, -0.145], rot: [0, 13, -6] } } },
+    { t: 0.6, ease: 'inOutSine', ik: { footL: { pos: [0.42, 0, -0.15], rot: [0, 12, 0] } } },
+    { t: 0.71, ease: 'inOutSine', ik: { footL: { pos: [0.36, 0.05, -0.145], rot: [0, 13, -6] } } },
     { t: 0.8, ease: 'inQuad', ik: { footL: { pos: FL, rot: [0, 14, 0] } } },
     { t: 0.9, ease: 'inOutSine', pose: 'demo.stance' },
   ],
@@ -207,16 +208,16 @@ defineClip('demo.combo2', {
   const piv = [0.42, 0, -0.15];
   const yawL = (y) => [0, Math.max(-40, Math.min(60, y * 0.3 + 10)), 0];
   keys.push({ t: 0.17, ik: { footL: { space: 'origin', pos: piv, rot: [0, 12, 0] }, footR: { space: 'origin', pos: [-0.3, 0, 0.17], rot: [0, -60, 0] } } });
-  const rel = [-0.72, 0.32];
+  const rel = [-0.5, 0.24];
   const around = [[0.3, 0], [0.4, 70], [0.48, 150], [0.56, 230], [0.64, 300], [0.72, 360]];
   around.forEach(([t, a]) => {
     const r = (a * Math.PI) / 180, c = Math.cos(r), s = Math.sin(r);
     const fx = piv[0] + rel[0] * c + rel[1] * s, fz = piv[2] - rel[0] * s + rel[1] * c;
-    const lift = a > 0 ? 0.09 * Math.sin(Math.min(1, a / 330) * Math.PI) + 0.03 : 0;
+    const lift = a > 0 ? 0.11 * Math.sin(Math.min(1, a / 330) * Math.PI) + 0.04 : 0;
     keys.push({ t, ik: { footR: { space: 'origin', pos: [fx + (a / 360) * 0.18, lift, fz], rot: [0, -60 + a, 0] }, footL: { space: 'origin', pos: piv, rot: yawL(a) } } });
   });
   keys.push({ t: 0.86, ik: { footL: { space: 'origin', pos: piv, rot: [0, 12, 0] }, footR: { space: 'origin', pos: [-0.12, 0, 0.17], rot: [0, -50, 0] } } });
-  keys.push({ t: 1.02, ik: { footL: { space: 'origin', pos: [0.62, 0.06, -0.15], rot: [0, 12, -6] } } });
+  keys.push({ t: 1.02, ik: { footL: { space: 'origin', pos: [0.62, 0.06, -0.15], rot: [0, 12, -6] }, footR: { space: 'origin', pos: [-0.12, 0, 0.17], rot: [0, -50, 0] } } });
   keys.push({ t: 1.12, ease: 'inQuad', ik: { footL: { space: 'origin', pos: [0.8, 0, -0.14], rot: [0, 14, 0] } } });
   keys.push({ t: 1.2, ease: 'inOutSine', ik: { footR: { space: 'origin', pos: [-0.12 + 0.08, 0.04, 0.17], rot: [0, -46, 0] } } });
   keys.push({ t: T, ease: 'inOutSine', ik: { footL: { space: 'origin', pos: [FL[0] + D, 0, FL[2]], rot: [0, 14, 0] }, footR: { space: 'origin', pos: [FR[0] + D, 0, FR[2]], rot: [0, -45, 0] } } });
@@ -237,6 +238,8 @@ defineClip('demo.slam', {
     // gather: knees sink, blade dips
     { t: 0.13, ease: 'inOutSine', hips: { pos: [-0.05, -0.16, 0], rot: [0, -22, 0] }, bones: { spine: [0, -6, -8], chest: [0, -4, -6] },
       ik: { handR: { pos: [0.3, 0.98, 0.12], aim: [0.82, 0.28, -0.15], up: [-0.3, 0.9, 0] } } },
+    // the front foot stays planted through the gather, then lifts for the lunge
+    { t: 0.3, ik: { footL: { space: 'origin', pos: [0.3, 0, -0.14], rot: [0, 14, 0] } } },
     // windup: blade raised overhead and back, body arched, front foot lifts
     { t: 0.46, ease: 'outCubic', hips: { pos: [-0.12, -0.04, 0], rot: [0, -10, 0] }, bones: { spine: [0, -2, 12], chest: [0, -3, 14], neck: [0, 4, -8], head: [0, 6, -12] },
       ik: { handR: { pos: [-0.06, 1.92, 0.1], aim: [-0.72, 0.25, 0.05], up: [0.25, -0.95, 0] }, footL: { space: 'origin', pos: [0.36, 0.1, -0.14], rot: [0, 10, -12] } } },
@@ -245,12 +248,12 @@ defineClip('demo.slam', {
     { t: 0.585, ik: { handR: { pos: [0.28, 1.85, 0.06], aim: [0.4, 0.92, 0.0], up: [-0.92, 0.4, 0] }, footL: { space: 'origin', pos: [0.64, 0.05, -0.15] } } },
     // impact: blade into the floor, deep lunge
     { t: 0.63, ease: 'inQuad', hips: { pos: [-0.1, -0.34, -0.01], rot: [0, -12, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -20], neck: [0, 4, 14], head: [0, 6, 18] },
-      ik: { handR: { pos: [0.42, 0.72, 0.05], aim: [0.74, -0.67, -0.04], up: [-0.67, -0.74, 0] }, footL: { space: 'origin', pos: [0.74, 0, -0.16], rot: [0, 10, 0] }, footR: { space: 'origin', pos: [-0.3, 0, 0.18], rot: [0, -38, 0] } } },
+      ik: { handR: { pos: [0.42, 0.72, 0.05], aim: [0.74, -0.67, -0.04], up: [-0.67, -0.74, 0] }, footL: { space: 'origin', pos: [0.74, 0, -0.14], rot: [0, 10, 0] }, footR: { space: 'origin', pos: [-0.3, 0, 0.18], rot: [0, -38, 0] } } },
     { t: 0.7, ease: 'outQuad', hips: { pos: [-0.11, -0.31, -0.01] }, bones: { spine: [0, -2, -22], chest: [0, -2, -18] }, ik: { handR: { pos: [0.41, 0.76, 0.05], aim: [0.76, -0.64, -0.04] } } },
     { t: 1.0, ease: 'inOutSine', hips: { pos: [-0.12, -0.32, -0.01] }, ik: { handR: { pos: [0.42, 0.75, 0.05], aim: [0.75, -0.65, -0.04] } } },
     // recover: wrench the blade free, rear foot steps up
     { t: 1.22, ease: 'inOutSine', hips: { pos: [-0.2, -0.2, 0], rot: [0, -22, 0] }, bones: { spine: [0, -6, -8], chest: [0, -5, -5], neck: [0, 8, 4], head: [0, 12, 0] },
-      ik: { handR: { pos: [0.2, 1.05, 0.12], aim: [0.8, 0.2, -0.12], up: [-0.3, 0.9, 0] }, footR: { space: 'origin', pos: [-0.28, 0, 0.18], rot: [0, -40, 0] } } },
+      ik: { handR: { pos: [0.2, 1.05, 0.12], aim: [0.8, 0.2, -0.12], up: [-0.3, 0.9, 0] }, footR: { space: 'origin', pos: [-0.3, 0, 0.18], rot: [0, -40, 0] } } },
     { t: 1.36, ease: 'inOutSine', ik: { footR: { space: 'origin', pos: [-0.06, 0.06, 0.18], rot: [0, -44, 0] } } },
     { t: 1.48, ease: 'inQuad', ik: { footR: { space: 'origin', pos: [0.14, 0, 0.17], rot: [0, -45, 0] } } },
     { t: 1.75, ease: 'inOutSine', pose: 'demo.stance', ik: { footL: { space: 'origin', pos: [0.74, 0, -0.14], rot: [0, 14, 0] }, footR: { space: 'origin', pos: [0.14, 0, 0.17], rot: [0, -45, 0] } } },
@@ -267,8 +270,8 @@ defineClip('demo.hit', {
     { t: 0.06, ease: 'outQuad', hips: { pos: [-0.1, -0.11, 0.01], rot: [-4, -34, 7] }, bones: { spine: [-4, -10, 12], chest: [-5, -8, 15], neck: [4, 6, 16], head: [6, 10, 24], shoulderR: [0, 0, 6], shoulderL: [0, 0, 6] },
       ik: { handR: { pos: [0.2, 1.2, 0.2], aim: [0.5, 0.82, -0.1], up: [-0.8, 0.5, 0] }, footL: { space: 'origin', pos: FL, rot: [0, 14, 0] }, footR: { space: 'origin', pos: FR, rot: [0, -45, 0] } } },
     { t: 0.15, ease: 'inOutSine', hips: { pos: [-0.08, -0.16, 0.01], rot: [-3, -36, 5] }, bones: { spine: [-2, -10, 6], chest: [-3, -9, 8], neck: [2, 8, 6], head: [3, 10, 6], shoulderR: [0, 0, 0], shoulderL: [0, 0, 0] },
-      ik: { handR: { pos: [0.18, 1.1, 0.2], aim: [0.6, 0.62, -0.12] }, footR: { space: 'origin', pos: [-0.4, 0.06, 0.19], rot: [0, -48, 6] } } },
-    { t: 0.24, ease: 'inQuad', ik: { footR: { space: 'origin', pos: [-0.5, 0, 0.19], rot: [0, -50, 0] } } },
+      ik: { handR: { pos: [0.18, 1.1, 0.2], aim: [0.6, 0.62, -0.12] }, footR: { space: 'origin', pos: [-0.4, 0.06, 0.18], rot: [0, -48, 6] } } },
+    { t: 0.24, ease: 'inQuad', ik: { footR: { space: 'origin', pos: [-0.5, 0, 0.17], rot: [0, -50, 0] } } },
     { t: 0.36, ease: 'inOutSine', hips: { pos: [-0.04, -0.13, 0.0], rot: [-1, -30, 2] }, bones: { spine: [0, -9, -2], chest: [0, -7, -1] }, ik: { handR: { pos: [0.28, 1.05, 0.13], aim: [0.78, 0.45, -0.14] }, footL: { space: 'origin', pos: FL, rot: [0, 14, 0] } } },
     { t: 0.48, ease: 'inOutSine', ik: { footL: { space: 'origin', pos: [0.18, 0.05, -0.14], rot: [0, 14, -6] } } },
     { t: 0.58, ease: 'inQuad', ik: { footL: { space: 'origin', pos: [0.1, 0, -0.14], rot: [0, 14, 0] } } },

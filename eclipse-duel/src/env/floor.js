@@ -1,27 +1,31 @@
 // Arena floor: baked flagstone maps (world-space), wet stone + puddles, worn contact band under the fight line,
-// floor pulses (glow ring + ripples), brazier light pools, and on the high tier a cheap "planar" puddle reflection:
-// the previous frame's HDR scene is re-projected through the mirror assuming reflected content stands on the fight
-// line plane (z = 0). Elsewhere puddles reflect the PMREM sky (which contains the ring silhouettes).
+// floor pulses (glow ring + ripples), brazier light pools, and on the high tier a cheap "planar" puddle reflection
+// (createReflectionOverlay): right after the HDR scene render (post.onAfterScene) the frame is copied and the
+// puddles in front of the fight line are re-shaded in a second, depth-tested pass that re-projects this same frame
+// through the mirror, assuming reflected content stands on the fight line plane (z = 0). No frame of lag, correct on
+// cuts. Elsewhere puddles reflect the PMREM sky (which contains the ring silhouettes).
 
 import * as THREE from 'three';
 import { patchStandard } from './materials.js';
+import { SKY_BASE, FOG } from './glsl.js';
 import { LAYOUT } from './config.js';
 
 const MAX_PULSES = 4;
+/** Share of a puddle's reflection scattered by ripples, and the roughness of that scattered part. */
+const SCATTER = 0.4, SCATTER_ROUGH = 0.45;
 
 const FRAG_HEAD = /* glsl */ `
-uniform sampler2D tFloorA, tFloorB, tDetailA, tDetailB, tRefl;
+uniform sampler2D tFloorA, tFloorB, tDetailA, tDetailB;
 uniform float uFloorE;
-uniform vec4 uWet;        // x extra wetness on top of the baked damp (0 = as baked), y puddle scale, z ripple amount, w reflection on
-uniform vec4 uBand;       // x sigma (m), y darkening, z unused, w key factor away from the fight line
+uniform vec4 uWet;        // x extra wetness on top of the baked damp (0 = as baked), y puddle scale, z ripple amount, w unused
+uniform vec4 uBand;       // x sigma (m), y darkening, z, w unused (the key pool is envFloorKey in materials.js)
 uniform vec4 uPulseP[${MAX_PULSES}];   // x, z, age (s), strength
 uniform vec4 uPulseC[${MAX_PULSES}];   // rgb colour, ring speed (m/s)
 uniform vec4 uBraz[4];    // brazier x, z, pool strength, -
-uniform mat4 uReflVP;
 uniform vec4 uContactP[4];  // body on the floor: x, z, foot radius (m), height (m)
 uniform vec4 uContactW;     // per-slot strength (0 = off)
 uniform vec4 uContactK;     // xy: blob-shadow direction on the floor (away from the key), z: blob strength, w: AO strength
-float envPuddle, envRough, envMetal, envOcc, envBlob;
+float envPuddle, envRough, envRoughStone, envMetal, envOcc, envBlob;
 vec3 envEmissive;
 vec3 envNW;
 `;
@@ -41,6 +45,7 @@ alb = mix(alb, alb * 0.72, envPuddle);
 diffuseColor.rgb *= alb;
 envRough = mix(fB.b, fB.b * 0.8, uWet.x) * mix(1.0, 0.88, band);
 envRough = clamp(envRough + (dB.a - 0.5) * 0.25, 0.05, 1.0);
+envRoughStone = envRough;
 envRough = mix(envRough, 0.045, envPuddle);
 envMetal = fB.a * (1.0 - envPuddle);
 
@@ -94,34 +99,28 @@ const NORMAL = /* glsl */ `
 normal = normalize((viewMatrix * vec4(envNW, 0.0)).xyz);
 `;
 
+// The stone under a puddle's thin water film still scatters the key broadly (shadowed like everything else): without
+// it a puddle mirroring the black zenith loses the sheen of the stones around it and reads as a hole in the floor.
+// The mirror reflection itself stays sharp (IBL, and the screen reflection on high).
+const UNDER_FILM = /* glsl */ `
+if ( UNROLLED_LOOP_INDEX == 0 && envPuddle > 0.01 ) {
+  PhysicalMaterial envStone = material;
+  envStone.roughness = max( envRoughStone, 0.0525 );
+  reflectedLight.directSpecular += envPuddle * 0.75 * saturate( dot( geometryNormal, directLight.direction ) ) * directLight.color * BRDF_GGX( directLight.direction, geometryViewDir, geometryNormal, envStone );
+}
+`;
+
 const REFLECT = /* glsl */ `
 #include <lights_fragment_maps>
+radiance *= uWet.w;
+#if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
+// wind ripples scatter part of a puddle's mirror image: it keeps a soft sheen of the sky glow and the braziers instead
+// of reading as a hole where it mirrors the dark walls (the reflection overlay keeps this share)
+radiance = mix(radiance, getIBLRadiance(geometryViewDir, geometryNormal, ${SCATTER_ROUGH.toFixed(3)}), envPuddle * ${SCATTER.toFixed(3)});
+#endif
 irradiance *= 1.0 - envOcc * uContactK.w;
 iblIrradiance *= 1.0 - envOcc * uContactK.w;
 radiance *= 1.0 - envOcc * uContactK.w * 0.8;
-#ifdef ENV_SSR
-if (uWet.w > 0.5) {
-  vec3 F = vEnvWorld;
-  vec3 Cm = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
-  vec3 rd = normalize(F - Cm);
-  rd.xz += envNW.xz * 0.9;
-  float tq = -F.z / min(rd.z, -1e-3);
-  vec3 Q = F + rd * tq;
-  vec4 clip = uReflVP * vec4(Q, 1.0);
-  vec2 suv = clip.xy / max(clip.w, 1e-3) * 0.5 + 0.5;
-  float edge = smoothstep(0.0, 0.06, suv.x) * smoothstep(1.0, 0.94, suv.x) * smoothstep(0.0, 0.05, suv.y) * smoothstep(1.0, 0.92, suv.y);
-  float w = step(0.0, clip.w) * smoothstep(0.08, 0.45, F.z) * (1.0 - smoothstep(2.4, 3.6, Q.y)) * edge;
-  // where the camera ray through Q lands on the floor behind, the copied pixel is (most likely) floor, not a fighter
-  if (Q.y < cameraPosition.y - 0.02) {
-    vec3 hit = cameraPosition + (Q - cameraPosition) * (cameraPosition.y / (cameraPosition.y - Q.y));
-    w *= mix(0.1, 1.0, smoothstep(13.5, 17.0, length(hit.xz)));
-  }
-  float lod = clamp(envRough * 9.0, 0.0, 5.0);
-  vec3 rc = textureLod(tRefl, suv, lod).rgb;
-  float wetness = max(envPuddle, clamp(1.0 - envRough * 1.7, 0.0, 1.0) + uWet.x * 0.55);
-  radiance = mix(radiance, rc, w * wetness);
-}
-#endif
 `;
 
 /**
@@ -138,27 +137,25 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     tFloorB: { value: maps.b.texture },
     tDetailA: { value: stoneMaps.a.texture },
     tDetailB: { value: stoneMaps.b.texture },
-    tRefl: { value: null },
     uFloorE: { value: LAYOUT.floorTexExtent },
-    uWet: { value: new THREE.Vector4(0.0, 1.0, 1.0, 0) },
-    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 1.0, 0.24) },
+    uWet: { value: new THREE.Vector4(0.0, 1.0, 1.0, 1) },
+    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 0.14, 1) },
     uPulseP: { value: pulseP },
     uPulseC: { value: pulseC },
     uBraz: { value: braz },
-    uReflVP: { value: new THREE.Matrix4() },
     uContactP: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0.35, 1.9)) },
     uContactW: { value: new THREE.Vector4(0, 0, 0, 0) },
     uContactK: { value: new THREE.Vector4(1, 0, tier.blobShadow, 0.8) },
   };
   const mat = new THREE.MeshStandardMaterial({ name: 'env.floor', color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.85 });
-  if (tier.reflection) mat.defines = { ENV_SSR: '' };
   patchStandard(mat, U, {
-    key: tier.reflection ? 'floor-ssr' : 'floor',
+    key: 'floor',
     extraUniforms: extra,
     fragHead: FRAG_HEAD,
     keyMask: false,
     // key light: full on the fight band, dimmer toward the far floor and the wall
-    keyMaskExtra: 'envRimMask = 0.14; envKeyMask = mix(uBand.w, 0.95, exp(-vEnvWorld.z * vEnvWorld.z / 11.0) * (1.0 - smoothstep(5.0, 12.0, abs(vEnvWorld.x - uKeyMask.x)))) * (1.0 - envBlob * uContactK.z) * (1.0 - envOcc * 0.35);',
+    keyMaskExtra: 'envRimMask = uBand.z; envKeyMask = envFloorKey(vEnvWorld) * uBand.w * (1.0 - envBlob * uContactK.z) * (1.0 - envOcc * 0.35);',
+    dirLight: UNDER_FILM,
     fragReplace: {
       map_fragment: MAP,
       roughnessmap_fragment: 'float roughnessFactor = envRough;',
@@ -203,4 +200,127 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     },
     clearContact(i) { extra.uContactW.value.setComponent(i, 0); },
   };
+}
+
+const OVERLAY_VERT = /* glsl */ `
+varying vec3 vW;
+void main() {
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  vW = (modelMatrix * vec4(position, 1.0)).xyz;
+}`;
+const OVERLAY_FRAG = /* glsl */ `
+#include <common>
+#include <cube_uv_reflection_fragment>
+uniform sampler2D tFloorA, tFloorB, tDetailB, tRefl, envMap;
+uniform float uFloorE, uTime, uEnvI;
+uniform vec4 uWet, uBand;
+uniform mat4 uVP;
+varying vec3 vW;
+${SKY_BASE}
+${FOG}
+vec2 dfgApprox(float dotNV, float roughness) {
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+  const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+  vec4 r = roughness * c0 + c1;
+  float a004 = min(r.x * r.x, exp2(-9.28 * dotNV)) * r.x + r.y;
+  return vec2(-1.04, 1.04) * a004 + r.zw;
+}
+void main() {
+  vec3 F = vW;
+  if (F.z < 0.08) discard;
+  vec2 fuv = F.xz / (2.0 * uFloorE) + 0.5;
+  vec4 fA = texture2D(tFloorA, fuv);
+  vec4 fB = texture2D(tFloorB, fuv);
+  vec4 dB = texture2D(tDetailB, F.xz / 1.3);
+  // the same surface the floor pass shaded (MAP in floor.js)
+  float puddle = fA.a * uWet.y;
+  float band = exp(-F.z * F.z / (2.0 * uBand.x * uBand.x)) * (1.0 - smoothstep(9.5, 13.0, abs(F.x)));
+  float rough = mix(fB.b, fB.b * 0.8, uWet.x) * mix(1.0, 0.88, band);
+  rough = clamp(rough + (dB.a - 0.5) * 0.25, 0.05, 1.0);
+  rough = mix(rough, 0.045, puddle);
+  float wetness = max(puddle, clamp(1.0 - rough * 1.7, 0.0, 1.0) + uWet.x * 0.55);
+  if (wetness < 0.01) discard;
+  vec2 nxz = fB.rg * 2.0 - 1.0;
+  nxz += (dB.rg * 2.0 - 1.0) * 0.7 * (1.0 - puddle);
+  nxz *= 1.0 - puddle * 0.94;
+  vec2 wp = F.xz;
+  vec2 rip = vec2(sin(wp.x * 7.0 + wp.y * 3.0 + uTime * 1.7) + sin(wp.x * 3.1 - wp.y * 8.3 - uTime * 1.3), sin(wp.y * 6.3 - wp.x * 2.0 + uTime * 1.9) + sin(wp.y * 2.9 + wp.x * 7.7 - uTime * 1.1));
+  nxz += rip * 0.006 * uWet.z * puddle;
+  vec3 N = normalize(vec3(nxz.x, sqrt(max(1.0 - dot(nxz, nxz), 0.05)), nxz.y));
+  // mirror ray from the camera reflected in the floor plane, intersected with the fight line plane z = 0
+  vec3 Cm = vec3(cameraPosition.x, -cameraPosition.y, cameraPosition.z);
+  vec3 rd = normalize(F - Cm);
+  rd.xz += N.xz * 0.9;
+  float tq = -F.z / min(rd.z, -1e-3);
+  vec3 Q = F + rd * tq;
+  vec4 clip = uVP * vec4(Q, 1.0);
+  vec2 suv = clip.xy / max(clip.w, 1e-3) * 0.5 + 0.5;
+  float edge = smoothstep(0.0, 0.06, suv.x) * smoothstep(1.0, 0.94, suv.x) * smoothstep(0.0, 0.05, suv.y) * smoothstep(1.0, 0.92, suv.y);
+  float w = step(0.0, clip.w) * smoothstep(0.08, 0.45, F.z) * (1.0 - smoothstep(2.4, 3.6, Q.y)) * edge;
+  // where the camera ray through Q lands on the floor behind, the copied pixel is (most likely) floor, not a fighter
+  if (Q.y < cameraPosition.y - 0.02) {
+    vec3 hit = cameraPosition + (Q - cameraPosition) * (cameraPosition.y / (cameraPosition.y - Q.y));
+    w *= mix(0.1, 1.0, smoothstep(13.5, 17.0, length(hit.xz)));
+  }
+  w *= wetness;
+  if (w < 0.003) discard;
+  vec3 rc = textureLod(tRefl, suv, clamp(rough * 9.0, 0.0, 5.0)).rgb;
+  // replace (not add to) the mirror part of the sky reflection the floor pass used: same PMREM lookup, same specular
+  // weight; the share the ripples scatter (floor.js REFLECT) stays as the floor pass shaded it
+  w *= 1.0 - puddle * ${SCATTER.toFixed(3)};
+  vec3 V = normalize(cameraPosition - F);
+  vec3 R = normalize(mix(reflect(-V, N), N, rough * rough));
+  vec3 env = textureCubeUV(envMap, R, rough).rgb * uEnvI;
+  vec2 fab = dfgApprox(clamp(dot(N, V), 0.0, 1.0), rough);
+  float spec = 0.04 * fab.x + fab.y;
+  vec3 dir;
+  float fog = fogAmount(F, dir);
+  vec3 delta = (rc - env) * spec * w * (1.0 - fog) * (1.0 - 0.86 * uMood.a);
+  gl_FragColor = vec4(delta, 0.0);
+}`;
+
+/**
+ * High tier: the puddle reflection pass. A second draw of the floor disc, depth-tested against the frame just
+ * rendered (fighters in front occlude it), adding (reflected frame - sky reflection) x specular weight on wet floor
+ * in front of the fight line. Signed output, additive blend into the HDR target (half float keeps negatives).
+ * @param {object} floor     createFloor() result
+ * @param {THREE.Texture} envMap  the PMREM the floor reflects (scene.environment)
+ * @param {THREE.Texture} reflTex the copied HDR frame (mipmapped)
+ * @returns {{ mesh: THREE.Mesh, uniforms: object }}
+ */
+export function createReflectionOverlay(U, floor, envMap, reflTex) {
+  const e = floor.uniforms;
+  const h = envMap.image.height;
+  const maxMip = Math.log2(h) - 2;
+  const uniforms = {
+    tFloorA: e.tFloorA, tFloorB: e.tFloorB, tDetailB: e.tDetailB, uFloorE: e.uFloorE, uWet: e.uWet, uBand: e.uBand,
+    tRefl: { value: reflTex }, envMap: { value: envMap }, uEnvI: { value: 1 }, uVP: { value: new THREE.Matrix4() },
+    uTime: U.uTime, uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood,
+    uZenith: U.uZenith, uSkyMid: U.uSkyMid, uHorizon: U.uHorizon, uGlow: U.uGlow, uSunHalo: U.uSunHalo, uSunDir: U.uSunDir,
+  };
+  const mat = new THREE.ShaderMaterial({
+    name: 'env.floorReflection',
+    vertexShader: OVERLAY_VERT,
+    fragmentShader: OVERLAY_FRAG,
+    uniforms,
+    defines: { ENVMAP_TYPE_CUBE_UV: '', CUBEUV_TEXEL_WIDTH: 1 / (3 * Math.max(Math.pow(2, maxMip), 7 * 16)), CUBEUV_TEXEL_HEIGHT: 1 / h, CUBEUV_MAX_MIP: maxMip.toFixed(1) },
+    depthTest: true,
+    depthWrite: false,
+    depthFunc: THREE.LessEqualDepth,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2,
+    transparent: true,
+    blending: THREE.CustomBlending,
+    blendEquation: THREE.AddEquation,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneFactor,
+    blendSrcAlpha: THREE.ZeroFactor,
+    blendDstAlpha: THREE.OneFactor,
+  });
+  const mesh = new THREE.Mesh(floor.mesh.geometry, mat);
+  mesh.name = 'env.floorReflection';
+  mesh.frustumCulled = false;
+  return { mesh, uniforms };
 }

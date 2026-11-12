@@ -248,7 +248,7 @@ export async function createGame(ctx, opts = {}) {
     controller(i, kind = 'idle', difficulty = 'normal') {
       const mm = m();
       if (!mm) return;
-      mm.setController(i, kind === 'ai' ? createAIController({ difficulty }) : kind === 'human' ? null : createIdleController());
+      mm.setController(i, kind === 'ai' ? createAIController({ difficulty }) : kind === 'human' ? game.session.humanController(i) : createIdleController());
     },
     /** jump to a round: rounds won [a, b] and round number n (restarts that round) */
     round(n = 1, wins = [0, 0]) {
