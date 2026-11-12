@@ -102,7 +102,7 @@ export function createEnvironment(ctx, opts = {}) {
   root.add(sky);
 
   // ---- lights (fixed set, created once) ------------------------------------------------------------------------------
-  const base = { key: 3.0, rim: 2.6, hemi: 0.65, point: 20 };
+  const base = { key: 3.0, rim: 4.2, hemi: 0.5, point: 20 };
   const target = new THREE.Object3D();
   target.name = 'env.lightTarget';
   target.position.set(0, 1, 0);
@@ -138,6 +138,11 @@ export function createEnvironment(ctx, opts = {}) {
     root.add(l);
   }
   floor.setBrazierPool(ruins.braziers.map((b, i) => (points.some((p) => p.userData.brazier === i) ? 0.15 : 0.6)));
+  {
+    const k = Math.hypot(KEY_DIR.x, KEY_DIR.z);
+    floor.uniforms.uContactK.value.x = -KEY_DIR.x / k;
+    floor.uniforms.uContactK.value.y = -KEY_DIR.z / k;
+  }
 
   const R = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), KEY_DIR).normalize();
   const Uc = new THREE.Vector3().crossVectors(KEY_DIR, R).normalize();
@@ -161,6 +166,7 @@ export function createEnvironment(ctx, opts = {}) {
   const envRT = buildEnvMap(renderer, U, ruins.braziers);
   const envMap = envRT.texture;
   owned.rt.push(envRT);
+  const prevScene = { fog: scene.fog, background: scene.background, environmentIntensity: scene.environmentIntensity };
   scene.environment = envMap;
   scene.environmentIntensity = 1;
   scene.fog = new THREE.FogExp2(PALETTE.fogNear.clone(), 0.008);
@@ -244,6 +250,22 @@ export function createEnvironment(ctx, opts = {}) {
     floor.pulse(pv, pc, clamp(strength, 0, 2), 9.5);
   }
 
+  // ---- ground contact ------------------------------------------------------------------------------------------------
+  /**
+   * Ground a body on the floor: soft contact occlusion under it and, on tiers without a shadow map, a blob shadow
+   * cast away from the key light. Call every frame per fighter (cheap: four uniform writes). Fades as `pos.y` rises.
+   * @param {number} i              slot 0..3
+   * @param {THREE.Vector3|number[]|null} pos  root / floor point of the body (null clears the slot)
+   * @param {number} [radius=0.35]  footprint radius (m)
+   * @param {number} [height=1.9]   body height (m), sets the blob-shadow length
+   */
+  function setContact(i, pos, radius = 0.35, height = 1.9) {
+    if (!(i >= 0 && i < 4)) return;
+    if (!pos) { floor.clearContact(i); return; }
+    toVec3(pos, pv);
+    floor.setContact(i, pv.x, pv.y, pv.z, radius, height);
+  }
+
   // ---- per-frame -----------------------------------------------------------------------------------------------------
   let envTime = 0;
   const flick = [1, 1, 1, 1];
@@ -296,7 +318,7 @@ export function createEnvironment(ctx, opts = {}) {
     baseline,
     get focusX() { return focusX; },
     get mood() { return { darken: mood.d, tint: mood.tint.clone() }; },
-    setFocus, setMood, pulse, captureReflection, update,
+    setFocus, setMood, pulse, setContact, captureReflection, update,
     /** Compile every env program now (call again after all modules have added their lights). */
     prewarm(camera = ctx.camera) { renderer.compile(scene, camera); },
     /** Draw calls / triangles the env submits per frame (main pass; the env casts no shadows). */
@@ -316,6 +338,9 @@ export function createEnvironment(ctx, opts = {}) {
       off();
       scene.remove(root);
       if (scene.environment === envMap) scene.environment = null;
+      scene.fog = prevScene.fog;
+      scene.background = prevScene.background;
+      scene.environmentIntensity = prevScene.environmentIntensity;
       root.traverse((o) => { if (o.geometry) owned.geo.add(o.geometry); if (o.material) owned.mat.add(o.material); });
       for (const g of owned.geo) g.dispose();
       for (const m of owned.mat) m.dispose();

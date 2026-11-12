@@ -121,7 +121,7 @@ Every module directory must contain a `README.md`: the API reference downstream 
 | `ctx.viewport` | `{w, h, cssW, cssH, pr, aspect}`; event `'resize'` |
 | `ctx.flags`, `ctx.test` | URL flags (`#test&q=low...`), test mode boolean |
 | `ctx.vfx / audio / cam / env / ui / input / game` | set by the module factories below (`null` until created — guard optional peers) |
-| `ctx.post` | `fx` (live params), `to(params, dur, ease)`, `pulse(key, amount, {attack, hold, release})`, `flash(color, amount, opts)`, `impactFrame({duration, invert, mono})`, `radialAt(worldPos)`, `setBaseline(params)`, `reset(dur)`, `distortionScene` |
+| `ctx.post` | `fx` (live params), `to(params, dur, ease)`, `pulse(key, amount, {attack, hold, release})`, `flash(color, amount, opts)`, `impactFrame({duration, invert, mono})`, `radialAt(worldPos)`, `setBaseline(params)`, `reset(dur)`, `distortionScene`, `onAfterScene(fn(renderer, sceneTarget, camera))` → off |
 
 `post.fx` keys: `bloom, bloomThreshold, bloomKnee, bloomRadius, exposure, chroma, radial (+radialCenter), vignette,
 grain, saturation, contrast, flash (+flashColor), invert, mono, letterbox, distortion, tint, lift`.

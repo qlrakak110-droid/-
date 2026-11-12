@@ -10,10 +10,11 @@ import { LAYOUT } from './config.js';
 
 const FAR_VERT = /* glsl */ `
 attribute vec3 color;
-varying vec3 vW; varying vec3 vN; varying vec3 vC;
+attribute float glow;  // Builder's glow channel, used here as "less haze" (0 = full aerial perspective)
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying float vHaze;
 void main() {
   vec4 w = modelMatrix * vec4(position, 1.0);
-  vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vC = color;
+  vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vC = color; vHaze = 1.0 - glow;
   gl_Position = projectionMatrix * viewMatrix * w;
 }`;
 const FAR_FRAG = /* glsl */ `
@@ -21,23 +22,30 @@ ${SKY_BASE}
 ${FOG}
 uniform vec3 uFarCol, uCorona, uRim, uKeyDir;
 uniform float uCloudY;
-varying vec3 vW; varying vec3 vN; varying vec3 vC;
+varying vec3 vW; varying vec3 vN; varying vec3 vC; varying float vHaze;
 void main() {
   vec3 n = normalize(vN);
   vec3 toCam = cameraPosition - vW;
   float dist = length(toCam);
   vec3 v = toCam / dist;
-  float ndl = dot(n, uSunDir);
-  vec3 col = uFarCol * vC * (0.45 + 0.55 * max(n.y * 0.5 + 0.5, 0.0));
-  float fres = pow(1.0 - max(dot(n, v), 0.0), 2.5);
-  col += uRim * max(ndl, 0.0) * (0.04 + 0.9 * fres) * smoothstep(-25.0, 10.0, vW.y);
-  col += uGlow * 0.25 * smoothstep(uCloudY + 25.0, uCloudY, vW.y) * vC;
-  col += uFarCol * vC * 0.7 * max(dot(n, uKeyDir), 0.0);
   vec3 dir = -v;
-  float f = 1.0 - exp(-dist * 0.0042);
+  // dark stone: sky dome from above, a little key, warm horizon glow bouncing up from the cloud sea
+  vec3 col = uFarCol * vC * (0.45 + 0.55 * max(n.y * 0.5 + 0.5, 0.0));
+  col += uFarCol * vC * 0.7 * max(dot(n, uKeyDir), 0.0);
+  col += uGlow * 0.25 * smoothstep(uCloudY + 25.0, uCloudY, vW.y) * vC;
+  // aerial perspective; feet dissolve into the cloud sea
+  float f = 1.0 - exp(-dist * 0.0042 * vHaze);
   f = max(f, smoothstep(uCloudY + 9.0, uCloudY - 1.0, vW.y));
   vec3 fc = skyBase(vec3(dir.x, max(dir.y, 0.003), dir.z));
   col = mix(col, fc, clamp(f, 0.0, 0.97));
+  // eclipse light grazing past the silhouettes (scattered toward the camera, so added after the haze): a rim on the
+  // edges that turn toward the sun, and a thin glow on every edge close to the sun on screen
+  float ndl = dot(n, uSunDir);
+  float fres = pow(1.0 - max(dot(n, v), 0.0), 2.0);
+  float back = pow(max(dot(dir, uSunDir), 0.0), 6.0);
+  float edge = pow(1.0 - abs(dot(n, v)), 3.0);
+  float lift = smoothstep(uCloudY, uCloudY + 30.0, vW.y);
+  col += (uRim * max(ndl + 0.2, 0.0) * fres + uCorona * 0.1 * edge * back) * (1.0 - 0.55 * f) * lift;
   gl_FragColor = vec4(moodApply(col, 1.0), 1.0);
 }`;
 
@@ -68,10 +76,16 @@ void main() {
   vec3 n = normalize(vec3(-g.x * 0.35, 1.0, -g.y * 0.35));
   float sun = max(dot(n, uSunDir), 0.0);
   float fwd = pow(max(dot(dir, uSunDir), 0.0), 5.0);
+  // billow tops catch the horizon glow, troughs stay dark; a glitter path of forward-scattered corona light runs
+  // across the tops toward the eclipse (the leading line from the arena edge to the black sun)
+  float tops = smoothstep(0.42, 0.8, hh);
+  vec2 hd = normalize(dir.xz), hs = normalize(uSunDir.xz);
+  float path = pow(max(dot(hd, hs), 0.0), 90.0) + 0.25 * pow(max(dot(hd, hs), 0.0), 12.0);
   vec3 col = mix(uCloudDark, uCloudLit, smoothstep(0.3, 0.75, hh));
-  col += uCorona * 0.05 * fwd * (0.3 + sun) * smoothstep(0.4, 0.8, hh);
-  col += uGlow * 0.18 * smoothstep(0.35, 0.8, hh);
-  float f = 1.0 - exp(-dist * 0.0042);
+  col += uCorona * (0.05 * fwd * (0.3 + sun) + 0.22 * path * (0.35 + sun)) * tops;
+  col += uGlow * 0.24 * tops * (0.6 + 0.4 * sun);
+  col *= 0.8 + 0.4 * smoothstep(-0.3, 0.6, n.x * hs.x + n.z * hs.y);
+  float f = 1.0 - exp(-dist * 0.003);
   vec3 fc = skyBase(vec3(dir.x, 0.006, dir.z));
   col = mix(col, fc, clamp(f, 0.0, 1.0));
   gl_FragColor = vec4(moodApply(col, 1.0), 1.0);
@@ -85,16 +99,20 @@ function tubeMatrix(a, b) {
   return { m: new THREE.Matrix4().compose(a, q, new THREE.Vector3(1, 1, 1)), len };
 }
 
-function statue(B, rng, mirror, damage, place) {
-  const col = (k) => (p, n, o) => { const v = k * (0.75 + 0.5 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)); o[0] = v; o[1] = v; o[2] = v * 1.02; };
+/**
+ * One colossal hooded guardian (local frame: base at the origin, facing +Z, ~38 m to the halo top before `place`).
+ * Smooth normals (the backlit rim needs continuous silhouettes); `haze` < 1 stands it a layer in front of the spires.
+ */
+function statue(B, mirror, damage, place, haze) {
+  const tone = (k) => (p, n, o) => { const v = k * (0.75 + 0.5 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)); o[0] = v; o[1] = v; o[2] = v * 1.02; };
+  const opt = (k) => ({ color: typeof k === 'number' ? tone(k) : k, glow: () => 1 - haze });
   const M = (m) => place.clone().multiply(m);
   const s = mirror;
-  const flat = (parts) => parts.map((g) => flatNormals(g.index ? g.toNonIndexed() : g));
   // robe: wide hem, folds deepening toward the ground, broad mantle at the shoulders
   const prof = [[0, 6.2], [4, 5.0], [10, 4.1], [15, 3.6], [19, 3.7], [22.5, 4.9], [25.2, 6.6], [26.6, 6.1], [27.7, 4.0], [28.6, 2.4]];
   const lerpProf = (y) => { for (let i = 1; i < prof.length; i++) if (y <= prof[i][0]) { const a = prof[i - 1], b = prof[i]; const t = (y - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return prof[prof.length - 1][1]; };
-  addAll(B, flat(latheGrid({
-    rows: 20, segs: 22, squash: 0.58,
+  addAll(B, latheGrid({
+    rows: 24, segs: 28, squash: 0.58,
     profile: (t) => { const y = t * 28.6; return [lerpProf(y), y]; },
     rmod: (phi, y) => {
       const foldAmt = 0.09 * (1 - y / 30);
@@ -103,42 +121,40 @@ function statue(B, rng, mirror, damage, place) {
       return m;
     },
     capTop: true,
-  })), M(new THREE.Matrix4()), { color: col(1) });
+  }), M(new THREE.Matrix4()), opt(1));
   // hood, bowed forward
   const hood = latheGrid({
-    rows: 10, segs: 18, squash: 1.0,
+    rows: 10, segs: 20, squash: 1.0,
     profile: (t) => { const y = t * 6.6; const r = t < 0.45 ? 2.75 - t * 0.6 : 2.48 * Math.cos((t - 0.45) / 0.55 * Math.PI * 0.5) + 0.12; return [r, y]; },
     rmod: (phi, y) => (damage.hood && y > 4.6 ? 0.55 : 1) * (1 + (noise3(Math.cos(phi) * 2, y, Math.sin(phi) * 2) - 0.5) * 0.08),
     capTop: true,
   });
-  addAll(B, flat(hood), M(trs(0, 27.6, 0.5, 0, 0.32, 0)), { color: col(1) });
+  addAll(B, hood, M(trs(0, 27.6, 0.5, 0, 0.32, 0)), opt(1));
   // shadowed face opening
-  const face = new THREE.SphereGeometry(1.25, 10, 8);
-  B.add(flatNormals(face.toNonIndexed()), M(trs(0, 30.0, 2.6, 0, 0.32, 0, 1.0, 1.35, 0.55)), { color: [0.18, 0.18, 0.2] });
+  B.add(new THREE.SphereGeometry(1.25, 12, 8), M(trs(0, 30.0, 2.6, 0, 0.32, 0, 1.0, 1.35, 0.55)), opt([0.18, 0.18, 0.2]));
   // arms: shoulder -> elbow -> hands on the pommel
   for (const side of [-1, 1]) {
     if (damage.arm === side) {
       // broken stump at the elbow
       const { m, len } = tubeMatrix(new THREE.Vector3(side * 5.4, 24.6, 0.5), new THREE.Vector3(side * 6.4, 19.6, 1.4));
-      addAll(B, flat(latheGrid({ rows: 3, segs: 9, profile: (t) => [1.9 - t * 0.2, t * len], topY: (phi) => len - Math.abs(noise3(Math.cos(phi), Math.sin(phi), 4)) * 1.2, capTop: len - 0.6 })), M(m), { color: col(0.95) });
+      addAll(B, latheGrid({ rows: 3, segs: 12, profile: (t) => [1.9 - t * 0.2, t * len], topY: (phi) => len - Math.abs(noise3(Math.cos(phi), Math.sin(phi), 4)) * 1.2, capTop: len - 0.6 }), M(m), opt(0.95));
       continue;
     }
     const sh = new THREE.Vector3(side * 5.4, 24.6, 0.5), el = new THREE.Vector3(side * 6.6, 18.6, 1.6), ha = new THREE.Vector3(side * 1.0, 21.2, 3.9);
     for (const [a, b, r0, r1] of [[sh, el, 1.9, 1.7], [el, ha, 1.7, 1.15]]) {
       const { m, len } = tubeMatrix(a, b);
-      addAll(B, flat(latheGrid({ rows: 3, segs: 9, profile: (t) => [r0 + (r1 - r0) * t, t * len], capTop: true, capBottom: true })), M(m), { color: col(0.95) });
+      addAll(B, latheGrid({ rows: 3, segs: 12, profile: (t) => [r0 + (r1 - r0) * t, t * len], capTop: true, capBottom: true }), M(m), opt(0.95));
     }
-    B.add(flatNormals(new THREE.SphereGeometry(1.0, 8, 6).toNonIndexed()), M(trs(side * 0.75, 21.6, 3.95, 0, 0, 0, 1.0, 1.2, 1.0)), { color: col(0.9) });
+    B.add(new THREE.SphereGeometry(1.0, 10, 8), M(trs(side * 0.75, 21.6, 3.95, 0, 0, 0, 1.0, 1.2, 1.0)), opt(0.9));
   }
   // the sword planted point-down
-  B.add(flatNormals(new THREE.SphereGeometry(1.05, 8, 6).toNonIndexed()), M(trs(0, 23.2, 3.95)), { color: col(0.85) });
-  addAll(B, flat(latheGrid({ rows: 1, segs: 6, profile: (t) => [0.42, 19.9 + t * 2.4] })), M(new THREE.Matrix4().makeTranslation(0, 0, 3.95)), { color: col(0.85) });
+  B.add(new THREE.SphereGeometry(1.05, 10, 8), M(trs(0, 23.2, 3.95)), opt(0.85));
+  addAll(B, latheGrid({ rows: 1, segs: 8, profile: (t) => [0.42, 19.9 + t * 2.4] }), M(new THREE.Matrix4().makeTranslation(0, 0, 3.95)), opt(0.85));
   const guardL = damage.guard ? 2.6 : 5.8;
-  B.add(chamferBox(5.8 + guardL, 1.0, 1.1, 0.16), M(trs((guardL - 5.8) / 2, 19.4, 3.95, 0, 0, 0)), { color: col(0.9) });
+  B.add(chamferBox(5.8 + guardL, 1.0, 1.1, 0.16), M(trs((guardL - 5.8) / 2, 19.4, 3.95, 0, 0, 0)), opt(0.9));
+  addAll(B, latheGrid({ rows: 4, segs: 4, squash: 0.26, profile: (t) => [1.25 * (1 - t) + 0.15 * t, 19.1 - t * 19.0], capTop: true }), M(trs(0, 0, 3.95, Math.PI / 4)), opt(0.9));
   // broken halo ring behind the hood: the eclipse cult's sigil
-  const halo = new THREE.TorusGeometry(7.4, 0.75, 6, 40, Math.PI * 2 * (damage.hood ? 0.72 : 0.84));
-  B.add(flatNormals(halo.toNonIndexed()), M(trs(0, 30.2, -2.2, 0, 0, damage.hood ? 2.1 : -0.6)), { color: col(0.85) });
-  addAll(B, flat(latheGrid({ rows: 4, segs: 4, squash: 0.26, profile: (t) => [1.25 * (1 - t) + 0.15 * t, 19.1 - t * 19.0], capTop: true })), M(trs(0, 0, 3.95, Math.PI / 4)), { color: col(0.9) });
+  B.add(new THREE.TorusGeometry(7.4, 0.75, 8, 48, Math.PI * 2 * (damage.hood ? 0.72 : 0.84)), M(trs(0, 30.2, -2.2, 0, 0, damage.hood ? 2.1 : -0.6)), opt(0.85));
 }
 
 /**
@@ -170,13 +186,14 @@ export function createFar(U, rng, tier) {
   for (const [az, d, h, r] of spires) spire(az, d, h, r, rng.range(0, 50), d > 300 ? 0.8 : 1);
 
   // colossi on their rock pedestals, facing the arena
-  // they stand waist-deep in the cloud sea so that their halos top out ~9 degrees up, inside the fight framing
-  for (const [az, mirror, damage] of [[-23, -1, { arm: 1, hood: true }], [23.5, 1, { shoulder: true, guard: true }]]) {
-    const dist = 210;
-    const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -19, -Math.cos(az * DEG) * dist);
+  // they flank the eclipse inside the vista window between the gap pillars, standing in the cloud sea so that their
+  // halos top out ~8.5 degrees up (the fight camera's frame ends ~12 degrees up)
+  for (const [az, mirror, damage] of [[-13.5, -1, { arm: 1, hood: true }], [15.5, 1, { shoulder: true, guard: true }]]) {
+    const dist = 230;
+    const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -14, -Math.cos(az * DEG) * dist);
     const face = Math.atan2(-base.x, -base.z);
-    const place = trs(base.x, base.y, base.z, face, 0, 0, 1.35);
-    statue(B, rng, mirror, damage, place);
+    const place = trs(base.x, base.y, base.z, face, 0, 0, 1.3);
+    statue(B, mirror, damage, place, 0.62);
     // rock pedestal rising from the cloud sea
     const g = latheGrid({
       rows: 6, segs: 12,
@@ -184,7 +201,7 @@ export function createFar(U, rng, tier) {
       rmod: (phi, y) => 1 + (fbm3(Math.cos(phi) * 1.6 + az, y * 0.08, Math.sin(phi) * 1.6, 2) - 0.5) * 0.5,
       capTop: true,
     });
-    addAll(B, g.map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(base.x, base.y, base.z, 0, 0, 0, 1, 1, 1), { color: rockCol(0.9) });
+    addAll(B, g.map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(base.x, base.y, base.z), { color: rockCol(0.9), glow: () => 0.38 });
   }
   // a distant broken watchtower on the far right spire
   {

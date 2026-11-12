@@ -1,6 +1,7 @@
 // Environment lab: the Eclipse Ruins arena with two 1.9 m grey capsule dummies on the fight line (x = -2.5 / +2.5).
 // Scenarios frame the fight camera (near / mid / far), cinematic low / high / side angles, mood dimming and pulses.
-//   node tools/shot.mjs env --do "__ED.lab.play('mid')" --each "__ED.lab.play('prime')" --out shots/env/mid
+//   node tools/shot.mjs env --do "__ED.lab.play('gameMid')" --at 1.2 --each "__ED.lab.play('prime')" --out shots/env/gameMid
+// `game*` scenarios frame the dummies with the game's own fight camera (src/cam); the others are fixed lab views.
 import * as THREE from 'three';
 import { createLab } from '../core/lab.js';
 import { DEG } from '../core/math.js';
@@ -27,7 +28,7 @@ function gameCam(ctx, lab, sep, mid = 0) {
   lab.dummies[1].position.x = mid + sep / 2;
   ctx.env.setFocus(mid);
   if (!ctx.cam) {
-    const chest = (m) => () => lab.chest.set(m.position.x, 1.35, m.position.z);
+    const chest = (m) => { const v = new THREE.Vector3(); return () => v.set(m.position.x, 1.35, m.position.z); };
     createCameraDirector(ctx).setTargets(chest(lab.dummies[0]), chest(lab.dummies[1]));
     ctx.cam.fight.breathe = 0;
   }
@@ -52,7 +53,9 @@ createLab({
       return m;
     });
     lab.dummyMat = mat;
-    lab.chest = new THREE.Vector3();
+    // ground the dummies (what the game binding does per fighter every frame)
+    const foot = new THREE.Vector3();
+    ctx.onUpdate(() => { lab.dummies.forEach((m, i) => env.setContact(i, foot.set(m.position.x, m.position.y - 0.95, m.position.z), 0.32, 1.9)); }, ctx.ORDER.GAME);
     lab.env = env;
     env.prewarm();
   },
@@ -85,7 +88,7 @@ createLab({
     sideLowL(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
     overview(ctx, lab) { lookFrom(lab, [0, 22, 30], [0, 0, -8], 50); },
     /** telephoto on the far left colossus (inspect the far silhouettes) */
-    colossus(ctx, lab) { lookFrom(lab, [0, 1.6, 8.5], [-57, 24, -149], 16); },
+    colossus(ctx, lab) { lookFrom(lab, [-1, 2.4, 4], [-53.7, 16, -223.6], 12); },
     mood(ctx) { ctx.env.setMood({ darken: 0.85, tint: 0x8fa0ff, duration: 0.3 }); },
     moodWarm(ctx) { ctx.env.setMood({ darken: 0.8, tint: 0xff9a70, duration: 0.3 }); },
     moodOff(ctx) { ctx.env.setMood(null); },

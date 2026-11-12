@@ -63,7 +63,8 @@ uniform vec2 uTexel;
 varying vec2 vUv;
 const float TAU = 6.28318530718;
 
-float voronoiEdge(vec2 x) {
+// distance to the nearest cell edge; cell receives the nearest cell's integer id
+float voronoiCell(vec2 x, out vec2 cell) {
   vec2 n = floor(x), f = fract(x), mg = vec2(0.0), mr = vec2(0.0);
   float md = 8.0;
   for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
@@ -75,8 +76,13 @@ float voronoiEdge(vec2 x) {
     vec2 g = mg + vec2(float(i), float(j)); vec2 r = g + hash22(n + g) - f;
     if (dot(mr - r, mr - r) > 1e-5) md = min(md, dot(0.5 * (mr + r), normalize(r - mr)));
   }
+  cell = n + mg;
   return md;
 }
+float voronoiEdge(vec2 x) { vec2 c; return voronoiCell(x, c); }
+
+// an old impact behind the fight line, left of centre (where something colossal once struck): centre, radius
+const vec3 IMPACT = vec3(-4.4, -6.2, 2.9);
 
 // deliberate puddles (x, z, radius): in front of the fight line so fighters / VFX reflect, and behind it
 float blobs(vec2 p) {
@@ -143,9 +149,13 @@ Fl floorField(vec2 p) {
 
   // ---- height --------------------------------------------------------------------------------------------------
   float h = (hs - 0.5) * 0.007 * (1.0 - 0.6 * worn) + dot((hash22(id) - 0.5) * 0.014, lc);
-  h += 0.0045 * smoothstep(0.0, 0.12, dj);
+  // edge wear: rounded by a different amount on every stone and along each edge, chipped in places
+  float edgeN = vnoise(p * 7.0 + hs * 40.0);
+  float bev = mix(0.05, 0.2, hs2) * (0.55 + 0.9 * edgeN);
+  h += 0.0045 * smoothstep(0.0, bev, dj);
   float aaw = 2.0 * uExtent * uTexel.x; // one texel in metres
-  h -= 0.011 * (1.0 - smoothstep(0.004, 0.03 + aaw, dj));
+  float chip = smoothstep(0.6, 0.8, vnoise(p * 11.0 + hs3 * 17.0)) * (1.0 - smoothstep(0.0, 0.08, dj));
+  h -= 0.011 * (1.0 - smoothstep(0.004, 0.03 + aaw, dj)) + chip * 0.007;
   float grain = fbm2(p * 6.5 + hs * 13.0, 4);
   h += (grain - 0.5) * 0.005 * (1.0 - 0.5 * worn) + (vnoise(p * 34.0) - 0.5) * 0.0012;
   float sunk = step(0.955, hs2) * step(1.5, kind == 0.0 ? 2.0 : 0.0);
@@ -153,6 +163,24 @@ Fl floorField(vec2 p) {
   float ve = voronoiEdge(p * 1.7 + hs * 31.0);
   float crack = (1.0 - smoothstep(0.0, 0.018, ve)) * step(0.62, hs3) * smoothstep(0.02, 0.06, dj) * (kind == 0.0 || kind == 4.0 ? 1.0 : 0.4);
   crack *= smoothstep(0.35, 0.6, vnoise(p * 1.1 + 4.0));
+  // long settlement cracks that run across many stones (an isoline of warped noise, broken into segments)
+  vec2 wq = p * 0.32 + vec2(vnoise(p * 0.9), vnoise(p * 0.9 + 7.7)) * 0.6;
+  float iso = abs(fbm2(wq + 31.0, 3) - 0.5);
+  float longCrack = (1.0 - smoothstep(0.0, 0.0045 + aaw * 0.08, iso)) * smoothstep(0.5, 0.62, vnoise(p * 0.22 + 9.0));
+  crack = max(crack, longCrack * (1.0 - worn * 0.5));
+  // the impact: radial depression, the flagstones shattered into tilted fragments with dark earth in the gaps
+  vec2 ip = p - IMPACT.xy;
+  float iD = length(ip) + (vnoise(p * 1.4) - 0.5) * 0.9;
+  float imp = 1.0 - smoothstep(IMPACT.z * 0.35, IMPACT.z, iD);
+  vec2 cellId;
+  float fe = voronoiCell(p * 3.4 + 3.3, cellId) / 3.4;
+  vec2 ch = hash22(cellId + 0.5);
+  float gapW = mix(0.002, 0.016, imp) * (0.6 + 0.8 * ch.x);
+  float shard = (1.0 - smoothstep(gapW * 0.5, gapW + aaw * 1.5, fe)) * smoothstep(0.1, 0.35, imp);
+  vec2 cc = (cellId + hash22(cellId)) / 3.4 - 3.3 / 3.4;
+  h += imp * ((ch.y - 0.5) * 0.016 + dot(ch - 0.5, p - cc) * 0.03) - imp * imp * 0.01;
+  h -= shard * 0.02;
+  crack = max(crack, shard);
   h -= crack * 0.008;
 
   // ---- albedo ---------------------------------------------------------------------------------------------------
@@ -161,8 +189,11 @@ Fl floorField(vec2 p) {
   stone *= mix(1.0, 0.68, smoothstep(9.0, 14.8, r0));
   stone *= mix(vec3(1.0), vec3(1.09, 1.0, 0.9), hs3);
   stone *= 0.82 + 0.36 * fbm2(p * 2.6 + hs * 9.0, 3);
-  float rough = mix(0.78, 0.6, worn) + (grain - 0.5) * 0.2;
+  float rough = mix(0.88, 0.74, worn) + (grain - 0.5) * 0.16;
   float metal = 0.0;
+  // surface condition: damp hollows (dark, satin) and dry dusty stones (pale, matt)
+  float damp = smoothstep(0.44, 0.64, fbm2(p * 0.26 + 11.0, 3) + (hs2 - 0.5) * 0.3);
+  float dust = smoothstep(0.52, 0.76, fbm2(p * 0.45 + 23.0, 3) + smoothstep(10.5, 15.0, r0) * 0.3 - worn * 0.3) * (1.0 - damp);
 
   if (kind == 1.0 || kind == 3.0) {
     // bronze inlay (rings, medallion details): worn through in places, verdigris in others
@@ -214,9 +245,10 @@ Fl floorField(vec2 p) {
     stone *= mix(1.0, 0.6, ch);
   }
 
-  // dirt in joints, moss toward the outer rows
+  // dirt in joints (ash where it is dry), moss toward the outer rows
   float joint = 1.0 - smoothstep(0.0, 0.028, dj);
-  stone = mix(stone, vec3(0.017, 0.016, 0.015), joint * 0.85);
+  stone = mix(stone, mix(vec3(0.017, 0.016, 0.015), vec3(0.07, 0.066, 0.06), dust), joint * 0.85);
+  stone = mix(stone, stone * 0.7, chip * 0.6);
   float mossZone = smoothstep(9.0, 14.5, r0) * 0.7 + 0.3;
   float moss = smoothstep(0.45, 0.72, fbm2(p * 1.2 + 7.0, 3)) * mossZone * (joint * 0.9 + 0.25 * (1.0 - worn));
   stone = mix(stone, vec3(0.024, 0.032, 0.018), clamp(moss, 0.0, 0.85));
@@ -229,6 +261,19 @@ Fl floorField(vec2 p) {
   zone *= 1.0 - 0.75 * (1.0 - smoothstep(0.3, 0.9, abs(p.y)));
   float level = mix(-0.014, 0.008, clamp(zone, 0.0, 1.0)) + (kind == 4.0 ? 0.012 : 0.0);
   o.puddle = smoothstep(0.0, 0.0035, level - h);
+  damp = max(damp, smoothstep(0.15, 0.7, zone) * 0.85);
+  dust *= 1.0 - smoothstep(0.1, 0.5, zone);
+
+  // ---- apply the surface condition ---------------------------------------------------------------------------------
+  stone = mix(stone, stone * 0.58, damp);
+  rough = mix(rough, rough * 0.6, damp);
+  stone = mix(stone, vec3(0.1, 0.094, 0.084) * (0.75 + 0.5 * grain), dust * 0.5);
+  rough = mix(rough, 0.96, dust);
+  // soot around the impact, ash in its fractures
+  float soot = imp * (0.55 + 0.45 * vnoise(p * 3.0));
+  stone = mix(stone, stone * 0.5 + vec3(0.004, 0.0035, 0.003), soot * 0.6);
+  stone = mix(stone, vec3(0.016, 0.013, 0.011), shard * 0.9);
+  rough = mix(rough, 0.97, shard);
 
   o.h = h;
   o.alb = stone;

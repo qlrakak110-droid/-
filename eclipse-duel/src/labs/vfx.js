@@ -125,6 +125,50 @@ function definePresets(ctx, lab, vfx) {
   });
 }
 
+/**
+ * Afterimage test subject: a skinned body (3 bones, smooth weights) with a rigid head and blade parented to the top
+ * bone, so ghosts of both SkinnedMesh and plain Mesh children are exercised. play(t) poses it along a dash.
+ */
+function makeFigure(ctx) {
+  const geo = new THREE.CylinderGeometry(0.2, 0.27, 1.3, 18, 16, false);
+  geo.translate(0, 0.65, 0);
+  const p = geo.getAttribute('position');
+  const si = [], sw = [];
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i) / 0.5;
+    const b = Math.min(1, Math.floor(y)), w = Math.min(1, Math.max(0, y - b));
+    si.push(b, Math.min(2, b + 1), 0, 0); sw.push(1 - w, w, 0, 0);
+  }
+  geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  const metal = new THREE.MeshStandardMaterial({ color: 0x6d7380, metalness: 0.85, roughness: 0.35 });
+  const body = new THREE.SkinnedMesh(geo, metal);
+  const b0 = new THREE.Bone(), b1 = new THREE.Bone(), b2 = new THREE.Bone();
+  b1.position.y = 0.5; b2.position.y = 0.5;
+  b0.add(b1); b1.add(b2);
+  body.add(b0);
+  body.bind(new THREE.Skeleton([b0, b1, b2]));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 12), metal);
+  head.position.y = 0.48;
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.1, 0.02), new THREE.MeshStandardMaterial({ color: 0x9aa0aa, metalness: 0.9, roughness: 0.3 }));
+  blade.position.set(0.32, 0.25, 0.1); blade.rotation.z = -0.9;
+  b2.add(head, blade);
+  const root = new THREE.Group();
+  root.add(body);
+  root.visible = false;
+  ctx.scene.add(root);
+  return {
+    root, bones: [b0, b1, b2],
+    /** pose at dash time t (0..1): run from x = -3 to x = 3, leaning into the dash, blade sweeping */
+    play(t) {
+      const e = t < 1 ? 1 - Math.pow(1 - t, 3) : 1;
+      root.position.set(-3 + 6 * e, 0, 0);
+      const lean = Math.sin(Math.min(1, t) * Math.PI) * 0.5;
+      b1.rotation.z = -lean * 0.6; b2.rotation.z = -lean * 0.5; b2.rotation.y = t * 2.2;
+    },
+  };
+}
+
 createLab({
   view: { target: [0, 1.0, 0], dist: 7, yaw: 0, pitch: 8 },
   setup(ctx, lab) {
@@ -167,6 +211,7 @@ createLab({
       pivot.rotation.z = (a[1] + (b[1] - a[1]) * e) * Math.PI / 180;
       pivot.rotation.y = (a[3] || 0) + ((b[3] || 0) - (a[3] || 0)) * e;
     }, ctx.ORDER.CHAR);
+    lab.figure = makeFigure(ctx);
     definePresets(ctx, lab, vfx);
     vfx.prewarm();
   },
@@ -273,6 +318,92 @@ createLab({
     slashWave(ctx, lab, look = 'flame') {
       // a crescent projectile: sweeps, then flies forward and grows
       return ctx.vfx.slash({ look, pos: [-3, 1.0, 0], normal: [0, 0, 1], forward: [1, 0, 0], arc: [-70, 70], radius: 0.9, width: 0.45, speed: 9, expand: 0.6, drag: 1.2, life: 0.9, sweep: 0.05, distort: 0.03 });
+    },
+    ring(ctx, lab, look = 'shock', o = {}) {
+      return ctx.vfx.ring({ look, pos: [0, 0, 0], distort: look === 'dust' ? 0 : 0.035, ...o });
+    },
+    rings(ctx, lab, o = {}) {
+      ['shock', 'dust', 'fire', 'frost', 'volt'].forEach((look, i) => ctx.vfx.ring({ look, pos: [-5 + i * 2.5, 0, 0], scale: 0.42, ...o }));
+    },
+    ringsAir(ctx) {
+      // camera-facing and tilted rings in the air
+      ctx.vfx.ring({ look: 'shock', orient: 'camera', pos: [-2.2, 1.4, 0], radius: [0.1, 1.6], width: [0.25, 0.5] });
+      ctx.vfx.ring({ look: 'volt', normal: [1, 0.3, 0.2], pos: [0, 1.4, 0], radius: [0.1, 1.4], width: [0.2, 0.4] });
+      ctx.vfx.ring({ look: 'frost', normal: [0.2, 0.4, 1], pos: [2.2, 1.4, 0], radius: [0.1, 1.4], width: [0.3, 0.6] });
+    },
+    pillar(ctx, lab, look = 'fire', o = {}) { return ctx.vfx.pillar({ look, pos: [0, 0, 0], ...o }); },
+    pillars(ctx, lab, o = {}) {
+      ['fire', 'frost', 'volt', 'eclipse'].forEach((look, i) => ctx.vfx.pillar({ look, pos: [-3.6 + i * 2.4, 0, 0], scale: 0.6, ...o }));
+    },
+    beams(ctx, lab, o = {}) {
+      // every look, each released after 0.9 s (stop())
+      const hs = ['energy', 'fire', 'frost', 'volt', 'eclipse'].map((look, i) => ctx.vfx.beam({ look, from: [-3.6, 0.5 + i * 0.55, 0], to: [3.6, 0.4 + i * 0.6, -0.5], ...o }));
+      ctx.vfx.schedule(0.9, () => hs.forEach((h) => h.stop()));
+      return hs;
+    },
+    beam(ctx, lab, look = 'energy', o = {}) {
+      // a beam whose impact end sweeps (setEnds every frame), released after 1.2 s
+      const h = ctx.vfx.beam({ look, from: [-3, 1.3, 0], to: [3, 1.0, 0], ...o });
+      let t = 0;
+      const off = ctx.onUpdate((dt) => { t += dt; h.setEnds(null, [2.5 + Math.sin(t * 2) * 0.8, 0.8 + Math.sin(t * 3.1) * 0.6, Math.cos(t * 2) * 0.6]); if (t > 1.6) off(); }, ctx.ORDER.GAME);
+      ctx.vfx.schedule(1.2, () => h.stop());
+      return h;
+    },
+    bolt(ctx, lab, o = {}) {
+      // sky strike onto the floor, lighting the stage
+      return ctx.vfx.bolt({ from: [-0.8, 6.5, -1.5], to: [0.3, 0, 0], width: 0.34, light: 160, ...o });
+    },
+    bolts(ctx, lab) {
+      // palettes side by side, horizontal arcs between two points, and a long crackling arc
+      ctx.vfx.bolt({ from: [-4.5, 5.5, -1], to: [-3, 0, 0], palette: 'volt' });
+      ctx.vfx.bolt({ from: [-1.5, 5.5, -1], to: [-0.6, 0, 0], palette: 'frost', branches: 7 });
+      ctx.vfx.bolt({ from: [1.2, 5.5, -1], to: [1.6, 0, 0], palette: 'ember', roughness: 0.32 });
+      ctx.vfx.bolt({ from: [2.6, 1.6, 0], to: [4.6, 0.9, 0], width: 0.18, branches: 2, strikes: 14, interval: [0.03, 0.06], life: 0.8, leader: 0, detail: 6 });
+    },
+    decal(ctx, lab, kind = 'crack', o = {}) { return ctx.vfx.decal({ kind, pos: [0, 0, 0], ...o }); },
+    decals(ctx, lab) {
+      // every kind (cracks twice: dry and with cooling magma)
+      ctx.vfx.decal({ kind: 'crack', pos: [-4.4, 0, 0], radius: 1.5, life: 5 });
+      ctx.vfx.decal({ kind: 'crack', pos: [-1.6, 0, 0], radius: 1.5, magma: 1, life: 5 });
+      ctx.vfx.decal({ kind: 'scorch', pos: [1.1, 0, 0], radius: 1.3, life: 5 });
+      ctx.vfx.decal({ kind: 'frost', pos: [3.9, 0, 0], radius: 1.5, life: 5 });
+      ctx.vfx.decal({ kind: 'rune', pos: [-2.9, 0, -3.2], radius: 1.5, life: 5, palette: 'volt' });
+      ctx.vfx.decal({ kind: 'rune', pos: [0.6, 0, -3.2], radius: 1.5, life: 5 });
+      ctx.vfx.decal({ kind: 'glow', pos: [3.6, 0, -3.2], radius: 1.4, life: 5 });
+    },
+    debris(ctx, lab, kind = 'rock', o = {}) { return ctx.vfx.debris({ kind, pos: [0, 0.1, 0], count: 22, ...o }); },
+    debrisAll(ctx) {
+      ['rock', 'ember', 'ice', 'crystal'].forEach((kind, i) => ctx.vfx.debris({ kind, pos: [-3.6 + i * 2.4, 0.1, 0], count: 18, speed: [2.5, 6.5, 1.3] }));
+      ctx.vfx.light({ pos: [-1.2, 1.2, 1.2], color: [8, 3, 0.6], intensity: 30, range: 6, duration: 2 });
+    },
+    spikes(ctx, lab, kind = 'ice', pattern = 'line', o = {}) {
+      return ctx.vfx.spikes({ kind, pattern, pos: pattern === 'line' ? [-2.5, 0, 0] : [0, 0, 0], dir: [1, 0, 0.15], ...o });
+    },
+    spikesAll(ctx) {
+      // a line of ice, a cluster of crystal, a ring of rock, a magma cluster; a light so the facets read
+      ctx.vfx.spikes({ kind: 'ice', pattern: 'line', pos: [-4.6, 0, 0.6], dir: [1, 0, 0.1], length: 3.2, count: 6 });
+      ctx.vfx.spikes({ kind: 'crystal', pattern: 'cluster', pos: [0.6, 0, 0.3], count: 7 });
+      ctx.vfx.spikes({ kind: 'rock', pattern: 'ring', pos: [3.6, 0, -0.4], radius: 1.0, count: 9, height: [0.5, 1.0] });
+      ctx.vfx.spikes({ kind: 'magma', pattern: 'cluster', pos: [-1.6, 0, -2.2], count: 6, height: [0.6, 1.3] });
+      ctx.vfx.light({ pos: [-2, 2.2, 2.2], color: [6, 5, 4], intensity: 40, range: 10, duration: 3 });
+    },
+    speedlines(ctx, lab, mode = 'focus', o = {}) {
+      return ctx.vfx.speedlines({ mode, life: 0.8, ...o });
+    },
+    speedlinesAll(ctx, lab, which = 0) {
+      // 0 focus on a world point (tracks it), 1 directional, 2 ink focus
+      if (which === 0) return ctx.vfx.speedlines({ pos: [1.2, 1.4, 0], life: 0.8, inner: 0.45 });
+      if (which === 1) return ctx.vfx.speedlines({ mode: 'directional', dir: [1, -0.15], life: 0.8 });
+      return ctx.vfx.speedlines({ style: 'ink', life: 0.8, density: 90, inner: 0.6 });
+    },
+    afterimage(ctx, lab, o = {}) {
+      // the skinned figure dashes; ghosts every 50 ms (game time: hit-stop freezes them too)
+      const fig = lab.figure;
+      fig.root.visible = true;
+      let t = 0;
+      fig.play(0);
+      const off = ctx.onUpdate((dt) => { t += dt / 0.55; fig.play(t); if (t > 1.6) off(); }, ctx.ORDER.CHAR);
+      return ctx.vfx.afterimage(fig.root, { count: 9, interval: 0.05, life: 0.42, drift: [0, 0.15, 0], ...o });
     },
     slowmo(ctx, lab, s = 0.2, d = 2) { ctx.time.slowmo(s, d, { easeIn: 0, easeOut: 0 }); },
     hitstop(ctx, lab, d = 0.3) { ctx.time.hitstop(d); },

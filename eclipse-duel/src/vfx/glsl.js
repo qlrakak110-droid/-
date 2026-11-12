@@ -54,6 +54,21 @@ vec3 voronoi(vec2 p) {
   }
   return vec3(sqrt(f1), sqrt(f2), id);
 }
+// periodic in x with period 'per' cells (seamless around rings and cylinders)
+vec3 voronoiP(vec2 p, float per) {
+  vec2 i = floor(p), f = p - i;
+  float f1 = 8.0, f2 = 8.0, id = 0.0;
+  for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+    vec2 g = vec2(float(x), float(y));
+    vec2 c = vec2(mod(i.x + g.x, per), i.y + g.y);
+    vec2 r = g + h22(c) - f;
+    float d = dot(r, r);
+    if (d < f1) { f2 = f1; f1 = d; id = h12(c + 0.37); } else if (d < f2) f2 = d;
+  }
+  return vec3(sqrt(f1), sqrt(f2), id);
+}
+// periodic jagged 1D noise (period 'per' knots)
+float lnoiseP(float x, float per) { float i = floor(x); return mix(h11(mod(i, per)), h11(mod(i + 1.0, per)), x - i); }
 `;
 
 /** Analytic ballistics with linear drag and exact floor bounces (same model as the particle system). */

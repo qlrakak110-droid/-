@@ -12,7 +12,7 @@ const dirFromAzEl = (az, el) => new THREE.Vector3(Math.sin(az * DEG) * Math.cos(
  * vertical fov, so the top of its frame sits only ~12° above the horizon. At 6° the disc and inner corona sit in the
  * upper third of every fight framing, just above the fighters' heads.
  */
-export const SUN_DIR = dirFromAzEl(4, 6.2);
+export const SUN_DIR = dirFromAzEl(2, 6.2);
 /**
  * Direction toward the cold rim light. Motivated by the corona but raised and swung to the right of it: a light
  * straight behind the fighters only grazes their silhouettes, while this one rims heads, shoulders and the right
@@ -80,5 +80,7 @@ export function tierSettings(quality, override) {
     reflection: d >= 2,
     rubble: d >= 2 ? 1 : d >= 1 ? 0.75 : 0.45,
     skyOctaves: d >= 1 ? 5 : 3,
+    // blob shadow under contacts (env.setContact) where there is no shadow map; a hint of it deepens PCF contact
+    blobShadow: quality.shadows ? 0.25 : 0.8,
   };
 }

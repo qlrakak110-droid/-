@@ -12,13 +12,16 @@ const MAX_PULSES = 4;
 const FRAG_HEAD = /* glsl */ `
 uniform sampler2D tFloorA, tFloorB, tDetailA, tDetailB, tRefl;
 uniform float uFloorE;
-uniform vec4 uWet;        // x dampness, y puddle scale, z ripple amount, w reflection on
+uniform vec4 uWet;        // x extra wetness on top of the baked damp (0 = as baked), y puddle scale, z ripple amount, w reflection on
 uniform vec4 uBand;       // x sigma (m), y darkening, z unused, w key factor away from the fight line
 uniform vec4 uPulseP[${MAX_PULSES}];   // x, z, age (s), strength
 uniform vec4 uPulseC[${MAX_PULSES}];   // rgb colour, ring speed (m/s)
 uniform vec4 uBraz[4];    // brazier x, z, pool strength, -
 uniform mat4 uReflVP;
-float envPuddle, envRough, envMetal;
+uniform vec4 uContactP[4];  // body on the floor: x, z, foot radius (m), height (m)
+uniform vec4 uContactW;     // per-slot strength (0 = off)
+uniform vec4 uContactK;     // xy: blob-shadow direction on the floor (away from the key), z: blob strength, w: AO strength
+float envPuddle, envRough, envMetal, envOcc, envBlob;
 vec3 envEmissive;
 vec3 envNW;
 `;
@@ -31,7 +34,7 @@ vec4 dB = texture2D(tDetailB, vEnvWorld.xz / 1.3);
 vec3 dA = texture2D(tDetailA, vEnvWorld.xz / 1.3).rgb;
 envPuddle = fA.a * uWet.y;
 float band = exp(-vEnvWorld.z * vEnvWorld.z / (2.0 * uBand.x * uBand.x)) * (1.0 - smoothstep(9.5, 13.0, abs(vEnvWorld.x)));
-vec3 alb = fA.rgb * (0.5 + 0.85 * dA);
+vec3 alb = fA.rgb * clamp(1.0 + (dA - vec3(0.6)) * 2.4, 0.5, 1.5);
 alb *= mix(1.0, 1.0 - uBand.y, band);
 alb *= mix(1.0, 0.7, uWet.x);
 alb = mix(alb, alb * 0.72, envPuddle);
@@ -43,7 +46,7 @@ envMetal = fB.a * (1.0 - envPuddle);
 
 // normal (world): baked macro + tiling detail, flattened by water, rippled by wind and pulses
 vec2 nxz = fB.rg * 2.0 - 1.0;
-nxz += (dB.rg * 2.0 - 1.0) * 0.4 * (1.0 - envPuddle);
+nxz += (dB.rg * 2.0 - 1.0) * 0.7 * (1.0 - envPuddle);
 nxz *= 1.0 - envPuddle * 0.94;
 vec2 wp = vEnvWorld.xz;
 float t = uTime;
@@ -60,9 +63,23 @@ for (int i = 0; i < ${MAX_PULSES}; i++) {
   float width = 0.22 + age * 0.55;
   float ring = exp(-pow((dist - R) / width, 2.0)) * exp(-age * 1.6);
   float core = exp(-dist * dist / (0.5 + age * 3.0)) * exp(-age * 3.5);
-  float wetBoost = 0.45 + 0.55 * max(uWet.x, envPuddle);
+  float wetBoost = 0.45 + 0.55 * max(1.0 - envRough, envPuddle);
   envEmissive += uPulseC[i].rgb * P.w * (ring * 0.4 + core * 1.5) * wetBoost;
   nxz += (d / dist) * sin((dist - R) * 13.0) * ring * P.w * 0.22 * (0.3 + 0.7 * envPuddle);
+}
+// ground contact: soft occlusion under each body, and (tiers without a shadow map) a blob shadow away from the key
+envOcc = 0.0; envBlob = 0.0;
+for (int i = 0; i < 4; i++) {
+  float cw = uContactW[i];
+  if (cw <= 0.0) continue;
+  vec4 C = uContactP[i];
+  vec2 d = wp - C.xy;
+  envOcc = max(envOcc, cw * exp(-dot(d, d) / (C.z * C.z * 2.4)));
+  float L = C.w * 0.8;
+  float tb = clamp(dot(d, uContactK.xy) / L, 0.0, 1.0);
+  float rb = C.z * (1.0 + 1.5 * tb);
+  float sd = length(d - uContactK.xy * tb * L);
+  envBlob = max(envBlob, cw * (1.0 - smoothstep(rb * 0.3, rb * 1.3, sd)) * (1.0 - 0.7 * tb));
 }
 // brazier light pools (bounce + baked warmth; the real point lights add the speculars)
 for (int i = 0; i < 4; i++) {
@@ -79,6 +96,9 @@ normal = normalize((viewMatrix * vec4(envNW, 0.0)).xyz);
 
 const REFLECT = /* glsl */ `
 #include <lights_fragment_maps>
+irradiance *= 1.0 - envOcc * uContactK.w;
+iblIrradiance *= 1.0 - envOcc * uContactK.w;
+radiance *= 1.0 - envOcc * uContactK.w * 0.8;
 #ifdef ENV_SSR
 if (uWet.w > 0.5) {
   vec3 F = vEnvWorld;
@@ -98,7 +118,7 @@ if (uWet.w > 0.5) {
   }
   float lod = clamp(envRough * 9.0, 0.0, 5.0);
   vec3 rc = textureLod(tRefl, suv, lod).rgb;
-  float wetness = max(envPuddle, uWet.x * 0.55);
+  float wetness = max(envPuddle, clamp(1.0 - envRough * 1.7, 0.0, 1.0) + uWet.x * 0.55);
   radiance = mix(radiance, rc, w * wetness);
 }
 #endif
@@ -120,12 +140,15 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     tDetailB: { value: stoneMaps.b.texture },
     tRefl: { value: null },
     uFloorE: { value: LAYOUT.floorTexExtent },
-    uWet: { value: new THREE.Vector4(0.4, 1.0, 1.0, 0) },
-    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 1.0, 0.3) },
+    uWet: { value: new THREE.Vector4(0.0, 1.0, 1.0, 0) },
+    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 1.0, 0.24) },
     uPulseP: { value: pulseP },
     uPulseC: { value: pulseC },
     uBraz: { value: braz },
     uReflVP: { value: new THREE.Matrix4() },
+    uContactP: { value: [0, 1, 2, 3].map(() => new THREE.Vector4(0, 0, 0.35, 1.9)) },
+    uContactW: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uContactK: { value: new THREE.Vector4(1, 0, tier.blobShadow, 0.8) },
   };
   const mat = new THREE.MeshStandardMaterial({ name: 'env.floor', color: 0xffffff, roughness: 1, metalness: 0, envMapIntensity: 0.85 });
   if (tier.reflection) mat.defines = { ENV_SSR: '' };
@@ -135,7 +158,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     fragHead: FRAG_HEAD,
     keyMask: false,
     // key light: full on the fight band, dimmer toward the far floor and the wall
-    keyMaskExtra: 'envRimMask = 0.14; envKeyMask = mix(uBand.w, 0.9, exp(-vEnvWorld.z * vEnvWorld.z / 14.0) * (1.0 - smoothstep(7.0, 14.0, abs(vEnvWorld.x - uKeyMask.x))));',
+    keyMaskExtra: 'envRimMask = 0.14; envKeyMask = mix(uBand.w, 0.95, exp(-vEnvWorld.z * vEnvWorld.z / 11.0) * (1.0 - smoothstep(5.0, 12.0, abs(vEnvWorld.x - uKeyMask.x)))) * (1.0 - envBlob * uContactK.z) * (1.0 - envOcc * 0.35);',
     fragReplace: {
       map_fragment: MAP,
       roughnessmap_fragment: 'float roughnessFactor = envRough;',
@@ -172,5 +195,12 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
       }
     },
     setBrazierPool(strengths) { for (let i = 0; i < braz.length; i++) braz[i].z = strengths[i] || 0; },
+    /** Ground contact slot i: floor point (x, z), height above the floor y, foot radius, body height (metres). */
+    setContact(i, x, y, z, radius, height) {
+      const air = Math.max(0, y);
+      extra.uContactP.value[i].set(x, z, radius * (1 + air * 0.6), height);
+      extra.uContactW.value.setComponent(i, Math.exp(-air * 1.4));
+    },
+    clearContact(i) { extra.uContactW.value.setComponent(i, 0); },
   };
 }

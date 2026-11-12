@@ -39,7 +39,7 @@ varying vec4 vCore; // core rgb, alpha
 varying vec4 vMid;  // mid rgb, tail additive
 varying vec4 vTail; // tail rgb, heat (cooling time / life)
 varying vec4 vL;    // noise, noise scale, scroll, edge width
-varying vec4 vP;    // tip profile, distortion strength, body density power, sweep progress
+varying vec4 vP;    // tip profile, distortion strength, body density power, overscan (outer extent in widths)
 varying vec2 vRad;  // screen-space outward (radial) direction
 ${GLSL_COMMON}
 void main() {
@@ -79,7 +79,7 @@ void main() {
   vMid = vec4(iMid.rgb * iCore.w, iTail.w);
   vTail = vec4(iTail.rgb * iCore.w, iLook2.w);
   vL = iLook;
-  vP = vec4(prof, iLook2.x, iLook3.x, hx);
+  vP = vec4(prof, iLook2.x, iLook3.x, iShape.x);
 }`;
 
 // shared fragment body: computes rgb, a, addF (and the pieces the distortion twin needs)
@@ -92,7 +92,8 @@ const FRAG_BODY = /* glsl */ `
   float s = u * arcLen;                       // metres along the arc
   float xm = x * W;                           // metres across (0 at the edge, < 0 inside)
   float behind = (headU - u) * arcLen;        // metres behind the blade head
-  float reveal = smoothstep(-0.012, 0.045, behind);
+  // slanted, pointed head: the cutting edge leads, the inner side of the band trails behind it
+  float reveal = smoothstep(-0.01, 0.05, behind + min(x, 0.0) * W * 1.8 * (1.0 - smoothstep(0.0, 0.1, age - sweep)));
   float sweeping = 1.0 - smoothstep(0.0, 0.08, age - sweep);
   float la = max(age - born, 0.0);
   float le = sat(la / max(life - born, 1e-3));
@@ -108,9 +109,9 @@ const FRAG_BODY = /* glsl */ `
     // flame: two scrolling swirl octaves push the edge out into licking tongues; the inside stays dense
     float f1 = texture2D(uFlow, vec2(s * ns * 0.8 + age * scroll * 0.5, xm * 0.7 - age * 1.1) + seed).g;
     float f2 = texture2D(uFlow, vec2(s * ns * 2.2 + age * scroll, xm * 1.9 - age * 2.6) + seed * 3.0).g;
-    float tongue = (f1 * 0.62 + f2 * 0.38 - 0.42) * 2.4;
-    xe = x - tongue * noiseAmt * (0.25 + 0.75 * sat(1.0 + x));
-    gain = 0.6 + 0.8 * f2;
+    float tongue = (f1 * 0.62 + f2 * 0.38 - 0.4) * 2.6;
+    xe = x - tongue * noiseAmt * (0.3 + 0.7 * sat(1.0 + x));
+    gain = 0.4 + 0.95 * f2 * f1 + 0.2 * streak;
     erodeN = f1 * 0.55 + fb * 0.45;
     hot = sat(tongue) * 0.25;
   } else if (look == 2) {
@@ -121,8 +122,8 @@ const FRAG_BODY = /* glsl */ `
     xe = x + (cid - 0.5) * noiseAmt * 0.9 - crack * 0.05;
     gain = (0.45 + 0.9 * h11(cid * 91.7)) + crack * 0.9;
     erodeN = cid * 0.8 + fb * 0.2;
-    float gl = pow(h11(cid * 37.0 + floor(age * 14.0)), 30.0) * step(xe, 0.0);
-    extra += vCore.rgb * gl * 2.5;
+    float gl = pow(h11(cid * 37.0 + floor(age * 14.0)), 12.0) * step(xe, 0.0) * exp(-vo.x * vo.x * 60.0);
+    extra += vCore.rgb * gl * 3.0;
     hot = crack * 0.5;
     glint = 1.0;
   } else if (look == 3) {
@@ -143,26 +144,28 @@ const FRAG_BODY = /* glsl */ `
     extra += vCore.rgb * bolts * 1.3 * (1.0 - le * le);
     erodeN = streak * 0.5 + fb * 0.5;
   } else {
-    gain = 0.42 + 0.95 * streak * (0.6 + 0.4 * streak2);
+    gain = 0.3 + 1.25 * streak * streak * (0.55 + 0.45 * streak2);
   }
   // density across the band: 0 at the inner edge, 1 at the cutting edge, a short glow outside it
   float inner = sat(1.0 + xe);
   float edgeness = inner * inner;
-  float dens = xe <= 0.0 ? pow(inner, vP.z) : exp(-xe * 7.0) * 0.55;
+  float dens = xe <= 0.0 ? pow(inner, vP.z) : exp(-xe * 9.0) * 0.5;
+  dens *= 1.0 - smoothstep(0.5, 1.0, x / max(vP.w, 1e-3));
   float line = exp(-(xe * xe) / (edgeW * edgeW));
   // erosion: rises with local age; the inside and the tips go first, the edge last
   float th = mix(-0.2, 1.08, pow(le, 1.25)) + (1.0 - prof) * 0.25;
   float resist = erodeN * 0.62 + edgeness * 0.28 + line * 0.15;
   float vis = smoothstep(th - 0.06, th + 0.06, resist);
-  float smear = exp(-max(behind, 0.0) / (0.12 + arcLen * 0.08)) * sweeping;
-  float k = cool + (1.0 - edgeness) * 0.38 - smear * 0.4 - hot;
-  vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.42) * gain * flick;
-  rgb += vCore.rgb * line * (1.25 - cool * 0.85) * flick;
-  rgb += vCore.rgb * smear * 0.6;
+  float smear = exp(-max(behind, 0.0) / (0.1 + arcLen * 0.06)) * sweeping;
+  // the body starts at the saturated mid colour and cools to the tail; only the edge line and the head are hot
+  float k = 0.3 + cool * 0.75 + (1.0 - edgeness) * 0.3 - line * 0.25 - smear * 0.2 - hot;
+  vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
+  rgb += vCore.rgb * line * (1.0 - cool * 0.8) * flick;
+  rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
   rgb += vCore.rgb * dissolveEdge * (look == 1 ? 0.9 : look == 2 ? 1.2 : 0.4) * (1.0 - le);
   float tips = smoothstep(0.0, 0.22, prof);
-  float a = sat(dens * (0.75 + 0.5 * line) + smear * 0.25) * vis * reveal * tips * vCore.a;
+  float a = sat(dens * (0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
   extra *= reveal * tips * vCore.a * mix(1.0, vis, glint);
   float addF = mix(vMid.a, 1.0, sat(1.0 - k * 1.1));
 `;
@@ -191,7 +194,8 @@ void main() {
   float born = vB.x, headU = vB.z, arcLen = vB.w, life = vC.w;
   float reveal = smoothstep(-0.01, 0.08, (headU - u) * arcLen);
   float le = sat((age - born) / max(life - born, 1e-3));
-  float bell = exp(-pow((x + 0.25) / 0.55, 2.0));
+  float bx = (x + 0.25) / 0.55;
+  float bell = exp(-bx * bx);
   float n = texture2D(uFlow, vec2(u * arcLen * 0.6 - age, x * 0.5 + vC.z)).r;
   float env = (1.0 - le) * (1.0 - le) * reveal * smoothstep(0.0, 0.3, vP.x);
   gl_FragColor = vec4(vRad * bell * env * vP.y * (0.6 + 0.8 * n), 0.0, 0.0);

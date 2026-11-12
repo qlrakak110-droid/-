@@ -2,12 +2,13 @@
 //   kind 0  distant haze plane: cylindrical billboard, dense near the cloud sea, separates the silhouette layers
 //   kind 1  light shaft: axial billboard along the eclipse light, soft edges, dusty streaks
 //   kind 2  mist sheet: static horizontal sheet a little above the floor near the wall and over the broken edge
+//           (seen from above only: they fade out at grazing angles)
 // Cards fade out as the camera gets close so they never read as planes in close-ups.
 
 import * as THREE from 'three';
 import { DEG } from '../core/math.js';
 import { NOISE, SKY_BASE, FOG } from './glsl.js';
-import { LAYOUT, SUN_DIR } from './config.js';
+import { LAYOUT, SUN_DIR, SUN_RADIUS } from './config.js';
 
 const VERT = /* glsl */ `
 attribute vec3 aC;     // card anchor (base centre / shaft start)
@@ -47,6 +48,8 @@ void main() {
 
 const FRAG = /* glsl */ `
 ${NOISE}
+const float SUN_COS_LIMB = ${Math.cos(SUN_RADIUS * 1.12).toFixed(7)};
+const float SUN_COS_DISC = ${Math.cos(SUN_RADIUS * 0.97).toFixed(7)};
 ${SKY_BASE}
 ${FOG}
 uniform float uTime;
@@ -68,13 +71,15 @@ void main() {
     a *= 0.45 + 0.75 * n;
     vec3 c = skyBase(vec3(dir.x, max(dir.y, 0.0) * 0.5 + 0.006, dir.z)) * 1.08;
     a = clamp(a * vK.z, 0.0, 1.0) * vFade;
+    // never veil the black disc: the eclipse must read as a hole in the sky, not a hazy ball
+    a *= 1.0 - smoothstep(SUN_COS_LIMB, SUN_COS_DISC, dot(dir, uSunDir));
     o = vec4(moodApply(c, 1.0) * a, a);
   } else if (kind < 1.5) {
     float x = abs(vUv.x - 0.5) * 2.0;
     float y = vUv.y;
     float streak = fbm2(vec2(vUv.x * 7.0 + seed, y * 1.2 - uTime * 0.02), 3);
     float dust = vnoise(vec2(vUv.x * 30.0, y * 14.0 - uTime * 0.15) + seed);
-    float a = exp(-x * x * 3.5) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.45, y);
+    float a = exp(-x * x * 3.5) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.35, y);
     a *= (0.35 + 0.9 * streak) * (0.85 + 0.3 * dust);
     float view = pow(max(dot(dir, uSunDir), 0.0), 2.0) * 0.7 + 0.3;
     a *= vK.z * vFade * view;
@@ -89,8 +94,9 @@ void main() {
     a *= smoothstep(10.5, 13.5, r);
     a *= clamp(vK.w, 0.0, 1.0) > 0.5 ? smoothstep(31.0, 24.0, r) : smoothstep(15.7, 15.2, r);
     a *= vK.z * vFade;
-    // view-angle: sheets seen edge-on get thicker
-    a *= mix(1.0, 2.2, 1.0 - abs(dir.y));
+    // a plane seen edge-on collapses into a hard horizontal line (a "glass shelf"), so the sheets only show from
+    // above (crane / overview shots) and fade out at fight-camera grazing angles
+    a *= smoothstep(0.08, 0.3, abs(dir.y)) * 1.6;
     a = clamp(a, 0.0, 0.85);
     vec3 c = uFogNear * 1.6 + uSunHalo * pow(max(dot(dir, uSunDir), 0.0), 6.0) * 0.8 + uMist;
     o = vec4(moodApply(c, 1.0) * a, a);
@@ -121,12 +127,14 @@ export function createAtmosphere(U, rng, tier) {
   ];
   for (const [az, d, w, h, op] of haze) quad(ring(az, d, cy - 2), 0, rng.range(0, 40), op, w, h);
 
-  // light shafts: from gaps in the colonnade toward the arena, along the eclipse light
-  const shaftDir = SUN_DIR.clone().multiplyScalar(-1);
-  const shafts = [[-33, 9.5, 3.4], [33, 8.5, 3.0], [-49, 10.5, 2.6], [16, 6.5, 2.2], [-16, 7.0, 2.4], [49, 9.0, 2.6], [-65, 9.0, 2.2]];
+  // light shafts: corona light falling through the side arches onto the arena flanks. Art-directed steeper than the
+  // 6-degree eclipse (a beam along the real sun line would run flat across the sky toward the camera) and kept off
+  // the fight line and the vista.
+  const shaftDir = new THREE.Vector3(-SUN_DIR.x, -0.42, -SUN_DIR.z).normalize();
+  const shafts = [[-33, 8.5, 3.0], [33, 8.0, 2.8], [-49, 9.5, 2.4], [49, 8.5, 2.4], [-65, 8.5, 2.0], [64, 8.0, 2.0], [-80, 8.0, 1.8]];
   for (const [deg, y, w] of shafts.slice(0, tier.shafts)) {
-    const start = ring(deg, LAYOUT.pillarR + 2.5, y);
-    quad(start, 1, rng.range(0, 40), 0.08, w, 1, [shaftDir.x, shaftDir.y, shaftDir.z], 30);
+    const start = ring(deg, LAYOUT.pillarR + 1.5, y);
+    quad(start, 1, rng.range(0, 40), 0.065, w, 1, [shaftDir.x, shaftDir.y, shaftDir.z], 17);
   }
 
   // mist sheets (static world-space grids): around the wall base and pouring over the broken edge

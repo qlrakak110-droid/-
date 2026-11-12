@@ -129,11 +129,14 @@ void main() {
   sun *= 1.0 - cloudA * 0.6;
   col = col * (1.0 - disc) + vec3(0.0004, 0.00045, 0.0006) * disc;
   col += sun;
-  col = mix(col, cloudC + sun * 0.25, cloudA * 0.85 * (1.0 - disc * 0.75));
+  col = mix(col, cloudC + sun * 0.25, cloudA * 0.85 * (1.0 - disc));
   if (env > 0.5) col = min((col - sun * 0.7) * (1.0 - cloudA * 0.5), vec3(1.2));
   float d = uMood.a;
   col *= mix(vec3(1.0), uMood.rgb, d) * (1.0 - 0.8 * d);
   col += sun * d * 0.5;
+  // bloom occlusion: the corona's bloom would wash the black disc grey. The HDR target keeps signed values and the
+  // bloom prefilter ignores negatives, so a small negative inside the disc cancels the spill in the composite only.
+  if (env < 0.5) col -= vec3(0.024) * smoothstep(0.96, 0.62, rr);
   gl_FragColor = vec4(col, 1.0);
 }`;
 

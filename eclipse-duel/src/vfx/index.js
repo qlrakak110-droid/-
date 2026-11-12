@@ -27,6 +27,15 @@ import { installFlares } from './flares.js';
 import { installDistort } from './distort.js';
 import { installScheduler } from './scheduler.js';
 import { installSlash } from './slash.js';
+import { installRing } from './ring.js';
+import { installPillar } from './pillar.js';
+import { installBeam } from './beam.js';
+import { installBolt } from './bolt.js';
+import { installDecal } from './decal.js';
+import { installDebris } from './debris.js';
+import { installSpikes } from './spikes.js';
+import { installSpeedlines } from './speedlines.js';
+import { installAfterimage } from './afterimage.js';
 import { EffectPool } from './pool.js';
 import { InstanceRing, makeQuadGeometry } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
@@ -34,7 +43,7 @@ import * as util from './util.js';
 import { LIB, PALETTE } from './library.js';
 
 /** Built-in sub-modules, in update order. Mesh effects append their installers here. */
-export const MODULES = [installScheduler, installParticles, installRibbons, installLights, installFlares, installDistort, installSlash];
+export const MODULES = [installScheduler, installParticles, installRibbons, installLights, installFlares, installDistort, installSlash, installRing, installPillar, installBeam, installBolt, installDecal, installDebris, installSpikes, installSpeedlines, installAfterimage];
 
 /**
  * Create the VFX system, store it on ctx.vfx and register its per-frame update at ctx.ORDER.VFX.

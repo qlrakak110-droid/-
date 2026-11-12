@@ -43,11 +43,16 @@ export function buildRuins(rng, tier) {
   const { wallR, wallT, pillarR, gap, thetaMax } = LAYOUT;
 
   // ---- podium wall ----------------------------------------------------------------------------------------------
-  const courseH = 0.6, courses = 5;
+  // alternating tall / short courses (a plinth course at the bottom), then the coping
+  const courseHs = [0.68, 0.5, 0.62, 0.48, 0.62], courses = courseHs.length;
+  const courseY = [0];
+  for (const ch of courseHs) courseY.push(courseY[courseY.length - 1] + ch);
   const wallRc = wallR + wallT / 2;
   const coursesAt = (th) => {
     const a = Math.abs(th);
-    if (a < gap) return Math.round(clamp(0.4 + 1.4 * noise3(th * 9, 1.3, 0.2) + (a / gap) * 1.6, 0, 3));
+    // the vista: a knee-high broken kerb in the middle (the cloud sea shows behind the fighters' heads), rising to
+    // broken stubs toward the shoulders
+    if (a < gap) return Math.round(clamp(-0.35 + 1.25 * noise3(th * 9, 1.3, 0.2) + Math.pow(a / gap, 2) * 2.7, 0, 3));
     const dip = noise3(th * 5 + 4, 7.7, 0.3);
     let c = courses + 1;
     if (dip > 0.66) c = Math.round(2 + (1 - dip) * 6);
@@ -56,8 +61,9 @@ export function buildRuins(rng, tier) {
   };
   for (let c = 0; c <= courses; c++) {
     const coping = c === courses;
-    const h = coping ? 0.36 : courseH;
-    const y0 = c * courseH;
+    const plinth = c === 0;
+    const h = coping ? 0.36 : courseHs[c];
+    const y0 = courseY[c];
     let th = -thetaMax - rng.range(0, 1.2) / wallRc;
     while (th < thetaMax) {
       const L = coping ? rng.range(1.4, 2.1) : rng.range(0.95, 1.75);
@@ -69,14 +75,30 @@ export function buildRuins(rng, tier) {
       const top = c === n - 1 && n < courses + 1;
       const fallen = top && rng.chance(0.25);
       const hh = top ? h * rng.range(0.55, 1) : h;
-      const depth = coping ? wallT + 0.28 : wallT;
-      const rr = coping ? wallRc - 0.12 : wallRc;
+      const depth = coping ? wallT + 0.28 : plinth ? wallT + 0.16 : wallT;
+      const rr = coping ? wallRc - 0.12 : plinth ? wallRc - 0.08 : wallRc;
       const geo = chamferBox(L - 0.025, hh - 0.012, depth, coping ? 0.06 : 0.045, rng, top ? 0.5 : 0.12);
       const jitter = fallen ? rng.range(-0.25, 0.25) : rng.range(-0.012, 0.012);
       const p = ringPos(rr + jitter, tc, y0 + hh / 2);
       const m = trs(p.x, p.y, p.z, -tc + rng.range(-0.01, 0.01) + (fallen ? rng.range(-0.2, 0.2) : 0), fallen ? rng.range(-0.15, 0.15) : 0, fallen ? rng.range(-0.1, 0.1) : rng.range(-0.004, 0.004));
       S.add(geo, m, { color: stoneColor(blockTint() * (coping ? 0.92 : 1)), glow, uv: 'box', uvScale: 2.2 });
     }
+  }
+
+  // buttresses break the long courses into bays (none near the vista); broken where the wall has fallen
+  for (let th = -thetaMax + 5 * DEG; th < thetaMax - 3 * DEG; th += 12.5 * DEG) {
+    if (Math.abs(th) < gap + 9 * DEG) continue;
+    const n = coursesAt(th);
+    if (n < 3) continue;
+    const H = n > courses ? courseY[courses] + 0.36 : courseY[n];
+    const broken = n <= courses || rng.chance(0.3);
+    const top = broken ? H - rng.range(0.15, 0.8) : H + 0.5;
+    const tint = blockTint();
+    const o = { color: stoneColor(tint * 0.96), glow, uv: 'box', uvScale: 2.2 };
+    const a = ringPos(wallR - 0.36, th, 0), b = ringPos(wallR - 0.3, th, 0);
+    S.add(chamferBox(1.3, 0.55, 0.92, 0.05, rng, 0.25), trs(a.x, 0.275, a.z, -th), o);
+    S.add(chamferBox(0.98, top - 0.55, 0.66, 0.05, rng, broken ? 0.6 : 0.2), trs(b.x, 0.55 + (top - 0.55) / 2, b.z, -th, 0, rng.range(-0.006, 0.006)), o);
+    if (!broken) S.add(chamferBox(1.2, 0.24, 0.86, 0.04, rng, 0.2), trs(a.x, top + 0.12, a.z, -th), o);
   }
 
   // ---- outer ground and the broken cliff edge -----------------------------------------------------------------------
@@ -291,19 +313,20 @@ export function buildRuins(rng, tier) {
     rmod: (phi, yy) => ((Math.round(phi / (Math.PI * 2) * 18) % 2) ? 0.95 : 1) * (1 + (noise3(Math.cos(phi) * 2 + seed, yy, Math.sin(phi) * 2) - 0.5) * 0.12),
     capTop: true, capBottom: true,
   });
+  // [x, z, yaw, length, sink]: none in the middle of the vista (a 1.9 m drum on the horizon reads as a parked lump)
   const fallen = [
-    [-1.6, -15.0, 0.4, 1.2], [1.9, -16.5, 2.1, 1.5], [-4.6, -18.2, 0.9, 1.4], [3.9, -18.0, 2.6, 1.3],
-    [12.6, -7.3, 1.25, 1.5], [13.4, -5.2, 1.4, 1.4], [14.1, -3.1, 1.6, 1.5], [-13.0, -6.2, 2.2, 1.3],
+    [-6.3, -14.0, 0.75, 1.2, 0.35], [6.6, -16.8, 2.3, 1.5, 0.55], [-7.4, -17.4, 0.9, 1.4, 0.6], [5.6, -13.9, 2.6, 1.0, 0.3],
+    [12.6, -7.3, 1.25, 1.5, 0], [13.4, -5.2, 1.4, 1.4, 0], [14.1, -3.1, 1.6, 1.5, 0], [-13.0, -6.2, 2.2, 1.3, 0],
   ];
-  for (const [x, z, ry, len] of fallen) {
+  for (const [x, z, ry, len, sink] of fallen) {
     const seed = rng.range(0, 40);
-    const m = trs(x, pierR * 0.9, z, ry, 0, Math.PI / 2 + rng.range(-0.08, 0.08));
+    const m = trs(x, pierR * (0.9 - sink), z, ry, 0, Math.PI / 2 + rng.range(-0.08, 0.08));
     m.multiply(trs(0, -len / 2, 0));
     addAll(S, drumGeo(len, seed), m, { color: stoneColor(blockTint()), glow, uv: 'box', uvScale: 2.4 });
   }
   const rubbleN = Math.round(170 * tier.rubble);
   for (let i = 0; i < rubbleN; i++) {
-    let p, s;
+    let p, s, blockChance = 0.35;
     const roll = rng();
     if (roll < 0.45) { // along the wall base, inside the arena (keeps clear of the fight line)
       const th = rng.range(-thetaMax * 0.9, thetaMax * 0.9);
@@ -311,9 +334,11 @@ export function buildRuins(rng, tier) {
       const near = a < gap ? 0.75 : 0.35;
       if (!rng.chance(near)) continue;
       p = ringPos(rng.range(14.2, 15.4), th, 0); s = rng.range(0.12, a < gap ? 0.7 : 0.45);
-    } else if (roll < 0.75) { // the gap: on the outer ground up to the edge
+    } else if (roll < 0.75) { // the gap: on the outer ground up to the edge, low in the middle of the vista
       const th = rng.range(-gap - 6 * DEG, gap + 6 * DEG);
-      p = ringPos(rng.range(15.8, edgeR(th) - 0.3), th, 0); s = rng.range(0.2, 0.95);
+      const mid = 1 - smoothstep(0.35, 0.8, Math.abs(th) / gap);
+      p = ringPos(rng.range(15.8, edgeR(th) - 0.3), th, 0); s = rng.range(0.2, 0.95) * (1 - 0.6 * mid);
+      blockChance = 0.75; // broken ashlar, not boulders: this rubble is silhouetted against the horizon
     } else { // at broken pillar feet and tier breaks
       const pl = rng.pick(pillars.filter((q) => !q.state || !q.state.cap));
       const a = rng.range(0, Math.PI * 2), d = rng.range(1.0, 3.2);
@@ -321,7 +346,7 @@ export function buildRuins(rng, tier) {
       if (p.length() < 15.2) continue;
       s = rng.range(0.25, 1.1);
     }
-    const isBlock = rng.chance(0.35);
+    const isBlock = rng.chance(blockChance);
     const g = isBlock ? chamferBox(s * rng.range(1.2, 2.2), s * rng.range(0.6, 1.0), s * rng.range(0.9, 1.4), 0.04, rng, 0.6) : rock(s, rng, { detail: s > 0.5 ? 1 : 0, squash: rng.range(0.45, 0.8) });
     S.add(g, trs(p.x, s * (isBlock ? 0.3 : 0.25), p.z, rng.range(0, 6), rng.range(-0.3, 0.3), rng.range(-0.3, 0.3)), { color: stoneColor(blockTint() * 0.9), glow, uv: 'box', uvScale: 2.2 });
   }

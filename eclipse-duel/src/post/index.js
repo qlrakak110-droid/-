@@ -233,8 +233,11 @@ export function createPost(ctx) {
   const tmpColor = new THREE.Color();
   const clearCol = new THREE.Color();
 
+  const afterScene = [];
   const post = {
     fx, baseline, hdr, distortionScene,
+    /** Register fn(renderer, sceneTarget, camera) called right after the HDR scene render each frame. Returns off(). */
+    onAfterScene(fn) { afterScene.push(fn); return () => { const i = afterScene.indexOf(fn); if (i >= 0) afterScene.splice(i, 1); }; },
     get sceneTarget() { return rtScene; },
 
     setSize(w, h) { cw = w; ch = h; alloc(); },
@@ -311,6 +314,8 @@ export function createPost(ctx) {
       renderer.autoClear = true;
       renderer.setRenderTarget(rtScene);
       renderer.render(scene, camera);
+      // post-scene hooks (e.g. the arena copies the HDR frame for its puddle reflection without a one-frame lag)
+      for (let i = 0; i < afterScene.length; i++) afterScene[i](renderer, rtScene, camera);
 
       let useDist = 0;
       if (rtDist && eff.distortion > 0) {
