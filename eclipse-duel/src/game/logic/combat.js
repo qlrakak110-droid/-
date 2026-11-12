@@ -32,16 +32,33 @@ export function hurtboxes(f) {
     const mv = f.moveData, t = f.moveTime;
     for (const w of mv.hurt) {
       if (n >= MAX_HURT) break;
-      if (t >= w.t0 && t <= w.t1) worldBox(f.x, f.y, f.facing, w.f0, w.f1, w.u0, w.u1, hurt[n++]);
+      if (t >= w.t0 - EPS && t <= w.t1 + EPS) worldBox(f.x, f.y, f.facing, w.f0, w.f1, w.u0, w.u1, hurt[n++]);
     }
     for (const ht of mv.hits) {
       if (n >= MAX_HURT) break;
-      if (!ht.hurtExtend || t < ht.t0 || t > ht.t1 + HURT_EXTEND_AFTER) continue;
+      if (!ht.hurtExtend || t < ht.t0 - EPS || t > ht.t1 + HURT_EXTEND_AFTER) continue;
       const reach = ht.f0 + (ht.f1 - ht.f0) * 0.7;
       if (reach > s.hurtWidth) worldBox(f.x, f.y, f.facing, s.hurtWidth * 0.5, reach, ht.u0, ht.u1, hurt[n++]);
     }
   }
   return n;
+}
+
+/**
+ * Debug-overlay data of fighter `f` (training mode hitbox viewer): world AABBs [x0, x1, y0, y1] of its hurtboxes,
+ * of the hit boxes active at its current move time, and of its push-box. Allocates: debug use only.
+ */
+export function debugBoxes(f) {
+  const n = hurtboxes(f);
+  const pw = f.def.stats.pushWidth;
+  const out = { hurt: [], hit: [], push: [f.x - pw, f.x + pw, f.y, f.y + f.def.stats.height] };
+  for (let i = 0; i < n; i++) out.hurt.push(hurt[i].slice());
+  if (f.state === 'attack') {
+    for (const ht of f.moveData.hits) {
+      if (f.moveTime >= ht.t0 - EPS && f.moveTime <= ht.t1 + EPS) out.hit.push(worldBox(f.x, f.y, f.facing, ht.f0, ht.f1, ht.u0, ht.u1, [0, 0, 0, 0]));
+    }
+  }
+  return out;
 }
 
 /** Contact point between a world box and fighter `d`'s hurtboxes, or null. (Reused object.) */

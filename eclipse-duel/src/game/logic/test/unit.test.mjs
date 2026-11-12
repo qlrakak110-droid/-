@@ -610,6 +610,17 @@ test('reset paths: reset() restarts the match, restartRound() the round', () => 
   eq(snap.fighters.length, 2);
 });
 
+test('debug boxes: hurt, active hit and push boxes in world space for the hitbox viewer', () => {
+  const { m } = duel({ s0: [{ t: 0, light: true }], x: [-3, 3] });
+  run(m, 0.12); // light1 active from 0.10 (move started at 1/60)
+  const b = m.boxes(0);
+  eq(b.hit.length, 1);
+  near(b.hit[0][0], -3 + 0.3, 1e-9); near(b.hit[0][1], -3 + 1.75, 1e-9);
+  near(b.push[0], -3.4, 1e-9);
+  assert(b.hurt.length >= 2, 'body + extended limb');
+  eq(m.boxes(1).hit.length, 0);
+});
+
 test('markers and moveEvent: timeline markers are emitted at their time with world position', () => {
   const { m, log } = duel({ s0: [{ t: 0, heavy: true }], x: [-5, 5] });
   const viaAlias = [];

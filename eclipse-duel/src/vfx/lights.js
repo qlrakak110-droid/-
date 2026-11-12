@@ -26,7 +26,7 @@ export function installLights(vfx, shared) {
   /**
    * Flash a pooled point light.
    * opts: pos, color (HDR colour; normalised to its brightest channel), intensity (candela, default 60), range (m, default 6),
-   * duration (s, default 0.35; Infinity until stop()), attack (s, default 0.02), decay (ease name, default 'outQuad' fall-off),
+   * duration (s, default 0.35; Infinity until stop()), attack (s, default 0), decay (ease name, default 'outQuad' fall-off),
    * curve (custom envelope over normalised life, overrides attack/decay), flicker (0..1), flickerRate (Hz),
    * follow (Object3D | () => pos), offset ([x, y, z] local to follow), realtime.
    * Returns { light, kill(), stop(), follow(obj, offset), setIntensity(v), alive }.
@@ -42,7 +42,7 @@ export function installLights(vfx, shared) {
     s.t0 = realtime ? clock.real : clock.game;
     s.dur = opts.duration != null ? opts.duration : 0.35;
     s.peak = opts.intensity != null ? opts.intensity : 60;
-    s.attack = opts.attack != null ? opts.attack : 0.02;
+    s.attack = opts.attack != null ? opts.attack : 0;
     s.decay = resolveEase(opts.decay || 'outQuad');
     s.curve = opts.curve ? toCurveFn(opts.curve) : null;
     s.flicker = opts.flicker || 0;

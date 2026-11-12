@@ -16,11 +16,14 @@ import { audioClasses, renderSound, renderOffline, hallIR, softClipCurve, releas
 import { SOUNDS, ALIASES, defineSound } from './sfx.js';
 import { INSTRUMENTS, TRACKS, createSequencer, midiHz } from './music.js';
 
-/** Per quality tier: voice cap, reverb length (s), render sample rate (Hz), max variants per sound, mono assets. */
+/**
+ * Per quality tier: voice cap, reverb length (s), SFX / music-instrument render rates (Hz), max variants per sound,
+ * mono assets. Measured asset memory with everything rendered: low ~10 MB, mid ~25 MB, high ~29 MB.
+ */
 const TIERS = {
-  low: { voices: 20, ir: 2.0, rate: 32000, variants: 2, mono: true },
-  mid: { voices: 28, ir: 2.6, rate: 40000, variants: 3, mono: false },
-  high: { voices: 40, ir: 3.2, rate: 48000, variants: 4, mono: false },
+  low: { voices: 20, ir: 2.0, rate: 26000, musicRate: 22050, variants: 2, mono: true },
+  mid: { voices: 28, ir: 2.6, rate: 40000, musicRate: 32000, variants: 3, mono: false },
+  high: { voices: 40, ir: 3.2, rate: 48000, musicRate: 48000, variants: 4, mono: false },
 };
 const MASTER_TRIM = 1.0;    // single hits pass the glue untouched; stacks get glued, then limited and soft-clipped
 const MUSIC_TRIM = 0.3;     // music sits ~5 dB under heavy hits at default volumes (measured: analyze.js "as heard")
@@ -146,7 +149,7 @@ export function createAudio(ctx = {}) {
   const sfxEntry = (name, v, urgent) => request(name + '#' + v, () => renderSound(SOUNDS[name], { sr: tier.rate, variant: v, mono: tier.mono }), urgent);
   const instEntry = (inst, root) => {
     const d = INSTRUMENTS[inst];
-    return request('@' + inst + ':' + root, () => renderSound({ ...d, name: inst + root, clip: 1 }, { sr: Math.min(tier.rate, d.rate || tier.rate), arg: midiHz(root), mono: tier.mono }));
+    return request('@' + inst + ':' + root, () => renderSound({ ...d, name: inst + root, clip: 1 }, { sr: Math.min(tier.musicRate, d.rate || tier.musicRate), arg: midiHz(root), mono: tier.mono }));
   };
   const bank = {
     pick(inst, midi) {

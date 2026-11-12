@@ -140,6 +140,7 @@ the same event log, bit for bit (tested by hashing the log, also with two matche
 | `setMeter(i, kind, v)` | set `'hp' \| 'fp' \| 'ult' \| 'guard'` directly (training mode, tests) |
 | `place(i, x, facing?)` | teleport a fighter (training mode, tests) |
 | `slots(i)` | HUD helper: per command key `{key, move, name, group, fpCost, ultCost, cooldown, cd: 0..1, ready}` |
+| `boxes(i)` | hitbox-viewer data for a training-mode overlay: `{hurt: [box], hit: [box], push: box, projectiles: [{id, active, box}]}`, boxes as world `[x0, x1, y0, y1]` (allocates) |
 | `canUse(i, moveId)` | why that move could not start now (`null` when it could): `'phase' 'fp' 'ult' 'cooldown' 'freeze' 'distance' 'airborne' 'hp'` |
 
 ---

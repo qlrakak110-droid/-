@@ -3,6 +3,7 @@
 //   node src/game/logic/test/run.mjs                 unit + determinism tests, then the 300-match AI soak
 //   node src/game/logic/test/run.mjs --quick         skip the soak
 //   node src/game/logic/test/run.mjs --soak 60       soak with 60 matches
+//   node src/game/logic/test/run.mjs --dt 0.0333     soak stepped at another dt (default 1/60)
 //   node src/game/logic/test/run.mjs --only guard    run tests whose name contains "guard" (no soak)
 //
 // Exit code 1 when anything fails.
@@ -35,7 +36,7 @@ console.log(`\n${pass} passed, ${fail} failed (${((Date.now() - t0) / 1000).toFi
 
 if (!only && !flag('--quick')) {
   const n = Number(value('--soak', 300));
-  const res = runSoak({ matches: n, log: console.log });
+  const res = runSoak({ matches: n, log: console.log, dt: Number(value('--dt', 1 / 60)) });
   if (!res.ok) fail++;
 }
 process.exit(fail ? 1 : 0);

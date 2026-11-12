@@ -109,7 +109,7 @@ export const INSTRUMENTS = {
       k.hiss({ len: 0.08, type: 'highpass', f: 6000, env: { a: 0, d: 0.04 }, gain: 0.5 });
     },
   },
-  bell: { roots: [69, 76], len: 5, level: -14, rate: 32000, rel: 1, recipe(k, f) { k.bell({ f, decay: 4.2, bright: 0.8 }); } },
+  bell: { roots: [69], len: 5, level: -14, rate: 32000, rel: 1, recipe(k, f) { k.bell({ f, decay: 4.2, bright: 0.8 }); } },
   pulse: {
     roots: [36], len: 0.6, level: -12, rel: 0.1,
     recipe(k) {

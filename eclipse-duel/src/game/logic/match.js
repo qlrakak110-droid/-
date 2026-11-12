@@ -16,8 +16,8 @@ import { toRng, forkRng } from './rng.js';
 import {
   createFighter, resetFighter, updateFighter, setState, passesThrough, refreshFlags, moveBlockReason, endMove,
 } from './fighter.js';
-import { collectStrikes, resolveContacts, hurtContact } from './combat.js';
-import { updateProjectiles, collectProjectileHits, compactProjectiles, clearProjectiles } from './projectiles.js';
+import { collectStrikes, resolveContacts, hurtContact, debugBoxes } from './combat.js';
+import { updateProjectiles, collectProjectileHits, compactProjectiles, clearProjectiles, projectileBox } from './projectiles.js';
 import { updateCinematic } from './cinematic.js';
 import { regenMeters } from './meters.js';
 
@@ -86,7 +86,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
     emit(name, payload) { payload.time = m.time; events.push(name, payload); },
     hurtContact,
 
-    step, snapshot, reset, restartRound, setController, setMeter, place, slots, canUse,
+    step, snapshot, reset, restartRound, setController, setMeter, place, slots, canUse, boxes,
   };
   m.fighters = m.defs.map((d, i) => createFighter(m, d, i));
   const views = m.fighters.map((f, i) => ({ match: m, index: i, self: f, opponent: null, dt: 0, time: 0, roundTime: 0, phase: 'intro' }));
@@ -382,6 +382,16 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
         ready: left <= 0 && f.fp + 1e-9 >= mv.fpCost && (mv.ultCost <= 0 || f.ult + 1e-9 >= mv.ultCost),
       };
     });
+  }
+
+  /**
+   * Hitbox viewer data for fighter i: {hurt, hit, push, projectiles: [{id, box}]}, boxes as world [x0, x1, y0, y1].
+   * Allocates; meant for a training-mode debug overlay.
+   */
+  function boxes(i) {
+    const out = debugBoxes(m.fighters[i]);
+    out.projectiles = m.projectiles.filter((p) => p.alive && p.owner === i).map((p) => ({ id: p.id, active: p.active, box: projectileBox(p, [0, 0, 0, 0]) }));
+    return out;
   }
 
   /** Why fighter i cannot start move `id` right now (null when it could, ignoring its current state). */

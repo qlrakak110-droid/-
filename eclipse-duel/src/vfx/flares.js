@@ -109,7 +109,7 @@ export function installFlares(vfx, shared) {
    * Camera-facing flare.
    * opts: pos, kind ('glow' | 'star' | 'streak' | 'ring' | 'flash', default 'glow'), color (HDR, default [6, 4, 2.5]),
    * intensity (multiplier, 1), size (m; or [start, end] grown with outExpo), aspect (width / height; default 1, streak 8),
-   * life (s, 0.25), attack (s, 0.015), decay (fall-off power, 2), rotation (rad), dir (world direction the long axis
+   * life (s, 0.25), attack (s, 0), decay (fall-off power, 2), rotation (rad), dir (world direction the long axis
    * follows on screen), pull (m toward the camera, 0.3), screen (size is a fraction of the screen height), follow, offset,
    * realtime. Returns { kill(), stop(), follow(obj, offset), alive }.
    */
@@ -130,7 +130,7 @@ export function installFlares(vfx, shared) {
     f[k] = slot.pos.x; f[k + 1] = slot.pos.y; f[k + 2] = slot.pos.z; f[k + 3] = slot.t0;
     f[k + 4] = col.r * inten; f[k + 5] = col.g * inten; f[k + 6] = col.b * inten; f[k + 7] = realtime ? -life : life;
     f[k + 8] = kind; f[k + 9] = s0; f[k + 10] = s1; f[k + 11] = aspect;
-    f[k + 12] = opts.attack != null ? opts.attack : 0.015; f[k + 13] = opts.decay != null ? opts.decay : 2; f[k + 14] = opts.rotation || 0; f[k + 15] = opts.pull != null ? opts.pull : 0.3;
+    f[k + 12] = opts.attack != null ? opts.attack : 0; f[k + 13] = opts.decay != null ? opts.decay : 2; f[k + 14] = opts.rotation || 0; f[k + 15] = opts.pull != null ? opts.pull : 0.3;
     if (opts.dir) toVec3(opts.dir, v).normalize(); else v.set(0, 0, 0);
     f[k + 16] = v.x; f[k + 17] = v.y; f[k + 18] = v.z; f[k + 19] = opts.screen ? 1 : 0;
     ring.dirty(slot.i, 1);
