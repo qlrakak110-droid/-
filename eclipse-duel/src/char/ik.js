@@ -22,11 +22,12 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
 export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
  * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction,
- * hand twist] + this frame (the same 8).
+ * hand twist, grip roll step, grip roll step scale, hand twist step, hand twist step scale] + this frame (the same 12).
  */
-export const MEM = 16;
+export const MEM = 24;
+const MH = MEM / 2;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
-export function commitMem(m, o = 0) { for (let k = 0; k < 8; k++) m[o + k] = m[o + 8 + k]; }
+export function commitMem(m, o = 0) { for (let k = 0; k < MH; k++) m[o + k] = m[o + MH + k]; }
 /** Fastest the wrist clamp turns the hand about the forearm (rad/s): a request sweeping through an impossible pronation. */
 const WRIST_RATE = (1500 * Math.PI) / 180;
 
@@ -134,6 +135,9 @@ function armCost(q, uo, eo, pq, po) {
  * rotation), for the target end rotation endQ (model) and grip axis (gx, gy, gz) in the end frame. Returns the roll
  * (rad), continued from `ref` (NaN: none) so a roll near 180 deg keeps its side.
  */
+let rollConf = 1, rollStep = 0, rollScale = 1;
+/** Fastest off-hand roll around a two-handed grip (rad/s; 1800 deg/s). */
+const ROLL_RATE = 31.4;
 function bestRoll(endQ, eo, fq, fo, gx, gy, gz, ref) {
   // forearm long axis (model) -> end frame
   qrot(tv, 0, fq, fo, 0, -1, 0);
@@ -146,6 +150,9 @@ function bestRoll(endQ, eo, fq, fo, gx, gy, gz, ref) {
   const a2x = gy * a1z - gz * a1y, a2y = gz * a1x - gx * a1z, a2z = gx * a1y - gy * a1x; // g x a1
   const f1 = a1x * tv[3] + a1y * tv[4] + a1z * tv[5], f2 = a2x * tv[3] + a2y * tv[4] + a2z * tv[5];
   const psi = Math.atan2(f2, f1);
+  // how much the roll matters: 0 when the forearm (or the hand's long axis) runs along the grip axis, where the best
+  // roll is undefined (atan2 of noise) and must not be followed
+  rollConf = Math.hypot(f1, f2);
   return Number.isFinite(ref) ? psi + 2 * Math.PI * Math.round((ref - psi) / (2 * Math.PI)) : psi;
 }
 /** rollQ[0..3] = endQ rotated about its own axis (gx, gy, gz) by psi. */
@@ -284,6 +291,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // geometry is set up again for the rolled hand.
   const psiRef = hasMem ? mem[5] : NaN;
   let psi = 0;
+  rollStep = 0; rollScale = 1;
   if (roll) {
     limbAt(phi, sign, bend, er, eo, tq, 0);
     psi = hasMem ? psiRef : bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN);
@@ -324,10 +332,12 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       } else if (better) goal = gPhi;
       let d = wrapA(goal - phiP);
       if (timer < 0) {
-        // the way round is chosen when the travel starts and kept to its end
-        tdir = timer === -1 || !mem[6] ? travelDir(phiP, goal) : mem[6];
-        const ccw = ((goal - phiP) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
-        d = tdir > 0 ? ccw : ccw - 2 * Math.PI;
+        if (goal === gPhi && goal !== lPhi) {
+          // to a better basin: the way round is chosen when the travel starts and kept while that basin is the goal
+          tdir = timer === -1 || !mem[6] ? travelDir(phiP, goal) : mem[6];
+          const ccw = ((goal - phiP) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+          d = tdir > 0 ? ccw : ccw - 2 * Math.PI;
+        } else tdir = 0; // into the basin the elbow is in: downhill, the short way (a kept way round would orbit the arm)
         // travel: eases in over 80 ms, SWITCH for a bent arm (the elbow rolls over at ~2.4 m/s x body), up to 3 x faster
         // as the arm straightens (a straight arm's swivel is mostly its twist), and settles exponentially on arrival
         const e = -1 - timer, x = Math.min(1, (e + dt) / 0.08);
@@ -343,7 +353,32 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);
       const b = bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], hasMem ? psiRef : psi);
-      psi = hasMem ? psiRef + (b - psiRef) * (1 - Math.exp(-Math.max(0, opt.dt || 0) / 0.03)) : b;
+      if (hasMem) {
+        // (followed at full rate while the roll matters, frozen as the forearm comes in line with the grip axis)
+        const c = rollConf <= 0.15 ? 0 : rollConf >= 0.45 ? 1 : ((rollConf - 0.15) / 0.3) ** 2 * (3 - 2 * (rollConf - 0.15) / 0.3);
+        const k = (1 - Math.exp(-Math.max(0, opt.dt || 0) / 0.03)) * c, r0 = b - psiRef;
+        psi = psiRef + r0 * k;
+        if (Math.abs(psi - psiRef) > 1e-4) {
+          // rolling moves the wrist, hence the forearm, hence the best roll: probe that effect and relax toward the
+          // self-consistent roll (secant) where the roll pushes its own best value back harder than it moves (else the
+          // relaxation would overshoot into a frame-to-frame alternation)
+          rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
+          limbAt(resetup(phi, rig, limb, mq, mp, target, to, rollQ, 0, pole, po, soft), sign, sBend, rollQ, 0, tq, 0);
+          const slope = (bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], psiRef) - psi - r0) / (psi - psiRef);
+          if (slope < -1) psi = psiRef - (r0 / slope) * k;
+          bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft); // (restore this frame's set-up)
+          limbAt(phi, sign, bend, er, eo, tq, 0);
+        }
+        // a hand turns around a handle at <= ROLL_RATE (its best roll can swap sides in a frame), and a step that
+        // reverses the last one is halved (the next steps grow back x2 per frame): where the best roll has no fixed point
+        // (it swaps sides as the roll crosses it) the hand settles on the edge instead of alternating between frames
+        const cap = ROLL_RATE * Math.max(0, opt.dt || 0), last = mem[8];
+        let step = Math.max(-cap, Math.min(cap, psi - psiRef)), sc = mem[9] > 0 ? mem[9] : 1;
+        sc = step * last < 0 && Math.min(Math.abs(step), Math.abs(last)) > 0.02 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
+        step *= sc;
+        psi = psiRef + step;
+        rollStep = step; rollScale = sc;
+      } else psi = b;
       rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
       phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
@@ -375,8 +410,9 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
-    qrot(mem, 8, tv, 8, px, py, pz);
-    mem[11] = 1; mem[12] = timer; mem[13] = psi; mem[14] = tdir; mem[15] = wristOut;
+    qrot(mem, MH, tv, 8, px, py, pz);
+    mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = psi; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
+    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale; mem[MH + 10] = twistStep; mem[MH + 11] = twistScale;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
@@ -450,7 +486,7 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   return Math.PI - Math.acos(cb);
 }
 
-let wristOut = 0;
+let wristOut = 0, twistStep = 0, twistScale = 1;
 /**
  * Soft-limit a hand local rotation to the wrist range (swing off the forearm axis, pronation / supination). True if
  * changed. Pronation: up to the knee as asked, then saturating at the limit, then (past ~140 deg asked, an impossible
@@ -465,7 +501,16 @@ export function clampWrist(q, o, mem = null, dt = 0) {
   const sw0 = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (x * x + z * z))));
   const at = Math.abs(tw), back = 1 - smooth01(at, 2.44, Math.PI);
   let tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
-  if (mem) tw2 = mem[7] + Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7]));
+  twistStep = 0; twistScale = 1;
+  if (mem) {
+    // rate-limited, and a step reversing the last one is halved (grows back x2 per frame): past ~140 deg the clamped
+    // twist runs back toward 0 as the request grows, and that feedback through the arm must settle, not alternate
+    let step = Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7])), sc = mem[11] > 0 ? mem[11] : 1;
+    sc = step * mem[10] < 0 && Math.min(Math.abs(step), Math.abs(mem[10])) > 0.02 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
+    step *= sc;
+    tw2 = mem[7] + step;
+    twistStep = step; twistScale = sc;
+  }
   wristOut = tw2;
   const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing);
   if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw0) < 1e-6) return false;

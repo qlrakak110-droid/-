@@ -9,8 +9,9 @@ import { createRig, bindMatrices, fk, driveHelpers, bodyScale, DEFAULT_PROPORTIO
 import { createKit } from './build.js';
 import * as shapes from './shapes.js';
 import { createKitMaterial } from './materials.js';
-import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE, defineClip } from './anim.js';
+import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE, defineClip, SWIVEL_MEM } from './anim.js';
 import { makeLimbs, solveLimb, floorFoot, lookAngles, applyLook, lookFade, lookYaw, lookPitch, commitMem, SOFT, MEM } from './ik.js';
+if (SWIVEL_MEM !== MEM) throw new Error('char: anim.js SWIVEL_MEM must equal ik.js MEM');
 import { SpringChain } from './spring.js';
 import { Cloth, clothLayout, clothGeometry } from './cloth.js';
 import { createCapsules, updateCapsules } from './collide.js';
@@ -264,7 +265,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   for (const s of ['R', 'L']) { const a = new Float32Array(3); qrot(a, 0, weaponRest[s], 0, 1, 0, 0); gripAxis[s] = a; }
   const handTarget = new Float32Array(4);
 
-  const char = {
+  const char = { _dbgGrip: gripMem,
     root, rig, skeleton, meshes, materials, sockets, design,
     bones: boneMap,
     stats: { triangles: built.triangles, drawCalls: Object.keys(meshes).length, bones: N },
@@ -1028,18 +1029,19 @@ export function createCharacter(ctx, design0, opts = {}) {
   const footEq = new Float32Array(3);
   let dropGoal = NaN;
   /**
-   * Pelvis drop held across frames (dropHold): a critically damped follower of the goal, stiff going down (~20 ms) and
-   * softer coming back up (~90 ms), sub-stepped at 1/120 s (the same at any frame rate). The first update after
-   * teleport() takes the goal at once.
+   * Pelvis drop held across frames (dropHold): at once as deep as the planted feet need (a planted foot never slides
+   * or floats for it), released toward a smaller goal by a critically damped follower (~70 ms) that starts with the
+   * goal's own speed (no hitch), sub-stepped at 1/120 s (the same at any frame rate).
    */
   function stepDrop(goal, dt) {
     if (!Number.isFinite(dropGoal)) { dropHold = dropGoal = goal; dropVel = 0; return; }
-    if (!(dt > 0)) return;
-    const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, g0 = dropGoal;
+    if (!(dt > 0)) { if (dropHold < goal) dropHold = goal; return; }
+    const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, w = 28, g0 = dropGoal;
     for (let i = 1; i <= n; i++) {
-      const g = g0 + (goal - g0) * (i / n), w = g > dropHold ? 90 : 22;
+      const g = g0 + (goal - g0) * (i / n), x0 = dropHold;
       dropVel += (-w * w * (dropHold - g) - 2 * w * dropVel) * h;
       dropHold += dropVel * h;
+      if (dropHold <= g) { dropHold = g; dropVel = Math.min(0, (g - x0) / h); } // pinned: carries a falling goal's speed
     }
     dropGoal = goal;
   }
@@ -1053,7 +1055,6 @@ export function createCharacter(ctx, design0, opts = {}) {
       const k = turnLeft / turnDur;
       root.rotation.y = turnFrom * k * k * (3 - 2 * k);
     }
-    const floorY = computeInertia(dt);
     char.rootDelta.f = 0; char.rootDelta.u = 0;
     if (states.length === 0) play(design.idle || 'neutral.hold', { fade: 0 });
     for (let k = 0; k < states.length; k++) advance(states[k], dt, k === states.length - 1);
@@ -1064,6 +1065,10 @@ export function createCharacter(ctx, design0, opts = {}) {
       char.rootDelta.f += s.df * we; char.rootDelta.u += s.du * we;
       keep *= 1 - (k === 0 ? 1 : s.w);
     }
+    // the root moves before the floor, inertia and contact of this frame are worked out (a landing foot meets the floor
+    // where the root is now, not where it was)
+    if (char.applyRootMotion) { root.position.x += char.rootDelta.f * facing; root.position.y += char.rootDelta.u; }
+    const floorY = computeInertia(dt);
     // drop states hidden under a fully faded-in newer one
     for (let k = states.length - 1; k > 0; k--) {
       if (states[k].w >= 1 && states[k].gw >= 1) { while (k > 0) { statePool.push(states.shift()); k--; } break; }
@@ -1203,7 +1208,6 @@ export function createCharacter(ctx, design0, opts = {}) {
       b.quaternion.set(lq[i * 4], lq[i * 4 + 1], lq[i * 4 + 2], lq[i * 4 + 3]);
       b.position.set(lp[i * 3], lp[i * 3 + 1], lp[i * 3 + 2]);
     }
-    if (char.applyRootMotion) { root.position.x += char.rootDelta.f * facing; root.position.y += char.rootDelta.u; }
     root.updateMatrixWorld(true);
     // hit flash (real time)
     if (flashState.t < 1) {

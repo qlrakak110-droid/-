@@ -593,7 +593,7 @@ function armMetrics(c, name, { hz = 60, look = null } = {}) {
   const rec = qa.record(c, { hz, frames: n, time: false, before: (i) => { if (i > 0) diag.push([c.diag.drop, c.diag.gripErr]); } });
   diag.push([c.diag.drop, c.diag.gripErr]);
   if (look) c.lookAt(null);
-  const pose = new Pose(c.rig), m = { clip: name, frames: n, swivel: 0, flips: 0, elbowPop: 0, helper: 0, clav: 0, aim30: 0, aimMax: 0, drop: 0, float: 0, floor: 0, grip: 0, nan: rec.nan ? 1 : 0, at: {} };
+  const pose = new Pose(c.rig), m = { clip: name, frames: n, swivel: 0, flips: 0, elbowPop: 0, jitter: 0, helper: 0, clav: 0, aim30: 0, aimMax: 0, drop: 0, float: 0, floor: 0, grip: 0, nan: rec.nan ? 1 : 0, at: {} };
   const P = c.rig.P, B = rec.B, Q = rec.Q;
   const upd = (k, v, f) => { if (v > m[k]) { m[k] = v; m.at[k] = r(rec.t[f], 3); } };
   for (let f = 0; f < n; f++) {
@@ -606,6 +606,11 @@ function armMetrics(c, name, { hz = 60, look = null } = {}) {
         const es = vlen(vsub(cpt(rec, f, 'foreArm' + S), cpt(rec, f - 1, 'foreArm' + S)));
         const fs = vlen(vsub(cpt(rec, f, 'weapon' + S), cpt(rec, f - 1, 'weapon' + S)));
         upd('elbowPop', es - 1.5 * fs - 0.02 * s, f);
+        if (f > 1) { // frame-to-frame alternation: the wrist's / elbow's 2nd difference beyond the fist's (chest frame)
+          const d2 = (b) => { const a0 = cpt(rec, f - 2, b + S), a1 = cpt(rec, f - 1, b + S), a2 = cpt(rec, f, b + S); return Math.hypot(a2[0] - 2 * a1[0] + a0[0], a2[1] - 2 * a1[1] + a0[1], a2[2] - 2 * a1[2] + a0[2]); };
+          const fd = d2('weapon');
+          upd('jitter', Math.max(d2('hand'), d2('foreArm')) - 1.5 * fd - 0.01 * s, f);
+        }
         const st = (h, src) => qd(Q, ((f - 1) * B + rec.idx[h]) * 4, (f * B + rec.idx[h]) * 4) - qd(Q, ((f - 1) * B + rec.idx[src]) * 4, (f * B + rec.idx[src]) * 4);
         upd('helper', Math.max(st('deltoid' + S, 'upperArm' + S), st('upperArmTwist' + S, 'upperArm' + S), st('foreArmTwist' + S, 'hand' + S)), f);
       }
@@ -624,7 +629,7 @@ function armMetrics(c, name, { hz = 60, look = null } = {}) {
       if (ik[o] > 0.999 && !(ik[o + 14] >= 2) && ik[o + 2] <= 0.005 * s) upd('float', low / s, f); // planted: the whole foot in the air
     }
   }
-  for (const k of ['swivel', 'elbowPop', 'helper', 'clav', 'aimMax', 'drop', 'float', 'floor', 'grip']) m[k] = r(m[k], 3);
+  for (const k of ['swivel', 'elbowPop', 'jitter', 'helper', 'clav', 'aimMax', 'drop', 'float', 'floor', 'grip']) m[k] = r(m[k], 3);
   return m;
 }
 
@@ -890,6 +895,17 @@ function testAudit2() {
   return res;
 }
 
+/** Per-frame arm values of a shipped clip (debugging): [t, swivel, axis turn, elbow step, wrist step, fist step] (deg, mm). */
+function armTrace(id, name, S = 'R', from = 0, to = 1e9) {
+  const c = id === 'knight' ? mk('kael') : rigOnly(id), cl = getClip(c.rig, name);
+  qa.resetForQA(c, name, { breath: 0 });
+  const n = Math.round(cl.duration * 60) + 1, rec = qa.record(c, { hz: 60, frames: n, time: false }), out = [];
+  for (let f = Math.max(1, from); f < Math.min(n, to); f++) {
+    const A = elbowPerp(rec, f - 1, S), Bp = elbowPerp(rec, f, S), mm = (b) => r(vlen(vsub(cpt(rec, f, b + S), cpt(rec, f - 1, b + S))) * 1000, 1);
+    out.push([r(rec.t[f], 3), r(swivelStep(rec, f, S), 1), r(Math.acos(Math.max(-1, Math.min(1, vdot(A.a, Bp.a)))) * R2D, 1), mm('foreArm'), mm('hand'), mm('weapon')]);
+  }
+  return out;
+}
 /** Per-frame values of a clip (debugging): fn(char, frame) -> any, at `hz`. */
 function trace(name, fn, { body = 'kael', hz = 60, frames = null, from = null } = {}) {
   const c = mk(body);
@@ -921,7 +937,7 @@ createLab({
   view: { target: [0, 1.05, 0], dist: 5.4, yaw: 0, pitch: 4, fov: 40 },
   setup(ctx) {
     CTX = ctx;
-    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), arm: (id, name) => armMetrics(id === 'knight' ? mk('kael') : rigOnly(id), name), mk, mkWith, rigOnly, defineClip, invalidateClips, run: runAll, trace, IK, THREE, getClip, sampleClip, Pose, qa };
+    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), arm: (id, name) => armMetrics(id === 'knight' ? mk('kael') : rigOnly(id), name), mk, mkWith, rigOnly, defineClip, invalidateClips, listClips, run: runAll, trace, armTrace, IK, THREE, getClip, sampleClip, Pose, qa };
   },
   scenarios: {
     all(ctx, lab, opts = {}) { return runAll(opts); },

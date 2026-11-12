@@ -4,6 +4,8 @@
 
 import { ease as resolveEase } from '../core/math.js';
 import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
+/** Floats of one arm's IK memory (= ik.js MEM; kept here so the clip module does not import the solver). */
+export const SWIVEL_MEM = 24;
 
 const rawClips = new Map();
 const rawPoses = new Map();
@@ -444,8 +446,9 @@ export class Pose {
     this.aimErr = new Float32Array(2);      // weapon frame vs the keyed one after the wrist clamp (rad, R / L hand)
     this.footSlide = new Float32Array(2);   // horizontal move of an out-of-reach planted foot target (m, R / L)
     // arm IK memory (handR, handL, off-hand grip): MEM floats each (ik.js: last / this frame's elbow direction)
-    this.swivel = new Float32Array(48);
-    this.swivelR = this.swivel.subarray(0, 16); this.swivelL = this.swivel.subarray(16, 32); this.swivelG = this.swivel.subarray(32, 48);
+    this.swivel = new Float32Array(3 * SWIVEL_MEM);
+    this.swivelR = this.swivel.subarray(0, SWIVEL_MEM); this.swivelL = this.swivel.subarray(SWIVEL_MEM, 2 * SWIVEL_MEM);
+    this.swivelG = this.swivel.subarray(2 * SWIVEL_MEM, 3 * SWIVEL_MEM);
   }
   copy(p) {
     this.lq.set(p.lq); this.hips.set(p.hips); this.ik.set(p.ik); this.grip = p.grip;
