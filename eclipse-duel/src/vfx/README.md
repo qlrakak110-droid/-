@@ -573,7 +573,7 @@ Fading ghost copies of a hierarchy. A snapshot copies every visible `Mesh`'s wor
 its current bone matrices into a frozen skeleton (the pose of that instant), sharing the source geometry. Look:
 additive fresnel shell (rim-lit silhouette, faint fill), core → mid colours, drifting, eroding with world-space noise.
 Slots (a plain and a skinned mesh, a preallocated 64-bone frozen skeleton and a material instance of one shared
-program each) are pooled: 40 high / 28 mid / 16 low ghost meshes.
+program each) are pooled: 10 high / 8 mid / 4 low ghost meshes, and one afterimage copies at most 4 / 3 / 2 of a hero's meshes (largest first in traversal order): a ghost re-draws whole character meshes (~58k triangles per hero), so the pool is the per-tier geometry cap (the oldest ghost mesh is recycled first).
 
 | option | default | units | meaning |
 |---|---|---|---|
@@ -929,7 +929,7 @@ additive, alpha-blended or anything in between.
   not change after playing every effect (verified). Create the environment (which sets `scene.environment`) **before**
   `vfx.prewarm()`, or the lit spikes / debris compile an env-mapped variant on first use.
 - Mesh-effect capacities: slash 24, ring 32, pillar 16, beam 12, bolt 24 (360 points each), decal 48, spikes 96
-  shards, debris 256 / 192 / 128 chunks (high / mid / low), speed lines 4, afterimage 40 / 28 / 16 ghost meshes. The
+  shards, debris 256 / 192 / 128 chunks (high / mid / low), speed lines 4, afterimage 10 / 8 / 4 ghost meshes. The
   oldest instance is stolen when full.
 - **Preset library** (measured, `node tools/shot.mjs vfx --scenario ...`, lab stage of 15 draw calls): a hit costs
   50–200 live particles and 3–8 VFX draw calls; skills 40–290; ultimates 500–1050 at their peak. Worst case, all three

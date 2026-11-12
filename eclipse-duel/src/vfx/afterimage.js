@@ -69,7 +69,10 @@ void main() {
  */
 export function installAfterimage(vfx, shared) {
   const { ctx, root, uniforms, textures, clock } = shared;
-  const N = ctx.quality.tier === 'low' ? 16 : ctx.quality.tier === 'mid' ? 28 : 40;
+  // ghost mesh slots: every ghost re-draws a whole character mesh (a hero is ~58k triangles in 3-4 meshes), so the pool
+  // is the per-tier cap on ghost geometry; when full, the oldest ghost mesh is recycled first
+  const N = ctx.quality.tier === 'low' ? 4 : ctx.quality.tier === 'mid' ? 8 : 10;
+  const MAXM = ctx.quality.tier === 'low' ? 2 : ctx.quality.tier === 'mid' ? 3 : 4;
   // one material instance per slot (per-ghost uniforms), all from the same source: ONE program
   const uNoise = { value: textures.noise };
   const makeMat = () => new THREE.ShaderMaterial({
@@ -198,7 +201,7 @@ export function installAfterimage(vfx, shared) {
     const o = {
       life: opt(opts.life, 0.35), realtime: !!opts.realtime, intensity: opt(opts.intensity, 1), swell: opt(opts.swell, 0.03),
       fill: opt(opts.fill, 0.05), fresnel: opt(opts.fresnel, 2.6), alpha: opt(opts.alpha, 1), erodeScale: opt(opts.erodeScale, 1.6),
-      maxMeshes: opt(opts.maxMeshes, 8), filter: opts.filter || null,
+      maxMeshes: Math.min(opt(opts.maxMeshes, MAXM), MAXM), filter: opts.filter || null,
     };
     const count = Math.max(1, opt(opts.count, 1));
     const interval = opt(opts.interval, 0.045);
