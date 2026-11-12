@@ -10,6 +10,8 @@ export const PALETTE = {
   ember: { core: [8, 3, 0.6], mid: [3, 0.5, 0.05], tail: [0.25, 0.03, 0.01], smoke: [0.06, 0.05, 0.045] },
   frost: { core: [1.5, 4, 8], mid: [0.3, 1.2, 3], tail: [0.1, 0.25, 0.5], smoke: [0.5, 0.6, 0.7] },
   volt: { core: [5, 3.5, 9], mid: [1.6, 0.8, 4], tail: [0.25, 0.08, 0.6], spark: [8, 5, 1], smoke: [0.05, 0.04, 0.07] },
+  /** corona gold-white around a black core (the arena's eclipse; ultimates, the colossus) */
+  eclipse: { core: [9, 6.5, 3.2], mid: [2.6, 1.2, 0.35], tail: [0.18, 0.06, 0.02], smoke: [0.012, 0.01, 0.014] },
 };
 
 

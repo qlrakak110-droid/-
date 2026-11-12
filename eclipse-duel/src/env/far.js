@@ -170,9 +170,10 @@ export function createFar(U, rng, tier) {
   for (const [az, d, h, r] of spires) spire(az, d, h, r, rng.range(0, 50), d > 300 ? 0.8 : 1);
 
   // colossi on their rock pedestals, facing the arena
-  for (const [az, mirror, damage] of [[-21, -1, { arm: 1, hood: true }], [21.5, 1, { shoulder: true, guard: true }]]) {
-    const dist = 160;
-    const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -2, -Math.cos(az * DEG) * dist);
+  // they stand waist-deep in the cloud sea so that their halos top out ~9 degrees up, inside the fight framing
+  for (const [az, mirror, damage] of [[-23, -1, { arm: 1, hood: true }], [23.5, 1, { shoulder: true, guard: true }]]) {
+    const dist = 210;
+    const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -19, -Math.cos(az * DEG) * dist);
     const face = Math.atan2(-base.x, -base.z);
     const place = trs(base.x, base.y, base.z, face, 0, 0, 1.35);
     statue(B, rng, mirror, damage, place);

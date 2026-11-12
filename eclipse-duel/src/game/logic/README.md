@@ -529,7 +529,9 @@ cleared.
 ### 14.1 AI
 
 Generic over any definition. It perceives its opponent through a delay buffer (`reaction` seconds old; positions
-lightly extrapolated) — it never reads inputs — and plays through held buttons like a human. Each step: tech roll /
+lightly extrapolated) — it never reads inputs — and plays through held buttons like a human. Exceptions, all about
+its *own* offence (what a player sees of a hit they just landed): hit-confirm uses its own `moveHit`, and combo /
+juggle timing reads the live victim's trajectory, combo state and wall distance. Each step: tech roll /
 wake-up guard or reversal / hold guard through block strings → hit-confirm and pick the best cancel (combo) → react to
 perceived attacks and projectiles (guard, dodge timed at the impact, counter stance, back off) → punish blocked or
 whiffed recovery, guard breaks, juggle, okizeme (meaty on get-up) → on think ticks, neutral by distance zone
@@ -546,8 +548,8 @@ dash, step in and out, wait, anticipatory guard, pokes, pressure, launchers, zon
 What the levels mean in play (sample fighter mirror, measured with `test/watch.mjs`, `test/soak.mjs` and 40-match
 ladders): **easy** throws about 23 attacks a minute, waits and walks a lot, ends its combos after one cancel (chain
 routes such as light1 → light2 → light3 are free at every level), rarely punishes, walks into counter stances and
-perfect-guards only by luck (~15 % of its blocks). **Normal** ~30 attacks a minute, medium combos, punishes about half
-the unsafe moves it blocks. **Hard** ~34, long combos, punishes reliably, reads stances, holds its footsies range.
+perfect-guards only by luck (~15 % of its blocks). **Normal** ~30 attacks a minute, medium combos, goes for about half
+of its punish chances. **Hard** ~34, long combos, punishes reliably, reads stances, holds its footsies range.
 **Nightmare** ~38: perfect-guards about 30 % of everything it blocks (two thirds of the slow, reactable attacks),
 perfect-dodges, punishes stance recoveries, lands about 95 % of its ultimates (inside combos). Each level beats the
 one below most of the time: easy takes roughly 5 % of matches from normal, normal 15–20 % from hard, hard 20–30 % from

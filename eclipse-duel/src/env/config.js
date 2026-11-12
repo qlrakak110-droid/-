@@ -7,8 +7,18 @@ import { DEG } from '../core/math.js';
 
 const dirFromAzEl = (az, el) => new THREE.Vector3(Math.sin(az * DEG) * Math.cos(el * DEG), Math.sin(el * DEG), -Math.cos(az * DEG) * Math.cos(el * DEG)).normalize();
 
-/** Direction toward the eclipse (black sun) — also the cold rim light. */
-export const SUN_DIR = dirFromAzEl(5, 12.5);
+/**
+ * Direction toward the eclipse (black sun). Low on purpose: the game's fight camera tilts down 4.5–8.5° with a 34–40°
+ * vertical fov, so the top of its frame sits only ~12° above the horizon. At 6° the disc and inner corona sit in the
+ * upper third of every fight framing, just above the fighters' heads.
+ */
+export const SUN_DIR = dirFromAzEl(4, 6.2);
+/**
+ * Direction toward the cold rim light. Motivated by the corona but raised and swung to the right of it: a light
+ * straight behind the fighters only grazes their silhouettes, while this one rims heads, shoulders and the right
+ * edge opposite the front-left key.
+ */
+export const RIM_DIR = dirFromAzEl(28, 24);
 /** Direction toward the key light (front-left, high): models the fighters from the camera side. */
 export const KEY_DIR = new THREE.Vector3(-0.42, 0.78, 0.5).normalize();
 /** Apparent angular radius of the eclipse disc (radians). Exaggerated for drama. */

@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { makeRng, clamp, lerp } from '../core/math.js';
-import { SUN_DIR, KEY_DIR, WIND, LAYOUT, PALETTE, tierSettings } from './config.js';
+import { SUN_DIR, RIM_DIR, KEY_DIR, WIND, LAYOUT, PALETTE, tierSettings } from './config.js';
 import { bakeFloor, bakeStone, bakeBanner } from './bake.js';
 import { createSky } from './sky.js';
 import { buildRuins } from './ruins.js';
@@ -152,7 +152,7 @@ export function createEnvironment(ctx, opts = {}) {
     const a = Math.round(tmpT.dot(R) / texel) * texel, b = Math.round(tmpT.dot(Uc) / texel) * texel, c = tmpT.dot(KEY_DIR);
     target.position.copy(R).multiplyScalar(a).addScaledVector(Uc, b).addScaledVector(KEY_DIR, c);
     sun.position.copy(target.position).addScaledVector(KEY_DIR, 22);
-    rim.position.copy(target.position).addScaledVector(SUN_DIR, 22);
+    rim.position.copy(target.position).addScaledVector(RIM_DIR, 22);
     target.updateMatrixWorld();
   }
   setFocus(0);
@@ -283,8 +283,10 @@ export function createEnvironment(ctx, opts = {}) {
     envMap, sun, rim, hemi, points,
     bounds: { minX: -9, maxX: 9 },
     floorY: 0,
-    /** unit vector toward the eclipse (also the rim light direction) */
+    /** unit vector toward the eclipse */
     sunDir: SUN_DIR.clone(),
+    /** unit vector toward the cold rim light (env.rim) */
+    rimDir: RIM_DIR.clone(),
     /** unit vector toward the key light */
     keyDir: KEY_DIR.clone(),
     /** ambient wind, m/s (match smoke / cloth drift to it) */
