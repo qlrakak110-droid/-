@@ -128,7 +128,7 @@ function slam(h, e) {
   h.fx('vorn.pillar', { pos: g }, { intensity: 0.8 });
   h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 0.75, pierce: true, intensity: 0.8 });
   h.post.flash(VIOLET, 0.1, { release: 0.35 });
-  h.post.impact({ duration: 0.05, invert: 0, mono: 1 });   // a monochrome beat, not an inverted (white) frame
+  h.post.impact({ duration: 0.05, invert: 0, mono: 0.6 });   // a partial monochrome beat, not an inverted (white) frame
   h.post.pulse('exposure', 0.05, { attack: 0.02, release: 0.5 });
   h.post.chroma(0.3, { release: 0.4 });
   h.post.radial(g, 0.6, { release: 0.45 });
