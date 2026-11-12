@@ -120,8 +120,13 @@ function hitKit(el) {
   const sRamp = heatRamp(S.core, S.mid, S.tail);
   const frost = el === 'frost';
   const k = {
-    /** 1-3 frame white-hot burst sprite tinted toward the element core */
-    flash: def({ ...LIB.flashCore, color: [[0, 11, 10, 9.5, 1], key(0.3, P.core, 0.75, 0.65), key(1, P.tail, 0)] }),
+    /** 2-3 frame white-hot burst sprite tinted toward the element core (short: a longer one reads as a white ball) */
+    flash: def({ ...LIB.flashCore, life: [0.03, 0.05], sizeOverLife: [[0, 0.7], [0.35, 1.05], [1, 1.2]],
+      color: [[0, 11, 10, 9.5, 1], key(0.3, P.core, 0.6, 0.55), key(1, P.tail, 0)] }),
+    /** radial impact lines: thin hot streaks that shoot out of the contact in every direction and stop dead (frames 1-5) */
+    lines: def({ tex: 'streak', blend: 'add', count: 12, life: [0.05, 0.12], shape: { type: 'sphere', radius: 0.04 }, emit: 'radial', spread: 180,
+      speed: [9, 24, 1.3], drag: 14, size: [0.02, 0.045, 1.5], stretch: 0.075, maxStretch: 1.1, rotation: 0, groundFade: 0, pull: 0.25,
+      color: [[0, 12, 11, 10, 1], key(0.3, S.core, 1, 0.8), key(1, S.mid, 0, 0.6)] }),
     /** few big fast streaks that shape the first frames along the strike */
     splash: def({ ...LIB.splash, color: heatRamp(S.core, S.mid, S.tail, { flash: 1.4 }) }),
     /** main directional sparks (frost: lighter, floatier, star-tipped) */
@@ -130,9 +135,32 @@ function hitKit(el) {
       : { ...LIB.sparks, color: sRamp }),
     /** wide short spray around the main cone */
     fine: def({ ...LIB.sparksFine, color: frost ? heatRamp([5, 7, 10], P.core, P.tail) : sRamp }),
-    /** expanding soft light bloom */
-    puff: def({ ...LIB.glowPuff, color: [key(0, P.core, 0.9, 0.35), key(0.3, P.mid, 0.45, 0.45), [1, 0, 0, 0, 0]] }),
+    /** expanding soft light bloom (dim and short: it only tints the air around the flash) */
+    puff: def({ ...LIB.glowPuff, life: [0.1, 0.15], color: [key(0, P.core, 0.7, 0.16), key(0.3, P.mid, 0.35, 0.3), [1, 0, 0, 0, 0]] }),
   };
+  // lingering puff blown out of the contact along the strike: lit grey dust (steel), dark smoke with a warm underglow
+  // (ember), pale mist (frost), violet-black ozone (volt). Lighter than the floor so it reads against dark armour.
+  const puffBase = { tex: 'smoke', blend: 'alpha', count: 3, life: [0.6, 1.3], shape: { type: 'sphere', radius: 0.1 }, emit: 'axis', spread: 38, lift: 0.35,
+    speed: [0.8, 2.6, 1.3], size: [0.3, 0.75, 1.4], sizeOverLife: [[0, 0.35], [0.2, 0.8, 'outQuad'], [1, 1.2]], gravity: 0.35, drag: 3.2, spin: [0.2, 0.8],
+    turbulence: { amp: 0.25, freq: 0.9, speed: 0.8 }, erode: [[0, 0], [0.35, 0.12], [1, 1]], erodeSoft: 0.35, shade: 0.75, delay: [0.01, 0.05], groundFade: 0.15 };
+  k.dust = def(el === 'ember'
+    ? { ...puffBase, heat: 0.25, additive: [[0, 0.9], [0.18, 0.35], [0.4, 0]],
+      color: [[0, 2.4, 0.8, 0.15, 0.7], [0.12, 0.5, 0.14, 0.04, 0.75], [0.35, 0.09, 0.075, 0.065, 0.6], [1, 0.07, 0.065, 0.06, 0]] }
+    : frost
+      ? { ...puffBase, gravity: -0.3, additive: 0.15, shade: 0.5, color: [[0, 1.3, 1.6, 2, 0], [0.08, 0.62, 0.74, 0.9, 0.42], [0.5, 0.5, 0.6, 0.7, 0.28], [1, 0.45, 0.55, 0.65, 0]] }
+      : el === 'volt'
+        ? { ...puffBase, additive: [[0, 0.8], [0.15, 0]], color: [[0, 2.4, 1.6, 5, 0.6], [0.1, 0.1, 0.08, 0.16, 0.6], [0.5, 0.07, 0.06, 0.1, 0.45], [1, 0.06, 0.055, 0.08, 0]] }
+        : { ...puffBase, color: [[0, 1.6, 1.3, 0.9, 0.5], [0.08, 0.26, 0.24, 0.22, 0.6], [0.45, 0.17, 0.16, 0.15, 0.42], [1, 0.12, 0.115, 0.11, 0]] });
+  // element accent of a heavy blow: fire licks (ember), crystal shards (frost), crackle arcs (volt), hot steel chips
+  if (el === 'ember') k.accent = def({ ...LIB.fireLicks, count: 5, size: [0.35, 0.7], speed: [2, 5], life: [0.18, 0.4], emit: 'axis', spread: 45, lift: 0.3 });
+  else if (frost) k.accent = def({ tex: 'shard', blend: 'add', count: 8, life: [0.35, 0.8], shape: { type: 'sphere', radius: 0.1 }, emit: 'axis', spread: 50, lift: 0.3,
+    speed: [3, 8, 1.3], size: [0.05, 0.16, 2], spin: [4, 14], gravity: -11, drag: 0.8, collide: 'ground', bounce: 0.35, erode: 'erodeLate', erodeChannel: 'cracks',
+    color: [key(0, [6, 8, 10], 1, 1.2), key(0.12, P.core, 1, 0.6), key(0.6, P.mid, 0.9, 0.8), key(1, P.tail, 0)] });
+  else if (el === 'volt') k.accent = def({ tex: 'arc', blend: 'add', count: 6, life: [0.05, 0.14], shape: { type: 'sphere', radius: 0.2 }, emit: 'axis', spread: 70, speed: [4, 10],
+    size: [0.3, 0.7], aspect: 2.2, align: 'velocity', stretch: 0.01, rotation: 0, flicker: { amount: 0.8, rate: 45 }, groundFade: 0,
+    color: [key(0, [7, 6, 11], 1, 1.1), key(0.4, P.core, 1, 0.8), key(1, P.mid, 0)] });
+  else k.accent = def({ ...LIB.sparks, count: 6, tex: 'ember', size: [0.03, 0.06], stretch: 0, align: 'billboard', speed: [2, 6], life: [0.5, 1.2], gravity: -9, flicker: { amount: 0.4, rate: 12 },
+    color: [[0, 9, 7, 4, 1], [0.2, 5, 2.4, 0.6, 1], [0.7, 1.2, 0.3, 0.04, 0.9], [1, 0.3, 0.06, 0, 0]] });
   // lingering layer: embers rise, frost glitter hangs and falls, volt crackles, steel motes drift
   if (el === 'ember') k.motes = def({ ...LIB.embers, count: 10 });
   else if (frost) k.motes = def({ ...LIB.glitter, count: 16, gravity: -0.6, life: [0.5, 1.4], size: [0.04, 0.11, 2], color: [[0, 4, 7, 10, 0], [0.08, 4, 7, 10, 1], [0.6, 1.2, 2.6, 5, 0.8], [1, 0.4, 0.8, 1.6, 0]] });

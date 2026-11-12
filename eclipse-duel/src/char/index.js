@@ -886,6 +886,8 @@ export function createCharacter(ctx, design, opts = {}) {
       if (states[k].w >= 1 && states[k].gw >= 1) { while (k > 0) { statePool.push(states.shift()); k--; } break; }
     }
     const cur = states[states.length - 1];
+    // elbow swivel speed limit of the arm IK this update (~1500 deg/s: the same path at any frame rate)
+    ikOpt.maxStep = gripOpt.maxStep = Math.min(Math.PI, 26 * dt);
     breathPhase += dt * char.breath.rate * Math.PI * 2;
     if (breathPhase > 1e4) breathPhase %= Math.PI * 2;
     for (let k = 0; k < states.length; k++) {

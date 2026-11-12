@@ -31,13 +31,15 @@ export class EffectPool {
   age(s) { return (s.realtime ? this.clock.real : this.clock.game) - s.t0; }
 
   /**
-   * Take a slot: { life (s, Infinity = until stop/kill), realtime }. Returns { slot, handle }. The handle has
+   * Take a slot: { life (s, Infinity = until stop/kill), realtime, last }. Returns { slot, handle }. The handle has
    * alive, kill(), stop(), follow(target, offset?) and is tracked into the running preset group.
    * Extend the handle with module-specific methods before returning it.
    */
-  alloc({ life = 1, realtime = false } = {}) {
+  alloc({ life = 1, realtime = false, last = false } = {}) {
     let s = null;
-    for (const x of this.slots) if (!x.live) { s = x; break; }
+    const sl = this.slots;
+    // `last`: take the highest free slot (drawn after the others in an instanced layer: occluders such as the eclipse disc)
+    if (last) { for (let i = sl.length - 1; i >= 0; i--) if (!sl[i].live) { s = sl[i]; break; } } else for (const x of sl) if (!x.live) { s = x; break; }
     if (!s) { s = this.slots[0]; for (const x of this.slots) if (x.t0 < s.t0) s = x; this._free(s); }
     s.live = true;
     this.live++;

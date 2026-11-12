@@ -98,49 +98,65 @@ export function buildRuins(rng, tier) {
     return c;
   };
   let friezeK = 0;
+  // the blocks actually laid on each course, [theta0, theta1, broken top]: a block (or a moulding run) is laid only
+  // where the course under it is solid, so nothing bridges a gap where the wall below has fallen
+  const laid = [];
+  const overlap = (list, a, b, solidOnly) => {
+    let s = 0;
+    for (const [t0, t1, top] of list) if (!solidOnly || !top) s += Math.max(0, Math.min(b, t1) - Math.max(a, t0));
+    return s / (b - a);
+  };
+  const solidUnder = (c, a, b, k) => overlap(laid[c], a, b, true) >= k;
+  const wallBlocks = [];
   for (let c = 0; c < courses; c++) {
-    const plinth = c === 0;
-    const h = courseHs[c];
-    const y0 = courseY[c];
+    laid.push([]);
     let th = -thetaMax - rng.range(0, 1.2) / wallRc;
     while (th < thetaMax) {
       const L = rng.range(0.95, 1.75);
       const dth = L / wallRc;
       const tc = th + dth / 2;
       th += dth;
-      // the course must stand across the block's whole footprint, or an upper block can bridge a fallen lower one
-      const n = Math.min(coursesAt(tc), coursesAt(tc - dth * 0.4), coursesAt(tc + dth * 0.4));
-      if (c >= n) continue;
+      const n = coursesAt(tc);
+      if (c >= n || (c > 0 && !solidUnder(c - 1, th - dth, th, 0.8))) continue;
       const top = c === n - 1 && n < courses + 1;
-      const fallen = top && rng.chance(0.25);
-      const hh = top ? h * rng.range(0.55, 1) : h;
-      const depth = plinth ? wallT + 0.16 : wallT;
-      const rr = plinth ? wallRc - 0.08 : wallRc;
-      const jitter = fallen ? rng.range(-0.25, 0.25) : rng.range(-0.012, 0.012);
-      const p = ringPos(rr + jitter, tc, y0 + hh / 2);
-      const m = trs(p.x, p.y, p.z, -tc + rng.range(-0.01, 0.01) + (fallen ? rng.range(-0.2, 0.2) : 0), fallen ? rng.range(-0.15, 0.15) : 0, fallen ? rng.range(-0.1, 0.1) : rng.range(-0.004, 0.004));
-      // interior blocks show only their face; blocks at a break keep their exposed top / ends
-      const capped = c + 1 < n && c + 1 < courses ? true : c + 1 === courses && n > courses;
-      const ends = coursesAt(tc - dth * 0.75) <= c || coursesAt(tc + dth * 0.75) <= c;
-      const geo = top && rng.chance(0.55) ? brokenBlock(L - 0.025, hh - 0.012, depth, rng, { jag: 0.5, nx: 3, nz: 2 })
-        : top || fallen ? chamferBox(L - 0.025, hh - 0.012, depth, 0.045, rng, top ? 0.5 : 0.12)
-          : ashlar(L - 0.025, hh - 0.012, depth, 0.045, rng, 0.12, { top: !capped, ends });
-      let orn = null;
-      // procession: figures walk toward the vista on both sides (mirrored on the right), an eclipse roundel every
-      // fourth block, an orant every seventh
-      if (c === friezeCourse && !top) {
-        friezeK++;
-        const kind = friezeK % 4 === 0 ? ORN.roundel : friezeK % 7 === 0 ? ORN.orant : ORN.figure;
-        const nrep = Math.max(1, Math.round(L / (kind === ORN.roundel ? 0.6 : 0.5)));
-        const mirror = kind === ORN.figure && tc > 0;
-        orn = { cell: kind, amount: erosion() * 1.15, su: mirror ? -nrep : nrep, ou: mirror ? nrep : 0, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
-      } else if (plinth && !top) {
-        orn = { cell: ORN.glyphs, amount: erosion() * 0.8, su: L / 0.95, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
-      } else if (!top && rng.chance(0.12)) {
-        orn = { cell: ORN.panel, amount: 0.5, su: 1, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
-      }
-      S.add(geo, m, st(blockTint(), orn ? { orn } : {}));
+      laid[c].push([th - dth, th, top]);
+      wallBlocks.push({ c, a: th - dth, b: th, tc, L, top });
     }
+  }
+  // then cut them, knowing what actually lies above and beside each one: interior blocks show only their face, a
+  // block keeps its top / ends wherever they are exposed
+  for (const { c, a, b, tc, L, top } of wallBlocks) {
+    const plinth = c === 0;
+    const h = courseHs[c];
+    const y0 = courseY[c];
+    const fallen = top && rng.chance(0.25);
+    const hh = top ? h * rng.range(0.55, 1) : h;
+    const depth = plinth ? wallT + 0.16 : wallT;
+    const rr = plinth ? wallRc - 0.08 : wallRc;
+    const jitter = fallen ? rng.range(-0.25, 0.25) : rng.range(-0.012, 0.012);
+    const p = ringPos(rr + jitter, tc, y0 + hh / 2);
+    const m = trs(p.x, p.y, p.z, -tc + rng.range(-0.01, 0.01) + (fallen ? rng.range(-0.2, 0.2) : 0), fallen ? rng.range(-0.15, 0.15) : 0, fallen ? rng.range(-0.1, 0.1) : rng.range(-0.004, 0.004));
+    const capped = c + 1 < courses && overlap(laid[c + 1], a, b, false) > 0.97;
+    const e = 0.004 / wallRc;
+    const ends = overlap(laid[c], a - 2 * e, a - e, false) < 0.5 || overlap(laid[c], b + e, b + 2 * e, false) < 0.5;
+    const geo = top && rng.chance(0.55) ? brokenBlock(L - 0.025, hh - 0.012, depth, rng, { jag: 0.5, nx: 3, nz: 2 })
+      : top || fallen ? chamferBox(L - 0.025, hh - 0.012, depth, 0.045, rng, top ? 0.5 : 0.12)
+        : ashlar(L - 0.025, hh - 0.012, depth, 0.045, rng, 0.12, { top: !capped, ends });
+    let orn = null;
+    // procession: figures walk toward the vista on both sides (mirrored on the right), an eclipse roundel every
+    // fourth block, an orant every seventh
+    if (c === friezeCourse && !top) {
+      friezeK++;
+      const kind = friezeK % 4 === 0 ? ORN.roundel : friezeK % 7 === 0 ? ORN.orant : ORN.figure;
+      const nrep = Math.max(1, Math.round(L / (kind === ORN.roundel ? 0.6 : 0.5)));
+      const mirror = kind === ORN.figure && tc > 0;
+      orn = { cell: kind, amount: erosion() * 1.15, su: mirror ? -nrep : nrep, ou: mirror ? nrep : 0, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
+    } else if (plinth && !top) {
+      orn = { cell: ORN.glyphs, amount: erosion() * 0.8, su: L / 0.95, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
+    } else if (!top && rng.chance(0.12)) {
+      orn = { cell: ORN.panel, amount: 0.5, su: 1, sv: 1, fn: frontFace(L - 0.025, hh - 0.012) };
+    }
+    S.add(geo, m, st(blockTint(), orn ? { orn } : {}));
   }
   // base moulding on the plinth (torus with a laurel wrap + cavetto), and the cornice (egg-and-dart fascia, dentils,
   // corona, cyma crown), each laid in block-length runs that stop where the wall has fallen
@@ -148,7 +164,8 @@ export function buildRuins(rng, tier) {
   const baseOrn = { 0: [0, 0.25], 1: [0.25, 0.5], 2: [0.5, 0.75], 3: [0.75, 1] };
   const corProf = [[0.0, 0.0], [0.06, 0.0], [0.06, 0.16], [0.1, 0.16], [0.1, 0.3], [0.14, 0.3], [0.3, 0.33], [0.32, 0.36], [0.32, 0.48], [0.345, 0.5, false], [0.335, 0.56, false], [0.28, 0.6, false], [0.22, 0.655, false], [0.205, 0.7], [-1.12, 0.73]];
   const corOrn = { 1: [0, 1, ORN.eggDart, 1 / 0.17], 3: [0, 1, ORN.dentil, 1 / 0.13] };
-  const runs = (r, minCourse, y, prof, ornMap, cells, lenRange, fallChance) => {
+  const runs = (r, onCourse, y, prof, ornMap, cells, lenRange, fallChance) => {
+    const out = [];
     let th = -thetaMax;
     while (th < thetaMax) {
       const L = rng.range(lenRange[0], lenRange[1]);
@@ -156,22 +173,25 @@ export function buildRuins(rng, tier) {
       const t0 = th, t1 = th + dth;
       th = t1 + 0.012 / r;
       const tc = (t0 + t1) / 2;
-      // the wall must stand under the whole run (and the blocks reaching past its ends), sampled finer than the
-      // course count changes along the broken kerb
-      let held = true;
-      for (let k = 0; k <= 8 && held; k++) held = coursesAt(t0 - 0.6 / r + ((t1 - t0 + 1.2 / r) * k) / 8) >= minCourse;
-      if (!held) continue;
-      if (rng.chance(fallChance)) continue;
+      if (!solidUnder(onCourse, t0, t1, 0.9) || rng.chance(fallChance)) continue;
       const g = sweep(prof, arcPath(r, t0, t1, y, 3), { orn: ornMap });
       const tilt = rng.chance(0.15) ? rng.range(-0.025, 0.025) : 0;
       const m = new THREE.Matrix4().makeRotationAxis(ringPos(1, tc, 0), tilt);
       // relief: dentils / eggs in metres along the run; one cell per ornament repeat
       S.add(g, m, st(blockTint() * 0.95, { uv: 'keep', orn: { cell: cells[0], amount: erosion(), su: 1 / cells[1], sv: 1 } }));
+      out.push([t0, t1, false]);
     }
+    return out;
   };
-  runs(wallR, 1, courseY[1], baseProf, baseOrn, [ORN.laurel, 0.42], [1.2, 2.2], 0.08);
+  runs(wallR, 0, courseY[1], baseProf, baseOrn, [ORN.laurel, 0.42], [1.2, 2.2], 0.08);
   S.section('cornice');
-  runs(wallR, courses + 1, courseY[courses], corProf, corOrn, [ORN.dentil, 1], [1.4, 2.1], 0.1);
+  const corniceRuns = runs(wallR, courses - 1, courseY[courses], corProf, corOrn, [ORN.dentil, 1], [1.4, 2.1], 0.1);
+  /** Height of the standing wall top at theta (top of the cornice where a run survives, else of the highest course). */
+  const wallTopAt = (th) => {
+    if (overlap(corniceRuns, th - 0.2 / wallR, th + 0.2 / wallR, false) > 0.99) return courseY[courses] + 0.73;
+    for (let c = courses - 1; c >= 0; c--) if (overlap(laid[c], th - 0.2 / wallRc, th + 0.2 / wallRc, true) > 0.99) return courseY[c + 1];
+    return 0;
+  };
   S.section('podium');
 
   // pilasters break the long courses into bays (none near the vista); carved panel on the face, broken where the
@@ -747,7 +767,7 @@ export function buildRuins(rng, tier) {
   }
 
   // ---- dressing ------------------------------------------------------------------------------------------------------
-  const flames = dressRuins({ S, M, P, rng, tier, braziers, pillars, arches, stoneColor, glow, coursesAt, courseY, courses, ringPos, edgeR });
+  const flames = dressRuins({ S, M, P, rng, tier, braziers, pillars, arches, stoneColor, glow, wallTopAt, courseY, courses, ringPos });
 
   const sections = { ...S.tris };
   for (const [k, v] of Object.entries(M.tris)) sections['iron.' + k] = v;

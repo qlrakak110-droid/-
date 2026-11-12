@@ -163,12 +163,13 @@ const FRAG_BODY = /* glsl */ `
   float vis = smoothstep(th - 0.06, th + 0.06, resist);
   float smear = exp(-max(behind, 0.0) / (0.1 + arcLen * 0.06)) * sweeping;
   // the body starts at the saturated mid colour and cools to the tail; only the edge line and the head are hot
-  float k = 0.3 + cool * 0.75 + (1.0 - edgeness) * 0.3 - line * 0.25 - smear * 0.2 - hot + (look == 4 ? 0.6 * (1.0 - line) : 0.0);
+  // (the body sits on the saturated mid from birth: a large area at core values whitens under ACES and bloom)
+  float k = 0.42 + cool * 0.62 + (1.0 - edgeness) * 0.26 - line * 0.4 - smear * 0.36 - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
   rgb += vCore.rgb * line * (1.0 - cool * 0.8) * flick;
   rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
-  rgb += vCore.rgb * dissolveEdge * (look == 1 ? 0.9 : look == 2 ? 1.2 : 0.4) * (1.0 - le);
+  rgb += mix(vCore.rgb, vMid.rgb, sat(cool * 1.5)) * dissolveEdge * (look == 1 ? 0.6 : look == 2 ? 1.0 : 0.35) * (1.0 - le) * (1.0 - le);
   float tips = smoothstep(0.0, 0.22, prof);
   float a = sat(dens * (look == 4 ? 1.0 : 0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
   extra *= reveal * tips * vCore.a * mix(1.0, vis, glint);

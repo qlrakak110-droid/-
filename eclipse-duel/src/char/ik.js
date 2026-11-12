@@ -6,6 +6,11 @@
 import { qmul, qmulInv, qrot, qslerp, qfromBasis, qaxis, qfromTo, qcopy, softLimit, smooth01 } from './rigmath.js';
 import { fk } from './skeleton.js';
 
+/**
+ * Swivel memory: the elbow's swivel follows the best one at a limited speed (opt.maxStep per solve = speed x dt, set by
+ * the character), so two near-equal solutions never make it flip, and the path is the same at 30 / 60 / 120 Hz.
+ */
+export const HYSTERESIS = false;
 /** Default soft-reach fraction (of l1 + l2) where the limb starts to ease into full extension. 0 = can lock straight. */
 export const SOFT = 0.006;
 /** Wrist range used by the arm solver (radians): swing of the hand off the forearm axis, pronation / supination. */
@@ -38,6 +43,7 @@ const tq = new Float32Array(16), tv = new Float32Array(12);
 const X = [0, 0, 0], Y = [0, 0, 0], Z = [0, 0, 0];
 const oldL = new Float32Array(12), newL = new Float32Array(12), endModel = new Float32Array(4);
 const sv = new Float32Array(32); // swivel search scratch
+const pre = new Float32Array(13); // unclamped solution (fallback)
 const rollQ = new Float32Array(8);
 
 /**
@@ -63,7 +69,7 @@ function limbAt(phi, sign, bend, endQ, eo, out, oo) {
 const S = { sign: 1, bend: 0, er: null, eo: 0, mq: null, po: 0, phi0: 0, mem: 0, prev: 0, body: null, l1: 0, rx: 0, ry: 0, rz: 0 };
 function swivelCost(f) {
   limbAt(f, S.sign, S.bend, S.er, S.eo, sv, 20);
-  let c = armCost(sv, 20, 24, S.mq, S.po) + 0.7 * (1 - Math.cos(f - S.phi0)) + (S.mem ? 4 * (1 - Math.cos(f - S.prev)) : 0);
+  let c = armCost(sv, 20, 24, S.mq, S.po) + 0.7 * (1 - Math.cos(f - S.phi0));
   const B = S.body;
   if (B) { // elbow inside the torso (capsule B: a, b, radius incl. the arm): push the elbow out of the body
     const cf = Math.cos(f), sf = Math.sin(f);
@@ -131,8 +137,9 @@ function bestRoll(endQ, eo, fq, fo, gx, gy, gz, keep) {
  *   roll = null     [gx, gy, gz]: grip axis in the end frame around which the hand may roll freely (two-handed grip)
  *   rollKeep = 0.25 how strongly the authored roll is kept (0 = free)
  *   phi = 0         preferred swivel (rad) relative to the pole
- *   mem             Float32Array(3) [swivel, valid, wrist twist] kept by the caller per limb: hysteresis against elbow
- *                   flips and against the clamped wrist jumping between its two twist limits
+ *   mem             Float32Array(3) [swivel, valid, wrist twist] kept by the caller per limb: the swivel follows the
+ *                   best one at most maxStep per solve (no elbow flips); the clamped wrist keeps its side past 180 deg
+ *   maxStep = PI/6  largest swivel change of one solve (rad): the caller passes speed x dt
  *   keepLocal       with rot = null: keep the end bone's local rotation (wrist pose) instead of its model rotation
  *   body            Float32Array(8) torso capsule [a (3), b (3), radius + arm radius, body scale]: elbows stay out of it
  * Returns the reach ratio (dist / max length) before softening.
@@ -174,19 +181,18 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   if (wrist) {
     // swivel search: cost = arm comfort + a pull back to the pole (keeps the authored elbow when the arm is at ease)
     // + a pull toward last frame's swivel (mem): two near-equal solutions never make the elbow flip between frames
-    const phi0 = phi, mem = opt && opt.mem, hasMem = mem && mem[1] > 0, prev = hasMem ? mem[0] : 0;
+    const phi0 = phi, mem = opt && opt.mem, hasMem = !!(HYSTERESIS && mem && mem[1] > 0), prev = hasMem ? mem[0] : 0;
     S.sign = sign; S.bend = bend; S.er = er; S.eo = eo; S.mq = mq; S.po = parent * 4; S.phi0 = phi0; S.mem = hasMem ? 1 : 0; S.prev = prev;
     S.body = opt && opt.body; S.l1 = limb.l1; S.rx = mp[root * 3]; S.ry = mp[root * 3 + 1]; S.rz = mp[root * 3 + 2];
     let best = phi0, bc = swivelCost(phi0);
-    if (hasMem) { // track last frame's solution: search a window around it (no jumps to the far side of the circle)
+    const step = opt && opt.maxStep !== undefined ? opt.maxStep : Math.PI / 6;
+    if (hasMem) { // follow last frame's solution within the step this frame allows (no jumps across the circle)
       best = prev; bc = swivelCost(prev);
       for (let i = -8; i <= 8; i++) {
         if (!i) continue;
-        const f = prev + i * (Math.PI / 48), c = swivelCost(f);
+        const f = prev + (i / 8) * step, c = swivelCost(f);
         if (c < bc - 1e-9) { bc = c; best = f; }
       }
-      const c0 = swivelCost(phi0);
-      if (c0 < bc - 1e-9) { bc = c0; best = phi0; }
     } else {
       for (let i = 1; i < 24; i++) {
         const f = phi0 + (i < 12 ? i : i - 24) * (Math.PI / 12);
@@ -194,7 +200,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         if (c < bc - 1e-9) { bc = c; best = f; }
       }
     }
-    const span = hasMem ? Math.PI / 48 : Math.PI / 12;
+    const span = hasMem ? step / 8 : Math.PI / 12;
     let lo = best - span, hi = best + span; // golden-section refine
     const g = 0.381966;
     let a1 = lo + g * (hi - lo), b1 = hi - g * (hi - lo), ca1 = swivelCost(a1), cb1 = swivelCost(b1);
@@ -204,6 +210,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     }
     phi = ca1 < cb1 ? a1 : b1;
     if (swivelCost(phi) > bc) phi = best;
+    if (hasMem) phi = prev + Math.max(-step, Math.min(step, Math.atan2(Math.sin(phi - prev), Math.cos(phi - prev))));
     phi = Math.atan2(Math.sin(phi), Math.cos(phi));
     if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);
@@ -214,7 +221,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     limbAt(phi, sign, bend, er, eo, tq, 0);
   }
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
-  const wm = opt && opt.mem && opt.mem.length > 2 ? opt.mem : null;
+  const wm = HYSTERESIS && opt && opt.mem && opt.mem.length > 2 ? opt.mem : null;
+  qcopy(pre, 0, tq, 0); qcopy(pre, 4, newL, 8); qcopy(pre, 8, er, eo); pre[12] = bend;
   if (wrist && clampWrist(newL, 8, wm)) {
     // the wrist could not take the requested orientation: keep the clamped wrist pose (relative to the forearm) and
     // solve the reach again for it, so the fist (not the wrist) stays on the target
@@ -228,6 +236,16 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       limbAt(phi, sign, bend, er, eo, tq, 0);
     }
     qcopy(newL, 8, tq, 4);
+    // the fist must still be on the target (it always is, but for a configuration where the iteration cannot settle):
+    // otherwise keep the exact unclamped solution for this frame
+    const { root: r0, l1, l2, endOff } = limb;
+    qrot(sv, 28, tq, 0, 0, -l1, 0);
+    let fx = mp[r0 * 3] + sv[28], fy = mp[r0 * 3 + 1] + sv[29], fz = mp[r0 * 3 + 2] + sv[30];
+    qrot(sv, 28, sv, 16, 0, -l2, 0); fx += sv[28]; fy += sv[29]; fz += sv[30];
+    qrot(sv, 28, er, eo, endOff[0], endOff[1], endOff[2]); fx += sv[28]; fy += sv[29]; fz += sv[30];
+    if (Math.hypot(fx - target[to], fy - target[to + 1], fz - target[to + 2]) > 0.004 * (l1 + l2) && sv[11] < 1 - soft) {
+      qcopy(tq, 0, pre, 0); qcopy(newL, 8, pre, 4); qcopy(tq, 8, pre, 8); er = tq; eo = 8; bend = pre[12];
+    }
   }
   qmulInv(newL, 0, mq, parent * 4, tq, 0);       // root local
   qaxis(newL, 4, 0, 0, 1, sign * bend);          // mid local (hinge about Z)
@@ -288,7 +306,12 @@ function clampWrist(q, o, mem = null) {
   // a demand past +-180 deg stays on last frame's side (the clamped hand does not flip to the other limit)
   if (mem && mem[2] !== 0 && Math.abs(tw) > 2.4 && Math.abs(mem[2]) > 1.0 && Math.sign(tw) !== Math.sign(mem[2])) tw += tw < 0 ? 2 * Math.PI : -2 * Math.PI;
   const sw = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (x * x + z * z))));
-  const tw2 = softLimit(tw, WRIST.twistKnee, WRIST.twist), sw2 = softLimit(sw, WRIST.swingKnee, WRIST.swing);
+  // pronation limit, continuous around the circle: up to the knee as asked, then saturating at the limit, then (past
+  // ~140 deg asked, an impossible demand) easing back so that +180 and -180 meet at neutral - never a jump between
+  // the two limits
+  const at = Math.abs(tw), back = 1 - smooth01(at, 2.44, Math.PI);
+  const tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
+  const sw2 = softLimit(sw, WRIST.swingKnee, WRIST.swing);
   if (mem) mem[2] = tw2;
   if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw) < 1e-6) return false;
   // swing = q * conj(twist), twist = (0, sin(tw/2), 0, cos(tw/2))

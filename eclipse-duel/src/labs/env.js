@@ -133,6 +133,13 @@ createLab({
     inspTierHigh(ctx, lab, side = -1) { lookFrom(lab, [side * -3, 12.5, 3], [side * 22, 5.5, -8], 52); },
     inspImpactTop(ctx, lab) { lookFrom(lab, [-2.6, 9.5, 0.5], [-4.4, 0, -6.2], 50); },
     inspVista(ctx, lab) { lookFrom(lab, [2.0, 1.4, -9.0], [-4.0, 1.0, -16.5], 50); },
+    /** the toppled column and its upside-down capital by the left wall; the fallen drums by the right wall */
+    inspTopple(ctx, lab) { lookFrom(lab, [-7.0, 1.7, 3.4], [-11.8, 0.5, -1.4], 50); },
+    inspFallenR(ctx, lab) { lookFrom(lab, [8.4, 2.4, 0.6], [13.0, 0.8, -5.0], 50); },
+    /** the broken kerb across the vista, from the arena side (nothing may bridge a fallen course) */
+    inspKerb(ctx, lab) { lookFrom(lab, [0, 1.4, -8.0], [0, 0.6, -15.5], 60); },
+    /** the floor straight from above (puddles must read as wet stone, not holes) */
+    topDown(ctx, lab) { lookFrom(lab, [-2.0, 9.0, 2.6], [-2.0, 0, 1.0], 50); },
     /** telephoto hero shots of the colossi from the vista edge: whole figure / cowl and hands */
     colossusL(ctx, lab) { lookFrom(lab, [-2, 1.8, -13.5], [-53.7, 10.5, -223.6], 15); },
     colossusR(ctx, lab) { lookFrom(lab, [2, 1.8, -13.5], [61.5, 10.5, -221.6], 15); },

@@ -6,7 +6,7 @@ import { InstanceRing } from './instanced.js';
 import { EffectPool } from './pool.js';
 import { toVec3, toColor, RENDER_ORDER } from './util.js';
 
-const KIND = { glow: 0, star: 1, streak: 2, ring: 3, flash: 4 };
+const KIND = { glow: 0, star: 1, streak: 2, ring: 3, flash: 4, eclipse: 5 };
 const LAYOUT = { iPosT: 4, iColL: 4, iShape: 4, iEnv: 4, iDir: 4 };
 
 const VERT = /* glsl */ `
@@ -41,7 +41,7 @@ void main() {
   gl_Position = projectionMatrix * mv;
   vP = c;
   vCol = vec4(iColL.rgb * env, t);
-  vK = vec4(iShape.x, aspect, grow, 0.0);
+  vK = vec4(iShape.x, aspect, grow, env);
 }`;
 
 const FRAG = /* glsl */ `
@@ -74,8 +74,19 @@ void main() {
   } else if (kind == 3) {     // ring
     float w = 0.06 + 0.1 * (1.0 - vK.z);
     I = exp(-pow((r - 0.86) / w, 2.0)) * 1.2 + exp(-pow((r - 0.86) / (w * 0.3), 2.0)) * 0.8;
-  } else {                    // flash: wide soft bloom
+  } else if (kind == 4) {     // flash: wide soft bloom
     I = exp(-r * r * 3.0) * edge;
+  } else {                    // eclipse: a black disc that occludes everything drawn before it, under a thin white-hot
+                              // corona edge, a coloured inner corona and uneven streamers (premultiplied: alpha = disc)
+    float ang = atan(p.y, p.x);
+    float rays = 0.55 + 0.45 * sin(ang * 7.0 + 1.3) * sin(ang * 3.0 - 0.4) + 0.25 * sin(ang * 23.0);
+    float out1 = max(r - 0.5, 0.0);
+    I = exp(-pow((r - 0.505) / 0.012, 2.0)) * 3.0 + exp(-pow((r - 0.51) / 0.05, 2.0)) * 0.9
+      + exp(-out1 * 9.0) * step(0.5, r) * 0.55 * (0.6 + 0.4 * rays) + exp(-out1 * 3.0) * step(0.5, r) * 0.12 * rays;
+    I *= edge;
+    float disc = (1.0 - smoothstep(0.485, 0.5, r)) * clamp(vK.w, 0.0, 1.0);
+    gl_FragColor = vec4(vCol.rgb * I * (1.0 - disc * 0.97), disc);
+    return;
   }
   gl_FragColor = vec4(vCol.rgb * I, 0.0);
 }`;
@@ -92,7 +103,8 @@ export function installFlares(vfx, shared) {
   const mat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG, uniforms: { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal },
     transparent: true, depthWrite: false, depthTest: true,
-    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor,
+    // premultiplied: every kind writes alpha 0 (pure additive) except the eclipse disc, which occludes what is behind it
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   const mesh = new THREE.Mesh(ring.geometry, mat);
   mesh.frustumCulled = false;
@@ -107,7 +119,7 @@ export function installFlares(vfx, shared) {
 
   /**
    * Camera-facing flare.
-   * opts: pos, kind ('glow' | 'star' | 'streak' | 'ring' | 'flash', default 'glow'), color (HDR, default [6, 4, 2.5]),
+   * opts: pos, kind ('glow' | 'star' | 'streak' | 'ring' | 'flash' | 'eclipse', default 'glow'), color (HDR, default [6, 4, 2.5]),
    * intensity (multiplier, 1), size (m; or [start, end] grown with outExpo), aspect (width / height; default 1, streak 8),
    * life (s, 0.25), attack (s, 0), decay (fall-off power, 2), rotation (rad), dir (world direction the long axis
    * follows on screen), pull (m toward the camera, 0.3), screen (size is a fraction of the screen height), follow, offset,
@@ -116,9 +128,9 @@ export function installFlares(vfx, shared) {
   function flare(opts = {}) {
     const realtime = !!opts.realtime;
     const life = Math.min(opts.life != null ? opts.life : 0.25, 1e6);
-    const { slot, handle } = pool.alloc({ life, realtime });
     const kind = KIND[opts.kind || 'glow'];
     if (kind == null) throw new Error('vfx: unknown flare kind "' + opts.kind + '"');
+    const { slot, handle } = pool.alloc({ life, realtime, last: kind === 5 });
     toVec3(opts.pos, slot.pos);
     if (opts.follow) { slot.follow = opts.follow; if (opts.offset) toVec3(opts.offset, slot.offset); pool.place(slot); }
     toColor(opts.color != null ? opts.color : [6, 4, 2.5], col);

@@ -4,7 +4,7 @@
 // bronze secondary plates and gold rolled rims, violet-white arc-runes crackling along the cuirass, pauldrons, limbs and
 // helm (glow-controllable), a horned storm helm with fanned storm-feather wings and a glowing T-visor, a heavy layered
 // LEFT pauldron (spear bracing) crowned with jagged lightning fins, a compact right pauldron (spear arm), a split mail
-// hauberk skirt for riding, a long storm-blue surcoat (front panel + two long back tails, lightning-scorched hems), rowel
+// hauberk skirt for riding, a long storm-violet surcoat (front panel + two long back tails, lightning-scorched hems), rowel
 // spurs, and the war spear (src/char/weapons.js). Silhouette: tall and vertical, spiked at the head and the far
 // shoulder, coat tails streaming behind the legs — against KAEL's heavy, wide, caped mass and ISKA's hooded slender line.
 //
@@ -52,7 +52,7 @@ const L = {
 const CLOTH = { color: [0.021, 0.011, 0.038], rough: 0.82, set: 'cloth', amt: 1 };
 const LINING = { color: [0.012, 0.006, 0.02], rough: 0.92, cavity: 0.5 };
 
-/** Spear looks: storm-blued head, blackened haft, gold-bronze bands, storm-blue grip wraps. */
+/** Spear looks: storm-blued head, blackened haft, gold-bronze bands, violet grip wraps. */
 const SPEAR = {
   ...WEAPON_LOOKS.spear,
   head: { color: [0.2, 0.21, 0.25], rough: 0.2, metal: 1, set: 'hammered', amt: 0.3 },

@@ -1,7 +1,7 @@
 // ISKA 이스카 — 서릿별 무녀 · Froststar Oracle. Character design (src/char/README.md "Design format").
 //
 // ~1.78 m, slender and long-legged. Fitted silver-white armour over a dark indigo bodysuit: a sculpted bodice, a cinched
-// lamellar waist, scale tassets, crescent-moon spaulders, slim vambraces and greaves. The head is a peaked indigo hood
+// lamellar waist, scale tassets, crescent-moon spaulders, rerebraces, slim vambraces and greaves. The head is an indigo cowl
 // flowing into a shoulder mantle, a pearl-silver oracle half-mask with glowing frost eyes and starlight "tears", a fine
 // veil, a high collar and a crescent-and-star circlet standing over the hood brim. Twin cape tails, a long pointed front
 // tabard (tailored cloth: shaped hems, silver embroidered borders, glowing star stitching) and four ribbons (spring
@@ -30,7 +30,7 @@ const GLOW = { inlay: [1.0, 2.7, 5.8], vein: [0.3, 1.05, 2.7], eye: [2.2, 5.2, 9
 
 // ---- looks (linear colours) ---------------------------------------------------------------------------------------------
 const L = {
-  silver: { color: [0.44, 0.47, 0.53], rough: 0.36, metal: 1, set: 'hammered', amt: 0.45 },
+  silver: { color: [0.38, 0.41, 0.47], rough: 0.4, metal: 1, set: 'hammered', amt: 0.45 },
   silverEngr: { color: [0.4, 0.43, 0.5], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.32 },
   crescent: { color: [0.43, 0.46, 0.53], rough: 0.4, metal: 1, set: 'engraved', amt: 0.6, vein: 0.22, wear: 1.2 },
   blued: { color: [0.075, 0.095, 0.16], rough: 0.3, metal: 1, set: 'hammered', amt: 0.6, wear: 1.1 },

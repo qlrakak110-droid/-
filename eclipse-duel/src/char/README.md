@@ -263,11 +263,13 @@ Position-only or orientation-only keys are allowed (key `aim` a frame later than
 Without any orientation key a foot keeps its FK orientation (as the leg puts it) and a hand keeps its FK wrist pose
 (it rides the new forearm).
 
-**Arms stay human.** Hand targets choose the elbow's swivel around the shoulder-wrist line (from the pole, kept from
-frame to frame) so that the wrist stays within pronation / supination +-90 deg and 85 deg of bend, the humerus within
-its rotation range and the elbow out of the torso (design collider `torso`). What the swivel cannot absorb is clamped
-softly at the wrist (the blade then deviates from the key: the key asked for an impossible wrist — `qa.jointLimits`
-lists such frames). Near or past full reach the clavicle rises / protracts toward the target (up to ~24 deg). In a
+**Arms stay human.** Hand targets choose the elbow's swivel around the shoulder-wrist line (a smooth cost: pole,
+wrist, humeral rotation, elbow out of the torso) so that the wrist stays within pronation / supination +-90 deg and
+85 deg of bend, the humerus within its rotation range and the elbow out of the body (design collider `torso`). What
+the swivel cannot absorb is clamped softly at the wrist (the blade then deviates from the key: the key asked for an
+impossible wrist — `qa.jointLimits` lists such frames); a demand past ~140 deg of pronation eases back to neutral at
+180 deg, so the hand never jumps between its two limits. Keys that ask for that much can still make the elbow switch
+sides in one frame: fix the key (aim / up), it is not reachable by a human arm. Near or past full reach the clavicle rises / protracts toward the target (up to ~24 deg). In a
 two-handed grip the off hand may roll around the handle; if the grip point is out of the off arm's reach, the main
 hand is pulled toward the off shoulder just enough for both to hold it (`diag.gripErr`). When a crossfade changes the
 grip point (pommel -> blade), the off hand lets go and moves with its arm over >= 0.35 s, then re-grips.
@@ -456,9 +458,9 @@ pose), `bones` (skeleton overlay). The lab applies root motion to `root.position
 * `root.position.y` > 0 (jumps) is fine: the floor for foot contact and cloth is world `y = 0`.
 * Rotating `root` (cinematics) is supported: cloth / springs receive the rotation as inertia, gravity stays world down.
 * All character materials share one shader program (`customProgramCacheKey`), so a second fighter costs no compile.
-* Determinism: no randomness at runtime; cloth gusts are functions of game time. Three small memories make motion
-  continuous where a pose alone is ambiguous: the elbow swivel of each arm IK, the side of a twist past +-180 deg and the
-  automatic-drop release. They only matter near those limits; `teleport()` clears them.
+* Determinism: no randomness at runtime; cloth gusts are functions of game time. The arm IK is a pure function of the
+  pose (identical at 30 / 60 / 120 Hz and when scrubbed). Two small memories only act at limits: twist helpers keep
+  their side past +-180 deg, and the automatic pelvis drop is released over ~80 ms; `teleport()` clears them.
 * Clips shared between body types: `play(name, { scale: char.bodyScale })` (or `design.clipScale`) scales hips offsets,
   root motion and IK targets / poles authored for the 1.95 m knight; hips / chest-space targets scale too.
 
@@ -487,3 +489,6 @@ node tools/shot.mjs rigqa --eval "__ED.qa.clip('demo.combo3', 'iska')"         #
 | cpu | ms per update of the knight with both cloths (best batch, p10 of 10-update batches) |
 
 Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~20-40 s.
+Checks marked `[known, round 1]` are residual single-frame arm switches in demo clips whose keys ask for more wrist and
+shoulder rotation than a human has (combo3 at 0.233 s, the mirrored combo1M); they are held to their measured value so
+any regression still fails.

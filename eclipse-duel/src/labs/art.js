@@ -125,10 +125,8 @@ definePose('artlab.vorn.strike', {
   },
   grip: 1, curl: [1, 1],
 });
-const poseOf = (d, kind) => {
-  const id = d.id === 'vorn' ? 'vorn' : d.id;
-  return ['kael', 'iska', 'vorn'].includes(id) ? `artlab.${id}.${kind}` : (kind === 'hero' ? d.idle || 'demo.idle' : 'demo.guard');
-};
+/** The lab pose of a design (kind: 'hero' | 'combat' | 'strike'); designs without lab poses use the demo clips. */
+const poseOf = (d, kind) => (['kael', 'iska', 'vorn'].includes(d.id) ? `artlab.${d.id}.${kind}` : (kind === 'hero' ? d.idle || 'demo.idle' : 'demo.guard'));
 
 /** Procedural studio environment: dark dome, warm key softbox, cold rim strips, ember floor bounce. */
 function studioEnv(renderer) {

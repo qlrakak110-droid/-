@@ -116,15 +116,19 @@ export class MeshLayer {
   /** Per frame: free expired slots, call `this.visit(slot, age)` on live ones, upload, toggle visibility. */
   update() {
     const pool = this.pool, slots = pool.slots;
-    let anyD = false;
+    let anyD = false, top = 0;
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i];
       if (!s.live) continue;
       const age = pool.age(s);
       if (age >= s.life) { pool._free(s); continue; }
       if (this.visit) this.visit(s, age);
+      if (s.live) top = i + 1;
       if (s.distort) anyD = true;
     }
+    // draw only up to the highest live slot (slots are taken lowest-first), not the historical peak: every instance of
+    // these templates costs ~1-5k triangles of vertex work even when its shader culls it
+    this.ring.highWater = top;
     this.ring.commit();
     this.mesh.visible = pool.live > 0;
     if (this.dmesh) this.dmesh.visible = anyD;

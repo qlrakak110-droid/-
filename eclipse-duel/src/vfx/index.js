@@ -89,7 +89,19 @@ export function createVfx(ctx) {
     ctx, root, textures, clock, uniforms, rng: ctx.rng, util,
     EffectPool, InstanceRing, ParamTable, tableGlsl, makeQuadGeometry,
     /** Add a spawn handle to the running preset's group (returns the handle). */
-    track(h) { if (capture) capture.handles.push(h); return h; },
+    track(h) {
+      if (capture) {
+        const hs = capture.handles;
+        hs.push(h);
+        // long-running groups (auras re-spawning bolts, storms) would grow without bound: drop finished handles
+        if (hs.length >= 128 && (hs.length & 63) === 0) {
+          let j = 0;
+          for (let i = 0; i < hs.length; i++) if (hs[i].alive) hs[j++] = hs[i];
+          hs.length = j;
+        }
+      }
+      return h;
+    },
     currentGroup() { return capture; },
     /** Run fn with `group` as the capture group (used by the scheduler). */
     runInGroup(group, fn) {

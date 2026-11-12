@@ -11,8 +11,9 @@ src/labs/art_vorn.js   look-dev lab: lighting rig / arena, lab-only spear poses,
 The design is a tall cavalry knight: storm-blued gunmetal plate, bronze secondary plates, gold rolled rims, violet-white
 arc-runes, a horned storm helm with fanned storm-feather wings and a glowing T-visor, a heavy layered left pauldron
 (spear bracing) crowned with jagged lightning fins, a compact right pauldron (spear arm) with a gold comb, a split mail
-hauberk skirt, a storm-blue surcoat (front panel + two long back tails with lightning-scorched hems), rowel spurs and the
-war spear of `src/char/weapons.js` (VORN looks: storm-blued head, blackened haft, storm-blue wraps).
+hauberk skirt, a storm-violet surcoat (front panel + two long back tails with lightning-scorched hems; violet keeps him
+apart from ISKA's indigo), rowel spurs and the war spear of `src/char/weapons.js` (VORN looks: storm-blued head,
+blackened haft, violet wraps).
 
 ## Usage
 
@@ -44,7 +45,7 @@ c.play(name, { scale: c.bodyScale });        // shared clips authored for the 1.
 
 | channel | colour | where |
 |---|---|---|
-| `inlay` | (3.4, 2.3, 8.6) | arc-runes: sternum bolt with forks, pauldron bolts, vambraces, cuisses, greaves, fins, feathers, horn seams, cheek "tears", belt plaque cores, plackart glyph |
+| `inlay` | (2.6, 1.75, 6.6) | arc-runes: sternum bolt with forks, pauldron bolts, vambraces, cuisses, greaves, fins, feathers, horn seams, cheek "tears", belt plaque cores, plackart glyph |
 | `vein` | (1.6, 0.8, 4.6) | charge: engraved grooves of the gold trim (0.06) and the bronze horns (0.08): near dark at rest, they light on a flare; the scorched surcoat hems |
 | `eye` | (6.0, 4.9, 11.5) | T-visor (eye hot spots, dimmer breath slot), cheek breath slits (0.12) |
 
@@ -77,8 +78,8 @@ Frames: a bone's zero-pose frame (+X forward, +Y up, +Z right / camera side); ri
   open failures are shared runtime items the rig team is working on: twist helper steps, pelvis drop, crossfades).
 * Grip (`art_vorn` scenario `grip`, off-hand distance to the grip point after settling): `grip` and `choke` 0 mm in the guard,
   thrust, overhead and brace poses; `butt` reachable in the thrust / overhead poses; `head` (+0.78 m) only in close holds.
-* Feet (`feetContact`): sole and toe within ±1.5 mm of the floor in the rest, guard and lunge poses (the shared sabaton toe
-  cap is lifted 6.5 mm: its drooping tip would sink 7 mm).
+* Feet (`feetContact`, or `contact` in the roster lab `art.js`): the fitted shared sabaton (`sabaton({ P: rig.P })`) keeps
+  the soles 1 mm above the floor in the rest, guard and lunge poses.
 * Pauldron lames are rigid but shared between the deltoid helper and the upper-arm twist bone (lower lames follow the
   arm), so the overhead pose does not leave rings floating around the shoulder.
 

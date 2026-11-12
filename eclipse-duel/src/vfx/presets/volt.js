@@ -92,7 +92,7 @@ export function defineVolt(vfx, P) {
     v.beam({ look: 'volt', from: at.pos, to: tip, width: 0.3 * s, extend: 0.03, release: 0.09, life: 0.17, flares: false, intensity: i });
     v.flare({ kind: 'streak', pos: tip, size: 0.18 * s, aspect: 22, life: 0.14, decay: 2.5, dir: d, color: V.core, intensity: 0.9 * i });
     v.flare({ kind: 'glow', pos: tip, size: 0.7 * s, life: 0.08, color: WHITE, intensity: 0.8 * i });
-    v.light({ pos: lightAt(tip), color: V.core, intensity: 60 * i, range: 5, duration: 0.2, flicker: 0.5 });
+    v.light({ pos: lightAt(tip, 1.3), color: V.core, intensity: 60 * i, range: 5, duration: 0.22, decay: 'outCubic', flicker: 0.5 });
     [0.35, 0.68, 1.0].forEach((u, k) => v.schedule(0.012 * k, (w) => w.ring({ normal: d, look: 'volt', pos: at.pos.clone().addScaledVector(d, reach * u),
       radius: [0.05 * s, (0.35 + 0.35 * u) * s], width: [0.08 * s, 0.16 * s], life: 0.18, intensity: (0.6 + 0.4 * u) * i })));
     for (let k = 0; k < 2; k++) {
@@ -121,7 +121,7 @@ export function defineVolt(vfx, P) {
       v.burst(CRAWL, { pos: arcPoint(at.pos, plane, a, R * 0.9), count: n(4, i), scale: s, delay: sweep * u + 0.02 });
     }
     const mid = arcPoint(at.pos, plane, (arc[0] + arc[1]) / 2, R);
-    v.light({ pos: lightAt(mid, 1.2), color: V.core, intensity: 55 * i, range: 5.5, duration: 0.3, flicker: 0.6, flickerRate: 22 });
+    v.light({ pos: lightAt(mid, 1.2), color: V.core, intensity: 55 * i, range: 5.5, duration: 0.3, decay: 'outCubic', flicker: 0.6, flickerRate: 22 });
     const low = arcPoint(at.pos, plane, arc[0] + (arc[1] - arc[0]) * 0.75, R * 0.9);
     if (low.y < 1.4) v.schedule(sweep, (w) => w.bolt({ from: low, to: vec([low.x + f * 0.4, 0.02, low.z + 0.2]), width: 0.1 * s, branches: 1, strikes: 2, detail: 4, life: 0.18, leader: 0, impact: true, intensity: 0.8 * i }));
     v.burst(OZONE, { pos: mid, dir: [0, 1, 0], count: 2, scale: 0.6 * s, delay: 0.1 });
@@ -250,7 +250,7 @@ export function defineVolt(vfx, P) {
       p.z += (rng() - 0.5) * 0.3;
       v.schedule((x / len) * 0.06, (w) => w.decal({ kind: 'scorch', pos: p, radius: (0.3 + rng() * 0.4) * s, life: 2 + rng(), palette: 'volt', magma: 0.5 }));
     }
-    v.light({ pos: lightAt(ah.clone().lerp(bh, 0.5)), color: V.core, intensity: 70 * i, range: 6, duration: 0.3, flicker: 0.6 });
+    v.light({ pos: lightAt(ah.clone().lerp(bh, 0.5), 1.3), color: V.core, intensity: 70 * i, range: 6, duration: 0.3, decay: 'outCubic', flicker: 0.6 });
     v.schedule(0.06, (w) => {
       w.burst(KIT.volt.flash, { pos: bh, scale: 0.6 * s, intensity: i });
       w.burst(ARCS, { pos: bh, count: n(10, i), scale: s });
@@ -264,7 +264,7 @@ export function defineVolt(vfx, P) {
   function burst(v, p, s, i) {
     v.burst(KIT.volt.flash, { pos: p, scale: 0.9 * s, intensity: i });
     v.flare({ kind: 'star', pos: p, size: 1.8 * s, life: 0.16, decay: 3, color: V.core, intensity: 0.9 * i, rotation: rng() });
-    v.light({ pos: lightAt(p, 1.3), color: V.core, intensity: 110 * i, range: 7, duration: 0.35, flicker: 0.6 });
+    v.light({ pos: lightAt(p, 1.4), color: V.core, intensity: 110 * i, range: 7, duration: 0.36, decay: 'outCubic', flicker: 0.6 });
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * Math.PI * 2 + rng() * 0.8;
       const r = (1.2 + rng()) * s;

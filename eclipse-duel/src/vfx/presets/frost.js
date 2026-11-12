@@ -189,7 +189,7 @@ export function defineFrost(vfx, P) {
   function shardImpact(v, p, d, s, i) {
     v.burst(KIT.frost.flash, { pos: p, scale: 0.42 * s, intensity: i });
     v.flare({ kind: 'star', pos: p, size: 1.4 * s, life: 0.2, decay: 2.5, color: STAR, intensity: 0.8 * i, rotation: rng() });
-    v.light({ pos: vec([p.x, p.y, p.z + 0.8]), color: F.core, intensity: 60 * i, range: 5, duration: 0.3 });
+    v.light({ pos: vec([p.x, p.y, p.z + 1.2]), color: F.core, intensity: 60 * i, range: 5, duration: 0.3, decay: 'outExpo' });
     v.ring({ normal: d, look: 'frost', pos: p, radius: [0.1 * s, 1.2 * s], width: [0.2 * s, 0.35 * s], life: 0.35, intensity: 0.8 * i });
     v.burst(SHARDS, { pos: p, dir: d, count: n(22, i), scale: s });
     v.burst(ICE_SPARKS, { pos: p, dir: d, count: n(24, i), scale: 0.8 * s });
@@ -259,7 +259,7 @@ export function defineFrost(vfx, P) {
   define('frost.shatter', (v, at, o) => {
     const i = I(o), s = at.scale, p = at.pos, d = at.dir;
     v.burst(KIT.frost.flash, { pos: p, scale: 0.8 * s, intensity: i });
-    v.flare({ kind: 'flash', pos: p, size: 2.4 * s, life: 0.08, decay: 3, color: F.core, intensity: 0.15 * i });
+    v.flare({ kind: 'flash', pos: p, size: 2.2 * s, life: 0.05, decay: 3, color: F.core, intensity: 0.1 * i });
     v.flare({ kind: 'star', pos: p, size: 2.3 * s, life: 0.26, decay: 2.5, color: STAR, intensity: 0.85 * i, rotation: 0.35 });
     v.light({ pos: vec([p.x, p.y, p.z + 1.1]), color: F.core, intensity: 140 * i, range: 8, duration: 0.6, decay: 'outCubic' });
     v.burst(SHARDS, { pos: p, dir: d, count: n(80, i), scale: 1.5 * s });
@@ -345,7 +345,7 @@ export function defineFrost(vfx, P) {
         w.schedule(0.08, (w2) => w2.beam({ look: 'frost', palette: 'frost', core: STAR, from, to: g, width: 0.17 * s, coreWidth: 0.25, extend: 0.07, release: 0.16, life: 0.3, flareSize: 0.5, intensity: 0.85 * i }));
         w.schedule(0.15, (w2) => {
           w2.burst(KIT.frost.flash, { pos: vec([g.x, 0.3, g.z]), scale: 0.5 * s, intensity: i });
-          w2.light({ pos: vec([g.x, 0.9, g.z + 1.0]), color: F.core, intensity: 70 * i, range: 6, duration: 0.3 });
+          w2.light({ pos: vec([g.x, 0.9, g.z + 1.0]), color: F.core, intensity: 70 * i, range: 6, duration: 0.3, decay: 'outExpo' });
           w2.ring({ look: 'frost', pos: g, radius: [0.1 * s, 1.4 * s], life: 0.5, intensity: 0.6 * i });
           w2.decal({ kind: 'frost', pos: g, radius: 0.9 * s, reveal: 0.15, life: 2.5 });
           w2.spikes({ kind: 'ice', pattern: 'cluster', pos: g, radius: 0.08, count: 1, height: [0.8 * s, 1.0 * s], width: 0.18, tilt: 16, stagger: 0, rise: 0.04, hold: 0.7 });

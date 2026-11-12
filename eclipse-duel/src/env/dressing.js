@@ -20,7 +20,7 @@ const CLAY = [0.11, 0.066, 0.044];
 export const IMPACT = [-4.4, -6.2, 2.9];
 
 /**
- * @param {object} o  { S, M, P builders, rng, tier, braziers, pillars, arches, stoneColor, glow, ringPos }
+ * @param {object} o  { S, M, P builders, rng, tier, braziers, pillars, arches, stoneColor, glow, wallTopAt(theta), courseY, courses, ringPos }
  * @returns {Array<{pos: THREE.Vector3, w: number, h: number, i: number}>} candle flames
  */
 export function dressRuins(o) {
@@ -252,7 +252,9 @@ export function dressRuins(o) {
   const trees = hi ? [[47, 1.0], [-52, 0.8], [-101, 0.7]] : mid ? [[47, 1.0], [-52, 0.8]] : [[47, 1.0]];
   for (const [deg, sc] of trees) {
     const th = deg * DEG;
-    const wallTop = 3.62;
+    // rooted in the standing wall top (on the cornice where it survives)
+    const wallTop = o.wallTopAt(th);
+    if (wallTop < 1) continue;
     const base = ringPos(16.25, th, wallTop - 0.05);
     const inward = new THREE.Vector3(-Math.sin(th), 0, Math.cos(th));
     const parts = [];
@@ -297,7 +299,8 @@ export function dressRuins(o) {
     const nC = hi ? 16 : 8;
     for (let k = 0; k < nC; k++) {
       const th = rng.range(-120, 120) * DEG;
-      if (Math.abs(th) < 30 * DEG || o.coursesAt(th) <= o.courses) continue;
+      // hanging from a surviving cornice run only
+      if (Math.abs(th) < 30 * DEG || o.wallTopAt(th) <= o.courseY[o.courses]) continue;
       const top = ringPos(LAYOUT.wallR - 0.3, th, o.courseY[o.courses] + 0.7);
       addAll(P, strand(top, rng.range(0.6, 2.0), rng.range(0, 6)), new THREE.Matrix4(), { color: VINE, uv: [0, 0] });
     }

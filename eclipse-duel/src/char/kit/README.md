@@ -14,7 +14,8 @@ src/char/kit/index.js      re-exports all of the above
 src/char/materials.js      createKitMaterial() (the shared character shader), surfDetail(), glow control
 src/char/weapons.js        KAEL greatsword, ISKA twin crescents, VORN war spear: builders, sockets, grip points
 src/fighters/kael/design.js   KAEL, the Cinder Warden (reference design using everything here)
-src/labs/art.js            look-dev lab (lighting rig, turntable, bust, weapons, combat pose, silhouette, QA)
+src/fighters/iska/, vorn/     ISKA and VORN: designs plus their own kit pieces (kit.js; ISKA's tailored cloth: tailor.js)
+src/labs/art.js            roster look-dev lab (all three heroes: turntables, close-ups, line-ups, duel, budgets, leaks)
 ```
 
 Conventions: metres, degrees in options, radians inside the code. Pieces are authored in a bone's **zero-pose frame**
@@ -142,15 +143,15 @@ his design. Triangle counts are for the defaults.
 | `cuisse(o)` | `thigh` | open shell over front / outside with a ridge: `r, y0, y1` |
 | `poleyn(o)` | `knee` | `{ cop (pointed, +X), wing (fan on the outside, fanning back), lames }`: `r, wing` |
 | `greave(o)` | `shin` | closed tube, calf swell, shin ridge (crease), ankle flare: `r, y0, y1` |
-| `sabaton(o)` | `foot` / `toe` | `{ lames (foot), toe (toe), sole (foot), toeSole (toe) }`: `scale` |
+| `sabaton(o)` | `foot` / `toe` | `{ lames, heel, sole (foot), toe, toeSole (toe) }`, fitted to the rig's foot: pass `P: rig.P` (ankleHeight, footLength, footDrop, toeLength, heelLength; default rig otherwise). Arched lames over the instep, each tucked under the one behind (rolled front edge, medial ridge), heel cup, ridged toe cap tapering to a prow point, thin soles following the outline (bottom 1 mm above the floor; the plates stand on the soles). Options `width=0.046` (half width at the ball), `count=3`, `point=0.55` (0 round .. 1 sharp toe), `ridge=0.004`, `scale=1` (widths / heights only). ~1k tris per foot |
 
 ### Helms (`head` frame; pivot at the skull base, head top ~+0.22)
 
 | builder | returns | options |
 |---|---|---|
-| `greatHelm(o)` | `{ crown, brow, face, back, slit, eye, breaths, crest, rivets, S }` | `rx=0.128, rz=0.112, top=0.29, bottom=-0.07, ox=0.018, slitY=0.075, slitH=0.016, prow=0.022` (face crease height), `flare` (skirt), `crest` (false = none), `crestH, teeth, crestT`, `crestRidge`. Ogival crown with a front-back crease, engraved-ready brow band projecting over the visor slit, angular prow face plate (pointed superellipse), dark slit recess + `eye` strip (put it with an `eye` look; KAEL modulates it with two hot spots), breath holes in flame-shaped clusters, notched comb crest swept front to back. ~6.5k tris with rivets. |
-| `stormHelm(o)` | `{ skull, visor, slits, horns, wings, rivets }` | `r=0.118`: close helm with a ridged visor, three glowing slits, swept twisted horns, feathered wings (VORN) |
-| `hoodedMask(o)` | `{ hood, mask, circlet, gem }` | `r=0.125`: cloth cowl with a face opening and a peak (carries `uvw`, cloth set), sculpted half-mask, thin circlet with a star mount (ISKA) |
+| `greatHelm(o)` | `{ crown, brow, face, back, slit, eye, breaths, crest, rivets, S }` | `rx=0.128, rz=0.112, top=0.29, bottom=-0.07, ox=0.018, slitY=0.075, slitH=0.016, prow=0.022` (face crease height), `prowW=18` (deg half width of the keel: 40-50 gives two angled cheek planes instead of a flat front), `muzzle=0` (m, forward swell over the mouth), `flare` (skirt), `crest` (false = none), `crestH, teeth, crestT`, `crestRidge`. Ogival crown with a front-back crease, engraved-ready brow band projecting over the visor slit, angular prow face plate (pointed superellipse), dark slit recess + `eye` strip (put it with an `eye` look; KAEL modulates it with two hot spots), breath holes in flame-shaped clusters, notched comb crest swept front to back. ~6.5k tris with rivets. |
+| `stormHelm(o)` | `{ skull, visor, slits, horns, wings, rivets }` | `r=0.118`: first-pass close helm with a ridged visor, three slits, horns, wings. Catalogue / prop use only: VORN ships his own `stormHelm` in `src/fighters/vorn/kit.js` |
+| `hoodedMask(o)` | `{ hood, mask, circlet, gem }` | `r=0.125`: first-pass cowl, half-mask and circlet. Catalogue / prop use only: ISKA ships her own hood, oracle mask and circlet in `src/fighters/iska/kit.js` |
 
 ### Soft layers
 
@@ -203,7 +204,7 @@ height field, Sobel), micro cavity, set mask.
 
 | id | set | tiles/m | content (mask) |
 |---|---|---|---|
-| 1 | `hammered` | 4.2 | shallow hammer dents, grain, scratches |
+| 1 | `hammered` | 4.2 | small planishing facets in patches (most of a plate reads smooth and forged, not crumpled), directional polish streaks and smudges in the roughness, grain, scratches |
 | 2 | `scorched` | 3.4 | soot flakes, sparse pitting, warped fissure network (mask = crack cores, B = heat halo) |
 | 3 | `engraved` | 7.5 | interlaced scrolls, leaves and angular glyph bands cut into the metal (mask = groove cores) |
 | 4 | `leather` | 9 | pebbled grain, creases, pores |
@@ -224,8 +225,10 @@ before the first character for crisper cinematic close-ups (~2 s, 21 MB). Genera
 * **Heat tint** around cracks (scorched set, `heatColor`).
 * **Emissive channels** (`glow` option): `inlay` (direct), `vein` (x the set mask: cracks / engraved grooves, slow
   flicker on `uEmber.x` time), `eye` (direct). Glowing fissures go dark, rough and non-metallic.
-* **Fresnel rim** `rim: [r, g, b, power]` weighted toward up-facing normals and by occlusion: silhouettes pop against
-  the dark arena. **Hit flash** `uFlash` (fresnel weighted; driven by `char.flash()`).
+* **Fresnel rim** `rim: [r, g, b, power]`, weighted by occlusion and only slightly toward up-facing normals, faded in
+  from the floor over `rimFade` (bind-space metres): silhouettes pop against the dark arena while the grazing tops of
+  the feet, shoulder caps and helm crowns seen from the low fight camera do not light up. **Hit flash** `uFlash`
+  (fresnel weighted; driven by `char.flash()`).
 * **Cut-out** (`cutout: true`, double sided): cloth hems tear / char / burn (see `clothEdges`), fur cards alpha-test
   their strands. Shadows of cut-out pieces are full quads (see rig requests).
 
@@ -242,6 +245,7 @@ before the first character for crisper cinematic close-ups (~2 s, 21 MB). Genera
 | `glow` | — | `{ inlay, vein, eye }` HDR linear colours -> channel mode (vertex glow = masks). Without it vertex glow is HDR radiance (legacy) |
 | `glowScale` | 1 | emissive multiplier |
 | `rim` | `[0,0,0,3]` | fresnel rim colour (HDR) + power |
+| `rimFade` | `[0.1, 0.62]` | bind-space heights (m) over which the rim fades in from the floor (a giant design scales it) |
 | `wear` | `[0.9, 0.8, 0.35, 0.6]` | strengths: edge wear, crevice grime, albedo variation, heat tint |
 | `wearColor`, `grimeColor`, `heatColor` | `[0.26,0.27,0.29]`, `[0.28,0.24,0.21]`, `[0.16,0.1,0.18]` | bare metal / crevice multiplier / temper tint (linear `[r,g,b]` or hex) |
 | `ember` | `[0, 2.2, 0, 0.05]` | `[time, flicker speed, -, vein halo]` |
@@ -336,7 +340,11 @@ scene.add(prop);
 
 | design | draw calls | triangles | notes |
 |---|---|---|---|
-| KAEL | 4 (`plate`, `suit`, `cloth`, `blade`) | ~58.4k | helm 6.5k, torso (cuirass, gorget, faulds, belt, tassets) 10.5k, pauldrons + fur mantle 11.6k, arms + gauntlets 10.5k, legs 8.5k, greatsword 4.7k, under-suit lofts ~3.3k, cape + waist cloth ~2.6k |
+| KAEL | 4 (`plate`, `suit`, `cloth`, `blade`) | 58.4k (low tier 56.6k: cloth grids only) | helm 6.5k, torso (cuirass, gorget, faulds, belt, tassets) 10.5k, pauldrons + fur mantle 11.7k, arms + gauntlets 10.5k, legs 8.5k (sabatons 2.1k), greatsword 4.7k, under-suit lofts ~3.3k, cape + waist cloth ~2.6k |
+| ISKA | 3 (`plate`, `suit`, `blade`) | 59.2k (low tier 51.1k: lighter variant read from the cloth grid) | see `src/fighters/iska/README.md` |
+| VORN | 4 (`plate`, `suit`, `cloth`, `blade`) | 59.5k (low tier 57.8k today; `vornLow` 53.2k once the rig passes `quality` to `build`) | see `src/fighters/vorn/README.md` |
+
+Measure all of them at both tiers with the art lab: `__ED.lab.play('budget')` (built off-scene and disposed).
 
 Cost drivers: plate edge rings (`edgeSegs`), rolled rims (`roll` x `rollSegs`), inner skins (`inner: true` only where
 the inside shows), small closed hoops (fingers: keep `nu` 6). Profile with the art lab (`stats`) or by wrapping
@@ -346,20 +354,42 @@ the inside shows), small closed hoops (fingers: keep `nu` 6). Profile with the a
 
 ## 9. Art lab (`src/labs/art.js`)
 
+The roster look-dev lab: every framing follows the design's height (its head bone), so the same scenario frames KAEL,
+ISKA and VORN alike. The heroes' own labs (`art_iska.js`, `art_vorn.js`) keep their design-specific checks.
+
 ```
-node tools/shot.mjs art --do "__ED.lab.play('bust')" --at 0.5 --out shots/art/kael_bust
-node tools/shot.mjs art --do "__ED.lab.play('turntable')" --at 0,0.25,0.5,0.75,1,1.25,1.5,1.75 --sheet-only --out shots/art/kael_turn
-node tools/shot.mjs art --hash arena --do "__ED.lab.play('fight')" --at 1 --out shots/art/kael_arena_fight
+node tools/shot.mjs art --hash design=iska --do "__ED.lab.play('bust',32)" --at 0.5 --out shots/art/iska_bust
+node tools/shot.mjs art --hash design=vorn --do "__ED.lab.play('turntable')" --at 0,0.25,0.5,0.75,1,1.25,1.5,1.75 --sheet 4 --sheet-only --out shots/art/vorn_turn
+node tools/shot.mjs art --do "__ED.lab.play('lineup','sil')" --at 0.5 --out shots/art/roster_sil            # black silhouettes
+node tools/shot.mjs art --hash arena --do "__ED.lab.play('lineup','fight')" --at 1 --out shots/art/roster_arena
+node tools/shot.mjs art --hash "arena&design=iska" --do "__ED.lab.play('duel','kael')" --at 1 --out shots/art/duel
 node tools/shot.mjs art --do "__ED.lab.play('weapon','greatsword','hilt')" --at 0.5 --out shots/art/w_hilt
-node tools/shot.mjs art --do "__ED.lab.play('full')" --at 0 --eval "__ED.lab.play('qa')"     # rig QA (src/char/qa.js)
+node tools/shot.mjs art --do "__ED.lab.play('full')" --at 0 --eval "__ED.lab.play('budget')"   # tris / draw calls, high + low
+node tools/shot.mjs art --do "__ED.lab.play('full')" --at 0 --eval "__ED.lab.play('leaks')"    # create / dispose x3 per hero
 ```
 
-Flags: `#design=kael|iska|vorn|knight` (iska / vorn = the knight body holding their weapons until their designs exist),
-`#arena` (the Eclipse Ruins backdrop and lights), `#tex=256|512`. Lighting rig: warm key (shadowed), two cold rims, warm
-ember bounce, dim sky, procedural studio environment (PMREM of a dark dome with softboxes). Scenarios: `full`, `bust`,
-`face`, `turntable(every)`, `back`, `fight`, `combat(clip, t, yaw)`, `clip(name)`, `silhouette` (lights off, cut-outs
-kept), `glow` (flare), `weapon(name, 'all'|'hilt'|'tip')` (sockets: blue base, red tip, yellow grips), `weapons`, `kit`
-(helm catalogue), `stats`, `qa(clips)`.
+Flags: `#design=kael|iska|vorn|vornLow|knight`, `#arena` (the Eclipse Ruins backdrop and lights; the hero stands at P1's
+mark), `#tex=256|512`, `#q=low|mid|high`. Studio lighting rig: warm key (shadowed), two cold rims, warm ember bounce, dim
+sky, procedural studio environment (PMREM of a dark dome with softboxes). The studio key is warm: judge cool metals
+(ISKA's silver) under `#arena` too.
+
+| scenario | what |
+|---|---|
+| `full(yaw)`, `turntable(every)`, `side`, `back(yaw)`, `hero(yaw)` | whole figure; the turntable steps 45 deg every `every` s (8 frames = one sheet) |
+| `bust(yaw)`, `face(yaw)`, `feet(yaw, kind)`, `hands(yaw, kind)` | close-ups (bust: 32 = 3/4, 80 = front) |
+| `pose(name, yaw, dist, ty)`, `combat(clip \| 'combat' \| 'strike', t, yaw)`, `clip(name)` | a held pose / clip time |
+| `fight` | the fight camera on this hero (arena: at P1's mark) |
+| `silhouette`, `lineup('sil' \| 'lit' \| 'fight', kind)` | black on grey (lights / glow off, cut-outs kept); KAEL - ISKA - VORN side by side |
+| `duel(other, kind)` | this hero at x = -2.5 facing a second one at +2.5 (fight-camera distance) |
+| `glow` | flare of every channel |
+| `weapon(name, 'all' \| 'hilt' \| 'tip')`, `weapons`, `kit` | static displays (sockets: blue base, red tip, yellow grips), helm catalogue |
+| `stats`, `budget`, `leaks(n)` | this hero's stats; every design at high / low; GPU geometries / textures / programs before and after n create / dispose cycles |
+| `contact` | lowest world y of the sabaton geometry in the hero / combat / strike poses (soles on the floor, nothing under it) |
+| `qa(clips)` | `src/char/qa.js` audit of the demo clips and the lab poses on this hero |
+
+Lab-only poses `artlab.<id>.hero / .combat / .strike` (KAEL: blade on the shoulder, high guard, low follow-through; ISKA:
+crossed-low stance, cross-body slash, crossed high guard; VORN: sentinel rest, guard, lunging thrust) exist to judge the
+designs. Fighter clips belong to the content team.
 
 ---
 

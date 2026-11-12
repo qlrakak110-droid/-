@@ -16,8 +16,8 @@ const CINDERS = def({ ...LIB.embers, count: 6, spread: 35, emit: 'axis', lift: 0
 /** sparks thrown off the end of an arc along its tangent */
 const ARC_SPARKS = def({ ...LIB.sparks, count: 34, spread: 16, speed: [5, 15, 1.4], life: [0.2, 0.75, 1.5] });
 /** dark wisps left along the arc (alpha, value contrast next to the flame) */
-const ARC_SMOKE = def({ ...LIB.smoke, count: 2, size: [0.4, 0.8, 1.3], life: [0.7, 1.4], speed: [0.2, 0.9], gravity: 0.9, delay: [0.04, 0.12], lift: 0.6,
-  color: [[0, 0.4, 0.14, 0.04, 0], [0.08, 0.12, 0.07, 0.04, 0.5], [0.4, 0.06, 0.05, 0.045, 0.42], [1, 0.05, 0.05, 0.05, 0]] });
+const ARC_SMOKE = def({ ...LIB.smoke, count: 2, size: [0.45, 1.0, 1.3], life: [0.8, 1.6], speed: [0.2, 0.9], gravity: 0.9, delay: [0.04, 0.12], lift: 0.6,
+  additive: [[0, 0.7], [0.12, 0]], color: [[0, 1.2, 0.4, 0.08, 0], [0.08, 0.24, 0.11, 0.05, 0.55], [0.4, 0.11, 0.09, 0.08, 0.45], [1, 0.08, 0.075, 0.07, 0]] });
 /** flames peeling off the arc (velocity-aligned tongues cooling to smoke) */
 const ARC_LICKS = def({ ...LIB.fireLicks, count: 2, size: [0.28, 0.6], speed: [0.8, 2.6], life: [0.2, 0.45], emit: 'axis', spread: 30, lift: 0.4 });
 /** burning ash flakes: glowing rims, flutter down, dissolve edge first */
@@ -48,12 +48,13 @@ const FLOOR_GLOW = def({ tex: 'glow', blend: 'add', align: 'flat', count: 1, lif
   color: [[0, 4, 1.3, 0.2, 1], [0.15, 2, 0.45, 0.05, 0.8], [1, 0.15, 0.02, 0, 0]] });
 
 // trail (alpha ribbon that glows, then cools into an occluding smoky tail)
+// (the outer third of the blade carries it: a solid fan from hilt to tip reads as a pie slice, not a blade smear)
 const TRAIL = {
-  life: 0.26, blend: 'alpha', additive: [[0, 1], [0.35, 0.9], [0.7, 0.35], [1, 0.1]],
-  color: [[0, 3.2, 1.35, 0.3, 0.9], [0.12, 2.2, 0.55, 0.07, 0.75], [0.45, 0.55, 0.09, 0.02, 0.5], [0.75, 0.07, 0.05, 0.04, 0.35], [1, 0.04, 0.035, 0.03, 0]],
-  edge: [9, 4, 1], edgeWidth: 0.08, gradient: 0.7, fadeBase: 0.55,
-  width: [[0, 1], [0.35, 0.8], [1, 0.25]], erode: [[0, 0], [0.3, 0.05], [1, 0.9]], erodeSoft: 0.3,
-  noise: { scale: [1.1, 0.6], speed: 1.6, amount: 0.55 }, distort: 0.02,
+  life: 0.26, blend: 'alpha', additive: [[0, 1], [0.3, 0.85], [0.6, 0.3], [1, 0.05]],
+  color: [[0, 2.6, 0.95, 0.18, 0.95], [0.1, 1.9, 0.42, 0.05, 0.8], [0.35, 0.6, 0.09, 0.02, 0.55], [0.65, 0.08, 0.055, 0.045, 0.4], [1, 0.045, 0.04, 0.035, 0]],
+  edge: [10, 4.2, 1], edgeWidth: 0.06, gradient: 0.85, fadeBase: 0.72,
+  width: [[0, 1], [0.3, 0.62], [1, 0.16]], erode: [[0, 0], [0.25, 0.06], [1, 0.92]], erodeSoft: 0.3,
+  noise: { scale: [1.5, 1.4], speed: 1.8, amount: 0.8 }, distort: 0.016,
 };
 const TRAIL_EMBERS = def({ ...LIB.embers, count: 0, rate: 0, perMeter: 16, delay: 0, emit: 'random', spread: 180, inherit: 0.15, speed: [0.2, 1.2], life: [0.4, 1.2] });
 const TRAIL_SPARKS = def({ ...LIB.sparksFine, count: 0, rate: 0, perMeter: 9, life: [0.1, 0.35], inherit: 0.35, spread: 180, emit: 'random' });
@@ -113,7 +114,9 @@ export function defineEmber(vfx, P) {
     const sweep = o.sweep != null ? o.sweep : heavy ? 0.11 : 0.08;
     const plane = { normal: o.normal || [0, 0.2, 1], forward: o.forward || [1, 0, 0], roll: o.roll || 0, facing: f };
     const sgn = Math.sign(arc[1] - arc[0]);
-    v.slash({ look: 'flame', pos: at.pos, ...plane, arc, radius: R, width: W, sweep, life: heavy ? 0.8 : 0.55, distort: heavy ? 0.035 : 0.022, cone: heavy ? 0.25 : 0.15, intensity: 0.85 * i });
+    v.slash({ look: 'flame', pos: at.pos, ...plane, arc, radius: R, width: W, sweep, life: heavy ? 0.8 : 0.55, distort: heavy ? 0.022 : 0.014, cone: heavy ? 0.25 : 0.15, intensity: 0.85 * i });
+    // body: a wider, dimmer flame band trailing just inside the edge that cools into occluding smoke (volume + value contrast)
+    if (!heavy) v.schedule(0.02, (w) => w.slash({ look: 'flame', pos: at.pos, ...plane, arc: [arc[0] - 4 * sgn, arc[1] - 3 * sgn], radius: R * 0.9, width: W * 0.85, sweep, life: 0.62, intensity: 0.5 * i, tailAdditive: 0, alpha: 0.85 }));
     v.slash({ look: 'razor', palette: 'ember', pos: at.pos, ...plane, arc, radius: R * 0.985, width: (heavy ? 0.2 : 0.13) * s, sweep, life: heavy ? 0.28 : 0.2, intensity: 1.2 * i });
     if (heavy) v.schedule(0.025, (w) => w.slash({ look: 'flame', pos: at.pos, ...plane, arc: [arc[0] - 6 * sgn, arc[1] - 4 * sgn], radius: R * 0.88, width: W * 0.7, sweep, life: 0.7, intensity: 0.7 * i, tailAdditive: 0 }));
     const mid = arcPoint(at.pos, plane, (arc[0] + arc[1]) / 2, R * 0.85);
@@ -300,7 +303,7 @@ export function defineEmber(vfx, P) {
   define('ember.explosion', (v, at, o) => {
     const i = I(o), s = at.scale, p = at.pos, g = floor(p);
     v.burst(KIT.ember.flash, { pos: p, scale: 1.6 * s, intensity: i });
-    v.flare({ kind: 'flash', pos: p, size: 4.5 * s, life: 0.1, decay: 3, color: E.core, intensity: 0.3 * i });
+    v.flare({ kind: 'flash', pos: p, size: 4 * s, life: 0.06, decay: 3, color: E.core, intensity: 0.18 * i });
     v.flare({ kind: 'star', pos: p, size: 2.6 * s, life: 0.18, decay: 3, color: E.core, intensity: i, rotation: 0.3 });
     v.light({ pos: vec([p.x, p.y + 0.4, p.z + 1.3]), color: E.core, intensity: 200 * i, range: 10, duration: 1.0, decay: 'outCubic', flicker: 0.35 });
     v.burst(BLAST, { pos: p, count: n(24, i), scale: 1.2 * s });
@@ -349,7 +352,7 @@ export function defineEmber(vfx, P) {
       for (const h of body) h.stop();
       const p = vec([g.x, 0.6 * s, g.z]);
       v.burst(KIT.ember.flash, { pos: p, scale: 2 * s, intensity: i });
-      v.flare({ kind: 'flash', pos: p, size: 6 * s, life: 0.12, decay: 3, color: E.core, intensity: 0.35 * i });
+      v.flare({ kind: 'flash', pos: p, size: 5 * s, life: 0.07, decay: 3, color: E.core, intensity: 0.2 * i });
       v.flare({ kind: 'star', pos: p, size: 3.4 * s, life: 0.2, decay: 3, color: E.core, intensity: i, rotation: 0.2 });
       v.light({ pos: vec([g.x, 1.5, g.z + 1.5]), color: E.core, intensity: 240 * i, range: 12, duration: 1.2, decay: 'outCubic', flicker: 0.3 });
       v.decal({ kind: 'crack', pos: g, radius: 3.2 * s, magma: 1, life: 6, cool: 3.2, reveal: 0.1 });
