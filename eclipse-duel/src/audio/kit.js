@@ -231,8 +231,6 @@ export function makeKit(ac, rng, dur) {
     r: (a, b) => a + (b - a) * rng(),
     /** x jittered by +-amt (relative) */
     j: (x, amt = 0.06) => x * (1 + (rng() * 2 - 1) * amt),
-    /** log-uniform random in [a, b) */
-    lr: (a, b) => a * Math.pow(b / a, rng()),
     /** piecewise curve function (see pointsFn) */
     fn: pointsFn,
 

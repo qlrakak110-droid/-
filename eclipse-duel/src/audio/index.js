@@ -105,7 +105,7 @@ export function createAudio(ctx = {}) {
   const vol = { master: 1, sfx: 1, music: 0.8 };
   const store = new Map(), queue = [];
   const voices = [], loops = new Set(), lastPlay = new Map(), lastVar = new Map(), ducks = [], warned = new Set();
-  const mus = { base: null, over: null }, req = { base: null, over: false };
+  const mus = { base: null, over: null }, req = { base: null, over: false, restart: false };
   let ac = null, g = null, resuming = false, disposed = false, pumping = false, timer = 0;
   let slow = 1, duckLevel = 1, intensity = 0.5;
   const v3 = new THREE.Vector3();
@@ -245,7 +245,8 @@ export function createAudio(ctx = {}) {
   function tickMusic() {
     if (!live()) return;
     const until = ac.currentTime + LOOKAHEAD;
-    for (const tr of [mus.base, mus.over]) if (tr && tr.seq && !tr.seq.ended) tr.seq.tick(until);
+    if (mus.base && mus.base.seq) mus.base.seq.tick(until);
+    if (mus.over && mus.over.seq) mus.over.seq.tick(until);
   }
   function startTrack(name, fade, alignTo) {
     const tr = { name, seq: null, stopped: false, muffled: false };
@@ -273,7 +274,8 @@ export function createAudio(ctx = {}) {
     if (mus.base.seq) mus.base.seq.muffle(on, dur);
   }
   function applyMusic(fade) {
-    if (req.base !== (mus.base ? mus.base.name : null)) {
+    if (req.restart || req.base !== (mus.base ? mus.base.name : null)) {
+      req.restart = false;
       if (mus.base) endTrack(mus.base, fade);
       mus.base = req.base ? startTrack(req.base, fade, null) : null;
       if (mus.over) muffleBase(true, 0.05);
@@ -438,14 +440,20 @@ export function createAudio(ctx = {}) {
      */
     music(track, o = {}) {
       if (track != null && !TRACKS[track]) { warn('unknown track: ' + track); return; }
-      if (track === 'ultimate') req.over = true; else { req.base = track; req.over = false; }
+      if (track === 'ultimate') req.over = true;
+      else {
+        // asking again for a finished non-looping track (victory) plays it again
+        req.restart = !!(track && mus.base && mus.base.name === track && mus.base.seq && mus.base.seq.ended);
+        req.base = track; req.over = false;
+      }
       if (live()) applyMusic(o.fade ?? 1.5);
     },
 
     /** Battle music intensity 0..1 (layers fade in: drums from 0.15, brass / choir / horn from 0.5). */
     setIntensity(x, tc = 0.5) {
       intensity = clamp(+x || 0);
-      for (const tr of [mus.base, mus.over]) if (tr && tr.seq) tr.seq.setIntensity(intensity, tc);
+      if (mus.base && mus.base.seq) mus.base.seq.setIntensity(intensity, tc);
+      if (mus.over && mus.over.seq) mus.over.seq.setIntensity(intensity, tc);
     },
 
     /** Bus volumes 0..1 (any subset). */
@@ -558,7 +566,7 @@ export function createAudio(ctx = {}) {
       if (offUpdate) offUpdate();
       if (typeof window !== 'undefined') for (const e of GESTURES) window.removeEventListener(e, onGesture, { capture: true });
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
-      if (ac) { try { ac.close(); } catch (e) { /* already closed */ } }
+      if (ac) { try { const p = ac.close(); if (p && p.catch) p.catch(() => {}); } catch (e) { /* already closed */ } }
       ac = null; g = null;
     },
   };

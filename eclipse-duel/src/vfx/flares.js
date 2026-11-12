@@ -143,18 +143,18 @@ export function installFlares(vfx, shared) {
   }
 
   function visit(s) {
-      if (s.stopping) {
-        // stop(): shorten the life so the shader's fall-off finishes over 0.12 s
-        const k = s.i * ring.stride, age = pool.age(s);
-        const nl = Math.min(s.life, age + 0.12);
-        ring.f32[k + 7] = s.realtime ? -nl : nl; s.life = nl; s.stopping = false;
-        ring.dirty(s.i, 1);
-      }
-      if (pool.place(s)) {
-        const k = s.i * ring.stride;
-        ring.f32[k] = s.pos.x; ring.f32[k + 1] = s.pos.y; ring.f32[k + 2] = s.pos.z;
-        ring.dirty(s.i, 1);
-      }
+    if (s.stopping) {
+      // stop(): shorten the life so the shader's fall-off finishes over 0.12 s
+      const k = s.i * ring.stride, age = pool.age(s);
+      const nl = Math.min(s.life, age + 0.12);
+      ring.f32[k + 7] = s.realtime ? -nl : nl; s.life = nl; s.stopping = false;
+      ring.dirty(s.i, 1);
+    }
+    if (pool.place(s)) {
+      const k = s.i * ring.stride;
+      ring.f32[k] = s.pos.x; ring.f32[k + 1] = s.pos.y; ring.f32[k + 2] = s.pos.z;
+      ring.dirty(s.i, 1);
+    }
   }
 
   return {
