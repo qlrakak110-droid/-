@@ -575,14 +575,14 @@ createLab({
     function step() {
       const it = queue.shift();
       if (!it) return null;
-      const [id, clip, t, focus, yaw, dist, pitch = 6, withHoles = false, showSlots = null] = it;
-      const m = hold(id, clip, t);
+      const [id, clip, t, focus, yaw, dist, pitch = 6, withHoles = false, showSlots = null, fade = 0] = it;
+      const m = hold(id, clip, t, { fade });
       for (const C of Object.values(built)) for (const [k, mm] of Object.entries(C.ch.meshes)) mm.visible = C === cur && (!showSlots || showSlots.includes(k));
       look(focus, yaw, dist, pitch);
       overlay.getContext('2d').clearRect(0, 0, HW, HH);
       let txt = `${id} ${clip}@${t} yaw ${yaw}`;
       if (withHoles) { const h = holes(withHoles === true ? null : withHoles, true); txt += `  holes ${h.clustered}px`; }
-      txt += `  cloth-in ${m.clothIn} head ${m.clothHead}`;
+      txt += `  cloth-in ${m.clothIn} head ${m.clothHead}` + (m['arm->chest'] ? `  arm>chest ${m['arm->chest'].n} (${(m['arm->chest'].d * 1000).toFixed(0)}mm)` : '') + (fade ? `  fade ${fade}` : '');
       label.textContent = txt;
       return txt;
     }

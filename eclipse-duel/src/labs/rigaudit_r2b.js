@@ -535,6 +535,16 @@ createLab({
       lab.st.tick = () => c.setClipTime(t);
       if (view) lab.view(view);
     },
+    layer(ctx, lab) {
+      // left: demo.combo1 alone; right: demo.walkF with demo.combo1 as an upper-body override layer (same clip time)
+      lab.clear();
+      const a = lab.add('knight'), b = lab.add('knight');
+      a.root.position.x = -1.1; b.root.position.x = 1.1;
+      a.play('demo.combo1', { fade: 0, restart: true }); a.teleport();
+      b.play('demo.walkF', { fade: 0, restart: true }); b.teleport();
+      b.layer('atk', 'demo.combo1', { mask: 'upper', fade: 0 });
+      lab.view({ target: [0, 1.1, 0], dist: 6.2, yaw: 0, pitch: 4 });
+    },
     floorpole(ctx, lab) {
       floorPole();
       lab.clear(); const c = lab.add('knight');
