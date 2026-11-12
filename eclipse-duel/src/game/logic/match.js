@@ -112,7 +112,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
     for (let i = 0; i < 2; i++) {
       const f = m.fighters[i];
       const v = views[i];
-      v.dt = dt; v.time = m.time; v.phase = m.phase; v.roundTime = m.phase === 'fight' ? R.roundTime - m.clock : 0;
+      v.dt = dt; v.time = m.time; v.phase = m.phase; v.roundTime = m.phase === 'fight' ? m.phaseTime : 0; v.clock = m.clock;
       const c = m.controllers[i];
       const raw = c ? c.update(v) : null;
       if (live) feedInput(f.input, normalizeInput(raw, tmpInput), m.time, R);

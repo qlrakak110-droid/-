@@ -186,7 +186,9 @@ export function moveBlockReason(m, f, mv) {
 export function startMove(m, f, id, { cancelFrom = null, forced = false } = {}) {
   const mv = f.def.moves[id];
   if (f.move) endMove(m, f, cancelFrom ? 'cancel' : 'interrupted');
-  else if (!forced) faceOpponent(m, f);
+  // facing is locked during a move, but every new move (cancels included) turns toward the opponent first, so a
+  // follow-up after a pass-through or teleport attacks the right way
+  faceOpponent(m, f);
   if (!forced) {
     if (mv.fpCost > 0) spendFp(m, f, mv.fpCost);
     if (mv.ultCost > 0) spendUlt(m, f, mv.ultCost, mv.group === 'ult');

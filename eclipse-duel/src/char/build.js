@@ -43,10 +43,10 @@ export function createKit(rig, bind) {
     const p = [0, 0, 0], q = [0, 0, 0];
     for (let i = 0; i < n; i++) {
       p[0] = P[i * 3]; p[1] = P[i * 3 + 1]; p[2] = P[i * 3 + 2]; q[0] = N[i * 3]; q[1] = N[i * 3 + 1]; q[2] = N[i * 3 + 2];
-      const c = cFn ? toLinear(cFn(p, q)) : cK;
+      const c = cFn ? toLinear(cFn(p, q, i)) : cK;
       col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
-      surf[i * 4] = rough; surf[i * 4 + 1] = metal; surf[i * 4 + 2] = detail; surf[i * 4 + 3] = aFn ? aFn(p, q) : cav;
-      const g = gFn ? gFn(p, q) : gK;
+      surf[i * 4] = rough; surf[i * 4 + 1] = metal; surf[i * 4 + 2] = detail; surf[i * 4 + 3] = aFn ? aFn(p, q, i) : cav;
+      const g = gFn ? gFn(p, q, i) : gK;
       glow[i * 3] = g[0]; glow[i * 3 + 1] = g[1]; glow[i * 3 + 2] = g[2];
     }
     return { col, surf, glow };

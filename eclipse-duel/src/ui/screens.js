@@ -347,8 +347,7 @@ export function createScreens(ui) {
       }
       ui.emit('toTitle');
     }, 'is-danger');
-    const panel = h('div.panel.pz-panel', null, h('div.panel-head', { html: `${corners()}<i class="ph-line"></i><b>일시정지</b><em>PAUSED</em><i class="ph-line"></i>` }), h('div.pz-list', null, resume, moves, quality, toTitle));
-    panel.querySelector('.panel-head').classList.add('ph');
+    const panel = h('div.panel.pz-panel', { html: corners() }, h('div.ph', { html: '<i class="ph-line"></i><b>일시정지</b><em>PAUSED</em><i class="ph-line"></i>' }), h('div.pz-list', null, resume, moves, quality, toTitle));
     const el = h('div', null, h('div.scr-shade.pz-shade'), panel);
     let data = {};
     function openMoves() { ui.show('movelist', { fighters: data.fighters, index: 0, fromPause: true, pause: data }); }
@@ -384,7 +383,7 @@ export function createScreens(ui) {
     const body = h('div.ml-body');
     const legend = h('div.ml-legend');
     const backBtn = ui.item(h('button.icon-btn.ml-back', { type: 'button', 'aria-label': '뒤로 Back', html: icon('back') }), { act: () => ml.back(), sound: 'ui_back' });
-    const panel = h('div.panel.ml-panel', null, h('div.ml-top', null, backBtn, h('div.panel-head.ph', { html: `${corners()}<i class="ph-line"></i><b>기술표</b><em>MOVE LIST</em><i class="ph-line"></i>` }), tabs), body, legend);
+    const panel = h('div.panel.ml-panel', { html: corners() }, h('div.ml-top', null, backBtn, h('div.ph', { html: '<b>기술표</b><em>MOVE LIST</em><i class="ph-line"></i>' }), tabs), body, legend);
     const el = h('div', null, h('div.scr-shade.ml-shade'), panel);
     let data = {}, list = [], idx = 0, tabEls = [];
 

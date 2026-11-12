@@ -54,7 +54,7 @@ void main() {
   float rr = ang / SUN_R;
   vec3 tu = normalize(cross(uSunDir, vec3(0.0, 1.0, 0.0)));
   vec3 tv = cross(tu, uSunDir);
-  vec2 q = vec2(dot(dir, -tu), dot(dir, tv));
+  vec2 q = vec2(dot(dir, tu), dot(dir, tv));
   float phi = atan(q.y, q.x);
   vec2 cp = vec2(cos(phi), sin(phi));
   float k = max(rr - 1.0, 0.0);

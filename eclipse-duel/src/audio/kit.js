@@ -527,7 +527,7 @@ export function makeKit(ac, rng, dur) {
     },
 
     /** Detuned oscillator stack through optional filters, envelope and drive. `vibrato` = {rate, depth cents, delay}. */
-    saws({ at = 0, len, f, voices = 3, spread = 12, type = 'sawtooth', gain = 1, filter, env, drive = 0, pan = 0, vibrato, stagger = 0.004 } = {}) {
+    saws({ at = 0, len, f, voices = 3, spread = 12, type = 'sawtooth', gain = 1, filter, env, drive = 0, pan = 0, vibrato, am, stagger = 0.004 } = {}) {
       len = len ?? dur - at;
       const sum = ac.createGain();
       sum.gain.value = 1 / Math.sqrt(voices);
@@ -550,6 +550,7 @@ export function makeKit(ac, rng, dur) {
       for (const fs of [].concat(filter || [])) nodes.push(k.filter(fs.type || 'lowpass', fs.f, fs.q ?? 0.707, at, len));
       nodes.push(k.env(env || { a: 0.01, d: len }, at, len));
       if (drive) nodes.push(k.drive(drive));
+      if (am) nodes.push(k.am(am, at, len));
       return k.send(k.chain(...nodes), gain, pan, at, len);
     },
 

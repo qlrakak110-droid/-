@@ -126,7 +126,7 @@ export function createHud(ui) {
     const miniFp = h('i');
     const miniUlt = h('i');
     const miniUltLabel = h('span.mini-ult-label', { text: '궁극기' });
-    const mini = h('div.hud-mini', null, h('div.mini-fp', null, h('b', { text: 'FP' }), h('div.mini-bar', null, miniFp)), h('div.mini-ult', null, h('b', { text: 'ULT' }), h('div.mini-bar', null, miniUlt), miniUltLabel));
+    const mini = h(`div.hud-mini.${s}`, null, h('div.mini-fp', null, h('b', { text: 'FP' }), h('div.mini-bar', null, miniFp)), h('div.mini-ult', null, h('b', { text: 'ULT' }), h('div.mini-bar', null, miniUlt), miniUltLabel));
     const under = h('div.hud-under', null, pips, mini);
     const plate = h(`div.hud-plate.${s}`, null, id, hp, under);
 
@@ -295,6 +295,21 @@ export function createHud(ui) {
     timeLow = low;
   }
 
+  /** Key hints that follow the device: ULT orb keycap and the skill slots. */
+  function refreshKeys() {
+    for (const sd of S) {
+      const k = ui.keyLabel('ult', sd.i);
+      putText(sd.orbKey, k);
+      putClass(sd.orbKey, 'is-empty', !k);
+      sd.slots.forEach((sl, j) => {
+        if (sl.keyFixed) return;
+        const kk = ui.keyLabel('skill' + (j + 1), sd.i);
+        putText(sl.key, kk);
+        putClass(sl.key, 'is-empty', !kk);
+      });
+    }
+  }
+
   // ---------------------------------------------------------------------------------------------------------------
   // skills
 
@@ -324,7 +339,8 @@ export function createHud(ui) {
       const ic = d.icon || d.id;
       if (ic !== sl.iconName) { sl.iconName = ic; sl.ic.innerHTML = icon(ic) || icon('light'); }
       if (d.name !== sl.name) { sl.name = d.name; sl.el.title = d.name || ''; }
-      const key = d.key !== undefined ? d.key : ui.keyLabel('skill' + (j + 1), side);
+      sl.keyFixed = d.key !== undefined;
+      const key = sl.keyFixed ? d.key : ui.keyLabel('skill' + (j + 1), side);
       putText(sl.key, key || '');
       putClass(sl.key, 'is-empty', !key);
       const cost = d.cost || 0;
@@ -548,6 +564,7 @@ export function createHud(ui) {
       for (const sd of S) { sd.hpR = -1; sd.ultR = -1; sd.fpR = -1; sd.ghostR = 1; }
       if (o.p1 && o.p1.moves) hud.skills(0, skillsOf(o.p1));
       if (o.p2 && o.p2.moves) hud.skills(1, skillsOf(o.p2));
+      refreshKeys();
     },
     /** Every frame: { time, roundsToWin?, p1: { name, hp, hpMax, fp, fpMax, ult, ultMax?, rounds, element, title? }, p2 } */
     set(o) {
@@ -605,7 +622,10 @@ export function createHud(ui) {
       }
       clearAnnounce(false);
     },
-    refreshDevice() { if (hintsOn) renderHints(); },
+    refreshDevice() {
+      if (hintsOn) renderHints();
+      refreshKeys();
+    },
     /** Layout hook from the UI: in portrait-with-pad the FP / ULT meters move to a deck under the stage. */
     setLayout({ portrait }) {
       for (const sd of S) (portrait ? deck : sd.under).appendChild(sd.mini);

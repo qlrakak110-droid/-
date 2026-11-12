@@ -56,8 +56,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // pole direction (perpendicular to the reach)
   let px, py, pz;
   if (pole) { px = pole[po] - ax; py = pole[po + 1] - ay; pz = pole[po + 2] - az; }
-  else defaultPole(rig, limb, mq, mp, ux, uy, uz, er, eo, tv);
-  if (!pole) { px = tv[3]; py = tv[4]; pz = tv[5]; }
+  else { defaultPole(rig, limb, mq, er, eo, tv); px = tv[3]; py = tv[4]; pz = tv[5]; }
   let k = px * ux + py * uy + pz * uz;
   px -= ux * k; py -= uy * k; pz -= uz * k;
   let pl = Math.hypot(px, py, pz);
@@ -95,13 +94,11 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
 }
 
 /** Default pole point direction for a limb -> tv[3..5] (relative to the limb root). */
-function defaultPole(rig, limb, mq, mp, ux, uy, uz, er, eo, out) {
+function defaultPole(rig, limb, mq, er, eo, out) {
   if (limb.kind === 'arm') {
     // elbows point down / back / out in the chest frame
     const chest = rig.index.chest;
     qrot(out, 3, mq, chest * 4, -0.35, -1, limb.side * 0.75);
-    // reaching high: let the elbow swing outward rather than flip
-    if (uy > 0.2) { out[3] += 0; out[4] -= uy * 0.4; }
     return;
   }
   // knees track the toes: average of foot forward and hips forward (horizontal), slightly outward
@@ -117,7 +114,7 @@ function defaultPole(rig, limb, mq, mp, ux, uy, uz, er, eo, out) {
  * Keep a foot's sole and toe tip on or above the floor (model-space height floorY). Re-solves the leg if the sole
  * dips below the floor and rolls the toe up when the toe tip would sink. Call with FK up to date.
  */
-export function floorFoot(rig, limb, lq, mq, mp, floorY, buf) {
+export function floorFoot(rig, limb, lq, lp, mq, mp, floorY, buf) {
   const P = rig.P, end = limb.end, toe = limb.toe;
   // lowest of heel / ankle-sole / ball points
   qrot(tv, 0, mq, end * 4, 0, -P.ankleHeight, 0);
@@ -131,7 +128,7 @@ export function floorFoot(rig, limb, lq, mq, mp, floorY, buf) {
     buf[0] = mp[end * 3] + tv[0]; buf[1] = sy + (floorY - low); buf[2] = mp[end * 3 + 2] + tv[2];
     qcopy(buf, 4, mq, end * 4);
     solveLimb(rig, limb, lq, mq, mp, buf, 0, buf, 4, null, 0, 1, 0.02);
-    fk(rig, lq, null, mq, mp, limb.first, rig.count);
+    fk(rig, lq, lp, mq, mp, limb.first, rig.count);
   }
   // toe roll: keep the toe tip above the floor
   qrot(tv, 0, mq, toe * 4, P.toeLength, -(P.ankleHeight - P.footDrop) + 0.005, 0);

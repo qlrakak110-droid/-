@@ -89,7 +89,7 @@ function offsetsFor(P) {
 /**
  * Build the rig description.
  * @param {object} proportions  overrides of DEFAULT_PROPORTIONS
- * @param {Array} extra  design bones: [{ name, parent, at:[x,y,z] (parent zero frame), rot?:[x,y,z] deg rest rotation }]
+ * @param {Array} extra  design bones: [{ name, parent, at:[x,y,z] (parent zero frame), rot?:[x,y,z] deg | quat?:[x,y,z,w] rest rotation }]
  */
 export function createRig(proportions = {}, extra = []) {
   const P = { ...DEFAULT_PROPORTIONS, ...proportions };
@@ -122,7 +122,8 @@ export function createRig(proportions = {}, extra = []) {
     const ex = extra.find((e) => e.name === name);
     const off = ex ? ex.at || [0, 0, 0] : o[name];
     rig.offset.set(off, i * 3);
-    if (ex && ex.rot) eulerToQuat(rig.restRot, i * 4, ex.rot[0], ex.rot[1], ex.rot[2]);
+    if (ex && ex.quat) rig.restRot.set(ex.quat, i * 4);
+    else if (ex && ex.rot) eulerToQuat(rig.restRot, i * 4, ex.rot[0], ex.rot[1], ex.rot[2]);
     else rig.restRot.set([0, 0, 0, 1], i * 4);
     rig.helper[i] = HELPER_NAMES.includes(name) ? 1 : 0;
   });

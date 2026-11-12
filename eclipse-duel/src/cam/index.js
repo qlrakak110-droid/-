@@ -286,7 +286,7 @@ export function createCameraDirector(ctx, opts = {}) {
     },
 
     /** Jump the fight framing to its ideal now (round start, after a teleport): no smoothing, treated as a cut. */
-    snap() { view.snap = true; rig.reset(); },
+    snap() { view.snap = true; },
 
     /** Stop shakes, kicks and zoom (round reset). */
     clearFx() { shaker.clear(); zoom.left = 0; zoom.s.v = 1; zoom.s.vel = 0; zoom.w.v = 0; zoom.w.vel = 0; },

@@ -73,6 +73,5 @@ export function tierSettings(quality, override) {
     reflection: d >= 2,
     rubble: d >= 2 ? 1 : d >= 1 ? 0.75 : 0.45,
     skyOctaves: d >= 1 ? 5 : 3,
-    pmremSize: d >= 1 ? 256 : 128,
   };
 }

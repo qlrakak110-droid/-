@@ -26,8 +26,8 @@ const LAYOUT = {
     ult: [-152, -152], guard: [-212, -80], dodge: [-226, 12],
   },
   portrait: {
-    light: [0, 0], heavy: polar(120, 200), skill1: polar(120, 160), skill2: polar(120, 124), skill3: polar(120, 88),
-    ult: polar(212, 96), dodge: polar(212, 124), guard: polar(214, 151),
+    light: [0, 0], heavy: polar(118, 206), skill1: polar(120, 164), skill2: polar(120, 126), skill3: polar(120, 88),
+    ult: polar(214, 97), dodge: polar(214, 125), guard: polar(218, 152),
   },
 };
 const STICK_R = 54;     // knob travel (design px)
@@ -172,7 +172,7 @@ export function createTouch(ui) {
     const s = portrait ? Math.min(1.25, Math.max(0.82, (W - safe.l - safe.r) / 390)) : Math.min(1.3, Math.max(0.78, (H - safe.t - safe.b) / 390));
     stick.s = s;
     const ax = W - safe.r - (portrait ? 80 : 82) * s;
-    const ay = H - safe.b - (portrait ? 128 : 80) * s;
+    const ay = H - safe.b - (portrait ? 156 : 80) * s;
     for (const b of btns) {
       const p = pos[b.def.a];
       const d = b.def.d * s;
@@ -187,8 +187,8 @@ export function createTouch(ui) {
     base.style.marginLeft = base.style.marginTop = (-bs / 2).toFixed(1) + 'px';
     knob.style.width = knob.style.height = (58 * s).toFixed(1) + 'px';
     knob.style.marginLeft = knob.style.marginTop = (-29 * s).toFixed(1) + 'px';
-    stick.homeX = safe.l + (portrait ? 92 : 112) * s;
-    stick.homeY = H - zTop - safe.b - (portrait ? 150 : 104) * s;
+    stick.homeX = safe.l + (portrait ? 88 : 112) * s;
+    stick.homeY = H - zTop - safe.b - (portrait ? 118 : 104) * s;
     if (stick.id === null) placeBase(stick.homeX, stick.homeY);
   }
 

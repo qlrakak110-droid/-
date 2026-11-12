@@ -299,10 +299,11 @@ export class Pose {
     this.lookW = 0;
     this.curl = new Float32Array([0.25, 1]);
     this.root = new Float32Array(2);
+    this.feet = new Float32Array(14);       // resolved sole point (3) + model rotation (4) per foot (R, L)
   }
   copy(p) {
     this.lq.set(p.lq); this.hips.set(p.hips); this.ik.set(p.ik); this.grip = p.grip;
-    this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root);
+    this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root); this.feet.set(p.feet);
     return this;
   }
 }

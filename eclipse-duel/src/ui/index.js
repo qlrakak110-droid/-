@@ -30,7 +30,7 @@ function noiseURL() {
     for (let i = 0; i < img.data.length; i += 4) {
       const v = 128 + (rng() - 0.5) * 255;
       img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-      img.data[i + 3] = 22 + rng() * 20;
+      img.data[i + 3] = 8 + rng() * 14;
     }
     g.putImageData(img, 0, 0);
     return `url(${c.toDataURL('image/png')})`;
@@ -77,10 +77,12 @@ export function createUI(ctx, opts = {}) {
       if (d === 'keyboard' && touchOn && !usedKeys) return 'touch';
       return d;
     },
+    /** Key hint for an action, for the current device; '' on touch and for the CPU side (P2 outside versus mode). */
     keyLabel(action, player = 0) {
       if (!ctx.input) return '';
       const d = ui.device;
-      return d === 'touch' ? '' : ctx.input.keyLabel(action, player, d);
+      if (d === 'touch' || (player === 1 && ctx.input.mode !== 'versus')) return '';
+      return ctx.input.keyLabel(action, player, d);
     },
   };
   ctx.ui = ui;
