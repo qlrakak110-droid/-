@@ -1,0 +1,16 @@
+{
+  "name": "eclipse-duel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "ECLIPSE DUEL (일식결투) - an original dark-fantasy 1v1 3D fighting game. Single-file WebGL build.",
+  "scripts": {
+    "build": "node tools/build.mjs game",
+    "lab": "node tools/build.mjs",
+    "shot": "node tools/shot.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0",
+    "three": "0.170.0"
+  }
+}
