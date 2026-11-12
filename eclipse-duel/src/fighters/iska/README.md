@@ -244,10 +244,10 @@ Whiff (dodged / airborne victim): the rune shatters harmlessly (`ult.whiff`).
   leap 1, landing 1, plus the crystal shell on the victim for the whole lock.
 * Profile (director pass, `high`, ISKA vs VORN, 640x360, per-frame stepping on a loaded shared machine; ultimate
   measured in 60-frame chunks): draw calls fight 43 avg / 49 peak, ultimate 48-54 avg / 57 peak (budget 160). JS of the
-  VFX group 0.15-0.36 ms in the fight and the calm ultimate chunks (0.96 ms on the trigger chunk; chunks where every
+  VFX group 0.15-0.36 ms in the fight and the calm ultimate chunks (0.51 ms on the shatter, 0.96 ms on the trigger chunk; chunks where every
   group spiked together, GAME included, are machine stalls, not content). CHAR (rig, IK, cloth of both fighters)
-  1.6-5.4 ms. Programs: no shader compiles during the ultimate. Triangles: fight 344k avg, ultimate 365-460k avg /
-  472k peak (was 547k before the ghost counts were cut) - see Known issues.
+  1.6-5.4 ms. Programs 49 before / 49 after the ultimate (no compile mid-fight). Triangles: fight 344k avg, ultimate
+  365-460k avg / 483k peak (was 547k before the ghost counts were cut) - see Known issues.
 
 ## Known issues / requests to other modules
 

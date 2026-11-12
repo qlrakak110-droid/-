@@ -55,7 +55,6 @@ const tq = new Float32Array(16), tv = new Float32Array(12);
 const X = [0, 0, 0], Y = [0, 0, 0], Z = [0, 0, 0];
 const oldL = new Float32Array(12), newL = new Float32Array(12), endModel = new Float32Array(4);
 const sv = new Float32Array(32); // swivel search scratch
-const pre = new Float32Array(13); // unclamped solution (fallback)
 const rollQ = new Float32Array(8);
 let reachD = 0; // softened shoulder -> wrist distance of the last limbSetup
 
@@ -340,12 +339,13 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     limbAt(phi, sign, bend, er, eo, tq, 0);
   }
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
-  qcopy(pre, 0, tq, 0); qcopy(pre, 4, newL, 8); qcopy(pre, 8, er, eo); pre[12] = bend;
   if (wrist && clampWrist(newL, 8)) {
     // the wrist could not take the requested orientation: keep the clamped wrist pose (relative to the forearm) and
-    // solve the reach again for it, so the fist (not the wrist) stays on the target
+    // solve the reach again for it, so the fist (not the wrist) stays on the target. The hand keeps exactly the clamped
+    // pose (a hand never leaves the wrist's range, and never snaps back to the impossible request): where the iteration
+    // has not fully settled the fist is a little off the target instead
     qcopy(rollQ, 4, newL, 8);                     // clamped local wrist pose
-    for (let it = 0; it < 4; it++) {
+    for (let it = 0; it < 6; it++) {
       qaxis(sv, 12, 0, 0, 1, sign * bend);
       qmul(sv, 16, tq, 0, sv, 12);                // forearm (model)
       qmul(tq, 8, sv, 16, rollQ, 4);              // end model rotation for that wrist pose
@@ -353,17 +353,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
       limbAt(phi, sign, bend, er, eo, tq, 0);
     }
-    qcopy(newL, 8, tq, 4);
-    // the fist must still be on the target (it always is, but for a configuration where the iteration cannot settle):
-    // otherwise keep the exact unclamped solution for this frame
-    const { root: r0, l1, l2, endOff } = limb;
-    qrot(sv, 28, tq, 0, 0, -l1, 0);
-    let fx = mp[r0 * 3] + sv[28], fy = mp[r0 * 3 + 1] + sv[29], fz = mp[r0 * 3 + 2] + sv[30];
-    qrot(sv, 28, sv, 16, 0, -l2, 0); fx += sv[28]; fy += sv[29]; fz += sv[30];
-    qrot(sv, 28, er, eo, endOff[0], endOff[1], endOff[2]); fx += sv[28]; fy += sv[29]; fz += sv[30];
-    if (Math.hypot(fx - target[to], fy - target[to + 1], fz - target[to + 2]) > 0.004 * (l1 + l2) && sv[11] < 1 - soft) {
-      qcopy(tq, 0, pre, 0); qcopy(newL, 8, pre, 4); qcopy(tq, 8, pre, 8); er = tq; eo = 8; bend = pre[12];
-    }
+    qcopy(newL, 8, rollQ, 4);
+    qmul(tq, 8, sv, 16, rollQ, 4); er = tq; eo = 8;  // the end model rotation that results
   }
   if (mem && ch >= 0) { // this frame's elbow direction (chest frame) for the next frame's solve
     const c = Math.cos(phi), s = Math.sin(phi);
