@@ -22,9 +22,9 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
 export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
  * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction,
- * hand twist, grip roll step, grip roll step scale, hand twist step, hand twist step scale] + this frame (the same 12).
+ * hand twist, grip roll step, grip roll step scale] + this frame (the same 10).
  */
-export const MEM = 24;
+export const MEM = 20;
 const MH = MEM / 2;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
 export function commitMem(m, o = 0) { for (let k = 0; k < MH; k++) m[o + k] = m[o + MH + k]; }
@@ -350,7 +350,9 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       phi = phiP + d;
     } else phi = seeded ? basinMin(phiP) : gPhi;
     phi = wrapA(phi);
-    if (roll) {
+    if (roll && keep >= 1) { // the roll is not applied (the target already carries it): the memory carries it on
+      if (hasMem) { psi = psiRef; rollStep = mem[8]; rollScale = mem[9] > 0 ? mem[9] : 1; }
+    } else if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);
       const b = bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], hasMem ? psiRef : psi);
       if (hasMem) {
@@ -374,7 +376,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         // (it swaps sides as the roll crosses it) the hand settles on the edge instead of alternating between frames
         const cap = ROLL_RATE * Math.max(0, opt.dt || 0), last = mem[8];
         let step = Math.max(-cap, Math.min(cap, psi - psiRef)), sc = mem[9] > 0 ? mem[9] : 1;
-        sc = step * last < 0 && Math.min(Math.abs(step), Math.abs(last)) > 0.02 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
+        sc = step * last < 0 && Math.min(Math.abs(step), Math.abs(last)) > 0.1 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
         step *= sc;
         psi = psiRef + step;
         rollStep = step; rollScale = sc;
@@ -412,7 +414,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
     qrot(mem, MH, tv, 8, px, py, pz);
     mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = psi; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
-    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale; mem[MH + 10] = twistStep; mem[MH + 11] = twistScale;
+    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
@@ -486,7 +488,7 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   return Math.PI - Math.acos(cb);
 }
 
-let wristOut = 0, twistStep = 0, twistScale = 1;
+let wristOut = 0;
 /**
  * Soft-limit a hand local rotation to the wrist range (swing off the forearm axis, pronation / supination). True if
  * changed. Pronation: up to the knee as asked, then saturating at the limit, then (past ~140 deg asked, an impossible
@@ -501,16 +503,7 @@ export function clampWrist(q, o, mem = null, dt = 0) {
   const sw0 = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (x * x + z * z))));
   const at = Math.abs(tw), back = 1 - smooth01(at, 2.44, Math.PI);
   let tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
-  twistStep = 0; twistScale = 1;
-  if (mem) {
-    // rate-limited, and a step reversing the last one is halved (grows back x2 per frame): past ~140 deg the clamped
-    // twist runs back toward 0 as the request grows, and that feedback through the arm must settle, not alternate
-    let step = Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7])), sc = mem[11] > 0 ? mem[11] : 1;
-    sc = step * mem[10] < 0 && Math.min(Math.abs(step), Math.abs(mem[10])) > 0.02 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
-    step *= sc;
-    tw2 = mem[7] + step;
-    twistStep = step; twistScale = sc;
-  }
+  if (mem) tw2 = mem[7] + Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7]));
   wristOut = tw2;
   const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing);
   if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw0) < 1e-6) return false;

@@ -265,7 +265,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   for (const s of ['R', 'L']) { const a = new Float32Array(3); qrot(a, 0, weaponRest[s], 0, 1, 0, 0); gripAxis[s] = a; }
   const handTarget = new Float32Array(4);
 
-  const char = { _dbgGrip: gripMem,
+  const char = {
     root, rig, skeleton, meshes, materials, sockets, design,
     bones: boneMap,
     stats: { triangles: built.triangles, drawCalls: Object.keys(meshes).length, bones: N },
@@ -1164,7 +1164,10 @@ export function createCharacter(ctx, design0, opts = {}) {
       qmul(gripBase, 0, lq, ci, gripBase, 0);
       const err = solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift, final.gripM, final.gripMix);
       if (final.gripMix >= 0.999) char.diag.gripErr = Math.max(char.diag.gripErr, err * (w >= 1 ? 1 : w)); // (not while it changes grip)
-      cur.pose.swivelG.set(gripMem);
+      // the off hand's roll belongs to the clip's own grip solve (it rolls the target this solve reaches): kept from it
+      const sg = cur.pose.swivelG, H = MEM / 2;
+      gripMem[H + 5] = sg[H + 5]; gripMem[H + 8] = sg[H + 8]; gripMem[H + 9] = sg[H + 9];
+      sg.set(gripMem);
     }
     if (!gripped) gripMem[MEM / 2 + 3] = 0; // the off hand let go: its arm continues from its FK pose when it grips again
     char.diag.aimErr[0] = final.aimErr[0] * R2D; char.diag.aimErr[1] = final.aimErr[1] * R2D;
