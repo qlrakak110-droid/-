@@ -22,7 +22,7 @@ src/labs/rigqa.js            rig regression suite (section 10)
 
 Budgets of the demo knight (high tier): **3 draw calls** (slots `plate`, `suit`, `blade`; +3 in the shadow pass),
 ~57k triangles, 196 bones (57 animated incl. helpers / fingers / weapon / plume / tassets + 104 cape + 35 tabard cloth
-particles), ~0.55 ms CPU per `update()` on desktop (two cloths included; ~0.1 ms without cloth). No per-frame
+particles), ~0.7 ms CPU per `update()` on desktop over a combat chain (two cloths included; ~0.1 ms without cloth). No per-frame
 allocations in `update()`. Contract limits: <= 6 draw calls and <= 60k triangles per character.
 
 ---
@@ -254,7 +254,7 @@ ik: { handR: { pos, aim, up, rot, pole, w, soft, space, ease, interp } }
 | `pos` | **hands**: centre of the fist (the grip axis). **feet**: the sole point straight under the ankle (`u = 0` = flat on the floor) |
 | `aim`, `up` | orientation as vectors (preferred): for hands the **weapon frame**: `aim` = where the held blade points, `up` = the blade's back edge (opposite the true edge) — the hand takes whatever orientation holds the blade that way (the design's `gripAngle` included); for feet `aim` = toe direction, `up` = top of the foot. `up` is orthogonalised. A key with `aim` and no `up` keeps the roll of the neighbouring keys (the previous key's `up` is carried along the turn of the aim; the first such key borrows the next key's); only an effector that never keys `up` uses world +Y |
 | `rot` | orientation as fighter-frame Euler `[x,y,z]` (ZXY) relative to the zero pose orientation (hand: blade forward, edge down; foot: toes forward). **Not mirrored**: the same numbers turn both feet toward the same world direction (`footL: { rot: [0, 14, 0] }` turns the left toes out, while FK `footL: [0, 14, 0]` turns them in). Prefer `aim` / `up`, which mean the same thing on both sides |
-| `pole` | point `[f,u,s]` (fighter frame) the elbow / knee should point at. Default: elbows down-back-out in the chest frame, knees over the toes |
+| `pole` | point `[f,u,s]` (fighter frame) the elbow / knee should point at. Default: elbows down-back-out in the chest frame (then swivelled for the wrist, see below); knees over the toes for a foot below the hip, turning with the reach in the leg's sagittal plane (foot forward at hip height: knee up; foot behind: knee down), continuous for every reach direction except beside the hip above and behind it |
 | `w` | weight 0..1 (IK vs the FK pose of the same clip); `w: 0` or `null` turns the effector off |
 | `soft` | soft reach: the last fraction of the limb's length over which it eases into full extension (default 0.006: an arm or leg at exactly full reach is ~7 deg bent and 1-2 mm short; `0` = may lock straight, for thrusts / a straight back leg). Per key, interpolated |
 | `space` | `'root'` (default, moves with the root), `'origin'` (the root position at clip start: **planted feet during root motion**), `'hips'` / `'chest'` (bone frame: hands that ride a spinning torso). Spaces may change from key to key; the target blends between them |
@@ -483,12 +483,12 @@ node tools/shot.mjs rigqa --eval "__ED.qa.clip('demo.combo3', 'iska')"         #
 |---|---|
 | clips (every demo clip x 4 bodies, 60 Hz) | no NaN; hand swing <= 87 deg and twist <= 92 deg (human wrist); twist / deltoid helpers never jump beyond their source bone's own step (> 10 deg); two-handed grip error <= 1 cm; automatic pelvis drop step <= 2.5 cm / frame and its 2nd difference <= 1.2 cm / frame^2; knight only: no velocity step at any key (C1), planted-foot drift <= 1 cm, feet floor penetration <= 5 mm |
 | runtime | 5 plays inside one fade window (weapon tip step <= 10 cm); idle <-> guard / walk -> guard grip-point changes (off hand <= 10 cm / frame, back on the grip after the fade); guard blade roll drift; walk -> idle planted foot slide; setFacing on a scaled root; events of a huge dt; flinch 30 Hz vs 120 Hz and 30 stacked hits; 1500-frame API fuzz (NaN, bounded hips) |
-| ik | random targets within 95% reach through the full pipeline with breathing on (<= 1 mm); neutral standing hips = 1.04 m; root / hips / chest-space hands with breathing; hips-space foot vs root-space hand; authored knee pole on a planted foot; pelvis-drop sweep continuity and bound; pitched foot targets (heel / ball / toe tip on the floor); upper-arm abduction sweep 0..185 deg (helper continuity); forearm twist 160..200 deg (helper continuity); mirrorClip keep; giant from proportions (sockets / fingers) |
+| ik | random targets within 95% reach through the full pipeline with breathing on (<= 1 mm); neutral standing hips = 1.04 m; root / hips / chest-space hands with breathing; hips-space foot vs root-space hand; authored knee pole on a planted foot; pelvis-drop sweep continuity and bound; pitched foot targets (heel / ball / toe tip on the floor); default knee pole on 10 target rings around the hip (knee speed <= 7x the target's, knight and giant); upper-arm abduction sweep 0..185 deg (helper continuity); forearm twist 160..200 deg (helper continuity); mirrorClip keep; giant from proportions (sockets / fingers) |
 | xfade | 90-pair crossfade matrix (qa.crossfade pops) |
 | cloth | combo3 cape vs the head; NaN |
-| cpu | ms per update of the knight with both cloths (best batch, p10 of 10-update batches) |
+| cpu | ms per update of the knight with both cloths over a 300-frame combat chain (combo1, combo2, combo3, slam), replayed 8 times: the mean of each frame's fastest run (the uncontended cost on a shared machine) <= 1.0 ms |
 
-Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~20-40 s.
+Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~45 s on an idle machine (longer under load; the CPU check stays valid under load).
 Checks marked `[known, round 1]` are residual single-frame arm switches in demo clips whose keys ask for more wrist and
 shoulder rotation than a human has (combo3 at 0.233 s, the mirrored combo1M); they are held to their measured value so
 any regression still fails.

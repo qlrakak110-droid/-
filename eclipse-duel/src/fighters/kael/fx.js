@@ -66,7 +66,7 @@ const GROOVE = { tex: 'smoke', blend: 'alpha', count: 0, rate: 0, perMeter: 9, l
   size: [0.35, 0.55], aspect: 1.8, rotation: [-0.2, 0.2], groundFade: 0, heat: 0.3, additive: [[0, 1], [0.25, 0.85], [0.5, 0.2], [1, 0]], erode: [[0, 0.1], [0.5, 0.25], [1, 1]], erodeSoft: 0.3,
   color: [[0, 6, 2.4, 0.5, 0.9], [0.12, 2.6, 0.6, 0.06, 0.85], [0.35, 0.5, 0.08, 0.02, 0.8], [0.6, 0.03, 0.025, 0.02, 0.7], [1, 0.02, 0.02, 0.02, 0]] };
 /** flame tongues climbing the body (bulwark shell) */
-const SHELL_FIRE = { ...LIB.fire, rate: 44, shape: { type: 'box', size: [0.75, 1.7, 0.5] }, size: [0.35, 0.8, 1.4], life: [0.3, 0.6], speed: [0.8, 2.0], gravity: 3 };
+const SHELL_FIRE = { ...LIB.fire, rate: 30, shape: { type: 'box', size: [0.75, 1.7, 0.5] }, size: [0.35, 0.8, 1.4], life: [0.3, 0.6], speed: [0.8, 2.0], gravity: 3 };
 /** armour cracks flaring: hot pinpricks popping all over the body */
 const CRACKS = { tex: 'ember', blend: 'add', count: 0, rate: 40, life: [0.06, 0.22], shape: { type: 'box', size: [0.5, 1.5, 0.32] }, speed: 0, size: [0.05, 0.13, 2],
   flicker: { amount: 0.7, rate: 25 }, groundFade: 0, color: [[0, 10, 5, 1.2, 1], [0.4, 5, 1.4, 0.2, 1], [1, 1, 0.15, 0.02, 0]] };
@@ -113,17 +113,17 @@ export function defineKaelFx(vfx) {
   vfx.define('kael.flower', (v, at, o) => {
     const k = o.k ?? 1, p = at.pos, d = at.dir, s = at.scale, full = !o.accent;
     if (full) {
-      v.burst(KIT.ember.flash, { pos: p, scale: (0.45 + 0.3 * k) * s });
+      v.burst(KIT.ember.flash, { pos: p, scale: (0.35 + 0.2 * k) * s, intensity: 0.7 });
       v.flare({ kind: 'star', pos: p, size: (0.9 + 0.9 * k) * s, life: 0.12 + 0.05 * k, decay: 3, color: E.core, intensity: 0.55 + 0.25 * k, rotation: (o.cut ?? 30) * 0.0174 });
     }
     if (full && k >= 0.9) v.flare({ kind: 'streak', pos: p, size: 0.5 * s, aspect: 9, life: 0.12, decay: 2.5, color: E.core, intensity: 0.6, dir: d });
-    v.burst(CUT_SPRAY, { pos: p, dir: d, count: n(36 + 40 * k, 1), scale: s });
+    v.burst(CUT_SPRAY, { pos: p, dir: d, count: n((full ? 36 : 20) + (full ? 40 : 24) * k, 1), scale: s });
     v.burst(PETALS, { pos: p, dir: d, count: n(5 + 7 * k, 1), scale: (0.6 + 0.35 * k) * s });
     v.burst(CINDERS, { pos: p, dir: d, count: n(8 + 14 * k, 1), scale: s });
-    if (k >= 0.8) v.burst(PUFF, { pos: p, dir: [0, 1, 0], count: n(4 + 5 * k, 1), scale: (0.55 + 0.25 * k) * s });
+    if (full && k >= 0.8) v.burst(PUFF, { pos: p, dir: [0, 1, 0], count: n(4 + 5 * k, 1), scale: (0.55 + 0.25 * k) * s });
     v.burst(LIB.smoke, { pos: p, dir: [0, 1, 0], count: n(2 + 3 * k, 1), scale: 0.7 * s, delay: 0.05 });
-    v.ring({ normal: d, look: 'fire', pos: p, radius: [0.15 * s, (0.7 + 0.6 * k) * s], width: [0.2 * s, 0.35 * s], life: 0.32 + 0.1 * k, intensity: 0.45 + 0.15 * k });
-    if (full) v.light({ pos: lightPos(p), color: E.core, intensity: 50 + 70 * k, range: 6, duration: 0.3 + 0.2 * k, decay: 'outCubic', flicker: 0.25 });
+    if (full) v.ring({ normal: d, look: 'fire', pos: p, radius: [0.15 * s, (0.7 + 0.6 * k) * s], width: [0.2 * s, 0.35 * s], life: 0.32 + 0.1 * k, intensity: 0.3 + 0.1 * k });
+    if (full) v.light({ pos: lightPos(p, 1.4), color: E.core, intensity: 30 + 40 * k, range: 6, duration: 0.3 + 0.2 * k, decay: 'outCubic', flicker: 0.25 });
     if (full && k >= 0.9) v.schedule(0.035, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.25 * s, (1.2 + 1.0 * k) * s], life: 0.4, strength: 0.03 + 0.015 * k }));
     v.schedule(0.12, (w) => w.burst(ASH, { pos: p, count: n(4 + 8 * k, 1), scale: 0.8 * s }));
   });
@@ -133,13 +133,13 @@ export function defineKaelFx(vfx) {
     const k = o.k ?? 1, s = at.scale, g = [at.pos.x, 0, at.pos.z], f = at.facing;
     v.decal({ kind: 'crack', pos: g, radius: (0.8 + 0.8 * k) * s, magma: 1, life: 2.6 + k, cool: 2.2, reveal: 0.1 });
     v.decal({ kind: 'scorch', pos: g, radius: (0.6 + 0.5 * k) * s, life: 2.6 + k, magma: 0.7 });
-    v.burst(KIT.ember.flash, { pos: [g[0], 0.22, g[2]], scale: (0.5 + 0.4 * k) * s });
+    v.burst(KIT.ember.flash, { pos: [g[0], 0.22, g[2]], scale: (0.3 + 0.25 * k) * s, intensity: 0.7 });
     v.burst(SPRAY, { pos: [g[0], 0.08, g[2]], dir: [f * 0.35, 1, 0.25], count: n(30 + 40 * k, 1), scale: s });
     v.burst(DUST, { pos: g, dir: [0, 1, 0], count: n(5 + 6 * k, 1), scale: (0.55 + 0.35 * k) * s });
     v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: n(4 + 6 * k, 1), scale: 0.7 * s });
-    v.light({ pos: [g[0], 0.6, g[2] + 1.0], color: E.core, intensity: 70 + 90 * k, range: 7, duration: 0.45 + 0.2 * k, decay: 'outCubic', flicker: 0.3 });
+    v.light({ pos: [g[0], 0.6, g[2] + 1.2], color: E.core, intensity: 35 + 55 * k, range: 7, duration: 0.45 + 0.2 * k, decay: 'outCubic', flicker: 0.3 });
     if (k >= 1) {
-      v.ring({ look: 'fire', pos: g, radius: [0.2 * s, (1.4 + 0.8 * k) * s], life: 0.55, distort: 0.025, intensity: 0.8 });
+      v.ring({ look: 'fire', pos: g, radius: [0.2 * s, (1.4 + 0.8 * k) * s], life: 0.55, distort: 0.025, intensity: 0.5 });
       v.debris({ kind: 'ember', pos: [g[0], 0.1, g[2]], dir: [0, 1, 0], count: n(6 + 5 * k, 1), speed: [2, 6.5, 1.3], spread: 45, size: [0.05, 0.16, 2], scale: s });
       v.burst(PETALS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 6, scale: 0.75 * s });
     }
@@ -153,15 +153,15 @@ export function defineKaelFx(vfx) {
   vfx.define('kael.geyser', (v, at, o) => {
     const k = o.k ?? 1, s = at.scale, g = [at.pos.x, 0.02, at.pos.z];
     v.burst(FLOOR_GLOW, { pos: [g[0], 0.03, g[2]], dir: [0, 1, 0], scale: 0.6 * s });
-    v.pillar({ look: 'fire', pos: g, height: (3.2 + 1.4 * k) * s, radius: (0.4 + 0.15 * k) * s, life: 0.8 + 0.2 * k, rise: 0.06, intensity: 0.7 });
-    v.burst(KIT.ember.flash, { pos: [g[0], 0.6, g[2]], scale: 0.9 * s });
-    v.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: n(8 + 6 * k, 1), scale: s });
+    v.pillar({ look: 'fire', pos: g, height: (3.2 + 1.4 * k) * s, radius: (0.36 + 0.12 * k) * s, life: 0.8 + 0.2 * k, rise: 0.07, intensity: 0.42 });
+    v.burst(KIT.ember.flash, { pos: [g[0], 0.4, g[2]], scale: 0.5 * s, intensity: 0.6 });
+    v.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: n(4 + 4 * k, 1), scale: 0.8 * s, delay: 0.05 });
     v.burst(COLUMN_SPARKS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: n(40 + 40 * k, 1), scale: s });
     v.debris({ kind: 'ember', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: n(6 + 6 * k, 1), speed: [3, 9, 1.3], spread: 30, size: [0.05, 0.2, 2], scale: s });
     v.debris({ kind: 'rock', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: n(5 + 5 * k, 1), speed: [2.5, 7, 1.3], spread: 40, size: [0.06, 0.2, 2], scale: s });
-    v.ring({ look: 'fire', pos: g, radius: [0.25 * s, (1.6 + 0.8 * k) * s], life: 0.55, distort: 0.03, intensity: 0.85 });
+    v.ring({ look: 'fire', pos: g, radius: [0.25 * s, (1.6 + 0.8 * k) * s], life: 0.55, distort: 0.03, intensity: 0.5 });
     v.ring({ look: 'dust', pos: g, radius: [0.3 * s, (2.2 + 0.8 * k) * s], life: 1.1 });
-    v.light({ pos: [g[0], 1.4, g[2] + 1.2], color: E.core, intensity: 110 + 70 * k, range: 9, duration: 0.8, attack: 0.03, decay: 'outCubic', flicker: 0.3 });
+    v.light({ pos: [g[0], 1.4, g[2] + 1.5], color: E.core, intensity: 50 + 40 * k, range: 8, duration: 0.7, attack: 0.05, decay: 'outCubic', flicker: 0.3 });
     v.burst(HAZE, { pos: [g[0], 1.0, g[2]], dir: [0, 1, 0], scale: 1.2 * s });
     v.schedule(0.3, (w) => {
       w.burst(SMOKE_COLUMN, { pos: [g[0], 1.3, g[2]], dir: [0, 1, 0], count: n(4 + 4 * k, 1), scale: 0.7 * s });
@@ -176,15 +176,15 @@ export function defineKaelFx(vfx) {
     v.decal({ kind: 'crack', pos: g, radius: (big ? 1.7 : 1.3) * s, magma: 1, reveal: 0.06, life: 3.5, cool: 2.4 });
     v.burst(SPIT, { pos: [g[0], 0.05, g[2]], dir: [0, 1, 0], scale: s });
     v.schedule(0.04, (w) => {
-      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.5 * s, life: big ? 1.1 : 0.9, rise: 0.05, intensity: 0.72 });
-      w.burst(KIT.ember.flash, { pos: [g[0], 0.6, g[2]], scale: (big ? 1.2 : 0.9) * s });
-      w.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: big ? 14 : 9, scale: s });
+      w.pillar({ look: 'fire', pos: g, height: (big ? 5.2 : 4.2) * s, radius: 0.45 * s, life: big ? 1.1 : 0.9, rise: 0.06, intensity: big ? 0.55 : 0.45 });
+      w.burst(KIT.ember.flash, { pos: [g[0], 0.5, g[2]], scale: (big ? 0.8 : 0.55) * s, intensity: 0.6 });
+      w.burst(PLUME, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: big ? 7 : 4, scale: 0.85 * s, delay: 0.05 });
       w.burst(COLUMN_SPARKS, { pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: big ? 80 : 50, scale: s });
       w.debris({ kind: 'rock', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: big ? 12 : 7, speed: [2.5, 7.5, 1.3], spread: 40, size: [0.07, 0.24, 2], scale: s });
       w.debris({ kind: 'ember', pos: [g[0], 0.15, g[2]], dir: [0, 1, 0], count: big ? 10 : 5, speed: [3, 9, 1.3], spread: 30, size: [0.05, 0.18, 2], scale: s });
-      w.ring({ look: 'fire', pos: g, radius: [0.3 * s, (big ? 2.6 : 1.9) * s], life: 0.5, distort: big ? 0.035 : 0.02, intensity: 0.8 });
+      w.ring({ look: 'fire', pos: g, radius: [0.3 * s, (big ? 2.6 : 1.9) * s], life: 0.5, distort: big ? 0.035 : 0.02, intensity: 0.5 });
       w.ring({ look: 'dust', pos: g, radius: [0.4 * s, (big ? 3.2 : 2.4) * s], life: 1.0 });
-      w.light({ pos: [g[0], 1.3, g[2] + 1.2], color: E.core, intensity: big ? 170 : 100, range: 9, duration: 0.7, decay: 'outCubic', flicker: 0.3 });
+      w.light({ pos: [g[0], 1.3, g[2] + 1.5], color: E.core, intensity: big ? 90 : 50, range: 8, duration: 0.7, decay: 'outCubic', flicker: 0.3 });
       w.burst(FLOOR_GLOW, { pos: [g[0], 0.03, g[2]], dir: [0, 1, 0], scale: (big ? 0.8 : 0.55) * s });
     });
     v.schedule(0.32, (w) => {
@@ -236,14 +236,15 @@ export function defineKaelFx(vfx) {
   vfx.define('kael.shell', (v, at, o) => {
     const dur = o.duration ?? 0.6, tgt = o.follow;
     const em = (d, off) => { const h = v.emitter(d, { pos: at.pos, dir: [0, 1, 0], duration: dur }); if (tgt) h.follow(tgt, off); return h; };
-    em(SHELL_FIRE, [0, 0.95, 0]);
     em(CRACKS, [0, 1.0, 0.05]);
-    em(ORBIT, [0, 0.4, 0]);
     em(SHELL_HAZE, [0, 1.0, 0]);
-    v.ring({ look: 'fire', pos: [at.pos.x, 0, at.pos.z], radius: [0.3, 1.25], width: [0.3, 0.5], life: 0.45, intensity: 0.7 });
+    if (o.lite) return;                                    // armour tell only: cracks flaring + heat
+    em(SHELL_FIRE, [0, 0.95, 0]);
+    em(ORBIT, [0, 0.4, 0]);
+    v.ring({ look: 'fire', pos: [at.pos.x, 0, at.pos.z], radius: [0.3, 1.25], width: [0.3, 0.5], life: 0.45, intensity: 0.5 });
     v.decal({ kind: 'glow', pos: [at.pos.x, 0, at.pos.z], radius: 1.4, palette: 'ember', life: dur + 0.2, fadeIn: 0.1, intensity: 1.1 });
-    const halo = v.flare({ kind: 'glow', pos: [at.pos.x, 1.1, at.pos.z], size: 2.4, life: dur, attack: 0.08, decay: 0.6, color: E.mid, intensity: 0.32, pull: 0 });
-    const lt = v.light({ pos: [at.pos.x, 1.3, at.pos.z + 1.2], color: E.core, intensity: 55, range: 5, duration: dur, attack: 0.06, flicker: 0.4, flickerRate: 11 });
+    const halo = v.flare({ kind: 'glow', pos: [at.pos.x, 1.1, at.pos.z], size: 2.4, life: dur, attack: 0.08, decay: 0.6, color: E.mid, intensity: 0.14, pull: 0 });
+    const lt = v.light({ pos: [at.pos.x, 1.3, at.pos.z + 1.2], color: E.core, intensity: 35, range: 5, duration: dur, attack: 0.06, flicker: 0.4, flickerRate: 11 });
     if (tgt) { halo.follow(tgt, [0, 1.1, 0]); lt.follow(tgt, [0, 1.3, 1.2]); }
   });
 
@@ -286,8 +287,8 @@ export function defineKaelFx(vfx) {
   /** a full vertical ring of fire around at.pos (the ult spin), in the camera plane tilted by opts.roll */
   vfx.define('kael.ringOfFire', (v, at, o) => {
     const R = o.radius ?? 1.6, plane = { normal: [0, 0.12, 1], forward: [1, 0, 0], roll: o.roll ?? 0, facing: at.facing };
-    v.slash({ look: 'flame', pos: at.pos, ...plane, arc: [100, -250], radius: R, width: 0.9, sweep: o.sweep ?? 0.22, life: 0.95, distort: 0.03, cone: 0.2, intensity: 0.85 });
-    v.slash({ look: 'razor', palette: 'ember', pos: at.pos, ...plane, arc: [100, -250], radius: R * 0.985, width: 0.16, sweep: o.sweep ?? 0.22, life: 0.35, intensity: 1.1 });
+    v.slash({ look: 'flame', pos: at.pos, ...plane, arc: [100, -250], radius: R, width: 0.8, sweep: o.sweep ?? 0.22, life: 0.95, distort: 0.03, cone: 0.2, intensity: 0.6 });
+    v.slash({ look: 'razor', palette: 'ember', pos: at.pos, ...plane, arc: [100, -250], radius: R * 0.985, width: 0.14, sweep: o.sweep ?? 0.22, life: 0.35, intensity: 0.8 });
     v.light({ pos: lightPos(at.pos, 1.2, 0), color: E.core, intensity: 130, range: 8, duration: 0.6, attack: 0.05, flicker: 0.3 });
     v.burst(CINDERS, { pos: at.pos, count: 30, scale: 1.6 });
     v.schedule(0.15, (w) => w.burst(ASH, { pos: at.pos, count: 12, scale: 1.2 }));

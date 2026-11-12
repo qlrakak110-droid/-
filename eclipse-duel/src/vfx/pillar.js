@@ -95,6 +95,8 @@ void main() {
     float w = look == 2 ? 9.0 : 2.4;
     dens = pow(f, w) * (0.55 + 0.75 * st) * (look == 2 ? 1.0 - smoothstep(0.0, 0.35, age) * 0.4 : 1.0);
     k = 0.12 + td * 0.6 + (1.0 - f) * 0.35 + yn * 0.15;
+    // fire: white-hot only at the vent, the column above cools to orange (a full-height white tube reads as a lamp)
+    if (look == 0) { dens *= 0.8; k += 0.08 + yn * 0.3 - (1.0 - smoothstep(0.0, 0.18, yn)) * 0.08; }
   } else {
     float shellD = smoothstep(0.0, 0.75, f) * (1.0 - f * 0.35);
     dens = shellD * (0.25 + 1.0 * fb * st2) * 0.8;

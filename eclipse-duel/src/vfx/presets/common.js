@@ -79,9 +79,10 @@ export function cutThrough(pos, dir, facing, r, half, roll = 0) {
 
 /**
  * Where to put a pooled light for an event at p: pulled toward the camera side (+Z) and a little up, so it lights
- * the bodies nearby without sitting inside them (irradiance grows with 1/d²: a light 0.3 m from armour whites it out).
+ * the bodies nearby without sitting inside them (irradiance grows with 1/d²: a light 0.3 m from armour whites it out;
+ * 1.5 m keeps a hit light to a sheen on both fighters instead of a white-out).
  */
-export const lightAt = (p, dz = 1.1, dy = 0.2) => new THREE.Vector3(p.x, p.y + dy, p.z + dz);
+export const lightAt = (p, dz = 1.5, dy = 0.2) => new THREE.Vector3(p.x, p.y + dy, p.z + dz);
 
 /** Floor point under p (y = lift). */
 export const floor = (p, lift = 0.02) => new THREE.Vector3(p.x, lift, p.z);
@@ -141,7 +142,7 @@ function hitKit(el) {
   // lingering puff blown out of the contact along the strike: lit grey dust (steel), dark smoke with a warm underglow
   // (ember), pale mist (frost), violet-black ozone (volt). Lighter than the floor so it reads against dark armour.
   const puffBase = { tex: 'smoke', blend: 'alpha', count: 3, life: [0.6, 1.3], shape: { type: 'sphere', radius: 0.1 }, emit: 'axis', spread: 38, lift: 0.35,
-    speed: [0.8, 2.6, 1.3], size: [0.3, 0.75, 1.4], sizeOverLife: [[0, 0.35], [0.2, 0.8, 'outQuad'], [1, 1.2]], gravity: 0.35, drag: 3.2, spin: [0.2, 0.8],
+    speed: [0.8, 2.6, 1.3], size: [0.42, 1.0, 1.4], sizeOverLife: [[0, 0.35], [0.2, 0.8, 'outQuad'], [1, 1.2]], gravity: 0.35, drag: 3.2, spin: [0.2, 0.8],
     turbulence: { amp: 0.25, freq: 0.9, speed: 0.8 }, erode: [[0, 0], [0.35, 0.12], [1, 1]], erodeSoft: 0.35, shade: 0.75, delay: [0.01, 0.05], groundFade: 0.15 };
   k.dust = def(el === 'ember'
     ? { ...puffBase, heat: 0.25, additive: [[0, 0.9], [0.18, 0.35], [0.4, 0]],
@@ -150,7 +151,7 @@ function hitKit(el) {
       ? { ...puffBase, gravity: -0.3, additive: 0.15, shade: 0.5, color: [[0, 1.3, 1.6, 2, 0], [0.08, 0.62, 0.74, 0.9, 0.42], [0.5, 0.5, 0.6, 0.7, 0.28], [1, 0.45, 0.55, 0.65, 0]] }
       : el === 'volt'
         ? { ...puffBase, additive: [[0, 0.8], [0.15, 0]], color: [[0, 2.4, 1.6, 5, 0.6], [0.1, 0.1, 0.08, 0.16, 0.6], [0.5, 0.07, 0.06, 0.1, 0.45], [1, 0.06, 0.055, 0.08, 0]] }
-        : { ...puffBase, color: [[0, 1.6, 1.3, 0.9, 0.5], [0.08, 0.26, 0.24, 0.22, 0.6], [0.45, 0.17, 0.16, 0.15, 0.42], [1, 0.12, 0.115, 0.11, 0]] });
+        : { ...puffBase, color: [[0, 1.6, 1.3, 0.9, 0.55], [0.08, 0.3, 0.28, 0.26, 0.68], [0.45, 0.2, 0.19, 0.18, 0.5], [1, 0.14, 0.135, 0.13, 0]] });
   // element accent of a heavy blow: fire licks (ember), crystal shards (frost), crackle arcs (volt), hot steel chips
   if (el === 'ember') k.accent = def({ ...LIB.fireLicks, count: 5, size: [0.35, 0.7], speed: [2, 5], life: [0.18, 0.4], emit: 'axis', spread: 45, lift: 0.3 });
   else if (frost) k.accent = def({ tex: 'shard', blend: 'add', count: 8, life: [0.35, 0.8], shape: { type: 'sphere', radius: 0.1 }, emit: 'axis', spread: 50, lift: 0.3,

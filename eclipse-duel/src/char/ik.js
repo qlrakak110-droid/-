@@ -373,22 +373,19 @@ function defaultPole(rig, limb, mq, er, eo, ux, uy, uz, out) {
     qrot(out, 3, mq, chest * 4, -0.35, -1, limb.side * 0.75);
     return;
   }
-  // knees track the toes: average of foot forward and hips forward (horizontal), slightly outward
+  // knees track the toes: f = average of foot forward and hips forward (horizontal), slightly outward. The knee points
+  // along L x u (L = f x up, the lateral axis): perpendicular to the reach, in the leg's sagittal plane, so a foot
+  // below the hip puts the knee over the toes, a foot in front at hip height (kick, knee raise) lifts the knee and a
+  // foot behind drops it. With the small forward / up terms the field is continuous for every reach direction but two,
+  // beside the hip, above and behind it (out of the leg's range); a pole projected from f alone flips where u = f.
   qrot(out, 6, er, eo, 1, 0, 0);
   qrot(out, 9, mq, rig.index.hips * 4, 1, 0, 0);
   let fx = out[6] + out[9] * 0.6, fz = out[8] + out[11] * 0.6;
-  const l = Math.hypot(fx, fz) || 1;
+  let l = Math.hypot(fx, fz) || 1;
+  fx /= l; fz = fz / l + limb.side * 0.12;
+  l = Math.hypot(fx, fz) || 1;
   fx /= l; fz /= l;
-  let px = fx, py = 0.05, pz = fz + limb.side * 0.12;
-  // a foot in front at hip height (kick, knee raise) puts the reach on that line: lift the knee instead (hips up);
-  // a foot behind at hip height drops it. Blended in continuously, so the knee never whips sideways.
-  const pn = Math.hypot(px, py, pz) || 1;
-  const along = (px * ux + py * uy + pz * uz) / pn;
-  const k = smooth01(Math.abs(along), 0.55, 0.9) * 1.6 * Math.sign(along);
-  if (k !== 0) {
-    qrot(out, 6, mq, rig.index.hips * 4, 0, 1, 0);
-    px += out[6] * k; py += out[7] * k; pz += out[8] * k;
-  }
+  const px = -fx * uy + 0.55 * fx, py = fx * ux + fz * uz + 0.3, pz = -fz * uy + 0.55 * fz;
   out[3] = px; out[4] = py; out[5] = pz;
 }
 

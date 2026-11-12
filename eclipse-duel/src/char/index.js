@@ -265,10 +265,10 @@ export function createCharacter(ctx, design, opts = {}) {
     const c = getClip(rig, name);
     const cur = states[states.length - 1];
     const loop = o.loop ?? c.loop;
-    if (cur && cur.name === name && cur.loop && loop && !o.restart && !cur.frozen) { cur.speed = o.speed ?? cur.speed; return char; }
+    if (cur && cur.name === name && cur.loop && loop && !o.restart && !cur.frozen) { if (Number.isFinite(o.speed)) cur.speed = o.speed; return char; }
     if (states.length >= MAX_STATES) collapseOldest();
     const s = statePool.pop() || { pose: new Pose(rig) };
-    s.c = c; s.name = name; s.speed = o.speed ?? 1; s.loop = loop; s.external = false; s.frozen = false;
+    s.c = c; s.name = name; s.speed = Number.isFinite(o.speed) ? o.speed : 1; s.loop = loop; s.external = false; s.frozen = false;
     s.scale = o.scale ?? design.clipScale ?? 1;
     s.time = s.lastT = Math.max(0, o.startAt || 0); s.fresh = true; s.resolved = false;
     s.fade = Math.max(0, o.fade ?? 0.1); s.age = 0; s.w = s.gw = s.fade > 0 ? 0 : 1;

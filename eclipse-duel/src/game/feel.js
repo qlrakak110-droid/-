@@ -31,6 +31,18 @@ export function createFeel(ctx, session) {
   const cam = ctx.cam, post = ctx.post;
   const sfxOf = (i) => ELEMENT_SFX[session.actors[i].element] || ELEMENT_SFX.ember;
 
+  /**
+   * Afterimage of a fighter in its element palette. A ghost copies every mesh of the character (~60k triangles), so the
+   * generic ones are rate-limited to one per fighter per 0.25 s of game time (`force` for the perfect dodge).
+   */
+  const ghostAt = [-1, -1];
+  function ghost(A, life, intensity = 0.7, force = false) {
+    const t = ctx.time.game;
+    if (!force && t - ghostAt[A.index] < 0.25) return;
+    ghostAt[A.index] = t;
+    fx.call('afterimage', A.char.root, { palette: A.element, life, intensity });
+  }
+
   /** Contact point slightly in front of the bodies (toward the camera) so sparks are never buried. */
   function contact(e, out = P) { return out.set(e.x, e.y ?? 1.2, 0.18); }
 
@@ -132,20 +144,22 @@ export function createFeel(ctx, session) {
   /** Camera-cue framing kept clear of the effects on the fight line (the default ground skim runs 1.2 m from it,
    *  inside eruption columns and spike lines). */
   const CUE = { groundSkim: { from: [-1.4, 0.32, 3.6], to: [-1.8, 0.38, 3.1], fov: [46, 40] } };
-  function marker(e) {
+  /** @param {boolean} [own] the fighter's choreography handles this marker: it owns the set piece (decal, slow
+   *  motion and camera hints are skipped; the light hints still layer under it) */
+  function marker(e, own = false) {
     const d = e.data;
     if (!d || typeof d !== 'object' || e.fighter === undefined) return;
     const A = session.actors[e.fighter];
     if (typeof d.shake === 'number') cam.shake(d.shake, { freq: 15 });
     if (typeof d.kickFov === 'number') cam.kick({ fov: d.kickFov, duration: 0.3 });
-    if (d.afterimage) fx.call('afterimage', A.char.root, { palette: A.element, life: 0.35, intensity: 0.7 });
+    if (d.afterimage) ghost(A, 0.35);
     if (d.impactFrame === true) post.impactFrame({ duration: 0.05 });
     const snd = typeof d.audio === 'string' ? d.audio : typeof d.sound === 'string' ? d.sound : null;
     // a marker sound the generic layer played within the last second (ult_start of the super-freeze, ult_impact of the
     // lock finish) is not doubled
     if (snd && !session.playedRecently(snd, 1)) session.sound(snd, { pos: A.pos });
     if (typeof d.flash === 'number') A.char.flash(A.palette.core, d.flash, 0.2);
-    if (e.cinematic || match.cinematic) return;
+    if (own || e.cinematic || match.cinematic) return;
     // floor decal: 'crack' / 'scorch arc' at the weapon tip, 'rune circle' under the fighter
     const kind = typeof d.decal === 'string' ? DECAL_WORD[d.decal.split(/\s+/)[0]] : null;
     if (kind && ctx.vfx && ctx.vfx.decalKinds && ctx.vfx.decalKinds[kind]) {
@@ -362,7 +376,7 @@ export function createFeel(ctx, session) {
     const pos = A.at(0, 0, 0, new THREE.Vector3());
     if (e.kind === 'dash' || e.kind === 'roll') fx.play('combat.dust.dash', { pos, facing: A.facing }, { k: 0.55 }, 'game.dust');
     if (e.kind === 'backstep') fx.play('combat.dust.dash', { pos, facing: -A.facing }, { k: 0.45, intensity: 0.7 }, 'game.dust');
-    if (e.kind === 'dodge') fx.call('afterimage', A.char.root, { palette: A.element, life: 0.3, intensity: 0.7 });
+    if (e.kind === 'dodge') ghost(A, 0.3);
     session.sound('dodge', { pos, volume: e.kind === 'dash' ? 0.7 : 0.85 });
   }
   function perfectDodge(e) {
@@ -370,7 +384,7 @@ export function createFeel(ctx, session) {
     ctx.time.slowmo(0.35, 0.4, { easeIn: 0.02, easeOut: 0.2 });
     post.pulse('chroma', 0.45, { release: 0.35 });
     A.char.flash([1.5, 3, 5], 0.6, 0.3);
-    fx.call('afterimage', A.char.root, { palette: A.element, life: 0.45, intensity: 0.8 });
+    ghost(A, 0.45, 0.8, true);
     session.sound('slowmo_in', { volume: 0.45 });
   }
   function land(e) {
@@ -396,7 +410,7 @@ export function createFeel(ctx, session) {
   function teleport(e) {
     const A = session.actors[e.fighter];
     fx.play('game.burst', { pos: new THREE.Vector3(e.from, 1.1, 0.1) }, { element: A.element, k: 0.6 });
-    fx.call('afterimage', A.char.root, { palette: A.element, life: 0.35, intensity: 0.7 });
+    ghost(A, 0.35);
   }
 
   function ko(e) {

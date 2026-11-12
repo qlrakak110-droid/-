@@ -9,6 +9,7 @@
 
 import { LIB, PALETTE } from '../../vfx/library.js';
 import { heatRamp } from '../../vfx/util.js';
+import { arcPoint, arcTangent } from '../../vfx/presets/common.js';
 
 export const F = PALETTE.frost;
 /** starlight white (hot heads, star glints) */
@@ -76,9 +77,9 @@ export const D = {
   ambPool: { ...LIB.dustRing, count: 0, rate: 1.6, shape: { type: 'ring', radius: 0.25, thickness: 0.2 }, speed: [0.2, 0.6], life: [1.8, 2.8], size: [0.7, 1.2], sizeOverLife: [[0, 0.4], [1, 1.3]],
     additive: 0.35, shade: 0.4, color: [[0, 1.0, 1.3, 1.7, 0], [0.15, 0.6, 0.78, 1.0, 0.16], [0.6, 0.55, 0.66, 0.8, 0.1], [1, 0.5, 0.6, 0.72, 0]] },
   /** super-freeze: snow motes swirling around her, drawn in (vortex) */
-  vortex: { tex: 'snow', blend: 'add', count: 0, rate: 70, life: [0.5, 0.8], shape: { type: 'sphere', radius: 1.4, inner: 0.7 }, emit: 'tangent', spread: 20, speed: [1, 2.2],
+  vortex: { tex: 'snow', blend: 'add', count: 0, rate: 40, life: [0.5, 0.8], shape: { type: 'sphere', radius: 1.4, inner: 0.7 }, emit: 'tangent', spread: 20, speed: [1, 2.2],
     swirl: 3.2, attract: 0.8, attractPow: 1.8, size: [0.04, 0.1, 1.6], spin: [1, 3], groundFade: 0.05,
-    color: [[0, 1.6, 2.4, 3.4, 0], [0.2, 1.6, 2.4, 3.4, 0.9], [1, 2.4, 3.6, 5, 0.6]] },
+    color: [[0, 0.9, 1.4, 2.0, 0], [0.2, 0.9, 1.4, 2.0, 0.8], [1, 1.3, 2.0, 2.8, 0.5]] },
   /** constellation star dust (hangs in the sky) */
   skyDust: { tex: 'glint', blend: 'add', count: 40, life: [1.4, 2.4], shape: { type: 'box', size: [7, 2.5, 3] }, emit: 'random', speed: [0.05, 0.3], drag: 1,
     size: [0.06, 0.16, 2], flicker: { amount: 0.8, rate: 9 }, groundFade: 0, nearFade: 0,
@@ -105,8 +106,8 @@ export function defineIskaFx(vfx, rng) {
    */
   vfx.define('iska.flower', (v, at, o) => {
     const k = o.k ?? 1, p = at.pos, d = at.dir;
-    v.burst(D.flash, { pos: p, scale: 0.25 + 0.2 * k, realtime: true });
-    v.flare({ kind: 'star', pos: p, size: 0.5 + 0.7 * k, life: 0.14 + 0.08 * k, decay: 2.4, color: STAR, intensity: 0.5 + 0.25 * k, rotation: 0.2 + rng() * 0.5, realtime: true });
+    v.burst(D.flash, { pos: p, scale: 0.12 + 0.16 * k, intensity: 0.7, realtime: true });
+    v.flare({ kind: 'star', pos: p, size: 0.3 + 0.45 * k, life: 0.12 + 0.08 * k, decay: 2.6, color: STAR, intensity: 0.3 + 0.2 * k, rotation: 0.2 + rng() * 0.5, realtime: true });
     v.burst(D.shardFan, { pos: p, dir: d, count: n(5 + 10 * k), scale: 0.6 + 0.4 * k });
     v.burst(D.glint, { pos: p, count: n(4 + 8 * k), scale: 0.6 + 0.5 * k });
     if (k >= 0.8) {
@@ -115,6 +116,36 @@ export function defineIskaFx(vfx, rng) {
       v.burst(D.mist, { pos: p, count: 2, scale: 0.5 + 0.2 * k });
     }
     if (o.floor) v.decal({ kind: 'frost', pos: [p.x, 0, p.z * 0.3], radius: 0.6 + 0.5 * k, reveal: 0.25, life: 2.2 });
+  });
+
+  /**
+   * Iska's crescent cut around a swing pivot: a thin crystalline crescent (ice look) with a starlight razor edge, glints
+   * and snow hanging along the arc, a small star at the tip. Brighter / wider with opts.k; opts.twin adds the second
+   * blade a beat later (concentric, slightly inside). No point light unless opts.light (the trail and hit carry it).
+   * opts: arc, radius, width, normal, roll, sweep, life, k, twin, light
+   */
+  vfx.define('iska.cut', (v, at, o) => {
+    const k = o.k ?? 1, s = at.scale, f = at.facing;
+    const R = (o.radius ?? 1.1) * s, Wd = (o.width ?? 0.3) * s, arc = o.arc || [120, -35];
+    const sweep = o.sweep ?? 0.05, life = o.life ?? 0.42;
+    const plane = { normal: o.normal || [0, -0.15, 1], forward: [1, 0, 0], roll: o.roll || 0, facing: f };
+    const cut = (w, r, wd, kk, ar) => {
+      w.slash({ look: 'ice', palette: 'frost', pos: at.pos, ...plane, arc: ar, radius: r, width: wd, sweep, life, intensity: 0.7 * kk });
+      w.slash({ look: 'razor', palette: 'frost', core: STAR, pos: at.pos, ...plane, arc: ar, radius: r * 0.995, width: 0.045 * s, sweep, life: 0.14, intensity: 1.1 * kk });
+    };
+    cut(v, R, Wd, k, arc);
+    if (o.twin) v.schedule(0.045, (w) => cut(w, R * 0.86, Wd * 0.8, k * 0.8, [arc[0] - 10 * Math.sign(arc[1] - arc[0]), arc[1]]));
+    const end = arcPoint(at.pos, plane, arc[1], R);
+    v.schedule(sweep, (w) => {
+      w.flare({ kind: 'star', pos: end, size: 0.45 * s * (0.6 + 0.4 * k), life: 0.14, decay: 2.4, color: STAR, intensity: 0.5 * k, rotation: 0.25 });
+      w.burst(D.sparks, { pos: end, dir: arcTangent(plane, arc[1], Math.sign(arc[1] - arc[0])), count: n(8 * k), scale: 0.6 * s });
+    });
+    for (const u of [0.3, 0.6, 0.9]) {
+      const p = arcPoint(at.pos, plane, arc[0] + (arc[1] - arc[0]) * u, R * 0.92);
+      v.burst(D.glint, { pos: p, count: n(3 * k), scale: 0.6 * s, delay: sweep * u });
+      v.burst(D.snow, { pos: p, count: 1, scale: 0.4 * s, delay: sweep * u });
+    }
+    if (o.light) v.light({ pos: [at.pos.x, at.pos.y, at.pos.z + 1.2], color: F.core, intensity: 16 * k, range: 4.5, duration: 0.2, decay: 'outCubic' });
   });
 
   /** wind-up tell at a point: motes and streaks converge and swirl in, a star kindles (opts.time = gather seconds) */
@@ -132,7 +163,6 @@ export function defineIskaFx(vfx, rng) {
     v.burst(D.gather, { pos: at.pos, target: at.pos, count: 12, scale: 0.5 });
     v.flare({ kind: 'star', pos: at.pos, size: [0.1, 0.55], life: T + 0.06, attack: T * 0.9, decay: 4, color: STAR, intensity: 0.7, rotation: 0.1 });
     v.flare({ kind: 'glow', pos: at.pos, size: [0.05, 0.35], life: T + 0.05, attack: T, decay: 4, color: F.core, intensity: 0.5 });
-    v.schedule(T * 0.5, (w) => w.ring({ orient: 'camera', look: 'frost', pos: at.pos, radius: [0.35, 0.08], width: [0.05, 0.03], life: T * 0.6, intensity: 0.5 }));
   });
 
   /**

@@ -57,7 +57,7 @@ export const YL = 12, YR = -48;
 /** Low spear guard: right fist at the front of the right hip, spear forward-down (tip at knee height ~1.6 m out),
  * haft rising behind along the right side, left hand on the rear grip. */
 export const STANCE_AIM = [0.86, -0.42, -0.27];
-export const STANCE_HAND = sp([0.3, 1.02, 0.22], STANCE_AIM);
+export const STANCE_HAND = sp([0.32, 1.02, 0.16], STANCE_AIM);
 export const STANCE = {
   hips: { pos: [-0.03, -0.1, 0], rot: [0, -30, 0] },
   bones: { spine: [0, -8, -3], chest: [1, -8, -1], neck: [0, 12, 2], head: [0, 16, -4], weaponR: [0, 0, -GRIP_TILT], ...LARM0 },
@@ -90,6 +90,12 @@ export function keyset() {
     return k;
   };
   return k;
+}
+
+/** A planted foot rolling onto its ball (heel up `deg`), the ball pad staying where it was: the rear foot of a lunge. */
+export function heel(pos, yaw, deg = 24, o = {}) {
+  const a = deg * Math.PI / 180;
+  return ft([pos[0] - 0.145 * (1 - Math.cos(a)), 0.145 * Math.sin(a), pos[2]], yaw, { ...o, pitch: -deg });
 }
 
 /** Root-motion keys from the rules motion: `[[t, d], ...]` cumulative metres (linear between). */

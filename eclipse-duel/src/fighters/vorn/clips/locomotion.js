@@ -9,12 +9,12 @@ defineClip('vorn.idle', {
   duration: 2.8, loop: true, breath: 1.25, gripAt: 'choke', base: 'vorn.stance',
   keys: [
     { t: 0, pose: 'vorn.stance', ease: 'inOutSine' },
-    { t: 0.8, ease: 'inOutSine', hips: { pos: [-0.015, -0.112, 0.012], rot: [1.4, -28, 1.2] }, bones: { spine: [0, -8, -4], chest: [0.4, -7, -2] },
-      ik: { handR: sp([0.31, 1.005, 0.215], [0.87, -0.44, -0.24]) } },
+    { t: 0.8, ease: 'inOutSine', hips: { pos: [-0.01, -0.116, 0.016], rot: [2, -27, 1.6] }, bones: { spine: [0, -8, -4.5], chest: [0.4, -6.5, -2.5] },
+      ik: { handR: sp([0.335, 1.0, 0.15], [0.88, -0.45, -0.21]) } },
     { t: 1.45, ease: 'inOutSine', hips: { pos: [-0.03, -0.1, 0], rot: [0, -30, 0] }, bones: { spine: [0, -8, -3], chest: [1, -8, -1] },
-      ik: { handR: sp([0.3, 1.025, 0.22], [0.86, -0.41, -0.27]) } },
-    { t: 2.15, ease: 'inOutSine', hips: { pos: [-0.045, -0.094, -0.01], rot: [-1.2, -32, -1] }, bones: { spine: [0, -8.5, -2.4], chest: [1.4, -9, -0.6] },
-      ik: { handR: sp([0.29, 1.03, 0.225], [0.85, -0.4, -0.29]) } },
+      ik: { handR: sp([0.32, 1.025, 0.16], [0.86, -0.41, -0.27]) } },
+    { t: 2.15, ease: 'inOutSine', hips: { pos: [-0.05, -0.092, -0.014], rot: [-1.6, -33, -1.4] }, bones: { spine: [0, -8.5, -2], chest: [1.6, -9.5, 0] },
+      ik: { handR: sp([0.305, 1.035, 0.17], [0.85, -0.38, -0.3]) } },
   ],
 });
 
@@ -69,8 +69,8 @@ function walk(name, dir, v, T) {
     events: [{ t: 0.43 * T, name: 'step', data: { foot: lead } }, { t: 0.9 * T, name: 'step', data: { foot: trail } }],
   });
 }
-walk('vorn.walkF', 1, def.stats.walkSpeed, 0.42);
-walk('vorn.walkB', -1, def.stats.backSpeed, 0.44);
+walk('vorn.walkF', 1, def.stats.walkSpeed, 0.38);
+walk('vorn.walkB', -1, def.stats.backSpeed, 0.42);
 
 // ---- dash (0.26 s, 2.9 m): rear foot drives, a low bound, front foot lands, rear foot catches up -------------------------
 // progress-driven: clip time = state progress x duration. Feet in root space (the rules carry the body).
@@ -79,12 +79,15 @@ defineClip('vorn.dash', {
   keys: [
     { t: 0, pose: 'vorn.stance' },
     { t: 0.05, ease: 'outCubic', hips: { pos: [0.1, -0.2, 0], rot: [-2, -22, -4] }, bones: { spine: [0, -6, -14], chest: [0, -6, -10], neck: [0, 8, 10], head: [0, 12, 12] },
-      ik: { handR: sp([0.2, 0.98, 0.26], [0.92, -0.3, -0.24]), footL: ft([0.52, 0.12, -0.14], 12, { space: 'root', pitch: 10 }), footR: ft([-0.52, 0.06, 0.19], -48, { space: 'root', pitch: -30 }) } },
+      ik: { handR: sp([0.26, 0.98, 0.2], [0.92, -0.3, -0.24]), footL: ft([0.52, 0.12, -0.14], 12, { space: 'root', pitch: 10 }), footR: ft([-0.52, 0.06, 0.19], -48, { space: 'root', pitch: -30 }) } },
     { t: 0.13, ease: 'inOutSine', hips: { pos: [0.12, -0.17, 0], rot: [-2, -24, -3] },
-      ik: { handR: sp([0.18, 0.99, 0.26], [0.93, -0.28, -0.24]), footL: ft([0.5, 0.06, -0.14], 12, { space: 'root', pitch: 6 }), footR: ft([-0.6, 0.1, 0.19], -48, { space: 'root', pitch: -24 }) } },
+      ik: { handR: sp([0.25, 0.99, 0.2], [0.93, -0.28, -0.24]), footL: ft([0.5, 0.06, -0.14], 12, { space: 'root', pitch: 6 }), footR: ft([-0.6, 0.1, 0.19], -48, { space: 'root', pitch: -24 }) } },
     { t: 0.17, ease: 'inQuad', ik: { footL: ft([0.44, 0, -0.15], 12, { space: 'root' }) } },
     { t: 0.21, ease: 'inOutSine', hips: { pos: [0.02, -0.16, 0], rot: [0, -28, 0] }, ik: { footR: ft([-0.32, 0.07, 0.2], -48, { space: 'root', pitch: -8 }) } },
     { t: 0.26, ease: 'inOutSine', pose: 'vorn.stance' },
+    // the left hand lets go for the bound and swings back for balance
+    { t: 0.02, grip: 1 }, { t: 0.06, grip: 0, bones: { upperArmL: [-30, 0, -34], foreArmL: [0, 0, 40] } },
+    { t: 0.17, grip: 0, bones: { upperArmL: [-24, 0, -20], foreArmL: [0, 0, 40] } }, { t: 0.24, grip: 1, bones: { upperArmL: [0, 0, 0], foreArmL: [0, 0, 0] } },
   ],
   events: [{ t: 0.17, name: 'step', data: { foot: 'footL' } }, { t: 0.25, name: 'step', data: { foot: 'footR' } }],
 });
@@ -110,8 +113,37 @@ defineClip('vorn.dodge', {
   keys: [
     { t: 0, pose: 'vorn.stance' },
     { t: 0.08, ease: 'outCubic', hips: { pos: [-0.2, -0.36, -0.08], rot: [-6, -48, -6] }, bones: { spine: [-4, -10, 6], chest: [-6, -12, 8], neck: [0, 16, -4], head: [0, 22, -8] },
-      ik: { handR: sp([0.16, 0.86, 0.3], [0.9, -0.2, -0.38]), footL: { pos: [0.3, 0, -0.18], rot: [0, 18, 0] }, footR: { pos: [-0.46, 0, 0.16], rot: [0, -52, 0] } } },
-    { t: 0.28, ease: 'inOutSine', hips: { pos: [-0.18, -0.32, -0.07], rot: [-5, -44, -5] }, ik: { handR: sp([0.18, 0.88, 0.3], [0.9, -0.24, -0.36]) } },
+      ik: { handR: sp([0.24, 0.88, 0.22], [0.9, -0.2, -0.38]), footL: { pos: [0.3, 0, -0.18], rot: [0, 18, 0] }, footR: { pos: [-0.46, 0, 0.16], rot: [0, -52, 0] } } },
+    { t: 0.28, ease: 'inOutSine', hips: { pos: [-0.18, -0.32, -0.07], rot: [-5, -44, -5] }, ik: { handR: sp([0.25, 0.9, 0.22], [0.9, -0.24, -0.36]) } },
     { t: 0.42, ease: 'inOutSine', pose: 'vorn.stance' },
   ],
+});
+
+// ---- hit reactions (the game starts them on the impact pose: hitLight at 0.05, hitHeavy at 0.06) -------------------------
+defineClip('vorn.hitLight', {
+  duration: 0.32, breath: 0.5, gripAt: 'choke', base: 'vorn.stance',
+  keys: [
+    { t: 0, pose: 'vorn.stance' },
+    { t: 0.05, ease: 'outQuad', hips: { pos: [-0.08, -0.13, 0.01], rot: [-2, -35, 4] }, bones: { spine: [-2, -10, 8], chest: [-3, -8, 10], neck: [3, 8, 10], head: [4, 10, 16] },
+      ik: { handR: sp([0.22, 1.1, 0.25], [0.86, -0.22, -0.3]) } },
+    { t: 0.32, ease: 'inOutSine', pose: 'vorn.stance' },
+  ],
+});
+defineClip('vorn.hitHeavy', {
+  duration: 0.85, breath: 0.6, gripAt: 'choke', base: 'vorn.stance',
+  keys: [
+    { t: 0, pose: 'vorn.stance' },
+    // the blow folds him back, the spear knocked up off line, the rear foot catches the weight
+    { t: 0.06, ease: 'outQuad', hips: { pos: [-0.12, -0.13, 0.01], rot: [-4, -38, 7] }, bones: { spine: [-4, -10, 12], chest: [-5, -8, 15], neck: [4, 6, 16], head: [6, 10, 24], shoulderR: [0, 0, 6], shoulderL: [0, 0, 6] },
+      ik: { handR: sp([0.26, 1.18, 0.2], [0.62, 0.56, -0.3]), footL: ft(FL, YL, { space: 'root' }), footR: ft(FR, YR, { space: 'root' }) } },
+    { t: 0.16, ease: 'inOutSine', hips: { pos: [-0.1, -0.17, 0.01], rot: [-3, -37, 5] }, bones: { spine: [-2, -10, 6], chest: [-3, -9, 8], neck: [2, 8, 6], head: [3, 10, 6], shoulderR: [0, 0, 0], shoulderL: [0, 0, 0] },
+      ik: { handR: sp([0.27, 1.1, 0.2], [0.75, 0.3, -0.3]), footR: ft([FR[0] - 0.1, 0.07, FR[2]], YR, { space: 'root', pitch: 6 }) } },
+    { t: 0.26, ease: 'inQuad', ik: { footR: ft([FR[0] - 0.14, 0, FR[2]], YR, { space: 'root' }) } },
+    { t: 0.42, ease: 'inOutSine', hips: { pos: [-0.06, -0.13, 0], rot: [-1, -32, 2] }, bones: { spine: [0, -9, -2], chest: [1, -8, -1] },
+      ik: { handR: sp([0.3, 1.04, 0.18], [0.86, -0.3, -0.28]) } },
+    { t: 0.6, ease: 'inOutSine', ik: { footR: ft([FR[0] - 0.08, 0.05, FR[2]], YR, { space: 'root', pitch: -6 }) } },
+    { t: 0.7, ease: 'inQuad', ik: { footR: ft(FR, YR, { space: 'root' }) } },
+    { t: 0.85, ease: 'inOutSine', pose: 'vorn.stance' },
+  ],
+  events: [{ t: 0.26, name: 'step', data: { foot: 'footR' } }, { t: 0.7, name: 'step', data: { foot: 'footR' } }],
 });

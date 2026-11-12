@@ -13,8 +13,8 @@ const LOOK_ID = { shock: 0, dust: 1, fire: 2, frost: 3, volt: 4 };
 
 /** Look presets (per-call options override any field; see README "Ring"). */
 export const RING_LOOKS = {
-  /** energy shockwave: thin hot leading edge, soft inner glow, noise breakup */
-  shock: { palette: 'ember', life: 0.45, radius: [0.2, 3], width: [0.5, 0.9], ease: 4, height: 0.12, fill: 1.6, over: 0.35, noise: 0.5, tiles: 6, edgeWidth: 0.08, erodeStart: 0.25, tailAdditive: 1 },
+  /** energy shockwave: hot broken leading edge over a wide soft wake (a thin clean band reads as a UI circle) */
+  shock: { palette: 'ember', life: 0.45, radius: [0.2, 3], width: [0.55, 1.5], ease: 4, height: 0.16, fill: 2.2, over: 0.3, noise: 0.65, tiles: 6, edgeWidth: 0.11, erodeStart: 0.15, tailAdditive: 1 },
   /** ground dust wave: billowing alpha band, densest at the rolling front, rises as a low curtain */
   dust: { palette: 'dust', life: 1.1, radius: [0.3, 3.2], width: [0.5, 1.4], ease: 3, height: 0.5, fill: 2.2, over: 0.45, noise: 0.9, tiles: 3, edgeWidth: 0.25, erodeStart: 0.1, tailAdditive: 0 },
   /** fire ring: flame tongues licking outward from a hot front, cooling into smoke */

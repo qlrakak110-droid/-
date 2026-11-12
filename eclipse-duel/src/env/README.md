@@ -70,7 +70,10 @@ Creation bakes textures and the PMREM (a few ms on a GPU), adds `env.root` to `c
 ### Conventions other modules rely on
 
 - **Directional light order.** The env's lit materials mask directional light #0 (key) and #1 (rim) per fragment
-  (backdrop: key falls off beyond ~9 m from the centre; floor: key pool on the fight line, rim specular suppressed).
+  (backdrop: key falls off beyond ~9 m from the centre; the floor and everything resting on it, below ~2.5 m inside
+  the wall, share one key pool around the fight line (`envFloorKey` in materials.js), so rubble, drums, impact slabs
+  and props are never lit brighter than the stones under them; the floor keeps 9% of the rim, a glisten toward the
+  eclipse).
   Shadow casters sort first in three.js, then scene order; the env adds key then rim. **Other modules must not add
   shadow-casting directional lights**, and should not add directional lights at all (use the VFX point-light pool).
 - **Lights per tier** (fixed, created once): 2 directional + 1 hemisphere + `env.points.length` point lights
@@ -86,8 +89,13 @@ Creation bakes textures and the PMREM (a few ms on a GPU), adds `env.root` to `c
 - **Puddle reflection pass (high).** `post.onAfterScene` copies the resolved HDR frame (half resolution, mips) and
   re-draws the floor disc into the same scene target (MSAA renderbuffer; post resolves again before bloom),
   depth-tested `LessEqual` against the frame, adding *(this frame re-projected through the floor mirror − the sky
-  reflection the floor already had) × the floor's specular weight* on wet stone in front of the fight line. Fighters
-  in front occlude it. Known limit: transparent VFX drawn over a puddle get that (small, ≤ ~15 %) delta on top.
+  reflection the floor already had) × the floor's specular weight* on wet stone in front of the fight line (on
+  puddles only the mirror share: 40% of a puddle's reflection is scattered by wind ripples into a blurred PMREM sheen
+  on every tier). Fighters in front occlude it. Known limit: transparent VFX drawn over a puddle get that (small,
+  ≤ ~15 %) delta on top.
+- **Puddles.** Mirror reflection (IBL; plus this frame's screen reflection on high) with a 40% ripple-scattered
+  share, and the stone under the water film keeps 75% of the key light's broad sheen (shadowed like everything else):
+  seen from above or against the dark walls a puddle reads as dark wet stone, never as a hole in the floor.
 
 ## Tiers (`ctx.quality.envDetail`)
 
@@ -115,16 +123,16 @@ Creation bakes textures and the PMREM (a few ms on a GPU), adds `env.root` to `c
 | sky cloud octaves | 3 | 5 | 5 |
 | contact blob shadow (`setContact`) | 0.8 (no shadow map) | 0.25 (deepens PCF contact) | 0.25 |
 | **env draw calls** (main pass) | **11** | **11** | **11 + reflection copy + puddle pass = 13** |
-| **env triangles** | **~77k** | **~96k** | **~105k** |
+| **env triangles** | **~78k** | **~97k** | **~106k** |
 
 Draw calls: sky, ruins (stone), iron, props (wax / wood / dead vegetation), floor, far silhouettes, cloud sea, banners,
 fire (brazier + candle flames), atmosphere, particles (+ reflection copy and puddle pass on high). The env casts no
 shadows, so it adds nothing to the shadow pass. Measured in the lab with `__ED.lab.play('stats')` (whole quality tier
 via `--hash "q=low|mid|high"`); the lab's total (2 capsules + their shadows + post) is 21 / 25 / 29 calls,
-79k / 102k / 111k triangles. High-tier ruins triangles by part (`stats().sections`): columns 15.7k, tier 9.3k, rubble
-and chips 8.6k, podium 7.2k, arches 4.2k, ground + cliff 3k, vaults 2.3k, fallen pieces 2k, cornice 1.8k, braziers
-1.3k, impact 1.1k; iron 9.7k (bowls / poles 3.2k, chains 3.4k, cage 1.7k, arms 1.4k); props 8.3k (candles 3.3k,
-vegetation 5k); far layer 21k (two colossi ~15k, spires 5.4k).
+81k / 103k / 112k triangles. High-tier ruins triangles by part (`stats().sections`): columns 15.6k, tier 9.4k, rubble
+and chips 8.7k, podium 7.2k, arches 4.3k, fallen pieces 3.8k, ground + cliff 3k, vaults 2k, cornice 1.4k, braziers
+1.3k, impact 1.1k; iron 9.7k (bowls / poles 3.2k, chains 3.4k, cage 1.7k, arms 1.4k); props 8k (candles 3.4k,
+vegetation 4.6k); far layer 21k (two colossi ~15k, spires 5.4k).
 
 ## Art guide (for character, VFX and camera artists)
 
@@ -142,11 +150,21 @@ settled irregular seats (low triangle "seat" blocks), stairways every ~9.5°, a 
 robbed-out holes, slumped sections and tumbled blocks at the ragged collapse edge, and exposed radial vaults (arched
 substructure) where the tier has fallen toward the vista. Dressing: votive candles (melted rims, drips, wax pools;
 lit wax glows from inside) with offerings at the braziers; chains draped across two arches and hanging from a keystone;
-a gibbet cage hanging from an arch (another burst open on the floor by the left wall); dead trees on the wall top
-whose roots grip down the inner face; dead vines hanging in clumps; broken greatswords driven into the floor, shields,
-snapped spears and a helm near the ring edge (always behind the fight line, never on it); a toppled column (three
-drums still in line, half sunk) and its capital by the left wall. Stone weathering (shader): sparse long cracks, rain
-streaks on vertical faces, pale lichen rosettes, moss on tops / at the base / in carved recesses.
+a gibbet cage hanging from an arch (another burst open on the floor by the left wall); dead trees rooted in the
+standing wall top whose roots grip down the inner face; dead vines hanging in clumps from surviving cornice runs;
+broken greatswords driven into the floor, shields, snapped spears and a helm near the ring edge (always behind the
+fight line, never on it); a toppled column by the left wall (its drums roughly in line, settled at different depths,
+the last one the broken top of the shaft) with its capital lying upside down behind them, clear of the fight line;
+fallen drums by the right wall (one landed on its end, its top shattered) and in the vista shoulders. Fallen drums
+carry the standing shafts' 20 flutes (same scale), worn shallow with a chunk knocked off an arris, and lie broadside
+to the fight camera so it sees their flanks, not their ends. Broken column tops are sheared fracture planes (the
+slanted silhouette), never a sliver of drum. Stone weathering (shader): sparse long cracks, rain streaks on vertical
+faces, pale lichen rosettes, moss on tops / at the base / in carved recesses.
+
+**Nothing floats.** Masonry is laid course by course: a podium block or a moulding run exists only where the course
+under it is solid (blocks actually laid, not a height estimate), and a block whose upper neighbour is missing keeps its
+top face; tumbled tier blocks rest on a surviving seat row or the ground of the collapse; second-storey fragments
+stand only on a surviving entablature; facade string courses run on each block's inner face below its broken top.
 
 **The colossi.** Draped robes with heavy pleats fanning down from the clasped hands and broad folds behind (fold
 valleys darkened in the vertex colour), a cape over sloping shoulders with a tattered hem, a deep forward-bowed cowl
@@ -192,7 +210,7 @@ heads, shoulders and the right edge opposite the key (metal gets a cold specular
 | ruins, lit | 0.005–0.03 (stone albedo ≈ 0.08, key masked to 12% on the backdrop; relief cavities darker, lichen up to ×1.45) |
 | colossi | ≈ 0.006–0.02 before haze (key response ×2.9 on the statues so the drapery reads in telephoto); ember eyes 1.9 |
 | candle flames / lit wax | cores ≈ 2–4 (small tongues) / wax glow ≈ 0.2 |
-| floor | 0.02–0.06 lit; dry stones matt (roughness ≈ 0.85–0.95), damp hollows darker and satin (≈ 0.5), puddles mirror the sky; key pooled on the fighters (falls to 24% away from them) |
+| floor | 0.02–0.06 lit; dry stones matt (roughness ≈ 0.85–0.95), damp hollows darker and satin (≈ 0.5), puddles mirror the sky (see *Puddles*); key pooled on the fighters (falls to 24% away from them, shared by everything resting on the floor), 9% of the rim |
 | brazier fire cores | 4–7; embers 2–6 |
 | near fog / mist | `(0.0105, 0.0125, 0.018)` |
 | **fighters should sit at** | 0.1–0.5 mid-tones (key-lit), rims to ~1 |
@@ -227,8 +245,9 @@ held on its last frame, returning the sample time to advance: `heroL` `heroR` (h
 `otsL` `otsR` (overShoulder), `sideL` `sideR` (68° orbit, 7.2 m), `sideLow` (55°, 0.45 m high looking up), `crane`
 (wideEstablishing), `craneHigh` (topDownSlam), `orbit` (orbitSweep), `skim` (groundSkim), `face` (faceCloseUp),
 `dutch` (dutchDrift); `cineList()`. Close inspection: `inspWall` `inspCapital` `inspTier` `inspTierHigh(side)`
-`inspBrazier` `inspImpact` `inspImpactTop` `inspVista`; telephoto: `colossusL` `colossusR` `colossusHead`
-`colossusStudy(yaw)` (75 m from the left statue); hand-placed lab angles `low` `lowWide` `high` `ots` `sideL` `sideR`
+`inspBrazier` `inspImpact` `inspImpactTop` `inspVista`, `inspTopple` (toppled column + capital), `inspFallenR`
+(fallen drums), `inspKerb` (the vista kerb: nothing may bridge a fallen course), `topDown` (puddles from above);
+telephoto: `colossusL` `colossusR` `colossusHead` `colossusStudy(yaw)` (75 m from the left statue); hand-placed lab angles `low` `lowWide` `high` `ots` `sideL` `sideR`
 `sideLowL`, `overview`, `colossus`, `mood` `moodWarm` `moodOff`, `pulse` `pulseFrost`, `metal` (chrome dummies to
 judge the env map), `vfx` (hot HDR spheres), `prime` (no-op, kept for old capture commands), `stats`.
 
@@ -250,8 +269,8 @@ node tools/shot.mjs env --do "__ED.lab.play('colossusHead')" --at 0.1 --out shot
 | `geometry.js` | merging builder (+ relief channel, per-section triangle accounting) + primitives (chamfered / face-only ashlar blocks, broken blocks, profile sweeps, lathe grids incl. partial arcs, tubes, rocks) |
 | `ruins.js` | podium wall (plinth, mouldings, frieze, cornice), pilasters, colonnade + capitals, arches + entablatures, broken tier + vaults, facade, vista kerb + cliff edge, fallen pieces, rubble, braziers, banner fittings |
 | `dressing.js` | candles + offerings, chains, cages, dead trees / roots / vines, broken weapons and shields, the heaved impact slabs |
-| `materials.js` | MeshStandardMaterial patches: key / rim masks, sky-matched fog, baked glow; stone (relief + weathering), iron, props |
-| `floor.js` | floor material: wetness, puddles, contact band, ground contacts, pulses, brazier pools; the puddle reflection pass |
+| `materials.js` | MeshStandardMaterial patches: key / rim masks (`envFloorKey`: the floor's key pool, shared by everything resting on it), a per-directional-light hook, sky-matched fog, baked glow; stone (relief + weathering), iron, props |
+| `floor.js` | floor material: wetness, puddles (mirror + ripple scatter + the key's sheen under the film), contact band, ground contacts, pulses, brazier pools; the puddle reflection pass |
 | `far.js` | colossi (sculpted), spires, cloud sea |
 | `atmosphere.js` | haze planes, light shafts, mist sheets |
 | `particles.js` | ash and embers (GPU-animated, one draw call) |

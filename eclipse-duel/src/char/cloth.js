@@ -181,7 +181,7 @@ export class Cloth {
     const { C, R } = layout;
     this.C = C; this.R = R; this.n = C * R;
     this.first = rig.index[layout.bones[0].name];
-    this.iters = Math.max(4, Math.round(4 + 4 * Math.min(1, quality)));
+    this.iters = Math.max(4, Math.round(5 + 5 * Math.min(1, quality)));
     this.p = new Float32Array(this.n * 3);
     this.pp = new Float32Array(this.n * 3);
     this.inv = new Float32Array(this.n).fill(1);

@@ -49,8 +49,8 @@ export const knight = {
   colliders: [
     { name: 'torso', a: ['spine', [-0.01, 0, 0]], b: ['chest', [-0.015, 0.15, 0]], r: 0.17 },
     // head and neck: keep the cape off the helmet when it is thrown up (spins)
-    { name: 'head', a: ['head', [0.01, 0.04, 0]], b: ['head', [0.0, 0.16, 0]], r: 0.135 },
-    { name: 'neck', a: ['neck', [0, 0.0, 0]], b: ['neck', [0.005, 0.1, 0]], r: 0.08 },
+    { name: 'head', a: ['head', [0.01, 0.07, 0]], b: ['head', [0.0, 0.16, 0]], r: 0.13 },
+    { name: 'neck', a: ['neck', [0.01, 0.03, 0]], b: ['neck', [0.01, 0.1, 0]], r: 0.06 },
     { name: 'pelvis', a: ['hips', [-0.02, -0.04, -0.08]], b: ['hips', [-0.02, -0.04, 0.08]], r: 0.155 },
     { name: 'shoulderR', a: ['chest', [-0.03, 0.18, 0.09]], b: ['upperArmR', [0, -0.06, 0]], r: 0.115 },
     { name: 'shoulderL', a: ['chest', [-0.03, 0.18, -0.09]], b: ['upperArmL', [0, -0.06, 0]], r: 0.115 },

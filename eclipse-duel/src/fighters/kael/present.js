@@ -17,6 +17,9 @@ import { def as rules } from './moves.js';
 const S = [{}, {}];
 const st = (h) => S[h.index];
 
+/** magma streak ribbon behind a charging body: dim orange that cools to smoke (camera-facing, so kept narrow and < 1.5) */
+const STREAK = [[0, 1.4, 0.45, 0.08, 0.55], [0.3, 0.7, 0.14, 0.02, 0.35], [1, 0.08, 0.03, 0.01, 0]];
+
 /** World point on the floor at fighter-local f. */
 const floorAt = (h, f) => h.at(f, 0.02, 0);
 
@@ -32,7 +35,7 @@ function trailOn(h, style = 'light', dur = 0.4) {
   if (style === 'glow') return;
   trailOff(h);
   const s = h.self.sockets;
-  st(h).trail = h.fx('ember.trail', 'weaponTip', { a: s.weaponBase, b: s.weaponTip, life: TRAIL_LIFE[style] ?? 0.2, duration: dur, fallback: null });
+  st(h).trail = h.fx('ember.trail', 'weaponTip', { a: s.weaponBase, b: s.weaponTip, life: TRAIL_LIFE[style] ?? 0.2, duration: dur, intensity: 0.6, fallback: null });
 }
 function trailOff(h) {
   const x = st(h);
@@ -78,7 +81,7 @@ const moves = {
   light1: {
     windup(h) { h.weaponGlow(0.35, 0.22); },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.25, 1.42, 0.14] }, { arc: [118, -38], radius: 1.55, width: 0.55, sweep: 0.075, normal: [0, 0.22, 1], roll: -12, intensity: 0.85 });
+      h.fx('ember.slash', { pos: [0.25, 1.42, 0.14] }, { arc: [118, -38], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, 0.22, 1], roll: -12, intensity: 0.38 });
     },
     hit(h) { accent(h, 0.5, [1, -0.45, 0.3], -40); },
     recover(h) { h.burst(DRIP, 'weaponTip', { count: 5 }); },
@@ -86,7 +89,7 @@ const moves = {
   // 역날베기 Back Edge — rising backhand, the trail continues the arc
   light2: {
     swing(h) {
-      h.fx('ember.slash', { pos: [0.2, 1.3, 0.14] }, { arc: [-70, 98], radius: 1.55, width: 0.55, sweep: 0.075, normal: [0, -0.2, 1], roll: 10, intensity: 0.85 });
+      h.fx('ember.slash', { pos: [0.2, 1.3, 0.14] }, { arc: [-70, 98], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, -0.2, 1], roll: 10, intensity: 0.38 });
     },
     hit(h) { accent(h, 0.55, [1, 0.5, 0.3], 55); },
   },
@@ -94,7 +97,7 @@ const moves = {
   light3: {
     windup(h) { h.weaponGlow(0.6, 0.3); h.flare('weaponTip', { kind: 'glow', size: 0.6, life: 0.25, intensity: 0.4 }); },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.3, 1.5, 0.14] }, { arc: [140, -36], radius: 1.75, width: 0.7, sweep: 0.08, normal: [0, 0.15, 1], intensity: 1.0 });
+      h.fx('ember.slash', { pos: [0.3, 1.5, 0.14] }, { arc: [140, -36], radius: 1.75, width: 0.6, sweep: 0.08, normal: [0, 0.15, 1], intensity: 0.5 });
     },
     crack(h) {
       h.fx('kael.bite', floorAt(h, 1.65), { k: 0.9 });
@@ -108,48 +111,43 @@ const moves = {
   // 용광로 휘두르기 Furnace Sweep — armoured coil, 300° horizontal spin, huge trail, wall of sparks
   sweep: {
     windup(h) {
-      h.glow(h.color('mid', 0.05), 1, 0.4, 0.12);           // armour cracks blaze through the coil (hyper-armour tell)
+      h.glow(h.color('mid', 0.03), 1, 0.4, 0.12);           // armour cracks blaze through the coil (hyper-armour tell)
       h.weaponGlow(0.7, 0.45);
     },
     armour(h) {
-      h.fx('kael.shell', 'floor', { follow: h.self.char.root, duration: 0.22, fallback: null });
+      h.fx('kael.shell', 'floor', { follow: h.self.char.root, duration: 0.22, lite: true, fallback: null });
       h.audio('fire_ignite', { volume: 0.6 });
     },
     swing(h) {
-      h.fx('ember.slash.heavy', { pos: [0.05, 1.05, 0] }, { arc: [-300, 2], radius: 2.15, width: 0.95, sweep: 0.13, normal: [0, 1, 0.38], forward: [1, 0, 0], intensity: 0.9 });
+      h.fx('ember.slash', { pos: [0.05, 1.05, 0] }, { arc: [-300, 2], radius: 2.1, width: 0.7, sweep: 0.13, normal: [0, 1, 0.18], forward: [1, 0, 0], intensity: 0.42 });
       h.cam.kick({ fov: -2, duration: 0.3 });
     },
     sparks(h) {
-      h.burst(WALL, [1.2, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]) });
+      h.burst(WALL, [1.2, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]), count: 70 });
       h.distort([1.0, 1.0, 0.2], { kind: 'shock', radius: [0.3, 2.6], life: 0.4, strength: 0.03 });
-      h.spawn('ring', 'floor', { look: 'fire', radius: [0.4, 2.6], life: 0.5, intensity: 0.7 });
+      h.spawn('ring', 'floor', { look: 'fire', radius: [0.4, 2.6], life: 0.5, intensity: 0.45 });
     },
-    hit(h) { accent(h, 1.05, [1, 0.05, 0.35], 5); h.post.radial('contact', 0.3); },
+    hit(h) { accent(h, 0.9, [1, 0.05, 0.35], 5); },
     recover(h) { h.fx('kael.ashfall', floorAt(h, 0.8), { radius: 1.2 }); },
   },
   // 돌진 찌르기 Molten Lunge — shoulder-first charge, magma streak behind, thrust, crumple
   lunge: {
-    windup(h) { h.glow(h.color('mid', 0.04), 1, 0.3, 0.05); },
+    windup(h) { h.glow(h.color('mid', 0.025), 1, 0.3, 0.05); },
     charge(h) {
       const x = st(h);
-      x.streak = h.spawn('ribbon', 'chest', { follow: h.self.sockets.chest, width: 0.9, life: 0.32,
-        color: [[0, 2.6, 0.9, 0.18, 0.8], [0.3, 1.2, 0.25, 0.03, 0.5], [1, 0.12, 0.03, 0.01, 0]] });
-      x.groove = h.fx('kael.groove', 'footR', { follow: h.self.sockets.footR, duration: 0.3, fallback: null });
+      x.streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.42, life: 0.28, color: STREAK });
       h.fx('combat.dust.dash', 'floor', { k: 0.8, fallback: null });
-      h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.32, intensity: 0.35, inner: 0.62 });
+      h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.3, intensity: 0.22, inner: 0.66 });
       h.audio('fire_burst', { volume: 0.5 });
     },
     swing(h) {
       const x = st(h);
       if (x.streak) { x.streak.stop(); x.streak = null; }
-      h.flare('weaponTip', { kind: 'streak', size: 0.55, aspect: 10, life: 0.16, decay: 2.5, intensity: 0.7, dir: h.dir([1, 0, 0]) });
-      h.burst(SPEAR, 'weaponTip', { dir: h.dir([1, 0.05, 0.1]) });
+      h.flare('weaponTip', { kind: 'streak', size: 0.4, aspect: 9, life: 0.12, decay: 2.5, intensity: 0.3, dir: h.dir([1, 0, 0]) });
+      h.burst(SPEAR, 'weaponTip', { dir: h.dir([1, 0.05, 0.1]), count: 30 });
       h.cam.kick({ fov: -2.5, push: 0.25, duration: 0.3 });
     },
-    hit(h) {
-      accent(h, 1.0, [1, 0, 0.25], 0);
-      h.fx('combat.hit.pierce', { pos: 'contact', dir: [1, 0, 0.1] }, { element: 'ember', fallback: null });
-    },
+    hit(h) { accent(h, 0.9, [1, 0, 0.25], 0); },
     end(h) { cleanup(h); },
   },
   // 분화 올려베기 Vent Launcher — the blade splits the floor, fire geyser, launch
@@ -161,10 +159,10 @@ const moves = {
       return false;                                         // own crack (the generic decal would land at the blade)
     },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.25, 1.15, 0.14] }, { arc: [-82, 92], radius: 1.6, width: 0.6, sweep: 0.08, normal: [0, -0.25, 1], roll: 6, intensity: 0.9 });
+      h.fx('ember.slash', { pos: [0.25, 1.15, 0.14] }, { arc: [-82, 92], radius: 1.6, width: 0.5, sweep: 0.08, normal: [0, -0.25, 1], roll: 6, intensity: 0.38 });
     },
     geyser(h) {
-      h.fx('kael.geyser', floorAt(h, 1.3), { k: 1, fallback: null });
+      h.fx('kael.geyser', floorAt(h, 1.3), { k: 0.8, fallback: null });
       h.cam.shake(0.3, { freq: 13, dir: [0, 1, 0] });
       h.audio('fire_roar', { volume: 0.7 });
     },
@@ -172,14 +170,13 @@ const moves = {
   },
   // 잿불 초승달 Ember Crescent — blade dragged on the floor (sparks, molten groove), a burning crescent wave detaches
   crescent: {
-    windup(h) { h.glow(h.color('mid', 0.035), 1, 0.35, 0.06); h.audio('fire_ignite', { volume: 0.5 }); },
+    windup(h) { h.audio('fire_ignite', { volume: 0.5 }); },
     drag(h) {
       st(h).groove = h.fx('kael.groove', 'weaponTip', { follow: h.self.sockets.weaponTip, duration: 0.24, fallback: null });
     },
     release(h) {
-      h.fx('ember.slash', { pos: [0.3, 1.2, 0.14] }, { arc: [-95, 70], radius: 1.7, width: 0.7, sweep: 0.08, normal: [0, -0.15, 1], intensity: 0.95 });
+      h.fx('ember.slash', { pos: [0.3, 1.2, 0.14] }, { arc: [-95, 70], radius: 1.7, width: 0.55, sweep: 0.08, normal: [0, -0.15, 1], intensity: 0.38 });
       h.burst(SPIT, floorAt(h, 1.0), { dir: [0, 1, 0], count: 18 });
-      h.light([1.0, 1.0, 1.0], { intensity: 110, duration: 0.35 });
     },
     end(h) { cleanup(h); },
   },
@@ -192,8 +189,8 @@ const moves = {
       return false;                                         // own rune (ember palette, a little longer)
     },
     aura(h) {
-      st(h).aura = h.fx('ember.aura', 'floor', { follow: h.self.char.root, duration: 0.32, intensity: 0.85, fallback: null });
-      h.glow(h.color('core', 0.04), 1, 0.3, 0.1);
+      st(h).aura = h.fx('ember.aura', 'floor', { follow: h.self.char.root, duration: 0.32, intensity: 0.6, fallback: null });
+      h.glow(h.color('mid', 0.03), 1, 0.3, 0.1);
       h.audio('fire_roar', { volume: 0.55 });
     },
     release(h) {
@@ -201,7 +198,18 @@ const moves = {
       h.cam.kick({ fov: -2.2, duration: 0.3 });
       h.pulse(floorAt(h, 1.25), null, 1.0);
     },
-    crack(h) { h.fx('kael.fault', floorAt(h, 1.45), { length: 5.4, speed: 18.75, fallback: null }); },
+    crack(h) {
+      h.fx('kael.fault', floorAt(h, 1.45), { length: 5.4, speed: 18.75, fallback: null });
+      // camera: low ground skim racing along the crack toward the opponent (0.5 s, slow motion 0.6), framed wide
+      // enough (4.5 m off the line) that the columns read as columns, then back to fight framing
+      if (h.ctx.cam && h.ctx.cam.mode === 'fight') {
+        h.cam.play([{ dur: 0.5, space: 'anchor', ease: 'outSine',
+          from: { pos: [-0.8, 0.34, 4.9], look: [3.2, 1.25, 0], fov: 46, roll: -2 },
+          to: { pos: [1.4, 0.42, 4.5], look: [4.6, 1.45, 0], fov: 42, roll: 0 },
+          slowmo: { scale: 0.6, dur: 0.42, easeIn: 0.04, easeOut: 0.12 } }], { blendOut: 0.35, hud: false });
+      }
+      return false;                                         // replaces the generic camera cue of the marker data
+    },
     recover(h) {
       h.fx('combat.dust.land', floorAt(h, 1.1), { k: 0.5, fallback: null });
       h.burst(CINDERS, [1.1, 0.4, 0.1], { count: 14 });
@@ -213,7 +221,7 @@ const moves = {
     windup(h) { h.fx('kael.bite', floorAt(h, 0.75), { k: 0.4 }); },
     shell(h) {
       st(h).shell = h.fx('kael.shell', 'floor', { follow: h.self.char.root, duration: 0.56, fallback: null });
-      h.glow(h.color('core', 0.045), 1, 0.58, 0.08);
+      h.glow(h.color('mid', 0.035), 1, 0.58, 0.08);
       h.weaponGlow(0.8, 0.6);
       h.audio('fire_ignite', { volume: 0.8 });
     },
@@ -225,7 +233,7 @@ const moves = {
     counter(h) {
       cleanup(h);
       h.flash([6, 3, 1], 1, 0.18);                           // the shell flashes white-hot as it swallows the blow
-      h.post.impact({ duration: 0.05 });
+      h.post.impact({ duration: 0.034, invert: 0, mono: 1 });
       h.post.chroma(0.6, { release: 0.3 });
       h.cam.shake(0.5, { freq: 14 });
       h.audio('release');
@@ -256,11 +264,10 @@ const moves = {
       h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.45, intensity: 0.55, inner: 0.6 });
       h.fx('combat.dust.dash', 'floor', { k: 1, fallback: null });
       h.afterimage({ count: 3, interval: 0.06, life: 0.32, palette: 'ember' });
-      st(h).streak = h.spawn('ribbon', 'chest', { follow: h.self.sockets.chest, width: 1.0, life: 0.3,
-        color: [[0, 3, 1.2, 0.3, 0.85], [0.3, 1.4, 0.3, 0.04, 0.5], [1, 0.12, 0.03, 0.01, 0]] });
+      st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.5, life: 0.26, color: STREAK });
     },
     release(h) {
-      h.fx('ember.slash.heavy', { pos: [0.35, 1.75, 0.16] }, { arc: [150, -40], radius: 2.05, sweep: 0.1, normal: [0, 0.18, 1], intensity: 1.0 });
+      st(h).slash = h.fx('ember.slash.heavy', { pos: [0.35, 1.75, 0.16] }, { arc: [150, -40], radius: 2.05, sweep: 0.1, normal: [0, 0.18, 1], intensity: 0.6 });
     },
     slam(h) {
       const x = st(h);
@@ -318,11 +325,14 @@ const ult = {
   /** 1.00 the blade connects: impact frame (3 frames), white flash, hit-stop 0.2, chroma 1, radial 0.8 */
   start(h) {
     cleanup(h);
+    // the leap-slash crescent would fill the punch-in frame: the impact replaces it with a crisp, readable hit
+    const x = st(h);
+    if (x.slash) { x.slash.kill(); x.slash = null; }
     const dir = [1, -0.35, 0.3];
-    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.8 });
-    h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 1.4, cut: -50, fallback: null });
-    h.post.impact({ duration: 0.05 });
-    h.post.flash(0xffffff, 0.28, { release: 0.2 });
+    h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.45 });
+    h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 0.9, cut: -50, accent: true, fallback: null });
+    h.post.impact({ duration: 0.05, invert: 0, mono: 1 });     // 3 hard monochrome frames (no inverted white frame)
+    h.post.flash(0xffffff, 0.14, { release: 0.2 });
     h.post.chroma(1.0, { release: 0.45 });
     h.post.radial('foe.chest', 0.8, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
@@ -338,6 +348,7 @@ const ult = {
     // the victim is held; Kael's blade still smoulders
     { t: 0.01, do(h) { foeState(h, 'hitHeavy', { fade: 0, startAt: 0.06 }); h.weaponGlow(1.0, 1.4, [8, 4.5, 1.6]); } },
     { t: 0.1, do(h) { if (hasClip('kael.ult.cuts')) beat(h, 'cuts'); foeState(h, 'locked', { fade: 0.15 }); } },
+    { t: 0.15, do(h) { if (hasClip('kael.ult.cuts')) trailOn(h, 'light', 0.47); } },
     { t: 0.75, do(h) { foeState(h, 'locked', { fade: 0.2 }); } },
     // 1.55 -> 2.30: Kael coils low for the hurl; the floor under the victim heats and cracks (anticipation)
     { t: 0.95, do(h) {
@@ -348,6 +359,7 @@ const ult = {
     } },
     { t: 1.1, do(h) { if (!hasClip('kael.ult.hurl')) beat(h, null, 'vent', 0.2); } },
     { t: 1.18, do(h) { h.burst(SPIT, 'foe.floor', { dir: [0, 1, 0], count: 22 }); } },
+    { t: 1.21, do(h) { trailOn(h, 'rising', 0.3); } },
     // 2.80 Kael leaps after the victim, sky turns crimson, the inferno begins under them
     { t: 1.8, do(h) {
       beat(h, 'leapAfter', 'vent', 0.0);
@@ -362,14 +374,14 @@ const ult = {
     { t: 2.4, do(h) { beat(h, 'spin', 'sweep', 0.12); } },
     // 3.90 the meteor: both bodies come down as one burning mass; the crater opens at the finish (lock 2.90)
     { t: 2.7, do(h) { beat(h, 'meteor', 'light3', 0.2); } },
+    { t: 2.8, do(h) { trailOn(h, 'overhead', 0.16); } },
     { t: 2.72, do(h) {
       h.offset([0.6, 0], 0.18, 'inQuad');
       h.foeOffset([-0.3, 0], 0.18, 'inQuad');
       foeState(h, 'fall', { fade: 0.04 });
       h.fx('ember.meteor', 'foe.floor', { fall: 0.18, height: 4.6, intensity: 0.75 });
       h.spawn('speedlines', 'foe.floor', { mode: 'focus', life: 0.24, intensity: 0.5, inner: 0.55 });
-      st(h).streak = h.spawn('ribbon', 'chest', { follow: h.self.sockets.chest, width: 1.1, life: 0.22,
-        color: [[0, 3, 1.2, 0.3, 0.85], [0.3, 1.4, 0.3, 0.04, 0.5], [1, 0.12, 0.03, 0.01, 0]] });
+      st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.55, life: 0.2, color: STREAK });
     } },
     // 5.20 Kael rises from the crater, sword onto the shoulder; embers and smoke linger 3 s
     { t: 4.2, do(h) {
@@ -410,9 +422,9 @@ const ult = {
       const arcs = [[128, -40], [-58, 112], [175, -5]];
       const rolls = [-28, 24, 0];
       if (!hasClip('kael.ult.cuts')) beat(h, null, ['light1', 'light2', 'sweep'][k], 0.06);
-      h.fx('ember.slash', { pos: [0.55, 1.45, 0.2] }, { arc: arcs[k], radius: 1.6, width: 0.62, sweep: 0.06, normal: [0, 0.1, 1], roll: rolls[k], intensity: 0.95 });
-      h.fx('kael.flower', { pos: 'foe.chest', dir: [1, k === 1 ? 0.5 : -0.5, 0.3] }, { k: 0.85, cut: [-40, 55, 0][k], fallback: null });
-      trailOn(h, 'light', 0.16);
+      h.fx('ember.slash', { pos: [0.55, 1.45, 0.2] }, { arc: arcs[k], radius: 1.6, width: 0.55, sweep: 0.06, normal: [0, 0.1, 1], roll: rolls[k], intensity: 0.5 });
+      h.fx('kael.flower', { pos: 'foe.chest', dir: [1, k === 1 ? 0.5 : -0.5, 0.3] }, { k: 0.7, cut: [-40, 55, 0][k], fallback: null });
+      if (!hasClip('kael.ult.cuts')) trailOn(h, 'light', 0.16);
       foeState(h, 'hitHeavy', { fade: 0, startAt: 0.06 });
       h.foe.impulse([-1, 0.1, 0.15], 1.1);
       h.cam.shake(0.32, { freq: 17 });
@@ -423,15 +435,13 @@ const ult = {
     }
     if (name === 'hurl') {
       // 2.30 the rising cut hurls the victim: a fire geyser under it, debris, crit
-      h.fx('kael.geyser', 'foe.floor', { k: 1.4, fallback: null });
-      h.fx('combat.hit.crit', { pos: 'foe.chest', dir: [0.3, 1, 0.3] }, { element: 'ember', intensity: 0.7 });
+      h.fx('kael.geyser', 'foe.floor', { k: 1.1, fallback: null });
+      h.fx('combat.hit.heavy', { pos: 'foe.chest', dir: [0.3, 1, 0.3] }, { element: 'ember', intensity: 0.6 });
       h.foeOffset([-0.3, 2.4], 0.45, 'outCubic');
       foeState(h, 'launched', { fade: 0.04 });
       h.foe.impulse([-0.3, 1, 0], 1.6);
-      trailOn(h, 'rising', 0.25);
       h.cam.shake(0.55, { freq: 12, dir: [0, 1, 0] });
       h.post.chroma(0.6, { release: 0.3 });
-      h.post.flash(0xffd0a0, 0.12, { release: 0.15 });
       h.audio('fire_burst');
       h.hitstop(e.hitstop || 0.1);
       return false;
@@ -442,8 +452,8 @@ const ult = {
       if (x.streak) { x.streak.stop(); x.streak = null; }
       h.spawn('decal', 'foe.floor', { kind: 'scorch', radius: 3.6, life: 8, magma: 1 });
       h.spawn('spikes', 'foe.floor', { kind: 'magma', pattern: 'ring', radius: 2.3, count: 9, height: [0.7, 1.5], tilt: 30, stagger: 0.02, hold: 1.6 });
-      h.post.impact({ duration: 0.05 });
-      h.post.flash(0xffffff, 0.2, { release: 0.3 });
+      h.post.impact({ duration: 0.05, invert: 0, mono: 1 });
+      h.post.flash(0xffffff, 0.14, { release: 0.3 });
       h.post.chroma(0.9, { release: 0.4 });
       h.post.radial('foe.floor', 0.7, { release: 0.4 });
       h.cam.shake(0.8, { freq: 11, dir: [0, 1, 0] });

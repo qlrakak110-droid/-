@@ -21,9 +21,11 @@ export function createMotion(shared) {
     recs.push({
       obj: new THREE.Object3D(), live: false, serial: 0, mode: 0, t0: 0, life: 0, rt: false,
       from: new THREE.Vector3(), to: new THREE.Vector3(), vel: new THREE.Vector3(), offset: new THREE.Vector3(), prev: new THREE.Vector3(),
-      gravity: 0, ease: null, follow: null, onStep: null, onEnd: null, group: null, dist: 0, age: 0,
+      gravity: 0, ease: null, follow: null, onStep: null, onEnd: null, group: null, dist: 0, age: 0, dt: 0, step: null,
     });
   }
+  // per-record step callback built once (no closure allocated per frame)
+  for (const r of recs) r.step = () => r.onStep(r, r.dt);
   let serial = 1;
 
   function free(r) { r.live = false; r.serial = 0; r.onStep = r.onEnd = r.follow = null; r.group = null; }
@@ -100,7 +102,8 @@ export function createMotion(shared) {
         if (dt <= 0) continue;
         step(r, dt);
         const my = r.serial;
-        if (r.onStep) shared.runInGroup(r.group, () => r.onStep(r, dt));
+        r.dt = dt;
+        if (r.onStep) shared.runInGroup(r.group, r.step);
         if (r.serial !== my || !r.live) continue;
         if (r.age >= r.life) {
           const end = r.onEnd, g = r.group;

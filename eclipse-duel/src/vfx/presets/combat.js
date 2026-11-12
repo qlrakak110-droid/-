@@ -32,8 +32,8 @@ const GUARD_HEX = def({ tex: 'hex', blend: 'add', count: 14, life: [0.35, 0.8], 
 const DUST_DASH = def({ ...LIB.dustRing, count: 9, shape: { type: 'disc', radius: 0.2 }, emit: 'axis', spread: [35, 55], lift: 0.25, speed: [1.5, 5.5],
   size: [0.35, 0.85, 1.3], life: [0.5, 1.1], drag: 3.5 });
 /** skid mark: pale dust smeared flat along the floor */
-const SKID_MARK = def({ tex: 'smoke', blend: 'alpha', count: 1, life: [1.0, 1.6], speed: 0, align: 'flat', dir: [0, 1, 0], size: [0.35, 0.6], aspect: 2.4, rotation: [-0.12, 0.12],
-  groundFade: 0, shade: 0.4, erode: [[0, 0.1], [0.6, 0.3], [1, 1]], erodeSoft: 0.4, color: [[0, 0.3, 0.27, 0.23, 0], [0.1, 0.26, 0.23, 0.2, 0.4], [1, 0.2, 0.18, 0.16, 0]] });
+const SKID_MARK = def({ tex: 'smoke', blend: 'alpha', count: 1, life: [1.0, 1.7], speed: 0, align: 'flat', dir: [0, 1, 0], size: [0.22, 0.4], aspect: 3.2, rotation: [-0.08, 0.08],
+  groundFade: 0, shade: 0.4, erode: [[0, 0.15], [0.6, 0.35], [1, 1]], erodeSoft: 0.45, color: [[0, 0.3, 0.27, 0.23, 0], [0.1, 0.26, 0.23, 0.2, 0.28], [1, 0.2, 0.18, 0.16, 0]] });
 /** skid dust: puffs that roll up from a sliding foot */
 const DUST_SKID = def({ ...LIB.dustRing, count: 0, rate: 0, perMeter: 9, shape: { type: 'disc', radius: 0.1 }, emit: 'axis', spread: [40, 40], lift: 0.5,
   speed: [0.5, 2], size: [0.3, 0.7, 1.3], life: [0.5, 1.0], drag: 2.5, inherit: 0.25 });
@@ -110,7 +110,7 @@ export function defineCombat(vfx, P) {
     v.burst(K.flash, { pos: p, scale: 0.48 * s, intensity: i, realtime: rt });
     v.flare({ kind: 'star', pos: p, size: 1.3 * s, life: 0.1, decay: 3, color: E.core, intensity: 0.8 * i, rotation: rng() * 0.7, realtime: rt });
     v.flare({ kind: 'streak', pos: p, size: 0.15 * s, aspect: 14, life: 0.11, decay: 2.5, dir: d, color: E.core, intensity: 0.75 * i, realtime: rt });
-    v.light({ pos: lightAt(p, 1.4), color: E.core, intensity: 50 * i, range: 5, duration: 0.24, decay: 'outExpo', realtime: rt });
+    v.light({ pos: lightAt(p, 1.6), color: E.core, intensity: 42 * i, range: 5, duration: 0.24, decay: 'outExpo', realtime: rt });
     v.burst(K.puff, { pos: p, scale: 0.36 * s, realtime: rt });
     const pf = front(p, s);
     v.slash({ ...cutThrough(pf, d, f, 0.62 * s, 44, (rng() - 0.5) * 24), look: SLASH_LOOK[el], ...meshColors(E), width: 0.24 * s, sweep: 0.035, life: 0.26, intensity: 1.25 * i, realtime: rt });
@@ -137,7 +137,7 @@ export function defineCombat(vfx, P) {
     v.flare({ kind: 'flash', pos: p, size: 1.8 * s, life: 0.045, decay: 3, color: E.core, intensity: 0.1 * i, realtime: rt });
     v.flare({ kind: 'star', pos: p, size: 1.9 * s, life: 0.15, decay: 3, color: E.core, intensity: 0.9 * i, rotation: 0.2 + rng() * 0.4, realtime: rt });
     v.flare({ kind: 'streak', pos: p, size: 0.2 * s, aspect: 16, life: 0.14, decay: 2.5, dir: d, color: E.core, intensity: 0.8 * i, realtime: rt });
-    v.light({ pos: lightAt(p, 1.5), color: E.core, intensity: 85 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
+    v.light({ pos: lightAt(p, 1.8), color: E.core, intensity: 68 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
     v.burst(K.puff, { pos: p, scale: 0.5 * s, realtime: rt });
     v.slash({ ...cutThrough(pf, d, f, 0.8 * s, 46, 32), look: SLASH_LOOK[el], ...meshColors(E), width: 0.28 * s, sweep: 0.03, life: 0.3, intensity: 1.35 * i, realtime: rt });
     shock(v, pf, d, E, 0.95 * s, 0.13, 0.35 * i, rt);
@@ -149,7 +149,7 @@ export function defineCombat(vfx, P) {
     v.burst(K.dust, { pos: p, dir: d, count: 5, scale: s });
     v.schedule(rt ? 0.04 : 0.045, (w) => w.slash({ ...cutThrough(pf, d, f, 0.8 * s, 46, -32), look: SLASH_LOOK[el], ...meshColors(E), width: 0.26 * s, sweep: 0.03, life: 0.28, intensity: 1.25 * i, realtime: rt }), { realtime: rt });
     v.schedule(0.035, (w) => {
-      w.distort({ kind: 'shock', pos: pf, radius: [0.15 * s, 1.4 * s], life: 0.3, strength: 0.032 });
+      w.distort({ kind: 'shock', pos: pf, radius: [0.15 * s, 1.15 * s], life: 0.28, strength: 0.026 });
       w.burst(K.smoke, { pos: p, dir: d, count: 5, scale: 0.8 * s });
       if (p.y < 2.2) w.burst(DUST_SMALL, { pos: floor(p, 0.03), dir: [0, 1, 0], count: n(5, i), scale: 1.1 * s });
     });
@@ -192,7 +192,7 @@ export function defineCombat(vfx, P) {
     v.flare({ kind: 'star', pos: p, size: (pf ? 1.6 : 0.75) * s, life: pf ? 0.24 : 0.12, decay: 2.5, color: pf ? GUARD.core : STEEL.core, intensity: 0.85 * i, rotation: 0.25, realtime: rt });
     const rn = vec([-d.x, 0.2, 0.7]).normalize();
     shock(v, front(p, s), rn, GUARD, (pf ? 0.75 : 0.45) * s, pf ? 0.16 : 0.1, (pf ? 0.5 : 0.35) * i, rt);
-    v.light({ pos: lightAt(p, 1.3), color: pf ? GUARD.core : STEEL.core, intensity: (pf ? 70 : 32) * i, range: 4.5, duration: pf ? 0.26 : 0.14, decay: 'outExpo', realtime: rt });
+    v.light({ pos: lightAt(p, 1.3), color: pf ? GUARD.core : STEEL.core, intensity: (pf ? 52 : 28) * i, range: 4.5, duration: pf ? 0.26 : 0.14, decay: 'outExpo', realtime: rt });
     v.burst(KIT.steel.lines, { pos: p, count: n(pf ? 14 : 7, i), scale: 0.7 * s, realtime: rt });
     v.burst(GUARD_SPARKS, { pos: p, dir: fan, side: d, count: n(pf ? 60 : 32, i), scale: 0.8 * s });
     v.burst(KIT.steel.fine, { pos: p, dir: fan, count: n(14, i), scale: 0.7 * s });
@@ -212,7 +212,7 @@ export function defineCombat(vfx, P) {
     v.burst(KIT.steel.flash, { pos: p, scale: 0.55 * s, intensity: i, realtime: rt });
     v.flare({ kind: 'flash', pos: p, size: 1.8 * s, life: 0.05, decay: 3, color: GUARD.core, intensity: 0.1 * i, realtime: rt });
     v.flare({ kind: 'star', pos: p, size: 1.6 * s, life: 0.2, decay: 3, color: GUARD.core, intensity: 0.85 * i, rotation: 0.4, realtime: rt });
-    v.light({ pos: lightAt(p, 1.5), color: GUARD.core, intensity: 85 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
+    v.light({ pos: lightAt(p, 1.8), color: GUARD.core, intensity: 60 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
     shock(v, front(p, s), d, GUARD, 1.0 * s, 0.16, 0.5 * i, rt);
     // the barrier itself: a filled pane of crystalline cells facing the attacker that cracks apart in a few frames
     v.ring({ normal: vec([-d.x, 0.15, 0.9]).normalize(), look: 'frost', pos: front(p, s), ...meshColors(GUARD), radius: [0.35 * s, 0.85 * s], width: [0.6 * s, 0.85 * s],
@@ -276,14 +276,16 @@ export function defineCombat(vfx, P) {
     }
     const len = (o.length != null ? o.length : 1.6) * s;
     const g = floor(at.pos, 0.03);
-    const steps = Math.max(3, Math.round(len / 0.3));
-    for (let k = 0; k < steps; k++) {
-      const q = vec([g.x - f * len * (k / steps), 0.03, g.z + (rng() - 0.5) * 0.08]);
-      const t = (1 - k / steps) * 0.25;
-      v.burst(DUST_DASH, { pos: q, dir: back, count: n(3, i), scale: s, delay: t });
-      v.burst(SKID_MARK, { pos: vec([q.x, 0.012, q.z]), dir: [0, 1, 0], scale: s, delay: t });
-      v.burst(DUST_MOTES, { pos: q, dir: back, count: n(3, i), scale: 0.7 * s, delay: t });
-      if (k % 2 === 0) v.burst(PEBBLES, { pos: q, dir: [0, 1, 0], count: 1, scale: 0.4 * s, delay: t });
+    // marks overlap at uneven spacing (evenly spaced stamps read as footprints), puffs only every few marks
+    let k = 0;
+    for (let x = 0; x < len; x += (0.09 + rng() * 0.12) * s, k++) {
+      const u = x / len;
+      const q = vec([g.x - f * x, 0.03, g.z + (rng() - 0.5) * 0.06 + u * 0.05]);
+      const t = (1 - u) * 0.25;
+      v.burst(SKID_MARK, { pos: vec([q.x, 0.012, q.z]), dir: [0, 1, 0], scale: (0.75 + 0.5 * rng()) * (1 - 0.4 * u) * s, delay: t });
+      if (k % 3 === 0) v.burst(DUST_DASH, { pos: q, dir: back, count: n(2 + Math.round(2 * (1 - u)), i), scale: s, delay: t });
+      if (k % 2 === 0) v.burst(DUST_MOTES, { pos: q, dir: back, count: n(2, i), scale: 0.7 * s, delay: t });
+      if (k % 4 === 1) v.burst(PEBBLES, { pos: q, dir: [0, 1, 0], count: 1, scale: 0.4 * s, delay: t });
     }
   });
 
@@ -348,14 +350,14 @@ export function defineCombat(vfx, P) {
     v.burst(C.flash, { pos: p, scale: 1.1 * s, intensity: i });
     v.flare({ kind: 'glow', pos: p, size: 1.0 * s, life: 0.07, color: E.core, intensity: i });
     v.flare({ kind: 'streak', pos: p, size: 0.26 * s, aspect: 18, life: 0.16, decay: 3, color: E.core, intensity: 0.8 * i });
-    shock(v, p, at.dir, E, 1.3 * s, 0.16, 0.45 * i, v.realtime);
+    shock(v, p, vec([0.15 * at.facing, 1, 0.5]).normalize(), E, 1.4 * s, 0.18, 0.45 * i, v.realtime);
     v.light({ pos: lightAt(p, 1.4), color: E.core, intensity: 110 * i, range: 8, duration: 0.42, decay: 'outExpo' });
     v.burst(KIT[el === 'eclipse' ? 'ember' : el].lines, { pos: p, count: n(16, i), scale: 1.1 * s });
     v.burst(C.burst, { pos: p, count: n(90, i), scale: s });
     v.burst(C.glitter, { pos: p, count: n(30, i), scale: 1.5 * s });
     v.burst(KIT[el === 'eclipse' ? 'ember' : el].smoke, { pos: p, dir: [0, 1, 0], count: 5, scale: 0.9 * s });
     v.schedule(0.04, (w) => {
-      w.distort({ kind: 'shock', pos: p, radius: [0.25 * s, 1.9 * s], life: 0.36, strength: 0.034 });
+      w.distort({ kind: 'shock', pos: p, radius: [0.25 * s, 1.7 * s], life: 0.34, strength: 0.026 });
       if (p.y < 2.2) {
         w.distort({ kind: 'shock', pos: floor(p), normal: [0, 1, 0], radius: [0.3 * s, 3.2 * s], life: 0.5, strength: 0.03 });
         w.burst(DUST, { pos: floor(p, 0.03), dir: [0, 1, 0], count: n(8, i), scale: 0.8 * s });
@@ -375,8 +377,7 @@ export function defineCombat(vfx, P) {
     v.flare({ kind: 'star', pos: p, size: 3.2 * s, life: 0.24, decay: 3, color: [9, 7, 5], intensity: i, rotation: 0.15 });
     v.flare({ kind: 'streak', pos: p, size: 0.35 * s, aspect: 22, life: 0.26, decay: 2.5, dir: [1, 0, 0], color: E.core, intensity: i });
     v.light({ pos: lightAt(p, 1.5, 0.4), color: E.core, intensity: 180 * i, range: 10, duration: 0.6, decay: 'outCubic' });
-    v.slash({ ...cutThrough(p, d, f, 1.0 * s, 50, 28), look: SLASH_LOOK[el], ...meshColors(E), width: 0.3 * s, sweep: 0.04, life: 0.38, intensity: 1.2 * i });
-    v.ring({ normal: d, look: 'shock', pos: p, ...meshColors(E), radius: [0.2 * s, 2.0 * s], width: [0.18 * s, 0.3 * s], life: 0.24, noise: 0.4, intensity: 0.6 * i });
+    v.slash({ ...cutThrough(front(p, s), d, f, 0.85 * s, 42, 24), look: SLASH_LOOK[el], ...meshColors(E), width: 0.3 * s, sweep: 0.035, life: 0.34, intensity: 1.2 * i });
     v.burst(K.splash, { pos: p, dir: d, count: n(22, i), scale: 1.2 * s });
     v.burst(K.sparks, { pos: p, dir: d, count: n(150, i), scale: 1.3 * s });
     v.burst(CHARGE[el].burst, { pos: p, count: n(80, i), scale: 1.1 * s });
@@ -386,7 +387,7 @@ export function defineCombat(vfx, P) {
     v.schedule(0.04, (w) => {
       w.distort({ kind: 'shock', pos: p, radius: [0.3 * s, 3.8 * s], life: 0.5, strength: 0.06 });
       w.ring({ look: 'dust', pos: g, radius: [0.3 * s, 3.4 * s], life: 1.3 });
-      w.ring({ look: 'shock', pos: g, ...meshColors(E), radius: [0.2 * s, 3.2 * s], life: 0.45, intensity: 0.7 * i, distort: 0.03 });
+      w.ring({ look: 'shock', pos: g, ...meshColors(E), radius: [0.2 * s, 3.2 * s], width: [0.4 * s, 1.2 * s], life: 0.45, noise: 0.75, edgeWidth: 0.16, intensity: 0.35 * i, distort: 0.03 });
       w.burst(DUST, { pos: g, dir: [0, 1, 0], count: 16, scale: 1.3 * s });
       w.burst(KO_GLOW, { pos: vec([g.x, 0.03, g.z]), dir: [0, 1, 0], scale: s, color: mul(E.core, 0.35) });
       w.decal({ kind: 'crack', pos: g, radius: 1.6 * s, life: 4, magma: el === 'ember' ? 0.8 : 0 });

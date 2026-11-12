@@ -217,11 +217,12 @@ export function createPresenter(ctx, session, feel) {
       case 'marker': {
         const mh = handlersOf(e.fighter, e.move);
         let r;
-        if (mh && typeof mh[e.name] === 'function') r = call(e.fighter, mh[e.name], e.move + '.' + e.name, e);
+        let own = false;
+        if (mh && typeof mh[e.name] === 'function') { own = true; r = call(e.fighter, mh[e.name], e.move + '.' + e.name, e); }
         const on = presentOf(e.fighter).markers;
-        if (on && typeof on[e.name] === 'function' && call(e.fighter, on[e.name], 'markers.' + e.name, e) === false) r = false;
+        if (on && typeof on[e.name] === 'function') { own = true; if (call(e.fighter, on[e.name], 'markers.' + e.name, e) === false) r = false; }
         if (e.cinematic && cine) cineMarker(e);
-        if (r !== false) feel.marker(e);
+        if (r !== false) feel.marker(e, own);
         break;
       }
       case 'moveEnd': {

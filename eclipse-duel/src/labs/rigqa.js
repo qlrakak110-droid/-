@@ -3,7 +3,7 @@
 // shipped runtime for the knight and ISKA-like / VORN-like / 4.2x giant proportions, reduced to pass / fail checks.
 //
 //   node tools/shot.mjs rigqa --eval "__ED.lab.play('all')"          -> { checks: [{ name, value, limit, pass }], passed, failed }
-//   __ED.lab.play('all', { only: 'clips' })                          one group: clips | runtime | ik | skin | cloth | cpu
+//   __ED.lab.play('all', { only: 'clips' })                          one group: clips | runtime | ik | xfade | cloth | cpu
 //   __ED.qa.clip('demo.combo3', 'iska')                              raw qa metrics of one clip on one body (debugging)
 //
 // Limits are in metres / degrees at the knight's size; body-relative limits are multiplied by the body scale.
@@ -13,7 +13,7 @@ import { createLab, ORDER } from '../core/lab.js';
 import { makeRng } from '../core/math.js';
 import { createCharacter, defineClip, definePose, mirrorClip, invalidateClips } from '../char/index.js';
 import { getClip, sampleClip, Pose } from '../char/anim.js';
-import { DEFAULT_PROPORTIONS } from '../char/skeleton.js';
+import { DEFAULT_PROPORTIONS, createRig, fk } from '../char/skeleton.js';
 import * as IK from '../char/ik.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
@@ -420,6 +420,34 @@ function testIK() {
     for (const b of ['fingerTipsR', 'thumbR', 'upperArmTwistR']) m = Math.max(m, g.bones[b].getWorldPosition(V()).multiplyScalar(1 / GIANT).distanceTo(k.bones[b].getWorldPosition(V())));
     check('giant (x4.2 proportions): sockets / fingers, normalised error (m)', m, 0.004);
   }
+  // default knee pole (MATH-10): pure solver, foot target circling the hip at 80% / 45% reach on 10 rings (0.5 deg
+  // steps, rest orientation): the knee may not move more than 7x the target (round 0: 8-9x with 22 flips of the bend plane)
+  for (const body of ['kael', 'giant']) {
+    const rig = createRig(PROPS[body]), limb = IK.makeLimbs(rig).footR;
+    const lq = new Float32Array(rig.count * 4), lp = new Float32Array(rig.offset), mq = new Float32Array(rig.count * 4), mp = new Float32Array(rig.count * 3);
+    const pose = new Pose(rig);
+    sampleClip(rig, getClip(rig, 'neutral.hold'), 0, pose);
+    const rot = [0, 0, 0, 1], tgt = [0, 0, 0];
+    fk(rig, pose.lq, lp, mq, mp);
+    const cx = mp[limb.root * 3], cy = mp[limb.root * 3 + 1], cz = mp[limb.root * 3 + 2], lmax = limb.l1 + limb.l2, oy = rig.P.ankleHeight;
+    const H = (h) => (a) => [Math.cos(a) * Math.sqrt(1 - h * h), h, Math.sin(a) * Math.sqrt(1 - h * h)];
+    const rings = [[-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9].map((h) => [H(h), 0.8]), [[(a) => [Math.cos(a), Math.sin(a), 0], 0.8], [(a) => [0, Math.sin(a), Math.cos(a)], 0.8], [(a) => [Math.cos(a), Math.sin(a), 0], 0.45]]].flat();
+    let worst = 0;
+    for (const [ring, frac] of rings) {
+      let px = 0, py = 0, pz = 0, tx = 0, ty = 0, tz = 0;
+      for (let k = 0; k <= 720; k++) {
+        const d = ring((k / 720) * Math.PI * 2), wx = cx + d[0] * lmax * frac, wy = cy + d[1] * lmax * frac, wz = cz + d[2] * lmax * frac;
+        lq.set(pose.lq); lp.set(rig.offset); fk(rig, lq, lp, mq, mp);
+        tgt[0] = wx; tgt[1] = wy - oy; tgt[2] = wz;
+        IK.solveLimb(rig, limb, lq, mq, mp, tgt, 0, rot, 0, null, 0, 1);
+        fk(rig, lq, lp, mq, mp);
+        const m = limb.mid * 3;
+        if (k) worst = Math.max(worst, Math.hypot(mp[m] - px, mp[m + 1] - py, mp[m + 2] - pz) / (Math.hypot(wx - tx, wy - ty, wz - tz) || 1e-9));
+        px = mp[m]; py = mp[m + 1]; pz = mp[m + 2]; tx = wx; ty = wy; tz = wz;
+      }
+    }
+    check(`default knee pole (${body}): knee speed / foot target speed on 10 rings around the hip`, worst, 7);
+  }
   return res;
 }
 
@@ -472,30 +500,34 @@ function testCloth() {
 
 // ---- 6. CPU -------------------------------------------------------------------------------------------------------------
 /**
- * ms per char.update() for the shipped knight (cape + tabard cloth, springs, IK) over a combat chain. The page shares
- * the machine with other work, so the figure is the 10th percentile of 10-update batch means (robust to scheduler
- * noise); the median is reported alongside.
+ * ms per char.update() for the shipped knight (cape + tabard cloth, springs, IK) over a combat chain (combo1, combo2,
+ * combo3, slam: 300 frames). The page shares the machine with other work, so the chain is replayed R times and every
+ * frame keeps its fastest run: the mean of those minima is the uncontended cost of the whole chain (not of its cheapest
+ * frames). The median of all frames (contended) is reported alongside.
  */
 function testCpu() {
   const c = mk('kael', true);
-  const chain = ['demo.combo1', 'demo.combo2', 'demo.combo3', 'demo.slam', 'demo.walkF', 'demo.idle'];
-  reset(c, 'demo.idle');
-  let k = 0;
-  const b = [];
-  for (let j = 0; j < 140; j++) {
-    const t0 = performance.now();
-    for (let i = 0; i < 10; i++) {
-      const f = j * 10 + i;
-      if (f % 75 === 0) c.play(chain[k++ % chain.length], { fade: 0.08, restart: true });
-      c.update(1 / 60, 1 / 60);
+  const chain = ['demo.combo1', 'demo.combo2', 'demo.combo3', 'demo.slam'];
+  const F = 300, B = 1, NB = F / B, R = 8;
+  const best = new Float64Array(NB).fill(Infinity), all = [];
+  for (let rep = 0; rep < R; rep++) {
+    reset(c, 'demo.idle');
+    let k = 0;
+    for (let j = 0; j < NB; j++) {
+      const t0 = performance.now();
+      for (let i = 0; i < B; i++) {
+        if ((j * B + i) % 75 === 0) c.play(chain[k++ % chain.length], { fade: 0.08, restart: true });
+        c.update(1 / 60, 1 / 60);
+      }
+      const ms = (performance.now() - t0) / B;
+      if (rep > 0) { best[j] = Math.min(best[j], ms); all.push(ms); } // run 0 warms the JIT up
     }
-    b.push((performance.now() - t0) / 10);
   }
-  const s = b.slice(20).sort((x, y) => x - y);
-  const p10 = s[Math.floor(s.length * 0.1)], p50 = s[s.length >> 1];
-  // the page shares a loaded machine: the best batch is the uncontended cost; p10 / p50 show the contention
-  check('CPU char.update, knight with cape + tabard (ms, best 10-update batch; p10 / p50 in detail.cpu)', s[0], 1.0);
-  return { best: s[0], p10, p50 };
+  let mean = 0, peak = 0;
+  for (let j = 0; j < NB; j++) { mean += best[j] / NB; peak = Math.max(peak, best[j]); }
+  all.sort((x, y) => x - y);
+  check('CPU char.update, knight with cape + tabard (ms, mean over a combat chain, uncontended; detail.cpu)', r(mean, 3), 1.0);
+  return { mean: r(mean, 3), worstBatch: r(peak, 3), contendedP50: r(all[all.length >> 1], 3) };
 }
 
 /** Per-frame values of a clip (debugging): fn(char, frame) -> any, at `hz`. */

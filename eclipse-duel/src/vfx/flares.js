@@ -81,10 +81,11 @@ void main() {
     float ang = atan(p.y, p.x);
     float rays = 0.55 + 0.45 * sin(ang * 7.0 + 1.3) * sin(ang * 3.0 - 0.4) + 0.25 * sin(ang * 23.0);
     float out1 = max(r - 0.5, 0.0);
-    I = exp(-pow((r - 0.505) / 0.012, 2.0)) * 3.0 + exp(-pow((r - 0.51) / 0.05, 2.0)) * 0.9
-      + exp(-out1 * 9.0) * step(0.5, r) * 0.55 * (0.6 + 0.4 * rays) + exp(-out1 * 3.0) * step(0.5, r) * 0.12 * rays;
+    I = exp(-pow((r - 0.505) / 0.012, 2.0)) * 1.6 + exp(-pow((r - 0.515) / 0.045, 2.0)) * 0.5
+      + exp(-out1 * 9.0) * step(0.5, r) * 0.4 * (0.6 + 0.4 * rays) + exp(-out1 * 3.0) * step(0.5, r) * 0.1 * rays;
     I *= edge;
-    float disc = (1.0 - smoothstep(0.485, 0.5, r)) * clamp(vK.w, 0.0, 1.0);
+    // the disc stays opaque for most of the life (the corona carries the fade) and then lets the world back in
+    float disc = (1.0 - smoothstep(0.485, 0.5, r)) * clamp(vK.w * 4.0, 0.0, 1.0);
     gl_FragColor = vec4(vCol.rgb * I * (1.0 - disc * 0.97), disc);
     return;
   }

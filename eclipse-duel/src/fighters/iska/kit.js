@@ -132,17 +132,19 @@ export function eyeGlow(k = 1) {
 }
 
 // ---- hood + shoulder mantle -------------------------------------------------------------------------------------------------
-// the crown rounds over the brow and rises into a peak at the back of the head (a cowl, not a cone: the front profile
-// is a smooth curve, the point sits behind)
-const HOOD_Y = [-0.25, -0.16, -0.1, -0.05, 0.0, 0.06, 0.12, 0.18, 0.21, 0.235, 0.255, 0.268, 0.276];
-const hoodC = (vals) => profile(HOOD_Y.map((y, i) => [y, vals[i]]));
-const HOOD = {
-  rx: hoodC([0.17, 0.145, 0.12, 0.112, 0.117, 0.124, 0.123, 0.111, 0.095, 0.072, 0.048, 0.027, 0.008]),
-  rz: hoodC([0.182, 0.152, 0.117, 0.099, 0.099, 0.104, 0.103, 0.097, 0.086, 0.068, 0.046, 0.026, 0.008]),
-  ox: hoodC([-0.035, -0.022, -0.008, -0.004, 0.0, 0.0, -0.008, -0.022, -0.035, -0.055, -0.078, -0.1, -0.118]),
-};
-/** Hood height at surface parameter v (more rows near the crown: the rounded peak stays smooth). */
-const hoodY = (v) => lerp(0.276, -0.25, Math.pow(v, 1.3));
+// Soft draped cowl (side view): the cloth rounds low over the crown (~5 cm above the skull), falls back over the occiput
+// into a soft swept-back point (the hood's tip folded back and lying on the cloth, tapered like a teardrop from above),
+// tucks in under the skull at the nape and flares into the shoulder mantle. No vertical back wall, no standing peak: the
+// circlet's crescent crest stands proud of the brim. Profiles by height y (head frame): F = front extent (the virtual front
+// across the face opening), B = back extent, W = half width; the mantle (y <= -0.05) keeps the fitted values.
+const HOOD_TOP = 0.229, HOOD_TIP = 0.146;
+const hoodF = profile([[-0.25, 0.135], [-0.16, 0.123], [-0.1, 0.112], [-0.05, 0.108], [0.0, 0.117], [0.06, 0.123], [0.12, 0.117], [0.17, 0.096], [0.198, 0.063], [0.215, 0.031], [0.225, 0.002], [HOOD_TOP, -0.024]]);
+const hoodB = profile([[-0.25, -0.205], [-0.16, -0.167], [-0.1, -0.124], [-0.05, -0.104], [0.0, -0.097], [0.05, -0.104], [0.1, -0.13], [0.125, -0.152], [HOOD_TIP, -0.176], [0.17, -0.156], [0.194, -0.12], [0.212, -0.084], [0.223, -0.052], [HOOD_TOP, -0.024]]);
+const hoodW = profile([[-0.25, 0.182], [-0.16, 0.152], [-0.1, 0.117], [-0.05, 0.099], [0.0, 0.099], [0.06, 0.104], [0.12, 0.104], [0.17, 0.096], [0.196, 0.08], [0.212, 0.06], [0.223, 0.038], [HOOD_TOP, 0.0]]);
+// widest point of each ring (front half F..C keeps the fitted temple / brim shape, back half C..B stretches into the tip)
+const hoodC = profile([[-0.25, -0.035], [-0.16, -0.022], [-0.1, -0.008], [-0.05, -0.004], [0.0, 0.0], [0.06, 0.0], [0.12, -0.006], [0.17, -0.014], [0.198, -0.02], [0.215, -0.024], [HOOD_TOP, -0.024]]);
+/** Hood height at surface parameter v (rows gather toward the crown: the rounded top and the folded-back tip stay smooth). */
+const hoodY = (v) => lerp(HOOD_TOP, -0.25, Math.pow(v, 1.45));
 /** Face-opening half angle (deg) of the hood at height y: an oval around the face, a narrow front opening below the chin. */
 function hoodOpen(y) {
   const t = (y - 0.052) / 0.118;
@@ -165,14 +167,18 @@ export function hood(o = {}) {
     // hem: deeper point at the back (where the cape tails hang), shallower over the shoulders
     const back = Math.pow(Math.max(0, -Math.cos(ar)), 3), shoulder = Math.pow(Math.abs(Math.sin(ar)), 4);
     const y = y0 + (v > 0.85 ? (-0.06 * back + 0.025 * shoulder) * sstep(0.85, 1, v) : 0);
-    const rx = HOOD.rx(y0), rz = HOOD.rz(y0);
-    const [x, z] = se(ar, rx, rz, 2.05);
-    // soft folds in the mantle and at the back of the hood
-    const fold = 0.007 * Math.sin(a * DEG * 9) * sstep(0.55, 1, v) + 0.006 * Math.sin(a * DEG * 6 + 1) * bump(v, 0.05, 0.62) * (0.35 + back);
+    const c = hoodC(y0), rx = Math.max(0.0005, Math.cos(ar) >= 0 ? hoodF(y0) - c : c - hoodB(y0)), rz = Math.max(0.0005, hoodW(y0));
+    let [x, z] = se(ar, rx, rz, 2.05);
+    // the folded-back tip gathers the cloth: the back half narrows toward the point (teardrop from above)
+    const back2 = Math.pow(Math.max(0, -Math.cos(ar)), 2);
+    z *= 1 - 0.42 * back2 * bump(y0, 0.07, HOOD_TOP);
+    // drape folds: radiating from the tip down the back of the cowl, broad folds over the crown, mantle folds
+    const tipW = bump(y0, 0.0, HOOD_TOP - 0.01);
+    const fold = 0.007 * Math.sin(a * DEG * 9) * sstep(-0.06, -0.2, y0)
+      + 0.0055 * Math.sin(a * DEG * 7 + 1.3) * tipW * back * (1 - 0.5 * sstep(0.12, 0.2, y0))
+      + 0.004 * Math.sin(a * DEG * 4 + 0.4) * sstep(0.12, 0.2, y0) * (1 - back2) * (1 - Math.pow(Math.max(0, Math.cos(ar)), 4));
     const r = Math.hypot(x, z) || 1;
-    // the brim over the forehead leans forward (a soft peak)
-    const peak = 0.018 * Math.pow(Math.max(0, Math.cos(ar)), 6) * bump(y0, 0.12, 0.26);
-    return [HOOD.ox(y0) + x * (1 + fold / r) + peak, y, z * (1 + fold / r)];
+    return [c + x * (1 + fold / r), y, z * (1 + fold / r)];
   };
   const g = plate(S, {
     nu: o.nu ?? 30, nv: o.nv ?? 16, thick: 0.006, edgeR: 0.0045, inner: true, innerCav: 0.3,
@@ -224,17 +230,14 @@ export function circlet(o = {}) {
     pts.push([HEAD.ox(yb) + x, yb + 0.006 * Math.pow(Math.cos(ar), 8), z]);
   }
   out.band = sweep(pts, rrect(0.0022, 0.0052, 0.0016, 1), { up: [0, 1, 0], caps: true });
-  // crescent crest: two arcs (outer r 0.068, inner 0.054 offset up) -> horns pointing up, extruded, leaning back
+  // crescent crest: a true crescent moon (outer circle r Ro, inner circle r Ri raised by `off`); the arcs run to the two
+  // circles' intersections, so the horns taper to fine points curling toward each other (a moon, not a pair of horns)
   const cres = [];
   const Ro = 0.064, Ri = 0.05, off = 0.024;
-  for (let i = 0; i <= 28; i++) { const t = lerp(-1, 1, i / 28), a = t * 112 * DEG; cres.push([Math.sin(a) * Ro, -Math.cos(a) * Ro]); }
-  for (let i = 28; i >= 0; i--) {
-    const t = lerp(-1, 1, i / 28), a = t * 112 * DEG;
-    const p = [Math.sin(a) * Ri, -Math.cos(a) * Ri + off];
-    // only keep the inner arc inside the outer disc (horn tips meet)
-    const r = Math.hypot(p[0], p[1]);
-    cres.push(r > Ro * 0.995 ? [p[0] * Ro * 0.995 / r, p[1] * Ro * 0.995 / r] : p);
-  }
+  const yi = (Ro * Ro - Ri * Ri + off * off) / (2 * off), xi = Math.sqrt(Ro * Ro - yi * yi);
+  const A = Math.atan2(xi, -yi), B = Math.atan2(xi, off - yi);
+  for (let i = 0; i <= 28; i++) { const a = lerp(-A, A, i / 28); cres.push([Math.sin(a) * Ro, -Math.cos(a) * Ro]); }
+  for (let i = 25; i >= 1; i--) { const b = lerp(-B, B, i / 26); cres.push([Math.sin(b) * Ri, -Math.cos(b) * Ri + off]); }
   const crest = extrude(cres, { depth: 0.0055, bevel: 0.0016, bevelSegs: 2, curveSegs: 2 });
   // head frame: shape (sx, sy) -> plane facing +X (sx -> -z), leaning back by `tilt`: (x, y) = (-sy sin t, sy cos t) + T,
   // with the crescent's lowest point resting on the band
@@ -244,9 +247,10 @@ export function circlet(o = {}) {
   const place = (g, sy = 0, dx = 0) => { g.rotateY(90 * DEG); g.rotateZ(tilt); g.translate(T[0] + dx, T[1], T[2]); return [T[0] + dx - sy * Math.sin(tilt), T[1] + sy * Math.cos(tilt), 0]; };
   place(crest);
   out.crest = crest;
-  // the star in the crescent's hollow: 8 points, glowing (inlay)
+  // the star in the crescent's hollow: 8 points, glowing (inlay); its upper rays clear the cowl's rounded crown, so the
+  // front silhouette reads crescent - star - crescent (a moon cradling a star) rather than two horns
   const sy = 0.006;
-  const sg = extrude(starShape(0.019, 0.0068, 8), { depth: 0.0065, bevel: 0.0015, bevelSegs: 1, curveSegs: 1 });
+  const sg = extrude(starShape(0.0235, 0.0082, 8), { depth: 0.0065, bevel: 0.0015, bevelSegs: 1, curveSegs: 1 });
   sg.translate(0, sy, 0);
   out.starPos = place(sg, sy, 0.002);
   out.star = sg;
@@ -407,14 +411,14 @@ export function scaleRows(o) {
 export function crescentSpaulder(o = {}) {
   const R = o.R ?? 0.082;
   const out = {};
-  const X0 = -0.112, X1 = 0.104, cy = 0.012, cz = 0.006;
+  const X0 = -0.126, X1 = 0.116, cy = 0.012, cz = 0.006;
   const S = (u, v) => {
     const x = lerp(X0, X1, u), e = 2 * u - 1, ae = Math.abs(e);
-    const wf = 0.16 + 0.84 * (1 - Math.pow(ae, 2.4));                   // plate width (around the arm) narrows to blade-like horn tips
-    const al0 = 6 - 30 * Math.pow(ae, 2.2);                             // horns lean toward the neck side as they rise
+    const wf = 0.1 + 0.9 * (1 - Math.pow(ae, 2.4));                     // plate width (around the arm) narrows to blade-like horn tips
+    const al0 = 6 - 26 * Math.pow(ae, 2.2);                             // horns lean toward the neck side as they rise
     const al = lerp(al0, al0 + 8 + 104 * wf, v);
     const r = R * (1 + 0.1 * Math.sin(Math.PI * v) * wf) * (1 - 0.18 * e * e) + 0.006 * v * v;
-    const lift = 0.06 * Math.pow(ae, 2.6) * (1 - 0.35 * v);             // horns curve upward
+    const lift = 0.088 * Math.pow(ae, 2.3) * (1 - 0.3 * v);             // horns sweep up into tall crescent points
     return [x, cy + lift + r * Math.cos(al * DEG), cz + r * Math.sin(al * DEG)];
   };
   out.crescent = plate(S, {

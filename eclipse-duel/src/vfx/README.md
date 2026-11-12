@@ -283,7 +283,7 @@ Handle: `light`, `kill()`, `stop()` (0.18 s fade), `follow(obj, offset)`, `setIn
 
 | option | default | meaning |
 |---|---|---|
-| `kind` | `'glow'` | `'glow'` (white-hot pin + halo) · `'star'` (4 long + 4 short rays) · `'streak'` (anamorphic line) · `'ring'` · `'flash'` (wide soft bloom) |
+| `kind` | `'glow'` | `'glow'` (white-hot pin + halo) · `'star'` (4 long + 4 short rays) · `'streak'` (anamorphic line) · `'ring'` · `'flash'` (wide soft bloom) · `'eclipse'` (a black disc, half the quad wide, that **occludes everything drawn before it** under a thin white-hot corona and uneven streamers: the black sun of KO / ultimate flashes; it is allocated in the last pool slot so it draws after the other flares, stays opaque for most of its life and lets the world back in as its envelope ends) |
 | `pos` | — | world position |
 | `color`, `intensity` | `[6, 4, 2.5]`, `1` | HDR colour × intensity |
 | `size` | `0.6` | m (quad height); `[start, end]` grows with outExpo over life |
@@ -297,6 +297,9 @@ Handle: `light`, `kill()`, `stop()` (0.18 s fade), `follow(obj, offset)`, `setIn
 | `follow`, `offset`, `realtime` | | |
 
 Handle: `kill()`, `stop()` (0.12 s fade), `follow()`, `alive`.
+
+Flares are premultiplied (`One, OneMinusSrcAlpha`): every kind writes alpha 0 (purely additive) except `'eclipse'`.
+Capacity 64 (the oldest is stolen when full).
 
 ## Distortion
 
@@ -664,12 +667,12 @@ Each projectile also has its impact as a preset of its own (`ember.wave.impact`,
 
 | name | `at.pos` | what it is | options |
 |---|---|---|---|
-| `hit.light` | contact point | small flash, a quick cut crescent through the contact (in front of the body), short directional spark spray, streak glint, small light | `element` |
-| `hit.heavy` | contact point | star glint, thick cut crescent, a shock ring around the strike axis, sparks with floor bounces, motes, dark puff, refraction shock | `element` |
-| `hit.crit` | contact point | X-cut (two crescents 45 ms apart), flash bloom, axial ring, heavy spark shower, element debris (ember licks, frost shards, volt bolts), smoke, big shock | `element` |
-| `hit.pierce` | contact point (`dir` = thrust axis) | a line of light through the body, an exit cone of long sparks, two rings around the axis, axial shock | `element` |
-| `guard.block` | guard contact | glancing steel spark fan, parry ring, star glint, light | `perfect` (bigger cold glint, glitter, second ring, shock) |
-| `guard.break` | guard contact | the barrier shatters: crystal shards and hex flakes that spin, fall and bounce, flash, crystalline ring, steel sparks, shock | |
+| `hit.light` | contact point | 2-frame flash, radial impact lines, a quick cut crescent through the contact (in front of the body), short directional spark spray, streak glint, a wisp of lingering dust, small light | `element` |
+| `hit.heavy` | contact point | flash, star glint, impact lines, thick cut crescent, a shock disc around the strike axis, sparks with floor bounces, motes, element accent (fire licks / ice shards / crackle arcs / hot steel chips), a lingering puff (lit dust, dark smoke with an underglow, pale mist, ozone), refraction shock | `element` |
+| `hit.crit` | contact point | X-cut (two crescents 40 ms apart, both on the flash clock), flash, star, many impact lines, axial shock disc, heavy spark shower, element debris (ember licks, frost shards, volt bolts, steel chips), lingering puff and smoke, floor dust under a low hit, shock | `element` |
+| `hit.pierce` | contact point (`dir` = thrust axis) | a line of light through the body, an exit cone of long sparks, impact lines, two shock discs along the axis, lingering puff, axial shock | `element` |
+| `guard.block` | guard contact | glancing steel spark fan, impact lines, a parry shock disc facing the attacker, star glint, hot steel chips, light | `perfect` (bigger cold glint, hex flakes lighting up the guard plane, glitter, refraction pulse) |
+| `guard.break` | guard contact | the barrier shatters: a pane of crystalline cells cracks apart in a few frames, crystal shards and hex flakes spin, fall and bounce, flash, shock disc, impact lines, steel sparks, lingering dust, shock | |
 | `dust.step` | foot (floor) | small dust puff and motes | |
 | `dust.dash` | feet (floor) | low dust cloud blown backward (−facing), grit, motes | |
 | `dust.land` | feet (floor) | dust ring (mesh) and puffs, pebbles | `heavy` (floor shock, rocks, small crack) |
@@ -677,8 +680,8 @@ Each projectile also has its impact as a preset of its own (`ember.wave.impact`,
 | `whoosh.light` / `whoosh.heavy` | swing pivot (shoulder) | faint pale air crescent with a refraction twin and wind streaks; heavy adds wake dust and floor dust when low | `arc` ([120, −30] / [140, −50] deg), `radius` (1.3 / 1.7), `normal`, `forward`, `roll` (vfx.slash plane) |
 | `charge.gather` | gather point (hand / weapon) | **loop**: converging streaks and motes, imploding ring pulses, a growing glow and star, lens pinch, rising light | `element` (+ `'eclipse'`), `follow`, `offset`, `rune` (floor circle), `duration` (default until `stop()`), `release` (play `charge.release` at the end of `duration`) |
 | `charge.release` | release point | flash, streak, ring snapping outward, radial sparks, glitter, smoke, double shock | `element` |
-| `ko.burst` | victim chest | eclipse corona flash (black disc inside a gold ring), star and streak, cut crescent, crit sparks both ways, rising light embers, floor blast (shock ring, dust, cracks, rocks, glow), smoke column | `element` |
-| `ult.flash` | user chest | super-freeze activation (real time by default): eclipse corona, long star rays, ring, backlight column behind the fighter, rune circle under the feet, sparks, shock | `element` (default `'eclipse'`) |
+| `ko.burst` | victim chest | the black sun: an `'eclipse'` flare (a black disc that occludes the flash behind it, gold-white corona) after a 2-frame flash, star and streak, cut crescent, crit sparks both ways, rising light embers, floor blast (soft shock ring, dust, cracks, rocks, glow), smoke column | `element` |
+| `ult.flash` | user chest | super-freeze activation (real time by default): flash, the black-sun `'eclipse'` flare, long star rays, ring, backlight column behind the fighter, rune circle under the feet, sparks, shock | `element` (default `'eclipse'`) |
 
 ### Ember — Kael, the Cinder Warden
 
@@ -732,6 +735,43 @@ axis, strobing flicker, gold sparks that bounce, dark scorch and thin ozone wisp
 | `volt.burst` | centre | radial lightning: bolts lash out (grounding when they reach the floor), gold sparks, arcs, motes, a tilted crackling ring, shock, scorch when low | |
 | `volt.storm` | centre (floor) | **ultimate**, ~3.6 s: a rune spreads and crackles, storm clouds lit from inside, rain lashes down, energy is drawn up, eight bolts strike around in a stutter, then a huge strike plus a lightning burst at the centre (2.7 s) | `radius` (3.4 m), `strikes` (8) |
 | `volt.javelin` | launch point | **projectile**: a 1.7 m lance of lightning with a white head streak, crackling ribbon, gold sparks and arcs shed behind (20 m/s); `impact()` = lightning burst with arcs chaining into the floor | `follow`, `to`, `speed`, `life` (0.8 s) |
+
+### Writing presets with the library helpers
+
+Fighter choreography can register its own presets with `vfx.define` and build them from the same parts the library
+uses. `src/vfx/presets/common.js` exports (all plain ES exports):
+
+| export | what it is |
+|---|---|
+| `def(d)` | register a module-scope particle definition (collected in `DEFS` = `vfx.presetDefs`, uploaded by `vfx.prewarm()`); never pass inline definition literals in a preset body |
+| `KIT[el]` | hit kit per element (`'steel' 'ember' 'frost' 'volt'`): `flash` (2–3 frame burst), `lines` (radial impact lines), `splash`, `sparks`, `fine`, `puff` (dim glow), `dust` (lingering puff along the strike), `accent` (fire licks / ice shards / crackle arcs / hot steel chips), `motes` (embers / glitter / arcs / steel motes), `smoke` |
+| `EL`, `STEEL`, `GOLD` | palettes by element (`{ core, mid, tail, smoke }`, linear HDR) |
+| `SLASH_LOOK[el]`, `MESH_PAL[el]` | the `vfx.slash` look and mesh palette name for an element |
+| `meshColors(P, extra)` | `{ core, color, tail }` mesh-effect colour options from a palette |
+| `cutThrough(pos, dir, facing, r, half, roll)` | slash options for a crescent of radius `r` whose middle crosses `pos` across the strike `dir` |
+| `arcPoint(pos, plane, deg, r)`, `arcTangent(plane, deg, sign)` | points and sweep tangents on a `vfx.slash` arc (spawn-time helpers, they allocate) |
+| `lightAt(p, dz = 1.5, dy = 0.2)` | where to put an event light: toward the camera, off the bodies |
+| `floor(p, lift)`, `vec(v)`, `key(t, c, a, k)`, `mul(c, k)` | small coercion helpers (ramp keys from palette colours) |
+| `DUST`, `DUST_SMALL`, `PEBBLES`, `SMOKE_COLUMN`, `DUST_MOTES` | shared ground / smoke layers |
+| `realtimeView(vfx)` | a view of `vfx` whose spawns and schedules default to real time (KO slow motion, super-freeze) |
+
+```js
+import { def, KIT, EL, meshColors, cutThrough, lightAt } from '../vfx/presets/common.js';
+const SHOCK_SPARKS = def({ ...KIT.volt.sparks, count: 30, spread: 12 });           // module scope
+vfx.define('vorn.counter', (v, at) => {
+  const E = EL.volt, p = at.pos, d = at.dir;
+  v.burst(KIT.volt.flash, { pos: p, scale: 0.5, realtime: true });
+  v.burst(KIT.volt.lines, { pos: p, count: 12, realtime: true });
+  v.slash({ ...cutThrough(p, d, at.facing, 0.6, 40, 0), look: 'electric', ...meshColors(E), width: 0.22, realtime: true });
+  v.burst(SHOCK_SPARKS, { pos: p, dir: d });
+  v.burst(KIT.volt.dust, { pos: p, dir: d, count: 3 });
+  v.light({ pos: lightAt(p), color: E.core, intensity: 45, duration: 0.25, decay: 'outExpo', realtime: true });
+});
+```
+
+The projectile and travelling-front machinery (`presets/motion.js`: pooled anchors, `launch()`) is internal to the
+presets module; reuse it through the library projectiles (`ember.wave`, `frost.shard`, `volt.javelin`) or drive your
+own `Object3D` and pass it as `follow` to the spawn functions.
 
 ---
 
@@ -848,7 +888,7 @@ export function installSlash(vfx, shared) {
 | `uniforms` | `{ uTime, uTimeReal }` uniform objects updated every frame: share them in your materials |
 | `rng` | `ctx.rng` |
 | `util` | `toVec3, toColor, sampleRange, rangeMax, toCurveFn, toRampFn, heatRamp, CURVES, makeFrame, normalizeAt, makeAt, local, defKey, RENDER_ORDER` |
-| `EffectPool` | pooled-effect base: fixed slots, birth time on either clock, life, follow (`pool.place(slot)`), stale-safe handles, oldest-steal |
+| `EffectPool` | pooled-effect base: fixed slots, birth time on either clock, life, follow (`pool.place(slot)`), stale-safe handles, oldest-steal; `alloc({ life, realtime, last })` (`last: true` takes the highest free slot: drawn after the others in an instanced layer) |
 | `InstanceRing`, `makeQuadGeometry` | instanced quad + interleaved per-instance buffer with partial uploads (`alloc`, `dirty`, `commit`) |
 | `ParamTable`, `tableGlsl(sampler, prefix)` | definition rows in a float texture (ramp + curves + params) and their GLSL accessors (`<p>Ramp(t,row)`, `<p>Curve`, `<p>Param`) |
 | `InstanceRing(capacity, layout, baseGeometry?)` | pass your own `InstancedBufferGeometry` template (arc strip, cylinder grid, chunk) to instance it instead of the quad |
@@ -881,6 +921,10 @@ additive, alpha-blended or anything in between.
 - Draw calls: one per layer / effect type: particles (alpha, add, distortion), flares, distortion sprites, ribbons (+
   refraction), slash (+ refraction), ring, pillar, beam, bolt, decal, debris, spikes, speed lines: about 17 if every
   type is alive at once, plus one per afterimage ghost mesh; **zero when idle** (every layer hides itself).
+- Triangles: the mesh-effect templates are dense (slash 1.5k, ring 1.5k, beam 0.8k, pillar 5.1k triangles per
+  instance) and the vertex shader culls dead instances, so each layer draws only up to its **highest live slot**
+  (slots are taken lowest-first), recomputed every frame: an idle-then-busy history never leaves 24 dead slashes in
+  the draw.
 - Programs: 26 for the whole library (high and low tier); `vfx.prewarm()` compiles all of them, and the count does
   not change after playing every effect (verified). Create the environment (which sets `scene.environment`) **before**
   `vfx.prewarm()`, or the lit spikes / debris compile an env-mapped variant on first use.
@@ -925,15 +969,26 @@ Lessons baked into the library (verified on captures):
   should be large and high-contrast, spikes and debris carry the ground read.
 - **Mesh effects carry direction**: slash planes and arcs follow the blade, beams and bolts follow their axis, spike
   lines lean along their travel.
-- **Lights stay off the bodies** (stage 3). A pooled light 0.3 m from armour whites it out (irradiance ~ 1/d²): put
-  event lights about 1 m toward the camera (`presets/common.js` `lightAt(p)`), 30–120 cd for hits and skills, 150–250
-  only for ultimate climaxes.
+- **Lights stay off the bodies.** A pooled light 0.3 m from armour whites it out (irradiance ~ 1/d²): put event lights
+  about 1.5 m toward the camera (`presets/common.js` `lightAt(p)`, default 1.5 m), 25–90 cd for hits and skills,
+  150–250 only for ultimate climaxes, and give impact lights `decay: 'outExpo'` (or `'outCubic'`) so the bright part
+  lasts 1–2 frames and the rest is a dim tail; the default `'outQuad'` keeps a hit light near full for 3–4 frames,
+  which reads as both fighters turning white.
 - **No flat camera-facing rings.** A camera-facing ring reads as a UI circle or a bubble. Tilt shock rings around the
   action axis (`normal: strikeDir`: an ellipse that carries the direction), lay them on the floor, or let distortion
   carry the shock.
 - **Minimum size at fight distance.** At 8–12 m, sprites under ~0.03 m vanish; use ≥ 0.04 m or velocity stretch.
-- **First frames.** Hit flash cores at `scale` ≤ 0.8 and `flare` `'flash'` ≤ 0.2 intensity; bigger reads as a white
-  screen for two frames (the presentation layer adds its own post flash on top).
+- **First frames.** The hit kits' flash sprite lives 2–3 frames (0.03–0.05 s); keep its `scale` ≤ 0.8 and any
+  `flare` `'flash'` ≤ 0.2 intensity and ≤ 0.07 s. A glow puff, a flash flare and a long light stacked on the same 3–4
+  frames read as a white ball. Let shaped elements carry frames 2–6 instead: impact lines, the cut crescent, a star.
+- **No hoops.** An axial or camera-facing ring with a thin band reads as a UI circle or a soap bubble. Shock rings use
+  a wide band with a soft inside (`width` close to the radius, `fill` 2–2.6, short `life`), or lie on the floor; the
+  `'shock'` look defaults to a wide band (`width [0.55, 1.5]`).
+- **Fire bodies sit on the mid colour.** The slash shader keeps large areas on the saturated `mid` and reserves
+  `core` for the cutting edge, the head and tongue tips; cooled parts break up as dark matter (no glowing confetti).
+- **Every effect lingers.** Hits leave a puff (`KIT[el].dust`) and motes; skills leave smoke, scorch, glitter or
+  crackle; ultimates end on a climax frame (blizzard: the whole field rings out and shatters; storm: a final strike,
+  then the ground keeps crackling).
 
 ---
 

@@ -111,9 +111,9 @@ const FRAG_BODY = /* glsl */ `
     float f2 = texture2D(uFlow, vec2(s * ns * 2.2 + age * scroll, xm * 1.9 - age * 2.6) + seed * 3.0).g;
     float tongue = (f1 * 0.62 + f2 * 0.38 - 0.4) * 2.6;
     xe = x - tongue * noiseAmt * (0.3 + 0.7 * sat(1.0 + x));
-    gain = 0.4 + 0.95 * f2 * f1 + 0.2 * streak;
+    gain = 0.35 + 0.8 * f2 * f1 + 0.15 * streak;
     erodeN = f1 * 0.55 + fb * 0.45;
-    hot = sat(tongue) * 0.25;
+    hot = sat(tongue) * 0.25 * (1.0 - cool);
   } else if (look == 2) {
     // ice: crystalline cells, bright fracture lines, per-cell facet shading and glints; cells vanish whole (shatter)
     vec3 vo = voronoi(vec2(s, xm * 1.6) * ns * 7.0 + seed * 13.0);
@@ -164,12 +164,14 @@ const FRAG_BODY = /* glsl */ `
   float smear = exp(-max(behind, 0.0) / (0.1 + arcLen * 0.06)) * sweeping;
   // the body starts at the saturated mid colour and cools to the tail; only the edge line and the head are hot
   // (the body sits on the saturated mid from birth: a large area at core values whitens under ACES and bloom)
-  float k = 0.42 + cool * 0.62 + (1.0 - edgeness) * 0.26 - line * 0.4 - smear * 0.36 - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
+  // the edge cools too, so the last fragments of an eroding arc are embers and smoke, not a glowing lace
+  float k = 0.42 + cool * 0.62 + (1.0 - edgeness) * 0.26 - line * 0.4 * (1.0 - 0.75 * cool) - smear * 0.36 - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
-  rgb += vCore.rgb * line * (1.0 - cool * 0.8) * flick;
+  rgb += vCore.rgb * line * (1.0 - cool) * (1.0 - cool * 0.5) * flick;
   rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
-  rgb += mix(vCore.rgb, vMid.rgb, sat(cool * 1.5)) * dissolveEdge * (look == 1 ? 0.6 : look == 2 ? 1.0 : 0.35) * (1.0 - le) * (1.0 - le);
+  // burning rims on the dissolve edge while hot; cooled parts break up as dark matter, not as glowing confetti
+  rgb += mix(vCore.rgb, vMid.rgb, sat(cool * 1.5)) * dissolveEdge * (look == 1 ? 0.6 : look == 2 ? 1.0 : 0.35) * (1.0 - le) * (1.0 - le) * (1.0 - 0.85 * sat(cool));
   float tips = smoothstep(0.0, 0.22, prof);
   float a = sat(dens * (look == 4 ? 1.0 : 0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
   extra *= reveal * tips * vCore.a * mix(1.0, vis, glint);

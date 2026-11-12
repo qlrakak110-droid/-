@@ -5,7 +5,7 @@
 // AFTERMATH (outQuad follow-through) -> SETTLE (inOutSine back to the stance, feet step home).
 
 import { defineClip } from '../../../char/index.js';
-import { STANCE, LARM0, FL, FR, YL, YR, sp, ft, keyset, rootKeys, stanceFeet } from './common.js';
+import { STANCE, LARM0, FL, FR, YL, YR, sp, ft, heel, keyset, rootKeys, stanceFeet } from './common.js';
 
 const clip = (name, duration, k, events, o = {}) => defineClip(name, {
   duration, breath: o.breath ?? 0.25, gripAt: 'choke', base: 'vorn.stance', keys: k.keys(), events: events.sort((a, b) => a.t - b.t),
@@ -22,7 +22,7 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   rootKeys(k, [[0, 0], [0.02, 0], [0.1, 0.12], [0.38, 0.12]]);
   // anticipation: the spear is drawn back level beside the hip, hips coil toward the camera
   k(0.05, { ease: 'outCubic', hips: { pos: [-0.07, -0.12, 0], rot: [0, -38, 0] }, bones: B([0, -10, -2], [1, -10, 0], [0, 16, 2], [0, 20, -2]),
-    ik: { handR: sp([0.14, 1.1, 0.27], [0.97, -0.06, -0.22]) } });
+    ik: { handR: sp([0.24, 1.1, 0.23], [0.97, -0.06, -0.22]) }, grip: 0.6 });
   // smear: hips have already turned through, the arm drives
   k(0.08, { hips: { pos: [0.04, -0.12, 0], rot: [0, -12, -2] }, bones: B([0, 0, -4], [0, 0, -3], [0, 4, 2], [0, 6, 0]),
     ik: { handR: sp([0.52, 1.24, 0.2], [0.99, 0.03, -0.13]) }, grip: 0.35 });
@@ -38,6 +38,8 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   // feet: a quick front shuffle lands on the impact; the rear foot drags home in the recovery
   k.step('footL', 0.02, 0.1, [FL[0], 0, FL[2]], [FL[0] + 0.12, 0, FL[2]], YL, YL, 0.05);
   k(0.02, { ik: { footR: ft(FR, YR) } });
+  k(0.11, { ik: { footR: heel(FR, YR, 22) } });
+  k(0.2, { ik: { footR: heel(FR, YR, 18) } });
   k.step('footR', 0.25, 0.33, FR, [FR[0] + 0.12, 0, FR[2]], YR, YR, 0.05);
   settle(k, 0.38, 0.12);
   clip('vorn.flash_jab', 0.38, k, [ev(0.07, 'trailOn'), ev(0.11, 'impact'), ev(0.1, 'step', { foot: 'footL' }), ev(0.19, 'trailOff'), ev(0.33, 'step', { foot: 'footR' })]);
@@ -61,8 +63,8 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
     ik: { handR: sp([0.46, 1.04, 0.22], [-0.8, -0.54, 0.18], { up: [-0.54, 0.8, 0] }) } });
   // follow-through: the butt keeps rising, then hangs
   k(0.17, { ease: 'outQuad', hips: { pos: [0.07, -0.13, 0], rot: [0, -18, 2] }, bones: B([0, -4, 7], [0, -4, 9], [0, 6, -6], [0, 8, -8]),
-    ik: { handR: sp([0.46, 1.15, 0.22], [-0.66, -0.7, 0.15], { up: [-0.7, 0.66, 0] }) } });
-  k(0.26, { ease: 'inOutSine', ik: { handR: sp([0.44, 1.18, 0.22], [-0.7, -0.66, 0.17], { up: [-0.66, 0.7, 0] }) } });
+    ik: { handR: sp([0.46, 1.15, 0.22], [-0.62, -0.68, 0.38], { up: [-0.7, 0.66, 0] }) } });
+  k(0.26, { ease: 'inOutSine', ik: { handR: sp([0.44, 1.18, 0.22], [-0.66, -0.64, 0.38], { up: [-0.66, 0.7, 0] }) } });
   // settle: the spear rolls back over the top into the low guard
   k(0.32, { hips: { pos: [0.0, -0.12, 0], rot: [0, -26, 0] }, bones: B([0, -6, -2], [1, -6, 0], [0, 10, 2], [0, 14, -4]),
     ik: { handR: sp([0.36, 1.22, 0.22], [-0.5, 0.86, 0.08], { up: [-0.86, -0.5, 0] }) } });
@@ -70,6 +72,8 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   // feet: the rear foot skips up behind the front one, the front foot lunges and lands on the impact
   k.step('footR', 0, 0.06, [FR[0] - 0.12, 0, FR[2]], [0.1, 0, 0.22], YR, -40, 0.06);
   k.step('footL', 0.04, 0.12, [FL[0], 0, FL[2]], [FL[0] + 0.72, 0, FL[2]], YL, YL, 0.07);
+  k(0.12, { ik: { footR: heel([0.1, 0, 0.22], -40, 22) } });
+  k(0.2, { ik: { footR: heel([0.1, 0, 0.22], -40, 16) } });
   k.step('footR', 0.26, 0.36, [0.1, 0, 0.22], [FR[0] + 0.72, 0, FR[2]], -40, YR, 0.06);
   settle(k, 0.44, 0.72);
   clip('vorn.haft_spin', 0.44, k, [ev(0.02, 'spin'), ev(0.05, 'trailOn'), ev(0.12, 'impact'), ev(0.12, 'step', { foot: 'footL' }), ev(0.21, 'trailOff'), ev(0.36, 'step', { foot: 'footR' })]);
@@ -82,8 +86,8 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   rootKeys(k, [[0, 0], [0.04, 0], [0.2, 0.512], [0.64, 0.512]]);
   // coil: spear drawn back level along the right hip, deep and turned toward the camera
   k(0.06, { ease: 'outCubic', hips: { pos: [-0.12, -0.17, 0], rot: [0, -46, 0] }, bones: B([0, -10, -2], [0, -10, 0], [0, 20, 4], [0, 24, 0]),
-    ik: { handR: sp([0.02, 1.12, 0.3], [0.98, 0.02, -0.2]) } });
-  k(0.14, { hips: { pos: [-0.02, -0.2, 0], rot: [0, -34, 0] }, ik: { handR: sp([0.18, 1.16, 0.28], [0.99, 0.03, -0.15]) } });
+    ik: { handR: sp([0.16, 1.1, 0.22], [0.98, 0.02, -0.2]) } });
+  k(0.14, { hips: { pos: [-0.02, -0.2, 0], rot: [0, -34, 0] }, ik: { handR: sp([0.28, 1.14, 0.2], [0.99, 0.03, -0.15]) } });
   // impact: hips square, both arms through, back leg straight
   k(0.2, { hips: { pos: [0.16, -0.25, 0], rot: [0, -6, -4] }, bones: B([0, 4, -10], [0, 6, -8], [0, -6, 8], [0, -8, 6]),
     ik: { handR: sp([0.96, 1.24, 0.12], [1, 0.02, -0.06], { soft: 0 }) } });
@@ -96,6 +100,10 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   k.step('footR', 0.02, 0.1, FR, [FR[0] + 0.27, 0, FR[2]], YR, YR, 0.05);
   k.step('footL', 0.08, 0.19, FL, [FL[0] + 0.71, 0, FL[2]], YL, YL, 0.08);
   k.step('footL', 0.42, 0.53, [FL[0] + 0.71, 0, FL[2]], [FL[0] + 0.512, 0, FL[2]], YL, YL, 0.04);
+  k(0.15, { ik: { footR: ft([FR[0] + 0.27, 0, FR[2]], YR) } });
+  k(0.2, { ik: { footR: heel([FR[0] + 0.27, 0, FR[2]], YR, 26) } });
+  k(0.38, { ik: { footR: heel([FR[0] + 0.27, 0, FR[2]], YR, 22) } });
+  k(0.46, { ease: 'inOutSine', ik: { footR: ft([FR[0] + 0.27, 0, FR[2]], YR) } });
   k.step('footR', 0.5, 0.6, [FR[0] + 0.27, 0, FR[2]], [FR[0] + 0.512, 0, FR[2]], YR, YR, 0.05);
   settle(k, 0.64, 0.512);
   clip('vorn.thunder_pierce', 0.64, k, [ev(0.14, 'trailOn'), ev(0.2, 'impact'), ev(0.19, 'step', { foot: 'footL' }), ev(0.33, 'trailOff'), ev(0.53, 'step', { foot: 'footL' }), ev(0.6, 'step', { foot: 'footR' })]);
@@ -114,11 +122,11 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
     ik: { handR: sp([0.16, 0.78, 0.42], [0.06, -0.3, 0.95]) } });
   // impact: the head crosses the front at shin height
   k(0.28, { hips: { pos: [0.04, -0.38, 0.0], rot: [0, -8, -2] }, bones: B([0, -2, -12], [0, 0, -10], [0, 6, 8], [0, 8, 6]),
-    ik: { handR: sp([0.5, 0.74, 0.3], [0.8, -0.32, 0.5]) } });
+    ik: { handR: sp([0.5, 0.74, 0.3], [0.78, -0.4, 0.48]) } });
   k(0.32, { hips: { pos: [0.08, -0.38, -0.02], rot: [0, 14, -2] }, bones: B([0, 6, -12], [0, 8, -10], [0, -6, 8], [0, -8, 6]),
-    ik: { handR: sp([0.8, 0.74, 0.1], [0.95, -0.3, -0.04]) } });
+    ik: { handR: sp([0.8, 0.72, 0.1], [0.92, -0.39, -0.04]) } });
   k(0.36, { hips: { pos: [0.08, -0.37, -0.04], rot: [0, 30, -2] }, bones: B([0, 10, -12], [0, 12, -10], [0, -14, 8], [0, -18, 6]),
-    ik: { handR: sp([0.74, 0.76, -0.06], [0.56, -0.3, -0.77]) } });
+    ik: { handR: sp([0.74, 0.74, -0.06], [0.55, -0.37, -0.75]) } });
   // follow-through: wound round to the far side, the spear across the front pointing away
   k(0.44, { ease: 'outQuad', hips: { pos: [0.05, -0.35, -0.04], rot: [0, 40, -2] }, bones: B([0, 12, -10], [0, 14, -8], [0, -20, 6], [0, -26, 4]),
     ik: { handR: sp([0.56, 0.8, -0.12], [0.3, -0.26, -0.92]) } });
@@ -127,9 +135,18 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
   k(0.64, { ease: 'inOutSine', hips: { pos: [-0.02, -0.17, 0], rot: [0, -10, 0] }, bones: B([0, -4, -4], [1, -4, -2], [0, 6, 2], [0, 10, -4]),
     ik: { handR: sp([0.42, 0.98, 0.14], [0.92, -0.38, -0.08]) } });
   // feet: the front foot pivots out wide and plants for the sweep; the rear foot follows in the recovery
+  k(0.08, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.16, { grip: 0, curl: [0.5, 1], bones: { upperArmL: [-40, 0, 30], foreArmL: [0, 0, 40], handL: [0, 0, 0] } });
+  k(0.3, { bones: { upperArmL: [-60, 0, -10], foreArmL: [0, 0, 20], handL: [0, 0, 0] } });
+  k(0.44, { bones: { upperArmL: [-50, 0, -36], foreArmL: [0, 0, 30], handL: [0, 0, 0] } });
+  k(0.54, { grip: 0, bones: { upperArmL: [-30, 0, -20], foreArmL: [0, 0, 40], handL: [0, 0, 0] } });
+  k(0.66, { grip: 1, curl: [1, 1], bones: LARM0 });
   k.step('footL', 0.1, 0.22, FL, [FL[0] + 0.32, 0, FL[2] - 0.04], YL, YL + 8, 0.05);
   k(0.1, { ik: { footR: ft(FR, YR) } });
-  k(0.3, { ik: { footR: ft(FR, YR - 6) } });
+  k(0.2, { ik: { footR: heel(FR, YR - 3, 16) } });
+  k(0.3, { ik: { footR: heel(FR, YR - 6, 30) } });
+  k(0.46, { ik: { footR: heel(FR, YR - 6, 26) } });
+  k(0.58, { ease: 'inOutSine', ik: { footR: ft(FR, YR - 6) } });
   k.step('footL', 0.56, 0.66, [FL[0] + 0.32, 0, FL[2] - 0.04], [FL[0] + 0.2, 0, FL[2]], YL + 8, YL, 0.04);
   k.step('footR', 0.6, 0.72, FR, [FR[0] + 0.2, 0, FR[2]], YR - 6, YR, 0.05);
   settle(k, 0.76, 0.2);
@@ -137,22 +154,29 @@ const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(
 }
 
 // ---- f+heavy: 번개 돌격 Lightning Charge (0.74) — crouch, explosive 4 m glide-thrust, skid stop --------------------------
+/** Left arm swept back for balance while the right hand carries the spear alone (lance charge, one-handed sweep). */
+const LBACK = { upperArmL: [-34, 0, -38], foreArmL: [0, 0, 36], handL: [0, 0, 10] };
 const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
-  // the streak: forward-leaning lunge silhouette carried by the root, feet skimming just off the floor
-  k(t0, { hips: { pos: [0.18, -0.26, 0], rot: [0, -22, -6] }, bones: B([0, -4, -22], [0, -4, -16], [0, 8, 18], [0, 10, 20]),
-    ik: { handR: sp([0.42, 1.1, 0.24], [1, 0.02, -0.12]), footL: ft([0.72, 0.07, -0.15], YL, { space: 'root', pitch: 8 }), footR: ft([-0.72, 0.2, 0.2], YR + 10, { space: 'root', pitch: -40 }) } });
-  k(t1, { hips: { pos: [0.22, -0.25, 0], rot: [0, -12, -6] }, ik: { handR: sp([0.66, 1.18, 0.18], [1, 0.02, -0.09]) } });
-  k(tHit, { hips: { pos: [0.25, -0.24, 0], rot: [0, -4, -6] }, bones: B([0, 4, -18], [0, 4, -12], [0, -4, 14], [0, -6, 16]),
-    ik: { handR: sp([0.96, 1.24, 0.1], [1, 0.02, -0.05], { soft: 0 }), footL: ft([0.8, 0.05, -0.15], YL, { space: 'root', pitch: 6 }), footR: ft([-0.76, 0.16, 0.2], YR + 10, { space: 'root', pitch: -42 }) } });
-  k(tHold, { hips: { pos: [0.26, -0.24, 0], rot: [0, -3, -6] }, ik: { handR: sp([0.98, 1.24, 0.1], [1, 0.02, -0.05], { soft: 0 }) } });
+  // the streak: the whole body pitched into the run (hips bowed forward, so the trailing leg extends from a forward-
+  // tilted pelvis), carried by the root, feet skimming just off the floor
+  k(t0, { hips: { pos: [0.16, -0.24, 0], rot: [0, -20, -16] }, bones: B([0, -4, -8], [0, -4, -6], [0, 8, 16], [0, 10, 18]),
+    ik: { handR: sp([0.5, 1.1, 0.18], [1, 0.02, -0.12]), footL: ft([0.6, 0.1, -0.15], YL, { space: 'root', pitch: -18 }), footR: ft([-0.56, 0.24, 0.2], YR + 10, { space: 'root', pitch: -50 }) } });
+  k(t1, { hips: { pos: [0.2, -0.24, 0], rot: [0, -12, -16] }, ik: { handR: sp([0.7, 1.17, 0.15], [1, 0.02, -0.09]) } });
+  k(tHit, { hips: { pos: [0.24, -0.24, 0], rot: [0, -4, -14] }, bones: B([0, 4, -8], [0, 4, -4], [0, -4, 12], [0, -6, 14]),
+    ik: { handR: sp([0.96, 1.24, 0.1], [1, 0.02, -0.05], { soft: 0 }), footL: ft([0.66, 0.08, -0.15], YL, { space: 'root', pitch: -14 }), footR: ft([-0.6, 0.2, 0.2], YR + 10, { space: 'root', pitch: -52 }) } });
+  k(tHold, { hips: { pos: [0.25, -0.24, 0], rot: [0, -3, -14] }, ik: { handR: sp([0.98, 1.24, 0.1], [1, 0.02, -0.05], { soft: 0 }) } });
 };
 {
   const k = keyset();
   start(k);
   rootKeys(k, [[0, 0], [0.06, 0.05], [0.2, 1.6], [0.32, 3.8], [0.38, 4.0], [0.74, 4.0]]);
   k(0.06, { ease: 'outCubic', hips: { pos: [-0.08, -0.3, 0], rot: [0, -40, 0] }, bones: B([0, -6, -16], [0, -6, -12], [0, 12, 14], [0, 16, 16]),
-    ik: { handR: sp([0.04, 1.0, 0.3], [0.98, 0.04, -0.18]), footL: ft(FL, YL), footR: ft(FR, YR, { pitch: -10 }) } });
+    ik: { handR: sp([0.16, 1.0, 0.22], [0.98, 0.04, -0.18]), footL: ft(FL, YL), footR: ft(FR, YR, { pitch: -10 }) } });
   CHARGE_FLIGHT(k, 0.11, 0.16, 0.2, 0.32);
+  k(0.07, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.11, { grip: 0, curl: [0.6, 1], bones: LBACK });
+  k(0.38, { grip: 0, bones: LBACK });
+  k(0.5, { grip: 1, curl: [1, 1], bones: LARM0 });
   // skid: the front foot bites, the body absorbs, the spear stays on the victim
   k(0.38, { ease: 'outQuad', hips: { pos: [0.1, -0.32, 0], rot: [0, -18, -2] }, bones: B([0, -2, -12], [0, -2, -8], [0, 8, 10], [0, 10, 10]),
     ik: { handR: sp([0.78, 1.14, 0.16], [0.98, -0.1, -0.14]), footL: ft([4.62, 0, -0.15], YL, { ease: 'inQuad' }) } });
@@ -193,23 +217,24 @@ const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
 {
   const k = keyset();
   start(k);
-  // draw: the left hand lets go and points at the target, the spear goes back over the right shoulder, weight back
+  // draw: the left hand lets go and points at the target, the spear cocks back over the right shoulder, weight back
   k(0.12, { ease: 'outCubic', hips: { pos: [-0.1, -0.1, 0], rot: [0, -50, 0] }, bones: B([0, -10, 4], [0, -12, 8], [0, 24, -2], [0, 30, -4]),
-    ik: { handR: sp([-0.2, 1.62, 0.34], [0.95, 0.24, -0.18]), handL: { pos: [0.42, 1.42, -0.2], w: 1 } }, grip: 0, curl: [0.25, 1] });
-  k(0.2, { ease: 'outQuad', hips: { pos: [-0.13, -0.1, 0], rot: [0, -58, 2] }, bones: B([0, -12, 6], [0, -14, 10], [0, 28, -4], [0, 34, -6]),
-    ik: { handR: sp([-0.34, 1.76, 0.32], [0.96, 0.2, -0.18]), handL: { pos: [0.5, 1.5, -0.16], w: 1 } } });
+    ik: { handR: sp([-0.2, 1.62, 0.34], [0.95, 0.24, -0.18]), handL: { pos: [0.42, 1.42, -0.2], w: 1 } }, curl: [0.25, 1] });
+  k(0.2, { ease: 'outQuad', hips: { pos: [-0.13, -0.11, 0], rot: [0, -56, 2] }, bones: B([0, -12, 6], [0, -13, 10], [0, 28, -4], [0, 34, -6]),
+    ik: { handR: sp([-0.27, 1.6, 0.36], [0.95, 0.26, -0.18]), handL: { pos: [0.5, 1.5, -0.16], w: 1 } } });
   // hang: the hips fire first, the arm still back
   k(0.23, { hips: { pos: [-0.06, -0.12, 0], rot: [0, -36, 0] }, bones: B([0, -10, 2], [0, -10, 4], [0, 20, -2], [0, 24, -4]),
-    ik: { handR: sp([-0.28, 1.8, 0.3], [0.97, 0.16, -0.16]) } });
-  // release: whip over the top, the left hand pulls in to the ribs, rear foot pivots onto the toes
+    ik: { handR: sp([-0.2, 1.66, 0.34], [0.96, 0.22, -0.16]) } });
+  // release: whip over the top to full extension, the left hand pulls in to the ribs, rear foot pivots onto the toes
   k(0.26, { hips: { pos: [0.08, -0.14, 0], rot: [0, -2, -4] }, bones: B([0, 6, -8], [0, 8, -8], [0, -4, 6], [0, -6, 4]),
-    ik: { handR: sp([0.5, 1.64, 0.12], [0.99, -0.04, -0.1], { soft: 0 }), handL: { pos: [0.02, 1.15, -0.3], w: 1 }, footR: ft([FR[0], 0.04, FR[2]], YR + 18, { pitch: -26 }) } });
+    ik: { handR: sp([0.74, 1.68, 0.1], [0.98, 0.12, -0.1], { soft: 0 }), handL: { pos: [0.02, 1.15, -0.3], w: 1 }, footR: ft([FR[0], 0.04, FR[2]], YR + 18, { pitch: -26 }) } });
   // follow-through: the arm keeps travelling down across the body
   k(0.36, { ease: 'outQuad', hips: { pos: [0.13, -0.17, 0], rot: [0, 14, -4] }, bones: B([0, 10, -12], [0, 10, -10], [0, -12, 8], [0, -14, 6]),
-    ik: { handR: sp([0.74, 1.28, 0.02], [0.86, -0.42, -0.2]), handL: { pos: [-0.04, 1.1, -0.3], w: 1 } } });
+    ik: { handR: sp([0.9, 1.22, 0.04], [0.9, -0.36, -0.2]), handL: { pos: [-0.04, 1.1, -0.3], w: 1 } } });
   k(0.48, { ease: 'inOutSine', hips: { pos: [0.04, -0.13, 0], rot: [0, -12, 0] }, bones: B([0, -4, -4], [1, -4, -2], [0, 8, 2], [0, 12, -4]),
     ik: { handR: sp([0.44, 1.08, 0.18], [0.88, -0.38, -0.26]), handL: { pos: [0.1, 1.1, 0.2], w: 0 }, footR: ft(FR, YR, { ease: 'inQuad' }) }, grip: 1, curl: [1, 1] });
   k(0, { ik: { handL: { pos: [0.1, 1.1, 0.2], w: 0 } } });
+  k(0.06, { grip: 0, curl: [0.5, 1] });
   settle(k, 0.68, 0);
   k(0.68, { ik: { handL: { pos: [0.1, 1.1, 0.2], w: 0 } } });
   clip('vorn.thunder_javelin', 0.68, k, [ev(0.04, 'form'), ev(0.18, 'trailOn'), ev(0.26, 'impact'), ev(0.36, 'trailOff'), ev(0.48, 'step', { foot: 'footR' })]);
@@ -228,9 +253,13 @@ const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
   k(0.42, { hips: { pos: [0.04, -0.1, 0], rot: [0, -16, -2] }, bones: B([0, -4, 0], [0, -4, 0], [0, 6, 4], [0, 8, 6]),
     ik: { handR: sp([0.5, 1.92, 0.12], [0.85, 0.5, -0.12]) } });
   k(0.45, { ease: 'inQuad', hips: { pos: [0.1, -0.17, 0], rot: [0, -10, -4] }, bones: B([0, 0, -12], [0, 2, -10], [0, -2, 8], [0, -4, 10]),
-    ik: { handR: sp([0.74, 1.46, 0.1], [0.86, -0.48, -0.16], { soft: 0 }) } });
-  k(0.55, { ease: 'outQuad', hips: { pos: [0.11, -0.18, 0] }, ik: { handR: sp([0.76, 1.44, 0.1], [0.86, -0.49, -0.15], { soft: 0 }) } });
-  k(0.7, { ease: 'inOutSine', hips: { pos: [0.08, -0.16, 0], rot: [0, -14, -3] }, ik: { handR: sp([0.72, 1.4, 0.12], [0.86, -0.48, -0.17]) } });
+    ik: { handR: sp([0.8, 1.14, 0.12], [0.88, -0.44, -0.17], { soft: 0 }) } });
+  k(0.55, { ease: 'outQuad', hips: { pos: [0.11, -0.18, 0] }, ik: { handR: sp([0.82, 1.12, 0.12], [0.88, -0.45, -0.16], { soft: 0 }) } });
+  k(0.7, { ease: 'inOutSine', hips: { pos: [0.08, -0.16, 0], rot: [0, -14, -3] }, ik: { handR: sp([0.74, 1.1, 0.14], [0.88, -0.44, -0.18]) } });
+  k(0.4, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.45, { grip: 0, curl: [0.4, 1], bones: { upperArmL: [-20, 0, -30], foreArmL: [0, 0, 70], handL: [0, 0, 10] } });
+  k(0.7, { grip: 0, bones: { upperArmL: [-20, 0, -30], foreArmL: [0, 0, 70], handL: [0, 0, 10] } });
+  k(0.8, { grip: 1, curl: [1, 1], bones: LARM0 });
   k.step('footL', 0.32, 0.45, FL, FL, YL, YL, 0.09);
   k(0.32, { ik: { footR: ft(FR, YR) } });
   settle(k, 0.86, 0);
@@ -243,15 +272,19 @@ const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
   start(k);
   rootKeys(k, [[0, 0], [0.08, 0], [0.18, 4.0], [0.62, 4.0]]);
   k(0.06, { ease: 'outCubic', hips: { pos: [-0.1, -0.3, 0], rot: [0, -40, 0] }, bones: B([0, -6, -14], [0, -6, -10], [0, 12, 12], [0, 16, 14]),
-    ik: { handR: sp([0.04, 0.96, 0.3], [0.96, -0.1, -0.2]) } });
+    ik: { handR: sp([0.16, 0.96, 0.22], [0.96, -0.1, -0.2]) } });
   k(0.08, { ik: { footL: ft(FL, YL), footR: ft(FR, YR, { pitch: -16 }) } });
+  k(0.06, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.1, { grip: 0, curl: [0.6, 1], bones: LBACK });
+  k(0.2, { grip: 0, bones: LBACK });
+  k(0.34, { grip: 1, curl: [1, 1], bones: LARM0 });
   // bolt form: stretched forward (the choreography hides / ghosts the body here)
-  k(0.12, { hips: { pos: [0.18, -0.24, 0], rot: [0, -20, -6] }, bones: B([0, -4, -24], [0, -4, -16], [0, 8, 18], [0, 10, 20]),
-    ik: { handR: sp([0.4, 1.02, 0.25], [0.99, 0, -0.14]), footL: ft([0.66, 0.12, -0.15], YL, { space: 'root', pitch: 8 }), footR: ft([-0.72, 0.22, 0.2], YR, { space: 'root', pitch: -40 }) } });
+  k(0.12, { hips: { pos: [0.16, -0.24, 0], rot: [0, -20, -16] }, bones: B([0, -4, -10], [0, -4, -6], [0, 8, 16], [0, 10, 18]),
+    ik: { handR: sp([0.5, 1.06, 0.18], [0.99, 0, -0.14]), footL: ft([0.58, 0.12, -0.15], YL, { space: 'root', pitch: -18 }), footR: ft([-0.56, 0.26, 0.2], YR, { space: 'root', pitch: -50 }) } });
   // re-form: lands skidding in a low crouch, the spear swept out behind
   k(0.18, { ease: 'inQuad', hips: { pos: [0.02, -0.36, 0], rot: [0, -44, 2] }, bones: B([0, -8, -12], [0, -8, -8], [0, 16, 10], [0, 20, 10]),
-    ik: { handR: sp([0.2, 0.92, 0.32], [0.9, -0.32, -0.28]), footL: ft([4.5, 0, -0.16], YL + 4), footR: ft([3.52, 0, 0.21], YR) } });
-  k(0.26, { ease: 'outQuad', hips: { pos: [-0.04, -0.33, 0], rot: [0, -46, 2] }, ik: { handR: sp([0.16, 0.94, 0.33], [0.88, -0.36, -0.3]) } });
+    ik: { handR: sp([0.24, 0.92, 0.24], [0.9, -0.32, -0.28]), footL: ft([4.5, 0, -0.16], YL + 4), footR: ft([3.52, 0, 0.21], YR) } });
+  k(0.26, { ease: 'outQuad', hips: { pos: [-0.04, -0.33, 0], rot: [0, -46, 2] }, ik: { handR: sp([0.22, 0.94, 0.25], [0.88, -0.36, -0.3]) } });
   // rise with a flourish: the spear rolls up into the guard as the line behind him detonates
   k(0.43, { ease: 'inOutSine', hips: { pos: [-0.02, -0.16, 0], rot: [0, -30, 0] }, bones: B([0, -8, -4], [1, -8, -2], [0, 12, 2], [0, 16, -4]),
     ik: { handR: sp([0.34, 1.1, 0.2], [0.92, -0.2, -0.26]) } });
@@ -277,9 +310,13 @@ const CHARGE_FLIGHT = (k, t0, t1, tHit, tHold) => {
   // charge: the spear comes down into the couch, the body coils low (held, trembling with tension)
   k(0.36, { hips: { pos: [-0.04, -0.2, 0], rot: [0, -30, 0] }, ik: { handR: sp([0.3, 1.6, 0.22], [0.85, 0.5, -0.16]) } });
   k(0.46, { ease: 'outCubic', hips: { pos: [-0.1, -0.32, 0], rot: [0, -42, 0] }, bones: B([0, -6, -16], [0, -6, -12], [0, 14, 14], [0, 18, 16]),
-    ik: { handR: sp([0.04, 1.0, 0.3], [0.98, 0.04, -0.18]), footR: ft(FR, YR, { pitch: -6 }) } });
-  k(0.58, { ease: 'inOutSine', hips: { pos: [-0.13, -0.34, 0], rot: [0, -44, 0] }, ik: { handR: sp([0.0, 1.0, 0.31], [0.98, 0.05, -0.18]), footR: ft(FR, YR, { pitch: -14 }) } });
+    ik: { handR: sp([0.16, 1.0, 0.22], [0.98, 0.04, -0.18]), footR: ft(FR, YR, { pitch: -6 }) } });
+  k(0.58, { ease: 'inOutSine', hips: { pos: [-0.13, -0.34, 0], rot: [0, -44, 0] }, ik: { handR: sp([0.13, 1.0, 0.22], [0.98, 0.05, -0.18]), footR: ft(FR, YR, { pitch: -14 }) } });
   CHARGE_FLIGHT(k, 0.63, 0.67, 0.7, 0.88);
+  k(0.59, { grip: 1, curl: [1, 1], bones: LARM0 });
+  k(0.63, { grip: 0, curl: [0.6, 1], bones: LBACK });
+  k(0.94, { grip: 0, bones: LBACK });
+  k(1.08, { grip: 1, curl: [1, 1], bones: LARM0 });
   // whiff / block: overrun skid and recover
   k(0.94, { ease: 'outQuad', hips: { pos: [0.1, -0.32, 0], rot: [0, -18, -2] }, bones: B([0, -2, -12], [0, -2, -8], [0, 8, 10], [0, 10, 10]),
     ik: { handR: sp([0.78, 1.14, 0.16], [0.98, -0.1, -0.14]), footL: ft([6.62, 0, -0.15], YL, { ease: 'inQuad' }) } });

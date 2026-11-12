@@ -43,13 +43,15 @@ const ICE_SPARKS_RADIAL = def({ ...ICE_SPARKS, count: 80, spread: 180, emit: 'ra
 
 // trail: thin, bright, crisp; short life
 const TRAIL = {
-  life: 0.17, color: [[0, 3, 5.5, 9, 0.9], [0.15, 0.8, 2.2, 4.5, 0.65], [0.5, 0.25, 0.7, 1.6, 0.3], [1, 0.1, 0.2, 0.4, 0]],
-  edge: [6, 9, 12], edgeWidth: 0.05, gradient: 0.8, fadeBase: 0.65, width: [[0, 1], [0.3, 0.6], [1, 0.06]],
-  erode: [[0, 0], [0.25, 0.05], [1, 0.95]], erodeSoft: 0.2, noise: { scale: [2.4, 0.9], speed: 0.6, amount: 0.35 }, distort: 0.012,
+  life: 0.17, color: [[0, 1.5, 3.2, 7, 0.85], [0.15, 0.5, 1.5, 3.4, 0.6], [0.5, 0.18, 0.5, 1.2, 0.28], [1, 0.08, 0.16, 0.35, 0]],
+  edge: [6, 9, 12], edgeWidth: 0.045, gradient: 0.85, fadeBase: 0.78, width: [[0, 1], [0.25, 0.5], [1, 0.06]],
+  erode: [[0, 0], [0.25, 0.06], [1, 0.95]], erodeSoft: 0.2, noise: { scale: [2.6, 1.8], speed: 0.6, amount: 0.7 }, distort: 0.01,
 };
 const TRAIL_GLINTS = def({ ...GLINTS, count: 0, perMeter: 9, shape: { type: 'point' }, speed: [0.05, 0.4], inherit: 0.08 });
 const TRAIL_SNOW = def({ ...SNOW, count: 0, perMeter: 5, shape: { type: 'point' }, inherit: 0.08 });
-const TRAIL_MIST = def({ ...MIST, count: 0, perMeter: 1.6, shape: { type: 'point' }, size: [0.3, 0.6], life: [0.6, 1.1], inherit: 0.04 });
+const TRAIL_MIST = def({ ...MIST, count: 0, perMeter: 1.2, shape: { type: 'point' }, size: [0.5, 1.0], life: [0.6, 1.2], inherit: 0.04, additive: 0.35,
+  shade: 0.1, erode: [[0, 0.35], [1, 0.95]], erodeNoise: 1, erodeSoft: 0.5, erodeScale: 0.7,
+  color: [[0, 1.2, 1.5, 2, 0], [0.12, 0.7, 0.85, 1.05, 0.16], [0.6, 0.55, 0.65, 0.78, 0.09], [1, 0.5, 0.6, 0.7, 0]] });
 
 // aura: snowfall from above the head, glints orbiting the body, mist pooling at the feet
 const SNOWFALL = def({ ...SNOW, count: 0, rate: 20, shape: { type: 'disc', radius: 0.9 }, emit: 'axis', dir: [0, -1, 0], spread: 20, speed: [0.2, 0.5], life: [1.8, 2.6] });
@@ -61,13 +63,13 @@ const POOL = def({ ...MIST_LOW, count: 0, rate: 6, shape: { type: 'ring', radius
 const SHOT_GLINTS = def({ ...TRAIL_GLINTS, perMeter: 7 });
 
 // blizzard
-const GUST = def({ tex: 'streak', blend: 'add', count: 0, rate: 300, life: [0.3, 0.7], shape: { type: 'box', size: [18, 5, 7] }, emit: 'axis', spread: 6,
-  speed: [10, 16], size: [0.04, 0.09, 1.5], stretch: 0.08, maxStretch: 2.2, rotation: 0, gravity: -2, groundFade: 0.1,
+const GUST = def({ tex: 'streak', blend: 'add', count: 0, rate: 460, life: [0.3, 0.7], shape: { type: 'box', size: [18, 5, 7] }, emit: 'axis', spread: 6,
+  speed: [10, 18], size: [0.04, 0.1, 1.5], stretch: 0.08, maxStretch: 2.4, rotation: 0, gravity: -2, groundFade: 0.1,
   color: [[0, 1.6, 2.1, 2.8, 0], [0.15, 1.6, 2.1, 2.8, 0.75], [1, 0.6, 0.8, 1.1, 0]] });
-const FLAKES = def({ ...SNOW, count: 0, rate: 80, shape: { type: 'box', size: [18, 5, 7] }, emit: 'axis', spread: 25, speed: [3, 6], size: [0.08, 0.2, 1.6], life: [1.0, 2.0] });
+const FLAKES = def({ ...SNOW, count: 0, rate: 140, shape: { type: 'box', size: [18, 5, 7] }, emit: 'axis', spread: 25, speed: [3, 6], size: [0.08, 0.2, 1.6], life: [1.0, 2.0] });
 const WALL = def({ ...MIST, count: 0, perMeter: 4, shape: { type: 'box', size: [0.8, 1.4, 4] }, emit: 'axis', spread: 30, speed: [2, 4.5], size: [1.4, 2.4, 1.3], life: [0.8, 1.5], gravity: -0.3,
-  additive: [[0, 0.6], [0.5, 0.3], [1, 0]], erode: [[0, 0.15], [0.5, 0.3], [1, 1]],
-  color: [[0, 1.4, 1.8, 2.4, 0], [0.1, 0.9, 1.1, 1.4, 0.26], [0.5, 0.6, 0.72, 0.88, 0.16], [1, 0.5, 0.6, 0.72, 0]] });
+  additive: [[0, 0.75], [0.5, 0.45], [1, 0.2]], erode: [[0, 0.2], [0.5, 0.4], [1, 1]], erodeSoft: 0.5, shade: 0.25,
+  color: [[0, 1.4, 1.8, 2.4, 0], [0.1, 0.8, 1.0, 1.3, 0.2], [0.5, 0.55, 0.68, 0.85, 0.12], [1, 0.5, 0.6, 0.72, 0]] });
 const WALL_GLINTS = def({ ...GLINTS, count: 0, perMeter: 14, shape: { type: 'box', size: [0.8, 2.6, 4] }, speed: [1, 3], emit: 'axis', spread: 40 });
 
 /**
@@ -84,13 +86,13 @@ export function defineFrost(vfx, P) {
   function slash(v, at, o, heavy) {
     const i = I(o), s = at.scale, f = at.facing;
     const R = (o.radius != null ? o.radius : heavy ? 1.5 : 1.25) * s;
-    const W = (o.width != null ? o.width : heavy ? 0.46 : 0.38) * s;
+    const W = (o.width != null ? o.width : heavy ? 0.52 : 0.46) * s;
     const arc = o.arc || (heavy ? [-160, 40] : [-150, 30]);
     const sweep = o.sweep != null ? o.sweep : heavy ? 0.065 : 0.05;
     const plane = { normal: o.normal || [0, -0.3, 1], forward: o.forward || [1, 0, 0], roll: o.roll || 0, facing: f };
     const sgn = Math.sign(arc[1] - arc[0]);
     const cut = (w, r, wd, k, ar) => {
-      w.slash({ look: 'ice', pos: at.pos, ...plane, arc: ar, radius: r, width: wd, sweep, life: heavy ? 0.6 : 0.45, distort: 0.02, intensity: k * i });
+      w.slash({ look: 'ice', pos: at.pos, ...plane, arc: ar, radius: r, width: wd, sweep, life: heavy ? 0.66 : 0.55, distort: 0.014, intensity: k * i });
       w.slash({ look: 'razor', palette: 'frost', core: STAR, pos: at.pos, ...plane, arc: ar, radius: r * 0.995, width: 0.06 * s, sweep, life: 0.16, intensity: 1.4 * k * i });
       w.slash({ look: 'razor', palette: 'frost', pos: at.pos, ...plane, arc: ar, radius: r * 1.02, width: wd * 1.9, sweep, life: 0.24, intensity: 0.35 * k * i, alpha: 0.6 });
     };
@@ -108,12 +110,13 @@ export function defineFrost(vfx, P) {
       }
     });
     const mid = arcPoint(at.pos, plane, (arc[0] + arc[1]) / 2, R);
-    v.light({ pos: vec([mid.x, mid.y, mid.z + 1.0]), color: F.core, intensity: (heavy ? 50 : 30) * i, range: 5.5, duration: heavy ? 0.4 : 0.28, decay: 'outCubic' });
+    v.light({ pos: vec([mid.x, mid.y, mid.z + 1.6]), color: F.core, intensity: (heavy ? 40 : 22) * i, range: 5.5, duration: heavy ? 0.4 : 0.28, decay: 'outExpo' });
     const marks = heavy ? [0.15, 0.35, 0.55, 0.75, 0.95] : [0.25, 0.5, 0.75, 1];
     for (const u of marks) {
       const a = arc[0] + (arc[1] - arc[0]) * u;
       const p = arcPoint(at.pos, plane, a, R * (0.82 + rng() * 0.16));
-      v.burst(GLINTS, { pos: p, count: n(heavy ? 7 : 5, i), scale: 0.75 * s, delay: sweep * u });
+      v.burst(GLINTS, { pos: p, count: n(heavy ? 8 : 6, i), scale: 0.8 * s, delay: sweep * u });
+      v.burst(GLITTER, { pos: p, count: n(heavy ? 6 : 4, i), scale: 0.5 * s, delay: sweep * u + 0.03 });
       v.burst(SNOW, { pos: p, count: heavy ? 3 : 2, scale: 0.5 * s, delay: sweep * u });
     }
     const low = arcPoint(at.pos, plane, arc[0] + (arc[1] - arc[0]) * 0.3, R * 0.8);
@@ -172,8 +175,8 @@ export function defineFrost(vfx, P) {
       w.burst(MIST_LOW, { pos: endP, dir: [0, 1, 0], count: n(14, i), scale: 1.2 * s });
       w.burst(GLINTS, { pos: vec([endP.x, 1.2 * s, endP.z]), count: n(30, i), scale: 2 * s });
     });
-    const m = motion.start({ pos: vec([g.x, 0.9, g.z + 1.1]), to: vec([endP.x, 0.9, endP.z + 1.1]), dur: T, realtime: v.realtime });
-    v.light({ pos: m.pos, color: F.core, intensity: 70 * i, range: 7, duration: T + hold + 0.3, decay: 'outQuad' }).follow(m.obj);
+    const m = motion.start({ pos: vec([g.x, 0.9, g.z + 1.6]), to: vec([endP.x, 0.9, endP.z + 1.6]), dur: T, realtime: v.realtime });
+    v.light({ pos: m.pos, color: F.core, intensity: 48 * i, range: 7, duration: T + hold + 0.3, decay: 'outQuad' }).follow(m.obj);
     for (let k = 0; k * 1.0 < len; k++) {
       const x = k * 1.0 + 0.5, t = (x / len) * T;
       const p = vec([g.x + f * x, 0, g.z]);
@@ -190,7 +193,7 @@ export function defineFrost(vfx, P) {
     v.burst(KIT.frost.flash, { pos: p, scale: 0.42 * s, intensity: i });
     v.flare({ kind: 'star', pos: p, size: 1.4 * s, life: 0.2, decay: 2.5, color: STAR, intensity: 0.8 * i, rotation: rng() });
     v.light({ pos: vec([p.x, p.y, p.z + 1.2]), color: F.core, intensity: 60 * i, range: 5, duration: 0.3, decay: 'outExpo' });
-    v.ring({ normal: d, look: 'frost', pos: p, radius: [0.1 * s, 1.2 * s], width: [0.2 * s, 0.35 * s], life: 0.35, intensity: 0.8 * i });
+    v.ring({ normal: d, look: 'frost', pos: p, radius: [0.1 * s, 1.0 * s], width: [0.35 * s, 0.85 * s], fill: 2.2, life: 0.24, intensity: 0.55 * i });
     v.burst(SHARDS, { pos: p, dir: d, count: n(22, i), scale: s });
     v.burst(ICE_SPARKS, { pos: p, dir: d, count: n(24, i), scale: 0.8 * s });
     v.burst(GLINTS, { pos: p, count: n(22, i), scale: s });
@@ -237,7 +240,7 @@ export function defineFrost(vfx, P) {
     v.decal({ kind: 'rune', pos: g, radius: 2.4 * s, palette: 'frost', life: 1.6, reveal: 0.15, fadeOut: 0.5, spin: 1.6, intensity: i });
     v.decal({ kind: 'frost', pos: g, radius: 3.4 * s, reveal: 0.35, life: 5 });
     v.ring({ look: 'frost', pos: g, radius: [0.3 * s, 4.2 * s], life: 0.85, distort: 0.035, intensity: i });
-    v.ring({ look: 'shock', palette: 'frost', pos: vec([g.x, 0.05, g.z]), radius: [0.2 * s, 3.2 * s], life: 0.4, intensity: 0.7 * i });
+    v.ring({ look: 'shock', palette: 'frost', pos: vec([g.x, 0.05, g.z]), radius: [0.2 * s, 3.2 * s], width: [0.4 * s, 1.3 * s], life: 0.4, noise: 0.7, edgeWidth: 0.16, intensity: 0.45 * i });
     v.light({ pos: vec([g.x, 1.4, g.z + 1.4]), color: F.core, intensity: 110 * i, range: 9, duration: 1.1, decay: 'outCubic' });
     v.burst(KIT.frost.flash, { pos: vec([g.x, 1.0 * s, g.z + 0.2]), scale: 0.8 * s, intensity: i });
     v.flare({ kind: 'star', pos: vec([g.x, 1.1 * s, g.z + 0.3]), size: 2.2 * s, life: 0.26, decay: 2.5, color: STAR, intensity: 0.7 * i, rotation: 0.15 });
@@ -261,7 +264,7 @@ export function defineFrost(vfx, P) {
     v.burst(KIT.frost.flash, { pos: p, scale: 0.8 * s, intensity: i });
     v.flare({ kind: 'flash', pos: p, size: 2.2 * s, life: 0.05, decay: 3, color: F.core, intensity: 0.1 * i });
     v.flare({ kind: 'star', pos: p, size: 2.3 * s, life: 0.26, decay: 2.5, color: STAR, intensity: 0.85 * i, rotation: 0.35 });
-    v.light({ pos: vec([p.x, p.y, p.z + 1.1]), color: F.core, intensity: 140 * i, range: 8, duration: 0.6, decay: 'outCubic' });
+    v.light({ pos: vec([p.x, p.y + 0.2, p.z + 1.8]), color: F.core, intensity: 105 * i, range: 8, duration: 0.6, decay: 'outExpo' });
     v.burst(SHARDS, { pos: p, dir: d, count: n(80, i), scale: 1.5 * s });
     v.burst(ICE_SPARKS_RADIAL, { pos: p, count: n(70, i), scale: 1.1 * s });
     v.burst(GLINTS, { pos: p, count: n(60, i), scale: 2 * s });
@@ -326,6 +329,25 @@ export function defineFrost(vfx, P) {
       w.burst(SHARDS, { pos: e, dir: vec([f, 0.4, 0.2]).normalize(), count: n(30, i), scale: 1.4 * s });
       w.burst(MIST_LOW, { pos: floor(e, 0), dir: [0, 1, 0], count: n(10, i), scale: 1.5 * s });
     });
+    // climax: the whole field rings out at once - star glints race along it, a cold flash, a frost wave and a burst of
+    // shards and glitter from every cluster as the crystals shatter (the frame the ultimate ends on)
+    v.schedule(Math.max(travel + 0.3, T - 0.35), (w) => {
+      const c = vec([g.x + f * L * 0.55, 1.2 * s, g.z]);
+      w.light({ pos: vec([c.x, 2.2, c.z + 2.2]), color: STAR, intensity: 170 * i, range: 14, duration: 0.7, decay: 'outCubic' });
+      w.ring({ look: 'frost', pos: floor(c, 0), radius: [0.6 * s, L * 0.6], width: [0.6 * s, 2.2 * s], life: 0.75, distort: 0.035, intensity: 0.8 * i });
+      for (let k = 0; k < 6; k++) {
+        const u = (k + 0.5) / 6;
+        const p = vec([g.x + f * L * (0.12 + 0.86 * u), (0.8 + rng() * 1.2) * s, g.z + (rng() - 0.5) * 1.2]);
+        w.schedule(k * 0.035, (w2) => {
+          w2.flare({ kind: 'star', pos: p, size: (1.2 + rng() * 0.9) * s, life: 0.3, decay: 2.5, color: STAR, intensity: 0.75 * i, rotation: rng() });
+          w2.burst(SHARDS, { pos: p, dir: [0, 1, 0], count: n(14, i), scale: 1.2 * s });
+          w2.burst(GLINTS, { pos: p, count: n(14, i), scale: 1.6 * s });
+        });
+      }
+      w.burst(GLITTER, { pos: c, count: n(90, i), scale: 5 * s });
+      w.burst(MIST_LOW, { pos: floor(c, 0), dir: [0, 1, 0], count: n(18, i), scale: 2.2 * s });
+      w.distort({ kind: 'shock', pos: floor(c, 0), normal: [0, 1, 0], radius: [0.5 * s, L * 0.55], life: 0.6, strength: 0.035 });
+    });
   });
 
   /**
@@ -342,7 +364,7 @@ export function defineFrost(vfx, P) {
       const from = vec([g.x - f * H * (0.15 + rng() * 0.25) + (rng() - 0.5) * 3, H * (0.85 + rng() * 0.3), g.z - H * (0.08 + rng() * 0.15)]);
       v.schedule(k * iv, (w) => {
         w.flare({ kind: 'star', pos: from, size: 1.4 * s, life: 0.24, attack: 0.06, decay: 3, color: STAR, intensity: 0.9 * i, rotation: rng() });
-        w.schedule(0.08, (w2) => w2.beam({ look: 'frost', palette: 'frost', core: STAR, from, to: g, width: 0.17 * s, coreWidth: 0.25, extend: 0.07, release: 0.16, life: 0.3, flareSize: 0.5, intensity: 0.85 * i }));
+        w.schedule(0.08, (w2) => w2.beam({ look: 'frost', palette: 'frost', core: STAR, from, to: g, width: 0.15 * s, coreWidth: 0.22, extend: 0.07, release: 0.14, life: 0.24, flareSize: 0.45, intensity: 0.7 * i }));
         w.schedule(0.15, (w2) => {
           w2.burst(KIT.frost.flash, { pos: vec([g.x, 0.3, g.z]), scale: 0.5 * s, intensity: i });
           w2.light({ pos: vec([g.x, 0.9, g.z + 1.0]), color: F.core, intensity: 70 * i, range: 6, duration: 0.3, decay: 'outExpo' });

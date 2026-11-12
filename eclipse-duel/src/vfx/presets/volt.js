@@ -42,27 +42,27 @@ const OZONE = def({ ...LIB.smoke, count: 4, size: [0.4, 0.9], life: [0.8, 1.5], 
 const FLOOR_GLOW = def({ tex: 'glow', blend: 'add', align: 'flat', count: 1, life: [0.6, 0.6], speed: 0, size: 3.0, groundFade: 0, rotation: 0,
   color: [[0, 3, 2, 6, 1], [0.15, 1.2, 0.6, 3, 0.6], [1, 0.05, 0.02, 0.2, 0]] });
 /** storm rain: bright streaks falling fast */
-const RAIN = def({ tex: 'streak', blend: 'add', count: 0, rate: 320, life: [0.25, 0.4], shape: { type: 'box', size: [14, 1, 7] }, emit: 'axis', dir: [-0.12, -1, 0], spread: 3,
+const RAIN = def({ tex: 'streak', blend: 'add', count: 0, rate: 480, life: [0.25, 0.4], shape: { type: 'box', size: [14, 1, 7] }, emit: 'axis', dir: [-0.12, -1, 0], spread: 3,
   speed: [17, 23], size: [0.03, 0.055], stretch: 0.05, maxStretch: 1.6, rotation: 0, groundFade: 0.05,
-  color: [[0, 1.1, 1.0, 1.9, 0], [0.15, 1.1, 1.0, 1.9, 0.85], [1, 0.6, 0.55, 1.2, 0.6]] });
+  color: [[0, 1.3, 1.2, 2.2, 0], [0.15, 1.3, 1.2, 2.2, 0.9], [1, 0.7, 0.65, 1.4, 0.6]] });
 /** storm clouds overhead: dark violet-grey billows, lit from inside by flickering glows */
 const CLOUD = def({ ...LIB.smokeLinger, count: 0, rate: 7, delay: 0, shape: { type: 'disc', radius: 4.5, height: 0.8 }, emit: 'axis', spread: 70, speed: [0.2, 0.7], gravity: 0, swirl: 0.25,
-  size: [2.8, 4.5, 1.3], life: [2.2, 3.4], color: [[0, 0.05, 0.04, 0.08, 0], [0.15, 0.035, 0.03, 0.055, 0.85], [0.7, 0.03, 0.028, 0.045, 0.75], [1, 0.03, 0.028, 0.04, 0]] });
+  size: [2.8, 4.5, 1.3], life: [2.2, 3.4], shade: 0.9, color: [[0, 0.09, 0.075, 0.14, 0], [0.15, 0.07, 0.06, 0.1, 0.85], [0.7, 0.055, 0.05, 0.08, 0.75], [1, 0.05, 0.045, 0.07, 0]] });
 
 const GROUND_CRAWL = def({ ...CRAWL, count: 0, rate: 26, shape: { type: 'disc', radius: 3 }, size: [0.25, 0.6], color: [key(0, V.core, 1, 0.8), key(1, V.mid, 0, 1)] });
 const GATHER = def({ ...LIB.chargeStreaks, rate: 60, shape: { type: 'sphere', radius: 3.4, inner: 0.6 }, size: [0.03, 0.08, 1.6], life: [0.6, 1.0], color: [key(0, V.tail, 0, 4), key(0.25, V.mid, 1), key(1, WHITE, 1)] });
 
 // trail
 const TRAIL = {
-  life: 0.14, color: [[0, 4, 3, 9, 0.7], [0.15, 1.4, 0.7, 3.6, 0.45], [0.5, 0.3, 0.1, 0.8, 0.22], [1, 0.05, 0.02, 0.15, 0]],
-  edge: [7, 5, 12], edgeWidth: 0.07, gradient: 0.8, fadeBase: 0.65, width: [[0, 1], [0.4, 0.6], [1, 0.12]],
-  erode: [[0, 0], [0.2, 0.12], [1, 0.95]], erodeSoft: 0.12, noise: { scale: [3.4, 1.6], speed: 5, amount: 0.8 },
+  life: 0.14, color: [[0, 2.4, 1.6, 6, 0.65], [0.15, 0.9, 0.45, 2.6, 0.42], [0.5, 0.22, 0.08, 0.6, 0.2], [1, 0.05, 0.02, 0.15, 0]],
+  edge: [7, 5, 12], edgeWidth: 0.055, gradient: 0.85, fadeBase: 0.78, width: [[0, 1], [0.3, 0.5], [1, 0.1]],
+  erode: [[0, 0], [0.2, 0.14], [1, 0.95]], erodeSoft: 0.12, noise: { scale: [3.4, 2.2], speed: 5, amount: 0.85 },
 };
 const TRAIL_SPARKS = def({ ...GOLD_SPARKS, count: 0, perMeter: 8, emit: 'random', spread: 180, speed: [0.5, 3], inherit: 0.3, life: [0.3, 0.8] });
 const TRAIL_ARCS = def({ ...CRAWL, count: 0, perMeter: 4, shape: { type: 'point' } });
 
 // aura
-const AURA_CRAWL = def({ ...CRAWL, count: 0, rate: 30, shape: { type: 'box', size: [0.55, 1.6, 0.4] }, size: [0.25, 0.6] });
+const AURA_CRAWL = def({ ...CRAWL, count: 0, rate: 44, shape: { type: 'box', size: [0.55, 1.6, 0.4] }, size: [0.25, 0.6] });
 const AURA_MOTES = def({ ...MOTES, count: 0, rate: 16, shape: { type: 'box', size: [0.7, 1.6, 0.5] } });
 const AURA_DRIP = def({ ...GOLD_SPARKS, count: 0, rate: 10, shape: { type: 'box', size: [0.6, 1.2, 0.4] }, emit: 'random', speed: [0.3, 1.5], life: [0.4, 0.9], size: [0.025, 0.06] });
 const AURA_GROUND = def({ ...CRAWL, count: 0, rate: 10, shape: { type: 'ring', radius: 0.45, thickness: 0.3 }, size: [0.2, 0.45] });
@@ -94,13 +94,17 @@ export function defineVolt(vfx, P) {
     v.flare({ kind: 'glow', pos: tip, size: 0.7 * s, life: 0.08, color: WHITE, intensity: 0.8 * i });
     v.light({ pos: lightAt(tip, 1.3), color: V.core, intensity: 60 * i, range: 5, duration: 0.22, decay: 'outCubic', flicker: 0.5 });
     [0.35, 0.68, 1.0].forEach((u, k) => v.schedule(0.012 * k, (w) => w.ring({ normal: d, look: 'volt', pos: at.pos.clone().addScaledVector(d, reach * u),
-      radius: [0.05 * s, (0.35 + 0.35 * u) * s], width: [0.08 * s, 0.16 * s], life: 0.18, intensity: (0.6 + 0.4 * u) * i })));
+      radius: [0.05 * s, (0.35 + 0.35 * u) * s], width: [0.1 * s, (0.2 + 0.15 * u) * s], fill: 2.4, life: 0.17, intensity: (0.55 + 0.35 * u) * i })));
     for (let k = 0; k < 2; k++) {
       v.bolt({ from: tip, to: jit(tip.clone().addScaledVector(d, 1.3 * s), 0.25 * s, 0.5 * s), width: 0.12 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0, impact: false, intensity: i });
     }
     v.burst(GOLD_SPARKS, { pos: tip, dir: d, count: n(30, i), scale: 0.8 * s });
     v.burst(ARCS_LINE, { pos: at.pos, to: tip, count: n(8, i), scale: s });
     v.schedule(0.03, (w) => w.distort({ kind: 'shock', pos: tip, normal: d, radius: [0.1 * s, 1.1 * s], life: 0.25, strength: 0.04 }));
+    // residue: arcs keep crawling where the tip stopped, ionised motes drift up, thin ozone wisps
+    for (const t of [0.08, 0.16, 0.26]) v.burst(CRAWL, { pos: tip, count: n(3, i), scale: 0.8 * s, delay: t });
+    v.burst(MOTES, { pos: tip, count: n(12, i), scale: 1.2 * s, delay: 0.05 });
+    v.burst(OZONE, { pos: tip, dir: [0, 1, 0], count: 2, scale: 0.6 * s, delay: 0.12 });
   });
 
   /** electric crescent: jagged filaments, gold sparks off the tip, crackle along the arc, small arcs grounding to the floor */
@@ -125,6 +129,8 @@ export function defineVolt(vfx, P) {
     const low = arcPoint(at.pos, plane, arc[0] + (arc[1] - arc[0]) * 0.75, R * 0.9);
     if (low.y < 1.4) v.schedule(sweep, (w) => w.bolt({ from: low, to: vec([low.x + f * 0.4, 0.02, low.z + 0.2]), width: 0.1 * s, branches: 1, strikes: 2, detail: 4, life: 0.18, leader: 0, impact: true, intensity: 0.8 * i }));
     v.burst(OZONE, { pos: mid, dir: [0, 1, 0], count: 2, scale: 0.6 * s, delay: 0.1 });
+    v.burst(MOTES, { pos: end, count: n(10, i), scale: 1.1 * s, delay: sweep + 0.04 });
+    v.burst(CRAWL, { pos: end, count: n(3, i), scale: 0.8 * s, delay: sweep + 0.14 });
   });
 
   /** weapon trail: a thin crackling violet ribbon with a white edge; gold sparks and arcs shed from the tip. opts: a, b, duration, life */
@@ -158,7 +164,7 @@ export function defineVolt(vfx, P) {
     const tick = (w) => {
       if (!live) return;
       pick(pa); pick(pb);
-      w.bolt({ from: pa.clone(), to: pb.clone(), width: 0.09 * s, branches: 1, strikes: 2, interval: [0.03, 0.05], detail: 4, life: 0.12, leader: 0, impact: false, glow: 0.9, intensity: i });
+      w.bolt({ from: pa.clone(), to: pb.clone(), width: 0.12 * s, branches: 2, strikes: 2, interval: [0.03, 0.05], detail: 5, life: 0.13, leader: 0, impact: false, glow: 1, intensity: i });
       if (rng() < 0.35) { pick(pa); w.bolt({ from: pa.clone(), to: vec([pa.x + (rng() - 0.5) * 0.8, 0.02, pa.z + (rng() - 0.3) * 0.5]), width: 0.07 * s, branches: 1, strikes: 1, detail: 4, life: 0.1, leader: 0, impact: true, intensity: 0.8 * i }); }
       w.schedule(0.05 + rng() * 0.07, tick);
     };
@@ -271,7 +277,8 @@ export function defineVolt(vfx, P) {
       const to = vec([p.x + Math.cos(a) * r, Math.max(0.03, p.y + Math.sin(a) * r * 0.8), p.z + (rng() - 0.5) * 0.8]);
       v.schedule(k * 0.015, (w) => w.bolt({ from: p, to, width: 0.15 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0.015, impact: to.y < 0.1, intensity: i }));
     }
-    v.ring({ normal: [0.3, 0.4, 1], look: 'volt', pos: p, radius: [0.1 * s, 1.3 * s], width: [0.15 * s, 0.25 * s], life: 0.18, intensity: 0.6 * i });
+    // a crackling disc tilted toward the ground (a camera-facing hoop reads as a bubble)
+    v.ring({ normal: [0.25, 1, 0.35], look: 'volt', pos: p, radius: [0.1 * s, 1.4 * s], width: [0.3 * s, 0.9 * s], fill: 2.2, life: 0.2, intensity: 0.5 * i });
     v.burst(GOLD_RADIAL, { pos: p, count: n(80, i), scale: s });
     v.burst(ARCS, { pos: p, count: n(16, i), scale: s });
     v.burst(MOTES, { pos: p, count: n(14, i), scale: 1.5 * s });
@@ -353,9 +360,19 @@ export function defineVolt(vfx, P) {
         w.ring({ look: 'volt', pos: p, radius: [0.1 * s, 1.6 * s], life: 0.35, intensity: 0.8 * i });
         w.burst(GOLD_UP, { pos: vec([p.x, 0.1, p.z]), dir: [0, 1, 0], count: n(40, i), scale: 0.8 * s });
         w.burst(OZONE, { pos: vec([p.x, 0.3, p.z]), dir: [0, 1, 0], count: 2, scale: 0.7 * s, delay: 0.1 });
+        // sheet lightning: the cloud deck lights up from inside over the strike
+        w.flare({ kind: 'flash', pos: vec([p.x, 5.4, p.z - 1.6]), size: 7 * s, life: 0.14, decay: 2, color: V.core, intensity: 0.1 * i, pull: 0 });
       });
       t += gap * (0.6 + rng() * 0.8);
     }
-    v.schedule(climax, (w) => { strike(w, g, s, i, f, 1.6); burst(w, vec([g.x, 1.3 * s, g.z + 0.2]), 1.4 * s, i); });
+    v.schedule(climax, (w) => {
+      strike(w, g, s, i, f, 1.6);
+      burst(w, vec([g.x, 1.3 * s, g.z + 0.2]), 1.4 * s, i);
+      w.flare({ kind: 'flash', pos: vec([g.x, 5.4, g.z - 1.6]), size: 10 * s, life: 0.2, decay: 2, color: V.core, intensity: 0.14 * i, pull: 0 });
+      // aftermath: the charged ground keeps crackling, ions rise, ozone drifts off the scorch
+      w.emitter(GROUND_CRAWL, { pos: vec([g.x, 0.08, g.z]), dir: [0, 1, 0], scale: 0.7 * s, duration: 1.3 });
+      w.burst(MOTES, { pos: vec([g.x, 0.6, g.z]), count: n(40, i), scale: 3 * s });
+      w.burst(OZONE, { pos: vec([g.x, 0.4, g.z]), dir: [0, 1, 0], count: 7, scale: 1.3 * s, delay: 0.2 });
+    });
   });
 }

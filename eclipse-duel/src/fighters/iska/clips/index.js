@@ -5,13 +5,18 @@
 import './common.js';
 import './locomotion.js';
 import './moves.js';
+import './ult.js';
+import './ceremony.js';
 
 /** State / move -> clip map (move clips carry `hit` = clip time of the first impact, retimed onto the frame data). */
 export const clips = {
   idle: 'iska.idle', recovery: 'iska.idle',
   walkF: 'iska.walkF', walkB: 'iska.walkB',
-  dash: 'iska.dash', backstep: 'iska.backstep', dodge: 'iska.dodge', roll: 'iska.dodge',
+  dash: 'iska.dash', backstep: 'iska.backstep', dodge: 'iska.dodge', roll: 'iska.roll',
   guard: 'iska.guard',
+  hitLight: 'iska.hitLight', hitHeavy: 'iska.hitHeavy', crumple: 'iska.crumple', guardBreak: 'iska.guardBreak', getup: 'iska.getup', tech: 'iska.getup',
+  launched: 'iska.launched', fall: 'iska.fall', down: 'iska.down', ko: 'iska.ko',
+  intro: 'iska.intro', victory: 'iska.victory', defeat: 'iska.defeat',
   rime_flick: { clip: 'iska.rime_flick', hit: 0.09 },
   twin_moons: { clip: 'iska.twin_moons', hit: 0.1 },
   star_fan: { clip: 'iska.star_fan', hit: 0.16 },

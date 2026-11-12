@@ -64,7 +64,7 @@ export default async ({ page, evalJs, log }) => {
           if (LYING.has(f.state) && f.stateTime > 0.4 && !/down|ko|Down|lying|dead/i.test(clip || '')) m.lying.length < 6 && m.lying.push(a.fighter.id + ':' + f.state + '->' + clip);
         }
         if (clip === 'demo.idle' && f.state !== 'idle' && f.state !== 'recovery' && f.state !== 'attack') m.idleFallback++;
-        if (ctx.cam.mode === 'fight' && match.phase === 'fight') {
+        if (ctx.cam.mode === 'fight' && ctx.cam.state.blend >= 0.999 && match.phase === 'fight') {
           v.copy(a.char.sockets.chest.getWorldPosition(v)).project(ctx.camera);
           if (Math.abs(v.x) > 1.0 || Math.abs(v.y) > 1.0 || v.z > 1) {
             off = true;

@@ -45,16 +45,32 @@ export function arc(a, b, k) {
 /**
  * A swing plane through direction `a` (angle 0) and `b` (the next direction the blade passes, less than 180 deg on):
  * returns blade(deg) = the blade direction `deg` degrees along the swing (any angle: wind-up < 0, follow-through past
- * b), with the true edge leading.
+ * b), with the true edge leading (`flip`: the other edge leads — the greatsword is double-edged, and for chops that end
+ * point-down in front this roll is the one a human wrist can hold).
  */
-export function plane(a, b) {
+export function plane(a, b, flip = false) {
   a = norm(a); b = norm(b);
-  const n = norm(cross(a, b)), m = cross(n, a);
+  const n0 = norm(cross(a, b)), m = cross(n0, a), n = flip ? n0.map((x) => -x) : n0;
   return (deg) => {
     const th = (deg * Math.PI) / 180, c = Math.cos(th), s = Math.sin(th);
     const aim = norm([a[0] * c + m[0] * s, a[1] * c + m[1] * s, a[2] * c + m[2] * s]);
     return { aim: r3(aim), up: r3(norm(cross(aim, n))) };
   };
+}
+
+/**
+ * Hand target with the blade along `aim` and the roll a human wrist holds comfortably: the true edge faces away from
+ * the (estimated) right elbow, i.e. it continues the forearm. The greatsword is double-edged, so the roll only has to be
+ * feasible; asking the IK for the other roll makes the wrist clamp and the blade deviate. `sh` = right shoulder estimate.
+ */
+export function grip(pos, aim, sh = [-0.12, 1.4, 0.2]) {
+  aim = norm(aim);
+  const el = [(sh[0] + pos[0]) / 2, (sh[1] + pos[1]) / 2 - 0.2, (sh[2] + pos[2]) / 2 + 0.08];
+  const d = [el[0] - pos[0], el[1] - pos[1], el[2] - pos[2]];
+  const k = dot(d, aim);
+  let up = [d[0] - aim[0] * k, d[1] - aim[1] * k, d[2] - aim[2] * k];
+  if (Math.hypot(up[0], up[1], up[2]) < 1e-4) up = [0, 1, 0];
+  return { pos, aim: r3(aim), up: r3(norm(up)) };
 }
 
 /** Linear interpolation of two points. */

@@ -185,8 +185,10 @@ Rules of dispatch:
   | `slowmo: 0.7` | 0.4 s of slow motion at that scale (not during a lock) |
   | `cam: { shot, dur, slowmo, subject }` | a vocabulary shot (`h.shots` names) anchored on the fighter, HUD kept, 0.3 s blend back; only from fight framing, not during a lock. `groundSkim` is framed 3–3.6 m off the fight line so it clears columns and spike lines |
 
-  A `vfx` / `fx` string in marker data is a storyboard note and is never played automatically: presets are placed by
-  the choreography (`h.fx`).
+  `decal`, `slowmo` and `cam` are set pieces: they are skipped when the fighter's choreography has a handler for that
+  marker (`moves[move][marker]` or `markers[marker]`), so a hand-made camera never competes with the data cue. A `vfx`
+  / `fx` string in marker data is a storyboard note and is never played automatically: presets are placed by the
+  choreography (`h.fx`).
 * Defaults for every move: a weapon trail from `trailOn` to `trailOff` markers (style → life: light .15, rising .18,
   overhead .2, huge / heavy .22, spin .2, thrust .12, drag .26; `glow` = none; `data.blades: 'R' | 'L' | 'both'` picks
   the weapon of a twin-blade design), else from the frame data (startup − 0.08 … last active + 0.06); a whoosh at

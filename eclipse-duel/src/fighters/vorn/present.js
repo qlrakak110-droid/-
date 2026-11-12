@@ -42,18 +42,22 @@ function floorAt(h, where) {
 const sock = (h, name) => h.self.char && h.self.char.sockets[name];
 const foeSock = (h, name) => h.foe.char && h.foe.char.sockets[name];
 
-/** Lightning thrust along the forward axis: the spear's whole length lights up, rings punched around the tip. */
-function thrust(h, reach, k = 1, u = 1.3) {
-  h.fx('volt.thrust', { pos: [0.3, u, 0.08], dir: [1, 0.02, 0] }, { reach, intensity: k });
+/** Lightning runs down the spear (base -> past the tip): a thin line, a streak and a ring punched at the tip. */
+function thrust(h, k = 1, o = {}) {
+  h.fx('vorn.spear', { pos: 'weaponBase', target: 'weaponTip' }, { intensity: k, ...o });
+}
+/** Electric crescent of the spear in a plane (local pivot [f, u, s]). */
+function arc(h, pivot, o) {
+  h.fx('vorn.arc', { pos: pivot }, o);
 }
 /** Impact flower at the contact (layered on the generic hit). */
 function flower(h, k, o = {}) {
   h.fx('vorn.flower', { pos: o.pos || 'contact', dir: o.dir || [1, 0.08, 0.25] }, { k, pierce: !!o.pierce, intensity: o.intensity ?? 1 });
 }
 /** The victim seizes with static for dur s. */
-function seize(h, dur = 0.6, k = 1) {
+function seize(h, dur = 0.6, k = 1, delay = 0.08) {
   const c = foeSock(h, 'chest');
-  if (c) h.fx('vorn.static', 'foe.chest', { follow: c, duration: dur, intensity: k });
+  if (c) h.after(delay, (h2) => h2.fx('vorn.static', 'foe.chest', { follow: c, duration: dur, intensity: k }));
 }
 /** Charge at the spear tip for dur s (follows the tip). */
 function tipCharge(h, dur, k = 1, pop = false) {
@@ -107,14 +111,14 @@ const ULT_SHOTS = (h) => {
   return [
     S.impactPunchIn({ dur: 0.3, dist: [3.6, 2.3], height: [1.5, 1.6], look: 1.55, fov: [38, 30], shake: 0.5 }),
     { dur: 0.6, cut: true, space: 'mid', ease: 'inOutSine', handheld: 0.35,
-      orbit: { pivot: [0.2, 2.4, 0], from: -52, to: 6, radius: [5.8, 5.0], height: [0.9, 2.8] }, from: { fov: 46 }, to: { fov: 44 } },
+      orbit: { pivot: [0.3, 1.9, 0], from: -52, to: 6, radius: [4.6, 4.0], height: [0.8, 2.0] }, from: { fov: 48 }, to: { fov: 46 } },
     { dur: 1.4, cut: true, space: 'anchor', ease: 'outSine', handheld: 0.7,
       from: { pos: [-1.5, 0.6, 2.0], look: [2.2, 4.0, 0], fov: 52, roll: -5 }, to: { pos: [-0.9, 2.1, 2.4], look: [2.4, 4.9, 0], fov: 46, roll: -2 } },
     { dur: 0.65, cut: true, space: 'mid', ease: 'inOutSine', handheld: 0.3,
-      from: { pos: [-1.6, 0.3, 9.6], look: [0.3, 3.5, 0], fov: 50 }, to: { pos: [-0.2, 0.45, 9.0], look: [0.5, 3.9, 0], fov: 47 },
+      from: { pos: [-1.6, 0.8, 8.4], look: [0.3, 4.4, 0], fov: 52 }, to: { pos: [-0.3, 1.0, 7.8], look: [0.5, 4.9, 0], fov: 48 },
       slowmo: { scale: 0.35, at: 0.04, dur: 0.42, easeIn: 0.05, easeOut: 0.15 } },
-    S.crashZoom({ dur: 0.25, subject: 'target', dist: [9, 3.6], height: [3.4, 1.2], look: 0.9, fov: [52, 36], shake: 0.25 }),
-    S.topDownSlam({ dur: 0.9, subject: 'target', height: [6.2, 8.6], toward: [3.4, 4.6], ahead: -0.6, look: 0.3, fov: [48, 54], roll: [0, 12] }),
+    S.crashZoom({ dur: 0.25, subject: 'target', dist: [9, 4.2], height: [3.6, 2.0], look: 1.4, fov: [52, 40], shake: 0.25, follow: 'look', followY: true }),
+    S.topDownSlam({ dur: 0.9, subject: 'target', height: [5.2, 6.8], toward: [4.6, 5.8], ahead: -0.8, look: 0.4, fov: [50, 56], roll: [0, 10] }),
   ];
 };
 
@@ -123,8 +127,8 @@ function slam(h, e) {
   book(h, e);
   const g = floorAt(h, 'foe.floor');
   h.fx('vorn.pillar', { pos: g }, { intensity: 1 });
-  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 1.4, pierce: true });
-  h.post.flash(VIOLET, 0.3, { release: 0.35 });
+  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 1.3, pierce: true });
+  h.post.flash(VIOLET, 0.2, { release: 0.35 });
   h.post.impact({ duration: 0.05, invert: 0, mono: 1 });   // a monochrome beat, not an inverted (white) frame
   h.post.pulse('exposure', 0.12, { attack: 0.02, release: 0.5 });
   h.post.chroma(1.0, { release: 0.5 });
@@ -136,25 +140,33 @@ function slam(h, e) {
   h.foe.flash([3, 2.2, 6], 0.7, 0.3);
   h.foe.impulse([0, -1, 0], 2);
   foeClip(h, 'down', { fade: 0.05 });
-  runes(h, 5, 1.2, 'all');
-  h.weaponGlow(2, 0.9);
+  runes(h, 3, 1.2, 'all');
+  h.weaponGlow(1.2, 0.9);
 }
 
 const ult = {
   mood: { darken: 0.8, tint: 0xa080ff },
   blendOut: 0.9,
   /** Added to the default super-freeze (mood, hero push-in, cut-in, ult_start, charge gather). */
-  freeze(h) {
+  freeze(h, e) {
     h.fx('vorn.frozenRain', { pos: [1.2, 0, 0] });
     runes(h, 3, 0.9, 'all');
+    // after the default super-freeze set-up (same frame): our own low hero angle, rain, the spear raised to the sky,
+    // then the weapon-follow of the dash (held until the lock or the whiff takes the camera)
+    const D = (e && e.duration) || 0.6;
+    h.after(0, (h2) => h2.cam.play([
+      { dur: D, cut: true, space: 'anchor', ease: 'outSine', letterbox: true, handheld: 0.4,
+        from: { pos: [2.7, 0.45, 3.6], look: [0.1, 1.75, 0], fov: 40, roll: 6 }, to: { pos: [2.1, 0.55, 3.0], look: [0.1, 1.95, 0], fov: 35, roll: 4 } },
+      h2.shots.weaponFollow({ dur: 1.0, hold: true, cut: true }),
+    ], { blendOut: 0.45, keepLetterbox: true }));
   },
   shots: ULT_SHOTS,
   /** Lock start (the skewer): replaces the default impact (its crit + white flash double the trigger's own hit). */
   start(h) {
     st(h).tick = 0;
-    flower(h, 1.5, { pos: 'foe.chest', dir: [1, 0.05, 0.25], pierce: true });
-    h.fx('volt.thrust', { pos: [0.3, 1.45, 0.08], dir: [1, 0.03, 0] }, { reach: 2.6, intensity: 1.1 });
-    h.post.flash(VIOLET, 0.22, { release: 0.2 });
+    flower(h, 1.25, { pos: 'foe.chest', dir: [1, 0.05, 0.25], pierce: true });
+    thrust(h, 1.3, { width: 0.12, reach: 0.6, ring: 2, life: 0.2 });
+    h.post.flash(VIOLET, 0.14, { release: 0.2 });
     h.post.chroma(1.0, { release: 0.45 });
     h.post.radial('foe.chest', 0.8, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
@@ -163,8 +175,8 @@ const ult = {
     h.foe.flash([2.5, 1.8, 5], 0.6, 0.25);
     h.hitstop(0.2);
     seize(h, 2.3, 1);
-    runes(h, 4, 1.0, 'all');
-    h.weaponGlow(1.4, 0.6);
+    runes(h, 2.5, 1.0, 'all');
+    h.weaponGlow(1.0, 0.6);
     return false;
   },
   at: [
@@ -206,7 +218,7 @@ const ult = {
         const a = () => c.getWorldPosition(PA).add(ROD_A.set(-f * 0.85, -0.55, 0.12));
         const b = () => c.getWorldPosition(PB).add(ROD_B.set(f * 0.25, 0.18, 0.12));
         kill(st(h2).rod);
-        st(h2).rod = h2.vfx.beam({ look: 'volt', from: a, to: b, width: 0.22, extend: 0.02, release: 0.1, life: 1.62, wiggle: 0.03, flareSize: 0.7, intensity: 0.8 });
+        st(h2).rod = h2.vfx.beam({ look: 'volt', from: a, to: b, width: 0.16, extend: 0.02, release: 0.1, life: 1.62, wiggle: 0.03, flares: false, intensity: 0.7 });
         h2.cam.shake(0.35, { freq: 16 });
         h2.audio('hit_slash_heavy', { volume: 0.8 });
       });
@@ -227,12 +239,13 @@ const ult = {
       beat(h, 'catch', { move: 'stormfall', t: 0.1, speed: 0.3 });
       st(h).rod = kill(st(h).rod);
       const hand = h.pos('handR');
-      if (h.vfx) h.vfx.bolt({ from: h.pos('foe.chest'), to: hand, width: 0.3, branches: 3, strikes: 3, interval: [0.03, 0.06], life: 0.3, leader: 0.02, light: 120, intensity: 1 });
+      if (h.vfx) h.vfx.bolt({ from: h.pos('foe.chest'), to: hand, width: 0.2, branches: 3, strikes: 3, interval: [0.03, 0.06], life: 0.3, leader: 0.02, impact: false, intensity: 0.85 });
       h.after(0.03, (h2) => spearVisible(h2, true));
-      h.fx('volt.burst', 'handR', { intensity: 0.6 });
+      h.burst('vorn.arcs', 'handR', { count: 10 });
+      h.burst('vorn.goldCone', 'handR', { dir: [0, 1, 0.2], count: 14 });
       h.offset([1.0, 4.6], 0.55, 'outCubic');
-      runes(h, 4, 1.2, 'all');
-      h.weaponGlow(1.6, 1.0);
+      runes(h, 3, 1.2, 'all');
+      h.weaponGlow(1.2, 1.0);
       h.audio('volt_charge');
     } },
     { t: 2.4, do(h) {    // storm: the sky drains into the raised spear
@@ -240,7 +253,7 @@ const ult = {
       h.fx('vorn.storm', { pos: floorAt(h, 'foe.floor') }, { tip: h.at(1.0, 6.9, 0), duration: 0.65 });
       h.mood({ darken: 0.9, tint: 0x7050ff, duration: 0.4 });
       const t = sock(h, 'weaponTip');
-      if (t) h.fx('vorn.tipCharge', 'weaponTip', { follow: t, duration: 0.55, intensity: 1.3 });
+      if (t) h.fx('vorn.tipCharge', 'weaponTip', { follow: t, duration: 0.55, intensity: 1.1 });
       h.audio('charge_up', { volume: 0.8 });
       h.audio('volt_strike', { volume: 0.5, delay: 0.2 });
     } },
@@ -264,7 +277,7 @@ const ult = {
     } },
     { t: 4.4, do(h) {    // spear twirl, the arcs fade
       beat(h, 'twirl', { move: 'haft_spin', t: 0.02 });
-      h.fx('volt.slash', { pos: [0.25, 1.15, 0.12] }, { arc: [200, -150], radius: 1.0, width: 0.3, sweep: 0.2, normal: [0, 0, 1], intensity: 0.45 });
+      arc(h, [0.25, 1.15, 0.12], { arc: [200, -150], radius: 1.0, width: 0.16, sweep: 0.2, normal: [0, 0, 1], intensity: 0.6 });
       runes(h, 1.5, 0.8, 'inlay');
       h.audio('swing_light', { volume: 0.7 });
     } },
@@ -278,19 +291,19 @@ const ult = {
     const chest = h.pos('foe.chest');
     if (h.vfx) {
       if (last) {
-        h.vfx.bolt({ from: [chest.x - h.facing * 1.2, 15, chest.z - 3], to: chest, width: 0.6, branches: 6, strikes: 3, interval: [0.03, 0.06], life: 0.4, leader: 0.02, light: 200, lightRange: 10, intensity: 1 });
-        h.vfx.pillar({ look: 'volt', pos: [chest.x, chest.y - 0.2, chest.z], height: 14, radius: 0.35, from: 'sky', life: 0.4, intensity: 0.8 });
+        h.vfx.bolt({ from: [chest.x - h.facing * 1.2, 15, chest.z - 3], to: chest, width: 0.42, branches: 6, strikes: 3, interval: [0.03, 0.06], life: 0.4, leader: 0.02, impact: false, light: 90, lightRange: 10, intensity: 1 });
+        h.vfx.pillar({ look: 'volt', pos: [chest.x, chest.y - 0.2, chest.z], height: 14, radius: 0.22, from: 'sky', life: 0.36, intensity: 0.55 });
       } else if (n % 2) {
-        h.vfx.bolt({ from: [chest.x + (h.rng() - 0.5) * 3, 14, chest.z - 2.5], to: chest, width: 0.36, branches: 4, strikes: 2, interval: [0.03, 0.05], life: 0.22, leader: 0.015, light: n % 4 === 1 ? 140 : 0, intensity: 0.9 });
+        h.vfx.bolt({ from: [chest.x + (h.rng() - 0.5) * 3, 14, chest.z - 2.5], to: chest, width: 0.26, branches: 4, strikes: 2, interval: [0.03, 0.05], life: 0.22, leader: 0.015, impact: false, light: n % 4 === 1 ? 60 : 0, intensity: 0.85 });
       } else {
-        h.vfx.bolt({ from: h.pos('handL'), to: chest, width: 0.28, branches: 3, strikes: 2, interval: [0.03, 0.05], life: 0.2, leader: 0.01, light: 0, intensity: 0.9 });
-        h.fx('volt.burst', 'handL', { intensity: 0.35 });
+        h.vfx.bolt({ from: h.pos('handL'), to: chest, width: 0.2, branches: 3, strikes: 2, interval: [0.03, 0.05], life: 0.2, leader: 0.01, impact: false, intensity: 0.85 });
+        h.burst('vorn.arcs', 'handL', { count: 6 });
       }
     }
-    flower(h, last ? 1.3 : 0.75, { pos: 'foe.chest', dir: [0.4, last ? -1 : -0.4, 0.3], intensity: last ? 1 : 0.8 });
+    flower(h, last ? 1.1 : 0.6, { pos: 'foe.chest', dir: [0.4, last ? -1 : -0.4, 0.3], intensity: last ? 1 : 0.8 });
     h.foe.impulse([-1, 0.35, 0.1], last ? 1.6 : 0.8);
     h.foe.flash([2.5, 1.8, 5], last ? 0.7 : 0.4, 0.1);
-    h.post.flash(last ? 0xffffff : VIOLET, last ? 0.16 : 0.07, { release: last ? 0.2 : 0.08 });
+    h.post.flash(VIOLET, last ? 0.12 : 0.05, { release: last ? 0.2 : 0.08 });
     h.post.chroma(last ? 0.8 : 0.35, { release: 0.2 });
     h.cam.shake(last ? 0.55 : 0.28, { freq: 17 });
     h.cam.kick({ fov: last ? -2.5 : -0.8, duration: 0.18 });
@@ -314,57 +327,54 @@ const moves = {
   // LIGHT1 섬광 찌르기 Flash Jab: a flick of light down the spear, a needle of a hit
   flash_jab: {
     windup(h) { h.burst('vorn.crawl', 'weaponTip', { count: 3 }); },
-    swing(h) { h.after(0.025, (h2) => thrust(h2, 2.05, 0.55, 1.32)); },
-    hit(h) { flower(h, 0.55, { dir: [1, 0.04, 0.25] }); },
+    swing(h) { h.after(0.03, (h2) => thrust(h2, 0.7)); },
+    hit(h) { flower(h, 0.45, { dir: [1, 0.04, 0.25] }); },
     guard(h) { h.burst('vorn.arcs', 'contact', { count: 5 }); },
   },
 
   // LIGHT2 회전 쳐올리기 Haft Spin: the spear whirls (an electric disc), the butt-end rises
   haft_spin: {
-    spin(h) { h.fx('volt.slash', { pos: [0.25, 1.1, 0.14] }, { arc: [210, -120], radius: 0.95, width: 0.28, sweep: 0.08, normal: [0, 0, 1], intensity: 0.55 }); },
-    swing(h) { h.fx('volt.slash', { pos: [0.15, 0.95, 0.12] }, { arc: [-115, 72], radius: 1.35, width: 0.36, sweep: 0.06, normal: [0, -0.2, 1], intensity: 0.8 }); },
+    spin(h) { h.burst('vorn.crawl', 'weaponBase', { count: 4 }); },
+    swing(h) { arc(h, [0.15, 0.95, 0.12], { arc: [-115, 72], radius: 1.3, width: 0.16, sweep: 0.06, normal: [0, -0.2, 1], intensity: 0.7, life: 0.2 }); },
     hit(h) {
-      flower(h, 0.65, { dir: [0.5, 0.85, 0.2] });
-      h.burst('vorn.gold', 'contact', { dir: [0.3, 1, 0.2], count: 18 });
+      flower(h, 0.5, { dir: [0.5, 0.85, 0.2] });
+      h.burst('vorn.gold', 'contact', { dir: [0.3, 1, 0.2], count: 12 });
     },
   },
 
   // LIGHT3 천둥 꿰기 Thunder Pierce: lunge, thrust, and a spike of lightning shoots out of the tip
   thunder_pierce: {
-    windup(h) { runes(h, 1.6, 0.45); tipCharge(h, 0.2, 0.7); },
+    windup(h) { runes(h, 1.4, 0.45); tipCharge(h, 0.2, 0.6); },
     lunge(h) { h.fx('combat.dust.slide', 'footR', { length: 0.6, intensity: 0.7 }); },
-    swing(h) { h.after(0.025, (h2) => thrust(h2, 2.2, 0.75, 1.3)); },
+    swing(h) { h.after(0.03, (h2) => thrust(h2, 0.8)); },
     spike(h) {
       // the spike: a lance of light 0.7 m past the tip, forks ahead, an anamorphic streak
       const tip = h.pos('weaponTip');
       const end = h.at(3.3, 1.28, 0.1);
       if (h.vfx) {
-        h.vfx.beam({ look: 'volt', from: tip, to: end, width: 0.34, extend: 0.025, release: 0.1, life: 0.2, flareSize: 1.1, intensity: 1 });
-        for (let k = 0; k < 2; k++) h.vfx.bolt({ from: end, to: h.at(4.0 + 0.4 * k, 1.0 + 0.6 * k, 0.2), width: 0.12, branches: 2, strikes: 2, detail: 5, life: 0.2, leader: 0, impact: false, intensity: 0.8 });
+        h.vfx.beam({ look: 'volt', from: tip, to: end, width: 0.15, extend: 0.025, release: 0.08, life: 0.16, flares: false, intensity: 0.6 });
+        h.vfx.bolt({ from: end, to: h.at(4.0, 1.4, 0.2), width: 0.07, branches: 2, strikes: 2, detail: 5, life: 0.18, leader: 0, impact: false, intensity: 0.7 });
       }
-      h.flare(end, { kind: 'streak', size: 0.2, aspect: 22, life: 0.16, dir: h.dir([1, 0, 0]), intensity: 0.8 });
-      h.spawn('ring', end, { look: 'volt', normal: h.dir([1, 0, 0]), radius: [0.05, 0.6], width: [0.08, 0.14], life: 0.2, intensity: 0.8 });
+      h.flare(end, { kind: 'streak', size: 0.1, aspect: 20, life: 0.12, dir: h.dir([1, 0, 0]), intensity: 0.4 });
+      h.spawn('ring', end, { look: 'volt', normal: h.dir([1, 0, 0]), radius: [0.04, 0.42], width: [0.05, 0.09], life: 0.18, intensity: 0.55 });
       h.cam.kick({ fov: -1.6, duration: 0.25 });
       h.audio('volt_zap', { volume: 0.8 });
-      runes(h, 2.5, 0.4);
+      runes(h, 2, 0.4);
     },
     trailOff(h) { const t = sock(h, 'weaponTip'); if (t) h.emitter('vorn.crawlTip', 'weaponTip', { follow: t, duration: 0.4 }); },
     hit(h, e) {
       if (e.label === 'spike') {
-        flower(h, 1.15, { pierce: true, dir: [1, 0.02, 0.2] });
-        seize(h, 0.35, 0.8);
+        flower(h, 0.95, { pierce: true, dir: [1, 0.02, 0.2] });
+        seize(h, 0.35, 0.6);
         h.cam.shake(0.25, { freq: 16 });
-      } else flower(h, 0.6);
+      } else flower(h, 0.45);
     },
   },
 
   // HEAVY 폭풍 휩쓸기 Gale Sweep: a low electric crescent, the blade drags sparks and scorch along the floor
   gale_sweep: {
-    windup(h) { runes(h, 1.4, 0.5); h.after(0.08, (h2) => tipCharge(h2, 0.14, 0.6)); },
-    swing(h) {
-      h.fx('volt.slash', { pos: [0.1, 0.32, 0.05] }, { arc: [-165, 25], radius: 2.25, width: 0.55, sweep: 0.09, normal: [0, 1, 0.32], intensity: 1 });
-      h.fx('whoosh.heavy', { pos: [0.1, 0.4, 0.05] }, { arc: [-150, 20], radius: 2.1, normal: [0, 1, 0.32] });
-    },
+    windup(h) { runes(h, 1.4, 0.5); h.after(0.08, (h2) => tipCharge(h2, 0.14, 0.5)); },
+    swing(h) { arc(h, [0.1, 0.3, 0.05], { arc: [-165, 25], radius: 2.2, width: 0.32, sweep: 0.09, normal: [0, 1, 0.32], intensity: 0.85, life: 0.32 }); },
     sparks(h) {
       h.fx('vorn.sweep', { pos: floorAt(h, 'weaponTip'), dir: [0.6, 0, 0.8] });
       h.after(0.04, (h2) => h2.fx('vorn.sweep', { pos: h2.at(2.0, 0.02, 0.2), dir: [1, 0, -0.2] }, { intensity: 0.6 }));
@@ -372,33 +382,33 @@ const moves = {
       h.audio('volt_zap', { volume: 0.7 });
     },
     hit(h) {
-      flower(h, 1.0, { dir: [0.6, 0.6, 0.3] });
-      h.spawn('ring', 'foe.floor', { look: 'volt', radius: [0.2, 2.0], life: 0.4, intensity: 0.8 });
-      seize(h, 0.4, 0.7);
+      flower(h, 0.85, { dir: [0.6, 0.6, 0.3] });
+      h.spawn('ring', 'foe.floor', { look: 'volt', radius: [0.2, 1.8], life: 0.4, intensity: 0.6 });
+      seize(h, 0.4, 0.5);
     },
   },
 
   // F+HEAVY 번개 돌격 Lightning Charge: crouch, bursts into a streak of lightning, thrust at the head of it, skid
   lightning_charge: {
     windup(h) {
-      runes(h, 2.2, 0.35, 'all');
+      runes(h, 1.8, 0.35, 'all');
       h.burst('vorn.crawlGround', h.at(0, 0.05, 0), { count: 10, dir: [0, 1, 0], scale: 0.6 });
       h.burst('vorn.gold', h.at(-0.2, 0.08, 0), { count: 12, dir: [-0.6, 1, 0.2] });
       tipCharge(h, 0.06, 0.6);
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 4, intensity: 0.9 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 3, intensity: 0.6 });
       h.cam.kick({ fov: -2.5, push: 0.4, duration: 0.3 });
       h.audio('volt_zap');
       h.audio('dodge', { volume: 0.7 });
     },
-    swing(h) { h.after(0.02, (h2) => thrust(h2, 2.1, 0.8, 1.25)); },
+    swing(h) { h.after(0.03, (h2) => thrust(h2, 0.8)); },
     stop(h) {
       h.fx('combat.dust.slide', 'floor', { length: 1.2 });
       h.burst('vorn.gold', h.at(0.2, 0.06, 0.1), { count: 18, dir: [1, 0.5, 0.2] });
       h.burst('vorn.crawl', h.at(0, 1.0, 0.1), { count: 8, scale: 2 });
     },
-    hit(h) { flower(h, 1.15, { pierce: true }); seize(h, 0.7, 0.9); },
+    hit(h) { flower(h, 1.0, { pierce: true }); seize(h, 0.7, 0.7); },
   },
 
   // D+HEAVY 하늘 꿰뚫기 Skyward Lance: crouch, rising thrust, a bolt shoots from the tip to the sky
@@ -408,38 +418,38 @@ const moves = {
       h.spawn('decal', 'floor', { kind: 'rune', radius: 0.9, life: 0.7, reveal: 0.1, fadeOut: 0.3, spin: 2 });
       tipCharge(h, 0.15, 0.7);
     },
-    swing(h) { h.fx('volt.slash', { pos: [0.2, 0.85, 0.12] }, { arc: [-55, 98], radius: 1.85, width: 0.42, sweep: 0.06, normal: [0, -0.15, 1], intensity: 0.85 }); },
+    swing(h) { arc(h, [0.2, 0.85, 0.12], { arc: [-55, 98], radius: 1.8, width: 0.2, sweep: 0.06, normal: [0, -0.15, 1], intensity: 0.75, life: 0.24 }); },
     bolt(h) {
       h.fx('vorn.skybolt', 'weaponTip');
       h.cam.kick({ fov: -2, duration: 0.3 });
       h.audio('volt_strike', { volume: 0.55, pitch: 1.15 });
     },
-    hit(h) { flower(h, 1.05, { dir: [0.3, 1, 0.2] }); },
+    hit(h) { flower(h, 0.9, { dir: [0.3, 1, 0.2] }); },
   },
 
   // SKILL1 뇌창 투척 Thunder Javelin: a javelin of pure lightning forms on the spear and is hurled
   thunder_javelin: {
     form(h) {
-      runes(h, 2.5, 0.5, 'all');
-      tipCharge(h, 0.22, 0.9, true);
-      spearArc(h, 0.24, 0.8, 0.26);
+      runes(h, 2, 0.5, 'all');
+      tipCharge(h, 0.22, 0.8, true);
+      spearArc(h, 0.24, 0.55, 0.14);
     },
     release(h) {
       const p = h.at(0.9, 1.55, 0.05);
-      h.fx('combat.charge.release', { pos: p, dir: [1, 0.05, 0] }, { intensity: 0.45 });
-      h.spawn('ring', p, { look: 'volt', normal: h.dir([1, 0.05, 0]), radius: [0.05, 0.75], width: [0.08, 0.16], life: 0.22, intensity: 0.85 });
-      h.light(p, { intensity: 90, duration: 0.2, flicker: 0.5 });
+      h.spawn('ring', p, { look: 'volt', normal: h.dir([1, 0.05, 0]), radius: [0.05, 0.6], width: [0.05, 0.1], life: 0.2, intensity: 0.6 });
+      h.burst('vorn.goldCone', p, { dir: [1, 0.1, 0.1], count: 14 });
+      h.light(h.at(0.9, 1.7, 1.4), { intensity: 30, duration: 0.18, flicker: 0.5 });
     },
   },
 
   // SKILL2 낙뢰 Stormfall: the spear to the sky, the camera tilts up to the gathering clouds, three bolts crash down
   stormfall: {
-    windup(h) { runes(h, 2.4, 0.8, 'all'); },
+    windup(h) { runes(h, 2, 0.8, 'all'); },
     raise(h) {
-      tipCharge(h, 0.36, 1);
+      tipCharge(h, 0.36, 0.8);
       h.after(0.22, (h2) => {
         const tip = h2.pos('weaponTip');
-        if (h2.vfx) h2.vfx.bolt({ from: tip, to: [tip.x + h2.facing * 1.5, 11, tip.z - 2.5], width: 0.16, branches: 2, strikes: 3, interval: [0.03, 0.05], life: 0.2, leader: 0.03, impact: false, intensity: 0.75 });
+        if (h2.vfx) h2.vfx.bolt({ from: tip, to: [tip.x + h2.facing * 1.5, 11, tip.z - 2.5], width: 0.1, branches: 2, strikes: 3, interval: [0.03, 0.05], life: 0.2, leader: 0.03, impact: false, intensity: 0.65 });
       });
       // camera: tilt up from behind him to the sky over the target, crash down onto the first strike (cut)
       const cam = h.ctx.cam;
@@ -452,13 +462,13 @@ const moves = {
       }
     },
     clouds(h) { h.fx('vorn.clouds', 'foe.floor', { duration: 0.8 }); },
-    release(h) { h.after(0.02, (h2) => h2.fx('volt.slash', { pos: [0.25, 1.4, 0.12] }, { arc: [120, -30], radius: 1.6, width: 0.4, sweep: 0.08, normal: [0, 0.2, 1], intensity: 0.7 })); },
+    release(h) { h.after(0.02, (h2) => arc(h2, [0.25, 1.4, 0.12], { arc: [120, -30], radius: 1.6, width: 0.2, sweep: 0.08, normal: [0, 0.2, 1], intensity: 0.6 })); },
   },
 
   // SKILL3 섬전 보법 Arc Step: dissolves into a bolt, re-forms 4 m on, the line he leaves detonates
   arc_step: {
     windup(h) {
-      runes(h, 2, 0.3, 'all');
+      runes(h, 1.8, 0.3, 'all');
       h.burst('vorn.crawl', h.at(0, 1.0, 0.1), { count: 8, scale: 2 });
       h.burst('vorn.crawlGround', h.at(0, 0.05, 0), { count: 6, dir: [0, 1, 0], scale: 0.6 });
     },
@@ -466,8 +476,8 @@ const moves = {
       const s = st(h);
       s.blinkX = e && typeof e.x === 'number' ? e.x : h.pos('floor').x;
       const a = h.pos('floor');
-      h.fx('volt.dash', { pos: a }, { to: h.at(4.0, 0, 0), ghosts: 1, intensity: 0.9 });
-      h.fx('vorn.reform', a, { intensity: 0.6 });
+      h.fx('volt.dash', { pos: a }, { to: h.at(4.0, 0, 0), intensity: 0.6 });
+      h.fx('vorn.reform', a, { intensity: 0.45 });
       h.after(0.017, (h2) => h2.self.setVisible(false));   // after the generic afterimage snapshot of this frame
       h.audio('volt_zap');
       h.cam.kick({ fov: -1.5, duration: 0.22 });
@@ -476,9 +486,9 @@ const moves = {
       h.self.setVisible(true);
       const s = st(h), x1 = e && typeof e.x === 'number' ? e.x : h.pos('floor').x;
       const x0 = typeof s.blinkX === 'number' ? s.blinkX : x1 - 4 * h.facing;
-      h.fx('vorn.reform', 'floor');
+      h.fx('vorn.reform', 'floor', { intensity: 0.8 });
       h.fx('vorn.line', { pos: new THREE.Vector3(x0, 0, 0.05), target: new THREE.Vector3(x1, 0, 0.05) }, { hold: 0.25 });
-      runes(h, 3, 0.4, 'all');
+      runes(h, 2.2, 0.4, 'all');
       h.audio('volt_charge', { volume: 0.5, pitch: 1.4 });
     },
     end(h) { h.self.setVisible(true); },
@@ -491,31 +501,32 @@ const moves = {
       const t = sock(h, 'weaponTip');
       if (t && h.vfx) {
         const p = h.pos('weaponTip');
-        h.vfx.bolt({ from: [p.x - h.facing * 1.6, 15, p.z - 3], to: t, width: 0.55, branches: 6, strikes: 4, interval: [0.04, 0.08], life: 0.5, leader: 0.03, light: 160, lightRange: 9, intensity: 1 });
+        h.vfx.bolt({ from: [p.x - h.facing * 1.6, 15, p.z - 3], to: t, width: 0.38, branches: 6, strikes: 4, interval: [0.04, 0.08], life: 0.5, leader: 0.03, impact: false, light: 60, lightRange: 9, intensity: 1 });
       }
-      h.fx('volt.burst', 'weaponTip', { intensity: 0.7 });
+      h.burst('vorn.arcs', 'weaponTip', { count: 12 });
+      h.burst('vorn.goldCone', 'weaponTip', { dir: [0, -1, 0.2], count: 20 });
       h.post.chroma(0.6, { release: 0.3 });
       h.cam.shake(0.3, { freq: 14 });
-      h.weaponGlow(1.6, 0.6);
-      runes(h, 5, 0.6, 'all');
+      h.weaponGlow(1.2, 0.6);
+      runes(h, 3, 0.6, 'all');
       h.audio('volt_strike', { volume: 0.75 });
     },
     charge(h) {
-      tipCharge(h, 0.38, 1.1, false);
-      h.spawn('decal', 'floor', { kind: 'rune', radius: 1.7, life: 1.0, reveal: 0.2, fadeOut: 0.3, spin: 1.8, intensity: 1.1 });
+      tipCharge(h, 0.38, 0.9, false);
+      h.spawn('decal', 'floor', { kind: 'rune', radius: 1.7, life: 1.0, reveal: 0.2, fadeOut: 0.3, spin: 1.8 });
       h.emitter('vorn.crawlGround', h.at(0, 0.06, 0), { dir: [0, 1, 0], scale: 1.3, duration: 0.4 });
       h.emitter('vorn.motesUp', h.at(0, 0.05, 0), { dir: [0, 1, 0], scale: 1.1, duration: 0.4 });
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 5, speedlines: true, intensity: 1.1 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 4, speedlines: true, intensity: 0.75 });
       h.fx('vorn.rain', { pos: h.at(3, 0, 0) }, { duration: 1.4 });
       h.fx('combat.dust.dash', 'floor', { k: 1 });
       h.audio('volt_zap');
     },
-    swing(h) { h.after(0.03, (h2) => thrust(h2, 2.5, 1, 1.4)); },
+    swing(h) { h.after(0.03, (h2) => thrust(h2, 1, { width: 0.1, reach: 0.4 })); },
     overrun(h) {   // whiff / block: the dash ends in a big but harmless lightning burst
-      h.fx('volt.burst', 'weaponTip', { intensity: 1 });
-      h.fx('volt.strike', { pos: floorAt(h, 'weaponTip') }, { huge: true, intensity: 0.8 });
+      h.fx('volt.burst', 'weaponTip', { intensity: 0.6 });
+      h.fx('volt.strike', { pos: floorAt(h, 'weaponTip') }, { huge: true, intensity: 0.7 });
       h.audio('volt_strike', { volume: 0.7 });
     },
     options: { whoosh: false },
@@ -527,8 +538,8 @@ const moves = {
 const projectiles = {
   'volt.javelin': {
     hit(h) {
-      flower(h, 1.2, { pierce: true, dir: [1, 0.02, 0.2] });
-      seize(h, 0.9, 1);
+      flower(h, 1.0, { pierce: true, dir: [1, 0.02, 0.2] });
+      seize(h, 0.9, 0.7);
       h.cam.shake(0.35, { freq: 15 });
       h.spawn('decal', 'foe.floor', { kind: 'scorch', radius: 1.0, life: 3, magma: 0.7 });
     },
@@ -542,16 +553,16 @@ const projectiles = {
       if (idx === 1) h.fx('vorn.mark', { pos: g }, { warn: delay });
       h.after(delay, (h2) => {
         const huge = !!d.huge;
-        h2.fx('volt.strike', { pos: g }, { huge, intensity: huge ? 1.1 : 0.9 });
+        h2.fx('volt.strike', { pos: g }, { huge, intensity: huge ? 0.9 : 0.7 });
         h2.fx('vorn.strikeX', { pos: g }, { k: huge ? 1.5 : 1 });
         h2.cam.shake(huge ? 0.6 : 0.35, { freq: 13, dir: [0, 1, 0] });
         h2.pulse(g, V.core, huge ? 1.6 : 0.8);
-        if (huge) { h2.post.chroma(0.6, { release: 0.3 }); h2.post.flash(VIOLET, 0.12, { release: 0.2 }); }
+        if (huge) { h2.post.chroma(0.6, { release: 0.3 }); h2.post.flash(VIOLET, 0.08, { release: 0.2 }); }
         if (idx === 1) h2.post.pulse('exposure', 0.06, { release: 0.2 });
       });
       return false;
     },
-    hit(h, e) { flower(h, e.label === 'bolt3' ? 1.2 : 0.8, { pos: 'foe.chest', dir: [0.1, -1, 0.3] }); },
+    hit(h, e) { flower(h, e.label === 'bolt3' ? 1.0 : 0.6, { pos: 'foe.chest', dir: [0.1, -1, 0.3] }); },
   },
   // Arc Step's detonation along the line he left behind
   'volt.chain': {
@@ -561,7 +572,7 @@ const projectiles = {
       h.audio('volt_strike', { volume: 0.6, pitch: 1.2 });
       return false;
     },
-    hit(h) { flower(h, 1.0, { dir: [0, 1, 0.3] }); seize(h, 0.45, 0.8); },
+    hit(h) { flower(h, 0.85, { dir: [0, 1, 0.3] }); seize(h, 0.45, 0.6); },
   },
 };
 
@@ -597,7 +608,6 @@ const on = {
     return undefined;
   },
   dodge(h) { h.burst('vorn.crawl', h.at(0, 1.0, 0.1), { count: 6, scale: 1.8 }); },
-  teleport(h) { if (h.move === 'arc_step') return false; return undefined; },
 };
 
 // ---- ambient: arcs crawling on the spear head and the helm horns, the arc-runes crackling -----------------------------

@@ -296,7 +296,7 @@ export function installBolt(vfx, shared) {
     if (s.lightI > 0 && vfx.light) ch.push(vfx.light({ pos: s.B, color: s.core, intensity: s.lightI * (first ? 1 : 0.7), range: s.lightRange, duration: 0.14, realtime: s.realtime }));
     if (s.impact && vfx.flare) {
       ch.push(vfx.flare({ kind: 'glow', pos: s.B, size: s.width * 7, life: 0.09, color: s.core, intensity: first ? 0.7 : 0.45, realtime: s.realtime }));
-      if (first) ch.push(vfx.flare({ kind: 'flash', pos: s.B, size: s.width * 26, life: 0.12, color: s.mid, intensity: 0.35, realtime: s.realtime }));
+      if (first) ch.push(vfx.flare({ kind: 'flash', pos: s.B, size: s.width * 18, life: 0.08, color: s.mid, intensity: 0.22, realtime: s.realtime }));
     }
   }
   let drawMax = 0;

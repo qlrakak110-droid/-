@@ -106,7 +106,7 @@ export const DEFS = {
   /** rain streaks hanging still in the air (super-freeze): barely drifting, long */
   frozenRain: { tex: 'streak', blend: 'add', count: 260, life: [0.95, 1.2], shape: { type: 'box', size: [15, 6, 6] }, emit: 'axis', dir: [-0.12, -1, 0], spread: 3,
     speed: [0.25, 0.4], size: [0.022, 0.04], stretch: 1.5, maxStretch: 0.7, rotation: 0, groundFade: 0.05,
-    color: [[0, 1.0, 0.95, 1.8, 0], [0.12, 1.0, 0.95, 1.8, 0.7], [0.85, 0.8, 0.75, 1.5, 0.6], [1, 0.6, 0.55, 1.2, 0]] },
+    color: [[0, 0.6, 0.56, 1.1, 0], [0.12, 0.6, 0.56, 1.1, 0.6], [0.85, 0.5, 0.46, 0.95, 0.5], [1, 0.4, 0.36, 0.8, 0]] },
   /** rain lashing down */
   rain: { tex: 'streak', blend: 'add', count: 0, rate: 300, life: [0.25, 0.4], shape: { type: 'box', size: [15, 1, 6] }, emit: 'axis', dir: [-0.12, -1, 0], spread: 3,
     speed: [17, 23], size: [0.025, 0.045], stretch: 0.05, maxStretch: 1.6, rotation: 0, groundFade: 0.05,
@@ -149,33 +149,54 @@ export function defineVornFx(vfx, rng) {
   // ---- contact flower ---------------------------------------------------------------------------------------------
   vfx.define('vorn.flower', (v, at, o) => {
     const k = o.k ?? 1, s = at.scale, p = at.pos, d = at.dir, i = I(o);
-    // star glint + an anamorphic streak along the strike axis (real time: they bloom through the hit-stop)
-    v.flare({ kind: 'star', pos: p, size: (0.45 + 0.65 * k) * s, life: 0.12 + 0.06 * k, decay: 3, color: V.core, intensity: (0.45 + 0.25 * k) * i, rotation: 0.35, realtime: true });
-    v.flare({ kind: 'streak', pos: p, size: (0.09 + 0.07 * k) * s, aspect: 18, life: 0.1 + 0.06 * k, dir: d, color: WHITE, intensity: 0.55 * i, realtime: true });
+    // the generic hit (combat.hit.<level> in volt) carries the flash core and the light: these layers add the spear's
+    // signature around it and stay thin so the struck body always reads
+    v.flare({ kind: 'streak', pos: p, size: (0.05 + 0.05 * k) * s, aspect: 16, life: 0.08 + 0.05 * k, dir: d, color: WHITE, intensity: 0.3 * i, realtime: true });
+    if (k >= 1.2) v.flare({ kind: 'star', pos: p, size: (0.2 + 0.3 * k) * s, life: 0.1 + 0.05 * k, decay: 3, color: V.core, intensity: 0.2 * i, rotation: 0.35, realtime: true });
     // rings punched around the strike axis, one behind the other (the spear's signature)
-    const nr = k >= 1.2 ? 3 : k >= 0.8 ? 2 : 1;
+    const nr = k >= 1.2 ? 2 : 1;
     for (let j = 0; j < nr; j++) {
-      const c = p.clone().addScaledVector(d, (0.05 + 0.24 * j) * s);
-      v.schedule(0.016 * j, (w) => w.ring({ look: 'volt', normal: d, pos: c, radius: [0.05 * s, (0.3 + 0.22 * k + 0.1 * j) * s], width: [0.05 * s, 0.13 * s], life: 0.2, intensity: 0.75 * i, realtime: true }));
+      const c = p.clone().addScaledVector(d, (0.1 + 0.3 * j) * s);
+      v.schedule(0.02 * j, (w) => w.ring({ look: 'volt', normal: d, pos: c, radius: [0.04 * s, (0.2 + 0.16 * k + 0.08 * j) * s], width: [0.03 * s, 0.06 * s], life: 0.15, intensity: 0.35 * i, alpha: 0.7 }));
     }
     // a line of light through the body (armour-piercing thrusts)
-    if (o.pierce) v.beam({ look: 'volt', from: p.clone().addScaledVector(d, -0.3 * s), to: p.clone().addScaledVector(d, (0.8 + 0.8 * k) * s), width: 0.2 * s, extend: 0.025, release: 0.08, life: 0.15, flares: false, intensity: 0.85 * i });
-    v.burst(D.goldCone, { pos: p, dir: d, count: Math.round((12 + 30 * k) * i), scale: s });
-    v.burst(D.arcs, { pos: p, dir: d, count: Math.round((5 + 7 * k) * i), scale: s });
+    if (o.pierce) v.beam({ look: 'volt', from: p.clone().addScaledVector(d, -0.2 * s), to: p.clone().addScaledVector(d, (0.6 + 0.5 * k) * s), width: 0.09 * s, extend: 0.02, release: 0.07, life: 0.12, flares: false, intensity: 0.5 * i });
+    v.burst(D.goldCone, { pos: p, dir: d, count: Math.round((8 + 20 * k) * i), scale: s });
+    v.burst(D.arcs, { pos: p, dir: d, count: Math.round((3 + 5 * k) * i), scale: 0.8 * s });
     // forked bolts lashing out of the contact along the strike, one grounding into the floor on heavy hits
-    const nb = k >= 1.1 ? 3 : k >= 0.75 ? 2 : 1;
+    const nb = k >= 1.2 ? 2 : k >= 0.8 ? 1 : 0;
     for (let j = 0; j < nb; j++) {
-      const to = jit(p.clone().addScaledVector(d, (0.8 + 0.5 * k) * s), 0.45 * s, 0.6 * s, 0.3 * s);
-      v.schedule(0.012 * j, (w) => w.bolt({ from: p, to, width: 0.1 * s, branches: 2, strikes: 2, detail: 5, life: 0.2, leader: 0.01, impact: false, intensity: 0.85 * i }));
+      const to = jit(p.clone().addScaledVector(d, (0.7 + 0.4 * k) * s), 0.4 * s, 0.5 * s, 0.25 * s);
+      v.schedule(0.015 * j, (w) => w.bolt({ from: p, to, width: 0.06 * s, branches: 1, strikes: 2, detail: 5, life: 0.16, leader: 0.01, impact: false, intensity: 0.6 * i }));
     }
-    if (k >= 0.9 && p.y > 0.4) {
+    if (k >= 1.0 && p.y > 0.4) {
       const g = new THREE.Vector3(p.x + d.x * 0.7 + (R() - 0.5) * 0.6, 0.03, p.z + 0.2 + R() * 0.3);
-      v.schedule(0.03, (w) => { w.bolt({ from: p, to: g, width: 0.12 * s, branches: 2, strikes: 2, life: 0.24, leader: 0.02, impact: true, intensity: 0.8 * i }); w.decal({ kind: 'scorch', pos: g, radius: 0.45 * s, life: 2.5, palette: 'volt', magma: 0.6 }); });
+      v.schedule(0.03, (w) => { w.bolt({ from: p, to: g, width: 0.07 * s, branches: 1, strikes: 2, life: 0.2, leader: 0.02, impact: false, intensity: 0.6 * i }); w.decal({ kind: 'scorch', pos: g, radius: 0.4 * s, life: 2.5, palette: 'volt', magma: 0.5 }); });
     }
-    v.light({ pos: lightAt(p), color: V.core, intensity: (30 + 55 * k) * i, range: 5, duration: 0.16 + 0.1 * k, flicker: 0.5, realtime: true });
-    v.schedule(0.035, (w) => w.distort({ kind: 'shock', pos: p, normal: d, radius: [0.1 * s, (0.6 + 0.8 * k) * s], life: 0.3, strength: 0.035 }));
-    v.burst(D.motes, { pos: p, count: Math.round(5 + 8 * k), scale: s });
-    if (k >= 0.9) v.burst(D.ozone, { pos: p, dir: [0, 1, 0], count: 3, scale: 0.7 * s, delay: 0.08 });
+    if (k >= 1.0) v.light({ pos: lightAt(p, 0.2, 1.3), color: V.core, intensity: (12 + 18 * k) * i, range: 4, duration: 0.15, flicker: 0.5, realtime: true });
+    if (k >= 0.8) v.schedule(0.035, (w) => w.distort({ kind: 'shock', pos: p, normal: d, radius: [0.1 * s, (0.5 + 0.6 * k) * s], life: 0.28, strength: 0.03 }));
+    v.burst(D.motes, { pos: p, count: Math.round(3 + 6 * k), scale: s });
+    if (k >= 0.9) v.burst(D.ozone, { pos: p, dir: [0, 1, 0], count: 2, scale: 0.6 * s, delay: 0.08 });
+  });
+
+  // ---- lightning along the spear (thrusts): a thin line base -> tip, a streak and a ring at the tip -------------------
+  vfx.define('vorn.spear', (v, at, o) => {
+    const s = at.scale, i = I(o), a = at.pos, b = vec(at.target);
+    const d = b.clone().sub(a).normalize(), ext = b.clone().addScaledVector(d, (o.reach ?? 0.25) * s);
+    v.beam({ look: 'volt', from: a, to: ext, width: (o.width ?? 0.07) * s, extend: 0.025, release: 0.07, life: o.life ?? 0.1, wiggle: 0.02, flares: false, intensity: 0.45 * i });
+    v.flare({ kind: 'streak', pos: ext, size: 0.07 * s, aspect: 14, life: 0.09, dir: d, color: WHITE, intensity: 0.3 * i });
+    v.ring({ look: 'volt', normal: d, pos: ext, radius: [0.03 * s, 0.26 * s * (o.ring ?? 1)], width: [0.04 * s, 0.07 * s], life: 0.14, intensity: 0.5 * i, alpha: 0.8 });
+    v.burst(D.goldCone, { pos: ext, dir: d, count: Math.round(8 * i), scale: 0.7 * s });
+    v.burst(D.arcsLine, { pos: a, to: ext, count: Math.round(3 * i), scale: 0.7 * s });
+  });
+
+  // ---- electric crescent (smears of the spear) ------------------------------------------------------------------
+  vfx.define('vorn.arc', (v, at, o) => {
+    const s = at.scale, i = I(o), f = at.facing;
+    const plane = { normal: o.normal || [0, 0.2, 1], forward: o.forward || [1, 0, 0], roll: o.roll || 0, facing: f };
+    const arc = o.arc || [150, -30], R0 = (o.radius ?? 1.4) * s, sweep = o.sweep ?? 0.07;
+    v.slash({ look: 'electric', pos: at.pos, ...plane, arc, radius: R0, width: (o.width ?? 0.22) * s, sweep, life: o.life ?? 0.26, intensity: 0.42 * i, alpha: 0.8 });
+    v.slash({ look: 'razor', palette: 'volt', core: WHITE, pos: at.pos, ...plane, arc, radius: R0 * 0.995, width: 0.035 * s, sweep, life: 0.1, intensity: 0.6 * i });
   });
 
   // ---- the victim seizes (loop over opts.duration) ----------------------------------------------------------------
@@ -206,14 +227,14 @@ export function defineVornFx(vfx, rng) {
     const hs = [v.emitter(D.gather, { pos: at.pos, scale: s, duration: T, intensity: i }), v.emitter(D.gatherMotes, { pos: at.pos, scale: s, duration: T * 0.9, intensity: i }),
       v.emitter(D.crawlTip, { pos: at.pos, scale: 1.4 * s, duration: T + 0.05 })];
     hs[2].rate = 34;
-    const fl = v.flare({ kind: 'glow', pos: at.pos, size: [0.12 * s, 0.75 * s], life: T + 0.06, attack: T * 0.85, decay: 6, color: V.core, intensity: 0.75 * i });
-    const lt = v.light({ pos: lightAt(at.pos, 0.1, 0.9), color: V.core, intensity: 70 * i, range: 4.5, duration: T + 0.08, curve: [[0, 0], [0.85, 1], [1, 0.6]], flicker: 0.4 });
+    const fl = v.flare({ kind: 'glow', pos: at.pos, size: [0.1 * s, 0.5 * s], life: T + 0.06, attack: T * 0.85, decay: 6, color: V.core, intensity: 0.4 * i });
+    const lt = v.light({ pos: lightAt(at.pos, 0.1, 1.4), color: V.core, intensity: 22 * i, range: 4, duration: T + 0.08, curve: [[0, 0], [0.85, 1], [1, 0.6]], flicker: 0.4 });
     if (follow) { for (const h of hs) h.follow(follow); fl.follow(follow); lt.follow(follow, [0, 0.1, 0.9]); }
     if (o.pop) {
       const tip = new THREE.Vector3();
       v.schedule(T, (w) => {
         if (follow) follow.getWorldPosition(tip); else tip.copy(at.pos);
-        w.burst(D.flash, { pos: tip, scale: 0.45 * s, intensity: 0.7 });
+        w.burst(D.flash, { pos: tip, scale: 0.3 * s, intensity: 0.45 });
         w.burst(D.arcs, { pos: tip, count: 10, scale: s });
         w.burst(D.gold, { pos: tip, dir: [0, 1, 0], count: 16, scale: 0.7 * s });
       });
@@ -227,13 +248,13 @@ export function defineVornFx(vfx, rng) {
     v.bolt({ from: p, to: top, width: 0.32 * s, branches: 5, strikes: 3, interval: [0.04, 0.08], leader: 0.03, life: 0.42, impact: false, intensity: i });
     v.schedule(0.02, (w) => w.bolt({ from: p, to: jit(top, 2.5, 1, 1), width: 0.14 * s, branches: 2, strikes: 2, leader: 0.02, life: 0.3, impact: false, intensity: 0.7 * i }));
     v.flare({ kind: 'streak', pos: p, size: 0.16 * s, aspect: 14, life: 0.16, dir: [0, 1, 0], color: WHITE, intensity: 0.7 * i });
-    v.flare({ kind: 'star', pos: p, size: 1.1 * s, life: 0.18, decay: 3, color: V.core, intensity: 0.6 * i, rotation: 0.2 });
-    v.ring({ look: 'volt', normal: [0, 1, 0.25], pos: p, radius: [0.05 * s, 0.9 * s], width: [0.08 * s, 0.16 * s], life: 0.22, intensity: 0.8 * i });
+    v.flare({ kind: 'star', pos: p, size: 0.7 * s, life: 0.15, decay: 3, color: V.core, intensity: 0.3 * i, rotation: 0.2 });
+    v.ring({ look: 'volt', normal: [0, 1, 0.25], pos: p, radius: [0.05 * s, 0.6 * s], width: [0.05 * s, 0.1 * s], life: 0.2, intensity: 0.55 * i });
     v.burst(D.goldFan, { pos: p, dir: [0, 1, 0], count: Math.round(34 * i), scale: 0.8 * s });
     v.burst(D.arcs, { pos: p, count: 10, scale: s });
     // the clouds light up where the bolt enters them
-    v.flare({ kind: 'flash', pos: new THREE.Vector3(top.x, 9, top.z), size: 7, life: 0.35, decay: 2, color: V.mid, intensity: 0.22 * i, pull: 0 });
-    v.light({ pos: lightAt(p, 0.3, 1.0), color: V.core, intensity: 110 * i, range: 6, duration: 0.3, flicker: 0.6 });
+    v.flare({ kind: 'flash', pos: new THREE.Vector3(top.x, 9, top.z), size: 6, life: 0.3, decay: 2, color: V.mid, intensity: 0.12 * i, pull: 0 });
+    v.light({ pos: lightAt(p, 0.5, 1.6), color: V.core, intensity: 35 * i, range: 5, duration: 0.25, flicker: 0.6 });
   });
 
   // ---- Stormfall marker under the opponent ----------------------------------------------------------------------
@@ -243,7 +264,7 @@ export function defineVornFx(vfx, rng) {
     v.decal({ kind: 'scorch', pos: new THREE.Vector3(g.x, 0, g.z), radius: 0.7 * s, life: warn + 3.5, palette: 'volt', magma: 0.9 });
     v.emitter(D.crawlGround, { pos: new THREE.Vector3(g.x, 0.08, g.z), dir: [0, 1, 0], scale: 1.15 * s, duration: warn }).rate = 30;
     v.emitter(D.motesUp, { pos: new THREE.Vector3(g.x, 0.05, g.z), dir: [0, 1, 0], scale: 0.9 * s, duration: warn + 0.1 }).rate = 34;
-    v.light({ pos: new THREE.Vector3(g.x, 0.5, g.z + 0.9), color: V.core, intensity: 45, range: 4, duration: warn + 0.05, curve: [[0, 0], [0.8, 1], [1, 1]], flicker: 0.5, flickerRate: 18 });
+    v.light({ pos: new THREE.Vector3(g.x, 0.5, g.z + 1.2), color: V.core, intensity: 25, range: 4, duration: warn + 0.05, curve: [[0, 0], [0.8, 1], [1, 1]], flicker: 0.5, flickerRate: 18 });
     // upward streamers reaching for the descending bolt (the last instant before it lands)
     const lead = Math.max(0.05, warn - 0.1);
     for (let j = 0; j < 3; j++) {
@@ -259,7 +280,7 @@ export function defineVornFx(vfx, rng) {
     const s = at.scale, c = new THREE.Vector3(at.pos.x, 6.4 * s, at.pos.z - 1.6), dur = o.duration ?? 1.2;
     v.burst(D.cloud, { pos: c, dir: [0, 1, 0], scale: s });
     v.burst(D.cloudGlow, { pos: new THREE.Vector3(c.x, c.y - 0.3, c.z + 0.6), dir: [0, 1, 0], scale: s });
-    v.light({ pos: new THREE.Vector3(c.x, 4.5, c.z + 2.2), color: V.core, intensity: 50, range: 10, duration: dur, attack: 0.1, flicker: 0.85, flickerRate: 9 });
+    v.light({ pos: new THREE.Vector3(c.x, 4.5, c.z + 2.2), color: V.core, intensity: 30, range: 10, duration: dur, attack: 0.1, flicker: 0.85, flickerRate: 9 });
   });
 
   // ---- extras over volt.strike (ground bolts lashing out, floor glow, gold fountain, ozone) ------------------------
@@ -269,7 +290,7 @@ export function defineVornFx(vfx, rng) {
     for (let j = 0; j < n; j++) {
       const a = (j / n) * Math.PI * 2 + R() * 0.7, r = (1.2 + R() * 1.4) * k * s;
       const to = new THREE.Vector3(g.x + Math.cos(a) * r, 0.03, g.z + Math.sin(a) * r * 0.6);
-      v.schedule(0.01 + j * 0.012, (w) => w.bolt({ from: g, to, width: 0.12 * s, branches: 2, strikes: 2, detail: 5, roughness: 0.3, life: 0.24, leader: 0.02, impact: true, intensity: 0.8 * i }));
+      v.schedule(0.01 + j * 0.012, (w) => w.bolt({ from: g, to, width: 0.08 * s, branches: 2, strikes: 2, detail: 5, roughness: 0.3, life: 0.22, leader: 0.02, impact: false, intensity: 0.65 * i }));
     }
     v.burst(D.floorGlow, { pos: g, dir: [0, 1, 0], scale: 1.1 * k * s });
     v.burst(D.goldUp, { pos: g, dir: [0, 1, 0], count: Math.round(50 * k * i), scale: s });
@@ -281,22 +302,22 @@ export function defineVornFx(vfx, rng) {
   vfx.define('vorn.reform', (v, at, o) => {
     const s = at.scale, g = new THREE.Vector3(at.pos.x, 0.02, at.pos.z), c = new THREE.Vector3(at.pos.x, 1.1 * s, at.pos.z + 0.1), i = I(o);
     v.burst(D.gatherBurst, { pos: c, scale: s });
-    v.burst(D.flash, { pos: c, scale: 0.55 * s, intensity: 0.65 * i });
-    v.flare({ kind: 'star', pos: c, size: 1.4 * s, life: 0.16, decay: 3, color: V.core, intensity: 0.6 * i, rotation: 0.6 });
-    v.ring({ look: 'volt', pos: g, radius: [0.15 * s, 1.6 * s], life: 0.32, intensity: 0.85 * i, distort: 0.02 });
+    v.burst(D.flash, { pos: c, scale: 0.3 * s, intensity: 0.4 * i });
+    v.flare({ kind: 'star', pos: c, size: 0.8 * s, life: 0.14, decay: 3, color: V.core, intensity: 0.25 * i, rotation: 0.6 });
+    v.ring({ look: 'volt', pos: g, radius: [0.15 * s, 1.5 * s], life: 0.32, intensity: 0.6 * i, distort: 0.02 });
     v.burst(D.dustSmall, { pos: g, dir: [0, 1, 0], count: 7, scale: 1.2 * s });
     v.burst(D.goldRing, { pos: new THREE.Vector3(g.x, 0.1, g.z), dir: [0, 1, 0], count: 26, scale: 0.8 * s });
     v.burst(D.arcs, { pos: c, count: 12, scale: 1.2 * s });
-    for (let j = 0; j < 2; j++) v.bolt({ from: jit(c, 0.25, 0.6, 0.1), to: new THREE.Vector3(g.x + (R() - 0.5) * 1.2, 0.03, g.z + R() * 0.4), width: 0.09 * s, branches: 1, strikes: 2, detail: 5, life: 0.16, leader: 0, impact: true, intensity: 0.8 * i });
-    v.light({ pos: lightAt(c, 0, 1.0), color: V.core, intensity: 80 * i, range: 5, duration: 0.25, flicker: 0.5 });
+    for (let j = 0; j < 2; j++) v.bolt({ from: jit(c, 0.25, 0.6, 0.1), to: new THREE.Vector3(g.x + (R() - 0.5) * 1.2, 0.03, g.z + R() * 0.4), width: 0.09 * s, branches: 1, strikes: 2, detail: 5, life: 0.16, leader: 0, impact: false, intensity: 0.8 * i });
+    v.light({ pos: lightAt(c, 0, 1.5), color: V.core, intensity: 30 * i, range: 4.5, duration: 0.22, flicker: 0.5 });
   });
 
   // ---- Arc Step: the charged line, then its detonation -------------------------------------------------------------
   vfx.define('vorn.line', (v, at, o) => {
     const s = at.scale, hold = o.hold ?? 0.26, i = I(o);
     const a = new THREE.Vector3(at.pos.x, 0.14, at.pos.z + 0.05), b = vec(at.target); b.y = 0.14; b.z = at.pos.z + 0.05;
-    v.beam({ look: 'volt', from: a, to: b, width: 0.22 * s, extend: 0.05, release: 0.06, life: hold, wiggle: 0.05, flareSize: 0.5, intensity: 0.75 * i });
-    v.bolt({ from: a, to: b, width: 0.13 * s, branches: 4, strikes: Math.max(2, Math.round(hold / 0.06)), interval: [0.04, 0.07], detail: 6, roughness: 0.22, life: hold, leader: 0.03, impact: false, intensity: 0.85 * i });
+    v.beam({ look: 'volt', from: a, to: b, width: 0.12 * s, extend: 0.05, release: 0.06, life: hold, wiggle: 0.05, flares: false, intensity: 0.5 * i });
+    v.bolt({ from: a, to: b, width: 0.08 * s, branches: 4, strikes: Math.max(2, Math.round(hold / 0.06)), interval: [0.04, 0.07], detail: 6, roughness: 0.22, life: hold, leader: 0.03, impact: false, intensity: 0.85 * i });
     const len = a.distanceTo(b);
     for (let x = 0.3; x < len; x += 0.9) {
       const p = a.clone().lerp(b, x / len); p.y = 0.02;
@@ -312,18 +333,18 @@ export function defineVornFx(vfx, rng) {
     for (let j = 0; j < n; j++) {
       const p = a.clone().lerp(b, (j + 0.5) / n);
       v.schedule(j * 0.028, (w) => {
-        w.bolt({ from: p, to: jit(new THREE.Vector3(p.x, 2.2 + R() * 0.8, p.z), 0.3, 0.2, 0.15), width: 0.16 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0.015, impact: false, intensity: i });
-        w.pillar({ look: 'volt', pos: p, height: 2.4 * s, radius: 0.12 * s, life: 0.3, from: 'ground', intensity: 0.7 * i });
-        w.burst(D.flash, { pos: new THREE.Vector3(p.x, 0.35, p.z), scale: 0.4 * s, intensity: 0.55 * i });
-        w.burst(D.goldUp, { pos: p, dir: [0, 1, 0], count: Math.round(26 * i), scale: 0.8 * s });
-        w.ring({ look: 'volt', pos: p, radius: [0.1 * s, 0.95 * s], life: 0.28, intensity: 0.7 * i });
+        w.bolt({ from: p, to: jit(new THREE.Vector3(p.x, 2.0 + R() * 0.8, p.z), 0.3, 0.2, 0.15), width: 0.1 * s, branches: 2, strikes: 2, detail: 5, life: 0.2, leader: 0.015, impact: false, intensity: 0.75 * i });
+        w.pillar({ look: 'volt', pos: p, height: 2.2 * s, radius: 0.08 * s, life: 0.26, from: 'ground', intensity: 0.45 * i });
+        w.burst(D.flash, { pos: new THREE.Vector3(p.x, 0.3, p.z), scale: 0.25 * s, intensity: 0.35 * i });
+        w.burst(D.goldUp, { pos: p, dir: [0, 1, 0], count: Math.round(20 * i), scale: 0.8 * s });
+        w.ring({ look: 'volt', pos: p, radius: [0.1 * s, 0.85 * s], life: 0.26, intensity: 0.5 * i });
       });
     }
     const m = a.clone().lerp(b, 0.5); m.y = 1.0;
-    v.bolt({ from: new THREE.Vector3(a.x, 1.0, a.z + 0.1), to: new THREE.Vector3(b.x, 1.0, b.z + 0.1), width: 0.26 * s, branches: 3, strikes: 3, interval: [0.04, 0.07], life: 0.32, leader: 0.03, impact: false, intensity: i });
+    v.bolt({ from: new THREE.Vector3(a.x, 1.0, a.z + 0.1), to: new THREE.Vector3(b.x, 1.0, b.z + 0.1), width: 0.16 * s, branches: 3, strikes: 3, interval: [0.04, 0.07], life: 0.32, leader: 0.03, impact: false, intensity: i });
     v.burst(D.arcsLine, { pos: new THREE.Vector3(a.x, 0.6, a.z), to: new THREE.Vector3(b.x, 0.6, b.z), count: 18, scale: s });
     v.burst(D.dust, { pos: m.clone().setY(0.03), dir: [0, 1, 0], count: 8, scale: 1.3 * s });
-    v.light({ pos: lightAt(m, 0, 1.2), color: V.core, intensity: 140 * i, range: 7, duration: 0.3, flicker: 0.6 });
+    v.light({ pos: lightAt(m, 0, 1.8), color: V.core, intensity: 50 * i, range: 6, duration: 0.28, flicker: 0.6 });
     v.schedule(0.04, (w) => w.distort({ kind: 'shock', pos: m, radius: [0.3 * s, 2.8 * s], life: 0.35, strength: 0.04 }));
     v.burst(D.ozone, { pos: m, dir: [0, 1, 0], count: 4, scale: s, delay: 0.12 });
   });
@@ -331,15 +352,15 @@ export function defineVornFx(vfx, rng) {
   // ---- Gale Sweep: the blade drags along the floor -----------------------------------------------------------------
   vfx.define('vorn.sweep', (v, at, o) => {
     const s = at.scale, g = new THREE.Vector3(at.pos.x, 0.04, at.pos.z), d = at.dir, i = I(o);
-    v.burst(D.goldUp, { pos: g, dir: new THREE.Vector3(d.x * 0.7, 1, d.z * 0.7 + 0.2).normalize(), count: Math.round(70 * i), scale: s });
+    v.burst(D.goldUp, { pos: g, dir: new THREE.Vector3(d.x * 0.7, 1, d.z * 0.7 + 0.2).normalize(), count: Math.round(50 * i), scale: s });
     v.burst(D.arcsLine, { pos: g, to: g.clone().addScaledVector(d, 1.4 * s), count: 10, scale: s });
     for (let j = 0; j < 3; j++) {
       const to = g.clone().addScaledVector(d, (0.6 + 0.6 * j) * s); to.z += 0.3 + R() * 0.5; to.y = 0.03;
-      v.schedule(j * 0.02, (w) => w.bolt({ from: g, to, width: 0.1 * s, branches: 1, strikes: 2, detail: 5, roughness: 0.3, life: 0.2, leader: 0.01, impact: true, intensity: 0.8 * i }));
+      v.schedule(j * 0.02, (w) => w.bolt({ from: g, to, width: 0.06 * s, branches: 1, strikes: 2, detail: 5, roughness: 0.3, life: 0.18, leader: 0.01, impact: false, intensity: 0.6 * i }));
     }
     v.burst(D.dustSmall, { pos: g, dir: [0, 1, 0], count: 6, scale: 1.4 * s });
     v.burst(D.pebbles, { pos: g, dir: [0, 1, 0], count: 6, scale: 0.8 });
-    v.light({ pos: lightAt(g, 0.4, 1.0), color: V.core, intensity: 60 * i, range: 5, duration: 0.3, flicker: 0.6 });
+    v.light({ pos: lightAt(g, 0.5, 1.5), color: V.core, intensity: 20 * i, range: 4, duration: 0.25, flicker: 0.6 });
   });
 
   // ---- weather ---------------------------------------------------------------------------------------------------
@@ -354,7 +375,7 @@ export function defineVornFx(vfx, rng) {
   vfx.define('vorn.storm', (v, at, o) => {
     const s = at.scale, f = at.facing, T = o.duration ?? 0.8, g = new THREE.Vector3(at.pos.x, 0.02, at.pos.z), i = I(o);
     const tip = o.tip ? vec(o.tip) : new THREE.Vector3(g.x, 4, g.z);
-    v.decal({ kind: 'rune', pos: new THREE.Vector3(g.x, 0, g.z), radius: 3.6 * s, palette: 'volt', life: T + 1.6, reveal: 0.35, spin: 0.9, intensity: 1.1 * i });
+    v.decal({ kind: 'rune', pos: new THREE.Vector3(g.x, 0, g.z), radius: 3.6 * s, palette: 'volt', life: T + 1.4, reveal: 0.35, fadeOut: 0.8, spin: 0.9, intensity: 0.6 * i });
     v.emitter(D.crawlGround, { pos: new THREE.Vector3(g.x, 0.08, g.z), dir: [0, 1, 0], scale: 3 * s, duration: T + 0.3 }).rate = 40;
     v.emitter(D.motesUp, { pos: new THREE.Vector3(g.x, 0.05, g.z), dir: [0, 1, 0], scale: 2.6 * s, duration: T }).rate = 60;
     v.emitter(D.rain, { pos: new THREE.Vector3(g.x, 6, g.z + 0.8), scale: s, duration: T + 0.5 });
@@ -381,34 +402,32 @@ export function defineVornFx(vfx, rng) {
   vfx.define('vorn.pillar', (v, at, o) => {
     const s = at.scale, f = at.facing, g = new THREE.Vector3(at.pos.x, 0.02, at.pos.z), i = I(o);
     // the column: a wide sheath and a blinding thin core from the sky, a second fat bolt riding it
-    v.pillar({ look: 'volt', pos: g, height: 16, radius: 0.85 * s, sheath: 2.4, life: 1.15, rise: 0.06, fade: 0.45, intensity: 0.85 * i });
-    v.pillar({ look: 'volt', pos: g, height: 16, radius: 0.3 * s, life: 0.7, rise: 0.04, intensity: 1.0 * i });
-    v.bolt({ from: new THREE.Vector3(g.x - f * 0.6, 16, g.z - 2.5), to: new THREE.Vector3(g.x, 0.05, g.z), width: 0.75 * s, branches: 7, strikes: 4, interval: [0.05, 0.1], life: 0.7, leader: 0.02, light: 230 * i, lightRange: 12, intensity: i });
+    v.pillar({ look: 'volt', pos: g, height: 16, radius: 0.6 * s, sheath: 2.0, life: 1.1, rise: 0.06, fade: 0.4, intensity: 0.4 * i });
+    v.pillar({ look: 'volt', pos: g, height: 16, radius: 0.18 * s, life: 0.65, rise: 0.04, intensity: 0.6 * i });
+    v.bolt({ from: new THREE.Vector3(g.x - f * 0.6, 16, g.z - 2.5), to: new THREE.Vector3(g.x, 0.05, g.z), width: 0.5 * s, branches: 7, strikes: 4, interval: [0.05, 0.1], life: 0.7, leader: 0.02, impact: false, light: 120 * i, lightRange: 12, intensity: i });
     for (let j = 0; j < 3; j++) v.schedule(0.04 + j * 0.06, (w) => w.bolt({ from: new THREE.Vector3(g.x + (j - 1) * 3, 13, g.z - 2.5), to: jit(g, 1.6 * s, 0, 0.5 * s).setY(0.05), width: 0.3 * s, branches: 3, strikes: 2, intensity: 0.8 * i }));
     // crater
     v.decal({ kind: 'crack', pos: g, radius: 3.6 * s, life: 7, density: 1.4 });
     v.decal({ kind: 'scorch', pos: g, radius: 2.6 * s, life: 7, palette: 'volt', magma: 1, cool: 2.5 });
-    v.decal({ kind: 'rune', pos: g, radius: 4.4 * s, palette: 'volt', life: 1.6, reveal: 0.12, fadeOut: 0.6, spin: 2.2, intensity: 1.2 });
     v.spikes({ kind: 'rock', pattern: 'ring', pos: g, radius: 1.5 * s, count: 9, height: [0.35, 0.8], width: 0.35, tilt: 38, hold: 2.6, stagger: 0.012, rise: 0.06 });
     // shock waves across the arena
-    v.ring({ look: 'volt', pos: g, radius: [0.4 * s, 7 * s], life: 0.6, distort: 0.05, intensity: i });
-    v.schedule(0.05, (w) => w.ring({ look: 'shock', pos: g, radius: [0.3 * s, 5.5 * s], life: 0.5, palette: 'volt', intensity: 0.8 * i }));
+    v.ring({ look: 'volt', pos: g, radius: [0.4 * s, 7 * s], life: 0.6, distort: 0.05, intensity: 0.7 * i });
     v.ring({ look: 'dust', pos: g, radius: [0.5 * s, 6.5 * s], life: 1.4 });
     v.schedule(0.03, (w) => w.distort({ kind: 'shock', pos: new THREE.Vector3(g.x, 1.0, g.z), radius: [0.5 * s, 7 * s], life: 0.6, strength: 0.06 }));
     // ground bolts lashing out to the walls of the crater and beyond
     for (let j = 0; j < 8; j++) {
       const a = (j / 8) * Math.PI * 2 + R() * 0.5, r = (2.6 + R() * 2.2) * s;
       const to = new THREE.Vector3(g.x + Math.cos(a) * r, 0.03, g.z + Math.sin(a) * r * 0.55);
-      v.schedule(0.02 + j * 0.018, (w) => w.bolt({ from: g, to, width: 0.16 * s, branches: 3, strikes: 2, detail: 6, roughness: 0.3, life: 0.3, leader: 0.03, impact: true, intensity: 0.85 * i }));
+      v.schedule(0.02 + j * 0.018, (w) => w.bolt({ from: g, to, width: 0.16 * s, branches: 3, strikes: 2, detail: 6, roughness: 0.3, life: 0.3, leader: 0.03, impact: false, intensity: 0.85 * i }));
     }
-    v.burst(D.flash, { pos: new THREE.Vector3(g.x, 0.7, g.z + 0.3), scale: 1.0 * s, intensity: 0.6 * i });
-    v.burst(D.floorGlow, { pos: g, dir: [0, 1, 0], scale: 2.4 * s });
+    v.burst(D.flash, { pos: new THREE.Vector3(g.x, 0.7, g.z + 0.3), scale: 0.55 * s, intensity: 0.35 * i });
+    v.burst(D.floorGlow, { pos: g, dir: [0, 1, 0], scale: 1.6 * s, intensity: 0.6 });
     v.burst(D.goldRadial, { pos: new THREE.Vector3(g.x, 0.25, g.z), count: Math.round(110 * i), scale: 1.2 * s });
     v.burst(D.goldUp, { pos: g, dir: [0, 1, 0], count: Math.round(120 * i), scale: 1.5 * s });
     v.burst(D.arcs, { pos: new THREE.Vector3(g.x, 0.4, g.z), count: 26, scale: 1.8 * s });
     v.debris({ kind: 'rock', pos: [g.x, 0.12, g.z], count: Math.round(30 * i), speed: [4, 11, 1.3], spread: 55, scale: s });
     v.burst(D.dust, { pos: g, dir: [0, 1, 0], count: 16, scale: 2.2 * s });
-    v.light({ pos: new THREE.Vector3(g.x, 2.2, g.z + 1.6), color: V.core, intensity: 210 * i, range: 12, duration: 0.7, flicker: 0.5 });
+    v.light({ pos: new THREE.Vector3(g.x, 2.6, g.z + 2.4), color: V.core, intensity: 140 * i, range: 12, duration: 0.6, flicker: 0.5 });
     // aftermath: smoke rising out of the crater, static crawling, gold dripping, ozone
     v.schedule(0.25, (w) => {
       w.burst(D.smokeColumn, { pos: g, dir: [0, 1, 0], scale: 1.1 * s });

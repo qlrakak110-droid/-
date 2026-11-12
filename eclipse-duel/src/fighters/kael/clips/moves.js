@@ -5,9 +5,10 @@
 // the blade) -> IMPACT -> AFTERMATH (follow-through, overshoot, weight on the front foot) -> SETTLE (back to the stance).
 
 import { defineClip, definePose } from '../../../char/index.js';
-import { FL, FR, YAW_L, YAW_R, FEET, SHOULDER_HAND, STANCE_BODY, dir, plane, stance, sorted } from './common.js';
+import { FL, FR, YAW_L, YAW_R, FEET, SHOULDER_HAND, STANCE_BODY, dir, grip, plane, stance, sorted } from './common.js';
 
-const H = (pos, o) => ({ pos, ...o });                         // hand target: position + blade orientation
+const H = (pos, o) => ({ pos, ...o });                         // hand target: position + blade orientation (keyed roll)
+const G = (pos, o) => grip(pos, o.aim || o);                   // hand target: blade direction, wrist-natural roll
 const ev = (list) => list.map(([t, name, data]) => (data ? { t, name, data } : { t, name }));
 const impact = (t) => [[t, 'impact'], [t, 'hit']];
 /** Origin-space feet (planted in the world while the rules move the root). */
@@ -18,7 +19,7 @@ const travel = (t0, t1, d) => [{ t: t0, interp: 'linear', root: { pos: [0, 0] } 
 /** The blade back onto the shoulder: body + hand of the stance (feet untouched). */
 const home = (t, ease = 'inOutSine') => ({ t, ease, hips: STANCE_BODY.hips, bones: STANCE_BODY.bones, ik: { handR: SHOULDER_HAND }, grip: 1 });
 /** Blade rising off the shoulder toward the vertical (recovery helper key). */
-const lifting = (pos) => H(pos, { aim: dir(-120, 72), up: [-0.6, -0.3, 0.74] });
+const lifting = (pos) => G(pos, dir(-120, 72));
 
 // ---- the forehand diagonal plane (light1 cuts down it, light2's back-edge cut climbs back up it) -----------------
 const DIAG = plane([-0.8, 0.5, 0.32], [0.25, 0.8, 0.55]);       // 0 = behind the right shoulder ... 130 = front ... 200 = low left
@@ -99,7 +100,7 @@ defineClip('kael.light2', {
 
 // ---- light3 · Cinder Drop (0.70; active 0.24-0.29; steps 0.35 m in 0.04-0.2) --------------------------------------
 {
-  const OVER = plane(dir(180, 28), dir(0, 85));                 // 0 = behind, 90 = straight up, 150 = forward, 165 = into the floor
+  const OVER = plane(dir(180, 28), dir(0, 85));                 // 0 = behind, 60 = straight up, 150 = forward, 175 = point on the floor ahead
   const d = 2.2 * 0.16;
   defineClip('kael.light3', {
     duration: 0.7, breath: 0.2, base: 'kael.l2end',
@@ -107,16 +108,16 @@ defineClip('kael.light2', {
       { t: 0, pose: 'kael.l2end', ik: { footL: oL(FL[0]), footR: oR(FR[0]) } },
       // wind-up: rises tall, blade high back over the head, chest arched, front foot lifts into the step
       { t: 0.1, ease: 'outCubic', hips: { pos: [-0.09, -0.07, 0], rot: [0, -16, 0] }, bones: { spine: [0, -4, 9], chest: [0, -5, 12], neck: [0, 8, -8], head: [0, 10, -12] },
-        ik: { handR: H([-0.02, 1.95, 0.14], OVER(-4)) } },
+        ik: { handR: G([-0.02, 1.95, 0.14], OVER(-4)) } },
       { t: 0.15, ease: 'inOutSine', hips: { pos: [-0.08, -0.08, 0], rot: [0, -14, 0] }, bones: { spine: [0, -3, 11], chest: [0, -4, 14] },
-        ik: { handR: H([-0.05, 1.98, 0.12], OVER(-12)) } },
+        ik: { handR: G([-0.05, 1.98, 0.12], OVER(-12)) } },
       // smear over the top
-      { t: 0.19, ik: { handR: H([0.3, 1.92, 0.07], OVER(80)) } },
+      { t: 0.19, ik: { handR: G([0.3, 1.92, 0.07], OVER(80)) } },
       // impact: the blade bites the floor, deep lunge, head and chest driven down over the front knee
       { t: 0.24, ease: 'inQuad', hips: { pos: [-0.05, -0.33, -0.01], rot: [0, -12, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -19], neck: [0, 4, 13], head: [0, 6, 17] },
-        ik: { handR: H([0.62, 0.74, 0.05], OVER(158)) } },
-      { t: 0.29, ease: 'outQuad', hips: { pos: [-0.06, -0.31, -0.01] }, bones: { spine: [0, -2, -22], chest: [0, -2, -17] }, ik: { handR: H([0.61, 0.77, 0.05], OVER(156)) } },
-      { t: 0.44, ease: 'inOutSine', hips: { pos: [-0.08, -0.3, -0.01], rot: [0, -14, 0] }, ik: { handR: H([0.6, 0.78, 0.06], OVER(155)) } },
+        ik: { handR: G([0.62, 0.74, 0.05], OVER(176)), footR: oR(FR[0], 0, -26) } },
+      { t: 0.29, ease: 'outQuad', hips: { pos: [-0.06, -0.31, -0.01] }, bones: { spine: [0, -2, -22], chest: [0, -2, -17] }, ik: { handR: G([0.61, 0.77, 0.05], OVER(174)) } },
+      { t: 0.44, ease: 'inOutSine', hips: { pos: [-0.08, -0.3, -0.01], rot: [0, -14, 0] }, ik: { handR: G([0.6, 0.78, 0.06], OVER(173)) } },
       // wrench the blade free and swing it up onto the shoulder; the back foot closes the stance
       { t: 0.56, ease: 'inOutSine', hips: { pos: [-0.04, -0.16, 0], rot: [0, -20, 0] }, bones: { spine: [0, -4, -6], chest: [0, -5, -4], neck: [0, 10, 2], head: [0, 13, 0] },
         ik: { handR: lifting([0.3, 1.24, 0.18]) } },
@@ -125,7 +126,7 @@ defineClip('kael.light2', {
       { t: 0.04, ik: { footL: oL(FL[0]) } },
       { t: 0.11, ik: { footL: oL(FL[0] + 0.16, 0.12, 8) } },
       { t: 0.2, ease: 'inQuad', ik: { footL: oL(FL[0] + d) } },
-      { t: 0.44, ik: { footR: oR(FR[0]) } },
+      { t: 0.44, ik: { footR: oR(FR[0], 0, -22) } },
       { t: 0.55, ik: { footR: oR(FR[0] + d * 0.5, 0.07, -6) } },
       { t: 0.63, ease: 'inQuad', ik: { footR: oR(FR[0] + d) } },
       { t: 0.7, ik: { footL: oL(FL[0] + d), footR: oR(FR[0] + d) } },
@@ -154,7 +155,7 @@ defineClip('kael.light2', {
       { t: 0.28, hips: { pos: [-0.02, -0.23, 0.01], rot: [0, -22, 0] }, bones: { spine: [0, -6, -8], chest: [0, -6, -7], neck: [0, 12, 4], head: [0, 14, 2] },
         ik: { handR: H(ring(-62, 0.42, 1.04), FLAT(88)) } },
       { t: 0.32, hips: { pos: [0.04, -0.22, -0.01], rot: [0, 12, 0] }, bones: { spine: [0, 6, -8], chest: [0, 8, -7], neck: [0, -6, 4], head: [0, -8, 2] },
-        ik: { handR: H(ring(-6, 0.56, 1.06), FLAT(160)) } },
+        ik: { handR: H(ring(-6, 0.56, 1.06), FLAT(160)), footR: { pos: FR, rot: [0, -34, -22] } } },
       { t: 0.36, hips: { pos: [0.06, -0.21, -0.02], rot: [0, 36, 0] }, bones: { spine: [0, 12, -6], chest: [0, 14, -5], neck: [0, -16, 4], head: [0, -20, 2] },
         ik: { handR: H(ring(40, 0.52, 1.06), FLAT(212)), footR: { pos: [FR[0] + 0.02, 0.02, FR[2] - 0.01], rot: [0, -10, -16] } } },
       { t: 0.4, ik: { handR: H(ring(78, 0.44, 1.08), FLAT(250)) } },
@@ -164,7 +165,7 @@ defineClip('kael.light2', {
       { t: 0.56, ease: 'inOutSine', hips: { pos: [0.05, -0.19, -0.03], rot: [-2, 54, -3] }, ik: { handR: H(ring(108, 0.36, 1.16), FLAT(290)) } },
       // haul the blade up over the head and back onto the shoulder
       { t: 0.7, ease: 'inOutSine', hips: { pos: [-0.01, -0.15, 0], rot: [0, 8, 0] }, bones: { spine: [0, 2, -2], chest: [0, 2, 2], neck: [0, 4, -2], head: [0, 4, -4] },
-        ik: { handR: H([0.06, 1.68, -0.02], { aim: dir(178, 62), up: [-0.85, -0.5, 0.15] }), footL: FEET.footL, footR: { pos: FR, rot: [0, -30, -4] } } },
+        ik: { handR: G([0.06, 1.68, -0.02], dir(178, 62)), footL: FEET.footL, footR: { pos: FR, rot: [0, -30, -4] } } },
       { ...home(0.86), ik: { handR: SHOULDER_HAND, ...FEET } },
     ],
     events: ev([[0.23, 'trailOn'], ...impact(0.32), [0.47, 'trailOff']]),
@@ -174,23 +175,23 @@ defineClip('kael.light2', {
 // ---- lunge · Molten Lunge (0.78; travels 3.2 m; active 0.26-0.34) ---------------------------------------------------
 {
   const motion = [[0, 0], [0.06, 0], [0.22, 2.4], [0.3, 3.05], [0.36, 3.2]];
-  const thrust = (el = 2, az = 0) => ({ aim: dir(az, el), up: [0, 1, 0] });
+  const thrust = (el = 2, az = 0) => ({ aim: dir(az, el), up: [0, 0.3, 0.95] });
   defineClip('kael.lunge', {
     duration: 0.78, breath: 0.1,
     keys: sorted([
       { t: 0, ...stance(), ik: { handR: SHOULDER_HAND, footL: oL(FL[0]), footR: oR(FR[0]) } },
       // wind-up: the left shoulder drops and leads, the blade is chambered at the right hip, point at the foe
       { t: 0.06, ease: 'outCubic', hips: { pos: [0.02, -0.22, 0.02], rot: [0, -58, 0] }, bones: { spine: [0, -10, -14], chest: [0, -10, -12], neck: [0, 26, 10], head: [0, 32, 8] },
-        ik: { handR: H([-0.08, 1.0, 0.3], thrust(4)) } },
+        ik: { handR: H([0.1, 1.0, 0.28], thrust(3, 18)) } },
       // the charge: low and flat, the front knee driving, the rear toe dragging along the floor
-      { t: 0.14, hips: { pos: [0.08, -0.26, 0.02], rot: [0, -54, 0] }, bones: { spine: [0, -9, -16], chest: [0, -9, -13] }, ik: { handR: H([-0.06, 0.98, 0.3], thrust(3)) } },
+      { t: 0.14, hips: { pos: [0.08, -0.26, 0.02], rot: [0, -54, 0] }, bones: { spine: [0, -9, -16], chest: [0, -9, -13] }, ik: { handR: H([0.1, 0.98, 0.28], thrust(2, 18)) } },
       { t: 0.22, hips: { pos: [0.12, -0.26, 0.01], rot: [0, -40, 0] }, bones: { spine: [0, -6, -14], chest: [0, -6, -11], neck: [0, 20, 8], head: [0, 24, 6] },
-        ik: { handR: H([0.1, 1.04, 0.24], thrust(3)) } },
+        ik: { handR: H([0.2, 1.04, 0.24], thrust(2, 16)) } },
       // thrust: hips unwind, both arms drive the point through, full extension
       { t: 0.26, hips: { pos: [0.16, -0.3, 0], rot: [0, -10, 0] }, bones: { spine: [0, 0, -12], chest: [0, 2, -9], neck: [0, 6, 6], head: [0, 8, 4] },
-        ik: { handR: H([0.56, 1.1, 0.08], thrust(1)) } },
-      { t: 0.34, ease: 'outQuad', hips: { pos: [0.18, -0.32, -0.01], rot: [0, 0, 0] }, ik: { handR: H([0.66, 1.1, 0.04], thrust(0, 2)) } },
-      { t: 0.42, ease: 'inOutSine', hips: { pos: [0.16, -0.31, -0.01], rot: [0, -4, 0] }, ik: { handR: H([0.64, 1.1, 0.05], thrust(-2, 2)) } },
+        ik: { handR: H([0.56, 1.1, 0.08], thrust(1, 14)) } },
+      { t: 0.34, ease: 'outQuad', hips: { pos: [0.18, -0.32, -0.01], rot: [0, 0, 0] }, ik: { handR: H([0.64, 1.1, 0.04], thrust(0, 14)) } },
+      { t: 0.42, ease: 'inOutSine', hips: { pos: [0.16, -0.31, -0.01], rot: [0, -4, 0] }, ik: { handR: H([0.62, 1.1, 0.05], thrust(-2, 14)) } },
       // recover: draw the blade back and up onto the shoulder, front foot pulls back, rear foot steps up
       { t: 0.6, ease: 'inOutSine', hips: { pos: [0.02, -0.18, 0], rot: [0, -18, 0] }, bones: { spine: [0, -4, -6], chest: [0, -5, -4], neck: [0, 12, 2], head: [0, 15, 0] },
         ik: { handR: lifting([0.3, 1.2, 0.2]) } },
@@ -200,8 +201,8 @@ defineClip('kael.light2', {
       { t: 0.14, ik: { footL: { pos: [0.62, 0.22, -0.16], rot: [0, YAW_L, 10] }, footR: { pos: [-0.78, 0.02, 0.2], rot: [0, YAW_R, -40] } } },
       { t: 0.24, ik: { footL: { pos: [0.74, 0.1, -0.16], rot: [0, YAW_L, 8] }, footR: { pos: [-0.86, 0.02, 0.2], rot: [0, YAW_R, -44] } } },
       { t: 0.3, ease: 'inQuad', ik: { footL: oL(3.05 + 0.76) } },
-      { t: 0.34, ease: 'inQuad', ik: { footR: oR(3.2 - 0.84, 0, 0) } },
-      { t: 0.52, ik: { footL: oL(3.05 + 0.76), footR: oR(3.2 - 0.84) } },
+      { t: 0.34, ease: 'inQuad', ik: { footR: oR(3.2 - 0.84, 0, -32) } },
+      { t: 0.52, ik: { footL: oL(3.05 + 0.76), footR: oR(3.2 - 0.84, 0, -24) } },
       { t: 0.6, ik: { footR: oR(3.2 - 0.6, 0.08, -6) } },
       { t: 0.68, ease: 'inQuad', ik: { footR: oR(3.2 + FR[0]), footL: oL(3.05 + 0.76) } },
       { t: 0.72, ik: { footL: oL(3.2 + FL[0] + 0.1, 0.05, 0) } },
@@ -214,7 +215,7 @@ defineClip('kael.light2', {
 
 // ---- vent · Vent Launcher (0.72; active 0.22-0.30) ------------------------------------------------------------------
 {
-  const UP = plane(dir(-6, -36), dir(0, 30));                  // 0 = tip in the floor ahead, 66 = forward-up, 110 = up, 135 = past vertical
+  const UP = plane(dir(-6, -36), dir(0, 30), true);                  // 0 = tip in the floor ahead, 66 = forward-up, 110 = up, 135 = past vertical
   defineClip('kael.vent', {
     duration: 0.72, breath: 0.1,
     keys: [
@@ -223,20 +224,20 @@ defineClip('kael.light2', {
       { t: 0.08, ease: 'inOutSine', hips: { pos: [-0.03, -0.24, 0.01], rot: [0, -28, 0] }, bones: { spine: [0, -6, -12], chest: [0, -6, -10], neck: [0, 16, 8], head: [0, 20, 10] },
         ik: { handR: H([0.3, 0.98, 0.22], { aim: dir(-20, 20), up: [-0.2, 0.3, 0.93] }) } },
       { t: 0.15, ease: 'outCubic', hips: { pos: [-0.05, -0.32, 0.01], rot: [0, -32, 0] }, bones: { spine: [0, -7, -18], chest: [0, -7, -14], neck: [0, 18, 12], head: [0, 22, 14] },
-        ik: { handR: H([0.32, 0.72, 0.2], UP(0)) } },
+        ik: { handR: G([0.32, 0.72, 0.2], UP(0)), footR: { pos: FR, rot: [0, YAW_R, -24] } } },
       // the point rips out of the floor (split) and the cut climbs
-      { t: 0.18, ease: 'inOutSine', hips: { pos: [-0.04, -0.3, 0.01], rot: [0, -26, 0] }, ik: { handR: H([0.36, 0.74, 0.18], UP(10)) } },
-      { t: 0.2, ik: { handR: H([0.48, 0.86, 0.14], UP(40)) } },
+      { t: 0.18, ease: 'inOutSine', hips: { pos: [-0.04, -0.3, 0.01], rot: [0, -26, 0] }, ik: { handR: G([0.36, 0.74, 0.18], UP(10)) } },
+      { t: 0.2, ik: { handR: G([0.48, 0.86, 0.14], UP(40)) } },
       { t: 0.22, hips: { pos: [0.02, -0.18, 0], rot: [0, -12, 0] }, bones: { spine: [0, -4, -4], chest: [0, -4, -2], neck: [0, 8, 2], head: [0, 10, 0] },
-        ik: { handR: H([0.56, 1.06, 0.12], UP(66)) } },
-      { t: 0.27, ik: { handR: H([0.48, 1.5, 0.12], UP(98)), footR: { pos: [FR[0] + 0.02, 0.03, FR[2]], rot: [0, -26, -20] } } },
+        ik: { handR: G([0.56, 1.06, 0.12], UP(66)) } },
+      { t: 0.27, ik: { handR: G([0.48, 1.5, 0.12], UP(98)), footR: { pos: [FR[0] + 0.02, 0.03, FR[2]], rot: [0, -26, -20] } } },
       // follow-through: rises onto the back toes, the blade overhead past vertical, chest open to the sky
       { t: 0.34, ease: 'outQuad', hips: { pos: [0.0, -0.04, 0], rot: [0, -16, 0] }, bones: { spine: [0, -4, 7], chest: [0, -6, 11], neck: [0, 8, -6], head: [0, 10, -12] },
-        ik: { handR: H([0.26, 1.88, 0.14], UP(128)) } },
-      { t: 0.46, ease: 'inOutSine', hips: { pos: [-0.01, -0.06, 0] }, ik: { handR: H([0.22, 1.86, 0.15], UP(132)) } },
+        ik: { handR: G([0.26, 1.88, 0.14], UP(128)) } },
+      { t: 0.46, ease: 'inOutSine', hips: { pos: [-0.01, -0.06, 0] }, ik: { handR: G([0.22, 1.86, 0.15], UP(132)) } },
       // settle: the blade tips back onto the shoulder as the knees sink
       { t: 0.58, ease: 'inOutSine', hips: { pos: [-0.03, -0.11, 0], rot: [0, -22, 0] }, bones: { spine: [0, -5, -1], chest: [0, -6, 0] },
-        ik: { handR: H([0.12, 1.58, 0.22], { aim: dir(-160, 66), up: [-0.9, -0.38, 0.1] }), footR: FEET.footR } },
+        ik: { handR: G([0.12, 1.58, 0.22], dir(-160, 66)), footR: FEET.footR } },
       { ...home(0.72) },
     ],
     events: ev([[0.15, 'trailOn'], [0.18, 'split'], ...impact(0.22), [0.34, 'trailOff']]),
@@ -245,7 +246,8 @@ defineClip('kael.light2', {
 
 // ---- crescent · Ember Crescent (0.74; projectile at 0.28) ----------------------------------------------------------
 {
-  const RISE = plane([-0.8, -0.5, 0.33], [0.0, 0.1, 1]);       // 0 = point on the floor behind, 90 = right side, 150 = front rising
+  const RISE = plane([-0.8, -0.5, 0.33], [0.0, 0.1, 1]);       // 0 = point on the floor behind, 90 = right side, 140 = front rising
+  const LIFT = plane(dir(-6, -36), dir(0, 30), true);          // the rising cut carried on up: 94 = forward-up, 120 = overhead
   defineClip('kael.crescent', {
     duration: 0.74, breath: 0.1,
     keys: [
@@ -261,14 +263,14 @@ defineClip('kael.light2', {
       { t: 0.28, hips: { pos: [0.02, -0.2, 0], rot: [0, -12, 0] }, bones: { spine: [0, -4, -8], chest: [0, -2, -6], neck: [0, 8, 4], head: [0, 10, 2] },
         ik: { handR: H([0.46, 1.08, 0.2], RISE(140)), footL: FEET.footL } },
       { t: 0.33, hips: { pos: [0.05, -0.15, -0.01], rot: [0, 14, 0] }, bones: { spine: [0, 6, -2], chest: [0, 8, 2], neck: [0, -8, 0], head: [0, -10, -2] },
-        ik: { handR: H([0.48, 1.5, 0.0], { aim: dir(30, 52), up: [-0.5, 0.0, -0.85] }), footR: { pos: [FR[0] + 0.02, 0.03, FR[2] - 0.01], rot: [0, -18, -20] } } },
-      // follow-through: blade high on the left, body open, held a beat while the wave travels
-      { t: 0.4, ease: 'outQuad', hips: { pos: [0.05, -0.13, -0.02], rot: [-2, 22, -2] }, bones: { spine: [-2, 8, 2], chest: [-2, 10, 6], neck: [0, -12, -2], head: [0, -14, -4] },
-        ik: { handR: H([0.32, 1.76, -0.12], { aim: dir(58, 64), up: [-0.6, 0.2, -0.78] }) } },
-      { t: 0.5, ease: 'inOutSine', ik: { handR: H([0.3, 1.78, -0.1], { aim: dir(62, 66), up: [-0.6, 0.2, -0.78] }) } },
+        ik: { handR: G([0.5, 1.42, 0.08], LIFT(94)), footR: { pos: [FR[0] + 0.02, 0.03, FR[2] - 0.01], rot: [0, -18, -20] } } },
+      // follow-through: the blade carried on up overhead, body open and tall, held a beat while the wave travels
+      { t: 0.4, ease: 'outQuad', hips: { pos: [0.05, -0.12, -0.02], rot: [-2, 18, -2] }, bones: { spine: [-2, 6, 4], chest: [-2, 8, 8], neck: [0, -10, -4], head: [0, -12, -8] },
+        ik: { handR: G([0.36, 1.8, 0.08], LIFT(118)) } },
+      { t: 0.5, ease: 'inOutSine', ik: { handR: G([0.33, 1.82, 0.09], LIFT(121)) } },
       // settle: the blade drops back over to the right shoulder
       { t: 0.62, ease: 'inOutSine', hips: { pos: [-0.01, -0.12, 0], rot: [0, -12, 0] }, bones: { spine: [0, -2, -2], chest: [0, -3, 0], neck: [0, 6, 0], head: [0, 9, -2] },
-        ik: { handR: H([0.14, 1.66, 0.12], { aim: dir(-170, 66), up: [-0.9, -0.4, 0.1] }), footR: FEET.footR } },
+        ik: { handR: G([0.14, 1.66, 0.12], dir(-170, 66)), footR: FEET.footR } },
       { ...home(0.74) },
     ],
     events: ev([[0.04, 'trailOn'], [0.04, 'drag'], ...impact(0.28), [0.28, 'release'], [0.4, 'trailOff']]),
@@ -277,28 +279,28 @@ defineClip('kael.light2', {
 
 // ---- eruption · Fault Eruption (1.0; blade planted 0.40-0.74) -------------------------------------------------------
 {
-  const DOWN = plane(dir(0, 89), dir(1, 30));                 // 0 = straight up, 90 = forward, 144 = point down into the floor ahead
+  const DOWN = plane(dir(0, 89), dir(1, 30), true);                 // 0 = straight up, 90 = forward, 144 = point down into the floor ahead
   defineClip('kael.eruption', {
     duration: 1.0, breath: 0.4,
     keys: [
       { t: 0, ...stance() },
       // wind-up: both hands raise the greatsword straight up to the sky, the whole body stretches tall (rune, aura)
       { t: 0.16, ease: 'outCubic', hips: { pos: [-0.05, -0.08, 0], rot: [0, -18, 0] }, bones: { spine: [0, -4, 6], chest: [0, -4, 10], neck: [0, 10, -8], head: [0, 12, -14] },
-        ik: { handR: H([0.12, 1.96, 0.12], DOWN(-6)) } },
+        ik: { handR: G([0.12, 1.96, 0.12], DOWN(-6)) } },
       { t: 0.3, ease: 'inOutSine', hips: { pos: [-0.07, -0.06, 0], rot: [0, -17, 0] }, bones: { spine: [0, -3, 8], chest: [0, -3, 13], neck: [0, 9, -10], head: [0, 11, -16] },
-        ik: { handR: H([0.1, 2.0, 0.12], DOWN(-12)) } },
+        ik: { handR: G([0.1, 2.0, 0.12], DOWN(-12)) } },
       // drive: the blade comes over and down, point-first, into the floor at ~1.3 m
-      { t: 0.36, ik: { handR: H([0.36, 1.86, 0.08], DOWN(60)) } },
+      { t: 0.36, ik: { handR: G([0.36, 1.86, 0.08], DOWN(60)) } },
       { t: 0.4, ease: 'inQuad', hips: { pos: [-0.12, -0.34, -0.01], rot: [0, -16, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -20], neck: [0, 6, 14], head: [0, 8, 18] },
-        ik: { handR: H([0.56, 0.98, 0.04], DOWN(144)) } },
+        ik: { handR: G([0.56, 0.98, 0.04], DOWN(144)), footR: { pos: FR, rot: [0, YAW_R, -26] } } },
       // leaning over the planted blade: the cracks race away, the weight shudders down onto it
-      { t: 0.46, ease: 'outQuad', hips: { pos: [-0.13, -0.37, -0.01] }, bones: { spine: [0, -2, -27], chest: [0, -2, -22] }, ik: { handR: H([0.56, 0.94, 0.04], DOWN(144)) } },
-      { t: 0.6, ease: 'inOutSine', hips: { pos: [-0.12, -0.35, -0.01] }, bones: { spine: [0, -3, -25], chest: [0, -3, -21] }, ik: { handR: H([0.56, 0.95, 0.04], DOWN(144)) } },
+      { t: 0.46, ease: 'outQuad', hips: { pos: [-0.13, -0.37, -0.01] }, bones: { spine: [0, -2, -27], chest: [0, -2, -22] }, ik: { handR: G([0.56, 0.94, 0.04], DOWN(144)) } },
+      { t: 0.6, ease: 'inOutSine', hips: { pos: [-0.12, -0.35, -0.01] }, bones: { spine: [0, -3, -25], chest: [0, -3, -21] }, ik: { handR: G([0.56, 0.95, 0.04], DOWN(144)) } },
       { t: 0.74, ease: 'inOutSine', hips: { pos: [-0.14, -0.33, -0.01], rot: [0, -20, 0] }, bones: { spine: [0, -4, -20], chest: [0, -4, -16], neck: [0, 8, 10], head: [0, 10, 12] },
-        ik: { handR: H([0.54, 0.98, 0.05], DOWN(143)) } },
+        ik: { handR: G([0.54, 0.98, 0.05], DOWN(143)) } },
       // wrench: hauls it out backward, then up onto the shoulder
       { t: 0.84, ease: 'outCubic', hips: { pos: [-0.12, -0.2, 0.01], rot: [0, -28, 0] }, bones: { spine: [0, -6, -4], chest: [0, -8, -2], neck: [0, 14, 2], head: [0, 18, 0] },
-        ik: { handR: lifting([0.3, 1.28, 0.2]) } },
+        ik: { handR: lifting([0.3, 1.28, 0.2]), footR: FEET.footR } },
       { ...home(1.0) },
     ],
     events: ev([[0.32, 'trailOn'], ...impact(0.4), [0.46, 'trailOff'], [0.74, 'wrench']]),
@@ -310,7 +312,7 @@ defineClip('kael.light2', {
 definePose('kael.planted', {
   hips: { pos: [-0.08, -0.2, 0], rot: [0, -18, 0] },
   bones: { spine: [0, -4, -2], chest: [0, -6, 6], neck: [0, 10, -2], head: [0, 12, -4], shoulderR: [-6, 0, 0], shoulderL: [-6, 0, 0] },
-  ik: { handR: H([0.44, 1.08, 0.04], { aim: dir(0, -84), up: [-1, -0.1, 0] }), footL: { pos: [FL[0] + 0.02, 0, FL[2] - 0.02], rot: [0, YAW_L + 6, 0] }, footR: { pos: [FR[0] - 0.04, 0, FR[2] + 0.04], rot: [0, YAW_R, 0] } },
+  ik: { handR: H([0.44, 1.08, 0.04], { aim: dir(0, -84), up: [-1, -0.1, 0] }), ...FEET },
   grip: 1, curl: [1, 1],
 });
 defineClip('kael.bulwark', {
@@ -354,7 +356,8 @@ defineClip('kael.bulwark_burst', {
 
 // ---- pyre · Pyre of the Black Sun, the opener (1.65; leap 0.6-1.0, active 0.85-1.0) --------------------------------
 {
-  const SLASH = plane(dir(180, 25), dir(0, 89));               // 0 = blade trailing behind, 65 = up, 155 = forward-down
+  const BACK = plane(dir(180, 25), dir(0, 89));                // the blade cocked behind (wind-up / flight)
+  const SLASH = plane(dir(180, 25), dir(0, 89), true);         // 0 = blade trailing behind, 65 = up, 155 = forward, 184 = point in the floor
   const air = (k) => ({ footL: { pos: FL, w: k }, footR: { pos: FR, w: k } });
   defineClip('kael.pyre', {
     duration: 1.65, breath: 0.3,
@@ -368,24 +371,25 @@ defineClip('kael.bulwark_burst', {
       { t: 0.46, ease: 'inOutSine', ik: { handR: H([0.11, 2.01, 0.1], { aim: dir(0, 89), up: [-1, 0, 0.1] }) } },
       // crouch: the blade swings back over the shoulder, knees load for the leap
       { t: 0.58, ease: 'outCubic', hips: { pos: [-0.1, -0.34, 0], rot: [0, -22, 0] }, bones: { spine: [0, -4, -10], chest: [0, -6, -4], neck: [0, 12, 6], head: [0, 16, 6] },
-        ik: { handR: H([-0.02, 1.52, 0.22], SLASH(-8)), ...FEET } },
+        ik: { handR: G([-0.02, 1.52, 0.22], BACK(-8)), ...FEET } },
+      { t: 0.62, ik: { footL: { pos: FL, rot: [0, YAW_L, -30], w: 1 }, footR: { pos: [FR[0], 0.02, FR[2]], rot: [0, YAW_R, -40], w: 1 } } },
       // push-off and flight: legs tuck, the blade cocked far back, body arched like a drawn bow
       { t: 0.66, ease: 'outQuad', hips: { pos: [0.02, -0.06, 0], rot: [0, -16, 0] }, bones: { spine: [0, -2, 6], chest: [0, -3, 12], neck: [0, 6, -4], head: [0, 8, -6],
         thighL: [0, 0, 50], shinL: [0, 0, -60], footL: [0, 0, -10], thighR: [0, 0, -10], shinR: [0, 0, -40], footR: [0, 0, -30] },
-        ik: { handR: H([-0.08, 1.86, 0.16], SLASH(4)), ...air(0) } },
+        ik: { handR: G([-0.08, 1.86, 0.16], BACK(4)), ...air(0) } },
       { t: 0.8, ease: 'inOutSine', hips: { pos: [0.0, -0.04, 0], rot: [0, -12, 0] }, bones: { spine: [0, -2, 10], chest: [0, -3, 15],
         thighL: [0, 0, 80], shinL: [0, 0, -100], thighR: [0, 0, 30], shinR: [0, 0, -110] },
-        ik: { handR: H([-0.1, 1.9, 0.14], SLASH(-4)) } },
+        ik: { handR: G([-0.1, 1.9, 0.14], BACK(-4)) } },
       // the slash comes down out of the air
       { t: 0.85, hips: { pos: [0.04, -0.06, 0], rot: [0, -6, 0] }, bones: { spine: [0, 0, -4], chest: [0, 0, -2], neck: [0, 2, 4], head: [0, 2, 6] },
-        ik: { handR: H([0.4, 1.86, 0.08], SLASH(80)) } },
+        ik: { handR: G([0.44, 1.8, 0.08], SLASH(115)) } },
       { t: 0.93, hips: { pos: [0.05, -0.16, 0] }, bones: { spine: [0, 0, -16], chest: [0, 0, -12], thighL: [0, 0, 60], shinL: [0, 0, -60], thighR: [0, 0, 6], shinR: [0, 0, -60] },
-        ik: { handR: H([0.62, 1.12, 0.05], SLASH(140)), ...air(0) } },
+        ik: { handR: G([0.62, 1.12, 0.05], SLASH(152)), ...air(0) } },
       // landing slam: blade into the floor, deep crouch
       { t: 1.0, ease: 'inQuad', hips: { pos: [-0.04, -0.36, 0], rot: [0, -14, 0] }, bones: { spine: [0, -2, -24], chest: [0, -2, -18], neck: [0, 4, 14], head: [0, 6, 18],
         thighL: [0, 0, 0], shinL: [0, 0, 0], thighR: [0, 0, 0], shinR: [0, 0, 0] },
-        ik: { handR: H([0.64, 0.74, 0.05], SLASH(160)), footL: { pos: [FL[0] + 0.06, 0, FL[2]], rot: [0, YAW_L, 0], w: 1 }, footR: { pos: [FR[0] - 0.04, 0, FR[2]], rot: [0, YAW_R, 0], w: 1 } } },
-      { t: 1.12, ease: 'outQuad', hips: { pos: [-0.05, -0.33, 0] }, ik: { handR: H([0.63, 0.76, 0.05], SLASH(159)) } },
+        ik: { handR: G([0.64, 0.74, 0.05], SLASH(184)), footL: { pos: FL, rot: [0, YAW_L, 0], w: 1 }, footR: { pos: [FR[0], 0.02, FR[2]], rot: [0, YAW_R, -26], w: 1 } } },
+      { t: 1.12, ease: 'outQuad', hips: { pos: [-0.05, -0.33, 0] }, ik: { handR: G([0.63, 0.76, 0.05], SLASH(183)) } },
       { t: 1.4, ease: 'inOutSine', hips: { pos: [-0.04, -0.18, 0], rot: [0, -20, 0] }, bones: { spine: [0, -4, -6], chest: [0, -5, -4], neck: [0, 12, 2], head: [0, 15, 0] },
         ik: { handR: lifting([0.32, 1.24, 0.18]), ...FEET } },
       { ...home(1.65), ik: { handR: SHOULDER_HAND, ...FEET } },

@@ -13,6 +13,7 @@ import * as A from '../../char/kit/armor.js';
 import { put, putPair, putSkinned, merge, lathe, strip, mirror } from '../../char/kit/geo.js';
 import { clothEdges, clothSpec } from '../../char/kit/cloth.js';
 import { greatsword, WEAPON_SPECS, WEAPON_MATERIALS } from '../../char/weapons.js';
+import { flameCrest, pauldronFin, finTrim, helmRivets, helmBreaths } from './kit.js';
 
 const DEG = Math.PI / 180;
 const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -104,14 +105,21 @@ export const kael = {
     { name: 'shinL', a: ['shinL', [0, 0, 0]], b: ['shinL', [0, -0.43, 0]], r: 0.08 },
   ],
   cloth: [
-    // half-cape hung from the left shoulder across the upper back (camera sees it behind his back silhouette)
+    // heavy half-cape hung from the left shoulder across the upper back, pinned under the fur mantle and held off the
+    // back plate, so it reads as its own dark mass behind him (longer at the centre back, flaring at the hem)
     clothSpec({
       name: 'cape',
-      top: [['chest', [0.07, 0.205, -0.17]], ['chest', [-0.04, 0.24, -0.2]], ['chest', [-0.16, 0.215, -0.1]], ['chest', [-0.175, 0.2, 0.02]], ['chest', [-0.15, 0.18, 0.12]]],
-      cols: 10, rows: 13, length: 1.05, drape: [-0.22, -1, -0.12], flare: 0.38, thickness: 0.014,
-      // rest folds: vertical pleats deepening toward the hem (two frequencies, so they do not read as a regular wave)
-      offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.04 * v + (0.034 * Math.sin(u * Math.PI * 5 + 0.6) + 0.014 * Math.sin(u * Math.PI * 11 + 2.1)) * (0.25 + 0.75 * v), 0, -0.03 * v * (1 - u)],
-      damping: 0.032, margin: 0.03, wind: 1,
+      top: [['chest', [0.07, 0.205, -0.17]], ['chest', [-0.05, 0.25, -0.215]], ['chest', [-0.19, 0.225, -0.11]], ['chest', [-0.205, 0.21, 0.02]], ['chest', [-0.18, 0.19, 0.13]]],
+      cols: 11, rows: 13, length: 1.1, drape: [-0.3, -1, -0.1], flare: 0.5, thickness: 0.016,
+      // rest folds: three deep pipe folds deepening toward the hem plus a smaller offset fold (the grid holds both), a
+      // belly away from the legs, the hem dropping lower at the centre back, the left end gathered toward the arm
+      offset: (u, v) => [
+        -0.06 * Math.sin(v * Math.PI) * (0.6 + 0.4 * Math.sin(u * Math.PI)) - 0.05 * v + (0.066 * Math.sin(u * Math.PI * 4.6 + 0.5) + 0.018 * Math.sin(u * Math.PI * 7 + 2.1)) * (0.2 + 0.8 * v),
+        -0.07 * Math.pow(Math.sin(u * Math.PI), 2) * v,
+        -0.035 * v * (1 - u),
+      ],
+      // heavy wool: a stiffer bend keeps the pipe folds from ironing flat against the back
+      bend: 0.6, damping: 0.032, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),
     // burnt waist cloth hanging from the belt between the tassets
@@ -211,6 +219,11 @@ export const kael = {
     put(kit, 'plate', 'deltoidR', PR.rivets, L.rivet);
     put(kit, 'plate', 'deltoidR', PR.boss, L.bronze);
     put(kit, 'plate', 'deltoidR', PR.trim, L.bronze);
+    // forged flame wing flaring out of the right pauldron (camera side) and streaming back: the asymmetric signature of
+    // his silhouette, with an engraved bronze band under its top line
+    const wing = pauldronFin({ R: 0.136 });
+    put(kit, 'plate', 'deltoidR', wing, L.dark, { glow: veins(0.85, 1.2, 8) });
+    put(kit, 'plate', 'deltoidR', finTrim(wing, { width: 0.014 }), L.bronzeDark);
     // left pauldron: lighter, two lames (under the fur mantle and the cape)
     const PL = A.pauldron({ R: 0.118, lames: 2, nu: 18, nv: 7, lameNu: 12 });
     put(kit, 'plate', 'deltoidL', mirror(PL.cop), L.iron, { glow: veins(0.4) });
@@ -224,8 +237,9 @@ export const kael = {
     const core = lathe([[0.0, 0.008], [0.012, 0.006], [0.016, 0.0], [0.0, 0.0]], { segs: 12 });
     core.rotateX(-90 * DEG);
     put(kit, 'plate', 'chest', core, L.ember, { at: [0.075, 0.2, -0.19] });
-    // fur mantle around the left shoulder and the back of the neck (alpha-cut cards)
-    const fur = A.furRing({ center: [-0.03, 0.235, -0.01], rx: 0.15, rz: 0.175, a0: 108, a1: 302, count: 24, len: 0.16, width: 0.1, droop: 0.85, layers: 2, lift: 0.022 });
+    // fur mantle around the left shoulder and the back of the neck (alpha-cut cards): long, wide tufts standing off the
+    // back so the mantle and the cape read as one heavy hunched mass in silhouette
+    const fur = A.furRing({ center: [-0.04, 0.24, -0.01], rx: 0.165, rz: 0.19, a0: 112, a1: 304, count: 24, len: 0.21, width: 0.125, droop: 0.8, layers: 2, lift: 0.026 });
     put(kit, 'cloth', 'chest', fur, L.fur);
 
     // ---- arms ---------------------------------------------------------------------------------------------------------------
@@ -261,16 +275,20 @@ export const kael = {
     putPair(kit, 'plate', 'toe', sab.toeSole, L.leather);
 
     // ---- great helm -----------------------------------------------------------------------------------------------------------
-    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.019, prow: 0.04, prowW: 46, muzzle: 0.012, crestH: 0.088, teeth: 4, crestT: 0.007 });
+    const H = A.greatHelm({ rx: 0.128, rz: 0.114, top: 0.268, bottom: -0.098, slitY: 0.078, slitH: 0.019, prow: 0.04, prowW: 46, muzzle: 0.012, crest: false });
     put(kit, 'plate', 'head', H.crown, L.iron, { glow: veins(0.6, 1, 8) });
     put(kit, 'plate', 'head', H.brow, L.bronzeDark);
     put(kit, 'plate', 'head', H.face, L.plate, { glow: veins(0.75, 1.1, 8) });
     put(kit, 'plate', 'head', H.back, L.lame);
     put(kit, 'plate', 'head', H.slit, L.slit);
     put(kit, 'plate', 'head', H.eye, L.eye, { glow: (p) => { const e = Math.max(Math.exp(-((p[2] - 0.033) ** 2) / 0.0001), Math.exp(-((p[2] + 0.033) ** 2) / 0.0001)); return [0, 0, 0.1 + 0.9 * e]; } });
-    put(kit, 'plate', 'head', H.breaths, L.slit);
-    if (H.crest) put(kit, 'plate', 'head', H.crest, L.dark);
-    put(kit, 'plate', 'head', H.rivets, L.rivet);
+    put(kit, 'plate', 'head', helmBreaths(H), L.slit);
+    // swept flame crest: one tall tongue leaning back off the brow, two lower ones, the tail trailing past the nape
+    const crest = flameCrest(H);
+    put(kit, 'plate', 'head', crest, L.dark, { glow: veins(0.85, 1.2, 9) });
+    const crestTrim = finTrim(crest, { width: 0.01, v: 0.8 });
+    put(kit, 'plate', 'head', merge([crestTrim, mirror(crestTrim)]), L.bronzeDark);
+    put(kit, 'plate', 'head', helmRivets(H, 7), L.rivet);
 
     // ---- greatsword ---------------------------------------------------------------------------------------------------------
     greatsword(kit, { bone: 'weaponR', slot: 'blade' });

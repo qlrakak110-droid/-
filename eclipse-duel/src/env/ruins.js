@@ -639,9 +639,9 @@ export function buildRuins(rng, tier) {
       : trs(x, pierR * 0.97 - sink, z, ry, roll, Math.PI / 2 + rng.range(-0.06, 0.06)).multiply(trs(0, -len / 2, 0));
     addAll(S, drumGeo(len, seed, broken), m, drumOpt());
   };
-  // none in the middle of the vista (a 1.9 m drum on the horizon reads as a parked lump); poses vary so they never
-  // read as a row of identical crates
-  // the vista shoulders: end-on to the fight camera, so their silhouettes stay low and small against the horizon
+  // poses vary so they never read as a row of identical crates. None in the middle of the vista (a 1.9 m drum on the
+  // horizon reads as a parked lump); the ones in its shoulders lie end-on to the fight camera, so their silhouettes
+  // stay low and small against the horizon
   layDrum(-6.3, -14.0, 0, 1.2, 0.35, { broken: true, axis: 0.75 });
   layDrum(6.6, -16.8, 0, 1.5, 0.55, { axis: 2.3 });
   layDrum(-7.4, -17.4, 0, 1.4, 0.6, { axis: 0.9 });

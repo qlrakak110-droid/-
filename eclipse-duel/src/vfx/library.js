@@ -75,10 +75,10 @@ export const LIB = {
   },
   /** Flame licks flying outward, oriented along their motion; short-lived. */
   fireLicks: {
-    tex: 'flame', blend: 'alpha', count: 16, life: [0.25, 0.55], shape: { type: 'sphere', radius: 0.25 }, emit: 'radial', spread: 35, lift: 0.6,
-    speed: [2, 6], size: [0.5, 1.0], align: 'velocityAxis', gravity: 3, drag: 3.2, fps: 10, heat: 0.18,
-    erode: [[0, 0], [0.4, 0.1], [1, 0.95]], erodeSoft: 0.2, additive: [[0, 1], [0.7, 0.7], [1, 0.3]],
-    color: [[0, 10, 5, 1.4, 1], [0.25, 6, 1.6, 0.25, 1], [0.7, 1.6, 0.25, 0.03, 0.8], [1, 0.2, 0.05, 0.02, 0]],
+    tex: 'flame', blend: 'alpha', count: 16, life: [0.2, 0.45, 1.3], shape: { type: 'sphere', radius: 0.25 }, emit: 'radial', spread: 35, lift: 0.6,
+    speed: [2, 6], size: [0.4, 0.95, 1.4], sizeOverLife: [[0, 0.6], [0.3, 1], [1, 0.85]], align: 'velocityAxis', gravity: 3, drag: 3.2, fps: 10, heat: 0.18,
+    erode: [[0, 0], [0.25, 0.12], [1, 1]], erodeSoft: 0.25, additive: [[0, 1], [0.45, 0.6], [1, 0.1]],
+    color: [[0, 10, 5, 1.4, 1], [0.2, 6, 1.6, 0.25, 1], [0.55, 1.3, 0.2, 0.03, 0.75], [0.85, 0.2, 0.06, 0.03, 0.5], [1, 0.08, 0.05, 0.04, 0]],
   },
   /** Standing fire (use as an emitter: rate per second). Upright flames that flicker through atlas variants. */
   fire: {

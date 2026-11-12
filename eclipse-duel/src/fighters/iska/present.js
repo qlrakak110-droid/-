@@ -2,7 +2,7 @@
 //
 // Every move is a small set piece on the MOVES.md beats, hung on the timeline markers of moves.js (BALANCE.md §9):
 //   WIND-UP  glints kindle on the blades, motes converge, frost creeps out from her feet
-//   RELEASE  thin starlight crescents (frost.slash), shard fans, racing ice lines, camera kicks
+//   RELEASE  thin starlight crescents (iska.cut), shard fans, racing ice lines, camera kicks
 //   IMPACT   the frost "flower" (iska.flower: cold flash, four-point star, a fan of crystal shards, a tilted crystalline
 //            ring) layered over the generic hit feel (sound, hit-stop, shake, HUD, stats stay generic)
 //   AFTERMATH glitter and snow that hang, pale mist sinking along the floor, frost decals that melt away
@@ -36,10 +36,11 @@ const pivot = (h, f = 0.18, u = 1.28, s = 0.22) => h.at(f, u, s);
 function glint(h, where = 'weaponTip', size = 0.4, k = 0.55) {
   h.flare(where, { kind: 'star', size, life: 0.12, decay: 2.5, color: STAR, intensity: k, rotation: 0.3 });
 }
-/** quick crystalline crescent (frost.slash) around a pivot; heavy = both blades, shard spray off the tip */
+/** Iska's crescent cut (iska.cut) around a pivot; heavy = both blades (a second crescent a beat later), brighter */
 function cut(h, o = {}) {
-  return h.fx(o.heavy ? 'frost.slash.heavy' : 'frost.slash', { pos: o.pos || pivot(h) }, {
-    arc: o.arc, radius: o.radius, width: o.width, normal: o.normal, roll: o.roll, twin: o.twin, sweep: o.sweep, intensity: o.intensity ?? 1,
+  return h.fx('iska.cut', { pos: o.pos || pivot(h) }, {
+    arc: o.arc, radius: o.radius, width: o.width, normal: o.normal, roll: o.roll, sweep: o.sweep, life: o.life,
+    k: (o.intensity ?? 1) * (o.heavy ? 1.2 : 0.85), twin: o.twin ?? !!o.heavy, light: !!o.heavy,
   });
 }
 /** frost flower at the contact point of a hit (strike direction mostly forward, toward the camera a little) */
@@ -79,7 +80,7 @@ const STARS = [[-3.0, 7.2, -2.6], [-1.8, 8.7, -3.4], [-0.5, 7.7, -2.2], [0.7, 9.
 const EDGES = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [2, 7]];
 /** the six orbit slashes: Iska's f (relative to the victim) / hop height / facing (-1 = turned around, behind it) */
 const ORBIT = [[-0.85, 0.0, 1], [0.9, 0.2, -1], [-0.95, 0.55, 1], [0.85, 0.0, -1], [-0.8, 0.35, 1], [0.95, 0.75, -1]];
-/** arcs of the orbit slashes (frost.slash planes) */
+/** arcs of the orbit slashes (iska.cut planes) */
 const ORBIT_CUTS = [
   { arc: [135, -40], normal: [0, -0.2, 1] }, { arc: [-140, 35], normal: [0, 0.25, 1] }, { arc: [160, 10], normal: [0, 1, 0.5] },
   { arc: [120, -60], normal: [0.2, 0, 1] }, { arc: [-30, 170], normal: [0, 0.3, 1] }, { arc: [150, -30], normal: [0, -0.4, 1] },
@@ -112,7 +113,7 @@ export const present = {
     // ---- light chain ------------------------------------------------------------------------------------------------
     rime_flick: {
       windup(h) { glint(h, 'weaponTip', 0.32, 0.45); },
-      swing(h) { cut(h, { arc: [128, -38], radius: 1.18, width: 0.3, normal: [0, -0.15, 1] }); },
+      swing(h) { cut(h, { arc: [105, -32], radius: 0.98, width: 0.26, normal: [0, -0.15, 1] }); },
       hit(h, e) { flower(h, e, 0.55, { up: -0.15 }); },
     },
     twin_moons: {
@@ -194,13 +195,12 @@ export const present = {
       swing(h) {
         // a rising crescent of starlight drawn by the backflip
         cut(h, { heavy: true, pos: h.at(0.35, 1.0, 0.22), arc: [-75, 120], radius: 1.55, width: 0.48, normal: [0, 0, 1] });
-        h.flare(h.at(0.6, 1.6, 0.3), { kind: 'streak', size: 0.12, aspect: 20, life: 0.18, color: F.core, intensity: 0.45, dir: W(h, 0, 1, 0) });
       },
       land(h) { h.burst(D.mistLow, { pos: h.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 4, scale: 0.6 }); glint(h, 'weaponTip', 0.3, 0.35); },
       hit(h, e) {
         flower(h, e, 1.05, { dir: [0.25, 1, 0.3] });
         h.burst(D.shards, { pos: 'contact', dir: [0.15, 1, 0.2] }, { count: 14, scale: 0.9 });
-        h.spawn('pillar', h.at(foeF(h), 0, 0.05), { look: 'frost', radius: 0.22, height: 2.8, life: 0.42, intensity: 0.55 });
+        h.spawn('pillar', h.at(foeF(h), 0, 0.05), { look: 'frost', radius: 0.16, height: 2.6, life: 0.36, intensity: 0.26 });
         h.cam.kick({ fov: -2, duration: 0.28 });
       },
     },
@@ -278,7 +278,7 @@ export const present = {
       aura(h) {
         const u = st(h).ult;
         h.burst(D.glint, { pos: h.at(0, 1.2, 0) }, { count: 24, scale: 2 });
-        if (u) u.handles.push(h.spawn('decal', 'floor', { kind: 'frost', radius: 2.2, reveal: 0.4, life: 3 }));
+        if (u) u.handles.push(h.spawn('decal', 'floor', { kind: 'frost', radius: 1.3, reveal: 0.4, life: 3 }));
       },
       rune(h) {
         // the star rune drawn under the opponent (clamped to maxRange)
@@ -287,9 +287,9 @@ export const present = {
         const f = Math.max(0.6, Math.min(range, foeF(h)));
         const g = h.at(f, 0, 0);
         u.runeAt = g;
-        u.handles.push(h.spawn('decal', g, { kind: 'rune', palette: 'frost', radius: 2.0, reveal: 0.2, life: 1.2, fadeOut: 0.25, spin: 2.2, intensity: 1.1 }));
-        u.handles.push(h.spawn('decal', g, { kind: 'frost', radius: 2.6, reveal: 0.35, life: 4 }));
-        u.handles.push(h.flare(W(h, g.x, 0.25, 0.4), { kind: 'glow', size: [0.3, 2.4], life: 0.45, attack: 0.35, decay: 3, color: F.mid, intensity: 0.5 }));
+        u.handles.push(h.spawn('decal', g, { kind: 'rune', palette: 'frost', radius: 1.8, reveal: 0.2, life: 1.2, fadeOut: 0.25, spin: 2.2, intensity: 0.5 }));
+        u.handles.push(h.spawn('decal', g, { kind: 'frost', radius: 1.5, reveal: 0.35, life: 4 }));
+        u.handles.push(h.flare(W(h, g.x, 0.25, 0.4), { kind: 'glow', size: [0.3, 1.8], life: 0.45, attack: 0.35, decay: 3, color: F.mid, intensity: 0.3 }));
         h.burst(D.glint, { pos: W(h, g.x, 0.4, 0) }, { count: 20, scale: 2.2 });
         h.light(W(h, g.x, 0.7, 1.4), { intensity: 80, range: 7, duration: 0.45, attack: 0.3 });
         h.audio('rune', { volume: 0.8 });
@@ -298,13 +298,13 @@ export const present = {
         // the circle starts to close
         const u = st(h).ult;
         if (!u || !u.runeAt) return;
-        h.spawn('ring', u.runeAt, { look: 'frost', radius: [2.4, 0.25], life: 0.2, intensity: 1.0 });
+        h.spawn('ring', u.runeAt, { look: 'frost', radius: [2.2, 0.3], life: 0.2, intensity: 0.5 });
       },
       snap(h) {
         const u = st(h).ult;
         const g = (u && u.runeAt) || h.at(foeF(h), 0, 0);
-        h.burst(D.flash, { pos: W(h, g.x, 0.4, 0.3) }, { scale: 0.6 });
-        h.burst(D.sparksRadial, { pos: W(h, g.x, 0.15, 0.1) }, { count: 40, scale: 0.9 });
+        h.burst(D.flash, { pos: W(h, g.x, 0.4, 0.3) }, { scale: 0.35, intensity: 0.7 });
+        h.burst(D.sparksRadial, { pos: W(h, g.x, 0.15, 0.1) }, { count: 24, scale: 0.9 });
         h.audio('ice_form', { volume: 0.9 });
       },
     },
@@ -315,28 +315,41 @@ export const present = {
     // and freezes the victim on the third shard
     'frost.shard': {
       spawn(h, e) {
-        st(h).shots.set(e.id, { data: e.data || {} });
+        // Iska's own body for the shard (dimmer than the generic one): the frost.shard lance flying with the rules
+        // projectile (constant 14 m/s), shattered on its hit by impact()
         const p = W(h, e.x, e.y, 0.1);
+        const dx = Math.sign(e.vx || 0) || h.facing;
+        const body = h.fx('frost.shard', { pos: W(h, e.x, e.y, 0.05), dir: W(h, dx, 0, 0), scale: 0.8 }, { speed: Math.abs(e.vx || 14), life: e.lifetime || 0.75, intensity: 0.5 });
+        st(h).shots.set(e.id, { data: e.data || {}, body, impacted: false });
         h.flare(p, { kind: 'star', size: 0.7, life: 0.12, decay: 2.5, color: STAR, intensity: 0.6, rotation: 0.2 });
         h.burst(D.sparks, { pos: p, dir: [1, 0.05, 0.1] }, { count: 10, scale: 0.6 });
-        h.spawn('ring', p, { normal: h.dir([1, 0, 0]), look: 'frost', radius: [0.08, 0.5], width: [0.08, 0.14], life: 0.2, intensity: 0.5 });
         h.audio('swing_light', { volume: 0.5, pitch: 1.3 });
+        return false;
       },
       hit(h, e) {
-        if (e.blocked) return;
         const s = st(h).shots.get(e.projectile);
+        if (s && s.body && typeof s.body.impact === 'function' && !s.impacted) { s.impacted = true; s.body.impact(h.pos('contact')); }
+        if (e.blocked) return;
         if (s && s.data.freeze) {
           // frozen solid: an ice cage around the victim, a crystalline shell, frost on the floor
           const g = h.at(foeF(h), 0, 0);
           h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 0.42, count: 7, height: [0.45, 0.95], width: 0.2, tilt: 10, stagger: 0.01, rise: 0.05, hold: 0.55 });
           h.spawn('decal', g, { kind: 'frost', radius: 1.4, reveal: 0.2, life: 2.6 });
-          h.vfx.afterimage(h.foe.char.root, { life: 0.8, palette: 'frost', fill: 0.16, fresnel: 2.2, intensity: 0.8, swell: 0.02 });
+          h.vfx.afterimage(h.foe.char.root, { life: 0.8, palette: 'frost', fill: 0.1, fresnel: 2.4, intensity: 0.5, swell: 0.02 });
           h.foe.glow([0.25, 0.7, 1.6], 0.35, 0.7, 0.03);
           flower(h, e, 1.2, { floor: true });
           h.audio('ice_form', { volume: 0.8 });
         } else flower(h, e, 0.6);
       },
-      expire(h, e) { st(h).shots.delete(e.id); },
+      guard(h, e) {
+        const s = st(h).shots.get(e.projectile);
+        if (s && s.body && typeof s.body.impact === 'function' && !s.impacted) { s.impacted = true; s.body.impact(h.pos('contact')); }
+      },
+      expire(h, e) {
+        const s = st(h).shots.get(e.id);
+        if (s && s.body && !s.impacted) { if (e.reason === 'clash' && typeof s.body.impact === 'function') s.body.impact(); else s.body.stop(); }
+        st(h).shots.delete(e.id);
+      },
     },
     // Crystal Procession: five spikes racing 7 m, each larger than the last (Iska's own body replaces the generic one)
     'frost.spike': {
@@ -373,8 +386,11 @@ export const present = {
         const p = W(h, e.x, 1.1, 0.05);
         if (s && s.shell) s.shell.kill();
         // the statue shatters and its shards fly forward as one lance
-        h.fx('frost.shatter', { pos: p, dir: [1, 0.2, 0.2] }, { intensity: 0.45 });
-        const body = h.fx('frost.shard', { pos: p, dir: [1, 0, 0], scale: 1.6 }, { speed: 16, life: 0.26 });
+        h.burst(D.flash, { pos: p }, { scale: 0.3, intensity: 0.6 });
+        h.burst(D.shardFan, { pos: p, dir: [1, 0.15, 0.2] }, { count: 18, scale: 1.0 });
+        h.burst(D.glitter, { pos: p }, { count: 16, scale: 1.0 });
+        h.spawn('debris', p, { kind: 'ice', dir: [h.facing, 0.5, 0.2], count: 6, speed: [2, 5], spread: 45, size: [0.05, 0.12, 2] });
+        const body = h.fx('frost.shard', { pos: p, dir: [1, 0, 0], scale: 1.1 }, { speed: 16, life: 0.26, intensity: 0.45 });
         if (s) s.body = body;
         h.audio('ice_shatter', { volume: 0.7 });
       },
@@ -382,6 +398,10 @@ export const present = {
         const s = st(h).shots.get(e.projectile);
         if (s && s.body && typeof s.body.impact === 'function' && !s.impacted) { s.impacted = true; s.body.impact(h.pos('contact')); }
         if (!e.blocked) flower(h, e, 0.9);
+      },
+      guard(h, e) {
+        const s = st(h).shots.get(e.projectile);
+        if (s && s.body && typeof s.body.impact === 'function' && !s.impacted) { s.impacted = true; s.body.impact(h.pos('contact')); }
       },
       expire(h, e) { st(h).shots.delete(e.id); },
     },
@@ -447,13 +467,14 @@ export const present = {
       h.glow(h.color('mid', 0.03), 1, T + 0.5, 0.15);
       h.weaponGlow(0.9, T + 0.9);
       const gl = glowOf(h);
-      if (gl) { gl.flare('eye', 4, 0.9, { attack: 0.18 }); gl.flare('inlay', 1.6, 1.0, { attack: 0.2 }); }
+      if (gl) { gl.flare('eye', 2.2, 0.9, { attack: 0.18 }); gl.flare('inlay', 0.8, 1.0, { attack: 0.2 }); }
       // the snow swirls around her and is drawn in; a cold halo behind her head
       const vx = h.vfx.emitter(D.vortex, { pos: h.at(0, 1.2, 0), target: h.at(0, 1.2, 0), duration: T, realtime: true });
       u.handles.push(vx);
-      h.burst(D.glint, { pos: h.at(0, 1.4, 0) }, { count: 30, scale: 2.2 });
-      h.flare('eyes', { kind: 'star', size: [0.2, 0.8], life: T, attack: T * 0.5, decay: 2, color: STAR, intensity: 0.45, rotation: 0.15, realtime: true });
-      h.fx('combat.ult.flash', { pos: 'chest', scale: 0.55 }, { element: 'frost', intensity: 0.32 });
+      h.burst(D.glint, { pos: h.at(0.2, 1.3, -1.2) }, { count: 14, scale: 2.2 });
+      h.flare('eyes', { kind: 'star', size: [0.04, 0.2], life: T, attack: T * 0.6, decay: 2, color: STAR, intensity: 0.3, rotation: 0.15, realtime: true });
+      // a cold halo far behind her head (reads as a rim of light in the close-up, never over the face)
+      h.flare(h.at(-0.3, 1.75, -1.6), { kind: 'glow', size: [0.6, 1.6], life: T + 0.1, attack: T * 0.5, decay: 1.5, color: F.mid, intensity: 0.22, pull: 0, realtime: true });
       h.post.pulse('exposure', -0.15, { attack: 0.1, hold: T - 0.2, release: 0.3 });
       return false;
     },
@@ -468,10 +489,10 @@ export const present = {
         { dur: 0.6, cut: true, space: 'target', ease: 'linear', handheld: 0.3, orbit: { pivot: [0, 1.05, 0], from: 34, to: 82, radius: [3.3, 3.0], height: [0.45, 0.75] }, from: { fov: 50 }, to: { fov: 46 } },
         // 1.65 .. 2.65 (2.40 row): wide low angle looking up toward the eclipse as she leaps, slow motion 0.4
         { dur: 1.0, cut: true, space: 'target', ease: 'outSine', slowmo: { scale: 0.42, at: 0.03, dur: 0.45 },
-          from: { pos: [-1.0, 0.32, 9.6], look: [-0.7, 2.3, 0], fov: 50 }, to: { pos: [-0.8, 0.3, 9.0], look: [-0.5, 3.6, 0], fov: 48 } },
+          from: { pos: [-1.2, 0.55, 7.2], look: [-0.8, 2.6, 0], fov: 52 }, to: { pos: [-1.0, 0.5, 6.8], look: [-0.6, 4.7, 0], fov: 54 } },
         // 2.65 .. 3.65 (3.40 row): over the shoulder from Iska in the air down onto the crystal
         { dur: 1.0, cut: true, space: 'target', ease: 'inOutSine', handheld: 0.4,
-          from: { pos: [-2.4, 6.3, 2.5], look: [0, 0.7, 0], fov: 46 }, to: { pos: [-2.0, 5.8, 2.1], look: [0.05, 0.85, 0], fov: 41 } },
+          from: { pos: [-4.2, 7.4, 2.4], look: [-0.35, 3.3, 0], fov: 54 }, to: { pos: [-3.8, 7.0, 2.1], look: [-0.3, 3.0, 0], fov: 50 } },
         // 3.65 .. 4.15 (4.40 row): impact punch-in on the shatter, slow motion 0.2
         S.impactPunchIn({ dur: 0.5, angle: -24, dist: [4.2, 3.0], slowmo: { scale: 0.22, at: 0.02, dur: 0.22 }, shake: { amount: 0.9, freq: 14, decay: 1.4 } }),
         // 4.15 .. 4.65 (4.90 row): wide establishing as the frost wave rolls across the arena; then the blend back
@@ -485,8 +506,15 @@ export const present = {
       const u = st(h).ult || (st(h).ult = { handles: [] });
       const g = h.at(foeF(h), 0, 0);
       u.vf = foeF(h);
-      h.fx('frost.nova', { pos: g }, { encase: false, intensity: 0.85 });
-      u.cage = h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 0.62, count: 7, height: [1.2, 2.05], width: 0.12, tilt: 7, stagger: 0.014, rise: 0.08, hold: 4.2 });
+      // the circle closes into a crystal: a ring of ice snaps up around the victim, a cold ring sweeps out, mist rolls
+      h.spawn('ring', g, { look: 'frost', radius: [0.3, 3.0], life: 0.7, distort: 0.03, intensity: 0.55 });
+      h.burst(D.flash, { pos: h.at(u.vf, 1.0, 0.3) }, { scale: 0.35, intensity: 0.6 });
+      h.burst(D.sparksRadial, { pos: h.at(u.vf, 0.8, 0.1) }, { count: 40, scale: 0.9 });
+      h.burst(D.glint, { pos: h.at(u.vf, 1.2, 0) }, { count: 22, scale: 1.8 });
+      h.burst(D.mistLow, { pos: g, dir: [0, 1, 0] }, { count: 10, scale: 1.0 });
+      h.light(h.at(u.vf, 1.4, 1.4), { intensity: 70, range: 7, duration: 0.6, decay: 'outCubic' });
+      h.distort(h.at(u.vf, 0.05, 0), { kind: 'shock', normal: [0, 1, 0], radius: [0.3, 3.2], strength: 0.035, life: 0.5 });
+      u.cage = h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 0.55, count: 6, height: [0.55, 1.15], width: 0.13, tilt: 10, stagger: 0.014, rise: 0.08, hold: 4.2 });
       u.shell = h.vfx.afterimage(h.foe.char.root, { life: 3.9, palette: 'frost', fill: 0.14, fresnel: 2.2, intensity: 0.75, swell: 0.035, alpha: 0.85 });
       h.foe.glow([0.22, 0.6, 1.4], 0.4, 3.7, 0.08);
       h.foePlay(foeClip(h, 'hitHeavy'), { fade: 0.04, startAt: 0.08, speed: 0 });
@@ -586,7 +614,7 @@ export const present = {
         // the cut across the crystal
         const c = h.at(vf, 1.15 + 0.12 * (k % 2), 0.25);
         const o = ORBIT_CUTS[k];
-        h.fx(k === 5 ? 'frost.slash.heavy' : 'frost.slash', { pos: c }, { arc: o.arc, normal: o.normal, radius: 1.05, width: 0.34, intensity: 1 });
+        h.fx('iska.cut', { pos: c }, { arc: o.arc, normal: o.normal, radius: 1.05, width: 0.34, k: k === 5 ? 1.3 : 1, twin: k === 5 });
         h.fx('iska.flower', { pos: c, dir: [face, 0.1, 0.4] }, { k: 0.7 });
         h.foe.impulse([-face, 0.05, 0.1], 0.35);
         h.foe.flash([0.6, 1.2, 2.4], 0.35, 0.1);
@@ -614,16 +642,16 @@ export const present = {
         if (u.cage && u.cage.stop) u.cage.stop();
         if (u.shell && u.shell.kill) u.shell.kill();
         h.foe.glow(null);
-        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 1.1 });
-        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 1.6 });
+        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.65 });
+        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 1.2 });
         h.spawn('ring', h.at(vf, 0, 0), { look: 'frost', radius: [0.4, 5.5], life: 0.9, distort: 0.04, intensity: 1 });
         h.spawn('ring', h.at(vf, 0.05, 0), { look: 'shock', palette: 'frost', radius: [0.3, 4.5], life: 0.45, intensity: 0.6 });
         h.spawn('decal', h.at(vf, 0, 0), { kind: 'frost', radius: 4.2, reveal: 0.35, life: 6 });
-        h.flare(c, { kind: 'star', size: 3.4, life: 0.4, decay: 2.2, color: STAR, intensity: 0.85, rotation: 0.25 });
-        h.light(W(h, c.x, 1.6, 1.6), { intensity: 220, range: 11, duration: 0.7, decay: 'outCubic' });
+        h.flare(c, { kind: 'star', size: 2.4, life: 0.4, decay: 2.4, color: STAR, intensity: 0.5, rotation: 0.25 });
+        h.light(W(h, c.x, 1.6, 2.0), { intensity: 150, range: 11, duration: 0.6, decay: 'outCubic' });
         h.distort(c, { kind: 'shock', radius: [0.3, 4.2], strength: 0.05, life: 0.55 });
         h.post.impact({ duration: 0.05, invert: 1 });
-        h.post.flash(0xcfe6ff, 0.22, { release: 0.25 });
+        h.post.flash(0xcfe6ff, 0.12, { release: 0.25 });
         h.post.radial(c, 0.55);
         h.post.chroma(0.9, { release: 0.5 });
         h.post.pulse('exposure', 0.12, { release: 0.5 });

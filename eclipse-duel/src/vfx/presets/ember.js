@@ -37,6 +37,8 @@ const BLAST = def({ tex: 'smoke', blend: 'alpha', count: 16, life: [0.7, 1.4], s
   color: [[0, 3.0, 1.25, 0.28, 0.9], [0.08, 2.0, 0.55, 0.07, 1], [0.22, 0.8, 0.15, 0.025, 0.95], [0.4, 0.12, 0.06, 0.04, 0.9], [1, 0.045, 0.04, 0.04, 0]] });
 /** fireball puffs launched up a column */
 const PLUME = def({ ...BLAST, count: 12, emit: 'axis', spread: 14, speed: [2.5, 8, 1.2], drag: 2.4, gravity: 3, lift: 0, size: [0.9, 1.6, 1.3] });
+/** flames thrown up an eruption column: they stand upright as they rise (velocity-aligned they fan out like feathers) */
+const ERUPT_LICKS = def({ ...LIB.fireLicks, align: 'axis', spread: 22, speed: [2.5, 7], size: [0.45, 1.1, 1.4] });
 /** radial flame petals (fire flower / explosion) */
 const PETALS = def({ ...LIB.fireLicks, count: 14, spread: 50, speed: [3, 8], size: [0.6, 1.2], life: [0.25, 0.55] });
 /** radial sparks (explosions) */
@@ -63,7 +65,9 @@ const TRAIL_SMOKE = def({ ...LIB.smoke, count: 0, rate: 0, perMeter: 3, delay: 0
 const TRAIL_LICKS = def({ ...LIB.fireLicks, count: 0, rate: 0, perMeter: 4, size: [0.2, 0.45], speed: [0.3, 1.2], life: [0.15, 0.35], inherit: 0.1, emit: 'random', spread: 180 });
 
 // aura (emitters around a body; box centred on the hips)
-const AURA_FIRE = def({ ...LIB.fire, rate: 30, shape: { type: 'box', size: [0.5, 1.5, 0.3] }, size: [0.3, 0.75, 1.4], life: [0.35, 0.75], speed: [0.6, 1.6], gravity: 2.8 });
+// many small tongues licking off the silhouette (a few big flame sprites on a body read as stickers)
+const AURA_FIRE = def({ ...LIB.fire, rate: 46, shape: { type: 'box', size: [0.5, 1.5, 0.3] }, size: [0.2, 0.58, 1.5], life: [0.3, 0.65], speed: [0.6, 1.8], gravity: 3.2,
+  erode: [[0, 0.05], [0.3, 0.15], [1, 1]], erodeSoft: 0.25 });
 const AURA_FEET = def({ ...LIB.fire, rate: 16, shape: { type: 'ring', radius: 0.42, thickness: 0.15 }, size: [0.35, 0.8, 1.4], life: [0.3, 0.65] });
 const AURA_EMBERS = def({ ...LIB.embers, count: 0, rate: 30, delay: 0, shape: { type: 'box', size: [0.7, 1.6, 0.45] }, emit: 'axis', spread: 25, speed: [0.3, 1.6], life: [0.8, 1.8, 0.8] });
 /** cracks in the armour flaring: short hot sparks of light popping on the body */
@@ -75,12 +79,13 @@ const AURA_HAZE = def({ ...LIB.heatHaze, count: 0, rate: 2.5, shape: { type: 'bo
 const AURA_ASH = def({ ...ASH, count: 0, rate: 4, delay: 0, shape: { type: 'box', size: [0.8, 0.6, 0.5] }, emit: 'axis', spread: 40, speed: [0.5, 1.4], gravity: 0.2 });
 
 // wave (travelling crescent): flames streaming from its height, falling cinders, a molten groove on the floor
-const WAVE_FIRE = def({ ...LIB.fireLicks, count: 0, perMeter: 7, shape: { type: 'box', size: [0.25, 1.7, 0.35] }, emit: 'axis', spread: 35, speed: [1, 3.2], size: [0.5, 1.1, 1.3], life: [0.3, 0.6], inherit: 0.25,
+const WAVE_FIRE = def({ ...LIB.fireLicks, count: 0, perMeter: 9, shape: { type: 'box', size: [0.25, 1.7, 0.35] }, emit: 'axis', spread: 30, speed: [1, 3.2], size: [0.35, 0.9, 1.4], life: [0.22, 0.5], inherit: 0.25,
+  align: 'axis', erode: [[0, 0.05], [0.3, 0.2], [1, 1]],
   color: [[0, 3.6, 1.5, 0.35, 1], [0.25, 2.2, 0.55, 0.07, 1], [0.7, 0.5, 0.08, 0.02, 0.8], [1, 0.08, 0.04, 0.03, 0]] });
 const WAVE_SMOKE = def({ ...TRAIL_SMOKE, perMeter: 2.5, shape: { type: 'box', size: [0.3, 1.4, 0.3] }, size: [0.6, 1.2], life: [0.9, 1.6], gravity: 0.8 });
 const WAVE_CINDERS = def({ ...LIB.embers, count: 0, rate: 0, perMeter: 14, delay: 0, shape: { type: 'box', size: [0.25, 1.8, 0.3] }, emit: 'random', speed: [0.2, 1.2], gravity: -1.5, life: [0.5, 1.2] });
-const GROOVE = def({ tex: 'smoke', blend: 'alpha', count: 0, perMeter: 7, life: [1.8, 2.6], shape: { type: 'disc', radius: 0.18 }, speed: 0, align: 'flat', dir: [0, 1, 0],
-  size: [0.55, 0.9], aspect: 1.6, rotation: [-0.25, 0.25], groundFade: 0, heat: 0.3, additive: [[0, 1], [0.25, 0.85], [0.5, 0.2], [1, 0]], erode: [[0, 0.1], [0.5, 0.25], [1, 1]], erodeSoft: 0.3,
+const GROOVE = def({ tex: 'smoke', blend: 'alpha', count: 0, perMeter: 13, life: [1.8, 2.6], shape: { type: 'disc', radius: 0.12 }, speed: 0, align: 'flat', dir: [0, 1, 0],
+  size: [0.35, 0.75, 1.3], aspect: 2.4, rotation: [-0.25, 0.25], groundFade: 0, heat: 0.3, additive: [[0, 1], [0.25, 0.85], [0.5, 0.2], [1, 0]], erode: [[0, 0.1], [0.5, 0.25], [1, 1]], erodeSoft: 0.3,
   color: [[0, 6, 2.4, 0.5, 0.9], [0.12, 2.6, 0.6, 0.06, 0.85], [0.35, 0.5, 0.08, 0.02, 0.8], [0.6, 0.03, 0.025, 0.02, 0.7], [1, 0.02, 0.02, 0.02, 0]] });
 const HAZE_TRAIL = def({ ...LIB.heatHaze, count: 0, perMeter: 1.6, life: [0.6, 1.0] });
 
@@ -89,7 +94,7 @@ const FALL_FIRE = def({ ...LIB.fireLicks, count: 0, perMeter: 7, shape: { type: 
 const FALL_SMOKE = def({ ...TRAIL_SMOKE, perMeter: 2.2, size: [0.9, 1.6], life: [1.0, 1.8], shape: { type: 'sphere', radius: 0.4 } });
 const FALL_EMBERS = def({ ...TRAIL_EMBERS, perMeter: 10, inherit: 0.08 });
 const VORTEX = def({ ...LIB.fire, rate: 46, shape: { type: 'ring', radius: 1.6, thickness: 0.8 }, emit: 'tangent', spread: 15, lift: 1.4, speed: [2, 4], swirl: 2.6,
-  size: [0.6, 1.3, 1.3], life: [0.6, 1.1], gravity: 3.4, drag: 0.6, align: 'velocityAxis' });
+  size: [0.45, 1.15, 1.4], life: [0.5, 1.0], gravity: 3.4, drag: 0.6, align: 'axis', erode: [[0, 0], [0.35, 0.15], [1, 1]] });
 const STORM_EMBERS = def({ ...LIB.embers, count: 0, rate: 70, delay: 0, shape: { type: 'ring', radius: 2.4, thickness: 2.0 }, emit: 'tangent', spread: 20, lift: 0.8, speed: [2, 5], swirl: 1.8, gravity: 1.6, life: [1.0, 2.2] });
 const CEILING = def({ ...LIB.smokeLinger, count: 0, rate: 4.5, delay: 0, shape: { type: 'disc', radius: 2.6 }, emit: 'axis', spread: 30, speed: [0.4, 1.2], swirl: 0.5, life: [2.0, 3.2] });
 const STORM_HAZE = def({ ...LIB.heatHaze, count: 0, rate: 5, shape: { type: 'disc', radius: 2.4 }, size: [1.2, 2.2], life: [1.0, 1.6] });
@@ -117,8 +122,8 @@ export function defineEmber(vfx, P) {
     v.slash({ look: 'flame', pos: at.pos, ...plane, arc, radius: R, width: W, sweep, life: heavy ? 0.8 : 0.55, distort: heavy ? 0.022 : 0.014, cone: heavy ? 0.25 : 0.15, intensity: 0.85 * i });
     // body: a wider, dimmer flame band trailing just inside the edge that cools into occluding smoke (volume + value contrast)
     if (!heavy) v.schedule(0.02, (w) => w.slash({ look: 'flame', pos: at.pos, ...plane, arc: [arc[0] - 4 * sgn, arc[1] - 3 * sgn], radius: R * 0.9, width: W * 0.85, sweep, life: 0.62, intensity: 0.5 * i, tailAdditive: 0, alpha: 0.85 }));
-    v.slash({ look: 'razor', palette: 'ember', pos: at.pos, ...plane, arc, radius: R * 0.985, width: (heavy ? 0.2 : 0.13) * s, sweep, life: heavy ? 0.28 : 0.2, intensity: 1.2 * i });
-    if (heavy) v.schedule(0.025, (w) => w.slash({ look: 'flame', pos: at.pos, ...plane, arc: [arc[0] - 6 * sgn, arc[1] - 4 * sgn], radius: R * 0.88, width: W * 0.7, sweep, life: 0.7, intensity: 0.7 * i, tailAdditive: 0 }));
+    v.slash({ look: 'razor', palette: 'ember', pos: at.pos, ...plane, arc, radius: R * 0.985, width: (heavy ? 0.2 : 0.13) * s, sweep, life: heavy ? 0.28 : 0.2, intensity: (heavy ? 1.05 : 1.15) * i });
+    if (heavy) v.schedule(0.025, (w) => w.slash({ look: 'flame', pos: at.pos, ...plane, arc: [arc[0] - 6 * sgn, arc[1] - 4 * sgn], radius: R * 0.88, width: W * 0.7, sweep, life: 0.7, intensity: 0.55 * i, tailAdditive: 0 }));
     const mid = arcPoint(at.pos, plane, (arc[0] + arc[1]) / 2, R * 0.85);
     v.light({ pos: lightAt(mid, 1.2), color: E.core, intensity: (heavy ? 120 : 60) * i, range: heavy ? 8 : 6, duration: heavy ? 0.5 : 0.32, attack: 0.03, decay: 'outCubic', flicker: 0.2 });
     // flames, embers and smoke shed along the arc as the head passes
@@ -200,14 +205,14 @@ export function defineEmber(vfx, P) {
     v.burst(SPIT, { pos: vec([g.x, 0.05, g.z]), dir: [0, 1, 0], count: n(16, i), scale: s });
     v.burst(DUST_SMALL, { pos: g, dir: [0, 1, 0], count: 5, scale: 1.2 * s });
     v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: 5, scale: 0.6 * s });
-    v.light({ pos: vec([g.x, 1.0, g.z + 1.2]), color: E.core, intensity: 150 * i, range: 9, duration: 1.1, attack: 0.14, decay: 'outCubic', flicker: 0.3 });
+    v.light({ pos: vec([g.x, 1.2, g.z + 1.8]), color: E.core, intensity: 75 * i, range: 9, duration: 1.1, attack: 0.14, decay: 'outCubic', flicker: 0.3 });
     v.schedule(0.14, (w) => {
       const b = vec([g.x, 0.25, g.z]);
       w.pillar({ look: 'fire', pos: g, height: 4.6 * s, radius: 0.55 * s, life: 1.05, intensity: 0.7 * i });
       w.burst(KIT.ember.flash, { pos: vec([g.x, 0.5, g.z]), scale: 1.1 * s, intensity: i });
       w.flare({ kind: 'glow', pos: b, size: 1.6 * s, life: 0.08, color: E.core, intensity: i });
       w.burst(PLUME, { pos: b, dir: [0, 1, 0], count: n(14, i), scale: s });
-      w.burst(LIB.fireLicks, { pos: b, dir: [0, 1, 0], count: n(10, i), scale: s });
+      w.burst(ERUPT_LICKS, { pos: b, dir: [0, 1, 0], count: n(12, i), scale: s });
       w.burst(COLUMN_SPARKS, { pos: b, dir: [0, 1, 0], count: n(70, i), scale: s });
       w.debris({ kind: 'ember', pos: [g.x, 0.15, g.z], dir: [0, 1, 0], count: n(10, i), speed: [3, 9, 1.3], spread: 32, size: [0.06, 0.22, 2], scale: s });
       w.debris({ kind: 'rock', pos: [g.x, 0.15, g.z], dir: [0, 1, 0], count: n(8, i), speed: [2.5, 7, 1.3], spread: 45, size: [0.07, 0.24, 2], scale: s });
@@ -305,7 +310,7 @@ export function defineEmber(vfx, P) {
     v.burst(KIT.ember.flash, { pos: p, scale: 1.6 * s, intensity: i });
     v.flare({ kind: 'flash', pos: p, size: 4 * s, life: 0.06, decay: 3, color: E.core, intensity: 0.18 * i });
     v.flare({ kind: 'star', pos: p, size: 2.6 * s, life: 0.18, decay: 3, color: E.core, intensity: i, rotation: 0.3 });
-    v.light({ pos: vec([p.x, p.y + 0.4, p.z + 1.3]), color: E.core, intensity: 200 * i, range: 10, duration: 1.0, decay: 'outCubic', flicker: 0.35 });
+    v.light({ pos: vec([p.x, p.y + 0.4, p.z + 2.0]), color: E.core, intensity: 160 * i, range: 10, duration: 1.0, decay: 'outCubic', flicker: 0.35 });
     v.burst(BLAST, { pos: p, count: n(24, i), scale: 1.2 * s });
     v.burst(PETALS, { pos: p, count: n(18, i), scale: 1.2 * s });
     v.burst(SPARKS_RADIAL, { pos: p, count: n(120, i), scale: 1.2 * s });
@@ -341,8 +346,8 @@ export function defineEmber(vfx, P) {
     const m = motion.start({ pos: from, to: vec([g.x, 0.6 * s, g.z]), dur: fall, ease: 'inQuad', realtime: v.realtime, onEnd: () => crater() });
     const a = m.obj;
     const body = [
-      v.flare({ kind: 'glow', pos: from, size: 1.5 * s, life: fall + 0.02, color: [9, 4.5, 1.2], intensity: i }).follow(a),
-      v.light({ pos: from, color: E.core, intensity: 160 * i, range: 9, duration: fall, attack: 0, decay: 'linear', curve: [[0, 0.4], [1, 1]] }).follow(a),
+      v.flare({ kind: 'glow', pos: from, size: 1.2 * s, life: fall + 0.02, color: [9, 4.5, 1.2], intensity: 0.8 * i }).follow(a),
+      v.light({ pos: from, color: E.core, intensity: 100 * i, range: 9, duration: fall, attack: 0, decay: 'linear', curve: [[0, 0.3], [1, 1]] }).follow(a, [0, 0, 1.2]),
       v.ribbon({ follow: a, width: 0.8 * s, life: 0.26, color: [[0, 2.4, 0.9, 0.18, 0.85], [0.25, 1.2, 0.25, 0.03, 0.55], [1, 0.2, 0.03, 0.01, 0]] }),
       v.emitter(FALL_FIRE, { pos: from, scale: s, intensity: i }).follow(a),
       v.emitter(FALL_SMOKE, { pos: from, scale: s }).follow(a),
@@ -354,7 +359,7 @@ export function defineEmber(vfx, P) {
       v.burst(KIT.ember.flash, { pos: p, scale: 2 * s, intensity: i });
       v.flare({ kind: 'flash', pos: p, size: 5 * s, life: 0.07, decay: 3, color: E.core, intensity: 0.2 * i });
       v.flare({ kind: 'star', pos: p, size: 3.4 * s, life: 0.2, decay: 3, color: E.core, intensity: i, rotation: 0.2 });
-      v.light({ pos: vec([g.x, 1.5, g.z + 1.5]), color: E.core, intensity: 240 * i, range: 12, duration: 1.2, decay: 'outCubic', flicker: 0.3 });
+      v.light({ pos: vec([g.x, 1.6, g.z + 2.2]), color: E.core, intensity: 180 * i, range: 12, duration: 1.2, decay: 'outCubic', flicker: 0.3 });
       v.decal({ kind: 'crack', pos: g, radius: 3.2 * s, magma: 1, life: 6, cool: 3.2, reveal: 0.1 });
       v.decal({ kind: 'scorch', pos: g, radius: 2.3 * s, life: 6, magma: 1 });
       v.spikes({ kind: 'magma', pattern: 'ring', pos: g, radius: 1.45 * s, count: 11, height: [0.35 * s, 0.85 * s], tilt: 42, stagger: 0.012, hold: 1.4, scale: 1 });

@@ -29,23 +29,25 @@ const { sstep, lerp } = K;
 const GLOW = { inlay: [1.0, 2.7, 5.8], vein: [0.3, 1.05, 2.7], eye: [2.2, 5.2, 9.4] };
 
 // ---- looks (linear colours) ---------------------------------------------------------------------------------------------
+// cool pearl-silver: bright, faintly blue F0 with a satin roughness (reads light and cool under the arena's eclipse sky
+// instead of a dark chrome mirror), blued steel kept dark for the value contrast
 const L = {
-  silver: { color: [0.38, 0.41, 0.47], rough: 0.4, metal: 1, set: 'hammered', amt: 0.45 },
-  silverEngr: { color: [0.4, 0.43, 0.5], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.32 },
-  crescent: { color: [0.43, 0.46, 0.53], rough: 0.4, metal: 1, set: 'engraved', amt: 0.6, vein: 0.22, wear: 1.2 },
+  silver: { color: [0.54, 0.59, 0.67], rough: 0.42, metal: 1, set: 'hammered', amt: 0.45 },
+  silverEngr: { color: [0.56, 0.61, 0.69], rough: 0.38, metal: 1, set: 'engraved', amt: 0.9, vein: 0.32 },
+  crescent: { color: [0.6, 0.645, 0.72], rough: 0.4, metal: 1, set: 'engraved', amt: 0.6, vein: 0.22, wear: 1.2 },
   blued: { color: [0.075, 0.095, 0.16], rough: 0.3, metal: 1, set: 'hammered', amt: 0.6, wear: 1.1 },
-  lamella: { color: [0.42, 0.45, 0.52], rough: 0.36, metal: 1, set: 'hammered', amt: 0.55, wear: 1.2 },
-  scale: { color: [0.42, 0.45, 0.52], rough: 0.36, metal: 1, set: 'engraved', amt: 0.45, vein: 0.12, wear: 1.2 },
-  rivet: { color: [0.62, 0.64, 0.68], rough: 0.26, metal: 1, set: 'hammered', amt: 0.2, wear: 1.3 },
-  mask: { color: [0.56, 0.6, 0.68], rough: 0.3, metal: 0.18, set: 'hammered', amt: 0.1 },
-  hoodTrim: { color: [0.42, 0.45, 0.52], rough: 0.42, metal: 0.8, set: 'engraved', amt: 0.85, vein: 0.4 },
+  lamella: { color: [0.53, 0.575, 0.65], rough: 0.38, metal: 1, set: 'hammered', amt: 0.55, wear: 1.2 },
+  scale: { color: [0.53, 0.575, 0.65], rough: 0.38, metal: 1, set: 'engraved', amt: 0.45, vein: 0.12, wear: 1.2 },
+  rivet: { color: [0.7, 0.74, 0.8], rough: 0.26, metal: 1, set: 'hammered', amt: 0.2, wear: 1.3 },
+  mask: { color: [0.58, 0.645, 0.76], rough: 0.32, metal: 0.1, set: 'hammered', amt: 0.1 },
+  hoodTrim: { color: [0.52, 0.565, 0.645], rough: 0.42, metal: 0.8, set: 'engraved', amt: 0.85, vein: 0.4 },
   star: { color: [0.25, 0.45, 0.75], rough: 0.25, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
   starDim: { color: [0.25, 0.45, 0.75], rough: 0.25, metal: 0, set: 'hammered', amt: 0, inlay: 0.45 },
   crystal: { color: [0.32, 0.56, 0.78], rough: 0.07, metal: 0.1, set: 'hammered', amt: 0, inlay: 0.14, wear: 0.3 },
   eye: { color: [0.06, 0.12, 0.22], rough: 0.4, metal: 0, set: 'hammered', amt: 0, eye: 1 },
   lace: { color: [0.03, 0.035, 0.08], rough: 0.7, metal: 0, set: 'leather', amt: 1 },
   leather: { color: [0.028, 0.03, 0.06], rough: 0.6, metal: 0, set: 'leather', amt: 1 },
-  embroidery: { color: [0.48, 0.52, 0.6], rough: 0.4, metal: 0.8, set: 'engraved', amt: 0.85, vein: 0.55 },
+  embroidery: { color: [0.55, 0.595, 0.68], rough: 0.4, metal: 0.8, set: 'engraved', amt: 0.85, vein: 0.55 },
 };
 /** Soft layers (suit slot). */
 const S_ = {
@@ -82,6 +84,11 @@ const RIB = { R: chain('ribbonR', 5), L: chain('ribbonL', 5), aR: chain('armRibb
 const ribbonBones = (names, parent, at, step) => names.map((name, k) => ({ name, parent: k ? names[k - 1] : parent, at: k ? step : at }));
 
 const TAIL = { cols: 5, rows: 13, length: 1.0, flare: 0.2, thickness: 0.01, damping: 0.03, margin: 0.028, wind: 1, stretch: 1, bend: 0.3 };
+// rest folds (model x = forward; none at the pinned row): one soft pleat wave across each tail, deepening toward the
+// hem, and a box pleat down the tabard (centre forward, sides falling back over the thighs): the cloth hangs with depth
+// instead of as a flat sheet
+const tailFold = (u, v) => 0.024 * Math.sin(2 * Math.PI * u) * Math.pow(v, 0.7);
+const tabardFold = (u, v) => [-0.017 * Math.cos(2 * Math.PI * u) * Math.pow(v, 0.7), 0, 0];
 
 export const iska = {
   id: 'iska',
@@ -91,7 +98,7 @@ export const iska = {
   proportions: PROPORTIONS,
   glow: GLOW,
   materials: {
-    plate: { envMapIntensity: 0.7, bump: 0.9, glow: GLOW, rim: [0.16, 0.24, 0.42, 3.4], wear: [0.55, 0.5, 0.22, 0], wearColor: [0.78, 0.8, 0.84], grimeColor: [0.42, 0.46, 0.56] },
+    plate: { envMapIntensity: 0.8, bump: 0.9, glow: GLOW, rim: [0.16, 0.24, 0.42, 3.4], wear: [0.55, 0.5, 0.22, 0], wearColor: [0.8, 0.84, 0.9], grimeColor: [0.42, 0.47, 0.6] },
     suit: { envMapIntensity: 0.75, bump: 1, rim: [0.16, 0.22, 0.4, 3.0], wear: [0.25, 0.55, 0.4, 0], wearColor: [0.3, 0.32, 0.4] },
     blade: { ...WEAPON_MATERIALS.crescents },
   },
@@ -130,20 +137,20 @@ export const iska = {
     clothSpec({
       name: 'tailL', slot: 'suit', ...TAIL,
       top: [['chest', [-0.114, 0.104, -0.118]], ['chest', [-0.134, 0.097, -0.064]], ['chest', [-0.142, 0.092, -0.012]]],
-      drape: [-0.16, -1, -0.07], offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.02 * v, 0, -0.02 * v * (1 - u)],
+      drape: [-0.16, -1, -0.07], offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.02 * v + tailFold(u, v), 0, -0.02 * v * (1 - u)],
       outer: S_.cloth, inner: S_.lining,
     }),
     clothSpec({
       name: 'tailR', slot: 'suit', ...TAIL,
       top: [['chest', [-0.142, 0.092, 0.012]], ['chest', [-0.134, 0.097, 0.064]], ['chest', [-0.114, 0.104, 0.118]]],
-      drape: [-0.16, -1, 0.07], offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.02 * v, 0, 0.02 * v * u],
+      drape: [-0.16, -1, 0.07], offset: (u, v) => [-0.03 * Math.sin(v * Math.PI) - 0.02 * v + tailFold(1 - u, v), 0, 0.02 * v * u],
       outer: S_.cloth, inner: S_.lining,
     }),
     // long front tabard from the belt, pointed hem
     clothSpec({
       name: 'tabard', slot: 'suit',
       top: [['hips', [0.116, 0.035, -0.058]], ['hips', [0.128, 0.035, 0]], ['hips', [0.116, 0.035, 0.058]]],
-      cols: 5, rows: 10, length: 0.66, drape: [0.1, -1, 0], flare: 0.34, thickness: 0.009,
+      cols: 5, rows: 10, length: 0.66, drape: [0.1, -1, 0], flare: 0.34, thickness: 0.009, offset: tabardFold,
       damping: 0.04, margin: 0.022, wind: 0.7, outer: S_.cloth, inner: S_.lining,
     }),
   ],
