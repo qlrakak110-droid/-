@@ -665,6 +665,222 @@ function testShippedArms(ids = ['kael', 'iska', 'vorn']) {
   return out;
 }
 
+// ---- 9. IK / look / layer / seam / contact measurements of the round-2 audit -----------------------------------------
+/**
+ * Human-feasible FK arm paths (shoulder flex -10..130, abduction -70..10, humeral rotation +-30, elbow 20..120, wrist
+ * +-25 / +-50 / +-15) recorded and replayed as hand IK keys every frame: the elbow must never switch sides (swivel >
+ * 30 deg in a frame while the elbow jumps > 4 cm), and the weapon must land on its key.
+ */
+function feasible(n = 24, seed = 5, body = 'kael', dur = 2) {
+  const c = mk(body), rng = makeRng(seed), res = { flips: 0, swivel: 0, elbowIK: 0, elbowFK: 0, rotErr: 0 };
+  const sin = (amp, mid) => { const f = 0.15 + 0.5 * rng(), ph = rng() * 6.283, f2 = 0.3 + 0.6 * rng(), ph2 = rng() * 6.283; return (t) => mid + amp * (0.75 * Math.sin(6.283 * f * t + ph) + 0.25 * Math.sin(6.283 * f2 * t + ph2)); };
+  const wq = new THREE.Quaternion(), wp = new THREE.Vector3(), X = new THREE.Vector3(), Yv = new THREE.Vector3();
+  for (let k = 0; k < n; k++) {
+    const fx = sin(40, -30), fy = sin(30, 0), fz = sin(70, 60), el = sin(50, 70), hx = sin(25, 0), hy = sin(50, 0), hz = sin(15, 0);
+    const keys = [];
+    for (let i = 0; i <= dur * 10; i++) { const t = i / 10; keys.push({ t, bones: { upperArmR: [fx(t), fy(t), fz(t)], foreArmR: [0, 0, el(t)], handR: [hx(t), hy(t), hz(t)] } }); }
+    defineClip('rigqa.fk', { duration: dur, keys: [{ t: 0, pose: 'neutral', grip: 0 }, ...keys] });
+    invalidateClips();
+    qa.resetForQA(c, 'rigqa.fk', { breath: 0 });
+    const nf = Math.round(dur * 60), recF = qa.record(c, { hz: 60, frames: nf, time: false, applyRoot: false });
+    const ik = [];
+    for (let f = 0; f < nf; f++) {
+      const o = (f * recF.B + recF.idx.weaponR) * 12, M = recF.M;
+      X.set(M[o], M[o + 1], M[o + 2]).normalize(); Yv.set(M[o + 3], M[o + 4], M[o + 5]).normalize();
+      ik.push({ t: recF.clipT[f], interp: 'linear', ik: { handR: { pos: [M[o + 9], M[o + 10], M[o + 11]], aim: X.toArray(), up: Yv.toArray() } } });
+    }
+    defineClip('rigqa.ikr', { duration: dur, keys: [{ t: 0, pose: 'neutral', grip: 0 }, ...ik] });
+    invalidateClips();
+    qa.resetForQA(c, 'rigqa.ikr', { breath: 0 });
+    const recI = qa.record(c, { hz: 60, frames: nf, time: false, applyRoot: false });
+    for (let f = 1; f < nf; f++) {
+      const sI = swivelStep(recI, f, 'R');
+      const eI = vlen(vsub(mpt(recI, f, 'foreArmR'), mpt(recI, f - 1, 'foreArmR'))), eF = vlen(vsub(mpt(recF, f, 'foreArmR'), mpt(recF, f - 1, 'foreArmR')));
+      res.swivel = Math.max(res.swivel, sI); res.elbowIK = Math.max(res.elbowIK, eI); res.elbowFK = Math.max(res.elbowFK, eF);
+      if (sI > 30 && eI > 0.04) res.flips++;
+      res.rotErr = Math.max(res.rotErr, angleOf(recI, recF, f, 'weaponR'));
+    }
+  }
+  return res;
+}
+/** World rotation angle (deg) between bone `b` of two recordings at frame f. */
+function angleOf(ra, rb, f, b) {
+  const qa1 = new THREE.Quaternion(), qb1 = new THREE.Quaternion(), m = new THREE.Matrix4();
+  const set = (rec, q) => { const o = (f * rec.B + rec.idx[b]) * 12, M = rec.M; m.set(M[o], M[o + 3], M[o + 6], 0, M[o + 1], M[o + 4], M[o + 7], 0, M[o + 2], M[o + 5], M[o + 8], 0, 0, 0, 0, 1); q.setFromRotationMatrix(m); };
+  set(ra, qa1); set(rb, qb1);
+  return 2 * Math.acos(Math.min(1, Math.abs(qa1.dot(qb1)))) * R2D;
+}
+/** Look-at on spins: the rotation lookAt adds to the head (with look vs without) may not change more than ~15 deg / frame. */
+function lookOffsetStep(c, name, target) {
+  const run = (look) => { qa.resetForQA(c, name, { breath: 0 }); if (look) c.lookAt(target, 0.85); const cl = getClip(c.rig, name); const out = []; const q = new THREE.Quaternion(); for (let i = 0; i < Math.round(cl.duration * 60); i++) { c.update(1 / 60, 1 / 60); out.push(c.bones.head.getWorldQuaternion(q).clone()); } c.lookAt(null); return out; };
+  const a = run(false), b = run(true);
+  let m = 0;
+  const d0 = new THREE.Quaternion(), d1 = new THREE.Quaternion();
+  for (let i = 1; i < a.length; i++) {
+    d0.copy(b[i - 1]).multiply(a[i - 1].clone().invert()); d1.copy(b[i]).multiply(a[i].clone().invert());
+    m = Math.max(m, 2 * Math.acos(Math.min(1, Math.abs(d0.dot(d1)))) * R2D);
+  }
+  return m;
+}
+function testAudit2() {
+  const res = {}, k = mk('kael');
+  // R2B-01: human-feasible arm paths
+  const fe = feasible(24, 5);
+  res.feasible = fe;
+  check('feasible arm paths (24 x 2 s): elbow side switches', fe.flips, 0);
+  check('feasible arm paths: largest elbow swivel step (deg/frame)', fe.swivel, 20);
+  check('feasible arm paths: weapon off the FK truth (deg)', fe.rotErr, 1);
+  // R2B-02: look-at during spins and around the back
+  const tg = new THREE.Vector3(2.6, 1.75, 0);
+  for (const [id, clip] of [['kael', 'demo.combo3'], ['iska', 'iska.glacier_pirouette'], ['iska', 'iska.star_fan'], ['kael', 'kael.sweep']]) {
+    const c = id === 'kael' && clip.startsWith('demo') ? k : rigOnly(id);
+    check(`lookAt during ${clip}: look rotation change (deg/frame)`, lookOffsetStep(c, clip, tg), 15);
+  }
+  {
+    qa.resetForQA(k, 'demo.idle', { breath: 0 });
+    const q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion(), t = new THREE.Vector3();
+    let m = 0;
+    for (let i = 0; i <= 180; i++) {
+      const a = (i * 2 * Math.PI) / 180;
+      k.lookAt(t.set(Math.cos(a) * 2.5, 1.75, Math.sin(a) * 2.5), 1); k.update(1 / 60, 1 / 60);
+      k.bones.head.getWorldQuaternion(q1);
+      if (i) m = Math.max(m, 2 * Math.acos(Math.min(1, Math.abs(q0.dot(q1)))) * R2D);
+      q0.copy(q1);
+    }
+    k.lookAt(null);
+    check('lookAt target circling the fighter at 2 deg/frame: head step (deg/frame)', m, 8);
+  }
+  // R2B-06: masked layer over a walk: the layer's hand target is held
+  {
+    qa.resetForQA(k, 'demo.walkF', { breath: 0 });
+    k.layer('atk', 'demo.combo1', { mask: 'upper', fade: 0 });
+    const cl = getClip(k.rig, 'demo.combo1'), pose = new Pose(k.rig), w = new THREE.Vector3(), sh = new THREE.Vector3();
+    const reach = k.rig.lengths.upperArm + k.rig.lengths.foreArm + k.rig.P.hand;
+    let m = 0, all = 0;
+    for (let i = 0; i < 50; i++) {
+      k.update(1 / 60, 1 / 60);
+      sampleClip(k.rig, cl, (i + 1) / 60, pose);
+      const want = new THREE.Vector3(pose.ik[1], pose.ik[2], pose.ik[3]), e = local(k, k.sockets.handR.getWorldPosition(w)).distanceTo(want);
+      all = Math.max(all, e);
+      // (targets the walk's torso puts out of the arm's reach are reached as far as the arm goes)
+      if (local(k, k.bones.upperArmR.getWorldPosition(sh)).distanceTo(want) < 0.93 * reach) m = Math.max(m, e);
+    }
+    k.stopLayer('atk', 0); k.update(0, 0);
+    res.layer = { reachable: m, all };
+    check('upper-body layer (combo1) over walkF: fist vs the layer target within reach (m)', m, 0.01);
+  }
+  // R2B-07: loop seam of quaternion tracks (FK weapon twirl / chest turn): speed at the seam vs mid-loop
+  {
+    const keys = [];
+    for (let i = 0; i < 4; i++) keys.push({ t: i * 0.2, bones: { weaponR: [0, 0, i * 90] } });
+    defineClip('rigqa.twirl', { duration: 0.8, loop: true, keys: [{ t: 0, pose: 'neutral', grip: 0 }, ...keys] });
+    defineClip('rigqa.turn', { duration: 0.9, loop: true, keys: [{ t: 0, pose: 'neutral', grip: 0, bones: { chest: [0, 0, 0] } }, { t: 0.3, bones: { chest: [0, 120, 0] } }, { t: 0.6, bones: { chest: [0, 240, 0] } }] });
+    invalidateClips();
+    for (const [name, bone] of [['rigqa.twirl', 'weaponR'], ['rigqa.turn', 'chest']]) {
+      qa.resetForQA(k, name, { breath: 0 });
+      const per = Math.round(getClip(k.rig, name).duration * 60), q0 = new THREE.Quaternion(), q1 = new THREE.Quaternion(), sp = [];
+      k.bones[bone].getWorldQuaternion(q0);
+      for (let i = 0; i < per * 2; i++) { k.update(1 / 60, 1 / 60); k.bones[bone].getWorldQuaternion(q1); sp.push(2 * Math.acos(Math.min(1, Math.abs(q0.dot(q1)))) * R2D * 60); q0.copy(q1); }
+      const seam = Math.min(...sp.slice(per - 3, per + 3)), cyc = sp.slice(per, 2 * per).sort((a, b) => a - b);
+      check(`${name} (looping, > 180 deg per cycle): slowest speed at the seam / the cycle's median`, r(seam / cyc[cyc.length >> 1], 3), 0.8, '>=');
+    }
+  }
+  // R2B-12: a loop driven by setClipTime keeps its loop events and root motion
+  {
+    qa.resetForQA(k, 'demo.walkF', { breath: 0 });
+    let ev = 0, rf = 0, t = 0;
+    const off = k.onEvent(() => ev++);
+    const d = getClip(k.rig, 'demo.walkF').duration;
+    for (let i = 0; i < Math.round(3 * d * 60); i++) { t += 1 / 60; k.setClipTime(t); k.update(1 / 60, 1 / 60); rf += k.rootDelta.f; }
+    off();
+    check('setClipTime-driven loop, 3 cycles: step events (want 6)', ev, 6, '==');
+    check('setClipTime-driven loop, 3 cycles: root motion vs 3 x the cycle (m)', Math.abs(rf - 3 * getClip(k.rig, 'demo.walkF').rootEnd[0]), 0.005);
+  }
+  // R2B-04: authored knee pole on a pitched planted foot (floor contact keeps the knee's swivel)
+  {
+    const pole = [0.25, 0.45, 1.2], fl = { pos: [0.1, 0, -0.14], rot: [0, 10, 0] };
+    defineClip('rigqa.fp', { duration: 3, keys: [{ t: 0, pose: 'neutral', grip: 0, hips: { pos: [0, -0.1, 0] } },
+      { t: 0, ik: { footR: { pos: [0.08, 0.04, 0.3], rot: [0, -30, -4], pole }, footL: fl } }, { t: 1, interp: 'linear', ik: { footR: { pos: [0.08, 0, 0.3], rot: [0, -30, -4], pole }, footL: fl } },
+      { t: 2, interp: 'linear', ik: { footR: { pos: [0.08, 0, 0.3], rot: [0, -30, -4], pole }, footL: fl } }, { t: 3, interp: 'linear', ik: { footR: { pos: [0.08, 0, 0.3], rot: [0, -30, 4], pole }, footL: fl } }] });
+    invalidateClips();
+    qa.resetForQA(k, 'rigqa.fp', { breath: 0 });
+    let dev = 0, step = 0, prev = null;
+    const V3 = () => new THREE.Vector3();
+    for (let i = 0; i < 180; i++) {
+      k.update(1 / 60, 1 / 60);
+      const hip = local(k, k.bones.thighR.getWorldPosition(V3())), kn = local(k, k.bones.shinR.getWorldPosition(V3())), an = local(k, k.bones.footR.getWorldPosition(V3()));
+      const nrm = kn.clone().sub(hip).cross(an.clone().sub(hip)).normalize();
+      if (i > 50) dev = Math.max(dev, Math.asin(Math.min(1, Math.abs(new THREE.Vector3(...pole).sub(hip).normalize().dot(nrm)))) * R2D);
+      if (prev) step = Math.max(step, kn.distanceTo(prev));
+      prev = kn;
+    }
+    check('pitched planted foot: knee off its authored pole after touchdown (deg)', dev, 2);
+    check('pitched planted foot: knee step at touchdown (m/frame)', step, 0.01);
+  }
+  // R2B-05: clavicle assist computed once per arm and frame (two-handed overhead reach)
+  {
+    let m = 0;
+    for (const grip of [0, 1]) for (const ratio of [0.8, 1.0, 1.2, 1.3]) {
+      const L = k.rig.lengths.upperArm + k.rig.lengths.foreArm, s = [-0.015, 1.52, 0.22];
+      const d = new THREE.Vector3(0.25, 1, 0.1).normalize().multiplyScalar(L * ratio + k.rig.P.hand);
+      defineClip('rigqa.cl', { duration: 1, loop: true, keys: [{ t: 0, pose: 'neutral', grip, curl: [1, 1], ik: { handR: { pos: [s[0] + d.x, s[1] + d.y, s[2] + d.z], aim: [0.2, 1, 0], up: [-1, 0.2, 0] } } }] });
+      invalidateClips();
+      qa.resetForQA(k, 'rigqa.cl', { breath: 0 });
+      k.update(1 / 60, 1 / 60);
+      for (const S of ['R', 'L']) m = Math.max(m, 2 * Math.acos(Math.min(1, Math.abs(k.bones['shoulder' + S].quaternion.w))) * R2D);
+    }
+    check('clavicle assist, one- and two-handed reach to 130% (deg)', m, 25);
+  }
+  // R2A-13 / R2B-11: steep tiptoe and pitched feet: toe tip and toe pad on or above the floor
+  {
+    let pen = 0;
+    for (const pitch of [-30, -45, -60, -80]) {
+      defineClip('rigqa.tt', { duration: 1, loop: true, keys: [{ t: 0, pose: 'neutral', grip: 0, hips: { pos: [0, -0.05, 0] }, ik: { footR: { pos: [0.05, 0.12 * Math.sin(-pitch * Math.PI / 180), 0.12], rot: [0, 0, pitch] } } }] });
+      invalidateClips();
+      qa.resetForQA(k, 'rigqa.tt', { breath: 0 });
+      for (let i = 0; i < 2; i++) k.update(1 / 60, 1 / 60);
+      const P = k.rig.P, th = P.ankleHeight - P.footDrop;
+      for (const pt of [[0, -th, 0], [P.toeLength, -th, 0]]) pen = Math.max(pen, -k.bones.toeR.localToWorld(new THREE.Vector3(...pt)).y);
+    }
+    check('pitched / tiptoe feet (-30..-80 deg): toe pad / tip below the floor (m)', pen, 0.0015);
+  }
+  // R2B-08: planted feet out of reach slide on the floor (they never float), the total drop stays bounded
+  {
+    let float = 0, drop = 0;
+    for (const back of [0.5, 0.6, 0.7, 1.0]) {
+      defineClip('rigqa.ds', { duration: 1, loop: true, keys: [{ t: 0, pose: 'neutral', grip: 0, ik: { footR: { pos: [-back, 0, 0.12] }, footL: { pos: [0.3, 0, -0.12] } } }] });
+      invalidateClips();
+      qa.resetForQA(k, 'rigqa.ds', { breath: 0 });
+      for (let i = 0; i < 4; i++) k.update(1 / 60, 1 / 60);
+      const P = k.rig.P;
+      float = Math.max(float, Math.min(k.bones.footR.localToWorld(new THREE.Vector3(0, -P.ankleHeight, 0)).y, k.bones.footR.localToWorld(new THREE.Vector3(-P.heelLength, -P.ankleHeight, 0)).y, k.bones.toeR.localToWorld(new THREE.Vector3(0, -(P.ankleHeight - P.footDrop), 0)).y));
+      drop = Math.max(drop, k.diag.drop);
+    }
+    check('rear foot 0.5..1.0 m behind the hip: planted foot in the air (m)', float, 0.005);
+    check('rear foot 0.5..1.0 m behind the hip: automatic drop <= maxPelvisDrop (m)', drop, 0.1601);
+  }
+  // R2B-10: no hips hitch from the drop release (demo.combo3 hips 2nd difference vs the authored one)
+  {
+    qa.resetForQA(k, 'demo.c2end', { breath: 0 });
+    k.play('demo.combo3', { fade: 0, restart: true });
+    const cd = getClip(k.rig, 'demo.combo3'), pose = new Pose(k.rig), A = [], Bv = [];
+    for (let i = 0; i < Math.round(cd.duration * 60); i++) { k.update(1 / 60, 1 / 60); sampleClip(k.rig, cd, k.clipTime, pose); A.push(k.bones.hips.position.y); Bv.push(k.rig.offset[1] + pose.hips[1]); }
+    let ja = 0, jb = 0;
+    for (let i = 2; i < A.length; i++) { ja = Math.max(ja, Math.abs(A[i] - 2 * A[i - 1] + A[i - 2])); jb = Math.max(jb, Math.abs(Bv[i] - 2 * Bv[i - 1] + Bv[i - 2])); }
+    check('demo.combo3: hips 2nd difference / authored', r(ja / Math.max(jb, 1e-6), 2), 1.5);
+  }
+  // R2A-02: reproducible after teleport (the breathing phase is reset: a clip's arms do not depend on how long the
+  // character has lived)
+  {
+    const sig = () => { qa.resetForQA(k, 'demo.idle', { breath: 1 }); k.play('demo.guard', { fade: 0.08 }); for (let i = 0; i < 10; i++) k.update(1 / 60, 1 / 60); return qa.poseOf(k); };
+    const a = sig();
+    for (let i = 0; i < 37; i++) k.update(1 / 60, 1 / 60);
+    const b = sig();
+    check('idle -> guard after teleport, two runs: pose difference (deg)', qa.poseDiff(a, b).deg, 1e-3);
+  }
+  return res;
+}
+
 /** Per-frame values of a clip (debugging): fn(char, frame) -> any, at `hz`. */
 function trace(name, fn, { body = 'kael', hz = 60, frames = null, from = null } = {}) {
   const c = mk(body);
@@ -679,7 +895,7 @@ function runAll(opts = {}) {
   CHECKS = [];
   const t0 = performance.now();
   const only = opts.only;
-  const groups = { clips: () => testClips(opts.bodies), runtime: testRuntime, ik: testIK, xfade: testXfade, cloth: testCloth, cpu: testCpu };
+  const groups = { clips: () => testClips(opts.bodies), runtime: testRuntime, ik: testIK, audit2: testAudit2, xfade: testXfade, cloth: testCloth, shipped: () => testShippedArms(opts.fighters), cpu: testCpu };
   const detail = {};
   for (const [g, fn] of Object.entries(groups)) {
     if (only && only !== g) continue;
@@ -696,7 +912,7 @@ createLab({
   view: { target: [0, 1.05, 0], dist: 5.4, yaw: 0, pitch: 4, fov: 40 },
   setup(ctx) {
     CTX = ctx;
-    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), mk, mkWith, defineClip, invalidateClips, run: runAll, trace, IK, THREE, getClip, sampleClip, Pose, qa };
+    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), arm: (id, name) => armMetrics(id === 'knight' ? mk('kael') : rigOnly(id), name), mk, mkWith, rigOnly, defineClip, invalidateClips, run: runAll, trace, IK, THREE, getClip, sampleClip, Pose, qa };
   },
   scenarios: {
     all(ctx, lab, opts = {}) { return runAll(opts); },

@@ -262,7 +262,7 @@ const ult = {
       h.foeOffset([-0.3, 0], 0.25, 'inQuad');
       foeClip(h, 'fall', { fade: 0.04 });
       spearArc(h, 0.32, 1.1, 0.3);
-      h.afterimage({ life: 0.3, count: 2, interval: 0.06 });
+      h.afterimage({ life: 0.3, count: 1 });   // one ghost: each is a full ~58k-triangle copy (profile peak 498k incl. shadows)
       if (h.vfx) h.vfx.speedlines({ pos: foeSock(h, 'chest'), life: 0.28, intensity: 0.5 });
       h.audio('swing_huge');
     } },

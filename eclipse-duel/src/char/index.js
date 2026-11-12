@@ -928,7 +928,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     haveLast = false;
     for (const s of states) s.pose.swivel.fill(0);
     for (const L of layers.values()) { L.pose.swivel.fill(0); if (L.mem) L.mem.swivel.fill(0); }
-    gripMem.fill(0); dropHold = dropVel = dropGoal = 0; breathPhase = 0;
+    gripMem.fill(0); dropHold = dropVel = 0; dropGoal = NaN; breathPhase = 0;
     lookRT.yaw = lookRT.pitch = 0;
     footLock[0].on = footLock[1].on = false; footLock[0].w = footLock[1].w = 0; footPlanted.fill(0);
     for (const k of ['th', 'om', 'hth', 'hom', 'x', 'v']) springsBody[k].fill(0);
@@ -1026,20 +1026,20 @@ export function createCharacter(ctx, design0, opts = {}) {
 
   // ---- main update -------------------------------------------------------------------------------------------------
   const footEq = new Float32Array(3);
-  let dropGoal = 0;
+  let dropGoal = NaN;
   /**
-   * Pelvis drop held across frames (dropHold): pinned to the goal while the goal grows (the planted feet need it at
-   * once), released toward a smaller goal by a critically damped follower that starts with the goal's velocity
-   * (sub-stepped at 1/120 s: the same at any frame rate).
+   * Pelvis drop held across frames (dropHold): a critically damped follower of the goal, stiff going down (~50 ms) and
+   * softer coming back up (~90 ms), sub-stepped at 1/120 s (the same at any frame rate). The first update after
+   * teleport() takes the goal at once.
    */
   function stepDrop(goal, dt) {
-    if (!(dt > 0)) { if (dropHold < goal) dropHold = goal; return; }
-    const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, w = 28, g0 = dropGoal;
+    if (!Number.isFinite(dropGoal)) { dropHold = dropGoal = goal; dropVel = 0; return; }
+    if (!(dt > 0)) return;
+    const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, g0 = dropGoal;
     for (let i = 1; i <= n; i++) {
-      const g = g0 + (goal - g0) * (i / n), x0 = dropHold;
+      const g = g0 + (goal - g0) * (i / n), w = g > dropHold ? 40 : 22;
       dropVel += (-w * w * (dropHold - g) - 2 * w * dropVel) * h;
       dropHold += dropVel * h;
-      if (dropHold <= g) { dropHold = g; dropVel = Math.min(0, (g - x0) / h); } // pinned: carries a falling goal's speed
     }
     dropGoal = goal;
   }
@@ -1082,32 +1082,31 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (k === 0) final.copy(s.pose); else blendInto(final, s.pose, s.w, s.gw);
     }
     if (layers.size) applyLayers(dt);
-    // the hips go down as fast as the planted feet need and come back up with a critically damped follower when a foot
-    // lifts (no velocity step at the release)
-    stepDrop(final.drop, dt);
-    const extraDrop = dropHold - final.drop;
-    char.diag.drop = dropHold;
     // final pose -> local arrays
     for (let i = 0; i < animQ; i++) lq[i] = final.lq[i];
-    lp[0] = rig.offset[0] + final.hips[0]; lp[1] = rig.offset[1] + final.hips[1] - extraDrop; lp[2] = rig.offset[2] + final.hips[2];
+    lp[0] = rig.offset[0] + final.hips[0]; lp[1] = rig.offset[1] + final.hips[1]; lp[2] = rig.offset[2] + final.hips[2];
     applyCurl(final.curl, final.grip, cur.c.gripHand);
     fk(rig, lq, lp, mq, mp, 0, animCount);
     const locked = applyFootLocks(dt, floorY);
-    const moved = flinch(dt) || states.length > 1 || layers.size > 0 || extraDrop > 1e-5 || locked;
+    let moved = flinch(dt) || states.length > 1 || layers.size > 0 || locked;
     if (moved) fk(rig, lq, lp, mq, mp, 0, animCount);
     // re-plant feet where the blended animation put them, then keep them on the floor
     for (let f = 0; f < 2; f++) {
       const h = final.feet[f * 7 + 1] - floorY;
       dropW[f] = final.feetIK[f] * (h < 0.06 * K ? 1 : h > 0.25 * K ? 0 : 1 - (h - 0.06 * K) / (0.19 * K));
     }
-    if (moved) { // more drop for the blended feet: one bounded total with the per-clip drops (<= maxDrop)
+    // automatic pelvis drop: the clips' own (blended) + what the blended feet still need, one bounded total (<= maxDrop),
+    // followed by a critically damped spring (the hips settle into a landing and come back up without a hitch; a
+    // planted foot the lagging hips cannot reach yet slides on the floor)
+    let goal = final.drop;
+    if (moved) {
       const m = pelvisNeed(final.feet, 0, 7, 0, dropW);
-      if (m > 0) {
-        const knee = maxDrop * 0.55, base = Math.min(dropHold, maxDrop * 0.9999);
-        const d = softLimit(softLimitInv(base, knee, maxDrop) + m, knee, maxDrop) - base;
-        if (d > 0) { lp[1] -= d; fk(rig, lq, lp, mq, mp, 0, animCount); char.diag.drop += d; }
-      }
+      if (m > 0) { const knee = maxDrop * 0.55; goal = softLimit(softLimitInv(Math.min(final.drop, maxDrop * 0.9999), knee, maxDrop) + m, knee, maxDrop); }
     }
+    stepDrop(goal, dt);
+    const extraDrop = dropHold - final.drop;
+    if (Math.abs(extraDrop) > 1e-6) { lp[1] -= extraDrop; fk(rig, lq, lp, mq, mp, 0, animCount); moved = true; }
+    char.diag.drop = dropHold;
     char.diag.footErr = Math.max(cur.pose.footSlide[0], cur.pose.footSlide[1]);
     for (let f = 0; f < 2; f++) {
       const limb = f === 0 ? limbs.footR : limbs.footL;

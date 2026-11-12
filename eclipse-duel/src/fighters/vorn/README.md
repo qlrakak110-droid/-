@@ -58,7 +58,7 @@ forks, grounding bolt + scorch) on top of **VORN's own hit feel** (`on.hit` → 
 | light2 회전 쳐올리기 Haft Spin | 0.02 arcs crawl on the butt | 0.09 rising electric crescent (spin) | 0.12 flower + gold sparks up the jaw line | — |
 | light3 천둥 꿰기 Thunder Pierce | runes + tip charge, 0.04 lunge dust | 0.17 thrust lightning | 0.20 thrust flower; 0.25 **spike**: lance of light 0.7 m past the tip, forks ahead, streak, fov kick → pierce flower + victim seizes | crackle on the tip |
 | heavy 폭풍 휩쓸기 Gale Sweep | runes, tip charge | 0.24 low floor crescent (r 2.2 m) | 0.28 sparks + scorch dragged along the floor, flower, ring under the tripped victim, static | scorch decal 3.5 s |
-| f+heavy 번개 돌격 Lightning Charge | crouch crackle, gold kick-off sparks | 0.06 lightning dash (`volt.dash`, 2 ghosts), fov punch; 0.17 couched thrust | 0.20 pierce flower, victim seizes 0.7 s | 0.38 skid dust + sparks |
+| f+heavy 번개 돌격 Lightning Charge | crouch crackle, gold kick-off sparks | 0.06 lightning dash (`volt.dash`, 1 ghost, intensity 0.35), fov punch; 0.17 couched thrust | 0.20 pierce flower, victim seizes 0.7 s | 0.38 skid dust + sparks |
 | d+heavy 하늘 꿰뚫기 Skyward Lance | rune decal under the feet, tip charge | 0.15 rising arc | 0.18 flower upward; 0.22 a bolt from just above the tip into the sky (delayed past the hit flash) | — |
 | skill1 뇌창 투척 Thunder Javelin | 0.04 lightning wraps the spear, tip charge | 0.26 launch ring + gold cone + light; `volt.javelin` 20 m/s | pierce flower, static 0.9 s, scorch under the victim | — |
 | skill2 낙뢰 Stormfall | runes; 0.04 spear to the sky, bolt from the tip to the clouds; **camera**: tilt up from behind him to the storm (0.41 s) then a cut crash-zoom onto the strike; 0.08 rune + scorch marker under the opponent, 0.10 clouds | 0.45 / 0.57 / 0.69 three sky strikes (`vorn.skystrike` + `vorn.strikeX`), the last huge (shake 0.6) | flower down the bolt axis | scorch, crackle |
@@ -92,7 +92,7 @@ storyboard time (MOVES.md) = 0.90 + t (BALANCE.md § 7).
 | 0.90 (1.80) | over-the-shoulder looking up 1.40 s | `vorn.ult.leap` (+2.2 m), then `vorn.ult.bolts` loop from 1.30 | nine bolts (ticks 1.00-2.01): odd = sky bolts, even = bolts from his left hand, stutter hit-stops, the ninth a white strike + thin pillar |
 | 2.30 (3.20) | wide low establishing 0.65 s, slow-mo 0.35 | `vorn.ult.catch`: a bolt tears the spear out of the victim back into his hand (+4.6 m) | arcs, gold cone, runes, blade glow |
 | 2.40 | (wide) | `vorn.ult.storm`: the storm drains into the raised spear | `vorn.storm` (clouds, rain, streaks into the spear), mood darken 0.9, tip charge |
-| 2.95 | crash zoom 0.25 s | `vorn.ult.slam` dive (offset down), victim `fall` | spear lightning, 2 ghosts, speedlines, `swing_huge` |
+| 2.95 | crash zoom 0.25 s | `vorn.ult.slam` dive (offset down), victim `fall` | spear lightning, 1 ghost, speedlines, `swing_huge` |
 | 3.20 (4.10) | top-down slam 0.90 s | slam (`impact` 0.25 of `vorn.ult.slam`), victim `down` | `vorn.pillar` (one thin column + fat bolt + 3 side bolts, crack + scorch crater, ring of rock spikes, shock across the arena, ground bolts, smoke / static), violet flash, monochrome impact frame, shake 1, `ult_impact` |
 | 3.75 / 3.95 | (top-down) | wrench free, vault back (+1.1 m) / down | re-form crackle |
 | 4.10 (5.00) | blend back 0.9 s | `vorn.ult.land`; mood restored | landing dust |
@@ -134,9 +134,14 @@ match vs ISKA; zero page errors, zero `[ed] … threw`):
   fighters read through it (shots/vorn/dir/final_sheet.png).
 * **Performance** (`profile.mjs`, PAIR=vorn:kael, `high`, machine at load average 25-35, so every ms figure is inflated
   several times; the counts are exact): fight phase 47 draw calls average / 51 peak (budget 160), JS 5.5 ms average of
-  which CHAR (rig, IK, cloth: not ours) 4.5 ms, GAME (our handlers) 0.24 ms, VFX 0.38 ms. Ultimate: see the director
-  report / PERF line below. The choreography allocates nothing per frame (the lodged-rod beam reuses two vectors; the
-  idle arc jump allocates once every 0.7-1.8 s).
+  which CHAR (rig, IK, cloth: not ours) 4.5 ms, GAME (our handlers) 0.24 ms, VFX 0.38 ms. Whole ultimate (420 frames):
+  52 calls average / **63 peak**, shader programs 49 before and 49 after (nothing compiles mid-fight), JS 6.7 ms
+  average (CHAR 5.0, VFX 0.81, GAME 0.51), triangles 383k average / 498k peak **including the shadow pass** (the
+  fight alone is already 355k with shadows; the ult peak came from full-body afterimage ghosts, so the dive now leaves
+  one ghost instead of two, ~-58k, not re-profiled). Unexplained under this load: one GAME-group peak of 147 ms and one
+  CHAR peak of 322 ms (likely GC / descheduling; not reproducible here) — re-run on a quiet machine. VORN's character
+  itself: 58.6k triangles, 4 draw calls. The choreography allocates nothing per frame (the lodged-rod beam reuses two
+  vectors; the idle arc jump allocates once every 0.7-1.8 s).
 * **Rig (not ours)**: the spear spec has no forward off-hand grip point, so the brief's "right hand at the rear, left hand
   forward" hold is impossible; VORN uses right-hand-forward + left hand on `choke`. The off-hand grip arm is solved
   without a pole (`ik.handL.pole` ignored) and can flip its elbow in one frame; the clips work around it (left hand
