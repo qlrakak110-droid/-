@@ -218,9 +218,12 @@ function halfRot(out, oo, q, qo, r, ro) {
  * twist helper = 65% of the wrist pronation, hip joint = half of the thigh swing, elbow / knee crease helpers =
  * half-joint moved out of the crease along the joint bisector (rig.helperOffset, growing with flexion; the loft weights
  * only the flexor side of the joint ring to them, so the inside of a flexed joint keeps its volume and the olecranon /
- * kneecap side does not balloon). No history: every helper is a function of the pose.
+ * kneecap side does not balloon). Every helper is a function of the pose; with `mem` (Float32Array(HELPER_MEM), kept
+ * per character, zeroed on teleport) the swing / twist helpers also never turn faster than their source bone plus a
+ * small slack, which covers the poses where their definition is singular.
  */
-export function driveHelpers(rig, lq) {
+export const HELPER_MEM = 73;
+export function driveHelpers(rig, lq, mem = null) {
   const HO = rig.helperOffset, P = rig.P;
   for (let k = 0; k < 2; k++) {
     const D = rig.helperBones[k], ua = D.upperArm, fa = D.foreArm, ha = D.hand, th = D.thigh;
@@ -274,6 +277,36 @@ export function driveHelpers(rig, lq) {
     // knee crease helper: the crease is on the -X side (the shin flexes backward)
     const kflex = swingAngle(lq, D.shin * 4, 0, -1, 0), legLen = P.hipHeight - P.ankleHeight;
     qrot(HO, D.kneeVol * 3, lq, D.kneeVol * 4, -0.022 * legLen * smooth01(kflex, 0.3, 2.7), 0, 0);
+    if (mem) { // the swing / twist helpers never turn faster than the bone they follow (+ HELPER_SLACK per frame)
+      const mo = k * 36, fresh = !(mem[72] > 0);
+      follow(mem, mo, lq, ua, fresh, [D.deltoid, D.upperArmTwist], 0);
+      follow(mem, mo + 12, lq, ha, fresh, [D.foreArmTwist], 0);
+      follow(mem, mo + 20, lq, th, fresh, [D.hipJoint, D.thighTwist], 0);
+    }
+  }
+  if (mem) mem[72] = 1;
+}
+
+/** Largest step (rad / update) a helper may take beyond the step of the bone it follows. */
+const HELPER_SLACK = (8 * Math.PI) / 180;
+/**
+ * Step limiter of helper bones that follow source bone `src`: mem[mo..] = last source rotation (4) + last rotation of
+ * each helper (4 each). A helper whose definition is singular for some arm / leg (a half rotation of a ~180 deg swing,
+ * a twist near +-180) would jump there; it turns toward its target by at most the source's own step + HELPER_SLACK
+ * instead (a few frames of catching up), and is exact everywhere else.
+ */
+function follow(mem, mo, lq, src, fresh, list) {
+  const so = src * 4;
+  const step = fresh ? Infinity : 2 * Math.acos(Math.min(1, Math.abs(mem[mo] * lq[so] + mem[mo + 1] * lq[so + 1] + mem[mo + 2] * lq[so + 2] + mem[mo + 3] * lq[so + 3]))) + HELPER_SLACK;
+  qcopy(mem, mo, lq, so);
+  for (let h = 0; h < list.length; h++) {
+    const ho = list[h] * 4, po = mo + 4 + h * 4;
+    if (!fresh) {
+      const d = Math.min(1, Math.abs(mem[po] * lq[ho] + mem[po + 1] * lq[ho + 1] + mem[po + 2] * lq[ho + 2] + mem[po + 3] * lq[ho + 3]));
+      const ang = 2 * Math.acos(d);
+      if (ang > step) qslerp(lq, ho, mem, po, lq, ho, step / ang);
+    }
+    qcopy(mem, po, lq, ho);
   }
 }
 

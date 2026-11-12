@@ -221,7 +221,8 @@ function basinMin(p) {
  *   rollKeep = 0.25 how strongly the authored roll is kept (0 = free)
  *   phi = 0         preferred swivel (rad) relative to the pole
  *   mem, dt         Float32Array(MEM) kept by the caller per arm, and the game time (s) this solve advances: the swivel
- *                   continues from last frame's elbow direction (SWIVEL), so it never flips; commitMem() once per update
+ *                   continues from last frame's elbow direction (SWIVEL), so it never flips; commitMem() once per update.
+ *                   Without a valid memory the elbow starts in the cost basin of the current (FK) elbow
  *   keepLocal       with rot = null: keep the end bone's local rotation (wrist pose) instead of its model rotation
  *   body            Float32Array(8) torso capsule [a (3), b (3), radius + arm radius, body scale]: elbow and forearm stay
  *                   out of it
@@ -267,6 +268,15 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     return true;
   };
   hasMem = memDir();
+  // no memory (first solve, or the arm was not solved last frame): continue from where the elbow is now (the FK pose)
+  const seedFK = () => {
+    const m3 = mid * 3, ex = mp[m3] - mp[root * 3], ey = mp[m3 + 1] - mp[root * 3 + 1], ez = mp[m3 + 2] - mp[root * 3 + 2];
+    const a = ex * sv[3] + ey * sv[4] + ez * sv[5], b = ex * sv[6] + ey * sv[7] + ez * sv[8];
+    if (a * a + b * b < (0.05 * limb.l1) ** 2) return false;
+    phiP = Math.atan2(b, a);
+    return true;
+  };
+  let seeded = wrist && !hasMem && seedFK();
   // a two-handed grip lets the hand roll around the grip axis: the roll that suits the forearm, scaled toward the
   // authored one by `keep`. Roll and swivel depend on each other: with memory the swivel is searched at last frame's
   // roll, and the roll then relaxes toward the best one for the new swivel (time constant 30 ms: a damped fixed point,
@@ -280,7 +290,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
     qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
     bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
-    if (hasMem) hasMem = memDir();
+    if (hasMem) hasMem = memDir(); else if (seeded) seeded = seedFK();
   }
   limbAt(phi, sign, bend, er, eo, tq, 0);
   let timer = 0, tdir = 0;
@@ -318,17 +328,17 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         tdir = timer === -1 || !mem[6] ? travelDir(phiP, goal) : mem[6];
         const ccw = ((goal - phiP) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
         d = tdir > 0 ? ccw : ccw - 2 * Math.PI;
-        // travel: eases in over 80 ms, SWITCH for a bent arm (the elbow rolls over at ~2.4 m/s x body), faster as the arm
-        // straightens (a straight arm's swivel is only its twist), and settles exponentially on arrival
+        // travel: eases in over 80 ms, SWITCH for a bent arm (the elbow rolls over at ~2.4 m/s x body), up to 3 x faster
+        // as the arm straightens (a straight arm's swivel is mostly its twist), and settles exponentially on arrival
         const e = -1 - timer, x = Math.min(1, (e + dt) / 0.08);
-        const rate = (SWIVEL.SWITCH * dt * x * x * (3 - 2 * x)) / Math.max(0.12, sv[10]);
+        const rate = (SWIVEL.SWITCH * dt * x * x * (3 - 2 * x)) / Math.max(0.33, sv[10]);
         const near = Math.abs(d) * (1 - Math.exp(-30 * dt));
         d = Math.sign(d) * Math.min(rate, near);
         timer = Math.abs(wrapA(goal - phiP - d)) < 0.02 ? 0 : timer - dt;
         if (!(timer < 0)) tdir = 0;
       }
       phi = phiP + d;
-    } else phi = gPhi;
+    } else phi = seeded ? basinMin(phiP) : gPhi;
     phi = wrapA(phi);
     if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);

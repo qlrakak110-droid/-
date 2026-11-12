@@ -5,7 +5,7 @@
 // bones and verlet cloth. See README.md.
 
 import * as THREE from 'three';
-import { createRig, bindMatrices, fk, driveHelpers, bodyScale, DEFAULT_PROPORTIONS } from './skeleton.js';
+import { createRig, bindMatrices, fk, driveHelpers, bodyScale, DEFAULT_PROPORTIONS, HELPER_MEM } from './skeleton.js';
 import { createKit } from './build.js';
 import * as shapes from './shapes.js';
 import { createKitMaterial } from './materials.js';
@@ -213,7 +213,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const lastWorld = new THREE.Matrix4(), curWorld = new THREE.Matrix4(), invWorld = new THREE.Matrix4(), tmpM = new THREE.Matrix4();
   let haveLast = false;
   const gravL = new Float32Array(3), windL = new Float32Array(3), footBuf = new Float32Array(8), gripT = new Float32Array(12);
-  const gripQ = new Float32Array(8), poleBuf = new Float32Array(3), gripMem = new Float32Array(MEM);
+  const gripQ = new Float32Array(8), helperMem = new Float32Array(HELPER_MEM), poleBuf = new Float32Array(3), gripMem = new Float32Array(MEM);
   const aimBuf = new Float32Array(1), gripBase = new Float32Array(4);
   // torso capsule the elbows keep out of (design collider 'torso', radius + the arm's own radius)
   const torsoDef = (design.colliders || []).find((c) => c.name === 'torso');
@@ -502,7 +502,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     let any = false;
     for (let e = 0; e < EFFECTORS.length; e++) {
       const o = e * EFF_STRIDE, w = pose.ik[o];
-      if (w <= 0) continue;
+      if (w <= 0) { if (e < 2) (e === 0 ? pose.swivelR : pose.swivelL)[MEM / 2 + 3] = 0; continue; } // memory goes stale
       effTarget(pose, o);
       if (e >= 2 && !(pose.ik[o + 14] >= 2)) { // planted foot still out of reach after the drop: it slides, never lifts
         pose.footSlide[e - 2] = plantReach(limbs[EFFECTORS[e]], pose.ik, o + 1, pose.ik[o + 8] ? o + 4 : -1, pose.ik[o + 13], 0);
@@ -928,7 +928,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     haveLast = false;
     for (const s of states) s.pose.swivel.fill(0);
     for (const L of layers.values()) { L.pose.swivel.fill(0); if (L.mem) L.mem.swivel.fill(0); }
-    gripMem.fill(0); dropHold = dropVel = 0; dropGoal = NaN; breathPhase = 0;
+    gripMem.fill(0); helperMem.fill(0); dropHold = dropVel = 0; dropGoal = NaN; breathPhase = 0;
     lookRT.yaw = lookRT.pitch = 0;
     footLock[0].on = footLock[1].on = false; footLock[0].w = footLock[1].w = 0; footPlanted.fill(0);
     for (const k of ['th', 'om', 'hth', 'hom', 'x', 'v']) springsBody[k].fill(0);
@@ -1028,7 +1028,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const footEq = new Float32Array(3);
   let dropGoal = NaN;
   /**
-   * Pelvis drop held across frames (dropHold): a critically damped follower of the goal, stiff going down (~50 ms) and
+   * Pelvis drop held across frames (dropHold): a critically damped follower of the goal, stiff going down (~20 ms) and
    * softer coming back up (~90 ms), sub-stepped at 1/120 s (the same at any frame rate). The first update after
    * teleport() takes the goal at once.
    */
@@ -1037,7 +1037,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     if (!(dt > 0)) return;
     const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, g0 = dropGoal;
     for (let i = 1; i <= n; i++) {
-      const g = g0 + (goal - g0) * (i / n), w = g > dropHold ? 40 : 22;
+      const g = g0 + (goal - g0) * (i / n), w = g > dropHold ? 90 : 22;
       dropVel += (-w * w * (dropHold - g) - 2 * w * dropVel) * h;
       dropHold += dropVel * h;
     }
@@ -1145,9 +1145,11 @@ export function createCharacter(ctx, design0, opts = {}) {
     // the arm cannot switch solutions when a crossfade ends
     char.diag.gripErr = 0;
     updateBody();
+    let gripped = false;
     for (let hi = 0; hi < 2; hi++) {
       const w = final.gripW[hi];
       if (!(w > 0)) continue;
+      gripped = true;
       const side = hi === 0 ? 'R' : 'L';
       const g = grips.grip || Object.values(grips)[0];
       if (!g || rig.parent[g.bone] === (hi === 0 ? limbs.handR : limbs.handL).end) continue; // never IK a hand onto the weapon it holds
@@ -1159,6 +1161,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (final.gripMix >= 0.999) char.diag.gripErr = Math.max(char.diag.gripErr, err * (w >= 1 ? 1 : w)); // (not while it changes grip)
       cur.pose.swivelG.set(gripMem);
     }
+    if (!gripped) gripMem[MEM / 2 + 3] = 0; // the off hand let go: its arm continues from its FK pose when it grips again
     char.diag.aimErr[0] = final.aimErr[0] * R2D; char.diag.aimErr[1] = final.aimErr[1] * R2D;
     // look-at: clip channel first, then the runtime target; yaw / pitch offsets from the animated head follow their
     // goal frame-rate independently (exponential, <= ~600 deg/s), and fade out for targets behind the chest
@@ -1182,7 +1185,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       lookRT.pitch += Math.max(-lim, Math.min(lim, (gp - lookRT.pitch) * k));
       applyLook(rig, lq, A[2], A[3], lookRT.yaw, lookRT.pitch);
     }
-    driveHelpers(rig, lq);
+    driveHelpers(rig, lq, helperMem);
     for (let k = 0; k < crease.length; k++) { // crease helpers move out of the joint (skeleton.js driveHelpers)
       const i = crease[k] * 3;
       lp[i] = rig.offset[i] + rig.helperOffset[i]; lp[i + 1] = rig.offset[i + 1] + rig.helperOffset[i + 1]; lp[i + 2] = rig.offset[i + 2] + rig.helperOffset[i + 2];
