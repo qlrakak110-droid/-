@@ -53,7 +53,7 @@ const L = {
   emberDim: { color: [0.02, 0.008, 0.004], rough: 0.5, metal: 0, set: 'hammered', amt: 0, inlay: 0.4 },
   fur: { color: [0.034, 0.029, 0.026], rough: 0.85, metal: 0, set: 'fur', amt: 1 },
 };
-const CLOTH = { color: [0.05, 0.016, 0.012], rough: 0.9, set: 'cloth', amt: 1 };
+const CLOTH = { color: [0.04, 0.013, 0.01], rough: 0.92, set: 'cloth', amt: 1 };
 const LINING = { color: [0.016, 0.008, 0.007], rough: 0.95, cavity: 0.5 };
 
 // ---- torso shape (chest frame) ---------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ export const kael = {
       name: 'cape',
       top: [['chest', [0.07, 0.205, -0.17]], ['chest', [-0.04, 0.24, -0.2]], ['chest', [-0.16, 0.215, -0.1]], ['chest', [-0.175, 0.2, 0.02]], ['chest', [-0.15, 0.18, 0.12]]],
       cols: 10, rows: 13, length: 1.05, drape: [-0.22, -1, -0.12], flare: 0.38, thickness: 0.014,
-      offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.04 * v, 0, -0.03 * v * (1 - u)],
+      offset: (u, v) => [-0.05 * Math.sin(v * Math.PI) - 0.04 * v + 0.028 * v * Math.sin(u * Math.PI * 5 + 0.6), 0, -0.03 * v * (1 - u)],
       damping: 0.032, margin: 0.03, wind: 1,
       outer: CLOTH, inner: LINING,
     }),
@@ -199,19 +199,21 @@ export const kael = {
     }
 
     // ---- right pauldron: massive, layered (cop + flared over-plate + 4 lames), standing neck guard ----------------------
-    const PR = A.pauldron({ R: 0.122, xb: -0.145, xf: 0.13, lames: 4, lameH: 0.056, lameStep: 0.042, flare: 0.05, haute: 0.075, ridgeH: 0.011 });
+    const PR = A.pauldron({ R: 0.118, lames: 4, lameH: 0.056, lameStep: 0.04, flare: 0.045, haute: 0.07 });
     put(kit, 'plate', 'deltoidR', PR.cop, L.dark, { glow: veins(0.5) });
     put(kit, 'plate', 'deltoidR', PR.over, L.plate, { glow: veins(1.0, 1.2, 7) });
     PR.lames.forEach((g, k) => put(kit, 'plate', 'deltoidR', g, k % 2 ? L.plate : L.lame, { glow: veins(0.4) }));
     put(kit, 'plate', 'deltoidR', PR.haute, L.dark, { glow: veins(0.7) });
     put(kit, 'plate', 'deltoidR', PR.rivets, L.rivet);
-    put(kit, 'plate', 'deltoidR', A.inlayLine(PR.over, [[0.1, 0.55], [0.3, 0.47], [0.55, 0.52], [0.8, 0.46], [0.92, 0.5]], { width: 0.0036 }), L.ember);
+    put(kit, 'plate', 'deltoidR', PR.boss, L.bronze);
+    put(kit, 'plate', 'deltoidR', A.inlayLine(PR.over, [[0.2, 0.42], [0.38, 0.36], [0.5, 0.4], [0.62, 0.36], [0.8, 0.42]], { width: 0.003 }), L.emberDim);
     put(kit, 'plate', 'deltoidR', A.runes(PR.haute, { u0: 0.25, u1: 0.75, v0: 0.3, v1: 0.62, glyphs: [1, 7, 4], width: 0.0024 }), L.emberDim);
     // left pauldron: lighter, two lames (under the fur mantle and the cape)
-    const PL = A.pauldron({ R: 0.108, xb: -0.125, xf: 0.11, lames: 2, ridgeH: 0.008, nu: 14, nv: 9 });
+    const PL = A.pauldron({ R: 0.104, lames: 2, nu: 18, nv: 7 });
     put(kit, 'plate', 'deltoidL', mirror(PL.cop), L.iron, { glow: veins(0.4) });
     PL.lames.forEach((g) => put(kit, 'plate', 'deltoidL', mirror(g), L.lame));
     put(kit, 'plate', 'deltoidL', mirror(PL.rivets), L.rivet);
+    put(kit, 'plate', 'deltoidL', mirror(PL.boss), L.rivet);
     // cape clasp on the left shoulder: bronze disc with an ember core
     const clasp = lathe([[0.0, 0.012], [0.02, 0.011], [0.032, 0.006], [0.036, 0.0], [0.0, 0.0]], { segs: 18, hard: [2] });
     clasp.rotateX(-90 * DEG);
@@ -231,7 +233,7 @@ export const kael = {
     cou.lames.forEach((g) => putPair(kit, 'plate', 'elbow', g, L.lame));
     const vam = A.vambrace({ r: 0.057, y0: 0.125, y1: -0.115 });
     putPair(kit, 'plate', 'foreArmTwist', vam, L.plate, { glow: veins(0.7, 1.1) });
-    putPair(kit, 'plate', 'foreArmTwist', A.inlayLine(vam, [[0.18, 0.15], [0.24, 0.45], [0.2, 0.8]], { width: 0.0032 }), L.ember);
+    putPair(kit, 'plate', 'foreArmTwist', A.inlayLine(vam, [[0.18, 0.15], [0.24, 0.45], [0.2, 0.8]], { width: 0.0026 }), L.emberDim);
     const g = A.gauntlet();
     putPair(kit, 'plate', 'hand', g.cuff, L.iron, { glow: veins(0.4) });
     putPair(kit, 'plate', 'hand', g.back, L.lame);

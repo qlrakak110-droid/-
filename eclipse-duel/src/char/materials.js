@@ -233,7 +233,7 @@ const FRAG_SURFACE = /* glsl */ `
     }
     float edMicro = mix(1.0, edB.b, edAmt);
     // cloth hems: torn, charred, ember-lit edges (u, v, code in vGlow)
-    float edChar = 0.0;
+    float edChar = 0.0, edSoot = 0.0;
     #ifdef ED_CUTOUT
     if (edSi == 5) {
       vec2 cuv = vGlow.xy;
@@ -259,7 +259,8 @@ const FRAG_SURFACE = /* glsl */ `
       d = min(d, (holeT - hn) * 0.45);
       if (d < 0.0) discard;
       edChar = (1.0 - smoothstep(0.0, 0.02 + 0.07 * burn, d)) * burn;
-      float ember = (1.0 - smoothstep(0.0, 0.006 + 0.004 * burn, d)) * burn;
+      edSoot = burn * smoothstep(0.3, 1.0, cuv.y) * (0.55 + 0.45 * e2);
+      float ember = (1.0 - smoothstep(0.0, 0.006 + 0.004 * burn, d)) * burn * smoothstep(0.2, 0.55, cuv.y);
       float fl = 0.65 + 0.35 * sin(uEmber.x * 3.1 + cuv.x * 37.0 + cuv.y * 11.0);
       edEmis += uGlowB * ember * fl * 0.55;
     }
@@ -279,6 +280,7 @@ const FRAG_SURFACE = /* glsl */ `
     float grime = clamp((1.0 - edOcc) * 1.25 + (1.0 - edMicro) * 0.9, 0.0, 1.0) * uWear.y;
     base = mix(base, base * uGrimeColor, grime);
     base *= mix(1.0, edOcc, 0.7);
+    base *= 1.0 - 0.6 * edSoot;
     base = mix(base, vec3(0.014, 0.011, 0.01), edChar * 0.94);
     diffuseColor.rgb = base;
     edRoughMul = (1.0 + (edA.g - 0.5) * 1.1 * edAmt) * (1.0 - 0.5 * wear);

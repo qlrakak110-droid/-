@@ -261,20 +261,20 @@ function scratchSegs(N, rng, count, scale = 1) {
 /** 1 hammered plate steel: overlapping hammer dents, fine grain, scratches. */
 function hammered(N, rng) {
   const s = N / 512;
-  const w1 = worley(N, 9, rng), w2 = worley(N, 17, rng);
+  const w1 = worley(N, 13, rng), w2 = worley(N, 24, rng);
   const grain = fbm(N, 64, 3, rng), mott = fbm(N, 4, 4, rng, 0.55), wear = fbm(N, 8, 5, rng, 0.6);
   const scr = new Float32Array(N * N);
   lines(scr, N, scratchSegs(N, rng, 320));
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hb = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) {
     const d1 = Math.min(1, w1.f1[i] * 1.25), d2 = Math.min(1, w2.f1[i] * 1.25);
-    const dent = d1 * d1 * 0.75 + d2 * d2 * 0.35;           // bowls: low centre, ridges between dents
+    const dent = d1 * d1 * 0.42 + d2 * d2 * 0.2;            // bowls: low centre, ridges between dents
     h[i] = dent * 0.9 + grain[i] * 0.08 - scr[i] * 0.12;
     hb[i] = dent * 0.8;
     alb[i] = 0.5 + (mott[i] - 0.5) * 0.5 + (w1.id[i] - 0.5) * 0.08 + scr[i] * 0.18;
     rough[i] = 0.5 + (mott[i] - 0.5) * 0.35 + (grain[i] - 0.5) * 0.25 + scr[i] * 0.22 - dent * 0.05;
   }
-  return pack(N, alb, rough, hb, wear, h, 2.4 * s, null);
+  return pack(N, alb, rough, hb, wear, h, 1.9 * s, null);
 }
 
 /** 2 scorched / fire-blackened plate: soot flakes, pitting, warped crack network (mask), heat halo (proximity). */
@@ -311,7 +311,7 @@ function scorched(N, rng) {
     const d = Math.min(1, dent.f1[i] * 1.2);
     const pit = (1 - sstep(0.0, 0.1, pits.f1[i])) * sstep(0.62, 0.75, pitKeep[i]);
     const flake = sstep(0.5, 0.62, soot[i]);
-    h[i] = d * d * 0.32 + grain[i] * 0.08 - pit * 0.18 - Math.min(1, halo2[i] * 2.5) * 0.42 - scr[i] * 0.06 + flake * 0.05;
+    h[i] = d * d * 0.2 + grain[i] * 0.08 - pit * 0.18 - Math.min(1, halo2[i] * 2.5) * 0.42 - scr[i] * 0.06 + flake * 0.05;
     hb[i] = Math.pow(halo[i], 0.8);
     alb[i] = 0.5 + (soot[i] - 0.5) * 0.7 - flake * 0.12 - pit * 0.15 + scr[i] * 0.12;
     rough[i] = 0.5 + flake * 0.25 + (grain[i] - 0.5) * 0.2 + pit * 0.2 - scr[i] * 0.05;

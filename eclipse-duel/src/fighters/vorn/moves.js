@@ -242,7 +242,7 @@ export const def = {
         // wide low sweep at ankle-to-knee height: the arc starts at his side (catches a close cross-up) and ends at the
         // blade's full length; trips the opponent into a knockdown
         t: [0.28, 0.36], box: { f: [-0.5, 2.45], u: [0, 0.7] }, label: 'sweep',
-        damage: 95, level: 'knockdown', knockback: { x: 3, y: 3.2 }, hitstop: 0.12, blockstun: 0.28, guardDamage: 28,
+        damage: 100, level: 'knockdown', knockback: { x: 3, y: 3.2 }, hitstop: 0.12, blockstun: 0.28, guardDamage: 28,
       }],
       cancels: [{ t: [0.38, 0.6], into: ['arc_step'], onContact: true }],
       markers: [
@@ -263,11 +263,11 @@ export const def = {
       // 4 m: a crouch, an explosive burst, the thrust as he arrives, a short skid. Up close the spear is out at 0.20;
       // at the far end of its range (6 m) it lands around 0.30. Solid: the spear stops in the victim (or the guard)
       // and shoves it instead of passing through.
-      motion: { keys: [[0, 0], [0.06, 0.05], [0.2, 2.2], [0.32, 3.8], [0.38, 4.0]] },
+      motion: { keys: [[0, 0], [0.06, 0.05], [0.2, 1.6], [0.32, 3.8], [0.38, 4.0]] },
       hits: [{
         // the thrust at the head of the streak: chest height, the spear's length
         t: [0.2, 0.32], box: { f: [0.2, 2.3], u: [0.6, 1.8] }, label: 'charge',
-        damage: 74, level: 'crumple', hitstun: 0.95, blockstun: 0.24, knockback: { x: 1.5, y: 0 }, hitstop: 0.12, guardDamage: 26,
+        damage: 68, level: 'crumple', hitstun: 0.95, blockstun: 0.24, knockback: { x: 1.5, y: 0 }, hitstop: 0.12, guardDamage: 26,
         armourPierce: true,
       }],
       cancels: [{ t: [0.32, 0.58], into: ['flash_jab', 'gale_sweep', 'skyward_lance', 'thunder_javelin', 'stormfall', '@ult'], onHit: true }],
@@ -280,18 +280,18 @@ export const def = {
         { t: 0.4, name: 'trailOff' },
         { t: 0.52, name: 'recover' },
       ],
-      ai: { range: [2.6, 6.0], role: 'approach', weight: 0.8 },
+      ai: { range: [2.8, 5.6], role: 'approach', weight: 0.6 },
       meta: { slot: 'fheavy' },
     },
 
     skyward_lance: {
       name: '하늘 꿰뚫기 · Skyward Lance',
       duration: 0.64,
-      motion: [{ t: [0.02, 0.14], v: 3.5 }],                     // 0.42 m drive from the crouch
+      motion: [{ t: [0.02, 0.14], v: 2.5 }],                     // 0.3 m drive from the crouch
       hits: [{
         // upward thrust from a crouch: from the hips to well above the head along the spear's angle (anti-air too)
         t: [0.18, 0.25], box: { f: [0.2, 1.95], u: [0.3, 3.0] }, label: 'lance',
-        damage: 64, level: 'launch', knockback: { x: 1.0, y: 9.5 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
+        damage: 60, level: 'launch', knockback: { x: 1.0, y: 9.5 }, hitstop: 0.11, blockstun: 0.24, guardDamage: 22,
       }],
       cancels: [{ t: [0.24, 0.5], into: ['stormfall', '@ult'], onHit: true }],
       markers: [
@@ -302,7 +302,7 @@ export const def = {
         { t: 0.3, name: 'trailOff' },
         { t: 0.42, name: 'recover' },
       ],
-      ai: { range: [0, 2.3], role: 'launcher', weight: 0.65 },
+      ai: { range: [0, 2.2], role: 'launcher', weight: 0.65 },
       meta: { slot: 'dheavy' },
     },
 
@@ -350,17 +350,17 @@ export const def = {
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.4, 0.4], u: [0, 5.0] }, delay: 0.37, lifetime: 0.08,
           clash: false, data: { index: 1 },
-          hit: { damage: 30, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 0.5, label: 'bolt1' },
+          hit: { damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 1, label: 'bolt1' },
         },
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.4, 0.4], u: [0, 5.0] }, delay: 0.49, lifetime: 0.08,
           clash: false, data: { index: 2 },
-          hit: { damage: 30, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 0.5, label: 'bolt2' },
+          hit: { damage: 28, level: 'heavy', hitstun: 0.42, blockstun: 0.2, knockback: { x: 0.3, y: 0 }, hitstop: 0.07, guardDamage: 10, juggle: 1, label: 'bolt2' },
         },
         {
           t: 0.08, kind: 'volt.strike', at: 'opponent', box: { f: [-0.55, 0.55], u: [0, 5.0] }, delay: 0.61, lifetime: 0.1,
           clash: false, data: { index: 3, huge: true },
-          hit: { damage: 60, level: 'launch', knockback: { x: 0.8, y: 8.5 }, blockstun: 0.26, hitstop: 0.16, guardDamage: 20, juggle: 0.5, label: 'bolt3' },
+          hit: { damage: 56, level: 'launch', knockback: { x: 0.8, y: 8.5 }, blockstun: 0.26, hitstop: 0.16, guardDamage: 20, juggle: 1, label: 'bolt3' },
         },
       ],
       cancels: [{ t: [0.5, 0.84], into: ['@ult'], onHit: true }],

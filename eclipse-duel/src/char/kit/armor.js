@@ -271,59 +271,70 @@ export function gorget(o = {}) {
 // ---- shoulders & arms ---------------------------------------------------------------------------------------------------
 
 /**
- * Pauldron (deltoid frame of the R side; origin = shoulder joint). Cop over the shoulder cap (swept around X), an
- * optional flared over-plate (heavy side), lames wrapping the outside of the arm (hoops around the arm's Y axis, open
- * toward the body), an optional standing haute-piece at the neck edge.
- * o: R=0.115 (cop radius), cy=0.012, cz=-0.012 (cop centre), xb=-0.13, xf=0.12 (back / front extents), al0=-38, al1=104
- *    lames=3, lameH=0.052, lameStep=0.04, flare=0 (over-plate flare, m), haute=0 (height), ridgeH=0.01, nu, nv
- * Returns { cop, over, lames: [...], haute, rivets, copS }
+ * Pauldron (deltoid frame of the R side; origin = shoulder joint). Cop = spherical cap over the shoulder (axis tilted
+ * outward, elongated front-back, closed by a boss at the apex), optional flared over-plate (heavy side), lames wrapping
+ * the outside of the arm (hoops around the arm's Y axis, open toward the body), optional standing haute-piece.
+ * o: R=0.115 (cap radius), cy=0.012, cz=-0.008 (cap centre), tilt=32 (deg outward), elong=1.18 (front-back), cover=74
+ *    (deg, cap rim), lames=3, lameH=0.052, lameStep=0.04, flare=0 (over-plate flare, m), haute=0 (height), nu, nv
+ * Returns { cop, boss, over, lames: [...], haute, rivets, copS }
  */
 export function pauldron(o = {}) {
-  const R = o.R ?? 0.115, xb = o.xb ?? -0.13, xf = o.xf ?? 0.12, cy = o.cy ?? 0.012, cz = o.cz ?? -0.012;
-  const al0 = o.al0 ?? -38, al1 = o.al1 ?? 104;
+  const R = o.R ?? 0.115, cy = o.cy ?? 0.012, cz = o.cz ?? -0.008;
+  const tilt = (o.tilt ?? 32) * DEG, ex = o.elong ?? 1.18, th0 = 0.09, th1 = (o.cover ?? 74) * DEG;
   const out = { lames: [] };
-  out.cop = sweepPlate({
-    x0: [[0, xb * 0.72], [1, xb]], x1: [[0, xf * 0.7], [1, xf]],
-    al0, al1, r: [[0, R * 0.9], [0.4, R], [1, R * 1.04]], taper: 0.3, dome: 0.45, cy, cz,
-    ridges: o.ridgeH === 0 ? [] : [{ at: o.ridgeAt ?? 30, h: o.ridgeH ?? 0.01, w: 14 }],
-    nu: o.nu ?? 20, nv: o.nv ?? 12, thick: 0.008, edgeR: 0.006, roll: { v0: 0.0065, v1: 0.006 }, inner: true,
+  // cap frame: axis d = up tilted outward (+Z), e1 = +X (front), e2 = d x e1
+  const d = [0, Math.cos(tilt), Math.sin(tilt)], e1 = [1, 0, 0], e2 = [0, d[2], -d[1]];
+  const cap = (Rf, phiA, phiB, thA, thB, flare = 0, drop = 0) => (u, v) => {
+    const ph = lerp(phiA, phiB, u) * DEG, th = lerp(thA, thB, v);
+    // neck side (e2 negative = toward -Z?) sits lower and tighter; outer side drops further (drop)
+    const side = Math.sin(ph);                          // +1 outward-down side, -1 neck side
+    const r = Rf + flare * v * v * Math.max(0, 0.4 + 0.6 * side);
+    const thx = th * (1 + drop * Math.max(0, side) * v);
+    const s = Math.sin(thx) * r, c = Math.cos(thx) * r;
+    const a = Math.cos(ph) * s * ex, b = side * s;
+    return [a * e1[0] + b * e2[0] + c * d[0], cy + a * e1[1] + b * e2[1] + c * d[1], cz + a * e1[2] + b * e2[2] + c * d[2]];
+  };
+  out.cop = plate(cap(R, -180, 180, th0, th1, 0, 0.12), {
+    closeU: true, nu: o.nu ?? 24, nv: o.nv ?? 9, thick: 0.008, edgeR: 0.006, roll: { v1: 0.0065 }, edge: { v0: 'none' },
+    out: (p) => [p[0], p[1] - cy, p[2] - cz], creaseU: o.ridgeH === 0 ? [] : [],
   });
+  // apex boss closing the cap
+  const boss = dome({ r: R * Math.sin(th0) + 0.012, h: 0.014, thick: 0.004, rim: 0.003, segs: 12 });
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(...d));
+  boss.applyQuaternion(q);
+  boss.translate(d[0] * R * Math.cos(th0) * 0.985, cy + d[1] * R * Math.cos(th0) * 0.985, cz + d[2] * R * Math.cos(th0) * 0.985);
+  out.boss = boss;
   if (o.flare) {
-    // over-plate: shorter, sits on the outer half of the cop and flares out over the lames
-    const F = o.flare;
-    out.over = sweepPlate({
-      x0: [[0, xb * 0.62], [1, xb * 0.86]], x1: [[0, xf * 0.6], [1, xf * 0.84]],
-      al0: [[0, 18], [0.5, 8], [1, 18]], al1: al1 + 8,
-      r: (v) => R + 0.016 + F * v * v, taper: 0.34, dome: 0.3, cy: cy - 0.004, cz: cz + 0.004,
-      ridges: [{ at: 52, h: 0.008, w: 12 }],
-      nu: o.nu ?? 18, nv: 9, thick: 0.008, edgeR: 0.0065, roll: { v1: 0.0075, v0: 0.005 }, inner: true,
-      occ: (u, v) => 0.75 + 0.25 * sstep(0.0, 0.3, v),
+    // over-plate: wing over the outer half, flaring out over the lames
+    out.over = plate(cap(R + 0.014, -150, 150, 0.32, th1 + 0.12, o.flare, 0.18), {
+      nu: o.nu ?? 22, nv: 7, thick: 0.008, edgeR: 0.0065, roll: { v1: 0.0075, v0: 0.005 }, inner: true,
+      out: (p) => [p[0], p[1] - cy, p[2] - cz],
+      occ: (u, v) => 0.8 + 0.2 * sstep(0.0, 0.3, v),
     });
   }
   // lames: hoops around the arm, open toward the body (a ~ 270 = -Z), stepping down and out
   const nL = o.lames ?? 3, LH = o.lameH ?? 0.052, LS = o.lameStep ?? 0.04;
   for (let k = 0; k < nL; k++) {
-    const y0 = -0.025 - k * LS, rr = R * 0.82 + 0.006 * k + (o.flare ? 0.012 : 0);
+    const y0 = -0.03 - k * LS, rr = R * 0.7 + 0.005 * k + (o.flare ? 0.008 : 0);
     out.lames.push(hoop({
       y0, y1: y0 - LH, a0: -70, a1: 250,
-      rx: [[0, rr * 0.92], [1, rr * 0.96 + 0.004]], rz: [[0, rr], [1, rr + 0.008]], ox: -0.004, oz: 0.016 + 0.003 * k, n: 2.1,
+      rx: [[0, rr * 0.94], [1, rr * 0.97 + 0.004]], rz: [[0, rr], [1, rr + 0.007]], ox: -0.002, oz: 0.008 + 0.002 * k, n: 2.1,
       bot: (a) => -0.012 * Math.pow(Math.max(0, Math.sin(a * DEG)), 2),
       nu: 18, nv: 2, thick: 0.006, edgeR: 0.0045, roll: { v1: 0.0045 },
       occ: (u, v) => 0.58 + 0.42 * sstep(0.15, 0.6, v),
     }));
   }
-  // haute-piece: standing neck guard along the cop's inner (neck-side) edge, leaning outward a little
+  // haute-piece: standing neck guard rising from the cap's neck-side rim, flaring outward at the top
   if (o.haute) {
-    const H = o.haute, hx0 = xb * 0.72, hx1 = xf * 0.66;
-    const ya = cy + R * 0.9 * Math.cos(al0 * DEG) - 0.012, za = cz + R * 0.9 * Math.sin(al0 * DEG) + 0.012;
+    const H = o.haute, base = cap(R, -180, 180, th0, th1, 0, 0.12);
     out.haute = plate((u, v) => {
-      const x = lerp(hx0, hx1, u), e = (2 * u - 1);
-      const hgt = H * Math.pow(Math.max(0, 1 - e * e), 0.5) * (1 - 0.18 * e);
-      return [x, ya + v * hgt, za + 0.018 * v * v + 0.016 * e * e];
+      const p = base(lerp(0.62, 0.88, u), 0.72);
+      const e = 2 * u - 1, hgt = H * Math.pow(Math.max(0, 1 - e * e), 0.45) * (1 - 0.2 * e);
+      return [p[0], p[1] + v * hgt, p[2] - 0.01 + 0.022 * v * v];
     }, { nu: 14, nv: 4, thick: 0.007, edgeR: 0.0055, roll: { v1: 0.0065 }, out: () => [0, 0, -1], edge: { v0: 'none' } });
   }
   const ruv = [];
-  for (let i = 1; i < 8; i++) ruv.push([i / 8, 0.9]);
+  for (let i = 0; i < 9; i++) ruv.push([o.flare ? 0.12 + i * 0.095 : i / 9, 0.86]);
   out.rivets = studs(onSurface((out.over || out.cop).userData, ruv, -0.001), { r: 0.0068, h: 0.0042 });
   out.copS = out.cop.userData;
   return out;
