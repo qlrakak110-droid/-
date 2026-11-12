@@ -450,7 +450,7 @@ const ult = {
       beat(h, 'leapAfter', 'vent', 0.0);
       h.offset([0.85, 2.75], 0.42, 'outCubic');
       h.foeOffset([-0.35, 3.05], 0.7, 'outSine');
-      h.mood({ darken: 0.86, tint: 0xff2a10, duration: 0.5 });
+      h.mood({ darken: 0.7, tint: 0xff2a10, duration: 0.5 });   // crimson sky (0.86 read as plain black behind the leap)
       // the firestorm under the airborne pair (own preset: the library inferno's centre detonation buried the rise)
       h.fx('kael.inferno', 'foe.floor', { radius: 1.7, duration: 1.5, intensity: 0.5, fallback: null });
       h.fx('combat.dust.land', 'floor', { k: 1.2, heavy: true, fallback: null });

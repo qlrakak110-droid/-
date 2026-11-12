@@ -21,12 +21,12 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  */
 export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
- * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll] + this frame
- * (the same 6).
+ * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction]
+ * + this frame (the same 7).
  */
-export const MEM = 12;
+export const MEM = 14;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
-export function commitMem(m, o = 0) { for (let k = 0; k < 6; k++) m[o + k] = m[o + 6 + k]; }
+export function commitMem(m, o = 0) { for (let k = 0; k < 7; k++) m[o + k] = m[o + 7 + k]; }
 
 /**
  * Limb descriptors for a rig: handR, handL, footR, footL.
@@ -280,7 +280,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     if (hasMem) hasMem = memDir();
   }
   limbAt(phi, sign, bend, er, eo, tq, 0);
-  let timer = 0;
+  let timer = 0, tdir = 0;
   if (wrist) {
     // swivel cost = arm comfort + a pull back to the pole (keeps the authored elbow when the arm is at ease) + the arm
     // out of the torso. Without memory: the global minimum. With memory: the minimum of the basin the elbow is in,
@@ -311,7 +311,10 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       } else if (better) goal = gPhi;
       let d = wrapA(goal - phiP);
       if (timer < 0) {
-        if (timer === -1 || Math.sign(d) !== Math.sign(mem[4] < -1 ? mem[2 + 9] : d)) { /* direction fixed at the start */ }
+        // the way round is chosen when the travel starts and kept to its end
+        tdir = timer === -1 || !mem[6] ? travelDir(phiP, goal) : mem[6];
+        const ccw = ((goal - phiP) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+        d = tdir > 0 ? ccw : ccw - 2 * Math.PI;
         // travel: eases in over 80 ms, SWITCH for a bent arm (the elbow rolls over at ~2.4 m/s x body), faster as the arm
         // straightens (a straight arm's swivel is only its twist), and settles exponentially on arrival
         const e = -1 - timer, x = Math.min(1, (e + dt) / 0.08);
@@ -319,6 +322,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         const near = Math.abs(d) * (1 - Math.exp(-30 * dt));
         d = Math.sign(d) * Math.min(rate, near);
         timer = Math.abs(wrapA(goal - phiP - d)) < 0.02 ? 0 : timer - dt;
+        if (!(timer < 0)) tdir = 0;
       }
       phi = phiP + d;
     } else phi = gPhi;
@@ -363,8 +367,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
-    qrot(mem, 6, tv, 8, px, py, pz);
-    mem[9] = 1; mem[10] = timer; mem[11] = psi;
+    qrot(mem, 7, tv, 8, px, py, pz);
+    mem[10] = 1; mem[11] = timer; mem[12] = psi; mem[13] = tdir;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
