@@ -262,6 +262,18 @@ createLab({
     chargeRelease(ctx, lab, p, charge) { return ctx.vfx.play('demo.chargeRelease', { pos: P(p, [0, 1.4, 0]) }, { charge }); },
     swingTrail(ctx) { return ctx.vfx.play('demo.swingTrail'); },
     frostHit(ctx, lab, p, d) { return ctx.vfx.play('frost.hit', { pos: P(p, [0, 1.35, 0]), dir: d || [-1, 0.2, 0.3] }); },
+    // ---- mesh effects (stage 2) ---------------------------------------------------------------------------------
+    slash(ctx, lab, look = 'razor', o = {}) {
+      return ctx.vfx.slash({ look, pos: [0, 1.25, 0], normal: [0, 0.28, 1], forward: [1, 0, 0], arc: [150, -25], radius: 1.5, distort: 0.02, ...o });
+    },
+    slashes(ctx, lab, o = {}) {
+      const looks = ['razor', 'flame', 'ice', 'electric', 'eclipse'];
+      looks.forEach((look, i) => ctx.vfx.slash({ look, pos: [-4 + i * 2, 1.2, 0], normal: [0, 0.25, 1], arc: [150, -25], radius: 0.85, width: 0.32, ...o }));
+    },
+    slashWave(ctx, lab, look = 'flame') {
+      // a crescent projectile: sweeps, then flies forward and grows
+      return ctx.vfx.slash({ look, pos: [-3, 1.0, 0], normal: [0, 0, 1], forward: [1, 0, 0], arc: [-70, 70], radius: 0.9, width: 0.45, speed: 9, expand: 0.6, drag: 1.2, life: 0.9, sweep: 0.05, distort: 0.03 });
+    },
     slowmo(ctx, lab, s = 0.2, d = 2) { ctx.time.slowmo(s, d, { easeIn: 0, easeOut: 0 }); },
     hitstop(ctx, lab, d = 0.3) { ctx.time.hitstop(d); },
     clear(ctx) { ctx.vfx.clear(); },
