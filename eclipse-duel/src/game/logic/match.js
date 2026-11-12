@@ -3,7 +3,7 @@
 // One substep (h <= rules.maxSubstep):
 //   1. phase gate (intro countdown) / super-freeze / cinematic lock (these replace the normal update)
 //   2. each fighter advances by h minus its remaining hit-stop (input buffer ages on the same fighter clock)
-//   3. push-boxes and walls, cooldowns
+//   3. push-boxes and walls, cooldowns (push-boxes are settled again after contacts)
 //   4. projectiles move, expire and clash
 //   5. contacts: both fighters' strikes and every projectile are collected first, then resolved together (trades)
 //   6. meters regenerate, the round clock runs, KO / time-up / round transitions
@@ -73,7 +73,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
     roundReason: null,
     winner: null,
     freeze: null,
-    cine: null,
+    cinematic: null,
     side: 1,
     nextProjectileId: 1,
     koQueue: [],
@@ -135,7 +135,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
       else return;
     }
     if (m.freeze) { freezeStep(h); return; }
-    if (m.cine) {
+    if (m.cinematic) {
       updateCinematic(m, h);
       for (const f of F) ageInput(f.input, h, R);
       afterContacts(h, false);
@@ -165,6 +165,8 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
       collectStrikes(m, F[1], contacts);
       collectProjectileHits(m, contacts);
       resolveContacts(m, contacts);
+      // a hit can end a pass-through window mid-overlap (or start a cinematic): settle the push-boxes again
+      resolvePush();
     }
     compactProjectiles(m);
     afterContacts(h, true);
@@ -197,7 +199,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
         m.roundReason = alive.length === 1 ? 'ko' : 'doubleKo';
         m.koQueue.length = 0;
         setPhase('ko');
-      } else if (live && !m.cine) {
+      } else if (live && !m.cinematic) {
         m.clock = Math.max(0, m.clock - h);
         if (m.clock <= 0) {
           const r0 = F[0].hp / F[0].hpMax, r1 = F[1].hp / F[1].hpMax;
@@ -232,7 +234,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
   function startRound(n, fresh) {
     m.round = n;
     m.freeze = null;
-    m.cine = null;
+    m.cinematic = null;
     m.roundWinner = null;
     m.roundReason = null;
     m.koQueue.length = 0;
@@ -313,7 +315,7 @@ export function createMatch({ fighters, controllers = [], rules = {}, rng } = {}
       time: r3(m.time), phase: m.phase, round: m.round, clock: r3(m.clock), winner: m.winner,
       roundWinner: m.roundWinner, roundReason: m.roundReason,
       freeze: m.freeze ? { owner: m.freeze.owner, move: m.freeze.move, remaining: r3(m.freeze.remaining) } : null,
-      cinematic: m.cine ? { attacker: m.cine.attacker, defender: m.cine.defender, move: m.cine.move, t: r3(m.cine.t), duration: m.cine.duration } : null,
+      cinematic: m.cinematic ? { attacker: m.cinematic.attacker, defender: m.cinematic.defender, move: m.cinematic.move, t: r3(m.cinematic.t), duration: m.cinematic.duration } : null,
       fighters: m.fighters.map((f) => ({
         index: f.index, id: f.id, x: r3(f.x), y: r3(f.y), vx: r3(f.vx), vy: r3(f.vy), facing: f.facing,
         state: f.state, stateTime: r3(f.stateTime), timer: r3(f.timer), stunKind: f.stunKind,

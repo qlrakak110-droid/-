@@ -10,9 +10,6 @@ export const BUTTONS = ['up', 'down', 'light', 'heavy', 'skill1', 'skill2', 'ski
 /** Buttons that start moves through the command map, in resolution priority order (first wins). */
 export const ATTACK_BUTTONS = ['ult', 'skill1', 'skill2', 'skill3', 'heavy', 'light'];
 
-/** Direction prefixes of command keys ('f+heavy'), relative to the fighter's facing. Checked in this order. */
-export const DIR_PREFIXES = ['d', 'u', 'f', 'b'];
-
 /** Move groups. Cancel windows can name a whole group as '@normal', '@skill', '@ult' (or '@any'). */
 export const GROUPS = ['normal', 'skill', 'ult'];
 
@@ -24,9 +21,6 @@ export const STATES = [
   'intro', 'idle', 'walk', 'dash', 'backstep', 'roll', 'dodge', 'guard', 'blockstun', 'attack', 'hitstun',
   'launched', 'knockdown', 'getup', 'guardbreak', 'locked', 'recovery', 'ko', 'victory', 'defeat',
 ];
-
-/** States in which the fighter reads the stick and buttons freely. */
-export const NEUTRAL_STATES = new Set(['idle', 'walk', 'guard']);
 
 /** States in which the fighter is the victim of a running combo. */
 export const COMBO_STATES = new Set(['hitstun', 'launched', 'guardbreak', 'locked']);
@@ -76,7 +70,7 @@ export const DEFAULT_RULES = {
     maxHits: 40,        // safety net: past this many hits (or maxTime) every hit becomes a knockdown
     maxTime: 8,
   },
-  juggle: { limit: 6, gravityStep: 0.08, pop: 4.2, airHitstunCarry: true },
+  juggle: { limit: 6, gravityStep: 0.08, pop: 4.2 },
   counterHit: { damage: 1.2, hitstun: 1.3, hitstop: 1.35 },
   block: { hitstopScale: 0.75, pushbackScale: 0.85, perfectWindow: 0.12, perfectStunScale: 0.5, chipCanKO: false },
   chip: { normal: 0, skill: 0.15, ult: 0.2 },
@@ -93,14 +87,14 @@ export const DEFAULT_RULES = {
     fpRegen: 7,          // per second
     fpRegenDelay: 0.6,   // seconds after spending FP before regen resumes
     fpOnHit: 1.0,        // FP gained per hit dealt
-    ultDeal: 0.055,      // ULT gained per HP of damage dealt
-    ultTake: 0.075,      // ULT gained per HP of damage taken
+    ultDeal: 0.045,      // ULT gained per HP of damage dealt
+    ultTake: 0.06,       // ULT gained per HP of damage taken
     ultBlockDeal: 0.02,  // per point of chip / guard damage dealt
     ultBlockTake: 0.03,
     ultCarry: true,      // ULT carries between rounds (HP and FP reset)
-    guardRegen: 22,      // guard gauge per second
-    guardRegenDelay: 1.0,
-    guardRegenWhileGuarding: 0.35,
+    guardRegen: 14,      // guard gauge per second
+    guardRegenDelay: 1.3, // seconds after the last blocked hit before the gauge regenerates
+    guardRegenWhileGuarding: 0.25, // regeneration multiplier while holding guard
   },
 };
 

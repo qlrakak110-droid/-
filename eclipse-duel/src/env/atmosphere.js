@@ -92,7 +92,7 @@ void main() {
     // view-angle: sheets seen edge-on get thicker
     a *= mix(1.0, 2.2, 1.0 - abs(dir.y));
     a = clamp(a, 0.0, 0.85);
-    vec3 c = skyBase(vec3(dir.x, 0.02, dir.z)) * 0.85 + uMist;
+    vec3 c = uFogNear * 1.6 + uSunHalo * pow(max(dot(dir, uSunDir), 0.0), 6.0) * 0.8 + uMist;
     o = vec4(moodApply(c, 1.0) * a, a);
   }
   gl_FragColor = o;
@@ -126,7 +126,7 @@ export function createAtmosphere(U, rng, tier) {
   const shafts = [[-33, 9.5, 3.4], [33, 8.5, 3.0], [-49, 10.5, 2.6], [16, 6.5, 2.2], [-16, 7.0, 2.4], [49, 9.0, 2.6], [-65, 9.0, 2.2]];
   for (const [deg, y, w] of shafts.slice(0, tier.shafts)) {
     const start = ring(deg, LAYOUT.pillarR + 2.5, y);
-    quad(start, 1, rng.range(0, 40), 0.055, w, 1, [shaftDir.x, shaftDir.y, shaftDir.z], 30);
+    quad(start, 1, rng.range(0, 40), 0.08, w, 1, [shaftDir.x, shaftDir.y, shaftDir.z], 30);
   }
 
   // mist sheets (static world-space grids): around the wall base and pouring over the broken edge
@@ -148,9 +148,10 @@ export function createAtmosphere(U, rng, tier) {
       }
     };
     const T = LAYOUT.thetaMax;
-    sheet(0.3, 15.4, 30, -LAYOUT.gap - 8 * DEG, LAYOUT.gap + 8 * DEG, 24, 0.4, true);
-    sheet(0.25, 10.5, 15.6, -T, T, 48, 0.42, false);
-    sheet(0.75, 11.5, 15.6, -T, T, 48, 0.3, false);
+    sheet(0.3, 15.4, 30, -LAYOUT.gap - 8 * DEG, LAYOUT.gap + 8 * DEG, 24, 0.6, true);
+    sheet(0.22, 10.5, 15.6, -T, T, 48, 0.6, false);
+    sheet(0.6, 11.5, 15.6, -T, T, 48, 0.45, false);
+    sheet(1.15, 12.5, 15.6, -T, T, 48, 0.3, false);
   }
 
   const g = new THREE.BufferGeometry();
@@ -166,9 +167,9 @@ export function createAtmosphere(U, rng, tier) {
     fragmentShader: FRAG,
     uniforms: {
       uZenith: U.uZenith, uSkyMid: U.uSkyMid, uHorizon: U.uHorizon, uGlow: U.uGlow, uSunHalo: U.uSunHalo, uSunDir: U.uSunDir,
-      uFogP: U.uFogP, uMood: U.uMood, uTime: U.uTime, uWind: U.uWind,
+      uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uTime: U.uTime, uWind: U.uWind,
       uShaft: { value: new THREE.Color(0.32, 0.38, 0.5) },
-      uMist: { value: new THREE.Color(0.012, 0.012, 0.016) },
+      uMist: { value: new THREE.Color(0.006, 0.007, 0.01) },
       uCloudY: { value: cy },
     },
     transparent: true,

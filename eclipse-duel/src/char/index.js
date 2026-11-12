@@ -9,12 +9,12 @@ import { createRig, bindMatrices, fk } from './skeleton.js';
 import { createKit } from './build.js';
 import * as shapes from './shapes.js';
 import { createKitMaterial } from './materials.js';
-import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE } from './anim.js';
+import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE, defineClip } from './anim.js';
 import { makeLimbs, solveLimb, floorFoot, solveLook } from './ik.js';
 import { SpringChain } from './spring.js';
 import { Cloth, clothLayout, clothGeometry } from './cloth.js';
 import { createCapsules, updateCapsules } from './collide.js';
-import { qmul, qmulInv, qrot, qslerp, qaxis, qidentity, twistAngle, qcopy, eulerToQuat } from './rigmath.js';
+import { qmul, qmulInv, qrot, qslerp, qaxis, qidentity, twistAngle, qcopy, eulerToQuat, sampleTrack } from './rigmath.js';
 
 export { defineClip, definePose, mirrorClip, mirrorPose, listClips, listPoses, hasClip, invalidateClips } from './anim.js';
 export { createKitMaterial, shapes };
@@ -231,7 +231,7 @@ export function createCharacter(ctx, design, opts = {}) {
   const rootA = new Float32Array(2), rootB = new Float32Array(2);
   function rootAt(c, t, out) {
     if (!c.root) { out[0] = out[1] = 0; return; }
-    sampleClipRoot(c, t, out);
+    sampleTrack(c.root, t, out, 0);
   }
 
   function advance(s, dt, current) {
@@ -284,6 +284,19 @@ export function createCharacter(ctx, design, opts = {}) {
       const o = e * EFF_STRIDE, w = pose.ik[o];
       if (w <= 0) continue;
       const limb = limbs[EFFECTORS[e]];
+      const sp = pose.ik[o + 14], k = pose.ik[o + 15];
+      if (sp >= 2 && k > 0) { // target authored in the hips / chest frame -> model space, blended with the A target
+        const b = sp === 2 ? ix.hips : ix.chest, ik = pose.ik;
+        qrot(tv, 0, mq, b * 4, ik[o + 16], ik[o + 17], ik[o + 18]);
+        const bx = mp[b * 3] + tv[0], by = mp[b * 3 + 1] + tv[1], bz = mp[b * 3 + 2] + tv[2];
+        if (k >= 1) { ik[o + 1] = bx; ik[o + 2] = by; ik[o + 3] = bz; }
+        else { ik[o + 1] += (bx - ik[o + 1]) * k; ik[o + 2] += (by - ik[o + 2]) * k; ik[o + 3] += (bz - ik[o + 3]) * k; }
+        if (ik[o + 23]) {
+          qmul(tv, 4, mq, b * 4, ik, o + 19);
+          if (ik[o + 8] && k < 1) qslerp(ik, o + 4, ik, o + 4, tv, 4, k); else qcopy(ik, o + 4, tv, 4);
+          ik[o + 8] = 1;
+        }
+      }
       solveLimb(rig, limb, lq, mq, mp, pose.ik, o + 1, pose.ik[o + 8] ? pose.ik : null, o + 4, pose.ik[o + 12] ? pose.ik : null, o + 9, w);
       any = true;
     }
@@ -378,7 +391,7 @@ export function createCharacter(ctx, design, opts = {}) {
       const k = 3.2 * amount;
       springsBody.om[0] += ax * k; springsBody.om[2] += az * k;
       springsBody.hom[0] += ax * k * 1.4; springsBody.hom[2] += az * k * 1.4;
-      springsBody.v[0] += dx * 0.55 * amount; springsBody.v[1] += dy * 0.35 * amount - 0.25 * amount * Math.abs(dy - 1) * 0.3; springsBody.v[2] += dz * 0.45 * amount;
+      springsBody.v[0] += dx * 0.55 * amount; springsBody.v[1] += (dy * 0.35 - 0.12) * amount; springsBody.v[2] += dz * 0.45 * amount;
     } else {
       if (ix[bone] === undefined) return char;
       let s = boneSprings.get(bone);
@@ -627,7 +640,7 @@ export function createCharacter(ctx, design, opts = {}) {
       b.quaternion.set(lq[i * 4], lq[i * 4 + 1], lq[i * 4 + 2], lq[i * 4 + 3]);
       b.position.set(lp[i * 3], lp[i * 3 + 1], lp[i * 3 + 2]);
     }
-    if (char.applyRootMotion) { root.position.x += char.rootDelta.f * facing; root.position.y += char.rootDelta.u; haveLast && lastWorld.elements && (lastWorld.elements[12] += 0); }
+    if (char.applyRootMotion) { root.position.x += char.rootDelta.f * facing; root.position.y += char.rootDelta.u; }
     root.updateMatrixWorld(true);
     // hit flash (real time)
     if (flashState.t < 1) {
@@ -639,20 +652,11 @@ export function createCharacter(ctx, design, opts = {}) {
     return char;
   }
 
-  function sampleClipRoot(c, t, out) {
-    // root motion only (cheap): reuse the root track sampler through a scratch pose
-    sampleRoot(c, t, out);
-  }
-
   // initial pose: neutral, matrices valid before the first update
   fk(rig, lq, lp, mq, mp);
   if (opts.parent !== null) (opts.parent || ctx.scene).add(root);
   return char;
 }
 
-import { sampleTrack } from './rigmath.js';
-function sampleRoot(c, t, out) { sampleTrack(c.root, t, out, 0); }
-
 // a minimal always-available hold clip (zero motion, neutral pose)
-import { defineClip as _def } from './anim.js';
-_def('neutral.hold', { duration: 1, loop: true, keys: [{ t: 0, pose: 'neutral' }] });
+defineClip('neutral.hold', { duration: 1, loop: true, keys: [{ t: 0, pose: 'neutral' }] });

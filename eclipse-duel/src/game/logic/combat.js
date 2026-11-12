@@ -1,7 +1,7 @@
 // Hit detection and resolution: hurtboxes, strike collection, blocking / perfect guard / guard break, armour,
 // counter stances, clean hits (combo scaling, hitstun decay, juggles, counter hits), hit-stop and KO.
 
-import { worldBox, overlaps, contactPoint, crosses, windowAt } from './moves.js';
+import { worldBox, overlaps, contactPoint, crosses, windowAt, EPS } from './moves.js';
 import { setState, endMove, startMove, launch, isInvulnerable, faceOpponent } from './fighter.js';
 import { loseHp, gainUlt, gainFp, drainGuard } from './meters.js';
 import { expireProjectile } from './projectiles.js';
@@ -60,7 +60,7 @@ export function collectStrikes(m, f, out) {
     if (!crosses(ht.t0, ht.t1, tP, tN)) continue;
     const i = ht.index;
     if (f.hitCounts[i] >= ht.multiMax) continue;
-    if (f.hitCounts[i] > 0 && tN - f.hitLast[i] < ht.multiInterval - 1e-9) continue;
+    if (f.hitCounts[i] > 0 && tN - f.hitLast[i] < ht.multiInterval - EPS) continue;
     worldBox(f.x, f.y, f.facing, ht.f0, ht.f1, ht.u0, ht.u1, hitBox);
     const c = hurtContact(d, hitBox);
     if (!c) continue;
@@ -278,7 +278,7 @@ export function knockOut(m, d, a, dirX, cinematic = false) {
 export function resolveContacts(m, list) {
   if (list.length > 1) list.sort((x, y) => (y.hit.cinematic ? 1 : 0) - (x.hit.cinematic ? 1 : 0));
   for (const c of list) {
-    if (m.cine) break;
+    if (m.cinematic) break;
     const res = resolveContact(m, c);
     if (res === 'whiff') continue;
     if (c.kind === 'strike') {

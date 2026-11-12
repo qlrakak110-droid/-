@@ -13,7 +13,7 @@ const FRAG_HEAD = /* glsl */ `
 uniform sampler2D tFloorA, tFloorB, tDetailB, tRefl;
 uniform float uFloorE;
 uniform vec4 uWet;        // x dampness, y puddle scale, z ripple amount, w reflection on
-uniform vec4 uBand;       // x sigma (m), y darkening, z key outside band, w key at the far floor
+uniform vec4 uBand;       // x sigma (m), y darkening, z unused, w key factor away from the fight line
 uniform vec4 uPulseP[${MAX_PULSES}];   // x, z, age (s), strength
 uniform vec4 uPulseC[${MAX_PULSES}];   // rgb colour, ring speed (m/s)
 uniform vec4 uBraz[4];    // brazier x, z, pool strength, -
@@ -35,7 +35,7 @@ alb *= mix(1.0, 1.0 - uBand.y, band);
 alb *= mix(1.0, 0.7, uWet.x);
 alb = mix(alb, alb * 0.42, envPuddle);
 diffuseColor.rgb *= alb;
-envRough = mix(fB.b, fB.b * 0.62, uWet.x) * mix(1.0, 0.85, band);
+envRough = mix(fB.b, fB.b * 0.8, uWet.x) * mix(1.0, 0.88, band);
 envRough = mix(envRough, 0.045, envPuddle);
 envMetal = fB.a * (1.0 - envPuddle);
 
@@ -89,6 +89,11 @@ if (uWet.w > 0.5) {
   vec2 suv = clip.xy / max(clip.w, 1e-3) * 0.5 + 0.5;
   float edge = smoothstep(0.0, 0.06, suv.x) * smoothstep(1.0, 0.94, suv.x) * smoothstep(0.0, 0.05, suv.y) * smoothstep(1.0, 0.92, suv.y);
   float w = step(0.0, clip.w) * smoothstep(0.08, 0.45, F.z) * (1.0 - smoothstep(2.4, 3.6, Q.y)) * edge;
+  // where the camera ray through Q lands on the floor behind, the copied pixel is (most likely) floor, not a fighter
+  if (Q.y < cameraPosition.y - 0.02) {
+    vec3 hit = cameraPosition + (Q - cameraPosition) * (cameraPosition.y / (cameraPosition.y - Q.y));
+    w *= mix(0.1, 1.0, smoothstep(13.5, 17.0, length(hit.xz)));
+  }
   float lod = clamp(envRough * 9.0, 0.0, 5.0);
   vec3 rc = textureLod(tRefl, suv, lod).rgb;
   float wetness = max(envPuddle, uWet.x * 0.55);
@@ -112,8 +117,8 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     tDetailB: { value: stoneMaps.b.texture },
     tRefl: { value: null },
     uFloorE: { value: LAYOUT.floorTexExtent },
-    uWet: { value: new THREE.Vector4(0.6, 1.0, 1.0, 0) },
-    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 1.0, 0.45) },
+    uWet: { value: new THREE.Vector4(0.4, 1.0, 1.0, 0) },
+    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 1.0, 0.3) },
     uPulseP: { value: pulseP },
     uPulseC: { value: pulseC },
     uBraz: { value: braz },
@@ -127,7 +132,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     fragHead: FRAG_HEAD,
     keyMask: false,
     // key light: full on the fight band, dimmer toward the far floor and the wall
-    keyMaskExtra: 'envKeyMask = mix(uBand.w, 1.0, max(exp(-vEnvWorld.z * vEnvWorld.z / 18.0), 1.0 - smoothstep(4.0, 15.0, length(vEnvWorld.xz)))) * mix(uBand.z, 1.0, band);',
+    keyMaskExtra: 'envRimMask = 0.22; envKeyMask = mix(uBand.w, 1.0, exp(-vEnvWorld.z * vEnvWorld.z / 14.0) * (1.0 - smoothstep(7.0, 14.0, abs(vEnvWorld.x - uKeyMask.x))));',
     fragReplace: {
       map_fragment: MAP,
       roughnessmap_fragment: 'float roughnessFactor = envRough;',

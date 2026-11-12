@@ -142,6 +142,8 @@ export function installDistort(vfx, shared) {
     ring.highWater = Math.max(ring.highWater, slot.i + 1);
     const end = slot.t0 + life;
     if (realtime) maxDeathReal = Math.max(maxDeathReal, end); else maxDeath = Math.max(maxDeath, end);
+    ring.commit();
+    mesh.visible = true;
     return handle;
   }
 

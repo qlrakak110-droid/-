@@ -11,7 +11,11 @@ let compiledByRig = new WeakMap();
 
 /** IK effectors in Pose.ik order. */
 export const EFFECTORS = ['handR', 'handL', 'footR', 'footL'];
-export const EFF_STRIDE = 13; // w, pos(3), quat(4), hasRot, pole(3), hasPole
+// per effector: w, posA(3), quatA(4), hasRotA, pole(3), hasPole, -, spaceB, k, posB(3), quatB(4), hasRotB
+// A = fighter frame (root / origin, resolved at sampling), B = hips / chest frame, k = blend A -> B
+export const EFF_STRIDE = 24;
+/** IK target spaces: 0 root (fighter frame), 1 origin (root at clip start), 2 hips bone frame, 3 chest bone frame. */
+export const SPACES = { root: 0, origin: 1, hips: 2, chest: 3 };
 const CENTER = new Set(['hips', 'spine', 'chest', 'neck', 'head']);
 
 /** Register a named static pose (same channels as a clip key, without t / ease). */
@@ -199,15 +203,28 @@ function compile(rig, def) {
     if (k.ik) {
       for (const [e, v] of Object.entries(k.ik)) {
         if (!EFFECTORS.includes(e)) throw new Error('clip ' + def.name + ': unknown IK effector ' + e);
-        if (!ik[e]) ik[e] = { pos: newTrack(3), rot: newTrack(4), pole: newTrack(3), w: newTrack(1), space: 0 };
+        if (!ik[e]) {
+          ik[e] = { A: { pos: newTrack(3), rot: newTrack(4), space: [] }, B: { pos: newTrack(3), rot: newTrack(4) }, pole: newTrack(3), w: newTrack(1), k: newTrack(1), origin: false, spaceB: 0 };
+        }
         const E = ik[e];
         const ee = (v && v.ease) || ke, em = (v && v.interp) || km;
-        if (!v || v.w === 0 || !v.pos) { pushKey(E.w, t, [0], ee, em); continue; }
-        if (v.space === 'origin') E.space = 1;
-        pushKey(E.pos, t, v.pos, ee, em);
-        pushKey(E.w, t, [v.w ?? 1], ee, em);
-        if (v.aim) pushKey(E.rot, t, aimUpToQuat(q, v.aim, v.up), ee, em);
-        else if (v.rot) pushKey(E.rot, t, eulerToQuat(q, 0, v.rot[0] || 0, v.rot[1] || 0, v.rot[2] || 0), ee, em);
+        if (!v || v.w === 0) { pushKey(E.w, t, [0], ee, em); continue; }
+        const sp = SPACES[v.space || 'root'];
+        if (sp === undefined) throw new Error('clip ' + def.name + ': unknown IK space ' + v.space);
+        if (sp === 1) E.origin = true;
+        if (sp >= 2) {
+          if (E.spaceB && E.spaceB !== sp) throw new Error('clip ' + def.name + ': ' + e + ' mixes hips and chest spaces');
+          E.spaceB = sp;
+        }
+        const S = sp >= 2 ? E.B : E.A;
+        if (v.pos) {
+          pushKey(S.pos, t, v.pos, ee, em);
+          pushKey(E.k, t, [sp >= 2 ? 1 : 0], ee, em);
+          if (sp < 2) E.A.space.push(sp);
+        }
+        if (v.pos || v.w !== undefined) pushKey(E.w, t, [v.w ?? 1], ee, em);
+        if (v.aim) pushKey(S.rot, t, aimUpToQuat(q, v.aim, v.up), ee, em);
+        else if (v.rot) pushKey(S.rot, t, eulerToQuat(q, 0, v.rot[0] || 0, v.rot[1] || 0, v.rot[2] || 0), ee, em);
         if (v.pole) pushKey(E.pole, t, v.pole, ee, em);
       }
     }
@@ -219,12 +236,19 @@ function compile(rig, def) {
       else pushKey(lookW, t, [0], ke, km);
     }
     if (k.curl) { if (!curl) curl = newTrack(2); pushKey(curl, t, k.curl, ke, km); }
-    if (k.root) { if (!root) root = newTrack(2); const r = Array.isArray(k.root) ? { pos: k.root } : k.root; pushKey(root, t, r.pos, r.ease || ke, r.interp || km); }
   };
   const addHips = (h, t, ke, km) => {
     if (h.pos) { if (!hipsPos) hipsPos = newTrack(3); pushKey(hipsPos, t, h.pos, h.ease || ke, h.interp || km); }
     if (h.rot) { if (!hipsRot) hipsRot = newTrack(3); pushKey(hipsRot, t, h.rot, h.ease || ke, h.interp || km); }
   };
+  // root motion first: origin-space IK keys are relative to it
+  for (const k of keys) {
+    if (!k.root) continue;
+    if (!root) root = newTrack(2);
+    const r = Array.isArray(k.root) ? { pos: k.root } : k.root;
+    pushKey(root, Math.min(duration, Math.max(0, k.t ?? 0)), r.pos, r.ease || k.ease, r.interp || k.interp);
+  }
+  if (root) finalizeTrack(root, loop, duration);
   for (const k of keys) addKey(k, Math.min(duration, Math.max(0, k.t ?? 0)), false);
   // fill never-keyed channels from the base pose
   const fill = {};
@@ -248,11 +272,21 @@ function compile(rig, def) {
     ik: EFFECTORS.map((e) => {
       const E = ik[e];
       if (!E || E.w.times.length === 0) return null;
+      if (!E.A.pos.times.length && !E.B.pos.times.length) throw new Error('clip ' + def.name + ': IK ' + e + ' has no pos key');
+      if (E.origin && root) { // root-space keys of an origin-space effector -> origin space (add the root motion at that key)
+        const r2 = new Float32Array(2);
+        E.A.space.forEach((sp, i) => {
+          if (sp !== 0) return;
+          sampleTrack(root, E.A.pos.times[i], r2, 0);
+          E.A.pos.values[i * 3] += r2[0]; E.A.pos.values[i * 3 + 1] += r2[1];
+        });
+      }
+      const fin = (tr, quat) => (tr.times.length ? finalizeTrack(tr, loop, duration, quat) : null);
       return {
-        space: E.space,
-        pos: E.pos.times.length ? finalizeTrack(E.pos, loop, duration) : null,
-        rot: E.rot.times.length ? finalizeTrack(E.rot, loop, duration, true) : null,
-        pole: E.pole.times.length ? finalizeTrack(E.pole, loop, duration) : null,
+        origin: E.origin, spaceB: E.spaceB,
+        posA: fin(E.A.pos), rotA: fin(E.A.rot, true), posB: fin(E.B.pos), rotB: fin(E.B.rot, true),
+        k: E.A.pos.times.length && E.B.pos.times.length ? fin(E.k) : null,
+        pole: fin(E.pole),
         w: finalizeTrack(E.w, loop, duration),
       };
     }),
@@ -260,7 +294,7 @@ function compile(rig, def) {
     look: look && finalizeTrack(look, loop, duration),
     lookW: lookW && finalizeTrack(lookW, loop, duration),
     curl: curl && finalizeTrack(curl, loop, duration),
-    root: root && finalizeTrack(root, loop, duration),
+    root,
   };
   c.rootEnd = [0, 0];
   if (c.root) sampleTrack(c.root, duration, c.rootEnd, 0);
@@ -328,13 +362,21 @@ export function sampleClip(rig, c, t, pose) {
   ik.fill(0);
   for (let e = 0; e < EFFECTORS.length; e++) {
     const E = c.ik[e];
-    if (!E || !E.pos) continue;
+    if (!E) continue;
     const o = e * EFF_STRIDE;
     sampleTrack(E.w, t, ik, o);
     if (ik[o] <= 1e-4) { ik[o] = 0; continue; }
-    sampleTrack(E.pos, t, ik, o + 1);
-    if (E.space === 1) { ik[o + 1] -= pose.root[0]; ik[o + 2] -= pose.root[1]; }
-    if (E.rot) { sampleTrack(E.rot, t, ik, o + 4); qnormalize(ik, o + 4); ik[o + 8] = 1; }
+    if (E.posA) {
+      sampleTrack(E.posA, t, ik, o + 1);
+      if (E.origin) { ik[o + 1] -= pose.root[0]; ik[o + 2] -= pose.root[1]; }
+      if (E.rotA) { sampleTrack(E.rotA, t, ik, o + 4); qnormalize(ik, o + 4); ik[o + 8] = 1; }
+    }
+    if (E.posB) {
+      ik[o + 14] = E.spaceB;
+      sampleTrack(E.posB, t, ik, o + 16);
+      if (E.rotB) { sampleTrack(E.rotB, t, ik, o + 19); qnormalize(ik, o + 19); ik[o + 23] = 1; }
+      if (E.k) { sampleTrack(E.k, t, tmpR, 0); ik[o + 15] = Math.max(0, Math.min(1, tmpR[0])); } else ik[o + 15] = 1;
+    }
     if (E.pole) { sampleTrack(E.pole, t, ik, o + 9); ik[o + 12] = 1; }
   }
   if (c.grip) { sampleTrack(c.grip, t, tmpR, 0); pose.grip = Math.max(0, Math.min(1, tmpR[0])); } else pose.grip = 0;

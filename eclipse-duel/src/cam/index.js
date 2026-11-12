@@ -35,15 +35,19 @@ export function createCameraDirector(ctx, opts = {}) {
   const base = new Pose();
   const prev = new Pose();
   const vel = { pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 0, roll: 0, valid: false };
-  const blend = { on: false, t: 0, age: 0, T: 0, clock: 'real', w: 1, tau: 0.15, src: new Pose(), vpos: new THREE.Vector3(), vlook: new THREE.Vector3(), vfov: 0, vroll: 0 };
-  const view = { aspect: 16 / 9, letterbox: 0, zoom: 1, focusX: 0, focusW: 0, snap: true };
-  const zoom = { factor: 1, left: 0, attack: 0.12, release: 0.3, focus: null, weight: 0.6, s: { v: 1, vel: 0 }, w: { v: 0, vel: 0 } };
+  const blend = { on: false, t: 0, T: 0, w: 1, tau: 0.15, src: new Pose(), vpos: new THREE.Vector3(), vlook: new THREE.Vector3(), vfov: 0, vroll: 0 };
+  const view = { aspect: 16 / 9, letterbox: 0, zoom: 1, focusX: 0, focusW: 0, snap: false };
+  const zoom = { factor: 1, left: 0, attack: 0.12, release: 0.3, focus: null, weight: 0.6, s: { v: 1, vel: 0 } };
   const lb = { on: false, from: 0, to: 0, t: 0, dur: 0.35 };
   const hand = { s: { v: fight.breathe, vel: 0 }, time: 0, out: { yaw: 0, pitch: 0, roll: 0 } };
   const quat = new THREE.Quaternion(), qShake = new THREE.Quaternion(), euler = new THREE.Euler(0, 0, 0, 'YXZ');
   const right = new THREE.Vector3(), up = new THREE.Vector3(), fwd = new THREE.Vector3();
   let free = false;
   let cutPending = false;
+  let snapReq = true;     // jump the fight rig to its ideal and cut (start, cam.snap())
+  let settleReq = false;  // jump the fight rig to its ideal without cutting (hand-back from a cinematic / free mode)
+  /** A fighter index (0 / 1) or a point source -> point source. */
+  const resolve = (s) => (typeof s === 'number' ? targets[s] : s);
 
   /** Final camera state of the last frame (read-only). */
   const state = { mode: 'fight', shot: -1, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), look: base.look, fov: 40, roll: 0, blend: 1, cut: false };
@@ -74,10 +78,11 @@ export function createCameraDirector(ctx, opts = {}) {
   });
 
   // ---- transitions ---------------------------------------------------------------------------------------------
-  function startBlend(T, clock = 'real', from = prev, withVelocity = true) {
+  /** Blend from `from` (default: the last shown pose) to whatever comes next, over T real seconds (0 = cut). */
+  function startBlend(T, from = prev, withVelocity = true) {
     if (!(T > 0)) { blend.on = false; cutPending = true; return; }
     blend.on = true;
-    blend.t = 0; blend.age = 0; blend.T = T; blend.clock = clock;
+    blend.t = 0; blend.T = T;
     blend.tau = clamp(T * 0.35, 0.04, 0.3);
     blend.src.copy(from);
     const v = withVelocity && vel.valid;
@@ -88,11 +93,10 @@ export function createCameraDirector(ctx, opts = {}) {
   }
 
   /** Inertial blend: the source keeps drifting with its last velocity (decaying) while we ease toward `dest`. */
-  function applyBlend(dest, dtGame, dtReal, out) {
-    blend.t += blend.clock === 'game' ? dtGame : dtReal;
-    blend.age += dtReal;
+  function applyBlend(dest, dt, out) {
+    blend.t += dt;
     const w = smootherstep(clamp(blend.t / blend.T));
-    const g = blend.tau * (1 - Math.exp(-blend.age / blend.tau));
+    const g = blend.tau * (1 - Math.exp(-blend.t / blend.tau));
     const s = blend.src;
     _p.copy(s.pos).addScaledVector(blend.vpos, g);
     out.pos.lerpVectors(_p, dest.pos, w);
@@ -125,15 +129,18 @@ export function createCameraDirector(ctx, opts = {}) {
     zoom.left -= dtReal;
     const zOn = zoom.left > 0;
     damp1(zoom.s, zOn ? zoom.factor : 1, (zOn ? zoom.attack : zoom.release) * 0.5, dtReal);
-    damp1(zoom.w, zOn && zoom.focus != null ? zoom.weight : 0, (zOn ? zoom.attack : zoom.release) * 0.5, dtReal);
-    if (zoom.focus != null && readPoint(typeof zoom.focus === 'number' ? targets[zoom.focus] : zoom.focus, _p)) view.focusX = _p.x;
+    // the focus pull follows the zoom depth, so aim and dolly release together
+    const depth = Math.abs(zoom.factor - 1) > 1e-3 ? clamp((zoom.s.v - 1) / (zoom.factor - 1)) : 0;
+    view.focusW = zoom.focus != null && readPoint(resolve(zoom.focus), _p) ? zoom.weight * depth : 0;
+    view.focusX = _p.x;
 
     view.aspect = camera.aspect;
     view.letterbox = lbCurrent();
     view.zoom = zoom.s.v;
-    view.focusW = zoom.w.v;
+    view.snap = snapReq || settleReq;
     const fightPose = rig.update(dtReal, A, B, view);
-    if (view.snap) { view.snap = false; cutPending = true; blend.on = false; }
+    if (snapReq) { cutPending = true; blend.on = false; }
+    snapReq = settleReq = false;
 
     // auto blend-out once the last shot has been shown in full
     if (seq.ended) {
@@ -144,11 +151,11 @@ export function createCameraDirector(ctx, opts = {}) {
     if (seq.active) {
       dest = seq.update(dtGame, dtReal);
       const tr = seq.transition;
-      if (tr) { if (tr.cut) { blend.on = false; cutPending = true; } else startBlend(tr.blend, tr.clock); }
+      if (tr) { if (tr.cut) { blend.on = false; cutPending = true; } else startBlend(tr.blend); }
     }
     const cut = cutPending;
     cutPending = false;
-    if (blend.on && !cut) applyBlend(dest, dtGame, dtReal, base);
+    if (blend.on && !cut) applyBlend(dest, dtReal, base);
     else { base.copy(dest); blend.w = 1; }
 
     base.pos.z = softFloor(base.pos.z, limits.minZ, limits.knee);
@@ -197,12 +204,12 @@ export function createCameraDirector(ctx, opts = {}) {
   }
 
   // ---- public API ----------------------------------------------------------------------------------------------
-  const resolve = (s) => (typeof s === 'number' ? targets[s] : s);
 
   /** Stop any cinematic and blend back to fight framing over `blend` real seconds (0 = hard cut). */
   function stop(blendSec = 0.35, completed = false) {
-    if (seq.active) seq.finish(completed, blendSec);
-    if (!free) startBlend(blendSec, 'real');
+    // the rig kept tracking (airborne phases, swaps) while hidden: hand back to its settled ideal, not its lag
+    if (seq.active) { seq.finish(completed, blendSec); settleReq = true; }
+    if (!free) startBlend(blendSec);
   }
 
   const cam = {
@@ -214,8 +221,8 @@ export function createCameraDirector(ctx, opts = {}) {
     shakeSettings: shaker.settings,
     /** Final camera state of the last frame. */
     state,
-    /** Debug readout: fight rig values and the last shake sample. */
-    debug: { rig: rig.info, shake: shaker.out },
+    /** Debug readout: fight rig values, the last shake sample and the pre-shake pose. */
+    debug: { rig: rig.info, shake: shaker.out, base },
 
     get mode() { return state.mode; },
     get targets() { return targets; },
@@ -282,14 +289,14 @@ export function createCameraDirector(ctx, opts = {}) {
     setMode(m, blendSec = 0.5) {
       const wasFree = free;
       free = m === 'free';
-      if (wasFree && !free) startBlend(blendSec, 'real', readCameraPose(blend.src), false);
+      if (wasFree && !free) { settleReq = true; startBlend(blendSec, readCameraPose(blend.src), false); }
     },
 
     /** Jump the fight framing to its ideal now (round start, after a teleport): no smoothing, treated as a cut. */
-    snap() { view.snap = true; },
+    snap() { snapReq = true; },
 
     /** Stop shakes, kicks and zoom (round reset). */
-    clearFx() { shaker.clear(); zoom.left = 0; zoom.s.v = 1; zoom.s.vel = 0; zoom.w.v = 0; zoom.w.vel = 0; },
+    clearFx() { shaker.clear(); zoom.left = 0; zoom.s.v = 1; zoom.s.vel = 0; },
 
     /** Remove the per-frame update. */
     dispose() { off(); if (ctx.cam === cam) ctx.cam = null; },

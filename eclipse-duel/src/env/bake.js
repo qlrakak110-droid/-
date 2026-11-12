@@ -155,16 +155,17 @@ Fl floorField(vec2 p) {
   h -= crack * 0.008;
 
   // ---- albedo ---------------------------------------------------------------------------------------------------
-  vec3 stone = vec3(0.064, 0.066, 0.073) * (0.72 + 0.56 * hs);
+  vec3 stone = vec3(0.056, 0.058, 0.064) * (0.62 + 0.76 * hs);
+  stone *= 0.62 + 0.6 * fbm2(p * 0.33 + 1.7, 3);
   stone *= mix(vec3(1.0), vec3(1.09, 1.0, 0.9), hs3);
   stone *= 0.82 + 0.36 * fbm2(p * 2.6 + hs * 9.0, 3);
-  float rough = mix(0.72, 0.5, worn) + (grain - 0.5) * 0.2;
+  float rough = mix(0.78, 0.6, worn) + (grain - 0.5) * 0.2;
   float metal = 0.0;
 
   if (kind == 1.0 || kind == 3.0) {
     // bronze inlay (rings, medallion details): worn through in places, verdigris in others
     float strip = 1.0;
-    vec3 bronze = vec3(0.42, 0.27, 0.13);
+    vec3 bronze = vec3(0.26, 0.17, 0.09);
     if (kind == 3.0) {
       float rays = abs(fract(an * 16.0 + 0.25) - 0.5);
       strip = 0.0;
@@ -178,7 +179,7 @@ Fl floorField(vec2 p) {
     float verd = smoothstep(0.5, 0.75, fbm2(p * 3.5, 3));
     strip *= 1.0 - gone;
     h -= strip * 0.001 + gone * 0.004 * (kind == 1.0 ? 1.0 : 0.0);
-    vec3 inlay = mix(bronze * (0.75 + 0.4 * grain), vec3(0.06, 0.13, 0.11), verd);
+    vec3 inlay = mix(bronze * (0.6 + 0.5 * grain), vec3(0.045, 0.075, 0.068), verd);
     stone = mix(stone, inlay, strip);
     if (kind == 1.0) stone = mix(stone, vec3(0.02), gone);
     metal = strip * (1.0 - verd);
@@ -217,7 +218,7 @@ Fl floorField(vec2 p) {
   stone = mix(stone, vec3(0.024, 0.032, 0.018), clamp(moss, 0.0, 0.85));
   stone = mix(stone, vec3(0.012), crack * 0.8);
   stone = mix(stone, stone * 0.55 + vec3(0.01), sunk);
-  rough = mix(rough, 0.32, joint);
+  rough = mix(rough, 0.42, joint);
 
   // ---- puddles ----------------------------------------------------------------------------------------------------
   float zone = clamp((fbm2(p * 0.17 + 3.1, 3) - 0.5) * 3.5, 0.0, 1.0) + blobs(p);
@@ -286,11 +287,12 @@ float pfbm(vec2 p, float per) {
   return s / n;
 }
 float stoneH(vec2 uv) {
-  float big = pfbm(uv * 4.0, 4.0);
-  float pits = smoothstep(0.62, 0.75, pnoise(uv * 24.0 + 3.0, 24.0));
-  float grit = pnoise(uv * 64.0, 64.0);
-  float streak = pnoise(vec2(uv.x * 40.0, uv.y * 3.0), 40.0);
-  return big * 0.6 + grit * 0.12 - pits * 0.25 + streak * 0.1;
+  float big = pfbm(uv * 3.0, 3.0);
+  float mid = pfbm(uv * 12.0 + 5.0, 12.0);
+  float pits = pnoise(uv * 32.0 + 3.0, 32.0);
+  pits = pits * pits * pits;
+  float grit = pnoise(uv * 96.0, 96.0);
+  return big * 0.5 + mid * 0.22 + grit * 0.06 - pits * 0.12;
 }
 `;
 const STONE_A = STONE_FIELD + /* glsl */ `
@@ -300,7 +302,7 @@ void main() {
   float tone = pfbm(uv * 3.0 + 11.0, 3.0);
   vec3 c = vec3(0.6) * (0.78 + 0.38 * h) * (0.85 + 0.3 * tone);
   float lichen = smoothstep(0.6, 0.78, pfbm(uv * 5.0 + 4.0, 5.0));
-  c = mix(c, vec3(0.62, 0.6, 0.46), lichen * 0.45);
+  c = mix(c, vec3(0.58, 0.58, 0.5), lichen * 0.3);
   c *= mix(vec3(1.0), vec3(1.05, 1.0, 0.94), pnoise(uv * 2.0, 2.0));
   gl_FragColor = vec4(c, 1.0);
 }`;
@@ -309,7 +311,7 @@ void main() {
   vec2 e = uTexel;
   float hx = stoneH(vUv + vec2(e.x, 0.0)) - stoneH(vUv - vec2(e.x, 0.0));
   float hy = stoneH(vUv + vec2(0.0, e.y)) - stoneH(vUv - vec2(0.0, e.y));
-  vec3 n = normalize(vec3(-hx * 18.0, -hy * 18.0, 1.0));
+  vec3 n = normalize(vec3(-hx * 10.0, -hy * 10.0, 1.0));
   float cav = clamp(0.5 + (stoneH(vUv) - 0.45) * 1.6, 0.0, 1.0);
   gl_FragColor = vec4(n * 0.5 + 0.5, cav);
 }`;
@@ -333,10 +335,10 @@ void main() {
   vec2 uv = vUv;
   vec2 p = vec2(uv.x, uv.y * 2.6);
   float weave = 0.9 + 0.1 * sin(uv.x * 900.0) * sin(uv.y * 2200.0);
-  vec3 cloth = vec3(0.16, 0.024, 0.028) * (0.75 + 0.45 * fbm2(p * 6.0, 4)) * weave;
+  vec3 cloth = vec3(0.085, 0.018, 0.02) * (0.75 + 0.45 * fbm2(p * 6.0, 4)) * weave;
   // border stripes
   float border = step(abs(uv.x - 0.5), 0.44) * (1.0 - step(abs(uv.x - 0.5), 0.40));
-  cloth = mix(cloth, vec3(0.2, 0.14, 0.06), border * 0.8);
+  cloth = mix(cloth, vec3(0.11, 0.085, 0.05), border * 0.7);
   // the eclipse sigil: ring + black disc + rays, faded gold
   vec2 c = vec2((uv.x - 0.5) * 1.0, (uv.y - 0.68) * 2.6);
   float rr = length(c);
@@ -344,7 +346,7 @@ void main() {
   float ring = smoothstep(0.03, 0.0, abs(rr - 0.2));
   float rays = smoothstep(0.25, 0.1, abs(fract(ang / 6.2831853 * 12.0) - 0.5) * 2.0 + (rr - 0.32) * 2.0) * step(0.25, rr) * step(rr, 0.38);
   float sig = max(ring, rays) * (0.55 + 0.45 * vnoise(p * 30.0));
-  cloth = mix(cloth, vec3(0.3, 0.2, 0.08), sig * 0.85);
+  cloth = mix(cloth, vec3(0.16, 0.12, 0.065), sig * 0.8);
   cloth = mix(cloth, vec3(0.012, 0.01, 0.01), smoothstep(0.19, 0.17, rr) * 0.9);
   // grime and bleaching toward the hem
   cloth *= mix(0.35, 1.0, smoothstep(0.0, 0.55, uv.y));

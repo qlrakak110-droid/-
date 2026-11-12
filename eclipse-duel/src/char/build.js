@@ -2,7 +2,7 @@
 // bakes them into bind-pose model space with skin weights and merges everything into ONE SkinnedMesh per material slot.
 //
 //   kit.add(slot, bone, geo, opts)            rigid piece, 100% on `bone`; geo authored in the bone's zero-pose frame
-//   kit.addPair(slot, base, geo, opts)        same for base+'R' and the z-mirrored copy on base+'L'
+//   kit.addPair(slot, base, geo, opts)        same for base+'R' and the z-mirrored copy on base+'L' ('elbow' or 'elbowR')
 //   kit.addBlend(slot, frame, geo, weights, opts)    rigid shape split over several bones: weights [[bone, w], ...]
 //   kit.addSkinned(slot, geo, weightFn, opts) per-vertex weights: weightFn(x, y, z) (bind space) -> [[bone, w], ...]
 //   kit.loft(slot, spec, opts) / kit.loftPair  smooth-skinned tube along a chain of bones (the under-suit)
@@ -84,6 +84,7 @@ export function createKit(rig, bind) {
     },
 
     addPair(slot, base, geo, opts = {}) {
+      if (rig.index[base + 'R'] === undefined && /R$/.test(base)) base = base.slice(0, -1);
       const g = xf(geo.clone(), opts);
       const o2 = { ...opts, at: undefined, rot: undefined, scale: undefined };
       kit.add(slot, base + 'R', g, o2);
@@ -269,8 +270,11 @@ function loftGeometry(rig, bind, spec, bi) {
     const k0 = Math.min(np - 2, Math.floor(f)), fr = f - k0;
     qslerp(q, 0, bind.mq, rots[k0] * 4, bind.mq, rots[k0 + 1] * 4, fr);
     qrot(fx, 0, q, 0, 1, 0, 0); qrot(zx, 0, q, 0, 0, 0, 1);
-    F.set(fx[0], fx[1], fx[2]); F.addScaledVector(T, -F.dot(T)).normalize();
+    F.set(fx[0], fx[1], fx[2]); F.addScaledVector(T, -F.dot(T));
+    if (F.lengthSq() < 0.04) { qrot(fx, 0, q, 0, 0, 1, 0); F.set(fx[0], fx[1], fx[2]).addScaledVector(T, -T.dot(F)); }
+    F.normalize();
     Zb.set(zx[0], zx[1], zx[2]);
+    if (Math.abs(Zb.dot(T)) > 0.95) Zb.crossVectors(T, F);
     S.copy(Zb).addScaledVector(T, -Zb.dot(T)).addScaledVector(F, -Zb.dot(F)).normalize();
     const rx = RX(f), rz = RZ(f), ox = OX(f), oz = OZ(f), e = 2 / NE(f);
     centers.push(c.clone().addScaledVector(F, ox).addScaledVector(S, oz));

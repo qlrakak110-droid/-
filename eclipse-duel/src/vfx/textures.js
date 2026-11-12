@@ -102,14 +102,16 @@ vec4 genSmoke(vec2 p) {
   float d = smokeD(p), dx = smokeD(p + vec2(e, 0.0)), dy = smokeD(p + vec2(0.0, e));
   float dxm = smokeD(p - vec2(e, 0.0)), dym = smokeD(p - vec2(0.0, e));
   vec3 n = normalize(vec3(-(dx - dxm) / (2.0 * e) * cfg2.x, -(dy - dym) / (2.0 * e) * cfg2.x, 1.0));
-  vec3 L = normalize(vec3(-0.55, 0.7, 0.45));
-  float lit = sat((dot(n, L) + 0.3) / 1.3);
-  float fine = n01(p * 10.0 + 1.3, 3);
-  float a = smoothstep(cfg.y, cfg.y + cfg2.y, d + (fine - 0.5) * 0.14);
-  float thick = sat(d * 0.8);
-  float shade = (0.26 + 0.74 * lit * lit) * (0.86 + 0.28 * fine) * mix(1.0, 0.82, thick);
-  float order = sat(d * 0.7 + n01(p * 4.0 + 9.1, 3) * 0.4 - 0.08);
-  return vec4(sat(shade), smoothstep(0.55, 1.25, d), order, sat(a * (0.9 + 0.1 * fine)) * edgeFade(p, 0.74));
+  vec3 L = normalize(vec3(-0.5, 0.75, 0.45));
+  float lit = sat((dot(n, L) + 0.45) / 1.45);
+  float fine = n01(p * 9.0 + 1.3, 4);
+  float big = n01(p * 2.3 + 4.0, 3);
+  float a = smoothstep(0.0, 1.0, sat((d - cfg.y + (fine - 0.5) * 0.12) / cfg2.y));
+  a *= 0.5 + 0.5 * smoothstep(0.2, 0.75, big + (fine - 0.5) * 0.5);
+  float thick = sat(d * 0.75);
+  float shade = (0.26 + 0.74 * lit * lit) * mix(1.0, 0.74, thick) * (0.9 + 0.2 * fine);
+  float order = sat(d * 0.6 + big * 0.25 + fine * 0.25 - 0.1);
+  return vec4(sat(shade), smoothstep(0.55, 1.25, d), order, sat(a * 0.92) * edgeFade(p, 0.74));
 }
 
 // --- flame licks: teardrop tongues bent by noise, ragged tips, hot core ---------------------------------------------
@@ -121,18 +123,20 @@ vec4 genFlame(vec2 p) {
     vec4 t = uP[k];            // cx, height, width, phase
     float s = (yy - 0.03) / t.y;
     if (s <= 0.0 || s >= 1.0) continue;
-    float bend = 0.09 * sin(s * 3.4 + t.w) * s + 0.32 * pow(s, 1.5) * fbm(vec2(p.x * 1.2 + t.w, yy * 2.0 - uSeed), 3);
+    float bend = 0.09 * sin(s * 3.4 + t.w) * s + 0.34 * pow(s, 1.4) * fbm(vec2(p.x * 1.2 + t.w, yy * 2.0 - uSeed), 4);
     float xw = p.x - t.x - bend;
     float w = t.z * 1.55 * pow(s, 0.42) * (1.0 - s);
-    float lick = n01(vec2(xw * 3.2 + 4.0, yy * 3.4 - t.w), 3);
-    float m = smoothstep(0.0, 0.08 + 0.08 * s, w - abs(xw) - (lick - 0.5) * 0.1 * s);
-    m *= smoothstep(0.0, 0.2, (1.0 - s) * 1.1 + 0.12 - lick * 0.6 * s);
+    float lick = n01(vec2(xw * 3.6 + 4.0, yy * 3.0 - t.w), 4);
+    float tear = n01(vec2(xw * 7.0 - t.w, yy * 6.0 + uSeed), 3);
+    float m = smoothstep(0.0, 0.06 + 0.07 * s, w - abs(xw) - (lick - 0.5) * 0.16 * (0.3 + s));
+    m *= smoothstep(0.0, 0.18, (1.0 - s) * 1.1 + 0.1 - lick * 0.62 * s);
+    m *= 1.0 - smoothstep(0.5, 0.8, tear) * smoothstep(0.35, 0.8, s) * 0.85;   // holes that tear the upper flame apart
     a = max(a, m);
-    g = max(g, smoothstep(0.0, 0.08, w * 0.45 - abs(xw)) * pow(1.0 - s, 0.55));
+    g = max(g, smoothstep(0.0, 0.1, w * 0.5 - abs(xw)) * pow(1.0 - s, 0.5));
   }
-  float streak = n01(vec2(p.x * 7.0, yy * 1.5 - uSeed * 0.3), 3);
-  return vec4(sat((0.5 + 0.5 * streak) * (0.82 + 0.18 * (1.0 - yy))), sat(g * (0.75 + 0.5 * streak)),
-              sat((1.0 - yy) * 0.66 + 0.34 * n01(p * 4.0 + 2.0, 3)), sat(a) * edgeFade(p, 0.9));
+  float streak = n01(vec2(p.x * 9.0, yy * 1.6 - uSeed * 0.3), 4);
+  return vec4(sat((0.32 + 0.68 * streak) * (0.8 + 0.2 * (1.0 - yy))), sat(g * (0.7 + 0.6 * streak)),
+              sat((1.0 - yy) * 0.6 + 0.4 * n01(p * 4.0 + 2.0, 3)), sat(a * (0.72 + 0.28 * streak)));
 }
 
 // --- burst: radial flash with uneven rays --------------------------------------------------------------------------
@@ -146,7 +150,7 @@ vec4 genBurst(vec2 p) {
     ray = max(ray, exp(-(dist * dist) / (q.y * q.y)) * pow(sat(1.0 - r / q.z), 1.6));
   }
   float core = exp(-r * r * 30.0);
-  float halo = exp(-r * 4.2) * 0.42 * (0.85 + 0.3 * n01(vec2(th * 2.5, r * 3.0), 2));
+  float halo = exp(-r * 4.2) * 0.42 * (0.85 + 0.3 * n01(vec2(th * 2.5, r * 3.0), 2)) * (1.0 - smoothstep(0.55, 0.95, r));
   return vec4(1.0, sat(core * 1.2 + ray * 0.4), sat(1.0 - r * 1.1), sat(core + halo + ray * 0.85) * edgeFade(p, 0.9));
 }
 
@@ -235,7 +239,7 @@ vec4 genSnow(vec2 p) {
     d = min(d, sdSeg(q, vec2(0.52, 0.0), vec2(0.52, 0.0) + 0.22 * vec2(0.5, 0.866)));
     d = min(d, sdSeg(q, vec2(0.7, 0.0), vec2(0.7, 0.0) + 0.13 * vec2(0.5, 0.866)));
     d = min(d, sdSeg(q, vec2(0.17, 0.0), vec2(0.085, 0.147)));
-    vec2 l = lineLight(d, 0.04, 11.0, 0.5);
+    vec2 l = lineLight(d, 0.04, 15.0, 0.4);
     return vec4(sat(0.75 + 0.25 * (1.0 - r)), l.x, sat(1.0 - r * 0.8), sat(l.y));
   }
   // stellar plate: hexagonal plate + six arms ending in small plates, with facet ridges
@@ -247,7 +251,7 @@ vec4 genSnow(vec2 p) {
   float fill = 1.0 - smoothstep(-0.01, 0.012, body);
   float ridge = min(abs(q.y), sdSeg(q, vec2(0.0), vec2(0.234, 0.135)));
   float edge = 1.0 - smoothstep(0.0, 0.03, abs(body));
-  float glow = exp(-max(0.0, body) * 12.0) * 0.4;
+  float glow = exp(-max(0.0, body) * 16.0) * 0.32;
   float rl = (1.0 - smoothstep(0.0, 0.016, ridge)) * fill;
   return vec4(sat(0.55 + 0.45 * rl + 0.2 * (1.0 - r)), sat(max(edge * fill, rl)), sat(1.0 - r * 0.8), sat(max(fill * 0.5 + edge * 0.5 + rl * 0.3, glow)));
 }
@@ -388,6 +392,7 @@ void main() {
   else if (uKind == ${K.hex}) o = genHex(p);
   else if (uKind == ${K.pebble}) o = genPebble(p);
   else o = genCrescent(p);
+  if (uKind < ${K.noise}) o.a *= edgeFade(p, 0.8);
   gl_FragColor = clamp(o, 0.0, 1.0);
 }`;
 
@@ -396,10 +401,10 @@ void main() {
 
 function smokeParams(rng, variant) {
   const conf = [
-    { n: 9, sx: 0.36, sy: 0.3, rMin: 0.2, rMax: 0.34, warp: 0.13, thr: 0.18, soft: 0.6, bil: 0.7, bf: 1.7, bump: 0.13 },   // round billow
-    { n: 11, sx: 0.5, sy: 0.24, rMin: 0.17, rMax: 0.3, warp: 0.15, thr: 0.18, soft: 0.6, bil: 0.7, bf: 2.0, bump: 0.12 },   // wide
-    { n: 7, sx: 0.38, sy: 0.38, rMin: 0.14, rMax: 0.3, warp: 0.3, thr: 0.14, soft: 0.75, bil: 0.95, bf: 1.6, bump: 0.08 },  // wispy
-    { n: 16, sx: 0.42, sy: 0.38, rMin: 0.11, rMax: 0.22, warp: 0.1, thr: 0.22, soft: 0.5, bil: 0.55, bf: 3.0, bump: 0.16 }, // lumpy
+    { n: 9, sx: 0.36, sy: 0.3, rMin: 0.2, rMax: 0.34, warp: 0.13, thr: 0.12, soft: 0.7, bil: 0.7, bf: 1.7, bump: 0.15 },   // round billow
+    { n: 11, sx: 0.5, sy: 0.24, rMin: 0.17, rMax: 0.3, warp: 0.15, thr: 0.12, soft: 0.7, bil: 0.7, bf: 2.0, bump: 0.14 },   // wide
+    { n: 7, sx: 0.38, sy: 0.38, rMin: 0.14, rMax: 0.3, warp: 0.3, thr: 0.1, soft: 0.8, bil: 0.95, bf: 1.6, bump: 0.1 },  // wispy
+    { n: 16, sx: 0.42, sy: 0.38, rMin: 0.11, rMax: 0.22, warp: 0.1, thr: 0.16, soft: 0.6, bil: 0.55, bf: 3.0, bump: 0.15 }, // lumpy
   ][variant];
   const P = [[0, -0.02, 0.42 + rng() * 0.06, 0.95]];
   for (let k = 1; k < conf.n; k++) {
@@ -458,7 +463,7 @@ function lineArt(width, glowK, glowAmt, fadeEnds, build) {
   return { count: list.length / 2, list, extra: { 127: [width, glowK, glowAmt, fadeEnds ? 1 : 0] } };
 }
 function runeParams(variant) {
-  return lineArt(0.034, 10, 0.5, false, (L) => {
+  return lineArt(0.034, 15, 0.38, false, (L) => {
     if (variant === 0) {
       // seal: double ring, tick marks, a stave with three bars flanked by two opposed crescents
       L.arc(0, 0, 0.86); L.arc(0, 0, 0.72, 0, TAU, 0.7);

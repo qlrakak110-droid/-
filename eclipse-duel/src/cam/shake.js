@@ -37,7 +37,7 @@ export function fbm1(x, seed) {
 const softClip = (x, lim) => lim * Math.tanh(x / lim);
 
 /** Default amplitudes at trauma 1 (positions in metres, angles in degrees). */
-export const SHAKE_DEFAULTS = { pos: 0.09, yaw: 2.4, pitch: 2.1, roll: 2.8, scale: 1, maxTrauma: 1.5 };
+export const SHAKE_DEFAULTS = { pos: 0.1, yaw: 3.0, pitch: 2.6, roll: 3.2, scale: 1, maxTrauma: 1.5 };
 
 export function createShaker(seed = 0xca3e) {
   const rng = makeRng(seed);

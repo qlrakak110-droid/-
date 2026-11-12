@@ -6,6 +6,7 @@
 import { setState, endMove, launch } from './fighter.js';
 import { loseHp, gainUlt } from './meters.js';
 import { knockOut } from './combat.js';
+import { passes, EPS } from './moves.js';
 
 /**
  * Start the lock. `scale` multiplies tick and finish damage (combo scaling at the trigger, floored by
@@ -26,22 +27,22 @@ export function startCinematic(m, a, d, scale) {
   if (dx > lim) { a.x -= dx - lim; dx = lim; } else if (dx < -lim) { a.x += -lim - dx; dx = -lim; }
   d.x = dx;
   d.facing = -a.facing;
-  m.cine = { attacker: a.index, defender: d.index, move: a.move, t: 0, duration: c.duration, def: c, scale, damage: 0, ticks: 0, finished: false };
+  m.cinematic = { attacker: a.index, defender: d.index, move: a.move, t: 0, duration: c.duration, def: c, scale, damage: 0, ticks: 0, finished: false };
   m.emit('cinematicStart', { attacker: a.index, defender: d.index, move: a.move, duration: c.duration, x: a.x, facing: a.facing, victimX: d.x, scale });
 }
 
 /** Advance the lock by `h` seconds. */
 export function updateCinematic(m, h) {
-  const cs = m.cine;
+  const cs = m.cinematic;
   const a = m.fighters[cs.attacker], d = m.fighters[cs.defender];
   const c = cs.def;
   const t0 = cs.t;
   const t1 = cs.t = Math.min(cs.duration, cs.t + h);
   for (const k of c.markers) {
-    if (k.t > t0 && k.t <= t1) m.emit('marker', { fighter: a.index, move: cs.move, name: k.name, t: k.t, data: k.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
+    if (passes(k.t, t0, t1)) m.emit('marker', { fighter: a.index, move: cs.move, name: k.name, t: k.t, data: k.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
   }
   c.ticks.forEach((tk, i) => {
-    if (!(tk.t > t0 && tk.t <= t1)) return;
+    if (!passes(tk.t, t0, t1)) return;
     const dmg = Math.round(tk.damage * cs.scale);
     const lost = loseHp(m, d, dmg, 1);
     cs.damage += lost;
@@ -51,7 +52,7 @@ export function updateCinematic(m, h) {
     if (tk.marker) m.emit('marker', { fighter: a.index, move: cs.move, name: tk.marker, t: tk.t, data: tk.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
   });
   const fin = c.finish;
-  if (!cs.finished && fin.t > t0 && fin.t <= t1) {
+  if (!cs.finished && passes(fin.t, t0, t1)) {
     cs.finished = true;
     const dmg = Math.round(fin.damage * cs.scale);
     const lost = loseHp(m, d, dmg, 0);
@@ -60,7 +61,7 @@ export function updateCinematic(m, h) {
     m.emit('cinematicTick', { attacker: a.index, defender: d.index, move: cs.move, index: c.ticks.length, t: fin.t, damage: lost, hitstop: fin.hitstop, marker: fin.marker, data: fin.data, final: true, x: d.x, y: 1.0 });
     if (fin.marker) m.emit('marker', { fighter: a.index, move: cs.move, name: fin.marker, t: fin.t, data: fin.data, x: a.x, y: a.y, facing: a.facing, cinematic: true });
   }
-  if (t1 >= cs.duration - 1e-9) endCinematic(m);
+  if (t1 >= cs.duration - EPS) endCinematic(m);
 }
 
 function addCombo(m, a, d, lost) {
@@ -75,11 +76,11 @@ function addCombo(m, a, d, lost) {
 
 /** Release both fighters: the victim takes the finish reaction, the attacker recovers (invulnerable). */
 export function endCinematic(m) {
-  const cs = m.cine;
+  const cs = m.cinematic;
   if (!cs) return;
   const a = m.fighters[cs.attacker], d = m.fighters[cs.defender];
   const c = cs.def, fin = c.finish;
-  m.cine = null;
+  m.cinematic = null;
   endMove(m, a, 'cinematic');
   setState(m, a, 'recovery', c.recovery);
   a.recoveryInvuln = true;

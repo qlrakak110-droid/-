@@ -203,7 +203,7 @@ export function buildRuins(rng, tier) {
     const A = pillars.find((p) => p.i === pa).pos, B = pillars.find((p) => p.i === pb).pos;
     const C = A.clone().add(B).multiplyScalar(0.5);
     const u = B.clone().sub(A); const chord = u.length(); u.normalize();
-    const w = new THREE.Vector3().crossVectors(u, new THREE.Vector3(0, 1, 0)).normalize();
+    const w = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), u).normalize(); // right-handed basis (t, rdir, w)
     const rIn = (chord - 2.45) / 2, th = 0.78, rMid = rIn + th / 2;
     const yS = capH;
     for (let k = 0; k < count; k++) {

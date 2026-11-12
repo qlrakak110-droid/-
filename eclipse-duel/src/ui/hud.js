@@ -160,7 +160,7 @@ export function createHud(ui) {
       ring, orb, orbGlow, orbRays, orbBurst, orbKey, orbLabel, skills, fpFill, fpNum, cbNum, cbHot, cbDmg, cbInner,
       slots: [],
       // state
-      hpR: 1, ghostR: 1, ghostWait: 0, hpMax: 1000, hpVal: 1000, fpR: 0, fpVal: 0, fpMax: 100, ultR: 0, ultFull: false,
+      hpR: 1, ghostR: 1, ghostWait: 0, hpMax: 1000, fpR: 0, fpVal: 0, fpMax: 100, ultR: 0, ultFull: false,
       rounds: -1, element: null, low: false, shake: 0, shakeAmp: 0,
       comboHits: 0, comboAge: 99, comboShown: false,
     };
@@ -262,6 +262,10 @@ export function createHud(ui) {
           put(sd.orbBurst, 'opacity', (1 - k).toFixed(3));
         }, { key: sd.orbBurst, ease: 'outQuart' });
         anim.add(0.5, (k) => put(sd.orbLabel, 'transform', `translateX(${((sd.i ? 1 : -1) * 18 * (1 - k)).toFixed(1)}px)`), { key: sd.orbLabel, ease: 'outBack' });
+      } else {
+        // spent: hand the glow and corona back to the stylesheet (opacity 0)
+        put(sd.orbGlow, 'opacity', '');
+        put(sd.orbRays, 'transform', '');
       }
       ui.emit('hud:ultReady', sd.i, full);
     }
@@ -282,14 +286,13 @@ export function createHud(ui) {
   }
 
   function setTime(t) {
-    let shown;
     if (t === undefined) return;
-    if (t === null || !isFinite(t)) shown = '∞';
-    else shown = String(Math.max(0, Math.ceil(t - 1e-6)));
-    if (shown === timeShown) return;
-    timeShown = shown;
-    putText(tmNum, shown);
-    const low = shown !== '∞' && Number(shown) <= 10;
+    // compare the whole seconds first: no string work on the frames where the clock does not tick
+    const n = t === null || !isFinite(t) ? -1 : Math.max(0, Math.ceil(t - 1e-6));
+    if (n === timeShown) return;
+    timeShown = n;
+    putText(tmNum, n < 0 ? '∞' : n);
+    const low = n >= 0 && n <= 10;
     putClass(tm, 'is-low', low);
     if (low && timeLow) anim.add(0.4, (k) => put(tmNum, 'transform', `scale(${(1.28 - 0.28 * k).toFixed(3)})`), { key: tmNum, ease: 'outCubic' });
     timeLow = low;
@@ -325,7 +328,7 @@ export function createHud(ui) {
     const el = h('div.sk', null, face, flash, cost, key);
     el._phase0 = sd.slots.length * 1.7; // the three ready pulses do not breathe in lockstep
     sd.skills.appendChild(el);
-    return { el, face, pie, hand, glow, flash, ic, cost, key, id: null, iconName: null, ready: null, cd: -1, costV: -1, noFp: null };
+    return { el, pie, hand, glow, flash, ic, cost, key, iconName: null, ready: null, cd: -1, costV: -1, need: 0 };
   }
 
   function setSkills(side, list) {
@@ -362,6 +365,7 @@ export function createHud(ui) {
         }
         sl.ready = ready;
         putClass(sl.el, 'is-ready', ready);
+        if (!ready) put(sl.glow, 'opacity', '');
       }
       sl.need = cost;
     }
@@ -419,7 +423,7 @@ export function createHud(ui) {
 
   let annSeq = 0;
   function announce(text, o = {}) {
-    let p = presetOf(text);
+    const p = presetOf(text);
     let spec;
     if (p) spec = { ...PRESETS[p[0]]({ ...p[1], ...o }), ...(o.sub !== undefined ? { sub: o.sub } : null), ...(o.style ? { style: o.style } : null) };
     else spec = { text: String(text || ''), sub: o.sub || '', style: o.style || 'banner' };
@@ -433,23 +437,24 @@ export function createHud(ui) {
     const main = h('div.an-main', null, h('span', { text: spec.text }));
     const echo = h('div.an-main.an-echo', null, h('span', { text: spec.text }));
     const sub = h('div.an-sub', { text: spec.sub || '' });
+    const kicker = o.kicker !== undefined ? o.kicker : style === 'ult' ? '궁극기 · ULTIMATE' : '';
+    const kick = kicker ? h('div.an-kick', null, h('i'), h('span', { text: kicker })) : null;
     const band = h('div.an-band');
     const lineA = h('i.an-line.a');
     const lineB = h('i.an-line.b');
     const slash = h('i.an-slash');
     const shine = h('i.an-shine');
-    const node = h(`div.ann.st-${style}` + (elem ? `.el-${elem}` : '') + (side >= 0 ? `.side-${SIDES[side]}` : ''), null, band, lineA, lineB, echo, main, slash, shine, sub);
+    const node = h(`div.ann.st-${style}` + (elem ? `.el-${elem}` : '') + (side >= 0 ? `.side-${SIDES[side]}` : ''), null, band, lineA, lineB, echo, main, slash, shine, sub, kick);
     if (!spec.sub) sub.style.display = 'none';
     annLayer.appendChild(node);
-    node._id = id;
 
     const inT = { round: 0.32, fight: 0.14, ko: 0.16, perfect: 0.3, timeup: 0.26, banner: 0.28, ult: 0.22, win: 0.3 }[style] || 0.28;
     const outT = style === 'fight' ? 0.22 : 0.38;
     const dir = side === 1 ? 1 : -1;
-    // entrance
+    // one tween drives the whole card: entrance, hold, exit
     anim.add(dur, (k, t) => {
       const T = t * dur;
-      const a = clamp(T / inT), e = Ease.outCubic(a), b = Ease.outBack(a);
+      const a = clamp(T / inT), e = Ease.outCubic(a);
       const o2 = clamp((dur - T) / outT);
       const fade = o2 < 1 ? Ease.inQuad(o2) : 1;
       switch (style) {
@@ -494,6 +499,10 @@ export function createHud(ui) {
           put(main, 'transform', `translateX(${(dir * 40 * (1 - e)).toFixed(1)}px)`);
           put(main, 'opacity', '1');
           put(sub, 'opacity', clamp((T - 0.12) / 0.25).toFixed(3));
+          if (kick) {
+            put(kick, 'opacity', clamp((T - 0.06) / 0.2).toFixed(3));
+            put(kick, 'transform', `translateX(${(dir * 30 * (1 - Ease.outCubic(clamp((T - 0.06) / 0.3)))).toFixed(1)}px)`);
+          }
           put(lineA, 'transform', `scaleX(${Ease.outExpo(clamp((T - 0.05) / 0.5)).toFixed(3)})`);
           put(echo, 'opacity', '0');
           break;
@@ -564,6 +573,8 @@ export function createHud(ui) {
       for (const sd of S) { sd.hpR = -1; sd.ultR = -1; sd.fpR = -1; sd.ghostR = 1; }
       if (o.p1 && o.p1.moves) hud.skills(0, skillsOf(o.p1));
       if (o.p2 && o.p2.moves) hud.skills(1, skillsOf(o.p2));
+      // the first real update decides readiness without a "just became ready" burst
+      for (const sd of S) for (const sl of sd.slots) { sl.ready = null; putClass(sl.el, 'is-ready', false); }
       refreshKeys();
     },
     /** Every frame: { time, roundsToWin?, p1: { name, hp, hpMax, fp, fpMax, ult, ultMax?, rounds, element, title? }, p2 } */
@@ -596,7 +607,7 @@ export function createHud(ui) {
     combo: setCombo,
     /**
      * Announcer. text = free text or a preset key ('round', 'final', 'fight', 'ko', 'perfect', 'timeup', 'draw';
-     * 'ROUND 2', 'K.O.', 'TIME UP' ... are recognised too). opts: { sub, style, duration, round, side, element, keep }.
+     * 'ROUND 2', 'K.O.', 'TIME UP' ... are recognised too). opts: { sub, style, duration, round, side, element, keep, kicker }.
      * style: 'round' | 'fight' | 'ko' | 'perfect' | 'timeup' | 'banner' | 'ult' | 'win'.
      */
     announce,

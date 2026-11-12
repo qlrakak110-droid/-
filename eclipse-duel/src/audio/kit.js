@@ -680,27 +680,38 @@ function master(oac, raw, def) {
   let gain = rawPeak > 1e-5 ? Math.pow(10, (def.level - rawLoud) / 20) : 1;
   if (rawPeak * gain > ceil * over) gain = (ceil * over) / rawPeak;
   const T = ceil * 0.72, span = ceil - T, soft = rawPeak * gain > ceil;
+  let last = 0;
   for (let c = 0; c < buf.numberOfChannels; c++) {
     const d = buf.getChannelData(c);
     for (let i = 0; i < d.length; i++) {
       let x = d[i] * gain;
       if (soft) { const a = Math.abs(x); if (a > T) x = Math.sign(x) * (T + span * Math.tanh((a - T) / span)); }
       d[i] = x;
+      if (Math.abs(x) > 2.5e-4 && i > last) last = i;  // -72 dBFS
     }
+  }
+  // one-shots: drop the inaudible tail (memory), ending on a short fade
+  const keep = Math.min(buf.length, last + Math.round(0.012 * buf.sampleRate));
+  if (!def.loop && !def.reverse && keep < buf.length * 0.97) {
+    const t = oac.createBuffer(buf.numberOfChannels, keep, buf.sampleRate);
+    for (let c = 0; c < buf.numberOfChannels; c++) t.getChannelData(c).set(buf.getChannelData(c).subarray(0, keep));
+    fadeEnd(t, 0.012);
+    buf = t;
   }
   return { buffer: buf, gain: 20 * Math.log10(gain), rawPeak, rawLoud };
 }
 
 /**
  * Render and master one sound definition. Returns null when OfflineAudioContext is missing.
- * def: { name, len, level, channels?, loop?: true | [loopStart, loopEnd], reverse?, clip?, ceil?, recipe }
+ * def: { name, len, level, channels?, loop?: true | [loopStart, loopEnd], reverse?, clip?, ceil?, recipe }.
+ * `mono` folds stereo recipes to one channel (low tier: half the memory, phones are near-mono anyway).
  * @returns {Promise<{buffer: AudioBuffer, gain: number, rawPeak: number, rawLoud: number} | null>} gain in dB
  */
-export async function renderSound(def, { sr = 48000, variant = 0, arg } = {}) {
+export async function renderSound(def, { sr = 48000, variant = 0, arg, mono = false } = {}) {
   const { OAC } = audioClasses();
   if (!OAC) return null;
   const len = def.len + (def.loop === true ? XF : 0);
-  const oac = new OAC(def.channels || 1, Math.max(1, Math.ceil(len * sr)), sr);
+  const oac = new OAC(mono ? 1 : def.channels || 1, Math.max(1, Math.ceil(len * sr)), sr);
   const k = makeKit(oac, makeRng((hashName(def.name) + variant * 7919) >>> 0), len);
   await def.recipe(k, arg, variant);
   return master(oac, await renderOffline(oac), def);

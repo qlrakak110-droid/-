@@ -40,7 +40,6 @@ void main() {
   mv.xy += vec2(q.x * cr - q.y * sr, q.x * sr + q.y * cr);
   gl_Position = projectionMatrix * mv;
   vP = c;
-  float fl = 1.0;
   vCol = vec4(iColL.rgb * env, t);
   vK = vec4(iShape.x, aspect, grow, 0.0);
 }`;
@@ -116,7 +115,7 @@ export function installFlares(vfx, shared) {
    */
   function flare(opts = {}) {
     const realtime = !!opts.realtime;
-    const life = opts.life != null ? opts.life : 0.25;
+    const life = Math.min(opts.life != null ? opts.life : 0.25, 1e6);
     const { slot, handle } = pool.alloc({ life, realtime });
     const kind = KIND[opts.kind || 'glow'];
     if (kind == null) throw new Error('vfx: unknown flare kind "' + opts.kind + '"');
@@ -138,6 +137,8 @@ export function installFlares(vfx, shared) {
     ring.highWater = Math.max(ring.highWater, slot.i + 1);
     const end = slot.t0 + life;
     if (realtime) maxDeathReal = Math.max(maxDeathReal, end); else maxDeath = Math.max(maxDeath, end);
+    ring.commit();
+    mesh.visible = true;
     return handle;
   }
 

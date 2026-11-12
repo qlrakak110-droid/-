@@ -61,6 +61,7 @@ vec3 skyBase(vec3 dir) {
 export const FOG = /* glsl */ `
 uniform vec4 uFogP;
 uniform vec4 uMood;
+uniform vec3 uFogNear;
 vec3 moodApply(vec3 c, float strength) {
   float d = uMood.a * strength;
   return c * mix(vec3(1.0), uMood.rgb, d) * (1.0 - 0.86 * d);
@@ -77,10 +78,15 @@ float fogAmount(vec3 wp, out vec3 dir) {
   float od = uFogP.x * dist * hInt + uFogP.z * max(dist - 40.0, 0.0) * 0.001;
   return min(1.0 - exp(-od), uFogP.w);
 }
+vec3 envFogColor(vec3 dir, float dist) {
+  vec3 far = skyBase(vec3(dir.x, max(dir.y, 0.003), dir.z));
+  float s = max(dot(dir, uSunDir), 0.0);
+  vec3 near = uFogNear + uSunHalo * pow(s, 8.0) * 0.6;
+  return mix(near, far, smoothstep(22.0, 110.0, dist));
+}
 vec3 applyEnvFog(vec3 col, vec3 wp) {
   vec3 dir;
   float f = fogAmount(wp, dir);
-  vec3 fc = skyBase(vec3(dir.x, max(dir.y, 0.0) * 0.6 + 0.004, dir.z));
-  return mix(col, moodApply(fc, 1.0), f);
+  return mix(col, moodApply(envFogColor(dir, length(wp - cameraPosition)), 1.0), f);
 }
 `;

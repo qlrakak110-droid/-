@@ -139,6 +139,7 @@ export function createSequencer(ctx, dir) {
       followY: !!shot.followY,
       followLag: shot.followLag ?? 0.12,
       handheld: shot.handheld ?? 0,
+      hold: !!shot.hold,
       mirrorRoll: shot.space !== 'world',
       orbit: null, via: null, viaSpace: null,
       cues: [],
@@ -218,7 +219,7 @@ export function createSequencer(ctx, dir) {
       dir.letterboxTo(v, typeof lb === 'object' && lb.dur != null ? lb.dur : 0.3);
       S.lbTouched = true;
     }
-    S.transition = n.cut ? { cut: true } : { cut: false, blend: n.blend, clock: n.clock };
+    S.transition = n.cut ? { cut: true } : { cut: false, blend: n.blend };
     if (S.opts.onShot) S.opts.onShot(i, n.src);
   }
 
@@ -247,11 +248,23 @@ export function createSequencer(ctx, dir) {
     S.handle = {
       /** Stop now and blend back to fight framing over `blend` seconds (0 = cut). */
       stop: (blend) => { if (S.gen === gen && S.active) dir.stop(blend ?? opts.blendOut ?? 0.35); },
+      /** Jump to shot `i` now (its own cut / blend applies): cut on a gameplay event instead of a timer. */
+      goto: (i) => { if (S.gen === gen && S.active) jump(i); },
+      /** Advance to the next shot now (ends the sequence after the last one). */
+      next: () => { if (S.gen === gen && S.active) jump(S.i + 1); },
       get done() { return S.gen !== gen || !S.active; },
       get index() { return S.gen === gen ? S.i : -1; },
       get time() { return S.gen === gen ? S.t : 0; },
     };
     return S.handle;
+  }
+
+  function jump(i) {
+    if (i >= S.shots.length) { S.t = S.shots[S.i].dur; S.ended = true; return; }
+    enter(Math.max(0, i));
+    S.t = 0;
+    S.ended = false;
+    S.fresh = true;
   }
 
   /** Advance and evaluate. Returns the pose, or null when inactive. */
@@ -263,13 +276,16 @@ export function createSequencer(ctx, dir) {
     if (!fresh) S.transition = null;
     if (!fresh && !S.ended) {
       S.t += n.clock === 'real' ? dtReal : dtGame;
-      while (S.t >= n.dur && S.i < S.shots.length - 1) {
+      while (S.t >= n.dur && S.i < S.shots.length - 1 && !n.hold) {
         const carry = S.t - n.dur;
         enter(S.i + 1);
         n = S.shots[S.i];
         S.t = Math.min(carry, n.dur);
       }
-      if (S.t >= n.dur && S.i === S.shots.length - 1) { S.t = n.dur; S.ended = true; }
+      if (S.t >= n.dur) {
+        S.t = n.dur;
+        if (S.i === S.shots.length - 1 && !n.hold) S.ended = true;
+      }
     }
     runCues(n);
     track(n, dtReal);

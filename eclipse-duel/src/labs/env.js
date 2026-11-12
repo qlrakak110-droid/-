@@ -60,6 +60,8 @@ createLab({
     sideR(ctx, lab) { lab.view({ target: [0, 1.2, 0], dist: 9, yaw: 60, pitch: 4, fov: 40 }); },
     sideLowL(ctx, lab) { lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
     overview(ctx, lab) { lookFrom(lab, [0, 22, 30], [0, 0, -8], 50); },
+    /** telephoto on the far left colossus (inspect the far silhouettes) */
+    colossus(ctx, lab) { lookFrom(lab, [0, 1.6, 8.5], [-77, 14, -161], 14); },
     mood(ctx) { ctx.env.setMood({ darken: 0.85, tint: 0x8fa0ff, duration: 0.3 }); },
     moodWarm(ctx) { ctx.env.setMood({ darken: 0.8, tint: 0xff9a70, duration: 0.3 }); },
     moodOff(ctx) { ctx.env.setMood(null); },

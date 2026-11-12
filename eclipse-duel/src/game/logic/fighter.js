@@ -4,7 +4,7 @@
 import { ATTACK_BUTTONS, COMBO_STATES } from './constants.js';
 import { resolveCommand } from './defs.js';
 import { createInputTracker, latestPress, consumePress, pressDir } from './input.js';
-import { forwardAt, heightAt, windowAt, crosses } from './moves.js';
+import { forwardAt, heightAt, windowAt, crosses, passes, EPS } from './moves.js';
 import { spawnProjectile } from './projectiles.js';
 import { spendFp, spendUlt, refillGuard } from './meters.js';
 
@@ -99,7 +99,7 @@ export function endCombo(m, f) {
   r.active = false;
   const a = m.fighters[r.attacker] || m.fighters[1 - f.index];
   a.combo.active = false;
-  m.emit('comboEnd', { attacker: a.index, defender: f.index, hits: r.hits, damage: r.damage, juggle: r.juggle, time: r.time });
+  m.emit('comboEnd', { attacker: a.index, defender: f.index, hits: r.hits, damage: r.damage, juggle: r.juggle, duration: r.time });
 }
 
 /** Distance between the two fighters' centres. */
@@ -234,10 +234,10 @@ export function endMove(m, f, reason) {
 /** Timeline items (markers, projectiles, teleports) with tPrev < t <= tNow. */
 function runTimeline(m, f, tPrev, tNow) {
   const mv = f.moveData;
-  for (const tp of mv.teleports) if (tp.t > tPrev && tp.t <= tNow) teleport(m, f, tp);
-  for (const s of mv.projectiles) if (s.t > tPrev && s.t <= tNow) spawnProjectile(m, f, s, mv);
+  for (const tp of mv.teleports) if (passes(tp.t, tPrev, tNow)) teleport(m, f, tp);
+  for (const s of mv.projectiles) if (passes(s.t, tPrev, tNow)) spawnProjectile(m, f, s, mv);
   for (const k of mv.markers) {
-    if (k.t > tPrev && k.t <= tNow) m.emit('marker', { fighter: f.index, move: mv.id, name: k.name, t: k.t, data: k.data, x: f.x, y: f.y, facing: f.facing });
+    if (passes(k.t, tPrev, tNow)) m.emit('marker', { fighter: f.index, move: mv.id, name: k.name, t: k.t, data: k.data, x: f.x, y: f.y, facing: f.facing });
   }
 }
 
@@ -258,7 +258,7 @@ function openCancels(f) {
   openWins.length = 0;
   const mv = f.moveData, t = f.moveTime;
   for (const c of mv.cancels) {
-    if (t < c.t0 || t > c.t1) continue;
+    if (t < c.t0 - EPS || t > c.t1 + EPS) continue;
     if (c.onHit && !f.moveHit) continue;
     if (c.onContact && !f.moveConnected) continue;
     openWins.push(c);
@@ -560,7 +560,7 @@ function advanceMove(m, f, h) {
   runTimeline(m, f, t0, t1);
   if (f.state !== 'attack' || f.moveData !== mv) return;
   if (tryCancel(m, f)) return;
-  if (t1 >= mv.duration - 1e-9) {
+  if (t1 >= mv.duration - EPS) {
     // keep the move alive for this substep when a hit window touches it, so the final hit can still be collected
     let pending = false;
     for (const ht of mv.hits) if (crosses(ht.t0, ht.t1, t0, t1)) { pending = true; break; }
@@ -572,7 +572,7 @@ function advanceMove(m, f, h) {
 /** Is fighter `f` invulnerable to `kind` ('strike' | 'projectile') right now? */
 export function isInvulnerable(m, f, kind) {
   if (m.phase !== 'fight') return true;
-  if (m.cine) return true;
+  if (m.cinematic) return true;
   if (m.freeze && m.freeze.owner === f.index) return true;
   switch (f.state) {
     case 'knockdown': case 'getup': case 'locked': case 'ko': case 'intro': case 'victory': case 'defeat': case 'roll':

@@ -274,7 +274,7 @@ export function installParticles(vfx, shared) {
       perMeter: def.perMeter || 0,
       duration: def.duration || 0,
       shape: def.shape || { type: 'point' },
-      emit: EMIT[def.emit || (def.shape && def.shape.type === 'sphere' ? 'radial' : 'axis')],
+      emit: EMIT[def.emit || 'axis'],
       spread: def.spread != null ? def.spread : (def.shape && def.shape.angle != null ? def.shape.angle : 25),
       spreadPow: def.spreadPow || 1,
       lift: def.lift || 0,
@@ -470,6 +470,8 @@ export function installParticles(vfx, shared) {
       if (t0 + life > maxDeath) maxDeath = t0 + life;
     }
     ring.dirty(s0, n);
+    ring.commit();
+    L.mesh.visible = true;
     if (realtime) { if (maxDeath > L.maxDeathReal) L.maxDeathReal = maxDeath; table.touch(cd.row, clock.game + (maxDeath - clock.real)); }
     else { if (maxDeath > L.maxDeath) L.maxDeath = maxDeath; table.touch(cd.row, maxDeath); }
     return s0;

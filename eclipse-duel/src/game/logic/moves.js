@@ -1,6 +1,12 @@
 // Pure helpers over compiled moves (see defs.js compileMove): motion sampling, timeline windows, boxes.
 
 /**
+ * Time tolerance (s) of every timeline comparison. Move clocks accumulate dt (6 x 1/60 = 0.09999...), so authored
+ * times are matched within EPS: a 0.1 s startup is active on the 6th 60 fps step, as the frame data says.
+ */
+export const EPS = 1e-6;
+
+/**
  * Forward displacement (metres, fighter-local +f) accumulated from move start to move time `t`.
  * @param {object} mv compiled move
  * @param {number} t  move time (s)
@@ -42,13 +48,18 @@ function sampleKeys(keys, t, k) {
 /** First window {t0, t1, ...} of `list` containing time t (inclusive), or null. */
 export function windowAt(list, t) {
   if (!list) return null;
-  for (const w of list) if (t >= w.t0 && t <= w.t1) return w;
+  for (const w of list) if (t >= w.t0 - EPS && t <= w.t1 + EPS) return w;
   return null;
 }
 
-/** True when the move-time interval (tPrev, tNow] touches the closed window [t0, t1]. */
+/** True when the move-time interval (tPrev, tNow] touches the window [t0, t1] (within EPS). */
 export function crosses(t0, t1, tPrev, tNow) {
-  return tNow >= t0 && tPrev < t1;
+  return tNow >= t0 - EPS && tPrev < t1 - EPS;
+}
+
+/** True when the instant `t` lies in (tPrev, tNow] (timeline items: markers, projectiles, teleports, ticks). */
+export function passes(t, tPrev, tNow) {
+  return t > tPrev + EPS && t <= tNow + EPS;
 }
 
 /**

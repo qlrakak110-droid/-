@@ -61,8 +61,9 @@ function gridIndex(W, H, flip) {
  *   rx, rz            radius toward +-X / +-Z (curve over v)          ox, oz  centre offset (curve)
  *   n=2               superellipse exponent (curve; 2 ellipse, 3-5 boxier)
  *   a0=0, a1=360      angular coverage in degrees (curve): 0 = +X front, 90 = +Z, 180 = back, 270 = -Z
- *   bulge(u, v)       extra radius factor (fn)      ridge {at: deg, w: deg, h: m}   medial ridge
+ *   bulge(u, v)       extra radius factor (fn)      ridge {at: deg, w: deg, h: m | fn(v)} or ridges: [...]
  *   thick=0.006       inward thickness               rim: bead radius (0 = none), rimEdges: 'tbs' (top/bottom/sides)
+ *   part='all'        'plate' (no rims) | 'rim' (only the rolled rims: colour them separately as trim)
  *   segs=[24, 10]     radial, ring segments
  */
 export function shell(o = {}) {
@@ -73,6 +74,8 @@ export function shell(o = {}) {
   const thick = o.thick ?? 0.006;
   const W = radial + 1, H = rings + 1;
   const closed = Math.abs(A1(0.5) - A0(0.5)) >= 359.9;
+  const ridges = o.ridges || (o.ridge ? [o.ridge] : []);
+  const part = o.part || 'all';
   const P = new Float32Array(W * H * 3);
   for (let j = 0; j < H; j++) {
     const v = j / rings, y = lerp(y0, y1, v);
@@ -82,10 +85,11 @@ export function shell(o = {}) {
       const c = Math.cos(th), s = Math.sin(th);
       const ex = Math.sign(c) * Math.pow(Math.abs(c), e), ez = Math.sign(s) * Math.pow(Math.abs(s), e);
       let k = 1 + (o.bulge ? o.bulge(u, v) : 0);
-      if (o.ridge) {
-        let d = Math.abs(((lerp(a0, a1, u) - o.ridge.at + 540) % 360) - 180);
-        const r = Math.max(0, 1 - (d / o.ridge.w) ** 2);
-        k += (o.ridge.h * r * r) / Math.max(1e-3, Math.hypot(rx * ex, rz * ez));
+      for (const rd of ridges) {
+        const d = Math.abs(((lerp(a0, a1, u) - rd.at + 540) % 360) - 180);
+        const r = Math.max(0, 1 - (d / rd.w) ** 2);
+        const h = typeof rd.h === 'function' ? rd.h(v) : rd.h;
+        k += (h * r * r) / Math.max(1e-3, Math.hypot(rx * ex, rz * ez));
       }
       const p = (j * W + i) * 3;
       P[p] = ox + rx * ex * k; P[p + 1] = y; P[p + 2] = oz + rz * ez * k;
@@ -112,8 +116,8 @@ export function shell(o = {}) {
     }
   }
   const flipped = outer.index.array[1] !== 1;
-  const parts = [outer];
-  if (thick > 0) {
+  const parts = part === 'rim' ? [] : [outer];
+  if (thick > 0 && part !== 'rim') {
     const PI = new Float32Array(P.length), NI = new Float32Array(P.length);
     for (let k = 0; k < P.length; k++) { PI[k] = P[k] - N[k] * thick; NI[k] = -N[k]; }
     parts.push(makeGeo(PI, NI, gridIndex(W, H, !flipped)));
@@ -147,7 +151,7 @@ export function shell(o = {}) {
       parts.push(g);
     }
   }
-  if (o.rim) {
+  if (o.rim && part !== 'plate') {
     const edges = o.rimEdges || 'tbs';
     const take = (ids) => ids.map((id) => new THREE.Vector3(P[id * 3] - N[id * 3] * thick * 0.5, P[id * 3 + 1] - N[id * 3 + 1] * thick * 0.5, P[id * 3 + 2] - N[id * 3 + 2] * thick * 0.5));
     const rr = Math.max(o.rim, thick * 0.7);
@@ -163,12 +167,13 @@ export function shell(o = {}) {
 
 /**
  * Tube along a polyline (parallel-transport frames, capped ends).
- * @param {THREE.Vector3[]} pts
+ * @param {Array} pts  THREE.Vector3[] or [[x,y,z], ...]
  * @param {number|function} radius  number or fn(v) along the length
  * @param {number} seg  radial segments
  * @param {object} o  { closed=false, caps=true, scaleZ=1 (elliptic cross-section along the binormal) }
  */
 export function tube(pts, radius, seg = 8, o = {}) {
+  pts = pts.map((p) => (p.isVector3 ? p : new THREE.Vector3(p[0], p[1], p[2])));
   const R = fnOf(radius, 0.01);
   const n = pts.length, closed = !!o.closed;
   const T = [], Nn = [], B = [];

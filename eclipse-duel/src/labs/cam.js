@@ -153,52 +153,48 @@ function makeScope(cam) {
 // ---- motions -------------------------------------------------------------------------------------------------------
 const seg = (t, a, b, e = Ease.inOutSine) => e(clamp((t - a) / (b - a)));
 
-/** Sample ultimate choreography (game time), written in the anchor's local frame so it mirrors. */
-function ultMotion(an, tg, facing, ax0, tx0) {
+/**
+ * Sample ultimate choreography (game time), written in the anchor's local frame so it mirrors. `ev(at, fn)` runs fn
+ * once when the scenario clock passes `at` (impacts: event-driven cut + hit-stop).
+ */
+function ultMotion(an, tg, facing, ax0, tx0, onImpact) {
   const d0 = Math.abs(tx0 - ax0);
   const X = (f, x0) => x0 + f * facing;
-  return (t, hit) => {
-    // anchor: power-up (0-0.8), dash-slash (0.8-1.3), leap (1.9-2.7), hang, meteor slam (3.1-3.35)
-    let af = 0, ay = 0, aw = 35, al = 0;
-    aw = lerp(35, 128, seg(t, 0.05, 0.8));
-    al = -8 * seg(t, 0.05, 0.8);
-    af = lerp(0, d0 - 1.35, seg(t, 0.8, 1.25, Ease.outCubic));
-    if (t > 1.15) aw = lerp(128, -38, seg(t, 1.15, 1.3, Ease.inQuad));
-    if (t > 1.3) { aw = lerp(-38, 60, seg(t, 1.35, 1.9)); al = lerp(18, 0, seg(t, 1.3, 1.8)); }
-    if (t > 1.9) {
-      const k = seg(t, 1.9, 2.75, Ease.outCubic);
-      ay = 3.1 * k; af = lerp(d0 - 1.35, d0 + 0.6, k); aw = lerp(60, 150, seg(t, 1.9, 2.9));
-    }
-    if (t > 2.75) ay = 3.1 + 0.08 * Math.sin((t - 2.75) * 6);
-    if (t > 3.1) {
-      const k = seg(t, 3.1, 3.35, Ease.inQuad);
-      ay = lerp(3.13, 0, k); af = d0 + 0.6 + 0.3 * k; aw = lerp(150, -55, seg(t, 3.0, 3.3, Ease.inQuad)); al = 20 * k;
-    }
-    if (t > 3.35) { al = lerp(20, 8, seg(t, 3.35, 4)); aw = -55; }
+  return (t, ev) => {
+    // anchor: power-up (0-0.7), dash-slash (0.7-1.13), leap (1.6-2.05), hang, meteor slam (2.4-2.6), settle
+    let af = 0, ay = 0, aw = lerp(35, 128, seg(t, 0.05, 0.7)), al = -8 * seg(t, 0.05, 0.7);
+    af = lerp(0, d0 - 1.35, seg(t, 0.7, 1.05, Ease.outCubic));
+    if (t > 0.98) aw = lerp(128, -38, seg(t, 0.98, 1.13, Ease.inQuad));
+    if (t > 1.13) { aw = lerp(-38, 60, seg(t, 1.13, 1.6)); al = lerp(18, 0, seg(t, 1.13, 1.6)); }
+    if (t > 1.6) { const k = seg(t, 1.6, 2.05, Ease.outCubic); ay = 3.1 * k; af = lerp(d0 - 1.35, d0 + 0.6, k); aw = lerp(60, 150, seg(t, 1.6, 2.2)); }
+    if (t > 2.05) ay = 3.1 + 0.08 * Math.sin((t - 2.05) * 6);
+    if (t > 2.35) aw = lerp(150, -55, seg(t, 2.35, 2.58, Ease.inQuad));
+    if (t > 2.4) { const k = seg(t, 2.4, 2.6, Ease.inQuad); ay = lerp(3.1, 0, k); af = d0 + 0.6 + 0.3 * k; al = 20 * k; }
+    if (t > 2.6) { al = lerp(20, 8, seg(t, 2.6, 3.2)); aw = -55; }
     an.x = X(af, ax0); an.y = ay; an.weaponDeg = aw; an.lean = al;
-    // target: struck (1.3), knocked back, launched (1.45-2.7), slammed (3.1-3.35), lying
-    let tf = d0, ty = 0, tt = 0;
-    tf = d0 + 0.5 * seg(t, 1.3, 1.45, Ease.outCubic);
-    tt = 25 * seg(t, 1.3, 1.45, Ease.outCubic);
-    if (t > 1.45) {
-      const k = clamp((t - 1.45) / 1.25);
-      ty = 3.4 * (1 - (1 - k) * (1 - k)); tf = d0 + 0.5 + 0.7 * k; tt = lerp(25, 75, k);
-    }
-    if (t > 2.7) ty = 3.4 - 0.15 * seg(t, 2.7, 3.1);
-    if (t > 3.1) { const k = seg(t, 3.1, 3.35, Ease.inQuad); ty = lerp(3.25, 0.02, k); tt = lerp(75, 90, k); }
-    tg.x = X(tf, tx0); tg.y = ty; tg.tilt = tt * -1; tg.weaponDeg = -60;
-    hit(1.3, 0.12);
-    hit(3.35, 0.1);
+    // target (f from the anchor's start): struck (1.16), knocked back, launched (1.36-2.05), hang, slammed (2.4-2.6)
+    let tf = d0 + 0.5 * seg(t, 1.16, 1.3, Ease.outCubic), ty = 0, tt = 25 * seg(t, 1.16, 1.3, Ease.outCubic);
+    if (t > 1.36) { const k = clamp((t - 1.36) / 0.69); ty = 3.4 * (1 - (1 - k) * (1 - k)); tf = d0 + 0.5 + 0.7 * k; tt = lerp(25, 75, k); }
+    if (t > 2.05) ty = 3.4 - 0.15 * seg(t, 2.05, 2.4);
+    if (t > 2.4) { const k = seg(t, 2.4, 2.6, Ease.inQuad); ty = lerp(3.25, 0.02, k); tt = lerp(75, 90, k); }
+    tg.x = X(tf, ax0); tg.y = ty; tg.tilt = -tt; tg.weaponDeg = -60;
+    ev(1.16, () => onImpact(0.12, true));
+    ev(2.6, () => onImpact(0.1, false));
   };
 }
 
+/** The 4-second sample ultimate: 5 shots, event-driven cut on the first impact, a blend, slow-motion, letterbox. */
 function ultShots() {
   return [
-    shots.heroPushIn({ dur: 0.8, roll: 6, letterbox: true }),
-    shots.weaponFollow({ dur: 0.5 }),
-    shots.impactPunchIn({ dur: 0.4 }),
-    shots.groundSkim({ dur: 1.4, cut: 0.3, slowmo: { scale: 0.35, easeIn: 0.1 }, follow: 'look', followY: true, from: [-2.4, 0.3, 2.6], to: [-2.2, 0.34, 3.3], look: [[1.0, 1.3, 0], [0, 1.0, 0]], fov: [46, 50], roll: [-4, -7] }),
-    shots.topDownSlam({ dur: 0.9, shake: { amount: 1.0, at: 0.25, freq: 13, decay: 1.4, dir: [0, 1, 0] }, kick: { fov: 6, roll: 4, at: 0.25, duration: 0.5 } }),
+    shots.heroPushIn({ dur: 0.7, roll: 6, letterbox: true }),
+    shots.weaponFollow({ dur: 0.45, hold: true }),
+    shots.impactPunchIn({ dur: 0.3 }),
+    shots.groundSkim({
+      dur: 0.9, cut: 0.22, slowmo: { scale: 0.35, dur: 0.45, easeIn: 0.06, easeOut: 0.2 }, follow: 'look', followY: true,
+      from: [-1.5, 0.28, 3.6], fromSpace: 'mid', to: [0.2, 0.34, 3.2], toSpace: 'mid',
+      look: [[0, 1.45, 0], [0.3, 1.4, 0]], lookSpace: 'mid', fov: [54, 48], roll: [-3, -7],
+    }),
+    shots.topDownSlam({ dur: 0.85, shake: { amount: 1.0, at: 0.25, freq: 13, decay: 1.4, dir: [0, 1, 0] }, kick: { fov: 6, roll: 4, at: 0.25, duration: 0.5 } }),
   ];
 }
 
@@ -232,11 +228,12 @@ createLab({
     /** Show / hide the director-camera proxy and restart its path. */
     lab.debugView = (on) => { helper.visible = trail.visible = on; trailCount = 0; trailGeo.setDrawRange(0, 0); };
 
-    const S = { t: 0, motion: null, hits: new Set() };
-    const hit = (at, dur) => { if (S.t >= at && !S.hits.has(at)) { S.hits.add(at); ctx.time.hitstop(dur); } };
+    const S = { t: 0, motion: null, fired: new Set() };
+    /** Run fn once when the scenario clock passes `at`. */
+    const ev = (at, fn) => { if (S.t >= at && !S.fired.has(at)) { S.fired.add(at); fn(); } };
     ctx.onUpdate((dg) => {
       S.t += dg;
-      if (S.motion) S.motion(S.t, hit);
+      if (S.motion) S.motion(S.t, ev);
       p1.apply(); p2.apply();
     }, ctx.ORDER.GAME);
     ctx.onUpdate(() => {
@@ -256,7 +253,7 @@ createLab({
       cam.setMode('fight', 0);
       cam.letterbox(0, 0);
       lab.debugView(false);
-      S.t = 0; S.hits.clear(); S.motion = motion;
+      S.t = 0; S.fired.clear(); S.motion = motion;
       for (const [d, x, f] of [[p1, x1, x1 <= x2 ? 1 : -1], [p2, x2, x1 <= x2 ? -1 : 1]]) { d.x = x; d.y = 0; d.facing = f; d.weaponDeg = 35; d.tilt = 0; d.lean = 0; }
       if (motion) motion(0, () => {});
       p1.apply(); p2.apply();
@@ -348,7 +345,7 @@ function buildScenarios() {
     kickFov(ctx, lab) { lab.reset(); ctx.cam.kick({ fov: -5, duration: 0.4 }); },
     kickPush(ctx, lab) { lab.reset(); ctx.cam.kick({ push: 1.2, duration: 0.45 }); },
     kickRoll(ctx, lab) { lab.reset(); ctx.cam.kick({ roll: 5, duration: 0.5 }); },
-    zoom(ctx, lab) { lab.reset(-2.5, 2.5, idle(lab)); ctx.cam.zoom(0.72, 1.0, { focus: 0 }); },
+    zoom(ctx, lab) { lab.reset(-1.6, 1.6, idle(lab)); ctx.cam.zoom(0.72, 1.0, { focus: 0 }); },
     letterbox(ctx, lab) { lab.reset(-2.5, 2.5, idle(lab)); ctx.cam.letterbox(true, 0.4); },
 
     ult(ctx, lab) { playUlt(ctx, lab, false); },
@@ -377,16 +374,16 @@ function buildScenarios() {
 /** Run fn once game time passes `at` (scenario-relative). */
 function setTimeoutGame(lab, at, fn) {
   const prev = lab.S.motion;
-  let done = false;
-  lab.S.motion = (t, hit) => { if (prev) prev(t, hit); if (!done && t >= at) { done = true; fn(); } };
+  lab.S.motion = (t, ev) => { if (prev) prev(t, ev); ev(at, fn); };
 }
 
 function playUlt(ctx, lab, mirror) {
   const [an, tg] = mirror ? [lab.p2, lab.p1] : [lab.p1, lab.p2];
   const facing = mirror ? -1 : 1;
   lab.reset(-2.5, 2.5, null);
-  lab.S.motion = ultMotion(an, tg, facing, an.x, tg.x);
-  ctx.cam.play(ultShots(), { anchor: mirror ? 1 : 0, blendOut: 0.7 });
+  let h = null;
+  lab.S.motion = ultMotion(an, tg, facing, an.x, tg.x, (hitstop, cut) => { if (cut) h.next(); ctx.time.hitstop(hitstop); });
+  h = ctx.cam.play(ultShots(), { anchor: mirror ? 1 : 0, blendOut: 0.7 });
 }
 
 /** One vocabulary shot on the dummies (held on its last frame). Moving shots get a matching motion. */

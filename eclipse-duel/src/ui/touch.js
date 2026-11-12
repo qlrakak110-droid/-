@@ -11,9 +11,9 @@ import { makePie, setPie, put, putText, putClass } from './hud.js';
 const BUTTONS = [
   { a: 'light', ico: 'light', ko: '약공', d: 88 },
   { a: 'heavy', ico: 'heavy', ko: '강공', d: 68 },
-  { a: 'skill1', ico: 'kael-crescent', ko: '', d: 60, skill: 0 },
-  { a: 'skill2', ico: 'kael-eruption', ko: '', d: 60, skill: 1 },
-  { a: 'skill3', ico: 'kael-bulwark', ko: '', d: 60, skill: 2 },
+  { a: 'skill1', ico: '', ko: '', d: 60, skill: 0 },   // skill icons arrive with ui.hud.skills(0, ...)
+  { a: 'skill2', ico: '', ko: '', d: 60, skill: 1 },
+  { a: 'skill3', ico: '', ko: '', d: 60, skill: 2 },
   { a: 'ult', ico: 'ult', ko: '궁극기', d: 70 },
   { a: 'guard', ico: 'guard', ko: '막기', d: 58 },
   { a: 'dodge', ico: 'dodge', ko: '회피', d: 58 },
@@ -51,7 +51,7 @@ export function createTouch(ui) {
     const ico = h('span.pb-ico', { html: icon(def.ico) });
     const label = h('span.pb-label', { text: def.ko });
     const el = h(`button.pad-btn.pb-${def.a}`, { type: 'button', 'aria-label': def.a }, h('i.pb-bg'), ico, label);
-    const b = { def, el, ico, label, ptrs: new Set(), down: false, x: 0, y: 0, d: def.d };
+    const b = { def, el, ico, label, ptrs: new Set(), down: false };
     if (def.skill !== undefined) {
       b.pie = makePie('pb-pie');
       b.cost = h('span.pb-cost');
@@ -210,25 +210,31 @@ export function createTouch(ui) {
         if (ready && st.ready === false) anim.add(0.5, (k) => put(b.glow, 'transform', `scale(${(1 + 0.4 * (1 - k)).toFixed(3)})`), { key: b.glow, ease: 'outCubic' });
         st.ready = ready;
         putClass(b.el, 'is-ready', ready);
+        if (!ready) put(b.glow, 'opacity', '');
       }
     }
   }
   function meter(ultR, fp) {
     const b = byAction.ult;
+    touch._ult = ultR;
     setPie(b.ring, ultR);
     const full = ultR >= 0.999;
-    if (full !== b.full) { b.full = full; putClass(b.el, 'is-full', full); }
+    if (full !== b.full) {
+      b.full = full;
+      putClass(b.el, 'is-full', full);
+      if (!full) { put(b.glow, 'opacity', ''); put(b.rays, 'transform', ''); }
+    }
     if (fp !== touch._fp) {
       touch._fp = fp;
       for (let j = 0; j < 3; j++) { const sb = byAction['skill' + (j + 1)]; putClass(sb.el, 'no-fp', sb.state.cost > 0 && fp < sb.state.cost); }
     }
   }
 
-  let clock = 0;
+  let clock = 0, lastCine = 0;
   const touch = {
     el: root,
-    enabled: false,
     _fp: -1,
+    _ult: 0,
     layout,
     skills,
     meter,
@@ -244,7 +250,7 @@ export function createTouch(ui) {
         const sb = byAction['skill' + j];
         if (sb.state.ready) put(sb.glow, 'opacity', (0.5 + 0.35 * Math.sin(clock * 4.2 + j * 1.7)).toFixed(2));
       }
-      put(root, 'opacity', (1 - 0.75 * cine).toFixed(3));
+      if (cine !== lastCine) { lastCine = cine; put(root, 'opacity', (1 - 0.75 * cine).toFixed(3)); }
     },
   };
   return touch;

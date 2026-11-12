@@ -18,7 +18,8 @@ const FPS = 60;
  *   active    total active time (union of hit windows)
  *   recovery  duration - activeEnd
  *   reach     furthest forward point any hit box reaches (m, from the start position, including motion);
- *             projectiles: their travel distance
+ *             projectiles: their travel distance (Infinity when anchored at the opponent). Teleports are not
+ *             included (see `teleport`).
  *   onHit / onBlock  advantage (s) of the attacker after the LAST hit connects at its first active moment:
  *             victim stun - attacker time left in the move (+ = attacker acts first). null for knockdowns / launches.
  */
@@ -35,7 +36,8 @@ export function deriveFrameData(move, { id, rules = DEFAULT_RULES } = {}) {
   for (const p of mv.projectiles) {
     damage += p.hit.damage * p.multiMax;
     nh += p.multiMax;
-    projReach = Math.max(projReach, forwardAt(mv, p.t) + p.of + p.f1 + Math.abs(p.vx) * p.lifetime);
+    // a projectile anchored at the opponent reaches anywhere
+    projReach = Math.max(projReach, p.at === 'opponent' ? Infinity : forwardAt(mv, p.t) + p.of + p.f1 + Math.abs(p.vx) * p.lifetime);
   }
   const startup = Number.isFinite(mv.firstActive) ? mv.firstActive : null;
   const activeEnd = hits.length ? Math.max(...hits.map((h) => h.t1)) : (mv.projectiles.length ? Math.max(...mv.projectiles.map((p) => p.t + p.delay)) : null);
@@ -81,6 +83,7 @@ export function deriveFrameData(move, { id, rules = DEFAULT_RULES } = {}) {
     armour: mv.armour.length > 0,
     invuln: mv.invuln.length > 0,
     counter: !!mv.counter,
+    teleport: mv.teleports.length > 0,
     cinematic: !!mv.cinematic,
     fpCost: mv.fpCost,
     ultCost: mv.ultCost,
@@ -119,10 +122,10 @@ export function frameDataTable(def, { unit = 'frames', rules = DEFAULT_RULES } =
   const rows = [head];
   for (const id of Object.keys(fd)) {
     const d = fd[id];
-    const notes = [d.projectile && 'proj', d.armour && 'armour', d.invuln && 'invuln', d.counter && 'counter', d.cinematic && 'cinematic', d.unblockable && 'unblockable', d.cancellable && 'cancel', d.motion ? `moves ${d.motion.toFixed(1)}m` : ''].filter(Boolean).join(' ');
+    const notes = [d.projectile && 'proj', d.armour && 'armour', d.invuln && 'invuln', d.counter && 'counter', d.teleport && 'teleport', d.cinematic && 'cinematic', d.unblockable && 'unblockable', d.cancellable && 'cancel', d.motion ? `moves ${d.motion.toFixed(1)}m` : ''].filter(Boolean).join(' ');
     rows.push([
       id, slotOf[id] || '(route)', T(d.startup), T(d.active), T(d.recovery), T(d.duration), String(Math.round(d.damage)), String(d.hits),
-      d.reach.toFixed(2), A(d.onHit, d.knockdown), A(d.onBlock, false), d.level || '-',
+      Number.isFinite(d.reach) ? d.reach.toFixed(2) : 'target', A(d.onHit, d.knockdown), A(d.onBlock, false), d.level || '-',
       d.ultCost ? `ULT ${d.ultCost}` : d.fpCost ? `FP ${d.fpCost}` : '-', d.cooldown ? d.cooldown + 's' : '-', notes,
     ]);
   }

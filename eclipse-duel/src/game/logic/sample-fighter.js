@@ -54,9 +54,11 @@ export const sampleFighter = {
     'f+heavy': 'lunge',
     'd+heavy': 'launcher',
     skill1: 'crescent',
+    'b+skill1': 'grave',
     skill2: 'tempest',
     skill3: 'ward',
     'f+skill3': 'phase_step',
+    'b+skill3': 'blink',
     ult: 'verdict',
   },
 
@@ -109,8 +111,9 @@ export const sampleFighter = {
       motion: [{ t: [0.05, 0.22], v: 3 }],
       hits: [{
         t: [0.2, 0.26], box: { f: [0.2, 2.0], u: [0.2, 2.0] },
-        damage: 72, level: 'knockdown',            // ends the chain with a knockdown (no juggle after it)
-        knockback: { x: 5, y: 3.2 }, hitstop: 0.12, blockstun: 0.24, guardDamage: 18,
+        damage: 72, level: 'knockdown',            // ends the chain with a knockdown (no juggle after it) ...
+        knockback: { x: 6, y: 3.2 },               // ... unless it slams into a wall (x >= rules.wallBounce.speed bounces)
+        hitstop: 0.12, blockstun: 0.24, guardDamage: 18,
       }],
       cancels: [{ t: [0.22, 0.36], into: ['@skill'], onContact: true }], // hit or block: skill cancel to stay safe
       markers: [{ t: 0.12, name: 'swing', data: { trail: 'heavy' } }, { t: 0.2, name: 'impact', data: { shake: 0.3 } }],
@@ -123,6 +126,8 @@ export const sampleFighter = {
       name: 'Iron Sweep',
       duration: 0.78,
       armour: [{ t: [0.08, 0.34], hits: 1 }],
+      // extra hurtbox: the blade stays out during the recovery, so a whiffed sweep can be punished at its tip
+      hurt: [{ t: [0.42, 0.62], box: { f: [0.3, 1.9], u: [0.6, 1.6] } }],
       hits: [{
         t: [0.34, 0.42], box: { f: [0.2, 2.3], u: [0.3, 1.9] },
         damage: 105, level: 'heavy', hitstun: 0.5, blockstun: 0.3, knockback: { x: 4.5, y: 0 }, hitstop: 0.11, guardDamage: 28,
@@ -140,6 +145,7 @@ export const sampleFighter = {
       hits: [{
         t: [0.22, 0.32], box: { f: [0.3, 1.6], u: [0.7, 1.6] },
         damage: 88, level: 'crumple', hitstun: 0.95, blockstun: 0.22, knockback: { x: 1.5, y: 0 }, hitstop: 0.12,
+        armourPierce: true,                        // goes through hyper-armour (it still loses to guard and dodge)
       }],
       cancels: [{ t: [0.32, 0.52], into: ['launcher', '@skill', '@ult'], onHit: true }],
       markers: [{ t: 0.08, name: 'dash', data: { afterimage: true } }, { t: 0.22, name: 'thrust' }],
@@ -180,6 +186,32 @@ export const sampleFighter = {
       ai: { range: [3, 9], role: 'zoning', weight: 1 },
     },
 
+    // b+SKILL 1 — delayed strike AT THE OPPONENT: spawns where the opponent stands, telegraphs for 0.45 s (the
+    // presentation draws the rune from projectileSpawn), then hits up to 3 times. Shares the skill1 cooldown.
+    grave: {
+      name: 'Grave Pillar',
+      duration: 0.8,
+      fpCost: 25,
+      cooldown: 4,
+      cooldownKey: 'crescent',                     // same key as Crescent Wave: one cooldown for the skill1 slot
+      requires: { minDistance: 2.5 },              // refused (moveDenied 'distance') up close
+      projectiles: [{
+        t: 0.3,
+        kind: 'grave_pillar',
+        at: 'opponent',                            // anchored at the opponent's x when spawned
+        box: { f: [-0.6, 0.6], u: [0, 2.6] },
+        velocity: { x: 0, y: 0 },
+        delay: 0.45,                               // harmless telegraph, then active
+        lifetime: 0.3,
+        multi: { interval: 0.1, max: 3 },
+        pierce: true,                              // stays for its whole lifetime after the last hit
+        clash: false,                              // ground eruption: does not clash with flying projectiles
+        hit: { damage: 30, level: 'light', hitstun: 0.4, blockstun: 0.2, knockback: { x: 0.5, y: 0 }, hitstop: 0.05, juggle: 0.5 },
+      }],
+      markers: [{ t: 0, name: 'cast' }, { t: 0.3, name: 'rune' }],
+      ai: { range: [2.5, 7], role: 'zoning', weight: 0.6 },
+    },
+
     // SKILL 2 — multi-hit: one hit window that connects up to 5 times 0.09 s apart, then a launching finisher.
     tempest: {
       name: 'Tempest Whirl',
@@ -214,7 +246,7 @@ export const sampleFighter = {
       cooldown: 9,
       counter: { t: [0.05, 0.6], move: 'ward_burst', vs: 'all', hitstop: 0.12 },
       markers: [{ t: 0, name: 'stance' }, { t: 0.6, name: 'stance_end' }],
-      ai: { role: 'counter', weight: 0.6 },
+      ai: { role: 'counter', weight: 0.45 },
     },
     ward_burst: {
       name: 'Ember Ward — Burst',
@@ -241,6 +273,25 @@ export const sampleFighter = {
       cancels: [{ t: [0.26, 0.42], into: ['light1', 'heavy', 'launcher'] }],
       markers: [{ t: 0.04, name: 'vanish' }, { t: 0.26, name: 'reappear' }],
       ai: { range: [1.0, 3.4], role: 'mobility', weight: 0.5 },
+    },
+
+    // b+SKILL 3 — TELEPORT behind the opponent, turn around and cut (a cross-up: guards facing the wrong way fail).
+    blink: {
+      name: 'Umbral Blink',
+      duration: 0.72,
+      fpCost: 20,
+      cooldown: 6,
+      requires: { maxDistance: 4.5 },
+      invuln: [{ t: [0.12, 0.26], vs: 'all' }],
+      passThrough: [[0.12, 0.3]],
+      teleport: [{ t: 0.2, to: 'behind', distance: 1.1, face: true }], // 1.1 m past the opponent, then face it
+      hits: [{
+        t: [0.32, 0.37], box: { f: [0.2, 1.6], u: [0.5, 1.9] },
+        damage: 65, level: 'heavy', hitstun: 0.48, blockstun: 0.22, knockback: { x: 3, y: 0 }, hitstop: 0.1,
+      }],
+      cancels: [{ t: [0.37, 0.55], into: ['@skill', '@ult'], onHit: true }],
+      markers: [{ t: 0.12, name: 'vanish' }, { t: 0.2, name: 'reappear' }, { t: 0.32, name: 'slash' }],
+      ai: { range: [1.2, 4.5], role: 'pressure', weight: 0.4 },
     },
 
     // ---------------------------------------------------------------------------------------------------------

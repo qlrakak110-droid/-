@@ -236,6 +236,21 @@ export function local(at, f = 0, u = 0, s = 0, out = new THREE.Vector3()) {
   return out;
 }
 
+/**
+ * Build an HDR colour-over-life ramp from three colours: white-hot flash -> `core` -> `mid` -> dark `tail`.
+ * opts: { flash = 1.6 (multiplier of the birth colour, pushed toward white), coreAt = 0.08, midAt = 0.4, alpha = 1,
+ *         fadeIn = 0 (life fraction to fade in over) }. Returns [[t, r, g, b, a], ...].
+ */
+export function heatRamp(core, mid, tail, opts = {}) {
+  const f = opts.flash != null ? opts.flash : 1.6, a = opts.alpha != null ? opts.alpha : 1;
+  const w = (c, k) => [c[0] * k + (k - 1) * 0.6, c[1] * k + (k - 1) * 0.6, c[2] * k + (k - 1) * 0.6];
+  const keys = [];
+  if (opts.fadeIn) keys.push([0, ...w(core, f), 0], [opts.fadeIn, ...w(core, f), a]);
+  else keys.push([0, ...w(core, f), a]);
+  keys.push([opts.coreAt != null ? opts.coreAt : 0.08, ...core, a], [opts.midAt != null ? opts.midAt : 0.4, ...mid, a * 0.9], [1, ...tail, 0]);
+  return keys;
+}
+
 /** Stable structural key of a definition object (used to dedupe inline definitions). */
 export function defKey(def) {
   return JSON.stringify(def, (k, v) => (typeof v === 'function' ? 'fn:' + v.toString().length + ':' + v.name : v && v.isColor ? [v.r, v.g, v.b] : v && v.isVector3 ? [v.x, v.y, v.z] : v));

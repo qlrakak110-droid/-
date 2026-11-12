@@ -21,6 +21,7 @@ const P = {
   dodge: `<path d="M6 15h15M11 24h14M6 33h15" stroke-width="2.2" opacity=".7"/><path d="M29 11l13 13-13 13" stroke-width="3.2"/>`,
   ult: `<circle cx="24" cy="24" r="10" fill="currentColor" fill-opacity=".9"/><circle cx="24" cy="24" r="15.5" stroke-width="1.6"/>
     <path d="M24 2v5M24 41v5M2 24h5M41 24h5M8.4 8.4l3.6 3.6M36 36l3.6 3.6M8.4 39.6l3.6-3.6M36 12l3.6-3.6" stroke-width="2"/>`,
+  stick: `<circle cx="24" cy="24" r="19" stroke-width="1.6" opacity=".7"/><circle cx="30" cy="24" r="8" fill="currentColor" fill-opacity=".35" stroke-width="2"/><path d="M41 24h5M43 21l3 3-3 3" stroke-width="2"/>`,
   pause: `<path d="M17 12v24M31 12v24" stroke-width="4"/>`,
   back: `<path d="M29 10L15 24l14 14" stroke-width="3"/>`,
   random: `<path d="M24 4l20 20-20 20L4 24z" stroke-width="1.8"/><path d="M18.5 19a5.5 5.5 0 1 1 8 4.9c-1.6.9-2.5 2-2.5 3.6V29" stroke-width="2.8"/><circle cx="24" cy="34.5" r="1.8" fill="currentColor" stroke="none"/>`,
@@ -85,7 +86,10 @@ export function weaponArt(kind, cls = '') {
  * The eclipse emblem (logo mark): black disc, engraved rings, a corona of fine rays and the diamond-ring bead.
  * Rays come from a fixed pattern so the mark is identical everywhere.
  */
+let markSeq = 0;
 export function eclipseMark(cls = '') {
+  // gradient ids are unique per copy: a copy inside a hidden screen must not be the one the others reference
+  const id = 'edm' + markSeq++;
   let rays = '';
   for (let i = 0; i < 72; i++) {
     const a = (i / 72) * Math.PI * 2;
@@ -96,15 +100,15 @@ export function eclipseMark(cls = '') {
   }
   return `<svg class="eclipse ${cls}" viewBox="0 0 200 200" fill="none" stroke="currentColor" aria-hidden="true">
     <defs>
-      <radialGradient id="edCor" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#f3dca0" stop-opacity=".55"/><stop offset=".64" stop-color="#d8b46a" stop-opacity=".22"/><stop offset="1" stop-color="#d8b46a" stop-opacity="0"/></radialGradient>
-      <radialGradient id="edBead" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".25" stop-color="#fff4d6" stop-opacity=".9"/><stop offset="1" stop-color="#f3dca0" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${id}c" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#f3dca0" stop-opacity=".55"/><stop offset=".64" stop-color="#d8b46a" stop-opacity=".22"/><stop offset="1" stop-color="#d8b46a" stop-opacity="0"/></radialGradient>
+      <radialGradient id="${id}b" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".25" stop-color="#fff4d6" stop-opacity=".9"/><stop offset="1" stop-color="#f3dca0" stop-opacity="0"/></radialGradient>
     </defs>
-    <circle cx="100" cy="100" r="98" fill="url(#edCor)" stroke="none"/>
+    <circle cx="100" cy="100" r="98" fill="url(#${id}c)" stroke="none"/>
     <g class="eclipse-rays">${rays}</g>
     <circle cx="100" cy="100" r="61" stroke-width="2.2" stroke="#fbeec8"/>
     <circle cx="100" cy="100" r="58.5" fill="#030306" stroke="none"/>
     <circle cx="100" cy="100" r="52" stroke-width=".6" opacity=".35"/>
     <circle cx="100" cy="100" r="86" stroke-width=".6" opacity=".45" stroke-dasharray="1 5"/>
-    <circle cx="143" cy="57" r="16" fill="url(#edBead)" stroke="none"/>
+    <circle cx="143" cy="57" r="16" fill="url(#${id}b)" stroke="none"/>
   </svg>`;
 }

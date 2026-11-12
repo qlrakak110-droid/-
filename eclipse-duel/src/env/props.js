@@ -176,10 +176,10 @@ export function createFire(U, tops, rng) {
   g.setAttribute('position', quad.attributes.position);
   const fire = [], shape = [];
   for (const p of tops) {
-    fire.push(p.x, p.y + 0.4, p.z, rng.range(0, 50)); shape.push(2.6, 0, 1, 1.0);
-    fire.push(p.x, p.y - 0.06, p.z, rng.range(0, 50)); shape.push(0.95, 1.25, 0, 1.0);
-    fire.push(p.x + 0.12, p.y - 0.04, p.z + 0.05, rng.range(0, 50)); shape.push(0.7, 0.95, 0, 0.8);
-    fire.push(p.x - 0.14, p.y - 0.05, p.z - 0.04, rng.range(0, 50)); shape.push(0.6, 0.75, 0, 0.7);
+    fire.push(p.x, p.y + 0.35, p.z, rng.range(0, 50)); shape.push(2.2, 0, 1, 0.7);
+    fire.push(p.x, p.y - 0.06, p.z, rng.range(0, 50)); shape.push(0.8, 1.0, 0, 0.75);
+    fire.push(p.x + 0.12, p.y - 0.04, p.z + 0.05, rng.range(0, 50)); shape.push(0.6, 0.75, 0, 0.6);
+    fire.push(p.x - 0.14, p.y - 0.05, p.z - 0.04, rng.range(0, 50)); shape.push(0.5, 0.6, 0, 0.55);
   }
   g.setAttribute('aFire', new THREE.InstancedBufferAttribute(new Float32Array(fire), 4));
   g.setAttribute('aShape', new THREE.InstancedBufferAttribute(new Float32Array(shape), 4));

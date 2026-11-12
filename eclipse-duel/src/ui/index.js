@@ -90,7 +90,7 @@ export function createUI(ctx, opts = {}) {
   // ---------------------------------------------------------------------------------------------------------------
   // focus / navigation shared by every menu screen
 
-  const nav = { items: [], cur: null, scope: null };
+  const nav = { items: [], cur: null };
   /** Make `el` a focusable menu item. act(): confirm; lr(dir): left/right adjusts a value instead of moving focus. */
   ui.item = (el, { act, lr, sound = 'ui_select' } = {}) => {
     el.classList.add('item');
@@ -150,6 +150,8 @@ export function createUI(ctx, opts = {}) {
     }
     if (!down) return;
     unlockAudio();
+    // one key can carry two actions (Esc = pause + back): after a screen change, the rest of that frame is ignored
+    if (navLock) return;
     const scr = screens[ui.screen];
     if (ui.screen === 'hud') {
       if (action === 'pause' && player === 0 && !(info && info.repeat)) ui.emit('pause');
@@ -168,6 +170,7 @@ export function createUI(ctx, opts = {}) {
     }
   }
   let usedKeys = false;
+  let navLock = false;
   let audioUnlocked = false;
   function unlockAudio() {
     if (audioUnlocked || !ctx.audio || !ctx.audio.unlock) return;
@@ -234,16 +237,18 @@ export function createUI(ctx, opts = {}) {
   for (const n in screens) { screens[n].el.classList.add('scr', 'scr-' + n); screens[n].el.style.display = 'none'; screenLayer.appendChild(screens[n].el); }
 
   const hudSet = hud.set, hudSkills = hud.skills;
+  let p1Skills = null;
   // the touch pad mirrors P1's meters and skills
   hud.set = (o) => {
     hudSet(o);
-    if (touchOn && o && o.p1) {
-      const p = o.p1;
-      if (p.ult !== undefined) touch.meter(clamp(p.ult / (p.ultMax || 100)), p.fp !== undefined ? p.fp : touch._fp);
+    const p = o && o.p1;
+    if (touchOn && p && (p.ult !== undefined || p.fp !== undefined)) {
+      touch.meter(p.ult !== undefined ? clamp(p.ult / (p.ultMax || 100)) : touch._ult, p.fp !== undefined ? p.fp : touch._fp);
     }
   };
   hud.skills = (side, list) => {
     hudSkills(side, list);
+    if (side === 0) p1Skills = list;
     if (side === 0 && touchOn) touch.skills(list, touch._fp < 0 ? 100 : touch._fp);
   };
 
@@ -254,6 +259,7 @@ export function createUI(ctx, opts = {}) {
       if (on === touchOn) return;
       touchOn = on;
       if (!on) { touch.releaseAll(); if (ctx.input) ctx.input.clearVirtual(0); }
+      if (on && p1Skills) touch.skills(p1Skills, touch._fp < 0 ? 100 : touch._fp);
       syncDeviceClass();
       layout();
       syncVisibility();
@@ -283,6 +289,7 @@ export function createUI(ctx, opts = {}) {
     if (!SCREENS.includes(screen)) throw new Error('ui.show: unknown screen ' + screen);
     const prev = ui.screen;
     ui.screen = screen;
+    navLock = true;
     ui.data = data || {};
     if (shown && shown !== screens[screen]) {
       const old = shown;
@@ -317,6 +324,7 @@ export function createUI(ctx, opts = {}) {
   syncVisibility();
 
   ctx.onUpdate((dtGame, dtReal) => {
+    navLock = false;
     anim.update(dtReal);
     hud.update(dtReal);
     if (touchOn) touch.update(dtReal, hud.cine);

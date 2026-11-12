@@ -1,6 +1,9 @@
 // Event stream of a match. Events raised while the match steps are queued and dispatched once the step has finished,
 // so listeners never observe (or mutate) a half-resolved simulation, and a throwing listener cannot corrupt it.
 
+/** Subscription aliases: CONTRACT.md calls timeline markers 'moveEvent'; they are emitted as 'marker'. */
+const ALIASES = { moveEvent: 'marker' };
+
 /**
  * @returns {{on: Function, off: Function, has: Function, push: Function, flush: Function, clear: Function}}
  *   on(name | '*', fn) -> off()   fn(payload) for a name, fn(name, payload) for '*'
@@ -16,12 +19,14 @@ export function createEventQueue() {
   return {
     on(name, fn) {
       if (name === '*') { any.push(fn); return () => remove(any, fn); }
+      if (ALIASES[name]) name = ALIASES[name];
       let a = map.get(name);
       if (!a) map.set(name, (a = []));
       a.push(fn);
       return () => remove(a, fn);
     },
     off(name, fn) {
+      if (ALIASES[name]) name = ALIASES[name];
       if (name === '*') remove(any, fn);
       else if (map.has(name)) remove(map.get(name), fn);
     },

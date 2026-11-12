@@ -33,14 +33,14 @@ float stars(vec3 dir) {
   vec3 sd = dir * 220.0;
   vec3 cell = floor(sd);
   float h = hash13(cell);
-  if (h < 0.9) return 0.0;
+  if (h < 0.955) return 0.0;
   vec3 sp = cell + 0.2 + 0.6 * hash33(cell + 3.1);
   float d = length(sd - sp);
   float fw = max(fwidth(sd.x) + fwidth(sd.y), 1e-3) * 0.9;
   float b = smoothstep(fw * 1.6, 0.0, d);
-  float mag = pow((h - 0.9) / 0.1, 3.0);
+  float mag = pow((h - 0.955) / 0.045, 4.0);
   float tw = 0.75 + 0.25 * sin(uTime * (1.3 + h * 3.0) + h * 91.0);
-  return b * (0.04 + 0.9 * mag) * tw;
+  return b * (0.025 + 0.5 * mag) * tw;
 }
 
 void main() {
@@ -67,27 +67,27 @@ void main() {
   float eq = 0.55 + 0.45 * pow(abs(cos(phi - 0.35)), 2.0);
   float streak = smoothstep(0.3, 0.85, st1) * eq;
   float shimmer = 0.85 + 0.15 * sin(t * 2.3 + st2 * 9.0);
-  float corona = exp(-k * 11.0) * 7.0 * shimmer
-               + exp(-k * 3.2) * (0.55 + 1.6 * streak) * (0.8 + 0.4 * st2)
-               + exp(-k * 0.85) * streak * 0.32
-               + exp(-k * 0.3) * 0.035;
+  float corona = exp(-k * 16.0) * 2.1 * shimmer
+               + exp(-k * 2.8) * (0.22 + 0.95 * streak) * (0.8 + 0.4 * st2)
+               + exp(-k * 0.75) * streak * 0.26
+               + exp(-k * 0.3) * 0.03;
   float aa = max(fwidth(rr), 1e-3) * 1.2;
   float disc = smoothstep(1.0 + aa, 1.0 - aa, rr);
   corona *= 1.0 - disc;
   // chromosphere rim + prominences
   float promN = smoothstep(0.62, 0.9, vnoise(cp * 5.0 + 3.0 + t * 0.02));
-  float chromo = exp(-k * 90.0) * 1.8 + exp(-k * 22.0) * promN * 2.4;
+  float chromo = exp(-k * 90.0) * 0.9 + exp(-k * 24.0) * promN * 1.3;
   chromo *= 1.0 - disc;
   // diamond ring bead on the limb
   vec2 b0 = vec2(cos(DPHI), sin(DPHI)) * SUN_R * 1.005;
   vec2 dq = q - b0;
   float bd = length(dq);
-  float bead = exp(-bd * bd / (0.0024 * 0.0024)) * 70.0 + exp(-bd / 0.012) * 2.2 + exp(-bd / 0.05) * 0.25;
+  float bead = exp(-bd * bd / (0.0021 * 0.0021)) * 26.0 + exp(-bd / 0.007) * 1.6 + exp(-bd / 0.025) * 0.12;
   vec2 rq = mat2(0.7071, 0.7071, -0.7071, 0.7071) * dq;
-  float rays = (exp(-abs(rq.x) / 0.0009) * exp(-abs(rq.y) / 0.07) + exp(-abs(rq.y) / 0.0009) * exp(-abs(rq.x) / 0.07)) * 3.5;
-  rays += (exp(-abs(dq.y) / 0.0007) * exp(-abs(dq.x) / 0.16)) * 1.4;
+  float rays = (exp(-abs(rq.x) / 0.0007) * exp(-abs(rq.y) / 0.022) + exp(-abs(rq.y) / 0.0007) * exp(-abs(rq.x) / 0.022)) * 1.6;
+  rays += exp(-abs(dq.y) / 0.0005) * exp(-abs(dq.x) / 0.05) * 0.6;
   float beadPulse = 0.85 + 0.15 * sin(t * 1.7) * sin(t * 2.9 + 1.0);
-  bead = (bead + rays) * beadPulse * (1.0 - disc * 0.97);
+  bead = (bead + rays) * beadPulse * (1.0 - smoothstep(0.985, 0.94, rr));
 
   // ---- clouds: two thin layers projected on planes, drifting with the wind ----------------------------------------
   float cloudA = 0.0;
@@ -104,9 +104,9 @@ void main() {
     cloudA = clamp(d1 + d2 * (1.0 - d1), 0.0, 1.0) * hf;
     // lighting: dark bodies, horizon-glow undersides, silver lining toward the corona
     float edge = 1.0 - smoothstep(0.0, 0.6, d1 + d2);
-    vec3 body = mix(uHorizon * 0.9 + uGlow * 0.35, uSkyMid * 1.15, smoothstep(0.02, 0.3, dir.y));
-    float fwd = pow(max(cs, 0.0), 14.0);
-    cloudC = body + uCorona * (fwd * (0.6 + 2.2 * edge) + pow(max(cs, 0.0), 120.0) * 3.0 * edge) * 0.35;
+    vec3 body = mix(uHorizon * 0.55 + uGlow * 0.4, uSkyMid * 0.7, smoothstep(0.01, 0.2, dir.y));
+    float fwd = pow(max(cs, 0.0), 24.0);
+    cloudC = body + uCorona * (fwd * (0.05 + 0.6 * edge) + pow(max(cs, 0.0), 300.0) * 1.6 * edge) * 0.4;
   }
 
   // ---- stars ------------------------------------------------------------------------------------------------------
@@ -116,11 +116,11 @@ void main() {
 
   // ---- composite ------------------------------------------------------------------------------------------------
   vec3 sun = uCorona * corona + uChromo * chromo + vec3(1.0, 0.96, 0.9) * bead;
-  sun *= 1.0 - cloudA * 0.55;
-  col = mix(col, cloudC, cloudA * 0.9);
-  col = col * (1.0 - disc) + vec3(0.0006, 0.0007, 0.001) * disc;
+  sun *= 1.0 - cloudA * 0.6;
+  col = col * (1.0 - disc) + vec3(0.0004, 0.00045, 0.0006) * disc;
   col += sun;
-  if (env > 0.5) col = min(col, vec3(6.0));
+  col = mix(col, cloudC + sun * 0.25, cloudA * 0.85 * (1.0 - disc * 0.75));
+  if (env > 0.5) col = min(col - sun * 0.7, vec3(1.2));
   float d = uMood.a;
   col *= mix(vec3(1.0), uMood.rgb, d) * (1.0 - 0.8 * d);
   col += sun * d * 0.5;

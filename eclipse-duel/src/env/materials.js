@@ -10,7 +10,7 @@ import { SKY_BASE, FOG } from './glsl.js';
 /** lights_fragment_begin with a per-fragment multiplier on directional light 0 (the key). */
 export const LIGHTS_BEGIN_KEYMASK = THREE.ShaderChunk.lights_fragment_begin.replace(
   'getDirectionalLightInfo( directionalLight, directLight );',
-  'getDirectionalLightInfo( directionalLight, directLight );\n\t\tif ( UNROLLED_LOOP_INDEX == 0 ) directLight.color *= envKeyMask;',
+  'getDirectionalLightInfo( directionalLight, directLight );\n\t\tif ( UNROLLED_LOOP_INDEX == 0 ) directLight.color *= envKeyMask;\n\t\tif ( UNROLLED_LOOP_INDEX == 1 ) directLight.color *= envRimMask;',
 );
 if (LIGHTS_BEGIN_KEYMASK === THREE.ShaderChunk.lights_fragment_begin) throw new Error('env: lights chunk patch failed');
 
@@ -23,7 +23,7 @@ export const WORLD_VARYING_VERT = /* glsl */ `
 `;
 
 /** Uniform names every patched material receives from the shared env uniform object. */
-const SHARED = ['uZenith', 'uSkyMid', 'uHorizon', 'uGlow', 'uSunHalo', 'uSunDir', 'uFogP', 'uMood', 'uFire', 'uKeyMask', 'uTime'];
+const SHARED = ['uZenith', 'uSkyMid', 'uHorizon', 'uGlow', 'uSunHalo', 'uSunDir', 'uFogP', 'uFogNear', 'uMood', 'uFire', 'uKeyMask', 'uTime'];
 
 /**
  * Patch a MeshStandardMaterial for the environment.
@@ -61,6 +61,7 @@ ${FOG}
 ${o.fragHead || ''}`);
     fs = fs.replace('#include <lights_fragment_begin>', `
 float envKeyMask = 1.0;
+float envRimMask = 1.0;
 ${o.keyMask === false ? '' : 'envKeyMask = mix(uKeyMask.w, 1.0, 1.0 - smoothstep(uKeyMask.y, uKeyMask.z, length(vEnvWorld.xz)));'}
 ${o.keyMaskExtra || ''}
 ${LIGHTS_BEGIN_KEYMASK}`);
@@ -83,10 +84,10 @@ totalEmissiveRadiance += diffuseColor.rgb * uFire.rgb * (vGlow * uFire.a);`);
 export function createStoneMaterial(U, stoneMaps) {
   const mat = new THREE.MeshStandardMaterial({
     name: 'env.stone',
-    color: new THREE.Color(0.155, 0.158, 0.172),
+    color: new THREE.Color(0.13, 0.136, 0.152),
     map: stoneMaps.a.texture,
     normalMap: stoneMaps.b.texture,
-    normalScale: new THREE.Vector2(1.1, 1.1),
+    normalScale: new THREE.Vector2(0.75, 0.75),
     roughness: 0.84,
     metalness: 0,
     vertexColors: true,

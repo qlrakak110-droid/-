@@ -1,7 +1,7 @@
 // Projectiles: spawned by moves at their timeline time, travel along X (and Y), clash with enemy projectiles and hit
 // the owner's opponent. A projectile freezes during its own hit-stop; its owner does not (the owner keeps acting).
 
-import { worldBox, overlaps } from './moves.js';
+import { worldBox, overlaps, EPS } from './moves.js';
 
 const tmpA = [0, 0, 0, 0], tmpB = [0, 0, 0, 0];
 
@@ -82,7 +82,7 @@ export function updateProjectiles(m, h) {
     if (p.hitstop > 0) { p.hitstop = Math.max(0, p.hitstop - h); continue; }
     p.age += h;
     if (!p.active) {
-      if (p.age < p.delay) continue;
+      if (p.age < p.delay - EPS) continue;
       p.active = true;
       m.emit('projectileActive', { id: p.id, owner: p.owner, kind: p.kind, x: p.x, y: p.y });
     }
@@ -90,7 +90,7 @@ export function updateProjectiles(m, h) {
     p.x += p.vx * h;
     p.y += p.vy * h;
     if (moveEvents) m.emit('projectileMove', { id: p.id, x: p.x, y: p.y, vx: p.vx, vy: p.vy });
-    if (p.age >= p.delay + p.life) expireProjectile(m, p, 'lifetime');
+    if (p.age >= p.delay + p.life - EPS) expireProjectile(m, p, 'lifetime');
     else if (Math.abs(p.x) > L + 1.5) expireProjectile(m, p, 'bounds');
     else if (p.y < -0.5) expireProjectile(m, p, 'ground');
   }
@@ -125,7 +125,7 @@ export function collectProjectileHits(m, out) {
     if (!p.alive || !p.active || p.hitstop > 0) continue;
     const s = p.spec;
     if (p.hits >= s.multiMax) continue;
-    if (p.hits > 0 && p.age - p.lastHit < s.multiInterval - 1e-9) continue;
+    if (p.hits > 0 && p.age - p.lastHit < s.multiInterval - EPS) continue;
     const d = m.fighters[1 - p.owner];
     const box = projectileBox(p, tmpA);
     const c = m.hurtContact(d, box);

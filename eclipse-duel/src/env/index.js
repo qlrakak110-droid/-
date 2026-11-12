@@ -60,12 +60,13 @@ export function createEnvironment(ctx, opts = {}) {
     uCorona: { value: PALETTE.corona.clone() },
     uChromo: { value: PALETTE.chromo.clone() },
     uRim: { value: PALETTE.rim.clone().multiplyScalar(0.5) },
-    uRimFar: { value: new THREE.Color(0.045, 0.05, 0.065) },
+    uRimFar: { value: new THREE.Color(0.12, 0.135, 0.17) },
     // density at y=0, height falloff, far boost, max
-    uFogP: { value: new THREE.Vector4(0.018, 0.11, 0.6, 0.9) },
+    uFogP: { value: new THREE.Vector4(0.024, 0.1, 0.6, 0.92) },
+    uFogNear: { value: PALETTE.fogNear.clone() },
     uMood: { value: new THREE.Vector4(1, 1, 1, 0) },
-    uFire: { value: new THREE.Vector4(PALETTE.fire.r, PALETTE.fire.g, PALETTE.fire.b, tier.pointLights > 0 ? 0.55 : 1.4) },
-    uKeyMask: { value: new THREE.Vector4(0, 13.5, 21, 0.1) },
+    uFire: { value: new THREE.Vector4(PALETTE.fire.r, PALETTE.fire.g, PALETTE.fire.b, tier.pointLights > 0 ? 0.3 : 1.1) },
+    uKeyMask: { value: new THREE.Vector4(0, 8.5, 16.5, 0.05) },
   };
 
   // ---- baked textures ----------------------------------------------------------------------------------------------
@@ -100,7 +101,7 @@ export function createEnvironment(ctx, opts = {}) {
   root.add(sky);
 
   // ---- lights (fixed set, created once) ------------------------------------------------------------------------------
-  const base = { key: 3.1, rim: 2.6, hemi: 0.9, point: 34 };
+  const base = { key: 3.0, rim: 2.6, hemi: 0.55, point: 20 };
   const target = new THREE.Object3D();
   target.name = 'env.lightTarget';
   target.position.set(0, 1, 0);
@@ -128,7 +129,7 @@ export function createEnvironment(ctx, opts = {}) {
   const order = [0, 1, 2, 3];
   for (let i = 0; i < tier.pointLights; i++) {
     const b = ruins.braziers[order[i]];
-    const l = new THREE.PointLight(PALETTE.fire, base.point, 26, 2);
+    const l = new THREE.PointLight(PALETTE.fire, base.point, 16, 2);
     l.name = 'env.brazier' + i;
     l.position.set(b.x, b.y + 0.55, b.z);
     l.userData.brazier = order[i];
@@ -144,6 +145,7 @@ export function createEnvironment(ctx, opts = {}) {
   /** Keep the shadow frustum on the fighters (texel-snapped so shadows never crawl). */
   function setFocus(x) {
     focusX = clamp(Number(x) || 0, LAYOUT.floorR * -0.8, LAYOUT.floorR * 0.8);
+    U.uKeyMask.value.x = focusX;
     tmpT.set(focusX, 1.0, 0);
     const texel = sun.castShadow ? (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x : 0.01;
     const a = Math.round(tmpT.dot(R) / texel) * texel, b = Math.round(tmpT.dot(Uc) / texel) * texel, c = tmpT.dot(KEY_DIR);
@@ -165,7 +167,7 @@ export function createEnvironment(ctx, opts = {}) {
   scene.add(root);
 
   // ---- post baseline ---------------------------------------------------------------------------------------------
-  const baseline = { exposure: 1.18, vignette: 0.4, grain: 0.032, saturation: 0.94, contrast: 1.05, bloom: 0.95, bloomThreshold: 1.0, bloomKnee: 0.55, bloomRadius: 1.0, tint: new THREE.Color(1.0, 0.985, 1.0), lift: new THREE.Color(0.0025, 0.003, 0.0055) };
+  const baseline = { exposure: 1.1, vignette: 0.4, grain: 0.032, saturation: 0.94, contrast: 1.05, bloom: 0.95, bloomThreshold: 1.0, bloomKnee: 0.55, bloomRadius: 1.0, tint: new THREE.Color(1.0, 0.985, 1.0), lift: new THREE.Color(0.0025, 0.003, 0.0055) };
   if (opts.post !== false && ctx.post) ctx.post.setBaseline(baseline);
 
   // ---- reflection (high tier): previous frame's HDR scene, re-projected by the floor shader ------------------------------
@@ -264,7 +266,7 @@ export function createEnvironment(ctx, opts = {}) {
     for (let i = 0; i < 4; i++) flick[i] = 1 + 0.1 * Math.sin(t * 11.3 + i * 1.7) * Math.sin(t * 5.1 + i) + 0.06 * Math.sin(t * 23.0 + i * 4.1);
     const fireDim = 1 - 0.75 * d;
     for (const l of points) l.intensity = base.point * flick[l.userData.brazier] * fireDim;
-    U.uFire.value.w = (points.length ? 0.55 : 1.4) * (0.5 * (flick[0] + flick[1])) * (1 - 0.7 * d);
+    U.uFire.value.w = (points.length ? 0.3 : 1.1) * (0.5 * (flick[0] + flick[1])) * (1 - 0.7 * d);
     sun.intensity = base.key * (1 - 0.62 * d);
     hemi.intensity = base.hemi * (1 - 0.8 * d);
     rim.intensity = base.rim * (1 - 0.1 * d);
@@ -356,7 +358,7 @@ function buildEnvMap(renderer, U, braziers) {
     s.add(m);
     cards.push(m);
   };
-  card(KEY_DIR.clone().multiplyScalar(30), 16, 10, new THREE.Color(0.55, 0.58, 0.66));
+  card(KEY_DIR.clone().multiplyScalar(30), 16, 10, new THREE.Color(0.3, 0.32, 0.37));
   for (const b of braziers) card(new THREE.Vector3(b.x, b.y + 0.4 - eye, b.z), 1.4, 1.6, new THREE.Color(6, 2.4, 0.6));
   const pmrem = new THREE.PMREMGenerator(renderer);
   const rt = pmrem.fromScene(s, 0, 0.1, 1000);

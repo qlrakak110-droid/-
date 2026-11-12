@@ -3,49 +3,51 @@
 // presses derived by the engine). Decisions use per-move `ai` hints when present and frame data derived from the
 // move data otherwise (startup, reach, recovery, advantage).
 //
-// Behaviour layers, evaluated every step:
-//   1. self-preservation: tech rolls, wake-up guard / reversal, holding guard through blockstrings
-//   2. combo: hit-confirm (or pressure on block) and pick the best cancel / route the move data allows
-//   3. defence: guard, dodge, counter-stance or back off against attacks and projectiles it has *perceived*
-//   4. punish: blocked or whiffed moves with enough recovery, guard breaks, juggles
-//   5. neutral (on think ticks): approach, dash, poke, zone, retreat, wait, bait, skills, ultimate
-// Difficulty scales reaction time, every probability above, spacing discipline and mistakes.
+// Layers, evaluated every step (first one that acts wins):
+//   1. self-preservation  tech rolls, wake-up guard / reversal, holding guard through block strings
+//   2. combo              hit-confirm (or pressure on block) and pick the best cancel / route the data allows
+//   3. defence            guard, dodge, counter-stance or back off against attacks / projectiles it has *perceived*
+//   4. punish             blocked or whiffed moves with enough recovery, guard breaks, juggles, okizeme
+//   5. neutral            on think ticks, by distance zone (far / mid / close) and initiative (who is plus):
+//                         approach, dash, poke, zone, retreat, wait, anticipatory guard, skills, ultimate
+// Difficulty scales the reaction delay, every probability above, spacing discipline and the mistake rate.
 
 import { deriveFrameData } from './framedata.js';
 import { NEUTRAL_INPUT } from './constants.js';
 import { forwardAt } from './moves.js';
+import { backToWall } from './fighter.js';
 import { toRng } from './rng.js';
 
 /** Difficulty presets. Every field can be overridden through createAIController({ overrides }). */
 export const AI_LEVELS = {
   easy: {
-    reaction: 0.42, think: [0.16, 0.32], guard: 0.28, dodge: 0.06, counter: 0.05, backoff: 0.15, holdGuard: 0.45,
+    reaction: 0.42, think: [0.16, 0.32], guard: 0.3, dodge: 0.06, counter: 0.05, backoff: 0.15, holdGuard: 0.45,
     punish: 0.18, whiffPunish: 0.12, confirm: 0.32, combo: 0.35, blockString: 0.35, mash: 0.35, juggle: 0.25,
-    tech: 0.1, wakeGuard: 0.3, reversal: 0.03, spacing: 0.15, skill: 0.3, ult: 0.35, mistake: 0.22, aggression: 0.5,
-    antiProjectile: 0.3, meaty: 0.1, perfect: 0, noise: 0.5,
+    tech: 0.1, wakeGuard: 0.3, reversal: 0.03, spacing: 0.15, skill: 0.3, ult: 0.35, mistake: 0.2, aggression: 0.5,
+    patience: 0.35, perfect: 0, noise: 0.5,
   },
   normal: {
-    reaction: 0.28, think: [0.1, 0.2], guard: 0.48, dodge: 0.13, counter: 0.1, backoff: 0.25, holdGuard: 0.65,
+    reaction: 0.28, think: [0.1, 0.2], guard: 0.5, dodge: 0.12, counter: 0.1, backoff: 0.25, holdGuard: 0.65,
     punish: 0.45, whiffPunish: 0.3, confirm: 0.2, combo: 0.65, blockString: 0.45, mash: 0.18, juggle: 0.55,
-    tech: 0.35, wakeGuard: 0.55, reversal: 0.08, spacing: 0.45, skill: 0.55, ult: 0.65, mistake: 0.09, aggression: 0.55,
-    antiProjectile: 0.5, meaty: 0.35, perfect: 0.1, noise: 0.3,
+    tech: 0.35, wakeGuard: 0.55, reversal: 0.08, spacing: 0.45, skill: 0.55, ult: 0.65, mistake: 0.08, aggression: 0.55,
+    patience: 0.55, perfect: 0.1, noise: 0.3,
   },
   hard: {
-    reaction: 0.2, think: [0.07, 0.13], guard: 0.62, dodge: 0.22, counter: 0.14, backoff: 0.32, holdGuard: 0.8,
+    reaction: 0.2, think: [0.07, 0.14], guard: 0.66, dodge: 0.2, counter: 0.14, backoff: 0.32, holdGuard: 0.8,
     punish: 0.72, whiffPunish: 0.55, confirm: 0.12, combo: 0.85, blockString: 0.5, mash: 0.08, juggle: 0.8,
-    tech: 0.6, wakeGuard: 0.7, reversal: 0.12, spacing: 0.7, skill: 0.7, ult: 0.85, mistake: 0.04, aggression: 0.6,
-    antiProjectile: 0.7, meaty: 0.6, perfect: 0.3, noise: 0.18,
+    tech: 0.6, wakeGuard: 0.7, reversal: 0.12, spacing: 0.7, skill: 0.7, ult: 0.85, mistake: 0.035, aggression: 0.6,
+    patience: 0.7, perfect: 0.3, noise: 0.18,
   },
   nightmare: {
-    reaction: 0.14, think: [0.04, 0.08], guard: 0.72, dodge: 0.32, counter: 0.18, backoff: 0.38, holdGuard: 0.9,
+    reaction: 0.14, think: [0.04, 0.09], guard: 0.76, dodge: 0.28, counter: 0.18, backoff: 0.38, holdGuard: 0.9,
     punish: 0.92, whiffPunish: 0.8, confirm: 0.07, combo: 0.97, blockString: 0.55, mash: 0.02, juggle: 0.95,
-    tech: 0.85, wakeGuard: 0.8, reversal: 0.15, spacing: 0.92, skill: 0.85, ult: 0.95, mistake: 0.012, aggression: 0.65,
-    antiProjectile: 0.85, meaty: 0.8, perfect: 0.6, noise: 0.1,
+    tech: 0.85, wakeGuard: 0.8, reversal: 0.15, spacing: 0.92, skill: 0.85, ult: 0.95, mistake: 0.012, aggression: 0.62,
+    patience: 0.8, perfect: 0.6, noise: 0.1,
   },
 };
 
-const ATTACK_KEYS = ['light', 'heavy', 'skill1', 'skill2', 'skill3', 'ult'];
 const ACTIONABLE = new Set(['idle', 'walk', 'guard']);
+const OP_DISADVANTAGE = new Set(['blockstun', 'hitstun', 'guardbreak', 'recovery']);
 const HISTORY = 128;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -64,7 +66,10 @@ function inferRole(mv, fd) {
   return 'pressure';
 }
 
-/** Knowledge of a compiled fighter def: per move frame data, role, range, weight and the keys that press it. */
+/**
+ * What the AI knows about a compiled fighter def: per move frame data, role, range, weight and the command keys
+ * that press it; the fastest strikes; its poke reach and its "threat reach" (how far its fast attacks hit).
+ */
 export function knowledge(def) {
   let k = KNOW.get(def);
   if (k) return k;
@@ -82,14 +87,14 @@ export function knowledge(def) {
     const mm = /^(?:([dufb])\+)?(\w+)$/.exec(key);
     if (mm && moves[id]) moves[id].keys.push({ button: mm[2], dir: mm[1] || null });
   }
-  const list = Object.values(moves);
-  const pressable = list.filter((x) => x.keys.length && !x.comboOnly);
+  const pressable = Object.values(moves).filter((x) => x.keys.length && !x.comboOnly);
   const strikes = pressable.filter((x) => x.mv.hits.length && x.fd.startup !== null && !x.mv.cinematic);
   strikes.sort((a, b) => a.fd.startup - b.fd.startup);
   const pokes = pressable.filter((x) => x.role === 'poke');
   const pokeReach = pokes.length ? Math.max(...pokes.map((x) => x.range[1])) : (strikes[0] ? strikes[0].reach : 1.6);
-  const threatReach = Math.max(pokeReach, ...pressable.filter((x) => !x.fd.projectile && x.mv.hits.length && (x.fd.startup || 1) < 0.3).map((x) => x.reach));
-  k = { def, moves, list, pressable, strikes, pokeReach, threatReach };
+  const fast = pressable.filter((x) => !x.fd.projectile && x.mv.hits.length && x.fd.startup !== null && x.fd.startup < 0.3);
+  const threatReach = Math.max(pokeReach, ...fast.map((x) => x.reach));
+  k = { def, moves, pressable, strikes, pokeReach, threatReach };
   KNOW.set(def, k);
   return k;
 }
@@ -100,34 +105,42 @@ export function knowledge(def) {
  * Create an AI controller.
  * @param {object} [opts]
  * @param {'easy'|'normal'|'hard'|'nightmare'} [opts.difficulty='normal']
- * @param {object} [opts.overrides] per-field overrides of the difficulty preset
+ * @param {object} [opts.overrides] per-field overrides of the difficulty preset (see AI_LEVELS)
  * @param {number|Function} [opts.rng] seed / rng; by default the match hands one out on attach
  */
 export function createAIController({ difficulty = 'normal', overrides = {}, rng } = {}) {
   if (!AI_LEVELS[difficulty]) throw new Error(`createAIController: unknown difficulty '${difficulty}' (use ${Object.keys(AI_LEVELS).join(', ')})`);
   const lv = { ...AI_LEVELS[difficulty], ...overrides };
-  let R = rng !== undefined ? toRng(rng) : null;
   const ownRng = rng !== undefined;
+  let R = ownRng ? toRng(rng) : toRng(1);
 
-  // perception ring
+  // perception ring buffer of opponent observations (reused objects)
   const hist = [];
-  for (let i = 0; i < HISTORY; i++) hist.push({ t: -1, x: 0, y: 0, vx: 0, vy: 0, facing: 1, state: 'idle', stateTime: 0, move: null, moveTime: 0, serial: 0, connected: false, hit: false, hard: false, juggle: 0, invuln: false, timer: 0, guard: 100, hp: 1, proj: [] });
+  for (let i = 0; i < HISTORY; i++) {
+    hist.push({ t: -1, x: 0, y: 0, vx: 0, state: 'idle', stateTime: 0, move: null, moveTime: 0, serial: 0, connected: false, hard: false, timer: 0, guard: 1, hp: 1, invuln: false, proj: [] });
+  }
   let head = -1, count = 0;
 
-  // working memory
   const st = {
-    nextThink: 0, holdUntil: 0, holdMove: 0 /* +1 toward, -1 away */, holdGuard: false, holdGuardUntil: 0, holdDown: false,
-    presses: [], decided: new Map(), lastComboSerial: -1, hitSeenAt: -1, hitSerial: -1, airSerial: -1,
-    wakeSerial: -1, prevOut: { ...NEUTRAL_INPUT }, opAggro: 0.5, opGuardRate: 0.3, lastOpSerial: -1,
-    stats: null,
+    nextThink: 0, busyUntil: 0,
+    holdMove: 0, holdUntil: 0,          // +1 toward the opponent, -1 away
+    holdGuard: false, holdGuardUntil: 0,
+    presses: [],                        // [{button, dir, at}]
+    decided: new Map(),                 // decision key -> outcome (each opponent action is judged once)
+    comboSerial: -1, hitSerial: -1, hitSeenAt: -1,
+    lastMoveId: null, lastState: 'idle',
+    init: 'none', initUntil: 0,         // initiative: 'me' | 'them' | 'none'
+    opAggro: 0.5, opGuard: 0.3, opSerial: -1,
+    prevOut: { ...NEUTRAL_INPUT },
   };
   const out = { ...NEUTRAL_INPUT };
 
   function reset() {
     head = -1; count = 0;
-    st.nextThink = 0; st.holdUntil = 0; st.holdMove = 0; st.holdGuard = false; st.holdGuardUntil = 0; st.holdDown = false;
-    st.presses.length = 0; st.decided.clear(); st.lastComboSerial = -1; st.hitSeenAt = -1; st.hitSerial = -1;
-    st.airSerial = -1; st.wakeSerial = -1; Object.assign(st.prevOut, NEUTRAL_INPUT);
+    st.nextThink = 0; st.busyUntil = 0; st.holdMove = 0; st.holdUntil = 0; st.holdGuard = false; st.holdGuardUntil = 0;
+    st.presses.length = 0; st.decided.clear(); st.comboSerial = -1; st.hitSerial = -1; st.hitSeenAt = -1;
+    st.lastMoveId = null; st.lastState = 'idle'; st.init = 'none'; st.initUntil = 0;
+    Object.assign(st.prevOut, NEUTRAL_INPUT);
   }
 
   // ------------------------------------------------------------------------------------------------- perception
@@ -135,14 +148,16 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     head = (head + 1) % HISTORY;
     count = Math.min(HISTORY, count + 1);
     const o = hist[head];
-    o.t = match.time; o.x = op.x; o.y = op.y; o.vx = op.vx; o.vy = op.vy; o.facing = op.facing;
+    o.t = match.time; o.x = op.x; o.y = op.y; o.vx = op.vx;
     o.state = op.state; o.stateTime = op.stateTime; o.move = op.move; o.moveTime = op.moveTime; o.serial = op.moveSerial;
-    o.connected = op.moveConnected; o.hit = op.moveHit; o.hard = op.hard || op.koFall; o.juggle = op.recv.juggle;
-    o.invuln = op.invulnerable; o.timer = op.timer; o.guard = op.guard / op.guardMax; o.hp = op.hp / op.hpMax;
+    o.connected = op.moveConnected; o.hard = op.hard || op.koFall; o.timer = op.timer;
+    o.guard = op.guard / op.guardMax; o.hp = op.hp / op.hpMax; o.invuln = op.invulnerable;
     o.proj.length = 0;
-    for (const p of match.projectiles) if (p.owner === op.index && p.alive) o.proj.push({ id: p.id, x: p.x, y: p.y, vx: p.vx, active: p.active, wait: p.delay - p.age, f0: p.spec.f0, f1: p.spec.f1, facing: p.facing, unblockable: p.spec.hit.unblockable });
+    for (const p of match.projectiles) {
+      if (p.owner === op.index && p.alive) o.proj.push({ id: p.id, x: p.x, vx: p.vx, wait: p.delay - p.age, half: Math.max(Math.abs(p.spec.f0), Math.abs(p.spec.f1)), unblockable: p.spec.hit.unblockable });
+    }
   }
-  /** Most recent observation at least `delay` seconds old (or the oldest one). */
+  /** Most recent observation at least `delay` seconds old (or the oldest one kept). */
   function perceived(now, delay) {
     let best = null;
     for (let i = 0; i < count; i++) {
@@ -153,16 +168,22 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     return best;
   }
 
-  // ------------------------------------------------------------------------------------------------- output helpers
-  function press(button, dir, at) { st.presses.push({ button, dir, at }); }
-  function hold(moveRel, dur, now) { st.holdMove = moveRel; st.holdUntil = now + dur; }
-  function guardFor(dur, now) { st.holdGuard = true; st.holdGuardUntil = Math.max(st.holdGuardUntil, now + dur); }
+  // ------------------------------------------------------------------------------------------------- helpers
+  const press = (button, dir, at) => { st.presses.push({ button, dir, at }); };
+  const hold = (rel, dur, now) => { st.holdMove = rel; st.holdUntil = now + dur; st.busyUntil = now + dur; };
+  const guardFor = (dur, now) => { st.holdGuard = true; st.holdGuardUntil = Math.max(st.holdGuardUntil, now + dur); st.holdMove = 0; };
+  const usable = (match, me, x) => match.canUse(me.index, x.id) === null;
+  const keyOf = (x) => x.keys[0];
+  const pressMove = (x, at) => { const k = keyOf(x); press(k.button, k.dir, at); st.holdGuard = false; };
   function once(key, p) {
     if (st.decided.has(key)) return st.decided.get(key);
     const v = R() < p;
+    remember(key, v);
+    return v;
+  }
+  function remember(key, v) {
     st.decided.set(key, v);
     if (st.decided.size > 256) st.decided.delete(st.decided.keys().next().value);
-    return v;
   }
   function pick(options) {
     let tot = 0;
@@ -172,13 +193,11 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     for (const o of options) { r -= Math.max(0, o.w); if (r <= 0) return o; }
     return options[options.length - 1];
   }
-  const usable = (match, me, x) => match.canUse(me.index, x.id) === null;
-  const keyOf = (x) => x.keys[0];
+  const setInit = (who, dur, now) => { st.init = who; st.initUntil = now + dur; };
 
   // ------------------------------------------------------------------------------------------------- update
   function update(view) {
     const match = view.match, me = view.self, opNow = view.opponent;
-    if (!R) R = toRng(1);
     const now = match.time;
     observe(match, opNow);
     if (view.phase !== 'fight') {
@@ -187,13 +206,12 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       return NEUTRAL_INPUT;
     }
     const op = perceived(now, lv.reaction);
-    const mine = knowledge(me.def), theirs = knowledge(opNow.def);
     const lag = now - op.t;
-    const opX = op.x + op.vx * lag;
-    const dist = Math.abs(opX - me.x);
-    const C = { match, me, op, opNow, mine, theirs, now, dist, opX, lag };
+    const opX = op.x + op.vx * Math.min(lag, 0.1);
+    const C = { match, me, op, opNow, mine: knowledge(me.def), theirs: knowledge(opNow.def), now, lag, opX, dist: Math.abs(opX - me.x) };
 
     if (st.holdGuard && now > st.holdGuardUntil) st.holdGuard = false;
+    trackInitiative(C);
     trackOpponent(C);
 
     const s = me.state;
@@ -204,11 +222,12 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     else if (s === 'hitstun' || s === 'guardbreak') st.holdGuard = false;
     else if (ACTIONABLE.has(s) || s === 'dash' || s === 'dodge') {
       const reacted = defend(C) || punish(C) || juggle(C) || oki(C);
-      if (!reacted && now >= st.nextThink && !st.presses.length) {
+      if (!reacted && now >= st.nextThink && now >= st.busyUntil && !st.presses.length && !(st.holdGuard && now < st.holdGuardUntil)) {
         neutral(C);
         st.nextThink = now + lv.think[0] + R() * (lv.think[1] - lv.think[0]);
       }
     }
+    st.lastState = s;
     return emit(C);
   }
 
@@ -217,17 +236,16 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     Object.assign(out, NEUTRAL_INPUT);
     const toward = C.opX >= me.x ? 1 : -1;
     if (now < st.holdUntil && st.holdMove) out.move = st.holdMove * toward;
-    out.down = st.holdDown;
     if (st.holdGuard) { out.guard = true; out.move = 0; }
     for (let i = 0; i < st.presses.length; i++) {
       const p = st.presses[i];
       if (p.at > now) continue;
-      if (st.prevOut[p.button]) break; // release first, press next step
+      if (st.prevOut[p.button]) break; // release first, press on the next step
       out[p.button] = true;
       out.move = p.dir === 'f' ? toward : p.dir === 'b' ? -toward : 0;
       out.down = p.dir === 'd';
       out.up = p.dir === 'u';
-      if (p.button !== 'guard') out.guard = false;
+      out.guard = false;
       st.presses.splice(i, 1);
       break;
     }
@@ -236,66 +254,77 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     return out;
   }
 
-  /** Light opponent modelling: how often it attacks and guards (adapts weights). */
+  /** Who is "plus": after blocking (or a blocked unsafe move of mine), the opponent; while it is stunned, me. */
+  function trackInitiative(C) {
+    const { me, op, now, mine } = C;
+    if (st.lastState === 'attack' && me.state !== 'attack' && me.moveConnected && !me.moveHit) {
+      const x = mine.moves[st.lastMoveId];
+      if (x && x.fd.onBlock !== null) setInit(x.fd.onBlock < -0.03 ? 'them' : 'me', 0.4, now);
+    }
+    if (me.state === 'attack') st.lastMoveId = me.move;
+    if (me.state === 'blockstun') setInit('them', 0.45, now);
+    else if (me.state === 'hitstun') setInit('them', 0.3, now);
+    else if (OP_DISADVANTAGE.has(op.state)) setInit('me', 0.35, now);
+    else if (op.state === 'attack' && op.connected && me.state !== 'attack') setInit('them', 0.35, now);
+    if (now > st.initUntil) st.init = 'none';
+  }
+
+  /** Light opponent model: how often it attacks and how often it guards (shifts neutral weights). */
   function trackOpponent(C) {
     const { op } = C;
-    if (op.state === 'attack' && op.serial !== st.lastOpSerial) {
-      st.lastOpSerial = op.serial;
-      st.opAggro = st.opAggro * 0.92 + 0.08;
-    }
-    if (op.state === 'guard' || op.state === 'blockstun') st.opGuardRate = st.opGuardRate * 0.995 + 0.005;
-    else if (op.state === 'idle' || op.state === 'walk') { st.opGuardRate *= 0.997; st.opAggro *= 0.999; }
+    if (op.state === 'attack' && op.serial !== st.opSerial) { st.opSerial = op.serial; st.opAggro = st.opAggro * 0.9 + 0.1; }
+    if (op.state === 'guard' || op.state === 'blockstun') st.opGuard = st.opGuard * 0.995 + 0.005;
+    else if (op.state === 'idle' || op.state === 'walk') { st.opGuard *= 0.997; st.opAggro *= 0.9985; }
   }
 
   // ------------------------------------------------------------------------------------------------- self-preservation
   function techLogic(C) {
     const { me, now } = C;
     st.holdGuard = false;
-    if (me.hard || me.koFall) return;
-    const key = 'tech' + me.stateTime.toFixed(0) + ':' + me.recv.hits;
-    if (me.vy < 0 && me.y < 0.7 && st.airSerial !== me.recv.hits) {
-      st.airSerial = me.recv.hits;
-      if (once(key, lv.tech)) press('dodge', null, now);
+    if (me.hard || me.koFall || me.vy >= 0 || me.y > 0.7) return;
+    if (once('tech' + me.recv.hits + ':' + me.recv.juggle, lv.tech) && !st.decided.has('techp' + me.recv.hits)) {
+      remember('techp' + me.recv.hits, true);
+      press('dodge', null, now);
     }
   }
 
   function wakeLogic(C) {
     const { me, match, mine, now, dist } = C;
-    const key = 'wake' + me.recv.hits + ':' + Math.round(now);
-    if (st.wakeSerial === key) return;
-    st.wakeSerial = key;
+    const key = 'wake' + Math.floor(now - me.stateTime);
+    if (st.decided.has(key)) return;
+    remember(key, true);
     const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
-    if (counter && dist < 3 && once(key + 'r', lv.reversal)) { press(keyOf(counter).button, keyOf(counter).dir, now + Math.max(0, me.timer - 0.15)); return; }
-    if (once(key + 'g', lv.wakeGuard)) guardFor(me.timer + 0.25 + R() * 0.3, now);
+    const left = me.state === 'knockdown' ? me.timer + match.rules.getupTime : me.timer;
+    if (counter && dist < 3 && R() < lv.reversal) { pressMove(counter, now + Math.max(0, left - 0.15)); return; }
+    if (R() < lv.wakeGuard) guardFor(left + 0.2 + R() * 0.3, now);
   }
 
   function blockLogic(C) {
-    const { me, op, theirs, match, mine, now, dist } = C;
+    const { me, op, theirs, now, dist } = C;
     const k = 'bs' + op.serial;
     if (!st.decided.has(k)) {
       once(k, lv.holdGuard);
-      // punish an unsafe blocked move: buffer the fastest move that reaches
       const om = op.move && theirs.moves[op.move];
-      if (om && om.fd.onBlock !== null && om.fd.onBlock < -0.12 && once(k + 'p', lv.punish)) {
+      if (om && om.fd.onBlock !== null && om.fd.onBlock < -0.12 && R() < lv.punish) {
         const pun = bestPunisher(C, -om.fd.onBlock - 0.02, dist);
-        if (pun) press(keyOf(pun).button, keyOf(pun).dir, now + Math.max(0, me.timer - 0.1));
+        if (pun) pressMove(pun, now + Math.max(0, me.timer - 0.1));
       }
     }
-    if (st.decided.get(k)) guardFor(0.12, now);
+    if (st.decided.get(k)) guardFor(0.15, now);
     else st.holdGuard = false;
-    void mine; void match;
   }
 
   // ------------------------------------------------------------------------------------------------- combos
   function comboLogic(C) {
-    const { me, match, mine, opNow, now } = C;
+    const { me, now, opNow } = C;
     st.holdGuard = false;
     st.holdMove = 0;
     const mv = me.moveData;
-    if (!mv || !mv.cancels.length) return;
-    if (st.lastComboSerial === me.moveSerial) return;
+    if (!mv || !mv.cancels.length || st.comboSerial === me.moveSerial) return;
+    // nothing connects on a hard-knockdown flight or a KO: do not waste a cancel (or FP) on it
+    if (opNow.state === 'launched' && (opNow.hard || opNow.koFall)) return;
     if (me.moveHit && st.hitSerial !== me.moveSerial) { st.hitSerial = me.moveSerial; st.hitSeenAt = now; }
-    let mode = null;
+    let mode;
     if (me.moveHit) {
       if (now - st.hitSeenAt < lv.confirm * (0.7 + R() * 0.6)) return;
       mode = 'hit';
@@ -305,15 +334,12 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
       if (me.moveTime < last) return;
       mode = 'whiff';
     }
-    st.lastComboSerial = me.moveSerial;
+    st.comboSerial = me.moveSerial;
     const p = mode === 'hit' ? lv.combo : mode === 'block' ? lv.blockString : lv.mash;
     if (R() >= p) return;
-    const opts = comboOptions(C, mode);
-    const best = pickBest(opts);
-    if (!best) return;
-    const at = Math.max(now, now + (best.from - me.moveTime) - 0.1);
-    press(best.button, best.dir, at);
-    void match; void mine; void opNow;
+    let best = null;
+    for (const o of comboOptions(C, mode)) if (!best || o.w > best.w) best = o;
+    if (best) press(best.button, best.dir, Math.max(now, now + (best.from - me.moveTime) - 0.1));
   }
 
   function comboOptions(C, mode) {
@@ -323,134 +349,120 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const t = me.moveTime;
     const air = opNow.state === 'launched';
     const ultReady = me.ult >= me.ultMax - 1e-6;
+    const add = (id, button, dir, from) => {
+      const x = mine.moves[id];
+      if (!x || match.canUse(me.index, id) !== null) return;
+      const f = x.fd;
+      let w = f.damage * 0.01 + 0.5;
+      if (mode === 'hit') {
+        if (x.role === 'finisher') w = ultReady && R() < lv.ult ? 6 + opNow.recv.scale * 4 : 0;
+        else if (x.role === 'launcher') w = air ? 0.2 : 2.2;
+        else if (x.role === 'combo') w += air ? 1.4 : 1.2;
+        else if (f.projectile) w = air ? 0.1 : 0.4;
+        else if (x.role === 'counter' || x.role === 'mobility') w = 0;
+        if (f.fpCost && R() > lv.skill) w *= 0.25;
+        if (opNow.recv.juggle >= match.rules.juggle.limit - 1) w *= 0.2;
+      } else if (mode === 'block') {
+        if (x.role === 'finisher' || x.role === 'launcher') w = 0;
+        else if (f.onBlock !== null && f.onBlock < -0.15) w *= 0.25;
+        if (f.projectile) w += 0.6;
+      } else w = x.role === 'combo' ? 0.8 : 0.1;
+      if (w > 0) res.push({ id, button, dir, from, w: w * (1 + (R() - 0.5) * lv.noise) });
+    };
     for (const c of mv.cancels) {
-      if (c.t1 < t) continue;
-      if (c.onHit && !me.moveHit) continue;
-      if (c.onContact && !me.moveConnected) continue;
-      const add = (id, button, dir) => {
-        const x = mine.moves[id];
-        if (!x || match.canUse(me.index, id) !== null) return;
-        let w = x.fd.damage * 0.01 + 0.5;
-        const f = x.fd;
-        if (mode === 'hit') {
-          if (x.role === 'finisher') w = ultReady && R() < lv.ult ? 6 + opNow.recv.scale * 4 : 0;
-          else if (x.role === 'launcher') w = air ? 0.2 : 2.2;
-          else if (x.role === 'combo') w += air ? 1.4 : 1.2;
-          else if (f.projectile) w = air ? 0.1 : 0.4;
-          else if (x.role === 'counter' || x.role === 'mobility') w = 0;
-          if (x.fd.fpCost && R() > lv.skill) w *= 0.25;
-          if (opNow.recv.juggle >= match.rules.juggle.limit - 1) w *= 0.2;
-        } else if (mode === 'block') {
-          if (x.role === 'finisher' || x.role === 'launcher') w = 0;
-          else if (f.onBlock !== null && f.onBlock < -0.15) w *= 0.25;
-          if (f.projectile) w += 0.6;
-        } else {
-          w = x.role === 'combo' ? 0.8 : 0.1;
-        }
-        if (w > 0) res.push({ id, button, dir, from: c.t0, w: w * (1 + (R() - 0.5) * lv.noise) });
-      };
-      if (c.on) add(c.route, c.on, c.dir);
-      else {
-        for (const x of mine.pressable) {
-          if (!(c.ids.has(x.id) || c.groups.has('any') || c.groups.has(x.mv.group))) continue;
-          const k = keyOf(x);
-          add(x.id, k.button, k.dir);
-        }
+      if (c.t1 < t || (c.onHit && !me.moveHit) || (c.onContact && !me.moveConnected)) continue;
+      if (c.on) { add(c.route, c.on, c.dir, c.t0); continue; }
+      for (const x of mine.pressable) {
+        if (c.ids.has(x.id) || c.groups.has('any') || c.groups.has(x.mv.group)) add(x.id, keyOf(x).button, keyOf(x).dir, c.t0);
       }
     }
     return res;
   }
 
-  function pickBest(opts) {
-    let best = null;
-    for (const o of opts) if (!best || o.w > best.w) best = o;
-    return best;
-  }
-
   // ------------------------------------------------------------------------------------------------- defence
+  /** The attack (or projectile) the AI perceives coming at it, with its estimated time to impact. */
   function threat(C) {
-    const { op, theirs, me, dist, lag, opNow } = C;
-    // strikes
+    const { op, theirs, me, dist, lag } = C;
     if (op.state === 'attack' && op.move) {
       const x = theirs.moves[op.move];
-      if (x && x.mv.hits.length) {
+      if (x) {
         const est = op.moveTime + lag;
         const fd = x.fd;
-        const tta = fd.startup - est;
-        const activeLeft = fd.activeEnd - est;
-        const travel = forwardAt(x.mv, Math.max(est, fd.activeEnd)) - forwardAt(x.mv, est);
-        const reachNow = x.reach - forwardAt(x.mv, est) + travel * 0 + 0.35;
-        if (activeLeft > -0.03 && dist <= Math.max(reachNow, x.reach - forwardAt(x.mv, Math.min(est, fd.startup))) + 0.35 && tta < 0.55) {
-          return { key: 's' + op.serial, tta: Math.max(0, tta), until: Math.max(0.05, activeLeft) + 0.1, unblockable: fd.unblockable, move: x, est };
+        if (x.mv.hits.length) {
+          const tta = fd.startup - est;
+          const left = fd.activeEnd - est;
+          const reach = x.reach - forwardAt(x.mv, Math.min(est, fd.startup)) + 0.35;
+          if (left > -0.03 && tta < 0.55 && dist <= reach) {
+            return { key: 's' + op.serial, tta: Math.max(0, tta), until: Math.max(0.05, left) + 0.12, unblockable: fd.unblockable };
+          }
+        } else if (fd.projectile) {
+          const rel = x.mv.projectiles[0];
+          const tta = rel.t + rel.delay - est + Math.max(0, dist - 1.2) / Math.max(1, Math.abs(rel.vx));
+          if (tta > -0.05 && tta < 0.6 && dist < x.reach + 0.5) return { key: 'p' + op.serial, tta: Math.max(0, tta), until: 0.35, unblockable: rel.hit.unblockable, projectile: true };
         }
-      }
-      // projectile moves before release: treat as a projectile threat at release time
-      if (x && x.fd.projectile && !x.mv.hits.length) {
-        const est = op.moveTime + lag;
-        const rel = x.mv.projectiles[0];
-        const tta = rel.t + rel.delay - est + Math.max(0, dist - 1.2) / Math.max(1, Math.abs(rel.vx));
-        if (tta > -0.05 && tta < 0.6 && dist < x.reach + 0.5) return { key: 'p' + op.serial, tta: Math.max(0, tta), until: 0.35, unblockable: rel.hit.unblockable, move: x, est, projectile: true };
       }
     }
     for (const p of op.proj) {
       const dx = me.x - p.x;
       if (p.vx !== 0) {
         if (Math.sign(dx) !== Math.sign(p.vx)) continue;
-        const gapM = Math.abs(dx) - 0.5 - Math.max(Math.abs(p.f0), Math.abs(p.f1));
-        const tti = gapM / Math.abs(p.vx) - lag;
+        const tti = (Math.abs(dx) - 0.5 - p.half) / Math.abs(p.vx) - lag;
         if (tti < 0.5 && tti > -0.15) return { key: 'q' + p.id, tta: Math.max(0, tti), until: 0.3, unblockable: p.unblockable, projectile: true };
       } else if (Math.abs(dx) < 1.3 && p.wait < 0.6) {
         return { key: 'q' + p.id, tta: Math.max(0, p.wait - lag), until: 0.4, unblockable: p.unblockable, projectile: true, column: true };
       }
     }
-    void opNow;
     return null;
   }
 
   function defend(C) {
     const { me, match, mine, now } = C;
     const th = threat(C);
-    if (!th) {
-      if (st.holdGuard && now > st.holdGuardUntil - 0.02) st.holdGuard = false;
-      return false;
-    }
+    if (!th) return false;
     let choice = st.decided.get(th.key);
     if (choice === undefined) {
       const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x) && x.mv.counter.t0 < th.tta + 0.02);
-      const opts = [];
-      const guardW = th.unblockable ? 0 : lv.guard * (me.guard / me.guardMax > 0.25 ? 1 : 0.4);
-      opts.push({ k: 'guard', w: guardW });
-      opts.push({ k: 'dodge', w: me.dodgeCooldown <= 0 ? lv.dodge * (th.unblockable ? 2.5 : 1) : 0 });
-      if (counter && !th.projectile) opts.push({ k: 'counter', w: lv.counter * lv.skill });
-      if (th.column || th.tta > 0.2) opts.push({ k: 'back', w: lv.backoff * (th.column ? 2 : 1) * (C.dist < 3.5 ? 1 : 0.3) });
+      const opts = [
+        { k: 'guard', w: th.unblockable ? 0 : lv.guard * (me.guard / me.guardMax > 0.25 ? 1 : 0.4) },
+        { k: 'dodge', w: me.dodgeCooldown <= 0 ? lv.dodge * (th.unblockable ? 2.5 : 1) : 0 },
+      ];
+      if (counter && !th.projectile) opts.push({ k: 'counter', w: lv.counter * lv.skill, x: counter });
+      if (th.column || th.tta > 0.2) opts.push({ k: 'back', w: lv.backoff * (th.column ? 2 : 1) });
+      // the chance to react at all is the summed weight (capped); otherwise it simply did not see it coming
       let sum = 0;
       for (const o of opts) sum += o.w;
-      // the chance to react at all is the sum of the option weights (capped); the rest is "did not see it"
-      const reactP = Math.min(0.97, sum);
-      if (R() < reactP) choice = pick(opts).k; else choice = 'none';
-      st.decided.set(th.key, choice);
-      if (choice === 'counter') st.decided.set(th.key + 'c', counter);
+      const o = R() < Math.min(0.97, sum) ? pick(opts) : null;
+      choice = o ? o.k : 'none';
+      remember(th.key, choice);
+      if (o && o.x) remember(th.key + 'c', o.x);
     }
-    if (choice === 'none') return false;
-    if (choice === 'guard') { guardFor(th.tta + th.until, now); st.holdMove = 0; return true; }
-    if (choice === 'dodge') {
-      if (st.decided.get(th.key + 'd')) return true;
-      // aim the invulnerable window at the impact (nightmare times it for a perfect dodge)
-      const inv = me.def.movement.dodge.invuln;
-      const lead = lv.perfect > R() ? (inv[0] + 0.03) : 0.12 + R() * 0.12;
-      if (th.tta <= lead + 0.02) { press('dodge', null, now); st.decided.set(th.key + 'd', true); }
-      else if (!st.holdGuard) st.holdMove = 0;
-      return true;
+    switch (choice) {
+      case 'guard':
+        guardFor(th.tta + th.until, now);
+        return true;
+      case 'dodge': {
+        if (st.decided.get(th.key + 'd')) return true;
+        // aim the invulnerable window at the impact (the stronger levels time it for a perfect dodge)
+        const inv = me.def.movement.dodge.invuln;
+        const lead = R() < lv.perfect ? inv[0] + 0.03 : 0.1 + R() * 0.14;
+        if (th.tta <= lead + 0.02) { press('dodge', null, now); remember(th.key + 'd', true); }
+        else st.holdMove = 0;
+        return true;
+      }
+      case 'counter': {
+        if (st.decided.get(th.key + 'x')) return true;
+        const x = st.decided.get(th.key + 'c');
+        if (x && usable(match, me, x)) pressMove(x, now);
+        remember(th.key + 'x', true);
+        return true;
+      }
+      case 'back':
+        hold(-1, 0.3 + th.tta, now);
+        st.holdGuard = false;
+        return true;
+      default:
+        return false;
     }
-    if (choice === 'counter') {
-      if (st.decided.get(th.key + 'x')) return true;
-      const x = st.decided.get(th.key + 'c');
-      if (x && usable(match, me, x)) press(keyOf(x).button, keyOf(x).dir, now);
-      st.decided.set(th.key + 'x', true);
-      return true;
-    }
-    if (choice === 'back') { hold(-1, 0.3 + th.tta, now); st.holdGuard = false; return true; }
-    return false;
   }
 
   // ------------------------------------------------------------------------------------------------- punish / juggle / oki
@@ -470,7 +482,7 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
   }
 
   function punish(C) {
-    const { op, theirs, now, dist, lag, me } = C;
+    const { op, theirs, now, dist, lag, opNow } = C;
     let window = 0, key = null, p = 0;
     if (op.state === 'attack' && op.move) {
       const x = theirs.moves[op.move];
@@ -480,27 +492,19 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
         key = 'pun' + op.serial;
         p = op.connected ? lv.punish : lv.whiffPunish;
       }
-    } else if (op.state === 'guardbreak') { window = op.timer - lag; key = 'gb' + op.serial + ':' + Math.round(op.t * 2); p = lv.punish; }
-    else if (op.state === 'recovery') { window = op.timer - lag; key = 'rec' + op.serial; p = lv.punish; }
-    else if (op.state === 'backstep' || op.state === 'dash') {
-      const mvSpec = C.opNow.def.movement[op.state];
-      window = mvSpec.duration - op.stateTime - lag;
-      key = 'mv' + op.state + Math.round(op.t * 4);
+    } else if (op.state === 'guardbreak' || op.state === 'recovery') {
+      window = op.timer - lag;
+      key = op.state + op.serial + ':' + Math.floor(op.t - op.stateTime);
+      p = lv.punish;
+    } else if (op.state === 'backstep' || op.state === 'dash') {
+      window = opNow.def.movement[op.state].duration - op.stateTime - lag;
+      key = 'mv' + Math.floor((op.t - op.stateTime) * 10);
       p = lv.whiffPunish * 0.5;
     }
-    if (!key || window < 0.08) return false;
-    if (!once(key, p)) return false;
-    if (st.decided.get(key + 'done')) return false;
+    if (!key || window < 0.08 || !once(key, p) || st.decided.has(key + 'done')) return false;
     const pun = bestPunisher(C, window - 0.03, dist);
-    if (pun) {
-      press(keyOf(pun).button, keyOf(pun).dir, now);
-      st.decided.set(key + 'done', true);
-      st.holdGuard = false;
-      return true;
-    }
-    // too far: dash in when the window is long (guard break, ult recovery)
+    if (pun) { pressMove(pun, now); remember(key + 'done', true); return true; }
     if (window > 0.55 && dist > 2) { hold(1, 0.25, now); return true; }
-    void me;
     return false;
   }
 
@@ -509,25 +513,24 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     if (op.state !== 'launched' || op.hard || opNow.state !== 'launched') return false;
     if (opNow.recv.attacker !== me.index || opNow.recv.juggle >= match.rules.juggle.limit - 0.5) return false;
     const key = 'jg' + opNow.recv.hits;
-    if (st.decided.has(key + 'done')) return false;
-    if (!once(key, lv.juggle)) return false;
-    // time until the victim lands
+    if (st.decided.has(key + 'done') || !once(key, lv.juggle)) return false;
     const g = match.rules.gravity * (1 + match.rules.juggle.gravityStep * opNow.recv.juggle);
     const land = (opNow.vy + Math.sqrt(Math.max(0, opNow.vy * opNow.vy + 2 * g * opNow.y))) / g;
     let best = null, bw = 0;
     for (const x of mine.pressable) {
       if (!x.mv.hits.length || x.fd.startup === null || x.fd.startup > land - 0.03) continue;
-      if (!x.mv.hits.some((h) => h.air)) continue;
-      if (dist > x.reach + 0.2) continue;
-      if (!usable(match, me, x)) continue;
+      if (!x.mv.hits.some((h) => h.air) || dist > x.reach + 0.2 || !usable(match, me, x)) continue;
       let w = x.fd.damage + (x.role === 'combo' ? 60 : 0) + (x.role === 'poke' ? 30 : 0);
       if (x.role === 'finisher') w = me.ult >= me.ultMax && R() < lv.ult ? 400 : 0;
       if (x.role === 'launcher') w *= 0.6;
       if (w > bw) { bw = w; best = x; }
     }
-    if (!best) { if (dist > 1.6) hold(1, 0.1, now); return dist > 1.6; }
-    press(keyOf(best).button, keyOf(best).dir, now);
-    st.decided.set(key + 'done', true);
+    if (!best) {
+      if (dist > 1.6) { hold(1, 0.1, now); return true; }
+      return false;
+    }
+    pressMove(best, now);
+    remember(key + 'done', true);
     return true;
   }
 
@@ -535,104 +538,105 @@ export function createAIController({ difficulty = 'normal', overrides = {}, rng 
     const { op, now, dist, mine, match, me } = C;
     if (op.state !== 'knockdown' && op.state !== 'getup') return false;
     const left = (op.state === 'knockdown' ? op.timer + match.rules.getupTime : op.timer) - C.lag;
-    const want = mine.pokeReach - 0.3;
-    if (dist > want + 0.3) { hold(1, 0.08, now); return true; }
-    const key = 'oki' + Math.round(op.t * 2);
-    if (once('okd' + op.serial + ':' + Math.round(op.t), lv.meaty)) {
+    if (dist > mine.pokeReach) { hold(1, 0.08, now); return true; }
+    const down = 'oki' + Math.floor(op.t - op.stateTime);
+    if (once(down, lv.meaty)) {
       const x = mine.strikes.find((s) => s.role === 'poke' && usable(match, me, s)) || mine.strikes[0];
-      if (x && left <= x.fd.startup + 0.02 && left > x.fd.startup - 0.06 && !st.decided.has(key)) {
-        st.decided.set(key, true);
-        press(keyOf(x).button, keyOf(x).dir, now);
+      if (x && left <= x.fd.startup + 0.02 && !st.decided.has(down + 'done')) {
+        remember(down + 'done', true);
+        pressMove(x, now);
       }
       return true;
     }
-    if (left < 0.25 && R() < lv.guard * 0.5) guardFor(0.3, now);
+    if (left < 0.3 && !st.decided.has(down + 'g')) { remember(down + 'g', true); if (R() < lv.patience) guardFor(0.35, now); }
     return true;
   }
 
   // ------------------------------------------------------------------------------------------------- neutral
   function neutral(C) {
     const { me, op, match, mine, theirs, now, dist } = C;
-    const A = clamp01(lv.aggression * 0.6 + me.def.ai.aggression * 0.4);
-    const zoning = me.def.ai.zoning;
+    const A = Math.min(1, Math.max(0, lv.aggression * 0.6 + me.def.ai.aggression * 0.4));
     const hpLead = me.hp / me.hpMax - op.hp;
-    const clockLow = match.clock < 20;
-    const guardLow = me.guard / me.guardMax < 0.3;
-    const theirReach = theirs.threatReach;
-    const prefer = Math.max(1.2, mine.pokeReach - 0.15);
+    const protect = hpLead > 0.12 && match.clock < 25;
+    const cornered = backToWall(match, me, 1.2);
+    const opCornered = backToWall(match, C.opNow, 1.5);
+    const tReach = theirs.threatReach;
+    const myPoke = mine.pokeReach;
+    const zone = dist > tReach + 1.0 ? 'far' : dist > Math.min(tReach, myPoke) - 0.05 ? 'mid' : 'close';
+    const init = st.init;
     const opts = [];
-    const mistake = R() < lv.mistake;
+    const add = (k, w, x) => { if (w > 0) opts.push({ k, w, x }); };
 
-    // movement
-    const far = dist - prefer;
-    opts.push({ k: 'approach', w: far > 0.3 ? 1.2 + A + far * 0.25 : 0.15 });
-    opts.push({ k: 'dash', w: far > 1.2 ? 0.4 + A * 0.6 : 0 });
-    opts.push({ k: 'retreat', w: (dist < theirReach + 0.25 && dist > 0.9 ? lv.spacing * 0.8 : 0.1) + (hpLead > 0.15 && clockLow ? 1 : 0) + (guardLow ? 0.4 : 0) });
-    opts.push({ k: 'backstep', w: dist < 1.3 ? lv.spacing * 0.35 : 0 });
-    opts.push({ k: 'wait', w: 0.35 + (1 - A) * 0.5 + (hpLead > 0.1 && clockLow ? 0.8 : 0) });
-    opts.push({ k: 'guard', w: dist < theirReach + 0.6 ? 0.25 + (1 - A) * 0.4 + st.opAggro * 0.4 : 0.02 });
-    opts.push({ k: 'dodgeBait', w: dist < theirReach + 0.4 && me.dodgeCooldown <= 0 ? 0.08 : 0 });
-
-    // attacks from data
-    for (const x of mine.pressable) {
-      if (x.role === 'finisher' || x.role === 'counter') continue;
-      if (!usable(match, me, x)) continue;
-      const inRange = dist >= x.range[0] - 0.05 && dist <= x.range[1] + 0.05;
-      if (!inRange && !mistake) continue;
-      let w = x.weight;
-      switch (x.role) {
-        case 'poke': w *= 1.0 + A * 0.8; break;
-        case 'pressure': w *= 0.6 + A * 0.6 + (op.guard < 0.4 ? 0.8 : 0) + st.opGuardRate * 0.6; break;
-        case 'approach': w *= 0.5 + A * 0.7; break;
-        case 'launcher': w *= 0.35 + A * 0.3; break;
-        case 'zoning': w *= (0.4 + zoning * 1.4) * (dist > 4 ? 1.3 : 0.5); break;
-        case 'combo': w *= 0.25; break;
-        case 'mobility': w *= 0.25 + A * 0.25; break;
-        default: w *= 0.5;
-      }
-      if (x.fd.fpCost) w *= lv.skill * (me.fp > x.fd.fpCost + 20 ? 1 : 0.5);
-      if (op.invuln) w *= 0.2;
-      opts.push({ k: 'attack', x, w });
+    if (zone === 'far') {
+      add('approach', 1.0 + A + (protect ? -0.8 : 0));
+      add('dash', 0.25 + A * 0.5);
+      add('wait', 0.3 + (1 - A) * 0.4 + (protect ? 1.2 : 0));
+      add('retreat', protect ? 0.6 : 0.05);
+    } else if (zone === 'mid') {
+      add('step', 0.7 + A * 0.6);
+      add('retreat', cornered ? 0 : 0.25 + lv.spacing * 0.5 + (protect ? 0.6 : 0));
+      add('wait', 0.3 + lv.patience * 0.5);
+      add('guard', 0.15 + st.opAggro * 0.5 * lv.patience);
+      add('dash', 0.1 + A * 0.2);
+    } else {
+      const theirTurn = init === 'them', myTurn = init === 'me';
+      add('guard', (theirTurn ? 1.2 + lv.holdGuard : 0.45 + (1 - A) * 0.5 + st.opAggro * 0.6 + lv.patience * 0.3) * (me.guard / me.guardMax < 0.25 ? 0.4 : 1));
+      add('backstep', cornered ? 0 : lv.spacing * (theirTurn ? 0.5 : 0.25));
+      add('retreat', cornered ? 0 : lv.spacing * 0.35);
+      add('escape', cornered ? 0.3 + lv.spacing * 0.6 : 0);
+      add('dodge', me.dodgeCooldown <= 0 ? lv.dodge * (theirTurn ? 0.6 : 0.2) : 0);
+      add('wait', 0.15);
+      opts.attackBias = myTurn ? 1.8 : theirTurn ? 0.35 - lv.holdGuard * 0.25 : 1;
     }
-    // counter stance as a read against an aggressive opponent at close range
-    const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
-    if (counter && dist < theirReach + 0.8) opts.push({ k: 'attack', x: counter, w: st.opAggro * lv.counter * 1.2 });
-    // raw ultimate: rare, mostly at close range on lower levels; the strong AI saves it for punishes and combos
-    const ult = mine.pressable.find((x) => x.role === 'finisher' && usable(match, me, x));
-    if (ult && dist <= ult.range[1]) opts.push({ k: 'attack', x: ult, w: lv.ult * (difficulty === 'easy' ? 0.4 : 0.06) });
 
-    let o;
-    if (mistake) o = opts[Math.floor(R() * opts.length)];
-    else o = pick(opts);
+    // attacks from data; patience lowers how often a think tick turns into an attack
+    const bias = (opts.attackBias !== undefined ? opts.attackBias : 1) * (0.25 + 0.6 * A) * (1.25 - lv.patience * 0.6);
+    for (const x of mine.pressable) {
+      if (x.role === 'finisher' || x.role === 'counter' || !usable(match, me, x)) continue;
+      if (dist < x.range[0] - 0.05 || dist > x.range[1] + 0.05) continue;
+      let w = x.weight * bias;
+      switch (x.role) {
+        case 'poke': w *= (zone === 'mid' ? 0.9 : 0.7) + A * 0.6; break;
+        case 'pressure': w *= 0.35 + A * 0.4 + (op.guard < 0.4 ? 0.8 : 0) + st.opGuard * 0.8 + (opCornered ? 0.3 : 0); break;
+        case 'approach': w *= 0.35 + A * 0.5; break;
+        case 'launcher': w *= 0.2 + A * 0.2 + (st.opGuard < 0.2 ? 0.2 : 0); break;
+        case 'zoning': w *= (0.3 + me.def.ai.zoning * 1.2) * (zone === 'far' ? 1.4 : 0.4); break;
+        case 'combo': w *= 0.2; break;
+        case 'mobility': w *= cornered ? 0.8 : 0.15 + A * 0.2; break;
+        default: w *= 0.4;
+      }
+      if (x.fd.fpCost) w *= lv.skill * (me.fp > x.fd.fpCost + 20 ? 1 : 0.4);
+      if (op.invuln) w *= 0.15;
+      add('attack', w, x);
+    }
+    const counter = mine.pressable.find((x) => x.role === 'counter' && usable(match, me, x));
+    if (counter && zone !== 'far') add('attack', st.opAggro * lv.counter * 1.5 * (st.init === 'them' ? 2 : 1), counter);
+    const ult = mine.pressable.find((x) => x.role === 'finisher' && usable(match, me, x));
+    if (ult && dist <= ult.range[1]) add('attack', lv.ult * (difficulty === 'easy' ? 0.35 : 0.05), ult);
+
+    const o = R() < lv.mistake ? opts[Math.floor(R() * opts.length)] : pick(opts);
     if (!o) return;
     switch (o.k) {
-      case 'approach': hold(1, 0.15 + R() * 0.35, now); break;
-      case 'dash': press('dodge', 'f', now); break;
-      case 'retreat': hold(-1, 0.15 + R() * 0.3, now); break;
-      case 'backstep': press('dodge', 'b', now); break;
-      case 'wait': hold(0, 0.1 + R() * 0.25, now); break;
-      case 'guard': guardFor(0.15 + R() * 0.35, now); break;
-      case 'dodgeBait': press('dodge', null, now); break;
-      case 'attack': {
-        const k = keyOf(o.x);
-        st.holdGuard = false;
-        press(k.button, k.dir, now);
-        break;
-      }
-      default: break;
+      case 'approach': hold(1, 0.2 + R() * 0.4, now); break;
+      case 'step': hold(1, 0.08 + R() * 0.16, now); break;
+      case 'dash': press('dodge', 'f', now); st.busyUntil = now + 0.3; break;
+      case 'retreat': hold(-1, 0.12 + R() * 0.25, now); break;
+      case 'backstep': press('dodge', 'b', now); st.busyUntil = now + 0.35; break;
+      case 'escape': press('dodge', 'f', now); st.busyUntil = now + 0.4; break;
+      case 'dodge': press('dodge', null, now); st.busyUntil = now + 0.4; break;
+      case 'wait': hold(0, 0.08 + R() * 0.25 * (0.5 + lv.patience), now); break;
+      case 'guard': guardFor(0.2 + R() * (0.25 + 0.4 * lv.patience), now); st.busyUntil = st.holdGuardUntil; break;
+      default: pressMove(o.x, now); break;
     }
   }
-
-  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
   return {
     kind: 'ai',
     difficulty,
     level: lv,
+    /** Called by the match: takes the match-forked rng unless one was given. */
     attach({ rng: r }) { if (!ownRng) R = r; reset(); },
     reset,
     update,
   };
 }
-
-export { ATTACK_KEYS };

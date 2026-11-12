@@ -4,13 +4,15 @@
 import { h, esc } from './anim.js';
 import { icon, weaponArt, eclipseMark } from './icons.js';
 import { DIFFICULTIES, QUALITIES, ELEMENTS } from './roster.js';
-import { Ease, clamp } from '../core/math.js';
+import { Ease, clamp, makeRng } from '../core/math.js';
 import { put } from './hud.js';
 
 const STAT_ROWS = [['power', '공격력', 'POWER'], ['speed', '속도', 'SPEED'], ['reach', '사거리', 'REACH'], ['difficulty', '난이도', 'DIFFICULTY']];
 
 export function createScreens(ui) {
   const { ctx, anim } = ui;
+  // menu randomness has its own deterministic stream so it never shifts the match's ctx.rng sequence
+  const rng = makeRng((Number(ctx.flags && ctx.flags.seed) || 20261112) ^ 0x5e1ec7);
 
   // ---------------------------------------------------------------------------------------------------------------
   // shared bits
@@ -115,7 +117,7 @@ export function createScreens(ui) {
       },
       onAction(action) {
         // any face button starts, unless the player is adjusting quality
-        if (ui.focused() === start && /^(light|heavy|skill\d|ult|dodge|guard|pause)$/.test(action)) { ui.sound('ui_select'); ui.emit('start'); return true; }
+        if (ui.focused() === start && /^(light|heavy|skill\d|ult|dodge|guard)$/.test(action)) { ui.sound('ui_select'); ui.emit('start'); return true; }
         return false;
       },
     };
@@ -191,7 +193,6 @@ export function createScreens(ui) {
       const s = [['p1', '나의 결투자', 'YOU'], ['cpu', '상대', 'OPPONENT'], ['diff', '난이도', 'DIFFICULTY']];
       const at = s.findIndex((x) => x[0] === st.step);
       steps.innerHTML = s.map((x, i) => `<span class="step${i === at ? ' on' : ''}${i < at ? ' done' : ''}"><i>${i + 1}</i><b>${x[1]}</b><em>${x[2]}</em></span>`).join('<span class="step-sep"></span>');
-      el.dataset.step = st.step;
       for (const c of st.cards) {
         c.classList.toggle('is-p1', st.p1 !== null && c._idx === st.p1);
         c.classList.toggle('is-cpu', st.cpu !== null && ((st.cpuRandom && c._idx === -1) || (!st.cpuRandom && c._idx === st.cpu)));
@@ -202,7 +203,7 @@ export function createScreens(ui) {
 
     function pick(idx) {
       const n = st.roster.length;
-      const real = idx < 0 ? Math.floor(ctx.rng() * n) % n : idx;
+      const real = idx < 0 ? Math.floor(rng() * n) % n : idx;
       if (st.step === 'p1') {
         st.p1 = real;
         st.step = 'cpu';
@@ -282,7 +283,7 @@ export function createScreens(ui) {
     const mid = h('div.vs-mid', null, vsMark, vsTxt);
     const foot = h('div.vs-foot');
     const el = h('div', null, A.el, B.el, seam, flash, mid, foot);
-    let t = 0, dur = 3, done = false;
+    let t = 0, dur = 3, done = false, portrait = false, seamDeg = 14;
     const fill = (side, f, tag) => {
       side.el.className = `vs-half ${side === A ? 'p1' : 'p2'} el-${f.element}`;
       side.art.innerHTML = weaponArt(f.weaponArt || 'greatsword');
@@ -303,16 +304,18 @@ export function createScreens(ui) {
         t += dt;
         const inA = Ease.outQuart(clamp(t / 0.45));
         const late = Ease.outCubic(clamp((t - 0.35) / 0.5));
-        put(A.el, 'transform', `translateX(${(-100 * (1 - inA)).toFixed(2)}%)`);
-        put(B.el, 'transform', `translateX(${(100 * (1 - inA)).toFixed(2)}%)`);
+        const ax = portrait ? 'translateY' : 'translateX';
+        put(A.el, 'transform', `${ax}(${(-100 * (1 - inA)).toFixed(2)}%)`);
+        put(B.el, 'transform', `${ax}(${(100 * (1 - inA)).toFixed(2)}%)`);
         // slow push on the art while the splash holds
-        put(A.art, 'transform', `translateX(${(-30 + 30 * late + t * 4).toFixed(1)}px) rotate(-18deg)`);
-        put(B.art, 'transform', `translateX(${(30 - 30 * late - t * 4).toFixed(1)}px) rotate(18deg)`);
+        const rot = portrait ? 62 : 18;
+        put(A.art, 'transform', `translateX(${(-30 + 30 * late + t * 4).toFixed(1)}px) rotate(${-rot}deg)`);
+        put(B.art, 'transform', `translateX(${(30 - 30 * late - t * 4).toFixed(1)}px) rotate(${rot}deg)`);
         put(A.id, 'opacity', late.toFixed(3)); put(B.id, 'opacity', late.toFixed(3));
         put(A.id, 'transform', `translateX(${(-40 * (1 - late)).toFixed(1)}px)`);
         put(B.id, 'transform', `translateX(${(40 * (1 - late)).toFixed(1)}px)`);
         const sm = clamp((t - 0.38) / 0.25);
-        put(seam, 'transform', `rotate(14deg) scaleY(${Ease.outExpo(sm).toFixed(3)})`);
+        put(seam, 'transform', `rotate(${seamDeg.toFixed(2)}deg) scaleY(${Ease.outExpo(sm).toFixed(3)})`);
         put(seam, 'opacity', (sm > 0 ? 1 : 0).toFixed(2));
         const fl = t > 0.45 ? 1 - clamp((t - 0.45) / 0.35) : 0;
         put(flash, 'opacity', (fl * 0.7).toFixed(3));
@@ -326,6 +329,11 @@ export function createScreens(ui) {
       onAction(action) {
         if ((action === 'confirm' || action === 'pause') && t > 0.8 && !done) { done = true; ui.emit('vsDone'); }
         return true;
+      },
+      layout(L) {
+        portrait = L.portrait;
+        // the seam follows the clip-path diagonal: 14% of the width across the height (or the reverse in portrait)
+        seamDeg = portrait ? 90 - (Math.atan2(0.1 * L.H, L.W) * 180) / Math.PI : (Math.atan2(0.14 * L.W, L.H) * 180) / Math.PI;
       },
     };
   })();
@@ -400,10 +408,10 @@ export function createScreens(ui) {
         case 'light2': return [L + then + L, tL + then + tL];
         case 'light3': return [L + then + L + then + L, tL + then + tL + then + tL];
         case 'heavy': return [H, tH];
-        case 'fheavy': return [arrow('f') + plus + H, `<span class="tstick">${icon('dodge')}</span>` + plus + tH];
-        case 'dheavy': return [arrow('d') + plus + H, `<span class="tstick down">${icon('dodge')}</span>` + plus + tH];
-        case 'skill1': case 'skill2': case 'skill3': return [kc(s), tg(m.icon || 'light', 'sk')];
-        case 'ult': return [kc('ult'), tg('ult', 'ul')];
+        case 'fheavy': return [arrow('f') + plus + H, `<span class="tstick">${icon('stick')}</span>` + plus + tH];
+        case 'dheavy': return [arrow('d') + plus + H, `<span class="tstick down">${icon('stick')}</span>` + plus + tH];
+        case 'skill1': case 'skill2': case 'skill3': return [kc(s), tg(m.icon || 'light', 'tg-sk')];
+        case 'ult': return [kc('ult'), tg('ult', 'tg-ul')];
         default: return ['', ''];
       }
     }

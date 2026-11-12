@@ -33,24 +33,24 @@ export const LAYOUT = {
   gap: 27 * DEG,     // |theta| < gap: the collapsed vista behind the fighters
   cloudY: -11,       // sea of cloud level
   braziers: [ // [theta deg, radius]
-    [-9.5, 13.7], [9.5, 13.7], [-47, 13.6], [47, 13.6],
+    [-37, 13.7], [37, 13.7], [-63, 13.6], [63, 13.6],
   ],
 };
 
 /** Linear-HDR palette (THREE.Color components are linear). Mid-tones of the backdrop stay low on purpose. */
 export const PALETTE = {
-  zenith: new THREE.Color(0.0016, 0.0022, 0.0052),
-  skyMid: new THREE.Color(0.0055, 0.0075, 0.016),
-  horizon: new THREE.Color(0.026, 0.026, 0.036),
-  glow: new THREE.Color(0.17, 0.072, 0.034),    // 360-degree eclipse "sunset" band at the horizon
+  zenith: new THREE.Color(0.0009, 0.0012, 0.0026),
+  skyMid: new THREE.Color(0.0032, 0.0042, 0.0085),
+  horizon: new THREE.Color(0.014, 0.0145, 0.02),
+  glow: new THREE.Color(0.17, 0.08, 0.042),     // 360-degree eclipse "sunset" band at the horizon
   corona: new THREE.Color(0.82, 0.9, 1.0),
   chromo: new THREE.Color(1.0, 0.24, 0.3),
-  fogNear: new THREE.Color(0.012, 0.014, 0.022),
+  fogNear: new THREE.Color(0.0075, 0.0088, 0.0135),
   fogFar: new THREE.Color(0.03, 0.03, 0.042),
-  sunHalo: new THREE.Color(0.06, 0.07, 0.09),     // fog in-scatter around the eclipse
+  sunHalo: new THREE.Color(0.03, 0.036, 0.05),    // fog in-scatter around the eclipse
   key: new THREE.Color(0.86, 0.9, 1.0),
   rim: new THREE.Color(0.55, 0.68, 1.0),
-  hemiSky: new THREE.Color(0.11, 0.13, 0.2),
+  hemiSky: new THREE.Color(0.1, 0.12, 0.19),
   hemiGround: new THREE.Color(0.06, 0.04, 0.03),
   fire: new THREE.Color(1.0, 0.5, 0.18),
   stone: new THREE.Color(0.06, 0.062, 0.07),

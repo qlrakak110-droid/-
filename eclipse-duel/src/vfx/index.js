@@ -30,6 +30,7 @@ import { EffectPool } from './pool.js';
 import { InstanceRing, makeQuadGeometry } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
 import * as util from './util.js';
+import { LIB, PALETTE } from './library.js';
 
 /** Built-in sub-modules, in update order. Mesh effects append their installers here. */
 export const MODULES = [installScheduler, installParticles, installRibbons, installLights, installFlares, installDistort];
@@ -89,6 +90,10 @@ export function createVfx(ctx) {
 
   const vfx = {
     ctx, root, textures, clock, util, shared,
+    /** tuned base particle layers (see library.js / README) */
+    lib: LIB,
+    /** element colour palettes (linear HDR) */
+    palette: PALETTE,
 
     /**
      * Install a sub-module: install(vfx, shared) -> { name, api?, update?, clear?, prewarm?, dispose? }.
