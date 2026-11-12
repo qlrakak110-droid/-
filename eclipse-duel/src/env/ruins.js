@@ -156,7 +156,11 @@ export function buildRuins(rng, tier) {
       const t0 = th, t1 = th + dth;
       th = t1 + 0.012 / r;
       const tc = (t0 + t1) / 2;
-      if (coursesAt(t0) < minCourse || coursesAt(t1) < minCourse || coursesAt(tc) < minCourse) continue;
+      // the wall must stand under the whole run (and the blocks reaching past its ends), sampled finer than the
+      // course count changes along the broken kerb
+      let held = true;
+      for (let k = 0; k <= 8 && held; k++) held = coursesAt(t0 - 0.6 / r + ((t1 - t0 + 1.2 / r) * k) / 8) >= minCourse;
+      if (!held) continue;
       if (rng.chance(fallChance)) continue;
       const g = sweep(prof, arcPath(r, t0, t1, y, 3), { orn: ornMap });
       const tilt = rng.chance(0.15) ? rng.range(-0.025, 0.025) : 0;

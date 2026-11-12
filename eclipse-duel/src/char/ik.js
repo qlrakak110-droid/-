@@ -216,21 +216,18 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
   const wm = opt && opt.mem && opt.mem.length > 2 ? opt.mem : null;
   if (wrist && clampWrist(newL, 8, wm)) {
-    // the wrist could not take the requested orientation: keep the clamped one and solve the reach again for it, so
-    // the fist (not the wrist) stays on the target
-    qaxis(sv, 12, 0, 0, 1, sign * bend);
-    qmul(sv, 16, tq, 0, sv, 12);
-    qmul(tq, 8, sv, 16, newL, 8);                // clamped end model rotation
-    er = tq; eo = 8;
+    // the wrist could not take the requested orientation: keep the clamped wrist pose (relative to the forearm) and
+    // solve the reach again for it, so the fist (not the wrist) stays on the target
+    qcopy(rollQ, 4, newL, 8);                     // clamped local wrist pose
     for (let it = 0; it < 4; it++) {
+      qaxis(sv, 12, 0, 0, 1, sign * bend);
+      qmul(sv, 16, tq, 0, sv, 12);                // forearm (model)
+      qmul(tq, 8, sv, 16, rollQ, 4);              // end model rotation for that wrist pose
+      er = tq; eo = 8;
       bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
       limbAt(phi, sign, bend, er, eo, tq, 0);
-      qcopy(newL, 8, tq, 4);
-      if (!clampWrist(newL, 8, wm)) break;
-      qaxis(sv, 12, 0, 0, 1, sign * bend);
-      qmul(sv, 16, tq, 0, sv, 12);
-      qmul(tq, 8, sv, 16, newL, 8);
     }
+    qcopy(newL, 8, tq, 4);
   }
   qmulInv(newL, 0, mq, parent * 4, tq, 0);       // root local
   qaxis(newL, 4, 0, 0, 1, sign * bend);          // mid local (hinge about Z)

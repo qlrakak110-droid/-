@@ -147,7 +147,7 @@ right bone and `+s` for a left bone (the mirror convention makes the meaning sym
 | `upperArmR/L` | adduct: arm swings across toward the midline; **`-X` = raise sideways (abduct)** | internal rotation (front of the arm turns toward the midline) | **raise forward (flex)**; `-Z` = swing back |
 | `foreArmR/L` | (not anatomical — keep 0) | pronation; moved into the hand automatically (forearm stays a hinge; twist is spread by helpers) | **bend the elbow** (0..150) |
 | `handR/L` | flex toward the palm (palm side = midline) | pronate (thumb turns toward the midline) | tilt toward the thumb (radial); `-Z` toward the little finger |
-| `fingers*`, `fingerTips*`, `thumb*` | driven by the `curl` channel; keying them throws | | |
+| `fingers*`, `fingerTips*`, `thumb*` | driven by the `curl` channel; keys on them are ignored (with a console warning) | | |
 | `weaponR/L` (fist centre, grip axis) | roll the blade about its own axis | yaw the blade toward the midline | tip up. Keys are relative to the weapon's rest pose in the fist (the design's `gripAngle`). Aim weapons with hand IK instead |
 
 ### Legs (`thigh`, `shin`, `foot`, `toe`)

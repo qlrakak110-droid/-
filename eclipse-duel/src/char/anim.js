@@ -274,7 +274,10 @@ function compile(rig, def) {
         const i = rig.index[b];
         if (i === undefined) throw new Error('clip ' + def.name + ': unknown bone ' + b);
         if (rig.helper[i]) throw new Error('clip ' + def.name + ': ' + b + ' is a driven helper bone');
-        if (/^(fingers|fingerTips|thumb)[RL]$/.test(b)) throw new Error('clip ' + def.name + ': ' + b + ' is driven by the curl channel');
+        if (/^(fingers|fingerTips|thumb)[RL]$/.test(b)) { // driven by the curl channel: a key here would be silently lost
+          if (!isBase) console.warn('clip ' + def.name + ': ' + b + ' is driven by the curl channel; the key is ignored');
+          continue;
+        }
         const r = Array.isArray(v) ? v : v.r;
         if (!boneTracks.has(i)) boneTracks.set(i, newTrack(4));
         const tr = boneTracks.get(i);
