@@ -93,7 +93,7 @@ export function setState(m, f, state, timer = 0) {
 }
 
 /** Close the combo `f` is receiving. */
-export function endCombo(m, f) {
+function endCombo(m, f) {
   const r = f.recv;
   if (!r.active) return;
   r.active = false;
@@ -103,7 +103,7 @@ export function endCombo(m, f) {
 }
 
 /** Distance between the two fighters' centres. */
-export const gap = (f, o) => Math.abs(o.x - f.x);
+const gap = (f, o) => Math.abs(o.x - f.x);
 
 /** Turn to face the opponent immediately. */
 export function faceOpponent(m, f) {
@@ -132,7 +132,7 @@ function autoFace(m, f, h) {
  * Move along X, clamped to the arena walls (and, when `limitSep`, to rules.maxSeparation from the opponent).
  * Returns the displacement actually applied.
  */
-export function moveX(m, f, dx, limitSep) {
+function moveX(m, f, dx, limitSep) {
   if (!dx) return 0;
   const L = m.rules.arenaHalfWidth - f.def.stats.pushWidth;
   let nx = f.x + dx;
@@ -313,7 +313,7 @@ function tryCancel(m, f) {
  * Try every buffered action in priority order: moves (ult > skills > heavy > light), then dodge / dash.
  * @returns {boolean} true when something started
  */
-export function tryActions(m, f, allowDodge = true) {
+function tryActions(m, f, allowDodge = true) {
   const tr = f.input;
   for (const b of ATTACK_BUTTONS) {
     const e = latestPress(tr, b);
@@ -345,7 +345,7 @@ export function tryActions(m, f, allowDodge = true) {
  * Start a movement action: 'dash' | 'backstep' | 'dodge'. A forward dash with the back to the wall and the opponent
  * right in front becomes a 'roll' that passes through the opponent (the corner escape).
  */
-export function startMovement(m, f, kind) {
+function startMovement(m, f, kind) {
   const o = m.fighters[1 - f.index];
   faceOpponent(m, f);
   if (kind === 'dash' && backToWall(m, f, 1.1) && gap(f, o) < f.def.stats.pushWidth + o.def.stats.pushWidth + 0.6 && o.y < 0.5) kind = 'roll';
@@ -363,7 +363,7 @@ const easeOut = (u) => 1 - (1 - u) * (1 - u);
 // per-substep update
 
 /** Return to neutral (or to the victory / defeat pose once the round is over) and act at once (reversals). */
-export function toNeutral(m, f) {
+function toNeutral(m, f) {
   if (f.result && m.phase !== 'fight') {
     setState(m, f, f.result === 'win' ? 'victory' : 'defeat');
     return;

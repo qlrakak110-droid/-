@@ -18,7 +18,7 @@ import { INSTRUMENTS, TRACKS, createSequencer, midiHz } from './music.js';
 
 /**
  * Per quality tier: voice cap, reverb length (s), SFX / music-instrument render rates (Hz), max variants per sound,
- * mono assets. Measured asset memory with everything rendered: low ~10 MB, mid ~25 MB, high ~29 MB.
+ * mono assets. Measured asset memory with everything rendered: low ~12 MB, mid ~25 MB, high ~29 MB.
  */
 const TIERS = {
   low: { voices: 20, ir: 2.0, rate: 26000, musicRate: 22050, variants: 2, mono: true },

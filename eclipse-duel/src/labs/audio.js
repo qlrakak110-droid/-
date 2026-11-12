@@ -192,7 +192,8 @@ function buildPanel(ctx, audio) {
 async function drawSheet(ctx, audio, names = audio.list()) {
   let cv = document.querySelector('canvas.al-sheet');
   if (!cv) { cv = document.createElement('canvas'); cv.className = 'al-sheet'; document.getElementById('ui').appendChild(cv); }
-  const W = Math.max(640, window.innerWidth), H = Math.max(480, window.innerHeight), cols = 6, rowsN = Math.ceil(names.length / cols);
+  const n = names.length, cols = n <= 4 ? n : n <= 9 ? 3 : 6, rowsN = Math.ceil(n / cols);
+  const W = Math.max(640, window.innerWidth), H = Math.max(480, window.innerHeight);
   cv.width = W; cv.height = H;
   cv.style.width = W + 'px'; cv.style.height = H + 'px';
   const g = cv.getContext('2d');

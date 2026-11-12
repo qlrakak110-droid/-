@@ -75,7 +75,7 @@ function addCombo(m, a, d, lost) {
 }
 
 /** Release both fighters: the victim takes the finish reaction, the attacker recovers (invulnerable). */
-export function endCinematic(m) {
+function endCinematic(m) {
   const cs = m.cinematic;
   if (!cs) return;
   const a = m.fighters[cs.attacker], d = m.fighters[cs.defender];

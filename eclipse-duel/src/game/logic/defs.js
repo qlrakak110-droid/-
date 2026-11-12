@@ -72,7 +72,7 @@ function editDistance(a, b) {
 }
 
 /** Closest name in `list` to `name` (edit distance <= 2 or a case-insensitive match), or null. */
-export function suggest(name, list) {
+function suggest(name, list) {
   let best = null, bd = 3;
   for (const c of list) {
     if (c.toLowerCase() === String(name).toLowerCase()) return c;
@@ -546,7 +546,7 @@ export function assertFighterDef(def) {
 const tw = (w) => (Array.isArray(w) ? { t0: w[0], t1: w[1] } : { t0: w.t[0], t1: w.t[1] });
 
 /** Infer a move's group from its fields when the author did not set one. */
-export function inferGroup(mv) {
+function inferGroup(mv) {
   if (mv.group) return mv.group;
   if (mv.cinematic || mv.superFreeze || (mv.ultCost || 0) > 0) return 'ult';
   if ((mv.fpCost || 0) > 0) return 'skill';
@@ -558,7 +558,7 @@ export function inferGroup(mv) {
  * @param {object} h author hit  @param {number} index  @param {string} group move group (for the chip default)
  * @param {object} rules match rules
  */
-export function compileHit(h, index, group, rules = DEFAULT_RULES) {
+function compileHit(h, index, group, rules = DEFAULT_RULES) {
   const level = h.level || 'light';
   const d = HIT_DEFAULTS[level];
   const kb = h.knockback || {};

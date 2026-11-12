@@ -70,7 +70,7 @@ function inferRole(mv, fd) {
  * What the AI knows about a compiled fighter def: per move frame data, role, range, weight and the command keys
  * that press it; the fastest strikes; its poke reach and its "threat reach" (how far its fast attacks hit).
  */
-export function knowledge(def) {
+function knowledge(def) {
   let k = KNOW.get(def);
   if (k) return k;
   const moves = {};

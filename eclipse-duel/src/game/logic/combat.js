@@ -14,14 +14,14 @@ const hitBox = [0, 0, 0, 0];
 const contact = { x: 0, y: 0 };
 
 /** How long an attack's limb stays vulnerable after its hit window (whiff-punish window), seconds. */
-export const HURT_EXTEND_AFTER = 0.12;
+const HURT_EXTEND_AFTER = 0.12;
 
 /**
  * Fill the module hurtbox list with fighter `f`'s world hurtboxes. Returns the count.
  * Standing: x +- hurtWidth, feet to head. Airborne victims: a lower, wider body. Attacks add their own `hurt` boxes
  * and, for hits with hurtExtend, the attacking limb from its active start until HURT_EXTEND_AFTER after it.
  */
-export function hurtboxes(f) {
+function hurtboxes(f) {
   const s = f.def.stats;
   let n = 0;
   const b0 = hurt[n++];
@@ -97,7 +97,7 @@ const airborneNow = (d) => d.state === 'launched' || d.y > 0.05;
  * Resolve one contact. Returns 'whiff' (passed through: invulnerable / wrong height; not consumed), 'countered',
  * 'blocked', 'armoured' or 'hit'.
  */
-export function resolveContact(m, c) {
+function resolveContact(m, c) {
   const { attacker: a, defender: d, hit } = c;
   const proj = c.projectile;
   const kind = c.kind;

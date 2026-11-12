@@ -301,13 +301,14 @@ function compile(rig, def) {
   return c;
 }
 
-/** Compiled clip for a rig (cached). Throws on unknown names. */
+/** Compiled clip for a rig (cached). A registered pose name gives a looping hold of that pose. Throws on unknown names. */
 export function getClip(rig, name) {
   let m = compiledByRig.get(rig);
   if (!m) compiledByRig.set(rig, (m = new Map()));
   let c = m.get(name);
   if (!c) {
-    const def = rawClips.get(name);
+    let def = rawClips.get(name);
+    if (!def && rawPoses.has(name)) def = { name, duration: 1, loop: true, keys: [{ t: 0, pose: name }] }; // hold a pose
     if (!def) throw new Error('unknown clip ' + name);
     c = compile(rig, def);
     m.set(name, c);
