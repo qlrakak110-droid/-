@@ -33,7 +33,7 @@ const GLOW = { inlay: [2.6, 1.75, 6.6], vein: [1.6, 0.8, 4.6], eye: [6.0, 4.9, 1
 const L = {
   plate: { color: [0.15, 0.16, 0.19], rough: 0.36, metal: 0.95, set: 'hammered', amt: 0.42 },
   lame: { color: [0.11, 0.118, 0.142], rough: 0.35, metal: 0.95, set: 'hammered', amt: 0.55 },
-  legPlate: { color: [0.14, 0.15, 0.178], rough: 0.38, metal: 0.95, set: 'hammered', amt: 0.42 },
+  legPlate: { color: [0.14, 0.15, 0.178], rough: 0.42, metal: 0.95, set: 'hammered', amt: 0.42 },
   dark: { color: [0.058, 0.063, 0.078], rough: 0.38, metal: 0.92, set: 'hammered', amt: 0.7 },
   bronze: { color: [0.21, 0.12, 0.05], rough: 0.34, metal: 1, set: 'engraved', amt: 0.9 },
   bronzeDark: { color: [0.12, 0.07, 0.034], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.08 },
@@ -193,7 +193,7 @@ function buildVorn(kit, S, rig, lod) {
   put(kit, 'plate', 'deltoidL', mirror(rim(PL.haute, 'v1', 0.0068, { n: R(18), thick: 0.008 })), L.rimGold);
   put(kit, 'plate', 'deltoidL', mirror(PL.boss), L.gold);
   if (hi) put(kit, 'plate', 'deltoidL', mirror(A.rivets(PL.over, [0.14, 0.27, 0.4, 0.53, 0.66, 0.79].map((u) => [u, 0.86]), { r: 0.0066, h: 0.004, segs: 5 })), L.rivet);
-  const FN = stormFins({ at: [-0.06, 0.1, -0.03], h: 0.25, len: 0.26, count: 2, gap: 0.045, lean: 4, yaw: -35 });
+  const FN = stormFins({ at: [-0.06, 0.1, -0.03], h: 0.29, len: 0.29, count: 2, gap: 0.045, lean: 4, yaw: -35 });
   put(kit, 'plate', 'deltoidL', mirror(FN.fins), L.plate, { color: edgeGold(FN.fins, L.plate.color) });
   put(kit, 'plate', 'deltoidL', mirror(FN.runes), L.rune);
 
@@ -237,7 +237,7 @@ function buildVorn(kit, S, rig, lod) {
   const cui = cuisse({ r: 0.116, y0: -0.035, y1: -0.43, nu: hi ? 22 : 16 });
   putPair(kit, 'plate', 'thigh', cui, L.legPlate);
   putPair(kit, 'plate', 'thigh', rim(cui, 'v0', 0.0052, { n: R(24) }), L.rimGold);
-  inlay((g, l) => putPair(kit, 'plate', 'thigh', g, l), arcInlay(cui, 0.655, 0.14, 0.635, 0.86, { segs: 8, amp: 0.026, seed: 31, width: 0.003, channel: 0.016, forks: [[4, 55, 0.1]] }));
+  inlay((g, l) => putPair(kit, 'plate', 'thigh', g, l), arcInlay(cui, 0.655, 0.14, 0.635, 0.86, { segs: 8, amp: 0.026, seed: 31, width: 0.0036, channel: 0.017, forks: [[4, 55, 0.1]] }));
   const pol = A.poleyn({ r: 0.084, wing: 0.098 });
   putPair(kit, 'plate', 'knee', pol.cop, L.bronze);
   putPair(kit, 'plate', 'knee', pol.wing, L.plate);
@@ -245,7 +245,7 @@ function buildVorn(kit, S, rig, lod) {
   const grv = greave({ r: 0.075, y0: -0.07, y1: -0.448, nu: hi ? 24 : 18, nv: hi ? 7 : 5 });
   putPair(kit, 'plate', 'shin', grv, L.legPlate);
   putPair(kit, 'plate', 'shin', rim(grv, 'v0', 0.0048, { n: R(28), closed: true }), L.rimGold);
-  inlay((g, l) => putPair(kit, 'plate', 'shin', g, l), arcInlay(grv, 0.582, 0.08, 0.578, 0.8, { segs: 9, amp: 0.013, seed: 41, width: 0.003, channel: 0.016, forks: [[3, 50, 0.08], [6, -50, 0.07]] }));
+  inlay((g, l) => putPair(kit, 'plate', 'shin', g, l), arcInlay(grv, 0.582, 0.08, 0.578, 0.8, { segs: 9, amp: 0.013, seed: 41, width: 0.0036, channel: 0.017, forks: [[3, 50, 0.08], [6, -50, 0.07]] }));
   const sab = A.sabaton({ P: rig.P, width: 0.048, scale: 1.04, point: 0.7 });
   sab.lames.forEach((x, k) => putPair(kit, 'plate', 'foot', x, k % 2 ? L.lame : L.legPlate));
   putPair(kit, 'plate', 'foot', sab.heel, L.dark);

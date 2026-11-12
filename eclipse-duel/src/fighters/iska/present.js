@@ -528,6 +528,8 @@ export const present = {
     },
 
     at: [
+      // 0.42: the orbit clip starts 0.03 s ahead of slash1 so each of its six cuts (clip t 0.03 + 0.2 k) lands on its tick
+      { t: 0.42, do(h) { if (hasClip('iska.ult.orbit')) beat(h, 'orbit', null, { fade: 0.03 }); } },
       // 1.65 (2.40 row): crouch and spring (iska.ult.leap takes off at 0.12), she rises high; slow motion from the shot
       { t: 1.65, do(h) {
         const u = st(h).ult || {};
@@ -602,11 +604,10 @@ export const present = {
         const k = Math.max(0, Math.min(5, (parseInt(name.slice(5), 10) || 1) - 1));
         const [df, hop, face] = ORBIT[k];
         const from = h.socket('chest');
-        h.afterimage({ count: 1, life: 0.3, intensity: 0.65 });
+        h.afterimage({ count: 1, life: 0.2, intensity: 0.65 });
         h.offset([vf + df, hop], 0.05, 'outCubic');
         h.self.char.setFacing(h.facing * face);
         if (!hasClip('iska.ult.orbit')) beat(h, 'slash', ['rime_flick', 'twin_moons', 'star_fan'][k % 3], { fade: 0.03 });
-        else if (k === 0) beat(h, 'orbit', null, { fade: 0.03 });
         const to = h.at(vf + df, 1.25 + hop, 0);
         h.vfx.beam({ look: 'frost', palette: 'frost', core: STAR, from, to, width: 0.1, coreWidth: 0.3, extend: 0.03, release: 0.1, life: 0.12, flares: false, intensity: 0.6 });
         // the cut across the crystal

@@ -75,7 +75,7 @@ const PRESETS = {
   timeup: () => ({ text: '시간 종료', sub: 'TIME UP', style: 'timeup' }),
   draw: () => ({ text: '무승부', sub: 'DRAW', style: 'timeup' }),
 };
-const DURATION = { round: 1.6, fight: 1.0, ko: 2.3, perfect: 2.1, timeup: 1.8, banner: 1.6, ult: 1.9, win: 2.4 };
+const DURATION = { round: 1.6, fight: 1.0, ko: 2.3, perfect: 2.1, timeup: 1.8, banner: 1.6, ult: 1.4, win: 2.4 };
 const IN_T = { round: 0.34, fight: 0.16, ko: 0.16, perfect: 0.3, timeup: 0.4, banner: 0.3, ult: 0.3, win: 0.34 };
 // the K.O. cut: the line rises to the right at this angle; the two halves slide apart along it
 const KO_DEG = 12, KO_COS = Math.cos((KO_DEG * Math.PI) / 180), KO_SIN = Math.sin((KO_DEG * Math.PI) / 180);

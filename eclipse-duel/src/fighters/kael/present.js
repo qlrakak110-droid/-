@@ -67,9 +67,39 @@ function quietHit(h, e, first) {
   if (first) h.post.impact({ duration: 0.034, invert: 0, mono: 1 });
   h.audio('hit_slash_heavy', { pos: h.pos('contact') });
   h.audio('hit_blunt', { pos: h.pos('contact'), volume: 0.6 });
+  if (e.kind === 'strike' && e.hitstop) h.hitstop(e.hitstop);   // a strike's hit-stop is the feel layer's job
   const g = h.ctx.game, s = g && g.session, hud = h.ctx.ui && h.ctx.ui.hud;
   if (s && s.stats && s.stats.hit) s.stats.hit(e);
   if (hud && e.combo >= 2) hud.combo(e.attacker, e.combo, e.comboDamage);
+}
+
+/**
+ * Kael's own heavy-hit feel (replaces the generic one: its star flash at ~0.95 intensity stacked with the ember slash
+ * frozen at peak heat during the hit-stop washed the whole frame white on sweep / lunge / Cinder Drop / vent).
+ * Same beats as the generic layer, tempered: library hit at o.intensity, flinch, body flash, shake, kick, chroma, sound,
+ * the strike's hit-stop and the result-screen / combo bookkeeping. A KO keeps the generic (it owns the KO slow motion).
+ */
+const FINISH = { launch: 1, knockdown: 1, crumple: 1 };
+function hitFeel(h, e, o = {}) {
+  if (e.ko) return undefined;
+  const lvl = e.level || 'heavy', fin = !!FINISH[lvl];
+  const dir = o.dir || [1, -0.1, 0.3];
+  h.fx(e.counter ? 'combat.hit.crit' : fin ? 'combat.hit.heavy' : `combat.hit.${lvl}`, { pos: 'contact', dir }, { element: 'ember', intensity: o.intensity ?? 0.42, k: o.k ?? 0.8, level: lvl });
+  if (!e.armoured) {
+    h.foe.impulse([e.front === false ? 1 : -1, lvl === 'launch' ? 0.5 : 0.1, 0.12], lvl === 'launch' ? 1.6 : fin ? 1.4 : 1.0);
+    h.foe.flash([0.8, 0.66, 0.56], 0.32, 0.12);
+  }
+  h.cam.shake(o.shake ?? (fin ? 0.45 : 0.35), { freq: 15 });
+  if (o.kick) h.cam.kick({ fov: -o.kick, duration: 0.28 });
+  h.post.chroma(o.chroma ?? 0.25, { release: 0.22 });
+  h.audio('hit_slash_heavy', { pos: h.pos('contact') });
+  if (fin) h.audio('hit_blunt', { pos: h.pos('contact'), volume: 0.65 });
+  if (e.counter) h.audio('hit_crit', { volume: 0.8 });
+  if (e.kind === 'strike' && e.hitstop) h.hitstop(e.hitstop);
+  const g = h.ctx.game, s = g && g.session, hud = h.ctx.ui && h.ctx.ui.hud;
+  if (s && s.stats && s.stats.hit) s.stats.hit(e);
+  if (hud && e.combo >= 2) hud.combo(e.attacker, e.combo, e.comboDamage);
+  return false;
 }
 
 // ---- ultimate helpers ----------------------------------------------------------------------------------------------
@@ -113,7 +143,7 @@ const moves = {
   light1: {
     windup(h) { h.weaponGlow(0.35, 0.22); },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.25, 1.42, 0.14] }, { arc: [118, -38], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, 0.22, 1], roll: -12, intensity: 0.38 });
+      h.fx('ember.slash', { pos: [0.25, 1.42, 0.14] }, { arc: [118, -38], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, 0.22, 1], roll: -12, intensity: 0.32 });
     },
     hit(h) { accent(h, 0.5, [1, -0.45, 0.3], -40); },
     recover(h) { h.burst(DRIP, 'weaponTip', { count: 5 }); },
@@ -121,7 +151,7 @@ const moves = {
   // 역날베기 Back Edge — rising backhand, the trail continues the arc
   light2: {
     swing(h) {
-      h.fx('ember.slash', { pos: [0.2, 1.3, 0.14] }, { arc: [-70, 98], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, -0.2, 1], roll: 10, intensity: 0.38 });
+      h.fx('ember.slash', { pos: [0.2, 1.3, 0.14] }, { arc: [-70, 98], radius: 1.55, width: 0.48, sweep: 0.075, normal: [0, -0.2, 1], roll: 10, intensity: 0.3 });
     },
     hit(h) { accent(h, 0.55, [1, 0.5, 0.3], 55); },
   },
@@ -129,15 +159,15 @@ const moves = {
   light3: {
     windup(h) { h.weaponGlow(0.6, 0.3); h.flare('weaponTip', { kind: 'glow', size: 0.6, life: 0.25, intensity: 0.4 }); },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.3, 1.5, 0.14] }, { arc: [140, -36], radius: 1.75, width: 0.6, sweep: 0.08, normal: [0, 0.15, 1], intensity: 0.5 });
+      h.fx('ember.slash', { pos: [0.3, 1.5, 0.14] }, { arc: [140, -36], radius: 1.75, width: 0.5, sweep: 0.08, normal: [0, 0.15, 1], intensity: 0.32 });
     },
     crack(h) {
       h.fx('kael.bite', floorAt(h, 1.65), { k: 0.9 });
       h.cam.shake(0.35, { freq: 14, dir: [0, 1, 0] });
-      h.pulse(floorAt(h, 1.65), null, 0.6);
+      h.pulse(floorAt(h, 1.65), null, 0.35);
       return false;                                         // replaces the generic crack decal (kael.bite lays its own)
     },
-    hit(h) { accent(h, 0.85, [1, -0.6, 0.3], -70); },
+    hit(h, e) { accent(h, 0.6, [1, -0.6, 0.3], -70); return hitFeel(h, e, { dir: [1, -0.6, 0.3], intensity: 0.4 }); },
     recover(h) { h.fx('kael.ashfall', floorAt(h, 1.5), { radius: 0.8 }); },
   },
   // 용광로 휘두르기 Furnace Sweep — armoured coil, 300° horizontal spin, huge trail, wall of sparks
@@ -151,15 +181,15 @@ const moves = {
       h.audio('fire_ignite', { volume: 0.6 });
     },
     swing(h) {
-      h.fx('ember.slash', { pos: [0.05, 1.05, 0] }, { arc: [-300, 2], radius: 2.1, width: 0.7, sweep: 0.13, normal: [0, 1, 0.18], forward: [1, 0, 0], intensity: 0.42 });
+      h.fx('ember.slash', { pos: [0.05, 1.05, 0] }, { arc: [-300, 2], radius: 2.1, width: 0.7, sweep: 0.13, normal: [0, 1, 0.18], forward: [1, 0, 0], intensity: 0.3 });
       h.cam.kick({ fov: -2, duration: 0.3 });
     },
     sparks(h) {
-      h.burst(WALL, [1.0, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]), count: 40 });
+      h.burst(WALL, [1.0, 1.0, 0.2], { dir: h.dir([1, 0.25, 0.35]), count: 34 });
       h.distort([1.0, 1.0, 0.2], { kind: 'shock', radius: [0.3, 2.6], life: 0.4, strength: 0.03 });
-      h.spawn('ring', 'floor', { look: 'fire', radius: [0.4, 2.6], life: 0.5, intensity: 0.45 });
+      h.spawn('ring', 'floor', { look: 'fire', radius: [0.4, 2.6], life: 0.5, intensity: 0.32 });
     },
-    hit(h) { accent(h, 0.9, [1, 0.05, 0.35], 5); },
+    hit(h, e) { accent(h, 0.7, [1, 0.05, 0.35], 5); return hitFeel(h, e, { dir: [1, 0.05, 0.35], intensity: 0.42, kick: 1.5 }); },
     recover(h) { h.fx('kael.ashfall', floorAt(h, 0.8), { radius: 1.2 }); },
   },
   // 돌진 찌르기 Molten Lunge — shoulder-first charge, magma streak behind, thrust, crumple
@@ -175,11 +205,11 @@ const moves = {
     swing(h) {
       const x = st(h);
       if (x.streak) { x.streak.stop(); x.streak = null; }
-      h.flare('weaponTip', { kind: 'streak', size: 0.4, aspect: 9, life: 0.12, decay: 2.5, intensity: 0.3, dir: h.dir([1, 0, 0]) });
-      h.burst(SPEAR, 'weaponTip', { dir: h.dir([1, 0.05, 0.1]), count: 30 });
+      h.flare('weaponTip', { kind: 'streak', size: 0.4, aspect: 9, life: 0.12, decay: 2.5, intensity: 0.2, dir: h.dir([1, 0, 0]) });
+      h.burst(SPEAR, 'weaponTip', { dir: h.dir([1, 0.05, 0.1]), count: 24 });
       h.cam.kick({ fov: -2.5, push: 0.25, duration: 0.3 });
     },
-    hit(h) { accent(h, 0.9, [1, 0, 0.25], 0); },
+    hit(h, e) { accent(h, 0.7, [1, 0, 0.25], 0); return hitFeel(h, e, { dir: [1, 0, 0.25], intensity: 0.4, kick: 1.2 }); },
     end(h) { cleanup(h); },
   },
   // 분화 올려베기 Vent Launcher — the blade splits the floor, fire geyser, launch
@@ -201,7 +231,7 @@ const moves = {
         h2.audio('fire_roar', { volume: 0.7 });
       });
     },
-    hit(h) { accent(h, 1.0, [0.3, 1, 0.3], 90); },
+    hit(h, e) { accent(h, 0.75, [0.3, 1, 0.3], 90); return hitFeel(h, e, { dir: [0.3, 1, 0.3], intensity: 0.42 }); },
   },
   // 잿불 초승달 Ember Crescent — blade dragged on the floor (sparks, molten groove), a burning crescent wave detaches
   crescent: {
@@ -416,7 +446,8 @@ const ult = {
       h.offset([0.85, 2.75], 0.42, 'outCubic');
       h.foeOffset([-0.35, 3.05], 0.7, 'outSine');
       h.mood({ darken: 0.86, tint: 0xff2a10, duration: 0.5 });
-      h.fx('ember.inferno', 'foe.floor', { radius: 1.7, duration: 1.95, intensity: 0.45 });   // its centre detonates at 0.8 T = lock 3.36: the shockwave
+      // the firestorm under the airborne pair (own preset: the library inferno's centre detonation buried the rise)
+      h.fx('kael.inferno', 'foe.floor', { radius: 1.7, duration: 1.5, intensity: 0.5, fallback: null });
       h.fx('combat.dust.land', 'floor', { k: 1.2, heavy: true, fallback: null });
       h.afterimage({ count: 2, interval: 0.05, life: 0.3, palette: 'ember' });
       h.audio('fire_roar');
@@ -428,7 +459,8 @@ const ult = {
       h.offset([0.6, 0], 0.18, 'inQuad');
       h.foeOffset([-0.3, 0], 0.18, 'inQuad');
       foeState(h, 'fall', { fade: 0.04 });
-      h.fx('ember.meteor', 'foe.floor', { fall: 0.18, height: 4.6, intensity: 0.25 });
+      // the floor under the pair glows as they come down (the crater itself opens on the finish tick)
+      h.spawn('decal', 'foe.floor', { kind: 'glow', radius: 1.6, palette: 'ember', life: 0.32, fadeIn: 0.14, intensity: 0.9 });
       h.spawn('speedlines', 'foe.floor', { mode: 'focus', life: 0.2, intensity: 0.25, inner: 0.65 });
       st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.55, life: 0.2, color: STREAK });
     } },
@@ -500,6 +532,7 @@ const ult = {
       // 3.90 the meteor slam: crater (ember.meteor), magma rim, the victim driven into the floor
       const x = st(h);
       if (x.streak) { x.streak.stop(); x.streak = null; }
+      h.fx('kael.crater', 'foe.floor', { intensity: 0.5, fallback: null });
       h.spawn('decal', 'foe.floor', { kind: 'scorch', radius: 3.6, life: 8, magma: 1 });
       h.post.impact({ duration: 0.05, invert: 0, mono: 1 });
       h.post.flash(0xffffff, 0.08, { release: 0.25 });

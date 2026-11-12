@@ -76,7 +76,8 @@ export function arcRune(plateGeo, u0, v0, u1, v1, o = {}) {
 /**
  * Engraved arc-rune inlay: the zig-zag bolt (and its forks) as a glowing core sunk in a dark engraved channel with raised,
  * edge-worn lips (the groove is cut into the plate; the light lives at its bottom). Same (u, v) path rules as arcRune.
- * o: arcPath options + { width = 0.003 (glowing core), channel = width * 5.5 (full channel width), lip = 0.0019 (lip
+ * o: arcPath options + { width = 0.003 (glowing core), channel = width * 5.5 (full channel width), lift = 0.0009 (channel
+ *    base over the plate), lip = 0.0019 (lip
  *    height over the plate), forks, step = 0.022 (m: max world length between samples; chords never cut into a curved
  *    plate) }
  * Returns { rune (core strips: put with an inlay look), channel (groove walls / floor: put with a dark engraved-steel
@@ -95,7 +96,7 @@ export function arcInlay(plateGeo, u0, v0, u1, v1, o = {}) {
   }
   const runes = [], chans = [];
   for (const [p, k] of paths) {
-    const g = groove(S, p, { width: w * k, channel: cw * (0.75 + 0.25 * k), lip: o.lip, step: o.step });
+    const g = groove(S, p, { width: w * k, channel: cw * (0.75 + 0.25 * k), lip: o.lip, step: o.step, lift: o.lift });
     runes.push(g.core); chans.push(g.channel);
   }
   return { rune: merge(runes), channel: merge(chans) };
@@ -154,7 +155,8 @@ export function groove(S, uv, o = {}) {
     g.setIndex(idx);
     return fixWinding(g);
   };
-  return { channel: build(CHANNEL, cw, lip, 0.0003), core: build(CORE, w, lip * 0.5, 0.0004) };
+  // lifted clear of the plate's facets (the plate mesh chords a sunk flute above its analytic surface)
+  return { channel: build(CHANNEL, cw, lip, o.lift ?? 0.0009), core: build(CORE, w, lip * 0.5, (o.lift ?? 0.0009) + 0.0002) };
 }
 
 /** Rim bead section: angles (deg) of a rounded crown around the plate normal (open underneath, tucked into the plate). */

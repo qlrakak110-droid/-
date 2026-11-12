@@ -765,7 +765,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .st-win .an-main span { font: 600 max(36px, calc(var(--k) * 96))/1.1 var(--f-display); letter-spacing: .12em; }
 
 /* ULT cut-in: an element-lit band sweeps across carrying the fighter's weapon; the ultimate's name slams in */
-.st-ult { top: 60%; }
+.st-ult { top: 77%; }  /* lower third: the super-freeze hero shot stays clear */
 .is-pad-portrait .st-ult { top: 56%; }
 .an-cut { position: absolute; left: -6%; right: -6%; top: calc(var(--k) * -80); height: calc(var(--k) * 160); will-change: transform; }
 .an-cut-in {

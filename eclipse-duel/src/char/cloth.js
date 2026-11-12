@@ -3,12 +3,14 @@
 // is part of a merged SkinnedMesh, bilinearly weighted to 4 particle bones (smooth surface from a coarse grid, normals
 // from per-particle frames, zero CPU vertex work).
 //
-// Stability: sub-stepping, Gauss-Seidel distance constraints (stretch / shear / bend), long-range tethers to the pinned
-// row (no runaway stretch), velocity clamp, capsule + floor collision, NaN / explosion failsafe.
+// Stability: fixed 1/120 s steps (frame-rate and slow-motion independent; rendering interpolates between steps),
+// Gauss-Seidel distance constraints (stretch / shear / bend), a strain limit on structural / shear edges, long-range
+// tethers to the pinned row, velocity clamp, capsule (with per-particle masks for capsules the cloth rests in by
+// design) + floor collision, NaN / explosion failsafe.
 
 import * as THREE from 'three';
 import { qrot, qfromBasis } from './rigmath.js';
-import { pushOutCapsules } from './collide.js';
+import { pushOutCapsules, capsuleAxisDist } from './collide.js';
 import { shift } from './spring.js';
 
 const ZERO3 = new Float32Array(3);
@@ -168,6 +170,12 @@ export function clothGeometry(layout, firstBone, outward) {
   return { geo, weights: (i) => wts[i], layer: (i) => layer[i] };
 }
 
+/** Fixed simulation step (s of game time): the same cloth at 30 / 60 / 120 Hz and in slow motion. */
+export const CLOTH_STEP = 1 / 120;
+const MAX_STEPS = 5;
+/** Structural / shear edges never stretch past this factor of their rest length (strain limit). */
+export const MAX_STRAIN = 1.15;
+
 export class Cloth {
   /**
    * @param {object} rig
@@ -180,41 +188,48 @@ export class Cloth {
     this.spec = { damping: 0.035, gravity: 1, wind: 1, margin: 0.025, stretch: 1, shear: 0.7, bend: 0.25, tether: 1.04, maxSpeed: 14, inertia: 1, ...s };
     const { C, R } = layout;
     this.C = C; this.R = R; this.n = C * R;
+    this.K = rig.k || 1;
     this.first = rig.index[layout.bones[0].name];
-    this.iters = Math.max(4, Math.round(5 + 5 * Math.min(1, quality)));
+    // Gauss-Seidel iterations per step (the strain limit keeps the sheet's length; detail scales with quality)
+    this.iters = Math.max(3, Math.round(3 + 4 * Math.min(1, quality)));
     this.p = new Float32Array(this.n * 3);
     this.pp = new Float32Array(this.n * 3);
+    this.r0 = new Float32Array(this.n * 3);  // state one step earlier (rendering interpolates to the frame time)
+    this.rp = new Float32Array(this.n * 3);  // rendered positions
     this.inv = new Float32Array(this.n).fill(1);
     for (let k = 0; k < C * layout.pinRows; k++) this.inv[k] = 0;
     // anchors: pinned particle offsets in their bone's bind frame
     this.anchor = new Float32Array(C * layout.pinRows * 3);
     this.anchorTarget = new Float32Array(C * layout.pinRows * 3);
-    this.anchorStart = new Float32Array(C * layout.pinRows * 3);
+    this.anchorPrev = new Float32Array(C * layout.pinRows * 3);
     // constraints
-    const cons = [];
-    const add = (a, b, k) => {
-      const ra = layout.rest, d = Math.hypot(ra[a * 3] - ra[b * 3], ra[a * 3 + 1] - ra[b * 3 + 1], ra[a * 3 + 2] - ra[b * 3 + 2]);
+    const cons = [], edges = [], erest = [];
+    const ra = layout.rest;
+    const dist = (a, b) => Math.hypot(ra[a * 3] - ra[b * 3], ra[a * 3 + 1] - ra[b * 3 + 1], ra[a * 3 + 2] - ra[b * 3 + 2]);
+    const add = (a, b, k, strain) => {
+      const d = dist(a, b);
       cons.push(a, b, d, k);
+      if (strain) { edges.push(a, b); erest.push(d * MAX_STRAIN); }
     };
     const id = (i, j) => j * C + i;
     const sp = this.spec;
     for (let j = 0; j < R; j++) for (let i = 0; i < C; i++) {
-      if (i < C - 1) add(id(i, j), id(i + 1, j), sp.stretch);
-      if (j < R - 1) add(id(i, j), id(i, j + 1), sp.stretch);
-      if (i < C - 1 && j < R - 1) { add(id(i, j), id(i + 1, j + 1), sp.shear); add(id(i + 1, j), id(i, j + 1), sp.shear); }
-      if (i < C - 2) add(id(i, j), id(i + 2, j), sp.bend);
-      if (j < R - 2) add(id(i, j), id(i, j + 2), sp.bend);
+      if (i < C - 1) add(id(i, j), id(i + 1, j), sp.stretch, true);
+      if (j < R - 1) add(id(i, j), id(i, j + 1), sp.stretch, true);
+      if (i < C - 1 && j < R - 1) { add(id(i, j), id(i + 1, j + 1), sp.shear, true); add(id(i + 1, j), id(i, j + 1), sp.shear, true); }
+      if (i < C - 2) add(id(i, j), id(i + 2, j), sp.bend, false);
+      if (j < R - 2) add(id(i, j), id(i, j + 2), sp.bend, false);
     }
     this.cons = Float32Array.from(cons);
+    this.edges = Int32Array.from(edges);
+    this.emax = Float32Array.from(erest);
     // tethers: each particle to the pinned particle of its column
     this.tether = new Float32Array(this.n);
-    for (let j = 0; j < R; j++) for (let i = 0; i < C; i++) {
-      const k = id(i, j), t = id(i, 0), ra = layout.rest;
-      this.tether[k] = Math.hypot(ra[k * 3] - ra[t * 3], ra[k * 3 + 1] - ra[t * 3 + 1], ra[k * 3 + 2] - ra[t * 3 + 2]);
-    }
+    for (let j = 0; j < R; j++) for (let i = 0; i < C; i++) this.tether[id(i, j)] = dist(id(i, j), id(i, 0));
     this.frames = new Float32Array(this.n * 4);
+    this.mask = null;
     this.ready = false;
-    this._bindReady = false;
+    this.lead = 0;
   }
 
   /** Store the pinned offsets relative to their bones (call once with bind-pose mq/mp). */
@@ -226,16 +241,42 @@ export class Cloth {
       tmp[0] = -mq[b * 4]; tmp[1] = -mq[b * 4 + 1]; tmp[2] = -mq[b * 4 + 2]; tmp[3] = mq[b * 4 + 3];
       qrot(a, k * 3, tmp, 0, dx, dy, dz);
     }
-    this._bindReady = true;
   }
 
-  reset() { this.ready = false; this.hPrev = 0; this.capReady = false; }
+  /** Bind the pinned particles to their bones (bind-pose model transforms). */
+  setBind(mq, mp) { this.bindAnchors(mq, mp); }
+
+  /**
+   * Colliders in the bind pose (collide.js capsules updated with the bind transforms): a particle whose rest position
+   * is inside a capsule (+ margin) ignores that capsule (the design hangs it there; pushing it out would stretch the
+   * sheet at its pins in every frame). Returns { pins, rest, names }: pinned / free particles that start inside a
+   * collider (design warnings).
+   */
+  setColliders(caps) {
+    const L = this.layout, C = this.C, nc = caps.count, m = this.spec.margin, pinN = C * L.pinRows;
+    this.mask = nc ? new Uint8Array(this.n * nc) : null;
+    const out = { pins: 0, rest: 0, names: new Set() };
+    if (!nc) return out;
+    for (let k = 0; k < this.n; k++) {
+      const x = L.rest[k * 3], y = L.rest[k * 3 + 1], z = L.rest[k * 3 + 2];
+      for (let i = 0; i < nc; i++) {
+        if (capsuleAxisDist(caps, i, x, y, z) >= caps.data[i * 7 + 6] + m) continue;
+        this.mask[k * nc + i] = 1;
+        out.names.add(caps.names[i]);
+        if (k < pinN) out.pins++; else out.rest++;
+      }
+    }
+    return out;
+  }
+
+  reset() { this.ready = false; this.capReady = false; this.lead = 0; }
 
   inertia(m) {
     if (!this.ready) return;
     const k = this.spec.inertia;
     shift(this.p, m, k);
     shift(this.pp, m, k);
+    shift(this.r0, m, k);
   }
 
   _anchors(mq, mp, out) {
@@ -248,7 +289,7 @@ export class Cloth {
   }
 
   /** Hang the cloth from its current anchors (rest offsets below the pinned row, unrotated), then pre-settle. */
-  _snap(mq, mp) {
+  _snap(mq, mp, gravity, capsules, floorY) {
     const L = this.layout, C = this.C, pinN = C * L.pinRows, p = this.p, pp = this.pp;
     this._anchors(mq, mp, this.anchorTarget);
     for (let k = 0; k < this.n; k++) {
@@ -262,39 +303,32 @@ export class Cloth {
       }
     }
     pp.set(p);
+    this.anchorPrev.set(this.anchorTarget);
     this.ready = true;
-    // pre-settle against the body so a pose capture or a respawn never starts in a stiff, intersecting shape
-    const g = this._settleG;
     this.capReady = false;
-    for (let i = 0; i < 10; i++) this.update(1 / 30, mq, mp, g, ZERO3, this._caps, this._floor, 0, true);
-    pp.set(p);
-    this.hPrev = 0;
+    this.lead = 0;
+    // pre-settle against the body so a pose capture or a respawn never starts in a stiff, intersecting shape
+    for (let i = 0; i < 10; i++) this.update(1 / 30, mq, mp, gravity, ZERO3, capsules, floorY, 0, true);
+    pp.set(p); this.r0.set(p); this.rp.set(p);
+    this.lead = 0;
   }
 
-  /** Bind the pinned particles to their bones (bind-pose model transforms). */
-  setBind(mq, mp) { this.bindAnchors(mq, mp); }
-
   /**
-   * Step the simulation. gravity / wind: model-space accelerations (m/s^2); capsules from collide.js; floorY model.
+   * Advance the simulation to this frame. Fixed steps of CLOTH_STEP game seconds (the sim runs up to one step ahead of
+   * the frame; pins and capsules are interpolated / extrapolated linearly over the frame), rendered positions
+   * interpolated to the frame time. gravity / wind: model-space accelerations (m/s^2); capsules from collide.js;
+   * floorY model.
    */
   update(dt, mq, mp, gravity, wind, capsules, floorY, time, settling = false) {
-    if (!this.ready && !settling) { this._settleG = gravity; this._caps = capsules; this._floor = floorY; this._snap(mq, mp); }
-    const s = this.spec, C = this.C, n = this.n, p = this.p, pp = this.pp, inv = this.inv;
-    const pinN = C * this.layout.pinRows;
-    for (let k = 0; k < pinN * 3; k++) this.anchorStart[k] = p[k];
+    if (!this.ready && !settling) this._snap(mq, mp, gravity, capsules, floorY);
+    const C = this.C, pinN = C * this.layout.pinRows, p = this.p;
     this._anchors(mq, mp, this.anchorTarget);
-    if (dt <= 0) { // frozen (hit-stop): keep pins attached, nothing else moves
-      p.set(this.anchorTarget, 0); pp.set(this.anchorTarget, 0);
+    if (!(dt > 0)) { // frozen (hit-stop): pins stay attached, nothing else moves
+      for (let k = 0; k < pinN * 3; k++) this.rp[k] = this.anchorTarget[k];
       return;
     }
-    dt = Math.min(dt, 1 / 30);
-    const steps = dt > 1 / 55 ? 3 : 2, h = dt / steps, h2 = h * h;
-    // damping per 1/120 s (the same decay at any frame rate); verlet velocities rescaled when the step changes
-    const damp = Math.pow(1 - s.damping, h * 120);
-    const vs = this.hPrev > 0 ? h / this.hPrev : 1;
-    const vmax = s.maxSpeed * h;
-    const cons = this.cons, nc = cons.length;
-    // capsules move from where they were last frame to where they are now across the sub-steps
+    dt = Math.min(dt, MAX_STEPS * CLOTH_STEP);
+    // capsules move from where they were last frame to where they are now
     let caps = capsules;
     if (capsules && capsules.count) {
       if (!this.capPrev || this.capPrev.length !== capsules.data.length) {
@@ -304,74 +338,100 @@ export class Cloth {
       if (!this.capReady || settling) this.capPrev.set(capsules.data);
       caps = this.capTmp;
     }
-    for (let st = 1; st <= steps; st++) {
-      const f = st / steps;
+    this.lead -= dt;
+    let steps = 0;
+    while (this.lead < -1e-9 && steps < MAX_STEPS) {
+      const f = 1 + (this.lead + CLOTH_STEP) / dt; // end of this step: 0 = last frame, 1 = now (> 1: extrapolated)
       if (caps !== capsules) {
         const a0 = this.capPrev, b0 = capsules.data, o0 = caps.data;
         for (let i = 0; i < o0.length; i++) o0[i] = a0[i] + (b0[i] - a0[i]) * f;
       }
-      for (let k = 0; k < pinN; k++) {
-        const o = k * 3;
-        pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
-        p[o] = this.anchorStart[o] + (this.anchorTarget[o] - this.anchorStart[o]) * f;
-        p[o + 1] = this.anchorStart[o + 1] + (this.anchorTarget[o + 1] - this.anchorStart[o + 1]) * f;
-        p[o + 2] = this.anchorStart[o + 2] + (this.anchorTarget[o + 2] - this.anchorStart[o + 2]) * f;
-      }
-      const tt = time + h * st;
-      const vk = (st === 1 ? vs : 1) * damp;
-      for (let k = pinN; k < n; k++) {
-        const o = k * 3, i = k % C, j = (k / C) | 0;
-        let vx = (p[o] - pp[o]) * vk, vy = (p[o + 1] - pp[o + 1]) * vk, vz = (p[o + 2] - pp[o + 2]) * vk;
-        const vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
-        if (vl > vmax) { const c = vmax / vl; vx *= c; vy *= c; vz *= c; }
-        const gust = s.wind * (0.65 + 0.35 * Math.sin(tt * 1.7 + i * 0.45 + j * 0.3) * Math.sin(tt * 0.63 + j * 0.21));
-        pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
-        p[o] += vx + (gravity[0] * s.gravity + wind[0] * gust) * h2;
-        p[o + 1] += vy + (gravity[1] * s.gravity + wind[1] * gust) * h2;
-        p[o + 2] += vz + (gravity[2] * s.gravity + wind[2] * gust) * h2;
-      }
-      for (let it = 0; it < this.iters; it++) {
-        for (let c = 0; c < nc; c += 4) {
-          const a = cons[c] * 3, b = cons[c + 1] * 3, wa = inv[cons[c]], wb = inv[cons[c + 1]], ws = wa + wb;
-          if (ws === 0) continue;
-          const dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
-          const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          if (l < 1e-7) continue;
-          const corr = ((l - cons[c + 2]) / (l * ws)) * cons[c + 3];
-          p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
-          p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
-        }
-        // collision inside the last iteration: the sheet settles around a limb instead of being torn across it
-        if (caps && it === this.iters - 1) for (let k = pinN; k < n; k++) pushOutCapsules(p, k * 3, caps, s.margin);
-      }
-      // tethers + collision + floor
-      for (let k = pinN; k < n; k++) {
-        const o = k * 3, t = (k % C) * 3, maxd = this.tether[k] * s.tether;
-        const dx = p[o] - p[t], dy = p[o + 1] - p[t + 1], dz = p[o + 2] - p[t + 2];
-        const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (l > maxd) { const c = maxd / l; p[o] = p[t] + dx * c; p[o + 1] = p[t + 1] + dy * c; p[o + 2] = p[t + 2] + dz * c; }
-        if (caps) pushOutCapsules(p, o, caps, s.margin);
-        const fy = floorY + s.margin * 0.6;
-        if (p[o + 1] < fy) {
-          p[o + 1] = fy;
-          pp[o] += (p[o] - pp[o]) * 0.6; pp[o + 2] += (p[o + 2] - pp[o + 2]) * 0.6; // friction
-        }
-      }
+      const A0 = this.anchorPrev, A1 = this.anchorTarget;
+      for (let k = 0; k < pinN * 3; k++) p[k] = A0[k] + (A1[k] - A0[k]) * f;
+      this.r0.set(p);
+      this._step(gravity, wind, caps, floorY, time + this.lead + CLOTH_STEP);
+      this.lead += CLOTH_STEP;
+      steps++;
     }
-    this.hPrev = h;
+    if (this.lead < 0) this.lead = 0; // more than MAX_STEPS behind (a frame spike): drop the time
+    this.anchorPrev.set(this.anchorTarget);
     if (caps !== capsules) { this.capPrev.set(capsules.data); this.capReady = true; }
+    // rendered state at the frame time: between the last two steps; pins exactly on their anchors
+    const al = 1 - this.lead / CLOTH_STEP, r0 = this.r0, rp = this.rp;
+    for (let k = 0; k < pinN * 3; k++) rp[k] = this.anchorTarget[k];
+    for (let k = pinN * 3; k < this.n * 3; k++) rp[k] = r0[k] + (p[k] - r0[k]) * al;
     // failsafe
-    for (let k = 0; k < n * 3; k++) {
+    for (let k = 0; k < this.n * 3; k++) {
       if (!(Math.abs(p[k]) < 50)) { this.ready = false; break; }
     }
   }
 
-  /** Write particle positions + frames into the rig's local arrays (cloth bones are model-space roots). */
+  /** One fixed step: verlet integration, distance constraints, strain limit, tethers, capsules, floor. */
+  _step(gravity, wind, caps, floorY, tt) {
+    const s = this.spec, C = this.C, n = this.n, p = this.p, pp = this.pp, inv = this.inv, h = CLOTH_STEP, h2 = h * h;
+    const pinN = C * this.layout.pinRows, mask = this.mask, nc = caps ? caps.count : 0;
+    const damp = 1 - s.damping, vmax = s.maxSpeed * h;
+    for (let k = pinN; k < n; k++) {
+      const o = k * 3, i = k % C, j = (k / C) | 0;
+      let vx = (p[o] - pp[o]) * damp, vy = (p[o + 1] - pp[o + 1]) * damp, vz = (p[o + 2] - pp[o + 2]) * damp;
+      const vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (vl > vmax) { const c = vmax / vl; vx *= c; vy *= c; vz *= c; }
+      const gust = s.wind * (0.65 + 0.35 * Math.sin(tt * 1.7 + i * 0.45 + j * 0.3) * Math.sin(tt * 0.63 + j * 0.21));
+      pp[o] = p[o]; pp[o + 1] = p[o + 1]; pp[o + 2] = p[o + 2];
+      p[o] += vx + (gravity[0] * s.gravity + wind[0] * gust) * h2;
+      p[o + 1] += vy + (gravity[1] * s.gravity + wind[1] * gust) * h2;
+      p[o + 2] += vz + (gravity[2] * s.gravity + wind[2] * gust) * h2;
+    }
+    const cons = this.cons, nc4 = cons.length;
+    for (let it = 0; it < this.iters; it++) {
+      for (let c = 0; c < nc4; c += 4) {
+        const a = cons[c] * 3, b = cons[c + 1] * 3, wa = inv[cons[c]], wb = inv[cons[c + 1]], ws = wa + wb;
+        if (ws === 0) continue;
+        const dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
+        const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (l < 1e-7) continue;
+        const corr = ((l - cons[c + 2]) / (l * ws)) * cons[c + 3];
+        p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
+        p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
+      }
+      // collision inside the last iteration: the sheet settles around a limb instead of being torn across it
+      if (nc && it === this.iters - 1) for (let k = pinN; k < n; k++) pushOutCapsules(p, k * 3, caps, s.margin, mask, k * nc);
+    }
+    // strain limit: no structural / shear edge longer than MAX_STRAIN x rest (collision or a whipping pin can no
+    // longer tear the sheet apart; two particles pushed to opposite sides of a limb are pulled to one side)
+    const E = this.edges, emax = this.emax, ne = E.length;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let e = 0; e < ne; e += 2) {
+        const ia = E[e], ib = E[e + 1], wa = inv[ia], wb = inv[ib], ws = wa + wb;
+        if (ws === 0) continue;
+        const a = ia * 3, b = ib * 3, dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
+        const l2 = dx * dx + dy * dy + dz * dz, lm = emax[e >> 1];
+        if (l2 <= lm * lm) continue;
+        const l = Math.sqrt(l2), corr = (l - lm) / (l * ws);
+        p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
+        p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
+      }
+    }
+    // tethers + collision + floor (the floor keeps the rendered layers above y = floorY too)
+    const fy = floorY + Math.max(s.margin * 0.6, (s.thickness ?? 0.012) * 0.5 + 0.004 * this.K);
+    for (let k = pinN; k < n; k++) {
+      const o = k * 3, t = (k % C) * 3, maxd = this.tether[k] * s.tether;
+      const dx = p[o] - p[t], dy = p[o + 1] - p[t + 1], dz = p[o + 2] - p[t + 2];
+      const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (l > maxd) { const c = maxd / l; p[o] = p[t] + dx * c; p[o + 1] = p[t + 1] + dy * c; p[o + 2] = p[t + 2] + dz * c; }
+      if (nc) pushOutCapsules(p, o, caps, s.margin, mask, k * nc);
+      if (p[o + 1] < fy) {
+        p[o + 1] = fy;
+        pp[o] += (p[o] - pp[o]) * 0.6; pp[o + 2] += (p[o + 2] - pp[o + 2]) * 0.6; // friction
+      }
+    }
+  }
+
+  /** Write rendered particle positions + frames into the rig's local arrays (cloth bones are model-space roots). */
   write(lq, lp) {
-    computeFrames(this.p, this.C, this.R, this.frames);
+    computeFrames(this.rp, this.C, this.R, this.frames);
     const f = this.first;
-    lp.set(this.p, f * 3);
+    lp.set(this.rp, f * 3);
     lq.set(this.frames, f * 4);
   }
 }
-

@@ -465,7 +465,7 @@ export function spear(kit, o = {}) {
     const w = [];
     const n = 80;
     for (let i = 0; i <= n; i++) { const t = i / n, ang = t * Math.PI * 2 * 10; w.push([lerp(a, b, t), Math.cos(ang) * 0.0192, Math.sin(ang) * 0.0192]); }
-    add(sweep(w, rrect(0.0012, 0.0045, 0.0007, 1), { up: [1, 0, 0] }), L.wrap);
+    add(sweep(w, [[0.0012, -0.0045], [0.0012, 0.0026], [0, 0.0045], [-0.0012, 0.0026], [-0.0012, -0.0045]], { up: [1, 0, 0], hard: [0, 4] }), L.wrap);
   }
   // bands with arc-runes
   for (const xb of [-0.7, -0.27, 0.3, 0.62]) {
@@ -473,10 +473,20 @@ export function spear(kit, o = {}) {
     band.rotateZ(90 * DEG); band.translate(xb, 0, 0);
     add(band, L.band, { glow: () => [0, 0.8, 0] });
   }
-  // socket + langets
-  const sock = lathe([[0.019, 0], [0.023, 0.02], [0.021, 0.1], [0.016, 0.14], [0.0, 0.15]], { segs: 14 });
+  // socket: octagonal forged socket (flat facets) with a stepped collar at the mouth, a moulded ring below the head and a
+  // tapering neck that flows into the midrib; a rivet through it on both flats
+  const sock0 = lathe([[0.0188, -0.002], [0.0236, 0.004], [0.0236, 0.012], [0.0206, 0.016], [0.021, 0.06], [0.0186, 0.094], [0.0216, 0.099], [0.0216, 0.106], [0.0176, 0.111], [0.0126, 0.134], [0.006, 0.147], [0.0, 0.152]],
+    { segs: 8, hard: [1, 2, 3, 5, 6, 7, 8] });
+  sock0.rotateY(22.5 * DEG);
+  const sock = autoCav(creased(sock0, 30), 0.004);
+  sock0.dispose();
   sock.rotateZ(-90 * DEG); sock.translate(XS, 0, 0);
   add(sock, L.gold);
+  for (const s of [1, -1]) {
+    const rv = lathe([[0.0, 0.0034], [0.0032, 0.0026], [0.0046, 0.001], [0.0046, 0.0], [0.0, 0.0]], { segs: 7, hard: [3] });
+    rv.rotateX(s * 90 * DEG); rv.translate(XS + 0.045, 0, s * 0.0196);
+    add(rv, L.band);
+  }
   // wings: two lugs below the head, swept back
   for (const s of [1, -1]) {
     const wing = extrude([[0, 0], [0.03, 0.008], [0.05, 0.05], [0.032, 0.062], [0.006, 0.026]], { depth: 0.008, bevel: 0.002, bevelSegs: 2 });
@@ -485,19 +495,52 @@ export function spear(kit, o = {}) {
     wing.translate(XH - 0.06, s * 0.012, 0);
     add(wing, L.head);
   }
-  // broad leaf head with a central ridge
-  const head = bladeSweep({
-    x0: XH - 0.01, x1: XT, segs: 30,
-    w: (t) => 0.012 + 0.042 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.25 + 0.05)), 0.9) * (1 - Math.pow(t, 3)),
-    th: (t) => 0.009 * (1 - t) + 0.001,
-    bevel: () => 0.012,
+  // broad leaf head, close-up section: polished edge bevels, flats rising to a raised midrib whose crest is split by an
+  // engraved channel (dark recessed groove with hard lips) that holds the lightning rune; past the channel the midrib
+  // closes into a hard diamond ridge to the point
+  const HX0 = XH - 0.01, HS = 30;
+  const hw = (t) => 0.012 + 0.042 * Math.pow(Math.sin(Math.PI * Math.min(1, t * 1.25 + 0.05)), 0.9) * (1 - Math.pow(t, 3));
+  const hth = (t) => 0.0092 * (1 - t) + 0.001;
+  const hev = (t, w) => Math.min(0.012, w * 0.5);
+  const chan = (t) => { const k = clamp((t - 0.05) / 0.06, 0, 1) * (1 - sstep(0.44, 0.66, t)); return [0.0085 * Math.sqrt(k), Math.min(0.0032, hth(t) * 0.42) * Math.min(1, k * 1.4)]; };
+  const hsec = (t) => {
+    const w = Math.max(0.0008, hw(t)), th = hth(t), e = hev(t, w), [cw, d] = chan(t);
+    const rw = Math.min(w - e - 0.0005, Math.max(cw + 0.0045, Math.min(0.016, w * 0.45)));
+    return {
+      top: [[w, 0, 1]],
+      face: [[w - e, th * 0.36, 1], [rw, th * 0.6, 1], [cw, th, 1], [cw * 0.7, th - d, 1], [0, th - d * 1.04, 1], [-cw * 0.7, th - d, 1], [-cw, th, 1], [-rw, th * 0.6, 1], [-(w - e), th * 0.36, 1]],
+      bot: [[-w, 0, 1]],
+    };
+  };
+  const hpts = [];
+  for (let i = 0; i <= HS; i++) hpts.push([lerp(HX0, XT, i / HS), 0, 0]);
+  const head = facetBlade(hpts, hsec);
+  const htOf = (p) => clamp((p[0] - HX0) / (XT - HX0), 0, 1);
+  const hkind = (p) => {
+    const t = htOf(p), w = hw(t), [cw, d] = chan(t);
+    if (Math.abs(p[1]) > w - hev(t, w) * 0.85) return 1;
+    if (d > 0.0005 && Math.abs(p[1]) < cw * 0.92 && Math.abs(p[2]) < hth(t) - d * 0.35) return 2;
+    return 0;
+  };
+  const hc = L.head.color, hec = L.edge.color, groove = [0.012, 0.01, 0.018];
+  add(head, L.head, {
+    color: (p) => [hc, hec, groove][hkind(p)],
+    cav: (p) => (hkind(p) === 2 ? 0.45 : 1),
+    glow: (p) => (hkind(p) === 2 ? [0.06, 0, 0] : [0, 0, 0]),          // faint spill of the rune on the groove floor
   });
-  add(head, L.head);
-  // arc-rune strip along the ridge (both flats)
+  // the lightning rune: a tapered bolt glyph (long strokes, short sharp returns, a point toward the tip) inlaid on the
+  // channel floor of both flats, its top below the lips
+  const bolt = boltShape([
+    [HX0 + 0.046, 0.0016, 0.0029], [HX0 + 0.118, -0.0024, 0.0025], [HX0 + 0.125, 0.0019, 0.0023],
+    [HX0 + 0.196, -0.0019, 0.0019], [HX0 + 0.202, 0.0013, 0.0015], [HX0 + 0.262, 0.0001, 0.0004], [HX0 + 0.282, 0.0, 0.0],
+  ]);
   for (const s of [1, -1]) {
-    const pts = [];
-    for (let i = 0; i <= 20; i++) { const t = i / 20; pts.push([lerp(XH + 0.02, XT - 0.12, t), 0.003 * Math.sin(t * 40), s * (0.009 * (1 - (t * 0.8 + 0.05)) + 0.0014)]); }
-    add(sweep(pts, rrect(0.0018, 0.0005, 0.0003, 1), { up: [0, 1, 0] }), L.rune);
+    const g = extrude(bolt, { depth: 0.0008, bevel: 0 });
+    if (s < 0) { g.scale(1, 1, -1); fixWinding(g); }
+    const P = g.attributes.position.array;
+    for (let i = 0; i < P.length; i += 3) { const t = clamp((P[i] - HX0) / (XT - HX0), 0, 1), [, d] = chan(t); P[i + 2] += s * (hth(t) - d * 1.04 + 0.00045); }
+    g.attributes.position.needsUpdate = true;
+    add(g, L.rune);
   }
   // counterweight: heavy bulb + short spike
   const cw = lathe([[0.0, 0.0], [0.016, 0.0], [0.026, 0.03], [0.03, 0.06], [0.024, 0.085], [0.019, 0.1], [0.0175, 0.11]], { segs: 12, hard: [3] });

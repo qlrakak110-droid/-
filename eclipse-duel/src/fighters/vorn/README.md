@@ -1,12 +1,145 @@
 # src/fighters/vorn — VORN 볼른 · 뇌명의 창기사 · Stormcaller Lancer
 
 ```
-design.js   the character design (src/char/README.md "Design format"): vorn (default export), vornLow (light variant)
-kit.js      VORN-specific kit pieces built on the shared geometry core (src/char/kit/geo.js, armor.js hoop / se)
-moves.js    rules definition (rules team; documented in its header)
-index.js    fighter module stub (integration team)
+index.js      the fighter module: { id: 'vorn', element: 'volt', design, def, clips, present }
+design.js     the character design (src/char/README.md "Design format"): vorn (default export), vornLow (light variant)
+kit.js        VORN-specific kit pieces built on the shared geometry core (src/char/kit/geo.js, armor.js hoop / se)
+moves.js      rules definition (rules team; documented in its header)
+clips/        the vorn.* motion library (animator): index.js registers every clip; NAMES.md = one line per clip
+present.js    skill choreography (src/game/README.md "Fighter content API" §3.3-3.5), VORN's own hit feel, the ultimate
+fx.js         VORN's signature effects (vorn.*), registered in present.setup
 src/labs/art_vorn.js   look-dev lab: lighting rig / arena, lab-only spear poses, grip / foot / QA scenarios
 ```
+
+Contents: [Content (clips, choreography, ultimate)](#content) · [Review and test commands](#review-and-test-commands) ·
+[Known issues](#known-issues) · [Design (art)](#design-art)
+
+---
+
+## Content
+
+### Wiring (`index.js`)
+
+* `import './clips/index.js'` registers 41 clips + 4 poses (`defineClip` / `definePose`). `clips({ hasClip })` maps
+  every state slot to its `vorn.<slot>` clip and every move id to `vorn.<move id>`, **only when the clip is registered**
+  (anything missing falls back to the generic clips).
+* Move clips are authored 1:1 on the rules move clock; a strike clip whose `impact` event equals the move's first active
+  instant is mapped as `{ clip, hit }`, so the impact pose stays locked to the frame data if a move is retuned. Arc
+  Step's `impact` marks the blink (not a hit) and plays 1:1.
+* Registry: `__ED.game.roster()` → `{ id: 'vorn', design: 'index', def: 'index', stub: false }` (module = this folder's
+  index.js).
+
+### Clips (`clips/`, details in `clips/NAMES.md`)
+
+| group | clips |
+|---|---|
+| moves (1:1 on the move clock, `impact` / `trailOn` / `trailOff` / `step` events, root motion = rules motion) | `vorn.flash_jab` (impact 0.11) · `vorn.haft_spin` (0.12) · `vorn.thunder_pierce` (0.20, spike 0.25) · `vorn.gale_sweep` (0.28) · `vorn.lightning_charge` (0.20) · `vorn.skyward_lance` (0.18) · `vorn.thunder_javelin` (release 0.26) · `vorn.stormfall` (release 0.45) · `vorn.arc_step` (blink 0.08) · `vorn.ninefold_storm` (ult opener, 0.70) |
+| locomotion / guard | `vorn.idle` (= `recovery`, low spear guard, breathing) · `vorn.walkF` / `vorn.walkB` (root motion = walkSpeed 2.6 / backSpeed 2.0, planted feet ≤ 7 mm) · `vorn.dash` · `vorn.backstep` · `vorn.dodge` (= `roll`) · `vorn.guard` (behind the heavy left pauldron, spear wall) |
+| reactions / states | `vorn.hitLight` · `vorn.hitHeavy` · `vorn.guardBreak` · `vorn.crumple` · `vorn.launched` · `vorn.fall` · `vorn.down` · `vorn.getup` · `vorn.tech` · `vorn.ko` · `vorn.locked` (generic motion with VORN's grip, spear kept off the floor) |
+| ceremony | `vorn.intro` (spear planted upright, wrenched into the guard) · `vorn.victory` · `vorn.defeat` (one knee on the spear) |
+| ultimate lock beats | `vorn.ult.lift` · `.hurl` · `.throw` (release 0.08) · `.leap` · `.bolts` (loop) · `.catch` · `.storm` · `.slam` (`impact` 0.25 = lock 3.20) · `.land` · `.twirl` |
+| poses | `vorn.stance` (every recovery's last frame) · `vorn.guardPose` · `vorn.sentinel` · `vorn.ult.skewerPose` |
+
+Grip: right fist = the forward spear hand at the weapon origin; the left hand sits on `choke` (-0.26) in every clip
+(blends never move the grip point) and lets go on the one-handed beats (jab, javelin, sweep, charge flight, Stormfall
+point, ult air beats). Every clip keys a 42° tilt of the spear in the fist (`GRIP_TILT` in `clips/common.js`; the design
+has no `gripAngle` — set `GRIP_TILT` to 0 if one is ever added).
+
+### Choreography per move (`present.js`, beats on the moves.js markers)
+
+Shared layers: every wind-up blazes the design's arc-runes (`design.attach` glow, attached in `ambient`); thrusts send
+lightning down the spear (`vorn.spear`); impacts get a volt flower around the strike axis (`vorn.flower`: rings,
+line of light through the body, gold sparks born one frame after the hit so they burst when the hit-stop releases,
+forks, grounding bolt + scorch) on top of **VORN's own hit feel** (`on.hit` → `hitFeel`, below).
+
+| move | WIND-UP | RELEASE | IMPACT | AFTERMATH |
+|---|---|---|---|---|
+| light1 섬광 찌르기 Flash Jab | crackle on the spear head | 0.08 one-handed snap thrust, lightning flick down the shaft | 0.11 needle flower (k 0.45) | arcs on guard |
+| light2 회전 쳐올리기 Haft Spin | 0.02 arcs crawl on the butt | 0.09 rising electric crescent (spin) | 0.12 flower + gold sparks up the jaw line | — |
+| light3 천둥 꿰기 Thunder Pierce | runes + tip charge, 0.04 lunge dust | 0.17 thrust lightning | 0.20 thrust flower; 0.25 **spike**: lance of light 0.7 m past the tip, forks ahead, streak, fov kick → pierce flower + victim seizes | crackle on the tip |
+| heavy 폭풍 휩쓸기 Gale Sweep | runes, tip charge | 0.24 low floor crescent (r 2.2 m) | 0.28 sparks + scorch dragged along the floor, flower, ring under the tripped victim, static | scorch decal 3.5 s |
+| f+heavy 번개 돌격 Lightning Charge | crouch crackle, gold kick-off sparks | 0.06 lightning dash (`volt.dash`, 2 ghosts), fov punch; 0.17 couched thrust | 0.20 pierce flower, victim seizes 0.7 s | 0.38 skid dust + sparks |
+| d+heavy 하늘 꿰뚫기 Skyward Lance | rune decal under the feet, tip charge | 0.15 rising arc | 0.18 flower upward; 0.22 a bolt from just above the tip into the sky (delayed past the hit flash) | — |
+| skill1 뇌창 투척 Thunder Javelin | 0.04 lightning wraps the spear, tip charge | 0.26 launch ring + gold cone + light; `volt.javelin` 20 m/s | pierce flower, static 0.9 s, scorch under the victim | — |
+| skill2 낙뢰 Stormfall | runes; 0.04 spear to the sky, bolt from the tip to the clouds; **camera**: tilt up from behind him to the storm (0.41 s) then a cut crash-zoom onto the strike; 0.08 rune + scorch marker under the opponent, 0.10 clouds | 0.45 / 0.57 / 0.69 three sky strikes (`vorn.skystrike` + `vorn.strikeX`), the last huge (shake 0.6) | flower down the bolt axis | scorch, crackle |
+| skill3 섬전 보법 Arc Step | runes, crackle body + floor | 0.08 blink: `volt.dash` bolt, body hidden (after the generic afterimage snapshot) | — | 0.18 re-form + charged floor line; 0.43 detonation ripple along the line (`vorn.detonate`) → flower + static |
+| ult opener | 0.10 sky bolt into the spear tip, 0.20 charge (rune decal, crawling ground, motes) | 0.60 lightning dash-thrust (`volt.dash`, 1 ghost, rain) | → the lock (below); whiff / block: `volt.burst` + sky strike at the tip | — |
+
+Fighter-wide: `ambient` (crackle + motes on the spear head, arcs on the helm horns, a small arc jumping along the
+spear head every 0.7-1.8 s while idle / walking / guarding), `intro` (a bolt finds the planted spear, ring, scorch),
+`victory` (sky bolt), `ko` (a bolt onto the fallen opponent), `dodge` (crackle).
+
+**VORN's hit feel (`hitFeel`, `on.hit` returns false).** The generic `feel.hit` beats unchanged (hit-stop, flinch,
+shake, fov kick, chroma / radial, sounds, combo HUD, stats), with the light event tamed: the shared hit preset at ~60 %
+intensity / 85 % size (the volt flower carries the brightness), a violet-tinted body flash, a **monochrome
+(non-inverted)** impact frame on finishers / ult hits and a 0.07 violet flash instead of the 0.18 white one. In this
+dark arena the inverted impact frame and the stacked flashes read as white-outs (director review).
+
+### Ultimate 천벌의 뇌창 Lance of the Ninefold Storm — as implemented
+
+Super-freeze (move clock 0-0.6) then, on the opening hit (move 0.70), the 5.0 s lock. Lock clock t = 0 at the skewer;
+storyboard time (MOVES.md) = 0.90 + t (BALANCE.md § 7).
+
+| lock t (storyboard) | shot (camera) | action (clip) | VFX / post / audio |
+|---|---|---|---|
+| move 0-0.6 | low hero angle (own shot, cut in after the default freeze set-up), letterbox, then weapon-follow held on the dash | spear raised; `vorn.ninefold_storm` | frozen rain, sky bolt into the tip (0.10), tip charge + rune decal (0.20), dash 0.60 (`volt.dash`, rain), `ult_start` (default), mood darken 0.8 tint `0xa080ff` |
+| 0.00 (0.90) | impact punch-in 0.30 s | skewer (`vorn.ult.skewerPose` via the opener) | own impact (replaces the default): pierce flower, spear lightning, violet flash, chroma, radial, hit-stop 0.2, victim seizes 2.3 s |
+| 0.05 | — | `vorn.ult.lift`: victim levered up on the spear (+0.75 m) | lightning wraps the shaft |
+| 0.30 (1.20) | orbit sweep rising 0.60 s | `vorn.ult.hurl`: victim flicked up (+3.4 m) | flower, sky bolt off the tip, shake |
+| 0.45 | (orbit) | `vorn.ult.throw`: release at 0.53 → spear hidden, lightning javelin after the victim | `volt.javelin`, lodged lightning rod crackling in the victim until the catch |
+| 0.90 (1.80) | over-the-shoulder looking up 1.40 s | `vorn.ult.leap` (+2.2 m), then `vorn.ult.bolts` loop from 1.30 | nine bolts (ticks 1.00-2.01): odd = sky bolts, even = bolts from his left hand, stutter hit-stops, the ninth a white strike + thin pillar |
+| 2.30 (3.20) | wide low establishing 0.65 s, slow-mo 0.35 | `vorn.ult.catch`: a bolt tears the spear out of the victim back into his hand (+4.6 m) | arcs, gold cone, runes, blade glow |
+| 2.40 | (wide) | `vorn.ult.storm`: the storm drains into the raised spear | `vorn.storm` (clouds, rain, streaks into the spear), mood darken 0.9, tip charge |
+| 2.95 | crash zoom 0.25 s | `vorn.ult.slam` dive (offset down), victim `fall` | spear lightning, 2 ghosts, speedlines, `swing_huge` |
+| 3.20 (4.10) | top-down slam 0.90 s | slam (`impact` 0.25 of `vorn.ult.slam`), victim `down` | `vorn.pillar` (one thin column + fat bolt + 3 side bolts, crack + scorch crater, ring of rock spikes, shock across the arena, ground bolts, smoke / static), violet flash, monochrome impact frame, shake 1, `ult_impact` |
+| 3.75 / 3.95 | (top-down) | wrench free, vault back (+1.1 m) / down | re-form crackle |
+| 4.10 (5.00) | blend back 0.9 s | `vorn.ult.land`; mood restored | landing dust |
+| 4.40 | fight framing | `vorn.ult.twirl` → `vorn.stance` (settle 5.00) | arc crescent of the twirl, runes fade |
+
+Damage 90 + 9 × 22 + 230 = 518 (rules). The lock's ticks keep the default bookkeeping (stats, combo HUD, hit-stop) via
+`book()`; `end` / `whiff` restore the spear and kill the lodged rod.
+
+---
+
+## Review and test commands
+
+Always build a private copy (`--as vorn-<role>`); scratch scenarios live in the session scratchpad.
+
+```
+# every move (wind-up / first active / follow-through)
+FIGHTERS=vorn node tools/shot.mjs game --as vorn-dir --size 960x540 --scenario src/game/tests/moves.mjs --sheet --sheet-only --out shots/vorn/moves
+# the full ultimate
+SECTIONS=ult ULT=vorn node tools/shot.mjs game --as vorn-dir --size 960x540 --scenario src/game/tests/capture.mjs --sheet --sheet-only --out shots/vorn/ult
+# cost of the ultimate peak (draw calls, programs, JS groups)
+PAIR=vorn:kael node tools/shot.mjs game --as vorn-dir --size 960x540 --scenario src/game/tests/profile.mjs
+```
+
+---
+
+## Known issues
+
+See the end of this file's history in the director report; the ones that remain open:
+
+* **Rig (not ours)**: the spear spec has no forward off-hand grip point, so the brief's "right hand at the rear, left hand
+  forward" hold is impossible; VORN uses right-hand-forward + left hand on `choke`. The off-hand grip arm is solved
+  without a pole (`ik.handL.pole` ignored) and can flip its elbow in one frame; the clips work around it (left hand
+  released on the risky beats), small flips remain at grip release / re-grip (javelin 0.23-0.25, charge 0.09, dash 0.025).
+  With the right arm bent close to the shoulder the wrist clamp moves the spear 30-45° off the keyed aim (javelin draw
+  holds the spear ~45° up).
+* **Design (not ours)**: no `gripAngle` (worked around with `GRIP_TILT`); the left upper arm sits inside the torso
+  collider in the two-handed hold (QA depth 0.1-0.17, invisible from the fight camera).
+* **UI (not ours)**: the ultimate cut-in banner covers the middle third of the frame for ~1.5 s (super-freeze, dash,
+  skewer, start of the hurl) and hides the hero shot and the skewer impact.
+* **Presentation API**: no way to replace only the default super-freeze camera; `ult.freeze` schedules its own shots with
+  `h.after(0)` right after the default ones start.
+* **moves.js cam names** (`tiltUp`, `crashDown`, `lowHero`, `orbitRising`, `overShoulderUp`, `wideLow`, `blendBack`) are
+  not shot-vocabulary names; the generic layer ignores them and present.js implements every one by hand.
+* Intended: the charge / ult flight trailing leg goes past hip-extension ROM (stylised glide); `vorn.ult.slam` drives the
+  spear 0.4 m into the floor (pinning the victim).
+
+---
+
+## Design (art)
 
 The design is a tall cavalry knight: storm-blued gunmetal plate, bronze secondary plates, gold rolled rims, violet-white
 arc-runes, a horned storm helm with fanned storm-feather wings and a glowing T-visor, a heavy layered left pauldron
@@ -15,7 +148,7 @@ hauberk skirt, a storm-violet surcoat (front panel + two long back tails with li
 apart from ISKA's indigo), rowel spurs and the war spear of `src/char/weapons.js` (VORN looks: storm-blued head,
 blackened haft, violet wraps).
 
-## Usage
+### Usage
 
 ```js
 import { vorn } from './fighters/vorn/design.js';
@@ -28,7 +161,7 @@ glow.gain = 0.2;                             // KO: the storm dies down
 c.play(name, { scale: c.bodyScale });        // shared clips authored for the 1.9 m knight: retarget positions
 ```
 
-## Data
+### Data
 
 | field | value |
 |---|---|
@@ -51,9 +184,10 @@ c.play(name, { scale: c.bodyScale });        // shared clips authored for the 1.
 
 `vorn.attach(char)` = `attachGlow` + a deterministic crackle (game time; no randomness): a fast low flicker and sparse
 surges on `inlay` (full), `vein` (60 %) and `eye` (25 %). `glow.set(channel, colour, k)` keeps working: `k` is the base the
-crackle modulates. The spear has its own slot material (`char.weapon.material`, `WEAPON_MATERIALS.spear`).
+crackle modulates. The spear has its own slot material (`char.weapon.material`, `WEAPON_MATERIALS.spear`). The game does
+not attach it: `present.ambient` calls `design.attach(char)` once per character (a no-op if `char.glow` exists).
 
-## Kit pieces (`kit.js`)
+### Kit pieces (`kit.js`)
 
 Frames: a bone's zero-pose frame (+X forward, +Y up, +Z right / camera side); right-side pieces mirror with `mirror()` /
 `putPair()`.
@@ -72,7 +206,7 @@ Frames: a bone's zero-pose frame (+X forward, +Y up, +Z right / camera side); ri
 | `spur(o)` | rowel spur on the heel (foot frame) |
 | `crackle(t, seed)` | the arc flicker multiplier (0.82 .. ~2.0) |
 
-## Rig checks (VORN proportions)
+### Rig checks (VORN proportions)
 
 * `src/labs/rigqa.js`: the `vorn` body has exactly these proportions; it fails no check that the knight body passes (the
   open failures are shared runtime items the rig team is working on: twist helper steps, pelvis drop, crossfades).
@@ -83,7 +217,7 @@ Frames: a bone's zero-pose frame (+X forward, +Y up, +Z right / camera side); ri
 * Pauldron lames are rigid but shared between the deltoid helper and the upper-arm twist bone (lower lames follow the
   arm), so the overhead pose does not leave rings floating around the shoulder.
 
-## Lab
+### Lab
 
 ```
 node tools/shot.mjs art_vorn --do "__ED.lab.play('bust')" --at 0.5 --out shots/art/vorn_bust
@@ -97,11 +231,10 @@ fight, pose(name, yaw, dist, ty), clip, silhouette, lineup(sil) (KAEL - VORN - I
 feetContact, qa`. Lab-only poses (not game clips): `vornlab.rest` (spear upright, forward-right), `vornlab.portrait` (spear
 at the side, clear of the face), `vornlab.guard`, `vornlab.thrust`, `vornlab.sky` (Stormfall), `vornlab.brace` (choke grip).
 
-## Requests to other teams
+### Requests to other teams (art)
 
 * Rig: call `design.attach?.(char)` in `createCharacter`, and pass `ctx.quality` as the 4th `build` argument (VORN's
   `build(kit, S, rig, quality)` already switches to the light variant on `quality.tier === 'low'`).
 * Rig: a `customDepthMaterial` with the cut-out discard for the `cloth` slot (torn surcoat hems cast full-quad shadows).
 * Game: generic / shared clips should be played with `{ scale: char.bodyScale }` on VORN (positions authored for the
-  1.04 m pelvis); the greatsword demo clips put the off hand 0.52 m down the haft, so the off arm crosses the torso in them —
-  VORN's own clips must use the spear grips.
+  1.04 m pelvis); VORN's own clips are authored at his proportions and play at scale 1.

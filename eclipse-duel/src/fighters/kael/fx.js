@@ -305,6 +305,68 @@ export function defineKaelFx(vfx) {
     v.schedule(0.15, (w) => w.burst(ASH, { pos: at.pos, count: 12, scale: 1.2 }));
   });
 
+  /**
+   * ult firestorm (storyboard 2.80 -> 4.30): a black-sun rune burns into the floor under the airborne pair, a ring of
+   * fire races out, pillars rise BEHIND the centre one after another (never between the bodies and the lens) while a
+   * swirling storm of flame and embers climbs under a smoke ceiling. No centre detonation: the meteor crater and the
+   * shockwave own the finish, and the rise (5.20) must show Kael standing in the crater. opts: radius, duration, intensity
+   */
+  vfx.define('kael.inferno', (v, at, o) => {
+    const i = o.intensity ?? 0.5, s = at.scale, R = (o.radius ?? 1.7) * s, T = o.duration ?? 1.6, g = [at.pos.x, 0.02, at.pos.z];
+    v.decal({ kind: 'rune', pos: [g[0], 0, g[2]], radius: R * 1.1, palette: 'eclipse', life: T + 1.2, reveal: 0.4, spin: 0.9, intensity: 0.9 });
+    v.decal({ kind: 'crack', pos: g, radius: R * 1.25, magma: 1, life: T + 3, cool: T + 1, reveal: 0.3 });
+    v.ring({ look: 'fire', pos: g, radius: [0.5 * s, R * 1.7], life: 0.9, distort: 0.03, intensity: 0.6 * i + 0.2 });
+    v.light({ pos: [g[0], 1.5, g[2] + 1.2], color: E.core, intensity: 160 * i, range: 10, duration: T + 0.4, attack: 0.3, flicker: 0.4, flickerRate: 7 });
+    const P = o.pillars ?? 4;
+    for (let k = 0; k < P; k++) {
+      const a = -0.35 - (k / Math.max(1, P - 1)) * 2.45;    // a fan behind the centre (z < 0: away from every lock camera)
+      const p = [g[0] + Math.cos(a) * R * 1.25, 0.02, g[2] + Math.sin(a) * R];
+      v.schedule(0.15 + k * 0.12, (w) => {
+        w.pillar({ look: 'fire', pos: p, height: 5.0 * s, radius: 0.45 * s, life: 1.3, intensity: 0.55 * i + 0.15 });
+        w.burst(COLUMN_SPARKS, { pos: [p[0], 0.2, p[2]], dir: [0, 1, 0], count: 24, scale: s });
+        w.decal({ kind: 'scorch', pos: p, radius: 0.8 * s, life: T + 1.5, magma: 1 });
+      });
+    }
+    const storm = { pos: [g[0], 0.1, g[2]], dir: [0, 1, 0], target: g, scale: s, intensity: i, duration: T };
+    v.schedule(0.2, (w) => {
+      w.emitter(VORTEX, storm);
+      w.emitter(STORM_EMBERS, storm);
+      w.emitter(STORM_HAZE, { ...storm, duration: T - 0.3 });
+      w.emitter(CEILING, { ...storm, pos: [g[0], 3.8 * s, g[2]], duration: T - 0.4 });
+    });
+  });
+
+  /**
+   * meteor crater (the ult finish, storyboard 3.90): flash, star, a short fire splash, magma cracks + scorch, fire and
+   * dust rings racing out, radial sparks, molten + rock debris thrown wide, a smoke blast rolling out, then ash. Built
+   * from soft layers only (no lit spike meshes, which read as pale cones under the ult's orange key lights).
+   */
+  vfx.define('kael.crater', (v, at, o) => {
+    const i = o.intensity ?? 0.5, s = at.scale, g = [at.pos.x, 0.02, at.pos.z], p = [g[0], 0.6 * s, g[2]];
+    v.burst(KIT.ember.flash, { pos: p, scale: 1.2 * s, intensity: 0.6 * i });
+    v.flare({ kind: 'star', pos: p, size: 2.6 * s, life: 0.16, decay: 3, color: E.core, intensity: 0.7 * i, rotation: 0.2 });
+    v.light({ pos: [g[0], 1.6, g[2] + 2.2], color: E.core, intensity: 160 * i, range: 12, duration: 1.0, decay: 'outCubic', flicker: 0.3 });
+    v.decal({ kind: 'crack', pos: g, radius: 3.2 * s, magma: 1, life: 7, cool: 3.4, reveal: 0.1 });
+    v.decal({ kind: 'scorch', pos: g, radius: 2.4 * s, life: 7, magma: 1 });
+    v.pillar({ look: 'fire', pos: g, height: 2.6 * s, radius: 0.8 * s, life: 0.45, rise: 0.05, intensity: 0.45 * i + 0.1 });
+    v.ring({ look: 'fire', pos: g, radius: [0.5 * s, 4.6 * s], width: [0.5 * s, 1.1 * s], life: 0.7, distort: 0.04, intensity: 0.6 * i + 0.2 });
+    v.ring({ look: 'dust', pos: g, radius: [0.6 * s, 6 * s], life: 1.6 });
+    v.burst(CRATER_SPARKS, { pos: [g[0], 0.25, g[2]], dir: [0, 1, 0], scale: 1.2 * s });
+    v.burst(PETALS, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: 10, scale: 1.1 * s });
+    v.burst(EMBERS_LONG, { pos: [g[0], 0.4, g[2]], count: 40, scale: 1.3 * s });
+    v.burst(DUST, { pos: g, dir: [0, 1, 0], count: 16, scale: 1.6 * s });
+    v.burst(FLOOR_GLOW, { pos: [g[0], 0.03, g[2]], dir: [0, 1, 0], scale: 1.3 * s });
+    v.debris({ kind: 'ember', pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 14, speed: [3, 9, 1.3], spread: 60, size: [0.06, 0.22, 2], scale: s });
+    v.debris({ kind: 'rock', pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 14, speed: [2.5, 8, 1.3], spread: 65, size: [0.07, 0.26, 2], scale: s });
+    v.schedule(0.05, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.5 * s, 5 * s], life: 0.6, strength: 0.05 }));
+    v.schedule(0.12, (w) => w.burst(CRATER_SMOKE, { pos: [g[0], 0.5, g[2]], dir: [0, 1, 0], scale: 1.3 * s }));
+    v.schedule(0.3, (w) => {
+      w.burst(SMOKE_COLUMN, { pos: [g[0], 0.8, g[2]], dir: [0, 1, 0], count: 8, scale: 1.1 * s });
+      w.burst(ASH, { pos: [g[0], 2.5, g[2]], count: 20, scale: 2.2 * s });
+      w.burst(HAZE, { pos: [g[0], 0.8, g[2]], dir: [0, 1, 0], scale: 1.6 * s });
+    });
+  });
+
   /** arena shockwave: racing fire + dust rings, ground distortion, pillars of fire around the centre */
   vfx.define('kael.shockwave', (v, at, o) => {
     const g = [at.pos.x, 0.02, at.pos.z], P = o.pillars ?? 6;
@@ -318,7 +380,7 @@ export function defineKaelFx(vfx) {
       const r = 3.1 + 0.6 * (k % 2);
       const p = [g[0] + Math.cos(a) * r * at.facing, 0.02, g[2] + Math.sin(a) * r * 0.85];
       v.schedule(0.06 + k * 0.05, (w) => {
-        w.pillar({ look: 'fire', pos: p, height: 5.6 + 1.2 * (k % 2), radius: 0.48, life: 1.4, rise: 0.08, intensity: 0.62 });
+        w.pillar({ look: 'fire', pos: p, height: 5.2 + 1.0 * (k % 2), radius: 0.42, life: 1.0, rise: 0.08, intensity: 0.5 });
         w.burst(COLUMN_SPARKS, { pos: [p[0], 0.2, p[2]], dir: [0, 1, 0], count: 26 });
         w.decal({ kind: 'scorch', pos: p, radius: 0.9, life: 5, magma: 1 });
       });

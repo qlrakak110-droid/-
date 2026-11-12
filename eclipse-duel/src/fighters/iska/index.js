@@ -14,7 +14,7 @@ import { present } from './present.js';
 const STATES = {
   idle: 'iska.idle', recovery: 'iska.idle',
   walkF: 'iska.walkF', walkB: 'iska.walkB',
-  dash: 'iska.dash', backstep: 'iska.backstep', dodge: 'iska.dodge', roll: 'iska.dodge',
+  dash: 'iska.dash', backstep: 'iska.backstep', dodge: 'iska.dodge', roll: 'iska.roll',
   guard: 'iska.guard', guardBreak: 'iska.guardBreak',
   hitLight: 'iska.hitLight', hitHeavy: 'iska.hitHeavy', crumple: 'iska.crumple',
   launched: 'iska.launched', fall: 'iska.fall', down: 'iska.down', getup: 'iska.getup', tech: 'iska.getup', ko: 'iska.ko',

@@ -41,12 +41,26 @@ export function updateCapsules(caps, mq, mp) {
   }
 }
 
-/** Push point p[o..o+2] out of every capsule (radius + margin). Returns true if moved. */
-export function pushOutCapsules(p, o, caps, margin) {
+/** Distance (m) from point (x, y, z) to the axis segment of capsule i (minus nothing: compare with the radius). */
+export function capsuleAxisDist(caps, i, x, y, z) {
+  const d = caps.data, c = i * CAP_STRIDE;
+  const ax = d[c], ay = d[c + 1], az = d[c + 2], ex = d[c + 3] - ax, ey = d[c + 4] - ay, ez = d[c + 5] - az;
+  const ee = ex * ex + ey * ey + ez * ez;
+  let t = ee > 1e-12 ? ((x - ax) * ex + (y - ay) * ey + (z - az) * ez) / ee : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  return Math.hypot(x - ax - ex * t, y - ay - ey * t, z - az - ez * t);
+}
+
+/**
+ * Push point p[o..o+2] out of every capsule (radius + margin). mask (optional): mask[mo + i] = 1 skips capsule i (a
+ * cloth particle that rests inside that capsule by design). Returns true if moved.
+ */
+export function pushOutCapsules(p, o, caps, margin, mask = null, mo = 0) {
   const d = caps.data;
   let moved = false;
   const x = p[o], y = p[o + 1], z = p[o + 2];
   for (let i = 0; i < caps.count; i++) {
+    if (mask && mask[mo + i]) continue;
     const c = i * CAP_STRIDE;
     const ax = d[c], ay = d[c + 1], az = d[c + 2];
     // early out: farther than radius + margin + half the segment from the segment's midpoint

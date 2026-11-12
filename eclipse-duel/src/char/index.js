@@ -25,6 +25,7 @@ const MASKS = {
   arms: (n) => /^(shoulder|upperArm|foreArm|hand|fingers|fingerTips|thumb|weapon)/.test(n),
   head: (n) => /^(neck|head)/.test(n),
 };
+const R2D = 180 / Math.PI;
 /** Most clips blending at once; a further play() folds the two oldest into one frozen snapshot (never a pop). */
 const MAX_STATES = 4;
 /** Shortest time (s) the off hand takes to move between two grip points of one weapon during a crossfade. */
@@ -112,9 +113,8 @@ export function createCharacter(ctx, design0, opts = {}) {
   const skeleton = new THREE.Skeleton(bones, boneInverses);
   const boneMap = {};
   rig.names.forEach((n, i) => { boneMap[n] = bones[i]; });
-  // helper bones that carry a volume-preserving scale (elbow / knee fill)
-  const scaled = [];
-  for (let i = 0; i < N; i++) if (/^(elbowVol|kneeVol)[RL]$/.test(rig.names[i])) scaled.push(i);
+  // joint-crease helpers (elbow / knee): their local position follows the flexion (rig.helperOffset)
+  const crease = rig.creaseBones;
 
   // ---- geometry ---------------------------------------------------------------------------------------------------
   const materials = {};
@@ -189,6 +189,14 @@ export function createCharacter(ctx, design0, opts = {}) {
   const capsules = createCapsules(rig, design.colliders || []);
   const cloths = layouts.map((L) => new Cloth(rig, L, quality.cloth ?? 1));
   cloths.forEach((c) => c.setBind(bind.mq, bind.mp));
+  if (cloths.length && capsules.count) { // capsules the cloth rests in by design (bind pose) are masked per particle
+    const bc = createCapsules(rig, design.colliders || []);
+    updateCapsules(bc, bind.mq, bind.mp);
+    for (const c of cloths) {
+      const r = c.setColliders(bc);
+      if (r.pins || r.rest) warnOnce('cin:' + design.id + c.layout.spec.name, `char ${design.id}: cloth ${c.layout.spec.name}: ${r.pins} pinned / ${r.rest} free particle(s) rest inside ${[...r.names].join(', ')} (masked: they ignore those capsules)`);
+    }
+  }
   const final = new Pose(rig);
   const blendTmp = new Pose(rig);
   const statePool = [];
@@ -199,7 +207,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const boneSprings = new Map(), boneSpringList = [];
   const flashState = { color: new THREE.Color(), amount: 0, dur: 0.15, t: 1 };
   const flashCol = new THREE.Color();
-  const lookRT = { target: null, weight: 0, w: 0, pos: new Float32Array(3) };
+  const lookRT = { target: null, weight: 0, yaw: 0, pitch: 0, pos: new Float32Array(3), ang: new Float32Array(4) };
   const inertiaM = new Float32Array(12);
   const lastWorld = new THREE.Matrix4(), curWorld = new THREE.Matrix4(), invWorld = new THREE.Matrix4(), tmpM = new THREE.Matrix4();
   let haveLast = false;
@@ -244,7 +252,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     }
   }
   const tmpV = new THREE.Vector3();
-  let simTime = 0, facing = 1, turnLeft = 0, turnDur = 0, turnFrom = 0, breathPhase = 0, dropHold = 0, lockPending = false;
+  let simTime = 0, facing = 1, turnLeft = 0, turnDur = 0, turnFrom = 0, breathPhase = 0, dropHold = 0, dropVel = 0, lockPending = false;
   // foot locks across crossfades: { on, w (0..1), world sole point (3) } per foot; last frame's world sole points
   const footLock = [{ on: false, w: 0, p: new Float32Array(3) }, { on: false, w: 0, p: new Float32Array(3) }];
   const footWorld = new Float32Array(6), footPlanted = new Uint8Array(2), lockV = new THREE.Vector3();
@@ -254,12 +262,6 @@ export function createCharacter(ctx, design0, opts = {}) {
   const gripAxis = {};
   for (const s of ['R', 'L']) { const a = new Float32Array(3); qrot(a, 0, weaponRest[s], 0, 1, 0, 0); gripAxis[s] = a; }
   const handTarget = new Float32Array(4);
-  // arm chain bones per side (off-arm blending during grip-point changes)
-  const armBones = { R: new Uint8Array(animCount), L: new Uint8Array(animCount) };
-  for (let i = 0; i < animCount; i++) {
-    const m = /^(shoulder|upperArm|foreArm|hand|fingers|fingerTips|thumb|weapon)([RL])$/.exec(rig.names[i]);
-    if (m) armBones[m[2]][i] = 1;
-  }
 
   const char = {
     root, rig, skeleton, meshes, materials, sockets, design,
@@ -275,7 +277,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     /** Body scale of the proportions (hips pivot / 1.04 m): pass as play(name, { scale }) to retarget shared clips. */
     bodyScale: bodyScale(rig.P),
     /** Diagnostics of the last update (QA): automatic pelvis drop (m) and residual two-handed grip error (m). */
-    diag: { drop: 0, gripErr: 0, footErr: 0, reach: [0, 0, 0, 0] },
+    diag: { drop: 0, gripErr: 0, footErr: 0, reach: [0, 0, 0, 0], aimErr: [0, 0] },
     weapon: mainWeapon ? {
       bone: bones[ix['weapon' + (mainWeapon.hand || 'R')]],
       mesh: meshes[mainWeapon.slot || 'blade'] || null,
@@ -312,7 +314,8 @@ export function createCharacter(ctx, design0, opts = {}) {
     s.scale = o.scale ?? design.clipScale ?? 1;
     s.time = s.lastT = Math.max(0, o.startAt || 0); s.fresh = true; s.resolved = false;
     s.fade = Math.max(0, o.fade ?? 0.1); s.age = 0; s.w = s.gw = s.fade > 0 ? 0 : 1;
-    if (cur && s.fade > 0) s.pose.swivel.set(cur.pose.swivel); else s.pose.swivel.fill(0);
+    // the arm memories carry over (also into a cut): the elbows continue on the side they were on
+    if (cur) s.pose.swivel.set(cur.pose.swivel); else s.pose.swivel.fill(0);
     if (cur && s.fade > 0) lockPending = true;
     states.push(s);
     return char;
@@ -441,56 +444,82 @@ export function createCharacter(ctx, design0, opts = {}) {
     lp[1] += bob; pose.hips[1] += bob; // kept in the pose: the blended hips include it
   }
 
+  /** Start a new frame of a pose's arm memories (ik.js commitMem). */
+  function commitPose(p) { commitMem(p.swivel, 0); commitMem(p.swivel, MEM); commitMem(p.swivel, 2 * MEM); }
+
+  /** Model-space target of effector e of a pose (hips / chest-space targets on the current FK) -> pose.ik A slot. */
+  function effTarget(pose, o) {
+    const sp = pose.ik[o + 14], k = pose.ik[o + 15];
+    if (!(sp >= 2 && k > 0)) return;
+    const b = sp === 2 ? ix.hips : ix.chest, ik = pose.ik;
+    qrot(tv, 0, mq, b * 4, ik[o + 16], ik[o + 17], ik[o + 18]);
+    const bx = mp[b * 3] + tv[0], by = mp[b * 3 + 1] + tv[1], bz = mp[b * 3 + 2] + tv[2];
+    if (k >= 1) { ik[o + 1] = bx; ik[o + 2] = by; ik[o + 3] = bz; }
+    else { ik[o + 1] += (bx - ik[o + 1]) * k; ik[o + 2] += (by - ik[o + 2]) * k; ik[o + 3] += (bz - ik[o + 3]) * k; }
+    if (ik[o + 23]) {
+      qmul(tv, 4, mq, b * 4, ik, o + 19);
+      if (ik[o + 8] && k < 1) qslerp(ik, o + 4, ik, o + 4, tv, 4, k); else qcopy(ik, o + 4, tv, 4);
+      ik[o + 8] = 1;
+    }
+  }
+
+  /** Solve one effector of a pose on the current FK (arms: weapon frame -> hand target, continuous swivel). */
+  function solveEff(pose, e, w, side) {
+    const o = e * EFF_STRIDE, limb = limbs[EFFECTORS[e]];
+    let rotBuf = pose.ik[o + 8] ? pose.ik : null, rotOff = o + 4;
+    const arm = limb.kind === 'arm';
+    if (arm && rotBuf) { // aim / up / rot describe the weapon frame: hand = weapon * rest^-1
+      const wr = weaponRest[side];
+      tv[8] = -wr[0]; tv[9] = -wr[1]; tv[10] = -wr[2]; tv[11] = wr[3];
+      qmul(handTarget, 0, pose.ik, o + 4, tv, 8);
+      rotBuf = handTarget; rotOff = 0;
+    }
+    if (arm) {
+      ikOpt.mem = side === 'R' ? pose.swivelR : pose.swivelL;
+      ikOpt.clavBase = side === 'R' ? pose.clavBaseR : pose.clavBaseL;
+      ikOpt.err = rotBuf ? aimBuf : null; aimBuf[0] = 0;
+    }
+    const r = solveLimb(rig, limb, lq, mq, mp, pose.ik, o + 1, rotBuf, rotOff, pose.ik[o + 12] ? pose.ik : null, o + 9, w, pose.ik[o + 13], arm ? ikOpt : null);
+    if (arm) pose.aimErr[e] = rotBuf ? aimBuf[0] : 0;
+    return r;
+  }
+
   function resolve(pose, c) {
     for (let i = 0; i < animQ; i++) lq[i] = pose.lq[i];
     lp[0] = rig.offset[0] + pose.hips[0]; lp[1] = rig.offset[1] + pose.hips[1]; lp[2] = rig.offset[2] + pose.hips[2];
     applyBreath(c.breath, pose);
     applyCurl(pose.curl, pose.grip, c.gripHand);
     fk(rig, lq, lp, mq, mp, 0, animCount);
+    // the clavicles as authored (+ breathing): every arm solve of this pose computes its shoulder assist from these
+    qcopy(pose.clavBase, 0, lq, ix.shoulderR * 4); qcopy(pose.clavBase, 4, lq, ix.shoulderL * 4);
     // feet first: drop the pelvis (bounded, smooth) if a foot target is out of reach
-    const drop = pelvisDrop(pose.ik, 2 * EFF_STRIDE, 3 * EFF_STRIDE, 1, 1);
+    const drop = softLimit(pelvisNeed(pose.ik, 2 * EFF_STRIDE, 3 * EFF_STRIDE, 1), maxDrop * 0.55, maxDrop);
     pose.drop = drop;
     if (drop > 0) { lp[1] -= drop; pose.hips[1] -= drop; fk(rig, lq, lp, mq, mp, 0, animCount); }
     updateBody();
+    pose.aimErr[0] = pose.aimErr[1] = 0; pose.footSlide[0] = pose.footSlide[1] = 0;
     let any = false;
     for (let e = 0; e < EFFECTORS.length; e++) {
       const o = e * EFF_STRIDE, w = pose.ik[o];
       if (w <= 0) continue;
-      const limb = limbs[EFFECTORS[e]];
-      const sp = pose.ik[o + 14], k = pose.ik[o + 15];
-      if (sp >= 2 && k > 0) { // target authored in the hips / chest frame -> model space, blended with the A target
-        const b = sp === 2 ? ix.hips : ix.chest, ik = pose.ik;
-        qrot(tv, 0, mq, b * 4, ik[o + 16], ik[o + 17], ik[o + 18]);
-        const bx = mp[b * 3] + tv[0], by = mp[b * 3 + 1] + tv[1], bz = mp[b * 3 + 2] + tv[2];
-        if (k >= 1) { ik[o + 1] = bx; ik[o + 2] = by; ik[o + 3] = bz; }
-        else { ik[o + 1] += (bx - ik[o + 1]) * k; ik[o + 2] += (by - ik[o + 2]) * k; ik[o + 3] += (bz - ik[o + 3]) * k; }
-        if (ik[o + 23]) {
-          qmul(tv, 4, mq, b * 4, ik, o + 19);
-          if (ik[o + 8] && k < 1) qslerp(ik, o + 4, ik, o + 4, tv, 4, k); else qcopy(ik, o + 4, tv, 4);
-          ik[o + 8] = 1;
-        }
+      effTarget(pose, o);
+      if (e >= 2 && !(pose.ik[o + 14] >= 2)) { // planted foot still out of reach after the drop: it slides, never lifts
+        pose.footSlide[e - 2] = plantReach(limbs[EFFECTORS[e]], pose.ik, o + 1, pose.ik[o + 8] ? o + 4 : -1, pose.ik[o + 13], 0);
       }
-      let rotBuf = pose.ik[o + 8] ? pose.ik : null, rotOff = o + 4;
-      if (limb.kind === 'arm' && rotBuf) { // aim / up / rot describe the weapon frame: hand = weapon * rest^-1
-        const wr = weaponRest[EFFECTORS[e] === 'handR' ? 'R' : 'L'];
-        tv[8] = -wr[0]; tv[9] = -wr[1]; tv[10] = -wr[2]; tv[11] = wr[3];
-        qmul(handTarget, 0, pose.ik, o + 4, tv, 8);
-        rotBuf = handTarget; rotOff = 0;
-      }
-      if (limb.kind === 'arm') ikOpt.mem = e === 0 ? pose.swivelR : pose.swivelL;
-      char.diag.reach[e] = solveLimb(rig, limb, lq, mq, mp, pose.ik, o + 1, rotBuf, rotOff, pose.ik[o + 12] ? pose.ik : null, o + 9, w, pose.ik[o + 13], limb.kind === 'arm' ? ikOpt : null);
+      char.diag.reach[e] = solveEff(pose, e, w, e === 0 || e === 2 ? 'R' : 'L');
       any = true;
     }
     if (any) fk(rig, lq, lp, mq, mp, 0, animCount);
     // two-handed grip of this state (the blended grip target is solved again after blending)
     pose.gripW[0] = pose.gripW[1] = 0;
+    pose.gripLift = 0;
     if (pose.grip > 0) {
       const g = grips[c.gripAt] || grips.grip;
       const hi = c.gripHand === 'R' ? 0 : 1, limb = hi === 0 ? limbs.handR : limbs.handL;
       if (g && limb && rig.parent[g.bone] !== limb.end) {
         reachGrip(pose, c, g, limb);
         pose.gripT.set(g.pos, 0); pose.gripT.set(g.q, 3);
-        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG);
+        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG, hi === 0 ? pose.clavBaseR : pose.clavBaseL, 0);
         pose.gripW[hi] = pose.grip;
       }
     }
@@ -515,7 +544,7 @@ export function createCharacter(ctx, design0, opts = {}) {
    * hands stay on the weapon instead of the off hand floating off it.
    */
   function reachGrip(pose, c, g, offLimb) {
-    const main = c.mainHand === 'R' ? limbs.handR : limbs.handL, o = (c.mainHand === 'R' ? 0 : 1) * EFF_STRIDE;
+    const main = c.mainHand === 'R' ? limbs.handR : limbs.handL, e = c.mainHand === 'R' ? 0 : 1, o = e * EFF_STRIDE;
     if (!main || !(pose.ik[o] > 0)) return;
     for (let it = 0; it < 2; it++) {
       qrot(tv, 0, mq, g.bone * 4, g.pos[0], g.pos[1], g.pos[2]);
@@ -526,15 +555,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (!(ex > 1e-4 * K)) return;
       const k = ex / d;
       pose.ik[o + 1] += dx * k; pose.ik[o + 2] += dy * k; pose.ik[o + 3] += dz * k;
-      let rotBuf = pose.ik[o + 8] ? pose.ik : null, rotOff = o + 4;
-      if (rotBuf) {
-        const wr = weaponRest[c.mainHand];
-        tv[8] = -wr[0]; tv[9] = -wr[1]; tv[10] = -wr[2]; tv[11] = wr[3];
-        qmul(handTarget, 0, pose.ik, o + 4, tv, 8);
-        rotBuf = handTarget; rotOff = 0;
-      }
-      ikOpt.mem = c.mainHand === 'R' ? pose.swivelR : pose.swivelL;
-      solveLimb(rig, main, lq, mq, mp, pose.ik, o + 1, rotBuf, rotOff, pose.ik[o + 12] ? pose.ik : null, o + 9, pose.ik[o], pose.ik[o + 13], ikOpt);
+      solveEff(pose, e, pose.ik[o], c.mainHand);
       fk(rig, lq, lp, mq, mp, main.first, animCount);
     }
   }
@@ -542,11 +563,28 @@ export function createCharacter(ctx, design0, opts = {}) {
   /**
    * Off hand onto the main weapon: target = weapon frame * rel (rel = pos (3) + quat (4) in the weapon frame), the
    * hand may roll around the grip axis to keep its wrist in range. The rolled target is written back into relOut.
+   * clavBase: the off clavicle's pre-assist rotation; lift (0..1): the hand is travelling between two grip points and
+   * its target bows out of the torso (by >= 10 cm x body at lift 1).
    */
-  function solveGrip(rel, side, w, relOut, mem) {
+  function solveGrip(rel, side, w, relOut, mem, clavBase, lift) {
     const wb = grips.grip ? grips.grip.bone : Object.values(grips)[0].bone;
     qrot(gripT, 0, mq, wb * 4, rel[0], rel[1], rel[2]);
     gripT[0] += mp[wb * 3]; gripT[1] += mp[wb * 3 + 1]; gripT[2] += mp[wb * 3 + 2];
+    if (lift > 0 && body) { // away from the torso axis: the hand lets go and comes round the body, not through it
+      const B = body, sx = B[3] - B[0], sy = B[4] - B[1], sz = B[5] - B[2];
+      const qx = gripT[0] - B[0], qy = gripT[1] - B[1], qz = gripT[2] - B[2];
+      const t = Math.max(0, Math.min(1, (qx * sx + qy * sy + qz * sz) / (sx * sx + sy * sy + sz * sz || 1)));
+      let ox = qx - sx * t, oy = qy - sy * t, oz = qz - sz * t;
+      const dist = Math.hypot(ox, oy, oz) || 1e-6;
+      ox /= dist; oy /= dist; oz /= dist;
+      let push = lift * Math.max(0.1 * K, B[6] + 0.1 * K - dist);
+      // ... but never beyond the off arm's reach (from its shoulder joint)
+      const lmb = side === 'R' ? limbs.handR : limbs.handL, sh = lmb.root * 3, R = (lmb.l1 + lmb.l2) * 0.95;
+      const ax = gripT[0] - mp[sh], ay = gripT[1] - mp[sh + 1], az = gripT[2] - mp[sh + 2], ao = ax * ox + ay * oy + az * oz;
+      const disc = ao * ao - (ax * ax + ay * ay + az * az) + R * R;
+      push = disc > 0 ? Math.min(push, Math.max(0, -ao + Math.sqrt(disc))) : 0;
+      gripT[0] += ox * push; gripT[1] += oy * push; gripT[2] += oz * push;
+    }
     qmul(gripQ, 0, mq, wb * 4, rel, 3);                   // off-hand weapon-frame target (model)
     const wr = weaponRest[side];
     tv[8] = -wr[0]; tv[9] = -wr[1]; tv[10] = -wr[2]; tv[11] = wr[3];
@@ -555,6 +593,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     gripOpt.roll[0] = ga[0]; gripOpt.roll[1] = ga[1]; gripOpt.roll[2] = ga[2];
     const limb = side === 'R' ? limbs.handR : limbs.handL;
     gripOpt.mem = mem;
+    gripOpt.clavBase = clavBase;
     gripOpt.rollKeep = relOut ? 0.25 : 1;
     solveLimb(rig, limb, lq, mq, mp, gripT, 0, gripT, 4, null, 0, w, SOFT, gripOpt);
     fk(rig, lq, lp, mq, mp, limb.first, animCount);
@@ -570,14 +609,14 @@ export function createCharacter(ctx, design0, opts = {}) {
   }
 
   /**
-   * Lower the hips so foot targets stay within reach of the legs. Per foot: the drop that brings the ankle target to
-   * (1 - soft) of the leg length, eased in with a C1 ramp; feet combined with a smooth max; the total saturates at
-   * maxDrop (C1, never a jump). buf layout: Pose.ik (stride 1, effector offsets oR / oL) or Pose.feet (stride 0, with
-   * per-foot weights in wts). Returns the drop (m); does not move anything.
+   * How far the hips must come down so foot targets stay within reach of the legs (m, before the maxDrop limit). Per
+   * foot: the drop that brings the ankle target to (1 - soft) of the leg length, eased in with a C1 ramp; feet combined
+   * with a smooth max. buf layout: Pose.ik (stride 1, effector offsets oR / oL) or Pose.feet (stride 0, with per-foot
+   * weights in wts). Does not move anything; callers bound the total with softLimit(.., 0.55 maxDrop, maxDrop).
    */
   const maxDrop = (design.maxPelvisDrop ?? 0.16) * K;
   const dropW = new Float32Array(2);
-  function pelvisDrop(buf, oR, oL, stride, kind, wts = null) {
+  function pelvisNeed(buf, oR, oL, stride, wts = null) {
     let a = 0, b = 0;
     for (let f = 0; f < 2; f++) {
       const o = f === 0 ? oR : oL, limb = f === 0 ? limbs.footR : limbs.footL;
@@ -602,19 +641,35 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (f === 0) a = d; else b = d;
     }
     if (a <= 0 && b <= 0) return 0;
-    const m = Math.pow(a ** 6 + b ** 6, 1 / 6); // smooth max (exact when one foot needs nothing)
-    return softLimit(Math.max(0, m), maxDrop * 0.55, maxDrop);
+    return Math.max(0, Math.pow(a ** 6 + b ** 6, 1 / 6)); // smooth max (exact when one foot needs nothing)
+  }
+
+  /**
+   * A planted foot target (on or just above the floor) still beyond the leg's reach once the hips are down: slide it
+   * horizontally toward the hip until the leg reaches it, so the foot stays on the floor (and slides) instead of
+   * lifting off it. buf[po..]: sole point, buf[ro..]: foot rotation (ro < 0: the current one). Returns the move (m).
+   */
+  function plantReach(limb, buf, po, ro, soft, floorY) {
+    const fh = buf[po + 1] - floorY;
+    const pw = fh <= 0.015 * K ? 1 : fh >= 0.06 * K ? 0 : 1 - smooth01(fh, 0.015 * K, 0.06 * K);
+    if (!(pw > 0)) return 0;
+    qrot(tv, 0, ro >= 0 ? buf : mq, ro >= 0 ? ro : limb.end * 4, limb.endOff[0], limb.endOff[1], limb.endOff[2]);
+    const h = limb.root * 3, dx = buf[po] - tv[0] - mp[h], dz = buf[po + 2] - tv[2] - mp[h + 2], v = mp[h + 1] - (buf[po + 1] - tv[1]);
+    const hz = Math.hypot(dx, dz), lmax = limb.l1 + limb.l2, ds = lmax * (1 - (soft >= 0 ? soft : SOFT)), kn = ds - 0.006 * lmax;
+    const d = Math.hypot(hz, v);
+    if (d <= kn || hz < 1e-6) return 0;
+    const dn = softLimit(d, kn, ds * 0.9999);
+    const hn = dn > Math.abs(v) ? Math.sqrt(dn * dn - v * v) : 0;
+    const k = (hn / hz - 1) * pw;
+    buf[po] += dx * k; buf[po + 2] += dz * k;
+    return Math.abs(k) * hz;
   }
 
   function blendInto(a, b, w, gw = w) {
     if (w >= 1 && gw >= 1) { a.copy(b); return; }
     if (w <= 0 && gw <= 0) return;
-    // a grip-point change: the off arm blends at the (slower) grip weight, the rest of the body at w
-    const ga0 = a.gripW[0] + a.gripW[1], gb0 = b.gripW[0] + b.gripW[1];
-    const change = ga0 > 0 && gb0 > 0 && gw < 1 &&
-      Math.hypot(b.gripT[0] - a.gripT[0], b.gripT[1] - a.gripT[1], b.gripT[2] - a.gripT[2]) > 0.05 * K;
-    const offArm = change ? (b.gripW[0] > b.gripW[1] ? armBones.R : armBones.L) : null;
-    for (let i = 0; i < animCount; i++) qslerp(a.lq, i * 4, a.lq, i * 4, b.lq, i * 4, offArm && offArm[i] ? gw : w);
+    for (let i = 0; i < animCount; i++) qslerp(a.lq, i * 4, a.lq, i * 4, b.lq, i * 4, w);
+    qslerp(a.clavBase, 0, a.clavBase, 0, b.clavBase, 0, w); qslerp(a.clavBase, 4, a.clavBase, 4, b.clavBase, 4, w);
     for (let k = 0; k < 3; k++) a.hips[k] += (b.hips[k] - a.hips[k]) * w;
     for (let f = 0; f < 2; f++) {
       for (let k = 0; k < 3; k++) a.feet[f * 7 + k] += (b.feet[f * 7 + k] - a.feet[f * 7 + k]) * w;
@@ -625,29 +680,28 @@ export function createCharacter(ctx, design0, opts = {}) {
       else if (hb > 0) for (let k = 0; k < 3; k++) a.feetPole[f * 4 + k] += (b.feetPole[f * 4 + k] - a.feetPole[f * 4 + k]) * w;
       a.feetPole[f * 4 + 3] = ha + (hb - ha) * w;
       if (w >= 0.5) a.feetSoft[f] = b.feetSoft[f];
+      a.footSlide[f] += (b.footSlide[f] - a.footSlide[f]) * w;
     }
     if (a.lookW <= 0) a.look.set(b.look);
     else if (b.lookW > 0) for (let k = 0; k < 3; k++) a.look[k] += (b.look[k] - a.look[k]) * w;
     a.lookW += (b.lookW - a.lookW) * w;
     // grip target (weapon frame): position lerp, orientation slerp (at the grip weight gw); a state without grip
-    // contributes no target
+    // contributes no target. Changing grip point (pommel -> blade): the off hand stays IK-driven and travels between
+    // the two points over the (slower) grip fade on a path that bows out of the torso (gripLift, solveGrip)
     const ga = a.gripW[0] + a.gripW[1], gb = b.gripW[0] + b.gripW[1];
-    let let_go = 1;
+    let lift = 0;
     if (gb > 0 && ga <= 0) a.gripT.set(b.gripT);
     else if (gb > 0) {
-      // changing grip point (pommel -> blade): the hand lets go in the middle of the fade and the two solved arm
-      // poses blend (the hand travels with the arm instead of being dragged along the weapon by IK)
       const d = Math.hypot(b.gripT[0] - a.gripT[0], b.gripT[1] - a.gripT[1], b.gripT[2] - a.gripT[2]);
-      // free from the start of the grip fade (the arm blends between the two solved grips), re-grip over the last 45%
-      const free = 1 - smooth01(gw, 0.55, 1);
-      let_go = 1 - free * Math.min(1, d / (0.15 * K));
+      lift = 4 * gw * (1 - gw) * Math.min(1, d / (0.15 * K));
       for (let k = 0; k < 3; k++) a.gripT[k] += (b.gripT[k] - a.gripT[k]) * gw;
       qslerp(a.gripT, 3, a.gripT, 3, b.gripT, 3, gw);
     }
+    a.gripLift = Math.max(a.gripLift + (b.gripLift - a.gripLift) * w, lift);
     a.gripW[0] += (b.gripW[0] - a.gripW[0]) * w; a.gripW[1] += (b.gripW[1] - a.gripW[1]) * w;
-    a.gripW[0] *= let_go; a.gripW[1] *= let_go;
     a.grip += (b.grip - a.grip) * w;
     a.drop += (b.drop - a.drop) * w;
+    a.aimErr[0] += (b.aimErr[0] - a.aimErr[0]) * w; a.aimErr[1] += (b.aimErr[1] - a.aimErr[1]) * w;
     a.curl[0] += (b.curl[0] - a.curl[0]) * w; a.curl[1] += (b.curl[1] - a.curl[1]) * w;
   }
 
@@ -660,12 +714,13 @@ export function createCharacter(ctx, design0, opts = {}) {
   function layer(name, clip, o = {}) {
     const c = getClip(rig, clip);
     let L = layers.get(name);
-    if (!L) { L = { pose: new Pose(rig), ref: new Pose(rig), mask: new Uint8Array(N) }; layers.set(name, L); }
+    if (!L) { L = { pose: new Pose(rig), ref: new Pose(rig), mask: new Uint8Array(N), p: 0, w: 0 }; layers.set(name, L); }
     L.c = c; L.time = 0; L.speed = o.speed ?? 1; L.loop = o.loop ?? c.loop; L.additive = !!o.additive;
-    L.target = o.weight ?? 1; L.w = L.w || 0; L.fade = o.fade ?? 0.15; L.stopping = false;
+    L.weight = o.weight ?? 1; L.fade = o.fade ?? 0.15; L.stopping = false;
     L.scale = o.scale ?? design.clipScale ?? 1;
     const m = o.mask || 'upper';
     for (let i = 0; i < N; i++) L.mask[i] = Array.isArray(m) ? (m.includes(rig.names[i]) ? 1 : 0) : MASKS[m] ? (MASKS[m](rig.names[i]) ? 1 : 0) : 1;
+    L.hands = (L.mask[ix.handR] ? 1 : 0) | (L.mask[ix.handL] ? 2 : 0);
     if (L.additive) sampleClip(rig, c, 0, L.ref, L.scale);
     return char;
   }
@@ -673,18 +728,25 @@ export function createCharacter(ctx, design0, opts = {}) {
   /** Fade a layer out (fade seconds) and remove it. */
   function stopLayer(name, fade = 0.15) {
     const L = layers.get(name);
-    if (L) { L.stopping = true; L.fade = fade; L.target = 0; }
+    if (L) { L.stopping = true; L.fade = fade; }
     return char;
   }
 
+  /**
+   * Layers on top of the blended pose. Weight = weight x smoothstep of the fade (no velocity step at either end).
+   * Override layers: the masked local rotations of the layer's own resolved pose replace the base's, then the layer's
+   * hand targets (root / origin space: where the layer clip puts the blade) are solved again on the blended skeleton,
+   * whose pelvis and legs belong to the base clip.
+   */
   function applyLayers(dt) {
     for (const [name, L] of layers) {
       L.time += dt * L.speed;
       const d = L.c.duration;
-      if (L.loop) L.time %= d; else if (L.time >= d) { L.time = d; if (!L.additive && !L.stopping) { L.stopping = true; L.target = 0; } }
+      if (L.loop) L.time %= d; else if (L.time >= d) { L.time = d; if (!L.additive && !L.stopping) L.stopping = true; }
       const step = L.fade > 0 ? dt / L.fade : 1;
-      L.w = L.w < L.target ? Math.min(L.target, L.w + step) : Math.max(L.target, L.w - step);
-      if (L.stopping && L.w <= 0) { layers.delete(name); continue; }
+      L.p = L.stopping ? Math.max(0, L.p - step) : Math.min(1, L.p + step);
+      if (L.stopping && L.p <= 0) { layers.delete(name); continue; }
+      L.w = L.weight * L.p * L.p * (3 - 2 * L.p);
       if (L.w <= 0) continue;
       sampleClip(rig, L.c, L.time, L.pose, L.scale);
       if (L.additive) {
@@ -697,8 +759,11 @@ export function createCharacter(ctx, design0, opts = {}) {
         }
         continue;
       }
+      commitPose(L.pose);
       resolve(L.pose, L.c);
       for (let i = 0; i < animCount; i++) if (L.mask[i]) qslerp(final.lq, i * 4, final.lq, i * 4, L.pose.lq, i * 4, L.w);
+      if (L.mask[ix.shoulderR]) qslerp(final.clavBase, 0, final.clavBase, 0, L.pose.clavBase, 0, L.w);
+      if (L.mask[ix.shoulderL]) qslerp(final.clavBase, 4, final.clavBase, 4, L.pose.clavBase, 4, L.w);
       if (L.mask[0]) for (let k = 0; k < 3; k++) final.hips[k] += (L.pose.hips[k] - final.hips[k]) * L.w;
       if (L.mask[ix.weaponR] || L.mask[ix.handL]) { // the layer owns the hands: its grip target and weight
         const gl = L.pose.gripW[0] + L.pose.gripW[1];
@@ -709,7 +774,34 @@ export function createCharacter(ctx, design0, opts = {}) {
         final.gripW[0] += (L.pose.gripW[0] - final.gripW[0]) * L.w; final.gripW[1] += (L.pose.gripW[1] - final.gripW[1]) * L.w;
         final.grip += (L.pose.grip - final.grip) * L.w;
       }
+      if (L.hands) relayer(L);
     }
+  }
+
+  /** Solve the layer's IK hands again on the blended skeleton (weight L.w) and keep the result in final.lq. */
+  function relayer(L) {
+    let todo = false;
+    for (let e = 0; e < 2; e++) if (L.hands & (1 << e) && L.pose.ik[e * EFF_STRIDE] > 0) todo = true;
+    if (!todo) return;
+    for (let i = 0; i < animQ; i++) lq[i] = final.lq[i];
+    lp[0] = rig.offset[0] + final.hips[0]; lp[1] = rig.offset[1] + final.hips[1]; lp[2] = rig.offset[2] + final.hips[2];
+    fk(rig, lq, lp, mq, mp, 0, animCount);
+    updateBody();
+    if (!L.mem) { // swivel memory of the re-solve; clavicle bases = the blended ones
+      L.mem = new Pose(rig);
+      L.mem.clavBase = final.clavBase; L.mem.clavBaseR = final.clavBaseR; L.mem.clavBaseL = final.clavBaseL;
+    }
+    const P = L.mem;
+    P.ik = L.pose.ik;
+    commitPose(P);
+    for (let e = 0; e < 2; e++) {
+      const o = e * EFF_STRIDE;
+      if (!(L.hands & (1 << e)) || !(L.pose.ik[o] > 0)) continue;
+      effTarget(L.pose, o);
+      solveEff(P, e, L.pose.ik[o] * L.w, e === 0 ? 'R' : 'L');
+      fk(rig, lq, lp, mq, mp, limbs[EFFECTORS[e]].first, animCount);
+    }
+    for (let i = 0; i < animCount; i++) if (L.mask[i]) qcopy(final.lq, i * 4, lq, i * 4);
   }
 
   // ---- additive procedural motion ----------------------------------------------------------------------------------
@@ -789,7 +881,10 @@ export function createCharacter(ctx, design0, opts = {}) {
   }
 
   // ---- look / facing / misc ----------------------------------------------------------------------------------------
-  /** Head tracking: target = THREE.Vector3 | Object3D (world) | null; weight 0..1 (blended in over ~0.2 s). */
+  /**
+   * Head tracking: target = THREE.Vector3 | Object3D (world) | null; weight 0..1. The head turns by yaw / pitch from
+   * the chest (<= ~80 / 50 deg), fades out for targets 100..150 deg behind the chest, and follows at a limited speed.
+   */
   function lookAt(target, weight = 1) { lookRT.target = target; lookRT.weight = target ? weight : 0; return char; }
 
   /**
@@ -806,11 +901,16 @@ export function createCharacter(ctx, design0, opts = {}) {
     return char;
   }
 
-  /** Reset cloth, spring bones and flinch springs (after placing the character somewhere new). */
+  /**
+   * Reset cloth, spring bones, flinch springs, arm / look / pelvis memories and the breathing phase (after placing the
+   * character somewhere new; the next update is a pure function of the clips).
+   */
   function teleport() {
     haveLast = false;
     for (const s of states) s.pose.swivel.fill(0);
-    gripMem.fill(0); twistMem.fill(0); dropHold = 0;
+    for (const L of layers.values()) { L.pose.swivel.fill(0); if (L.mem) L.mem.swivel.fill(0); }
+    gripMem.fill(0); twistMem.fill(0); dropHold = dropVel = dropGoal = 0; breathPhase = 0;
+    lookRT.yaw = lookRT.pitch = 0;
     footLock[0].on = footLock[1].on = false; footLock[0].w = footLock[1].w = 0; footPlanted.fill(0);
     for (const k of ['th', 'om', 'hth', 'hom', 'x', 'v']) springsBody[k].fill(0);
     for (const b of boneSpringList) { b.th.fill(0); b.om.fill(0); }
@@ -907,6 +1007,23 @@ export function createCharacter(ctx, design0, opts = {}) {
 
   // ---- main update -------------------------------------------------------------------------------------------------
   const footEq = new Float32Array(3);
+  let dropGoal = 0;
+  /**
+   * Pelvis drop held across frames (dropHold): pinned to the goal while the goal grows (the planted feet need it at
+   * once), released toward a smaller goal by a critically damped follower that starts with the goal's velocity
+   * (sub-stepped at 1/120 s: the same at any frame rate).
+   */
+  function stepDrop(goal, dt) {
+    if (!(dt > 0)) { if (dropHold < goal) dropHold = goal; return; }
+    const n = Math.max(1, Math.ceil(dt * 120 - 1e-6)), h = dt / n, w = 28, g0 = dropGoal;
+    for (let i = 1; i <= n; i++) {
+      const g = g0 + (goal - g0) * (i / n), x0 = dropHold;
+      dropVel += (-w * w * (dropHold - g) - 2 * w * dropVel) * h;
+      dropHold += dropVel * h;
+      if (dropHold <= g) { dropHold = g; dropVel = Math.min(0, (g - x0) / h); } // pinned: carries a falling goal's speed
+    }
+    dropGoal = goal;
+  }
   /** Advance animation, IK, secondary motion and cloth. Call once per frame. */
   function update(dtGame, dtReal = dtGame) {
     const dt = Math.max(0, Number.isFinite(dtGame) ? dtGame : 0);
@@ -933,8 +1050,10 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (states[k].w >= 1 && states[k].gw >= 1) { while (k > 0) { statePool.push(states.shift()); k--; } break; }
     }
     const cur = states[states.length - 1];
-    // elbow swivel speed limit of the arm IK this update (~1500 deg/s: the same path at any frame rate)
-    ikOpt.maxStep = gripOpt.maxStep = Math.min(Math.PI, 26 * dt);
+    // arm memories: a new frame (every solve of this update continues from last frame's elbows) of dt seconds
+    ikOpt.dt = gripOpt.dt = dt;
+    for (let k = 0; k < states.length; k++) if (!states[k].frozen) commitPose(states[k].pose);
+    commitMem(gripMem, 0);
     breathPhase += dt * char.breath.rate * Math.PI * 2;
     if (breathPhase > 1e4) breathPhase %= Math.PI * 2;
     for (let k = 0; k < states.length; k++) {
@@ -944,9 +1063,9 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (k === 0) final.copy(s.pose); else blendInto(final, s.pose, s.w, s.gw);
     }
     if (layers.size) applyLayers(dt);
-    // the hips go down as fast as the planted feet need, but come back up smoothly (~80 ms) when a foot lifts
-    const release = dropHold - final.drop;
-    dropHold = release > 0 ? final.drop + release * Math.exp(-dt / 0.08) : final.drop;
+    // the hips go down as fast as the planted feet need and come back up with a critically damped follower when a foot
+    // lifts (no velocity step at the release)
+    stepDrop(final.drop, dt);
     const extraDrop = dropHold - final.drop;
     char.diag.drop = dropHold;
     // final pose -> local arrays
@@ -962,16 +1081,21 @@ export function createCharacter(ctx, design0, opts = {}) {
       const h = final.feet[f * 7 + 1] - floorY;
       dropW[f] = final.feetIK[f] * (h < 0.06 * K ? 1 : h > 0.25 * K ? 0 : 1 - (h - 0.06 * K) / (0.19 * K));
     }
-    if (moved) {
-      const d = pelvisDrop(final.feet, 0, 7, 0, 0, dropW);
-      if (d > 0) { lp[1] -= d; fk(rig, lq, lp, mq, mp, 0, animCount); char.diag.drop += d; }
+    if (moved) { // more drop for the blended feet: one bounded total with the per-clip drops (<= maxDrop)
+      const m = pelvisNeed(final.feet, 0, 7, 0, dropW);
+      if (m > 0) {
+        const knee = maxDrop * 0.55, base = Math.min(dropHold, maxDrop * 0.9999);
+        const d = softLimit(softLimitInv(base, knee, maxDrop) + m, knee, maxDrop) - base;
+        if (d > 0) { lp[1] -= d; fk(rig, lq, lp, mq, mp, 0, animCount); char.diag.drop += d; }
+      }
     }
-    char.diag.footErr = 0;
+    char.diag.footErr = Math.max(cur.pose.footSlide[0], cur.pose.footSlide[1]);
     for (let f = 0; f < 2; f++) {
       const limb = f === 0 ? limbs.footR : limbs.footL;
       const h = final.feet[f * 7 + 1] - floorY;
       const w = h < 0.06 * K ? 1 : h > 0.25 * K ? 0 : 1 - (h - 0.06 * K) / (0.19 * K);
       if (w > 0 && moved) {
+        if (final.feetIK[f] > 0.5) char.diag.footErr = Math.max(char.diag.footErr, plantReach(limb, final.feet, f * 7, f * 7 + 3, final.feetSoft[f], floorY));
         const e = limb.end;
         qrot(footEq, 0, mq, e * 4, limb.endOff[0], limb.endOff[1], limb.endOff[2]);
         const off = Math.hypot(mp[e * 3] + footEq[0] - final.feet[f * 7], mp[e * 3 + 1] + footEq[1] - final.feet[f * 7 + 1], mp[e * 3 + 2] + footEq[2] - final.feet[f * 7 + 2]);
@@ -983,7 +1107,7 @@ export function createCharacter(ctx, design0, opts = {}) {
           fk(rig, lq, lp, mq, mp, limb.first, animCount);
         }
       }
-      floorFoot(rig, limb, lq, lp, mq, mp, floorY, footBuf);
+      floorFoot(rig, limb, lq, lp, mq, mp, floorY, footBuf, final.feetSoft[f]);
       if (final.feetIK[f] > 0.5) { // diagnostics: planted IK foot vs its target
         const e = limb.end;
         qrot(footEq, 0, mq, e * 4, limb.endOff[0], limb.endOff[1], limb.endOff[2]);
@@ -1009,10 +1133,16 @@ export function createCharacter(ctx, design0, opts = {}) {
       const side = hi === 0 ? 'R' : 'L';
       const g = grips.grip || Object.values(grips)[0];
       if (!g || rig.parent[g.bone] === (hi === 0 ? limbs.handR : limbs.handL).end) continue; // never IK a hand onto the weapon it holds
-      char.diag.gripErr = Math.max(char.diag.gripErr, solveGrip(final.gripT, side, w, null, gripMem) * (w >= 1 ? 1 : w));
+      // the off clavicle's authored rotation (with what the flinch added since the blend): its assist is recomputed
+      const ci = (hi === 0 ? ix.shoulderR : ix.shoulderL) * 4;
+      qmulInv(gripBase, 0, final.lq, ci, final.clavBase, hi * 4);
+      qmul(gripBase, 0, lq, ci, gripBase, 0);
+      char.diag.gripErr = Math.max(char.diag.gripErr, solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift) * (w >= 1 ? 1 : w));
       cur.pose.swivelG.set(gripMem);
     }
-    // look-at: clip channel first, then the runtime target
+    char.diag.aimErr[0] = final.aimErr[0] * R2D; char.diag.aimErr[1] = final.aimErr[1] * R2D;
+    // look-at: clip channel first, then the runtime target; yaw / pitch offsets from the animated head follow their
+    // goal frame-rate independently (exponential, <= ~600 deg/s), and fade out for targets behind the chest
     let lw = 0;
     if (final.lookW > 0) { lookRT.pos.set(final.look); lw = final.lookW; }
     else if (lookRT.target && cur.c.lookEnabled) {
@@ -1021,9 +1151,23 @@ export function createCharacter(ctx, design0, opts = {}) {
       lookRT.pos[0] = t.x; lookRT.pos[1] = t.y; lookRT.pos[2] = t.z;
       lw = lookRT.weight;
     }
-    lookRT.w += (lw - lookRT.w) * (1 - Math.exp(-10 * dt));
-    if (lookRT.w > 1e-3) { solveLook(rig, lq, mq, mp, lookRT.pos, 0, lookRT.w); }
+    if (lw > 0 || Math.abs(lookRT.yaw) + Math.abs(lookRT.pitch) > 1e-5) {
+      const A = lookRT.ang;
+      let gy = 0, gp = 0;
+      if (lookAngles(rig, mq, mp, lookRT.pos, 0, A) && lw > 0) {
+        const w = lw * lookFade(A[0]);
+        gy = w * (lookYaw(A[0]) - A[2]); gp = w * (lookPitch(A[1]) - A[3]);
+      }
+      const k = 1 - Math.exp(-14 * dt), lim = 10.5 * dt;
+      lookRT.yaw += Math.max(-lim, Math.min(lim, (gy - lookRT.yaw) * k));
+      lookRT.pitch += Math.max(-lim, Math.min(lim, (gp - lookRT.pitch) * k));
+      applyLook(rig, lq, A[2], A[3], lookRT.yaw, lookRT.pitch);
+    }
     driveHelpers(rig, lq, twistMem);
+    for (let k = 0; k < crease.length; k++) { // crease helpers move out of the joint (skeleton.js driveHelpers)
+      const i = crease[k] * 3;
+      lp[i] = rig.offset[i] + rig.helperOffset[i]; lp[i + 1] = rig.offset[i + 1] + rig.helperOffset[i + 1]; lp[i + 2] = rig.offset[i + 2] + rig.helperOffset[i + 2];
+    }
     if (followers.length) driveFollowers();
     fk(rig, lq, lp, mq, mp, 0, animCount);
     // secondary motion
@@ -1036,10 +1180,6 @@ export function createCharacter(ctx, design0, opts = {}) {
       const b = bones[i];
       b.quaternion.set(lq[i * 4], lq[i * 4 + 1], lq[i * 4 + 2], lq[i * 4 + 3]);
       b.position.set(lp[i * 3], lp[i * 3 + 1], lp[i * 3 + 2]);
-    }
-    for (let k = 0; k < scaled.length; k++) {
-      const i = scaled[k], hs = rig.helperScale;
-      bones[i].scale.set(hs[i * 3], hs[i * 3 + 1], hs[i * 3 + 2]);
     }
     if (char.applyRootMotion) { root.position.x += char.rootDelta.f * facing; root.position.y += char.rootDelta.u; }
     root.updateMatrixWorld(true);

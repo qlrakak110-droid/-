@@ -125,9 +125,9 @@ const ULT_SHOTS = (h) => {
 function slam(h, e) {
   book(h, e);
   const g = floorAt(h, 'foe.floor');
-  h.fx('vorn.pillar', { pos: g }, { intensity: 1 });
-  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 1.0, pierce: true });
-  h.post.flash(VIOLET, 0.14, { release: 0.35 });
+  h.fx('vorn.pillar', { pos: g }, { intensity: 0.8 });
+  h.fx('vorn.flower', { pos: new THREE.Vector3(g.x, 0.55, g.z + 0.15), dir: h.dir([0.3, -1, 0.2]) }, { k: 0.75, pierce: true, intensity: 0.8 });
+  h.post.flash(VIOLET, 0.1, { release: 0.35 });
   h.post.impact({ duration: 0.05, invert: 0, mono: 1 });   // a monochrome beat, not an inverted (white) frame
   h.post.pulse('exposure', 0.05, { attack: 0.02, release: 0.5 });
   h.post.chroma(0.3, { release: 0.4 });
@@ -163,10 +163,10 @@ const ult = {
   /** Lock start (the skewer): replaces the default impact (its crit + white flash double the trigger's own hit). */
   start(h) {
     st(h).tick = 0;
-    flower(h, 1.25, { pos: 'foe.chest', dir: [1, 0.05, 0.25], pierce: true });
-    thrust(h, 1.3, { width: 0.12, reach: 0.6, ring: 2, life: 0.2 });
-    h.post.flash(VIOLET, 0.14, { release: 0.2 });
-    h.post.chroma(1.0, { release: 0.45 });
+    flower(h, 0.95, { pos: 'foe.chest', dir: [1, 0.05, 0.25], pierce: true, intensity: 0.85 });
+    thrust(h, 1.0, { width: 0.12, reach: 0.6, ring: 2, life: 0.2 });
+    h.post.flash(VIOLET, 0.07, { release: 0.2 });
+    h.post.chroma(0.7, { release: 0.45 });
     h.post.radial('foe.chest', 0.8, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
     h.audio('hit_crit');
@@ -252,7 +252,7 @@ const ult = {
       h.fx('vorn.storm', { pos: floorAt(h, 'foe.floor') }, { tip: h.at(1.0, 6.9, 0), duration: 0.65 });
       h.mood({ darken: 0.9, tint: 0x7050ff, duration: 0.4 });
       const t = sock(h, 'weaponTip');
-      if (t) h.fx('vorn.tipCharge', 'weaponTip', { follow: t, duration: 0.55, intensity: 1.1 });
+      if (t) h.fx('vorn.tipCharge', 'weaponTip', { follow: t, duration: 0.55, intensity: 0.7 });
       h.audio('charge_up', { volume: 0.8 });
       h.audio('volt_strike', { volume: 0.5, delay: 0.2 });
     } },
@@ -395,7 +395,7 @@ const moves = {
       tipCharge(h, 0.06, 0.6);
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 2, intensity: 0.6 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 3.9, ghosts: 2, intensity: 0.42 });
       h.cam.kick({ fov: -2.5, push: 0.4, duration: 0.3 });
       h.audio('volt_zap');
       h.audio('dodge', { volume: 0.7 });
@@ -516,7 +516,7 @@ const moves = {
       h.emitter('vorn.motesUp', h.at(0, 0.05, 0), { dir: [0, 1, 0], scale: 1.1, duration: 0.4 });
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 2, speedlines: true, intensity: 0.75 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 1, speedlines: true, intensity: 0.5 });
       h.fx('vorn.rain', { pos: h.at(3, 0, 0) }, { duration: 1.4 });
       h.fx('combat.dust.dash', 'floor', { k: 1 });
       h.audio('volt_zap');
@@ -551,7 +551,7 @@ const projectiles = {
       if (idx === 1) h.fx('vorn.mark', { pos: g }, { warn: delay });
       h.after(delay, (h2) => {
         const huge = !!d.huge;
-        h2.fx('vorn.skystrike', { pos: g }, { k: huge ? 1.5 : 1 });
+        h2.fx('vorn.skystrike', { pos: g }, { k: huge ? 1.5 : 1, intensity: huge ? 0.8 : 0.75 });
         h2.fx('vorn.strikeX', { pos: g }, { k: huge ? 1.4 : 0.9 });
         h2.cam.shake(huge ? 0.6 : 0.35, { freq: 13, dir: [0, 1, 0] });
         h2.pulse(g, V.core, huge ? 1.6 : 0.8);
@@ -566,7 +566,7 @@ const projectiles = {
   'volt.chain': {
     spawn(h, e) {
       const f = e.facing || h.facing, len = (e.data && e.data.length) || 4;
-      h.fx('vorn.detonate', { pos: new THREE.Vector3(e.x - f * len * 0.5, 0, 0.05), target: new THREE.Vector3(e.x + f * len * 0.5, 0, 0.05) });
+      h.fx('vorn.detonate', { pos: new THREE.Vector3(e.x - f * len * 0.5, 0, 0.05), target: new THREE.Vector3(e.x + f * len * 0.5, 0, 0.05) }, { intensity: 0.72 });
       h.audio('volt_strike', { volume: 0.6, pitch: 1.2 });
       return false;
     },
@@ -574,9 +574,64 @@ const projectiles = {
   },
 };
 
+// ---- VORN's hit feel -------------------------------------------------------------------------------------------------
+// The generic hit feel (src/game/feel.js) with the light event tamed. VORN's own impact flower (vorn.flower) already
+// carries the brightness of every hit; stacked on the shared hit preset at full strength, the generic white finisher
+// flash and the inverted impact frame, the victim disappeared in a white blob for ~3 frames at the two-shot framing and
+// skill finishers flashed an almost white frame in the dark arena (director review). Everything else is the generic
+// layer's beats, unchanged: hit-stop, flinch, shake, fov kick, chroma / radial, sounds, combo HUD, stats.
+
+const LEVEL_K = { light: 0.55, heavy: 0.9, launch: 1.0, crumple: 1.0, knockdown: 1.1 };
+const FLINCH = { light: 0.55, heavy: 1.0, launch: 1.6, crumple: 1.25, knockdown: 1.8 };
+const HIT_AT = { pos: 'contact', dir: [1, 0.18, 0.32], scale: 1 };
+
+function hitFeel(h, e) {
+  const s = h.ctx.game && h.ctx.game.session;
+  if (!s || !s.match || e.blocked) return undefined;            // generic feel
+  const post = h.ctx.post;
+  const lvl = e.level || 'light';
+  const mv = e.move && s.match.defs[e.attacker] && s.match.defs[e.attacker].moves[e.move];
+  const group = mv ? mv.group : 'normal';
+  let k = LEVEL_K[lvl] ?? 0.7;
+  if (group === 'skill') k += 0.25;
+  if (group === 'ult') k += 0.35;
+  if (e.counter) k += 0.25;
+  if (e.armoured) k = 0.5;
+  if (e.ko) k = Math.max(k, 1.5);
+  const finisher = group !== 'normal' && (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple');
+  // the shared hit at ~60 % light and 85 % size: sparks / cut / shock read, the flash core no longer swallows the victim
+  const names = e.counter || group === 'ult' ? ['combat.hit.crit', `combat.hit.${lvl}`] : group === 'skill' ? ['volt.hit', `combat.hit.${lvl}`] : [`combat.hit.${lvl}`];
+  HIT_AT.scale = lvl === 'light' ? 0.9 : 0.82;
+  const inten = e.armoured ? 0.45 : (0.5 + 0.12 * Math.min(1, k)) * (lvl === 'light' ? 1.1 : 1);
+  h.fx(names, HIT_AT, { k: Math.min(k, 1.25), level: lvl, intensity: inten, fallback: 'game.hit' });
+  if (!e.armoured) {
+    h.foe.impulse([e.front === false ? 1 : -1, lvl === 'launch' ? 0.5 : 0.1, 0.12], FLINCH[lvl] ?? 1);
+    h.foe.flash([0.62, 0.5, 0.9], Math.min(0.45, 0.18 + 0.18 * k), 0.1);   // violet-tinted, never a white body
+  } else h.foe.flash([1.4, 1.0, 2.2], 0.45, 0.12);
+  h.cam.shake(lvl === 'light' ? 0.15 + (e.counter ? 0.12 : 0) : finisher ? 0.5 : 0.35 + (e.counter ? 0.15 : 0), { freq: lvl === 'light' ? 20 : 15 });
+  if (k >= 0.9) h.cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
+  post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
+  if (k >= 0.9) { h.post.radial('contact', 0.22 + 0.35 * Math.min(1, k - 0.9), { release: 0.22 }); }
+  // impact frame: monochrome (no invert: the inverted frame of this dark arena is a white-out), violet flash not white
+  if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 1 });
+  if (finisher) post.flash(VIOLET, 0.07, { release: 0.15 });
+  const at = h.pos('contact');
+  s.sound(lvl === 'light' ? 'hit_slash_light' : 'hit_slash_heavy', { pos: at });
+  if (finisher) s.sound('hit_blunt', { pos: at, volume: 0.65 });
+  if (e.counter) s.sound('hit_crit', { pos: at, volume: 0.8 });
+  if (group === 'skill' && finisher) s.sound('volt_strike', { pos: at, volume: 0.5 });
+  if (e.kind === 'strike') h.hitstop(e.hitstop);
+  if (k >= 1.1) h.pulse(at, V.core, Math.min(1.5, 0.45 * k));
+  const hud = h.ctx.ui && h.ctx.ui.hud;
+  if (e.combo >= 2 && hud) hud.combo(e.attacker, e.combo, e.comboDamage);
+  if (s.stats && s.stats.hit) s.stats.hit(e);
+  return false;
+}
+
 // ---- fighter-wide hooks ----------------------------------------------------------------------------------------------
 
 const on = {
+  hit(h, e) { return hitFeel(h, e); },
   intro(h) {
     // a bolt finds the planted spear; the runes wake
     h.after(0.35, (h2) => {

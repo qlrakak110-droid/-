@@ -17,11 +17,14 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  * SWITCH_HOLD s, at SWITCH rad/s (a visible roll of the elbow instead of a one-frame flip). Rates are per second of
  * game time, so the path is the same at 30 / 60 / 120 Hz.
  */
-export const SWIVEL = { TRACK: (1100 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_HOLD: 0.06 };
-/** Floats per arm memory: previous frame [dir (3, chest frame), valid, timer] + this frame [dir, valid, timer]. */
-export const MEM = 10;
+export const SWIVEL = { TRACK: (2500 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_HOLD: 0.06 };
+/**
+ * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll] + this frame
+ * (the same 6).
+ */
+export const MEM = 12;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
-export function commitMem(m, o = 0) { for (let k = 0; k < 5; k++) m[o + k] = m[o + 5 + k]; }
+export function commitMem(m, o = 0) { for (let k = 0; k < 6; k++) m[o + k] = m[o + 6 + k]; }
 
 /**
  * Limb descriptors for a rig: handR, handL, footR, footL.
@@ -122,11 +125,11 @@ function armCost(q, uo, eo, pq, po) {
 }
 
 /**
- * Off-hand roll about the weapon grip axis that brings the hand's long axis closest to the forearm: rotates the target
- * end rotation endQ (model) about its own grip axis (gx, gy, gz in the end frame) by the best angle, blended toward
- * the authored roll by `keep` (0 = free). Writes the rolled end rotation into rollQ[0..3].
+ * Off-hand roll about the weapon grip axis that brings the hand's long axis closest to the forearm (fq: forearm model
+ * rotation), for the target end rotation endQ (model) and grip axis (gx, gy, gz) in the end frame. Returns the roll
+ * (rad), continued from `ref` (NaN: none) so a roll near 180 deg keeps its side.
  */
-function bestRoll(endQ, eo, fq, fo, gx, gy, gz, keep) {
+function bestRoll(endQ, eo, fq, fo, gx, gy, gz, ref) {
   // forearm long axis (model) -> end frame
   qrot(tv, 0, fq, fo, 0, -1, 0);
   rollQ[4] = -endQ[eo]; rollQ[5] = -endQ[eo + 1]; rollQ[6] = -endQ[eo + 2]; rollQ[7] = endQ[eo + 3];
@@ -137,8 +140,11 @@ function bestRoll(endQ, eo, fq, fo, gx, gy, gz, keep) {
   const a1x = ax - gx * ad, a1y = ay - gy * ad, a1z = az - gz * ad;      // a perpendicular to g
   const a2x = gy * a1z - gz * a1y, a2y = gz * a1x - gx * a1z, a2z = gx * a1y - gy * a1x; // g x a1
   const f1 = a1x * tv[3] + a1y * tv[4] + a1z * tv[5], f2 = a2x * tv[3] + a2y * tv[4] + a2z * tv[5];
-  let psi = Math.atan2(f2, f1);
-  psi *= 1 - keep;
+  const psi = Math.atan2(f2, f1);
+  return Number.isFinite(ref) ? psi + 2 * Math.PI * Math.round((ref - psi) / (2 * Math.PI)) : psi;
+}
+/** rollQ[0..3] = endQ rotated about its own axis (gx, gy, gz) by psi. */
+function rollBy(endQ, eo, gx, gy, gz, psi) {
   qaxis(rollQ, 4, gx, gy, gz, psi);
   qmul(rollQ, 0, endQ, eo, rollQ, 4);
 }
@@ -235,12 +241,17 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     return true;
   };
   hasMem = memDir();
-  // a two-handed grip lets the hand roll around the grip axis: pick the roll that suits the forearm (at last frame's
-  // swivel, so roll and swivel move together). Rolling moves the wrist (the axis runs through the fist), so the limb
+  // a two-handed grip lets the hand roll around the grip axis: the roll that suits the forearm, scaled toward the
+  // authored one by `keep`. Roll and swivel depend on each other: with memory the swivel is searched at last frame's
+  // roll, and the roll then relaxes toward the best one for the new swivel (time constant 30 ms: a damped fixed point,
+  // never a frame-to-frame alternation). Rolling moves the wrist (the axis runs through the fist), so the limb
   // geometry is set up again for the rolled hand.
+  const psiRef = hasMem ? mem[5] : NaN;
+  let psi = 0;
   if (roll) {
-    limbAt(hasMem ? phiP : phi, sign, bend, er, eo, tq, 0);
-    bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], keep);
+    limbAt(phi, sign, bend, er, eo, tq, 0);
+    psi = hasMem ? psiRef : bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN);
+    rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
     qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
     bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
     if (hasMem) hasMem = memDir();
@@ -276,7 +287,9 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     phi = wrapA(phi);
     if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);
-      bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], keep);
+      const b = bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], hasMem ? psiRef : psi);
+      psi = hasMem ? psiRef + (b - psiRef) * (1 - Math.exp(-Math.max(0, opt.dt || 0) / 0.03)) : b;
+      rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
       bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
     }
@@ -312,8 +325,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
-    qrot(mem, 5, tv, 8, px, py, pz);
-    mem[8] = 1; mem[9] = timer;
+    qrot(mem, 6, tv, 8, px, py, pz);
+    mem[9] = 1; mem[10] = timer; mem[11] = psi;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
