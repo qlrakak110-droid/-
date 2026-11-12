@@ -555,14 +555,23 @@ function mpt(rec, f, name, x = 0, y = 0, z = 0, out = [0, 0, 0]) {
 const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const vlen = (a) => Math.hypot(a[0], a[1], a[2]);
-/** Elbow offset from the shoulder-wrist line of side S at frame f (and the unit line). */
+/** Point of bone `name` at frame f in the chest bone's frame (the elbow measured against the torso, not the world). */
+function cpt(rec, f, name) {
+  const p = qa.pointAt(rec, f, name, 0, 0, 0), o = (f * rec.B + rec.idx.chest) * 12, M = rec.M;
+  const d = [p[0] - M[o + 9], p[1] - M[o + 10], p[2] - M[o + 11]];
+  return [d[0] * M[o] + d[1] * M[o + 1] + d[2] * M[o + 2], d[0] * M[o + 3] + d[1] * M[o + 4] + d[2] * M[o + 5], d[0] * M[o + 6] + d[1] * M[o + 7] + d[2] * M[o + 8]];
+}
+/** Elbow offset from the shoulder-wrist line of side S at frame f (and the unit line), in the chest frame. */
 function elbowPerp(rec, f, S) {
-  const s = mpt(rec, f, 'upperArm' + S), w = mpt(rec, f, 'hand' + S), e = mpt(rec, f, 'foreArm' + S);
+  const s = cpt(rec, f, 'upperArm' + S), w = cpt(rec, f, 'hand' + S), e = cpt(rec, f, 'foreArm' + S);
   const a = vsub(w, s), la = vlen(a) || 1; a[0] /= la; a[1] /= la; a[2] /= la;
   const v = vsub(e, s), k = vdot(v, a);
   return { p: [v[0] - a[0] * k, v[1] - a[1] * k, v[2] - a[2] * k], a };
 }
-/** Elbow swivel change (deg) between frames f-1 and f (the auditors' measure: elbows less than 2 cm off the line excluded). */
+/**
+ * Elbow swivel change (deg) between frames f-1 and f (the auditors' measure, taken in the chest frame so a spinning body
+ * is not counted as swivel; elbows less than 2 cm off the line excluded).
+ */
 function swivelStep(rec, f, S) {
   const A = elbowPerp(rec, f - 1, S), B = elbowPerp(rec, f, S);
   const k = vdot(A.p, B.a), pa = [A.p[0] - B.a[0] * k, A.p[1] - B.a[1] * k, A.p[2] - B.a[2] * k];
@@ -594,8 +603,8 @@ function armMetrics(c, name, { hz = 60, look = null } = {}) {
         const sw = swivelStep(rec, f, S);
         upd('swivel', sw, f);
         if (sw > 30) m.flips++;
-        const es = vlen(vsub(mpt(rec, f, 'foreArm' + S, 0, 0, 0, _a), mpt(rec, f - 1, 'foreArm' + S, 0, 0, 0, _b)));
-        const fs = vlen(vsub(mpt(rec, f, 'weapon' + S, 0, 0, 0, _a), mpt(rec, f - 1, 'weapon' + S, 0, 0, 0, _c)));
+        const es = vlen(vsub(cpt(rec, f, 'foreArm' + S), cpt(rec, f - 1, 'foreArm' + S)));
+        const fs = vlen(vsub(cpt(rec, f, 'weapon' + S), cpt(rec, f - 1, 'weapon' + S)));
         upd('elbowPop', es - 1.5 * fs - 0.02 * s, f);
         const st = (h, src) => qd(Q, ((f - 1) * B + rec.idx[h]) * 4, (f * B + rec.idx[h]) * 4) - qd(Q, ((f - 1) * B + rec.idx[src]) * 4, (f * B + rec.idx[src]) * 4);
         upd('helper', Math.max(st('deltoid' + S, 'upperArm' + S), st('upperArmTwist' + S, 'upperArm' + S), st('foreArmTwist' + S, 'hand' + S)), f);

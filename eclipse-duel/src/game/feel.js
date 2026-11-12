@@ -83,7 +83,7 @@ export function createFeel(ctx, session) {
     if (k >= 0.9) cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
     post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
     if (k >= 0.9) { post.radialAt(pos); post.pulse('radial', 0.22 + 0.35 * Math.min(1, k - 0.9), { attack: 0.01, release: 0.22 }); }
-    if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05 });
+    if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 0.7 });
     if (finisher) post.flash(0xffffff, 0.18, { release: 0.15 });
     session.sound(lvl === 'light' ? 'hit_slash_light' : 'hit_slash_heavy', { pos });
     if (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple') session.sound('hit_blunt', { pos, volume: 0.65 });
@@ -114,7 +114,7 @@ export function createFeel(ctx, session) {
     const pos = A.socket('chest', new THREE.Vector3());
     fx.play([`${A.element}.explosion`, 'combat.charge.release'], { pos, dir: [A.facing, 0.2, 0.3], facing: A.facing }, { element: A.element }, 'game.finisher');
     A.char.flash(A.palette.mid, 0.2, 0.35);
-    post.impactFrame({ duration: 0.05 });
+    post.impactFrame({ duration: 0.05, invert: 0, mono: 0.7 });
     post.pulse('chroma', 0.6, { release: 0.3 });
     cam.shake(0.5, { freq: 14 });
     cam.zoom(0.82, 0.45, { focus: e.fighter });
@@ -153,7 +153,7 @@ export function createFeel(ctx, session) {
     if (typeof d.shake === 'number') cam.shake(d.shake, { freq: 15 });
     if (typeof d.kickFov === 'number') cam.kick({ fov: d.kickFov, duration: 0.3 });
     if (d.afterimage) ghost(A, 0.35);
-    if (d.impactFrame === true) post.impactFrame({ duration: 0.05 });
+    if (d.impactFrame === true) post.impactFrame({ duration: 0.05, invert: 0, mono: 0.7 });
     const snd = typeof d.audio === 'string' ? d.audio : typeof d.sound === 'string' ? d.sound : null;
     // a marker sound the generic layer played within the last second (ult_start of the super-freeze, ult_impact of the
     // lock finish) is not doubled
@@ -182,7 +182,7 @@ export function createFeel(ctx, session) {
     const V = session.actors[e.defender], A = session.actors[e.attacker];
     const pos = V.socket('chest', new THREE.Vector3());
     fx.play('combat.hit.crit', { pos, dir: [A.facing, 0.1, 0.3], facing: A.facing }, { element: A.element }, 'game.finisher');
-    post.impactFrame({ duration: 0.06 });
+    post.impactFrame({ duration: 0.06, invert: 0, mono: 0.7 });
     post.flash(0xffffff, 0.3, { release: 0.2 });
     post.pulse('chroma', 0.7, { release: 0.45 });
     cam.shake(0.6, { freq: 13 });
@@ -421,7 +421,7 @@ export function createFeel(ctx, session) {
       // the impact reads first (flash, impact frame), then time sinks into slow motion
       if (ctx.vfx) ctx.vfx.schedule(0.09, () => ctx.time.slowmo(0.22, 1.7, { easeIn: 0.06, easeOut: 0.7 }), { realtime: true });
       fx.play('combat.ko.burst', { pos, dir: [A.facing, 0.2, 0.3], facing: A.facing, scale: 0.7 }, { element: A.element, intensity: 0.5, realtime: true, k: 0.5 }, 'game.finisher');
-      post.impactFrame({ duration: 0.06 });
+      post.impactFrame({ duration: 0.06, invert: 0, mono: 0.7 });
       if (cam.mode !== 'cine') {
         cam.play([
           // framed wide enough that the falling victim reads (2.4 m filled the frame with its own weapon and the burst)

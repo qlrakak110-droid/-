@@ -21,12 +21,14 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  */
 export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
- * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction]
- * + this frame (the same 7).
+ * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction,
+ * hand twist] + this frame (the same 8).
  */
-export const MEM = 14;
+export const MEM = 16;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
-export function commitMem(m, o = 0) { for (let k = 0; k < 7; k++) m[o + k] = m[o + 7 + k]; }
+export function commitMem(m, o = 0) { for (let k = 0; k < 8; k++) m[o + k] = m[o + 8 + k]; }
+/** Fastest the wrist clamp turns the hand about the forearm (rad/s): a request sweeping through an impossible pronation. */
+const WRIST_RATE = (1500 * Math.PI) / 180;
 
 /**
  * Limb descriptors for a rig: handR, handL, footR, footL.
@@ -334,12 +336,14 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       psi = hasMem ? psiRef + (b - psiRef) * (1 - Math.exp(-Math.max(0, opt.dt || 0) / 0.03)) : b;
       rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
-      bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      bend = sBend;
     }
     limbAt(phi, sign, bend, er, eo, tq, 0);
   }
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
-  if (wrist && clampWrist(newL, 8)) {
+  const wmem = mem && mem[3] > 0 ? mem : null;
+  if (wrist && clampWrist(newL, 8, wmem, wmem ? Math.max(0, opt.dt || 0) : 0)) {
     // the wrist could not take the requested orientation: keep the clamped wrist pose (relative to the forearm) and
     // solve the reach again for it, so the fist (not the wrist) stays on the target. The hand keeps exactly the clamped
     // pose (a hand never leaves the wrist's range, and never snaps back to the impossible request): where the iteration
@@ -350,7 +354,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
       qmul(sv, 16, tq, 0, sv, 12);                // forearm (model)
       qmul(tq, 8, sv, 16, rollQ, 4);              // end model rotation for that wrist pose
       er = tq; eo = 8;
-      bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      bend = sBend;
       limbAt(phi, sign, bend, er, eo, tq, 0);
     }
     qcopy(newL, 8, rollQ, 4);
@@ -360,8 +365,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
-    qrot(mem, 7, tv, 8, px, py, pz);
-    mem[10] = 1; mem[11] = timer; mem[12] = psi; mem[13] = tdir;
+    qrot(mem, 8, tv, 8, px, py, pz);
+    mem[11] = 1; mem[12] = timer; mem[13] = psi; mem[14] = tdir; mem[15] = wristOut;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
@@ -381,6 +386,20 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   }
   if (opt && opt.out) qcopy(opt.out, 0, er, eo);
   return sv[11];
+}
+
+const edir = new Float32Array(3);
+let sBend = 0;
+/**
+ * limbSetup again for a changed end rotation (the wrist point moves, so does the pole frame), keeping the elbow's
+ * direction: returns swivel phi of the old frame re-expressed in the new one (the bend in sBend).
+ */
+function resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
+  const c = Math.cos(phi), s = Math.sin(phi);
+  edir[0] = sv[3] * c + sv[6] * s; edir[1] = sv[4] * c + sv[7] * s; edir[2] = sv[5] * c + sv[8] * s;
+  sBend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+  const a = edir[0] * sv[3] + edir[1] * sv[4] + edir[2] * sv[5], b = edir[0] * sv[6] + edir[1] * sv[7] + edir[2] * sv[8];
+  return a * a + b * b > 1e-6 ? Math.atan2(b, a) : phi;
 }
 
 /**
@@ -421,18 +440,23 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   return Math.PI - Math.acos(cb);
 }
 
+let wristOut = 0;
 /**
  * Soft-limit a hand local rotation to the wrist range (swing off the forearm axis, pronation / supination). True if
  * changed. Pronation: up to the knee as asked, then saturating at the limit, then (past ~140 deg asked, an impossible
- * demand) easing back so that +180 and -180 meet at neutral - never a jump between the two limits.
+ * demand) easing back so that +180 and -180 meet at neutral - never a jump between the two limits. With an arm memory
+ * (mem[7]: last frame's twist) the twist turns at most WRIST_RATE x dt per frame, so a request sweeping through an
+ * impossible pronation turns the hand over smoothly. The twist used is left in wristOut.
  */
-export function clampWrist(q, o) {
+export function clampWrist(q, o, mem = null, dt = 0) {
   let x = q[o], y = q[o + 1], z = q[o + 2], w = q[o + 3];
   if (w < 0) { x = -x; y = -y; z = -z; w = -w; }
   const tw = 2 * Math.atan2(y, w);
   const sw0 = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (x * x + z * z))));
   const at = Math.abs(tw), back = 1 - smooth01(at, 2.44, Math.PI);
-  const tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
+  let tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
+  if (mem) tw2 = mem[7] + Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7]));
+  wristOut = tw2;
   const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing);
   if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw0) < 1e-6) return false;
   setSwingTwist(q, o, x, y, z, w, tw, tw2, sw2);

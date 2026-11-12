@@ -444,8 +444,8 @@ export class Pose {
     this.aimErr = new Float32Array(2);      // weapon frame vs the keyed one after the wrist clamp (rad, R / L hand)
     this.footSlide = new Float32Array(2);   // horizontal move of an out-of-reach planted foot target (m, R / L)
     // arm IK memory (handR, handL, off-hand grip): MEM floats each (ik.js: last / this frame's elbow direction)
-    this.swivel = new Float32Array(42);
-    this.swivelR = this.swivel.subarray(0, 14); this.swivelL = this.swivel.subarray(14, 28); this.swivelG = this.swivel.subarray(28, 42);
+    this.swivel = new Float32Array(48);
+    this.swivelR = this.swivel.subarray(0, 16); this.swivelL = this.swivel.subarray(16, 32); this.swivelG = this.swivel.subarray(32, 48);
   }
   copy(p) {
     this.lq.set(p.lq); this.hips.set(p.hips); this.ik.set(p.ik); this.grip = p.grip;
