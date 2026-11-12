@@ -360,7 +360,7 @@ function buildScenarios() {
     overview(ctx, lab, mirror = false) {
       playUlt(ctx, lab, mirror);
       ctx.cam.setMode('free');
-      lab.view({ target: [0, 0, 2], dist: 26, yaw: 0, pitch: 80, fov: 40 });
+      lab.view({ target: [1, 0, 3], dist: 140, yaw: 0, pitch: 89.9, fov: 6 }); // near-orthographic plan view
       lab.debugView(true);
     },
   };

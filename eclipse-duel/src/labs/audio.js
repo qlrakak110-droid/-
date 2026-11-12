@@ -3,7 +3,8 @@
 //   node tools/build.mjs audio                     -> build/audio.html (open it, click anything: audio unlocks)
 //   node tools/shot.mjs audio --eval "__ED.lab.play('report')"      measured table of every sound + music
 //   node tools/shot.mjs audio --eval "__ED.lab.play('selftest')"    API safety checks
-//   node tools/shot.mjs audio --do "__ED.lab.play('sheet')" --size 1600x1200 --out shots/audio/sheet   spectrogram sheet
+//   node tools/shot.mjs audio --do "__ED.lab.play('sheet')" --size 1800x1300 --out shots/audio/sheet        every SFX
+//   node tools/shot.mjs audio --do "__ED.lab.play('musicSheet')" --size 1800x1300 --out shots/audio/music  every track
 
 import { createLab } from '../core/lab.js';
 import { createAudio } from '../audio/index.js';
@@ -213,6 +214,34 @@ async function drawSheet(ctx, audio, names = audio.list()) {
   return names.length;
 }
 
+/** Full-screen rows of 8 s music renders (through the mix chain) at several intensities (for captures). */
+async function drawMusicSheet(ctx, audio) {
+  let cv = document.querySelector('canvas.al-sheet');
+  if (!cv) { cv = document.createElement('canvas'); cv.className = 'al-sheet'; document.getElementById('ui').appendChild(cv); }
+  const W = Math.max(640, window.innerWidth), H = Math.max(480, window.innerHeight);
+  cv.width = W; cv.height = H;
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  const g = cv.getContext('2d');
+  g.fillStyle = '#06060a';
+  g.fillRect(0, 0, W, H);
+  const scenes = [['title', 'title', 0.5], ['battle  intensity 0', 'battle', 0], ['battle  intensity 0.5', 'battle', 0.5], ['battle  intensity 1', 'battle', 1],
+    ['ultimate (alone)', 'ultimate', 1], ['battle + ultimate overlay', ['battle', 'ultimate'], 1], ['victory', 'victory', 1]];
+  const rh = (H - 24) / scenes.length;
+  g.font = '12px ui-monospace,Menlo,monospace';
+  g.fillStyle = '#d8b46a';
+  g.fillText('ECLIPSE DUEL music — first 8 s of each track through the mix chain: waveform + log-frequency spectrogram 40 Hz-20 kHz', 8, 16);
+  for (let i = 0; i < scenes.length; i++) {
+    const [label, tracks, I] = scenes[i];
+    const b = await audio.renderScene({ seconds: 8, music: tracks, intensity: I });
+    const y = 24 + i * rh;
+    drawBuffer(g, b, 4, y + 14, W - 8, rh - 18);
+    const m = measure(b);
+    g.fillStyle = '#efe6d2';
+    g.fillText(`${label}   loud ${m.loud.toFixed(1)} dB   centroid ${Math.round(m.centroid)} Hz   low ${Math.round(m.low * 100)} %`, 8, y + 10);
+  }
+  return scenes.length;
+}
+
 createLab({
   stage: false,
   setup(ctx) {
@@ -223,6 +252,7 @@ createLab({
     report: (ctx) => runReport(ctx.audio),
     selftest: (ctx) => selfTest(ctx),
     sheet: (ctx, lab, names) => drawSheet(ctx, ctx.audio, names),
+    musicSheet: (ctx) => drawMusicSheet(ctx, ctx.audio),
     play: (ctx, lab, name = 'hit_crit') => { ctx.audio.unlock(); return ctx.audio.play(name) ? name : null; },
   },
 });
