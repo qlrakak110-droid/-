@@ -5,16 +5,34 @@ import * as THREE from 'three';
 import { createLab } from '../core/lab.js';
 import { DEG } from '../core/math.js';
 import { createEnvironment } from '../env/index.js';
+import { createCameraDirector } from '../cam/index.js';
 
+/** Hand the camera back to the lab orbit (the real fight director, if a `game*` scenario started it, goes idle). */
+function freeCam(lab) { if (lab.ctx.cam) lab.ctx.cam.setMode('free', 0); }
 /** Fight-camera framing: camera at (x, h, d) looking at (x, look, 0). */
 function fight(lab, d, h, look, x = 0, fov = 40) {
+  freeCam(lab);
   lab.view({ target: [x, look, 0], dist: Math.hypot(d, h - look), yaw: 0, pitch: Math.atan2(h - look, d) / DEG, fov });
 }
 /** Look from an explicit camera position at a target. */
 function lookFrom(lab, from, at, fov = 40) {
+  freeCam(lab);
   const dx = from[0] - at[0], dy = from[1] - at[1], dz = from[2] - at[2];
   const dist = Math.hypot(dx, dy, dz);
   lab.view({ target: at, dist, yaw: Math.atan2(dx, dz) / DEG, pitch: Math.asin(dy / dist) / DEG, fov });
+}
+/** The game's own fight camera (src/cam) framing the dummies `sep` metres apart around `mid`; snapped, no drift. */
+function gameCam(ctx, lab, sep, mid = 0) {
+  lab.dummies[0].position.x = mid - sep / 2;
+  lab.dummies[1].position.x = mid + sep / 2;
+  ctx.env.setFocus(mid);
+  if (!ctx.cam) {
+    const chest = (m) => () => lab.chest.set(m.position.x, 1.35, m.position.z);
+    createCameraDirector(ctx).setTargets(chest(lab.dummies[0]), chest(lab.dummies[1]));
+    ctx.cam.fight.breathe = 0;
+  }
+  ctx.cam.setMode('fight', 0);
+  ctx.cam.snap();
 }
 
 createLab({
@@ -34,12 +52,18 @@ createLab({
       return m;
     });
     lab.dummyMat = mat;
+    lab.chest = new THREE.Vector3();
     lab.env = env;
     env.prewarm();
   },
   scenarios: {
     /** render + copy the frame so the high-tier puddle reflection is current (use in --each) */
     prime(ctx) { ctx.env.captureReflection(true); },
+    /** the real fight camera (src/cam) at near / mid / far separation; `gameAt(x)` = mid separation centred on x */
+    gameNear(ctx, lab) { gameCam(ctx, lab, 1.4); },
+    gameMid(ctx, lab) { gameCam(ctx, lab, 4.5); },
+    gameFar(ctx, lab) { gameCam(ctx, lab, 9); },
+    gameAt(ctx, lab, x = 6) { gameCam(ctx, lab, 4.5, x); },
     near(ctx, lab) { fight(lab, 6, 1.35, 1.15); },
     mid(ctx, lab) { fight(lab, 8.5, 1.6, 1.2); },
     far(ctx, lab) { fight(lab, 11, 1.95, 1.3); },
@@ -56,9 +80,9 @@ createLab({
     high(ctx, lab) { lookFrom(lab, [2.5, 7.5, 7.5], [0, 0.8, 0], 40); },
     /** cinematic: over-the-shoulder close on P2 */
     ots(ctx, lab) { lookFrom(lab, [-3.6, 1.75, 1.3], [2.5, 1.5, 0], 36); },
-    sideL(ctx, lab) { lab.view({ target: [0, 1.2, 0], dist: 9, yaw: -60, pitch: 4, fov: 40 }); },
-    sideR(ctx, lab) { lab.view({ target: [0, 1.2, 0], dist: 9, yaw: 60, pitch: 4, fov: 40 }); },
-    sideLowL(ctx, lab) { lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
+    sideL(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.2, 0], dist: 9, yaw: -60, pitch: 4, fov: 40 }); },
+    sideR(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.2, 0], dist: 9, yaw: 60, pitch: 4, fov: 40 }); },
+    sideLowL(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
     overview(ctx, lab) { lookFrom(lab, [0, 22, 30], [0, 0, -8], 50); },
     /** telephoto on the far left colossus (inspect the far silhouettes) */
     colossus(ctx, lab) { lookFrom(lab, [0, 1.6, 8.5], [-57, 24, -149], 16); },

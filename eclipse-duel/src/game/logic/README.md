@@ -298,7 +298,7 @@ Units: seconds, metres, m/s, HP. `sample-fighter.js` is the annotated template.
 |---|---|
 | `dash` | `duration` 0.3 s, `distance` 2.4 m, `cancelFrom` 0.14 s (attacks may start from then) |
 | `backstep` | `duration` 0.34, `distance` 1.7, `invuln` [0, 0.14] (strike-invulnerable) |
-| `dodge` | `duration` 0.42, `invuln` [0.02, 0.3] (fully invulnerable), `cooldown` 0.7 (after it ends), `cancelFrom` 0.3 |
+| `dodge` | `duration` 0.42, `invuln` [0.02, 0.3] (fully invulnerable), `cooldown` 0.7 (after its duration; the timer starts with the dodge, so cancelling it or being hit out of it does not skip it), `cancelFrom` 0.3 |
 | `roll` | `duration` 0.42, `distance` 2.6 (corner escape; invulnerable, passes through) |
 
 Displacement follows an ease-out over the duration. Backstep / back walk cannot increase the separation beyond
