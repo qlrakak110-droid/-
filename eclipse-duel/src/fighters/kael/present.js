@@ -94,7 +94,10 @@ function hitFeel(h, e, o = {}) {
   h.post.chroma(o.chroma ?? 0.25, { release: 0.22 });
   h.audio('hit_slash_heavy', { pos: h.pos('contact') });
   if (fin) h.audio('hit_blunt', { pos: h.pos('contact'), volume: 0.65 });
-  if (e.counter) h.audio('hit_crit', { volume: 0.8 });
+  if (e.counter) {
+    h.audio('hit_crit', { volume: 0.8 });
+    h.post.impact({ duration: 0.034, invert: 0, mono: 1 });  // the generic counter frame is inverted: a white frame
+  }
   if (e.kind === 'strike' && e.hitstop) h.hitstop(e.hitstop);
   const g = h.ctx.game, s = g && g.session, hud = h.ctx.ui && h.ctx.ui.hud;
   if (s && s.stats && s.stats.hit) s.stats.hit(e);
@@ -490,7 +493,7 @@ const ult = {
     },
     /** 4.30: the shockwave crosses the arena, pillars of fire; letterbox out */
     shockwave(h) {
-      h.fx('kael.shockwave', 'foe.floor', { pillars: 5, fallback: null });
+      h.fx('kael.shockwave', 'foe.floor', { pillars: 4, fallback: null });
       h.post.pulse('exposure', 0.12, { attack: 0.04, hold: 0.1, release: 0.6 });
       h.post.chroma(0.5, { release: 0.5 });
       h.cam.letterbox(false, 0.8);
@@ -604,7 +607,17 @@ const projectiles = {
 };
 
 // ---- fighter-wide hooks -----------------------------------------------------------------------------------------------
+/** moves whose own hit handler already replaces the generic feel (on.hit must not run a second one) */
+const OWN_FEEL = { light3: 1, sweep: 1, lunge: 1, vent: 1, pyre: 1, bulwark_burst: 1 };
 const on = {
+  /**
+   * counter hits on the moves that keep the generic feel (light1 / light2, guard-cancel strikes): the generic counter
+   * adds an inverted impact frame + a crit at full intensity, a white frame over the dark arena; Kael's is tempered
+   */
+  hit(h, e) {
+    if (!e.counter || e.kind === 'projectile' || OWN_FEEL[e.move]) return undefined;
+    return hitFeel(h, e, { dir: [1, -0.2, 0.3], intensity: 0.45, chroma: 0.35 });
+  },
   /** round intro: the planted blade is wrenched free in a spray of embers */
   intro(h) {
     h.after(0.35, (h2) => { h2.fx('kael.bite', floorAt(h2, 0.7), { k: 0.5 }); h2.weaponGlow(0.8, 0.8); h2.audio('fire_ignite', { volume: 0.6 }); });

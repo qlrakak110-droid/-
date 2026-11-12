@@ -19,7 +19,7 @@ import { D, F, STAR, registerDefs, defineIskaFx } from './fxlib.js';
 const ULT_NAME = { name: '떨어지는 서릿별', nameEn: 'Fall of the Frozen Star' };
 const MOOD = { darken: 0.8, tint: 0x8fc8ff };
 /** per hit level: strength of the frost flower layered over the generic hit */
-const FLOWER_K = { light: 0.55, heavy: 0.85, launch: 1.0, crumple: 1.05, knockdown: 1.15 };
+const FLOWER_K = { light: 0.5, heavy: 0.7, launch: 0.8, crumple: 0.85, knockdown: 0.95 };
 
 // ---- small helpers ---------------------------------------------------------------------------------------------------
 /** the running session (stats / HUD for ticks the choreography replaces) */
@@ -40,7 +40,7 @@ function glint(h, where = 'weaponTip', size = 0.4, k = 0.55) {
 function cut(h, o = {}) {
   return h.fx('iska.cut', { pos: o.pos || pivot(h) }, {
     arc: o.arc, radius: o.radius, width: o.width, normal: o.normal, roll: o.roll, sweep: o.sweep, life: o.life,
-    k: (o.intensity ?? 1) * (o.heavy ? 1.2 : 0.85), twin: o.twin ?? !!o.heavy, light: !!o.heavy,
+    k: (o.intensity ?? 1) * (o.heavy ? 1.0 : 0.78), twin: o.twin ?? !!o.heavy, light: !!o.heavy,
   });
 }
 /** frost flower at the contact point of a hit (strike direction mostly forward, toward the camera a little) */
@@ -133,7 +133,7 @@ export const present = {
         h.cam.kick({ fov: -1.5, duration: 0.25 });
       },
       hit(h, e) {
-        if (e.label === 'shards') { flower(h, e, 0.8, { floor: true }); h.spawn('debris', 'contact', { kind: 'ice', dir: [h.facing, 0.6, 0.2], count: 6, speed: [2, 5], spread: 40, size: [0.04, 0.11, 2] }); }
+        if (e.label === 'shards') { flower(h, e, 0.62, { floor: true }); h.spawn('debris', 'contact', { kind: 'ice', dir: [h.facing, 0.6, 0.2], count: 6, speed: [2, 5], spread: 40, size: [0.04, 0.11, 2] }); }
         else flower(h, e, 0.55);
       },
     },
@@ -149,18 +149,18 @@ export const present = {
       spin2(h) { spinRing(h, 0.95, { arc: [-150, 175], radius: 1.55 }); },
       frostRing(h) {
         // the third revolution throws the frost ring: a ground ring, a crown of short ice spikes, frost and mist
-        spinRing(h, 0.7, { radius: 1.75, width: 0.42, intensity: 1.1, heavy: true });
+        spinRing(h, 0.7, { radius: 1.75, width: 0.36, intensity: 0.8, heavy: true });
         const g = h.at(0, 0, 0);
         h.spawn('ring', g, { look: 'frost', radius: [0.3, 3.4], life: 0.7, distort: 0.03, intensity: 0.9 });
         h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 1.55, count: 11, height: [0.28, 0.62], width: 0.22, tilt: 32, stagger: 0.008, rise: 0.05, hold: 0.32 });
         h.spawn('decal', g, { kind: 'frost', radius: 2.7, reveal: 0.25, life: 3 });
         h.burst(D.mistLow, { pos: h.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 12, scale: 1.1 });
-        h.burst(D.glint, { pos: h.at(0, 0.6, 0) }, { count: 20, scale: 2.2 });
-        h.light([0, 0.9, 1.2], { intensity: 90, range: 7, duration: 0.4 });
+        h.burst(D.glint, { pos: h.at(0, 0.6, 0) }, { count: 12, scale: 2.0 });
+        h.light([0, 0.9, 1.2], { intensity: 55, range: 7, duration: 0.4 });
         h.cam.shake(0.22, { freq: 16 });
       },
       recover(h) { glint(h, 'weaponTip', 0.3, 0.35); },
-      hit(h, e) { flower(h, e, e.label === 'frostRing' ? 0.95 : 0.55, { floor: e.label === 'frostRing' }); },
+      hit(h, e) { flower(h, e, e.label === 'frostRing' ? 0.72 : 0.5, { floor: e.label === 'frostRing' }); },
     },
     frostline_step: {
       windup(h) { h.spawn('decal', 'floor', { kind: 'frost', radius: 0.9, reveal: 0.1, life: 1.6 }); glint(h, 'weaponTip2', 0.3, 0.4); },
@@ -182,7 +182,7 @@ export const present = {
         h.spawn('decal', 'floor', { kind: 'frost', radius: 1.0, reveal: 0.12, life: 2 });
       },
       hit(h, e) {
-        flower(h, e, 0.7);
+        flower(h, e, 0.58);
         h.flare('contact', { kind: 'streak', size: 0.08, aspect: 24, life: 0.14, color: F.core, intensity: 0.35, dir: h.dir([1, 0, 0]) });
       },
     },
@@ -194,13 +194,13 @@ export const present = {
       },
       swing(h) {
         // a rising crescent of starlight drawn by the backflip
-        cut(h, { heavy: true, pos: h.at(0.35, 1.0, 0.22), arc: [-75, 120], radius: 1.55, width: 0.48, normal: [0, 0, 1] });
+        cut(h, { heavy: true, pos: h.at(0.35, 1.0, 0.22), arc: [-75, 120], radius: 1.55, width: 0.36, normal: [0, 0, 1], intensity: 0.8 });
       },
       land(h) { h.burst(D.mistLow, { pos: h.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 4, scale: 0.6 }); glint(h, 'weaponTip', 0.3, 0.35); },
       hit(h, e) {
-        flower(h, e, 0.8, { dir: [0.25, 1, 0.3] });
-        h.burst(D.shards, { pos: 'contact', dir: [0.15, 1, 0.2] }, { count: 10, scale: 0.9 });
-        h.spawn('pillar', h.at(foeF(h), 0, 0.05), { look: 'frost', radius: 0.16, height: 2.6, life: 0.36, intensity: 0.26 });
+        flower(h, e, 0.58, { dir: [0.25, 1, 0.3] });
+        h.burst(D.shards, { pos: 'contact', dir: [0.15, 1, 0.2] }, { count: 8, scale: 0.9 });
+        h.spawn('pillar', h.at(foeF(h), 0, 0.05), { look: 'frost', radius: 0.14, height: 2.6, life: 0.32, intensity: 0.16 });
         h.cam.kick({ fov: -2, duration: 0.28 });
       },
     },
@@ -222,10 +222,10 @@ export const present = {
       stab(h) {
         // both blades into the floor
         const g = h.at(0.5, 0, 0);
-        h.burst(D.flash, { pos: h.at(0.5, 0.12, 0.2) }, { scale: 0.45 });
+        h.burst(D.flash, { pos: h.at(0.5, 0.12, 0.2) }, { scale: 0.32, intensity: 0.6 });
         h.burst(D.shards, { pos: h.at(0.5, 0.08, 0.1), dir: [0, 1, 0.2] }, { count: 12, scale: 0.8 });
         h.spawn('ring', g, { look: 'frost', radius: [0.15, 1.5], life: 0.45, intensity: 0.7 });
-        h.light([0.5, 0.6, 1.1], { intensity: 70, range: 5, duration: 0.3 });
+        h.light([0.5, 0.6, 1.1], { intensity: 45, range: 5, duration: 0.3 });
         h.cam.shake(0.2, { freq: 18, dir: [0, 1, 0] });
         h.audio('ice_crack', { volume: 0.7 });
       },
@@ -259,21 +259,22 @@ export const present = {
         h.flare('chest', { kind: 'star', size: 1.0, life: 0.14, decay: 2.5, color: STAR, intensity: 0.6, rotation: 0.4 });
         h.self.setVisible(false);
         // MOVES.md camera: a whip-pan following the blink (0.2 s) from where she vanished to the opponent she
-        // reappears behind (fight framing only; the hit's FOV kick is the punch-in)
+        // reappears behind (fight framing only; the hit's FOV kick is the punch-in). Kept at ~6.4 m: closer, the cut,
+        // the statue's burst and the generic hit flash fill the frame
         if (h.ctx.cam && h.ctx.cam.mode === 'fight') {
-          h.cam.play([h.shots.whipPan({ dur: 0.22, pos: [-0.9, 1.45, 4.6], look: 1.25, fov: [42, 37], bank: 3 })], { blendOut: 0.35, hud: false });
+          h.cam.play([h.shots.whipPan({ dur: 0.22, pos: [-1.1, 1.55, 6.4], look: 1.2, fov: [44, 41], bank: 3 })], { blendOut: 0.3, hud: false });
         }
       },
       reappear(h) {
         h.self.setVisible(true);
-        h.flare('chest', { kind: 'star', size: 1.3, life: 0.16, decay: 2.5, color: STAR, intensity: 0.7, rotation: 0.1 });
+        h.flare('chest', { kind: 'star', size: 1.0, life: 0.14, decay: 2.5, color: STAR, intensity: 0.45, rotation: 0.1 });
         h.spawn('ring', h.at(0, 0, 0), { look: 'frost', radius: [0.2, 1.8], life: 0.4, intensity: 0.7 });
         h.burst(D.glitter, { pos: 'chest' }, { count: 18, scale: 1.0 });
         h.afterimage({ count: 1, life: 0.22, intensity: 0.8 });
         h.cam.kick({ fov: -2.5, roll: 2.5 * h.facing, duration: 0.3 });
       },
       swing(h) { cut(h, { arc: [150, -40], radius: 1.25, normal: [0, -0.15, 1], intensity: 0.9 }); },
-      hit(h, e) { flower(h, e, 0.8); h.cam.kick({ fov: -3, duration: 0.3 }); },
+      hit(h, e) { flower(h, e, 0.6); h.cam.kick({ fov: -3, duration: 0.3 }); },
       end(h) { h.self.setVisible(true); },
     },
 
@@ -390,8 +391,8 @@ export const present = {
         const p = W(h, e.x, 1.1, 0.05);
         if (s && s.shell) s.shell.kill();
         // the statue shatters and its shards fly forward as one lance
-        h.burst(D.flash, { pos: p }, { scale: 0.3, intensity: 0.6 });
-        h.burst(D.shardFan, { pos: p, dir: [1, 0.15, 0.2] }, { count: 18, scale: 1.0 });
+        h.burst(D.flash, { pos: p }, { scale: 0.26, intensity: 0.35 });
+        h.burst(D.shardFan, { pos: p, dir: [1, 0.15, 0.2] }, { count: 14, scale: 1.0 });
         h.burst(D.glitter, { pos: p }, { count: 16, scale: 1.0 });
         h.spawn('debris', p, { kind: 'ice', dir: [h.facing, 0.5, 0.2], count: 6, speed: [2, 5], spread: 45, size: [0.05, 0.12, 2] });
         const body = h.fx('frost.shard', { pos: p, dir: [1, 0, 0], scale: 0.9 }, { speed: 16, life: 0.26, intensity: 0.35 });
@@ -511,7 +512,7 @@ export const present = {
       const g = h.at(foeF(h), 0, 0);
       u.vf = foeF(h);
       // the circle closes into a crystal: a ring of ice snaps up around the victim, a cold ring sweeps out, mist rolls
-      h.spawn('ring', g, { look: 'frost', radius: [0.3, 2.6], life: 0.6, distort: 0.03, intensity: 0.3 });
+      h.spawn('ring', g, { look: 'frost', radius: [0.3, 2.6], life: 0.6, distort: 0.03, intensity: 0.2 });
       h.burst(D.flash, { pos: h.at(u.vf, 1.0, 0.3) }, { scale: 0.3, intensity: 0.4 });
       h.burst(D.sparksRadial, { pos: h.at(u.vf, 0.8, 0.1) }, { count: 28, scale: 0.9 });
       h.burst(D.glint, { pos: h.at(u.vf, 1.2, 0) }, { count: 14, scale: 1.6 });
@@ -647,9 +648,9 @@ export const present = {
         if (u.cage && u.cage.stop) u.cage.stop();
         if (u.shell && u.shell.kill) u.shell.kill();
         h.foe.glow(null);
-        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.45 });
-        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 0.8 });
-        h.spawn('ring', h.at(vf, 0, 0), { look: 'frost', radius: [0.4, 5.5], life: 0.9, distort: 0.04, intensity: 1 });
+        h.fx('frost.shatter', { pos: c, dir: [0, 1, 0] }, { intensity: 0.34 });
+        h.fx('iska.flower', { pos: c, dir: [1, 0.2, 0.4] }, { k: 0.6 });
+        h.spawn('ring', h.at(vf, 0, 0), { look: 'frost', radius: [0.4, 5.5], life: 0.9, distort: 0.04, intensity: 0.7 });
         h.spawn('ring', h.at(vf, 0.05, 0), { look: 'shock', palette: 'frost', radius: [0.3, 4.5], life: 0.45, intensity: 0.6 });
         h.spawn('decal', h.at(vf, 0, 0), { kind: 'frost', radius: 4.2, reveal: 0.35, life: 6 });
         // kept below a white-out: the punch-in camera is ~3 m away, the star and the light fill the frame otherwise
@@ -660,7 +661,6 @@ export const present = {
         h.post.flash(0xcfe6ff, 0.07, { release: 0.25 });
         h.post.radial(c, 0.55);
         h.post.chroma(0.9, { release: 0.5 });
-        h.post.pulse('exposure', 0.12, { release: 0.5 });
         h.cam.shake(1, { freq: 10, duration: 1.2 });
         h.pulse(h.at(vf, 0, 0), null, 1.6);
         h.audio('ult_impact');

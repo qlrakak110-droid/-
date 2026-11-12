@@ -1,23 +1,37 @@
-// Rig regression suite: every measurement the rig auditors used (IK accuracy, grip, pelvis drop, twist helpers,
-// crossfades, mixer cap, mirroring, facing / scale, contact, flinch, events, cloth, suit deformation, CPU), run on the
-// shipped runtime for the knight and ISKA-like / VORN-like / 4.2x giant proportions, reduced to pass / fail checks.
+// Rig regression suite: every measurement the rig auditors used (IK accuracy, grip, pelvis drop, twist helpers, elbow
+// continuity, wrist clamp, clavicle, look-at, layers, loop seams, crossfades, mixer cap, mirroring, facing / scale,
+// contact, flinch, events, cloth (stretch, frame rate, rendered cloth in the body), see-through holes, CPU), run on the
+// shipped runtime for the knight and ISKA-like / VORN-like / 4.2x giant proportions, and on the real fighters (KAEL /
+// ISKA / VORN designs with all their registered clips), reduced to pass / fail checks.
 //
 //   node tools/shot.mjs rigqa --eval "__ED.lab.play('all')"          -> { checks: [{ name, value, limit, pass }], passed, failed }
-//   __ED.lab.play('all', { only: 'clips' })                          one group: clips | runtime | ik | xfade | cloth | cpu
+//   __ED.lab.play('all', { only: 'clips' })   one group: clips | runtime | ik | xfade | cloth | shipped | holes | cpu
 //   __ED.qa.clip('demo.combo3', 'iska')                              raw qa metrics of one clip on one body (debugging)
+//   __ED.qa.arm('kael', 'kael.light1')                               per-clip arm metrics of a real fighter (rig only)
 //
-// Limits are in metres / degrees at the knight's size; body-relative limits are multiplied by the body scale.
+// Limits are in metres / degrees at the knight's size; body-relative limits are multiplied by the body scale. Checks
+// tagged [art: ...] measure art-owned geometry (design files): they are held to their measured value so a regression
+// fails, and the report names the owner.
 
 import * as THREE from 'three';
 import { createLab, ORDER } from '../core/lab.js';
 import { makeRng } from '../core/math.js';
-import { createCharacter, defineClip, definePose, mirrorClip, invalidateClips } from '../char/index.js';
+import { createCharacter, defineClip, definePose, mirrorClip, invalidateClips, listClips } from '../char/index.js';
 import { getClip, sampleClip, Pose } from '../char/anim.js';
 import { DEFAULT_PROPORTIONS, createRig, fk } from '../char/skeleton.js';
 import * as IK from '../char/ik.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
 import * as qa from '../char/qa.js';
+import { CLOTH_STEP } from '../char/cloth.js';
+import { kael } from '../fighters/kael/design.js';
+import { iska } from '../fighters/iska/design.js';
+import { vorn } from '../fighters/vorn/design.js';
+import '../fighters/kael/clips/index.js';
+import '../fighters/iska/clips/index.js';
+import '../fighters/vorn/clips/index.js';
+
+const SHIPPED = { kael, iska, vorn };
 
 const DEMO = ['demo.idle', 'demo.guard', 'demo.walkF', 'demo.walkB', 'demo.combo1', 'demo.combo2', 'demo.combo3', 'demo.slam', 'demo.hit', 'demo.combo1M'];
 const GIANT = 4.2;
@@ -528,6 +542,127 @@ function testCpu() {
   all.sort((x, y) => x - y);
   check('CPU char.update, knight with cape + tabard (ms, mean over a combat chain, uncontended; detail.cpu)', r(mean, 3), 1.0);
   return { mean: r(mean, 3), worstBatch: r(peak, 3), contendedP50: r(all[all.length >> 1], 3) };
+}
+
+// ---- 7. arm continuity / wrist clamp / clavicle / contact metrics of any clip (demo and real fighters) ------------------
+const _a = [0, 0, 0], _b = [0, 0, 0], _c = [0, 0, 0];
+/** Model-space (root-relative) point of a recorded bone. */
+function mpt(rec, f, name, x = 0, y = 0, z = 0, out = [0, 0, 0]) {
+  qa.pointAt(rec, f, name, x, y, z, out);
+  out[0] -= rec.root[f * 3]; out[1] -= rec.root[f * 3 + 1]; out[2] -= rec.root[f * 3 + 2];
+  return out;
+}
+const vsub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const vdot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const vlen = (a) => Math.hypot(a[0], a[1], a[2]);
+/** Elbow offset from the shoulder-wrist line of side S at frame f (and the unit line). */
+function elbowPerp(rec, f, S) {
+  const s = mpt(rec, f, 'upperArm' + S), w = mpt(rec, f, 'hand' + S), e = mpt(rec, f, 'foreArm' + S);
+  const a = vsub(w, s), la = vlen(a) || 1; a[0] /= la; a[1] /= la; a[2] /= la;
+  const v = vsub(e, s), k = vdot(v, a);
+  return { p: [v[0] - a[0] * k, v[1] - a[1] * k, v[2] - a[2] * k], a };
+}
+/** Elbow swivel change (deg) between frames f-1 and f (the auditors' measure: elbows less than 2 cm off the line excluded). */
+function swivelStep(rec, f, S) {
+  const A = elbowPerp(rec, f - 1, S), B = elbowPerp(rec, f, S);
+  const k = vdot(A.p, B.a), pa = [A.p[0] - B.a[0] * k, A.p[1] - B.a[1] * k, A.p[2] - B.a[2] * k];
+  if (vlen(pa) < 0.02 * rec.scale || vlen(B.p) < 0.02 * rec.scale) return 0;
+  return Math.acos(Math.max(-1, Math.min(1, vdot(pa, B.p) / (vlen(pa) * vlen(B.p))))) * R2D;
+}
+const qd = (Q, i, j) => qa.qangle(Q, i, Q, j) * R2D;
+/**
+ * One clip from a clean reset (breathing off, 60 Hz, single state): per arm the largest elbow swivel step, frames over
+ * 30 deg / frame, the elbow's step beyond 1.5 x the fist's + 2 cm (the auditors' elbow-continuity measure), helper
+ * steps beyond their source bone's, the clavicle's largest deviation from the clip's own FK, wrist-clamp frames (aim
+ * > 30 deg), the largest automatic pelvis drop, planted feet in the air / feet below the floor, grip error, NaN.
+ */
+function armMetrics(c, name, { hz = 60, look = null } = {}) {
+  const cl = getClip(c.rig, name), s = qa.scaleOf(c);
+  qa.resetForQA(c, name, { breath: 0 });
+  if (look) c.lookAt(look, 0.85);
+  const n = Math.round(cl.duration * hz) + 1, diag = [];
+  const rec = qa.record(c, { hz, frames: n, time: false, before: (i) => { if (i > 0) diag.push([c.diag.drop, c.diag.gripErr]); } });
+  diag.push([c.diag.drop, c.diag.gripErr]);
+  if (look) c.lookAt(null);
+  const pose = new Pose(c.rig), m = { clip: name, frames: n, swivel: 0, flips: 0, elbowPop: 0, helper: 0, clav: 0, aim30: 0, aimMax: 0, drop: 0, float: 0, floor: 0, grip: 0, nan: rec.nan ? 1 : 0, at: {} };
+  const P = c.rig.P, B = rec.B, Q = rec.Q;
+  const upd = (k, v, f) => { if (v > m[k]) { m[k] = v; m.at[k] = r(rec.t[f], 3); } };
+  for (let f = 0; f < n; f++) {
+    sampleClip(c.rig, cl, rec.clipT[f], pose, c.design.clipScale ?? 1);
+    for (const S of ['R', 'L']) {
+      if (f > 0) {
+        const sw = swivelStep(rec, f, S);
+        upd('swivel', sw, f);
+        if (sw > 30) m.flips++;
+        const es = vlen(vsub(mpt(rec, f, 'foreArm' + S, 0, 0, 0, _a), mpt(rec, f - 1, 'foreArm' + S, 0, 0, 0, _b)));
+        const fs = vlen(vsub(mpt(rec, f, 'weapon' + S, 0, 0, 0, _a), mpt(rec, f - 1, 'weapon' + S, 0, 0, 0, _c)));
+        upd('elbowPop', es - 1.5 * fs - 0.02 * s, f);
+        const st = (h, src) => qd(Q, ((f - 1) * B + rec.idx[h]) * 4, (f * B + rec.idx[h]) * 4) - qd(Q, ((f - 1) * B + rec.idx[src]) * 4, (f * B + rec.idx[src]) * 4);
+        upd('helper', Math.max(st('deltoid' + S, 'upperArm' + S), st('upperArmTwist' + S, 'upperArm' + S), st('foreArmTwist' + S, 'hand' + S)), f);
+      }
+      const ri = c.rig.index['shoulder' + S], k = (f * B + rec.idx['shoulder' + S]) * 4;
+      upd('clav', qa.qangle(Q, k, pose.lq, ri * 4) * R2D, f);
+    }
+    if (rec.aim) { const a = Math.max(rec.aim[f * 2], rec.aim[f * 2 + 1]); upd('aimMax', a, f); if (a > 30) m.aim30++; }
+    upd('drop', diag[f][0] / s, f);
+    if (pose.grip >= 0.999) upd('grip', diag[f][1] / s, f);
+    for (const [e, S] of [[2, 'R'], [3, 'L']]) {
+      const o = e * 24, ik = pose.ik;
+      const low = Math.min(mpt(rec, f, 'foot' + S, 0, -P.ankleHeight, 0)[1], mpt(rec, f, 'foot' + S, -P.heelLength, -P.ankleHeight, 0)[1],
+        mpt(rec, f, 'foot' + S, P.footLength, -P.ankleHeight, 0)[1], mpt(rec, f, 'toe' + S, 0, -(P.ankleHeight - P.footDrop), 0)[1],
+        mpt(rec, f, 'toe' + S, P.toeLength, -(P.ankleHeight - P.footDrop), 0)[1]);
+      upd('floor', -low / s, f);
+      if (ik[o] > 0.999 && !(ik[o + 14] >= 2) && ik[o + 2] <= 0.005 * s) upd('float', low / s, f); // planted: the whole foot in the air
+    }
+  }
+  for (const k of ['swivel', 'elbowPop', 'helper', 'clav', 'aimMax', 'drop', 'float', 'floor', 'grip']) m[k] = r(m[k], 3);
+  return m;
+}
+
+// ---- 8. the real fighters: every registered clip on a rig-only copy (proportions, weapons, colliders, grip angle) ----
+const rigCache = new Map();
+function rigOnly(id) {
+  if (rigCache.has(id)) return rigCache.get(id);
+  const d = SHIPPED[id], std = new Set(createRig(d.proportions || {}).names);
+  const c = createCharacter(CTX, {
+    id: 'qa_rig_' + id, idle: 'neutral.hold', proportions: d.proportions || {}, gripAngle: d.gripAngle ?? 0,
+    clipScale: d.clipScale, maxPelvisDrop: d.maxPelvisDrop, materials: { suit: {} }, bones: [], springs: [], cloth: [], sockets: {},
+    colliders: (d.colliders || []).filter((cl) => std.has(cl.a[0]) && std.has(cl.b[0])), weapon: d.weapon, weapons: d.weapons,
+    build(kit, S) { kit.add('suit', 'chest', S.box(0.05, 0.05, 0.05, 0.005), {}); },
+  }, { parent: null, name: 'rigqa_rig_' + id });
+  rigCache.set(id, c);
+  return c;
+}
+const clipsOf = (id) => listClips().filter((n) => n.startsWith(id + '.'));
+/**
+ * Known content issues of the real fighters' clips, held to their measured value (the clip author fixes the key; the
+ * check fails if it gets worse): keys asking for a wrist past 180 deg of pronation or for a target out of reach.
+ */
+const CONTENT = {};
+function testShippedArms(ids = ['kael', 'iska', 'vorn']) {
+  const out = {};
+  for (const id of ids) {
+    const c = rigOnly(id), rows = [];
+    for (const name of clipsOf(id)) { try { rows.push(armMetrics(c, name)); } catch (e) { rows.push({ clip: name, error: String(e.message || e) }); } }
+    const ok = rows.filter((x) => !x.error), worst = (k) => ok.reduce((a, x) => (x[k] > a[k] ? x : a), ok[0] || {});
+    const frames = ok.reduce((a, x) => a + x.frames, 0), flips = ok.reduce((a, x) => a + x.flips, 0), aim30 = ok.reduce((a, x) => a + x.aim30, 0);
+    const lab = (k) => { const w = worst(k); return w ? `${w.clip}@${w.at[k]}` : ''; };
+    check(`${id}: clips that throw`, rows.length - ok.length, 0);
+    check(`${id}: clips with NaN`, ok.filter((x) => x.nan).length, 0);
+    check(`${id}: elbow swivel frames > 30 deg/frame (of ${frames})`, flips, CONTENT[id + ':flips'] ?? 0);
+    check(`${id}: largest elbow swivel step (deg/frame; ${lab('swivel')})`, worst('swivel').swivel || 0, 45);
+    check(`${id}: elbow step beyond 1.5 x the fist's + 2 cm (m/frame; ${lab('elbowPop')})`, worst('elbowPop').elbowPop || 0, 0.06);
+    check(`${id}: helper step beyond its source bone's (deg/frame; ${lab('helper')})`, worst('helper').helper || 0, 10);
+    check(`${id}: clavicle off the clip's FK (deg; ${lab('clav')})`, worst('clav').clav || 0, 26);
+    check(`${id}: automatic pelvis drop (m; ${lab('drop')}) <= maxPelvisDrop`, worst('drop').drop || 0, (SHIPPED[id].maxPelvisDrop ?? 0.16) + 1e-4);
+    check(`${id}: planted foot in the air (m; ${lab('float')})`, worst('float').float || 0, 0.005);
+    check(`${id}: foot / toe below the floor (m; ${lab('floor')})`, worst('floor').floor || 0, 0.003);
+    check(`${id}: two-handed grip error (m; ${lab('grip')})`, worst('grip').grip || 0, 0.01);
+    // reported, not limited: keys asking for more wrist than a human has (the blade leaves its key; fix the key)
+    CHECKS.push({ name: `${id}: [report] frames with the blade > 30 deg off its key (wrist clamp; worst ${lab('aimMax')} ${r(worst('aimMax').aimMax || 0, 1)} deg)`, value: aim30, limit: 'report', pass: true });
+    out[id] = { rows: ok.length, frames, flips, aim30, worst: Object.fromEntries(['swivel', 'elbowPop', 'helper', 'clav', 'aimMax', 'drop', 'float', 'floor'].map((k) => [k, lab(k)])) };
+  }
+  return out;
 }
 
 /** Per-frame values of a clip (debugging): fn(char, frame) -> any, at `hz`. */

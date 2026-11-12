@@ -317,7 +317,7 @@ export function defineKaelFx(vfx) {
     v.decal({ kind: 'crack', pos: g, radius: R * 1.25, magma: 1, life: T + 3, cool: T + 1, reveal: 0.3 });
     v.ring({ look: 'fire', pos: g, radius: [0.5 * s, R * 1.7], life: 0.9, distort: 0.03, intensity: 0.6 * i + 0.2 });
     v.light({ pos: [g[0], 1.5, g[2] + 1.2], color: E.core, intensity: 160 * i, range: 10, duration: T + 0.4, attack: 0.3, flicker: 0.4, flickerRate: 7 });
-    const P = o.pillars ?? 4;
+    const P = o.pillars ?? 3;
     for (let k = 0; k < P; k++) {
       const a = -0.35 - (k / Math.max(1, P - 1)) * 2.45;    // a fan behind the centre (z < 0: away from every lock camera)
       const p = [g[0] + Math.cos(a) * R * 1.25, 0.02, g[2] + Math.sin(a) * R];
@@ -357,7 +357,7 @@ export function defineKaelFx(vfx) {
     v.burst(DUST, { pos: g, dir: [0, 1, 0], count: 16, scale: 1.6 * s });
     v.burst(FLOOR_GLOW, { pos: [g[0], 0.03, g[2]], dir: [0, 1, 0], scale: 1.3 * s });
     v.debris({ kind: 'ember', pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 14, speed: [3, 9, 1.3], spread: 60, size: [0.06, 0.22, 2], scale: s });
-    v.debris({ kind: 'rock', pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 14, speed: [2.5, 8, 1.3], spread: 65, size: [0.07, 0.26, 2], scale: s });
+    v.debris({ kind: 'rock', pos: [g[0], 0.2, g[2]], dir: [0, 1, 0], count: 10, speed: [2.5, 8, 1.3], spread: 65, size: [0.07, 0.26, 2], scale: s });
     v.schedule(0.05, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.5 * s, 5 * s], life: 0.6, strength: 0.05 }));
     v.schedule(0.12, (w) => w.burst(CRATER_SMOKE, { pos: [g[0], 0.5, g[2]], dir: [0, 1, 0], scale: 1.3 * s }));
     v.schedule(0.3, (w) => {

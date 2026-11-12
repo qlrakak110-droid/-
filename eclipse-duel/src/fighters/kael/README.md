@@ -75,7 +75,7 @@ Lock clock: storyboard t = 1.00 + lock t (BALANCE.md § 7). Victim held 1.7 m in
 |---|---|---|---|---|
 | 0.00 | (move 0) | engine hero push-in (dutch 5°) + weapon follow | `kael.pyre` (blade raised to the eclipse) | `kael.updraft` (embers sucked up), `kael.corona` on the blade, rune, eclipse flash behind; ULT cut-in card |
 | 0.60 | (move 0.6) | cut: wide side orbit −6° → 8°, held | `kael.pyre` leap | ULT card dissolves (0.22 s), speedlines, dash dust, 3 afterimages, magma streak, `ember.slash.heavy` on `release` |
-| 1.00 | 0 | impact punch-in on the victim (5.0 → 3.7 m) | — | `combat.hit.crit` 0.35 + flower, monochrome impact frame 0.05 s, flash 0.14, chroma 0.5, radial 0.5, shake 0.6, hit-stop 0.2 |
+| 1.00 | 0 | impact punch-in on the victim (5.0 → 3.7 m) | — | `combat.hit.crit` 0.3 + flower, monochrome impact frame 0.05 s, flash 0.07, chroma 0.5, radial 0.5, shake 0.6, hit-stop 0.2; the trigger's generic ult hit (crit at full intensity + inverted frame) is replaced by `pyre.hit` → tempered `hitFeel` |
 | 1.25 | 0.25 / 0.40 / 0.55 | cut: orbit sweep −40° → 30° (70°) around both, handheld | `kael.ult.cuts` at 0.10 | 3 × `ember.slash` in an X + flower, 0.06 hit-stop each, chroma, trail |
 | 2.30 | 1.30 | cut: top-down slam view (6.8 → 6.0 m) | `kael.ult.hurl` at 0.95 | crack + glow under the victim from 0.95 (anticipation), spit at 1.18; `kael.geyser` k 1.1, heavy hit, launch, hit-stop 0.1 |
 | 2.80 | 1.80 | cut: ground-level skim looking up, slowmo 0.3 | `kael.ult.leapAfter` | sky to crimson (darken 0.86), `kael.inferno` (rune, ring, 4 pillars behind, firestorm, smoke ceiling; no centre detonation), afterimages |
@@ -92,10 +92,57 @@ the bodies 0.22 s); the library `ember.meteor` / `ember.inferno` were replaced b
 (their lit magma spikes read as pale cones under the ult's orange key light, and the inferno's 8 m centre
 detonation buried the rise).
 
+## Review method (director pass)
+
+In-game, private builds (`tools/build.mjs game --as kael-dir<N>`), 640×360 contact sheets, all read:
+`FIGHTERS=kael src/game/tests/moves.mjs` (every slot: wind-up / first active frame / follow-through), the full
+ultimate as P1 (28 frames on every storyboard beat) and mirrored as P2, a `#demo` AI match Kael vs Vorn (1–29 s),
+and a forced counter hit. No page errors, no exceptions, no `[ed] … threw` lines in any run. Sheets:
+`shots/kael/dir/moves_sheet.png` (every slot, before the hit-feel pass), `shots/kael/dir2/moves_sheet.png` (heavy
+slots after it), `shots/kael/dir2/ult_sheet.png` (dense P1 ultimate, before the opener fix), `shots/kael/dir3/ult_sheet.png`
+(P1 + mirrored P2 ultimate + demo match), `shots/kael/dir4/c_sheet.png` (counter), `shots/kael/dir5/ult_sheet.png`
+(final build smoke).
+
 ## Performance
 
-See the report numbers in the section below (profile.mjs, ultimate peak, q=high).
+`src/game/tests/profile.mjs`, q=high, 640×360, measured at load average ~20–25 on a shared 4-core box (JS ms are
+inflated by contention; GPU time is meaningless under SwiftShader):
+
+| phase | draw calls avg / peak | triangles avg / peak | JS ms avg | CHAR ms | VFX ms | GAME ms |
+|---|---|---|---|---|---|---|
+| fight (120 frames, hard AI, Kael vs Iska) | 43 / 47 | 346k / 353k | 5.4 | 4.3 | 0.55 | 0.39 |
+| ultimate (420 frames, whole lock) | 50 / 61 | 403k / 505k | 4.6 | 3.9 | 0.34 | 0.11 |
+
+Budgets (CONTRACT.md, high): draw calls ≤ 160 — met with a wide margin; Kael's character 59.4k triangles / 4 draw
+calls (≤ 60k / 6) — met; shader programs 49 before and after the ultimate (nothing compiles mid-fight). **Triangles
+exceed the 350k scene budget during the ultimate** (peak 505k incl. the shadow pass, down from 575k before this pass;
+the plain fight already runs at 346k): the mesh FX (pillars, rings, debris) add up to ~160k at the shockwave. After
+the measurement the shockwave pillars went 5 → 4, the firestorm pillars 4 → 3 and the crater rock debris 14 → 10 (not
+re-profiled). Whether mesh FX render into the shadow pass is a VFX / integration question. JS per frame (4.6 ms
+average under load ~27, CHAR dominant) needs re-measuring on a quiet machine against the 4 ms desktop budget; the
+VFX (0.34 ms) and presentation (GAME 0.11 ms) groups are small.
+
+Kael's presets use only the pooled primitives (instanced particles, mesh FX, pooled lights); every particle definition
+is module scope and compiled in `present.setup` before prewarm, so nothing compiles mid-fight.
 
 ## Known issues
 
-See the end of this file (kept current by the director pass).
+- **Hit feel is owned locally for the heavy moves** (`hitFeel()`): the generic layer (`src/game/feel.js`) plays the
+  library hit at ~0.95 intensity and an *inverted* impact frame on counters / finishers / ult hits, which renders as a
+  near-white frame over the dark arena. Kael tempers both for his moves (and for counters on light1 / light2 via
+  `on.hit`); the integration team should consider monochrome-only impact frames and a lower default for every fighter.
+- **ULT cut-in card**: the hud card runs a fixed 1.9 s from the super-freeze and sat over the 1.00 punch-in and the X
+  cuts. `fadeUltCard()` fades its `.an-fit` wrapper on the 0.60 cut (a DOM workaround; a hud option or a card that
+  ends with the freeze would be cleaner).
+- **Brightness at the hit-stops** is now readable but still hot on: the ult punch-in (lock 0.04–0.2, by design a
+  white-flash beat), the Fault Eruption columns (a wall of fire around the juggled victim), the sweep's 300° trail.
+- **Animation (from the animator's audit)**: 5–16 cm residual self-intersections on a few frames (pyre right arm vs
+  helm, lunge forearm vs helm in the thrust hold, bulwark re-grip, defeat, dash blade vs upper arm, sweep coil);
+  back-foot dorsiflexion 16–29° past the 30° limit in deep crouches; feet dip 2–6 cm for single frames on the pyre
+  landing, lunge, defeat, leapAfter; `kael.ult.spin` carries the blade ~33° off flat (the VFX ring of fire is placed
+  in the camera plane, so it only shows in the blade itself).
+- **Hand-placed data**: the lunge foot landings and light2's 0.25 m step are keyed by hand; the pyre / lunge / light3
+  root keys come from moves.js motion data. If balance changes those motions, the foot keys need a matching touch.
+- **Rig / design warnings** printed at load (not ours to fix): "kael: the design has a weapon but no gripAngle" and
+  "cloth but no head / neck collider: default capsule(s) added" (design.js, art team).
+- **Mirror match**: per-slot state (`S[h.index]`) keeps two Kaels apart; not captured in this pass.

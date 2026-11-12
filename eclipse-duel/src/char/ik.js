@@ -123,7 +123,9 @@ function armCost(q, uo, eo, pq, po) {
   const fade = smooth01(-ucs, 0.85, 0.35);                  // full below ~110 deg of elevation, none above ~150
   const ut = 2 * Math.atan2(uy, uw) + 0.09;                 // humeral rotation, centred on its range (-90..80)
   const ex = Math.max(0, Math.abs(tw) - 1.1), eu = Math.max(0, Math.abs(ut) - 1.2); // beyond ~63 / ~69 deg: steep
-  return 1.0 * (1 - Math.cos(tw)) + 3 * ex * ex + 0.8 * (1 - cs) + fade * (0.6 * (1 - Math.cos(ut)) + 3 * eu * eu);
+  // (the steep part of the humeral term never fades out completely: an overhead arm wrung past ~120 deg is no arm,
+  // and it is where the helper bones' swing / twist split is singular)
+  return 1.0 * (1 - Math.cos(tw)) + 3 * ex * ex + 0.8 * (1 - cs) + fade * 0.6 * (1 - Math.cos(ut)) + (0.3 + 0.7 * fade) * 3 * eu * eu;
 }
 
 /**

@@ -599,7 +599,8 @@ function hitFeel(h, e) {
   if (e.armoured) k = 0.5;
   if (e.ko) k = Math.max(k, 1.5);
   const finisher = group !== 'normal' && (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple');
-  // the shared hit at ~60 % light and 85 % size: sparks / cut / shock read, the flash core no longer swallows the victim
+  // the shared hit, smaller and dimmer (0.55 / 0.85 light, 0.36 / 0.7 heavier): sparks / cut / shock still read, its
+  // flash core no longer swallows the victim
   const names = e.counter || group === 'ult' ? ['combat.hit.crit', `combat.hit.${lvl}`] : group === 'skill' ? ['volt.hit', `combat.hit.${lvl}`] : [`combat.hit.${lvl}`];
   HIT_AT.scale = lvl === 'light' ? 0.85 : 0.7;
   const inten = e.armoured ? 0.35 : lvl === 'light' ? 0.55 : 0.36;
@@ -612,8 +613,8 @@ function hitFeel(h, e) {
   if (k >= 0.9) h.cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
   post.pulse('chroma', 0.12 + 0.2 * Math.max(0, k - 0.55), { release: 0.2 });
   if (k >= 0.9) { h.post.radial('contact', 0.14 + 0.2 * Math.min(1, k - 0.9), { release: 0.2 }); }
-  // impact frame: monochrome (no invert: the inverted frame of this dark arena is a white-out), violet flash not white
-  // half-strength mono: at full strength the bloom of a lightning strike thresholds to an all-white frame
+  // impact frame: half-strength monochrome, no invert (the inverted frame of this dark arena is a white-out, and full
+  // mono thresholds a lightning strike's bloom to an all-white frame); a violet flash instead of the white one
   if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 0.5 });
   if (finisher) post.flash(VIOLET, 0.07, { release: 0.15 });
   const at = h.pos('contact');

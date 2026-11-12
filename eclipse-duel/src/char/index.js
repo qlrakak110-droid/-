@@ -122,6 +122,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const kit = createKit(rig, bind);
   design.build(kit, shapes, rig);
   layouts.forEach((L) => {
+    if (L.spec.mesh === false) return; // the design builds its own render geometry on the cloth bones
     const first = rig.index[L.bones[0].name];
     // which particle-frame normal sign points away from the body
     const mid = Math.floor(L.R / 2) * L.C + Math.floor(L.C / 2);

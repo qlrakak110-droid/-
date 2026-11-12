@@ -175,7 +175,8 @@ left unset, so her own clips play unscaled.
   `iska.<moveId>`; strikes get `{ clip, hit }` with `hit` read from the clip's own `impact` event (`getClipDef`), so the
   impact pose always lands on the first active frame even if the frame data changes. Projectile skills (no `hits`:
   Starshard Volley, Crystal Procession, Moonlit Afterimage) play 1:1 on the move clock.
-* `__ED.game.roster()` reports the live sources for her as `iska/...`.
+* `__ED.game.roster()` reports her as `{ id: 'iska', design: 'index', def: 'index', stub: false }` (the module in this
+  folder, no fallback).
 
 ## Clips (`clips/`, full table with timings in `clips/NAMES.md`)
 
@@ -208,7 +209,7 @@ Ambient (every round): snowfall over her, orbiting motes, glints on both blade t
 | d+heavy Rising Crescent | frost decal, gather low | floor ring + mist on `flip`, tall rising crescent drawn by the backflip (`swing`) | flower upward, shard burst, a thin frost pillar, FOV kick | mist + glint on `land` |
 | skill1 Starshard Volley | weapon glow | three shards crystallise in a fan (kindle until 0.18 / 0.24 / 0.30), FOV kick | her own `frost.shard` bodies (dimmer, impact on hit / guard / clash); flower 0.6; third shard freezes: ice cage, crystal shell, floor frost, flower 1.2 | glints on both blades |
 | skill2 Crystal Procession | gather at the floor | `stab`: flash, shards, ring, short light, vertical shake; `frost`: frost decal + turning rune + mist; `release`: ice line 6.6 m + side tracking shot along the spikes | five `iska.spike` clusters, each larger, the last one huge (+ chroma, slow-mo 0.7 from the rules' `spike5` set piece) | spikes hold, then shatter |
-| skill3 Moonlit Afterimage | all glow channels flare | `blink`: afterimages + glints; `vanish`: glitter, star, she disappears; frozen statue (`frost.statue`) left behind | `reappear`: star, ring, glitter, FOV + roll kick; crescent (`swing`), flower 0.8 + kick; the statue bursts forward as a shard lance | — |
+| skill3 Moonlit Afterimage | all glow channels flare | `blink`: afterimages + glints; `vanish`: glitter, star, she disappears, a 0.22 s whip-pan (`h.shots.whipPan`, fight framing only) follows the blink to the opponent; frozen statue (`frost.statue`) left behind | `reappear`: star, ring, glitter, FOV + roll kick; crescent (`swing`), flower 0.8 + kick; the statue bursts forward as a shard lance | — |
 | ult opener Frozen Star | `aura`: glints, frost decal | `rune`: star rune + frost decal under the opponent, light; `release`: the circle closes | `snap`: flash, sparks, `ice_form` | whiff: the rune shatters harmlessly (spikes, glitter, mist) |
 
 Ceremony hooks (`on`): intro (frost decal, turning rune, snow vortex, eye / inlay flare), victory (snow, blade glints,
@@ -241,9 +242,20 @@ Whiff (dodged / airborne victim): the rune shatters harmlessly (`ult.whiff`).
 * Afterimage ghosts copy whole character meshes (about 59k triangles for Iska, 59k for VORN), so ghost counts are kept
   low: Frostline Step 2, Moonlit Afterimage 2 + the frozen statue + 1 on reappear, ultimate orbit 1 per slash (0.16 s),
   leap 1, landing 1, plus the crystal shell on the victim for the whole lock.
-* Profile results: see "Known issues" (triangles) and the director report.
+* Profile (director pass, `high`, ISKA vs VORN, 640x360, per-frame stepping on a loaded shared machine; ultimate
+  measured in 60-frame chunks): draw calls fight 43 avg / 49 peak, ultimate 48-54 avg / 57 peak (budget 160). JS of the
+  VFX group 0.15-0.36 ms in the fight and the calm ultimate chunks (0.96 ms on the trigger chunk; chunks where every
+  group spiked together, GAME included, are machine stalls, not content). CHAR (rig, IK, cloth of both fighters)
+  1.6-5.4 ms. Programs: no shader compiles during the ultimate. Triangles: fight 344k avg, ultimate 365-460k avg /
+  472k peak (was 547k before the ghost counts were cut) - see Known issues.
 
 ## Known issues / requests to other modules
+
+* **White-out risk on close cameras (integration / camera):** on skill / heavy hits the generic feel's camera punch-in
+  (close, with motion blur and chroma) plus its white starburst and victim flash fill the frame for 2-10 frames (seen
+  on Moonlit Afterimage 0.31-0.48, Rising Crescent's launch, in the AI demo at 17 s / 27 s). Iska's own layer was dimmed
+  in the director pass (frost flower flash 0.7 -> 0.45, heavy crescents 1.2 -> 1.0, frost-ring light 90 -> 55, the
+  ultimate's shatter star / light / flash); what remains is mostly the generic layer.
 
 * **Triangles (VFX / rig):** the fight alone already sits at about 344k triangles on `high` including the shadow pass
   (budget 350k). Every afterimage ghost adds a full character copy, so the ultimate (crystal shell on the victim + one

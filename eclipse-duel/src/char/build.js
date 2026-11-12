@@ -134,6 +134,8 @@ export function createKit(rig, bind) {
      *   rx, rz:  curve over the fractional path index (0 .. n-1), radius toward the bone's +X / +Z
      *   ox, oz:  curve, centre offset;   n: curve, superellipse exponent (2 = ellipse)
      *   segs:    [radial=16, rings=24];  caps: [start=true, end=true]
+     *   correctives = true: insert the hip / elbow / knee helper stations where the stations go straight across a
+     *                       joint (see correctiveStations); elbow / knee half-joint rings split flexor / extensor side
      * }
      */
     loft(slot, spec, opts = {}) {
@@ -221,6 +223,26 @@ function mergePieces(list) {
 
 const sm = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
 
+/**
+ * Corrective skin stations a loft gets by default (spec.correctives = false: as authored): where consecutive stations
+ * go straight from the hips to a thigh, from an upper arm to its forearm or from a thigh to its shin, the joint's helper
+ * stations are inserted between them (hip joint half-swing + thigh twist helper; elbow / knee half-joint, whose flexor
+ * side is the crease helper). Stations already on helpers are kept.
+ */
+function correctiveStations(list, rig) {
+  const out = [list[0]];
+  for (let i = 1; i < list.length; i++) {
+    const [k0, b0] = list[i - 1], [k1, b1] = list[i], at = (f) => k0 + (k1 - k0) * f;
+    const s = typeof b1 === 'string' ? b1.slice(-1) : '';
+    const has = (n) => rig.index[n + s] !== undefined;
+    if (b0 === 'hips' && b1 === 'thigh' + s && has('hipJoint')) out.push([at(0.45), 'hipJoint' + s], [at(0.8), 'thighTwist' + s]);
+    else if (b0 === 'upperArm' + s && b1 === 'foreArm' + s && has('elbow')) out.push([at(0.5), 'elbow' + s]);
+    else if (b0 === 'thigh' + s && b1 === 'shin' + s && has('knee')) out.push([at(0.5), 'knee' + s]);
+    out.push(list[i]);
+  }
+  return out;
+}
+
 function loftGeometry(rig, bind, spec, bi) {
   const radial = (spec.segs && spec.segs[0]) || 16, rings = (spec.segs && spec.segs[1]) || 24;
   const np = spec.path.length;
@@ -245,7 +267,32 @@ function loftGeometry(rig, bind, spec, bi) {
     return ((lo + u) / D) * (np - 1);
   };
   const RX = fnOf(spec.rx, 0.05), RZ = fnOf(spec.rz ?? spec.rx, 0.05), OX = fnOf(spec.ox, 0), OZ = fnOf(spec.oz, 0), NE = fnOf(spec.n, 2);
-  const st = spec.weights.map(([k, b]) => [k, bi(b)]);
+  const st = (spec.correctives === false ? spec.weights : correctiveStations(spec.weights, rig)).map(([k, b]) => [k, bi(b)]);
+  // elbow / knee half-joint stations: the flexor side of the ring goes to the crease helper (it moves out of the crease
+  // as the joint bends), the extensor side to the plain half-joint
+  const crease = new Map();
+  for (const s2 of ['R', 'L']) {
+    for (const [plain, vol, flex] of [['elbow', 'elbowVol', 1], ['knee', 'kneeVol', -1]]) {
+      const a = rig.index[plain + s2], b = rig.index[vol + s2];
+      if (a === undefined || b === undefined) continue;
+      const v = { plain: a, vol: b, flex, q: [-bind.mq[b * 4], -bind.mq[b * 4 + 1], -bind.mq[b * 4 + 2], bind.mq[b * 4 + 3]] };
+      crease.set(a, v); crease.set(b, v);
+    }
+  }
+  const cq = new Float32Array(3);
+  const splitCrease = (wts, dx, dy, dz) => {
+    const out = [];
+    for (const [b, w] of wts) {
+      const c = crease.get(b);
+      if (!c) { out.push([b, w]); continue; }
+      qrot(cq, 0, c.q, 0, dx, dy, dz);
+      const l = Math.hypot(cq[0], cq[1], cq[2]) || 1, x = (c.flex * cq[0]) / l;
+      const t = Math.max(0, Math.min(1, (x + 0.25) / 0.8)), side = t * t * (3 - 2 * t);
+      if (side > 1e-4) out.push([c.vol, w * side]);
+      if (side < 1 - 1e-4) out.push([c.plain, w * (1 - side)]);
+    }
+    return out;
+  };
   const weightsAt = (f) => {
     if (f <= st[0][0]) return [[st[0][1], 1]];
     for (let i = 0; i < st.length - 1; i++) {
@@ -287,7 +334,8 @@ function loftGeometry(rig, bind, spec, bi) {
       pos[p + 1] = c.y + F.y * (ox + rx * ex) + S.y * (oz + rz * ez);
       pos[p + 2] = c.z + F.z * (ox + rx * ex) + S.z * (oz + rz * ez);
       const vi = (j * W + i) * 4;
-      wts.forEach(([b, w], k) => { idxArr[vi + k] = b; wArr[vi + k] = w; });
+      const vw = crease.size ? splitCrease(wts, pos[p] - c.x, pos[p + 1] - c.y, pos[p + 2] - c.z) : wts;
+      vw.forEach(([b, w], k) => { idxArr[vi + k] = b; wArr[vi + k] = w; });
     }
   }
   const idx = [];

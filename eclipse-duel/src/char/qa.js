@@ -7,6 +7,7 @@
 //   tipPath(rec)                  weapon-tip arcs: swings, speed, straight segments, kinks, jerk spikes, edge alignment
 //   angular(rec)                  per-bone angular velocity / acceleration, velocity steps (pops), over-speed
 //   jointLimits(rec)              violations of a documented human range-of-motion table (ROM / ROM_CHAINS)
+//   aimClamp(rec)                 wrist-clamp activity: weapon frame vs the keyed one (keys asking for an impossible wrist)
 //   balance(rec)                  centre of mass vs support polygon (static + extrapolated COM)
 //   feet(rec)                     planted-foot drift / slide speed / moon-walk ratio vs root motion
 //   floor(rec)                    floor penetration of feet, blade, pommel, hands, knees
@@ -229,7 +230,8 @@ function trackedBones(char) {
  *         character before update i: play / setClipTime / impulse ...), applyRoot = true (root motion moves the root),
  *         time = true (measure ms per update) }
  * Returns a recording: { n, h, t[], names, idx, Q (local quats), M (world 3x4: X, Y, Z axes + position), tip, base,
- *         root, clipT, clip[], events[{ i, name, data, clip }], ms[], P, lengths, scale, weapon, tipOff, baseOff, nan }
+ *         root, clipT, clip[], events[{ i, name, data, clip }], ms[], aim (char.diag.aimErr per frame: R, L deg), P,
+ *         lengths, scale, weapon, tipOff, baseOff, nan }
  */
 export function record(char, opts = {}) {
   const hz = opts.hz || QA_HZ;
@@ -241,7 +243,7 @@ export function record(char, opts = {}) {
   const bones = names.map((nm) => char.bones[nm]);
   const Q = new Float64Array(n * B * 4), M = new Float64Array(n * B * 12);
   const tip = new Float64Array(n * 3), base = new Float64Array(n * 3), root = new Float64Array(n * 3), clipT = new Float64Array(n);
-  const t = new Float64Array(n), ms = new Float64Array(n), clip = new Array(n);
+  const t = new Float64Array(n), ms = new Float64Array(n), clip = new Array(n), aim = new Float64Array(n * 2);
   const events = [];
   let frame = 0, time = 0;
   const off = char.onEvent((name, data, c) => events.push({ i: frame, name, data, clip: c }));
@@ -270,6 +272,7 @@ export function record(char, opts = {}) {
       if (baseS) { const e = baseS.matrixWorld.elements; base[frame * 3] = e[12]; base[frame * 3 + 1] = e[13]; base[frame * 3 + 2] = e[14]; }
       root[frame * 3] = char.root.position.x; root[frame * 3 + 1] = char.root.position.y; root[frame * 3 + 2] = char.root.position.z;
       clipT[frame] = char.clipTime; clip[frame] = char.clip;
+      if (char.diag && char.diag.aimErr) { aim[frame * 2] = char.diag.aimErr[0]; aim[frame * 2 + 1] = char.diag.aimErr[1]; }
     }
   } finally {
     off();
@@ -277,7 +280,7 @@ export function record(char, opts = {}) {
   }
   const wb = tipS && tipS.parent ? tipS.parent.name : null;
   return {
-    n, h: dts ? null : 1 / hz, hz, t, names, idx, B, Q, M, tip, base, root, clipT, clip, events, ms, nan,
+    n, h: dts ? null : 1 / hz, hz, t, names, idx, B, Q, M, tip, base, root, clipT, clip, events, ms, nan, aim,
     P: char.rig.P, lengths: char.rig.lengths, scale: scaleOf(char), weapon: wb,
     tipOff: tipS ? [tipS.position.x, tipS.position.y, tipS.position.z] : null,
     baseOff: baseS ? [baseS.position.x, baseS.position.y, baseS.position.z] : null,
@@ -960,6 +963,26 @@ export function poseDiff(a, b) {
 
 // ---- 12. one-call clip audit ---------------------------------------------------------------------------------------------
 /**
+ * Wrist clamp activity: how far the weapon frame ends up from the keyed one (char.diag.aimErr, degrees) when a hand key
+ * asks for more wrist than a human has (the solver bends it into range instead; jointLimits cannot see it, the clamped
+ * hand is in range). { R, L: { max, t, over10, over30 (seconds) } }.
+ */
+export function aimClamp(rec) {
+  const out = {}, h = rec.h || 1 / QA_HZ;
+  ['R', 'L'].forEach((side, k) => {
+    let max = 0, t = 0, o10 = 0, o30 = 0;
+    for (let f = 0; f < rec.n; f++) {
+      const v = rec.aim ? rec.aim[f * 2 + k] : 0;
+      if (v > max) { max = v; t = rec.t[f]; }
+      if (v > 10) o10++;
+      if (v > 30) o30++;
+    }
+    out[side] = { max: r(max, 1), t: r(t), over10: r(o10 * h), over30: r(o30 * h) };
+  });
+  return out;
+}
+
+/**
  * Every metric for one clip (recorded at 120 Hz from a clean reset; loops run two cycles). opts: recordClip opts +
  * { rest } (restDepths of a neutral recording). Returns a compact summary plus the recording (rec) for plots.
  */
@@ -974,7 +997,7 @@ export function auditClip(char, clip, opts = {}) {
     events: rec.events.map((e) => [r(rec.t[e.i]), e.name]),
     rootEnd: [r(rec.root[(rec.n - 1) * 3]), r(rec.root[(rec.n - 1) * 3 + 1])],
     tip: tp.swings, angular: { pops: an.pops, over: an.over, peak: Object.fromEntries(Object.entries(an.bones).map(([b, x]) => [b, [x.maxW, x.maxA]])) },
-    limits: jl, balance: { ...ba, series: undefined }, feet: fe, floor: fl, intersections: ix, seam: se, keys: kc,
+    limits: jl, aim: aimClamp(rec), balance: { ...ba, series: undefined }, feet: fe, floor: fl, intersections: ix, seam: se, keys: kc,
     cpu: { mean: r(ms.reduce((a, x) => a + x, 0) / ms.length, 3), p95: r(pct(ms, 0.95), 3), max: r(Math.max(...ms), 3) },
     rec, series: { tip: tp.series, com: ba.series },
   };

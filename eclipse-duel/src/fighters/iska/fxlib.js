@@ -106,8 +106,9 @@ export function defineIskaFx(vfx, rng) {
    */
   vfx.define('iska.flower', (v, at, o) => {
     const k = o.k ?? 1, p = at.pos, d = at.dir;
-    v.burst(D.flash, { pos: p, scale: 0.12 + 0.16 * k, intensity: 0.7, realtime: true });
-    v.flare({ kind: 'star', pos: p, size: 0.3 + 0.45 * k, life: 0.12 + 0.08 * k, decay: 2.6, color: STAR, intensity: 0.3 + 0.2 * k, rotation: 0.2 + rng() * 0.5, realtime: true });
+    // kept modest: it lands on top of the generic hit starburst + victim flash (a close fight camera whites out otherwise)
+    v.burst(D.flash, { pos: p, scale: 0.1 + 0.13 * k, intensity: 0.45, realtime: true });
+    v.flare({ kind: 'star', pos: p, size: 0.3 + 0.45 * k, life: 0.12 + 0.08 * k, decay: 2.6, color: STAR, intensity: 0.22 + 0.15 * k, rotation: 0.2 + rng() * 0.5, realtime: true });
     v.burst(D.shardFan, { pos: p, dir: d, count: n(5 + 10 * k), scale: 0.6 + 0.4 * k });
     v.burst(D.glint, { pos: p, count: n(4 + 8 * k), scale: 0.6 + 0.5 * k });
     if (k >= 0.8) {

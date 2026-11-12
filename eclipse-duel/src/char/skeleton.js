@@ -175,17 +175,21 @@ export function createRig(proportions = {}, extra = [], opts = {}) {
 // ---- helper bones -------------------------------------------------------------------------------------------------
 const hq = new Float32Array(24);
 /**
- * Twist (rad) about the bone's own Y axis for the helpers, faded out where it is ill-defined: near 180 deg of swing
- * (the decomposition is ill-conditioned) and near +-180 deg of twist (no human joint gets there; the decomposition
- * wraps). Continuous for every rotation, no history.
+ * Twist (rad) about the bone's own Y axis, faded out near 180 deg of swing (where the decomposition is ill-conditioned).
+ * The swing left after removing it is continuous wherever the fade is 0 or 1 (the twist's +-180 wrap only flips the
+ * quaternion's sign).
  */
 function fadedTwist(q, o) {
   const sw = swingAngle(q, o, 0, -1, 0);
-  const f = smooth01(sw, 2.62, 1.75); // full below 100 deg of swing, zero above 150 deg
-  if (!(f > 0)) return 0;
-  const a = twistAngle(q, o, 0, 1, 0);
-  return a * f * (1 - smooth01(Math.abs(a), 1.75, 3.05)); // full below 100 deg of twist, zero above 175 deg
+  const f = smooth01(sw, 2.97, 2.44); // full below 140 deg of swing, zero above 170 deg
+  return f > 0 ? twistAngle(q, o, 0, 1, 0) * f : 0;
 }
+/**
+ * Rotation of a twist helper that cancels half of a twist t (rad): -t / 2 in the human range (-0.5 x sin t x (1.25 -
+ * 0.25 cos t): within 3 deg of -t / 2 up to 70 deg), back to 0 at +-180 deg. Periodic, so it never jumps where the
+ * twist wraps, and it never turns faster than 0.75 x the twist itself (no history).
+ */
+const helperTwist = (t) => -0.5 * Math.sin(t) * (1.25 - 0.25 * Math.cos(t));
 
 // reference raise for the deltoid half-swing: the arm raised 60 deg in the scapular plane (between flexion and
 // abduction). Rotations 180 deg away from it (arm pointing back and in, or twisted ~160 deg) are out of the arm's range.
@@ -214,7 +218,7 @@ function halfRot(out, oo, q, qo, r, ro) {
  * twist helper = 65% of the wrist pronation, hip joint = half of the thigh swing, elbow / knee crease helpers =
  * half-joint moved out of the crease along the joint bisector (rig.helperOffset, growing with flexion; the loft weights
  * only the flexor side of the joint ring to them, so the inside of a flexed joint keeps its volume and the olecranon /
- * kneecap side does not balloon). Every helper is a continuous function of the pose (no history).
+ * kneecap side does not balloon). No history: every helper is a function of the pose.
  */
 export function driveHelpers(rig, lq) {
   const HO = rig.helperOffset, P = rig.P;
@@ -230,24 +234,28 @@ export function driveHelpers(rig, lq) {
     }
     limitTwist(lq, ha * 4, PRONATION);
     qidentity(hq, 8);
-    // deltoid: half of the arm swing. Twist removed where it is well defined, the half taken on the branch of a
-    // reference raise (scaption, DELT_REF); next to that reference's singular wall (|dot| small: an arm pointing back
-    // and in, or wrung far past its twist range) the plain half-elevation in the arm's own plane takes over
+    // deltoid: half of the arm's rotation with its internal / external rotation removed (faded toward the overhead
+    // singularity, where the arm's whole rotation is halved), the half taken on the branch of a reference raise
+    // (scaption, DELT_REF); next to that reference's singular wall (an arm pointing back and in, or wrung far past its
+    // twist range) the plain half-elevation in the arm's own plane takes over
     const ut = fadedTwist(lq, ua * 4);
     qaxis(hq, 0, 0, 1, 0, -ut);
     qmul(hq, 4, lq, ua * 4, hq, 0);
     const dr = Math.abs(halfRot(hq, 12, hq, 4, DELT_REF, k * 4));
-    if (dr < 0.3) {
+    if (dr < 0.3) { // next to the reference's wall: the plain half-elevation in the arm's own plane takes over
       qrot(hq, 16, lq, ua * 4, 0, -1, 0);                               // arm direction (shoulder frame)
       const el = Math.acos(Math.max(-1, Math.min(1, -hq[17])));
+      // the arm's elevation axis; for an arm within ~17 deg of vertical (where that axis is undefined) it turns toward
+      // the abduction axis, continuously
       let nx = -hq[18], nz = hq[16];
-      const nl = Math.hypot(nx, nz);
-      if (nl > 1e-6) { nx /= nl; nz /= nl; } else { nx = 1; nz = 0; }
-      qaxis(hq, 20, nx, 0, nz, 0.5 * el);
+      const nl = Math.hypot(nx, nz), b = smooth01(nl, 0.05, 0.3), ax0 = k === 0 ? -1 : 1;
+      nx = (nl > 1e-9 ? nx / nl : 0) * b + ax0 * (1 - b); nz = (nl > 1e-9 ? nz / nl : 0) * b;
+      const n2 = Math.hypot(nx, nz) || 1;
+      qaxis(hq, 20, nx / n2, 0, nz / n2, 0.5 * el);
       qslerp(hq, 12, hq, 20, hq, 12, smooth01(dr, 0.12, 0.3));
     }
     qcopy(lq, D.deltoid * 4, hq, 12);
-    qaxis(lq, D.upperArmTwist * 4, 0, 1, 0, -0.5 * ut);
+    qaxis(lq, D.upperArmTwist * 4, 0, 1, 0, helperTwist(ut));
     // elbow half-joint + crease helper (the crease is on the +X side: the forearm flexes forward)
     qslerp(lq, D.elbow * 4, hq, 8, lq, fa * 4, 0.5);
     qcopy(lq, D.elbowVol * 4, lq, D.elbow * 4);
@@ -260,7 +268,7 @@ export function driveHelpers(rig, lq) {
     qaxis(hq, 0, 0, 1, 0, -tt);
     qmul(hq, 4, lq, th * 4, hq, 0);
     halfRot(lq, D.hipJoint * 4, hq, 4, hq, 8);
-    qaxis(lq, D.thighTwist * 4, 0, 1, 0, -0.5 * tt);
+    qaxis(lq, D.thighTwist * 4, 0, 1, 0, helperTwist(tt));
     qslerp(lq, D.knee * 4, hq, 8, lq, D.shin * 4, 0.5);
     qcopy(lq, D.kneeVol * 4, lq, D.knee * 4);
     // knee crease helper: the crease is on the -X side (the shin flexes backward)

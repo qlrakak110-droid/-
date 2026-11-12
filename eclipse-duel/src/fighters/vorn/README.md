@@ -130,8 +130,13 @@ match vs ISKA; zero page errors, zero `[ed] … threw`):
   projectile body (`javelinImpact`, played by the generic projectile layer at intensity 1 with no way to pass a
   scale): a white burst over the victim for ~3 frames. Request: an intensity for projectile bodies (moves.js data or
   `projectiles[kind].body` opts), or a smaller `burst` in `javelinImpact`.
-* **Stormfall's third strike** stays the brightest frame of the kit (a huge sky bolt + bloom), readable for Vorn, the
-  victim mostly hidden for 2-3 frames.
+* **Stormfall's third strike** stays the brightest frame of the kit (a huge sky bolt + bloom); after the last pass both
+  fighters read through it (shots/vorn/dir/final_sheet.png).
+* **Performance** (`profile.mjs`, PAIR=vorn:kael, `high`, machine at load average 25-35, so every ms figure is inflated
+  several times; the counts are exact): fight phase 47 draw calls average / 51 peak (budget 160), JS 5.5 ms average of
+  which CHAR (rig, IK, cloth: not ours) 4.5 ms, GAME (our handlers) 0.24 ms, VFX 0.38 ms. Ultimate: see the director
+  report / PERF line below. The choreography allocates nothing per frame (the lodged-rod beam reuses two vectors; the
+  idle arc jump allocates once every 0.7-1.8 s).
 * **Rig (not ours)**: the spear spec has no forward off-hand grip point, so the brief's "right hand at the rear, left hand
   forward" hold is impossible; VORN uses right-hand-forward + left hand on `choke`. The off-hand grip arm is solved
   without a pole (`ik.handL.pole` ignored) and can flip its elbow in one frame; the clips work around it (left hand
