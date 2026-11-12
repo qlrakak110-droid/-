@@ -607,10 +607,10 @@ function armMetrics(c, name, { hz = 60, look = null } = {}) {
     upd('drop', diag[f][0] / s, f);
     if (pose.grip >= 0.999) upd('grip', diag[f][1] / s, f);
     for (const [e, S] of [[2, 'R'], [3, 'L']]) {
-      const o = e * 24, ik = pose.ik;
-      const low = Math.min(mpt(rec, f, 'foot' + S, 0, -P.ankleHeight, 0)[1], mpt(rec, f, 'foot' + S, -P.heelLength, -P.ankleHeight, 0)[1],
-        mpt(rec, f, 'foot' + S, P.footLength, -P.ankleHeight, 0)[1], mpt(rec, f, 'toe' + S, 0, -(P.ankleHeight - P.footDrop), 0)[1],
-        mpt(rec, f, 'toe' + S, P.toeLength, -(P.ankleHeight - P.footDrop), 0)[1]);
+      const o = e * 24, ik = pose.ik, wy = (b, x, y, z) => qa.pointAt(rec, f, b, x, y, z, _a)[1]; // world: the floor is y = 0
+      const low = Math.min(wy('foot' + S, 0, -P.ankleHeight, 0), wy('foot' + S, -P.heelLength, -P.ankleHeight, 0),
+        wy('foot' + S, P.footLength, -P.ankleHeight, 0), wy('toe' + S, 0, -(P.ankleHeight - P.footDrop), 0),
+        wy('toe' + S, P.toeLength, -(P.ankleHeight - P.footDrop), 0));
       upd('floor', -low / s, f);
       if (ik[o] > 0.999 && !(ik[o + 14] >= 2) && ik[o + 2] <= 0.005 * s) upd('float', low / s, f); // planted: the whole foot in the air
     }
