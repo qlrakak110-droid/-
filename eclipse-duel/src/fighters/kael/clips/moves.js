@@ -277,8 +277,7 @@ defineClip('kael.light2', {
 
 // ---- eruption · Fault Eruption (1.0; blade planted 0.40-0.74) -------------------------------------------------------
 {
-  const CHOP = plane(dir(0, 89), dir(60, 40));                // 0 = straight up, 90 = forward, 140 = point down into the floor ahead
-  const DOWN = plane(dir(0, 89), dir(1, 30));
+  const DOWN = plane(dir(0, 89), dir(1, 30));                 // 0 = straight up, 90 = forward, 144 = point down into the floor ahead
   defineClip('kael.eruption', {
     duration: 1.0, breath: 0.4,
     keys: [
@@ -304,7 +303,6 @@ defineClip('kael.light2', {
     ],
     events: ev([[0.32, 'trailOn'], ...impact(0.4), [0.46, 'trailOff'], [0.74, 'wrench']]),
   });
-  void CHOP;
 }
 
 // ---- bulwark · Pyre Bulwark (0.92; counter window 0.04-0.6) ---------------------------------------------------------
