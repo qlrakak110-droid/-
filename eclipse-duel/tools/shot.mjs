@@ -17,6 +17,7 @@
 //     --eval "<js>"        JS evaluated after the captures; the JSON result is printed
 //     --scenario f.mjs     custom script: export default async ({ page, evalJs, advance, shot, log }) => {...}
 //     --no-build           skip the build step,  --dev  unminified build
+//     --as <name>          game only: build to / load build/<name>.html (private copy; parallel teams don't race on dist/)
 //     --realtime 3         instead of test mode: run the real rAF loop for N seconds, then capture once
 //
 // Page console errors / warnings and uncaught exceptions are printed (shader compile errors show up here).
@@ -36,8 +37,9 @@ const target = argv[0] && !argv[0].startsWith('--') ? argv[0] : 'game';
 const opt = (name, def) => { const i = argv.indexOf('--' + name); if (i < 0) return def; const v = argv[i + 1]; return v === undefined || v.startsWith('--') ? true : v; };
 const has = (name) => argv.includes('--' + name);
 
-if (!has('no-build')) execFileSync(process.execPath, [path.join(ROOT, 'tools/build.mjs'), target, ...(has('dev') ? ['--dev'] : [])], { stdio: 'inherit' });
-const file = target === 'game' ? path.join(ROOT, 'dist/eclipse-duel.html') : path.join(ROOT, `build/${target}.html`);
+const asName = opt('as', null);
+if (!has('no-build')) execFileSync(process.execPath, [path.join(ROOT, 'tools/build.mjs'), target, ...(has('dev') ? ['--dev'] : []), ...(asName && asName !== true ? ['--as', String(asName)] : [])], { stdio: 'inherit' });
+const file = target === 'game' ? (asName && asName !== true ? path.join(ROOT, `build/${asName}.html`) : path.join(ROOT, 'dist/eclipse-duel.html')) : path.join(ROOT, `build/${target}.html`);
 const [W, H] = String(opt('size', '1280x720')).split('x').map(Number);
 const out = path.resolve(ROOT, String(opt('out', 'shots/' + target)));
 fs.mkdirSync(path.dirname(out), { recursive: true });

@@ -202,6 +202,13 @@ function aimUpToQuat(out, aim, up) {
   return qfromBasis(out, 0, [ax, ay, az], [ux, uy, uz], [zx, zy, zz]);
 }
 
+/** q = rest * q (in place). */
+function qmulRest(q, rest, o) {
+  const ax = rest[o], ay = rest[o + 1], az = rest[o + 2], aw = rest[o + 3], bx = q[0], by = q[1], bz = q[2], bw = q[3];
+  q[0] = ax * bw + aw * bx + ay * bz - az * by; q[1] = ay * bw + aw * by + az * bx - ax * bz;
+  q[2] = az * bw + aw * bz + ax * by - ay * bx; q[3] = aw * bw - ax * bx - ay * by - az * bz;
+}
+
 /** Rotate vector v by the minimal rotation taking direction a to direction b (parallel transport of an up vector). */
 function transport(v, a, b) {
   const la = Math.hypot(a[0], a[1], a[2]) || 1, lb = Math.hypot(b[0], b[1], b[2]) || 1;
@@ -267,11 +274,13 @@ function compile(rig, def) {
         const i = rig.index[b];
         if (i === undefined) throw new Error('clip ' + def.name + ': unknown bone ' + b);
         if (rig.helper[i]) throw new Error('clip ' + def.name + ': ' + b + ' is a driven helper bone');
+        if (/^(fingers|fingerTips|thumb)[RL]$/.test(b)) throw new Error('clip ' + def.name + ': ' + b + ' is driven by the curl channel');
         const r = Array.isArray(v) ? v : v.r;
         if (!boneTracks.has(i)) boneTracks.set(i, newTrack(4));
         const tr = boneTracks.get(i);
         if (isBase && tr.times.length) continue;
         eulerToQuat(q, 0, r[0] || 0, r[1] || 0, r[2] || 0, rig.side[i] < 0);
+        if (/^weapon[RL]$/.test(b)) qmulRest(q, rig.restRot, i * 4); // relative to the weapon's rest pose in the fist
         pushKey(tr, t, q, (!Array.isArray(v) && v.ease) || ke, (!Array.isArray(v) && v.interp) || km);
       }
     }

@@ -351,6 +351,29 @@ createLab({
       lab.show('char');
       return { before, after };
     },
+    /** Lowest world y (m) of the sabaton geometry (foot / toe bones) in the design's poses: soles on the floor, nothing under it. */
+    contact(ctx, lab) {
+      const out = {}, c = lab.char, v = new THREE.Vector3(), names = ['footR', 'footL', 'toeR', 'toeL'];
+      const fi = names.map((n) => c.rig.index[n]);
+      for (const kind of ['hero', 'combat', 'strike']) {
+        reset(lab, poseOf(lab.design, kind));
+        for (let i = 0; i < 30; i++) c.update(1 / 60, 1 / 60);
+        c.root.updateMatrixWorld(true);
+        const lo = {};
+        for (const mesh of Object.values(c.meshes)) {
+          const P = mesh.geometry.attributes.position, SI = mesh.geometry.attributes.skinIndex, SW = mesh.geometry.attributes.skinWeight;
+          for (let i = 0; i < P.count; i++) {
+            const k = fi.indexOf(SI.getX(i));
+            if (k < 0 || SW.getX(i) < 0.99) continue;
+            v.fromBufferAttribute(P, i); mesh.applyBoneTransform(i, v); v.applyMatrix4(mesh.matrixWorld);
+            lo[names[k]] = Math.min(lo[names[k]] ?? 9, v.y);
+          }
+        }
+        out[kind] = Object.fromEntries(Object.entries(lo).map(([k, x]) => [k, +x.toFixed(4)]));
+      }
+      reset(lab);
+      return out;
+    },
     /** Rig QA (src/char/qa.js) of the design's proportions + weapon over the demo clips and its lab poses. */
     qa(ctx, lab, clips) {
       const list = clips || ['demo.idle', 'demo.guard', 'demo.combo1', 'demo.combo2', 'demo.slam', 'demo.walkF', poseOf(lab.design, 'hero'), poseOf(lab.design, 'combat'), poseOf(lab.design, 'strike')];

@@ -112,7 +112,6 @@ if ( UNROLLED_LOOP_INDEX == 0 && envPuddle > 0.01 ) {
 
 const REFLECT = /* glsl */ `
 #include <lights_fragment_maps>
-radiance *= uWet.w;
 #if defined( USE_ENVMAP ) && defined( RE_IndirectSpecular )
 // wind ripples scatter part of a puddle's mirror image: it keeps a soft sheen of the sky glow and the braziers instead
 // of reading as a hole where it mirrors the dark walls (the reflection overlay keeps this share)
@@ -138,8 +137,8 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     tDetailA: { value: stoneMaps.a.texture },
     tDetailB: { value: stoneMaps.b.texture },
     uFloorE: { value: LAYOUT.floorTexExtent },
-    uWet: { value: new THREE.Vector4(0.0, 1.0, 1.0, 1) },
-    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 0.14, 1) },
+    uWet: { value: new THREE.Vector4(0.0, 1.0, 1.0, 0) },
+    uBand: { value: new THREE.Vector4(LAYOUT.fightBand, 0.2, 0, 0) },
     uPulseP: { value: pulseP },
     uPulseC: { value: pulseC },
     uBraz: { value: braz },
@@ -154,7 +153,7 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
     fragHead: FRAG_HEAD,
     keyMask: false,
     // key light: full on the fight band, dimmer toward the far floor and the wall
-    keyMaskExtra: 'envRimMask = uBand.z; envKeyMask = envFloorKey(vEnvWorld) * uBand.w * (1.0 - envBlob * uContactK.z) * (1.0 - envOcc * 0.35);',
+    keyMaskExtra: 'envRimMask = 0.09; envKeyMask = envFloorKey(vEnvWorld) * (1.0 - envBlob * uContactK.z) * (1.0 - envOcc * 0.35);',
     dirLight: UNDER_FILM,
     fragReplace: {
       map_fragment: MAP,

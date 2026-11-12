@@ -132,16 +132,17 @@ export function eyeGlow(k = 1) {
 }
 
 // ---- hood + shoulder mantle -------------------------------------------------------------------------------------------------
-// the crown rounds over and sweeps back into a soft drooping point (a cowl, not a cone)
-const HOOD_Y = [-0.25, -0.16, -0.1, -0.05, 0.0, 0.06, 0.12, 0.18, 0.21, 0.232, 0.247, 0.256];
+// the crown rounds over the brow and rises into a peak at the back of the head (a cowl, not a cone: the front profile
+// is a smooth curve, the point sits behind)
+const HOOD_Y = [-0.25, -0.16, -0.1, -0.05, 0.0, 0.06, 0.12, 0.18, 0.21, 0.235, 0.255, 0.268, 0.276];
 const hoodC = (vals) => profile(HOOD_Y.map((y, i) => [y, vals[i]]));
 const HOOD = {
-  rx: hoodC([0.17, 0.145, 0.12, 0.112, 0.117, 0.124, 0.125, 0.119, 0.107, 0.086, 0.056, 0.012]),
-  rz: hoodC([0.182, 0.152, 0.117, 0.099, 0.099, 0.104, 0.103, 0.097, 0.087, 0.07, 0.046, 0.01]),
-  ox: hoodC([-0.035, -0.022, -0.008, -0.004, 0.0, 0.0, -0.008, -0.022, -0.04, -0.064, -0.092, -0.118]),
+  rx: hoodC([0.17, 0.145, 0.12, 0.112, 0.117, 0.124, 0.123, 0.111, 0.095, 0.072, 0.048, 0.027, 0.008]),
+  rz: hoodC([0.182, 0.152, 0.117, 0.099, 0.099, 0.104, 0.103, 0.097, 0.086, 0.068, 0.046, 0.026, 0.008]),
+  ox: hoodC([-0.035, -0.022, -0.008, -0.004, 0.0, 0.0, -0.008, -0.022, -0.035, -0.055, -0.078, -0.1, -0.118]),
 };
 /** Hood height at surface parameter v (more rows near the crown: the rounded peak stays smooth). */
-const hoodY = (v) => lerp(0.256, -0.25, Math.pow(v, 1.3));
+const hoodY = (v) => lerp(0.276, -0.25, Math.pow(v, 1.3));
 /** Face-opening half angle (deg) of the hood at height y: an oval around the face, a narrow front opening below the chin. */
 function hoodOpen(y) {
   const t = (y - 0.052) / 0.118;

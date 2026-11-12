@@ -15,13 +15,15 @@ src/char/spring.js      spring bones          src/char/cloth.js   verlet cloth  
 src/char/rigmath.js     allocation-free quaternion / spline helpers
 src/char/designs/knight.js   demo design (full plate knight, greatsword, cape + tabard cloth, plume, tassets)
 src/char/clips/demo.js       demo clips (idle, guard, walks, 3-hit combo, slam, hit reaction, mirrored combo)
+src/char/qa.js               motion-quality metrics (tip arcs, pops, ROM, balance, feet, floor, key continuity ...)
 src/labs/char.js             lab page (node tools/build.mjs char)
+src/labs/rigqa.js            rig regression suite (section 10)
 ```
 
 Budgets of the demo knight (high tier): **3 draw calls** (slots `plate`, `suit`, `blade`; +3 in the shadow pass),
-**56.9k triangles**, 188 bones (49 animated incl. helpers / fingers / weapon / plume / tassets + 104 cape + 35 tabard
-cloth particles), ~0.5-0.6 ms CPU per `update()` on desktop (two cloths included). No per-frame allocations in
-`update()`. Contract limits: <= 6 draw calls and <= 60k triangles per character.
+~57k triangles, 196 bones (57 animated incl. helpers / fingers / weapon / plume / tassets + 104 cape + 35 tabard cloth
+particles), ~0.55 ms CPU per `update()` on desktop (two cloths included; ~0.1 ms without cloth). No per-frame
+allocations in `update()`. Contract limits: <= 6 draw calls and <= 60k triangles per character.
 
 ---
 
@@ -62,25 +64,28 @@ p2.lookAt(p1.sockets.head);                          // head tracks the opponent
 
 | member | description |
 |---|---|
-| `root` | `THREE.Group` to place on the fight line. Model forward is **+X**; `root.scale.x` carries the facing (mirror). |
-| `setFacing(f, { turn = 0 })` | `+1` face +X, `-1` face -X (instant mirror, the 2.5D-fighter convention: the same side always faces the camera). `turn` > 0 (seconds) spins through a quick turn instead. Cloth / springs are unaffected. |
+| `root` | `THREE.Group` to place on the fight line. Model forward is **+X**; the sign of `root.scale.x` carries the facing (mirror), its magnitude the world scale. |
+| `scale` | Uniform world scale (getter / setter; `design.scale` sets it at creation). `setFacing` keeps it. A colossus can be the default rig scaled here (cheap) or built from scaled proportions (every rig constant follows the proportions). |
+| `bodyScale` | Hips pivot height / 1.04 m of the proportions: pass it as `play(name, { scale })` to retarget a clip authored for the 1.95 m knight (section 5). |
+| `setFacing(f, { turn = 0 })` | `+1` face +X, `-1` face -X (instant mirror, the 2.5D-fighter convention: the same side always faces the camera). `turn` > 0 (seconds): the mirror happens at once and the mirrored model spins in through the front. Mirroring always moves a point at side offset `s` by `2s` (a law of the mirror, whatever the timing); doing it while the fighter is seen side-on (as here) puts that jump in depth, where it is least visible. Cloth / springs are unaffected. |
 | `facing` | current facing (getter). |
 | `bones` | `{ name: THREE.Bone }` — all bones (section 4). |
 | `sockets` | `Object3D` markers, world matrices valid after `update()`: `weaponBase`, `weaponTip` (`weaponBase2`/`weaponTip2` ... for more weapons), `handR`, `handL` (centre of the fist), `chest`, `head`, `hips`, `footR`, `footL` (sole), `back`, plus `design.sockets`. |
-| `play(name, { fade = 0.1, speed = 1, loop = clip.loop, startAt = 0, restart = false })` | Crossfade to a clip (or a registered pose: it is held). Re-playing the clip that is already looping keeps it running unless `restart`. Up to 4 clips blend at once. |
+| `play(name, { fade = 0.1, speed = 1, loop = clip.loop, startAt = 0, restart = false, scale = design.clipScale ?? 1 })` | Crossfade to a clip (or a registered pose: it is held). The fade weight is a smoothstep (no velocity step at either end). Re-playing the clip that is already looping keeps it running unless `restart`. Up to 4 clips blend at once; a 5th folds the two oldest into one frozen snapshot of their current blend (nothing that still carries weight is dropped). `scale` multiplies every positional channel of the clip (hips offset, root motion, IK positions and poles, look target): retargeting. Feet planted when a fade starts stay where they are in the world until the new clip lifts them (foot locks). |
 | `clip`, `clipTime`, `clipDuration`, `finished` | state of the newest clip (`finished`: non-looping and at its end). |
 | `setClipTime(t)` | External time: the newest clip stops self-advancing until the next `play()`. Events and root motion between the previous and the new time are still produced (forward only). |
 | `update(dtGame, dtReal)` | Advance clips, IK, additive motion, springs, cloth; writes bones and socket matrices. Call once per frame. `dtGame = 0` (hit-stop) freezes animation and cloth; the flash still decays on `dtReal`. |
-| `rootDelta` | `{ f, u }` root motion (fighter metres) produced by this `update()`. Not applied unless `applyRootMotion = true`. |
+| `rootDelta` | `{ f, u }` root motion (fighter metres) produced by this `update()`: every playing clip contributes by its share of the blend (a walk fading out keeps carrying its planted feet). Not applied unless `applyRootMotion = true`. |
 | `onEvent(fn(name, data, clipName))` | Clip markers crossed this update (newest clip only). Returns an unsubscribe function. |
 | `flash(color, amount = 1, dur = 0.15)` | Emissive flash on every material (`color`: hex / `THREE.Color` / `[r,g,b]` HDR), fresnel-weighted, quadratic decay over `dur` real seconds. |
-| `impulse({ bone = 'body', dir = [-1,0,0], amount = 1 })` | Additive physical flinch that springs back. `dir` is the push direction `[f,u,s]` (a hit from the front pushes `[-1,0,0]`). `'body'`: hips / spine / chest bend away with a lagging head whip and a hips shove; any bone name: that bone alone. `amount` 1 = heavy hit: ~8 deg torso bend + ~12 deg head whip, settles in ~0.4 s; scale freely (2-3 for launchers). |
+| `impulse({ bone = 'body', dir = [-1,0,0], amount = 1 })` | Additive physical flinch that springs back. `dir` is the push direction `[f,u,s]` (a hit from the front pushes `[-1,0,0]`). `'body'`: hips / spine / chest bend away with a lagging head whip and a hips shove; any bone name: that bone alone. `amount` 1 = heavy hit: ~8 deg torso bend + ~12 deg head whip, settles in ~0.4 s; `amount` is clamped to +-4 and stacked hits saturate (head whip <= ~50 deg). Frame-rate independent (sub-stepped). Non-finite input is ignored. |
 | `lookAt(target, weight = 1)` | Head + neck track a world `Vector3` / `Object3D` (limited to 75 deg, blended in ~0.1 s); `null` releases. Clips with `look: false` disable it; a clip `look` channel overrides it. |
 | `layer(name, clip, { weight = 1, mask = 'upper', additive = false, speed = 1, loop, fade = 0.15 })` | Masked override layer (attack while walking) or additive layer (motion relative to the clip's first frame). Masks: `'upper' 'lower' 'arms' 'head'` or an array of bone names. Override layers solve their own IK. |
 | `stopLayer(name, fade = 0.15)` | Fade a layer out and remove it. |
 | `breath` | `{ rate = 0.32 Hz, depth = 1 }` procedural breathing (chest, shoulders, head counter-motion), scaled per clip by `clip.breath`. |
 | `wind` | `[x,y,z]` world-space wind acceleration for cloth (m/s^2; 2-6 is a stiff breeze). Gusts are added deterministically. |
-| `teleport()` | Reset cloth / springs after placing the character somewhere new (jumps > 0.6 m per frame and facing flips are detected automatically). |
+| `teleport()` | Reset cloth, spring bones, flinch springs and IK memories after placing the character somewhere new. Root moves faster than 30 m/s x body scale x world scale and facing flips are detected automatically (a 20 m/s dash at dt 1/30 is not). |
+| `diag` | Diagnostics of the last update: `{ drop, gripErr, footErr, reach: [handR, handL, footR, footL] }` (automatic pelvis drop m, residual two-handed grip error m, planted-foot error m, reach ratios). |
 | `weapon` | `{ bone, mesh, material, grips, setVisible(b) }` of the first design weapon (`material` is the blade slot material: tint / glow it for skills). |
 | `materials`, `meshes` | `{ slot: material }`, `{ slot: SkinnedMesh }`. |
 | `stats` | `{ triangles, drawCalls, bones }`. |
@@ -88,9 +93,11 @@ p2.lookAt(p1.sockets.head);                          // head tracks the opponent
 | `setVisible(b)`, `dispose()` | Visibility; free geometries, materials, bone texture and detach. |
 
 Order of operations inside `update()`: advance clips (events, root motion) -> sample + resolve every active clip
-(FK, automatic pelvis drop, hand / foot IK) -> crossfade -> layers -> breathing + flinch springs -> re-plant feet where
-the blend put them + floor / toe contact -> two-handed grip IK -> look-at -> helper bones -> spring bones -> cloth ->
-bones + sockets.
+(breathing, FK, automatic pelvis drop, hand / foot IK, that clip's two-handed grip) -> crossfade -> layers -> foot
+locks -> flinch springs -> re-plant feet where the blend put them + floor / toe contact -> two-handed grip IK on the
+blended grip target -> look-at -> helper bones -> plate followers -> spring bones -> cloth -> bones + sockets.
+Breathing is applied before IK, so IK hands and feet stay exactly on their targets; a flinch is a physical push and
+moves hands and weapon with the body (feet are re-planted).
 
 ---
 
@@ -136,12 +143,12 @@ right bone and `+s` for a left bone (the mirror convention makes the meaning sym
 
 | bone | `+X` | `+Y` | `+Z` |
 |---|---|---|---|
-| `shoulderR/L` (clavicle, points outward) | **depress** (shoulder down); `-X` = shrug up | protract (shoulder forward); `-Y` = pull back | roll about the clavicle (avoid) |
+| `shoulderR/L` (clavicle, points outward) | **depress** (shoulder down); `-X` = shrug up | protract (shoulder forward); `-Y` = pull back | rolls the clavicle, which swings the whole hanging arm forward like a small flexion (+30: elbow moves ~15 cm forward); avoid, use the upper arm |
 | `upperArmR/L` | adduct: arm swings across toward the midline; **`-X` = raise sideways (abduct)** | internal rotation (front of the arm turns toward the midline) | **raise forward (flex)**; `-Z` = swing back |
 | `foreArmR/L` | (not anatomical — keep 0) | pronation; moved into the hand automatically (forearm stays a hinge; twist is spread by helpers) | **bend the elbow** (0..150) |
 | `handR/L` | flex toward the palm (palm side = midline) | pronate (thumb turns toward the midline) | tilt toward the thumb (radial); `-Z` toward the little finger |
-| `fingers*`, `fingerTips*`, `thumb*` | driven by the `curl` channel — do not key | | |
-| `weaponR/L` (fist centre, grip axis) | roll the blade about its own axis | yaw the blade toward the midline | tip up. Fixed in the hand; aim weapons with hand IK instead |
+| `fingers*`, `fingerTips*`, `thumb*` | driven by the `curl` channel; keying them throws | | |
+| `weaponR/L` (fist centre, grip axis) | roll the blade about its own axis | yaw the blade toward the midline | tip up. Keys are relative to the weapon's rest pose in the fist (the design's `gripAngle`). Aim weapons with hand IK instead |
 
 ### Legs (`thigh`, `shin`, `foot`, `toe`)
 
@@ -155,8 +162,17 @@ right bone and `+s` for a left bone (the mirror convention makes the meaning sym
 ### Helper bones (driven every frame — never key them)
 
 `deltoidR/L` (child of the clavicle at the shoulder joint, half of the arm swing: pauldrons), `upperArmTwistR/L`
-(cancels half of the upper-arm twist near the shoulder), `elbowR/L` / `kneeR/L` (half of the joint angle: volume-
-preserving joint ring, couters / poleyns), `foreArmTwistR/L` (65% of the wrist twist: vambraces).
+(cancels half of the upper-arm twist near the shoulder), `elbowR/L` / `kneeR/L` (half of the joint angle: couters /
+poleyns), `foreArmTwistR/L` (65% of the wrist twist: vambraces), `hipJointR/L` (child of the hips at the hip joint, half
+of the thigh swing: groin), `thighTwistR/L` (cancels half of the thigh twist near the hip), `elbowVolR/L` /
+`kneeVolR/L` (half-joint + a volume scale that grows with flexion: the under-suit's joint ring only, no plates).
+Twist is measured relative to the hanging arm and faded out between 100 and 150 deg of elevation (where it is
+ill-defined); twist helpers never jump across +-180 deg (they keep last frame's side). Helper bones take their driven
+values in the bind pose, so the suit is undeformed in its bind pose.
+
+**Plate followers** (`design.bones[i].follow = { bone, k }`): a design bone that shares its parent with `bone` takes
+`k` x that bone's swing every frame (before spring bones, which then use it as their target). Articulates armour by
+data: the knight's tassets follow 55% of the thigh.
 
 ### Worked pose examples
 
@@ -167,8 +183,8 @@ bones: { upperArmR: [-14, 6, 4], upperArmL: [-14, 6, 4], foreArmR: [0, 0, 16], f
 bones: { upperArmR: [0, 0, 90] }
 // both arms raised sideways to a T (abduction is -X on both sides because of the mirror convention)
 bones: { upperArmR: [-90, 0, 0], upperArmL: [-90, 0, 0] }
-// fist at the chin: upper arm forward 40, elbow 130
-bones: { upperArmR: [0, 0, 40], foreArmR: [0, 0, 130] }
+// fist in front of the chin: upper arm forward 40 and across 25 (adduct), elbow 130
+bones: { upperArmR: [25, 0, 40], foreArmR: [0, 0, 130] }
 // torso wound up to the right (front toward the camera) and leaning forward, head kept on the opponent
 hips: { rot: [0, -30, 0] }, bones: { spine: [0, -10, -8], chest: [0, -10, -6], neck: [0, 18, 4], head: [0, 26, 0] }
 // high knee (FK): thigh up 90, shin back 90, toes pointed
@@ -216,8 +232,8 @@ Every channel is optional on a key; each channel is interpolated only between th
 | channel | format | notes |
 |---|---|---|
 | `t` | seconds | |
-| `ease` | Ease name (`core/math.js`) or fn | remaps time on the segment **ending** at this key, for every channel of the key. Default `'linear'` (smooth spline through the keys) |
-| `interp` | `'auto'` \| `'linear'` \| `'step'` | segment ending at this key. `auto`: clamped Catmull-Rom (passes through keys, never overshoots a keyed value, holds stop dead) |
+| `ease` | Ease name (`core/math.js`) or fn | shapes the segment **ending** at this key, for every channel of the key, as **tangents** (velocity stays continuous through every key): `'out*'` (outQuad / outCubic / outSine ...) = the motion decelerates into this key and stops there (zero velocity on both sides); `'inOut*'` = stops at both ends; `'in*'` = starts from rest at the previous key and **hits this key fast** (an impact: the next segment starts from rest, the one deliberate velocity step — blade into the floor, a foot landing); `'linear'` (default) = smooth spline through the keys. Other eases (`outBack`, `outElastic`, `outBounce`, `snap`, functions) remap time on the segment and break velocity continuity at its ends — use them only for deliberate snaps |
+| `interp` | `'auto'` \| `'linear'` \| `'step'` | segment ending at this key. `auto`: clamped Catmull-Rom (passes through keys, never overshoots a keyed value, holds stop dead). `linear`: constant velocity; the keys around a linear run take its slope, so curves flow into and out of it (a planted foot sliding back at root speed lands and lifts without a step) |
 | `pose` | pose name | start from that pose's channels; the key's own channels override |
 | `bones` | `{ bone: [x,y,z] }` or `{ bone: { r: [x,y,z], ease, interp } }` | FK degrees (section 4). Quaternion splines (shortest path). Per-bone `ease` / `interp` override the key's |
 | `hips` | `{ pos: [f,u,s], rot: [x,y,z], ease, interp }` | `pos` = offset of the pelvis from its rest position (m). `rot` = pelvis Euler, **interpolated per component** so multi-turn spins work (`[0, 300, 0]`) |
@@ -230,29 +246,48 @@ Every channel is optional on a key; each channel is interpolated only between th
 ### IK targets
 
 ```js
-ik: { handR: { pos, aim, up, rot, pole, w, space, ease, interp } }
+ik: { handR: { pos, aim, up, rot, pole, w, soft, space, ease, interp } }
 ```
 
 | field | meaning |
 |---|---|
 | `pos` | **hands**: centre of the fist (the grip axis). **feet**: the sole point straight under the ankle (`u = 0` = flat on the floor) |
-| `aim`, `up` | orientation as vectors (preferred): for hands `aim` = where a held blade points (out of the thumb side of the fist), `up` = the blade's back edge (opposite the true edge); for feet `aim` = toe direction, `up` = top of the foot. `up` is orthogonalised |
-| `rot` | orientation as fighter-frame Euler `[x,y,z]` (ZXY) relative to the zero pose orientation (hand: blade forward, edge down; foot: toes forward). Not mirrored. |
+| `aim`, `up` | orientation as vectors (preferred): for hands the **weapon frame**: `aim` = where the held blade points, `up` = the blade's back edge (opposite the true edge) — the hand takes whatever orientation holds the blade that way (the design's `gripAngle` included); for feet `aim` = toe direction, `up` = top of the foot. `up` is orthogonalised. A key with `aim` and no `up` keeps the roll of the neighbouring keys (the previous key's `up` is carried along the turn of the aim; the first such key borrows the next key's); only an effector that never keys `up` uses world +Y |
+| `rot` | orientation as fighter-frame Euler `[x,y,z]` (ZXY) relative to the zero pose orientation (hand: blade forward, edge down; foot: toes forward). **Not mirrored**: the same numbers turn both feet toward the same world direction (`footL: { rot: [0, 14, 0] }` turns the left toes out, while FK `footL: [0, 14, 0]` turns them in). Prefer `aim` / `up`, which mean the same thing on both sides |
 | `pole` | point `[f,u,s]` (fighter frame) the elbow / knee should point at. Default: elbows down-back-out in the chest frame, knees over the toes |
 | `w` | weight 0..1 (IK vs the FK pose of the same clip); `w: 0` or `null` turns the effector off |
+| `soft` | soft reach: the last fraction of the limb's length over which it eases into full extension (default 0.006: an arm or leg at exactly full reach is ~7 deg bent and 1-2 mm short; `0` = may lock straight, for thrusts / a straight back leg). Per key, interpolated |
 | `space` | `'root'` (default, moves with the root), `'origin'` (the root position at clip start: **planted feet during root motion**), `'hips'` / `'chest'` (bone frame: hands that ride a spinning torso). Spaces may change from key to key; the target blends between them |
 
 Position-only or orientation-only keys are allowed (key `aim` a frame later than `pos` to make the blade lag).
-Without any orientation key the end bone keeps its FK orientation (feet stay as the leg puts them).
-Feet targets out of reach make the runtime drop the pelvis just enough (planted feet never slide). Feet are re-planted
-after additive motion and kept above the floor (heel / sole / ball and toe tip).
+Without any orientation key a foot keeps its FK orientation (as the leg puts it) and a hand keeps its FK wrist pose
+(it rides the new forearm).
+
+**Arms stay human.** Hand targets choose the elbow's swivel around the shoulder-wrist line (from the pole, kept from
+frame to frame) so that the wrist stays within pronation / supination +-90 deg and 85 deg of bend, the humerus within
+its rotation range and the elbow out of the torso (design collider `torso`). What the swivel cannot absorb is clamped
+softly at the wrist (the blade then deviates from the key: the key asked for an impossible wrist — `qa.jointLimits`
+lists such frames). Near or past full reach the clavicle rises / protracts toward the target (up to ~24 deg). In a
+two-handed grip the off hand may roll around the handle; if the grip point is out of the off arm's reach, the main
+hand is pulled toward the off shoulder just enough for both to hold it (`diag.gripErr`). When a crossfade changes the
+grip point (pommel -> blade), the off hand lets go and moves with its arm over >= 0.35 s, then re-grips.
+
+**Pelvis drop.** Feet targets on (or just above) the floor that are out of reach lower the hips: a smooth, bounded
+drop (at most `design.maxPelvisDrop`, default 0.16 m x body scale), released smoothly (~80 ms) when the foot lifts.
+Hips / chest-space feet and feet in the air do not drop the hips. `diag.drop` shows it: more than a few cm means the
+clip's hips are too high for its stance — fix the data. Feet are re-planted after flinch / blending (with their
+authored knee pole) and kept above the floor: heel, sole and ball pad on the sole plane; the toe bends about its joint
+until the toe tip rests exactly on the floor.
 
 ### Weapons
 
 The weapon bone sits at the centre of the fist. In the zero hand pose the grip axis is `+X` (blade forward), the edge
-`-Y` (true edge down), the flats `+-Z`. Design grip points are in the weapon bone frame (`grip: { pos: [-0.155,0,0] }`
-puts the off hand below the main hand on a long grip). Aim weapons with hand IK `aim` / `up`; the tip travels on an
-arc because the hand position and the orientation are interpolated separately (position spline + quaternion spline).
+`-Y` (true edge down), the flats `+-Z`, tilted toward the little finger by the design's `gripAngle` (a handle crosses
+the palm diagonally; the knight uses 40 deg, which keeps wrists in range when the blade continues the forearm line).
+Design grip points are in the weapon bone frame (`grip: { pos: [-0.155,0,0] }` puts the off hand below the main hand on
+a long grip). Aim weapons with hand IK `aim` / `up` (they describe the weapon frame, so `gripAngle` never changes
+where a keyed blade points); the tip travels on an arc because the hand position and the orientation are interpolated
+separately (position spline + quaternion spline).
 
 ### Example: an attack clip
 
@@ -296,6 +331,8 @@ A design is data plus one `build(kit, shapes, rig)` function. It lives outside t
 export const design = {
   id: 'kael', idle: 'kael.idle',
   proportions: { upperArm: 0.31, hipHeight: 1.0 },          // overrides of DEFAULT_PROPORTIONS (skeleton.js)
+  gripAngle: 40,                                            // weapon tilt in the fist (deg, toward the little finger)
+  scale: 1, clipScale: 1, maxPelvisDrop: 0.16,              // world scale, default play() scale, drop limit (m x body)
   materials: { plate: { envMapIntensity: 1.2, detailScale: 4.5, bump: 0.1 }, suit: {...}, blade: {...} },
   bones: [{ name: 'plume1', parent: 'head', at: [-0.03, 0.245, 0], rot?: [x,y,z] | quat?: [x,y,z,w] }, ...],
   springs: [{ bones: ['plume1', 'plume2'], stiffness: 50, damping: 3.5, gravity: 0.45, tip: [-0.07,-0.08,0], limit: 75, radius: 0.02, collide: true, inertia: 1 }],
@@ -310,11 +347,13 @@ export const design = {
 
 | field | notes |
 |---|---|
-| `proportions` | `hipHeight 0.98, pelvisDrop 0.06, hipWidth 0.10, thighRatio 0.52, ankleHeight 0.085, footLength 0.135, footDrop 0.055, toeLength 0.08, heelLength 0.065, spine 0.11, chest 0.17, neck 0.255, head 0.105, shoulderHeight 0.20, clavicleRoot 0.03, clavicle 0.19, shoulderBack 0.015, upperArm 0.30, foreArm 0.27, hand 0.085, palm 0.022` |
+| `proportions` | `hipHeight 0.98, pelvisDrop 0.06, hipWidth 0.10, thighRatio 0.52, ankleHeight 0.085, footLength 0.135, footDrop 0.055, toeLength 0.08, heelLength 0.065, spine 0.11, chest 0.17, neck 0.255, head 0.105, shoulderHeight 0.20, clavicleRoot 0.03, clavicle 0.19, shoulderBack 0.015, upperArm 0.30, foreArm 0.27, hand 0.085, palm 0.022`. Every other rig constant follows them: finger / thumb / twist-helper offsets scale with `hand` / `upperArm`; sockets, foot-contact ramps, eye height, breathing, flinch and the teleport threshold with the body scale (hips pivot / 1.04 m). A 4.2x colossus built from 4.2x proportions matches the knight scaled by 4.2 within ~1 mm (normalised) |
+| `gripAngle` | default 0. Rest tilt (deg) of both weapon bones toward the little finger; 30-45 recommended for swords, spears, axes |
+| `scale`, `clipScale`, `maxPelvisDrop` | world scale of `root` (default 1), default `play()` scale (use `char.bodyScale` for clips authored on the knight), automatic pelvis drop limit (m at body scale 1, default 0.16) |
 | `materials` | one entry per slot = one draw call. `createKitMaterial` options: `color` (multiplies vertex colour), `roughness` / `metalness` (multiplied by per-vertex values), `envMapIntensity`, `detailScale` (detail tiles per metre), `bump` (detail normal strength), `side: 'double'`, `glowScale` |
-| `bones` | extra bones (`at` in the parent's zero frame). Mirror pairs by `...R` / `...L` names |
+| `bones` | extra bones (`at` in the parent's zero frame). Mirror pairs by `...R` / `...L` names. `follow: { bone, k }` drives the bone by `k` x the swing of a bone with the same parent (articulated plates, section 4); `at` then defaults to that bone's position |
 | `springs` | spring chains: `stiffness` (1/s^2 toward the animated direction), `damping` (1/s), `gravity` (x g), `inertia` (0..1, how much root motion it feels), `limit` (deg cone around the rest direction), `radius` (collision), `tip` (end of the last bone in its frame) |
-| `colliders` | capsules for cloth and springs: endpoints = bone + offset (zero frame), radius |
+| `colliders` | capsules for cloth and springs: endpoints = bone + offset (zero frame), radius. A design with a cape needs `head` and `neck` capsules (a spin throws the cape up over the head). The capsule named `torso` also keeps the elbows out of the body |
 | `cloth` | `top` = pinned edge ordered from the fighter's left (`-s`) to right (`+s`); `cols, rows` (x `quality.cloth`), `length`, `drape [f,u,s]` hang direction, `flare` (relative widening at the bottom), `offset(u,v) -> [f,u,s]`, `pinRows 1`, `thickness 0.012`, `subdiv 2`, `damping 0.035`, `stretch 1 / shear 0.7 / bend 0.25`, `tether 1.04` (max stretch vs rest), `margin 0.025`, `maxSpeed 14`, `gravity 1`, `wind 1`, `inertia 1`, `surface: { outer: { color, rough, detail }, inner: { color, rough, cavity } }` |
 | `weapon(s)` | `hand`, `slot` (material slot of its pieces), `base`, `tip` (sockets), `grips` (`{ name: { pos, rot } }` in the weapon bone frame; the off hand takes the weapon frame's orientation plus `rot`) |
 
@@ -348,7 +387,7 @@ and the neighbouring bones a few cm either side), `rx`, `rz`, `ox`, `oz`, `n` (c
 
 | function | notes |
 |---|---|
-| `shell(o)` | curved plate swept along Y: `y0, y1, rx, rz, ox, oz, n` (superellipse), `a0, a1` (coverage deg, 0 = +X, 90 = +Z), `thick`, `rim` (rolled bead radius), `rimEdges 'tbs'`, `rimTop`, `rimSegs`, `ridge {at, w, h}` / `ridges`, `bulge(u,v)`, `dy(u,v,deg)` (shaped edges), `inner` (default only for open plates), `part 'plate' \| 'rim'` (split to colour rims as trim), `segs [radial, rings]` |
+| `shell(o)` | curved plate swept along Y: `y0, y1, rx, rz, ox, oz, n` (superellipse), `a0, a1` (coverage deg, 0 = +X, 90 = +Z), `thick`, `rim` (rolled bead radius), `rimEdges 'tbs'`, `rimTop`, `rimSegs`, `ridge {at, w, h}` / `ridges`, `bulge(u,v)`, `dy(u,v,deg)` (shaped edges), `inner` (default: open plates and closed tubes that flare open at an end, e.g. cuffs), `caps [top, bottom]` (closed tubes: end discs for finger / toe tips), `part 'plate' \| 'rim'` (split to colour rims as trim), `segs [radial, rings]` |
 | `lathe(points [[r,y]...], { segs, a0, a1 })` | surface of revolution around Y |
 | `tube(points, radius, seg, { closed, caps, scaleZ })` | tube along a polyline (`Vector3`s or `[x,y,z]`) |
 | `path(points, n)` | Catmull-Rom samples |
@@ -367,9 +406,14 @@ Rotations that orient sweeps: `rot: [0,0,90]` maps +Y to -X, `[0,0,-90]` maps +Y
 * **Cloth**: verlet grid in the fighter frame; each particle drives a bone, the render mesh is part of a merged
   `SkinnedMesh` (outer + lining + rim, bilinear weights), so cloth adds no draw call. Sub-stepped Gauss-Seidel
   constraints, long-range tethers (no runaway stretch), velocity clamp, body capsules + floor with friction, wind
-  with deterministic gusts. Root motion feeds back as inertia; jumps > 0.6 m and facing flips do not.
-  Hit-stop (`dtGame = 0`) freezes it. Reset hangs the cloth under gravity and pre-settles it (24 steps).
-  Detail scales with `ctx.quality.cloth` (grid size and iterations).
+  with deterministic gusts. Root motion feeds back as inertia; teleports and facing flips do not.
+  Hit-stop (`dtGame = 0`) freezes it. Reset hangs the cloth under gravity and pre-settles it (10 steps).
+  Capsules move smoothly across the sub-steps, collision also runs inside the constraint iterations (the sheet wraps
+  around a limb instead of being torn across it), damping is per 1/120 s and verlet velocities are rescaled when the
+  step changes (slow motion and dropped frames behave like 60 fps). The edge rim is oriented per quad (no see-through
+  slit along the edges). Detail scales with `ctx.quality.cloth` (grid size and iterations).
+* **Spring bones** follow their bone's keyed rotation when a clip keys it (otherwise its rest), are sub-stepped at
+  <= 1/120 s with rescaled verlet velocities (same response at 30 / 60 / 120 Hz and in slow motion).
 
 ---
 
@@ -391,7 +435,11 @@ Rotations that orient sweeps: `rot: [0,0,90]` maps +Y to -X, `[0,0,-90]` maps +Y
    Repeat from a 3/4 view (`yaw 35`). Read the sheet: arc of the tip, edge alignment, interpenetration (blade in the
    floor or the body), foot planting, cape behaviour.
 4. **Measure** when in doubt: sample `char.sockets.weaponTip.getWorldPosition()` per frame through `--scenario`
-   (tip below `u = 0` = through the floor; planted foot sockets should not move).
+   (tip below `u = 0` = through the floor; planted foot sockets should not move). `char.diag` gives the automatic
+   pelvis drop (should stay under a few cm: lower the clip's hips instead), the two-handed grip error and the reach
+   ratios. `src/char/qa.js` (`auditClip`) gives the rest: joint ranges (a hand listed there is a key asking for an
+   impossible wrist), pops, planted-foot drift (< 1 cm: a planted foot keeps its exact key until it lifts), floor
+   penetration, key continuity.
 5. **Mirror / chain**: `mirrorClip` for the other hand; play the chain in the lab
    (`__ED.lab.play('chain', ['a','b','c'])`) and check the crossfades.
 6. Live authoring: `__ED.anim.defineClip(...)`, then `__ED.anim.invalidateClips()` and play it again.
@@ -408,4 +456,34 @@ pose), `bones` (skeleton overlay). The lab applies root motion to `root.position
 * `root.position.y` > 0 (jumps) is fine: the floor for foot contact and cloth is world `y = 0`.
 * Rotating `root` (cinematics) is supported: cloth / springs receive the rotation as inertia, gravity stays world down.
 * All character materials share one shader program (`customProgramCacheKey`), so a second fighter costs no compile.
-* Determinism: no randomness at runtime; cloth gusts are functions of game time.
+* Determinism: no randomness at runtime; cloth gusts are functions of game time. Three small memories make motion
+  continuous where a pose alone is ambiguous: the elbow swivel of each arm IK, the side of a twist past +-180 deg and the
+  automatic-drop release. They only matter near those limits; `teleport()` clears them.
+* Clips shared between body types: `play(name, { scale: char.bodyScale })` (or `design.clipScale`) scales hips offsets,
+  root motion and IK targets / poles authored for the 1.95 m knight; hips / chest-space targets scale too.
+
+---
+
+## 10. Rig regression suite
+
+`src/labs/rigqa.js` runs every measurement the rig audit used, on the shipped runtime, for the knight and for ISKA-like
+(1.78 m), VORN-like (2.02 m) and 4.2x giant proportions (shared clips retargeted with `bodyScale`), and reduces them
+to pass / fail checks:
+
+```
+node tools/shot.mjs rigqa --eval "__ED.lab.play('all')"                       # { checks: [{ name, value, limit, pass }], passed, failed }
+node tools/shot.mjs rigqa --eval "__ED.lab.play('all', { failedOnly: true })"  # only the failures
+node tools/shot.mjs rigqa --eval "__ED.lab.play('all', { only: 'clips', bodies: ['kael'] })"   # one group: clips | runtime | ik | xfade | cloth | cpu
+node tools/shot.mjs rigqa --eval "__ED.qa.clip('demo.combo3', 'iska')"         # raw numbers of one clip on one body
+```
+
+| group | checks |
+|---|---|
+| clips (every demo clip x 4 bodies, 60 Hz) | no NaN; hand swing <= 87 deg and twist <= 92 deg (human wrist); twist / deltoid helpers never jump beyond their source bone's own step (> 10 deg); two-handed grip error <= 1 cm; automatic pelvis drop step <= 2.5 cm / frame and its 2nd difference <= 1.2 cm / frame^2; knight only: no velocity step at any key (C1), planted-foot drift <= 1 cm, feet floor penetration <= 5 mm |
+| runtime | 5 plays inside one fade window (weapon tip step <= 10 cm); idle <-> guard / walk -> guard grip-point changes (off hand <= 10 cm / frame, back on the grip after the fade); guard blade roll drift; walk -> idle planted foot slide; setFacing on a scaled root; events of a huge dt; flinch 30 Hz vs 120 Hz and 30 stacked hits; 1500-frame API fuzz (NaN, bounded hips) |
+| ik | random targets within 95% reach through the full pipeline with breathing on (<= 1 mm); neutral standing hips = 1.04 m; root / hips / chest-space hands with breathing; hips-space foot vs root-space hand; authored knee pole on a planted foot; pelvis-drop sweep continuity and bound; pitched foot targets (heel / ball / toe tip on the floor); upper-arm abduction sweep 0..185 deg (helper continuity); forearm twist 160..200 deg (helper continuity); mirrorClip keep; giant from proportions (sockets / fingers) |
+| xfade | 90-pair crossfade matrix (qa.crossfade pops) |
+| cloth | combo3 cape vs the head; NaN |
+| cpu | ms per update of the knight with both cloths (best batch, p10 of 10-update batches) |
+
+Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~20-40 s.

@@ -2,6 +2,8 @@
 //   node tools/build.mjs game          -> dist/eclipse-duel.html (+ dist/eclipse-duel.artifact.html fragment)
 //   node tools/build.mjs <lab>         -> build/<lab>.html   (entry: src/labs/<lab>.js)
 //   flags: --dev (no minify, inline sourcemap)
+//          --as <name>  game only: write build/<name>.html instead of dist/ (a private copy for one team's captures,
+//                       so parallel teams never load a half-written dist file)
 import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,8 +11,10 @@ import url from 'node:url';
 
 const ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
-const target = args.find((a) => !a.startsWith('--')) || 'game';
+const target = args[0] && !args[0].startsWith('--') ? args[0] : 'game';
 const dev = args.includes('--dev');
+const asIdx = args.indexOf('--as');
+const asName = asIdx >= 0 ? args[asIdx + 1] : null;
 const entry = target === 'game' ? 'src/main.js' : `src/labs/${target}.js`;
 if (!fs.existsSync(path.join(ROOT, entry))) { console.error('no entry: ' + entry); process.exit(1); }
 
@@ -39,7 +43,9 @@ const write = (rel, text) => {
   fs.writeFileSync(p, text);
   console.log(rel, (text.length / 1024).toFixed(0) + ' KB');
 };
-if (target === 'game') {
+if (target === 'game' && asName) {
+  write(`build/${asName}.html`, full);
+} else if (target === 'game') {
   write('dist/eclipse-duel.html', full);
   write('dist/eclipse-duel.artifact.html', frag);
 } else {
