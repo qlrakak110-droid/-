@@ -1,10 +1,13 @@
-// In-fight HUD: forged health bars with a delayed-damage ghost and a lit leading edge, the eclipse timer medallion,
-// round pips, FP / ULT meters (the ULT orb ignites as an event), skill slots with cooldown sweeps, combo counters,
-// the announcer and cinematic mode. Every per-frame write is cached: a DOM property is only touched when its value
-// changes, and bars / sweeps move through transforms (no layout).
+// In-fight HUD in the ink-wash idiom: 기혈 (HP) as brushed ink bands with a delayed-damage ghost and an element-lit
+// leading edge, the round timer as an eclipse dial over a burning incense stick, won rounds as small seals, 내공 /
+// 오의 meters (the 오의 orb ignites as an event), skill slots with cooldown sweeps, combo counters, the announcer
+// (brush-written cards with seals) and cinematic mode. Every per-frame write is cached: a DOM property is only
+// touched when its value changes, and bars / sweeps move through transforms (no layout).
 
 import { h, esc } from './anim.js';
 import { icon, corona, eclipseMark, weaponArt } from './icons.js';
+import { seal, divider, splash, inkEclipse } from './ink.js';
+import { brushText } from './brush.js';
 import { clamp, Ease } from '../core/math.js';
 
 const SIDES = ['p1', 'p2'];
@@ -47,36 +50,31 @@ export function putClass(el, cls, on) {
   el.classList.toggle(cls, on);
 }
 
-// the timer medallion: a black sun (engraved rims, hour ticks) inside a slowly turning corona
-const TIMER_DISC = (() => {
-  let ticks = '';
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2, r0 = i % 3 ? 33.2 : 31.6, r1 = 35;
-    ticks += `M${(50 + Math.cos(a) * r0).toFixed(2)} ${(50 + Math.sin(a) * r0).toFixed(2)}L${(50 + Math.cos(a) * r1).toFixed(2)} ${(50 + Math.sin(a) * r1).toFixed(2)}`;
-  }
-  return `<svg viewBox="0 0 100 100" fill="none" aria-hidden="true">
-    <circle cx="50" cy="50" r="37.5" fill="#030306" stroke="currentColor" stroke-width="1.8"/>
-    <circle cx="50" cy="50" r="35" stroke="currentColor" stroke-opacity=".3" stroke-width=".6"/>
-    <path d="${ticks}" stroke="currentColor" stroke-opacity=".55" stroke-width=".9"/>
-    <circle cx="50" cy="50" r="45.5" stroke="currentColor" stroke-opacity=".35" stroke-width=".6" stroke-dasharray=".8 2.6"/>
-    <path d="M4 50h5M91 50h5" stroke="currentColor" stroke-opacity=".75" stroke-width="1.2"/>
-  </svg>`;
-})();
+// the timer dial: the ink black sun (brushed ring, no streamers); the numerals sit in its disc
+const TIMER_DISC = inkEclipse({ streamers: false, seed: 6 });
+// brush fills of the 오의 banner per element: [top, bottom]
+const BRUSH_FILL = { ember: ['#fff7ea', '#ffb27c'], frost: ['#ffffff', '#a8dcff'], volt: ['#ffffff', '#cdb2ff'] };
+const HANJA_NUM = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
 
 // ---------------------------------------------------------------------------------------------------------------
 // announcer presets (Korean main line, short English sub)
 
+// Korean first (written with the brush), Hanja as the accent (carved on the seal), a short English sub
 const PRESETS = {
-  round: (o) => ({ text: '라운드', sub: `ROUND ${o.round || 1}`, num: String(o.round || 1), style: 'round' }),
-  final: (o) => ({ text: '최종 라운드', sub: 'FINAL ROUND', num: o.round ? String(o.round) : '', style: 'round', final: true }),
-  fight: () => ({ text: '결투', sub: 'FIGHT', style: 'fight' }),
-  ko: () => ({ text: 'K.O.', sub: '격파', style: 'ko' }),
-  perfect: () => ({ text: '완벽', sub: 'PERFECT', style: 'perfect' }),
-  timeup: () => ({ text: '시간 종료', sub: 'TIME UP', style: 'timeup' }),
-  draw: () => ({ text: '무승부', sub: 'DRAW', style: 'timeup' }),
+  round: (o) => { const n = o.round || 1; return { text: `제 ${n} 합`, seal: `第${HANJA_NUM[n] || n}合`, sub: `ROUND ${n}`, style: 'round' }; },
+  final: () => ({ text: '마지막 합', seal: '決勝', sub: 'FINAL ROUND', style: 'round', final: true }),
+  fight: () => ({ text: '겨뤄라!', seal: '比武', sub: 'FIGHT', style: 'fight' }),
+  ko: () => ({ text: '결', seal: '決', sub: 'K.O.', style: 'ko' }),
+  perfect: () => ({ text: '무결', seal: '無缺', sub: 'PERFECT', style: 'perfect' }),
+  timeup: () => ({ text: '향이 다 탔다', seal: '香盡', sub: 'TIME UP', style: 'timeup' }),
+  draw: () => ({ text: '무승부', seal: '和', sub: 'DRAW', style: 'timeup' }),
+  win: (o) => ({ text: '승', seal: '勝', sub: o.sub || 'VICTORY', style: 'verdict' }),
+  lose: (o) => ({ text: '패', seal: '敗', sub: o.sub || 'DEFEAT', style: 'verdict', lose: true }),
 };
-const DURATION = { round: 1.6, fight: 1.0, ko: 2.3, perfect: 2.1, timeup: 1.8, banner: 1.6, ult: 1.4, win: 2.4 };
-const IN_T = { round: 0.34, fight: 0.16, ko: 0.16, perfect: 0.3, timeup: 0.4, banner: 0.3, ult: 0.3, win: 0.34 };
+const DURATION = { round: 1.6, fight: 1.0, ko: 2.3, perfect: 2.1, timeup: 1.8, banner: 1.6, ult: 1.7, win: 2.4, verdict: 2.4 };
+const IN_T = { round: 0.34, fight: 0.16, ko: 0.16, perfect: 0.3, timeup: 0.4, banner: 0.3, ult: 0.3, win: 0.34, verdict: 0.18 };
+// brush height of the main line per style (design px, x --k)
+const MAIN_H = { round: 92, fight: 168, ko: 236, perfect: 160, timeup: 100, banner: 84, win: 124, verdict: 220 };
 // the K.O. cut: the line rises to the right at this angle; the two halves slide apart along it
 const KO_DEG = 12, KO_COS = Math.cos((KO_DEG * Math.PI) / 180), KO_SIN = Math.sin((KO_DEG * Math.PI) / 180);
 
@@ -102,12 +100,16 @@ export function createHud(ui) {
   const { anim } = ui;
   const root = h('div.ed-hud');
   const top = h('div.hud-top');
-  const tmRays = h('div.tm-rays', { html: corona({ n: 60, r0: 39, len: 8, w: 1.1 }) });
+  const tmRays = h('div.tm-rays', { html: corona({ n: 48, r0: 38, len: 9, w: 1.1 }) });
   const tmNum = h('b.tm-num', { text: '99' });
-  const tm = h('div.hud-timer', null, h('i.tm-glow'), tmRays, h('div.tm-disc', { html: TIMER_DISC }), h('i.tm-bead'), tmNum);
+  // the incense stick under the dial: the unburnt part shrinks toward the right, the ember rides its end
+  const tmStick = h('i.tm-stick');
+  const tmEmber = h('i.tm-ember', null, h('i.tm-smoke'));
+  const tmIncense = h('div.tm-incense', null, h('i.tm-ash'), tmStick, tmEmber);
+  const tm = h('div.hud-timer', null, h('i.tm-glow'), tmRays, h('div.tm-disc', { html: TIMER_DISC }), tmNum, tmIncense);
   const annLayer = h('div.hud-ann');
   const hints = h('div.hud-hints');
-  const pauseBtn = h('button.hud-pause', { type: 'button', 'aria-label': '일시정지 Pause', html: icon('pause') });
+  const pauseBtn = h('button.hud-pause', { type: 'button', 'aria-label': '숨 고르기 Pause', html: icon('pause') });
   pauseBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); });
   pauseBtn.addEventListener('click', (e) => { e.stopPropagation(); ui.emit('pause'); });
 
@@ -118,17 +120,18 @@ export function createHud(ui) {
   root.append(top, S[0].dock, S[1].dock, S[0].combo, S[1].combo, hints, pauseBtn, annLayer);
 
   let roundsMax = 2;
-  let timeShown = null, timeLow = false;
+  let timeShown = null, timeLow = false, timeMax = 0, burnR = -1;
   let cine = 0, cineTarget = 0;
   let clock = 0;
   let hintsOn = false;
 
   function makeSide(i) {
     const s = SIDES[i];
-    const name = h('span.hud-name');
-    const nameKo = h('span.hud-name-ko');
-    const title = h('span.hud-title');
-    const id = h('div.hud-id', null, name, nameKo, title);
+    const name = h('span.hud-name');                 // the hero's name, written with the brush
+    const nameKo = h('span.hud-name-ko');            // its Hanja
+    const title = h('span.hud-title');               // 별호 · 문파
+    const emblem = h('i.hud-emb');
+    const id = h('div.hud-id', null, emblem, name, nameKo, title);
     const ghost = h('div.hp-ghost');
     const ghostHot = h('div.hp-ghost-hot');
     const sheen = h('div.hp-sheen');
@@ -140,8 +143,8 @@ export function createHud(ui) {
     const pips = h('div.hud-pips');
     const miniFp = h('i');
     const miniUlt = h('i');
-    const miniUltLabel = h('span.mini-ult-label', { text: '궁극기' });
-    const mini = h(`div.hud-mini.${s}`, null, h('div.mini-fp', null, h('b', { text: 'FP' }), h('div.mini-bar', null, miniFp)), h('div.mini-ult', null, h('b', { text: 'ULT' }), h('div.mini-bar', null, miniUlt), miniUltLabel));
+    const miniUltLabel = h('span.mini-ult-label', { text: '奧義' });
+    const mini = h(`div.hud-mini.${s}`, null, h('div.mini-fp', null, h('b', { text: '내공' }), h('div.mini-bar', null, miniFp)), h('div.mini-ult', null, h('b', { text: '오의' }), h('div.mini-bar', null, miniUlt), miniUltLabel));
     const under = h('div.hud-under', null, pips, mini);
     const plate = h(`div.hud-plate.${s}`, null, id, hp, under);
 
@@ -157,11 +160,11 @@ export function createHud(ui) {
     const orbFlare = h('i.orb-flare');
     const orbKey = h('span.keycap.orb-key');
     const orb = h('div.ult-orb', null, orbAura, orbGlow, orbRays, h('i.orb-base'), ring, orbCore, orbFlash, orbBurst, orbBurst2, orbFlare, orbKey);
-    const orbLabel = h('div.orb-label', { html: '<b>궁극기</b><span>ULT READY</span>' });
+    const orbLabel = h('div.orb-label', { html: `<b>${brushText('오의', { weight: 1.3, gap: 4 })}</b><i class="orb-seal">${seal('奧義', { seed: 19 })}</i><span>READY</span>` });
     const skills = h('div.dock-skills');
     const fpFill = h('i.fp-fill');
     const fpNum = h('span.fp-val', { text: '0' });
-    const fp = h('div.dock-fp', null, h('span.fp-label', { text: 'FP' }), h('div.fp-bar', null, fpFill, h('i.fp-ticks')), fpNum);
+    const fp = h('div.dock-fp', null, h('span.fp-label', { html: '내공<i class="hj">內功</i>' }), h('div.fp-bar', null, fpFill, h('i.fp-ticks')), fpNum);
     const dock = h(`div.hud-dock.${s}`, null, orb, h('div.dock-main', null, orbLabel, skills, fp));
 
     // combo
@@ -169,20 +172,20 @@ export function createHud(ui) {
     const cbHot = h('b.cb-num.cb-hot', { text: '0' });
     const cbDmg = h('b', { text: '0' });
     const cbInner = h('div.cb-inner', null,
-      h('div.cb-row', null, h('div.cb-nums', null, cbNum, cbHot), h('div.cb-hits', { html: '<span>연타</span><em>HITS</em>' })),
+      h('div.cb-row', null, h('div.cb-nums', null, cbNum, cbHot), h('div.cb-hits', { html: '<span>연환</span><em>HITS</em>' })),
       h('div.cb-dmg', null, h('span', { text: '피해' }), cbDmg, h('em', { text: 'DMG' })),
       h('i.cb-line'));
     const combo = h(`div.hud-combo.${s}`, null, cbInner);
     combo.style.opacity = '0';
 
     return {
-      i, s, plate, dock, combo, mini, under, name, nameKo, title, hp, track, fill, fillHot, ghost, ghostHot, sheen, edge, pips, miniFp, miniUlt,
+      i, s, plate, dock, combo, mini, under, name, nameKo, title, emblem, hp, track, fill, fillHot, ghost, ghostHot, sheen, edge, pips, miniFp, miniUlt,
       ring, orb, orbAura, orbGlow, orbRays, orbCore, orbFlash, orbBurst, orbBurst2, orbFlare, orbKey, orbLabel, skills, fpFill, fpNum,
       cbNum, cbHot, cbDmg, cbInner,
       slots: [],
       // state
       hpR: 1, ghostR: 1, ghostWait: 0, hpMax: 1000, fpR: 0, fpVal: 0, fpMax: 100, ultR: 0, ultFull: false, raysS: 1, glowK: 1,
-      rounds: -1, element: null, weapon: null, low: false, shake: 0, shakeAmp: 0,
+      rounds: -1, element: null, weapon: null, fighter: null, nameStr: '', low: false, shake: 0, shakeAmp: 0,
       comboHits: 0, comboAge: 99, comboShown: false,
     };
   }
@@ -190,7 +193,7 @@ export function createHud(ui) {
   function buildPips() {
     for (const sd of S) {
       sd.pips.innerHTML = '';
-      for (let k = 0; k < roundsMax; k++) sd.pips.appendChild(h('i.pip'));
+      for (let k = 0; k < roundsMax; k++) sd.pips.appendChild(h('i.pip', { html: seal('勝', { seed: 23 + k }) }));
       sd.rounds = -1;
     }
   }
@@ -199,15 +202,23 @@ export function createHud(ui) {
   // ---------------------------------------------------------------------------------------------------------------
   // static info
 
+  /** The name plate: brush-written name, Hanja, 별호 · 문파 and the sect emblem. */
+  function setName(sd, name, hanja) {
+    if (name === sd.nameStr && sd.name.childElementCount) return;
+    sd.nameStr = name;
+    sd.name.innerHTML = name ? brushText(name, { weight: 1.3, gap: 4 }) : '';
+    putText(sd.nameKo, hanja || '');
+  }
   function setIdentity(sd, f) {
     if (!f) return;
-    const en = f.nameEn || '';
-    putText(sd.name, en || f.name || '');
-    putText(sd.nameKo, en ? f.name || '' : '');
-    putText(sd.title, f.title ? f.title + (f.titleEn ? ' · ' + f.titleEn : '') : '');
+    sd.fighter = f;
+    setName(sd, f.name || f.nameEn || '', f.hanja || '');
+    putText(sd.title, [f.title, f.sect].filter(Boolean).join(' · '));
+    sd.emblem.innerHTML = icon(f.emblem || f.element || '') || '';
     if (f.element) setElement(sd, f.element);
     sd.weapon = f.weaponArt || null;
     const u = (f.moves || []).find((m) => m.slot === 'ult');
+    sd.ult = u || null;
     sd.ultIcon = (u && u.icon) || 'ult';
     sd.orbCore.innerHTML = icon(sd.ultIcon) || icon('ult');
   }
@@ -317,15 +328,26 @@ export function createHud(ui) {
       const on = k < n;
       if (on && !(k < sd.rounds) && sd.rounds >= 0) {
         const p = pips[k];
-        anim.add(0.5, (e) => put(p, 'transform', `rotate(45deg) scale(${(1 + 1.2 * (1 - e)).toFixed(3)})`), { key: p, ease: 'outBack' });
+        anim.add(0.42, (e) => put(p, 'transform', e < 1 ? `scale(${(2.2 - 1.2 * e).toFixed(3)}) rotate(${(-12 * (1 - e)).toFixed(1)}deg)` : ''), { key: p, ease: 'outQuart' });
       }
       putClass(pips[k], 'on', on);
     }
     sd.rounds = n;
   }
 
+  /** The incense stick: `r` = fraction left. The stick shrinks toward its foot, the ember rides the burning end. */
+  function setBurn(r) {
+    const q = Math.round(clamp(r) * 400) / 400;
+    if (q === burnR) return;
+    burnR = q;
+    put(tmStick, 'transform', `scaleX(${q.toFixed(4)})`);
+    put(tmEmber, 'transform', `translateX(${(-100 * q).toFixed(2)}%)`);
+  }
+
   function setTime(t) {
     if (t === undefined) return;
+    if (t === null || !isFinite(t)) setBurn(1);
+    else { if (t > timeMax) timeMax = t; setBurn(timeMax > 0 ? t / timeMax : 1); }
     // compare the whole seconds first: no string work on the frames where the clock does not tick
     const n = t === null || !isFinite(t) ? -1 : Math.max(0, Math.ceil(t - 1e-6));
     if (n === timeShown) return;
@@ -458,17 +480,19 @@ export function createHud(ui) {
   }
 
   // ---------------------------------------------------------------------------------------------------------------
-  // announcer: one card per call, built from layers (band, hairlines, emblem, shock ring, flare, text, echo ...)
-  // and driven by a single tween (entrance, hold, exit). Every layer moves by transform / opacity.
+  // announcer: one card per call, built from layers (ink band, splash, eclipse, the brush-written line, its seal, a
+  // dry-brush rule, the English sub ...) and driven by a single tween (entrance, hold, exit). Every layer moves by
+  // transform / opacity.
 
   let annSeq = 0;
-  const main = (text, cls = '') => h('div.an-main' + cls, null, h('span', { text }));
+  const brushMain = (text, fill, cls = '') => h('div.an-main' + cls, { html: brushText(text, { weight: 1.15, gap: 5, fill }) });
 
   function announce(text, o = {}) {
     const p = presetOf(text);
     let spec;
     if (p) spec = { ...PRESETS[p[0]]({ ...p[1], ...o }), ...(o.sub !== undefined ? { sub: o.sub } : null), ...(o.style ? { style: o.style } : null) };
-    else spec = { text: String(text || ''), sub: o.sub || '', style: o.style || 'banner' };
+    else spec = { text: String(text || ''), sub: o.sub || '', style: o.style || 'banner', seal: o.style === 'win' ? '勝' : '' };
+    if (o.seal !== undefined) spec.seal = o.seal;
     const style = DURATION[spec.style] ? spec.style : 'banner';
     const dur = o.duration || DURATION[style];
     const side = o.side === 1 ? 1 : o.side === 0 ? 0 : -1;
@@ -476,99 +500,123 @@ export function createHud(ui) {
     const elem = o.element || (sd && sd.element) || '';
     if (!o.keep) clearAnnounce(style === 'ult');
 
-    const node = h(`div.ann.st-${style}` + (elem ? `.el-${elem}` : '') + (side >= 0 ? `.side-${SIDES[side]}` : '') + (spec.final ? '.is-final' : ''));
+    const node = h(`div.ann.st-${style}` + (elem ? `.el-${elem}` : '') + (side >= 0 ? `.side-${SIDES[side]}` : '') + (spec.final ? '.is-final' : '') + (spec.lose ? '.is-lose' : ''));
     const fit = h('div.an-fit');
     node.appendChild(fit);
+    node.style.setProperty('--mh', String(MAIN_H[style] || 84));
     const L = {};
     const add = (k, el) => { L[k] = el; fit.appendChild(el); return el; };
 
     if (style === 'ult') {
-      // cut-in: an element-lit band sweeps across with the fighter's weapon, the ultimate's name slams in
-      const cut = add('cut', h('div.an-cut', null, h('div.an-cut-in', null, h('i.an-cut-glow'), h('i.an-cut-edge.a'), h('i.an-cut-edge.b'))));
-      if (sd && sd.weapon) L.art = cut.firstChild.appendChild(h('div.an-art', null, h('div.an-art-in', { html: weaponArt(sd.weapon) })));
-      add('flare', h('i.an-flare'));
-      const who = sd ? sd.name.textContent : '';
-      const kicker = o.kicker !== undefined ? o.kicker : '궁극기 · ULTIMATE';
-      add('kick', h('div.an-kick', null, h('i'), h('span', { text: kicker }), who ? h('b', { text: who }) : null));
-      add('main', main(spec.text));
-      add('sub', h('div.an-sub', { text: spec.sub || '' }));
+      // 오의: a hanging banner on the user's side of the screen (the hero shot in the middle stays clear). The name is
+      // written down it glyph by glyph, the Hanja runs beside it, the hero's seal closes it. With a `side` the banner
+      // shows that fighter's own 오의 from the roster; `text` / `sub` / `o.hanja` are for a custom banner.
+      const f = sd && sd.fighter, u = sd && sd.ult;
+      const custom = o.hanja !== undefined || !u;
+      const name = custom ? spec.text : u.name, hanja = custom ? o.hanja || '' : u.hanja || '', gloss = custom ? spec.sub : u.nameEn || spec.sub;
+      const fill = BRUSH_FILL[elem] || ['#ffffff', '#e9dcc0'];
+      const scroll = add('scroll', h('div.an-scroll'));
+      L.bg = scroll.appendChild(h('i.an-scroll-bg'));
+      L.edge = scroll.appendChild(h('i.an-scroll-edge'));
+      if (sd && sd.weapon) L.art = scroll.appendChild(h('div.an-art', { html: weaponArt(sd.weapon) }));
+      const kicker = o.kicker !== undefined ? o.kicker : '오의';
+      L.kick = scroll.appendChild(h('div.an-kick', null, h('b', { text: kicker }), o.kicker === undefined ? h('i.hj', { text: '奧義' }) : null, f ? h('span', { text: f.name }) : null));
+      const col = scroll.appendChild(h('div.an-glyphs'));
+      const chars = Array.from(name).filter((c) => c.trim());
+      col.style.setProperty('--n', String(Math.max(4, chars.length)));
+      L.glyphs = chars.map((c, i) => col.appendChild(h('div.an-glyph', { html: brushText(c, { weight: 1.2, fill, seed: i }) })));
+      L.hanja = scroll.appendChild(h('span.an-hanja', { text: hanja }));
+      if (f && f.seal) L.seal = scroll.appendChild(h('i.an-seal', { html: seal(f.seal, { seed: 5 }) }));
+      L.sub = scroll.appendChild(h('div.an-sub', { text: gloss || '' }));
+      node.setAttribute('aria-label', `${name} ${hanja}`);
     } else {
+      const slam = style === 'fight' || style === 'ko' || style === 'verdict';
       add('band', h('i.an-band'));
-      add('lineA', h('i.an-line.a'));
-      add('lineB', h('i.an-line.b'));
+      if (slam || style === 'perfect') add('blot', h('i.an-blot', { html: splash({ seed: style === 'ko' ? 27 : 21 }) }));
       if (style === 'round' || style === 'perfect') add('emblem', h('div.an-emblem', { html: eclipseMark() }));
-      if (style === 'round' || style === 'fight' || style === 'ko' || style === 'perfect') { add('ring', h('i.an-ring')); add('flare', h('i.an-flare')); }
-      if (style === 'fight' || style === 'ko') { add('blast', h('i.an-blast')); add('echo', main(spec.text, '.an-echo')); }
-      if (style === 'round' && spec.num) add('num', h('div.an-num', { text: spec.num }));
+      if (slam || style === 'round' || style === 'perfect') { add('ring', h('i.an-ring')); add('flare', h('i.an-flare')); }
+      const fill = style === 'ko' || spec.lose ? ['#fff3ee', '#f2a392'] : style === 'timeup' ? ['#ffffff', '#c6d0e2'] : style === 'perfect' ? ['#fffdf2', '#ecd28e'] : ['#fffaf0', '#dfd3b8'];
+      const row = add('row', h('div.an-row'));
+      if (style === 'fight' || style === 'ko') L.echo = fit.appendChild(h('div.an-row.an-echo-row', null, brushMain(spec.text, fill, '.an-echo')));
       if (style === 'ko') {
         // two copies of the mark clipped above / below the cut line; they slide apart along it
-        const split = add('split', h('div.an-split'));
-        L.top = split.appendChild(h('div.an-half.top', null, main(spec.text)));
-        L.bot = split.appendChild(h('div.an-half.bot', null, main(spec.text)));
-        add('slash', h('i.an-slash'));
-      } else add('main', main(spec.text));
+        L.split = row.appendChild(h('div.an-split'));
+        L.top = L.split.appendChild(h('div.an-half.top', null, brushMain(spec.text, fill)));
+        L.bot = L.split.appendChild(h('div.an-half.bot', null, brushMain(spec.text, fill)));
+        L.slash = L.split.appendChild(h('i.an-slash'));
+      } else L.main = row.appendChild(brushMain(spec.text, fill));
+      if (spec.seal) L.seal = row.appendChild(h('i.an-seal', { html: seal(spec.seal, { seed: 7 }) }));
       if (style === 'perfect') add('shine', h('i.an-shine'));
+      add('rule', h('i.an-rule', { html: divider({ seed: 9 }) }));
       add('sub', h('div.an-sub', { text: spec.sub || '' }));
+      node.setAttribute('aria-label', spec.text);
     }
-    if (!spec.sub) L.sub.style.display = 'none';
+    if (!spec.sub && style !== 'ult') L.sub.style.display = 'none';
     annLayer.appendChild(node);
 
     const inT = IN_T[style];
     const outT = style === 'fight' ? 0.24 : 0.4;
-    const dir = side === 1 ? 1 : -1;
     const k = ui.k || 1;
     const after = (T, t0, d) => clamp((T - t0) / d);
-    // shared impact layers: shock ring, horizontal flare, white blast
+    // shared impact layers: an ink ring thrown outward and a thin flare
     const impact = (T, t0, ringMax = 2.6) => {
       if (L.ring) {
         const r = after(T, t0, 0.6);
         put(L.ring, 'transform', `scale(${(0.25 + ringMax * Ease.outQuart(r)).toFixed(3)})`);
-        put(L.ring, 'opacity', (T < t0 ? 0 : 0.9 * (1 - r)).toFixed(3));
+        put(L.ring, 'opacity', (T < t0 ? 0 : 0.85 * (1 - r)).toFixed(3));
       }
       if (L.flare) {
         put(L.flare, 'transform', `scaleX(${Ease.outExpo(after(T, t0 - 0.04, 0.3)).toFixed(3)})`);
         put(L.flare, 'opacity', (T < t0 - 0.04 ? 0 : 1 - after(T, t0 + 0.12, 0.6)).toFixed(3));
       }
-      if (L.blast) put(L.blast, 'opacity', (T < t0 ? 0 : 0.85 * (1 - Ease.outQuad(after(T, t0, 0.28)))).toFixed(3));
+      if (L.blot) {
+        const b = after(T, t0 - 0.03, 0.3);
+        put(L.blot, 'transform', `scale(${(0.3 + 0.7 * Ease.outQuart(b)).toFixed(3)})`);
+        put(L.blot, 'opacity', (T < t0 - 0.03 ? 0 : Math.min(1, b * 4)).toFixed(3));
+      }
     };
+    // the seal is pressed on after the line has landed
+    const stamp = (el, T, t0) => {
+      const m = after(T, t0, 0.24);
+      put(el, 'opacity', (T < t0 ? 0 : Math.min(1, m * 3)).toFixed(3));
+      put(el, 'transform', m < 1 ? `scale(${(1.9 - 0.9 * Ease.outQuart(m)).toFixed(3)}) rotate(${(-11 + 7 * m).toFixed(2)}deg)` : 'rotate(-4deg)');
+    };
+    const sealAt = { round: 0.5, fight: inT + 0.1, ko: inT + 0.4, perfect: 0.55, verdict: inT + 0.3 }[style] || inT + 0.18;
     const frame = (T) => {
       const a = clamp(T / inT), e = Ease.outCubic(a);
       const o2 = clamp((dur - T) / outT);
       put(node, 'opacity', (o2 < 1 ? Ease.inQuad(o2) : 1).toFixed(3));
-      if (L.band) put(L.band, 'transform', `scaleY(${Ease.outExpo(after(T, 0, style === 'ko' ? 0.2 : 0.32)).toFixed(3)})`);
-      if (L.lineA) {
-        put(L.lineA, 'transform', `scaleX(${Ease.outExpo(after(T, 0.05, 0.6)).toFixed(3)})`);
-        put(L.lineB, 'transform', `scaleX(${Ease.outExpo(after(T, 0.1, 0.6)).toFixed(3)})`);
-      }
+      // the ink band is dragged across like one stroke of a loaded brush
+      if (L.band) put(L.band, 'transform', `scaleX(${Ease.outExpo(after(T, 0, style === 'ko' ? 0.2 : 0.34)).toFixed(3)})`);
+      if (L.rule) put(L.rule, 'transform', `scaleX(${Ease.outExpo(after(T, 0.14, 0.6)).toFixed(3)})`);
+      if (L.seal && style !== 'ult') stamp(L.seal, T, sealAt);
       if (L.sub && style !== 'ult') {
-        const s = after(T, style === 'ko' ? 0.42 : 0.2, 0.32);
+        const s = after(T, style === 'ko' ? 0.42 : 0.22, 0.32);
         put(L.sub, 'opacity', s.toFixed(3));
         put(L.sub, 'transform', `translateY(${(10 * (1 - Ease.outCubic(s))).toFixed(1)}px)`);
       }
       switch (style) {
         case 'round': {
           const em = after(T, 0, 0.7);
-          put(L.emblem, 'transform', `rotate(${(-24 + 24 * Ease.outCubic(em) + T * 6).toFixed(2)}deg) scale(${(0.55 + 0.45 * Ease.outBack(em)).toFixed(3)})`);
+          put(L.emblem, 'transform', `rotate(${(-24 + 24 * Ease.outCubic(em) + T * 5).toFixed(2)}deg) scale(${(0.55 + 0.45 * Ease.outBack(em)).toFixed(3)})`);
           put(L.emblem, 'opacity', Math.min(1, T / 0.22).toFixed(3));
           impact(T, 0.22, 2.2);
-          if (L.num) {
-            const n = after(T, 0.12, 0.3);
-            put(L.num, 'transform', `scale(${(1.9 - 0.9 * Ease.outQuart(n)).toFixed(3)})`);
-            put(L.num, 'opacity', (T < 0.12 ? 0 : Math.min(1, n * 1.6)).toFixed(3));
-          }
-          const m = after(T, 0.18, 0.35);
-          put(L.main, 'opacity', m.toFixed(3));
-          put(L.main, 'transform', `translateY(${(12 * (1 - Ease.outCubic(m))).toFixed(1)}px)`);
+          const m = after(T, 0.14, 0.32);
+          put(L.main, 'opacity', Math.min(1, m * 1.8).toFixed(3));
+          put(L.main, 'transform', m < 1 ? `translateY(${(16 * k * (1 - Ease.outCubic(m))).toFixed(1)}px) scale(${(1.22 - 0.22 * Ease.outQuart(m)).toFixed(3)})` : '');
           break;
         }
-        case 'fight': {
+        case 'fight':
+        case 'verdict': {
           const s = 2.6 - 1.6 * Ease.outQuart(a);
           const j = T > inT && T < inT + 0.16 ? Math.sin((T - inT) * 110) * 5 * k * (1 - (T - inT) / 0.16) : 0;
-          put(L.main, 'transform', `translate(${j.toFixed(1)}px,0) scale(${(s * (o2 < 1 ? 1 + (1 - o2) * 0.2 : 1)).toFixed(3)})`);
+          put(L.main, 'transform', `translate(${j.toFixed(1)}px,0) scale(${(s * (o2 < 1 && style === 'fight' ? 1 + (1 - o2) * 0.2 : 1)).toFixed(3)})`);
           put(L.main, 'opacity', Math.min(1, a * 2.2).toFixed(3));
-          const ec = after(T, inT, 0.32);
-          put(L.echo, 'transform', `scale(${(1 + 0.32 * Ease.outCubic(ec)).toFixed(3)})`);
-          put(L.echo, 'opacity', (T < inT ? 0 : 0.5 * (1 - Ease.outQuad(ec))).toFixed(3));
+          if (L.echo) {
+            const ec = after(T, inT, 0.32);
+            put(L.echo, 'transform', `scale(${(1 + 0.32 * Ease.outCubic(ec)).toFixed(3)})`);
+            put(L.echo, 'opacity', (T < inT ? 0 : 0.4 * (1 - Ease.outQuad(ec))).toFixed(3));
+          }
           impact(T, inT, 3.2);
           break;
         }
@@ -577,26 +625,24 @@ export function createHud(ui) {
           const j = T > inT && T < inT + 0.2 ? Math.sin((T - inT) * 120) * 7 * k * (1 - (T - inT) / 0.2) : 0;
           put(L.split, 'transform', `translate(${j.toFixed(1)}px,0) scale(${s.toFixed(3)})`);
           put(L.split, 'opacity', Math.min(1, a * 2).toFixed(3));
-          // the cut: slash draws across, then the halves part along it and stay parted
+          // the cut: the slash draws across, then the halves part along it and stay parted
           const c = after(T, inT + 0.1, 0.2);
           put(L.slash, 'transform', `rotate(${-KO_DEG}deg) scaleX(${Ease.outExpo(c).toFixed(3)})`);
           put(L.slash, 'opacity', (T < inT + 0.1 ? 0 : 1 - 0.55 * after(T, inT + 0.45, 0.6)).toFixed(3));
-          const d = 26 * k * Ease.outExpo(after(T, inT + 0.16, 0.35));
+          const d = 20 * k * Ease.outExpo(after(T, inT + 0.16, 0.35));
           put(L.top, 'transform', `translate(${(-d * KO_COS).toFixed(1)}px,${(d * KO_SIN - d * 0.4).toFixed(1)}px)`);
           put(L.bot, 'transform', `translate(${(d * KO_COS).toFixed(1)}px,${(-d * KO_SIN + d * 0.4).toFixed(1)}px)`);
           const ec = after(T, inT, 0.45);
           put(L.echo, 'transform', `scale(${(1 + 0.55 * Ease.outCubic(ec)).toFixed(3)})`);
-          put(L.echo, 'opacity', (T < inT ? 0 : 0.5 * (1 - Ease.outQuad(ec))).toFixed(3));
+          put(L.echo, 'opacity', (T < inT ? 0 : 0.4 * (1 - Ease.outQuad(ec))).toFixed(3));
           impact(T, inT, 3.4);
-          const sb = after(T, 0.42, 0.32);
-          put(L.sub, 'transform', `scale(${(1.35 - 0.35 * Ease.outQuart(sb)).toFixed(3)})`);
           break;
         }
         case 'perfect': {
           const em = after(T, 0, 0.9);
           put(L.emblem, 'transform', `rotate(${(T * 5).toFixed(2)}deg) scale(${(0.7 + 0.3 * Ease.outCubic(em)).toFixed(3)})`);
-          put(L.emblem, 'opacity', (0.5 * Math.min(1, T / 0.3)).toFixed(3));
-          put(L.main, 'transform', `scale(${(1.3 - 0.3 * e).toFixed(4)})`);
+          put(L.emblem, 'opacity', (0.6 * Math.min(1, T / 0.3)).toFixed(3));
+          put(L.main, 'transform', a < 1 ? `scale(${(1.3 - 0.3 * e).toFixed(4)})` : '');
           put(L.main, 'opacity', e.toFixed(3));
           impact(T, 0.2, 2.6);
           const sh = after(T, 0.34, 0.75);
@@ -605,26 +651,31 @@ export function createHud(ui) {
           break;
         }
         case 'ult': {
-          const c = Ease.outExpo(after(T, 0, 0.42));
           const ex = o2 < 1 ? 1 - o2 : 0;
-          put(L.cut, 'transform', `translateX(${(dir * (110 * (1 - c) - 25 * Ease.inCubic(ex))).toFixed(2)}%)`);
-          if (L.art) put(L.art, 'transform', `translateX(${(dir * k * (90 - 60 * T)).toFixed(1)}px)`);
-          impact(T, 0.14);
-          const m = after(T, 0.1, 0.36);
-          put(L.main, 'transform', `translateX(${(dir * 70 * k * (1 - Ease.outCubic(m))).toFixed(1)}px) scale(${(1.18 - 0.18 * Ease.outCubic(m)).toFixed(3)})`);
-          put(L.main, 'opacity', Math.min(1, m * 1.8).toFixed(3));
-          const kk = after(T, 0.04, 0.3);
+          put(L.bg, 'transform', `scaleY(${Ease.outExpo(after(T, 0, 0.36)).toFixed(3)})`);
+          put(L.edge, 'transform', `scaleY(${Ease.outExpo(after(T, 0.06, 0.5)).toFixed(3)})`);
+          put(L.scroll, 'transform', ex ? `translateY(${(-22 * k * Ease.inCubic(ex)).toFixed(1)}px)` : '');
+          if (L.art) {
+            put(L.art, 'opacity', (0.55 * after(T, 0.1, 0.4)).toFixed(3));
+            put(L.art, 'transform', `translateY(${(k * (24 - 18 * T)).toFixed(1)}px)`);
+          }
+          const kk = after(T, 0.04, 0.26);
           put(L.kick, 'opacity', kk.toFixed(3));
-          put(L.kick, 'transform', `translateX(${(dir * 40 * k * (1 - Ease.outCubic(kk))).toFixed(1)}px)`);
-          const sb = after(T, 0.22, 0.3);
-          put(L.sub, 'opacity', sb.toFixed(3));
-          put(L.sub, 'transform', `translateX(${(dir * 30 * k * (1 - Ease.outCubic(sb))).toFixed(1)}px)`);
+          put(L.kick, 'transform', kk < 1 ? `translateY(${(-12 * k * (1 - Ease.outCubic(kk))).toFixed(1)}px)` : '');
+          for (let i = 0; i < L.glyphs.length; i++) {
+            const m = after(T, 0.12 + i * 0.075, 0.2);
+            put(L.glyphs[i], 'opacity', Math.min(1, m * 2.4).toFixed(3));
+            put(L.glyphs[i], 'transform', m < 1 ? `scale(${(1.9 - 0.9 * Ease.outQuart(m)).toFixed(3)})` : '');
+          }
+          put(L.hanja, 'opacity', after(T, 0.32, 0.35).toFixed(3));
+          if (L.seal) stamp(L.seal, T, 0.22 + L.glyphs.length * 0.075);
+          put(L.sub, 'opacity', after(T, 0.42, 0.3).toFixed(3));
           break;
         }
         default: {
           // timeup / draw / banner / win: the line drops in and lands
           const d = Ease.outBack(a);
-          put(L.main, 'transform', `translateY(${(-34 * k * (1 - d)).toFixed(1)}px) scale(${(1.08 - 0.08 * e).toFixed(4)})`);
+          put(L.main, 'transform', a < 1 ? `translateY(${(-34 * k * (1 - d)).toFixed(1)}px) scale(${(1.08 - 0.08 * e).toFixed(4)})` : '');
           put(L.main, 'opacity', Math.min(1, a * 1.8).toFixed(3));
         }
       }
@@ -652,13 +703,13 @@ export function createHud(ui) {
     const item = (keys, ko, en) => `<span class="hint">${keys}<b>${ko}</b><em>${en}</em></span>`;
     hints.innerHTML = [
       item(K('left') + K('right'), '이동', 'MOVE'),
-      item(K('light'), '약공', 'LIGHT'),
-      item(K('heavy'), '강공', 'HEAVY'),
-      item(K('skill1') + K('skill2') + K('skill3'), '스킬', 'SKILLS'),
-      item(K('ult'), '궁극기', 'ULT'),
-      item(K('guard'), '막기', 'GUARD'),
-      item(K('dodge'), '회피', 'DODGE'),
-      item(K('pause'), '일시정지', 'PAUSE'),
+      item(K('light'), '경초', 'LIGHT'),
+      item(K('heavy'), '중초', 'HEAVY'),
+      item(K('skill1') + K('skill2') + K('skill3'), '절기', 'SKILLS'),
+      item(K('ult'), '오의', 'ULT'),
+      item(K('guard'), '호신', 'GUARD'),
+      item(K('dodge'), '경공', 'DODGE'),
+      item(K('pause'), '숨 고르기', 'PAUSE'),
     ].join('');
   }
 
@@ -672,6 +723,7 @@ export function createHud(ui) {
       setIdentity(S[0], o.p1);
       setIdentity(S[1], o.p2);
       for (const sd of S) { sd.hpR = -1; sd.ultR = -1; sd.fpR = -1; sd.ghostR = 1; }
+      timeMax = 0;
       if (o.p1 && o.p1.moves) hud.skills(0, skillsOf(o.p1));
       if (o.p2 && o.p2.moves) hud.skills(1, skillsOf(o.p2));
       // the first real update decides readiness without a "just became ready" burst
@@ -690,8 +742,9 @@ export function createHud(ui) {
         if (d.element !== undefined) setElement(sd, d.element);
         if (d.name !== undefined && d.name !== sd._nm) {
           sd._nm = d.name;
-          // a name that setup() already shows (English or Korean) keeps the two-line lockup
-          if (d.name !== sd.name.textContent && d.name !== sd.nameKo.textContent) { putText(sd.name, d.name); putText(sd.nameKo, ''); }
+          // a name that setup() already shows (Korean, Hanja or romanised) keeps the plate as it is
+          const f = sd.fighter;
+          if (!(f && (d.name === f.name || d.name === f.hanja || d.name === f.nameEn))) setName(sd, d.name, '');
         }
         if (d.title !== undefined) putText(sd.title, d.title);
         if (d.hp !== undefined) setHp(sd, d.hp, d.hpMax || sd.hpMax);
@@ -707,9 +760,9 @@ export function createHud(ui) {
     /** Combo counter for the attacking side: hud.combo(side, hits, damage). hits < 2 hides it. */
     combo: setCombo,
     /**
-     * Announcer. text = free text or a preset key ('round', 'final', 'fight', 'ko', 'perfect', 'timeup', 'draw';
-     * 'ROUND 2', 'K.O.', 'TIME UP' ... are recognised too). opts: { sub, style, duration, round, side, element, keep, kicker }.
-     * style: 'round' | 'fight' | 'ko' | 'perfect' | 'timeup' | 'banner' | 'ult' | 'win'.
+     * Announcer. text = free text or a preset key ('round', 'final', 'fight', 'ko', 'perfect', 'timeup', 'draw', 'win',
+     * 'lose'; 'ROUND 2', 'K.O.', 'TIME UP' ... are recognised too). opts: { sub, style, duration, round, side, element,
+     * keep, kicker, seal, hanja }. style: 'round' | 'fight' | 'ko' | 'perfect' | 'timeup' | 'banner' | 'ult' | 'win'.
      */
     announce,
     clearAnnounce: () => clearAnnounce(false),

@@ -224,7 +224,8 @@ export function createCharacter(ctx, design0, opts = {}) {
   const torsoDef = (design.colliders || []).find((c) => c.name === 'torso');
   const body = torsoDef ? new Float32Array(8) : null;
   const torsoA = torsoDef ? [ix[torsoDef.a[0]], ...(torsoDef.a[1] || [0, 0, 0])] : null, torsoB = torsoDef ? [ix[torsoDef.b[0]], ...(torsoDef.b[1] || [0, 0, 0])] : null;
-  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body, aimAxis: null };
+  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body, aimAxis: null, edgeMax: 0 };
+  const designEdge = Math.max(0, Math.min(90, design.edgeRoll ?? 0));
   // per clip: the off hand may roll around the handle; after blending: the blended (already rolled) target is kept
   // (a keyed pole of the gripping hand is authored intent: it pulls the elbow harder than the default pole)
   const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), mem: null, dt: 0, clavBase: null, body, poleW: 2.5 };
@@ -498,7 +499,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       ikOpt.mem = side === 'R' ? pose.swivelR : pose.swivelL;
       ikOpt.clavBase = side === 'R' ? pose.clavBaseR : pose.clavBaseL;
       ikOpt.err = rotBuf ? aimBuf : null; aimBuf[0] = 0;
-      ikOpt.aimAxis = rotBuf ? gripAxis[side] : null; // a keyed weapon frame may roll about the blade axis (ik.js EDGE)
+      ikOpt.aimAxis = rotBuf ? gripAxis[side] : null; // a keyed weapon frame may roll about the blade axis (edgeRoll)
     }
     const r = solveLimb(rig, limb, lq, mq, mp, pose.ik, o + 1, rotBuf, rotOff, pose.ik[o + 12] ? pose.ik : null, o + 9, w, pose.ik[o + 13], arm ? ikOpt : null);
     if (arm) pose.aimErr[e] = rotBuf ? aimBuf[0] : 0;
@@ -506,6 +507,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   }
 
   function resolve(pose, c) {
+    ikOpt.edgeMax = Math.max(0, Math.min(90, c.edgeRoll ?? designEdge)) * D2R; // (opt-in edge roll, README section 5)
     for (let i = 0; i < animQ; i++) lq[i] = pose.lq[i];
     lp[0] = rig.offset[0] + pose.hips[0]; lp[1] = rig.offset[1] + pose.hips[1]; lp[2] = rig.offset[2] + pose.hips[2];
     applyBreath(c.breath, pose);
@@ -841,6 +843,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     const P = L.mem;
     P.ik = L.pose.ik;
     commitPose(P);
+    ikOpt.edgeMax = Math.max(0, Math.min(90, L.c.edgeRoll ?? designEdge)) * D2R;
     for (let e = 0; e < 2; e++) {
       const o = e * EFF_STRIDE;
       if (!(L.hands & (1 << e)) || !(L.pose.ik[o] > 0)) continue;
@@ -1232,13 +1235,9 @@ export function createCharacter(ctx, design0, opts = {}) {
     fk(rig, lq, lp, mq, mp, 0, animCount);
     // secondary motion
     if (capsules.count) updateCapsules(capsules, mq, mp);
-    const P1 = globalThis.__prof ? performance.now() : 0;
     for (const s of springs) s.update(dt, lq, lp, mq, mp, gravL, capsules);
-    if (globalThis.__prof) globalThis.__prof.springs += performance.now() - P1;
     if (springs.length) fk(rig, lq, lp, mq, mp, 0, animCount);
-    const P0 = globalThis.__prof ? performance.now() : 0;
     for (const c of cloths) { c.update(dt, mq, mp, gravL, windL, capsules, floorY, simTime); c.write(lq, lp); }
-    if (globalThis.__prof) globalThis.__prof.cloth += performance.now() - P0;
     // write bones
     for (let i = 0; i < N; i++) {
       const b = bones[i];

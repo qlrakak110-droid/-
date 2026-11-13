@@ -5,9 +5,12 @@
 //   scorch  burnt blast mark with radial streaks, a ragged edge and smouldering embers that die out
 //   frost   frost spreading from the centre: crystalline lines, milky patches, a cold glowing front and twinkles;
 //           melts away with noise erosion
-//   rune    magic circle: layered rings rotating at different speeds, a band of procedural glyphs, a heptagram, tick
-//           rings and spokes, each layer drawn on in turn, pulsing, eroding away at the end
+//   rune    (alias 'formation') formation diagram (진법) brushed in ink with inner energy running through it: outer
+//           ring, eight groups of three whole / broken bars, a ring of star points joined into constellations, a band
+//           of square seal-script glyphs and the black sun at the centre; drawn on layer by layer by a sweeping brush,
+//           each layer turning at its own rate, eroding away at the end
 //   glow    soft flickering light pool on the floor
+//   ink     ink splash: a blot with dry-brush rays and drops, a dying rim of element energy
 // Premultiplied output: dark parts occlude (alpha), hot parts add (glow), in the same fragment.
 
 import * as THREE from 'three';
@@ -16,7 +19,7 @@ import { makeQuadGeometry } from './instanced.js';
 import { GLSL_COMMON, GLSL_VORONOI, CULL } from './glsl.js';
 import { toVec3, RENDER_ORDER } from './util.js';
 
-const KIND = { crack: 0, scorch: 1, frost: 2, rune: 3, glow: 4 };
+const KIND = { crack: 0, scorch: 1, frost: 2, rune: 3, formation: 3, glow: 4, ink: 5 };
 
 /** Per-kind defaults (per-call options override any field; see README "Decal"). */
 export const DECAL_KINDS = {
@@ -25,7 +28,10 @@ export const DECAL_KINDS = {
   frost: { palette: 'frost', radius: 2, life: 4, fadeIn: 0, fadeOut: 1.3, reveal: 0.45, cool: 0.6, magma: 1, spin: 0, density: 1, dark: [0.32, 0.44, 0.58] },
   rune: { palette: 'eclipse', radius: 1.6, life: 2.5, fadeIn: 0.1, fadeOut: 0.5, reveal: 0.45, cool: 1, magma: 1, spin: 0.7, density: 1, dark: [0, 0, 0] },
   glow: { palette: 'ember', radius: 2, life: 1, fadeIn: 0.02, fadeOut: 0.7, reveal: 0, cool: 1, magma: 1, spin: 0, density: 1, dark: [0, 0, 0] },
+  ink: { palette: 'eclipse', radius: 1.2, life: 5, fadeIn: 0, fadeOut: 1.6, reveal: 0.07, cool: 0.9, magma: 1, spin: 0, density: 1, dark: [0.005, 0.005, 0.007] },
 };
+/** 'formation' (진법) is the murim name of the diagram; 'rune' stays as the identifier older content uses. */
+DECAL_KINDS.formation = DECAL_KINDS.rune;
 
 const LAYOUT = { iPosT: 4, iSize: 4, iLife: 4, iCore: 4, iMid: 4, iTail: 4, iDark: 4, iParam: 4 };
 
@@ -64,7 +70,6 @@ varying vec4 vA, vB, vCore, vMid, vTail, vDark, vPar;
 ${GLSL_COMMON}
 ${GLSL_VORONOI}
 float sdSeg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = sat(dot(pa, ba) / max(dot(ba, ba), 1e-8)); return length(pa - ba * h); }
-vec2 glyphPt(float k) { return vec2(mod(k, 3.0) - 1.0, floor(k / 3.0) - 1.0) * 0.72; }
 void main() {
   float age = vA.x, life = vA.y, R = vA.z;
   int kind = int(vA.w + 0.5);
@@ -148,60 +153,112 @@ void main() {
     glow = vCore.rgb * (lines * 0.1 * inside + frontGlow * 0.28 * edgeFade + tw * 2.5 * inside) * vis + vMid.rgb * dendr * inside * 0.12 * vis;
     dark = mix(dark, dark * 1.25 + 0.1, lines);
   } else if (kind == 3) {
-    // ---- rune circle: layered rotating rings, glyph band, heptagram, ticks, spokes; drawn on in turn -----------------
+    // ---- formation diagram (진법): brushed in ink on the stone, inner energy running through the strokes. Outer ring,
+    //      eight groups of three stacked bars (whole or broken: our own patterns, re-rolled per decal), a ring of star
+    //      points joined into small constellations, a band of square seal-script glyphs, the black sun at the centre.
+    //      Each layer is drawn on in turn by a sweeping brush and turns at its own rate.
     float t0 = age;
-    float a1 = ang + t0 * spin, a2 = ang - t0 * spin * 0.6, a3 = ang + t0 * spin * 1.6;
-    float d = 1e3;
-    // draw-on: layer k becomes visible behind a sweeping angle
     float sweepA = mod(ang + PI * 0.5, TAU);
     #define ON(k) step(sweepA, sat((t0 - float(k) * reveal * 0.18) / max(reveal, 1e-3)) * TAU + 0.001)
-    d = min(d, abs(r - 0.965) + (1.0 - ON(0)) * 9.0);
-    d = min(d, abs(r - 0.93) * 1.6 + (1.0 - ON(0)) * 9.0);
-    // tick ring (rotating backwards)
-    float tk = abs(fract((a2 / TAU + 0.5) * 72.0) - 0.5);
-    float tickL = (r > 0.875 && r < 0.915) ? tk / 72.0 * TAU * r : 1e3;
-    d = min(d, tickL + (1.0 - ON(1)) * 9.0);
-    d = min(d, abs(r - 0.87) + (1.0 - ON(1)) * 9.0);
-    // glyph band
-    float nG = 22.0;
-    float gu = (a1 / TAU + 0.5) * nG;
-    float gi = floor(gu);
-    vec2 gp = vec2((fract(gu) - 0.5) * 2.0 * (0.5 * TAU * 0.75 / nG) / 0.07, (r - 0.755) / 0.07);
-    if (abs(gp.y) < 1.4) {
-      float gd = 1e3;
-      for (int k = 0; k < 4; k++) {
+    float d = 1e3;     // hairlines
+    float db = 1e3;    // filled brush strokes (distance to their outline, 0 inside)
+    db = min(db, max(abs(r - 0.955) - 0.007, 0.0) + (1.0 - ON(0)) * 9.0);
+    d = min(d, abs(r - 0.915) + (1.0 - ON(0)) * 9.0);
+    {
+      float a1 = ang + t0 * spin * 0.45;
+      float gu = (a1 / TAU + 0.5) * 8.0;
+      float gi = mod(floor(gu), 8.0);
+      float al = (fract(gu) - 0.5) * (TAU / 8.0);
+      float halfW = TAU / 8.0 * 0.3;
+      for (int k = 0; k < 3; k++) {
         float fk = float(k);
-        float ha = floor(h11(gi * 7.13 + fk * 3.7 + seed) * 9.0), hb = floor(h11(gi * 3.31 + fk * 9.1 + seed * 2.0) * 9.0);
-        if (ha == hb) hb = mod(hb + 4.0, 9.0);
-        if (fk < 3.0 || h11(gi + seed) > 0.5) gd = min(gd, sdSeg(gp, glyphPt(ha), glyphPt(hb)));
+        float dr = abs(r - (0.775 + fk * 0.045)) - 0.011;
+        float dt = (abs(al) - halfW) * r;
+        if (h11(gi * 5.31 + fk * 2.17 + seed) > 0.5) dt = max(dt, (halfW * 0.24 - abs(al)) * r);
+        db = min(db, length(max(vec2(dr, dt), 0.0)) + (1.0 - ON(1)) * 9.0);
       }
-      d = min(d, gd * 0.07 + (1.0 - ON(2)) * 9.0);
     }
-    d = min(d, abs(r - 0.64) + (1.0 - ON(2)) * 9.0);
-    d = min(d, abs(r - 0.6) * 1.4 + (1.0 - ON(3)) * 9.0);
-    // heptagram {7/2} inscribed in r = 0.6 (each edge is a chord 0.6 cos(2 pi / 7) from the centre), counter-rotating
-    float hx = 1e3;
-    for (int k = 0; k < 7; k++) {
-      float a = -t0 * spin * 0.9 + float(k) * TAU / 7.0;
-      vec2 n = vec2(cos(a), sin(a));
-      hx = min(hx, abs(dot(p, n) - 0.374));
+    d = min(d, abs(r - 0.7) + (1.0 - ON(2)) * 9.0);
+    {
+      float a2 = ang - t0 * spin * 0.3;
+      float su = (a2 / TAU + 0.5) * 12.0;
+      float si = floor(su);
+      vec2 pr = r * vec2(cos(a2), sin(a2));
+      float ds = 1e3, dd = 1e3;
+      vec2 prev = vec2(0.0);
+      for (int k = -1; k <= 2; k++) {
+        float idx = mod(si + float(k), 12.0);
+        float sa = ((idx + 0.5 + (h11(idx * 3.7 + seed) - 0.5) * 0.5) / 12.0 - 0.5) * TAU;
+        vec2 sp = (0.535 + 0.12 * h11(idx * 9.1 + seed * 1.3)) * vec2(cos(sa), sin(sa));
+        dd = min(dd, length(pr - sp) - (0.011 + 0.012 * h11(idx * 5.3 + seed)));
+        if (k > -1 && h11(idx * 7.7 + seed * 2.0) > 0.24) ds = min(ds, sdSeg(pr, prev, sp));
+        prev = sp;
+      }
+      d = min(d, ds * 1.25 + (1.0 - ON(2)) * 9.0);
+      db = min(db, max(dd, 0.0) + (1.0 - ON(2)) * 9.0);
     }
-    if (r < 0.6) d = min(d, hx + (1.0 - ON(3)) * 9.0);
-    // inner ring + spokes
-    d = min(d, abs(r - 0.22) + (1.0 - ON(4)) * 9.0);
-    float sp = abs(fract((a3 / TAU + 0.5) * 8.0) - 0.5) / 8.0 * TAU * r;
-    if (r > 0.22 && r < 0.36) d = min(d, sp + (1.0 - ON(4)) * 9.0);
-    d = min(d, max(r - 0.07, 0.0) + (1.0 - ON(4)) * 9.0);
-    float lw = (0.0035 + 0.0025 * dens) * (1.6 / max(R, 0.5));
+    d = min(d, abs(r - 0.47) + (1.0 - ON(3)) * 9.0);
+    d = min(d, abs(r - 0.33) + (1.0 - ON(3)) * 9.0);
+    {
+      float a3 = ang + t0 * spin * 0.8;
+      float gu = (a3 / TAU + 0.5) * 16.0;
+      float gi = mod(floor(gu), 16.0);
+      vec2 gp = vec2((fract(gu) - 0.5) * (TAU * 0.4 / 16.0), r - 0.4) / 0.05;
+      if (abs(gp.y) < 1.3 && abs(gp.x) < 1.3) {
+        float gd = 1e3;
+        for (int k = 0; k < 5; k++) {
+          float fk = float(k);
+          float h1 = h11(gi * 7.13 + fk * 3.7 + seed), h2 = h11(gi * 3.31 + fk * 9.1 + seed * 2.0), h3 = h11(gi * 1.71 + fk * 5.9 + seed * 3.0);
+          vec2 ga = vec2(floor(h1 * 3.0) - 1.0, floor(h2 * 3.0) - 1.0);
+          vec2 gdir = fract(h3 * 7.0) > 0.5 ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+          vec2 gb = clamp(ga + gdir * (h3 > 0.5 ? 2.0 : 1.0) * (dot(ga, gdir) > 0.5 ? -1.0 : 1.0), -1.0, 1.0);
+          gd = min(gd, sdSeg(gp, ga * 0.78, gb * 0.78));
+        }
+        db = min(db, max(gd * 0.05 - 0.0055, 0.0) + (1.0 - ON(3)) * 9.0);
+      }
+    }
+    float sun = (1.0 - smoothstep(0.12, 0.14, r)) * ON(4);
+    db = min(db, max(abs(r - 0.158) - 0.008, 0.0) + (1.0 - ON(4)) * 9.0);
+    {
+      float ru = ((ang - t0 * spin * 1.2) / TAU + 0.5) * 8.0;
+      float tl = abs(fract(ru) - 0.5) / 8.0 * TAU * r;
+      if (r > 0.195 && r < (mod(floor(ru), 2.0) < 0.5 ? 0.285 : 0.24)) d = min(d, tl + (1.0 - ON(4)) * 9.0);
+    }
+    float bn = texture2D(uNoise, q * 1.3 + seed * 2.3).r;              // brush pressure
+    float dryN = texture2D(uNoise, q * 3.4 + seed).a;                  // dry-brush grain
+    float lw = (0.0032 + 0.0022 * dens) * (1.6 / max(R, 0.5)) * (0.65 + 0.75 * bn);
     float aa = min(fwidth(d), lw * 2.5) + 1e-4;
-    float line = 1.0 - smoothstep(lw - aa, lw + aa, d);
-    float halo = exp(-d / 0.018) * 0.22 + exp(-d / 0.07) * 0.035;
-    float pulse = 0.85 + 0.15 * sin(t0 * 7.0 + r * 9.0);
+    float ab = min(fwidth(db), 0.01) + 1e-4;
+    float dryM = mix(1.0, smoothstep(0.22, 0.5, dryN * 0.7 + bn * 0.4), 0.6);
+    float line = max(1.0 - smoothstep(lw - aa, lw + aa, d), 1.0 - smoothstep(lw * 0.4 - ab, lw * 0.4 + ab, db)) * dryM;
+    float dmin = min(d, db);
+    float halo = exp(-dmin / 0.018) * 0.2 + exp(-dmin / 0.07) * 0.03;
+    float flowP = 0.8 + 0.2 * sin(t0 * 5.0 - r * 14.0 + ang * 2.0);
     float th = mix(-0.15, 1.05, fo);
     float vis = smoothstep(th - 0.08, th + 0.08, fb * 0.65 + fb2 * 0.35);
-    // flash of the freshly drawn stroke behind the sweep
+    // flash of the freshly drawn stroke behind the sweeping brush
     float fresh = exp(-max(sat(t0 / max(reveal, 1e-3)) * TAU - sweepA, 0.0) * 3.0) * (1.0 - step(reveal * 1.8, t0));
-    glow = (mix(vMid.rgb, vCore.rgb, 0.4 + 0.6 * fresh) * line * 0.75 + vMid.rgb * halo) * pulse * vis * fin;
+    glow = (mix(vMid.rgb, vCore.rgb, 0.35 + 0.65 * fresh) * line * 0.75 + vMid.rgb * halo) * flowP * vis * fin;
+    glow += vCore.rgb * exp(-pow((r - 0.158) / 0.03, 2.0)) * 0.12 * ON(4) * vis * fin;      // corona of the black sun
+    float inkL = max(1.0 - smoothstep(lw * 1.4, lw * 3.4, d), 1.0 - smoothstep(lw * 0.6, lw * 2.6, db)) * (0.55 + 0.45 * dryM);
+    aDark = sat(inkL * 0.62 + sun * 0.88) * vis;
+    dark = vec3(0.004, 0.004, 0.006);
+  } else if (kind == 5) {
+    // ---- ink splash: a blot thrown on the stone with dry-brush rays and satellite drops; a rim of element energy
+    //      dies out over cool seconds, the ink stays until the erosion takes it
+    float rays = texture2D(uFlow, vec2(r * 0.33 - seed, (ang / TAU + 0.5) * 3.0 + seed)).r;
+    float rays2 = texture2D(uFlow, vec2(r * 0.6 + seed, (ang / TAU + 0.5) * 7.0)).r;
+    float blot = 1.0 - smoothstep(0.16, 0.4, r + (fb - 0.5) * 0.4);
+    float reach = 1.0 - smoothstep(0.5, 1.0, r + (fb2 - 0.5) * 0.35);
+    float strokes = smoothstep(0.5, 0.66, rays * 0.7 + rays2 * 0.3) * reach * smoothstep(0.08, 0.3, r);
+    float drops = smoothstep(0.86, 0.93, texture2D(uNoise, q * 2.6 + seed * 2.0).g) * reach * smoothstep(0.3, 0.5, r);
+    float grow = outExpo(age / max(reveal, 1e-3));
+    float th = mix(-0.1, 1.05, fo);
+    float vis = smoothstep(th - 0.1, th + 0.1, fb * 0.7 + (1.0 - r) * 0.3) * smoothstep(r - 0.08, r + 0.02, grow * 1.1);
+    aDark = sat(blot * 0.94 + strokes * 0.85 + drops * 0.8) * vis;
+    float cl = sat(age / max(cool, 1e-3));
+    float rim = sat(blot * (1.0 - blot) * 4.0) + strokes * 0.5;
+    glow = mix(vCore.rgb, vMid.rgb, sat(cl * 2.0)) * rim * (1.0 - cl) * (1.0 - cl) * 0.55 * magma * vis;
   } else {
     // ---- soft light pool ---------------------------------------------------------------------------------------------
     float fl = 0.85 + 0.15 * sin(age * 17.0 + seed * 9.0) * sin(age * 7.3);

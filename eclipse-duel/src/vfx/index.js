@@ -42,6 +42,7 @@ import { InstanceRing, makeQuadGeometry } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
 import * as util from './util.js';
 import { LIB, PALETTE } from './library.js';
+import { createDepthLink } from './depth.js';
 
 /**
  * Built-in sub-modules, in update order. The presets module runs right after the scheduler so its moving anchors are
@@ -87,6 +88,8 @@ export function createVfx(ctx) {
 
   const shared = {
     ctx, root, textures, clock, uniforms, rng: ctx.rng, util,
+    /** scene-depth link (soft particles, depth-aware refraction): { enabled, uniforms, defines(scale) } (depth.js) */
+    depth: createDepthLink(ctx),
     EffectPool, InstanceRing, ParamTable, tableGlsl, makeQuadGeometry,
     /** Add a spawn handle to the running preset's group (returns the handle). */
     track(h) {
@@ -199,6 +202,7 @@ export function createVfx(ctx) {
 
     dispose() {
       for (const m of modules) if (m.dispose) m.dispose();
+      shared.depth.dispose();
       textures.dispose();
       root.removeFromParent();
     },

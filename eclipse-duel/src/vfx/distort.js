@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { InstanceRing } from './instanced.js';
 import { EffectPool } from './pool.js';
 import { toVec3 } from './util.js';
+import { DEPTH_FADE_GLSL } from './depth.js';
 
 const KIND = { shock: 0, heat: 1, lens: 2 };
 const LAYOUT = { iPosT: 4, iNrmL: 4, iShape: 4, iMisc: 4 };
@@ -64,6 +65,7 @@ varying vec2 vP;
 varying vec4 vK;
 varying vec4 vS;
 varying float vT;
+${DEPTH_FADE_GLSL}
 void main() {
   int kind = int(vK.x + 0.5);
   float r = length(vP);
@@ -85,7 +87,8 @@ void main() {
     float m = r < 1.0 ? r * pow(1.0 - r * r, 2.0) : 0.0;
     o = -dirS * m * 2.0 * vK.y;
   }
-  gl_FragColor = vec4(o, 0.0, 0.0);
+  // whatever stands in front of the refraction (a fighter before a heat column) is left alone
+  gl_FragColor = vec4(o * vfxVisible(0.3), 0.0, 0.0);
 }`;
 
 /**
@@ -93,13 +96,14 @@ void main() {
  * @param {object} shared
  */
 export function installDistort(vfx, shared) {
-  const { ctx, clock, uniforms, textures } = shared;
+  const { ctx, clock, uniforms, textures, depth } = shared;
   const CAP = 24;
   const ring = new InstanceRing(CAP, LAYOUT);
   const pool = new EffectPool(shared, CAP);
   const mat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
-    uniforms: { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uFlow: { value: textures.flow } },
+    uniforms: { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uFlow: { value: textures.flow }, ...depth.uniforms },
+    defines: depth.defines(2),
     transparent: true, depthWrite: false, depthTest: false,
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor,
   });

@@ -1,4 +1,4 @@
-// DOM UI: menus, HUD and touch controls inside #ui. See README.md for the API.
+// DOM UI of 「흑일무림 黑日武林」: menus, HUD and touch controls inside #ui, in the ink-wash idiom. See README.md.
 //
 //   const ui = createUI(ctx);                 // ctx.ui
 //   ui.on('pick', ({ p1, cpu, difficulty }) => ...);
@@ -10,31 +10,35 @@
 
 import css from './ui.css';
 import { Emitter } from '../core/util.js';
-import { makeRng, clamp } from '../core/math.js';
+import { clamp } from '../core/math.js';
 import { createAnimator, h } from './anim.js';
 import { createHud } from './hud.js';
 import { createTouch } from './touch.js';
 import { createScreens } from './screens.js';
 import { DEFAULT_ROSTER } from './roster.js';
+import { paperTexture, washTexture, bandClip, swath, dash, divider, cssUrl } from './ink.js';
 
 const SCREENS = ['title', 'select', 'vs', 'hud', 'pause', 'result', 'movelist', 'none'];
 
-/** Grain texture for panels, generated once on a canvas (deterministic). */
-function noiseURL() {
-  try {
-    const c = document.createElement('canvas');
-    c.width = c.height = 128;
-    const g = c.getContext('2d');
-    const img = g.createImageData(128, 128);
-    const rng = makeRng(77);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const v = 128 + (rng() - 0.5) * 255;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-      img.data[i + 3] = 8 + rng() * 14;
-    }
-    g.putImageData(img, 0, 0);
-    return `url(${c.toDataURL('image/png')})`;
-  } catch (e) { return 'none'; }
+/**
+ * Procedural ink set once on the root as CSS custom properties: paper grain and ink wash textures, brushed band
+ * clip-paths (HP bars, announcer bands, tags) and brush shapes as mask images. All generated from fixed seeds.
+ */
+function inkTokens(root) {
+  const set = (k, v) => root.style.setProperty(k, v);
+  set('--noise', paperTexture());
+  set('--wash', washTexture());
+  set('--clip-hp-l', bandClip({ seed: 11, n: 18, amp: 20, left: 'fray', right: 'blunt' }));
+  set('--clip-hp-r', bandClip({ seed: 11, n: 18, amp: 20, left: 'fray', right: 'blunt', flip: true }));
+  set('--clip-bar-l', bandClip({ seed: 14, n: 10, amp: 26, left: 'blunt', right: 'taper' }));
+  set('--clip-bar-r', bandClip({ seed: 14, n: 10, amp: 26, left: 'blunt', right: 'taper', flip: true }));
+  set('--clip-band', bandClip({ seed: 21, n: 26, amp: 13, left: 'fray', right: 'fray' }));
+  set('--clip-band-b', bandClip({ seed: 27, n: 20, amp: 16, left: 'taper', right: 'fray' }));
+  set('--clip-tag', bandClip({ seed: 33, n: 6, amp: 12, left: 'blunt', right: 'blunt' }));
+  set('--m-swath', cssUrl(swath({ seed: 9, dry: 0.9 })));
+  set('--m-swath-b', cssUrl(swath({ seed: 15, dry: 0.5 })));
+  set('--m-dash', cssUrl(dash({ seed: 5 })));
+  set('--m-div', cssUrl(divider({ seed: 3 })));
 }
 
 /**
@@ -52,7 +56,7 @@ export function createUI(ctx, opts = {}) {
   const host = document.getElementById('ui') || document.body;
   const root = h('div.ed-ui');
   host.appendChild(root);
-  root.style.setProperty('--noise', noiseURL());
+  inkTokens(root);
   root.classList.toggle('is-test', !!ctx.test);
   const html = document.documentElement;
 

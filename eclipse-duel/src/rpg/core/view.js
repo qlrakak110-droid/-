@@ -59,11 +59,13 @@ function kindClips(spec) {
     const name = c && hasClip(c.clip) ? c.clip : hasClip('demo.combo1') ? 'demo.combo1' : 'demo.idle';
     const cd = clipDuration(name);
     const dur = atk ? atk.duration : cd;
-    let impact = c && c.hit !== undefined ? c.hit : null;
-    if (impact === null && !(c && hasClip(c.clip))) {
+    // retimed onto the frame data: `hit` (clip impact time), else the clip's own hit / impact event; `hit: false` or
+    // `speed` plays the clip 1:1 against the attack clock
+    let impact = c && typeof c.hit === 'number' ? c.hit : null;
+    if (impact === null && !(c && (c.hit === false || c.speed))) {
       const d = getClipDef(name);
       const ev = d && d.events ? d.events.find((e) => e.name === 'hit' || e.name === 'impact') : null;
-      impact = ev ? ev.t : cd * 0.35;
+      impact = ev ? ev.t : c && hasClip(c.clip) ? null : cd * 0.35;
     }
     const startup = atk && atk.hits && atk.hits.length ? Math.min(...atk.hits.map((h) => (h.t ? h.t[0] : h.t0))) : dur * 0.4;
     let mapFn;

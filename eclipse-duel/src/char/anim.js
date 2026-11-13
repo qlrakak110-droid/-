@@ -5,7 +5,7 @@
 import { ease as resolveEase } from '../core/math.js';
 import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
 /** Floats of one arm's IK memory (= ik.js MEM; kept here so the clip module does not import the solver). */
-export const SWIVEL_MEM = 24;
+export const SWIVEL_MEM = 20;
 
 const rawClips = new Map();
 const rawPoses = new Map();
@@ -361,7 +361,7 @@ function compile(rig, def) {
     name: def.name, duration, loop,
     events: (def.events || []).map((e) => ({ t: e.t, name: e.name, data: e.data })).sort((a, b) => a.t - b.t),
     mainHand: def.mainHand || 'R', gripHand: def.gripHand || 'L', gripAt: def.gripAt || 'grip',
-    breath: def.breath ?? 1, lookEnabled: def.look !== false,
+    breath: def.breath ?? 1, lookEnabled: def.look !== false, edgeRoll: def.edgeRoll,
     bones: [...boneTracks].map(([i, tr]) => ({ i, tr: finalizeTrack(tr, loop, duration, true) })),
     hipsPos: hipsPos && finalizeTrack(hipsPos, loop, duration),
     hipsRot: hipsRot && finalizeTrack(hipsRot, loop, duration),

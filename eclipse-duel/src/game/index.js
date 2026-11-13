@@ -12,7 +12,7 @@ import { createIdleController, createAIController } from './logic/index.js';
 import { createFx, fxDefs } from './fx.js';
 import { createSession } from './session.js';
 
-const ARENA = { arena: '일식의 폐허', arenaEn: 'ECLIPSE RUINS' };
+const ARENA = { arena: '천무대', arenaHanja: '天武臺', arenaEn: 'HEAVEN-MARTIAL TERRACE' };
 const DIFFS = ['easy', 'normal', 'hard', 'nightmare'];
 
 /**

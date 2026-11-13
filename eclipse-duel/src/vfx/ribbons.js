@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { ParamTable, tableGlsl } from './table.js';
 import { toVec3, toColor, toCurveFn, toRampFn, defKey, RENDER_ORDER } from './util.js';
 import { smoothstep } from '../core/math.js';
+import { DEPTH_FADE_GLSL } from './depth.js';
 
 const VMAX = 8192;
 const CAP = 64; // samples per ribbon
@@ -27,6 +28,7 @@ varying vec4 vS2;    // erosion threshold, softness, fade base, edge width
 varying float vSeed;
 varying float vDist;
 varying float vGrad;
+varying vec2 vInk;   // ink underlay amount, dry-brush amount
 ${tableGlsl('uStyles', 's')}
 void main() {
   int row = int(aA.z + 0.5);
@@ -54,7 +56,9 @@ void main() {
   vS = vec4(P0.y, P0.z, P0.w, P2.z);
   vS2 = vec4(cv.y, max(P2.w, 0.02), P2.x, P1.w);
   vSeed = aA.z * 0.37;
-  vDist = sParam(3, row).x;
+  vec4 P3 = sParam(3, row);
+  vDist = P3.x;
+  vInk = P3.yz;
   vGrad = P2.y;
 }`;
 
@@ -66,6 +70,7 @@ varying vec4 vCol, vV, vS, vS2;
 varying vec3 vEdge;
 varying float vSeed;
 varying float vGrad;
+varying vec2 vInk;
 void main() {
   float v = vV.x;
   vec2 nuv = vec2(vV.y * vS.x - uTime * vS.z, v * vS.y + vSeed);
@@ -77,9 +82,19 @@ void main() {
   a *= mix(1.0, smoothstep(0.15, 0.85, streak) * 1.5, vS.w);
   float th = vS2.x * (1.0 + vS2.y) - vS2.y;
   a *= smoothstep(th, th + vS2.y, grain * 0.7 + (1.0 - vV.z) * 0.3);
+  // brush stroke: bristle streaks along the trail; the hilt side and the old end dry out into separate hairs
+  vec2 buv = vec2(vV.y * 0.3 + vSeed * 3.0, v * 0.4 + vSeed * 7.0);
+  float bristle = texture2D(uFlow, buv).r;
+  float dryT = mix(0.72, 0.12, smoothstep(0.0, 0.95, v)) + vV.z * 0.3 - 0.08;
+  float env = a;
+  a *= mix(1.0, smoothstep(dryT - 0.07, dryT + 0.07, bristle), vInk.y);
   vec3 rgb = vCol.rgb * mix(1.0 - vGrad, 1.0, v * v) + vEdge * smoothstep(1.0 - vS2.w, 0.975, v) * (1.0 - smoothstep(0.975, 1.0, v));
   a = clamp(a, 0.0, 1.0);
-  gl_FragColor = vec4(rgb * a, a * (1.0 - vV.w));
+  // ink underlay on the trailing side (dark, alpha blended, under the light)
+  float inkBrush = smoothstep(dryT - 0.24, dryT - 0.04, bristle * 0.65 + texture2D(uFlow, buv * vec2(0.7, 0.6) + 0.37).r * 0.35);
+  float ink = vInk.x * clamp(env * 1.6, 0.0, 1.0) * inkBrush * (1.0 - smoothstep(0.55, 0.92, v)) * (1.0 - vV.z * vV.z);
+  float ga = a * (1.0 - vV.w);
+  gl_FragColor = vec4(rgb * a + vec3(0.005, 0.005, 0.007) * ink * (1.0 - ga), ga + ink * (1.0 - ga));
 }`;
 
 const FRAG_DISTORT = /* glsl */ `
@@ -89,10 +104,11 @@ uniform sampler2D uFlow;
 varying vec4 vCol, vV;
 varying float vSeed;
 varying float vDist;
+${DEPTH_FADE_GLSL}
 void main() {
   vec2 f = texture2D(uFlow, vec2(vV.y * 0.5 - uTime * 0.3, vV.x * 0.5 + vSeed)).ba * 2.0 - 1.0;
   float a = clamp(vCol.a, 0.0, 1.0) * smoothstep(0.0, 0.4, vV.x) * (1.0 - vV.z);
-  gl_FragColor = vec4(f * a * vDist, 0.0, 0.0);
+  gl_FragColor = vec4(f * a * vDist * vfxVisible(0.3), 0.0, 0.0);
 }`;
 
 /**
@@ -100,7 +116,7 @@ void main() {
  * @param {object} shared
  */
 export function installRibbons(vfx, shared) {
-  const { ctx, clock, root, uniforms, textures } = shared;
+  const { ctx, clock, root, uniforms, textures, depth } = shared;
   const table = new ParamTable(64, 'ribbon styles');
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(VMAX * 3), oth = new Float32Array(VMAX * 3), A = new Float32Array(VMAX * 4), B = new Float32Array(VMAX * 4);
@@ -124,7 +140,7 @@ export function installRibbons(vfx, shared) {
   root.add(mesh);
   const dmat = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG_DISTORT,
-    uniforms: U, transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+    uniforms: { ...U, ...depth.uniforms }, defines: depth.defines(2), transparent: true, depthWrite: false, depthTest: false, side: THREE.DoubleSide,
     blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneFactor,
   });
   const dmesh = new THREE.Mesh(geo, dmat);
@@ -135,7 +151,7 @@ export function installRibbons(vfx, shared) {
 
   // ---- styles ------------------------------------------------------------------------------------------------------
   const styles = new Map();
-  const STYLE_KEYS = ['color', 'alpha', 'intensity', 'width', 'widthOverLife', 'erode', 'additive', 'life', 'noise', 'edge', 'edgeWidth', 'fadeBase', 'gradient', 'erodeSoft', 'distort', 'blend'];
+  const STYLE_KEYS = ['color', 'alpha', 'intensity', 'width', 'widthOverLife', 'erode', 'additive', 'life', 'noise', 'edge', 'edgeWidth', 'fadeBase', 'gradient', 'erodeSoft', 'distort', 'blend', 'ink', 'dry'];
   function style(o, ribbonMode) {
     const pick = { m: ribbonMode };
     for (const k of STYLE_KEYS) if (o[k] !== undefined) pick[k] = o[k];
@@ -160,7 +176,8 @@ export function installRibbons(vfx, shared) {
     const edge = o.edge === false ? [0, 0, 0] : o.edge != null ? toColor(o.edge).toArray() : ribbonMode ? [0, 0, 0] : [8, 4, 1.2];
     table.param(r, 1, edge[0], edge[1], edge[2], o.edgeWidth != null ? o.edgeWidth : 0.07);
     table.param(r, 2, o.fadeBase != null ? o.fadeBase : ribbonMode ? 0.0 : 0.6, o.gradient != null ? o.gradient : ribbonMode ? 0 : 0.75, nz.amount != null ? nz.amount : 0.4, o.erodeSoft != null ? o.erodeSoft : 0.25);
-    table.param(r, 3, o.distort || 0, 0, 0, 0);
+    // murim brush look: dark ink underlay on the trailing side + dry-brush bristle breakup (0 = the plain ribbon)
+    table.param(r, 3, o.distort || 0, o.ink != null ? o.ink : ribbonMode ? 0.2 : 0.45, o.dry != null ? o.dry : ribbonMode ? 0.4 : 0.7, 0);
     table.param(r, 4, o.width != null && ribbonMode ? o.width : 0.15, 0, 0, 0);
     st.life = life;
     styles.set(key, st);

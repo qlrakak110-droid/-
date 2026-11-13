@@ -14,6 +14,7 @@ import { InstanceRing } from './instanced.js';
 import { ParamTable, tableGlsl } from './table.js';
 import { toCurveFn, toRampFn, toVec3, sampleRange, rangeMax, makeFrame, normalizeAt, makeAt, defKey, RENDER_ORDER } from './util.js';
 import { TAU, DEG } from '../core/math.js';
+import { DEPTH_FADE_GLSL } from './depth.js';
 
 const LAYOUT = { iPosT: 4, iVelL: 4, iOrgD: 4, iAxisS: 4, iMisc: 4, iTint: 4 };
 const ALIGN = { billboard: 0, velocity: 1, flat: 2, axis: 3, velocityAxis: 4 };
@@ -28,6 +29,7 @@ attribute vec4 iPosT, iVelL, iOrgD, iAxisS, iMisc, iTint;
 varying vec2 vUv, vUv2, vLocal;
 varying vec4 vCol, vF, vE, vN, vCh;
 varying vec3 vHot;
+varying float vSoft;
 ${tableGlsl('uDefs', 'd')}
 
 void integ(inout vec3 p, inout vec3 v, vec3 g, float k, float t) {
@@ -161,6 +163,7 @@ void main() {
   vE = vec4(P5.x > 0.0 ? 1.0 / P5.x : 1e5, wy, P6.z, P7.x);
   vN = vec4(vec2(hash11(seed * 13.7), hash11(seed * 29.3)) + P9.xy * tau, P6.x, P7.w);
   vCh = dParam(8, row);
+  vSoft = P9.z > 0.0 ? 1.0 / (P9.z * max(s, 0.3)) : 0.0;   // soft particles: 1 / fade distance (m) against scene depth
 }`;
 
 const FRAG = /* glsl */ `
@@ -169,6 +172,8 @@ uniform sampler2D uAtlas, uNoise;
 varying vec2 vUv, vUv2, vLocal;
 varying vec4 vCol, vF, vE, vN, vCh;
 varying vec3 vHot;
+varying float vSoft;
+${DEPTH_FADE_GLSL}
 void main() {
   vec4 s = texture2D(uAtlas, vUv);
   if (vF.w > 0.001) s = mix(s, texture2D(uAtlas, vUv2), vF.w);
@@ -183,6 +188,8 @@ void main() {
     a *= k;
   }
   a *= clamp(vE.y * vE.x, 0.0, 1.0);
+  if (vSoft > 0.0) a *= vfxSoft(vSoft);
+  if (a <= 0.0005) discard;
   gl_FragColor = vec4(rgb * a, a * (1.0 - vF.z));
 }`;
 
@@ -192,11 +199,13 @@ uniform sampler2D uAtlas, uFlow;
 varying vec2 vUv, vUv2, vLocal;
 varying vec4 vCol, vF, vE, vN, vCh;
 varying vec3 vHot;
+varying float vSoft;
+${DEPTH_FADE_GLSL}
 void main() {
   vec4 s = texture2D(uAtlas, vUv);
   float a = s.a * vCol.a;
   vec2 f = texture2D(uFlow, vLocal * vN.z + vN.xy).ba * 2.0 - 1.0;
-  a *= clamp(vE.y * vE.x, 0.0, 1.0);
+  a *= clamp(vE.y * vE.x, 0.0, 1.0) * vfxVisible(0.3);   // haze behind a body does not bend the body
   gl_FragColor = vec4(f * a * vCol.r, 0.0, 0.0);
 }`;
 
@@ -206,7 +215,7 @@ void main() {
  * @param {object} shared  shared resources (ctx, textures, clock, root, track ...)
  */
 export function installParticles(vfx, shared) {
-  const { ctx, textures, clock, rng } = shared;
+  const { ctx, textures, clock, rng, depth } = shared;
   const q = ctx.quality;
   const capScale = q.tier === 'low' ? 0.5 : q.tier === 'mid' ? 0.75 : 1;
   const table = new ParamTable(384, 'particle definitions');
@@ -219,7 +228,8 @@ export function installParticles(vfx, shared) {
     const ring = new InstanceRing(cap, LAYOUT);
     const mat = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: frag,
-      uniforms: { ...U, uLayerAdd: { value: name === 'add' ? 1 : 0 } },
+      uniforms: { ...U, ...depth.uniforms, uLayerAdd: { value: name === 'add' ? 1 : 0 } },
+      defines: depth.defines(name === 'distort' ? 2 : 1),
       transparent: true, depthWrite: false, depthTest: true,
       blending: THREE.CustomBlending, blendEquation: THREE.AddEquation,
       blendSrc: THREE.OneFactor, blendDst: name === 'distort' ? THREE.OneFactor : THREE.OneMinusSrcAlphaFactor,
@@ -323,7 +333,11 @@ export function installParticles(vfx, shared) {
     const ch = typeof def.erodeChannel === 'string' ? CHANNEL[def.erodeChannel] : def.erodeChannel || CHANNEL.fbm;
     table.param(row, 8, ch[0], ch[1], ch[2], ch[3]);
     const scroll = def.noiseScroll || [0, 0];
-    table.param(row, 9, scroll[0], scroll[1], 0, def.pull || 0);
+    // soft particles: fade distance against the scene depth (m). Default: a third of the largest quad (0.04 .. 0.45 m),
+    // none for floor-aligned quads (they lie ON the depth they would fade against) and for specks under 4 cm
+    const maxSize = rangeMax(cd.size, 0.1);
+    const soft = def.soft != null ? def.soft : align === ALIGN.flat || maxSize < 0.12 ? 0 : Math.min(0.45, Math.max(0.04, maxSize * 0.33));
+    table.param(row, 9, scroll[0], scroll[1], soft, def.pull || 0);
     if (def.blend === 'distort') {
       // distortion particles read the ramp red channel as strength multiplier; scale it by def.strength
       const st = def.strength != null ? def.strength : 0.02;

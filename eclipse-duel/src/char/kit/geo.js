@@ -9,10 +9,15 @@
 //   lathe(profile, o)      surface of revolution with hard rows                 extrude(shape, o)  bevelled extrusion
 //   strip(S, pts, o)       raised ribbon following a (u, v) path on a parametric surface (inlays, engraved runes)
 //   studs(list, o)         rivets / bosses       merge(geos)  concatenation keeping kit attributes
+//   band(frames, o)        flat uv-mapped band along surface frames (trims, collars, sashes)     ribbon(pts, o)  hair / tails
 
 import * as THREE from 'three';
 import { xf, mirrorZ } from '../shapes.js';
 import { surfDetail } from '../materials.js';
+import { SET } from './textures.js';
+
+/** Sets whose meshes carry (u, v, code) in the glow attribute instead of glow channel masks. */
+const UV_SETS = new Set([SET.fur, SET.brocade, SET.lamellar, SET.bamboo, SET.gauze, SET.hair, SET.blade]);
 
 const V = THREE.Vector3;
 
@@ -28,7 +33,7 @@ export function mk(pos, nor, idx, cav = null, uvw = null) {
   return g;
 }
 
-/** Concatenate geometries (position, normal, cav, uvw kept; missing cav = 1, missing uvw = 0). */
+/** Concatenate geometries (position, normal, cav, uvw kept; missing cav = 1, missing uvw = 0; userData.W kept if all have it). */
 export function merge(geos) {
   geos = geos.filter(Boolean);
   let nv = 0, ni = 0, hasUvw = false;
@@ -52,6 +57,8 @@ export function merge(geos) {
   out.setAttribute('cav', new THREE.BufferAttribute(cav, 1));
   if (uvw) out.setAttribute('uvw', new THREE.BufferAttribute(uvw, 3));
   out.setIndex(new THREE.BufferAttribute(idx, 1));
+  // per-vertex skin weights (band / ribbon / garment pieces) survive the merge when every part has them
+  if (geos.length && geos.every((g) => g.userData && g.userData.W)) out.userData.W = geos.flatMap((g) => g.userData.W);
   return out;
 }
 
@@ -670,6 +677,148 @@ export function onSurface(surf, uvs, inset = 0) {
   return uvs.map(([u, v]) => { const f = surf.normalAt(u, v); return { p: f.p.addScaledVector(f.n, inset), n: f.n }; });
 }
 
+// ---- bands and ribbons (uv-mapped strips) --------------------------------------------------------------------------------
+
+/**
+ * Flat band along a path of surface frames: embroidered trims, collars, cuffs, hems, sashes, belts, headbands.
+ * @param {Array} frames  [{ p: [x,y,z], n: [x,y,z], w?: skin weights [[bone, w]...] }]  p on the surface, n = its outward normal
+ * @param {object} o
+ *   width=0.04 (m | fn(t))   lift=0.0008 (m above the surface)   thick=0.0025 (edge height)   crown=0.0012 (centre rise)
+ *   closed=false (the path is a loop)   shift=0 (offset across in widths: 0 = centred on the path, 0.5 = the path is the
+ *   band's v = 0 edge, -0.5 = its v = 1 edge)   side=null ([x,y,z] hint of the across direction; default n x tangent)
+ *   code=0 (uv code: brocade motif + glow, see MOTIF)   repeat=1 (motif tiles per band width)   u0=0   flipV=false
+ *   flat=false (true: 3 vertices across, no side walls: borders lying on cloth panels)   wall=true
+ * @returns geometry with `uvw` = (u along in band widths, v across 0..1, code); userData.W = per-vertex skin weights
+ *   (frames with `w`), userData.length = arc length (m)
+ */
+export function band(frames, o = {}) {
+  const n = frames.length, closed = !!o.closed;
+  const WF = typeof o.width === 'function' ? o.width : () => o.width ?? 0.04;
+  const lift = o.lift ?? 0.0008, T = o.thick ?? 0.0025, crown = o.crown ?? 0.0012, shift = o.shift ?? 0;
+  // cross-section: [across (widths), height, v, normal share of n, normal share of the side direction, cavity]
+  const c = crown;
+  const prof = o.flat
+    ? [[-0.5, T, 0, 1, -0.3, 1.08], [0, T + c, 0.5, 1, 0, 1], [0.5, T, 1, 1, 0.3, 1.08]]
+    : [[-0.5, -0.0006, 0, 0, -1, 0.6], [-0.5, T, 0.03, 0.75, -0.65, 1.14], [-0.25, T + c * 0.75, 0.25, 1, -0.12, 1], [0, T + c, 0.5, 1, 0, 1],
+      [0.25, T + c * 0.75, 0.75, 1, 0.12, 1], [0.5, T, 0.97, 0.75, 0.65, 1.14], [0.5, -0.0006, 1, 0, 1, 0.6]];
+  const K = prof.length;
+  const pos = [], nor = [], idx = [], cav = [], uvw = [], W = [];
+  const P = frames.map((f) => (f.p.isVector3 ? f.p : new V(f.p[0], f.p[1], f.p[2])));
+  const Nn = frames.map((f) => (f.n.isVector3 ? f.n.clone() : new V(f.n[0], f.n[1], f.n[2])).normalize());
+  const w0 = WF(0) || 0.04, rep = o.repeat ?? 1, code = o.code ?? 0;
+  let arc = 0;
+  const tng = new V(), sd = new V(), hint = o.side ? new V(...o.side) : null;
+  for (let i = 0; i < n; i++) {
+    const a = P[closed ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
+    tng.subVectors(b, a).normalize();
+    if (i > 0) arc += P[i].distanceTo(P[i - 1]);
+    sd.crossVectors(Nn[i], tng);
+    if (sd.lengthSq() < 1e-10 && hint) sd.copy(hint);
+    sd.normalize();
+    if (hint && sd.dot(hint) < 0) sd.negate();
+    const t = n > 1 ? i / (n - 1) : 0, w = WF(t);
+    for (const [x, h, v, cn, cs, cv] of prof) {
+      const ax = (x + shift) * w, hh = lift + h;
+      pos.push(P[i].x + sd.x * ax + Nn[i].x * hh, P[i].y + sd.y * ax + Nn[i].y * hh, P[i].z + sd.z * ax + Nn[i].z * hh);
+      const nx = Nn[i].x * cn + sd.x * cs, ny = Nn[i].y * cn + sd.y * cs, nz = Nn[i].z * cn + sd.z * cs;
+      const l = Math.hypot(nx, ny, nz) || 1;
+      nor.push(nx / l, ny / l, nz / l);
+      cav.push(cv);
+      uvw.push((o.u0 ?? 0) + (arc / w0) * rep, o.flipV ? 1 - v : v, code);
+      W.push(frames[i].w || null);
+    }
+  }
+  const segs = closed ? n : n - 1;
+  for (let i = 0; i < segs; i++) {
+    const i2 = (i + 1) % n;
+    for (let k = 0; k < K - 1; k++) {
+      const a = i * K + k, b = a + 1, c = i2 * K + k, d = c + 1;
+      idx.push(a, c, b, b, c, d);
+    }
+  }
+  if (closed) {
+    // the seam: the loop's last segment must continue u (duplicate ring with u = total / width)
+    const total = arc + P[0].distanceTo(P[n - 1]);
+    const base = pos.length / 3;
+    for (let k = 0; k < K; k++) {
+      pos.push(pos[k * 3], pos[k * 3 + 1], pos[k * 3 + 2]); nor.push(nor[k * 3], nor[k * 3 + 1], nor[k * 3 + 2]);
+      cav.push(cav[k]); uvw.push((o.u0 ?? 0) + (total / w0) * rep, uvw[k * 3 + 1], code); W.push(W[k]);
+    }
+    idx.length -= (K - 1) * 6;
+    for (let k = 0; k < K - 1; k++) { const a = (n - 1) * K + k, b = a + 1, c = base + k, d = c + 1; idx.push(a, c, b, b, c, d); }
+    arc = total;
+  }
+  const g = fixWinding(mk(pos, nor, idx, cav, uvw));
+  g.userData.W = W;
+  g.userData.length = arc;
+  return g;
+}
+
+/**
+ * Ribbon along a 3D path: hair locks, sash tails, cords, tassel strands, veil strips.
+ * @param {Array} pts  [[x,y,z] | Vector3, ...]
+ * @param {object} o
+ *   width=0.03 (m | fn(t))   normal=[1,0,0] ([x,y,z] | fn(t): the face normal hint)   camber=0.18 (bow across, x width)
+ *   nu=2 (segments across)   u0=0, du=1 (uv u = u0 + across * du)   v0=0, v1=1   code=0   twist: fn(t) rad
+ *   solid=false (true: closed lens section, visible from both sides on single-sided materials)   thick=0.25 (lens, x width)
+ *   weights: fn(t, across -0.5..0.5) -> [[bone, w]...]
+ * @returns geometry with `uvw` = (u, v, code); userData.W = per-vertex weights (when `weights` is given)
+ */
+export function ribbon(pts, o = {}) {
+  const P = pts.map((p) => (p.isVector3 ? p : new V(p[0], p[1], p[2])));
+  const n = P.length, nu = o.nu ?? 2;
+  const WF = typeof o.width === 'function' ? o.width : () => o.width ?? 0.03;
+  const NF = typeof o.normal === 'function' ? o.normal : () => o.normal || [1, 0, 0];
+  const camber = o.camber ?? 0.18, code = o.code ?? 0, u0 = o.u0 ?? 0, du = o.du ?? 1, v0 = o.v0 ?? 0, v1 = o.v1 ?? 1;
+  const pos = [], nor = [], idx = [], cav = [], uvw = [], W = [];
+  const tng = new V(), sd = new V(), nn = new V(), q = new THREE.Quaternion();
+  const faces = o.solid ? [1, -1] : [1];
+  const ring = nu + 1;
+  for (const face of faces) {
+    const base = pos.length / 3;
+    for (let i = 0; i < n; i++) {
+      const t = n > 1 ? i / (n - 1) : 0;
+      tng.subVectors(P[Math.min(n - 1, i + 1)], P[Math.max(0, i - 1)]).normalize();
+      const h = NF(t);
+      nn.set(h[0], h[1], h[2]).addScaledVector(tng, -tng.dot(nn));
+      if (nn.lengthSq() < 1e-10) nn.set(0, 1, 0).addScaledVector(tng, -tng.y);
+      nn.normalize();
+      if (o.twist) nn.applyQuaternion(q.setFromAxisAngle(tng, o.twist(t)));
+      sd.crossVectors(tng, nn).normalize();
+      const w = WF(t);
+      for (let k = 0; k <= nu; k++) {
+        const x = k / nu - 0.5, bow = (1 - 4 * x * x) * camber * w * (o.solid ? (face > 0 ? 1 : 1 - 2 * (o.thick ?? 0.25) / Math.max(1e-6, camber)) : 1);
+        pos.push(P[i].x + sd.x * x * w + nn.x * bow, P[i].y + sd.y * x * w + nn.y * bow, P[i].z + sd.z * x * w + nn.z * bow);
+        const sl = 8 * x * camber;                 // d(bow)/dx
+        let nx = nn.x + sd.x * sl, ny = nn.y + sd.y * sl, nz = nn.z + sd.z * sl;
+        const l = (Math.hypot(nx, ny, nz) || 1) * face;
+        nor.push(nx / l, ny / l, nz / l);
+        cav.push(face > 0 ? 1 : 0.7);
+        uvw.push(u0 + (x + 0.5) * du, v0 + (v1 - v0) * t, code);
+        if (o.weights) W.push(o.weights(t, x));
+      }
+    }
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < nu; k++) {
+      const a = base + i * ring + k, b = a + 1, c = a + ring, d = c + 1;
+      if (face > 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
+    }
+  }
+  const g = mk(pos, nor, idx, cav, uvw);
+  if (o.weights) g.userData.W = W;
+  return g;
+}
+
+/** Set / replace the `uvw` attribute of a geometry: fn(p [x,y,z], n [x,y,z], i) -> [u, v, code]. Returns the geometry. */
+export function withUvw(g, fn) {
+  const P = g.attributes.position.array, N = g.attributes.normal.array, c = P.length / 3, out = new Float32Array(c * 3);
+  for (let i = 0; i < c; i++) out.set(fn([P[i * 3], P[i * 3 + 1], P[i * 3 + 2]], [N[i * 3], N[i * 3 + 1], N[i * 3 + 2]], i), i * 3);
+  g.setAttribute('uvw', new THREE.BufferAttribute(out, 3));
+  return g;
+}
+
+/** weightFn for putSkinned() from per-vertex weights (geometry.userData.W of band() / ribbon(), or any array). */
+export const weightsOf = (W) => (x, y, z, i) => W[i];
+
 // ---- kit placement ----------------------------------------------------------------------------------------------------
 
 const lin = new THREE.Color();
@@ -680,7 +829,8 @@ function colorOf(c) {
 }
 
 /**
- * Kit options for a geometry + surface look. look: { color, rough, metal, set, amt, inlay, vein, eye, occ, tint(p) }
+ * Kit options for a geometry + surface look. look: { color, rough, metal, set, amt, inlay, vein, eye, occ, tint(p),
+ * torn (cut-out fabric: the geometry's uvw = (u, v, tear code) goes to the shader) }
  * o: { at, rot, scale, glow: fn(p, n, i) -> [inlay, vein, eye] | [a,b,c], color: override, cav: fn(p, n, i) multiplier }
  */
 export function kitOpts(geo, look, o = {}, mirror = false) {
@@ -697,7 +847,9 @@ export function kitOpts(geo, look, o = {}, mirror = false) {
   const glowK = [look.inlay ?? 0, look.vein ?? 0, look.eye ?? 0];
   const glowFn = o.glow || look.glow;
   let glow;
-  if (uvw) glow = (p, n, i) => [uvw[i * 3], uvw[i * 3 + 1], uvw[i * 3 + 2]];
+  // the uv of a UV set (or of torn cloth: look.torn) rides in the glow attribute; any other look keeps its glow masks
+  const setId = typeof look.set === 'string' ? SET[look.set] : look.set;
+  if (uvw && (UV_SETS.has(setId) || look.torn)) glow = (p, n, i) => [uvw[i * 3], uvw[i * 3 + 1], uvw[i * 3 + 2]];
   else if (glowFn) glow = (p, n, i) => glowFn(mp(p), n, i);
   else glow = glowK;
   return {

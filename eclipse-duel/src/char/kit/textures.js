@@ -39,7 +39,7 @@ export const SET_LAYER = [0, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 
 /** Default tiles per metre of each set (index = set id; UV sets: scale of the mesh's own uv, 1 unless noted). */
 export const SET_SCALE = [0, 4.2, 3.4, 7.5, 9, 22, 6, 7.5, 6.5, 55, 26, 6.5, 1, 5, 1, 1, 1, 1, 5.5, 4.6, 3.2];
 /** Normal strength of each set (index = set id). */
-export const SET_BUMP = [0, 0.55, 0.7, 1.2, 1.0, 0.6, 0.8, 1.6, 1.1, 0.55, 1.15, 0.55, 1.5, 0.45, 1.5, 1.25, 0.9, 0.9, 0.3, 0.75, 0.2];
+export const SET_BUMP = [0, 0.55, 0.7, 1.2, 1.0, 0.6, 0.8, 1.6, 1.1, 0.55, 1.15, 0.55, 1.5, 0.45, 1.5, 1.25, 0.9, 0.9, 0.3, 0.4, 0.2];
 /** Set id whose layers a set samples (itself for generated sets). */
 const SOURCE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 10, 6, 1, 1, 1];
 
@@ -917,9 +917,9 @@ function lacquer(N, rng, B) {
 
 /**
  * 14 lamellar (찰갑), UV set: one tile = 4 small plates across x 2 rows (the lower row offset by half a plate). Each
- * plate is domed, shingled over its neighbour and tucked under the row above, with rounded lower corners; a lacing
- * cord crosses every plate joint and two suspension laces run down to the next row (mask = cords, blue = distance to
- * the plate edge for edge wear).
+ * plate is domed, shingled over its neighbour and tucked under the row above, with rounded lower corners. A braided
+ * lacing cord runs along every row and one suspension lace per plate drops over its lower edge to the row below
+ * (mask = cords, blue = closeness to the plate rim for edge wear).
  */
 function lamellar(N, rng, B) {
   const s = N / 512;
@@ -928,7 +928,7 @@ function lamellar(N, rng, B) {
   const pid = new Float32Array(8);
   for (let i = 0; i < 8; i++) pid[i] = rng();
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), cord = new Float32Array(N * N), prox = new Float32Array(N * N);
-  const rc = 0.3;                                  // corner radius, plate widths
+  const rc = 0.34;                                 // corner radius, plate widths
   for (let y = 0; y < N; y++) {
     const row = Math.floor(y / ph), fy = y / ph - row;
     for (let x = 0; x < N; x++) {
@@ -938,32 +938,28 @@ function lamellar(N, rng, B) {
       const ax = Math.min(fx, 1 - fx), ay = (1 - fy) * (ph / pw);
       let d = Math.min(ax, ay);
       if (ax < rc && ay < rc) d = rc - Math.hypot(rc - ax, rc - ay);
-      const inside = d > 0 ? 1 : 0;
-      const bevel = sstep(0, 0.085, d);
+      const inside = d > 0.015 ? 1 : 0;
+      const bevel = sstep(0.015, 0.12, d);
       const id = pid[(row & 1) * 4 + (col & 3)];
+      // a plate: tucked under the row above (low at its top), proud and bevelled at its lower rim, tilted over its neighbour
       let z = inside
-        ? 0.42 + 0.3 * bevel + (1 - fy) * -0.2 + (0.5 - fx) * 0.16 + 0.1 * Math.sin(fx * Math.PI) + (id - 0.5) * 0.06
-        : 0.12;
-      // lacing: a stitch across each vertical joint near the top, two suspension laces over the lower edge
+        ? 0.3 + 0.36 * bevel + fy * 0.3 + (0.5 - fx) * 0.2 + 0.08 * Math.sin(fx * Math.PI) + (id - 0.5) * 0.08
+        : 0.05;
+      // lacing: a braided cord along the row; one suspension lace per plate over its lower edge
       let c = 0;
-      const jx = Math.min(fx, 1 - fx) * pw, sy = Math.abs(fy - 0.24) * ph;
-      if (jx < 0.24 * pw && sy < 0.05 * ph) c = Math.sqrt(Math.max(0, 1 - (sy / (0.05 * ph)) ** 2)) * sstep(0.24 * pw, 0.2 * pw, jx);
-      for (const lx of [0.36, 0.64]) {
-        const ex = Math.abs(fx - lx) * pw;
-        if (ex < 0.045 * pw && fy > 0.58) c = Math.max(c, Math.sqrt(Math.max(0, 1 - (ex / (0.045 * pw)) ** 2)) * sstep(0.58, 0.64, fy));
-      }
-      if (c > 0) {
-        const tw = 0.82 + 0.18 * Math.sin((x + y) * 1.6 / s);         // twisted cord
-        z = Math.max(z, (inside ? z : 0.3) + 0.26 * c * tw);
-      }
-      cord[k] = sstep(0.15, 0.5, c);
+      const sy = Math.abs(fy - 0.2) * ph, hw = 0.036 * ph;
+      if (sy < hw) c = Math.sqrt(1 - (sy / hw) ** 2) * (0.72 + 0.28 * Math.sin((x * 2 + (fy - 0.2) * ph * 2.4) * Math.PI / (pw * 0.25)));
+      const ex = Math.abs(fx - 0.5) * pw, vw = 0.05 * pw;
+      if (ex < vw && fy > 0.66) c = Math.max(c, Math.sqrt(1 - (ex / vw) ** 2) * sstep(0.66, 0.72, fy) * (0.8 + 0.2 * Math.sin(y * 1.9 / s)));
+      if (c > 0) z = Math.max(z, (inside ? z : 0.4) + 0.2 * c);
+      cord[k] = sstep(0.2, 0.55, c);
       h[k] = z + (grain[k] - 0.5) * 0.04;
       prox[k] = inside ? 1 - bevel : 0;
-      alb[k] = 0.5 + (id - 0.5) * 0.2 + (mott[k] - 0.5) * 0.3 - (inside ? 0 : 0.35);
-      rough[k] = 0.5 + (mott[k] - 0.5) * 0.3 + (id - 0.5) * 0.14 + (inside ? 0 : 0.3);
+      alb[k] = 0.5 + (id - 0.5) * 0.3 + (mott[k] - 0.5) * 0.3 - (inside ? 0 : 0.4);
+      rough[k] = 0.5 + (mott[k] - 0.5) * 0.3 + (id - 0.5) * 0.2 + (inside ? 0 : 0.3);
     }
   }
-  return pack(N, alb, rough, prox, wear, h, 2.4 * s, cord, { r: 4, gain: 2.6 });
+  return pack(N, alb, rough, prox, wear, h, 3.0 * s, cord, { r: 4, gain: 2.6 });
 }
 
 /**

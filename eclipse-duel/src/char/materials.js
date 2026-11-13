@@ -361,7 +361,7 @@ const FRAG_SURFACE = /* glsl */ `
         } else if (edSi == 17) {
           // hair ribbons / cards: u across the lock (strand units), v root -> tip; code = where the lock thins out
           #ifdef ED_CUTOUT
-            if (edCode > 0.0005 && edB.a < smoothstep(edCode, 1.0, vGlow.y) * 0.9 + 0.03) discard;
+            if (edCode > 0.0005 && edB.a < smoothstep(edCode, 1.0, vGlow.y) * 0.94 - 0.02) discard;
           #endif
           edNrP = normalize(edNr + Tu * (edB.x - 0.5) * 2.2 * k);
           edTb = Tu;                          // the highlight band runs across the strands
@@ -425,8 +425,11 @@ const FRAG_SURFACE = /* glsl */ `
     }
     float edMicro = mix(1.0, edB.b, edAmt);
     // macro field (one planar lookup, low frequency): vertical grime streaks (A) and soot / dust / dye patches (R)
-    vec2 edMuv = abs(edNr.x) > abs(edNr.z) ? vRestPos.zy : vRestPos.xy;
-    vec4 edMac = edSet(edMuv * vec2(1.1, 0.14) + vec2(0.37, 0.11), 0.0);
+    // (side / front projections cross-fade over a narrow band of normals: one lookup almost everywhere, never a seam)
+    float edMw = smoothstep(-0.12, 0.12, abs(edNr.x) - abs(edNr.z));
+    vec4 edMac = vec4(0.0);
+    if (edMw > 0.0) edMac = textureLod(uSets, vec3(vRestPos.zy * vec2(1.1, 0.14) + vec2(0.37, 0.11), 0.0), 1.0) * edMw;
+    if (edMw < 1.0) edMac += textureLod(uSets, vec3(vRestPos.xy * vec2(1.1, 0.14) + vec2(0.37, 0.11), 0.0), 1.0) * (1.0 - edMw);
     // cloth hems: torn, charred, frayed, ember-lit edges (u, v, code in vGlow)
     float edChar = 0.0, edSoot = 0.0;
     #ifdef ED_CUTOUT
@@ -518,46 +521,54 @@ const FRAG_SURFACE = /* glsl */ `
     }
     // aged bronze: verdigris creeping out of the hollows and across mottled patches (matt, chalky, not metallic)
     if (edSi == 19) {
-      float verd = uVerd.a * smoothstep(0.42, 0.8, (1.0 - edOcc) * 1.3 + (edMac.r - 0.5) * 1.6 + (1.0 - edMicro) * 0.9 + (edA.a - 0.5) * 0.7 + 0.1) * (1.0 - wear);
+      float verd = uVerd.a * smoothstep(0.5, 0.82, (1.0 - edOcc) * 1.4 + (edMac.r - 0.5) * 2.6 + (1.0 - edMicro) * 1.2 + (edA.a - 0.5) * 1.3 + 0.2) * (1.0 - wear);
       base = mix(base, uVerd.rgb * (0.55 + 0.9 * edA.r), verd);
       edMetalMul *= 1.0 - 0.9 * verd;
       edRoughAdd += 0.32 * verd;
     }
     float edHard = 0.0;
+    float edNioi = 0.0;
     if (edSi == 18) {
       // forged blade (u along the blade in metres, v 0 at the cutting edge .. 1 at the back, code = height of the temper
-      // line): a bright honed edge zone, a misty undulating boundary, flowing forge grain on the darker body
+      // line): the hardened edge zone is a pale satin band that reads bright from every angle, closed by a misty,
+      // undulating boundary; the body above it is darker, polished, with a flowing forge grain; the very edge is honed
       float bu = vGlow.x, bv = vGlow.y;
       float n1 = texture2D(uDetail, vec2(bu * 0.83, 0.37)).r, n2 = texture2D(uDetail, vec2(bu * 3.1, 0.71)).r;
       float line = edCode * (0.72 + 0.56 * n1 + 0.2 * sin(bu * 47.0 + n2 * 7.0));
       float on = step(0.001, edCode);
       edHard = (1.0 - smoothstep(line - 0.025, line + 0.03, bv)) * on;
-      float nioi = exp(-pow((bv - line) / 0.04, 2.0)) * on;
+      edNioi = exp(-pow((bv - line) / 0.045, 2.0)) * on;
       float grain = sin(bv * 52.0 + (n1 - 0.5) * 16.0 + (n2 - 0.5) * 7.0 + (edA.r - 0.5) * 5.0);
-      base *= 1.0 + 0.1 * grain * (1.0 - edHard) * (1.0 - edLod);
-      vec3 honed = uWearColor * 1.25 + 0.02;
+      base *= 1.0 + 0.12 * grain * (1.0 - edHard) * (1.0 - edLod);
+      vec3 honed = uWearColor * 1.3 + 0.03;
       base = mix(base, honed, edHard * (1.0 - 0.8 * wear));
-      base = mix(base, honed * 1.15 + 0.04, nioi * 0.55);
-      edRoughAdd += nioi * 0.16 + 0.05 * grain * (1.0 - edHard);
+      base = mix(base, honed * 1.2 + 0.05, edNioi * 0.6);
+      edRoughAdd += 0.05 * grain * (1.0 - edHard);
     }
     if (edSi == 20) {
-      // jade: clouded, veined, waxy; light sinks in and comes back soft
-      float cloud = edMac.r * 0.55 + edA.r * 0.45;
-      base *= 0.66 + 0.7 * cloud;
-      base = mix(base, base * 0.45 + vec3(0.3, 0.32, 0.28) * bmax * 1.6, smoothstep(0.6, 0.82, edMac.a * 0.6 + edA.a * 0.4) * 0.5);
-      edWrap = 0.55; edTrans = 0.22;
+      // jade: clouded and veined, waxy gloss; light sinks in and comes back soft
+      float cloud = edMac.r * 0.6 + edA.r * 0.4;
+      base *= 0.35 + 1.3 * cloud;
+      base = mix(base, base * 0.6 + vec3(0.36, 0.4, 0.34) * bmax, smoothstep(0.56, 0.8, edMac.a * 0.55 + edA.a * 0.45) * 0.55);
+      edWrap = 0.4; edTrans = 0.14;
     }
     diffuseColor.rgb = base;
     edRoughMul *= (1.0 + (edA.g - 0.5) * 1.1 * edAmt) * (1.0 - 0.3 * wear * (1.0 - isMetal));
     edRoughAdd += grime * 0.22 + edChar * 0.35 + dust * 0.35;
     edMetalMul *= 1.0 - dust;
     // worn metal edges are polished bright: they catch the rim, the key and the braziers as crisp lines
-    edRoughT = mix(mix(0.18, 0.1, edHard), 0.62, frost);
-    edRoughW = max(max(wear * isMetal * 0.85, frost * 0.8), edHard * 0.85);
+    edRoughT = mix(0.18, 0.62, frost);
+    edRoughW = max(wear * isMetal * 0.85, frost * 0.8);
+    if (edSi == 18) {
+      // satin temper band (0.4), frosted boundary (0.5), mirror-honed cutting edge (0.1)
+      float hone = (1.0 - smoothstep(0.02, 0.07, vGlow.y)) * step(0.001, edCode);
+      edRoughT = mix(mix(0.4, 0.5, edNioi), 0.1, hone);
+      edRoughW = max(max(edHard, edNioi * 0.8), hone) * 0.92;
+    }
     edAO *= mix(1.0, edOcc, 0.85) * mix(1.0, edMicro, 0.45);
     // layered polish: a sharp lobe over the base lobe on clean metal (smoother patches, fresh wear), none under grime
     float smooth_ = smoothstep(0.62, 0.36, edA.g);
-    edPolish = clamp(uFinish.w * isMetal * (0.4 + 0.6 * smooth_) * (1.0 - grime) * (1.0 - frost) * (1.0 - dust) + wear * isMetal * 0.4 + edHard * 0.6, 0.0, 1.0);
+    edPolish = clamp(uFinish.w * isMetal * (0.4 + 0.6 * smooth_) * (1.0 - grime) * (1.0 - frost) * (1.0 - dust) + wear * isMetal * 0.4, 0.0, 1.0) * (1.0 - 0.8 * edHard);
     if (edLacq) edPolish = max(edPolish, uUnder.a * (0.55 + 0.45 * smooth_) * (1.0 - grime * 0.8) * (1.0 - wear) * (1.0 - edThread) * (1.0 - dust));
     if (edSi == 20) edPolish = max(edPolish, 0.8 * (1.0 - grime));
     if (edSi == 15) edPolish = max(edPolish, 0.25 * (1.0 - edB.a) * (1.0 - grime));

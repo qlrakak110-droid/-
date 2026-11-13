@@ -184,51 +184,61 @@ export function softTarget(world, a, dirYaw, range = 11) {
 
 /**
  * Human controller: ctx.input (player 0) + the third-person camera -> intents. Tap `dodge` = roll, hold = sprint.
+ * Presses are latched per rendered frame (`frame(dtReal)`, real time) and consumed by the next fixed step, so nothing
+ * is lost while the world is frozen by a hit-stop or stretched by slow motion.
  * @param {object} ctx
  */
 export function humanController(ctx) {
   const mv = { x: 0, y: 0 };
-  let dodgeHeld = 0, sprinting = false;
+  const latch = { attack: '', roll: false, drink: false, interact: false, lock: false, lockL: false, lockR: false };
+  let dodgeHeld = 0, sprinting = false, guard = false, moving = false;
   const TAP = 0.24;
+  const PRIORITY = ['ult', 'skill1', 'skill2', 'skill3', 'heavy', 'light'];
   return {
     kind: 'human',
-    think(world, a, dt, it) {
-      const inp = ctx.input, cam = world.camera;
+    /** Sample the input once per rendered frame. */
+    frame(dtReal) {
+      const inp = ctx.input;
       if (!inp) return;
       if (inp.moveVec) inp.moveVec(0, mv); else { mv.x = inp.axis(0); mv.y = (inp.held('up') ? 1 : 0) - (inp.held('down') ? 1 : 0); }
+      moving = mv.x * mv.x + mv.y * mv.y > 0.04;
+      if (inp.held('dodge')) {
+        dodgeHeld += dtReal;
+        if (dodgeHeld > TAP && moving) sprinting = true;
+      } else {
+        if (dodgeHeld > 0 && !sprinting) latch.roll = true;       // released: a tap (or a hold while standing) rolls
+        dodgeHeld = 0; sprinting = false;
+      }
+      guard = inp.held('guard');
+      for (let i = 0; i < PRIORITY.length; i++) if (inp.pressed(PRIORITY[i])) { latch.attack = PRIORITY[i]; break; }
+      if (inp.pressed('chalice')) latch.drink = true;
+      if (inp.pressed('interact')) latch.interact = true;
+      if (inp.pressed('lock')) latch.lock = true;
+      if (inp.pressed('lockL') || inp.pressed('lookL')) latch.lockL = true;
+      if (inp.pressed('lockR') || inp.pressed('lookR')) latch.lockR = true;
+    },
+    think(world, a, dt, it) {
+      const cam = world.camera;
       const cy = cam ? cam.yaw : 0;
       // camera-relative: stick up = away from the camera
       it.moveX = fwdX(cy) * mv.y + rightX(cy) * mv.x;
       it.moveZ = fwdZ(cy) * mv.y + rightZ(cy) * mv.x;
-      const moving = mv.x * mv.x + mv.y * mv.y > 0.04;
-      // dodge: tap = roll (on release), hold = sprint
-      if (inp.held('dodge')) {
-        dodgeHeld += dt;
-        if (dodgeHeld > TAP && moving) sprinting = true;
-      } else {
-        if (dodgeHeld > 0 && dodgeHeld <= TAP && !sprinting) it.roll = true;
-        else if (dodgeHeld > TAP && !sprinting && !moving) it.roll = true;   // a long press while standing still: a backstep
-        dodgeHeld = 0; sprinting = false;
-      }
       it.sprint = sprinting && moving;
-      it.guard = inp.held('guard');
-      if (inp.pressed('ult')) it.attack = 'ult';
-      else if (inp.pressed('skill1')) it.attack = 'skill1';
-      else if (inp.pressed('skill2')) it.attack = 'skill2';
-      else if (inp.pressed('skill3')) it.attack = 'skill3';
-      else if (inp.pressed('heavy')) it.attack = 'heavy';
-      else if (inp.pressed('light')) it.attack = 'light';
-      if (inp.pressed('chalice')) it.drink = true;
-      if (inp.pressed('interact')) it.interact = true;
+      it.guard = guard;
+      it.roll = latch.roll; latch.roll = false;
+      it.attack = latch.attack; latch.attack = '';
+      it.drink = latch.drink; latch.drink = false;
+      it.interact = latch.interact; latch.interact = false;
       if (cam) {
-        if (inp.pressed('lock')) cam.toggleLock();
-        if (cam.target) {
-          if (inp.pressed('lockL') || inp.pressed('lookL')) cam.switch(-1);
-          if (inp.pressed('lockR') || inp.pressed('lookR')) cam.switch(1);
-        }
+        if (latch.lock) cam.toggleLock();
+        if (cam.target) { if (latch.lockL) cam.switch(-1); if (latch.lockR) cam.switch(1); }
       }
+      latch.lock = latch.lockL = latch.lockR = false;
       const locked = cam && cam.target && cam.target.alive ? cam.target : null;
       a.target = locked || softTarget(world, a, moving ? yawTo(it.moveX, it.moveZ) : a.yaw);
+      void dt;
     },
+    /** Drop every latched press (pause, cinematics). */
+    clear() { latch.attack = ''; latch.roll = latch.drink = latch.interact = latch.lock = latch.lockL = latch.lockR = false; dodgeHeld = 0; sprinting = false; },
   };
 }

@@ -10,7 +10,7 @@ import { fk } from './skeleton.js';
 /** Default soft-reach fraction (of l1 + l2) where the limb starts to ease into full extension. 0 = can lock straight. */
 export const SOFT = 0.006;
 /** Wrist range used by the arm solver (radians): swing of the hand off the forearm axis, pronation / supination. */
-export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180, swingKnee: (68 * Math.PI) / 180, twistKnee: (74 * Math.PI) / 180 };
+export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180, swingKnee: (68 * Math.PI) / 180, twistKnee: (74 * Math.PI) / 180, swingBack: (120 * Math.PI) / 180 };
 /**
  * Elbow swivel continuity (arm memory, see solveLimb opt.mem): the swivel follows the minimum of the cost basin it is
  * in (a minimum that moved more than TRACK x dt since last frame - its basin merged into another - is travelled to),
@@ -19,19 +19,17 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  * over instead of flipping in one frame). Rates are per second of game time, so the path is the same at 30 / 60 /
  * 120 Hz.
  */
-export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, TRACK_TAU: 0.025, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
+export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, TRACK_TAU: 0.025, BODY_K: 0.035, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
  * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll (off hand) / edge
- * roll (weapon hand), travel direction, hand twist, grip roll step, grip roll step scale, hand swing vector (2)] + this
- * frame (the same 12).
+ * roll (weapon hand), travel direction, hand twist, grip roll step, grip roll step scale] + this frame (the same 10).
  */
-export const MEM = 24;
+export const MEM = 20;
 const MH = MEM / 2;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
 export function commitMem(m, o = 0) { for (let k = 0; k < MH; k++) m[o + k] = m[o + MH + k]; }
 /** Fastest the wrist clamp turns the hand about the forearm (rad/s): a request sweeping through an impossible pronation. */
 const WRIST_RATE = (1500 * Math.PI) / 180;
-export const DBG = { on: false, log: [] };
 
 /**
  * Limb descriptors for a rig: handR, handL, footR, footL.
@@ -62,7 +60,6 @@ const oldL = new Float32Array(12), newL = new Float32Array(12), endModel = new F
 const sv = new Float32Array(32); // swivel search scratch
 const rollQ = new Float32Array(8);
 let reachD = 0; // softened shoulder -> wrist distance of the last limbSetup
-let legFkW = 0;  // solveLimb of a leg fading in from FK: how much the default knee pole leans to the FK knee
 
 /**
  * Arm / leg geometry for one swivel angle phi: writes the upper-bone model rotation into out[oo..] and the end bone's
@@ -100,7 +97,7 @@ function swivelCost(f) {
     const px = sv[3] * cf + sv[6] * sf, py = sv[4] * cf + sv[7] * sf, pz = sv[5] * cf + sv[8] * sf;
     const ex = S.rx + S.l1 * (sv[0] * sv[9] + px * sv[10]), ey = S.ry + S.l1 * (sv[1] * sv[9] + py * sv[10]), ez = S.rz + S.l1 * (sv[2] * sv[9] + pz * sv[10]);
     const wx = S.rx + sv[0] * S.d, wy = S.ry + sv[1] * S.d, wz = S.rz + sv[2] * S.d;
-    const k = 0.05 * B[7];
+    const k = SWIVEL.BODY_K * B[7];
     let pen = bodyPen(B, ex, ey, ez);
     if (pen > 0) c += (pen / k) ** 2;
     pen = bodyPen(B, (ex + wx) * 0.5, (ey + wy) * 0.5, (ez + wz) * 0.5);
@@ -145,8 +142,7 @@ let rollConf = 1, rollStep = 0, rollScale = 1;
  * wrapped round a handle cannot spin round it: without the bound the best roll can run away, turning the hand round
  * and round the grip and dragging the elbow with it).
  */
-const ROLL_RATE = 12;
-export const ROLL_KNEE = 1.0, ROLL_MAX = 1.4;
+export const GRIP = { ROLL_RATE: 12, ROLL_KNEE: 1.6, ROLL_MAX: 2.2 };
 function bestRoll(endQ, eo, fq, fo, gx, gy, gz, ref) {
   // forearm long axis (model) -> end frame
   qrot(tv, 0, fq, fo, 0, -1, 0);
@@ -237,6 +233,9 @@ function basinMin(p) {
  *   rollKeep = 0.25 how strongly the authored roll is kept (0 = free)
  *   phi = 0         preferred swivel (rad) relative to the pole
  *   poleW = 0.7     weight of the pull toward an explicit `pole` in the swivel cost (the default pole always uses 0.7)
+ *   aimAxis, edgeMax  [x, y, z] blade axis in the end frame and the largest edge roll (rad, 0 = off): a hand asked for
+ *                   more wrist than it has rolls about the blade axis by up to edgeMax first (the aim is kept, the edge
+ *                   turns), then the wrist clamp takes the rest
  *   mem, dt         Float32Array(MEM) kept by the caller per arm, and the game time (s) this solve advances: the swivel
  *                   continues from last frame's elbow direction (SWIVEL), so it never flips; commitMem() once per update.
  *                   Without a valid memory the elbow starts in the cost basin of the current (FK) elbow
@@ -258,8 +257,6 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // rotation instead, i.e. the wrist pose follows the new forearm)
   qcopy(endModel, 0, rot || mq, rot ? ro : end * 4);
   let er = endModel, eo = 0;
-  // (1 - w)^2: the FK knee leads while the IK weight is small, the default pole has it from mid-fade on
-  legFkW = !arm && weight < 1 && !DBG.noFk ? (1 - weight) * (1 - weight) : 0;
   let bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
   const keepLocal = !rot && opt && opt.keepLocal;
   if (keepLocal) { // the FK wrist pose rides the new forearm (no wrist search / clamp needed: it is the authored pose)
@@ -306,11 +303,28 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   rollStep = 0; rollScale = 1;
   if (roll) {
     limbAt(phi, sign, bend, er, eo, tq, 0);
-    psi = rollMem ? psiRef : softLimit(bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN), ROLL_KNEE, ROLL_MAX);
+    psi = rollMem ? psiRef : softLimit(bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN), GRIP.ROLL_KNEE, GRIP.ROLL_MAX);
     rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
     qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
     bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
     if (hasMem) hasMem = memDir(); else if (seeded) seeded = seedFK();
+  }
+  // a weapon hand whose key asks for more wrist than a human has: before the swivel is chosen and the wrist clamp bends
+  // the blade off its key, the hand rolls about the blade's own axis (bounded, rate-limited, see EDGE): the blade keeps
+  // its aim and gives up edge roll. Judged on last frame's elbow, so the swivel search below (arm out of the torso,
+  // continuity) is made for the rolled hand
+  let rho = 0;
+  const eax = wrist && !roll && opt && opt.edgeMax > 0 && opt.aimAxis;
+  if (eax && mem && mem[3] > 0) {
+    const rhoP = mem[5];
+    limbAt(hasMem ? phiP : phi, sign, bend, er, eo, tq, 0);
+    rho = edgeRoll(tq, 4, eax, rhoP, true, Math.max(0, opt.dt || 0), opt.edgeMax);
+    if (Math.abs(rho) > 1e-6) {
+      rollBy(er, eo, eax[0], eax[1], eax[2], rho);
+      qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
+      bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      if (hasMem) hasMem = memDir(); else if (seeded) seeded = seedFK();
+    }
   }
   limbAt(phi, sign, bend, er, eo, tq, 0);
   let timer = 0, tdir = 0;
@@ -390,34 +404,19 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         // a hand turns around a handle at <= ROLL_RATE (its best roll can swap sides in a frame), and a step that
         // reverses the last one is halved (the next steps grow back x2 per frame): where the best roll has no fixed point
         // (it swaps sides as the roll crosses it) the hand settles on the edge instead of alternating between frames
-        const cap = ROLL_RATE * Math.max(0, opt.dt || 0), last = mem[8];
+        const cap = GRIP.ROLL_RATE * Math.max(0, opt.dt || 0), last = mem[8];
         let step = Math.max(-cap, Math.min(cap, psi - psiRef)), sc = mem[9] > 0 ? mem[9] : 1;
         sc = step * last < 0 && Math.min(Math.abs(step), Math.abs(last)) > 0.1 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
         step *= sc;
-        psi = softLimit(psiRef + step, ROLL_KNEE, ROLL_MAX);
+        psi = softLimit(psiRef + step, GRIP.ROLL_KNEE, GRIP.ROLL_MAX);
         rollStep = psi - psiRef; rollScale = sc;
-      } else psi = softLimit(b, ROLL_KNEE, ROLL_MAX);
+      } else psi = softLimit(b, GRIP.ROLL_KNEE, GRIP.ROLL_MAX);
       rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
       phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
       bend = sBend;
     }
     limbAt(phi, sign, bend, er, eo, tq, 0);
-  }
-  // a weapon hand whose key asks for more wrist than a human has: before the wrist clamp bends the blade off its key,
-  // the hand rolls about the blade's own axis (bounded, see EDGE): the blade keeps its aim and gives up edge roll
-  let rho = 0;
-  const eax = wrist && !roll && opt && opt.aimAxis;
-  if (eax) { // (its memory is the arm's, valid even where last frame's elbow direction says nothing this frame)
-    const rmem = !!(mem && mem[3] > 0), rhoP = rmem ? mem[5] : 0;
-    rho = edgeRoll(tq, 4, eax, rhoP, rmem, rmem ? Math.max(0, opt.dt || 0) : 0);
-    if (Math.abs(rho) > 1e-6) {
-      rollBy(er, eo, eax[0], eax[1], eax[2], rho);
-      qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
-      phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
-      bend = sBend;
-      limbAt(phi, sign, bend, er, eo, tq, 0);
-    }
   }
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
   const wmem = mem && mem[3] > 0 ? mem : null;
@@ -439,14 +438,13 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     qcopy(newL, 8, rollQ, 4);
     qmul(tq, 8, sv, 16, rollQ, 4); er = tq; eo = 8;  // the end model rotation that results
   }
-  if (DBG.on && mem) DBG.log.push({ hasMem, seeded, phiP: +phiP.toFixed(3), phi: +phi.toFixed(3), timer: +timer.toFixed(3), psi: +psi.toFixed(3), psiRef: +(psiRef||0).toFixed(3), keep, roll: !!roll, clamped: wristOut });
   if (mem && ch >= 0) { // this frame's elbow direction (chest frame) for the next frame's solve
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
     qrot(mem, MH, tv, 8, px, py, pz);
     mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = roll ? psi : rho; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
-    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale; mem[MH + 10] = swingOutX; mem[MH + 11] = swingOutZ;
+    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
@@ -457,7 +455,6 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   }
   qmulInv(newL, 0, mq, parent * 4, tq, 0);       // root local
   qaxis(newL, 4, 0, 0, 1, sign * bend);          // mid local (hinge about Z)
-  if (DBG.on && !arm) DBG.log.push({ leg: limb.side, w: +weight.toFixed(3), pole: !!pole, legFkW: +legFkW.toFixed(3), oldTw: +(2 * Math.atan2(oldL[1], oldL[3]) * 57.3).toFixed(1), newTw: +(2 * Math.atan2(newL[1], newL[3]) * 57.3).toFixed(1) });
   if (weight >= 1) {
     qcopy(lq, root * 4, newL, 0); qcopy(lq, mid * 4, newL, 4); qcopy(lq, end * 4, newL, 8);
   } else {
@@ -505,20 +502,6 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   if (pole) { px = pole[po] - ax; py = pole[po + 1] - ay; pz = pole[po + 2] - az; }
   else {
     defaultPole(rig, limb, mq, er, eo, ux, uy, uz, tv); px = tv[3]; py = tv[4]; pz = tv[5];
-    if (limb.kind === 'leg' && legFkW > 0) {
-      // a leg fading in from FK (IK weight < 1, no authored pole): the knee starts where the FK knee is and turns to
-      // the default pole as the weight grows, so the blend between the FK and IK legs never mixes opposite knees
-      const m3 = mid * 3, kx = mp[m3] - ax, ky = mp[m3 + 1] - ay, kz = mp[m3 + 2] - az, kd = kx * ux + ky * uy + kz * uz;
-      let fx = kx - ux * kd, fy = ky - uy * kd, fz = kz - uz * kd;
-      const fl = Math.hypot(fx, fy, fz), pd = px * ux + py * uy + pz * uz;
-      let qx = px - ux * pd, qy = py - uy * pd, qz = pz - uz * pd;
-      const ql = Math.hypot(qx, qy, qz);
-      if (fl > 1e-4 * limb.l1 && ql > 1e-9) {
-        fx /= fl; fy /= fl; fz /= fl; qx /= ql; qy /= ql; qz /= ql;
-        px = fx * legFkW + qx * (1 - legFkW); py = fy * legFkW + qy * (1 - legFkW); pz = fz * legFkW + qz * (1 - legFkW);
-        if (Math.hypot(px, py, pz) < 1e-3) { px = fx; py = fy; pz = fz; } // opposite knees half way: keep the FK one
-      }
-    }
   }
   let k = px * ux + py * uy + pz * uz;
   px -= ux * k; py -= uy * k; pz -= uz * k;
@@ -538,10 +521,11 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
 }
 
 /**
- * Edge roll of a weapon hand (rad): range, cost of rolling (per rad^2, against the squared wrist excess in rad) and
- * fastest turn (rad/s, ~900 deg/s). Rolling about the blade axis keeps the blade's aim exact; only the edge turns.
+ * Edge roll of a weapon hand (opt-in: solveLimb opt.edgeMax, the clip's / design's `edgeRoll`): cost of rolling (per
+ * rad^2, against the squared wrist excess in rad) and fastest turn (rad/s, ~900 deg/s). Rolling about the blade axis
+ * keeps the blade's aim exact; only the edge turns.
  */
-export const EDGE = { MAX: (70 * Math.PI) / 180, COST: 0.03, RATE: 15.7 };
+export const EDGE = { COST: 0.03, RATE: 15.7 };
 const eq = new Float32Array(8);
 /**
  * Squared wrist excess (beyond the soft clamp's limits: inside them the clamp's own small deviation is the better
@@ -560,15 +544,16 @@ function edgeCost(q, o, a, rho) {
  * Edge roll that brings the wrist demand of hand local q[o..] into range (minimum of edgeCost): 0 while the wrist can
  * take the key. With memory: searched around last frame's roll and turned at <= EDGE.RATE.
  */
-function edgeRoll(q, o, a, rhoP, hasMem, dt) {
+function edgeRoll(q, o, a, rhoP, hasMem, dt, MAX) {
   if (edgeCost(q, o, a, 0) <= 1e-9 && Math.abs(rhoP) < 1e-4) return 0;
-  let lo = -EDGE.MAX, hi = EDGE.MAX;
+  let lo = -MAX, hi = MAX;
   if (hasMem) { lo = Math.max(lo, rhoP - 0.7); hi = Math.min(hi, rhoP + 0.7); }
   else { // coarse scan of the whole range, then refine around the best sample
     let b = 0, bc = edgeCost(q, o, a, 0);
-    for (let i = -6; i <= 6; i++) { const r = (i / 6) * EDGE.MAX, c = edgeCost(q, o, a, r); if (c < bc - 1e-12) { bc = c; b = r; } }
-    lo = Math.max(-EDGE.MAX, b - EDGE.MAX / 6); hi = Math.min(EDGE.MAX, b + EDGE.MAX / 6);
+    for (let i = -6; i <= 6; i++) { const r = (i / 6) * MAX, c = edgeCost(q, o, a, r); if (c < bc - 1e-12) { bc = c; b = r; } }
+    lo = Math.max(-MAX, b - MAX / 6); hi = Math.min(MAX, b + MAX / 6);
   }
+  if (!(hi > lo)) return Math.max(-MAX, Math.min(MAX, rhoP));
   let a1 = lo + GOLD * (hi - lo), b1 = hi - GOLD * (hi - lo), ca = edgeCost(q, o, a, a1), cb = edgeCost(q, o, a, b1);
   for (let it = 0; it < 10; it++) {
     if (ca < cb) { hi = b1; b1 = a1; cb = ca; a1 = lo + GOLD * (hi - lo); ca = edgeCost(q, o, a, a1); }
@@ -580,7 +565,7 @@ function edgeRoll(q, o, a, rhoP, hasMem, dt) {
   return r;
 }
 
-let wristOut = 0, swingOutX = 0, swingOutZ = 0;
+let wristOut = 0;
 /**
  * Soft-limit a hand local rotation to the wrist range (swing off the forearm axis, pronation / supination). True if
  * changed. Pronation: up to the knee as asked, then saturating at the limit, then (past ~140 deg asked, an impossible
@@ -597,23 +582,12 @@ export function clampWrist(q, o, mem = null, dt = 0) {
   let tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
   if (mem) tw2 = mem[7] + Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7]));
   wristOut = tw2;
-  // swing: soft limit; a request bent past ~150 deg (impossible) eases back to straight at 180 deg, where the bend
+  // swing: soft limit; a request bent past ~120 deg (impossible) eases back to straight at 180 deg, where the bend
   // direction is undefined and flips (as the twist does near 180): the clamped hand never flips from one side to the
-  // other. As a rotation vector (axis in the hand's XZ plane x angle), turned at <= WRIST_RATE with an arm memory
-  const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing) * (1 - smooth01(sw0, 2.62, Math.PI));
-  const ct = Math.cos(tw / 2), st = Math.sin(tw / 2), ax = x * ct + z * st, az = z * ct - x * st, al = Math.hypot(ax, az);
-  let vx = al > 1e-9 ? (ax / al) * sw2 : 0, vz = al > 1e-9 ? (az / al) * sw2 : 0;
-  if (mem) {
-    const dx = vx - mem[10], dz = vz - mem[11], dl = Math.hypot(dx, dz), cap = WRIST_RATE * dt;
-    if (dl > cap) { vx = mem[10] + (dx * cap) / dl; vz = mem[11] + (dz * cap) / dl; }
-  }
-  swingOutX = vx; swingOutZ = vz;
-  const sw3 = Math.hypot(vx, vz);
-  if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw3 - sw0) < 1e-6 && Math.abs(vx * az - vz * ax) < 1e-6 * (al || 1) && vx * ax + vz * az >= 0) return false;
-  // q = swing(v) * twist(tw2)
-  const hs = sw3 > 1e-9 ? Math.sin(sw3 / 2) / sw3 : 0.5, sx = vx * hs, sz = vz * hs, sw = Math.cos(sw3 / 2);
-  const c2 = Math.cos(tw2 / 2), s2 = Math.sin(tw2 / 2);
-  q[o] = sx * c2 - sz * s2; q[o + 1] = sw * s2; q[o + 2] = sz * c2 + sx * s2; q[o + 3] = sw * c2;
+  // other
+  const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing) * (1 - smooth01(sw0, WRIST.swingBack, Math.PI));
+  if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw0) < 1e-6) return false;
+  setSwingTwist(q, o, x, y, z, w, tw, tw2, sw2);
   return true;
 }
 

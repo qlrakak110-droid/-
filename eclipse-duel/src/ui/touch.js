@@ -1,4 +1,5 @@
-// Touch controls: a floating virtual stick (left) and a fan-shaped action cluster (right). Pointer events with capture,
+// Touch controls: a floating virtual stick (left) and a fan-shaped action cluster (right) of ink roundels with brush
+// glyphs (경초 light, 중초 heavy, 절기 skills, 오의 ultimate, 호신 guard, 경공 dodge). Pointer events with capture,
 // so every finger owns the control it landed on (multi-touch safe). Everything feeds ctx.input.setVirtual(action, down, 0).
 // Layout is computed in CSS pixels on resize only; per-frame work is limited to cached transform / opacity writes.
 
@@ -13,14 +14,14 @@ import { Ease, clamp } from '../core/math.js';
 // sit beside the light button on the screen edge, the skills arc above it, the ULT on top. Portrait keeps every
 // button right of the stick and within the right thumb's arc. Tuned on captures at 844x390, 800x360, 390x844, 360x740.
 const BUTTONS = [
-  { a: 'light', ico: 'light', ko: '약공', d: 88 },
-  { a: 'heavy', ico: 'heavy', ko: '강공', d: 68 },
+  { a: 'light', ico: 'light', ko: '경초', d: 88 },
+  { a: 'heavy', ico: 'heavy', ko: '중초', d: 68 },
   { a: 'skill1', ico: '', ko: '', d: 60, skill: 0 },   // skill icons arrive with ui.hud.skills(0, ...)
   { a: 'skill2', ico: '', ko: '', d: 60, skill: 1 },
   { a: 'skill3', ico: '', ko: '', d: 60, skill: 2 },
-  { a: 'ult', ico: 'ult', ko: '궁극기', d: 70 },
-  { a: 'guard', ico: 'guard', ko: '막기', d: 58 },
-  { a: 'dodge', ico: 'dodge', ko: '회피', d: 58 },
+  { a: 'ult', ico: 'ult', ko: '오의', d: 70 },
+  { a: 'guard', ico: 'guard', ko: '호신', d: 58 },
+  { a: 'dodge', ico: 'dodge', ko: '경공', d: 58 },
 ];
 /** Offset at radius r and angle deg (0 = right, 90 = up), in screen space (y down). */
 const polar = (r, deg) => [Math.cos((deg * Math.PI) / 180) * r, -Math.sin((deg * Math.PI) / 180) * r];

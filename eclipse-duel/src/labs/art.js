@@ -30,6 +30,7 @@ import { greatsword, crescents, spear, WEAPON_MATERIALS } from '../char/weapons.
 import * as A from '../char/kit/armor.js';
 import { put } from '../char/kit/geo.js';
 import { LOOKS } from '../char/kit/looks.js';
+import { buildSwatches, SWATCH_MATERIAL } from '../char/kit/swatch.js';
 import '../char/clips/demo.js';
 import { auditClip } from '../char/qa.js';
 
@@ -308,6 +309,15 @@ createLab({
       gs.forEach((g, i) => { g.visible = true; g.position.set(0, 1.9 - i * 0.5, 0); });
       lab.view({ target: [0.3, 1.4, 0], dist: 3.2, yaw: 10, pitch: 6, fov: 35 });
     },
+    /** Material swatches, four per page (the last page is the brocade sampler); zoom > 1 moves in; item = one swatch. */
+    swatches(ctx, lab, page = 0, zoom = 1, item = null) {
+      const g = swatchDisplay(ctx, lab), info = g.userData.info;
+      lab.show('swatches');
+      const last = page >= info.pages - 1;
+      const cx = last ? info.brocadeX : item != null ? info.xOf(item) : (page * 4 + 1.5) * info.pitch;
+      lab.view({ target: [cx, 1.0 + (last ? 0.26 : 0.235), 0], dist: (last ? 1.25 : item != null ? 0.85 : 1.72) / zoom, yaw: 8, pitch: 3, fov: 35 });
+      return last ? info.labels.slice(-8) : info.labels.slice(page * 4, page * 4 + 4);
+    },
     kit(ctx, lab) {
       const g = kitDisplay(ctx, lab);
       lab.show('kit');
@@ -469,6 +479,19 @@ function weaponDisplay(ctx, lab, name) {
   g.position.set(0, 1.2, 0);
   ctx.scene.add(g);
   lab.displays[name] = g;
+  return g;
+}
+
+/** Material swatches (src/char/kit/swatch.js) on two slots: opaque and cut-out. */
+function swatchDisplay(ctx, lab) {
+  if (lab.displays.swatches) return lab.displays.swatches;
+  const sk = createStaticKit();
+  const info = buildSwatches(sk, 'swatch');
+  const g = sk.finish({ swatch: createKitMaterial(SWATCH_MATERIAL), swatchCut: createKitMaterial({ ...SWATCH_MATERIAL, cutout: true }) });
+  g.userData.info = info;
+  g.position.set(0, 1.0, 0);
+  ctx.scene.add(g);
+  lab.displays.swatches = g;
   return g;
 }
 

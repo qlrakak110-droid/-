@@ -252,7 +252,8 @@ export function bandClip({ seed = 1, n = 14, amp = 9, left = 'blunt', right = 'f
 // seals (낙관)
 
 /**
- * A carved seal: cinnabar block with pale reserve characters (1, 2 or 4 of them; four read right column first),
+ * A carved seal: cinnabar block with pale reserve characters (1 to 4 of them: two or three stack, four read right
+ * column first),
  * worn at the edges. Characters use the serif stack (class `seal-t`).
  * @param {string} chars
  * @param {{ seed?: number, cls?: string, relief?: boolean }} [o] relief: red characters and frame on bare ground
@@ -260,7 +261,7 @@ export function bandClip({ seed = 1, n = 14, amp = 9, left = 'blunt', right = 'f
 export function seal(chars, { seed = 11, cls = '', relief = false } = {}) {
   const ch = Array.from(String(chars));
   const n = ch.length;
-  const W = 100, H = n === 2 ? 178 : 100;
+  const W = 100, H = n === 2 ? 178 : n === 3 ? 256 : 100;
   const rng = makeRng(seed * 977 + n);
   const id = 'sl' + uid++;
   // block outline: rounded rectangle with a wavering edge
@@ -285,6 +286,7 @@ export function seal(chars, { seed = 11, cls = '', relief = false } = {}) {
   const put = (c, x, y, size) => { glyphs += `<text class="seal-t" x="${x}" y="${y}" font-size="${size}" text-anchor="middle" dominant-baseline="central">${c}</text>`; };
   if (n === 1) put(ch[0], 50, 52, 70);
   else if (n === 2) { put(ch[0], 50, 50, 68); put(ch[1], 50, 130, 68); }
+  else if (n === 3) { put(ch[0], 50, 49, 68); put(ch[1], 50, 129, 68); put(ch[2], 50, 209, 68); }
   else { put(ch[0], 73, 28, 40); put(ch[1], 73, 74, 40); put(ch[2], 27, 28, 40); put(ch[3] || '', 27, 74, 40); }
   const body = relief
     ? `<path d="${block}" fill="none" stroke="currentColor" stroke-width="5"/><g fill="currentColor">${glyphs}</g>`
@@ -466,4 +468,13 @@ export function washTexture() {
       }
     }
   });
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// brush shapes as CSS images (mask-image / background-image)
+
+/** An SVG string as a CSS url() value. `color` replaces currentColor (masks only need the shape). */
+export function cssUrl(svg, color = '#000') {
+  const body = svg.replace(/currentColor/g, color).replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+  return `url("data:image/svg+xml,${encodeURIComponent(body)}")`;
 }

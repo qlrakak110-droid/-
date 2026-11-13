@@ -9,21 +9,22 @@ import { MeshLayer, gridGeometry, PREMUL, ADDITIVE, resolveColors, makeColors, p
 import { GLSL_COMMON, GLSL_VORONOI, CULL } from './glsl.js';
 import { toVec3, RENDER_ORDER } from './util.js';
 import { DEG } from '../core/math.js';
+import { DEPTH_FADE_GLSL } from './depth.js';
 
 const LOOK_ID = { razor: 0, flame: 1, ice: 2, electric: 3, eclipse: 4 };
 
 /** Look presets: every field can be overridden per call (see README "Slash"). */
 export const SLASH_LOOKS = {
   /** clean razor arc: thin white-hot edge, streaked body that breaks into lines along the arc */
-  razor: { palette: 'ember', life: 0.34, sweep: 0.07, width: 0.42, over: 0.2, taper: 0.75, peak: 0.62, thin: 0.55, noise: 0.35, noiseScale: 0.55, scroll: 1.4, edgeWidth: 0.05, heat: 0.38, tailAdditive: 1, body: 1.5 },
+  razor: { ink: 0.55, dry: 0.8, palette: 'ember', life: 0.34, sweep: 0.07, width: 0.42, over: 0.2, taper: 0.75, peak: 0.62, thin: 0.55, noise: 0.35, noiseScale: 0.55, scroll: 1.4, edgeWidth: 0.05, heat: 0.38, tailAdditive: 1, body: 1.5 },
   /** ragged flame arc: licking tongues off the edge, hot rim, cools into dark smoke (alpha) */
-  flame: { palette: 'ember', tailFrom: 'smoke', life: 0.6, sweep: 0.09, width: 0.6, over: 0.75, taper: 0.55, peak: 0.55, thin: 0.25, noise: 0.6, noiseScale: 0.7, scroll: 2.4, edgeWidth: 0.12, heat: 0.42, tailAdditive: 0.05, body: 1.2 },
+  flame: { ink: 0.5, dry: 0.55, palette: 'ember', tailFrom: 'smoke', life: 0.6, sweep: 0.09, width: 0.6, over: 0.75, taper: 0.55, peak: 0.55, thin: 0.25, noise: 0.6, noiseScale: 0.7, scroll: 2.4, edgeWidth: 0.12, heat: 0.42, tailAdditive: 0.05, body: 1.2 },
   /** icy arc: crystalline cells with bright fracture lines and glints; shatters cell by cell */
-  ice: { palette: 'frost', life: 0.62, sweep: 0.07, width: 0.45, over: 0.32, taper: 0.8, peak: 0.6, thin: 0.2, noise: 0.55, noiseScale: 1.0, scroll: 0.25, edgeWidth: 0.05, heat: 0.5, tailAdditive: 0.5, body: 1.3 },
+  ice: { ink: 0.3, dry: 0.6, palette: 'frost', life: 0.62, sweep: 0.07, width: 0.45, over: 0.32, taper: 0.8, peak: 0.6, thin: 0.2, noise: 0.55, noiseScale: 1.0, scroll: 0.25, edgeWidth: 0.05, heat: 0.5, tailAdditive: 0.5, body: 1.3 },
   /** electric arc: crackling jagged filaments inside a faint glow band, flickering and re-jagging at 30 Hz */
-  electric: { palette: 'volt', life: 0.4, sweep: 0.06, width: 0.45, over: 0.4, taper: 0.6, peak: 0.58, thin: 0.35, noise: 0.5, noiseScale: 0.6, scroll: 2.0, edgeWidth: 0.04, heat: 0.3, tailAdditive: 1, body: 1.4 },
+  electric: { ink: 0.45, dry: 0.7, palette: 'volt', life: 0.4, sweep: 0.06, width: 0.45, over: 0.4, taper: 0.6, peak: 0.58, thin: 0.35, noise: 0.5, noiseScale: 0.6, scroll: 2.0, edgeWidth: 0.04, heat: 0.3, tailAdditive: 1, body: 1.4 },
   /** eclipse arc: black occluding body under a gold-white corona edge */
-  eclipse: { palette: 'eclipse', tailFrom: 'smoke', life: 0.5, sweep: 0.08, width: 0.5, over: 0.25, taper: 0.7, peak: 0.6, thin: 0.35, noise: 0.4, noiseScale: 0.5, scroll: 1.0, edgeWidth: 0.06, heat: 0.12, tailAdditive: 0, body: 1.6 },
+  eclipse: { ink: 0, dry: 0.5, palette: 'eclipse', tailFrom: 'smoke', life: 0.5, sweep: 0.08, width: 0.5, over: 0.25, taper: 0.7, peak: 0.6, thin: 0.35, noise: 0.4, noiseScale: 0.5, scroll: 1.0, edgeWidth: 0.06, heat: 0.12, tailAdditive: 0, body: 1.6 },
 };
 
 const LAYOUT = { iPosT: 4, iQuat: 4, iArc: 4, iLife: 4, iMove: 4, iCore: 4, iMid: 4, iTail: 4, iShape: 4, iLook: 4, iLook2: 4, iLook3: 4 };
@@ -40,6 +41,7 @@ varying vec4 vMid;  // mid rgb, tail additive
 varying vec4 vTail; // tail rgb, heat (cooling time / life)
 varying vec4 vL;    // noise, noise scale, scroll, edge width
 varying vec4 vP;    // tip profile, distortion strength, body density power, overscan (outer extent in widths)
+varying vec2 vQ;    // ink underlay amount, dry-brush amount
 varying vec2 vRad;  // screen-space outward (radial) direction
 ${GLSL_COMMON}
 void main() {
@@ -80,6 +82,7 @@ void main() {
   vTail = vec4(iTail.rgb * iCore.w, iLook2.w);
   vL = iLook;
   vP = vec4(prof, iLook2.x, iLook3.x, iShape.x);
+  vQ = iLook3.yz;
 }`;
 
 // shared fragment body: computes rgb, a, addF (and the pieces the distortion twin needs)
@@ -156,7 +159,16 @@ const FRAG_BODY = /* glsl */ `
   float edgeness = inner * inner;
   float dens = xe <= 0.0 ? (look == 4 ? smoothstep(0.0, 0.45, inner) : pow(inner, vP.z)) : exp(-xe * 9.0) * 0.5;
   dens *= 1.0 - smoothstep(0.5, 1.0, x / max(vP.w, 1e-3));
+  // blade energy as a brush stroke: toward the trailing (inner) side the band breaks into bristle streaks that run
+  // along the arc ("flying white"), denser near the honed edge; older parts and the tips dry out first
+  float innerness = sat(-xe);
+  float bristle = texture2D(uFlow, vec2(s * 0.3 - age * 0.15 + seed * 5.0, x * 0.42 + seed * 9.0)).r;
+  float bristle2 = texture2D(uFlow, vec2(s * 0.21 + seed * 2.0, x * 0.27 + seed * 4.0 + 0.5)).r;
+  float dryT = mix(0.16, 0.74, pow(innerness, 0.8)) + (1.0 - prof) * 0.2 - 0.1;
+  float brush = smoothstep(dryT + le * 0.25 - 0.07, dryT + le * 0.25 + 0.07, bristle);
+  if (xe <= 0.0) dens *= mix(1.0, brush, vQ.y);
   float line = exp(-(xe * xe) / (edgeW * edgeW));
+  float hone = exp(-(xe * xe) / (edgeW * edgeW * 0.07));
   // erosion: rises with local age; the inside and the tips go first, the edge last
   float th = mix(-0.2, 1.08, pow(le, 1.25)) + (1.0 - prof) * 0.25;
   float resist = erodeN * 0.62 + edgeness * 0.28 + line * 0.15;
@@ -168,6 +180,8 @@ const FRAG_BODY = /* glsl */ `
   float k = 0.42 + cool * 0.62 + (1.0 - edgeness) * 0.26 - line * 0.4 * (1.0 - 0.75 * cool) - smear * 0.36 - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
   rgb += vCore.rgb * line * (1.0 - cool) * (1.0 - cool * 0.5) * flick;
+  // the honed core: a hair-thin, near-white line riding the cutting edge while the stroke is fresh
+  rgb += (vCore.rgb * 0.55 + vec3(dot(vCore.rgb, vec3(0.3333)) * 0.75)) * hone * (1.0 - cool) * (1.0 - cool) * flick;
   rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
   // burning rims on the dissolve edge while hot; cooled parts break up as dark matter, not as glowing confetti
@@ -176,19 +190,28 @@ const FRAG_BODY = /* glsl */ `
   float a = sat(dens * (look == 4 ? 1.0 : 0.75 + 0.5 * line) + smear * 0.15 * edgeness) * vis * reveal * tips * vCore.a;
   extra *= reveal * tips * vCore.a * mix(1.0, vis, glint);
   float addF = mix(vMid.a, 1.0, sat(1.0 - k * 1.1));
+  // ink underlay: a dark dry-brush stroke under the trailing half of the band (it outlasts the glow a little and
+  // gives the light something black to sit on: ink-wash contrast, readable over bright ground and fire alike)
+  float inkBand = smoothstep(0.05, 0.4, innerness) * (1.0 - smoothstep(0.82, 1.0, innerness));
+  float inkBrush = smoothstep(dryT - 0.2, dryT - 0.02, bristle * 0.6 + bristle2 * 0.4);
+  float inkVis = 1.0 - smoothstep(0.45, 1.0, le + (1.0 - erodeN) * 0.25);
+  float inkA = xe <= 0.0 ? vQ.x * inkBand * inkBrush * inkVis * reveal * tips * vCore.a * (0.55 + 0.45 * fb) : 0.0;
+  vec3 inkCol = vTail.rgb * 0.03 + vec3(0.005, 0.005, 0.007);
 `;
 
 const FRAG = /* glsl */ `
 precision highp float;
 uniform sampler2D uNoise, uFlow;
 varying vec4 vA, vB, vC, vCore, vMid, vTail, vL, vP;
+varying vec2 vQ;
 varying vec2 vRad;
 ${GLSL_COMMON}
 ${GLSL_VORONOI}
 void main() {
 ${FRAG_BODY}
-  if (a <= 0.002 && dot(extra, extra) < 1e-4) discard;
-  gl_FragColor = vec4(rgb * a + extra, a * (1.0 - addF));
+  if (a <= 0.002 && inkA <= 0.004 && dot(extra, extra) < 1e-4) discard;
+  float ga = a * (1.0 - addF);
+  gl_FragColor = vec4(rgb * a + extra + inkCol * inkA * (1.0 - ga), ga + inkA * (1.0 - ga));
 }`;
 
 const FRAG_DISTORT = /* glsl */ `
@@ -197,6 +220,7 @@ uniform sampler2D uNoise, uFlow;
 varying vec4 vA, vB, vC, vCore, vMid, vTail, vL, vP;
 varying vec2 vRad;
 ${GLSL_COMMON}
+${DEPTH_FADE_GLSL}
 void main() {
   float u = vA.x, x = vA.y, age = vA.z;
   float born = vB.x, headU = vB.z, arcLen = vB.w, life = vC.w;
@@ -206,7 +230,7 @@ void main() {
   float bell = exp(-bx * bx);
   float n = texture2D(uFlow, vec2(u * arcLen * 0.6 - age, x * 0.5 + vC.z)).r;
   float env = (1.0 - le) * (1.0 - le) * reveal * smoothstep(0.0, 0.3, vP.x);
-  gl_FragColor = vec4(vRad * bell * env * vP.y * (0.6 + 0.8 * n), 0.0, 0.0);
+  gl_FragColor = vec4(vRad * bell * env * vP.y * (0.6 + 0.8 * n) * vfxVisible(0.3), 0.0, 0.0);
 }`;
 
 /**
@@ -214,12 +238,12 @@ void main() {
  * @param {object} shared
  */
 export function installSlash(vfx, shared) {
-  const { uniforms, textures } = shared;
+  const { uniforms, textures, depth } = shared;
   const U = { uTime: uniforms.uTime, uTimeReal: uniforms.uTimeReal, uNoise: { value: textures.noise }, uFlow: { value: textures.flow } };
   const layer = new MeshLayer(shared, {
     name: 'slash', capacity: 24, layout: LAYOUT, geometry: gridGeometry(96, 8), lifeAt: 12, renderOrder: RENDER_ORDER.meshSlash,
     material: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, uniforms: U, side: THREE.DoubleSide, ...PREMUL }),
-    distortMaterial: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_DISTORT, uniforms: U, side: THREE.DoubleSide, ...ADDITIVE }),
+    distortMaterial: new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG_DISTORT, uniforms: { ...U, ...depth.uniforms }, defines: depth.defines(2), side: THREE.DoubleSide, ...ADDITIVE }),
   });
   const q = new THREE.Quaternion();
   const vel = new THREE.Vector3(), mid = new THREE.Vector3();
@@ -263,7 +287,7 @@ export function installSlash(vfx, shared) {
     f[k + 36] = opt(opts.noise, look.noise); f[k + 37] = opt(opts.noiseScale, look.noiseScale) / sc; f[k + 38] = opt(opts.scroll, look.scroll); f[k + 39] = opt(opts.edgeWidth, look.edgeWidth);
     const dist = opt(opts.distort, 0);
     f[k + 40] = dist; f[k + 41] = opt(opts.drag, 0); f[k + 42] = opt(opts.cone, 0); f[k + 43] = opt(opts.heat, look.heat);
-    f[k + 44] = opt(opts.body, look.body);
+    f[k + 44] = opt(opts.body, look.body); f[k + 45] = opt(opts.ink, look.ink); f[k + 46] = opt(opts.dry, look.dry);
     slot.distort = dist > 0;
     layer.commit(slot);
     return handle;
