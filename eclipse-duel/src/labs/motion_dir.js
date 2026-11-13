@@ -10,6 +10,7 @@
 //                                cell / views / times / body / xray / audit), event markers in the frame labels, the weapon
 //                                tip path as a ghost trail (bright = travelled so far, one dot per 1/60 s frame = spacing)
 //   audit(hero, clips)        -> rows of qa.auditClip numbers (+ weapon clearance of head / hat / hair keep-outs)
+//   aimTrace(hero, clip)      -> per frame [t, wrist clamp R, L (deg), tip height]: where a key asks for an impossible wrist
 //   table(rows)               -> the rows as a fixed-width text table
 //   clips(hero, group)        -> registered clip names ('all' | 'moves' | 'states' | 'ult' | 'generic')
 //   actor(hero, body)         -> the character ('design' = the hero's real design, 'mannequin' = colour-coded limbs)
@@ -63,7 +64,7 @@ function mannequin(id) {
   const std = new Set(rig0.names);
   const weapons = d.weapons || (d.weapon ? [d.weapon] : []);
   return {
-    id: 'mq_' + id, idle: 'neutral.hold', proportions: d.proportions || {}, gripAngle: d.gripAngle ?? (d.weapon && d.weapon.gripAngle) ?? 0,
+    id: 'mq_' + id, idle: 'neutral.hold', proportions: d.proportions || {}, gripAngle: HEROES[id].gripAngle ?? d.gripAngle ?? (d.weapon && d.weapon.gripAngle) ?? 0,
     clipScale: d.clipScale, maxPelvisDrop: d.maxPelvisDrop, materials: { suit: { envMapIntensity: 0.3 } }, bones: [], springs: [], cloth: [], sockets: {},
     colliders: (d.colliders || []).filter((cl) => std.has(cl.a[0]) && std.has(cl.b[0])),
     ...(d.weapons ? { weapons: d.weapons } : { weapon: d.weapon }),
@@ -134,6 +135,16 @@ function actor(id, body = 'design') {
   return c;
 }
 
+/**
+ * What-if: rebuild a hero's mannequin with another `gripAngle` (deg; null = the design's) to measure what a design
+ * change would do to the wrist clamp of its clips (aimTrace / auditRow use the mannequin).
+ */
+function setGrip(id, deg) {
+  HEROES[id].gripAngle = deg ?? undefined;
+  for (const key of [id + ':mannequin']) { const c = cast.get(key); if (c) { c.dispose(); for (const [k, v] of cast) if (v === c) cast.delete(k); } }
+  return actor(id, 'mannequin').rig.gripAngle;
+}
+
 /** The clip a hero really plays for `name`: generic / demo clips get their twin-blade variant on a twin design. */
 function clipFor(c, name) {
   if (!hasClip(name)) throw new Error('motion: unknown clip ' + name);
@@ -176,17 +187,18 @@ function begin(c, clip) {
 }
 
 /**
- * Play the clip once at 60 Hz and record what the sheet and the clearance check need.
+ * Play the clip once at `hz` (60 for sheets; the audit uses 240 so a fast blade cannot tunnel through a keep-out between
+ * two frames) and record what the sheet and the clearance check need.
  * @returns {{ n, tips: Float32Array[], rootX: Float32Array, box: {min, max} (root-relative), clear: { min, t, part, weapon } }}
  */
-function trace(c, clip, dur) {
-  const n = Math.round(dur * 60) + 1, W = c.weaponSockets.length;
+function trace(c, clip, dur, hz = 60) {
+  const n = Math.round(dur * hz) + 1, W = c.weaponSockets.length;
   const tips = c.weaponSockets.map(() => new Float32Array(n * 3)), rootX = new Float32Array(n);
   const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
   const KO = keepOuts(c), clear = { min: Infinity, t: 0, part: '', weapon: 0 };
   begin(c, clip);
   for (let f = 0; f < n; f++) {
-    if (f > 0) c.update(1 / 60, 1 / 60);
+    if (f > 0) c.update(1 / hz, 1 / hz);
     const rx = c.root.position.x;
     rootX[f] = rx;
     const grow = (v) => { _v.copy(v); _v.x -= rx; min.min(_v); max.max(_v); };
@@ -200,7 +212,7 @@ function trace(c, clip, dur) {
       for (const ko of KO) {
         _c.copy(ko.a).applyMatrix4(ko.bone.matrixWorld); _d.copy(ko.b).applyMatrix4(ko.bone.matrixWorld);
         const d = segSeg(_a, _b, _c, _d) - ko.r - 0.02;
-        if (d < clear.min) { clear.min = d; clear.t = f / 60; clear.part = ko.name; clear.weapon = w; }
+        if (d < clear.min) { clear.min = d; clear.t = f / hz; clear.part = ko.name; clear.weapon = w; }
       }
     }
   }
@@ -398,7 +410,7 @@ function auditRow(id, clipName) {
   for (const o of cast.values()) o.setVisible(false);
   const cc = getClip(c.rig, clip);
   const a = qa.auditClip(c, clip);
-  const tr = trace(c, clip, cc.duration);
+  const tr = trace(c, clip, cc.duration, 240);
   const fl = a.floor, mm = (v) => (v === undefined ? null : Math.round(Math.min(0, v.min) * -1000));
   const body = a.intersections.filter((x) => !x.blade), blade = a.intersections.filter((x) => x.blade);
   const swings = a.tip || [];
@@ -419,6 +431,23 @@ function auditRow(id, clipName) {
     rootEnd: a.rootEnd[0],
   };
   return row;
+}
+
+/**
+ * Per-frame wrist clamp of a clip on the hero's rig (60 Hz): [[t, aimErrR, aimErrL, tipHeight] ...] in degrees / metres.
+ * A hand over ~30 deg is a key asking for a wrist no human has: the blade leaves its key there (fix the key's `up`).
+ */
+function aimTrace(id, clipName) {
+  const c = actor(id, 'mannequin');
+  const clip = clipFor(c, clipName), cc = getClip(c.rig, clip), n = Math.round(cc.duration * 60) + 1, out = [];
+  begin(c, clip);
+  for (let f = 0; f < n; f++) {
+    if (f > 0) c.update(1 / 60, 1 / 60);
+    const d = c.diag.aimErr || [0, 0];
+    out.push([r(f / 60), r(d[0], 1), r(d[1], 1), r(c.weaponSockets[0] ? c.weaponSockets[0].b.getWorldPosition(_a).y : 0, 3)]);
+  }
+  c.applyRootMotion = false;
+  return out;
 }
 
 function audit(id, names) {
@@ -468,7 +497,7 @@ createLab({
       c.root.position.x += c.rootDelta.f * c.facing;
       if (c.finished && lab.liveLoop) { c.root.position.x = 0; c.play(c.clip, { fade: 0, restart: true }); }
     }, ctx.ORDER.CHAR);
-    window.__ED.motion = { sheet, audit, auditRow, table, clips, actor, heroes: Object.keys(HEROES), qa, defineClip, definePose, invalidateClips, listClips, hasClip, getClipDef, GENERIC, twinVariant, VIEWS };
+    window.__ED.motion = { sheet, audit, auditRow, aimTrace, setGrip, table, clips, actor, heroes: Object.keys(HEROES), qa, defineClip, definePose, invalidateClips, listClips, hasClip, getClipDef, GENERIC, twinVariant, VIEWS };
   },
   scenarios: {
     /** One contact sheet, left on screen for a screenshot: __ED.lab.play('sheet', 'kael', 'kael.light1', { frames: 10 }). */

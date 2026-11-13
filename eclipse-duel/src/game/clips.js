@@ -23,8 +23,11 @@ const FEET = { footL: { pos: FL, rot: [0, 14, 0] }, footR: { pos: FR, rot: [0, -
 const STANCE_HAND = { pos: [0.33, 1.08, 0.1], aim: [0.8, 0.45, -0.15], up: [-0.4, 0.85, 0] };
 const LOOSE_ARMS = { upperArmR: [-28, 0, 10], foreArmR: [0, 0, 30], upperArmL: [-30, 0, 14], foreArmL: [0, 0, 26] };
 const NO_FEET = { footL: { pos: FL, w: 0 }, footR: { pos: FR, w: 0 } };
-/** Weapon hand riding the torso (chest frame) while lying: blade flat on the floor beside the body, toward the feet. */
-const LYING_HAND = { space: 'chest', pos: [-0.08, -0.42, 0.42], aim: [-0.08, -0.92, 0.38], up: [0, 0.38, 0.92] };
+/** Weapon hand while lying on the back (root space: it must not ride the breathing chest): fist on the floor beside
+ * the hip, blade flat, pointing toward the feet and out. */
+const LYING_HAND = { pos: [0.3, 0.06, 0.46], aim: [0.86, 0.02, 0.5], up: [-0.5, 0, 0.86] };
+/** Free hand while lying on the back (chest frame): on the floor out to the far side, at the waist. */
+const LYING_OFF_HAND = { space: 'chest', pos: [-0.1, -0.2, -0.5] };
 /** Weapon hand while airborne: blade trailing along the body. */
 const AIR_HAND = { space: 'chest', pos: [0.05, -0.5, 0.36], aim: [-0.5, -0.82, 0.25], up: [0.82, -0.5, 0] };
 
@@ -34,9 +37,8 @@ definePose('game.downPose', {
   bones: {
     spine: [0, 0, 4], chest: [0, -4, 6], neck: [0, 10, -6], head: [6, 24, -10],
     thighR: [-8, 0, 8], shinR: [0, 0, -14], footR: [0, 0, -30], thighL: [10, 0, 34], shinL: [0, 0, -64], footL: [0, 0, -10],
-    upperArmL: [-48, 0, 20], foreArmL: [0, 0, 34],
   },
-  ik: { handR: LYING_HAND },
+  ik: { handR: LYING_HAND, handL: LYING_OFF_HAND },
   grip: 0, curl: [0.5, 1],
 });
 definePose('game.koPose', {
@@ -44,9 +46,8 @@ definePose('game.koPose', {
   bones: {
     spine: [2, 0, 2], chest: [2, -2, 3], neck: [0, 18, -2], head: [10, 40, -6],
     thighR: [-12, 0, 2], shinR: [0, 0, -6], footR: [0, 0, -36], thighL: [6, 0, 14], shinL: [0, 0, -26], footL: [0, 0, -30],
-    upperArmL: [-70, 0, 6], foreArmL: [0, 0, 18],
   },
-  ik: { handR: { ...LYING_HAND, pos: [-0.06, -0.38, 0.5] } },
+  ik: { handR: { ...LYING_HAND, pos: [0.26, 0.06, 0.56] }, handL: { ...LYING_OFF_HAND, pos: [-0.1, 0.02, -0.56] } },
   grip: 0, curl: [0.2, 1],
 });
 // airborne, rising: arched back, limbs trailing
@@ -122,14 +123,73 @@ export function walkClipFor(dir, v) {
   return name;
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// The neutral reaction / knockdown / movement set (src/fighters/MOTION.md, "Generic clips"). Authored on the knight's
+// stance (demo.stance) for a two-handed weapon; heroes override slot by slot. Reactions follow the same beats:
+//   impact pose (the frame the hit-stop holds: the head goes first) -> the torso and hips catch up while the head is
+//   already coming back -> a recovering step or a rebound past the stance -> settle.
+// Clips other modules re-express or reuse keep their names and plain key format (game.guardbreak, game.crumple,
+// game.airRise, game.airFall, game.down, game.getup, game.koDown, game.locked, game.hitLight, game.koPose).
+
+/** Foot keys: sole point at f (lift u), toe pitch (deg, + = toes up); `o` adds space / pole / rot overrides. */
+const fL = (f = FL[0], u = 0, pitch = 0, o) => ({ pos: [f, u, FL[2]], rot: [0, 14, pitch], ...o });
+const fR = (f = FR[0], u = 0, pitch = 0, o) => ({ pos: [f, u, FR[2]], rot: [0, -45, pitch], ...o });
+const ORIGIN = { space: 'origin' };
+/** Torso channels of a key: hips offset / rotation and the spine chain (degrees, src/char README section 4). */
+const body = (pos, rot, spine, chest, neck, head, more) => ({ hips: { pos, rot }, bones: { spine, chest, neck, head, ...more } });
+/** Weapon hand lying face-down (root space: it must not ride the breathing chest): fist on the floor beside the head,
+ * blade flat, pointing ahead and out. */
+const PRONE_HAND = { pos: [0.95, 0.06, 0.42], aim: [0.9, 0.02, 0.44], up: [-0.44, 0, 0.9] };
+/** Free hand lying face-down: palm on the floor by the far shoulder. */
+const PRONE_OFF_HAND = { pos: [0.9, 0.05, -0.36] };
+/** Knees tucked to the chest (rolls). */
+const TUCK = { thighR: [0, 0, 112], shinR: [0, 0, -128], footR: [0, 0, -10], thighL: [4, 0, 118], shinL: [0, 0, -134], footL: [0, 0, -10] };
+
+// lying face-down, head toward +f (thrown forward by a blow from behind)
+definePose('game.pronePose', {
+  hips: { pos: [0.22, -0.9, 0], rot: [0, 6, -84] },
+  bones: { spine: [0, 0, 3], chest: [0, 4, 7], neck: [0, -24, 12], head: [4, -46, 8] },
+  ik: { handR: PRONE_HAND, handL: PRONE_OFF_HAND, footL: { pos: [-0.6, 0, -0.13], rot: [0, 8, -75] }, footR: { pos: [-0.68, 0, 0.19], rot: [0, -24, -75] } },
+  grip: 0, curl: [0.4, 1],
+});
+// airborne, thrown forward and up: chest leads, back arched, limbs trailing
+definePose('game.airRisePronePose', {
+  hips: { pos: [0, 0.05, 0], rot: [0, 12, -30] },
+  bones: {
+    spine: [0, 0, 8], chest: [0, 4, 12], neck: [0, -6, 14], head: [0, -8, 20],
+    thighR: [-4, 0, -20], shinR: [0, 0, -44], footR: [0, 0, -30], thighL: [4, 0, 4], shinL: [0, 0, -66], footL: [0, 0, -24],
+    upperArmL: [-46, 0, -28], foreArmL: [0, 0, 32],
+  },
+  ik: { handR: { space: 'chest', pos: [-0.12, -0.42, 0.38], aim: [-0.62, -0.74, 0.26], up: [0.74, -0.62, 0] } },
+  grip: 0, curl: [0.4, 1],
+});
+// airborne, falling face-down: near horizontal, arms coming forward to break the fall
+definePose('game.airFallPronePose', {
+  hips: { pos: [0.05, -0.25, 0], rot: [0, 8, -66] },
+  bones: {
+    spine: [0, 0, 6], chest: [0, 2, 8], neck: [0, -10, 16], head: [0, -14, 22],
+    thighR: [-4, 0, -16], shinR: [0, 0, -30], footR: [0, 0, -36], thighL: [4, 0, -4], shinL: [0, 0, -52], footL: [0, 0, -30],
+    upperArmL: [-30, 0, 96], foreArmL: [0, 0, 56],
+  },
+  ik: { handR: { space: 'chest', pos: [0.28, 0.22, 0.42], aim: [0.3, 0.8, 0.52], up: [0, -0.55, 0.84] } },
+  grip: 0, curl: [0.4, 1],
+});
+
+// ---- movement fallbacks ------------------------------------------------------------------------------------------------
 defineClip('game.dash', {
   duration: 0.3, breath: 0,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.06, ease: 'outCubic', hips: { pos: [0.08, -0.22, 0], rot: [0, -18, 0] }, bones: { spine: [0, -4, -16], chest: [0, -4, -12], neck: [0, 6, 10], head: [0, 8, 14] },
-      ik: { handR: { pos: [-0.02, 0.86, 0.3], aim: [-0.78, -0.5, 0.36], up: [-0.5, 0.85, 0.1] }, footL: { pos: [0.5, 0.14, -0.14], rot: [0, 14, -10] }, footR: { pos: [-0.42, 0.04, 0.17], rot: [0, -45, 20] } } },
-    { t: 0.17, ease: 'inOutSine', hips: { pos: [0.1, -0.24, 0], rot: [0, -20, 0] }, ik: { handR: { pos: [-0.04, 0.84, 0.3] }, footL: { pos: [0.42, 0, -0.14], rot: [0, 14, 0] } } },
-    { t: 0.24, ease: 'inOutSine', ik: { footR: { pos: [-0.26, 0.05, 0.17], rot: [0, -45, 6] } } },
+    // load the rear leg: a short sink before the push (2 frames)
+    { t: 0.035, ease: 'outQuad', ...body([-0.05, -0.17, 0], [0, -24, -3], [0, -6, -10], [0, -6, -8], [0, 8, 8], [0, 12, 10]),
+      ik: { handR: { pos: [0.26, 1.0, 0.18], aim: [0.86, 0.38, 0], up: [-0.38, 0.9, 0] }, footL: fL(0.3, 0, 0), footR: fR(-0.3, 0, -14) } },
+    // drive: rear leg extended, chest low over the front knee, the blade couched at the hip with its point on the foe
+    { t: 0.1, ease: 'outCubic', ...body([0.1, -0.24, 0], [0, -16, -6], [0, -4, -18], [0, -4, -14], [0, 6, 12], [0, 8, 16]),
+      ik: { handR: { pos: [0.2, 0.92, 0.24], aim: [0.9, 0.3, 0.1], up: [-0.3, 0.95, 0] }, footL: fL(0.52, 0.12, -12), footR: fR(-0.46, 0.03, -34) } },
+    { t: 0.17, ease: 'inQuad', ik: { footL: fL(0.44, 0, 0) } },
+    { t: 0.17, ease: 'inOutSine', ...body([0.12, -0.25, 0], [0, -20, -4], [0, -5, -16], [0, -5, -12], [0, 7, 10], [0, 10, 14]), ik: { handR: { pos: [0.24, 0.93, 0.22], aim: [0.9, 0.32, 0.06] } } },
+    // the rear foot is dragged in under the hips, the blade swings forward into the guard
+    { t: 0.24, ease: 'inOutSine', ik: { footR: fR(-0.24, 0.05, -10) } },
     { t: 0.3, ease: 'inOutSine', pose: 'demo.stance' },
   ],
   events: [{ t: 0.17, name: 'step', data: { foot: 'footL' } }],
@@ -139,85 +199,343 @@ defineClip('game.backstep', {
   duration: 0.34, breath: 0,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.08, ease: 'outQuad', hips: { pos: [-0.1, -0.02, 0], rot: [0, -30, 0] }, bones: { spine: [0, -6, 8], chest: [0, -6, 8], neck: [0, 8, -6], head: [0, 12, -8] },
-      ik: { handR: { pos: [0.3, 1.2, 0.12], aim: [0.6, 0.78, -0.1], up: [-0.75, 0.6, 0] }, footL: { pos: [0.22, 0.14, -0.14], rot: [0, 14, -14] }, footR: { pos: [-0.44, 0.1, 0.17], rot: [0, -45, -10] } } },
-    { t: 0.2, ease: 'inQuad', hips: { pos: [-0.06, -0.2, 0], rot: [0, -28, 0] }, bones: { spine: [0, -6, -4], chest: [0, -6, -2] },
-      ik: { footL: { pos: [0.26, 0, -0.14], rot: [0, 14, 0] }, footR: { pos: [-0.4, 0, 0.17], rot: [0, -45, 0] } } },
+    // push off the front foot: hips back first, chest and blade left behind
+    { t: 0.08, ease: 'outQuad', ...body([-0.12, -0.03, 0], [0, -30, 2], [0, -6, 10], [0, -6, 9], [0, 8, -8], [0, 12, -10]),
+      ik: { handR: { pos: [0.34, 1.2, 0.12], aim: [0.66, 0.74, -0.1], up: [-0.74, 0.66, 0] }, footL: fL(0.24, 0.13, -18), footR: fR(-0.46, 0.09, -8) } },
+    // the rear foot lands first and takes the weight, the front foot follows a beat later
+    { t: 0.17, ease: 'inQuad', ik: { footR: fR(-0.4, 0, 0) } },
+    { t: 0.2, ease: 'outQuad', ...body([-0.07, -0.22, 0], [0, -28, -2], [0, -6, -8], [0, -6, -5], [0, 8, 4], [0, 12, 4]), ik: { handR: { pos: [0.3, 1.02, 0.14], aim: [0.78, 0.5, -0.14], up: [-0.5, 0.86, 0] } } },
+    { t: 0.23, ease: 'inQuad', ik: { footL: fL(0.27, 0, 0) } },
     { t: 0.34, ease: 'inOutSine', pose: 'demo.stance' },
   ],
-  events: [{ t: 0.2, name: 'step', data: { foot: 'footR' } }],
+  events: [{ t: 0.17, name: 'step', data: { foot: 'footR' } }, { t: 0.23, name: 'step', data: { foot: 'footL' } }],
 });
 
 defineClip('game.dodge', {
   duration: 0.42, breath: 0,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.08, ease: 'outCubic', hips: { pos: [-0.16, -0.34, -0.14], rot: [-6, -44, -6] }, bones: { spine: [-4, -10, 4], chest: [-6, -12, 6], neck: [0, 16, -6], head: [0, 20, -10] },
-      ik: { handR: { pos: [0.1, 0.95, 0.22], aim: [0.62, 0.7, -0.3], up: [-0.8, 0.5, 0] }, footL: { pos: [0.24, 0, -0.18], rot: [0, 18, 0] }, footR: { pos: [-0.42, 0, 0.12], rot: [0, -48, 0] } } },
-    { t: 0.28, ease: 'inOutSine', hips: { pos: [-0.14, -0.3, -0.12], rot: [-5, -40, -5] } },
+    // slip under and away from the line: the head leaves first, the hips sink onto the rear leg
+    { t: 0.08, ease: 'outCubic', ...body([-0.17, -0.36, -0.14], [-7, -46, -6], [-4, -10, 2], [-6, -12, 6], [0, 18, -4], [-4, 22, -8]),
+      ik: { handR: { pos: [0.08, 0.92, 0.22], aim: [0.6, 0.72, -0.3], up: [-0.8, 0.5, 0] }, footL: fL(0.25, 0, 0, { pos: [0.25, 0, -0.18] }), footR: fR(-0.42, 0, 0, { pos: [-0.42, 0, 0.12] }) } },
+    { t: 0.26, ease: 'inOutSine', ...body([-0.15, -0.31, -0.12], [-6, -42, -5], [-4, -10, 0], [-5, -11, 3], [0, 16, 0], [-2, 20, -2]) },
+    // back up through the line with a small overshoot forward
+    { t: 0.36, ease: 'inOutSine', ...body([-0.01, -0.11, 0.01], [1, -24, -2], [0, -8, -6], [1, -6, -5], [0, 10, 2], [0, 14, -2]), ik: { handR: { pos: [0.34, 1.06, 0.1], aim: [0.82, 0.42, -0.15], up: [-0.4, 0.86, 0] } } },
     { t: 0.42, ease: 'inOutSine', pose: 'demo.stance' },
   ],
 });
 
+// ---- hit reactions (the game starts them on the impact pose: 0.05 light, 0.06 heavy) -------------------------------------
+// light, chest height from the front (also the fallback of the height variants)
 defineClip('game.hitLight', {
-  duration: 0.32, breath: 0.5,
+  duration: 0.34, breath: 0.5,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.05, ease: 'outQuad', hips: { pos: [-0.07, -0.11, 0.01], rot: [-2, -31, 4] }, bones: { spine: [-2, -9, 8], chest: [-3, -7, 10], neck: [3, 6, 10], head: [4, 8, 16] },
-      ik: { handR: { pos: [0.27, 1.1, 0.14], aim: [0.72, 0.6, -0.14] } } },
-    { t: 0.32, ease: 'inOutSine', pose: 'demo.stance' },
+    { t: 0.05, ease: 'outQuad', ...body([-0.05, -0.1, 0.01], [-2, -29, 4], [-2, -9, 6], [-3, -6, 9], [3, 6, 14], [5, 8, 22]), ik: { handR: { pos: [0.28, 1.13, 0.14], aim: [0.7, 0.62, -0.14] } } },
+    { t: 0.1, ease: 'outQuad', ...body([-0.085, -0.13, 0.012], [-3, -32, 6], [-3, -10, 10], [-4, -8, 13], [2, 8, 5], [3, 11, 4]), ik: { handR: { pos: [0.24, 1.17, 0.17], aim: [0.6, 0.75, -0.12] } } },
+    { t: 0.2, ease: 'inOutSine', ...body([-0.045, -0.12, 0], [0, -27, -1], [0, -8, -7], [1, -6, -6], [0, 10, -2], [0, 14, -6]), ik: { handR: { pos: [0.31, 1.05, 0.11], aim: [0.82, 0.4, -0.15] } } },
+    { t: 0.34, ease: 'inOutSine', pose: 'demo.stance' },
   ],
 });
+// high: the head whips back and aside, the shoulders follow
+defineClip('game.hitLightHigh', {
+  duration: 0.34, breath: 0.5,
+  keys: [
+    { t: 0, pose: 'demo.stance' },
+    { t: 0.05, ease: 'outQuad', ...body([-0.03, -0.095, 0.012], [-2, -27, 2], [-1, -8, 3], [-3, -5, 8], [6, 2, 20], [9, 4, 30]), ik: { handR: { pos: [0.3, 1.14, 0.13], aim: [0.72, 0.62, -0.16] } } },
+    { t: 0.1, ease: 'outQuad', ...body([-0.075, -0.125, 0.015], [-3, -31, 5], [-3, -10, 9], [-5, -8, 14], [3, 7, 6], [4, 11, 2]), ik: { handR: { pos: [0.25, 1.2, 0.17], aim: [0.56, 0.8, -0.12] } } },
+    { t: 0.2, ease: 'inOutSine', ...body([-0.04, -0.12, 0], [0, -27, -1], [0, -8, -6], [1, -6, -6], [-1, 10, -4], [-2, 14, -10]), ik: { handR: { pos: [0.31, 1.06, 0.11], aim: [0.82, 0.42, -0.15] } } },
+    { t: 0.34, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+});
+// mid: folds around the blow (hips shoved back, shoulders round), the head stays up for a beat, then drops
+defineClip('game.hitLightMid', {
+  duration: 0.34, breath: 0.5,
+  keys: [
+    { t: 0, pose: 'demo.stance' },
+    { t: 0.05, ease: 'outQuad', ...body([-0.1, -0.12, 0], [0, -24, -5], [0, -6, -13], [0, -4, -11], [0, 8, 6], [0, 12, 10], { shoulderR: [0, 10, 0], shoulderL: [0, 10, 0] }), ik: { handR: { pos: [0.3, 1.0, 0.12], aim: [0.84, 0.32, -0.12] } } },
+    { t: 0.1, ease: 'outQuad', ...body([-0.14, -0.16, 0], [0, -22, -9], [0, -6, -19], [0, -4, -15], [0, 8, -6], [0, 12, -12], { shoulderR: [0, 12, 0], shoulderL: [0, 12, 0] }), ik: { handR: { pos: [0.27, 0.94, 0.13], aim: [0.88, 0.18, -0.12] } } },
+    { t: 0.21, ease: 'inOutSine', ...body([-0.05, -0.1, 0], [0, -26, 1], [0, -8, -1], [1, -6, 0], [0, 10, 3], [0, 14, 2], { shoulderR: [0, 0, 0], shoulderL: [0, 0, 0] }), ik: { handR: { pos: [0.33, 1.09, 0.1], aim: [0.8, 0.47, -0.15] } } },
+    { t: 0.34, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+});
+// low: the front leg is knocked back, the hips drop over it, the upper body pitches forward to keep balance
+defineClip('game.hitLightLow', {
+  duration: 0.34, breath: 0.5,
+  keys: [
+    { t: 0, pose: 'demo.stance' },
+    { t: 0.05, ease: 'outQuad', ...body([0, -0.15, -0.02], [3, -22, -5], [2, -6, -10], [2, -4, -8], [0, 10, 5], [0, 14, 6]), ik: { handR: { pos: [0.36, 1.0, 0.12], aim: [0.86, 0.26, -0.15] }, footL: fL(0.23, 0.035, -12) } },
+    { t: 0.11, ease: 'inQuad', ik: { footL: fL(0.19, 0, 0) } },
+    { t: 0.11, ease: 'outQuad', ...body([0.02, -0.21, -0.03], [5, -20, -8], [3, -6, -14], [3, -4, -10], [0, 10, 2], [0, 14, 2]), ik: { handR: { pos: [0.38, 0.94, 0.14], aim: [0.9, 0.12, -0.15] } } },
+    { t: 0.22, ease: 'inOutSine', ...body([-0.03, -0.12, 0], [0, -25, 0], [0, -8, -3], [1, -6, -2], [0, 10, 2], [0, 14, -2]), ik: { handR: { pos: [0.33, 1.07, 0.1], aim: [0.8, 0.45, -0.15] }, footL: fL(0.19, 0, 0) } },
+    { t: 0.29, ease: 'outQuad', ik: { footL: fL(0.26, 0.04, -6) } },
+    { t: 0.34, ease: 'inQuad', ik: { footL: fL(0.3, 0, 0) } },
+    { t: 0.34, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+  events: [{ t: 0.11, name: 'step', data: { foot: 'footL' } }],
+});
+// from behind: the back arches (head left behind), then a stumbling step forward
+defineClip('game.hitLightBack', {
+  duration: 0.36, breath: 0.5,
+  keys: [
+    { t: 0, pose: 'demo.stance' },
+    { t: 0.05, ease: 'outQuad', ...body([0.05, -0.085, 0], [0, -24, -3], [0, -8, 8], [0, -6, 11], [0, 8, 12], [0, 10, 22]), ik: { handR: { pos: [0.4, 1.14, 0.1], aim: [0.74, 0.62, -0.2] } } },
+    { t: 0.11, ease: 'outQuad', ...body([0.1, -0.14, 0], [0, -22, -9], [0, -8, -10], [0, -6, -11], [0, 8, -8], [0, 12, -14]), ik: { handR: { pos: [0.43, 0.98, 0.1], aim: [0.88, 0.2, -0.16] }, footL: fL(0.36, 0.05, -8) } },
+    { t: 0.18, ease: 'inQuad', ik: { footL: fL(0.42, 0, 0) } },
+    { t: 0.24, ease: 'inOutSine', ...body([0.06, -0.14, 0], [0, -25, -3], [0, -8, -6], [1, -6, -4], [0, 10, 2], [0, 14, 0]), ik: { handR: { pos: [0.38, 1.04, 0.1], aim: [0.82, 0.4, -0.15] }, footL: fL(0.42, 0, 0) } },
+    { t: 0.31, ease: 'outQuad', ik: { footL: fL(0.35, 0.035, -4) } },
+    { t: 0.36, ease: 'inQuad', ik: { footL: fL(0.3, 0, 0) } },
+    { t: 0.36, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+  events: [{ t: 0.18, name: 'step', data: { foot: 'footL' } }],
+});
 
+// heavy from the front: the head and the blade are thrown back, the body is driven over the rear leg, the rear foot
+// catches it (a stagger step), the front foot drags after, then a braced lean back into the guard
+defineClip('game.hitHeavy', {
+  duration: 0.85, breath: 0.6,
+  keys: [
+    { t: 0, pose: 'demo.stance', root: { pos: [0, 0] }, ik: { footL: fL(0.3, 0, 0, ORIGIN), footR: fR(-0.3, 0, 0, ORIGIN) } },
+    { t: 0.06, ease: 'outQuad', ...body([-0.11, -0.11, 0.015], [-5, -36, 8], [-4, -11, 13], [-6, -9, 17], [5, 5, 18], [8, 8, 28], { shoulderR: [0, 0, 6], shoulderL: [0, 0, 6] }),
+      ik: { handR: { pos: [0.16, 1.26, 0.22], aim: [0.42, 0.88, -0.08], up: [-0.88, 0.42, 0] }, footL: fL(0.3, 0, 0, ORIGIN), footR: fR(-0.3, 0, 0, ORIGIN) } },
+    { t: 0.13, ease: 'outQuad', ...body([-0.14, -0.17, 0.02], [-4, -40, 6], [-3, -12, 10], [-5, -11, 14], [2, 8, 4], [3, 12, 2], { shoulderR: [0, 0, 2], shoulderL: [0, 0, 2] }),
+      ik: { handR: { pos: [0.12, 1.2, 0.25], aim: [0.36, 0.9, -0.05] }, footR: fR(-0.44, 0.07, 8, ORIGIN) } },
+    { t: 0.14, root: { pos: [-0.14, 0] } },
+    { t: 0.24, ease: 'inQuad', ik: { footR: fR(-0.56, 0, 0, ORIGIN) } },
+    { t: 0.3, ease: 'inOutSine', ...body([-0.1, -0.2, 0.01], [-1, -34, -2], [0, -10, -6], [0, -9, -5], [0, 10, 2], [0, 14, 0], { shoulderR: [0, 0, 0], shoulderL: [0, 0, 0] }),
+      ik: { handR: { pos: [0.22, 1.02, 0.2], aim: [0.66, 0.55, -0.12], up: [-0.55, 0.83, 0] }, footL: fL(0.3, 0, 0, ORIGIN) } },
+    { t: 0.42, ease: 'outQuad', ik: { footL: fL(0.15, 0.03, -8, ORIGIN) } },
+    { t: 0.5, ease: 'inQuad', ik: { footL: fL(0.06, 0, 0, ORIGIN) } },
+    { t: 0.55, root: { pos: [-0.24, 0] } },
+    { t: 0.62, ease: 'inOutSine', ...body([-0.04, -0.13, 0], [0, -28, -1], [0, -9, -6], [1, -7, -5], [0, 10, 0], [0, 14, -4]), ik: { handR: { pos: [0.3, 1.06, 0.12], aim: [0.8, 0.45, -0.15], up: [-0.4, 0.86, 0] } } },
+    { t: 0.85, ease: 'inOutSine', pose: 'demo.stance', ik: { footL: fL(0.06, 0, 0, ORIGIN), footR: fR(-0.54, 0, 0, ORIGIN) } },
+    { t: 0.85, root: { pos: [-0.24, 0] } },
+  ].sort((a, b) => a.t - b.t),
+  events: [{ t: 0.24, name: 'step', data: { foot: 'footR' } }, { t: 0.5, name: 'step', data: { foot: 'footL' } }],
+});
+// heavy from behind: arched, pitched forward over the front foot, two stumbling steps, caught bent double
+defineClip('game.hitHeavyBack', {
+  duration: 0.85, breath: 0.6,
+  keys: [
+    { t: 0, pose: 'demo.stance', root: { pos: [0, 0] }, ik: { footL: fL(0.3, 0, 0, ORIGIN), footR: fR(-0.3, 0, 0, ORIGIN) } },
+    { t: 0.06, ease: 'outQuad', ...body([0.05, -0.08, 0], [0, -22, -4], [0, -6, 10], [0, -4, 14], [0, 6, 14], [0, 8, 24]),
+      ik: { handR: { pos: [0.44, 1.2, 0.08], aim: [0.75, 0.62, -0.2], up: [-0.62, 0.78, 0] }, footL: fL(0.3, 0, 0, ORIGIN), footR: fR(-0.3, 0, 0, ORIGIN) } },
+    { t: 0.14, ease: 'outQuad', ...body([0.06, -0.14, 0], [0, -18, -12], [0, -6, -14], [0, -4, -16], [0, 6, -8], [0, 10, -16]),
+      ik: { handR: { pos: [0.5, 0.96, 0.1], aim: [0.9, 0.1, -0.2], up: [-0.1, 0.98, 0] }, footL: fL(0.44, 0.08, -10, ORIGIN) } },
+    { t: 0.16, root: { pos: [0.12, 0] } },
+    { t: 0.24, ease: 'inQuad', ik: { footL: fL(0.62, 0, 0, ORIGIN) } },
+    { t: 0.32, ease: 'inOutSine', ...body([0.04, -0.22, 0], [0, -16, -16], [0, -6, -18], [0, -4, -14], [0, 8, -2], [0, 12, -6]),
+      ik: { handR: { pos: [0.5, 0.86, 0.12], aim: [0.92, -0.1, -0.2] }, footR: fR(-0.3, 0, -10, ORIGIN) } },
+    { t: 0.44, ease: 'outQuad', ik: { footR: fR(-0.14, 0.07, -16, ORIGIN) } },
+    { t: 0.54, ease: 'inQuad', ik: { footR: fR(0, 0, 0, ORIGIN) } },
+    { t: 0.55, root: { pos: [0.3, 0] } },
+    { t: 0.64, ease: 'inOutSine', ...body([-0.01, -0.14, 0], [0, -24, -4], [0, -8, -8], [1, -6, -6], [0, 10, 2], [0, 14, 0]), ik: { handR: { pos: [0.36, 1.02, 0.1], aim: [0.84, 0.36, -0.15], up: [-0.4, 0.86, 0] } } },
+    { t: 0.85, ease: 'inOutSine', pose: 'demo.stance', ik: { footL: fL(0.6, 0, 0, ORIGIN), footR: fR(0, 0, 0, ORIGIN) } },
+    { t: 0.85, root: { pos: [0.3, 0] } },
+  ].sort((a, b) => a.t - b.t),
+  events: [{ t: 0.24, name: 'step', data: { foot: 'footL' } }, { t: 0.54, name: 'step', data: { foot: 'footR' } }],
+});
+
+// crumple (progress-driven over the stun): a rigid jolt around the blow, the blade point drops to the floor, the rear
+// knee gives and he sits back onto the heel, then topples onto his back with the legs shooting out from under him
+// (it ends on game.downPose: the knockdown that follows lies on the back)
 defineClip('game.crumple', {
   duration: 0.95, breath: 0.2,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.07, ease: 'outQuad', hips: { pos: [-0.08, -0.1, 0.01], rot: [-3, -32, 6] }, bones: { spine: [-3, -8, 12], chest: [-4, -6, 14], neck: [4, 6, 16], head: [6, 10, 22] },
-      ik: { handR: { pos: [0.24, 1.18, 0.18], aim: [0.5, 0.82, -0.1], up: [-0.8, 0.5, 0] }, ...FEET } },
-    { t: 0.4, ease: 'inOutSine', hips: { pos: [-0.06, -0.4, 0], rot: [0, -20, -4] }, bones: { spine: [0, -4, -18], chest: [0, -4, -18], neck: [0, 4, -14], head: [0, 6, -22] },
-      ik: { handR: { pos: [0.3, 0.62, 0.22], aim: [0.42, -0.9, 0.05], up: [0.9, 0.42, 0] } }, grip: 0.3 },
-    { t: 0.95, ease: 'inQuad', hips: { pos: [-0.1, -0.62, 0], rot: [0, -16, -6] }, bones: { spine: [0, -2, -26], chest: [0, -2, -22], neck: [0, 2, -16], head: [0, 4, -26] },
-      ik: { handR: { pos: [0.36, 0.34, 0.24], aim: [0.6, -0.8, 0.05], up: [0.8, 0.6, 0] } }, grip: 0 },
+    { t: 0.07, ease: 'outQuad', ...body([-0.1, -0.13, 0], [0, -22, -8], [0, -6, -18], [0, -4, -14], [0, 8, 10], [0, 12, 16], { shoulderR: [-8, 8, 0], shoulderL: [-8, 8, 0] }),
+      ik: { handR: { pos: [0.3, 1.0, 0.14], aim: [0.8, 0.4, -0.1], up: [-0.4, 0.9, 0] }, ...FEET } },
+    { t: 0.3, ease: 'inOutSine', ...body([-0.08, -0.2, 0.01], [2, -20, -10], [2, -6, -22], [2, -4, -18], [0, 6, -6], [0, 10, -14], { shoulderR: [0, 6, 0], shoulderL: [0, 6, 0] }),
+      ik: { handR: { pos: [0.38, 0.8, 0.16], aim: [0.86, -0.5, 0.05], up: [0.5, 0.86, 0] } }, grip: 0.5 },
+    { t: 0.56, ease: 'inOutSine', ...body([-0.2, -0.6, 0.01], [0, -18, -4], [0, -4, -16], [0, -2, -12], [0, 4, -6], [0, 6, -14], { shoulderR: [0, 0, 0], shoulderL: [0, 0, 0], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 30] }),
+      ik: { handR: { pos: [0.34, 0.5, 0.2], aim: [0.94, -0.3, 0.16], up: [0.3, 0.95, 0] }, handL: { ...LYING_OFF_HAND, w: 0 }, footL: fL(0.3, 0, 0), footR: { pos: [-0.38, 0, 0.17], rot: [0, -36, -60], pole: [0.2, 0, 0.3] } }, grip: 0 },
+    { t: 0.8, ease: 'inQuad', hips: { pos: [0, -0.8, 0], rot: [0, -10, 44] }, bones: { spine: [0, 0, -8], chest: [0, -2, -6], neck: [0, 6, -12], head: [2, 12, -16], upperArmL: [-40, 0, 30], foreArmL: [0, 0, 40] },
+      ik: { handR: { pos: [0.24, 0.1, 0.44], aim: [0.92, 0.02, 0.38], up: [-0.38, 0, 0.92] }, handL: { ...LYING_OFF_HAND, pos: [0.1, -0.3, -0.44], w: 1 }, footL: { pos: [0.66, 0.03, -0.15], rot: [0, 10, 24] }, footR: { pos: [0.5, 0.02, 0.18], rot: [0, -20, 16] } } },
+    { t: 0.95, ease: 'inQuad', pose: 'game.downPose', ik: { ...NO_FEET } },
   ],
 });
 
+// guard break (progress-driven): the guard is smashed open (blade and left arm flung apart, chest bare, head back),
+// two reeling steps, then the guard is hauled back together
 defineClip('game.guardbreak', {
   duration: 1.1, breath: 0.4,
   keys: [
     { t: 0, pose: 'demo.block', grip: 1 },
-    { t: 0.08, ease: 'outCubic', hips: { pos: [-0.14, -0.04, 0], rot: [-4, -40, -8] }, bones: { spine: [-4, -12, 14], chest: [-6, -14, 18], neck: [4, 10, 16], head: [6, 14, 24] },
-      ik: { handR: { pos: [-0.12, 1.62, 0.36], aim: [-0.55, 0.78, 0.25], up: [0.8, 0.55, 0] }, footL: { pos: [0.24, 0.1, -0.14], rot: [0, 14, -10] } }, grip: 0 },
-    { t: 0.3, ease: 'inOutSine', hips: { pos: [-0.12, -0.18, 0], rot: [-2, -36, -4] }, bones: { spine: [-2, -10, 8], chest: [-3, -10, 10], neck: [2, 8, 6], head: [3, 10, 10] },
-      ik: { handR: { pos: [0.02, 1.3, 0.34], aim: [-0.2, 0.95, 0.2] }, footL: { pos: [0.22, 0, -0.14], rot: [0, 14, 0] } } },
-    { t: 0.75, ease: 'inOutSine', hips: { pos: [-0.08, -0.2, 0], rot: [0, -30, 0] }, bones: { spine: [0, -8, -6], chest: [0, -8, -4], head: [0, 12, -2] },
-      ik: { handR: { pos: [0.24, 1.0, 0.16], aim: [0.7, 0.55, -0.15], up: [-0.55, 0.8, 0] } }, grip: 1 },
-    { t: 1.1, ease: 'inOutSine', pose: 'demo.stance' },
+    { t: 0.08, ease: 'outCubic', ...body([-0.14, -0.05, 0], [-4, -42, -8], [-4, -12, 14], [-6, -14, 18], [4, 10, 16], [6, 14, 26], { upperArmL: [-62, 0, 14], foreArmL: [0, 0, 28] }),
+      ik: { handR: { pos: [-0.1, 1.6, 0.44], aim: [-0.5, 0.74, 0.45], up: [0.8, 0.55, 0] }, footL: fL(0.25, 0.1, -12), footR: fR(-0.34, 0, 0) }, grip: 0 },
+    { t: 0.22, ease: 'inQuad', ik: { footL: fL(0.2, 0, 0) } },
+    { t: 0.3, ease: 'inOutSine', ...body([-0.13, -0.19, 0], [-2, -38, -4], [-2, -10, 8], [-3, -10, 10], [2, 8, 4], [3, 10, 4], { upperArmL: [-40, 0, 8], foreArmL: [0, 0, 40] }),
+      ik: { handR: { pos: [0, 1.32, 0.34], aim: [-0.22, 0.95, 0.2], up: [0.95, 0.22, 0] }, footR: fR(-0.34, 0, 0) } },
+    { t: 0.4, ease: 'outQuad', ik: { footR: fR(-0.42, 0.06, 6) } },
+    { t: 0.5, ease: 'inQuad', ik: { footR: fR(-0.46, 0, 0) } },
+    { t: 0.75, ease: 'inOutSine', ...body([-0.09, -0.21, 0], [0, -31, 0], [0, -8, -8], [0, -8, -6], [0, 10, -4], [0, 12, -8], { upperArmL: [-24, 0, 12], foreArmL: [0, 0, 44] }),
+      ik: { handR: { pos: [0.22, 0.98, 0.17], aim: [0.7, 0.5, -0.15], up: [-0.5, 0.84, 0] }, footL: fL(0.2, 0, 0), footR: fR(-0.46, 0, 0) }, grip: 0.4 },
+    { t: 0.9, ease: 'outQuad', ik: { footL: fL(0.27, 0.04, -4), footR: fR(-0.38, 0, 0) } },
+    { t: 1.1, ease: 'inOutSine', pose: 'demo.stance', grip: 1 },
   ],
+  events: [{ t: 0.22, name: 'step', data: { foot: 'footL' } }, { t: 0.5, name: 'step', data: { foot: 'footR' } }],
 });
 
+// blocked hits (from the guard pose): the blade is driven toward the face, the elbows give, the rear knee takes it
+defineClip('game.guardHit', {
+  duration: 0.24, breath: 0.4, gripAt: 'blade',
+  keys: [
+    { t: 0, pose: 'demo.block' },
+    { t: 0.04, ease: 'outQuad', ...body([-0.085, -0.17, 0], [0, -31, 2], [0, -6, -7], [2, -8, -3], [0, 12, 10], [0, 18, 6]), ik: { handR: { pos: [0.25, 1.05, 0.17], aim: [0.2, 0.92, -0.34] } } },
+    { t: 0.12, ease: 'inOutSine', ...body([-0.05, -0.155, 0], [0, -30, -1], [0, -6, -11], [2, -8, -7], [0, 12, 7], [0, 18, 1]), ik: { handR: { pos: [0.31, 1.01, 0.16], aim: [0.3, 0.87, -0.39] } } },
+    { t: 0.24, ease: 'inOutSine', pose: 'demo.block' },
+  ],
+});
+defineClip('game.guardHitHeavy', {
+  duration: 0.36, breath: 0.4, gripAt: 'blade',
+  keys: [
+    { t: 0, pose: 'demo.block' },
+    { t: 0.05, ease: 'outQuad', ...body([-0.13, -0.2, 0.01], [-2, -34, 5], [-2, -8, -2], [0, -10, 4], [2, 12, 12], [3, 18, 10]),
+      ik: { handR: { pos: [0.19, 1.1, 0.19], aim: [0.1, 0.96, -0.26] }, footR: fR(-0.34, 0, 0, { pos: [-0.34, 0, 0.18], rot: [0, -48, 0] }) } },
+    { t: 0.12, ease: 'outQuad', ...body([-0.15, -0.24, 0.01], [-1, -35, 3], [-1, -8, -6], [1, -10, -1], [0, 12, 6], [0, 18, 2]), ik: { handR: { pos: [0.2, 1.06, 0.19], aim: [0.16, 0.94, -0.3] }, footR: { pos: [-0.4, 0.04, 0.18], rot: [0, -48, 6] } } },
+    { t: 0.19, ease: 'inQuad', ik: { footR: { pos: [-0.43, 0, 0.18], rot: [0, -48, 0] } } },
+    { t: 0.26, ease: 'inOutSine', ...body([-0.05, -0.16, 0], [0, -30, -2], [0, -6, -13], [2, -8, -9], [0, 12, 6], [0, 18, 0]), ik: { handR: { pos: [0.32, 1.0, 0.16], aim: [0.32, 0.86, -0.4] } } },
+    { t: 0.36, ease: 'inOutSine', pose: 'demo.block', ik: { footR: { pos: [-0.34, 0, 0.18], rot: [0, -48, 0] } } },
+  ],
+  events: [{ t: 0.19, name: 'step', data: { foot: 'footR' } }],
+});
+
+// ---- airborne / lying: on the back (struck from the front) and face-down (struck from behind) -----------------------------
 defineClip('game.airRise', { duration: 0.8, loop: true, breath: 0, keys: [
   { t: 0, pose: 'game.airRisePose', ease: 'inOutSine' },
-  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -20, 36] }, bones: { upperArmL: [-70, 0, 30], head: [4, 12, 22] } },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -20, 38] }, bones: { upperArmL: [-72, 0, 32], head: [4, 12, 24], thighR: [-6, 0, 12], shinR: [0, 0, -58], thighL: [6, 0, 42], shinL: [0, 0, -60] } },
 ] });
 defineClip('game.airFall', { duration: 0.8, loop: true, breath: 0, keys: [
   { t: 0, pose: 'game.airFallPose', ease: 'inOutSine' },
-  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -10, 70] }, bones: { upperArmL: [-62, 0, 46] } },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, -10, 72] }, bones: { upperArmL: [-64, 0, 48], thighR: [-4, 0, 38], shinR: [0, 0, -28], thighL: [8, 0, 40], shinL: [0, 0, -66] } },
+] });
+defineClip('game.airRiseProne', { duration: 0.8, loop: true, breath: 0, keys: [
+  { t: 0, pose: 'game.airRisePronePose', ease: 'inOutSine' },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, 14, -36] }, bones: { upperArmL: [-54, 0, -36], head: [0, -8, 26], thighR: [-4, 0, -26], shinR: [0, 0, -34], thighL: [4, 0, 10], shinL: [0, 0, -74] } },
+] });
+defineClip('game.airFallProne', { duration: 0.8, loop: true, breath: 0, keys: [
+  { t: 0, pose: 'game.airFallPronePose', ease: 'inOutSine' },
+  { t: 0.4, ease: 'inOutSine', hips: { rot: [0, 6, -72] }, bones: { upperArmL: [-34, 0, 106], thighR: [-4, 0, -10], shinR: [0, 0, -40], thighL: [4, 0, -10], shinL: [0, 0, -40] } },
 ] });
 defineClip('game.down', { duration: 2.4, loop: true, breath: 1.4, keys: [
   { t: 0, pose: 'game.downPose', ease: 'inOutSine' },
-  { t: 1.2, ease: 'inOutSine', bones: { head: [6, 18, -8], thighL: [10, 0, 30], shinL: [0, 0, -58] } },
+  { t: 1.2, ease: 'inOutSine', bones: { head: [6, 18, -8], thighL: [10, 0, 30], shinL: [0, 0, -58], chest: [0, -4, 8] } },
+] });
+defineClip('game.downProne', { duration: 2.4, loop: true, breath: 1.4, keys: [
+  { t: 0, pose: 'game.pronePose', ease: 'inOutSine' },
+  { t: 1.2, ease: 'inOutSine', bones: { chest: [0, 4, 10], neck: [0, -22, 14], head: [4, -40, 10] }, ik: { handL: { pos: [0.87, 0.05, -0.38] } } },
 ] });
 defineClip('game.koDown', { duration: 3, loop: true, breath: 0.25, keys: [{ t: 0, pose: 'game.koPose' }] });
+defineClip('game.koProne', { duration: 3, loop: true, breath: 0.25, keys: [
+  { t: 0, pose: 'game.pronePose', bones: { spine: [0, 0, 1], chest: [0, 4, 3], neck: [0, -28, 6], head: [6, -52, 2] },
+    ik: { handR: { ...PRONE_HAND, pos: [1.02, 0.06, 0.5] }, handL: { pos: [0.8, 0.05, -0.48] }, footL: { pos: [-0.62, 0, -0.16], rot: [0, 16, -78] }, footR: { pos: [-0.7, 0, 0.21], rot: [0, -30, -78] } } },
+] });
 
+// get-up from the back (progress-driven): rocks forward (legs tuck, the head leads), onto the feet in a low crouch, rises
 defineClip('game.getup', {
   duration: 0.45, breath: 0,
   keys: [
-    { t: 0, pose: 'game.downPose', ik: { ...NO_FEET, handR: { pos: STANCE_HAND.pos, w: 0 } } },
-    { t: 0.2, ease: 'outQuad', hips: { pos: [-0.04, -0.52, 0], rot: [0, -24, 12] }, bones: { spine: [0, -6, -10], chest: [0, -6, -8], neck: [0, 8, 4], head: [0, 12, 0], thighL: [0, 0, 0], shinL: [0, 0, 0], thighR: [0, 0, 0], shinR: [0, 0, 0], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
-      ik: { footL: { pos: [0.3, 0, -0.16], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.36, 0, 0.17], rot: [0, -45, 0], w: 1 }, handR: { pos: [0.4, 0.62, 0.18], aim: [0.6, -0.78, 0], up: [0.78, 0.6, 0], w: 1 } }, grip: 0.4 },
+    { t: 0, pose: 'game.downPose', ik: { ...NO_FEET } },
+    { t: 0.1, ease: 'outQuad', hips: { pos: [0.12, -0.74, 0], rot: [0, -14, 46] }, bones: { spine: [0, -2, -16], chest: [0, -4, -18], neck: [0, 6, -10], head: [0, 10, -8], thighL: [4, 0, 96], shinL: [0, 0, -112], thighR: [-4, 0, 78], shinR: [0, 0, -100], upperArmL: [-30, 0, 24], foreArmL: [0, 0, 50] },
+      ik: { handR: { pos: [0.34, 0.3, 0.38], aim: [0.95, -0.18, 0.26], up: [0.18, 0.98, 0] }, handL: { ...LYING_OFF_HAND, w: 0 } } },
+    { t: 0.22, ease: 'outQuad', hips: { pos: [-0.04, -0.5, 0], rot: [0, -24, 8] }, bones: { spine: [0, -6, -14], chest: [0, -6, -10], neck: [0, 8, 6], head: [0, 12, 4], thighL: [0, 0, 0], shinL: [0, 0, 0], thighR: [0, 0, 0], shinR: [0, 0, 0], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
+      ik: { footL: { pos: [0.3, 0, -0.16], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.36, 0, 0.17], rot: [0, -45, 0], w: 1 }, handR: { pos: [0.4, 0.62, 0.18], aim: [0.92, -0.38, 0.05], up: [0.38, 0.92, 0] } }, grip: 0.4 },
     { t: 0.45, ease: 'inOutSine', pose: 'demo.stance' },
   ],
+});
+// get-up from face-down (progress-driven): pushes up (hips first, knees under), the front foot steps through, rises
+defineClip('game.getupProne', {
+  duration: 0.45, breath: 0,
+  keys: [
+    { t: 0, pose: 'game.pronePose' },
+    { t: 0.15, ease: 'outQuad', hips: { pos: [0.02, -0.5, 0], rot: [0, -12, -46] }, bones: { spine: [0, -4, -12], chest: [0, -4, 2], neck: [0, 6, 22], head: [0, 10, 26] },
+      ik: { handR: { pos: [0.5, 0.22, 0.24], aim: [0.88, 0.02, 0.46], up: [0.2, 0.9, -0.38] }, handL: { pos: [0.46, 0.1, -0.22] },
+        footL: { pos: [-0.3, 0, -0.14], rot: [0, 14, -60] }, footR: { pos: [-0.44, 0, 0.17], rot: [0, -30, -60] } } },
+    { t: 0.22, ease: 'outQuad', ik: { footL: { pos: [0.04, 0.09, -0.14], rot: [0, 14, -24] } } },
+    { t: 0.3, ease: 'inQuad', ik: { footL: { pos: [0.3, 0, -0.14], rot: [0, 14, 0] } } },
+    { t: 0.3, ease: 'inOutSine', hips: { pos: [-0.04, -0.3, 0], rot: [0, -22, -14] }, bones: { spine: [0, -6, -12], chest: [0, -6, -6], neck: [0, 8, 8], head: [0, 12, 8] },
+      ik: { handR: { pos: [0.36, 0.84, 0.14], aim: [0.82, 0.3, -0.1], up: [-0.3, 0.9, 0] }, handL: { pos: [0.3, 0.6, -0.2], w: 0 }, footR: { pos: [-0.34, 0, 0.17], rot: [0, -45, -24] } }, grip: 0.6 },
+    { t: 0.45, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+  events: [{ t: 0.3, name: 'step', data: { foot: 'footL' } }],
+});
+// tech (progress-driven; the rules roll him away from the opponent): a backward roll over the shoulders from the back
+// landing, feet under him in a crouch, up into the guard
+defineClip('game.tech', {
+  duration: 0.45, breath: 0,
+  keys: [
+    { t: 0, pose: 'game.downPose', ik: { ...NO_FEET } },
+    { t: 0.1, hips: { pos: [0.12, -0.66, 0], rot: [0, -8, 150] }, bones: { spine: [0, 0, -22], chest: [0, -2, -22], neck: [0, 4, -28], head: [0, 8, -22], ...TUCK, upperArmL: [-30, 0, 40], foreArmL: [0, 0, 90] },
+      ik: { handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0.1, -0.2, 0.97], up: [1, 0, -0.1] }, handL: { ...LYING_OFF_HAND, w: 0 } } },
+    { t: 0.2, hips: { pos: [-0.02, -0.56, 0], rot: [0, -12, 238] }, bones: { spine: [0, -2, -24], chest: [0, -4, -20], neck: [0, 6, -16], head: [0, 8, -8], ...TUCK },
+      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.22, -0.2, 0.36], aim: [0.2, 0.1, 0.97], up: [1, 0, -0.2] } } },
+    { t: 0.3, ease: 'outQuad', hips: { pos: [-0.06, -0.4, 0], rot: [0, -20, 330] }, bones: { spine: [0, -6, -10], chest: [0, -6, -4], neck: [0, 8, 16], head: [0, 12, 20], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
+      ik: { footL: { pos: [0.24, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.34, 0, 0.17], rot: [0, -45, -30], w: 1 }, handR: { pos: [0.34, 0.74, 0.2], aim: [0.74, 0.1, 0.2], up: [-0.1, 0.98, 0] } }, grip: 0.3 },
+    { t: 0.45, ease: 'inOutSine', pose: 'demo.stance', hips: { pos: [-0.03, -0.09, 0], rot: [0, -26, 360] } },
+  ],
+  events: [{ t: 0.3, name: 'step', data: { foot: 'footL' } }],
+});
+// tech from a face-down landing: a forward shoulder roll, the feet swing over and land ahead, up into the guard
+defineClip('game.techProne', {
+  duration: 0.45, breath: 0,
+  keys: [
+    { t: 0, pose: 'game.pronePose' },
+    { t: 0.1, hips: { pos: [0.3, -0.5, 0], rot: [0, 6, -150] }, bones: { spine: [0, 0, -22], chest: [0, 2, -22], neck: [0, -4, -28], head: [0, -8, -22], ...TUCK, upperArmL: [-20, 0, 40], foreArmL: [0, 0, 110] },
+      ik: { handR: { space: 'chest', pos: [0.24, -0.2, 0.36], aim: [0.1, -0.2, 0.97], up: [1, 0, -0.1] }, handL: { space: 'chest', pos: [0.2, 0.3, -0.36], w: 0 }, ...NO_FEET } },
+    { t: 0.2, hips: { pos: [0.16, -0.56, 0], rot: [0, 0, -246] }, bones: { spine: [0, -2, -24], chest: [0, -4, -20], neck: [0, 6, -18], head: [0, 8, -10], ...TUCK },
+      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.22, -0.2, 0.36], aim: [0.2, 0.1, 0.97], up: [1, 0, -0.2] } } },
+    { t: 0.31, ease: 'outQuad', hips: { pos: [-0.08, -0.52, 0], rot: [0, -18, -332] }, bones: { spine: [0, -6, -16], chest: [0, -6, -12], neck: [0, 8, 2], head: [0, 12, 4], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
+      ik: { footL: { pos: [0.32, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.2, 0, 0.17], rot: [0, -45, -20], w: 1 }, handR: { pos: [0.36, 0.7, 0.2], aim: [0.74, 0.1, 0.2], up: [-0.1, 0.98, 0] } }, grip: 0.3 },
+    { t: 0.45, ease: 'inOutSine', pose: 'demo.stance', hips: { pos: [-0.03, -0.09, 0], rot: [0, -26, -360] } },
+  ],
+  events: [{ t: 0.31, name: 'step', data: { foot: 'footL' } }],
+});
+
+// locked victim (default lock choreography): reeling on the rear leg, guard hanging open, the head lolling with each sway
+defineClip('game.locked', { duration: 1.2, loop: true, breath: 0.6, keys: [
+  { t: 0, pose: 'demo.stance', ease: 'inOutSine', ...body([-0.09, -0.17, 0], [-3, -35, 5], [-2, -10, 7], [-3, -9, 9], [2, 8, 6], [4, 10, 8]), ik: { handR: { pos: [0.2, 1.02, 0.22], aim: [0.62, 0.56, -0.1], up: [-0.56, 0.82, 0] }, footL: fL(0.27, 0, 0), footR: fR(-0.36, 0, 0) }, grip: 0.6 },
+  { t: 0.5, ease: 'inOutSine', ...body([-0.11, -0.2, 0.012], [-4, -37, 7], [-3, -10, 9], [-4, -9, 11], [3, 6, 2], [6, 6, -4]), ik: { handR: { pos: [0.17, 0.96, 0.25], aim: [0.6, 0.5, -0.06] } } },
+  { t: 0.86, ease: 'inOutSine', ...body([-0.085, -0.165, -0.004], [-2, -34, 4], [-2, -10, 5], [-3, -9, 7], [1, 9, 8], [2, 12, 10]), ik: { handR: { pos: [0.21, 1.03, 0.21], aim: [0.63, 0.58, -0.1] } } },
+] });
+
+// ---- ceremony / life fallbacks -------------------------------------------------------------------------------------------
+// turn-around settle (played in the new facing while the root spins in): the eyes are already on the opponent, the
+// chest and the blade arrive late and overshoot, the feet re-plant one after the other
+defineClip('game.turn', {
+  duration: 0.36, breath: 0.4,
+  keys: [
+    { t: 0, pose: 'demo.stance', ...body([-0.07, -0.15, 0.02], [0, -62, 0], [0, -14, -4], [2, -14, -3], [0, 26, 2], [0, 34, -2]), ik: { handR: { pos: [0.16, 1.02, 0.3], aim: [0.5, 0.42, 0.42], up: [-0.3, 0.9, 0] }, footL: fL(0.22, 0.05, -8, { rot: [0, -4, -8] }), footR: fR(-0.3, 0, 0, { rot: [0, -70, 0] }) } },
+    { t: 0.1, ease: 'inQuad', ik: { footL: fL(0.3, 0, 0) } },
+    { t: 0.2, ease: 'outQuad', ...body([-0.01, -0.11, -0.01], [0, -17, 0], [0, -5, -5], [1, -3, -4], [0, 6, 2], [0, 10, -2]), ik: { handR: { pos: [0.36, 1.1, 0.07], aim: [0.84, 0.44, -0.24], up: [-0.4, 0.86, 0] }, footR: fR(-0.3, 0.03, 0, { rot: [0, -56, 4] }) } },
+    { t: 0.27, ease: 'inQuad', ik: { footR: fR(-0.3, 0, 0) } },
+    { t: 0.36, ease: 'inOutSine', pose: 'demo.stance' },
+  ],
+  events: [{ t: 0.1, name: 'step', data: { foot: 'footL' } }],
+});
+// idle fidgets (one-shots over demo.idle; start and end on its base pose)
+defineClip('game.fidget1', {   // rolls the neck and the shoulders, opens and closes the left hand on the grip
+  duration: 2.2, breath: 1.2,
+  keys: [
+    { t: 0, pose: 'demo.low' },
+    { t: 0.5, ease: 'inOutSine', bones: { neck: [8, 4, 2], head: [12, 6, -4], shoulderL: [-8, 0, 0], shoulderR: [2, 0, 0], chest: [2, -5, 1] }, hips: { pos: [-0.025, -0.08, 0.012], rot: [1.5, -23, 0] }, grip: 0.4, curl: [0.3, 1] },
+    { t: 1.05, ease: 'inOutSine', bones: { neck: [-8, 14, 3], head: [-12, 20, 0], shoulderL: [2, 0, 0], shoulderR: [-8, 0, 0], chest: [-2, -5, 1] }, hips: { pos: [-0.015, -0.08, -0.012], rot: [-1.5, -21, 0] }, grip: 0.4, curl: [0.1, 1],
+      ik: { handR: { pos: [0.265, 0.99, 0.165], aim: [0.76, -0.4, -0.12] } } },
+    { t: 1.6, ease: 'inOutSine', bones: { neck: [0, 9, -2], head: [0, 12, -8], shoulderL: [-3, 0, 0], shoulderR: [-3, 0, 0], chest: [0, -5, -2] }, grip: 1, curl: [1, 1], ik: { handR: { pos: [0.258, 0.97, 0.172], aim: [0.74, -0.5, -0.12] } } },
+    { t: 2.2, ease: 'inOutSine', pose: 'demo.low' },
+  ],
+});
+defineClip('game.fidget2', {   // shifts onto the rear leg, lifts and re-plants the front foot, tests the blade's weight
+  duration: 2.6, breath: 1.2,
+  keys: [
+    { t: 0, pose: 'demo.low' },
+    { t: 0.6, ease: 'inOutSine', hips: { pos: [-0.075, -0.1, 0.015], rot: [1, -27, 1] }, bones: { spine: [0, -7, -1], chest: [0, -6, 1] }, ik: { handR: { pos: [0.24, 1.0, 0.18], aim: [0.78, -0.3, -0.1] }, footL: fL(0.3, 0, 0) } },
+    { t: 0.85, ease: 'outQuad', ik: { footL: fL(0.27, 0.05, -12) } },
+    { t: 1.05, ease: 'inQuad', ik: { footL: fL(0.31, 0, 0) } },
+    { t: 1.3, ease: 'inOutSine', hips: { pos: [-0.01, -0.085, -0.005], rot: [-1, -20, -1] }, bones: { spine: [0, -5, -3], chest: [0, -4, -1] }, ik: { handR: { pos: [0.3, 1.04, 0.15], aim: [0.84, -0.12, -0.14] } } },
+    { t: 1.75, ease: 'inOutSine', ik: { handR: { pos: [0.27, 0.96, 0.17], aim: [0.72, -0.52, -0.12] } } },
+    { t: 2.6, ease: 'inOutSine', pose: 'demo.low' },
+  ],
+  events: [{ t: 1.05, name: 'step', data: { foot: 'footL' } }],
 });
 
 defineClip('game.intro', {
@@ -238,42 +556,95 @@ defineClip('game.intro', {
   events: [{ t: 1.05, name: 'wrench' }, { t: 1.75, name: 'step', data: { foot: 'footL' } }],
 });
 
+// victory: a flick of the blade (one sharp diagonal, stopped dead), then stillness: rises tall, the blade lowered at
+// the side, the feet drawn together one after the other
 defineClip('game.victory', {
-  duration: 1.6, breath: 1.2,
+  duration: 2.0, breath: 1.2,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.45, ease: 'outCubic', hips: { pos: [-0.02, -0.04, 0], rot: [0, -16, 0] }, bones: { spine: [0, -4, 6], chest: [0, -6, 10], neck: [0, 4, 6], head: [0, 8, 14], upperArmL: [-16, 6, 4], foreArmL: [0, 0, 18] },
-      ik: { handR: { pos: [0.12, 2.02, 0.16], aim: [0.12, 0.99, 0.05], up: [-0.99, 0.12, 0] }, footL: { pos: [0.24, 0, -0.14], rot: [0, 12, 0] }, footR: { pos: [-0.22, 0, 0.16], rot: [0, -38, 0] } }, grip: 0 },
-    { t: 1.6, ease: 'inOutSine', bones: { chest: [0, -6, 12], head: [0, 8, 18] }, ik: { handR: { pos: [0.12, 2.04, 0.16] } } },
+    { t: 0.22, ease: 'outCubic', ...body([-0.03, -0.07, 0], [0, -34, 0], [0, -10, 0], [1, -10, 2], [0, 14, 2], [0, 20, 0]), ik: { handR: { pos: [0.2, 1.3, 0.02], aim: [0.3, 0.8, -0.52], up: [-0.9, 0.4, 0] } } },
+    { t: 0.32, ease: 'inCubic', ...body([-0.02, -0.1, 0], [0, -14, 0], [0, -4, -2], [0, -2, -2], [0, 6, 0], [0, 8, -2]), ik: { handR: { pos: [0.34, 0.86, 0.3], aim: [0.78, -0.5, 0.38], up: [0.42, 0.86, 0.28] } } },
+    { t: 0.6, ease: 'inOutSine', ik: { handR: { pos: [0.33, 0.87, 0.3], aim: [0.77, -0.51, 0.38] }, footL: fL(0.3), footR: fR(-0.3) }, grip: 1 },
+    { t: 0.78, ease: 'outQuad', ik: { footL: fL(0.26, 0.04, -6) } },
+    { t: 0.92, ease: 'inQuad', ik: { footL: fL(0.2), footR: fR(-0.3) } },
+    { t: 1.06, ease: 'outQuad', ik: { footR: fR(-0.22, 0.04, 4) } },
+    { t: 1.2, ease: 'inQuad', ik: { footR: fR(-0.16) } },
+    { t: 1.2, ease: 'inOutSine', ...body([-0.02, -0.03, 0], [0, -10, 0], [0, -2, 2], [0, -2, 3], [0, 4, 2], [0, 6, 2], { upperArmL: [-14, 6, 4], foreArmL: [0, 0, 16] }),
+      ik: { handR: { pos: [0.14, 0.98, 0.32], aim: [0.72, -0.62, 0.3], up: [0.62, 0.78, 0] } }, grip: 0 },
+    { t: 2.0, ease: 'inOutSine', bones: { neck: [0, 4, -2], head: [0, 6, -6] } },
   ],
+  events: [{ t: 0.32, name: 'flick' }, { t: 0.92, name: 'step', data: { foot: 'footL' } }, { t: 1.2, name: 'step', data: { foot: 'footR' } }],
+});
+// second victory: the sword salute. The blade comes upright before the right shoulder, the left palm closes over the
+// right fist, a short bow of the head, held
+defineClip('game.victory2', {
+  duration: 2.0, breath: 1.2,
+  keys: [
+    { t: 0, pose: 'demo.stance' },
+    { t: 0.3, ease: 'inOutSine', ...body([-0.03, -0.08, 0], [0, -30, 0], [0, -8, -2], [1, -8, -1], [0, 12, 2], [0, 16, 0]), ik: { handR: { pos: [0.3, 1.12, 0.14], aim: [0.6, 0.78, -0.1], up: [-0.78, 0.6, 0] }, footL: fL(0.3), footR: fR(-0.3) }, grip: 0.5 },
+    { t: 0.62, ease: 'outCubic', ...body([-0.02, -0.04, 0], [0, -14, 0], [0, -3, 0], [0, -3, 1], [0, 6, 2], [0, 8, 0]), ik: { handR: { pos: [0.34, 1.2, 0.12], aim: [0.06, 0.99, 0.04], up: [-0.99, 0.06, 0] }, handL: { pos: [0.4, 1.2, 0.05] } }, grip: 0 },
+    { t: 0.8, ease: 'outQuad', ik: { footL: fL(0.26, 0.04, -6) } },
+    { t: 0.94, ease: 'inQuad', ik: { footL: fL(0.2), footR: fR(-0.3) } },
+    { t: 1.08, ease: 'outQuad', ik: { footR: fR(-0.22, 0.04, 4) } },
+    { t: 1.22, ease: 'inQuad', ik: { footR: fR(-0.16) } },
+    { t: 1.3, ease: 'inOutSine', ...body([-0.01, -0.05, 0], [0, -12, -3], [0, -3, -6], [0, -3, -6], [0, 6, -8], [0, 8, -12]), ik: { handR: { pos: [0.36, 1.16, 0.12] }, handL: { pos: [0.42, 1.16, 0.05] } } },
+    { t: 2.0, ease: 'inOutSine', ...body([-0.02, -0.035, 0], [0, -12, 0], [0, -3, 1], [0, -3, 2], [0, 6, 0], [0, 8, -2]), ik: { handR: { pos: [0.34, 1.2, 0.12] }, handL: { pos: [0.4, 1.2, 0.05] } } },
+  ],
+  events: [{ t: 0.62, name: 'salute' }, { t: 0.94, name: 'step', data: { foot: 'footL' } }, { t: 1.22, name: 'step', data: { foot: 'footR' } }],
 });
 
 defineClip('game.defeat', {
-  duration: 1.4, breath: 1.6,
+  duration: 1.6, breath: 1.6,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    { t: 0.9, ease: 'inOutCubic', hips: { pos: [-0.08, -0.5, 0], rot: [0, -22, 0] }, bones: { spine: [0, -4, -18], chest: [0, -4, -14], neck: [0, 2, -12], head: [0, 4, -26], upperArmL: [-14, 0, 30], foreArmL: [0, 0, 50] },
-      ik: { handR: { pos: [0.46, 0.7, 0.1], aim: [0.16, -0.98, 0.02], up: [0.98, 0.16, 0] }, footL: { pos: [0.34, 0, -0.14], rot: [0, 14, 0] }, footR: { pos: [-0.42, 0.04, 0.16], rot: [0, -45, -30] } }, grip: 0 },
-    { t: 1.4, ease: 'inOutSine', bones: { head: [0, 4, -30] } },
+    // the point drops to the floor ahead, he sags onto the hilt
+    { t: 0.45, ease: 'inOutSine', ...body([-0.02, -0.14, 0], [0, -20, -2], [0, -4, -8], [0, -4, -6], [0, 4, -6], [0, 6, -12]),
+      ik: { handR: { pos: [0.42, 1.24, 0.08], aim: [0.42, -0.9, 0.02], up: [0.9, 0.42, 0] }, footL: fL(0.3), footR: fR(-0.3) }, grip: 1 },
+    // the rear knee gives: down onto it, hands high on the hilt, the blade taking the weight
+    { t: 1.0, ease: 'inOutCubic', ...body([-0.08, -0.5, 0.01], [0, -18, -4], [0, -4, -12], [0, -4, -10], [0, 2, -12], [0, 4, -24], { shoulderR: [-8, 0, 0], shoulderL: [-8, 0, 0] }),
+      ik: { handR: { pos: [0.44, 1.26, 0.08], aim: [0.34, -0.94, 0.02], up: [0.94, 0.34, 0] }, footL: fL(0.32), footR: { pos: [-0.4, 0, 0.17], rot: [0, -38, -60], pole: [0.2, 0, 0.3] } } },
+    { t: 1.6, ease: 'inOutSine', ...body([-0.085, -0.52, 0.01], [0, -18, -5], [0, -4, -14], [0, -4, -12], [0, 2, -14], [0, 4, -28], { shoulderR: [-6, 0, 0], shoulderL: [-6, 0, 0] }) },
   ],
+  events: [{ t: 0.45, name: 'plant' }, { t: 1.0, name: 'kneel' }],
 });
-
-defineClip('game.locked', { duration: 1.2, loop: true, breath: 0.4, keys: [
-  { t: 0, pose: 'demo.stance', hips: { pos: [-0.08, -0.16, 0], rot: [-3, -34, 5] }, bones: { spine: [-2, -10, 6], chest: [-3, -9, 8], neck: [2, 8, 6], head: [3, 10, 6] }, ik: { handR: { pos: [0.2, 1.06, 0.2], aim: [0.6, 0.62, -0.12] } } },
-  { t: 0.6, ease: 'inOutSine', hips: { pos: [-0.09, -0.18, 0], rot: [-3, -35, 6] } },
-] });
 
 // ---------------------------------------------------------------------------------------------------------------
 // resolution
 
-/** Generic clip per presentation slot. */
+/** Generic clip per presentation slot (state slots, then the variant slots: MOTION.md "Variant slots"). */
 export const GENERIC = {
   idle: 'demo.idle', walkF: 'game.walkF', walkB: 'game.walkB', dash: 'game.dash', backstep: 'game.backstep',
-  dodge: 'game.dodge', roll: 'game.dash', guard: 'demo.guard', guardHit: 'demo.guard', guardBreak: 'game.guardbreak',
-  hitLight: 'game.hitLight', hitHeavy: 'demo.hit', crumple: 'game.crumple', launched: 'game.airRise', fall: 'game.airFall',
-  down: 'game.down', getup: 'game.getup', tech: 'game.getup', ko: 'game.koDown', locked: 'game.locked',
+  dodge: 'game.dodge', roll: 'game.dash', guard: 'demo.guard', guardBreak: 'game.guardbreak',
+  hitLight: 'game.hitLight', hitHeavy: 'game.hitHeavy', crumple: 'game.crumple', launched: 'game.airRise', fall: 'game.airFall',
+  down: 'game.down', getup: 'game.getup', ko: 'game.koDown', locked: 'game.locked',
   intro: 'game.intro', victory: 'game.victory', defeat: 'game.defeat', recovery: 'demo.idle',
+  // direction-aware reactions
+  hitLightHigh: 'game.hitLightHigh', hitLightMid: 'game.hitLightMid', hitLightLow: 'game.hitLightLow', hitLightBack: 'game.hitLightBack',
+  hitHeavyBack: 'game.hitHeavyBack', guardHit: 'game.guardHit', guardHitHeavy: 'game.guardHitHeavy',
+  // the face-down chain (a blow from behind) and the tech rolls
+  launchedProne: 'game.airRiseProne', fallProne: 'game.airFallProne', downProne: 'game.downProne', getupProne: 'game.getupProne',
+  koProne: 'game.koProne', tech: 'game.tech', techProne: 'game.techProne',
+  // life and ceremony
+  turn: 'game.turn', idleFidget: 'game.fidget1', idleFidget2: 'game.fidget2', victory2: 'game.victory2',
 };
+
+/**
+ * Variant slot -> the slot it is a variant of. A fighter's own clip for a parent slot beats a generic variant (the
+ * hero's grips and stance stay the hero's): resolution is own variant -> own parent (up the chain) -> generic variant
+ * -> generic parent.
+ */
+export const VARIANT_BASE = {
+  hitLightHigh: 'hitLight', hitLightMid: 'hitLight', hitLightLow: 'hitLight', hitLightBack: 'hitLight', hitHeavyBack: 'hitHeavy',
+  guardHit: 'guard', guardHitHeavy: 'guardHit',
+  launchedProne: 'launched', fallProne: 'fall', downProne: 'down', getupProne: 'getup', koProne: 'ko', tech: 'getup', techProne: 'tech',
+  turn: 'idle', idleFidget: 'idle', walkStopF: 'walkF', walkStopB: 'walkB',
+};
+/** Variant slots that only exist when a clip was made for them (`has(slot)` is false otherwise and nothing extra plays). */
+const OPTIONAL = new Set(['guardHit', 'guardHitHeavy', 'turn', 'idleFidget', 'walkStopF', 'walkStopB']);
+/** Highest numbered sibling of a multi-clip slot (`victory`, `victory2` ... `victory6`). */
+const MAX_VARIANTS = 6;
+/** Every state / variant slot name (for warming). */
+export const SLOTS = [...new Set([...Object.keys(GENERIC), ...Object.keys(VARIANT_BASE)])].filter((s) => !/\d$/.test(s));
 
 /** Clip time of the first 'hit' (or 'impact') event, else null. */
 function impactTime(name) {
@@ -353,10 +724,17 @@ export function twinVariant(name) {
 
 /**
  * Build the clip resolver of one fighter.
- * @param {object} fighter registry fighter ({ clips, def })
+ *
+ * State slots resolve in this order: the fighter's map entry (`clips[slot]`: a name, `{ clip, speed, fade }` or an
+ * array of those), a registered clip named `<fighter id>.<slot>` (the convention: an animator adds `kael.hitLightHigh`
+ * or `iska.idleFidget2` and it is live, no map edit), the fighter's own clip of the parent slot (VARIANT_BASE), then
+ * the generic clips. Multi-clip slots (`victory`, `idleFidget`, any slot with numbered siblings `slot2` ... `slot6`)
+ * are listed by `variants(slot)`.
+ * @param {object} fighter registry fighter ({ id, clips, def })
  * @param {object} compiled compiled rules definition (match.defs[i])
  * @param {{ twin?: boolean }} [o] twin: the character holds a weapon in each hand (fallback clips use twinVariant)
- * @returns {{ state(slot): {name, speed}, move(id): {name, map(t) -> clip time, fade}, has(slot) }}
+ * @returns {{ state(slot): {name, speed, own, duration, rootSpeed}, has(slot): boolean, variants(slot): object[],
+ *   names(): string[], move(id): {name, map(t) -> clip time, fade}, map, slots }}
  */
 export function createClipSet(fighter, compiled, o = {}) {
   const fallback = o.twin ? twinVariant : (n) => n;
@@ -365,22 +743,59 @@ export function createClipSet(fighter, compiled, o = {}) {
     try { map = map({ defineClip, definePose, hasClip }) || {}; } catch (e) { console.warn('[ed] clips of ' + fighter.id + ' failed: ' + e.message); map = {}; }
   }
   if (map.map && typeof map.map === 'object') map = map.map;
-  const entry = (key) => {
-    const v = map[key];
-    if (!v) return null;
-    const o = typeof v === 'string' ? { clip: v } : v;
-    if (!o.clip || !hasClip(o.clip)) return null;
-    return o;
+  const norm = (v) => {
+    const e = typeof v === 'string' ? { clip: v } : v;
+    return e && e.clip && hasClip(e.clip) ? e : null;
   };
-  const states = {};
+  /** Map entries of a key (an array entry lists several clips). */
+  const entries = (key) => {
+    const v = map[key];
+    return (Array.isArray(v) ? v : v ? [v] : []).map(norm).filter(Boolean);
+  };
+  const entry = (key) => entries(key)[0] || null;
+  /** A fighter's own clip for a state slot: its map, else the naming convention `<id>.<slot>`. */
+  const prefix = typeof fighter.id === 'string' && fighter.id ? fighter.id + '.' : null;
+  const ownAll = (slot) => {
+    const list = entries(slot);
+    if (!list.length && prefix && hasClip(prefix + slot)) list.push({ clip: prefix + slot });
+    return list;
+  };
+  const own = (slot) => ownAll(slot)[0] || null;
+  const states = {}, lists = {}, exists = {};
   const stats = (compiled && compiled.stats) || {};
+  const made = (slot, e, name) => ({ name, speed: (e && e.speed) || 1, fade: e ? e.fade : undefined, own: !!e, slot, duration: clipDuration(name), rootSpeed: clipRootSpeed(name) });
+  /** Resolve a slot: [state object, exact] (exact: a clip made for this very slot, own or generic). */
+  const resolve = (slot) => {
+    const e = own(slot);
+    if (e) return [made(slot, e, e.clip), true];
+    for (let b = VARIANT_BASE[slot]; b; b = VARIANT_BASE[b]) if (own(b)) return [state(b), false];
+    const walkDir = slot === 'walkF' ? 1 : slot === 'walkB' ? -1 : 0;
+    if (walkDir) return [made(slot, null, fallback(walkClipFor(walkDir, walkDir > 0 ? stats.walkSpeed : stats.backSpeed))), true];
+    if (GENERIC[slot] && hasClip(GENERIC[slot])) return [made(slot, null, fallback(GENERIC[slot])), true];
+    for (let b = VARIANT_BASE[slot]; b; b = VARIANT_BASE[b]) if (GENERIC[b] && hasClip(GENERIC[b])) return [state(b), false];
+    return [made(slot, null, fallback('demo.idle')), false];
+  };
   const state = (slot) => {
     if (states[slot]) return states[slot];
-    const o = entry(slot);
-    const walkDir = slot === 'walkF' ? 1 : slot === 'walkB' ? -1 : 0;
-    const name = o ? o.clip : fallback(walkDir ? walkClipFor(walkDir, walkDir > 0 ? stats.walkSpeed : stats.backSpeed)
-      : GENERIC[slot] && hasClip(GENERIC[slot]) ? GENERIC[slot] : 'demo.idle');
-    return (states[slot] = { name, speed: (o && o.speed) || 1, own: !!o, duration: clipDuration(name), rootSpeed: clipRootSpeed(name) });
+    const [st, exact] = resolve(slot);
+    exists[slot] = exact;
+    return (states[slot] = st);
+  };
+  /** True when a clip exists for this very slot (optional variant slots: nothing extra plays without one). */
+  const has = (slot) => { state(slot); return OPTIONAL.has(slot) || slot in VARIANT_BASE ? exists[slot] : true; };
+  /** Every clip of a multi-clip slot: the fighter's own (`slot` entries, then `slot2` ... `slot6`), else the generic ones. */
+  const variants = (slot) => {
+    if (lists[slot]) return lists[slot];
+    const out = [];
+    const push = (s, e) => { if (!out.some((x) => x.name === e.clip)) out.push(made(s, e, e.clip)); };
+    for (const e of ownAll(slot)) push(slot, e);
+    for (let k = 2; k <= MAX_VARIANTS; k++) for (const e of ownAll(slot + k)) push(slot + k, e);
+    if (!out.length && has(slot)) {
+      out.push(state(slot));
+      // generic siblings only next to a generic first clip (never mixed into a hero's own set)
+      if (!state(slot).own) for (let k = 2; k <= MAX_VARIANTS; k++) { const g = GENERIC[slot + k]; if (g && hasClip(g)) out.push(made(slot + k, null, fallback(g))); }
+    }
+    return (lists[slot] = out);
   };
   const moves = {};
   const move = (id) => {
@@ -408,5 +823,12 @@ export function createClipSet(fighter, compiled, o = {}) {
     }
     return (moves[id] = { name, map: mapFn, own: !!o, fade: (o && o.fade) ?? 0.06, startup, frame: fd, slot });
   };
-  return { state, move, map, slots: slotMoves(compiled) };
+  /** Every clip name this fighter can be asked to play (states, variants, moves): compile them up front. */
+  const names = () => {
+    const out = new Set();
+    for (const slot of SLOTS) { out.add(state(slot).name); for (const v of variants(slot)) out.add(v.name); }
+    if (compiled && compiled.moves) for (const id in compiled.moves) out.add(move(id).name);
+    return [...out];
+  };
+  return { state, has, variants, names, move, map, slots: slotMoves(compiled) };
 }

@@ -1,19 +1,23 @@
-// Art lab: character look-dev of the whole roster under a moody lighting rig (warm key, cold rims, warm ember bounce,
-// procedural studio environment) or the real arena (#arena), with framing scenarios for turntables, close-ups, weapons,
-// backs, combat poses, the fight camera and the three heroes side by side. Framing follows each design's height (head bone).
+// Art lab: character look-dev of the roster under a moody lighting rig (warm key, cold rims, warm ember bounce,
+// procedural studio environment) or the real arena (#arena). Reviews the three heroes while their designs are being
+// rewritten for 흑일무림 (MURIM.md), and the murim kit itself: reference outfits, material swatches, kit parts, weapons.
 //
-//   node tools/shot.mjs art --hash design=iska --do "__ED.lab.play('bust')" --at 0.5 --out shots/art/iska_bust
-//   node tools/shot.mjs art --hash design=vorn --do "__ED.lab.play('turntable')" --at 0,0.25,0.5,0.75,1,1.25,1.5,1.75 --sheet-only --out shots/art/vorn_turn
-//   node tools/shot.mjs art --do "__ED.lab.play('lineup','sil')" --at 0.5 --out shots/art/roster_sil
-//   node tools/shot.mjs art --hash arena --do "__ED.lab.play('lineup','fight')" --at 1 --out shots/art/roster_arena
-//   node tools/shot.mjs art --do "__ED.lab.play('full')" --at 0 --eval "__ED.lab.play('budget')"
+//   node tools/shot.mjs art --hash design=iska --do "__ED.lab.play('turntable')" --at 0,0.25,0.5,0.75,1,1.25,1.5,1.75 --sheet 4 --sheet-only --out shots/murim/chars/x/turn
+//   node tools/shot.mjs art --hash design=kael --do "__ED.lab.play('bust')" --at 0.5 --out shots/murim/chars/x/bust
+//   node tools/shot.mjs art --do "__ED.lab.play('lineup','sil')" --at 0.5 --out shots/murim/chars/x/sil
+//   node tools/shot.mjs art --hash arena --do "__ED.lab.play('lineup','fight')" --at 1 --out shots/murim/chars/x/arena
+//   node tools/shot.mjs art --hash "arena&design=kael" --do "__ED.lab.play('duel','iska')" --at 1 --out shots/murim/chars/x/duel
+//   node tools/shot.mjs art --do "__ED.lab.play('swatches',0)" --at 0.2 --out shots/murim/chars/x/swatch
+//   node tools/shot.mjs art --eval "__ED.lab.play('budget')"        (also 'dispose', 'cpu', 'texgen')
 //
-// Flags: #design=kael (default) | iska | vorn | vornLow | knight, #arena (Eclipse Ruins backdrop and lights), #tex=256|512,
-// #q=low|mid|high (quality tier: cloth grids, the low-tier variants of the designs that read it).
+// Flags: #design=kael (default) | iska | vorn | heavy | slender | tall | knight   (heavy / slender / tall: the kit's
+// reference outfits on the rigs of KAEL / ISKA / VORN), #kit (line-ups and duels use the reference outfits), #arena (the
+// arena backdrop and lights), #tex=256|512, #q=low|mid|high.
 // Scenarios: full(yaw), turntable(every), bust(yaw), face(yaw), back(yaw), side, fight, pose(name, yaw, dist, ty),
-// hero(yaw) (the design's hero pose), combat(clip | pose, t, yaw), clip(name), silhouette, lineup('sil' | 'lit' | 'fight'),
-// duel(other) (two heroes facing at fight distance), glow, weapon(name, 'all' | 'hilt' | 'tip'), weapons, kit, stats,
-// budget (triangles / draw calls of every design at high and low), qa(clips), leaks (create / dispose cycle).
+// hero(yaw), combat(clip | pose, t, yaw), clip(name), sil / silhouette, lineup('sil' | 'lit' | 'fight', kind) (alias
+// roster), duel(other, kind), glow, weapon(name, 'all' | 'hilt' | 'tip'), weapons, swatches(page, zoom, item),
+// parts(page), sway (secondary motion check), stats, budget, dispose / leaks, cpu, texgen, contact, qa(clips).
+// A hero design that throws while it is being rewritten is replaced by its reference outfit (the error is logged).
 // Lab-only poses (artlab.<id>.hero / .combat / .strike) exist to judge the designs; fighter clips belong to the content team.
 
 import * as THREE from 'three';
@@ -21,21 +25,29 @@ import { createLab, ORDER } from '../core/lab.js';
 import { createEnvironment } from '../env/index.js';
 import { createCharacter, definePose } from '../char/index.js';
 import { createKitMaterial, attachGlow, configureTextureSets } from '../char/materials.js';
+import { textureSetTimings, prewarmTextureSets } from '../char/kit/textures.js';
 import { knight } from '../char/designs/knight.js';
 import { kael } from '../fighters/kael/design.js';
 import { iska } from '../fighters/iska/design.js';
-import { vorn, vornLow } from '../fighters/vorn/design.js';
+import { vorn } from '../fighters/vorn/design.js';
 import { createStaticKit } from '../char/kit/static.js';
 import { greatsword, crescents, spear, WEAPON_MATERIALS } from '../char/weapons.js';
-import * as A from '../char/kit/armor.js';
 import { put } from '../char/kit/geo.js';
-import { LOOKS } from '../char/kit/looks.js';
+import { MURIM } from '../char/kit/looks.js';
 import { buildSwatches, SWATCH_MATERIAL } from '../char/kit/swatch.js';
+import { mannequin } from '../char/kit/mannequin.js';
+import * as M from '../char/kit/murim.js';
+import * as H from '../char/kit/head.js';
 import '../char/clips/demo.js';
 import { auditClip } from '../char/qa.js';
 
-const DESIGNS = { kael, iska, vorn, vornLow, knight };
-const ROSTER = [kael, iska, vorn];
+const HEROES = { kael, iska, vorn };
+/** The kit's reference outfits, each on the rig of the hero whose archetype it is. */
+const OUTFITS = { heavy: mannequin('heavy', kael), slender: mannequin('slender', iska), tall: mannequin('tall', vorn) };
+const FALLBACK = { kael: 'heavy', iska: 'slender', vorn: 'tall' };
+const DESIGNS = { ...HEROES, ...OUTFITS, knight };
+/** Pose set (artlab.<id>.*) a design is shown in. */
+const POSE_ID = { kael: 'kael', iska: 'iska', vorn: 'vorn', 'murim-heavy': 'kael', 'murim-slender': 'iska', 'murim-tall': 'vorn' };
 
 // ---- lab-only poses (fighter frame; README section 4 conventions) ---------------------------------------------------------
 const FOOT = (pos, yaw, pitch = 0) => ({ pos, rot: [0, yaw, pitch] });
@@ -127,7 +139,7 @@ definePose('artlab.vorn.strike', {
   grip: 1, curl: [1, 1],
 });
 /** The lab pose of a design (kind: 'hero' | 'combat' | 'strike'); designs without lab poses use the demo clips. */
-const poseOf = (d, kind) => (['kael', 'iska', 'vorn'].includes(d.id) ? `artlab.${d.id}.${kind}` : (kind === 'hero' ? d.idle || 'demo.idle' : 'demo.guard'));
+const poseOf = (d, kind) => (POSE_ID[d.id] ? `artlab.${POSE_ID[d.id]}.${kind}` : (kind === 'hero' ? d.idle || 'demo.idle' : 'demo.guard'));
 
 /** Procedural studio environment: dark dome, warm key softbox, cold rim strips, ember floor bounce. */
 function studioEnv(renderer) {
@@ -164,6 +176,7 @@ createLab({
     const { scene, renderer } = ctx;
     if (ctx.flags.tex) configureTextureSets({ size: Number(ctx.flags.tex) });
     lab.arena = !!ctx.flags.arena;
+    lab.kitRoster = !!ctx.flags.kit;
     if (lab.arena) {
       createEnvironment(ctx, {});
     } else {
@@ -198,8 +211,7 @@ createLab({
     lab.floor = floor;
 
     const id = String(ctx.flags.design || 'kael');
-    const design = DESIGNS[id] || kael;
-    const char = spawn(ctx, design, id);
+    const { char, design } = spawn(ctx, DESIGNS[id] || kael, id);
     lab.char = char; lab.design = design; lab.glow = char.glow || null;
     lab.others = [];
     lab.hero = poseOf(design, 'hero');
@@ -207,14 +219,15 @@ createLab({
     char.update(0, 0);
     lab.headY = headHeight(char);
     window.__ED.char = char;
-    console.log('[ed] art lab design', id, JSON.stringify(char.stats));
+    console.log('[ed] art lab design', design.id, JSON.stringify(char.stats));
 
-    const st = { spin: null, t: 0, hold: null };
+    const st = { spin: null, t: 0, hold: null, sway: null };
     lab.st = st;
     ctx.onUpdate((dg, dr) => {
       st.t += dg;
       if (st.spin) lab.view({ yaw: st.spin.yaw0 + Math.floor(st.t / st.spin.every + 1e-6) * st.spin.step });
       if (st.hold != null) char.setClipTime(st.hold);
+      if (st.sway) st.sway(st.t);
       if (char.root.visible) char.update(dg, dr);
       for (const o of lab.others) if (o.root.visible) o.update(dg, dr);
     }, ORDER.CHAR);
@@ -226,16 +239,18 @@ createLab({
     };
   },
   scenarios: {
-    full(ctx, lab, yaw = 28) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.6, 0], dist: lab.headY * 3.05, yaw, pitch: 5, fov: 35 }); },
+    full(ctx, lab, yaw = 28) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.5, yaw, pitch: 5, fov: 35 }); },
     turntable(ctx, lab, every = 0.25) {
       reset(lab);
       lab.st.t = 0; lab.st.spin = { yaw0: 0, step: 45, every };
-      lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.55, yaw: 0, pitch: 4, fov: 35 });
+      lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.5, yaw: 0, pitch: 4, fov: 35 });
     },
-    bust(ctx, lab, yaw = 32) { reset(lab); lab.view({ target: [lab.ox + 0.02, lab.headY - 0.03, 0], dist: 1.4, yaw, pitch: 3, fov: 35 }); },
-    face(ctx, lab, yaw = 30) { reset(lab); lab.view({ target: [lab.ox + 0.04, lab.headY + 0.09, 0], dist: 0.8, yaw, pitch: 2, fov: 35 }); },
-    back(ctx, lab, yaw = 200) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.66, 0], dist: lab.headY * 2.15, yaw, pitch: 8, fov: 35 }); },
-    side(ctx, lab) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.7, yaw: 0, pitch: 3, fov: 35 }); },
+    bust(ctx, lab, yaw = 32) { reset(lab); lab.view({ target: [lab.ox + 0.02, lab.headY - 0.03, 0], dist: 1.5, yaw, pitch: 3, fov: 35 }); },
+    face(ctx, lab, yaw = 30) { reset(lab); lab.view({ target: [lab.ox + 0.04, lab.headY + 0.09, 0], dist: 0.85, yaw, pitch: 2, fov: 35 }); },
+    back(ctx, lab, yaw = 200) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.3, yaw, pitch: 8, fov: 35 }); },
+    side(ctx, lab) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.5, yaw: 0, pitch: 3, fov: 35 }); },
+    /** Waist and skirt close-up (sash, knot, hanging ends, panels, ornaments). */
+    waist(ctx, lab, yaw = 30) { reset(lab); lab.view({ target: [lab.ox + 0.02, lab.headY * 0.56, 0], dist: 1.7, yaw, pitch: 4, fov: 35 }); },
     fight(ctx, lab) {
       reset(lab, poseOf(lab.design, 'combat'));
       if (lab.arena) lab.view({ target: [-1.2, 1.2, 0], dist: 6.4, yaw: 0, pitch: 5, fov: 40 });
@@ -248,7 +263,7 @@ createLab({
     },
     feet(ctx, lab, yaw = 35, kind = 'hero') { reset(lab, poseOf(lab.design, kind)); lab.view({ target: [lab.ox + 0.02, 0.16, 0], dist: 1.3, yaw, pitch: 8, fov: 35 }); },
     hands(ctx, lab, yaw = 30, kind = 'combat') { reset(lab, poseOf(lab.design, kind)); lab.view({ target: [lab.ox + 0.3, 1.1, 0.12], dist: 1.4, yaw, pitch: 6, fov: 35 }); },
-    hero(ctx, lab, yaw = 40) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.6, 0], dist: lab.headY * 2.7, yaw, pitch: 4, fov: 35 }); },
+    hero(ctx, lab, yaw = 40) { reset(lab); lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.4, yaw, pitch: 4, fov: 35 }); },
     /** A clip held at time t, or a design pose kind ('combat' | 'strike'). */
     combat(ctx, lab, clip = 'combat', t = 0.25, yaw = 20) {
       const name = clip === 'combat' || clip === 'strike' ? poseOf(lab.design, clip) : clip;
@@ -257,57 +272,53 @@ createLab({
       lab.view({ target: [lab.ox + 0.25, lab.headY * 0.58, 0], dist: lab.headY * 2.55, yaw, pitch: 4, fov: 35 });
     },
     clip(ctx, lab, clip = 'demo.combo1') { reset(lab); lab.char.play(clip, { fade: 0.05, restart: true }); },
-    silhouette(ctx, lab) {
-      reset(lab);
-      silhouette(ctx, lab, [lab.char]);
-      lab.view({ target: [lab.ox, lab.headY * 0.6, 0], dist: lab.headY * 3.0, yaw: 0, pitch: 3, fov: 35 });
+    /** Secondary motion: the hero turns and steps side to side in a breeze (sleeves, sash ends, hair, veil, tassels). */
+    sway(ctx, lab, yaw = 24) {
+      reset(lab, poseOf(lab.design, 'combat'));
+      const c = lab.char;
+      c.wind = [3.5, 0, 1.5];
+      lab.st.t = 0;
+      lab.st.sway = (t) => { c.root.position.x = lab.ox + 0.5 * Math.sin(t * 5.2); c.root.rotation.y = 0.5 * Math.sin(t * 3.1); };
+      lab.view({ target: [lab.ox, lab.headY * 0.6, 0], dist: lab.headY * 2.7, yaw, pitch: 4, fov: 35 });
     },
+    silhouette: silOne,
+    sil: silOne,
     /**
      * The roster side by side, each in its hero pose (or 'combat' poses with mode 'fight'): 'sil' black on grey,
-     * 'lit' under the lab lights, 'fight' at the fight camera's distance (in the arena with #arena).
+     * 'lit' under the lab lights, 'fight' at the fight camera's distance (in the arena with #arena). #kit (or
+     * set = 'kit'): the reference outfits instead of the heroes.
      */
-    lineup(ctx, lab, mode = 'sil', kind = 'hero') {
-      const cast = castOf(ctx, lab, ROSTER);
-      reset(lab);
-      lab.char.setVisible(false);
-      const xs = [-1.85, 0, 1.85];
-      cast.forEach((c, i) => {
-        c.setVisible(true);
-        c.root.position.set(xs[i], 0, 0); c.setFacing(1);
-        c.play(poseOf(c.design, mode === 'fight' ? 'combat' : kind), { fade: 0, restart: true });
-        c.update(0, 0); c.teleport();
-      });
-      if (mode === 'sil') silhouette(ctx, lab, cast);
-      if (mode === 'fight') lab.view({ target: [0, 1.15, 0], dist: 8.4, yaw: 0, pitch: 5, fov: 40 });
-      else lab.view({ target: [0, 1.12, 0], dist: 7.6, yaw: mode === 'lit' ? 18 : 0, pitch: 3, fov: 35 });
-    },
+    lineup,
+    roster(ctx, lab, mode = 'lit', kind = 'hero', set) { return lineup(ctx, lab, mode, kind, set); },
     /** Two heroes facing each other at the fight-camera distance (P1 = this design at x -2.5, P2 = other at +2.5). */
     duel(ctx, lab, other = 'vorn', kind = 'combat') {
-      const d2 = DESIGNS[other] || vorn;
+      const d2 = (lab.kitRoster && OUTFITS[FALLBACK[other]]) || DESIGNS[other] || vorn;
       const [c2] = castOf(ctx, lab, [d2]);
       reset(lab, poseOf(lab.design, kind));
       lab.char.root.position.set(-2.5, 0, 0);
       c2.setVisible(true);
       c2.root.position.set(2.5, 0, 0); c2.setFacing(-1);
-      c2.play(poseOf(d2, kind), { fade: 0, restart: true });
+      c2.play(poseOf(c2.design, kind), { fade: 0, restart: true });
       c2.update(0, 0); c2.teleport();
       lab.view({ target: [0, 1.2, 0], dist: 7.6, yaw: 0, pitch: 5, fov: 40 });
     },
-    glow(ctx, lab) { reset(lab); if (lab.glow) lab.glow.flare('all', 2.5, 0.8); lab.view({ target: [lab.ox + 0.02, lab.headY - 0.25, 0], dist: 2.3, yaw: 30, pitch: 3, fov: 35 }); },
+    /** Every glow channel flaring (amount, seconds): inner energy at full burn. */
+    glow(ctx, lab, amount = 2.5, dur = 0.8) { reset(lab); if (lab.glow) lab.glow.flare('all', amount, dur); lab.view({ target: [lab.ox + 0.02, lab.headY - 0.3, 0], dist: 2.6, yaw: 30, pitch: 3, fov: 35 }); },
     weapon(ctx, lab, name = 'greatsword', part = 'all', yaw = 12) {
       const g = weaponDisplay(ctx, lab, name);
       lab.show(name);
       const box = new THREE.Box3().setFromObject(g);
       const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
-      if (part === 'hilt') lab.view({ target: [c.x - s.x * 0.33, c.y, 0], dist: 0.75, yaw: 22, pitch: 10, fov: 35 });
-      else if (part === 'tip') lab.view({ target: [c.x + s.x * 0.3, c.y, 0], dist: 0.8, yaw: 22, pitch: 10, fov: 35 });
-      else lab.view({ target: [c.x, c.y, 0], dist: Math.max(s.x, s.y) * 1.25, yaw, pitch: 8, fov: 35 });
+      if (part === 'hilt') lab.view({ target: [c.x - s.x * 0.36, c.y, 0], dist: 0.8, yaw: 16, pitch: 8, fov: 35 });
+      else if (part === 'tip') lab.view({ target: [c.x + s.x * 0.3, c.y, 0], dist: 0.85, yaw: 16, pitch: 8, fov: 35 });
+      else if (part === 'mid') lab.view({ target: [c.x, c.y, 0], dist: 0.8, yaw: 10, pitch: 6, fov: 35 });
+      else lab.view({ target: [c.x, c.y, 0], dist: Math.max(s.x, s.y) * 1.15, yaw, pitch: 6, fov: 35 });
     },
     weapons(ctx, lab) {
       const gs = ['greatsword', 'crescents', 'spear'].map((n) => weaponDisplay(ctx, lab, n));
       lab.show('none');
-      gs.forEach((g, i) => { g.visible = true; g.position.set(0, 1.9 - i * 0.5, 0); });
-      lab.view({ target: [0.3, 1.4, 0], dist: 3.2, yaw: 10, pitch: 6, fov: 35 });
+      gs.forEach((g, i) => { g.visible = true; g.position.set(0, 1.95 - i * 0.48, 0); });
+      lab.view({ target: [0.3, 1.45, 0], dist: 3.3, yaw: 8, pitch: 4, fov: 35 });
     },
     /** Material swatches, four per page (the last page is the brocade sampler); zoom > 1 moves in; item = one swatch. */
     swatches(ctx, lab, page = 0, zoom = 1, item = null) {
@@ -318,22 +329,25 @@ createLab({
       lab.view({ target: [cx, 1.0 + (last ? 0.26 : 0.235), 0], dist: (last ? 1.25 : item != null ? 0.85 : 1.72) / zoom, yaw: 8, pitch: 3, fov: 35 });
       return last ? info.labels.slice(-8) : info.labels.slice(page * 4, page * 4 + 4);
     },
-    kit(ctx, lab) {
-      const g = kitDisplay(ctx, lab);
-      lab.show('kit');
-      g.visible = true;
-      lab.view({ target: [0.0, 0.12, 0], dist: 2.1, yaw: 20, pitch: 8, fov: 35 });
+    /** Kit parts on a rack: page 0 heads (masks, hats, wraps, hair), page 1 armour accents and ornaments. */
+    parts(ctx, lab, page = 0, yaw = 18) {
+      const g = partsDisplay(ctx, lab);
+      lab.show('parts');
+      lab.view({ target: [0.0, page ? 0.62 : 1.5, 0], dist: 2.05, yaw, pitch: 4, fov: 35 });
     },
+    kit(ctx, lab, page = 0) { return lab.play('parts', page); },
     stats(ctx, lab) { return { ...lab.char.stats, design: lab.design.id, bodyScale: lab.char.bodyScale, headY: +lab.headY.toFixed(3) }; },
     /** Triangles / draw calls / bones of every design at the high and low tiers (built off-scene, then disposed). */
     budget(ctx) {
       const out = {};
       for (const tier of ['high', 'low']) {
         const q = { ...ctx.quality, tier, cloth: tier === 'low' ? 0.5 : 1 };
-        for (const d of [kael, iska, vorn, knight]) {
-          const c = createCharacter({ ...ctx, quality: q }, d, { parent: null, name: 'budget' });
-          out[d.id + '@' + tier] = { ...c.stats };
-          c.dispose();
+        for (const [id, d] of Object.entries(DESIGNS)) {
+          try {
+            const c = createCharacter({ ...ctx, quality: q }, d, { parent: null, name: 'budget' });
+            out[id + '@' + tier] = { ...c.stats, springs: (d.springs || []).reduce((n, s) => n + s.bones.length, 0), cloths: (d.cloth || []).length, ok: c.stats.triangles <= 60000 && c.stats.drawCalls <= 6 };
+            c.dispose();
+          } catch (e) { out[id + '@' + tier] = { error: String(e.message || e) }; }
         }
       }
       return out;
@@ -345,10 +359,9 @@ createLab({
       ctx.renderer.render(ctx.scene, ctx.camera);
       const before = info();
       for (let k = 0; k < n; k++) {
-        for (const d of ROSTER) {
-          const c = createCharacter(ctx, d, { name: 'leak' });
-          d.attach?.(c);
-          c.play(poseOf(d, 'hero'), { fade: 0 });
+        for (const d of [...Object.values(HEROES), ...Object.values(OUTFITS)]) {
+          const { char: c, design } = spawn(ctx, d, 'leak');
+          c.play(poseOf(design, 'hero'), { fade: 0 });
           c.update(1 / 60, 1 / 60);
           ctx.renderer.render(ctx.scene, ctx.camera);
           c.dispose();
@@ -357,9 +370,50 @@ createLab({
       ctx.renderer.render(ctx.scene, ctx.camera);
       const after = info();
       lab.show('char');
-      return { before, after };
+      return { before, after, leaked: after.geo - before.geo + (after.tex - before.tex) + (after.prog - before.prog) };
     },
-    /** Lowest world y (m) of the sabaton geometry (foot / toe bones) in the design's poses: soles on the floor, nothing under it. */
+    dispose(ctx, lab, n = 3) { return lab.play('leaks', n); },
+    /**
+     * CPU cost of char.update() for every design (ms per update at 60 Hz over a combat chain with turns, steps and
+     * wind): mean, and the mean of each frame's fastest of `runs` passes (the uncontended cost on a shared machine).
+     * Budget: <= 1.0 ms per character on desktop.
+     */
+    cpu(ctx, lab, frames = 240, runs = 5, ids = null) {
+      const out = {};
+      for (const [id, d] of Object.entries(DESIGNS)) {
+        if (ids && !ids.includes(id)) continue;
+        let c;
+        try { c = createCharacter(ctx, d, { parent: null, name: 'cpu' }); } catch (e) { out[id] = { error: String(e.message || e) }; continue; }
+        if (d.attach) d.attach(c);
+        const chain = ['demo.combo1', 'demo.combo2', 'demo.slam', 'demo.walkF', 'demo.guard', poseOf(d, 'combat'), poseOf(d, 'strike')];
+        const best = new Float64Array(frames).fill(1e9);
+        let sum = 0;
+        for (let r = 0; r < runs; r++) {
+          c.root.position.set(0, 0, 0); c.setFacing(1); c.play(poseOf(d, 'hero'), { fade: 0, restart: true }); c.update(0, 0); c.teleport();
+          c.wind = [3, 0, 1.5];
+          for (let f = 0; f < frames; f++) {
+            if (f % 34 === 0) c.play(chain[(f / 34) % chain.length | 0], { fade: 0.08, restart: true });
+            if (f % 90 === 45) c.setFacing(-c.facing);
+            c.root.position.x = 0.6 * Math.sin(f * 0.09);
+            const t0 = performance.now();
+            c.update(1 / 60, 1 / 60);
+            const dt = performance.now() - t0;
+            sum += dt; if (dt < best[f]) best[f] = dt;
+          }
+        }
+        let b = 0; for (let f = 0; f < frames; f++) b += best[f];
+        out[id] = { ms: +(b / frames).toFixed(3), mean: +(sum / (frames * runs)).toFixed(3), springBones: (d.springs || []).reduce((n, s) => n + s.bones.length, 0), cloths: (d.cloth || []).length, bones: c.stats.bones, ok: b / frames <= 1.0 };
+        c.dispose();
+      }
+      return out;
+    },
+    /** Texture set generation: ms per set generated so far (sets are generated on first use); all = generate every set first. */
+    texgen(ctx, lab, all = false) {
+      if (all) prewarmTextureSets();
+      const t = textureSetTimings();
+      return { sets: t, total: +Object.values(t).reduce((a, b) => a + b, 0).toFixed(1) };
+    },
+    /** Lowest world y (m) of the footwear geometry (foot / toe bones) in the design's poses: soles on the floor, nothing under it. */
     contact(ctx, lab) {
       const out = {}, c = lab.char, v = new THREE.Vector3(), names = ['footR', 'footL', 'toeR', 'toeL'];
       const fi = names.map((n) => c.rig.index[n]);
@@ -401,11 +455,44 @@ createLab({
   },
 });
 
-/** createCharacter + the design's glow control (design.attach, or attachGlow with design.glow). */
+/** One hero as a black shape on grey. */
+function silOne(ctx, lab) {
+  reset(lab);
+  silhouette(ctx, lab, [lab.char]);
+  lab.view({ target: [lab.ox, lab.headY * 0.62, 0], dist: lab.headY * 2.6, yaw: 0, pitch: 3, fov: 35 });
+}
+
+function lineup(ctx, lab, mode = 'sil', kind = 'hero', set = lab.kitRoster ? 'kit' : 'heroes') {
+  const cast = castOf(ctx, lab, set === 'kit' ? Object.values(OUTFITS) : Object.values(HEROES));
+  reset(lab);
+  lab.char.setVisible(false);
+  const xs = [-1.85, 0, 1.85];
+  cast.forEach((c, i) => {
+    c.setVisible(true);
+    c.root.position.set(xs[i], 0, 0); c.setFacing(1);
+    c.play(poseOf(c.design, mode === 'fight' ? 'combat' : kind), { fade: 0, restart: true });
+    c.update(0, 0); c.teleport();
+  });
+  if (mode === 'sil') silhouette(ctx, lab, cast);
+  if (mode === 'fight') lab.view({ target: [0, 1.15, 0], dist: 8.4, yaw: 0, pitch: 5, fov: 40 });
+  else lab.view({ target: [0, 1.14, 0], dist: 6.9, yaw: mode === 'lit' ? 14 : 0, pitch: 3, fov: 35 });
+}
+
+/**
+ * createCharacter + the design's glow control (design.attach, or attachGlow with design.glow). A hero design that
+ * throws (it is being rewritten) is replaced by its reference outfit; the error is logged once.
+ * @returns {{ char, design }}
+ */
 function spawn(ctx, design, name) {
-  const c = createCharacter(ctx, design, { name });
-  if (design.attach) design.attach(c); else if (design.glow) attachGlow(c, design.glow);
-  return c;
+  let c, d = design;
+  try { c = createCharacter(ctx, d, { name }); } catch (e) {
+    const fb = OUTFITS[FALLBACK[design.id]];
+    console.error(`[ed] art lab: design ${design.id} failed to build (${e && e.message}); showing ${fb ? fb.id : 'nothing'}`);
+    if (!fb) throw e;
+    d = fb; c = createCharacter(ctx, d, { name });
+  }
+  if (d.attach) d.attach(c); else if (d.glow) attachGlow(c, d.glow);
+  return { char: c, design: d };
 }
 
 /** World height of the head bone pivot (skull base) in the current pose: framing reference per design. */
@@ -419,7 +506,7 @@ function castOf(ctx, lab, designs) {
   lab.cast = lab.cast || {};
   return designs.map((d) => {
     if (d === lab.design) return lab.char;
-    if (!lab.cast[d.id]) { const c = spawn(ctx, d, d.id); lab.cast[d.id] = c; lab.others.push(c); }
+    if (!lab.cast[d.id]) { const { char } = spawn(ctx, d, d.id); lab.cast[d.id] = char; lab.others.push(char); }
     return lab.cast[d.id];
   });
 }
@@ -440,7 +527,7 @@ function silhouette(ctx, lab, chars) {
 
 function reset(lab, pose) {
   const ctx = lab.ctx;
-  lab.st.spin = null; lab.st.hold = null;
+  lab.st.spin = null; lab.st.hold = null; lab.st.sway = null;
   lab.show('char');
   ctx.scene.background = lab.bg.background;
   ctx.scene.fog = lab.bg.fog;
@@ -454,6 +541,8 @@ function reset(lab, pose) {
   for (const c of lab.others) c.setVisible(false);
   lab.ox = lab.arena ? -2.5 : 0;
   lab.char.root.position.set(lab.ox, 0, 0);
+  lab.char.root.rotation.y = 0;
+  lab.char.wind = [0, 0, 0];
   lab.char.setFacing(1);
   lab.char.play(pose || lab.hero, { fade: 0, restart: true });
   lab.char.update(0, 0);
@@ -495,28 +584,54 @@ function swatchDisplay(ctx, lab) {
   return g;
 }
 
-/** Catalogue of the generic kit helms on plinths (designs use their own: VORN's kit.js, ISKA's kit.js). */
-function kitDisplay(ctx, lab) {
-  if (lab.displays.kit) return lab.displays.kit;
+/** Rack of kit parts (static): heads on the upper shelf (y 1.5), armour accents and ornaments on the lower (y 0.6). */
+function partsDisplay(ctx, lab) {
+  if (lab.displays.parts) return lab.displays.parts;
   const sk = createStaticKit();
-  const look = LOOKS.blackSteel, trim = LOOKS.bronze;
-  const H = A.greatHelm({});
-  for (const k of ['crown', 'brow', 'face', 'back', 'crest']) put(sk, 'plate', null, H[k], k === 'brow' ? LOOKS.scorchedSteel : look, { at: [-0.5, 0, 0] });
-  put(sk, 'plate', null, H.slit, LOOKS.slit, { at: [-0.5, 0, 0] });
-  put(sk, 'plate', null, H.eye, { ...LOOKS.slit, eye: 1 }, { at: [-0.5, 0, 0] });
-  put(sk, 'plate', null, H.rivets, trim, { at: [-0.5, 0, 0] });
-  const St = A.stormHelm({});
-  for (const k of ['skull', 'visor', 'horns', 'wings']) put(sk, 'plate', null, St[k], k === 'horns' ? LOOKS.bronze : LOOKS.blueSteel, { at: [0, 0, 0] });
-  put(sk, 'plate', null, St.slits, { ...LOOKS.slit, eye: 1 });
-  put(sk, 'plate', null, St.rivets, LOOKS.gold);
-  const Ho = A.hoodedMask({});
-  put(sk, 'plate', null, Ho.hood, { ...LOOKS.cloth, color: [0.03, 0.05, 0.09] }, { at: [0.5, 0, 0] });
-  put(sk, 'plate', null, Ho.mask, LOOKS.silver, { at: [0.5, 0, 0] });
-  put(sk, 'plate', null, Ho.circlet, LOOKS.silver, { at: [0.5, 0, 0] });
-  put(sk, 'plate', null, Ho.gem, { ...LOOKS.silver, inlay: 1 }, { at: [0.5, 0, 0] });
-  const mat = createKitMaterial({ envMapIntensity: 1.1, bump: 1, glow: { inlay: [1.5, 4, 8], vein: [3, 1, 0.2], eye: [8, 3, 0.7] }, rim: [0.2, 0.27, 0.42, 3.2] });
-  const g = sk.finish({ plate: mat });
+  const P = (g, look, at, rot) => g && put(sk, look.set === 'hair' || look.set === 'gauze' ? 'cut' : 'gear', null, g, look, { at, rot });
+  const wrapL = { ...MURIM.hempInk, color: [0.03, 0.028, 0.028] }, HAIR = MURIM.hair;
+  const head = (x, y = 1.4) => { const w = H.headWrap({}); P(w.wrap, wrapL, [x, y, 0]); P(w.turns, wrapL, [x, y, 0]); P(w.slot, MURIM.dark, [x, y, 0]); return [x, y, 0]; };
+  // heads: demon mask + topknot, silver mask + wide hat, face wrap + cone hat, bare wrap + eyes + headband
+  let at = head(-0.9);
+  const dm = H.demonMask({});
+  P(dm.face, { ...MURIM.ironCharred, vein: 0.7 }, at); P(dm.pits, MURIM.dark, at); P(dm.eyes, MURIM.eye, at); P(dm.fangs, MURIM.bronze, at); P(dm.horns, MURIM.iron, at);
+  P(H.hairCap({}), HAIR, at); const tk = H.topknot({}); P(tk.bun, HAIR, at); P(tk.tie, MURIM.cord, at); P(tk.pin, MURIM.bronze, at);
+  at = head(-0.3);
+  const sm = H.silverMask({});
+  P(sm.face, MURIM.silverPlain, at); P(sm.pits, MURIM.dark, at); P(sm.eyes, MURIM.eye, at); P(sm.ridge, MURIM.silver, at);
+  const wide = H.bambooHat({ R: 0.33, h: 0.075, y: 0.2, crown: 0.34, dip: 0.07 });
+  P(wide.shell, MURIM.bamboo, at, [0, 0, -6]); P(wide.knob, MURIM.silverPlain, at, [0, 0, -6]); P(wide.cords, MURIM.cord, at, [0, 0, -6]);
+  at = head(0.3);
+  P(H.faceWrap({}), { ...MURIM.hempInk, color: [0.03, 0.022, 0.04] }, at); P(H.eyes({ grow: 0.0052 }).glow, MURIM.eye, at);
+  const cone = H.bambooHat({ R: 0.285, h: 0.2, y: 0.118, bell: 0.92 });
+  P(cone.shell, MURIM.bambooDark, at, [0, 0, -9]); P(cone.knob, MURIM.bronze, at, [0, 0, -9]); P(cone.cords, MURIM.cord, at, [0, 0, -9]);
+  at = head(0.9);
+  const ey = H.eyes({}); P(ey.glow, MURIM.eye, at);
+  P(H.headband({ motif: 2 }).band, { ...MURIM.trim, color: [0.12, 0.01, 0.008] }, at);
+  // armour accents and ornaments
+  const bp = M.beastPauldron({});
+  at = [-0.95, 0.62, 0];
+  P(bp.cop, { ...MURIM.ironCharred, vein: 0.4 }, at, [-20, 0, 0]); P(bp.pits, MURIM.dark, at, [-20, 0, 0]); P(bp.eyes, MURIM.eye, at, [-20, 0, 0]); P(bp.fangs, MURIM.bronze, at, [-20, 0, 0]); P(bp.ring, MURIM.bronze, at, [-20, 0, 0]);
+  const sp = M.lamellarSpaulder({ code: 0.15 });
+  sp.rows.forEach((g) => P(g, MURIM.lamellar, [-0.6, 0.7, 0])); P(sp.cap, MURIM.lacquer, [-0.6, 0.7, 0]);
+  const wg = M.waistGuard({ code: 0.15 });
+  wg.rows.forEach((g) => P(g, MURIM.lamellarIron, [-0.22, 0.74, -0.1], [0, -76, 0])); P(wg.head, MURIM.leather, [-0.22, 0.74, -0.1], [0, -76, 0]); P(wg.trim, { ...MURIM.trim, color: [0.1, 0.01, 0.008] }, [-0.22, 0.74, -0.1], [0, -76, 0]);
+  const br = M.bracer({});
+  P(br.plate, MURIM.lacquer, [0.08, 0.64, 0], [0, 60, 0]); P(br.straps, MURIM.leather, [0.08, 0.64, 0], [0, 60, 0]); P(br.studs, MURIM.bronze, [0.08, 0.64, 0], [0, 60, 0]);
+  P(M.limbWrap({ y0: 0.1, y1: -0.12 }), MURIM.wrap, [0.26, 0.64, 0]);
+  const bt = M.clothBoot({});
+  const BOOT = { ...MURIM.hempInk };
+  for (const [g, o] of [[bt.upper, 0], [bt.heel, 0], [bt.sole, 1], [bt.shaft, 2], [bt.top, 3]]) P(g, o === 1 ? MURIM.hemp : o === 3 ? MURIM.trim : BOOT, [0.48, o >= 2 ? 0.6 + 0.085 + 0.43 : 0.6 + 0.085, 0]);
+  P(bt.toe, BOOT, [0.48 + 0.135, 0.6 + 0.03, 0]); P(bt.toeSole, MURIM.hemp, [0.48 + 0.135, 0.6 + 0.03, 0]);
+  const gd = M.gourd({});
+  P(gd.body, { ...MURIM.lacquerRed, color: [0.14, 0.05, 0.016] }, [0.78, 0.76, 0]); P(gd.stopper, MURIM.wood, [0.78, 0.76, 0]); P(gd.cord, MURIM.cord, [0.78, 0.76, 0]);
+  const pd = M.pendant({});
+  for (const [g, look] of [[pd.cord, MURIM.cord], [pd.knot, MURIM.cord], [pd.jade, MURIM.jade], [pd.tasselHead, MURIM.gilt], [pd.strands, MURIM.horsehair]]) P(g, look, [0.94, 0.8, 0]);
+  const ts = M.tassel({});
+  P(ts.head, MURIM.gilt, [1.06, 0.78, 0]); P(ts.strands, MURIM.horsehair, [1.06, 0.78, 0]);
+  const mat = { ...SWATCH_MATERIAL, glow: { inlay: [5, 3, 1], vein: [4.5, 1.3, 0.2], eye: [8, 3, 0.7] } };
+  const g = sk.finish({ gear: createKitMaterial(mat), cut: createKitMaterial({ ...mat, cutout: true }) });
   ctx.scene.add(g);
-  lab.displays.kit = g;
+  lab.displays.parts = g;
   return g;
 }

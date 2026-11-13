@@ -726,6 +726,13 @@ export function createHud(ui) {
       timeMax = 0;
       if (o.p1 && o.p1.moves) hud.skills(0, skillsOf(o.p1));
       if (o.p2 && o.p2.moves) hud.skills(1, skillsOf(o.p2));
+      // write the announcer's lines once now (behind the versus splash), so no card computes strokes mid-fight
+      for (const k in PRESETS) brushText(PRESETS[k]({}).text, { weight: 1.15, gap: 5 });
+      for (let n = 2; n < roundsMax * 2; n++) brushText(PRESETS.round({ round: n }).text, { weight: 1.15, gap: 5 });
+      for (const sd of S) {
+        if (sd.ult) Array.from(sd.ult.name).filter((c) => c.trim()).forEach((c, i) => brushText(c, { weight: 1.2, seed: i }));
+        if (sd.fighter) brushText(sd.fighter.name, { weight: 1.15, gap: 5 });
+      }
       // the first real update decides readiness without a "just became ready" burst
       for (const sd of S) for (const sl of sd.slots) { sl.ready = null; putClass(sl.el, 'is-ready', false); }
       refreshKeys();

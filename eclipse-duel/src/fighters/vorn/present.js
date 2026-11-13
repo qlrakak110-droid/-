@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { hasClip } from '../../char/index.js';
 import design from './design.js';
 import { defineVornFx, V } from './fx.js';
+import { WISPS } from '../../vfx/presets/common.js';
 
 // ---- shared helpers ---------------------------------------------------------------------------------------------------
 
@@ -673,6 +674,13 @@ function ambient(h) {
   glowOf(h);
   const out = [];
   const tip = sock(h, 'weaponTip');
+  // 뇌정신공: thin violet wisps climbing the body and licking off the spear head
+  if (h.vfx) {
+    const body = h.vfx.emitter(WISPS.volt, { pos: h.at(0, 1.1, 0), dir: [0, 1, 0], scale: 0.75 });
+    body.rate = 3; body.follow(sock(h, 'chest') || h.self.char.root, [0, -0.3, 0]);
+    out.push(body);
+    if (tip) { const w = h.vfx.emitter(WISPS.volt, { pos: h.at(0, 1.1, 0), dir: [0, 1, 0], scale: 0.5 }); w.rate = 2.5; w.follow(tip, [0, 0, 0]); out.push(w); }
+  }
   if (tip) {
     out.push(h.emitter('vorn.crawlTip', 'weaponTip', { follow: tip }));
     out.push(h.emitter('vorn.motesTip', 'weaponTip', { follow: tip }));

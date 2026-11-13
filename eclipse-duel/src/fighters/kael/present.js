@@ -12,6 +12,7 @@
 import { hasClip } from '../../char/index.js';
 import { defineKaelFx, DRIP, RISE, CINDERS, SPIT, WALL, SPEAR, LINGER } from './fx.js';
 import { def as rules } from './moves.js';
+import { WISPS } from '../../vfx/presets/common.js';
 
 /** per-fighter-slot runtime handles (two Kaels in a mirror match never share state) */
 const S = [{}, {}];
@@ -655,7 +656,14 @@ export const present = {
   ambient(h) {
     const drip = h.emitter(DRIP, 'chest', { follow: 'chest' });
     const rise = h.emitter(RISE, 'chest', { follow: 'chest' });
-    return [drip, rise];
+    // 열양진기: heat wisps curling off the shoulders and along the great saber
+    const out = [drip, rise];
+    const aura = h.vfx.emitter(WISPS.ember, { pos: h.at(0, 1.2, 0), dir: [0, 1, 0], scale: 0.8 });
+    aura.rate = 3.5; aura.follow(h.self.char.sockets.chest || h.self.char.root, [0, -0.25, 0]);
+    out.push(aura);
+    const tip = h.self.char.sockets.weaponTip;
+    if (tip) { const w = h.vfx.emitter(WISPS.ember, { pos: h.at(0, 1.2, 0), dir: [0, 1, 0], scale: 0.55 }); w.rate = 3; w.follow(tip, [0, 0, 0]); out.push(w); }
+    return out;
   },
   moves,
   projectiles,

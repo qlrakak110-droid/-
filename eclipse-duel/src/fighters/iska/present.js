@@ -15,6 +15,7 @@
 import { hasClip } from '../../char/index.js';
 import { iska as design } from './design.js';
 import { D, F, STAR, registerDefs, defineIskaFx } from './fxlib.js';
+import { WISPS } from '../../vfx/presets/common.js';
 
 const ULT_NAME = { name: '떨어지는 서릿별', nameEn: 'Fall of the Frozen Star' };
 const MOOD = { darken: 0.8, tint: 0x8fc8ff };
@@ -106,6 +107,11 @@ export const present = {
     if (so.weaponTip) em(D.ambTip, so.weaponTip, [0, 0, 0]);
     if (so.weaponTip2) em(D.ambTip, so.weaponTip2, [0, 0, 0]);
     em(D.ambPool, ch.root, [0, 0.03, 0]);
+    // 한빙진기: cold wisps drifting off the sleeves and both crescents
+    const wisp = (obj, off, rate, scale) => { const e = v.emitter(WISPS.frost, { pos: h.at(0, 1, 0), dir: [0, 1, 0], scale }); e.rate = rate; e.follow(obj, off); out.push(e); };
+    wisp(so.chest || ch.root, [0, -0.3, 0], 3, 0.75);
+    if (so.weaponTip) wisp(so.weaponTip, [0, 0, 0], 2, 0.5);
+    if (so.weaponTip2) wisp(so.weaponTip2, [0, 0, 0], 2, 0.5);
     return out;
   },
 

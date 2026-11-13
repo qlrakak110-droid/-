@@ -6,7 +6,7 @@ import { LIB } from '../library.js';
 import { heatRamp } from '../util.js';
 import {
   def, key, mul, EL, KIT, STEEL, SLASH_LOOK, MESH_PAL, elementOf, meshColors, cutThrough, arcPoint, arcTangent, floor, vec, lightAt,
-  DUST, DUST_SMALL, PEBBLES, DUST_MOTES, SMOKE_COLUMN, LEAVES, STOMP_INK, groundMark,
+  DUST, DUST_SMALL, PEBBLES, DUST_MOTES, SMOKE_COLUMN, LEAVES, STOMP_INK, WISPS, groundMark,
 } from './common.js';
 
 /** Cool pale air for whooshes. */
@@ -90,8 +90,8 @@ export function defineCombat(vfx, P) {
   define('hit.light', (v, at, o) => {
     const el = elementOf(o), K = KIT[el], E = EL[el], i = I(o), s = at.scale, p = at.pos, d = at.dir, f = at.facing;
     const rt = rtFlash(v, o);
-    v.burst(K.flash, { pos: p, scale: 0.28 * s, intensity: i, realtime: rt });
-    v.flare({ kind: 'glow', pos: p, size: 0.36 * s, life: 0.05, color: E.core, intensity: 0.7 * i, realtime: rt });
+    v.burst(K.flash, { pos: p, scale: 0.2 * s, intensity: i, realtime: rt });
+    v.flare({ kind: 'glow', pos: p, size: 0.26 * s, life: 0.05, color: E.core, intensity: 0.6 * i, realtime: rt });
     v.flare({ kind: 'streak', pos: p, size: 0.08 * s, aspect: 12, life: 0.07, decay: 2.5, dir: d, color: E.core, intensity: 0.6 * i, realtime: rt });
     v.light({ pos: lightAt(p, 1.3), color: E.core, intensity: 24 * i, range: 4, duration: 0.12, decay: 'outExpo', realtime: rt });
     v.slash({ ...cutThrough(front(p, s), d, f, 0.42 * s, 36, (rng() - 0.5) * 30), look: SLASH_LOOK[el], ...meshColors(E), width: 0.13 * s, sweep: 0.025, life: 0.16, intensity: 1.15 * i, realtime: rt });
@@ -109,11 +109,11 @@ export function defineCombat(vfx, P) {
   define('hit.heavy', (v, at, o) => {
     const el = elementOf(o), K = KIT[el], E = EL[el], i = I(o), s = at.scale, p = at.pos, d = at.dir, f = at.facing;
     const rt = rtFlash(v, o);
-    v.burst(K.flash, { pos: p, scale: 0.48 * s, intensity: i, realtime: rt });
-    v.flare({ kind: 'star', pos: p, size: 1.3 * s, life: 0.1, decay: 3, color: E.core, intensity: 0.8 * i, rotation: rng() * 0.7, realtime: rt });
+    // the white core is small and gone in two frames: the struck body must stay readable (shaped layers carry frames 2-6)
+    v.burst(K.flash, { pos: p, scale: 0.3 * s, intensity: i, realtime: rt });
+    v.flare({ kind: 'star', pos: p, size: 1.05 * s, life: 0.09, decay: 3.5, color: E.core, intensity: 0.55 * i, rotation: rng() * 0.7, realtime: rt });
     v.flare({ kind: 'streak', pos: p, size: 0.15 * s, aspect: 14, life: 0.11, decay: 2.5, dir: d, color: E.core, intensity: 0.75 * i, realtime: rt });
     v.light({ pos: lightAt(p, 1.6), color: E.core, intensity: 42 * i, range: 5, duration: 0.24, decay: 'outExpo', realtime: rt });
-    v.burst(K.puff, { pos: p, scale: 0.36 * s, realtime: rt });
     const pf = front(p, s);
     v.slash({ ...cutThrough(pf, d, f, 0.62 * s, 44, (rng() - 0.5) * 24), look: SLASH_LOOK[el], ...meshColors(E), width: 0.24 * s, sweep: 0.035, life: 0.26, intensity: 1.25 * i, realtime: rt });
     shock(v, pf, d, E, 0.62 * s, 0.11, 0.3 * i, rt);
@@ -142,12 +142,11 @@ export function defineCombat(vfx, P) {
     const el = elementOf(o), K = KIT[el], E = EL[el], i = I(o), s = at.scale, p = at.pos, d = at.dir, f = at.facing;
     const rt = rtFlash(v, o);
     const pf = front(p, s);
-    v.burst(K.flash, { pos: p, scale: 0.65 * s, intensity: i, realtime: rt });
-    v.flare({ kind: 'flash', pos: p, size: 1.8 * s, life: 0.045, decay: 3, color: E.core, intensity: 0.1 * i, realtime: rt });
-    v.flare({ kind: 'star', pos: p, size: 1.9 * s, life: 0.15, decay: 3, color: E.core, intensity: 0.9 * i, rotation: 0.2 + rng() * 0.4, realtime: rt });
+    v.burst(K.flash, { pos: p, scale: 0.4 * s, intensity: i, realtime: rt });
+    v.flare({ kind: 'star', pos: p, size: 1.5 * s, life: 0.12, decay: 3.5, color: E.core, intensity: 0.62 * i, rotation: 0.2 + rng() * 0.4, realtime: rt });
     v.flare({ kind: 'streak', pos: p, size: 0.2 * s, aspect: 16, life: 0.14, decay: 2.5, dir: d, color: E.core, intensity: 0.8 * i, realtime: rt });
     v.light({ pos: lightAt(p, 1.8), color: E.core, intensity: 68 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
-    v.burst(K.puff, { pos: p, scale: 0.5 * s, realtime: rt });
+    v.burst(K.puff, { pos: p, scale: 0.28 * s, realtime: rt });
     v.slash({ ...cutThrough(pf, d, f, 0.8 * s, 46, 32), look: SLASH_LOOK[el], ...meshColors(E), width: 0.28 * s, sweep: 0.03, life: 0.3, intensity: 1.35 * i, realtime: rt });
     shock(v, pf, d, E, 0.95 * s, 0.13, 0.35 * i, rt);
     v.burst(K.lines, { pos: p, count: n(11, i), scale: s, realtime: rt });
@@ -228,9 +227,8 @@ export function defineCombat(vfx, P) {
   define('guard.break', (v, at, o) => {
     const i = I(o), s = at.scale, p = at.pos, d = at.dir;
     const rt = rtFlash(v, o);
-    v.burst(KIT.steel.flash, { pos: p, scale: 0.55 * s, intensity: i, realtime: rt });
-    v.flare({ kind: 'flash', pos: p, size: 1.8 * s, life: 0.05, decay: 3, color: GUARD.core, intensity: 0.1 * i, realtime: rt });
-    v.flare({ kind: 'star', pos: p, size: 1.6 * s, life: 0.2, decay: 3, color: GUARD.core, intensity: 0.85 * i, rotation: 0.4, realtime: rt });
+    v.burst(KIT.steel.flash, { pos: p, scale: 0.4 * s, intensity: i, realtime: rt });
+    v.flare({ kind: 'star', pos: p, size: 1.4 * s, life: 0.16, decay: 3.5, color: GUARD.core, intensity: 0.65 * i, rotation: 0.4, realtime: rt });
     v.light({ pos: lightAt(p, 1.8), color: GUARD.core, intensity: 60 * i, range: 6.5, duration: 0.34, decay: 'outExpo', realtime: rt });
     shock(v, front(p, s), d, GUARD, 1.0 * s, 0.16, 0.5 * i, rt);
     // the barrier itself: a filled pane of crystalline cells facing the attacker that cracks apart in a few frames
@@ -358,6 +356,23 @@ export function defineCombat(vfx, P) {
   define('whoosh.heavy', whoosh(true));
 
   /**
+   * inner energy flares up (운기): wisps of the element rise from the feet along the body, the air at the floor is pushed
+   * out in a faint dust ring, a few leaves lift. at.pos = the feet (floor). opts: element, k (0.5 a skill .. 1.5 an
+   * ultimate), follow (Object3D: with opts.duration the wisps keep rising around it as an emitter)
+   */
+  define('aura.flare', (v, at, o) => {
+    const el = WISPS[o.element] ? o.element : 'steel', i = I(o), s = at.scale, k = o.k != null ? o.k : 1, g = floor(at.pos, 0.05);
+    v.burst(WISPS[el], { pos: g, dir: [0, 1, 0], count: n(8 * k, i), scale: (0.9 + 0.3 * k) * s });
+    v.burst(DUST_SMALL, { pos: g, dir: [0, 1, 0], count: n(3 * k, i), scale: 0.9 * s });
+    if (k >= 1) v.burst(LEAVES, { pos: g, dir: [0, 1, 0], count: n(2 * k, i), scale: 0.8 * s });
+    if (o.duration) {
+      const e = v.emitter(WISPS[el], { pos: g, dir: [0, 1, 0], scale: (0.9 + 0.3 * k) * s, duration: o.duration });
+      e.rate = 10 * k * i;
+      if (o.follow) e.follow(o.follow, [0, 0.05, 0]);
+    }
+  });
+
+  /**
    * charge-up (loop): streaks and motes converge on at.pos, an imploding ring pulses, a glow grows, a lens pinch bends
    * the air, light rises. Runs until stop() (or opts.duration, then optionally opts.release plays charge.release).
    * opts: element, follow (Object3D: the gather point tracks it), rune (floor circle), duration, release.
@@ -411,9 +426,8 @@ export function defineCombat(vfx, P) {
   define('ko.burst', (v, at, o) => {
     const el = elementOf(o), K = KIT[el], E = EL[el], i = I(o), s = at.scale, p = at.pos, d = at.dir, f = at.facing;
     const g = floor(p);
-    v.burst(K.flash, { pos: p, scale: 1.3 * s, intensity: i });
-    v.flare({ kind: 'flash', pos: p, size: 4 * s, life: 0.07, decay: 3, color: E.core, intensity: 0.22 * i });
-    v.flare({ kind: 'star', pos: p, size: 3.2 * s, life: 0.24, decay: 3, color: [9, 7, 5], intensity: i, rotation: 0.15 });
+    v.burst(K.flash, { pos: p, scale: 0.8 * s, intensity: i });
+    v.flare({ kind: 'star', pos: p, size: 2.8 * s, life: 0.2, decay: 3.2, color: [9, 7, 5], intensity: 0.75 * i, rotation: 0.15 });
     v.flare({ kind: 'streak', pos: p, size: 0.35 * s, aspect: 22, life: 0.26, decay: 2.5, dir: [1, 0, 0], color: E.core, intensity: i });
     v.light({ pos: lightAt(p, 1.5, 0.4), color: E.core, intensity: 180 * i, range: 10, duration: 0.6, decay: 'outCubic' });
     v.slash({ ...cutThrough(front(p, s), d, f, 0.85 * s, 42, 24), look: SLASH_LOOK[el], ...meshColors(E), width: 0.3 * s, sweep: 0.035, life: 0.34, intensity: 1.2 * i });
@@ -446,8 +460,7 @@ export function defineCombat(vfx, P) {
     const el = elementOf(o, 'eclipse'), E = EL[el], i = I(o), s = at.scale, p = at.pos, f = at.facing;
     const C = CHARGE[el] || CHARGE.eclipse;
     const g = floor(p, 0);
-    v.burst(C.flash, { pos: p, scale: 0.55 * s, intensity: i });
-    v.flare({ kind: 'flash', pos: p, size: 3 * s, life: 0.06, decay: 2.5, color: E.core, intensity: 0.08 * i });
+    v.burst(C.flash, { pos: p, scale: 0.45 * s, intensity: i });
     v.flare({ kind: 'star', pos: p, size: 3.0 * s, life: 0.5, decay: 2.2, color: E.core, intensity: 0.7 * i, rotation: 0.12 });
     v.flare({ kind: 'streak', pos: p, size: 0.32 * s, aspect: 26, life: 0.4, decay: 2.2, dir: [1, 0, 0], color: E.core, intensity: 0.6 * i });
     v.light({ pos: lightAt(p, 1.5, 0.3), color: E.core, intensity: 150 * i, range: 9, duration: 0.8, decay: 'outCubic' });
@@ -456,6 +469,8 @@ export function defineCombat(vfx, P) {
     v.decal({ kind: 'rune', pos: g, radius: 1.7 * s, palette: MESH_PAL[el] || 'eclipse', life: 2.2, reveal: 0.25, spin: 1.4, intensity: i });
     v.burst(C.burst, { pos: p, count: n(110, i), scale: 1.2 * s });
     v.burst(C.glitter, { pos: p, count: n(40, i), scale: 2 * s });
+    v.burst(WISPS[WISPS[el] ? el : 'eclipse'], { pos: vec([g.x, 0.05, g.z]), dir: [0, 1, 0], count: n(14, i), scale: 1.4 * s });
+    v.burst(LEAVES, { pos: vec([g.x, 0.05, g.z]), dir: [0, 1, 0], count: 6, scale: 1.4 * s });
     v.ring({ look: 'shock', pos: g, ...meshColors(E), radius: [0.3 * s, 3.6 * s], life: 0.5, intensity: 0.7 * i });
     v.flare({ kind: 'eclipse', pos: p, size: [1.2 * s, 2.8 * s], life: 0.85, attack: 0.02, decay: 1.3, color: E.core, intensity: i, pull: 0.6, rotation: rng() * 6.28 });
     v.schedule(0.05, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.3 * s, 4.5 * s], life: 0.6, strength: 0.06 }));
@@ -463,7 +478,7 @@ export function defineCombat(vfx, P) {
 
   // aliases the presentation layer looks up (combat.<name>), and element hits that pick a level from opts.k / opts.level
   for (const name of ['hit.light', 'hit.heavy', 'hit.crit', 'hit.pierce', 'guard.block', 'guard.break', 'dust.step', 'dust.dash', 'dust.land', 'dust.stomp', 'dust.slide',
-    'whoosh.light', 'whoosh.heavy', 'charge.gather', 'charge.release', 'ko.burst', 'ult.flash']) P.alias('combat.' + name, name);
+    'whoosh.light', 'whoosh.heavy', 'aura.flare', 'charge.gather', 'charge.release', 'ko.burst', 'ult.flash']) P.alias('combat.' + name, name);
   for (const lvl of ['launch', 'crumple', 'knockdown']) P.alias('combat.hit.' + lvl, 'hit.heavy');
   for (const el of ['ember', 'frost', 'volt']) {
     define(el + '.hit', (v, at, o) => {

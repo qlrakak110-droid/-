@@ -142,28 +142,29 @@ export const LIB = {
   /** Leaves torn loose from the terrace: dark tumbling leaves that flutter down (alpha). */
   leaves: {
     tex: 'leaf', blend: 'alpha', count: 8, life: [1.2, 2.6], shape: { type: 'disc', radius: 0.5 }, emit: 'axis', spread: 55, lift: 0.4,
-    speed: [1.2, 4.5, 1.3], size: [0.08, 0.16, 1.5], spin: [3, 9], gravity: -2.2, drag: 1.6, turbulence: { amp: 0.9, freq: 1.1, speed: 1.2 },
-    groundFade: 0.02, shade: 0.9, sizeOverLife: [[0, 1], [0.8, 1], [1, 0.6]],
-    color: [[0, 0.2, 0.17, 0.09, 1], [0.85, 0.16, 0.13, 0.07, 1], [1, 0.14, 0.11, 0.06, 0]],
+    speed: [1.2, 4.5, 1.3], size: [0.11, 0.22, 1.5], spin: [3, 9], gravity: -2.2, drag: 1.6, turbulence: { amp: 0.9, freq: 1.1, speed: 1.2 },
+    groundFade: 0.02, shade: 0.9, soft: 0, sizeOverLife: [[0, 1], [0.8, 1], [1, 0.6]],
+    color: [[0, 0.3, 0.26, 0.13, 1], [0.85, 0.24, 0.2, 0.1, 1], [1, 0.2, 0.16, 0.08, 0]],
   },
   /** Pale blossom petals, drifting and tumbling slowly (alpha). */
   petals: {
     tex: 'petal', blend: 'alpha', count: 10, life: [1.4, 3.0], shape: { type: 'sphere', radius: 0.5 }, emit: 'axis', spread: 70, lift: 0.3,
-    speed: [0.6, 3, 1.4], size: [0.05, 0.1, 1.4], spin: [2, 7], gravity: -0.9, drag: 1.8, turbulence: { amp: 0.8, freq: 1.0, speed: 1.0 },
-    groundFade: 0.02, shade: 0.8,
+    speed: [0.6, 3, 1.4], size: [0.08, 0.15, 1.4], spin: [2, 7], gravity: -0.9, drag: 1.8, turbulence: { amp: 0.8, freq: 1.0, speed: 1.0 },
+    groundFade: 0.02, shade: 0.8, soft: 0,
     color: [[0, 1.1, 1.05, 1.15, 0], [0.08, 0.95, 0.92, 1.0, 0.95], [0.85, 0.8, 0.78, 0.86, 0.9], [1, 0.7, 0.7, 0.8, 0]],
   },
   /** Paper talisman scraps: tumbling slips whose script glows (ramp start), then burn away from the edges (alpha). */
   talismans: {
     tex: 'talisman', blend: 'alpha', count: 4, life: [1.0, 2.0], shape: { type: 'sphere', radius: 0.35 }, emit: 'axis', spread: 60, lift: 0.5,
     speed: [1.5, 5, 1.3], size: [0.16, 0.26], spin: [2, 7], gravity: -2.4, drag: 1.5, turbulence: { amp: 0.8, freq: 1.0, speed: 1.1 },
-    groundFade: 0.03, shade: 1, heat: 0.45, erode: [[0, 0], [0.55, 0.05], [1, 1]], erodeNoise: 0.25, erodeSoft: 0.08, erodeGlow: 1.2,
-    color: [[0, 6, 3.2, 1.0, 1], [0.3, 0.62, 0.55, 0.4, 1], [0.8, 0.5, 0.44, 0.32, 1], [1, 0.2, 0.15, 0.1, 0.8]],
+    groundFade: 0.03, shade: 1, soft: 0, heat: 0.4, erode: [[0, 0], [0.55, 0.05], [1, 1]], erodeNoise: 0.25, erodeSoft: 0.08, erodeGlow: 0.8,
+    // the paper is paper from the first frames; the script (heat mask) keeps the hot start of the ramp for 40 % of the life
+    color: [[0, 5, 2.6, 0.8, 1], [0.04, 0.42, 0.37, 0.27, 1], [0.8, 0.34, 0.3, 0.22, 1], [1, 0.14, 0.1, 0.07, 0.8]],
   },
   /** Flowing inner-energy wisps (auras): thin tendrils that rise, curl around the axis and thin out (emitter). */
   wisps: {
     tex: 'wisp', blend: 'add', rate: 12, life: [0.55, 1.1], shape: { type: 'disc', radius: 0.28 }, emit: 'axis', spread: 16, speed: [0.8, 2.0],
-    size: [0.1, 0.2, 1.3], aspect: 3.2, align: 'velocity', stretch: 0.08, maxStretch: 0.5, gravity: 0.8, drag: 0.6, turbulence: { amp: 0.7, freq: 1.4, speed: 1.4 },
+    size: [0.16, 0.32, 1.3], aspect: 2.8, align: 'velocity', stretch: 0.08, maxStretch: 0.5, gravity: 0.8, drag: 0.6, turbulence: { amp: 0.9, freq: 1.4, speed: 1.4 },
     swirl: 1.2, rotation: 0, groundFade: 0.05, sizeOverLife: [[0, 0.5], [0.3, 1], [1, 0.7]], erode: [[0, 0], [0.5, 0.1], [1, 0.9]], erodeSoft: 0.3, erodeNoise: 0.5,
     color: [[0, 3, 1.2, 0.3, 0], [0.15, 2.4, 0.8, 0.15, 0.7], [0.6, 1.2, 0.25, 0.04, 0.45], [1, 0.2, 0.03, 0.01, 0]],
   },

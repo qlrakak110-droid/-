@@ -116,7 +116,7 @@ const FRAG_BODY = /* glsl */ `
     xe = x - tongue * noiseAmt * (0.3 + 0.7 * sat(1.0 + x));
     gain = 0.35 + 0.8 * f2 * f1 + 0.15 * streak;
     erodeN = f1 * 0.55 + fb * 0.45;
-    hot = sat(tongue) * 0.25 * (1.0 - cool);
+    hot = sat(tongue) * 0.08 * (1.0 - cool);
   } else if (look == 2) {
     // ice: crystalline cells, bright fracture lines, per-cell facet shading and glints; cells vanish whole (shatter)
     vec3 vo = voronoi(vec2(s, xm * 1.6) * ns * 7.0 + seed * 13.0);
@@ -168,8 +168,11 @@ const FRAG_BODY = /* glsl */ `
   float brush = smoothstep(dryT + le * 0.25 - 0.07, dryT + le * 0.25 + 0.07, bristle);
   // (the bristles carry the trailing half at part strength instead of a smooth falloff)
   if (xe <= 0.0) dens = mix(dens, max(dens, 0.5 * smoothstep(0.02, 0.3, inner)) * brush, vQ.y);
-  float line = exp(-(xe * xe) / (edgeW * edgeW));
-  float hone = exp(-(xe * xe) / (edgeW * edgeW * 0.07));
+  // the hot line rides the true cutting edge; flame tongues pushed out past it are body (mid colour), not edge: a
+  // whole licking band at core values is a white-yellow sheet under ACES and bloom
+  float xl = look == 1 ? x : xe;
+  float line = exp(-(xl * xl) / (edgeW * edgeW));
+  float hone = exp(-(xl * xl) / (edgeW * edgeW * 0.07));
   // erosion: rises with local age; the inside and the tips go first, the edge last
   float th = mix(-0.2, 1.08, pow(le, 1.25)) + (1.0 - prof) * 0.25;
   float resist = erodeN * 0.62 + edgeness * 0.28 + line * 0.15;
@@ -178,12 +181,13 @@ const FRAG_BODY = /* glsl */ `
   // the body starts at the saturated mid colour and cools to the tail; only the edge line and the head are hot
   // (the body sits on the saturated mid from birth: a large area at core values whitens under ACES and bloom)
   // the edge cools too, so the last fragments of an eroding arc are embers and smoke, not a glowing lace
-  float k = 0.42 + cool * 0.62 + (1.0 - edgeness) * 0.26 - line * 0.4 * (1.0 - 0.75 * cool) - smear * 0.36 - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
+  // (the sweep smear heats the honed edge only: a whole band at core values is a white sheet under ACES and bloom)
+  float k = (look == 1 ? 0.6 : 0.52) + cool * 0.6 + (1.0 - edgeness) * 0.3 - line * 0.42 * (1.0 - 0.75 * cool) - smear * 0.3 * edgeness - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
   rgb += vCore.rgb * line * (1.0 - cool) * (1.0 - cool * 0.5) * flick;
   // the honed core: a hair-thin, near-white line riding the cutting edge while the stroke is fresh
   rgb += (vCore.rgb * 0.55 + vec3(dot(vCore.rgb, vec3(0.3333)) * 0.75)) * hone * (1.0 - cool) * (1.0 - cool) * flick;
-  rgb += vCore.rgb * smear * (0.15 + 0.6 * edgeness);
+  rgb += vCore.rgb * smear * (0.04 + 0.4 * edgeness * edgeness);
   float dissolveEdge = (1.0 - smoothstep(th, th + 0.1, resist)) * vis;
   // burning rims on the dissolve edge while hot; cooled parts break up as dark matter, not as glowing confetti
   rgb += mix(vCore.rgb, vMid.rgb, sat(cool * 1.5)) * dissolveEdge * (look == 1 ? 0.6 : look == 2 ? 1.0 : 0.35) * (1.0 - le) * (1.0 - le) * (1.0 - 0.85 * sat(cool));
@@ -231,7 +235,8 @@ void main() {
   float bell = exp(-bx * bx);
   float n = texture2D(uFlow, vec2(u * arcLen * 0.6 - age, x * 0.5 + vC.z)).r;
   float env = (1.0 - le) * (1.0 - le) * reveal * smoothstep(0.0, 0.3, vP.x);
-  gl_FragColor = vec4(vRad * bell * env * vP.y * (0.6 + 0.8 * n) * vfxVisible(0.3), 0.0, 0.0);
+  vec2 o = vRad * bell * env * vP.y * (0.6 + 0.8 * n);
+  gl_FragColor = vec4(o * vfxRefract(o, 0.3), 0.0, 0.0);
 }`;
 
 /**

@@ -88,7 +88,7 @@ void main() {
     o = -dirS * m * 2.0 * vK.y;
   }
   // whatever stands in front of the refraction (a fighter before a heat column) is left alone
-  gl_FragColor = vec4(o * vfxVisible(0.3), 0.0, 0.0);
+  gl_FragColor = vec4(o * vfxRefract(o, 0.3), 0.0, 0.0);
 }`;
 
 /**

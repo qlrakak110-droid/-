@@ -368,7 +368,7 @@ const FRAG_SURFACE = /* glsl */ `
           edAniso = uAniso.z;
           diffuseColor.rgb *= (0.62 + 0.76 * edA.r) * mix(0.7, 1.0, edB.a);
           edAO = mix(0.6, 1.0, smoothstep(0.0, 0.18, vGlow.y)) * mix(0.75, 1.0, edB.a);
-          edSpecAdd = clamp(diffuseColor.rgb * 4.0 + 0.02, 0.0, 0.2);
+          edSpecAdd = clamp(diffuseColor.rgb * 2.0 + 0.01, 0.0, 0.1) * edB.a;
           edSheenC = clamp(diffuseColor.rgb * 2.0 + 0.008, 0.0, 0.2) * uSheen.x;
           edSheenR = 0.4;
           edA = vec4(0.5, 0.5, 0.0, 0.5); edB.b = 1.0;
@@ -571,7 +571,7 @@ const FRAG_SURFACE = /* glsl */ `
     edPolish = clamp(uFinish.w * isMetal * (0.4 + 0.6 * smooth_) * (1.0 - grime) * (1.0 - frost) * (1.0 - dust) + wear * isMetal * 0.4, 0.0, 1.0) * (1.0 - 0.8 * edHard);
     if (edLacq) edPolish = max(edPolish, uUnder.a * (0.55 + 0.45 * smooth_) * (1.0 - grime * 0.8) * (1.0 - wear) * (1.0 - edThread) * (1.0 - dust));
     if (edSi == 20) edPolish = max(edPolish, 0.8 * (1.0 - grime));
-    if (edSi == 15) edPolish = max(edPolish, 0.25 * (1.0 - edB.a) * (1.0 - grime));
+    if (edSi == 15) edPolish = max(edPolish, 0.08 * (1.0 - edB.a) * (1.0 - grime));
     // brushed anisotropy: polish lines around the limbs (highlights stretch along them); fresh wear is polished along
     // the edge (highlights stretch across it)
     if (!edUvT && !edFab) {
@@ -596,7 +596,7 @@ const FRAG_SURFACE = /* glsl */ `
         edAniso = uAniso.w * (1.0 - edChar);
         edSheenR = 0.42;
         edSheenC *= 0.6;
-        edSpecAdd = clamp(base * 2.2 + 0.015, 0.0, 0.16) * uSheen.w * (1.0 + 1.2 * fig) * (1.0 - grime) * (1.0 - edChar);
+        edSpecAdd = clamp(base * 1.6 + 0.008, 0.0, 0.09) * uSheen.w * (1.0 + 1.2 * fig) * (1.0 - grime) * (1.0 - edChar);
       }
     }
     if (edSi == 4) { edSheenC = vec3(0.035) * uSheen.z * (1.0 - grime); edSheenR = 0.35; }

@@ -1,9 +1,11 @@
 // Default progression of the RPG mode (README §12). Replaced by src/rpg/progress.js when the HUD team ships one.
-// Four stats: 생명력 Vigor (HP), 지구력 Endurance (stamina), 완력 Might (physical damage), 비전 Arcana (FP + skill /
-// ultimate damage). State is saved per hero in localStorage (inside try / catch: blocked storage only loses progress).
+// Four stats (code names; shown per MURIM.md §6): vigor 근골 (HP), endurance 기식 (stamina), might 외공 (physical
+// damage), arcana 내공 (FP + skill / ultimate damage). `rank(level)` gives the 경지 title of a level. State is saved per hero in localStorage (inside try / catch: blocked storage only loses progress).
 
 const KEY = 'ed.rpg.';
 export const STATS = ['vigor', 'endurance', 'might', 'arcana'];
+/** 경지 titles by level (MURIM.md §6). */
+const RANKS = [[1, '삼류'], [4, '이류'], [8, '일류'], [13, '절정'], [19, '초절정'], [26, '화경'], [34, '현경']];
 
 const fresh = () => ({ level: 1, stats: { vigor: 0, endurance: 0, might: 0, arcana: 0 }, shards: 0, dropped: null, cycle: 0 });
 
@@ -47,6 +49,8 @@ export const defaultProgress = {
       chaliceHeal: Math.round(hpMax * 0.42),
     };
   },
+  /** 경지 title of a level. */
+  rank(level) { let r = RANKS[0][1]; for (const [lv, name] of RANKS) if (level >= lv) r = name; return r; },
   /** Shards the next level costs. */
   cost(level) { return Math.round(90 * Math.pow(1.14, Math.max(0, level - 1))); },
   /** Spend shards and raise a stat. */

@@ -27,11 +27,13 @@ const lifting = (pos) => G(pos, dir(-120, 72));
 // ---- the forehand diagonal plane (light1 cuts down it, light2's back-edge cut climbs back up it) -----------------
 const DIAG = plane([-0.8, 0.5, 0.32], [0.25, 0.8, 0.55]);       // 0 = behind the right shoulder ... 130 = front ... 200 = low left
 
-// link pose: light1's follow-through = light2's start (blade low left, hips turned through, weight on the front foot)
+// link pose: light1's follow-through = light2's start (blade low left, hips turned through, weight on the front foot).
+// The point stops a hand above the floor (hand height 0.84, blade 30 deg below level: DIAG(180)); it must not sink
+// into it: the cut "bites the floor line", it does not bury a third of the blade.
 definePose('kael.l1end', {
-  hips: { pos: [0.075, -0.17, -0.02], rot: [-3, 26, -4] },
-  bones: { spine: [-3, 9, -12], chest: [-4, 10, -9], neck: [0, -10, 6], head: [0, -14, 8] },
-  ik: { handR: H([0.44, 0.84, -0.2], DIAG(200)), footL: FEET.footL, footR: { pos: [FR[0] + 0.03, 0.02, FR[2] - 0.01], rot: [0, -16, -16] } },
+  hips: { pos: [0.08, -0.18, -0.02], rot: [-3, 27, -4] },
+  bones: { spine: [-3, 9, -13], chest: [-4, 10, -10], neck: [0, -10, 6], head: [0, -14, 8] },
+  ik: { handR: H([0.46, 0.84, -0.2], DIAG(180)), footL: FEET.footL, footR: { pos: [FR[0] + 0.03, 0.02, FR[2] - 0.01], rot: [0, -16, -16] } },
   grip: 1, curl: [1, 1],
 });
 // link pose: light2's follow-through = light3's start (blade cocked high behind the right shoulder)
@@ -43,31 +45,59 @@ definePose('kael.l2end', {
 });
 
 // ---- light1 · Ash Cleave (0.42; active 0.14-0.19) ---------------------------------------------------------------
+// The reference clip of src/fighters/MOTION.md ("Worked examples"). Beats on the move clock (frames at 60 fps):
+//   0-3   sink + coil: the weight drops onto the rear leg, hips wind 14 deg further, the blade lifts off the shoulder,
+//         the front foot unweights (heel first) for the stamp
+//   3-5   hang: the hips already unwind while the blade still travels back and up (the lag that loads the cut)
+//   5-8   the cut: hips -> chest -> shoulder -> arms -> blade, 115 deg of arc in 3 frames; the front foot stamps down one
+//         frame before the edge arrives and the body drops into it
+//   8-10  kime: full extension held (the frame the hit-stop lands on), only 6 deg of blade travel
+//   10-14 follow-through: the mass of the blade pulls the chest down and round, the rear heel peels off the floor,
+//         the point stops a hand above the floor (kael.l1end)
+//   14-18 a beat of weight on the front leg
+//   18-25 the haul: the hips rise and turn back first, the blade is dragged up after them onto the shoulder
 defineClip('kael.light1', {
   duration: 0.42, breath: 0.3,
-  keys: [
+  keys: sorted([
     { t: 0, ...stance() },
-    // wind-up: the blade lifts off the shoulder and cocks back, hips coil, weight settles on the back foot
-    { t: 0.07, ease: 'outCubic', hips: { pos: [-0.08, -0.115, 0.015], rot: [2, -36, 1] }, bones: { spine: [1, -8, 3], chest: [2, -12, 5], neck: [0, 18, -2], head: [0, 23, -4] },
-      ik: { handR: H([0.06, 1.55, 0.27], DIAG(-14)) } },
-    // hang: the hips already unwind while the blade still drifts back (lag)
-    { t: 0.1, ease: 'inOutSine', hips: { pos: [-0.05, -0.125, 0.01], rot: [1, -24, 0] }, bones: { spine: [0, -4, 0], chest: [1, -8, 2] },
-      ik: { handR: H([0.12, 1.66, 0.26], DIAG(8)) } },
-    // smear over the right side
-    { t: 0.12, ik: { handR: H([0.38, 1.66, 0.2], DIAG(68)) } },
-    // impact: arms extended at chest height, weight onto the front foot, hips past square
-    { t: 0.14, hips: { pos: [0.04, -0.155, -0.005], rot: [-2, 6, -2] }, bones: { spine: [-2, 5, -9], chest: [-3, 7, -8], neck: [0, -2, 4], head: [0, -4, 6] },
-      ik: { handR: H([0.66, 1.22, 0.06], DIAG(130)) } },
-    { t: 0.19, hips: { pos: [0.07, -0.168, -0.015], rot: [-3, 20, -3] }, ik: { handR: H([0.58, 0.94, -0.12], DIAG(170)), footR: { pos: [FR[0] + 0.02, 0.015, FR[2] - 0.01], rot: [0, -22, -12] } } },
-    // follow-through into the link pose (overshoot), then a beat of weight
-    { t: 0.24, ease: 'outQuad', pose: 'kael.l1end' },
-    { t: 0.3, ease: 'inOutSine', hips: { pos: [0.07, -0.165, -0.02], rot: [-3, 24, -3] }, ik: { handR: H([0.45, 0.86, -0.19], DIAG(197)) } },
-    // settle: the blade rises in front of the body and drops back onto the shoulder
-    { t: 0.36, ease: 'inOutSine', hips: { pos: [0.01, -0.14, 0], rot: [0, -8, 0] }, bones: { spine: [0, -2, -5], chest: [0, -3, -4], neck: [0, 6, 2], head: [0, 9, 0] },
-      ik: { handR: lifting([0.32, 1.2, 0.18]), footR: FEET.footR } },
-    { ...home(0.42) },
-  ],
-  events: ev([[0.08, 'trailOn'], ...impact(0.14), [0.23, 'trailOff']]),
+    // sink + coil (ease out: fast start, soft arrival)
+    { t: 0.05, ease: 'outCubic', hips: { pos: [-0.09, -0.155, 0.02], rot: [2, -38, 1] },
+      bones: { spine: [1, -8, 4], chest: [2, -13, 6], neck: [0, 18, -2], head: [0, 24, -4], shoulderR: [0, -12, 0] },
+      ik: { handR: H([0.04, 1.5, 0.28], DIAG(-10)) } },
+    // hang: the hips lead, the blade lags
+    { t: 0.085, ease: 'inOutSine', hips: { pos: [-0.06, -0.15, 0.015], rot: [1, -26, 0] }, bones: { spine: [0, -5, 1], chest: [1, -10, 3], shoulderR: [0, -8, 0] },
+      ik: { handR: H([0.1, 1.66, 0.27], DIAG(6)) } },
+    // smear over the right side (an arc-steering key: the hand travels over the top, not through the head)
+    { t: 0.117, hips: { pos: [-0.005, -0.165, 0.005], rot: [0, -9, -1] }, bones: { spine: [-1, 1, -4], chest: [-1, 0, -3], shoulderR: [0, 6, 0] },
+      ik: { handR: H([0.34, 1.5, 0.2], DIAG(70)) } },
+    // impact: hands at the solar plexus, the point at the foe's chest (the blade continues the forearms: a cut the wrists
+    // can hold; higher hands with a level blade made the wrist clamp and the blade rode 30 deg off its key), the weight
+    // dropped onto the stamping front foot, hips past square
+    { t: 0.14, hips: { pos: [0.05, -0.19, -0.005], rot: [-2, 8, -2] },
+      bones: { spine: [-2, 5, -10], chest: [-3, 8, -9], neck: [0, -2, 4], head: [0, -4, 6], shoulderR: [0, 16, 0] },
+      ik: { handR: H([0.6, 1.0, 0.02], DIAG(124)) } },
+    // kime: two frames of full extension
+    { t: 0.167, ease: 'outQuad', hips: { pos: [0.06, -0.195, -0.01], rot: [-2, 12, -2] }, bones: { spine: [-2, 6, -11], chest: [-3, 9, -10] },
+      ik: { handR: H([0.61, 0.97, 0.0], DIAG(130)) } },
+    // follow-through: the blade's mass carries on down the diagonal, the rear heel peels
+    { t: 0.2, ease: 'inQuad', hips: { pos: [0.075, -0.188, -0.015], rot: [-3, 22, -3] }, bones: { spine: [-3, 8, -12], chest: [-4, 10, -10], shoulderR: [0, 12, 0] },
+      ik: { handR: H([0.58, 0.95, -0.13], DIAG(166)), footR: { pos: [FR[0] + 0.02, 0.015, FR[2] - 0.01], rot: [0, -22, -12] } } },
+    { t: 0.24, ease: 'outQuad', pose: 'kael.l1end', bones: { shoulderR: [0, 10, 0] } },
+    // a beat of weight
+    { t: 0.3, ease: 'inOutSine', hips: { pos: [0.075, -0.172, -0.02], rot: [-3, 25, -3] }, ik: { handR: H([0.455, 0.86, -0.19], DIAG(178)) } },
+    // the haul: hips first, the blade dragged up in front of the body after them
+    { t: 0.36, ease: 'inOutSine', hips: { pos: [0.005, -0.138, 0], rot: [0, -8, 0] }, bones: { spine: [0, -2, -6], chest: [0, -3, -5], neck: [0, 6, 2], head: [0, 9, 0], shoulderR: [0, 2, 0] },
+      ik: { handR: lifting([0.33, 1.18, 0.18]), footR: FEET.footR } },
+    { ...home(0.42), bones: { ...STANCE_BODY.bones, shoulderR: [0, 0, 0] } },
+    // the stamp: the front foot unweights with the coil (heel up), then slams down a frame before the impact
+    { t: 0, ik: { footL: FEET.footL } },
+    { t: 0.06, ease: 'outQuad', ik: { footL: { pos: [FL[0] - 0.01, 0.045, FL[2]], rot: [0, YAW_L, -9] } } },
+    { t: 0.125, ease: 'inQuad', ik: { footL: { pos: [FL[0] + 0.02, 0, FL[2]], rot: [0, YAW_L, 0] } } },
+    { t: 0.3, ik: { footL: { pos: [FL[0] + 0.02, 0, FL[2]], rot: [0, YAW_L, 0] } } },
+    { t: 0.36, ease: 'outQuad', ik: { footL: { pos: [FL[0] + 0.01, 0.02, FL[2]], rot: [0, YAW_L, -3] } } },
+    { t: 0.42, ease: 'inQuad', ik: { footL: FEET.footL } },
+  ]),
+  events: ev([[0.08, 'trailOn'], [0.125, 'step', { foot: 'footL' }], ...impact(0.14), [0.23, 'trailOff']]),
 });
 
 // ---- light2 · Back Edge (0.46; active 0.13-0.18; steps 0.25 m in 0-0.1) -------------------------------------------

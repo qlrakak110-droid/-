@@ -184,7 +184,7 @@ export function registerBuiltinKinds(reg) {
   }
   const husk = {
     team: 'foe',
-    name: { ko: '폐허의 허물', en: 'Ruin Husk' },
+    name: { ko: '흑일교 무사', en: 'Black Sun Cultist' },
     stats: { hp: 230, poise: 0, radius: 0.44, height: 1.9, scale: 1, mass: 1, walk: 1.5, run: 3.1, turn: 300, shards: 28, stamina: 60 },
     design: huskDesign('rpg-husk'),
     clips: HUSK_CLIPS,
@@ -195,7 +195,7 @@ export function registerBuiltinKinds(reg) {
   reg.actor('husk', husk);
   reg.actor('husk.elite', {
     ...husk,
-    name: { ko: '폐허의 감시자', en: 'Ruin Warder' },
+    name: { ko: '흑일교 호법', en: 'Black Sun Protector' },
     elite: true,
     stats: { ...husk.stats, hp: 620, poise: 70, scale: 1.28, radius: 0.56, height: 2.4, mass: 2.2, walk: 1.3, run: 2.6, turn: 240, shards: 110 },
     design: huskDesign('rpg-husk-elite', 0xc9b79a, [3.2, 0.7, 0.3]),
@@ -204,7 +204,7 @@ export function registerBuiltinKinds(reg) {
   });
   reg.actor('standin.boss', {
     ...husk,
-    name: { ko: '일식의 거상 (대역)', en: 'The Eclipse Colossus (stand-in)' },
+    name: { ko: '흑일마신상 (대역)', en: 'The Black Sun Idol (stand-in)' },
     boss: true, budget: 'boss', lockable: false,
     stats: { ...husk.stats, hp: 5200, poise: 420, scale: 3.6, radius: 1.5, height: 6.8, mass: 60, walk: 1.6, run: 2.6, turn: 110, shards: 900 },
     design: huskDesign('rpg-standin-boss', 0x8d8fa8, [1.2, 2.2, 6]),
@@ -216,7 +216,7 @@ export function registerBuiltinKinds(reg) {
   });
   reg.actor('dummy', {
     team: 'neutral',
-    name: { ko: '수련용 허물', en: 'Training Husk' },
+    name: { ko: '수련 목인', en: 'Training Figure' },
     stats: { hp: 4000, poise: 0, radius: 0.44, height: 1.9, scale: 1, mass: 1.2, walk: 0, run: 0, turn: 0, shards: 0 },
     design: huskDesign('rpg-dummy', 0xb9c2d6, [0.4, 1.4, 2.6]),
     clips: HUSK_CLIPS,
@@ -242,10 +242,10 @@ export function registerBuiltinKinds(reg) {
 
 /** The core's stand-in encounters (replaced as soon as a plug-in registers its own). */
 export function registerBuiltinEncounters(reg) {
-  reg.encounter({ id: 'standin.husks', order: 10, title: { ko: '폐허의 허물들', en: 'RUIN HUSKS' },
+  reg.encounter({ id: 'standin.husks', order: 10, title: { ko: '흑일교 무사들', en: 'BLACK SUN CULTISTS' },
     spawns: [{ kind: 'husk', x: 3.5, z: -3.2 }, { kind: 'husk', x: 5.5, z: 0.4, delay: 0.3 }, { kind: 'husk', x: 3.8, z: 3.6, delay: 0.6 }] });
-  reg.encounter({ id: 'standin.pack', order: 20, title: { ko: '감시자의 무리', en: 'THE WARDER\'S PACK' },
+  reg.encounter({ id: 'standin.pack', order: 20, title: { ko: '호법과 그 무리', en: 'THE PROTECTOR\'S BAND' },
     spawns: [{ kind: 'husk.elite', x: 6, z: 0 }, { kind: 'husk', x: 4.5, z: -3.5, delay: 0.3 }, { kind: 'husk', x: 4.5, z: 3.5, delay: 0.5 }] });
-  reg.encounter({ id: 'standin.boss', order: 100, boss: true, title: { ko: '일식의 거상', en: 'THE ECLIPSE COLOSSUS' },
+  reg.encounter({ id: 'standin.boss', order: 100, boss: true, title: { ko: '흑일마신상 黑日魔神像', en: 'THE BLACK SUN IDOL' },
     spawns: [{ kind: 'standin.boss', x: 7.5, z: 0 }] });
 }

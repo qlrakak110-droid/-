@@ -1,5 +1,12 @@
 // Pooled point lights. The pool (ctx.quality.maxLights PointLights) is added to the scene once at start-up and never
 // changes size, so lit shaders never recompile; idle lights sit at intensity 0. vfx.light() borrows the weakest light.
+//
+// Fog link. The post fog draws a glow around the scene's strongest point lights (airlight). An event light is NOT where
+// the effect is: it sits ~1.5 m toward the camera so it rims the fighters without whiting them out, and it is 5-20x
+// brighter than a brazier. Picked up as it is, every hit hangs a white ball of lit mist in front of the fight. So this
+// module hands the fog its light list itself (ctx.post.fogLights): the environment's point lights as they are, the
+// pooled lights at `fog.vfxScale` of their intensity, with a wide core radius, pulled back toward the fight plane
+// (z * fog.pullZ). vfx.lights.fog.enabled = false returns the choice to the post module (post.fogLights(null)).
 
 import * as THREE from 'three';
 import { toVec3, toColor, toCurveFn } from './util.js';
@@ -22,6 +29,55 @@ export function installLights(vfx, shared) {
   }
   let serial = 1;
   const col = new THREE.Color();
+
+  // ---- fog link (see the header) ------------------------------------------------------------------------------------
+  const post = ctx.post;
+  const fog = { enabled: !!(post && post.fogLights && post.features && post.features.fog), vfxScale: 0.16, radius: 0.95, pullZ: 0.35, envRadius: 0.35 };
+  const FOGN = 4;
+  const fogList = [];
+  for (let i = 0; i < FOGN; i++) fogList.push({ pos: new THREE.Vector3(0, -100, 0), color: [0, 0, 0], intensity: 0, radius: 0.35 });
+  const envLights = [];
+  const fogPick = new Array(FOGN).fill(null), fogW = new Float64Array(FOGN);
+  let fogScan = -1e9, fogFrame = 0, fogOn = false;
+  const isOurs = (o) => { for (; o; o = o.parent) if (o === root) return true; return false; };
+  const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+  function updateFog() {
+    if (!fog.enabled) { if (fogOn) { post.fogLights(null); fogOn = false; } return; }
+    if (!fogOn) { post.fogLights(fogList); fogOn = true; }
+    if (++fogFrame - fogScan > 120) {
+      envLights.length = 0;
+      ctx.scene.traverse((o) => { if (o.isPointLight && !isOurs(o)) envLights.push(o); });
+      fogScan = fogFrame;
+    }
+    for (let i = 0; i < FOGN; i++) { fogPick[i] = null; fogW[i] = 0; }
+    const offer = (l, w) => {
+      for (let i = 0; i < FOGN; i++) {
+        if (w > fogW[i]) {
+          for (let k = FOGN - 1; k > i; k--) { fogPick[k] = fogPick[k - 1]; fogW[k] = fogW[k - 1]; }
+          fogPick[i] = l; fogW[i] = w;
+          return;
+        }
+      }
+    };
+    for (let j = 0; j < envLights.length; j++) {
+      const l = envLights[j], w = l.intensity * Math.max(l.color.r, l.color.g, l.color.b);
+      if (w > 0.01 && shown(l)) offer(l, w);
+    }
+    for (let j = 0; j < pool.length; j++) {
+      const l = pool[j].light, w = l.intensity * fog.vfxScale;
+      if (w > 0.01) offer(l, w);
+    }
+    for (let i = 0; i < FOGN; i++) {
+      const l = fogPick[i], e = fogList[i];
+      if (!l) { e.intensity = 0; e.pos.set(0, -100, 0); continue; }
+      const ours = l.parent === root;
+      e.pos.setFromMatrixPosition(l.matrixWorld);
+      if (ours) { e.pos.copy(l.position); e.pos.z *= fog.pullZ; }
+      e.color[0] = l.color.r; e.color[1] = l.color.g; e.color[2] = l.color.b;
+      e.intensity = l.intensity * (ours ? fog.vfxScale : 1);
+      e.radius = ours ? fog.radius : fog.envRadius;
+    }
+  }
 
   /**
    * Flash a pooled point light.
@@ -105,15 +161,16 @@ export function installLights(vfx, shared) {
 
   return {
     name: 'lights',
-    api: { light, lights: { pool } },
+    api: { light, lights: { pool, fog } },
     update() {
       for (const s of pool) {
         if (!s.active) continue;
         place(s);
         evaluate(s);
       }
+      updateFog();
     },
     clear() { for (const s of pool) { s.active = false; s.cur = 0; s.light.intensity = 0; } },
-    dispose() { for (const s of pool) s.light.removeFromParent(); },
+    dispose() { if (fogOn) post.fogLights(null); for (const s of pool) s.light.removeFromParent(); },
   };
 }

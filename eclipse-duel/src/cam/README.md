@@ -1,16 +1,19 @@
 # src/cam — camera director
 
-Fight framing, trauma shake / kicks / zoom, a cinematic shot sequencer with a reusable shot vocabulary, and the
-letterbox. One object, `ctx.cam`, updated once per frame at `ctx.ORDER.CAM` (after GAME / CHAR / VFX, before ENV /
-UI / POST). The director writes `ctx.camera` (position, quaternion, fov) and calls `camera.updateMatrixWorld()`, so
-anything later in the frame (`post.radialAt`, UI projections) sees this frame's camera.
+Fight framing, trauma shake / kicks / zoom, a cinematic shot sequencer with a reusable shot vocabulary, the
+cinematic lens (auto-focus depth of field, focus breathing, exposure hints, whip-pan blur) and the letterbox. One
+object, `ctx.cam`, updated once per frame at `ctx.ORDER.CAM` (after GAME / CHAR / VFX, before ENV / UI / POST). The
+director writes `ctx.camera` (position, quaternion, fov) and calls `camera.updateMatrixWorld()`, so anything later in
+the frame (`post.radialAt`, UI projections) sees this frame's camera. Art direction: `MURIM.md` (wuxia flourishes on
+cinematic shots: low sweeps, the held duel frame with the eclipse between the masters, push-ins on a drawn blade).
 
 ```
 src/cam/index.js      createCameraDirector(ctx) -> ctx.cam       (public API)
 src/cam/framing.js    fight rig: analytic two-shot solve, springs, walls
-src/cam/sequencer.js  cinematic shots: frames, keys, cues, transitions
-src/cam/shots.js      shot vocabulary (12 parameterised builders)
-src/cam/shake.js      trauma shake, impulse kicks, handheld drift (real time)
+src/cam/sequencer.js  cinematic shots: frames, keys, cues, transitions, late-bound shots
+src/cam/shots.js      shot vocabulary (16 parameterised builders + the duelIntro sequence)
+src/cam/lens.js       cinematic lens: depth of field, focus breathing, tone hints, whip / crash blur (through ctx.post)
+src/cam/shake.js      trauma shake, impulse kicks, handheld drift + operator micro-motion (real time)
 src/cam/pose.js       Pose, critically damped springs, point sources, orientation
 src/labs/cam.js       lab: dummy fighters + scenarios (node tools/build.mjs cam)
 ```
@@ -19,9 +22,11 @@ Clocks: framing, shake, kicks, zoom, letterbox and every **blend** run on **real
 hit-stop and slow-motion). Shot timelines run on **game time** by default (they stay in sync with the choreography and
 freeze with hit-stop); set `clock: 'real'` on a shot (or the whole sequence) to override, e.g. for a super-freeze.
 Determinism: no `Math.random()`; the shake noise is seeded (`createCameraDirector(ctx, { seed })`).
-Cost: ~25 µs CPU per frame, no per-frame allocations, no draw calls. Every filter is dt-exact (critically damped
-springs, phase-accumulated noise, exponential velocity smoothing), so a dropped frame (dt 1/30) follows the same
-path as two 1/60 frames (lab check: within 3 cm in calm motion, within one frame of motion in launches / impacts).
+Cost: ~30 µs CPU per frame, no per-frame allocations, no draw calls or shader programs of its own (the lens only
+switches existing post passes on: see "Cinematic lens"). Every filter is dt-exact (critically damped springs,
+phase-accumulated noise, exponential velocity smoothing), so a dropped frame (dt 1/30) follows the same path as two
+1/60 frames (lab check: within 3 cm in calm motion, within one frame of motion in launches / impacts).
+URL flag `#camfx=0`: the plain camera (no lens, no operator micro-motion, no hit zoom) for A/B checks.
 
 ---
 
@@ -90,11 +95,15 @@ cam.setTargets(p1.sockets.chest, p2.sockets.chest);
 | `setMode('free' \| 'fight', blend = 0.5)` | `'free'`: stop writing `ctx.camera` (photo mode, lab orbit) while still computing `state`; leaving `'free'` blends from wherever the camera was |
 | `snap()` | jump the fight framing to its ideal now (round start, teleport reset) — treated as a cut |
 | `clearFx()` | stop all shakes, kicks and zoom (round reset) |
-| `state` | last frame, read-only: `{mode, shot, pos, quat, look, fov, roll, blend, cut}` (`cut` true on a hard-cut frame) |
+| `state` | last frame, read-only: `{mode, shot, pos, quat, look, fov, roll, blend, cut, focus, aperture}` (`cut` true on a hard-cut frame; `focus` m / `aperture` of the lens) |
 | `limits` | safety limits for every camera: `{minZ: 0.5, minY: 0.12, knee: 0.4}` (soft floors, then hard clamps after shake) |
 | `shakeSettings` | amplitudes at trauma 1 + global `scale` (accessibility "reduce shake": set `scale` 0..1) |
-| `debug` | `{rig, shake, base}`: fight-rig readout, last shake sample, pre-shake pose |
-| `dispose()` | remove the per-frame update |
+| `lens` | the cinematic lens: `lens.settings` (live, table in "Cinematic lens") and `lens.info` (this frame: `{focus, aperture, range, near, exposure, vignette, blur, breathe, dof}`) |
+| `cine` | cinematic defaults (live): `{handheld: 0.2}` = handheld amount of shots that do not set one |
+| `shots` | the shot vocabulary (`shots.js`) on the director, for data-driven choreography and tests: `cam.play([cam.shots.lowSweep()])` |
+| `sun` | optional `Vector3` toward the eclipse for sun-aware shots (`duelStandoff`); default `ctx.env.sunDir` |
+| `debug` | `{rig, shake, base, seqShot()}`: fight-rig readout, last shake sample, pre-shake pose, the normalised shot on screen |
+| `dispose()` | remove the per-frame update and return every post value the lens offset |
 
 Events: `ctx.events.emit('cam:cine', true | false)` when a sequence starts / ends; `play` also calls
 `ctx.ui.hud.cinematic(on)` when a UI is present (opt out with `hud: false`).
@@ -120,7 +129,8 @@ letterbox are part of the solve (Hor+: ultra-wide shows more width, portrait / 1
 | `parallax` | 0.16 | frac | the dolly x trails the aim toward the arena centre → slight yaw toward the fighters |
 | `bounds`, `overscan`, `camInset` | `{minX -9, maxX 9}`, 1.6, 1.2 | m | arena limits (taken from `ctx.env.bounds` when present); the frame may run at most `overscan` past a wall; dolly x stays `camInset` inside |
 | `aspectRef` / `aspectFov` | 1.5 / 16 | – / deg | below this aspect, fov widens by `aspectFov` per unit of aspect |
-| `breathe` | 0.12 | – | handheld drift amount in fight mode (0 = locked off) |
+| `breathe` | 0.12 | – | handheld drift amount in fight mode (0 = locked off; the operator micro-motion of cinematic shots is never added here) |
+| `hitZoom` / `hitZoomMin` | 0.035 / 0.3 | frac / trauma | big hits only: a `cam.shake(amount)` of `hitZoomMin` or more in fight mode punches the dolly in by up to `hitZoom` (1.4 % at 0.3, 3.5 % at 1.0; 35 ms in, ~0.4 s out). The walls still keep both fighters in frame. 0 = off |
 | `lag` | `focus .2, cam .42, out .16, in .55, sep .3, rise .08, fall .45, land .08, lift .25, pan .35, panPush .1, fov .6` | s | spring smooth times: aim, dolly x, pull-out (fast), push-in (slow), separation, head line up/down, floor line up/down, vertical pan relax/push, fov |
 
 ### Shake — `cam.shake(amount, opts)`
@@ -200,38 +210,158 @@ the destination with a C2 smootherstep, so blends are continuous from any state 
 | `kick` | – | kick opts + `at` \| array; `roll` / `offset` mirror |
 | `slowmo` | – | number (scale for the whole shot) \| `{ scale, at, dur (shot seconds), easeIn = 0.08, easeOut = 0.18 }`. Requests `ctx.time.slowmo` sized so the ease-out lands at the end of the span on a game clock; cancelled when the shot ends |
 | `letterbox` | – | `true` / `false` / 0..1 / `{ amount, dur }` at shot start (restored after the sequence unless `keepLetterbox`) |
-| `handheld` | 0 | slow rotational drift (1 ≈ 0.6° yaw); blends across shots |
+| `handheld` | 0.2 (`cam.cine.handheld`) | slow rotational drift (1 ≈ 0.6° yaw) plus, on cinematic shots only, the operator's micro-motion: a faint 2.3 Hz tremor (0.12° at 1), a few centimetres of body sway (real parallax) and a slow lens respiration (±0.5 % fov at 1). Blends across shots; 0 = locked off |
+| `dof` | auto | depth of field of the shot (table in "Cinematic lens"): `false` = none, a number = aperture, `{ focus, aperture, gain, range, near, pull, protect }` |
+| `tone` | auto lift | exposure hint: `false` = none, a number = exposure offset, `{ exposure, vignette, auto }` (additive on `post.fx`) |
+| `blur` | 1 (0.3 with `follow: true`) | scale of the whip-pan / crash-zoom blur of this shot (`false` / 0 = none) |
+| `breathe` | 1 | focus-breathing scale of this shot |
+| `grade`, `gradeDur` | –, 0.5 s | `post.grade` preset name or params applied when the shot starts; the baseline grade returns when the sequence ends (`grade: false` returns it at this shot) |
+| `name` | – | label (the vocabulary builders set their own name); shown by the lab's `#lens` readout |
+
+**Late-bound shots.** An entry of the shot list may be a function `(c) => shot`: the sequencer calls it when that shot
+starts (one normalisation at the shot change, nothing per frame) with the live context `c = { facing (+1 / -1), aspect
+(viewport), sun (unit Vector3 toward the eclipse), anchor, target, mid (chest points, Vector3), sep (m), index, count }`.
+Use it for shots that frame world things or depend on where the fighters stand; `duelStandoff` and `lowSweep` are built
+this way (pass options to the builder; do not spread its result). To cancel the sequencer's mirroring for a world-fixed
+offset `dx`, author `f = dx * c.facing`.
 
 Safety for every shot: the camera position is eased above `z = limits.minZ` and `y = limits.minY` (soft knee, then a
 hard clamp after shake). Near-vertical views keep a stable screen-up (−Z looking down, +Z looking up), so a crane from
 side-on to top-down never flips.
 
+
+---
+
+## Cinematic lens — `src/cam/lens.js` (`cam.lens`)
+
+Runs only while a cinematic shot is on screen (`cam.play`); fight framing keeps depth of field, tone hints, breathing
+and blur **off** (readability first). Everything is real-time, dt-exact, snaps on hard cuts and eases on blends.
+
+### Depth of field (`shot.dof`)
+
+The director is the focus puller: each frame it measures the focus distance along the view axis, smooths it (a focus
+pull), and drives `post.dof` with the distance, the sharp range and the aperture. On the hand-back to fight framing the
+aperture closes in ~0.3 s and `post.dof` is released.
+
+| `dof` key | default | meaning |
+|---|---|---|
+| `focus` | `'auto'` | `'auto'` / `'look'`: the aim point; `'anchor'` / `'target'`: that fighter's chest (live); `'both'` / `'mid'`: half-way between the two fighters with both inside the sharp range; a number: metres; a point source (Object3D, `() => Vector3`, Vector3, `[x,y,z]`): e.g. a weapon socket |
+| `aperture` | auto | 0..1.5 blur strength (`post.dof`). Auto: `1.1 · (tan 20° / tan(fov/2)) · 2.6 / focus`, capped at 1, times `gain`: tight framings open up, wide ones stop down |
+| `gain` | 0.7 (`lens.settings.autoGain`) | multiplier of the auto aperture |
+| `range` | `0.35 + 0.1 · focus` | m in front of / behind the focus that stay sharp |
+| `near` | 1 | foreground blur scale (0 = none; > 1 for a foreground wipe) |
+| `pull` | 0.14 s | focus pull smooth time (rack focus: change `focus` on a blended shot with `pull: 0.3`) |
+| `protect` | true | a fighter that is in frame and within `0.3 · focus + 0.5` m of the focal plane widens the sharp range to include it, so a two-shot never loses a fighter to the blur. `false` isolates the subject (over-shoulder, blade close-ups) |
+
+`dof: false` = no depth of field on the shot; a number = aperture; omitted = auto focus + auto aperture.
+
+### Tone hints (`shot.tone`, `shot.grade`)
+
+`tone: { exposure, vignette, auto }` are small **additive** offsets on `post.fx.exposure` / `vignette` for the length
+of the shot. `auto` (default on) adds the dark-angle lift: up to `lens.settings.lift` (0.11) when the view looks up
+28° or more (a master against the night sky) and `liftDown` (0.07) on near-vertical top-down views. `tone: false`
+switches the hint off; a number is an exposure offset. `grade` applies a `post.grade` preset for the sequence
+(`duelStandoff` / `duelIntro` use `'ink'`). The letterbox is untouched (still `shot.letterbox` / `cam.letterbox`).
+
+### Motion blur (`shot.blur`)
+
+Whip pans and crash zooms smear for the few frames they last, through the post radial blur: the lens follows the
+screen motion of the point the camera aimed at one frame earlier (a pan) and the change of the subject's scale (a push
+or pull), and places the radial centre so both are right (a pan alone = a centre 3 screens away = directional blur).
+Orbits, cranes and slow moves keep their subject still on screen and stay sharp. Dead zones: 0.6 % of the screen per
+1/60 s (pan), 2 % scale (zoom). Streaks are capped at `blurLen` (7 % of the screen): the post blur has 10 taps and
+longer streaks break thin HDR highlights into dots.
+
+### Focus breathing and operator micro-motion
+
+While the focus racks the fov follows it by up to ±1.5 % (3.5 % per e-fold of focus distance, relaxing in 0.9 s),
+like a real lens. The handheld layer of cinematic shots adds a tremor, body sway and a slow respiration on top of the
+drift (see `handheld`). None of it is applied in fight framing.
+
+### Settings — `cam.lens.settings` (live)
+
+| key | default | meaning |
+|---|---|---|
+| `enabled` | true | master switch (`#camfx=0` sets it false) |
+| `dof` | 1 | aperture scale (0 = never touch `post.dof`) |
+| `dofMin` | 0.12 | apertures below this keep the DOF passes off |
+| `dofMinMid` | 0.45 | on the mid tier only shots at or above this aperture (portraits, close-ups, the low sweep) pay for DOF |
+| `autoGain` | 0.7 | aperture gain of shots without a `dof` field |
+| `pull` | 0.14 s | default focus pull time |
+| `breathe` | 1 | focus breathing scale |
+| `tone` | 1 | scale of every exposure / vignette hint |
+| `lift` / `liftDown` | 0.11 / 0.07 | automatic dark-angle exposure lifts |
+| `blur` | 1 | whip / crash blur scale (0 = off) |
+| `shutter` | 0.9 | blur length in 1/60 s frames of screen motion |
+| `blurLen` | 0.07 | longest streak, fraction of the screen |
+
+### Cost per tier (60 fps plan)
+
+The lens has no passes or programs of its own; it switches post features that were compiled at boot (no mid-fight
+compiles: program counts are identical before and after a cinematic).
+
+| tier | depth of field | whip / crash blur | tone, breathing, micro-motion, hit zoom |
+|---|---|---|---|
+| low | off (post has no depth) | off | on (uniforms / camera only: free) |
+| mid | only shots with aperture ≥ 0.45: +2 half-res passes (16 taps) while such a shot is up | on: the composite's 10-tap radial branch for the 3-8 frames of a whip / crash | on |
+| high | every cinematic shot with aperture ≥ 0.12: +2 half-res passes (32 taps); `topDownSlam` never | same | on |
+
+Fight framing never pays for any of it (`__ED.info().post.dof` is false outside cinematics; the aperture tail is cut
+0.3 s after the hand-back). CPU: ~8 µs per frame for the lens, no allocations (shot normalisation happens at `play`
+/ shot changes).
+
+### Sharing the post pipeline
+
+* `post.fx.exposure / vignette / radial` are offset additively. If anything else writes one of those keys (a
+  `post.to` tween, `post.reset`, `setBaseline`), that write wins: it becomes the new base and the lens eases its
+  offset back in afterwards. `post.pulse` is unaffected (pulses add on top).
+* `post.fx.radialCenter` is moved only while the lens blur is active and put back afterwards. A `radial` pulse fired
+  during a whip pan without `post.radialAt` would streak along the pan: call `radialAt` first (the game already does).
+* `post.dof` belongs to the director while a cinematic shot with depth of field is up; it is released (aperture 0)
+  when the sequence ends. Another module that wants DOF outside cinematics (photo mode, result screen) can call
+  `post.dof` freely then.
+
 ---
 
 ## Shot vocabulary — `src/cam/shots.js`
 
-Every builder returns plain shot data, takes the parameters below plus any common shot field (`cut, hold, clock,
-ease, lookEase, fovEase, shake, kick, slowmo, letterbox, handheld, follow, followY, followLag`) and `scale`: the
-subject's size relative to 1.9 m — every authored distance, height and orbit radius is multiplied by it
-(`shots.heroPushIn({ scale: 4.5 })` frames an 8.5 m colossus the way the default frames a human). Pairs `[a, b]` are
-from → to; a single value means constant. `subject`: `'anchor' | 'target' | 'mid' |` point source. Builders that
-author their own `shake` / `kick` accept a number (new amount, same character) or an object / array / `false`
-(replace). `shots.SHOTS` maps names to builders.
+Every builder returns shot data, takes the parameters below plus any common shot field (`cut, hold, clock, ease,
+lookEase, fovEase, shake, kick, slowmo, letterbox, handheld, follow, followY, followLag, dof, tone, blur, breathe,
+grade, gradeDur`) and `scale`: the subject's size relative to 1.9 m — every authored distance, height, orbit radius
+and focus range is multiplied by it (`shots.heroPushIn({ scale: 4.5 })` frames an 8.5 m colossus the way the default
+frames a human). Pairs `[a, b]` are from → to; a single value means constant. `subject`: `'anchor' | 'target' | 'mid' |`
+point source. Builders that author their own `shake` / `kick` accept a number (new amount, same character) or an
+object / array / `false` (replace). `shots.SHOTS` maps names to builders (also `cam.shots`).
 
-| builder | use | parameters (defaults) |
-|---|---|---|
-| `heroPushIn` | power-up / super-freeze: low camera in front of the subject looking up, slow dolly + fov squeeze | `subject 'anchor', dur 1.1, angle 32, dist [3.6,2.5], height [0.42,0.55], look [1.5,1.62], fov [36,30], roll 0 (dutch; grows 30 %), arc -8` |
-| `crashZoom` | from far and wide to tight in a fraction of a second (expo ease), shake on arrival | `subject 'target', dur 0.36, angle -18, dist [10,2.8], height [1.8,1.5], look 1.45, fov [50,27], shake 0.35` |
-| `overShoulder` | behind the anchor's camera-side shoulder on a long lens, looking at the target, slow push | `dur 1.3, back 1.7, side 0.62, height 1.95, look 1.4, push 0.35, fov [28,25], from 'anchor', at 'target'` |
-| `whipPan` | near-static camera snapping its aim from one subject to another (expo), banking roll kick + lateral shake | `dur 0.3, from 'anchor', to 'target', pos [-1.2,1.5,3.4], look 1.35, fov [40,33], bank 4` |
-| `orbitSweep` | arc around a pivot while rising, pivot centred | `subject 'mid', dur 1.3, from -40, to 35, radius [7.2,6.4], height [1.3,2.5], look 1.2, fov 38` |
-| `impactPunchIn` | sharp push onto the struck fighter, hard deceleration, fov squeeze, shake + roll kick | `subject 'target', dur 0.45, angle -28, dist [3.8,2.4], height [1.55,1.5], look 1.45, fov [36,29], shake 0.55` |
-| `topDownSlam` | nearly overhead on the impact point, slowly turning and settling | `subject 'target', dur 0.9, height [7.5,6], toward [1.4,1.0], ahead 0, look 0.3, fov [42,38], roll [0,10]` |
-| `wideEstablishing` | far, high, slow lateral drift and crane — the whole arena | `subject 'mid', dur 1.8, dist [14,13], height [3.2,3.9], look [2,1.8], drift 1.6, fov 42` |
-| `faceCloseUp` | three-quarter front head shot at eye level, eyes on the upper third, slow push | `subject 'anchor', dur 1.1, angle 42 (negative for the target), dist [1.35,1.05], height 1.68, look 1.63, fov [30,27]` |
-| `weaponFollow` | rides alongside a moving subject (dash, or a weapon socket as `subject`), subject in the left third, aiming down the line of travel | `subject 'anchor', dur 0.6, pos [[-1.3,1.1,2.1],[-0.9,1.2,1.85]], look [[1.6,1.2,0],[2,1.1,0]], fov [48,44], roll [4,2]` (follows, `followY`, lag 0.08) |
-| `groundSkim` | camera racing along the floor looking up; with `'mid'` frames + `follow:'look', followY` it is the low "airborne fight" shot | `dur 0.9, from [-0.9,0.28,1.3], fromSpace 'anchor', to [-1.3,0.32,1.1], toSpace 'target', look [[2,0.8,0],[0,1.25,0]], lookSpace ['anchor','target'], fov [52,44], roll [-3,0]` |
-| `dutchDrift` | tilted, uneasy medium shot sliding sideways while the tilt deepens | `subject 'anchor', dur 1.6, angle 18, dist 4, height [1.55,1.7], look 1.4, roll [8,12], drift 0.8, fov 36` |
+**Lens defaults.** Every builder puts the focus on its subject (the anchored fighter, the victim, both) with an
+aperture for its shot type, and a small exposure hint where the angle is dark (last column: focus, aperture — a
+number, or `auto × gain` —, then `+exposure` / `vig +vignette`). A caller's `dof` / `tone` object is merged over the
+default (`shots.heroPushIn({ dof: { aperture: 0.5 } })`); `dof: false` switches the blur of that shot off.
+
+| builder | use | parameters (defaults) | lens (focus, aperture, tone) |
+|---|---|---|---|
+| `heroPushIn` | power-up / super-freeze: low camera in front of the subject looking up, slow dolly + fov squeeze | `subject 'anchor', dur 1.1, angle 32, dist [3.6,2.5], height [0.42,0.55], look [1.5,1.62], fov [36,30], roll 0 (dutch; grows 30 %), arc -8` | subject, 0.9, range 0.55; +0.04, vig +0.05 (+ the auto low-angle lift) |
+| `crashZoom` | from far and wide to tight in a fraction of a second (expo ease), shake on arrival; zoom blur | `subject 'target', dur 0.36, angle -18, dist [10,2.8], height [1.8,1.5], look 1.45, fov [50,27], shake 0.35` | subject, auto × 0.5, pull 0.06 |
+| `overShoulder` | behind the anchor's camera-side shoulder on a long lens, looking at the target, slow push; the shoulder is a soft foreground | `dur 1.3, back 1.7, side 0.62, height 1.95, look 1.4, push 0.35, fov [28,25], from 'anchor', at 'target'` | `at`, 0.85, range 0.6, near 1.2, no protect; +0.04, vig +0.05 |
+| `whipPan` | near-static camera snapping its aim from one subject to another (expo), banking roll kick + lateral shake + directional blur | `dur 0.3, from 'anchor', to 'target', pos [-1.2,1.5,3.4], look 1.35, fov [40,33], bank 4` | aim, auto × 0.5, pull 0.08; blur 1.25 |
+| `orbitSweep` | arc around a pivot while rising, pivot centred | `subject 'mid', dur 1.3, from -40, to 35, radius [7.2,6.4], height [1.3,2.5], look 1.2, fov 38` | subject (`'mid'` = both), auto × 0.8 |
+| `impactPunchIn` | sharp push onto the struck fighter, hard deceleration, fov squeeze, shake + roll kick; zoom blur | `subject 'target', dur 0.45, angle -28, dist [3.8,2.4], height [1.55,1.5], look 1.45, fov [36,29], shake 0.55` | subject, auto × 0.5, pull 0.06 |
+| `topDownSlam` | nearly overhead on the impact point, slowly turning and settling | `subject 'target', dur 0.9, height [7.5,6], toward [1.4,1.0], ahead 0, look 0.3, fov [42,38], roll [0,10]` | none (one depth from above); +0.02 (+ the auto top-down lift) |
+| `wideEstablishing` | far, high, slow lateral drift and crane — the whole arena | `subject 'mid', dur 1.8, dist [14,13], height [3.2,3.9], look [2,1.8], drift 1.6, fov 42` | subject (both), auto × 0.9 (a soft far backdrop on high); vig +0.04 |
+| `faceCloseUp` | three-quarter front head shot at eye level, eyes on the upper third, slow push | `subject 'anchor', dur 1.1, angle 42 (negative for the target), dist [1.35,1.05], height 1.68, look 1.63, fov [30,27]` | aim (the head), 1.15, range 0.3, pull 0.1; +0.06, vig +0.08 |
+| `weaponFollow` | rides alongside a moving subject (dash, or a weapon socket as `subject`), subject in the left third, aiming down the line of travel | `subject 'anchor', dur 0.6, pos [[-1.3,1.1,2.1],[-0.9,1.2,1.85]], look [[1.6,1.2,0],[2,1.1,0]], fov [48,44], roll [4,2]` (follows, `followY`, lag 0.08) | subject, 0.5, range 0.8; blur 0.3 |
+| `groundSkim` | camera racing along the floor looking up; with `'mid'` frames + `follow:'look', followY` it is the low "airborne fight" shot | `dur 0.9, from [-0.9,0.28,1.3], fromSpace 'anchor', to [-1.3,0.32,1.1], toSpace 'target', look [[2,0.8,0],[0,1.25,0]], lookSpace ['anchor','target'], fov [52,44], roll [-3,0]` | aim, auto × 0.6; +0.04 |
+| `dutchDrift` | tilted, uneasy medium shot sliding sideways while the tilt deepens | `subject 'anchor', dur 1.6, angle 18, dist 4, height [1.55,1.7], look 1.4, roll [8,12], drift 0.8, fov 36` | subject, 0.7; vig +0.05 |
+
+### Wuxia flourishes (MURIM.md)
+
+| builder | use | parameters (defaults) | lens |
+|---|---|---|---|
+| `lowSweep` | a long lens skimming the floor on an arc around the subject; the arc starts **behind a foreground element** (default: the other master, whose legs, coat tails and blade wipe across the frame far out of focus) and clears it to reveal the subject. Late-bound (radius from the separation) | `subject 'target', behind (the other fighter; false = plain low orbit), dur 1.3, from 84, to 50 (deg off straight-on on the foreground side; 90 = on the fight line, kept ≥ 0.75 m on the camera side), back 1.9 (m behind the foreground element), radius (overrides sep + back), height [0.34,0.52], look [1.2,1.3], lead 0.22, fov [30,27], roll [-4,0], side` | subject, 1.0, range 0.7, near 1.3, no protect; +0.12, vig +0.06 |
+| `duelStandoff` | the **held wide duel frame**: low, far, long lens, both masters small on either side and the eclipse hanging between them at head height; a slow creep and the operator's breathing only. Late-bound: reads the eclipse direction (`cam.sun` / `env.sunDir`), the separation and the aspect; the lens widens on narrow (portrait) viewports until both masters and the eclipse fit | `dur 1.6, dist [13,12.4], height 0.45, fov 24, sunY 0.58, feetY 0.2, margin 1.5, creep 0.25, grade 'ink'` | both, 0.3; vig +0.08; grade `'ink'` |
+| `bladeRush` | **fast push-in on a drawn blade**: from a medium three-quarter view the camera lunges (expo) to arm's length of the steel on a tightening lens, the focus racks onto the edge, a small jolt lands with it | `subject 'anchor', blade (point source: a weapon socket; default the point at), at [0.42,1.08,0.12], dur 0.6, angle 36, dist [3.4,0.95], height [1.3,1.14], fov [40,25], roll [-7,-3], shake 0.18` | aim (the blade), 1.1, range 0.3, pull 0.07, no protect; +0.05, vig +0.08 |
+| `craneRise` | the light-foot leap (경공): starts at the floor looking up at the take-off, cranes up and back faster than the fighter rises with the aim riding the leap, ends level with the apex | `subject 'anchor', dur 1.0, angle [28,10], dist [3.4,5.6], height [0.32,3.4], look [1.25,1.4], fov [32,40], roll [4,-2]` (aim follows, `followY`, lag 0.045) | subject, auto × 0.75; +0.03 |
+| `duelIntro` | **sequence** (returns an array for `cam.play`): `lowSweep` from behind the anchor revealing the rival, cut to `duelStandoff`; the hand-back to fight framing is then a slow push-in. Later rounds: the duel frame only | `dur 2.2 (total), round 1, grade 'ink', sweep {...}, standoff {...}` | – |
 
 ---
 
@@ -262,6 +392,23 @@ const h = cam.play([
 match.on('moveEvent', (e) => { if (e.name === 'ultHit') { h.next(); } });
 ```
 
+A round intro in the wuxia grammar (drop-in for the game's intro shots), and a blade moment before a skill:
+
+```js
+cam.play(shots.duelIntro({ dur: rules.introTime, round }), { anchor: 0, blendOut: 0.55, hud: false });
+cam.play([shots.bladeRush({ blade: char.sockets.weaponTip, dur: 0.5, hold: true }), shots.whipPan({ cut: 0.1 })], { anchor: i });
+```
+
+A rack focus on a locked-off over-shoulder (two blended shots with the same keys; only the focus changes):
+
+```js
+const key = { pos: [-1.6, 1.62, 0.8], look: [0, 1.4, 0], fov: 27 };
+cam.play([
+  { dur: 0.9, space: 'anchor', lookSpace: 'target', from: key, dof: { focus: 'anchor', aperture: 1.1, range: 0.3, protect: false } },
+  { dur: 1.0, cut: 0.01, space: 'anchor', lookSpace: 'target', from: key, dof: { focus: 'target', aperture: 1.1, pull: 0.28, protect: false } },
+], { anchor: 0 });
+```
+
 A hand-keyed shot with an orbit and a crane arc:
 
 ```js
@@ -277,7 +424,10 @@ cam.play([
 ## Lab — `src/labs/cam.js`
 
 `node tools/build.mjs cam`; flags `#hud` (mock fight HUD to judge headroom), `#scope` (live plot of shake / kick /
-framing channels). Scenarios: `clinch near mid far veryFar edgeL edgeR offCentre walk corner swap launch dash`
+framing channels), `#lens` (live readout of the lens: shot name, focus distance, range, aperture, exposure hint,
+blur, breathing), `#camfx=0` (plain camera). Wuxia scenarios: `duelIntro` / `duelIntroM`, `wuxia` / `wuxiaM` (5.4 s
+sample: blade rush, whip pan, over-shoulder rack, crane on a leap, punch-in, low sweep), `focusRack`, `whipBlur`,
+`hitZoom`, and `shot_<name>` for the four new builders. Scenarios: `clinch near mid far veryFar edgeL edgeR offCentre walk corner swap launch dash`
 (framing), `shakeLight shakeHeavy shakeSkill shakeUlt shakeDir shakeStack kickFov kickPush kickRoll zoom letterbox`,
 `shot_<name>` / `shotM_<name>` for every vocabulary entry (M = anchored on the right-hand fighter, i.e. mirrored),
 `ult` / `ultM` (4-second sample ultimate: 5 shots, cuts, an event-driven cut, a blend, slow-motion, letterbox),
@@ -290,6 +440,13 @@ node tools/shot.mjs cam --size 800x500 --hash hud --do "__ED.lab.play('walk')" -
 ```
 
 ## Notes for other modules
+
+- Game: the round intro can use `shots.duelIntro` (example above); choreography gets depth of field, exposure hints
+  and blur on every vocabulary shot and on hand-keyed shots without changes. To keep a shot fully sharp (a VFX set
+  piece with crisp ink edges) pass `dof: false`; to keep both fighters sharp on a hand-keyed two-shot use
+  `dof: { focus: 'both' }`.
+- VFX / post: transparent effects do not write depth, so an effect in front of a far background takes the background's
+  blur. Action shots are stopped down (auto × 0.5) for that reason; portraits open up.
 
 - The camera can sit up to `fight.maxDist` (24 m) from the fight line when the fighters are far apart (more for a
   very narrow viewport) and cinematic shots go to ~14 m / 7.5 m high: keep the +Z side of the arena free of

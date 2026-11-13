@@ -29,7 +29,7 @@ export default async ({ evalJs, advance, shot, log }) => {
       await reset(4);
       // strafe input while locked = a circle around the target (turn-to-move: the hero runs along the tangent)
       await R('__ED.rpg.move(1, 0.12)');
-      await frames('circle', [0.5, 0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9, 2.4, 2.9, 3.4, 3.9]);
+      await frames('circle', [0.6, 0.72, 0.84, 0.96, 1.08, 1.2, 1.9, 2.6, 3.3, 4.0, 4.7, 5.4]);
       const s = await R('__ED.rpg.state()');
       log('circle: hero ' + JSON.stringify({ x: s.hero.x, z: s.hero.z, speed: s.hero.speed, gait: s.hero.gait }) + ' cam ' + JSON.stringify(s.camera));
       await R('__ED.rpg.move(0, 0)');
@@ -42,25 +42,30 @@ export default async ({ evalJs, advance, shot, log }) => {
       await R('(() => { const r = __ED.rpg; r.clear(); r.tp(0, 0, 0); const id = r.spawn("husk", 2.1, 0, { spawnTime: 0 }); r.lock(id); const a = r.world().byId(id); a.controller = null; a.yaw = Math.PI; a.startAttack("slash", { force: true, target: r.world().hero }); })()');
       await advance(0.44);
       await R('__ED.rpg.move(0.25, 1); __ED.rpg.press("dodge", 0.05)');
-      await frames('roll', [0.1, 0.16, 0.22, 0.28, 0.34, 0.4, 0.46, 0.52, 0.6, 0.7, 0.8, 0.95]);
+      await frames('roll', [0.1, 0.18, 0.26, 0.34, 0.42, 0.5, 0.6, 0.7]);
       const s = await R('__ED.rpg.state()');
       log('roll: hero hp ' + s.hero.hp + '/' + s.hero.hpMax + ' state ' + s.hero.state);
       await R('__ED.rpg.move(0, 0); __ED.rpg.clear(); __ED.rpg.spawn("dummy", 4, 0)');
     } else if (sec === 'chain') {
       await reset();
-      const T = [];
+      // three presses, two frames per hit: just after the first active frame and in the follow-through
       for (let i = 0; i < 3; i++) {
         await R('__ED.rpg.press("light", 0.05)');
-        for (const x of [0.1, 0.17, 0.24, 0.31]) { await advance(x - (T.length % 4 === 0 ? 0 : [0.1, 0.17, 0.24, 0.31][(T.length % 4) - 1])); T.push(x); await shot(`chain${i + 1}_${x.toFixed(2)}`); }
+        await advance(i === 2 ? 0.27 : 0.17); await shot(`chain${i + 1}_a`);
+        await advance(0.12); await shot(`chain${i + 1}_b`);
+        await advance(0.04);
       }
+      await advance(1.2);
     } else if (sec === 'heavy' || sec === 'skill1' || sec === 'skill2' || sec === 'skill3') {
       await reset(sec === 'skill1' ? 4.5 : sec === 'skill2' ? 3.5 : 2.3);
       await R(`__ED.rpg.press("${sec}", 0.05)`);
-      await frames(sec, [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.05, 1.2, 1.4, 1.7]);
+      await frames(sec, (process.env.TIMES || '0.15,0.3,0.42,0.55,0.75,1.1').split(',').map(Number));
+      await advance(1.6);
     } else if (sec === 'ult') {
       await reset();
       await R('__ED.rpg.give({ ult: true }); __ED.rpg.press("ult", 0.05)');
-      await frames('ult', [0.3, 0.7, 1.0, 1.3, 1.7, 2.2, 2.8, 3.4, 4.0, 4.6, 5.4, 6.4, 7.2, 8.0, 8.8, 9.6]);
+      await frames('ult', (process.env.ULT_TIMES || '0.35,0.8,1.05,1.5,2.1,2.9,3.6,4.2,4.9,5.6,6.3,7.2').split(',').map(Number));
+      await advance(1.5);
       const s = await R('__ED.rpg.state()');
       log('ult: ' + JSON.stringify({ mode: s.mode, hero: s.hero.state, lock: s.lock, foe: s.foes[0] }));
     } else if (sec === 'misc') {

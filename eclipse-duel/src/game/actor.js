@@ -5,11 +5,21 @@
 //   const a = createActor(ctx, session, index, fighter);
 //   a.update(dtGame, dtReal)   ORDER.GAME, after match.step: clip selection + root placement
 //   a.animate(dtGame, dtReal)  ORDER.CHAR: character update (frozen in hit-stop / super-freeze)
+//
+// State -> clip resolution with variants (src/fighters/MOTION.md "Variant slots"; every variant is optional and falls
+// back to the plain slot, so a fighter map without any of them plays exactly as before):
+//   hit reactions   hitLightHigh / Mid / Low by the contact height, hitLightBack / hitHeavyBack for a blow from behind
+//   face-down chain launchedProne / fallProne / downProne / getupProne / koProne after a blow from behind
+//   tech            tech / techProne when the fall was teched (the rules' recovery roll)
+//   guard           guardHit / guardHitHeavy one-shots per blocked hit + a flinch scaled by the weight of the blow
+//   idle            idleFidget (+ idleFidget2 ...) after a few still seconds, turn on a facing flip, walkStopF / B
+//   victory         one of victory, victory2 ... per round
+// Variants are picked with ctx.rng (deterministic) and compiled when the actor is created.
 
 import * as THREE from 'three';
 import { createCharacter } from '../char/index.js';
 import { Ease, clamp } from '../core/math.js';
-import { createClipSet, GENERIC } from './clips.js';
+import { createClipSet } from './clips.js';
 import { getClip } from '../char/anim.js';
 import { paletteOf, defsOf } from './fx.js';
 
@@ -26,6 +36,8 @@ const TRAIL_LIFE = { light: 0.15, rising: 0.18, overhead: 0.2, huge: 0.22, heavy
 const BLADES = { R: 0, L: 1, both: 'all', all: 'all' };
 
 const NEUTRAL = new Set(['idle', 'walk', 'guard', 'blockstun', 'dash', 'backstep', 'intro', 'recovery', 'attack', 'dodge']);
+/** Light hit reaction slot per contact height band. */
+const HIT_LIGHT = { High: 'hitLightHigh', Mid: 'hitLightMid', Low: 'hitLightLow' };
 const LOOKING = new Set(['idle', 'walk', 'guard', 'blockstun', 'dash', 'backstep', 'intro', 'recovery', 'attack', 'hitstun', 'guardbreak', 'dodge']);
 
 /**
@@ -69,6 +81,19 @@ export function createActor(ctx, session, index, fighter) {
     /** hit reaction serial: bumped by every clean hit taken (restarts the reaction clip) */
     react: 0,
     reactFront: true,
+    /** last clean hit taken: contact height band ('High' | 'Mid' | 'Low') and whether the fall it starts lands face-down */
+    hitBand: 'Mid',
+    prone: false,
+    /** the current get-up is a tech roll (rules 'tech' event) */
+    teched: false,
+    /** blocked hits: serial (bumped per block), the last one shown, heavy blow */
+    guardHit: { serial: 0, shown: 0, heavy: false },
+    /** idle life: still time, next fidget time, the running one-shot (fidget / turn / walk stop) and a queued one */
+    idle: { t: 0, next: 6, shot: '', pending: '', fade: 0.3, serial: 0, last: -1 },
+    victoryRound: -1,
+    victoryClip: null,
+    lastWalk: 'walkF',
+    dt: 0,
     /** choreography controls the clip (cinematic lock, h.play) */
     cine: false,
     /** cinematic presentation offset (fighter-local f / u metres), tweened */
@@ -103,6 +128,7 @@ export function createActor(ctx, session, index, fighter) {
     return true;
   }
 
+  /** Presentation slot family of the rules state (the switch below works on these). */
   function stateSlot(f) {
     switch (f.state) {
       case 'intro': return 'intro';
@@ -117,6 +143,68 @@ export function createActor(ctx, session, index, fighter) {
     }
   }
 
+  /** The variant slot of a family for this moment (direction of the blow, contact height, face-down chain, tech). */
+  function variantSlot(slot) {
+    switch (slot) {
+      case 'hitLight': return actor.reactFront ? HIT_LIGHT[actor.hitBand] : 'hitLightBack';
+      case 'hitHeavy': return actor.reactFront ? 'hitHeavy' : 'hitHeavyBack';
+      case 'launched': return actor.prone ? 'launchedProne' : 'launched';
+      case 'fall': return actor.prone ? 'fallProne' : 'fall';
+      case 'down': return actor.prone ? 'downProne' : 'down';
+      case 'ko': return actor.prone ? 'koProne' : 'ko';
+      case 'getup': return actor.teched ? (actor.prone ? 'techProne' : 'tech') : actor.prone ? 'getupProne' : 'getup';
+      default: return slot;
+    }
+  }
+
+  /** One clip of a multi-clip slot, picked with ctx.rng (never the one picked last when there is a choice). */
+  function pick(slot, last = -1) {
+    const list = clips.variants(slot);
+    if (!list.length) return null;
+    let i = 0;
+    if (list.length > 1) {
+      i = Math.min(list.length - 1, Math.floor(ctx.rng() * list.length));
+      if (i === last) i = (i + 1) % list.length;
+    }
+    pick.index = i;
+    return list[i];
+  }
+  const fidgetDelay = () => 4.5 + ctx.rng() * 4;
+
+  /** One-shot over the idle loop (turn-around, walk stop, fidget): held until it finishes or the state changes. */
+  function idleShot(kind, c, fade) {
+    const I = actor.idle;
+    I.shot = kind + (++I.serial);
+    setKey(I.shot, c.name, { fade, restart: true });
+  }
+
+  function selectIdle(f, c) {
+    const I = actor.idle;
+    if (actor.lastState !== 'idle') { I.t = 0; I.next = fidgetDelay(); I.shot = ''; }
+    if (I.pending) {
+      const kind = I.pending;
+      I.pending = '';
+      if (clips.has(kind)) { idleShot(kind, clips.state(kind), I.fade); return; }
+    }
+    if (I.shot) {
+      if (actor.key === I.shot && !char.finished) return;
+      I.shot = ''; I.t = 0; I.next = fidgetDelay();
+      setKey('idle', c.name, { fade: 0.3 });
+      return;
+    }
+    if (actor.lastState === 'walk') {
+      const stop = actor.lastWalk === 'walkB' ? 'walkStopB' : 'walkStopF';
+      if (clips.has(stop)) { idleShot(stop, clips.state(stop), 0.12); return; }
+    }
+    setKey('idle', c.name, { fade: 0.16 });
+    // a few still seconds: one fidget, then the loop again (any input changes the state and cuts it)
+    I.t += actor.dt;
+    if (I.t >= I.next && match.phase === 'fight' && clips.has('idleFidget')) {
+      const v = pick('idleFidget', I.last);
+      if (v) { I.last = pick.index; idleShot('idleFidget', v, 0.3); }
+    }
+  }
+
   const walkOpts = { speed: 1 };
   function select(f) {
     const st = f.state;
@@ -127,9 +215,11 @@ export function createActor(ctx, session, index, fighter) {
       return;
     }
     const slot = stateSlot(f);
-    const c = clips.state(slot);
+    if (st !== 'getup') actor.teched = false;
+    const c = clips.state(variantSlot(slot));
     switch (slot) {
       case 'walkF': case 'walkB': {
+        actor.lastWalk = slot;
         setKey(slot, c.name, { fade: 0.16 });
         const v = slot === 'walkF' ? f.def.stats.walkSpeed : f.def.stats.backSpeed;
         const rs = Math.abs(c.rootSpeed) || v;
@@ -166,19 +256,47 @@ export function createActor(ctx, session, index, fighter) {
       case 'intro':
         setKey('intro' + match.round, c.name, { fade: 0.2, restart: true });
         return;
-      case 'guard':
+      case 'guard': {
+        // a blocked hit: its flinch clip (when the fighter has one), then back into the guard loop
+        const g = actor.guardHit;
+        if (g.serial !== g.shown) {
+          g.shown = g.serial;
+          const gs = g.heavy && clips.has('guardHitHeavy') ? 'guardHitHeavy' : 'guardHit';
+          if (clips.has(gs)) { g.key = 'guardHit' + g.serial; setKey(g.key, clips.state(gs).name, { fade: 0.03, restart: true }); return; }
+        }
+        if (g.key && actor.key === g.key) {
+          if (!char.finished && st === 'blockstun') return;
+          g.key = '';
+          setKey('guard', c.name, { fade: 0.12 });
+          return;
+        }
         setKey('guard', c.name, { fade: 0.08 });
         return;
+      }
+      case 'idle':
+        selectIdle(f, c);
+        return;
+      case 'victory': {
+        if (actor.victoryRound !== match.round) { actor.victoryRound = match.round; actor.victoryClip = pick('victory') || c; }
+        setKey(slot, actor.victoryClip.name, { fade: 0.2 });
+        return;
+      }
       default:
-        setKey(slot, c.name, { fade: slot === 'idle' ? 0.16 : 0.2 });
+        setKey(slot, c.name, { fade: 0.2 });
     }
   }
 
   function update(dtGame, dtReal) {
     const f = match.fighters[index];
     if (!actor.cine) {
+      actor.dt = dtGame;
+      if (f.facing !== char.facing) {
+        const neutral = NEUTRAL.has(f.state) && f.state !== 'attack';
+        char.setFacing(f.facing, neutral ? { turn: 0.1 } : {});
+        // standing still when the opponent crossed over: the turn-around settle plays over the spin
+        if (f.state === 'idle' && actor.lastState === 'idle' && clips.has('turn')) { actor.idle.pending = 'turn'; actor.idle.fade = 0.05; }
+      }
       select(f);
-      if (f.facing !== char.facing) char.setFacing(f.facing, NEUTRAL.has(f.state) && f.state !== 'attack' ? { turn: 0.1 } : {});
       autoMoveFx(f);
     }
     actor.lastState = f.state;
@@ -361,6 +479,10 @@ export function createActor(ctx, session, index, fighter) {
     actor.key = '';
     actor.cine = false;
     actor.react = 0;
+    actor.reactFront = true; actor.hitBand = 'Mid'; actor.prone = false; actor.teched = false;
+    actor.guardHit.shown = actor.guardHit.serial; actor.guardHit.key = '';
+    actor.idle.t = 0; actor.idle.shot = ''; actor.idle.pending = '';
+    actor.lastState = '';
     setOffset([0, 0], 0);
     actor.glowState.amount = 0;
     actor.weaponGlow.on = false;
@@ -373,12 +495,34 @@ export function createActor(ctx, session, index, fighter) {
 
   function dispose() {
     trailStop();
+    for (const off of offs) off();
     char.dispose();
   }
 
-  // compile every clip this fighter can play now (clips compile lazily per rig: no first-use hitch mid-fight)
-  for (const slot in GENERIC) { try { getClip(char.rig, clips.state(slot).name); } catch (e) { /* reported when played */ } }
-  for (const id in match.defs[index].moves) { try { getClip(char.rig, clips.move(id).name); } catch (e) { /* reported when played */ } }
+  // compile every clip this fighter can play now, variants included (clips compile lazily per rig: no first-use hitch mid-fight)
+  for (const name of clips.names()) { try { getClip(char.rig, name); } catch (e) { /* reported when played */ } }
+
+  // reaction bookkeeping straight from the rules events (they fire inside match.step, before this frame's update)
+  const offs = [
+    match.on('hit', (e) => {
+      if (e.defender !== index || e.armoured) return;
+      if (e.blocked) {
+        if (e.guardBreak) return;
+        // a flinch scaled by the weight of the blow (its hit-stop grows with the damage), on top of the feel layer's
+        const k = clamp(((e.hitstop || 0.05) - 0.04) / 0.08);
+        const g = actor.guardHit;
+        g.serial++; g.heavy = k > 0.5 || (e.level && e.level !== 'light');
+        if (!e.perfect && k > 0) char.impulse({ bone: 'body', dir: [-1, 0, 0], amount: 0.45 * k });
+        return;
+      }
+      const f = match.fighters[index];
+      const h = (f.def.stats.height || 1.9), y = ((e.y ?? h * 0.6) - f.y) / h;
+      actor.hitBand = y > 0.72 ? 'High' : y < 0.4 ? 'Low' : 'Mid';
+      // thrown forward by a blow from behind: the fall that follows ends face-down
+      actor.prone = e.front === false;
+    }),
+    match.on('tech', (e) => { if (e.fighter === index) actor.teched = true; }),
+  ];
 
   char.onEvent((name, data) => {
     if (name === 'step' && !actor.cine) session.onStep(actor, data);

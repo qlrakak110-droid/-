@@ -1,7 +1,8 @@
-// The expedition loop (README §9): wake at the Starlit Altar -> the mist gate -> encounters in order -> the boss ->
-// victory -> a new cycle (enemies stronger). Death: the Eclipse Shards stay where the hero fell and can be reclaimed
-// once; the hero wakes at the altar and unfinished encounters respawn. Resting refills HP / FP / the Dawn Chalice and
-// opens the level-up screen (the HUD reads snapshot.levelUp and calls rpg.levelUp(stat)).
+// The expedition loop (README §9): wake at the rest point (code: `altar`; shown as 정심석, MURIM.md §6) -> the mist
+// gate -> encounters in order -> the boss -> victory -> a new cycle (enemies stronger). Death: the currency (code:
+// `shards`; shown as 공력) stays where the hero fell and can be reclaimed once; the hero wakes at the rest point and
+// unfinished encounters respawn. Resting refills HP / FP / the heals (code: `chalice`; shown as 회천단) and opens the
+// level-up screen (the HUD reads snapshot.levelUp and calls rpg.levelUp(stat)).
 //
 //   const flow = createFlow(ctx, world, { progress, places, sandbox, encounter });      world.flow
 
@@ -307,7 +308,7 @@ export function createFlow(ctx, world, o) {
     // the altar: rest / level up whenever no fight is on
     const al = places.altar;
     removers.push(world.addCollider({ type: 'circle', x: al.x, z: al.z, r: 0.75 }));
-    removers.push(world.addTrigger({ x: al.x, z: al.z, r: 2.4, prompt: { ko: '별빛 제단에서 쉬기', en: 'Rest at the Starlit Altar' },
+    removers.push(world.addTrigger({ x: al.x, z: al.z, r: 2.4, prompt: { ko: '정심석에서 운기조식', en: 'Meditate at the Stillheart Stone' },
       enabled: () => !flow.resting && !(flow.encounter && !flow.encounter.cleared && flow.encounter.actors.some((a) => a.alive)),
       interact: () => rest() }));
     armGate();

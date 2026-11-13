@@ -14,6 +14,7 @@ import { pushOutCapsules, capsuleAxisDist, capsulesNear } from './collide.js';
 import { shift } from './spring.js';
 
 const ZERO3 = new Float32Array(3);
+const IX = [0, 0, 0], IY = [0, 0, 0], IZ = [0, 0, 0]; // inertia rotation basis (scratch)
 
 /**
  * Segment a-b (particles at p[a..], p[b..], inverse masses wa / wb) against every capsule both particles collide
@@ -326,7 +327,8 @@ export class Cloth {
     // from them; left in last frame's space, the pins lagged by one frame of root motion - twice as far at 30 Hz)
     shift(this.bp0, m, 1);
     const rq = this.rq;
-    qfromBasis(rq, 0, [m[0], m[1], m[2]], [m[3], m[4], m[5]], [m[6], m[7], m[8]]);
+    IX[0] = m[0]; IX[1] = m[1]; IX[2] = m[2]; IY[0] = m[3]; IY[1] = m[4]; IY[2] = m[5]; IZ[0] = m[6]; IZ[1] = m[7]; IZ[2] = m[8];
+    qfromBasis(rq, 0, IX, IY, IZ);
     for (let i = 0; i < this.bq0.length; i += 4) qmul(this.bq0, i, rq, 0, this.bq0, i);
     if (this.capPrev && this.capReady) {
       const c = this.capPrev;

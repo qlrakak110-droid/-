@@ -19,7 +19,9 @@ const smoother = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 export function createRpgCamera(ctx, world) {
   const camera = ctx.camera;
   const params = {
-    dist: 4.2, height: 1.55, shoulder: 0.42, fov: 46, pitch: 0.2, pitchMin: -0.55, pitchMax: 1.05,
+    dist: 4.4, height: 1.5, shoulder: 0.4, fov: 50, pitch: 0.22, pitchMin: -0.55, pitchMax: 1.05,
+    /** lock-on: look down over the hero's shoulder so the target stays clear of its body */
+    lockPitch: 0.4, lockShoulder: 0.62, lockYaw: 0.09,
     lag: 0.085, lockLag: 0.16, recover: 0.2, minBoom: 0.7, floor: 0.25,
     /** radians per pixel of mouse / touch drag are applied by src/input; this scales the analogue result */
     sens: 1, autoFollow: 0.9, lockRange: 16, lockBreak: 22,
@@ -30,7 +32,7 @@ export function createRpgCamera(ctx, world) {
   const mLook = new THREE.Matrix4(), UP = new THREE.Vector3(0, 1, 0);
   const right = new THREE.Vector3(), up = new THREE.Vector3(), fwd = new THREE.Vector3();
   const lookIn = { x: 0, y: 0 };
-  let boom = params.dist, idleLook = 9, fovNow = params.fov, zoomK = 1, zoomLeft = 0, zoomTo = 1;
+  let boom = params.dist, idleLook = 9, fovNow = params.fov, zoomK = 1, zoomLeft = 0, zoomTo = 1, shoulderNow = params.shoulder;
   let first = true;
   /** boss / custom framing while a given target is locked */
   let framing = null;
@@ -256,14 +258,17 @@ export function createRpgCamera(ctx, world) {
       const fr = framingFor(t);
       aimPoint(t, fr, aim);
       const dx = aim.x - hx, dz = aim.z - hz, d = hypot2(dx, dz);
-      if (d > 0.4) cam.yaw = wrapPi(cam.yaw + angDiff(cam.yaw, yawTo(dx, dz)) * kl);
-      // look a little up toward tall targets, a little down on low / close ones
+      // a little off the hero -> target line, so the hero stands left of the target instead of in front of it
+      if (d > 0.4) cam.yaw = wrapPi(cam.yaw + angDiff(cam.yaw, yawTo(dx, dz) + params.lockYaw) * kl);
+      // above the hero's shoulder looking down at human-sized targets; up toward tall ones
       const elev = Math.atan2(aim.y - (hy + params.height), Math.max(1.5, d + params.dist));
-      wantPitch = clamp(params.pitch + 0.06 - elev * 0.75 + (fr ? fr.pitch || 0 : 0) + clamp((2.4 - d) * 0.07, 0, 0.14), params.pitchMin, params.pitchMax);
+      wantPitch = clamp(params.lockPitch - elev * 0.8 + (fr ? fr.pitch || 0 : 0) + clamp((2.4 - d) * 0.05, 0, 0.1), params.pitchMin, params.pitchMax);
       cam.pitch += (wantPitch - cam.pitch) * kl;
+      shoulderNow += (params.lockShoulder - shoulderNow) * kl;
       if (fr) { wantDist += (fr.back || 0) * clamp(1.4 - d / (8 * Math.max(1, t.scale * 0.5)), 0.35, 1); fovAdd = fr.fov || 0; upAdd = fr.up || 0; }
       lookIn.x = lookIn.y = 0;
     } else {
+      shoulderNow += (params.shoulder - shoulderNow) * k;
       if (lookIn.x !== 0 || lookIn.y !== 0) {
         cam.yaw = wrapPi(cam.yaw - lookIn.x * params.sens);
         cam.pitch = clamp(cam.pitch - lookIn.y * params.sens, params.pitchMin, params.pitchMax);
@@ -277,7 +282,7 @@ export function createRpgCamera(ctx, world) {
       }
     }
     // pivot: above the hero, a little over its right shoulder (in camera space)
-    want.set(hx + rightX(cam.yaw) * params.shoulder, hy * 0.6 + params.height + upAdd, hz + rightZ(cam.yaw) * params.shoulder);
+    want.set(hx + rightX(cam.yaw) * shoulderNow, hy * 0.6 + params.height + upAdd, hz + rightZ(cam.yaw) * shoulderNow);
     if (first) pivot.copy(want); else pivot.lerp(want, k);
     if (zoomLeft > 0) zoomLeft -= dtReal;
     zoomK += ((zoomLeft > 0 ? zoomTo : 1) - zoomK) * (1 - Math.exp(-dtReal / 0.12));

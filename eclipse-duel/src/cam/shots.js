@@ -300,7 +300,7 @@ export function lowSweep(o = {}) {
     const a0 = Math.min(from, Math.acos(clamp(0.75 / Math.max(1, R * k), 0, 1)) / DEG);
     return finish({
       name: 'lowSweep', dur, space: subject, ease: 'inOutSine', lookEase: 'outSine', handheld: 0.3,
-      dof: { focus: subject, aperture: 1, range: 0.7, near: 1.3, protect: false }, tone: { exposure: 0.05, vignette: 0.06 },
+      dof: { focus: subject, aperture: 1, range: 0.7, near: 1.3, protect: false }, tone: { exposure: 0.12, vignette: 0.06 },
       orbit: { pivot: [0, l1, 0], from: sign * a0, to: sign * to, radius: [R, R * 0.92], height: [h0, h1] },
       from: { look: [sign * (behind ? c.sep / k : 0) * lead, l0, 0], fov: f0, roll: r0 * -sign },
       to: { look: [0, l1, 0], fov: f1, roll: r1 * -sign },
@@ -313,13 +313,13 @@ export function lowSweep(o = {}) {
  * and the eclipse hanging between them; almost still (a slow creep and the operator's breathing). Late-bound: it reads
  * the eclipse direction (cam.sun / env.sunDir), the separation and the viewport aspect when the shot starts, and widens
  * the lens on narrow (portrait) viewports until both masters fit.
- * @param {object} o dur=1.6, dist=[15,14.2] (m from the fight line), height=0.45 (m), fov=24 (the lens widens when
- *   the masters or the eclipse would not fit), sunY=0.64 (screen height of the eclipse centre, 0 bottom .. 1 top),
- *   feetY=0.22 (lowest the masters' feet may sit), margin=1.5 (m of air outside each master), creep=0.25 (m of
- *   sideways drift), grade='ink' (post grade for the shot; false = none)
+ * @param {object} o dur=1.6, dist=[13,12.4] (m from the fight line), height=0.45 (m), fov=24 (the lens widens when
+ *   the masters or the eclipse would not fit), sunY=0.58 (screen height of the eclipse centre, 0 bottom .. 1 top: at
+ *   the masters' head height in the arena), feetY=0.2 (lowest the masters' feet may sit), margin=1.5 (m of air outside
+ *   each master), creep=0.25 (m of sideways drift), grade='ink' (post grade for the shot; false = none)
  */
 export function duelStandoff(o = {}) {
-  const { dur = 1.6, dist = [15, 14.2], height = 0.45, fov = 24, sunY = 0.64, feetY = 0.22, margin = 1.5, creep = 0.25 } = o;
+  const { dur = 1.6, dist = [13, 12.4], height = 0.45, fov = 24, sunY = 0.58, feetY = 0.2, margin = 1.5, creep = 0.25 } = o;
   const [d0, d1] = two(dist);
   return (c) => {
     const k = o.scale || 1;
@@ -399,7 +399,7 @@ export function craneRise(o = {}) {
  */
 export function duelIntro(o = {}) {
   const { dur = 2.2, round = 1, grade = 'ink' } = o;
-  if (round > 1) return [duelStandoff({ dur: dur * 0.85, dist: [13.5, 12.8], grade, ...o.standoff })];
+  if (round > 1) return [duelStandoff({ dur: dur * 0.85, dist: [12.2, 11.4], grade, ...o.standoff })];
   return [
     lowSweep({ dur: dur * 0.46, grade, ...o.sweep }),
     duelStandoff({ dur: dur * 0.54, cut: true, grade, ...o.standoff }),

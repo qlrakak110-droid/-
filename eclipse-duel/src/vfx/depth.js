@@ -7,6 +7,7 @@
 //
 //   vfxSoft(invSoftness)   1 in open air -> 0 where the fragment touches the opaque scene behind it
 //   vfxVisible(softness)   1 in front of the scene -> 0 behind it (for the distortion pass, which has no depth buffer)
+//   vfxRefract(offset, s)  vfxVisible, and 0 where the refracted fetch would land on something nearer than the fragment
 //
 // A previous-frame depth is wrong for one frame after a camera cut and stale when frames were skipped (the capture
 // harness advances many frames per render): `uDepthOn` drops to 0 for those frames, so effects fall back to their
@@ -26,9 +27,17 @@ float vfxFragDepth() { return uCamNearFar.x * uCamNearFar.y / (uCamNearFar.y - g
 float vfxSceneDepth() { return texture2D(tSceneDepth, gl_FragCoord.xy * VFX_DEPTH_SCALE / uSceneRes).r; }
 float vfxSoft(float invSoft) { return mix(1.0, clamp((vfxSceneDepth() - vfxFragDepth()) * invSoft, 0.0, 1.0), uDepthOn); }
 float vfxVisible(float soft) { return mix(1.0, clamp((vfxSceneDepth() - vfxFragDepth()) / soft + 1.0, 0.0, 1.0), uDepthOn); }
+// refraction: o is the UV offset this fragment asks the composite to apply. If the pixel it would fetch belongs to
+// something in front of the refracting surface (a fighter before the heat), the fetch would smear that body outward:
+// 0 there, 1 otherwise
+float vfxRefract(vec2 o, float soft) {
+  float d = texture2D(tSceneDepth, gl_FragCoord.xy * VFX_DEPTH_SCALE / uSceneRes + o).r;
+  return vfxVisible(soft) * mix(1.0, clamp((d - vfxFragDepth()) / soft + 1.0, 0.0, 1.0), uDepthOn);
+}
 #else
 float vfxSoft(float invSoft) { return 1.0; }
 float vfxVisible(float soft) { return 1.0; }
+float vfxRefract(vec2 o, float soft) { return 1.0; }
 #endif
 `;
 

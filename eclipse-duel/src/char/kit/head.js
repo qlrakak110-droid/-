@@ -135,7 +135,8 @@ export function demonMask(o = {}) {
     t.addScaledVector(n, -t.dot(n)).normalize();
     const M = new THREE.Matrix4().makeBasis(t, n, new THREE.Vector3().crossVectors(n, t).negate());
     const almond = (w, h, lift) => { const g = lathe([[0, 0.0015 * k], [w * 0.6, 0.0012 * k], [w, 0]], { segs: 10 }); g.scale(1, 1, h / w); g.applyMatrix4(M); g.translate(f.p[0] + n.x * lift, f.p[1] + n.y * lift, f.p[2] + n.z * lift); return fixWinding(g); };
-    pits.push(almond(0.021 * k, 0.0095 * k, 0)); eyeG.push(almond(0.0135 * k, 0.0036 * k, 0.0013 * k));
+    // (the plate's facets bridge the eye pit ~2 mm above the sculpt: the lozenges sit clear of them)
+    pits.push(almond(0.021 * k, 0.0095 * k, 0.0028 * k)); eyeG.push(almond(0.0135 * k, 0.0038 * k, 0.0042 * k));
   }
   out.pits = merge(pits); out.eyes = merge(eyeG);
   if (o.fangs !== false) {
@@ -182,7 +183,7 @@ export function silverMask(o = {}) {
     t.addScaledVector(n, -t.dot(n)).normalize();
     const M = new THREE.Matrix4().makeBasis(t, n, new THREE.Vector3().crossVectors(n, t).negate());
     const almond = (w, h, lift) => { const g = lathe([[0, 0.0012 * k], [w * 0.6, 0.001 * k], [w, 0]], { segs: 10 }); g.scale(1, 1, h / w); g.applyMatrix4(M); g.translate(f.p[0] + n.x * lift, f.p[1] + n.y * lift, f.p[2] + n.z * lift); return fixWinding(g); };
-    pits.push(almond(0.022 * k, 0.0056 * k, 0)); eyeG.push(almond(0.016 * k, 0.0022 * k, 0.001 * k));
+    pits.push(almond(0.022 * k, 0.0056 * k, 0.0012 * k)); eyeG.push(almond(0.016 * k, 0.0024 * k, 0.0022 * k));
   }
   out.pits = merge(pits); out.eyes = merge(eyeG);
   // engraved brow line: a thin band under the top edge

@@ -697,8 +697,8 @@ export function beastPauldron(o = {}) {
     const t = new THREE.Vector3(1, 0, 0).applyAxisAngle(f.n, sg * 0.4); t.addScaledVector(f.n, -t.dot(f.n)).normalize();
     const b = new THREE.Vector3().crossVectors(f.n, t), M = new THREE.Matrix4().makeBasis(t, f.n, b);
     const almond = (w, h, lift) => { const g = lathe([[0, 0.0016], [w * 0.6, 0.0013], [w, 0]], { segs: 10 }); g.scale(1, 1, h / w); g.applyMatrix4(M); g.translate(f.p.x + f.n.x * lift, f.p.y + f.n.y * lift, f.p.z + f.n.z * lift); return g; };
-    pits.push(almond(0.021, 0.011, 0.0008));
-    eyes.push(almond(0.013, 0.0042, 0.0022));
+    pits.push(almond(0.021, 0.011, 0.003));
+    eyes.push(almond(0.013, 0.0044, 0.0044));
   }
   out.pits = merge(pits); out.eyes = merge(eyes);
   if (o.fangs !== false) {

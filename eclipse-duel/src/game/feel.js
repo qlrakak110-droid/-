@@ -132,6 +132,8 @@ export function createFeel(ctx, session) {
     if (e.group === 'skill' && !e.forced) {
       const pos = A.socket('weaponTip', new THREE.Vector3());
       fx.play('combat.charge.gather', { pos, facing: A.facing }, { element: A.element, duration: 0.22, follow: A.char.sockets.weaponTip }, 'game.cast');
+      // inner energy flares up the body as the technique starts
+      fx.play('combat.aura.flare', { pos: A.at(0, 0, 0, new THREE.Vector3()), facing: A.facing }, { element: A.element, k: 0.8 }, null);
       A.glow(A.palette.mid, 0.035, 0.45, 0.06);
       session.sound(sfxOf(e.fighter).cast, { pos, volume: 0.6 });
     }

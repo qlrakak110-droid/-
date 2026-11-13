@@ -158,8 +158,9 @@ export function createLens(ctx, settings = {}) {
     } else {
       damp1(lnF, lf, pull, dt);
       damp1(lnSlow, lnF.v, 0.9, dt);
-      damp1(ap, tAp, tAp > ap.v ? 0.18 : 0.25, dt);
+      damp1(ap, tAp, tAp > ap.v ? 0.18 : on ? 0.25 : 0.14, dt);
       damp1(rg, tRg, 0.2, dt);
+      if (tAp === 0 && ap.v < 0.02) { ap.v = 0; ap.vel = 0; }     // an invisible tail must not keep the DOF passes alive
     }
     focusNow = Math.exp(lnF.v);
     if (post && post.dof) {

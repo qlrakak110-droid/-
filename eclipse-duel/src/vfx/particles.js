@@ -205,8 +205,9 @@ void main() {
   vec4 s = texture2D(uAtlas, vUv);
   float a = s.a * vCol.a;
   vec2 f = texture2D(uFlow, vLocal * vN.z + vN.xy).ba * 2.0 - 1.0;
-  a *= clamp(vE.y * vE.x, 0.0, 1.0) * vfxVisible(0.3);   // haze behind a body does not bend the body
-  gl_FragColor = vec4(f * a * vCol.r, 0.0, 0.0);
+  a *= clamp(vE.y * vE.x, 0.0, 1.0);
+  vec2 o = f * a * vCol.r;
+  gl_FragColor = vec4(o * vfxRefract(o, 0.3), 0.0, 0.0);   // haze behind a body does not bend the body
 }`;
 
 /**

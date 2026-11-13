@@ -265,7 +265,7 @@ let gradSeq = 0;
  */
 export function brushText(text, o = {}) {
   const { vertical = false, gap = 8, seed = 0, weight = 1, cls = '', shadow = true, fill = 'currentColor', rough = 0.75 } = o;
-  const key = [text, vertical ? 1 : 0, gap, seed, weight, shadow ? 1 : 0, Array.isArray(fill) ? fill.join() : fill, rough].join('|');
+  const key = [text, vertical ? 1 : 0, gap, seed, weight, rough].join('|');      // geometry only: paint is applied per call
   let hit = cache.get(key);
   if (!hit) {
     let d = '', fallback = '';

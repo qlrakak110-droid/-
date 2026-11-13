@@ -108,7 +108,8 @@ ${DEPTH_FADE_GLSL}
 void main() {
   vec2 f = texture2D(uFlow, vec2(vV.y * 0.5 - uTime * 0.3, vV.x * 0.5 + vSeed)).ba * 2.0 - 1.0;
   float a = clamp(vCol.a, 0.0, 1.0) * smoothstep(0.0, 0.4, vV.x) * (1.0 - vV.z);
-  gl_FragColor = vec4(f * a * vDist * vfxVisible(0.3), 0.0, 0.0);
+  vec2 o = f * a * vDist;
+  gl_FragColor = vec4(o * vfxRefract(o, 0.3), 0.0, 0.0);
 }`;
 
 /**

@@ -779,12 +779,11 @@ export function ribbon(pts, o = {}) {
   const WF = typeof o.width === 'function' ? o.width : () => o.width ?? 0.03;
   const NF = typeof o.normal === 'function' ? o.normal : () => o.normal || [1, 0, 0];
   const camber = o.camber ?? 0.18, code = o.code ?? 0, u0 = o.u0 ?? 0, du = o.du ?? 1, v0 = o.v0 ?? 0, v1 = o.v1 ?? 1;
-  const pos = [], nor = [], idx = [], cav = [], uvw = [], W = [];
   const tng = new V(), sd = new V(), nn = new V(), q = new THREE.Quaternion();
   const faces = o.solid ? [1, -1] : [1];
-  const ring = nu + 1;
+  const ring = nu + 1, parts = [];
   for (const face of faces) {
-    const base = pos.length / 3;
+    const pos = [], nor = [], idx = [], cav = [], uvw = [], W = [];
     for (let i = 0; i < n; i++) {
       const t = n > 1 ? i / (n - 1) : 0;
       tng.subVectors(P[Math.min(n - 1, i + 1)], P[Math.max(0, i - 1)]).normalize();
@@ -796,10 +795,10 @@ export function ribbon(pts, o = {}) {
       sd.crossVectors(tng, nn).normalize();
       const w = WF(t);
       for (let k = 0; k <= nu; k++) {
-        const x = k / nu - 0.5, bow = (1 - 4 * x * x) * camber * w * (o.solid ? (face > 0 ? 1 : 1 - 2 * (o.thick ?? 0.25) / Math.max(1e-6, camber)) : 1);
+        const x = k / nu - 0.5, bow = (1 - 4 * x * x) * camber * w * (face > 0 ? 1 : 1 - (2 * (o.thick ?? 0.25)) / Math.max(1e-6, camber));
         pos.push(P[i].x + sd.x * x * w + nn.x * bow, P[i].y + sd.y * x * w + nn.y * bow, P[i].z + sd.z * x * w + nn.z * bow);
         const sl = 8 * x * camber;                 // d(bow)/dx
-        let nx = nn.x + sd.x * sl, ny = nn.y + sd.y * sl, nz = nn.z + sd.z * sl;
+        const nx = nn.x + sd.x * sl, ny = nn.y + sd.y * sl, nz = nn.z + sd.z * sl;
         const l = (Math.hypot(nx, ny, nz) || 1) * face;
         nor.push(nx / l, ny / l, nz / l);
         cav.push(face > 0 ? 1 : 0.7);
@@ -807,14 +806,13 @@ export function ribbon(pts, o = {}) {
         if (o.weights) W.push(o.weights(t, x));
       }
     }
-    for (let i = 0; i < n - 1; i++) for (let k = 0; k < nu; k++) {
-      const a = base + i * ring + k, b = a + 1, c = a + ring, d = c + 1;
-      if (face > 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
-    }
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < nu; k++) { const a = i * ring + k, b = a + 1, c = a + ring, d = c + 1; idx.push(a, c, b, b, c, d); }
+    // winding follows the stored normals (double-sided materials shade the side the normal points to as the front)
+    const g = fixWinding(mk(pos, nor, idx, cav, uvw));
+    if (o.weights) g.userData.W = W;
+    parts.push(g);
   }
-  const g = mk(pos, nor, idx, cav, uvw);
-  if (o.weights) g.userData.W = W;
-  return g;
+  return parts.length > 1 ? merge(parts) : parts[0];
 }
 
 /** Set / replace the `uvw` attribute of a geometry: fn(p [x,y,z], n [x,y,z], i) -> [u, v, code]. Returns the geometry. */

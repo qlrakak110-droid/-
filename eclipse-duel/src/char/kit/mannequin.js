@@ -28,8 +28,8 @@ const PAL = {
   },
   slender: {
     glow: { inlay: [1.5, 4, 8], vein: [0.5, 1.6, 3.4], eye: [2.2, 5, 9] },
-    robe: [0.52, 0.55, 0.6], inner: [0.014, 0.02, 0.085], sash: [0.02, 0.03, 0.11], trim: [0.03, 0.04, 0.12], thread: [0.62, 0.64, 0.68], lace: [0.1, 0.14, 0.32],
-    pants: [0.3, 0.32, 0.36], hair: [0.012, 0.012, 0.016], rim: [0.2, 0.28, 0.46, 3.2], motif: MOTIF.wave, emblem: MOTIF.moon, width: 0.86, depth: 0.86, weapon: 'crescents',
+    robe: [0.3, 0.32, 0.36], inner: [0.014, 0.02, 0.085], sash: [0.02, 0.03, 0.11], trim: [0.03, 0.04, 0.12], thread: [0.62, 0.64, 0.68], lace: [0.1, 0.14, 0.32],
+    pants: [0.2, 0.21, 0.24], hair: [0.012, 0.012, 0.016], rim: [0.2, 0.28, 0.46, 3.2], motif: MOTIF.wave, emblem: MOTIF.moon, width: 0.86, depth: 0.86, weapon: 'crescents',
   },
   tall: {
     glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [6, 4.2, 10] },
@@ -70,8 +70,8 @@ export function mannequin(kind = 'heavy', base = {}) {
       M.hang('maneR', 'head', [-0.075 * K, 0.06 * K, 0.055 * K], { n: 2, len: 0.3 * K, dir: [-0.35, -1, 0.12], stiffness: 26, damping: 3, radius: 0.03 })];
     R.band = M.hang('hband', 'head', [-0.1 * K, 0.115 * K, 0.02 * K], { n: 2, len: 0.2 * K, dir: [-0.6, -1, 0.1], stiffness: 18, damping: 2.4, radius: 0.015, collide: false });
     R.gourd = M.hang('gourd', 'hips', [-0.02 * K, wy - 0.07 * K, -rz * 1.08], { n: 1, len: 0.06, stiffness: 60, damping: 5, limit: 40, radius: 0.03 });
-    R.drape = M.hang('drapeL', 'foreArmL', [-0.05 * K, -0.2 * K, 0], { n: 2, len: 0.24 * K, dir: [-0.3, -1, 0], stiffness: 14, damping: 3, gravity: 1, limit: 80, radius: 0.025 });
-    rigs.push(...R.mane, R.band, R.gourd, R.drape);
+    R.drapeL = M.hang('drapeL', 'foreArmL', [-0.05 * K, -0.2 * K, 0], { n: 2, len: 0.24 * K, dir: [-0.3, -1, 0], stiffness: 14, damping: 3, gravity: 1, limit: 80, radius: 0.025 });
+    rigs.push(...R.mane, R.band, R.gourd, R.drapeL);
   } else if (kind === 'slender') {
     R.tail = M.hang('tail', 'head', [-0.1 * K, 0.17 * K, 0], { n: 5, len: 0.78 * K, dir: [-0.5, -1, 0], stiffness: 20, damping: 2.6, gravity: 0.95, limit: 62, radius: 0.028 });
     R.veil = H.veilRig('veil', { R: 0.285 * K, y: 0.118 * K, len: 0.24 * K, chains: 6, tilt: -6 });
@@ -117,7 +117,7 @@ export function mannequin(kind = 'heavy', base = {}) {
 function buildOutfit(kit, rig, kind, C, R, X) {
   const { K, wy, silk, trim } = X;
   const T = M.tailor(kit, { width: C.width, depth: C.depth });
-  const SILK = silk(C.robe), INNER = silk(C.inner), SASH = silk(C.sash, { rough: 0.58 }), DAMASK = { ...MURIM.damask, color: C.robe, vein: 0.5, wear: 0.3 };
+  const SILK = silk(C.robe), INNER = silk(C.inner), SASH = silk(C.sash, { rough: 0.58 }), DAMASK = { ...MURIM.damask, color: C.robe, vein: 0.14, wear: 0.3 };
   const TR = trim(C.motif), EM = trim(C.emblem, 0.3);
   const band = (g, t = TR) => g && T.put('robe', g, t.look);
   const P = rig.P;
@@ -153,7 +153,7 @@ function buildOutfit(kit, rig, kind, C, R, X) {
   for (const [key, Rg] of Object.entries(R.SK)) {
     const front = key[0] === 'f', right = key[1] === 'r';
     const sp = M.skirtPanel(kit, Rg, {
-      flare: kind === 'slender' ? 0.13 * K : 0.1 * K, pleats: front ? 2 : 3, bandW: 0.05 * K, motif: TR.code, sideW: front ? 0.03 * K : 0, wrap: 3,
+      flare: (kind === 'slender' ? 0.13 : front ? 0.09 : 0.06) * K, pleats: front ? 2 : 3, pleat: front ? 0.016 : 0.011, lift: front ? 0.008 : 0.003, bandW: 0.05 * K, motif: TR.code, sideW: front ? 0.03 * K : 0, wrap: 3,
       hem: kind === 'heavy' ? (u) => 1 - 0.1 * Math.abs(Math.sin(u * 7 + (right ? 1 : 2))) : kind === 'slender' ? (u) => 1 - 0.14 * (front ? (right ? 1 - u : u) : 0) : () => 1,
     });
     const add = (g, look) => g && putSkinned(kit, 'robe', g, look, weightsOf(g.userData.W));
@@ -219,7 +219,7 @@ function buildOutfit(kit, rig, kind, C, R, X) {
 
   // ---- head ---------------------------------------------------------------------------------------------------------
   const hw = H.headWrap({ scale: K });
-  const WRAP = { ...MURIM.hempInk, color: kind === 'slender' ? [0.2, 0.21, 0.24] : [0.02, 0.018, 0.018] };
+  const WRAP = { ...MURIM.hempInk, color: kind === 'slender' ? [0.03, 0.034, 0.05] : [0.02, 0.018, 0.018] };
   put(kit, 'gear', 'head', hw.wrap, WRAP); put(kit, 'gear', 'head', hw.turns, WRAP); put(kit, 'gear', 'head', hw.slot, MURIM.dark);
   const HAIR = { ...MURIM.hair, color: C.hair };
   if (kind === 'heavy') {

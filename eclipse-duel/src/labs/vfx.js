@@ -4,6 +4,10 @@ import * as THREE from 'three';
 import { createLab } from '../core/lab.js';
 import { createVfx } from '../vfx/index.js';
 import { LIB, PALETTE } from '../vfx/library.js';
+import { LEAVES, PETALS, KIT } from '../vfx/presets/common.js';
+import { defineKaelFx } from '../fighters/kael/fx.js';
+import { registerDefs as registerIskaDefs, defineIskaFx } from '../fighters/iska/fxlib.js';
+import { defineVornFx } from '../fighters/vorn/fx.js';
 
 const P = (p, d) => (p ? new THREE.Vector3(...p) : new THREE.Vector3(...d));
 
@@ -442,6 +446,11 @@ createLab({
     lab.dummyB = makeDummy(ctx, 0x8a8478);
     lab.demos = DEMOS;
     definePresets(ctx, lab, vfx);
+    // the fighters' signature presets (kael.* / iska.* / vorn.*) play in the lab too: preset('kael.column') ...
+    defineKaelFx(vfx);
+    registerIskaDefs(vfx);
+    defineIskaFx(vfx, ctx.rng);
+    defineVornFx(vfx, ctx.rng);
     vfx.prewarm();
   },
   scenarios: {
@@ -694,6 +703,51 @@ createLab({
       const i = ctx.renderer.info.render;
       out.calls = i.calls; out.tris = i.triangles; out.programs = (ctx.renderer.info.programs || []).length;
       return out;
+    },
+    // ---- round 3: the murim idiom (MURIM.md section 5) ----------------------------------------------------------------
+    /** formation diagrams (진법) in the three element palettes and the eclipse palette, plus an ink splash */
+    formations(ctx, lab) {
+      lab.view({ target: [0, 0.2, -0.6], dist: 8.5, yaw: 0, pitch: 34, fov: 40 });
+      ['ember', 'frost', 'volt'].forEach((palette, i) => ctx.vfx.decal({ kind: 'formation', pos: [-3.6 + i * 3.6, 0, 0.4], radius: 1.6, life: 6, palette }));
+      ctx.vfx.decal({ kind: 'formation', pos: [-1.8, 0, -3.2], radius: 1.5, life: 6 });
+      ctx.vfx.decal({ kind: 'ink', pos: [1.8, 0, -3.2], radius: 1.4, life: 6, palette: 'volt' });
+    },
+    /** accent particles: leaves, petals, talisman scraps (ember / volt script), snow crystals, inner-energy wisps */
+    accents(ctx, lab) {
+      lab.view({ target: [0, 1.2, 0], dist: 7.5, yaw: 0, pitch: 6, fov: 40 });
+      const v = ctx.vfx, up = [0, 1, 0];
+      v.burst(LEAVES, { pos: [-3.6, 0.6, 0], dir: up, count: 14, scale: 1.2 });
+      v.burst(PETALS, { pos: [-1.8, 1.0, 0], dir: up, count: 18, scale: 1.2 });
+      v.burst(KIT.ember.scrap, { pos: [0, 0.8, 0], dir: up, count: 6, scale: 1.2 });
+      v.burst(KIT.volt.scrap, { pos: [1.8, 0.8, 0], dir: up, count: 6, scale: 1.2 });
+      v.burst(KIT.frost.scrap, { pos: [3.6, 1.0, 0], dir: up, count: 12, scale: 1.2 });
+      v.emitter(LIB.wisps, { pos: [-0.9, 0.1, 0.4], dir: up, duration: 2 });
+      v.emitter(LIB.wisps, { pos: [0.9, 0.1, 0.4], dir: up, duration: 2, color: [0.25, 0.7, 2.2] });
+      v.light({ pos: [0, 2.2, 2.5], color: [6, 5, 4], intensity: 45, range: 12, duration: 3 });
+    },
+    /** stomp (진각): light at x = -1.6, heavy at x = 1.6 */
+    stomp(ctx, lab) {
+      lab.view({ target: [0, 0.5, 0], dist: 6.5, yaw: 0, pitch: 12, fov: 40 });
+      ctx.vfx.play('dust.stomp', { pos: [-1.6, 0, 0], facing: 1 });
+      ctx.vfx.play('dust.stomp', { pos: [1.6, 0, 0], facing: 1 }, { heavy: true });
+      ctx.vfx.light({ pos: [0, 2.2, 2.5], color: [6, 5, 4], intensity: 40, range: 12, duration: 3 });
+    },
+    /** soft particles and depth-aware refraction: smoke through a capsule and the floor, heat behind / in front of it */
+    soft(ctx, lab) {
+      lab.view({ target: [0, 1.0, 0], dist: 6, yaw: 12, pitch: 8, fov: 40 });
+      lab.dummyA.visible = true; lab.dummyA.position.set(-1.2, 0, 0);
+      lab.dummyB.visible = true; lab.dummyB.position.set(1.2, 0, 0);
+      const v = ctx.vfx;
+      v.emitter({ ...LIB.smoke, rate: 14, delay: 0, life: [1.6, 2.4], size: [0.9, 1.5] }, { pos: [-1.2, 0.5, -0.1], dir: [0, 1, 0], duration: 3 });
+      v.emitter({ ...LIB.dustRing, rate: 12, count: 0 }, { pos: [-1.2, 0.02, 0.2], dir: [0, 1, 0], duration: 3 });
+      v.distort({ kind: 'heat', pos: [1.2, 1.1, -0.6], radius: 1.3, strength: 0.03, life: 3 });      // behind the capsule: it stays sharp
+      v.distort({ kind: 'heat', pos: [2.4, 1.1, 0.6], radius: 0.7, strength: 0.03, life: 3 });       // in front of the wall only
+      v.light({ pos: [0, 2.2, 2.5], color: [6, 5, 4], intensity: 45, range: 12, duration: 3 });
+      return { depth: ctx.vfx.shared.depth.enabled };
+    },
+    /** afterimage proxy: the figure's silhouette proxy statistics and the per-object ghost cap */
+    ghostStats(ctx, lab) {
+      return { proxy: ctx.vfx.afterimageProxy(lab.figure.root), limits: ctx.vfx.afterimageLimits };
     },
     // ---- stage 3: presets -------------------------------------------------------------------------------------------
     /** play any preset (or a DEMOS variant such as 'hit.crit:frost') at scene origin x with facing f; extra opts merge in */

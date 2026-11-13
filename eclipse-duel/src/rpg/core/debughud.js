@@ -1,4 +1,5 @@
-// Minimal built-in HUD of the RPG mode: used until src/rpg/ui registers the real one (README §11). Plain DOM over the
+// Minimal built-in HUD of the RPG mode: used until src/rpg/ui registers the real one (README §11). Wording follows
+// MURIM.md §6 (회천단, 공력, 운기조식 ...). Plain DOM over the
 // stage: hero bars, chalice / shards, skill cooldowns, lock reticle + target bar, boss bar, prompt, banners, damage
 // numbers, a pause panel. Everything is written only when it changes (no per-frame layout work beyond transforms).
 
@@ -84,17 +85,17 @@ export function createDebugHud(ctx, api) {
       add('타이틀로 · Return to title', () => api.toTitle());
     } else if (kind === 'rest') {
       const lv = snap.levelUp;
-      h.textContent = `별빛 제단 · Lv ${lv ? lv.level : 1}`; p.appendChild(h);
+      h.textContent = `정심석 靜心石 · 운기조식  (경지 ${lv ? lv.level : 1})`; p.appendChild(h);
       const info = document.createElement('div');
       info.style.cssText = 'font-size:11px;margin-bottom:8px;color:#cfc7b4';
-      info.textContent = lv ? `일식 조각 ${snap.hero.shards} / 필요 ${lv.cost}` : '';
+      info.textContent = lv ? `공력 ${snap.hero.shards} / 필요 ${lv.cost}` : '';
       p.appendChild(info);
-      const names = { vigor: '생명력 Vigor', endurance: '지구력 Endurance', might: '완력 Might', arcana: '비전 Arcana' };
+      const names = { vigor: '근골 筋骨', endurance: '기식 氣息', might: '외공 外功', arcana: '내공 內功' };
       if (lv) for (const k of Object.keys(names)) add(`${names[k]}  ${lv.stats[k]} → ${lv.stats[k] + 1}`, () => { api.levelUp(k); panelKind = ''; }, !lv.canAfford);
-      add('일어서기 · Leave', () => api.leaveAltar());
+      add('일어서다 · Rise', () => api.leaveAltar());
     } else if (kind === 'victory') {
-      h.textContent = '거상이 무너졌다 · COLOSSUS FELLED'; p.appendChild(h);
-      add('다음 일식으로 · Next cycle', () => api.nextCycle());
+      h.textContent = '마신상 붕괴 · 흑일이 걷힌다'; p.appendChild(h);
+      add('다음 흑일로 · Next cycle', () => api.nextCycle());
       add('타이틀로 · Return to title', () => api.toTitle());
     }
   }
@@ -104,12 +105,12 @@ export function createDebugHud(ctx, api) {
       host.appendChild(root);
       offs.push(api.on('hit', (e) => number(e)), api.on('tick', (e) => number(e)), api.on('guard', (e) => number(e)));
       offs.push(api.on('encounterStart', (e) => banner(e.def.title ? e.def.title.ko : e.id, e.def.title ? e.def.title.en : '')));
-      offs.push(api.on('heroDeath', () => banner('빛이 꺼졌다', 'THE LIGHT GOES OUT', 'death', 3.2)));
-      offs.push(api.on('bossDefeated', () => banner('일식이 물러간다', 'THE ECLIPSE RECEDES', '', 4)));
-      offs.push(api.on('cycle', (e) => banner(`일식 ${e.cycle + 1}`, 'A NEW ECLIPSE')));
+      offs.push(api.on('heroDeath', () => banner('강호의 이슬이 되다', 'A DROP OF DEW ON THE MARTIAL ROAD', 'death', 3.2)));
+      offs.push(api.on('bossDefeated', () => banner('마신상 붕괴 · 흑일이 걷힌다', 'THE BLACK SUN LIFTS', '', 4)));
+      offs.push(api.on('cycle', (e) => banner(`흑일 ${e.cycle + 1}회차`, 'THE BLACK SUN RISES AGAIN')));
       offs.push(api.on('announce', (e) => banner(e.text, e.sub || '', '', 1.6)));
-      offs.push(api.on('shards', (e) => { if (e.reason === 'reclaim') banner('조각을 되찾았다', 'SHARDS RECLAIMED', '', 1.8); }));
-      offs.push(api.on('perfectGuard', () => banner('완벽한 방어', 'PERFECT GUARD', '', 0.7)));
+      offs.push(api.on('shards', (e) => { if (e.reason === 'reclaim') banner('공력을 되찾았다', 'INNER POWER RECLAIMED', '', 1.8); }));
+      offs.push(api.on('perfectGuard', () => banner('흘려내기', 'PERFECT GUARD', '', 0.7)));
     },
     stop() { for (const off of offs) off(); offs.length = 0; root.remove(); },
     update(s, dt) {
@@ -120,7 +121,7 @@ export function createDebugHud(ctx, api) {
       put('st', el.st, 'transform', `scaleX(${(h.staminaMax ? h.stamina / h.staminaMax : 0).toFixed(3)})`);
       const lock = h.staminaLocked ? 'bar st lock' : 'bar st';
       if (last.stc !== lock) { last.stc = lock; el.stBar.className = lock; }
-      text('meta', el.meta, `여명의 잔 ${h.chalice}/${h.chaliceMax}   일식 조각 ${h.shards}   궁극기 ${Math.round(h.ult)}%${s.cycle ? '   일식 ' + (s.cycle + 1) : ''}`);
+      text('meta', el.meta, `회천단 ${h.chalice}/${h.chaliceMax}   공력 ${h.shards}   오의 ${Math.round(h.ult)}%${s.cycle ? '   흑일 ' + (s.cycle + 1) + '회차' : ''}`);
       // skills
       let sk = '';
       for (let i = 0; i < h.skills.length; i++) { const k = h.skills[i]; sk += `${k.name}|${k.ready ? 1 : 0}|${Math.ceil(k.cd * 10)};`; }
@@ -128,8 +129,8 @@ export function createDebugHud(ctx, api) {
       if (last.sk !== sk) {
         last.sk = sk;
         el.skills.innerHTML = '';
-        for (const k of h.skills) { const d = document.createElement('div'); d.className = 'sk' + (k.ready ? ' ready' : ''); d.innerHTML = `<b></b>${k.cost} FP${k.cd > 0 ? ' · ' + Math.ceil(k.cd * 10) / 10 : ''}`; d.firstChild.textContent = k.name; el.skills.appendChild(d); }
-        const u = document.createElement('div'); u.className = 'sk' + (h.ultReady ? ' ready' : ''); u.innerHTML = '<b></b>ULT'; u.firstChild.textContent = h.ultSkill ? h.ultSkill.name : '궁극기'; el.skills.appendChild(u);
+        for (const k of h.skills) { const d = document.createElement('div'); d.className = 'sk' + (k.ready ? ' ready' : ''); d.innerHTML = `<b></b>내공 ${k.cost}${k.cd > 0 ? ' · ' + Math.ceil(k.cd * 10) / 10 : ''}`; d.firstChild.textContent = k.name; el.skills.appendChild(d); }
+        const u = document.createElement('div'); u.className = 'sk' + (h.ultReady ? ' ready' : ''); u.innerHTML = '<b></b>오의 奧義'; u.firstChild.textContent = h.ultSkill ? h.ultSkill.name : '오의'; el.skills.appendChild(u);
       }
       // target
       const t = s.target;

@@ -153,7 +153,7 @@ function hitKit(el) {
   else if (frost) k.scrap = def({ tex: 'snow', blend: 'add', count: 6, life: [0.7, 1.6], shape: { type: 'sphere', radius: 0.25 }, emit: 'axis', spread: 65, lift: 0.3,
     speed: [1, 4.5, 1.4], size: [0.07, 0.15, 1.6], spin: [1, 4], gravity: -1.1, drag: 2.2, turbulence: { amp: 0.5, freq: 1.2, speed: 1 }, flicker: { amount: 0.35, rate: 9 },
     color: [key(0, [6, 8, 10], 0), key(0.08, P.core, 1, 0.7), key(0.6, P.mid, 0.9, 1.1), key(1, P.tail, 0)] });
-  else if (el === 'volt') k.scrap = def({ ...LIB.talismans, count: 3, color: [[0, 5, 3.5, 9, 1], [0.3, 0.6, 0.55, 0.42, 1], [0.8, 0.46, 0.42, 0.34, 1], [1, 0.16, 0.14, 0.16, 0.8]] });
+  else if (el === 'volt') k.scrap = def({ ...LIB.talismans, count: 3, color: [[0, 3.2, 2.2, 6, 1], [0.04, 0.4, 0.37, 0.29, 1], [0.8, 0.32, 0.3, 0.25, 1], [1, 0.12, 0.1, 0.12, 0.8]] });
   else k.scrap = def({ ...LIB.leaves, count: 3 });
   // lingering puff blown out of the contact along the strike: lit grey dust (steel), dark smoke with a warm underglow
   // (ember), pale mist (frost), violet-black ozone (volt). Lighter than the floor so it reads against dark armour.
@@ -213,6 +213,20 @@ export const LEAVES = def({ ...LIB.leaves });
 export const PETALS = def({ ...LIB.petals });
 /** Ink strokes thrown flat along the floor by a stomp (radial around `dir`). */
 export const STOMP_INK = def({ ...LIB.inkStrokes, shape: { type: 'ring', radius: 0.14 }, spread: 7, speed: [3.5, 9, 1.3], life: [0.14, 0.28], size: [0.06, 0.13, 1.4], pull: 0 });
+
+/**
+ * Inner-energy wisps per element (auras): tendrils that rise along the body and curl. Emitters (rate) for idle auras,
+ * bursts (pass count) when a technique flares the energy up.
+ */
+export const WISPS = {
+  ember: def({ ...LIB.wisps }),
+  frost: def({ ...LIB.wisps, gravity: 0.25, speed: [0.5, 1.4], swirl: -0.9,
+    color: [[0, 1.2, 2.4, 4, 0], [0.15, 0.7, 1.7, 3.2, 0.6], [0.6, 0.3, 0.8, 1.8, 0.4], [1, 0.05, 0.12, 0.3, 0]] }),
+  volt: def({ ...LIB.wisps, speed: [1.0, 2.6], turbulence: { amp: 1.2, freq: 1.8, speed: 2.2 }, flicker: { amount: 0.5, rate: 22 },
+    color: [[0, 3, 2, 6, 0], [0.15, 1.8, 1.0, 4.2, 0.65], [0.6, 0.7, 0.3, 1.8, 0.4], [1, 0.1, 0.04, 0.3, 0]] }),
+  steel: def({ ...LIB.wisps, color: [[0, 2.2, 2.0, 1.6, 0], [0.15, 1.3, 1.2, 1.0, 0.5], [0.6, 0.5, 0.46, 0.4, 0.3], [1, 0.08, 0.07, 0.06, 0]] }),
+  eclipse: def({ ...LIB.wisps, color: [[0, 4, 2.8, 1.4, 0], [0.15, 2.4, 1.3, 0.4, 0.65], [0.6, 0.9, 0.35, 0.08, 0.4], [1, 0.1, 0.03, 0.01, 0]] }),
+};
 
 /**
  * What a blow leaves on the floor when it lands low: the element's mark (scorch with dying embers / frost / an ink

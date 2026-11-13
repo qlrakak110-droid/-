@@ -40,7 +40,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .ko { font-family: var(--f-ko); }
 .en { font-family: var(--f-data); text-transform: uppercase; letter-spacing: .22em; }
 /* Hanja accent after a Korean reading */
-.hj { font-family: var(--f-ko); font-style: normal; font-weight: 500; font-size: .82em; margin-left: .42em; letter-spacing: .08em; opacity: .62; }
+.hj { font-family: var(--f-ko); font-style: normal; font-weight: 500; font-size: .82em; margin: 0 .16em 0 .45em; letter-spacing: .16em; opacity: .62; }
 .brush-text { display: block; overflow: visible; }
 .brush-div, .brush-dash, .brush-swath { display: block; width: 100%; height: 100%; overflow: visible; }
 .seal { display: block; width: 100%; height: auto; color: var(--seal); overflow: visible; }
@@ -175,6 +175,9 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .tt-lockup { --mk: min(calc(var(--k) * 300), 40vh, 82vw); position: relative; display: flex; flex-direction: column; align-items: center; width: min(94vw, calc(var(--k) * 1100)); padding-top: calc(var(--mk) * 0.62); }
 .tt-mark { position: absolute; left: 50%; top: 0; width: var(--mk); height: var(--mk); margin-left: calc(var(--mk) / -2); will-change: transform, opacity; }
 .tt-glow { position: absolute; left: 50%; top: calc(var(--mk) * -0.5); width: calc(var(--mk) * 2); height: calc(var(--mk) * 2); margin-left: calc(var(--mk) * -1); border-radius: 50%; background: radial-gradient(circle, rgba(255, 240, 205, .2) 0%, rgba(236, 205, 150, .09) 30%, rgba(236, 205, 150, 0) 62%); will-change: transform, opacity; pointer-events: none; }
+.tt-lockup::after { content: ""; position: absolute; left: 4%; right: 4%; top: calc(var(--mk) * 0.62 + var(--k) * 150); bottom: calc(var(--k) * -26); background: radial-gradient(ellipse 50% 50% at 50% 50%, rgba(4, 4, 6, .78), rgba(4, 4, 6, .5) 55%, rgba(4, 4, 6, 0) 100%); pointer-events: none; }
+.tt-lockup > * { z-index: 1; }
+.tt-lockup > .tt-mark, .tt-lockup > .tt-glow { z-index: 0; }
 .tt-type { position: relative; display: flex; align-items: center; justify-content: center; gap: calc(var(--k) * 16); }
 .tt-word { margin: 0; --th: min(calc(var(--k) * 176), 21vw, 25vh); height: var(--th); will-change: transform, opacity; filter: drop-shadow(0 0 calc(var(--k) * 26) rgba(0, 0, 0, .9)); }
 .tt-word svg { height: 100%; width: auto; }
@@ -708,7 +711,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .an-main svg { height: 100%; width: auto; max-width: 84vw; }
 .an-echo-row { pointer-events: none; }
 .an-echo { opacity: 0; }
-.an-seal { flex: 0 0 auto; display: block; height: 46%; align-self: flex-end; margin-bottom: calc(var(--m) * 0.07); opacity: 0; will-change: transform, opacity; filter: drop-shadow(0 calc(var(--k) * 2) calc(var(--k) * 4) rgba(0, 0, 0, .8)); }
+.an-seal { flex: 0 0 auto; display: block; height: 46%; align-self: flex-end; margin-bottom: calc(var(--m) * 0.07); opacity: 0; will-change: transform, opacity; }
 .an-seal svg { height: 100%; width: auto; }
 .an-rule { left: 30%; right: 30%; top: calc(var(--m) * 0.6); height: max(6px, calc(var(--k) * 10)); color: var(--paper-2); opacity: .8; transform: scaleX(0); will-change: transform; }
 .an-sub { left: 0; right: 0; top: calc(var(--m) * 0.6 + var(--k) * 18); text-align: center; font: 700 var(--t-m)/1 var(--f-data); letter-spacing: .6em; padding-left: .6em; color: var(--paper); text-shadow: 0 1px 0 #000, 0 0 12px rgba(0, 0, 0, .9), 0 0 3px #000; opacity: 0; white-space: nowrap; }
@@ -733,6 +736,8 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 /* 결 決: blood-dark ink; the mark is cut along a rising slash and the halves part */
 .st-ko .an-band { background: var(--noise), linear-gradient(90deg, rgba(40, 3, 5, .3), rgba(48, 4, 6, .9) 16%, rgba(48, 4, 6, .9) 84%, rgba(40, 3, 5, .3)); }
 .st-ko .an-blot { color: #1c0203; }
+.st-ko .an-band, .st-verdict .an-band { top: calc(var(--m) * -0.4); height: calc(var(--m) * 0.8); }
+.st-ko .an-blot, .st-verdict .an-blot { width: calc(var(--m) * 3.6); height: calc(var(--m) * 1.7); margin: calc(var(--m) * -0.85) 0 0 calc(var(--m) * -1.8); }
 .st-ko .an-ring { border-color: #ffc0b4; box-shadow: 0 0 calc(var(--k) * 24) rgba(255, 50, 40, .95), inset 0 0 calc(var(--k) * 20) rgba(255, 50, 40, .6); }
 .st-ko .an-flare { background: linear-gradient(90deg, rgba(255, 60, 40, 0), rgba(255, 80, 60, .7) 25%, #fff 50%, rgba(255, 80, 60, .7) 75%, rgba(255, 60, 40, 0)); box-shadow: 0 0 calc(var(--k) * 16) rgba(255, 50, 40, .95); }
 .an-split { position: relative; flex: 0 0 auto; height: 100%; aspect-ratio: 1; will-change: transform, opacity; }
@@ -885,7 +890,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 /* responsive: short landscape phones (.is-short), portrait (.is-portrait), narrow (.is-narrow)                 */
 
 /* title */
-.is-short .tt-lockup { --mk: min(calc(var(--k) * 300), 56vh); padding-top: calc(var(--mk) * 0.5); }
+.is-short .tt-lockup { --mk: min(calc(var(--k) * 300), 56vh); padding-top: calc(var(--mk) * 0.36); }
 .is-short .tt-tag { display: none; }
 .is-short .tt-menu { margin-top: 10px; }
 .is-short .tt-en { margin-top: 7px; }
@@ -909,6 +914,10 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .is-short .dt-name b { height: 30px; }
 .is-short .dt-title em, .is-short .dt-blurb, .is-short .dt-sk-desc, .is-short .dt-sk-txt em, .is-short .dt-lines dd em, .is-short .st-l em { display: none; }
 .is-short .dt-stats { gap: 5px 16px; }
+.is-short .dt-lines { flex-direction: row; flex-wrap: wrap; gap: 4px 12px; }
+.is-short .dt-lines > div { gap: 6px; }
+.is-short .dt-lines .hj, .is-short .dt-lines .dt-emb, .is-short .dt-name em { display: none; }
+.is-short .dt-head { gap: 4px; }
 .is-short .dt-skills { gap: 4px; padding-top: 7px; }
 .is-short .dt-skill { grid-template-areas: "ico txt meta"; }
 .is-short .dt-ico { width: 24px; height: 24px; padding: 3px; }
@@ -992,6 +1001,8 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .is-short .rs-kicker .en { margin-bottom: 12px; }
 .is-short .rs-name b { height: 42px; }
 .is-short .rs-name span { font-size: 16px; }
+.is-short .rs-sub em { display: none; }
+.is-short .rs-art { left: 80%; }
 .is-short .rs-stats { gap: 18px; padding-top: 8px; }
 .is-short .stat b { font-size: 18px; }
 .is-short .sc-num { font-size: 30px; }
