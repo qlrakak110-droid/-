@@ -12,6 +12,29 @@ Written 2026-11-13 ~10:00 UTC, when every work team was stopped because the Fabl
   finally: stop at 95 % of the Fable limit, integrate, deliver a downloadable file and this handoff.
 * Originality rule (hard): nothing from an existing game / novel / comic — names, characters, designs, UI, sects.
 
+## 0. Session 2 update (2026-11-13, after this file was first written)
+
+Branch is now **`ccr-030f3ed5-ileijo`** (fast-forwarded from `ccr-ef47419d-m8730x`; push there). Published page (private,
+new URL: the old artifact could not be opened from the new session): https://claude.ai/artifact/8oCd4M7m2dRjBXZxNqUWiG
+(republish `dist/eclipse-duel.artifact.html` from the same session to keep the URL).
+Usage reading at the end of this session: `seven_day_overage_included.utilization` ≈ 0.76 (single agent ≈ +1 % per 8 min).
+
+Done in session 2 (one agent, no fan-out):
+
+| area | what changed |
+|---|---|
+| RPG boss `src/rpg/boss/` | **「흑일마신상」 is in**: `design.js` (husk rig + crown helm, black-sun halo, skirts, great saber), `clips.js` (`rpg.idol.*`: idle, walk, sweep, cleave, thrust, stomp, eclipse, combo, enrage, wake, kneel, death; key times = frame data, shared table `T`), `index.js` (attacks with travelling hit sectors, AI by distance / bearing, phase 2 at 55 % HP, poise break = 3.4 s kneel, marker VFX, intro camera, death). |
+| RPG enemies `src/rpg/foes/` | 흑일교 무사 (`cultist`) and 호법 (`protector`): husk rig + bamboo / iron hat, robe, sash; two encounters. They still use the `demo.*` clips (no bespoke motion yet). |
+| RPG world `src/rpg/world/` | 정심석 (boulder, cairn, incense wisp, motes) and a low boundary-stone gate with ground mist (nothing tall: it never hides the fight). The arena itself is still the duel's 250° set. |
+| RPG HUD `src/rpg/ui/` | The core's debug HUD wrapped with **touch controls** (move stick, camera drag, ink-seal buttons; portrait and landscape). `.rpgt` needs `pointer-events:auto` (`#ui` is `none`). A real brush HUD, progression screen art and banners are still the debug ones. |
+| Post `src/post` | **Glare limiter** (`tLum` = smallest bloom level, `uGlare`): bloom compression + exposure dip when HDR light floods the frame; the ultimates no longer burn out. |
+| **Mobile GPU** | A real Android phone showed a hero-shaped white blob with black specks: NaN pixels (GLSL `pow(x, y)` with `x < 0` is NaN on mobile, not on SwiftShader) clamped to 48 by the bloom prefilter. Fixed blind: `tools/safepow.py` rewrote all 73 GLSL `pow()` calls (`pow(X, 2.0)` -> `X * X`, others `pow(max(X, 0.0), Y)`), NaN scrubs in the bloom prefilter, the composite, the character material (`opaque_fragment`) and the ghost shader. **Not yet confirmed on the device.** New shaders must follow the same rule. |
+| Tests | `src/rpg/tests/boss.mjs` (sheets per attack: `SECTION=sweep SIDE=1`), `loop.mjs` (whole expedition with the bot: passes, victory at ~400 s in god mode), `touch.mjs` (touch smoke test, run with `--touch --size 844x390`). |
+
+Still open, in the order I would take them: confirm the phone rendering; bespoke clips for the cultists; a real RPG HUD;
+360° arena; murim hero models (Blender pipeline) and the 108-clip motion pass; audio re-voice; per-tier performance on
+real hardware. Sections 3-4 below are the state BEFORE session 2 (the RPG rows are superseded by the table above).
+
 ## 1. Read these first
 
 | file | what it is |
