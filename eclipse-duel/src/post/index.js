@@ -68,14 +68,15 @@ const setColor = (out, v) => {
 const setVec3 = (out, v) => (Array.isArray(v) ? out.set(v[0], v[1], v[2]) : out.copy(v));
 
 const FOG_DEFAULTS = {
-  density: 0.026,       // 1/m extinction at the floor
-  falloff: 0.55,        // 1/m: density halves every ~1.3 m of height (ground mist)
-  haze: 0.0032,         // 1/m height-independent haze
-  maxOpacity: 0.62,     // cap of the fog opacity
+  density: 0.018,       // 1/m extinction at the floor
+  falloff: 0.6,         // 1/m: density halves every ~1.2 m of height (ground mist)
+  haze: 0.0012,         // 1/m height-independent haze
+  maxOpacity: 0.45,     // cap of the fog opacity
   floorY: 0,            // m
-  start: 1.5,           // m: no fog closer than this to the camera
+  start: 3,             // m: no fog closer than this to the camera
   far: 36,              // m: the fog integrates up to here (the arena's own shaders fog the far distance)
-  skyDistance: 60,      // m: sky pixels count as this far
+  skyDistance: 60,      // m: sky pixels count as this far ...
+  sky: 0.25,            // ... and get this fraction of the fog (the sky shader has its own glow; keeps the black sun black)
   color: [0.0045, 0.0055, 0.0085],   // ambient in-scatter (linear HDR)
   sunPhase: 0.8,        // Henyey-Greenstein g of the sun lobe (forward scattering)
   sunScatter: 0.006,    // sun colour * strength * this = in-scatter of the lobe
@@ -84,12 +85,12 @@ const FOG_DEFAULTS = {
   dim: 0,               // 0..1 manual mood dimming (added to the env mood when auto)
 };
 const SHAFT_DEFAULTS = {
-  strength: 0.55,       // HDR multiplier of the shafts
-  threshold: 0.32,      // scene brightness above which a far pixel radiates
+  strength: 0.9,        // HDR multiplier of the shafts
+  threshold: 0.25,      // scene brightness above which a far pixel radiates
   radius: 0.62,         // uv (aspect-corrected) around the sun that radiates
   length: 0.9,          // fraction of the way to the sun each pixel samples
   decay: 0.965,         // per-sample weight decay
-  glow: 0.35,           // synthetic sun glow added to the mask (a dark eclipse disc still radiates)
+  glow: 0,              // synthetic glow added to the mask around the sun (for a source the scene does not draw bright)
   skyDepth: 26,         // m: pixels farther than this (to 2x) count as sky / far backdrop
 };
 
@@ -145,7 +146,7 @@ export function createPost(ctx) {
   const uProj = { value: new THREE.Vector4(1, 1, 0, 0) };
   const mDepth = T.depth ? mkMat(G.DEPTH_DOWN, { tDepth: { value: null }, uTexel: v2(), uNearFar }) : null;
   const AO_TIER = T.ao >= 2 ? { n: 10, blur: 3 } : { n: 6, blur: 2 };
-  const mAO = T.ao ? mkMat(G.AO, { tDepthH: { value: null }, uTexel: v2(), uRes: v2(), uProj, uAo: { value: new THREE.Vector4(0.55, 1.0, 0.002, 24) }, uFadeFar: { value: 40 } }, { defines: { AO_N: AO_TIER.n } }) : null;
+  const mAO = T.ao ? mkMat(G.AO, { tDepthH: { value: null }, uTexel: v2(), uRes: v2(), uProj, uAo: { value: new THREE.Vector4(0.4, 0.8, 0.002, 24) }, uFadeFar: { value: 40 } }, { defines: { AO_N: AO_TIER.n } }) : null;
   const mAOBlur = T.ao ? mkMat(G.AO_BLUR, { tSrc: { value: null }, uDir: v2() }, { defines: { AO_BLUR_R: AO_TIER.blur } }) : null;
   const uSunUv = { value: new THREE.Vector2(0.5, 0.8) };
   const SHAFT_N = T.shafts >= 2 ? 16 : 20;
@@ -169,7 +170,7 @@ export function createPost(ctx) {
     tDepth: { value: null }, uNearFar, uCamPos: { value: new THREE.Vector3() },
     tAO: { value: null }, uAoStr: { value: 0 },
     uFogA: { value: new THREE.Vector4() }, uFogB: { value: new THREE.Vector4() }, uFogCol: { value: new THREE.Color() },
-    uSunDir: { value: new THREE.Vector3() }, uSunCol: { value: new THREE.Color() }, uSunG: { value: 0.7 }, uFogOn: { value: 0 },
+    uSunDir: { value: new THREE.Vector3() }, uSunCol: { value: new THREE.Color() }, uSunG: { value: 0.7 }, uFogOn: { value: 0 }, uFogSky: { value: 0.25 },
     uFL: { value: Array.from({ length: Math.max(1, FOG_LIGHTS) }, () => new THREE.Vector4(0, -100, 0, 0.3)) },
     uFLc: { value: Array.from({ length: Math.max(1, FOG_LIGHTS) }, () => new THREE.Vector3()) },
     tShaft: { value: null }, uShaftTint: { value: new THREE.Color() }, uShaftOn: { value: 0 },
@@ -642,6 +643,7 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
         U.uFogOn.value = fs > 0.001 ? 1 : 0;
         U.uFogA.value.set(fog.density * fs, fog.falloff, fog.haze * fs, Math.min(0.98, fog.maxOpacity * Math.min(1, fs)));
         U.uFogB.value.set(fog.floorY, fog.start, fog.far, fog.skyDistance);
+        U.uFogSky.value = clamp(fog.sky);
         U.uFogCol.value.copy(fog.color).multiplyScalar(1 - 0.75 * dim);
         U.uSunDir.value.copy(sun.point ? tmpV2.copy(sun.pos).sub(camPos).normalize() : sun.dir);
         U.uSunCol.value.copy(sun.color).multiplyScalar(sun.strength * fog.sunScatter * (1 - 0.5 * dim));

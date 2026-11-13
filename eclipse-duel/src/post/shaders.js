@@ -133,7 +133,7 @@ void main() {
     vec3 S = viewPos(suv, Z(suv)) - P;
     float vv = dot(S, S);
     float vn = dot(S, N);
-    sum += max(vn - uAo.z * z, 0.0) / (vv + 0.02 * r2) * max(0.0, 1.0 - vv / (4.0 * r2));
+    sum += max(vn - uAo.z * z, 0.0) / (vv + 0.1 * r2) * max(0.0, 1.0 - vv / (4.0 * r2));
   }
   float ao = clamp(1.0 - uAo.y * rad * sum * (2.0 / float(AO_N)), 0.0, 1.0);
   ao = mix(ao, 1.0, smoothstep(uFadeFar * 0.55, uFadeFar, z));
@@ -273,7 +273,7 @@ uniform vec4 uFogA;      // density at the floor (1/m), height falloff (1/m), di
 uniform vec4 uFogB;      // floor y, start distance, max distance, sky distance
 uniform vec3 uFogCol;    // ambient in-scatter (linear HDR)
 uniform vec3 uSunDir; uniform vec3 uSunCol; uniform float uSunG;
-uniform float uFogOn;
+uniform float uFogOn, uFogSky;
 #if FOG_LIGHTS > 0
 uniform vec4 uFL[FOG_LIGHTS];   // xyz world pos, w core radius (m)
 uniform vec3 uFLc[FOG_LIGHTS];  // colour * intensity (cd) * scale
@@ -365,7 +365,7 @@ void main() {
     float e0 = exp(-uFogA.y * h0);
     float avg = abs(dh) < 1e-3 ? e0 : (e0 - exp(-uFogA.y * h1)) / (uFogA.y * dh);
     float od = (uFogA.x * avg + uFogA.z) * Ls;
-    float op = min(1.0 - exp(-od), uFogA.w);
+    float op = min(1.0 - exp(-od), uFogA.w) * (sky ? uFogSky : 1.0);
     float mu = dot(dir, uSunDir);
     float g = uSunG;
     float phase = (1.0 - g * g) / pow(max(1.0 + g * g - 2.0 * g * mu, 1e-4), 1.5);

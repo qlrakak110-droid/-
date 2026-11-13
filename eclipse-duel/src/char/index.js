@@ -224,7 +224,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   const torsoDef = (design.colliders || []).find((c) => c.name === 'torso');
   const body = torsoDef ? new Float32Array(8) : null;
   const torsoA = torsoDef ? [ix[torsoDef.a[0]], ...(torsoDef.a[1] || [0, 0, 0])] : null, torsoB = torsoDef ? [ix[torsoDef.b[0]], ...(torsoDef.b[1] || [0, 0, 0])] : null;
-  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body };
+  const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body, aimAxis: null };
   // per clip: the off hand may roll around the handle; after blending: the blended (already rolled) target is kept
   // (a keyed pole of the gripping hand is authored intent: it pulls the elbow harder than the default pole)
   const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), mem: null, dt: 0, clavBase: null, body, poleW: 2.5 };
@@ -485,6 +485,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       ikOpt.mem = side === 'R' ? pose.swivelR : pose.swivelL;
       ikOpt.clavBase = side === 'R' ? pose.clavBaseR : pose.clavBaseL;
       ikOpt.err = rotBuf ? aimBuf : null; aimBuf[0] = 0;
+      ikOpt.aimAxis = rotBuf ? gripAxis[side] : null; // a keyed weapon frame may roll about the blade axis (ik.js EDGE)
     }
     const r = solveLimb(rig, limb, lq, mq, mp, pose.ik, o + 1, rotBuf, rotOff, pose.ik[o + 12] ? pose.ik : null, o + 9, w, pose.ik[o + 13], arm ? ikOpt : null);
     if (arm) pose.aimErr[e] = rotBuf ? aimBuf[0] : 0;

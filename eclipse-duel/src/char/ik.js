@@ -400,6 +400,21 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     }
     limbAt(phi, sign, bend, er, eo, tq, 0);
   }
+  // a weapon hand whose key asks for more wrist than a human has: before the wrist clamp bends the blade off its key,
+  // the hand rolls about the blade's own axis (bounded, see EDGE): the blade keeps its aim and gives up edge roll
+  let rho = 0;
+  const eax = wrist && !roll && opt && opt.aimAxis;
+  if (eax) {
+    const rhoP = hasMem ? mem[5] : 0;
+    rho = edgeRoll(tq, 4, eax, rhoP, hasMem, hasMem ? Math.max(0, opt.dt || 0) : 0);
+    if (Math.abs(rho) > 1e-6) {
+      rollBy(er, eo, eax[0], eax[1], eax[2], rho);
+      qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
+      phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
+      bend = sBend;
+      limbAt(phi, sign, bend, er, eo, tq, 0);
+    }
+  }
   qcopy(newL, 8, tq, 4);                         // end local keeps / reaches the requested model orientation
   const wmem = mem && mem[3] > 0 ? mem : null;
   if (wrist && clampWrist(newL, 8, wmem, wmem ? Math.max(0, opt.dt || 0) : 0)) {
@@ -426,7 +441,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
     qrot(mem, MH, tv, 8, px, py, pz);
-    mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = psi; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
+    mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = roll ? psi : rho; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
     mem[MH + 8] = rollStep; mem[MH + 9] = rollScale;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
@@ -499,6 +514,49 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   sv[6] = uy * pz - uz * py; sv[7] = uz * px - ux * pz; sv[8] = ux * py - uy * px;
   sv[9] = ca; sv[10] = sa; sv[11] = dist / lmax;
   return Math.PI - Math.acos(cb);
+}
+
+/**
+ * Edge roll of a weapon hand (rad): range, cost of rolling (per rad^2, against the squared wrist excess in rad) and
+ * fastest turn (rad/s, ~900 deg/s). Rolling about the blade axis keeps the blade's aim exact; only the edge turns.
+ */
+export const EDGE = { MAX: (70 * Math.PI) / 180, COST: 0.03, RATE: 15.7 };
+const eq = new Float32Array(8);
+/**
+ * Squared wrist excess (beyond the soft clamp's limits: inside them the clamp's own small deviation is the better
+ * trade) of hand local q[o..] rolled by rho about axis a, + the cost of the roll.
+ */
+function edgeCost(q, o, a, rho) {
+  qaxis(eq, 4, a[0], a[1], a[2], rho);
+  qmul(eq, 0, q, o, eq, 4);
+  let x = eq[0], y = eq[1], z = eq[2], w = eq[3];
+  if (w < 0) { x = -x; y = -y; z = -z; w = -w; }
+  const tw = Math.abs(2 * Math.atan2(y, w)), swg = Math.acos(Math.max(-1, Math.min(1, 1 - 2 * (x * x + z * z))));
+  const et = Math.max(0, tw - WRIST.twist), es = Math.max(0, swg - WRIST.swing);
+  return et * et + es * es + EDGE.COST * rho * rho;
+}
+/**
+ * Edge roll that brings the wrist demand of hand local q[o..] into range (minimum of edgeCost): 0 while the wrist can
+ * take the key. With memory: searched around last frame's roll and turned at <= EDGE.RATE.
+ */
+function edgeRoll(q, o, a, rhoP, hasMem, dt) {
+  if (edgeCost(q, o, a, 0) <= 1e-9 && Math.abs(rhoP) < 1e-4) return 0;
+  let lo = -EDGE.MAX, hi = EDGE.MAX;
+  if (hasMem) { lo = Math.max(lo, rhoP - 0.7); hi = Math.min(hi, rhoP + 0.7); }
+  else { // coarse scan of the whole range, then refine around the best sample
+    let b = 0, bc = edgeCost(q, o, a, 0);
+    for (let i = -6; i <= 6; i++) { const r = (i / 6) * EDGE.MAX, c = edgeCost(q, o, a, r); if (c < bc - 1e-12) { bc = c; b = r; } }
+    lo = Math.max(-EDGE.MAX, b - EDGE.MAX / 6); hi = Math.min(EDGE.MAX, b + EDGE.MAX / 6);
+  }
+  let a1 = lo + GOLD * (hi - lo), b1 = hi - GOLD * (hi - lo), ca = edgeCost(q, o, a, a1), cb = edgeCost(q, o, a, b1);
+  for (let it = 0; it < 10; it++) {
+    if (ca < cb) { hi = b1; b1 = a1; cb = ca; a1 = lo + GOLD * (hi - lo); ca = edgeCost(q, o, a, a1); }
+    else { lo = a1; a1 = b1; ca = cb; b1 = hi - GOLD * (hi - lo); cb = edgeCost(q, o, a, b1); }
+  }
+  let r = ca < cb ? a1 : b1;
+  if (Math.abs(r) < 1e-4) r = 0;
+  if (hasMem) r = rhoP + Math.max(-EDGE.RATE * dt, Math.min(EDGE.RATE * dt, r - rhoP));
+  return r;
 }
 
 let wristOut = 0;

@@ -17,8 +17,8 @@ export const GRADES = {
   },
   /** the arena by default: cold blue-black shadows, faintly warm highlights (brazier pools), rim stays cold */
   night: {
-    gradeLift: [0.002, 0.005, 0.014], gradeGamma: [0.98, 1.0, 1.03], gradeGain: [1.03, 1.0, 0.97],
-    toneShadows: [0.32, 0.5, 0.82], toneHighlights: [1.0, 0.78, 0.5], toneAmount: 0.07, toneBalance: 0.1,
+    gradeLift: [0.0, 0.002, 0.006], gradeGamma: [0.98, 1.0, 1.03], gradeGain: [1.03, 1.0, 0.97],
+    toneShadows: [0.32, 0.5, 0.82], toneHighlights: [1.0, 0.78, 0.5], toneAmount: 0.06, toneBalance: 0.1,
   },
   /** ultimate darkness: the world sinks to cold steel, colour lives only in the VFX */
   eclipse: {

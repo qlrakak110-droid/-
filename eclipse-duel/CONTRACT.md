@@ -1,5 +1,11 @@
 # ECLIPSE DUEL (일식결투) — engineering contract
 
+> **ART DIRECTION OVERRIDE (binding, newer than everything below and than any task brief): read `MURIM.md`.**
+> The game is now 「흑일무림 黑日武林」: murim (Korean martial-arts fantasy) characters, arena, effects, UI wording and
+> sound. Engine, budgets, APIs, ownership and identifiers in this contract still hold; wherever this contract or a
+> brief describes western dark-fantasy knights, the "Eclipse Ruins", runes, the "Starlit Altar", "Ruin Sentinels" or
+> the "Eclipse Colossus", apply the translation tables of `MURIM.md`.
+
 An **original** dark-fantasy 1v1 3D fighting game that runs from a single HTML file (WebGL2, three.js r170 bundled,
 no network, no external assets). The point of the project is spectacle: weighty weapon motion, layered skill VFX,
 cinematic camera work, hit-stop / slow-motion / impact frames, and detailed armoured characters — the feel of a
