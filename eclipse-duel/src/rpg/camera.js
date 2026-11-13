@@ -48,6 +48,8 @@ export function createRpgCamera(ctx, world) {
     get cinematic() { return cine.on; },
     look(dyaw, dpitch) { lookIn.x += dyaw; lookIn.y += dpitch; },
     lock, toggleLock, switch: switchTarget, setFraming, cine: playCine, worldShot, snap, update, zoom, project, forward, endCine,
+    /** the point the lock-on aims at on a target (reticle) */
+    focusPoint: (t, out) => aimPoint(t, framingFor(t), out),
     yawOf: () => cam.yaw,
     dispose() {},
   };
@@ -164,12 +166,13 @@ export function createRpgCamera(ctx, world) {
     world.emit('cine', { on: true });
   }
   /** End the running cinematic and blend back to the follow camera. */
-  function endCine(completed = false) {
+  function endCine(completed = false, blendSec) {
     if (!cine.on) return;
     const h = cine.handle, cb = cine.onDone;
     cine.on = false; cine.handle = null; cine.onDone = null;
     if (h && !h.done) h.stop(0);
-    blend.on = cine.blendOut > 0; blend.t = 0; blend.T = cine.blendOut;
+    const T = blendSec ?? cine.blendOut;
+    blend.on = T > 0; blend.t = 0; blend.T = T;
     blend.pos.copy(camera.position); blend.quat.copy(camera.quaternion); blend.fov = camera.fov;
     // come back behind the hero, looking the way the cinematic left off when a target is there
     const hero = world.hero;

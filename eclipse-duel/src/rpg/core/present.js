@@ -529,7 +529,7 @@ export function createPresent(ctx, world, o) {
   }
   function restoreWorld(camBlend = 0.6) {
     if (ctx.env) ctx.env.setMood(null);
-    if (world.camera && world.camera.cinematic) { world.camera.cineBlend = camBlend; world.camera.endCine(false); }
+    if (world.camera && world.camera.cinematic) world.camera.endCine(false, camBlend);
     if (ctx.cam) ctx.cam.letterbox(false, 0.5);
     if (ctx.audio) ctx.audio.music(world.flow && world.flow.music ? world.flow.music() : 'battle', { fade: 1.5 });
   }

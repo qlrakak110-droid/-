@@ -200,23 +200,30 @@ export function createFlow(ctx, world, o) {
     if (ctx.audio) ctx.audio.music('title', { fade: 1.5 });
   }
 
+  /** The dropped-shards marker: one small mesh that exists from the start (its program is compiled with the rest) and
+   *  waits below the floor while unused. World / HUD modules may add their own visual on `heroDeath`. */
+  let droppedShown = false;
+  function ensureMark() {
+    if (droppedMark) return;
+    const g = new THREE.OctahedronGeometry(0.22, 0);
+    g.scale(0.55, 1.6, 0.55);
+    const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.6, 5) });
+    droppedMark = new THREE.Mesh(g, m);
+    droppedMark.name = 'rpg-dropped-shards';
+    droppedMark.position.set(0, -50, 0);
+    droppedMark.frustumCulled = false;
+    ctx.scene.add(droppedMark);
+  }
   /** Dropped shards: a marker + a walk-over reclaim trigger. */
   function setDropped(d) {
     if (droppedRemove) { droppedRemove(); droppedRemove = null; }
-    if (droppedMark) { droppedMark.visible = false; }
+    ensureMark();
+    droppedMark.position.set(0, -50, 0);
+    droppedShown = false;
     flow.dropped = d;
     if (!d) return;
-    if (!droppedMark) {
-      // a small upright shard of light (one pooled mesh; the world / HUD teams may add their own on `heroDeath`)
-      const g = new THREE.OctahedronGeometry(0.22, 0);
-      g.scale(0.55, 1.6, 0.55);
-      const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 2.6, 5) });
-      droppedMark = new THREE.Mesh(g, m);
-      droppedMark.name = 'rpg-dropped-shards';
-      ctx.scene.add(droppedMark);
-    }
     droppedMark.position.set(d.x, 0.75, d.z);
-    droppedMark.visible = true;
+    droppedShown = true;
     droppedRemove = world.addTrigger({ x: d.x, z: d.z, r: 1.3, once: true, onEnter: () => {
       const amount = flow.dropped ? flow.dropped.amount : 0;
       setDropped(null);
@@ -282,12 +289,13 @@ export function createFlow(ctx, world, o) {
         if (alive === 0 && enc.actors.length > 0) clearEncounter();
       }
     }
-    if (droppedMark && droppedMark.visible) { droppedMark.rotation.y += dt * 1.6; droppedMark.position.y = 0.75 + Math.sin(world.time * 2.2) * 0.08; }
+    if (droppedMark && droppedShown) { droppedMark.rotation.y += dt * 1.6; droppedMark.position.y = 0.75 + Math.sin(world.time * 2.2) * 0.08; }
   }
 
   /** Begin: hero state from the save, at the altar (or wherever a sandbox puts it). */
   flow.begin = () => {
     const h = hero();
+    ensureMark();
     if (h && progress) {
       h.prog = progress.load(h.spec.hero);
       flow.cycle = h.prog.cycle || 0;

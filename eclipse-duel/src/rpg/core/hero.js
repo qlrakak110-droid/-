@@ -83,6 +83,9 @@ export function heroKind(fighter) {
   }
   const st = cdef.stats;
   const base = { hp: st.hp, fp: st.fpMax, stamina: tune.stats.stamina };
+  // how far the first light reaches (the bot's attack range)
+  const l1 = attacks[slots.light1];
+  const reach = l1 && l1.hits.length ? (l1.hits[0].shape.r1 ?? l1.hits[0].shape.f1 ?? 2) - 0.35 : 1.7;
   const r = fighter.roster || {};
   const rpgClip = (n) => `rpg.${id}.${n}`;
 
@@ -142,7 +145,7 @@ export function heroKind(fighter) {
   }
 
   return {
-    team: 'hero', hero: id, fighter, cdef, slots, attacks, base,
+    team: 'hero', hero: id, fighter, cdef, slots, attacks, base, reach,
     name: { ko: r.name || id, en: r.nameEn || id.toUpperCase() },
     element: fighter.element,
     design: fighter.design, fallbackDesign: fighter.fallbackDesign,
