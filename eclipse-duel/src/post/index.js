@@ -6,11 +6,12 @@
 //   post.to({...}, s)       ... or tween persistent values over s real seconds (numbers and colour keys)
 //   post.pulse(k, a, o)     transient additive spike on a numeric key (chroma / radial / exposure / bloom / ao ...)
 //   post.flash(c, a, o)     full-screen colour flash;   post.impactFrame({ duration, invert, mono })
-//   post.grade(name|{...}, s)   colour grade: 'night' (default) | 'eclipse' | 'ember' | 'frost' | 'storm' | 'victory' | 'neutral'
+//   post.grade(name|{...}, s)   colour grade: 'night' (default) | 'ink' | 'eclipse' | 'ember' | 'frost' | 'storm' | 'victory' | 'neutral'
 //   post.setSun(dirOrPos, color, strength, { point })   the light the fog scatters and the light shafts radiate from
 //   post.fog({ density, falloff, haze, ... }, s)        height + distance fog with sun in-scattering and point-light glow
 //   post.fogLights(list | null)                        explicit fog lights, null = the scene's strongest PointLights
 //   post.shafts({ strength, threshold, ... })          screen-space light shafts (god rays) from the sun
+//   post.ao({ radius, intensity, bias, fadeFar })       AO shape (strength: fx.ao)
 //   post.dof({ focus, aperture, range, near }, s) / post.dof(null, s)   cinematic depth of field (off by default)
 //   post.distortionScene    meshes drawn with the main camera into a half-res buffer: fragment .rg = screen UV offset
 //   post.onAfterScene(fn)   fn(renderer, sceneTarget, camera) right after the scene render (MSAA resolved, depth valid)
@@ -22,6 +23,12 @@
 // sRGB encoding and the grade happen in the composite, so every material in the scene stays linear.
 // Per-tier features come from ctx.quality (depth, ao, fog, shafts, dof: see src/core/util.js); every program is compiled
 // in prewarm() at start-up, runtime toggles are uniforms (no shader compiles mid-fight).
+//
+// Cost (passes after the scene = draw calls; GPU reasoned, see CONTRACT.md "Post and quality"):
+//   low   8 passes: bloom (4 levels) + composite (grade, dither, DRS sharpen). No depth texture.        (unchanged)
+//   mid  16 passes: + depth (half) + AO 6 taps / 5-tap blur (half) + shafts 1x20 (quarter) + fog, 2 fog lights
+//   high 19 passes: + MSAA x4 depth resolve, AO 10 taps / 7-tap blur, shafts 2x16, fog, 4 fog lights
+//   DOF (cinematics only): +2 half-res passes (16 / 32 taps). JS submit ~0.3-0.5 ms, no per-frame allocations.
 
 import * as THREE from 'three';
 import { clamp, ease as resolveEase } from '../core/math.js';
@@ -50,7 +57,8 @@ export const DEFAULT_FX = {
   ao: 1.0,              // ambient-occlusion strength 0..1.5 (tiers with quality.ao)
   fog: 1.0,             // post fog opacity scale 0..2 (tiers with quality.fog)
   shafts: 1.0,          // light-shaft strength scale 0..3 (tiers with quality.shafts)
-  sharpen: 0.0,         // extra sharpening 0..1 (dynamic resolution adds its own below 100 %)
+  sharpen: 0.0,         // extra sharpening 0..1 (dynamic resolution adds its own below 100 %; -1 disables it)
+  ink: 1.0,             // impact-frame style: 0 = plain black / white, 1 = ink on paper (dry-brush edge, paper fibre)
   toneAmount: GRADES.night.toneAmount,   // split-toning strength
   toneBalance: GRADES.night.toneBalance, // split-toning crossover -1..1
 };
@@ -146,7 +154,7 @@ export function createPost(ctx) {
   const uProj = { value: new THREE.Vector4(1, 1, 0, 0) };
   const mDepth = T.depth ? mkMat(G.DEPTH_DOWN, { tDepth: { value: null }, uTexel: v2(), uNearFar }) : null;
   const AO_TIER = T.ao >= 2 ? { n: 10, blur: 3 } : { n: 6, blur: 2 };
-  const mAO = T.ao ? mkMat(G.AO, { tDepthH: { value: null }, uTexel: v2(), uRes: v2(), uProj, uAo: { value: new THREE.Vector4(0.4, 0.8, 0.002, 24) }, uFadeFar: { value: 40 } }, { defines: { AO_N: AO_TIER.n } }) : null;
+  const mAO = T.ao ? mkMat(G.AO, { tDepthH: { value: null }, uTexel: v2(), uRes: v2(), uProj, uAo: { value: new THREE.Vector4(0.4, 1.25, 0.002, 24) }, uFadeFar: { value: 40 } }, { defines: { AO_N: AO_TIER.n } }) : null;
   const mAOBlur = T.ao ? mkMat(G.AO_BLUR, { tSrc: { value: null }, uDir: v2() }, { defines: { AO_BLUR_R: AO_TIER.blur } }) : null;
   const uSunUv = { value: new THREE.Vector2(0.5, 0.8) };
   const SHAFT_N = T.shafts >= 2 ? 16 : 20;
@@ -163,7 +171,7 @@ export function createPost(ctx) {
     uSat: { value: 1 }, uContrast: { value: 1 }, uInvert: { value: 0 }, uMono: { value: 0 }, uLetterbox: { value: 0 }, uDist: { value: 1 },
     uFlash: { value: 0 }, uUseDist: { value: 0 }, uHdr: { value: hdr ? 1 : 0 },
     uRadialCenter: { value: new THREE.Vector2(0.5, 0.5) }, uTint: { value: new THREE.Color(1, 1, 1) }, uLift: { value: new THREE.Color(0, 0, 0) }, uFlashColor: { value: new THREE.Color(1, 1, 1) },
-    uSceneTexel: v2(), uSharpen: { value: 0 },
+    uSceneTexel: v2(), uSharpen: { value: 0 }, uInk: { value: 1 },
     uGLift: { value: new THREE.Color() }, uGGamma: { value: new THREE.Color() }, uGGain: { value: new THREE.Color() },
     uToneSh: { value: new THREE.Color() }, uToneHi: { value: new THREE.Color() }, uTone: v2(),
     uRay00: { value: new THREE.Vector3() }, uRay10: { value: new THREE.Vector3() }, uRay01: { value: new THREE.Vector3() },
@@ -225,9 +233,7 @@ export function createPost(ctx) {
     }
     depthUniforms.uSceneRes.value.set(w, h);
     depthUniforms.tSceneDepth.value = rtDepthH ? rtDepthH.texture : farTex;
-    depthValid = false;
   }
-  let depthValid = false;
 
   function pass(mat, target) {
     fsMesh.material = mat;
@@ -374,13 +380,15 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
       for (const k in params) if (k in DEFAULT_FX || COLOR_KEYS.includes(k)) tween(fx, k, params[k], duration, easing);
     },
     /**
-     * Colour grade: a preset name ('night' | 'eclipse' | 'ember' | 'frost' | 'storm' | 'victory' | 'neutral') or an
+     * Colour grade: a preset name ('night' | 'ink' | 'eclipse' | 'ember' | 'frost' | 'storm' | 'victory' | 'neutral') or an
      * object of grade keys (gradeLift / gradeGamma / gradeGain / toneShadows / toneHighlights: [r,g,b];
      * toneAmount, toneBalance, optionally saturation / contrast), tweened over `duration` real seconds.
      */
     grade(preset = 'night', duration = 0.6, easing = 'inOutSine') {
       const g = typeof preset === 'string' ? GRADES[preset] : preset;
       if (!g) return;
+      // a named preset without its own saturation / contrast returns them to the baseline
+      if (typeof preset === 'string') post.to({ saturation: baseline.saturation, contrast: baseline.contrast }, duration, easing);
       post.to(g, duration, easing);
     },
     /** Change the neutral look (the environment calls this once) - reset() returns to it. Accepts grade keys too. */
@@ -454,6 +462,19 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
       dofS.from = dofS.aperture; dofS.to = opts.aperture ?? 1; dofS.t = 0; dofS.dur = Math.max(1e-4, duration);
     },
     get dofActive() { return T.dof > 0 && dofS.aperture > 0.005; },
+    /**
+     * AO shape (tiers with quality.ao): { radius (m, 0.4), intensity (1.25), bias (m per m of depth, 0.002),
+     * fadeFar (m, 40) }. Strength stays fx.ao. Returns the current values.
+     */
+    ao(params = {}) {
+      if (!mAO) return null;
+      const a = mAO.uniforms.uAo.value;
+      if (params.radius !== undefined) a.x = Math.max(0.05, params.radius);
+      if (params.intensity !== undefined) a.y = Math.max(0, params.intensity);
+      if (params.bias !== undefined) a.z = Math.max(0, params.bias);
+      if (params.fadeFar !== undefined) mAO.uniforms.uFadeFar.value = Math.max(1, params.fadeFar);
+      return { radius: a.x, intensity: a.y, bias: a.z, fadeFar: mAO.uniforms.uFadeFar.value };
+    },
     /** Show an intermediate buffer instead of the frame: 'ao' | 'depth' | 'shafts' | 'dof' | 'off' (tiers with depth). */
     debugView(mode = 'off') { U.uDebug.value = { ao: 1, depth: 2, shafts: 3, dof: 4 }[mode] || 0; },
 
@@ -546,7 +567,6 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
         mDepth.uniforms.tDepth.value = rtScene.depthTexture;
         mDepth.uniforms.uTexel.value.set(1 / W, 1 / H);
         pass(mDepth, rtDepthH);
-        depthValid = true;
       }
       if (aoOn) {
         const hw = rtAO.width, hh = rtAO.height;
@@ -633,6 +653,7 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
       U.uFlashColor.value.copy(tmpColor.copy(fx.flashColor).convertLinearToSRGB());
       U.uSceneTexel.value.set(1 / W, 1 / H);
       U.uSharpen.value = clamp(eff.sharpen + (renderScale < 0.99 ? (1 - renderScale) * 1.8 : 0), 0, 1);
+      U.uInk.value = clamp(eff.ink);
       U.uGLift.value.copy(fx.gradeLift); U.uGGamma.value.copy(fx.gradeGamma); U.uGGain.value.copy(fx.gradeGain);
       U.uToneSh.value.copy(fx.toneShadows); U.uToneHi.value.copy(fx.toneHighlights);
       U.uTone.value.set(Math.max(0, eff.toneAmount), clamp(eff.toneBalance, -1, 1));

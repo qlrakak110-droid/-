@@ -5,12 +5,12 @@
 //
 // Stability: fixed 1/120 s steps (frame-rate and slow-motion independent; rendering interpolates between steps),
 // Gauss-Seidel distance constraints (stretch / shear / bend), a strain limit on structural / shear edges, long-range
-// tethers to the pinned row, velocity clamp, capsule (with per-particle masks for capsules the cloth rests in by
-// design) + floor collision, NaN / explosion failsafe.
+// tethers to the pinned row, velocity clamp, capsule (a particle that rests inside a capsule by design may stay as
+// deep as it rests) + floor collision, NaN / explosion failsafe.
 
 import * as THREE from 'three';
-import { qrot, qfromBasis } from './rigmath.js';
-import { pushOutCapsules, capsuleAxisDist } from './collide.js';
+import { qrot, qfromBasis, qslerp, qmul } from './rigmath.js';
+import { pushOutCapsules, capsuleAxisDist, capsulesNear } from './collide.js';
 import { shift } from './spring.js';
 
 const ZERO3 = new Float32Array(3);
@@ -21,10 +21,11 @@ const ZERO3 = new Float32Array(3);
  * that point's normal by the penetration (a sheet stretched across a limb is lifted round it). mask / ma / mb: the
  * particles' capsule masks.
  */
-function edgeOut(p, a, b, caps, margin, mask, ma, mb, wa, wb) {
+function edgeOut(p, a, b, caps, margin, mask, ma, mb, wa, wb, idx, nidx) {
   const d = caps.data;
-  for (let i = 0; i < caps.count; i++) {
-    if (mask && (mask[ma + i] || mask[mb + i])) continue;
+  for (let j = 0; j < nidx; j++) {
+    const i = idx[j];
+    if (mask && (mask[ma + i] !== 0 || mask[mb + i] !== 0)) continue;
     const c = i * 7, ax = d[c], ay = d[c + 1], az = d[c + 2], ux = d[c + 3] - ax, uy = d[c + 4] - ay, uz = d[c + 5] - az;
     const vx = p[b] - p[a], vy = p[b + 1] - p[a + 1], vz = p[b + 2] - p[a + 2];
     const wx = p[a] - ax, wy = p[a + 1] - ay, wz = p[a + 2] - az;
@@ -208,8 +209,8 @@ export const CLOTH_STEP = 1 / 120;
 const MAX_STEPS = 5;
 /** Structural / shear edges never stretch past this factor of their rest length (strain limit). */
 export const MAX_STRAIN = 1.15;
-/** Most strain-limit passes per step (they stop as soon as every edge is within 2% of its limit). */
-const STRAIN_PASSES = 6;
+/** Strain-limit passes per step (a fixed count: an early exit made the sheet react to noise-level differences). */
+const STRAIN_PASSES = 4;
 
 export class Cloth {
   /**
@@ -237,7 +238,11 @@ export class Cloth {
     // anchors: pinned particle offsets in their bone's bind frame
     this.anchor = new Float32Array(C * layout.pinRows * 3);
     this.anchorTarget = new Float32Array(C * layout.pinRows * 3);
-    this.anchorPrev = new Float32Array(C * layout.pinRows * 3);
+    // the pinned particles' bone transforms last frame (0) and now (1): the sub-steps move the pins with their bones
+    // (rotation slerped, position lerped), so a turning chest carries them on an arc, not on its chord
+    this.bq0 = new Float32Array(C * layout.pinRows * 4); this.bq1 = new Float32Array(C * layout.pinRows * 4);
+    this.bp0 = new Float32Array(C * layout.pinRows * 3); this.bp1 = new Float32Array(C * layout.pinRows * 3);
+    this.rq = new Float32Array(8);
     // constraints
     const cons = [], edges = [], erest = [];
     const ra = layout.rest;
@@ -284,20 +289,24 @@ export class Cloth {
 
   /**
    * Colliders in the bind pose (collide.js capsules updated with the bind transforms): a particle whose rest position
-   * is inside a capsule (+ margin) ignores that capsule (the design hangs it there; pushing it out would stretch the
-   * sheet at its pins in every frame). Returns { pins, rest, names }: pinned / free particles that start inside a
-   * collider (design warnings).
+   * is inside a capsule (+ margin) collides with a capsule reduced to its rest depth (the design hangs it there;
+   * pushing it out would stretch the sheet at its pins in every frame, ignoring the capsule lets it pass through the
+   * limb). Returns { pins, rest, names }: pinned / free particles that start inside a collider (design warnings).
    */
   setColliders(caps) {
     const L = this.layout, C = this.C, nc = caps.count, m = this.spec.margin, pinN = C * L.pinRows;
-    this.mask = nc ? new Uint8Array(this.n * nc) : null;
+    this.mask = nc ? new Float32Array(this.n * nc) : null;
     const out = { pins: 0, rest: 0, names: new Set() };
     if (!nc) return out;
     for (let k = 0; k < this.n; k++) {
       const x = L.rest[k * 3], y = L.rest[k * 3 + 1], z = L.rest[k * 3 + 2];
       for (let i = 0; i < nc; i++) {
-        if (capsuleAxisDist(caps, i, x, y, z) >= caps.data[i * 7 + 6] + m) continue;
-        this.mask[k * nc + i] = 1;
+        const ad = capsuleAxisDist(caps, i, x, y, z);
+        if (ad >= caps.data[i * 7 + 6] + m) continue;
+        // the first free row (held by its pins, a few cm away) ignores the capsules it rests in; every other particle
+        // may be as deep in them as it rests, never deeper (a limb cannot pass through the sheet). A particle on a
+        // capsule's axis itself ignores it
+        this.mask[k * nc + i] = k < pinN + C || ad < 1e-3 ? -1 : ad * 0.97;
         out.names.add(caps.names[i]);
         if (k < pinN) out.pins++; else out.rest++;
       }
@@ -313,14 +322,29 @@ export class Cloth {
     shift(this.p, m, k);
     shift(this.pp, m, k);
     shift(this.r0, m, k);
+    // last frame's pins and capsules are points of the body: into this frame's model space (the sub-steps interpolate
+    // from them; left in last frame's space, the pins lagged by one frame of root motion - twice as far at 30 Hz)
+    shift(this.bp0, m, 1);
+    const rq = this.rq;
+    qfromBasis(rq, 0, [m[0], m[1], m[2]], [m[3], m[4], m[5]], [m[6], m[7], m[8]]);
+    for (let i = 0; i < this.bq0.length; i += 4) qmul(this.bq0, i, rq, 0, this.bq0, i);
+    if (this.capPrev && this.capReady) {
+      const c = this.capPrev;
+      for (let i = 0; i < c.length; i += 7) for (let e = i; e <= i + 3; e += 3) {
+        const x = c[e], y = c[e + 1], z = c[e + 2];
+        c[e] = m[0] * x + m[3] * y + m[6] * z + m[9]; c[e + 1] = m[1] * x + m[4] * y + m[7] * z + m[10]; c[e + 2] = m[2] * x + m[5] * y + m[8] * z + m[11];
+      }
+    }
   }
 
   _anchors(mq, mp, out) {
-    const L = this.layout, a = this.anchor;
+    const L = this.layout, a = this.anchor, bq = this.bq1, bp = this.bp1;
     for (let k = 0; k < L.C * L.pinRows; k++) {
       const b = L.anchorBone[k];
       qrot(out, k * 3, mq, b * 4, a[k * 3], a[k * 3 + 1], a[k * 3 + 2]);
       out[k * 3] += mp[b * 3]; out[k * 3 + 1] += mp[b * 3 + 1]; out[k * 3 + 2] += mp[b * 3 + 2];
+      bq[k * 4] = mq[b * 4]; bq[k * 4 + 1] = mq[b * 4 + 1]; bq[k * 4 + 2] = mq[b * 4 + 2]; bq[k * 4 + 3] = mq[b * 4 + 3];
+      bp[k * 3] = mp[b * 3]; bp[k * 3 + 1] = mp[b * 3 + 1]; bp[k * 3 + 2] = mp[b * 3 + 2];
     }
   }
 
@@ -339,7 +363,7 @@ export class Cloth {
       }
     }
     pp.set(p);
-    this.anchorPrev.set(this.anchorTarget);
+    this.bq0.set(this.bq1); this.bp0.set(this.bp1);
     this.ready = true;
     this.capReady = false;
     this.lead = 0;
@@ -382,15 +406,21 @@ export class Cloth {
         const a0 = this.capPrev, b0 = capsules.data, o0 = caps.data;
         for (let i = 0; i < o0.length; i++) o0[i] = a0[i] + (b0[i] - a0[i]) * f;
       }
-      const A0 = this.anchorPrev, A1 = this.anchorTarget;
-      for (let k = 0; k < pinN * 3; k++) p[k] = A0[k] + (A1[k] - A0[k]) * f;
+      const bq0 = this.bq0, bq1 = this.bq1, bp0 = this.bp0, bp1 = this.bp1, a = this.anchor, rq = this.rq;
+      for (let k = 0; k < pinN; k++) {
+        qslerp(rq, 4, bq0, k * 4, bq1, k * 4, f);
+        qrot(p, k * 3, rq, 4, a[k * 3], a[k * 3 + 1], a[k * 3 + 2]);
+        p[k * 3] += bp0[k * 3] + (bp1[k * 3] - bp0[k * 3]) * f;
+        p[k * 3 + 1] += bp0[k * 3 + 1] + (bp1[k * 3 + 1] - bp0[k * 3 + 1]) * f;
+        p[k * 3 + 2] += bp0[k * 3 + 2] + (bp1[k * 3 + 2] - bp0[k * 3 + 2]) * f;
+      }
       this.r0.set(p);
       this._step(gravity, wind, caps, floorY, time + this.lead + CLOTH_STEP);
       this.lead += CLOTH_STEP;
       steps++;
     }
     if (this.lead < 0) this.lead = 0; // more than MAX_STEPS behind (a frame spike): drop the time
-    this.anchorPrev.set(this.anchorTarget);
+    this.bq0.set(this.bq1); this.bp0.set(this.bp1);
     if (caps !== capsules) { this.capPrev.set(capsules.data); this.capReady = true; }
     // rendered state at the frame time: between the last two steps; pins exactly on their anchors
     const al = 1 - this.lead / CLOTH_STEP, r0 = this.r0, rp = this.rp;
@@ -430,17 +460,17 @@ export class Cloth {
         p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
         p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
       }
-      // collision inside the last iteration: the sheet settles around a limb instead of being torn across it
-      if (nc && it === this.iters - 1) for (let k = pinN; k < n; k++) pushOutCapsules(p, k * 3, caps, s.margin, mask, k * nc);
     }
-    // tethers, then body collision (contact particles are remembered)
+    // tethers, then body collision (contact particles are remembered); only capsules near the sheet are tested
     const contact = this.contact, fy = floorY + Math.max(s.margin * 0.6, (s.thickness ?? 0.012) * 0.5 + 0.004 * this.K);
+    const ci = this.capIdx || (this.capIdx = new Int16Array(Math.max(1, nc)));
+    const na = nc ? capsulesNear(caps, p, pinN, n, s.margin + 0.05 * this.K, ci) : 0;
     for (let k = pinN; k < n; k++) {
       const o = k * 3, t = (k % C) * 3, maxd = this.tether[k] * s.tether;
       const dx = p[o] - p[t], dy = p[o + 1] - p[t + 1], dz = p[o + 2] - p[t + 2];
       const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (l > maxd) { const c = maxd / l; p[o] = p[t] + dx * c; p[o + 1] = p[t + 1] + dy * c; p[o + 2] = p[t + 2] + dz * c; }
-      contact[k] = nc && pushOutCapsules(p, o, caps, s.margin, mask, k * nc) ? 1 : 0;
+      contact[k] = na && pushOutCapsules(p, o, caps, s.margin, mask, k * nc, ci, na) ? 1 : 0;
     }
     // strain limit after collision: no structural / shear edge longer than MAX_STRAIN x rest. An over-long edge whose
     // segment runs through a capsule (its two particles pushed to opposite sides of a limb) is first moved out of that
@@ -448,7 +478,6 @@ export class Cloth {
     // then restored with the particles that touch the body held (they move 1/4 as much as a free particle)
     const E = this.edges, emax = this.emax, ne = E.length;
     for (let pass = 0; pass < STRAIN_PASSES; pass++) {
-      let worst = 0;
       for (let e = 0; e < ne; e += 2) {
         const ia = E[e], ib = E[e + 1];
         let wa = inv[ia], wb = inv[ib];
@@ -457,23 +486,21 @@ export class Cloth {
         let dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
         const l2 = dx * dx + dy * dy + dz * dz, lm = emax[e >> 1];
         if (l2 <= lm * lm) continue;
-        if (nc && pass === 0) edgeOut(p, a, b, caps, s.margin, mask, ia * nc, ib * nc, wa, wb);
+        if (na && pass === 0) edgeOut(p, a, b, caps, s.margin, mask, ia * nc, ib * nc, wa, wb, ci, na);
         dx = p[b] - p[a]; dy = p[b + 1] - p[a + 1]; dz = p[b + 2] - p[a + 2];
         const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (!(l > lm)) continue;
-        if (l > worst * lm) worst = l / lm;
         if (contact[ia] && wa > 0) wa *= 0.25;
         if (contact[ib] && wb > 0) wb *= 0.25;
         const corr = (l - lm) / (l * (wa + wb));
         p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
         p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
       }
-      if (worst < 1.02) break; // every edge within 2% of its limit: done
     }
     // final collision + floor (the floor keeps the rendered layers above y = floorY too)
     for (let k = pinN; k < n; k++) {
       const o = k * 3;
-      if (nc) pushOutCapsules(p, o, caps, s.margin, mask, k * nc);
+      if (na) pushOutCapsules(p, o, caps, s.margin, mask, k * nc, ci, na);
       if (p[o + 1] < fy) {
         p[o + 1] = fy;
         pp[o] += (p[o] - pp[o]) * 0.6; pp[o + 2] += (p[o + 2] - pp[o + 2]) * 0.6; // friction

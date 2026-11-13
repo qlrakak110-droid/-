@@ -1,5 +1,13 @@
-// Inline SVG icon set (strings). Every glyph is our own line art on a 48x48 grid, drawn with currentColor so CSS
-// colours it. Weapons use a tall 60x240 grid. No external images.
+// Inline SVG icon set (strings). Every glyph is our own art on a 48x48 grid, drawn with currentColor so CSS colours
+// it: action glyphs and marks are written with the brush (ink.strokePath), skill icons and sect emblems are line art.
+// Weapons use a tall 60x240 grid. No external images.
+
+import { strokePath, PROFILE, inkEclipse } from './ink.js';
+
+/** Brush-filled body (the icon wrapper strokes by default). */
+const B = (d, extra = '') => `<g fill="currentColor" stroke="none"><path d="${d}"/>${extra}</g>`;
+const arc = (cx, cy, r, a0, a1, n = 12) => { const p = []; for (let i = 0; i <= n; i++) { const a = a0 + ((a1 - a0) * i) / n; p.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } return p; };
+const SLASH = [[0, 0.3], [0.25, 1.1], [0.7, 0.85], [1, 0.12]];
 
 const G = (body, vb = '0 0 48 48', cls = '') =>
   `<svg class="ico ${cls}" viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
@@ -14,22 +22,52 @@ const P = {
   volt: `<circle cx="24" cy="24" r="20" stroke-width="1.4" stroke-dasharray="3 4" opacity=".6"/>
     <path d="M28 4L13 27h10l-5 17 17-24H25l3-16z" fill="currentColor" fill-opacity=".3"/>`,
 
-  // --- generic actions (touch pad, hints) --------------------------------------------------------------------
-  light: `<path d="M9 39C17 30 27 19 40 8" stroke-width="3.4"/><path d="M8 31c6-6 13-13 21-20" stroke-width="1.6" opacity=".55"/><path d="M38 21l3 1M33 27l2 2" stroke-width="2"/>`,
-  heavy: `<path d="M7 41C13 22 27 9 43 5 32 14 23 26 19 42z" fill="currentColor" fill-opacity=".85" stroke-width="1.8"/><path d="M5 30c3-8 9-15 16-20" stroke-width="2" opacity=".6"/><path d="M33 31l8 3M29 37l5 6" stroke-width="2.2"/>`,
-  guard: `<path d="M24 5l15 5v12c0 10-7 17-15 21-8-4-15-11-15-21V10z" fill="currentColor" fill-opacity=".12"/><path d="M24 12v24M16 20h16" stroke-width="2"/>`,
-  dodge: `<path d="M6 15h15M11 24h14M6 33h15" stroke-width="2.2" opacity=".7"/><path d="M29 11l13 13-13 13" stroke-width="3.2"/>`,
-  ult: `<circle cx="24" cy="24" r="10" fill="currentColor" fill-opacity=".9"/><circle cx="24" cy="24" r="15.5" stroke-width="1.6"/>
-    <path d="M24 2v5M24 41v5M2 24h5M41 24h5M8.4 8.4l3.6 3.6M36 36l3.6 3.6M8.4 39.6l3.6-3.6M36 12l3.6-3.6" stroke-width="2"/>`,
+  // --- generic actions (touch pad, hints): brush glyphs -----------------------------------------------------------
+  // 경초: one quick flick of the brush
+  light: B(strokePath([[9, 40], [21, 25], [40, 8]], { w: 6.4, profile: SLASH, rough: 0.8, dry: 0.6, spray: 2, seed: 41 })
+    + strokePath([[8, 28], [16, 19], [27, 10]], { w: 2, profile: PROFILE.hair, rough: 0.6, seed: 42 })),
+  // 중초: a loaded crescent sweep
+  heavy: B(strokePath([[7, 41], [10, 23], [24, 10], [43, 6]], { w: 12.5, profile: [[0, 0.3], [0.3, 1.1], [0.72, 0.9], [1, 0.16]], rough: 0.8, dry: 0.8, spray: 3, seed: 43, streaks: 5, streakW: 0.7 })
+    + strokePath([[24, 40], [30, 30], [41, 22]], { w: 3, profile: PROFILE.hair, rough: 0.6, seed: 44 })),
+  // 호신강기: a ring of guarding energy around three formation bars (the middle one broken)
+  guard: B(strokePath(arc(24, 24, 18.5, -1.2, 4.75, 18), { w: 4.6, profile: PROFILE.ring, rough: 0.8, dry: 0.5, seed: 45 })
+    + strokePath([[15, 17], [33, 16.4]], { w: 3.4, profile: PROFILE.bone, seed: 46 })
+    + strokePath([[15, 24.4], [21.5, 24.1]], { w: 3.4, profile: PROFILE.bone, seed: 47 }) + strokePath([[26.5, 24], [33, 23.7]], { w: 3.4, profile: PROFILE.bone, seed: 48 })
+    + strokePath([[15, 31.8], [33, 31.2]], { w: 3.4, profile: PROFILE.bone, seed: 49 })),
+  // 경공: the step that leaves only wind behind
+  dodge: B(strokePath([[5, 15.5], [22, 14.6]], { w: 2.6, profile: PROFILE.hair, seed: 50 }) + strokePath([[9, 24.5], [27, 23.6]], { w: 3, profile: PROFILE.hair, seed: 51 })
+    + strokePath([[5, 33.5], [22, 32.6]], { w: 2.6, profile: PROFILE.hair, seed: 52 })
+    + strokePath([[28, 9], [36, 16], [43, 24]], { w: 5.4, profile: PROFILE.pull, rough: 0.7, seed: 53 }) + strokePath([[43, 24], [36, 32], [28, 39]], { w: 5.4, profile: PROFILE.pull, rough: 0.7, dry: 0.4, seed: 54 })),
+  // 오의: the black sun
+  ult: B(strokePath(arc(24, 24, 15.6, -0.9, 5.0, 18), { w: 3.6, profile: PROFILE.ring, rough: 0.8, dry: 0.5, seed: 55 })
+    + [0, 1, 2, 3, 4, 5, 6, 7].map((i) => { const a = i * 0.785 + 0.2, c = Math.cos(a), sn = Math.sin(a); return strokePath([[24 + c * 19.5, 24 + sn * 19.5], [24 + c * (i % 2 ? 22.6 : 24), 24 + sn * (i % 2 ? 22.6 : 24)]], { w: 2.2, profile: PROFILE.hair, seed: 56 + i }); }).join(''),
+    '<circle cx="24" cy="24" r="10.6"/>'),
   stick: `<circle cx="24" cy="24" r="19" stroke-width="1.6" opacity=".7"/><circle cx="30" cy="24" r="8" fill="currentColor" fill-opacity=".35" stroke-width="2"/><path d="M41 24h5M43 21l3 3-3 3" stroke-width="2"/>`,
-  pause: `<path d="M17 12v24M31 12v24" stroke-width="4"/>`,
-  back: `<path d="M29 10L15 24l14 14" stroke-width="3"/>`,
-  random: `<path d="M24 4l20 20-20 20L4 24z" stroke-width="1.8"/><path d="M18.5 19a5.5 5.5 0 1 1 8 4.9c-1.6.9-2.5 2-2.5 3.6V29" stroke-width="2.8"/><circle cx="24" cy="34.5" r="1.8" fill="currentColor" stroke="none"/>`,
+  pause: B(strokePath([[17.5, 10], [17, 38]], { w: 6, profile: PROFILE.post, rough: 0.7, seed: 61, head: 'slant' }) + strokePath([[31.5, 10], [31, 38]], { w: 6, profile: PROFILE.post, rough: 0.7, seed: 62, head: 'slant' })),
+  back: B(strokePath([[31, 8], [22, 16], [14, 24]], { w: 5.2, profile: PROFILE.pull, rough: 0.7, seed: 63 }) + strokePath([[14, 24], [22, 32], [31, 40]], { w: 5.2, profile: PROFILE.pull, rough: 0.7, dry: 0.4, seed: 64 })),
+  // 운명: a blank lot drawn from the cylinder
+  random: B(strokePath(arc(24, 24, 19, -1.35, 4.6, 18), { w: 3.4, profile: PROFILE.ring, rough: 0.8, dry: 0.5, seed: 65 })
+    + strokePath([[17.5, 19], [19, 13.5], [25, 11.5], [30.5, 15], [29, 21], [24.5, 25], [24, 29.5]], { w: 4.6, profile: PROFILE.pull, rough: 0.6, seed: 66 }),
+    '<circle cx="24" cy="36" r="2.4"/>'),
   list: `<path d="M17 13h22M17 24h22M17 35h22" stroke-width="2.4"/><path d="M8 13l2-2 2 2-2 2zM8 24l2-2 2 2-2 2zM8 35l2-2 2 2-2 2z" fill="currentColor" stroke-width="1.2"/>`,
   gear: `<circle cx="24" cy="24" r="6"/><path d="M24 5v6M24 37v6M5 24h6M37 24h6M10.6 10.6l4.2 4.2M33.2 33.2l4.2 4.2M10.6 37.4l4.2-4.2M33.2 14.8l4.2-4.2"/><circle cx="24" cy="24" r="13" stroke-width="1.6"/>`,
-  home: `<path d="M7 23L24 8l17 15M12 19v21h24V19" /><path d="M20 40V29h8v11" stroke-width="2"/>`,
+  // 산문: back to the gate
+  home: `<path d="M5 17Q24 7 43 17" stroke-width="3"/><path d="M11 21h26" stroke-width="2"/><path d="M14 17v25M34 17v25" stroke-width="2.8"/><path d="M9 42h10M29 42h10" stroke-width="2"/>`,
   rematch: `<path d="M38 18A15 15 0 0 0 10.5 16M10 30a15 15 0 0 0 27.5 2" stroke-width="2.6"/><path d="M10 7v9h9M38 41v-9h-9" stroke-width="2.6"/>`,
-  people: `<circle cx="17" cy="16" r="6"/><circle cx="33" cy="18" r="5" opacity=".7"/><path d="M5 40c1-8 6-12 12-12s11 4 12 12M29 30c5 0 11 2 13 10" />`,
+  people: `<path d="M9 14Q17 7 25 14" stroke-width="2.2"/><path d="M6 15h22" stroke-width="2"/><circle cx="17" cy="21" r="4.4"/><path d="M6 41c1-9 5-13 11-13s10 4 11 13"/><path d="M27 18Q33 13 40 18" stroke-width="1.8" opacity=".7"/><circle cx="33.5" cy="24" r="3.6" opacity=".7"/><path d="M31 31c6 0 10 3 11 10" opacity=".7"/>`,
+
+  // --- sect emblems (our own designs) ------------------------------------------------------------------------------
+  // 적양문 赤陽門: the red sun standing in the gate
+  'sect-kael': `<path d="M6 17Q24 6 42 17" stroke-width="3"/><path d="M11 22h26" stroke-width="2"/><path d="M13.5 18v24M34.5 18v24" stroke-width="3"/>
+    <circle cx="24" cy="33" r="6.6" fill="currentColor" stroke="none"/><path d="M24 8V3M16.5 10l-2-4.4M31.5 10l2-4.4" stroke-width="2"/><path d="M8 42h11M29 42h11" stroke-width="2"/>`,
+  // 한월궁 寒月宮: a pear blossom in the arms of the cold moon
+  'sect-iska': `<path d="M29 5a19 19 0 1 0 13 30A15 15 0 1 1 29 5z" fill="currentColor" fill-opacity=".9" stroke-width="1.4"/>
+    <g fill="currentColor" fill-opacity=".55" stroke-width="1.3"><circle cx="31" cy="15.2" r="3.3"/><circle cx="36.3" cy="19" r="3.3"/><circle cx="34.3" cy="25.2" r="3.3"/><circle cx="27.7" cy="25.2" r="3.3"/><circle cx="25.7" cy="19" r="3.3"/></g>
+    <circle cx="31" cy="21" r="1.7" fill="currentColor" stroke="none"/><path d="M39 38l1.5 1.5M43 33l1 1M36 43l1 1" stroke-width="2"/>`,
+  // 뇌운보 雷雲堡: thunder falling from a cloud scroll onto the keep
+  'sect-vorn': `<path d="M9 17c-5-1-5-8 1-8 1-6 10-7 13-2 4-4 13-2 12 4 6 0 6 7 0 7" stroke-width="2.2"/><path d="M30 17a3.4 3.4 0 1 0-3.2-4.4" stroke-width="1.8"/>
+    <path d="M24 13l-8 12h7l-4 9 12-13h-7l4-8z" fill="currentColor" fill-opacity=".92" stroke-width="1.2"/>
+    <path d="M6 44V34h6v-4h5v4M31 34v-4h5v4h6v10" stroke-width="2.2"/><path d="M4 44h40" stroke-width="2.4"/>`,
 
   // --- KAEL skills ---------------------------------------------------------------------------------------------
   'kael-crescent': `<path d="M13 5c17 4 26 17 21 38-2-14-9-26-21-38z" fill="currentColor" fill-opacity=".85" stroke-width="1.6"/><path d="M6 43h36" stroke-width="2" opacity=".6"/><path d="M8 32c3-6 6-9 10-11M5 22c4-3 7-4 10-4" stroke-width="1.8" opacity=".6"/><circle cx="40" cy="14" r="1.4" fill="currentColor"/><circle cx="43" cy="22" r="1" fill="currentColor"/>`,
@@ -57,23 +95,35 @@ export function icon(name, cls = '') {
 }
 export const hasIcon = (name) => !!P[name];
 
-// Weapons: tall silhouettes used as the hero art on fighter cards / versus / result. 60 x 240 grid, tip at the top.
+// Weapons: tall line art used as the hero art on fighter cards / versus / result / the 오의 banner. 60 x 240 grid, tip
+// at the top. Keys are the roster's `weaponArt` values (unchanged identifiers).
 const W = {
-  greatsword: `<path d="M30 4l11 26v150H19V30z" fill="currentColor" fill-opacity=".16"/>
-    <path d="M30 4l11 26v150M30 4L19 30v150"/><path d="M30 26v150" stroke-width="1.2" opacity=".6"/>
-    <path d="M24 60h12M24 92h12M24 124h12" stroke-width="1" opacity=".35"/>
-    <path d="M4 186c4-6 10-6 14-6h24c4 0 10 0 14 6" stroke-width="2.6"/><path d="M8 186l-2 6M52 186l2 6" />
-    <path d="M18 180h24v8H18z" fill="currentColor" fill-opacity=".35"/>
-    <path d="M26 188h8v34h-8z" fill="currentColor" fill-opacity=".22"/><path d="M26 196l8 4M26 204l8 4M26 212l8 4" stroke-width="1.4"/>
-    <path d="M30 222l7 7-7 9-7-9z" fill="currentColor" fill-opacity=".5"/>`,
+  // 참마대도 斬馬大刀: a broad single-edged great saber, clipped point, disc guard, long wrapped grip, ring pommel
+  greatsword: `<path d="M37 150L38.5 54l3.5-7Q37 26 35.5 5Q15 22 12 58Q13 112 23 150z" fill="currentColor" fill-opacity=".16"/>
+    <path d="M37 150L38.5 54l3.5-7Q37 26 35.5 5Q15 22 12 58Q13 112 23 150"/>
+    <path d="M33.5 56L32.6 143" stroke-width="1.3" opacity=".65"/><path d="M33 13Q19.5 28 17 59Q18 108 26.5 147" stroke-width="1" opacity=".45"/>
+    <path d="M29 121q3-4 0-8q-3-4 0-8" stroke-width="1" opacity=".5"/>
+    <path d="M23 144h14v7H23z" fill="currentColor" fill-opacity=".4"/>
+    <ellipse cx="30" cy="154.5" rx="14" ry="3.8" fill="currentColor" fill-opacity=".3" stroke-width="2.4"/>
+    <path d="M26 159l.8 58M34 159l-.8 58"/><path d="M26.2 166l7.4 5M26.4 176l7.2 5M26.6 186l7 5M26.8 196l6.6 5M27 206l6.2 5M33.8 166l-7.4 5M33.6 176l-7.2 5M33.4 186l-7 5M33.2 196l-6.6 5" stroke-width="1.1" opacity=".7"/>
+    <circle cx="30" cy="225" r="7.4" stroke-width="2.6"/><path d="M30 232.5q-5 3-4.5 7.5M30 232.5q4.5 2.5 5 7" stroke-width="1.3" opacity=".7"/>`,
+  // 월아쌍도 月牙雙刀: twin crescent blades
   crescents: `<g transform="rotate(-14 30 120)"><path d="M18 18c26 26 30 70 14 108 4-36-2-70-14-108z" fill="currentColor" fill-opacity=".2"/><path d="M18 18c26 26 30 70 14 108M18 18c12 38 18 72 14 108"/>
-      <path d="M28 126v32M24 130h8" stroke-width="2.2"/><path d="M28 158l4 5-4 5-4-5z" fill="currentColor" fill-opacity=".5"/></g>
+      <path d="M22 30c18 26 21 62 11 92" stroke-width="1" opacity=".5"/>
+      <path d="M22.5 128.5q5.5-3 11 0" stroke-width="2.6"/><path d="M28 130v27" stroke-width="3.4"/><path d="M26 136l4 3M26 143l4 3M26 150l4 3" stroke-width="1" opacity=".7"/>
+      <circle cx="28" cy="162" r="4.6" stroke-width="2"/><path d="M28 166.5q-3 4-1.5 9" stroke-width="1.1" opacity=".7"/></g>
     <g transform="rotate(14 30 120)"><path d="M42 82c-26 26-30 70-14 108-4-36 2-70 14-108z" fill="currentColor" fill-opacity=".2"/><path d="M42 82c-26 26-30 70-14 108M42 82c-12 38-18 72-14 108"/>
-      <path d="M32 190v32M28 194h8" stroke-width="2.2"/><path d="M32 222l4 5-4 5-4-5z" fill="currentColor" fill-opacity=".5"/></g>`,
-  spear: `<path d="M30 3l9 30-9 22-9-22z" fill="currentColor" fill-opacity=".22"/><path d="M30 3l9 30-9 22-9-22z"/><path d="M30 10v40" stroke-width="1.2" opacity=".6"/>
-    <path d="M14 58c6 2 10 2 16 2s10 0 16-2M18 58l-4-8M42 58l4-8" stroke-width="2.2"/><path d="M27 60h6v8h-6z" fill="currentColor" fill-opacity=".4"/>
-    <path d="M30 68v162" stroke-width="3"/><path d="M27 100h6M27 104h6M27 150h6M27 154h6" stroke-width="1.4" opacity=".7"/>
-    <path d="M30 230l4 5-4 4-4-4z" fill="currentColor" fill-opacity=".5"/>`,
+      <path d="M38 94c-18 26-21 62-11 92" stroke-width="1" opacity=".5"/>
+      <path d="M26.5 192.5q5.5-3 11 0" stroke-width="2.6"/><path d="M32 194v27" stroke-width="3.4"/><path d="M30 200l4 3M30 207l4 3M30 214l4 3" stroke-width="1" opacity=".7"/>
+      <circle cx="32" cy="226" r="4.6" stroke-width="2"/><path d="M32 230.5q3 4 1.5 8" stroke-width="1.1" opacity=".7"/></g>`,
+  // 뇌룡창 雷龍槍: a long war spear with a horsehair tassel (창영) under the head
+  spear: `<path d="M30 2Q40 26 35.5 46L30 57L24.5 46Q20 26 30 2z" fill="currentColor" fill-opacity=".22"/><path d="M30 2Q40 26 35.5 46L30 57L24.5 46Q20 26 30 2z"/><path d="M30 9v44" stroke-width="1.2" opacity=".6"/>
+    <path d="M30 64v165" stroke-width="3.2"/>
+    <path d="M25.5 57h9v8h-9z" fill="currentColor" fill-opacity=".45"/><path d="M23.5 65h13" stroke-width="2.6"/>
+    <path d="M26 66Q12 80 13.5 101l4-4 2.5 7 4-5 4.5 6 3.5-6 4 5 3-7 4.5 4Q48 80 34 66z" fill="currentColor" fill-opacity=".28" stroke-width="1.6"/>
+    <path d="M28 68Q20 82 19.5 98M30 68Q27.5 84 28 101M31.5 68Q34.5 84 36 100M33.5 68Q40.5 82 41.5 96M27 67Q16.5 80 16 95" stroke-width="1" opacity=".7"/>
+    <path d="M27 132h6M27 136h6M27 184h6M27 188h6" stroke-width="1.4" opacity=".7"/>
+    <path d="M30 229l4 4.5-4 6-4-6z" fill="currentColor" fill-opacity=".5"/>`,
 };
 
 /** Weapon silhouette markup ('greatsword' | 'crescents' | 'spear'). */
@@ -101,32 +151,9 @@ export function corona({ n = 48, r0 = 38, len = 10, w = 1 } = {}) {
 }
 
 /**
- * The eclipse emblem (logo mark): black disc, engraved rings, a corona of fine rays and the diamond-ring bead.
- * Rays come from a fixed pattern so the mark is identical everywhere.
+ * The eclipse emblem (logo mark, pause emblem, announcer backdrops): the ink black sun of ink.inkEclipse().
+ * @param {string} [cls]
  */
-let markSeq = 0;
 export function eclipseMark(cls = '') {
-  // gradient ids are unique per copy: a copy inside a hidden screen must not be the one the others reference
-  const id = 'edm' + markSeq++;
-  let rays = '';
-  for (let i = 0; i < 72; i++) {
-    const a = (i / 72) * Math.PI * 2;
-    const len = 8 + ((i * 37) % 11) * 2.2 + (i % 6 === 0 ? 16 : 0) + (i % 18 === 0 ? 12 : 0);
-    const r0 = 62, r1 = r0 + len;
-    const x0 = 100 + Math.cos(a) * r0, y0 = 100 + Math.sin(a) * r0, x1 = 100 + Math.cos(a) * r1, y1 = 100 + Math.sin(a) * r1;
-    rays += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke-width="${i % 6 === 0 ? 1.3 : 0.7}" opacity="${i % 6 === 0 ? 0.95 : 0.55}"/>`;
-  }
-  return `<svg class="eclipse ${cls}" viewBox="0 0 200 200" fill="none" stroke="currentColor" aria-hidden="true">
-    <defs>
-      <radialGradient id="${id}c" cx="50%" cy="50%" r="50%"><stop offset=".55" stop-color="#f3dca0" stop-opacity=".55"/><stop offset=".64" stop-color="#d8b46a" stop-opacity=".22"/><stop offset="1" stop-color="#d8b46a" stop-opacity="0"/></radialGradient>
-      <radialGradient id="${id}b" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".25" stop-color="#fff4d6" stop-opacity=".9"/><stop offset="1" stop-color="#f3dca0" stop-opacity="0"/></radialGradient>
-    </defs>
-    <circle cx="100" cy="100" r="98" fill="url(#${id}c)" stroke="none"/>
-    <g class="eclipse-rays">${rays}</g>
-    <circle cx="100" cy="100" r="61" stroke-width="2.2" stroke="#fbeec8"/>
-    <circle cx="100" cy="100" r="58.5" fill="#030306" stroke="none"/>
-    <circle cx="100" cy="100" r="52" stroke-width=".6" opacity=".35"/>
-    <circle cx="100" cy="100" r="86" stroke-width=".6" opacity=".45" stroke-dasharray="1 5"/>
-    <circle cx="143" cy="57" r="16" fill="url(#${id}b)" stroke="none"/>
-  </svg>`;
+  return inkEclipse({ cls: 'eclipse ' + cls });
 }

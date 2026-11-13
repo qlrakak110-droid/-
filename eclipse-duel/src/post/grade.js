@@ -6,7 +6,8 @@
 //   toneBalance                          -1 (more of the image counts as shadow) .. +1 (more counts as highlight)
 //   saturation / contrast                optional: the generic fx keys, included where a mood needs them
 //
-// Values are plain arrays so a preset can be passed straight to post.grade() or post.to().
+// Values are plain arrays so a preset can be passed straight to post.grade() or post.to(). Art direction: MURIM.md
+// (ink-wash night: deep blacks, three or four hues per frame, warm lantern pools, the pale cold corona).
 
 /** @type {Record<string, object>} */
 export const GRADES = {
@@ -15,10 +16,17 @@ export const GRADES = {
     gradeLift: [0, 0, 0], gradeGamma: [1, 1, 1], gradeGain: [1, 1, 1],
     toneShadows: [0.5, 0.5, 0.5], toneHighlights: [0.5, 0.5, 0.5], toneAmount: 0, toneBalance: 0,
   },
-  /** the arena by default: cold blue-black shadows, faintly warm highlights (brazier pools), rim stays cold */
+  /** the arena by default (ink-wash night): ink-black shadows with a breath of blue, warm paper-toned highlights
+   *  (lantern / brazier pools), the corona and rim stay cold */
   night: {
-    gradeLift: [0.0, 0.002, 0.006], gradeGamma: [0.98, 1.0, 1.03], gradeGain: [1.03, 1.0, 0.97],
-    toneShadows: [0.32, 0.5, 0.82], toneHighlights: [1.0, 0.78, 0.5], toneAmount: 0.06, toneBalance: 0.1,
+    gradeLift: [0.0, 0.001, 0.003], gradeGamma: [0.99, 1.0, 1.02], gradeGain: [1.03, 1.0, 0.96],
+    toneShadows: [0.4, 0.48, 0.64], toneHighlights: [1.0, 0.84, 0.62], toneAmount: 0.05, toneBalance: 0.1,
+  },
+  /** stronger ink-wash: restrained hues, deep blacks, paper-warm highlights (cinematics, title, intros) */
+  ink: {
+    gradeLift: [0.0, 0.0, 0.002], gradeGamma: [1.0, 1.0, 1.01], gradeGain: [1.02, 1.0, 0.95],
+    toneShadows: [0.45, 0.48, 0.58], toneHighlights: [1.0, 0.88, 0.7], toneAmount: 0.07, toneBalance: 0.2,
+    saturation: 0.72, contrast: 1.1,
   },
   /** ultimate darkness: the world sinks to cold steel, colour lives only in the VFX */
   eclipse: {

@@ -71,7 +71,7 @@ createLab({
     card.position.set(-0.4, 0.15, 3.2);
     card.visible = false;
     scene.add(card);
-    Object.assign(lab, { ring, card, knight, knight2, eclipse });
+    Object.assign(lab, { ring, card, knight, knight2, head2, eclipse });
     ctx._ring = ring;
   },
   scenarios: {
@@ -93,6 +93,7 @@ createLab({
     softCard(ctx, lab) { lab.card.visible = true; },
     debug(ctx, lab, mode = 'off') { ctx.post.debugView(mode); },
     shadowInfo(ctx) { return ctx.shadows.info; },
-    moveFighters(ctx, lab, sep = 6) { lab.knight.position.x = -sep / 2; lab.knight2.position.x = sep / 2; ctx.scene.children.forEach((o) => { if (o.geometry && o.geometry.type === 'SphereGeometry' && o.position.y > 1.8 && o.position.y < 1.9) o.position.x = sep / 2; }); },
+    /** spread the stand-in fighters `sep` metres apart (the fitted shadow window follows) */
+    moveFighters(ctx, lab, sep = 6) { lab.knight.position.x = -sep / 2; lab.knight2.position.x = sep / 2; lab.head2.position.x = sep / 2; },
   },
 });

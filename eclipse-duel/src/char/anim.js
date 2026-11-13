@@ -5,7 +5,7 @@
 import { ease as resolveEase } from '../core/math.js';
 import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
 /** Floats of one arm's IK memory (= ik.js MEM; kept here so the clip module does not import the solver). */
-export const SWIVEL_MEM = 20;
+export const SWIVEL_MEM = 24;
 
 const rawClips = new Map();
 const rawPoses = new Map();

@@ -158,29 +158,20 @@ export function twistY(q, o = 0) {
   if (w < 0) { w = -w; y = -y; }
   return 2 * Math.atan2(y, w) * R2D;
 }
-const SQ = Math.SQRT1_2;
-/** Shortest rotation (quaternion array) taking unit vector a to unit vector b (a != -b). */
-function fromTo(a, b, o) {
-  let x = a[1] * b[2] - a[2] * b[1], y = a[2] * b[0] - a[0] * b[2], z = a[0] * b[1] - a[1] * b[0], w = 1 + a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-  const l = Math.hypot(x, y, z, w) || 1;
-  o[0] = x / l; o[1] = y / l; o[2] = z / l; o[3] = w / l;
-  return o;
-}
-const ltA = [0, 0, 0, 1], ltB = [0, 0, 0, 1], ltC = [0, 0, 0, 1], ltD = [0, 0, 0];
 /**
  * Swing-twist angles of a limb bone that hangs along -Y in the zero pose (the upper arm), in the right-side authoring
  * convention (left bones mirrored first), without the Euler ZXY flip near 180 deg of elevation:
  *  - x, z: the swing as a rotation vector (axis * angle, degrees) taking the hanging direction to the bone's direction:
  *    z = raise forward (flexion), -x = raise sideways (abduction); exact for single-axis motion and smooth up to
  *    180 deg of elevation in every plane
- *  - twist: axial rotation (+ internal) relative to the minimal swing from a mid-range reference direction (forward /
- *    outward horizontal): equal to the plain swing-twist twist for arms that move in the plane of that reference, and
- *    singular only for a bone pointing backward across the body (outside the human range), not overhead
+ *  - twist: axial rotation (+ internal) relative to the minimal swing from the hanging direction (swing-twist); it is
+ *    undefined for a bone pointing straight up, so it is NaN (not judged) beyond TWIST_MAX_SWING of elevation
  *  - swing: elevation from the hanging direction (degrees)
  */
+export const TWIST_MAX_SWING = 150;
 export function limbSwingTwist(q, o = 0, left = false, out = {}) {
-  let x = q[o], y = q[o + 1];
-  const z = q[o + 2], w = q[o + 3];
+  let x = q[o], y = q[o + 1], w = q[o + 3];
+  const z = q[o + 2];
   if (left) { x = -x; y = -y; }
   // bone direction d = q * (0, -1, 0)
   const dx = -2 * (x * y - w * z), dy = -(1 - 2 * (x * x + z * z)), dz = -2 * (y * z + w * x);
@@ -189,16 +180,9 @@ export function limbSwingTwist(q, o = 0, left = false, out = {}) {
   out.swing = sw * R2D;
   out.x = al > 1e-9 ? (ax / al) * sw * R2D : 0;
   out.z = al > 1e-9 ? (az / al) * sw * R2D : 0;
-  // reference frame at d: fromTo(h, d) * fromTo(-Y, h), h = forward / outward horizontal
-  const down = [0, -1, 0], h = [SQ, 0, SQ];
-  ltD[0] = dx; ltD[1] = dy; ltD[2] = dz;
-  fromTo(down, h, ltA); fromTo(h, ltD, ltB); qmul(ltB, ltA, ltC);
-  // t = ref^-1 * q: a rotation about Y (both map -Y to d)
-  ltC[0] = -ltC[0]; ltC[1] = -ltC[1]; ltC[2] = -ltC[2];
-  qmul(ltC, [x, y, z, w], ltA);
-  let tw = ltA[3], ty = ltA[1];
-  if (tw < 0) { tw = -tw; ty = -ty; }
-  out.twist = 2 * Math.atan2(ty, tw) * R2D;
+  let ty = y;
+  if (w < 0) { w = -w; ty = -ty; }
+  out.twist = out.swing > TWIST_MAX_SWING ? NaN : 2 * Math.atan2(ty, w) * R2D;
   return out;
 }
 const median = (a) => { if (!a.length) return 0; const s = Float64Array.from(a).sort(); return s[s.length >> 1]; };
@@ -535,6 +519,7 @@ export function jointLimits(rec, opts = {}) {
       let worst = 0, wv = 0, wt = 0, cnt = 0;
       for (let i = 0; i < n; i++) {
         const v = vals(i, ax);
+        if (Number.isNaN(v)) continue; // undefined in this frame (upper-arm twist of a vertical arm)
         const o = v > hi ? v - hi : v < lo ? lo - v : 0;
         if (o > tol) cnt++;
         if (o > worst) { worst = o; wv = v; wt = rec.t[i]; }

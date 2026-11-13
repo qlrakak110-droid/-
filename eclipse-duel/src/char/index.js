@@ -10,7 +10,7 @@ import { createKit } from './build.js';
 import * as shapes from './shapes.js';
 import { createKitMaterial } from './materials.js';
 import { getClip, sampleClip, Pose, EFFECTORS, EFF_STRIDE, defineClip, SWIVEL_MEM } from './anim.js';
-import { makeLimbs, solveLimb, floorFoot, lookAngles, applyLook, lookFade, lookYaw, lookPitch, commitMem, SOFT, MEM } from './ik.js';
+import { makeLimbs, solveLimb, floorFoot, kneePole, lookAngles, applyLook, lookFade, lookYaw, lookPitch, commitMem, SOFT, MEM } from './ik.js';
 if (SWIVEL_MEM !== MEM) throw new Error('char: anim.js SWIVEL_MEM must equal ik.js MEM');
 import { SpringChain } from './spring.js';
 import { Cloth, clothLayout, clothGeometry } from './cloth.js';
@@ -68,7 +68,7 @@ function withRigDefaults(d) {
     out.bones = d.bones.map((b) => {
       if (b.follow || b.parent !== 'hips' || !/^tasset/i.test(b.name)) return b;
       const side = /R$/.test(b.name) ? 'R' : /L$/.test(b.name) ? 'L' : b.at && b.at[2] < 0 ? 'L' : 'R';
-      return { ...b, follow: { bone: 'thigh' + side, k: 0.55 } };
+      return { ...b, follow: { bone: 'thigh' + side, k: 0.55, out: 1 } };
     });
   }
   return out;
@@ -195,12 +195,12 @@ export function createCharacter(ctx, design0, opts = {}) {
   const capsules = createCapsules(rig, design.colliders || []);
   const cloths = layouts.map((L) => new Cloth(rig, L, quality.cloth ?? 1));
   cloths.forEach((c) => c.setBind(bind.mq, bind.mp));
-  if (cloths.length && capsules.count) { // capsules the cloth rests in by design (bind pose) are masked per particle
+  if (cloths.length && capsules.count) { // capsules the cloth rests in by design (bind pose): reduced per particle
     const bc = createCapsules(rig, design.colliders || []);
     updateCapsules(bc, bind.mq, bind.mp);
     for (const c of cloths) {
       const r = c.setColliders(bc);
-      if (r.pins || r.rest) warnOnce('cin:' + design.id + c.layout.spec.name, `char ${design.id}: cloth ${c.layout.spec.name}: ${r.pins} pinned / ${r.rest} free particle(s) rest inside ${[...r.names].join(', ')} (masked: they ignore those capsules)`);
+      if (r.pins || r.rest) warnOnce('cin:' + design.id + c.layout.spec.name, `char ${design.id}: cloth ${c.layout.spec.name}: ${r.pins} pinned / ${r.rest} free particle(s) rest inside ${[...r.names].join(', ')} (they may stay as deep in those capsules as they rest)`);
     }
   }
   const final = new Pose(rig);
@@ -243,18 +243,31 @@ export function createCharacter(ctx, design0, opts = {}) {
     const i = ix[b.name], src = ix[b.follow.bone];
     if (src === undefined) throw new Error('bone ' + b.name + ': unknown follow bone ' + b.follow.bone);
     if (rig.parent[i] !== rig.parent[src]) throw new Error('bone ' + b.name + ' must share its parent with the bone it follows (' + b.follow.bone + ')');
-    return { i, src, k: b.follow.k ?? 0.5 };
+    const k = b.follow.k ?? 0.5;
+    // side of the follower ('R' / 'L' name, else the side of its rest position): which way is outward
+    const side = /R$/.test(b.name) ? 1 : /L$/.test(b.name) ? -1 : (b.at && b.at[2] < 0 ? -1 : 1);
+    return { i, src, k, out: b.follow.out ?? k, side };
   });
   const fq = new Float32Array(12);
-  /** Followers: local = slerp(identity, swing of the source bone, k) * rest. Before the spring bones (their target). */
+  /**
+   * Followers: local = (k x the swing of the source bone) * rest, before the spring bones (their target). The swing is
+   * taken as a rotation vector: its forward (flexion, +Z) and outward (abduction) parts are followed by `out`, the
+   * backward / inward parts by `k` (a tasset rides out with a knee raised forward or a leg kicked out, and stays put
+   * when the leg goes back under it).
+   */
   function driveFollowers() {
     for (let n = 0; n < followers.length; n++) {
       const F = followers[n], si = F.src * 4;
       const tw = twistAngle(lq, si, 0, 1, 0);
       qaxis(fq, 0, 0, 1, 0, -tw);
       qmul(fq, 4, lq, si, fq, 0);                      // swing of the source
-      qidentity(fq, 8);
-      qslerp(fq, 0, fq, 8, fq, 4, F.k);
+      let x = fq[4], z = fq[6], w = fq[7];
+      if (w < 0) { x = -x; z = -z; w = -w; }
+      const s = Math.hypot(x, z), ang = 2 * Math.atan2(s, w), f = s > 1e-9 ? ang / s : 2;
+      const rx = x * f, rz = z * f;                    // rotation vector (no Y part: a swing)
+      const kx = (F.side > 0 ? rx < 0 : rx > 0) ? F.out : F.k, kz = rz > 0 ? F.out : F.k;
+      const vx = rx * kx, vz = rz * kz, a = Math.hypot(vx, vz);
+      if (a > 1e-9) qaxis(fq, 0, vx / a, 0, vz / a, a); else qidentity(fq, 0);
       qmul(lq, F.i * 4, fq, 0, rig.restRot, F.i * 4);
     }
   }
@@ -703,10 +716,19 @@ export function createCharacter(ctx, design0, opts = {}) {
     if (a.lookW <= 0) a.look.set(b.look);
     else if (b.lookW > 0) for (let k = 0; k < 3; k++) a.look[k] += (b.look[k] - a.look[k]) * w;
     a.lookW += (b.lookW - a.lookW) * w;
-    // grip target (weapon frame): position lerp, orientation slerp; a state without grip contributes no target.
-    // Changing grip point (pommel -> blade): the off hand lets go where it was (model space: it is not swung along
-    // with the weapon) and reaches the new point over the (slower) grip fade gw, on a path that bows out of the torso
-    // (gripM / gripMix / gripLift, solveGrip)
+    blendGrip(a, b, w, gw);
+    a.drop += (b.drop - a.drop) * w;
+    a.aimErr[0] += (b.aimErr[0] - a.aimErr[0]) * w; a.aimErr[1] += (b.aimErr[1] - a.aimErr[1]) * w;
+    a.curl[0] += (b.curl[0] - a.curl[0]) * w; a.curl[1] += (b.curl[1] - a.curl[1]) * w;
+  }
+
+  /**
+   * Grip part of a blend (crossfades and override layers): grip target (weapon frame): position lerp, orientation
+   * slerp; a pose without grip contributes no target. Changing grip point (pommel -> blade): the off hand lets go where
+   * it was (model space: it is not swung along with the weapon) and reaches the new point over the (slower) grip fade
+   * gw, on a path that bows out of the torso (gripM / gripMix / gripLift, solveGrip).
+   */
+  function blendGrip(a, b, w, gw) {
     const ga = a.gripW[0] + a.gripW[1], gb = b.gripW[0] + b.gripW[1];
     let lift = 0;
     if (gb > 0 && ga <= 0) { a.gripT.set(b.gripT); a.gripM.set(b.gripM); a.gripMix = b.gripMix; }
@@ -731,9 +753,6 @@ export function createCharacter(ctx, design0, opts = {}) {
     a.gripLift = Math.max(a.gripLift + (b.gripLift - a.gripLift) * w, lift);
     a.gripW[0] += (b.gripW[0] - a.gripW[0]) * w; a.gripW[1] += (b.gripW[1] - a.gripW[1]) * w;
     a.grip += (b.grip - a.grip) * w;
-    a.drop += (b.drop - a.drop) * w;
-    a.aimErr[0] += (b.aimErr[0] - a.aimErr[0]) * w; a.aimErr[1] += (b.aimErr[1] - a.aimErr[1]) * w;
-    a.curl[0] += (b.curl[0] - a.curl[0]) * w; a.curl[1] += (b.curl[1] - a.curl[1]) * w;
   }
 
   // ---- layers ------------------------------------------------------------------------------------------------------
@@ -745,7 +764,7 @@ export function createCharacter(ctx, design0, opts = {}) {
   function layer(name, clip, o = {}) {
     const c = getClip(rig, clip);
     let L = layers.get(name);
-    if (!L) { L = { pose: new Pose(rig), ref: new Pose(rig), mask: new Uint8Array(N), p: 0, w: 0 }; layers.set(name, L); }
+    if (!L) { L = { pose: new Pose(rig), ref: new Pose(rig), mask: new Uint8Array(N), p: 0, w: 0, pg: 0, gw: 0 }; layers.set(name, L); }
     L.c = c; L.time = 0; L.speed = o.speed ?? 1; L.loop = o.loop ?? c.loop; L.additive = !!o.additive;
     L.weight = o.weight ?? 1; L.fade = o.fade ?? 0.15; L.stopping = false;
     L.scale = o.scale ?? design.clipScale ?? 1;
@@ -774,10 +793,12 @@ export function createCharacter(ctx, design0, opts = {}) {
       L.time += dt * L.speed;
       const d = L.c.duration;
       if (L.loop) L.time %= d; else if (L.time >= d) { L.time = d; if (!L.additive && !L.stopping) L.stopping = true; }
-      const step = L.fade > 0 ? dt / L.fade : 1;
+      const step = L.fade > 0 ? dt / L.fade : 1, gstep = L.fade > 0 ? dt / Math.max(L.fade, GRIP_FADE) : 1;
       L.p = L.stopping ? Math.max(0, L.p - step) : Math.min(1, L.p + step);
+      L.pg = L.stopping ? Math.min(L.pg, L.p) : Math.min(1, L.pg + gstep);
       if (L.stopping && L.p <= 0) { layers.delete(name); continue; }
       L.w = L.weight * L.p * L.p * (3 - 2 * L.p);
+      L.gw = L.pg * L.pg * (3 - 2 * L.pg);
       if (L.w <= 0) continue;
       sampleClip(rig, L.c, L.time, L.pose, L.scale);
       if (L.additive) {
@@ -797,19 +818,8 @@ export function createCharacter(ctx, design0, opts = {}) {
       if (L.mask[ix.shoulderL]) qslerp(final.clavBase, 4, final.clavBase, 4, L.pose.clavBase, 4, L.w);
       if (L.mask[0]) for (let k = 0; k < 3; k++) final.hips[k] += (L.pose.hips[k] - final.hips[k]) * L.w;
       if (L.mask[ix.weaponR] || L.mask[ix.handL]) { // the layer owns the hands: its grip target and weight
-        const gl = L.pose.gripW[0] + L.pose.gripW[1];
-        if (gl > 0) {
-          if (final.gripW[0] + final.gripW[1] <= 0) { final.gripT.set(L.pose.gripT); final.gripM.set(L.pose.gripM); final.gripMix = 1; }
-          else {
-            for (let k = 0; k < 3; k++) { final.gripT[k] += (L.pose.gripT[k] - final.gripT[k]) * L.w; final.gripM[k] += (L.pose.gripM[k] - final.gripM[k]) * L.w; }
-            qslerp(final.gripT, 3, final.gripT, 3, L.pose.gripT, 3, L.w); qslerp(final.gripM, 3, final.gripM, 3, L.pose.gripM, 3, L.w);
-            final.gripMix += (1 - final.gripMix) * L.w;
-          }
-        }
-        final.gripW[0] += (L.pose.gripW[0] - final.gripW[0]) * L.w; final.gripW[1] += (L.pose.gripW[1] - final.gripW[1]) * L.w;
-        if (L.pose.gripPole[3] > 0 && final.gripPole[3] <= 0) final.gripPole.set(L.pose.gripPole, 0);
-        for (let k = 0; k < 4; k++) final.gripPole[k] += (L.pose.gripPole[k] - final.gripPole[k]) * L.w;
-        final.grip += (L.pose.grip - final.grip) * L.w;
+        // (a change of grip point lets go and re-grips over >= GRIP_FADE, as in a crossfade)
+        blendGrip(final, L.pose, L.w, L.weight * L.gw);
       }
       if (L.hands) relayer(L);
     }
@@ -1141,9 +1151,12 @@ export function createCharacter(ctx, design0, opts = {}) {
         const off = Math.hypot(mp[e * 3] + footEq[0] - final.feet[f * 7], mp[e * 3 + 1] + footEq[1] - final.feet[f * 7 + 1], mp[e * 3 + 2] + footEq[2] - final.feet[f * 7 + 2]);
         const qd = Math.abs(mq[e * 4] * final.feet[f * 7 + 3] + mq[e * 4 + 1] * final.feet[f * 7 + 4] + mq[e * 4 + 2] * final.feet[f * 7 + 5] + mq[e * 4 + 3] * final.feet[f * 7 + 6]);
         if (off > 1e-4 * K || qd < 0.9999996) {
+          // the authored knee pole, else the knee where the blend put it (re-planting moves the foot back onto its
+          // target, it never turns the knee to another side: a leg that is mostly FK keeps its FK knee)
           const hp = final.feetPole[f * 4 + 3] > 0.5;
           if (hp) { poleBuf[0] = final.feetPole[f * 4]; poleBuf[1] = final.feetPole[f * 4 + 1]; poleBuf[2] = final.feetPole[f * 4 + 2]; }
-          solveLimb(rig, limb, lq, mq, mp, final.feet, f * 7, final.feet, f * 7 + 3, hp ? poleBuf : null, 0, w, final.feetSoft[f]);
+          else kneePole(mq, mp, limb, poleBuf, 0);
+          solveLimb(rig, limb, lq, mq, mp, final.feet, f * 7, final.feet, f * 7 + 3, poleBuf, 0, w, final.feetSoft[f]);
           fk(rig, lq, lp, mq, mp, limb.first, animCount);
         }
       }
@@ -1219,9 +1232,13 @@ export function createCharacter(ctx, design0, opts = {}) {
     fk(rig, lq, lp, mq, mp, 0, animCount);
     // secondary motion
     if (capsules.count) updateCapsules(capsules, mq, mp);
+    const P1 = globalThis.__prof ? performance.now() : 0;
     for (const s of springs) s.update(dt, lq, lp, mq, mp, gravL, capsules);
+    if (globalThis.__prof) globalThis.__prof.springs += performance.now() - P1;
     if (springs.length) fk(rig, lq, lp, mq, mp, 0, animCount);
+    const P0 = globalThis.__prof ? performance.now() : 0;
     for (const c of cloths) { c.update(dt, mq, mp, gravL, windL, capsules, floorY, simTime); c.write(lq, lp); }
+    if (globalThis.__prof) globalThis.__prof.cloth += performance.now() - P0;
     // write bones
     for (let i = 0; i < N; i++) {
       const b = bones[i];

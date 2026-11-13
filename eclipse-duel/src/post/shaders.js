@@ -258,7 +258,7 @@ uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDist;
 uniform vec2 uRes; uniform float uTime;
 uniform float uBloom, uExposure, uChroma, uRadial, uVignette, uGrain, uSat, uContrast, uInvert, uMono, uLetterbox, uDist, uFlash, uUseDist, uHdr;
 uniform vec2 uRadialCenter; uniform vec3 uTint, uLift, uFlashColor;
-uniform vec2 uSceneTexel; uniform float uSharpen;
+uniform vec2 uSceneTexel; uniform float uSharpen, uInk;
 uniform vec3 uGLift, uGGamma, uGGain, uToneSh, uToneHi; uniform vec2 uTone;
 #ifdef HAS_DEPTH
 uniform highp sampler2D tDepth;
@@ -319,7 +319,7 @@ void main() {
       vec3 n0 = texture2D(tScene, uv + vec2(uSceneTexel.x, 0.0)).rgb, n1 = texture2D(tScene, uv - vec2(uSceneTexel.x, 0.0)).rgb;
       vec3 n2 = texture2D(tScene, uv + vec2(0.0, uSceneTexel.y)).rgb, n3 = texture2D(tScene, uv - vec2(0.0, uSceneTexel.y)).rgb;
       vec3 mn = min(min(n0, n1), min(min(n2, n3), col)), mx = max(max(n0, n1), max(max(n2, n3), col));
-      float l = luma(col), amp = clamp(1.0 - (luma(mx) - luma(mn)) / max(luma(mx), 1e-3), 0.0, 1.0);
+      float amp = clamp(1.0 - (luma(mx) - luma(mn)) / max(luma(mx), 1e-3), 0.0, 1.0);
       col = clamp(col + (col * 4.0 - n0 - n1 - n2 - n3) * (0.25 * uSharpen * amp), mn, mx);
     }
   }
@@ -382,7 +382,8 @@ void main() {
       float dens = uFogA.x * exp(-uFogA.y * max(uFL[i].y - uFogB.x, 0.0)) + uFogA.z;
       add += uFLc[i] * (sc * dens);
     }
-    col += add * 0.0795775;
+    add *= 0.0795775;
+    col += add / (1.0 + 0.5 * luma(add));   // soft limit: a burst of VFX lights glows, never whites the frame out
 #endif
   }
 #endif
@@ -416,8 +417,24 @@ void main() {
   col = mix(vec3(l), col, uSat);
   col = (col - 0.5) * uContrast + 0.5;
 
-  if (uMono > 0.001) col = mix(col, vec3(smoothstep(0.28, 0.52, l)), uMono);
-  if (uInvert > 0.001) col = mix(col, 1.0 - col, uInvert);
+  float inv = uInvert;
+  if (uMono > 0.001) {
+    // impact frame: two-tone monochrome; with uInk it is ink on paper (dry-brush threshold, paper fibre, warm paper)
+    vec2 px = vUv * uRes;
+    float fib = hash12(floor(px * 0.5));
+    // dry-brush edge: the threshold wobbles with a coarse, streaky (horizontal brush) noise, not per-pixel speckle
+    vec2 bc = px / vec2(31.0, 6.0);
+    vec2 bi = floor(bc), bf = smoothstep(0.0, 1.0, fract(bc));
+    float brush = mix(mix(hash12(bi), hash12(bi + vec2(1.0, 0.0)), bf.x), mix(hash12(bi + vec2(0.0, 1.0)), hash12(bi + 1.0), bf.x), bf.y);
+    float lit = smoothstep(0.28, 0.52, l + (brush - 0.5) * 0.12 * uInk);
+    vec3 paper = mix(vec3(0.82, 0.78, 0.68), vec3(0.9, 0.87, 0.79), fib * 0.6 + brush * 0.4);
+    // inverted ink frame: ink and paper swap (neutral ink on warm paper), not an arithmetic negative
+    float litI = mix(lit, 1.0 - lit, clamp(uInvert, 0.0, 1.0) * uInk);
+    vec3 two = mix(vec3(lit), mix(vec3(0.022, 0.021, 0.027), paper, litI), uInk);
+    col = mix(col, two, uMono);
+    inv *= 1.0 - uInk * clamp(uMono, 0.0, 1.0);
+  }
+  if (inv > 0.001) col = mix(col, 1.0 - col, inv);
   col = mix(col, uFlashColor, clamp(uFlash, 0.0, 1.0));
   vec2 vc = vUv - 0.5;
   col *= 1.0 - uVignette * smoothstep(0.3, 0.95, length(vc) * 1.3);

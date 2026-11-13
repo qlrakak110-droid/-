@@ -2,48 +2,115 @@
 // RGBA8 layers in one DataArrayTexture (sampler2DArray: no atlas bleeding, repeat wrap and mipmaps per layer):
 //
 //   layer A  R albedo variation (0.5 = neutral)   G roughness variation (0.5 = neutral)
-//            B height / proximity (scorched: heat halo around cracks; engraved: groove halo)   A wear / chip noise
+//            B height / proximity (scorched: heat halo around cracks; engraved / lacquer: groove halo; hemp: weave
+//              height (gauze coverage); lamellar: plate edge proximity)   A wear / chip noise
 //   layer B  RG tangent-space normal (from the height field, Sobel)   B micro cavity (1 = open, 0 = deep crevice)
-//            A set mask (scorched: crack cores; engraved: groove cores; cloth: weave gaps; fur: strand coverage;
-//              mail: ring coverage; quilted: stitch lines)
+//            A set mask (scorched: crack cores; engraved: groove cores; cloth / hemp: weave gaps; fur: strand coverage;
+//              mail: ring coverage; quilted: stitch lines; damask: woven figure; lacquer: craquelure; lamellar: lacing
+//              cords; bamboo: pinholes between the strips)
+//   brocade is the exception: its two layers hold eight embroidery motifs, one height field per channel
+//   (A: cloud, wave, flame, fret   B: sun, moon, thunder, lattice); the shader embosses the chosen one.
 //
-// Generated once per page (deterministic: seeded RNG, pure JS, no canvas readback), shared by every character.
-// Size 256 (default): ~0.4-0.5 s to generate on desktop, ~5.3 MB of GPU memory with mips. configureTextureSets({ size:
-// 512 }) before the first character for crisper cinematic close-ups (~2 s, ~21 MB).
+// Sets are generated lazily: the first look that names a set (surfDetail() -> requireTextureSet()) builds its layers
+// (deterministic: seeded RNG, pure JS, no canvas readback) and uploads just those two layers. A duel therefore only pays
+// for the materials its two heroes wear. Size 256 (default): 15-45 ms per set on desktop, ~10.5 MB of GPU memory with
+// mips for all 15 generated sets. configureTextureSets({ size: 512 }) before the first character for crisper cinematic
+// close-ups (4x the time and memory). Shader-mode sets (gauze, hair, blade, bronze, jade) reuse the layers of another
+// set and cost nothing.
 
 import * as THREE from 'three';
 import { makeRng } from '../../core/math.js';
 
-/** Texture set ids (also the `set` of a surface look). 0 is the legacy detail texture of the original kit material. */
-export const SET = { legacy: 0, hammered: 1, scorched: 2, engraved: 3, leather: 4, cloth: 5, fur: 6, mail: 7, quilted: 8 };
-export const SET_COUNT = 8;
-/** Default tiles per metre of each set (index = set id). */
-export const SET_SCALE = [0, 4.2, 3.4, 7.5, 9, 22, 6, 7.5, 6.5];
+/**
+ * Texture set ids (also the `set` of a surface look). 0 is the legacy detail texture of the original kit material.
+ * UV sets (the mesh carries `uvw`): fur, brocade, lamellar, bamboo, gauze, hair, blade (see the kit README).
+ */
+export const SET = {
+  legacy: 0, hammered: 1, scorched: 2, engraved: 3, leather: 4, cloth: 5, fur: 6, mail: 7, quilted: 8,
+  silk: 9, hemp: 10, damask: 11, brocade: 12, lacquer: 13, lamellar: 14, bamboo: 15,
+  gauze: 16, hair: 17, blade: 18, bronze: 19, jade: 20,
+};
+/** Highest set id (shader arrays hold SET_COUNT + 1 entries). */
+export const SET_COUNT = 20;
+/** Layer pairs in the array texture (generated sets). */
+export const LAYER_SETS = 15;
+/** First layer of each set (index = set id): shader-mode sets point at the layers they reuse. */
+export const SET_LAYER = [0, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, /* gauze */ 18, /* hair */ 10, /* blade */ 0, /* bronze */ 0, /* jade */ 0];
+/** Default tiles per metre of each set (index = set id; UV sets: scale of the mesh's own uv, 1 unless noted). */
+export const SET_SCALE = [0, 4.2, 3.4, 7.5, 9, 22, 6, 7.5, 6.5, 55, 26, 6.5, 1, 5, 1, 1, 1, 1, 5.5, 4.6, 3.2];
 /** Normal strength of each set (index = set id). */
-export const SET_BUMP = [0, 0.55, 0.7, 1.2, 1.0, 0.6, 0.8, 1.6, 1.1];
+export const SET_BUMP = [0, 0.55, 0.7, 1.2, 1.0, 0.6, 0.8, 1.6, 1.1, 0.55, 1.15, 0.55, 1.5, 0.45, 1.5, 1.25, 0.9, 0.9, 0.3, 0.75, 0.2];
+/** Set id whose layers a set samples (itself for generated sets). */
+const SOURCE = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 10, 6, 1, 1, 1];
 
 let config = { size: 256 };
-let cached = null;
+let cached = null;      // the DataArrayTexture
+let data = null;        // its pixel store (all layers, zero until a set is generated)
+let done = null;        // Uint8Array: generated flags per source set id
+let uploaded = false;   // the texture has been uploaded once (later sets upload their two layers only)
+let bank = null;        // shared noise fields
+const timings = {};
 
 /** Choose the texture resolution before the first character is built (`size`: 256 | 512). */
 export function configureTextureSets(o = {}) {
-  if (cached && o.size && o.size !== config.size) { cached.dispose(); cached = null; }
+  if (o.size && o.size !== config.size) {
+    if (cached) cached.dispose();
+    cached = null; data = null; done = null; bank = null; uploaded = false;
+  }
   config = { ...config, ...o };
 }
 
-/** The shared DataArrayTexture (2 layers per set, set k -> layers 2(k-1), 2(k-1)+1). */
+function store() {
+  if (data) return;
+  const N = config.size;
+  data = new Uint8Array(N * N * 4 * LAYER_SETS * 2);
+  done = new Uint8Array(SET_COUNT + 1);
+}
+
+/**
+ * Make sure the layers of a set exist (generates them on first use; a no-op afterwards). Called by surfDetail(), so
+ * building a design is enough; call it yourself (or prewarmTextureSets) for sets only reached through shader modes.
+ * @param {number|string} set  SET id or name
+ * @returns {number} the set id
+ */
+export function requireTextureSet(set) {
+  const id = typeof set === 'string' ? SET[set] : set;
+  if (!id || id > SET_COUNT) return id || 0;
+  const src = SOURCE[id];
+  store();
+  if (done[src]) return id;
+  done[src] = 1;
+  const N = config.size, t0 = now();
+  if (!bank) bank = makeBank(N);
+  const rng = makeRng(7331 + (src - 1) * 101);
+  const { A, B } = GENERATORS[src - 1](N, rng, bank);
+  const L = SET_LAYER[src];
+  data.set(A, L * N * N * 4);
+  data.set(B, (L + 1) * N * N * 4);
+  timings[NAMES[src]] = +(now() - t0).toFixed(1);
+  if (cached) {
+    if (uploaded) { cached.addLayerUpdate(L); cached.addLayerUpdate(L + 1); }
+    cached.needsUpdate = true;
+  }
+  return id;
+}
+
+/** Generate sets ahead of time (names or ids; default: all of them). Returns the per-set generation times in ms. */
+export function prewarmTextureSets(sets) {
+  for (const s of sets || Object.keys(SET).slice(1)) requireTextureSet(s);
+  return { ...timings };
+}
+
+/** Milliseconds spent generating each set so far: { name: ms }. */
+export function textureSetTimings() { return { ...timings }; }
+
+/** The shared DataArrayTexture (2 layers per generated set; layers stay empty until their set is required). */
 export function getTextureSets() {
   if (cached) return cached;
+  store();
+  requireTextureSet(SET.hammered);      // base metal grain: also the noise source of cloth tears and the blade / bronze / jade modes
   const N = config.size;
-  const data = new Uint8Array(N * N * 4 * SET_COUNT * 2);
-  const gens = [hammered, scorched, engraved, leather, cloth, fur, mail, quilted];
-  gens.forEach((gen, k) => {
-    const rng = makeRng(7331 + k * 101);
-    const { A, B } = gen(N, rng);
-    data.set(A, (k * 2) * N * N * 4);
-    data.set(B, (k * 2 + 1) * N * N * 4);
-  });
-  const tex = new THREE.DataArrayTexture(data, N, N, SET_COUNT * 2);
+  const tex = new THREE.DataArrayTexture(data, N, N, LAYER_SETS * 2);
   tex.format = THREE.RGBAFormat;
   tex.type = THREE.UnsignedByteType;
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
@@ -52,10 +119,14 @@ export function getTextureSets() {
   tex.generateMipmaps = true;
   tex.anisotropy = 4;
   tex.colorSpace = THREE.NoColorSpace;
+  tex.onUpdate = () => { uploaded = true; };
+  tex.addEventListener('dispose', () => { uploaded = false; });
   tex.needsUpdate = true;
   cached = tex;
   return tex;
 }
+
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 // ---- field helpers (Float32Array N*N, tileable) ------------------------------------------------------------------------
 
@@ -263,11 +334,11 @@ function scratchSegs(N, rng, count, scale = 1) {
  * 1 hammered plate steel: small planishing-hammer facets that come and go in patches (most of a plate reads smooth and
  * forged, not crumpled), directional polish streaks and smudges in the roughness, fine grain, scratches.
  */
-function hammered(N, rng) {
+function hammered(N, rng, B) {
   const s = N / 512;
   const w1 = worley(N, 20, rng), w2 = worley(N, 36, rng);
-  const grain = fbm(N, 64, 3, rng), mott = fbm(N, 4, 4, rng, 0.55), wear = fbm(N, 8, 5, rng, 0.6);
-  const patch = fbm(N, 4, 3, rng, 0.5), smudge = fbm(N, 8, 3, rng, 0.55);
+  const grain = B.fbm(rng, 64, 3), mott = B.fbm(rng, 4, 4, 0.55), wear = B.fbm(rng, 8, 5, 0.6);
+  const patch = B.fbm(rng, 4, 3, 0.5), smudge = B.fbm(rng, 8, 3, 0.55);
   const polish = vnoiseAniso(N, 4, 128, rng), polish2 = vnoiseAniso(N, 8, 256, rng);
   const scr = new Float32Array(N * N);
   lines(scr, N, scratchSegs(N, rng, 320));
@@ -286,18 +357,18 @@ function hammered(N, rng) {
 }
 
 /** 2 scorched / fire-blackened plate: soot flakes, pitting, warped crack network (mask), heat halo (proximity). */
-function scorched(N, rng) {
+function scorched(N, rng, B) {
   const s = N / 512;
-  const wx = fbm(N, 8, 4, rng), wy = fbm(N, 8, 4, rng);
+  const wx = B.fbm(rng, 8, 4), wy = B.fbm(rng, 8, 4);
   const warp = [new Float32Array(N * N), new Float32Array(N * N)];
   for (let i = 0; i < N * N; i++) { warp[0][i] = (wx[i] - 0.5) * 44 * s; warp[1][i] = (wy[i] - 0.5) * 44 * s; }
   const big = worley(N, 5, rng, warp, 0.85);
-  const wx2 = fbm(N, 16, 3, rng), wy2 = fbm(N, 16, 3, rng);
+  const wx2 = B.fbm(rng, 16, 3), wy2 = B.fbm(rng, 16, 3);
   for (let i = 0; i < N * N; i++) { warp[0][i] = (wx2[i] - 0.5) * 22 * s; warp[1][i] = (wy2[i] - 0.5) * 22 * s; }
   const small = worley(N, 12, rng, warp, 0.9);
-  const keep = fbm(N, 4, 3, rng), keep2 = fbm(N, 8, 3, rng), widthN = fbm(N, 16, 2, rng);
-  const dent = worley(N, 7, rng), pits = worley(N, 30, rng), pitKeep = fbm(N, 8, 3, rng);
-  const soot = fbm(N, 4, 5, rng, 0.62), grain = fbm(N, 64, 3, rng), wear = fbm(N, 8, 5, rng, 0.6);
+  const keep = B.fbm(rng, 4, 3), keep2 = B.fbm(rng, 8, 3), widthN = B.fbm(rng, 16, 2);
+  const dent = worley(N, 7, rng), pits = worley(N, 30, rng), pitKeep = B.fbm(rng, 8, 3);
+  const soot = B.fbm(rng, 4, 5, 0.62), grain = B.fbm(rng, 64, 3), wear = B.fbm(rng, 8, 5, 0.6);
   const scr = new Float32Array(N * N);
   lines(scr, N, scratchSegs(N, rng, 160));
   const core = new Float32Array(N * N);
@@ -328,7 +399,7 @@ function scorched(N, rng) {
 }
 
 /** 3 engraved ornament: interlaced scrolls and angular glyph bands cut into the metal (mask = groove cores). */
-function engraved(N, rng) {
+function engraved(N, rng, B) {
   const s = N / 512;
   const g = new Float32Array(N * N);
   const segs = [];
@@ -374,7 +445,7 @@ function engraved(N, rng) {
     }
   }
   lines(gl, N, gsegs, 'hard');
-  const grain = fbm(N, 64, 3, rng), mott = fbm(N, 4, 4, rng), wear = fbm(N, 8, 5, rng, 0.6);
+  const grain = B.fbm(rng, 64, 3), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const core = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) core[i] = Math.max(g[i], gl[i] * 0.95);
   const halo = stretch(blur(core, N, Math.round(3 * s), 2));
@@ -389,11 +460,11 @@ function engraved(N, rng) {
 }
 
 /** 4 leather: pebbled grain, wrinkles, pores, scuffs. */
-function leather(N, rng) {
+function leather(N, rng, B) {
   const s = N / 512;
   const cells = worley(N, 44, rng), cells2 = worley(N, 90, rng);
   const wr = vnoiseAniso(N, 6, 48, rng), wr2 = vnoiseAniso(N, 12, 96, rng);
-  const mott = fbm(N, 4, 4, rng), wear = fbm(N, 8, 5, rng, 0.6), fine = fbm(N, 128, 2, rng);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6), fine = B.fbm(rng, 128, 2);
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) {
     const p = 1 - Math.min(1, cells.f1[i] * 1.4), p2 = 1 - Math.min(1, cells2.f1[i] * 1.5);
@@ -424,14 +495,14 @@ function vnoiseAniso(N, Px, Py, rng) {
 }
 
 /** 5 woven cloth: 2/2 twill of slubbed threads with fibre streaks (mask = gaps between threads). */
-function cloth(N, rng) {
+function cloth(N, rng, B) {
   const s = N / 512;
   const T = 32;                                   // threads per tile
   const ts = N / T;
   const warpV = new Float32Array(T), weftV = new Float32Array(T);
   for (let i = 0; i < T; i++) { warpV[i] = rng(); weftV[i] = rng(); }
   const fibX = vnoiseAniso(N, 256, 16, rng), fibY = vnoiseAniso(N, 16, 256, rng);
-  const mott = fbm(N, 4, 4, rng), wear = fbm(N, 8, 5, rng, 0.6);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), gap = new Float32Array(N * N);
   for (let y = 0; y < N; y++) {
     const j = Math.floor(y / ts), fy = (y % ts) / ts;
@@ -457,7 +528,7 @@ function cloth(N, rng) {
 }
 
 /** 6 fur: clumped vertical strands (mask = strand coverage across u), dark roots handled by the shader. */
-function fur(N, rng) {
+function fur(N, rng, B) {
   const s = N / 512;
   const cov = new Float32Array(N * N), h = new Float32Array(N * N), alb = new Float32Array(N * N);
   const segs = [];
@@ -475,7 +546,7 @@ function fur(N, rng) {
     }
   }
   lines(cov, N, segs);
-  const fine = vnoiseAniso(N, 192, 6, rng), mott = fbm(N, 4, 3, rng), wear = fbm(N, 8, 4, rng);
+  const fine = vnoiseAniso(N, 192, 6, rng), mott = B.fbm(rng, 4, 3), wear = B.fbm(rng, 8, 4);
   const rough = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) {
     const c = Math.max(cov[i], sstep(0.55, 0.9, fine[i]) * 0.5);
@@ -488,7 +559,7 @@ function fur(N, rng) {
 }
 
 /** 7 riveted mail (4-in-1): overlapping tilted rings; mask = ring coverage. */
-function mail(N, rng) {
+function mail(N, rng, B) {
   const s = N / 512;
   const R = 8;                                    // rings across the tile
   const sp = N / R;
@@ -512,7 +583,7 @@ function mail(N, rng) {
       }
     }
   }
-  const mott = fbm(N, 4, 3, rng), wear = fbm(N, 8, 5, rng, 0.6);
+  const mott = B.fbm(rng, 4, 3), wear = B.fbm(rng, 8, 5, 0.6);
   const alb = new Float32Array(N * N), rough = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) {
     if (h[i] < -0.5) h[i] = -0.35;
@@ -523,10 +594,10 @@ function mail(N, rng) {
 }
 
 /** 8 quilted gambeson: diamond quilting with puffed cells, stitch dashes and a fine weave. */
-function quilted(N, rng) {
+function quilted(N, rng, B) {
   const s = N / 512;
   const P = N / 4;                                 // diamond spacing (4 per tile along each diagonal)
-  const weave = vnoiseAniso(N, 128, 128, rng), mott = fbm(N, 4, 4, rng), wear = fbm(N, 8, 5, rng, 0.6);
+  const weave = vnoiseAniso(N, 128, 128, rng), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), stitch = new Float32Array(N * N);
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
@@ -545,3 +616,398 @@ function quilted(N, rng) {
   }
   return pack(N, alb, rough, mott, wear, h, 1.5 * s, stitch, { r: 6, gain: 1.8 });
 }
+
+// ---- shared noise bank ---------------------------------------------------------------------------------------------------
+
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+
+/** Circularly shifted copy of a tileable field. */
+function shifted(f, N, dx, dy) {
+  const out = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const r = ((y + dy) % N) * N, o = y * N;
+    out.set(f.subarray(r + dx, r + N), o);
+    if (dx) out.set(f.subarray(r, r + dx), o + N - dx);
+  }
+  return out;
+}
+
+/**
+ * Noise fields shared by every set: one tileable fbm per (period, octaves, gain), handed out as circularly shifted
+ * copies (the shift comes from the set's own RNG, so a set looks the same whatever was generated before it).
+ */
+function makeBank(N) {
+  const cache = {};
+  return {
+    fbm(rng, P, oct, gain = 0.5) {
+      const key = `${P}:${oct}:${gain}`;
+      const base = cache[key] || (cache[key] = fbm(N, P, oct, makeRng(hashStr(key)), gain));
+      return shifted(base, N, Math.floor(rng() * N), Math.floor(rng() * N));
+    },
+  };
+}
+
+// ---- murim sets ----------------------------------------------------------------------------------------------------------
+
+/**
+ * 9 silk: five-harness satin. Long warp floats run along v (vertical on a hanging robe), bound once every five picks
+ * in a staggered order, so the face is nearly all smooth float: a fine rib only a close-up resolves, slubs along the
+ * threads, binding points as the faintest diagonal grain.
+ */
+function silk(N, rng, B) {
+  const s = N / 512;
+  const T = 60, ts = N / T;                        // threads per tile (a multiple of 5)
+  const slub = vnoiseAniso(N, T, 12, rng), fib = vnoiseAniso(N, T * 2, 6, rng);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
+  const tv = new Float32Array(T);
+  for (let i = 0; i < T; i++) tv[i] = rng();
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), mask = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const yt = y / ts, j = Math.floor(yt), fy = yt - j;
+    for (let x = 0; x < N; x++) {
+      const xt = x / ts, i = Math.floor(xt), fx = xt - i, k = y * N + x;
+      const rib = Math.pow(Math.sin(fx * Math.PI), 0.7);
+      const bind = (((j - 2 * i) % 5) + 5) % 5 === 0 ? 1 - Math.pow(Math.abs(2 * fy - 1), 2) : 0;   // the weft crosses over here
+      const thick = 0.8 + 0.4 * slub[k];
+      h[k] = rib * thick * (1 - 0.45 * bind) + (fib[k] - 0.5) * 0.12;
+      mask[k] = bind * rib;
+      alb[k] = 0.5 + (tv[i] - 0.5) * 0.07 + (fib[k] - 0.5) * 0.1 + (mott[k] - 0.5) * 0.3 - bind * 0.06;
+      rough[k] = 0.5 + (fib[k] - 0.5) * 0.18 + bind * 0.2 + (slub[k] - 0.5) * 0.12;
+    }
+  }
+  return pack(N, alb, rough, mott, wear, h, 1.5 * s, mask, { r: 2, gain: 1.4 });
+}
+
+/**
+ * 10 hemp / coarse cotton: plain weave of thick, uneven threads (width varies thread to thread, slubs and nubs along
+ * them, fibre fuzz). Layer A blue = weave height (the gauze mode cuts its open mesh from it), mask = gaps.
+ */
+function hemp(N, rng, B) {
+  const s = N / 512;
+  const T = 24, ts = N / T;
+  const wv = new Float32Array(T), fv = new Float32Array(T), wt = new Float32Array(T), ft = new Float32Array(T);
+  for (let i = 0; i < T; i++) { wv[i] = rng(); fv[i] = rng(); wt[i] = 0.72 + 0.28 * rng(); ft[i] = 0.72 + 0.28 * rng(); }
+  const slubX = vnoiseAniso(N, 8, T, rng), slubY = vnoiseAniso(N, T, 8, rng);
+  const fibX = vnoiseAniso(N, 128, T * 2, rng), fibY = vnoiseAniso(N, T * 2, 128, rng);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), gap = new Float32Array(N * N), hb = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const yt = y / ts, j = Math.floor(yt) % T, fy = yt - Math.floor(yt);
+    for (let x = 0; x < N; x++) {
+      const xt = x / ts, i = Math.floor(xt) % T, fx = xt - Math.floor(xt), k = y * N + x;
+      // thread bodies: half width per thread plus slubs; cross-section is a flattened arc
+      const ww = wt[i] * (0.8 + 0.4 * slubY[k]), fw = ft[j] * (0.8 + 0.4 * slubX[k]);
+      const dx = Math.abs(fx - 0.5) * 2 / ww, dy = Math.abs(fy - 0.5) * 2 / fw;
+      const bx = dx < 1 ? Math.pow(1 - dx * dx, 0.45) : 0, by = dy < 1 ? Math.pow(1 - dy * dy, 0.45) : 0;
+      // over / under: each thread rides a cosine, neighbours in antiphase
+      const up = 0.5 + 0.5 * Math.cos(Math.PI * (yt - 0.5 + i)), uf = 0.5 - 0.5 * Math.cos(Math.PI * (xt - 0.5 + j));
+      const hw = bx * (0.3 + 0.7 * up), hf = by * (0.3 + 0.7 * uf);
+      const warp = hw >= hf, v = warp ? hw : hf;
+      const fib = warp ? fibY[k] : fibX[k];
+      h[k] = v * 0.9 + (fib - 0.5) * 0.16;
+      hb[k] = v;
+      gap[k] = 1 - sstep(0.04, 0.3, Math.max(bx, by));
+      alb[k] = 0.5 + ((warp ? wv[i] : fv[j]) - 0.5) * 0.22 + (fib - 0.5) * 0.24 + (mott[k] - 0.5) * 0.4 - gap[k] * 0.2;
+      rough[k] = 0.56 + (fib - 0.5) * 0.22 + gap[k] * 0.2;
+    }
+  }
+  return pack(N, alb, rough, hb, wear, h, 2.0 * s, gap, { r: 3, gain: 2.2 });
+}
+
+/** Stroke collector for motif tiles: coordinates in 0..1 of the tile, widths in pixels at 256. */
+function strokes(N) {
+  const segs = [], k = N / 256;
+  const S = {
+    segs,
+    line(pts, hw = 2.2, taper = false, val = 1) { segs.push(...polySegs(pts.map(([x, y]) => [x * N, y * N]), hw * k, val, taper)); return S; },
+    dot(x, y, r) { segs.push([x * N, y * N, x * N + 0.01, y * N, r * N, 1]); return S; },
+    arc(cx, cy, r, a0, a1, hw = 2.2, n = 24, taper = false) {
+      const pts = [];
+      for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * (i / n); pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+      return S.line(pts, hw, taper);
+    },
+    /** Spiral from radius r0 at angle a0, shrinking to r1 over `turns` (dir +-1). */
+    spiral(cx, cy, r0, r1, a0, turns, dir = 1, hw = 2.2, taper = true) {
+      const pts = [], n = Math.ceil(26 * turns);
+      for (let i = 0; i <= n; i++) { const t = i / n, a = a0 + dir * t * turns * Math.PI * 2, r = r0 + (r1 - r0) * Math.pow(t, 0.8); pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+      return S.line(pts, hw, taper);
+    },
+    field() { const f = new Float32Array(N * N); lines(f, N, segs); return f; },
+  };
+  return S;
+}
+
+/** A cloud wisp (운문): spiral head, a smaller counter-curl riding on it and an S tail (tailLen head radii) trailing away along `ang`. */
+function cloudWisp(S, cx, cy, R, ang, dir, hw, tailLen = 2.3) {
+  const ca = Math.cos(ang), sa = Math.sin(ang);
+  const P = (x, y) => [cx + (x * ca - y * sa * dir) * R, cy + (x * sa + y * ca * dir) * R];
+  const head = [];
+  for (let i = 0; i <= 36; i++) { const t = i / 36, a = t * Math.PI * 2 * 1.35, r = 1 - 0.8 * Math.pow(t, 0.85); head.push(P(Math.cos(a) * r, Math.sin(a) * r)); }
+  S.line(head, hw, true);
+  const tail = [];
+  for (let i = 0; i <= 18; i++) { const t = i / 18; tail.push(P(1 + t * tailLen - 0.25 * Math.sin(t * Math.PI), -0.05 + 0.75 * Math.sin(t * Math.PI * 1.1) * (1 - 0.4 * t))); }
+  S.line(tail, hw, true);
+  const curl = [];
+  for (let i = 0; i <= 20; i++) { const t = i / 20, a = Math.PI * 0.9 - t * Math.PI * 2 * 1.05, r = 0.5 * (1 - 0.75 * t); curl.push(P(1.55 + Math.cos(a) * r, -0.62 + Math.sin(a) * r)); }
+  S.line(curl, hw * 0.9, true);
+}
+
+/**
+ * 11 damask: tone-on-tone figured silk for whole garments. Scattered cloud wisps and small florets woven as satin
+ * figure on a matt ground: the figure is smoother (it catches the light as the cloth turns), barely raised, and it is
+ * the set mask, so the `vein` glow channel lets inner energy seep through the woven figure.
+ */
+function damask(N, rng, B) {
+  const s = N / 512;
+  const S = strokes(N);
+  const spots = [[0.2, 0.22, 0.4, 1], [0.7, 0.36, 3.5, -1], [0.38, 0.72, 2.2, 1], [0.86, 0.84, 5.4, -1]];
+  for (const [x, y, a, d] of spots) cloudWisp(S, x, y, 0.062, a, d, 2.6);
+  for (const [x, y] of [[0.52, 0.1], [0.08, 0.55], [0.6, 0.6], [0.2, 0.92], [0.92, 0.12]]) {
+    for (let q = 0; q < 4; q++) { const a = q * Math.PI / 2 + 0.4; S.dot(x + Math.cos(a) * 0.017, y + Math.sin(a) * 0.017, 0.011); }
+    S.dot(x, y, 0.006);
+  }
+  const fig = S.field();
+  const grain = vnoiseAniso(N, 128, 8, rng), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
+  const halo = stretch(blur(fig, N, Math.max(1, Math.round(3 * s)), 2));
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), mask = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) {
+    const f = sstep(0.2, 0.7, fig[i]);
+    mask[i] = f;
+    h[i] = f * 0.34 + (grain[i] - 0.5) * 0.1;
+    alb[i] = 0.5 + (mott[i] - 0.5) * 0.3 + f * 0.07 + (grain[i] - 0.5) * 0.08;
+    rough[i] = 0.58 - f * 0.34 + (grain[i] - 0.5) * 0.14 + (mott[i] - 0.5) * 0.1;
+  }
+  return pack(N, alb, rough, halo, wear, h, 1.3 * s, mask, { r: 3, gain: 1.6 });
+}
+
+/**
+ * 12 brocade motif atlas: eight embroidery bands, one height field per channel (the two selvedge lines included), each
+ * tileable along u with the band across v. A: 0 cloud 운문, 1 wave 파도문, 2 flame 화염문, 3 fret 뇌문.
+ * B: 4 red-sun emblem (적양문), 5 cold-moon emblem (한월궁), 6 thunder emblem (뇌운보), 7 tortoise-shell lattice 귀갑문.
+ * All motifs are our own drawings of the common pattern families.
+ */
+function brocade(N) {
+  const TAU = Math.PI * 2;
+  const band = (draw) => {
+    const S = strokes(N);
+    S.line([[0, 0.055], [1, 0.055]], 1.7).line([[0, 0.945], [1, 0.945]], 1.7);
+    draw(S);
+    return S.field();
+  };
+  const cloud = band((S) => { cloudWisp(S, 0.28, 0.56, 0.235, 0, 1, 2.6, 2.0); });
+  const wave = band((S) => {
+    const w = 0.5;
+    for (let u = 0; u < 2; u++) {
+      const x0 = u * w;
+      for (let e = 0; e < 3; e++) {
+        const pts = [], end = 1 - e * 0.2;
+        for (let i = 0; i <= 16; i++) { const t = (i / 16) * end; pts.push([x0 + w * (0.02 + 0.7 * t), 0.8 + e * 0.03 - (0.5 - e * 0.11) * t * t * (3 - 2 * t)]); }
+        S.line(pts, 2.4 - e * 0.35, e > 0);
+      }
+      // the crest curls forward and down like a breaking wave
+      S.spiral(x0 + w * 0.72, 0.3 + 0.075, 0.075, 0.014, -Math.PI / 2, 1.1, 1, 2.4);
+      S.dot(x0 + w * 0.97, 0.24, 0.014).dot(x0 + w * 0.9, 0.15, 0.009).dot(x0 + w * 1.04, 0.4, 0.008);
+      const base = [];
+      for (let i = 0; i <= 10; i++) { const t = i / 10; base.push([x0 + w * t, 0.88 + 0.016 * Math.sin(t * TAU)]); }
+      S.line(base, 1.5);
+    }
+  });
+  const flame = band((S) => {
+    const w = 0.5;
+    const tongue = (xb, yb, xt, yt, bend, hw) => {
+      const pts = [];
+      for (let i = 0; i <= 16; i++) { const t = i / 16; pts.push([xb + (xt - xb) * t + bend * Math.sin(t * Math.PI * 1.25), yb + (yt - yb) * t]); }
+      S.line(pts, hw, true);
+    };
+    for (let u = 0; u < 2; u++) {
+      const xc = u * w + w * 0.5;
+      tongue(xc, 0.89, xc + 0.02, 0.13, 0.06, 3.6);
+      tongue(xc - 0.018, 0.89, xc - w * 0.33, 0.34, -0.05, 3.0);
+      tongue(xc + 0.018, 0.89, xc + w * 0.35, 0.46, 0.045, 2.9);
+      tongue(xc - 0.006, 0.86, xc - 0.014, 0.48, -0.022, 1.7);
+      S.dot(u * w, 0.25, 0.016).dot(u * w + 0.02, 0.43, 0.009);
+      S.arc(u * w, 0.93, w * 0.22, Math.PI * 1.15, Math.PI * 1.85, 1.7, 10);
+    }
+  });
+  const fret = band((S) => {
+    const sp = [[0.08, 0.92], [0.08, 0.08], [0.92, 0.08], [0.92, 0.92], [0.34, 0.92], [0.34, 0.34], [0.66, 0.34], [0.66, 0.66]];
+    for (let c = 0; c < 3; c++) {
+      const flip = c & 1;
+      S.line(sp.map(([x, y]) => [(c + (flip ? 1 - x : x)) / 3, 0.18 + 0.64 * (flip ? 1 - y : y)]), 2.5);
+    }
+  });
+  const sun = band((S) => {
+    const cx = 0.5, cy = 0.5;
+    S.arc(cx, cy, 0.165, 0, TAU, 2.6, 32).dot(cx, cy, 0.07);
+    for (let q = 0; q < 8; q++) {
+      const pts = [], a0 = q * TAU / 8 + 0.2;
+      for (let i = 0; i <= 7; i++) { const t = i / 7, a = a0 + 0.34 * t * t, r = 0.22 + 0.14 * t; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
+      S.line(pts, 3.6, true);
+    }
+    S.line([[-0.04, 0.5], [0, 0.4], [0.04, 0.5], [0, 0.6], [-0.04, 0.5]], 1.8).dot(0, 0.5, 0.012);
+  });
+  const moon = band((S) => {
+    const cx = 0.36, cy = 0.5, R = 0.24, th = 50 * Math.PI / 180, d = 0.11;
+    const tx = R * Math.cos(th) - d, ty = R * Math.sin(th), r2 = Math.hypot(tx, ty), ph = Math.atan2(ty, tx);
+    S.arc(cx, cy, R, th, TAU - th, 2.7, 34).arc(cx + d, cy, r2, ph, TAU - ph, 2.2, 28);
+    const sx = 0.76, sy = 0.36, sr = 0.09;
+    for (let q = 0; q < 3; q++) {
+      const a = q * Math.PI / 3 + Math.PI / 2, ca = Math.cos(a), sa = Math.sin(a);
+      S.line([[sx - ca * sr, sy - sa * sr], [sx + ca * sr, sy + sa * sr]], 1.8);
+      for (const e of [-1, 1]) for (const b of [-1, 1]) {
+        const px = sx + e * ca * sr * 0.58, py = sy + e * sa * sr * 0.58, ba = a + b * Math.PI / 3;
+        S.line([[px, py], [px + e * Math.cos(ba) * sr * 0.36, py + e * Math.sin(ba) * sr * 0.36]], 1.4);
+      }
+    }
+    S.dot(0.8, 0.72, 0.015).dot(0.66, 0.8, 0.009).dot(0.93, 0.58, 0.008);
+  });
+  const thunder = band((S) => {
+    const cx = 0.5;
+    S.line([[cx - 0.29, 0.5], [cx, 0.16], [cx + 0.29, 0.5], [cx, 0.84], [cx - 0.29, 0.5]], 2.1);
+    S.line([[cx - 0.1, 0.25], [cx + 0.06, 0.47], [cx - 0.055, 0.53], [cx + 0.11, 0.77]], 3.6, true);
+    const q = 0.06;
+    for (const sg of [1, -1]) {
+      const y0 = 0.5 + sg * 0.2;
+      S.line([[-q, y0 + sg * q], [-q, y0 - sg * q], [q, y0 - sg * q], [q, y0 + sg * q * 0.45], [-q * 0.25, y0 + sg * q * 0.45], [-q * 0.25, y0 - sg * q * 0.3]], 1.8);
+    }
+  });
+  const lattice = band((S) => {
+    const r = 0.25 / Math.sqrt(3), w = 0.25;
+    const hex = (cx, cy) => { const pts = []; for (let q = 0; q <= 6; q++) { const a = q * Math.PI / 3 + Math.PI / 6; pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); } S.line(pts, 1.9); };
+    for (let c = 0; c < 4; c++) {
+      hex(c * w + w / 2, 0.5); S.dot(c * w + w / 2, 0.5, 0.019);
+      hex(c * w, 0.5 - 1.5 * r); hex(c * w, 0.5 + 1.5 * r);
+    }
+  });
+  const A = new Uint8Array(N * N * 4), Bq = new Uint8Array(N * N * 4);
+  const put4 = (dst, fs) => { for (let i = 0; i < N * N; i++) for (let c = 0; c < 4; c++) dst[i * 4 + c] = Math.round(sat(fs[c][i]) * 255); };
+  put4(A, [cloud, wave, flame, fret]);
+  put4(Bq, [sun, moon, thunder, lattice]);
+  return { A, B: Bq };
+}
+
+/**
+ * 13 lacquer (옻칠): a deep, glassy coat. Faint orange peel and wiped streaks in the gloss, dust pits, and a sparse
+ * craquelure where the coat has aged (mask = cracks, blue = their halo): the `vein` channel glows through the cracks.
+ */
+function lacquer(N, rng, B) {
+  const s = N / 512;
+  const wx = B.fbm(rng, 8, 4), wy = B.fbm(rng, 8, 4);
+  const warp = [new Float32Array(N * N), new Float32Array(N * N)];
+  for (let i = 0; i < N * N; i++) { warp[0][i] = (wx[i] - 0.5) * 30 * s; warp[1][i] = (wy[i] - 0.5) * 30 * s; }
+  const cells = worley(N, 9, rng, warp, 0.9), pits = worley(N, 26, rng);
+  const keep = B.fbm(rng, 4, 4), peel = B.fbm(rng, 16, 3), fine = B.fbm(rng, 64, 3), pitKeep = B.fbm(rng, 8, 5, 0.6);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
+  const wipe = vnoiseAniso(N, 4, 96, rng);
+  const core = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) {
+    const e = (cells.f2[i] - cells.f1[i]) / 9 * 512 * s;
+    core[i] = (1 - sstep(0.25 * s, 1.5 * s, e)) * sstep(0.56, 0.7, keep[i]);
+  }
+  const halo = stretch(blur(core, N, Math.max(1, Math.round(4 * s)), 2));
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++) {
+    const pit = (1 - sstep(0.0, 0.09, pits.f1[i])) * sstep(0.66, 0.8, pitKeep[i]);
+    h[i] = (peel[i] - 0.5) * 0.1 + (fine[i] - 0.5) * 0.03 - core[i] * 0.5 - pit * 0.2;
+    alb[i] = 0.5 + (mott[i] - 0.5) * 0.3 - core[i] * 0.25 - pit * 0.1;
+    rough[i] = 0.42 + (wipe[i] - 0.5) * 0.3 + (mott[i] - 0.5) * 0.16 + core[i] * 0.4 + pit * 0.3;
+  }
+  return pack(N, alb, rough, halo, wear, h, 2.2 * s, core, { r: 3, gain: 2.5 });
+}
+
+/**
+ * 14 lamellar (찰갑), UV set: one tile = 4 small plates across x 2 rows (the lower row offset by half a plate). Each
+ * plate is domed, shingled over its neighbour and tucked under the row above, with rounded lower corners; a lacing
+ * cord crosses every plate joint and two suspension laces run down to the next row (mask = cords, blue = distance to
+ * the plate edge for edge wear).
+ */
+function lamellar(N, rng, B) {
+  const s = N / 512;
+  const pw = N / 4, ph = N / 2;
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6), grain = B.fbm(rng, 64, 3);
+  const pid = new Float32Array(8);
+  for (let i = 0; i < 8; i++) pid[i] = rng();
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), cord = new Float32Array(N * N), prox = new Float32Array(N * N);
+  const rc = 0.3;                                  // corner radius, plate widths
+  for (let y = 0; y < N; y++) {
+    const row = Math.floor(y / ph), fy = y / ph - row;
+    for (let x = 0; x < N; x++) {
+      const k = y * N + x;
+      const xs = (x + (row & 1) * pw * 0.5) / pw, col = Math.floor(xs), fx = xs - col;
+      // distance (plate widths) to the plate outline: sides, bottom with rounded corners; the top is hidden
+      const ax = Math.min(fx, 1 - fx), ay = (1 - fy) * (ph / pw);
+      let d = Math.min(ax, ay);
+      if (ax < rc && ay < rc) d = rc - Math.hypot(rc - ax, rc - ay);
+      const inside = d > 0 ? 1 : 0;
+      const bevel = sstep(0, 0.085, d);
+      const id = pid[(row & 1) * 4 + (col & 3)];
+      let z = inside
+        ? 0.42 + 0.3 * bevel + (1 - fy) * -0.2 + (0.5 - fx) * 0.16 + 0.1 * Math.sin(fx * Math.PI) + (id - 0.5) * 0.06
+        : 0.12;
+      // lacing: a stitch across each vertical joint near the top, two suspension laces over the lower edge
+      let c = 0;
+      const jx = Math.min(fx, 1 - fx) * pw, sy = Math.abs(fy - 0.24) * ph;
+      if (jx < 0.24 * pw && sy < 0.05 * ph) c = Math.sqrt(Math.max(0, 1 - (sy / (0.05 * ph)) ** 2)) * sstep(0.24 * pw, 0.2 * pw, jx);
+      for (const lx of [0.36, 0.64]) {
+        const ex = Math.abs(fx - lx) * pw;
+        if (ex < 0.045 * pw && fy > 0.58) c = Math.max(c, Math.sqrt(Math.max(0, 1 - (ex / (0.045 * pw)) ** 2)) * sstep(0.58, 0.64, fy));
+      }
+      if (c > 0) {
+        const tw = 0.82 + 0.18 * Math.sin((x + y) * 1.6 / s);         // twisted cord
+        z = Math.max(z, (inside ? z : 0.3) + 0.26 * c * tw);
+      }
+      cord[k] = sstep(0.15, 0.5, c);
+      h[k] = z + (grain[k] - 0.5) * 0.04;
+      prox[k] = inside ? 1 - bevel : 0;
+      alb[k] = 0.5 + (id - 0.5) * 0.2 + (mott[k] - 0.5) * 0.3 - (inside ? 0 : 0.35);
+      rough[k] = 0.5 + (mott[k] - 0.5) * 0.3 + (id - 0.5) * 0.14 + (inside ? 0 : 0.3);
+    }
+  }
+  return pack(N, alb, rough, prox, wear, h, 2.4 * s, cord, { r: 4, gain: 2.6 });
+}
+
+/**
+ * 15 woven bamboo (죽립), UV set: a 2/2 twill plait of flat split-bamboo strips, 8 x 8 per tile (the spokes run along
+ * v). Flat crowns with bevelled edges, fibres along each strip, a node ring here and there, strips of slightly
+ * different age and colour (mask = the pinholes where four strips meet).
+ */
+function bamboo(N, rng, B) {
+  const s = N / 512;
+  const T = 8, ts = N / T;
+  const cu = new Float32Array(T), cv = new Float32Array(T), nu = new Float32Array(T), nvv = new Float32Array(T);
+  for (let i = 0; i < T; i++) { cu[i] = rng(); cv[i] = rng(); nu[i] = rng(); nvv[i] = rng(); }
+  const fibX = vnoiseAniso(N, 8, 128, rng), fibY = vnoiseAniso(N, 128, 8, rng);
+  const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
+  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hole = new Float32Array(N * N), hb = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const j = Math.floor(y / ts), fy = y / ts - j;
+    for (let x = 0; x < N; x++) {
+      const i = Math.floor(x / ts), fx = x / ts - i, k = y * N + x;
+      const spokeTop = ((i + j) & 3) < 2;
+      const px = Math.min(1, Math.min(fx, 1 - fx) / 0.16), py = Math.min(1, Math.min(fy, 1 - fy) / 0.16);
+      const ex = sstep(0, 1, px), ey = sstep(0, 1, py);
+      // the strip on top is a flat crown; where it dives under the next crossing it slopes down toward its ends
+      const dive = (f) => 0.82 + 0.18 * Math.sin(f * Math.PI);
+      const top = spokeTop ? ex * dive(fy) : ey * dive(fx);
+      const under = (spokeTop ? ey : ex) * 0.34;
+      const v = Math.max(top * (0.55 + 0.45 * (spokeTop ? ex : ey)), under);
+      const onTop = top >= under;
+      const isSpoke = onTop ? spokeTop : !spokeTop;
+      const fib = isSpoke ? fibY[k] : fibX[k];
+      // node ring across a strip (one per strip per tile, at its own place)
+      const along = isSpoke ? y / N : x / N, np = isSpoke ? nu[i] : nvv[j];
+      const dn = Math.abs(((along - np + 1.5) % 1) - 0.5) * N;
+      const node = (1 - sstep(0.8 * s, 2.6 * s, dn)) * (onTop ? 1 : 0);
+      h[k] = v + (fib - 0.5) * 0.09 + node * 0.07;
+      hb[k] = v;
+      hole[k] = 1 - sstep(0.02, 0.2, Math.max(px, py));
+      const tone = isSpoke ? cu[i] : cv[j] * 0.85;
+      alb[k] = 0.5 + (tone - 0.5) * 0.34 + (fib - 0.5) * 0.2 + (mott[k] - 0.5) * 0.22 - node * 0.16 - (onTop ? 0 : 0.14);
+      rough[k] = 0.46 + (fib - 0.5) * 0.24 + (1 - (isSpoke ? ex : ey)) * 0.16 + node * 0.12;
+    }
+  }
+  return pack(N, alb, rough, hb, wear, h, 2.2 * s, hole, { r: 3, gain: 2.4 });
+}
+
+const GENERATORS = [hammered, scorched, engraved, leather, cloth, fur, mail, quilted, silk, hemp, damask, brocade, lacquer, lamellar, bamboo];
+const NAMES = Object.keys(SET);

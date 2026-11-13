@@ -4,22 +4,29 @@
 //   surf  (vec4)  x roughness, y metalness, z texture set + detail amount (see surfDetail()), w cavity / edge:
 //                 w < 1 crevice / occlusion (darker, grimier), w = 1 neutral, 1 < w <= 2 convex edge (edge wear)
 //   glow  (vec3)  legacy mode: emissive HDR radiance. Channel mode (material option `glow`): masks of the three glow
-//                 channels (x inlay, y vein (x the set's vein mask: cracks / engraved grooves), z eye). Cloth and fur
-//                 sets: (u, v, edge code) of the cloth surface (torn / burnt hems, fur strand alpha) instead.
+//                 channels (x inlay, y vein (x the set's mask: cracks, engraved grooves, woven figure, stitches), z eye).
+//                 UV sets (fur, hair, brocade, lamellar, bamboo, gauze, blade) and torn cloth carry (u, v, code) there
+//                 instead: the mesh's own texture coordinates plus a per-piece code (motif + glow, opacity, hamon ...).
 //
 // Fragment shader (onBeforeCompile on MeshStandardMaterial, one shared program for every character):
 //   * texture sets (src/char/kit/textures.js): triplanar albedo / roughness variation and whiteout-blended normal maps
-//     sampled in bind-pose space (sticks to the surface), per-set tiling and bump strength
+//     sampled in bind-pose space (sticks to the surface), or sampled through the mesh uv for the UV sets
+//   * murim cloth: matte silk (anisotropic satin sheen across the warp, a weave only a close-up resolves), hemp, figured
+//     damask, embroidered brocade bands (eight motifs, metal thread, glow seeping through the thread), soft wrapped
+//     terminator and light through thin cut-out cloth, open-weave gauze held by a screen-door dither at distance
+//   * lacquer (deep clear coat, undercoat showing on worn edges, glowing craquelure), laced lamellar plates, woven
+//     bamboo, hair ribbons with strand highlights, forged blades (bright honed edge, misty temper line, flowing grain),
+//     aged bronze with verdigris, jade
 //   * edge wear on convex edges (bare metal, chipped by noise), crevice grime from vertex cavity + micro cavity
 //   * heat tint around cracks (scorched set), emissive inlay / vein / eye channels whose colour and intensity are
 //     uniforms (animate them at runtime without recompiling: createGlowControl / attachGlow)
 //   * fresnel rim term (silhouettes against the dark arena) and the fresnel-weighted hit flash (uFlash)
-//   * cutout materials (option `cutout`): torn and burnt cloth hems with ember-lit edges, fur strand alpha
+//   * cutout materials (option `cutout`): torn and burnt cloth hems with ember-lit edges, fur / hair strand alpha, gauze
 // Surface value 0..1 in surf.z keeps the original behaviour (legacy detail texture), so older designs render unchanged.
 
 import * as THREE from 'three';
 import { makeRng } from '../core/math.js';
-import { getTextureSets, SET, SET_SCALE, SET_BUMP, configureTextureSets } from './kit/textures.js';
+import { getTextureSets, requireTextureSet, SET, SET_COUNT, SET_SCALE, SET_BUMP, SET_LAYER, configureTextureSets } from './kit/textures.js';
 
 export { SET, configureTextureSets };
 
@@ -91,14 +98,17 @@ export function getDetailTexture() {
 }
 
 /**
- * Encode a texture set and its detail amount into the `detail` surface option (surf.z).
+ * Encode a texture set and its detail amount into the `detail` surface option (surf.z); the set's texture layers are
+ * generated on first use (requireTextureSet).
  * set 0 (legacy) keeps the 0..1 meaning; set k >= 1 -> 2k + 0.25 + 0.5 * amount (robust to interpolation error).
- * @param {number|string} set  SET id or name ('hammered', 'scorched', 'engraved', 'leather', 'cloth', 'fur', 'mail', 'quilted')
+ * @param {number|string} set  SET id or name ('hammered', 'scorched', 'engraved', 'leather', 'cloth', 'fur', 'mail',
+ *   'quilted', 'silk', 'hemp', 'damask', 'brocade', 'lacquer', 'lamellar', 'bamboo', 'gauze', 'hair', 'blade', 'bronze', 'jade')
  * @param {number} amount 0..1 (scales normal, albedo and roughness variation of the set)
  */
 export function surfDetail(set, amount = 1) {
   const k = typeof set === 'string' ? SET[set] : set;
   if (!k) return Math.max(0, Math.min(1, amount));
+  requireTextureSet(k);
   return 2 * k + 0.25 + 0.5 * Math.max(0, Math.min(1, amount));
 }
 
@@ -141,6 +151,7 @@ const SHADOW_VERTEX = THREE.ShaderChunk.shadowmap_vertex
   .replace(/spotLightShadows\[ i \]\.shadowNormalBias/g, '( spotLightShadows[ i ].shadowNormalBias + uShadowNB )');
 
 const FRAG_PARS = /* glsl */ `
+#define ED_SETS ${SET_COUNT + 1}
 uniform sampler2D uDetail;
 uniform highp sampler2DArray uSets;
 uniform float uSetsN;
@@ -166,8 +177,14 @@ uniform vec4 uSheen;
 uniform vec3 uFrostColor;
 uniform vec3 uPatinaColor;
 uniform vec4 uDust;
-uniform float uSetScale[9];
-uniform float uSetBump[9];
+uniform vec4 uThread;
+uniform vec4 uLace;
+uniform vec4 uUnder;
+uniform vec4 uVerd;
+uniform vec4 uTrans;
+uniform float uSetScale[ED_SETS];
+uniform float uSetBump[ED_SETS];
+uniform float uSetLayer[ED_SETS];
 uniform float uDetailMul;
 varying vec4 vSurf;
 varying vec3 vGlow;
@@ -180,15 +197,20 @@ vec3 edTb = vec3(0.0, 1.0, 0.0);   // bind space: direction the highlight stretc
 vec3 edAT = vec3(1.0, 0.0, 0.0);   // view space: rough (stretch) direction
 vec3 edAB = vec3(0.0, 0.0, 1.0);   // view space: sharp direction
 float edAniso = 0.0;               // 0 isotropic .. 1
-float edPolish = 0.0;              // weight of the sharp polish lobe (metals)
+float edPolish = 0.0;              // weight of the sharp polish lobe (metals, lacquer, jade)
 float edPolishR = 0.2;             // its roughness
 vec3 edSheenC = vec3(0.0);         // fuzz sheen colour (cloth, fur, leather wax, pearl satin)
 float edSheenR = 0.5;
+vec3 edSpecAdd = vec3(0.0);        // extra specular colour of the base lobe (the dyed lustre of silk, hair)
+float edWrap = 0.0;                // wrapped diffuse terminator (cloth, jade)
+float edTrans = 0.0;               // light through thin cloth lit from behind
 float edAO = 1.0;                  // occlusion of indirect light (crevices, inner skins, fur roots)
 float edFilm = 0.0;                // view-dependent oxide / nacre film on the specular colour
 float edFilmKind = 0.0;            // 0 pearl (pastel nacre), 1 patina (violet-teal oxide)
 float edRoughT = 0.2;              // roughness target ...
-float edRoughW = 0.0;              // ... and its weight (worn edges, frost)
+float edRoughW = 0.0;              // ... and its weight (worn edges, frost, honed blade edges)
+float edMetalT = 0.0;              // metalness target ...
+float edMetalW = 0.0;              // ... and its weight (embroidery thread, lacing cords)
 float edInlayK = 0.0, edEyeK = 0.0;
 vec3 edRadP = vec3(0.0);
 vec4 edTriplanar(vec3 p, vec3 n) {
@@ -236,7 +258,7 @@ const FRAG_SURFACE = /* glsl */ `
     edNv *= edFace;
   #endif
   vec3 edNr = normalize(edNv * edM);
-  // screen derivatives in uniform control flow: footprint, cloth / fur (u, v) frame, cavity gradient (plate edges)
+  // screen derivatives in uniform control flow: footprint, the mesh uv frame, cavity gradient (plate edges)
   vec3 edQ0 = dFdx(vRestPos), edQ1 = dFdy(vRestPos);
   float edPix = max(length(edQ0), length(edQ1));
   vec2 edG0 = dFdx(vGlow.xy), edG1 = dFdy(vGlow.xy);
@@ -259,37 +281,131 @@ const FRAG_SURFACE = /* glsl */ `
     diffuseColor.rgb *= mix(1.0, 0.72 + 0.56 * edDet.r, edAmt) * vSurf.w;
     edEmis = vGlow * uGlowScale;
   } else {
-    float edL = (edSetF - 1.0) * 2.0;
-    bool edUv = edSi == 5 || edSi == 6;
+    float edL = uSetLayer[edSi];
     float edScale = uSetScale[edSi] * uDetailMul;
-    // texels of the set per pixel: > 1 the detail is sub-pixel (weave and dents fade, their variance becomes roughness)
-    float edTexPix = edPix * edScale * uSetsN;
-    float edLod = smoothstep(0.8, 5.0, edTexPix);
-    vec4 edA, edB;
+    // sets textured through the mesh uv (fur, brocade, lamellar, bamboo, gauze, hair); woven fabrics
+    bool edUvT = edSi == 6 || edSi == 12 || (edSi >= 14 && edSi <= 17);
+    bool edFab = edSi == 5 || (edSi >= 9 && edSi <= 11);
+    bool edSilk = edSi == 9 || edSi == 11;
+    bool edTorn = edSi == 5;
+    #ifdef ED_CUTOUT
+      edTorn = edFab && (edSi == 5 || vGlow.z > 0.0005);
+    #endif
+    // vGlow = (u, v, code) instead of glow channel masks
+    bool edUv = edUvT || edSi == 18 || edTorn;
+    float edCode = vGlow.z;
+    float edLod = 0.0;
+    float edThread = 0.0;                 // embroidery thread / lacing cord coverage
+    vec3 edThreadC = vec3(0.0);
+    float edCodeGlow = 0.0;               // glow amount carried by the uv code
+    float edVeinDark = 1.0;               // glowing cracks are dark and rough; glowing thread is not
+    vec4 edA = vec4(0.5), edB = vec4(0.5, 0.5, 1.0, 0.0);
     float metal = vSurf.y;
-    if (edSi == 6) {
-      // fur cards: u across the card, v root -> tip
-      vec2 fuv = vec2(vGlow.x * 3.0, vGlow.y * 0.55);
-      edA = edSet(fuv, edL); edB = edSet(fuv, edL + 1.0);
-      #ifdef ED_CUTOUT
-        float strand = edB.a;
-        if (strand < vGlow.y * 0.9 + 0.08) discard;
-      #endif
-      // strand frame from the card's (u, v): the lock shades as a rounded bundle of strands, not a flat card
-      vec3 across = edGrad(edQ0, edQ1, edG0.x, edG1.x, edNr);
-      across = normalize(across - edNr * dot(edNr, across) + vec3(0.0, 1e-5, 0.0));
-      float tip = smoothstep(0.45, 1.0, vGlow.y);
-      edNrP = normalize(edNr + across * ((vGlow.x - 0.5) * 1.2 + (edB.x - 0.5) * 1.1 * (1.0 - edLod)));
-      edTb = across;                      // the highlight band runs across the strands
-      edAniso = uAniso.z;
-      vec3 c = diffuseColor.rgb * mix(0.3, 1.05, smoothstep(0.0, 0.75, vGlow.y)) * (0.68 + 0.64 * edA.r);
-      float lum = dot(c, vec3(0.3333));
-      diffuseColor.rgb = mix(c, vec3(lum) * vec3(1.25, 1.12, 1.0) * 1.5 + 0.003, tip * 0.5);   // bleached, warmer guard-hair tips
-      edAO = mix(0.3, 1.0, smoothstep(0.0, 0.7, vGlow.y));
-      edSheenC = clamp(diffuseColor.rgb * 3.0 + 0.01, 0.0, 0.35) * uSheen.x;
-      edSheenR = 0.45;
-      edRoughAdd = (1.0 - edA.a) * 0.08;
+    if (edUvT) {
+      // frame of the mesh uv on the surface (bind space)
+      float sg = dot(edQ0, cross(edQ1, edNr)) < 0.0 ? -1.0 : 1.0;
+      vec3 Tu = edGrad(edQ0, edQ1, edG0.x, edG1.x, edNr) * sg;
+      vec3 Tv = edGrad(edQ0, edQ1, edG0.y, edG1.y, edNr) * sg;
+      Tu = normalize(Tu - edNr * dot(edNr, Tu) + vec3(0.0, 1e-6, 0.0));
+      Tv = normalize(Tv - edNr * dot(edNr, Tv) + vec3(1e-6, 0.0, 0.0));
+      vec2 uv = vGlow.xy * edScale;
+      if (edSi == 6) uv = vec2(vGlow.x * 3.0, vGlow.y * 0.55);
+      if (edSi == 17) uv = vec2(vGlow.x, vGlow.y * 0.3);
+      edLod = smoothstep(0.8, 5.0, max(length(edG0), length(edG1)) * edScale * uSetsN);
+      float k = uSetBump[edSi] * uBump * edAmt * (1.0 - 0.6 * edLod);
+      if (edSi == 12) {
+        // brocade band: one of eight embroidery motifs (height fields, one per channel of the two layers), embossed
+        float m = floor(edCode + 0.002);
+        edCodeGlow = clamp(edCode - m, 0.0, 1.0);
+        float lay = edL + step(3.5, m);
+        int ch = int(m - 4.0 * step(3.5, m) + 0.5);
+        float e = 1.5 / uSetsN;
+        float h0 = texture(uSets, vec3(uv, lay))[ch];
+        float hu = texture(uSets, vec3(uv + vec2(e, 0.0), lay))[ch];
+        float hv = texture(uSets, vec3(uv + vec2(0.0, e), lay))[ch];
+        float halo = texture(uSets, vec3(uv, lay), 2.6)[ch];
+        edThread = smoothstep(0.2, 0.55, h0);
+        // satin stitches laid across the stroke: a fine hatch in close-ups; the ground is a ribbed silk tape
+        float hatch = sin((uv.x + uv.y) * uSetsN * 1.3) * (1.0 - edLod);
+        float rib = sin(uv.y * uSetsN * 1.57) * (1.0 - edLod);
+        edNrP = normalize(edNr - (Tu * (hu - h0) + Tv * (hv - h0)) * k * 5.0 + (Tu + Tv) * hatch * edThread * 0.1 * k + Tv * rib * (1.0 - edThread) * 0.06 * k);
+        edA = vec4(0.5 + 0.12 * hatch * edThread + 0.05 * rib * (1.0 - edThread), 0.5 - 0.1 * edThread, halo, 0.5);
+        edB = vec4(0.5, 0.5, 1.0 - 0.55 * clamp(halo * 1.6 - h0, 0.0, 1.0) * (1.0 - edThread), 0.0);
+        edThreadC = uThread.rgb;
+        edMetalT = uThread.a; edMetalW = edThread;
+        edVeinDark = 0.0;
+        edTb = normalize(Tu + Tv);
+      } else {
+        edA = edSet(uv, edL); edB = edSet(uv, edL + 1.0);
+        vec2 tn = (edB.xy * 2.0 - 1.0) * k;
+        if (edSi == 6) {
+          // fur cards: u across the card, v root -> tip
+          #ifdef ED_CUTOUT
+            if (edB.a < vGlow.y * 0.9 + 0.08) discard;
+          #endif
+          // strand frame from the card's (u, v): the lock shades as a rounded bundle of strands, not a flat card
+          vec3 across = edGrad(edQ0, edQ1, edG0.x, edG1.x, edNr);
+          across = normalize(across - edNr * dot(edNr, across) + vec3(0.0, 1e-5, 0.0));
+          float tip = smoothstep(0.45, 1.0, vGlow.y);
+          edNrP = normalize(edNr + across * ((vGlow.x - 0.5) * 1.2 + (edB.x - 0.5) * 1.1 * (1.0 - edLod)));
+          edTb = across;                      // the highlight band runs across the strands
+          edAniso = uAniso.z;
+          vec3 c = diffuseColor.rgb * mix(0.3, 1.05, smoothstep(0.0, 0.75, vGlow.y)) * (0.68 + 0.64 * edA.r);
+          float lum = dot(c, vec3(0.3333));
+          diffuseColor.rgb = mix(c, vec3(lum) * vec3(1.25, 1.12, 1.0) * 1.5 + 0.003, tip * 0.5);   // bleached, warmer guard-hair tips
+          edAO = mix(0.3, 1.0, smoothstep(0.0, 0.7, vGlow.y));
+          edSheenC = clamp(diffuseColor.rgb * 3.0 + 0.01, 0.0, 0.35) * uSheen.x;
+          edSheenR = 0.45;
+          edRoughAdd = (1.0 - edA.a) * 0.08;
+          edA = vec4(0.5, 0.5, edA.b, edA.a); edB.b = 1.0;
+        } else if (edSi == 17) {
+          // hair ribbons / cards: u across the lock (strand units), v root -> tip; code = where the lock thins out
+          #ifdef ED_CUTOUT
+            if (edCode > 0.0005 && edB.a < smoothstep(edCode, 1.0, vGlow.y) * 0.9 + 0.03) discard;
+          #endif
+          edNrP = normalize(edNr + Tu * (edB.x - 0.5) * 2.2 * k);
+          edTb = Tu;                          // the highlight band runs across the strands
+          edAniso = uAniso.z;
+          diffuseColor.rgb *= (0.62 + 0.76 * edA.r) * mix(0.7, 1.0, edB.a);
+          edAO = mix(0.6, 1.0, smoothstep(0.0, 0.18, vGlow.y)) * mix(0.75, 1.0, edB.a);
+          edSpecAdd = clamp(diffuseColor.rgb * 4.0 + 0.02, 0.0, 0.2);
+          edSheenC = clamp(diffuseColor.rgb * 2.0 + 0.008, 0.0, 0.2) * uSheen.x;
+          edSheenR = 0.4;
+          edA = vec4(0.5, 0.5, 0.0, 0.5); edB.b = 1.0;
+        } else {
+          edNrP = normalize(edNr + Tu * tn.x + Tv * tn.y);
+          if (edSi == 14) {
+            // lamellar: lacing cords over small plates; the plate rims wear
+            edThread = edB.a;
+            edThreadC = uLace.rgb;
+            edMetalT = 0.0; edMetalW = edThread;
+            edCodeGlow = fract(edCode);
+            edEdge = max(edEdge, edA.b * 0.75);
+            edVeinDark = 0.0;
+          } else if (edSi == 15) {
+            // woven bamboo: light (or inner energy) leaks through the pinholes of the plait
+            edCodeGlow = fract(edCode);
+            edVeinDark = 0.0;
+            diffuseColor.rgb *= 1.0 - 0.75 * edB.a;
+          } else {
+            // gauze: open weave cut from the hemp weave height; a screen-door dither holds its opacity at distance
+            float op = clamp(edCode, 0.06, 1.0);
+            #ifdef ED_CUTOUT
+              float th = 1.0 - op;
+              float cov = mix(smoothstep(th - 0.1, th + 0.1, edA.b), op, edLod);
+              float dz = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+              if (cov < dz * 0.96 + 0.02) discard;
+            #endif
+            edTrans = uTrans.z;
+            edWrap = uTrans.x;
+            edSheenC = clamp(diffuseColor.rgb * 3.0 + 0.015, 0.0, 0.3) * uSheen.x; edSheenR = uSheen.y;
+            edB.a = 0.0;
+          }
+        }
+      }
     } else {
+      // texels of the set per pixel: > 1 the detail is sub-pixel (weave and dents fade, their variance becomes roughness)
+      edLod = smoothstep(0.8, 5.0, edPix * edScale * uSetsN);
       vec3 p = vRestPos * edScale;
       vec3 w = pow(abs(edNr), vec3(4.0));
       w /= max(1e-4, w.x + w.y + w.z);
@@ -297,7 +413,7 @@ const FRAG_SURFACE = /* glsl */ `
       vec4 bX = edSet(p.zy, edL + 1.0), bY = edSet(p.xz, edL + 1.0), bZ = edSet(p.xy, edL + 1.0);
       edA = aX * w.x + aY * w.y + aZ * w.z;
       edB = bX * w.x + bY * w.y + bZ * w.z;
-      float k = uSetBump[edSi] * uBump * edAmt * (edSi == 5 ? 1.0 - 0.8 * edLod : 1.0 - 0.35 * edLod);
+      float k = uSetBump[edSi] * uBump * edAmt * (edFab ? 1.0 - 0.8 * edLod : 1.0 - 0.35 * edLod);
       vec3 tX = edTn(bX, k), tY = edTn(bY, k), tZ = edTn(bZ, k);
       tX = vec3(tX.xy + edNr.zy, abs(tX.z) * edNr.x);
       tY = vec3(tY.xy + edNr.xz, abs(tY.z) * edNr.y);
@@ -305,15 +421,16 @@ const FRAG_SURFACE = /* glsl */ `
       edNrP = normalize(tX.zyx * w.x + tY.xzy * w.y + tZ.xyz * w.z);
       // detail normals below a pixel: their spread goes into roughness (no sparkling armour at fight distance)
       edRoughAdd += 0.1 * edLod * k * metal;
+      if (edSi >= 18) edB.a = 0.0;          // blade / bronze / jade reuse the hammered layers: no vein mask
     }
     float edMicro = mix(1.0, edB.b, edAmt);
-    // macro field (one planar lookup, low frequency): vertical grime streaks (A) and soot / dust patches (R)
+    // macro field (one planar lookup, low frequency): vertical grime streaks (A) and soot / dust / dye patches (R)
     vec2 edMuv = abs(edNr.x) > abs(edNr.z) ? vRestPos.zy : vRestPos.xy;
-    vec4 edMac = edSet(edMuv * vec2(1.1, 0.14) + vec2(0.37, 0.11), 2.0);
+    vec4 edMac = edSet(edMuv * vec2(1.1, 0.14) + vec2(0.37, 0.11), 0.0);
     // cloth hems: torn, charred, frayed, ember-lit edges (u, v, code in vGlow)
     float edChar = 0.0, edSoot = 0.0;
     #ifdef ED_CUTOUT
-    if (edSi == 5) {
+    if (edTorn) {
       vec2 cuv = vGlow.xy;
       float code = vGlow.z;
       float sides = floor(code * 0.5 + 0.01);
@@ -333,7 +450,7 @@ const FRAG_SURFACE = /* glsl */ `
         d = min(d, (1.0 - cuv.x) - burn * (0.02 + 0.09 * s2 * s2) * smoothstep(0.15, 0.9, cuv.y));
       }
       float hn = edSet(cuv * vec2(1.1, 1.6) + vec2(0.31, 0.77), 0.0).a;
-      float holeT = 0.86 - 0.16 * burn * smoothstep(0.35, 1.0, cuv.y);
+      float holeT = mix(1.05, 0.86, smoothstep(0.02, 0.3, burn)) - 0.16 * burn * smoothstep(0.35, 1.0, cuv.y);
       d = min(d, (holeT - hn) * 0.45);
       float thread = 0.0;
       if (d < 0.0) {
@@ -344,15 +461,17 @@ const FRAG_SURFACE = /* glsl */ `
         if (d < -fringe || th > 0.16 * (1.0 + d / max(fringe, 1e-4))) discard;
         thread = 1.0;
       }
-      edChar = max((1.0 - smoothstep(0.0, 0.02 + 0.07 * burn, d)) * burn, thread);
-      edSoot = burn * smoothstep(0.3, 1.0, cuv.y) * (0.55 + 0.45 * e2);
-      float ember = (1.0 - smoothstep(0.0, 0.006 + 0.004 * burn, max(d, 0.0))) * burn * smoothstep(0.2, 0.55, cuv.y) * (1.0 - 0.7 * thread);
+      float charK = smoothstep(0.1, 0.45, burn);    // a clean cut frays; only a burnt hem chars and glows
+      edChar = max((1.0 - smoothstep(0.0, 0.02 + 0.07 * burn, d)) * burn * charK, thread * charK);
+      edSoot = burn * charK * smoothstep(0.3, 1.0, cuv.y) * (0.55 + 0.45 * e2);
+      float ember = (1.0 - smoothstep(0.0, 0.006 + 0.004 * burn, max(d, 0.0))) * burn * charK * smoothstep(0.2, 0.55, cuv.y) * (1.0 - 0.7 * thread);
       float fl = 0.65 + 0.35 * sin(uEmber.x * 3.1 + cuv.x * 37.0 + cuv.y * 11.0);
       edEmis += edHot(uGlowB, 0.6 + 0.4 * ember) * ember * fl * 0.6;
     }
     #endif
     // albedo: variation, heat tint near cracks, chipped edge wear, crevice grime and streaks, soot, occlusion
     vec3 base = diffuseColor.rgb * (1.0 + (edA.r - 0.5) * uWear.z * edAmt * 2.0);
+    if (edFab) base *= 1.0 + (edMac.r - 0.5) * uWear.z * 0.7;          // uneven dye, fading (the weave itself is sub-pixel)
     float isMetal = smoothstep(0.35, 0.8, metal);
     float bmax = max(base.r, max(base.g, base.b)), bmin = min(base.r, min(base.g, base.b));
     float steel = isMetal * (1.0 - smoothstep(0.22, 0.45, (bmax - bmin) / max(bmax, 1e-4)));   // gold / bronze are saturated
@@ -361,10 +480,13 @@ const FRAG_SURFACE = /* glsl */ `
       vec3 film = edTemper(heat) * max(bmax, 0.05) * 2.4;
       base = mix(base, film, smoothstep(0.12, 0.5, heat) * uWear.w * 0.62);
     }
+    // lacquer: a clear coat over the colour; worn rims show the undercoat
+    bool edLacq = edSi == 13 || (edSi == 14 && metal < 0.5);
     float chip = edA.a;
     float edgeW = edEdge * uWear.x;
-    float wear = smoothstep(0.5, 0.62, edgeW * 1.1 + (chip - 0.5) * 0.85 * min(1.0, edgeW * 2.5));
+    float wear = smoothstep(0.5, 0.62, edgeW * 1.1 + (chip - 0.5) * 0.85 * min(1.0, edgeW * 2.5)) * (1.0 - edThread);
     vec3 worn = edSi == 4 ? base * 0.75 : mix(base * 1.7 + 0.025, uWearColor, metal);   // leather burnishes darker
+    if (edLacq) worn = uUnder.rgb * (0.7 + 0.6 * edA.r);
     base = mix(base, worn, wear);
     float streak = smoothstep(0.52, 0.85, edMac.a) * (1.0 - abs(edNr.y)) * (1.0 - wear);
     float grime = clamp((1.0 - edOcc) * 1.25 + (1.0 - edMicro) * 0.9 + streak * 0.45, 0.0, 1.0) * uWear.y;
@@ -372,6 +494,8 @@ const FRAG_SURFACE = /* glsl */ `
     base *= mix(1.0, edOcc, 0.45);
     base *= 1.0 - 0.6 * edSoot;
     base = mix(base, vec3(0.014, 0.011, 0.01), edChar * 0.94);
+    // embroidery thread / lacing cords over the ground
+    base = mix(base, edThreadC * (0.8 + 0.4 * edA.r) * mix(1.0, edOcc, 0.5), edThread);
     // settled dust / ash on up-facing surfaces (lighter, rougher, not metallic)
     float dust = uDust.w * smoothstep(0.3, 0.85, edNr.y) * smoothstep(0.35, 0.75, edMac.r + (1.0 - edMicro) * 0.4) * (1.0 - wear) * (1.0 - edChar);
     base = mix(base, uDust.rgb, dust);
@@ -392,20 +516,54 @@ const FRAG_SURFACE = /* glsl */ `
       base = mix(base, uPatinaColor * (0.65 + 0.7 * edA.r), patina);
       edRoughAdd += patina * 0.1;
     }
+    // aged bronze: verdigris creeping out of the hollows and across mottled patches (matt, chalky, not metallic)
+    if (edSi == 19) {
+      float verd = uVerd.a * smoothstep(0.42, 0.8, (1.0 - edOcc) * 1.3 + (edMac.r - 0.5) * 1.6 + (1.0 - edMicro) * 0.9 + (edA.a - 0.5) * 0.7 + 0.1) * (1.0 - wear);
+      base = mix(base, uVerd.rgb * (0.55 + 0.9 * edA.r), verd);
+      edMetalMul *= 1.0 - 0.9 * verd;
+      edRoughAdd += 0.32 * verd;
+    }
+    float edHard = 0.0;
+    if (edSi == 18) {
+      // forged blade (u along the blade in metres, v 0 at the cutting edge .. 1 at the back, code = height of the temper
+      // line): a bright honed edge zone, a misty undulating boundary, flowing forge grain on the darker body
+      float bu = vGlow.x, bv = vGlow.y;
+      float n1 = texture2D(uDetail, vec2(bu * 0.83, 0.37)).r, n2 = texture2D(uDetail, vec2(bu * 3.1, 0.71)).r;
+      float line = edCode * (0.72 + 0.56 * n1 + 0.2 * sin(bu * 47.0 + n2 * 7.0));
+      float on = step(0.001, edCode);
+      edHard = (1.0 - smoothstep(line - 0.025, line + 0.03, bv)) * on;
+      float nioi = exp(-pow((bv - line) / 0.04, 2.0)) * on;
+      float grain = sin(bv * 52.0 + (n1 - 0.5) * 16.0 + (n2 - 0.5) * 7.0 + (edA.r - 0.5) * 5.0);
+      base *= 1.0 + 0.1 * grain * (1.0 - edHard) * (1.0 - edLod);
+      vec3 honed = uWearColor * 1.25 + 0.02;
+      base = mix(base, honed, edHard * (1.0 - 0.8 * wear));
+      base = mix(base, honed * 1.15 + 0.04, nioi * 0.55);
+      edRoughAdd += nioi * 0.16 + 0.05 * grain * (1.0 - edHard);
+    }
+    if (edSi == 20) {
+      // jade: clouded, veined, waxy; light sinks in and comes back soft
+      float cloud = edMac.r * 0.55 + edA.r * 0.45;
+      base *= 0.66 + 0.7 * cloud;
+      base = mix(base, base * 0.45 + vec3(0.3, 0.32, 0.28) * bmax * 1.6, smoothstep(0.6, 0.82, edMac.a * 0.6 + edA.a * 0.4) * 0.5);
+      edWrap = 0.55; edTrans = 0.22;
+    }
     diffuseColor.rgb = base;
     edRoughMul *= (1.0 + (edA.g - 0.5) * 1.1 * edAmt) * (1.0 - 0.3 * wear * (1.0 - isMetal));
     edRoughAdd += grime * 0.22 + edChar * 0.35 + dust * 0.35;
     edMetalMul *= 1.0 - dust;
     // worn metal edges are polished bright: they catch the rim, the key and the braziers as crisp lines
-    edRoughT = mix(0.18, 0.62, frost);
-    edRoughW = max(wear * isMetal * 0.85, frost * 0.8);
+    edRoughT = mix(mix(0.18, 0.1, edHard), 0.62, frost);
+    edRoughW = max(max(wear * isMetal * 0.85, frost * 0.8), edHard * 0.85);
     edAO *= mix(1.0, edOcc, 0.85) * mix(1.0, edMicro, 0.45);
     // layered polish: a sharp lobe over the base lobe on clean metal (smoother patches, fresh wear), none under grime
     float smooth_ = smoothstep(0.62, 0.36, edA.g);
-    edPolish = clamp(uFinish.w * isMetal * (0.4 + 0.6 * smooth_) * (1.0 - grime) * (1.0 - frost) * (1.0 - dust) + wear * isMetal * 0.4, 0.0, 1.0);
+    edPolish = clamp(uFinish.w * isMetal * (0.4 + 0.6 * smooth_) * (1.0 - grime) * (1.0 - frost) * (1.0 - dust) + wear * isMetal * 0.4 + edHard * 0.6, 0.0, 1.0);
+    if (edLacq) edPolish = max(edPolish, uUnder.a * (0.55 + 0.45 * smooth_) * (1.0 - grime * 0.8) * (1.0 - wear) * (1.0 - edThread) * (1.0 - dust));
+    if (edSi == 20) edPolish = max(edPolish, 0.8 * (1.0 - grime));
+    if (edSi == 15) edPolish = max(edPolish, 0.25 * (1.0 - edB.a) * (1.0 - grime));
     // brushed anisotropy: polish lines around the limbs (highlights stretch along them); fresh wear is polished along
     // the edge (highlights stretch across it)
-    if (edSi != 6) {
+    if (!edUvT && !edFab) {
       vec3 gc = edGrad(edQ0, edQ1, edC0, edC1, edNr);
       float gl = length(gc);
       float onEdge = smoothstep(0.04, 0.3, edEdge) * step(1e-9, gl);
@@ -413,8 +571,29 @@ const FRAG_SURFACE = /* glsl */ `
       edAniso = (edSi == 7 ? 0.0 : 1.0) * isMetal * mix(uAniso.x * (1.0 - 0.6 * grime) * (1.0 - smoothstep(0.88, 0.99, abs(edNr.y))), uAniso.y, onEdge * wear) * (1.0 - frost);
     }
     // sheen: fuzz at grazing angles on cloth and quilting, wax on leather, a satin nacre glow on pearl metal
-    if (edSi == 5 || edSi == 8) { edSheenC = clamp(base * 3.0 + 0.012, 0.0, 0.3) * uSheen.x * (1.0 - edChar); edSheenR = uSheen.y; }
+    if (edFab || edSi == 8) {
+      edSheenC = clamp(base * 3.0 + 0.012, 0.0, 0.3) * uSheen.x * (1.0 - edChar); edSheenR = uSheen.y;
+      edWrap = uTrans.x;
+      #ifdef ED_CUTOUT
+        edTrans = uTrans.y;
+      #endif
+      if (edSilk) {
+        // satin: the floats run with the warp (bind +Y), so the highlight lies across them and slides over the folds;
+        // the lustre takes the colour of the dye; a woven figure (damask) is smoother still
+        float fig = edSi == 11 ? edB.a : 0.0;
+        edTb = normalize(cross(edNr, vec3(0.0, 1.0, 0.0)) + vec3(1e-4, 0.0, 1e-4));
+        edAniso = uAniso.w * (1.0 - edChar);
+        edSheenR = 0.42;
+        edSheenC *= 0.6;
+        edSpecAdd = clamp(base * 2.2 + 0.015, 0.0, 0.16) * uSheen.w * (1.0 + 1.2 * fig) * (1.0 - grime) * (1.0 - edChar);
+      }
+    }
     if (edSi == 4) { edSheenC = vec3(0.035) * uSheen.z * (1.0 - grime); edSheenR = 0.35; }
+    if (edSi == 12) {
+      edSheenC = clamp(base * 3.0 + 0.012, 0.0, 0.3) * uSheen.x * (1.0 - edThread); edSheenR = 0.45;
+      edWrap = uTrans.x;
+      edAniso = 0.35 * edThread;
+    }
     if (uFinish.y > 0.0) {
       edSheenC += vec3(0.42, 0.48, 0.62) * 0.22 * uFinish.y * isMetal * (1.0 - frost);
       edSheenR = mix(edSheenR, 0.55, isMetal);
@@ -422,19 +601,20 @@ const FRAG_SURFACE = /* glsl */ `
       edFilmKind = 0.0;
     }
     if (patina > 0.0) { edFilm = patina * 0.8; edFilmKind = 1.0; }
-    if (!edUv && uGlowMode > 0.5) {
-      float vein = edB.a;
-      float halo = edA.b;
+    if (uGlowMode > 0.5 && (!edUv || edCodeGlow > 0.0)) {
+      // the vein channel: inner energy seeping through cracks, grooves, the woven figure, embroidery thread, lacing
+      float vsrc = edUv ? edCodeGlow : vGlow.y;
+      float vein = edThread > 0.0 || edSi == 12 ? edThread : edB.a;
+      float halo = edSi == 14 || edSi == 15 ? vein * 0.3 : edA.b;
       float fl = 0.82 + 0.18 * sin(uEmber.x * uEmber.y + edA.a * 9.0 + edA.r * 5.0);
-      // heat pulses climbing through the cracks (breathing embers, not a static line)
+      // pulses climbing through the channel (breathing embers, not a static line)
       float pulse = 1.0 + uPulse.x * sin(uEmber.x * uPulse.y - vRestPos.y * uPulse.z + edA.r * 4.0 + edMac.r * 3.0);
-      float core = vGlow.y * vein;
-      edEmis += (edHot(uGlowB, clamp(vein * 1.15, 0.0, 1.0)) * (1.0 + 0.3 * vein) * vGlow.y
-        + edHot(uGlowB, 0.2) * pow(halo, 1.8) * vGlow.y * uEmber.w * 5.0) * fl * pulse;
-      edInlayK = vGlow.x;
-      edEyeK = vGlow.z;
-      // glowing fissures are open cracks: dark, rough, not metallic
-      float vk = clamp(core * 1.6, 0.0, 1.0);
+      float core = vsrc * vein;
+      edEmis += (edHot(uGlowB, clamp(vein * 1.15, 0.0, 1.0)) * (1.0 + 0.3 * vein) * vsrc
+        + edHot(uGlowB, 0.2) * pow(halo, 1.8) * vsrc * uEmber.w * 5.0) * fl * pulse;
+      if (!edUv) { edInlayK = vGlow.x; edEyeK = vGlow.z; }
+      // glowing fissures are open cracks: dark, rough, not metallic (glowing thread keeps its body)
+      float vk = clamp(core * 1.6, 0.0, 1.0) * edVeinDark * (edFab ? 0.0 : 1.0);
       diffuseColor.rgb *= 1.0 - 0.9 * vk;
       edRoughAdd += 0.45 * vk;
       edMetalMul *= 1.0 - 0.8 * vk;
@@ -446,9 +626,9 @@ const FRAG_SURFACE = /* glsl */ `
   }
 `;
 
-// kit BRDF: anisotropic GGX with a second sharp polish lobe, Charlie sheen; idle lights (zero colour: the VFX pool at rest)
-// and back-facing pixels skip it. Indirect: anisotropic bent-normal IBL, the polish lobe's own sharper lookup, sheen,
-// cavity occlusion.
+// kit BRDF: anisotropic GGX with a second sharp polish lobe, Charlie sheen, wrapped diffuse and thin-cloth transmission;
+// idle lights (zero colour: the VFX pool at rest) skip it. Indirect: anisotropic bent-normal IBL, the polish lobe's own
+// sharper lookup, sheen, cavity occlusion.
 const FRAG_BRDF = /* glsl */ `
 float edDGGXA(float aT, float aB, float NoH, float ToH, float BoH) {
   float a2 = aT * aB;
@@ -468,9 +648,18 @@ float edCharlie(float r, float NoH) {
   return (2.0 + inv) * pow(s2, inv * 0.5) / (2.0 * PI);
 }
 void RE_Direct_ED(const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
+  if (directLight.color.r + directLight.color.g + directLight.color.b <= 0.0) return;
   vec3 L = directLight.direction, N = geometryNormal, V = geometryViewDir;
-  float NoL = saturate(dot(N, L));
-  if (NoL <= 0.0 || directLight.color.r + directLight.color.g + directLight.color.b <= 0.0) return;
+  float NoLr = dot(N, L);
+  float NoL = saturate(NoLr);
+  vec3 diff = material.diffuseColor;
+  float sheenMax = max(edSheenC.r, max(edSheenC.g, edSheenC.b));
+  diff *= 1.0 - 0.157 * sheenMax;
+  // cloth: a soft wrapped terminator, and light coming through a thin sheet lit from behind
+  float dif = edWrap > 0.0 ? saturate((NoLr + edWrap) / (1.0 + edWrap)) : NoL;
+  dif += edTrans * saturate(-NoLr);
+  reflectedLight.directDiffuse += directLight.color * dif * BRDF_Lambert(diff);
+  if (NoL <= 0.0) return;
   vec3 irradiance = NoL * directLight.color;
   vec3 H = normalize(L + V);
   float NoV = saturate(dot(N, V)) + 1e-4, NoH = saturate(dot(N, H)), VoH = saturate(dot(V, H));
@@ -479,19 +668,16 @@ void RE_Direct_ED(const in IncidentLight directLight, const in vec3 geometryPosi
   float aT = max(a * (1.0 + edAniso), 0.002), aB = max(a * (1.0 - edAniso), 0.002);
   float ToL = dot(edAT, L), ToV = dot(edAT, V), ToH = dot(edAT, H);
   float BoL = dot(edAB, L), BoV = dot(edAB, V), BoH = dot(edAB, H);
-  vec3 spec = F * (edVGGXA(aT, aB, ToV, BoV, ToL, BoL, NoV, NoL) * edDGGXA(aT, aB, NoH, ToH, BoH));
+  vec3 spec = (F + edSpecAdd) * (edVGGXA(aT, aB, ToV, BoV, ToL, BoL, NoV, NoL) * edDGGXA(aT, aB, NoH, ToH, BoH));
   if (edPolish > 0.0) {
     float a2 = pow2(edPolishR);
     spec = mix(spec, F * (V_GGX_SmithCorrelated(a2, NoL, NoV) * D_GGX(a2, NoH)), edPolish);
   }
   reflectedLight.directSpecular += irradiance * spec;
-  vec3 diff = material.diffuseColor;
-  if (edSheenC.r + edSheenC.g + edSheenC.b > 0.0) {
+  if (sheenMax > 0.0) {
     float vis = saturate(1.0 / (4.0 * (NoL + NoV - NoL * NoV)));
     reflectedLight.directSpecular += irradiance * edSheenC * (edCharlie(edSheenR, NoH) * vis);
-    diff *= 1.0 - 0.157 * max(edSheenC.r, max(edSheenC.g, edSheenC.b));
   }
-  reflectedLight.directDiffuse += irradiance * BRDF_Lambert(diff);
 }
 void RE_IndirectSpecular_ED(const in vec3 radiance, const in vec3 irradiance, const in vec3 clearcoatRadiance, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
   vec3 singleScattering = vec3(0.0);
@@ -500,7 +686,7 @@ void RE_IndirectSpecular_ED(const in vec3 radiance, const in vec3 irradiance, co
   computeMultiscattering(geometryNormal, geometryViewDir, material.specularColor, material.specularF90, material.roughness, singleScattering, multiScattering);
   vec3 totalScattering = singleScattering + multiScattering;
   vec3 diffuse = material.diffuseColor * (1.0 - max(max(totalScattering.r, totalScattering.g), totalScattering.b));
-  reflectedLight.indirectSpecular += mix(radiance, edRadP, edPolish) * singleScattering;
+  reflectedLight.indirectSpecular += mix(radiance, edRadP, edPolish) * (singleScattering + edSpecAdd * 0.5 * (1.0 - edPolish));
   reflectedLight.indirectSpecular += multiScattering * cosineWeightedIrradiance;
   reflectedLight.indirectSpecular += irradiance * edSheenC * IBLSheenBRDF(geometryNormal, geometryViewDir, edSheenR);
   reflectedLight.indirectDiffuse += diffuse * cosineWeightedIrradiance;
@@ -540,18 +726,23 @@ const FRAG_IBL = /* glsl */ `
  *   rimFade=[0.1, 0.62]   bind-space heights (m) over which the rim fades in from the floor (scale with the body: a giant
  *                         sets its own)
  *   wear=[0.9, 0.8, 0.35, 0.6]   [edge wear, crevice grime, albedo variation, heat tint] strengths
- *   wearColor=0x8a8d93    bare-metal colour revealed by edge wear (sRGB hex or linear [r,g,b])
+ *   wearColor=0x8a8d93    bare-metal colour revealed by edge wear; also the honed edge of the `blade` set
  *   grimeColor=[0.28,0.24,0.21]  albedo multiplier in crevices      heatColor=[0.16,0.1,0.18] burnt oxide at a crack's rim
  *   ember=[0, 2.2, 0, 0.05]      [time, flicker speed, -, vein halo glow]
- *   pulse=[0.12, 1.3, 4, 0]      heat pulses climbing through the vein channel: [amount, speed (rad/s), climb (rad/m), -]
- *   polish=0.35           weight of the sharp polish lobe on clean metal      aniso=[0.45, 0.3, 0.75]  brushed metal, worn
- *                         edges, fur strands (0 isotropic .. 1)
- *   sheen=[1, 0.55, 1, 0] [cloth / fur fuzz, its roughness, leather wax, -]
+ *   pulse=[0.12, 1.3, 4, 0]      pulses climbing through the vein channel: [amount, speed (rad/s), climb (rad/m), -]
+ *   polish=0.35           weight of the sharp polish lobe on clean metal
+ *   aniso=[0.45, 0.3, 0.75, 0.5]  anisotropy 0..1: brushed metal, worn edges, fur / hair strands, silk satin
+ *   sheen=[1, 0.55, 1, 1] [cloth / fur fuzz, its roughness, leather wax, silk lustre]
+ *   thread=[0.5, 0.33, 0.1], threadMetal=1   embroidery thread of the `brocade` set (linear [r,g,b] or hex) + its metalness
+ *   lace=[0.25, 0.02, 0.015]     lacing cords of the `lamellar` set
+ *   undercoat=[0.16, 0.03, 0.014], lacquer=0.85   colour under worn lacquer rims; gloss of the lacquer clear coat (0..1)
+ *   verdigris=[0.07, 0.2, 0.15], verdigrisAmount=1   patina of the `bronze` set
+ *   cloth=[0.3, 0.3, 0.45]       [wrapped diffuse of cloth, light through thin cut-out cloth, through gauze]
  *   dust=[0.075, 0.07, 0.064, 0]  settled dust colour + amount on up-facing surfaces
- *   frost=0, frostColor   rime blooming from crevices and edges (ISKA)        pearl=0  nacre film + satin sheen on metal
- *   patina=0, patinaColor oxide patina on bare (unsaturated) steel (VORN)
+ *   frost=0, frostColor   rime blooming from crevices and edges                pearl=0  nacre film + satin sheen on metal
+ *   patina=0, patinaColor oxide patina on bare (unsaturated) steel
  *   shadowBias=0.004      extra shadow normal bias (m) of this material's receivers (on top of the light's)
- *   cutout=false          alpha-tested cloth / fur (torn hems, strand alpha); separate program
+ *   cutout=false          alpha-tested cloth / fur / hair / gauze (torn hems, strand alpha, open weave); separate program
  */
 export function createKitMaterial(o = {}) {
   const mat = new THREE.MeshStandardMaterial({
@@ -571,12 +762,14 @@ export function createKitMaterial(o = {}) {
     if (Array.isArray(c)) return new THREE.Color(c[0], c[1], c[2]);
     return new THREE.Color(c);
   };
+  const v4 = (c, def, w) => { const k = lin(c, def); return new THREE.Vector4(k.r, k.g, k.b, w); };
   const g = o.glow || null;
   const rim = o.rim || [0, 0, 0, 3];
   const wear = o.wear || [0.9, 0.8, 0.35, 0.6];
-  const aniso = o.aniso ?? [0.45, 0.3, 0.75];
-  const sheen = o.sheen ?? [1, 0.55, 1, 0];
+  const aniso = o.aniso ?? [0.45, 0.3, 0.75, 0.5];
+  const sheen = o.sheen ?? [1, 0.55, 1, 1];
   const dust = o.dust ?? [0.075, 0.07, 0.064, 0];
+  const cl = o.cloth ?? [0.3, 0.3, 0.45];
   const sets = getTextureSets();
   const uniforms = {
     uDetail: { value: getDetailTexture() },
@@ -600,14 +793,20 @@ export function createKitMaterial(o = {}) {
     uEmber: { value: new THREE.Vector4(...(o.ember || [0, 2.2, 0, 0.05])) },
     uPulse: { value: new THREE.Vector4(...(o.pulse || [0.12, 1.3, 4, 0])) },
     uFinish: { value: new THREE.Vector4(o.frost ?? 0, o.pearl ?? 0, o.patina ?? 0, o.polish ?? 0.35) },
-    uAniso: { value: new THREE.Vector4(aniso[0] ?? 0.45, aniso[1] ?? 0.3, aniso[2] ?? 0.75, 0) },
-    uSheen: { value: new THREE.Vector4(sheen[0] ?? 1, sheen[1] ?? 0.55, sheen[2] ?? 1, sheen[3] ?? 0) },
+    uAniso: { value: new THREE.Vector4(aniso[0] ?? 0.45, aniso[1] ?? 0.3, aniso[2] ?? 0.75, aniso[3] ?? 0.5) },
+    uSheen: { value: new THREE.Vector4(sheen[0] ?? 1, sheen[1] ?? 0.55, sheen[2] ?? 1, sheen[3] ?? 1) },
     uDust: { value: new THREE.Vector4(dust[0], dust[1], dust[2], dust[3] ?? 0) },
+    uThread: { value: v4(o.thread, [0.5, 0.33, 0.1], o.threadMetal ?? 1) },
+    uLace: { value: v4(o.lace, [0.25, 0.02, 0.015], 0) },
+    uUnder: { value: v4(o.undercoat, [0.16, 0.03, 0.014], o.lacquer ?? 0.85) },
+    uVerd: { value: v4(o.verdigris, [0.07, 0.2, 0.15], o.verdigrisAmount ?? 1) },
+    uTrans: { value: new THREE.Vector4(cl[0] ?? 0.3, cl[1] ?? 0.3, cl[2] ?? 0.45, 0) },
     uFrostColor: { value: lin(o.frostColor, [0.6, 0.7, 0.84]) },
     uPatinaColor: { value: lin(o.patinaColor, [0.12, 0.08, 0.2]) },
     uShadowNB: { value: o.shadowBias ?? 0.004 },
     uSetScale: { value: SET_SCALE.slice() },
     uSetBump: { value: SET_BUMP.slice() },
+    uSetLayer: { value: SET_LAYER.slice() },
   };
   if (o.wearColor !== undefined && !Array.isArray(o.wearColor)) uniforms.uWearColor.value.set(o.wearColor);
   mat.userData.kit = uniforms;
@@ -628,7 +827,7 @@ export function createKitMaterial(o = {}) {
   else roughnessFactor = mix(clamp(roughnessFactor * vSurf.x * edRoughMul + edRoughAdd, 0.045, 1.0), edRoughT, edRoughW);
   edPolishR = clamp(roughnessFactor * 0.4, 0.07, 0.3);`)
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
-  metalnessFactor *= vSurf.y * edMetalMul;`)
+  metalnessFactor = mix(metalnessFactor * vSurf.y * edMetalMul, edMetalT, edMetalW);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
   if (edSi == 0) {
     float edH = edDet.b + (edDet.a - 0.5) * 0.12;
@@ -668,7 +867,7 @@ export function createKitMaterial(o = {}) {
   reflectedLight.indirectDiffuse *= edAO;
   reflectedLight.indirectSpecular *= computeSpecularOcclusion(saturate(dot(geometryNormal, geometryViewDir)), edAO, material.roughness);`);
   };
-  mat.customProgramCacheKey = () => (o.cutout ? 'edkit-v3-cut' : 'edkit-v3');
+  mat.customProgramCacheKey = () => (o.cutout ? 'edkit-v4-cut' : 'edkit-v4');
   return mat;
 }
 

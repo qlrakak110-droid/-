@@ -21,10 +21,11 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  */
 export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, TRACK_TAU: 0.025, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
- * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction,
- * hand twist, grip roll step, grip roll step scale] + this frame (the same 10).
+ * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll (off hand) / edge
+ * roll (weapon hand), travel direction, hand twist, grip roll step, grip roll step scale, hand swing vector (2)] + this
+ * frame (the same 12).
  */
-export const MEM = 20;
+export const MEM = 24;
 const MH = MEM / 2;
 /** Copy this frame's arm memory into the previous-frame slot (once per update, before any solve of that memory). */
 export function commitMem(m, o = 0) { for (let k = 0; k < MH; k++) m[o + k] = m[o + MH + k]; }
@@ -61,6 +62,7 @@ const oldL = new Float32Array(12), newL = new Float32Array(12), endModel = new F
 const sv = new Float32Array(32); // swivel search scratch
 const rollQ = new Float32Array(8);
 let reachD = 0; // softened shoulder -> wrist distance of the last limbSetup
+let legFkW = 0;  // solveLimb of a leg fading in from FK: how much the default knee pole leans to the FK knee
 
 /**
  * Arm / leg geometry for one swivel angle phi: writes the upper-bone model rotation into out[oo..] and the end bone's
@@ -256,6 +258,8 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // rotation instead, i.e. the wrist pose follows the new forearm)
   qcopy(endModel, 0, rot || mq, rot ? ro : end * 4);
   let er = endModel, eo = 0;
+  // (1 - w)^2: the FK knee leads while the IK weight is small, the default pole has it from mid-fade on
+  legFkW = !arm && weight < 1 && !DBG.noFk ? (1 - weight) * (1 - weight) : 0;
   let bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
   const keepLocal = !rot && opt && opt.keepLocal;
   if (keepLocal) { // the FK wrist pose rides the new forearm (no wrist search / clamp needed: it is the authored pose)
@@ -297,12 +301,12 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // roll, and the roll then relaxes toward the best one for the new swivel (time constant 30 ms: a damped fixed point,
   // never a frame-to-frame alternation). Rolling moves the wrist (the axis runs through the fist), so the limb
   // geometry is set up again for the rolled hand.
-  const psiRef = hasMem ? mem[5] : NaN;
+  const psiRef = mem && mem[3] > 0 ? mem[5] : NaN, rollMem = Number.isFinite(psiRef);
   let psi = 0;
   rollStep = 0; rollScale = 1;
   if (roll) {
     limbAt(phi, sign, bend, er, eo, tq, 0);
-    psi = hasMem ? psiRef : softLimit(bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN), ROLL_KNEE, ROLL_MAX);
+    psi = rollMem ? psiRef : softLimit(bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN), ROLL_KNEE, ROLL_MAX);
     rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
     qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
     bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
@@ -363,11 +367,11 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     } else phi = seeded ? basinMin(phiP) : gPhi;
     phi = wrapA(phi);
     if (roll && keep >= 1) { // the roll is not applied (the target already carries it): the memory carries it on
-      if (hasMem) { psi = psiRef; rollStep = mem[8]; rollScale = mem[9] > 0 ? mem[9] : 1; }
+      if (rollMem) { psi = psiRef; rollStep = mem[8]; rollScale = mem[9] > 0 ? mem[9] : 1; }
     } else if (roll) {
       limbAt(phi, sign, bend, er, eo, tq, 0);
-      const b = bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], hasMem ? psiRef : psi);
-      if (hasMem) {
+      const b = bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], rollMem ? psiRef : psi);
+      if (rollMem) {
         // (followed at full rate while the roll matters, frozen as the forearm comes in line with the grip axis)
         const c = rollConf <= 0.15 ? 0 : rollConf >= 0.45 ? 1 : ((rollConf - 0.15) / 0.3) ** 2 * (3 - 2 * (rollConf - 0.15) / 0.3);
         const k = (1 - Math.exp(-Math.max(0, opt.dt || 0) / 0.03)) * c, r0 = b - psiRef;
@@ -404,9 +408,9 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   // the hand rolls about the blade's own axis (bounded, see EDGE): the blade keeps its aim and gives up edge roll
   let rho = 0;
   const eax = wrist && !roll && opt && opt.aimAxis;
-  if (eax) {
-    const rhoP = hasMem ? mem[5] : 0;
-    rho = edgeRoll(tq, 4, eax, rhoP, hasMem, hasMem ? Math.max(0, opt.dt || 0) : 0);
+  if (eax) { // (its memory is the arm's, valid even where last frame's elbow direction says nothing this frame)
+    const rmem = !!(mem && mem[3] > 0), rhoP = rmem ? mem[5] : 0;
+    rho = edgeRoll(tq, 4, eax, rhoP, rmem, rmem ? Math.max(0, opt.dt || 0) : 0);
     if (Math.abs(rho) > 1e-6) {
       rollBy(er, eo, eax[0], eax[1], eax[2], rho);
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
@@ -442,7 +446,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     tv[8] = -mq[ch]; tv[9] = -mq[ch + 1]; tv[10] = -mq[ch + 2]; tv[11] = mq[ch + 3];
     qrot(mem, MH, tv, 8, px, py, pz);
     mem[MH + 3] = 1; mem[MH + 4] = timer; mem[MH + 5] = roll ? psi : rho; mem[MH + 6] = tdir; mem[MH + 7] = wristOut;
-    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale;
+    mem[MH + 8] = rollStep; mem[MH + 9] = rollScale; mem[MH + 10] = swingOutX; mem[MH + 11] = swingOutZ;
   }
   if (opt && opt.err) { // requested vs achieved end rotation (the wrist clamp's deviation)
     qaxis(sv, 12, 0, 0, 1, sign * bend);
@@ -453,6 +457,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   }
   qmulInv(newL, 0, mq, parent * 4, tq, 0);       // root local
   qaxis(newL, 4, 0, 0, 1, sign * bend);          // mid local (hinge about Z)
+  if (DBG.on && !arm) DBG.log.push({ leg: limb.side, w: +weight.toFixed(3), pole: !!pole, legFkW: +legFkW.toFixed(3), oldTw: +(2 * Math.atan2(oldL[1], oldL[3]) * 57.3).toFixed(1), newTw: +(2 * Math.atan2(newL[1], newL[3]) * 57.3).toFixed(1) });
   if (weight >= 1) {
     qcopy(lq, root * 4, newL, 0); qcopy(lq, mid * 4, newL, 4); qcopy(lq, end * 4, newL, 8);
   } else {
@@ -498,7 +503,23 @@ function limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft) {
   reachD = d;
   let px, py, pz;
   if (pole) { px = pole[po] - ax; py = pole[po + 1] - ay; pz = pole[po + 2] - az; }
-  else { defaultPole(rig, limb, mq, er, eo, ux, uy, uz, tv); px = tv[3]; py = tv[4]; pz = tv[5]; }
+  else {
+    defaultPole(rig, limb, mq, er, eo, ux, uy, uz, tv); px = tv[3]; py = tv[4]; pz = tv[5];
+    if (limb.kind === 'leg' && legFkW > 0) {
+      // a leg fading in from FK (IK weight < 1, no authored pole): the knee starts where the FK knee is and turns to
+      // the default pole as the weight grows, so the blend between the FK and IK legs never mixes opposite knees
+      const m3 = mid * 3, kx = mp[m3] - ax, ky = mp[m3 + 1] - ay, kz = mp[m3 + 2] - az, kd = kx * ux + ky * uy + kz * uz;
+      let fx = kx - ux * kd, fy = ky - uy * kd, fz = kz - uz * kd;
+      const fl = Math.hypot(fx, fy, fz), pd = px * ux + py * uy + pz * uz;
+      let qx = px - ux * pd, qy = py - uy * pd, qz = pz - uz * pd;
+      const ql = Math.hypot(qx, qy, qz);
+      if (fl > 1e-4 * limb.l1 && ql > 1e-9) {
+        fx /= fl; fy /= fl; fz /= fl; qx /= ql; qy /= ql; qz /= ql;
+        px = fx * legFkW + qx * (1 - legFkW); py = fy * legFkW + qy * (1 - legFkW); pz = fz * legFkW + qz * (1 - legFkW);
+        if (Math.hypot(px, py, pz) < 1e-3) { px = fx; py = fy; pz = fz; } // opposite knees half way: keep the FK one
+      }
+    }
+  }
   let k = px * ux + py * uy + pz * uz;
   px -= ux * k; py -= uy * k; pz -= uz * k;
   let pl = Math.hypot(px, py, pz);
@@ -559,7 +580,7 @@ function edgeRoll(q, o, a, rhoP, hasMem, dt) {
   return r;
 }
 
-let wristOut = 0;
+let wristOut = 0, swingOutX = 0, swingOutZ = 0;
 /**
  * Soft-limit a hand local rotation to the wrist range (swing off the forearm axis, pronation / supination). True if
  * changed. Pronation: up to the knee as asked, then saturating at the limit, then (past ~140 deg asked, an impossible
@@ -576,9 +597,23 @@ export function clampWrist(q, o, mem = null, dt = 0) {
   let tw2 = Math.sign(tw) * softLimit(at, WRIST.twistKnee, WRIST.twist) * back;
   if (mem) tw2 = mem[7] + Math.max(-WRIST_RATE * dt, Math.min(WRIST_RATE * dt, tw2 - mem[7]));
   wristOut = tw2;
-  const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing);
-  if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw2 - sw0) < 1e-6) return false;
-  setSwingTwist(q, o, x, y, z, w, tw, tw2, sw2);
+  // swing: soft limit; a request bent past ~150 deg (impossible) eases back to straight at 180 deg, where the bend
+  // direction is undefined and flips (as the twist does near 180): the clamped hand never flips from one side to the
+  // other. As a rotation vector (axis in the hand's XZ plane x angle), turned at <= WRIST_RATE with an arm memory
+  const sw2 = softLimit(sw0, WRIST.swingKnee, WRIST.swing) * (1 - smooth01(sw0, 2.62, Math.PI));
+  const ct = Math.cos(tw / 2), st = Math.sin(tw / 2), ax = x * ct + z * st, az = z * ct - x * st, al = Math.hypot(ax, az);
+  let vx = al > 1e-9 ? (ax / al) * sw2 : 0, vz = al > 1e-9 ? (az / al) * sw2 : 0;
+  if (mem) {
+    const dx = vx - mem[10], dz = vz - mem[11], dl = Math.hypot(dx, dz), cap = WRIST_RATE * dt;
+    if (dl > cap) { vx = mem[10] + (dx * cap) / dl; vz = mem[11] + (dz * cap) / dl; }
+  }
+  swingOutX = vx; swingOutZ = vz;
+  const sw3 = Math.hypot(vx, vz);
+  if (Math.abs(tw2 - tw) < 1e-6 && Math.abs(sw3 - sw0) < 1e-6 && Math.abs(vx * az - vz * ax) < 1e-6 * (al || 1) && vx * ax + vz * az >= 0) return false;
+  // q = swing(v) * twist(tw2)
+  const hs = sw3 > 1e-9 ? Math.sin(sw3 / 2) / sw3 : 0.5, sx = vx * hs, sz = vz * hs, sw = Math.cos(sw3 / 2);
+  const c2 = Math.cos(tw2 / 2), s2 = Math.sin(tw2 / 2);
+  q[o] = sx * c2 - sz * s2; q[o + 1] = sw * s2; q[o + 2] = sz * c2 + sx * s2; q[o + 3] = sw * c2;
   return true;
 }
 
@@ -637,12 +672,12 @@ function defaultPole(rig, limb, mq, er, eo, ux, uy, uz, out) {
   // below the hip puts the knee over the toes, a foot in front at hip height (kick, knee raise) lifts the knee and a
   // foot behind drops it. With the small forward / up terms the field is continuous for every reach direction but two,
   // beside the hip, above and behind it (out of the leg's range); a pole projected from f alone flips where u = f.
-  // A pelvis turned over (back / front flips, a fall on the back) takes the field with it: it is evaluated in a frame
-  // that blends from the fighter frame (pelvis within ~60 deg of upright: unchanged) to the pelvis frame (pelvis
-  // tilted past ~107 deg), so tucked knees stay in front of an inverted pelvis instead of the thighs twisting round.
+  // A pelvis turned over (back / front flips) takes the field with it: it is evaluated in a frame that blends from the
+  // fighter frame (pelvis up to horizontal - lying on the back included: unchanged) to the pelvis frame (pelvis tilted
+  // past ~127 deg), so tucked knees stay in front of an inverted pelvis instead of the thighs twisting round.
   const h4 = rig.index.hips * 4;
   qrot(out, 9, mq, h4, 0, 1, 0);
-  const wf = smooth01(out[10], 0.5, -0.3);
+  const wf = smooth01(out[10], -0.05, -0.6);
   if (wf > 0) { pf[0] = 0; pf[1] = 0; pf[2] = 0; pf[3] = 1; qslerp(pf, 0, pf, 0, mq, h4, wf); pf[4] = -pf[0]; pf[5] = -pf[1]; pf[6] = -pf[2]; pf[7] = pf[3]; }
   qrot(out, 6, er, eo, 1, 0, 0);
   qrot(out, 9, mq, h4, 1, 0, 0);
@@ -662,13 +697,25 @@ function defaultPole(rig, limb, mq, er, eo, ux, uy, uz, out) {
 const pf = new Float32Array(12);
 
 const fpole = new Float32Array(3);
-/** Raise the planted leg by dy (the foot keeps its orientation, the knee keeps its swivel: the current knee is the pole). */
+/** Half width of the sole (m at body scale 1) for floor contact: the edges of heel and ball pad. */
+export const FOOT_HALF_WIDTH = 0.045;
+/**
+ * Knee pole that keeps a leg's current swivel (out[o..o+2], model): the knee pushed out along the thigh's own forward
+ * axis (where a knee bends), so it stays defined for a straight leg, whose knee lies on the hip - ankle line.
+ */
+export function kneePole(mq, mp, limb, out, o = 0) {
+  const m = limb.mid * 3;
+  qrot(out, o, mq, limb.root * 4, limb.l1, 0, 0);
+  out[o] += mp[m]; out[o + 1] += mp[m + 1]; out[o + 2] += mp[m + 2];
+  return out;
+}
+/** Raise the planted leg by dy (the foot keeps its orientation, the knee keeps its swivel: kneePole). */
 function liftLeg(rig, limb, lq, lp, mq, mp, buf, dy, soft) {
-  const end = limb.end, m = limb.mid * 3;
+  const end = limb.end;
   qrot(tv, 0, mq, end * 4, limb.endOff[0], limb.endOff[1], limb.endOff[2]);
   buf[0] = mp[end * 3] + tv[0]; buf[1] = mp[end * 3 + 1] + tv[1] + dy; buf[2] = mp[end * 3 + 2] + tv[2];
   qcopy(buf, 4, mq, end * 4);
-  fpole[0] = mp[m]; fpole[1] = mp[m + 1]; fpole[2] = mp[m + 2];
+  kneePole(mq, mp, limb, fpole, 0);
   solveLimb(rig, limb, lq, mq, mp, buf, 0, buf, 4, fpole, 0, 1, soft);
   fk(rig, lq, lp, mq, mp, limb.first, rig.count);
 }
@@ -695,14 +742,16 @@ function bendTo(zx, zy, zz, vx, vy, vz, goal) {
  */
 export function floorFoot(rig, limb, lq, lp, mq, mp, floorY, buf, soft = SOFT) {
   const P = rig.P, end = limb.end, toe = limb.toe;
-  // lowest of heel / ankle-sole / ball pad (all on the foot bone's sole plane)
+  // lowest of heel / ankle-sole / ball pad, at the sole's centre line and at its inner / outer edges (a foot rolled
+  // onto its edge must not put the other edge through the floor); all on the foot bone's sole plane
+  const fw = FOOT_HALF_WIDTH * (rig.k || 1);
   qrot(tv, 0, mq, end * 4, 0, -P.ankleHeight, 0);
-  const sy = mp[end * 3 + 1] + tv[1];
-  qrot(tv, 3, mq, end * 4, -P.heelLength, -P.ankleHeight, 0);
-  const hy = mp[end * 3 + 1] + tv[4];
-  qrot(tv, 6, mq, end * 4, P.footLength, -P.ankleHeight, 0);
-  const by = mp[end * 3 + 1] + tv[7];
-  const low = Math.min(sy, hy, by);
+  let low = mp[end * 3 + 1] + tv[1];
+  for (let e = -1; e <= 1; e++) {
+    qrot(tv, 3, mq, end * 4, -P.heelLength, -P.ankleHeight, e * fw);
+    qrot(tv, 6, mq, end * 4, P.footLength, -P.ankleHeight, e * fw);
+    low = Math.min(low, mp[end * 3 + 1] + tv[4], mp[end * 3 + 1] + tv[7]);
+  }
   if (low < floorY - 1e-5) liftLeg(rig, limb, lq, lp, mq, mp, buf, floorY - low, soft);
   // toe: rotate about the toe joint (its Z axis) until the tip is on the floor
   const th = P.ankleHeight - P.footDrop;

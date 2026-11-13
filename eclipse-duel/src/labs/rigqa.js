@@ -1021,7 +1021,7 @@ createLab({
   view: { target: [0, 1.05, 0], dist: 5.4, yaw: 0, pitch: 4, fov: 40 },
   setup(ctx) {
     CTX = ctx;
-    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), arm: (id, name) => armMetrics(id === 'knight' ? mk('kael') : rigOnly(id), name), mk, mkWith, rigOnly, defineClip, invalidateClips, listClips, run: runAll, trace, armTrace, IK, THREE, getClip, sampleClip, Pose, qa };
+    window.__ED.qa = { clip: (name, body = 'kael') => clipMetrics(typeof body === 'string' ? mk(body) : mkWith(body), name), arm: (id, name) => armMetrics(id === 'knight' ? mk('kael') : rigOnly(id), name), mk, mkWith, rigOnly, fullOf, CLOTH_CLIPS, defineClip, invalidateClips, listClips, run: runAll, trace, armTrace, IK, THREE, getClip, sampleClip, Pose, qa };
   },
   scenarios: {
     all(ctx, lab, opts = {}) { return runAll(opts); },

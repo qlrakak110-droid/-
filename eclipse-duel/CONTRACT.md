@@ -56,7 +56,7 @@ eclipse-duel/
   src/index.html         page shell (fragment)                      owner: lead
   src/main.js            game entry                                 owner: integration
   src/core/              app loop, time, math, lab scaffold         owner: lead   (FROZEN — do not edit)
-  src/post/              HDR + bloom + screen FX                    owner: lead   (FROZEN — do not edit)
+  src/post/              HDR, depth, AO, fog, shafts, DOF, bloom, grade, shadow fit   owner: rendering lead (+ core/app.js, core/util.js tiers)
   src/vfx/               particles, ribbons, mesh FX, presets       owner: vfx
   src/char/              rig, skinned build, animation, IK, cloth, armour kit, weapons
   src/env/               arena, sky, lighting
@@ -119,7 +119,7 @@ Every module directory must contain a `README.md`: the API reference downstream 
 | field | meaning |
 |---|---|
 | `ctx.renderer / scene / camera` | THREE.WebGLRenderer, Scene, PerspectiveCamera (fov 40, near 0.1, far 800) |
-| `ctx.quality` | `{tier:'low'|'mid'|'high', mobile, pixelRatio, msaa, shadows, shadowSize, bloomLevels, particleScale, envDetail, cloth, maxLights}` |
+| `ctx.quality` | `{tier:'low'|'mid'|'high', mobile, pixelRatio, msaa, shadows, shadowSize, bloomLevels, depth, ao, fog, shafts, dof, particleScale, envDetail, cloth, maxLights}` (see "Post and quality") |
 | `ctx.time` | `{real, game, dtReal, dtGame, scale, baseScale, hitstop(sec), slowmo(scale, dur, {easeIn, easeOut})}` |
 | `ctx.onUpdate(fn(dtGame, dtReal), order)` | per-frame callback; `ctx.ORDER = {INPUT:0, GAME:10, CHAR:20, VFX:30, CAM:40, ENV:50, UI:60, POST:70}` |
 | `ctx.rng` | seeded RNG: `rng()`, `.range(a,b)`, `.int(a,b)`, `.sign()`, `.pick(arr)`, `.chance(p)`, `.of(numberOr[min,max])` |
@@ -128,13 +128,59 @@ Every module directory must contain a `README.md`: the API reference downstream 
 | `ctx.flags`, `ctx.test` | URL flags (`#test&q=low...`), test mode boolean |
 | `ctx.vfx / audio / cam / env / ui / input / game` | set by the module factories below (`null` until created — guard optional peers) |
 | `ctx.post` | `fx` (live params), `to(params, dur, ease)`, `pulse(key, amount, {attack, hold, release})`, `flash(color, amount, opts)`, `impactFrame({duration, invert, mono})`, `radialAt(worldPos)`, `setBaseline(params)`, `reset(dur)`, `distortionScene`, `onAfterScene(fn(renderer, sceneTarget, camera))` → off |
+| `ctx.post` (r3) | `grade(name|params, dur)`, `setSun(dirOrPos, color, strength, {point})`, `fog(params, dur)`, `fogLights(list|null)`, `shafts(params, dur)`, `ao(params)`, `dof(opts|null, dur)`, `depthTexture`, `linearDepth`, `depthUniforms`, `DEPTH_GLSL`, `debugView(mode)`, `features`, `stats` — `src/post/README.md` |
+| `ctx.shadows` | key-light shadow-frustum fit: `setKey(light)`, `mode` `'auto'|'manual'|'off'`, `focus(center, radius)`, `params`, `info` — `src/post/README.md` |
 
 `post.fx` keys: `bloom, bloomThreshold, bloomKnee, bloomRadius, exposure, chroma, radial (+radialCenter), vignette,
-grain, saturation, contrast, flash (+flashColor), invert, mono, letterbox, distortion, tint, lift`.
+grain, saturation, contrast, flash (+flashColor), invert, mono, ink, letterbox, distortion, ao, fog, shafts, sharpen,
+toneAmount, toneBalance` + colour keys `tint, lift, gradeLift, gradeGamma, gradeGain, toneShadows, toneHighlights`.
 `post.distortionScene`: meshes placed here are drawn with the main camera into a half-res buffer; their fragment
 output `.rg` is a signed screen-space UV offset (additive, typical magnitude 0.005–0.05). Hide them when idle.
 
 `core/math.js`: `clamp, saturate, lerp, invLerp, remap, smoothstep, damp, Ease.* (name or fn via ease()), curve(points), makeRng, TAU, DEG`.
+
+## Post and quality (rendering lead: `src/post/**`, `src/core/app.js`, `src/core/util.js`)
+
+Full API, option tables and examples: `src/post/README.md`. Rules for everyone else:
+
+* **Depth.** On mid / high the scene target carries a `DepthTexture` (MSAA resolved). Post-scene consumers
+  (`post.onAfterScene`, own passes) read `post.depthTexture` (this frame, raw) — read the getter every frame, it is
+  re-created on resize / dynamic resolution. In-scene materials (soft particles, mist cards) must not sample the buffer
+  they are drawn into: spread `post.depthUniforms` into their uniforms and use `post.DEPTH_GLSL`
+  (`edSoftFade(softness)`, previous frame's half-res linear depth; a 1x1 far texture on low, so fades become 1).
+* **Atmosphere.** The post fog (height mist + sun lobe + point-light glow) and the light shafts run on top of the env's
+  own shader fog. The env aims them with `post.setSun(dir, color, strength)` / `post.fog({...})` / `post.shafts({...})`
+  (defaults: sun = `ctx.env.sunDir`, fog lights = the strongest scene PointLights). Mood darkness (`env.setMood`)
+  dims them automatically. Bright pixels (emitters / VFX, HDR > ~1) are excluded from AO and fog extinction.
+* **Grade.** ACES, then a display-referred grade: `post.grade('night' | 'ink' | 'eclipse' | 'ember' | 'frost' |
+  'storm' | 'victory' | 'neutral' | {...}, dur)`. `post.reset()` returns to the baseline grade (`night`).
+  The impact frame (`fx.mono`) is an ink-on-paper two-tone frame (`fx.ink = 0` for plain black / white).
+* **DOF** is off unless a cinematic calls `post.dof({ focus, aperture, range, near }, dur)`; `post.dof(null, dur)` after.
+* **Shadows.** `ctx.shadows` fits the key light's shadow camera to the visible `castShadow` meshes every frame
+  (texel-snapped, quantised size with hysteresis, bias in texels). It owns `shadow.camera` bounds / near / far and
+  `shadow.bias / normalBias` of the managed light only; the env keeps position / target / intensity / mapSize. Use
+  `ctx.shadows.focus(center, radius)` for a manual window, `mode = 'off'` to opt out. Only fighters (and later the
+  boss) should cast shadows: every caster widens the window.
+* **No compiles mid-fight.** Every post program compiles in `createPost`; switches are uniforms. Do not add defines /
+  materials to post at runtime.
+
+Per-tier features and measured cost (`#prof`, `profile.mjs` at 640x360, SwiftShader; GPU fill reasoned, not measured):
+
+| tier | MSAA | shadow map | depth | AO | post fog (fog lights) | shafts | DOF (cinematic only) | post passes after the scene |
+|---|---|---|---|---|---|---|---|---|
+| low | 0 | off (env blob) | no | off | off | off | off | 8 (unchanged) |
+| mid | 0 | 1024, fitted | yes | half res, 6 taps + 5-tap blur | on (2) | quarter res, 1x20 taps | 16 taps, half res | 16 (was 10) |
+| high | 4 | 2048, fitted (~3-5 mm texels) | yes | half res, 10 taps + 7-tap blur | on (4) | quarter res, 2x16 taps | 32 taps, half res | 19 (was 12), +2 with DOF |
+
+Measured in a hard CPU match (`profile.mjs`, 120 fight + 300 ultimate frames) before → after: draw calls per frame
+(scene + shadow + post) high 43 → 50 (ultimate peak 61 → 68), mid 39 → 45 (55 → 61), low 30 → 30; triangles
+unchanged (+1 per fullscreen pass); WebGL programs high 49 → 56, mid 47 → 54, low 46 → 46, identical before and after
+an ultimate and after toggling DOF / debug views / radial / chroma / impact frames (no mid-fight compiles). JS: the
+post chain submits in ~0.3-0.5 ms (high), the shadow fit costs ~12-15 µs, nothing allocates per frame.
+GPU fill (not measurable under SwiftShader; reasoned at 1280x720 high): composite +1 depth tap, +3 taps (AO, shafts,
+DOF) and the fog / 4-light airlight ALU (~150 ops); half res: depth 4 taps, AO 14 + blur 14 taps; quarter res: shafts
+1 + 2x16 taps. About 1-1.5 ms on an integrated laptop GPU at high, ~0.6-0.9 ms on a mid phone at mid; low adds only
+the grade / dither ALU. Dynamic resolution stays the safety net (the composite sharpens when it drops below 100 %).
 
 ## Module contracts
 

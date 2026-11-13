@@ -1,82 +1,122 @@
-// Default roster data for menus (placeholder until the game passes its own through ui.show('select', { roster })).
-// Names and numbers follow src/fighters/MOVES.md. Stats are 1..5.
+// Roster and menu data of 「흑일무림 黑日武林」: the one place where the player-facing names live (MURIM.md § 2-3).
+// src/fighters/registry.js re-exports it as ROSTER (plus the ultimate moods); the menus fall back to it until the game
+// passes its own through ui.show('select', { roster }). Code ids (`kael`, `iska`, `vorn`), slots, icons and
+// `weaponArt` keys never change: only what is read on screen.
+//
+// Naming rule: Korean reading first, Hanja as the accent, a short English gloss third.
+//   normals  기본 초식   three characters: an image + the technique (斬 cut, 劈 cleave, 掃 sweep, 突 charge, 刺 thrust ...)
+//   skills   절기 絶技   four characters
+//   ultimate 오의 奧義   four characters, fixed by MURIM.md
+// Every 초식 is our own invention and says what the move does (src/fighters/MOVES.md has the full table).
 
-/** @type {Array<object>} */
+/**
+ * @typedef {object} RosterMove
+ * @property {string} slot    light1 light2 light3 heavy fheavy dheavy skill1 skill2 skill3 ult
+ * @property {string} name    Korean reading (e.g. 잔양비참)
+ * @property {string} hanja   Hanja (殘陽飛斬)
+ * @property {string} nameEn  English gloss
+ * @property {string} desc    one line: what it does
+ * @property {number} [cost]  내공 cost (skills) / 오의 gauge (ult)
+ * @property {number} [cd]    cooldown seconds
+ * @property {string} [icon]  icon name (src/ui/icons.js)
+ */
+
+/**
+ * Stats are 1..5. `name` / `hanja` / `nameEn` = the hero; `title` = 별호; `sect` = 문파; `weapon`; `art` = inner art
+ * (내공심법); `seal` = the two characters carved on the hero's seal; `emblem` = sect emblem icon.
+ * @type {Array<object>}
+ */
 export const DEFAULT_ROSTER = [
   {
-    id: 'kael', name: '카엘', nameEn: 'KAEL', title: '잿불의 집행자', titleEn: 'Cinder Warden',
-    weapon: '대검', weaponEn: 'Greatsword', weaponArt: 'greatsword', element: 'ember',
-    blurb: '거대한 호를 그리는 느리고 무거운 일격. 강공에 슈퍼아머.', blurbEn: 'Slow, enormous arcs. Armoured heavies.',
+    id: 'kael', name: '염무강', hanja: '炎武剛', nameEn: 'YEOM MU-GANG',
+    title: '적염패도', titleHanja: '赤焰覇刀', titleEn: 'Crimson Flame Tyrant Saber',
+    sect: '적양문', sectHanja: '赤陽門', sectEn: 'Red Sun Gate', seal: '赤陽', emblem: 'sect-kael',
+    weapon: '참마대도', weaponHanja: '斬馬大刀', weaponEn: 'Great Saber', weaponArt: 'greatsword',
+    art: '열양진기', artHanja: '烈陽眞氣', artEn: 'Blazing-Sun Qi', element: 'ember',
+    blurb: '산을 가르는 느리고 무거운 일도. 한 번 닿으면 끝난다. 중초에는 호신강기가 실린다.',
+    blurbEn: 'Slow, mountain-splitting arcs. Heavies carry guard aura.',
     stats: { power: 5, speed: 2, reach: 4, difficulty: 2 },
     moves: [
-      { slot: 'light1', name: '재가르기', nameEn: 'Ash Cleave', desc: '대각선 내려베기' },
-      { slot: 'light2', name: '역날베기', nameEn: 'Back Edge', desc: '역방향 올려베기' },
-      { slot: 'light3', name: '잿불내려찍기', nameEn: 'Cinder Drop', desc: '바닥을 내려찍어 다운' },
-      { slot: 'heavy', name: '용광로 휘두르기', nameEn: 'Furnace Sweep', desc: '300° 회전 베기 · 슈퍼아머' },
-      { slot: 'fheavy', name: '돌진 찌르기', nameEn: 'Molten Lunge', desc: '3.2m 돌진 찌르기' },
-      { slot: 'dheavy', name: '분화 올려베기', nameEn: 'Vent Launcher', desc: '화염 분출 띄우기' },
-      { slot: 'skill1', name: '잿불 초승달', nameEn: 'Ember Crescent', desc: '불타는 초승달 파동 발사', cost: 25, cd: 4, icon: 'kael-crescent' },
-      { slot: 'skill2', name: '균열 분출', nameEn: 'Fault Eruption', desc: '전방으로 용암 기둥 4연속 분출', cost: 35, cd: 7, icon: 'kael-eruption' },
-      { slot: 'skill3', name: '화염 갑주', nameEn: 'Pyre Bulwark', desc: '받아치기 자세 · 피격 시 폭발 반격', cost: 30, cd: 9, icon: 'kael-bulwark' },
-      { slot: 'ult', name: '일식의 장작', nameEn: 'Pyre of the Black Sun', desc: '도약 베기 적중 시 5초 연출 연속기', cost: 100, icon: 'kael-ult' },
+      { slot: 'light1', name: '사양참', hanja: '斜陽斬', nameEn: 'Slanting-Sun Cut', desc: '비스듬히 내리긋는 일도' },
+      { slot: 'light2', name: '반조격', hanja: '返照擊', nameEn: 'Afterglow Strike', desc: '호를 되돌려 올려치는 역수' },
+      { slot: 'light3', name: '낙일벽', hanja: '落日劈', nameEn: 'Setting-Sun Cleave', desc: '바닥까지 내려찍어 쓰러뜨린다' },
+      { slot: 'heavy', name: '염륜소', hanja: '炎輪掃', nameEn: 'Flame-Wheel Sweep', desc: '삼백 도 회전 베기 · 호신강기' },
+      { slot: 'fheavy', name: '염마돌', hanja: '炎馬突', nameEn: 'Flame-Steed Charge', desc: '어깨로 3.2m 돌진해 찌른다' },
+      { slot: 'dheavy', name: '승염참', hanja: '昇炎斬', nameEn: 'Rising-Flame Cut', desc: '땅을 갈라 불기둥으로 띄운다' },
+      { slot: 'skill1', name: '잔양비참', hanja: '殘陽飛斬', nameEn: 'Waning-Sun Flying Slash', desc: '불타는 초승 도기를 날린다', cost: 25, cd: 4, icon: 'kael-crescent' },
+      { slot: 'skill2', name: '열지분염', hanja: '裂地噴炎', nameEn: 'Earth-Rending Eruption', desc: '갈라진 땅에서 불기둥 넷이 치솟는다', cost: 35, cd: 7, icon: 'kael-eruption' },
+      { slot: 'skill3', name: '열양호신', hanja: '烈陽護身', nameEn: 'Blazing-Sun Ward', desc: '받아치기 자세 · 맞으면 화염으로 되튕긴다', cost: 30, cd: 9, icon: 'kael-bulwark' },
+      { slot: 'ult', name: '흑일분천', hanja: '黑日焚天', nameEn: 'Black Sun Burns the Heavens', desc: '도약 일도가 닿으면 다섯 숨의 연환살', cost: 100, icon: 'kael-ult' },
     ],
   },
   {
-    id: 'iska', name: '이스카', nameEn: 'ISKA', title: '서릿별 무녀', titleEn: 'Froststar Oracle',
-    weapon: '쌍월도', weaponEn: 'Twin Crescent Blades', weaponArt: 'crescents', element: 'frost',
-    blurb: '빠르고 정교한 연격과 원거리 견제. 공중 기동에 강하다.', blurbEn: 'Fast, precise, airy. Mobility and zoning.',
+    id: 'iska', name: '설리화', hanja: '雪梨花', nameEn: 'SEOL RI-HWA',
+    title: '빙월쌍도', titleHanja: '氷月雙刀', titleEn: 'Frost-Moon Twin Blades',
+    sect: '한월궁', sectHanja: '寒月宮', sectEn: 'Cold Moon Palace', seal: '寒月', emblem: 'sect-iska',
+    weapon: '월아쌍도', weaponHanja: '月牙雙刀', weaponEn: 'Twin Crescent Blades', weaponArt: 'crescents',
+    art: '한빙진기', artHanja: '寒氷眞氣', artEn: 'Cold-Ice Qi', element: 'frost',
+    blurb: '달빛처럼 가볍고 서리처럼 날카롭다. 쾌도 연환과 원거리 견제, 허공을 딛는 신법.',
+    blurbEn: 'Light as moonlight, sharp as frost. Fast strings, zoning, aerial footwork.',
     stats: { power: 3, speed: 5, reach: 3, difficulty: 4 },
     moves: [
-      { slot: 'light1', name: '서리 긋기', nameEn: 'Rime Flick', desc: '빠른 오른손 베기' },
-      { slot: 'light2', name: '쌍월', nameEn: 'Twin Moons', desc: '좌우 연속 베기' },
-      { slot: 'light3', name: '별부채', nameEn: 'Star Fan', desc: '회전 이연격 · 넉백' },
-      { slot: 'heavy', name: '빙결 회전', nameEn: 'Glacier Pirouette', desc: '3연타 회전 베기' },
-      { slot: 'fheavy', name: '얼음길', nameEn: 'Frostline Step', desc: '얼음 위를 미끄러지며 베기' },
-      { slot: 'dheavy', name: '초승 올려치기', nameEn: 'Rising Crescent', desc: '공중제비 띄우기' },
-      { slot: 'skill1', name: '서릿별 투창', nameEn: 'Starshard Volley', desc: '얼음 파편 3연속 발사', cost: 20, cd: 3.5, icon: 'iska-shards' },
-      { slot: 'skill2', name: '빙정 행렬', nameEn: 'Crystal Procession', desc: '전방으로 커지는 얼음 가시', cost: 30, cd: 6, icon: 'iska-procession' },
-      { slot: 'skill3', name: '월광 잔상', nameEn: 'Moonlit Afterimage', desc: '잔상을 남기고 배후 기습', cost: 25, cd: 7, icon: 'iska-afterimage' },
-      { slot: 'ult', name: '떨어지는 서릿별', nameEn: 'Fall of the Frozen Star', desc: '봉인진 적중 시 5초 연출 연속기', cost: 100, icon: 'iska-ult' },
+      { slot: 'light1', name: '한광섬', hanja: '寒光閃', nameEn: 'Cold-Gleam Flash', desc: '오른손의 빠른 일섬' },
+      { slot: 'light2', name: '쌍월전', hanja: '雙月剪', nameEn: 'Twin-Moon Shears', desc: '좌우로 엇갈려 베는 가위질' },
+      { slot: 'light3', name: '성선무', hanja: '星扇舞', nameEn: 'Star-Fan Dance', desc: '돌며 두 번 베어 밀어낸다' },
+      { slot: 'heavy', name: '빙륜선', hanja: '氷輪旋', nameEn: 'Ice-Wheel Whirl', desc: '온몸으로 도는 삼연참' },
+      { slot: 'fheavy', name: '은하도', hanja: '銀河渡', nameEn: 'Silver-River Crossing', desc: '얼음길을 미끄러지며 베어 지난다' },
+      { slot: 'dheavy', name: '신월승', hanja: '新月昇', nameEn: 'New-Moon Rising', desc: '공중제비로 올려 베어 띄운다' },
+      { slot: 'skill1', name: '한성삼사', hanja: '寒星三射', nameEn: 'Three Cold-Star Shots', desc: '빙정 셋을 잇달아 쏜다 · 셋째는 빙결', cost: 20, cd: 3.5, icon: 'iska-shards' },
+      { slot: 'skill2', name: '빙순파지', hanja: '氷筍破地', nameEn: 'Ice Shoots Break the Earth', desc: '땅을 뚫고 점점 커지는 얼음 죽순', cost: 30, cd: 6, icon: 'iska-procession' },
+      { slot: 'skill3', name: '월영환신', hanja: '月影幻身', nameEn: 'Moon-Shadow Phantom', desc: '빙상 잔영을 남기고 등 뒤를 벤다', cost: 25, cd: 7, icon: 'iska-afterimage' },
+      { slot: 'ult', name: '빙성낙월', hanja: '氷星落月', nameEn: 'Frost Star, Falling Moon', desc: '성진이 닫히면 다섯 숨의 연환살', cost: 100, icon: 'iska-ult' },
     ],
   },
   {
-    id: 'vorn', name: '볼른', nameEn: 'VORN', title: '뇌명의 창기사', titleEn: 'Stormcaller Lancer',
-    weapon: '전쟁창', weaponEn: 'War Spear', weaponArt: 'spear', element: 'volt',
-    blurb: '가장 긴 사거리와 폭발적인 돌진. 방어 관통 찌르기.', blurbEn: 'Longest reach, explosive dashes.',
+    id: 'vorn', name: '뇌진천', hanja: '雷震天', nameEn: 'NOE JIN-CHEON',
+    title: '천뢰신창', titleHanja: '天雷神槍', titleEn: 'Heaven-Thunder Spear',
+    sect: '뇌운보', sectHanja: '雷雲堡', sectEn: 'Thundercloud Keep', seal: '雷雲', emblem: 'sect-vorn',
+    weapon: '뇌룡창', weaponHanja: '雷龍槍', weaponEn: 'Thunder-Dragon Spear', weaponArt: 'spear',
+    art: '뇌정신공', artHanja: '雷霆神功', artEn: 'Thunderclap Art', element: 'volt',
+    blurb: '가장 긴 간격과 벼락 같은 돌진. 호신강기를 꿰뚫는 창끝.',
+    blurbEn: 'Longest reach, thunderbolt dashes, guard-piercing thrusts.',
     stats: { power: 4, speed: 3, reach: 5, difficulty: 3 },
     moves: [
-      { slot: 'light1', name: '섬광 찌르기', nameEn: 'Flash Jab', desc: '긴 사거리 찌르기' },
-      { slot: 'light2', name: '회전 쳐올리기', nameEn: 'Haft Spin', desc: '창대 회전 타격' },
-      { slot: 'light3', name: '천둥 꿰기', nameEn: 'Thunder Pierce', desc: '번개 돌진 찌르기 · 넉백' },
-      { slot: 'heavy', name: '폭풍 휩쓸기', nameEn: 'Gale Sweep', desc: '하단 휩쓸기 · 다운' },
-      { slot: 'fheavy', name: '번개 돌격', nameEn: 'Lightning Charge', desc: '4m 번개 돌진 · 방어 관통' },
-      { slot: 'dheavy', name: '하늘 꿰뚫기', nameEn: 'Skyward Lance', desc: '수직 찌르기 띄우기' },
-      { slot: 'skill1', name: '뇌창 투척', nameEn: 'Thunder Javelin', desc: '번개 투창 · 기절', cost: 25, cd: 4, icon: 'vorn-javelin' },
-      { slot: 'skill2', name: '낙뢰', nameEn: 'Stormfall', desc: '상대 위치에 낙뢰 3연속', cost: 35, cd: 7, icon: 'vorn-stormfall' },
-      { slot: 'skill3', name: '섬전 보법', nameEn: 'Arc Step', desc: '번개로 관통 순간이동', cost: 20, cd: 5, icon: 'vorn-arcstep' },
-      { slot: 'ult', name: '천벌의 뇌창', nameEn: 'Lance of the Ninefold Storm', desc: '돌진 찌르기 적중 시 5초 연출 연속기', cost: 100, icon: 'vorn-ult' },
+      { slot: 'light1', name: '전광자', hanja: '電光刺', nameEn: 'Lightning-Flash Thrust', desc: '간격이 긴 빠른 찌르기' },
+      { slot: 'light2', name: '용미격', hanja: '龍尾擊', nameEn: 'Dragon-Tail Strike', desc: '창을 돌려 창준으로 친다' },
+      { slot: 'light3', name: '뇌침관', hanja: '雷針貫', nameEn: 'Thunder-Needle Pierce', desc: '창끝에서 뇌기가 뻗는 관통 찌르기' },
+      { slot: 'heavy', name: '풍뢰소', hanja: '風雷掃', nameEn: 'Wind-and-Thunder Sweep', desc: '낮게 쓸어 쓰러뜨린다' },
+      { slot: 'fheavy', name: '분뢰돌', hanja: '奔雷突', nameEn: 'Racing-Thunder Charge', desc: '4m 뇌전 돌진 · 호신강기 관통' },
+      { slot: 'dheavy', name: '충천창', hanja: '衝天槍', nameEn: 'Sky-Piercing Spear', desc: '하늘로 찔러 올려 띄운다' },
+      { slot: 'skill1', name: '천뢰일척', hanja: '天雷一擲', nameEn: "Heaven's Thunder, One Throw", desc: '뇌기로 빚은 창을 던진다 · 마비', cost: 25, cd: 4, icon: 'vorn-javelin' },
+      { slot: 'skill2', name: '낙뢰삼격', hanja: '落雷三擊', nameEn: 'Three Falling Thunderbolts', desc: '상대의 발밑에 벼락 셋', cost: 35, cd: 7, icon: 'vorn-stormfall' },
+      { slot: 'skill3', name: '화뢰섬보', hanja: '化雷閃步', nameEn: 'Thunder-Form Flash Step', desc: '벼락이 되어 꿰뚫고 지난다', cost: 20, cd: 5, icon: 'vorn-arcstep' },
+      { slot: 'ult', name: '구천뇌벌', hanja: '九天雷罰', nameEn: 'Ninefold Heaven Thunder Judgment', desc: '돌진 찌르기가 닿으면 다섯 숨의 연환살', cost: 100, icon: 'vorn-ult' },
     ],
   },
 ];
 
-/** Difficulty choices for the CPU (value is what ui emits in the 'pick' event). */
+/** CPU ranks (value is what ui emits in the 'pick' event): 삼류 → 이류 → 일류 → 절정. */
 export const DIFFICULTIES = [
-  { value: 'easy', name: '수련', nameEn: 'NOVICE' },
-  { value: 'normal', name: '기사', nameEn: 'KNIGHT' },
-  { value: 'hard', name: '영웅', nameEn: 'HERO' },
-  { value: 'nightmare', name: '일식', nameEn: 'ECLIPSE' },
+  { value: 'easy', name: '삼류', hanja: '三流', nameEn: 'THIRD-RATE' },
+  { value: 'normal', name: '이류', hanja: '二流', nameEn: 'SECOND-RATE' },
+  { value: 'hard', name: '일류', hanja: '一流', nameEn: 'FIRST-RATE' },
+  { value: 'nightmare', name: '절정', hanja: '絶頂', nameEn: 'PEAK' },
 ];
 
 /** Quality tiers shown in the menus (value matches ctx.quality.tier). */
 export const QUALITIES = [
-  { value: 'low', name: '낮음', nameEn: 'LOW' },
-  { value: 'mid', name: '중간', nameEn: 'MID' },
-  { value: 'high', name: '높음', nameEn: 'HIGH' },
+  { value: 'low', name: '낮음', hanja: '下', nameEn: 'LOW' },
+  { value: 'mid', name: '중간', hanja: '中', nameEn: 'MID' },
+  { value: 'high', name: '높음', hanja: '上', nameEn: 'HIGH' },
 ];
 
-/** Element display names. */
+/** Inner-energy (element) display names. */
 export const ELEMENTS = {
-  ember: { name: '잿불', nameEn: 'EMBER' },
-  frost: { name: '서릿별', nameEn: 'FROST' },
-  volt: { name: '뇌명', nameEn: 'VOLT' },
+  ember: { name: '열양', hanja: '烈陽', nameEn: 'FIRE' },
+  frost: { name: '한빙', hanja: '寒氷', nameEn: 'FROST' },
+  volt: { name: '뇌정', hanja: '雷霆', nameEn: 'LIGHTNING' },
 };
+
+/** The arena and the wording shared by screens and the HUD (MURIM.md § 3-4). */
+export const ARENA = { arena: '천무대', arenaHanja: '天武臺', arenaEn: 'HEAVEN-MARTIAL TERRACE' };
+export const TITLE = { name: '흑일무림', hanja: '黑日武林', nameEn: 'ECLIPSE DUEL', tag: '검은 해가 뜨는 밤, 강호는 비무로 답한다', tagEn: 'Under the black sun, the martial world answers in duels' };

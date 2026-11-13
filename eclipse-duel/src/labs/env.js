@@ -162,6 +162,25 @@ createLab({
         ctx.scene.add(m);
       });
     },
+    /**
+     * 360-degree review: stand at (x, z) at eye height and look along `yaw` degrees (0 = toward -Z / the vista,
+     * 90 = +X, 180 = +Z / the gate, -90 = -X / the hall). `turn(x, z, yaw, eye = 1.7, fov = 60, pitch = 4)`.
+     */
+    turn(ctx, lab, x = 0, z = 0, yaw = 0, eye = 1.7, fov = 60, pitch = 4) {
+      const a = yaw * DEG, c = Math.cos(pitch * DEG);
+      lookFrom(lab, [x, eye, z], [x + Math.sin(a) * c * 10, eye + Math.sin(pitch * DEG) * 10, z - Math.cos(a) * c * 10], fov);
+    },
+    /**
+     * Third-person action-RPG framing: a dummy stands at (x, z), the camera 4.6 m behind and 2.3 m up, looking over
+     * it along `yaw` (same convention as `turn`). The other dummy is parked off the terrace.
+     */
+    rpg(ctx, lab, x = 0, z = 0, yaw = 0, dist = 4.6, height = 2.3, fov = 50) {
+      const a = yaw * DEG, fx = Math.sin(a), fz = -Math.cos(a);
+      lab.dummies[0].position.set(x, 0.95, z);
+      lab.dummies[1].position.set(0, -50, 0);
+      ctx.env.setFocus(x);
+      lookFrom(lab, [x - fx * dist, height, z - fz * dist], [x + fx * 3, 1.5, z + fz * 3], fov);
+    },
     stats(ctx) { return ctx.env.stats(); },
     /**
      * `cine(name)`: a held cinematic from the review set (CINE: heroL heroR otsL otsR sideL sideR sideLow crane
