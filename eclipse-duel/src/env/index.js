@@ -1,4 +1,4 @@
-// Eclipse Ruins (일식의 폐허): the arena environment. See README.md for the API and the art guide.
+// 「천무대 天武臺」: the ruined summit duelling terrace of the Heaven-Martial Sect. See README.md for the API and the art guide.
 //
 //   const env = createEnvironment(ctx, { detail, seed, post })
 //   env.setFocus(midX); env.setMood({ darken: 0.8, tint: 0x8aa0ff, duration: 0.3 }); env.setMood(null);
@@ -6,11 +6,11 @@
 
 import * as THREE from 'three';
 import { makeRng, clamp, lerp } from '../core/math.js';
-import { SUN_DIR, RIM_DIR, KEY_DIR, WIND, LAYOUT, PALETTE, tierSettings } from './config.js';
-import { bakeFloor, bakeStone, bakeBanner, releaseBakeQuad } from './bake.js';
+import { SUN_DIR, RIM_DIR, KEY_DIR, WIND, LAYOUT, PALETTE, tierSettings, rimR } from './config.js';
+import { bakeFloor, bakeStone, bakeBanner, bakeFoliage, bakeWood, releaseBakeQuad } from './bake.js';
 import { createSky } from './sky.js';
 import { buildRuins } from './ruins.js';
-import { createStoneMaterial, createIronMaterial, createPropMaterial } from './materials.js';
+import { createStoneMaterial, createTimberMaterial, createMetalMaterial, createFoliageMaterial } from './materials.js';
 import { createFloor, createReflectionOverlay } from './floor.js';
 import { bakeOrnament } from './ornament.js';
 import { createFar } from './far.js';
@@ -32,7 +32,7 @@ const toColor = (c, out) => {
 const toVec3 = (p, out) => (Array.isArray(p) ? out.set(p[0], p[1], p[2]) : out.copy(p));
 
 /**
- * Build the Eclipse Ruins arena and register it as ctx.env.
+ * Build the 천무대 arena and register it as ctx.env.
  * @param {object} ctx  app context
  * @param {object} [opts]
  * @param {number} [opts.detail]  override ctx.quality.envDetail (0..2)
@@ -69,6 +69,7 @@ export function createEnvironment(ctx, opts = {}) {
     uMood: { value: new THREE.Vector4(1, 1, 1, 0) },
     uFire: { value: new THREE.Vector4(PALETTE.fire.r, PALETTE.fire.g, PALETTE.fire.b, tier.pointLights > 0 ? 0.3 : 1.1) },
     uKeyMask: { value: new THREE.Vector4(0, 8.5, 16.5, 0.12) },
+    uFocusZ: { value: 0 },
   };
 
   // ---- baked textures ----------------------------------------------------------------------------------------------
@@ -76,32 +77,43 @@ export function createEnvironment(ctx, opts = {}) {
   const stoneMaps = bakeStone(renderer, tier.stoneTex);
   const bannerRT = bakeBanner(renderer);
   const ornMaps = bakeOrnament(renderer, tier.ornTex);
+  const woodMaps = bakeWood(renderer, tier.detail >= 1 ? 512 : 256);
+  const foliageRT = bakeFoliage(renderer, tier.detail >= 1 ? 512 : 256);
   releaseBakeQuad();
-  owned.rt.push(floorMaps.a, floorMaps.b, stoneMaps.a, stoneMaps.b, bannerRT, ornMaps.atlas, ornMaps.weather);
+  owned.rt.push(floorMaps.a, floorMaps.b, stoneMaps.a, stoneMaps.b, bannerRT, ornMaps.atlas, ornMaps.weather, woodMaps.a, woodMaps.b, foliageRT);
 
-  // ---- ruins -------------------------------------------------------------------------------------------------------
+  // ---- the ruined summit: stone, timber, metal, foliage ---------------------------------------------------------------
   const ruins = buildRuins(rng, tier);
   const stoneMat = createStoneMaterial(U, stoneMaps, ornMaps, [1, tier.detail >= 1 ? 1 : 0.7, 1, 1]);
-  const ironMat = createIronMaterial(U);
-  const propMat = createPropMaterial(U);
+  const metalMat = createMetalMaterial(U, stoneMaps, ornMaps);
+  const timberMat = createTimberMaterial(U, woodMaps, ornMaps);
+  const foliageMat = createFoliageMaterial(U, foliageRT.texture, {
+    amb: PALETTE.hemiSky.clone().multiplyScalar(1.6), key: PALETTE.key.clone().multiplyScalar(3.0), rim: PALETTE.rim.clone().multiplyScalar(0.6),
+  });
   const stone = new THREE.Mesh(ruins.stone, stoneMat);
   stone.name = 'env.ruins';
-  const iron = new THREE.Mesh(ruins.metal, ironMat);
-  iron.name = 'env.iron';
-  const props = new THREE.Mesh(ruins.props, propMat);
-  props.name = 'env.props';
-  root.add(stone, iron, props);
+  const iron = new THREE.Mesh(ruins.metal, metalMat);
+  iron.name = 'env.metal';
+  const props = new THREE.Mesh(ruins.props, timberMat);
+  props.name = 'env.timber';
+  const foliage = new THREE.Mesh(ruins.foliage, foliageMat);
+  foliage.name = 'env.foliage';
+  foliage.frustumCulled = false;
+  root.add(stone, iron, props, foliage);
 
-  const floor = createFloor(U, floorMaps, stoneMaps, tier, ruins.braziers);
+  // warm floor pools: the four fires of env.braziers, then the lit lanterns that stand on the terrace floor
+  const poolAt = [...ruins.braziers, ...ruins.lamps.filter((p) => p.y < 2.2)];
+  const floor = createFloor(U, floorMaps, stoneMaps, tier, poolAt);
   root.add(floor.mesh);
 
   const far = createFar(U, rng, tier);
   root.add(far.far, far.clouds);
 
   const banners = createBanners(U, ruins.banners, bannerRT.texture);
-  const fire = createFire(U, ruins.braziers, rng, ruins.flames);
-  const atmosphere = createAtmosphere(U, rng, tier);
-  const particles = createParticles(U, rng, tier, ruins.braziers, floor.uniforms);
+  const fire = createFire(U, ruins.flames, rng);
+  const atmosphere = createAtmosphere(U, rng, tier, ruins.smokes);
+  const censers = ruins.braziers.filter((b, i) => LAYOUT.braziers[i][2] === 'censer');
+  const particles = createParticles(U, rng, tier, censers, floor.uniforms);
   root.add(banners, fire, atmosphere, particles);
 
   const sky = createSky(U, { octaves: tier.skyOctaves });
@@ -132,18 +144,19 @@ export function createEnvironment(ctx, opts = {}) {
   hemi.name = 'env.hemi';
   // key first: directional light #0 is the key in every env shader (shadow casters sort first as well)
   root.add(target, sun, rim, hemi);
-  // brazier lights: the first `pointLights` braziers (the +-37 degree pair in frame comes first); the rest are baked
+  // fire lights: the first `pointLights` of env.braziers (the two lit lanterns on the vista shoulders come first, then
+  // the censers); every other fire is baked glow + a floor pool
   const points = [];
   for (let i = 0; i < tier.pointLights; i++) {
     const b = ruins.braziers[i];
     const l = new THREE.PointLight(PALETTE.fire, base.point, 16, 2);
     l.name = 'env.brazier' + i;
-    l.position.set(b.x, b.y + 0.55, b.z);
+    l.position.set(b.x, b.y + 0.12, b.z);
     l.userData.brazier = i;
     points.push(l);
     root.add(l);
   }
-  floor.setBrazierPool(ruins.braziers.map((b, i) => (points.some((p) => p.userData.brazier === i) ? 0.15 : 0.6)));
+  floor.setBrazierPool(poolAt.map((b, i) => (points.some((p) => p.userData.brazier === i) ? 0.15 : i < 4 ? 0.6 : 0.42)));
   {
     const k = Math.hypot(KEY_DIR.x, KEY_DIR.z);
     floor.uniforms.uContactK.value.x = -KEY_DIR.x / k;
@@ -154,11 +167,16 @@ export function createEnvironment(ctx, opts = {}) {
   const Uc = new THREE.Vector3().crossVectors(KEY_DIR, R).normalize();
   const tmpT = new THREE.Vector3();
   let focusX = 0;
-  /** Keep the shadow frustum on the fighters (texel-snapped so shadows never crawl). */
-  function setFocus(x) {
+  /**
+   * Keep the key light on the action (texel-snapped so shadows never crawl). `z` is 0 in the duel; a mode that
+   * leaves the fight line (the action-RPG) passes the hero's z as well and the floor's key pool follows.
+   */
+  function setFocus(x, z = 0) {
     focusX = clamp(Number(x) || 0, LAYOUT.floorR * -0.8, LAYOUT.floorR * 0.8);
+    const focusZ = clamp(Number(z) || 0, LAYOUT.floorR * -0.9, LAYOUT.floorR * 0.9);
     U.uKeyMask.value.x = focusX;
-    tmpT.set(focusX, 1.0, 0);
+    U.uFocusZ.value = focusZ;
+    tmpT.set(focusX, 1.0, focusZ);
     const texel = sun.castShadow ? (sun.shadow.camera.right - sun.shadow.camera.left) / sun.shadow.mapSize.x : 0.01;
     const a = Math.round(tmpT.dot(R) / texel) * texel, b = Math.round(tmpT.dot(Uc) / texel) * texel, c = tmpT.dot(KEY_DIR);
     target.position.copy(R).multiplyScalar(a).addScaledVector(Uc, b).addScaledVector(KEY_DIR, c);
@@ -311,6 +329,46 @@ export function createEnvironment(ctx, opts = {}) {
   }
   const off = ctx.onUpdate(update, ctx.ORDER.ENV);
 
+  // ---- colliders (data for modes that leave the fight line) ---------------------------------------------------------------
+  const colliders = {
+    circles: ruins.colliders.circles, boxes: ruins.colliders.boxes, stairs: ruins.stairs,
+    radius: LAYOUT.floorR, platformY: LAYOUT.platY,
+    /** radius of the terrace floor's edge at ring angle theta (radians from -Z toward +X): the wall, or the broken rim */
+    rim: (theta) => rimR(theta),
+    /**
+     * Keep a body of radius `r` standing on the terrace floor out of everything solid: pushes (x, z) out of the
+     * circles and boxes that reach the floor and back inside the wall / the rim (`margin` m short of the drop).
+     * Writes the corrected point to `out` ({x, z} or a Vector3) and returns it. No allocation.
+     */
+    resolve(x, z, r = 0.4, out = { x: 0, z: 0 }, margin = 0.15) {
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 0; i < colliders.circles.length; i++) {
+          const c = colliders.circles[i];
+          if (c.y0 > 0.5) continue;
+          const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + r;
+          if (d < m && d > 1e-5) { x = c.x + (dx / d) * m; z = c.z + (dz / d) * m; }
+        }
+        for (let i = 0; i < colliders.boxes.length; i++) {
+          const b = colliders.boxes[i];
+          if (b.y0 > 0.5) continue;
+          const cs = Math.cos(b.yaw), sn = Math.sin(b.yaw);
+          const dx = x - b.x, dz = z - b.z;
+          const lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;          // into the box frame
+          const px = b.hx + r - Math.abs(lx), pz = b.hz + r - Math.abs(lz);
+          if (px > 0 && pz > 0) {
+            let nx = lx, nz = lz;
+            if (px < pz) nx = Math.sign(lx || 1) * (b.hx + r); else nz = Math.sign(lz || 1) * (b.hz + r);
+            x = b.x + nx * cs + nz * sn; z = b.z - nx * sn + nz * cs;
+          }
+        }
+        const d = Math.hypot(x, z), lim = rimR(Math.atan2(x, -z)) - r - (rimR(Math.atan2(x, -z)) < LAYOUT.floorR - 1e-3 ? margin : 0.02);
+        if (d > lim) { x *= lim / d; z *= lim / d; }
+      }
+      out.x = x; out.z = z;
+      return out;
+    },
+  };
+
   const env = {
     root, tier, uniforms: U,
     envMap, sun, rim, hemi, points,
@@ -324,8 +382,16 @@ export function createEnvironment(ctx, opts = {}) {
     keyDir: KEY_DIR.clone(),
     /** ambient wind, m/s (match smoke / cloth drift to it) */
     wind: WIND.clone(),
-    /** brazier bowl centres (world) */
+    /** the four fire sources (world): the flames of the two lit stone lanterns, then the two censers' bowls */
     braziers: ruins.braziers.map((b) => b.clone()),
+    /** flames of the other lit stone lanterns (baked glow, no real light) */
+    lamps: ruins.lamps.map((b) => b.clone()),
+    /** solid things for a free-roaming mode (README "Colliders"): circles, boxes, the terrace's edge, the stairs, `resolve()` */
+    colliders,
+    /** named places (README "Landmarks") */
+    landmarks: ruins.landmarks,
+    /** the two guardian statues in the vista (README "The guardian statues"): positions, sizes, plinths, `visible`, `eyeGlow` */
+    statues: far.statues,
     baseline,
     get focusX() { return focusX; },
     get mood() { return { darken: mood.d, tint: mood.tint.clone() }; },
@@ -340,6 +406,11 @@ export function createEnvironment(ctx, opts = {}) {
         const g = o.geometry;
         const n = g.index ? g.index.count : g.attributes.position.count;
         const inst = g.isInstancedBufferGeometry ? g.instanceCount : 1;
+        if (Array.isArray(o.material)) {
+          // drawn group by group (the far layer: backdrop + the two statues); hidden groups cost nothing
+          for (const gr of g.groups) if (o.material[gr.materialIndex].visible) { calls += 1; tris += gr.count / 3; }
+          return;
+        }
         calls += 1;
         tris += (n / 3) * inst;
       });
@@ -355,7 +426,7 @@ export function createEnvironment(ctx, opts = {}) {
       scene.fog = prevScene.fog;
       scene.background = prevScene.background;
       scene.environmentIntensity = prevScene.environmentIntensity;
-      root.traverse((o) => { if (o.geometry) owned.geo.add(o.geometry); if (o.material) owned.mat.add(o.material); });
+      root.traverse((o) => { if (o.geometry) owned.geo.add(o.geometry); if (o.material) for (const m of [].concat(o.material)) owned.mat.add(m); });
       if (refl) refl.os.remove(refl.overlay.mesh);
       for (const g of owned.geo) g.dispose();
       for (const m of owned.mat) m.dispose();
@@ -368,7 +439,7 @@ export function createEnvironment(ctx, opts = {}) {
   return env;
 }
 
-/** PMREM environment: the sky in env mode, a dark broken ring + wet floor for metals to reflect, a few light cards. */
+/** PMREM environment: the sky in env mode, the summit's dark skyline + wet floor for metals to reflect, a few light cards. */
 function buildEnvMap(renderer, U, braziers) {
   const s = new THREE.Scene();
   const sky = createSky(U, { envMode: true });
@@ -380,8 +451,14 @@ function buildEnvMap(renderer, U, braziers) {
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
     const th = Math.atan2(x, -z);
-    const gapK = Math.abs(th) < LAYOUT.gap ? 0.15 : 1;
-    const h = y > 0 ? (3 + 7 * gapK * (0.6 + 0.4 * Math.sin(th * 11) * Math.sin(th * 5.3))) : 0;
+    // the summit's skyline: nothing across the vista, the hall's roof on the west, the gate on the south, the
+    // gallery and the bamboo elsewhere
+    const a = Math.abs(th), deg = th * 180 / Math.PI;
+    let top = 4.6 + 2.2 * Math.sin(th * 11) * Math.sin(th * 5.3);
+    if (deg > -112 && deg < -46) top = 10.5;
+    if (a > 2.74) top = 9.5;
+    if (a < LAYOUT.gap) top = 0.3;
+    const h = y > 0 ? top : 0;
     p.setY(i, (y > 0 ? h : 0) - eye);
   }
   const ringMesh = new THREE.Mesh(ring, ringMat);

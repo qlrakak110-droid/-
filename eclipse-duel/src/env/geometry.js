@@ -573,3 +573,64 @@ export function trs(x, y, z, ry = 0, rx = 0, rz = 0, sx = 1, sy = sx, sz = sx) {
   m.compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(sx, sy, sz));
   return m;
 }
+
+/**
+ * A squared timber along X (centred): faces carry metric uvs with v along the grain (X) and u around the section,
+ * so a grain texture runs the right way. `ends` adds the two end-grain faces. 8 / 12 triangles.
+ * `ornFace`: also write the relief coordinates of the +Z face (u 0..1 along X, v 0..1 up) as `ornUv`
+ * ('both': the -Z face too, mirrored).
+ * @returns {THREE.BufferGeometry} non-indexed
+ */
+export function beam(L, h, d, { ends = true, ornFace = null } = {}) {
+  const x0 = -L / 2, x1 = L / 2, y0 = -h / 2, y1 = h / 2, z0 = -d / 2, z1 = d / 2;
+  const pos = [], nrm = [], uv = [], ouv = [];
+  const quad = (a, b, c, e, n, ua, ub, uc, ue, orn) => {
+    for (const [p, t, k] of [[a, ua, 0], [b, ub, 1], [c, uc, 2], [a, ua, 0], [c, uc, 2], [e, ue, 3]]) {
+      pos.push(p[0], p[1], p[2]); nrm.push(n[0], n[1], n[2]); uv.push(t[0], t[1]);
+      if (orn) ouv.push(orn[k][0], orn[k][1], 1); else ouv.push(0, 0, 0);
+    }
+  };
+  const fr = [[0, 0], [1, 0], [1, 1], [0, 1]], bk = [[1, 0], [0, 0], [0, 1], [1, 1]];
+  // front (+Z), back (-Z), top, bottom: v = x
+  quad([x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1], [0, 0, 1], [0, x0], [0, x1], [h, x1], [h, x0], ornFace ? fr : null);
+  quad([x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0], [0, 0, -1], [h + d, x1], [h + d, x0], [2 * h + d, x0], [2 * h + d, x1], ornFace === 'both' ? bk : null);
+  quad([x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0], [0, 1, 0], [h, x0], [h, x1], [h + d, x1], [h + d, x0], null);
+  quad([x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1], [0, -1, 0], [2 * h + d, x0], [2 * h + d, x1], [2 * h + 2 * d, x1], [2 * h + 2 * d, x0], null);
+  if (ends) {
+    quad([x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1], [1, 0, 0], [0, 0], [d, 0], [d, h], [0, h], null);
+    quad([x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0], [-1, 0, 0], [0, 0], [d, 0], [d, h], [0, h], null);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('ornUv', new THREE.Float32BufferAttribute(ouv, 3));
+  return g;
+}
+
+/**
+ * Extrude a convex 2D outline (points [x, y], counter-clockwise seen from +Z) along Z by `depth` (centred).
+ * Flat shaded: bracket arms, wedges, gable boards, stair cheeks. @returns {THREE.BufferGeometry} non-indexed
+ */
+export function prism(outline, depth) {
+  const z0 = -depth / 2, z1 = depth / 2, n = outline.length;
+  const out = [];
+  const tri = (a, b, c) => out.push(...a, ...b, ...c);
+  for (let i = 1; i < n - 1; i++) {
+    tri([outline[0][0], outline[0][1], z1], [outline[i][0], outline[i][1], z1], [outline[i + 1][0], outline[i + 1][1], z1]);
+    tri([outline[0][0], outline[0][1], z0], [outline[i + 1][0], outline[i + 1][1], z0], [outline[i][0], outline[i][1], z0]);
+  }
+  for (let i = 0; i < n; i++) {
+    const a = outline[i], b = outline[(i + 1) % n];
+    tri([a[0], a[1], z1], [a[0], a[1], z0], [b[0], b[1], z0]);
+    tri([a[0], a[1], z1], [b[0], b[1], z0], [b[0], b[1], z1]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+  return flatNormals(g);
+}
+
+/** Position / Y-rotation helper on the ring: matrix at ring angle `th`, radius r, height y, facing the centre (+Z local = inward). */
+export function ringM(r, th, y = 0, yaw = 0, rx = 0, rz = 0, s = 1) {
+  return trs(r * Math.sin(th), y, -r * Math.cos(th), -th + yaw, rx, rz, s);
+}

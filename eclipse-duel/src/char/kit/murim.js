@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 import { fnOf } from '../shapes.js';
 import { surfDetail } from '../materials.js';
-import { plate, sweep, lathe, extrude, band, ribbon, merge, mk, fixWinding, circle, rrect, curve, studs, onSurface, withUvw, weightsOf, putSkinned, place, mirror } from './geo.js';
+import { plate, sweep, lathe, extrude, band, ribbon, merge, mk, fixWinding, circle, rrect, curve, studs, onSurface, weightsOf, putSkinned } from './geo.js';
 import { hoop, se } from './armor.js';
 
 const DEG = Math.PI / 180;
@@ -838,4 +838,3 @@ export function spearTassel(kit, H, o = {}) {
   return { collar, strands: merge(st) };
 }
 
-export { place, mirror };

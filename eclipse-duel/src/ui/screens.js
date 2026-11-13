@@ -38,7 +38,7 @@ export function createScreens(ui) {
    * @returns {HTMLElement & { set(v): void, value: string }}
    */
   function segmented({ ko, en, options, value, onChange, cls = '' }) {
-    const opts = options.map((o) => h('button.seg-opt', { type: 'button', 'data-v': o.value, html: bilingual(o.name, o.nameEn) + (o.hanja ? `<i class="hj">${esc(o.hanja)}</i>` : '') }));
+    const opts = options.map((o) => h('button.seg-opt', { type: 'button', 'data-v': o.value, html: bilingual(o.name, o.nameEn) }));
     const el = h('div.seg' + (cls ? '.' + cls : ''), null, h('div.seg-label', { html: bilingual(ko, en) }), h('div.seg-opts', null, ...opts));
     el.value = value;
     el.set = (v, emit = false) => {

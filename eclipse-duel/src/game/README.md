@@ -116,18 +116,18 @@ not validate is reported once (`[ed] fighters: ...`) and replaced, so the game a
 | slot | rules state | generic fallback |
 |---|---|---|
 | `intro` | `intro` (round intro, played once) | `game.intro` (blade planted, wrenched up into guard) |
-| `idle`, `recovery` | `idle`, `recovery` | `demo.idle` |
+| `idle`, `recovery` | `idle`, `recovery`; optional one-shots over the idle: `idleFidget` (+ `idleFidget2` …) after a few still seconds, `turn` when the facing flips, `walkStopF` / `walkStopB` | `demo.idle` (`game.fidget1/2`, `game.turn` for fallback fighters) |
 | `walkF`, `walkB` | `walk` (`walkDir` ±1); playback speed = walk speed / clip root-motion speed (0.7–1.55×) | `game.walkF@<speed>` / `game.walkB@<speed>`: the generic step-drag walk re-authored per fighter for its `walkSpeed` / `backSpeed` (cadence up to 1.4×, the stride takes the rest), so it plays at 1× with planted feet |
 | `dash`, `backstep`, `dodge`, `roll` | movement states; clip time = state progress × clip length | `game.dash/backstep/dodge` |
-| `guard` | `guard`, `blockstun` (+ a flinch impulse per blocked hit) | `demo.guard` |
+| `guard` | `guard`, `blockstun` (+ a flinch impulse per blocked hit, scaled by the weight of the blow; a `guardHit` / `guardHitHeavy` one-shot when the fighter has one) | `demo.guard` |
 | `guardBreak` | `guardbreak` (progress-driven) | `game.guardbreak` |
-| `hitLight`, `hitHeavy` | `hitstun` light / heavy; restarted on every hit with no fade, starting on the impact pose (that frame is held through the hit-stop) | `game.hitLight`, `demo.hit` |
+| `hitLight`, `hitHeavy` | `hitstun` light / heavy; restarted on every hit with no fade, starting on the impact pose (that frame is held through the hit-stop). Variants by contact height and side: `hitLightHigh` / `Mid` / `Low` / `Back`, `hitHeavyBack` | `game.hitLight` (+ variants), `game.hitHeavy` (+ `Back`) |
 | `crumple` | `hitstun` crumple (progress-driven) | `game.crumple` |
-| `launched`, `fall` | `launched` rising (`vy > 0.6`) / falling, also the KO flight | `game.airRise`, `game.airFall` |
-| `down`, `getup`, `tech` | `knockdown` (lying), `getup` (progress-driven) | `game.down`, `game.getup` |
-| `ko` | `ko` (lying) | `game.koDown` |
+| `launched`, `fall` | `launched` rising (`vy > 0.6`) / falling, also the KO flight; `launchedProne` / `fallProne` after a blow from behind | `game.airRise`, `game.airFall` (+ `Prone`) |
+| `down`, `getup`, `tech` | `knockdown` (lying), `getup` (progress-driven; `tech` when the fall was teched); `downProne` / `getupProne` / `techProne` face-down | `game.down`, `game.getup`, `game.tech` (+ `Prone`) |
+| `ko` | `ko` (lying; `koProne` face-down) | `game.koDown`, `game.koProne` |
 | `locked` | cinematic victim (default lock choreography) | `game.locked` |
-| `victory`, `defeat` | round end | `game.victory`, `game.defeat` |
+| `victory`, `defeat` | round end; `victory`, `victory2` … `victory6`: one per round at random | `game.victory`, `game.victory2`, `game.defeat` |
 | `<move id>` or `<slot>` | `attack`: the move clip, `setClipTime(map(moveTime))` | a demo clip chosen from the move data (light chain → `demo.combo1/2/3`, launch → `demo.combo2`, multi-hit / armour → `demo.combo3`, knockdown / cinematic / targeted projectile → `demo.slam`, counter stance → `demo.guard`, no hits → `game.dash`), always retimed |
 
 Entry forms: `'clip.name'`, or `{ clip, hit, speed, fade }`. **Retiming:** with `hit` (or for fallbacks: the clip's
@@ -135,6 +135,13 @@ first `hit` / `impact` event) the clip is warped piecewise so `[0, startup] → 
 [hit, clip end]`; the impact frame always lands on the first active frame, whatever the move data says. Without
 `hit`, a fighter's clip plays 1:1 against the move time (`× speed`). Move ids resolve before slots (`light1` matches
 the move whose `meta.slot` or command is `light1`). Clip `step` events play footsteps.
+
+**Variant slots** (src/fighters/MOTION.md §4 has the full table and the authoring rules): a state entry may be an array
+of clips; a registered clip named `<fighter id>.<slot>` is used without a map entry (`kael.hitLightHigh`,
+`iska.idleFidget2`); a variant slot falls back to the fighter's own clip of its parent slot (`hitLightHigh` →
+`hitLight`), then to the generic variant. Variants are picked with `ctx.rng` and every clip is compiled when the actor
+is created. Generic clips are re-based on the fighter's own `<id>.stance` pose when its library defines it
+(`game.getup@kael` ends with the saber on the shoulder).
 
 The fallbacks are authored for a two-handed greatsword (the off hand IKs onto the main weapon's grip). A design with a
 weapon in each hand (twin blades) gets `<clip>@twin` variants of every fallback: no grip, both fists closed on their

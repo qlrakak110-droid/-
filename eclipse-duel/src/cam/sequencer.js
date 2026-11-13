@@ -154,6 +154,7 @@ export function createSequencer(ctx, dir) {
       handheld: shot.handheld ?? dir.cine.handheld,
       hold: !!shot.hold,
       name: shot.name || '',
+      fitAspect: shot.fitAspect !== false,
       dof: normDof(shot.dof, refOf),
       tone: normTone(shot.tone),
       breathe: shot.breathe ?? 1,

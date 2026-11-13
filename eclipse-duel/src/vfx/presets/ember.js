@@ -53,8 +53,8 @@ const FLOOR_GLOW = def({ tex: 'glow', blend: 'add', align: 'flat', count: 1, lif
 // (the outer third of the blade carries it: a solid fan from hilt to tip reads as a pie slice, not a blade smear)
 const TRAIL = {
   life: 0.26, blend: 'alpha', additive: [[0, 1], [0.3, 0.85], [0.6, 0.3], [1, 0.05]],
-  color: [[0, 2.6, 0.95, 0.18, 0.95], [0.1, 1.9, 0.42, 0.05, 0.8], [0.35, 0.6, 0.09, 0.02, 0.55], [0.65, 0.08, 0.055, 0.045, 0.4], [1, 0.045, 0.04, 0.035, 0]],
-  edge: [10, 4.2, 1], edgeWidth: 0.06, gradient: 0.85, fadeBase: 0.72,
+  color: [[0, 2.0, 0.66, 0.11, 0.95], [0.1, 1.5, 0.32, 0.04, 0.8], [0.35, 0.55, 0.08, 0.02, 0.55], [0.65, 0.08, 0.055, 0.045, 0.4], [1, 0.045, 0.04, 0.035, 0]],
+  edge: [7, 2.9, 0.7], edgeWidth: 0.05, gradient: 0.85, fadeBase: 0.72, ink: 0.55, dry: 0.75,
   width: [[0, 1], [0.3, 0.62], [1, 0.16]], erode: [[0, 0], [0.25, 0.06], [1, 0.92]], erodeSoft: 0.3,
   noise: { scale: [1.5, 1.4], speed: 1.8, amount: 0.8 }, distort: 0.016,
 };

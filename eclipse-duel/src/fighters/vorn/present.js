@@ -517,7 +517,7 @@ const moves = {
       h.emitter('vorn.motesUp', h.at(0, 0.05, 0), { dir: [0, 1, 0], scale: 1.1, duration: 0.4 });
     },
     dash(h) {
-      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 1, speedlines: true, intensity: 0.5 });
+      h.fx('volt.dash', { pos: 'floor', target: h.self.char.root }, { length: 6, ghosts: 4, speedlines: true, intensity: 0.5 });
       h.fx('vorn.rain', { pos: h.at(3, 0, 0) }, { duration: 1.4 });
       h.fx('combat.dust.dash', 'floor', { k: 1 });
       h.audio('volt_zap');

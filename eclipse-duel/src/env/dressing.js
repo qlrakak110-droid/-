@@ -1,387 +1,384 @@
-// Set dressing that tells the arena's story, merged into the ruins' builders (no extra draw calls beyond the props
-// material): votive candle clusters and offerings at the braziers, chains draped and hanging from the arches, a
-// gibbet cage, dead trees whose roots grip the podium wall, hanging dead vines, broken weapons and shields
-// half-buried near the ring edge, and the shattered flagstones heaved up around the old impact.
-// Returns the candle flame tongues for the fire mesh.
+// Set dressing of 「천무대」, merged into the shared builders (no draw calls of its own): stone lanterns (석등:
+// standing and lit, leaning, toppled), bronze incense braziers (향로) on lotus drums, weapon racks, the sect's
+// stele, a war drum, banner poles, talisman ropes, spilled roof tiles. Returns what the moving layers need: flames
+// for the fire mesh, smoke sources, cloth specs (banners, pennants, talismans).
 
 import * as THREE from 'three';
-import { DEG, smoothstep } from '../core/math.js';
-import { chamferBox, latheGrid, rock, addAll, trs, noise3, tube, setOrnUv, brokenBlock } from './geometry.js';
+import { DEG } from '../core/math.js';
+import { chamferBox, latheGrid, addAll, trs, noise3, tube, setOrnUv, brokenBlock, beam, prism, flatNormals, ringM, rock, frontFace } from './geometry.js';
+import { LAYOUT, PALETTE, HALL, GATE, rimR } from './config.js';
 import { ORN, panel } from './ornament.js';
-import { LAYOUT } from './config.js';
+import { CLOTH } from './bake.js';
 
-const WAX = [[0.42, 0.37, 0.27], [0.36, 0.31, 0.22], [0.2, 0.045, 0.035], [0.3, 0.26, 0.19]];
-const WOOD = [0.06, 0.047, 0.036];
-const ROOT = [0.052, 0.045, 0.038];
-const VINE = [0.045, 0.043, 0.034];
-const CLAY = [0.11, 0.066, 0.044];
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const T = (m, x, y, z, ry = 0, rx = 0, rz = 0, s = 1) => m.clone().multiply(trs(x, y, z, ry, rx, rz, s));
+const ringPos = (r, th, y = 0) => V(r * Math.sin(th), y, -r * Math.cos(th));
 
-/** Old impact centre (x, z) and radius: matches the floor bake (bake.js IMPACT). */
-export const IMPACT = [-4.4, -6.2, 2.9];
+/** The roof stone of a lantern (옥개석): a square hipped cap, concave slopes, lifted corners. Flat shaded. */
+function lanternCap(w, h) {
+  const out = [];
+  const P = (side, u, t) => {
+    const d = 0.06 + (w / 2 - 0.06) * t;
+    const x = u * d, z = d, y = h * Math.pow(1 - t, 1.7) + 0.15 * w * Math.abs(u * u * u) * t * t;
+    const c = Math.cos(side * Math.PI / 2), s = Math.sin(side * Math.PI / 2);
+    return [x * c + z * s, y, -x * s + z * c];
+  };
+  for (let side = 0; side < 4; side++) for (let j = 0; j < 2; j++) for (let i = 0; i < 3; i++) {
+    const u0 = -1 + (2 * i) / 3, u1 = -1 + (2 * (i + 1)) / 3, t0 = j / 2, t1 = (j + 1) / 2;
+    const a = P(side, u0, t0), b = P(side, u1, t0), c = P(side, u1, t1), e = P(side, u0, t1);
+    out.push(...a, ...e, ...c, ...a, ...c, ...b);
+  }
+  // underside
+  const y = -0.07, k = w / 2;
+  out.push(-k, y, -k, k, y, -k, k, y, k, -k, y, -k, k, y, k, -k, y, k);
+  for (let side = 0; side < 4; side++) {
+    const a = P(side, -1, 1), b = P(side, 1, 1);
+    out.push(a[0], y, a[2], b[0], y, b[2], b[0], b[1], b[2], a[0], y, a[2], b[0], b[1], b[2], a[0], a[1], a[2]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+  return flatNormals(g);
+}
 
 /**
- * @param {object} o  { S, M, P builders, rng, tier, braziers, pillars, arches, stoneColor, glow, wallTopAt(theta), courseY, courses, ringPos }
- * @returns {Array<{pos: THREE.Vector3, w: number, h: number, i: number}>} candle flames
+ * A stone lantern (석등). `m`: foot on the ground. `state`: 'lit' | 'dark' | 'lean' | 'toppled'.
+ * @returns {THREE.Vector3|null} world position of the flame (lit / leaning lanterns)
  */
-export function dressRuins(o) {
-  const { S, M, P, rng, tier, braziers, pillars, arches, stoneColor, glow, ringPos } = o;
-  const hi = tier.detail >= 2, mid = tier.detail >= 1;
-  const flames = [];
-  const iron = (k = 1) => (p, n, out) => {
-    // rust blooms and pitting on the dark iron (vertex colour multiplies the iron albedo)
-    const r = noise3(p.x * 6, p.y * 6, p.z * 6);
-    const rust = smoothstep(0.45, 0.75, r);
-    out[0] = k * (1 + rust * 1.4); out[1] = k * (1 + rust * 0.5); out[2] = k * (1 - rust * 0.2);
-  };
+function lantern(C, m, state = 'lit', s = 1) {
+  const { S, rng } = C;
+  const tint = C.blockTint() * 1.05;
+  const st = (extra) => C.st(tint, extra);
+  const toppled = state === 'toppled';
+  const body = state === 'lean' ? T(m, 0, -0.04, 0, 0, 0.07, -0.09, s) : T(m, 0, 0, 0, 0, 0, 0, s);
+  // foot slab, lotus foot, octagonal shaft with a girdle
+  S.add(chamferBox(0.84, 0.16, 0.84, 0.03, rng, 0.3), T(body, 0, 0.08, 0), st());
+  const foot = latheGrid({ rows: 3, segs: 8, profile: (t) => [0.4 - 0.2 * Math.pow(t, 0.7), 0.16 + t * 0.26] });
+  setOrnUv(foot[0], (p, n, i) => [((i % 9) / 8) * 8, 1 - (p.y - 0.16) / 0.26, 1]);
+  addAll(S, foot, body, st({ orn: { cell: ORN.petal, amount: C.erosion(), su: 1, sv: 1 } }));
+  const shaftH = toppled ? 0.4 : 0.76;
+  const shaft = latheGrid({ rows: toppled ? 1 : 3, segs: 8, profile: (t) => [0.145 + (Math.abs(t - 0.5) < 0.18 && !toppled ? 0.035 : 0), 0.42 + t * shaftH], topY: toppled ? (phi) => 0.42 + shaftH - Math.abs(Math.sin(phi * 1.5 + 1)) * 0.22 : null, capTop: toppled ? 0.42 + shaftH - 0.15 : false });
+  addAll(S, shaft.map((g) => flatNormals(g.index ? g.toNonIndexed() : g)), body, st());
+  if (toppled) C.colliders.circles.push({ x: body.elements[12], z: body.elements[14], r: 0.5, y0: body.elements[13], h: 0.8, tag: 'lantern' });
+  else C.colliders.circles.push({ x: body.elements[12], z: body.elements[14], r: 0.52, y0: body.elements[13], h: 2.4 * s, tag: 'lantern' });
+  // the head: lotus bowl, fire chamber (four posts between two slabs), roof stone, bud
+  const head = toppled ? T(m, 0.95 * s, 0.3 * s, 0.35 * s, 0.6, 0.2, Math.PI / 2 + 0.25, s).multiply(trs(0, -1.5, 0)) : body;
+  const bowl = latheGrid({ rows: 3, segs: 8, profile: (t) => [0.16 + 0.21 * Math.pow(t, 0.75), 1.18 + t * 0.22], capBottom: toppled });
+  setOrnUv(bowl[0], (p, n, i) => [((i % 9) / 8) * 8, (p.y - 1.18) / 0.22, 1]);
+  addAll(S, bowl, head, st({ orn: { cell: ORN.petal, amount: C.erosion(), su: 1, sv: 1 } }));
+  S.add(new THREE.BoxGeometry(0.64, 0.07, 0.64), T(head, 0, 1.435, 0), st());
+  for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) S.add(new THREE.BoxGeometry(0.1, 0.42, 0.1), T(head, x * 0.24, 1.68, z * 0.24), st());
+  S.add(new THREE.BoxGeometry(0.64, 0.07, 0.64), T(head, 0, 1.925, 0), st());
+  const capM = toppled ? T(m, -0.7 * s, 0.2 * s, 0.9 * s, 1.1, 0.5, 0.2, s) : T(head, 0, 2.03, 0);
+  S.add(lanternCap(1.02, 0.42), capM, st({ uvScale: 1.6 }));
+  const bud = latheGrid({ rows: 4, segs: 6, profile: (t) => [t < 0.2 ? 0.07 : 0.04 + 0.085 * Math.sin(Math.pow((t - 0.2) / 0.8, 0.8) * Math.PI), 0.38 + t * 0.26], capTop: true });
+  addAll(S, bud, capM, st());
+  if (state === 'lit' || state === 'lean') return V(0, 1.6, 0).applyMatrix4(body);
+  return null;
+}
 
-  // ---- votive candles and offerings at the braziers ------------------------------------------------------------------
-  P.section('candles');
-  const nCandle = hi ? 12 : mid ? 8 : 4;
-  braziers.forEach((b, bi) => {
-    const th = Math.atan2(b.x, -b.z);
-    const inward = new THREE.Vector3(-Math.sin(th), 0, Math.cos(th));
-    const side = new THREE.Vector3(Math.cos(th), 0, Math.sin(th));
-    for (let k = 0; k < nCandle; k++) {
-      // clustered on the arena side of the pedestal and on its plinth, tall ones at the back
-      const onPlinth = k < 3;
-      const a = rng.range(-1.9, 1.9);
-      const d = onPlinth ? rng.range(0.36, 0.48) : rng.range(0.6, 1.05) + (k % 3) * 0.08;
-      const p = b.clone().addScaledVector(inward, Math.cos(a) * d).addScaledVector(side, Math.sin(a) * d);
-      const y0 = onPlinth ? 0.22 : 0;
-      const h = (onPlinth ? rng.range(0.1, 0.22) : rng.range(0.05, 0.34)) * (1.15 - 0.3 * Math.cos(a));
-      const r = rng.range(0.018, 0.038) + h * 0.05;
-      const col = rng.pick(WAX);
-      const lit = rng.chance(0.75);
-      const top = y0 + h;
-      const seed = rng.range(0, 40);
-      const waxGlow = (q) => (lit ? 2.2 * smoothstep(top - 0.07, top, q.y) : 0) + glow(q) * 0.3;
-      // body with a melted, slumped rim
-      const body = latheGrid({
-        rows: 2, segs: 6, profile: (t) => [r * (1 + 0.12 * t * t), y0 + t * h],
-        rmod: (phi, yy) => 1 + (noise3(Math.cos(phi) * 2 + seed, yy * 18, Math.sin(phi) * 2) - 0.5) * 0.25,
-        topY: (phi) => top - Math.abs(noise3(Math.cos(phi) * 1.5 + seed, Math.sin(phi) * 1.5, 1)) * r * 1.2,
-        capTop: top - r * 0.5,
-      });
-      addAll(P, body, trs(p.x, 0, p.z, rng.range(0, 6)), { color: col, glow: waxGlow, uv: [0, 0] });
-      // drips running down the side, and a wax pool around the foot
-      const nd = rng.int(0, 2);
-      for (let j = 0; j < nd; j++) {
-        const ph = rng.range(0, Math.PI * 2);
-        const len = rng.range(0.3, 0.9) * h;
-        const q = new THREE.Vector3(Math.cos(ph) * r * 1.05, 0, Math.sin(ph) * r * 1.05);
-        const g = latheGrid({ rows: 1, segs: 3, profile: (t) => [0.006 + 0.004 * t, -t * len], capTop: false, capBottom: true });
-        addAll(P, g, trs(p.x + q.x, top - 0.01, p.z + q.z), { color: col, glow: waxGlow, uv: [0, 0] });
-      }
-      if (!onPlinth || rng.chance(0.5)) {
-        const pr = r * rng.range(1.8, 3.2);
-        const pool = latheGrid({ rows: 1, segs: 6, profile: (t) => [pr * (1 - t * 0.85), y0 + 0.004 + t * 0.012], rmod: (phi) => 1 + (noise3(Math.cos(phi) * 2 + seed, Math.sin(phi) * 2, 2) - 0.5) * 0.6, capTop: true });
-        addAll(P, pool, trs(p.x, 0, p.z), { color: col, glow: (q) => glow(q) * 0.3, uv: [0, 0] });
-      }
-      if (lit) flames.push({ pos: new THREE.Vector3(p.x, top - r * 0.4, p.z), w: 0.035 + r * 0.4, h: 0.07 + r * 1.4, i: rng.range(0.4, 0.62) });
+/**
+ * A bronze incense brazier (향로) on a lotus drum. `m`: foot on the ground.
+ * @returns {{ fire: THREE.Vector3, sticks: THREE.Vector3[] }} bowl centre (ash level) and glowing incense tips
+ */
+function censer(C, m, s = 1) {
+  const { S, M, rng } = C;
+  const tint = C.blockTint();
+  // stone drum: an octagonal block between two petal rings
+  const drum = latheGrid({ rows: 5, segs: 8, profile: (t) => [t < 0.2 ? 0.62 - 0.4 * t : t > 0.8 ? 0.54 + 0.4 * (t - 0.8) : 0.5, t * 0.5], capTop: true });
+  setOrnUv(drum[0], (p, n, i) => [((i % 9) / 8) * 8, p.y < 0.1 ? 1 - p.y / 0.1 : p.y > 0.4 ? (p.y - 0.4) / 0.1 : -1, p.y < 0.1 || p.y > 0.4 ? 1 : 0]);
+  addAll(S, drum, T(m, 0, 0, 0, 0, 0, 0, s), C.st(tint, { orn: { cell: ORN.petal, amount: C.erosion(), su: 1, sv: 1 } }));
+  const mm = T(m, 0, 0.5 * s, 0, rng.range(0, 6), 0, 0, s);
+  // cauldron: foot ring, belly with a band of flames, neck, flared rim with an inner lip
+  const prof = [[0.2, 0.3], [0.34, 0.3], [0.5, 0.4], [0.57, 0.56], [0.55, 0.7], [0.46, 0.82], [0.46, 0.88], [0.6, 0.96], [0.6, 1.0], [0.5, 1.0], [0.47, 0.9]];
+  const body = latheGrid({ rows: prof.length - 1, segs: 16, profile: (t) => { const k = Math.min(prof.length - 1, Math.round(t * (prof.length - 1))); return prof[k]; } });
+  setOrnUv(body[0], (p, n, i) => [((i % 17) / 16) * 8, (p.y - 0.4) / 0.3, p.y > 0.39 && p.y < 0.71 ? 1 : 0]);
+  addAll(M, body, mm, C.mt(C.bronze(1), { orn: { cell: ORN.flame, amount: 1.0, su: 1, sv: 1 } }));
+  // three beast legs, two upright ears
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + 0.5;
+    const c = Math.cos(a), sn = Math.sin(a);
+    addAll(M, [tube([V(c * 0.42, 0.42, sn * 0.42), V(c * 0.56, 0.24, sn * 0.56), V(c * 0.5, 0.06, sn * 0.5), V(c * 0.56, 0.0, sn * 0.56)], (t) => 0.085 - 0.03 * t, { sides: 5, caps: true })], mm, C.mt(C.bronze(0.9)));
+  }
+  for (const sx of [-1, 1]) {
+    const pts = [];
+    for (let i = 0; i <= 6; i++) { const a = (i / 6) * Math.PI; pts.push(V(sx * 0.58, 0.98 + Math.sin(a) * 0.24, Math.cos(a) * 0.15)); }
+    addAll(M, [tube(pts, 0.032, { sides: 4 })], mm, C.mt(C.bronze(0.9)));
+  }
+  // ash and incense sticks
+  const ash = latheGrid({ rows: 1, segs: 12, profile: (t) => [0.47 * (1 - t), 0.9 + t * 0.06], capTop: true });
+  addAll(S, ash, mm, { color: [0.75, 0.72, 0.68], glow: () => 0, uv: 'box' });
+  const sticks = [];
+  for (let k = 0; k < 7; k++) {
+    const a = rng.range(0, 6.28), d = rng.range(0.02, 0.3);
+    const p0 = V(Math.cos(a) * d, 0.93, Math.sin(a) * d), p1 = p0.clone().add(V(rng.range(-0.05, 0.05), rng.range(0.16, 0.32), rng.range(-0.05, 0.05)));
+    addAll(C.P, [tube([p0, p1], 0.006, { sides: 3 })], mm, C.wd([0.09, 0.03, 0.02]));
+    if (k < 4) sticks.push(p1.clone().applyMatrix4(mm));
+  }
+  C.colliders.circles.push({ x: mm.elements[12], z: mm.elements[14], r: 0.75 * s, y0: mm.elements[13] - 0.5 * s, h: 1.5 * s, tag: 'censer' });
+  return { fire: V(0, 0.98, 0).applyMatrix4(mm), sticks };
+}
+
+/** Weapon rack (병기대) with polearms and sabres leaning in it. `m`: centre of its foot line, facing +Z. */
+function weaponRack(C, m, { toppled = false, count = 5 } = {}) {
+  const { P, M, rng } = C;
+  const wood = C.wd(C.bare(0.8), { uv: 'keep', uvScale: 1.1 });
+  const base = toppled ? T(m, 0, 0.12, 0, 0, Math.PI / 2 - 0.12, 0.08) : m;
+  for (const sx of [-1, 1]) {
+    P.add(beam(1.75, 0.1, 0.1), T(base, sx * 0.95, 0.875, 0, 0, 0, Math.PI / 2), wood);
+    P.add(beam(0.9, 0.1, 0.12), T(base, sx * 0.95, 0.05, 0, Math.PI / 2), wood);
+  }
+  for (const y of [0.5, 1.5]) P.add(beam(2.1, 0.09, 0.07, { ornFace: 'both' }), T(base, 0, y, 0), C.wd(C.lacquer(0.7), { uv: 'keep', uvScale: 1.1, orn: { cell: ORN.meander, amount: 0.8, su: 7, sv: 1 } }));
+  const iron = C.mt(C.iron(1.2));
+  for (let k = 0; k < count; k++) {
+    const x = -0.75 + (1.5 * k) / Math.max(1, count - 1) + rng.range(-0.05, 0.05);
+    const kind = k % 3;
+    const lean = rng.range(0.1, 0.2), roll = rng.range(-0.08, 0.08);
+    const wm = T(base, x, 0.02, 0.3, rng.range(-0.3, 0.3), -lean, roll);
+    if (kind === 0) {
+      // spear: ash shaft, leaf head, a red horsehair tassel
+      const L = rng.range(2.3, 2.7);
+      addAll(P, [tube([V(0, 0, 0), V(0, L, 0)], 0.019, { sides: 5, caps: true })], wm, C.wd(C.bare(0.6)));
+      addAll(M, latheGrid({ rows: 3, segs: 4, squash: 0.28, profile: (t) => [0.055 * Math.sin((1 - t) * Math.PI * 0.82 + 0.25), L + t * 0.36], capTop: true }), wm, iron);
+      addAll(P, latheGrid({ rows: 2, segs: 5, profile: (t) => [0.02 + 0.045 * Math.sin(t * Math.PI * 0.7), L - 0.22 + t * 0.2] }), wm, C.wd([0.16, 0.02, 0.015]));
+    } else if (kind === 1) {
+      // glaive: a broad curved blade on a long shaft
+      const L = rng.range(1.9, 2.2);
+      addAll(P, [tube([V(0, 0, 0), V(0, L, 0)], 0.022, { sides: 5, caps: true })], wm, C.wd(C.bare(0.55)));
+      const g = prism([[-0.03, 0], [0.03, 0], [0.12, 0.3], [0.13, 0.52], [0.02, 0.78], [-0.04, 0.5]], 0.014);
+      M.add(g, T(wm, 0, L, 0, rng.range(-0.4, 0.4)), iron);
+      M.add(new THREE.BoxGeometry(0.1, 0.035, 0.05), T(wm, 0, L, 0), C.mt(C.bronze(0.8)));
+    } else {
+      // sabre in a lacquered scabbard, hung by its guard on the upper rail
+      const g = prism([[-0.03, 0], [0.03, 0], [0.05, 0.4], [0.1, 0.78], [0.05, 0.8], [-0.01, 0.42]], 0.03);
+      P.add(g, T(base, x, 0.72, 0.07, rng.range(-0.2, 0.2), 0, Math.PI + rng.range(-0.1, 0.1)), C.wd(C.lacquer(0.6)));
+      M.add(new THREE.BoxGeometry(0.12, 0.03, 0.07), T(base, x, 1.5, 0.07), C.mt(C.bronze(0.8)));
+      addAll(P, [tube([V(0, 0, 0), V(0, 0.22, 0)], 0.018, { sides: 5, caps: true })], T(base, x, 1.52, 0.07, 0, 0, rng.range(-0.1, 0.1)), C.wd(C.bare(0.5)));
     }
-    // offerings: a clay bowl of iron coins, a cracked urn, a small carved stele (alternate braziers)
-    if (bi < 2 || hi) {
-      const q = b.clone().addScaledVector(inward, 0.75).addScaledVector(side, (bi % 2 ? -1 : 1) * 0.55);
-      const bowl = latheGrid({ rows: 3, segs: 10, profile: (t) => [0.05 + 0.09 * Math.sin(t * Math.PI * 0.5), t * 0.07], capBottom: true });
-      addAll(P, bowl, trs(q.x, 0, q.z), { color: CLAY, glow: (v) => glow(v) * 0.3, uv: [0, 0] });
-      for (let c = 0; c < (hi ? 5 : 2); c++) {
-        const cg = latheGrid({ rows: 1, segs: 6, profile: (t) => [0.016, t * 0.004], capTop: true });
-        addAll(M, cg, trs(q.x + rng.range(-0.05, 0.05), 0.045 + c * 0.004, q.z + rng.range(-0.05, 0.05), 0, rng.range(-0.3, 0.3), rng.range(-0.3, 0.3)), { color: [2.2, 1.6, 0.8] });
-      }
-      const u = b.clone().addScaledVector(inward, 0.55).addScaledVector(side, (bi % 2 ? 1 : -1) * 0.7);
-      const urn = latheGrid({ rows: 6, segs: 10, profile: (t) => [0.07 + 0.09 * Math.sin(t * Math.PI) - (t > 0.85 ? 0.04 : 0), t * 0.36], topY: (phi) => 0.36 - Math.max(0, Math.sin(phi * 1.5 + bi)) * 0.12, capBottom: true });
-      addAll(P, urn, trs(u.x, 0, u.z, rng.range(0, 6), rng.range(-0.08, 0.08), 0), { color: [0.09, 0.06, 0.045], glow: (v) => glow(v) * 0.3, uv: [0, 0] });
-      if (mid) {
-        const s = b.clone().addScaledVector(inward, -0.15).addScaledVector(side, (bi % 2 ? 1 : -1) * 0.85);
-        const g = chamferBox(0.34, 0.5, 0.12, 0.02, rng, 0.4);
-        setOrnUv(g, (pp, n) => (n.z > 0.9 ? [pp.x / 0.34 + 0.5, (pp.y + 0.25 - 0.12) / 0.34, 1] : null));
-        S.add(g, trs(s.x, 0.25, s.z, -th + rng.range(-0.2, 0.2), rng.range(-0.06, 0.06), rng.range(-0.05, 0.05)), { color: stoneColor(0.95), glow, uv: 'box', uvScale: 2.2, orn: { cell: panel(ORN.roundel), amount: 1, su: 1, sv: 1 } });
-      }
+  }
+  const c = V(0, 0, 0).applyMatrix4(m);
+  const yaw = Math.atan2(-m.elements[2], m.elements[0]);
+  C.colliders.boxes.push({ x: c.x, z: c.z, hx: 1.15, hz: toppled ? 1.0 : 0.5, yaw, y0: c.y, h: toppled ? 0.4 : 1.8, tag: 'rack' });
+}
+
+/** The sect's stele (비석): 天武 over a band of seal script, the crest in its rounded head. `m`: foot, facing +Z. */
+function stele(C, m) {
+  const { S, rng } = C;
+  const tint = C.blockTint() * 1.05;
+  S.add(chamferBox(1.5, 0.36, 0.8, 0.04, rng, 0.3), T(m, 0, 0.18, 0), C.st(tint * 0.9, { orn: { cell: ORN.wave, amount: 0.9, su: 3, sv: 1, fn: frontFace(1.5, 0.36) } }));
+  const w = 0.98, h = 2.25;
+  const pts = [[-w / 2, 0], [w / 2, 0], [w / 2, h - 0.34]];
+  for (let i = 1; i < 6; i++) { const a = (i / 6) * Math.PI; pts.push([Math.cos(a) * w / 2, h - 0.34 + Math.sin(a) * 0.34]); }
+  pts.push([-w / 2, h - 0.34]);
+  const g = prism(pts, 0.24);
+  const lean = trs(0, 0.36, 0, 0, -0.045, 0.02);
+  S.add(g, m.clone().multiply(lean), C.st(tint));
+  // the inscription rides on shallow tablets let into the face
+  const face = (cell, y, hh, amount, ww = 0.7) => {
+    const f = new THREE.BoxGeometry(ww, hh, 0.02);
+    setOrnUv(f, frontFace(ww, hh));
+    S.add(f, m.clone().multiply(lean).multiply(trs(0, y, 0.118)), C.st(tint * 0.95, { orn: { cell, amount, su: 1, sv: 1 } }));
+  };
+  face(ORN.tian, 1.5, 0.7, 1.2);
+  face(ORN.mu, 0.78, 0.7, 1.2);
+  face(ORN.seal, 0.26, 0.26, 1.0, w * 0.8);
+  face(ORN.crest, 2.02, 0.34, 1.1, 0.34);
+  const c = V(0, 0, 0).applyMatrix4(m);
+  C.colliders.boxes.push({ x: c.x, z: c.z, hx: 0.75, hz: 0.4, yaw: Math.atan2(-m.elements[2], m.elements[0]), y0: c.y, h: 2.6, tag: 'stele' });
+}
+
+/** The sect's war drum on its stand, the skin split. `m`: foot centre; the drum's axis runs along local Z. */
+function warDrum(C, m) {
+  const { P, rng } = C;
+  const wood = C.wd(C.bare(0.75), { uv: 'keep', uvScale: 1.1 });
+  const R = 0.82, D = 1.0;
+  const dm = T(m, 0, 1.25, 0, 0, Math.PI / 2 + 0.12, 0.06);
+  const shell = latheGrid({ rows: 4, segs: 14, profile: (t) => [R * (0.86 + 0.14 * Math.sin(t * Math.PI)), (t - 0.5) * D] });
+  setOrnUv(shell[0], (p, n, i) => [((i % 15) / 14) * 10, Math.abs(p.y) / (D / 2) * 4.0 - 2.9, Math.abs(p.y) > D * 0.36 ? 1 : 0]);
+  addAll(P, shell, dm, C.wd(C.lacquer(0.9), { uv: 'keep', uvScale: 1.1, orn: { cell: ORN.studs, amount: -1.0, su: 1, sv: 0.25 } }));
+  // skins: the front one split (a dark gash), the back one whole
+  const hide = [0.2, 0.17, 0.12];
+  addAll(P, latheGrid({ rows: 2, segs: 14, profile: (t) => [R * 0.87 * (1 - t) + 0.001, D / 2 + 0.01 - 0.04 * t] }), dm, C.wd((p, n, o) => { const k = noise3(p.x * 2.2, p.y * 2.2, p.z * 2.2) > 0.56 ? 0.05 : 1; o[0] = hide[0] * k; o[1] = hide[1] * k; o[2] = hide[2] * k; }));
+  addAll(P, latheGrid({ rows: 1, segs: 14, profile: (t) => [R * 0.87 * t + 0.001, -D / 2 - 0.01] }), dm, C.wd(hide));
+  // stand: two trestles and a cradle beam
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) P.add(beam(1.45, 0.1, 0.1), T(m, sx * 0.62, 0.66, sz * 0.36, 0, 0, Math.PI / 2 + sx * 0.14), wood);
+    P.add(beam(0.95, 0.1, 0.1), T(m, sx * 0.55, 0.5, 0, Math.PI / 2), wood);
+  }
+  void rng;
+  const c = V(0, 0, 0).applyMatrix4(m);
+  C.colliders.circles.push({ x: c.x, z: c.z, r: 1.1, y0: c.y, h: 2.2, tag: 'drum' });
+}
+
+/**
+ * @param {object} C  build context (see ruins.js)
+ * @param {object} site  { fires: [{pos, kind, y0}], lamps, pillars, hall, gate }
+ * @returns {{ flames: Array, smokes: Array, tops: THREE.Vector3[] }}
+ */
+export function dressTerrace(C, site) {
+  const { S, P, M, rng, tier } = C;
+  const hi = tier.detail >= 2, mid = tier.detail >= 1;
+  const { platY, wallR } = LAYOUT;
+  const flames = [], smokes = [], tops = [];
+
+  // ---- the four fires of env.braziers: two lit lanterns on the vista shoulders, two censers --------------------------
+  S.section('lanterns'); M.section('censers');
+  LAYOUT.braziers.forEach(([deg, r, kind], i) => {
+    const th = deg * DEG;
+    const m = ringM(r, th, 0, i === 1 ? 0.5 : 0.2);
+    if (kind === 'lantern') {
+      const f = lantern(C, m, i === 1 ? 'lean' : 'lit', 1.08);
+      tops.push(f);
+      flames.push({ pos: f, kind: 'lantern' });
+    } else {
+      const c = censer(C, m, 1.12);
+      tops.push(c.fire);
+      flames.push({ pos: c.fire, kind: 'censer' });
+      for (const p of c.sticks) flames.push({ pos: p, kind: 'stick' });
+      smokes.push({ pos: c.fire.clone().add(V(0, 0.2, 0)), h: 4.2, w: 0.5, k: 1 });
+      smokes.push({ pos: c.fire.clone().add(V(0.12, 0.25, -0.1)), h: 3.0, w: 0.34, k: 0.7 });
     }
   });
+  // ---- more lanterns: lit ones by the stairs (baked glow only), dark, leaning and toppled ones ------------------------
+  const lamps = [];
+  LAYOUT.lamps.forEach(([deg, r, y0 = 0], i) => {
+    if (i >= 4 && !mid) return;
+    const f = lantern(C, ringM(r, deg * DEG, y0, 0.3 * i), 'lit', 1.0);
+    lamps.push(f);
+    flames.push({ pos: f, kind: 'lantern' });
+  });
+  lantern(C, ringM(13.6, -104.5 * DEG, 0, 0.8), 'toppled', 1.0);
+  if (mid) lantern(C, ringM(14.35, 141 * DEG, 0, 0.4), 'dark', 1.0);
+  if (hi) lantern(C, ringM(18.6, 20.6 * DEG + Math.PI, platY, 0.2), 'dark', 0.95);
 
-  // ---- chains -------------------------------------------------------------------------------------------------------
-  M.section('chains');
-  const linkGeo = new THREE.TorusGeometry(0.05, 0.013, 3, 6);
-  linkGeo.scale(1.45, 1, 1);
-  /** Iron links along a polyline (each link along the local tangent, alternate links turned 90 degrees). */
-  const chainAlong = (pts, k = 0.9) => {
-    const pitch = 0.13;
-    let carry = 0, n = 0;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const a = pts[i], b = pts[i + 1];
-      const seg = b.clone().sub(a);
-      const L = seg.length();
-      const dir = seg.clone().normalize();
-      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
-      let s = carry;
-      while (s < L) {
-        const p = a.clone().addScaledVector(dir, s);
-        const qq = q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), (n % 2) * Math.PI / 2 + 0.3));
-        M.add(linkGeo, new THREE.Matrix4().compose(p, qq, new THREE.Vector3(1, 1, 1)), { color: iron(k) });
-        s += pitch; n++;
-      }
-      carry = s - L;
-    }
-  };
-  const catenary = (a, b, sag, n = 16) => {
-    const out = [];
-    for (let i = 0; i <= n; i++) {
-      const t = i / n;
-      const p = a.clone().lerp(b, t);
-      p.y -= sag * 4 * t * (1 - t);
-      out.push(p);
-    }
-    return out;
-  };
-  const byPair = (a, b) => arches.find((r) => r.A.equals(pillars.find((p) => p.i === a).pos) && r.B.equals(pillars.find((p) => p.i === b).pos));
-  if (mid) {
-    // draped across the face of two arches, from capital to capital
-    for (const [a, b, sag] of [[5, 6, 1.6], [13, 14, 1.3]]) {
-      const r = byPair(a, b);
-      if (!r) continue;
-      const p0 = r.C.clone().addScaledVector(r.u, -r.chord / 2 + 0.9).addScaledVector(r.w, -0.95); p0.y = 8.25;
-      const p1 = r.C.clone().addScaledVector(r.u, r.chord / 2 - 0.9).addScaledVector(r.w, -0.95); p1.y = 8.25;
-      chainAlong(catenary(p0, p1, sag, 14));
-    }
-  }
-  // hanging from keystones, broken off; one carries the gibbet cage
-  const cageArch = byPair(16, 17) || arches[arches.length - 1];
-  {
-    const r = byPair(4, 5);
-    if (r && mid) {
-      const top = r.C.clone().addScaledVector(r.w, -0.6); top.y = r.top - 0.75;
-      chainAlong([top, top.clone().add(new THREE.Vector3(0.05, -1.4, 0.02)), top.clone().add(new THREE.Vector3(0.12, -2.9, 0.06))]);
-    }
-  }
-  M.section('cage');
-  {
-    const r = cageArch;
-    const top = r.C.clone().addScaledVector(r.w, -0.55); top.y = r.top - 0.75;
-    const cageTop = top.clone().add(new THREE.Vector3(0, -1.5, 0));
-    chainAlong([top, cageTop.clone().add(new THREE.Vector3(0, 0.25, 0))]);
-    // gibbet: hoop rings, eight bars bowing out, a domed crown of straps, a hanging ring; one bar torn open
-    const H = 1.75, R = 0.42;
-    const yaw = rng.range(0, 6);
-    const center = cageTop.clone();
-    const ringAt = (y, rr) => {
-      const pts = [];
-      for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr)); }
-      return pts;
-    };
-    const place = trs(center.x, center.y, center.z, yaw, 0.04, 0.05);
-    for (const [y, rr] of [[-0.25, R * 0.85], [-H * 0.55, R * 1.04], [-H, R * 0.7]]) addAll(M, [tube(ringAt(y, rr), 0.014, { sides: 3 })], place, { color: iron(0.9) });
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      const pts = [];
-      for (let j = 0; j <= 6; j++) {
-        const t = j / 6;
-        const y = -0.25 - t * (H - 0.25);
-        const rr = R * (0.85 + 0.35 * Math.sin(t * Math.PI) - 0.15 * t);
-        const open = i === 3 ? Math.sin(t * Math.PI) * 0.25 : 0;
-        pts.push(new THREE.Vector3(Math.cos(a) * (rr + open), y, Math.sin(a) * (rr + open)));
-      }
-      addAll(M, [tube(pts, 0.012, { sides: 3 })], place, { color: iron(1) });
-    }
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      const pts = [];
-      for (let j = 0; j <= 4; j++) { const t = j / 4; const rr = R * 0.85 * Math.sin((1 - t) * Math.PI * 0.5); pts.push(new THREE.Vector3(Math.cos(a) * rr, -0.25 + Math.cos((1 - t) * Math.PI * 0.5) * 0.25, Math.sin(a) * rr)); }
-      addAll(M, [tube(pts, 0.016, { sides: 3 })], place, { color: iron(0.9) });
-    }
-    // the hanging ring the chain passes through (vertical, above the crown)
-    const hoop = ringAt(0, 0.07).map((p) => new THREE.Vector3(p.x, 0.07 + p.z, 0));
-    addAll(M, [tube(hoop, 0.012, { sides: 3 })], place, { color: iron(0.9) });
-  }
-  // a second cage fallen on its side at the left wall, burst open
-  if (hi) {
-    const c = ringPos(14.2, -74 * DEG, 0.36);
-    const place = trs(c.x, c.y, c.z, rng.range(0, 6), 0, Math.PI / 2 - 0.15);
-    for (const [y, rr] of [[0.6, 0.36], [-0.2, 0.43], [-0.85, 0.3]]) {
-      const pts = [];
-      for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI * 2 * 0.85; pts.push(new THREE.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr)); }
-      addAll(M, [tube(pts, 0.014, { sides: 3 })], place, { color: iron(1.1) });
-    }
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      const bend = i === 2 ? 0.35 : 0;
-      addAll(M, [tube([new THREE.Vector3(Math.cos(a) * 0.36, 0.6, Math.sin(a) * 0.36), new THREE.Vector3(Math.cos(a) * (0.45 + bend), -0.2, Math.sin(a) * (0.45 + bend)), new THREE.Vector3(Math.cos(a) * 0.3, -0.85, Math.sin(a) * 0.3)], 0.012, { sides: 3 })], place, { color: iron(1.1) });
-    }
-    chainAlong([c.clone().add(new THREE.Vector3(0.6, -0.33, 0.1)), c.clone().add(new THREE.Vector3(1.2, -0.34, 0.5)), c.clone().add(new THREE.Vector3(1.5, -0.34, 1.2))], 1.1);
-  }
-
-  // ---- dead trees rooted in the wall top, roots gripping down the inner face; hanging dead vines ---------------------
-  P.section('vegetation');
-  const branch = (from, dir, len, r0, depth, out) => {
-    const pts = [from.clone()];
-    const d = dir.clone().normalize();
-    const n = Math.max(3, Math.round(len / 0.35));
-    let p = from.clone();
-    for (let i = 1; i <= n; i++) {
-      d.x += rng.range(-0.25, 0.25); d.z += rng.range(-0.25, 0.25); d.y += rng.range(-0.12, 0.1);
-      d.normalize();
-      p = p.clone().addScaledVector(d, len / n);
-      pts.push(p);
-    }
-    out.push({ pts, r0 });
-    if (depth > 0) {
-      const kids = depth > 1 ? 2 : rng.int(1, 2);
-      for (let k = 0; k < kids; k++) {
-        const at = pts[Math.max(1, Math.round(pts.length * rng.range(0.45, 0.95)) - 1)];
-        const nd = d.clone().add(new THREE.Vector3(rng.range(-0.9, 0.9), rng.range(-0.1, 0.5), rng.range(-0.9, 0.9)));
-        branch(at, nd, len * rng.range(0.45, 0.7), r0 * 0.55, depth - 1, out);
-      }
-    }
-  };
-  const root = (from, inward, drop, r0, out) => {
-    // over the cornice lip, down the face (hugging it, wandering), splaying on the floor
-    const pts = [from.clone()];
-    let p = from.clone().addScaledVector(inward, 0.45).add(new THREE.Vector3(0, 0.05, 0));
-    pts.push(p);
-    const side = new THREE.Vector3(inward.z, 0, -inward.x);
-    const n = Math.round(drop / 0.3);
-    for (let i = 1; i <= n; i++) {
-      p = p.clone().add(new THREE.Vector3(0, -drop / n, 0)).addScaledVector(side, rng.range(-0.12, 0.12));
-      const hug = i === 1 ? 0.05 : -0.015;
-      p.addScaledVector(inward, hug);
-      pts.push(p);
-    }
-    pts.push(p.clone().addScaledVector(inward, 0.35).add(new THREE.Vector3(0, -0.05, 0)).addScaledVector(side, rng.range(-0.3, 0.3)));
-    out.push({ pts, r0 });
-  };
-  const trees = hi ? [[47, 1.0], [-52, 0.8], [-101, 0.7]] : mid ? [[47, 1.0], [-52, 0.8]] : [[47, 1.0]];
-  for (const [deg, sc] of trees) {
-    const th = deg * DEG;
-    // rooted in the standing wall top (on the cornice where it survives)
-    const wallTop = o.wallTopAt(th);
-    if (wallTop < 1) continue;
-    const base = ringPos(16.25, th, wallTop - 0.05);
-    const inward = new THREE.Vector3(-Math.sin(th), 0, Math.cos(th));
-    const parts = [];
-    branch(base, new THREE.Vector3(inward.x * 0.35, 1, inward.z * 0.35), 3.2 * sc, 0.16 * sc, hi ? 3 : 2, parts);
-    for (let k = 0; k < (hi ? 5 : 3); k++) root(ringPos(16.1, th + rng.range(-0.05, 0.05), wallTop - 0.02), inward, wallTop - 0.1, rng.range(0.03, 0.07) * sc, parts);
-    for (const b of parts) {
-      const g = tube(b.pts, (t) => b.r0 * (1 - 0.7 * t) + 0.006, { sides: b.r0 > 0.09 ? 6 : b.r0 > 0.04 ? 4 : 3, caps: false });
-      P.add(g, new THREE.Matrix4(), { color: b.r0 > 0.05 && b.pts[0].y > 3.5 ? WOOD : ROOT, glow: (q) => glow(q) * 0.4, uv: [0, 0] });
-    }
-  }
-  if (mid) {
-    // curtains of dead vines from the entablatures and the cornice
-    // a dead vine: a woody stem that wanders as it hangs, thinning, with a few short dry side shoots
-    const strand = (top, len, sway) => {
-      const pts = [];
-      const n = Math.max(5, Math.round(len / 0.22));
-      let x = 0, z = 0;
-      for (let i = 0; i <= n; i++) {
-        const t = i / n;
-        x += Math.sin(t * 7 + sway) * 0.05 + (noise3(t * 4, sway, 1) - 0.5) * 0.12;
-        z += Math.cos(t * 5 + sway * 1.3) * 0.03;
-        pts.push(top.clone().add(new THREE.Vector3(x * t, -t * len * (1 - 0.15 * t), z * t)));
-      }
-      const parts = [tube(pts, (t) => 0.026 * (1 - 0.7 * t) + 0.005, { sides: 3 })];
-      for (let k = 1; k < n - 1; k += 3) {
-        const a = pts[k], dir = new THREE.Vector3(Math.sin(k + sway) * 0.2, -0.12, Math.cos(k * 1.7 + sway) * 0.2);
-        parts.push(tube([a, a.clone().add(dir), a.clone().add(dir.clone().multiplyScalar(1.8)).add(new THREE.Vector3(0, -0.12, 0))], 0.007, { sides: 3 }));
-      }
-      return parts;
-    };
-    for (const r of arches) {
-      if (rng.chance(0.3)) continue;
-      // clumped near one end of the entablature, not combed evenly across it
-      const n = hi ? rng.int(2, 4) : rng.int(1, 2);
-      const c0 = rng.range(-r.chord / 2, r.chord / 2);
-      for (let k = 0; k < n; k++) {
-        const s = c0 + rng.range(-0.5, 0.5);
-        const top = r.C.clone().addScaledVector(r.u, s).addScaledVector(r.w, -1.15); top.y = r.top - 0.02;
-        addAll(P, strand(top, rng.range(0.9, 2.6), rng.range(0, 6)), new THREE.Matrix4(), { color: VINE, uv: [0, 0] });
-      }
-    }
-    const nC = hi ? 16 : 8;
-    for (let k = 0; k < nC; k++) {
-      const th = rng.range(-120, 120) * DEG;
-      // hanging from a surviving cornice run only
-      if (Math.abs(th) < 30 * DEG || o.wallTopAt(th) <= o.courseY[o.courses]) continue;
-      const top = ringPos(LAYOUT.wallR - 0.3, th, o.courseY[o.courses] + 0.7);
-      addAll(P, strand(top, rng.range(0.6, 2.0), rng.range(0, 6)), new THREE.Matrix4(), { color: VINE, uv: [0, 0] });
-    }
-  }
-
-  // ---- broken weapons and shields, half-buried near the ring edge (never on the fight line) ---------------------------
-  M.section('arms');
-  const nArms = hi ? 14 : mid ? 9 : 5;
+  // ---- weapon racks along the east wall, one thrown down -------------------------------------------------------------
+  P.section('racks'); M.section('arms');
+  weaponRack(C, ringM(14.55, 84 * DEG, 0, 0), { count: hi ? 6 : 4 });
+  if (mid) weaponRack(C, ringM(14.5, 121 * DEG, 0, 0.05), { count: hi ? 5 : 3 });
+  weaponRack(C, ringM(13.9, -129 * DEG, 0, 0.5), { toppled: true, count: 3 });
+  // loose arms from the older duel, driven into the floor or lying by the rim (never on the fight line)
+  const nArms = hi ? 9 : mid ? 6 : 4;
   const spots = [];
-  for (let k = 0; k < 200 && spots.length < nArms; k++) {
-    const th = rng.range(-95, 95) * DEG;
-    if (Math.abs(th) < 22 * DEG) continue;
-    const r = rng.range(11.2, 14.4);
-    const p = ringPos(r, th, 0);
-    if (p.z > -2.6) continue;
-    if (braziers.some((b) => Math.hypot(b.x - p.x, b.z - p.z) < 1.6)) continue;
-    if (spots.some((s) => s.distanceTo(p) < 1.6)) continue;
+  for (let k = 0; k < 300 && spots.length < nArms; k++) {
+    const th = rng.range(-180, 180) * DEG;
+    if (Math.abs(th) < 24 * DEG) continue;
+    const p = ringPos(rng.range(11.4, 14.2), th, 0);
+    if (Math.abs(p.z) < 3.2 || (p.z > 0 && Math.abs(p.x) < 12)) continue;
+    if (site.fires.some((b) => Math.hypot(b.x - p.x, b.z - p.z) < 1.8) || spots.some((s) => s.distanceTo(p) < 2)) continue;
     spots.push(p);
   }
   spots.forEach((p, k) => {
-    const kind = k % 4;
     const yaw = rng.range(0, Math.PI * 2);
-    if (kind === 0) {
-      // a greatsword snapped, its blade driven into the floor at an angle
-      const L = rng.range(0.55, 0.95);
-      const m = trs(p.x, 0, p.z, yaw, rng.range(-0.5, 0.5), rng.range(-0.45, 0.45));
-      const blade = latheGrid({ rows: 2, segs: 4, squash: 0.18, profile: (t) => [0.06 * (1 - 0.15 * t), -0.25 + t * L], topY: (phi) => -0.25 + L - Math.abs(Math.sin(phi * 2.0 + k)) * 0.09, capTop: -0.25 + L - 0.05 });
-      addAll(M, blade, m, { color: iron(1.3) });
-      M.add(chamferBox(0.36, 0.045, 0.06, 0.01), m.clone().multiply(trs(0, -0.25 + L + 0.02, 0)), { color: iron(1) });
-      addAll(P, [tube([new THREE.Vector3(0, -0.25 + L + 0.04, 0), new THREE.Vector3(0, -0.25 + L + 0.3, 0)], 0.022, { sides: 5, caps: true })], m, { color: [0.035, 0.024, 0.018], uv: [0, 0] });
-      M.add(chamferBox(0.06, 0.06, 0.06, 0.015), m.clone().multiply(trs(0, -0.25 + L + 0.33, 0)), { color: iron(1) });
-    } else if (kind === 1) {
-      // a round shield, rim and boss, tipped over and half sunk in the dirt
-      const R = rng.range(0.32, 0.45);
-      const m = trs(p.x, R * 0.12, p.z, yaw, rng.range(1.32, 1.5), rng.range(-0.25, 0.25));
-      addAll(P, latheGrid({ rows: 2, segs: 14, profile: (t) => [R * (1 - t), 0.02 + t * 0.06], rmod: (phi) => (Math.abs(Math.sin(phi * 3.0 + k)) > 0.97 ? 0.82 : 1), capTop: true, capBottom: true }), m, { color: WOOD, uv: [0, 0] });
-      addAll(M, [tube(Array.from({ length: 15 }, (_, i) => { const a = (i / 14) * Math.PI * 2; return new THREE.Vector3(Math.cos(a) * R, 0.03, Math.sin(a) * R); }), 0.018, { sides: 3 })], m, { color: iron(1.2) });
-      addAll(M, latheGrid({ rows: 3, segs: 8, profile: (t) => [0.09 * Math.cos(t * Math.PI * 0.5), 0.07 + t * 0.06], capTop: true }), m, { color: iron(1.1) });
-    } else if (kind === 2) {
+    const iron = C.mt(C.iron(1.25));
+    if (k % 3 === 0) {
+      // a great sabre snapped, the blade standing in a cracked flagstone
+      const L = rng.range(0.6, 1.0);
+      const m = trs(p.x, 0, p.z, yaw, rng.range(-0.45, 0.45), rng.range(-0.4, 0.4));
+      M.add(prism([[-0.045, -0.25], [0.05, -0.25], [0.065, L * 0.6], [0.03, L], [-0.045, L * 0.86]], 0.014), m, iron);
+      M.add(new THREE.BoxGeometry(0.2, 0.04, 0.06), T(m, 0, L + 0.01, 0), C.mt(C.bronze(0.8)));
+    } else if (k % 3 === 1) {
       // a spear snapped in two, the head half buried
       const L1 = rng.range(0.8, 1.3);
-      const a0 = p.clone().add(new THREE.Vector3(0, 0.03, 0));
-      const dir = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
-      addAll(P, [tube([a0, a0.clone().addScaledVector(dir, L1).add(new THREE.Vector3(0, 0.02, 0))], 0.02, { sides: 5, caps: true })], new THREE.Matrix4(), { color: WOOD, uv: [0, 0] });
-      const b0 = a0.clone().addScaledVector(dir, L1 + 0.15).add(new THREE.Vector3(rng.range(-0.2, 0.2), 0, rng.range(-0.2, 0.2)));
-      const d2 = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), rng.range(-0.5, 0.5));
-      addAll(P, [tube([b0, b0.clone().addScaledVector(d2, 0.6).add(new THREE.Vector3(0, -0.04, 0))], 0.02, { sides: 5, caps: true })], new THREE.Matrix4(), { color: WOOD, uv: [0, 0] });
-      const hm = trs(b0.x + d2.x * 0.75, 0.0, b0.z + d2.z * 0.75, Math.atan2(-d2.z, d2.x), 0, -Math.PI / 2 - 0.25);
-      addAll(M, latheGrid({ rows: 3, segs: 4, squash: 0.3, profile: (t) => [0.05 * Math.sin((1 - t) * Math.PI * 0.8 + 0.3), t * 0.3], capTop: true }), hm, { color: iron(1.2) });
+      const dir = V(Math.cos(yaw), 0, Math.sin(yaw));
+      const a0 = p.clone().add(V(0, 0.03, 0));
+      addAll(P, [tube([a0, a0.clone().addScaledVector(dir, L1).add(V(0, 0.02, 0))], 0.02, { sides: 5, caps: true })], new THREE.Matrix4(), C.wd(C.bare(0.6)));
+      const hm = trs(a0.x + dir.x * (L1 + 0.5), 0.0, a0.z + dir.z * (L1 + 0.5), Math.atan2(-dir.z, dir.x), 0, -Math.PI / 2 - 0.25);
+      addAll(M, latheGrid({ rows: 3, segs: 4, squash: 0.3, profile: (t) => [0.05 * Math.sin((1 - t) * Math.PI * 0.8 + 0.3), t * 0.3], capTop: true }), hm, iron);
     } else {
-      // a helm on its side and a broken blade beside it
-      const m = trs(p.x, 0.1, p.z, yaw, Math.PI / 2 - 0.3, rng.range(-0.3, 0.3));
-      addAll(M, latheGrid({ rows: 5, segs: 10, profile: (t) => [0.15 * Math.sin((1 - t) * Math.PI * 0.5 + 0.05) + 0.01, t * 0.24], rmod: (phi) => (Math.cos(phi) > 0.75 ? 1.12 : 1), capTop: true }), m, { color: iron(1.1) });
-      const L = rng.range(0.4, 0.6);
-      const bm = trs(p.x + 0.35, 0.02, p.z - 0.2, yaw + 1.3, 0, Math.PI / 2 - 0.06);
-      addAll(M, latheGrid({ rows: 1, segs: 4, squash: 0.18, profile: (t) => [0.05, t * L], topY: (phi) => L - Math.abs(Math.sin(phi * 2 + k)) * 0.06, capTop: L - 0.03 }), bm, { color: iron(1.3) });
+      // a wide bamboo hat, crushed, and a scabbard
+      const m = trs(p.x, 0.02, p.z, yaw, rng.range(-0.15, 0.15), rng.range(-0.1, 0.1));
+      addAll(P, latheGrid({ rows: 2, segs: 10, profile: (t) => [0.34 * (1 - t) + 0.01, t * 0.13], rmod: (phi) => (Math.cos(phi * 2 + k) > 0.7 ? 0.7 : 1), capTop: true }), m, C.wd([0.1, 0.085, 0.05]));
+      P.add(prism([[-0.03, 0], [0.03, 0], [0.05, 0.4], [0.09, 0.74], [0.04, 0.76], [-0.01, 0.4]], 0.03), trs(p.x + 0.5, 0.03, p.z + 0.2, yaw + 1, Math.PI / 2, 0.2), C.wd(C.lacquer(0.6)));
     }
   });
 
-  // ---- the old impact: flagstones heaved up and shattered around the crater rim ----------------------------------------
-  S.section('impact');
-  {
-    const [ix, iz, ir] = IMPACT;
-    const n = hi ? 14 : mid ? 10 : 7;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * Math.PI * 2 + rng.range(-0.2, 0.2);
-      const d = ir * rng.range(0.55, 0.95);
-      const x = ix + Math.cos(a) * d, z = iz + Math.sin(a) * d;
-      const w = rng.range(0.55, 0.95), dd = rng.range(0.45, 0.75), h = rng.range(0.22, 0.34);
-      // tipped up on the crater side, the outer edge still in the floor: thick, shattered, scorched
-      const lift = rng.range(0.18, 0.5) * (1 - d / ir * 0.45);
-      const g = brokenBlock(w, h, dd, rng, { jag: 0.4, nx: 3, nz: 2, bottom: true });
-      const m = trs(x, -h * 0.3 + Math.sin(lift) * dd * 0.3, z, -a + Math.PI / 2 + rng.range(-0.3, 0.3), lift, rng.range(-0.15, 0.15));
-      S.add(g, m, { color: stoneColor(rng.range(0.08, 0.13)), glow, uv: 'box', uvScale: 1.3 });
+  // ---- the stele and the drum ---------------------------------------------------------------------------------------
+  S.section('stele');
+  stele(C, ringM(14.25, 72 * DEG, 0, 0.12));
+  if (mid) { P.section('drum'); warDrum(C, ringM(18.9, 87 * DEG, platY, 0.35)); }
+
+  // ---- banner poles on the court edge --------------------------------------------------------------------------------
+  P.section('poles');
+  const cloth = [];
+  const poles = [[41, 'banner'], [-41, 'banner'], [74, 'banner'], [-124, 'banner'], [124, 'banner'], [158, 'pennant'], [-158, 'pennant'], [-109, 'pennant']];
+  poles.slice(0, tier.banners).forEach(([deg, kind], i) => {
+    const th = deg * DEG;
+    const H = kind === 'banner' ? 6.1 : 5.2;
+    const lean = [rng.range(-0.035, 0.035), rng.range(-0.035, 0.035)];
+    const m = ringM(wallR + 1.25, th, platY, 0, lean[0], lean[1]);
+    addAll(P, [tube([V(0, 0, 0), V(0, H * 0.5, 0), V(0, H, 0)], (t) => 0.075 - 0.03 * t, { sides: 6, caps: true })], m, C.wd(C.lacquer(0.65)));
+    C.S.add(chamferBox(0.5, 0.42, 0.5, 0.04, rng, 0.3), T(m, 0, 0.21, 0), C.st(0.95));
+    addAll(M, latheGrid({ rows: 3, segs: 6, profile: (t) => [0.02 + 0.06 * Math.sin(t * Math.PI), H + t * 0.3], capTop: true }), m, C.mt(C.bronze(0.9)));
+    // the yard the cloth hangs from, reaching toward the terrace
+    const w = kind === 'banner' ? 1.0 : 0.62;
+    P.add(beam(w + 0.25, 0.05, 0.05), T(m, 0, H - 0.2, 0.34), C.wd(C.bare(0.6), { uv: 'keep', uvScale: 1.1 }));
+    P.add(beam(0.4, 0.04, 0.04), T(m, 0, H - 0.2, 0.17, Math.PI / 2), C.wd(C.bare(0.6), { uv: 'keep', uvScale: 1.1 }));
+    const top = V(0, H - 0.23, 0.34).applyMatrix4(m);
+    const inward = V(-Math.sin(th), 0, Math.cos(th));
+    cloth.push({ top, normal: inward, width: w, length: kind === 'banner' ? 4.1 : 2.3, seed: rng.range(0, 100), uv: CLOTH[kind], cols: kind === 'banner' ? 6 : 4, rows: kind === 'banner' ? 18 : 10 });
+    C.colliders.circles.push({ x: m.elements[12], z: m.elements[14], r: 0.3, y0: platY, h: H, tag: 'pole' });
+    void i;
+  });
+
+  // ---- talisman ropes (금줄) ---------------------------------------------------------------------------------------------
+  P.section('ropes');
+  const rope = (a, b, sag, every = 0.42) => {
+    const n = Math.max(6, Math.round(a.distanceTo(b) / 0.4));
+    const pts = [];
+    for (let i = 0; i <= n; i++) { const t = i / n; const p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); }
+    addAll(P, [tube(pts, 0.014, { sides: 3 })], new THREE.Matrix4(), C.wd([0.11, 0.095, 0.07]));
+    const dir = b.clone().sub(a).setY(0).normalize();
+    const normal = V(-dir.z, 0, dir.x);
+    const L = a.distanceTo(b);
+    const cnt = Math.floor(L / every);
+    for (let k = 1; k < cnt; k++) {
+      const t = (k + rng.range(-0.15, 0.15)) / cnt;
+      const p = a.clone().lerp(b, t); p.y -= sag * 4 * t * (1 - t) + 0.012;
+      const hemp = k % 4 === 0;
+      if (rng.chance(0.14)) continue;
+      cloth.push({ top: p, normal: rng.chance(0.5) ? normal : normal.clone().negate(), width: hemp ? 0.07 : 0.105, length: hemp ? rng.range(0.4, 0.6) : rng.range(0.27, 0.33), seed: rng.range(0, 100), uv: hemp ? CLOTH.hemp : (k % 2 ? CLOTH.talisman : CLOTH.talisman2), cols: 1, rows: hemp ? 4 : 3 });
     }
-    for (let k = 0; k < (hi ? 30 : 14); k++) {
-      const a = rng.range(0, Math.PI * 2), d = ir * Math.sqrt(rng()) * 1.25;
-      const s = rng.range(0.05, 0.14);
-      S.add(rock(s, rng, { detail: 0, squash: 0.5 }), trs(ix + Math.cos(a) * d, s * 0.2, iz + Math.sin(a) * d, rng.range(0, 6)), { color: stoneColor(0.22), glow, uv: 'box', uvScale: 1.3 });
+  };
+  {
+    // across the gate's doorway (where the mist curtain of the RPG mode hangs)
+    const gm = ringM(GATE.line, GATE.th, platY);
+    rope(V(-GATE.halfBay + 0.25, 3.5, 0.2).applyMatrix4(gm), V(GATE.halfBay - 0.25, 3.7, 0.2).applyMatrix4(gm), 0.5);
+    if (mid) rope(V(GATE.halfBay, 4.5, 0.3).applyMatrix4(gm), V(GATE.wing, 3.9, 0.35).applyMatrix4(gm), 0.35);
+    // between two standing columns of the hall's porch
+    const hm = ringM(HALL.front, HALL.th, platY);
+    const xs = -HALL.bay * HALL.bays / 2;
+    rope(V(xs + 3 * HALL.bay, HALL.plinth + 3.0, -HALL.porch + 0.3).applyMatrix4(hm), V(xs + 4 * HALL.bay, HALL.plinth + 3.2, -HALL.porch + 0.3).applyMatrix4(hm), 0.45);
+    // from the rim's last posts up to the lit lanterns on the vista shoulders
+    for (const s of [1, -1]) {
+      const postTh = s > 0 ? 26 * DEG : -24.5 * DEG;
+      const a = ringPos(rimR(postTh) - 0.32, postTh, 0.86);
+      const b = ringPos(13.7, s * 37 * DEG, 2.2);
+      if (s > 0 || mid) rope(a, b, 0.4, 0.5);
+    }
+    // round the censers: a square of rope on four stakes
+    if (hi) {
+      for (const sgn of [-1, 1]) {
+        const c = ringPos(13.6, sgn * 63 * DEG, 0);
+        const corners = [0, 1, 2, 3].map((k) => c.clone().add(V(Math.cos(k * Math.PI / 2 + 0.6) * 1.25, 0, Math.sin(k * Math.PI / 2 + 0.6) * 1.25)));
+        corners.forEach((q) => addAll(P, [tube([q, q.clone().add(V(0, 1.05, 0))], 0.025, { sides: 4, caps: true })], new THREE.Matrix4(), C.wd(C.bare(0.6))));
+        for (let k = 0; k < 3; k++) rope(corners[k].clone().setY(0.98), corners[k + 1].clone().setY(0.98), 0.1, 0.36);
+      }
     }
   }
-  linkGeo.dispose();
-  return flames;
+
+  // ---- roof tiles spilled at the wall foot under the torn gallery roof ---------------------------------------------------
+  S.section('spill');
+  const nSpill = hi ? 26 : mid ? 16 : 8;
+  for (let k = 0; k < nSpill; k++) {
+    const th = rng.range(56, 71) * DEG;
+    const p = ringPos(rng.range(13.9, 15.35), th, 0);
+    const s = rng.range(0.1, 0.22);
+    const col = (pp, n, o) => { const v = rng.range(0.6, 1.1); o[0] = v * PALETTE.tile[0]; o[1] = v * PALETTE.tile[1]; o[2] = v * PALETTE.tile[2]; };
+    if (k % 3 === 0) {
+      // a whole cover tile (half round)
+      const g = latheGrid({ rows: 1, segs: 4, arc: [0, Math.PI], profile: (t) => [0.085, t * 0.36] });
+      addAll(S, g, trs(p.x, 0.01, p.z, rng.range(0, 6), Math.PI / 2, rng.range(-0.3, 0.3)), { color: col, glow: C.glow, uv: 'box', uvScale: 1.7 });
+    } else S.add(chamferBox(s * 1.8, s * 0.22, s * 1.3, 0.015, rng, 0.7), trs(p.x, s * 0.08, p.z, rng.range(0, 6), rng.range(-0.25, 0.25), rng.range(-0.25, 0.25)), { color: col, glow: C.glow, uv: 'box', uvScale: 1.7 });
+  }
+  void brokenBlock; void rock; void noise3;
+  return { flames, smokes, tops, lamps, cloth };
 }

@@ -326,6 +326,7 @@ export function installAfterimage(vfx, shared) {
       g.matrix.copy(m.matrixWorld);
       g.matrixWorld.copy(m.matrixWorld);
       freeze(s, g, m);
+      g.bindMatrix.identity();          // the proxy's vertices are already in the shared bind space
       arm(s, g, obj, o, now, out);
       return;
     }

@@ -10,7 +10,8 @@
 
 export default async ({ evalJs, advance, shot, log }) => {
   const hero = process.env.HERO || 'kael';
-  const sections = (process.env.SECTIONS || 'circle').split(',');
+  // 'misc' ends with the hero's death: it always runs last
+  const sections = (process.env.SECTIONS || 'circle').split(',').sort((a, b) => (a === 'misc') - (b === 'misc'));
   const R = (code) => evalJs(code);
   const frames = async (label, times) => {
     let t = 0;
@@ -19,8 +20,9 @@ export default async ({ evalJs, advance, shot, log }) => {
   await R(`__ED.rpg.start('${hero}', { sandbox: true })`);
   await R('__ED.rpg.god(true)');
   await advance(0.5);
-  const reset = async (dist = 2.3) => {
-    await R(`(() => { const r = __ED.rpg; r.move(0, 0); r.tp(0, 0, 0); r.give({ hp: true, fp: true, stamina: true, cooldowns: true, ult: 0 }); const w = r.world(); for (const a of w.actors) if (a.kind === "dummy") { a.teleport(${dist}, 0, Math.PI); a.hp = a.hpMax; a.setState("idle"); } r.lock(true); })()`);
+  /** hero at the centre, the dummy `dist` m ahead (default: at the edge of the hero's first light), locked */
+  const reset = async (dist = 0) => {
+    await R(`(() => { const r = __ED.rpg; r.move(0, 0); r.tp(0, 0, 0); r.give({ hp: true, fp: true, stamina: true, cooldowns: true, ult: 0 }); const w = r.world(); const d = ${dist} || w.hero.spec.reach + 0.45; for (const a of w.actors) if (a.kind === "dummy") { a.teleport(d, 0, Math.PI); a.hp = a.hpMax; a.setState("idle"); } r.lock(true); })()`);
     await advance(0.6);
   };
   for (const sec of sections) {
@@ -29,10 +31,20 @@ export default async ({ evalJs, advance, shot, log }) => {
       await reset(4);
       // strafe input while locked = a circle around the target (turn-to-move: the hero runs along the tangent)
       await R('__ED.rpg.move(1, 0.12)');
-      await frames('circle', [0.6, 0.72, 0.84, 0.96, 1.08, 1.2, 1.9, 2.6, 3.3, 4.0, 4.7, 5.4]);
+      await frames('circle', (process.env.CIRCLE_TIMES || '0.6,0.72,0.84,0.96,1.08,1.2,1.9,2.6,3.3,4.0,4.7,5.4').split(',').map(Number));
       const s = await R('__ED.rpg.state()');
       log('circle: hero ' + JSON.stringify({ x: s.hero.x, z: s.hero.z, speed: s.hero.speed, gait: s.hero.gait }) + ' cam ' + JSON.stringify(s.camera));
       await R('__ED.rpg.move(0, 0)');
+    } else if (sec === 'rollclip') {
+      // the roll alone, seen from the side
+      await R('__ED.rpg.lock(null); __ED.rpg.tp(-2, 0, 0); __ED.rpg.look(-1.35, 0.05)');
+      await advance(0.4);
+      await R('__ED.rpg.move(-1, 0); __ED.rpg.press("dodge", 0.05)');
+      await advance(0.1);
+      await R('__ED.rpg.move(0, 0)');
+      await frames('rollclip', [0.02, 0.1, 0.18, 0.26, 0.34, 0.42, 0.5, 0.62]);
+      await advance(0.5);
+      await R('__ED.rpg.look(1.35, -0.05)');
     } else if (sec === 'sprint') {
       await R('__ED.rpg.lock(null); __ED.rpg.tp(-9, 0, 0); __ED.rpg.move(0, 1); __ED.rpg.press("dodge", 3)');
       await frames('sprint', [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2]);
@@ -57,7 +69,7 @@ export default async ({ evalJs, advance, shot, log }) => {
       }
       await advance(1.2);
     } else if (sec === 'heavy' || sec === 'skill1' || sec === 'skill2' || sec === 'skill3') {
-      await reset(sec === 'skill1' ? 4.5 : sec === 'skill2' ? 3.5 : 2.3);
+      await reset(sec === 'skill1' ? 4.5 : sec === 'skill2' ? 3.5 : 0);
       await R(`__ED.rpg.press("${sec}", 0.05)`);
       await frames(sec, (process.env.TIMES || '0.15,0.3,0.42,0.55,0.75,1.1').split(',').map(Number));
       await advance(1.6);
@@ -74,9 +86,10 @@ export default async ({ evalJs, advance, shot, log }) => {
       await R('__ED.rpg.give({ chalice: 3 }); __ED.rpg.press("chalice", 0.05)');
       await frames('drink', [0.25, 0.6, 0.95, 1.3]);
       await advance(0.6);
-      await R('__ED.rpg.world().flow.resting = true; __ED.rpg.world().hero.setState("rest")');
+      // the seated pose alone (flow.rest() would also open the level-up panel over it)
+      await R('__ED.rpg.world().hero.setState("rest")');
       await frames('rest', [0.6, 2.2]);
-      await R('__ED.rpg.world().flow.resting = false; __ED.rpg.world().hero.setState("idle"); __ED.rpg.god(false)');
+      await R('__ED.rpg.world().hero.setState("idle"); __ED.rpg.god(false)');
       await advance(0.5);
       await R('__ED.rpg.hurt(99999, "heavy")');
       await frames('death', [0.15, 0.45, 0.8, 1.3, 1.9, 2.6]);

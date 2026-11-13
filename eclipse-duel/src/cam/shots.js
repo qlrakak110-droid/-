@@ -217,7 +217,7 @@ export function faceCloseUp(o = {}) {
   const [d0, d1] = two(dist), [f0, f1] = two(fov);
   return finish({
     name: 'faceCloseUp', dur, space: subject, ease: 'inOutSine', handheld: 0.3,
-    dof: { focus: 'look', aperture: 1.15, range: 0.3, pull: 0.1 }, tone: { exposure: 0.06, vignette: 0.08 },
+    dof: { focus: 'look', aperture: 0.95, range: 0.3, pull: 0.1 }, tone: { exposure: 0.06, vignette: 0.08 },
     from: { pos: polar(angle, d0, height), look: [0, look, 0], fov: f0 },
     to: { pos: polar(angle - 4, d1, height + 0.01), look: [0, look, 0], fov: f1 },
   }, o);
@@ -340,7 +340,7 @@ export function duelStandoff(o = {}) {
     const pitch = elev - Math.atan(a * tanV);
     const key = (d, drift) => ({ pos: [(-sx * d + drift) * c.facing, height, -sz * d], look: [drift * 0.4 * c.facing, height + d * Math.tan(pitch), 0], fov: fovV });
     return finish({
-      name: 'duelStandoff', dur, space: 'mid', ease: 'inOutSine', handheld: 0.25,
+      name: 'duelStandoff', dur, space: 'mid', ease: 'inOutSine', handheld: 0.25, fitAspect: false,   // fitted above
       dof: { focus: 'both', aperture: 0.3 }, tone: { vignette: 0.08, auto: false }, grade: o.grade === undefined ? 'ink' : o.grade,
       from: key(d0, -creep * 0.5), to: key(d1, creep * 0.5),
     }, { ...o, grade: undefined });

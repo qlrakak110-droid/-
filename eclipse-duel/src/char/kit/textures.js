@@ -13,8 +13,8 @@
 //
 // Sets are generated lazily: the first look that names a set (surfDetail() -> requireTextureSet()) builds its layers
 // (deterministic: seeded RNG, pure JS, no canvas readback) and uploads just those two layers. A duel therefore only pays
-// for the materials its two heroes wear. Size 256 (default): 15-45 ms per set on desktop, ~10.5 MB of GPU memory with
-// mips for all 15 generated sets. configureTextureSets({ size: 512 }) before the first character for crisper cinematic
+// for the materials its two heroes wear. Size 256 (default): tens of ms per set, ~10.5 MB of GPU memory with mips for
+// all 15 generated sets. configureTextureSets({ size: 512 }) before the first character for crisper cinematic
 // close-ups (4x the time and memory). Shader-mode sets (gauze, hair, blade, bronze, jade) reuse the layers of another
 // set and cost nothing.
 
@@ -82,6 +82,7 @@ export function requireTextureSet(set) {
   done[src] = 1;
   const N = config.size, t0 = now();
   if (!bank) bank = makeBank(N);
+  arenaReset();
   const rng = makeRng(7331 + (src - 1) * 101);
   const { A, B } = GENERATORS[src - 1](N, rng, bank);
   const L = SET_LAYER[src];
@@ -128,6 +129,21 @@ export function getTextureSets() {
 
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+// Scratch arena: the generators work on dozens of N x N float fields per set; reusing them between sets keeps the
+// garbage collector out of the boot (the arena is dropped once the burst of generation is over).
+let arena = [], arenaTop = 0, arenaN = 0, arenaTimer = null;
+function f32(N) {
+  if (arenaN !== N) { arena = []; arenaTop = 0; arenaN = N; }
+  if (arenaTop < arena.length) return arena[arenaTop++].fill(0);
+  const a = new Float32Array(N * N);
+  arena.push(a); arenaTop++;
+  return a;
+}
+function arenaReset() {
+  arenaTop = 0;
+  if (arenaTimer === null && typeof setTimeout !== 'undefined') arenaTimer = setTimeout(() => { arena = []; arenaTop = 0; arenaTimer = null; }, 3000);
+}
+
 // ---- field helpers (Float32Array N*N, tileable) ------------------------------------------------------------------------
 
 const wrap = (i, N) => ((i % N) + N) % N;
@@ -136,7 +152,7 @@ const wrap = (i, N) => ((i % N) + N) % N;
 function vnoise(N, P, rng) {
   const L = new Float32Array(P * P);
   for (let i = 0; i < L.length; i++) L[i] = rng();
-  const out = new Float32Array(N * N), s = P / N;
+  const out = f32(N), s = P / N;
   for (let y = 0; y < N; y++) {
     const fy = y * s, iy = Math.floor(fy), ty = fy - iy, sy = ty * ty * (3 - 2 * ty);
     const r0 = (iy % P) * P, r1 = ((iy + 1) % P) * P;
@@ -153,7 +169,7 @@ function vnoise(N, P, rng) {
 
 /** fbm of value noise, periods P, 2P, 4P ... (normalised to ~0..1). */
 function fbm(N, P, oct, rng, gain = 0.5) {
-  const out = new Float32Array(N * N);
+  const out = f32(N);
   let amp = 1, sum = 0;
   for (let o = 0; o < oct && P <= N; o++, P *= 2) {
     const n = vnoise(N, P, rng);
@@ -180,7 +196,7 @@ function stretch(f) {
 function worley(N, C, rng, warp = null, jitter = 1) {
   const px = new Float32Array(C * C), py = new Float32Array(C * C), pid = new Float32Array(C * C);
   for (let i = 0; i < C * C; i++) { px[i] = 0.5 + (rng() - 0.5) * jitter; py[i] = 0.5 + (rng() - 0.5) * jitter; pid[i] = rng(); }
-  const f1 = new Float32Array(N * N), f2 = new Float32Array(N * N), id = new Float32Array(N * N);
+  const f1 = f32(N), f2 = f32(N), id = f32(N);
   const s = C / N;
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
@@ -205,7 +221,8 @@ function worley(N, C, rng, warp = null, jitter = 1) {
 
 /** Separable wrap-around box blur, radius r, `passes` times (~gaussian). */
 function blur(f, N, r, passes = 2) {
-  let a = Float32Array.from(f), b = new Float32Array(f.length);
+  let a = f32(N), b = f32(N);
+  a.set(f);
   const w = 1 / (2 * r + 1);
   for (let p = 0; p < passes; p++) {
     for (let y = 0; y < N; y++) {
@@ -281,7 +298,7 @@ function normalsAndCavity(h, N, strength, cavR = 4, cavGain = 2.2) {
     }
   }
   const bl = blur(h, N, cavR, 2);
-  const cav = new Float32Array(N * N);
+  const cav = f32(N);
   for (let i = 0; i < cav.length; i++) cav[i] = Math.max(0, Math.min(1, 1 + (h[i] - bl[i]) * cavGain));
   return { n, cav };
 }
@@ -340,9 +357,9 @@ function hammered(N, rng, B) {
   const grain = B.fbm(rng, 64, 3), mott = B.fbm(rng, 4, 4, 0.55), wear = B.fbm(rng, 8, 5, 0.6);
   const patch = B.fbm(rng, 4, 3, 0.5), smudge = B.fbm(rng, 8, 3, 0.55);
   const polish = vnoiseAniso(N, 4, 128, rng), polish2 = vnoiseAniso(N, 8, 256, rng);
-  const scr = new Float32Array(N * N);
+  const scr = f32(N);
   lines(scr, N, scratchSegs(N, rng, 320));
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hb = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), hb = f32(N);
   for (let i = 0; i < N * N; i++) {
     const d1 = Math.min(1, w1.f1[i] * 1.2), d2 = Math.min(1, w2.f1[i] * 1.2);
     const vis = 0.25 + 0.75 * sstep(0.38, 0.72, patch[i]);   // hammered patches vs planished areas
@@ -360,7 +377,7 @@ function hammered(N, rng, B) {
 function scorched(N, rng, B) {
   const s = N / 512;
   const wx = B.fbm(rng, 8, 4), wy = B.fbm(rng, 8, 4);
-  const warp = [new Float32Array(N * N), new Float32Array(N * N)];
+  const warp = [f32(N), f32(N)];
   for (let i = 0; i < N * N; i++) { warp[0][i] = (wx[i] - 0.5) * 44 * s; warp[1][i] = (wy[i] - 0.5) * 44 * s; }
   const big = worley(N, 5, rng, warp, 0.85);
   const wx2 = B.fbm(rng, 16, 3), wy2 = B.fbm(rng, 16, 3);
@@ -369,9 +386,9 @@ function scorched(N, rng, B) {
   const keep = B.fbm(rng, 4, 3), keep2 = B.fbm(rng, 8, 3), widthN = B.fbm(rng, 16, 2);
   const dent = worley(N, 7, rng), pits = worley(N, 30, rng), pitKeep = B.fbm(rng, 8, 3);
   const soot = B.fbm(rng, 4, 5, 0.62), grain = B.fbm(rng, 64, 3), wear = B.fbm(rng, 8, 5, 0.6);
-  const scr = new Float32Array(N * N);
+  const scr = f32(N);
   lines(scr, N, scratchSegs(N, rng, 160));
-  const core = new Float32Array(N * N);
+  const core = f32(N);
   for (let i = 0; i < N * N; i++) {
     // main fissures: F2-F1 edge distance, width modulated, network broken up by noise so it reads as cracks, not cells
     const e1 = (big.f2[i] - big.f1[i]) / 5 * 512 * s;                 // ~pixels
@@ -385,7 +402,7 @@ function scorched(N, rng, B) {
   }
   const halo = stretch(blur(core, N, Math.round(7 * s), 3));
   const halo2 = blur(core, N, Math.round(2 * s), 2);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hb = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), hb = f32(N);
   for (let i = 0; i < N * N; i++) {
     const d = Math.min(1, dent.f1[i] * 1.2);
     const pit = (1 - sstep(0.0, 0.1, pits.f1[i])) * sstep(0.62, 0.75, pitKeep[i]);
@@ -401,7 +418,7 @@ function scorched(N, rng, B) {
 /** 3 engraved ornament: interlaced scrolls and angular glyph bands cut into the metal (mask = groove cores). */
 function engraved(N, rng, B) {
   const s = N / 512;
-  const g = new Float32Array(N * N);
+  const g = f32(N);
   const segs = [];
   // spiral scrolls with tendrils
   for (let k = 0; k < 9; k++) {
@@ -431,7 +448,7 @@ function engraved(N, rng, B) {
   }
   lines(g, N, segs);
   // angular glyph band (horizontal), repeated twice per tile
-  const gl = new Float32Array(N * N), gsegs = [];
+  const gl = f32(N), gsegs = [];
   for (const by of [N * 0.25, N * 0.75]) {
     gsegs.push([0, by - 18 * s, N, by - 18 * s, 1.0 * s, 1], [0, by + 18 * s, N, by + 18 * s, 1.0 * s, 1]);
     for (let x = 6 * s; x < N; x += 22 * s) {
@@ -446,10 +463,10 @@ function engraved(N, rng, B) {
   }
   lines(gl, N, gsegs, 'hard');
   const grain = B.fbm(rng, 64, 3), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
-  const core = new Float32Array(N * N);
+  const core = f32(N);
   for (let i = 0; i < N * N; i++) core[i] = Math.max(g[i], gl[i] * 0.95);
   const halo = stretch(blur(core, N, Math.round(3 * s), 2));
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N);
   for (let i = 0; i < N * N; i++) {
     h[i] = -core[i] * 0.7 + grain[i] * 0.05;
     alb[i] = 0.5 + (mott[i] - 0.5) * 0.35 - core[i] * 0.25;
@@ -465,7 +482,7 @@ function leather(N, rng, B) {
   const cells = worley(N, 44, rng), cells2 = worley(N, 90, rng);
   const wr = vnoiseAniso(N, 6, 48, rng), wr2 = vnoiseAniso(N, 12, 96, rng);
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6), fine = B.fbm(rng, 128, 2);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N);
   for (let i = 0; i < N * N; i++) {
     const p = 1 - Math.min(1, cells.f1[i] * 1.4), p2 = 1 - Math.min(1, cells2.f1[i] * 1.5);
     const crease = Math.pow(1 - Math.abs(wr[i] - 0.5) * 2, 10) * sstep(0.3, 0.7, mott[i]) + Math.pow(1 - Math.abs(wr2[i] - 0.5) * 2, 14) * 0.6;
@@ -480,7 +497,7 @@ function leather(N, rng, B) {
 function vnoiseAniso(N, Px, Py, rng) {
   const L = new Float32Array(Px * Py);
   for (let i = 0; i < L.length; i++) L[i] = rng();
-  const out = new Float32Array(N * N);
+  const out = f32(N);
   for (let y = 0; y < N; y++) {
     const fy = (y * Py) / N, iy = Math.floor(fy), ty = fy - iy, sy = ty * ty * (3 - 2 * ty);
     for (let x = 0; x < N; x++) {
@@ -503,7 +520,7 @@ function cloth(N, rng, B) {
   for (let i = 0; i < T; i++) { warpV[i] = rng(); weftV[i] = rng(); }
   const fibX = vnoiseAniso(N, 256, 16, rng), fibY = vnoiseAniso(N, 16, 256, rng);
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), gap = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), gap = f32(N);
   for (let y = 0; y < N; y++) {
     const j = Math.floor(y / ts), fy = (y % ts) / ts;
     for (let x = 0; x < N; x++) {
@@ -530,7 +547,7 @@ function cloth(N, rng, B) {
 /** 6 fur: clumped vertical strands (mask = strand coverage across u), dark roots handled by the shader. */
 function fur(N, rng, B) {
   const s = N / 512;
-  const cov = new Float32Array(N * N), h = new Float32Array(N * N), alb = new Float32Array(N * N);
+  const cov = f32(N), h = f32(N), alb = f32(N);
   const segs = [];
   const clumps = 26;
   for (let c = 0; c < clumps; c++) {
@@ -547,7 +564,7 @@ function fur(N, rng, B) {
   }
   lines(cov, N, segs);
   const fine = vnoiseAniso(N, 192, 6, rng), mott = B.fbm(rng, 4, 3), wear = B.fbm(rng, 8, 4);
-  const rough = new Float32Array(N * N);
+  const rough = f32(N);
   for (let i = 0; i < N * N; i++) {
     const c = Math.max(cov[i], sstep(0.55, 0.9, fine[i]) * 0.5);
     cov[i] = c;
@@ -563,7 +580,7 @@ function mail(N, rng, B) {
   const s = N / 512;
   const R = 8;                                    // rings across the tile
   const sp = N / R;
-  const h = new Float32Array(N * N).fill(-1), cov = new Float32Array(N * N), id = new Float32Array(N * N);
+  const h = f32(N).fill(-1), cov = f32(N), id = f32(N);
   const ro = sp * 0.62, wid = sp * 0.15;
   for (let row = 0; row < R * 2; row++) {
     const cy0 = (row + 0.5) * sp * 0.5, off = (row & 1) * sp * 0.5, tilt = row & 1 ? 1 : -1;
@@ -584,7 +601,7 @@ function mail(N, rng, B) {
     }
   }
   const mott = B.fbm(rng, 4, 3), wear = B.fbm(rng, 8, 5, 0.6);
-  const alb = new Float32Array(N * N), rough = new Float32Array(N * N);
+  const alb = f32(N), rough = f32(N);
   for (let i = 0; i < N * N; i++) {
     if (h[i] < -0.5) h[i] = -0.35;
     alb[i] = 0.5 + (id[i] - 0.5) * 0.18 + (mott[i] - 0.5) * 0.3 - (1 - cov[i]) * 0.3;
@@ -598,7 +615,7 @@ function quilted(N, rng, B) {
   const s = N / 512;
   const P = N / 4;                                 // diamond spacing (4 per tile along each diagonal)
   const weave = vnoiseAniso(N, 128, 128, rng), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), stitch = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), stitch = f32(N);
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
       const k = y * N + x;
@@ -623,7 +640,7 @@ function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h
 
 /** Circularly shifted copy of a tileable field. */
 function shifted(f, N, dx, dy) {
-  const out = new Float32Array(N * N);
+  const out = f32(N);
   for (let y = 0; y < N; y++) {
     const r = ((y + dy) % N) * N, o = y * N;
     out.set(f.subarray(r + dx, r + N), o);
@@ -641,7 +658,7 @@ function makeBank(N) {
   return {
     fbm(rng, P, oct, gain = 0.5) {
       const key = `${P}:${oct}:${gain}`;
-      const base = cache[key] || (cache[key] = fbm(N, P, oct, makeRng(hashStr(key)), gain));
+      const base = cache[key] || (cache[key] = Float32Array.from(fbm(N, P, oct, makeRng(hashStr(key)), gain)));
       return shifted(base, N, Math.floor(rng() * N), Math.floor(rng() * N));
     },
   };
@@ -661,7 +678,7 @@ function silk(N, rng, B) {
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const tv = new Float32Array(T);
   for (let i = 0; i < T; i++) tv[i] = rng();
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), mask = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), mask = f32(N);
   for (let y = 0; y < N; y++) {
     const yt = y / ts, j = Math.floor(yt), fy = yt - j;
     for (let x = 0; x < N; x++) {
@@ -690,7 +707,7 @@ function hemp(N, rng, B) {
   const slubX = vnoiseAniso(N, 8, T, rng), slubY = vnoiseAniso(N, T, 8, rng);
   const fibX = vnoiseAniso(N, 128, T * 2, rng), fibY = vnoiseAniso(N, T * 2, 128, rng);
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), gap = new Float32Array(N * N), hb = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), gap = f32(N), hb = f32(N);
   for (let y = 0; y < N; y++) {
     const yt = y / ts, j = Math.floor(yt) % T, fy = yt - Math.floor(yt);
     for (let x = 0; x < N; x++) {
@@ -732,7 +749,7 @@ function strokes(N) {
       for (let i = 0; i <= n; i++) { const t = i / n, a = a0 + dir * t * turns * Math.PI * 2, r = r0 + (r1 - r0) * Math.pow(t, 0.8); pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]); }
       return S.line(pts, hw, taper);
     },
-    field() { const f = new Float32Array(N * N); lines(f, N, segs); return f; },
+    field() { const f = f32(N); lines(f, N, segs); return f; },
   };
   return S;
 }
@@ -769,7 +786,7 @@ function damask(N, rng, B) {
   const fig = S.field();
   const grain = vnoiseAniso(N, 128, 8, rng), mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const halo = stretch(blur(fig, N, Math.max(1, Math.round(3 * s)), 2));
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), mask = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), mask = f32(N);
   for (let i = 0; i < N * N; i++) {
     const f = sstep(0.2, 0.7, fig[i]);
     mask[i] = f;
@@ -893,19 +910,19 @@ function brocade(N) {
 function lacquer(N, rng, B) {
   const s = N / 512;
   const wx = B.fbm(rng, 8, 4), wy = B.fbm(rng, 8, 4);
-  const warp = [new Float32Array(N * N), new Float32Array(N * N)];
+  const warp = [f32(N), f32(N)];
   for (let i = 0; i < N * N; i++) { warp[0][i] = (wx[i] - 0.5) * 30 * s; warp[1][i] = (wy[i] - 0.5) * 30 * s; }
   const cells = worley(N, 9, rng, warp, 0.9), pits = worley(N, 26, rng);
   const keep = B.fbm(rng, 4, 4), peel = B.fbm(rng, 16, 3), fine = B.fbm(rng, 64, 3), pitKeep = B.fbm(rng, 8, 5, 0.6);
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
   const wipe = vnoiseAniso(N, 4, 96, rng);
-  const core = new Float32Array(N * N);
+  const core = f32(N);
   for (let i = 0; i < N * N; i++) {
     const e = (cells.f2[i] - cells.f1[i]) / 9 * 512 * s;
     core[i] = (1 - sstep(0.25 * s, 1.5 * s, e)) * sstep(0.56, 0.7, keep[i]);
   }
   const halo = stretch(blur(core, N, Math.max(1, Math.round(4 * s)), 2));
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N);
   for (let i = 0; i < N * N; i++) {
     const pit = (1 - sstep(0.0, 0.09, pits.f1[i])) * sstep(0.66, 0.8, pitKeep[i]);
     h[i] = (peel[i] - 0.5) * 0.1 + (fine[i] - 0.5) * 0.03 - core[i] * 0.5 - pit * 0.2;
@@ -927,7 +944,7 @@ function lamellar(N, rng, B) {
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6), grain = B.fbm(rng, 64, 3);
   const pid = new Float32Array(8);
   for (let i = 0; i < 8; i++) pid[i] = rng();
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), cord = new Float32Array(N * N), prox = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), cord = f32(N), prox = f32(N);
   const rc = 0.34;                                 // corner radius, plate widths
   for (let y = 0; y < N; y++) {
     const row = Math.floor(y / ph), fy = y / ph - row;
@@ -974,7 +991,7 @@ function bamboo(N, rng, B) {
   for (let i = 0; i < T; i++) { cu[i] = rng(); cv[i] = rng(); nu[i] = rng(); nvv[i] = rng(); }
   const fibX = vnoiseAniso(N, 8, 128, rng), fibY = vnoiseAniso(N, 128, 8, rng);
   const mott = B.fbm(rng, 4, 4), wear = B.fbm(rng, 8, 5, 0.6);
-  const h = new Float32Array(N * N), alb = new Float32Array(N * N), rough = new Float32Array(N * N), hole = new Float32Array(N * N), hb = new Float32Array(N * N);
+  const h = f32(N), alb = f32(N), rough = f32(N), hole = f32(N), hb = f32(N);
   for (let y = 0; y < N; y++) {
     const j = Math.floor(y / ts), fy = y / ts - j;
     for (let x = 0; x < N; x++) {

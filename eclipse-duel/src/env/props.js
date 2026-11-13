@@ -1,49 +1,60 @@
-// Moving props: tattered banners (cloth motion entirely in the vertex shader, analytic normals, backlit
-// translucency toward the eclipse) and brazier fire (camera-facing flame tongues + a soft heat glow, one draw call).
+// Moving props: hanging cloth (sect banners, pennants, hemp strips and paper talismans from the cloth atlas; motion
+// entirely in the vertex shader, analytic normals, backlit translucency toward the eclipse) and the fires (lantern
+// flames, smouldering censers, incense tips: camera-facing tongues + soft glows, one draw call).
 
 import * as THREE from 'three';
 import { NOISE } from './glsl.js';
 import { patchStandard } from './materials.js';
 
-// ---- banners -----------------------------------------------------------------------------------------------------
+// ---- cloth: banners, pennants, hemp strips, paper talismans ----------------------------------------------------------
 const CLOTH_HEAD = /* glsl */ `
-attribute vec4 aCloth;   // x: metres below the bar, y: across (-0.5..0.5), z: seed, w: banner length
-attribute vec3 aAcross;  // unit vector across the banner (to the viewer's right)
+attribute vec4 aCloth;   // x: metres below the top edge, y: across (-0.5..0.5), z: seed, w: cloth length
+attribute vec3 aAcross;  // vector across the cloth (to the viewer's right), length = cloth width
 uniform vec3 uWind;
 uniform float uTime;
 vec3 clothOff(float hang, float u, vec3 N, vec3 X) {
   float t = uTime;
-  float s = aCloth.z;
-  float k = hang / aCloth.w;
-  float pin = smoothstep(0.0, 0.35, hang);
+  float s = aCloth.z, Ls = aCloth.w;
+  float k = hang / Ls;
+  // amplitudes are authored for a 3.8 m banner; short strips swing through a wider angle and flutter faster
+  float sc = clamp(Ls / 3.8, 0.06, 1.2) * (Ls < 1.0 ? 2.2 : 1.0);
+  float fq = mix(2.4, 1.0, clamp(Ls / 2.0, 0.0, 1.0));
+  float pin = smoothstep(0.0, 0.09, k);
   float gust = 0.55 + 0.45 * sin(t * 0.63 + s) * sin(t * 0.37 + s * 1.7);
   float billow = (0.22 + 0.42 * gust) * k * k;
-  float wave = sin(hang * 1.9 - t * 2.6 + s + u * 1.2) * (0.06 + 0.2 * k) * gust;
-  float flutter = sin(hang * 5.5 - t * 6.8 + u * 5.0 + s * 2.0) * 0.045 * k * k * (0.4 + gust);
-  float side = sin(t * 0.8 + s * 0.7) * 0.18 * k * k + sin(hang * 2.3 - t * 3.3 + s) * 0.06 * k;
+  float wave = sin(k * 7.2 - t * 2.6 * fq + s + u * 1.2) * (0.06 + 0.2 * k) * gust;
+  float flutter = sin(k * 21.0 - t * 6.8 * fq + u * 5.0 + s * 2.0) * 0.045 * k * k * (0.4 + gust);
+  float side = sin(t * 0.8 * fq + s * 0.7) * 0.18 * k * k + sin(k * 8.7 - t * 3.3 * fq + s) * 0.06 * k;
   float curl = (u * u - 0.08) * 0.25 * k;
-  return (N * (billow + wave + flutter + curl) + X * side + vec3(0.0, -0.06 * k * k * gust, 0.0)) * pin;
+  return (N * (billow + wave + flutter + curl) + X * side + vec3(0.0, -0.06 * k * k * gust, 0.0)) * pin * sc;
 }
 `;
 const CLOTH_NORMAL = /* glsl */ `
 vec3 cN = normalize(normal);
-vec3 cX = normalize(aAcross);
+float cW = length(aAcross);
+vec3 cX = aAcross / cW;
+float cDh = 0.021 * aCloth.w;
 vec3 o0 = clothOff(aCloth.x, aCloth.y, cN, cX);
-vec3 oh = clothOff(aCloth.x + 0.08, aCloth.y, cN, cX);
+vec3 oh = clothOff(aCloth.x + cDh, aCloth.y, cN, cX);
 vec3 ou = clothOff(aCloth.x, aCloth.y + 0.08, cN, cX);
-vec3 dPdh = vec3(0.0, -0.08, 0.0) + (oh - o0);
-vec3 dPdu = cX * 0.08 + (ou - o0);
+vec3 dPdh = vec3(0.0, -cDh, 0.0) + (oh - o0);
+vec3 dPdu = cX * 0.08 * cW + (ou - o0);
 vec3 objectNormal = normalize(cross(dPdh, dPdu));
 #ifdef USE_TANGENT
 vec3 objectTangent = vec3( tangent.xyz );
 #endif
 `;
 
-/** Build all banners as one mesh (grid per banner, rest pose in world space). */
+/**
+ * Build all hanging cloth as one mesh (a grid per piece, rest pose in world space).
+ * spec: { top: Vector3 (centre of the top edge), normal: Vector3, width, length, seed, uv: [u0, v0, u1, v1]
+ *         (region of the cloth atlas, v0 at the hem), cols = 7, rows = 20 }
+ */
 export function createBanners(U, specs, tex) {
-  const cols = 7, rows = 20;
   const pos = [], nrm = [], uv = [], cloth = [], across = [], idx = [];
   for (const b of specs) {
+    const cols = b.cols || 7, rows = b.rows || 20;
+    const [u0, v0, u1, v1] = b.uv || [0, 0, 1, 1];
     const N = b.normal.clone().setY(0).normalize();
     const X = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), N).normalize();
     const base = pos.length / 3;
@@ -55,9 +66,9 @@ export function createBanners(U, specs, tex) {
         const p = b.top.clone().addScaledVector(X, u * b.width).add(new THREE.Vector3(0, -hang, 0));
         pos.push(p.x, p.y, p.z);
         nrm.push(N.x, N.y, N.z);
-        uv.push(i / cols, 1 - v);
+        uv.push(u0 + (u1 - u0) * (0.01 + 0.98 * (i / cols)), v0 + (v1 - v0) * (0.01 + 0.98 * (1 - v)));
         cloth.push(hang, u, b.seed, b.length);
-        across.push(X.x, X.y, X.z);
+        across.push(X.x * b.width, X.y * b.width, X.z * b.width);
       }
     }
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
@@ -100,6 +111,7 @@ export function createBanners(U, specs, tex) {
   };
   const mesh = new THREE.Mesh(g, mat);
   mesh.name = 'env.banners';
+  mesh.frustumCulled = false;
   return mesh;
 }
 
@@ -168,23 +180,32 @@ void main() {
 }`;
 
 /**
- * Flames for the brazier bowls (positions = bowl rims) plus small tongues for votive candles
- * (`candles`: [{ pos, w, h, i }] from the ruins dressing).
+ * The env's fires as one additive mesh. `flames`: [{ pos: Vector3, kind }] with kind
+ *   'lantern'  a flame in a stone lantern's chamber: a tongue + a glow that spills out of the windows
+ *   'censer'   smouldering incense in a bronze brazier: a low glow, a small tongue now and then
+ *   'stick'    the ember at an incense stick's tip
  */
-export function createFire(U, tops, rng, candles = []) {
+export function createFire(U, flames, rng) {
   const quad = new THREE.PlaneGeometry(1, 1);
   quad.translate(0, 0.5, 0);
   const g = new THREE.InstancedBufferGeometry();
   g.index = quad.index;
   g.setAttribute('position', quad.attributes.position);
   const fire = [], shape = [];
-  for (const p of tops) {
-    fire.push(p.x, p.y + 0.35, p.z, rng.range(0, 50)); shape.push(2.2, 0, 1, 0.7);
-    fire.push(p.x, p.y - 0.06, p.z, rng.range(0, 50)); shape.push(0.8, 1.0, 0, 0.75);
-    fire.push(p.x + 0.12, p.y - 0.04, p.z + 0.05, rng.range(0, 50)); shape.push(0.6, 0.75, 0, 0.6);
-    fire.push(p.x - 0.14, p.y - 0.05, p.z - 0.04, rng.range(0, 50)); shape.push(0.5, 0.6, 0, 0.55);
+  for (const f of flames) {
+    const p = f.pos;
+    if (f.kind === 'lantern') {
+      fire.push(p.x, p.y + 0.12, p.z, rng.range(0, 50)); shape.push(1.25, 0, 1, 1.0);
+      fire.push(p.x, p.y - 0.13, p.z, rng.range(0, 50)); shape.push(0.2, 0.3, 0, 0.95);
+      fire.push(p.x + 0.03, p.y - 0.13, p.z + 0.02, rng.range(0, 50)); shape.push(0.13, 0.2, 0, 0.7);
+    } else if (f.kind === 'censer') {
+      fire.push(p.x, p.y + 0.25, p.z, rng.range(0, 50)); shape.push(1.9, 0, 1, 0.5);
+      fire.push(p.x, p.y - 0.05, p.z, rng.range(0, 50)); shape.push(0.5, 0.3, 0, 0.34);
+      fire.push(p.x + 0.14, p.y - 0.05, p.z - 0.08, rng.range(0, 50)); shape.push(0.3, 0.2, 0, 0.28);
+    } else {
+      fire.push(p.x, p.y + 0.03, p.z, rng.range(0, 50)); shape.push(0.11, 0, 1, 9.0);
+    }
   }
-  for (const c of candles) { fire.push(c.pos.x, c.pos.y, c.pos.z, rng.range(0, 50)); shape.push(c.w, c.h, 0, c.i); }
   g.setAttribute('aFire', new THREE.InstancedBufferAttribute(new Float32Array(fire), 4));
   g.setAttribute('aShape', new THREE.InstancedBufferAttribute(new Float32Array(shape), 4));
   g.instanceCount = fire.length / 4;

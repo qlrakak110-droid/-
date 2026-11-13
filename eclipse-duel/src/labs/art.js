@@ -515,7 +515,7 @@ function castOf(ctx, lab, designs) {
 /** Black shapes on grey: lights / environment / glow off, alpha cut-outs kept. */
 function silhouette(ctx, lab, chars) {
   ctx.scene.background = new THREE.Color(0xd8d8d8);
-  ctx.scene.fog = null;
+  if (!lab.arena) ctx.scene.fog = null;      // the arena's own update reads its fog
   lab.floor.visible = false;
   lab.sil = { env: ctx.scene.environmentIntensity, lights: [], mats: [], chars };
   ctx.scene.traverse((o) => { if (o.isLight) { lab.sil.lights.push([o, o.intensity]); o.intensity = 0; } });

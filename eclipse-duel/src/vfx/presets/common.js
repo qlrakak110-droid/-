@@ -246,4 +246,6 @@ export function groundMark(v, el, p, s = 1, i = 1) {
   v.burst(DUST_SMALL, { pos: g, dir: [0, 1, 0], count: Math.max(2, Math.round(5 * i)), scale: 1.2 * s });
   v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: Math.max(2, Math.round(4 * i)), scale: 0.6 * s });
   v.burst(LEAVES, { pos: g, dir: [0, 1, 0], count: Math.max(1, Math.round(3 * i)), scale: s });
+  // a full-strength blow also throws lit chunks that bounce (molten / ice / stone)
+  if (i >= 0.9) v.debris({ kind: el === 'ember' ? 'ember' : el === 'frost' ? 'ice' : 'rock', pos: [g.x, 0.08, g.z], count: 4, speed: [1.5, 4.5], size: [0.04, 0.11, 2], spread: 55, scale: s });
 }

@@ -242,11 +242,12 @@ export function defineVolt(vfx, P) {
     const b = o.to != null ? floor(vec(o.to), 0) : vec([a.x + f * (o.length || 4) * s, 0, a.z]);
     const h = 1.1 * s;
     const ah = vec([a.x, h, a.z + 0.1]), bh = vec([b.x, h, b.z + 0.1]);
-    if (at.target && at.target.isObject3D) v.afterimage(at.target, { count: o.ghosts || 6, interval: 0.035, life: 0.32, palette: 'volt', drift: [0, 0.1, 0], intensity: i });
-    v.burst(KIT.volt.flash, { pos: ah, scale: 0.7 * s, intensity: i });
+    if (at.target && at.target.isObject3D) v.afterimage(at.target, { count: o.ghosts || 4, interval: 0.035, life: 0.32, palette: 'volt', drift: [0, 0.1, 0], intensity: i });
+    v.burst(KIT.volt.flash, { pos: ah, scale: 0.35 * s, intensity: i });
     v.burst(GOLD_SPARKS, { pos: vec([a.x, 0.1, a.z]), dir: vec([-f, 0.6, 0.2]).normalize(), count: n(26, i), scale: s });
     v.burst(DUST_SMALL, { pos: a, dir: [0, 1, 0], count: 5, scale: s });
-    v.beam({ look: 'volt', from: ah, to: bh, width: 0.5 * s, extend: 0.06, release: 0.14, life: 0.26, flareSize: 0.8, intensity: i });
+    // (a thin streak: a half-metre beam along the whole dash is a white bar across a close camera)
+    v.beam({ look: 'volt', from: ah, to: bh, width: 0.3 * s, extend: 0.06, release: 0.14, life: 0.24, flareSize: 0.5, intensity: 0.75 * i });
     v.bolt({ from: vec([a.x, 0.12, a.z]), to: vec([b.x, 0.12, b.z]), width: 0.18 * s, branches: 3, strikes: 2, interval: [0.05, 0.09], detail: 6, roughness: 0.18, life: 0.3, leader: 0.05, impact: false, intensity: i });
     v.burst(ARCS_LINE, { pos: ah, to: bh, count: n(7, i), scale: s, delay: 0.02 });
     v.burst(GOLD_LINE, { pos: vec([a.x, 0.1, a.z]), to: vec([b.x, 0.1, b.z]), dir: [0, 1, 0], count: n(40, i), scale: 0.7 * s, delay: 0.03 });
@@ -258,7 +259,7 @@ export function defineVolt(vfx, P) {
     }
     v.light({ pos: lightAt(ah.clone().lerp(bh, 0.5), 1.3), color: V.core, intensity: 70 * i, range: 6, duration: 0.3, decay: 'outCubic', flicker: 0.6 });
     v.schedule(0.06, (w) => {
-      w.burst(KIT.volt.flash, { pos: bh, scale: 0.6 * s, intensity: i });
+      w.burst(KIT.volt.flash, { pos: bh, scale: 0.32 * s, intensity: i });
       w.burst(ARCS, { pos: bh, count: n(10, i), scale: s });
       w.ring({ look: 'volt', pos: b, radius: [0.1 * s, 1.3 * s], life: 0.3, intensity: 0.8 * i });
       w.burst(DUST_SMALL, { pos: b, dir: [0, 1, 0], count: 5, scale: s });
@@ -271,20 +272,21 @@ export function defineVolt(vfx, P) {
     // a small white core for two frames; the burst is carried by the bolts, which start OFF the centre (five glowing
     // channels meeting in one point stack into a white ball that hides whoever was struck)
     v.burst(KIT.volt.flash, { pos: p, scale: 0.4 * s, intensity: i });
-    v.flare({ kind: 'star', pos: p, size: 1.3 * s, life: 0.12, decay: 3.5, color: V.core, intensity: 0.6 * i, rotation: rng() });
+    v.flare({ kind: 'star', pos: p, size: 1.2 * s, life: 0.1, decay: 3.5, color: V.core, intensity: 0.45 * i, rotation: rng() });
     v.burst(KIT.volt.blot, { pos: p, scale: 0.9 * s });
     v.burst(KIT.volt.ink, { pos: p, count: 8, scale: 0.9 * s });
     v.light({ pos: lightAt(p, 1.4), color: V.core, intensity: 70 * i, range: 7, duration: 0.32, decay: 'outExpo', flicker: 0.6 });
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5) * Math.PI * 2 + rng() * 0.8;
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * Math.PI * 2 + rng() * 0.8;
       const r = (1.2 + rng()) * s;
       const cz = (rng() - 0.5) * 0.8;
       const from = vec([p.x + Math.cos(a) * 0.3 * s, Math.max(0.03, p.y + Math.sin(a) * 0.26 * s), p.z + cz * 0.25]);
       const to = vec([p.x + Math.cos(a) * r, Math.max(0.03, p.y + Math.sin(a) * r * 0.8), p.z + cz]);
-      v.schedule(k * 0.015, (w) => w.bolt({ from, to, width: 0.12 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0.015, impact: to.y < 0.1, intensity: 0.8 * i }));
+      v.schedule(k * 0.02, (w) => w.bolt({ from, to, width: 0.1 * s, branches: 2, strikes: 2, detail: 5, life: 0.2, leader: 0.015, impact: false, intensity: 0.6 * i }));
     }
     // a crackling disc tilted toward the ground (a camera-facing hoop reads as a bubble)
-    v.ring({ normal: [0.25, 1, 0.35], look: 'volt', pos: p, radius: [0.1 * s, 1.4 * s], width: [0.3 * s, 0.9 * s], fill: 2.2, life: 0.2, intensity: 0.4 * i });
+    // (a thin thunder ring: the filled disc it used to be was a white ellipse over the struck fighter)
+    v.ring({ normal: [0.25, 1, 0.35], look: 'volt', pos: p, radius: [0.1 * s, 1.2 * s], width: [0.1 * s, 0.3 * s], fill: 3, life: 0.2, intensity: 0.3 * i });
     v.burst(GOLD_RADIAL, { pos: p, count: n(80, i), scale: s });
     v.burst(ARCS, { pos: p, count: n(16, i), scale: s });
     v.burst(MOTES, { pos: p, count: n(14, i), scale: 1.5 * s });
@@ -292,19 +294,19 @@ export function defineVolt(vfx, P) {
     if (p.y < 1.8) {
       const g = floor(p, 0);
       v.decal({ kind: 'scorch', pos: g, radius: 1.1 * s, life: 3, palette: 'volt', magma: 0.6 });
-      v.ring({ look: 'volt', pos: g, radius: [0.2 * s, 2.2 * s], life: 0.4, intensity: 0.8 * i });
+      v.ring({ look: 'volt', pos: g, radius: [0.2 * s, 2.2 * s], life: 0.4, intensity: 0.45 * i });
     }
-    v.schedule(0.03, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.2 * s, 2.4 * s], life: 0.38, strength: 0.05 }));
+    v.schedule(0.03, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.2 * s, 2.4 * s], life: 0.38, strength: 0.04 }));
   }
   define('volt.burst', (v, at, o) => burst(v, at.pos, at.scale, I(o)));
 
   /** javelin impact: a lightning burst plus arcs chaining down into the floor */
   function javelinImpact(v, p, s, i) {
-    burst(v, p, 1.15 * s, i);
-    for (let k = 0; k < 3; k++) {
+    burst(v, p, s, 0.85 * i);
+    for (let k = 0; k < 2; k++) {
       const g = vec([p.x + (rng() - 0.5) * 2.4 * s, 0.03, p.z + (rng() - 0.3) * 1.2 * s]);
       v.schedule(0.04 + k * 0.05, (w) => {
-        w.bolt({ from: p, to: g, width: 0.16 * s, branches: 2, strikes: 2, life: 0.25, leader: 0.02, intensity: i });
+        w.bolt({ from: vec([p.x + (g.x - p.x) * 0.25, p.y * 0.8, p.z]), to: g, width: 0.12 * s, branches: 2, strikes: 2, life: 0.22, leader: 0.02, impact: false, intensity: 0.7 * i });
         w.decal({ kind: 'scorch', pos: g, radius: 0.5 * s, life: 2.5, palette: 'volt', magma: 0.6 });
         w.burst(GOLD_SPARKS, { pos: g, dir: [0, 1, 0], count: n(14, i), scale: 0.6 * s });
       });

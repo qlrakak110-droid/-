@@ -1,6 +1,7 @@
-// Eclipse Ruins: art constants shared by every env sub-module (layout radii, light directions, palette, tiers).
-// Angles on the ring: theta is measured from -Z toward +X, so theta = 0 is straight behind the arena centre as seen
-// from the fight camera and ring points are (R sin(theta), y, -R cos(theta)).
+// 「천무대 天武臺」: art constants shared by every env sub-module (layout radii, light directions, palette, tiers).
+// Angles on the ring: theta is measured from -Z toward +X, so theta = 0 is straight behind the terrace centre as seen
+// from the duel camera (the vista), +90 deg = +X (east), -90 deg = -X (west, the hall), 180 deg = +Z (south, the gate)
+// and ring points are (R sin(theta), y, -R cos(theta)).
 
 import * as THREE from 'three';
 import { DEG } from '../core/math.js';
@@ -25,27 +26,65 @@ export const KEY_DIR = new THREE.Vector3(-0.42, 0.78, 0.5).normalize();
 export const SUN_RADIUS = 2.9 * DEG;
 /** Polar angle (around the sun axis, 0 = screen right, CCW) of the diamond-ring bead. */
 export const DIAMOND_PHI = 48 * DEG;
-/** Ambient wind (m/s): banners, ash, flames and clouds all drift with it. */
+/** Ambient wind (m/s): banners, talismans, bamboo, smoke, leaves and clouds all drift with it. */
 export const WIND = new THREE.Vector3(0.9, 0.0, 0.25);
 
 /** Ring layout in metres. */
 export const LAYOUT = {
-  floorR: 15.6,      // textured arena floor radius (wall face sits here)
+  floorR: 15.6,      // terrace floor radius (the retaining wall of the raised court stands here)
   floorTexExtent: 16, // floor bake covers [-E, E] on x and z
   fightBand: 1.3,    // half width (z) of the worn contact band along the fight line
-  wallR: 15.6,       // podium wall inner face
-  wallT: 1.1,        // podium wall thickness
-  pillarR: 17.6,     // colossal colonnade radius
-  pillarCount: 22,   // slots around the full circle (only the back ~250 degrees are built)
-  tierR0: 19.2,      // collapsed seating tier: first step radius
-  tierR1: 27.5,      // last step radius
-  thetaMax: 128 * DEG, // build the ring for |theta| <= this (the camera never sees behind itself)
-  gap: 27 * DEG,     // |theta| < gap: the collapsed vista behind the fighters
+  wallR: 15.6,       // retaining wall face
+  wallT: 1.1,        // (kept for older callers) wall thickness
+  platY: 1.44,       // top of the raised court around the terrace (8 stair risers of 0.18)
+  railH: 1.0,        // balustrade height on the court edge
+  pillarR: 17.5,     // gallery (회랑): inner column row
+  galleryR1: 20.5,   // gallery: outer column row
+  slotDeg: 12,       // gallery column spacing
+  thetaMax: Math.PI, // the ring is built all the way round (the action-RPG mode turns 360 degrees)
+  gap: 27 * DEG,     // |theta| < gap: the broken rim open to the cloud sea (the vista behind the fighters)
+  wallFrom: 30 * DEG, // the retaining wall starts here (its ends at the vista shoulders are broken)
   cloudY: -11,       // sea of cloud level
-  braziers: [ // [theta deg, radius]
-    [-37, 13.7], [37, 13.7], [-63, 13.6], [63, 13.6],
+  outerR: 36,        // the summit ground ends here (drops into the mist)
+  // the four fire sources of env.braziers / env.points, [theta deg, radius, kind]: two lit stone lanterns (석등) on
+  // the vista shoulders, two bronze incense braziers (향로) further round
+  braziers: [
+    [-37, 13.7, 'lantern'], [37, 13.7, 'lantern'], [-63, 13.6, 'censer'], [63, 13.6, 'censer'],
+  ],
+  // more lit stone lanterns (no real lights: baked glow + a floor pool): at the feet of the gate and hall stairs and
+  // on the east side
+  lamps: [
+    [166, 14.25], [-166, 14.25], [-68, 19.3, 1.44], [-88, 19.3, 1.44], [112, 14.3],
   ],
 };
+
+/** The recessed stair flights from the terrace floor up to the raised court. */
+export const STAIRS = [
+  { id: 'gate', th: 180 * DEG, width: 5.2, run: 2.64, steps: 8 },
+  { id: 'hall', th: -78 * DEG, width: 4.8, run: 2.64, steps: 8 },
+];
+/** The hall (천무전) on the west side: centre direction, distance of its plinth front from the terrace centre. */
+export const HALL = { th: -78 * DEG, front: 20.2, bay: 3.2, bays: 5, porch: 1.5, wall: 4.1, depth: 10.4, plinth: 0.72, colH: 4.2 };
+/** The mountain gate (산문) on the south side: column line distance from the terrace centre. */
+export const GATE = { th: 180 * DEG, line: 20.7, colH: 5.6, halfBay: 2.15, wing: 5.0 };
+
+/** Old impact centre (x, z) and radius: floor bake + heaved slabs. */
+export const IMPACT = [-4.4, -6.2, 2.9];
+
+/**
+ * Radius of the terrace floor's edge at ring angle `th` (radians): the retaining wall face, except across the vista
+ * where the rim has broken away into the cloud sea (a ragged bite up to ~1.7 m deep).
+ */
+export function rimR(th) {
+  const a = Math.abs(Math.atan2(Math.sin(th), Math.cos(th)));
+  const g = LAYOUT.gap;
+  if (a >= g + 3 * DEG) return LAYOUT.floorR;
+  const k = 1 - Math.min(1, Math.max(0, (a - (g - 5 * DEG)) / (8 * DEG)));
+  const s = k * k * (3 - 2 * k);
+  const n = 0.5 + 0.5 * Math.sin(th * 23.0 + 1.3) * Math.sin(th * 9.7 + 0.4) + 0.35 * Math.sin(th * 61.0 + 2.1);
+  const big = 0.5 + 0.5 * Math.sin(th * 5.3 + 0.9);
+  return LAYOUT.floorR - s * (0.35 + 0.75 * big + 0.42 * Math.max(0, n));
+}
 
 /** Linear-HDR palette (THREE.Color components are linear). Mid-tones of the backdrop stay low on purpose. */
 export const PALETTE = {
@@ -62,6 +101,13 @@ export const PALETTE = {
   hemiSky: new THREE.Color(0.1, 0.12, 0.19),
   hemiGround: new THREE.Color(0.06, 0.04, 0.03),
   fire: new THREE.Color(1.0, 0.5, 0.18),
+  // faded 단청 on the timber (albedo, linear): lacquer red, jade green, bare weathered wood, ink-black board, ochre
+  lacquer: [0.2, 0.034, 0.024],
+  jade: [0.03, 0.078, 0.064],
+  wood: [0.05, 0.043, 0.036],
+  ink: [0.012, 0.011, 0.011],
+  ochre: [0.36, 0.25, 0.08],
+  tile: [0.5, 0.52, 0.6],        // roof tile tint on the stone material (blue-black fired clay)
 };
 
 /** Per-tier knobs derived from ctx.quality (envDetail 0..2). */
@@ -71,11 +117,12 @@ export function tierSettings(quality, override) {
     detail: d,
     floorTex: d >= 2 ? 2048 : 1024,
     stoneTex: d >= 1 ? 1024 : 512,
-    ornTex: d >= 1 ? 1024 : 512,
+    ornTex: d >= 1 ? 1024 : 512,     // relief atlas cell rows: the atlas is 2:1 (8 x 4 cells)
     pointLights: d >= 2 ? 4 : d >= 1 ? 2 : 0,
     banners: d >= 1 ? 8 : 5,
-    ash: Math.round((d >= 2 ? 650 : d >= 1 ? 480 : 300) * (quality.particleScale || 1)),
-    embers: Math.round((d >= 2 ? 300 : d >= 1 ? 220 : 140) * (quality.particleScale || 1)),
+    ash: Math.round((d >= 2 ? 520 : d >= 1 ? 380 : 240) * (quality.particleScale || 1)),
+    embers: Math.round((d >= 2 ? 110 : d >= 1 ? 80 : 50) * (quality.particleScale || 1)),
+    leaves: Math.round((d >= 2 ? 90 : d >= 1 ? 64 : 36) * (quality.particleScale || 1)),
     fogCards: d >= 1,
     shafts: d >= 1 ? 7 : 3,
     reflection: d >= 2,

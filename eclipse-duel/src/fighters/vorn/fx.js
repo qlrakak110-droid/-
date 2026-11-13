@@ -291,12 +291,13 @@ export function defineVornFx(vfx, rng) {
   vfx.define('vorn.skystrike', (v, at, o) => {
     const k = o.k ?? 1, s = at.scale, f = at.facing, i = I(o), g = new THREE.Vector3(at.pos.x, 0.02, at.pos.z);
     const top = new THREE.Vector3(g.x - f * (1.0 + R() * 0.8) * k, 12, g.z - 2.4);
-    v.bolt({ from: top, to: new THREE.Vector3(g.x, 0.05, g.z), width: 0.3 * s * k, branches: Math.round(4 * k), strikes: 3, interval: [0.04, 0.08], life: 0.45, leader: 0.025, impact: false, light: 70 * k * i, lightRange: 8, intensity: 0.9 * i });
-    v.pillar({ look: 'volt', pos: g, height: 12, radius: 0.16 * s * k, life: 0.45, intensity: 0.5 * i });
+    v.bolt({ from: top, to: new THREE.Vector3(g.x, 0.05, g.z), width: 0.22 * s * k, branches: Math.round(4 * k), strikes: 3, interval: [0.04, 0.08], life: 0.45, leader: 0.025, impact: false, light: 55 * k * i, lightRange: 8, intensity: 0.85 * i });
+    // (뇌기 pierces: a thin core of light around the channel, not a white column that hides the struck fighter)
+    v.pillar({ look: 'volt', pos: g, height: 12, radius: 0.09 * s * k, life: 0.4, intensity: 0.36 * i });
     v.burst(D.flash, { pos: new THREE.Vector3(g.x, 0.4, g.z + 0.2), scale: 0.3 * s * k, intensity: 0.3 * i });
     v.decal({ kind: 'scorch', pos: g, radius: 1.1 * s * k, life: 4.5, palette: 'volt', magma: 0.8 });
     v.decal({ kind: 'crack', pos: g, radius: 1.4 * s * k, life: 4.5, density: 0.9 });
-    v.ring({ look: 'volt', pos: g, radius: [0.15 * s, 2.2 * s * k], life: 0.4, distort: 0.035, intensity: 0.6 * i });
+    v.ring({ look: 'volt', pos: g, radius: [0.15 * s, 2.2 * s * k], life: 0.4, distort: 0.035, intensity: 0.42 * i });
     v.ring({ look: 'dust', pos: g, radius: [0.3 * s, 2.4 * s * k], life: 1.0 });
     v.burst(D.goldUp, { pos: g, dir: [0, 1, 0], count: Math.round(50 * k * i), scale: s });
     v.burst(D.arcs, { pos: new THREE.Vector3(g.x, 0.2, g.z), count: Math.round(10 * k), scale: 1.2 * s });

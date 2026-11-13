@@ -141,8 +141,10 @@ export function createFlow(ctx, world, o) {
   // ---- altar, death, respawn --------------------------------------------------------------------------------------
   function placeAtAltar() {
     const h = hero();
-    h.teleport(places.heroSpawn.x, places.heroSpawn.z, places.heroSpawn.yaw);
-    if (world.camera) { world.camera.lock(null); world.camera.snap(places.heroSpawn.yaw); }
+    // (a sandbox has no rest point: the hero wakes in the middle of the arena)
+    const sp = o.sandbox ? { x: 0, z: 0, yaw: 0 } : places.heroSpawn;
+    h.teleport(sp.x, sp.z, sp.yaw);
+    if (world.camera) { world.camera.lock(null); world.camera.snap(sp.yaw); }
   }
   /** Sit at the altar: refill, respawn unfinished encounters. */
   function rest() {

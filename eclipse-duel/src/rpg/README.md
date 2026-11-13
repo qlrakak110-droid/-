@@ -74,6 +74,7 @@ node tools/shot.mjs game --as rpg-core --hash "prof&q=high" --size 960x540 --sce
 | `#rpgbot` | the hero is played by the bot (`core/bot.js`) |
 | `#rpgenc=<id>` | start at that encounter (skips the walk from the altar) |
 | `#rpgsandbox` | no expedition flow: an empty arena with one training dummy (tests, captures, tuning) |
+| `#rpgdebug` | draw hit volumes, body cylinders, colliders and triggers (`world.debugShapes`) |
 | `#seed=N`, `#q=`, `#prof`, `#test` | as in the duel |
 
 The duel game is untouched: `createRpg` is created next to `createGame` in `src/main.js`; the title screen has a
@@ -110,9 +111,9 @@ The duel game is untouched: `createRpg` is created next to `createGame` in `src/
 // src/rpg/foes/index.js
 import { defineClip } from '../../char/index.js';
 export default function install(rpg) {
-  rpg.actor('sentinel', { ...kind spec, section 5... });
-  rpg.encounter({ id: 'sentinels', order: 10, title: { ko: '폐허의 파수꾼', en: 'RUIN SENTINELS' },
-    spawns: [{ kind: 'sentinel', x: 4, z: -3 }, { kind: 'sentinel', x: 6, z: 1 }, { kind: 'sentinel', x: 4, z: 4 }] });
+  rpg.actor('cultist', { ...kind spec, section 5... });
+  rpg.encounter({ id: 'cultists', order: 10, title: { ko: '흑일교 무사들', en: 'BLACK SUN CULTISTS' },
+    spawns: [{ kind: 'cultist', x: 4, z: -3 }, { kind: 'cultist', x: 6, z: 1 }, { kind: 'cultist', x: 4, z: 4 }] });
 }
 ```
 
@@ -122,12 +123,13 @@ with everything else). `rpg` is the registry:
 | call | meaning |
 |---|---|
 | `rpg.actor(kind, spec)` | register (or replace) an actor kind — section 5 |
-| `rpg.encounter(def)` | register (or replace by `id`) an encounter — section 9. Registering any encounter with `order < 100` replaces the core's stand-in encounters; `boss: true` replaces the stand-in boss |
+| `rpg.encounter(def)` | register (or replace by `id`) an encounter — section 9. As soon as a plug-in registers an ordinary encounter, the core's two stand-in encounters leave the playlist; a plug-in encounter with `boss: true` replaces the stand-in boss encounter |
 | `rpg.world(factory)` | `factory(ctx, world) -> { update?(dtGame, dtReal), dispose?(), altar?: {x, z, yaw}, gate?: {x, z, yaw, r}, heroSpawn?: {x, z, yaw} }`: world dressing, colliders, triggers — section 8. Called at every `start()` (not in `#rpgsandbox`), before the hero exists |
 | `rpg.ui(factory)` | `factory(ctx, api) -> { start(snapshot), stop(), update(snapshot, dtReal), dispose?() }`: replaces the debug HUD — section 11 |
 | `rpg.progress(obj)` | replaces the default progression — section 12 |
-| `rpg.setup(fn)` | `fn({ ctx, vfx, fx })` once at boot before the VFX prewarm (define presets, particle definitions) |
-| `rpg.prewarm(fn)` | `fn(ctx)` at every `rpg.start()` before the compile pass: build pooled meshes / hidden instances so no program compiles mid-fight |
+| `rpg.setup(fn)` | `fn({ ctx, vfx, fx })` once at boot, right after every plug-in installed (define VFX presets, particle definitions); `vfx.prewarm()` runs again afterwards |
+| `rpg.prewarm(fn)` | `fn(ctx, world)` at every `rpg.start()` before the compile pass (`renderer.compile` of the scene and the distortion scene): build pooled meshes / hidden instances so no program compiles mid-fight |
+| `rpg.playlist()` | the encounters that will be played, in order |
 | `rpg.on(event, fn)` | subscribe to world events for the lifetime of the page (re-bound to every new world) — section 7 |
 | `rpg.kinds`, `rpg.encounters` | what is registered (Maps) |
 
@@ -229,15 +231,15 @@ actor = {
 ### 5.2 Kind spec — `rpg.actor(kind, spec)`
 
 ```js
-rpg.actor('sentinel', {
+rpg.actor('cultist', {
   team: 'foe',
-  name: { ko: '폐허의 파수꾼', en: 'Ruin Sentinel' },
+  name: { ko: '흑일교 무사', en: 'Black Sun Cultist' },
   stats: { hp: 260, poise: 40, radius: 0.45, height: 1.9, scale: 1, mass: 1,
            walk: 1.6, run: 3.4, turn: 420 /* deg/s */, shards: 35, damage: 1 },
   elite: false, boss: false,                 // boss: true -> the bottom boss bar, immovable, never flinches by level
   design: sentinelDesign,                    // a src/char design: the core calls createCharacter(ctx, design)
   // or: create(ctx, world, actor, opts) -> { root, sockets?, update(dtGame, dtReal), dispose(), flash?, impulse?, play?, setClipTime? }
-  clips: { idle: 'rpg.foe.sentinel.idle', walk: '…', run: '…', flinch: '…', stagger: '…', down: 'game.down',
+  clips: { idle: 'rpg.foe.cultist.idle', walk: '…', run: '…', flinch: '…', stagger: '…', down: 'game.down',
            getup: 'game.getup', dead: '…', spawn: '…', guard: '…' },   // missing slots fall back to game.* / demo.*
   attacks: { slash: { ...attack def, section 6... }, lunge: {...} },
   roll: null, guard: null,                   // or { cost, distance, duration, travel, invuln: [a, b], actFrom } / { perfect, arc (deg), speed }
@@ -295,13 +297,13 @@ controller: (world, actor) => meleeController({ attacks: [{ id: 'slash', range: 
 ```js
 {
   id: 'slash', name: '…', duration: 1.2,
-  clip: 'rpg.foe.sentinel.slash',            // or { clip, hit: 0.5 } (clip impact time -> retimed onto the first active frame)
+  clip: 'rpg.foe.cultist.slash',            // or { clip, hit: 0.5 } (clip impact time -> retimed onto the first active frame)
                                              // sampled at the attack clock (animation is locked to the frame data)
   stamina: 0, fp: 0, ult: 0, cooldown: 0,    // costs
   hits: [{
     t: [0.48, 0.58],                         // active window, seconds
     shape: { type: 'arc', r: [0.2, 2.3], angle: [-70, 70], u: [0.3, 1.9] },    // section 6.2
-    damage: 70, poise: 35,                   // poise damage (default: by level 12 / 30 / 45 / 45 / 60)
+    damage: 70, poise: 35,                   // poise damage (default by level: 14 / 34 / 45 / 45 / 60)
     level: 'heavy',                          // light | heavy | launch | crumple | knockdown -> the victim's reaction
     knock: { f: 4, u: 0 },                   // m/s along the hit direction / up (defaults by level)
     hitstop: 0.1, guard: 30,                 // world freeze on hit; stamina drained from a blocker (default damage * 0.4)
@@ -319,7 +321,7 @@ controller: (world, actor) => meleeController({ attacks: [{ id: 'slash', range: 
 }
 ```
 
-`normalizeAttack(def)` (core/attacks.js) fills the defaults; `fromFighterMove(compiledMove, heroId)` converts a move
+`normalizeAttack(def)` (core/attacks.js) fills the defaults; `fromFighterMove(compiledMove, { slot, stamina, shapes, track })` converts a move
 of `src/fighters/<id>/moves.js` (hits, motion, armour, invuln, markers, projectiles, cancels, costs) — that is how
 the heroes get their whole move set. `core/hero.js` documents the per-move 3D shapes.
 
@@ -335,7 +337,8 @@ the heroes get their whole move set. `core/hero.js` documents the per-move 3D sh
 
 A victim is its body cylinder (`radius`, `height` at `pos`), or `spec.hurt` volumes (section 6.3). Arcs / boxes test
 the cylinder analytically in the attacker frame; spheres / capsules in world space.
-`world.debugShapes(true)` (`#rpgdebug`) draws live hit volumes, body cylinders and colliders.
+`world.debugShapes(true)` (`#rpgdebug`, `__ED.rpg.debug()`) draws live hit volumes (dim while winding up, red while
+active), body cylinders (cyan = invulnerable, yellow = guarding), hurt spheres, projectiles, colliders and triggers.
 
 ### 6.3 Hit resolution (in order)
 
@@ -493,10 +496,11 @@ wake at the altar ──> gate ──> encounter #1 ──> encounter #2 ──>
 
 ```js
 rpg.encounter({
-  id: 'sentinels', order: 10,                 // played in ascending order; boss encounters last
-  title: { ko: '폐허의 파수꾼', en: 'RUIN SENTINELS' },
+  id: 'cultists', order: 10,                  // played in ascending order; boss encounters last
+  title: { ko: '흑일교 무사들', en: 'BLACK SUN CULTISTS' },
   boss: false,
-  spawns: [{ kind: 'sentinel', x: 4, z: -3, yaw?, delay?: 0.4, opts?: {} }],
+  spawns: [{ kind: 'cultist', x: 4, z: -3, yaw?, delay?: 0.4, opts?: {} }],
+  heroAt: { x: -2, z: 0, yaw: 0 },            // optional: where `#rpgenc=<id>` puts the hero
   trigger: { x: 0, z: 0, r: 6 },              // optional: starts when the hero enters (default: when the previous one ended / the gate was passed)
   onStart(world, enc) {}, onClear(world, enc) {}, update(world, enc, dt) {},
 });
@@ -632,7 +636,7 @@ physical, arcana +5 % arcane and +4 % FP per point.
 | `spawn(kind, x, z, opts)` | spawn now (returns the id) |
 | `tp(x, z, yaw?)` | teleport the hero (camera snaps) |
 | `give({ hp, fp, ult, stamina, shards, chalice })` | set meters (`true` = full) |
-| `god(on)` | the hero takes no damage |
+| `god(on)`, `debug(on)` | the hero takes no damage; the combat-volume overlay |
 | `bot(on)` | swap the hero controller for the bot |
 | `press(action, sec = 0.05)`, `move(x, y, sec)`, `look(dyaw, dpitch)` | scripted input (virtual) |
 | `act(slot)` | start a hero move now, costs ignored (`light1 … ult`) |

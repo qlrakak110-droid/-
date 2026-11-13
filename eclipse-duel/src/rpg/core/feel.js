@@ -187,8 +187,8 @@ export function createFeel(ctx, world, P) {
     dodge.at = ctx.time.real;
     ctx.time.slowmo(0.45, 0.3, { easeIn: 0.02, easeOut: 0.18 });
     post.pulse('chroma', 0.4, { release: 0.3 });
-    A.view.flash([1.5, 3, 5], 0.5, 0.3);
-    ghost(A, 0.4, 0.8, true);
+    A.view.flash([1.5, 3, 5], 0.2, 0.25);
+    ghost(A, 0.35, 0.55, true);
     P.sound('slowmo_in', { volume: 0.4 });
   }
   function step(e) {

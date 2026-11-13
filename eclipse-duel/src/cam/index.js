@@ -11,7 +11,7 @@
 // crash blur through ctx.post) -> kicks, shake, handheld drift + operator micro-motion -> ctx.camera. See README.md.
 
 import * as THREE from 'three';
-import { clamp, lerp, Ease } from '../core/math.js';
+import { clamp, lerp, Ease, DEG } from '../core/math.js';
 import { Pose, orient, readPoint, softFloor, damp1 } from './pose.js';
 import { defaultFight, createFightRig } from './framing.js';
 import { createShaker, handheld } from './shake.js';
@@ -35,8 +35,12 @@ export function createCameraDirector(ctx, opts = {}) {
   if (!fxOn) fight.hitZoom = 0;
   const rig = createFightRig(fight);
   const lens = createLens(ctx, { ...opts.lens, enabled: fxOn && !(opts.lens && opts.lens.enabled === false) });
-  /** Cinematic defaults (live): handheld amount of shots that do not set one. */
-  const cine = { handheld: fxOn ? 0.2 : 0 };
+  /**
+   * Cinematic defaults (live): handheld amount of shots that do not set one; narrow viewports (aspect below
+   * `aspectRef`) widen a shot's fov so its subject keeps most of its width: tan(fov/2) x (aspectRef / aspect)^aspectGain,
+   * at most x aspectMax and never past fovMax degrees.
+   */
+  const cine = { handheld: fxOn ? 0.2 : 0, aspectRef: 1.5, aspectGain: 0.75, aspectMax: 2.2, fovMax: 75 };
   const shaker = createShaker(opts.seed ?? 0xca3e);
   const limits = { minZ: 0.5, minY: 0.12, knee: 0.4 };
   const targets = [null, null];
@@ -195,6 +199,12 @@ export function createCameraDirector(ctx, opts = {}) {
     let dest = fightPose;
     if (seq.active) {
       dest = seq.update(dtGame, dtReal);
+      const shot = seq.shot;
+      if (camera.aspect < cine.aspectRef && shot && shot.fitAspect && dest.fov < cine.fovMax) {
+        // shots are composed for 16:9: a portrait window gets a wider lens instead of losing the sides of the frame
+        const k = Math.min(cine.aspectMax, Math.pow(cine.aspectRef / Math.max(0.3, camera.aspect), cine.aspectGain));
+        dest.fov = Math.min(cine.fovMax, (2 * Math.atan(Math.tan(dest.fov * DEG * 0.5) * k)) / DEG);
+      }
       const tr = seq.transition;
       if (tr) { if (tr.cut) { blend.on = false; cutPending = true; } else startBlend(tr.blend); }
     }
@@ -280,7 +290,10 @@ export function createCameraDirector(ctx, opts = {}) {
      * vignette, blur, breathe deg, dof on / off).
      */
     lens,
-    /** Cinematic defaults (live): `handheld` amount of shots that do not set one (0.2). */
+    /**
+     * Cinematic defaults (live): `handheld` amount of shots that do not set one (0.2); `aspectRef` (1.5), `aspectGain`
+     * (0.75), `aspectMax` (2.2), `fovMax` (75): how shots widen their lens on viewports narrower than 3:2.
+     */
     cine,
     /** The shot vocabulary (shots.js), for data-driven choreography and tests: cam.play([cam.shots.lowSweep()]). */
     shots: SHOTS,

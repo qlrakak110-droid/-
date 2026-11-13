@@ -1,5 +1,6 @@
-// Arena floor: baked flagstone maps (world-space), wet stone + puddles, worn contact band under the fight line,
-// floor pulses (glow ring + ripples), brazier light pools, and on the high tier a cheap "planar" puddle reflection
+// Terrace floor: baked formation-diagram maps (world-space), wet stone + puddles, worn contact band under the fight
+// line, floor pulses (glow ring + ripples), the warm pools of the lanterns and censers, a rim that has broken away
+// across the vista (the disc's edge follows rimR()), and on the high tier a cheap "planar" puddle reflection
 // (createReflectionOverlay): right after the HDR scene render (post.onAfterScene) the frame is copied and the
 // puddles in front of the fight line are re-shaded in a second, depth-tested pass that re-projects this same frame
 // through the mirror, assuming reflected content stands on the fight line plane (z = 0). No frame of lag, correct on
@@ -8,7 +9,10 @@
 import * as THREE from 'three';
 import { patchStandard } from './materials.js';
 import { SKY_BASE, FOG } from './glsl.js';
-import { LAYOUT } from './config.js';
+import { LAYOUT, rimR } from './config.js';
+
+/** Warm floor pools: the four fires of env.braziers plus the extra lit lanterns standing on the terrace. */
+const MAX_POOLS = 8;
 
 const MAX_PULSES = 4;
 /** Share of a puddle's reflection scattered by ripples, and the roughness of that scattered part. */
@@ -21,7 +25,7 @@ uniform vec4 uWet;        // x extra wetness on top of the baked damp (0 = as ba
 uniform vec4 uBand;       // x sigma (m), y darkening, z, w unused (the key pool is envFloorKey in materials.js)
 uniform vec4 uPulseP[${MAX_PULSES}];   // x, z, age (s), strength
 uniform vec4 uPulseC[${MAX_PULSES}];   // rgb colour, ring speed (m/s)
-uniform vec4 uBraz[4];    // brazier x, z, pool strength, -
+uniform vec4 uBraz[${MAX_POOLS}];    // fire x, z, pool strength, -
 uniform vec4 uContactP[4];  // body on the floor: x, z, foot radius (m), height (m)
 uniform vec4 uContactW;     // per-slot strength (0 = off)
 uniform vec4 uContactK;     // xy: blob-shadow direction on the floor (away from the key), z: blob strength, w: AO strength
@@ -87,7 +91,7 @@ for (int i = 0; i < 4; i++) {
   envBlob = max(envBlob, cw * (1.0 - smoothstep(rb * 0.3, rb * 1.3, sd)) * (1.0 - 0.7 * tb));
 }
 // brazier light pools (bounce + baked warmth; the real point lights add the speculars)
-for (int i = 0; i < 4; i++) {
+for (int i = 0; i < ${MAX_POOLS}; i++) {
   vec2 d = wp - uBraz[i].xy;
   envEmissive += uFire.rgb * alb * uBraz[i].z * exp(-dot(d, d) / 7.0);
 }
@@ -124,13 +128,14 @@ radiance *= 1.0 - envOcc * uContactK.w * 0.8;
 
 /**
  * Build the floor mesh.
+ * `brazierPos`: up to eight fire positions (the four of env.braziers first).
  * @returns {{ mesh, uniforms, pulse(pos, color, strength, speed), update(dtGame), setBrazierPool(strengths) }}
  */
 export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
   const pulseP = [], pulseC = [];
   for (let i = 0; i < MAX_PULSES; i++) { pulseP.push(new THREE.Vector4(0, 0, 0, 0)); pulseC.push(new THREE.Vector4(1, 1, 1, 9)); }
-  const braz = brazierPos.map((b) => new THREE.Vector4(b.x, b.z, 0, 0));
-  while (braz.length < 4) braz.push(new THREE.Vector4(0, 0, 0, 0));
+  const braz = brazierPos.slice(0, MAX_POOLS).map((b) => new THREE.Vector4(b.x, b.z, 0, 0));
+  while (braz.length < MAX_POOLS) braz.push(new THREE.Vector4(0, 0, 0, 0));
   const extra = {
     tFloorA: { value: maps.a.texture },
     tFloorB: { value: maps.b.texture },
@@ -164,8 +169,23 @@ export function createFloor(U, maps, stoneMaps, tier, brazierPos) {
       lights_fragment_maps: REFLECT,
     },
   });
-  const geo = new THREE.CircleGeometry(LAYOUT.floorR + 0.15, 128, 0, Math.PI * 2);
-  geo.rotateX(-Math.PI / 2);
+  // a fan whose edge follows the rim: the wall line all round, the ragged break across the vista (1 degree steps there)
+  const geo = new THREE.BufferGeometry();
+  {
+    const pos = [0, 0, 0], nrm = [0, 1, 0], idx = [];
+    const ths = [];
+    const fine = LAYOUT.gap + 5 * Math.PI / 180;
+    for (let d = -180; d < 180;) { const th = d * Math.PI / 180; ths.push(th); d += Math.abs(th) < fine ? 0.75 : 3; }
+    for (const th of ths) {
+      const r = rimR(th) + (rimR(th) >= LAYOUT.floorR - 1e-4 ? 0.15 : 0);
+      pos.push(r * Math.sin(th), 0, -r * Math.cos(th)); nrm.push(0, 1, 0);
+    }
+    for (let i = 0; i < ths.length; i++) idx.push(0, 1 + ((i + 1) % ths.length), 1 + i);
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
+    geo.setIndex(idx);
+    geo.computeBoundingSphere();
+  }
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'env.floor';
   mesh.receiveShadow = true;

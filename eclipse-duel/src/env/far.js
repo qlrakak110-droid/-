@@ -1,13 +1,15 @@
-// Far layer: the sea of cloud below the cliff, jagged rock spires in layered aerial perspective, and two colossal
-// hooded guardian statues standing in the clouds either side of the eclipse: draped robes with deep fanning folds
-// under a cape, both hands clasped on the hilt of a sword planted point-down, a deep cowl with faint ember eyes in
-// its shadow, a broken spiked halo, rain streaks and lichen. Built to hold up in a telephoto hero shot.
-// Far silhouettes use one cheap shader (sky ambient + eclipse rim + sky-matched haze): one draw call for all of them.
+// Far layer: the sea of cloud below the cliff, ink-painting peaks in layered aerial perspective (all the way round:
+// the action-RPG mode turns 360 degrees), a distant pagoda, and the two colossal guardian statues of armoured
+// martial deities (수호무신상) standing in the clouds either side of the eclipse: stern masked faces under a flared
+// helmet / a flame crown, layered lamellar skirts, one hand on a planted glaive or great sabre, the other raised in a
+// warding gesture, a celestial scarf arching behind the head; weathered, one of them damaged. Built to hold up in a
+// telephoto hero shot. Far silhouettes use one cheap shader (sky ambient + eclipse rim + sky-matched haze); the mesh
+// is drawn in three groups (backdrop, statue 0, statue 1) so that a statue can be hidden (env.statues[i].visible).
 
 import * as THREE from 'three';
 import { DEG } from '../core/math.js';
 import { NOISE, SKY_BASE, FOG } from './glsl.js';
-import { Builder, latheGrid, addAll, trs, noise3, fbm3, flatNormals, chamferBox, tube, sweep } from './geometry.js';
+import { Builder, latheGrid, addAll, trs, noise3, fbm3, flatNormals, chamferBox, tube, sweep, prism } from './geometry.js';
 import { LAYOUT } from './config.js';
 
 const FAR_VERT = /* glsl */ `
@@ -25,6 +27,7 @@ ${NOISE}
 ${SKY_BASE}
 ${FOG}
 uniform vec3 uFarCol, uCorona, uRim, uKeyDir;
+uniform vec2 uEyes;   // eye glow of statue 0 / statue 1
 uniform float uCloudY, uTime;
 varying vec3 vW; varying vec3 vN; varying vec3 vC; varying float vHaze; varying vec2 vS;
 void main() {
@@ -36,8 +39,8 @@ void main() {
   float statue = vS.x;
   vec3 alb = vC;
   if (statue > 0.5) {
-    // weathering on the colossi: rain streaks down the vertical faces, pale lichen crusts on what faces the sky,
-    // grime in the hollows; lit a little more by the key so the drapery reads in a telephoto shot
+    // weathering on the statues: rain streaks down the vertical faces, pale lichen crusts on what faces the sky,
+    // grime in the hollows; lit a little more by the key so the armour reads in a telephoto shot
     float vert = 1.0 - abs(n.y);
     float st = vnoise(vec2((vW.x + vW.z) * 0.55, vW.y * 0.045)) * 0.7 + vnoise(vec2((vW.x - vW.z) * 1.7, vW.y * 0.12)) * 0.3;
     alb *= 1.0 - 0.45 * smoothstep(0.5, 0.82, st) * vert;
@@ -62,8 +65,8 @@ void main() {
   float edge = pow(1.0 - abs(dot(n, v)), 3.0);
   float lift = smoothstep(uCloudY, uCloudY + 30.0, vW.y);
   col += (uRim * max(ndl + 0.2, 0.0) * fres + uCorona * 0.1 * edge * back) * (1.0 - 0.55 * f) * lift;
-  // ember eyes deep in the cowls: faint, they smoulder rather than shine
-  col += vec3(1.9, 0.52, 0.11) * vS.y * (1.0 - 0.5 * f) * (0.85 + 0.15 * sin(uTime * 1.3 + vW.x));
+  // the eye slits of the masks: a faint smoulder (uv.y = 1: statue 0, 2: statue 1)
+  col += vec3(1.9, 0.52, 0.11) * step(0.5, vS.y) * (vS.y > 1.5 ? uEyes.y : uEyes.x) * (1.0 - 0.5 * f) * (0.85 + 0.15 * sin(uTime * 1.3 + vW.x));
   gl_FragColor = vec4(moodApply(col, 1.0), 1.0);
 }`;
 
@@ -109,263 +112,320 @@ void main() {
   gl_FragColor = vec4(moodApply(col, 1.0), 1.0);
 }`;
 
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const FRONT = Math.PI / 2;            // latheGrid: phi = pi/2 faces +Z
+const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+/** Piecewise-linear lathe profile through [r, y] points (rows = points - 1). */
+const poly = (pts) => (t) => { const k = Math.min(pts.length - 1, Math.round(t * (pts.length - 1))); return pts[k]; };
+/** Mirror a convex outline across x (keeps it counter-clockwise). */
+const mirrorX = (pts, s) => (s > 0 ? pts : pts.map(([x, y]) => [-x, y]).reverse());
+
+/** Statue proportions in its own frame (units; world = units x scale). Shared with the README and env.statues. */
+export const STATUE = { plinthTop: 2.0, plinthR: 6.0, belt: 17.6, shoulder: 26.4, eyes: 30.2, helmTop: 33.3, crestTop: 38.4, glaiveTop: 44.9 };
+
 /**
- * One colossal hooded guardian (local frame: base at the origin, facing +Z, ~39 m to the halo top before `place`).
- * Smooth normals (the backlit rim needs continuous silhouettes); `haze` < 1 stands it a layer in front of the spires.
- * `q` = detail tier (0..2) scales the tessellation.
+ * One colossal guardian (local frame: plinth centre at the origin, facing +Z, ~38 units to the crest).
+ * Smooth normals (the backlit rim needs continuous silhouettes); `haze` < 1 stands it a layer in front of the peaks.
+ * @param {Builder} B
+ * @param {object} o  { place: Matrix4, haze, q: detail tier, W: +1 | -1 weapon side (local x), weapon: 'glaive' | 'sabre',
+ *                      crown: bool (flame crown instead of the flared helmet), damage: { arm, scarf, crown, chest }, eye: 1 | 2 }
  */
-function statue(B, mirror, damage, place, haze, q) {
-  const tone = (k) => (p, n, o) => { const v = k * (0.75 + 0.5 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)); o[0] = v; o[1] = v; o[2] = v * 1.02; };
+function guardian(B, o) {
+  const { place, haze, q, W, damage } = o;
+  const O = -W;
+  const tone = (k) => (p, n, c) => { const v = k * (0.75 + 0.5 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)); c[0] = v; c[1] = v; c[2] = v * 1.02; };
   const opt = (k, ember = 0) => ({ color: typeof k === 'number' ? tone(k) : k, glow: () => 1 - haze, uv: [1, ember] });
-  const M = (m) => place.clone().multiply(m);
-  const s = mirror;
-  const FRONT = Math.PI / 2;            // latheGrid: phi = pi/2 faces +Z
-  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-  const V = (x, y, z) => new THREE.Vector3(x, y, z);
-  const rows = q >= 1 ? 34 : 20, segs = q >= 1 ? 46 : 30;
+  const M = (m) => (m ? place.clone().multiply(m) : place);
+  const hi = q >= 1;
   const inv = place.clone().invert();
-  const lp = new THREE.Vector3();
-  const pleatAt = (phi, y) => {
-    const lower = sm(19.5, 1.5, y);
-    const front = sm(-0.25, 0.6, Math.sin(phi));
-    const fan = (phi - FRONT) / (0.5 + 0.5 * lower);
-    const pleat = Math.pow(Math.abs(Math.sin(fan * 4.6 + noise3(y * 0.07, phi * 0.5, 1) * 1.3)), 0.55);
-    const back = Math.sin(phi * 7 + 1.4 * noise3(y * 0.09, phi, 3));
-    return { front, lower, pleat, back };
-  };
-  // drapery shading: valleys of the folds darker (baked occlusion), ridges catch more light
-  const robeTone = (k, sq) => (p, n, o) => {
+  const lp = V(0, 0, 0);
+  // lamellar: rows of small plates laced together, each row shading the one under it
+  const lamellar = (k, y0, rowH) => (p, n, c) => {
     lp.copy(p).applyMatrix4(inv);
-    const phi = Math.atan2(lp.z / sq, lp.x);
-    const f = pleatAt(phi, lp.y);
-    const ridge = f.front * (f.pleat - 0.62) * (0.3 + 1.6 * f.lower) + (1 - f.front) * f.back * 0.35 * (0.35 + 0.65 * f.lower);
-    const v = k * (0.78 + 0.45 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)) * Math.max(0.35, 1 + ridge * 0.9);
-    o[0] = v; o[1] = v; o[2] = v * 1.02;
+    const row = (lp.y - y0) / rowH;
+    const f = row - Math.floor(row);
+    const v = k * (0.74 + 0.5 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)) * (0.66 + 0.5 * f);
+    c[0] = v; c[1] = v; c[2] = v * 1.02;
   };
 
-  // ---- robe: heavy pleats fanning down from the clasped hands, broad folds behind, pooling at the hem ----------------
-  const prof = [[0, 6.7], [1.0, 6.1], [3.5, 5.2], [9, 4.25], [14, 3.8], [17.5, 3.6], [20.2, 3.95], [22.8, 4.7], [24.9, 5.45], [26.4, 5.0], [27.7, 3.6], [28.7, 2.4]];
-  const lerpProf = (y) => { for (let i = 1; i < prof.length; i++) if (y <= prof[i][0]) { const a = prof[i - 1], b = prof[i]; const t = (y - a[0]) / (b[0] - a[0]); return a[1] + (b[1] - a[1]) * t; } return prof[prof.length - 1][1]; };
-  addAll(B, latheGrid({
-    rows, segs, squash: 0.62,
-    profile: (t) => { const y = t * 28.7; return [lerpProf(y), y]; },
-    bottomY: (phi) => -0.4 - 0.5 * noise3(Math.cos(phi) * 3, Math.sin(phi) * 3, 7),
-    rmod: (phi, y) => {
-      const { front, lower, pleat, back } = pleatAt(phi, y);
-      let m = 1 + (pleat - 0.62) * (0.025 + 0.15 * lower) * front;
-      m += back * 0.06 * (1 - front) * (0.35 + 0.65 * lower);
-      // drapery sagging between the shoulders and the hands
-      if (y > 19.5 && y < 24.8) m += 0.04 * Math.sin((y - 19.5) * 2.1 + Math.abs(phi - FRONT) * 3.2) * front * sm(24.8, 22, y);
-      // hem pooling on the plinth
-      if (y < 1.6) m += (noise3(Math.cos(phi) * 4, y, Math.sin(phi) * 4) - 0.5) * 0.14 * (1.6 - y);
-      m *= 1 + (noise3(Math.cos(phi) * 3, y * 0.35, Math.sin(phi) * 3) - 0.5) * 0.045;
-      if (damage.shoulder && y > 22 && y < 28 && Math.cos(phi - (s > 0 ? 0 : Math.PI)) > 0.72) m *= 0.84;
+  // ---- plinth: an octagonal step under a lotus pedestal -------------------------------------------------------------
+  addAll(B, latheGrid({ rows: 6, segs: hi ? 24 : 16, profile: poly([[9.0, -3.2], [9.0, -1.0], [8.0, -0.8], [7.3, 0.1], [7.9, 0.95], [7.0, 1.6], [6.0, 2.0]]), rmod: (phi, y) => (y > 0 && y < 1.7 ? 1 + 0.05 * Math.pow(Math.abs(Math.sin(phi * 8)), 0.6) : 1), capTop: true }), M(), opt(0.9));
+
+  // ---- boots under the hem ------------------------------------------------------------------------------------------
+  for (const sx of [-1, 1]) B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(sx * 2.5, 3.0, 1.5, sx * 0.2, 0, 0, 1.6, 1.25, 2.6)), opt(0.8));
+
+  // ---- armour skirts: three flaring tiers of lamellar, the lowest split in front --------------------------------------
+  const segs = hi ? 40 : 26;
+  const skirt = (y0, y1, r0, r1, flare, rows, plates, k, arc = null) => addAll(B, latheGrid({
+    rows, segs: arc ? Math.max(6, Math.round(segs * (arc[1] - arc[0]) / (Math.PI * 2))) : segs, squash: 0.7, arc,
+    profile: (t) => [r0 + (r1 - r0) * t + flare * Math.pow(1 - t, 3), y0 + (y1 - y0) * t],
+    bottomY: (phi) => y0 - 0.32 * Math.pow(Math.abs(Math.sin(phi * plates * 0.5)), 0.7),
+    rmod: (phi, y, j) => {
+      let m = 1 + (j % 2 ? 0.014 : 0) + 0.012 * Math.sign(Math.sin(phi * plates));
+      const d = Math.abs(phi - FRONT);
+      if (!arc && d < 0.2) m *= 0.9 + 0.5 * d;                         // the front seam
+      m *= 1 + (noise3(Math.cos(phi) * 3, y * 0.35, Math.sin(phi) * 3) - 0.5) * 0.035;
       return m;
     },
+  }), M(), opt(lamellar(k, y0, (y1 - y0) / (rows / 2))));
+  skirt(3.4, 12.6, 5.25, 4.1, 0.95, hi ? 10 : 6, 22, 0.95);
+  skirt(9.0, 15.6, 4.85, 4.2, 0.8, hi ? 8 : 6, 20, 1.02);
+  // tassets: four flaps over the hips and thighs
+  for (const [c, w] of [[FRONT - 0.72, 0.5], [FRONT + 0.72, 0.5], [FRONT + Math.PI * 0.5 + 0.35, 0.62], [FRONT - Math.PI * 0.5 - 0.35, 0.62]]) skirt(13.0, 17.5, 4.75, 4.2, 0.62, 4, 14, 1.08, [c - w, c + w]);
+  // the apron hanging from the belt, a boss at its point
+  B.add(prism([[-1.05, 0], [1.05, 0], [1.2, -5.6], [0, -7.4], [-1.2, -5.6]].reverse(), 0.45), M(trs(0, 17.2, 3.55, 0, -0.1, 0)), opt(1.12));
+  B.add(new THREE.SphereGeometry(0.62, 8, 6), M(trs(0, 11.6, 4.25)), opt(1.15));
+
+  // ---- belt and buckle, cuirass with the black-sun mirror on the chest, gorget ------------------------------------------
+  addAll(B, latheGrid({ rows: 3, segs, squash: 0.7, profile: poly([[4.2, 16.9], [4.5, 17.3], [4.5, 18.0], [4.2, 18.4]]) }), M(), opt(1.12));
+  B.add(new THREE.CylinderGeometry(1.4, 1.4, 0.5, hi ? 12 : 8), M(trs(0, 17.65, 3.2, 0, Math.PI / 2, 0)), opt(1.2));
+  B.add(new THREE.SphereGeometry(0.6, 8, 6), M(trs(0, 17.65, 3.5)), opt(0.5));
+  addAll(B, latheGrid({
+    rows: 7, segs, squash: 0.66, profile: poly([[4.1, 18.2], [4.2, 19.8], [4.75, 22.0], [5.05, 24.0], [4.65, 25.8], [3.4, 27.0], [2.2, 27.7], [1.9, 28.3]]),
+    rmod: (phi, y) => (damage.chest && y > 21 && y < 26.5 && Math.cos(phi - (FRONT + O * 0.9)) > 0.8 ? 0.86 : 1) * (1 + (noise3(Math.cos(phi) * 3, y * 0.4, Math.sin(phi) * 3) - 0.5) * 0.03),
     capTop: true,
-  }), M(new THREE.Matrix4()), opt(robeTone(1, 0.62)));
+  }), M(), opt(lamellar(1.0, 18.2, 1.3)));
+  addAll(B, [new THREE.TorusGeometry(1.25, 0.24, 5, hi ? 16 : 10)], M(trs(0, 23.3, 3.33, 0, -0.12, 0)), opt(1.2));
+  B.add(new THREE.CylinderGeometry(1.05, 1.05, 0.2, hi ? 12 : 8), M(trs(0, 23.3, 3.25, 0, Math.PI / 2 - 0.12, 0)), opt(0.3));
+  addAll(B, latheGrid({ rows: 2, segs: hi ? 16 : 10, profile: poly([[2.9, 26.4], [2.6, 27.2], [2.2, 27.9]]) }), M(), opt(1.1));
 
-  // ---- cape: over the shoulders and down the back, folds deepening toward a tattered hem -----------------------------
-  const cprof = [[10.5, 4.9], [15, 4.45], [19, 4.25], [22.5, 5.0], [24.6, 5.8], [25.7, 5.95], [26.9, 4.9], [27.9, 3.5]];
-  const lerpC = (y) => { for (let i = 1; i < cprof.length; i++) if (y <= cprof[i][0]) { const a = cprof[i - 1], b = cprof[i]; return a[1] + (b[1] - a[1]) * (y - a[0]) / (b[0] - a[0]); } return cprof[cprof.length - 1][1]; };
-  addAll(B, latheGrid({
-    rows: q >= 1 ? 18 : 10, segs: q >= 1 ? 30 : 18, squash: 0.66, arc: [FRONT + 0.72, FRONT + Math.PI * 2 - 0.72],
-    profile: (t) => { const y = 10.5 + t * 17.4; return [lerpC(y), y]; },
-    bottomY: (phi) => 10.5 + 2.2 * noise3(Math.cos(phi) * 2.5, Math.sin(phi) * 2.5, 11) + Math.abs(Math.cos(phi)) * 1.8,
-    rmod: (phi, y) => {
-      const low = sm(22, 11, y);
-      let m = 1 + Math.sin(phi * 9 + noise3(y * 0.1, phi, 5) * 1.6) * 0.06 * low + 0.03;
-      if (damage.shoulder && y > 22 && Math.cos(phi - (s > 0 ? 0 : Math.PI)) > 0.7) m *= 0.86;
-      return m;
-    },
-  }), M(new THREE.Matrix4()), opt((p, n, o) => {
-    lp.copy(p).applyMatrix4(inv);
-    const phi = Math.atan2(lp.z / 0.66, lp.x);
-    const v = 0.9 * (0.78 + 0.45 * noise3(p.x * 0.08, p.y * 0.08, p.z * 0.08)) * (1 + Math.sin(phi * 9 + noise3(lp.y * 0.1, phi, 5) * 1.6) * 0.35 * sm(22, 11, lp.y));
-    o[0] = v; o[1] = v; o[2] = v * 1.02;
-  }));
-
-  // ---- cowl: bowed forward, open at the face, a thick rolled rim; the face a void with two embers ---------------------
-  {
-    const hm = M(trs(0, 27.5, 0.45, 0, 0.3, 0));
-    const H = 6.9, gap = 0.82;
-    const hood = latheGrid({
-      rows: q >= 1 ? 12 : 8, segs: q >= 1 ? 22 : 14, arc: [FRONT + gap, FRONT + Math.PI * 2 - gap],
-      profile: (t) => [t < 0.3 ? 3.05 - t * 0.5 : t < 0.86 ? 2.9 * Math.cos(((t - 0.3) / 0.56) * Math.PI * 0.42) + 0.15 : 1.25 * (1 - (t - 0.86) / 0.14) + 0.12, t * H],
-      rmod: (phi, y) => (damage.hood && y > 5.0 ? 0.6 : 1) * (1 + (noise3(Math.cos(phi) * 2, y * 0.8, Math.sin(phi) * 2) - 0.5) * 0.08),
-    })[0];
-    // the peak leans forward over the brow
-    const hp = hood.attributes.position;
-    const rim = [[], []];
-    for (let i = 0; i < hp.count; i++) {
-      const y = hp.getY(i);
-      hp.setZ(i, hp.getZ(i) + Math.pow(y / H, 2) * 1.1);
+  // ---- pauldrons: three rounded lames down each shoulder, each with a rolled edge -------------------------------------------
+  for (const sx of [-1, 1]) {
+    for (let k = 0; k < 3; k++) {
+      const R = 3.05 - k * 0.38, h = 1.9 - k * 0.22;
+      const m = M(trs(sx * (5.35 + k * 0.78), 25.75 - k * 1.55, 0.15, 0, 0, -sx * (0.34 + k * 0.24)));
+      B.add(new THREE.SphereGeometry(1, hi ? 14 : 10, hi ? 5 : 4, 0, Math.PI * 2, 0, Math.PI / 2), m.clone().multiply(trs(0, 0, 0, 0, 0, 0, R, h, R * 0.92)), opt(1.14 - k * 0.07));
+      if (hi) addAll(B, [new THREE.TorusGeometry(R, 0.17, 4, 14)], m.clone().multiply(trs(0, 0.02, 0, 0, Math.PI / 2, 0, 1, 0.92, 1)), opt(1.0 - k * 0.05));
     }
-    hood.computeVertexNormals();
-    const sg = q >= 1 ? 22 : 14;
-    for (let j = 0; j < hp.count / (sg + 1); j++) { const a = j * (sg + 1); rim[0].push(V(hp.getX(a), hp.getY(a), hp.getZ(a))); rim[1].push(V(hp.getX(a + sg), hp.getY(a + sg), hp.getZ(a + sg))); }
-    B.add(hood, hm, opt(1));
-    const rimPts = [...rim[0], ...rim[1].reverse()].filter((p, i, a) => i === 0 || p.distanceTo(a[i - 1]) > 0.05);
-    addAll(B, [tube(rimPts, 0.34, { sides: q >= 1 ? 6 : 4 })], hm, opt(1.05));
-    // the void: a dark recessed face, two faint embers
-    B.add(new THREE.SphereGeometry(1.0, 10, 8), hm.clone().multiply(trs(0, 2.35, 1.3, 0, 0, 0, 1.55, 2.0, 0.9)), opt(0.12));
-    if (!damage.blind) for (const ex of [-0.48, 0.48]) B.add(new THREE.SphereGeometry(0.15, 6, 4), hm.clone().multiply(trs(ex, 2.75, 2.12, 0, 0, 0, 1.4, 0.8, 0.6)), opt(0.12, 1));
   }
 
-  // ---- arms in hanging sleeves; hands clasped on the hilt -------------------------------------------------------------
-  const gripX = 0, gripZ = 4.75, guardY = 18.4, pommelY = 21.55;
-  const sleeve = (sh, el, wr) => {
-    addAll(B, [tube([sh, sh.clone().lerp(el, 0.5).add(V(0, 0, 0.2)), el], (t) => 1.55 - t * 0.2, { sides: q >= 1 ? 9 : 6 })], M(new THREE.Matrix4()), opt(1.25));
-    const pts = [];
-    for (let i = 0; i <= 6; i++) pts.push(el.clone().lerp(wr, i / 6));
-    const g = tube(pts, (t) => 1.15 + t * 0.55, { sides: q >= 1 ? 12 : 8 });
-    // the sleeve hangs: vertices under the forearm drop with gravity, more toward the wrist
-    const p = g.attributes.position, axis = wr.clone().sub(el).normalize();
-    const c = q >= 1 ? 13 : 9;
-    for (let i = 0; i < p.count; i++) {
-      const t = Math.floor(i / c) / 6;
-      const base = el.clone().lerp(wr, t);
-      const d = V(p.getX(i), p.getY(i), p.getZ(i)).sub(base);
-      d.addScaledVector(axis, -d.dot(axis));
-      const down = Math.max(0, -d.y / (d.length() || 1));
-      p.setY(i, p.getY(i) - down * down * (0.6 + 2.4 * t));
+  // ---- arms ---------------------------------------------------------------------------------------------------------------
+  const armSides = hi ? 9 : 6;
+  const limb = (a, b, r0, r1, k, bracer = false) => addAll(B, [tube([a, a.clone().lerp(b, 0.5), b], (t) => r0 + (r1 - r0) * t + (bracer ? 0.3 * Math.pow(1 - t, 4) + 0.12 * Math.pow(t, 6) : 0), { sides: armSides, caps: true })], M(), opt(k));
+  const finger = (pts, r) => addAll(B, [tube(pts, (t) => r * (1.1 - 0.3 * t), { sides: hi ? 5 : 4, caps: true })], M(), opt(1.3));
+  const glaive = o.weapon === 'glaive';
+  // weapon arm
+  const shW = V(W * 5.9, 25.6, 0.3);
+  const shaft = V(W * 8.1, 0, 3.7);                       // glaive: where the shaft stands
+  const hilt = V(W * 3.4, 0, 5.6);                        // sabre: planted in front of the weapon-side foot
+  if (glaive) {
+    const el = V(W * 8.0, 21.2, 0.9), wr = V(shaft.x - W * 0.5, 19.2, shaft.z - 0.35);
+    limb(shW, el, 1.5, 1.25, 1.0);
+    limb(el, wr, 1.2, 0.95, 1.1, true);
+    B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(shaft.x - W * 0.55, 19.0, shaft.z - 0.1, 0, 0, 0, 0.75, 0.95, 0.9)), opt(1.3));
+    for (let k = 0; k < 4; k++) {
+      const y = 18.35 + k * 0.42, rr = 0.36 + 0.2;
+      const pts = [];
+      for (let i = 0; i <= 5; i++) { const a = (W > 0 ? Math.PI : 0) - W * (i / 5) * 4.0; pts.push(V(shaft.x + Math.cos(a) * rr, y - i * 0.015, shaft.z + Math.sin(a) * rr)); }
+      finger(pts, 0.2);
     }
+  } else {
+    const el = V(W * 7.0, 22.6, 2.4), wr = V(hilt.x + W * 0.6, 21.7, hilt.z - 0.5);
+    limb(shW, el, 1.5, 1.25, 1.0);
+    limb(el, wr, 1.2, 0.95, 1.1, true);
+    // the hand rests on the ring pommel, fingers over its front
+    B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(hilt.x, 21.45, hilt.z - 0.1, 0, 0.2, 0, 0.95, 0.45, 0.95)), opt(1.3));
+    for (let k = 0; k < 4; k++) {
+      const x = hilt.x + (k - 1.5) * 0.34;
+      finger([V(x, 21.5, hilt.z + 0.4), V(x, 21.4, hilt.z + 0.9), V(x, 21.0, hilt.z + 1.1), V(x, 20.55, hilt.z + 1.0)], 0.19 - Math.abs(k - 1.5) * 0.012);
+    }
+  }
+  // warding arm: forearm raised, palm out toward whoever climbs the terrace
+  const shO = V(O * 5.9, 25.6, 0.3), elO = V(O * 7.2, 21.6, 2.3), palm = V(O * 5.3, 25.3, 5.4);
+  limb(shO, elO, 1.5, 1.25, 1.0);
+  if (damage.arm) {
+    // snapped above the wrist: a ragged stump
+    const stump = elO.clone().lerp(palm, 0.36);
+    addAll(B, latheGrid({ rows: 2, segs: 8, profile: (t) => [1.15 - 0.1 * t, t * 2.0], topY: (phi) => 2.0 - Math.abs(Math.sin(phi * 1.5 + 0.7)) * 0.9, capTop: 1.4 }), M(new THREE.Matrix4().compose(elO, new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), stump.clone().sub(elO).normalize()), V(1, 1, 1))), opt(1.05));
+  } else {
+    const wrO = palm.clone().add(V(0, -1.5, -0.6));
+    limb(elO, wrO, 1.2, 0.9, 1.1, true);
+    B.add(chamferBox(1.9, 2.1, 0.62, 0.2), M(trs(palm.x, palm.y, palm.z, 0, -0.12, 0)), opt(1.32));
+    for (let k = 0; k < 4; k++) {
+      const x = palm.x + (k - 1.5) * 0.47;
+      const len = 1.9 - Math.abs(k - 1.4) * 0.22;
+      finger([V(x, palm.y + 0.95, palm.z - 0.1), V(x, palm.y + 0.95 + len * 0.55, palm.z - 0.2), V(x, palm.y + 0.95 + len, palm.z - 0.42)], 0.27);
+    }
+    finger([V(palm.x + W * 0.95, palm.y - 0.5, palm.z), V(palm.x + W * 1.5, palm.y + 0.1, palm.z + 0.1), V(palm.x + W * 1.65, palm.y + 0.85, palm.z)], 0.25);
+  }
+
+  // ---- the weapon -----------------------------------------------------------------------------------------------------------
+  if (glaive) {
+    // a great glaive planted at the side: shaft, collar with a tassel ring, a broad curved blade with a back hook
+    addAll(B, [tube([V(shaft.x, -1.2, shaft.z), V(shaft.x, 17, shaft.z), V(shaft.x, 34.2, shaft.z)], 0.5, { sides: 6, caps: true })], M(), opt(0.82));
+    addAll(B, latheGrid({ rows: 3, segs: 8, profile: poly([[0.55, 33.0], [1.05, 33.5], [1.05, 34.0], [0.6, 34.6]]) }), M(trs(shaft.x, 0, shaft.z)), opt(1.0));
+    addAll(B, [new THREE.TorusGeometry(0.75, 0.16, 4, 10)], M(trs(shaft.x + W * 0.2, 32.1, shaft.z + 0.5, 0, 0.5, 0)), opt(0.95));
+    B.add(prism(mirrorX([[-0.5, 0], [0.6, 0], [2.7, 2.1], [3.45, 5.2], [2.8, 8.3], [0.65, 10.6], [-0.2, 7.0], [-0.6, 3.3]], W), 0.7), M(trs(shaft.x, 34.3, shaft.z)), opt(0.9));
+    B.add(prism(mirrorX([[-0.5, 1.0], [-2.0, 2.9], [-1.2, 3.3], [-0.4, 2.7]], W), 0.5), M(trs(shaft.x, 34.3, shaft.z)), opt(0.9));
+  } else {
+    // a great sabre planted point-down: broad single-edged blade, disc guard, wrapped grip, ring pommel
+    const pts = mirrorX([[-0.25, -1.4], [0.65, 0.4], [1.25, 5.5], [1.3, 15.2], [-0.8, 15.2], [-0.8, 3.0]], W);
+    B.add(prism(pts, 0.46), M(trs(hilt.x, 0, hilt.z)), opt(0.88));
+    B.add(new THREE.CylinderGeometry(1.6, 1.6, 0.42, hi ? 12 : 8), M(trs(hilt.x, 15.4, hilt.z)), opt(0.95));
+    addAll(B, latheGrid({ rows: 5, segs: 8, profile: (t) => [0.42 + 0.05 * Math.abs(Math.sin(t * Math.PI * 5)), 15.6 + t * 4.0] }), M(trs(hilt.x, 0, hilt.z)), opt(0.85));
+    addAll(B, [new THREE.TorusGeometry(0.72, 0.22, 5, hi ? 14 : 10)], M(trs(hilt.x, 20.5, hilt.z)), opt(0.9));
+  }
+
+  // ---- the head: a stern mask under the helmet ------------------------------------------------------------------------------
+  const hy = 30.0, hz = 0.5;
+  B.add(new THREE.SphereGeometry(1, hi ? 12 : 8, hi ? 9 : 6), M(trs(0, hy, hz, 0, 0, 0, 2.0, 2.3, 1.75)), opt(1.12));
+  // brow: a heavy V ridge; a long nose wedge; cheekbones; a wide downturned mouth; a jutting chin
+  addAll(B, [tube([V(-1.95, hy + 0.95, hz + 0.45), V(-0.95, hy + 0.72, hz + 1.3), V(0, hy + 0.3, hz + 1.56), V(0.95, hy + 0.72, hz + 1.3), V(1.95, hy + 0.95, hz + 0.45)], 0.42, { sides: 5, caps: true })], M(), opt(1.26));
+  B.add(prism([[-0.46, 0], [0.46, 0], [0.15, 1.5], [-0.15, 1.5]], 0.9), M(trs(0, hy - 1.05, hz + 1.42, 0, -0.26, 0)), opt(1.28));
+  addAll(B, [tube([V(-1.05, hy - 1.68, hz + 1.02), V(-0.5, hy - 1.42, hz + 1.38), V(0, hy - 1.34, hz + 1.48), V(0.5, hy - 1.42, hz + 1.38), V(1.05, hy - 1.68, hz + 1.02)], 0.13, { sides: 4, caps: true })], M(), opt(0.16));
+  for (const sx of [-1, 1]) {
+    B.add(new THREE.BoxGeometry(0.86, 0.19, 0.3), M(trs(sx * 0.86, hy + 0.2, hz + 1.25, sx * -0.32, 0, sx * 0.2)), opt(0.08, o.eye));
+    B.add(new THREE.SphereGeometry(0.7, 6, 5), M(trs(sx * 1.22, hy - 0.62, hz + 0.98, 0, 0, 0, 1, 0.75, 0.6)), opt(1.22));
+  }
+  B.add(new THREE.SphereGeometry(0.7, 6, 5), M(trs(0, hy - 2.0, hz + 0.75, 0, 0, 0, 1.3, 0.7, 0.9)), opt(1.2));
+  if (!o.crown) {
+    // a long beard combed to a point over the gorget
+    B.add(prism([[-1.15, 0], [-0.8, -2.3], [0, -3.7], [0.8, -2.3], [1.15, 0]], 0.75), M(trs(0, hy - 1.95, hz + 1.2, 0, -0.2, 0)), opt((p, n, c) => { const v = 1.02 * (0.7 + 0.5 * noise3(p.x * 2.2, p.y * 0.25, p.z * 0.6)); c[0] = v; c[1] = v; c[2] = v * 1.02; }));
+  }
+  if (!o.crown) {
+    // helmet: bowl, a broad brim flaring up at the rim (top and underside), a lamellar neck guard, stem / bud / spike
+    const hs = hi ? 18 : 12;
+    addAll(B, latheGrid({ rows: 4, segs: hs, profile: (t) => [2.4 * Math.cos(t * Math.PI / 2), 30.9 + 2.4 * Math.sin(t * Math.PI / 2)], capTop: true }), M(trs(0, 0, 0.2)), opt(1.0));
+    addAll(B, latheGrid({ rows: 3, segs: hs, profile: poly([[4.8, 32.05], [4.3, 31.25], [3.2, 30.85], [2.3, 31.05]]), rmod: (phi) => 1 + 0.12 * Math.pow(Math.abs(Math.cos(phi)), 3) }), M(trs(0, 0, 0.2)), opt(1.08));
+    addAll(B, latheGrid({ rows: 3, segs: hs, profile: poly([[2.3, 30.6], [3.3, 30.45], [4.3, 30.95], [4.8, 31.95]]), rmod: (phi) => 1 + 0.12 * Math.pow(Math.abs(Math.cos(phi)), 3) }), M(trs(0, 0, 0.2)), opt(0.7));
+    addAll(B, latheGrid({ rows: 4, segs: hi ? 14 : 9, arc: [FRONT + 0.95, FRONT + Math.PI * 2 - 0.95], profile: poly([[3.9, 26.9], [3.3, 28.2], [2.8, 29.5], [2.5, 30.7], [2.4, 31.0]]) }), M(trs(0, 0, 0.1)), opt(lamellar(0.98, 26.9, 1.0)));
+    addAll(B, [tube([V(0, 33.2, 0.2), V(0, 35.2, 0.2)], 0.36, { sides: 6 })], M(), opt(0.95));
+    addAll(B, latheGrid({ rows: 5, segs: 8, profile: (t) => [t < 0.15 ? 0.5 : 0.25 + 0.75 * Math.sin(Math.pow((t - 0.15) / 0.85, 0.75) * Math.PI) * (1 - 0.3 * t), 35.1 + t * 3.3], capTop: true }), M(trs(0, 0, 0.2)), opt(1.0));
+    addAll(B, [new THREE.TorusGeometry(0.62, 0.17, 4, 10)], M(trs(0, 32.1, 2.45, 0, -0.5, 0)), opt(1.15));
+  } else {
+    // crown: a headband, a topknot, flame points round the brow (two snapped off), lappets down the cheeks
+    const hs = hi ? 16 : 10;
+    addAll(B, latheGrid({ rows: 3, segs: hs, profile: (t) => [2.2 * Math.cos(t * Math.PI / 2 * 0.92), 31.0 + 2.2 * Math.sin(t * Math.PI / 2 * 0.92)], capTop: true }), M(trs(0, 0, 0.15)), opt(0.92));
+    addAll(B, latheGrid({ rows: 2, segs: hs, profile: poly([[2.3, 30.75], [2.6, 31.3], [2.45, 32.0]]) }), M(trs(0, 0, 0.2)), opt(1.12));
+    B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(0, 33.9, -0.1, 0, 0, 0, 1.15, 1.35, 1.15)), opt(0.95));
+    const flame = (h) => [[-0.62, 0], [0.62, 0], [0.8, h * 0.38], [0.28, h * 0.72], [0, h], [-0.3, h * 0.7], [-0.82, h * 0.36]];
+    [[0, 4.6], [0.72, 3.5], [-0.72, damage.crown ? 1.3 : 3.5], [1.4, damage.crown ? 0.9 : 2.5], [-1.4, 2.5]].forEach(([a, h]) => {
+      B.add(prism(flame(h), 0.34), M(trs(Math.sin(a) * 2.5, 31.7, 0.2 + Math.cos(a) * 2.5, a, -0.14, 0)), opt(1.1));
+    });
+    for (const sx of [-1, 1]) addAll(B, [tube([V(sx * 2.2, 31.0, 0.3), V(sx * 2.7, 29.0, 0.5), V(sx * 2.9, 27.0, 1.1)], (t) => 0.42 - 0.1 * t, { sides: 5, caps: true })], M(), opt(1.0));
+  }
+
+  // ---- the celestial scarf: a broad ribbon arching behind the head, its ends trailing past the hips ------------------------------
+  {
+    const pts = [V(W * 8.9, 8.0, 1.2), V(W * 8.4, 13.5, 0.2), V(W * 8.3, 20.0, -1.0), V(W * 6.9, 27.6, -2.0), V(W * 3.6, 33.6, -2.7), V(0, 35.6, -2.9),
+      V(O * 3.6, 33.6, -2.7), V(O * 6.9, 27.6, -2.0), V(O * 8.2, 20.5, -1.0), V(O * 8.5, 13.0, 0.3), V(O * 9.2, 7.0, 1.4)];
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const n = hi ? 40 : 24;
+    const stop = damage.scarf ? 0.6 : 1;                       // the far half broken away
+    const path = [];
+    for (let i = 0; i <= n; i++) {
+      const t = (i / n) * stop;
+      const p = curve.getPoint(t), tg = curve.getTangent(t);
+      const side = V(0, 0, 1).cross(tg).normalize();
+      // the ends widen and flutter outward
+      const e = Math.min(t, 1 - t);
+      path.push({ p: p.add(V(0, 0, 0.5 * Math.sin(t * 19))), side, up: V(0, 0, 1), w: 0.85 + 0.9 * sm(0.22, 0.0, e) });
+    }
+    const prof = [[-1, -0.17], [1, -0.17], [1, 0.17], [-1, 0.17], [-1, -0.17]];
+    const g = sweep(prof, path.map((s) => ({ p: s.p, side: s.side.multiplyScalar(s.w), up: s.up })));
     g.computeVertexNormals();
-    B.add(g, M(new THREE.Matrix4()), opt(1.3));
-  };
-  // lower hand grips the grip; the upper hand rests over the pommel ring
-  const wA = V(s * 1.35, 19.7, 4.15), wB = V(-s * 1.05, 22.1, 3.95);
-  if (damage.arm === 1) {
-    // a broken forearm: the sleeve ends in a stump, the stone hand still clasps the hilt
-    addAll(B, [tube([V(s * 5.2, 25.0, 0.4), V(s * 5.9, 20.6, 1.7)], (t) => 1.55 - t * 0.15, { sides: 8 })], M(new THREE.Matrix4()), opt(0.95));
-    addAll(B, [tube([V(s * 5.9, 20.6, 1.7), V(s * 4.6, 20.2, 2.6)], 1.25, { sides: 8, caps: true })], M(new THREE.Matrix4()), opt(0.9));
-    addAll(B, [tube([wA.clone().add(V(s * 0.9, 0.05, -0.5)), wA], (t) => 0.55 + t * 0.05, { sides: 6, caps: true })], M(new THREE.Matrix4()), opt(0.9));
-  } else sleeve(V(s * 5.2, 25.0, 0.4), V(s * 5.9, 20.4, 1.7), wA);
-  sleeve(V(-s * 5.2, 25.0, 0.4), V(-s * 5.5, 21.3, 1.5), wB);
-  const finger = (pts, r) => addAll(B, [tube(pts, (t) => r * 1.12 * (1 - 0.25 * t), { sides: q >= 1 ? 5 : 4, caps: true })], M(new THREE.Matrix4()), opt(1.45));
-  // hand A: palm on the outer side of the grip, four fingers wrapped around its front, the thumb over them
-  B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(gripX + s * 0.68, 19.75, gripZ - 0.05, 0, 0, 0, 0.5, 0.9, 0.78)), opt(1.45));
-  for (let k = 0; k < 4; k++) {
-    const y = 19.25 + k * 0.3, rr = 0.42 + 0.17;
-    const pts = [];
-    for (let i = 0; i <= 5; i++) { const a = (s > 0 ? 0 : Math.PI) + s * (i / 5) * 4.0; pts.push(V(gripX + Math.cos(a) * rr, y - i * 0.015, gripZ + Math.sin(a) * rr)); }
-    finger(pts, 0.17);
-  }
-  finger([V(gripX + s * 0.75, 20.3, gripZ + 0.35), V(gripX + s * 0.35, 20.42, gripZ + 0.62), V(gripX - s * 0.15, 20.35, gripZ + 0.68)], 0.18);
-  // hand B: palm over the pommel ring, fingers draped over its front edge
-  B.add(new THREE.SphereGeometry(1, 8, 6), M(trs(gripX - s * 0.05, pommelY + 0.98, gripZ - 0.15, 0, 0.25, 0, 0.85, 0.42, 0.85)), opt(1.45));
-  for (let k = 0; k < 4; k++) {
-    const x = gripX + (k - 1.5) * 0.3 - s * 0.05;
-    finger([V(x, pommelY + 0.98, gripZ + 0.35), V(x, pommelY + 0.92, gripZ + 0.78), V(x, pommelY + 0.6, gripZ + 1.0), V(x, pommelY + 0.22, gripZ + 0.95)], 0.16 - Math.abs(k - 1.5) * 0.012);
-  }
-  finger([V(gripX - s * 0.7, pommelY + 0.8, gripZ + 0.2), V(gripX - s * 0.62, pommelY + 0.45, gripZ + 0.62)], 0.17);
-
-  // ---- the sword: eclipse-ring pommel, wrapped grip, drooping quillons, a long fullered blade into the plinth ---------
-  addAll(B, [new THREE.TorusGeometry(0.62, 0.21, 6, q >= 1 ? 18 : 12)], M(trs(gripX, pommelY + 0.2, gripZ, 0, 0, 0)), opt(0.88));
-  B.add(new THREE.CylinderGeometry(0.42, 0.42, 0.22, 12, 1), M(trs(gripX, pommelY + 0.2, gripZ, 0, Math.PI / 2, 0)), opt(0.25));
-  addAll(B, latheGrid({ rows: 6, segs: 8, profile: (t) => [0.4 + 0.05 * Math.abs(Math.sin(t * Math.PI * 6)), guardY + 0.35 + t * (pommelY - guardY - 0.55)] }), M(trs(gripX, 0, gripZ)), opt(0.85));
-  {
-    const span = 3.7, half = damage.guard ? 1.8 : span;
-    const path = [];
-    for (let i = 0; i <= 8; i++) {
-      const x = -span + (i / 8) * (span + half);
-      const droop = 0.85 * Math.pow(Math.abs(x) / span, 2.2);
-      path.push({ p: V(gripX + x, guardY - droop, gripZ), side: V(0, 0, 1), up: V(0, 1, 0) });
-    }
-    const pr = [[-0.32, -0.3], [0.32, -0.3], [0.38, 0], [0.32, 0.3], [-0.32, 0.3], [-0.38, 0], [-0.32, -0.3]];
-    B.add(sweep(pr, path), M(new THREE.Matrix4()), opt(0.88));
-    B.add(chamferBox(1.5, 1.1, 1.0, 0.15), M(trs(gripX, guardY, gripZ)), opt(0.88));
-  }
-  addAll(B, latheGrid({
-    rows: 5, segs: 8, squash: 0.2,
-    profile: (t) => { const u = 1 - t; const y = -1.05 + t * (guardY - 0.45 + 1.05); return [Math.max(0.12, 1.05 * (1 - Math.pow(u, 3) * 0.75) - (u > 0.88 ? (u - 0.88) * 5 : 0)), y]; },
-    rmod: (phi) => (Math.abs(Math.cos(phi)) > 0.92 ? 1 : 0.78 + 0.22 * Math.abs(Math.cos(phi))),
-  }), M(trs(gripX, 0, gripZ)), opt(0.85));
-
-  // ---- the broken halo: a spiked corona ring behind the cowl on a short stem -----------------------------------------
-  {
-    const cy = 31.4, cz = -2.5, R = 7.5;
-    const brk = damage.hood ? 0.27 : 0.11;
-    const a0 = (damage.hood ? 0.9 : -0.35) + brk * Math.PI * 2, a1 = a0 + (1 - brk) * Math.PI * 2;
-    const n = q >= 1 ? 40 : 24;
-    const path = [];
-    for (let i = 0; i <= n; i++) { const a = a0 + (i / n) * (a1 - a0); const r = V(Math.cos(a), Math.sin(a), 0); path.push({ p: V(r.x * R, cy + r.y * R, cz), side: r, up: V(0, 0, 1) }); }
-    const pr = [[-0.55, -0.24], [0.55, -0.24], [0.66, 0], [0.55, 0.24], [-0.55, 0.24], [-0.66, 0], [-0.55, -0.24]];
-    B.add(sweep(pr, path), M(new THREE.Matrix4()), opt(0.86));
-    for (let k = 0; k < 16; k++) {
-      const a = (k / 16) * Math.PI * 2 + 0.1;
-      const rel = ((a - a0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-      if (rel > a1 - a0 - 0.05) continue;
-      const len = (k % 2 ? 1.6 : 3.0) * (noise3(k, 1, 2) > 0.8 ? 0.45 : 1);
-      const base = V(Math.cos(a) * (R + 0.5), cy + Math.sin(a) * (R + 0.5), cz);
-      const q2 = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), V(Math.cos(a), Math.sin(a), 0));
-      const m = new THREE.Matrix4().compose(base, q2, V(1, 1, 1));
-      addAll(B, latheGrid({ rows: 1, segs: 4, squash: 0.45, profile: (t) => [0.5 * (1 - t) + 0.02, t * len], capBottom: true }), M(m), opt(0.86));
-    }
-    // spokes from the back of the cowl to the ring (the ones in the broken arc snapped off short)
-    for (const a of [Math.PI * 1.22, Math.PI * 1.78, Math.PI * 0.5]) {
-      const rel = ((a - a0) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-      const reach = rel > a1 - a0 ? 0.45 : 1;
-      const end = V(Math.cos(a) * R * reach, cy + Math.sin(a) * R * reach, cz);
-      addAll(B, [tube([V(Math.cos(a) * 1.6, cy - 1.2 + Math.sin(a) * 1.6, cz + 0.6), end], (t) => 0.42 - t * 0.12, { sides: 5, caps: true })], M(new THREE.Matrix4()), opt(0.86));
-    }
+    B.add(g, M(), opt(0.94));
   }
 }
 
 /**
  * Build far silhouettes + cloud sea.
- * @returns {{ far: THREE.Mesh, clouds: THREE.Mesh }}
+ * @returns {{ far: THREE.Mesh, clouds: THREE.Mesh, statues: Array }}
  */
 export function createFar(U, rng, tier) {
   const B = new Builder();
   const cy = LAYOUT.cloudY;
   const rockCol = (k) => (p, n, o) => { const v = k * (0.7 + 0.6 * fbm3(p.x * 0.02, p.y * 0.03, p.z * 0.02, 2)); o[0] = v; o[1] = v * 0.98; o[2] = v * 1.03; };
-  const spire = (az, dist, h, r, seed, k = 1) => {
-    const p = new THREE.Vector3(Math.sin(az * DEG) * dist, cy - 6, -Math.cos(az * DEG) * dist);
+  // an ink-painting peak: a needle with stepped shoulders, flat-shaded; satellites lean against the main needle
+  const needle = (x, z, h, r, seed, k, rows = 9, segs = 8) => {
     const g = latheGrid({
-      rows: 12, segs: 9,
-      profile: (t) => [r * 0.6 * Math.pow(1 - t, 0.9) * (0.75 + 0.5 * noise3(t * 5, seed, 0)) + 0.4, t * (h + 6)],
-      rmod: (phi, y) => Math.max(0.25, 1 + (fbm3(Math.cos(phi) * 1.4 + seed, y * 0.05, Math.sin(phi) * 1.4, 3) - 0.5) * 1.6),
-      topY: (phi) => h + 6 - Math.abs(noise3(Math.cos(phi) * 2 + seed, Math.sin(phi) * 2, 1)) * r * 0.8,
-      capTop: h + 6 - r * 0.2,
+      rows, segs,
+      profile: (t) => {
+        const step = 1 + 0.32 * (t < 0.34 ? 1 : t < 0.62 ? 0.45 : 0) + 0.18 * noise3(t * 6, seed, 0);
+        return [r * (0.2 + 0.62 * Math.pow(1 - t, 0.75)) * step, t * (h + 8)];
+      },
+      rmod: (phi, y) => Math.max(0.3, 1 + (fbm3(Math.cos(phi) * 1.4 + seed, y * 0.045, Math.sin(phi) * 1.4, 3) - 0.5) * 1.5),
+      topY: (phi) => h + 8 - Math.abs(noise3(Math.cos(phi) * 2 + seed, Math.sin(phi) * 2, 1)) * r * 0.5,
+      capTop: h + 8 - r * 0.12,
     });
-    addAll(B, g.map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(p.x, p.y, p.z, rng.range(0, 6)), { color: rockCol(k), uv: [0, 0] });
+    addAll(B, g.map((q) => flatNormals(q.index ? q.toNonIndexed() : q)), trs(x, cy - 8, z, rng.range(0, 6)), { color: rockCol(k), uv: [0, 0] });
   };
-  // [az, dist, height above clouds, base radius]
-  const spires = [
-    [-38, 150, 44, 14], [-47, 125, 30, 11], [-58, 175, 70, 18], [-70, 140, 38, 12], [-84, 210, 92, 24], [-102, 160, 55, 16], [-121, 190, 40, 14],
-    [36, 170, 52, 15], [49, 140, 34, 10], [61, 200, 84, 22], [74, 155, 46, 13], [90, 230, 66, 20], [108, 170, 50, 15], [124, 200, 36, 12],
-    [-16, 420, 30, 16], [12, 470, 24, 14], [-27, 330, 46, 18], [25, 360, 40, 16], [-64, 380, 110, 30], [70, 420, 120, 34],
-    [-12, 230, 30, 12], [10.5, 255, 24, 10], [-3, 390, 17, 12], [16, 300, 34, 13],
+  const peak = (az, dist, h, r, kTone = 1) => {
+    const x = Math.sin(az * DEG) * dist, z = -Math.cos(az * DEG) * dist;
+    const seed = rng.range(0, 50);
+    needle(x, z, h, r, seed, kTone);
+    const sats = tier.detail >= 1 && dist < 320 ? 2 : 1;
+    for (let i = 0; i < sats; i++) {
+      const a = rng.range(0, Math.PI * 2), d = r * rng.range(0.75, 1.2);
+      needle(x + Math.cos(a) * d, z + Math.sin(a) * d, h * rng.range(0.42, 0.78), r * rng.range(0.5, 0.75), seed + 7 + i, kTone, 6, 6);
+    }
+  };
+  // [az, dist, height above the clouds, base radius]: flanks first, the far layers, then the ring behind the gate
+  const peaks = [
+    [-38, 150, 50, 12], [-47, 125, 34, 9], [-58, 175, 78, 15], [-70, 140, 44, 10], [-84, 210, 100, 19], [-102, 160, 60, 13], [-121, 190, 46, 12],
+    [36, 170, 58, 12], [49, 140, 38, 9], [61, 200, 92, 17], [74, 155, 52, 11], [90, 230, 74, 16], [108, 170, 56, 12], [124, 200, 42, 11],
+    [-16, 420, 34, 13], [12, 470, 28, 12], [-27, 330, 52, 14], [25, 360, 46, 13], [-64, 380, 120, 24], [70, 420, 132, 27],
+    [-12, 250, 26, 9], [9.5, 290, 22, 8], [-3, 400, 19, 10], [19, 320, 30, 10],
+    [142, 180, 64, 14], [158, 240, 96, 18], [176, 160, 48, 12], [-170, 210, 82, 16], [-152, 170, 54, 12], [-138, 260, 110, 20],
   ];
-  for (const [az, d, h, r] of spires) spire(az, d, h, r, rng.range(0, 50), d > 300 ? 0.8 : 1);
+  for (const [az, d, h, r] of peaks) peak(az, d, h, r, d > 300 ? 0.8 : 1);
 
-  // colossi on their rock pedestals, facing the arena
-  // they flank the eclipse inside the vista window between the gap pillars, standing in the cloud sea so that their
-  // halos top out ~8.5 degrees up (the fight camera's frame ends ~12 degrees up)
-  for (const [az, mirror, damage] of [[-13.5, -1, { arm: 1, hood: true }], [15.5, 1, { shoulder: true, guard: true }]]) {
-    // left: the cowl's peak and a third of the halo are gone, the right forearm broken off (the hand still holds);
-    // right: a shoulder sheared away, one quillon snapped
-    const dist = 230;
-    const base = new THREE.Vector3(Math.sin(az * DEG) * dist, -14, -Math.cos(az * DEG) * dist);
-    const face = Math.atan2(-base.x, -base.z);
-    const place = trs(base.x, base.y, base.z, face, 0, 0, 1.3);
-    statue(B, mirror, damage, place, 0.54, tier.detail);
-    // rock pedestal rising from the cloud sea
+  // a distant pagoda on a far peak, left of the eclipse: seven diminishing storeys under flared eaves, a mast
+  {
+    const az = -6.6, dist = 440, top = cy + 15;
+    const x = Math.sin(az * DEG) * dist, z = -Math.cos(az * DEG) * dist;
+    needle(x, z, 15, 13, 3.3, 0.8, 6, 7);
+    let y = top - 1.5, w = 4.6, hgt = 5.4;
+    for (let k = 0; k < 7; k++) {
+      addAll(B, latheGrid({ rows: 1, segs: 6, profile: (t) => [w, y + t * hgt] }).map((q) => flatNormals(q.toNonIndexed())), trs(x, 0, z), { color: rockCol(0.8), uv: [0, 0] });
+      const yy = y + hgt, ww = w, hh = hgt;
+      addAll(B, latheGrid({ rows: 2, segs: 6, profile: poly([[ww * 2.05, yy - hh * 0.02], [ww * 1.5, yy + hh * 0.1], [ww * 0.78, yy + hh * 0.42]]) }).map((q) => flatNormals(q.toNonIndexed())), trs(x, 0, z), { color: rockCol(0.7), uv: [0, 0] });
+      y += hgt * 1.18; w *= 0.87; hgt *= 0.9;
+    }
+    addAll(B, [tube([V(x, y - 1, z), V(x, y + 7.5, z)], (t) => 0.5 - 0.4 * t, { sides: 4, caps: true })], new THREE.Matrix4(), { color: rockCol(0.7), uv: [0, 0] });
+  }
+
+  // the two guardians on rock pedestals rising from the cloud sea, facing the terrace. They flank the eclipse inside
+  // the vista window; the left one stands nearer. Their crests top out ~8 degrees up (the fight camera's frame ends
+  // ~12 degrees up).
+  const defs = [
+    { id: 'west', az: -13.5, dist: 205, scale: 1.2, baseY: -15.5, W: -1, weapon: 'glaive', crown: false, damage: {}, eye: 1 },
+    { id: 'east', az: 15.5, dist: 250, scale: 1.4, baseY: -16.5, W: 1, weapon: 'sabre', crown: true, damage: { arm: true, scarf: true, crown: true, chest: true }, eye: 2 },
+  ];
+  const groups = [];
+  const statues = [];
+  for (const d of defs) {
+    const base = V(Math.sin(d.az * DEG) * d.dist, d.baseY, -Math.cos(d.az * DEG) * d.dist);
+    // rock pedestal (part of the backdrop group: it stays when the statue is hidden)
     const g = latheGrid({
       rows: 6, segs: 12,
-      profile: (t) => [9.5 + (1 - t) * 6, -26 + t * 26.5],
-      rmod: (phi, y) => 1 + (fbm3(Math.cos(phi) * 1.6 + az, y * 0.08, Math.sin(phi) * 1.6, 2) - 0.5) * 0.5,
+      profile: (t) => [(8.6 + (1 - t) * 6) * d.scale, -30 + t * (30 - 3.0 * d.scale)],
+      rmod: (phi, y) => 1 + (fbm3(Math.cos(phi) * 1.6 + d.az, y * 0.08, Math.sin(phi) * 1.6, 2) - 0.5) * 0.5,
       capTop: true,
     });
-    addAll(B, g.map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(base.x, base.y, base.z), { color: rockCol(0.9), glow: () => 0.38, uv: [0, 0] });
+    addAll(B, g.map((q) => flatNormals(q.index ? q.toNonIndexed() : q)), trs(base.x, base.y, base.z), { color: rockCol(0.9), glow: () => 0.38, uv: [0, 0] });
   }
-  // a distant broken watchtower on the far right spire
-  {
-    const p = new THREE.Vector3(Math.sin(61 * DEG) * 200, cy - 6 + 84 + 6 - 4, -Math.cos(61 * DEG) * 200);
-    addAll(B, latheGrid({ rows: 6, segs: 10, profile: (t) => [3.2 - t * 0.6, t * 20], topY: (phi) => 20 - Math.abs(Math.sin(phi * 2.5)) * 6, capTop: 15 }).map((x) => flatNormals(x.index ? x.toNonIndexed() : x)), trs(p.x, p.y, p.z), { color: rockCol(0.85), uv: [0, 0] });
+  groups.push([0, B.idx.length]);
+  for (const d of defs) {
+    const base = V(Math.sin(d.az * DEG) * d.dist, d.baseY, -Math.cos(d.az * DEG) * d.dist);
+    const yaw = Math.atan2(-base.x, -base.z);
+    const place = trs(base.x, base.y, base.z, yaw, 0, 0, d.scale);
+    const start = B.idx.length;
+    guardian(B, { place, haze: 0.54, q: tier.detail, W: d.W, weapon: d.weapon, crown: d.crown, damage: d.damage, eye: d.eye });
+    groups.push([start, B.idx.length - start]);
+    const at = (x, y, z) => V(x, y, z).applyMatrix4(place);
+    statues.push({
+      id: d.id, azimuth: d.az, distance: d.dist, scale: d.scale, yaw,
+      position: base.clone(), weapon: d.weapon, weaponSide: d.W, damaged: !!d.damage.arm,
+      height: (d.crown ? 36.3 : STATUE.crestTop) * d.scale,
+      plinth: { center: at(0, STATUE.plinthTop, 0), radius: STATUE.plinthR * d.scale, topY: base.y + STATUE.plinthTop * d.scale },
+      head: at(0, 30, 0.5), eyes: at(0, STATUE.eyes, 2.0), chest: at(0, 23.3, 3.3),
+      palm: at(-d.W * 5.3, 25.3, 5.4), weaponTop: d.weapon === 'glaive' ? at(d.W * 8.1, STATUE.glaiveTop, 3.7) : at(d.W * 3.4, 21.2, 5.6),
+      weaponFoot: d.weapon === 'glaive' ? at(d.W * 8.1, STATUE.plinthTop, 3.7) : at(d.W * 3.4, STATUE.plinthTop, 5.6),
+    });
   }
 
+  const eyes = new THREE.Vector2(0.4, 0.4);
   const farMat = new THREE.ShaderMaterial({
     name: 'env.far',
     vertexShader: FAR_VERT,
@@ -375,12 +435,22 @@ export function createFar(U, rng, tier) {
       uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uCorona: U.uCorona, uRim: U.uRimFar, uKeyDir: U.uKeyDir, uTime: U.uTime,
       uFarCol: { value: new THREE.Color(0.006, 0.0065, 0.009) },
       uCloudY: { value: cy },
+      uEyes: { value: eyes },
     },
   });
-  const far = new THREE.Mesh(B.build(), farMat);
+  const hidden = new THREE.MeshBasicMaterial({ visible: false });
+  const geo = B.build();
+  groups.forEach(([start, count], i) => geo.addGroup(start, count, i));
+  const far = new THREE.Mesh(geo, [farMat, farMat, farMat, hidden]);
   far.name = 'env.far';
   far.frustumCulled = false;
   far.renderOrder = 10;
+  statues.forEach((s, i) => {
+    const group = geo.groups[i + 1];
+    Object.defineProperty(s, 'visible', { get: () => group.materialIndex !== 3, set: (v) => { group.materialIndex = v ? i + 1 : 3; }, enumerable: true });
+    Object.defineProperty(s, 'eyeGlow', { get: () => eyes.getComponent(i), set: (v) => { eyes.setComponent(i, Math.max(0, Number(v) || 0)); }, enumerable: true });
+    s.triangles = group.count / 3;
+  });
 
   const cloudGeo = new THREE.RingGeometry(26, 760, 72, 10);
   cloudGeo.rotateX(-Math.PI / 2);
@@ -401,5 +471,5 @@ export function createFar(U, rng, tier) {
   clouds.name = 'env.cloudsea';
   clouds.frustumCulled = false;
   clouds.renderOrder = 20;
-  return { far, clouds };
+  return { far, clouds, statues, materials: [farMat, hidden] };
 }

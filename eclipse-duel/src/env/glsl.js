@@ -90,3 +90,81 @@ vec3 applyEnvFog(vec3 col, vec3 wp) {
   return mix(col, moodApply(envFogColor(dir, length(wp - cameraPosition)), 1.0), f);
 }
 `;
+
+/**
+ * Brush and seal glyphs of the Heaven-Martial Sect (천무문), as signed-distance-ish fields in a unit cell
+ * (p in 0..1, y up; negative inside the ink). Needs NOISE.
+ *   glyphTian(p)  天      glyphMu(p)  武       (brush strokes with tapered ends)
+ *   sealGlyph(p, id)      an invented seal-script-like character (mirror-symmetric strokes of one width)
+ *   barGroup(p, id)       a formation mark: three stacked bars, each whole, split in two or split in three
+ */
+export const GLYPHS = /* glsl */ `
+float gSeg(vec2 p, vec2 a, vec2 b, float r0, float r1) {
+  vec2 pa = p - a, ba = b - a;
+  float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+  return length(pa - ba * h) - mix(r0, r1, h);
+}
+float glyphTian(vec2 p) {
+  float d = gSeg(p, vec2(0.25, 0.745), vec2(0.75, 0.765), 0.042, 0.036);
+  d = min(d, gSeg(p, vec2(0.13, 0.515), vec2(0.87, 0.545), 0.046, 0.04));
+  d = min(d, gSeg(p, vec2(0.5, 0.765), vec2(0.455, 0.45), 0.044, 0.046));
+  d = min(d, gSeg(p, vec2(0.455, 0.45), vec2(0.33, 0.24), 0.046, 0.036));
+  d = min(d, gSeg(p, vec2(0.33, 0.24), vec2(0.12, 0.09), 0.036, 0.012));
+  d = min(d, gSeg(p, vec2(0.5, 0.53), vec2(0.63, 0.3), 0.034, 0.046));
+  d = min(d, gSeg(p, vec2(0.63, 0.3), vec2(0.9, 0.1), 0.046, 0.062));
+  return d;
+}
+float glyphMu(vec2 p) {
+  float d = gSeg(p, vec2(0.2, 0.845), vec2(0.5, 0.865), 0.04, 0.034);
+  d = min(d, gSeg(p, vec2(0.07, 0.665), vec2(0.73, 0.695), 0.044, 0.038));
+  d = min(d, gSeg(p, vec2(0.385, 0.62), vec2(0.385, 0.15), 0.04, 0.04));
+  d = min(d, gSeg(p, vec2(0.385, 0.405), vec2(0.57, 0.415), 0.036, 0.03));
+  d = min(d, gSeg(p, vec2(0.2, 0.47), vec2(0.2, 0.15), 0.036, 0.038));
+  d = min(d, gSeg(p, vec2(0.05, 0.115), vec2(0.62, 0.155), 0.044, 0.038));
+  d = min(d, gSeg(p, vec2(0.6, 0.93), vec2(0.655, 0.62), 0.036, 0.042));
+  d = min(d, gSeg(p, vec2(0.655, 0.62), vec2(0.76, 0.32), 0.042, 0.046));
+  d = min(d, gSeg(p, vec2(0.76, 0.32), vec2(0.905, 0.1), 0.046, 0.05));
+  d = min(d, gSeg(p, vec2(0.905, 0.1), vec2(0.935, 0.27), 0.046, 0.01));
+  d = min(d, gSeg(p, vec2(0.775, 0.905), vec2(0.845, 0.815), 0.03, 0.046));
+  return d;
+}
+// invented seal script: four bar levels and three stems on a mirror-symmetric lattice, some corners rounded
+float sealGlyph(vec2 p, float id) {
+  vec2 q = vec2(abs(p.x - 0.5), p.y);
+  float w = 0.034;
+  float d = 1e3;
+  float h1 = hash12(vec2(id, 1.7)), h2 = hash12(vec2(id, 5.3)), h3 = hash12(vec2(id, 9.1)), h4 = hash12(vec2(id, 13.9));
+  float y0 = 0.14, y1 = 0.38, y2 = 0.62, y3 = 0.86;
+  float xa = 0.16 + 0.1 * step(0.5, h4), xb = 0.34;
+  // bars (each level: full, inner half, outer tick or none)
+  if (h1 > 0.25) d = min(d, gSeg(q, vec2(0.0, y3), vec2(h1 > 0.6 ? xb : xa, y3), w, w));
+  if (h2 > 0.3) d = min(d, gSeg(q, vec2(h2 > 0.7 ? xa : 0.0, y2), vec2(xb, y2), w, w));
+  if (h3 > 0.35) d = min(d, gSeg(q, vec2(0.0, y1), vec2(h3 > 0.7 ? xb : xa, y1), w, w));
+  if (h4 > 0.2) d = min(d, gSeg(q, vec2(h1 < 0.5 ? xa : 0.0, y0), vec2(xb, y0), w, w));
+  // stems: the centre stem over part of the height, side stems joining the bars
+  float c0 = h2 > 0.5 ? y0 : y1, c1 = h3 > 0.45 ? y3 : y2;
+  if (h1 + h3 > 0.7) d = min(d, gSeg(q, vec2(0.0, c0), vec2(0.0, c1), w, w));
+  d = min(d, gSeg(q, vec2(xb, h4 > 0.55 ? y0 : y1), vec2(xb, h2 > 0.4 ? y2 : y3), w, w));
+  if (h3 < 0.6) d = min(d, gSeg(q, vec2(xa, h1 > 0.5 ? y2 : y1), vec2(xa, h1 > 0.5 ? y3 : y2), w, w));
+  // a hooked foot or a dot
+  if (h4 > 0.6) d = min(d, gSeg(q, vec2(xb, y0), vec2(xb + 0.08, y0 - 0.07), w, w * 0.6));
+  else if (h2 < 0.35) d = min(d, length(q - vec2(0.0, 0.5 * (y0 + y1))) - w * 1.3);
+  return d;
+}
+// formation mark: three stacked bars in a cell (p in 0..1); bar k is whole, split in two, or split in three
+float barGroup(vec2 p, float id) {
+  float d = 1e3;
+  for (int k = 0; k < 3; k++) {
+    float y = 0.22 + 0.28 * float(k);
+    float kind = floor(hash12(vec2(id * 1.31 + 0.7, float(k) * 3.7 + 2.1)) * 3.0);
+    float x = abs(p.x - 0.5);
+    float dx;
+    if (kind < 0.5) dx = x - 0.4;
+    else if (kind < 1.5) dx = max(x - 0.4, 0.07 - x);
+    else dx = min(x - 0.1, max(x - 0.4, 0.2 - x));
+    vec2 e = vec2(dx, abs(p.y - y) - 0.075);
+    d = min(d, length(max(e, 0.0)) + min(max(e.x, e.y), 0.0));
+  }
+  return d;
+}
+`;

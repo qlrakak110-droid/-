@@ -17,6 +17,7 @@ import { botController } from './core/bot.js';
 import { registerBuiltinKinds, registerBuiltinEncounters } from './core/kinds.js';
 import { createStandinWorld } from './core/standin.js';
 import { createDebugHud } from './core/debughud.js';
+import { createDebugShapes } from './core/debugshapes.js';
 import { defaultProgress } from './core/progress.js';
 import { STEP, yawTo } from './core/math3.js';
 import { withStage } from './core/stage.js';
@@ -41,7 +42,7 @@ export async function createRpg(ctx, o = {}) {
   if (registry.setups.length && ctx.vfx) ctx.vfx.prewarm();
   const progress = () => registry.progressObj || defaultProgress;
 
-  let world = null, hud = null, dressing = null, standin = null, human = null;
+  let world = null, hud = null, dressing = null, standin = null, human = null, shapes = null;
   let acc = 0, paused = false, prevInputMode = 'solo';
   const look = { x: 0, y: 0 };
   const P = { x: 0, y: 0, visible: false };
@@ -183,6 +184,9 @@ export async function createRpg(ctx, o = {}) {
     world.present = createPresent(ctx, world, { fx });
     world.camera = createRpgCamera(ctx, world);
     rpg.camera = world.camera;
+    shapes = createDebugShapes(ctx, world);
+    world.debugShapes = (on = true) => shapes.set(on);
+    if (ctx.flags.rpgdebug !== undefined) shapes.set(true);
     world.fxAt = (actor, name, at = [0, 0, 0], fo = {}) => withStage(actor, () => fx.play(name, { pos: at, facing: 1, scale: fo.scale }, fo, fo.fallback ?? null));
     dressing = null;
     if (registry.worldFactory && !opts.sandbox) { try { dressing = registry.worldFactory(ctx, world) || null; } catch (e) { console.warn('[ed] rpg: world module threw: ' + (e && (e.stack || e.message))); } }
@@ -232,6 +236,7 @@ export async function createRpg(ctx, o = {}) {
     if (dressing && dressing.dispose) { try { dressing.dispose(); } catch (e) { console.warn('[ed] rpg: world dispose threw: ' + (e && e.message)); } }
     dressing = null;
     world.present.dispose();
+    if (shapes) { shapes.dispose(); shapes = null; }
     if (ctx.vfx) ctx.vfx.clear();
     world.dispose();
     world = null; rpg.world = null; rpg.camera = null; rpg.hero = null;
@@ -286,7 +291,7 @@ export async function createRpg(ctx, o = {}) {
     if (standin) standin.update(dtGame, dtReal);
     if (dressing && dressing.update) dressing.update(dtGame, dtReal);
   }, ctx.ORDER.CHAR);
-  ctx.onUpdate(() => { if (rpg.active) world.present.late(); }, ctx.ORDER.CHAR + 5);
+  ctx.onUpdate(() => { if (rpg.active) { world.present.late(); if (shapes.on) shapes.update(); } }, ctx.ORDER.CHAR + 5);
   ctx.onUpdate((dtGame, dtReal) => { if (rpg.active) world.camera.update(dtGame, dtReal); }, ctx.ORDER.CAM + 1);
   ctx.onUpdate((dtGame, dtReal) => {
     if (!rpg.active || !hud) return;
@@ -362,6 +367,8 @@ export async function createRpg(ctx, o = {}) {
       if (g.cooldowns) for (const k in h.cd) h.cd[k] = 0;
     },
     god(on = true) { world.godMode = !!on; },
+    /** draw hit volumes, body cylinders, colliders, triggers (also `#rpgdebug`) */
+    debug(on = true) { world.debugShapes(on); },
     bot(on = true, bo = {}) { world.hero.controller = on ? botController(bo) : human; },
     /** hold a virtual action for `sec` real seconds */
     press(action, sec = 0.05) { ctx.input.setVirtual(action, true, 0); holds.push({ left: sec, end: () => ctx.input.setVirtual(action, false, 0) }); },

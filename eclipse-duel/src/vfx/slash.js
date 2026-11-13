@@ -18,7 +18,7 @@ export const SLASH_LOOKS = {
   /** clean razor arc: thin white-hot edge, streaked body that breaks into lines along the arc */
   razor: { ink: 0.55, dry: 0.8, palette: 'ember', life: 0.34, sweep: 0.07, width: 0.42, over: 0.2, taper: 0.75, peak: 0.62, thin: 0.55, noise: 0.35, noiseScale: 0.55, scroll: 1.4, edgeWidth: 0.05, heat: 0.38, tailAdditive: 1, body: 1.5 },
   /** ragged flame arc: licking tongues off the edge, hot rim, cools into dark smoke (alpha) */
-  flame: { ink: 0.5, dry: 0.55, palette: 'ember', tailFrom: 'smoke', life: 0.6, sweep: 0.09, width: 0.6, over: 0.75, taper: 0.55, peak: 0.55, thin: 0.25, noise: 0.6, noiseScale: 0.7, scroll: 2.4, edgeWidth: 0.12, heat: 0.42, tailAdditive: 0.05, body: 1.2 },
+  flame: { ink: 0.5, dry: 0.55, palette: 'ember', tailFrom: 'smoke', life: 0.6, sweep: 0.09, width: 0.6, over: 0.75, taper: 0.55, peak: 0.55, thin: 0.25, noise: 0.6, noiseScale: 0.7, scroll: 2.4, edgeWidth: 0.08, heat: 0.42, tailAdditive: 0.05, body: 1.2 },
   /** icy arc: crystalline cells with bright fracture lines and glints; shatters cell by cell */
   ice: { ink: 0.3, dry: 0.6, palette: 'frost', life: 0.62, sweep: 0.07, width: 0.45, over: 0.32, taper: 0.8, peak: 0.6, thin: 0.2, noise: 0.55, noiseScale: 1.0, scroll: 0.25, edgeWidth: 0.05, heat: 0.5, tailAdditive: 0.5, body: 1.3 },
   /** electric arc: crackling jagged filaments inside a faint glow band, flickering and re-jagging at 30 Hz */
@@ -184,7 +184,7 @@ const FRAG_BODY = /* glsl */ `
   // (the sweep smear heats the honed edge only: a whole band at core values is a white sheet under ACES and bloom)
   float k = (look == 1 ? 0.6 : 0.52) + cool * 0.6 + (1.0 - edgeness) * 0.3 - line * 0.42 * (1.0 - 0.75 * cool) - smear * 0.3 * edgeness - hot + (look == 4 ? 0.5 * (1.0 - line) : 0.0);
   vec3 rgb = heat3(k, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
-  rgb += vCore.rgb * line * (1.0 - cool) * (1.0 - cool * 0.5) * flick;
+  rgb += vCore.rgb * line * (1.0 - cool) * (1.0 - cool * 0.5) * flick * (look == 1 ? 0.75 : 1.0);
   // the honed core: a hair-thin, near-white line riding the cutting edge while the stroke is fresh
   rgb += (vCore.rgb * 0.55 + vec3(dot(vCore.rgb, vec3(0.3333)) * 0.75)) * hone * (1.0 - cool) * (1.0 - cool) * flick;
   rgb += vCore.rgb * smear * (0.04 + 0.4 * edgeness * edgeness);

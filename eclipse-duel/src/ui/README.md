@@ -120,9 +120,10 @@ ui.hud.cinematic(on);
 | `setup(o)` | static info once per match. Fighter = roster entry: the plate shows the sect emblem, the brush-written `name`, its `hanja`, and `title · sect`. Builds skill slots from `moves` (`skillsOf(f)` is exposed); the 오의 orb (and the touch 오의 button for P1) shows the icon of the `ult` move; `weaponArt`, `seal` and the `ult` move feed the 오의 banner |
 | `set(o)` | every frame. **time**: seconds left as numerals in the eclipse dial (`null` / `Infinity` shows ∞); under the dial an incense stick burns toward its foot (fraction of the largest time seen since `setup`), the ember riding its end; ≤ 10 s the dial burns red, quickens and the number pulses each second. **hp** (기혈): a band of pale ink inside a black under-stroke with brushed, frayed ends; the fill carries the element as an inner glow and a white-hot leading edge; damage holds a cinnabar ghost for 0.55 s then drains, flashes the lost segment and jolts the band; < 25 % the band turns blood red and throbs. **fp** (내공): element bar with quarter ticks + value. **ult** (오의): ring gauge in the desktop orb / thin bar on touch; reaching full **ignites** it (core flash, two shock rings, a flare, the corona snapping open, the brush label 「오의」 with its seal 奧義 slamming in), then it breathes until spent. **rounds**: a seal 勝 is stamped into the next empty frame |
 | `skills(side, list)` | up to 3 ink roundels. `cd` 0..1 = remaining cooldown fraction (clockwise sweep with a hand). `ready` defaults to `cd <= 0 && fp >= cost`; becoming ready fires a burst, ready slots breathe. `cost` tag turns red when 내공 is short. `key` overrides the hint (default from `input.keyLabel`; hidden for the CPU side unless `input.mode === 'versus'`). `icon` = an icon name (below) |
-| `combo(side, hits, damage)` | `side` = attacker. Shows at `hits >= 2` (「n 연환」), punches (scale + tilt + white flash) on every increase, fades 2.6 s after the last update or when `hits < 2` |
+| `combo(side, hits, damage)` | `side` = attacker. Shows at `hits >= 2` (「n 연환」, on a swath of ink so it reads over white-hot effects), punches (scale + tilt + white flash) on every increase, fades 2.6 s after the last update or when `hits < 2` |
 | `announce(text, o)` | see below; returns an id |
 | `clearAnnounce()` | remove announcements |
+| `dismiss(style = 'ult', dur = 0.25)` | fade the cards of one style out early and remove them (default: the 오의 banner; `null` = every card). For choreography that wants the whole frame before a card's time is up — use this instead of reaching into the HUD's DOM |
 | `cinematic(on)` | slides the top bar up and the docks down (0.38 s), dims the touch pad; announcements stay |
 | `hints(on)` | control strip (keyboard / gamepad labels follow the last device; hidden on touch): 이동 · 경초 · 중초 · 절기 · 오의 · 호신 · 경공 · 숨 고르기 |
 | `reset()` | between rounds: clears ghosts, combos, announcements |
@@ -134,7 +135,7 @@ ui.hud.cinematic(on);
 `'win'`, `'lose'` (`'ROUND 2'`, `'K.O.'`, `'TIME UP'` ... are recognised too). `o.sub` / `o.style` / `o.seal` override the
 preset's. A card is a stack of layers driven by one tween: a band of black ink dragged across (so the line reads over
 any effect), the main line written by `brushText`, its Hanja on a seal that is stamped after the line lands, a
-dry-brush rule and the English sub; slamming cards add an ink splash, a ring and a flare. A new card replaces the
+dry-brush rule and the English sub on its own slip of ink; slamming cards add an ink splash, a ring and a flare. A new card replaces the
 current one unless `keep` (an `ult` banner survives others). Transform / opacity only.
 
 | preset | main line · seal · sub | style, motion | duration |
@@ -153,9 +154,9 @@ winner with `announce(roster.name, { style: 'win', sub: '승 · WINNER' })`). Ha
 free text fall back to the serif stack.
 
 **`style: 'ult'` — the 오의 banner.** A hanging banner at the side of the screen that belongs to `o.side` (left for P1,
-right for P2; the hero shot in the middle stays clear): kicker 「오의 奧義」 + the hero's name, the 오의 written down
-the banner glyph by glyph in the hero's element, its Hanja running beside it, the hero's seal, the English gloss at
-the foot, the weapon line art behind. With a `side` whose roster entry has an `ult` move the banner shows **that
+right for P2; the hero shot in the middle stays clear): the kicker 「오의 奧義」, the 오의 written down the banner
+glyph by glyph in the hero's element, its Hanja running beside it, the hero's seal, the English gloss at the foot,
+the weapon line art behind. With a `side` whose roster entry has an `ult` move the banner shows **that
 move's `name` / `hanja` / `nameEn`** (so callers cannot drift from the roster); `text`, `o.hanja` and `o.sub` are used
 for a custom banner (pass `o.hanja`, `''` for none) or when no roster was set up. `o.kicker` replaces the kicker.
 1.7 s by default.

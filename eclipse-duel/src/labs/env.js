@@ -1,4 +1,4 @@
-// Environment lab: the Eclipse Ruins arena with two 1.9 m grey capsule dummies on the fight line (x = -2.5 / +2.5).
+// Environment lab: the arena 「천무대」 with two 1.9 m grey capsule dummies on the fight line (x = -2.5 / +2.5).
 // Scenarios frame the fight camera (near / mid / far), cinematic low / high / side angles, mood dimming and pulses.
 //   node tools/shot.mjs env --do "__ED.lab.play('gameMid')" --at 1.2 --each "__ED.lab.play('prime')" --out shots/env/gameMid
 // `game*` scenarios frame the dummies with the game's own fight camera (src/cam); the others are fixed lab views.
@@ -124,29 +124,44 @@ createLab({
     sideR(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.2, 0], dist: 9, yaw: 60, pitch: 4, fov: 40 }); },
     sideLowL(ctx, lab) { freeCam(lab); lab.view({ target: [0, 1.6, 0], dist: 6, yaw: -55, pitch: -8, fov: 45 }); },
     overview(ctx, lab) { lookFrom(lab, [0, 22, 30], [0, 0, -8], 50); },
-    /** close inspection of the architecture: podium frieze + cornice, a capital and arch, the tier, a brazier shrine */
-    inspWall(ctx, lab) { lookFrom(lab, [9.0, 1.5, -5.2], [13.6, 2.2, -7.9], 42); },
-    inspCapital(ctx, lab) { lookFrom(lab, [6.6, 1.8, -9.0], [11.5, 8.6, -13.2], 46); },
-    inspTier(ctx, lab) { lookFrom(lab, [-3.5, 7.5, -1.5], [-20.0, 6.0, -12.5], 46); },
-    inspBrazier(ctx, lab) { lookFrom(lab, [6.6, 0.85, -8.6], [8.3, 0.55, -10.9], 40); },
+    /** close inspection: the gate and its name board, the hall, the gallery, lanterns, censer, wall reliefs, floor */
+    inspGate(ctx, lab) { lookFrom(lab, [1.2, 1.7, 9.5], [0, 5.6, 20.5], 50); },
+    inspBoard(ctx, lab) { lookFrom(lab, [0.6, 1.7, 15.2], [0.1, 6.9, 20.3], 34); },
+    inspGateSide(ctx, lab) { lookFrom(lab, [-9.5, 1.7, 9.0], [-2, 5.0, 20.5], 55); },
+    inspHall(ctx, lab) { lookFrom(lab, [-6.5, 1.7, 1.5], [-22, 5.2, -4.6], 55); },
+    inspHallWreck(ctx, lab) { lookFrom(lab, [-9.5, 1.8, 8.5], [-22, 4.2, 3.0], 55); },
+    inspHallEave(ctx, lab) { lookFrom(lab, [-9.0, 1.7, -7.0], [-18.0, 7.2, -13.8], 50); },
+    inspGallery(ctx, lab) { lookFrom(lab, [7.5, 1.7, -4.0], [16.5, 5.2, -10.5], 55); },
+    inspGalleryFallen(ctx, lab) { lookFrom(lab, [6.0, 1.7, 6.0], [13.2, 2.6, 13.0], 55); },
+    inspLantern(ctx, lab) { lookFrom(lab, [-6.3, 1.25, -8.4], [-8.24, 1.35, -10.94], 42); },
+    inspCenser(ctx, lab) { lookFrom(lab, [9.6, 1.3, -4.4], [12.1, 1.0, -6.2], 42); },
+    inspWall(ctx, lab) { lookFrom(lab, [10.5, 1.3, 5.0], [15.2, 1.2, 8.0], 46); },
+    inspStairs(ctx, lab) { lookFrom(lab, [4.5, 1.6, 11.0], [0.5, 1.4, 17.5], 50); },
+    inspStele(ctx, lab) { lookFrom(lab, [10.4, 1.5, -2.0], [13.5, 1.5, -4.4], 40); },
+    inspRack(ctx, lab) { lookFrom(lab, [11.0, 1.4, -0.5], [14.4, 1.0, -1.5], 46); },
+    inspRim(ctx, lab) { lookFrom(lab, [3.0, 1.6, -9.5], [-2.0, 0.4, -15.0], 56); },
+    inspPine(ctx, lab) { lookFrom(lab, [6.0, 1.6, -9.0], [14.5, 7.0, -17.0], 58); },
     inspImpact(ctx, lab) { lookFrom(lab, [-1.6, 1.6, -1.2], [-4.6, 0.1, -6.6], 46); },
-    inspTierHigh(ctx, lab, side = -1) { lookFrom(lab, [side * -3, 12.5, 3], [side * 22, 5.5, -8], 52); },
     inspImpactTop(ctx, lab) { lookFrom(lab, [-2.6, 9.5, 0.5], [-4.4, 0, -6.2], 50); },
     inspVista(ctx, lab) { lookFrom(lab, [2.0, 1.4, -9.0], [-4.0, 1.0, -16.5], 50); },
-    /** the toppled column and its upside-down capital by the left wall; the fallen drums by the right wall */
-    inspTopple(ctx, lab) { lookFrom(lab, [-7.0, 1.7, 3.4], [-11.8, 0.5, -1.4], 50); },
-    inspFallenR(ctx, lab) { lookFrom(lab, [8.4, 2.4, 0.6], [13.0, 0.8, -5.0], 50); },
-    /** the broken kerb across the vista, from the arena side (nothing may bridge a fallen course) */
-    inspKerb(ctx, lab) { lookFrom(lab, [0, 1.4, -8.0], [0, 0.6, -15.5], 60); },
-    /** the floor straight from above (puddles must read as wet stone, not holes) */
+    /** the floor straight from above (puddles must read as wet stone, not holes); the whole diagram from high up */
     topDown(ctx, lab) { lookFrom(lab, [-2.0, 9.0, 2.6], [-2.0, 0, 1.0], 50); },
-    /** telephoto hero shots of the colossi from the vista edge: whole figure / cowl and hands */
-    colossusL(ctx, lab) { lookFrom(lab, [-2, 1.8, -13.5], [-53.7, 10.5, -223.6], 15); },
-    colossusR(ctx, lab) { lookFrom(lab, [2, 1.8, -13.5], [61.5, 10.5, -221.6], 15); },
-    colossusStudy(ctx, lab, yaw = 0) { const a = Math.atan2(53.7, 223.6) + yaw; lookFrom(lab, [-53.7 + Math.sin(a) * 75, 16, -223.6 + Math.cos(a) * 75], [-53.7, 14, -223.6], 32); },
-    colossusHead(ctx, lab) { lookFrom(lab, [-2, 1.8, -13.5], [-53.0, 18.5, -223.8], 6); },
-    /** telephoto on the far left colossus (inspect the far silhouettes) */
-    colossus(ctx, lab) { lookFrom(lab, [-1, 2.4, 4], [-53.7, 16, -223.6], 12); },
+    diagram(ctx, lab) { lookFrom(lab, [0, 30, 4.0], [0, 0, 0], 58); },
+    diagramNear(ctx, lab) { lookFrom(lab, [0, 9.5, 5.5], [0, 0, -1.0], 62); },
+    overviewN(ctx, lab) { lookFrom(lab, [0, 26, -34], [0, 2, 0], 55); },
+    overviewW(ctx, lab) { lookFrom(lab, [30, 20, 6], [-6, 3, -2], 50); },
+    /**
+     * telephoto studies of the guardian statues: `statue(i)` whole figure from the terrace's rim, `statueHead(i)` the
+     * mask and helmet, `statueStudy(i, yaw)` from 90 m in front of it at `yaw` degrees round
+     */
+    statue(ctx, lab, i = 0) { const s = ctx.env.statues[i]; lookFrom(lab, [s.position.x * 0.06, 1.8, -13.0], [s.position.x, s.position.y + s.height * 0.56, s.position.z], 17); },
+    statueHead(ctx, lab, i = 0) { const s = ctx.env.statues[i]; lookFrom(lab, [s.position.x * 0.06, 1.8, -13.0], [s.head.x, s.head.y, s.head.z], 5.5); },
+    statueStudy(ctx, lab, i = 0, yaw = 0, dist = 90) {
+      const s = ctx.env.statues[i];
+      const a = s.yaw + yaw * DEG;
+      lookFrom(lab, [s.position.x + Math.sin(a) * dist, s.position.y + s.height * 0.55, s.position.z + Math.cos(a) * dist], [s.position.x, s.position.y + s.height * 0.5, s.position.z], 36);
+    },
+    statueHide(ctx, lab, i = 0, on = false) { ctx.env.statues[i].visible = on; },
     mood(ctx) { ctx.env.setMood({ darken: 0.85, tint: 0x8fa0ff, duration: 0.3 }); },
     moodWarm(ctx) { ctx.env.setMood({ darken: 0.8, tint: 0xff9a70, duration: 0.3 }); },
     moodOff(ctx) { ctx.env.setMood(null); },

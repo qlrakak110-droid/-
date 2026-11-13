@@ -22,8 +22,9 @@ Clocks: framing, shake, kicks, zoom, letterbox and every **blend** run on **real
 hit-stop and slow-motion). Shot timelines run on **game time** by default (they stay in sync with the choreography and
 freeze with hit-stop); set `clock: 'real'` on a shot (or the whole sequence) to override, e.g. for a super-freeze.
 Determinism: no `Math.random()`; the shake noise is seeded (`createCameraDirector(ctx, { seed })`).
-Cost: ~30 µs CPU per frame, no per-frame allocations, no draw calls or shader programs of its own (the lens only
-switches existing post passes on: see "Cinematic lens"). Every filter is dt-exact (critically damped springs,
+Cost: under 10 µs CPU per frame (lab microbenchmark, whole update loop: 5.6 µs in fight framing, 7.2 µs in a
+cinematic with the lens, 6.1 µs with `#camfx=0`), no per-frame allocations, no draw calls or shader programs of its
+own (the lens only switches existing post passes on: see "Cinematic lens"). Every filter is dt-exact (critically damped springs,
 phase-accumulated noise, exponential velocity smoothing), so a dropped frame (dt 1/30) follows the same path as two
 1/60 frames (lab check: within 3 cm in calm motion, within one frame of motion in launches / impacts).
 URL flag `#camfx=0`: the plain camera (no lens, no operator micro-motion, no hit zoom) for A/B checks.
@@ -99,7 +100,7 @@ cam.setTargets(p1.sockets.chest, p2.sockets.chest);
 | `limits` | safety limits for every camera: `{minZ: 0.5, minY: 0.12, knee: 0.4}` (soft floors, then hard clamps after shake) |
 | `shakeSettings` | amplitudes at trauma 1 + global `scale` (accessibility "reduce shake": set `scale` 0..1) |
 | `lens` | the cinematic lens: `lens.settings` (live, table in "Cinematic lens") and `lens.info` (this frame: `{focus, aperture, range, near, exposure, vignette, blur, breathe, dof}`) |
-| `cine` | cinematic defaults (live): `{handheld: 0.2}` = handheld amount of shots that do not set one |
+| `cine` | cinematic defaults (live): `{handheld: 0.2, aspectRef: 1.5, aspectGain: 0.75, aspectMax: 2.2, fovMax: 75}`: handheld amount of shots that do not set one; on viewports narrower than `aspectRef` every shot widens its lens (`tan(fov/2) × (aspectRef / aspect)^aspectGain`, at most `× aspectMax`, never past `fovMax`°) so a portrait window keeps the subject's surroundings instead of cropping them (`fitAspect: false` on a shot opts out) |
 | `shots` | the shot vocabulary (`shots.js`) on the director, for data-driven choreography and tests: `cam.play([cam.shots.lowSweep()])` |
 | `sun` | optional `Vector3` toward the eclipse for sun-aware shots (`duelStandoff`); default `ctx.env.sunDir` |
 | `debug` | `{rig, shake, base, seqShot()}`: fight-rig readout, last shake sample, pre-shake pose, the normalised shot on screen |
@@ -217,6 +218,7 @@ the destination with a C2 smootherstep, so blends are continuous from any state 
 | `breathe` | 1 | focus-breathing scale of this shot |
 | `grade`, `gradeDur` | –, 0.5 s | `post.grade` preset name or params applied when the shot starts; the baseline grade returns when the sequence ends (`grade: false` returns it at this shot) |
 | `name` | – | label (the vocabulary builders set their own name); shown by the lab's `#lens` readout |
+| `fitAspect` | true | widen the fov on narrow viewports (`cam.cine`); `false` for shots that fit themselves (`duelStandoff`) |
 
 **Late-bound shots.** An entry of the shot list may be a function `(c) => shot`: the sequencer calls it when that shot
 starts (one normalisation at the shot change, nothing per frame) with the live context `c = { facing (+1 / -1), aspect
@@ -307,8 +309,8 @@ compiles: program counts are identical before and after a cinematic).
 | high | every cinematic shot with aperture ≥ 0.12: +2 half-res passes (32 taps); `topDownSlam` never | same | on |
 
 Fight framing never pays for any of it (`__ED.info().post.dof` is false outside cinematics; the aperture tail is cut
-0.3 s after the hand-back). CPU: ~8 µs per frame for the lens, no allocations (shot normalisation happens at `play`
-/ shot changes).
+0.3 s after the hand-back). CPU: about 1 µs per frame for the lens (7.2 vs 6.1 µs per lab frame with / without it,
+minimum of 40 runs), no allocations (shot normalisation happens at `play` / shot changes).
 
 ### Sharing the post pipeline
 
@@ -348,7 +350,7 @@ default (`shots.heroPushIn({ dof: { aperture: 0.5 } })`); `dof: false` switches 
 | `impactPunchIn` | sharp push onto the struck fighter, hard deceleration, fov squeeze, shake + roll kick; zoom blur | `subject 'target', dur 0.45, angle -28, dist [3.8,2.4], height [1.55,1.5], look 1.45, fov [36,29], shake 0.55` | subject, auto × 0.35, pull 0.06 |
 | `topDownSlam` | nearly overhead on the impact point, slowly turning and settling | `subject 'target', dur 0.9, height [7.5,6], toward [1.4,1.0], ahead 0, look 0.3, fov [42,38], roll [0,10]` | none (one depth from above); +0.02 (+ the auto top-down lift) |
 | `wideEstablishing` | far, high, slow lateral drift and crane — the whole arena | `subject 'mid', dur 1.8, dist [14,13], height [3.2,3.9], look [2,1.8], drift 1.6, fov 42` | subject (both), auto × 0.9 (a soft far backdrop on high); vig +0.04 |
-| `faceCloseUp` | three-quarter front head shot at eye level, eyes on the upper third, slow push | `subject 'anchor', dur 1.1, angle 42 (negative for the target), dist [1.35,1.05], height 1.68, look 1.63, fov [30,27]` | aim (the head), 1.15, range 0.3, pull 0.1; +0.06, vig +0.08 |
+| `faceCloseUp` | three-quarter front head shot at eye level, eyes on the upper third, slow push | `subject 'anchor', dur 1.1, angle 42 (negative for the target), dist [1.35,1.05], height 1.68, look 1.63, fov [30,27]` | aim (the head), 0.95, range 0.3, pull 0.1; +0.06, vig +0.08 |
 | `weaponFollow` | rides alongside a moving subject (dash, or a weapon socket as `subject`), subject in the left third, aiming down the line of travel | `subject 'anchor', dur 0.6, pos [[-1.3,1.1,2.1],[-0.9,1.2,1.85]], look [[1.6,1.2,0],[2,1.1,0]], fov [48,44], roll [4,2]` (follows, `followY`, lag 0.08) | subject, 0.35, range 0.8; blur 0.3 |
 | `groundSkim` | camera racing along the floor looking up; with `'mid'` frames + `follow:'look', followY` it is the low "airborne fight" shot | `dur 0.9, from [-0.9,0.28,1.3], fromSpace 'anchor', to [-1.3,0.32,1.1], toSpace 'target', look [[2,0.8,0],[0,1.25,0]], lookSpace ['anchor','target'], fov [52,44], roll [-3,0]` | aim, auto × 0.4; +0.04 |
 | `dutchDrift` | tilted, uneasy medium shot sliding sideways while the tilt deepens | `subject 'anchor', dur 1.6, angle 18, dist 4, height [1.55,1.7], look 1.4, roll [8,12], drift 0.8, fov 36` | subject, 0.6; vig +0.05 |

@@ -105,9 +105,9 @@ export const DIFFICULTIES = [
 
 /** Quality tiers shown in the menus (value matches ctx.quality.tier). */
 export const QUALITIES = [
-  { value: 'low', name: '낮음', hanja: '下', nameEn: 'LOW' },
-  { value: 'mid', name: '중간', hanja: '中', nameEn: 'MID' },
-  { value: 'high', name: '높음', hanja: '上', nameEn: 'HIGH' },
+  { value: 'low', name: '낮음', nameEn: 'LOW' },
+  { value: 'mid', name: '중간', nameEn: 'MID' },
+  { value: 'high', name: '높음', nameEn: 'HIGH' },
 ];
 
 /** Inner-energy (element) display names. */

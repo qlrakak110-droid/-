@@ -3,6 +3,7 @@
 //   kind 1  light shaft: axial billboard along the eclipse light, soft edges, dusty streaks
 //   kind 2  mist sheet: static horizontal sheet a little above the floor near the wall and over the broken edge
 //           (seen from above only: they fade out at grazing angles)
+//   kind 3  incense smoke: a thin axial billboard rising from a censer, bending away with the wind
 // Cards fade out as the camera gets close so they never read as planes in close-ups.
 
 import * as THREE from 'three';
@@ -16,6 +17,7 @@ attribute vec4 aK;     // x kind, y seed, z opacity, w length (shafts)
 attribute vec3 aD;     // shaft axis
 attribute vec2 aSize;  // width, height
 uniform float uTime;
+uniform vec3 uWind;
 varying vec2 vUv;
 varying vec4 vK;
 varying vec3 vW;
@@ -35,12 +37,22 @@ void main() {
     float w = aSize.x * (0.6 + 0.8 * position.y);
     wp = aC + axis * position.y * aK.w + side * position.x * w;
     vUv = vec2(position.x + 0.5, position.y);
-  } else {
+  } else if (kind < 2.5) {
     wp = position;
     vUv = position.xz;
+  } else {
+    // smoke: rises straight, then leans with the wind and wanders
+    float y = position.y;
+    float h = y * aK.w;
+    vec3 c = aC + vec3(0.0, h, 0.0);
+    c.xz += uWind.xz * (0.12 * h * h) + vec2(sin(uTime * 0.7 + aK.y + h * 1.3), cos(uTime * 0.53 + aK.y * 1.7 + h * 1.1)) * 0.07 * h;
+    vec3 toCam = cameraPosition - c; toCam.y = 0.0; toCam = normalize(toCam);
+    vec3 right = vec3(toCam.z, 0.0, -toCam.x);
+    wp = c + right * position.x * aSize.x * (0.25 + 1.6 * y);
+    vUv = vec2(position.x + 0.5, y);
   }
   float cd = length(cameraPosition - wp);
-  vFade = kind < 1.5 ? smoothstep(4.0, 12.0, cd) : smoothstep(1.0, 4.0, cd);
+  vFade = kind < 1.5 ? smoothstep(4.0, 12.0, cd) : kind < 2.5 ? smoothstep(1.0, 4.0, cd) : smoothstep(0.8, 2.5, cd);
   vK = aK;
   vW = wp;
   gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
@@ -53,7 +65,7 @@ const float SUN_COS_DISC = ${Math.cos(SUN_RADIUS * 0.97).toFixed(7)};
 ${SKY_BASE}
 ${FOG}
 uniform float uTime;
-uniform vec3 uWind, uShaft, uMist;
+uniform vec3 uWind, uShaft, uMist, uFire;
 uniform float uCloudY;
 varying vec2 vUv;
 varying vec4 vK;
@@ -84,6 +96,17 @@ void main() {
     float view = pow(max(dot(dir, uSunDir), 0.0), 2.0) * 0.7 + 0.3;
     a *= vK.z * vFade * view;
     o = vec4(moodApply(uShaft, 0.6) * a, 0.0);
+  } else if (kind > 2.5) {
+    float x = (vUv.x - 0.5) * 2.0, y = vUv.y;
+    float n = fbm2(vec2(x * 1.4 + seed, y * 3.2 - uTime * 0.32), 4);
+    float n2 = vnoise(vec2(x * 3.0 + seed * 2.0, y * 9.0 - uTime * 0.7));
+    float xd = x + (n - 0.5) * 1.1 * (0.3 + y);
+    float core = exp(-xd * xd * 5.0);
+    float a = core * smoothstep(0.0, 0.05, y) * pow(1.0 - y, 1.3) * (0.4 + 0.9 * n) * (0.75 + 0.5 * n2);
+    a = clamp(a * vK.z, 0.0, 0.8) * vFade;
+    // pale against the dark, warmed a little at the root by the embers below
+    vec3 c = uFogNear * 5.5 + uSunHalo * 0.9 + uFire * 0.05 * exp(-y * 9.0);
+    o = vec4(moodApply(c, 1.0) * a, a);
   } else {
     vec2 p = vW.xz;
     vec2 w = uWind.xz * uTime * 0.12;
@@ -105,9 +128,10 @@ void main() {
 }`;
 
 /**
+ * @param {Array<{pos: THREE.Vector3, h: number, w: number, k: number}>} [smokes] incense smoke sources
  * @returns {THREE.Mesh}
  */
-export function createAtmosphere(U, rng, tier) {
+export function createAtmosphere(U, rng, tier, smokes = []) {
   const pos = [], aC = [], aK = [], aD = [], aSize = [], idx = [];
   const quad = (c, kind, seed, op, w, h, d = [0, 1, 0], len = 0) => {
     const b = pos.length / 3;
@@ -127,7 +151,7 @@ export function createAtmosphere(U, rng, tier) {
   ];
   for (const [az, d, w, h, op] of haze) quad(ring(az, d, cy - 2), 0, rng.range(0, 40), op, w, h);
 
-  // light shafts: corona light falling through the side arches onto the arena flanks. Art-directed steeper than the
+  // light shafts: corona light falling between the gallery columns and the pines onto the terrace's flanks. Steeper than the
   // 6-degree eclipse (a beam along the real sun line would run flat across the sky toward the camera) and kept off
   // the fight line and the vista.
   const shaftDir = new THREE.Vector3(-SUN_DIR.x, -0.42, -SUN_DIR.z).normalize();
@@ -162,6 +186,15 @@ export function createAtmosphere(U, rng, tier) {
     sheet(1.15, 12.5, 15.6, -T, T, 48, 0.3, false);
   }
 
+  // incense smoke: tall thin strips (8 rows so they can bend)
+  for (const sm of smokes) {
+    const b = pos.length / 3, rows = 8, seed = rng.range(0, 40);
+    for (let j = 0; j <= rows; j++) for (const x of [-0.5, 0.5]) {
+      pos.push(x, j / rows, 0); aC.push(sm.pos.x, sm.pos.y, sm.pos.z); aK.push(3, seed, 0.5 * sm.k, sm.h); aD.push(0, 1, 0); aSize.push(sm.w, 1);
+    }
+    for (let j = 0; j < rows; j++) { const a = b + j * 2; idx.push(a, a + 1, a + 3, a, a + 3, a + 2); }
+  }
+
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('aC', new THREE.Float32BufferAttribute(aC, 3));
@@ -178,6 +211,7 @@ export function createAtmosphere(U, rng, tier) {
       uFogP: U.uFogP, uFogNear: U.uFogNear, uMood: U.uMood, uTime: U.uTime, uWind: U.uWind,
       uShaft: { value: new THREE.Color(0.32, 0.38, 0.5) },
       uMist: { value: new THREE.Color(0.012, 0.015, 0.022) },
+      uFire: { value: new THREE.Color(1.0, 0.5, 0.18) },
       uCloudY: { value: cy },
     },
     transparent: true,

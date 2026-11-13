@@ -139,7 +139,7 @@ export function createHud(ui) {
     const fill = h('div.hp-fill', null, sheen, fillHot);
     const edge = h('div.hp-edge');
     const track = h('div.hp-track', null, ghost, ghostHot, fill, edge, h('div.hp-notch'));
-    const hp = h('div.hud-hp', null, h('div.hp-frame', null, track), h('i.hp-cap'));
+    const hp = h('div.hud-hp', null, h('div.hp-frame', null, track));
     const pips = h('div.hud-pips');
     const miniFp = h('i');
     const miniUlt = h('i');
@@ -520,7 +520,7 @@ export function createHud(ui) {
       L.edge = scroll.appendChild(h('i.an-scroll-edge'));
       if (sd && sd.weapon) L.art = scroll.appendChild(h('div.an-art', { html: weaponArt(sd.weapon) }));
       const kicker = o.kicker !== undefined ? o.kicker : '오의';
-      L.kick = scroll.appendChild(h('div.an-kick', null, h('b', { text: kicker }), o.kicker === undefined ? h('i.hj', { text: '奧義' }) : null, f ? h('span', { text: f.name }) : null));
+      L.kick = scroll.appendChild(h('div.an-kick', null, h('b', { text: kicker }), o.kicker === undefined ? h('i.hj', { text: '奧義' }) : null));
       const col = scroll.appendChild(h('div.an-glyphs'));
       const chars = Array.from(name).filter((c) => c.trim());
       node.style.setProperty('--n', String(Math.max(3, chars.length)));
@@ -548,7 +548,7 @@ export function createHud(ui) {
       if (spec.seal) L.seal = row.appendChild(h('i.an-seal', { html: seal(spec.seal, { seed: 7 }) }));
       if (style === 'perfect') add('shine', h('i.an-shine'));
       add('rule', h('i.an-rule', { html: divider({ seed: 9 }) }));
-      add('sub', h('div.an-sub', { text: spec.sub || '' }));
+      add('sub', h('div.an-sub', null, h('span', { text: spec.sub || '' })));       // on its own slip of ink
       node.setAttribute('aria-label', spec.text);
     }
     if (!spec.sub && style !== 'ult') L.sub.style.display = 'none';
@@ -773,6 +773,17 @@ export function createHud(ui) {
      */
     announce,
     clearAnnounce: () => clearAnnounce(false),
+    /**
+     * Fade the cards of one style out early and remove them (default: the 오의 banner), e.g. when a choreography wants
+     * the whole frame before the card's own time is up. `style` null = every card.
+     */
+    dismiss(style = 'ult', dur = 0.25) {
+      for (const n of Array.from(annLayer.children)) {
+        if (style && !n.classList.contains('st-' + style)) continue;
+        const from = Number(n.style.opacity || 1);
+        anim.add(dur, (k) => { n.style.opacity = (from * (1 - k)).toFixed(3); }, { key: n, ease: 'inQuad', done: () => n.remove() });
+      }
+    },
     /** Slide the HUD away for a cinematic (true) and back (false). */
     cinematic(on) {
       cineTarget = on ? 1 : 0;

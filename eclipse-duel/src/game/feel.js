@@ -88,7 +88,8 @@ export function createFeel(ctx, session) {
     cam.shake(lvl === 'light' ? 0.15 + (e.counter ? 0.12 : 0) : finisher ? 0.5 : 0.35 + (e.counter ? 0.15 : 0), { freq: lvl === 'light' ? 20 : 15 });
     if (k >= 0.9) cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
     post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
-    if (k >= 0.9) { post.radialAt(pos); post.pulse('radial', 0.22 + 0.35 * Math.min(1, k - 0.9), { attack: 0.01, release: 0.22 }); }
+    // (radial blur smears a bright core into a ball over the struck fighter: kept short and modest)
+    if (k >= 0.9) { post.radialAt(pos); post.pulse('radial', 0.16 + 0.24 * Math.min(1, k - 0.9), { attack: 0.01, release: 0.18 }); }
     if (e.counter || finisher || group === 'ult') {
       // the ink frame: two-tone ink on paper for 2-3 frames, with brushed radial lines converging on the contact
       const dur = e.counter && !finisher ? 0.034 : 0.05;
