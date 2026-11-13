@@ -159,6 +159,9 @@ export default function install(rpg) {
     },
     onPoiseBreak(world, a) {
       a.stun('stagger', T.kneel);
+      // the opening: a breath of slow motion and a push-in on the kneeling idol
+      world.slowmo(0.35, 0.7);
+      if (world.camera && world.camera.zoom) world.camera.zoom(0.8, 1.4);
       world.fxAt(a, 'combat.guard.break', [1.2, 3.2, 0], { scale: 2.6 });
       world.fxAt(a, 'combat.dust.land', [0, 0, 0], { scale: 3, heavy: true });
       if (ctx) ctx.cam.shake(0.7, { freq: 8 });
@@ -308,6 +311,8 @@ export default function install(rpg) {
       if (!a.data.aura) {
         try { a.data.aura = fx.play('ember.aura', { pos: [a.pos.x, 0, a.pos.z], target: a.char.root, scale: 2.7 }, { follow: a.char.root }); } catch (err) { a.data.aura = null; }
       }
+      // phase 2: the fire in the cracks burns twice as bright and pulses faster
+      a.char.root.traverse((o) => { const k = o.material && o.material.userData && o.material.userData.kit; if (k && k.uGlowScale) { k.uGlowScale.value = 2.1; if (k.uPulse) k.uPulse.value.y = 2.6; } });
       world.present.sound('explosion', { pos: a.view.pos, volume: 1 });
       if (ctx.post && ctx.post.grade) ctx.post.grade('ember', 1.6);
       if (ctx.post && ctx.post.impactFrame) ctx.post.impactFrame({ duration: 0.08, invert: 0, mono: 0.8 });
