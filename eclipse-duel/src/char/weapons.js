@@ -400,8 +400,10 @@ function crescentGeo(L) {
     return 0;
   };
   const arr = (c) => (Array.isArray(c) ? c : [0.6, 0.64, 0.7]);
-  const bc = arr(L.blade.color), sc = arr(L.spine.color), ec = bc.map((c) => Math.min(1, c * 1.2 + 0.05));
-  parts.push([blade, L.blade, { color: (p) => [bc, ec, sc, sc][kind(p)], cav: (p) => (kind(p) === 3 ? 0.6 : 1) }]);
+  const bc = arr(L.blade.color), sc = arr(L.spine.color);
+  // blade uv set: u along the arc (m), v from the true edge on the convex outside (0) to the spine (1), code = temper line
+  withUvw(blade, (p) => { const [t, a] = loc(p), w = Math.max(0.0012, W(t)); return [t * CR * CA, clamp((a + w) / (2 * w), 0, 1), 0.3]; });
+  parts.push([blade, L.blade, { color: (p) => [bc, bc, sc, sc][kind(p)], cav: (p) => (kind(p) === 3 ? 0.6 : 1) }]);
   // starlight seam inset on the fuller floor (both flats), narrowing with the fuller
   const nrmAt = (t) => [-Math.sin(t * CA), Math.cos(t * CA)];
   for (const s of [1, -1]) {
@@ -433,12 +435,20 @@ function crescentGeo(L) {
   const guard = extrude([[0, -0.03], [0.02, -0.028], [0.03, 0], [0.02, 0.03], [0, 0.034], [-0.01, 0]], { depth: 0.018, bevel: 0.003, bevelSegs: 2 });
   guard.translate(0.045, 0, 0);
   parts.push([guard, L.silver]);
-  const grip = lathe([[0.0, 0], [0.015, 0], [0.0145, 0.06], [0.016, 0.11], [0.0, 0.11]], { segs: 12 });
+  const grip = lathe([[0.0, 0], [0.0138, 0], [0.0134, 0.06], [0.0148, 0.11], [0.0, 0.11]], { segs: 12 });
   grip.rotateZ(90 * DEG); grip.translate(0.05, 0, 0);
   parts.push([grip, L.wrap]);
-  const pom = lathe([[0.0, -0.012], [0.017, -0.01], [0.021, 0], [0.012, 0.016], [0.0, 0.026]], { segs: 10, hard: [2] });
+  parts.push([helixWrap({ x0: 0.044, x1: -0.054, r: 0.0142, turns: 9, width: 0.0125, thick: 0.0018, seg: 7 }), L.wrap]);
+  // pommel: a silver cap set with a pale jade bead, and a small ring for the tassel cord
+  const pom = lathe([[0.0, -0.012], [0.017, -0.01], [0.021, 0], [0.014, 0.014], [0.0105, 0.019]], { segs: 10, hard: [2] });
   pom.rotateZ(90 * DEG); pom.translate(-0.068, 0, 0);
   parts.push([pom, L.silver]);
+  const bead = lathe([[0, 0.0085], [0.006, 0.006], [0.0085, 0], [0.006, -0.006], [0, -0.0085]], { segs: 8 });
+  bead.translate(-0.093, 0, 0);
+  parts.push([bead, L.jade || L.star]);
+  const rg = [];
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; rg.push([-0.108 + Math.cos(a) * 0.0085, Math.sin(a) * 0.0085, 0]); }
+  parts.push([sweep(rg, circle(4), { scale: 0.0017, closed: true, up: [0, 0, 1] }), L.silver]);
   const star = [];
   for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2, rr = k % 2 ? 0.004 : 0.011; star.push([Math.cos(a) * rr, Math.sin(a) * rr]); }
   for (const s of [1, -1]) {
@@ -449,23 +459,47 @@ function crescentGeo(L) {
   return parts;
 }
 
-/** Build ISKA's twin crescent blades (weaponR + mirrored on weaponL). */
+/** Spring chains of the short tassels on the crescents' pommel rings: [right, left] (spread both into the design). */
+export function crescentTasselRigs(o = {}) {
+  return ['R', 'L'].map((h) => hang('ctas' + h + '_', 'weapon' + h, [-0.116, 0, 0], { n: 2, len: o.len ?? 0.11, dir: [-0.5, -1, 0], stiffness: 26, damping: 3, gravity: 1, limit: 80, radius: 0.01, collide: false }));
+}
+
+/**
+ * Build 설리화's 월아쌍도, the twin crescent blades (weaponR + mirrored on weaponL): unchanged outline, a honed moon edge
+ * with a temper line, a blued spine, the starlight seam and stars, a cord-wrapped grip, a jade-set pommel with a ring.
+ * o: slot, looks (WEAPON_LOOKS.crescents keys), tassels ([right, left] chains of crescentTasselRigs(); optional)
+ */
 export function crescents(kit, o = {}) {
   const L = { ...WEAPON_LOOKS.crescents, ...(o.looks || {}) };
   const slot = o.slot ?? 'blade';
   for (const [g, look, extra] of crescentGeo(L)) putPair(kit, slot, 'weapon', g, look, extra);
+  (o.tassels || []).forEach((H) => {
+    const T = tassel({ len: 0.075, r: 0.007, strands: 7, head: 0.0055 }), b = H.names[H.n - 1];
+    put(kit, slot, b, T.head, L.silver); put(kit, slot, b, T.strands, L.hair);
+    put(kit, slot, H.names[0], sweep([[0, 0, 0], [0, -H.seg, 0]], circle(4), { scale: 0.0013, caps: true }), L.wrap);
+  });
   return WEAPON_SPECS.crescents;
 }
 
 // ---- VORN: war spear --------------------------------------------------------------------------------------------------------
 
-/** Build VORN's war spear on `bone` (default weaponR). */
+/** Spring chain of the spear's horsehair tassel (창영) below the head (weapon frame; pass it as `tassel`). */
+export function spearTasselRig(o = {}) {
+  return hang(o.name || 'tassel', 'weapon' + (o.hand || 'R'), [0.928, 0, 0], { n: 2, len: o.len ?? 0.14, dir: [-1, -0.25, 0], stiffness: 30, damping: 3.2, gravity: 1, limit: 75, radius: 0.012, collide: false });
+}
+
+/**
+ * Build 뇌진천's 뇌룡창 on `bone` (default weaponR): a lacquered haft with cord wraps and engraved bronze bands, a faceted
+ * bronze socket, two short wings (o.wings !== false), a broad leaf head with honed edges and the lightning rune in its
+ * midrib channel, a bronze butt cap, and the horsehair tassel under the head.
+ * o: bone, slot, looks (WEAPON_LOOKS.spear keys), wings=true, tassel (spearTasselRig() chain; without it: a collar only)
+ */
 export function spear(kit, o = {}) {
   const L = { ...WEAPON_LOOKS.spear, ...(o.looks || {}) };
   const bone = o.bone ?? 'weaponR', slot = o.slot ?? 'blade';
   const add = (g, look, extra) => put(kit, slot, bone, g, look, extra);
   const XB = -0.9, XS = 0.88, XH = 1.02, XT = 1.5;
-  // haft: slightly tapered octagonal-ish shaft
+  // haft: slightly tapered shaft, dark lacquer
   const haft = lathe([[0.0, 0], [0.0175, 0], [0.0185, 0.6], [0.017, XS - XB], [0.0, XS - XB]], { segs: 10 });
   haft.rotateZ(-90 * DEG); haft.translate(XB, 0, 0);
   add(haft, L.haft);
@@ -497,7 +531,7 @@ export function spear(kit, o = {}) {
     add(rv, L.band);
   }
   // wings: two lugs below the head, swept back
-  for (const s of [1, -1]) {
+  for (const s of o.wings === false ? [] : [1, -1]) {
     const wing = extrude([[0, 0], [0.03, 0.008], [0.05, 0.05], [0.032, 0.062], [0.006, 0.026]], { depth: 0.008, bevel: 0.002, bevelSegs: 2 });
     wing.scale(1, s, 1);
     if (s < 0) fixWinding(wing);
@@ -531,12 +565,10 @@ export function spear(kit, o = {}) {
     if (d > 0.0005 && Math.abs(p[1]) < cw * 0.92 && Math.abs(p[2]) < hth(t) - d * 0.35) return 2;
     return 0;
   };
-  const hc = L.head.color, hec = L.edge.color, groove = [0.012, 0.01, 0.018];
-  add(head, L.head, {
-    color: (p) => [hc, hec, groove][hkind(p)],
-    cav: (p) => (hkind(p) === 2 ? 0.45 : 1),
-    glow: (p) => (hkind(p) === 2 ? [0.012, 0, 0] : [0, 0, 0]),         // the faintest spill of the rune on the groove floor
-  });
+  const hc = L.head.color, groove = [0.012, 0.01, 0.018];
+  // blade uv set: u along the head (m), v from either cutting edge (0) to the midrib (1), code = temper line
+  withUvw(head, (p) => { const t = htOf(p), w = Math.max(0.0008, hw(t)); return [p[0], clamp(1 - Math.abs(p[1]) / w, 0, 1), 0.34]; });
+  add(head, L.head, { color: (p) => (hkind(p) === 2 ? groove : hc), cav: (p) => (hkind(p) === 2 ? 0.45 : 1) });
   // the lightning rune: a tapered bolt glyph (long strokes, short sharp returns, a point toward the tip) inlaid on the
   // channel floor of both flats, its top below the lips
   const bolt = boltShape([
@@ -551,17 +583,24 @@ export function spear(kit, o = {}) {
     g.attributes.position.needsUpdate = true;
     add(g, L.rune, { glow: () => [0.6, 0, 0] });   // a thin hot line: the dark groove must stay readable around it
   }
-  // counterweight: heavy bulb + short spike
-  const cw = lathe([[0.0, 0.0], [0.016, 0.0], [0.026, 0.03], [0.03, 0.06], [0.024, 0.085], [0.019, 0.1], [0.0175, 0.11]], { segs: 12, hard: [3] });
-  cw.rotateZ(90 * DEG); cw.translate(XB + 0.11, 0, 0);
-  add(cw, L.gold, { glow: () => [0, 0.4, 0] });
-  const spike = lathe([[0.0, 0.0], [0.015, 0.0], [0.004, 0.07], [0.0, 0.075]], { segs: 8 });
-  spike.rotateZ(90 * DEG); spike.translate(XB + 0.0, 0, 0);
-  add(spike, L.head);
+  // bronze butt cap (창준): a long tapered ferrule with two moulded rings, ending in a blunt point (same reach as before)
+  const cap = lathe([[0.0, -0.075], [0.006, -0.068], [0.012, -0.03], [0.0165, 0.0], [0.021, 0.004], [0.021, 0.012], [0.019, 0.016], [0.02, 0.06], [0.0228, 0.064], [0.0228, 0.074], [0.0195, 0.079], [0.0195, 0.11]], { segs: 12, hard: [3, 5, 8, 10] });
+  cap.rotateZ(-90 * DEG); cap.translate(XB, 0, 0);
+  add(cap, L.gold, { glow: () => [0, 0.3, 0] });
+  // horsehair tassel under the head
+  if (o.tassel) {
+    const T = spearTassel(kit, o.tassel, {});
+    add(T.collar, L.gold);
+    putSkinned(kit, slot, T.strands, L.hair, weightsOf(T.strands.userData.W));
+  }
   return WEAPON_SPECS.spear;
 }
 
-/** Build a weapon by name ('greatsword' | 'crescents' | 'spear'). Returns its spec (or [spec, spec]). */
+/**
+ * Build a weapon by name ('greatsword' | 'crescents' | 'spear'). Returns its spec (or [spec, spec]).
+ * o: the builder's options; the spring-chain hooks are passed through by name: `strip` (great saber), `tassels`
+ * (crescents), `tassel` (spear).
+ */
 export function buildWeapon(kit, name, o = {}) {
   if (name === 'greatsword') return greatsword(kit, o);
   if (name === 'crescents') return crescents(kit, o);
@@ -569,10 +608,12 @@ export function buildWeapon(kit, name, o = {}) {
   throw new Error('unknown weapon ' + name);
 }
 
-/** Material options of the weapon slot per weapon (glow colours from the roster palette). */
+/**
+ * Material options of the weapon slot per weapon (glow colours from the roster palette; wearColor = the honed edge of
+ * the `blade` uv set). The weapon slot is double sided (cloth strip, tassels) and cut out (wispy strand ends).
+ */
 export const WEAPON_MATERIALS = {
-  greatsword: { envMapIntensity: 1.1, bump: 1, glow: { inlay: [6.5, 2.1, 0.35], vein: [4.2, 1.1, 0.12], eye: [0, 0, 0] }, rim: [0.25, 0.32, 0.45, 3.5], wear: [1.0, 0.7, 0.4, 0.8], wearColor: [0.42, 0.42, 0.43], heatColor: [0.2, 0.08, 0.05] },
-  crescents: { envMapIntensity: 1.25, bump: 0.8, glow: { inlay: [1.5, 4, 8], vein: [0.3, 1.0, 2.2], eye: [0, 0, 0] }, rim: [0.3, 0.4, 0.55, 3.5] },
-  spear: { envMapIntensity: 1.15, bump: 0.9, glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [0, 0, 0] }, rim: [0.3, 0.32, 0.5, 3.5] },
+  greatsword: { cutout: true, envMapIntensity: 1.1, bump: 1, glow: { inlay: [6.5, 2.1, 0.35], vein: [4.2, 1.1, 0.12], eye: [0, 0, 0] }, rim: [0.25, 0.32, 0.45, 3.5], wear: [1.0, 0.7, 0.4, 0.8], wearColor: [0.46, 0.45, 0.44], heatColor: [0.2, 0.08, 0.05] },
+  crescents: { cutout: true, envMapIntensity: 1.25, bump: 0.8, glow: { inlay: [1.5, 4, 8], vein: [0.3, 1.0, 2.2], eye: [0, 0, 0] }, rim: [0.3, 0.4, 0.55, 3.5], wearColor: [0.62, 0.66, 0.72] },
+  spear: { cutout: true, envMapIntensity: 1.15, bump: 0.9, glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [0, 0, 0] }, rim: [0.3, 0.32, 0.5, 3.5], wearColor: [0.52, 0.52, 0.56], verdigris: [0.035, 0.1, 0.08] },
 };
-
