@@ -513,8 +513,8 @@ function spinSpeed() {
 }
 
 // ---- 9. CPU of the IK path ---------------------------------------------------------------------------------------------
-function cpuIK(id = 'kael') {
-  const c = mk(id);
+function cpuIK(id = 'kael', full = false) {
+  const c = full ? (cache.get('full' + id) || (() => { const x = createCharacter(CTX, REAL[id], { parent: null, name: 'full_' + id }); cache.set('full' + id, x); return x; })()) : mk(id);
   const names = clipsOf(id).filter((n) => /light|heavy|lunge|sweep|crescent|slash|thrust|combo/.test(n)).slice(0, 4);
   const time = (each) => {
     reset(c, names[0], 0);
@@ -525,7 +525,7 @@ function cpuIK(id = 'kael') {
     const mins = runs[0].map((_, i) => Math.min(...runs.map((x) => x[i])));
     return { meanOfMinima: r(mins.reduce((a, b) => a + b, 0) / mins.length, 3), maxOfMinima: r(Math.max(...mins), 3) };
   };
-  return { fighter: id, clips: names, oneClip: time(() => {}), fourStateFades: time((i) => { if (i % 4 === 0) c.play(names[(i / 4) % names.length], { fade: 0.3, restart: true }); }) };
+  return { fighter: id, full, clips: names, oneClip: time(() => {}), fourStateFades: time((i) => { if (i % 4 === 0) c.play(names[(i / 4) % names.length], { fade: 0.3, restart: true }); }) };
 }
 
 const TESTS = { gripAt, cut, cutLive, cutTrace, lag, rates, offGrip, pull, poleSing, posOnly, aimDiag, spinSpeed, cpuIK };

@@ -34,8 +34,8 @@ export const LENS_DEFAULTS = {
   liftDown: 0.07,     // exposure added on near-vertical top-down views (dark floor)
   blur: 1,            // whip-pan / crash-zoom blur scale (0 = off)
   shutter: 0.9,       // blur length: screen motion during this many 1/60 s frames
-  blurLen: 0.07,      // longest pan streak (fraction of the screen; zoom blur: twice this at the frame edge). The post
-                      // radial blur has 10 taps: longer streaks break thin HDR highlights into dots
+  blurLen: 0.03,      // longest pan streak (fraction of the screen; zoom blur: about the same at the frame edge). The
+                      // post radial blur has 10 jittered taps: longer streaks break HDR highlights into dots and bands
 };
 
 const TAN20 = Math.tan(20 * DEG);
@@ -205,7 +205,7 @@ export function createLens(ctx, settings = {}) {
       }
       const T = (S.shutter / 60) * blurK;
       const bl = Math.hypot(flow.x, flow.y) * T, sg = flow.s * T;
-      const bl2 = Math.min(S.blurLen, Math.max(0, bl - 0.006)), sg2 = Math.min(2 * S.blurLen, Math.max(0, Math.abs(sg) - 0.02));
+      const bl2 = Math.min(S.blurLen, Math.max(0, bl - 0.006)), sg2 = Math.min(1.6 * S.blurLen, Math.max(0, Math.abs(sg) - 0.02));
       const mag = Math.max(sg2, bl2 / BLUR_REACH);
       if (mag > 1e-5) {
         // flow field sigma * (p - p*): zoom about the screen centre plus a pan; the pan alone = a far-away centre

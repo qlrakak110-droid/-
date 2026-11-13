@@ -271,8 +271,9 @@ Whip pans and crash zooms smear for the few frames they last, through the post r
 screen motion of the point the camera aimed at one frame earlier (a pan) and the change of the subject's scale (a push
 or pull), and places the radial centre so both are right (a pan alone = a centre 3 screens away = directional blur).
 Orbits, cranes and slow moves keep their subject still on screen and stay sharp. Dead zones: 0.6 % of the screen per
-1/60 s (pan), 2 % scale (zoom). Streaks are capped at `blurLen` (7 % of the screen): the post blur has 10 taps and
-longer streaks break thin HDR highlights into dots.
+1/60 s (pan), 2 % scale (zoom). Streaks are capped at `blurLen` (3 % of the screen): the post blur has 10 jittered
+taps, and longer streaks break HDR highlights (lightning, blade edges) into dots and bands, so the lens blur stays a
+soft smear that supports the whip-pan's roll kick and lateral shake rather than replacing them.
 
 ### Focus breathing and operator micro-motion
 
@@ -295,7 +296,7 @@ drift (see `handheld`). None of it is applied in fight framing.
 | `lift` / `liftDown` | 0.11 / 0.07 | automatic dark-angle exposure lifts |
 | `blur` | 1 | whip / crash blur scale (0 = off) |
 | `shutter` | 0.9 | blur length in 1/60 s frames of screen motion |
-| `blurLen` | 0.07 | longest streak, fraction of the screen |
+| `blurLen` | 0.03 | longest streak, fraction of the screen |
 
 ### Cost per tier (60 fps plan)
 

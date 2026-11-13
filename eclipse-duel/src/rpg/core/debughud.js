@@ -5,7 +5,7 @@
 
 const CSS = `
 .rpgdbg{position:absolute;inset:0;pointer-events:none;font:600 12px/1.25 system-ui,"Noto Sans KR",sans-serif;color:#e8e2d2;z-index:4;text-shadow:0 1px 2px #000}
-.rpgdbg .bars{position:absolute;left:3%;top:4%;width:min(34%,300px)}
+.rpgdbg .bars{position:absolute;left:3%;top:4%;width:min(34%,300px);transition:opacity .3s}
 .rpgdbg .bar{height:9px;margin:3px 0;background:rgba(8,9,13,.72);border:1px solid rgba(216,180,106,.45);position:relative;overflow:hidden}
 .rpgdbg .bar i{position:absolute;left:0;top:0;bottom:0;width:100%;transform-origin:0 50%}
 .rpgdbg .hp i{background:linear-gradient(#c8423a,#8a1f1c)}.rpgdbg .fp i{background:linear-gradient(#5aa7e6,#2a5c9c)}.rpgdbg .st i{background:linear-gradient(#7fc77a,#3f8544)}
@@ -13,7 +13,7 @@ const CSS = `
 .rpgdbg .bar.st,.rpgdbg .bar.fp{height:6px;width:82%}
 .rpgdbg .name{letter-spacing:.14em;font-size:11px;color:#d8b46a}
 .rpgdbg .meta{margin-top:5px;font-size:11px;color:#cfc7b4}
-.rpgdbg .skills{position:absolute;left:3%;bottom:5%;display:flex;gap:6px}
+.rpgdbg .skills{position:absolute;left:3%;bottom:5%;display:flex;gap:6px;transition:opacity .3s}
 .rpgdbg .sk{min-width:54px;padding:4px 6px;background:rgba(8,9,13,.7);border:1px solid rgba(216,180,106,.4);font-size:10px;text-align:center;opacity:.55}
 .rpgdbg .sk.ready{opacity:1;border-color:#d8b46a}
 .rpgdbg .sk b{display:block;font-size:11px;color:#f4dca0}
@@ -115,6 +115,9 @@ export function createDebugHud(ctx, api) {
     stop() { for (const off of offs) off(); offs.length = 0; root.remove(); },
     update(s, dt) {
       const h = s.hero;
+      // cinematics: the bars step back, banners stay
+      const cineNow = s.mode === 'cine';
+      if (last.cine !== cineNow) { last.cine = cineNow; for (const k of ['.bars', '.skills']) root.querySelector(k).style.opacity = cineNow ? '0' : '1'; }
       text('name', el.name, `${h.nameEn}  LV ${h.level}`);
       put('hp', el.hp, 'transform', `scaleX(${(h.hp / h.hpMax).toFixed(3)})`);
       put('fp', el.fp, 'transform', `scaleX(${(h.fpMax ? h.fp / h.fpMax : 0).toFixed(3)})`);

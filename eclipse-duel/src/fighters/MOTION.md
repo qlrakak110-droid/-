@@ -174,7 +174,8 @@ takes the blade through the vertical instead of asking for 200° in two frames. 
 the mannequin with another `gripAngle` to measure what a design change would do.
 
 **3.5 In the game.** `node tools/shot.mjs game --as mm-<label> --hash "training=kael,iska" …` with
-`__ED.game.pose(i, clip, t)` / `forceMove`. The variant resolution of both fighters and what really plays: the
+`__ED.game.pose(i, clip, t)` / `forceMove`. `__ED.clips` (`defineClip`, `definePose`, `hasClip`, `getClipDef`,
+`getPoseDef`) is the live-authoring hook of the game build: define a clip, start a new match, it resolves. The variant resolution of both fighters and what really plays: the
 scenario of section 4.4.
 
 ---
@@ -250,8 +251,10 @@ Before → after on the knight (`shots/murim/motion/dir/before/generic`, `…/ge
 the blade no longer sinks into the floor in `crumple` (801 → 0 mm), `dash` (252 → 0), `getup` (496 → 0), `down`
 (197 → 0), `koDown` (94 → 0), `defeat` (544 → 0); `guardbreak` clears the head (−1.3 → +27 cm); the wrist clamp is gone
 from `dash` (174° → 0), `getup` (92° → 0), `crumple`, `defeat`. Known residuals: 1–2 transit frames of `getupProne` /
-`techProne` with a knee or fist ≤ 7 cm under the floor; `feet` reports the knocked / pulled feet of `hitLightLow`,
-`hitHeavy` and the rolls as drift (deliberate).
+`techProne` with a knee or fist ≤ 7 cm under the floor; kneeling toes 10 mm under the floor (`crumple`, `defeat`);
+`feet` reports the knocked / dragged feet of `hitLightLow`, `dash`, `guardbreak` and the falls and rolls as drift or skid
+(deliberate). On 염무강 the re-based returns bring the saber back onto the shoulder within 0–8 cm of the head keep-out
+(his idle rests at 11 cm): his own versions (section 8) should route it outside the shoulder.
 
 ---
 
