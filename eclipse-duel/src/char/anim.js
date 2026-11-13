@@ -3,7 +3,7 @@
 // exact key format and the bone axis conventions.
 
 import { ease as resolveEase } from '../core/math.js';
-import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot, qmul, qslerp } from './rigmath.js';
+import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
 /** Floats of one arm's IK memory (= ik.js MEM; kept here so the clip module does not import the solver). */
 export const SWIVEL_MEM = 20;
 
@@ -473,39 +473,6 @@ export class Pose {
 
 const tmp4 = new Float32Array(4);
 const tmpR = new Float32Array(2);
-const spF = new Float32Array(16); // spaceFrameAt scratch: quat (0..3), pos (4..6), bone quat (8..11), vector (12..14)
-
-/**
- * Model transform of the hips (sp 2) or chest (sp 3) bone as clip `c` alone puts it at time t (hips offset / rotation
- * and the spine / chest keys; no IK, pelvis drop or breathing) -> spF[0..3] quat, spF[4..6] position (model metres).
- */
-function spaceFrameAt(rig, c, t, sp, scale) {
-  const h = rig.index.hips;
-  if (c.hipsRot) { sampleTrack(c.hipsRot, t, tmp4, 0); eulerToQuat(spF, 0, tmp4[0], tmp4[1], tmp4[2]); }
-  else { spF[0] = rig.restRot[h * 4]; spF[1] = rig.restRot[h * 4 + 1]; spF[2] = rig.restRot[h * 4 + 2]; spF[3] = rig.restRot[h * 4 + 3]; }
-  if (c.hipsPos) sampleTrack(c.hipsPos, t, spF, 12); else spF[12] = spF[13] = spF[14] = 0;
-  spF[4] = rig.offset[h * 3] + spF[12] * scale; spF[5] = rig.offset[h * 3 + 1] + spF[13] * scale; spF[6] = rig.offset[h * 3 + 2] + spF[14] * scale;
-  if (sp !== 3) return;
-  if (!c.spaceBones) c.spaceBones = ['spine', 'chest'].map((n) => { const i = rig.index[n], b = c.bones.find((x) => x.i === i); return { i, tr: b ? b.tr : null }; });
-  for (const { i, tr } of c.spaceBones) {
-    qrot(spF, 12, spF, 0, rig.offset[i * 3], rig.offset[i * 3 + 1], rig.offset[i * 3 + 2]);
-    spF[4] += spF[12]; spF[5] += spF[13]; spF[6] += spF[14];
-    if (tr) { sampleTrack(tr, t, spF, 8); qnormalize(spF, 8); } else { spF[8] = rig.restRot[i * 4]; spF[9] = rig.restRot[i * 4 + 1]; spF[10] = rig.restRot[i * 4 + 2]; spF[11] = rig.restRot[i * 4 + 3]; }
-    qmul(spF, 0, spF, 0, spF, 8);
-  }
-}
-
-/** Time of the hips / chest-space key (k = 1) that bounds the k-track segment containing t, or -1. */
-function bKeyTime(tr, t) {
-  const { n, times, values } = tr;
-  if (n < 2) return -1;
-  let i = 0;
-  while (i < n - 2 && times[i + 1] <= t) i++;
-  if (values[i + 1] >= 0.999) return times[i + 1];
-  if (values[i] >= 0.999) return times[i];
-  return -1;
-}
-
 /**
  * Sample compiled clip `c` at time t into pose (FK bones not keyed keep their previous value: reset first). `scale`
  * multiplies every positional channel (hips offset, root motion, IK positions / poles, look target): retargets a clip
@@ -548,28 +515,6 @@ export function sampleClip(rig, c, t, pose, scale = 1) {
       if (E.k) { sampleTrack(E.k, t, tmpR, 0); ik[o + 15] = Math.max(0, Math.min(1, tmpR[0])); } else ik[o + 15] = 1;
     }
     if (E.soft) { sampleTrack(E.soft, t, ik, o + 13); } else ik[o + 13] = -1;
-    // blending between a fighter-frame (root / origin) target and a hips / chest-space one: the bone-space target is
-    // taken as it was at its own key (the bone frame the clip has there), and only fades to the live bone frame as the
-    // blend completes (k^2). A live hips-space target would ride the turning hips through the whole transition, so a
-    // spin between the two keys swept the foot through the body (legs crossing). Exact at both ends: k = 0 -> the root
-    // target, k = 1 -> the live bone-space target.
-    if (E.k && E.posA && E.posB && !globalThis.__spaceBlendLive) {
-      const k = ik[o + 15];
-      const tB = k > 1e-4 && k < 1 - 1e-4 ? bKeyTime(E.k, t) : -1;
-      if (tB >= 0) {
-        spaceFrameAt(rig, c, tB, E.spaceB, scale);
-        sampleTrack(E.posB, tB, tmp4, 0);
-        qrot(spF, 12, spF, 0, tmp4[0] * scale, tmp4[1] * scale, tmp4[2] * scale);
-        const a = k / (1 + k), is = 1 / scale;
-        for (let d = 0; d < 3; d++) ik[o + 1 + d] += ((spF[4 + d] + spF[12 + d]) * is - ik[o + 1 + d]) * a;
-        if (E.rotB && ik[o + 8]) {
-          sampleTrack(E.rotB, tB, tmp4, 0); qnormalize(tmp4, 0);
-          qmul(spF, 8, spF, 0, tmp4, 0);
-          qslerp(ik, o + 4, ik, o + 4, spF, 8, a);
-        }
-        ik[o + 15] = k * k;
-      }
-    }
     if (scale !== 1) {
       for (const k of [1, 2, 3, 16, 17, 18]) ik[o + k] *= scale;
     }

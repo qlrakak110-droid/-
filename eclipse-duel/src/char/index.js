@@ -462,16 +462,6 @@ export function createCharacter(ctx, design0, opts = {}) {
     qrot(tv, 0, mq, b * 4, ik[o + 16], ik[o + 17], ik[o + 18]);
     const bx = mp[b * 3] + tv[0], by = mp[b * 3 + 1] + tv[1], bz = mp[b * 3 + 2] + tv[2];
     if (k >= 1) { ik[o + 1] = bx; ik[o + 2] = by; ik[o + 3] = bz; }
-    else if (globalThis.__spacePolar) {
-      // fighter-frame target -> bone frame; azimuth (about the bone's Y), radius and height interpolated there
-      tv[8] = -mq[b * 4]; tv[9] = -mq[b * 4 + 1]; tv[10] = -mq[b * 4 + 2]; tv[11] = mq[b * 4 + 3];
-      qrot(tv, 0, tv, 8, ik[o + 1] - mp[b * 3], ik[o + 2] - mp[b * 3 + 1], ik[o + 3] - mp[b * 3 + 2]);
-      const ax = tv[0], ay = tv[1], az = tv[2], cx = ik[o + 16], cy = ik[o + 17], cz = ik[o + 18];
-      const ra = Math.hypot(ax, az), rb = Math.hypot(cx, cz), ta = Math.atan2(az, ax), tb = Math.atan2(cz, cx);
-      const dt = Math.atan2(Math.sin(tb - ta), Math.cos(tb - ta)), th = ta + dt * k, rr = ra + (rb - ra) * k, yy = ay + (cy - ay) * k;
-      qrot(tv, 0, mq, b * 4, rr * Math.cos(th), yy, rr * Math.sin(th));
-      ik[o + 1] = mp[b * 3] + tv[0]; ik[o + 2] = mp[b * 3 + 1] + tv[1]; ik[o + 3] = mp[b * 3 + 2] + tv[2];
-    }
     else { ik[o + 1] += (bx - ik[o + 1]) * k; ik[o + 2] += (by - ik[o + 2]) * k; ik[o + 3] += (bz - ik[o + 3]) * k; }
     if (ik[o + 23]) {
       qmul(tv, 4, mq, b * 4, ik, o + 19);
