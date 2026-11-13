@@ -6,7 +6,7 @@
 import { createDebugHud } from '../core/debughud.js';
 
 const CSS = `
-.rpgt{position:absolute;inset:0;z-index:3;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:"Noto Serif KR","Nanum Myeongjo",Georgia,serif}
+.rpgt{position:absolute;inset:0;z-index:3;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:"Noto Serif KR","Nanum Myeongjo",Georgia,serif}
 .rpgt .b{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;color:#f1e6c8;
   background:radial-gradient(circle at 36% 30%,rgba(70,62,52,.74),rgba(12,11,12,.82) 68%);border:1.5px solid rgba(214,178,104,.62);
   box-shadow:0 0 0 3px rgba(0,0,0,.34),inset 0 0 12px rgba(0,0,0,.7);text-shadow:0 1px 3px #000;line-height:1;transition:transform .06s,filter .12s,opacity .2s}
