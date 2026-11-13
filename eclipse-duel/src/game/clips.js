@@ -11,7 +11,7 @@
 // only use hand IK in the fighter frame, so other designs stay readable until their own clips exist.
 
 import { defineClip, definePose, hasClip } from '../char/index.js';
-import { getClipDef } from '../char/anim.js';
+import { getClipDef, getPoseDef } from '../char/anim.js';
 import '../char/clips/demo.js';
 import { deriveFrameData } from './logic/index.js';
 
@@ -722,6 +722,30 @@ export function twinVariant(name) {
   return v;
 }
 
+/** Knight poses the generic clips start from / return to -> the pose of the same role in a hero's library (`<id>.<role>`). */
+const HERO_POSES = { 'demo.stance': 'stance', 'demo.low': 'stance', 'demo.block': 'block' };
+/**
+ * A generic clip re-based on a hero's own stance: every key that starts from the knight's stance / guard pose starts
+ * from `<id>.stance` / `<id>.block` instead (when the hero's library defines those poses), so a fallback reaction,
+ * get-up or guard break leaves and returns to the hero's real idle (the blade on the shoulder, the spear low ...) and
+ * no second motion follows it. The keys between keep the neutral motion. Defined once per clip and hero.
+ * @returns {string} clip name (`<clip>@<id>`, or `name` when nothing changes)
+ */
+export function stanceVariant(name, id) {
+  const d = getClipDef(name);
+  if (!id || !d || !Array.isArray(d.keys)) return name;
+  const swap = (k) => (k.pose && HERO_POSES[k.pose] && getPoseDef(id + '.' + HERO_POSES[k.pose]) ? id + '.' + HERO_POSES[k.pose] : null);
+  if (!d.keys.some(swap)) return name;
+  const v = name + '@' + id;
+  if (!hasClip(v)) defineClip(v, { ...d, keys: d.keys.map((k) => (swap(k) ? { ...k, pose: swap(k) } : k)) });
+  return v;
+}
+/** The fallback clip a fighter really plays for a generic clip name: re-based on its stance, twin-blade variant. */
+export function fallbackFor(name, { id, twin } = {}) {
+  const n = stanceVariant(name, id);
+  return twin ? twinVariant(n) : n;
+}
+
 /**
  * Build the clip resolver of one fighter.
  *
@@ -737,7 +761,7 @@ export function twinVariant(name) {
  *   names(): string[], move(id): {name, map(t) -> clip time, fade}, map, slots }}
  */
 export function createClipSet(fighter, compiled, o = {}) {
-  const fallback = o.twin ? twinVariant : (n) => n;
+  const fallback = (n) => fallbackFor(n, { id: typeof fighter.id === 'string' ? fighter.id : null, twin: o.twin });
   let map = fighter.clips || {};
   if (typeof map === 'function') {
     try { map = map({ defineClip, definePose, hasClip }) || {}; } catch (e) { console.warn('[ed] clips of ' + fighter.id + ' failed: ' + e.message); map = {}; }

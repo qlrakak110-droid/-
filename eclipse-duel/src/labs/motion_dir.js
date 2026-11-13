@@ -25,7 +25,7 @@ import { createRig } from '../char/skeleton.js';
 import * as qa from '../char/qa.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
-import { GENERIC, twinVariant } from '../game/clips.js';
+import { GENERIC, twinVariant, fallbackFor } from '../game/clips.js';
 import { kael } from '../fighters/kael/design.js';
 import { iska } from '../fighters/iska/design.js';
 import { vorn } from '../fighters/vorn/design.js';
@@ -148,7 +148,8 @@ function setGrip(id, deg) {
 /** The clip a hero really plays for `name`: generic / demo clips get their twin-blade variant on a twin design. */
 function clipFor(c, name) {
   if (!hasClip(name)) throw new Error('motion: unknown clip ' + name);
-  return c.weaponSockets.length > 1 && /^(game|demo)\./.test(name) ? twinVariant(name) : name;
+  // generic clips: exactly what the game plays for this hero (re-based on its stance, twin-blade variant)
+  return /^(game|demo)\./.test(name) && !name.includes('@') ? fallbackFor(name, { id: c.heroId === 'knight' ? null : c.heroId, twin: c.weaponSockets.length > 1 }) : name;
 }
 
 /** Registered clip names of a hero by group. */
