@@ -166,7 +166,7 @@ export function createPost(ctx) {
   const mDofGather = T.dof ? mkMat(G.DOF_GATHER, { tSrc: { value: null }, uTexel: v2(), uMaxR: { value: 8 } }, { defines: { DOF_N } }) : null;
 
   const U = {
-    tScene: { value: null }, tBloom: { value: null }, tDist: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 },
+    tScene: { value: null }, tBloom: { value: null }, tDist: { value: null }, tLum: { value: null }, uGlare: { value: 1 }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 },
     uBloom: { value: 1 }, uExposure: { value: 1 }, uChroma: { value: 0 }, uRadial: { value: 0 }, uVignette: { value: 0 }, uGrain: { value: 0 },
     uSat: { value: 1 }, uContrast: { value: 1 }, uInvert: { value: 0 }, uMono: { value: 0 }, uLetterbox: { value: 0 }, uDist: { value: 1 },
     uFlash: { value: 0 }, uUseDist: { value: 0 }, uHdr: { value: hdr ? 1 : 0 },
@@ -630,6 +630,8 @@ float edSoftFade(float softness) { return clamp((edSceneDepth() - edFragDepth())
       // ---- composite ------------------------------------------------------------------------------------------------
       U.tScene.value = rtScene.texture;
       U.tBloom.value = n > 0 ? mips[0].texture : null;
+      U.tLum.value = n > 0 ? mips[n - 1].texture : null;
+      U.uGlare.value = n > 0 && eff.bloom > 0.001 ? 1 : 0;
       U.tDist.value = rtDist ? rtDist.texture : null;
       U.uUseDist.value = useDist;
       U.uRes.value.set(cw, ch);

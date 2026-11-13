@@ -139,7 +139,7 @@ export default function install(rpg) {
 
   rpg.actor('idol', {
     team: 'foe', name: NAME, boss: true, budget: 'boss', lockable: false, element: 'ember',
-    stats: { hp: 4400, poise: 400, radius: 1.25, height: 5.6, scale: SCALE, mass: 60, walk: 1.2, run: 1.2, accel: 5, decel: 8, turn: 85, shards: 1200 },
+    stats: { hp: 3800, poise: 360, radius: 1.25, height: 5.6, scale: SCALE, mass: 60, walk: 1.2, run: 1.2, accel: 5, decel: 8, turn: 85, shards: 1200 },
     design: idolDesign(),
     clips: { idle: 'rpg.idol.idle', walk: 'rpg.idol.walk', run: 'rpg.idol.walk', stagger: 'rpg.idol.kneel', flinch: 'rpg.idol.idle', dead: 'rpg.idol.death', spawn: 'rpg.idol.wake' },
     attacks: ATTACKS,

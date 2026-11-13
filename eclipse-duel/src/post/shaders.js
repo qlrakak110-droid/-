@@ -255,6 +255,7 @@ export const COMPOSITE = /* glsl */ `
 precision highp float;
 ${COMMON}
 uniform sampler2D tScene; uniform sampler2D tBloom; uniform sampler2D tDist;
+uniform sampler2D tLum; uniform float uGlare;   // smallest bloom level = how flooded the frame is; glare limiter strength
 uniform vec2 uRes; uniform float uTime;
 uniform float uBloom, uExposure, uChroma, uRadial, uVignette, uGrain, uSat, uContrast, uInvert, uMono, uLetterbox, uDist, uFlash, uUseDist, uHdr;
 uniform vec2 uRadialCenter; uniform vec3 uTint, uLift, uFlashColor;
@@ -399,8 +400,17 @@ void main() {
     bloom.r = texture2D(tBloom, uv + off).r;
     bloom.b = texture2D(tBloom, uv - off).b;
   }
+  // glare limiter: when HDR light floods the whole frame (stacked additive effects close to the lens) the bloom is
+  // compressed and the exposure dips, so the picture never burns out to a white sheet
+  float glare = 0.0;
+  if (uGlare > 0.001) {
+    vec3 gl = texture2D(tLum, vec2(0.5)).rgb * 0.4 + (texture2D(tLum, vec2(0.25, 0.3)).rgb + texture2D(tLum, vec2(0.75, 0.3)).rgb
+      + texture2D(tLum, vec2(0.25, 0.7)).rgb + texture2D(tLum, vec2(0.75, 0.7)).rgb) * 0.15;
+    glare = max(0.0, dot(gl, vec3(0.2126, 0.7152, 0.0722)) - 0.5) * uGlare;
+    bloom /= 1.0 + dot(bloom, vec3(0.2126, 0.7152, 0.0722)) * 0.2 * uGlare;
+  }
   col += bloom * uBloom;
-  col *= uExposure;
+  col *= uExposure / (1.0 + glare * 0.55);
   col = col * uTint + uLift;
   if (uHdr > 0.5) col = ACESFilmic(col); else col = clamp(col, 0.0, 1.0);
   col = lin2srgb(col);

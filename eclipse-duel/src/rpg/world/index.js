@@ -85,7 +85,7 @@ export default function install(rpg) {
         const p = vg.attributes.position, c = new Float32Array(p.count * 3), W = (g.r - 0.5) * 2;
         for (let k = 0; k < p.count; k++) {
           const u = p.getX(k) / W + 0.5, w = p.getY(k) / 3.3 + 0.5;
-          const b = Math.pow(Math.sin(Math.PI * u), 0.8) * Math.pow(Math.sin(Math.PI * Math.min(1, w * 1.15)), 0.6) * (0.55 + 0.45 * Math.sin(u * 9 + i * 2.1 + w * 4));
+          const b = Math.pow(Math.sin(Math.PI * u), 1.6) * Math.pow(Math.sin(Math.PI * Math.min(1, w * 1.1)), 1.4) * (0.55 + 0.45 * Math.sin(u * 9 + i * 2.1 + w * 4));
           c[k * 3] = c[k * 3 + 1] = c[k * 3 + 2] = Math.max(0, b);
         }
         vg.setAttribute('color', new THREE.BufferAttribute(c, 3));
@@ -108,14 +108,16 @@ export default function install(rpg) {
       altar: PLACES.altar, heroSpawn: PLACES.heroSpawn, gate: PLACES.gate,
       update(dtGame) {
         t += dtGame;
-        open += ((passed ? 1 : 0) - open) * Math.min(1, dtGame * 1.2);
+        const st = world.flow ? world.flow.state : '';
+        open += ((passed || st === 'encounter' || st === 'boss' || st === 'victory' ? 1 : 0) - open) * Math.min(1, dtGame * 1.2);
         wisp.position.y = 0.95 + Math.sin(t * 1.3) * 0.05;
         wisp.scale.setScalar(1 + Math.sin(t * 3.1) * 0.12);
         for (let i = 0; i < motes.length; i++) {
           const ph = t * (0.35 + i * 0.07) + i * 1.9, r = 0.9 + 0.5 * Math.sin(ph * 0.7 + i);
           motes[i].position.set(a.x + Math.cos(ph) * r, 0.9 + 0.5 * Math.sin(ph * 1.3 + i) + i * 0.12, a.z + Math.sin(ph) * r);
         }
-        mistMat.opacity = 0.16 * (1 - open * 0.85) * (0.85 + 0.15 * Math.sin(t * 0.9));
+        mistMat.opacity = 0.1 * (1 - open) * (0.85 + 0.15 * Math.sin(t * 0.9));
+        for (let i = 0; i < veils.length; i++) veils[i].visible = open < 0.98;
         for (let i = 0; i < veils.length; i++) veils[i].position.y = 1.6 + Math.sin(t * 0.5 + i * 1.3) * 0.08;
       },
       dispose() {
