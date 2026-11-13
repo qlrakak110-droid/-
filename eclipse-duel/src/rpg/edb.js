@@ -4,6 +4,7 @@
 //   pos u16 x 3 (in bmin..bmax, the bone's zero-pose frame) · nrm i8 x 3 + u8 cavity · col u8 x 3 (sqrt) + u8 glow · idx u16
 
 import * as THREE from 'three';
+import { surfDetail } from '../char/materials.js';
 
 export function decodeEdb(bytes) {
   const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -11,6 +12,7 @@ export function decodeEdb(bytes) {
   const jl = dv.getUint32(4, true);
   const head = JSON.parse(new TextDecoder().decode(bytes.subarray(8, 8 + jl)));
   const base = bytes.byteOffset + 8 + jl;
+  const cavK = head.cav2 ? 2 : 1;
   return head.pieces.map((p) => {
     const q = new Uint16Array(bytes.buffer.slice(base + p.pos, base + p.pos + p.nv * 6));
     const nb = new Uint8Array(bytes.buffer, base + p.nrm, p.nv * 4), cb = new Uint8Array(bytes.buffer, base + p.col, p.nv * 4);
@@ -26,20 +28,24 @@ export function decodeEdb(bytes) {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
     geo.setIndex(new THREE.BufferAttribute(new Uint16Array(bytes.buffer.slice(base + p.idx, base + p.idx + p.ni * 2)), 1));
-    return { ...p, geo, nb, cb };
+    return { ...p, geo, nb, cb, cavK };
   });
 }
 
-/** Add decoded pieces to a character kit. glow: HDR colour of a fully glowing vertex. */
-export function addEdbPieces(kit, pieces, glow = [3.6, 1.75, 0.4]) {
+/**
+ * Add decoded pieces to a character kit whose materials use glow CHANNELS (material option `glow: { inlay, vein, eye }`):
+ * each piece carries the engine texture set of its look (bronze, lacquer, scorched stone, hemp ...), a cavity value that
+ * runs past 1 on convex edges (edge wear) and one glow channel (stone: fire in the set's cracks; ember pieces: eyes).
+ */
+export function addEdbPieces(kit, pieces) {
   const c = [0, 0, 0], g = [0, 0, 0];
   for (const p of pieces) {
-    const cb = p.cb, nb = p.nb;
+    const cb = p.cb, nb = p.nb, cavK = p.cavK, ch = p.gch === 'vein' ? 1 : p.gch === 'eye' ? 2 : 0;
     kit.add(p.slot, p.bone, p.geo, {
-      rough: p.rough, metal: p.metal, detail: p.detail,
+      rough: p.rough, metal: p.metal, detail: p.set && p.set !== 'legacy' ? surfDetail(p.set, p.amt ?? 1) : p.detail,
       color: (P, N, i) => { const r = cb[i * 4] / 255, gg = cb[i * 4 + 1] / 255, b = cb[i * 4 + 2] / 255; c[0] = r * r; c[1] = gg * gg; c[2] = b * b; return c; },
-      cavity: (P, N, i) => nb[i * 4 + 3] / 255,
-      glow: (P, N, i) => { const k = cb[i * 4 + 3] / 255, e = k * k; g[0] = glow[0] * e; g[1] = glow[1] * e; g[2] = glow[2] * e; return g; },
+      cavity: (P, N, i) => (nb[i * 4 + 3] / 255) * cavK,
+      glow: (P, N, i) => { const k = cb[i * 4 + 3] / 255; g[0] = g[1] = g[2] = 0; g[ch] = ch === 1 ? k : k * k; return g; },
     });
   }
 }

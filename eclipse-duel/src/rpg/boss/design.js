@@ -9,6 +9,7 @@ import EDB from './idol.edb';
 
 export { SABER };
 
+const GLOW = { inlay: [5.6, 2.6, 0.55], vein: [3.6, 1.25, 0.16], eye: [11, 5, 1.1] };
 let PIECES = null;
 
 export function idolDesign(id = 'rpg-idol') {
@@ -17,8 +18,10 @@ export function idolDesign(id = 'rpg-idol') {
   return {
     ...base,
     materials: {
-      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 7, bump: 0.2, side: 'double' },   // shells are seen from inside too (brim, pauldrons, skirts)
-      blade: { roughness: 1, metalness: 1, envMapIntensity: 1.0, detailScale: 6, bump: 0.06 },
+      // glow channels: inlay = cores, bosses, the blade's edge; vein = eclipse fire in the stone's cracks; eye = the mask's eyes
+      plate: { envMapIntensity: 0.95, bump: 1, side: 'double', glow: GLOW, rim: [0.3, 0.38, 0.6, 3.0], wear: [0.9, 0.85, 0.45, 0.9], wearColor: [0.34, 0.31, 0.27],
+        grimeColor: [0.2, 0.17, 0.15], heatColor: [0.26, 0.09, 0.03], ember: [0, 2.0, 0, 0.09], pulse: [0.22, 1.1, 2.2, 0] },
+      blade: { envMapIntensity: 1.0, bump: 1, glow: GLOW, rim: [0.3, 0.38, 0.6, 3.0], wear: [0.9, 0.8, 0.4, 0.6], wearColor: [0.5, 0.5, 0.53] },
     },
     build(kit, S) {
       // the husk's under-body only: its plates, helm and sword go to a throw-away facade

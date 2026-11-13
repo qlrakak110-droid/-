@@ -14,6 +14,7 @@ import CULTIST from './cultist.edb';
 import PROTECTOR from './protector.edb';
 
 const PIECES = {};
+const GLOW = { inlay: [3.2, 0.7, 0.2], vein: [2.4, 0.4, 0.08], eye: [9, 1.5, 0.45] };
 
 function cultDesign(id, elite) {
   const base = cultBase(id, elite);
@@ -21,8 +22,8 @@ function cultDesign(id, elite) {
   return {
     ...base,
     materials: {
-      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.8, detailScale: 6, bump: 0.18, side: 'double' },
-      blade: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 5, bump: 0.05 },
+      plate: { envMapIntensity: 0.8, bump: 1, side: 'double', glow: GLOW, rim: [0.26, 0.32, 0.5, 3.2], wear: [0.8, 0.9, 0.5, 0.3], wearColor: [0.3, 0.3, 0.31], grimeColor: [0.22, 0.18, 0.16] },
+      blade: { envMapIntensity: 0.9, bump: 1, glow: GLOW, rim: [0.26, 0.32, 0.5, 3.2], wear: [0.9, 0.8, 0.4, 0.3], wearColor: [0.5, 0.5, 0.53] },
     },
     build(kit, S) {
       // the husk's dark under-body; everything worn over it is the Blender asset (tools/blender/heroes/cultist.py)
@@ -31,7 +32,7 @@ function cultDesign(id, elite) {
       kit.addPair('plate', 'hand', S.box(0.085, 0.1, 0.085, 0.02), { color: 0x241a16, rough: 0.9, metal: 0, at: [0, -0.07, 0] });
       const k = elite ? 'protector' : 'cultist';
       if (!PIECES[k]) PIECES[k] = decodeEdb(elite ? PROTECTOR : CULTIST);
-      addEdbPieces(kit, PIECES[k], [3.4, 0.6, 0.2]);
+      addEdbPieces(kit, PIECES[k]);
     },
   };
 }

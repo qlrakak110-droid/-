@@ -43,6 +43,14 @@ LOOKS = {
 }
 
 
+# the engine's texture set of each look (src/char/kit/textures.js SET) and its detail amount; glow channel of a piece:
+# stone -> 'vein' (the set's crack mask x the vertex value = fire in the cracks), ember -> 'eye', everything else 'inlay'
+# (never 'legacy' for a glowing look: the legacy set adds the glow attribute as raw RGB even in channel mode)
+SETS = {'stone': ('scorched', 1.0), 'bronze': ('bronze', 1.0), 'gold': ('hammered', 0.45), 'iron': ('lacquer', 0.9), 'cord': ('cloth', 1.0),
+        'black': ('leather', 0.15), 'ember': ('hammered', 0.2), 'steel': ('hammered', 0.3), 'hilt': ('bronze', 1.0), 'wrap': ('cloth', 1.0),
+        'straw': ('hemp', 1.0), 'robe': ('hemp', 0.9), 'sash': ('silk', 1.0), 'bandage': ('hemp', 1.0)}
+
+
 def init(name):
     """Fresh scene + the game rig tools/blender/rigs/<name>.json."""
     global rig
@@ -296,31 +304,24 @@ def finish(OUT, budget=78000, hero='idol', preview=False, height=2.35):
         col = np.tile(np.array(col0), (len(P_), 1))
         grime = fbm(P_ * 14.0, octaves=3, seed=21)
         if p['look'] == 'stone':
-            # eclipse fire in the cracks: thin iso-lines of a slow noise, only where a second mask allows; soot around them
-            v = np.abs(fbm(P_ * 7.5, octaves=3, seed=31) - 0.5)
-            veins = np.clip(1 - v / 0.014, 0, 1) * np.clip((fbm(P_ * 2.2, octaves=2, seed=8) - 0.42) / 0.2, 0, 1)
-            glow = np.maximum(glow, veins * 0.9)
-            col *= (0.72 + 0.5 * grime)[:, None]
-            col *= (1 - 0.6 * np.clip(1 - v / 0.05, 0, 1) * (veins > 0.02))[:, None]
-            col += np.clip(cur * 0.9, 0, 0.5)[:, None] * np.array([0.09, 0.09, 0.1])         # worn pale edges
-        elif p['look'] in ('bronze', 'gold', 'hilt'):
-            pat = np.clip((0.78 - ao) * 2.2, 0, 1) * np.clip((grime - 0.35) * 2.5, 0, 1) * (0.8 if p['look'] != 'gold' else 0.3)
-            col = col * (1 - pat[:, None]) + np.array([0.03, 0.12, 0.1]) * pat[:, None]       # verdigris in the hollows
-            col *= (0.8 + 0.35 * grime)[:, None]
-            col += np.clip(cur * 1.4, 0, 0.6)[:, None] * np.array(col0) * 0.9                  # polished edges
-        elif p['look'] in ('iron', 'steel'):
-            col *= (0.75 + 0.5 * grime)[:, None]
-            col += np.clip(cur * 1.2, 0, 0.5)[:, None] * np.array([0.1, 0.1, 0.11])
-        else:
+            # where the cracks of the engine's `scorched` set burn: broad regions, the texture draws the crack lines
+            glow = np.clip((fbm(P_ * 2.4, octaves=2, seed=8) - 0.4) / 0.22, 0, 1) * 0.95
             col *= (0.8 + 0.4 * grime)[:, None]
-        col *= (0.55 + 0.45 * ao)[:, None]                                                     # baked occlusion in the albedo too
-        cav = np.clip(0.25 + 0.75 * ao + np.clip(cur, -0.4, 0) * 0.5, 0.05, 1)
+        elif p['look'] in ('bronze', 'gold', 'hilt'):
+            col *= (0.85 + 0.3 * grime)[:, None]
+        else:
+            col *= (0.82 + 0.36 * grime)[:, None]
+        col *= (0.7 + 0.3 * ao)[:, None]                                                       # a little baked occlusion in the albedo
+        # cavity: < 1 occluded crevice (the material grimes it), > 1 convex edge (the material wears it to bare metal)
+        edge = np.clip(cur * 2.6, 0, 1) * np.clip((ao - 0.55) / 0.3, 0, 1)
+        cav = np.where(edge > 0.05, 1.0 + edge, np.clip(0.25 + 0.75 * ao + np.clip(cur, -0.4, 0) * 0.5, 0.05, 1))
         bmin, bmax = Pl.min(0) - 1e-4, Pl.max(0) + 1e-4
         q = np.round((Pl - bmin) / (bmax - bmin) * 65535).astype('<u2')
         assert len(P_) < 65536, p['obj'].name
-        rec = dict(bone=p['bone'], slot=slot, rough=rough, metal=metal, detail=detail, nv=len(P_), ni=int(I_.size), bmin=[round(float(x), 5) for x in bmin], bmax=[round(float(x), 5) for x in bmax])
+        rec = dict(bone=p['bone'], slot=slot, rough=rough, metal=metal, detail=detail, set=SETS.get(p['look'], ('legacy', detail))[0], amt=SETS.get(p['look'], ('legacy', detail))[1],
+                   gch='vein' if p['look'] == 'stone' else 'eye' if p['look'] == 'ember' else 'inlay', nv=len(P_), ni=int(I_.size), bmin=[round(float(x), 5) for x in bmin], bmax=[round(float(x), 5) for x in bmax])
         pad4(); rec['pos'] = len(blob); blob += q.tobytes()
-        nb = np.concatenate([np.clip(np.round(Nl * 127), -127, 127).astype('i1').view('u1'), np.round(cav * 255).astype('u1')[:, None]], 1)
+        nb = np.concatenate([np.clip(np.round(Nl * 127), -127, 127).astype('i1').view('u1'), np.round(cav * 127.5).astype('u1')[:, None]], 1)
         pad4(); rec['nrm'] = len(blob); blob += nb.tobytes()
         cb = np.concatenate([np.round(np.sqrt(np.clip(col, 0, 1)) * 255).astype('u1'), np.round(glow * 255).astype('u1')[:, None]], 1)
         pad4(); rec['col'] = len(blob); blob += cb.tobytes()
@@ -328,7 +329,7 @@ def finish(OUT, budget=78000, hero='idol', preview=False, height=2.35):
         pieces.append(rec)
         nv_total += len(P_); nt_total += len(I_)
 
-    head_json = json.dumps(dict(format='EDB1', hero=hero, pieces=pieces), separators=(',', ':')).encode()
+    head_json = json.dumps(dict(format='EDB1', hero=hero, cav2=True, pieces=pieces), separators=(',', ':')).encode()
     while len(head_json) % 4:
         head_json += b' '
     with open(OUT, 'wb') as f:

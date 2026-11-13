@@ -49,6 +49,12 @@ the phase-2 roar, the boss death (slow arc, then a low wide shot) in `src/rpg/bo
 `src/rpg/world/index.js`. Sheets: `SECTION=intro|enrage|death` of `src/rpg/tests/boss.mjs` (+ `CAM="back,h,z,lookH,fov"`
 for a fixed three-quarter view of any attack).
 
+EDB pieces now use the engine's own material features (see `tools/blender/rigidkit.py` `SETS` and `src/rpg/edb.js`): a
+texture set per look (scorched stone, bronze with verdigris, lacquer, hammered, hemp, silk ...), cavity > 1 on convex
+edges (edge wear), ONE glow channel per piece (stone = vein: fire in the set's cracks; `ember` look = eye; others =
+inlay) with the colours in the design's `materials.*.glow`, plus `rim`, `wear`, `side: 'double'`. Never give a glowing
+look the `legacy` set: it adds the glow attribute as raw RGB even in channel mode (that was a violet eye).
+
 **Motion capture (session 2):** `python3 tools/mocap/extract_run.py tools/mocap/09_01.bvh` turns a CMU run capture
 (mocap.cs.cmu.edu, subject 9; free for any use; the database was created with funding from NSF EIA-0196217) into phase
 curves `src/rpg/core/clips/mocap_run.js`; `locomotion.js` drives pelvis bounce / sway / surge / list / twist, trunk

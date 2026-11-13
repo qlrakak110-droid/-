@@ -66,8 +66,9 @@ def head():
          + 0.012 * np.exp(-((y + 0.05) / 0.012) ** 2 - (z / 0.035) ** 2)) * front                               # chin
     N = ed.normals_of(face)
     ed.set_verts(face, ed.verts_of(face) + N * d[:, None])
-    eye = lambda Pl: np.clip(1.6 * np.exp(-((Pl[:, 1] - 0.036) / 0.0075) ** 2 - ((np.abs(Pl[:, 2]) - 0.046) / 0.022) ** 2) * (Pl[:, 0] > 0.05), 0, 1)
-    reg(face, b, 'stone', glow=eye, chip=0.0025)
+    reg(face, b, 'stone', chip=0.0025)
+    for s_ in (1, -1):
+        reg(ball('eye%d' % s_, b, [0.126, 0.037, 0.046 * s_], (0.01, 0.0065, 0.021), segs=(8, 5)), b, 'ember', glow=1.0)
     # tusks, cheek guards, a third-eye boss on the brow
     def tusk(side, s):
         pts = spline([[0.118, -0.034, 0.03 * s], [0.134, -0.02, 0.034 * s], [0.136, 0.006, 0.037 * s]], 8)
