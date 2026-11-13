@@ -22,6 +22,7 @@ const CSS = `
 .rpgt .b.int.off{opacity:0;pointer-events:none}
 .rpgdbg.touch .skills{display:none}
 .rpgdbg.touch .boss{left:41%;right:15%;bottom:auto;top:3%}
+@media (orientation:portrait){.rpgdbg.touch .bars{width:52%}.rpgdbg.touch .boss{left:6%;right:6%;top:15%}}
 `;
 
 // [action, glyph, label, right vmin, bottom vmin, size vmin]

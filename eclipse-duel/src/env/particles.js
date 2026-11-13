@@ -77,7 +77,7 @@ void main() {
     vec2 d = p.xz - P.xy;
     float dist = length(d) + 1e-3;
     float R = P.z * uPulseC[i].w;
-    float wave = exp(-pow((dist - R) / 1.6, 2.0)) * exp(-P.z * 1.2) * P.w * exp(-p.y * 0.25);
+    float wave = exp(-(((dist - R) / 1.6) * ((dist - R) / 1.6))) * exp(-P.z * 1.2) * P.w * exp(-p.y * 0.25);
     p.xz += d / dist * wave * 0.9;
     p.y += wave * 0.4;
   }

@@ -124,16 +124,16 @@ vec4 genFlame(vec2 p) {
     vec4 t = uP[k];            // cx, height, width, phase
     float s = (yy - 0.03) / t.y;
     if (s <= 0.0 || s >= 1.0) continue;
-    float bend = 0.09 * sin(s * 3.4 + t.w) * s + 0.34 * pow(s, 1.4) * fbm(vec2(p.x * 1.2 + t.w, yy * 2.0 - uSeed), 4);
+    float bend = 0.09 * sin(s * 3.4 + t.w) * s + 0.34 * pow(max(s, 0.0), 1.4) * fbm(vec2(p.x * 1.2 + t.w, yy * 2.0 - uSeed), 4);
     float xw = p.x - t.x - bend;
-    float w = t.z * 1.55 * pow(s, 0.42) * (1.0 - s);
+    float w = t.z * 1.55 * pow(max(s, 0.0), 0.42) * (1.0 - s);
     float lick = n01(vec2(xw * 3.6 + 4.0, yy * 3.0 - t.w), 4);
     float tear = n01(vec2(xw * 7.0 - t.w, yy * 6.0 + uSeed), 3);
     float m = smoothstep(0.0, 0.06 + 0.07 * s, w - abs(xw) - (lick - 0.5) * 0.16 * (0.3 + s));
     m *= smoothstep(0.0, 0.18, (1.0 - s) * 1.1 + 0.1 - lick * 0.62 * s);
     m *= 1.0 - smoothstep(0.5, 0.8, tear) * smoothstep(0.35, 0.8, s) * 0.85;   // holes that tear the upper flame apart
     a = max(a, m);
-    g = max(g, smoothstep(0.0, 0.1, w * 0.5 - abs(xw)) * pow(1.0 - s, 0.5));
+    g = max(g, smoothstep(0.0, 0.1, w * 0.5 - abs(xw)) * pow(max(1.0 - s, 0.0), 0.5));
   }
   float streak = n01(vec2(p.x * 9.0, yy * 1.6 - uSeed * 0.3), 4);
   return vec4(sat((0.32 + 0.68 * streak) * (0.8 + 0.2 * (1.0 - yy))), sat(g * (0.7 + 0.6 * streak)),
@@ -268,7 +268,7 @@ vec4 genAsh(vec2 p) {
 }
 vec4 genPetal(vec2 p) {
   float s = (p.y + 0.82) / 1.64;
-  float w = (s > 0.0 && s < 1.0) ? 0.44 * pow(sin(3.14159 * pow(s, 0.8)), 0.75) : -1.0;
+  float w = (s > 0.0 && s < 1.0) ? 0.44 * pow(max(sin(3.14159 * pow(max(s, 0.0), 0.8)), 0.0), 0.75) : -1.0;
   float xx = p.x - 0.08 * sin(s * 3.0);
   float notch = length(vec2(xx, p.y - 0.86)) - 0.13;
   float d = max(abs(xx) - w, -notch);
@@ -309,13 +309,13 @@ vec4 genWisp(vec2 p) {
     float d = sdSeg(p, uP[k].xy, uP[k + 1].xy);
     if (d < best) { best = d; bt = uP[k].z; }
   }
-  float th = 0.03 + 0.13 * pow(sin(3.14159 * bt), 0.8);
+  float th = 0.03 + 0.13 * pow(max(sin(3.14159 * bt), 0.0), 0.8);
   float n = n01(p * 4.0 + uSeed, 3);
   float dens = exp(-(best * best) / (th * th)) * (0.55 + 0.6 * n);
   return vec4(sat(0.6 + 0.4 * n), sat(exp(-(best * best) / (th * th * 0.2)) * sin(3.14159 * bt)), sat(sin(3.14159 * bt) * 0.6 + n * 0.4), sat(dens) * edgeFade(p, 0.86));
 }
 vec4 genStreak(vec2 p) {
-  float along = pow(max(0.0, 1.0 - p.x * p.x), 2.0);
+  float along = ((max(0.0, 1.0 - p.x * p.x)) * (max(0.0, 1.0 - p.x * p.x)));
   float w = 0.035 + 0.06 * along;
   return vec4(1.0, sat(exp(-(p.y * p.y) / (w * w * 0.15)) * along), along, sat(exp(-(p.y * p.y) / (w * w)) * along));
 }
@@ -371,7 +371,7 @@ vec4 genLeaf(vec2 p) {
   float bend = (uVar == 0 ? 0.1 : 0.05) * sin(s * 2.6 + uSeed);
   float xx = p.x - bend;
   float w = -1.0;
-  if (s > 0.0 && s < 1.0) w = uVar == 0 ? 0.16 * pow(sin(3.14159 * pow(s, 0.62)), 0.9) : 0.4 * pow(sin(3.14159 * pow(s, 0.85)), 0.8) * (0.9 + 0.1 * sin(s * 44.0));
+  if (s > 0.0 && s < 1.0) w = uVar == 0 ? 0.16 * pow(max(sin(3.14159 * pow(max(s, 0.0), 0.62)), 0.0), 0.9) : 0.4 * pow(max(sin(3.14159 * pow(max(s, 0.0), 0.85)), 0.0), 0.8) * (0.9 + 0.1 * sin(s * 44.0));
   float d = abs(xx) - w;
   float inside = 1.0 - smoothstep(-0.014, 0.014, d);
   float rib = exp(-(xx * xx) / 0.0005);
@@ -412,12 +412,12 @@ vec4 genEnso(vec2 p) {
   float r = length(p), th = atan(p.y, p.x);
   float t = fract(th / TAU + 0.63);                    // 0 start of the stroke -> 1 its dry end
   float R = 0.7 + 0.025 * sin(t * 9.0 + uSeed);
-  float w = 0.085 * (0.45 + 0.85 * sin(3.14159 * pow(t, 0.7))) * (1.0 - smoothstep(0.9, 0.97, t)) * smoothstep(0.0, 0.03, t);
+  float w = 0.085 * (0.45 + 0.85 * sin(3.14159 * pow(max(t, 0.0), 0.7))) * (1.0 - smoothstep(0.9, 0.97, t)) * smoothstep(0.0, 0.03, t);
   float band = 1.0 - smoothstep(w * 0.75, w, abs(r - R));
   float hair = n01(vec2(t * 7.0 + uSeed, (r - R) / max(w, 0.01) * 3.2), 3);
   float dry = smoothstep(0.0, 0.14, hair - mix(0.15, 0.62, t * t));
   float a = band * dry;
-  return vec4(1.0, sat(exp(-pow((r - R) / max(w * 0.35, 0.004), 2.0)) * a), sat(1.0 - t), sat(a));
+  return vec4(1.0, sat(exp(-(((r - R) / max(w * 0.35, 0.004)) * ((r - R) / max(w * 0.35, 0.004)))) * a), sat(1.0 - t), sat(a));
 }
 
 // --- tiling noise textures -----------------------------------------------------------------------------------------

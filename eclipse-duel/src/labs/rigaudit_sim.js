@@ -77,7 +77,7 @@ function studioEnv(renderer) {
     fragmentShader: `varying vec3 vP; void main(){
       float y = vP.y;
       vec3 top = vec3(0.05, 0.065, 0.09), hor = vec3(0.16, 0.12, 0.1), flo = vec3(0.012, 0.011, 0.012);
-      vec3 c = y > 0.0 ? mix(hor, top, pow(y, 0.6)) : mix(hor * 0.4, flo, pow(-y, 0.4));
+      vec3 c = y > 0.0 ? mix(hor, top, pow(max(y, 0.0), 0.6)) : mix(hor * 0.4, flo, pow(max(-y, 0.0), 0.4));
       gl_FragColor = vec4(c, 1.0); }`,
   }));
   scene.add(dome);

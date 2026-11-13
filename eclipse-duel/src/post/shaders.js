@@ -42,7 +42,8 @@ export const PREFILTER = /* glsl */ `
 precision highp float;
 uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uThreshold; uniform float uKnee;
 varying vec2 vUv;
-vec3 S(vec2 uv) { return min(texture2D(tSrc, uv).rgb, vec3(48.0)); }
+// NaN-proof: a NaN pixel (some mobile GPUs produce them where desktop ones do not) must not bloom into a white blob
+vec3 S(vec2 uv) { vec3 c = texture2D(tSrc, uv).rgb; return vec3(c.r >= 0.0 ? min(c.r, 48.0) : 0.0, c.g >= 0.0 ? min(c.g, 48.0) : 0.0, c.b >= 0.0 ? min(c.b, 48.0) : 0.0); }
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 vec3 thresh(vec3 c) {
   float br = max(c.r, max(c.g, c.b));
@@ -393,6 +394,7 @@ void main() {
   if (uShaftOn > 0.5) col += texture2D(tShaft, vUv).rgb * uShaftTint * mix(0.4, 1.0, smoothstep(3.0, 14.0, z));
 #endif
 
+  col = vec3(col.r >= 0.0 ? min(col.r, 64.0) : 0.0, col.g >= 0.0 ? min(col.g, 64.0) : 0.0, col.b >= 0.0 ? min(col.b, 64.0) : 0.0);   // NaN / Inf scrub
   vec3 bloom = texture2D(tBloom, uv).rgb;
   if (uChroma > 0.001) {
     vec2 c = uv - 0.5;
@@ -417,7 +419,7 @@ void main() {
 
   // ---- grade (display-referred): lift / gamma / gain, split toning, saturation, contrast ----------------------------
   col = max(col * uGGain + uGLift * (1.0 - col), 0.0);
-  col = pow(col, 1.0 / max(uGGamma, vec3(0.05)));
+  col = pow(max(col, 0.0), 1.0 / max(uGGamma, vec3(0.05)));
   float l = luma(col);
   float bal = 0.42 + 0.2 * uTone.y;
   float wS = smoothstep(0.0, 0.12, l) * (1.0 - smoothstep(0.06, bal, l));

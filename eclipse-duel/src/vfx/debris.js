@@ -122,7 +122,7 @@ varying float vRough;
 const FRAG_EMISSIVE = /* glsl */ `
   {
     int kind = int(vDeb.y + 0.5);
-    float fres = pow(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 3.0);
+    float fres = pow(max(1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0), 0.0), 3.0);
     float nz = texture2D(uNoise, vLocal.xy * 0.35 + vLocal.z * 0.21).b;
     float nf = texture2D(uNoise, vLocal.yz * 0.5 + vLocal.x * 0.13).r;
     if (kind == 2) {

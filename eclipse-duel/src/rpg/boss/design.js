@@ -5,9 +5,9 @@
 
 import { huskDesign } from '../core/kinds.js';
 
-const STONE = { color: 0x3b3d46, rough: 0.7, metal: 0.35, detail: 1 };
-const BRONZE = { color: 0x6b5330, rough: 0.5, metal: 0.85, detail: 1 };
-const DARK = { color: 0x16171c, rough: 0.8, metal: 0.3, detail: 1 };
+const STONE = { color: 0x565966, rough: 0.7, metal: 0.35, detail: 1 };
+const BRONZE = { color: 0x9a7640, rough: 0.5, metal: 0.85, detail: 1 };
+const DARK = { color: 0x23252d, rough: 0.8, metal: 0.3, detail: 1 };
 const GOLD = [3.4, 1.7, 0.42];
 
 /** eclipse-gold fire in the cracks: a cheap cellular vein pattern over the piece's own coordinates */
@@ -21,7 +21,7 @@ const veins = (k = 1, f = 26) => (p) => {
 export const SABER = { hilt: 0.4, length: 1.62, tip: 1.74 };
 
 export function idolDesign(id = 'rpg-idol') {
-  const base = huskDesign(id, 0x8a8794, [4.2, 2.0, 0.5]);
+  const base = huskDesign(id, 0xc4c0cc, [4.2, 2.0, 0.5]);
   const baseBuild = base.build;
   return {
     ...base,

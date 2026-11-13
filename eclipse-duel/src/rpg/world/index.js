@@ -1,7 +1,7 @@
 // World dressing of 강호행 (README of src/rpg, §8): the meditation stone 「정심석 靜心石」 and the mist gate.
 //   정심석   a low, water-worn boulder on a ring of cairn stones, an incense bowl with a pale wisp of 氣 over it
-//   mist gate two leaning, tapered hexagonal pillars with bronze bands and a hanging plaque; a slow curtain of mist
-//            between them that thins away once the hero has walked through
+//   mist gate two knee-high boundary stones with a lamp each and a low bank of mist between them that thins away
+//            once the hero has walked through (nothing tall: the fight is never hidden behind the gate)
 // A handful of meshes, three materials, no textures; colliders for everything solid.
 
 import * as THREE from 'three';
@@ -62,35 +62,31 @@ export default function install(rpg) {
     const g = PLACES.gate;
     const cs = Math.cos(g.yaw), sn = Math.sin(g.yaw);
     const posts = [];
+    // two knee-high boundary stones with a lamp each: low enough that the fight is never hidden behind them
     for (const s of [-1, 1]) {
       const px = g.x + sn * s * (g.r - 0.3), pz = g.z + cs * s * (g.r - 0.3);
       posts.push([px, pz]);
-      const lean = s * 0.075;
-      add(new THREE.CylinderGeometry(0.44, 0.52, 0.36, 6), stone, px, 0.18, pz, g.yaw);
-      add(new THREE.CylinderGeometry(0.25, 0.36, 3.5, 6), stone, px - sn * s * 0.12, 2.05, pz - cs * s * 0.12, g.yaw + s * 0.3, 0, 0).rotation.set(cs * lean, g.yaw + s * 0.3, -sn * lean);
-      add(new THREE.CylinderGeometry(0.33, 0.33, 0.12, 6), bronze, px - sn * s * 0.07, 1.0, pz - cs * s * 0.07, g.yaw + s * 0.3);
-      add(new THREE.CylinderGeometry(0.29, 0.29, 0.1, 6), bronze, px - sn * s * 0.2, 3.1, pz - cs * s * 0.2, g.yaw + s * 0.3);
-      add(new THREE.ConeGeometry(0.34, 0.42, 6), stone, px - sn * s * 0.26, 4.0, pz - cs * s * 0.26, g.yaw + s * 0.3);
-      add(new THREE.SphereGeometry(0.06, 8, 6), light, px - sn * s * 0.26, 4.3, pz - cs * s * 0.26, 0, 0, 0, false);
-      add(rock(0.3, 1.2, 0.5, 1, 0), moss, px + cs * 0.5, 0.12, pz - sn * 0.5 * s, rnd() * 3);
+      add(rock(0.42, 1, 0.5, 1, 1), stone, px, 0.12, pz, rnd() * 3);
+      add(new THREE.CylinderGeometry(0.2, 0.3, 0.8, 6), stone, px, 0.5, pz, g.yaw + s * 0.3).rotation.set(cs * s * 0.05, g.yaw + s * 0.3, -sn * s * 0.05);
+      add(new THREE.CylinderGeometry(0.27, 0.27, 0.07, 6), bronze, px, 0.72, pz, g.yaw + s * 0.3);
+      add(new THREE.ConeGeometry(0.3, 0.26, 6), stone, px, 1.04, pz, g.yaw + s * 0.3);
+      add(new THREE.SphereGeometry(0.05, 8, 6), light, px, 1.24, pz, 0, 0, 0, false);
+      add(rock(0.24, 1.2, 0.5, 1, 0), moss, px + cs * 0.45, 0.1, pz - sn * 0.45 * s, rnd() * 3);
     }
-    // a hanging plaque on a bronze chain bar between the pillars
-    add(new THREE.CylinderGeometry(0.03, 0.03, (g.r - 0.5) * 2, 6), bronze, g.x, 3.3, g.z, g.yaw, 0, Math.PI / 2);
-    add(new THREE.BoxGeometry(0.06, 0.5, 1.1), bronze, g.x, 2.98, g.z, g.yaw);
     const veils = [];
     for (let i = 0; i < 6; i++) {
-      const vg = new THREE.PlaneGeometry((g.r - 0.5) * 2, 3.3, 8, 6);
+      const vg = new THREE.PlaneGeometry((g.r - 0.5) * 2, 1.5, 8, 4);
       {
         // soft edges: additive vertex colours fall to black at the rim, drifting bands inside
         const p = vg.attributes.position, c = new Float32Array(p.count * 3), W = (g.r - 0.5) * 2;
         for (let k = 0; k < p.count; k++) {
-          const u = p.getX(k) / W + 0.5, w = p.getY(k) / 3.3 + 0.5;
+          const u = p.getX(k) / W + 0.5, w = p.getY(k) / 1.5 + 0.5;
           const b = Math.pow(Math.sin(Math.PI * u), 1.6) * Math.pow(Math.sin(Math.PI * Math.min(1, w * 1.1)), 1.4) * (0.55 + 0.45 * Math.sin(u * 9 + i * 2.1 + w * 4));
           c[k * 3] = c[k * 3 + 1] = c[k * 3 + 2] = Math.max(0, b);
         }
         vg.setAttribute('color', new THREE.BufferAttribute(c, 3));
       }
-      const v = add(vg, mistMat, g.x + cs * (i - 2.5) * 0.16, 1.6, g.z - sn * (i - 2.5) * 0.16, g.yaw + Math.PI / 2, 0, 0, false);
+      const v = add(vg, mistMat, g.x + cs * (i - 2.5) * 0.2, 0.72, g.z - sn * (i - 2.5) * 0.2, g.yaw + Math.PI / 2, 0, 0, false);
       v.renderOrder = 12;
       veils.push(v);
     }
@@ -98,7 +94,7 @@ export default function install(rpg) {
     ctx.scene.add(group);
     const removers = [
       world.addCollider({ type: 'circle', x: a.x, z: a.z, r: 0.95 }),
-      ...posts.map(([px, pz]) => world.addCollider({ type: 'circle', x: px, z: pz, r: 0.5 })),
+      ...posts.map(([px, pz]) => world.addCollider({ type: 'circle', x: px, z: pz, r: 0.42, blocksCamera: false })),
     ];
     let t = 0, open = 0, passed = false;
     const off = world.on('gate', () => { passed = true; });
@@ -118,7 +114,7 @@ export default function install(rpg) {
         }
         mistMat.opacity = 0.1 * (1 - open) * (0.85 + 0.15 * Math.sin(t * 0.9));
         for (let i = 0; i < veils.length; i++) veils[i].visible = open < 0.98;
-        for (let i = 0; i < veils.length; i++) veils[i].position.y = 1.6 + Math.sin(t * 0.5 + i * 1.3) * 0.08;
+        for (let i = 0; i < veils.length; i++) veils[i].position.y = 0.72 + Math.sin(t * 0.5 + i * 1.3) * 0.08;
       },
       dispose() {
         off(); offRest();

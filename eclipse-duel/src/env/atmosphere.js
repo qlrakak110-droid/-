@@ -79,7 +79,7 @@ void main() {
   if (kind < 0.5) {
     float y = vUv.y;
     float n = fbm2(vec2(vUv.x * 5.0 + seed + uTime * 0.01, y * 2.0 - uTime * 0.004), 4);
-    float a = pow(1.0 - y, 1.6) * smoothstep(0.0, 0.25, vUv.x) * smoothstep(1.0, 0.75, vUv.x);
+    float a = pow(max(1.0 - y, 0.0), 1.6) * smoothstep(0.0, 0.25, vUv.x) * smoothstep(1.0, 0.75, vUv.x);
     a *= 0.45 + 0.75 * n;
     vec3 c = skyBase(vec3(dir.x, max(dir.y, 0.0) * 0.5 + 0.006, dir.z)) * 1.08;
     a = clamp(a * vK.z, 0.0, 1.0) * vFade;
@@ -93,7 +93,7 @@ void main() {
     float dust = vnoise(vec2(vUv.x * 30.0, y * 14.0 - uTime * 0.15) + seed);
     float a = exp(-x * x * 3.5) * smoothstep(0.0, 0.12, y) * smoothstep(1.0, 0.35, y);
     a *= (0.35 + 0.9 * streak) * (0.85 + 0.3 * dust);
-    float view = pow(max(dot(dir, uSunDir), 0.0), 2.0) * 0.7 + 0.3;
+    float view = ((max(dot(dir, uSunDir), 0.0)) * (max(dot(dir, uSunDir), 0.0))) * 0.7 + 0.3;
     a *= vK.z * vFade * view;
     o = vec4(moodApply(uShaft, 0.6) * a, 0.0);
   } else if (kind > 2.5) {
@@ -102,7 +102,7 @@ void main() {
     float n2 = vnoise(vec2(x * 3.0 + seed * 2.0, y * 9.0 - uTime * 0.7));
     float xd = x + (n - 0.5) * 1.1 * (0.3 + y);
     float core = exp(-xd * xd * 5.0);
-    float a = core * smoothstep(0.0, 0.05, y) * pow(1.0 - y, 1.3) * (0.4 + 0.9 * n) * (0.75 + 0.5 * n2);
+    float a = core * smoothstep(0.0, 0.05, y) * pow(max(1.0 - y, 0.0), 1.3) * (0.4 + 0.9 * n) * (0.75 + 0.5 * n2);
     a = clamp(a * vK.z, 0.0, 0.8) * vFade;
     // pale against the dark, warmed a little at the root by the embers below
     vec3 c = uFogNear * 5.5 + uSunHalo * 0.9 + uFire * 0.05 * exp(-y * 9.0);

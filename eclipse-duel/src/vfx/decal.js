@@ -146,7 +146,7 @@ void main() {
     float vis = smoothstep(th - 0.1, th + 0.1, fb * 0.6 + (1.0 - r) * 0.25 + lines * 0.15);
     float edgeFade = 1.0 - smoothstep(0.7, 1.0, r + (fb - 0.5) * 0.3);
     aDark = inside * (patchy * 0.38 + lines * 0.3 + dendr * 0.18) * vis * edgeFade;
-    float frontGlow = exp(-pow(abs(rm - front) / 0.12, 2.0)) * (1.0 - smoothstep(reveal, reveal * 1.6, age));
+    float frontGlow = exp(-((abs(rm - front) / 0.12) * (abs(rm - front) / 0.12))) * (1.0 - smoothstep(reveal, reveal * 1.6, age));
     vec2 gc = floor(q * 9.0);
     vec2 gf = fract(q * 9.0) - 0.5 - (h22(gc + seed) - 0.5) * 0.6;
     float tw = pow(h12(gc + floor(age * 7.0) * 3.1 + seed), 22.0) * exp(-dot(gf, gf) * 120.0);
@@ -239,7 +239,7 @@ void main() {
     // flash of the freshly drawn stroke behind the sweeping brush
     float fresh = exp(-max(sat(t0 / max(reveal, 1e-3)) * TAU - sweepA, 0.0) * 3.0) * (1.0 - step(reveal * 1.8, t0));
     glow = (mix(vMid.rgb, vCore.rgb, 0.2 + 0.8 * fresh) * line * (0.42 + 0.5 * fresh) + vMid.rgb * halo) * flowP * vis * fin;
-    glow += vCore.rgb * exp(-pow((r - 0.158) / 0.03, 2.0)) * 0.12 * ON(4) * vis * fin;      // corona of the black sun
+    glow += vCore.rgb * exp(-(((r - 0.158) / 0.03) * ((r - 0.158) / 0.03))) * 0.12 * ON(4) * vis * fin;      // corona of the black sun
     float inkL = max(1.0 - smoothstep(lw * 1.4, lw * 3.4, d), 1.0 - smoothstep(lw * 0.6, lw * 2.6, db)) * (0.55 + 0.45 * dryM);
     aDark = sat(inkL * 0.62 + sun * 0.88) * vis;
     dark = vec3(0.004, 0.004, 0.006);

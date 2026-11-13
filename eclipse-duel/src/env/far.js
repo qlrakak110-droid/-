@@ -60,9 +60,9 @@ void main() {
   // eclipse light grazing past the silhouettes (scattered toward the camera, so added after the haze): a rim on the
   // edges that turn toward the sun, and a thin glow on every edge close to the sun on screen
   float ndl = dot(n, uSunDir);
-  float fres = pow(1.0 - max(dot(n, v), 0.0), 2.0);
+  float fres = ((1.0 - max(dot(n, v), 0.0)) * (1.0 - max(dot(n, v), 0.0)));
   float back = pow(max(dot(dir, uSunDir), 0.0), 6.0);
-  float edge = pow(1.0 - abs(dot(n, v)), 3.0);
+  float edge = pow(max(1.0 - abs(dot(n, v)), 0.0), 3.0);
   float lift = smoothstep(uCloudY, uCloudY + 30.0, vW.y);
   col += (uRim * max(ndl + 0.2, 0.0) * fres + uCorona * 0.1 * edge * back) * (1.0 - 0.55 * f) * lift;
   // the eye slits of the masks: a faint smoulder (uv.y = 1: statue 0, 2: statue 1)

@@ -27,7 +27,7 @@ void main() {
   if (tau < 0.0 || tau >= life) { gl_Position = vec4(0.0, 0.0, 2.0, 1.0); return; }
   float t = tau / life;
   int kind = int(iShape.x + 0.5);
-  float grow = kind == 0 ? 1.0 - pow(1.0 - t, 4.0) : 1.0 - pow(2.0, -8.0 * t);
+  float grow = kind == 0 ? 1.0 - pow(max(1.0 - t, 0.0), 4.0) : 1.0 - pow(2.0, -8.0 * t);
   float R = mix(iShape.y, iShape.z, grow);
   float half_ = kind == 0 ? R * (1.0 + iMisc.x * 2.5) + 0.05 : R;
   vec2 c = position.xy;
@@ -84,7 +84,7 @@ void main() {
     float m = smoothstep(1.0, 0.25, r);
     o = (f * 0.7 + f2 * 0.5) * m * vK.y;
   } else {
-    float m = r < 1.0 ? r * pow(1.0 - r * r, 2.0) : 0.0;
+    float m = r < 1.0 ? r * ((1.0 - r * r) * (1.0 - r * r)) : 0.0;
     o = -dirS * m * 2.0 * vK.y;
   }
   // whatever stands in front of the refraction (a fighter before a heat column) is left alone

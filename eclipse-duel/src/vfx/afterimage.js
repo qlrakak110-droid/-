@@ -60,17 +60,17 @@ ${GLSL_COMMON}
 void main() {
   vec3 V = normalize(cameraPosition - vW);
   float ndv = abs(dot(normalize(vN), V));
-  float fres = pow(1.0 - ndv, uLook.y);
+  float fres = pow(max(1.0 - ndv, 0.0), uLook.y);
   // dry-brush dissolve: noise stretched along the height, so the ghost breaks into vertical bristle streaks
   float n = texture2D(uNoise, vec2(vW.x + vW.z * 0.37, vW.y * 0.22) * uLook.w).r * 0.7 + texture2D(uNoise, vec2(vW.z + vW.x * 0.5, vW.y * 0.3) * uLook.w * 2.3 + 0.5).a * 0.3;
-  float th = mix(-0.15, 1.0, pow(vT, 1.3));
+  float th = mix(-0.15, 1.0, pow(max(vT, 0.0), 1.3));
   float vis = smoothstep(th - 0.08, th + 0.08, n * 0.85 + fres * 0.15);
   float edge = (1.0 - smoothstep(th, th + 0.12, n * 0.85 + fres * 0.15)) * vis;
   // layered armour stacks several shells per ghost and ghosts overlap: keep each one dim (mid colour, core on the rim)
   vec3 col = mix(mix(uMid * 0.5, uCore * 0.32, fres * (1.0 - vT)), uMid * 0.25, smoothstep(0.2, 0.9, vT));
   float I = (fres * 0.9 + uLook.x) * (1.0 - vT) * (1.0 - vT * 0.3);
   vec3 rgb = col * I * vis * uLook.z + uCore * edge * 0.6 * (1.0 - vT);
-  if (dot(rgb, rgb) < 1e-6) discard;
+  if (!(dot(rgb, rgb) >= 1e-6)) discard;      // also drops NaN
   gl_FragColor = vec4(rgb, 0.0);
 }`;
 

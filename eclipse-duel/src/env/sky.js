@@ -38,7 +38,7 @@ float stars(vec3 dir) {
   float d = length(sd - sp);
   float fw = max(fwidth(sd.x) + fwidth(sd.y), 1e-3) * 0.9;
   float b = smoothstep(fw * 1.6, 0.0, d);
-  float mag = pow((h - 0.955) / 0.045, 4.0);
+  float mag = pow(max((h - 0.955) / 0.045, 0.0), 4.0);
   float tw = 0.75 + 0.25 * sin(uTime * (1.3 + h * 3.0) + h * 91.0);
   return b * (0.025 + 0.5 * mag) * tw;
 }
@@ -67,7 +67,7 @@ void main() {
     st1 = fbm3(vec3(cp * 2.2, lr * 1.6 - t * 0.035), 4);
     st2 = vnoise3(vec3(cp * 7.0, lr * 3.0 - t * 0.06));
   }
-  float eq = 0.55 + 0.45 * pow(abs(cos(phi - 0.35)), 2.0);
+  float eq = 0.55 + 0.45 * ((abs(cos(phi - 0.35))) * (abs(cos(phi - 0.35))));
   float streak = smoothstep(0.3, 0.85, st1) * eq;
   float shimmer = 0.85 + 0.15 * sin(t * 2.3 + st2 * 9.0);
   float corona = exp(-k * 16.0) * 2.1 * shimmer

@@ -116,7 +116,7 @@ void main() {
     extra += vCore.rgb * bolts * 0.9 * (1.0 - rel);
   }
   // energy pulses travelling from the source to the impact
-  float pulse = look == 0 || look == 3 ? pow(sat(1.0 - abs(fract(s * 0.45 - age * scroll * 0.2 + seed) - 0.5) * 6.0), 2.0) : 0.0;
+  float pulse = look == 0 || look == 3 ? ((sat(1.0 - abs(fract(s * 0.45 - age * scroll * 0.2 + seed) - 0.5) * 6.0)) * (sat(1.0 - abs(fract(s * 0.45 - age * scroll * 0.2 + seed) - 0.5) * 6.0))) : 0.0;
   dens = core * (0.7 + 0.5 * st + pulse * 0.8) + shD * (1.0 + pulse);
   k = 0.12 + (1.0 - core) * 0.5 + rel * 0.5 + (1.0 - st2) * 0.12;
   float th = mix(-0.2, 1.05, rel);

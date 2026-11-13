@@ -537,7 +537,7 @@ const FRAG_SURFACE = /* glsl */ `
       float line = edCode * (0.66 + 0.68 * n1 + 0.1 * sin(bu * 31.0 + n2 * 9.0));
       float on = step(0.001, edCode);
       edHard = (1.0 - smoothstep(line - 0.025, line + 0.03, bv)) * on;
-      edNioi = exp(-pow((bv - line) / 0.045, 2.0)) * on;
+      edNioi = exp(-(((bv - line) / 0.045) * ((bv - line) / 0.045))) * on;
       float grain = sin(bv * 52.0 + (n1 - 0.5) * 16.0 + (n2 - 0.5) * 7.0 + (edA.r - 0.5) * 5.0);
       base *= 1.0 + 0.12 * grain * (1.0 - edHard) * (1.0 - edLod);
       vec3 honed = uWearColor * 1.3 + 0.03;
@@ -622,7 +622,7 @@ const FRAG_SURFACE = /* glsl */ `
       float pulse = 1.0 + uPulse.x * sin(uEmber.x * uPulse.y - vRestPos.y * uPulse.z + edA.r * 4.0 + edMac.r * 3.0);
       float core = vsrc * vein;
       edEmis += (edHot(uGlowB, clamp(vein * 1.15, 0.0, 1.0)) * (1.0 + 0.3 * vein) * vsrc
-        + edHot(uGlowB, 0.2) * pow(halo, 1.8) * vsrc * uEmber.w * 5.0) * fl * pulse;
+        + edHot(uGlowB, 0.2) * pow(max(halo, 0.0), 1.8) * vsrc * uEmber.w * 5.0) * fl * pulse;
       if (!edUv) { edInlayK = vGlow.x; edEyeK = vGlow.z; }
       // glowing fissures are open cracks: dark, rough, not metallic (glowing thread keeps its body)
       float vk = clamp(core * 1.6, 0.0, 1.0) * edVeinDark * (edFab ? 0.0 : 1.0);
@@ -656,7 +656,7 @@ float edVGGXA(float aT, float aB, float ToV, float BoV, float ToL, float BoL, fl
 float edCharlie(float r, float NoH) {
   float inv = 1.0 / (r * r);
   float s2 = max(1.0 - NoH * NoH, 0.0078125);
-  return (2.0 + inv) * pow(s2, inv * 0.5) / (2.0 * PI);
+  return (2.0 + inv) * pow(max(s2, 0.0), inv * 0.5) / (2.0 * PI);
 }
 void RE_Direct_ED(const in IncidentLight directLight, const in vec3 geometryPosition, const in vec3 geometryNormal, const in vec3 geometryViewDir, const in vec3 geometryClearcoatNormal, const in PhysicalMaterial material, inout ReflectedLight reflectedLight) {
   if (directLight.color.r + directLight.color.g + directLight.color.b <= 0.0) return;
@@ -852,10 +852,14 @@ export function createKitMaterial(o = {}) {
     edAT = normalize(edTv - normal * dot(normal, edTv) + vec3(1e-5, 0.0, 0.0));
     edAB = cross(normal, edAT);
   }`)
+      .replace('#include <opaque_fragment>', `#include <opaque_fragment>
+  // NaN / Inf scrub (mobile GPUs): a bad pixel falls back to a dim albedo instead of blooming white
+  if (!(gl_FragColor.r >= 0.0) || !(gl_FragColor.g >= 0.0) || !(gl_FragColor.b >= 0.0)) gl_FragColor.rgb = diffuseColor.rgb * 0.05;
+  gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(64.0));`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
   {
     float edNdV = saturate(dot(normal, normalize(vViewPosition)));
-    float edFres = pow(1.0 - edNdV, 2.0);
+    float edFres = ((1.0 - edNdV) * (1.0 - edNdV));
     // inlays and eyes: a hot core where the raised strip faces the eye, deeper colour toward its flanks
     float edProf = 0.8 + 0.35 * edNdV * edNdV;
     edEmis += (edHot(uGlowA, clamp(edInlayK * edProf, 0.0, 1.3)) + edHot(uGlowC, clamp(edEyeK * edProf, 0.0, 1.3))) * uGlowScale;
@@ -863,7 +867,7 @@ export function createKitMaterial(o = {}) {
     // rim: silhouettes against the dark arena. Faded out near the floor (the grazing tops of the feet / sabatons lit up
     // pale at the fight camera's low angle) and only slightly biased toward up-facing normals (no hot shoulder caps)
     float edRimK = smoothstep(uRimFade.x, uRimFade.y, vRestPos.y) * saturate(0.8 + 0.2 * normal.y - 0.3 * abs(normal.y));
-    totalEmissiveRadiance += uRim.rgb * pow(1.0 - edNdV, uRim.w) * edRimK * edOcc;
+    totalEmissiveRadiance += uRim.rgb * pow(max(1.0 - edNdV, 0.0), uRim.w) * edRimK * edOcc;
   }`)
       .replace('#include <lights_physical_fragment>', `#include <lights_physical_fragment>
   if (edFilm > 0.0) {

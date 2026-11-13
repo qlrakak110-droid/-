@@ -147,6 +147,8 @@ export default function install(rpg) {
     spawnTime: T.wake, corpseTime: 6.5,
     controller: () => brain(),
     onSpawn(world, a) {
+      // a 5.7 m body flashing white on every hit floods the frame: keep the hit flash a glint
+      if (a.view && a.view.flash) { const f = a.view.flash; a.view.flash = (c, k, d) => f(c, (k ?? 1) * 0.2, d); }
       a.data.phase = 1; a.data.cool = 1.2; a.data.castCool = 4; a.data.last = a.data.last2 = '';
       intro(world, a);
     },

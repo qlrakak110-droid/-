@@ -93,7 +93,7 @@ void main() {
   float erodeN = fb * 0.6 + st * 0.4;
   if (core) {
     float w = look == 2 ? 9.0 : 2.4;
-    dens = pow(f, w) * (0.55 + 0.75 * st) * (look == 2 ? 1.0 - smoothstep(0.0, 0.35, age) * 0.4 : 1.0);
+    dens = pow(max(f, 0.0), w) * (0.55 + 0.75 * st) * (look == 2 ? 1.0 - smoothstep(0.0, 0.35, age) * 0.4 : 1.0);
     k = 0.12 + td * 0.6 + (1.0 - f) * 0.35 + yn * 0.15;
     // fire: white-hot only at the vent, the column above cools to orange (a full-height white tube reads as a lamp)
     if (look == 0) { dens *= 0.8; k += 0.08 + yn * 0.3 - (1.0 - smoothstep(0.0, 0.18, yn)) * 0.08; }
@@ -131,17 +131,17 @@ void main() {
       extra += vCore.rgb * bolts * f * (1.0 - td);
     } else {
       // eclipse corona: bright rim where the shell turns away from the eye
-      float rim = pow(1.0 - f, 2.2);
+      float rim = pow(max(1.0 - f, 0.0), 2.2);
       dens = rim * 1.5 * (0.35 + 0.9 * st2);
       k = 0.35 + td * 0.5 + yn * 0.25 - rim * 0.2;
     }
   }
-  float th = mix(-0.2, 1.05, pow(td, 1.1)) + (core ? 0.05 : 0.0);
+  float th = mix(-0.2, 1.05, pow(max(td, 0.0), 1.1)) + (core ? 0.05 : 0.0);
   float vis = smoothstep(th - 0.1, th + 0.1, erodeN * 0.75 + f * 0.25);
   vec3 rgb = heat3(k - hot, vCore.rgb, vMid.rgb, vTail.rgb, 0.45) * gain * flick;
   float a = sat(dens) * vis * top * bot * vCore.a;
   addF = mix(vMid.a, 1.0, sat(1.0 - k * 1.1));
-  if (look == 3 && core) { rgb = vTail.rgb; a = sat(pow(f, 0.6) * 1.2) * top * bot * vis * vCore.a; addF = 0.0; }
+  if (look == 3 && core) { rgb = vTail.rgb; a = sat(pow(max(f, 0.0), 0.6) * 1.2) * top * bot * vis * vCore.a; addF = 0.0; }
   extra *= top * bot * vCore.a;
   if (a <= 0.002 && dot(extra, extra) < 1e-4) discard;
   gl_FragColor = vec4(rgb * a + extra, a * (1.0 - addF));

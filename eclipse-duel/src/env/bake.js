@@ -728,7 +728,7 @@ float leaf(vec2 p, vec2 a, vec2 b, float w) {
   vec2 ba = b - a; float L = length(ba); vec2 d = ba / L; vec2 q = p - a;
   float t = clamp(dot(q, d) / L, 0.0, 1.0);
   float x = dot(q, vec2(-d.y, d.x));
-  float prof = w * pow(sin(pow(t, 0.7) * 3.14159), 0.9);
+  float prof = w * pow(max(sin(pow(max(t, 0.0), 0.7) * 3.14159), 0.0), 0.9);
   float e = abs(x) - prof;
   return max(e, max(-dot(q, d), dot(q, d) - L));
 }

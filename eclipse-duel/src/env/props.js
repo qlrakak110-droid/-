@@ -161,7 +161,7 @@ void main() {
     float n = fbm2(vec2(x * 1.6 + vSeed, y * 2.2 - t * 2.4), 3);
     float n2 = vnoise(vec2(x * 4.0 + vSeed * 3.0, y * 5.0 - t * 4.6));
     float xd = x + (n - 0.5) * 0.9 * y;
-    float width = mix(0.8, 0.06, pow(y, 0.75)) * (0.7 + 0.6 * n);
+    float width = mix(0.8, 0.06, pow(max(y, 0.0), 0.75)) * (0.7 + 0.6 * n);
     float shape = smoothstep(width, width * 0.25, abs(xd));
     shape *= smoothstep(0.0, 0.1, y) * (1.0 - smoothstep(0.45 + 0.4 * n2, 1.0, y));
     float dens = clamp(shape * (0.6 + 0.9 * n) * 1.4 - 0.25 * y, 0.0, 1.0);

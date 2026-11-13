@@ -40,7 +40,7 @@ void main() {
   float age = (iLife.x < 0.0 ? uTimeReal : uTime) - iPosT.w;
   if (life <= 0.0 || age < 0.0 || age >= life) { ${CULL} }
   float t = age / life;
-  float e = 1.0 - pow(1.0 - t, iShape.x);
+  float e = 1.0 - pow(max(1.0 - t, 0.0), iShape.x);
   float R = mix(iRad.x, iRad.y, e);
   float Wd = mix(iRad.z, iRad.w, e);
   float x = mix(-1.0, iShape.w, position.y);
@@ -128,11 +128,11 @@ void main() {
     extra += vCore.rgb * bolts * 1.3 * (1.0 - t * t);
   }
   float inner = sat(1.0 + xe);
-  float dens = xe <= 0.0 ? pow(inner, vTail.w) : exp(-xe * (look == 1 ? 3.0 : 8.0)) * (look == 1 ? 0.9 : 0.5);
+  float dens = xe <= 0.0 ? pow(max(inner, 0.0), vTail.w) : exp(-xe * (look == 1 ? 3.0 : 8.0)) * (look == 1 ? 0.9 : 0.5);
   dens *= 1.0 - smoothstep(0.45, 1.0, x / max(over, 1e-3));
   float line = exp(-(xe * xe) / (edgeW * edgeW));
   float te = sat((t - erodeStart) / max(1.0 - erodeStart, 1e-3));
-  float th = mix(-0.2, 1.05, pow(te, 1.2));
+  float th = mix(-0.2, 1.05, pow(max(te, 0.0), 1.2));
   float resist = erodeN * 0.6 + inner * inner * 0.25 + line * 0.15;
   float vis = smoothstep(th - 0.08, th + 0.08, resist);
   float k = 0.3 + t * 0.75 + (1.0 - inner) * 0.3 - line * 0.25 - hot;

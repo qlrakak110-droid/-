@@ -133,13 +133,13 @@ float cellHeight(int id, vec2 c, out float dark) {
     h = max(h, 0.24 + pod * 0.5 + seeds * 0.2);
   } else if (id == 4) { // upright lotus petals
     float yy = clamp(c.y / 0.93, 0.0, 1.0);
-    float w = 0.47 * pow(sin(yy * 3.14159), 0.62) * (1.0 - 0.34 * yy);
+    float w = 0.47 * pow(max(sin(yy * 3.14159), 0.0), 0.62) * (1.0 - 0.34 * yy);
     float d = abs(c.x - 0.5) - w;
     d = max(d, c.y - 0.93);
     // the petal behind, seen between two front petals
     float xb = min(c.x, 1.0 - c.x);
     float yb = clamp(c.y / 0.98, 0.0, 1.0);
-    float db = xb - 0.3 * pow(sin(yb * 3.14159), 0.7) * (1.0 - 0.4 * yb);
+    float db = xb - 0.3 * pow(max(sin(yb * 3.14159), 0.0), 0.7) * (1.0 - 0.4 * yb);
     h = 0.2 + bump(db, 0.1) * 0.32;
     float front = bump(d, 0.14) * (0.62 + 0.2 * yy);
     float inner = line(d + 0.075, 0.016) * step(d, -0.03);
@@ -256,7 +256,7 @@ float cellHeight(int id, vec2 c, out float dark) {
     float s = c.x * 3.0 + 0.3 * sin(c.y * 5.2 + k * 2.1) + 0.12 * sin(c.y * 13.0 + k);
     float f = abs(fract(s) - 0.5);
     float yy = clamp((c.y - 0.06 - 0.1 * hs) / (0.8 + 0.1 * hs), 0.0, 1.0);
-    float w = 0.2 * pow(sin(yy * 3.14159), 0.8);
+    float w = 0.2 * pow(max(sin(yy * 3.14159), 0.0), 0.8);
     h = 0.3 + bump(f - w, 0.09) * 0.5 * step(0.001, w);
     h = max(h, 0.3 + fillets(c) * 0.6);
   } else if (id == 16 || id == 17) { // brush characters

@@ -73,7 +73,7 @@ void main() {
     I += exp(-rr * rr * 2.5) * 1.6;
   } else if (kind == 3) {     // ring
     float w = 0.06 + 0.1 * (1.0 - vK.z);
-    I = exp(-pow((r - 0.86) / w, 2.0)) * 1.2 + exp(-pow((r - 0.86) / (w * 0.3), 2.0)) * 0.8;
+    I = exp(-(((r - 0.86) / w) * ((r - 0.86) / w))) * 1.2 + exp(-(((r - 0.86) / (w * 0.3)) * ((r - 0.86) / (w * 0.3)))) * 0.8;
   } else if (kind == 4) {     // flash: wide soft bloom
     I = exp(-r * r * 3.0) * edge;
   } else {                    // eclipse: a black disc that occludes everything drawn before it, under a thin white-hot
@@ -81,7 +81,7 @@ void main() {
     float ang = atan(p.y, p.x);
     float rays = 0.55 + 0.45 * sin(ang * 7.0 + 1.3) * sin(ang * 3.0 - 0.4) + 0.25 * sin(ang * 23.0);
     float out1 = max(r - 0.5, 0.0);
-    I = exp(-pow((r - 0.505) / 0.012, 2.0)) * 1.6 + exp(-pow((r - 0.515) / 0.045, 2.0)) * 0.5
+    I = exp(-(((r - 0.505) / 0.012) * ((r - 0.505) / 0.012))) * 1.6 + exp(-(((r - 0.515) / 0.045) * ((r - 0.515) / 0.045))) * 0.5
       + exp(-out1 * 9.0) * step(0.5, r) * 0.4 * (0.6 + 0.4 * rays) + exp(-out1 * 3.0) * step(0.5, r) * 0.1 * rays;
     I *= edge;
     // the disc stays opaque for most of the life (the corona carries the fade) and then lets the world back in

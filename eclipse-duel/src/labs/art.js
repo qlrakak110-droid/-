@@ -150,7 +150,7 @@ function studioEnv(renderer) {
     fragmentShader: `varying vec3 vP; void main(){
       float y = vP.y;
       vec3 zen = vec3(0.012, 0.016, 0.026), hor = vec3(0.05, 0.045, 0.05), flo = vec3(0.012, 0.008, 0.006);
-      vec3 c = y > 0.0 ? mix(hor, zen, pow(y, 0.5)) : mix(hor * 0.6, flo, pow(-y, 0.35));
+      vec3 c = y > 0.0 ? mix(hor, zen, pow(max(y, 0.0), 0.5)) : mix(hor * 0.6, flo, pow(max(-y, 0.0), 0.35));
       c += vec3(0.12, 0.05, 0.015) * pow(max(0.0, 1.0 - abs(y + 0.08) * 5.0), 3.0) * max(0.0, vP.z);
       gl_FragColor = vec4(c, 1.0); }`,
   })));

@@ -57,7 +57,7 @@ void main() {
   float born = sweep * (1.0 - sqrt(max(1.0 - u, 0.0)));     // when the head passed u
   float pk = clamp(iShape.z, 0.05, 0.95);
   float pu = u < pk ? u / pk : (1.0 - u) / (1.0 - pk);
-  float prof = pow(sin(sat(pu) * PI * 0.5), iShape.y);      // crescent: 0 at both tips
+  float prof = pow(max(sin(sat(pu) * PI * 0.5), 0.0), iShape.y);      // crescent: 0 at both tips
   float le = sat((age - born) / max(life - born, 1e-3));
   float k = iLook2.y;
   float tt = k > 1e-3 ? (1.0 - exp(-k * age)) / k : age;
@@ -157,14 +157,14 @@ const FRAG_BODY = /* glsl */ `
   // density across the band: 0 at the inner edge, 1 at the cutting edge, a short glow outside it
   float inner = sat(1.0 + xe);
   float edgeness = inner * inner;
-  float dens = xe <= 0.0 ? (look == 4 ? smoothstep(0.0, 0.45, inner) : pow(inner, vP.z)) : exp(-xe * 9.0) * 0.5;
+  float dens = xe <= 0.0 ? (look == 4 ? smoothstep(0.0, 0.45, inner) : pow(max(inner, 0.0), vP.z)) : exp(-xe * 9.0) * 0.5;
   dens *= 1.0 - smoothstep(0.5, 1.0, x / max(vP.w, 1e-3));
   // blade energy as a brush stroke: toward the trailing (inner) side the band breaks into bristle streaks that run
   // along the arc ("flying white"), denser near the honed edge; older parts and the tips dry out first
   float innerness = sat(-xe);
   float bristle = texture2D(uFlow, vec2(s * 0.3 - age * 0.15 + seed * 5.0, x * 0.42 + seed * 9.0)).r;
   float bristle2 = texture2D(uFlow, vec2(s * 0.21 + seed * 2.0, x * 0.27 + seed * 4.0 + 0.5)).r;
-  float dryT = mix(0.16, 0.74, pow(innerness, 0.8)) + (1.0 - prof) * 0.2 - 0.1;
+  float dryT = mix(0.16, 0.74, pow(max(innerness, 0.0), 0.8)) + (1.0 - prof) * 0.2 - 0.1;
   float brush = smoothstep(dryT + le * 0.25 - 0.07, dryT + le * 0.25 + 0.07, bristle);
   // (the bristles carry the trailing half at part strength instead of a smooth falloff)
   if (xe <= 0.0) dens = mix(dens, max(dens, 0.5 * smoothstep(0.02, 0.3, inner)) * brush, vQ.y);
@@ -174,7 +174,7 @@ const FRAG_BODY = /* glsl */ `
   float line = exp(-(xl * xl) / (edgeW * edgeW));
   float hone = exp(-(xl * xl) / (edgeW * edgeW * 0.07));
   // erosion: rises with local age; the inside and the tips go first, the edge last
-  float th = mix(-0.2, 1.08, pow(le, 1.25)) + (1.0 - prof) * 0.25;
+  float th = mix(-0.2, 1.08, pow(max(le, 0.0), 1.25)) + (1.0 - prof) * 0.25;
   float resist = erodeN * 0.62 + edgeness * 0.28 + line * 0.15;
   float vis = smoothstep(th - 0.06, th + 0.06, resist);
   float smear = exp(-max(behind, 0.0) / (0.1 + arcLen * 0.06)) * sweeping;

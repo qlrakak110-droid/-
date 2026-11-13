@@ -48,7 +48,7 @@ vec3 skyBase(vec3 dir) {
   c += uGlow * band * var;
   // broad cool in-scatter around the eclipse
   float s = max(dot(dir, uSunDir), 0.0);
-  c += uSunHalo * (pow(s, 6.0) * 0.8 + pow(s, 40.0) * 2.0);
+  c += uSunHalo * (pow(max(s, 0.0), 6.0) * 0.8 + pow(max(s, 0.0), 40.0) * 2.0);
   return c;
 }
 `;
@@ -81,7 +81,7 @@ float fogAmount(vec3 wp, out vec3 dir) {
 vec3 envFogColor(vec3 dir, float dist) {
   vec3 far = skyBase(vec3(dir.x, max(dir.y, 0.003), dir.z));
   float s = max(dot(dir, uSunDir), 0.0);
-  vec3 near = uFogNear + uSunHalo * pow(s, 8.0) * 0.6;
+  vec3 near = uFogNear + uSunHalo * pow(max(s, 0.0), 8.0) * 0.6;
   return mix(near, far, smoothstep(22.0, 110.0, dist));
 }
 vec3 applyEnvFog(vec3 col, vec3 wp) {
