@@ -39,6 +39,14 @@ run; `src/rpg/tests/bossmodel.mjs` = in-engine review sheet. The same path (rigi
 is the cheapest way to re-dress the cultists and, with `ed/skin.py` for soft parts, the heroes. `ed/cloth.py`, `ed/bake.py`
 and the older EDM1 loader still do not exist.
 
+**Motion capture (session 2):** `python3 tools/mocap/extract_run.py tools/mocap/09_01.bvh` turns a CMU run capture
+(mocap.cs.cmu.edu, subject 9; free for any use; the database was created with funding from NSF EIA-0196217) into phase
+curves `src/rpg/core/clips/mocap_run.js`; `locomotion.js` drives pelvis bounce / sway / surge / list / twist, trunk
+counter-rotation, head and the free arm of every hero's run and sprint from them (phase-warped onto the hero's own
+planted foot keys; gait test: worst slide 1.6 cm). `src/rpg/tests/runsheet.mjs` = side / rear run sheets. The CMU mirror
+`raw.githubusercontent.com/una-dinosauria/cmu-mocap` is reachable from the cloud environment: walks, turns, hit
+reactions and deaths can be extracted the same way. The 108 duel clips are still hand-keyed.
+
 Still open, in the order I would take them: confirm the phone rendering; bespoke clips for the cultists; a real RPG HUD;
 360° arena; murim hero models (Blender pipeline) and the 108-clip motion pass; audio re-voice; per-tier performance on
 real hardware. Sections 3-4 below are the state BEFORE session 2 (the RPG rows are superseded by the table above).
