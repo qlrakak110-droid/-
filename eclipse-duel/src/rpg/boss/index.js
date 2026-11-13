@@ -183,9 +183,9 @@ export default function install(rpg) {
     cam.worldShot((t, out) => {
       const k = ease(Math.min(1, t / 3.6));
       // low at the planted blade, rising along the body to the face, drifting to the hero's side
-      P(7.5 - 1.5 * k, 0.5 + 3.4 * k, -3.4 + 5.2 * k, out.pos);
-      P(0.6, 1.4 + 3.4 * k, 0, out.look);
-      out.fov = 42 - 6 * k;
+      P(9.5 + 2.5 * k, 0.6 + 2.2 * k, -4.2 + 6.4 * k, out.pos);
+      P(0.4, 1.6 + 2.2 * k, 0, out.look);
+      out.fov = 44 - 4 * k;
     }, { dur: T.wake - 0.2, blendOut: 1.1 });
   }
 
@@ -220,7 +220,7 @@ export default function install(rpg) {
       });
     },
     fall(world, a) {
-      withStage(a, () => fxOf().slash({ pos: [0.6, 3.4, 0], arc: [118, -24], radius: 6.2, width: 2.2, look: 'eclipse', sweep: 0.11, life: 0.7, distort: 0.03 }));
+      withStage(a, () => fxOf().slash({ pos: [0.6, 3.4, 0], arc: [118, -24], radius: 6.2, width: 2.0, look: 'flame', palette: 'ember', sweep: 0.11, life: 0.8 }));
     },
     crash(world, a) {
       world.fxAt(a, 'ember.eruption', [6.3, 0, 0], { scale: 1.9, k: 1.4 });
@@ -237,8 +237,7 @@ export default function install(rpg) {
       world.fxAt(a, 'combat.dust.dash', [0, 0, 0], { scale: 3, k: 1.4 });
       withStage(a, () => {
         const fx = fxOf();
-        fx.ring({ pos: [5.2, 1.7, 0], normal: [1, 0, 0], look: 'shock', radius: [0.4, 2.6], life: 0.4, palette: 'ember', distort: 0.03 });
-        fx.ring({ pos: [8, 1.6, 0], normal: [1, 0, 0], look: 'shock', radius: [0.3, 1.8], life: 0.45, palette: 'eclipse' });
+        fx.ring({ pos: [3.4, 1.9, 0], normal: [1, 0, 0], look: 'shock', radius: [0.3, 1.5], life: 0.32, palette: 'ember', intensity: 0.5, alpha: 0.5 });
       });
     },
     stomp(world, a) {
