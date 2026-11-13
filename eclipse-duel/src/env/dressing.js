@@ -5,9 +5,9 @@
 
 import * as THREE from 'three';
 import { DEG } from '../core/math.js';
-import { chamferBox, latheGrid, addAll, trs, noise3, tube, setOrnUv, brokenBlock, beam, prism, flatNormals, ringM, rock, frontFace } from './geometry.js';
+import { chamferBox, latheGrid, addAll, trs, noise3, tube, setOrnUv, beam, prism, flatNormals, ringM, frontFace } from './geometry.js';
 import { LAYOUT, PALETTE, HALL, GATE, rimR } from './config.js';
-import { ORN, panel } from './ornament.js';
+import { ORN } from './ornament.js';
 import { CLOTH } from './bake.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -188,7 +188,7 @@ function stele(C, m) {
 
 /** The sect's war drum on its stand, the skin split. `m`: foot centre; the drum's axis runs along local Z. */
 function warDrum(C, m) {
-  const { P, rng } = C;
+  const { P } = C;
   const wood = C.wd(C.bare(0.75), { uv: 'keep', uvScale: 1.1 });
   const R = 0.82, D = 1.0;
   const dm = T(m, 0, 1.25, 0, 0, Math.PI / 2 + 0.12, 0.06);
@@ -204,7 +204,6 @@ function warDrum(C, m) {
     for (const sz of [-1, 1]) P.add(beam(1.45, 0.1, 0.1), T(m, sx * 0.62, 0.66, sz * 0.36, 0, 0, Math.PI / 2 + sx * 0.14), wood);
     P.add(beam(0.95, 0.1, 0.1), T(m, sx * 0.55, 0.5, 0, Math.PI / 2), wood);
   }
-  void rng;
   const c = V(0, 0, 0).applyMatrix4(m);
   C.colliders.circles.push({ x: c.x, z: c.z, r: 1.1, y0: c.y, h: 2.2, tag: 'drum' });
 }
@@ -300,7 +299,7 @@ export function dressTerrace(C, site) {
   P.section('poles');
   const cloth = [];
   const poles = [[41, 'banner'], [-41, 'banner'], [74, 'banner'], [-124, 'banner'], [124, 'banner'], [158, 'pennant'], [-158, 'pennant'], [-109, 'pennant']];
-  poles.slice(0, tier.banners).forEach(([deg, kind], i) => {
+  poles.slice(0, tier.banners).forEach(([deg, kind]) => {
     const th = deg * DEG;
     const H = kind === 'banner' ? 6.1 : 5.2;
     const lean = [rng.range(-0.035, 0.035), rng.range(-0.035, 0.035)];
@@ -316,7 +315,6 @@ export function dressTerrace(C, site) {
     const inward = V(-Math.sin(th), 0, Math.cos(th));
     cloth.push({ top, normal: inward, width: w, length: kind === 'banner' ? 4.1 : 2.3, seed: rng.range(0, 100), uv: CLOTH[kind], cols: kind === 'banner' ? 6 : 4, rows: kind === 'banner' ? 18 : 10 });
     C.colliders.circles.push({ x: m.elements[12], z: m.elements[14], r: 0.3, y0: platY, h: H, tag: 'pole' });
-    void i;
   });
 
   // ---- talisman ropes (금줄) ---------------------------------------------------------------------------------------------
@@ -379,6 +377,5 @@ export function dressTerrace(C, site) {
       addAll(S, g, trs(p.x, 0.01, p.z, rng.range(0, 6), Math.PI / 2, rng.range(-0.3, 0.3)), { color: col, glow: C.glow, uv: 'box', uvScale: 1.7 });
     } else S.add(chamferBox(s * 1.8, s * 0.22, s * 1.3, 0.015, rng, 0.7), trs(p.x, s * 0.08, p.z, rng.range(0, 6), rng.range(-0.25, 0.25), rng.range(-0.25, 0.25)), { color: col, glow: C.glow, uv: 'box', uvScale: 1.7 });
   }
-  void brokenBlock; void rock; void noise3;
   return { flames, smokes, tops, lamps, cloth };
 }

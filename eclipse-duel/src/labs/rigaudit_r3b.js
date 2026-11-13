@@ -475,6 +475,51 @@ function posOnly(id = 'kael') {
   return { fighter: id, framesWithPositionOnlyHand: frames, totalFrames: total, clips };
 }
 
+/**
+ * Arm pops the solver adds: every clip at 120 Hz through qa.angular (pops of upperArm / foreArm / hand); a pop is
+ * "solver-made" when the hand IK target (root-space position, and the keyed weapon frame) has no velocity step at that
+ * frame (target linear step < 0.3 m/s x body and angular step < 120 deg/s, i.e. the key path is smooth there) and the
+ * hand is fully IK-driven. Also: frames with position-only hand keys, and the largest weapon turn per frame there.
+ */
+function popsIK(id = 'kael', filter = null) {
+  const c = mk(id), k = c.bodyScale;
+  let total = 0, solver = 0, armPops = 0;
+  const per = [], samples = [];
+  for (const name of clipsOf(id, filter)) {
+    const cl = getClip(c.rig, name), pose = new Pose(c.rig);
+    reset(c, name, 0);
+    const n = Math.round(cl.duration * 120) + 1;
+    const rec = qa.record(c, { hz: 120, frames: n, time: false });
+    const T = [];
+    for (let f = 0; f < n; f++) {
+      sampleClip(c.rig, cl, rec.clipT[f], pose, c.design.clipScale ?? 1);
+      const row = [];
+      for (const e of [0, 1]) {
+        const o = e * 24, ik = pose.ik;
+        row.push(ik[o] > 0.999 && ik[o + 14] < 2 ? { p: [ik[o + 1], ik[o + 2], ik[o + 3]], q: ik[o + 8] ? [ik[o + 4], ik[o + 5], ik[o + 6], ik[o + 7]] : null, grip: e === 1 ? pose.grip : 0 } : null);
+      }
+      T.push(row);
+    }
+    const ang = qa.angular(rec, { bones: ['upperArmR', 'foreArmR', 'handR', 'upperArmL', 'foreArmL', 'handL'] });
+    let sv = 0;
+    for (const p of ang.pops) {
+      armPops++;
+      const f = Math.round(p.t * 120) - 1, S = p.bone.slice(-1), e = S === 'R' ? 0 : 1;
+      if (f < 2 || f >= n - 1) continue;
+      const a = T[f - 1][e], b = T[f][e], d = T[f + 1][e];
+      if (!a || !b || !d || (e === 1 && b.grip > 0)) continue; // not a plain IK hand (or the off hand on the grip)
+      const v0 = sub(b.p, a.p).map((x) => x * 120), v1 = sub(d.p, b.p).map((x) => x * 120);
+      const lin = len(sub(v1, v0));
+      let angStep = 0;
+      if (a.q && b.q && d.q) angStep = Math.abs(qang(b.q, d.q) - qang(a.q, b.q)) * 120;
+      if (lin < 0.3 * k && angStep < 120) { sv++; if (samples.length < 14) samples.push({ clip: name, bone: p.bone, t: p.t, stepDegPerSec: p.step, w0: p.w0, w1: p.w1, targetLinStep: r(lin, 2), targetAngStep: r(angStep) }); }
+    }
+    total += ang.pops.length; solver += sv;
+    if (sv) per.push(`${name} ${sv}/${ang.pops.length}`);
+  }
+  return { fighter: id, armPops, solverMadeArmPops: solver, clips: per.sort((x, y) => +y.split(' ')[1].split('/')[0] - +x.split(' ')[1].split('/')[0]).slice(0, 12), samples };
+}
+
 // ---- 7. diag.aimErr vs the measured deviation ------------------------------------------------------------------------
 function aimDiag(id = 'kael', filter = null) {
   const c = mk(id);
@@ -543,7 +588,7 @@ function cpuIK(id = 'kael', full = false) {
   return { fighter: id, full, clips: names, oneClip: time(() => {}), fourStateFades: time((i) => { if (i % 4 === 0) c.play(names[(i / 4) % names.length], { fade: 0.3, restart: true }); }) };
 }
 
-const TESTS = { offGripExp, gripAt, cut, cutLive, cutTrace, lag, rates, offGrip, pull, poleSing, posOnly, aimDiag, spinSpeed, cpuIK };
+const TESTS = { popsIK, offGripExp, gripAt, cut, cutLive, cutTrace, lag, rates, offGrip, pull, poleSing, posOnly, aimDiag, spinSpeed, cpuIK };
 
 createLab({
   view: { target: [0, 1.05, 0], dist: 4.2, yaw: 20, pitch: 6, fov: 40 },

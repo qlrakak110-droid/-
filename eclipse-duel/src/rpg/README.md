@@ -148,14 +148,14 @@ Everything else a plug-in needs is on the **world** (`world`, section 4) that it
 | `world.actors` | live actors (array; do not hold indices) |
 | `world.hero` | the hero actor |
 | `world.arena` | `{ radius: 15.1 }` walkable disc |
-| `world.spawn(kind, { x, z, yaw = toward the hero, level = cycle, ...opts }) -> actor` | create an actor of a registered kind (budget: at most `world.maxFoes` ordinary foes alive: 4, 3 on low; extra spawns are queued and enter as others die) |
-| `world.despawn(actor, { fade = 0.6 })` | remove (dissolve) an actor |
+| `world.spawn(kind, { x, z, yaw = toward the hero, level = 0, spawnTime?, controller?, force?, ...opts }) -> actor \| null` | create an actor of a registered kind (budget: at most `world.maxFoes` ordinary foes alive: 4, 3 on low; an extra spawn returns null, waits in `world.queue` and enters as others die; `force: true` skips the budget). Encounter spawns get `level = flow.cycle` |
+| `world.despawn(actor, { fade = 0 })` | remove an actor now, or let it sink away over `fade` seconds first |
 | `world.on(event, fn) -> off` | world events (section 7) |
 | `world.emit(event, payload)` | plug-ins may emit their own events (`bossPhase`, `bossIntro` ...) |
 | `world.addCollider(c) -> remove()` | static obstacle: `{ type: 'circle', x, z, r }` or `{ type: 'box', x, z, hx, hz, yaw = 0 }` (+ `blocksCamera = true`, `height = 3`). Actors and the camera are pushed out of it |
-| `world.addTrigger(t) -> remove()` | `{ x, z, r, team = 'hero', once = false, onEnter(actor)?, onLeave(actor)?, prompt?: { ko, en }, interact?(actor) }`; a trigger with `interact` shows its prompt and fires on the `interact` action (E) |
+| `world.addTrigger(t) -> remove()` | `{ x, z, r, once = false, onEnter(hero)?, onLeave(hero)?, prompt?: { ko, en }, interact?(hero), enabled?() }` (triggers watch the hero); a trigger with `interact` + `prompt` offers its prompt while the hero stands in it (and `enabled()` is not false) and fires on the `interact` action (E) |
 | `world.startAttack(actor, id | def, { target?, force? }) -> bool` | start an attack now (section 6) |
-| `world.damage(victim, { amount, poise = 0, level = 'light', from?: actor, pos?, dir?, kind = 'effect', unblockable?, hitstop? })` | apply damage outside an attack timeline (hazards, boss scripts): the full hit resolution (i-frames, guard, poise, reactions, events) |
+| `world.damage(victim, { amount, poise = 0, level = 'light', from?: actor, pos?: {x,y,z}, dir?: {x,z}, kind = 'effect', unblockable?, hitstop?, knock?: {f,u}, guard?, crit? })` | apply damage outside an attack timeline (hazards, boss scripts): the full hit resolution (i-frames, guard, poise, reactions, events) |
 | `world.shoot(owner, spec) -> projectile` | 3D projectile (section 6.4) |
 | `world.hitstop(sec)`, `world.slowmo(scale, dur)` | `ctx.time` passthroughs |
 | `world.findTargets(actor, range)` | hostile live actors within range (sorted by distance; scratch array) |
@@ -235,7 +235,8 @@ rpg.actor('cultist', {
   team: 'foe',
   name: { ko: '흑일교 무사', en: 'Black Sun Cultist' },
   stats: { hp: 260, poise: 40, radius: 0.45, height: 1.9, scale: 1, mass: 1,
-           walk: 1.6, run: 3.4, turn: 420 /* deg/s */, shards: 35, damage: 1 },
+           walk: 1.6, run: 3.4, sprint: 0, accel: 26, decel: 34, turn: 420 /* deg/s */, shards: 35, damage: 1,
+           stamina: Infinity, fp: 0, ult: 0 },   // poise 0 = every clean hit staggers it; > 0 = holds through light / heavy blows until broken
   elite: false, boss: false,                 // boss: true -> the bottom boss bar, immovable, never flinches by level
   design: sentinelDesign,                    // a src/char design: the core calls createCharacter(ctx, design)
   // or: create(ctx, world, actor, opts) -> { root, sockets?, update(dtGame, dtReal), dispose(), flash?, impulse?, play?, setClipTime? }

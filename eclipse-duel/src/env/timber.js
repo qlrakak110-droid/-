@@ -232,7 +232,7 @@ export function buildHall(C) {
   const half = (bay * bays) / 2;           // 8 m to the end columns
   const pw = half + 1.7, pd = depth + 1.9; // plinth half width, depth
   const hi = C.tier.detail >= 2, mid = C.tier.detail >= 1;
-  const SOUTH = -1;                        // local x < 0 is the fallen end
+  // local x < 0 (south) is the fallen end
 
   // ---- plinth (기단) and front steps -------------------------------------------------------------------------------
   C.S.section('hall');
@@ -352,7 +352,7 @@ export function buildHall(C) {
   addRoof(C, T(roofM, 0, 0, 0, Math.PI), { eaveHalf: a, ridgeHalf: ar, depth: b, rise: H, lift: 0.85, flare: 0.5, nu: 10, nt: 3, rows: false, cut: (x, t) => -x < edge(t), sag: (x, t) => sag(-x, t) });
   // north hip end (toward the vista: the corner the duel camera sees)
   const endM = T(roofM, ar, 0, 0, ROT_X2Z + Math.PI);
-  const end = addRoof(C, endM, { eaveHalf: b, ridgeHalf: 0, depth: a - ar, rise: H, lift: 0.85, flare: 0.5, nu: hi ? 12 : 8, nt: hi ? 6 : 5, pitch: mid ? 0.36 : 0.5, raft: mid ? 2 : 0, under: true });
+  addRoof(C, endM, { eaveHalf: b, ridgeHalf: 0, depth: a - ar, rise: H, lift: 0.85, flare: 0.5, nu: hi ? 12 : 8, nt: hi ? 6 : 5, pitch: mid ? 0.36 : 0.5, raft: mid ? 2 : 0, under: true });
   // ridges: the main ridge runs from the break (sagging) to the north end; two hip ridges with upturned tips
   const rp = [];
   for (let i = 0; i <= 6; i++) { const u = (brk + 0.8) / ar + (1 - (brk + 0.8) / ar) * (i / 6); rp.push(fr.S(u, 0).clone()); }
@@ -363,7 +363,6 @@ export function buildHall(C) {
     if (s < 0) for (const p of pts) p.z = -p.z;
     addRidge(C, roofM, pts, { w: 0.34, h: 0.36, tip: 0.3 });
   }
-  void end;
 
   // ---- the collapse: rafters and beams fanned down from the break, a tile scree over the plinth and into the court ----
   C.P.section('hallwreck');
@@ -377,8 +376,7 @@ export function buildHall(C) {
   // a slab of roof that came down whole, tilted against the wreck
   {
     const m = L(base, brk - 3.4, yF + 2.3, -3.3, 0.3, 0.72, 0.2);
-    const patch = addRoof(C, m, { eaveHalf: 2.6, depth: 3.4, rise: 1.6, lift: 0.2, flare: 0.1, nu: 6, nt: 4, raft: mid ? 2 : 0, under: true, cut: (x, t) => noise3(x * 0.8, t * 3, 2.2) > 0.66, tone: 0.9 });
-    void patch;
+    addRoof(C, m, { eaveHalf: 2.6, depth: 3.4, rise: 1.6, lift: 0.2, flare: 0.1, nu: 6, nt: 4, raft: mid ? 2 : 0, under: true, cut: (x, t) => noise3(x * 0.8, t * 3, 2.2) > 0.66, tone: 0.9 });
   }
   C.S.section('hallwreck');
   const scree = Math.round((hi ? 46 : mid ? 30 : 16));
