@@ -31,6 +31,7 @@
 import * as THREE from 'three';
 import { LIB, PALETTE } from '../../vfx/library.js';
 import { heatRamp } from '../../vfx/util.js';
+import { KIT } from '../../vfx/presets/common.js';
 
 export const V = PALETTE.volt;
 const WHITE = [7, 6, 11];
@@ -180,6 +181,7 @@ export function defineVornFx(vfx, rng) {
     if (k >= 0.8) v.schedule(0.035, (w) => w.distort({ kind: 'shock', pos: p, normal: d, radius: [0.1 * s, (0.5 + 0.6 * k) * s], life: 0.28, strength: 0.03 }));
     v.burst(D.motes, { pos: p, count: Math.round(3 + 6 * k), scale: s });
     if (k >= 0.9) v.burst(D.ozone, { pos: p, dir: [0, 1, 0], count: 2, scale: 0.6 * s, delay: 0.08 });
+    if (k >= 1.2) v.burst(KIT.volt.scrap, { pos: p, dir: [d.x, d.y + 0.5, d.z], count: 2, scale: 0.9 * s });   // talisman slips, violet script
   });
 
   // ---- lightning along the spear (thrusts): a thin line base -> tip, a streak and a ring at the tip -------------------

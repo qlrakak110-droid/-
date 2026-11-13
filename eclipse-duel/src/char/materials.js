@@ -533,8 +533,8 @@ const FRAG_SURFACE = /* glsl */ `
       // line): the hardened edge zone is a pale satin band that reads bright from every angle, closed by a misty,
       // undulating boundary; the body above it is darker, polished, with a flowing forge grain; the very edge is honed
       float bu = vGlow.x, bv = vGlow.y;
-      float n1 = texture2D(uDetail, vec2(bu * 0.83, 0.37)).r, n2 = texture2D(uDetail, vec2(bu * 3.1, 0.71)).r;
-      float line = edCode * (0.72 + 0.56 * n1 + 0.2 * sin(bu * 47.0 + n2 * 7.0));
+      float n1 = textureLod(uDetail, vec2(bu * 0.83, 0.37), 3.5).r, n2 = textureLod(uDetail, vec2(bu * 2.3, 0.71), 2.5).r;
+      float line = edCode * (0.66 + 0.68 * n1 + 0.1 * sin(bu * 31.0 + n2 * 9.0));
       float on = step(0.001, edCode);
       edHard = (1.0 - smoothstep(line - 0.025, line + 0.03, bv)) * on;
       edNioi = exp(-pow((bv - line) / 0.045, 2.0)) * on;

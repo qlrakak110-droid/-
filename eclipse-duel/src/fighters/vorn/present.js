@@ -229,7 +229,7 @@ const ult = {
         h2.offset([0.4, 2.2], 0.45, 'outCubic');
         h2.fx('combat.dust.land', 'floor', { heavy: true, k: 1.2 });
         h2.spawn('ring', h2.pos('floor'), { look: 'volt', radius: [0.2, 2.2], life: 0.4, intensity: 0.8 });
-        h2.afterimage({ life: 0.35, count: 1 });
+        h2.afterimage({ life: 0.35, count: 3, interval: 0.04 });
         h2.audio('dodge');
       });
     } },
@@ -263,7 +263,7 @@ const ult = {
       h.foeOffset([-0.3, 0], 0.25, 'inQuad');
       foeClip(h, 'fall', { fade: 0.04 });
       spearArc(h, 0.32, 1.1, 0.3);
-      h.afterimage({ life: 0.3, count: 1 });   // one ghost: each is a full ~58k-triangle copy (profile peak 498k incl. shadows)
+      h.afterimage({ life: 0.3, count: 3, interval: 0.035 });   // light-foot trail: silhouette proxies (~9k triangles each, capped per fighter)
       if (h.vfx) h.vfx.speedlines({ pos: foeSock(h, 'chest'), life: 0.28, intensity: 0.5 });
       h.audio('swing_huge');
     } },

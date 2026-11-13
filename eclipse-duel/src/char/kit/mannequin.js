@@ -22,17 +22,17 @@ import { DEFAULT_PROPORTIONS, bodyScale } from '../skeleton.js';
 
 const PAL = {
   heavy: {
-    glow: { inlay: [6.2, 2.0, 0.34], vein: [3.2, 0.8, 0.09], eye: [9.5, 3.4, 0.7] },
+    glow: { inlay: [6.2, 2.0, 0.34], vein: [3.2, 0.8, 0.09], eye: [5.5, 1.7, 0.3] },
     robe: [0.016, 0.014, 0.014], inner: [0.17, 0.012, 0.008], sash: [0.1, 0.008, 0.006], trim: [0.02, 0.012, 0.01], thread: [0.5, 0.26, 0.07], lace: [0.3, 0.03, 0.012],
     pants: [0.03, 0.026, 0.024], hair: [0.014, 0.012, 0.012], rim: [0.3, 0.38, 0.6, 3], motif: MOTIF.flame, emblem: MOTIF.sun, width: 1.12, depth: 1.1, weapon: 'greatsword',
   },
   slender: {
-    glow: { inlay: [1.5, 4, 8], vein: [0.5, 1.6, 3.4], eye: [2.2, 5, 9] },
+    glow: { inlay: [1.5, 4, 8], vein: [0.5, 1.6, 3.4], eye: [1.2, 3, 6] },
     robe: [0.3, 0.32, 0.36], inner: [0.014, 0.02, 0.085], sash: [0.02, 0.03, 0.11], trim: [0.03, 0.04, 0.12], thread: [0.62, 0.64, 0.68], lace: [0.1, 0.14, 0.32],
     pants: [0.2, 0.21, 0.24], hair: [0.012, 0.012, 0.016], rim: [0.2, 0.28, 0.46, 3.2], motif: MOTIF.wave, emblem: MOTIF.moon, width: 0.86, depth: 0.86, weapon: 'crescents',
   },
   tall: {
-    glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [6, 4.2, 10] },
+    glow: { inlay: [5, 3.5, 9], vein: [2.4, 1.6, 5.0], eye: [3.4, 2.4, 6] },
     robe: [0.014, 0.012, 0.02], inner: [0.06, 0.02, 0.12], sash: [0.05, 0.02, 0.1], trim: [0.016, 0.012, 0.024], thread: [0.5, 0.36, 0.12], lace: [0.16, 0.06, 0.3],
     pants: [0.02, 0.018, 0.026], hair: [0.012, 0.011, 0.014], rim: [0.28, 0.3, 0.5, 3.2], motif: MOTIF.fret, emblem: MOTIF.thunder, width: 1.0, depth: 0.98, weapon: 'spear',
   },
@@ -74,7 +74,7 @@ export function mannequin(kind = 'heavy', base = {}) {
     rigs.push(...R.mane, R.band, R.gourd, R.drapeL);
   } else if (kind === 'slender') {
     R.tail = M.hang('tail', 'head', [-0.1 * K, 0.17 * K, 0], { n: 5, len: 0.78 * K, dir: [-0.5, -1, 0], stiffness: 20, damping: 2.6, gravity: 0.95, limit: 62, radius: 0.028 });
-    R.veil = H.veilRig('veil', { R: 0.285 * K, y: 0.118 * K, len: 0.24 * K, chains: 6, tilt: -6 });
+    R.veil = H.veilRig('veil', { R: 0.285 * K, y: 0.118 * K, len: 0.24 * K, chains: 6, tilt: -6, a0: 44, a1: 316 });   // parted over the face
     R.pend = M.hang('pend', 'hips', [rx * 0.2, wy - 0.06 * K, rz * 1.1], { n: 2, len: 0.12, stiffness: 40, damping: 4, limit: 50, radius: 0.02 });
     R.drapeR = M.hang('drapeR', 'foreArmR', [-0.05 * K, -0.2 * K, 0], { n: 2, len: 0.26 * K, dir: [-0.3, -1, 0], stiffness: 14, damping: 3, gravity: 1, limit: 80, radius: 0.025 });
     R.drapeL = M.hang('drapeL', 'foreArmL', [-0.05 * K, -0.2 * K, 0], { n: 2, len: 0.26 * K, dir: [-0.3, -1, 0], stiffness: 14, damping: 3, gravity: 1, limit: 80, radius: 0.025 });

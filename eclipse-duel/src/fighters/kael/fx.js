@@ -23,7 +23,7 @@
 
 import { LIB, PALETTE } from '../../vfx/library.js';
 import { heatRamp } from '../../vfx/util.js';
-import { KIT, DUST, DUST_SMALL, PEBBLES, SMOKE_COLUMN } from '../../vfx/presets/common.js';
+import { KIT, DUST, DUST_SMALL, PEBBLES, SMOKE_COLUMN, LEAVES } from '../../vfx/presets/common.js';
 
 const E = PALETTE.ember;
 const EC = PALETTE.eclipse;
@@ -137,6 +137,7 @@ export function defineKaelFx(vfx) {
     if (full) v.light({ pos: lightPos(p, 1.4), color: E.core, intensity: 30 + 40 * k, range: 6, duration: 0.3 + 0.2 * k, decay: 'outCubic', flicker: 0.25 });
     if (full && k >= 0.9) v.schedule(0.035, (w) => w.distort({ kind: 'shock', pos: p, radius: [0.25 * s, (1.2 + 1.0 * k) * s], life: 0.4, strength: 0.03 + 0.015 * k }));
     v.schedule(0.12, (w) => w.burst(ASH, { pos: p, count: n(4 + 8 * k, 1), scale: 0.8 * s }));
+    if (k >= 0.9) v.burst(KIT.ember.scrap, { pos: p, dir: [d.x, d.y + 0.5, d.z], count: n(2 * k, 1), scale: s });   // burning talisman paper
   });
 
   /** the blade bites the floor: magma crack + scorch, flash, molten spray, dust, (k >= 1) fire ring + molten debris */
@@ -157,6 +158,7 @@ export function defineKaelFx(vfx) {
     v.schedule(0.1, (w) => {
       w.burst(LIB.smoke, { pos: [g[0], 0.3, g[2]], dir: [0, 1, 0], count: n(3 + 3 * k, 1), scale: s });
       w.burst(CINDERS, { pos: [g[0], 0.3, g[2]], count: n(10 + 10 * k, 1), scale: s });
+      w.burst(LEAVES, { pos: [g[0], 0.05, g[2]], dir: [0, 1, 0], count: n(2 + 2 * k, 1), scale: s });   // leaves torn off the terrace, lit by the fire
     });
   });
 

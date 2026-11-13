@@ -8,7 +8,8 @@
 //
 // State -> clip resolution with variants (src/fighters/MOTION.md "Variant slots"; every variant is optional and falls
 // back to the plain slot, so a fighter map without any of them plays exactly as before):
-//   hit reactions   hitLightHigh / Mid / Low by the contact height, hitLightBack / hitHeavyBack for a blow from behind
+//   hit reactions   hitLightHigh / Mid / Low by the contact height, hitLightBack / hitHeavyBack for a blow from behind;
+//                   without such a clip the plain reaction plays and the difference is a flinch where the blow landed
 //   face-down chain launchedProne / fallProne / downProne / getupProne / koProne after a blow from behind
 //   tech            tech / techProne when the fall was teched (the rules' recovery roll)
 //   guard           guardHit / guardHitHeavy one-shots per blocked hit + a flinch scaled by the weight of the blow
@@ -517,9 +518,26 @@ export function createActor(ctx, session, index, fighter) {
       }
       const f = match.fighters[index];
       const h = (f.def.stats.height || 1.9), y = ((e.y ?? h * 0.6) - f.y) / h;
-      actor.hitBand = y > 0.72 ? 'High' : y < 0.4 ? 'Low' : 'Mid';
+      const band = (actor.hitBand = y > 0.72 ? 'High' : y < 0.4 ? 'Low' : 'Mid');
       // thrown forward by a blow from behind: the fall that follows ends face-down
       actor.prone = e.front === false;
+      // no reaction clip made for this height / side yet (a hero with a single hitLight / hitHeavy): the same clip
+      // plays, and the body takes the difference as a physical flinch where the blow landed
+      const lvl = e.level || 'light', heavy = lvl !== 'light';
+      const slot = heavy ? (e.front === false ? 'hitHeavyBack' : null) : e.front === false ? 'hitLightBack' : HIT_LIGHT[band];
+      if (!(slot && clips.has(slot)) && (lvl === 'light' || lvl === 'heavy')) {
+        const d = e.front === false ? 1 : -1, k = heavy ? 0.9 : 0.55;
+        if (band === 'High') {          // the head goes first
+          char.impulse({ bone: 'head', dir: [d, 0.25, 0.3], amount: 1.3 * k });
+          char.impulse({ bone: 'neck', dir: [d, 0.1, 0.15], amount: 0.7 * k });
+        } else if (band === 'Low') {    // the front leg is knocked from under the hips
+          char.impulse({ bone: 'thighL', dir: [d, 0, 0], amount: 0.9 * k });
+          char.impulse({ bone: 'chest', dir: [-d, -0.2, 0], amount: 0.5 * k });
+        } else {                        // folds around the blow: the chest comes forward as the hips are shoved back
+          char.impulse({ bone: 'chest', dir: [-d, -0.2, 0], amount: 0.8 * k });
+          char.impulse({ bone: 'head', dir: [d, 0, 0], amount: 0.4 * k });
+        }
+      }
     }),
     match.on('tech', (e) => { if (e.fighter === index) actor.teched = true; }),
   ];

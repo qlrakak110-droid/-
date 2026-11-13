@@ -14,6 +14,13 @@ vfx.prewarm();
 vfx.play('ember.hit', { pos: hitPos, dir: slashDir, facing: -1 });
 ```
 
+**Art direction: `MURIM.md` (binding).** The effects speak the murim idiom: blade energy (검기 / 도기) as brush strokes
+with a dry-ink trailing edge and a honed bright core, inner energy (기) as flowing wisps, formation diagrams (진법)
+instead of magic circles, ink-splash impacts, leaves / petals / talisman scraps / snow / embers as accents. Fire is
+red-gold 열양 (Kael, 염무강), frost moon-white 한빙 (Iska, 설리화), lightning violet-white 뇌기 (Vorn, 뇌진천). Preset
+and kind names keep their identifiers (`rune`, `ember.*`, `kael.*` ...): only what the player sees changed.
+[Round 3 summary](#round-3-murim-idiom-depth-cost) lists what is new.
+
 Conventions (CONTRACT.md): metres, seconds, Y up; positions accept `THREE.Vector3`, `[x, y, z]` (and, where noted, an
 `Object3D` or a function returning a position); colours accept `THREE.Color`, a hex number / CSS string (sRGB, converted
 to linear) or `[r, g, b]` **linear HDR** (2–10 for hot cores, < 1 for smoke). Everything runs on **game time**
@@ -44,6 +51,9 @@ Contents: [Facade](#facade) · [Particles](#particles-burst--emitter) · [Partic
 | `vfx.trail`, `vfx.ribbon` | [Ribbons](#trails-and-ribbons). |
 | `vfx.light`, `vfx.flare`, `vfx.distort` | Pooled point lights, flares, screen refraction. |
 | `vfx.slash`, `vfx.ring`, `vfx.pillar`, `vfx.beam`, `vfx.bolt`, `vfx.spikes`, `vfx.debris`, `vfx.decal`, `vfx.speedlines`, `vfx.afterimage` | [Mesh effects](#mesh-effects). Look / kind tables: `vfx.slashLooks`, `ringLooks`, `pillarLooks`, `beamLooks`, `decalKinds`, `spikeKinds`, `debrisKinds`. |
+| `vfx.afterimageProxy(root)`, `vfx.afterimageLimits` | Build a character's decimated ghost silhouette while loading; per-tier caps (see [Afterimage](#vfxafterimageobject3d-opts---h)). |
+| `vfx.lights.fog` | Fog-light link `{ enabled, vfxScale, radius, pullZ, envRadius }` (see [Lights](#lights)). |
+| `vfx.shared.depth` | Scene-depth link `{ enabled, uniforms, defines(scale) }` for soft particles and depth-aware refraction (`depth.js`). |
 | `vfx.lib`, `vfx.palette` | Tuned base particle layers and element palettes (`library.js`): `ember`, `frost`, `volt`, `eclipse` (gold-white corona around black), `dust` (ground dust / rubble). |
 | `vfx.textures` | `{ atlas, noise, flow, sprites, sprite(name), targets }` (see [Textures](#textures-sprite-and-noise-catalogue)). |
 | `vfx.util` | Coercion helpers (`util.js`): `toVec3, toColor, sampleRange, toCurveFn, toRampFn, heatRamp, makeFrame, local, CURVES, RENDER_ORDER ...` |
@@ -208,6 +218,7 @@ Shapes (local frame: +Y = `dir`, +X = `side`/facing, +Z toward the camera side):
 | `flicker` | `0` | `amount` or `{ amount 0..1, rate Hz = 18 }` | smooth random brightness flicker |
 | `groundFade` | `0.12` | m | soft fade where the quad meets the floor; `0` = hard cut below `y = 0` |
 | `nearFade` | `0.25` | m | fade when close to the camera |
+| `soft` | a third of the largest quad (0.04–0.45 m); `0` for `align: 'flat'` and specks under 12 cm | m | **soft particle**: fade distance where the quad meets the opaque scene behind it (scene depth of the previous frame, mid / high tiers; constant 1 on low). `0` = hard intersection |
 | `pull` | `0` | m | move the quad toward the camera (flash cores in front of the body they hit) |
 | `strength` | `0.02` | UV | `blend: 'distort'` only: refraction strength |
 | `realtime` | `false` | — | always run on real time |
@@ -243,6 +254,8 @@ Across the ribbon `v` runs 0 (base) → 1 (tip); along it `t` runs 0 (newest) �
 | `segLen` / `maxSub` | `0.05` / `8` | m / count | adaptive subdivision |
 | `distort` | `0` | UV | strength of the refraction twin (e.g. 0.02) |
 | `blend` / `additive` | `'add'` / — | | `'alpha'` with an `additive` curve for occluding trails |
+| `ink` | trail `0.45`, ribbon `0.2` | 0..1 | dark ink underlay on the trailing (hilt) side, alpha blended under the light |
+| `dry` | trail `0.7`, ribbon `0.4` | 0..1 | dry-brush breakup: bristle streaks along the trail, the hilt side and the old end split into separate hairs (`0` = the smooth ribbon) |
 | `realtime`, `autoStart` | `false`, `true` | | |
 
 Handle: `start()`, `stop()` (stop sampling, tail fades), `kill()`, `setSockets(a, b)`, `alive`, `sampling`.
@@ -277,6 +290,13 @@ added or removed; idle ones sit at intensity 0). When all are busy it steals the
 
 Handle: `light`, `kill()`, `stop()` (0.18 s fade), `follow(obj, offset)`, `setIntensity(v)`, `alive`.
 
+**Fog link** (`vfx.lights.fog`). The post fog draws a glow of lit mist around the scene's strongest point lights. An
+event light is not where the effect is (it sits ~1.5 m toward the camera, see the look guide) and it is 5–20× brighter
+than a brazier: picked up as it is, every hit hangs a white ball of mist in front of the fight. So the light module
+hands the fog its list itself (`ctx.post.fogLights`): the environment's point lights unchanged (`envRadius` 0.35 m),
+the pooled lights at `vfxScale` (0.16) of their intensity with a wide core (`radius` 0.95 m), pulled toward the fight
+plane (`z × pullZ`, 0.35). `vfx.lights.fog.enabled = false` returns the choice to the post module.
+
 ## Flares
 
 `vfx.flare(opts) -> h`: camera-facing procedural shapes (resolution independent), one instanced draw for all.
@@ -305,6 +325,12 @@ Capacity 64 (the oldest is stolen when full).
 
 `vfx.distort(opts) -> h`: refraction sprites in `ctx.post.distortionScene` (fragment `.rg` = signed UV offset). The
 mesh is hidden when nothing is alive, so the post pass skips the distortion buffer entirely.
+
+**Refraction respects depth** (mid / high; every refraction source: these sprites, heat-haze particles, slash and
+trail twins). The distortion pass has no depth buffer, so each fragment compares its own depth with the scene depth of
+the previous frame: nothing is written where the opaque scene is in front of the refracting surface, nor where the
+refracted fetch would land on something nearer than it (a fighter standing before a heat column keeps a clean
+silhouette instead of being smeared into the haze).
 
 | option | default | meaning |
 |---|---|---|
@@ -351,9 +377,17 @@ inside it, tapering to soft tips. The head sweeps from `arc[0]` to `arc[1]` in `
 of the arc is born when the head passes it, then cools (core → mid → tail) and erodes on its own clock, so the tail
 breaks up first and the body thins toward the edge. The leading head is slanted (edge first) and hot.
 
+Every look is drawn as **blade energy in brush form** (검기): a hair-thin near-white *honed core* rides the cutting
+edge while the stroke is fresh, the body sits on the saturated mid colour and breaks into bristle streaks toward the
+trailing side (`dry`), and a dark ink stroke lies under the trailing half (`ink`). Only the edge and the head carry
+core values: a whole band at core values is a white sheet under ACES and bloom (the flame look keeps its licking
+tongues on the mid colour for the same reason).
+
 | option | default | units | meaning |
 |---|---|---|---|
 | `pos` | `[0,0,0]` | m | arc centre (the pivot of the swing, e.g. the shoulder) |
+| `ink` | look (razor 0.55, flame 0.5, ice 0.3, electric 0.45, eclipse 0) | 0..1 | ink underlay: a dark dry-brush stroke under the trailing half of the band (alpha blended, outlasts the glow a little) |
+| `dry` | look (razor 0.8, flame 0.55, ice 0.6, electric 0.7, eclipse 0.5) | 0..1 | dry-brush breakup of the body: bristle streaks along the arc, sparser toward the trailing edge, the tips and with age |
 | `look` | `'razor'` | | `'razor'` clean streaked arc, hot thin edge, breaks into lines · `'flame'` licking tongues off the edge, cools into dark smoke · `'ice'` crystalline cells, fracture lines, glints, shatters cell by cell · `'electric'` jagged filaments re-drawn at 30 Hz, flicker · `'eclipse'` near-opaque black body under a gold corona edge |
 | `quat` / `normal`, `forward`, `roll`, `facing` | normal `[0,0,1]`, forward `[1,0,0]` | | plane (see above) |
 | `arc` | `[-80, 80]` | deg | start → end angle of the sweep (either order: the sign sets the sweep direction) |
@@ -532,8 +566,8 @@ blended (they darken the floor), hot parts are additive, in the same fragment.
 | option | default | units | meaning |
 |---|---|---|---|
 | `pos` | | m | centre (x, z); `y` option (default 0) for raised floors |
-| `kind` | `'crack'` | | `'crack'` branching ground cracks propagating from the centre, lit lips, shattered crater, optional `magma` · `'scorch'` burnt blast mark, radial streaks, smouldering embers · `'frost'` frost spreading with a glowing front, crystal lines, twinkles, melting away · `'rune'` magic circle: layered rings rotating at different speeds, a glyph band, heptagram, ticks, spokes, drawn on layer by layer · `'glow'` soft flickering light pool |
-| `radius` | kind (crack 1.8, scorch 1.4, frost 2, rune 1.6, glow 2) | m | |
+| `kind` | `'crack'` | | `'crack'` branching ground cracks propagating from the centre, lit lips, shattered crater, optional `magma` · `'scorch'` burnt blast mark, radial streaks, smouldering embers · `'frost'` frost spreading with a glowing front, crystal lines, twinkles, melting away · `'rune'` = `'formation'` **formation diagram (진법)** brushed in ink with inner energy running through the strokes: an outer ring, eight groups of three whole / broken bars (our own patterns, re-rolled per decal), a ring of star points joined into small constellations, a band of square seal-script glyphs and the black sun at the centre; each layer is drawn on in turn by a sweeping brush and turns at its own rate (`spin`) · `'ink'` ink splash: a blot with dry-brush rays and satellite drops, a rim of element energy that dies over `cool` s · `'glow'` soft flickering light pool |
+| `radius` | kind (crack 1.8, scorch 1.4, frost 2, rune 1.6, ink 1.2, glow 2) | m | |
 | `life`, `fadeIn`, `fadeOut` | kind | s | fade-out is a noise erosion (rune and glow also dim) |
 | `reveal` | kind (crack 0.14, frost 0.45, rune 0.45) | s | crack propagation / frost spread / rune draw-on time |
 | `magma` | crack 0, scorch 1 | 0..1 or bool | emissive magma in the cracks / embers in the scorch |
@@ -569,28 +603,40 @@ its own width, start radius / length and brightness, re-drawn ("boiling") at `bo
 
 ### `vfx.afterimage(object3D, opts) -> h`
 
-Fading ghost copies of a hierarchy. A snapshot copies every visible `Mesh`'s world matrix and, for a `SkinnedMesh`,
-its current bone matrices into a frozen skeleton (the pose of that instant), sharing the source geometry. Look:
-additive fresnel shell (rim-lit silhouette, faint fill), core → mid colours, drifting, eroding with world-space noise.
-Slots (a plain and a skinned mesh, a preallocated 64-bone frozen skeleton and a material instance of one shared
-program each) are pooled: 10 high / 8 mid / 4 low ghost meshes, and one afterimage copies at most 4 / 3 / 2 of a hero's meshes (in traversal order): a ghost re-draws whole character meshes (~58k triangles per hero), so the pool is the per-tier geometry cap (the oldest ghost mesh is recycled first).
+Fading ghost copies of a hierarchy: the light-foot (경공) trails of dashes, blinks and blur-fast strikes. A snapshot
+copies the current bone matrices into a frozen skeleton (the pose of that instant). Look: additive fresnel shell
+(rim-lit silhouette, faint fill), core → mid colours, drifting, dissolving in brush-like vertical streaks.
+
+**Silhouette proxy (default for skinned characters).** A hero is ~58k triangles in several skinned meshes; re-drawing
+them per ghost made ultimates spike by hundreds of thousands of triangles. The first afterimage of a character, or
+`vfx.afterimageProxy(root)` while loading (the game's feel layer calls it for both fighters behind the VS splash),
+builds **one decimated mesh** from every `SkinnedMesh` that shares the character's skeleton: vertices are clustered
+on a grid in the bind pose (per dominant bone, so limbs never fuse), degenerate and duplicate triangles are dropped,
+and the cell size grows from 3 cm until the mesh fits the tier's budget: **9k / 6k / 3.5k triangles** (high / mid /
+low). A ghost is then **one draw call** of that proxy. Ghosts are capped at **4 / 3 / 2 per character** (the oldest is
+recycled first), so a choreography that asks for six cannot stack more. Proxies of roots that left the scene are
+disposed when the next one is built.
+
+Without a proxy (a hierarchy of plain meshes, or `proxy: false`, or a `filter`) a snapshot copies every visible mesh's
+world matrix and shares its geometry, one draw per mesh, as before (pool: 10 / 8 / 4 ghost meshes, at most 4 / 3 / 2
+meshes per snapshot).
 
 | option | default | units | meaning |
 |---|---|---|---|
 | `life` | `0.35` | s | per ghost |
-| `count`, `interval` | `1`, `0.045` | , s | ghosts snapshotted over time (a dash trail) |
+| `count`, `interval` | `1`, `0.045` | , s | ghosts snapshotted over time (a dash trail; capped per character, see above) |
 | `palette` / colours | `'frost'` | | |
 | `intensity`, `alpha` | `1` | | |
 | `fill`, `fresnel` | `0.05`, `2.6` | , power | inner fill, rim sharpness |
 | `drift`, `swell` | `[0,0,0]`, `0.03` | m/s, m | ghost drift, outward growth over life |
-| `erodeScale` | `1.6` | 1/m | erosion noise frequency |
-| `maxMeshes` | `8` | | meshes per snapshot (draw calls) |
-| `filter` | — | `(mesh) => bool` | which meshes to copy (the mesh list is cached per object at the first call) |
+| `erodeScale` | `1.6` | 1/m | dissolve noise frequency |
+| `proxy` | `true` | | `false`: copy the full meshes (hero close-ups only: ~58k triangles per ghost) |
+| `maxMeshes`, `filter` | `8`, — | | full-mesh mode: meshes per snapshot, `(mesh) => bool` |
 | `realtime` | `false` | | |
 
 Handle: `stop()` cancels pending snapshots (existing ghosts fade), `kill()` removes all its ghosts, `alive`.
-Cost: one draw call per ghost mesh (a 6-mesh character with 4 ghosts alive = 24 draws): keep `count` × meshes small,
-or `filter` to the main body meshes.
+`vfx.afterimageProxy(root) -> { triangles, source, cell } | null` builds / returns the proxy statistics;
+`vfx.afterimageLimits = { ghostsPerObject, proxyTriangles, slots }`.
 
 ---
 
@@ -667,21 +713,23 @@ Each projectile also has its impact as a preset of its own (`ember.wave.impact`,
 
 | name | `at.pos` | what it is | options |
 |---|---|---|---|
-| `hit.light` | contact point | 2-frame flash, radial impact lines, a quick cut crescent through the contact (in front of the body), short directional spark spray, streak glint, a wisp of lingering dust, small light | `element` |
-| `hit.heavy` | contact point | flash, star glint, impact lines, thick cut crescent, a shock disc around the strike axis, sparks with floor bounces, motes, element accent (fire licks / ice shards / crackle arcs / hot steel chips), a lingering puff (lit dust, dark smoke with an underglow, pale mist, ozone), refraction shock | `element` |
-| `hit.crit` | contact point | X-cut (two crescents 40 ms apart, both on the flash clock), flash, star, many impact lines, axial shock disc, heavy spark shower, element debris (ember licks, frost shards, volt bolts, steel chips), lingering puff and smoke, floor dust under a low hit, shock | `element` |
-| `hit.pierce` | contact point (`dir` = thrust axis) | a line of light through the body, an exit cone of long sparks, impact lines, two shock discs along the axis, lingering puff, axial shock | `element` |
+| `hit.light` | contact point | small 2-frame core, hairline impact lines and brush flicks, three black ink strokes, a quick cut crescent through the contact (in front of the body), short directional spark spray, streak glint, a wisp of lingering dust, small light | `element` |
+| `hit.heavy` | contact point | layered impact: a small white core (2 frames) on an ink blot, star glint, impact lines + brush flicks + ink strokes, thick cut crescent, a shock disc around the strike axis, sparks with floor bounces, motes, element accent (fire licks / ice shards / crackle arcs / hot steel chips), murim scraps (burning talisman paper / snow crystals / violet-script slips / leaves), a lingering puff (lit dust, dark smoke with an underglow, pale mist, ozone), refraction shock. **Floor:** when the contact is below 0.85 m the blow leaves its mark (`groundMark`: scorch / frost / ink splash + dust, pebbles, leaves), otherwise its pressure kicks a little dust off the stone | `element` |
+| `hit.crit` | contact point | X-cut (two crescents 40 ms apart, both on the flash clock), core on an ink blot, star, impact lines / brush flicks / ten ink strokes, axial shock disc, heavy spark shower, element debris (ember licks, frost shards, volt bolts, steel chips), scraps, lingering puff and smoke, ground mark when low (else floor dust and leaves), shock | `element` |
+| `hit.pierce` | contact point (`dir` = thrust axis) | a line of light through the body, an exit cone of long sparks, impact lines, brush flicks and ink strokes at the exit, two shock discs along the axis, lingering puff, axial shock | `element` |
 | `guard.block` | guard contact | glancing steel spark fan, impact lines, a parry shock disc facing the attacker, star glint, hot steel chips, light | `perfect` (bigger cold glint, hex flakes lighting up the guard plane, glitter, refraction pulse) |
 | `guard.break` | guard contact | the barrier shatters: a pane of crystalline cells cracks apart in a few frames, crystal shards and hex flakes spin, fall and bounce, flash, shock disc, impact lines, steel sparks, lingering dust, shock | |
 | `dust.step` | foot (floor) | small dust puff and motes | |
 | `dust.dash` | feet (floor) | low dust cloud blown backward (−facing), grit, motes | |
-| `dust.land` | feet (floor) | dust ring (mesh) and puffs, pebbles | `heavy` (floor shock, rocks, small crack) |
+| `dust.land` | feet (floor) | dust ring (mesh) and puffs, pebbles, a few leaves | `heavy` (floor shock, rocks, small crack) |
+| `dust.stomp` | planted foot (floor) | **stomp (진각)**: a low dust ring rolling out, ink strokes thrown flat along the stone, pebbles and leaves | `heavy` (cracks the floor, bends the air above it). The feel layer plays it for clip `step` events during attacks |
+| `aura.flare` | feet (floor) | inner energy flares up (운기): element wisps rise from the feet along the body, a faint dust ring, lifted leaves | `element`, `k` (0.5 a skill … 1.5 an ultimate), `follow` + `duration` (keeps rising as an emitter) |
 | `dust.slide` | foot (floor) | skid dust and grit. With `follow` (or an `Object3D` `at.target`) it emits while the foot moves, until `stop()` / `duration`; otherwise lays a skid of `length` (1.6 m) behind `pos` | `follow`, `offset`, `duration`, `length` |
 | `whoosh.light` / `whoosh.heavy` | swing pivot (shoulder) | faint pale air crescent with a refraction twin and wind streaks; heavy adds wake dust and floor dust when low | `arc` ([120, −30] / [140, −50] deg), `radius` (1.3 / 1.7), `normal`, `forward`, `roll` (vfx.slash plane) |
-| `charge.gather` | gather point (hand / weapon) | **loop**: converging streaks and motes, imploding ring pulses, a growing glow and star, lens pinch, rising light | `element` (+ `'eclipse'`), `follow`, `offset`, `rune` (floor circle), `duration` (default until `stop()`), `release` (play `charge.release` at the end of `duration`) |
+| `charge.gather` | gather point (hand / weapon) | **loop**: converging streaks and motes, imploding ring pulses, a growing glow and star, lens pinch, rising light | `element` (+ `'eclipse'`), `follow`, `offset`, `rune` (formation diagram on the floor), `duration` (default until `stop()`), `release` (play `charge.release` at the end of `duration`) |
 | `charge.release` | release point | flash, streak, ring snapping outward, radial sparks, glitter, smoke, double shock | `element` |
 | `ko.burst` | victim chest | the black sun: an `'eclipse'` flare (a black disc that occludes the flash behind it, gold-white corona) after a 2-frame flash, star and streak, cut crescent, crit sparks both ways, rising light embers, floor blast (soft shock ring, dust, cracks, rocks, glow), smoke column | `element` |
-| `ult.flash` | user chest | super-freeze activation (real time by default): flash, the black-sun `'eclipse'` flare, long star rays, ring, backlight column behind the fighter, rune circle under the feet, sparks, shock | `element` (default `'eclipse'`) |
+| `ult.flash` | user chest | super-freeze activation (real time by default): flash, the black-sun `'eclipse'` flare, long star rays, ring, backlight column behind the fighter, a formation diagram under the feet, rising wisps and leaves, sparks, shock | `element` (default `'eclipse'`) |
 
 ### Ember — Kael, the Cinder Warden
 
@@ -744,7 +792,10 @@ uses. `src/vfx/presets/common.js` exports (all plain ES exports):
 | export | what it is |
 |---|---|
 | `def(d)` | register a module-scope particle definition (collected in `DEFS` = `vfx.presetDefs`, uploaded by `vfx.prewarm()`); never pass inline definition literals in a preset body |
-| `KIT[el]` | hit kit per element (`'steel' 'ember' 'frost' 'volt'`): `flash` (2–3 frame burst), `lines` (radial impact lines), `splash`, `sparks`, `fine`, `puff` (dim glow), `dust` (lingering puff along the strike), `accent` (fire licks / ice shards / crackle arcs / hot steel chips), `motes` (embers / glitter / arcs / steel motes), `smoke` |
+| `KIT[el]` | hit kit per element (`'steel' 'ember' 'frost' 'volt'`): `flash` (2–3 frame burst), `lines` (hairline radial impact lines), `strokes` (bright brush flicks), `ink` (black dry-brush strokes thrown out of the contact), `blot` (ink blot behind the flash), `splash`, `sparks`, `fine`, `puff` (dim glow), `dust` (lingering puff along the strike), `accent` (fire licks / ice shards / crackle arcs / hot steel chips), `scrap` (burning talisman paper / snow crystals / violet-script slips / leaves), `motes` (embers / glitter / arcs / steel motes), `smoke` |
+| `WISPS[el]` | inner-energy wisps (`'ember' 'frost' 'volt' 'steel' 'eclipse'`): emitter for idle auras (set `h.rate`), burst when a technique flares |
+| `LEAVES`, `PETALS`, `STOMP_INK` | dry leaves / pale blossom petals (alpha, tumbling); ink strokes thrown flat along the floor |
+| `groundMark(v, el, p, s, i)` | what a low blow leaves on the floor: scorch (ember) / frost / ink splash (volt, steel) + dust, pebbles, leaves |
 | `EL`, `STEEL`, `GOLD` | palettes by element (`{ core, mid, tail, smoke }`, linear HDR) |
 | `SLASH_LOOK[el]`, `MESH_PAL[el]` | the `vfx.slash` look and mesh palette name for an element |
 | `meshColors(P, extra)` | `{ core, color, tail }` mesh-effect colour options from a palette |
@@ -799,6 +850,12 @@ Tuned building blocks in `library.js` (ember palette by default). Derive variant
 | `glitter` | add | twinkling glints |
 | `chargeStreaks` / `chargeMotes` | add | converging (attract + swirl) charge-up emitters |
 | `heatHaze` | distort | rising heat shimmer |
+| `inkStrokes` | alpha | near-black dry-brush streaks that shoot out of an impact and stop dead (the ink splash of an impact frame) |
+| `inkBlot` | alpha | one ink splat that blooms in two frames and erodes from its edges |
+| `leaves` | alpha | dark tumbling leaves that flutter down |
+| `petals` | alpha | pale blossom petals drifting |
+| `talismans` | alpha | paper talisman scraps: the brushed script glows (ramp start), the paper burns away from the edges |
+| `wisps` | add | flowing inner-energy tendrils that rise, curl and thin out (emitter; tint with `at.color` or a ramp) |
 
 ---
 
@@ -806,7 +863,7 @@ Tuned building blocks in `library.js` (ember palette by default). Derive variant
 
 Generated once on the GPU at start-up (one generator program, ~40 ms even on SwiftShader). No images.
 
-**Atlas** 1024×1024 RGBA8, mipmapped. Channels are masks, colour comes from ramps:
+**Atlas** 1024×1152 RGBA8, mipmapped (two rows of 256 px cells, five rows of 128 px cells). Channels are masks, colour comes from ramps:
 `R` shade (form / lighting, `shade`) · `G` heat core (`heat`) · `B` dissolve order (`erode`) · `A` coverage.
 
 <a id="sprites"></a>
@@ -829,7 +886,12 @@ Generated once on the GPU at start-up (one generator program, ~40 ms even on Swi
 | `snow1..2` (`snow`) | 128 | dendrite snowflake, stellar-plate crystal |
 | `ash1..2` (`ash`) | 128 | ash flakes with burning rim (G) and edge-first dissolve |
 | `petal` | 128 | petal / leaf flake with midrib |
-| `rune1..3` (`rune`) | 128 | original glyphs: ringed seal, standalone stave glyph, dotted circle seal |
+| `rune1..3` (`rune`) | 128 | original seals in the murim idiom: a ringed bar seal (three stacked bars, the middle one broken), a square seal-script glyph, a seven-star chart in a ring |
+| `talisman` | 128 | paper slip with brushed script and a seal (G = script mask: glows with `heat`, B = edges burn first) |
+| `leaf1..2` (`leaf`) | 128 | narrow bamboo leaf, broad serrated leaf (midrib and veins in the shade channel) |
+| `ink1..2` (`ink`) | 128 | thrown ink blot with satellite drops; a splash flung along +X |
+| `brush1..2` (`brush`) | 128 | dry-brush stroke along X: wet and full at the head (+X), splitting into hairs toward the tail (thin / broad) |
+| `enso` | 128 | a ring drawn in one loaded brush stroke: swelling line, open end, dry streaks |
 | `wisp1..2` (`wisp`) | 128 | curved smoke tendrils |
 | `streak` | 128 | thin tapered line (speed lines, rain) |
 | `dot` | 128 | crisp dot with small halo |
@@ -954,9 +1016,33 @@ additive, alpha-blended or anything in between.
 - Call `vfx.prewarm()` after defining presets so programs and tables are ready before the first fight.
 - `vfx.clear()` rebases the VFX clocks (float precision stays high in long sessions).
 
+## Round 3: murim idiom, depth, cost
+
+- **Blade energy as brush strokes**: `vfx.slash` (every look) and `vfx.trail` / `vfx.ribbon` gained the honed core,
+  the dry-brush breakup (`dry`) and the ink underlay (`ink`).
+- **Formation diagrams**: decal kind `'rune'` (alias `'formation'`) is now a 진법 diagram, so every wind-up, ground
+  telegraph and ultimate that asked for a rune circle shows one; new kind `'ink'` (ink splash). The three `rune`
+  sprites are murim seals.
+- **Ink impacts**: hits throw black ink strokes and a blot under a smaller white core; the feel layer's impact frames
+  are ink frames (`post.impactFrame({ invert: 0 })`), never an inverted white frame; screen flashes are tinted.
+- **Accents and auras**: sprites and library layers for leaves, petals, talisman scraps, brush strokes; `WISPS`
+  (auras), `dust.stomp` (진각), `aura.flare` (운기), `groundMark` (scorch / frost / ink under low blows).
+- **Depth**: soft particles (`soft`), refraction that leaves whatever stands in front of it alone (`depth.js`).
+- **Afterimages**: decimated silhouette proxy, one draw per ghost, ghosts capped per character.
+- **Fog link**: pooled event lights no longer hang white balls of lit mist in front of the fight (`vfx.lights.fog`).
+
 ## Look guide
 
 Lessons baked into the library (verified on captures):
+- **Ink-wash restraint (MURIM.md).** Three or four hues per frame, deep blacks, bright accents only where the eye
+  should go. A white core is small (≤ 0.4 m at fight scale) and lasts two frames; frames 2–6 belong to shaped layers
+  (cut crescent, brush flicks, ink strokes, star). Put black next to light: ink under blade energy, a blot behind a
+  flash, ink in the formation diagrams. Never a full-frame white, never an inverted impact frame.
+- **Do not stack at one point.** Five bolts, a star, a flash sprite and a ring that all start at the same point add
+  up to a white ball that hides the struck fighter, whatever their individual intensities. Start radial elements off
+  the centre (0.3 m), keep the core sprite ≤ 0.4 × scale.
+- **Event lights and fog.** With the post fog every strong point light glows in the mist; the light module damps and
+  repositions the pooled lights for the fog (`vfx.lights.fog`). Keep event lights at 25–90 cd with `'outExpo'`.
 - **Value discipline.** ACES turns anything above ~1.5 in its main channel yellow-white, and bloom grows with area.
   Keep large areas (trail bodies, fireballs, runes) in 0.6–3; keep values of 6–14 for small things or 1–4 frames
   (flash cores, spark heads, edges).
@@ -1111,7 +1197,10 @@ smoke need something to read against) and a swinging two-socket weapon rig. Scen
 | `afterimage(opts)` | a skinned figure (3-bone SkinnedMesh + rigid head and blade) dashes, ghosts every 50 ms |
 | `cleave(facing)` `frostLine(facing)` `skyStrike(facing)` | composed set pieces: Kael's flame cleave into the floor, Iska's racing ice spikes, Vorn's rune-marked sky strike |
 | `slowmo(scale, dur)` `hitstop(sec)` `clear()` | time controls |
-| `preset(name, x = 0, facing = 1, extra = {})` | **stage 3 gallery**: plays any preset by name at scene origin `x` with `facing`; DEMOS entries (also variants such as `'hit.crit:frost'`, `'guard.block:perfect'`, `'dust.land:heavy'`, `'volt.strike:huge'`) place the two grey 1.9 m capsule dummies (A = user, B = target) and pick a sensible `at` (contact point, shoulder pivot, floor point, projectile `to` ...); unknown names play at `[x, 1.2, 0.1]` |
+| `formations()` `accents()` `stomp()` | round 3: formation diagrams in the three element palettes + the eclipse palette and an ink splash; leaves, petals, talisman scraps, snow crystals and wisps; the light and heavy stomp |
+| `soft()` | soft particles and depth-aware refraction: smoke through a capsule and the floor, a heat source behind a capsule (it stays sharp) and one in front of the wall |
+| `ghostStats()` | the afterimage proxy of the lab figure and the per-tier limits |
+| `preset(name, x = 0, facing = 1, extra = {})` | **stage 3 gallery** (the fighters' own presets `kael.*`, `iska.*`, `vorn.*` are registered in the lab too): plays any preset by name at scene origin `x` with `facing`; DEMOS entries (also variants such as `'hit.crit:frost'`, `'guard.block:perfect'`, `'dust.land:heavy'`, `'volt.strike:huge'`) place the two grey 1.9 m capsule dummies (A = user, B = target) and pick a sensible `at` (contact point, shoulder pivot, floor point, projectile `to` ...); unknown names play at `[x, 1.2, 0.1]` |
 | `presetView(name, which = 'fight', x, facing)` | camera for a demo: `'fight'` (yaw 0, pitch 6, 8 m; 12 m for ultimates) or `'near'` (a closer dramatic angle) |
 | `families(names)` | one preset per family side by side (default `hit.crit`, `ember.eruption`, `frost.nova`, `volt.strike`), camera pulled back |
 | `overlap(names)` | three ultimates at once (default `ember.inferno`, `frost.blizzard`, `volt.storm`) for performance checks |

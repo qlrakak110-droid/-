@@ -35,13 +35,17 @@ function run(name, P) {
   const a = P.land, b = v * st * T - a;         // strike point ahead, toe-off point behind
   const sw = 1 - st;
   // one foot's path over its own phase p in [0, 1] (0 = strike): [p, x, u, pitch, interp, ease]
+  // the last swing key sits where the foot must be 10 % of the swing before the strike to arrive with the ground's
+  // speed (no forward scuff on landing): it then only comes down
+  const dtLand = 0.1 * sw * T;
   const PATH = [
     [0, a, 0, 9, 'auto', 'inQuad'],                                   // strike (just ahead of the heel)
     [st * 0.28, a - v * st * 0.28 * T, 0, 0, 'linear'],               // flat
     [st, -b, 0.015, -24, 'linear'],                                   // toe-off: heel up, still on the ball
-    [st + sw * 0.2, -b - 0.16, P.lift, -62, 'auto', 'outQuad'],       // heel kicks up behind
-    [st + sw * 0.5, -0.06, P.lift * 0.8, -30, 'auto'],                // passes under the hips, knee driving
-    [st + sw * 0.78, a + 0.16, P.reach, 14, 'auto'],                  // reaches
+    [st + sw * 0.2, -b - 0.14, P.lift, -62, 'auto', 'outQuad'],       // heel kicks up behind
+    [st + sw * 0.5, -0.04, P.lift * 0.8, -30, 'auto'],                // passes under the hips, knee driving
+    [st + sw * 0.72, a + 0.06 + v * dtLand * 0.55, P.reach + 0.05, 10, 'auto'],   // reaches
+    [st + sw * 0.9, a + v * dtLand * 0.92, P.reach * 0.45, 12, 'auto'],           // paws back with the ground
     [1, a, 0, 9, 'auto', 'inQuad'],
   ];
   /** piecewise-linear sample of the path (only used for the keys at the loop seam) */
@@ -102,7 +106,7 @@ const kArms = (bob) => (sgn) => ({
 const K_RUN = { land: 0.3, stance: 0.46, lift: 0.34, reach: 0.12, track: 0.11, toe: 6, hipF: 0.02, hipY: -0.13, bounce: 0.05, sway: 0.018, roll: 1.6,
   lean: 15, yaw: -8, twist: 7, spineYaw: -2, chestYaw: -2, neckYaw: 4, headYaw: 6, grip: 0, curl: [0.7, 1], poseBase: 'kael.stance' };
 run('rpg.kael.run', { ...K_RUN, v: 4.3, T: 0.68, arms: kArms(1) });
-run('rpg.kael.sprint', { ...K_RUN, v: 6.3, T: 0.58, land: 0.34, lift: 0.46, reach: 0.18, lean: 24, bounce: 0.07, hipY: -0.16, twist: 10, arms: kArms(1.6) });
+run('rpg.kael.sprint', { ...K_RUN, v: 6.3, T: 0.58, stance: 0.36, land: 0.33, lift: 0.46, reach: 0.18, lean: 24, bounce: 0.07, hipY: -0.16, twist: 10, arms: kArms(1.6) });
 
 // ---- ISKA: light bounds, blades swept back ------------------------------------------------------------------------------
 const iArms = (back) => (sgn) => ({
@@ -114,7 +118,7 @@ const iArms = (back) => (sgn) => ({
 const I_RUN = { land: 0.3, stance: 0.4, lift: 0.4, reach: 0.14, track: 0.085, toe: 4, hipF: 0.04, hipY: -0.12, bounce: 0.065, sway: 0.012, roll: 1.2,
   lean: 24, yaw: -4, twist: 8, spineYaw: 0, chestYaw: 0, neckYaw: 0, headYaw: 2, grip: 0, curl: [1, 1], poseBase: 'iska.stance' };
 run('rpg.iska.run', { ...I_RUN, v: 5.3, T: 0.58, arms: iArms(0) });
-run('rpg.iska.sprint', { ...I_RUN, v: 7.6, T: 0.5, land: 0.34, lift: 0.5, reach: 0.2, lean: 34, bounce: 0.08, hipY: -0.15, twist: 11, arms: iArms(0.08) });
+run('rpg.iska.sprint', { ...I_RUN, v: 7.6, T: 0.5, stance: 0.33, land: 0.32, lift: 0.5, reach: 0.2, lean: 34, bounce: 0.08, hipY: -0.15, twist: 11, arms: iArms(0.08) });
 
 // ---- VORN: the spear levelled at the hip, point leading -------------------------------------------------------------------
 const vArms = (low) => (sgn) => ({
@@ -125,4 +129,4 @@ const vArms = (low) => (sgn) => ({
 const V_RUN = { land: 0.32, stance: 0.44, lift: 0.38, reach: 0.14, track: 0.1, toe: 5, hipF: 0.03, hipY: -0.13, bounce: 0.055, sway: 0.015, roll: 1.4,
   lean: 17, yaw: -14, twist: 6, spineYaw: -4, chestYaw: -4, neckYaw: 6, headYaw: 10, grip: 0, curl: [0.8, 1], poseBase: 'vorn.stance' };
 run('rpg.vorn.run', { ...V_RUN, v: 4.8, T: 0.64, arms: vArms(0) });
-run('rpg.vorn.sprint', { ...V_RUN, v: 7.0, T: 0.54, land: 0.36, lift: 0.48, reach: 0.2, lean: 27, bounce: 0.075, hipY: -0.17, twist: 9, arms: vArms(0.08) });
+run('rpg.vorn.sprint', { ...V_RUN, v: 7.0, T: 0.54, stance: 0.36, land: 0.35, lift: 0.48, reach: 0.2, lean: 27, bounce: 0.075, hipY: -0.17, twist: 9, arms: vArms(0.08) });

@@ -268,17 +268,23 @@ export function defineVolt(vfx, P) {
 
   /** radial lightning burst at at.pos: bolts lash out (some grounding), gold sparks, arcs, a crackling ring, shock, scorch when low */
   function burst(v, p, s, i) {
-    v.burst(KIT.volt.flash, { pos: p, scale: 0.9 * s, intensity: i });
-    v.flare({ kind: 'star', pos: p, size: 1.8 * s, life: 0.16, decay: 3, color: V.core, intensity: 0.9 * i, rotation: rng() });
-    v.light({ pos: lightAt(p, 1.4), color: V.core, intensity: 110 * i, range: 7, duration: 0.36, decay: 'outCubic', flicker: 0.6 });
+    // a small white core for two frames; the burst is carried by the bolts, which start OFF the centre (five glowing
+    // channels meeting in one point stack into a white ball that hides whoever was struck)
+    v.burst(KIT.volt.flash, { pos: p, scale: 0.4 * s, intensity: i });
+    v.flare({ kind: 'star', pos: p, size: 1.3 * s, life: 0.12, decay: 3.5, color: V.core, intensity: 0.6 * i, rotation: rng() });
+    v.burst(KIT.volt.blot, { pos: p, scale: 0.9 * s });
+    v.burst(KIT.volt.ink, { pos: p, count: 8, scale: 0.9 * s });
+    v.light({ pos: lightAt(p, 1.4), color: V.core, intensity: 70 * i, range: 7, duration: 0.32, decay: 'outExpo', flicker: 0.6 });
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * Math.PI * 2 + rng() * 0.8;
       const r = (1.2 + rng()) * s;
-      const to = vec([p.x + Math.cos(a) * r, Math.max(0.03, p.y + Math.sin(a) * r * 0.8), p.z + (rng() - 0.5) * 0.8]);
-      v.schedule(k * 0.015, (w) => w.bolt({ from: p, to, width: 0.15 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0.015, impact: to.y < 0.1, intensity: i }));
+      const cz = (rng() - 0.5) * 0.8;
+      const from = vec([p.x + Math.cos(a) * 0.3 * s, Math.max(0.03, p.y + Math.sin(a) * 0.26 * s), p.z + cz * 0.25]);
+      const to = vec([p.x + Math.cos(a) * r, Math.max(0.03, p.y + Math.sin(a) * r * 0.8), p.z + cz]);
+      v.schedule(k * 0.015, (w) => w.bolt({ from, to, width: 0.12 * s, branches: 2, strikes: 2, detail: 5, life: 0.22, leader: 0.015, impact: to.y < 0.1, intensity: 0.8 * i }));
     }
     // a crackling disc tilted toward the ground (a camera-facing hoop reads as a bubble)
-    v.ring({ normal: [0.25, 1, 0.35], look: 'volt', pos: p, radius: [0.1 * s, 1.4 * s], width: [0.3 * s, 0.9 * s], fill: 2.2, life: 0.2, intensity: 0.5 * i });
+    v.ring({ normal: [0.25, 1, 0.35], look: 'volt', pos: p, radius: [0.1 * s, 1.4 * s], width: [0.3 * s, 0.9 * s], fill: 2.2, life: 0.2, intensity: 0.4 * i });
     v.burst(GOLD_RADIAL, { pos: p, count: n(80, i), scale: s });
     v.burst(ARCS, { pos: p, count: n(16, i), scale: s });
     v.burst(MOTES, { pos: p, count: n(14, i), scale: 1.5 * s });

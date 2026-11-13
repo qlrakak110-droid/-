@@ -26,8 +26,8 @@ const NO_FEET = { footL: { pos: FL, w: 0 }, footR: { pos: FR, w: 0 } };
 /** Weapon hand while lying on the back (root space: it must not ride the breathing chest): fist on the floor beside
  * the hip, blade flat, pointing toward the feet and out. */
 const LYING_HAND = { pos: [0.3, 0.06, 0.46], aim: [0.86, 0.02, 0.5], up: [-0.5, 0, 0.86] };
-/** Free hand while lying on the back (chest frame): on the floor out to the far side, at the waist. */
-const LYING_OFF_HAND = { space: 'chest', pos: [-0.1, -0.2, -0.5] };
+/** Free hand while lying on the back (root space): on the floor out to the far side, at the waist. */
+const LYING_OFF_HAND = { pos: [0.08, 0.05, -0.5] };
 /** Weapon hand while airborne: blade trailing along the body. */
 const AIR_HAND = { space: 'chest', pos: [0.05, -0.5, 0.36], aim: [-0.5, -0.82, 0.25], up: [0.82, -0.5, 0] };
 
@@ -47,7 +47,7 @@ definePose('game.koPose', {
     spine: [2, 0, 2], chest: [2, -2, 3], neck: [0, 18, -2], head: [10, 40, -6],
     thighR: [-12, 0, 2], shinR: [0, 0, -6], footR: [0, 0, -36], thighL: [6, 0, 14], shinL: [0, 0, -26], footL: [0, 0, -30],
   },
-  ik: { handR: { ...LYING_HAND, pos: [0.26, 0.06, 0.56] }, handL: { ...LYING_OFF_HAND, pos: [-0.1, 0.02, -0.56] } },
+  ik: { handR: { ...LYING_HAND, pos: [0.26, 0.06, 0.56] }, handL: { ...LYING_OFF_HAND, pos: [-0.16, 0.05, -0.56] } },
   grip: 0, curl: [0.2, 1],
 });
 // airborne, rising: arched back, limbs trailing
@@ -139,7 +139,7 @@ const ORIGIN = { space: 'origin' };
 const body = (pos, rot, spine, chest, neck, head, more) => ({ hips: { pos, rot }, bones: { spine, chest, neck, head, ...more } });
 /** Weapon hand lying face-down (root space: it must not ride the breathing chest): fist on the floor beside the head,
  * blade flat, pointing ahead and out. */
-const PRONE_HAND = { pos: [0.95, 0.06, 0.42], aim: [0.9, 0.02, 0.44], up: [-0.44, 0, 0.9] };
+const PRONE_HAND = { pos: [0.8, 0.06, 0.62], aim: [0.7, 0, 0.7], up: [0.7, 0, -0.7] };
 /** Free hand lying face-down: palm on the floor by the far shoulder. */
 const PRONE_OFF_HAND = { pos: [0.9, 0.05, -0.36] };
 /** Knees tucked to the chest (rolls). */
@@ -185,9 +185,9 @@ defineClip('game.dash', {
       ik: { handR: { pos: [0.26, 1.0, 0.18], aim: [0.86, 0.38, 0], up: [-0.38, 0.9, 0] }, footL: fL(0.3, 0, 0), footR: fR(-0.3, 0, -14) } },
     // drive: rear leg extended, chest low over the front knee, the blade couched at the hip with its point on the foe
     { t: 0.1, ease: 'outCubic', ...body([0.1, -0.24, 0], [0, -16, -6], [0, -4, -18], [0, -4, -14], [0, 6, 12], [0, 8, 16]),
-      ik: { handR: { pos: [0.2, 0.92, 0.24], aim: [0.9, 0.3, 0.1], up: [-0.3, 0.95, 0] }, footL: fL(0.52, 0.12, -12), footR: fR(-0.46, 0.03, -34) } },
+      ik: { handR: { pos: [0.32, 0.96, 0.14], aim: [0.9, 0.3, 0], up: [-0.3, 0.95, 0] }, footL: fL(0.52, 0.12, -12), footR: fR(-0.46, 0.03, -34) } },
     { t: 0.17, ease: 'inQuad', ik: { footL: fL(0.44, 0, 0) } },
-    { t: 0.17, ease: 'inOutSine', ...body([0.12, -0.25, 0], [0, -20, -4], [0, -5, -16], [0, -5, -12], [0, 7, 10], [0, 10, 14]), ik: { handR: { pos: [0.24, 0.93, 0.22], aim: [0.9, 0.32, 0.06] } } },
+    { t: 0.17, ease: 'inOutSine', ...body([0.12, -0.25, 0], [0, -20, -4], [0, -5, -16], [0, -5, -12], [0, 7, 10], [0, 10, 14]), ik: { handR: { pos: [0.34, 0.97, 0.13], aim: [0.9, 0.32, -0.04] } } },
     // the rear foot is dragged in under the hips, the blade swings forward into the guard
     { t: 0.24, ease: 'inOutSine', ik: { footR: fR(-0.24, 0.05, -10) } },
     { t: 0.3, ease: 'inOutSine', pose: 'demo.stance' },
@@ -350,7 +350,7 @@ defineClip('game.crumple', {
     { t: 0.56, ease: 'inOutSine', ...body([-0.2, -0.6, 0.01], [0, -18, -4], [0, -4, -16], [0, -2, -12], [0, 4, -6], [0, 6, -14], { shoulderR: [0, 0, 0], shoulderL: [0, 0, 0], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 30] }),
       ik: { handR: { pos: [0.34, 0.5, 0.2], aim: [0.94, -0.3, 0.16], up: [0.3, 0.95, 0] }, handL: { ...LYING_OFF_HAND, w: 0 }, footL: fL(0.3, 0, 0), footR: { pos: [-0.38, 0, 0.17], rot: [0, -36, -60], pole: [0.2, 0, 0.3] } }, grip: 0 },
     { t: 0.8, ease: 'inQuad', hips: { pos: [0, -0.8, 0], rot: [0, -10, 44] }, bones: { spine: [0, 0, -8], chest: [0, -2, -6], neck: [0, 6, -12], head: [2, 12, -16], upperArmL: [-40, 0, 30], foreArmL: [0, 0, 40] },
-      ik: { handR: { pos: [0.24, 0.1, 0.44], aim: [0.92, 0.02, 0.38], up: [-0.38, 0, 0.92] }, handL: { ...LYING_OFF_HAND, pos: [0.1, -0.3, -0.44], w: 1 }, footL: { pos: [0.66, 0.03, -0.15], rot: [0, 10, 24] }, footR: { pos: [0.5, 0.02, 0.18], rot: [0, -20, 16] } } },
+      ik: { handR: { pos: [0.24, 0.1, 0.44], aim: [0.92, 0.02, 0.38], up: [-0.38, 0, 0.92] }, handL: { ...LYING_OFF_HAND, pos: [0.0, 0.12, -0.46], w: 1 }, footL: { pos: [0.66, 0.03, -0.15], rot: [0, 10, 24] }, footR: { pos: [0.5, 0.02, 0.18], rot: [0, -20, 16] } } },
     { t: 0.95, ease: 'inQuad', pose: 'game.downPose', ik: { ...NO_FEET } },
   ],
 });
@@ -428,7 +428,7 @@ defineClip('game.downProne', { duration: 2.4, loop: true, breath: 1.4, keys: [
 defineClip('game.koDown', { duration: 3, loop: true, breath: 0.25, keys: [{ t: 0, pose: 'game.koPose' }] });
 defineClip('game.koProne', { duration: 3, loop: true, breath: 0.25, keys: [
   { t: 0, pose: 'game.pronePose', bones: { spine: [0, 0, 1], chest: [0, 4, 3], neck: [0, -28, 6], head: [6, -52, 2] },
-    ik: { handR: { ...PRONE_HAND, pos: [1.02, 0.06, 0.5] }, handL: { pos: [0.8, 0.05, -0.48] }, footL: { pos: [-0.62, 0, -0.16], rot: [0, 16, -78] }, footR: { pos: [-0.7, 0, 0.21], rot: [0, -30, -78] } } },
+    ik: { handR: { pos: [0.95, 0.06, 0.42], aim: [1, 0, 0], up: [0, 0, -1] }, handL: { pos: [0.8, 0.05, -0.48] }, footL: { pos: [-0.62, 0, -0.16], rot: [0, 16, -78] }, footR: { pos: [-0.7, 0, 0.21], rot: [0, -30, -78] } } },
 ] });
 
 // get-up from the back (progress-driven): rocks forward (legs tuck, the head leads), onto the feet in a low crouch, rises
@@ -466,11 +466,11 @@ defineClip('game.tech', {
   keys: [
     { t: 0, pose: 'game.downPose', ik: { ...NO_FEET } },
     { t: 0.1, hips: { pos: [0.12, -0.66, 0], rot: [0, -8, 150] }, bones: { spine: [0, 0, -22], chest: [0, -2, -22], neck: [0, 4, -28], head: [0, 8, -22], ...TUCK, upperArmL: [-30, 0, 40], foreArmL: [0, 0, 90] },
-      ik: { handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0.1, -0.2, 0.97], up: [1, 0, -0.1] }, handL: { ...LYING_OFF_HAND, w: 0 } } },
+      ik: { handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0, 0, 1], up: [0, 1, 0] }, handL: { ...LYING_OFF_HAND, w: 0 } } },
     { t: 0.2, hips: { pos: [-0.02, -0.56, 0], rot: [0, -12, 238] }, bones: { spine: [0, -2, -24], chest: [0, -4, -20], neck: [0, 6, -16], head: [0, 8, -8], ...TUCK },
-      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.22, -0.2, 0.36], aim: [0.2, 0.1, 0.97], up: [1, 0, -0.2] } } },
+      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0, 0, 1], up: [0, 1, 0] } } },
     { t: 0.3, ease: 'outQuad', hips: { pos: [-0.06, -0.4, 0], rot: [0, -20, 330] }, bones: { spine: [0, -6, -10], chest: [0, -6, -4], neck: [0, 8, 16], head: [0, 12, 20], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
-      ik: { footL: { pos: [0.24, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.34, 0, 0.17], rot: [0, -45, -30], w: 1 }, handR: { pos: [0.34, 0.74, 0.2], aim: [0.74, 0.1, 0.2], up: [-0.1, 0.98, 0] } }, grip: 0.3 },
+      ik: { footL: { pos: [0.24, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.34, 0, 0.17], rot: [0, -45, -30], w: 1 }, handR: { pos: [0.34, 0.78, 0.2], aim: [0.9, 0.3, 0.1], up: [-0.3, 0.95, 0] } }, grip: 0.3 },
     { t: 0.45, ease: 'inOutSine', pose: 'demo.stance', hips: { pos: [-0.03, -0.09, 0], rot: [0, -26, 360] } },
   ],
   events: [{ t: 0.3, name: 'step', data: { foot: 'footL' } }],
@@ -481,11 +481,11 @@ defineClip('game.techProne', {
   keys: [
     { t: 0, pose: 'game.pronePose' },
     { t: 0.1, hips: { pos: [0.3, -0.5, 0], rot: [0, 6, -150] }, bones: { spine: [0, 0, -22], chest: [0, 2, -22], neck: [0, -4, -28], head: [0, -8, -22], ...TUCK, upperArmL: [-20, 0, 40], foreArmL: [0, 0, 110] },
-      ik: { handR: { space: 'chest', pos: [0.24, -0.2, 0.36], aim: [0.1, -0.2, 0.97], up: [1, 0, -0.1] }, handL: { space: 'chest', pos: [0.2, 0.3, -0.36], w: 0 }, ...NO_FEET } },
+      ik: { handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0, 0, 1], up: [0, 1, 0] }, handL: { pos: [0.6, 0.2, -0.3], w: 0 }, ...NO_FEET } },
     { t: 0.2, hips: { pos: [0.16, -0.56, 0], rot: [0, 0, -246] }, bones: { spine: [0, -2, -24], chest: [0, -4, -20], neck: [0, 6, -18], head: [0, 8, -10], ...TUCK },
-      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.22, -0.2, 0.36], aim: [0.2, 0.1, 0.97], up: [1, 0, -0.2] } } },
+      ik: { ...NO_FEET, handR: { space: 'chest', pos: [0.2, -0.24, 0.36], aim: [0, 0, 1], up: [0, 1, 0] } } },
     { t: 0.31, ease: 'outQuad', hips: { pos: [-0.08, -0.52, 0], rot: [0, -18, -332] }, bones: { spine: [0, -6, -16], chest: [0, -6, -12], neck: [0, 8, 2], head: [0, 12, 4], upperArmL: [-20, 0, 10], foreArmL: [0, 0, 20] },
-      ik: { footL: { pos: [0.32, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.2, 0, 0.17], rot: [0, -45, -20], w: 1 }, handR: { pos: [0.36, 0.7, 0.2], aim: [0.74, 0.1, 0.2], up: [-0.1, 0.98, 0] } }, grip: 0.3 },
+      ik: { footL: { pos: [0.32, 0, -0.14], rot: [0, 14, 0], w: 1 }, footR: { pos: [-0.2, 0, 0.17], rot: [0, -45, -20], w: 1 }, handR: { pos: [0.36, 0.78, 0.2], aim: [0.9, 0.3, 0.1], up: [-0.3, 0.95, 0] } }, grip: 0.3 },
     { t: 0.45, ease: 'inOutSine', pose: 'demo.stance', hips: { pos: [-0.03, -0.09, 0], rot: [0, -26, -360] } },
   ],
   events: [{ t: 0.31, name: 'step', data: { foot: 'footL' } }],
@@ -597,13 +597,13 @@ defineClip('game.defeat', {
   duration: 1.6, breath: 1.6,
   keys: [
     { t: 0, pose: 'demo.stance' },
-    // the point drops to the floor ahead, he sags onto the hilt
-    { t: 0.45, ease: 'inOutSine', ...body([-0.02, -0.14, 0], [0, -20, -2], [0, -4, -8], [0, -4, -6], [0, 4, -6], [0, 6, -12]),
-      ik: { handR: { pos: [0.42, 1.24, 0.08], aim: [0.42, -0.9, 0.02], up: [0.9, 0.42, 0] }, footL: fL(0.3), footR: fR(-0.3) }, grip: 1 },
-    // the rear knee gives: down onto it, hands high on the hilt, the blade taking the weight
-    { t: 1.0, ease: 'inOutCubic', ...body([-0.08, -0.5, 0.01], [0, -18, -4], [0, -4, -12], [0, -4, -10], [0, 2, -12], [0, 4, -24], { shoulderR: [-8, 0, 0], shoulderL: [-8, 0, 0] }),
-      ik: { handR: { pos: [0.44, 1.26, 0.08], aim: [0.34, -0.94, 0.02], up: [0.94, 0.34, 0] }, footL: fL(0.32), footR: { pos: [-0.4, 0, 0.17], rot: [0, -38, -60], pole: [0.2, 0, 0.3] } } },
-    { t: 1.6, ease: 'inOutSine', ...body([-0.085, -0.52, 0.01], [0, -18, -5], [0, -4, -14], [0, -4, -12], [0, 2, -14], [0, 4, -28], { shoulderR: [-6, 0, 0], shoulderL: [-6, 0, 0] }) },
+    // the point drops to the floor ahead, he sags over the blade
+    { t: 0.45, ease: 'inOutSine', ...body([-0.04, -0.17, 0], [0, -20, -4], [0, -4, -12], [0, -4, -10], [0, 4, -6], [0, 6, -12]),
+      ik: { handR: { pos: [0.38, 0.82, 0.16], aim: [0.86, -0.5, 0.05], up: [0.5, 0.86, 0] }, footL: fL(0.3), footR: fR(-0.3) }, grip: 0.6 },
+    // the rear knee gives: down onto it, the blade a strut under the right fist, the left hand on the front knee
+    { t: 1.0, ease: 'inOutCubic', ...body([-0.1, -0.5, 0.01], [0, -18, -6], [0, -4, -16], [0, -4, -14], [0, 2, -12], [0, 4, -24], { upperArmL: [-8, 0, 34], foreArmL: [0, 0, 62] }),
+      ik: { handR: { pos: [0.34, 0.52, 0.2], aim: [0.94, -0.3, 0.16], up: [0.3, 0.95, 0] }, footL: fL(0.32), footR: { pos: [-0.4, 0, 0.17], rot: [0, -38, -60], pole: [0.2, 0, 0.3] } }, grip: 0 },
+    { t: 1.6, ease: 'inOutSine', ...body([-0.105, -0.52, 0.01], [0, -18, -7], [0, -4, -18], [0, -4, -16], [0, 2, -14], [0, 4, -28], { upperArmL: [-8, 0, 32], foreArmL: [0, 0, 64] }) },
   ],
   events: [{ t: 0.45, name: 'plant' }, { t: 1.0, name: 'kneel' }],
 });

@@ -178,7 +178,7 @@ export const present = {
           const a = v.emitter(D.skid, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.6, 0.3]), duration: 0.32 }); a.follow(s);
           const b = v.emitter(D.skidMist, { pos: s.getWorldPosition(W(h, 0, 0, 0)), dir: h.dir([-1, 0.3, 0.2]), duration: 0.32 }); b.follow(s);
         }
-        h.afterimage({ count: 2, interval: 0.08, life: 0.22, intensity: 0.45 });  // ghosts cost a full character each (tri budget)
+        h.afterimage({ count: 3, interval: 0.06, life: 0.24, intensity: 0.45 });  // light-foot trail (silhouette proxies, capped per fighter)
         h.audio('frost_wind', { volume: 0.5 });
       },
       swing(h) { cut(h, { heavy: true, arc: [-150, 25], radius: 1.35, normal: [0, 0.35, 1] }); },
@@ -255,7 +255,7 @@ export const present = {
     moonlit_afterimage: {
       windup(h) { const g = glowOf(h); if (g) g.flare('all', 1.5, 0.35); },
       blink(h) {
-        h.afterimage({ count: 2, interval: 0.05, life: 0.2, intensity: 0.6 });  // + the statue: at most 3 ghosts alive
+        h.afterimage({ count: 3, interval: 0.04, life: 0.22, intensity: 0.6 });  // + the statue (the pool caps ghosts per fighter)
         h.burst(D.glint, { pos: 'chest' }, { count: 10, scale: 1.2 });
         h.audio('frost_wind', { volume: 0.55 });
       },
@@ -276,7 +276,7 @@ export const present = {
         h.flare('chest', { kind: 'star', size: 1.0, life: 0.14, decay: 2.5, color: STAR, intensity: 0.45, rotation: 0.1 });
         h.spawn('ring', h.at(0, 0, 0), { look: 'frost', radius: [0.2, 1.8], life: 0.4, intensity: 0.7 });
         h.burst(D.glitter, { pos: 'chest' }, { count: 18, scale: 1.0 });
-        h.afterimage({ count: 1, life: 0.22, intensity: 0.8 });
+        h.afterimage({ count: 2, interval: 0.05, life: 0.22, intensity: 0.8 });
         h.cam.kick({ fov: -2.5, roll: 2.5 * h.facing, duration: 0.3 });
       },
       swing(h) { cut(h, { arc: [150, -40], radius: 1.25, normal: [0, -0.15, 1], intensity: 0.9 }); },
@@ -526,10 +526,10 @@ export const present = {
       h.light(h.at(u.vf, 1.4, 1.4), { intensity: 45, range: 7, duration: 0.6, decay: 'outCubic' });
       h.distort(h.at(u.vf, 0.05, 0), { kind: 'shock', normal: [0, 1, 0], radius: [0.3, 3.2], strength: 0.035, life: 0.5 });
       u.cage = h.spawn('spikes', g, { kind: 'ice', pattern: 'ring', radius: 0.55, count: 6, height: [0.55, 1.15], width: 0.13, tilt: 10, stagger: 0.014, rise: 0.08, hold: 4.2 });
-      u.shell = h.vfx.afterimage(h.foe.char.root, { life: 3.9, palette: 'frost', fill: 0.14, fresnel: 2.2, intensity: 0.75, swell: 0.035, alpha: 0.85 });
+      u.shell = h.vfx.afterimage(h.foe.char.root, { life: 3.9, palette: 'frost', fill: 0.14, fresnel: 2.2, intensity: 0.75, swell: 0.05, alpha: 0.85 });
       h.foe.glow([0.22, 0.6, 1.4], 0.4, 3.7, 0.08);
       h.foePlay(foeClip(h, 'hitHeavy'), { fade: 0.04, startAt: 0.08, speed: 0 });
-      h.post.impact({ duration: 0.034 });
+      h.post.impact({ duration: 0.034, invert: 0, mono: 0.85 });
       h.post.chroma(0.6, { release: 0.4 });
       h.cam.shake(0.45, { freq: 14 });
       h.hitstop(0.16);
@@ -550,7 +550,7 @@ export const present = {
         const own = beat(h, 'leap', 'rising_crescent', { at: 0.1, speed: 0.55 });
         const up = (h2) => {
           h2.offset([(u.vf ?? 1.7) - 0.7, 4.3], 0.55, 'outCubic');
-          h2.afterimage({ count: 1, life: 0.3, intensity: 0.65 });  // the crystal shell is already one ghost (tri budget)
+          h2.afterimage({ count: 2, interval: 0.05, life: 0.3, intensity: 0.65 });
           h2.spawn('ring', h2.at(0, 0, 0), { look: 'frost', radius: [0.3, 2.6], life: 0.6, intensity: 0.7 });
           h2.burst(D.mistLow, { pos: h2.at(0, 0.03, 0), dir: [0, 1, 0] }, { count: 8, scale: 1 });
           h2.audio('frost_wind', { volume: 0.8 });
@@ -588,7 +588,7 @@ export const present = {
         const u = st(h).ult || {};
         beat(h, 'land', null);
         h.offset([(u.vf ?? 1.7) - 0.85, 0], 0.12, 'inQuad');
-        h.afterimage({ count: 1, life: 0.2, intensity: 0.75 });
+        h.afterimage({ count: 2, interval: 0.04, life: 0.2, intensity: 0.75 });
       } },
       // 4.90 row: the frost wave rolls across the arena, everything rimed; letterbox out
       { t: 4.15, do(h) {
@@ -617,7 +617,7 @@ export const present = {
         const k = Math.max(0, Math.min(5, (parseInt(name.slice(5), 10) || 1) - 1));
         const [df, hop, face] = ORBIT[k];
         const from = h.socket('chest');
-        h.afterimage({ count: 1, life: 0.16, intensity: 0.65 });
+        h.afterimage({ count: 2, interval: 0.04, life: 0.18, intensity: 0.65 });
         h.offset([vf + df, hop], 0.05, 'outCubic');
         h.self.char.setFacing(h.facing * face);
         if (!hasClip('iska.ult.orbit')) beat(h, 'slash', ['rime_flick', 'twin_moons', 'star_fan'][k % 3], { fade: 0.03 });
@@ -663,7 +663,7 @@ export const present = {
         h.flare(c, { kind: 'star', size: 1.5, life: 0.35, decay: 2.6, color: STAR, intensity: 0.32, rotation: 0.25 });
         h.light(W(h, c.x, 1.8, 2.4), { intensity: 55, range: 11, duration: 0.6, decay: 'outCubic' });
         h.distort(c, { kind: 'shock', radius: [0.3, 4.2], strength: 0.05, life: 0.55 });
-        h.post.impact({ duration: 0.05, invert: 1 });
+        h.post.impact({ duration: 0.05, invert: 0, mono: 0.9 });   // an ink frame: black ground, the shatter as paper light (never inverted)
         h.post.flash(0xcfe6ff, 0.07, { release: 0.25 });
         h.post.radial(c, 0.55);
         h.post.chroma(0.9, { release: 0.5 });

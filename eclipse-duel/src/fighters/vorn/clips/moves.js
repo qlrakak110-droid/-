@@ -14,35 +14,52 @@ const ev = (t, name, data) => (data ? { t, name, data } : { t, name });
 const start = (k) => k(0, { pose: 'vorn.stance', ik: stanceFeet(0) });
 const settle = (k, t, d) => k(t, { ease: 'inOutSine', pose: 'vorn.stance', bones: { ...STANCE.bones }, ik: stanceFeet(d) });
 const B = (spine, chest, neck, head, extra) => ({ spine, chest, neck, head, ...(extra || {}) });
+/** Orientation-only spear key (the fist keeps the position its neighbouring keys give it): steers the point alone. */
+const aimOnly = (aim, o) => { const h = sp([0, 0, 0], aim, o); delete h.pos; return h; };
 
 // ---- light1: 섬광 찌르기 Flash Jab (0.38) — one-handed snap thrust, the left hand releases and counter-pulls -----------
+// The reference clip of src/fighters/MOTION.md ("Worked examples"). The spear's three fundamentals in seven frames:
+//   0-3   the press (나 拿): the hips coil toward the camera and sink, the spear is drawn back level beside the hip while
+//         its point rides a small inward circle (down and in, then up onto the centre line): the tip circles, the body
+//         spirals behind it
+//   3-5   the hips have turned through before the arm drives (rear leg -> hip -> waist -> shoulder -> elbow)
+//   5-7   the thrust (찰 扎): a straight line from the hip through the shoulder to the point; the front foot's shuffle
+//         lands a frame before the point, the rear leg drives long, the left hand lets the haft run out and
+//         snaps back to the hip (the counter-pull that squares the shoulders to the line)
+//   7-9   full extension held through the active frames (point, fist, shoulder and rear heel on one line; the head level)
+//   9-17  the spear is drawn back along its own line first (the point stays on the opponent), then lowers
+//   17-23 the rear foot drags home, the point dips just under the guard line and rises into it (the tassel's flick)
 {
   const k = keyset();
   start(k);
   rootKeys(k, [[0, 0], [0.02, 0], [0.1, 0.12], [0.38, 0.12]]);
-  // anticipation: the spear is drawn back level beside the hip, hips coil toward the camera
-  k(0.05, { ease: 'outCubic', hips: { pos: [-0.07, -0.12, 0], rot: [0, -38, 0] }, bones: B([0, -10, -2], [1, -10, 0], [0, 16, 2], [0, 20, -2]),
-    ik: { handR: sp([0.24, 1.1, 0.23], [0.97, -0.06, -0.22]) }, grip: 0.6 });
-  // smear: hips have already turned through, the arm drives
-  k(0.08, { hips: { pos: [0.04, -0.12, 0], rot: [0, -12, -2] }, bones: B([0, 0, -4], [0, 0, -3], [0, 4, 2], [0, 6, 0]),
-    ik: { handR: sp([0.52, 1.24, 0.2], [0.99, 0.03, -0.13]) }, grip: 0.35 });
-  // impact: full extension, right shoulder through, weight on the front foot; the left hand pulls back to the hip
-  k(0.11, { hips: { pos: [0.13, -0.13, 0], rot: [0, 8, -3] }, bones: B([0, 8, -6], [0, 8, -4], [0, -8, 4], [0, -12, 2], { upperArmL: [-18, 0, -34], foreArmL: [0, 0, 84], handL: [0, 0, 10] }),
-    ik: { handR: sp([0.9, 1.3, 0.12], [1, 0.02, -0.08], { soft: 0 }) }, grip: 0, curl: [0.85, 1] });
-  // overshoot and hold through the active frames
-  k(0.15, { ease: 'outQuad', hips: { pos: [0.15, -0.135, 0], rot: [0, 10, -3] }, ik: { handR: sp([0.95, 1.31, 0.11], [1, 0.03, -0.08], { soft: 0 }) } });
-  // retract: the spear slides back through the fist line, the hips re-coil
-  k(0.2, { ease: 'inOutSine', hips: { pos: [0.1, -0.125, 0], rot: [0, 0, -2] }, ik: { handR: sp([0.74, 1.24, 0.16], [0.98, -0.06, -0.14]) } });
-  k(0.28, { ease: 'inOutSine', hips: { pos: [0.02, -0.11, 0], rot: [0, -24, 0] }, bones: B([0, -6, -3], [1, -6, -1], [0, 10, 2], [0, 14, -4], LARM0),
-    ik: { handR: sp([0.42, 1.08, 0.21], [0.9, -0.32, -0.26]) }, grip: 1 });
-  // feet: a quick front shuffle lands on the impact; the rear foot drags home in the recovery
-  k.step('footL', 0.02, 0.1, [FL[0], 0, FL[2]], [FL[0] + 0.12, 0, FL[2]], YL, YL, 0.05);
+  // the press: draw back + sink; the point goes down-in (an aim-only key: the fist keeps its own path), then up onto the line
+  k(0.025, { ik: { handR: aimOnly([0.9, -0.34, -0.3]) } });
+  k(0.05, { ease: 'outCubic', hips: { pos: [-0.075, -0.13, 0], rot: [0, -38, 0] }, bones: B([0, -10, -2], [1, -10, 0], [0, 16, 2], [0, 20, -2]),
+    ik: { handR: sp([0.24, 1.11, 0.23], [0.985, -0.02, -0.17]) }, grip: 0.7 });
+  // the hips lead: 26 deg through while the fist has only left the hip
+  k(0.08, { hips: { pos: [0.04, -0.125, 0], rot: [0, -12, -2] }, bones: B([0, 0, -4], [0, 0, -3], [0, 4, 2], [0, 6, 0], { shoulderR: [0, 4, 0] }),
+    ik: { handR: sp([0.51, 1.25, 0.2], [0.995, 0.03, -0.1]) }, grip: 0.3 });
+  // impact: full extension on the line, right shoulder through, the left hand at the hip
+  k(0.11, { hips: { pos: [0.135, -0.135, 0], rot: [0, 8, -3] }, bones: B([0, 8, -6], [0, 8, -4], [0, -8, 4], [0, -12, 2], { shoulderR: [0, 12, 0], upperArmL: [-18, 0, -34], foreArmL: [0, 0, 84], handL: [0, 0, 10] }),
+    ik: { handR: sp([0.91, 1.3, 0.12], [1, 0.02, -0.07], { soft: 0 }) }, grip: 0, curl: [0.85, 1] });
+  // held: a hair of overshoot, then still through the active frames
+  k(0.15, { ease: 'outQuad', hips: { pos: [0.15, -0.14, 0], rot: [0, 10, -3] }, ik: { handR: sp([0.95, 1.305, 0.11], [1, 0.02, -0.07], { soft: 0 }) } });
+  // retract along the line (the point still on the opponent), the hips re-coil
+  k(0.2, { ease: 'inOutSine', hips: { pos: [0.1, -0.125, 0], rot: [0, 0, -2] }, bones: B([0, 4, -4], [0, 4, -3], [0, -3, 3], [0, -4, 1], { shoulderR: [0, 6, 0] }),
+    ik: { handR: sp([0.72, 1.26, 0.15], [0.995, -0.01, -0.1]) } });
+  // lower: the left hand takes the haft again; the point dips a hand under the guard line and rises into it
+  k(0.29, { ease: 'inOutSine', hips: { pos: [0.015, -0.11, 0], rot: [0, -25, 0] }, bones: B([0, -6, -3], [1, -6, -1], [0, 10, 2], [0, 14, -4], { shoulderR: [0, 0, 0], ...LARM0 }),
+    ik: { handR: sp([0.41, 1.07, 0.21], [0.88, -0.38, -0.27]) }, grip: 1 });
+  k(0.335, { ease: 'inOutSine', ik: { handR: sp([0.34, 1.0, 0.17], [0.845, -0.46, -0.27]) } });
+  // feet: a quick front shuffle lands a frame before the point; the rear leg drives (heel up), then drags home
+  k.step('footL', 0.02, 0.095, [FL[0], 0, FL[2]], [FL[0] + 0.12, 0, FL[2]], YL, YL, 0.05);
   k(0.02, { ik: { footR: ft(FR, YR) } });
   k(0.11, { ik: { footR: heel(FR, YR, 22) } });
   k(0.2, { ik: { footR: heel(FR, YR, 18) } });
   k.step('footR', 0.25, 0.33, FR, [FR[0] + 0.12, 0, FR[2]], YR, YR, 0.05);
   settle(k, 0.38, 0.12);
-  clip('vorn.flash_jab', 0.38, k, [ev(0.07, 'trailOn'), ev(0.11, 'impact'), ev(0.1, 'step', { foot: 'footL' }), ev(0.19, 'trailOff'), ev(0.33, 'step', { foot: 'footR' })]);
+  clip('vorn.flash_jab', 0.38, k, [ev(0.07, 'trailOn'), ev(0.11, 'impact'), ev(0.095, 'step', { foot: 'footL' }), ev(0.19, 'trailOff'), ev(0.33, 'step', { foot: 'footR' })]);
 }
 
 // ---- light2: 회전 쳐올리기 Haft Spin (0.44) — the spear whirls tip-over-the-top, the butt rises hip -> jaw; 0.72 m skip in --

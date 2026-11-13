@@ -13,7 +13,8 @@
 //
 // Lens defaults: every builder sets where its focus sits (`dof.focus`: the anchored fighter / the victim / both) and
 // an aperture for its shot type (portraits wide open, action shots stopped down, top-down none), plus a small exposure
-// hint for dark angles (`tone`). A caller's `dof` / `tone` object is merged over the default; `dof: false` turns the
+// hint for dark angles (`tone`). Action shots stay stopped down on purpose: effects do not write depth, so an energy
+// arc in front of a far background takes that background's blur and would lose its brushed edge at a wide aperture. A caller's `dof` / `tone` object is merged over the default; `dof: false` turns the
 // depth of field of that shot off.
 //
 // The wuxia builders that frame world things or depend on the fighters' separation (duelStandoff, lowSweep) return a
@@ -98,7 +99,7 @@ export function crashZoom(o = {}) {
   const [d0, d1] = two(dist), [h0, h1] = two(height), [f0, f1] = two(fov);
   return finish({
     name: 'crashZoom', dur, space: subject, ease: 'outExpo', fovEase: 'outQuart',
-    dof: { focus: subject, gain: 0.5, pull: 0.06 },
+    dof: { focus: subject, gain: 0.35, pull: 0.06 },
     shake: own(o.shake, { amount: 0.35, at: dur * 0.3, freq: 18 }),
     from: { pos: polar(angle, d0, h0), look: [0, look, 0], fov: f0 },
     to: { pos: polar(angle, d1, h1), look: [0, look, 0], fov: f1 },
@@ -132,7 +133,7 @@ export function whipPan(o = {}) {
   const [f0, f1] = two(fov);
   return finish({
     name: 'whipPan', dur, space: from, ease: 'inOutSine', lookEase: 'inOutExpo',
-    dof: { focus: 'look', gain: 0.5, pull: 0.08 }, blur: 1.25,
+    dof: { focus: 'look', gain: 0.35, pull: 0.08 }, blur: 1.25,
     kick: own(o.kick, { roll: -bank, at: dur * 0.3, duration: dur * 1.4, attack: dur * 0.3 }),
     shake: own(o.shake, { amount: 0.3, at: dur * 0.25, freq: 9, dir: [1, 0, 0], duration: dur * 1.2 }),
     from: { pos, look: [0, look, 0], lookSpace: from, fov: f0 },
@@ -149,7 +150,7 @@ export function orbitSweep(o = {}) {
   const { subject = 'mid', dur = 1.3, from = -40, to = 35, radius = [7.2, 6.4], height = [1.3, 2.5], look = 1.2, fov = 38 } = o;
   return finish({
     name: 'orbitSweep', dur, space: subject, ease: 'inOutSine', handheld: 0.2,
-    dof: { focus: subject, gain: 0.8 },
+    dof: { focus: subject, gain: 0.45 },
     orbit: { pivot: [0, look, 0], from, to, radius, height },
     from: { fov }, to: { fov },
   }, o);
@@ -166,7 +167,7 @@ export function impactPunchIn(o = {}) {
   const [d0, d1] = two(dist), [h0, h1] = two(height), [f0, f1] = two(fov);
   return finish({
     name: 'impactPunchIn', dur, space: subject, ease: 'outExpo', fovEase: 'outCubic',
-    dof: { focus: subject, gain: 0.5, pull: 0.06 },
+    dof: { focus: subject, gain: 0.35, pull: 0.06 },
     shake: own(o.shake, { amount: 0.55, freq: 20, decay: 1.8 }),
     kick: own(o.kick, { fov: -4, roll: 3, duration: 0.32 }),
     from: { pos: polar(angle, d0, h0), look: [0, look, 0], fov: f0 },
@@ -233,7 +234,7 @@ export function weaponFollow(o = {}) {
   const [f0, f1] = two(fov), [r0, r1] = two(roll);
   return finish({
     name: 'weaponFollow', dur, space: subject, ease: 'linear', follow: true, followLag: 0.08, followY: true,
-    dof: { focus: subject, aperture: 0.5, range: 0.8 },
+    dof: { focus: subject, aperture: 0.35, range: 0.8 },
     from: { pos: pos[0], look: look[0], fov: f0, roll: r0 },
     to: { pos: pos[1], look: look[1], fov: f1, roll: r1 },
   }, o);
@@ -250,7 +251,7 @@ export function groundSkim(o = {}) {
   const [f0, f1] = two(fov), [r0, r1] = two(roll), [ls0, ls1] = two(lookSpace);
   return finish({
     name: 'groundSkim', dur, space: fromSpace, ease: 'inOutQuad',
-    dof: { focus: 'auto', gain: 0.6 }, tone: { exposure: 0.04 },
+    dof: { focus: 'auto', gain: 0.4 }, tone: { exposure: 0.04 },
     from: { pos: from, look: look[0], lookSpace: ls0, fov: f0, roll: r0 },
     to: { pos: to, space: toSpace, look: look[1], lookSpace: ls1, fov: f1, roll: r1 },
   }, o);
@@ -267,7 +268,7 @@ export function dutchDrift(o = {}) {
   const p0 = polar(angle, dist, h0), p1 = polar(angle, dist, h1);
   return finish({
     name: 'dutchDrift', dur, space: subject, ease: 'inOutSine', handheld: 0.3,
-    dof: { focus: subject, aperture: 0.7 }, tone: { vignette: 0.05 },
+    dof: { focus: subject, aperture: 0.6 }, tone: { vignette: 0.05 },
     from: { pos: [p0[0] - drift * 0.5, p0[1], p0[2]], look: [-drift * 0.15, look, 0], fov, roll: r0 },
     to: { pos: [p1[0] + drift * 0.5, p1[1], p1[2]], look: [drift * 0.15, look, 0], fov, roll: r1 },
   }, o);
@@ -383,7 +384,7 @@ export function craneRise(o = {}) {
   return finish({
     name: 'craneRise', dur, space: subject, ease: 'inOutSine', lookEase: 'linear', handheld: 0.25,
     follow: 'look', followY: true, followLag: 0.045,
-    dof: { focus: subject, gain: 0.75 }, tone: { exposure: 0.03 },
+    dof: { focus: subject, gain: 0.5 }, tone: { exposure: 0.03 },
     from: { pos: p0, look: [0, l0, 0], fov: f0, roll: r0 },
     via: [p0[0] * 0.7 + p1[0] * 0.3, h1 * 0.8, p0[2] * 0.75 + p1[2] * 0.25],
     to: { pos: p1, look: [0, l1, 0], fov: f1, roll: r1 },

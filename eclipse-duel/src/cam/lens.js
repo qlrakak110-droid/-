@@ -26,7 +26,7 @@ export const LENS_DEFAULTS = {
   dof: 1,             // aperture scale 0..1.5 (0 = never touch post.dof)
   dofMin: 0.12,       // apertures below this are not worth the two half-res passes: DOF stays off
   dofMinMid: 0.45,    // on the mid tier only portrait-class shots (aperture >= this) pay for DOF
-  autoGain: 0.7,      // aperture gain of shots without a `dof` field (hand-keyed shots)
+  autoGain: 0.5,      // aperture gain of shots without a `dof` field (hand-keyed shots)
   pull: 0.14,         // s: focus pull smooth time
   breathe: 1,         // focus breathing scale (1 = 3.5 % fov per e-fold of focus distance, capped at 1.5 %)
   tone: 1,            // exposure / vignette hint scale

@@ -27,22 +27,54 @@ const GUARD_R = mir(GUARD_L);
 
 // ======================================================================================================================
 // light1 - Rime Flick (0.30): quick right-hand forehand diagonal. trailOn .05, swing .07, ACTIVE .09-.12, trailOff .14
+// The reference clip of src/fighters/MOTION.md ("Worked examples"). Beats (frames at 60 fps):
+//   0-3   gather: up onto the ball of the rear foot, hips wind away, the right crescent goes over the shoulder while
+//         the LEFT one comes up as a guard in front (one blade covers while the other loads)
+//   3-5   the hips have already turned through when the blade is only over the top (the lag that makes the whip)
+//   5-7   the cut and its kime: the arm long, the rear foot pivoted on its ball (heel swung out), the left blade
+//         pulled back to the hip (one blade high and long, one low and close): the two hands trade places, which is
+//         what turns the waist
+//   7-9   follow-through: the wrist lets the crescent roll on down and across
+//   9-18  the circle closes: the blade does not come back the way it went, it dips under and rises into the low guard
+//         from below while the left blade settles from above; the body floats up a little past the stance and sinks
+/** A foot turning on its ball: sole target at yaw `y1` / pitch `p` whose ball stays where the stance ball (yaw `y0`) is. */
+const pivot = (pos, y0, y1, p, p0 = PITCH) => {
+  const L = 0.125, r = Math.PI / 180;
+  const bx = pos[0] + L * Math.cos(p0 * r) * Math.cos(y0 * r), bz = pos[2] - L * Math.cos(p0 * r) * Math.sin(y0 * r);
+  return { pos: [bx - L * Math.cos(p * r) * Math.cos(y1 * r), pos[1] + L * (Math.sin(p0 * r) - Math.sin(p * r)), bz + L * Math.cos(p * r) * Math.sin(y1 * r)], rot: [0, y1, p] };
+};
+// left crescent upright before the body (cover), then pulled back to the hip with its point on the opponent, low
+// (both scanned for the wrist: 0 deg of clamp; the first version stood the blade up at the hip and cut the hair tail)
+const FLICK_COVER = hand([0.36, 1.08, -0.1], [0.2, 0.95, 0.2], [-0.97, 0.2, 0.1]);
+const FLICK_PULL = hand([0, 0.92, -0.26], [0.9, -0.2, 0.38], [0, 1, 0]);
 defineClip('iska.rime_flick', {
   duration: 0.3, breath: 0.2,
   keys: [
     { t: 0, pose: S },
-    { t: 0.05, ease: 'outCubic', hips: { pos: [-0.06, -0.1, 0.01], rot: [2, -42, 2] },
-      bones: { spine: [2, -6, 5], chest: [2, -12, 6], neck: [0, 16, 0], head: [0, 22, -4] },
-      ik: { handR: CUT.cock, handL: GUARD_L, footR: ball(FR, YAW_R, -24) } },
-    { t: 0.07, hips: { rot: [0, -14, 0] }, ik: { handR: CUT.over } },
-    { t: 0.09, hips: { pos: [0.08, -0.13, -0.01], rot: [-3, 14, -4] },
-      bones: { spine: [-2, 10, -9], chest: [-3, 10, -7], neck: [0, -12, 4], head: [0, -16, 6] },
-      ik: { handR: CUT.hit, handL: hand([0.08, 1.02, -0.2], [0.5, -0.4, 0.77], [0.8, 0.55, -0.2]), footR: ball(FR, YAW_R, -32) } },
-    { t: 0.14, ease: 'outQuad', hips: { pos: [0.09, -0.14, -0.01], rot: [-3, 22, -4] },
-      bones: { spine: [-2, 12, -10], chest: [-3, 12, -8], neck: [0, -14, 4], head: [0, -18, 6] }, ik: { handR: CUT.thru } },
-    { t: 0.2, ease: 'inOutSine', hips: { pos: [0.02, -0.11, 0], rot: [-1, -6, -1] }, bones: { spine: [0, 2, -5], chest: [-1, 0, -4], neck: [0, 2, 3], head: [0, 2, 0] },
-      ik: { handR: hand([0.3, 0.92, 0.02], [0.55, -0.62, -0.55], [0.82, 0.55, 0]), footR: ball(FR, YAW_R, -20) } },
-    { t: 0.3, ease: 'inOutSine', pose: S },
+    // the blade is turned up through the vertical on its way over the shoulder (a steering key: without it the wrist
+    // is asked for 200 deg in three frames and the blade flips)
+    { t: 0.025, ik: { handR: hand([0.14, 1.15, 0.26], [0.25, 0.93, 0.27], [-0.9, 0.3, -0.3]) } },
+    // gather
+    { t: 0.05, ease: 'outCubic', hips: { pos: [-0.065, -0.095, 0.012], rot: [2, -42, 2] },
+      bones: { spine: [2, -6, 5], chest: [2, -12, 6], neck: [0, 16, 0], head: [0, 22, -4], shoulderR: [0, -10, 0] },
+      ik: { handR: CUT.cock, handL: FLICK_COVER, footR: ball(FR, YAW_R, -26) } },
+    // the hips lead: turned through 28 deg while the blade is only over the top
+    { t: 0.07, hips: { pos: [0.01, -0.115, 0], rot: [0, -12, -1] }, bones: { shoulderR: [0, 2, 0] }, ik: { handR: CUT.over } },
+    // the cut
+    { t: 0.09, hips: { pos: [0.085, -0.135, -0.01], rot: [-3, 15, -4] },
+      bones: { spine: [-2, 10, -9], chest: [-3, 10, -7], neck: [0, -12, 4], head: [0, -16, 6], shoulderR: [0, 14, 0] },
+      ik: { handR: CUT.hit, handL: FLICK_PULL, footR: pivot(FR, YAW_R, -16, -34) } },
+    // kime: two frames at full reach
+    { t: 0.117, ease: 'outQuad', hips: { pos: [0.092, -0.14, -0.01], rot: [-3, 18, -4] },
+      ik: { handR: hand([0.61, 1.08, -0.03], [0.88, 0.04, -0.47], [0.22, 0.55, 0.8]) } },
+    // follow-through: the crescent rolls on down and across the body
+    { t: 0.15, ease: 'inQuad', hips: { pos: [0.09, -0.14, -0.012], rot: [-3, 23, -4] },
+      bones: { spine: [-2, 12, -10], chest: [-3, 12, -8], neck: [0, -14, 4], head: [0, -18, 6], shoulderR: [0, 10, 0] }, ik: { handR: CUT.thru } },
+    // the circle closes from below; the body floats up past the stance
+    { t: 0.21, ease: 'inOutSine', hips: { pos: [0.02, -0.085, 0], rot: [-1, -4, -1] }, bones: { spine: [0, 2, -4], chest: [-1, 0, -3], neck: [0, 2, 3], head: [0, 2, 0], shoulderR: [0, 2, 0] },
+      ik: { handR: hand([0.33, 0.84, 0.0], [0.34, -0.74, -0.58], [0.9, 0.42, 0.1]), footR: pivot(FR, YAW_R, -30, -22) } },
+    { t: 0.26, ease: 'inOutSine', hips: { pos: [-0.035, -0.066, 0], rot: [0, -27, 0] }, ik: { footR: ball(FR, YAW_R, -18) } },
+    { t: 0.3, ease: 'inOutSine', pose: S, bones: { shoulderR: [0, 0, 0] } },
   ],
   events: ev([[0.09, 'impact']]),
 });

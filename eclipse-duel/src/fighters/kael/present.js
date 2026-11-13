@@ -346,7 +346,7 @@ const moves = {
       h.cam.play([h.shots.orbitSweep({ dur: 0.5, cut: true, subject: 'mid', from: -6, to: 8, radius: [7.4, 6.6], height: [1.3, 1.6], look: 1.2, fov: 38, hold: true })], { blendOut: 0.4, keepLetterbox: true });
       h.spawn('speedlines', 'foe.chest', { mode: 'focus', life: 0.4, intensity: 0.32, inner: 0.66 });
       h.fx('combat.dust.dash', 'floor', { k: 1, fallback: null });
-      h.afterimage({ count: 3, interval: 0.06, life: 0.32, palette: 'ember' });
+      h.afterimage({ count: 4, interval: 0.05, life: 0.32, palette: 'ember' });   // light-foot trail (silhouette proxies: ~9k triangles each)
       st(h).streak = h.spawn('ribbon', 'hips', { follow: h.self.sockets.hips, width: 0.5, life: 0.26, color: STREAK });
     },
     release(h) {
@@ -421,7 +421,7 @@ const ult = {
     h.fx('combat.hit.crit', { pos: 'foe.chest', dir }, { element: 'ember', intensity: 0.3 });
     h.fx('kael.flower', { pos: 'foe.chest', dir }, { k: 0.6, cut: -50, accent: true, fallback: null });
     h.post.impact({ duration: 0.05, invert: 0, mono: 1 });     // 3 hard monochrome frames (no inverted white frame)
-    h.post.flash(0xffffff, 0.07, { release: 0.2 });
+    h.post.flash(0xffc890, 0.06, { release: 0.2 });
     h.post.chroma(0.5, { release: 0.4 });
     h.post.radial('foe.chest', 0.5, { release: 0.35 });
     h.cam.shake(0.6, { freq: 13 });
@@ -458,7 +458,7 @@ const ult = {
       // the firestorm under the airborne pair (own preset: the library inferno's centre detonation buried the rise)
       h.fx('kael.inferno', 'foe.floor', { radius: 1.7, duration: 1.5, intensity: 0.5, fallback: null });
       h.fx('combat.dust.land', 'floor', { k: 1.2, heavy: true, fallback: null });
-      h.afterimage({ count: 2, interval: 0.05, life: 0.3, palette: 'ember' });
+      h.afterimage({ count: 3, interval: 0.05, life: 0.3, palette: 'ember' });
       h.audio('fire_roar');
     } },
     { t: 2.4, do(h) { beat(h, 'spin', 'sweep', 0.12); } },
@@ -488,7 +488,7 @@ const ult = {
     /** 3.40: one full spin in the air, the blade trailing a full ring of fire */
     spin(h) {
       h.fx('kael.ringOfFire', 'chest', { radius: 1.75, sweep: 0.2, fallback: null });
-      h.afterimage({ count: 3, interval: 0.04, life: 0.3, palette: 'ember' });
+      h.afterimage({ count: 4, interval: 0.04, life: 0.3, palette: 'ember' });
       trailOn(h, 'huge', 0.35);
       h.audio('swing_huge');
     },
@@ -544,7 +544,7 @@ const ult = {
       h.fx('kael.crater', 'foe.floor', { intensity: 0.5, fallback: null });
       h.spawn('decal', 'foe.floor', { kind: 'scorch', radius: 3.6, life: 8, magma: 1 });
       h.post.impact({ duration: 0.05, invert: 0, mono: 1 });
-      h.post.flash(0xffffff, 0.08, { release: 0.25 });
+      h.post.flash(0xffc890, 0.07, { release: 0.25 });
       h.post.chroma(0.45, { release: 0.4 });
       h.post.radial('foe.floor', 0.45, { release: 0.4 });
       h.cam.shake(0.8, { freq: 11, dir: [0, 1, 0] });

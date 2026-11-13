@@ -25,7 +25,7 @@ import { createLab, ORDER } from '../core/lab.js';
 import { createEnvironment } from '../env/index.js';
 import { createCharacter, definePose } from '../char/index.js';
 import { createKitMaterial, attachGlow, configureTextureSets } from '../char/materials.js';
-import { textureSetTimings, prewarmTextureSets } from '../char/kit/textures.js';
+import * as TEX from '../char/kit/textures.js';
 import { knight } from '../char/designs/knight.js';
 import { kael } from '../fighters/kael/design.js';
 import { iska } from '../fighters/iska/design.js';
@@ -219,6 +219,7 @@ createLab({
     char.update(0, 0);
     lab.headY = headHeight(char);
     window.__ED.char = char;
+    window.__ED.textures = TEX;
     console.log('[ed] art lab design', design.id, JSON.stringify(char.stats));
 
     const st = { spin: null, t: 0, hold: null, sway: null };
@@ -409,8 +410,8 @@ createLab({
     },
     /** Texture set generation: ms per set generated so far (sets are generated on first use); all = generate every set first. */
     texgen(ctx, lab, all = false) {
-      if (all) prewarmTextureSets();
-      const t = textureSetTimings();
+      if (all) TEX.prewarmTextureSets();
+      const t = TEX.textureSetTimings();
       return { sets: t, total: +Object.values(t).reduce((a, b) => a + b, 0).toFixed(1) };
     },
     /** Lowest world y (m) of the footwear geometry (foot / toe bones) in the design's poses: soles on the floor, nothing under it. */

@@ -212,12 +212,13 @@ export function headband(o = {}) {
  * @param {object} o  scale=1   R=0.3 (brim radius)   h=0.17 (apex above the brim)   y=0.15 (brim height in the head frame)
  *   bell=0.85 (profile exponent: 1 straight cone, < 1 swelling, > 1 flaring)   crown=0 (0..1: share of the radius
  *   taken by a low rounded crown, for wide flat hats)   dip=0 (m the brim droops at its edge)   code=0 (glow through
- *   the plait)   tiles=[6, 1 / 0.04] (uv tiles around, per metre of slope)   cords=true   nu=36, nv=7
+ *   the plait)   tiles=[around, per metre of slope] (uv tiles: 8 strips each; default: 6.5 mm strips)   cords=true   nu=36, nv=7
  * @returns {{ shell, knob, cords, brimR, brimY, apexY }}
  */
 export function bambooHat(o = {}) {
   const k = o.scale ?? 1, R = (o.R ?? 0.3) * k, h = (o.h ?? 0.17) * k, yb = (o.y ?? 0.15) * k, bell = o.bell ?? 0.85, cr = o.crown ?? 0, dip = (o.dip ?? 0) * k;
-  const tiles = o.tiles || [6, 1 / 0.04], code = o.code ?? 0;
+  // strips ~6.5 mm wide where the plait is densest to the eye (60% of the radius); 8 strips per uv tile
+  const tiles = o.tiles || [Math.round((2 * Math.PI * R * 0.6) / 0.052), 1 / 0.052], code = o.code ?? 0;
   const prof = (s) => {
     // wide hat: a low rounded crown over the skull flowing into a broad brim; otherwise a cone with a `bell` profile
     if (cr > 0) return s < cr ? [R * s, yb + h * Math.pow(Math.cos((s / cr) * Math.PI / 2), 0.8)] : [R * s, yb - dip * ((s - cr) / (1 - cr)) ** 2];
@@ -227,7 +228,7 @@ export function bambooHat(o = {}) {
   const S = (u, v) => { const s = lerp(0.035, 1, v), a = u * Math.PI * 2, [r, y] = prof(s); return [Math.cos(a) * r, y, Math.sin(a) * r]; };
   const shell = plate(S, {
     closeU: true, nu: o.nu ?? 36, nv: o.nv ?? 7, thick: 0.005 * k, inner: true, innerCav: 0.5, edge: { v0: 'none' }, roll: { v1: 0.0055 * k }, rollSegs: 5,
-    out: (p) => [p[0], 0.25 * Math.hypot(p[0], p[2]) + 0.02, p[2]], curv: 0.003, edgeWear: 0.4,
+    out: (p) => [p[0], 0.25 * Math.hypot(p[0], p[2]) + 0.02, p[2]], curv: 0.003, edgeWear: 0.4, occ: () => 0.74,
     uvw: (u, v) => [u * tiles[0], v * slope * tiles[1], code],
   });
   const ya = prof(0.035)[1];

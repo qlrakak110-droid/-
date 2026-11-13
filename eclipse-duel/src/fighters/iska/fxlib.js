@@ -9,7 +9,7 @@
 
 import { LIB, PALETTE } from '../../vfx/library.js';
 import { heatRamp } from '../../vfx/util.js';
-import { arcPoint, arcTangent } from '../../vfx/presets/common.js';
+import { arcPoint, arcTangent, PETALS } from '../../vfx/presets/common.js';
 
 export const F = PALETTE.frost;
 /** starlight white (hot heads, star glints) */
@@ -115,6 +115,7 @@ export function defineIskaFx(vfx, rng) {
       v.ring({ normal: [d.x, d.y, d.z], look: 'frost', pos: p, radius: [0.1, 0.55 + 0.6 * k], width: [0.12, 0.3], life: 0.3, intensity: 0.55 * k });
       v.burst(D.snow, { pos: p, count: n(4 * k), scale: 0.7 });
       v.burst(D.mist, { pos: p, count: 2, scale: 0.5 + 0.2 * k });
+      v.burst(PETALS, { pos: p, dir: [d.x, d.y + 0.4, d.z], count: n(3 * k), scale: 0.8 });   // 설리화: pear-blossom petals off the blow
     }
     if (o.floor) v.decal({ kind: 'frost', pos: [p.x, 0, p.z * 0.3], radius: 0.6 + 0.5 * k, reveal: 0.25, life: 2.2 });
   });
@@ -178,14 +179,18 @@ export function defineIskaFx(vfx, rng) {
     v.spikes({ kind: 'ice', pattern: 'cluster', pos: g, radius: last ? 0.62 : 0.16 + 0.22 * size, count: last ? 7 : 3 + Math.round(size * 2),
       height: [H * 0.45, H], width: last ? 0.26 : 0.22, tilt: last ? 18 : 14, stagger: 0.016, rise: last ? 0.07 : 0.06, hold, facing: f });
     v.decal({ kind: 'frost', pos: g, radius: 0.7 + 0.7 * size, reveal: 0.18, life: hold + 2.6 });
-    v.ring({ look: 'frost', pos: g, radius: [0.2, (last ? 3.2 : 1.1 + 0.7 * size)], life: last ? 0.75 : 0.5, intensity: last ? 0.9 : 0.6, distort: last ? 0.03 : 0 });
-    v.burst(D.flash, { pos: [g[0], 0.35 * H, 0.25], scale: 0.3 + 0.25 * size });
+    // (round 3: the line used to end in a near-white frame: five rings, five flashes and a 150 cd light glowing in the
+    // mist. The crystals carry the read; the light event is a small core, a thinner ring and a short, dimmer light)
+    v.ring({ look: 'frost', pos: g, radius: [0.2, (last ? 3.2 : 1.1 + 0.7 * size)], life: last ? 0.75 : 0.5, intensity: last ? 0.6 : 0.4, distort: last ? 0.03 : 0 });
+    v.burst(D.flash, { pos: [g[0], 0.35 * H, 0.25], scale: 0.18 + 0.12 * size, intensity: 0.7 });
     v.burst(D.shards, { pos: [g[0], 0.2, 0.1], dir: [0.25 * f, 1, 0.2], count: n(8 + 10 * size), scale: 0.7 + 0.4 * size });
     v.burst(D.glint, { pos: [g[0], 0.6 * H, 0.15], count: n(5 + 6 * size), scale: 0.8 + 0.6 * size });
     v.burst(D.mistLow, { pos: g, dir: [0, 1, 0], count: n(3 + 4 * size), scale: 0.6 + 0.4 * size });
-    v.light({ pos: [g[0], 0.9 * H, 1.1], color: F.core, intensity: last ? 150 : 45 + 35 * size, range: last ? 8 : 5, duration: last ? 0.5 : 0.25, decay: 'outCubic' });
+    v.light({ pos: [g[0], 0.9 * H, 1.1], color: F.core, intensity: last ? 85 : 30 + 22 * size, range: last ? 8 : 5, duration: last ? 0.4 : 0.22, decay: 'outExpo' });
     if (last) {
-      v.flare({ kind: 'star', pos: [g[0], H * 0.85, 0.35], size: 2.2, life: 0.3, decay: 2.5, color: STAR, intensity: 0.75, rotation: 0.2 });
+      v.flare({ kind: 'star', pos: [g[0], H * 0.85, 0.35], size: 1.5, life: 0.18, decay: 3, color: STAR, intensity: 0.5, rotation: 0.2 });
+      v.burst(D.snow, { pos: [g[0], H * 0.7, 0.2], count: 14, scale: 1.6 });
+      v.burst(PETALS, { pos: [g[0], H * 0.6, 0.2], dir: [0, 1, 0], count: 9, scale: 1.5 });
       v.burst(D.sparksRadial, { pos: [g[0], 0.8, 0.1], count: 50, scale: 1.1 });
       v.burst(D.snow, { pos: [g[0], 1.6, 0], count: 18, scale: 2 });
       v.debris({ kind: 'ice', pos: [g[0], 0.3, 0.1], dir: [0, 1, 0], count: 10, speed: [2, 6], spread: 60, size: [0.05, 0.14, 2] });

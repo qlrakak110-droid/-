@@ -247,7 +247,7 @@ aperture closes in ~0.3 s and `post.dof` is released.
 |---|---|---|
 | `focus` | `'auto'` | `'auto'` / `'look'`: the aim point; `'anchor'` / `'target'`: that fighter's chest (live); `'both'` / `'mid'`: half-way between the two fighters with both inside the sharp range; a number: metres; a point source (Object3D, `() => Vector3`, Vector3, `[x,y,z]`): e.g. a weapon socket |
 | `aperture` | auto | 0..1.5 blur strength (`post.dof`). Auto: `1.1 · (tan 20° / tan(fov/2)) · 2.6 / focus`, capped at 1, times `gain`: tight framings open up, wide ones stop down |
-| `gain` | 0.7 (`lens.settings.autoGain`) | multiplier of the auto aperture |
+| `gain` | 0.5 (`lens.settings.autoGain`) | multiplier of the auto aperture |
 | `range` | `0.35 + 0.1 · focus` | m in front of / behind the focus that stay sharp |
 | `near` | 1 | foreground blur scale (0 = none; > 1 for a foreground wipe) |
 | `pull` | 0.14 s | focus pull smooth time (rack focus: change `focus` on a blended shot with `pull: 0.3`) |
@@ -286,7 +286,7 @@ drift (see `handheld`). None of it is applied in fight framing.
 | `dof` | 1 | aperture scale (0 = never touch `post.dof`) |
 | `dofMin` | 0.12 | apertures below this keep the DOF passes off |
 | `dofMinMid` | 0.45 | on the mid tier only shots at or above this aperture (portraits, close-ups, the low sweep) pay for DOF |
-| `autoGain` | 0.7 | aperture gain of shots without a `dof` field |
+| `autoGain` | 0.5 | aperture gain of shots without a `dof` field |
 | `pull` | 0.14 s | default focus pull time |
 | `breathe` | 1 | focus breathing scale |
 | `tone` | 1 | scale of every exposure / vignette hint |
@@ -341,17 +341,17 @@ default (`shots.heroPushIn({ dof: { aperture: 0.5 } })`); `dof: false` switches 
 | builder | use | parameters (defaults) | lens (focus, aperture, tone) |
 |---|---|---|---|
 | `heroPushIn` | power-up / super-freeze: low camera in front of the subject looking up, slow dolly + fov squeeze | `subject 'anchor', dur 1.1, angle 32, dist [3.6,2.5], height [0.42,0.55], look [1.5,1.62], fov [36,30], roll 0 (dutch; grows 30 %), arc -8` | subject, 0.9, range 0.55; +0.04, vig +0.05 (+ the auto low-angle lift) |
-| `crashZoom` | from far and wide to tight in a fraction of a second (expo ease), shake on arrival; zoom blur | `subject 'target', dur 0.36, angle -18, dist [10,2.8], height [1.8,1.5], look 1.45, fov [50,27], shake 0.35` | subject, auto × 0.5, pull 0.06 |
+| `crashZoom` | from far and wide to tight in a fraction of a second (expo ease), shake on arrival; zoom blur | `subject 'target', dur 0.36, angle -18, dist [10,2.8], height [1.8,1.5], look 1.45, fov [50,27], shake 0.35` | subject, auto × 0.35, pull 0.06 |
 | `overShoulder` | behind the anchor's camera-side shoulder on a long lens, looking at the target, slow push; the shoulder is a soft foreground | `dur 1.3, back 1.7, side 0.62, height 1.95, look 1.4, push 0.35, fov [28,25], from 'anchor', at 'target'` | `at`, 0.85, range 0.6, near 1.2, no protect; +0.04, vig +0.05 |
-| `whipPan` | near-static camera snapping its aim from one subject to another (expo), banking roll kick + lateral shake + directional blur | `dur 0.3, from 'anchor', to 'target', pos [-1.2,1.5,3.4], look 1.35, fov [40,33], bank 4` | aim, auto × 0.5, pull 0.08; blur 1.25 |
-| `orbitSweep` | arc around a pivot while rising, pivot centred | `subject 'mid', dur 1.3, from -40, to 35, radius [7.2,6.4], height [1.3,2.5], look 1.2, fov 38` | subject (`'mid'` = both), auto × 0.8 |
-| `impactPunchIn` | sharp push onto the struck fighter, hard deceleration, fov squeeze, shake + roll kick; zoom blur | `subject 'target', dur 0.45, angle -28, dist [3.8,2.4], height [1.55,1.5], look 1.45, fov [36,29], shake 0.55` | subject, auto × 0.5, pull 0.06 |
+| `whipPan` | near-static camera snapping its aim from one subject to another (expo), banking roll kick + lateral shake + directional blur | `dur 0.3, from 'anchor', to 'target', pos [-1.2,1.5,3.4], look 1.35, fov [40,33], bank 4` | aim, auto × 0.35, pull 0.08; blur 1.25 |
+| `orbitSweep` | arc around a pivot while rising, pivot centred | `subject 'mid', dur 1.3, from -40, to 35, radius [7.2,6.4], height [1.3,2.5], look 1.2, fov 38` | subject (`'mid'` = both), auto × 0.45 |
+| `impactPunchIn` | sharp push onto the struck fighter, hard deceleration, fov squeeze, shake + roll kick; zoom blur | `subject 'target', dur 0.45, angle -28, dist [3.8,2.4], height [1.55,1.5], look 1.45, fov [36,29], shake 0.55` | subject, auto × 0.35, pull 0.06 |
 | `topDownSlam` | nearly overhead on the impact point, slowly turning and settling | `subject 'target', dur 0.9, height [7.5,6], toward [1.4,1.0], ahead 0, look 0.3, fov [42,38], roll [0,10]` | none (one depth from above); +0.02 (+ the auto top-down lift) |
 | `wideEstablishing` | far, high, slow lateral drift and crane — the whole arena | `subject 'mid', dur 1.8, dist [14,13], height [3.2,3.9], look [2,1.8], drift 1.6, fov 42` | subject (both), auto × 0.9 (a soft far backdrop on high); vig +0.04 |
 | `faceCloseUp` | three-quarter front head shot at eye level, eyes on the upper third, slow push | `subject 'anchor', dur 1.1, angle 42 (negative for the target), dist [1.35,1.05], height 1.68, look 1.63, fov [30,27]` | aim (the head), 1.15, range 0.3, pull 0.1; +0.06, vig +0.08 |
-| `weaponFollow` | rides alongside a moving subject (dash, or a weapon socket as `subject`), subject in the left third, aiming down the line of travel | `subject 'anchor', dur 0.6, pos [[-1.3,1.1,2.1],[-0.9,1.2,1.85]], look [[1.6,1.2,0],[2,1.1,0]], fov [48,44], roll [4,2]` (follows, `followY`, lag 0.08) | subject, 0.5, range 0.8; blur 0.3 |
-| `groundSkim` | camera racing along the floor looking up; with `'mid'` frames + `follow:'look', followY` it is the low "airborne fight" shot | `dur 0.9, from [-0.9,0.28,1.3], fromSpace 'anchor', to [-1.3,0.32,1.1], toSpace 'target', look [[2,0.8,0],[0,1.25,0]], lookSpace ['anchor','target'], fov [52,44], roll [-3,0]` | aim, auto × 0.6; +0.04 |
-| `dutchDrift` | tilted, uneasy medium shot sliding sideways while the tilt deepens | `subject 'anchor', dur 1.6, angle 18, dist 4, height [1.55,1.7], look 1.4, roll [8,12], drift 0.8, fov 36` | subject, 0.7; vig +0.05 |
+| `weaponFollow` | rides alongside a moving subject (dash, or a weapon socket as `subject`), subject in the left third, aiming down the line of travel | `subject 'anchor', dur 0.6, pos [[-1.3,1.1,2.1],[-0.9,1.2,1.85]], look [[1.6,1.2,0],[2,1.1,0]], fov [48,44], roll [4,2]` (follows, `followY`, lag 0.08) | subject, 0.35, range 0.8; blur 0.3 |
+| `groundSkim` | camera racing along the floor looking up; with `'mid'` frames + `follow:'look', followY` it is the low "airborne fight" shot | `dur 0.9, from [-0.9,0.28,1.3], fromSpace 'anchor', to [-1.3,0.32,1.1], toSpace 'target', look [[2,0.8,0],[0,1.25,0]], lookSpace ['anchor','target'], fov [52,44], roll [-3,0]` | aim, auto × 0.4; +0.04 |
+| `dutchDrift` | tilted, uneasy medium shot sliding sideways while the tilt deepens | `subject 'anchor', dur 1.6, angle 18, dist 4, height [1.55,1.7], look 1.4, roll [8,12], drift 0.8, fov 36` | subject, 0.6; vig +0.05 |
 
 ### Wuxia flourishes (MURIM.md)
 
@@ -360,7 +360,7 @@ default (`shots.heroPushIn({ dof: { aperture: 0.5 } })`); `dof: false` switches 
 | `lowSweep` | a long lens skimming the floor on an arc around the subject; the arc starts **behind a foreground element** (default: the other master, whose legs, coat tails and blade wipe across the frame far out of focus) and clears it to reveal the subject. Late-bound (radius from the separation) | `subject 'target', behind (the other fighter; false = plain low orbit), dur 1.3, from 84, to 50 (deg off straight-on on the foreground side; 90 = on the fight line, kept ≥ 0.75 m on the camera side), back 1.9 (m behind the foreground element), radius (overrides sep + back), height [0.34,0.52], look [1.2,1.3], lead 0.22, fov [30,27], roll [-4,0], side` | subject, 1.0, range 0.7, near 1.3, no protect; +0.12, vig +0.06 |
 | `duelStandoff` | the **held wide duel frame**: low, far, long lens, both masters small on either side and the eclipse hanging between them at head height; a slow creep and the operator's breathing only. Late-bound: reads the eclipse direction (`cam.sun` / `env.sunDir`), the separation and the aspect; the lens widens on narrow (portrait) viewports until both masters and the eclipse fit | `dur 1.6, dist [13,12.4], height 0.45, fov 24, sunY 0.58, feetY 0.2, margin 1.5, creep 0.25, grade 'ink'` | both, 0.3; vig +0.08; grade `'ink'` |
 | `bladeRush` | **fast push-in on a drawn blade**: from a medium three-quarter view the camera lunges (expo) to arm's length of the steel on a tightening lens, the focus racks onto the edge, a small jolt lands with it | `subject 'anchor', blade (point source: a weapon socket; default the point at), at [0.42,1.08,0.12], dur 0.6, angle 36, dist [3.4,0.95], height [1.3,1.14], fov [40,25], roll [-7,-3], shake 0.18` | aim (the blade), 1.1, range 0.3, pull 0.07, no protect; +0.05, vig +0.08 |
-| `craneRise` | the light-foot leap (경공): starts at the floor looking up at the take-off, cranes up and back faster than the fighter rises with the aim riding the leap, ends level with the apex | `subject 'anchor', dur 1.0, angle [28,10], dist [3.4,5.6], height [0.32,3.4], look [1.25,1.4], fov [32,40], roll [4,-2]` (aim follows, `followY`, lag 0.045) | subject, auto × 0.75; +0.03 |
+| `craneRise` | the light-foot leap (경공): starts at the floor looking up at the take-off, cranes up and back faster than the fighter rises with the aim riding the leap, ends level with the apex | `subject 'anchor', dur 1.0, angle [28,10], dist [3.4,5.6], height [0.32,3.4], look [1.25,1.4], fov [32,40], roll [4,-2]` (aim follows, `followY`, lag 0.045) | subject, auto × 0.5; +0.03 |
 | `duelIntro` | **sequence** (returns an array for `cam.play`): `lowSweep` from behind the anchor revealing the rival, cut to `duelStandoff`; the hand-back to fight framing is then a slow push-in. Later rounds: the duel frame only | `dur 2.2 (total), round 1, grade 'ink', sweep {...}, standoff {...}` | – |
 
 ---
@@ -446,7 +446,7 @@ node tools/shot.mjs cam --size 800x500 --hash hud --do "__ED.lab.play('walk')" -
   piece with crisp ink edges) pass `dof: false`; to keep both fighters sharp on a hand-keyed two-shot use
   `dof: { focus: 'both' }`.
 - VFX / post: transparent effects do not write depth, so an effect in front of a far background takes the background's
-  blur. Action shots are stopped down (auto × 0.5) for that reason; portraits open up.
+  blur. Action shots are stopped down (auto × 0.35-0.45) for that reason; portraits open up.
 
 - The camera can sit up to `fight.maxDist` (24 m) from the fight line when the fighters are far apart (more for a
   very narrow viewport) and cinematic shots go to ~14 m / 7.5 m high: keep the +Z side of the arena free of

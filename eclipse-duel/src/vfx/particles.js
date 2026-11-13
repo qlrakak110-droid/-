@@ -222,7 +222,7 @@ export function installParticles(vfx, shared) {
   const table = new ParamTable(384, 'particle definitions');
   const U = {
     uTime: shared.uniforms.uTime, uTimeReal: shared.uniforms.uTimeReal,     uDefs: { value: table.texture }, uAtlas: { value: textures.atlas }, uNoise: { value: textures.noise }, uFlow: { value: textures.flow },
-    uMaxScreen: { value: q.tier === 'low' ? 0.45 : 0.7 },
+    uMaxScreen: { value: q.tier === 'low' ? 0.45 : q.tier === 'mid' ? 0.55 : 0.62 },
   };
 
   function makeLayer(name, cap, frag, order, target) {

@@ -34,7 +34,8 @@ export default async ({ evalJs, advance, shot, log }) => {
     return seen;
   };
   const reset = async () => {
-    await R('(() => { const r = __ED.rpg; r.move(0, 0); r.tp(0, 0, 0); r.give({ hp: true, fp: true, stamina: true, cooldowns: true, ult: 0 }); const w = r.world(); for (const a of w.actors) if (a.kind === "dummy") { a.teleport(2.4, 0, Math.PI); a.hp = a.hpMax; a.setState("idle"); } r.lock(true); })()');
+    // the dummy stands at the edge of the hero's first light (its reach differs per weapon)
+    await R('(() => { const r = __ED.rpg; r.move(0, 0); r.tp(0, 0, 0); r.give({ hp: true, fp: true, stamina: true, cooldowns: true, ult: 0 }); const w = r.world(); const d = w.hero.spec.reach + 0.5; for (const a of w.actors) if (a.kind === "dummy") { a.teleport(d, 0, Math.PI); a.hp = a.hpMax; a.setState("idle"); } r.lock(true); })()');
     await advance(0.2);
   };
   const foeHp = async () => (await st()).foes.reduce((m, f) => Math.min(m, f.hp), 1e9);
@@ -93,10 +94,12 @@ export default async ({ evalJs, advance, shot, log }) => {
     await reset();
     let hp0 = await foeHp();
     const seen = [];
-    for (let i = 0; i < 3; i++) {
+    // mash light: the presses are buffered and chained through the fighter's own cancel windows
+    for (let i = 0; i < 7; i++) {
       await R('__ED.rpg.press("light", 0.05)');
-      const ww = await watch(0.32);
+      const ww = await watch(0.17);
       for (const a of ww.attacks) if (!seen.includes(a)) seen.push(a);
+      if (seen.length >= 3) break;
     }
     w = await watch(1.2);
     for (const a of w.attacks) if (!seen.includes(a)) seen.push(a);
@@ -165,6 +168,98 @@ export default async ({ evalJs, advance, shot, log }) => {
     check(`${hero} invariants at end`, info1.ok, info1.bad.join('; '));
   }
 
+  // systems (first hero): lock-on and switching, guard / perfect guard / roll through a blow, camera vs the wall,
+  // pause, the ultimate strike on a boss
+  if (!process.env.NOSYSTEMS) {
+    const hero = heroes[0];
+    log('---- systems ----');
+    await R(`__ED.rpg.start('${hero}', { sandbox: true })`);
+    await R('window.__ev = {}; __ED.rpg.world().on("*", (e, name) => { window.__ev[name] = (window.__ev[name] || 0) + 1; }); __ED.rpg.clear()');
+    const ev = async (name) => (await R(`window.__ev["${name}"] || 0`));
+    const still = 'const a = __ED.rpg.world().byId(id); a.controller = null;';
+    const ids = await R(`(() => { const r = __ED.rpg; r.tp(0, 0, 0); const out = []; for (const z of [-2.2, 2.2]) { const id = r.spawn('husk', 5, z, { spawnTime: 0 }); ${still} out.push(id); } return out; })()`);
+    await advance(0.3);
+    const l1 = await R('__ED.rpg.lock(true)');
+    check('lock-on picks a target', ids.includes(l1), `locked ${l1} of ${ids}`);
+    await R('__ED.rpg.press("lockR", 0.05)');
+    await advance(0.2);
+    let s = await st();
+    check('lock switches target', ids.includes(s.camera.lock) && s.camera.lock !== l1, `lock ${l1} -> ${s.camera.lock}`);
+    await R(`__ED.rpg.kill(${s.camera.lock})`);
+    await advance(0.5);
+    s = await st();
+    check('lock releases a dead target', s.camera.lock !== ids.find((x) => x !== l1) || s.camera.lock === 0 || s.camera.lock === l1, `lock ${s.camera.lock}`);
+
+    // a husk swings at the hero three times: blocked, perfectly guarded, rolled through
+    const swing = async () => {
+      await R(`(() => { const r = __ED.rpg, w = r.world(); r.clear(); r.move(0, 0); r.tp(0, 0, 0); r.give({ hp: true, stamina: true }); const id = r.spawn('husk', 1.9, 0, { spawnTime: 0, yaw: Math.PI }); ${still} r.lock(id); a.startAttack('slash', { force: true, target: w.hero }); })()`);
+    };
+    await swing();
+    await R('__ED.rpg.press("guard", 1.2)');
+    let hp0 = (await st()).hero.hp;
+    let g0 = await ev('guard');
+    await advance(1.1);
+    s = await st();
+    check('guard blocks', (await ev('guard')) > g0 && s.hero.hp > hp0 - 20, `guard events ${await ev('guard')} hp ${hp0} -> ${s.hero.hp} stamina ${s.hero.stamina}`);
+    await until((x) => x.hero.state === 'idle', 2);
+    await swing();
+    await advance(0.52);                      // the slash is active from 0.62 s: raise the guard just before it
+    await R('__ED.rpg.press("guard", 0.5)');
+    const p0 = await ev('perfectGuard');
+    await advance(0.5);
+    s = await st();
+    check('perfect guard', (await ev('perfectGuard')) > p0 && s.foes[0] && s.foes[0].state === 'stagger', `events ${await ev('perfectGuard')} foe ${s.foes[0] && s.foes[0].state}`);
+    await until((x) => x.hero.state === 'idle', 2);
+    await swing();
+    await advance(0.5);
+    hp0 = (await st()).hero.hp;
+    const d0 = await ev('dodge');
+    await R('__ED.rpg.move(0.3, 1); __ED.rpg.press("dodge", 0.05)');
+    await advance(0.6);
+    await R('__ED.rpg.move(0, 0)');
+    s = await st();
+    check('roll passes through a blow', (await ev('dodge')) > d0 && s.hero.hp === hp0, `dodge events ${await ev('dodge')} hp ${hp0} -> ${s.hero.hp}`);
+    await until((x) => x.hero.state === 'idle', 2);
+    await swing();
+    hp0 = (await st()).hero.hp;
+    await advance(1.0);
+    s = await st();
+    check('an unguarded blow lands', s.hero.hp < hp0 && (await ev('hit')) > 0, `hp ${hp0} -> ${s.hero.hp} state ${s.hero.state}`);
+    await until((x) => x.hero.state === 'idle', 3);
+
+    // camera boom against the arena wall
+    await R('__ED.rpg.clear(); __ED.rpg.lock(null); __ED.rpg.tp(-14.7, 0, 0)');
+    await advance(0.6);
+    s = await st();
+    const camR = await R('Math.hypot(__ED.ctx.camera.position.x, __ED.ctx.camera.position.z)');
+    check('camera stays inside the wall', s.camera.dist < 2.2 && camR < 15.6, `boom ${s.camera.dist} m, camera radius ${camR.toFixed(2)}`);
+
+    // pause
+    await R('__ED.rpg.pause()');
+    const t0 = (await st()).time;
+    await advance(0.5);
+    s = await st();
+    check('pause freezes the world', s.mode === 'pause' && s.time === t0, `${s.mode} time ${t0} -> ${s.time}`);
+    await R('__ED.rpg.resume()');
+    await advance(0.3);
+    s = await st();
+    check('resume', s.mode === 'play' && s.time > t0, `${s.mode} time ${s.time}`);
+
+    // the ultimate on a boss: no lock, one burst with the lock's total damage
+    const bid = await R(`(() => { const r = __ED.rpg; r.clear(); r.tp(0, 0, 0); const id = r.spawn('standin.boss', 4.6, 0, { spawnTime: 0, yaw: Math.PI }); ${still} r.lock(id); r.give({ ult: true, hp: true, stamina: true }); return id; })()`);
+    await advance(0.4);
+    const b0 = (await st()).foes.find((f) => f.id === bid).hp;
+    await R('__ED.rpg.press("ult", 0.05)');
+    const w = await watch(5);
+    s = await until((x) => x.mode === 'play' && x.hero.state === 'idle' && !x.camera.cine, 5);
+    const b1 = s.foes.find((f) => f.id === bid);
+    check('ultimate strike on a boss: no lock', !w.lock, `lock ${w.lock}`);
+    check('ultimate strike damage', b1 && b0 - b1.hp > 350, `boss ${b0} -> ${b1 && b1.hp}`);
+    check('ultimate strike ends clean', s.mode === 'play' && !s.camera.cine && s.hero.state === 'idle', `${s.mode} ${s.hero.state} cine ${s.camera.cine}`);
+    const info = await R('__ED.rpg.checks()');
+    check('systems invariants', info.ok, info.bad.join('; '));
+  }
+
   // the expedition once with the bot (first hero): altar -> gate -> first encounter starts
   if (!process.env.NOFLOW) {
     log('---- flow ----');
@@ -172,8 +267,14 @@ export default async ({ evalJs, advance, shot, log }) => {
     await R('__ED.rpg.god(true)');
     let s = await st();
     check('flow starts at the altar', s.flow === 'altar', s.flow);
-    s = await until((x) => x.flow === 'encounter', 20, 0.25);
+    await evalJs('__ED.render()');
+    const prog0 = (await R('__ED.info()')).programs;
+    s = await until((x) => x.flow === 'encounter' && x.foes.length >= 3, 24, 0.25);
     check('flow reaches the first encounter', s.flow === 'encounter' && s.foes.length > 0, `${s.flow} foes ${s.foes.length}`);
+    await advance(0.5);
+    await evalJs('__ED.render()');
+    const prog1 = (await R('__ED.info()')).programs;
+    check('no program compiled when the encounter spawned', prog1 === prog0, `programs ${prog0} -> ${prog1}`);
     if (shots) await shot('flow_encounter');
     s = await until((x) => x.flow === 'explore' || x.flow === 'boss' || (x.encounter && x.encounter !== s.encounter), 120, 0.5);
     check('bot clears the first encounter', s.flow !== 'encounter' || s.encounter !== 'standin.husks', `${s.flow} ${s.encounter} t ${s.time}`);

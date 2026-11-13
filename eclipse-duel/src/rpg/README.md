@@ -1,9 +1,24 @@
-# src/rpg — 일식 원정 · ECLIPSE EXPEDITION (action-RPG mode)
+# src/rpg — 「강호행 江湖行」 (action-RPG mode; first brief: "일식 원정 · Eclipse Expedition")
 
-A lone hero (KAEL / ISKA / VORN, reused as they are: designs, clips, move data, choreography) walks the Eclipse Ruins
-in free 3D behind a third-person camera: stamina melee, rolls with i-frames, guard / perfect guard, lock-on, a healing
-chalice, an altar to rest and level at, encounters and a colossal boss. This file is the contract between the core
-(this folder's `index.js`, `core/`, `camera.js`) and the teams that plug into it:
+A lone hero (`kael` / `iska` / `vorn`, reused as they are: designs, clips, move data, choreography) walks the arena
+in free 3D behind a third-person camera: stamina melee, rolls with i-frames, guard / perfect guard, lock-on, three
+heals, a rest point to recover and level at, encounters and a colossal boss. This file is the contract between the
+core (this folder's `index.js`, `core/`, `camera.js`) and the teams that plug into it.
+
+**Names.** Code identifiers follow the first brief and do not change; what the player reads follows `MURIM.md` §6
+(the binding art direction). Use the right-hand column in every visible string:
+
+| code / API name | brief | shown to the player (MURIM.md) |
+|---|---|---|
+| the mode, `rpg`, `#rpg=` | Eclipse Expedition | 「강호행 江湖行」 |
+| `altar`, `flow.rest()`, `heroRest` | Starlit Altar | 「정심석 靜心石」, resting = 운기조식 運氣調息 |
+| `chalice`, `drink` | Dawn Chalice | 「회천단 回天丹」 (three pills in a gourd) |
+| `shards` | Eclipse Shards | 「공력 功力」 |
+| stats `vigor` / `endurance` / `might` / `arcana` | Vigor / Endurance / Might / Arcana | 근골 筋骨 / 기식 氣息 / 외공 外功 / 내공 內功 |
+| `level` (`progress.rank(level)`) | level | 경지 境地: 삼류 → 이류 → 일류 → 절정 → 초절정 → 화경 → 현경 |
+| `fp`, `ult`, `hp` | FP / ultimate / HP | 내공 內功 / 오의 奧義 / 기혈 氣血 |
+| foes, elite, `boss` | Ruin Sentinel / elite / Eclipse Colossus | 흑일교 무사 / 흑일교 호법 / 「흑일마신상 黑日魔神像」 |
+| `gate` | mist gate | the mist curtain between two leaning gate pillars |
 
 | folder | owner | plugs in through |
 |---|---|---|
@@ -33,8 +48,10 @@ src/rpg/core/kinds.js       built-in actor kinds: `dummy` (training post), `husk
 src/rpg/core/flow.js        the expedition loop (altar -> encounters -> boss -> new cycle), death / respawn, shards
 src/rpg/core/progress.js    default progression (stats -> multipliers, level cost, save / load)
 src/rpg/core/debughud.js    minimal built-in HUD (used until `ui/index.js` registers one)
-src/rpg/core/clips/         `rpg.<hero>.*` clips (run, sprint, roll, drink, death, rest ...) and `rpg.dummy.*`
-src/rpg/tests/              smoke.mjs, soak.mjs, sheets.mjs, profile.mjs
+src/rpg/core/feel.js        generic feel of every event (sparks, shake, sound, dust, projectile bodies) in stage frames
+src/rpg/core/standin.js     stand-in rest stone + gate posts (until `world/` registers the real dressing)
+src/rpg/core/clips/         `rpg.<hero>.run / sprint / roll / drink / death / rest` (+ `rpg.husk.rise`)
+src/rpg/tests/              smoke.mjs, soak.mjs, gait.mjs, sheets.mjs, profile.mjs
 ```
 
 ---
@@ -46,7 +63,8 @@ node tools/shot.mjs game --as rpg-core --hash "rpg=kael" --size 960x540 --at 1,2
 node tools/shot.mjs game --as rpg-core --hash "rpg=iska&rpgbot" --size 960x540 --at 5,10,15 --sheet-only --out shots/rpg/core/bot
 node tools/shot.mjs game --as rpg-core --size 640x360 --scenario src/rpg/tests/smoke.mjs      # PASS / FAIL lines, every hero
 node tools/shot.mjs game --as rpg-core --size 320x180 --scenario src/rpg/tests/soak.mjs       # bot vs 3 husks, 3 simulated minutes
-HERO=vorn node tools/shot.mjs game --as rpg-core --size 960x540 --scenario src/rpg/tests/sheets.mjs --out shots/rpg/core/vorn
+node tools/shot.mjs game --as rpg-core --size 320x180 --scenario src/rpg/tests/gait.mjs       # planted-foot slide of run / sprint
+HERO=vorn SECTIONS=circle,chain,ult node tools/shot.mjs game --as rpg-core --size 960x540 --scenario src/rpg/tests/sheets.mjs --sheet 6 --sheet-only --out shots/rpg/core/vorn
 node tools/shot.mjs game --as rpg-core --hash "prof&q=high" --size 960x540 --scenario src/rpg/tests/profile.mjs
 ```
 
@@ -58,9 +76,9 @@ node tools/shot.mjs game --as rpg-core --hash "prof&q=high" --size 960x540 --sce
 | `#rpgsandbox` | no expedition flow: an empty arena with one training dummy (tests, captures, tuning) |
 | `#seed=N`, `#q=`, `#prof`, `#test` | as in the duel |
 
-The duel game is untouched: `createRpg` is created next to `createGame` in `src/main.js`; the title screen has an
-`일식 원정` entry (`ui` event `expedition` with the hero id) and `game.expedition(hero)` / `rpg.stop()` hand the stage
-back and forth.
+The duel game is untouched: `createRpg` is created next to `createGame` in `src/main.js`; the title screen has a
+`강호행 江湖行` row with one button per hero (`ui` event `expedition`, hero id); `game.expedition(hero)` →
+`rpg.start(hero)` (which calls `game.leaveForRpg()`: the duel session is disposed) and `rpg.toTitle()` → `game.title()`.
 
 ---
 
@@ -105,7 +123,7 @@ with everything else). `rpg` is the registry:
 |---|---|
 | `rpg.actor(kind, spec)` | register (or replace) an actor kind — section 5 |
 | `rpg.encounter(def)` | register (or replace by `id`) an encounter — section 9. Registering any encounter with `order < 100` replaces the core's stand-in encounters; `boss: true` replaces the stand-in boss |
-| `rpg.world(factory)` | `factory(ctx, world) -> { update?(dtGame, dtReal), dispose?(), altar?: {x, z, yaw}, gate?: {x, z, yaw, r}, heroSpawn?: {x, z, yaw} }`: world dressing, colliders, triggers — section 8 |
+| `rpg.world(factory)` | `factory(ctx, world) -> { update?(dtGame, dtReal), dispose?(), altar?: {x, z, yaw}, gate?: {x, z, yaw, r}, heroSpawn?: {x, z, yaw} }`: world dressing, colliders, triggers — section 8. Called at every `start()` (not in `#rpgsandbox`), before the hero exists |
 | `rpg.ui(factory)` | `factory(ctx, api) -> { start(snapshot), stop(), update(snapshot, dtReal), dispose?() }`: replaces the debug HUD — section 11 |
 | `rpg.progress(obj)` | replaces the default progression — section 12 |
 | `rpg.setup(fn)` | `fn({ ctx, vfx, fx })` once at boot before the VFX prewarm (define presets, particle definitions) |
@@ -139,6 +157,10 @@ Everything else a plug-in needs is on the **world** (`world`, section 4) that it
 | `world.shoot(owner, spec) -> projectile` | 3D projectile (section 6.4) |
 | `world.hitstop(sec)`, `world.slowmo(scale, dur)` | `ctx.time` passthroughs |
 | `world.findTargets(actor, range)` | hostile live actors within range (sorted by distance; scratch array) |
+| `world.byId(id)`, `world.hostile(a, b)`, `world.frozen(actor)` | lookup; may a hit b (teams; `neutral` is hit by the hero only); is the actor held by a world freeze |
+| `world.fxAt(actor, preset, [f, u, s], opts)` | play a VFX preset at a point of the actor frame, oriented with the actor (stage frame, section 6.5) |
+| `world.freeze` | `{ owners: [actors], left, onEnd }` or null: everyone but the owners (and projectiles) is held (super-freeze, lock, boss cinematics) |
+| `world.present` | the choreography adapter: `sound(name, { pos })`, `call(actor, fn, key, e)`, `helperOf(actor)` (the `h` of section 6.5), `feel` |
 | `world.flow` | the expedition flow (section 9) |
 | `world.camera` | the third-person camera (section 10) |
 
@@ -165,17 +187,22 @@ actor = {
   hp, hpMax, poise, poiseMax,
   stamina, staminaMax, fp, fpMax, ult, ultMax,      // heroes (enemies: stamina is Infinity unless the spec gives it)
   state, stateTime, stateDur,                       // state machine (below)
-  attack,                   // running attack instance | null: { def, id, t, tPrev, serial, hitCount, target, connected }
+  attack,                   // running attack instance | null: { def, id, t, tPrev, serial, hitCount, target, connected, contact }
   target,                   // the actor it fights (hero: the lock-on target or the soft target)
   intent,                   // what its controller asked for this step (section 5.3)
   controller,               // { think(world, actor, dt, intent) }
-  char,                     // src/char Character (or spec.create()'s view) — world matrices valid after ORDER.CHAR
-  alive, dead, invuln, armour, guarding,            // flags refreshed every step
+  char,                     // src/char Character (or spec.create()'s object) — world matrices valid after ORDER.CHAR
+  view, clips,              // presentation (core/view.js): view.pos (interpolated root), view.play / setOffset / flash /
+                            // impulse / glow / trailStart; clips.state(slot) / clips.move(attackId) -> { name, ... }
+  alive, dead, gone, invuln, armour, guarding, ghost,   // flags refreshed every step (ghost: passes through foes)
+  cine,                     // true: the machine and the clip selection stand back (choreography / scripts drive it)
   level, mult: { damage, hp },                      // scaling (cycle / level)
   data,                     // free per-kind storage (AI memory, boss phase ...)
   // helpers
   at(f, u, s, out) -> world Vector3 in the actor frame;  socket(name, out) -> world position of a char socket
-  distTo(other), angleTo(other) (signed rad from its facing), 
+  distTo(other), angleTo(other) (signed rad from its facing),
+  setState(name, dur), stun(kind, dur, { vx, vz, vy }), startAttack(idOrDef, { target, force, aim }), endAttack(reason),
+  die(by), teleport(x, z, yaw)
 }
 ```
 
@@ -213,11 +240,15 @@ rpg.actor('sentinel', {
   clips: { idle: 'rpg.foe.sentinel.idle', walk: '…', run: '…', flinch: '…', stagger: '…', down: 'game.down',
            getup: 'game.getup', dead: '…', spawn: '…', guard: '…' },   // missing slots fall back to game.* / demo.*
   attacks: { slash: { ...attack def, section 6... }, lunge: {...} },
-  roll: null, guard: null,                   // or { cost, distance, duration, invuln: [a, b] } / { perfect, arc, drain }
+  roll: null, guard: null,                   // or { cost, distance, duration, travel, invuln: [a, b], actFrom } / { perfect, arc (deg), speed }
+  taken: 1, lockable: true,                  // damage-taken multiplier; false = never held by an ultimate lock / skipped by auto lock-on
+  spawnTime: 0.6, corpseTime: 2.4, downTime: 0.9, getupTime: 0.7,
+  element: 'steel',                          // 'ember' | 'frost' | 'volt' | 'steel': palette of its generic sparks / trails
   controller: (world, actor) => ({ think(world, actor, dt, intent) { ... } }),     // section 5.3
   present: { markers: { name(h, e) {} }, moves: { slash: { swing(h, e) {}, hit(h, e) {} } }, on: { death(h, e) {} } },   // optional choreography, same shape as the fighters' (section 6.5)
-  step: null,                                // (world, actor, dt) => void: replaces the humanoid machine entirely (boss)
-  onSpawn(world, actor, opts) {}, onDeath(world, actor, by) {}, onHit(world, actor, e) {},   // optional hooks
+  step: null,                                // (world, actor, dt) => void: replaces the humanoid machine entirely (boss);
+                                             // it may still call updateAttack / locomotion / slide exported by core/actor.js
+  onSpawn(world, actor, opts) {}, onDeath(world, actor, by) {}, onHit(world, actor, e) {}, onPoiseBreak(world, actor, by) {},   // optional hooks
   hurt: null,                                // optional hurt volumes instead of the body cylinder (boss): section 6.3
   budget: 'foe',                             // 'foe' counts toward world.maxFoes; 'boss' / 'prop' do not
 });
@@ -244,8 +275,10 @@ intent = {
 }
 ```
 
-The intent object is reset before every `think`. Built-in controllers: `core/hero.js` `humanController(ctx, world)`
-(reads `ctx.input` + the camera), `core/bot.js` `botController()`, `core/kinds.js` `meleeController(opts)` — a
+The intent object is reset before every `think`. A controller may also have `frame(dtReal)`: called once per rendered
+frame for the hero (the human controller latches presses there, so nothing is lost during a hit-stop).
+Built-in controllers: `core/hero.js` `humanController(ctx)` (reads `ctx.input` + the camera), `core/bot.js`
+`botController()`, `core/kinds.js` `meleeController(opts)` — a
 reusable approach / circle / telegraphed-attack / back-off AI that foes may configure instead of writing their own:
 
 ```js
@@ -282,6 +315,7 @@ controller: (world, actor) => meleeController({ attacks: [{ id: 'slash', range: 
   projectiles: [{ t: 0.4, ...section 6.4 }],
   markers: [{ t: 0.3, name: 'swing', data: { shake: 0.3, audio: 'swing_heavy' } }],   // -> `marker` events + choreography
   cancel: { from: 0.7 },                     // the actor may act again from here (default: duration)
+  rollFrom: 0.6,                             // a roll may interrupt from here (default: min(cancel.from, last active + 0.14))
 }
 ```
 
@@ -312,6 +346,7 @@ the cylinder analytically in the attacker frame; spheres / capsules in world spa
    `unblockable`): `guardTime < spec.guard.perfect` → **perfect guard**: no damage, no stamina, the attacker takes
    `poise × 2.5` poise damage and is staggered unless it has armour → `perfectGuard`. Otherwise stamina −= `hit.guard`;
    stamina left → `guard` (chip damage, `guardhit`); none left → `guardBreak` (full `stagger`, 60 % damage).
+   A fighter move with a `counter` stance (KAEL's bulwark) swallows the hit instead: `counter` event, its follow-up starts.
 4. **Hit**: `damage = hit.damage × attacker.mult.damage × (group multiplier from progression) × victim.spec.taken`;
    `poise −= hit.poise`. Reaction: armour window or (poise still > 0 and the kind has `poise > 0`) → none (`armoured`),
    else by `level` (`flinch`, `stagger`, `launched`, crumple → `stagger` long then `down`, `knockdown`). A poise break
@@ -395,7 +430,10 @@ Payloads are plain objects; `attacker` / `victim` / `actor` are actors.
 | `state` | `{ actor, from, to }` | state change |
 | `attackStart` / `attackEnd` | `{ actor, attack, id, reason }` | `reason`: `complete \| cancel \| interrupted \| death` |
 | `marker` | `{ actor, attack, id, name, data, t }` | attack timeline marker |
-| `hit` | `{ attacker, victim, attack, hit, id, kind: 'strike' \| 'projectile' \| 'tick' \| 'effect', damage, level, reaction, armoured, part, pos: {x,y,z}, dirX, dirZ, hitstop, killed, front, crit }` | a hit dealt damage |
+| `hit` | `{ attacker, victim, attack, hit, id, kind: 'strike' \| 'projectile' \| 'effect', damage, level, reaction, armoured, part, pos: {x,y,z}, dirX, dirZ, hitstop, killed, front, crit }` | a hit dealt damage |
+| `tick` | same shape (`kind: 'tick'`, `final`, `marker`, `strike`) | damage of an ultimate lock tick / finish, or the whole ultimate strike on a boss (HUD: damage numbers) |
+| `counter` | `{ actor, attacker, attack, id, move }` | a counter stance swallowed a hit |
+| `teleport` | `{ actor, fromX, fromZ }` | an attack teleported its user |
 | `guard` / `perfectGuard` / `guardBreak` | same shape as `hit` (`blocked: true`) | blocked hits |
 | `dodge` | `{ actor, attacker, perfect }` | a hit passed through i-frames |
 | `roll` | `{ actor, dirX, dirZ }` | roll started |
@@ -414,6 +452,9 @@ Payloads are plain objects; `attacker` / `victim` / `actor` are actors.
 | `step`, `land` | `{ actor, foot }` | footsteps (clip `step` events), landings |
 | `projectileSpawn` / `projectileActive` / `projectileExpire` | `{ projectile, owner, kind, pos, reason }` | section 6.4 |
 | `mode` | `{ mode, prev }` | `off \| play \| pause \| dead \| rest \| cine \| victory` |
+| `cine` | `{ on }` | the camera entered / left a cinematic |
+| `announce` | `{ text, sub, style, actor }` | a name card request (ultimate name; boss teams may emit their own) |
+| `gate` / `interact` | `{ hero }` / `{ trigger, actor }` | the gate was passed / an interact trigger fired |
 
 ---
 
@@ -433,10 +474,12 @@ rpg.world((ctx, world) => {
 });
 ```
 
-Without a world module the core places an invisible altar at `(-11, 0, 6.5)` and a gate ring at `(-5, 0, 2)` with
-simple marker props, so the loop is playable. `world.flow.places` holds the resolved `{ altar, gate, heroSpawn }`.
-The dropped-shards marker and its reclaim trigger are placed by the flow (`world.flow.dropped`); a world module may
-replace the visual by listening to `heroDeath` / `shards`.
+Without a world module the core places a stand-in rest stone at `(-11, 0, 6.5)` and two gate posts at `(-5, 0, 2.4)`
+(`core/standin.js`), so the loop is playable; with one, the stand-in props are not built. `world.flow.places` holds
+the resolved `{ altar, gate, heroSpawn }`. The flow itself adds the rest trigger (r 2.4 around `altar`, prompt
+"정심석에서 운기조식") and the gate trigger (r `gate.r`): a world module only supplies positions and dressing.
+The dropped-`shards` marker (one small mesh, `rpg-dropped-shards`) and its walk-over reclaim trigger are the flow's
+(`world.flow.dropped`); a world module may add its own visual on `heroDeath` / `shards`.
 
 ---
 
@@ -481,11 +524,13 @@ keep working (their samples are added), and cinematics still go through `ctx.cam
 | member | meaning |
 |---|---|
 | `yaw`, `pitch`, `dist` | orbit state (rad, rad, m). `look(dyaw, dpitch)` adds free-look input |
-| `params` | `{ dist: 4.2, height: 1.55, shoulder: 0.45, fov: 46, pitchMin: -0.5, pitchMax: 1.0, lag: 0.09, lockLag: 0.18, sens: 0.0042 ... }` live tuning |
-| `lock(target \| null)`, `target`, `switch(dir)` | lock-on (toggle picks the best target in front of the camera within 16 m; `switch(±1)` by screen angle; auto-release when the target dies or is farther than 22 m) |
+| `params` | live tuning: `{ dist: 4.4, height: 1.5, shoulder: 0.4, fov: 50, pitch: 0.22, pitchMin: -0.55, pitchMax: 1.05, lockPitch: 0.4, lockShoulder: 0.62, lockYaw: 0.09, lag: 0.085, lockLag: 0.16, recover: 0.2, minBoom: 0.7, floor: 0.25, autoFollow: 0.9, lockRange: 16, lockBreak: 22 }` (m, rad, s; fov deg, widened on portrait viewports) |
+| `lock(target \| null)`, `toggleLock()`, `target`, `switch(dir)` | lock-on (the toggle picks the best target in front of the camera within 16 m; `switch(±1)` = next target to the left / right; auto-release when the target dies or is farther than 22 m). Locked: the camera looks down over the hero's shoulder, the hero left of the target |
 | `setFraming({ point?: fn(out) \| socket, back = 0, up = 0, pitch = 0, fov = 0 })` / `setFraming(null)` | boss framing hook: aim at a body point, pull back / raise / tilt up while that target is locked. A `boss` kind gets a default from its `scale` |
 | `cine(shots, { anchor: actor, target?: actor, side?: 1 \| -1, blendOut = 0.6, onDone, hud = true })` | play `src/cam` shots around an actor in its stage frame, then blend back to the follow camera |
-| `worldShot(fn, { dur, blendOut })` | free cinematic: `fn(t, out)` writes `out.pos / out.look / out.fov` in world space (boss intro, death) |
+| `worldShot(fn, { dur, blendOut, clock: 'game' \| 'real', onDone })` | free cinematic: `fn(t, out)` writes `out.pos / out.look` (Vector3) and `out.fov` in world space (boss intro, death) |
+| `endCine(completed, blend?)`, `cinematic` | end the running cinematic and blend back; is one running |
+| `zoom(factor, dur)`, `focusPoint(target, out)`, `project(worldPos, out)` | temporary push-in; the lock aim point of a target; world → stage CSS pixels `{ x, y, visible }` |
 | `focus` | world point the camera looks at (also fed to `ctx.shadows` / `env.setFocus`) |
 | `snap()` | jump behind the hero (respawn, teleport) |
 | `forward(out)`, `yawOf()` | camera-relative basis for input |
@@ -532,8 +577,11 @@ Touch controls feed `ctx.input` (`setVirtual(action, down)`, `setVirtualMove(x, 
 ### Input (additive, `src/input`)
 
 `input.setMode('rpg')` (set by the mode) remaps: `WASD` move, **arrows look**, `Q` / `Tab` lock, `R` chalice, `E`
-interact, left / right mouse = light / heavy, mouse drag = look, wheel = switch target. New actions (appended to
-`ACTIONS`, so the duel's bit order is unchanged): `lock chalice interact lookL lookR lookU lookD lockL lockR`.
+interact, mouse: left button = light (on press), right button = look drag / heavy on a short click, any drag looks,
+wheel = switch target (only presses that land on the stage canvas count, never on UI controls). Gamepad: left stick
+move, right stick look, R3 lock, d-pad ↑ chalice, ↓ / L3 interact, ← → switch target, the duel's face buttons.
+New actions (appended to `ACTIONS`, so the duel's bit order is unchanged): `lock chalice interact lookL lookR lookU
+lookD lockL lockR`.
 
 | call | meaning |
 |---|---|
@@ -558,6 +606,7 @@ export default {
         // base = { hp, fp, stamina } of the hero (fighter stats); phys multiplies normal moves, arcane skills + ultimate
   cost(level) -> shards,        // price of the next level
   levelUp(state, stat) -> bool, // spend + raise (the core calls save and re-derives)
+  rank(level) -> string,        // optional: the 경지 title of a level
 };
 ```
 The core keeps `world.hero.prog` (the state) and `world.hero.derived`; it calls `save` on rest, level-up, death,
@@ -571,9 +620,11 @@ physical, arcana +5 % arcane and +4 % FP per point.
 | member | meaning |
 |---|---|
 | `active`, `mode`, `world`, `camera`, `hero` | state |
-| `start(hero = 'kael', { bot, sandbox, encounter, seed })` | enter the mode (disposes the duel session, `ctx.cam.setMode('free')`, hides the duel HUD, `env.setMood(null)`, prewarm + compile) |
+| `start(hero = 'kael', { bot, sandbox, encounter, seed })` | enter the mode (disposes the duel session, `ctx.cam.setMode('free')`, `ui.show('none')`, `input.setMode('rpg')`, `env.setMood(null)`, `vfx.clear()`, prewarm hooks + `renderer.compile`). `sandbox`: no flow, no dressing, hero at the centre and one `dummy` |
 | `stop()` | leave: everything created is disposed, camera / HUD / input mode / mood restored (the caller shows the title) |
-| `pause()`, `resume()`, `toTitle()` | pause menu actions |
+| `pause()`, `resume()`, `toTitle()` | pause menu actions (`pause` action / Esc toggles; `toTitle` = `stop()` + the duel's title) |
+| `levelUp(stat)`, `leaveAltar()`, `rest()`, `nextCycle()`, `respawn()` | HUD actions (section 11) |
+| `heroes`, `registry` | hero ids available; the registry |
 | `snapshot()` | section 11 (the test API returns a JSON copy) |
 | `on(event, fn)`, `project(pos, out)` | events, world → stage pixels |
 | **test API only** | |
@@ -596,4 +647,38 @@ physical, arcana +5 % arcane and +4 % FP per point.
 
 ## 14. Limits and known gaps
 
-See the bottom of this file (kept exact by the core team as the slice evolves).
+Movement and combat
+* **Turn-to-move, no strafe clips.** The hero always runs facing its direction of travel (also while locked: the lock
+  aims the camera and the attacks). Only the guard walk strafes: it reuses the fighter's forward / backward stance
+  walk with the guard pose layered on the upper body, so sideways guard steps slide a little.
+* **Stagger** uses the fighters' own `hitLight` / `hitHeavy` clips; knockdown / getup the generic `game.*` clips.
+* Heroes have no poise (every clean hit staggers them unless a move's own armour window is active); heroes cannot be
+  locked by an enemy's cinematic.
+* The duel's `requires` field of a move (ISKA's afterimage `maxDistance`) is not enforced; `teleport: 'behind'`
+  with no target steps forward instead.
+* Projectile-vs-projectile clashes and juggle points of the duel rules do not exist here.
+
+Choreography in 3D (section 6.5) — what differs from the duel
+* Handlers that guard their camera with `ctx.cam.mode === 'fight'` (KAEL Fault Eruption ground skim, the bulwark
+  crash zoom, ISKA's skill shots) do not run: the director is in `'free'` mode. `h.cam.play` is honoured only while an
+  ultimate is being presented; marker `cam` hints are ignored.
+* `h.announce`, the ULT cut-in card and combo counters of the duel HUD are not shown: the adapter emits `announce`
+  (the RPG HUD draws its own card). `ctx.game.session` is null, so the fighters' result-screen bookkeeping is skipped.
+* Particle *definitions* that carry a horizontal `vel` / `gravity` vector, and `side` hints baked into a definition,
+  keep world axes (only per-spawn values are rotated by the stage frame). None of the shipped fighter effects
+  depends on one.
+* During a mirrored cinematic (`camera.cine` picked the hero's left side because the right is against the wall) the
+  choreography's "toward the camera" offsets (`s > 0`) point away from the lens.
+* ISKA's ultimate flips `char.setFacing(-1)` while she circles the crystal (as in the duel): the model is mirrored
+  for those beats; the adapter restores `setFacing(1)` when the lock ends.
+* Against a `boss` kind the ultimate is the **strike**: super-freeze + opener as authored, then one burst with the
+  lock's total damage and the element's climax preset scaled to the target. The fighter's lock storyboard
+  (`ult.at`, `ult.shots`, `ult.tick`) is not played there.
+
+World / budgets
+* `env.setFocus(x)` (read-only API of `src/env`) only follows X; the shadow window follows the casters through
+  `ctx.shadows`, but the key-light mask of the env stays centred on the old fight line (z = 0).
+* `world.spawn` builds the character at spawn time (geometry build = a CPU hitch of a few ms for the husk, more for
+  heavy designs). Kinds with expensive designs should be warmed in `rpg.prewarm` (build one, dispose it) or kept small.
+* The stand-in boss is the husk scaled 3.6x with three slow attacks: it exists so the loop, the boss bar, boss
+  framing and the ultimate strike can be tested before `src/rpg/boss` lands.

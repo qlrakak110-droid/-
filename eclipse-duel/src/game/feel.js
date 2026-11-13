@@ -37,15 +37,16 @@ export function createFeel(ctx, session) {
   if (ctx.vfx && ctx.vfx.afterimageProxy) for (const a of session.actors) { try { ctx.vfx.afterimageProxy(a.char.root); } catch (err) { /* ghosts fall back to the full meshes */ } }
 
   /**
-   * Afterimage of a fighter in its element palette. A ghost copies every mesh of the character (~60k triangles), so the
-   * generic ones are rate-limited to one per fighter per 0.25 s of game time (`force` for the perfect dodge).
+   * Light-foot afterimages of a fighter in its element palette: a short trail of ghosts (each one draw of the
+   * character's decimated silhouette proxy; the VFX pool caps the ghosts alive per fighter). The generic ones are
+   * rate-limited to one trail per fighter per 0.25 s of game time (`force` for the perfect dodge).
    */
   const ghostAt = [-1, -1];
-  function ghost(A, life, intensity = 0.7, force = false) {
+  function ghost(A, life, intensity = 0.7, force = false, count = 2) {
     const t = ctx.time.game;
     if (!force && t - ghostAt[A.index] < 0.25) return;
     ghostAt[A.index] = t;
-    fx.call('afterimage', A.char.root, { palette: A.element, life, intensity });
+    fx.call('afterimage', A.char.root, { palette: A.element, life, intensity, count, interval: 0.045 });
   }
 
   /** Contact point slightly in front of the bodies (toward the camera) so sparks are never buried. */
@@ -88,7 +89,12 @@ export function createFeel(ctx, session) {
     if (k >= 0.9) cam.kick({ fov: -1.2 - 1.8 * Math.min(1, k - 0.9), duration: 0.28 });
     post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
     if (k >= 0.9) { post.radialAt(pos); post.pulse('radial', 0.22 + 0.35 * Math.min(1, k - 0.9), { attack: 0.01, release: 0.22 }); }
-    if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 0.7 });
+    if (e.counter || finisher || group === 'ult') {
+      // the ink frame: two-tone ink on paper for 2-3 frames, with brushed radial lines converging on the contact
+      const dur = e.counter && !finisher ? 0.034 : 0.05;
+      post.impactFrame({ duration: dur, invert: 0, mono: 0.75 });
+      fx.call('speedlines', { pos, life: dur + 0.05, intensity: 0.55, density: 64, inner: 0.32, thickness: 1.7, boil: 30, attack: 0.01, release: 0.05, realtime: true });
+    }
     if (finisher) post.flash(tintOf(A), 0.1, { release: 0.15 });
     session.sound(lvl === 'light' ? 'hit_slash_light' : 'hit_slash_heavy', { pos });
     if (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple') session.sound('hit_blunt', { pos, volume: 0.65 });
@@ -392,7 +398,7 @@ export function createFeel(ctx, session) {
     ctx.time.slowmo(0.35, 0.4, { easeIn: 0.02, easeOut: 0.2 });
     post.pulse('chroma', 0.45, { release: 0.35 });
     A.char.flash([1.5, 3, 5], 0.6, 0.3);
-    ghost(A, 0.45, 0.8, true);
+    ghost(A, 0.45, 0.8, true, 3);
     session.sound('slowmo_in', { volume: 0.45 });
   }
   function land(e) {

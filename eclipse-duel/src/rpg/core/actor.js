@@ -241,7 +241,9 @@ export function updateAttack(world, a, dt) {
   const t = inst.t, tp = inst.tPrev;
   // the world freeze of an ultimate holds everything but its owner
   const tgt = inst.target && inst.target.alive ? inst.target : null;
-  if (def.track && t <= def.track.until + EPS && tgt && !a.spec.noTrack) {
+  // (a move that passes through its target stops tracking once it does: it must not turn back mid-dash)
+  const passed = def.passThrough.length > 0 && t >= def.passThrough[0].t0;
+  if (def.track && t <= def.track.until + EPS && tgt && !passed && !a.spec.noTrack) {
     a.yaw = turnToward(a.yaw, yawTo(tgt.pos.x - a.pos.x, tgt.pos.z - a.pos.z), def.track.rate * dt);
   }
   // motion along the facing; a solid target in the way stops it (nothing tunnels) unless the move passes through

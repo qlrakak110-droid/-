@@ -41,12 +41,13 @@ export function installLights(vfx, shared) {
   let fogScan = -1e9, fogFrame = 0, fogOn = false;
   const isOurs = (o) => { for (; o; o = o.parent) if (o === root) return true; return false; };
   const shown = (o) => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+  const collectEnv = (o) => { if (o.isPointLight && !isOurs(o)) envLights.push(o); };
   function updateFog() {
     if (!fog.enabled) { if (fogOn) { post.fogLights(null); fogOn = false; } return; }
     if (!fogOn) { post.fogLights(fogList); fogOn = true; }
     if (++fogFrame - fogScan > 120) {
       envLights.length = 0;
-      ctx.scene.traverse((o) => { if (o.isPointLight && !isOurs(o)) envLights.push(o); });
+      ctx.scene.traverse(collectEnv);
       fogScan = fogFrame;
     }
     for (let i = 0; i < FOGN; i++) { fogPick[i] = null; fogW[i] = 0; }

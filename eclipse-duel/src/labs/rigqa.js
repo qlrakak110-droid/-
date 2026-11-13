@@ -751,7 +751,7 @@ function testShippedCloth(ids = ['kael', 'iska', 'vorn']) {
     // CPU
     // (the first update after each reset re-hangs the cloth: 10 settling steps, a respawn cost, not a frame's)
     const best = [];
-    for (let rep = 0; rep < 7; rep++) {
+    for (let rep = 0; rep < 11; rep++) {
       let j = 0;
       for (const clip of CLOTH_CLIPS[id]) {
         qa.resetForQA(c, clip, {});
@@ -764,7 +764,7 @@ function testShippedCloth(ids = ['kael', 'iska', 'vorn']) {
       }
     }
     const mean = best.reduce((a, x) => a + x, 0) / best.length;
-    check(`${id}: CPU char.update, full design with cloth (ms, mean of per-frame minima over 6 runs)`, r(mean, 3), 1.0);
+    check(`${id}: CPU char.update, full design with cloth (ms, mean of per-frame minima over 10 runs)`, r(mean, 3), 1.0);
     out[id] = { free: free.length, head, low: r(low, 4), nan, cpu: r(mean, 3) };
   }
   return out;
