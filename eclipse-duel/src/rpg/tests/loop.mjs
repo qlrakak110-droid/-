@@ -5,12 +5,13 @@ export default async ({ evalJs, advance, shot, log }) => {
   const hero = process.env.HERO || 'kael', max = +(process.env.MAX || 420);
   await evalJs(`__ED.rpg.start('${hero}', { bot: true })`);
   if (process.env.GOD) await evalJs('__ED.rpg.god(true)');
+  await evalJs('window.__deaths = 0; __ED.rpg.world().on("heroDeath", () => { window.__deaths++; })');
   let won = false;
   for (let t = 0; t < max && !won; t += 15) {
     await advance(15);
-    const s = await evalJs('(() => { const s = __ED.rpg.state(), n = __ED.rpg.snapshot(); return { mode: s.mode, flow: s.flow, hp: Math.round(s.hero.hp), hs: s.hero.state, pills: n.hero.chalice, foes: s.foes.map((f) => f.kind + ":" + Math.round(f.hp) + ":" + f.state + (f.attack ? "/" + f.attack : "")), boss: n.boss && { hp: Math.round(n.boss.hp), phase: n.boss.phase } }; })()');
+    const s = await evalJs('(() => { const s = __ED.rpg.state(), n = __ED.rpg.snapshot(); return { mode: s.mode, flow: s.flow, hp: Math.round(s.hero.hp), hs: s.hero.state, pills: n.hero.chalice, foes: s.foes.map((f) => f.kind + ":" + Math.round(f.hp) + ":" + f.state + (f.attack ? "/" + f.attack : "")), boss: n.boss && { hp: Math.round(n.boss.hp), phase: n.boss.phase }, cycle: n.cycle, deaths: window.__deaths || 0 }; })()');
     log((t + 15) + 's ' + JSON.stringify(s));
-    if (s.flow === 'victory') won = true;
+    if (s.flow === 'victory' || s.cycle > 0) won = true;      // the bot starts the next cycle 6 s after the victory
     if (process.env.SHOTS && (t % 60 === 45)) await shot('t' + (t + 15));
   }
   log('checks ' + JSON.stringify(await evalJs('__ED.rpg.checks()')));

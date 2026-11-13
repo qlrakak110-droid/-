@@ -80,6 +80,10 @@ const ATTACKS = {
   },
 };
 
+// tuning: an autoplaying hero (no real dodging) reaches phase 2 and dies there; a little off the damage keeps the fight
+// hard but lets three pills carry a careful player through
+for (const atk of Object.values(ATTACKS)) for (const h of atk.hits) h.damage = Math.round(h.damage * 0.85);
+
 /** The idol's mind: close in with a slow march, pick by distance and bearing, rest between attacks (less in phase 2). */
 function brain() {
   const OPTIONS = [
@@ -121,7 +125,7 @@ function brain() {
             it.attack = o.id;
             m.last2 = m.last; m.last = o.id;
             if (o.cd) m.castCool = o.cd;
-            m.cool = ATTACKS[o.id].duration + (m.phase === 2 ? world.rng.range(0.35, 0.9) : world.rng.range(0.8, 1.6));
+            m.cool = ATTACKS[o.id].duration + (m.phase === 2 ? world.rng.range(0.5, 1.1) : world.rng.range(0.8, 1.6));
             return;
           }
         }
@@ -283,7 +287,7 @@ export default function install(rpg) {
       const lead = 0.35 + 0.1 * i;
       const x = hero.pos.x + hero.vel.x * lead + (hero.moveX || 0) * (hero.speed || 0) * lead, z = hero.pos.z + hero.vel.z * lead + (hero.moveZ || 0) * (hero.speed || 0) * lead;
       world.shoot(a, { kind: 'idol.sunfire', pos: { x, y: 0, z }, speed: 0, ground: true, delay: 0.85, lifetime: 0.5, radius: 1.5, height: [0, 4.5],
-        hit: { damage: 84, level: 'launch', poise: 40, hitstop: 0.1, guard: 40 }, data: { huge: i === 3 } });
+        hit: { damage: 70, level: 'launch', poise: 40, hitstop: 0.1, guard: 40 }, data: { huge: i === 3 } });
     },
     crackle(world, a) {
       world.fxAt(a, 'combat.charge.gather', [0.5, 3.0, 0], { element: 'eclipse', scale: 3, duration: T.enrage.roar - 0.3 });
