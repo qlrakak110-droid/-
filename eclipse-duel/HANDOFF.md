@@ -31,6 +31,14 @@ Done in session 2 (one agent, no fan-out):
 | **Mobile GPU** | A real Android phone showed a hero-shaped white blob with black specks: NaN pixels (GLSL `pow(x, y)` with `x < 0` is NaN on mobile, not on SwiftShader) clamped to 48 by the bloom prefilter. Fixed blind: `tools/safepow.py` rewrote all 73 GLSL `pow()` calls (`pow(X, 2.0)` -> `X * X`, others `pow(max(X, 0.0), Y)`), NaN scrubs in the bloom prefilter, the composite, the character material (`opaque_fragment`) and the ghost shader. **Not yet confirmed on the device.** New shaders must follow the same rule. |
 | Tests | `src/rpg/tests/boss.mjs` (sheets per attack: `SECTION=sweep SIDE=1`), `loop.mjs` (whole expedition with the bot: passes, victory at ~400 s in god mode), `touch.mjs` (touch smoke test, run with `--touch --size 844x390`). |
 
+**Blender asset path (works end to end, session 2):** `/opt/blender-env/venv/bin/python tools/blender/heroes/idol.py [--preview]`
+models the boss on the exported rig (`node tools/blender/export_rig.mjs idol --design src/rpg/boss/rigdesign.js#idolRig --no-poses`)
+and writes `src/rpg/boss/idol.edb` (EDB1: rigid pieces per bone, per-vertex colour / cavity (ray-cast AO) / glow; 137 pieces,
+78k triangles, 1.2 MB; esbuild loader `.edb: binary`), decoded in `src/rpg/boss/design.js` into `kit.add` pieces. 8 s per
+run; `src/rpg/tests/bossmodel.mjs` = in-engine review sheet. The same path (rigid pieces + the kit's skinned under-body)
+is the cheapest way to re-dress the cultists and, with `ed/skin.py` for soft parts, the heroes. `ed/cloth.py`, `ed/bake.py`
+and the older EDM1 loader still do not exist.
+
 Still open, in the order I would take them: confirm the phone rendering; bespoke clips for the cultists; a real RPG HUD;
 360° arena; murim hero models (Blender pipeline) and the 108-clip motion pass; audio re-voice; per-tier performance on
 real hardware. Sections 3-4 below are the state BEFORE session 2 (the RPG rows are superseded by the table above).

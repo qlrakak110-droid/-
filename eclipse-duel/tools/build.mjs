@@ -27,7 +27,7 @@ const result = await build({
   sourcemap: dev ? 'inline' : false,
   write: false,
   target: ['es2020'],
-  loader: { '.glsl': 'text', '.css': 'text', '.svg': 'text', '.txt': 'text' },
+  loader: { '.glsl': 'text', '.css': 'text', '.svg': 'text', '.txt': 'text', '.edb': 'binary' },
   define: { __DEV__: JSON.stringify(dev), __TARGET__: JSON.stringify(target) },
   legalComments: 'none',
   logLevel: 'warning',
