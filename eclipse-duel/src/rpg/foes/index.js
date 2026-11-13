@@ -7,6 +7,7 @@
 import { meleeController } from '../core/kinds.js';
 import { cultBase } from './rigdesign.js';
 import { decodeEdb, addEdbPieces } from '../edb.js';
+import { sequence } from '../cine.js';
 import CULTIST from './cultist.edb';
 import PROTECTOR from './protector.edb';
 
@@ -59,6 +60,29 @@ function attacks(k = 1, reach = 1) {
 const CLIPS = { idle: 'demo.idle', walk: 'game.walkF', run: 'game.walkF', flinch: 'game.hitLight', stagger: 'demo.hit', guard: 'demo.guard', dead: 'game.koDown', spawn: 'rpg.husk.rise' };
 
 export default function install(rpg) {
+  let ctx = null;
+  rpg.setup((x) => { ctx = x.ctx; });
+  // the cult steps out of the dark: a short shot past their shoulders toward the hero when an encounter begins
+  rpg.on('encounterStart', (e) => {
+    const world = ctx && ctx.rpg && ctx.rpg.world, hero = world && world.hero, sp = e.def && e.def.spawns;
+    if (!hero || !sp || !sp.length || e.def.boss || !world.camera) return;
+    let cx = 0, cz = 0;
+    for (const q of sp) { cx += q.x; cz += q.z; }
+    cx /= sp.length; cz /= sp.length;
+    const dl = Math.hypot(cx - hero.pos.x, cz - hero.pos.z);
+    if (dl < 3) return;
+    const dx = (cx - hero.pos.x) / dl, dz = (cz - hero.pos.z) / dl, hx = hero.pos.x, hz = hero.pos.z;
+    sequence(ctx, world, [{ dur: 1.25, frame: (k, out) => { out.pos.set(cx + dx * (3.6 - 0.5 * k) + dz * 1.7, 1.35 + 0.15 * k, cz + dz * (3.6 - 0.5 * k) - dx * 1.7); out.look.set(hx + dx * dl * 0.45, 1.05, hz + dz * dl * 0.45); out.fov = 44 - 4 * k; } }], { blendOut: 0.55 });
+  });
+  // the last of them falls: a breath of slow motion and a push-in
+  rpg.on('death', (e) => {
+    const world = ctx && ctx.rpg && ctx.rpg.world, a = e.actor;
+    if (!world || !a || a.team !== 'foe' || a.spec.boss) return;
+    for (const b of world.actors) if (b !== a && b.team === 'foe' && b.alive) return;
+    if (world.queue && world.queue.length) return;
+    world.slowmo(0.3, 0.9);
+    if (world.camera && world.camera.zoom) world.camera.zoom(0.78, 1.1);
+  });
   const cultist = {
     team: 'foe', name: { ko: '흑일교 무사', en: 'Black Sun Cultist' }, element: 'ember',
     stats: { hp: 240, poise: 0, radius: 0.44, height: 1.9, scale: 1, mass: 1, walk: 1.5, run: 3.2, turn: 300, shards: 30, stamina: 60 },
