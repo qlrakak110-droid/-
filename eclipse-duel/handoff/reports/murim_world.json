@@ -1,0 +1,75 @@
+{
+ "workflow": "murim_world",
+ "completed": [
+  {
+   "label": "murim-identity",
+   "result": {
+    "summary": "The whole duel UI is now in the murim ink-wash idiom and every player-facing name follows MURIM.md; all screens were captured and read at 1280x720, 844x390 touch and 390x844 touch. In the real game I captured title, select, versus, K.O. and two ultimates on an earlier build; the final code was only bundle-checked, and the 60 fps profile was not run (machine saturated, one game run was killed at its 30-minute limit).\n\n**Names**\n- Title, heroes (name / 별호 / sect / weapon / inner art, each Korean + Hanja + English), CPU ranks 삼류 / 이류 / 일류 / 절정, arena 천무대 天武臺 and a full 30-move 초식 table are in place.\n- `src/ui/roster.js` is now the single source; `registry.js` builds `ROSTER` from it, so the menus, HUD, banner and game cannot drift apart.\n- `moves.js` (name / title fields and comments only), `MOVES.md` (re-flavoured, mechanics and numbers kept) and `BALANCE.md` (names only) are updated. Frame-data output is identical before and after for all three heroes, and non-comment code is byte-identical apart from the name fields.\n\n**Look**\n- Display Korean is written stroke by stroke by a new procedural brush engine (`brush.js` on `ink.js`), not typed. It composes any Hangul syllable, so the title, announcer cards, hero names and 오의 banners look the same on every device with no font.\n- Seals, dry-brush rules, the ink eclipse, ink mountains, splashes, band shapes and paper / wash textures are all generated in code from fixed seeds.\n- Title: black sun behind brush-written 「흑일무림」 with the seal 黑日武林, mountains at the foot.\n- Select: weapon line art redrawn (great saber, twin crescents, tasselled spear), our own sect emblems, names down paper cartouches with hero seals.\n- HUD: 기혈 as brushed ink bands with element inner glow, eclipse dial with numerals over a burning incense stick, round pips as 勝 seals, 내공 / 오의 gauges.\n- Announcer: 제 n 합, 겨뤄라!, 결 決, 무결 無缺, 향이 다 탔다, 승 勝 / 패 敗, each brushed in with its Hanja stamped as a seal; transform / opacity only.\n- The 오의 cut-in is a vertical banner at the user's side of the screen, so the hero shot stays clear.\n- Result, pause, quality menu, move list and touch-pad glyphs are restyled; the versus screen too.\n\n**Checks**\n- No clipped or overlapping text at the three sizes; the old portrait bugs are gone. The title now measures itself and shrinks as one block, so the RPG team's 강호행 row cannot crop it.\n- HUD and cards stay readable over a pure white stage after adding ink backing behind the combo, docks and subtitles.\n- Interaction tests pass on the final captured build: 16/16 keyboard, 25/25 touch.\n- The RPG team's title entry and hooks in `screens.js` / `game/index.js` are preserved.\n- After the last capture pass I removed dead markup (`hp-cap`, unused Hanja on segmented options) and added `hud.dismiss()`; that state got a smoke run (every screen, `dismiss`, one `hudFight` frame) and a game bundle check, not a full re-capture.\n\n**Behaviour changes to know**\n- `hud.announce(text, { style: 'ult', side })` now shows that fighter's own 오의 from the roster and ignores `text`; pass `hanja` for a custom banner.\n- New `hud.dismiss(style, dur)`, presets `win` / `lose`, and an `o.seal` option.\n- The winner card is now the winner's brush name with a 勝 seal; 승 / 패 from the player's side is on the result screen.",
+    "files": [
+     "/home/user/-/eclipse-duel/src/ui/ink.js",
+     "/home/user/-/eclipse-duel/src/ui/brush.js",
+     "/home/user/-/eclipse-duel/src/ui/ui.css",
+     "/home/user/-/eclipse-duel/src/ui/hud.js",
+     "/home/user/-/eclipse-duel/src/ui/screens.js",
+     "/home/user/-/eclipse-duel/src/ui/icons.js",
+     "/home/user/-/eclipse-duel/src/ui/index.js",
+     "/home/user/-/eclipse-duel/src/ui/touch.js",
+     "/home/user/-/eclipse-duel/src/ui/roster.js",
+     "/home/user/-/eclipse-duel/src/ui/README.md",
+     "/home/user/-/eclipse-duel/src/ui/tests/interaction.mjs",
+     "/home/user/-/eclipse-duel/src/labs/ui.js",
+     "/home/user/-/eclipse-duel/src/fighters/registry.js",
+     "/home/user/-/eclipse-duel/src/fighters/kael/moves.js",
+     "/home/user/-/eclipse-duel/src/fighters/iska/moves.js",
+     "/home/user/-/eclipse-duel/src/fighters/vorn/moves.js",
+     "/home/user/-/eclipse-duel/src/fighters/MOVES.md",
+     "/home/user/-/eclipse-duel/src/fighters/BALANCE.md",
+     "/home/user/-/eclipse-duel/src/index.html",
+     "/home/user/-/eclipse-duel/src/game/index.js",
+     "/home/user/-/eclipse-duel/src/game/session.js",
+     "/home/user/-/eclipse-duel/src/game/present.js"
+    ],
+    "issues": [
+     "NOT DONE - 60 fps profile: src/game/tests/profile.mjs was not run. Load average was 40-60 from parallel teams, a single game capture took over 30 minutes and one was killed at the 30-minute background limit. Only the UI microbenchmark was measured (see perf).",
+     "NOT DONE - result screen in the real game: the killed run never reached it. It is covered in the UI lab at all three sizes only. The in-game frames I do have (title, select, versus, K.O., both ultimates) come from an earlier build; later UI changes were verified in the lab, not re-captured in the game.",
+     "NOT DONE - stills only: every capture is a single frame per state, so the brush-in animations themselves were not reviewed frame by frame.",
+     "src/main.js (integration, not in my file list): the loading veil still reads '일식결투 · ECLIPSE DUEL' with a Cinzel font stack. It should read '흑일무림 黑日武林 · ECLIPSE DUEL' with the myeongjo stack; it is the first thing the player sees.",
+     "src/fighters/iska/present.js:19 still hard-codes ULT_NAME = '떨어지는 서릿별 / Fall of the Frozen Star'. The banner now shows the roster's 빙성낙월 氷星落月 regardless (confirmed in the game probe), but the constant should be dropped.",
+     "src/fighters/kael/present.js fadeUltCard() reaches into the HUD DOM ('.ann.st-ult > .an-fit') to dissolve the cut-in at the leap. The selector still works; ui.hud.dismiss('ult', dur) now exists for this. Since the banner no longer covers the hero, the early dismissal may not be needed at all.",
+     "Behaviour change: hud.announce(text, { style: 'ult', side }) ignores text / sub when that side's roster entry has an ult move. Pass o.hanja (or '') for a custom banner.",
+     "RPG title entry: src/rpg's 강호행 row is preserved. I added class rules for .tt-exp-btn / .tt-exp-label in ui.css, with a few !important over their inline styles (ink border, focus state, portrait layout). They can drop the inline styles.",
+     "Sandbox fonts: no Korean serif is installed here (only WenQuanYi Zen Hei, a sans with bitmap strikes at 12-16 px), so Hanja accents and body text in my captures are sans. Brush-written Hangul and seal frames are font-independent. I widened Hanja accent letter-spacing so the bitmap strikes do not collide.",
+     "Old names remain in files I do not own: the CONTRACT.md roster table, package.json description, src/fighters/*/README.md, clips/NAMES.md, comments in present.js / fx.js, and labs art*.js / audio.js / env.js.",
+     "Game code keeps the technical marker names 'rune' and 'armour' (identifiers); only player-facing text says 진법 / 호신강기. In-game frames still show the armoured knights and the old arena, which belong to other teams.",
+     "Coinages to confirm with the owner: 향진 香盡 (time-out, on round chips and the time-up seal), 和 as the draw seal, 숨 고르기 / 調息 for pause, 산문으로 for quit-to-title, 천명 for random, and button labels 경초 / 중초 / 호신 / 경공."
+    ],
+    "api": "HEROES (code id: name · Hanja · romanised | 별호 | sect | weapon | inner art | seal · emblem icon)\n- kael: 염무강 炎武剛 YEOM MU-GANG | 적염패도 赤焰覇刀 Crimson Flame Tyrant Saber | 적양문 赤陽門 Red Sun Gate | 참마대도 斬馬大刀 Great Saber | 열양진기 烈陽眞氣 Blazing-Sun Qi (ember) | 赤陽 · sect-kael\n- iska: 설리화 雪梨花 SEOL RI-HWA | 빙월쌍도 氷月雙刀 Frost-Moon Twin Blades | 한월궁 寒月宮 Cold Moon Palace | 월아쌍도 月牙雙刀 Twin Crescent Blades | 한빙진기 寒氷眞氣 Cold-Ice Qi (frost) | 寒月 · sect-iska\n- vorn: 뇌진천 雷震天 NOE JIN-CHEON | 천뢰신창 天雷神槍 Heaven-Thunder Spear | 뇌운보 雷雲堡 Thundercloud Keep | 뇌룡창 雷龍槍 Thunder-Dragon Spear | 뇌정신공 雷霆神功 Thunderclap Art (volt) | 雷雲 · sect-vorn\n\n초식 TABLE (slot · move id: Korean · Hanja · English gloss). Normals are 3-character forms, skills are 4-character 절기, ultimates are 오의.\n염무강 (kael)\n- light1 · light1: 사양참 · 斜陽斬 · Slanting-Sun Cut\n- light2 · light2: 반조격 · 返照擊 · Afterglow Strike\n- light3 · light3: 낙일벽 · 落日劈 · Setting-Sun Cleave\n- heavy · sweep: 염륜소 · 炎輪掃 · Flame-Wheel Sweep\n- f+heavy · lunge: 염마돌 · 炎馬突 · Flame-Steed Charge\n- d+heavy · vent: 승염참 · 昇炎斬 · Rising-Flame Cut\n- skill1 · crescent: 잔양비참 · 殘陽飛斬 · Waning-Sun Flying Slash\n- skill2 · eruption: 열지분염 · 裂地噴炎 · Earth-Rending Eruption\n- skill3 · bulwark: 열양호신 · 烈陽護身 · Blazing-Sun Ward (counter bulwark_burst: 열양호신 · 반진 反震 · Recoil)\n- ult · pyre: 흑일분천 · 黑日焚天 · Black Sun Burns the Heavens\n설리화 (iska)\n- light1 · rime_flick: 한광섬 · 寒光閃 · Cold-Gleam Flash\n- light2 · twin_moons: 쌍월전 · 雙月剪 · Twin-Moon Shears\n- light3 · star_fan: 성선무 · 星扇舞 · Star-Fan Dance\n- heavy · glacier_pirouette: 빙륜선 · 氷輪旋 · Ice-Wheel Whirl\n- f+heavy · frostline_step: 은하도 · 銀河渡 · Silver-River Crossing\n- d+heavy · rising_crescent: 신월승 · 新月昇 · New-Moon Rising\n- skill1 · starshard_volley: 한성삼사 · 寒星三射 · Three Cold-Star Shots\n- skill2 · crystal_procession: 빙순파지 · 氷筍破地 · Ice Shoots Break the Earth\n- skill3 · moonlit_afterimage: 월영환신 · 月影幻身 · Moon-Shadow Phantom\n- ult · frozen_star: 빙성낙월 · 氷星落月 · Frost Star, Falling Moon\n뇌진천 (vorn)\n- light1 · flash_jab: 전광자 · 電光刺 · Lightning-Flash Thrust\n- light2 · haft_spin: 용미격 · 龍尾擊 · Dragon-Tail Strike\n- light3 · thunder_pierce: 뇌침관 · 雷針貫 · Thunder-Needle Pierce\n- heavy · gale_sweep: 풍뢰소 · 風雷掃 · Wind-and-Thunder Sweep\n- f+heavy · lightning_charge: 분뢰돌 · 奔雷突 · Racing-Thunder Charge\n- d+heavy · skyward_lance: 충천창 · 衝天槍 · Sky-Piercing Spear\n- skill1 · thunder_javelin: 천뢰일척 · 天雷一擲 · Heaven-Thunder, One Throw\n- skill2 · stormfall: 낙뢰삼격 · 落雷三擊 · Three Falling Thunderbolts\n- skill3 · arc_step: 화뢰섬보 · 化雷閃步 · Thunder-Form Flash Step\n- ult · ninefold_storm: 구천뇌벌 · 九天雷罰 · Ninefold Heaven Thunder Judgment\n\nUI WORDING\n- Title 흑일무림 黑日武林 / ECLIPSE DUEL; arena 천무대 天武臺 (HEAVEN-MARTIAL TERRACE).\n- Ranks: easy 삼류 三流, normal 이류 二流, hard 일류 一流, nightmare 절정 絶頂 (event values unchanged).\n- Inner energies: 열양 烈陽 FIRE, 한빙 寒氷 FROST, 뇌정 雷霆 LIGHTNING.\n- HUD: 기혈 (HP), 내공 內功 (FP), 오의 奧義 (ultimate), 연환 (combo). Buttons: 경초 / 중초 / 절기 / 오의 / 호신 / 경공.\n- Announcer presets (main line · seal · sub): round 「제 n 합」 第n合 ROUND n; final 「마지막 합」 決勝; fight 「겨뤄라!」 比武; ko 「결」 決 K.O.; perfect 「무결」 無缺; timeup 「향이 다 탔다」 香盡; draw 「무승부」 和; win 「승」 勝; lose 「패」 敗.\n- Menus: 고수 선택, 비무 시작, 숨 고르기 (pause), 계속 겨루기, 초식표 招式表, 산문으로, 다시 겨루기, 천명 (random). Move-list groups: 기본 초식 / 절기 絶技 / 오의 奧義 / 신법 身法 (호신강기 護身罡氣, 경공 輕功).\n\nAPI ADDITIONS (all additive; ids, events, slots, icon names and weaponArt keys unchanged)\n- `roster.js` entries gain: hanja, titleHanja, sect / sectHanja / sectEn, seal, emblem, weaponHanja, art / artHanja / artEn; moves gain hanja. `nameEn` is now the romanised name. Also exports `ARENA` and `TITLE`. `registry.js` `ROSTER` = `DEFAULT_ROSTER` + mood.\n- `brush.js`: `brushText(text, { vertical, gap, seed, weight, shadow, fill, rough, cls })` returns inline SVG.\n- `ink.js`: `strokePath`, `PROFILE`, `divider`, `dash`, `swath`, `bandClip`, `seal`, `inkEclipse`, `mountains`, `splash`, `paperTexture`, `washTexture`, `cssUrl`, `FONT_KO`.\n- `icons.js`: new icons `sect-kael`, `sect-iska`, `sect-vorn`; brush action glyphs; `eclipseMark()` now returns the ink eclipse.\n- `ui.hud.announce`: presets `win` / `lose`; options `seal`, `hanja`; `style: 'ult'` + `side` prefers the roster's 오의.\n- `ui.hud.dismiss(style = 'ult', dur = 0.25)` fades cards out early.\n- `ui.show('vs')` accepts `arenaHanja` and defaults to `ARENA`.\n- CSS custom properties on `.ed-ui`: `--noise`, `--wash`, `--clip-hp-l/r`, `--clip-bar-l/r`, `--clip-band`, `--clip-tag`, `--clip-scroll`, `--m-swath`, `--m-swath-b`, `--m-dash`, `--m-div`.",
+    "keyCaptures": [
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_desk_a.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_desk_b.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_cards.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_land.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_port_a.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_port_b.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/sheet_port_c.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/desk_1280x720_title.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/final/smoke_hudFight.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/c2_bright_sheet.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/g_title.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/g_icons.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/game/g2_probe_title.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/game/sheet_flow.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/game/sheet_ult_kael.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/game/g2_sheet_b.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/base_desk_sheet.png",
+     "/home/user/-/eclipse-duel/shots/murim/ui/base_portrait_sheet.png"
+    ],
+    "perf": "Measured: UI microbenchmark only. `src/ui/tests/interaction.mjs` reports 600 `hud.set` + `skills` + `combo` updates at 0.109 ms each on the desktop lab run (the previous README quoted about 0.1 ms) and 0.379 ms on the touch run, which was taken at load average ~59 and also drives the pad meters. Zero DOM growth in both (1754 and 1767 nodes steady).\n\nNot measured: the game frame profile (`src/game/tests/profile.mjs`) and any before / after frame-time comparison, because the machine was saturated by parallel capture jobs.\n\nBy construction, not measurement:\n- Announcer lines no longer carry CSS drop-shadow filters (the shadow is a second ink copy inside the SVG), so there is less per-frame filter work than the baseline.\n- All procedural art is generated once at creation as strings or data URLs. Brush geometry is cached per text and written at `hud.setup()` behind the versus splash, so no card computes strokes mid-fight.\n- Animations remain transform / opacity on the existing tween runner.\n- Draw calls and triangles are untouched (DOM only)."
+   }
+  }
+ ],
+ "interrupted": [
+  "murim-arena",
+  "murim-audio"
+ ]
+}

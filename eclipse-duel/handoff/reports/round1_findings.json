@@ -1,0 +1,660 @@
+{
+ "findings": [
+  {
+   "id": "SKIN-01",
+   "severity": "critical",
+   "title": "Upper-arm twist and deltoid helpers are driven by a swing-twist singularity: pure overhead swings produce up to 180 deg of fake twist and a sign flip",
+   "detail": "src/char/index.js:500-505 (drive) takes ut = twistAngle(upperArm local, Y) (rigmath.js:98) and gives upperArmTwist -0.5*ut and the deltoid the swing with that twist removed. Swing-twist about the bone's own Y axis is singular at 180 deg of swing, and an arm raised overhead is close to that. A pure swing with no authored twist then reads as large twist. Reproduce: helperSweep('upperArmR',[0,0,10],0,120,185,5) in the lab, i.e. upperArmR [-x,0,10] (abduct x, flex 10, twist 0). Overhead swings occur in every two-handed overhead wind-up, the guard, Vorn's skyward lance and Iska's backflip. Authors will see the rerebrace and suit twist on their own and pop when the arm crosses vertical.",
+   "evidence": "Extracted twist ut at x=150/160/165/170/175/180/185: -36.2/-52.8/-67.2/-90/-127/+-180/+127 deg; twist helper +18/+26/+34/+45/+63.5/+90/-63.5 (a 153 deg flip between 180 and 185). With flex 0 (x=160..185) ut stays 0, which proves it is the singularity, not authored twist. Same pose: suit ring area 0.674 vs 0.743 without the 10 deg flex; folded triangles 54 vs 48. Demo clips: utR jumps 40.9 deg/frame (slam) and 38 deg/frame (combo3), max abs utR 101 deg (slam). Suit-only capture: shots/char/rig/suit_arm_sheet.png rows 3-4 (pinched shoulder overhead).",
+   "suggestedFix": "Measure upper-arm twist relative to a swing reference that is not singular overhead. Options: decompose about the bone axis after removing the swing from a 'rest' direction chosen per hemisphere; use a quaternion 'twist from reference vector' (project the bone's X axis onto the plane normal to the current bone direction and compare it with the parallel-transported parent X); or blend between two decompositions (hanging and raised references) by elevation. Unwrap the twist frame to frame or clamp it to +-120 deg. Add a sweep test (abduction 0..185 at flex 0/10/-10) asserting the helper changes by less than 5 deg per 5 deg step."
+  },
+  {
+   "id": "SKIN-02",
+   "severity": "critical",
+   "title": "Forearm twist has no anatomical limit and wraps at +-180: the vambrace helper and the wrist suit flip 130-200 deg in one frame on the impact frames of the demo attacks",
+   "detail": "drive() (src/char/index.js:492-507) moves all forearm twist into the hand, then sets foreArmTwist = 0.65*twistAngle(hand local), whose range is (-180,180]. The arm IK (src/char/ik.js:82-85) writes the hand local as whatever rotation reaches the aim/up target from the pole-driven forearm frame. Nothing limits pronation/supination or chooses a pole or upper-arm roll that keeps forearm twist in range. Clips therefore ask for 140-172 deg of forearm twist (anatomical about +-85-90 from neutral). When the request crosses 180 the helper jumps from +117 to -117. This hits every weapon clip authored with aim/up.",
+   "evidence": "lab twistScan rows: demo.slam fatR (vambrace helper) -41.8 (t=0.600), 89.3 (0.617), -112.1 (0.633), 57.7 (0.650), -8.2 (0.667), i.e. 131/201/170/66 deg per frame on the slam's impact frames; htR -64 -> 137 -> -172.5 -> 88.7. demo.combo2 0.183->0.200: fatR 110.6 -> -92.3, htR 170.2 -> -142.1. demo.combo3 0.283->0.300: fatR 92.5 -> -104.6. Max hand twist demand: slam 172.5, combo2 170.5, combo3 161, combo1M 143; off hand in demo.idle 139 and demo.guard 111 (permanent; idle@0.5 left forearm ring area 0.50). Controlled pair foreArmR [0,178,90] vs [0,182,90]: helper +115.7 vs -115.7, forearm ring area 0.284 (candy-wrapper); +-90 gives ring 0.761. Captures: shots/char/rig/slam_wrist_flip_sheet.png, combo2_wrist_flip_sheet.png, wrist_wrap_178_182_sheet.png, suit_arm_sheet.png row 5 (hourglass forearm).",
+   "suggestedFix": "Distribute and limit twist: (a) in solveLimb for arms, pick the elbow pole / upper-arm roll so the hand's residual twist about the forearm stays within +-90 (swing-twist the end rotation, feed the excess back into the upper-arm roll); (b) clamp the hand's twist relative to the forearm to an anatomical range and carry the rest in the weapon or grip; (c) unwrap twistAngle across frames (keep the previous value and choose the 2*pi branch nearest it) so helpers never jump; (d) use 2-3 forearm twist stations (e.g. 25/50/75%) instead of one 65% helper. Add a lab assertion: no helper changes by more than 20 deg/frame in any demo clip."
+  },
+  {
+   "id": "SKIN-03",
+   "severity": "critical",
+   "title": "Two-handed grip loss of 10-12 cm in overhead wind-ups (shipped demo.slam and demo.combo3): arm IK has no clavicle and soft-reach leaves the off hand short",
+   "detail": "The grip IK (src/char/index.js:640-651) calls solveLimb on the off-hand arm only. limb.clav is defined in src/char/ik.js:17 but never used, so the shoulder cannot shrug or protract toward an out-of-reach grip. Soft reach (ik.js:52-55) then stops short. The README promises that two-handed weapons keep the off hand on the grip by IK; any overhead guard or wind-up (Kael's overheads, skill2 Fault Eruption, the ultimate's sword raised to the eclipse) visibly detaches the hand.",
+   "evidence": "Grip error (distance between the weapon's 'grip' point and the left fist socket), lab twistScan: demo.slam 0.049/0.093/0.105/0.082 m at t=0.500/0.517/0.533/0.550; demo.combo3 0.098-0.112 m from t=0.133 to 0.300 (still 0.069 at 0.317). ROM pose overheadWindup (right fist [-0.1,1.92,0.04], blade hanging behind): 0.116 m (iska 0.120, vorn 0.106: not proportion-specific). Capture: shots/char/rig/grip_loss_close_0.000.png (slam@0.533: the left gauntlet sits beside and below the handle, not around it).",
+   "suggestedFix": "Add a clavicle stage to arm IK: when reach exceeds about 90% of l1+l2, rotate the shoulder bone (elevation and protraction, limited to about 25 deg) toward the target before the two-bone solve, for both clip IK and grip IK. If the grip is still unreachable, pull the main hand toward the off hand, or bend the torso via a chest correction. Expose the residual grip error, warn in the lab when it exceeds 1 cm, and add it to the clip authoring checklist."
+  },
+  {
+   "id": "SKIN-04",
+   "severity": "critical",
+   "title": "Cape passes through the helmet and head in the combo3 finisher (no head or neck collider)",
+   "detail": "The knight's colliders (src/char/designs/knight.js:46-59) are torso, pelvis, shoulders, arms, thighs and shins; there is no head or neck capsule. The cape (pinned at the upper back) is thrown up during the spin and nothing keeps it out of the head. This is cloth through the body in a common move (the 3rd hit of the basic combo). Later designs copying this collider set will inherit it.",
+   "evidence": "clothTest over demo.combo3 (28 frames sampled every 3rd frame): 23 frames with more than 8 cloth render vertices inside plates or body; worst t=0.800: 177 vertices, 101 inside the helmet skull plate (head#0), 64 inside the head core capsule, max depth 94.5 mm (plates) / 76.7 mm (body). Capture: shots/char/rig/cape_through_head_sheet.png (side view: the helmet crown pokes through the cape lining). Other clips: walkF / hit / slam put 20-30 tabard vertices behind the tassets (benign).",
+   "suggestedFix": "Add head and neck capsules (e.g. head [0.01,0.10,0] r 0.13, neck r 0.07) to the knight, and document in README section 6 that every design needs head/neck colliders when it has a cape. Consider a per-cloth 'max angle from the pin row' or a back-hemisphere constraint, so a cape cannot fold forward over the head during spins."
+  },
+  {
+   "id": "SKIN-05",
+   "severity": "critical",
+   "title": "setFacing overwrites root.scale.x, so a scaled character (colossal boss) is squashed on its first turn",
+   "detail": "src/char/index.js:521 sets root.scale.x = facing (+-1). It does not preserve magnitude. The contract (roadmap) requires scale to stay a parameter for the 7-9 m boss, and scaling the root is the cheapest way to build one; any setFacing call then breaks it. setFacing(f, {turn}) has the same problem.",
+   "evidence": "giantR (default knight, root.scale.setScalar(4.2)): before [4.2,4.2,4.2]; after setFacing(-1) [-1,4.2,4.2]; after setFacing(1) [1,4.2,4.2] (lab eval).",
+   "suggestedFix": "Store a base scale (char.scale or design.scale) and set root.scale.x = facing * base. Better: add a design-level 'scale' option applied to a parent group, so facing never touches it. Document it in README section 2 and add a lab test that flips a scaled character."
+  },
+  {
+   "id": "SKIN-06",
+   "severity": "major",
+   "title": "Rig and runtime hard-code human-size offsets: finger, fingertip, thumb and upper-arm-twist bones and the chest, head and back sockets do not scale with proportions",
+   "detail": "src/char/skeleton.js:72-74,81 use absolute metres for fingers (-0.012 extra), fingerTips (-0.048), thumb [0.026,-0.035,-0.016] and upperArmTwist (-0.04). src/char/index.js:109-114 place the chest [0.13,0.12,0], head [0.03,0.10,0] and back [-0.17,0.12,0] sockets in absolute metres. A giant built through proportions (or Iska's smaller hands) gets fingers collapsed into the palm, a thumb inside the hand, and VFX or camera sockets buried inside the body.",
+   "evidence": "giantP (all length proportions and geometry x4.2): fingerTipsR offset 0.048 (expected 0.2016), thumbR [0.026,-0.035,-0.016] (expected [0.109,-0.147,-0.067]), upperArmTwistR -0.04 (expected -0.168). The chest socket stays at [0.13,0.12,0] while weaponTip scales to 6.174 (correct). Capture: shots/char/rig/giant_hand_sheet.png (left column KAEL, right column giant: fingers truncated and bunched).",
+   "suggestedFix": "Express these offsets as proportions (P.fingerLen, P.thumb, ...) or as fractions of P.hand and P.upperArm, and derive the socket offsets from P (chest depth, head size). Alternatively add a global design.scale that multiplies every runtime constant in metres (also the foot-plant thresholds at index.js:632, the look offset at ik.js:151, breathing at index.js:458 and impulse amplitudes)."
+  },
+  {
+   "id": "SKIN-07",
+   "severity": "major",
+   "title": "Cloth edge rim is back-facing: a see-through slit as wide as the cloth's thickness runs along every cape and tabard edge",
+   "detail": "src/char/cloth.js:129-138 stitches the outer and inner layers with a rim strip whose winding is not checked; the global flip at cloth.js:147-151 flips it along with everything else. Along the free edges the rim ends up culled (FrontSide material), so the background shows between the outer and inner layers. It is present in every pose, including the game camera view (yaw 0).",
+   "evidence": "GPU mask test (front-face vs double-sided): the cape edge from the camera side at 0.55 m shows 17,812 see-through pixels in a ~25 px band = 1.4 cm = cape thickness 0.014 (shots/char/rig/cape_edge_0.000.png with the magenta overlay; cape_edge_0.017.png without it shows background where the rim should be). Full-body counts (2.6 m, 1280x720) in the 54 ROM poses: 300-2585 px per view, the cape edge being the dominant contributor (shots/char/rig/holes_overview_sheet.png: magenta line along the cape edges in every frame).",
+   "suggestedFix": "Orient each rim quad explicitly: compute its normal and compare it with the outward edge direction (the border tangent crossed with the particle normal), flipping per quad; or build the rim after the global flip with a winding derived from the outer layer's orientation. Add the lab holes() check to the cloth test scenario."
+  },
+  {
+   "id": "SKIN-08",
+   "severity": "major",
+   "title": "Shoulder skinning loses 26-41% of its cross-section overhead and collapses the armpit; the suit folds even in the neutral pose",
+   "detail": "The arm loft (src/char/designs/knight.js:93-94) blends shoulder (clavicle) -> deltoid (50% swing) -> upperArmTwist over about 5 cm, with a single half-swing helper. The A-pose bind (skeleton.js:54-58, 42 deg abduction) is far from the poses actually used, so the neutral pose (14 deg) already compresses the armpit. Overhead, across-chest and behind-head poses pinch the shoulder into a kink, visible wherever the spaulder does not cover it (and on lighter-armoured Iska).",
+   "evidence": "Ring area / bind at the shoulder: shFlex175 0.594, shAbd175 0.743, shAbd175+flex10 0.674, shrugReach 0.627, hugChest 0.772. Min axis distance ratio: rest 0.419, shFlex175 0.178, shAbd175 0.138, hugChest 0.068. Folded triangles in the deltoid zone: 6 per side in the neutral pose, 26-54 in overhead poses. Suit-only capture: shots/char/rig/suit_arm_sheet.png rows 3-4 (kinked or pinched shoulder); shots/char/rig/rom_shoulder_sheet.png.",
+   "suggestedFix": "Add shoulder correctives: a second deltoid helper (25/75% swing), an armpit or pectoral helper that pushes out with abduction, and a clavicle follow (a fraction of the arm elevation driving the shoulder bone). Widen the blend band to 8-10 cm. Bind in a pose closer to the mean (about 25-30 deg abduction). Re-measure the ring ratio >= 0.85 at flex/abduction 175."
+  },
+  {
+   "id": "SKIN-09",
+   "severity": "major",
+   "title": "No hip helper: the leg loft blends hips -> thigh directly, so the groin collapses at high knee and candy-wraps under hip rotation",
+   "detail": "The leg loft weights (src/char/designs/knight.js:100-101) go hips 0.75 -> thigh 1.3 (about 8 cm) with no half-joint or twist helper at the hip (skeleton.js HELPERS has knee and elbow helpers only). High knees, lunges, kicks, knockdown and get-up and Iska's backflip will show a pinched groin and a twisted upper thigh.",
+   "evidence": "Leg ring area / bind at the groin: highKnee 0.634, kickStraight 0.765, hipRot+40 0.761, hipRot-40 0.723, squatDeep 0.797, frontLunge 0.80, sideLunge 0.88. Folded triangles: squatDeep 90, sideLunge 70, frontLunge 52. Suit-only capture: shots/char/rig/suit_leg_sheet.png rows 2-4 (pinched or twisted groin, doll-joint look at the front of the pelvis).",
+   "suggestedFix": "Add hip helpers: a half-swing 'hipJoint' helper (child of hips, slerp 0.5 of the thigh swing) and a thigh twist helper (0.5 of the thigh twist), with the loft stations hips -> hipJoint -> thighTwist -> thigh; optionally a buttock helper driven by extension. Same acceptance target: ring ratio >= 0.85 at hip flexion 125 and rotation +-40."
+  },
+  {
+   "id": "SKIN-10",
+   "severity": "major",
+   "title": "Inner elbow and knee collapse onto the bone at full flexion; the calf and greave sink 65-69 mm into the thigh",
+   "detail": "Linear blending with one 50% half-joint helper (elbowR/kneeR) and narrow stations (+-0.25 path index, about 3.5 cm) collapses the inside of the joint. At elbow 150, knee 155 and deep squat (used by crouch, landing, knockdown and get-up) the inner vertices reach the bone axis, triangles fold (culled, so they read as dents or holes), and the closed greave pierces the thigh volume.",
+   "evidence": "Min axis distance ratio: elbow150 0.036 (p05 0.136), knee155 0.023 (p05 0.342), squatDeep knee 0.027; folded triangles at the elbow helper: 15 (elbow150). Body-core test: shin plates into the thigh core 65 mm (knee155), 69 mm (squatDeep); couter rim into vambrace 38 mm (elbow150). Captures: shots/char/rig/suit_leg_sheet.png row 1 and rom_leg_sheet.png row 3 (calf and greave inside the thigh), suit_arm_sheet.png row 2.",
+   "suggestedFix": "Add volume-preserving correctives: a push-out helper on the inner side driven by the flexion angle (scale or translate perpendicular to the hinge), or dual-quaternion skinning for the limb lofts. Widen the elbow and knee stations. Open the greave back near the knee (a0/a1), or let the greave and couter plates slide (driven by flexion)."
+  },
+  {
+   "id": "SKIN-11",
+   "severity": "major",
+   "title": "Armour interpenetrates in normal play: tassets sink 8-9 cm into the forward cuisse, and arms pass 7-18 cm into the cuirass in idle, walk, hit and combo1",
+   "detail": "(a) Tasset springs (knight.js:43-44, spring.js:86) collide only their tip particle with the thigh capsule and have a 38 deg cone limit, while the tasset lames are 0.2 m arcs centred 6 cm behind the bone. When the thigh flexes 30-45 deg in the stance, the cuisse swings through them. (b) The cuirass half-width (rz 0.19) plus the rerebrace radius (0.064) exceeds the shoulder span (clavicle root 0.03 + 0.19), so any arm adduction below the neutral 14 deg pushes the rerebrace, couter and arm suit into the cuirass and plackart. There are no armour-aware correctives.",
+   "evidence": "Plate side-crossing depth (vs the neutral rest pose): demo.idle@0.5 tassetL rim into cuisse 83 mm (229 verts), rerebraceR into cuirass 75 mm (415 verts), arm suit through cuirass 68 mm, couter lame into plackart 46 mm; demo.guard tasset 93 mm; demo.walkF 94 mm; demo.combo1@0.25 / @0.34 left rerebrace into cuirass 145 / 177 mm (1114 / 1281 verts); demo.hit@0.06 rerebrace 84 mm, suit 77 mm. Captures: shots/char/rig/common_close_0.017.png (idle, front-left: the left tasset hidden behind the cuisse with a jagged shard showing), common_close_0.033.png (hit: forearm and couter wing cutting into the cuirass), common_close_0.000.png (brown suit patches poking through the arm plates).",
+   "suggestedFix": "Tassets: collide a 3-point proxy along the lame (top, mid and outer edge) or a capsule along the plate against the thigh-plate radius (0.115 + margin), raise the cone limit to about 70 deg, or drive tasset rotation directly from thigh flexion (helper). Arms: add an 'arm vs chest' corrective (shoulder abduct or upper-arm push-out when the rerebrace capsule hits the torso capsule) or slim the cuirass sides and rerebrace. Add the lab measure() crossing check (zero above 10 mm in idle, walk, guard and hit) as a design acceptance test."
+  },
+  {
+   "id": "SKIN-12",
+   "severity": "major",
+   "title": "Armour has no articulation for range of motion: spaulder lames, fauld lames, gorget and helmet cut into neighbouring plates in ordinary attack and defence poses",
+   "detail": "Spaulder lames ride the 50% deltoid helper, so their inner edges swing into the cuirass. The fauld lames are rigid on spine and hips and cannot slide under the plackart. The bevor and neck guard are rigid on the head and hit the spaulders and cuirass. The gorget rim is on the neck bone only. The demo clips already reach these angles (combo2, slam).",
+   "evidence": "Spaulder lames into cuirass: shFlex90 44 mm, shAbd90 79 mm, acrossChest 118 mm, hugChest 90 mm, combo2@0.225 92 mm, slam@0.7 92 mm. Plackart into fauld lame 1: fwd60 91 mm, bend+-30 38 mm, squat 34 mm, slam@0.7 48 mm. Gorget rim into cuirass: neckDown60 57 mm, neckUp55 53 mm. Neck guard into spaulders: neckDown60 / neckTilt35 41-43 mm. Bevor into spaulder: neckYaw+-70 33 mm. Captures: shots/char/rig/shoulder_a_sheet.png, rom_shoulder_sheet.png, rom_torso_sheet.png (row 3: helmet sunk into the cuirass at chin-down).",
+   "suggestedFix": "Give plates articulation drivers: spaulder lames driven by a fraction of the arm swing (e.g. 30/45/60%) and pushed outward with abduction; fauld lames split between spine, hips and a 'slide' helper driven by spine flexion; gorget lames distributed chest->neck. Document per-joint comfortable ranges for authors (neck yaw <= 60 with the bevor) until the helpers exist."
+  },
+  {
+   "id": "SKIN-13",
+   "severity": "minor",
+   "title": "Closed plate shells have no inner wall: background shows through flared openings (gauntlet cuffs, finger tubes)",
+   "detail": "src/char/shapes.js:128 builds the inner surface only for open plates ('closed tubes keep edge thickness only'). Where a closed shell flares away from what it wraps, or ends open (finger tubes with thick 0 and no caps), the far wall is seen from behind and culled.",
+   "evidence": "shots/char/rig/cape_edge_0.033.png (front close-up at 0.6 m: magenta crescents of about 2-3 cm inside both gauntlet cuffs and at every fingertip, 3,589 px total); zoom1_0.033.png (cuffs and tasset corners).",
+   "suggestedFix": "Build the inner wall for closed shells whose radius grows toward an open end (or always, at the cost of a few hundred triangles), and cap finger tubes. Alternatively make shell(inner) default true for the cuff and fingertip pieces in the design."
+  },
+  {
+   "id": "SKIN-14",
+   "severity": "minor",
+   "title": "Teleport and facing-flip detection uses an absolute 0.6 m per-frame threshold (not scale- or frame-rate-aware)",
+   "detail": "src/char/index.js:566 resets cloth and spring inertia when the root moves more than 0.6 m in one update. At dt=1/30 (dropped frame, which the contract says must look identical) a 20 m/s dash (Vorn's Lightning Charge, 4 m in about 0.2 s) moves 0.67 m and silently resets the cape mid-dash. A 4.2x giant crosses 0.6 m/frame at only 36 m/s of world speed, which is 8.6 m/s at human scale.",
+   "evidence": "Code reading plus arithmetic: 4 m / 0.2 s = 20 m/s = 0.33 m per 1/60 frame and 0.67 m per 1/30 frame (> 0.6). Threshold constant at index.js:566.",
+   "suggestedFix": "Make the threshold a velocity (e.g. > 30 m/s x the character's scale) or let the game call teleport() explicitly, and divide by dt and the root scale."
+  },
+  {
+   "id": "SKIN-15",
+   "severity": "minor",
+   "title": "Design format has no proportional scaling: armour authored in absolute metres misfits other body types (axial gaps or overlaps)",
+   "detail": "Plates are placed at fixed y spans in bone frames (knight.js), and the loft radii are absolute. The runtime handles the ISKA, VORN and giant proportions without breaking (same deformation ratios, no NaN), but each fighter will need fully re-authored armour. Several plates then end in the wrong place relative to the joints.",
+   "evidence": "From proportions plus knight.js spans: VORN thigh 0.507 m vs cuisse ending at -0.40, leaving a 10.7 cm gap above the knee (3.2 cm of bare suit above the poleyn); VORN shin 0.468 vs greave ending at -0.405, leaving 6.3 cm above the ankle; ISKA shin 0.408 vs greave ending at -0.405, 0.3 cm from the ankle (contact with the sabaton). ROM tables for iska, vorn, giantP and giantR: ring ratios within +-0.05 of KAEL, 0 NaN.",
+   "suggestedFix": "Let pieces be placed in normalised bone coordinates (e.g. y as a fraction of the bone length) and/or give kit.add a 'fit' option that scales a piece along the bone to the current proportion; add design.scale for uniform scaling."
+  },
+  {
+   "id": "SKIN-16",
+   "severity": "major",
+   "title": "Per-character update cost is about 1 ms in this environment (README states 0.5-0.6 ms), with 5-12 ms spikes",
+   "detail": "Measured inside the lab with performance.now() around char.update() only (knight with cape + tabard cloth, springs, IK), after warm-up, in headless Chromium in this container. The contract budget is <= 4 ms for all JS on desktop and <= 8 ms on phones, and two fighters run per frame; phones are typically 3-5x slower. This is outside the core skinning lens, so it is reported as major rather than critical.",
+   "evidence": "600-frame runs: demo.idle mean 0.94 / p50 0.9 / p95 1.1 / max 6.2 ms; demo.walkF 1.00/0.9/1.2/5.1; demo.combo3 0.97/1.0/1.1/5.0; demo.slam 1.05/0.9/1.1/12.3. giantP combo3 mean 0.90 ms.",
+   "suggestedFix": "Profile cloth (sub-steps x iterations x capsule tests per particle) and the 4-state resolve (each state re-runs FK 2-3 times). Cache FK for unchanged ranges, skip resolve for states with weight < 0.01, and lower cloth iterations on the mid tier. Investigate the 5-12 ms spikes (allocation or GC in update?)."
+  },
+  {
+   "id": "MATH-01",
+   "severity": "critical",
+   "title": "Automatic pelvis drop is unbounded and discontinuous: the body sinks up to 0.7 m and pops back in one frame (seen in demo.combo3)",
+   "detail": "src/char/index.js:319-337 pelvisDrop(). It computes drop = dy - sqrt(R^2 - hz^2), with R = 0.97*(l1+l2) and hz the horizontal distance from the hip joint to the ankle target. Nothing limits it, and it grows without bound as hz approaches R. Line 331 then skips the foot entirely once hz >= R, so the drop falls to 0 in one step. Both resolve() (line 282) and update() (line 628) call it. Repro: __ED.audit.run('dropSweep'), or play demo.combo3 from demo.c2end and step frames 22-28: the circling right foot passes the threshold.",
+   "evidence": "dropSweep (rear foot moved back 1 cm per step): hips y 988.7 -> 255.8 mm as hz goes 0.209 -> 0.862 m. At hz = 0.872 m the hips jump to 949.6 mm (+694 mm in one step); the foot then misses its target by 293 mm and floats 186 mm above the floor. demo.combo3 trace: chest y 1164 -> 1132 -> 1014 -> 899 -> 625 mm (t 0.367-0.433), then 1128 mm at t=0.45 (+504 mm in one frame). Weapon hand moves 531 mm in one frame. Auto drop 553 mm; pelvis 2nd difference 778 mm/frame^2 vs 2.6 authored (295x). Same on ISKA (422 mm), VORN (495 mm) and the giant (identical after normalising). Captures: shots/char/rig/math_combo3_pelvis_pop_sheet.png (deep squat at 0.400-0.433, upright at 0.450) and shots/char/rig/math_pelvis_drop_sweep_sheet.png (near-split at 6.6 s, blade in the floor; snaps upright with the rear foot floating at 6.7 s; cape thrown up at 7.2 s).",
+   "suggestedFix": "Cap the drop (design/proportion param, e.g. maxPelvisDrop = 0.2*leg). Make it continuous past hz >= R: clamp hz to R*0.999 and let the soft IK fall short, instead of `continue`. Smooth it with a smooth-max over the feet plus a short critically damped follower. In the lab/dev build, log clips whose requested drop exceeds about 5 cm (time and foot)."
+  },
+  {
+   "id": "MATH-02",
+   "severity": "critical",
+   "title": "Two-handed grip lost by up to 112 mm when the grip point is beyond the off arm's reach (no resolution strategy)",
+   "detail": "src/char/index.js:640-651 runs a plain solveLimb (soft 0.02) of the off arm onto the grip point. Nothing helps when the target is out of reach: no clavicle/shoulder assist, no chest twist, no compromise on the main hand. The off hand soft-clamps and floats off the hilt. Repro: __ED.audit.run('gripReach','demo.combo3','demo.c2end',[0.15,0.2,0.25]).",
+   "evidence": "Per-frame hand-to-grip distance is exact (0.00 mm, <=0.07 deg) in idle, guard, walkF, walkB, combo1, hit and combo1M. Failures: combo3 max 112.35 mm (p95 110.9, t=0.15-0.30, off-arm reach ratio 1.176-1.196); slam max 103.87 mm (t=0.5-0.533, reach 1.084-1.182); combo2 7.0 mm. ISKA with KAEL clips: combo3 119 mm, slam 111 mm. VORN: combo3 85 mm, combo2 25 mm, combo1 11 mm. Giant: 472 mm (= 112 x 4.2). Capture shots/char/rig/math_grip_loss_combo3_sheet.png: at 0.167 the left gauntlet hangs below the pommel; at 0.100 both hands are on the grip.",
+   "suggestedFix": "Make two-handed solving a joint problem: 1) clavicle protraction/elevation assist on the off arm, up to about 20-25 deg; 2) chest twist toward the weapon; 3) as a last resort, pull the main-hand target toward the off shoulder until both reach, weighted by grip. Also report out-of-reach grips at authoring time (clip, time, reach ratio)."
+  },
+  {
+   "id": "MATH-03",
+   "severity": "critical",
+   "title": "Crossfade between clips with different grip points teleports the off hand 0.43-0.72 m in one frame (idle <-> guard)",
+   "detail": "src/char/index.js:640-643 takes the grip point and gripHand from the newest clip only (cur.c.gripAt). The final.grip weight is blended, but the grip position is not. When demo.idle ('grip', -0.155) crossfades to demo.guard ('blade', +0.56), the off hand's IK target jumps 0.715 m along the weapon on the first fade frame. Repro: __ED.audit.run('gripSwitch').",
+   "evidence": "idle->guard, fade 0.25: off hand moves 432.9 mm in frame 1, then is 361.6 -> 63.3 mm off the grip point for 8 frames (unreachable blade point during the fade). guard->idle: 718.2 mm in one frame. Reference: the fastest off-hand motion inside combo1's smear is 206 mm/frame. Capture shots/char/rig/math_grip_switch_sheet.png: at 0.517 the left arm shoots out straight with the hand off the sword; it settles near 0.7 s. Guard <-> idle is the most frequent transition in the game.",
+   "suggestedFix": "Store each state's grip target (point + orientation, in the weapon frame) in Pose, like `feet`. Blend it with the crossfade weights in blendInto() and solve the off hand to the blended target, or lerp gripAt positions along the weapon axis. gripHand changes need the same treatment."
+  },
+  {
+   "id": "MATH-04",
+   "severity": "critical",
+   "title": "Wrist twist wraps at +-180 deg: the vambrace twist helper spins 125-174 deg in one frame; wrists bend up to 176 deg",
+   "detail": "solveLimb makes the forearm a pure hinge (src/char/ik.js:83). The upper-arm twist comes only from the pole, so the requested hand orientation's twist lands entirely in the hand's local rotation. drive() (src/char/index.js:507) sets foreArmTwist = 0.65*twistAngle(hand), and that atan2 wraps at +-180 deg, so the helper flips about 230 deg. Nothing limits wrist swing. Repro: __ED.audit.run('twistPops'), __ED.audit.run('wrist').",
+   "evidence": "Hand local twist up to 172.5 deg (anatomical pronation/supination is about +-85 deg). One-frame twist steps of 312 deg (combo2), 303 deg (combo3), 310 deg (slam). foreArmTwist helper turns in one frame: combo2 t=0.033 R 166 deg / L 126 deg, t=0.2 R 142 deg, t=0.45 L 166 deg; combo3 t=0.117 L 174 deg, t=0.3 R 169 deg; slam t=0.633 R 172 deg, t=0.65 R 169 deg; combo1 and combo1M 61-83 deg. Wrist swing (hand vs forearm axis) up to 176.5 deg (combo2 handR t=0.467), 170.9 deg (combo3 handL), 154 deg (guard handL), 91.7 deg (idle handL): the hand folds back on the forearm. Capture shots/char/rig/math_twist_pop_combo2_sheet.png.",
+   "suggestedFix": "In solveLimb for arms, decompose the requested hand orientation: put twist about the forearm axis into a forearm pronation channel (clamped about +-90 deg, distributed by the helpers). Choose the arm plane (pole or upper-arm twist) to minimise wrist swing, and clamp wrist swing to about 80 deg flex / 70 deg extension / 30 deg deviation. Make the twist helpers continuous: unwrap against the previous frame and add the shortest delta."
+  },
+  {
+   "id": "MATH-05",
+   "severity": "critical",
+   "title": "A hand key with `aim` but no `up` resets the blade roll to world +Y: the guard loop rolls the blade 50 deg with a 0.8 deg aim change",
+   "detail": "src/char/anim.js:157 aimUpToQuat defaults up to (0,1,0) when a key has no `up`. The README encourages exactly that pattern: 'key aim a frame later than pos', and its light1 example key at t=0.2 has aim only. demo.guard (t=1.0) and demo.idle (t=0.75/1.3/2.0) do it too. The blade rolls about its own axis toward the world-up projection. Repro: __ED.audit.run('aimRoll').",
+   "evidence": "demo.guard: max blade roll 50.0 deg at t=1.0 while the blade direction changes only 0.8 deg (samples: 3.6, 27, 47.8, 50, 46.4, 23, 2.2 deg). demo.idle: 4.1 deg. Capture shots/char/rig/math_guard_blade_roll_sheet.png: the flat faces the camera at 0.017 and is nearly edge-on at 1.000, with no authored change.",
+   "suggestedFix": "At compile time, fill a missing `up` by parallel-transporting the previous key's up (minimal rotation from the old aim to the new aim). Fall back to the next key's up for the first key, and to world +Y only for a clip whose first key has none. Document this in the README key table."
+  },
+  {
+   "id": "MATH-06",
+   "severity": "major",
+   "title": "Update-time pelvis drop fires on straight FK legs and after hand IK: every pose with straight legs sinks 26.9 mm and all root-space IK targets miss by that amount",
+   "detail": "src/char/index.js:628 pelvisDrop(final.feet, 0, 7, 0) uses weight 1 for both feet whatever their height. It runs after hand IK was solved in resolve(). Straight FK legs (the zero pose, the 'neutral' base of every clip, extended legs in the air) exceed 0.97 reach, so the pelvis drops 26.9 mm after the hands were solved. Repro: __ED.audit.run('ikPipeline') vs __ED.audit.run('ikPipelineBent'), and __ED.audit.run('misc').",
+   "evidence": "500 random targets per limb through the character update, neutral base: error exactly 26.87 mm for every target on handR/handL/footR/footL (rotation 0.04 deg). Same test with bent FK legs: 0.00 mm max on all 2000 targets. neutral.hold on the floor: hips 1013.1 mm (README zero-pose hips 1040), knees bent 28.2 deg. Airborne: knees straight but the whole body shifted 26.3 mm down (sole -26.32 mm vs root).",
+   "suggestedFix": "Weight the update-time drop per foot with the same height ramp as the re-plant (0 for airborne feet). Compute the final pelvis height before hand IK, or re-solve root/origin-space hand targets after the drop."
+  },
+  {
+   "id": "MATH-07",
+   "severity": "major",
+   "title": "Limbs can never straighten: planted knees stay >=28 deg bent; elbows and knees are 19.7 deg bent at exactly full reach and miss by 8-13 mm",
+   "detail": "pelvisDrop keeps planted ankles at <=0.97*(l1+l2) (index.js:330), which is about 28.3 deg of knee flexion minimum. The soft IK in solveLimb (ik.js:53-54, soft 0.04) starts at 96% reach and approaches full extension only asymptotically. Straight-leg stances (VORN upright, a victory pose, a straight back leg in a lunge) and locked thrusts (VORN 'Flash Jab' 2.4 m reach, KAEL lunge thrust) can't be authored. Repro: __ED.audit.run('ikSweep'), __ED.audit.run('ikPure').",
+   "evidence": "Reach sweep, KAEL arm: target at 0.96 -> 0 mm error, bend 32.6 deg; 0.97 -> 0.66 mm, 28.7 deg; 1.00 -> 8.39 mm, 19.7 deg; 1.05 -> 30.9 mm, 10.5 deg; 1.10 -> 5.6 deg; 1.20 -> 1.6 deg. Leg at 1.00: 13.17 mm, 19.7 deg. Soft-zone (96-100%) error over 100 random targets: arm max 8.4 mm, leg max 13.1 mm (VORN 14.1 mm, giant 55.3 mm). The sweep is smooth and monotonic: the max per-step effector change equals the target step (0.57 / 0.90 mm) and the max bend step is 0.41 deg.",
+   "suggestedFix": "Expose soft reach per effector and per key (e.g. ik.handR.soft, default 0.04; 0 = lock straight) and a design default. Raise the pelvis-drop ratio to about 0.995 and start the soft zone there, so planted legs can be nearly straight."
+  },
+  {
+   "id": "MATH-08",
+   "severity": "major",
+   "title": "Automatic pelvis drop has no velocity continuity: hitches in the walk cycles larger than the authored bob",
+   "detail": "pelvisDrop takes a hard max over the two feet and switches on/off at the reach threshold (index.js:319-337), so the pelvis height is only C0. In the demo walks it supplies up to 58-81 mm of vertical motion with kinks. Repro: __ED.audit.run('hipsJerk'), __ED.audit.run('traceFeet','demo.walkF').",
+   "evidence": "Max 2nd difference of pelvis height (actual vs authored), mm/frame^2: walkF 20.9 vs 2.2 (9.5x), walkB 28.5 vs 2.2 (12.9x), hit 25.9 vs 9.7 (2.7x), slam 96.2 vs 64.7 (1.5x). Auto drop: walkF 58 mm (rises 28.7 -> 55.4 mm within 2 frames at t 0.283-0.317), walkB 81 mm, slam 93 mm, hit 38 mm. At 30 fps the walkB drop step is 39.5 mm.",
+   "suggestedFix": "Use a smooth-max of the per-foot drops, a softplus ramp around the reach threshold, and a critically damped follower (about 60 ms) on the applied drop. Show the per-clip auto drop in the lab so authors fix hips heights in data."
+  },
+  {
+   "id": "MATH-09",
+   "severity": "major",
+   "title": "Authored knee poles are ignored on planted feet (the re-plant pass re-solves with the default pole)",
+   "detail": "src/char/index.js:629-638: the re-plant solveLimb passes pole = null, and Pose.feet stores only position + rotation. For any foot near the floor (weight 1 below 6 cm), the clip's `pole` is overridden by the default 'knee over toes' pole. Repro: __ED.audit.run('kneePole').",
+   "evidence": "Clip: footR at [0.05,0,0.28], pole [0.2,0.55,0.9] (knee out to the camera side). Root raised 3 m (re-plant weight 0): knee 0.02 deg from the pole plane. On the floor: 45.56 deg off (knee dir [0.854,0.189,0.485], points forward). Capture shots/char/rig/math_knee_pole_0.100.png (raised vs grounded knight).",
+   "suggestedFix": "Carry the pole and its weight in Pose.feet (7 -> 11 floats), blend it in blendInto(), and pass it to the re-plant and floorFoot solves."
+  },
+  {
+   "id": "MATH-10",
+   "severity": "major",
+   "title": "Default knee pole is degenerate for kicks / knee raises at hip height: the knee whips sideways at up to 8x the foot speed",
+   "detail": "ik.js:97-111 defaultPole for legs uses foot-forward + 0.6*hips-forward. When the foot target is in front at hip height, the reach direction is parallel to that pole. The projected pole then rotates quickly, and at full degeneracy it falls back to the FK knee. Arms (chest-frame down-back-out pole) are stable. Repro: __ED.audit.run('ikPole'); pipeline: __ED.lab.play('kicksweep') then __ED.audit.run('trace','audit.kick','neutral.hold',0,216,['shinR','footR']).",
+   "evidence": "Pure solver, target circles at 0.8 reach (0.5 deg steps): footR horizontal circle at hip height 17 pops; knee moves 33-44 mm per 6.25 mm target step (max ratio 8.0) around dir (1,0,0.1). Sagittal at 45% reach behind: 5 pops (8.8x). Arms, 10 sweeps: 0 pops, max ratio 2.1. Pipeline kick arc (t 1.00-1.12): knee moves 25-42 mm/frame while the foot moves 10.4 mm/frame; the knee travels 230 mm sideways (s +40 -> +270 mm). Capture shots/char/rig/math_knee_flip_kick_sheet.png.",
+   "suggestedFix": "When |dot(reach, pole)| > 0.8, blend toward a secondary hint (hips up, or hips up-forward, for knees: the knee rises when the foot is forward at hip height). Optionally keep pole-plane continuity from the previous frame (slerp limit per frame)."
+  },
+  {
+   "id": "MATH-11",
+   "severity": "major",
+   "title": "Breathing and flinch springs run after hand IK and the hands are not re-solved: IK hand contacts drift 10-20 mm",
+   "detail": "src/char/index.js:625 additive() rotates hips, spine, chest and shoulders after resolve() solved the hands. Feet are re-planted afterwards; hands are not. Hands keyed in root, hips or chest space move off their targets. This breaks hand contacts: a hand on a planted weapon (KAEL skill3 stance), grabs, a hand on the knee. Repro: __ED.audit.run('spaces'), __ED.audit.run('misc').",
+   "evidence": "Default breath (depth 1): root-space handR (demo.stance target) max error 18.59 mm; hips-space hand 17.87 mm at 60 fps and 19.85 mm at 30 fps; chest-space hand 9.97 / 8.96 mm. With breath depth 0, all of these are 0.00 mm, including during a 360 deg hips spin and under a root spin with a facing flip. Spaces are otherwise exact; origin-space foot drift during 0.3 m of root motion is 0.00 mm at 60 and 30 fps.",
+   "suggestedFix": "After additive(), re-solve hand effectors that have IK weight in the clip (store resolved hand targets in Pose like feet, in their spaces). Alternatively, apply breathing to the FK pose before IK and only flinch after."
+  },
+  {
+   "id": "MATH-12",
+   "severity": "major",
+   "title": "Feet keyed in 'hips'/'chest' space are read by pelvisDrop as targets at the model origin; root-space hand targets then miss by 88 mm",
+   "detail": "anim.js:369-379: for B-space-only effectors sampleClip leaves posA = (0,0,0). pelvisDrop() in resolve() (index.js:282, 327-332) treats that as an ankle target on the floor under the root and drops the pelvis about 83 mm. update() does not re-apply that drop (pose.hips is not updated), so hands solved for the dropped pelvis are off by that amount. The engineer's 'known limits' says these feet are 'ignored by pelvis drop'; they are not. Repro: __ED.audit.run('resolveDropHand').",
+   "evidence": "Clip with handR root-space target [0.35,1.2,0.2]: hand error 0.00 mm. Same clip plus footR {space:'hips', pos:[0.25,-0.65,0.12]}: hand error 87.95 mm. Final hips y is unchanged (1090 mm), so the error is invisible on the feet.",
+   "suggestedFix": "In pelvisDrop, skip effectors whose B-space blend k >= 1, or convert B targets to model space before the drop (that code is a few lines later in resolve()). Write the applied drop back into pose.hips so update() starts from the same pelvis."
+  },
+  {
+   "id": "MATH-13",
+   "severity": "major",
+   "title": "Walk -> idle crossfade skates the planted foot 71-142 mm",
+   "detail": "src/char/index.js:244-256 accumulates root motion only for the newest state. During a fade out of demo.walkF, the walk's planted foot (root space, moving backwards to cancel root motion) is blended toward the idle's foot while the root has stopped. The re-plant pins the foot to that blended, sliding position. Repro: __ED.audit.run('fadeSlide').",
+   "evidence": "Fade 0.2 s at walk phase 0.15 / 0.3 / 0.6: planted-foot world slide R 70.7 / R 142.1 / L 76.6 mm. walkF -> idle continuous play: no grip loss (max off-hand step 14.6 mm). Capture shots/char/rig/math_fade_foot_slide_sheet.png (rear foot visibly travels; numbers are authoritative).",
+   "suggestedFix": "Foot locking across crossfades: a foot planted at fade start (sole < 6 mm, horizontal speed about 0) keeps its world (origin-space) position until the incoming clip lifts it or the fade ends. Or keep advancing fading states' root motion weighted by their weight."
+  },
+  {
+   "id": "MATH-14",
+   "severity": "major",
+   "title": "setFacing(f, { turn }) still mirrors instantly: the sword hand jumps 350 mm across the body before the spin",
+   "detail": "src/char/index.js:517-524 sets root.scale.x = -1 immediately and starts root.rotation.y at +-pi. The first frame after the call is already a full z-mirror: sword hand and cape swap sides. The README says turn > 0 'spins through a quick turn instead' of an instant mirror. Repro: __ED.audit.run('facing').timedTurn, scenario 'turn'.",
+   "evidence": "Sword fist z: +175.3 mm (camera side) before the call, -175.3 mm right after it, -169.3 mm next frame, +190 mm at the end of the 0.3 s turn. Blade tip z -16 -> +16 -> +56 mm. Capture shots/char/rig/math_turn_pop_sheet.png: at 0.117 the cape is suddenly on the camera side. The instant flip itself is exact: twin knights at facing +1 / -1 mirror to 0.00 mm over every bone, cloth particle and spring (combo3, walkF).",
+   "suggestedFix": "Rotate unmirrored 0 -> 90 deg (edge-on), swap the mirror at 90 deg where the change is least visible, then rotate the mirrored rig -90 -> 0. Otherwise, document the pop in the README."
+  },
+  {
+   "id": "MATH-15",
+   "severity": "major",
+   "title": "mirrorClip { hands: 'keep' } is not a mirror for poles, FK arms or the weapon bone",
+   "detail": "src/char/anim.js:57 copies FK arm keys of kept hands unmirrored. Line 69 negates `pole` s for the kept arm, so a right-elbow pole lands on the left of the body. Line 50's ARM regex lacks 'weapon', so a weaponR key is renamed to weaponL. The README says keep mode 'mirrors the body, legs and the hand / weapon paths'. Separately, kept IK hands mirrored across the body can fall out of reach with no warning. Repro: __ED.audit.run('mirror').poleKeep, __ED.audit.run('keepFK').",
+   "evidence": "(a) Pole: source right elbow offset +120.7 mm s (toward the pole); keep-mirror elbow -90.8 mm s and -148 mm f (across the chest). (b) FK arms: right fist in the keep clip at [719,1534,16] mm vs expected mirror [108,1534,-712]; error 950.5 mm. (c) Mirrored key bones contain 'weaponL', not 'weaponR'. (d) demo.combo1M: legs and torso are an exact mirror (0.00 mm), but the right fist misses the mirrored target by up to 61.2 mm (t=0.32) and the blade tip by 67.9 mm. mirrorPose and mirrorClip 'swap' are exact: 0.00 mm, <=0.04 deg over 72 frames with root motion, origin feet, hips/chest-space hands and look.",
+   "suggestedFix": "Keep mode: for kept hands, mirror the pole about the arm's own shoulder (or drop it to the default pole). Convert FK-keyed kept arms to IK targets at compile time, or throw. Add 'weapon' to the ARM regex. Log when a kept-hand target exceeds reach."
+  },
+  {
+   "id": "MATH-16",
+   "severity": "major",
+   "title": "Finger curl does not wrap the grip: proximal finger geometry passes 14.5 mm into the handle and the thumb stays 19 mm off it",
+   "detail": "Finger joint offsets are hard-coded (src/char/skeleton.js:72-74: fingers [0.004,-hand-0.012,-z*0.004], tips 0.048, thumb). So are the curl angles (index.js:264-274: fingers 8+80c, tips 10+95c, thumb [25+45c,-20c,10+30c]). Neither is derived from the grip radius or the fist-centre offset (palm 0.022). With curl = 1 the knuckle row sits 14 mm from the grip axis. Repro: __ED.audit.run('fingers').",
+   "evidence": "Radial distance from the weapon axis of finger vertices within 6 cm of each fist (handle radius 19.9 mm = leather 17.5 + wrap 2.4). Fingers R/L: min 5.37 mm, p10 8.6 mm, i.e. 14.5 mm penetration. Fingertips: min 17.7 mm (2.2 mm penetration). Thumb: min 39.2 mm (19.3 mm gap). Identical in idle, guard, combo1 and walkF (both hands). Capture shots/char/rig/math_fingers_idle_0.500.png.",
+   "suggestedFix": "Add a weapon gripRadius and derive the knuckle line and curl angles so each finger segment is tangent to gripRadius + finger thickness. Close the thumb over the index finger. Scale finger offsets with P.hand."
+  },
+  {
+   "id": "MATH-17",
+   "severity": "major",
+   "title": "Human-scale constants hard-coded in the rig: the 4.2x giant has 4x-too-small fingers and its chest/head/back sockets sit inside the body",
+   "detail": "Not proportion-relative: skeleton.js:65 (neck x -0.01, head x 0.01), 72-74 (fingers/fingerTips/thumb), 81 (upperArmTwist -0.04); index.js:109-114 sockets (chest [0.13,0.12,0], head [0.03,0.1,0], back [-0.17,0.12,0], foot +0.03); index.js:632 re-plant ramp 0.06 / 0.25 m; ik.js:122 heel +0.01 and ik.js:134 toe +0.005; ik.js:151 look-at eye height 0.08; breath bob 0.003 m and flinch 0.55 m/s (index.js:458, 419); cloth teleport 0.6 m. CONTRACT roadmap: keep scale a parameter. Repro: __ED.audit.run('giantNorm').",
+   "evidence": "Giant (all lengths x4.2) with x4.2-scaled clips vs the default rig, joint positions divided by 4.2. Body joints match within 7.62 mm (neck), 2.4 mm (head, knee), 1.2 mm (feet), weapon 0. Fingers 41-47 mm normalised error. Sockets: chest 134.8 mm, head 80 mm, back 158.6 mm, footR 22.9 mm. IK, grip and contact scale exactly otherwise: pure IK 0 mm within 96% reach; soft-zone error 35/55 mm = 4.2x human; grip and planted drift identical after normalisation (2.25 / 2.64 / 27.09 mm).",
+   "suggestedFix": "Express every rig constant in proportion units (P.hand, P.ankleHeight, or a rig scale k = hipsPivot/1.04): finger offsets, socket offsets (or make them design data), re-plant ramp, contact epsilons, eye height, breath/flinch translation, teleport threshold."
+  },
+  {
+   "id": "MATH-18",
+   "severity": "major",
+   "title": "No clip retargeting across body types: KAEL-authored clips on ISKA / VORN lose the grip and over-drop the pelvis",
+   "detail": "Hips pos, root motion and IK targets in root/origin space are absolute fighter-frame metres; there is no per-character scale. Shared clips (hit reactions, knockdown/get-up, locomotion, guard, dodge) for three body types and the colossus would need re-authoring per body. Repro: __ED.audit.run('props').",
+   "evidence": "KAEL clips unscaled. ISKA (hips pivot 0.947x): grip loss combo3 119.3 mm, slam 111.2 mm; combo3 pelvis drop 422 mm; walkF drop 65 mm. VORN (1.071x): grip loss combo1 11.0 mm, combo2 25.3 mm, combo3 85.3 mm (KAEL: 0 / 7 / 112); combo3 drop 495 mm. Scaling the clips by the hips-pivot ratio restores KAEL behaviour (ISKA combo2 0.89 mm, VORN combo1 0 mm). Pure IK is exact on both rigs (0 mm within 96%).",
+   "suggestedFix": "play(name, { scale }) plus a design default clipScale = hipsPivot/1.04, multiplying hips.pos, root, look.at and IK pos/pole in root/origin space at sample time (hips/chest-space targets unaffected or scaled by P ratios). Also report this scale in rootDelta."
+  },
+  {
+   "id": "MATH-19",
+   "severity": "major",
+   "title": "Convention trap: IK `rot` on left effectors is not mirrored while FK left bones are; the same number turns the left foot the opposite way",
+   "detail": "anim.js:226 eulerToQuat(q, 0, ...v.rot) has no mirror flag, while FK ...L bones negate X and Y (anim.js:197). The README does state 'Not mirrored'. In practice, demo FEET uses footL rot [0,14,0] for toe-out, but FK footL [0,14,0] is toe-in. Across 150-200 clips that mix FK and IK feet and hands, this guarantees sign errors. Repro: __ED.audit.run('examples').footL_yaw20.",
+   "evidence": "+20 on Y. IK footL rot: toe direction (0.127, -0.055, -0.046), toes OUT (-s). FK footL: (0.127, -0.055, +0.046), toes IN. The axis table itself is correct: 75/75 bone-axis rotations (+30 deg) move the child or end effector in the documented direction for centre, right and left bones.",
+   "suggestedFix": "Mirror Euler `rot` on L effectors like L bones (mirrorChannels already handles it), or deprecate `rot` for hands and feet in favour of aim/up vectors, which are frame-unambiguous."
+  },
+  {
+   "id": "MATH-20",
+   "severity": "major",
+   "title": "Toe and heel contact is approximate: pointed-foot targets put the ball and toe tip 9-14 mm into the floor; there is no ball pivot",
+   "detail": "floorFoot (ik.js:117-141) lifts the whole foot until the lowest check point touches the floor. The toe roll then rotates the toe about its joint, 30 mm above the sole, which lowers the ball point again. asin((floor - tipY)/toeLength) assumes a horizontal toe. The heel check point is 10 mm above the sole plane (line 122). A pitched foot target at u = 0 is not honoured (no heel raise with a ball pivot); the foot is lifted instead. MOVES.md specifies ISKA's idle 'hovering slightly on her toes'. Repro: __ED.audit.run('toeRoll').",
+   "evidence": "Foot target on the floor, pitch -45 deg: sole lifted 95.5 mm, heel 141 mm, ball -8.73 mm, toe tip -13.58 mm, toe bend 41.5 deg. Pitch -30: ball -3.96, tip -8.88. Pitch +15: heel -9.66 mm. Demo clips: sabaton geometry min y -7.6 mm (walkF) and -7.1 mm (walkB, heel strike), rig toe tip -5.08 mm (walkB); 0 in all other clips. Planted drift is good in idle (0.34 mm), guard (0), walks (2.3 mm) and combo1 (2.6 mm).",
+   "suggestedFix": "Check the real sole-plane heel, ball and tip points. Solve the toe roll about the ball contact point so the tip lands exactly on the floor. For pitched targets on the floor, pivot about the ball (raise the heel, keep the ball planted) instead of translating the foot."
+  },
+  {
+   "id": "MATH-21",
+   "severity": "minor",
+   "title": "Demo clip data slides planted feet by 20 mm (runtime reproduces the data exactly)",
+   "detail": "src/char/clips/demo.js: combo2 starts from demo.c1end footL [0.42,0,-0.15] but keys footL [0.40,0,-0.15] at t=0.6 without a lift (20 mm slide over 0.6 s). slam footR origin [-0.30,0,0.18] at 0.63 -> [-0.28,0,0.18] at 1.22. slam footL z -0.16 -> -0.14. hit footR z 0.19 -> 0.17. Repro: __ED.audit.run('traceFeet','demo.combo2','demo.c1end',0,40,3).",
+   "evidence": "Planted-interval drift: combo2 footL 20.25 mm; slam footR 27.97 mm and footL 20 mm; hit footR 20.35 mm. The traces show the IK foot exactly on the authored target every frame.",
+   "suggestedFix": "Fix the keys, and add the lab's planted-drift metric (testContact) to the clip review checklist in README section 8."
+  },
+  {
+   "id": "MATH-22",
+   "severity": "minor",
+   "title": "README inaccuracies and silent no-ops",
+   "detail": "(1) Worked example 'fist at the chin: upperArm forward 40, elbow 130' puts the fist in front of the right shoulder. (2) footR/footL sockets are 30 mm forward of the IK sole point, yet both are documented as 'sole'. (3) shoulderR/L +Z is listed only as 'roll about the clavicle (avoid)'; it actually swings the whole hanging arm forward like flexion. (4) Keying fingers / fingerTips / thumb is silently overwritten by curl, while keying helper bones throws. (5) The engineer's report says feet in hips/chest space are 'ignored by pelvis drop' (false, see MATH-12). (6) The README zero-pose heights (hips 1.04 m) are never reproduced with planted or straight legs (see MATH-06).",
+   "evidence": "examples: fist [239.5,1612.9,198.0] mm vs chin about [100,1593,0], distance 243 mm. Socket local [0.03,-0.085,0] vs IK sole [0,-0.085,0]. shoulderR +30 Z: elbow moves [+152,+33,0] mm. fingersR/fingerTipsR/thumbR +30 X: 0.00 mm displacement. neutral.hold hips 1013 mm.",
+   "suggestedFix": "Correct the examples and socket docs. Make keyed curl-driven bones throw like helpers (or add per-finger override channels)."
+  },
+  {
+   "id": "ANIM-01",
+   "severity": "critical",
+   "title": "More than 4 blending clips: play() drops the oldest state while it still carries most of the weight (1.46 m weapon teleport in one frame)",
+   "detail": "src/char/index.js:202 `while (states.length > 4) statePool.push(states.shift());` removes states[0] no matter what its effective weight is. update() then treats the new states[0] as the full base (`final.copy(s.pose)`, index.js:617), so the blended pose jumps to the second-oldest clip in a single update. Repro: play idle (fade 0), then four play() calls one frame apart with fade 1.0 (slam, hit, combo1, combo2). The 4th play pushes a 5th state and removes idle, which still holds about 97% of the weight. This can happen in normal play: five state changes inside one fade window (fades are 0.08-0.2 s in src/game/actor.js), for example direction/guard mashing or multi-hit reactions.",
+   "evidence": "__ED.audit.runtime(['cap']): per-frame weapon-tip jumps (mm) 0.1,0.1,0.1,12.9,26.9,44.9,**1462.1**,11.1,7,98.6. With 3 plays (no drop): 12.9..86.7 mm, smooth. Tip y goes from 0.322 m to 1.780 m in one 1/120 s update. Capture: shots/char/rig/anim_cap_layer_sheet.png (cap_after_update_7 vs _8: blade at the floor vs raised).",
+   "suggestedFix": "Never discard a state that still has weight. When a 5th state arrives, collapse the two oldest states into one frozen snapshot pose (copy the blended result of states[0..1] for this frame into a pose with w=1) that serves as the base until the newer fades finish. Alternatively, drop the state with the smallest effective weight (w_k x product over j>k of (1-w_j)) and fold it into its neighbour. Gate: the qa cap test's tip jump must stay at or below the normal fade step (under 100 mm)."
+  },
+  {
+   "id": "ANIM-02",
+   "severity": "critical",
+   "title": "Both wrists bend far past the human range in every two-handed pose (off hand 154 deg, main hand up to 177 deg)",
+   "detail": "Two rig-level causes multiply into every sword clip. (1) The weapon bone sits exactly perpendicular to the hand's long axis (skeleton.js:75 weapon offset, no rest rotation). Real hands hold a sword diagonally across the palm, so any pose with the blade continuing the forearm line (low guard, impact, follow-through) needs about 90 deg of ulnar deviation (human limit about 40) or a full wrist fold. (2) The two-handed grip IK (index.js:645-648, `qmul(gripT, 4, mq, g.bone*4, g.q, 0)`) forces the full weapon frame, roll included, onto the off hand. The off hand cannot keep the roll that suits its forearm, so its wrist folds 90-154 deg even in the idle and guard. The hand-IK end rotation (ik.js:85) has no ROM clamp. The ROM table and metric are in src/char/qa.js (ROM.hand.swing = angle between the hand and forearm long axes, limit 85; twist limit +/-90). I verified them independently from world axes: in the idle the right hand axis is 85-86 deg from the forearm and the blade is 7-8 deg from the forearm line.",
+   "evidence": "qa.jointLimits at 120 Hz (worst value, % of frames over): guard handL.swing 154.1 (100%); combo3 handL.swing 171 (84%), handR.swing 160.5 (67%); combo2 handR.swing 177.1 (54%), handL 153.2 (73%); combo1 handL 138.6 (44%), handR 135.5 (41%); slam handL 127.3, handR 120.3; idle handL.twist -138.7 (100%), handL.swing 91.7. Same on ISKA / VORN proportions (combo1 handL.swing 134 / 146). Captures: shots/char/rig/anim_wrist_idle_close_0.000.png (cyan forearm, yellow hand axis about 85 deg apart), shots/char/rig/anim_wrist_axes_sheet.png, shots/char/rig/anim_wrists_sheet.png.",
+   "suggestedFix": "(a) Give the weapon a grip angle: a rest rotation of the weapon bone about the hand Z (about 35-45 deg, design.weapon.gripAngle), and make hand IK aim/up drive the weapon frame (hand target = weapon target x weaponRest^-1). (b) Off-hand grip: constrain position + grip axis only, and pick the roll about the axis that minimises the off-hand wrist swing for the current forearm. (c) Clamp the end-bone swing in solveLimb to about 80 deg and push the excess into upper-arm twist and pole. Gate: qa.jointLimits hand swing <= 85 deg in every clip."
+  },
+  {
+   "id": "ANIM-03",
+   "severity": "critical",
+   "title": "Crossfades switch the off-hand grip point instantly: every transition into or out of the guard teleports the left hand 0.45-0.73 m in one frame",
+   "detail": "The grip IK reads gripAt and gripHand from the newest clip only (index.js:641-643 `grips[cur.c.gripAt]`, `limbs['hand' + cur.c.gripHand]`). demo.guard grips the blade (+0.56 m) and every other clip grips the handle (-0.155 m), so on the first frame of a fade the off-hand target jumps 0.715 m while the pose itself blends smoothly. In the game, blockstun selects 'guard' with fade 0.08 (actor.js), so this happens in normal play. Crossfades into combo2 also produce off-hand wrist flips at 5x the clips' own maximum (the hand reaches a target orientation across the 180 deg twist boundary).",
+   "evidence": "__ED.audit.xfade(): 90 pairs, 0 NaN, 29 flagged pops. All 18 guard pairs: weaponL velocity step 47-87.6 m/s per 1/120 s frame (0.39-0.73 m jump), 5.4x-6126x the clips' own maximum steps. walkF/walkB/hit -> combo2: 26.5-28.5 m/s per frame, handL 15,670 deg/s per frame, x4.4-4.8. Median ratio over all pairs 0.79 (the remaining transitions are clean). Capture: shots/char/rig/anim_xfade_matrix_0.000.png (guard row and column red).",
+   "suggestedFix": "Resolve the grip target per state inside resolve() (position + orientation in model space, like pose.feet) and blend it with the state weights in blendInto. Do the same for gripHand (blend the grip weight out on the old hand and in on the new one). Gate: xfade matrix body ratio < 1.5 on every pair."
+  },
+  {
+   "id": "ANIM-04",
+   "severity": "critical",
+   "title": "Per-key eases break velocity continuity at every eased key (systematic pops; must be settled before 150-200 clips are authored)",
+   "detail": "rigmath.js:140-141 applies the ease as a time remap of the segment (`u = track.eases[i+1](u)`) before the Hermite with the shared key tangent. The velocity leaving a key is m x ease_right'(0) and the velocity arriving is m x ease_left'(1). Any pair other than linear|linear or a pair with matching end derivatives (inQuad|outQuad) jumps. inOutSine/inQuad/outQuad/outCubic stop a moving channel dead on one side of the key and start it at 1x-3x on the other. README section 5 and the section 8 recipe ('outCubic' anticipation, 'outQuad' follow-through, 'inQuad' landings) push authors straight into this, and the demo clips have the pops: the walk's swing foot stops dead in mid-air at the step apex and at 30% of the swing (keys 0.117/0.175, demo.js:96-101), and combo1's hips snap at the 0.2 s key.",
+   "evidence": "Synthetic 3-key chest move (qa synthetic easePairs, deg/s before -> after the middle key): linear|linear 204->218 (ok), inOutSine|linear 20->218, linear|outQuad 204->442, outCubic|linear 0->218, inQuad|outQuad 413->442 (ok). Clip data (qa.keyContinuity): combo1 ik.handR @0.25 6.46->11.77 m/s, hips.rot @0.2 15->635 deg/s, ik.handR @0.2 0.06->2.76 m/s, hips.pos @0.2 0.03->1.35 m/s; combo2 hips.rot @0.155 14->534, ik.handR @0.28 3.62->7.06 m/s; walkF ik.footL @0.175 0.964->0.003 m/s, @0.117 0.005->0.942 m/s (8 steps per walk); slam ik.handR @0.585 8.81->0.10 m/s. Plots: shots/char/rig/anim_plot_combo1_0.000.png (red circles at the grey key lines), shots/char/rig/anim_plot_walkF_0.000.png (knee 600 deg/s to 0 in one frame at each plant).",
+   "suggestedFix": "Replace time-remap eases with tangent control that keeps C1: per-key in/out tangent modes (auto / flat / linear / weighted handles, as in DCC tools) or cubic Bezier segments whose handles are shared across each key. Map the legacy names onto it ('out*' = flat outgoing handle on BOTH sides of the destination key, 'in*' = flat on both sides of the source key). Keep 'step' for deliberate snaps. Gate: qa.keyContinuity returns no steps on a channel that keeps moving (allow explicit 'snap' keys only)."
+  },
+  {
+   "id": "ANIM-05",
+   "severity": "critical",
+   "title": "Limb IK flips mid-move (arm in the slam, legs in the combo3 spin): joint speeds of 9,800-19,000 deg/s inside one frame",
+   "detail": "The two-bone solver picks the bend plane from a pole projected perpendicular to the reach (ik.js:57-68, defaultPole 97-111). When the target passes near the pole line, or the pelvis spins past the knee-tracks-toes pole, the plane jumps to the other side within one frame and the hand/knee whips around. Seen in the slam at 0.608 s (right arm; the blade then reaches the floor flat-first at 172 m/s) and in combo3 at 0.43-0.61 s (both legs; the body also drops into a sudden squat at 0.617-0.633). Likely overlaps the MATH lens (pole flips); listed here with the angular-velocity evidence.",
+   "evidence": "qa.angular (120 Hz): slam handR 1634->18998 deg/s at 0.608, upperArmR peak 12,501 deg/s, upperArmL 6,324; combo3 shinL 9,812 deg/s at 0.608, thighL 7,706, footR 7,632, thighR 6,829. Tip: slam 0.600-0.625 at 41->118->172->125 m/s with edge |cos| 0.54->0.35->0.03. Capture: shots/char/rig/anim_combo3_legs_sheet.png (0.600-0.633 squat, blade into the floor at 0.567-0.600).",
+   "suggestedFix": "Make the pole continuous in time: keep the previous frame's bend-plane normal and use it as a tie-breaker and hysteresis when the pole projection becomes small. For legs, rotate the default pole with the pelvis yaw and clamp knee direction to the hip ROM. Gate: qa.angular peak <= 2,600 deg/s on hand/foot and no isolated pops above 1,000 deg/s per frame."
+  },
+  {
+   "id": "ANIM-06",
+   "severity": "major",
+   "title": "setClipTime on a looping clip drops the loop wrap: markers at or near t=0 / t=duration never fire, and one frame of root motion is lost per cycle",
+   "detail": "setClipTime (index.js:208-214) stores `t % d`, so advance() (index.js:236-261) sees a wrapped external time as a backward scrub: wraps stays 0 (it is only counted when self-advancing), emit() is skipped because s.time < s.lastT, and rootDelta is zeroed (`if (s.time < s.lastT && !wraps) { df = 0 }`). The game drives move time with setClipTime (actor.js), so any looping move or channel with a marker at its loop start loses it, and the planted feet slip by one frame of root travel at every wrap.",
+   "evidence": "qa.evLoop (events at 0, 1/60, 0.25, 0.5; 4 cycles driven by setClipTime): dt 1/60 -> e0 0 of 5, eEnd 0 of 4, eMid 4/4, e1f 4/4; dt 1/30 -> e1f 3 of 4 as well. walkF driven by setClipTime for 3 cycles: rootF 1.058 m vs 1.080 expected (self-advancing 1.082): 7.9 mm lost per wrap. The same clips self-advancing at dt 1/120..1/15, hit-stop, 0.1x slow-mo, random jitter and speed 2/0.5 fire every marker exactly once (all 'ok').",
+   "suggestedFix": "Track external time unwrapped: keep the raw t passed to setClipTime and compute wraps = floor(t/d) - floor(tPrev/d) for loops (a negative jump below one cycle = scrub). Then reuse the advance() emit and rootEnd path. Gate: externalWrapEvents test all equal to expected; externalLoop rootF == 3 x rootEnd."
+  },
+  {
+   "id": "ANIM-07",
+   "severity": "major",
+   "title": "Layer clips never emit their events (attack-while-walking can never fire hit / trailOn / trailOff)",
+   "detail": "applyLayers (index.js:380-405) samples layer clips but never calls emit(). README section 2 advertises override layers for 'attack while walking'. A layered attack therefore produces no hit or trail markers, and the presentation cannot sync VFX, sound or damage.",
+   "evidence": "runtime events.layerEvents: base demo.walkF + layer 'atk' = demo.combo1 (upper) for 70 frames -> {demo.walkF:step: 3}, no demo.combo1 events (combo1 alone fires trailOn, hit, step, trailOff).",
+   "suggestedFix": "Emit layer clip markers from applyLayers with the same from/to logic (time is self-advanced). Pass the layer name as a 4th listener argument, and document it."
+  },
+  {
+   "id": "ANIM-08",
+   "severity": "major",
+   "title": "Masked override layers copy local rotations, so the layer's hand IK targets are lost: a layered attack's blade lands 1.6 m from its authored path",
+   "detail": "applyLayers resolves the layer pose with its OWN hips/spine (index.js:400), then copies only the masked local rotations onto the base (index.js:401). The 'upper' mask excludes hips, so the arms ride the base clip's pelvis yaw (walk -26 deg) instead of the layer's (combo1 -50..+34 deg) and the fighter-frame IK targets the author keyed are never met. The lower body and the upper locals match exactly; the weapon does not.",
+   "evidence": "runtime layers.upperOverWalk: lowerVsWalk 0.00 deg, upperVsCombo1 0.00 deg (locals identical), weapon tip vs combo1 alone 1.608 m at t=0.367.",
+   "suggestedFix": "After copying masked locals, re-solve the layer's active hand effectors (and grip) on the final pose with the layer's weight, since they are authored in the fighter frame. Alternatively, offer a model-space mask mode (blend the layer's model rotation for the first masked bone of each chain)."
+  },
+  {
+   "id": "ANIM-09",
+   "severity": "major",
+   "title": "Layer grip uses the base clip's gripAt / gripHand: the off hand leaves the weapon by 0.25-0.47 m",
+   "detail": "index.js:641-643 always uses cur.c (newest base state) for the grip point and grip hand, while final.grip may come from a layer (index.js:403). Base demo.guard (grip 'blade' +0.56) with an upper layer demo.combo1 (grip 'grip' -0.155) sends the left hand toward the blade point, which is out of reach during the swing, so the hand floats off both grip points.",
+   "evidence": "runtime layers.gripAtFromBase: off hand in weapon frame [0.087, 0.014, -0.219] at t=0.25 (a later hold gives [0.304, -0.028, -0.055]) vs combo1 alone [-0.155, 0, 0]. Capture: shots/char/rig/anim_cap_layer_sheet.png (guard_base_plus_combo1_upper_layer vs combo1_alone).",
+   "suggestedFix": "Carry gripAt/gripHand per pose (from its clip, base or layer) and blend the grip target with the layer weight, as in ANIM-03."
+  },
+  {
+   "id": "ANIM-10",
+   "severity": "major",
+   "title": "Lower-body override layers and additive leg layers are cancelled by the foot re-plant (layered steps do nothing)",
+   "detail": "The re-plant at index.js:627-638 drives the feet back to final.feet. final.feet is filled only by blendInto over the base states (index.js:344-347), and applyLayers never updates it. A 'lower' mask layer and any additive leg motion are therefore solved away. Only breathing and flinch should be re-planted.",
+   "evidence": "runtime layers.lowerLayer: idle + layer walkF (mask 'lower') -> footL travel 0.000 m (walkF alone 0.213 m), footR 0.000. additiveLegs: idle + additive combo1 (mask 'lower') -> 0.00 deg added on any leg bone (combo1 itself moves thighL 48 deg).",
+   "suggestedFix": "When a layer's mask includes leg bones, blend that layer's resolved feet into final.feet with its weight. For additive layers, re-capture feet after authored additive motion and re-plant only against procedural additive (breath, flinch)."
+  },
+  {
+   "id": "ANIM-11",
+   "severity": "major",
+   "title": "Looping clips with a net rotation stall at the loop seam (360 deg/s spin drops to 47 deg/s once per cycle)",
+   "detail": "finalizeTrack (anim.js:131-136) appends the closing key as a copy of key 0, and the hemisphere alignment (anim.js:141-148) then flips it to -q0 for a net 360 deg rotation. computeTangents (rigmath.js:166, 168) wraps neighbours without sign correction: key 0 sees values[n-2] (end hemisphere) as its predecessor and the closing key sees values[1] (start hemisphere) as its successor. Both seam tangents become extrema and are zeroed. Affects twirls and spins authored as loops (spear twirl, whirlwind-style skill loops).",
+   "evidence": "qa.loop8 (chest 0->360 deg, keys every 45 deg, loop 1 s): mid-cycle 353-364 deg/s, at the seam 134, 47, 47, 134 deg/s; closing key w=-1 vs first key w=+1; seam tangents [0,0,0,0] at both ends. Net-zero loop (qa.loopNet0) seam tangents 1.955 both sides (fine). Plot: shots/char/rig/anim_plot_loopspin_0.000.png (speed to ~0 at 0.9 / 1.8 s).",
+   "suggestedFix": "In computeTangents for quaternion tracks, negate a wrapped neighbour whose dot with the key is negative (or align it to the key's hemisphere) before computing slopes. Gate: qa.loop8 seam speed within 5% of 360 deg/s."
+  },
+  {
+   "id": "ANIM-12",
+   "severity": "major",
+   "title": "Flinch springs are frame-rate dependent: 30 fps hits look 29% weaker than 60 fps (contract: identical at dt 1/30)",
+   "detail": "stepSpring (index.js:430-432) is semi-implicit Euler with a damping term c*dt = 0.5 at dt 1/30. impulse() adds to angular velocity, so the peak and settle time depend on dt. Clips, crossfades and speed changes are exactly frame-rate independent; the flinch is the only animated quantity that is not. Positives: residual drift 0.0000 deg after 3 s; 20 stacked impulses stay bounded (chest 18.8, head 54 deg); hit-stop delays it exactly; mirrored facing gives identical numbers.",
+   "evidence": "runtime flinch (amount 1, dir [-1,0,0]): chest peak 6.70 / 5.89 / 4.21 deg and settle (<0.5 deg) 0.44 / 0.38 / 0.23 s at 120 / 60 / 30 Hz; head 13.4 / 12.6 / 10.6 deg. stepping.withFlinch: 30 vs 120 Hz 3.04 deg (shinR) and 43.2 mm (weapon) at t=0.767; 60 vs 120: 1.01 deg / 14.7 mm. Without flinch: 0.0000 deg / 0.000 mm.",
+   "suggestedFix": "Integrate the springs at a fixed internal substep (e.g. 1/240 s, carrying the remainder over) or with the exact analytic damped-oscillator update. Gate: stepping.withFlinch 30vs120 < 0.1 deg."
+  },
+  {
+   "id": "ANIM-13",
+   "severity": "major",
+   "title": "Attack timings give the greatsword tip 97-172 m/s strikes and 66-98 m/s wind-up snaps (KAEL brief: heavy, slow, huge arcs); README section 8 prescribes them",
+   "detail": "The demo strikes cross 180-250 deg of blade rotation in 2-4 keys over 25-50 ms (README section 8: 'the strike in 2-4 frames'), and the 'outCubic' anticipation front-loads a 140 deg wind-up into the first 25 ms. Plausible heavy-greatsword tips are about 15-25 m/s (stylised AAA 30-50). At 143 m/s the tip moves about 2.4 m per 60 fps frame: the trail gets 2-3 samples per strike and draws as a polygon, and joints exceed human speeds by 2-7x. The 1.47 m blade is the same for the 8 m giant only if timings are scaled with size.",
+   "evidence": "qa.tipPath peaks (m/s): combo1 wind-up 73.2 @0.025, strike 143.2 @0.233; combo2 65.9 / 97.2; combo3 97.9 / 58.8; slam 172.4 @0.617; hit 32.5 @0.02. qa.angular over-speed: combo1 handR 6,475 deg/s (limit 2,600), upperArmL 3,757; slam handR 18,998. Traces: shots/char/rig/anim_evidence_sheet.png (trace_combo1_front: widely spaced 1/60 s dots with red corners at the smear keys).",
+   "suggestedFix": "Re-time the demo strikes to 4-6 frames at 60 fps (0.07-0.1 s) with two steering keys, and an accelerating anticipation instead of a snap. Change README section 8 accordingly and add a qa gate (tip peak <= 45 m/s for KAEL and VORN, <= 55 m/s for ISKA, scaled by qa.scaleOf for the giant)."
+  },
+  {
+   "id": "ANIM-14",
+   "severity": "major",
+   "title": "No weight transfer: the knight lifts a foot with its centre of mass 0.35-0.53 m outside the stance foot (puppet stepping)",
+   "detail": "COM from the Winter segment table plus a 3% weapon mass (qa.balance), against the convex hull of foot contact points. With both feet flat the COM is always supported (good). But every single-support phase of the walks, the slam wind-up and the hit step keeps the COM between the feet: the walk keys move the hips only +/-2-3 cm (demo.js:108-113), and the COM track is a straight line.",
+   "evidence": "qa.balance: walkF single support 0.75 s of 1.52, 100% outside, max 0.421 m; walkB 0.917 s, 100%, 0.407 m; slam 0.717 s, 100%, 0.530 m; hit 0.25 s, 0.444 m; combo1 0.267 s, 0.352 m. Both feet planted: unsupported 0 s everywhere except hit 0.05 s (max 3.8 cm) and combo3 0.008 s. Plot: shots/char/rig/anim_balance_walkF_0.000.png (flat COM track; 0.35-0.42 m plateaus whenever a foot is up).",
+   "suggestedFix": "Author a lateral and forward hips shift onto the stance foot (6-12 cm plus pelvis tilt) before each lift, or shorten single support. Optionally add a runtime 'support' helper that offsets the hips toward the support polygon while a foot target is lifted. Gate: qa.balance singleMax <= 0.1 m for locomotion."
+  },
+  {
+   "id": "ANIM-15",
+   "severity": "major",
+   "title": "The blade passes through the floor up to 0.96 m deep (combo3), 0.44 m (combo2) and stays buried 0.30 m for 0.44 s (slam)",
+   "detail": "Nothing in the runtime keeps the weapon above the floor, and the demo clips do not either. combo3's sweep dives into the stone during the 0.57-0.61 s squat (ANIM-05). combo2 starts by pushing the low c1end blade through the floor. The slam 'impact' keeps the blade 30 cm inside the floor from 0.63 to 1.07 s.",
+   "evidence": "qa.floor blade min (m) / time below -5 mm: combo3 -0.959 @0.608 / 0.092 s; combo2 -0.437 @0.025 / 0.042 s; slam -0.303 @0.65 / 0.442 s; all others >= +0.097. Knees min 0.149 m (combo3), feet >= -0.008. Capture: shots/char/rig/anim_combo3_legs_sheet.png (0.567, 0.600).",
+   "suggestedFix": "Add an optional weapon floor constraint (sample points base->tip; if below floorY, raise the hand target or pitch the wrist, and fire a 'groundContact' event). Fix the clip keys. Gate: qa.floor blade min >= -0.02 m except on clips flagged as ground-contact."
+  },
+  {
+   "id": "ANIM-16",
+   "severity": "major",
+   "title": "Strikes travel flat-first: combo2's backhand meets its hit frame with the flat, and the slam hits the floor flat at 172 m/s",
+   "detail": "The edge metric (qa.tipPath.edge = |cos| between the blade edge axis and the tip velocity across the blade; 1 = edge leads, 0 = flat leads) per 1/120 s frame. Aim and up are splined separately, and nothing keeps the edge leading between keys.",
+   "evidence": "combo2 strike (hit @0.217): 0.167 0.52, 0.175 0.47, 0.183 0.37, **0.192 0.12, 0.200 0.21**, 0.208 0.47 at 67-97 m/s. slam: 0.608 0.35 @118 m/s, **0.617 0.03 @172 m/s**, impact 0.633 0.18. combo1 strike 0.92-1.00 (good), then the follow-through flips flat while trailOn is still active (0.267 0.42, 0.283 0.12, 0.292-0.317 0.03-0.05). Swing summaries: combo1 flat 40%, combo2 27.6%, slam 16% of swing frames.",
+   "suggestedFix": "Fix the up-vector keys in the demo clips. Optionally add a runtime 'edgeLead' option during trail windows that rolls the blade about its axis toward the velocity (bounded by wrist twist ROM). Gate: qa edge >= 0.8 on frames within +/-2 of a 'hit' marker."
+  },
+  {
+   "id": "ANIM-17",
+   "severity": "major",
+   "title": "Hip joint twists 113-177 deg during the combo3 spin (human limit about 45): the pelvis rotates around legs that do not follow",
+   "detail": "The left foot is the pivot, but its yaw is clamped to -40..60 deg (demo.js:208 yawL) while the hips turn a full 360 deg, and the knee pole tracks the toes (ik.js:104-111). The remaining rotation goes into thigh twist, so the knee points backward relative to the pelvis and the leg candy-wraps at the hip. combo2 also exceeds the limit (-66 deg). The IK has no hip ROM clamp.",
+   "evidence": "qa.jointLimits: combo3 thighL.twist -176.6 deg @0.533 (33% of frames), thighR.twist -112.9 @0.608 (32%); combo2 thighR.twist -65.7 (19%); combo1 -48.9 (27%). Capture: shots/char/rig/anim_combo3_legs_sheet.png.",
+   "suggestedFix": "Let planted feet pivot when the hip twist would exceed about 40 deg (auto-yaw about the ball of the foot, see ANIM-26). Rotate the knee pole with the pelvis beyond the limit. Re-author combo3's pivot foot to follow the hips. Gate: thigh twist within +/-45."
+  },
+  {
+   "id": "ANIM-18",
+   "severity": "major",
+   "title": "Left arm passes through the cuirass in combo1 (0.23-0.5 s) and in the c1end link pose that starts combo2",
+   "detail": "The off hand reaches across to the grip, and the default elbow pole (down/back/out in the chest frame, ik.js:98-102) routes the left elbow through the chest. qa.intersections uses armour-inclusive capsules with the rest-pose depth subtracted. I confirmed it directly: the left elbow joint is 4-7 cm from the chest bone axis, while the breastplate surface is 15-19 cm from it.",
+   "evidence": "qa.intersections combo1: torso|upperArmL 16.7 cm deep @0.392 (0.525 s), torso|foreArmL 16.5 cm @0.233 (0.79 s); combo2: torso|upperArmL 16.6 cm @0.008, torso|foreArmL 14.3 cm. Chest-frame elbowL distance from the axis: combo1 0.233 -> 0.042 m, 0.3 -> 0.064, 0.392 -> 0.058, 0.5 -> 0.070; combo2 0.008 -> 0.058; idle 0.202 (outside). Blade vs body pairs: none above 1.5 cm except the guard's half-sword forearm contact (1.9 cm, expected). Capture: shots/char/rig/anim_intersections_sheet.png.",
+   "suggestedFix": "Give the gripping arm a pole that keeps the elbow outside the torso, or add torso-capsule avoidance to solveLimb: rotate the bend plane about the shoulder-wrist axis until the elbow clears chest radius + arm radius. Gate: qa torso|upperArm and torso|foreArm depth <= 2 cm."
+  },
+  {
+   "id": "ANIM-19",
+   "severity": "major",
+   "title": "Per-character update averages 0.6-1.3 ms with cloth (p95 up to 1.2 ms on the mid tier); the animation runtime itself costs 0.07-0.39 ms",
+   "detail": "Measured with performance.now around char.update after a 300-frame warm-up, 600 frames, full knight vs the same design without cloth. Cloth is 80-90% of the cost, and the mid tier runs cloth quality 1 like high. The machine was shared and noisy (a fixed 2e6 quaternion-product benchmark ran 24-34 ms), so treat the absolute values as indicative. A phone 3-4x slower would spend about 3 ms per character, against the contract's 8 ms total JS. The mixer and IK scale well: about 0.03-0.08 ms per extra blended state.",
+   "evidence": "runtime cpu (ms mean / p95): high full 0.65/0.9 (1 clip), 1.29/4.7 (2 clips, noisy), 1.22/3.2 (4 clips + 2 layers); mid full 0.995/1.2, 0.87/2.1, 0.97/3.3; low (cloth 0.5) full 0.31/0.4, 0.41/0.5, 0.63/0.8; lite (no cloth) 0.07-0.15 (high), 0.39/0.5 worst (low). The engineer reported 0.5-0.6 ms.",
+   "suggestedFix": "Lower mid-tier cloth quality, or step cloth at 30 Hz with interpolation on low/mid. Add a per-frame budget assert in the lab (update p95 <= 0.8 ms on the reference machine)."
+  },
+  {
+   "id": "ANIM-20",
+   "severity": "minor",
+   "title": "Cancelling a clip drops its pending markers: trailOn fires without the matching trailOff",
+   "detail": "emit() runs for the newest state only (index.js:244). This is documented, but the consequence is not: any cancel before a closing marker leaves paired effects (trails, loops, armour windows) on. With a 0.40 s cancel, combo1 fires trailOn/hit/step and never trailOff (0.42).",
+   "evidence": "runtime events.cancel: {combo1: trailOn 1, hit 1, step 1, trailOff 0; combo2: trailOn 1, hit 1, trailOff 1}.",
+   "suggestedFix": "Fire an 'exit' callback (or the clip's remaining 'off'-type markers flagged with `closeOnExit: true`) when a state loses 'newest'. Document that presentation must close paired effects on cancel."
+  },
+  {
+   "id": "ANIM-21",
+   "severity": "minor",
+   "title": "A non-looping additive layer never ends: it holds the last frame's delta forever",
+   "detail": "index.js:384 auto-stops only override layers (`if (!L.additive && !L.stopping)`). An additive flinch clip whose last frame differs from its first leaves a permanent offset until stopLayer. stopLayer itself returns exactly to the base (0.0000 deg).",
+   "evidence": "runtime layers.additive: idle + additive demo.hit (0.85 s): peak 26.8 deg head @0.067; still 6.0 deg (shoulderR) at t=2.35 s; afterStop 0.0000 deg / 0.000 mm.",
+   "suggestedFix": "Auto-fade non-looping additive layers at their end like override layers, or document that they hold."
+  },
+  {
+   "id": "ANIM-22",
+   "severity": "minor",
+   "title": "Negative speed (reverse playback) runs clipTime negative forever and never finishes",
+   "detail": "advance() clamps only the upper end for one-shots (index.js:242). Loops never wrap below 0, so the pose freezes at the first key.",
+   "evidence": "runtime speed.reverse: play(combo1, {speed:-1, startAt:0.6}) for 1 s -> clipTime -0.4, finished false.",
+   "suggestedFix": "Clamp at 0 and set finished for one-shots; wrap negative time for loops (and emit markers in reverse order or not at all, documented)."
+  },
+  {
+   "id": "ANIM-23",
+   "severity": "minor",
+   "title": "Floor contact probes the heel 1 cm above the sole, so heels sink about 8 mm on toes-up landings",
+   "detail": "floorFoot (ik.js:122) tests the heel at `-P.ankleHeight + 0.01` while the sabaton bottom is at -ankleHeight. Sole width is also not tested (centreline only).",
+   "evidence": "qa.floor walkF feet min -0.008 m @0.667 (0.308 s below -5 mm), walkB -0.005; same on ISKA / VORN (-0.007 / -0.009).",
+   "suggestedFix": "Probe the heel at -ankleHeight and add the +/- half-width sole corners."
+  },
+  {
+   "id": "ANIM-24",
+   "severity": "minor",
+   "title": "Component-wise clamped Catmull-Rom on quaternions makes coarse rotation keys uneven (uniform 400 deg/s spin plays at 260-597 deg/s)",
+   "detail": "computeTangents (rigmath.js:158-181) zeroes the tangent of any quaternion component at a local extremum. With keys 90-120 deg apart, a component peaks at nearly every key, so constant-rate motion slows at the keys and speeds up between them. With 45 deg keys the spline is uniform (353-364 deg/s), so the issue shows up when authors key large FK swings sparsely.",
+   "evidence": "qa.loopSpin (keys every 120 deg): 489-496 deg/s mid-segment, about 260 at interior keys (plot shots/char/rig/anim_plot_loopspin_0.000.png); qa.loop4 (90 deg keys): 327-355 mid; uniformSpin (45 deg keys, one-shot): at keys 356, between 364, 480 only in the first segment (open-end flat tangent).",
+   "suggestedFix": "Interpolate rotations with a rotation-aware spline (squad / log-space Catmull-Rom on relative rotations), keeping the no-overshoot clamp in angle space rather than per component."
+  },
+  {
+   "id": "ANIM-25",
+   "severity": "minor",
+   "title": "Planted feet pivot flat about the ankle; rear-ankle dorsiflexion exceeds the human range in every stance",
+   "detail": "Foot targets are the sole point under the ankle, so a keyed toe-yaw rotates the whole flat sole about the ankle instead of the ball. There is no 'pivot: ball|heel' option. The toed-out rear foot (rot [0,-45,0]) under a forward-leaning shin needs 38-62 deg of dorsiflexion (limit 30).",
+   "evidence": "qa.feet: combo3 footL flat with 48 deg yaw while planted (drift 2.3 cm); combo1 footR 17 deg; combo2 footR 21.9 deg. qa.jointLimits footR.z: guard 38 deg (100%), walkF 45.2 (46%), walkB 49.2 (48%), slam 62 (65%), hit 46.9 (52%). Settled drift otherwise <= 2 mm in walks (moonwalk ratio <= 0.02) and <= 2.4 cm in attacks; landing skid <= 5 cm.",
+   "suggestedFix": "Add `pivot: 'ball' | 'heel'` to foot targets (rotate about that point, lift the other end). Raise the heel (toe roll) when dorsiflexion would exceed about 30 deg."
+  },
+  {
+   "id": "SIM-01",
+   "severity": "critical",
+   "title": "Automatic pelvis drop is discontinuous: demo.combo3 drops the whole body 0.54 m and pops it back 0.50 m in one frame (twice per spin)",
+   "detail": "src/char/index.js:319-337 pelvisDrop(). When a foot target lies outside the leg reach, the drop is drop = dy - sqrt(R^2 - hz^2), which tends to the full hip height as hz approaches R (R = 0.97 x (thigh + shin)). As soon as hz >= R the foot is skipped (`|| hz2 >= R * R) continue;`), so the drop jumps from about 0.5 m to 0 in a single frame. It also applies to LIFTED swing feet: during the spin the right foot is 0.13-0.34 m above the floor. The function is called in resolve() (index.js:282) and again for the re-plant (index.js:628). In combo3 the right foot circles the pivot at 0.79 m. Hips model y goes 0.888 -> 0.346 m between t=0.367 and 0.433 (the knight collapses into a near-split), then +503 mm in ONE frame at t=0.45, then -428 mm in one frame at t=0.6167. The same pops occur inside the natural chain combo1>combo2>combo3 (t=2.25-2.53). Every secondary sim inherits the pop: tasset tip 31.6 m/s, cape jerk 592 mm/frame^2, cape edge stretch 3.6-4.2x. The result is very sensitive to the foot path: scaling the swing-foot circle by 0.8 / 0.7 / 0.6 / 0.4 gives pops of 391 / 547 / 105 / 31 mm. Any of the ~150-200 future clips with a foot near full reach (lunges, sweeps, kicks) will pop. Reproduce: node tools/shot.mjs rigaudit_sim --eval \"__ED.sim.run('spin',{series:['t','hipsStep']})\".",
+   "evidence": "hipsStep (mm per frame, model frame) for demo.combo3: 0.40:119 0.417:116 0.433:275 0.45:503 0.617:428 0.633:114 0.65:142 0.667:144. Max for the other clips: idle 1.6, walk 23.7, hit 47.5, slam 109 (its authored impact drop). Capture: shots/char/rig/sim_spin_pelvispop_sheet.png (split at 0.433, standing at 0.450, deep crouch at 0.617).",
+   "suggestedFix": "Drop the pelvis only for feet that are planted (target height < ~2 cm and IK weight ~1). Make the function continuous: clamp hz to R before computing, cap the drop (e.g. 0.12 x leg length) and low-pass it over time (critically damped, ~0.08 s). Let unreachable feet in the air use soft reach instead of moving the pelvis. Add a regression check that fails any clip whose max per-frame hips step exceeds ~60 mm unless it is keyed."
+  },
+  {
+   "id": "SIM-02",
+   "severity": "critical",
+   "title": "Cape tunnels through the torso in the spin finisher at 60 Hz (17 frames, rendered cloth 11 cm inside, edges stretched 3.6x)",
+   "detail": "This happens even with the pelvis pops removed (lab clip 'audit.spin' = combo3 with the swing-foot circle x0.4, max hips step 31 mm). From t=0.467 to 0.733 (17 consecutive frames) rendered cape vertices are inside the torso capsule and structural edges pass through capsules. The cape folds into a flat dark band across the front of the chest plus a stiff slab at the waist, with a needle-like stretched edge to the floor. It gets worse at 30 Hz, with a 1/15 dt spike, with a timed facing turn and on the low tier (coarser 5x6 grid). Root causes in src/char/cloth.js. (1) Pins are interpolated across substeps (279-285), but body capsules are evaluated at the END-of-frame pose for every substep, so a fast torso jumps past particles. (2) Collision runs once per substep, after all Gauss-Seidel iterations (311-321), so the constraints drag particles back into the body. (3) pushOutCapsules (collide.js:45-66) pushes to the NEAREST surface, so tunnelled particles are pushed out of the wrong side and the sheet tears. (4) The 14 m/s velocity clamp is saturated for 11 frames (vmax 14.0-14.5), so the cape cannot keep up with the 16 rad/s spin. At 60 Hz there are only 2 substeps (273). README section 7 claims 'long-range tethers (no runaway stretch)'.",
+   "evidence": "Clean spin at 60 Hz: rpen 29-37 vertices (17 f), rdepth 0.111 m, edges 14 (17 f), stretch 3.63x, particle pen 3 (1.9 cm). hz30: rpen 33, stretch 3.4-3.6x. Spike 1/15: stretch 5.4x. Timed turn: stretch 7.7x, rpen 54 (13 cm). Low tier spin: rpen in 33 frames, depth 0.150 m. hz120: rpen 0, stretch 1.39 (fine). Lab-only copy of Cloth.update (__ED.sim.experiment()): capsule lerp alone gives no gain; collision in the last 3 iterations gives rpen 5 / stretch 2.46. Capsule lerp + collision in the iterations: spin rpen 0, stretch 1.61, cost p10 0.65 ms (vs 0.55). Plus a max substep of 1/240 s: spin/hz30/spike all rpen 0, stretch 1.24-1.41, but cost 1.08-1.14 ms per character. Captures: shots/char/rig/sim_cleanspin_34_sheet.png, sim_cleanspin_top_sheet.png, sim_cleanspin_close_0.583.png.",
+   "suggestedFix": "In Cloth.update: interpolate capsule endpoints per substep exactly like the pins (keep last frame's capsule data). Run pushOutCapsules inside the last 2-3 constraint iterations, not only after them. Push out along the side the particle was on in the previous substep, not the nearest surface. Use adaptive substeps: 2 normally, 4 when max pin/capsule speed exceeds ~3 m/s, to stay inside the 1 ms budget. Raise or scale maxSpeed during fast moves."
+  },
+  {
+   "id": "SIM-03",
+   "severity": "critical",
+   "title": "Cloth and spring bones are not time-step consistent: different swing at 30/60/120 Hz, limp cape and over-fast plume in slow motion",
+   "detail": "src/char/cloth.js: damping is applied per SUBSTEP (`damp = 1 - s.damping`, line 274) and the number of substeps depends on dt (`dt > 1/55 ? 3 : 2`, line 273). So damping per second and solver iterations per second change with frame rate: 90 / 120 / 240 / 1200 substeps per game second at 30 Hz / 60 Hz / 120 Hz / 0.1x. Verlet velocities (p - pp) are not rescaled when the substep length changes (cloth.js:289, spring.js:66). When slow motion starts, the per-frame displacement is carried into frames 10x shorter, so the cloth keeps real-time speed for a few frames and then becomes almost frozen (0.965^1200 damping per game second). Springs show the same carry-over. This violates CONTRACT 'animation, cloth and VFX must look identical at 60 fps and when a frame is dropped (dt 1/30)'. Ultimates and skill finishers use slow motion 0.2-0.6 (MOVES.md). Hit-stop (dt = 0) itself is clean. Every cloth/spring parameter tuned now will be wrong after the fix, so fix before content authoring.",
+   "evidence": "Free swing after a 0.25 m root jolt (__ED.sim.decay()), cape hem zero-crossing: 30 Hz 0.20-0.25 s, 60 Hz 0.37-0.45 s, 120 Hz 0.40-0.50 s, 0.1x never (creeps back over 1.5 game s = 15 s real). Slow motion entered mid-swing (dtCompare): cape hem game-time speed in the first 50 ms is 13.35 m/s vs 3.0 m/s in the 1x run (4.5x). Plume tip 18.4 vs 8.7 m/s in the slow-motion window (2.1x). Cape RMS deviation from the 60 Hz run at equal game times: uniform 0.1x 0.42 m, 120 Hz 0.25 m, 30 Hz 0.16 m. Hit-stop deviation is 0.0034 m (clean). Lab variant 'all' (time-based damping + time-corrected Verlet + 1/240 substeps) gives zero-crossings of 0.20-0.30 s at all of 30/60/120 Hz and 0.1x. Captures at equal game times 0.30-0.55: shots/char/rig/sim_slowmo_ref1x_sheet.png (cape flares) vs sim_slowmo_01x_sheet.png (cape hangs straight down).",
+   "suggestedFix": "Damping per second: damp = pow(1 - c, h / h_ref) or exp(-k h). Time-corrected Verlet: on the first substep, v = (p - pp) * (h / h_prev). A fixed substep length with an accumulator (or XPBD compliance) keeps stiffness independent of dt. Apply the same to SpringChain: track the previous dt and rescale (p - pp). Re-tune the knight's cloth/spring parameters afterwards."
+  },
+  {
+   "id": "SIM-04",
+   "severity": "major",
+   "title": "A single NaN input poisons the character: impulse NaN is permanent, others persist until teleport() (no spring failsafe)",
+   "detail": "impulse({amount: NaN}) or impulse({dir: [NaN,0,0]}) writes NaN into the flinch springs (index.js:409-427, stepped in additive() 460-477). Nothing ever resets them: teleport() (index.js:527-532) resets cloth and springs but not springsBody / boneSprings. Result: all 188 bones are non-finite forever and the fighter vanishes for the rest of the match. setClipTime(NaN), play(name, {speed: NaN}) and root.position.x = NaN for ONE frame leave the character non-finite for at least 1 s of idle: the SpringChain tips keep NaN forever (spring.js:49-97 has no failsafe, unlike Cloth). They recover only after a manual teleport(). update(NaN), update(-1/60), lookAt(NaN vector) and wind NaN are handled. No NaN occurred in any normal scenario (19 scenarios, 0 NaN frames, 0 failsafe resets).",
+   "evidence": "__ED.sim.robust() on fresh characters: impulse_amount_NaN and impulse_dir_NaN give finiteAfterIdle1s false, finiteAfterTeleportPlus1s false, 188/188 bones non-finite. setClipTime_NaN, play_speed_NaN, root_position_NaN_one_frame: finite only after teleport().",
+   "suggestedFix": "Guard public inputs with Number.isFinite (play speed/fade/startAt, setClipTime, impulse dir/amount, lookAt target, wind, update dt). Add a NaN/explosion failsafe to SpringChain.update (reset like Cloth) and to the flinch springs. Make teleport() also zero springsBody and boneSprings."
+  },
+  {
+   "id": "SIM-05",
+   "severity": "major",
+   "title": "Flinch impulses accumulate with no clamp: head whips 37-55 deg in multi-hit moves, 178 deg under spam",
+   "detail": "impulse() adds angular velocity to unbounded springs (index.js:409-427, 460-477). Multi-hit moves in MOVES.md (Iska 6 slashes, Vorn 9 bolts, Kael 3 rapid cuts) will call impulse per hit. The README's suggested launcher value 'amount 2-3' already gives a 53 deg head whip.",
+   "evidence": "Deviation from the same frames without impulses (__ED.sim.robust()): single amount 1: chest 5.9 deg, head 17.6 deg (README says ~8 / ~12). Amount 3: chest 17.6, head 52.7. 9 hits every 6 frames: head 37.1. 6 hits every 4 frames: chest 14.3, head 54.9. 30 consecutive frames: chest 55.1, head 178.4, hips shove 0.28 m.",
+   "suggestedFix": "Saturate the spring state with a soft clamp (e.g. tanh to ~20 deg torso, ~35 deg head, 5 cm shove). Scale each new impulse by the remaining headroom so flurries read as a sustained flinch instead of an accumulating whip."
+  },
+  {
+   "id": "SIM-06",
+   "severity": "major",
+   "title": "teleport() / cloth reset costs a 13.6-16.4 ms frame and snaps the cape through a rotated torso; springs are not pre-settled",
+   "detail": "(a) After teleport() or the cloth failsafe, the next update runs the 24-step pre-settle for each cloth (cloth.js:250-253), which drops a frame on desktop and several on phones. (b) _snap hangs the cloth from 'rest offsets below the pinned row, unrotated' (cloth.js:235-247). If the torso is yawed (mid-move), the rest drape points through the body and the settle pushes particles out of the nearest side, so the cape visibly jumps. (c) SpringChain.reset only restarts the tips at the rest direction, so the plume falls and swings for ~4 s after every reset or spawn. Mid-move teleports are in the design brief (Iska skill3 blink, Vorn Arc Step).",
+   "evidence": "__ED.sim.parts(): updateAfterTeleportMs 16.36 vs updateMs_idle 1.0. robust(): 13.6 vs 0.84 ms. A fresh character's first update is 36.4 ms. teleportReset during the clean spin: cape speed 71.6 m/s, jerk 1260 mm vs 14.7 m/s / 218 mm in the same spin without the reset. Capture shots/char/rig/sim_teleport_reset_sheet.png: the cape jumps from wrapped around the torso (0.450) to hanging straight down on the camera side (0.467). Plume speed at rest after a reset: 1.1 m/s at 0.35 s, 0.08 at 2.0 s, 0.002 at 4.0 s.",
+   "suggestedFix": "Reset by rigidly carrying the last cloth shape into the new pose, or express the rest drape in the anchor bone frame so it rotates with the chest. Cut or amortise the pre-settle (e.g. 4-6 steps, or spread over frames). Pre-settle spring chains to their gravity equilibrium. Document the cost of teleport() and prefer the automatic >0.6 m detection, which is artefact-free (3 m jump: no extra stretch or penetration)."
+  },
+  {
+   "id": "SIM-07",
+   "severity": "major",
+   "title": "Mixer eviction pop: a 5th state discards the fully weighted base pose instantly (1.56 m weapon-tip jump in one frame)",
+   "detail": "index.js:202 `while (states.length > 4) statePool.push(states.shift())` drops the OLDEST state, which is the base (always blended at weight 1). The next state, whose weight may still be near 0, becomes the base and the pose snaps to it. This happens whenever more than 3 play() calls land inside one fade window: restart hit reactions in multi-hit moves, cancels, or a hit then knockdown in the same frame.",
+   "evidence": "robust().mixer_eviction: 0.5 s fades started every 2 frames. Per-frame weapon-tip motion 0.123 0.085 0.142 0.160 0.183 0.164 then 1.555 m at the 4th play (eviction of the base), then 0.395 m at the 5th, against 0.08-0.18 m normally.",
+   "suggestedFix": "On overflow, bake the two oldest states into one snapshot pose (blend with the current weight, then keep it as a frozen base that fades out), or evict the lowest-weight non-base state. Expose the cap in the README."
+  },
+  {
+   "id": "SIM-08",
+   "severity": "major",
+   "title": "Spring bones ignore animation although the docs say they follow it",
+   "detail": "spring.js:57 builds the target from rig.restRot (the bind rest) instead of the bone's animated local rotation lq[i], so keys on spring bones have no effect. README section 7 says 'pulled to the animated direction' and the design table says 'stiffness (1/s^2 toward the animated direction)'. Authors cannot lift tassets during high kicks or lunges, aim the plume, or key straps.",
+   "evidence": "robust().spring_bone_keyed_rotation: a held pose keying tassetR [0,0,60] changes the bone by 0.03 deg; plume1 [0,0,70] changes by 0.15 deg (after 180 settle frames).",
+   "suggestedFix": "Use the sampled clip rotation as the spring target: target model rotation = mq[parent] * lq[i] before simulation (keep restRot as the fallback when unkeyed). Then add a test and fix the README."
+  },
+  {
+   "id": "SIM-09",
+   "severity": "major",
+   "title": "Timed facing turn tears the cape (stretch 5.9-7.7x) although the README says cloth is unaffected",
+   "detail": "setFacing(f, {turn}) mirrors the root and spins root.rotation.y through 180 deg in `turn` seconds (index.js:517-524, 598-602). computeInertia feeds this rotation to the cloth as real inertia (index.js:569-578). So the cape is swept through the torso during the presentation spin. README section 2: 'turn > 0 (seconds) spins through a quick turn instead. Cloth / springs are unaffected.' Side switches after cross-ups are normal play.",
+   "evidence": "flipTurn scenario (turn 0.15 s at t=0.30 / 0.80, clean spin): cape stretch 5.9-7.7x, rpen 52-57 vertices, depth 0.13-0.14 m, edges 25-30. The instant-flip variant shows no extra damage (same numbers as the plain spin). Even with every cloth fix in experiment() it is still rpen 14-17, stretch 3.3-3.4. Capture shots/char/rig/sim_flipturn_sheet.png.",
+   "suggestedFix": "Exclude the turn's own rotation from the inertia transform (it is a presentation trick, not world motion), or clamp the angular part of the inertia per frame (e.g. <= 8 deg). Fix the README sentence."
+  },
+  {
+   "id": "SIM-10",
+   "severity": "major",
+   "title": "Plume spring has no collision and droops 5.5 cm into the back / helmet at rest",
+   "detail": "knight.js plume spring: collide: false, gravity 0.45 vs stiffness 50, and the design has no head or back-of-helmet collider. The plume settles into the helmet's neck guard and the upper back, so the signature crimson plume is mostly swallowed in the silhouette and clips in close-ups. In moves it reaches 4-8 cm inside the torso/shoulder capsules. Note: knight.js is the rig engineer's demo design, not an ART file.",
+   "evidence": "rest scenario: plume depth 0.055 m in 323/360 frames (from t=1.5 s onward). spin 0.051, slam 0.044, slowmoSlam 0.078 m. Captures shots/char/rig/sim_plume_rest_back_3.000.png (plume mostly hidden inside the helmet/gorget) and sim_plume_rest_side_3.000.png.",
+   "suggestedFix": "Add a helmet capsule and an upper-back capsule to the colliders and enable collide on the plume. Raise stiffness or lower gravity, or bake a rest pose that arcs up and back. Design guideline for Kael/Iska/Vorn: every spring chain gets colliders for the body parts it can reach."
+  },
+  {
+   "id": "SIM-11",
+   "severity": "minor",
+   "title": "Per-frame allocations (~7 KB per update) despite README 'No per-frame allocations in update()'",
+   "detail": "Measured by heap growth without GC over 50-100 updates in steady state. Main sources: TypedArray.subarray views, which allocate even in optimised code (measured 60 B each), in solveLimb (ik.js:79-81 and 87: 6 per call, ~10-14 calls per update), resolve (index.js:277, 312), update (index.js:621) and Cloth.update (cloth.js:266). Others: the closure `toLocal` created every update (index.js:583) and Map iterators in additive() (index.js:474) and applyLayers (index.js:381). Math.hypot is NOT a source once optimised (0.3 B/call).",
+   "evidence": "CDP Runtime.getHeapUsage deltas: 50 updates 7650-7661 B/update, 100 updates 6819-7037 B/update (25-update runs include re-warm-up). That is about 0.42 MB/s per fighter at 60 fps. Micro-test: dst.set(src.subarray(4,8)) = 60.4 B/call. Scripts: /tmp/claude-0/-home-user--/8256de2b-7eff-573b-8afc-504b52b3c9af/scratchpad/cdp/rate.mjs, micro.mjs, alloc.mjs.",
+   "suggestedFix": "Replace subarray copies with qcopy / explicit index loops, hoist toLocal to the factory scope, and iterate arrays instead of Map iterators. Then re-run rate.mjs and expect < 100 B/update."
+  },
+  {
+   "id": "SIM-12",
+   "severity": "minor",
+   "title": "Unbounded dt: update(Infinity) never returns; huge dt emits thousands of events",
+   "detail": "advance() loops `while (s.time >= d) { s.time -= d; wraps++; }` (index.js:241), then emits every wrap (index.js:247-249). The app clamps dt to 1/15, so this needs a caller bug (e.g. passing time since pause). Negative speed on loops never wraps: clipTime goes to -2 after 2 s and freezes on the first key (index.js:240-242). Unknown clip names throw from play()/layer() (anim.js:311). A throw inside ctx.onUpdate aborts that frame's remaining updaters and render; the character itself stays usable.",
+   "evidence": "robust(): update(1e4) on demo.walkF took 2.5 ms and emitted 26,315 'step' events in one update. negative_speed_loop: clipTime -2.0 after 120 frames. play('no.such.clip') throws 'unknown clip no.such.clip'; after_throws_still_updates finite true.",
+   "suggestedFix": "Clamp dt at the top of update() (e.g. <= 0.25 s), wrap with modulo, emit at most one wrap's events, and support negative speed with a symmetric wrap. In production builds, warn once and fall back to the idle clip on unknown names (keep the throw under __DEV__)."
+  },
+  {
+   "id": "SIM-13",
+   "severity": "minor",
+   "title": "Lazy per-rig clip compilation on first play (no precompile API); a fresh character's first update costs 36 ms",
+   "detail": "getClip compiles each clip per rig on first use (anim.js:304-316). prewarm() only compiles shaders. With ~150-200 clips per fighter this means 0.1-0.9 ms hitches the first time each move is used mid-fight, and two instances of the same design compile everything twice. A new character's first update also runs both cloth pre-settles.",
+   "evidence": "__ED.sim.parts(): clip compile 0.1-0.9 ms per clip (combo3 0.9), 12 demo clips 4.5 ms total. firstPlayAndUpdateMs_combo3_freshRig 36.4 ms. createCharacter 117-156 ms (load time).",
+   "suggestedFix": "Add char.precompile(names | 'all') (or compile in createCharacter from a clip list in the design) and run one warm-up update at load. Share compiled clips between rigs with identical proportions."
+  },
+  {
+   "id": "SIM-14",
+   "severity": "minor",
+   "title": "Shadow pass draws the full 56.9k-triangle character: 113.8k triangles and 6 calls per knight",
+   "detail": "Every slot mesh has castShadow = true (build.js:179). The shadow pass re-skins and draws everything, including the cloth lining and rim, fingers, rivets and gauntlet detail. Two knights take 227.7k of the 350k whole-game triangle budget (CONTRACT), leaving 122k for environment and VFX. A character at 6 calls is at the contract's per-character limit if the shadow pass counts.",
+   "evidence": "__ED.sim.draw(): charCalls 6 (3 main + 3 shadow), charTris 113,836, shadowTris 56,918. Vertices: plate 39,456, suit 4,644, blade 3,043. Bone texture 28x28.",
+   "suggestedFix": "Build a low-poly shadow proxy per character (merged, a few k triangles, same skeleton) and set castShadow = false on the detailed meshes. Alternatively drop the cloth lining and small trims from the shadow pass via a separate slot."
+  },
+  {
+   "id": "SIM-15",
+   "severity": "minor",
+   "title": "Mid tier (phones) runs the full desktop cloth; cost headroom will vanish once cloth collision is fixed",
+   "detail": "quality.cloth is 1 on both 'mid' (8-core phones) and 'high' (core/util.js), so mid phones run the 9x12 cape + 5x7 tabard with 10 iterations. Cloth is about 60-70% of the update cost. The substep fixes needed for SIM-02/03 roughly double the cloth cost.",
+   "evidence": "__ED.sim.cpu({n:3000}) on a 2.1 GHz Xeon (load average 10-14, so the best batch and p10 are the reliable figures). High: best 0.52 ms, p10 0.54-0.56, p50 0.62-0.93 ms per update; cloth ~0.32-0.40 ms of it. Low (cloth 0.5: cape 5x6, 8 iterations): best 0.18-0.20, p10 0.21-0.25. Two characters scale linearly. experiment(): 1/240 substeps give p10 1.08-1.14 ms. A control workload on the same machine showed p99 at 5x its median, so tail percentiles here are environmental.",
+   "suggestedFix": "Use cloth 0.7-0.75 on mid, adaptive substeps only during fast moves, and fewer iterations on the tabard. Re-measure on a real mid phone with #fpsmeter."
+  },
+  {
+   "id": "SIM-16",
+   "severity": "minor",
+   "title": "Spring bones get a velocity kick after hit-stop; tasset tip clips into the thigh when legs cross",
+   "detail": "(a) During dt = 0 frames, SpringChain.update still applies the length / cone / collision constraints but leaves pp untouched (spring.js:63-87). The accumulated correction becomes velocity on resume, so the tassets jolt after every hit-stop. Cloth returns early on dt <= 0 and is clean. (b) pushOutCapsules handles capsules sequentially (collide.js:48-63): pushing a tasset tip out of one thigh can leave it inside the other when the legs cross.",
+   "evidence": "dtCompare hitstop (2 s freeze at t=0.36, clean spin): tasset deviation from the uninterrupted run up to 0.090 m at t=0.40; cape 0.028 m, plume 0.0097 m. Tasset tip depth inside a thigh capsule 0.065-0.085 m for 1 frame at t=0.45 in every spin variant.",
+   "suggestedFix": "On dt <= 0, return early (as Cloth does) or set pp = p after the constraints. Iterate pushOutCapsules 2x, or resolve against the deepest capsule last."
+  },
+  {
+   "id": "SIM-17",
+   "severity": "minor",
+   "title": "Two fighters' cloth passes through each other: no inter-character or external collider API",
+   "detail": "Capsules are per character only, so A's cape and tabard pass through B's body in cross-ups, pass-through skills (Iska skill3, Vorn Arc Step) and cinematics with body contact (Vorn ULT 'victim lifted on the spear', orbit shots around both). The cloth is otherwise stable while overlapping (no NaN, no explosions).",
+   "evidence": "crossup (B walks through A): 43 of A's cape particles inside B's capsules (depth 0.158 m, 62 frames); B in A: 30 (0.161 m, 71 frames). A spinning with B at 0.9 / 1.2 / 1.5 m: 24 / 3 / 0 particles (depth 0.154 / 0.034 / 0 m); at 0.9 m the bodies themselves overlap after the 0.5 m root motion. Capture shots/char/rig/sim_spin_near_opponent_sheet.png.",
+   "suggestedFix": "Add char.setExternalColliders(list) (or addColliders(otherChar)) feeding world-space capsules into the cloth and spring push-out (12 capsules: negligible cost). Enable it in cinematics and close range."
+  },
+  {
+   "id": "SIM-18",
+   "severity": "minor",
+   "title": "Simulation thresholds are hard-coded for the 1.9 m human (colossal-boss roadmap)",
+   "detail": "Thresholds that do not scale with the design: teleport/inertia-skip at 0.6 m per frame (index.js:566), cloth failsafe |p| < 50 (cloth.js:326), pre-settle 24 x 1/60 s (cloth.js:252), floor-contact ramp 0.06-0.25 m (index.js:632), default cloth maxSpeed 14 m/s (cloth.js:164). For an ~8 m boss (x4.2): a scaled Vorn-style dash of 8 m/s x 4.2 = 34 m/s is 0.56 m/frame, right at the threshold, so inertia toggles on and off frame to frame. A 4.7 m cape's pendulum period is ~2x longer (sqrt(4.2)), so 0.4 s of pre-settle leaves it swinging. A 4 m-radius cape swing at the same angular speed exceeds 14 m/s and gets clamped.",
+   "evidence": "Code references above; arithmetic from the boss scale in CONTRACT.md (7-9 m) and the measured human cape speeds (11-14 m/s in the spin).",
+   "suggestedFix": "Derive the thresholds from a design scale (rig.P.hipHeight / 0.98): teleport distance, settle duration, floor ramp and default maxSpeed. Document per-design overrides."
+  },
+  {
+   "id": "SIM-19",
+   "severity": "minor",
+   "title": "Cape sags 5.5% at rest (edge stretch above the 4% tether)",
+   "detail": "With 10 iterations x 2 substeps the structural constraints do not fully hold the cape's weight; edges at rest sit at 1.055x their rest length (tabard 1.005x). This is polish: it elongates the hem slightly and softens the drape. The tether limit is 1.04 (cloth.js:164, 312-315).",
+   "evidence": "rest scenario: cape stretch 1.0546 in all 360 frames (tabard 1.0048). Rest jitter is excellent: cape 0.0008 mm, tabard 0.0004 mm, tasset 0 mm per frame after 4 s.",
+   "suggestedFix": "Apply tethers inside the iteration loop, or use a stiffer stretch pass (two passes of vertical edges). It becomes free with XPBD / the substep changes of SIM-03."
+  }
+ ]
+}

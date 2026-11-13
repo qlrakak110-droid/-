@@ -1,0 +1,7 @@
+{
+ "workflow": "rpg",
+ "completed": [],
+ "interrupted": [
+  "rpg-core"
+ ]
+}

@@ -1,0 +1,7 @@
+{
+ "workflow": "murim_motion",
+ "completed": [],
+ "interrupted": [
+  "motion-director"
+ ]
+}

@@ -1,0 +1,7 @@
+{
+ "workflow": "blender",
+ "completed": [],
+ "interrupted": [
+  "blender-pipeline"
+ ]
+}
