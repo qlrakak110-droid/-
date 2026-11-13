@@ -16,6 +16,7 @@ export default async ({ evalJs, advance, shot, log }) => {
   // freeze the idol's own mind, stand the hero `dist` m in front of it
   await R(`(() => { const r = __ED.rpg, w = r.world(); const b = w.actors.find((a) => a.kind === 'idol'); b.controller = { think() {} }; b.teleport(4, 0, Math.PI); r.tp(4 - 1.25 - 0.45 - ${dist}, ${side ? 0.01 : 0}, 0); r.lock(true); })()`);
   await advance(0.8);
+  if (process.env.CAM) { const c = process.env.CAM.split(',').map(Number); await R(`(() => { const w = __ED.rpg.world(); w.camera.worldShot((t, out) => { out.pos.set(4 - ${c[0]}, ${c[1]}, ${c[2]}); out.look.set(4, ${c[3]}, 0); out.fov = ${c[4] || 40}; }, { dur: 99 }); })()`); }
   if (side) await R(`(() => { const w = __ED.rpg.world(); w.camera.worldShot((t, out) => { out.pos.set(0.5, 3.2, 15); out.look.set(0.5, 2.6, 0); out.fov = 46; }, { dur: 99 }); })()`);
   const B = `__ED.rpg.world().actors.find((a) => a.kind === 'idol')`;
   const times = {

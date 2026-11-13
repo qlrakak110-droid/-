@@ -5,6 +5,7 @@
 // A handful of meshes, three materials, no textures; colliders for everything solid.
 
 import * as THREE from 'three';
+import { sequence } from '../cine.js';
 
 const PLACES = { altar: { x: -11, z: 6.5, yaw: -0.5 }, heroSpawn: { x: -9.6, z: 5.6, yaw: -0.52 }, gate: { x: -5, z: 2.4, yaw: -0.5, r: 2.6 } };
 
@@ -99,6 +100,13 @@ export default function install(rpg) {
     let t = 0, open = 0, passed = false;
     const off = world.on('gate', () => { passed = true; });
     const offRest = world.on('heroRest', () => { passed = false; });
+    // the hero falls: the camera lifts away over the body until the hero wakes at the stone
+    const offDeath = world.on('heroDeath', (e) => {
+      const h = e.hero, cam = world.camera;
+      if (!h || !cam) return;
+      const yaw = cam.yaw ?? h.yaw, bx = -Math.cos(yaw), bz = Math.sin(yaw), x = h.pos.x, z = h.pos.z;
+      sequence(ctx, world, [{ dur: 3.0, frame: (k, out) => { out.pos.set(x + bx * (3.2 + 1.8 * k), 1.7 + 3.3 * k, z + bz * (3.2 + 1.8 * k)); out.look.set(x, 0.45, z); out.fov = 46 - 6 * k; } }], { clock: 'real', blendOut: 0 });
+    });
 
     return {
       altar: PLACES.altar, heroSpawn: PLACES.heroSpawn, gate: PLACES.gate,
@@ -117,7 +125,7 @@ export default function install(rpg) {
         for (let i = 0; i < veils.length; i++) veils[i].position.y = 0.72 + Math.sin(t * 0.5 + i * 1.3) * 0.08;
       },
       dispose() {
-        off(); offRest();
+        off(); offRest(); offDeath();
         for (const r of removers) r();
         group.removeFromParent();
         for (const x of geos) x.dispose();

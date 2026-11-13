@@ -15,6 +15,7 @@ import { idolDesign } from './design.js';
 import { defineIdolClips, T } from './clips.js';
 import { withStage } from '../core/stage.js';
 import { angDiff, yawTo, hypot2 } from '../core/math3.js';
+import { sequence, around } from '../cine.js';
 
 const SCALE = 3;
 const NAME = { ko: '흑일마신상 黑日魔神像', en: 'Idol of the Black Sun' };
@@ -179,16 +180,24 @@ export default function install(rpg) {
       fx.schedule(3.3, () => { if (a.alive) { world.fxAt(a, 'combat.dust.stomp', [-1, 0, 0.7], { scale: 3, heavy: true }); ctx.cam.shake(0.6, { freq: 8 }); world.present.sound('land', { pos: a.view.pos, volume: 1 }); } });
     }
     if (!cam || !cam.worldShot || !hero) return;
-    const fwd = new THREE.Vector3(Math.cos(a.yaw), 0, -Math.sin(a.yaw)), side = new THREE.Vector3(Math.sin(a.yaw), 0, Math.cos(a.yaw));
-    const P = (f, u, s, out) => out.set(a.pos.x + fwd.x * f + side.x * s, u, a.pos.z + fwd.z * f + side.z * s);
-    const ease = (x) => x * x * (3 - 2 * x);
-    cam.worldShot((t, out) => {
-      const k = ease(Math.min(1, t / 3.6));
-      // low at the planted blade, rising along the body to the face, drifting to the hero's side
-      P(9.5 + 2.5 * k, 0.6 + 2.2 * k, -4.2 + 6.4 * k, out.pos);
-      P(0.4, 1.6 + 2.2 * k, 0, out.look);
-      out.fov = 44 - 4 * k;
-    }, { dur: T.wake - 0.2, blendOut: 1.1 });
+    // three shots: the blade's tip on the stone with the statue beyond it, the mask as the eyes kindle, then low from
+    // behind the hero as the idol rises to its full height
+    const P = around(a), chest = new THREE.Vector3();
+    const hx = hero.pos.x, hz = hero.pos.z, dl = Math.hypot(a.pos.x - hx, a.pos.z - hz) || 1, dx = (a.pos.x - hx) / dl, dz = (a.pos.z - hz) / dl;
+    sequence(ctx, world, [
+      { dur: 1.4, frame: (e, out) => { P(7.6 - 0.5 * e, 0.32 + 0.1 * e, 2.9 - 0.3 * e, out.pos); P(0.6, 2.3 + 0.4 * e, 0.2, out.look); out.fov = 31; } },
+      { dur: 1.3, frame: (e, out) => { P(4.5 - 0.4 * e, 3.0 + 0.2 * e, -1.2 + 0.2 * e, out.pos); P(0.45, 3.45 + 0.25 * e, 0, out.look); out.fov = 27 - 2 * e; } },
+      { dur: T.wake - 2.9, frame: (e, out) => { out.pos.set(hx - dx * 3.3 + dz * 1.2, 0.85 + 0.25 * e, hz - dz * 3.3 - dx * 1.2); P(0, 2.6 + 1.0 * e, 0, out.look); out.fov = 41 - 4 * e; } },
+    ], { blendOut: 0.9, dof: { focus: () => a.socket('chest', chest), aperture: 0.9, range: 2.6 } });
+  }
+
+  /** 개안: the camera closes in on the hunched idol, then cuts under its face for the roar. */
+  function enrageCam(world, a) {
+    const P = around(a);
+    sequence(ctx, world, [
+      { dur: T.enrage.roar - 0.36, frame: (e, out) => { P(8.6 - 1.6 * e, 1.1, -2.9, out.pos); P(0.3, 2.9, 0, out.look); out.fov = 38 - 4 * e; } },
+      { dur: 1.25, frame: (e, out) => { P(6.8, 0.9 + 0.3 * e, 2.4, out.pos); P(0.3, 4.2 + 0.2 * e, 0, out.look); out.fov = 37 + 7 * e; } },
+    ], { blendOut: 0.7 });
   }
 
   function death(world, a) {
@@ -196,6 +205,14 @@ export default function install(rpg) {
     if (a.data.aura) { a.data.aura.stop(); a.data.aura = null; }
     if (!fx) return;
     world.slowmo(0.3, 1.4);
+    if (ctx.rpg && ctx.rpg.world === world) {
+      // the fall in a slow arc around the idol, then a low wide shot as it becomes a statue again
+      const P = around(a), chest = new THREE.Vector3();
+      sequence(ctx, world, [
+        { dur: 2.4, frame: (e, out) => { const g = 0.45 + 0.85 * e; P(Math.cos(g) * 9.2, 2.7 + 0.5 * e, Math.sin(g) * 9.2, out.pos); P(0.2, 3.3 - 0.9 * e, 0, out.look); out.fov = 36; } },
+        { dur: 2.8, frame: (e, out) => { P(12.5 - 1.6 * e, 0.8, -3.2, out.pos); P(0, 2.2, 0, out.look); out.fov = 34; } },
+      ], { clock: 'real', blendOut: 1.2, dof: { focus: () => a.socket('chest', chest), aperture: 0.8, range: 3 } });
+    }
     world.fxAt(a, 'combat.ko.burst', [0.4, 3.6, 0], { scale: 2.6 });
     fx.schedule(1.9, () => { world.fxAt(a, 'combat.dust.land', [0, 0, 0], { scale: 3.4, heavy: true }); ctx.cam.shake(0.8, { freq: 7 }); world.present.sound('body_fall', { pos: a.view.pos, volume: 1 }); });
     fx.schedule(3.0, () => world.fxAt(a, 'combat.charge.release', [0.5, 2.6, 0], { element: 'eclipse', scale: 2.4 }));
@@ -270,11 +287,12 @@ export default function install(rpg) {
     },
     crackle(world, a) {
       world.fxAt(a, 'combat.charge.gather', [0.5, 3.0, 0], { element: 'eclipse', scale: 3, duration: T.enrage.roar - 0.3 });
+      enrageCam(world, a);
       world.present.sound('ult_charge', { pos: a.view.pos, volume: 1, pitch: 0.6 });
       world.slowmo(0.5, 0.8);
     },
     roar(world, a) {
-      world.fxAt(a, 'combat.ult.flash', [0.3, 3.6, 0], { scale: 2.6 });
+      world.fxAt(a, 'combat.ult.flash', [0.3, 3.6, 0], { scale: 1.5 });
       world.fxAt(a, 'ember.explosion', [0, 2.4, 0], { scale: 2.4 });
       withStage(a, () => {
         const fx = fxOf();

@@ -43,6 +43,12 @@ The Blender code is now `tools/blender/rigidkit.py` (helpers + decimate + bake +
 character in `tools/blender/heroes/` (`idol.py`, `cultist.py [--elite]` -> `src/rpg/foes/cultist.edb` / `protector.edb`,
 12.5k / 14k triangles, rig `cult`); the decoder is `src/rpg/edb.js`; `src/rpg/tests/foemodel.mjs` reviews the enemies.
 
+**Cinematics (session 2):** `src/rpg/cine.js` (`sequence(ctx, world, shots, opts)`: cut-based world shots, letterbox,
+depth of field, blend back) drives the boss intro (blade tip -> mask as the eyes kindle -> low from behind the hero),
+the phase-2 roar, the boss death (slow arc, then a low wide shot) in `src/rpg/boss/index.js`, and the hero-death lift in
+`src/rpg/world/index.js`. Sheets: `SECTION=intro|enrage|death` of `src/rpg/tests/boss.mjs` (+ `CAM="back,h,z,lookH,fov"`
+for a fixed three-quarter view of any attack).
+
 **Motion capture (session 2):** `python3 tools/mocap/extract_run.py tools/mocap/09_01.bvh` turns a CMU run capture
 (mocap.cs.cmu.edu, subject 9; free for any use; the database was created with funding from NSF EIA-0196217) into phase
 curves `src/rpg/core/clips/mocap_run.js`; `locomotion.js` drives pelvis bounce / sway / surge / list / twist, trunk
