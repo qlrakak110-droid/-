@@ -25,6 +25,7 @@ import { createCharacter, defineClip, invalidateClips, listClips } from '../char
 import { getClip, getClipDef, sampleClip, Pose } from '../char/anim.js';
 import { createRig } from '../char/skeleton.js';
 import { qfromBasis } from '../char/rigmath.js';
+import { GRIP, WRIST } from '../char/ik.js';
 import * as qa from '../char/qa.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
@@ -337,6 +338,20 @@ function gripAt(id = 'vorn', clip = 'vorn.idle', t = 2.167, full = false) {
     handTwist: r(twistOf(lquat(c, 'hand' + off))), handSwing: r(swingOf(lquat(c, 'hand' + off))), diagGripErrMM: r(c.diag.gripErr * 1000, 2), root: [c.root.position.x, c.root.position.y].map((x) => r(x, 3)) };
 }
 
+/**
+ * offGrip with solver constants changed for the run (diagnosis only, restored afterwards): rollFree = unbounded off-hand
+ * roll (GRIP.ROLL_KNEE / ROLL_MAX), wristFree = no wrist clamp (WRIST twist / swing limits huge).
+ */
+function offGripExp(id = 'vorn', filter = null, rollFree = false, wristFree = false) {
+  const g0 = { ...GRIP }, w0 = { ...WRIST };
+  try {
+    if (rollFree) { GRIP.ROLL_KNEE = 50; GRIP.ROLL_MAX = 60; }
+    if (wristFree) { WRIST.twist = 6; WRIST.twistKnee = 5.9; WRIST.swing = 6; WRIST.swingKnee = 5.9; WRIST.swingBack = 7; }
+    const o = offGrip(id, filter);
+    return { rollFree, wristFree, framesAxisOver10deg: o.framesAxisOver10deg, framesAxisOver25deg: o.framesAxisOver25deg, gripFrames: o.gripFrames, topAxis: o.topAxis, topTwist: o.topTwist, perClip: o.perClip.slice(0, 6) };
+  } finally { Object.assign(GRIP, g0); Object.assign(WRIST, w0); }
+}
+
 // ---- 5. weapon-hand fist vs its key: the reach-grip pull ------------------------------------------------------------
 function requestedPos(c, cl, t, pose, e) {
   sampleClip(c.rig, cl, t, pose, c.design.clipScale ?? 1);
@@ -528,7 +543,7 @@ function cpuIK(id = 'kael', full = false) {
   return { fighter: id, full, clips: names, oneClip: time(() => {}), fourStateFades: time((i) => { if (i % 4 === 0) c.play(names[(i / 4) % names.length], { fade: 0.3, restart: true }); }) };
 }
 
-const TESTS = { gripAt, cut, cutLive, cutTrace, lag, rates, offGrip, pull, poleSing, posOnly, aimDiag, spinSpeed, cpuIK };
+const TESTS = { offGripExp, gripAt, cut, cutLive, cutTrace, lag, rates, offGrip, pull, poleSing, posOnly, aimDiag, spinSpeed, cpuIK };
 
 createLab({
   view: { target: [0, 1.05, 0], dist: 4.2, yaw: 20, pitch: 6, fov: 40 },
