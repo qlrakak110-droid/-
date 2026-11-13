@@ -16,6 +16,39 @@ import { shift } from './spring.js';
 const ZERO3 = new Float32Array(3);
 
 /**
+ * Segment a-b (particles at p[a..], p[b..], inverse masses wa / wb) against every capsule both particles collide
+ * with: where the segment's closest point to a capsule axis is inside the capsule, both particles move out along
+ * that point's normal by the penetration (a sheet stretched across a limb is lifted round it). mask / ma / mb: the
+ * particles' capsule masks.
+ */
+function edgeOut(p, a, b, caps, margin, mask, ma, mb, wa, wb) {
+  const d = caps.data;
+  for (let i = 0; i < caps.count; i++) {
+    if (mask && (mask[ma + i] || mask[mb + i])) continue;
+    const c = i * 7, ax = d[c], ay = d[c + 1], az = d[c + 2], ux = d[c + 3] - ax, uy = d[c + 4] - ay, uz = d[c + 5] - az;
+    const vx = p[b] - p[a], vy = p[b + 1] - p[a + 1], vz = p[b + 2] - p[a + 2];
+    const wx = p[a] - ax, wy = p[a + 1] - ay, wz = p[a + 2] - az;
+    // closest points of segment s(t) = pa + v t and the axis q(u) = A + U u, t and u in [0, 1]
+    const A = ux * ux + uy * uy + uz * uz, B = ux * vx + uy * vy + uz * vz, Cc = vx * vx + vy * vy + vz * vz;
+    const D = ux * wx + uy * wy + uz * wz, Ee = vx * wx + vy * wy + vz * wz, den = A * Cc - B * B;
+    let t = den > 1e-12 ? (A * Ee - B * D) / -den : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    let u = A > 1e-12 ? (D + B * t) / A : 0;
+    u = u < 0 ? 0 : u > 1 ? 1 : u;
+    t = Cc > 1e-12 ? (ux * u * 1 - wx) * vx / Cc + (uy * u - wy) * vy / Cc + (uz * u - wz) * vz / Cc : 0;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    if (t <= 0.02 || t >= 0.98) continue; // the closest point is an end particle: the particle collision handles it
+    const sx = p[a] + vx * t, sy = p[a + 1] + vy * t, sz = p[a + 2] + vz * t;
+    const qx = sx - ax - ux * u, qy = sy - ay - uy * u, qz = sz - az - uz * u;
+    const r = d[c + 6] + margin, l = Math.sqrt(qx * qx + qy * qy + qz * qz);
+    if (l >= r || l < 1e-6) continue;
+    const k = (r - l) / l, ox = qx * k, oy = qy * k, oz = qz * k;
+    if (wa > 0) { p[a] += ox; p[a + 1] += oy; p[a + 2] += oz; }
+    if (wb > 0) { p[b] += ox; p[b + 1] += oy; p[b + 2] += oz; }
+  }
+}
+
+/**
  * Lay out a cloth grid in bind space.
  * spec: { name, top: [[bone, [x,y,z]], ...] (pinned edge, ordered from the fighter's LEFT (-Z) to RIGHT (+Z)),
  *         cols=9, rows=12, length=1.0, drape=[-0.12,-1,0] (hang direction), flare=0.3 (relative widening at the
@@ -175,6 +208,8 @@ export const CLOTH_STEP = 1 / 120;
 const MAX_STEPS = 5;
 /** Structural / shear edges never stretch past this factor of their rest length (strain limit). */
 export const MAX_STRAIN = 1.15;
+/** Most strain-limit passes per step (they stop as soon as every edge is within 2% of its limit). */
+const STRAIN_PASSES = 6;
 
 export class Cloth {
   /**
@@ -197,6 +232,7 @@ export class Cloth {
     this.r0 = new Float32Array(this.n * 3);  // state one step earlier (rendering interpolates to the frame time)
     this.rp = new Float32Array(this.n * 3);  // rendered positions
     this.inv = new Float32Array(this.n).fill(1);
+    this.contact = new Uint8Array(this.n);   // particle pushed out of a body capsule in this step
     for (let k = 0; k < C * layout.pinRows; k++) this.inv[k] = 0;
     // anchors: pinned particle offsets in their bone's bind frame
     this.anchor = new Float32Array(C * layout.pinRows * 3);
@@ -397,28 +433,46 @@ export class Cloth {
       // collision inside the last iteration: the sheet settles around a limb instead of being torn across it
       if (nc && it === this.iters - 1) for (let k = pinN; k < n; k++) pushOutCapsules(p, k * 3, caps, s.margin, mask, k * nc);
     }
-    // strain limit: no structural / shear edge longer than MAX_STRAIN x rest (collision or a whipping pin can no
-    // longer tear the sheet apart; two particles pushed to opposite sides of a limb are pulled to one side)
-    const E = this.edges, emax = this.emax, ne = E.length;
-    for (let pass = 0; pass < 2; pass++) {
-      for (let e = 0; e < ne; e += 2) {
-        const ia = E[e], ib = E[e + 1], wa = inv[ia], wb = inv[ib], ws = wa + wb;
-        if (ws === 0) continue;
-        const a = ia * 3, b = ib * 3, dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
-        const l2 = dx * dx + dy * dy + dz * dz, lm = emax[e >> 1];
-        if (l2 <= lm * lm) continue;
-        const l = Math.sqrt(l2), corr = (l - lm) / (l * ws);
-        p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
-        p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
-      }
-    }
-    // tethers + collision + floor (the floor keeps the rendered layers above y = floorY too)
-    const fy = floorY + Math.max(s.margin * 0.6, (s.thickness ?? 0.012) * 0.5 + 0.004 * this.K);
+    // tethers, then body collision (contact particles are remembered)
+    const contact = this.contact, fy = floorY + Math.max(s.margin * 0.6, (s.thickness ?? 0.012) * 0.5 + 0.004 * this.K);
     for (let k = pinN; k < n; k++) {
       const o = k * 3, t = (k % C) * 3, maxd = this.tether[k] * s.tether;
       const dx = p[o] - p[t], dy = p[o + 1] - p[t + 1], dz = p[o + 2] - p[t + 2];
       const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
       if (l > maxd) { const c = maxd / l; p[o] = p[t] + dx * c; p[o + 1] = p[t + 1] + dy * c; p[o + 2] = p[t + 2] + dz * c; }
+      contact[k] = nc && pushOutCapsules(p, o, caps, s.margin, mask, k * nc) ? 1 : 0;
+    }
+    // strain limit after collision: no structural / shear edge longer than MAX_STRAIN x rest. An over-long edge whose
+    // segment runs through a capsule (its two particles pushed to opposite sides of a limb) is first moved out of that
+    // capsule as a whole, so the sheet wraps round the limb on one side instead of being torn across it; the length is
+    // then restored with the particles that touch the body held (they move 1/4 as much as a free particle)
+    const E = this.edges, emax = this.emax, ne = E.length;
+    for (let pass = 0; pass < STRAIN_PASSES; pass++) {
+      let worst = 0;
+      for (let e = 0; e < ne; e += 2) {
+        const ia = E[e], ib = E[e + 1];
+        let wa = inv[ia], wb = inv[ib];
+        if (wa + wb === 0) continue;
+        const a = ia * 3, b = ib * 3;
+        let dx = p[b] - p[a], dy = p[b + 1] - p[a + 1], dz = p[b + 2] - p[a + 2];
+        const l2 = dx * dx + dy * dy + dz * dz, lm = emax[e >> 1];
+        if (l2 <= lm * lm) continue;
+        if (nc && pass === 0) edgeOut(p, a, b, caps, s.margin, mask, ia * nc, ib * nc, wa, wb);
+        dx = p[b] - p[a]; dy = p[b + 1] - p[a + 1]; dz = p[b + 2] - p[a + 2];
+        const l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (!(l > lm)) continue;
+        if (l > worst * lm) worst = l / lm;
+        if (contact[ia] && wa > 0) wa *= 0.25;
+        if (contact[ib] && wb > 0) wb *= 0.25;
+        const corr = (l - lm) / (l * (wa + wb));
+        p[a] += dx * corr * wa; p[a + 1] += dy * corr * wa; p[a + 2] += dz * corr * wa;
+        p[b] -= dx * corr * wb; p[b + 1] -= dy * corr * wb; p[b + 2] -= dz * corr * wb;
+      }
+      if (worst < 1.02) break; // every edge within 2% of its limit: done
+    }
+    // final collision + floor (the floor keeps the rendered layers above y = floorY too)
+    for (let k = pinN; k < n; k++) {
+      const o = k * 3;
       if (nc) pushOutCapsules(p, o, caps, s.margin, mask, k * nc);
       if (p[o + 1] < fy) {
         p[o + 1] = fy;

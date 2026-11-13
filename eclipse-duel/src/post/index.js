@@ -80,14 +80,14 @@ const FOG_DEFAULTS = {
   color: [0.0045, 0.0055, 0.0085],   // ambient in-scatter (linear HDR)
   sunPhase: 0.8,        // Henyey-Greenstein g of the sun lobe (forward scattering)
   sunScatter: 0.006,    // sun colour * strength * this = in-scatter of the lobe
-  lightScale: 1.0,      // point-light glow multiplier (physical: candela * density / 4pi)
+  lightScale: 0.8,      // point-light glow multiplier (physical: candela * density / 4pi)
   lightRadius: 0.35,    // m: core radius of a fog light (avoids the 1/d singularity)
   dim: 0,               // 0..1 manual mood dimming (added to the env mood when auto)
 };
 const SHAFT_DEFAULTS = {
   strength: 0.9,        // HDR multiplier of the shafts
   threshold: 0.25,      // scene brightness above which a far pixel radiates
-  radius: 0.62,         // uv (aspect-corrected) around the sun that radiates
+  radius: 0.3,          // uv (aspect-corrected) around the sun that radiates (the corona; keeps VFX from radiating)
   length: 0.9,          // fraction of the way to the sun each pixel samples
   decay: 0.965,         // per-sample weight decay
   glow: 0,              // synthetic glow added to the mask around the sun (for a source the scene does not draw bright)
