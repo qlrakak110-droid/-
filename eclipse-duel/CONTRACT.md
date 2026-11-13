@@ -297,3 +297,22 @@ exceptions are printed by the harness. Put captures under `shots/<module>/`.
 **You must look at your own work.** Build, capture, read the PNGs, criticise them against the quality bar, fix,
 repeat. Do not report something as done that you have not seen rendered. SwiftShader is slow but correct; a capture
 run takes a few seconds.
+
+## Action-RPG mode: 「일식 원정 · Eclipse Expedition」 (src/rpg/)
+
+A second game mode next to the 1v1 duel: one hero (KAEL / ISKA / VORN, reusing their designs, clips, move data and
+choreography) in a third-person, lock-on, stamina-based action RPG inside the Eclipse Ruins: Ruin Sentinel encounters,
+the Starlit Altar rest point (level up with Eclipse Shards), and the colossal boss 「일식의 거상 The Eclipse Colossus」.
+Entered from the title menu or with `#rpg=kael|iska|vorn` (`#rpgbot` = autoplaying test hero). Everything stays
+original (no names, banners, HUD signatures or designs of existing games).
+
+| folder | owner | contents |
+|---|---|---|
+| `src/rpg/index.js`, `src/rpg/core/**`, `src/rpg/camera.js`, `src/rpg/tests/**`, `src/rpg/README.md` | RPG core | mode start / stop, fixed-step 3D action rules, actors, hero controller, the adapter that runs `src/fighters/<id>/present.js` on RPG actors, third-person camera, test API `window.__ED.rpg` |
+| `src/rpg/boss/**` | boss team | the colossus: design, clips `rpg.boss.*`, attacks, AI / phases, cinematics |
+| `src/rpg/foes/**`, `src/rpg/world/**` | foes / world team | Ruin Sentinels + elite, encounters; RPG-only arena completion (360 degrees), Starlit Altar, mist gate |
+| `src/rpg/ui/**`, `src/rpg/progress.js` | RPG HUD team | HUD, banners, altar / level-up screen, touch controls; stats, levels, shards, save |
+
+The mode treats every other module (post, env, vfx, cam, char, audio, fighters) as a read-only API and must restore the
+duel game on exit. Budgets: the 60 fps rule and the frame budgets above apply; at most 4 ordinary enemies alive
+(3 on low), each <= 16k triangles / <= 2 draw calls; the boss <= 80k triangles / <= 6 draw calls.

@@ -3,7 +3,7 @@
 // exact key format and the bone axis conventions.
 
 import { ease as resolveEase } from '../core/math.js';
-import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot } from './rigmath.js';
+import { eulerToQuat, computeTangents, sampleTrack, qnormalize, qfromBasis, qfromTo, qrot, qmul, qslerp } from './rigmath.js';
 /** Floats of one arm's IK memory (= ik.js MEM; kept here so the clip module does not import the solver). */
 export const SWIVEL_MEM = 20;
 
@@ -299,7 +299,7 @@ function compile(rig, def) {
         }
         const E = ik[e];
         const ee = (v && v.ease) || ke, em = (v && v.interp) || km;
-        if (!v || v.w === 0) { pushKey(E.w, t, [0], ee, em); continue; }
+        if (!v || v.w === 0) { pushKey(E.w, t, [0], ee, em); if (v && v.pole) pushKey(E.pole, t, v.pole, ee, em); continue; }
         const sp = SPACES[v.space || 'root'];
         if (sp === undefined) throw new Error('clip ' + def.name + ': unknown IK space ' + v.space);
         if (sp === 1) E.origin = true;
@@ -367,8 +367,17 @@ function compile(rig, def) {
     hipsRot: hipsRot && finalizeTrack(hipsRot, loop, duration),
     ik: EFFECTORS.map((e) => {
       const E = ik[e];
-      if (!E || E.w.times.length === 0) return null;
-      if (!E.A.pos.times.length && !E.B.pos.times.length) throw new Error('clip ' + def.name + ': IK ' + e + ' has no pos key');
+      if (!E) return null;
+      const hasPos = E.A.pos.times.length || E.B.pos.times.length;
+      if (!hasPos) {
+        // weight-only keys that all switch the effector off (w: 0 / null, e.g. `ik: { footL: { w: 0 } }` to leave a
+        // pose's foot IK on FK): the effector is off in this clip. Pole-only keys stay: a hand that holds the weapon
+        // grip (grip > 0) takes its elbow pole from them
+        if (E.w.values.some((x) => x !== 0)) throw new Error('clip ' + def.name + ': IK ' + e + ' has a weight > 0 but no pos key');
+        if (!E.pole.times.length) return null;
+        return { origin: false, spaceB: 0, posA: null, rotA: null, posB: null, rotB: null, k: null, pole: finalizeTrack(E.pole, loop, duration), soft: null, w: null };
+      }
+      if (E.w.times.length === 0) return null;
       if (E.origin && root) { // root-space keys of an origin-space effector -> origin space (add the root motion at that key)
         const r2 = new Float32Array(2);
         E.A.space.forEach((sp, i) => {
@@ -440,6 +449,7 @@ export class Pose {
     this.gripLift = 0;                      // off hand moving between two grip points: 0..1 lift away from the torso
     this.gripM = new Float32Array([0, 0, 0, 0, 0, 0, 1]); // off-hand weapon-frame target in model space (pos + quat)
     this.gripMix = 1;                       // 1 = off hand on the weapon (gripT); < 1: on its way from gripM
+    this.gripPole = new Float32Array(4);    // the gripping hand's keyed elbow pole (model space, 3) + weight (1)
     this.drop = 0;                          // automatic pelvis drop applied while resolving (m)
     this.clavBase = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1]); // clavicle local rotations before the IK assist (R, L)
     this.clavBaseR = this.clavBase.subarray(0, 4); this.clavBaseL = this.clavBase.subarray(4, 8);
@@ -455,7 +465,7 @@ export class Pose {
     this.look.set(p.look); this.lookW = p.lookW; this.curl.set(p.curl); this.root.set(p.root); this.feet.set(p.feet);
     this.feetIK.set(p.feetIK); this.feetPole.set(p.feetPole); this.feetSoft.set(p.feetSoft);
     this.gripT.set(p.gripT); this.gripW.set(p.gripW); this.gripLift = p.gripLift; this.drop = p.drop;
-    this.gripM.set(p.gripM); this.gripMix = p.gripMix;
+    this.gripM.set(p.gripM); this.gripMix = p.gripMix; this.gripPole.set(p.gripPole);
     this.clavBase.set(p.clavBase); this.aimErr.set(p.aimErr); this.footSlide.set(p.footSlide);
     return this;
   }
@@ -463,6 +473,38 @@ export class Pose {
 
 const tmp4 = new Float32Array(4);
 const tmpR = new Float32Array(2);
+const spF = new Float32Array(16); // spaceFrameAt scratch: quat (0..3), pos (4..6), bone quat (8..11), vector (12..14)
+
+/**
+ * Model transform of the hips (sp 2) or chest (sp 3) bone as clip `c` alone puts it at time t (hips offset / rotation
+ * and the spine / chest keys; no IK, pelvis drop or breathing) -> spF[0..3] quat, spF[4..6] position (model metres).
+ */
+function spaceFrameAt(rig, c, t, sp, scale) {
+  const h = rig.index.hips;
+  if (c.hipsRot) { sampleTrack(c.hipsRot, t, tmp4, 0); eulerToQuat(spF, 0, tmp4[0], tmp4[1], tmp4[2]); }
+  else { spF[0] = rig.restRot[h * 4]; spF[1] = rig.restRot[h * 4 + 1]; spF[2] = rig.restRot[h * 4 + 2]; spF[3] = rig.restRot[h * 4 + 3]; }
+  if (c.hipsPos) sampleTrack(c.hipsPos, t, spF, 12); else spF[12] = spF[13] = spF[14] = 0;
+  spF[4] = rig.offset[h * 3] + spF[12] * scale; spF[5] = rig.offset[h * 3 + 1] + spF[13] * scale; spF[6] = rig.offset[h * 3 + 2] + spF[14] * scale;
+  if (sp !== 3) return;
+  if (!c.spaceBones) c.spaceBones = ['spine', 'chest'].map((n) => { const i = rig.index[n], b = c.bones.find((x) => x.i === i); return { i, tr: b ? b.tr : null }; });
+  for (const { i, tr } of c.spaceBones) {
+    qrot(spF, 12, spF, 0, rig.offset[i * 3], rig.offset[i * 3 + 1], rig.offset[i * 3 + 2]);
+    spF[4] += spF[12]; spF[5] += spF[13]; spF[6] += spF[14];
+    if (tr) { sampleTrack(tr, t, spF, 8); qnormalize(spF, 8); } else { spF[8] = rig.restRot[i * 4]; spF[9] = rig.restRot[i * 4 + 1]; spF[10] = rig.restRot[i * 4 + 2]; spF[11] = rig.restRot[i * 4 + 3]; }
+    qmul(spF, 0, spF, 0, spF, 8);
+  }
+}
+
+/** Time of the hips / chest-space key (k = 1) that bounds the k-track segment containing t, or -1. */
+function bKeyTime(tr, t) {
+  const { n, times, values } = tr;
+  if (n < 2) return -1;
+  let i = 0;
+  while (i < n - 2 && times[i + 1] <= t) i++;
+  if (values[i + 1] >= 0.999) return times[i + 1];
+  if (values[i] >= 0.999) return times[i];
+  return -1;
+}
 
 /**
  * Sample compiled clip `c` at time t into pose (FK bones not keyed keep their previous value: reset first). `scale`
@@ -487,8 +529,13 @@ export function sampleClip(rig, c, t, pose, scale = 1) {
     const E = c.ik[e];
     if (!E) continue;
     const o = e * EFF_STRIDE;
-    sampleTrack(E.w, t, ik, o);
-    if (ik[o] <= 1e-4) { ik[o] = 0; continue; }
+    // the elbow / knee pole is sampled even while the effector is off: the grip solve of an off hand uses it
+    if (E.pole) {
+      sampleTrack(E.pole, t, ik, o + 9); ik[o + 12] = 1;
+      if (scale !== 1) { ik[o + 9] *= scale; ik[o + 10] *= scale; ik[o + 11] *= scale; }
+    }
+    if (E.w) sampleTrack(E.w, t, ik, o);
+    if (!(ik[o] > 1e-4)) { ik[o] = 0; continue; }
     if (E.posA) {
       sampleTrack(E.posA, t, ik, o + 1);
       if (E.origin) { ik[o + 1] -= pose.root[0]; ik[o + 2] -= pose.root[1]; }
@@ -500,10 +547,31 @@ export function sampleClip(rig, c, t, pose, scale = 1) {
       if (E.rotB) { sampleTrack(E.rotB, t, ik, o + 19); qnormalize(ik, o + 19); ik[o + 23] = 1; }
       if (E.k) { sampleTrack(E.k, t, tmpR, 0); ik[o + 15] = Math.max(0, Math.min(1, tmpR[0])); } else ik[o + 15] = 1;
     }
-    if (E.pole) { sampleTrack(E.pole, t, ik, o + 9); ik[o + 12] = 1; }
     if (E.soft) { sampleTrack(E.soft, t, ik, o + 13); } else ik[o + 13] = -1;
+    // blending between a fighter-frame (root / origin) target and a hips / chest-space one: the bone-space target is
+    // taken as it was at its own key (the bone frame the clip has there), and only fades to the live bone frame as the
+    // blend completes (k^2). A live hips-space target would ride the turning hips through the whole transition, so a
+    // spin between the two keys swept the foot through the body (legs crossing). Exact at both ends: k = 0 -> the root
+    // target, k = 1 -> the live bone-space target.
+    if (E.k && E.posA && E.posB && !globalThis.__spaceBlendLive) {
+      const k = ik[o + 15];
+      const tB = k > 1e-4 && k < 1 - 1e-4 ? bKeyTime(E.k, t) : -1;
+      if (tB >= 0) {
+        spaceFrameAt(rig, c, tB, E.spaceB, scale);
+        sampleTrack(E.posB, tB, tmp4, 0);
+        qrot(spF, 12, spF, 0, tmp4[0] * scale, tmp4[1] * scale, tmp4[2] * scale);
+        const a = k / (1 + k), is = 1 / scale;
+        for (let d = 0; d < 3; d++) ik[o + 1 + d] += ((spF[4 + d] + spF[12 + d]) * is - ik[o + 1 + d]) * a;
+        if (E.rotB && ik[o + 8]) {
+          sampleTrack(E.rotB, tB, tmp4, 0); qnormalize(tmp4, 0);
+          qmul(spF, 8, spF, 0, tmp4, 0);
+          qslerp(ik, o + 4, ik, o + 4, spF, 8, a);
+        }
+        ik[o + 15] = k * k;
+      }
+    }
     if (scale !== 1) {
-      for (const k of [1, 2, 3, 9, 10, 11, 16, 17, 18]) ik[o + k] *= scale;
+      for (const k of [1, 2, 3, 16, 17, 18]) ik[o + k] *= scale;
     }
   }
   if (scale !== 1) {

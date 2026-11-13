@@ -34,6 +34,8 @@ const GRIP_FADE = 0.35;
 
 const warned = new Set();
 function warnOnce(key, msg) { if (warned.has(key)) return; warned.add(key); console.warn(msg); }
+/** A note for authors that is not a defect (console.info: no warning in game / capture logs). */
+function noteOnce(key, msg) { if (warned.has(key)) return; warned.add(key); console.info(msg); }
 
 /**
  * Rig defaults a design may leave out (the design object itself is not modified):
@@ -47,7 +49,9 @@ function withRigDefaults(d) {
   const wa = weapons[0] && weapons[0].gripAngle;
   out.gripAngle = d.gripAngle ?? wa ?? 0;
   if (weapons.length && d.gripAngle === undefined && wa === undefined) {
-    warnOnce('grip:' + d.id, `char ${d.id}: the design has a weapon but no gripAngle (0 = the blade continues the knuckles; 30-45 keeps the wrists of sword / spear clips in range; FK weapon-bone tilts in clips must go when it is set)`);
+    // not a warning: clips authored and verified on gripAngle 0 stay exactly as they are (the default never changes);
+    // a new design should choose its grip angle before clips are authored on it
+    noteOnce('grip:' + d.id, `char ${d.id}: no gripAngle in the design or weapon spec: 0 is used (the blade continues the knuckles). New designs: 30-45 keeps sword / spear wrists in range; clips that tilt the weapon bone by FK must drop that key when it is set`);
   }
   const cols = d.colliders || [];
   if ((d.cloth || []).length) {
@@ -222,7 +226,8 @@ export function createCharacter(ctx, design0, opts = {}) {
   const torsoA = torsoDef ? [ix[torsoDef.a[0]], ...(torsoDef.a[1] || [0, 0, 0])] : null, torsoB = torsoDef ? [ix[torsoDef.b[0]], ...(torsoDef.b[1] || [0, 0, 0])] : null;
   const ikOpt = { clavicle: 1, wrist: true, roll: null, rollKeep: 0.25, out: null, keepLocal: true, mem: null, dt: 0, clavBase: null, err: null, body };
   // per clip: the off hand may roll around the handle; after blending: the blended (already rolled) target is kept
-  const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), mem: null, dt: 0, clavBase: null, body };
+  // (a keyed pole of the gripping hand is authored intent: it pulls the elbow harder than the default pole)
+  const gripOpt = { clavicle: 1, wrist: true, roll: [1, 0, 0], rollKeep: 0.25, out: new Float32Array(4), mem: null, dt: 0, clavBase: null, body, poleW: 2.5 };
   /** Update the torso capsule from the current FK (mq / mp). */
   function bodyPoint(d, o) {
     qrot(body, o, mq, d[0] * 4, d[1], d[2], d[3]);
@@ -457,6 +462,16 @@ export function createCharacter(ctx, design0, opts = {}) {
     qrot(tv, 0, mq, b * 4, ik[o + 16], ik[o + 17], ik[o + 18]);
     const bx = mp[b * 3] + tv[0], by = mp[b * 3 + 1] + tv[1], bz = mp[b * 3 + 2] + tv[2];
     if (k >= 1) { ik[o + 1] = bx; ik[o + 2] = by; ik[o + 3] = bz; }
+    else if (globalThis.__spacePolar) {
+      // fighter-frame target -> bone frame; azimuth (about the bone's Y), radius and height interpolated there
+      tv[8] = -mq[b * 4]; tv[9] = -mq[b * 4 + 1]; tv[10] = -mq[b * 4 + 2]; tv[11] = mq[b * 4 + 3];
+      qrot(tv, 0, tv, 8, ik[o + 1] - mp[b * 3], ik[o + 2] - mp[b * 3 + 1], ik[o + 3] - mp[b * 3 + 2]);
+      const ax = tv[0], ay = tv[1], az = tv[2], cx = ik[o + 16], cy = ik[o + 17], cz = ik[o + 18];
+      const ra = Math.hypot(ax, az), rb = Math.hypot(cx, cz), ta = Math.atan2(az, ax), tb = Math.atan2(cz, cx);
+      const dt = Math.atan2(Math.sin(tb - ta), Math.cos(tb - ta)), th = ta + dt * k, rr = ra + (rb - ra) * k, yy = ay + (cy - ay) * k;
+      qrot(tv, 0, mq, b * 4, rr * Math.cos(th), yy, rr * Math.sin(th));
+      ik[o + 1] = mp[b * 3] + tv[0]; ik[o + 2] = mp[b * 3 + 1] + tv[1]; ik[o + 3] = mp[b * 3 + 2] + tv[2];
+    }
     else { ik[o + 1] += (bx - ik[o + 1]) * k; ik[o + 2] += (by - ik[o + 2]) * k; ik[o + 3] += (bz - ik[o + 3]) * k; }
     if (ik[o + 23]) {
       qmul(tv, 4, mq, b * 4, ik, o + 19);
@@ -514,14 +529,17 @@ export function createCharacter(ctx, design0, opts = {}) {
     if (any) fk(rig, lq, lp, mq, mp, 0, animCount);
     // two-handed grip of this state (the blended grip target is solved again after blending)
     pose.gripW[0] = pose.gripW[1] = 0;
-    pose.gripLift = 0; pose.gripMix = 1;
+    pose.gripLift = 0; pose.gripMix = 1; pose.gripPole[3] = 0;
     if (pose.grip > 0) {
       const g = grips[c.gripAt] || grips.grip;
       const hi = c.gripHand === 'R' ? 0 : 1, limb = hi === 0 ? limbs.handR : limbs.handL;
       if (g && limb && rig.parent[g.bone] !== limb.end) {
         reachGrip(pose, c, g, limb);
         pose.gripT.set(g.pos, 0); pose.gripT.set(g.q, 3);
-        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG, hi === 0 ? pose.clavBaseR : pose.clavBaseL, 0, pose.gripM, 1);
+        // the gripping hand's keyed elbow pole (ik.handL.pole, keyed with or without a position): honoured by the grip
+        const go = hi * EFF_STRIDE;
+        if (pose.ik[go + 12]) { pose.gripPole[0] = pose.ik[go + 9]; pose.gripPole[1] = pose.ik[go + 10]; pose.gripPole[2] = pose.ik[go + 11]; pose.gripPole[3] = 1; }
+        solveGrip(pose.gripT, c.gripHand, pose.grip, pose.gripT, pose.swivelG, hi === 0 ? pose.clavBaseR : pose.clavBaseL, 0, pose.gripM, 1, pose.gripPole[3] ? pose.gripPole : null);
         pose.gripW[hi] = pose.grip;
       }
     }
@@ -568,9 +586,9 @@ export function createCharacter(ctx, design0, opts = {}) {
    * clavBase: the off clavicle's pre-assist rotation. Changing grip point: gm = the model-space target the hand left,
    * mix (0..1) = how far it has come toward the weapon target (the hand travels on its own instead of being swung with
    * the weapon), lift (0..1) = the path bows out of the torso (by >= 10 cm x body at lift 1). With relOut, gm receives
-   * this solve's model-space target.
+   * this solve's model-space target. pole: the hand's keyed elbow pole (model space) or null (the arm's default).
    */
-  function solveGrip(rel, side, w, relOut, mem, clavBase, lift, gm, mix) {
+  function solveGrip(rel, side, w, relOut, mem, clavBase, lift, gm, mix, pole = null) {
     const wb = grips.grip ? grips.grip.bone : Object.values(grips)[0].bone;
     qrot(gripT, 0, mq, wb * 4, rel[0], rel[1], rel[2]);
     gripT[0] += mp[wb * 3]; gripT[1] += mp[wb * 3 + 1]; gripT[2] += mp[wb * 3 + 2];
@@ -603,7 +621,7 @@ export function createCharacter(ctx, design0, opts = {}) {
     gripOpt.mem = mem;
     gripOpt.clavBase = clavBase;
     gripOpt.rollKeep = relOut ? 0.25 : 1;
-    solveLimb(rig, limb, lq, mq, mp, gripT, 0, gripT, 4, null, 0, w, SOFT, gripOpt);
+    solveLimb(rig, limb, lq, mq, mp, gripT, 0, gripT, 4, pole, 0, w, SOFT, gripOpt);
     fk(rig, lq, lp, mq, mp, limb.first, animCount);
     if (relOut) { // store the rolled target relative to the weapon, and in model space
       qmul(gripQ, 4, gripOpt.out, 0, wr, 0);
@@ -713,6 +731,12 @@ export function createCharacter(ctx, design0, opts = {}) {
         a.gripMix += (b.gripMix - a.gripMix) * w;
       }
     }
+    { // keyed grip pole: blended like the knee poles (a state without one takes the other's)
+      const pa = a.gripPole[3], pb = b.gripPole[3];
+      if (pb > 0 && pa <= 0) for (let k = 0; k < 3; k++) a.gripPole[k] = b.gripPole[k];
+      else if (pb > 0) for (let k = 0; k < 3; k++) a.gripPole[k] += (b.gripPole[k] - a.gripPole[k]) * w;
+      a.gripPole[3] = pa + (pb - pa) * w;
+    }
     a.gripLift = Math.max(a.gripLift + (b.gripLift - a.gripLift) * w, lift);
     a.gripW[0] += (b.gripW[0] - a.gripW[0]) * w; a.gripW[1] += (b.gripW[1] - a.gripW[1]) * w;
     a.grip += (b.grip - a.grip) * w;
@@ -792,6 +816,8 @@ export function createCharacter(ctx, design0, opts = {}) {
           }
         }
         final.gripW[0] += (L.pose.gripW[0] - final.gripW[0]) * L.w; final.gripW[1] += (L.pose.gripW[1] - final.gripW[1]) * L.w;
+        if (L.pose.gripPole[3] > 0 && final.gripPole[3] <= 0) final.gripPole.set(L.pose.gripPole, 0);
+        for (let k = 0; k < 4; k++) final.gripPole[k] += (L.pose.gripPole[k] - final.gripPole[k]) * L.w;
         final.grip += (L.pose.grip - final.grip) * L.w;
       }
       if (L.hands) relayer(L);
@@ -1162,7 +1188,7 @@ export function createCharacter(ctx, design0, opts = {}) {
       const ci = (hi === 0 ? ix.shoulderR : ix.shoulderL) * 4;
       qmulInv(gripBase, 0, final.lq, ci, final.clavBase, hi * 4);
       qmul(gripBase, 0, lq, ci, gripBase, 0);
-      const err = solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift, final.gripM, final.gripMix);
+      const err = solveGrip(final.gripT, side, w, null, gripMem, gripBase, final.gripLift, final.gripM, final.gripMix, final.gripPole[3] > 0.5 ? final.gripPole : null);
       if (final.gripMix >= 0.999) char.diag.gripErr = Math.max(char.diag.gripErr, err * (w >= 1 ? 1 : w)); // (not while it changes grip)
       // the off hand's roll belongs to the clip's own grip solve (it rolls the target this solve reaches): kept from it
       const sg = cur.pose.swivelG, H = MEM / 2;

@@ -13,6 +13,7 @@ import { Time } from './time.js';
 import { Emitter, parseFlags, pickQuality } from './util.js';
 import { makeRng, clamp } from './math.js';
 import { createPost } from '../post/index.js';
+import { createShadows } from '../post/shadows.js';
 
 /** Update order of per-frame callbacks (lower runs first). */
 export const ORDER = { INPUT: 0, GAME: 10, CHAR: 20, VFX: 30, CAM: 40, ENV: 50, UI: 60, POST: 70 };
@@ -41,6 +42,7 @@ export function createApp(opts = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'high-performance', preserveDrawingBuffer: test });
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // the post composite pass does tone mapping + sRGB encoding
+  // one shadow-casting key light (env.sun); ctx.shadows fits its frustum to the casters every frame (src/post/shadows.js)
   renderer.shadowMap.enabled = !!quality.shadows;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.setPixelRatio(1);
@@ -60,6 +62,8 @@ export function createApp(opts = {}) {
     rng: makeRng(Number(flags.seed) || 20261112),
     viewport: { w: 1, h: 1, cssW: 1, cssH: 1, pr: 1, aspect: 1 },
     post: null,
+    /** shadow-frustum manager: setKey(light), mode 'auto' | 'manual' | 'off', focus(center, radius), info */
+    shadows: null,
     // set by the modules that own them (see CONTRACT.md)
     vfx: null, audio: null, cam: null, env: null, ui: null, input: null, game: null,
     ORDER,
@@ -147,6 +151,7 @@ export function createApp(opts = {}) {
     ready() { window.__ED.ready = true; events.emit('ready'); },
   };
 
+  ctx.shadows = createShadows(ctx);
   ctx.post = createPost(ctx);
   ctx.onUpdate((dg, dr) => ctx.post.update(dr), ORDER.POST);
   ctx.resize();
@@ -162,7 +167,11 @@ export function createApp(opts = {}) {
       return time.game;
     },
     render() { ctx.resize(); renderer.info.reset(); ctx.post.render(scene, camera); return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; },
-    info() { return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: (renderer.info.programs || []).length, tier: quality.tier, scale: ctx.post.renderScale }; },
+    info() {
+      const sh = ctx.shadows.info;
+      return { calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, programs: (renderer.info.programs || []).length, tier: quality.tier, scale: ctx.post.renderScale,
+        post: { ...ctx.post.features, passes: ctx.post.stats.passes, dof: ctx.post.dofActive }, shadow: { size: quality.shadowSize, extent: +sh.extent.toFixed(2), texelMm: +(sh.texel * 1000).toFixed(2), casters: sh.casters, fitted: sh.fitted } };
+    },
   };
   return ctx;
 }

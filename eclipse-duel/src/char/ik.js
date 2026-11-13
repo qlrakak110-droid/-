@@ -19,7 +19,7 @@ export const WRIST = { swing: (85 * Math.PI) / 180, twist: (90 * Math.PI) / 180,
  * over instead of flipping in one frame). Rates are per second of game time, so the path is the same at 30 / 60 /
  * 120 Hz.
  */
-export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
+export const SWIVEL = { TRACK: (1800 * Math.PI) / 180, TRACK_TAU: 0.025, SWITCH: (450 * Math.PI) / 180, SWITCH_MARGIN: 0.3, SWITCH_MIN: 0.8, SWITCH_HOLD: 0.06 };
 /**
  * Floats per arm memory: previous frame [elbow dir (3, chest frame), valid, switch timer, grip roll, travel direction,
  * hand twist, grip roll step, grip roll step scale] + this frame (the same 10).
@@ -30,6 +30,7 @@ const MH = MEM / 2;
 export function commitMem(m, o = 0) { for (let k = 0; k < MH; k++) m[o + k] = m[o + MH + k]; }
 /** Fastest the wrist clamp turns the hand about the forearm (rad/s): a request sweeping through an impossible pronation. */
 const WRIST_RATE = (1500 * Math.PI) / 180;
+export const DBG = { on: false, log: [] };
 
 /**
  * Limb descriptors for a rig: handR, handL, footR, footL.
@@ -81,7 +82,7 @@ function limbAt(phi, sign, bend, endQ, eo, out, oo) {
 }
 
 /** Swivel search state (module scope: the search allocates nothing). */
-const S = { sign: 1, bend: 0, er: null, eo: 0, mq: null, po: 0, phi0: 0, body: null, l1: 0, d: 0, rx: 0, ry: 0, rz: 0 };
+const S = { sign: 1, bend: 0, er: null, eo: 0, mq: null, po: 0, phi0: 0, poleW: 0.7, body: null, l1: 0, d: 0, rx: 0, ry: 0, rz: 0 };
 /** Penetration (m) of point (x, y, z) into the torso capsule B (a, b, radius incl. the arm). */
 function bodyPen(B, x, y, z) {
   const sx = B[3] - B[0], sy = B[4] - B[1], sz = B[5] - B[2], qx = x - B[0], qy = y - B[1], qz = z - B[2];
@@ -90,7 +91,7 @@ function bodyPen(B, x, y, z) {
 }
 function swivelCost(f) {
   limbAt(f, S.sign, S.bend, S.er, S.eo, sv, 20);
-  let c = armCost(sv, 20, 24, S.mq, S.po) + 0.7 * (1 - Math.cos(f - S.phi0));
+  let c = armCost(sv, 20, 24, S.mq, S.po) + S.poleW * (1 - Math.cos(f - S.phi0));
   const B = S.body;
   if (B) { // elbow and mid-forearm inside the torso (capsule B: a, b, radius incl. the arm): push the arm out of the body
     const cf = Math.cos(f), sf = Math.sin(f);
@@ -136,8 +137,14 @@ function armCost(q, uo, eo, pq, po) {
  * (rad), continued from `ref` (NaN: none) so a roll near 180 deg keeps its side.
  */
 let rollConf = 1, rollStep = 0, rollScale = 1;
-/** Fastest off-hand roll around a two-handed grip (rad/s; 1800 deg/s). */
-const ROLL_RATE = 31.4;
+/**
+ * Off-hand roll around a two-handed grip: fastest turn (rad/s; ~690 deg/s, a hand re-settling on a handle) and the
+ * range of the free roll psi around the design's grip orientation (soft from ROLL_KNEE, never past ROLL_MAX; a hand
+ * wrapped round a handle cannot spin round it: without the bound the best roll can run away, turning the hand round
+ * and round the grip and dragging the elbow with it).
+ */
+const ROLL_RATE = 12;
+export const ROLL_KNEE = 1.0, ROLL_MAX = 1.4;
 function bestRoll(endQ, eo, fq, fo, gx, gy, gz, ref) {
   // forearm long axis (model) -> end frame
   qrot(tv, 0, fq, fo, 0, -1, 0);
@@ -227,6 +234,7 @@ function basinMin(p) {
  *   roll = null     [gx, gy, gz]: grip axis in the end frame around which the hand may roll freely (two-handed grip)
  *   rollKeep = 0.25 how strongly the authored roll is kept (0 = free)
  *   phi = 0         preferred swivel (rad) relative to the pole
+ *   poleW = 0.7     weight of the pull toward an explicit `pole` in the swivel cost (the default pole always uses 0.7)
  *   mem, dt         Float32Array(MEM) kept by the caller per arm, and the game time (s) this solve advances: the swivel
  *                   continues from last frame's elbow direction (SWIVEL), so it never flips; commitMem() once per update.
  *                   Without a valid memory the elbow starts in the cost basin of the current (FK) elbow
@@ -294,7 +302,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
   rollStep = 0; rollScale = 1;
   if (roll) {
     limbAt(phi, sign, bend, er, eo, tq, 0);
-    psi = hasMem ? psiRef : bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN);
+    psi = hasMem ? psiRef : softLimit(bestRoll(endModel, 0, sv, 16, roll[0], roll[1], roll[2], NaN), ROLL_KNEE, ROLL_MAX);
     rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
     qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
     bend = limbSetup(rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
@@ -307,7 +315,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     // out of the torso. Without memory: the global minimum. With memory: the minimum of the basin the elbow is in,
     // followed at a limited angular speed; a better basin is taken only after it has been clearly cheaper for a moment.
     const phi0 = phi;
-    S.sign = sign; S.bend = bend; S.er = er; S.eo = eo; S.mq = mq; S.po = parent * 4; S.phi0 = phi0;
+    S.sign = sign; S.bend = bend; S.er = er; S.eo = eo; S.mq = mq; S.po = parent * 4; S.phi0 = phi0; S.poleW = pole && opt && opt.poleW !== undefined ? opt.poleW : 0.7;
     S.body = opt && opt.body; S.l1 = limb.l1; S.d = reachD; S.rx = mp[root * 3]; S.ry = mp[root * 3 + 1]; S.rz = mp[root * 3 + 2];
     let best = phi0, bc = swivelCost(phi0);
     for (let i = 1; i < 24; i++) {
@@ -347,6 +355,10 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         timer = Math.abs(wrapA(goal - phiP - d)) < 0.02 ? 0 : timer - dt;
         if (!(timer < 0)) tdir = 0;
       }
+      // following the basin's own minimum: exponentially (time constant TRACK_TAU, frame-rate independent), so a
+      // minimum that wanders on a flat, strained cost (a hand at its wrist limit, a grip rolling round its handle)
+      // moves the elbow smoothly instead of jerking it to every new minimum
+      else d *= 1 - Math.exp(-dt / SWIVEL.TRACK_TAU);
       phi = phiP + d;
     } else phi = seeded ? basinMin(phiP) : gPhi;
     phi = wrapA(phi);
@@ -378,9 +390,9 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
         let step = Math.max(-cap, Math.min(cap, psi - psiRef)), sc = mem[9] > 0 ? mem[9] : 1;
         sc = step * last < 0 && Math.min(Math.abs(step), Math.abs(last)) > 0.1 ? Math.max(1 / 32, 0.5 * sc) : Math.min(1, 2 * sc);
         step *= sc;
-        psi = psiRef + step;
-        rollStep = step; rollScale = sc;
-      } else psi = b;
+        psi = softLimit(psiRef + step, ROLL_KNEE, ROLL_MAX);
+        rollStep = psi - psiRef; rollScale = sc;
+      } else psi = softLimit(b, ROLL_KNEE, ROLL_MAX);
       rollBy(endModel, 0, roll[0], roll[1], roll[2], psi * (1 - keep));
       qcopy(tq, 8, rollQ, 0); er = tq; eo = 8;
       phi = resetup(phi, rig, limb, mq, mp, target, to, er, eo, pole, po, soft);
@@ -408,6 +420,7 @@ export function solveLimb(rig, limb, lq, mq, mp, target, to, rot, ro, pole, po, 
     qcopy(newL, 8, rollQ, 4);
     qmul(tq, 8, sv, 16, rollQ, 4); er = tq; eo = 8;  // the end model rotation that results
   }
+  if (DBG.on && mem) DBG.log.push({ hasMem, seeded, phiP: +phiP.toFixed(3), phi: +phi.toFixed(3), timer: +timer.toFixed(3), psi: +psi.toFixed(3), psiRef: +(psiRef||0).toFixed(3), keep, roll: !!roll, clamped: wristOut });
   if (mem && ch >= 0) { // this frame's elbow direction (chest frame) for the next frame's solve
     const c = Math.cos(phi), s = Math.sin(phi);
     const px = sv[3] * c + sv[6] * s, py = sv[4] * c + sv[7] * s, pz = sv[5] * c + sv[8] * s;
@@ -566,16 +579,29 @@ function defaultPole(rig, limb, mq, er, eo, ux, uy, uz, out) {
   // below the hip puts the knee over the toes, a foot in front at hip height (kick, knee raise) lifts the knee and a
   // foot behind drops it. With the small forward / up terms the field is continuous for every reach direction but two,
   // beside the hip, above and behind it (out of the leg's range); a pole projected from f alone flips where u = f.
+  // A pelvis turned over (back / front flips, a fall on the back) takes the field with it: it is evaluated in a frame
+  // that blends from the fighter frame (pelvis within ~60 deg of upright: unchanged) to the pelvis frame (pelvis
+  // tilted past ~107 deg), so tucked knees stay in front of an inverted pelvis instead of the thighs twisting round.
+  const h4 = rig.index.hips * 4;
+  qrot(out, 9, mq, h4, 0, 1, 0);
+  const wf = smooth01(out[10], 0.5, -0.3);
+  if (wf > 0) { pf[0] = 0; pf[1] = 0; pf[2] = 0; pf[3] = 1; qslerp(pf, 0, pf, 0, mq, h4, wf); pf[4] = -pf[0]; pf[5] = -pf[1]; pf[6] = -pf[2]; pf[7] = pf[3]; }
   qrot(out, 6, er, eo, 1, 0, 0);
-  qrot(out, 9, mq, rig.index.hips * 4, 1, 0, 0);
+  qrot(out, 9, mq, h4, 1, 0, 0);
+  if (wf > 0) { // into the blended frame (R^-1)
+    qrot(out, 6, pf, 4, out[6], out[7], out[8]); qrot(out, 9, pf, 4, out[9], out[10], out[11]);
+    qrot(pf, 8, pf, 4, ux, uy, uz); ux = pf[8]; uy = pf[9]; uz = pf[10];
+  }
   let fx = out[6] + out[9] * 0.6, fz = out[8] + out[11] * 0.6;
   let l = Math.hypot(fx, fz) || 1;
   fx /= l; fz = fz / l + limb.side * 0.12;
   l = Math.hypot(fx, fz) || 1;
   fx /= l; fz /= l;
   const px = -fx * uy + 0.55 * fx, py = fx * ux + fz * uz + 0.3, pz = -fz * uy + 0.55 * fz;
+  if (wf > 0) { qrot(out, 3, pf, 0, px, py, pz); return; }
   out[3] = px; out[4] = py; out[5] = pz;
 }
+const pf = new Float32Array(12);
 
 const fpole = new Float32Array(3);
 /** Raise the planted leg by dy (the foot keeps its orientation, the knee keeps its swivel: the current knee is the pole). */
