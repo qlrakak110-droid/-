@@ -13,7 +13,7 @@ import { DEFAULT_ROSTER } from '../ui/roster.js';
 
 const R = Object.fromEntries(DEFAULT_ROSTER.map((f) => [f.id, f]));
 
-/** Two stand-in duelists on the fight line: dark armour capsules with HDR weapon emissives. */
+/** Two stand-in duelists on the fight line: dark capsules with HDR weapon emissives. */
 function standIns(ctx) {
   const { scene } = ctx;
   const make = (x, facing, col, len) => {
@@ -60,8 +60,8 @@ createLab({
       const m = {
         time: 87,
         roundsToWin: 2,
-        p1: { name: 'KAEL', hp: 1000, hpMax: 1000, fp: 70, fpMax: 100, ult: 45, rounds: 1, element: 'ember' },
-        p2: { name: 'ISKA', hp: 1000, hpMax: 1000, fp: 55, fpMax: 100, ult: 20, rounds: 0, element: 'frost' },
+        p1: { hp: 1000, hpMax: 1000, fp: 70, fpMax: 100, ult: 45, rounds: 1, element: 'ember' },
+        p2: { hp: 1000, hpMax: 1000, fp: 55, fpMax: 100, ult: 20, rounds: 0, element: 'frost' },
         cd1: [0, 0.45, 0], cd2: [0.7, 0, 0],
       };
       Object.assign(m.p1, o.p1); Object.assign(m.p2, o.p2);
@@ -187,13 +187,15 @@ createLab({
         lab.push(m);
       });
     },
-    /** Announcer styles in sequence: round, fight, ko, perfect, timeup, draw, ult callout. */
+    /** Announcer cards: round, final, fight, ko, perfect, timeup, draw, win, lose, winner (name + 勝), ult, ultP2. */
     announce(ctx, lab, kind = 'round') {
       const m = lab.match({ p2: { hp: kind === 'ko' || kind === 'perfect' ? 0 : 600 } });
       lab.startHud(m);
       lab.drive(null);
-      if (kind === 'ult') lab.ui.hud.announce('일식의 장작', { sub: 'PYRE OF THE BLACK SUN', style: 'ult', side: 0 });
-      else if (kind === 'ultP2') lab.ui.hud.announce('떨어지는 서릿별', { sub: 'FALL OF THE FROZEN STAR', style: 'ult', side: 1 });
+      const ult = (f) => f.moves.find((x) => x.slot === 'ult');
+      if (kind === 'ult') { lab.ui.hud.cinematic(true); lab.ui.hud.announce(ult(R.kael).name, { sub: ult(R.kael).nameEn, style: 'ult', side: 0, duration: 9 }); }
+      else if (kind === 'ultP2') { lab.ui.hud.cinematic(true); lab.ui.hud.announce(ult(R.iska).name, { sub: ult(R.iska).nameEn, style: 'ult', side: 1, duration: 9 }); }
+      else if (kind === 'winner') lab.ui.hud.announce(R.kael.name, { style: 'win', sub: '승 · WINNER' });
       else if (kind === 'final') lab.ui.hud.announce('final');
       else lab.ui.hud.announce(kind, { round: 2 });
     },
@@ -202,7 +204,7 @@ createLab({
       const m = lab.match({ p1: { ult: 100 } });
       lab.startHud(m);
       lab.drive((t) => {
-        if (t >= 0.1 && !m._c) { m._c = 1; lab.ui.hud.cinematic(true); lab.ui.hud.announce('일식의 장작', { sub: 'PYRE OF THE BLACK SUN', style: 'ult', side: 0 }); m.p1.ult = 0; }
+        if (t >= 0.1 && !m._c) { m._c = 1; lab.ui.hud.cinematic(true); lab.ui.hud.announce('흑일분천', { sub: 'BLACK SUN BURNS THE HEAVENS', style: 'ult', side: 0 }); m.p1.ult = 0; }
         if (t >= 2.2 && !m._d) { m._d = 1; lab.ui.hud.cinematic(false); }
         lab.push(m);
       });

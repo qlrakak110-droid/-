@@ -1,7 +1,7 @@
 // Procedural VFX textures, generated once at start-up on the GPU (one generator program, one quad per atlas cell,
 // rendered into mipmapped render targets — a few milliseconds instead of seconds of CPU rasterising on a phone).
 //
-//   atlas  1024x1024 RGBA8 sprite atlas. Channels are masks, not colour (colour comes from ramps):
+//   atlas  1024x1152 RGBA8 sprite atlas. Channels are masks, not colour (colour comes from ramps):
 //            R  shade   - form / lighting / internal detail, multiplies the colour (def.shade blends it in)
 //            G  heat    - hot core mask: shifts the colour lookup toward the birth colour (def.heat)
 //            B  order   - dissolve order: low values erode first (def.erode)
@@ -16,12 +16,13 @@
 import * as THREE from 'three';
 import { makeRng, TAU } from '../core/math.js';
 
-const ATLAS = 1024;
+const ATLAS = 1024;          // atlas width (px)
+const ATLAS_H = 1152;        // atlas height: 2 rows of 256 px cells, 5 rows of 128 px cells
 const NOISE = 256;
 const MAXP = 128;
 
 // generator kinds (must match GEN_FRAG)
-const K = { smoke: 1, flame: 2, burst: 3, glow: 4, glowHard: 5, disc: 6, spark: 7, ember: 8, dust: 9, star: 10, ring: 11, shard: 12, snow: 13, ash: 14, petal: 15, lines: 16, wisp: 17, streak: 18, dot: 19, hex: 20, pebble: 21, crescent: 22, noise: 40, flow: 41 };
+const K = { smoke: 1, flame: 2, burst: 3, glow: 4, glowHard: 5, disc: 6, spark: 7, ember: 8, dust: 9, star: 10, ring: 11, shard: 12, snow: 13, ash: 14, petal: 15, lines: 16, wisp: 17, streak: 18, dot: 19, hex: 20, pebble: 21, crescent: 22, talisman: 23, leaf: 24, ink: 25, brush: 26, enso: 27, noise: 40, flow: 41 };
 
 const GEN_VERT = /* glsl */ `
 varying vec2 vUv;
@@ -348,6 +349,77 @@ vec4 genCrescent(vec2 p) {
   return vec4(1.0, sat(inner + fill * 0.3), sat(fill * (0.5 - p.x * 0.5)), sat(fill + exp(-max(0.0, d) * 12.0) * 0.35));
 }
 
+// --- murim accents -------------------------------------------------------------------------------------------------
+// talisman: a paper slip with brushed script and a seal. R paper tone (marks darker), G script mask (glows / burns
+// with def.heat), B dissolve order (edges burn first), A coverage with a torn lower edge
+vec4 genTalisman(vec2 p) {
+  float torn = 0.06 * fbm(vec2(p.x * 5.0, 3.0 + uSeed), 3);
+  float dx = abs(p.x) - 0.3, dy = max(p.y - 0.86, -(p.y + 0.84 + torn));
+  float d = max(dx, dy);
+  float inside = 1.0 - smoothstep(-0.012, 0.012, d);
+  float m = 1e3;
+  for (int k = 0; k < 12; k++) { if (k >= uCount) break; m = min(m, sdSeg(p, uP[k].xy, uP[k].zw)); }
+  float mark = 1.0 - smoothstep(0.028, 0.05, m + 0.02 * fbm(p * 9.0, 2));
+  float seal = 1.0 - smoothstep(0.1, 0.12, max(abs(p.x), abs(p.y + 0.58)));
+  float fibre = n01(p * vec2(26.0, 5.0) + uSeed, 3);
+  float script = max(mark, seal * (0.55 + 0.45 * n01(p * 14.0, 2)));
+  return vec4(sat((0.78 + 0.22 * fibre) * (1.0 - 0.7 * script)), sat(script), sat(smoothstep(0.0, 0.3, -d) * 0.75 + fibre * 0.25), inside);
+}
+// leaf: variant 0 a narrow bamboo leaf, variant 1 a broad serrated leaf; midrib and side veins in the shade channel
+vec4 genLeaf(vec2 p) {
+  float s = (p.y + 0.86) / 1.72;
+  float bend = (uVar == 0 ? 0.1 : 0.05) * sin(s * 2.6 + uSeed);
+  float xx = p.x - bend;
+  float w = -1.0;
+  if (s > 0.0 && s < 1.0) w = uVar == 0 ? 0.16 * pow(sin(3.14159 * pow(s, 0.62)), 0.9) : 0.4 * pow(sin(3.14159 * pow(s, 0.85)), 0.8) * (0.9 + 0.1 * sin(s * 44.0));
+  float d = abs(xx) - w;
+  float inside = 1.0 - smoothstep(-0.014, 0.014, d);
+  float rib = exp(-(xx * xx) / 0.0005);
+  float veins = uVar == 0 ? 0.0 : pow(abs(sin((s * 9.0 - abs(xx) * 7.0) * 3.14159)), 14.0) * 0.5;
+  float tone = n01(p * vec2(7.0, 3.0) + uSeed, 3);
+  return vec4(sat((0.55 + 0.4 * s) * (1.0 - 0.35 * rib - 0.3 * veins) * (0.82 + 0.3 * tone)), sat((1.0 - smoothstep(0.0, 0.07, -d)) * inside * 0.8),
+              sat(smoothstep(0.0, 0.25, -d) * 0.7 + tone * 0.3), inside);
+}
+// ink: variant 0 a thrown blot with satellite drops, variant 1 a splash flung along +X (velocity-stretched strokes)
+vec4 genInk(vec2 p) {
+  vec2 q = uVar == 1 ? vec2((p.x - 0.25) * 0.62, p.y * 1.5) : p;
+  float r = length(q), th = atan(q.y, q.x);
+  vec2 c = vec2(cos(th), sin(th));
+  float lobes = 0.2 * fbm(c * 1.6 + uSeed, 3) + 0.1 * fbm(c * 5.0 + uSeed * 2.0, 2);
+  float spikes = pow(n01(c * 3.2 + uSeed * 3.0, 2), 5.0) * 1.1;
+  float d = r - (0.34 + lobes + spikes * (uVar == 1 ? 0.25 + 0.75 * sat(-c.x) : 0.5));
+  float blot = 1.0 - smoothstep(-0.02, 0.02, d);
+  float drops = 0.0;
+  for (int k = 0; k < 16; k++) { if (k >= uCount) break; vec4 b = uP[k]; drops = max(drops, 1.0 - smoothstep(b.z * 0.7, b.z, length(p - b.xy))); }
+  float dry = uVar == 1 ? smoothstep(0.35, 0.6, n01(vec2(p.x * 1.5, p.y * 22.0) + uSeed, 3) + sat(p.x + 0.4) * 0.5) : 1.0;
+  float a = max(blot * dry, drops);
+  return vec4(1.0, sat((1.0 - smoothstep(0.0, 0.1, -d)) * blot), sat(smoothstep(0.0, 0.4, -d) * 0.7 + 0.3 * n01(p * 5.0, 2)), sat(a));
+}
+// brush: a dry-brush stroke along X, wet and full at the head (+X), splitting into separate hairs toward the tail
+vec4 genBrush(vec2 p) {
+  float s = (p.x + 0.92) / 1.84;                       // 0 tail -> 1 head
+  float w = (uVar == 1 ? 0.3 : 0.17) * pow(sat(s), 0.45) * (1.0 - smoothstep(0.9, 1.0, s)) + 0.012;
+  float y = p.y + 0.05 * sin(s * 3.0 + uSeed);
+  float band = 1.0 - smoothstep(w * 0.8, w, abs(y));
+  float hair = n01(vec2(p.x * 1.1 + uSeed, y / max(w, 0.02) * 4.5 + uSeed * 3.0), 3);
+  float dry = smoothstep(0.0, 0.16, hair - mix(0.66, 0.2, pow(sat(s), 0.8)));
+  float fine = n01(vec2(p.x * 3.0, y * 60.0) + uSeed, 2);
+  float a = band * dry * (0.8 + 0.2 * fine) * smoothstep(0.0, 0.08, s);
+  return vec4(1.0, sat(exp(-(y * y) / (w * w * 0.12)) * s * a), sat(s * 0.8 + hair * 0.2), sat(a));
+}
+// enso: a ring drawn with one loaded brush stroke: swelling and thinning line, an open end, dry streaks along the turn
+vec4 genEnso(vec2 p) {
+  float r = length(p), th = atan(p.y, p.x);
+  float t = fract(th / TAU + 0.63);                    // 0 start of the stroke -> 1 its dry end
+  float R = 0.7 + 0.025 * sin(t * 9.0 + uSeed);
+  float w = 0.085 * (0.45 + 0.85 * sin(3.14159 * pow(t, 0.7))) * (1.0 - smoothstep(0.9, 0.97, t)) * smoothstep(0.0, 0.03, t);
+  float band = 1.0 - smoothstep(w * 0.75, w, abs(r - R));
+  float hair = n01(vec2(t * 7.0 + uSeed, (r - R) / max(w, 0.01) * 3.2), 3);
+  float dry = smoothstep(0.0, 0.14, hair - mix(0.15, 0.62, t * t));
+  float a = band * dry;
+  return vec4(1.0, sat(exp(-pow((r - R) / max(w * 0.35, 0.004), 2.0)) * a), sat(1.0 - t), sat(a));
+}
+
 // --- tiling noise textures -----------------------------------------------------------------------------------------
 vec4 genNoise(vec2 uv) {
   float r = fbmP(uv * 4.0, 5, vec2(4.0), 0.5);
@@ -391,6 +463,11 @@ void main() {
   else if (uKind == ${K.dot}) o = genDot(p);
   else if (uKind == ${K.hex}) o = genHex(p);
   else if (uKind == ${K.pebble}) o = genPebble(p);
+  else if (uKind == ${K.talisman}) o = genTalisman(p);
+  else if (uKind == ${K.leaf}) o = genLeaf(p);
+  else if (uKind == ${K.ink}) o = genInk(p);
+  else if (uKind == ${K.brush}) o = genBrush(p);
+  else if (uKind == ${K.enso}) o = genEnso(p);
   else o = genCrescent(p);
   if (uKind < ${K.noise}) o.a *= edgeFade(p, 0.8);
   gl_FragColor = clamp(o, 0.0, 1.0);
@@ -463,32 +540,49 @@ function lineArt(width, glowK, glowAmt, fadeEnds, build) {
   return { count: list.length / 2, list, extra: { 127: [width, glowK, glowAmt, fadeEnds ? 1 : 0] } };
 }
 function runeParams(variant) {
-  return lineArt(0.034, 15, 0.38, false, (L) => {
+  return lineArt(0.04, 15, 0.38, false, (L) => {
     if (variant === 0) {
-      // seal: double ring, tick marks, a stave with three bars flanked by two opposed crescents
-      L.arc(0, 0, 0.86); L.arc(0, 0, 0.72, 0, TAU, 0.7);
-      for (let k = 0; k < 12; k++) { const a = (k / 12) * TAU + 0.26; const l = k % 3 === 0 ? 0.6 : 0.66; L.seg(Math.cos(a) * l, Math.sin(a) * l, Math.cos(a) * 0.72, Math.sin(a) * 0.72, 0.8); }
-      L.seg(0, -0.48, 0, 0.48); L.seg(-0.2, 0.3, 0.2, 0.3); L.seg(-0.14, 0.06, 0.14, 0.06); L.seg(-0.26, -0.22, 0.26, -0.22);
-      L.arc(-0.06, 0, 0.36, 2.2, 4.1); L.arc(0.06, 0, 0.36, -0.94, 0.94);
-      L.dot(0, 0.58, 0.035); L.dot(0, -0.58, 0.035);
+      // bar seal: a ring around three stacked bars, the middle one broken (our own mark, not a set trigram chart)
+      L.arc(0, 0, 0.86); L.arc(0, 0, 0.74, 0.5, 2.6, 0.6); L.arc(0, 0, 0.74, 3.64, 5.74, 0.6);
+      L.seg(-0.44, 0.34, 0.44, 0.34, 1.5); L.seg(-0.44, 0, -0.1, 0, 1.5); L.seg(0.1, 0, 0.44, 0, 1.5); L.seg(-0.44, -0.34, 0.44, -0.34, 1.5);
     } else if (variant === 1) {
-      // standalone glyph: stave with a fork, a hooked branch and a cross-cut
-      L.seg(0, -0.8, 0, 0.78); L.seg(0, 0.24, -0.46, 0.66); L.seg(0, 0.24, 0.46, 0.66);
-      L.seg(0, -0.12, 0.42, -0.46); L.seg(0.42, -0.46, 0.42, -0.76); L.seg(0, -0.12, -0.34, -0.38);
-      L.seg(-0.22, 0.02, 0.22, 0.02, 0.8);
-      L.arc(0, 0, 0.64, -0.42, 0.42, 0.75); L.arc(0, 0, 0.64, Math.PI - 0.42, Math.PI + 0.42, 0.75);
-      L.dot(-0.34, -0.6, 0.04); L.dot(0, 0.9, 0.035);
+      // seal-script glyph: square strokes inside an open frame, a hooked corner and a dot
+      L.seg(-0.62, 0.66, 0.62, 0.66, 1.2); L.seg(-0.62, 0.66, -0.62, -0.7, 1.2); L.seg(0.62, 0.66, 0.62, -0.3, 1.2);
+      L.seg(-0.3, 0.3, 0.3, 0.3); L.seg(0, 0.3, 0, -0.34); L.seg(-0.3, -0.02, 0.3, -0.02); L.seg(-0.3, -0.34, 0.3, -0.34);
+      L.seg(-0.62, -0.7, 0.2, -0.7, 1.2); L.seg(0.62, -0.3, 0.4, -0.52);
+      L.dot(0.5, -0.74, 0.05);
     } else {
-      // circle seal: dotted outer ring, inner ring, a diamond, cardinal strokes and twin inner arcs
-      L.arc(0, 0, 0.84); L.arc(0, 0, 0.6, 0, TAU, 0.75);
-      for (let k = 0; k < 20; k++) { const a = (k / 20) * TAU; L.dot(Math.cos(a) * 0.73, Math.sin(a) * 0.73, 0.022, 0.9); }
-      const D = [[0, 0.6], [0.6, 0], [0, -0.6], [-0.6, 0]];
-      for (let k = 0; k < 4; k++) L.seg(D[k][0], D[k][1], D[(k + 1) % 4][0], D[(k + 1) % 4][1], 0.85);
-      for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU + Math.PI / 4; L.seg(Math.cos(a) * 0.5, Math.sin(a) * 0.5, Math.cos(a) * 0.94, Math.sin(a) * 0.94, 0.8); }
-      L.arc(0, 0, 0.22, 0, TAU, 0.85);
-      for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU; L.seg(Math.cos(a) * 0.08, Math.sin(a) * 0.08, Math.cos(a) * 0.36, Math.sin(a) * 0.36, 0.7); }
+      // star chart: seven stars of unequal weight joined into a bent chain, inside a ring with four ticks
+      const S = [[-0.56, 0.3], [-0.26, 0.5], [0.08, 0.36], [0.3, 0.06], [0.12, -0.28], [0.4, -0.5], [-0.3, -0.42]];
+      L.arc(0, 0, 0.88, 0, TAU, 0.7);
+      for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU + 0.4; L.seg(Math.cos(a) * 0.78, Math.sin(a) * 0.78, Math.cos(a) * 0.88, Math.sin(a) * 0.88, 0.8); }
+      for (let k = 0; k < S.length - 2; k++) L.seg(S[k][0], S[k][1], S[k + 1][0], S[k + 1][1], 0.55);
+      L.seg(S[4][0], S[4][1], S[6][0], S[6][1], 0.55);
+      S.forEach((q, k) => L.dot(q[0], q[1], k % 3 === 0 ? 0.07 : 0.045));
     }
   });
+}
+function talismanParams(rng) {
+  // brushed script: a column of short strokes (horizontals, a long vertical, hooks) on the slip
+  const list = [];
+  let y = 0.66;
+  for (let k = 0; k < 7; k++) {
+    const w = 0.08 + rng() * 0.12, tilt = (rng() - 0.5) * 0.08;
+    list.push([-w, y + tilt, w, y - tilt]);
+    if (rng() < 0.6) list.push([(rng() - 0.5) * 0.2, y + 0.02, (rng() - 0.5) * 0.24, y - 0.13]);
+    y -= 0.14 + rng() * 0.04;
+    if (list.length >= 11) break;
+  }
+  list.push([0, 0.7, 0.02, -0.32]);
+  return { count: list.length, list };
+}
+function inkParams(rng, variant) {
+  const list = [];
+  for (let k = 0; k < 12; k++) {
+    const a = variant ? Math.PI + (rng() - 0.5) * 1.5 : rng() * TAU, d = 0.55 + rng() * 0.32;
+    list.push([Math.cos(a) * d * (variant ? 0.95 : 1) + (variant ? 0.15 : 0), Math.sin(a) * d * (variant ? 0.6 : 1), 0.02 + 0.05 * Math.pow(rng(), 2), 0]);
+  }
+  return { count: list.length, list };
 }
 function arcParams(rng, variant) {
   let pts = [[-0.9, (rng() - 0.5) * 0.2], [0.9, (rng() - 0.5) * 0.2]];
@@ -524,7 +618,7 @@ function wispParams(rng, variant) {
 }
 const starParams = (rays) => ({ count: rays.length, list: rays.map((r) => [r[0], r[1], r[2], 0]) });
 
-/** atlas layout: [name, kind, params, variant]; 8 cells of 256 px then 32 cells of 128 px */
+/** atlas layout: [name, kind, params, variant]; 8 cells of 256 px then 40 cells of 128 px */
 function layout() {
   const rng = makeRng(7177);
   const BIG = [
@@ -541,6 +635,9 @@ function layout() {
     ['wisp1', K.wisp, wispParams(rng, 0)], ['wisp2', K.wisp, wispParams(rng, 1)], ['streak', K.streak], ['dot', K.dot],
     ['hex', K.hex], ['arc1', K.lines, arcParams(rng, 0)], ['arc2', K.lines, arcParams(rng, 1)], ['arc3', K.lines, arcParams(rng, 2)],
     ['pebble1', K.pebble, pebbleParams(rng, 0)], ['pebble2', K.pebble, pebbleParams(rng, 1)], ['pebble3', K.pebble, pebbleParams(rng, 2)], ['crescent', K.crescent],
+    // murim accents (row 5)
+    ['talisman', K.talisman, talismanParams(rng)], ['leaf1', K.leaf, null, 0], ['leaf2', K.leaf, null, 1], ['ink1', K.ink, inkParams(rng, 0), 0],
+    ['ink2', K.ink, inkParams(rng, 1), 1], ['brush1', K.brush, null, 0], ['brush2', K.brush, null, 1], ['enso', K.enso],
   ];
   const cells = [];
   BIG.forEach((e, k) => cells.push({ e, size: 256, x: (k % 4) * 256, y: Math.floor(k / 4) * 256 }));
@@ -549,22 +646,23 @@ function layout() {
 }
 
 /** variant groups: name -> [first sprite, count] (variants are consecutive cells of one row) */
-const GROUPS = { smoke: ['smoke1', 4], flame: ['flame1', 3], shard: ['shard1', 3], snow: ['snow1', 2], ash: ['ash1', 2], rune: ['rune1', 3], wisp: ['wisp1', 2], arc: ['arc1', 3], pebble: ['pebble1', 3] };
+const GROUPS = { smoke: ['smoke1', 4], flame: ['flame1', 3], shard: ['shard1', 3], snow: ['snow1', 2], ash: ['ash1', 2], rune: ['rune1', 3], wisp: ['wisp1', 2], arc: ['arc1', 3], pebble: ['pebble1', 3],
+  leaf: ['leaf1', 2], ink: ['ink1', 2], brush: ['brush1', 2] };
 
 /**
  * Generate every VFX texture with `renderer`. Returns
  * { atlas, noise, flow (THREE.Texture), sprites: { name: { u, v, w, h, frames } }, sprite(name), dispose() }.
  */
 export function createTextures(renderer) {
-  const mkRT = (size, wrap) => {
-    const rt = new THREE.WebGLRenderTarget(size, size, {
+  const mkRT = (size, wrap, height = size) => {
+    const rt = new THREE.WebGLRenderTarget(size, height, {
       type: THREE.UnsignedByteType, format: THREE.RGBAFormat, depthBuffer: false, stencilBuffer: false,
       generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, wrapS: wrap, wrapT: wrap,
     });
     rt.texture.colorSpace = THREE.NoColorSpace;
     return rt;
   };
-  const rtAtlas = mkRT(ATLAS, THREE.ClampToEdgeWrapping);
+  const rtAtlas = mkRT(ATLAS, THREE.ClampToEdgeWrapping, ATLAS_H);
   const rtNoise = mkRT(NOISE, THREE.RepeatWrapping);
   const rtFlow = mkRT(NOISE, THREE.RepeatWrapping);
 
@@ -598,11 +696,11 @@ export function createTextures(renderer) {
   const cells = layout();
   cells.forEach((c, i) => {
     const [name, kind, params, variant] = c.e;
-    const x0 = (c.x / ATLAS) * 2 - 1, y0 = (c.y / ATLAS) * 2 - 1, x1 = ((c.x + c.size) / ATLAS) * 2 - 1, y1 = ((c.y + c.size) / ATLAS) * 2 - 1;
+    const x0 = (c.x / ATLAS) * 2 - 1, y0 = (c.y / ATLAS_H) * 2 - 1, x1 = ((c.x + c.size) / ATLAS) * 2 - 1, y1 = ((c.y + c.size) / ATLAS_H) * 2 - 1;
     const mesh = new THREE.Mesh(quad(x0, y0, x1, y1), material(kind, params, variant, 3 + i * 7));
     mesh.frustumCulled = false;
     scene.add(mesh);
-    sprites[name] = { u: c.x / ATLAS, v: c.y / ATLAS, w: c.size / ATLAS, h: c.size / ATLAS, frames: 1 };
+    sprites[name] = { u: c.x / ATLAS, v: c.y / ATLAS_H, w: c.size / ATLAS, h: c.size / ATLAS_H, frames: 1 };
   });
   for (const g in GROUPS) sprites[g] = { ...sprites[GROUPS[g][0]], frames: GROUPS[g][1] };
 

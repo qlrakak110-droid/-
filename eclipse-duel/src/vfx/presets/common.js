@@ -138,7 +138,23 @@ function hitKit(el) {
     fine: def({ ...LIB.sparksFine, color: frost ? heatRamp([5, 7, 10], P.core, P.tail) : sRamp }),
     /** expanding soft light bloom (dim and short: it only tints the air around the flash) */
     puff: def({ ...LIB.glowPuff, life: [0.1, 0.15], color: [key(0, P.core, 0.7, 0.16), key(0.3, P.mid, 0.35, 0.3), [1, 0, 0, 0, 0]] }),
+    /** ink splash of the impact frame: black dry-brush strokes thrown out of the contact, under the light (frames 1-8) */
+    ink: def({ ...LIB.inkStrokes }),
+    /** ink blot behind the flash (the light sits on black: readable against bright ground and fire) */
+    blot: def({ ...LIB.inkBlot }),
+    /** bright brush flicks: fewer and broader than the hairline `lines`, in the element's colour */
+    strokes: def({ tex: 'brush', blend: 'add', count: 6, life: [0.06, 0.15], shape: { type: 'sphere', radius: 0.04 }, emit: 'radial', spread: 180,
+      speed: [8, 22, 1.3], drag: 14, size: [0.05, 0.11, 1.5], stretch: 0.07, maxStretch: 1.2, rotation: 0, groundFade: 0, pull: 0.25, soft: 0,
+      color: [[0, 10, 9, 8, 1], key(0.35, S.core, 1, 0.7), key(1, S.mid, 0, 0.5)] }),
   };
+  // accent scraps of a heavy blow in the murim idiom: burning talisman paper (ember), snow crystals (frost), talisman
+  // slips with violet script (volt), dry leaves (steel)
+  if (el === 'ember') k.scrap = def({ ...LIB.talismans, count: 3 });
+  else if (frost) k.scrap = def({ tex: 'snow', blend: 'add', count: 6, life: [0.7, 1.6], shape: { type: 'sphere', radius: 0.25 }, emit: 'axis', spread: 65, lift: 0.3,
+    speed: [1, 4.5, 1.4], size: [0.07, 0.15, 1.6], spin: [1, 4], gravity: -1.1, drag: 2.2, turbulence: { amp: 0.5, freq: 1.2, speed: 1 }, flicker: { amount: 0.35, rate: 9 },
+    color: [key(0, [6, 8, 10], 0), key(0.08, P.core, 1, 0.7), key(0.6, P.mid, 0.9, 1.1), key(1, P.tail, 0)] });
+  else if (el === 'volt') k.scrap = def({ ...LIB.talismans, count: 3, color: [[0, 5, 3.5, 9, 1], [0.3, 0.6, 0.55, 0.42, 1], [0.8, 0.46, 0.42, 0.34, 1], [1, 0.16, 0.14, 0.16, 0.8]] });
+  else k.scrap = def({ ...LIB.leaves, count: 3 });
   // lingering puff blown out of the contact along the strike: lit grey dust (steel), dark smoke with a warm underglow
   // (ember), pale mist (frost), violet-black ozone (volt). Lighter than the floor so it reads against dark armour.
   const puffBase = { tex: 'smoke', blend: 'alpha', count: 3, life: [0.6, 1.3], shape: { type: 'sphere', radius: 0.1 }, emit: 'axis', spread: 38, lift: 0.35,
@@ -191,3 +207,29 @@ export const SMOKE_COLUMN = def({ ...LIB.smokeLinger });
 export const DUST_MOTES = def({ tex: 'dust', blend: 'alpha', count: 12, life: [0.8, 1.6], shape: { type: 'disc', radius: 0.4 }, emit: 'radial', spread: 30, lift: 0.8,
   speed: [0.3, 1.4], size: [0.03, 0.08, 2], gravity: -0.6, drag: 1.6, turbulence: { amp: 0.3, freq: 1.5, speed: 1 }, groundFade: 0.02, shade: 0.6,
   color: [[0, 0.35, 0.32, 0.28, 0], [0.1, 0.32, 0.29, 0.25, 0.8], [1, 0.2, 0.18, 0.16, 0]] });
+/** Dry leaves kicked off the terrace floor (alpha, tumbling). */
+export const LEAVES = def({ ...LIB.leaves });
+/** Pale blossom petals (alpha, drifting). */
+export const PETALS = def({ ...LIB.petals });
+/** Ink strokes thrown flat along the floor by a stomp (radial around `dir`). */
+export const STOMP_INK = def({ ...LIB.inkStrokes, shape: { type: 'ring', radius: 0.14 }, spread: 7, speed: [3.5, 9, 1.3], life: [0.14, 0.28], size: [0.06, 0.13, 1.4], pull: 0 });
+
+/**
+ * What a blow leaves on the floor when it lands low: the element's mark (scorch with dying embers / frost / an ink
+ * splash with a dying rim of energy) plus dust, pebbles and leaves kicked off the stone.
+ * @param {object} v   vfx (or a realtime view)
+ * @param {string} el  'ember' | 'frost' | 'volt' | 'steel' | 'eclipse'
+ * @param {THREE.Vector3} p  contact point (the mark goes on the floor under it)
+ * @param {number} [s]  scale
+ * @param {number} [i]  intensity (counts)
+ */
+export function groundMark(v, el, p, s = 1, i = 1) {
+  const g = floor(p, 0.02);
+  const r = (0.5 + 0.25 * i) * s;
+  if (el === 'ember') v.decal({ kind: 'scorch', pos: g, radius: r * 1.1, life: 3.4, magma: 0.7, cool: 1.0 });
+  else if (el === 'frost') v.decal({ kind: 'frost', pos: g, radius: r * 1.3, life: 3.0, reveal: 0.2 });
+  else v.decal({ kind: 'ink', pos: g, radius: r * 1.25, life: 3.4, palette: el === 'volt' ? 'volt' : 'eclipse', cool: 0.7 });
+  v.burst(DUST_SMALL, { pos: g, dir: [0, 1, 0], count: Math.max(2, Math.round(5 * i)), scale: 1.2 * s });
+  v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: Math.max(2, Math.round(4 * i)), scale: 0.6 * s });
+  v.burst(LEAVES, { pos: g, dir: [0, 1, 0], count: Math.max(1, Math.round(3 * i)), scale: s });
+}

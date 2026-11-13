@@ -1,6 +1,6 @@
 // Plug-in registry of the RPG mode (README §3). The core registers its built-ins here; the boss / foes / world / ui
 // teams register theirs from `install(rpg)` in their own folders. Modules are discovered with esbuild glob imports:
-// every `./<dir>/index.js` and `./pro*.js` that exists is bundled, a missing one is a runtime miss (never a build error),
+// every `./<dir>/index.js` and `./progress.js` that exists is bundled, a missing one is a runtime miss (never a build error),
 // so the mode builds and runs with any subset of the folders present.
 //
 //   import { registry } from './registry.js';
@@ -16,10 +16,11 @@ function warn(key, msg) {
 /** Optional plug-in folders, loaded in this order. */
 export const PLUGINS = ['world', 'foes', 'boss', 'ui'];
 
-// esbuild turns the template into a glob (`./**/*/index.js`, `./pro*.js`) and bundles every match
+// esbuild turns each template into a glob (`./**/*/index.js`, `./*.js`) and bundles every match; a name that matches
+// no file rejects at runtime ("Module not found in bundle")
 const IMPORTERS = {
   dir: (name) => import(`./${name}/index.js`),
-  file: (name) => import(`./pro${name}.js`),
+  file: (name) => import(`./${name}.js`),
 };
 
 function createRegistry() {
@@ -91,7 +92,7 @@ function createRegistry() {
         try { await install(reg); } catch (e) { warn('run:' + name, `${name}/index.js install() threw: ${e && (e.stack || e.message)}`); }
       }
       let prog = null;
-      try { prog = await IMPORTERS.file('gress'); } catch (e) {
+      try { prog = await IMPORTERS.file('progress'); } catch (e) {
         if (!/not found in bundle|Cannot find module|Failed to fetch|Could not resolve/i.test(String(e && e.message))) warn('load:progress', `progress.js failed to load: ${e && (e.stack || e.message)}`);
       }
       reg.found.progress = !!prog;

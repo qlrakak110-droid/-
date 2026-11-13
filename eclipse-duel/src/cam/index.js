@@ -7,7 +7,8 @@
 //
 // Per frame: fight rig (always running, so it is warm when a cinematic hands back) -> sequencer (if playing) ->
 // transition (hard cut, or inertial blend that carries the previous camera velocity) -> safety limits (z >= 0.5,
-// above the floor) -> kicks, shake, handheld drift -> ctx.camera. See README.md.
+// above the floor) -> lens (cinematic shots only: auto-focus depth of field, focus breathing, exposure hints, whip /
+// crash blur through ctx.post) -> kicks, shake, handheld drift + operator micro-motion -> ctx.camera. See README.md.
 
 import * as THREE from 'three';
 import { clamp, lerp, Ease } from '../core/math.js';
@@ -15,18 +16,27 @@ import { Pose, orient, readPoint, softFloor, damp1 } from './pose.js';
 import { defaultFight, createFightRig } from './framing.js';
 import { createShaker, handheld } from './shake.js';
 import { createSequencer } from './sequencer.js';
+import { createLens } from './lens.js';
+import * as SHOTS from './shots.js';
 
 const smootherstep = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 
 /**
  * Create the camera director and store it on ctx.cam.
  * @param {object} ctx app context
- * @param {{seed?: number}} [opts] seed for the shake noise (default fixed, deterministic)
+ * @param {{seed?: number, lens?: object}} [opts] seed for the shake noise (default fixed, deterministic); lens
+ *   setting overrides (lens.js LENS_DEFAULTS). URL flag `#camfx=0` switches every cinematic lens feature, the operator
+ *   micro-motion and the hit zoom off (A/B against the plain camera).
  */
 export function createCameraDirector(ctx, opts = {}) {
   const camera = ctx.camera;
+  const fxOn = !(ctx.flags && (ctx.flags.camfx === '0' || ctx.flags.camfx === 'off'));
   const fight = defaultFight();
+  if (!fxOn) fight.hitZoom = 0;
   const rig = createFightRig(fight);
+  const lens = createLens(ctx, { ...opts.lens, enabled: fxOn && !(opts.lens && opts.lens.enabled === false) });
+  /** Cinematic defaults (live): handheld amount of shots that do not set one. */
+  const cine = { handheld: fxOn ? 0.2 : 0 };
   const shaker = createShaker(opts.seed ?? 0xca3e);
   const limits = { minZ: 0.5, minY: 0.12, knee: 0.4 };
   const targets = [null, null];
@@ -39,8 +49,10 @@ export function createCameraDirector(ctx, opts = {}) {
   const blend = { on: false, t: 0, T: 0, w: 1, tau: 0.15, src: new Pose(), vpos: new THREE.Vector3(), vlook: new THREE.Vector3(), vfov: 0, vroll: 0 };
   const view = { aspect: 16 / 9, letterbox: 0, zoom: 1, focusX: 0, focusW: 0, snap: false };
   const zoom = { factor: 1, left: 0, attack: 0.12, release: 0.3, focus: null, weight: 0.6, s: { v: 1, vel: 0 } };
+  const hit = { k: 0, left: 0, s: { v: 1, vel: 0 } };   // slight dolly punch on big hits (fight mode)
   const lb = { on: false, from: 0, to: 0, t: 0, dur: 0.35 };
-  const hand = { s: { v: fight.breathe, vel: 0 }, time: 0, out: { yaw: 0, pitch: 0, roll: 0 } };
+  const hand = { s: { v: fight.breathe, vel: 0 }, c: { v: 0, vel: 0 }, time: 0, out: { yaw: 0, pitch: 0, roll: 0, px: 0, py: 0, fov: 0 } };
+  let gradeTouched = false;
   const quat = new THREE.Quaternion(), qShake = new THREE.Quaternion(), euler = new THREE.Euler(0, 0, 0, 'YXZ');
   const right = new THREE.Vector3(), up = new THREE.Vector3(), fwd = new THREE.Vector3();
   let free = false;
@@ -51,7 +63,7 @@ export function createCameraDirector(ctx, opts = {}) {
   const resolve = (s) => (typeof s === 'number' ? targets[s] : s);
 
   /** Final camera state of the last frame (read-only). */
-  const state = { mode: 'fight', shot: -1, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), look: base.look, fov: 40, roll: 0, blend: 1, cut: false };
+  const state = { mode: 'fight', shot: -1, pos: new THREE.Vector3(), quat: new THREE.Quaternion(), look: base.look, fov: 40, roll: 0, blend: 1, cut: false, focus: 6, aperture: 0 };
 
   // ---- letterbox -----------------------------------------------------------------------------------------------
   function lbCurrent() { return ctx.post ? ctx.post.fx.letterbox : 0; }
@@ -71,11 +83,37 @@ export function createCameraDirector(ctx, opts = {}) {
     if (k >= 1) lb.on = false;
   }
 
+  // ---- grade hints (shot.grade): a post grade for the length of a sequence, then back to the baseline look ------
+  function gradeTo(g, dur = 0.5) {
+    if (!fxOn || !ctx.post || !ctx.post.grade) return;
+    ctx.post.grade(g, dur);
+    gradeTouched = true;
+  }
+  function gradeRestore(dur = 0.5) {
+    if (!gradeTouched) return;
+    gradeTouched = false;
+    const p = ctx.post, b = p && p.baseline;
+    if (!b || !b.gradeLift) return;
+    p.to({
+      gradeLift: b.gradeLift, gradeGamma: b.gradeGamma, gradeGain: b.gradeGain, toneShadows: b.toneShadows, toneHighlights: b.toneHighlights,
+      toneAmount: b.toneAmount, toneBalance: b.toneBalance, saturation: b.saturation, contrast: b.contrast,
+    }, dur, 'inOutSine');
+  }
+  /** Unit vector toward the eclipse: cam.sun when set, else the arena's (ctx.env.sunDir), else the documented default. */
+  function sunDir(out) {
+    if (cam.sun) return out.copy(cam.sun).normalize();
+    if (ctx.env && ctx.env.sunDir) return out.copy(ctx.env.sunDir);
+    return out.set(0.035, 0.108, -0.994);
+  }
+
   const seq = createSequencer(ctx, {
-    shaker, fight,
+    shaker, fight, cine,
     letterboxTo,
     letterboxValue: () => (lb.on ? lb.to : lbCurrent()),
     stop: (b) => stop(b),
+    aspect: () => camera.aspect,
+    sun: sunDir,
+    gradeTo, gradeRestore,
   });
 
   // ---- transitions ---------------------------------------------------------------------------------------------
@@ -140,9 +178,14 @@ export function createCameraDirector(ctx, opts = {}) {
     view.focusW = zoom.focus != null && readPoint(resolve(zoom.focus), _p) ? zoom.weight * depth : 0;
     view.focusX = _p.x;
 
+    // big hits (cam.shake at fight.hitZoomMin or more, fight mode) punch the dolly in a few per cent and let it out slowly
+    hit.left -= dtReal;
+    const hOn = hit.left > 0;
+    damp1(hit.s, hOn ? 1 - fight.hitZoom * hit.k : 1, hOn ? 0.035 : 0.2, dtReal);
+
     view.aspect = camera.aspect;
     view.letterbox = lbCurrent();
-    view.zoom = zoom.s.v;
+    view.zoom = zoom.s.v * hit.s.v;
     view.scaleA = targetScale[0]; view.scaleB = targetScale[1];
     view.snap = snapReq || settleReq;
     const fightPose = rig.update(dtReal, A, B, view);
@@ -175,22 +218,28 @@ export function createCameraDirector(ctx, opts = {}) {
     }
     prev.copy(base);
 
-    // kicks, shake, handheld
+    // lens: depth of field, focus breathing, tone hints, whip / crash blur (cinematic shots only)
+    const lo = lens.update(dtReal, seq.active, cut, seq.shot, base, camera.aspect, seq.anchorSrc, seq.targetSrc);
+
+    // kicks, shake, handheld (+ operator micro-motion on cinematic shots)
     const handTarget = seq.active ? seq.handheld : fight.breathe;
-    if (cut) { hand.s.v = handTarget; hand.s.vel = 0; } else damp1(hand.s, handTarget, 0.3, dtReal);
+    const cineTarget = seq.active && fxOn ? 1 : 0;
+    if (cut) { hand.s.v = handTarget; hand.s.vel = 0; hand.c.v = cineTarget; hand.c.vel = 0; }
+    else { damp1(hand.s, handTarget, 0.3, dtReal); damp1(hand.c, cineTarget, 0.3, dtReal); }
     hand.time += dtReal;
     orient(base.pos, base.look, base.roll, quat);
     right.set(1, 0, 0).applyQuaternion(quat);
     up.set(0, 1, 0).applyQuaternion(quat);
     fwd.set(0, 0, -1).applyQuaternion(quat);
     const sh = shaker.sample(dtReal, right, up, fwd);
-    const hh = handheld(hand.time, hand.s.v, 0x4a11, hand.out);
-    state.pos.copy(base.pos).addScaledVector(fwd, sh.push + sh.pz).addScaledVector(right, sh.px).addScaledVector(up, sh.py).add(sh.offset);
+    const hh = handheld(hand.time, hand.s.v, 0x4a11, hand.out, hand.c.v);
+    state.pos.copy(base.pos).addScaledVector(fwd, sh.push + sh.pz).addScaledVector(right, sh.px + hh.px).addScaledVector(up, sh.py + hh.py).add(sh.offset);
     state.pos.z = Math.max(limits.minZ, state.pos.z);
     state.pos.y = Math.max(limits.minY * 0.75, state.pos.y);
     euler.set(sh.pitch + hh.pitch, sh.yaw + hh.yaw, sh.roll + sh.kroll + hh.roll);
     state.quat.copy(quat).multiply(qShake.setFromEuler(euler));
-    state.fov = clamp(base.fov + sh.fov, 5, 120);
+    state.fov = clamp((base.fov + sh.fov) * (1 + hh.fov) + lo.fovAdd, 5, 120);
+    state.focus = lens.info.focus; state.aperture = lens.info.aperture;
     state.roll = base.roll;
     state.blend = blend.on ? blend.w : 1;
     state.cut = cut;
@@ -224,7 +273,19 @@ export function createCameraDirector(ctx, opts = {}) {
     /** Final camera state of the last frame. */
     state,
     /** Debug readout: fight rig values, the last shake sample and the pre-shake pose. */
-    debug: { rig: rig.info, shake: shaker.out, base },
+    debug: { rig: rig.info, shake: shaker.out, base, seqShot: () => seq.shot },
+    /**
+     * The cinematic lens (lens.js): `lens.settings` (live: enabled, dof, dofMin, dofMinMid, autoGain, pull, breathe,
+     * tone, lift, liftDown, blur, shutter, blurLen) and `lens.info` (this frame: focus m, aperture, range, exposure,
+     * vignette, blur, breathe deg, dof on / off).
+     */
+    lens,
+    /** Cinematic defaults (live): `handheld` amount of shots that do not set one (0.2). */
+    cine,
+    /** The shot vocabulary (shots.js), for data-driven choreography and tests: cam.play([cam.shots.lowSweep()]). */
+    shots: SHOTS,
+    /** Optional unit vector toward the eclipse for sun-aware shots (default: ctx.env.sunDir). */
+    sun: null,
 
     get mode() { return state.mode; },
     get targets() { return targets; },
@@ -240,8 +301,17 @@ export function createCameraDirector(ctx, opts = {}) {
       if (opts.scale != null) { const sc = opts.scale; targetScale[0] = Array.isArray(sc) ? sc[0] : sc; targetScale[1] = Array.isArray(sc) ? sc[1] : sc; }
     },
 
-    /** Trauma shake on real time. See README for options. Returns {stop()}. */
-    shake(amount, o) { return shaker.shake(amount, o); },
+    /**
+     * Trauma shake on real time. See README for options. Returns {stop()}. In fight mode a shake of
+     * fight.hitZoomMin or more also punches the dolly in by up to fight.hitZoom (big hits only).
+     */
+    shake(amount, o) {
+      if (fight.hitZoom > 0 && amount >= fight.hitZoomMin && !seq.active && !free) {
+        hit.k = Math.max(hit.left > 0 ? hit.k : 0, clamp(0.4 + (0.6 * (amount - fight.hitZoomMin)) / Math.max(0.05, 1 - fight.hitZoomMin)));
+        hit.left = 0.12;
+      }
+      return shaker.shake(amount, o);
+    },
 
     /** Impulse kick: { fov, push, roll, offset, duration, attack, bounce }. Returns {stop()}. */
     kick(o) { return shaker.kick(o); },
@@ -308,10 +378,10 @@ export function createCameraDirector(ctx, opts = {}) {
     snap() { snapReq = true; },
 
     /** Stop shakes, kicks and zoom (round reset). */
-    clearFx() { shaker.clear(); zoom.left = 0; zoom.s.v = 1; zoom.s.vel = 0; },
+    clearFx() { shaker.clear(); zoom.left = 0; zoom.s.v = 1; zoom.s.vel = 0; hit.left = 0; hit.s.v = 1; hit.s.vel = 0; },
 
-    /** Remove the per-frame update. */
-    dispose() { off(); if (ctx.cam === cam) ctx.cam = null; },
+    /** Remove the per-frame update and hand every post value the lens offset back. */
+    dispose() { off(); lens.release(); gradeRestore(0); if (ctx.cam === cam) ctx.cam = null; },
   };
 
   const off = ctx.onUpdate(update, ctx.ORDER.CAM);

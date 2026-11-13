@@ -180,11 +180,25 @@ export function createShaker(seed = 0xca3e) {
 /**
  * Handheld drift: slow, low-amplitude rotational noise that makes a locked-off shot feel operated.
  * amount 1 = ~0.6 deg yaw / pitch, 0.45 deg roll. Writes yaw / pitch / roll (rad) into `out`.
+ *
+ * `cine` (0..1, cinematic shots only) adds the operator's micro-motion on top: a faint faster tremor (~2.3 Hz,
+ * 0.12 deg at amount 1), a few centimetres of body sway (out.px / out.py, metres along the camera's right / up: real
+ * parallax between foreground and background) and a slow lens respiration (out.fov, relative: +-0.5 % at amount 1).
+ * Fight framing passes cine = 0 and gets the plain drift.
  */
-export function handheld(time, amount, seed, out) {
+export function handheld(time, amount, seed, out, cine = 0) {
   const t = time * 0.55;
   out.yaw = fbm1(t, seed) * 0.6 * DEG * amount;
   out.pitch = fbm1(t * 0.9 + 13.1, seed + 11) * 0.5 * DEG * amount;
   out.roll = fbm1(t * 0.7 + 29.7, seed + 23) * 0.45 * DEG * amount;
+  const a = amount * cine;
+  if (a > 1e-4) {
+    const q = time * 2.3;
+    out.yaw += fbm1(q, seed + 41) * 0.12 * DEG * a;
+    out.pitch += fbm1(q * 1.13 + 7.7, seed + 53) * 0.1 * DEG * a;
+    out.px = fbm1(time * 0.37 + 3.1, seed + 67) * 0.03 * a;
+    out.py = fbm1(time * 0.31 + 19.3, seed + 71) * 0.02 * a;
+    out.fov = fbm1(time * 0.21 + 5.9, seed + 83) * 0.005 * a;
+  } else { out.px = 0; out.py = 0; out.fov = 0; }
   return out;
 }

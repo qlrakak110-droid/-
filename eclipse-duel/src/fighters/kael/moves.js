@@ -1,21 +1,21 @@
-// KAEL 카엘 — 잿불의 집행자 · Cinder Warden. Rules definition (pure data for src/game/logic; see its README.md).
+// 염무강 炎武剛 (`kael`) — 적염패도 赤焰覇刀 · Crimson Flame Tyrant Saber. Rules definition (pure data for src/game/logic; see its README.md).
 // Two-handed greatsword (~2.1 m of reach): the slowest feet and startups of the roster, enormous arcs, the highest damage
 // per hit, big pushback, hyper-armour on the heavies and a counter stance. Weak to fast pressure: unsafe normals, a
 // short dash and a wide body. Creative brief: src/fighters/MOVES.md.
 // Frame data: node src/game/logic/test/framedata.mjs src/fighters/kael/moves.js
 //
 // SLOTS (move id <- command; meta.slot = the roster slot name used by the UI move list)
-//   light1  light1         light            재가르기 Ash Cleave           0.14 startup, diagonal down-right cut
-//   light2  light2         (light route)    역날베기 Back Edge            0.13, rising backhand that continues the arc
-//   light3  light3         (light route)    잿불내려찍기 Cinder Drop       0.24, overhead into the floor, knockdown
-//   heavy   sweep          heavy            용광로 휘두르기 Furnace Sweep   0.32, armour 0.12-0.32 (1 hit), 300° spin
-//   fheavy  lunge          f+heavy          돌진 찌르기 Molten Lunge       0.26, travels 3.2 m, shoulder armour, crumple
-//   dheavy  vent           d+heavy          분화 올려베기 Vent Launcher     0.22, upward cut, fire geyser, launch
-//   skill1  crescent       skill1           잿불 초승달 Ember Crescent      FP 25, CD 4 s: 2.2 m crescent wave, 11 m/s
-//   skill2  eruption       skill2           균열 분출 Fault Eruption        FP 35, CD 7 s: 6 m crack, 4 magma columns
-//   skill3  bulwark        skill3           화염 갑주 Pyre Bulwark          FP 30, CD 9 s: counter stance 0.04-0.6
-//           bulwark_burst  (counter)        화염 갑주 · 폭발                the counter: 360° explosion, knockdown
-//   ult     pyre           ult              일식의 장작 Pyre of the Black Sun  ULT 100: leap-slash into a 5.2 s lock
+//   light1  light1         light            사양참 斜陽斬 Slanting-Sun Cut                    0.14 startup, diagonal down-right cut
+//   light2  light2         (light route)    반조격 返照擊 Afterglow Strike                    0.13, rising backhand that continues the arc
+//   light3  light3         (light route)    낙일벽 落日劈 Setting-Sun Cleave                  0.24, overhead into the floor, knockdown
+//   heavy   sweep          heavy            염륜소 炎輪掃 Flame-Wheel Sweep                   0.32, armour 0.12-0.32 (1 hit), 300° spin
+//   fheavy  lunge          f+heavy          염마돌 炎馬突 Flame-Steed Charge                  0.26, travels 3.2 m, shoulder armour, crumple
+//   dheavy  vent           d+heavy          승염참 昇炎斬 Rising-Flame Cut                    0.22, upward cut, fire geyser, launch
+//   skill1  crescent       skill1           잔양비참 殘陽飛斬 Waning-Sun Flying Slash         FP 25, CD 4 s: 2.2 m crescent wave, 11 m/s
+//   skill2  eruption       skill2           열지분염 裂地噴炎 Earth-Rending Eruption          FP 35, CD 7 s: 6 m crack, 4 magma columns
+//   skill3  bulwark        skill3           열양호신 烈陽護身 Blazing-Sun Ward                FP 30, CD 9 s: counter stance 0.04-0.6
+//           bulwark_burst  (counter)        열양호신 · 반진 反震                              the counter: 360° explosion, knockdown
+//   ult     pyre           ult              흑일분천 黑日焚天 Black Sun Burns the Heavens     ULT 100: leap-slash into a 5.2 s lock
 //
 // COMBO GRAMMAR (cancel routes; every target is listed by id, so nothing unsafe or useless is ever offered)
 //   light1 -> light2 -> light3                       chain (also on whiff / block: a real string; light3 knocks down)
@@ -24,7 +24,7 @@
 //                                                    offered after heavy, f+heavy, d+heavy and the skills (balance
 //                                                    pass, see src/fighters/BALANCE.md)
 //   light3 on hit or block -> skill1 / skill2         (the wave covers the -12 recovery on block)
-//   heavy on hit -> skill1, skill2, ult               (Furnace Sweep -> Fault Eruption launches)
+//   heavy on hit -> skill1, skill2, ult               (Flame-Wheel Sweep -> Earth-Rending Eruption launches)
 //   f+heavy on hit (crumple) -> d+heavy, skill1, skill2, ult   (no heavy: the lunge also juggles, the sweep would whiff)
 //   d+heavy on hit (launch) -> skill1, skill2, ult    (the wave and the columns reach an airborne victim)
 //   skill1 on hit -> ult ;  skill2 on hit -> ult      (the leap-slash catches the juggled victim)
@@ -54,7 +54,7 @@
 //                                                         slow-mo 0.6) / each magma column erupts (debris + ring).
 //                                                         The columns' own VFX may also follow projectileSpawn /
 //                                                         projectileActive: kind 'ember.column', data.index 1..4
-//   bulwark             shell shed                        ember shell forms around Kael / whiff: sheds it harmlessly
+//   bulwark             shell shed                        ember shell forms around 염무강 / whiff: sheds it harmlessly
 //   bulwark_burst       counter explode                   the counter catches (crash-zoom 0.25 s) / `ember.explosion`
 //                                                         + 360° fire ring (impact frame, shake 0.5)
 //   pyre (move clock)   superFreeze (engine, t = 0) windup gather ignite trailOn leap release slam trailOff recover
@@ -66,18 +66,18 @@
 // connects") is the trigger itself: the lock clock starts there (t = 0 at the contact; the impact punch-in, impact
 // frame and 0.2 s hit-stop ride on `cinematicStart` and the trigger's `hit` event, parameters in pyre.meta.impact: the
 // engine never emits lock markers or ticks at t = 0, so none is authored there). Every later row keeps its spacing
-// from the impact:  storyboard t = 1.00 + lock t.  The lock lasts 5.2 s: the 5.20 row (blend back while Kael rises from
-// the crater) starts at lock 4.20 and runs to cinematicEnd at lock 5.20, where Kael stands with the sword on his
+// from the impact:  storyboard t = 1.00 + lock t.  The lock lasts 5.2 s: the 5.20 row (blend back while 염무강 rises from
+// the crater) starts at lock 4.20 and runs to cinematicEnd at lock 5.20, where 염무강 stands with the sword on his
 // shoulder and the fight resumes. Every lock marker / tick carries its storyboard time in data.storyboard.
 //   lock 0.25 orbit + cut1 | 0.40 cut2 | 0.55 cut3 | 1.30 hurl | 1.80 leapAfter | 2.40 spin | 2.90 meteor (finish)
 //   3.30 shockwave | 4.20 rise | 5.20 settle (= cinematicEnd)
 //   Damage 80 (leap-slash) + 3 x 40 + 60 + 260 = 520 (lock damage x max(0.7, combo scale at the trigger)).
 
-/** Kael's fighter definition (author format, validated by validateFighterDef). */
+/** 염무강's fighter definition (author format, validated by validateFighterDef). */
 export const def = {
   id: 'kael',
-  name: '카엘 · KAEL',
-  title: '잿불의 집행자 · Cinder Warden',
+  name: '염무강 炎武剛',
+  title: '적염패도 赤焰覇刀 · Crimson Flame Tyrant Saber',
 
   // Big armoured body: the most HP of the roster, pushed around a little less (weight > 1), but a wide hurtbox and
   // the slowest feet. Short dash, short backstep.
@@ -121,7 +121,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // LIGHT CHAIN
     light1: {
-      name: '재가르기 · Ash Cleave',
+      name: '사양참 斜陽斬 · Slanting-Sun Cut',
       duration: 0.42,
       hits: [{
         // diagonal down-right cut: from above the head down through the hip, out to the blade's tip
@@ -144,7 +144,7 @@ export const def = {
     },
 
     light2: {
-      name: '역날베기 · Back Edge',
+      name: '반조격 返照擊 · Afterglow Strike',
       duration: 0.46,
       motion: [{ t: [0, 0.1], v: 2.5 }],                        // a quarter-metre step into the backhand
       hits: [{
@@ -168,7 +168,7 @@ export const def = {
     },
 
     light3: {
-      name: '잿불내려찍기 · Cinder Drop',
+      name: '낙일벽 落日劈 · Setting-Sun Cleave',
       duration: 0.7,
       motion: [{ t: [0.04, 0.2], v: 2.2 }],                     // steps 0.35 m into the overhead
       hits: [{
@@ -193,10 +193,10 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // HEAVIES
     sweep: {
-      name: '용광로 휘두르기 · Furnace Sweep',
+      name: '염륜소 炎輪掃 · Flame-Wheel Sweep',
       duration: 0.86,
       // hyper-armour through the wind-up: takes the damage of one hit without flinching. It eats a poke, but a fast
-      // multi-hit string breaks it: Kael is weak to fast pressure (balance pass: 2 hits made him beat Iska's strings)
+      // multi-hit string breaks it: 염무강 is weak to fast pressure (balance pass: 2 hits made him beat 설리화's strings)
       armour: [{ t: [0.12, 0.32], hits: 1 }],
       hits: [{
         // full horizontal 300° spin: the arc starts behind him (catches cross-ups) and ends at the tip, waist to chest
@@ -218,7 +218,7 @@ export const def = {
     },
 
     lunge: {
-      name: '돌진 찌르기 · Molten Lunge',
+      name: '염마돌 炎馬突 · Flame-Steed Charge',
       duration: 0.78,
       // 3.2 m: a hard shoulder-first launch that eases into the thrust (stops at the opponent instead of tunnelling)
       motion: { keys: [[0, 0], [0.06, 0], [0.22, 2.4], [0.3, 3.05], [0.36, 3.2]] },
@@ -243,7 +243,7 @@ export const def = {
     },
 
     vent: {
-      name: '분화 올려베기 · Vent Launcher',
+      name: '승염참 昇炎斬 · Rising-Flame Cut',
       duration: 0.72,
       hits: [{
         // upward cut out of the floor: floor to well above the head
@@ -267,7 +267,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // SKILLS
     crescent: {
-      name: '잿불 초승달 · Ember Crescent',
+      name: '잔양비참 殘陽飛斬 · Waning-Sun Flying Slash',
       duration: 0.74,
       fpCost: 25,
       cooldown: 4,
@@ -293,11 +293,11 @@ export const def = {
     },
 
     eruption: {
-      name: '균열 분출 · Fault Eruption',
+      name: '열지분염 裂地噴炎 · Earth-Rending Eruption',
       duration: 1.0,
       fpCost: 35,
       cooldown: 7,
-      // the blade is planted at ~1.2 m: Kael leans over it until he wrenches it free (punishable at the hilt)
+      // the blade is planted at ~1.2 m: 염무강 leans over it until he wrenches it free (punishable at the hilt)
       hurt: [{ t: [0.4, 0.74], box: { f: [0.2, 1.25], u: [0.3, 1.4] } }],
       // Cracks race 6 m from the planted blade (18.75 m/s); four magma columns erupt along the line 0.08 s apart,
       // 1.5 m apart. Every column launches whatever it touches first and juggles a victim it finds in the air: the
@@ -346,11 +346,11 @@ export const def = {
     },
 
     bulwark: {
-      name: '화염 갑주 · Pyre Bulwark',
+      name: '열양호신 烈陽護身 · Blazing-Sun Ward',
       duration: 0.92,
       fpCost: 30,
       cooldown: 9,
-      // sword planted, an ember shell forms: a strike or a projectile landing in the window is swallowed and Kael
+      // sword planted, an ember shell forms: a strike or a projectile landing in the window is swallowed and 염무강
       // explodes outward at once (bulwark_burst). Whiffed: the shell sheds at 0.6 and he pulls the sword free.
       counter: { t: [0.04, 0.6], move: 'bulwark_burst', vs: 'all', hitstop: 0.1 },
       markers: [
@@ -367,12 +367,12 @@ export const def = {
     },
 
     bulwark_burst: {
-      name: '화염 갑주 · 폭발 · Pyre Bulwark — Burst',
+      name: '열양호신 烈陽護身 · 반진 反震 · Blazing-Sun Ward — Recoil',
       group: 'skill',                                          // reached only through the counter
       duration: 0.7,
       invuln: [{ t: [0, 0.32] }],
       hits: [{
-        // Kael explodes outward: a 360° fire ring around him
+        // 염무강 explodes outward: a 360° fire ring around him
         t: [0.05, 0.12], box: { f: [-2.1, 2.3], u: [0, 2.5] },
         damage: 125, level: 'knockdown', knockback: { x: 5.5, y: 4 }, hitstop: 0.18, unblockable: true,
       }],
@@ -391,7 +391,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // ULTIMATE
     pyre: {
-      name: '일식의 장작 · Pyre of the Black Sun',
+      name: '흑일분천 黑日焚天 · Black Sun Burns the Heavens',
       ultCost: 100,
       superFreeze: 0.6,                                        // env.setMood({ darken: 0.75, tint: 0xff5020 }), letterbox in
       duration: 1.65,
@@ -410,7 +410,7 @@ export const def = {
         distance: 1.7,
         recovery: 0.5,
         ticks: [
-          // 1.25 orbit sweep 70° around both: three rapid burning cuts in an X (ember.slash, afterimages of Kael)
+          // 1.25 orbit sweep 70° around both: three rapid burning cuts in an X (ember.slash, afterimages of 염무강)
           { t: 0.25, damage: 40, hitstop: 0.06, marker: 'cut1', data: { storyboard: 1.25, vfx: 'ember.slash', afterimage: true } },
           { t: 0.4, damage: 40, hitstop: 0.06, marker: 'cut2', data: { storyboard: 1.4, vfx: 'ember.slash', afterimage: true } },
           { t: 0.55, damage: 40, hitstop: 0.06, marker: 'cut3', data: { storyboard: 1.55, vfx: 'ember.slash', afterimage: true } },

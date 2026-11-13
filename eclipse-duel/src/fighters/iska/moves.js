@@ -1,27 +1,27 @@
-// ISKA 이스카 — 서릿별 무녀 · Froststar Oracle. Rules definition (pure data for src/game/logic; see its README.md).
+// 설리화 雪梨花 (`iska`) — 빙월쌍도 氷月雙刀 · Frost-Moon Twin Blades. Rules definition (pure data for src/game/logic; see its README.md).
 // Twin crescent blades: the fastest walk, dash and startups of the roster, low damage per hit, long multi-hit strings,
 // mobility (a slide-through, a blink, a backflip launcher) and zoning (ice shards, a racing line of spikes).
 // Creative brief: src/fighters/MOVES.md. Frame data: node src/game/logic/test/framedata.mjs src/fighters/iska/moves.js
 //
 // SLOTS (move id <- command; meta.slot = the roster slot name used by the UI move list)
-//   light1  rime_flick          light            서리 긋기 Rime Flick           0.09 startup, chain starter
-//   light2  twin_moons          (light route)    쌍월 Twin Moons                left then right (2 hits)
-//   light3  star_fan            (light route)    별부채 Star Fan                spinning double slash, shards, knockback
-//   heavy   glacier_pirouette   heavy            빙결 회전 Glacier Pirouette     full spin, 3 hits, frost ring (hits behind too)
-//   fheavy  frostline_step      f+heavy          얼음길 Frostline Step          3.5 m ice slide through the opponent, 2 cuts (1.6..4.3 m)
-//   dheavy  rising_crescent     d+heavy          초승 올려치기 Rising Crescent    backflip launcher
-//   skill1  starshard_volley    skill1           서릿별 투창 Starshard Volley    3 shards 14 m/s, the third freezes (crumple)
-//   skill2  crystal_procession  skill2           빙정 행렬 Crystal Procession    5 spikes racing 7 m, growing, launch
-//   skill3  moonlit_afterimage  skill3           월광 잔상 Moonlit Afterimage    intangible blink counter, cut from behind + statue (2 hits)
-//   ult     frozen_star         ult              떨어지는 서릿별 Fall of the Frozen Star
+//   light1  rime_flick          light            한광섬 寒光閃 Cold-Gleam Flash                    0.09 startup, chain starter
+//   light2  twin_moons          (light route)    쌍월전 雙月剪 Twin-Moon Shears                    left then right (2 hits)
+//   light3  star_fan            (light route)    성선무 星扇舞 Star-Fan Dance                      spinning double slash, shards, knockback
+//   heavy   glacier_pirouette   heavy            빙륜선 氷輪旋 Ice-Wheel Whirl                     full spin, 3 hits, frost ring (hits behind too)
+//   fheavy  frostline_step      f+heavy          은하도 銀河渡 Silver-River Crossing               3.5 m ice slide through the opponent, 2 cuts (1.6..4.3 m)
+//   dheavy  rising_crescent     d+heavy          신월승 新月昇 New-Moon Rising                     backflip launcher
+//   skill1  starshard_volley    skill1           한성삼사 寒星三射 Three Cold-Star Shots           3 shards 14 m/s, the third freezes (crumple)
+//   skill2  crystal_procession  skill2           빙순파지 氷筍破地 Ice Shoots Break the Earth      5 spikes racing 7 m, growing, launch
+//   skill3  moonlit_afterimage  skill3           월영환신 月影幻身 Moon-Shadow Phantom             intangible blink counter, cut from behind + statue (2 hits)
+//   ult     frozen_star         ult              빙성낙월 氷星落月 Frost Star, Falling Moon
 //
 // COMBO GRAMMAR (cancel routes)
 //   light1 -> light2 -> light3                       chain (also on whiff / block: a real string)
 //   light1 / light2 on hit -> heavy, d+heavy, any skill, ult      (light1 also -> f+heavy)
 //   light3 on hit -> any skill, ult ;  light3 on block -> skill1 (shards keep the pressure safe)
 //   heavy on hit -> any skill, ult                   (no second launcher: the spin also extends juggles, where a
-//                                                    Rising Crescent off an airborne victim whiffs)
-//   f+heavy on hit (Iska ends behind the victim) -> light1, heavy, d+heavy, any skill
+//                                                    New-Moon Rising off an airborne victim whiffs)
+//   f+heavy on hit (설리화 ends behind the victim) -> light1, heavy, d+heavy, any skill
 //                                                    (no ult: the slide is the juggle extender after d+heavy, and the
 //                                                    ground rune misses an airborne victim)
 //   d+heavy on hit (launch) -> skill1 / skill2 / f+heavy (juggles; the ult rune cannot touch an airborne victim)
@@ -67,24 +67,24 @@
 //                              instant) orbit slash1..slash6 leap constellation starfall lance1..lance12 land shatter
 //                              frostWave blendBack settle
 //
-// ULTIMATE TIMING (roster convention, the same for Kael and Vorn: MOVES.md times are seconds from MOVE start, and the
+// ULTIMATE TIMING (roster convention, the same for 염무강 and 뇌진천: MOVES.md times are seconds from MOVE start, and the
 // lock continues that clock from the trigger, so storyboard t = trigger move time + lock t; every lock marker / tick
 // carries its storyboard time in data.storyboard, the anchor is meta.storyboardAtTrigger). Rows 0.00 and 0.60 are the
 // opener on the move clock: super-freeze 0..0.6 s (face close-up), then the top-down rune shot while the circle snaps
 // shut (unblockable, active 0.75..0.95). The trigger is the rune's first active frame, move time 0.75, so
 // storyboard t = 0.75 + lock t. Lock 0 .. 0.45 is the crystal-encasing beat of the top-down shot (frost.nova,
-// ice_form; meta.impact). The lock lasts 5.4 s: the 5.40 row (blend back, Iska flicks the frost off her blades) starts
+// ice_form; meta.impact). The lock lasts 5.4 s: the 5.40 row (blend back, 설리화 flicks the frost off her blades) starts
 // at lock 4.65 and runs to cinematicEnd at lock 5.40 (storyboard 6.15).
 //   lock 0.45 orbit: 6 slashes 0.20 s apart (0.45 .. 1.45) | 1.65 leap (slow-mo 0.4) | 1.95 constellation |
 //   2.65 starfall: 12 lances 0.08 s apart (2.65 .. 3.53) | 3.65 land + shatter (finish, slow-mo 0.2) | 4.15 frostWave |
 //   4.65 blendBack | 5.40 settle (= cinematicEnd)
 //   Damage 60 (rune) + 6 x 25 + 12 x 10 + 200 = 530 (lock damage x max(0.7, combo scale at the trigger)).
 
-/** Iska's fighter definition (author format, validated by validateFighterDef). */
+/** 설리화's fighter definition (author format, validated by validateFighterDef). */
 export const def = {
   id: 'iska',
-  name: '이스카 · ISKA',
-  title: '서릿별 무녀 · Froststar Oracle',
+  name: '설리화 雪梨花',
+  title: '빙월쌍도 氷月雙刀 · Frost-Moon Twin Blades',
 
   // Slender, light body: the fastest feet of the roster, a little less HP, knocked a little further (weight < 1).
   stats: {
@@ -127,7 +127,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // LIGHT CHAIN
     rime_flick: {
-      name: '서리 긋기 · Rime Flick',
+      name: '한광섬 寒光閃 · Cold-Gleam Flash',
       duration: 0.3,
       hits: [{
         t: [0.09, 0.12], box: { f: [0.25, 1.6], u: [0.85, 1.65] }, label: 'flick',
@@ -149,7 +149,7 @@ export const def = {
     },
 
     twin_moons: {
-      name: '쌍월 · Twin Moons',
+      name: '쌍월전 雙月剪 · Twin-Moon Shears',
       duration: 0.36,
       motion: [{ t: [0, 0.1], v: 2.4 }],
       hits: [
@@ -180,7 +180,7 @@ export const def = {
     },
 
     star_fan: {
-      name: '별부채 · Star Fan',
+      name: '성선무 星扇舞 · Star-Fan Dance',
       duration: 0.56,
       motion: [{ t: [0.04, 0.16], v: 2.5 }],
       hits: [
@@ -213,7 +213,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // HEAVIES
     glacier_pirouette: {
-      name: '빙결 회전 · Glacier Pirouette',
+      name: '빙륜선 氷輪旋 · Ice-Wheel Whirl',
       duration: 0.78,                         // -9 on block: the three-hit spin is a commitment, not free pressure
       motion: [{ t: [0.12, 0.42], v: 1.8 }],  // the pirouette drifts 0.54 m forward: strings stay in range
       hits: [
@@ -228,7 +228,7 @@ export const def = {
           damage: 34, level: 'heavy', hitstun: 0.5, blockstun: 0.24, knockback: { x: 3.2, y: 0 }, hitstop: 0.11, guardDamage: 14,
         },
       ],
-      // skills / ult only: the spin is also a juggle extender, and a second Rising Crescent off an airborne victim whiffs
+      // skills / ult only: the spin is also a juggle extender, and a second New-Moon Rising off an airborne victim whiffs
       cancels: [{ t: [0.4, 0.56], into: ['@skill', '@ult'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
@@ -246,7 +246,7 @@ export const def = {
     },
 
     frostline_step: {
-      name: '얼음길 · Frostline Step',
+      name: '은하도 銀河渡 · Silver-River Crossing',
       duration: 0.64,
       // slides 3.5 m on a line of ice and passes through the opponent. The blades only cut what is still ahead of her,
       // so both slashes land from about 1.8 to 4.2 m; up close it is a slide-through escape that whiffs (no
@@ -257,7 +257,7 @@ export const def = {
         t: [0.18, 0.34], box: { f: [0.25, 1.3], u: [0.4, 1.7] }, multi: { interval: 0.05, max: 2 }, label: 'slash',
         damage: 22, level: 'heavy', hitstun: 0.55, blockstun: 0.2, knockback: { x: 0.5, y: 0 }, hitstop: 0.1, scaleStep: 0.05,
       }],
-      // no ult: the slide is her main juggle extender (after Rising Crescent), and the ground rune misses an airborne victim
+      // no ult: the slide is her main juggle extender (after New-Moon Rising), and the ground rune misses an airborne victim
       cancels: [{ t: [0.4, 0.58], into: ['rime_flick', 'glacier_pirouette', 'rising_crescent', '@skill'], onHit: true }],
       markers: [
         { t: 0, name: 'windup' },
@@ -274,7 +274,7 @@ export const def = {
     },
 
     rising_crescent: {
-      name: '초승 올려치기 · Rising Crescent',
+      name: '신월승 新月昇 · New-Moon Rising',
       duration: 0.62,
       // a step in, then the backflip: up to 1 m high, landing 0.2 m behind the start
       motion: { keys: [[0, 0, 0], [0.1, 0.3, 0.05], [0.2, 0.2, 0.55], [0.32, -0.05, 1.0], [0.46, -0.2, 0.45], [0.56, -0.2, 0]] },
@@ -299,7 +299,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // SKILLS
     starshard_volley: {
-      name: '서릿별 투창 · Starshard Volley',
+      name: '한성삼사 寒星三射 · Three Cold-Star Shots',
       duration: 0.62,
       fpCost: 20,
       cooldown: 3.5,
@@ -338,7 +338,7 @@ export const def = {
     },
 
     crystal_procession: {
-      name: '빙정 행렬 · Crystal Procession',
+      name: '빙순파지 氷筍破地 · Ice Shoots Break the Earth',
       duration: 0.78,
       fpCost: 30,
       cooldown: 6,
@@ -399,7 +399,7 @@ export const def = {
     },
 
     moonlit_afterimage: {
-      name: '월광 잔상 · Moonlit Afterimage',
+      name: '월영환신 月影幻身 · Moon-Shadow Phantom',
       duration: 0.7,
       fpCost: 25,
       cooldown: 7,
@@ -415,7 +415,7 @@ export const def = {
       }],
       // the frozen statue left on the start spot bursts forward with the cut (the second hit). It arms one frame after
       // the cut's first active frame (a projectile ages from the substep it spawns in), so the two sides resolve in
-      // order: a guard-holder turns to the reappeared Iska, blocks the cut and takes the statue in the back - one hit
+      // order: a guard-holder turns to the reappeared 설리화, blocks the cut and takes the statue in the back - one hit
       // through guard, never both, and only the ultimate can follow it (the sandwich is not a combo starter)
       projectiles: [{
         t: 0, kind: 'frost.statue', offset: { f: 0, u: 0.1 }, box: { f: [-0.45, 0.45], u: [0, 1.6] },
@@ -443,7 +443,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // ULTIMATE
     frozen_star: {
-      name: '떨어지는 서릿별 · Fall of the Frozen Star',
+      name: '빙성낙월 氷星落月 · Frost Star, Falling Moon',
       ultCost: 100,
       superFreeze: 0.6,                       // world goes silver-blue: env.setMood({ darken: 0.8, tint: 0x8fc8ff })
       duration: 1.45,
@@ -460,7 +460,7 @@ export const def = {
         distance: 1.7,
         recovery: 0.5,
         ticks: [
-          // 1.20 orbit (ground skim, 90°): Iska dashes around the crystal slashing 6 times (frost.slash, afterimages)
+          // 1.20 orbit (ground skim, 90°): 설리화 dashes around the crystal slashing 6 times (frost.slash, afterimages)
           { t: 0.45, damage: 25, hitstop: 0.05, marker: 'slash1', data: { storyboard: 1.2, vfx: 'frost.slash' } },
           { t: 0.65, damage: 25, hitstop: 0.05, marker: 'slash2', data: { storyboard: 1.4, vfx: 'frost.slash' } },
           { t: 0.85, damage: 25, hitstop: 0.05, marker: 'slash3', data: { storyboard: 1.6, vfx: 'frost.slash' } },
@@ -481,7 +481,7 @@ export const def = {
           { t: 3.45, damage: 10, hitstop: 0.03, marker: 'lance11', data: { storyboard: 4.2, vfx: 'frost.starfall' } },
           { t: 3.53, damage: 10, hitstop: 0.03, marker: 'lance12', data: { storyboard: 4.28, vfx: 'frost.starfall' } },
         ],
-        // 4.40 impact punch-in, slow-mo 0.2: Iska lands and crosses her blades, crystal and victim shatter (inverted
+        // 4.40 impact punch-in, slow-mo 0.2: 설리화 lands and crosses her blades, crystal and victim shatter (inverted
         // impact frame, white flash, ice_shatter)
         finish: {
           t: 3.65, damage: 200, level: 'knockdown', knockback: { x: 3.0, y: 5.5 }, hitstop: 0.22, marker: 'shatter',

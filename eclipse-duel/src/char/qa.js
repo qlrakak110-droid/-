@@ -46,9 +46,9 @@ const R2D = 180 / Math.PI;
  *  shoulder  x     -35..10        -X shrug (elevation 35), +X depress 10
  *            y     -25..25        protract / retract
  *            z     -15..15        clavicle roll (avoid)
- *  upperArm  z     -60..180       -Z extension 60, +Z flexion (180 with the scapula)
- *            x     -180..45       -X abduction, +X adduction across the body
- *            twist -90..80        external 90 / internal 80
+ *  upperArm  z     -60..180       -Z extension 60, +Z flexion (180 with the scapula)   } the swing as a rotation
+ *            x     -180..45       -X abduction, +X adduction across the body           } vector (limbSwingTwist)
+ *            twist -90..80        external 90 / internal 80 (swing-twist; not judged past 150 deg of elevation)
  *  foreArm   z     -5..150        elbow flexion, <0 = hyperextension
  *            x     -5..5          not anatomical
  *  hand      swing 0..85        wrist bend = angle between the hand's long axis and the forearm's (flexion 80 /

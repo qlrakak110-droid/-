@@ -298,7 +298,7 @@ export function createPresenter(ctx, session, feel) {
   function ultName(i) {
     const r = session.fighters[i].roster;
     const m = r && r.moves.find((x) => x.slot === 'ult');
-    return m ? { name: m.name, nameEn: m.nameEn } : { name: '궁극기', nameEn: 'ULTIMATE' };
+    return m ? { name: m.name, nameEn: m.nameEn } : { name: '오의', nameEn: 'ULTIMATE' };
   }
 
   function ultFreeze(e) {

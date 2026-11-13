@@ -215,10 +215,11 @@ export function swath({ seed = 9, dry = 0.8, cls = '' } = {}) {
 /**
  * CSS clip-path polygon for a brushed band: wavering long edges, a blunt, frayed or tapering end on each side.
  * Percent units, so it follows the element. `flip` mirrors it left-right.
- * @param {{ seed?: number, n?: number, amp?: number, left?: string, right?: string, flip?: boolean }} [o]
- *   amp: edge waver in % of the height; left / right: 'blunt' | 'fray' | 'taper'
+ * @param {{ seed?: number, n?: number, amp?: number, left?: string, right?: string, flip?: boolean, vertical?: boolean }} [o]
+ *   amp: edge waver in % of the height; left / right: 'blunt' | 'fray' | 'taper'; vertical: the band hangs (left =
+ *   top end, right = bottom end)
  */
-export function bandClip({ seed = 1, n = 14, amp = 9, left = 'blunt', right = 'fray', flip = false } = {}) {
+export function bandClip({ seed = 1, n = 14, amp = 9, left = 'blunt', right = 'fray', flip = false, vertical = false } = {}) {
   const rng = makeRng(seed * 131 + 7);
   const nz = noise1(seed + 40);
   const top = [], bot = [];
@@ -245,7 +246,10 @@ export function bandClip({ seed = 1, n = 14, amp = 9, left = 'blunt', right = 'f
     bot.push([x, 100 - amp * (0.5 + 0.5 * nz(i * 0.71 + 20))]);
   }
   const pts = [...top, ...end(right, 100, 1), ...bot.reverse(), ...end(left, 0, -1).reverse()];
-  return 'polygon(' + pts.map(([x, y]) => `${r1(flip ? 100 - x : x)}% ${r1(clamp(y, 0, 100))}%`).join(',') + ')';
+  return 'polygon(' + pts.map(([x, y]) => {
+    const a = r1(flip ? 100 - x : x), b = r1(clamp(y, 0, 100));
+    return vertical ? `${b}% ${a}%` : `${a}% ${b}%`;
+  }).join(',') + ')';
 }
 
 // ---------------------------------------------------------------------------------------------------------------

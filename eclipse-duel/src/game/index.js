@@ -3,6 +3,7 @@
 //   const game = await createGame(ctx);     // ctx.game; loads the roster, defines presets, compiles, shows the title
 //   URL flags: #demo=kael,iska[,hard]  CPU vs CPU forever      #fight=kael,vorn[,normal]  straight into a match (P1 human)
 //              #seed=N                 match / RNG seed         #training=kael,iska         training (infinite meters, idle dummy)
+//              #rpg=kael               the action-RPG mode (src/rpg; started by src/main.js once it is created)
 // Test API: window.__ED.game (see README.md "Test API").
 
 import * as SHOTS from '../cam/shots.js';
@@ -187,6 +188,23 @@ export async function createGame(ctx, opts = {}) {
   }
   function resumeTime() { ctx.time.baseScale = 1; }
 
+  // ---- the action-RPG mode (src/rpg): the duel hands the stage over and takes it back at the title -------------------
+  /** Dispose the running session and leave the stage to the RPG mode (called by ctx.rpg.start). */
+  function leaveForRpg() {
+    clearTimers();
+    resumeTime();
+    game.pending = null;
+    if (game.session) { game.session.dispose(); game.session = null; }
+    if (ctx.cam) ctx.cam.stop(0);
+    game.state = 'rpg';
+  }
+  /** Start the expedition with a hero (title menu entry, test API). */
+  function expedition(hero) {
+    if (!ctx.rpg) return false;
+    ctx.rpg.start(fighters.has(hero) ? hero : game.pick.p1);
+    return true;
+  }
+
   /** Quality switch: stored in localStorage + the URL hash, then the page reloads with the new tier. */
   function setQuality(q) {
     if (q === ctx.quality.tier || ctx.test) return;
@@ -210,6 +228,7 @@ export async function createGame(ctx, opts = {}) {
   ui.on('select', () => { resumeTime(); select(); });
   ui.on('toTitle', () => { resumeTime(); title(); });
   ui.on('quality', (q) => setQuality(q));
+  ui.on('expedition', (hero) => { if (game.state === 'title') expedition(hero); });
   if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   // ---- test API ---------------------------------------------------------------------------------------------------------
@@ -274,6 +293,8 @@ export async function createGame(ctx, opts = {}) {
   window.__ED.game = api;
   game.api = api;
   game.title = title; game.select = select; game.quickMatch = quickMatch; game.pause = pause; game.resume = resume;
+  game.leaveForRpg = leaveForRpg; game.expedition = expedition;
+  api.expedition = expedition;
 
   // ---- first screen: flags or the title ---------------------------------------------------------------------------------
   const flags = ctx.flags;
@@ -288,6 +309,10 @@ export async function createGame(ctx, opts = {}) {
   } else if (flags.training) {
     const [a, b] = pair(flags.training === true ? 'kael,iska' : flags.training);
     quickMatch(valid(a) || 'kael', valid(b) || 'iska', 'training');
+  } else if (flags.rpg !== undefined) {
+    // straight into the action-RPG mode: no title showcase is built (src/main.js starts ctx.rpg next)
+    game.state = 'rpg';
+    ctx.ui.show('none');
   } else {
     title();
   }

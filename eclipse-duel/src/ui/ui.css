@@ -170,20 +170,20 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
     linear-gradient(180deg, rgba(3, 3, 5, .78), rgba(3, 3, 5, .16) 30%, rgba(3, 3, 5, .12) 58%, rgba(3, 3, 5, .86));
 }
 .tt-mount { position: absolute; left: 0; right: 0; bottom: 0; height: min(46%, calc(var(--k) * 400)); pointer-events: none; opacity: .92; }
-.scr-title { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: max(12px, var(--sa-t)) 12px max(calc(var(--k) * 96), 14vh); }
-.tt-lockup { --mk: min(calc(var(--k) * 360), 50vh, 82vw); position: relative; display: flex; flex-direction: column; align-items: center; width: min(94vw, calc(var(--k) * 1100)); }
-.tt-mark { position: absolute; left: 50%; top: calc(var(--mk) * -0.46); width: var(--mk); height: var(--mk); margin-left: calc(var(--mk) / -2); will-change: transform, opacity; }
-.tt-glow { position: absolute; left: 50%; top: calc(var(--mk) * -0.96); width: calc(var(--mk) * 2); height: calc(var(--mk) * 2); margin-left: calc(var(--mk) * -1); border-radius: 50%; background: radial-gradient(circle, rgba(255, 240, 205, .2) 0%, rgba(236, 205, 150, .09) 30%, rgba(236, 205, 150, 0) 62%); will-change: transform, opacity; pointer-events: none; }
-.tt-type { position: relative; display: flex; align-items: center; justify-content: center; gap: calc(var(--k) * 16); margin-top: calc(var(--mk) * 0.2); }
-.tt-word { margin: 0; --th: min(calc(var(--k) * 176), 21vw); height: var(--th); will-change: transform, opacity; filter: drop-shadow(0 0 calc(var(--k) * 26) rgba(0, 0, 0, .9)); }
+.scr-title { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: max(8px, var(--sa-t)) 12px max(calc(var(--k) * 84), 12vh, 70px); }
+.tt-body { position: relative; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; will-change: transform; }
+.tt-lockup { --mk: min(calc(var(--k) * 300), 40vh, 82vw); position: relative; display: flex; flex-direction: column; align-items: center; width: min(94vw, calc(var(--k) * 1100)); padding-top: calc(var(--mk) * 0.62); }
+.tt-mark { position: absolute; left: 50%; top: 0; width: var(--mk); height: var(--mk); margin-left: calc(var(--mk) / -2); will-change: transform, opacity; }
+.tt-glow { position: absolute; left: 50%; top: calc(var(--mk) * -0.5); width: calc(var(--mk) * 2); height: calc(var(--mk) * 2); margin-left: calc(var(--mk) * -1); border-radius: 50%; background: radial-gradient(circle, rgba(255, 240, 205, .2) 0%, rgba(236, 205, 150, .09) 30%, rgba(236, 205, 150, 0) 62%); will-change: transform, opacity; pointer-events: none; }
+.tt-type { position: relative; display: flex; align-items: center; justify-content: center; gap: calc(var(--k) * 16); }
+.tt-word { margin: 0; --th: min(calc(var(--k) * 176), 21vw, 25vh); height: var(--th); will-change: transform, opacity; filter: drop-shadow(0 0 calc(var(--k) * 26) rgba(0, 0, 0, .9)); }
 .tt-word svg { height: 100%; width: auto; }
-.tt-side { display: flex; flex-direction: column; align-items: center; gap: calc(var(--k) * 10); will-change: opacity; }
-.tt-hanja { writing-mode: vertical-rl; text-orientation: upright; font: 600 max(12px, calc(var(--k) * 21))/1 var(--f-ko); letter-spacing: .34em; color: var(--paper-2); text-shadow: 0 1px 0 #000, 0 0 10px #000; }
-.tt-seal { display: block; width: max(26px, calc(var(--k) * 46)); will-change: transform, opacity; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .7)); }
-.tt-sub { display: flex; align-items: center; justify-content: center; gap: calc(var(--k) * 18); margin-top: calc(var(--k) * 12); width: 100%; color: var(--paper-2); }
-.tt-sub b { flex: 0 0 auto; font: 600 max(12px, calc(var(--k) * 18))/1 var(--f-display); letter-spacing: .66em; padding-left: .66em; color: var(--paper); text-shadow: 0 1px 0 #000, 0 0 12px #000; white-space: nowrap; }
-.tt-sub svg { flex: 0 1 calc(var(--k) * 190); min-width: 0; height: max(7px, calc(var(--k) * 11)); opacity: .7; }
-.tt-tag { margin-top: calc(var(--k) * 16); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.tt-seal { display: block; flex: 0 0 auto; width: max(30px, calc(var(--k) * 62)); align-self: flex-end; margin-bottom: calc(var(--th) * 0.08); transform: rotate(3deg); will-change: transform, opacity; filter: drop-shadow(0 2px 5px rgba(0, 0, 0, .8)); }
+.tt-sub { display: flex; align-items: center; justify-content: center; gap: calc(var(--k) * 20); margin-top: calc(var(--k) * 12); width: 100%; color: var(--paper-2); }
+.tt-sub b { flex: 0 0 auto; font: 700 max(15px, calc(var(--k) * 27))/1 var(--f-ko); letter-spacing: .9em; padding-left: .9em; color: var(--paper); text-shadow: 0 1px 0 #000, 0 0 12px #000; white-space: nowrap; }
+.tt-sub svg { flex: 0 1 calc(var(--k) * 200); min-width: 0; height: max(7px, calc(var(--k) * 11)); opacity: .7; }
+.tt-en { margin-top: calc(var(--k) * 12); font: 600 max(10px, calc(var(--k) * 14))/1 var(--f-display); letter-spacing: .86em; padding-left: .86em; color: var(--paper-2); text-shadow: 0 1px 0 #000, 0 0 10px #000; white-space: nowrap; }
+.tt-tag { margin-top: calc(var(--k) * 14); display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
 .tt-tag span { font: 500 var(--t-s)/1.4 var(--f-ko); color: var(--paper-2); letter-spacing: .2em; text-shadow: 0 1px 0 #000, 0 0 10px #000; }
 .tt-tag em { font: italic 400 var(--t-xs)/1.2 var(--f-display); color: var(--dim); letter-spacing: .12em; text-shadow: 0 1px 0 #000; }
 .tt-menu { position: relative; margin-top: max(calc(var(--k) * 30), 2.4vh); display: flex; flex-direction: column; align-items: center; gap: calc(var(--k) * 6); }
@@ -198,6 +198,12 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
   display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
 }
 .tt-ver { font: 500 var(--t-xs)/1.4 var(--f-ko); color: var(--dim); letter-spacing: .14em; }
+/* 강호행 entry (src/rpg adds it to the title menu with inline styles): brought into the ink idiom */
+.tt-exp-btn { border-color: var(--line) !important; background: rgba(8, 8, 11, .66) !important; }
+.tt-exp-btn.is-focus { border-color: var(--paper) !important; color: #fff !important; box-shadow: 0 0 0 1px var(--paper), 0 0 16px rgba(236, 228, 210, .3); }
+.is-portrait .tt-exp-label { flex: 1 0 100%; margin-right: 0 !important; }
+.is-portrait .tt-exp-btn { min-width: 0 !important; flex: 1 1 0; padding: 6px 4px !important; }
+.is-portrait .tt-exp-btn em { letter-spacing: .06em !important; }
 .tt-ver b { color: var(--paper-2); font-weight: 600; font-family: var(--f-data); }
 
 /* --- select --- */
@@ -260,7 +266,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
   background: linear-gradient(180deg, transparent, rgba(5, 5, 8, .9) 52%);
 }
 .card-title { font: 700 max(13px, calc(var(--k) * 21))/1.15 var(--f-ko); letter-spacing: .12em; color: var(--paper); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card-ko { font: 500 var(--t-xs)/1.2 var(--f-ko); color: var(--acc-hi); letter-spacing: .1em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-ko { font: 500 var(--t-s)/1.2 var(--f-ko); color: var(--acc-hi); letter-spacing: .14em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card.is-focus { transform: translateY(calc(var(--k) * -6)); }
 .card.is-focus .card-frame { border-color: var(--paper); box-shadow: inset 0 0 0 1px rgba(236, 228, 210, .3), inset 0 0 calc(var(--k) * 44) rgba(var(--acc-rgb), .26); }
 .card.is-focus .card-art { transform: translate(-50%, -52%) rotate(-15deg) scale(1.04); color: var(--acc-hi); }
@@ -489,7 +495,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 
 /* 기혈: one band of pale ink over a black under-stroke. The fill carries the element as an inner glow; the lost part
    lingers in cinnabar, then drains. Fill, ghost and edge move by transform inside the brushed clip. */
-.hud-hp { position: relative; height: max(14px, calc(var(--k) * 25)); }
+.hud-hp { position: relative; height: max(15px, calc(var(--k) * 28)); }
 .hud-hp::before { content: ""; position: absolute; inset: calc(var(--k) * -3) calc(var(--k) * -5); background: rgba(0, 0, 0, .86); clip-path: var(--clip-hp-l); }
 .hud-plate.p2 .hud-hp::before { clip-path: var(--clip-hp-r); }
 .hp-frame { position: absolute; inset: 0; }
@@ -542,7 +548,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
   font: 600 max(22px, calc(var(--k) * 38))/1 var(--f-display); color: #fbf3df; font-variant-numeric: tabular-nums lining-nums;
   text-shadow: 0 0 calc(var(--k) * 12) rgba(236, 217, 164, .4), 0 2px 0 #000;
 }
-.tm-incense { left: 10%; right: 10%; top: 92%; height: max(3px, calc(var(--k) * 4)); }
+.tm-incense { left: 6%; right: 6%; top: 93%; height: max(3px, calc(var(--k) * 5)); }
 .tm-incense > * { position: absolute; }
 .tm-ash { inset: 30% 0; background: rgba(236, 228, 210, .22); border-radius: 2px; }
 .tm-stick { inset: 0; border-radius: 2px; background: linear-gradient(180deg, #c98a5a, #7d4426 60%, #4a2414); box-shadow: 0 0 0 1px rgba(0, 0, 0, .7); transform-origin: 100% 50%; will-change: transform; }
@@ -741,7 +747,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 /* 무결 無缺: the eclipse behind, a pass of light across the ink */
 .st-perfect .an-emblem { width: calc(var(--k) * 400); height: calc(var(--k) * 400); margin: calc(var(--k) * -200) 0 0 calc(var(--k) * -200); }
 .st-perfect .an-blot { opacity: 0; color: #050506; }
-.an-shine { left: 50%; top: calc(var(--m) * -0.5); height: var(--m); width: 8%; margin-left: -4%; background: linear-gradient(90deg, rgba(255, 250, 235, 0), rgba(255, 250, 235, .55), rgba(255, 250, 235, 0)); mix-blend-mode: screen; opacity: 0; }
+.an-shine { left: 50%; top: calc(var(--m) * -0.42); height: calc(var(--m) * 0.84); width: 5%; margin-left: -2.5%; background: linear-gradient(90deg, rgba(255, 250, 235, 0), rgba(255, 250, 235, .38), rgba(255, 250, 235, 0)); mix-blend-mode: screen; opacity: 0; }
 
 /* 향이 다 탔다 / 무승부: cold ink */
 .st-timeup .an-band { background: var(--noise), linear-gradient(90deg, rgba(8, 10, 16, .3), rgba(9, 11, 18, .9) 16%, rgba(9, 11, 18, .9) 84%, rgba(8, 10, 16, .3)); }
@@ -879,18 +885,18 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 /* responsive: short landscape phones (.is-short), portrait (.is-portrait), narrow (.is-narrow)                 */
 
 /* title */
-.is-short .tt-lockup { --mk: min(calc(var(--k) * 330), 62vh); }
-.is-short .tt-word { --th: min(calc(var(--k) * 150), 30vh); }
-.is-short .tt-tag em { display: none; }
-.is-short .tt-tag { margin-top: 8px; }
-.is-short .tt-menu { margin-top: 8px; }
-.is-short .scr-title { padding-bottom: 52px; }
+.is-short .tt-lockup { --mk: min(calc(var(--k) * 300), 56vh); padding-top: calc(var(--mk) * 0.5); }
+.is-short .tt-tag { display: none; }
+.is-short .tt-menu { margin-top: 10px; }
+.is-short .tt-en { margin-top: 7px; }
+.is-short .scr-title { padding-bottom: 66px; }
 .is-short .tt-mount { height: 40%; }
-.is-portrait .scr-title { padding-bottom: max(150px, 20vh); }
-.is-portrait .tt-lockup { --mk: min(86vw, 44vh); }
+.is-portrait .scr-title { padding-bottom: max(140px, 18vh); }
+.is-portrait .tt-lockup { --mk: min(84vw, 42vh); }
 .is-portrait .tt-type { gap: 8px; }
 .is-portrait .tt-word { --th: min(21vw, 15vh); }
-.is-portrait .tt-sub b { letter-spacing: .5em; padding-left: .5em; }
+.is-portrait .tt-sub b { letter-spacing: .7em; padding-left: .7em; }
+.is-portrait .tt-en { letter-spacing: .6em; padding-left: .6em; }
 .is-portrait .tt-tag span { letter-spacing: .12em; }
 .is-portrait .tt-mount { height: 30%; }
 .is-portrait .tt-foot { flex-direction: column-reverse; align-items: center; gap: 12px; }
@@ -922,7 +928,7 @@ html.ed-pad-portrait #stage { bottom: auto; top: env(safe-area-inset-top, 0px); 
 .is-portrait .sel-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, .5fr); gap: 7px; }
 .is-portrait .card-id { padding: 22px 6px 8px; gap: 3px; }
 .is-portrait .card-title { font-size: 12px; letter-spacing: .04em; }
-.is-portrait .card-title .hj, .is-portrait .card-ko { display: none; }
+.is-portrait .card-ko { display: none; }
 .is-portrait .card-art { left: 34%; }
 .is-portrait .card-sigil { left: 6px; top: 6px; }
 .is-portrait .card-tags { left: 5px; top: 34px; }

@@ -35,6 +35,7 @@ function inkTokens(root) {
   set('--clip-band', bandClip({ seed: 21, n: 26, amp: 13, left: 'fray', right: 'fray' }));
   set('--clip-band-b', bandClip({ seed: 27, n: 20, amp: 16, left: 'taper', right: 'fray' }));
   set('--clip-tag', bandClip({ seed: 33, n: 6, amp: 12, left: 'blunt', right: 'blunt' }));
+  set('--clip-scroll', bandClip({ seed: 41, n: 22, amp: 9, left: 'blunt', right: 'fray', vertical: true }));
   set('--m-swath', cssUrl(swath({ seed: 9, dry: 0.9 })));
   set('--m-swath-b', cssUrl(swath({ seed: 15, dry: 0.5 })));
   set('--m-dash', cssUrl(dash({ seed: 5 })));

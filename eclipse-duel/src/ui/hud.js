@@ -523,7 +523,7 @@ export function createHud(ui) {
       L.kick = scroll.appendChild(h('div.an-kick', null, h('b', { text: kicker }), o.kicker === undefined ? h('i.hj', { text: '奧義' }) : null, f ? h('span', { text: f.name }) : null));
       const col = scroll.appendChild(h('div.an-glyphs'));
       const chars = Array.from(name).filter((c) => c.trim());
-      col.style.setProperty('--n', String(Math.max(4, chars.length)));
+      node.style.setProperty('--n', String(Math.max(3, chars.length)));
       L.glyphs = chars.map((c, i) => col.appendChild(h('div.an-glyph', { html: brushText(c, { weight: 1.2, fill, seed: i }) })));
       L.hanja = scroll.appendChild(h('span.an-hanja', { text: hanja }));
       if (f && f.seal) L.seal = scroll.appendChild(h('i.an-seal', { html: seal(f.seal, { seed: 5 }) }));

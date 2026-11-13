@@ -149,7 +149,7 @@ export function createSession(ctx, fighters, opts = {}) {
       }
       case 'matchEnd': {
         const w = e.winner;
-        if (hud && w >= 0) { const r = fighters[w].roster; hud.announce(r.nameEn, { style: 'win', sub: `${r.name} 승리 · WINNER`, duration: 2.6 }); }
+        if (hud && w >= 0) { const r = fighters[w].roster; hud.announce(r.name, { style: 'win', sub: '승 · WINNER', duration: 2.6 }); }
         if (ctx.audio) ctx.audio.music('victory', { fade: 0.6 });
         break;
       }

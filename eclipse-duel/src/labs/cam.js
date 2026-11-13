@@ -2,8 +2,10 @@
 // an eclipse in the sky), driven by scripted motions so fight framing, shake / kicks / zoom, every shot-vocabulary
 // entry and a full sample ultimate can be captured.
 //
-// Flags: #hud (mock fight HUD to judge headroom), #scope (live plot of shake / kick / framing channels).
-//   __ED.lab.play('mid' | 'walk' | 'swap' | 'shot_orbitSweep' | 'shotM_orbitSweep' | 'ult' | 'ultM' | 'overview' ...)
+// Flags: #hud (mock fight HUD to judge headroom), #scope (live plot of shake / kick / framing channels), #lens (live
+// readout of the cinematic lens: focus distance, aperture, exposure hint, blur), #camfx=0 (plain camera for A/B).
+//   __ED.lab.play('mid' | 'walk' | 'swap' | 'shot_orbitSweep' | 'shotM_orbitSweep' | 'ult' | 'ultM' | 'overview' |
+//                 'wuxia' | 'duelIntro' | 'focusRack' | 'whipBlur' | 'hitZoom' ...)
 
 import * as THREE from 'three';
 import { createLab } from '../core/lab.js';
@@ -47,12 +49,15 @@ function makeDummy(scene, { accent, visor, metal }) {
   add(new THREE.BoxGeometry(0.075, 1.15, 0.014), mArmour, 0, 0.75, 0, weapon);        // blade
   add(new THREE.BoxGeometry(0.012, 1.1, 0.018), mGlow, 0.04, 0.75, 0, weapon);        // hot edge
 
+  const blade = new THREE.Object3D();          // a point on the blade (aim of the blade-rush shot)
+  blade.position.set(0, 0.6, 0);
+  weapon.add(blade);
   const chest = new THREE.Object3D();
   chest.position.set(0, CHEST - 1.0, 0);
   body.add(chest);
   scene.add(root);
   const d = {
-    root, body, weapon, chest,
+    root, body, weapon, blade, chest,
     x: 0, y: 0, facing: 1, weaponDeg: 35, tilt: 0, lean: 0, size: 1,
     apply() {
       root.position.set(d.x, d.y, 0);
@@ -150,6 +155,17 @@ function makeScope(cam) {
   };
 }
 
+/** #lens: what the cinematic lens is doing this frame (focus distance, aperture, hints), as text over the frame. */
+function makeLensReadout(cam, ctx) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:absolute;right:8px;bottom:8px;font:600 12px/1.35 ui-monospace,Menlo,monospace;color:#cfe;background:rgba(6,8,12,.72);padding:5px 8px;border:1px solid #333;white-space:pre;pointer-events:none';
+  document.getElementById('ui').appendChild(el);
+  return () => {
+    const i = cam.lens.info, st = cam.state, sh = cam.debug.seqShot ? cam.debug.seqShot() : null;
+    el.textContent = `${st.mode}${sh ? ' ' + (sh.name || 'keyed') : ''}  fov ${st.fov.toFixed(1)}\nfocus ${i.focus.toFixed(2)} m  +-${i.range.toFixed(2)}  f ${i.aperture.toFixed(2)}${i.dof ? '' : ' (off)'}\nexp ${i.exposure >= 0 ? '+' : ''}${i.exposure.toFixed(3)}  vig +${i.vignette.toFixed(3)}  blur ${i.blur.toFixed(3)}  breathe ${i.breathe.toFixed(2)}\npost ${ctx.post.fx.exposure.toFixed(3)} / ${ctx.post.fx.radial.toFixed(3)}  dof ${ctx.post.dofActive ? 'on' : 'off'}`;
+  };
+}
+
 // ---- motions -------------------------------------------------------------------------------------------------------
 const seg = (t, a, b, e = Ease.inOutSine) => e(clamp((t - a) / (b - a)));
 
@@ -208,9 +224,11 @@ createLab({
     const p2 = makeDummy(scene, { accent: 0x2a5a8a, visor: [0.5, 2.2, 6], metal: 0x7a808c });
     const cam = createCameraDirector(ctx);
     cam.setTargets(p1.chest, p2.chest);
+    cam.sun = new THREE.Vector3(0, 21, -70).normalize();     // the lab's eclipse (dressStage)
     lab.cam = cam; lab.p1 = p1; lab.p2 = p2;
     if (ctx.flags.hud) hudMock();
     const scope = ctx.flags.scope ? makeScope(cam) : null;
+    const lensView = ctx.flags.lens ? makeLensReadout(cam, ctx) : null;
 
     // debug overview: a proxy of the director's camera + its path, seen from a free orbit view
     const proxy = new THREE.PerspectiveCamera(40, 16 / 9, 0.3, 2.2);
@@ -244,6 +262,7 @@ createLab({
         if (trailCount < trailN) { cam.state.pos.toArray(trailPos, trailCount * 3); trailCount++; trailGeo.setDrawRange(0, trailCount); trailGeo.attributes.position.needsUpdate = true; }
       }
       if (scope) scope();
+      if (lensView) lensView();
     }, ctx.ORDER.UI);
 
     lab.S = S;
@@ -373,6 +392,71 @@ function buildScenarios() {
     },
     ult(ctx, lab) { playUlt(ctx, lab, false); },
     ultM(ctx, lab) { playUlt(ctx, lab, true); },
+    /** Wuxia round intro: low sweep from behind P1, then the held duel frame with the eclipse between the masters. */
+    duelIntro(ctx, lab, round = 1) {
+      lab.reset(-2.5, 2.5, idle(lab));
+      ctx.cam.play(shots.duelIntro({ dur: 2.2, round }), { anchor: 0, blendOut: 0.55, hud: false });
+    },
+    duelIntroM(ctx, lab) {
+      lab.reset(-2.5, 2.5, idle(lab));
+      ctx.cam.play(shots.duelIntro({ dur: 2.2 }), { anchor: 1, blendOut: 0.55, hud: false });
+    },
+    /**
+     * A 5.4 s wuxia sample: blade rush on the drawn sword, whip pan to the rival (directional blur), over-shoulder with
+     * a rack focus, the rising crane on a leap, impact punch-in and the low sweep on the aftermath.
+     */
+    wuxia(ctx, lab, mirror = false) {
+      const [an, tg] = mirror ? [lab.p2, lab.p1] : [lab.p1, lab.p2];
+      const f = mirror ? -1 : 1;
+      lab.reset(-2.5, 2.5, null);
+      let h = null;
+      const x0 = an.x;
+      lab.S.motion = (t, ev) => {
+        tg.lean = 3 * Math.sin(t * 2.1 + 1.3);
+        an.weaponDeg = lerp(35, 118, seg(t, 0.0, 0.35, Ease.outCubic));
+        if (t > 2.3) { const k = clamp((t - 2.3) / 1.0); an.y = 3.0 * Math.sin(Math.PI * Math.min(k, 0.5) + (k > 0.5 ? (k - 0.5) * Math.PI : 0)); an.x = x0 + f * 3.7 * seg(t, 2.3, 3.3, Ease.inOutSine); an.weaponDeg = lerp(118, -50, seg(t, 3.05, 3.3, Ease.inQuad)); }
+        if (t > 3.3) { an.y = 0; tg.tilt = -70 * seg(t, 3.3, 3.5, Ease.outCubic) * f * f; tg.x = 2.5 * f + 1.2 * f * seg(t, 3.3, 3.7, Ease.outCubic); tg.y = 0.02; }
+        ev(3.3, () => { h.next(); ctx.time.hitstop(0.12); ctx.post.pulse('chroma', 0.5, { release: 0.3 }); });
+      };
+      h = ctx.cam.play([
+        shots.bladeRush({ dur: 0.75, blade: an.blade, letterbox: true }),
+        shots.whipPan({ dur: 0.3, cut: 0.12, pos: [0.2, 1.45, 3.0], fov: [36, 32] }),
+        { dur: 1.15, cut: 0.1, space: 'anchor', lookSpace: 'target', handheld: 0.35,
+          dof: { focus: 'anchor', aperture: 1, range: 0.45, pull: 0.3, protect: false },
+          from: { pos: [-1.5, 1.7, 0.75], look: [0, 1.4, 0], fov: 28 }, to: { pos: [-1.25, 1.68, 0.72], look: [0, 1.38, 0], fov: 26 } },
+        shots.craneRise({ dur: 1.0, hold: true, cut: true }),
+        shots.impactPunchIn({ dur: 0.45, follow: 'look' }),
+        shots.lowSweep({ dur: 1.5, cut: 0.25, from: 80, to: 40, slowmo: { scale: 0.5, dur: 0.7 } }),
+      ], { anchor: mirror ? 1 : 0, blendOut: 0.7 });
+    },
+    wuxiaM(ctx, lab) { sc.wuxia(ctx, lab, true); },
+    /** Rack focus on a locked-off over-shoulder: the focus is pulled from the near master to the far one and back. */
+    focusRack(ctx, lab) {
+      lab.reset(-2.2, 2.2, idle(lab));
+      const key = { pos: [-1.6, 1.62, 0.8], look: [0, 1.4, 0], fov: 27 };
+      ctx.cam.play([
+        { dur: 0.9, space: 'anchor', lookSpace: 'target', from: key, dof: { focus: 'anchor', aperture: 1.1, range: 0.3, protect: false }, letterbox: true },
+        { dur: 1.0, cut: 0.01, space: 'anchor', lookSpace: 'target', from: key, dof: { focus: 'target', aperture: 1.1, range: 0.4, pull: 0.28, protect: false } },
+        { dur: 1.0, cut: 0.01, space: 'anchor', lookSpace: 'target', from: key, dof: { focus: 'anchor', aperture: 1.1, range: 0.3, pull: 0.28, protect: false } },
+      ], { anchor: 0, blendOut: false });
+    },
+    /** Whip pans back and forth between the masters, then a crash zoom: directional and radial blur through post. */
+    whipBlur(ctx, lab) {
+      lab.reset(-3, 3, idle(lab));
+      ctx.cam.play([
+        { dur: 0.5, from: { pos: [-0.6, 1.5, 3.4], look: [0, 1.35, 0], fov: 38 } },
+        shots.whipPan({ dur: 0.3, cut: 0.01, pos: [-0.6, 1.5, 3.4], kick: false, shake: false }),
+        { dur: 0.4, cut: 0.01, space: 'anchor', lookSpace: 'target', from: { pos: [-0.1, 1.5, 3.25], look: [0, 1.35, 0], fov: 33 } },
+        shots.whipPan({ dur: 0.3, cut: 0.01, from: 'target', to: 'anchor', pos: [-6.1, 1.5, 3.25], fov: [33, 38], kick: false, shake: false }),
+        shots.crashZoom({ dur: 0.5, cut: true, subject: 'anchor', angle: 14 }),
+      ], { anchor: 0, blendOut: false });
+    },
+    /** Fight framing: a heavy hit and an ultimate-size hit (the dolly punches in a few per cent and eases back). */
+    hitZoom(ctx, lab) {
+      lab.reset(-1.3, 1.3, idle(lab));
+      setTimeoutGame(lab, 0.2, () => ctx.cam.shake(0.35));
+      setTimeoutGame(lab, 1.2, () => ctx.cam.shake(1, { freq: 12 }));
+    },
     /** A top-down slam stopped half-way, blending back to the fight framing from a vertical view. */
     blendBack(ctx, lab) {
       lab.reset(-2.5, 2.5, idle(lab));
@@ -418,9 +502,11 @@ function playShot(ctx, lab, name, mirror) {
     an.lean = 3 * Math.sin(t * 2.1); tg.lean = 3 * Math.sin(t * 2.1 + 1.3);
     if (name === 'weaponFollow') { an.x = -2.5 * f + 3.6 * f * seg(t, 0.0, 0.6, Ease.outCubic); an.weaponDeg = lerp(120, -30, seg(t, 0.35, 0.55)); }
     if (name === 'heroPushIn' || name === 'faceCloseUp') an.weaponDeg = lerp(35, 125, seg(t, 0, 1));
+    if (name === 'bladeRush') an.weaponDeg = lerp(35, 112, seg(t, 0, 0.3, Ease.outCubic));
+    if (name === 'craneRise') { const k = clamp(t / 1.0); an.y = 3.0 * Math.sin(Math.PI * 0.5 * k); an.x = -2.5 * f + 1.2 * f * k; an.weaponDeg = lerp(60, 150, k); }
     if (name === 'topDownSlam') { tg.tilt = -90 * seg(t, 0, 0.2); tg.y = 0.0; }
     if (name === 'impactPunchIn') { tg.tilt = -28 * seg(t, 0, 0.12, Ease.outCubic); tg.x = 2.5 * f + 0.4 * f * seg(t, 0, 0.2, Ease.outCubic); }
   };
-  ctx.cam.play([shots.SHOTS[name]()], { anchor: mirror ? 1 : 0, blendOut: false });
+  ctx.cam.play([shots.SHOTS[name](name === 'bladeRush' ? { blade: an.blade } : {})], { anchor: mirror ? 1 : 0, blendOut: false });
 }
 

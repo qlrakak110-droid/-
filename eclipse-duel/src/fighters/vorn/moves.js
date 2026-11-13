@@ -1,4 +1,4 @@
-// VORN 볼른 — 뇌명의 창기사 · Stormcaller Lancer. Rules definition (pure data for src/game/logic; see its README.md).
+// 뇌진천 雷震天 (`vorn`) — 천뢰신창 天雷神槍 · Heaven-Thunder Spear. Rules definition (pure data for src/game/logic; see its README.md).
 // War spear: the longest reach of the roster (2.4 m jab, 2.6 m sweep, 3.7 m lightning spike), mid speed, explosive
 // dashes (a 4 m lightning charge, a 6 m ultimate dash-thrust) and armour-piercing thrusts, a fast javelin, a delayed
 // sky strike that targets the opponent, and a pass-through teleport dash. Strong at spear's length, weak up close:
@@ -6,21 +6,21 @@
 // Creative brief: src/fighters/MOVES.md. Frame data: node src/game/logic/test/framedata.mjs src/fighters/vorn/moves.js
 //
 // SLOTS (move id <- command; meta.slot = the roster slot name used by the UI move list and the clip fallbacks)
-//   light1  flash_jab          light            섬광 찌르기 Flash Jab           0.11 startup, quick thrust, 2.4 m
-//   light2  haft_spin          (light route)    회전 쳐올리기 Haft Spin          0.12, spins the spear, rising butt-end strike
-//   light3  thunder_pierce     (light route)    천둥 꿰기 Thunder Pierce         0.20, lunge + thrust, lightning spike out of
+//   light1  flash_jab          light            전광자 電光刺 Lightning-Flash Thrust              0.11 startup, quick thrust, 2.4 m
+//   light2  haft_spin          (light route)    용미격 龍尾擊 Dragon-Tail Strike                  0.12, spins the spear, rising butt-end strike
+//   light3  thunder_pierce     (light route)    뇌침관 雷針貫 Thunder-Needle Pierce               0.20, lunge + thrust, lightning spike out of
 //                                                                              the tip (2 hits, 3.7 m), big knockback
-//   heavy   gale_sweep         heavy            폭풍 휩쓸기 Gale Sweep           0.28, wide low sweep (2.6 m), trip knockdown
-//   fheavy  lightning_charge   f+heavy          번개 돌격 Lightning Charge       0.20, 4 m lightning dash, armour-piercing,
+//   heavy   gale_sweep         heavy            풍뢰소 風雷掃 Wind-and-Thunder Sweep              0.28, wide low sweep (2.6 m), trip knockdown
+//   fheavy  lightning_charge   f+heavy          분뢰돌 奔雷突 Racing-Thunder Charge               0.20, 4 m lightning dash, armour-piercing,
 //                                                                              crumple
-//   dheavy  skyward_lance      d+heavy          하늘 꿰뚫기 Skyward Lance         0.18, upward thrust, launch, bolt to the sky
-//   skill1  thunder_javelin    skill1           뇌창 투척 Thunder Javelin        FP 25, CD 4 s: 20 m/s javelin, crumple
-//   skill2  stormfall          skill2           낙뢰 Stormfall                   FP 35, CD 7 s: marker under the opponent,
+//   dheavy  skyward_lance      d+heavy          충천창 衝天槍 Sky-Piercing Spear                  0.18, upward thrust, launch, bolt to the sky
+//   skill1  thunder_javelin    skill1           천뢰일척 天雷一擲 Heaven-Thunder, One Throw       FP 25, CD 4 s: 20 m/s javelin, crumple
+//   skill2  stormfall          skill2           낙뢰삼격 落雷三擊 Three Falling Thunderbolts      FP 35, CD 7 s: marker under the opponent,
 //                                                                              3 sky bolts 0.45 / 0.57 / 0.69, last launches
-//   skill3  arc_step           skill3           섬전 보법 Arc Step               FP 20, CD 5 s: 4 m bolt-form dash through the
+//   skill3  arc_step           skill3           화뢰섬보 化雷閃步 Thunder-Form Flash Step         FP 20, CD 5 s: 4 m bolt-form dash through the
 //                                                                              opponent (intangible), the line detonates
 //                                                                              0.25 s after re-forming
-//   ult     ninefold_storm     ult              천벌의 뇌창 Lance of the Ninefold Storm  ULT 100: 6 m armour-piercing
+//   ult     ninefold_storm     ult              구천뇌벌 九天雷罰 Ninefold Heaven Thunder Judgment  ULT 100: 6 m armour-piercing
 //                                                                              dash-thrust (active 0.7-0.9) into a 5.0 s lock
 //
 // COMBO GRAMMAR (cancel routes; every target is listed by id, so only follow-ups that connect are offered)
@@ -28,12 +28,12 @@
 //   light1 / light2 on hit -> d+heavy, f+heavy, heavy              (light2 also -> skill1: the javelin at point blank)
 //   light3 on hit or block -> skill1, skill3         (the spike knocks the victim out to spear range: the javelin
 //                                                    catches them there (and leads to the ult), on block it keeps them
-//                                                    guarding and Arc Step crosses through them. No sky bolts: the
+//                                                    guarding and Thunder-Form Flash Step crosses through them. No sky bolts: the
 //                                                    victim recovers and walks off the marker before they land)
 //   The ultimate is the payoff of a big hit, never of the jab chain: it is offered after f+heavy, d+heavy, skill1,
-//   skill2 and the Arc Step detonation (balance pass, see src/fighters/BALANCE.md).
+//   skill2 and the Thunder-Form Flash Step detonation (balance pass, see src/fighters/BALANCE.md).
 //   heavy on hit or block -> skill3                  (step over the tripped opponent for a wake-up cross-up / bail out)
-//   f+heavy on hit (crumple, Vorn in their face) -> heavy (knockdown ender), d+heavy (launcher), ult
+//   f+heavy on hit (crumple, 뇌진천 in their face) -> heavy (knockdown ender), d+heavy (launcher), ult
 //                                                    (the charge is a ground thrust: it never hits a juggled victim, so
 //                                                    its follow-ups always start from a standing, crumpled one)
 //   d+heavy on hit (launch) -> skill2, ult           (the sky bolts juggle the floating victim)
@@ -46,7 +46,7 @@
 //         f+heavy > d+heavy > skill2                              from 6 m: charge, launch, bolts (5 hits)
 //         skill1 (crumple) > skill2 > ult                         full screen
 //   Every route ends in a knockdown, a launch into the ult or the lock, at most four cancels deep like the rest of the
-//   roster; the sky bolts scale a running combo hard (a juggle extender, not a second combo). Haft Spin steps 0.72 m in
+//   roster; the sky bolts scale a running combo hard (a juggle extender, not a second combo). Dragon-Tail Strike steps 0.72 m in
 //   so the chain holds from a jab landed at the spear's tip, but it is -10 on block: the string's weak link.
 //
 // TIMELINE MARKERS (`marker` events: presentation hangs clips, trails, VFX, camera and audio on these names; the rules
@@ -100,7 +100,7 @@
 // contact; the impact punch-in, impact frame, violet-white flash and 0.2 s hit-stop ride on `cinematicStart` and the
 // trigger's `hit` event, parameters in ninefold_storm.meta.impact: the engine never emits lock markers or ticks at t = 0).
 // Every later row keeps its spacing from the impact:  storyboard t = 0.90 + lock t.  The lock lasts 5.0 s: the 5.00 row
-// (blend back, Vorn lands, spear twirl) starts at lock 4.10 and runs to cinematicEnd at lock 5.00. Every lock marker and
+// (blend back, 뇌진천 lands, spear twirl) starts at lock 4.10 and runs to cinematicEnd at lock 5.00. Every lock marker and
 // tick carries its storyboard time in data.storyboard.
 //   lock 0.05 lift | 0.30 hurl (orbit sweep rising) | 0.45 throw (the spear after the victim) | 0.90 leap (over the
 //   shoulder looking up) | 1.00 .. 2.01 bolt1..bolt9, an accelerating rhythm (0.16 -> 0.10 s apart), stuttered hit-stops |
@@ -108,11 +108,11 @@
 //   4.40 twirl | 5.00 settle (= cinematicEnd)
 //   Damage 90 (dash-thrust) + 9 x 22 + 230 = 518 (lock damage x max(0.7, combo scale at the trigger)).
 
-/** Vorn's fighter definition (author format, validated by validateFighterDef). */
+/** 뇌진천's fighter definition (author format, validated by validateFighterDef). */
 export const def = {
   id: 'vorn',
-  name: '볼른 · VORN',
-  title: '뇌명의 창기사 · Stormcaller Lancer',
+  name: '뇌진천 雷震天',
+  title: '천뢰신창 天雷神槍 · Heaven-Thunder Spear',
 
   // Tall, lean lancer in plate with a horned helm (the horns are not hurtbox): a little less HP than average (lean
   // armour: the price of the reach), average weight, a slim body, medium feet, an explosive dash (2.9 m in 0.26 s) and
@@ -159,7 +159,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // LIGHT CHAIN
     flash_jab: {
-      name: '섬광 찌르기 · Flash Jab',
+      name: '전광자 電光刺 · Lightning-Flash Thrust',
       duration: 0.38,
       motion: [{ t: [0.02, 0.1], v: 1.5 }],                      // a 12 cm lean into the thrust
       hits: [{
@@ -183,7 +183,7 @@ export const def = {
     },
 
     haft_spin: {
-      name: '회전 쳐올리기 · Haft Spin',
+      name: '용미격 龍尾擊 · Dragon-Tail Strike',
       duration: 0.44,
       // steps 0.72 m in while the spear whirls, so the chain holds from a jab that landed at the spear's tip
       motion: [{ t: [0, 0.12], v: 6 }],
@@ -210,7 +210,7 @@ export const def = {
     },
 
     thunder_pierce: {
-      name: '천둥 꿰기 · Thunder Pierce',
+      name: '뇌침관 雷針貫 · Thunder-Needle Pierce',
       duration: 0.64,
       motion: [{ t: [0.04, 0.2], v: 3.2 }],                      // half-metre lunge into the thrust
       hits: [
@@ -227,7 +227,7 @@ export const def = {
           armourPierce: true,
         },
       ],
-      // hit or block: the javelin (which leads to the ult on hit) or Arc Step. No sky bolts (the blasted victim recovers
+      // hit or block: the javelin (which leads to the ult on hit) or Thunder-Form Flash Step. No sky bolts (the blasted victim recovers
       // and walks off the marker first) and no direct ult (the ultimate is the payoff of a big hit, not of the jab chain)
       cancels: [{ t: [0.28, 0.5], into: ['thunder_javelin', 'arc_step'], onContact: true }],
       markers: [
@@ -246,7 +246,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // HEAVIES
     gale_sweep: {
-      name: '폭풍 휩쓸기 · Gale Sweep',
+      name: '풍뢰소 風雷掃 · Wind-and-Thunder Sweep',
       duration: 0.76,
       motion: [{ t: [0.1, 0.26], v: 1.25 }],                     // pivot step (0.2 m) into the sweep
       hits: [{
@@ -270,7 +270,7 @@ export const def = {
     },
 
     lightning_charge: {
-      name: '번개 돌격 · Lightning Charge',
+      name: '분뢰돌 奔雷突 · Racing-Thunder Charge',
       duration: 0.74,
       // 4 m: a crouch, an explosive burst, the thrust as he arrives, a short skid. Up close the spear is out at 0.20;
       // at the far end of its range (6 m) it lands around 0.30. Solid: the spear stops in the victim (or the guard)
@@ -299,7 +299,7 @@ export const def = {
     },
 
     skyward_lance: {
-      name: '하늘 꿰뚫기 · Skyward Lance',
+      name: '충천창 衝天槍 · Sky-Piercing Spear',
       duration: 0.64,
       motion: [{ t: [0.02, 0.14], v: 1.0 }],                     // 12 cm drive out of the crouch
       hits: [{
@@ -323,7 +323,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // SKILLS
     thunder_javelin: {
-      name: '뇌창 투척 · Thunder Javelin',
+      name: '천뢰일척 天雷一擲 · Heaven-Thunder, One Throw',
       duration: 0.68,
       fpCost: 25,
       cooldown: 4,
@@ -354,12 +354,12 @@ export const def = {
     },
 
     stormfall: {
-      name: '낙뢰 · Stormfall',
+      name: '낙뢰삼격 落雷三擊 · Three Falling Thunderbolts',
       duration: 0.86,
       fpCost: 35,
       cooldown: 7,
       // WIND-UP 0-0.45: the spear rises to the sky; at 0.08 a marker scorches under the opponent (all three bolts are
-      // anchored there: 0.37 s to get off it - a dash, a backstep, a well-timed dodge or a walk toward Vorn escape;
+      // anchored there: 0.37 s to get off it - a dash, a backstep, a well-timed dodge or a walk toward 뇌진천 escape;
       // walking away only for the quickest feet) and the clouds above the arena flicker. RELEASE 0.45: a sky bolt
       // strikes the marker, then two more 0.12 s apart, the last one huge and wider (launches: the ult dash or a juggle
       // follows). Columns reach 5 m up, so they also strike a victim floating in a juggle, but the first two scale a
@@ -410,15 +410,15 @@ export const def = {
     },
 
     arc_step: {
-      name: '섬전 보법 · Arc Step',
+      name: '화뢰섬보 化雷閃步 · Thunder-Form Flash Step',
       duration: 0.62,
       fpCost: 20,
       cooldown: 5,
-      // Vorn dissolves into a bolt at 0.08 and re-forms 4 m forward at 0.18 (40 m/s), passing through the opponent:
+      // 뇌진천 dissolves into a bolt at 0.08 and re-forms 4 m forward at 0.18 (40 m/s), passing through the opponent:
       // intangible and without a push-box during the travel. The lightning line he leaves (from his start to the
       // arrival point) detonates at 0.43, 0.25 s after he re-forms: a projectile laid over the 4 m behind him, so only
       // the victim freezes and he can follow up from the other side. It creeps back toward the start, so a victim who
-      // turned to face Vorn blocks it; one still facing the start (busy attacking) is hit from behind. Interrupt him
+      // turned to face 뇌진천 blocks it; one still facing the start (busy attacking) is hit from behind. Interrupt him
       // before 0.43 and the line fizzles.
       motion: { keys: [[0, 0], [0.08, 0], [0.18, 4.0]] },
       invuln: [{ t: [0.06, 0.22], vs: 'all' }],
@@ -452,7 +452,7 @@ export const def = {
     // -----------------------------------------------------------------------------------------------------------------
     // ULTIMATE
     ninefold_storm: {
-      name: '천벌의 뇌창 · Lance of the Ninefold Storm',
+      name: '구천뇌벌 九天雷罰 · Ninefold Heaven Thunder Judgment',
       ultCost: 100,
       superFreeze: 0.6,                                        // env.setMood({ darken: 0.8, tint: 0xa080ff }), letterbox in
       duration: 1.35,
@@ -473,7 +473,7 @@ export const def = {
         distance: 1.9,                                         // skewered at the spear's tip
         recovery: 0.5,
         ticks: [
-          // 1.80 over-the-shoulder looking up: Vorn leaps; nine bolts strike the floating victim in sequence, an
+          // 1.80 over-the-shoulder looking up: 뇌진천 leaps; nine bolts strike the floating victim in sequence, an
           // accelerating rhythm with stuttered hit-stops (9 x volt.chain / bolt, rapid flashes)
           { t: 1.0, damage: 22, hitstop: 0.06, marker: 'bolt1', data: { storyboard: 1.9, fx: 'volt.chain', flash: 'violet' } },
           { t: 1.16, damage: 22, hitstop: 0.03, marker: 'bolt2', data: { storyboard: 2.06, fx: 'volt.chain', flash: 'violet' } },
@@ -485,7 +485,7 @@ export const def = {
           { t: 1.91, damage: 22, hitstop: 0.03, marker: 'bolt8', data: { storyboard: 2.81, fx: 'volt.chain', flash: 'violet' } },
           { t: 2.01, damage: 22, hitstop: 0.09, marker: 'bolt9', data: { storyboard: 2.91, fx: 'volt.strike', flash: 'white', last: true } },
         ],
-        // 4.10 top-down slam view, crash zoom: Vorn drives the victim down with the spear, a colossal pillar of
+        // 4.10 top-down slam view, crash zoom: 뇌진천 drives the victim down with the spear, a colossal pillar of
         // lightning (volt.strike huge + pillar, crater, ult_impact, white flash, shake 1). The victim stays in the crater
         // until the lock releases it with a short bounce (knockdown).
         finish: {
@@ -498,14 +498,14 @@ export const def = {
         markers: [
           // 0.90 impact punch-in (the trigger itself; see meta.impact): the victim is lifted on the spear
           { t: 0.05, name: 'lift', data: { storyboard: 0.95 } },
-          // 1.20 orbit sweep rising: Vorn hurls the victim upward and throws the spear after them
+          // 1.20 orbit sweep rising: 뇌진천 hurls the victim upward and throws the spear after them
           { t: 0.3, name: 'hurl', data: { storyboard: 1.2, cam: { shot: 'orbitRising' } } },
           { t: 0.45, name: 'throw', data: { storyboard: 1.35, fx: 'volt.javelin', audio: 'volt_zap' } },
           { t: 0.9, name: 'leap', data: { storyboard: 1.8, cam: { shot: 'overShoulderUp' } } },
-          // 3.20 wide low establishing, slow-mo 0.35: Vorn catches the spear mid-air, the storm gathers into it
+          // 3.20 wide low establishing, slow-mo 0.35: 뇌진천 catches the spear mid-air, the storm gathers into it
           { t: 2.3, name: 'catch', data: { storyboard: 3.2, cam: { shot: 'wideLow', slowmo: 0.35 } } },
           { t: 2.4, name: 'storm', data: { storyboard: 3.3, fx: 'volt.storm', corona: 'violet flicker', audio: 'volt_loop' } },
-          // 5.00 blend back to the fight camera: Vorn lands, spear twirl, arcs fade (sparks + scorch linger)
+          // 5.00 blend back to the fight camera: 뇌진천 lands, spear twirl, arcs fade (sparks + scorch linger)
           { t: 4.1, name: 'land', data: { storyboard: 5.0 } },
           { t: 4.1, name: 'blendBack', data: { storyboard: 5.0, cam: { shot: 'blendBack', dur: 0.9 }, letterbox: false, mood: null } },
           { t: 4.4, name: 'twirl', data: { storyboard: 5.3, linger: { sparks: 2, scorch: 3 } } },

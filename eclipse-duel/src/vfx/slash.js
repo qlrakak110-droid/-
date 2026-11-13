@@ -166,7 +166,8 @@ const FRAG_BODY = /* glsl */ `
   float bristle2 = texture2D(uFlow, vec2(s * 0.21 + seed * 2.0, x * 0.27 + seed * 4.0 + 0.5)).r;
   float dryT = mix(0.16, 0.74, pow(innerness, 0.8)) + (1.0 - prof) * 0.2 - 0.1;
   float brush = smoothstep(dryT + le * 0.25 - 0.07, dryT + le * 0.25 + 0.07, bristle);
-  if (xe <= 0.0) dens *= mix(1.0, brush, vQ.y);
+  // (the bristles carry the trailing half at part strength instead of a smooth falloff)
+  if (xe <= 0.0) dens = mix(dens, max(dens, 0.5 * smoothstep(0.02, 0.3, inner)) * brush, vQ.y);
   float line = exp(-(xe * xe) / (edgeW * edgeW));
   float hone = exp(-(xe * xe) / (edgeW * edgeW * 0.07));
   // erosion: rises with local age; the inside and the tips go first, the edge last

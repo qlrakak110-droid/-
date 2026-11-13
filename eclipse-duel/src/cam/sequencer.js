@@ -3,10 +3,15 @@
 // Each shot is normalised once at play() time (no per-frame allocation). Every frame the current shot is evaluated
 // into a Pose; shot changes report a transition (hard cut or timed blend) that the director applies. Positions are
 // mirrored by the anchor's facing, so one shot list serves both sides of the screen.
+//
+// A shot may also be a function `(c) => shot` (late-bound): it is called when the shot starts with the live context
+// c = { facing, aspect, sun, anchor, target, mid, sep, index, count } so it can frame world things (the eclipse) and
+// adapt to the viewport; that one normalisation happens at the shot change, never per frame.
 
 import * as THREE from 'three';
 import { clamp, lerp, ease as resolveEase, DEG } from '../core/math.js';
 import { Pose, Damp3, readPoint } from './pose.js';
+import { normDof, normTone } from './lens.js';
 
 /** A coordinate frame a shot can be authored in. */
 class SpaceRef {
@@ -26,7 +31,8 @@ const asList = (v) => (v == null || v === false ? [] : Array.isArray(v) ? v : [v
 
 /**
  * @param {object} ctx  app context
- * @param {object} dir  director services: { shaker, fight, letterboxTo(v, dur), letterboxValue(), stop(blend) }
+ * @param {object} dir  director services: { shaker, fight, letterboxTo(v, dur), letterboxValue(), stop(blend),
+ *   aspect(), sun(out), gradeTo(grade, dur), gradeRestore(dur), cine: { handheld } (default handheld of a shot) }
  */
 export function createSequencer(ctx, dir) {
   const pose = new Pose();
@@ -34,9 +40,15 @@ export function createSequencer(ctx, dir) {
   const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _o2 = new THREE.Vector3(), _w = new THREE.Vector3();
 
   const S = {
-    active: false, shots: null, i: 0, t: 0, fresh: false, facing: 1, opts: null,
-    transition: null, ended: false, slowH: null, lbTouched: false, lbBefore: 0, gen: 0,
+    active: false, shots: null, raw: null, custom: null, clock: 'game', i: 0, t: 0, fresh: false, facing: 1, opts: null,
+    transition: null, ended: false, slowH: null, lbTouched: false, lbBefore: 0, gradeTouched: false, gen: 0,
   };
+  /** Context handed to late-bound shots (one object, refreshed at every call). */
+  const C = {
+    facing: 1, aspect: 16 / 9, sun: new THREE.Vector3(0.035, 0.108, -0.994),
+    anchor: new THREE.Vector3(), target: new THREE.Vector3(), mid: new THREE.Vector3(), sep: 5, index: 0, count: 1,
+  };
+  const refOf = (name) => refs[name];
 
   // ---- spaces ---------------------------------------------------------------------------------------------------
   function spaceOf(v, custom) {
@@ -139,13 +151,20 @@ export function createSequencer(ctx, dir) {
       follow: shot.follow === true || shot.follow === 'all' ? 'all' : shot.follow === 'look' ? 'look' : 'none',
       followY: !!shot.followY,
       followLag: shot.followLag ?? 0.12,
-      handheld: shot.handheld ?? 0,
+      handheld: shot.handheld ?? dir.cine.handheld,
       hold: !!shot.hold,
+      name: shot.name || '',
+      dof: normDof(shot.dof, refOf),
+      tone: normTone(shot.tone),
+      breathe: shot.breathe ?? 1,
+      grade: shot.grade, gradeDur: shot.gradeDur ?? 0.5,
       mirrorRoll: shot.space !== 'world',
       orbit: null, via: null, viaSpace: null,
       cues: [],
       refs: [],
     };
+    // whip / crash blur: full on locked-off frames, light on shots that ride with their subject (it would smear it)
+    n.blur = shot.blur === false ? 0 : typeof shot.blur === 'number' ? shot.blur : n.follow === 'all' ? 0.3 : 1;
     n.lookEase = shot.lookEase ? resolveEase(shot.lookEase) : n.ease;
     n.fovEase = shot.fovEase ? resolveEase(shot.fovEase) : n.ease;
     n.from = normKey(shot.from || {}, null, shot, custom);
@@ -207,10 +226,24 @@ export function createSequencer(ctx, dir) {
   }
 
   // ---- shot flow -----------------------------------------------------------------------------------------------
+  /** Live context for a late-bound shot. */
+  function context(i) {
+    C.facing = S.facing;
+    C.aspect = dir.aspect();
+    dir.sun(C.sun);
+    if (!readPoint(refs.anchor.src, C.anchor)) C.anchor.set(-2.5 * S.facing, dir.fight.chestHeight, 0);
+    if (!readPoint(refs.target.src, C.target)) C.target.set(2.5 * S.facing, dir.fight.chestHeight, 0);
+    C.mid.addVectors(C.anchor, C.target).multiplyScalar(0.5);
+    C.sep = Math.hypot(C.target.x - C.anchor.x, C.target.z - C.anchor.z);
+    C.index = i; C.count = S.raw.length;
+    return C;
+  }
+
   function enter(i) {
     const prev = S.shots[S.i];
     if (prev && i !== S.i && S.slowH) { S.slowH.cancel(); S.slowH = null; }
     S.i = i;
+    if (!S.shots[i]) S.shots[i] = normalize(S.raw[i](context(i)) || {}, S.clock, S.custom);
     const n = S.shots[i];
     for (const c of n.cues) c.done = false;
     prime(n);
@@ -219,6 +252,10 @@ export function createSequencer(ctx, dir) {
       const v = typeof lb === 'object' ? lb.amount ?? 1 : lb === true ? 1 : lb === false ? 0 : lb;
       dir.letterboxTo(v, typeof lb === 'object' && lb.dur != null ? lb.dur : 0.3);
       S.lbTouched = true;
+    }
+    if (n.grade !== undefined && n.grade !== null) {
+      if (n.grade === false) dir.gradeRestore(n.gradeDur); else dir.gradeTo(n.grade, n.gradeDur);
+      S.gradeTouched = n.grade !== false;
     }
     S.transition = n.cut ? { cut: true } : { cut: false, blend: n.blend };
     if (S.opts.onShot) S.opts.onShot(i, n.src);
@@ -236,10 +273,14 @@ export function createSequencer(ctx, dir) {
     refs.target.src = opts.target;
     refs.anchor.scale = opts.anchorScale || 1;
     refs.target.scale = opts.targetScale || 1;
-    S.shots = (Array.isArray(shots) ? shots : [shots]).map((s) => normalize(s, opts.clock || 'game', custom));
+    S.custom = custom;
+    S.clock = opts.clock || 'game';
     S.facing = opts.facing;
+    S.raw = Array.isArray(shots) ? shots : [shots];
+    S.shots = S.raw.map((s) => (typeof s === 'function' ? null : normalize(s, S.clock, custom)));   // functions: at entry
     S.active = true;
     S.ended = false;
+    S.gradeTouched = false;
     S.lbTouched = false;
     S.lbBefore = dir.letterboxValue();
     S.slowH = null;
@@ -330,6 +371,7 @@ export function createSequencer(ctx, dir) {
     if (S.slowH) { S.slowH.cancel(); S.slowH = null; }
     const o = S.opts;
     if (S.lbTouched && !o.keepLetterbox) dir.letterboxTo(S.lbBefore, Math.max(0.3, blend));
+    if (S.gradeTouched) { S.gradeTouched = false; dir.gradeRestore(Math.max(0.3, blend)); }
     if (o.onDone) o.onDone(completed);
   }
 
@@ -341,6 +383,10 @@ export function createSequencer(ctx, dir) {
     get index() { return S.active ? S.i : -1; },
     get shotTime() { return S.t; },
     get handheld() { return S.active && S.shots[S.i] ? S.shots[S.i].handheld : 0; },
+    /** The normalised shot on screen (null when idle): the lens reads its dof / tone / blur / breathe. */
+    get shot() { return S.active ? S.shots[S.i] || null : null; },
+    get anchorSrc() { return refs.anchor.src; },
+    get targetSrc() { return refs.target.src; },
     get opts() { return S.opts; },
   };
 }

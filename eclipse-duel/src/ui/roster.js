@@ -87,7 +87,7 @@ export const DEFAULT_ROSTER = [
       { slot: 'heavy', name: '풍뢰소', hanja: '風雷掃', nameEn: 'Wind-and-Thunder Sweep', desc: '낮게 쓸어 쓰러뜨린다' },
       { slot: 'fheavy', name: '분뢰돌', hanja: '奔雷突', nameEn: 'Racing-Thunder Charge', desc: '4m 뇌전 돌진 · 호신강기 관통' },
       { slot: 'dheavy', name: '충천창', hanja: '衝天槍', nameEn: 'Sky-Piercing Spear', desc: '하늘로 찔러 올려 띄운다' },
-      { slot: 'skill1', name: '천뢰일척', hanja: '天雷一擲', nameEn: "Heaven's Thunder, One Throw", desc: '뇌기로 빚은 창을 던진다 · 마비', cost: 25, cd: 4, icon: 'vorn-javelin' },
+      { slot: 'skill1', name: '천뢰일척', hanja: '天雷一擲', nameEn: 'Heaven-Thunder, One Throw', desc: '뇌기로 빚은 창을 던진다 · 마비', cost: 25, cd: 4, icon: 'vorn-javelin' },
       { slot: 'skill2', name: '낙뢰삼격', hanja: '落雷三擊', nameEn: 'Three Falling Thunderbolts', desc: '상대의 발밑에 벼락 셋', cost: 35, cd: 7, icon: 'vorn-stormfall' },
       { slot: 'skill3', name: '화뢰섬보', hanja: '化雷閃步', nameEn: 'Thunder-Form Flash Step', desc: '벼락이 되어 꿰뚫고 지난다', cost: 20, cd: 5, icon: 'vorn-arcstep' },
       { slot: 'ult', name: '구천뇌벌', hanja: '九天雷罰', nameEn: 'Ninefold Heaven Thunder Judgment', desc: '돌진 찌르기가 닿으면 다섯 숨의 연환살', cost: 100, icon: 'vorn-ult' },
@@ -97,9 +97,9 @@ export const DEFAULT_ROSTER = [
 
 /** CPU ranks (value is what ui emits in the 'pick' event): 삼류 → 이류 → 일류 → 절정. */
 export const DIFFICULTIES = [
-  { value: 'easy', name: '삼류', hanja: '三流', nameEn: 'THIRD-RATE' },
-  { value: 'normal', name: '이류', hanja: '二流', nameEn: 'SECOND-RATE' },
-  { value: 'hard', name: '일류', hanja: '一流', nameEn: 'FIRST-RATE' },
+  { value: 'easy', name: '삼류', hanja: '三流', nameEn: '3RD RATE' },
+  { value: 'normal', name: '이류', hanja: '二流', nameEn: '2ND RATE' },
+  { value: 'hard', name: '일류', hanja: '一流', nameEn: '1ST RATE' },
   { value: 'nightmare', name: '절정', hanja: '絶頂', nameEn: 'PEAK' },
 ];
 

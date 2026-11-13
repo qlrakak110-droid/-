@@ -182,6 +182,7 @@ function samples(n, creases, closed) {
  *   inner=false          build the inner skin (visible undersides only)   innerCav=0.42   edgeSegs=3   rollSegs=5
  *   occ(u, v) -> 0..1    occlusion of the outer surface (tucked under the plate above ...)
  *   curv=0.004           curvature -> edge wear scale     edgeWear=0.85 wear at the edge apex
+ *   uvw(u, v) -> [u, v, code]   uv-set coordinates for every vertex (lamellar rows, woven hats ...)
  * @returns geometry with userData { S, sign, normalAt(u, v) }
  */
 export function plate(S, o = {}) {
@@ -264,13 +265,17 @@ export function plate(S, o = {}) {
     return idx;
   };
   const skipU = (i) => us[i].t === us[i + 1].t, skipV = (j) => vs[j].t === vs[j + 1].t;
-  parts.push(mk(P, N, quads(W, H, 0, sign < 0, skipU, skipV), cav));
+  // optional uv set coordinates: o.uvw(u, v) -> [u, v, code] for every vertex (edges and rims take their boundary vertex's)
+  const UVW = o.uvw ? new Float32Array(n * 3) : null;
+  if (UVW) for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) UVW.set(o.uvw(us[i].t, vs[j].t), (j * W + i) * 3);
+  const uvOf = (k) => [UVW[k * 3], UVW[k * 3 + 1], UVW[k * 3 + 2]];
+  parts.push(mk(P, N, quads(W, H, 0, sign < 0, skipU, skipV), cav, UVW));
   if (t > 0) {
     // ---- inner skin
     if (o.inner === true) {
       const PI = new Float32Array(n * 3), NI = new Float32Array(n * 3);
       for (let k = 0; k < n * 3; k++) { PI[k] = P[k] - N[k] * t; NI[k] = -N[k]; }
-      parts.push(mk(PI, NI, quads(W, H, 0, sign > 0, skipU, skipV), new Float32Array(n).fill(o.innerCav ?? 0.42)));
+      parts.push(mk(PI, NI, quads(W, H, 0, sign > 0, skipU, skipV), new Float32Array(n).fill(o.innerCav ?? 0.42), UVW));
     }
     // ---- edges: one ring swept around each boundary loop
     const edgeOf = (side) => (typeof o.edge === 'object' ? o.edge[side] ?? 'round' : o.edge ?? 'round');
@@ -298,7 +303,7 @@ export function plate(S, o = {}) {
     }
     const K = o.edgeSegs ?? 3, er = Math.max(t / 2, o.edgeR ?? 0), ew = o.edgeWear ?? 0.85;
     for (const L of loops) {
-      const m = L.ids.length, pos = [], nor = [], cv = [], idx = [];
+      const m = L.ids.length, pos = [], nor = [], cv = [], idx = [], euv = [];
       for (let q = 0; q < m; q++) {
         const k = L.ids[q];
         const nx = N[k * 3], ny = N[k * 3 + 1], nz = N[k * 3 + 2];
@@ -316,6 +321,7 @@ export function plate(S, o = {}) {
           const el = Math.hypot(ex, ey) || 1;
           nor.push((d[0] * ex + nx * ey) / el, (d[1] * ex + ny * ey) / el, (d[2] * ex + nz * ey) / el);
           cv.push(1 + ew * Math.pow(Math.max(0, c), 1.5) * (oc(o, us, vs, k, W)));
+          if (UVW) euv.push(...uvOf(k));
         }
       }
       for (let q = 0; q < (L.closed ? m : m - 1); q++) {
@@ -327,7 +333,7 @@ export function plate(S, o = {}) {
         }
       }
       if (idx.length) {
-        const ring = mk(pos, nor, idx, cv);
+        const ring = mk(pos, nor, idx, cv, UVW ? euv : null);
         // orientation check (normals vs winding) on the first quad
         fixWinding(ring);
         parts.push(ring);
@@ -345,9 +351,10 @@ export function plate(S, o = {}) {
     else if (side === 'u0') ids = [...Array(H).keys()].map((j) => j * W);
     else ids = [...Array(H).keys()].map((j) => j * W + W - 1);
     const T = side[0] === 'v' ? TV : TU, sg = side[1] === '0' ? -1 : 1;
-    const pts = [], nn = [];
+    const pts = [], nn = [], kept = [];
     for (const k of ids) {
       if (pts.length && Math.abs(P[k * 3] - pts[pts.length - 1][0]) + Math.abs(P[k * 3 + 1] - pts[pts.length - 1][1]) + Math.abs(P[k * 3 + 2] - pts[pts.length - 1][2]) < 1e-7) continue;
+      kept.push(k);
       const nx = N[k * 3], ny = N[k * 3 + 1], nz = N[k * 3 + 2];
       let d = [T[k * 3] * sg, T[k * 3 + 1] * sg, T[k * 3 + 2] * sg];
       const dd = d[0] * nx + d[1] * ny + d[2] * nz;
@@ -359,7 +366,9 @@ export function plate(S, o = {}) {
     }
     if (pts.length < 2) continue;
     const closedRim = closeU && side[0] === 'v';
-    parts.push(rimTube(pts, nn, R, o.rollSegs ?? 5, closedRim));
+    const rim = rimTube(pts, nn, R, o.rollSegs ?? 5, closedRim);
+    if (UVW) { const rs = (o.rollSegs ?? 5) + 1; withUvw(rim, (p, q, i) => uvOf(kept[Math.min(kept.length - 1, Math.floor(i / rs))])); }
+    parts.push(rim);
   }
   const g = merge(parts);
   g.userData.S = S;

@@ -229,16 +229,16 @@ void main() {
     float lw = (0.0032 + 0.0022 * dens) * (1.6 / max(R, 0.5)) * (0.65 + 0.75 * bn);
     float aa = min(fwidth(d), lw * 2.5) + 1e-4;
     float ab = min(fwidth(db), 0.01) + 1e-4;
-    float dryM = mix(1.0, smoothstep(0.22, 0.5, dryN * 0.7 + bn * 0.4), 0.6);
+    float dryM = mix(1.0, smoothstep(0.24, 0.52, dryN * 0.7 + bn * 0.4), 0.75);
     float line = max(1.0 - smoothstep(lw - aa, lw + aa, d), 1.0 - smoothstep(lw * 0.4 - ab, lw * 0.4 + ab, db)) * dryM;
     float dmin = min(d, db);
-    float halo = exp(-dmin / 0.018) * 0.2 + exp(-dmin / 0.07) * 0.03;
+    float halo = exp(-dmin / 0.016) * 0.12 + exp(-dmin / 0.06) * 0.018;
     float flowP = 0.8 + 0.2 * sin(t0 * 5.0 - r * 14.0 + ang * 2.0);
     float th = mix(-0.15, 1.05, fo);
     float vis = smoothstep(th - 0.08, th + 0.08, fb * 0.65 + fb2 * 0.35);
     // flash of the freshly drawn stroke behind the sweeping brush
     float fresh = exp(-max(sat(t0 / max(reveal, 1e-3)) * TAU - sweepA, 0.0) * 3.0) * (1.0 - step(reveal * 1.8, t0));
-    glow = (mix(vMid.rgb, vCore.rgb, 0.35 + 0.65 * fresh) * line * 0.75 + vMid.rgb * halo) * flowP * vis * fin;
+    glow = (mix(vMid.rgb, vCore.rgb, 0.2 + 0.8 * fresh) * line * (0.42 + 0.5 * fresh) + vMid.rgb * halo) * flowP * vis * fin;
     glow += vCore.rgb * exp(-pow((r - 0.158) / 0.03, 2.0)) * 0.12 * ON(4) * vis * fin;      // corona of the black sun
     float inkL = max(1.0 - smoothstep(lw * 1.4, lw * 3.4, d), 1.0 - smoothstep(lw * 0.6, lw * 2.6, db)) * (0.55 + 0.45 * dryM);
     aDark = sat(inkL * 0.62 + sun * 0.88) * vis;

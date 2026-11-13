@@ -30,6 +30,11 @@ export function createFeel(ctx, session) {
   const hud = () => (ctx.ui && ctx.ui.hud) || null;
   const cam = ctx.cam, post = ctx.post;
   const sfxOf = (i) => ELEMENT_SFX[session.actors[i].element] || ELEMENT_SFX.ember;
+  /** Screen-flash tint of a fighter: its element hue lifted toward paper white (a pure white flash reads as a white-out). */
+  const tintOf = (A) => { const c = A.palette.core, m = Math.max(c[0], c[1], c[2], 1e-3); return [0.55 + 0.45 * c[0] / m, 0.55 + 0.45 * c[1] / m, 0.55 + 0.45 * c[2] / m]; };
+  // light-foot afterimages draw a decimated silhouette of the character: build it now (behind the VS splash), not on
+  // the first dodge
+  if (ctx.vfx && ctx.vfx.afterimageProxy) for (const a of session.actors) { try { ctx.vfx.afterimageProxy(a.char.root); } catch (err) { /* ghosts fall back to the full meshes */ } }
 
   /**
    * Afterimage of a fighter in its element palette. A ghost copies every mesh of the character (~60k triangles), so the
@@ -84,7 +89,7 @@ export function createFeel(ctx, session) {
     post.pulse('chroma', 0.15 + 0.35 * Math.max(0, k - 0.55), { release: 0.22 });
     if (k >= 0.9) { post.radialAt(pos); post.pulse('radial', 0.22 + 0.35 * Math.min(1, k - 0.9), { attack: 0.01, release: 0.22 }); }
     if (e.counter || finisher || group === 'ult') post.impactFrame({ duration: e.counter && !finisher ? 0.034 : 0.05, invert: 0, mono: 0.7 });
-    if (finisher) post.flash(0xffffff, 0.18, { release: 0.15 });
+    if (finisher) post.flash(tintOf(A), 0.1, { release: 0.15 });
     session.sound(lvl === 'light' ? 'hit_slash_light' : 'hit_slash_heavy', { pos });
     if (lvl === 'launch' || lvl === 'knockdown' || lvl === 'crumple') session.sound('hit_blunt', { pos, volume: 0.65 });
     if (e.counter) session.sound('hit_crit', { pos, volume: 0.8 });
@@ -182,8 +187,8 @@ export function createFeel(ctx, session) {
     const V = session.actors[e.defender], A = session.actors[e.attacker];
     const pos = V.socket('chest', new THREE.Vector3());
     fx.play('combat.hit.crit', { pos, dir: [A.facing, 0.1, 0.3], facing: A.facing }, { element: A.element }, 'game.finisher');
-    post.impactFrame({ duration: 0.06, invert: 0, mono: 0.7 });
-    post.flash(0xffffff, 0.3, { release: 0.2 });
+    post.impactFrame({ duration: 0.06, invert: 0, mono: 0.8 });
+    post.flash(tintOf(A), 0.14, { release: 0.2 });
     post.pulse('chroma', 0.7, { release: 0.45 });
     cam.shake(0.6, { freq: 13 });
     session.sound('hit_crit', { pos });
@@ -202,9 +207,10 @@ export function createFeel(ctx, session) {
       const fin = FINISH[A.element] || FINISH.ember;
       const at = fin.chest ? { pos: pos.clone(), dir: [0, 1, 0], facing: A.facing } : { pos: V.at(0, 0, 0, new THREE.Vector3()), dir: [0, 1, 0], facing: A.facing };
       fx.play([fin.name, `${A.element}.eruption`], at, { element: A.element, k: 1.1, huge: true }, 'game.erupt');
-      post.flash(0xffffff, 0.35, { release: 0.3 });
-      post.impactFrame({ duration: 0.07, invert: 1 });
-      post.pulse('exposure', 0.15, { release: 0.5 });
+      // the finish is an ink frame (black ground, the blast as paper light), never an inverted white frame
+      post.flash(tintOf(A), 0.16, { release: 0.3 });
+      post.impactFrame({ duration: 0.07, invert: 0, mono: 0.85 });
+      post.pulse('exposure', 0.08, { release: 0.5 });
       cam.shake(1, { freq: 10, duration: 1.2 });
       session.sound('ult_impact', { pos });
       session.sound(sfxOf(e.attacker).burst, { pos, volume: 0.8 });
@@ -235,7 +241,7 @@ export function createFeel(ctx, session) {
   /** Lead time of a ground preset (crack before the column ...): it starts that much before the rules arm the hit. */
   const LEAD = { 'ember.eruption': 0.14, '': 0.05 };
   /** Floor telegraph per element while a ground projectile is armed. */
-  const TELEGRAPH = { ember: { kind: 'crack', magma: 1, radius: 1.1, reveal: 0.2 }, frost: { kind: 'frost', radius: 1.0, reveal: 0.25 }, volt: { kind: 'rune', palette: 'volt', radius: 1.1, reveal: 0.25 } };
+  const TELEGRAPH = { ember: { kind: 'crack', magma: 1, radius: 1.1, reveal: 0.2 }, frost: { kind: 'frost', radius: 1.0, reveal: 0.25 }, volt: { kind: 'rune', palette: 'volt', radius: 1.1, reveal: 0.25, intensity: 0.8 } };
   function ribbonRamp(el) {
     if (tmpRamp[el]) return tmpRamp[el];
     const p = fx.paletteOf(el);
@@ -439,9 +445,23 @@ export function createFeel(ctx, session) {
     if (hud()) hud().announce('ko');
   }
 
-  /** Footstep dust (clip step events while walking / dashing). */
+  /**
+   * Footstep dust (clip step events). The planted foot of an attack is a stomp (진각): a low dust ring, ink strokes
+   * along the stone, leaves and pebbles; heavies, skills and ultimates crack the floor.
+   */
   function step(actor) {
-    fx.play('combat.dust.step', { pos: actor.at(0, 0, 0, new THREE.Vector3()), facing: actor.facing }, { intensity: 0.7 }, null);
+    const pos = actor.at(0, 0, 0, new THREE.Vector3());
+    const f = match.fighters[actor.index];
+    const mv = f && f.state === 'attack' && f.move ? match.defs[actor.index].moves[f.move] : null;
+    if (mv) {
+      const heavy = mv.group !== 'normal' || /heavy/.test((mv.meta && mv.meta.slot) || '');
+      // the lead foot lands ahead of the root
+      pos.x += actor.facing * 0.35;
+      fx.play(['combat.dust.stomp', 'combat.dust.step'], { pos, facing: actor.facing }, { intensity: heavy ? 1 : 0.7, heavy }, null);
+      if (heavy) cam.shake(0.08, { freq: 14, dir: [0, 1, 0] });
+      return;
+    }
+    fx.play('combat.dust.step', { pos, facing: actor.facing }, { intensity: 0.7 }, null);
   }
 
   function state(e) {

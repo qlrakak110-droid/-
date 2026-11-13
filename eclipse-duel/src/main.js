@@ -1,6 +1,7 @@
 // ECLIPSE DUEL — game entry.
 // Boot: stored quality -> createApp -> environment -> VFX -> camera -> audio -> input -> UI -> game (roster, presets,
 // compile) behind a loading veil; then the title (or #demo / #fight / #training straight into a match) and ctx.ready().
+// The action-RPG mode (src/rpg) is created next to the game and shares its roster and VFX access; #rpg=<hero> boots it.
 
 import { createApp } from './core/app.js';
 import { createEnvironment } from './env/index.js';
@@ -10,6 +11,7 @@ import { createAudio } from './audio/index.js';
 import { createInput } from './input/index.js';
 import { createUI } from './ui/index.js';
 import { createGame } from './game/index.js';
+import { createRpg } from './rpg/index.js';
 import { installProfiler } from './game/prof.js';
 
 /** The quality chosen in a menu is stored in localStorage; apply it as the `q` flag before the app reads its flags. */
@@ -57,6 +59,12 @@ async function boot() {
   window.addEventListener('keydown', unlock, { once: true, capture: true });
 
   const game = await createGame(ctx, { profiler });
+  // the action-RPG mode: takes the stage from the duel (game.leaveForRpg) and gives it back at the title
+  const rpg = await createRpg(ctx, { fighters: game.fighters, fx: game.fx, profiler, enter: () => game.leaveForRpg(), exit: () => game.title() });
+  const f = ctx.flags;
+  if (f.rpg !== undefined) {
+    rpg.start(f.rpg === true ? 'kael' : String(f.rpg), { bot: f.rpgbot !== undefined, sandbox: f.rpgsandbox !== undefined, encounter: typeof f.rpgenc === 'string' ? f.rpgenc : undefined });
+  }
   // warm everything once: programs (scene, shadows, distortion), textures, light set
   if (ctx.env && ctx.env.prewarm) ctx.env.prewarm();
   ctx.frame(1 / 60, true);

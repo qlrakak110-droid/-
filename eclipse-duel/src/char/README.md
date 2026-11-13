@@ -174,10 +174,12 @@ Helper bones take their driven values in the bind pose, so the suit is undeforme
 corrective stations at elbows / knees (and split crease-side stations) by default (`loft spec correctives: false` opts
 out).
 
-**Plate followers** (`design.bones[i].follow = { bone, k }`): a design bone that shares its parent with `bone` takes
-`k` x that bone's swing every frame (before spring bones, which then use it as their target). Articulates armour by
-data: the knight's tassets follow 55% of the thigh. Design bones named `tasset*` without a `follow` default to 55% of
-the thigh on their side.
+**Plate followers** (`design.bones[i].follow = { bone, k, out = k }`): a design bone that shares its parent with
+`bone` takes a share of that bone's swing every frame (before spring bones, which then use it as their target): `out`
+of its forward (flexion) and outward (abduction) part, `k` of its backward / inward part. Articulates armour by data:
+the knight's tassets follow 55% of the thigh. Design bones named `tasset*` without a `follow` default to
+`{ thigh on their side, k: 0.55, out: 1 }`: they ride fully out with a knee raised forward or a leg kicked out (KAEL's
+tassets: inside the thigh in 183 of 183 idle frames before, 0 now) and stay put when the leg goes back under them.
 
 ### Worked pose examples
 
@@ -229,6 +231,7 @@ import { defineClip, definePose, mirrorClip, mirrorPose } from '../char/index.js
 | `gripAt` | `'grip'` | grip point name in `design.weapon.grips` (`'blade'` for half-swording ...) |
 | `breath` | `1` | scale of procedural breathing during this clip |
 | `look` | `true` | `false` ignores `char.lookAt` during this clip |
+| `edgeRoll` | design `edgeRoll` (0) | degrees (0..90): a weapon-hand key the wrist cannot take rolls the hand about the blade's own axis by up to this much before the wrist clamp bends the blade off its key (the blade keeps its aim, the edge turns). Off by default (clips verified without it keep their look); turn it on for clips whose `diag.aimErr` is large |
 
 ### Key channels
 
@@ -259,10 +262,10 @@ ik: { handR: { pos, aim, up, rot, pole, w, soft, space, ease, interp } }
 | `pos` | **hands**: centre of the fist (the grip axis). **feet**: the sole point straight under the ankle (`u = 0` = flat on the floor) |
 | `aim`, `up` | orientation as vectors (preferred): for hands the **weapon frame**: `aim` = where the held blade points, `up` = the blade's back edge (opposite the true edge) — the hand takes whatever orientation holds the blade that way (the design's `gripAngle` included); for feet `aim` = toe direction, `up` = top of the foot. `up` is orthogonalised. A key with `aim` and no `up` keeps the roll of the neighbouring keys (the previous key's `up` is carried along the turn of the aim; the first such key borrows the next key's); only an effector that never keys `up` uses world +Y |
 | `rot` | orientation as fighter-frame Euler `[x,y,z]` (ZXY) relative to the zero pose orientation (hand: blade forward, edge down; foot: toes forward). **Not mirrored**: the same numbers turn both feet toward the same world direction (`footL: { rot: [0, 14, 0] }` turns the left toes out, while FK `footL: [0, 14, 0]` turns them in). Prefer `aim` / `up`, which mean the same thing on both sides |
-| `pole` | point `[f,u,s]` (fighter frame) the elbow / knee should point at. Default: elbows down-back-out in the chest frame (then swivelled for the wrist, see below); knees over the toes for a foot below the hip, turning with the reach in the leg's sagittal plane (foot forward at hip height: knee up; foot behind: knee down), continuous for every reach direction except beside the hip above and behind it |
-| `w` | weight 0..1 (IK vs the FK pose of the same clip); `w: 0` or `null` turns the effector off |
+| `pole` | point `[f,u,s]` (fighter frame) the elbow / knee should point at. A hand pole keyed without `pos` (`handL: { pole }`, with or without `w: 0`) is used by that hand's two-handed grip (`grip` > 0), with a stronger pull than an arm's pole (it is the only say an author has over the gripping elbow). Default: elbows down-back-out in the chest frame (then swivelled for the wrist, see below); knees over the toes for a foot below the hip, turning with the reach in the leg's sagittal plane (foot forward at hip height: knee up; foot behind: knee down), continuous for every reach direction except beside the hip above and behind it |
+| `w` | weight 0..1 (IK vs the FK pose of the same clip); `w: 0` or `null` turns the effector off. An effector whose keys are all `w: 0` (no `pos`) is simply off in the clip |
 | `soft` | soft reach: the last fraction of the limb's length over which it eases into full extension (default 0.006: an arm or leg at exactly full reach is ~7 deg bent and 1-2 mm short; `0` = may lock straight, for thrusts / a straight back leg). Per key, interpolated |
-| `space` | `'root'` (default, moves with the root), `'origin'` (the root position at clip start: **planted feet during root motion**), `'hips'` / `'chest'` (bone frame: hands that ride a spinning torso). Spaces may change from key to key; the target blends between them |
+| `space` | `'root'` (default, moves with the root), `'origin'` (the root position at clip start: **planted feet during root motion**), `'hips'` / `'chest'` (bone frame: hands that ride a spinning torso). Spaces may change from key to key; the target blends between them: the root-space target and the hips / chest-space target as the bone carries it now (a spin of more than ~180 deg between a root key and a hips key still swings the foot across: put a hips-space key in between). Blending the bone-space target as it was at its own key, or in polar coordinates round the hips, measured worse (legs 16-117 mm closer, 300 mm/frame foot steps) |
 
 Position-only or orientation-only keys are allowed (key `aim` a frame later than `pos` to make the blade lag).
 Without any orientation key a foot keeps its FK orientation (as the leg puts it) and a hand keeps its FK wrist pose
@@ -278,11 +281,17 @@ frame. Without a memory (first frame, after `teleport()`, an arm that was on FK)
 the swivel cannot absorb is clamped softly at the wrist, turning at most 1500 deg/s (the blade then deviates from the
 key: the key asked for an impossible wrist — `diag.aimErr` and `qa.aimClamp(rec)` / `auditClip(...).aim` report
 such frames); a demand past ~140 deg of pronation eases back to neutral at 180 deg, so the hand never jumps between its
-two limits. Near or past full reach the clavicle rises / protracts toward the target (up to ~24 deg). In a
-two-handed grip the off hand may roll around the handle (the clip's own grip solve picks the roll; it turns at
-<= 1800 deg/s, freezes while the forearm runs along the handle, and settles instead of alternating where the best roll
-swaps sides); if the grip point is out of the off arm's reach, the main hand is pulled toward the off shoulder just
-enough for both to hold it (`diag.gripErr`). When a crossfade changes the
+two limits; the same for the bend: a demand bent past ~120 deg eases back to straight at 180 deg, where the bend
+direction is undefined (round 2: a hand flipped 133-159 deg in one 1/120 s frame there; now <= 51). The elbow follows
+its basin's minimum exponentially (25 ms), not in jumps. Near or past full reach the clavicle rises / protracts toward
+the target (up to ~24 deg). In a two-handed grip the off hand may roll around the handle (the clip's own grip solve
+picks the roll; it turns at <= ~690 deg/s within +-126 deg of the design's grip orientation, freezes while the forearm
+runs along the handle, and settles instead of alternating where the best roll swaps sides; unbounded, the best roll
+could run away and spin the hand round the handle, dragging the elbow); a keyed hand pole is honoured by the grip; if
+the grip point is out of the off arm's reach, the main hand is pulled toward the off shoulder just enough for both to
+hold it (`diag.gripErr`). Keys that ask for more wrist than a human has: see `diag.aimErr` (the blade's deviation from
+its key), and either fix the key (aim / up, the hand position, the elbow pole), give the design a `gripAngle`, or turn
+on `edgeRoll` for the clip. When a crossfade or an override layer changes the
 grip point (pommel -> blade), the off hand lets go and moves with its arm over >= 0.35 s, then re-grips.
 
 **Pelvis drop.** Feet targets on (or just above) the floor that are out of reach lower the hips: one smooth drop
@@ -292,16 +301,22 @@ spring (~80 ms) that carries the hips' falling speed, so a landing or a lifting 
 foot still out of reach at the bound slides on the floor toward the hip (`diag.footErr`) — it never lifts off. Hips /
 chest-space feet and feet in the air do not drop the hips. `diag.drop` shows it: more than a few cm means the
 clip's hips are too high for its stance — fix the data. Feet are re-planted after flinch / blending (with their
-authored knee pole) and kept above the floor: heel, sole and ball pad on the sole plane; the toe bends about its joint
-until the toe tip rests exactly on the floor.
+authored knee pole, else keeping the knee's current swivel: the knee pushed out along the thigh's own forward axis, so
+a nearly straight leg keeps its kneecap where it was) and kept above the floor: heel, sole and ball pad on the sole
+plane, at the sole's centre line and at its inner / outer edges (+-4.5 cm x body: a foot rolled onto its edge does not
+put the other edge through the floor); the toe bends about its joint until the toe tip rests exactly on the floor.
+The default knee pole turns with a pelvis that is turned over (past horizontal: back / front flips), so tucked knees in
+hips space stay in front of an inverted pelvis instead of the thighs twisting round (round 2: 180 deg thigh twist in a
+backflip; now <= 10 deg).
 
 ### Weapons
 
 The weapon bone sits at the centre of the fist. In the zero hand pose the grip axis is `+X` (blade forward), the edge
 `-Y` (true edge down), the flats `+-Z`, tilted toward the little finger by the design's `gripAngle` (a handle crosses
 the palm diagonally; the knight uses 40 deg, which keeps wrists in range when the blade continues the forearm line).
-Default: the design's `gripAngle`, else the weapon spec's, else 0 with a console warning (a design with `gripAngle`
-set should not also tilt the weapon bone by FK in its clips).
+Default: the design's `gripAngle`, else the weapon spec's, else 0 (a one-time `console.info` note, not a warning:
+clips authored and verified on 0 stay exactly as they are). A design with `gripAngle` set should not also tilt the
+weapon bone by FK in its clips (VORN's clips use a 42 deg FK tilt key instead of a grip angle).
 Design grip points are in the weapon bone frame (`grip: { pos: [-0.155,0,0] }` puts the off hand below the main hand on
 a long grip). Aim weapons with hand IK `aim` / `up` (they describe the weapon frame, so `gripAngle` never changes
 where a keyed blade points); the tip travels on an arc because the hand position and the orientation are interpolated
@@ -366,10 +381,11 @@ export const design = {
 | field | notes |
 |---|---|
 | `proportions` | `hipHeight 0.98, pelvisDrop 0.06, hipWidth 0.10, thighRatio 0.52, ankleHeight 0.085, footLength 0.135, footDrop 0.055, toeLength 0.08, heelLength 0.065, spine 0.11, chest 0.17, neck 0.255, head 0.105, shoulderHeight 0.20, clavicleRoot 0.03, clavicle 0.19, shoulderBack 0.015, upperArm 0.30, foreArm 0.27, hand 0.085, palm 0.022`. Every other rig constant follows them: finger / thumb / twist-helper offsets scale with `hand` / `upperArm`; sockets, foot-contact ramps, eye height, breathing, flinch and the teleport threshold with the body scale (hips pivot / 1.04 m). A 4.2x colossus built from 4.2x proportions matches the knight scaled by 4.2 within ~1 mm (normalised) |
-| `gripAngle` | default: `weapon.gripAngle`, else 0 (warned). Rest tilt (deg) of both weapon bones toward the little finger; 30-45 recommended for swords, spears, axes |
+| `gripAngle` | default: `weapon.gripAngle`, else 0 (an info note). Rest tilt (deg) of both weapon bones toward the little finger; 30-45 recommended for swords, spears, axes |
+| `edgeRoll` | default 0 (off). Degrees: the default `edgeRoll` of this design's clips (section 5, clip definition) |
 | `scale`, `clipScale`, `maxPelvisDrop` | world scale of `root` (default 1), default `play()` scale (use `char.bodyScale` for clips authored on the knight), automatic pelvis drop limit (m at body scale 1, default 0.16) |
 | `materials` | one entry per slot = one draw call. `createKitMaterial` options: `color` (multiplies vertex colour), `roughness` / `metalness` (multiplied by per-vertex values), `envMapIntensity`, `detailScale` (detail tiles per metre), `bump` (detail normal strength), `side: 'double'`, `glowScale` |
-| `bones` | extra bones (`at` in the parent's zero frame). Mirror pairs by `...R` / `...L` names. `follow: { bone, k }` drives the bone by `k` x the swing of a bone with the same parent (articulated plates, section 4); `at` then defaults to that bone's position |
+| `bones` | extra bones (`at` in the parent's zero frame). Mirror pairs by `...R` / `...L` names. `follow: { bone, k, out }` drives the bone by a share of the swing of a bone with the same parent (articulated plates, section 4); `at` then defaults to that bone's position |
 | `springs` | spring chains: `stiffness` (1/s^2 toward the animated direction), `damping` (1/s), `gravity` (x g), `inertia` (0..1, how much root motion it feels), `limit` (deg cone around the rest direction), `radius` (collision), `tip` (end of the last bone in its frame) |
 | `colliders` | capsules for cloth and springs: endpoints = bone + offset (zero frame), radius. A design with a cape needs `head` and `neck` capsules (a spin throws the cape up over the head); a design with cloth and without them gets default ones (head r 0.125, neck r 0.065 x body, with a warning). The capsule named `torso` also keeps the elbows out of the body |
 | `cloth` | `top` = pinned edge ordered from the fighter's left (`-s`) to right (`+s`); `cols, rows` (x `quality.cloth`), `length`, `drape [f,u,s]` hang direction, `flare` (relative widening at the bottom), `offset(u,v) -> [f,u,s]`, `pinRows 1`, `mesh: true` (`false`: simulate and drive the bones, the design builds its own mesh), `thickness 0.012`, `subdiv 2`, `damping 0.035`, `stretch 1 / shear 0.7 / bend 0.25`, `tether 1.04` (max stretch vs rest), `margin 0.025`, `maxSpeed 14`, `gravity 1`, `wind 1`, `inertia 1`, `surface: { outer: { color, rough, detail }, inner: { color, rough, cavity } }` |
@@ -431,10 +447,19 @@ Rotations that orient sweeps: `rot: [0,0,90]` maps +Y to -X, `[0,0,-90]` maps +Y
   step changes (slow motion and dropped frames behave like 60 fps). The edge rim is oriented per quad (no see-through
   slit along the edges). Detail scales with `ctx.quality.cloth` (grid size and iterations).
   The simulation runs fixed 1/120 s steps (at most 5 per update) and the bones are interpolated between the last two
-  steps, so 30 / 60 / 120 Hz, slow motion and dropped frames give the same cloth. After the constraints, structural
-  edges are strain-limited to 1.15 x rest (two passes). Capsules a particle rests inside in the bind pose (a cape pinned
-  over the shoulders) are masked for that particle only; every other capsule still pushes it out. The floor keeps the
-  sheet's half thickness clear.
+  steps; inside a frame the pinned edge moves with its bones (rotation slerped, position lerped: a turning chest carries
+  it on an arc, not on the chord) and last frame's pins and capsules take the root's motion of the frame. Each step:
+  verlet, distance constraints, tethers, body capsules (a broad phase skips capsules away from the sheet), then a strain
+  limit (4 passes) that keeps structural / shear edges within 1.15 x rest after the collision: an over-long edge whose
+  segment runs through a capsule (its particles pushed to opposite sides of a limb) is first lifted out of it, and
+  particles that touch the body move a quarter as much as free ones; then a last collision and the floor. A particle
+  that rests inside a capsule in the bind pose may stay as deep in it as it rests, never deeper (the first free row
+  ignores those capsules: it hangs from its pins). The floor keeps the sheet's half thickness clear. Measured on the
+  shipped designs (round 2 -> round 3, largest structural stretch x rest): KAEL lunge 5.81 -> 1.36, ISKA frostline
+  4.92 -> 1.55, ISKA down 6.84 -> 1.73, VORN ninefold storm 6.39 -> 2.12, knight combo3 3.26 -> 1.62; ISKA's 3-4 cm
+  ribbon tails still reach ~4.5 in a 4000 deg/s pirouette / roll. Cloth stays chaotic: a 0.01 m/s^2 breeze moves a
+  spinning cape by up to ~0.3 m after a second, which is also the size of the 30 / 120 Hz differences on spins (a walk:
+  <= 8 cm).
 * **Spring bones** follow their bone's keyed rotation when a clip keys it (otherwise its rest), are sub-stepped at
   <= 1/120 s with rescaled verlet velocities (same response at 30 / 60 / 120 Hz and in slow motion).
 
@@ -460,9 +485,11 @@ Rotations that orient sweeps: `rot: [0,0,90]` maps +Y to -X, `[0,0,-90]` maps +Y
 4. **Measure** when in doubt: sample `char.sockets.weaponTip.getWorldPosition()` per frame through `--scenario`
    (tip below `u = 0` = through the floor; planted foot sockets should not move). `char.diag` gives the automatic
    pelvis drop (should stay under a few cm: lower the clip's hips instead), the two-handed grip error and the reach
-   ratios. `src/char/qa.js` (`auditClip`) gives the rest: joint ranges (a hand listed there is a key asking for an
-   impossible wrist), pops, planted-foot drift (< 1 cm: a planted foot keeps its exact key until it lifts), floor
-   penetration, key continuity.
+   ratios, and `diag.aimErr` the blade's deviation from its key (deg, after the wrist clamp). `src/char/qa.js`
+   (`auditClip`) gives the rest: joint ranges (`jointLimits`; the upper arm is judged by its swing as a rotation vector
+   (`x` / `z`, no Euler flip up to 180 deg of elevation) and its swing-twist `twist`, which is not judged past 150 deg
+   of elevation, where it is undefined), wrist clamp activity (`aim`), pops, planted-foot drift (< 1 cm: a planted foot
+   keeps its exact key until it lifts), floor penetration, key continuity.
 5. **Mirror / chain**: `mirrorClip` for the other hand; play the chain in the lab
    (`__ED.lab.play('chain', ['a','b','c'])`) and check the crossfades.
 6. Live authoring: `__ED.anim.defineClip(...)`, then `__ED.anim.invalidateClips()` and play it again.
@@ -515,10 +542,11 @@ node tools/shot.mjs rigqa --eval "__ED.qa.armTrace('kael', 'kael.pyre', 'L')"  #
 | xfade | 90-pair crossfade matrix (qa.crossfade pops) |
 | cloth | combo3 cape vs the head; NaN |
 | shipped | every registered KAEL / ISKA / VORN clip on a rig-only copy of the real design (proportions, weapons, colliders, grip angle): elbow swivel steps (> 30 deg/frame about a steady shoulder-wrist line), elbow step beyond the fist's, helper steps, clavicle vs the clip's FK, pelvis drop bound, planted feet in the air, feet below the floor, two-handed grip error; wrist-clamp frames reported |
-| shippedCloth | the full KAEL / ISKA / VORN designs on their spins / rolls / KO: free cloth particles inside the head core, below the floor, NaN; CPU per design <= 1.0 ms |
+| round3 | animator reports and round-2 residuals: weight-only / pole-only IK keys compile; two-handed grip sweeps through backward aims (off-elbow swivel <= 30 deg/frame, a keyed handL pole honoured); hips-space feet through a backflip (thigh twist / step); vorn.getup straight-leg re-plant (thigh step); impossible wrist keys (hand step per 1/120 s); an override layer changing grip point (velocity step vs a crossfade); arms raised to 178 deg (no joint-limit false report); opt-in edgeRoll keeps an impossible key's aim; KAEL walk cloth at 30 vs 60 Hz |
+| shippedCloth | the full KAEL / ISKA / VORN designs on their spins / rolls / KO: free cloth particles inside the head core, below the floor, NaN, largest structural stretch; CPU per design <= 1.0 ms (6 replays) |
 | cpu | ms per update of the knight with both cloths over a 300-frame combat chain (combo1, combo2, combo3, slam), replayed 8 times: the mean of each frame's fastest run (the uncontended cost on a shared machine) <= 1.0 ms |
 
-Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~20 s on an
+Run it after any change to `src/char/` and before committing clips that change shared poses. It takes ~35 s on an
 idle machine (longer under load; the CPU checks stay valid under load). Checks marked `[known]` (runtime residuals)
 and `[content cap]` (clip keys: the cap names the clip and the reason in `KNOWN` / `CONTENT` in rigqa.js) are held to
 their measured value, so any regression still fails: combo3's single-frame grip error at 0.233 s, the slam's landing

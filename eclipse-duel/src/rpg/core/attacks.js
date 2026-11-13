@@ -16,16 +16,17 @@ const win = (w) => (Array.isArray(w) ? { t0: w[0], t1: w[1] } : { t0: w.t ? w.t[
 
 /** Normalise one hit shape (README §6.2). Angles are stored in radians. */
 export function normalizeShape(s) {
-  if (!s) return { type: 'arc', r0: 0, r1: 1.6, a0: -60 * DEG, a1: 60 * DEG, u0: 0, u1: 2 };
+  if (!s) return { norm: true, type: 'arc', r0: 0, r1: 1.6, a0: -60 * DEG, a1: 60 * DEG, u0: 0, u1: 2 };
+  if (s.norm) return s;
   const u = s.u || [0, 2.2];
   switch (s.type) {
-    case 'box': return { type: 'box', f0: s.f[0], f1: s.f[1], s0: s.s ? s.s[0] : -0.5, s1: s.s ? s.s[1] : 0.5, u0: u[0], u1: u[1] };
-    case 'sphere': return { type: 'sphere', at: s.at || [0, 1, 0], socket: s.socket || null, r: s.r ?? 0.6 };
-    case 'capsule': return { type: 'capsule', a: s.a, b: s.b, r: s.r ?? 0.4 };
-    case 'ring': return { type: 'ring', at: s.at || [0, 0, 0], r0: s.r[0], r1: s.r[1], g0: s.grow ? s.grow[0] : 0, g1: s.grow ? s.grow[1] : 0, u0: s.u ? u[0] : 0, u1: s.u ? u[1] : 0.9 };
+    case 'box': return { norm: true, type: 'box', f0: s.f[0], f1: s.f[1], s0: s.s ? s.s[0] : -0.5, s1: s.s ? s.s[1] : 0.5, u0: u[0], u1: u[1] };
+    case 'sphere': return { norm: true, type: 'sphere', at: s.at || [0, 1, 0], socket: s.socket || null, r: s.r ?? 0.6 };
+    case 'capsule': return { norm: true, type: 'capsule', a: s.a, b: s.b, r: s.r ?? 0.4 };
+    case 'ring': return { norm: true, type: 'ring', at: s.at || [0, 0, 0], r0: s.r[0], r1: s.r[1], g0: s.grow ? s.grow[0] : 0, g1: s.grow ? s.grow[1] : 0, u0: s.u ? u[0] : 0, u1: s.u ? u[1] : 0.9 };
     default: {
       const a = s.angle || [-60, 60], r = s.r || [0, 1.8];
-      return { type: 'arc', r0: r[0], r1: r[1], a0: a[0] * DEG, a1: a[1] * DEG, u0: u[0], u1: u[1] };
+      return { norm: true, type: 'arc', r0: r[0], r1: r[1], a0: a[0] * DEG, a1: a[1] * DEG, u0: u[0], u1: u[1] };
     }
   }
 }
@@ -38,7 +39,7 @@ function normalizeHit(h, i, group) {
   return {
     index: i, label: h.label || h.id || null,
     t0: t[0], t1: t[1],
-    shape: h.shape && h.shape.r0 !== undefined ? h.shape : normalizeShape(h.shape),
+    shape: normalizeShape(h.shape),
     damage,
     poise: h.poise ?? L.poise,
     level,

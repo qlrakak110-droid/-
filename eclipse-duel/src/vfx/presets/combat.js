@@ -6,7 +6,7 @@ import { LIB } from '../library.js';
 import { heatRamp } from '../util.js';
 import {
   def, key, mul, EL, KIT, STEEL, SLASH_LOOK, MESH_PAL, elementOf, meshColors, cutThrough, arcPoint, arcTangent, floor, vec, lightAt,
-  DUST, DUST_SMALL, PEBBLES, DUST_MOTES, SMOKE_COLUMN,
+  DUST, DUST_SMALL, PEBBLES, DUST_MOTES, SMOKE_COLUMN, LEAVES, STOMP_INK, groundMark,
 } from './common.js';
 
 /** Cool pale air for whooshes. */
@@ -95,7 +95,9 @@ export function defineCombat(vfx, P) {
     v.flare({ kind: 'streak', pos: p, size: 0.08 * s, aspect: 12, life: 0.07, decay: 2.5, dir: d, color: E.core, intensity: 0.6 * i, realtime: rt });
     v.light({ pos: lightAt(p, 1.3), color: E.core, intensity: 24 * i, range: 4, duration: 0.12, decay: 'outExpo', realtime: rt });
     v.slash({ ...cutThrough(front(p, s), d, f, 0.42 * s, 36, (rng() - 0.5) * 30), look: SLASH_LOOK[el], ...meshColors(E), width: 0.13 * s, sweep: 0.025, life: 0.16, intensity: 1.15 * i, realtime: rt });
-    v.burst(K.lines, { pos: p, count: n(6, i), scale: 0.6 * s, realtime: rt });
+    v.burst(K.lines, { pos: p, count: n(4, i), scale: 0.6 * s, realtime: rt });
+    v.burst(K.strokes, { pos: p, count: n(3, i), scale: 0.6 * s, realtime: rt });
+    v.burst(K.ink, { pos: p, count: 3, scale: 0.6 * s, realtime: rt });
     v.burst(K.splash, { pos: p, dir: d, count: n(6, i), scale: 0.7 * s });
     v.burst(K.sparks, { pos: p, dir: d, count: n(26, i), scale: 0.6 * s });
     v.burst(K.fine, { pos: p, dir: d, count: n(10, i), scale: 0.7 * s });
@@ -115,7 +117,11 @@ export function defineCombat(vfx, P) {
     const pf = front(p, s);
     v.slash({ ...cutThrough(pf, d, f, 0.62 * s, 44, (rng() - 0.5) * 24), look: SLASH_LOOK[el], ...meshColors(E), width: 0.24 * s, sweep: 0.035, life: 0.26, intensity: 1.25 * i, realtime: rt });
     shock(v, pf, d, E, 0.62 * s, 0.11, 0.3 * i, rt);
-    v.burst(K.lines, { pos: p, count: n(11, i), scale: 0.85 * s, realtime: rt });
+    v.burst(K.lines, { pos: p, count: n(7, i), scale: 0.85 * s, realtime: rt });
+    v.burst(K.strokes, { pos: p, count: n(5, i), scale: 0.85 * s, realtime: rt });
+    v.burst(K.blot, { pos: p, scale: 0.75 * s, realtime: rt });
+    v.burst(K.ink, { pos: p, count: 6, scale: 0.85 * s, realtime: rt });
+    v.burst(K.scrap, { pos: p, dir: d, count: n(2, i), scale: 0.9 * s });
     v.burst(K.splash, { pos: p, dir: d, count: n(11, i), scale: 0.85 * s });
     v.burst(K.sparks, { pos: p, dir: d, count: n(58, i), scale: 0.8 * s });
     v.burst(K.fine, { pos: p, dir: d, count: n(22, i), scale: 0.85 * s });
@@ -125,6 +131,9 @@ export function defineCombat(vfx, P) {
     v.schedule(0.03, (w) => {
       w.burst(K.smoke, { pos: p, dir: d, count: 3, scale: 0.6 * s });
       w.distort({ kind: 'shock', pos: pf, radius: [0.12 * s, 0.95 * s], life: 0.24, strength: 0.026 });
+      // the blow reaches the floor: a mark when it lands low, else its pressure kicks a little dust off the stone
+      if (p.y < 0.85 * s) groundMark(w, el, p, 0.8 * s, 0.7 * i);
+      else if (p.y < 2.2 * s) w.burst(DUST_SMALL, { pos: floor(p, 0.03), dir: [0, 1, 0], count: 3, scale: 0.9 * s });
     });
   });
 
@@ -141,7 +150,11 @@ export function defineCombat(vfx, P) {
     v.burst(K.puff, { pos: p, scale: 0.5 * s, realtime: rt });
     v.slash({ ...cutThrough(pf, d, f, 0.8 * s, 46, 32), look: SLASH_LOOK[el], ...meshColors(E), width: 0.28 * s, sweep: 0.03, life: 0.3, intensity: 1.35 * i, realtime: rt });
     shock(v, pf, d, E, 0.95 * s, 0.13, 0.35 * i, rt);
-    v.burst(K.lines, { pos: p, count: n(18, i), scale: s, realtime: rt });
+    v.burst(K.lines, { pos: p, count: n(11, i), scale: s, realtime: rt });
+    v.burst(K.strokes, { pos: p, count: n(8, i), scale: s, realtime: rt });
+    v.burst(K.blot, { pos: p, scale: s, realtime: rt });
+    v.burst(K.ink, { pos: p, count: 10, scale: s, realtime: rt });
+    v.burst(K.scrap, { pos: p, dir: d, count: n(4, i), scale: s });
     v.burst(K.splash, { pos: p, dir: d, count: n(16, i), scale: s });
     v.burst(K.sparks, { pos: p, dir: d, count: n(95, i), scale: s });
     v.burst(K.fine, { pos: p, dir: d, count: n(36, i), scale: s });
@@ -151,7 +164,11 @@ export function defineCombat(vfx, P) {
     v.schedule(0.035, (w) => {
       w.distort({ kind: 'shock', pos: pf, radius: [0.15 * s, 1.15 * s], life: 0.28, strength: 0.026 });
       w.burst(K.smoke, { pos: p, dir: d, count: 5, scale: 0.8 * s });
-      if (p.y < 2.2) w.burst(DUST_SMALL, { pos: floor(p, 0.03), dir: [0, 1, 0], count: n(5, i), scale: 1.1 * s });
+      if (p.y < 0.9 * s) groundMark(w, el, p, s, i);
+      else if (p.y < 2.2 * s) {
+        w.burst(DUST_SMALL, { pos: floor(p, 0.03), dir: [0, 1, 0], count: n(5, i), scale: 1.1 * s });
+        w.burst(LEAVES, { pos: floor(p, 0.05), dir: [0, 1, 0], count: 3, scale: s });
+      }
     });
     if (el === 'ember') v.burst(LIB.fireLicks, { pos: p, dir: d, count: 8, scale: 0.6 * s });
     else if (el === 'frost') v.burst(GUARD_SHARDS, { pos: p, dir: d, count: 16, scale: 0.8 * s, color: [0.6, 0.9, 1.2] });
@@ -172,7 +189,9 @@ export function defineCombat(vfx, P) {
       width: 0.1 * s, life: 0.16, extend: 0.035, release: 0.1, flares: false, intensity: 0.6 * i, realtime: rt });
     shock(v, exit, d, E, 0.7 * s, 0.14, 0.45 * i, rt);
     v.schedule(0.05, (w) => shock(w, exit.clone().addScaledVector(d, 0.55 * s), d, E, 0.45 * s, 0.13, 0.35 * i, false));
-    v.burst(K.lines, { pos: exit, count: n(8, i), scale: 0.7 * s, realtime: rt });
+    v.burst(K.lines, { pos: exit, count: n(5, i), scale: 0.7 * s, realtime: rt });
+    v.burst(K.strokes, { pos: exit, count: n(4, i), scale: 0.7 * s, realtime: rt });
+    v.burst(K.ink, { pos: exit, count: 4, scale: 0.7 * s, realtime: rt });
     v.burst(PIERCE_SPARKS[el], { pos: exit, dir: d, count: n(42, i), scale: 0.9 * s });
     v.burst(K.fine, { pos: p, dir: vec([-d.x, 0.4, 0.3]).normalize(), count: n(10, i), scale: 0.6 * s });
     v.burst(K.motes, { pos: exit, dir: d, count: n(10, i), scale: 0.8 * s });
@@ -253,10 +272,30 @@ export function defineCombat(vfx, P) {
     v.burst(DUST, { pos: g, dir: [0, 1, 0], count: n(10 * k, i), scale: 0.65 * k * s });
     v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: n(5 * k, i), scale: 0.6 * s });
     v.burst(DUST_MOTES, { pos: g, dir: [0, 1, 0], count: n(8 * k, i), scale: k * s });
+    v.burst(LEAVES, { pos: g, dir: [0, 1, 0], count: n(heavy ? 5 : 2, i), scale: s });
     if (heavy) {
       v.debris({ kind: 'rock', pos: [g.x, 0.08, g.z], count: n(6, i), speed: [1.5, 4], size: [0.04, 0.12, 2], spread: 60, scale: s });
       v.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [0.2 * s, 2.2 * s], life: 0.35, strength: 0.03 });
       v.decal({ kind: 'crack', pos: g, radius: 0.9 * s, life: 2.2, density: 0.7 });
+    }
+  });
+
+  /**
+   * stomp (진각): the planted foot of a committed strike. A low dust ring rolls out, ink strokes are thrown flat along
+   * the stone, pebbles and leaves jump; opts.heavy cracks the floor and bends the air above it. at.pos = the foot.
+   */
+  define('dust.stomp', (v, at, o) => {
+    const i = I(o), s = at.scale, g = floor(at.pos, 0.03), heavy = !!o.heavy;
+    const k = heavy ? 1.35 : 1;
+    v.ring({ look: 'dust', pos: g, radius: [0.12 * s, 1.1 * k * s], width: [0.2 * s, 0.6 * k * s], life: 0.65 * k, alpha: 0.7, height: 0.28 * k });
+    v.burst(STOMP_INK, { pos: vec([g.x, 0.04, g.z]), dir: [0, 1, 0], count: n(heavy ? 9 : 5, i), scale: 0.9 * k * s });
+    v.burst(DUST_SMALL, { pos: g, dir: [0, 1, 0], count: n(5 * k, i), scale: 0.9 * k * s });
+    v.burst(PEBBLES, { pos: g, dir: [0, 1, 0], count: n(4 * k, i), scale: 0.5 * s });
+    v.burst(LEAVES, { pos: g, dir: [0, 1, 0], count: n(heavy ? 5 : 2, i), scale: 0.9 * s });
+    v.burst(DUST_MOTES, { pos: g, dir: [0, 1, 0], count: n(6 * k, i), scale: 0.8 * k * s });
+    if (heavy) {
+      v.decal({ kind: 'crack', pos: g, radius: 0.7 * s, life: 2.4, density: 0.6 });
+      v.distort({ kind: 'shock', pos: g, normal: [0, 1, 0], radius: [0.15 * s, 1.6 * s], life: 0.3, strength: 0.022 });
     }
   });
 
@@ -423,7 +462,7 @@ export function defineCombat(vfx, P) {
   });
 
   // aliases the presentation layer looks up (combat.<name>), and element hits that pick a level from opts.k / opts.level
-  for (const name of ['hit.light', 'hit.heavy', 'hit.crit', 'hit.pierce', 'guard.block', 'guard.break', 'dust.step', 'dust.dash', 'dust.land', 'dust.slide',
+  for (const name of ['hit.light', 'hit.heavy', 'hit.crit', 'hit.pierce', 'guard.block', 'guard.break', 'dust.step', 'dust.dash', 'dust.land', 'dust.stomp', 'dust.slide',
     'whoosh.light', 'whoosh.heavy', 'charge.gather', 'charge.release', 'ko.burst', 'ult.flash']) P.alias('combat.' + name, name);
   for (const lvl of ['launch', 'crumple', 'knockdown']) P.alias('combat.hit.' + lvl, 'hit.heavy');
   for (const el of ['ember', 'frost', 'volt']) {

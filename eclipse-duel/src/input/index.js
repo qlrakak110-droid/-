@@ -5,12 +5,18 @@
 //   input.on((action, down, player, info) => { ... })   // menus
 //   input.setVirtual('guard', true, 0)                   // touch / AI / tests
 //   input.frame(0)  -> { move, up, down, light, heavy, skill1, skill2, skill3, ult, guard, dodge, held, pressed }
+//   input.setMode('rpg'): third-person controls (src/rpg): arrows look, Q / Tab lock, R chalice, E interact, mouse
+//                         buttons attack, mouse drag looks; input.moveVec(0, out), input.look(0, out)
 //
 // Per frame (ctx.ORDER.INPUT) every source is sampled into `held`; `pressed` is the rising edge since the previous
 // frame. A tap that goes down and up between two frames still counts as pressed (and held) for exactly one frame.
 
-/** Action names, in bit order (bit i of a mask = ACTIONS[i]). */
-export const ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'skill1', 'skill2', 'skill3', 'ult', 'guard', 'dodge', 'pause', 'confirm', 'back'];
+/**
+ * Action names, in bit order (bit i of a mask = ACTIONS[i]). The first 15 are the duel's; the rest were appended for
+ * the action-RPG mode (lock-on, chalice, interact, look keys, target switching) and never fire outside mode 'rpg'.
+ */
+export const ACTIONS = ['left', 'right', 'up', 'down', 'light', 'heavy', 'skill1', 'skill2', 'skill3', 'ult', 'guard', 'dodge', 'pause', 'confirm', 'back',
+  'lock', 'chalice', 'interact', 'lookL', 'lookR', 'lookU', 'lookD', 'lockL', 'lockR'];
 /** Bit value per action name: BIT.light === 1 << 4. */
 export const BIT = Object.fromEntries(ACTIONS.map((a, i) => [a, 1 << i]));
 const NA = ACTIONS.length;
@@ -25,6 +31,11 @@ export const KEYS_P1 = {
   KeyL: ['guard'], Space: ['dodge'], Enter: ['confirm'], NumpadEnter: ['confirm'], Escape: ['pause', 'back'], Backspace: ['back'],
 };
 export const KEYS_ARROWS = { ArrowLeft: ['left'], ArrowRight: ['right'], ArrowUp: ['up'], ArrowDown: ['down'] };
+/** Extra keyboard bindings of mode 'rpg' (P1): the arrows look instead of moving. */
+export const KEYS_RPG = {
+  KeyQ: ['lock'], Tab: ['lock'], KeyR: ['chalice'], KeyE: ['interact'],
+  ArrowLeft: ['lookL'], ArrowRight: ['lookR'], ArrowUp: ['lookU'], ArrowDown: ['lookD'],
+};
 /** Keyboard P2 (only in 'versus' mode): arrows + numpad. */
 export const KEYS_P2 = {
   ...KEYS_ARROWS,
@@ -39,8 +50,15 @@ export const PAD_BUTTONS = {
   12: ['up'], 13: ['down'], 14: ['left'], 15: ['right'],
 };
 const PAD_LIST = Object.entries(PAD_BUTTONS).map(([k, acts]) => [Number(k), acts.map((a) => IDX[a])]);
+/** Gamepad mapping of mode 'rpg': the d-pad is chalice / interact / target switching, L3 interacts, R3 locks on. */
+export const PAD_BUTTONS_RPG = {
+  ...PAD_BUTTONS, 10: ['interact'], 11: ['lock'], 12: ['chalice'], 13: ['interact'], 14: ['lockL'], 15: ['lockR'],
+};
+const PAD_LIST_RPG = Object.entries(PAD_BUTTONS_RPG).map(([k, acts]) => [Number(k), acts.map((a) => IDX[a])]);
+/** Look rates (rad/s) of the look keys and the right stick, and mouse-drag sensitivity (rad/px). */
+const LOOK_KEY = 2.3, LOOK_STICK_X = 3.2, LOOK_STICK_Y = 2.0, LOOK_MOUSE = 0.0042;
 const PAD_GLYPH = { 0: 'A', 1: 'B', 2: 'X', 3: 'Y', 4: 'LB', 5: 'RB', 6: 'LT', 7: 'RT', 8: 'SELECT', 9: 'START', 12: '↑', 13: '↓', 14: '←', 15: '→' };
-const KEY_NAME = { Space: 'Space', Enter: 'Enter', NumpadEnter: 'Enter', Escape: 'Esc', Backspace: '⌫', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', NumpadAdd: 'Num+' };
+const KEY_NAME = { Tab: 'Tab', Space: 'Space', Enter: 'Enter', NumpadEnter: 'Enter', Escape: 'Esc', Backspace: '⌫', ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓', NumpadAdd: 'Num+' };
 
 /** action -> label of its first binding in a table (keyboard codes or pad buttons). */
 const labelsOf = (table, name) => {
@@ -49,9 +67,9 @@ const labelsOf = (table, name) => {
   return m;
 };
 const keyName = (code) => KEY_NAME[code] || code.replace(/^Key/, '').replace(/^Numpad/, 'Num');
-const LABEL_P1 = { ...labelsOf(KEYS_P1, keyName), confirm: 'Enter', back: 'Esc' };
+const LABEL_P1 = { ...labelsOf(KEYS_RPG, keyName), ...labelsOf(KEYS_P1, keyName), confirm: 'Enter', back: 'Esc', lock: 'Q' };
 const LABEL_P2 = labelsOf(KEYS_P2, keyName);
-const LABEL_PAD = labelsOf(PAD_BUTTONS, (i) => PAD_GLYPH[i]);
+const LABEL_PAD = { ...labelsOf(PAD_BUTTONS, (i) => PAD_GLYPH[i]), lock: 'R3', interact: 'L3', chalice: '↑', lockL: '←', lockR: '→' };
 
 const STICK_ON = 0.5, STICK_OFF = 0.35;   // hysteresis on the analogue stick
 const REPEAT_DELAY = 0.38, REPEAT_RATE = 0.085;   // menu auto-repeat for directions (real seconds)
@@ -67,6 +85,7 @@ export function createInput(ctx, opts = {}) {
   const kb = [new Int8Array(NA), new Int8Array(NA)];
   const pad = [new Uint8Array(NA), new Uint8Array(NA)];
   const virt = [new Uint8Array(NA), new Uint8Array(NA)];
+  const mouse = [new Uint8Array(NA), new Uint8Array(NA)];     // mouse buttons (mode 'rpg', P1)
   const tap = [new Uint8Array(NA), new Uint8Array(NA)];       // went down since the last frame sample
   const live = [new Uint8Array(NA), new Uint8Array(NA)];      // union of sources right now (event edges)
   const heldF = [0, 0], pressF = [0, 0], relF = [0, 0];        // frame-sampled masks
@@ -75,7 +94,10 @@ export function createInput(ctx, opts = {}) {
   const listeners = [];
   const padStick = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
   const padPrev = [new Uint8Array(NA), new Uint8Array(NA)];
-  let mode = opts.mode === 'versus' ? 'versus' : 'solo';
+  // analogue move / look (mode 'rpg'): raw left stick, right stick, virtual stick, look accumulated since the last frame
+  const padMove = [{ x: 0, y: 0 }, { x: 0, y: 0 }], padLook = [{ x: 0, y: 0 }, { x: 0, y: 0 }], virtMove = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+  const lookAcc = [{ x: 0, y: 0 }, { x: 0, y: 0 }], lookFrame = [{ x: 0, y: 0 }, { x: 0, y: 0 }];
+  let mode = opts.mode === 'versus' ? 'versus' : opts.mode === 'rpg' ? 'rpg' : 'solo';
   let device = 'keyboard';
   let enabled = true;
 
@@ -89,7 +111,7 @@ export function createInput(ctx, opts = {}) {
   };
   /** Recompute the live union for (p, i) and emit an edge event if it changed. */
   const refresh = (p, i) => {
-    const on = kb[p][i] > 0 || pad[p][i] > 0 || virt[p][i] > 0 ? 1 : 0;
+    const on = kb[p][i] > 0 || pad[p][i] > 0 || virt[p][i] > 0 || mouse[p][i] > 0 ? 1 : 0;
     if (on === live[p][i]) return;
     live[p][i] = on;
     if (on) { tap[p][i] = 1; repeatT[p][i] = REPEAT_DELAY; }
@@ -101,6 +123,7 @@ export function createInput(ctx, opts = {}) {
     const p1 = KEYS_P1[code];
     if (p1) for (const a of p1) out.push({ p: 0, i: IDX[a] });
     if (KEYS_ARROWS[code] && mode === 'solo') for (const a of KEYS_ARROWS[code]) out.push({ p: 0, i: IDX[a] });
+    if (mode === 'rpg' && KEYS_RPG[code]) for (const a of KEYS_RPG[code]) out.push({ p: 0, i: IDX[a] });
     if (mode === 'versus' && KEYS_P2[code]) for (const a of KEYS_P2[code]) out.push({ p: 1, i: IDX[a] });
     return out;
   };
@@ -130,12 +153,48 @@ export function createInput(ctx, opts = {}) {
   const releaseAll = () => {
     keysDown.clear();
     for (let p = 0; p < PLAYERS; p++) {
-      for (let i = 0; i < NA; i++) { kb[p][i] = 0; pad[p][i] = 0; virt[p][i] = 0; padPrev[p][i] = 0; refresh(p, i); }
+      for (let i = 0; i < NA; i++) { kb[p][i] = 0; pad[p][i] = 0; virt[p][i] = 0; mouse[p][i] = 0; padPrev[p][i] = 0; refresh(p, i); }
       padStick[p].x = padStick[p].y = 0;
+      padMove[p].x = padMove[p].y = padLook[p].x = padLook[p].y = virtMove[p].x = virtMove[p].y = lookAcc[p].x = lookAcc[p].y = 0;
     }
   };
   const onBlur = () => releaseAll();
   const onVis = () => { if (document.hidden) releaseAll(); };
+
+  // --- mouse (mode 'rpg' only): left button = light on press, right button = look drag / heavy on a short click,
+  //     any drag looks, wheel switches the lock-on target. Only presses that land on the stage count (not UI controls).
+  const drag = { on: false, id: -1, button: 0, x: 0, y: 0, moved: 0, t: 0 };
+  const onStage = (e) => { const t = e.target; return !!t && (t.tagName === 'CANVAS' || t.id === 'stage' || t.id === 'app' || t === document.body); };
+  const tapAction = (name) => { const i = IDX[name]; tap[0][i] = 1; emit(name, true, 0, null); emit(name, false, 0, null); };
+  const onPointerDown = (e) => {
+    if (!enabled || mode !== 'rpg' || e.pointerType !== 'mouse' || !onStage(e)) return;
+    setDevice('keyboard');
+    drag.on = true; drag.id = e.pointerId; drag.button = e.button; drag.x = e.clientX; drag.y = e.clientY; drag.moved = 0; drag.t = e.timeStamp;
+    if (e.button === 0) { mouse[0][IDX.light] = 1; refresh(0, IDX.light); }
+  };
+  const onPointerMove = (e) => {
+    if (!drag.on || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    drag.moved += Math.abs(dx) + Math.abs(dy);
+    lookAcc[0].x += dx * LOOK_MOUSE; lookAcc[0].y -= dy * LOOK_MOUSE;
+  };
+  const onPointerUp = (e) => {
+    if (!drag.on || e.pointerId !== drag.id) return;
+    drag.on = false;
+    if (drag.button === 0) { mouse[0][IDX.light] = 0; refresh(0, IDX.light); }
+    else if (drag.button === 2 && drag.moved < 10 && e.timeStamp - drag.t < 320 && mode === 'rpg') tapAction('heavy');
+  };
+  const onWheel = (e) => { if (enabled && mode === 'rpg' && onStage(e) && e.deltaY !== 0) tapAction(e.deltaY > 0 ? 'lockR' : 'lockL'); };
+  const onContext = (e) => { if (mode === 'rpg' && onStage(e)) e.preventDefault(); };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('contextmenu', onContext);
+  }
 
   target.addEventListener('keydown', onKeyDown, { passive: false });
   target.addEventListener('keyup', onKeyUp);
@@ -150,6 +209,9 @@ export function createInput(ctx, opts = {}) {
     if (!pads) return;
     let slot = 0;
     pad[0].fill(0); pad[1].fill(0);
+    const rpg = mode === 'rpg';
+    const list = rpg ? PAD_LIST_RPG : PAD_LIST;
+    padMove[0].x = padMove[0].y = padMove[1].x = padMove[1].y = padLook[0].x = padLook[0].y = padLook[1].x = padLook[1].y = 0;
     for (let k = 0; k < pads.length && slot < PLAYERS; k++) {
       const gp = pads[k];
       if (!gp || !gp.connected) continue;
@@ -157,15 +219,19 @@ export function createInput(ctx, opts = {}) {
       const st = pad[p];
       const b = gp.buttons;
       let any = false;
-      for (let j = 0; j < PAD_LIST.length; j++) {
-        const btn = b[PAD_LIST[j][0]];
-        if (btn && (btn.pressed || btn.value > 0.5)) { const acts = PAD_LIST[j][1]; for (let q = 0; q < acts.length; q++) st[acts[q]] = 1; any = true; }
+      for (let j = 0; j < list.length; j++) {
+        const btn = b[list[j][0]];
+        if (btn && (btn.pressed || btn.value > 0.5)) { const acts = list[j][1]; for (let q = 0; q < acts.length; q++) st[acts[q]] = 1; any = true; }
       }
       const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0, s = padStick[p];
       s.x = Math.abs(ax) > (Math.abs(s.x) > STICK_OFF ? STICK_OFF : STICK_ON) ? ax : 0;
       s.y = Math.abs(ay) > (Math.abs(s.y) > STICK_OFF ? STICK_OFF : STICK_ON) ? ay : 0;
       if (s.x < 0) st[IDX.left] = 1; else if (s.x > 0) st[IDX.right] = 1;
       if (s.y < 0) st[IDX.up] = 1; else if (s.y > 0) st[IDX.down] = 1;
+      // analogue sticks (radial dead zone 0.2): left = move (y up positive), right = look
+      const lm = Math.hypot(ax, ay), rx = gp.axes[2] || 0, ry = gp.axes[3] || 0, rm = Math.hypot(rx, ry);
+      if (lm > 0.2) { const k = Math.min(1, (lm - 0.2) / 0.75) / lm; padMove[p].x = ax * k; padMove[p].y = -ay * k; }
+      if (rm > 0.2) { const k = Math.min(1, (rm - 0.2) / 0.75) / rm; padLook[p].x = rx * k; padLook[p].y = -ry * k; any = true; }
       if (any || s.x || s.y) setDevice('gamepad');
     }
     for (let p = 0; p < PLAYERS; p++) {
@@ -191,6 +257,11 @@ export function createInput(ctx, opts = {}) {
       pressF[p] = m & ~heldF[p];
       relF[p] = heldF[p] & ~m;
       heldF[p] = m;
+      // look delta of this frame (radians): drags / addLook accumulated since the last sample + look keys + right stick
+      const lf = lookFrame[p], la = lookAcc[p];
+      lf.x = la.x + (((m & BIT.lookR) ? 1 : 0) - ((m & BIT.lookL) ? 1 : 0)) * LOOK_KEY * dtReal + padLook[p].x * LOOK_STICK_X * dtReal;
+      lf.y = la.y + (((m & BIT.lookU) ? 1 : 0) - ((m & BIT.lookD) ? 1 : 0)) * LOOK_KEY * 0.7 * dtReal + padLook[p].y * LOOK_STICK_Y * dtReal;
+      la.x = la.y = 0;
     }
   };
   ctx.onUpdate((dtGame, dtReal) => sample(dtReal), ctx.ORDER.INPUT);
@@ -216,6 +287,29 @@ export function createInput(ctx, opts = {}) {
     },
     /** Analogue left stick of the player's gamepad (dead-zoned), {x, y} in -1..1. */
     stick(player = 0) { return padStick[player]; },
+    /**
+     * Analogue move vector for free 3D movement: x = right, y = forward, length <= 1. Keys and virtual buttons
+     * (left / right / up / down) give unit directions; the pad's left stick and setVirtualMove are analogue.
+     */
+    moveVec(player = 0, out = { x: 0, y: 0 }) {
+      const k = kb[player], v = virt[player];
+      let x = ((k[IDX.right] > 0 || v[IDX.right] > 0) ? 1 : 0) - ((k[IDX.left] > 0 || v[IDX.left] > 0) ? 1 : 0);
+      let y = ((k[IDX.up] > 0 || v[IDX.up] > 0) ? 1 : 0) - ((k[IDX.down] > 0 || v[IDX.down] > 0) ? 1 : 0);
+      x += padMove[player].x + virtMove[player].x; y += padMove[player].y + virtMove[player].y;
+      const l = Math.hypot(x, y);
+      if (l > 1) { x /= l; y /= l; }
+      out.x = x; out.y = y;
+      return out;
+    },
+    /** Touch stick / tests: analogue move vector (x right, y forward), kept until changed. */
+    setVirtualMove(x = 0, y = 0, player = 0) { virtMove[player].x = x; virtMove[player].y = y; },
+    /**
+     * Look delta of this frame in radians: x = yaw to the right, y = pitch up. Sources: mouse drag (mode 'rpg'), the look
+     * keys, the right stick, addLook().
+     */
+    look(player = 0, out = { x: 0, y: 0 }) { out.x = lookFrame[player].x; out.y = lookFrame[player].y; return out; },
+    /** Touch drag zone / tests: add a look delta (radians) to the next frame. */
+    addLook(dx = 0, dy = 0, player = 0) { lookAcc[player].x += dx; lookAcc[player].y += dy; },
     /** Held / pressed bit masks for this frame (see BIT). */
     mask(player = 0) { return { held: heldF[player], pressed: pressF[player], released: relF[player] }; },
     /**
@@ -258,12 +352,16 @@ export function createInput(ctx, opts = {}) {
     /** Release every virtual action of a player (e.g. when the touch pad hides). */
     clearVirtual(player = 0) {
       for (let i = 0; i < NA; i++) if (virt[player][i]) { virt[player][i] = 0; refresh(player, i); }
+      virtMove[player].x = virtMove[player].y = 0;
     },
     /** Release all sources of all players. */
     releaseAll,
-    /** 'solo' (arrows also move P1) or 'versus' (arrows + numpad drive P2 on the same keyboard). */
+    /**
+     * 'solo' (arrows also move P1), 'versus' (arrows + numpad drive P2 on the same keyboard) or 'rpg' (third-person:
+     * arrows look, Q / Tab lock, R chalice, E interact, mouse buttons attack, mouse drag looks).
+     */
     setMode(m) {
-      const next = m === 'versus' ? 'versus' : 'solo';
+      const next = m === 'versus' ? 'versus' : m === 'rpg' ? 'rpg' : 'solo';
       if (next === mode) return;
       releaseAll();
       mode = next;
@@ -307,6 +405,14 @@ export function createInput(ctx, opts = {}) {
       target.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('visibilitychange', onVis);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('pointerdown', onPointerDown);
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+        window.removeEventListener('pointercancel', onPointerUp);
+        window.removeEventListener('wheel', onWheel);
+        window.removeEventListener('contextmenu', onContext);
+      }
       listeners.length = 0;
     },
   };

@@ -1,4 +1,6 @@
-// Signature weapons: KAEL's greatsword, ISKA's twin crescent blades, VORN's war spear.
+// Signature weapons in the murim idiom: 염무강's 참마대도 (colossal single-edged great saber; builder `greatsword`),
+// 설리화's 월아쌍도 (twin crescent blades; `crescents`), 뇌진천's 뇌룡창 (long war spear with a horsehair tassel; `spear`).
+// Lengths, sockets, grip points and hand alignment are those of the weapons they replace: 108 clips depend on them.
 //
 // Every weapon is authored in the WEAPON BONE frame of the rig (src/char/README.md "Weapons"): origin = centre of the
 // main fist on the grip axis, +X toward the tip, -Y = the true edge (blade) / the spear head's lower wing, +-Z = the
@@ -6,13 +8,17 @@
 //   base / tip   -> char.sockets.weaponBase / weaponTip (weaponBase2 / weaponTip2 ... for the second weapon)
 //   grips        -> off-hand IK targets ({ pos, rot } in the weapon bone frame; clips choose one with `gripAt`)
 //
-//   import { WEAPON_SPECS, buildWeapon } from '../../char/weapons.js';
-//   design.weapon = WEAPON_SPECS.greatsword;                      // or design.weapons = WEAPON_SPECS.crescents (R + L)
-//   build(kit, S) { buildWeapon(kit, 'greatsword', LOOKS); ... }   // adds the pieces on weaponR / weaponL
+//   import { WEAPON_SPECS, buildWeapon, saberStripRig } from '../../char/weapons.js';
+//   const STRIP = saberStripRig();                                  // optional spring chain of the pommel's cloth strip
+//   design.weapon = WEAPON_SPECS.greatsword; design.bones = [...STRIP.bones]; design.springs = [...STRIP.springs];
+//   build(kit) { buildWeapon(kit, 'greatsword', { strip: STRIP }); ... }   // adds the pieces on weaponR / weaponL
 //
-// Glow channels (material option `glow`): inlay = runes / fuller core / star inlays, vein = ember cracks of the blade.
+// Blades use the `blade` uv set (bright honed edge, misty temper line, flowing grain on the darker body). Glow channels
+// (material option `glow`): inlay = the seam in the blood groove / star and rune inlays, vein = engraved fittings.
 
-import { sweep, lathe, extrude, circle, rrect, curve, put, putPair, mk, fixWinding, creased, autoCav } from './kit/geo.js';
+import * as THREE from 'three';
+import { sweep, lathe, extrude, circle, rrect, curve, put, putPair, putSkinned, weightsOf, mk, fixWinding, creased, autoCav, withUvw, band, ribbon, merge } from './kit/geo.js';
+import { hang, chainPath, chainWeights, spearTassel, tassel } from './kit/murim.js';
 
 const DEG = Math.PI / 180;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -52,33 +58,39 @@ export const WEAPON_SPECS = {
   },
 };
 
-/** Default looks of the weapons (override per design). */
+/** Default looks of the weapons (override per design: `looks` option of each builder). */
 export const WEAPON_LOOKS = {
   greatsword: {
-    blade: { color: [0.05, 0.047, 0.046], rough: 0.36, metal: 1, set: 'scorched', amt: 0.85, wear: 1.2 },
+    blade: { color: [0.085, 0.082, 0.082], rough: 0.3, metal: 1, set: 'blade', amt: 0.6, wear: 0.9 },
     edge: { color: [0.5, 0.49, 0.48], rough: 0.2, metal: 1, set: 'hammered', amt: 0.35, wear: 0.6 },
+    back: { color: [0.03, 0.028, 0.028], rough: 0.5, metal: 0.9, set: 'scorched', amt: 0.9, vein: 0.8 },
     fuller: { color: [0.02, 0.016, 0.014], rough: 0.6, metal: 0.4, set: 'scorched', amt: 1, inlay: 0.65, vein: 1 },
     iron: { color: [0.07, 0.065, 0.063], rough: 0.42, metal: 1, set: 'hammered', amt: 1 },
-    bronze: { color: [0.32, 0.19, 0.08], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.5 },
-    leather: { color: [0.05, 0.028, 0.018], rough: 0.72, metal: 0, set: 'leather', amt: 1 },
+    bronze: { color: [0.3, 0.17, 0.07], rough: 0.38, metal: 1, set: 'engraved', amt: 0.9, vein: 0.5 },
+    leather: { color: [0.04, 0.022, 0.015], rough: 0.72, metal: 0, set: 'leather', amt: 1 },
+    cord: { color: [0.13, 0.012, 0.008], rough: 0.85, metal: 0, set: 'hemp', amt: 0.9 },
+    cloth: { color: [0.2, 0.014, 0.01], rough: 0.6, metal: 0, set: 'silk', amt: 1 },
     wire: { color: [0.3, 0.2, 0.1], rough: 0.3, metal: 1, set: 'hammered', amt: 0.3 },
     gem: { color: [0.05, 0.004, 0.003], rough: 0.06, metal: 0, set: 'hammered', amt: 0, inlay: 0.012 },
   },
   crescents: {
-    blade: { color: [0.62, 0.66, 0.72], rough: 0.14, metal: 1, set: 'hammered', amt: 0.12, wear: 0.4 },
-    spine: { color: [0.16, 0.2, 0.28], rough: 0.3, metal: 1, set: 'engraved', amt: 0.8 },
+    blade: { color: [0.36, 0.38, 0.43], rough: 0.2, metal: 1, set: 'blade', amt: 0.4, wear: 0.4 },
+    spine: { color: [0.1, 0.13, 0.2], rough: 0.3, metal: 1, set: 'engraved', amt: 0.8 },
     star: { color: [0.6, 0.8, 1.0], rough: 0.2, metal: 0, set: 'hammered', amt: 0, inlay: 1 },
     silver: { color: [0.55, 0.57, 0.6], rough: 0.25, metal: 1, set: 'engraved', amt: 0.9, vein: 0.35 },
-    wrap: { color: [0.06, 0.07, 0.1], rough: 0.7, metal: 0, set: 'leather', amt: 1 },
+    wrap: { color: [0.02, 0.03, 0.09], rough: 0.8, metal: 0, set: 'hemp', amt: 0.9 },
+    jade: { color: [0.42, 0.5, 0.46], rough: 0.22, metal: 0, set: 'jade', amt: 0.6 },
+    hair: { color: [0.36, 0.4, 0.5], rough: 0.45, metal: 0, set: 'hair', amt: 1 },
   },
   spear: {
-    head: { color: [0.28, 0.27, 0.3], rough: 0.22, metal: 1, set: 'hammered', amt: 0.25 },
+    head: { color: [0.13, 0.125, 0.14], rough: 0.26, metal: 1, set: 'blade', amt: 0.5 },
     edge: { color: [0.55, 0.55, 0.58], rough: 0.18, metal: 1, set: 'hammered', amt: 0.3 },
     rune: { color: [0.05, 0.03, 0.08], rough: 0.4, metal: 0.3, set: 'hammered', amt: 0, inlay: 1 },
-    haft: { color: [0.06, 0.04, 0.035], rough: 0.6, metal: 0, set: 'leather', amt: 0.5 },
-    band: { color: [0.2, 0.17, 0.12], rough: 0.32, metal: 1, set: 'engraved', amt: 0.9, vein: 0.6 },
-    wrap: { color: [0.05, 0.035, 0.05], rough: 0.75, metal: 0, set: 'leather', amt: 1 },
-    gold: { color: [0.55, 0.36, 0.12], rough: 0.28, metal: 1, set: 'engraved', amt: 0.8 },
+    haft: { color: [0.02, 0.012, 0.012], rough: 0.34, metal: 0, set: 'lacquer', amt: 0.7 },
+    band: { color: [0.24, 0.16, 0.07], rough: 0.36, metal: 1, set: 'engraved', amt: 0.9, vein: 0.6 },
+    wrap: { color: [0.05, 0.02, 0.09], rough: 0.85, metal: 0, set: 'hemp', amt: 0.9 },
+    gold: { color: [0.36, 0.23, 0.09], rough: 0.36, metal: 1, set: 'bronze', amt: 0.8 },
+    hair: { color: [0.3, 0.02, 0.012], rough: 0.5, metal: 0, set: 'hair', amt: 1 },
   },
 };
 
@@ -213,139 +225,136 @@ function boltShape(cl) {
   return out.filter((p, i) => { const q = out[(i + 1) % out.length]; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7; });
 }
 
-// ---- KAEL: greatsword ---------------------------------------------------------------------------------------------------
+// ---- 염무강: 참마대도 (great saber; code name greatsword) -------------------------------------------------------------------
 
-/** Build KAEL's greatsword on `bone` (default weaponR). looks: WEAPON_LOOKS.greatsword (override any key). */
+/** Outline of the great saber in the weapon frame: back (spine, +Y) and edge (-Y) lines over x, guard face .. point. */
+const SX0 = 0.075, SX1 = 1.6, SXC = 1.2;
+const saberBack = (x) => {
+  if (x <= SXC) return lerp(0.036, 0.058, sstep(SX0, SXC, x)) + 0.012 * Math.exp(-(((x - (SXC - 0.035)) / 0.022) ** 2));
+  const k = (x - SXC) / (SX1 - SXC);
+  return 0.058 * (1 - k) - 0.011 * Math.sin(k * Math.PI);               // clip point: a hollow cut from the back to the point
+};
+const saberEdge = (x) => {
+  const t = (x - SX0) / (SX1 - SX0), belly = 0.05 + 0.04 * sstep(0.06, 0.7, t);
+  return t < 0.7 ? -belly : -0.09 * (1 - Math.pow((t - 0.7) / 0.3, 2.2));
+};
+
+/**
+ * Spring chain of the cloth strip tied through the great saber's ring pommel (weapon frame; spread .bones / .springs
+ * into the design and pass it as `strip`).
+ */
+export function saberStripRig(o = {}) {
+  return hang(o.name || 'strip', 'weapon' + (o.hand || 'R'), [-0.322, -0.022, 0], { n: 3, len: o.len ?? 0.3, dir: [-0.45, -1, 0], stiffness: 16, damping: 2.4, gravity: 1, limit: 80, radius: 0.012, collide: false });
+}
+
+/**
+ * Build 염무강's 참마대도 on `bone` (default weaponR): a colossal single-edged saber — broad blade with a curved back, a
+ * spur and a hollow clip to the point, a wide honed edge bevel, a blood groove with an ember seam, a bronze collar and
+ * lobed guard, a long cord-wrapped two-handed hilt and a ring pommel with a cloth strip.
+ * o: bone, slot, looks (WEAPON_LOOKS.greatsword keys), strip (saberStripRig() chain; without it the strip is a knot)
+ */
 export function greatsword(kit, o = {}) {
   const L = { ...WEAPON_LOOKS.greatsword, ...(o.looks || {}) };
   const bone = o.bone ?? 'weaponR', slot = o.slot ?? 'blade';
   const add = (g, look, extra) => put(kit, slot, bone, g, look, extra);
-  const X0 = 0.075, XR = 0.235, X1 = 1.6;              // guard face, ricasso end, tip
-  // blade: broad slab with hollow-ground bevels, deep fuller, swelling toward the tip (clip point)
-  const bw = (t) => {
-    const base = 0.062, mid = 0.058;
-    if (t > 0.86) { const k = (t - 0.86) / 0.14; return lerp(mid * 0.92, 0.0008, Math.pow(k, 0.85)); }
-    return lerp(base, mid * 0.92, t / 0.86) + 0.004 * Math.sin(Math.PI * t / 0.86);
+  const X0 = SX0, X1 = SX1;
+  const xOf = (t) => lerp(X0 + 0.004, X1, t);
+  const TH = (t) => lerp(0.0068, 0.0034, t) * (t > 0.93 ? 1 - (t - 0.93) * 8 : 1) + 0.0005;
+  const FT0 = 0.05, FT1 = 0.7;
+  const dims = (t) => {
+    const x = xOf(t), ys = saberBack(x), ye = saberEdge(x), W = Math.max(0.0016, ys - ye), th = TH(t);
+    const k = clamp(Math.min((t - FT0) / 0.04, (FT1 - t) / 0.08), 0, 1);
+    return { x, ys, ye, W, th, ch: Math.min(0.004, W * 0.05), fc: ys - Math.min(0.025, W * 0.22), fw: Math.min(0.0075, W * 0.07) * Math.sqrt(k), fd: 0.003 * Math.min(1, k * 1.5), e: Math.min(0.032, W * 0.3) };
   };
-  // close-up section: hollow-ground edge bevels (hard bevel line), crowned flats, a crisp fuller (hard lips, steep walls,
-  // flat floor) that runs out in a point at 0.62, then a hard medial ridge to the point (diamond section)
-  const bth = (t) => lerp(0.0085, 0.0045, t) * (t > 0.9 ? 1 - (t - 0.9) * 6 : 1) + 0.0006;
-  const bbev = (t) => lerp(0.016, 0.01, t);
-  const FT = 0.62, FW = 0.0145, FD = 0.0034;
-  const ful = (t) => { if (t >= FT) return [0, 0]; const k = clamp(Math.min(t / 0.03, (FT - t) / 0.07), 0, 1); return [FW * Math.sqrt(k), FD * Math.min(1, k * 1.6)]; };
-  const gsec = (t) => {
-    const w = Math.max(0.0008, bw(t)), th = Math.max(0.0004, bth(t)), e = Math.min(bbev(t), w * 0.8), [fw, fd] = ful(t);
-    const rdg = sstep(FT - 0.04, FT + 0.1, t), crown = Math.max(fw * 1.45, (w - e) * 0.55), zc = th * (1 - 0.14 * rdg);
+  const sec = (t) => {
+    const d = dims(t), mid = lerp(d.fc - d.fw, d.ye + d.e, 0.5);
     return {
-      top: [[w, 0, 1]],
-      face: [[w - e, th * 0.64, 1], [crown, zc, 0], [fw, th, 1], [fw * 0.74, th - fd, 1], [0, th - fd * 1.04, 1], [-fw * 0.74, th - fd, 1], [-fw, th, 1], [-crown, zc, 0], [-(w - e), th * 0.64, 1]],
-      bot: [[-w, 0, 1]],
+      top: [[d.ys, d.th * 0.78, 1]],
+      face: [[d.ys - d.ch, d.th, 1], [d.fc + d.fw, d.th, 1], [d.fc + d.fw * 0.62, d.th - d.fd, 1], [d.fc - d.fw * 0.62, d.th - d.fd, 1], [d.fc - d.fw, d.th, 1], [mid, d.th * 0.97, 0], [d.ye + d.e, d.th * 0.72, 1]],
+      bot: [[d.ye, 0, 1]],
     };
   };
-  const GS = 26, gpts = [];
-  for (let i = 0; i <= GS; i++) gpts.push([lerp(XR, X1, i / GS), 0, 0]);
-  const blade = facetBlade(gpts, gsec);
-  // vertex glow: ember cracks concentrated along the core, fading toward the edges and the tip
-  const crack = (p) => {
-    const t = (p[0] - XR) / (X1 - XR), off = Math.abs(p[1]);
-    const core = 1 - sstep(0.012, 0.05, off);
-    const v = core * (1 - sstep(0.55, 0.95, t)) * (0.55 + 0.45 * Math.sin(p[0] * 23.0 + 1.3) * Math.sin(p[0] * 7.1));
-    return [0, Math.max(0, v), 0];
-  };
-  const tOf = (p) => clamp((p[0] - XR) / (X1 - XR), 0, 1);
-  const edgeK = (p) => { const t = tOf(p); return Math.abs(p[1]) > bw(t) - bbev(t) * 0.8 ? 1 : 0; };
-  // fuller channel (walls + floor): blackened, grimy steel so the molten seam sits in a dark groove
-  const fulK = (p) => { const t = tOf(p), [fw, fd] = ful(t); return fd > 0.0004 && Math.abs(p[1]) < fw * 0.96 && Math.abs(p[2]) < bth(t) - fd * 0.3 ? 1 : 0; };
-  const ec = L.edge.color, bc = L.blade.color, fcol = L.fuller.color;
-  add(blade, L.blade, { glow: crack, color: (p) => (edgeK(p) ? ec : fulK(p) ? fcol : bc), cav: (p) => (fulK(p) ? 0.55 : 1) });
-  // fuller floor: a glowing molten seam laid on the floor of the fuller (both flats), narrowing with the run-out
+  const BS = 30, bpts = [];
+  for (let i = 0; i <= BS; i++) bpts.push([xOf(i / BS), 0, 0]);
+  const blade = facetBlade(bpts, sec);
+  const tOf = (p) => clamp((p[0] - X0 - 0.004) / (X1 - X0 - 0.004), 0, 1);
+  // blade uv set: u along the blade (m), v from the cutting edge (0) to the back (1), code = height of the temper line
+  withUvw(blade, (p) => { const x = Math.max(X0, Math.min(X1, p[0])), ys = saberBack(x), ye = saberEdge(x); return [p[0], clamp((p[1] - ye) / Math.max(1e-4, ys - ye), 0, 1), o.temper ?? 0.27]; });
+  const kindOf = (p) => { const d = dims(tOf(p)); return p[1] > d.ys - d.ch * 1.2 ? 1 : d.fd > 0.0004 && Math.abs(p[1] - d.fc) < d.fw * 0.96 && Math.abs(p[2]) < d.th - d.fd * 0.3 ? 2 : 0; };
+  const bc = L.blade.color, kc = L.back.color, fcol = L.fuller.color;
+  add(blade, L.blade, { color: (p) => [bc, kc, fcol][kindOf(p)], cav: (p) => (kindOf(p) === 2 ? 0.55 : 1) });
+  // ember seam on the floor of the blood groove (both flats): a hot core with a softer halo, fading before the run-out
   for (const s of [1, -1]) {
-    const pts = [], TS = 0.6;
-    for (let i = 0; i <= 18; i++) { const t = 0.02 + (i / 18) * (TS - 0.02), fd = ful(t)[1]; pts.push([lerp(XR, X1, t), 0, s * (bth(t) - fd * 1.04 + 0.0003)]); }
-    const seam = sweep(pts, (t) => rrect(Math.max(0.0005, Math.min(0.0034, ful(lerp(0.02, TS, t))[0] * 0.36)), 0.0005, 0, 0), { up: [0, 1, 0], caps: true, scale: 1 });
-    add(seam, L.fuller, { glow: (p) => { const t = (p[0] - XR) / (X1 - XR); return [0.55 + 0.45 * Math.sin(p[0] * 31.0) * Math.sin(p[0] * 9.0 + 0.7), 0.6, 0].map((x, k) => (k === 0 ? x * (1 - sstep(0.45, 0.62, t)) : x)); } });
+    const fr = [];
+    for (let i = 0; i <= 22; i++) { const t = lerp(FT0 + 0.02, FT1 - 0.04, i / 22), d = dims(t); fr.push({ p: [d.x, d.fc, s * (d.th - d.fd + 0.0003)], n: [0, 0, s] }); }
+    const seam = band(fr, { width: (t) => 0.0062 * Math.sin(Math.PI * clamp(0.12 + t * 0.88, 0, 1)) ** 0.5 + 0.0012, flat: true, lift: 0.0002, thick: 0.0002, crown: 0.0003, side: [0, -1, 0] });
+    add(seam, L.fuller, { glow: (p) => { const d = dims(tOf(p)), k = 1 - Math.min(1, Math.abs(p[1] - d.fc) / 0.0031), t = tOf(p); return [k * k * (0.6 + 0.4 * Math.sin(p[0] * 29) * Math.sin(p[0] * 8.3 + 0.7)) * (1 - sstep(0.52, 0.68, t)), 0.5 * k, 0]; } });
   }
-  // ricasso: blunt thick block between the guard and the blade, chamfered (hard facets) so the light breaks crisply on
-  // its corners, with two parrying lugs
-  const ricS = [[0.048, 0.0035], [0.0435, 0.0115], [-0.0435, 0.0115], [-0.048, 0.0035], [-0.048, -0.0035], [-0.0435, -0.0115], [0.0435, -0.0115], [0.048, -0.0035]];
-  const ric = sweep([[X0 - 0.005, 0, 0], [XR + 0.004, 0, 0]], ricS, { up: [0, 1, 0], hard: [0, 1, 2, 3, 4, 5, 6, 7] });
-  add(ric, L.iron);
-  // maker's mark on the ricasso (both flats): an eclipse ring (bronze) over a sunk ember pip
-  for (const s of [1, -1]) {
-    const ring = sweep(circle(10).map(([c, d]) => [XR - 0.05 + c * 0.0095, d * 0.0095, s * 0.0118]), [[0.0016, 0], [0, 0.0009], [-0.0016, 0], [0, -0.0009]], { closed: true, up: [0, 0, 1] });
-    add(ring, L.bronze);
-    const pip = lathe([[0.0, 0.0012], [0.0042, 0.0008], [0.0058, 0.0], [0.0, 0.0]], { segs: 7 });
-    pip.rotateX(s * 90 * DEG); pip.translate(XR - 0.05 + 0.0024, 0.0024, s * 0.0113);
-    add(pip, L.gem);
+  // charred back: a strip of scorched iron along the spine whose cracks carry the vein glow (염무강's heat climbing the blade)
+  {
+    const fr = [];
+    for (let i = 0; i <= 26; i++) { const t = lerp(0.02, 0.74, i / 26), d = dims(t); fr.push({ p: [d.x, d.ys, 0], n: [0, 1, 0] }); }
+    add(band(fr, { width: (t) => 2 * TH(lerp(0.02, 0.74, t)) * 0.8 + 0.001, lift: 0.0003, thick: 0.0006, crown: 0.0004, side: [0, 0, 1] }), L.back, { glow: (p) => [0, 0.5 + 0.5 * Math.sin(p[0] * 17 + 1), 0] });
   }
-  for (const s of [1, -1]) {
-    const lug = extrude([[0, 0], [0.018, 0], [0.034, 0.024], [0.026, 0.03], [0.006, 0.02]], { depth: 0.013, bevel: 0.0025, bevelSegs: 2 });
-    lug.scale(1, s, 1);
-    if (s < 0) fixWinding(lug);
-    lug.translate(XR - 0.018, s * 0.05, 0);
-    add(lug, L.iron);
-  }
-  // guard: heavy cross with an escutcheon block, swept quillons curving toward the blade, flame-forked tips
-  const esc = extrude([[0.0, -0.05], [0.05, -0.034], [0.074, 0], [0.05, 0.034], [0.0, 0.05], [-0.022, 0.03], [-0.022, -0.03]], { depth: 0.04, bevel: 0.005, bevelSegs: 2 });
-  esc.translate(X0 - 0.03, 0, 0);
-  add(esc, L.iron);
-  // ember gem in the escutcheon (both faces)
-  for (const s of [1, -1]) {
-    const gem = lathe([[0.0, 0.0095], [0.006, 0.0088], [0.011, 0.0068], [0.0145, 0.0038], [0.016, 0.0008], [0.016, 0], [0.0, 0]], { segs: 12, hard: [4] });
-    gem.rotateX(s * 90 * DEG);
-    gem.translate(X0 + 0.004, 0, s * 0.0215);
-    add(gem, L.gem);
-    const bez = sweep(circle(14).map(([c, d]) => [X0 + 0.004 + c * 0.0195, d * 0.0195, s * 0.021]), circle(4), { scale: 0.0028, closed: true, up: [0, 0, 1] });
-    add(bez, L.bronze);
-  }
-  for (const s of [1, -1]) {
-    const q = curve([[X0 - 0.012, s * 0.045, 0], [X0 - 0.008, s * 0.11, 0], [X0 + 0.006, s * 0.175, 0], [X0 + 0.036, s * 0.215, 0]], 12);
-    // forged section: a hard ridge runs along both faces of each quillon (catches a crisp highlight in close-ups)
-    const quill = sweep(q, [[1, 0], [0.62, 0.72], [0, 1], [-0.62, 0.72], [-1, 0], [-0.62, -0.72], [0, -1], [0.62, -0.72]], {
-      hard: [2, 6],
-      scale: (t) => { const k = 1 - 0.32 * sstep(0, 0.8, t) + 0.55 * sstep(0.82, 1, t); return [0.019 * k, 0.024 * k]; },
-      up: [1, 0, 0], caps: true,
-    });
-    add(quill, L.iron);
-    // forked tip: two short flame prongs
-    for (const f of [-1, 1]) {
-      const pr = curve([[X0 + 0.03, s * 0.212, f * 0.006], [X0 + 0.046 + f * 0.01, s * 0.236, f * 0.012], [X0 + 0.056 + f * 0.022, s * 0.244, f * 0.014]], 6);
-      add(sweep(pr, circle(5), { scale: (t) => 0.011 * (1 - t * 0.85), caps: true, up: [0, 0, 1] }), L.iron);
+  // blade collar (the mouth the blade grows from): a faceted bronze sleeve, flame-cut where it meets the steel
+  {
+    const cs = (x) => { const ys = saberBack(Math.max(x, X0)) + 0.005, ye = saberEdge(Math.max(x, X0)) - 0.005; return [[ys, 0.0118], [ys - 0.006, 0.0138], [ye + 0.008, 0.0138], [ye, 0.006], [ye, -0.006], [ye + 0.008, -0.0138], [ys - 0.006, -0.0138], [ys, -0.0118]]; };
+    const col = sweep([[X0 - 0.002, 0, 0], [X0 + 0.07, 0, 0], [X0 + 0.118, 0, 0]], (t) => cs(lerp(X0, X0 + 0.118, t)).map(([y, z]) => [y, z * (1 - 0.14 * t)]), { up: [0, 1, 0], hard: [0, 1, 2, 3, 4, 5, 6, 7] });
+    add(col, L.bronze);
+    for (const s of [1, -1]) {
+      // three flame tongues licking onto the blade
+      for (const [y, len] of [[0.012, 0.075], [-0.012, 0.11], [-0.036, 0.07]]) {
+        const tg = extrude([[0, -0.009], [len * 0.5, -0.006], [len, 0.003], [len * 0.55, 0.006], [0, 0.009]], { depth: 0.0022, bevel: 0.0008, bevelSegs: 1 });
+        tg.translate(X0 + 0.112, y, s * (TH(0.06) + 0.0012));
+        add(tg, L.bronze);
+      }
     }
-    // langet plates running onto the blade (both flats)
-    const lg = extrude([[0, -0.016], [0.07, -0.012], [0.085, 0], [0.07, 0.012], [0, 0.016]], { depth: 0.003, bevel: 0.0012, bevelSegs: 1 });
-    lg.translate(XR - 0.01, 0, s * 0.0135);
-    add(lg, L.bronze);
   }
-  // grip: waisted core, helical leather wrap, binding wire rings, bronze ferrules
-  const GX0 = X0 - 0.032, GX1 = -0.235;
-  const core = lathe([[0.0, 0], [0.0175, 0], [0.0165, 0.08], [0.0158, 0.15], [0.0168, 0.23], [0.0182, 0.27], [0.0, 0.27]], { segs: 14 });
-  core.rotateZ(90 * DEG); core.translate(GX0, 0, 0);
+  // guard: a thick four-lobed oval plate
+  {
+    const pts = [];
+    for (let i = 0; i < 28; i++) { const a = (i / 28) * Math.PI * 2, r = 1 + 0.07 * Math.cos(4 * a); pts.push([Math.cos(a) * 0.037 * r, Math.sin(a) * 0.07 * r - 0.006]); }
+    const g = extrude(pts, { depth: 0.012, bevel: 0.003, bevelSegs: 2 });
+    g.rotateY(90 * DEG); g.translate(X0 - 0.01, 0, 0);
+    add(g, L.iron);
+    for (const sx of [-1, 1]) {
+      const rim = sweep(pts.map(([z, y]) => [X0 - 0.01 + sx * 0.0068, y * 0.86, -z * 0.84]), circle(4), { scale: 0.0018, closed: true, up: [1, 0, 0] });
+      add(rim, L.bronze);
+    }
+  }
+  // long two-handed hilt: waisted wooden core, cord wrap, bronze ferrules
+  const GX0 = X0 - 0.017, GX1 = -0.25;
+  const core = lathe([[0.0, 0], [0.018, 0], [0.0168, 0.09], [0.016, 0.17], [0.0172, 0.26], [0.0186, GX0 - GX1], [0.0, GX0 - GX1]], { segs: 14 });
+  core.rotateZ(90 * DEG); core.scale(1, 1.08, 0.9); core.translate(GX0, 0, 0);
   add(core, L.leather);
-  add(helixWrap({ x0: GX0 - 0.008, x1: GX1 + 0.014, r: (t) => 0.0172 + 0.0012 * Math.sin(t * Math.PI), turns: 13, width: 0.019, thick: 0.0022, seg: 8 }), L.leather);
-  for (const xw of [-0.088, -0.1]) add(sweep(circle(14).map(([c, d]) => [xw, c * 0.02, d * 0.02]), circle(4), { scale: 0.0013, closed: true, up: [1, 0, 0] }), L.wire);
-  for (const [xf, r] of [[GX0 + 0.004, 0.0215], [GX1 - 0.002, 0.022]]) {
-    const fe = lathe([[r * 0.9, -0.009], [r, -0.006], [r * 1.04, 0], [r, 0.006], [r * 0.9, 0.009]], { segs: 16 });
+  add(helixWrap({ x0: GX0 - 0.01, x1: GX1 + 0.016, r: (t) => 0.0178 + 0.0012 * Math.sin(t * Math.PI), turns: 17, width: 0.017, thick: 0.0024, seg: 8 }), L.cord);
+  for (const [xf, r] of [[GX0 + 0.002, 0.0225], [GX1 - 0.001, 0.023], [-0.118, 0.0212]]) {
+    const fe = lathe([[r * 0.9, -0.009], [r, -0.006], [r * 1.05, 0], [r, 0.006], [r * 0.9, 0.009]], { segs: 16 });
     fe.rotateZ(90 * DEG); fe.translate(xf, 0, 0);
     add(fe, L.bronze);
   }
-  // pommel: heavy faceted wheel with an ember core, peen block
-  const PX = GX1 - 0.045;
-  // octagonal forged wheel (flat facets), raised rim with a hard apex, dished faces holding the ember cores
-  const wheel0 = lathe([[0.0, -0.0165], [0.0165, -0.0165], [0.0205, -0.0225], [0.029, -0.0225], [0.038, -0.0135], [0.0425, 0], [0.038, 0.0135], [0.029, 0.0225], [0.0205, 0.0225], [0.0165, 0.0165], [0.0, 0.0165]], { segs: 8, hard: [1, 2, 3, 4, 5, 6, 7, 8, 9] });
-  wheel0.rotateY(22.5 * DEG);
-  const wheel = autoCav(creased(wheel0, 30), 0.004);
-  wheel0.dispose();
-  wheel.rotateX(90 * DEG); wheel.translate(PX, 0, 0);
-  add(wheel, L.iron);
-  for (const s of [1, -1]) {
-    const core2 = lathe([[0.0, 0.0062], [0.006, 0.0054], [0.011, 0.0034], [0.0145, 0.0], [0.0, 0.0]], { segs: 12 });
-    core2.rotateX(s * 90 * DEG); core2.translate(PX, 0, s * 0.0163);
-    add(core2, L.gem);
+  // ring pommel (환두): a neck and a heavy ring in the plane of the blade; the pommel end stays at x = -0.334
+  const RX = -0.298, RR = 0.029;
+  const neck = lathe([[0.019, 0], [0.021, 0.006], [0.015, 0.014], [0.011, 0.022]], { segs: 10 });
+  neck.rotateZ(90 * DEG); neck.translate(GX1 - 0.006, 0, 0);
+  add(neck, L.bronze);
+  const rpts = [];
+  for (let i = 0; i < 22; i++) { const a = (i / 22) * Math.PI * 2; rpts.push([RX + Math.cos(a) * RR, Math.sin(a) * RR, 0]); }
+  add(sweep(rpts, [[1, 0], [0.5, 0.82], [-0.5, 0.82], [-1, 0], [-0.5, -0.82], [0.5, -0.82]], { scale: 0.0072, closed: true, up: [0, 0, 1], hard: [0, 3] }), L.iron);
+  // cloth strip tied through the ring: knot + hanging ends (on the spring chain when the design declares one)
+  const kn = lathe([[0, 0.012], [0.008, 0.009], [0.011, 0], [0.008, -0.009], [0, -0.012]], { segs: 8 });
+  kn.scale(1, 1, 1.5); kn.translate(RX - RR + 0.002, -0.006, 0);
+  add(kn, L.cloth);
+  if (o.strip) {
+    const H = o.strip, path = chainPath(kit, H), cv = new THREE.CatmullRomCurve3(path.map((q) => new THREE.Vector3(...q)), false, 'centripetal').getPoints(H.n * 4);
+    for (const [w, off, len] of [[0.03, 0.006, 1], [0.024, -0.006, 0.72]]) {
+      const n = Math.round(cv.length * len), pts = cv.slice(0, n).map((q) => q.clone().add(new THREE.Vector3(0, 0, off)));
+      const g = ribbon(pts, { width: (t) => w * (1 - 0.3 * t), normal: [0, 0, 1], camber: 0.12, nu: 2, weights: (t) => chainWeights(H, t * len, 0.05) });
+      putSkinned(kit, slot, g, L.cloth, weightsOf(g.userData.W));
+    }
+  } else {
+    for (const [dx, len] of [[-0.012, 0.07], [0.004, 0.05]]) add(ribbon([[RX - RR + 0.002, -0.012, 0], [RX - RR + dx, -0.012 - len * 0.5, 0.004], [RX - RR + dx * 1.6, -0.012 - len, 0]], { width: 0.024, normal: [0, 0, 1], camber: 0.12, nu: 2, solid: true }), L.cloth);
   }
-  const peen = lathe([[0.0, 0], [0.012, 0], [0.014, 0.008], [0.009, 0.016], [0.0, 0.018]], { segs: 8, hard: [1] });
-  peen.rotateZ(90 * DEG); peen.translate(PX - 0.036, 0, 0);
-  add(peen, L.bronze);
   return WEAPON_SPECS.greatsword;
 }
 

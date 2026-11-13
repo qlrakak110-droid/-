@@ -23,7 +23,7 @@ import * as IK from '../char/ik.js';
 import { knight } from '../char/designs/knight.js';
 import '../char/clips/demo.js';
 import * as qa from '../char/qa.js';
-import { CLOTH_STEP } from '../char/cloth.js';
+import { CLOTH_STEP, Cloth } from '../char/cloth.js';
 import { kael } from '../fighters/kael/design.js';
 import { iska } from '../fighters/iska/design.js';
 import { vorn } from '../fighters/vorn/design.js';
@@ -706,6 +706,8 @@ function fullOf(id) {
   if (!fullCache.has(id)) fullCache.set(id, createCharacter(CTX, SHIPPED[id], { parent: null, name: 'rigqa_full_' + id }));
   return fullCache.get(id);
 }
+/** Largest structural cloth stretch allowed per shipped design (x rest; ISKA's narrow ribbon tails 3-4 cm wide get more). */
+const CLOTH_STRETCH = { kael: 2.5, iska: 5, vorn: 2.5 };
 const CLOTH_CLIPS = {
   kael: ['kael.ult.spin', 'kael.lunge', 'kael.dodge', 'kael.pyre'],
   iska: ['iska.glacier_pirouette', 'iska.rising_crescent', 'iska.roll', 'iska.ko'],
@@ -724,12 +726,13 @@ function testShippedCloth(ids = ['kael', 'iska', 'vorn']) {
     const rows = (SHIPPED[id].cloth || []).map((sp) => sp.pinRows ?? 1);
     const free = [];
     c.rig.names.forEach((n, k) => { const m = /^(.*)_(\d+)_(\d+)$/.exec(n); const ci = m ? specs.indexOf(m[1]) : -1; if (ci >= 0 && +m[3] >= rows[ci]) free.push(c.bones[n]); });
-    let head = 0, low = 0, nan = 0, frames = 0;
+    let head = 0, low = 0, nan = 0, frames = 0, stretch = 0, stretchAt = '';
     for (const clip of CLOTH_CLIPS[id]) {
       qa.resetForQA(c, clip, {});
       const n = Math.round(getClip(c.rig, clip).duration * 60);
       for (let i = 0; i < n; i++) {
         c.update(1 / 60, 1 / 60); frames++;
+        for (const cl of clothsOf(c)) { const st = clothStretch(cl); if (st > stretch) { stretch = st; stretchAt = `${clip}@${r((i + 1) / 60, 3)} ${cl.layout.spec.name}`; } }
         c.root.updateMatrixWorld(true);
         c.bones.head.localToWorld(hc.set(0.01 * s, 0.1 * s, 0));
         for (const b of free) {
@@ -743,13 +746,17 @@ function testShippedCloth(ids = ['kael', 'iska', 'vorn']) {
     check(`${id} (full design, ${free.length} free cloth particles, ${frames} frames): cloth NaN`, nan, 0);
     check(`${id}: free cloth particle-frames inside the head core (spins, rolls, KO)`, head, 0);
     check(`${id}: lowest free cloth particle (m below the floor)`, r(-low, 4), 0.003);
+    // structural edges after the strain limit (1.15 x rest; what is left: collisions pushing a particle out against it)
+    check(`${id}: largest cloth structural stretch (x rest; ${stretchAt})`, r(stretch, 2), CLOTH_STRETCH[id] ?? 2.5);
     // CPU
+    // (the first update after each reset re-hangs the cloth: 10 settling steps, a respawn cost, not a frame's)
     const best = [];
-    for (let rep = 0; rep < 5; rep++) {
+    for (let rep = 0; rep < 7; rep++) {
       let j = 0;
       for (const clip of CLOTH_CLIPS[id]) {
         qa.resetForQA(c, clip, {});
-        const n = Math.round(getClip(c.rig, clip).duration * 60);
+        c.update(1 / 60, 1 / 60);
+        const n = Math.round(getClip(c.rig, clip).duration * 60) - 1;
         for (let i = 0; i < n; i++, j++) {
           const t0 = performance.now(); c.update(1 / 60, 1 / 60); const ms = performance.now() - t0;
           if (rep === 1) best[j] = ms; else if (rep > 1) best[j] = Math.min(best[j], ms); // run 0 warms the JIT up
@@ -757,7 +764,7 @@ function testShippedCloth(ids = ['kael', 'iska', 'vorn']) {
       }
     }
     const mean = best.reduce((a, x) => a + x, 0) / best.length;
-    check(`${id}: CPU char.update, full design with cloth (ms, mean of per-frame minima over 4 runs)`, r(mean, 3), 1.0);
+    check(`${id}: CPU char.update, full design with cloth (ms, mean of per-frame minima over 6 runs)`, r(mean, 3), 1.0);
     out[id] = { free: free.length, head, low: r(low, 4), nan, cpu: r(mean, 3) };
   }
   return out;
@@ -979,6 +986,173 @@ function testAudit2() {
   return res;
 }
 
+// ---- 10. round 3: animator reports and the round-2 residuals fixed in round 3 ------------------------------------------
+/** Every Cloth instance that has stepped (for particle-level checks): Cloth.prototype.update is wrapped once. */
+const CLOTHS = [];
+{
+  const orig = Cloth.prototype.update;
+  Cloth.prototype.update = function (...a) { if (!this.__seen) { this.__seen = true; CLOTHS.push(this); } return orig.apply(this, a); };
+}
+const clothsOf = (c) => CLOTHS.filter((cl) => cl.rig === c.rig);
+/** Largest structural edge length / rest length of a cloth now (simulated particles). */
+function clothStretch(cl) {
+  let m = 0;
+  const p = cl.p, cons = cl.cons;
+  for (let k = 0; k < cons.length; k += 4) {
+    const a = cons[k], b = cons[k + 1];
+    if (Math.abs(b - a) !== 1 && Math.abs(b - a) !== cl.C) continue;
+    m = Math.max(m, Math.hypot(p[b * 3] - p[a * 3], p[b * 3 + 1] - p[a * 3 + 1], p[b * 3 + 2] - p[a * 3 + 2]) / cons[k + 2]);
+  }
+  return m;
+}
+/** Largest local rotation step (deg) of `bone` over a clip recorded at `hz` on a rig-only fighter (or the knight). */
+function boneStep(c, clip, bone, hz = 120) {
+  qa.resetForQA(c, clip, { breath: 1 });
+  const n = Math.round(getClip(c.rig, clip).duration * hz) + 1, rec = qa.record(c, { hz, frames: n, time: false }), k = rec.idx[bone];
+  let m = 0;
+  for (let f = 1; f < n; f++) m = Math.max(m, qa.qangle(rec.Q, ((f - 1) * rec.B + k) * 4, rec.Q, (f * rec.B + k) * 4) * R2D);
+  return m;
+}
+function testRound3() {
+  const res = {}, k = mk('kael');
+  // anim: an effector keyed only with weight 0 (FK on purpose) compiles; a pole-only off-hand key compiles
+  {
+    let threw = 0;
+    try {
+      defineClip('rigqa.w0', { duration: 0.5, keys: [{ t: 0, pose: 'neutral', ik: { footL: { w: 0 }, footR: { w: 0 } } }, { t: 0.5, ik: { footL: { w: 0 } } }] });
+      defineClip('rigqa.pole', { duration: 0.5, keys: [{ t: 0, pose: 'neutral', grip: 1, ik: { handL: { pole: [0.1, 0.9, -0.6] } } }] });
+      invalidateClips(); getClip(k.rig, 'rigqa.w0'); getClip(k.rig, 'rigqa.pole');
+    } catch (e) { threw++; res.w0 = String(e.message); }
+    check('IK effector keyed only with w: 0 / a pole-only hand key: clips that throw at compile', threw, 0);
+  }
+  // off hand on a two-handed grip while the blade turns through backward aims (fist at the hip): continuity, and a
+  // keyed handL pole is honoured during the grip
+  {
+    const R = {};
+    const cases = {
+      sagittal: (t) => { const a = t * 2 * Math.PI; return { pos: [0.12, 0.98, 0.16], aim: [Math.cos(a), Math.sin(a), 0], up: [-Math.sin(a), Math.cos(a), 0] }; },
+      yaw: (t) => { const a = t * 2 * Math.PI; return { pos: [0.15, 1.0, 0.18], aim: [Math.cos(a), -0.2, Math.sin(a)], up: [0, 1, 0] }; },
+      behindHip: (t) => ({ pos: [0.35 - 0.6 * t, 0.95, 0.22], aim: [-0.6, -0.8, 0], up: [-0.8, 0.6, 0] }),
+    };
+    let sw = 0, el = 0, side = 1;
+    for (const [name, fn] of Object.entries(cases)) for (const pole of [null, [0.3, 1.5, -0.7]]) {
+      const keys = [];
+      for (let i = 0; i <= 40; i++) keys.push({ t: (i / 40) * 2, interp: 'linear', ik: { handR: fn(i / 40), ...(pole ? { handL: { pole } } : {}) }, grip: 1 });
+      defineClip('rigqa.gs', { duration: 2, keys: [{ t: 0, pose: 'neutral', grip: 1, curl: [1, 1] }, ...keys] });
+      invalidateClips();
+      qa.resetForQA(k, 'rigqa.gs', { breath: 0 });
+      const rec = qa.record(k, { hz: 60, frames: 121, time: false });
+      let toward = 0;
+      for (let f = 1; f < 121; f++) {
+        sw = Math.max(sw, swivelStep(rec, f, 'L'));
+        el = Math.max(el, vlen(vsub(cpt(rec, f, 'foreArmL'), cpt(rec, f - 1, 'foreArmL'))) - vlen(vsub(cpt(rec, f, 'weaponL'), cpt(rec, f - 1, 'weaponL'))));
+        if (pole) { const e = elbowPerp(rec, f, 'L'), s0 = cpt(rec, f, 'upperArmL'), pp = vsub(pole, s0); if (vdot(pp, e.p) > 0) toward++; }
+      }
+      if (pole) side = Math.min(side, toward / 120);
+      R[name + (pole ? '+pole' : '')] = toward;
+    }
+    res.gripSweep = R;
+    check('grip sweeps (blade through backward aims, grip behind the hip): off-hand elbow swivel step (deg/frame)', sw, 30);
+    check('grip sweeps: off-hand elbow step beyond the off fist\'s (m/frame)', el, 0.08);
+    // (without the pole the elbow is on that side in 0 frames; through backward aims the wrist still wins some frames)
+    check('grip sweeps with a keyed handL pole: share of frames with the elbow on the pole\'s side', r(side, 3), 0.7, '>=');
+  }
+  // hips-space feet through a backflip (pelvis turned over): thighs never twist round
+  {
+    const keys = [{ t: 0, pose: 'neutral', hips: { pos: [0, 0, 0], rot: [0, 0, 0] } }];
+    for (let i = 0; i <= 12; i++) {
+      const a = (i / 12) * 360;
+      keys.push({ t: 0.1 + i * 0.05, interp: 'linear', hips: { pos: [-0.1 * Math.sin((i / 12) * Math.PI), 0.9 * Math.sin((i / 12) * Math.PI), 0], rot: [0, 0, a] },
+        ik: { footR: { pos: [0.22, -0.62, 0.11], aim: [1, 0, 0], up: [0, 1, 0], space: 'hips' }, footL: { pos: [0.22, -0.62, -0.11], aim: [1, 0, 0], up: [0, 1, 0], space: 'hips' } } });
+    }
+    defineClip('rigqa.flip', { duration: 0.8, keys });
+    invalidateClips();
+    let tw = 0, st = 0;
+    qa.resetForQA(k, 'rigqa.flip', { breath: 0 });
+    const rec = qa.record(k, { hz: 60, frames: 49, time: false });
+    for (let f = 0; f < 49; f++) for (const S of ['R', 'L']) {
+      const o = (f * rec.B + rec.idx['thigh' + S]) * 4;
+      tw = Math.max(tw, Math.abs(qa.twistY(rec.Q, o)));
+      if (f) st = Math.max(st, qa.qangle(rec.Q, o - rec.B * 4, rec.Q, o) * R2D);
+    }
+    check('backflip with hips-space feet: thigh twist (deg)', tw, 30);
+    check('backflip with hips-space feet: thigh step (deg/frame)', st, 25);
+  }
+  // re-planting a nearly straight leg keeps its knee (vorn.getup rose a straight leg with the thigh twisted round)
+  check('vorn.getup (rig only, 120 Hz): thigh step (deg/frame; round 2: 128)', boneStep(rigOnly('vorn'), 'vorn.getup', 'thighR'), 30);
+  // the wrist clamp never flips the bend of a hand whose key asks for more than 120 deg of bend
+  {
+    let m = 0;
+    for (const [id, clip, b] of [['kael', 'kael.bulwark', 'handL'], ['kael', 'kael.defeat', 'handL'], ['kael', 'kael.ult.spin', 'handR'], ['iska', 'iska.crystal_procession', 'handL']]) m = Math.max(m, boneStep(rigOnly(id), clip, b));
+    check('impossible wrist keys (kael.bulwark / defeat / ult.spin, iska.crystal_procession): hand step (deg per 1/120 s; round 2: 159)', m, 75);
+  }
+  // an override layer that changes the grip point lets go and re-grips like a crossfade (no velocity step)
+  {
+    const run = (useLayer) => {
+      qa.resetForQA(k, 'demo.idle', { breath: 0 });
+      for (let i = 0; i < 10; i++) k.update(1 / 60, 1 / 60);
+      const rec = qa.record(k, { hz: 60, frames: 40, time: false, before: (i) => { if (i === 5) { if (useLayer) k.layer('blk', 'demo.guard', { mask: 'upper', fade: 0.2 }); else k.play('demo.guard', { fade: 0.2 }); } } });
+      let m = 0;
+      for (const b of ['upperArmL', 'foreArmL', 'upperArmR', 'foreArmR']) {
+        const i = rec.idx[b];
+        for (let f = 4; f <= 9; f++) {
+          const w0 = qa.qangle(rec.Q, ((f - 1) * rec.B + i) * 4, rec.Q, (f * rec.B + i) * 4) * R2D * 60, wm = qa.qangle(rec.Q, ((f - 2) * rec.B + i) * 4, rec.Q, ((f - 1) * rec.B + i) * 4) * R2D * 60;
+          m = Math.max(m, Math.abs(w0 - wm));
+        }
+      }
+      if (useLayer) { k.stopLayer('blk', 0); k.update(0, 0); }
+      return m;
+    };
+    const lay = run(true), xf = run(false);
+    res.layerFade = { layer: r(lay, 1), crossfade: r(xf, 1) };
+    check('layer idle -> guard (grip point change): velocity step at the fade start / a crossfade\'s', r(lay / Math.max(xf, 1), 2), 1.5);
+  }
+  // qa.jointLimits: arms raised to the vertical are not reported (no Euler flip near 180 deg of elevation)
+  {
+    defineClip('rigqa.up', { duration: 1, keys: [{ t: 0, pose: 'neutral', grip: 0 }, { t: 0.5, bones: { upperArmR: [-178, 0, 0], upperArmL: [0, 0, 178], foreArmR: [0, 0, 5], foreArmL: [0, 0, 5] } }, { t: 1, bones: { upperArmR: [-178, 0, 0], upperArmL: [0, 0, 178] } }] });
+    invalidateClips();
+    qa.resetForQA(k, 'rigqa.up', { breath: 0 });
+    const rec = qa.record(k, { hz: 60, frames: 61, time: false });
+    const jl = qa.jointLimits(rec).filter((x) => /^upperArm/.test(x.joint));
+    res.armsUp = jl;
+    check('arms raised to 178 deg (abduction / flexion): upper-arm joint-limit reports', jl.length, 0);
+  }
+  // opt-in edge roll: a key the wrist cannot take keeps its blade aim better (clip edgeRoll)
+  {
+    const aimErr = (edge) => {
+      defineClip('rigqa.edge', { duration: 1, loop: true, edgeRoll: edge, keys: [{ t: 0, pose: 'neutral', grip: 0, ik: { handR: { pos: [0.35, 1.25, 0.25], aim: [-0.2, 0.3, -0.93], up: [0.95, 0.25, -0.15] } } }] });
+      invalidateClips();
+      qa.resetForQA(k, 'rigqa.edge', { breath: 0 });
+      for (let i = 0; i < 40; i++) k.update(1 / 60, 1 / 60);
+      const q = k.bones.weaponR.getWorldQuaternion(new THREE.Quaternion()), ax = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+      return Math.acos(Math.max(-1, Math.min(1, ax.dot(new THREE.Vector3(-0.2, 0.3, -0.93).normalize())))) * R2D;
+    };
+    const off = aimErr(0), on = aimErr(70);
+    res.edgeRoll = { off: r(off, 1), on: r(on, 1) };
+    check('impossible blade key: aim error with edgeRoll 70 vs without (deg)', r(on - off, 1), 0, '<=');
+  }
+  // cloth: stretch, frame-rate dependence, CPU of the shipped designs (round 3: strain limit after collision, pins on
+  // their bones' arcs inside a frame, root motion applied to last frame's pins)
+  {
+    const c = fullOf('kael');
+    const snap = (h) => {
+      qa.resetForQA(c, 'kael.idle', { breath: 0 });
+      for (let i = 0; i < 45; i++) c.update(1 / 60, 1 / 60);
+      c.play('kael.walkF', { fade: 0.08, restart: true });
+      const out = [];
+      const d = getClip(c.rig, 'kael.walkF').duration;
+      let t = 0, next = 1 / 30;
+      while (t < d - 1e-9) { c.update(h, h); t += h; c.root.position.x += c.rootDelta.f * c.facing; if (t >= next - 1e-7) { out.push(clothsOf(c).map((cl) => Float32Array.from(cl.p))); next += 1 / 30; } }
+      return out;
+    };
+    const a = snap(1 / 60), b = snap(1 / 30);
+    let m = 0;
+    for (let i = 0; i < Math.min(a.length, b.length); i++) for (let j = 0; j < a[i].length; j++) for (let q = 0; q < a[i][j].length; q += 3) m = Math.max(m, Math.hypot(a[i][j][q] - b[i][j][q], a[i][j][q + 1] - b[i][j][q + 1], a[i][j][q + 2] - b[i][j][q + 2]));
+    check('kael.walkF cloth, 30 Hz vs 60 Hz: largest particle deviation (m)', m, 0.12);
+  }
+  return res;
+}
+
 /** Per-frame arm values of a shipped clip (debugging): [t, swivel, axis turn, elbow step, wrist step, fist step] (deg, mm). */
 function armTrace(id, name, S = 'R', from = 0, to = 1e9) {
   const c = id === 'knight' ? mk('kael') : rigOnly(id), cl = getClip(c.rig, name);
@@ -1004,7 +1178,7 @@ function runAll(opts = {}) {
   CHECKS = [];
   const t0 = performance.now();
   const only = opts.only;
-  const groups = { clips: () => testClips(opts.bodies), runtime: testRuntime, ik: testIK, audit2: testAudit2, xfade: testXfade, cloth: testCloth, shipped: () => testShippedArms(opts.fighters), shippedCloth: () => testShippedCloth(opts.fighters), cpu: testCpu };
+  const groups = { clips: () => testClips(opts.bodies), runtime: testRuntime, ik: testIK, audit2: testAudit2, round3: testRound3, xfade: testXfade, cloth: testCloth, shipped: () => testShippedArms(opts.fighters), shippedCloth: () => testShippedCloth(opts.fighters), cpu: testCpu };
   const detail = {};
   for (const [g, fn] of Object.entries(groups)) {
     if (only && only !== g) continue;

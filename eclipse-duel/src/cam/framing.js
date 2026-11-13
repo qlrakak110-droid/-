@@ -43,6 +43,8 @@ export function defaultFight() {
     aspectRef: 1.5,
     aspectFov: 16,
     breathe: 0.12,
+    hitZoom: 0.035,
+    hitZoomMin: 0.3,
     lag: { focus: 0.2, cam: 0.42, out: 0.16, in: 0.55, sep: 0.3, rise: 0.08, fall: 0.45, land: 0.08, lift: 0.25, pan: 0.35, panPush: 0.1, fov: 0.6 },
   };
 }

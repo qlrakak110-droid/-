@@ -29,9 +29,9 @@ export default async ({ page, evalJs, advance, shot, log }) => {
   await advance(0.3);
   await key('Enter');
   check('title: Enter emits start once and opens select', (await events('start')).length === 1 && (await screen()) === 'select');
-  await key('KeyD');                                   // focus KAEL -> ISKA
-  check('select: D moves focus to the next card', await evalJs("__ED.lab.ui.focused().querySelector('.card-name').textContent === 'ISKA'"));
-  await key('KeyJ');                                   // J = light + confirm: pick ISKA as P1
+  await key('KeyD');                                   // focus 염무강 -> 설리화
+  check('select: D moves focus to the next card', await evalJs("__ED.lab.ui.focused().querySelector('.card-name').dataset.name === '설리화'"));
+  await key('KeyJ');                                   // J = light + confirm: pick 설리화 (iska) as P1
   await key('Enter');                                  // focus moved to VORN for the CPU pick
   await key('ArrowRight');                             // difficulty normal -> hard (arrows move P1 in solo mode)
   await key('Enter');                                  // begin

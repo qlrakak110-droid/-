@@ -84,21 +84,48 @@ export function createScreens(ui) {
   // TITLE
 
   const title = (() => {
-    // the lockup: the ink eclipse behind the brush-written title, the Hanja in a vertical cartouche with the seal
+    // the lockup: the ink eclipse behind the brush-written title and its seal, the Hanja between dry-brush rules
     const mark = h('div.tt-mark', { html: eclipseMark() });
     const glow = h('i.tt-glow');
     const word = h('h1.tt-word', { 'aria-label': `${TITLE.name} ${TITLE.hanja}`, html: brushText(TITLE.name, { weight: 1.16, gap: 4, seed: 1, fill: ['#fffaf0', '#d9cdb2'] }) });
-    const side = h('div.tt-side', null, h('span.tt-hanja', { text: TITLE.hanja }), h('i.tt-seal', { html: seal(TITLE.hanja, { seed: 3 }) }));
-    const sub = h('div.tt-sub', { html: `${divider({ seed: 6 })}<b>${esc(TITLE.nameEn)}</b>${divider({ seed: 7, flip: true })}` });
+    const stamp = h('i.tt-seal', { html: seal(TITLE.hanja, { seed: 3 }) });
+    const sub = h('div.tt-sub', { html: `${divider({ seed: 6 })}<b>${esc(TITLE.hanja)}</b>${divider({ seed: 7, flip: true })}` });
+    const en = h('div.tt-en', { text: TITLE.nameEn });
     const tag = h('div.tt-tag', { html: `<span>${esc(TITLE.tag)}</span><em>${esc(TITLE.tagEn)}</em>` });
-    const lockup = h('div.tt-lockup', null, glow, mark, h('div.tt-type', null, word, side), sub, tag);
+    const lockup = h('div.tt-lockup', null, glow, mark, h('div.tt-type', null, word, stamp), sub, en, tag);
     const startTxt = h('span.tt-start-txt');
     const start = ui.item(h('button.tt-start', { type: 'button' }, startTxt), { act: () => ui.emit('start') });
     // title menu: entries stack under the start prompt
     const menu = h('div.tt-menu', null, start);
+    // 강호행 (the action-RPG mode, src/rpg): one entry per hero -> event `expedition` (hero id)
+    const expBtns = [];
+    const exp = h('div.tt-exp', { style: 'position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 10px;margin-top:4px;pointer-events:auto' },
+      h('span.tt-exp-label', { style: 'display:flex;flex-direction:column;align-items:center;gap:3px;margin-right:6px;text-align:center',
+        html: '<span class="ko" style="font:600 max(13px,calc(var(--k)*16))/1.2 var(--f-ko);letter-spacing:.2em;color:var(--paper,#ece4d2);text-shadow:0 1px 0 #000">강호행 <i class="hj" style="font-style:normal;opacity:.75">江湖行</i></span><span class="en" style="font:600 10px/1 var(--f-data);letter-spacing:.3em;color:var(--seal-hi,#d8b46a)">ACTION RPG</span>' }));
+    function buildExpedition() {
+      for (const b of expBtns) b.remove();
+      expBtns.length = 0;
+      for (const f of ui.roster || []) {
+        const b = ui.item(h('button.tt-exp-btn', { type: 'button', 'aria-label': `강호행 ${f.name}`,
+          style: 'min-width:86px;min-height:44px;padding:6px 12px;border:1px solid rgba(216,180,106,.45);background:rgba(6,6,9,.62);color:var(--paper,#ece4d2);cursor:pointer;font:600 max(12px,calc(var(--k)*14))/1.2 var(--f-ko);letter-spacing:.12em',
+          html: `<span>${esc(f.name)}</span><em style="display:block;margin-top:3px;font:600 9px/1 var(--f-data);letter-spacing:.24em;font-style:normal;color:var(--seal-hi,#d8b46a)">${esc(f.nameEn || '')}</em>` }), { act: () => ui.emit('expedition', f.id) });
+        expBtns.push(b);
+        exp.appendChild(b);
+      }
+    }
+    menu.appendChild(exp);
     const quality = segmented({ ko: '그래픽 품질', en: 'QUALITY', options: QUALITIES, value: qualityNow(), onChange: (v) => ui.emit('quality', v), cls: 'tt-quality' });
     const foot = h('div.tt-foot', null, h('div.tt-ver', { html: `<b>v0.1</b> · ${esc(ARENA.arena)} ${esc(ARENA.arenaHanja)}` }), quality);
-    const el = h('div', null, h('div.scr-shade.tt-shade'), h('div.tt-mount', { html: mountains({ seed: 8 }) }), lockup, menu, foot);
+    const body = h('div.tt-body', null, lockup, menu);
+    const el = h('div', null, h('div.scr-shade.tt-shade'), h('div.tt-mount', { html: mountains({ seed: 8 }) }), body, foot);
+    /** The lockup and the menu always fit between the top edge and the footer: shrink them as one when they do not. */
+    function fit() {
+      body.style.transform = '';
+      const cs = getComputedStyle(el);
+      const avail = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const need = body.offsetHeight;
+      if (avail > 0 && need > avail) body.style.transform = `scale(${(avail / need).toFixed(4)})`;
+    }
     // a tap / click anywhere that is not a control starts
     el.addEventListener('click', () => { if (ui.screen === 'title') { ui.sound('ui_select'); ui.emit('start'); } });
     let t = 0;
@@ -108,7 +135,9 @@ export function createScreens(ui) {
         t = 0;
         quality.set(d.quality || qualityNow());
         startTxt.innerHTML = ui.device === 'touch' ? bilingual('화면을 눌러 비무대에 오른다', 'TAP TO BEGIN') : bilingual('아무 버튼이나 눌러 비무대에 오른다', 'PRESS ANY BUTTON');
-        ui.setItems([start, quality], start);
+        buildExpedition();
+        fit();
+        ui.setItems([start, ...expBtns, quality], start);
         mark.style.opacity = '0';
         anim.add(1.6, (k) => {
           mark.style.opacity = k.toFixed(3);
@@ -120,15 +149,12 @@ export function createScreens(ui) {
           word.style.opacity = Math.min(1, k * 1.6).toFixed(3);
           word.style.transform = k < 1 ? `scale(${(1.14 - 0.14 * k).toFixed(4)})` : '';
         }, { key: word, delay: 0.3, ease: 'outQuart' });
-        const stamp = side.lastChild;
-        side.style.opacity = '0';
-        anim.add(0.5, (k) => { side.style.opacity = k.toFixed(3); }, { key: side, delay: 0.85, ease: 'outCubic' });
         stamp.style.opacity = '0';
         anim.add(0.34, (k) => {
           stamp.style.opacity = Math.min(1, k * 2.5).toFixed(3);
           stamp.style.transform = k < 1 ? `scale(${(1.9 - 0.9 * k).toFixed(4)}) rotate(${(-9 * (1 - k)).toFixed(2)}deg)` : '';
         }, { key: stamp, delay: 1.15, ease: 'outQuart' });
-        rise([sub, tag], { delay: 0.75, step: 0.14, dist: 12, dur: 0.8 });
+        rise([sub, en, tag], { delay: 0.75, step: 0.12, dist: 12, dur: 0.8 });
         rise([menu, foot], { delay: 1.1, step: 0.12, dist: 10, dur: 0.6 });
       },
       update(dt) {
@@ -138,6 +164,7 @@ export function createScreens(ui) {
         put(glow, 'transform', `scale(${(1 + 0.035 * Math.sin(t * 0.63)).toFixed(4)})`);
         if (t > 1.4) put(startTxt, 'opacity', (0.72 + 0.28 * Math.cos((t - 1.4) * 2.6)).toFixed(3));
       },
+      layout() { if (ui.screen === 'title') fit(); },
       onAction(action) {
         // any face button starts, unless the player is adjusting quality
         if (ui.focused() === start && /^(light|heavy|skill\d|ult|dodge|guard)$/.test(action)) { ui.sound('ui_select'); ui.emit('start'); return true; }
@@ -172,7 +199,7 @@ export function createScreens(ui) {
         h('div.card-sigil', { html: icon(f.emblem || f.element) }),
         h('div.card-tags', null, h('span.tag-p1', { text: '1P' }), h('span.tag-cpu', { text: 'CPU' })),
         h('div.card-cart', null, h('b.card-name', { 'data-name': f.name, html: brushText(f.name, { vertical: true, shadow: false, weight: 1.2, gap: 2 }) }), h('span.card-hanja', { text: f.hanja || '' }), h('i.card-seal', { html: seal(f.seal || (f.hanja || '').slice(0, 2), { seed: 5 }) })),
-        h('div.card-id', null, h('span.card-title', { html: kh(f.title, f.titleHanja) }), h('span.card-ko', { html: kh(f.sect || '', f.sectHanja) })),
+        h('div.card-id', null, h('span.card-title', { text: f.title }), h('span.card-ko', { text: [f.titleHanja, f.sect].filter(Boolean).join(' · ') })),
         h('i.card-frame'));
       c._idx = idx;
       c._onFocus = () => showDetail(f);

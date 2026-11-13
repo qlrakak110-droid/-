@@ -1,12 +1,13 @@
-<title>Eclipse Duel</title>
+<title>흑일무림 黑日武林 · Eclipse Duel</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: one-screen app. #app fills the viewport; #stage holds the WebGL canvas; #ui is the DOM overlay
-   (HUD, menus, touch controls; styled by src/ui). Single dark look by design (a night arena). */
+   (HUD, menus, touch controls; styled by src/ui). Single dark look by design: ink-black night under the black sun
+   (흑일무림 黑日武林). Tokens: ink, paper (한지), cinnabar seal red, old gold, and the three inner energies. */
 :root{
   color-scheme:dark;
-  --ed-bg:#06070b; --ed-ink:#ece6da; --ed-dim:#9a958c; --ed-gold:#d8b46a; --ed-ember:#ff6a2b; --ed-frost:#7fd4ff; --ed-volt:#b48cff; --ed-blood:#c8283c;
-  --ed-display:"Cinzel","Noto Serif KR","Nanum Myeongjo","Apple SD Gothic Neo",serif;
+  --ed-bg:#07070a; --ed-ink:#ece4d2; --ed-dim:#9d978a; --ed-seal:#b3261e; --ed-gold:#c9a55c; --ed-ember:#ff6a2b; --ed-frost:#86d2ff; --ed-volt:#b48cff; --ed-blood:#c8372d;
+  --ed-display:"Noto Serif KR","Noto Serif CJK KR","Nanum Myeongjo","AppleMyungjo","Batang","Songti SC",Georgia,serif;
   --ed-body:"Pretendard","Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
 }
 html,body{height:100%;margin:0;background:var(--ed-bg);color:var(--ed-ink);font-family:var(--ed-body);overflow:hidden;
