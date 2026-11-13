@@ -39,6 +39,10 @@ run; `src/rpg/tests/bossmodel.mjs` = in-engine review sheet. The same path (rigi
 is the cheapest way to re-dress the cultists and, with `ed/skin.py` for soft parts, the heroes. `ed/cloth.py`, `ed/bake.py`
 and the older EDM1 loader still do not exist.
 
+The Blender code is now `tools/blender/rigidkit.py` (helpers + decimate + bake + EDB1 writer) with one script per
+character in `tools/blender/heroes/` (`idol.py`, `cultist.py [--elite]` -> `src/rpg/foes/cultist.edb` / `protector.edb`,
+12.5k / 14k triangles, rig `cult`); the decoder is `src/rpg/edb.js`; `src/rpg/tests/foemodel.mjs` reviews the enemies.
+
 **Motion capture (session 2):** `python3 tools/mocap/extract_run.py tools/mocap/09_01.bvh` turns a CMU run capture
 (mocap.cs.cmu.edu, subject 9; free for any use; the database was created with funding from NSF EIA-0196217) into phase
 curves `src/rpg/core/clips/mocap_run.js`; `locomotion.js` drives pelvis bounce / sway / surge / list / twist, trunk

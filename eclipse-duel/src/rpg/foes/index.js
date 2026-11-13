@@ -1,36 +1,34 @@
 // The Black Sun Cult 흑일교 (README of src/rpg, §5 / §9): the enemies of the road.
 //   cultist     흑일교 무사: a swordsman in a black robe, cloth mask and a wide bamboo hat (rusted cleave, lunge)
 //   protector   흑일교 호법 護法: taller, iron hat with a bronze rim, lamellar shoulders, poise; adds the grave slam
-// Built on the husk rig and lofts (no cloth, 2 draw calls, ~5k triangles) so four of them cost almost nothing.
+// The husk rig and dark under-body lofts, dressed with Blender-made rigid pieces (tools/blender/heroes/cultist.py:
+// cultist.edb / protector.edb, ~12-14k triangles, 2 draw calls, no cloth simulation).
 
-import { huskDesign, meleeController } from '../core/kinds.js';
+import { meleeController } from '../core/kinds.js';
+import { cultBase } from './rigdesign.js';
+import { decodeEdb, addEdbPieces } from '../edb.js';
+import CULTIST from './cultist.edb';
+import PROTECTOR from './protector.edb';
 
-const ROBE = { color: 0x2b1519, rough: 0.95, metal: 0, detail: 0.6 };
-const SASH = { color: 0x6a1512, rough: 0.9, metal: 0, detail: 0.6 };
-const STRAW = { color: 0x77643a, rough: 0.95, metal: 0, detail: 1 };
-const IRON = { color: 0x2b2d33, rough: 0.55, metal: 0.8, detail: 1 };
-const BRONZE = { color: 0x6b5330, rough: 0.5, metal: 0.85, detail: 1 };
+const PIECES = {};
 
 function cultDesign(id, elite) {
-  const base = huskDesign(id, elite ? 0x8a6f5c : 0x5d5560, elite ? [3.4, 0.5, 0.2] : [2.4, 0.5, 0.25]);
+  const base = cultBase(id, elite);
   const baseBuild = base.build;
   return {
     ...base,
+    materials: {
+      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.8, detailScale: 6, bump: 0.18 },
+      blade: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 5, bump: 0.05 },
+    },
     build(kit, S) {
-      baseBuild(kit, S);
-      // the hat: a wide cone, the face lost in its shadow
-      kit.add('plate', 'head', S.lathe([[0.004, 0.34], [0.1, 0.3], [0.2, 0.245], [0.33, 0.165], [0.335, 0.15], [0.2, 0.215], [0.1, 0.26]], { segs: 14 }), { ...(elite ? IRON : STRAW), at: [0, 0.0, 0] });
-      if (elite) kit.add('plate', 'head', S.lathe([[0.325, 0.172], [0.345, 0.16], [0.34, 0.142], [0.32, 0.156]], { segs: 14 }), BRONZE);
-      // cloth mask and collar
-      kit.add('plate', 'head', S.shell({ y0: 0.115, y1: -0.03, rx: [[0, 0.134], [1, 0.11]], rz: [[0, 0.132], [1, 0.1]], a0: -100, a1: 100, thick: 0.006, segs: [10, 3] }), ROBE);
-      kit.add('plate', 'neck', S.shell({ y0: 0.09, y1: -0.03, rx: [[0, 0.085], [1, 0.12]], rz: [[0, 0.085], [1, 0.14]], thick: 0.008, segs: [10, 2] }), SASH);
-      // robe: skirts to the knee (open in front), a sash at the waist with a hanging end
-      kit.add('plate', 'hips', S.shell({ y0: 0.02, y1: -0.5, rx: [[0, 0.13], [1, 0.2]], rz: [[0, 0.18], [1, 0.27]], n: 2.3, a0: 40, a1: 320, thick: 0.008, segs: [14, 4], dy: (u, v) => -0.03 * Math.sin(u * 23) * v }), ROBE);
-      kit.add('plate', 'hips', S.shell({ y0: 0.07, y1: -0.05, rx: [[0, 0.135], [1, 0.14]], rz: [[0, 0.185], [1, 0.19]], n: 2.4, thick: 0.01, segs: [14, 2] }), SASH);
-      kit.add('plate', 'hips', S.box(0.02, 0.34, 0.07, 0.006), { ...SASH, at: [0.13, -0.2, 0.08], rot: [0, 0, 6] });
-      // sleeves: wide cuffs over the forearms
-      kit.addPair('plate', 'foreArm', S.shell({ y0: 0.02, y1: -0.2, rx: [[0, 0.06], [1, 0.085]], rz: [[0, 0.062], [1, 0.09]], thick: 0.006, segs: [8, 2] }), ROBE);
-      if (elite) kit.addPair('plate', 'deltoid', S.shell({ y0: 0.09, y1: -0.1, rx: [[0, 0.1], [1, 0.13]], rz: [[0, 0.11], [1, 0.15]], a0: -20, a1: 200, thick: 0.012, segs: [8, 3] }), { ...BRONZE, at: [0, 0, 0.03] });
+      // the husk's dark under-body; everything worn over it is the Blender asset (tools/blender/heroes/cultist.py)
+      const body = { ...kit, add: () => body, addPair: () => body, loft: (...a) => (kit.loft(...a), body), loftPair: (...a) => (kit.loftPair(...a), body) };
+      baseBuild(body, S);
+      kit.addPair('plate', 'hand', S.box(0.085, 0.1, 0.085, 0.02), { color: 0x241a16, rough: 0.9, metal: 0, at: [0, -0.07, 0] });
+      const k = elite ? 'protector' : 'cultist';
+      if (!PIECES[k]) PIECES[k] = decodeEdb(elite ? PROTECTOR : CULTIST);
+      addEdbPieces(kit, PIECES[k], [3.4, 0.6, 0.2]);
     },
   };
 }
