@@ -8,6 +8,8 @@ import { meleeController } from '../core/kinds.js';
 import { cultBase } from './rigdesign.js';
 import { decodeEdb, addEdbPieces } from '../edb.js';
 import { sequence } from '../cine.js';
+import { run as gait, MOCAP_WALK } from '../core/clips/locomotion.js';
+import { hasClip } from '../../char/index.js';
 import CULTIST from './cultist.edb';
 import PROTECTOR from './protector.edb';
 
@@ -19,7 +21,7 @@ function cultDesign(id, elite) {
   return {
     ...base,
     materials: {
-      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.8, detailScale: 6, bump: 0.18 },
+      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.8, detailScale: 6, bump: 0.18, side: 'double' },
       blade: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 5, bump: 0.05 },
     },
     build(kit, S) {
@@ -57,9 +59,26 @@ function attacks(k = 1, reach = 1) {
   };
 }
 
+/**
+ * Motion-captured gaits for the husk rig (the builder of the heroes' runs: planted IK feet, the body on CMU curves):
+ * a stalking walk with the saber held in the guard, and a run with the blade carried low at the side.
+ * k = the actor's scale (the clip is authored at speed / k so the scaled feet stay planted).
+ */
+function defineGaits(prefix, k, walk, runSpeed) {
+  if (hasClip(prefix + '.walk')) return;
+  const base = { track: 0.1, toe: 6, hipF: 0.02, sway: 0.014, roll: 1.4, yaw: -12, spineYaw: -3, chestYaw: -3, neckYaw: 5, headYaw: 8, curl: [1, 1], poseBase: 'demo.stance', rootScale: k };
+  gait(prefix + '.walk', { ...base, v: walk / k, T: 1.08, stance: 1.16, land: 0.3, lift: 0.1, reach: 0.035, kick: 34, kickBack: 0.06, hipY: -0.13, bounce: 0.022, lean: 5, twist: 6, grip: 1,
+    mocap: MOCAP_WALK, mocapStance: 0.58,
+    arms: (sgn) => ({ ik: { handR: { pos: [0.33, 1.07 + 0.01 * sgn, 0.1], aim: [0.8, 0.45, -0.15], up: [-0.4, 0.85, 0] } } }) });
+  gait(prefix + '.run', { ...base, v: runSpeed / k, T: 0.66, stance: 0.46, land: 0.25, lift: 0.27, reach: 0.09, hipY: -0.13, bounce: 0.045, lean: 12, twist: 7, grip: 0, armGain: 0.9,
+    arms: (sgn) => ({ ik: { handR: { pos: [0.1 + 0.05 * sgn, 0.9, 0.3], aim: [0.52, -0.62, 0.18], up: [0.6, 0.75, 0] } }, bones: { upperArmL: [0, 0, 0], foreArmL: [0, 0, 0], handL: [0, 0, 0] } }) });
+}
+
 const CLIPS = { idle: 'demo.idle', walk: 'game.walkF', run: 'game.walkF', flinch: 'game.hitLight', stagger: 'demo.hit', guard: 'demo.guard', dead: 'game.koDown', spawn: 'rpg.husk.rise' };
 
 export default function install(rpg) {
+  defineGaits('rpg.cult', 1, 1.2, 3.2);
+  defineGaits('rpg.prot', 1.3, 1.1, 2.6);
   let ctx = null;
   rpg.setup((x) => { ctx = x.ctx; });
   // the cult steps out of the dark: a short shot past their shoulders toward the hero when an encounter begins
@@ -85,17 +104,18 @@ export default function install(rpg) {
   });
   const cultist = {
     team: 'foe', name: { ko: '흑일교 무사', en: 'Black Sun Cultist' }, element: 'ember',
-    stats: { hp: 240, poise: 0, radius: 0.44, height: 1.9, scale: 1, mass: 1, walk: 1.5, run: 3.2, turn: 300, shards: 30, stamina: 60 },
+    stats: { hp: 240, poise: 0, radius: 0.44, height: 1.9, scale: 1, mass: 1, walk: 1.2, run: 3.2, turn: 300, shards: 30, stamina: 60 },
     design: cultDesign('rpg-cultist', false),
-    clips: CLIPS, attacks: attacks(1), roll: null, guard: null,
+    clips: { ...CLIPS, walk: 'rpg.cult.walk', run: 'rpg.cult.run' }, attacks: attacks(1), roll: null, guard: null,
     controller: () => meleeController({ attacks: [{ id: 'slash', range: [0, 2.0], weight: 2, cooldown: 1.2 }, { id: 'lunge', range: [1.6, 3.6], weight: 1.3, cooldown: 1.8 }], aggro: 13, keep: 1.7, circle: 0.55 }),
   };
   rpg.actor('cultist', cultist);
   rpg.actor('protector', {
     ...cultist,
     name: { ko: '흑일교 호법', en: 'Black Sun Protector' }, elite: true,
-    stats: { ...cultist.stats, hp: 660, poise: 70, scale: 1.3, radius: 0.57, height: 2.45, mass: 2.2, walk: 1.3, run: 2.6, turn: 240, shards: 120 },
+    stats: { ...cultist.stats, hp: 660, poise: 70, scale: 1.3, radius: 0.57, height: 2.45, mass: 2.2, walk: 1.1, run: 2.6, turn: 240, shards: 120 },
     design: cultDesign('rpg-protector', true),
+    clips: { ...CLIPS, walk: 'rpg.prot.walk', run: 'rpg.prot.run' },
     attacks: attacks(1.35, 1.25),
     controller: () => meleeController({ attacks: [{ id: 'slash', range: [0, 2.5], weight: 2, cooldown: 1.4 }, { id: 'lunge', range: [2.0, 4.4], weight: 1, cooldown: 2 }, { id: 'slam', range: [0, 2.9], weight: 1.5, cooldown: 2.6 }], aggro: 14, keep: 2.1, circle: 0.35 }),
   });

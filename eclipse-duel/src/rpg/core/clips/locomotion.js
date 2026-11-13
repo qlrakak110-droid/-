@@ -9,7 +9,10 @@
 //   VORN  the spear levelled at the right hip in one hand, point leading, the left arm pumps
 
 import { defineClip } from '../../../char/index.js';
-import { MOCAP_RUN as MC } from './mocap_run.js';
+import { MOCAP_RUN } from './mocap_run.js';
+import { MOCAP_WALK } from './mocap_walk.js';
+
+export { MOCAP_RUN, MOCAP_WALK };
 import { SHOULDER_HAND as K_HAND } from '../../../fighters/kael/clips/common.js';
 import { hand as iHand } from '../../../fighters/iska/clips/common.js';
 import { sp as vSpear } from '../../../fighters/vorn/clips/common.js';
@@ -28,9 +31,12 @@ const sorted = (keys) => keys.sort((a, b) => a.t - b.t);
  *   lean     forward lean of the spine (deg), yaw = base hips yaw (deg), twist = pelvis counter-rotation (deg)
  *   poseBase pose filling every channel the cycle does not key; grip / curl: off-hand grip and finger curl
  *   arms(k, phase) -> { ik?, bones? } hand / arm channels at phase 0..1 (0 = right foot strikes)
+ *   mocap    phase curves (default MOCAP_RUN; MOCAP_WALK for walks with stance >= 1), mocapStance, kick (deg), kickBack (m),
+ *            rootScale (the actor's scale: keeps a scaled enemy's feet planted), elbowBias (deg)
  */
-function run(name, P) {
+export function run(name, P) {
   const { v, T } = P;
+  const MC = P.mocap || MOCAP_RUN;
   const D = v * T;
   const st = P.stance * 0.5;                    // planted fraction of the whole cycle
   const a = P.land, b = v * st * T - a;         // strike point ahead, toe-off point behind
@@ -43,7 +49,7 @@ function run(name, P) {
     [0, a, 0, 9, 'auto', 'inQuad'],                                   // strike (just ahead of the heel)
     [st * 0.28, a - v * st * 0.28 * T, 0, 0, 'linear'],               // flat
     [st, -b, 0.015, -24, 'linear'],                                   // toe-off: heel up, still on the ball
-    [st + sw * 0.2, -b - 0.14, P.lift, -62, 'auto', 'outQuad'],       // heel kicks up behind
+    [st + sw * 0.2, -b - (P.kickBack ?? 0.14), P.lift, -(P.kick ?? 62), 'auto', 'outQuad'],       // heel kicks up behind
     [st + sw * 0.5, -0.04, P.lift * 0.8, -30, 'auto'],                // passes under the hips, knee driving
     [st + sw * 0.72, a + 0.06 + v * dtLand * 0.55, P.reach + 0.05, 10, 'auto'],   // reaches
     [st + sw * 0.9, a + v * dtLand * 0.92, P.reach * 0.45, 12, 'auto'],           // paws back with the ground
@@ -77,8 +83,8 @@ function run(name, P) {
   // in phase so its stance / flight line up with this hero's foot keys and scaled to the hero's own amplitudes
   // (bounce, twist, lean). The feet stay on their planted IK paths above, the weapon hand on its carry pose.
   const N = 16;
-  const stM = 0.4;                                          // the captured runner's stance, as a fraction of the cycle
-  const warp = (ph) => { const h = ph >= 0.5 ? 0.5 : 0, q = ph - h; return h + (q < st ? (q / st) * stM : stM + ((q - st) / (0.5 - st)) * (0.5 - stM)); };
+  const stM = P.mocapStance ?? 0.4;                         // the captured stance, as a fraction of the cycle (walks: = st)
+  const warp = (ph) => { if (st >= 0.5) return ph; const h = ph >= 0.5 ? 0.5 : 0, q = ph - h; return h + (q < st ? (q / st) * stM : stM + ((q - st) / (0.5 - st)) * (0.5 - stM)); };
   const mc = (k, ph) => { const a = MC[k], x = (((warp(ph % 1)) % 1) + 1) % 1 * MC.n, i = Math.floor(x) % MC.n, f = x - Math.floor(x); return a[i] + (a[(i + 1) % MC.n] - a[i]) * f; };
   const span = (k) => { const a = MC[k]; return [Math.min(...a), Math.max(...a)]; };
   const [dy0, dy1] = span('dy'), [sw0, sw1] = span('sway');
@@ -99,7 +105,7 @@ function run(name, P) {
       // the free arm pumps as the captured runner's does (shoulder swing, a little abduction, a runner's bent elbow)
       const g = P.armGain ?? 1;
       bones.upperArmL = [-(mc('abdL', ph) * 0.9 + 3), 0, +((mc('swingL', ph) - mSw) * g + 2).toFixed(2)];
-      bones.foreArmL = [0, 0, +(mc('elbowL', ph) * 0.84).toFixed(2)];
+      bones.foreArmL = [0, 0, +(mc('elbowL', ph) * 0.84 + (P.elbowBias ?? 0)).toFixed(2)];
     }
     const r2 = (x) => +x.toFixed(2);
     keys.push({
@@ -111,7 +117,8 @@ function run(name, P) {
     });
   }
   keys.push({ t: 0, grip: P.grip ?? 0, curl: P.curl || [1, 1], root: { pos: [0, 0] } });
-  keys.push({ t: T, interp: 'linear', root: { pos: [+D.toFixed(4), 0] } });
+  // rootScale: a scaled actor covers scale x the ground per cycle; the view matches playback to this root speed
+  keys.push({ t: T, interp: 'linear', root: { pos: [+(D * (P.rootScale ?? 1)).toFixed(4), 0] } });
   defineClip(name, {
     duration: T, loop: true, breath: 0.25, look: false, base: P.poseBase,
     keys: sorted(keys),

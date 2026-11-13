@@ -55,7 +55,10 @@ curves `src/rpg/core/clips/mocap_run.js`; `locomotion.js` drives pelvis bounce /
 counter-rotation, head and the free arm of every hero's run and sprint from them (phase-warped onto the hero's own
 planted foot keys; gait test: worst slide 1.6 cm). `src/rpg/tests/runsheet.mjs` = side / rear run sheets. The CMU mirror
 `raw.githubusercontent.com/una-dinosauria/cmu-mocap` is reachable from the cloud environment: walks, turns, hit
-reactions and deaths can be extracted the same way. The 108 duel clips are still hand-keyed.
+reactions and deaths can be extracted the same way. The 108 duel clips are still hand-keyed. `extract_run.py <bvh> walk` (subject 7) gives `mocap_walk.js`;
+`locomotion.js` exports its gait builder `run()` (params `mocap`, `mocapStance`, `rootScale` for scaled actors, `kick`), and
+`src/rpg/foes/index.js` builds the cultists' stalking walk and run with it (`rpg.cult.*`, `rpg.prot.*`; sheet: `foegait.mjs`).
+Boss / enemy `plate` materials are `side: 'double'` (open shells are seen from inside).
 
 Still open, in the order I would take them: confirm the phone rendering; bespoke clips for the cultists; a real RPG HUD;
 360° arena; murim hero models (Blender pipeline) and the 108-clip motion pass; audio re-voice; per-tier performance on

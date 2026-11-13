@@ -17,7 +17,7 @@ export function idolDesign(id = 'rpg-idol') {
   return {
     ...base,
     materials: {
-      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 7, bump: 0.2 },
+      plate: { roughness: 1, metalness: 1, envMapIntensity: 0.9, detailScale: 7, bump: 0.2, side: 'double' },   // shells are seen from inside too (brim, pauldrons, skirts)
       blade: { roughness: 1, metalness: 1, envMapIntensity: 1.0, detailScale: 6, bump: 0.06 },
     },
     build(kit, S) {
