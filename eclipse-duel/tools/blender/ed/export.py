@@ -8,7 +8,7 @@
 #                  col   u8 x 3 (sqrt(colour / 2)) + u8 look index
 #                  glow  u8 x 4  (inlay, vein, eye masks, 0)                                      optional
 #                  uvw   u16 x 4 ((u, v, code) in uvwMin..uvwMax; 4th: 0)                         optional (UV texture sets)
-#                  uv    u16 x 2  (0..1, baked-map texture coordinates)                           optional
+#                  bake  u16 x 4  (u, v, weight 0..1, 0): baked-map coordinates; part.bake.maps = map name  optional
 #                  skin  u8 x 4 bone palette indices + u8 x 4 weights (sum 255)
 #                  cloth u16 x 4  (panel u, panel v, cloth share, 0)                              optional (flag 'cloth')
 #                  idx   u16 / u32 triangle indices
@@ -41,7 +41,7 @@ def _mesh_arrays(obj):
     me.corner_normals.foreach_get('vector', cn)
     cn = cn.reshape(-1, 3)[loops]
     uv = None
-    layer = me.uv_layers.get('ed_bake') or (me.uv_layers.active if len(me.uv_layers) else None)
+    layer = me.uv_layers.get('ed_bake')
     if layer is not None:
         a = np.empty(nl * 2, dtype=np.float32); layer.data.foreach_get('uv', a)
         uv = a.reshape(-1, 2)[loops]
@@ -79,10 +79,17 @@ def _gather(obj, look_index, looks):
         'pos': b2g(P[vi]), 'nrm': b2g(cn[first]), 'look': clook[first], 'tri': inv.reshape(-1, 3),
         'uv': cuv[first] if cuv is not None else None,
     }
+    if out['uv'] is not None:
+        bw = get_attr(obj, 'ed_bakew')
+        out['uv'] = np.concatenate([out['uv'], (bw[vidx[first]] if bw is not None else np.ones(len(first)))[:, None]], axis=1)
     col = get_attr(obj, 'ed_col'); cav = get_attr(obj, 'ed_cav'); glow = get_attr(obj, 'ed_glow'); uvw = get_attr(obj, 'ed_uvw'); cl = get_attr(obj, 'ed_cloth')
     out['col'] = col[vi, :3].astype(np.float64) if col is not None else np.ones((len(vi), 3))
     out['cav'] = cav[vi].astype(np.float64) if cav is not None else np.ones(len(vi))
-    out['glow'] = glow[vi].astype(np.float64) if glow is not None else None
+    lg = np.array([_look_glow(looks[i]) for i in range(len(looks))]) if looks else np.zeros((1, 3))
+    if glow is not None:
+        out['glow'] = np.maximum(glow[vi].astype(np.float64), lg[out['look']])
+    else:
+        out['glow'] = lg[out['look']] if lg[out['look']].max() > 0 else None
     out['uvw'] = uvw[vi].astype(np.float64) if uvw is not None else None
     out['cloth'] = cl[vi].astype(np.float64) if cl is not None and obj.get('ed_panel') else None
     W = get_weights(obj)
@@ -94,6 +101,12 @@ def _gather(obj, look_index, looks):
         A = np.zeros((len(vi), 0))
     out['wnames'] = names; out['w'] = A
     return out
+
+
+def _look_glow(L):
+    """Constant glow masks (inlay, vein, eye) of a look: its `glow` triple or the inlay / vein / eye extras."""
+    g = list(L.get('glow') or (0, 0, 0))
+    return [max(float(g[0]), float(L.get('inlay', 0))), max(float(g[1]), float(L.get('vein', 0))), max(float(g[2]), float(L.get('eye', 0)))]
 
 
 def _quant_weights(A, share=None):
@@ -174,7 +187,11 @@ def export_asset(hero, objects=None, out_dir=None, scripts=(), textures=(), extr
             if all(d[key] is None for d in datas):
                 return None
             return np.concatenate([d[key] if d[key] is not None else np.zeros((len(d['pos']), width)) for d in datas])
-        glow, uvw, uv, cloth = opt('glow', 3), opt('uvw', 3), opt('uv', 2), opt('cloth', 3)
+        if any(d['glow'] is not None for d in datas):
+            for d in datas:
+                if d['glow'] is None:
+                    d['glow'] = np.zeros((len(d['pos']), 3))
+        glow, uvw, uv, cloth = opt('glow', 3), opt('uvw', 3), opt('uv', 3), opt('cloth', 3)
         names = sorted({nm for d in datas for nm in d['wnames']})
         if len(names) > 256:
             raise ValueError(f'part {pname}: more than 256 bones')
@@ -241,7 +258,8 @@ def export_asset(hero, objects=None, out_dir=None, scripts=(), textures=(), extr
             u = np.zeros((n, 4), dtype=np.uint16); u[:, :3] = np.clip(np.round((uvw - lo) / (hi - lo) * 65535), 0, 65535).astype(np.uint16)
             pj['uvw'] = {'off': blob.add(u), 'min': [float(x) for x in lo], 'max': [float(x) for x in hi]}
         if uv is not None:
-            pj['uv'] = blob.add(np.clip(np.round(uv * 65535), 0, 65535).astype(np.uint16))
+            b = np.zeros((n, 4), dtype=np.uint16); b[:, :3] = np.clip(np.round(uv * 65535), 0, 65535).astype(np.uint16)
+            pj['bake'] = {'off': blob.add(b), 'maps': first.get('ed_maps', '')}
         if cloth is not None:
             c = np.zeros((n, 4), dtype=np.uint16); c[:, :3] = np.clip(np.round(cloth * 65535), 0, 65535).astype(np.uint16)
             pj['cloth'] = {'panel': panel, 'off': blob.add(c)}
@@ -254,7 +272,8 @@ def export_asset(hero, objects=None, out_dir=None, scripts=(), textures=(), extr
     panels_json = []
     for name, p in SK.PANELS.items():
         G = b2g(p['rest'].reshape(-1, 3)).astype(np.float32)
-        panels_json.append({'name': name, 'cols': p['cols'], 'rows': p['rows'], 'anchors': p['anchors'], 'rest': blob.add(G), 'params': p['params'], 'used': name in used_panels})
+        panels_json.append({'name': name, 'cols': p['cols'], 'rows': p['rows'], 'anchors': p['anchors'], 'top': p.get('top'), 'rest': blob.add(G), 'params': p['params'],
+                            'used': name in used_panels})
     tex_json = []
     for t in textures:
         with open(t['path'], 'rb') as f:

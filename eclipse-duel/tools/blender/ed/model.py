@@ -401,13 +401,14 @@ def cone_surface(apex, axis, radius, height, bell=1.0, v0=0.03):
 # ---- pattern generators -----------------------------------------------------------------------------------------------------
 
 def weave(name, S, nu, nv, width_u=None, width_v=None, thick=0.0012, lift=0.0016, pattern=(2, 2), sub=3, u_range=(0, 1), v_range=(0, 1),
-          close_u=True, coll=None):
+          close_u=True, across=3, coll=None):
     """
     REAL woven strips over a parametric surface S(u, v): nu strips run along v (the "stakes" / radial splits of a hat),
     nv strips run along u (the weavers), interlaced over / under in a twill `pattern` (over, under). Every strip is its own
     thin band that rises and dips where it crosses the others. This is a high-poly bake source or a dense hero mesh
     (about nu * nv * sub^2 * 8 triangles); for a game mesh bake it down (bake_maps) or use weave_relief().
     width_u / width_v: strip widths as a fraction of the pitch (default 0.86).
+    across: quads across each strip (3: crowned with bevelled edges, 2: crowned, lighter).
     Returns the object; ed_cav darkens the gaps, ed_col alternates slightly per strip.
     """
     wu = 0.86 if width_u is None else width_u
@@ -426,14 +427,16 @@ def weave(name, S, nu, nv, width_u=None, width_v=None, thick=0.0012, lift=0.0016
         base = len(V)
         for k in range(m):
             c = pts[k] + nrm[k] * h[k]
-            for a, crown in ((-1.0, 0.0), (-0.45, 0.45 * thick), (0.45, 0.45 * thick), (1.0, 0.0)):
+            prof = ((-1.0, 0.0), (-0.45, 0.45 * thick), (0.45, 0.45 * thick), (1.0, 0.0)) if across >= 3 else ((-1.0, 0.0), (0.0, 0.6 * thick), (1.0, 0.0))
+            for a, crown in prof:
                 V.append(c + side[k] * hw[k] * a + nrm[k] * (crown + thick * 0.5))
                 CAV.append(1.0 if abs(a) < 1 else 0.72)
                 COL.append(tone)
+        w = 4 if across >= 3 else 3
         for k in range(m - 1):
-            for a in range(3):
-                p = base + k * 4 + a
-                F.append((p, p + 1, p + 5, p + 4))
+            for a in range(w - 1):
+                p = base + k * w + a
+                F.append((p, p + 1, p + w + 1, p + w))
 
     du = (u_range[1] - u_range[0]) / nu
     dv = (v_range[1] - v_range[0]) / nv
@@ -507,7 +510,7 @@ def weave_relief(obj, nu, nv, amount=0.0012, pattern=(2, 2), uv='ed_uv'):
 
 
 def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, overlap=0.32, row_overlap=0.3, dome=0.0016, u_range=(0, 1), v_range=(0, 1),
-             lace=True, lace_r=0.0011, stagger=True, tilt=0.12, seed=3, closed=False, coll=None):
+             lace=True, lace_r=0.0011, stagger=True, tilt=0.12, seed=3, closed=False, lod=1, coll=None):
     """
     Lamellar (찰갑) armour: `rows` rows of `cols` small plates laid on a parametric surface S(u, v) (u across, v DOWN the
     piece). Plates overlap sideways (each over its right neighbour) and every row overlaps the row below; each plate is a
@@ -516,6 +519,8 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
     Returns (plates, lacing) objects; per-vertex ed_cav carries the overlap shadows, ed_col a per-plate tone.
     obj['ed_cells'] on the plates = [rows, cols] (bind rows to bones with skin.by_rows(), or skin.rigid_islands()).
     closed: S is periodic in u (a full cuirass): plates wrap around the seam instead of clamping to it.
+    lod: 1 = rounded 9-point plates (~37 triangles + 36 per lace pair), 0 = 7-point plates and flat stitches (~27 + 8):
+    the game mesh of a full cuirass.
     """
     rng = np.random.RandomState(seed)
     V, F, CAV, COL, ROW = [], [], [], [], []
@@ -524,6 +529,9 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
     dv = (v_range[1] - v_range[0]) / rows
     # plate outline (x across -1..1, y down 0..1): rounded top corners, scalloped bottom
     outline = np.array([[-1, 0.06], [-0.78, 0.0], [0.78, 0.0], [1, 0.06], [1, 0.82], [0.62, 0.97], [0, 1.0], [-0.62, 0.97], [-1, 0.82]])
+    if lod < 1:
+        outline = np.array([[-1, 0.0], [1, 0.0], [1, 0.82], [0.58, 0.97], [0, 1.0], [-0.58, 0.97], [-1, 0.82]])
+    rim0 = 2 if lod < 1 else 3
     inner = outline * np.array([0.72, 1]) * np.array([1, 0.84]) + np.array([0, 0.07])
     for r in range(rows):
         v_top = v_range[0] + r * dv
@@ -561,9 +569,9 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
                 x, y = outline[i]
                 V.append(top + tu * (x * hw) + tv * (y * hh) + n0 * (thick * 0.2 * y)); CAV.append(0.45); COL.append(tone * 0.8); ROW.append(r)
             b2 = base + 2 * k
-            for i in range(3, k):
+            for i in range(rim0, k):
                 j = (i + 1) % k
-                if j < 3:
+                if j < rim0:
                     continue
                 F.append((b2 + i, b2 + j, base + j, base + i))
             if lace:
@@ -571,15 +579,16 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
                 for sx in (-0.34, 0.34):
                     a = top + tu * (sx * hw) + tv * (0.16 * hh) + n0 * (thick * 1.9 + dome)
                     b = top + tu * (sx * hw) + tv * (0.42 * hh) + n0 * (thick * 2.3 + dome)
-                    _stitch(LV, LF, a, b, n0, tu, lace_r)
+                    _stitch(LV, LF, a, b, n0, tu, lace_r, flat=lod < 1)
         if lace:
             # horizontal binding cord across the row
             pts = []
-            for k2 in range(cols * 2 + 1):
-                u = u_range[0] + k2 / (cols * 2) * (u_range[1] - u_range[0])
+            per = 2 if lod >= 1 else 1
+            for k2 in range(cols * per + 1):
+                u = u_range[0] + k2 / (cols * per) * (u_range[1] - u_range[0])
                 p, n, tu2, tv2 = surface_normal(S, u if closed else min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4), v_top + dv * 0.62)
                 pts.append(p + n * (thick * 3.0 + dome + lace_r * (1.0 + 0.6 * math.sin(k2 * math.pi))))
-            _cord(LV, LF, np.array(pts), lace_r * 1.15)
+            _cord(LV, LF, np.array(pts), lace_r * 1.15, 5 if lod >= 1 else 4)
     plates = new_mesh(name, np.array(V), F, coll)
     recalc_normals(plates)
     shade(plates, 40)
@@ -596,9 +605,15 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
     return plates, lacing
 
 
-def _stitch(V, F, a, b, n, side, r):
-    """A short raised lace stitch from a to b (a flat-topped 4-sided cord with sunk ends)."""
+def _stitch(V, F, a, b, n, side, r, flat=False):
+    """A short raised lace stitch from a to b (a flat-topped 4-sided cord with sunk ends; flat: one raised ridge, 4 tris)."""
     base = len(V)
+    if flat:
+        for p, sink in ((a, 1.0), (b, 1.0)):
+            for sx, sn in ((-1, 0.0), (0, 1.0), (1, 0.0)):
+                V.append(p + side * (sx * r) + n * (sn * r * 0.9 - sink * r * 0.4))
+        F.append((base, base + 1, base + 4, base + 3)); F.append((base + 1, base + 2, base + 5, base + 4))
+        return
     for p, sink in ((a, 1.0), (a, 0.0), (b, 0.0), (b, 1.0)):
         for sx, sn in ((-1, 0.0), (-0.6, 1.0), (0.6, 1.0), (1, 0.0)):
             V.append(p + side * (sx * r) + n * (sn * r * 0.9 - sink * r * 1.6))

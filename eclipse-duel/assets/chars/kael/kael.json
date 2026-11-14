@@ -1,0 +1,345 @@
+{
+ "hero": "kael",
+ "file": "kael.edm",
+ "bytes": 1904540,
+ "geometryBytes": 1625610,
+ "textureBytes": 278930,
+ "triangles": 61941,
+ "vertices": 38617,
+ "parts": [
+  {
+   "name": "body",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 4878,
+   "vertices": 2844,
+   "bones": 38,
+   "looks": [
+    "skin"
+   ]
+  },
+  {
+   "name": "boots",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 4070,
+   "vertices": 2490,
+   "bones": 6,
+   "looks": [
+    "leather",
+    "leatherDark",
+    "bronze"
+   ]
+  },
+  {
+   "name": "bracers",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 4026,
+   "vertices": 2288,
+   "bones": 2,
+   "looks": [
+    "leather",
+    "bronze",
+    "cord"
+   ]
+  },
+  {
+   "name": "armour",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 11380,
+   "vertices": 8843,
+   "bones": 2,
+   "looks": [
+    "bronze",
+    "iron",
+    "fang",
+    "eye"
+   ]
+  },
+  {
+   "name": "hairHard",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 1322,
+   "vertices": 760,
+   "bones": 1,
+   "looks": [
+    "bronze",
+    "cord",
+    "hair"
+   ]
+  },
+  {
+   "name": "robe",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 20796,
+   "vertices": 11478,
+   "bones": 39,
+   "looks": [
+    "leather",
+    "bronze",
+    "coat",
+    "trim",
+    "robe",
+    "lining",
+    "sash",
+    "trousers",
+    "band",
+    "wrap",
+    "scarf",
+    "strip"
+   ]
+  },
+  {
+   "name": "bandTails",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 232,
+   "vertices": 120,
+   "bones": 3,
+   "looks": [
+    "strip"
+   ]
+  },
+  {
+   "name": "sashEnds",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 872,
+   "vertices": 440,
+   "bones": 7,
+   "looks": [
+    "sash"
+   ]
+  },
+  {
+   "name": "mane",
+   "slot": "hair",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 2640,
+   "vertices": 1880,
+   "bones": 10,
+   "looks": [
+    "hair"
+   ]
+  },
+  {
+   "name": "saber",
+   "slot": "blade",
+   "flags": [],
+   "triangles": 6317,
+   "vertices": 4379,
+   "bones": 1,
+   "looks": [
+    "leatherDark",
+    "bronze",
+    "cord",
+    "iron",
+    "steel",
+    "saberBack",
+    "groove"
+   ]
+  },
+  {
+   "name": "strip",
+   "slot": "blade",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 208,
+   "vertices": 134,
+   "bones": 4,
+   "looks": [
+    "strip"
+   ]
+  },
+  {
+   "name": "tailFL",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 1200,
+   "vertices": 682,
+   "bones": 6,
+   "looks": [
+    "coat",
+    "trim",
+    "lining"
+   ]
+  },
+  {
+   "name": "tailBL",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1400,
+   "vertices": 791,
+   "bones": 6,
+   "looks": [
+    "coat",
+    "trim",
+    "lining"
+   ]
+  },
+  {
+   "name": "tailBR",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1400,
+   "vertices": 797,
+   "bones": 6,
+   "looks": [
+    "coat",
+    "trim",
+    "lining"
+   ]
+  },
+  {
+   "name": "tailFR",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 1200,
+   "vertices": 691,
+   "bones": 6,
+   "looks": [
+    "coat",
+    "trim",
+    "lining"
+   ]
+  }
+ ],
+ "looks": [
+  "skin",
+  "leather",
+  "leatherDark",
+  "bronze",
+  "cord",
+  "iron",
+  "fang",
+  "eye",
+  "hair",
+  "coat",
+  "trim",
+  "robe",
+  "lining",
+  "sash",
+  "trousers",
+  "band",
+  "wrap",
+  "scarf",
+  "strip",
+  "steel",
+  "saberBack",
+  "groove"
+ ],
+ "panels": [
+  {
+   "name": "tailBL",
+   "cols": 4,
+   "rows": 8
+  },
+  {
+   "name": "tailBR",
+   "cols": 4,
+   "rows": 8
+  }
+ ],
+ "textures": [
+  {
+   "name": "kael_gear_n",
+   "kind": "normal",
+   "bytes": 241648,
+   "size": [
+    1024,
+    1024
+   ]
+  },
+  {
+   "name": "kael_gear_m",
+   "kind": "mask",
+   "bytes": 37282,
+   "size": [
+    1024,
+    1024
+   ]
+  }
+ ],
+ "bonesUsed": [
+  "band1",
+  "band2",
+  "chest",
+  "deltoidL",
+  "deltoidR",
+  "elbowL",
+  "elbowR",
+  "elbowVolL",
+  "elbowVolR",
+  "fingerTipsL",
+  "fingerTipsR",
+  "fingersL",
+  "fingersR",
+  "footL",
+  "footR",
+  "foreArmL",
+  "foreArmR",
+  "foreArmTwistL",
+  "foreArmTwistR",
+  "handL",
+  "handR",
+  "head",
+  "hipJointL",
+  "hipJointR",
+  "hips",
+  "kneeL",
+  "kneeR",
+  "kneeVolL",
+  "kneeVolR",
+  "maneA1",
+  "maneA2",
+  "maneA3",
+  "maneB1",
+  "maneB2",
+  "maneB3",
+  "maneC1",
+  "maneC2",
+  "maneC3",
+  "neck",
+  "sashA1",
+  "sashA2",
+  "sashA3",
+  "sashB1",
+  "sashB2",
+  "sashB3",
+  "shinL",
+  "shinR",
+  "shoulderL",
+  "shoulderR",
+  "spine",
+  "strip1",
+  "strip2",
+  "strip3",
+  "thighL",
+  "thighR",
+  "thighTwistL",
+  "thighTwistR",
+  "thumbL",
+  "thumbR",
+  "toeL",
+  "toeR",
+  "upperArmL",
+  "upperArmR",
+  "upperArmTwistL",
+  "upperArmTwistR",
+  "weaponR"
+ ],
+ "script": "be8f37cee1c9",
+ "buildSeconds": 139.4,
+ "blender": "5.3.0"
+}

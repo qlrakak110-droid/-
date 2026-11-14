@@ -218,3 +218,99 @@ def bake_maps(high, low, size=1024, kinds=('NORMAL', 'AO'), out_dir=None, name=N
         bpy.data.images.remove(img)
     log(f'bake_maps {name}: {", ".join(paths)} {size}px')
     return paths
+
+
+def bake_object_maps(high, low, size=(1024, 1024), name=None, out_dir=None, extrusion=0.012, samples=24, quality=90, tone_attr='ed_col'):
+    """
+    The game's baked-map pair for one low-poly piece (its UV layer 'ed_bake' must exist, islands in 0..1):
+      <name>_n.webp   OBJECT-space normal in GAME bind axes (x forward, y up, z right): the shared character shader reads
+                      it directly in bind space, so no tangents are needed and skinning rotates it like the vertex normal
+      <name>_m.webp   R ambient occlusion (from the high-poly + everything visible), G curvature (0.5 flat; written as
+                      0.5 here), B albedo multiplier / 2 (the high-poly's ed_col x ed_cav: strip tones, gaps)
+    high: objects baked from (selected-to-active). Returns texture records for export_asset(textures=...) with the
+    names '<name>_n' / '<name>_m'; mark the low piece with obj['ed_maps'] = '<name>' and attribute ed_bakew = 1.
+    """
+    sc = bpy.context.scene
+    sc.render.engine = 'CYCLES'; sc.cycles.device = 'CPU'; sc.cycles.samples = samples
+    sc.render.threads_mode = 'FIXED'; sc.render.threads = THREADS
+    out_dir = out_dir or os.path.join(ROOT, 'build', 'bake')
+    os.makedirs(out_dir, exist_ok=True)
+    name = name or low.name
+    W, H = size
+    me = low.data
+    me.uv_layers.active = me.uv_layers['ed_bake']
+    tmpm = bpy.data.materials.new('_bake_low')
+    tmpm.use_nodes = True
+    saved = list(me.materials)
+    me.materials.clear(); me.materials.append(tmpm)
+    nt = tmpm.node_tree
+    tex = nt.nodes.new('ShaderNodeTexImage'); nt.nodes.active = tex
+    # the high-poly's tone material (emission = ed_col x ed_cav) for the albedo bake
+    tone = bpy.data.materials.new('_bake_tone'); tone.use_nodes = True
+    tn = tone.node_tree
+    for n in list(tn.nodes):
+        tn.nodes.remove(n)
+    a = tn.nodes.new('ShaderNodeAttribute'); a.attribute_name = tone_attr; a.attribute_type = 'GEOMETRY'
+    c = tn.nodes.new('ShaderNodeAttribute'); c.attribute_name = 'ed_cav'; c.attribute_type = 'GEOMETRY'
+    mn = tn.nodes.new('ShaderNodeMath'); mn.operation = 'MINIMUM'; mn.inputs[1].default_value = 1.0
+    tn.links.new(c.outputs['Fac'], mn.inputs[0])
+    mul = tn.nodes.new('ShaderNodeMixRGB'); mul.blend_type = 'MULTIPLY'; mul.inputs[0].default_value = 1.0
+    tn.links.new(a.outputs['Color'], mul.inputs[1]); tn.links.new(mn.outputs[0], mul.inputs[2])
+    em = tn.nodes.new('ShaderNodeEmission'); tn.links.new(mul.outputs[0], em.inputs[0])
+    out = tn.nodes.new('ShaderNodeOutputMaterial'); tn.links.new(em.outputs[0], out.inputs[0])
+
+    def run(kind, img, **kw):
+        tex.image = img
+        select(list(high) + [low], active=low)
+        bpy.ops.object.bake(type=kind, use_selected_to_active=True, cage_extrusion=extrusion, max_ray_distance=extrusion * 2.5, margin=6, target='IMAGE_TEXTURES', **kw)
+        px = np.empty(W * H * 4, dtype=np.float32); img.pixels.foreach_get(px)
+        return px.reshape(H, W, 4)
+
+    imgN = bpy.data.images.new(name + '_n', W, H, alpha=False, float_buffer=True); imgN.colorspace_settings.name = 'Non-Color'
+    N = run('NORMAL', imgN, normal_space='OBJECT', normal_r='NEG_Y', normal_g='POS_Z', normal_b='NEG_X')
+    imgA = bpy.data.images.new(name + '_ao', W, H, alpha=False, float_buffer=True); imgA.colorspace_settings.name = 'Non-Color'
+    A = run('AO', imgA)
+    hm = [list(o.data.materials) for o in high]
+    for o in high:
+        o.data.materials.clear(); o.data.materials.append(tone)
+    imgT = bpy.data.images.new(name + '_t', W, H, alpha=False, float_buffer=True); imgT.colorspace_settings.name = 'Non-Color'
+    T = run('EMIT', imgT)
+    for o, ms in zip(high, hm):
+        o.data.materials.clear()
+        for m in ms:
+            o.data.materials.append(m)
+    me.materials.clear()
+    for m in saved:
+        me.materials.append(m)
+    M = np.ones_like(N)
+    M[..., 0] = A[..., 0]
+    M[..., 1] = 0.5
+    M[..., 2] = np.clip(np.mean(T[..., :3], axis=-1) * 0.5, 0, 1)
+    recs = []
+    for suffix, arr, kind in (('_n', N, 'normal'), ('_m', M, 'mask')):
+        img = bpy.data.images.new(name + suffix + '_out', W, H, alpha=False)
+        img.colorspace_settings.name = 'Non-Color'
+        img.pixels.foreach_set(np.ascontiguousarray(arr, dtype=np.float32).reshape(-1))
+        path = os.path.join(out_dir, name + suffix + '.webp')
+        img.filepath_raw = path; img.file_format = 'WEBP'
+        sc.render.image_settings.quality = quality
+        img.save()
+        recs.append({'name': name + suffix, 'kind': kind, 'path': path, 'width': W, 'height': H})
+        bpy.data.images.remove(img)
+    for img in (imgN, imgA, imgT):
+        bpy.data.images.remove(img)
+    log(f'bake_object_maps {name}: {W}x{H} -> ' + ', '.join(f"{r['name']} {os.path.getsize(r['path']) // 1024} KB" for r in recs))
+    return recs
+
+
+def uv_from_grid(obj, name='ed_bake', scale=(1.0, 1.0), offset=(0.0, 0.0)):
+    """UV layer `name` from a loft's grid parameters (ed_uv: u across, v along), for bake targets with an obvious
+    parametrisation (hat cones, sleeves, panels). Open the loft at its seam (lathe a1 = 359.99) to avoid a wrapped seam."""
+    me = obj.data
+    q = get_attr(obj, 'ed_uv')
+    layer = me.uv_layers.get(name) or me.uv_layers.new(name=name)
+    li = np.empty(len(me.loops), dtype=np.int32); me.loops.foreach_get('vertex_index', li)
+    uv = np.stack([q[li, 0] * scale[0] + offset[0], q[li, 1] * scale[1] + offset[1]], axis=1)
+    layer.data.foreach_set('uv', uv.astype(np.float32).reshape(-1))
+    set_attr(obj, 'ed_bakew', np.ones(len(me.vertices), dtype=np.float32))
+    return layer

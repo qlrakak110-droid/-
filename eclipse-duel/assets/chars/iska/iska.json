@@ -1,0 +1,349 @@
+{
+ "hero": "iska",
+ "file": "iska.edm",
+ "bytes": 1528768,
+ "geometryBytes": 1528768,
+ "textureBytes": 0,
+ "triangles": 60623,
+ "vertices": 36817,
+ "parts": [
+  {
+   "name": "body",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 4000,
+   "vertices": 2357,
+   "bones": 37,
+   "looks": [
+    "skin"
+   ]
+  },
+  {
+   "name": "mask",
+   "slot": "gear",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 4200,
+   "vertices": 3008,
+   "bones": 1,
+   "looks": [
+    "silver",
+    "maskIn",
+    "crystal",
+    "eye"
+   ]
+  },
+  {
+   "name": "hair",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 4300,
+   "vertices": 2202,
+   "bones": 5,
+   "looks": [
+    "hair"
+   ]
+  },
+  {
+   "name": "hairOrnaments",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 1338,
+   "vertices": 1212,
+   "bones": 5,
+   "looks": [
+    "silver",
+    "crystal",
+    "silverPlain",
+    "cord"
+   ]
+  },
+  {
+   "name": "robe",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 7600,
+   "vertices": 4007,
+   "bones": 17,
+   "looks": [
+    "moon",
+    "moonIn",
+    "indigo",
+    "dongjeong",
+    "band"
+   ]
+  },
+  {
+   "name": "sleeves",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 7000,
+   "vertices": 3673,
+   "bones": 16,
+   "looks": [
+    "moon",
+    "moonIn",
+    "indigo",
+    "band"
+   ]
+  },
+  {
+   "name": "sash",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 4400,
+   "vertices": 2229,
+   "bones": 6,
+   "looks": [
+    "cord",
+    "band",
+    "sash"
+   ]
+  },
+  {
+   "name": "legs",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 4200,
+   "vertices": 2470,
+   "bones": 17,
+   "looks": [
+    "trousers",
+    "wrap"
+   ]
+  },
+  {
+   "name": "fittings",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 7599,
+   "vertices": 4945,
+   "bones": 13,
+   "looks": [
+    "silver",
+    "maskIn",
+    "crystal",
+    "cord",
+    "jade",
+    "shoe",
+    "sole",
+    "glove"
+   ]
+  },
+  {
+   "name": "gauze",
+   "slot": "hair",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 1858,
+   "vertices": 1166,
+   "bones": 5,
+   "looks": [
+    "gauze",
+    "tassel",
+    "hairCut"
+   ]
+  },
+  {
+   "name": "crescentR",
+   "slot": "blade",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 3544,
+   "vertices": 2758,
+   "bones": 1,
+   "looks": [
+    "silver",
+    "jade",
+    "steel",
+    "spine",
+    "frost",
+    "gripWrap"
+   ]
+  },
+  {
+   "name": "crescentL",
+   "slot": "blade",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 3544,
+   "vertices": 2758,
+   "bones": 1,
+   "looks": [
+    "silver",
+    "jade",
+    "steel",
+    "spine",
+    "frost",
+    "gripWrap"
+   ]
+  },
+  {
+   "name": "skFL",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 1768,
+   "vertices": 1018,
+   "bones": 4,
+   "looks": [
+    "moon",
+    "moonIn",
+    "band"
+   ]
+  },
+  {
+   "name": "skBL",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1752,
+   "vertices": 998,
+   "bones": 6,
+   "looks": [
+    "moon",
+    "moonIn",
+    "band"
+   ]
+  },
+  {
+   "name": "skBR",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1752,
+   "vertices": 998,
+   "bones": 7,
+   "looks": [
+    "moon",
+    "moonIn",
+    "band"
+   ]
+  },
+  {
+   "name": "skFR",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 1768,
+   "vertices": 1018,
+   "bones": 4,
+   "looks": [
+    "moon",
+    "moonIn",
+    "band"
+   ]
+  }
+ ],
+ "looks": [
+  "skin",
+  "silver",
+  "maskIn",
+  "crystal",
+  "eye",
+  "hair",
+  "silverPlain",
+  "cord",
+  "moon",
+  "moonIn",
+  "indigo",
+  "dongjeong",
+  "band",
+  "sash",
+  "trousers",
+  "wrap",
+  "jade",
+  "shoe",
+  "sole",
+  "glove",
+  "gauze",
+  "tassel",
+  "hairCut",
+  "steel",
+  "spine",
+  "frost",
+  "gripWrap"
+ ],
+ "panels": [
+  {
+   "name": "skBL",
+   "cols": 5,
+   "rows": 9
+  },
+  {
+   "name": "skBR",
+   "cols": 5,
+   "rows": 9
+  }
+ ],
+ "textures": [],
+ "bonesUsed": [
+  "chest",
+  "deltoidL",
+  "deltoidR",
+  "fingerTipsL",
+  "fingerTipsR",
+  "fingersL",
+  "fingersR",
+  "footL",
+  "footR",
+  "foreArmTwistL",
+  "foreArmTwistR",
+  "hair1",
+  "hair2",
+  "hair3",
+  "hair4",
+  "handL",
+  "handR",
+  "head",
+  "hipJointL",
+  "hipJointR",
+  "hips",
+  "jade1",
+  "kneeL",
+  "kneeR",
+  "kneeVolL",
+  "kneeVolR",
+  "neck",
+  "sashA1",
+  "sashA2",
+  "sashB1",
+  "sashB2",
+  "shinL",
+  "shinR",
+  "shoulderL",
+  "shoulderR",
+  "skFL0",
+  "skFL1",
+  "skFL2",
+  "skFR0",
+  "skFR1",
+  "skFR2",
+  "slvL1",
+  "slvL2",
+  "slvR1",
+  "slvR2",
+  "spine",
+  "thighL",
+  "thighR",
+  "thighTwistL",
+  "thighTwistR",
+  "thumbL",
+  "thumbR",
+  "toeL",
+  "toeR",
+  "upperArmL",
+  "upperArmR",
+  "upperArmTwistL",
+  "upperArmTwistR",
+  "weaponL",
+  "weaponR"
+ ],
+ "script": "2eaad03c5463",
+ "buildSeconds": 84.6,
+ "blender": "5.3.0"
+}

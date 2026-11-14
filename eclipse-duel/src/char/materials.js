@@ -122,7 +122,9 @@ export function decodeDetail(z) {
 const VERT_PARS = /* glsl */ `
 attribute vec4 surf;
 attribute vec3 glow;
+attribute vec3 bake;
 uniform float uShadowNB;
+varying vec3 vBake;
 varying vec4 vSurf;
 varying vec3 vGlow;
 varying vec3 vRestPos;
@@ -131,7 +133,7 @@ varying vec3 vB1;
 varying vec3 vB2;
 `;
 const VERT_MAIN = /* glsl */ `
-  vSurf = surf; vGlow = glow; vRestPos = position;
+  vSurf = surf; vGlow = glow; vRestPos = position; vBake = bake;
 `;
 // bind-pose -> view rotation (skinning x normal matrix): maps triplanar rest-space normals into view space
 const VERT_NORMAL = /* glsl */ `
@@ -186,6 +188,10 @@ uniform float uSetScale[ED_SETS];
 uniform float uSetBump[ED_SETS];
 uniform float uSetLayer[ED_SETS];
 uniform float uDetailMul;
+uniform sampler2D uBakeN;
+uniform sampler2D uBakeM;
+uniform float uBakeOn;
+varying vec3 vBake;
 varying vec4 vSurf;
 varying vec3 vGlow;
 varying vec3 vRestPos;
@@ -268,6 +274,21 @@ const FRAG_SURFACE = /* glsl */ `
   int edSi = int(edSetF + 0.5);
   float edAmt = edSz < 1.5 ? edSz : clamp((edSz - 2.0 * edSetF - 0.25) * 2.0, 0.0, 1.0);
   float edCav = vSurf.w;
+  // optional baked maps (Blender assets, src/char/assets.js): bake = (u, v, weight) on the vertices that carry them;
+  // uBakeN = bind-space (object) normal, uBakeM = R occlusion, G curvature (0.5 flat, > 0.5 convex), B albedo x 0.5
+  if (uBakeOn > 0.5) {
+    float edBk = clamp(vBake.z, 0.0, 1.0);
+    vec3 edBn = texture2D(uBakeN, vBake.xy).xyz * 2.0 - 1.0;
+    vec4 edBm = texture2D(uBakeM, vBake.xy);
+    #ifdef DOUBLE_SIDED
+      edBn *= edFace;
+    #endif
+    edNr = normalize(mix(edNr, normalize(edBn + 1e-5), edBk));
+    float edBc = edBm.g * 2.0 - 1.0;
+    float edBcav = edBc > 0.0 ? 1.0 + 0.8 * smoothstep(0.1, 0.7, edBc) * edBm.r : edBm.r * (1.0 + 0.6 * edBc);
+    edCav = mix(edCav, edCav <= 1.0 ? edCav * edBcav : edBcav, edBk);
+    diffuseColor.rgb *= mix(1.0, edBm.b * 2.0, edBk);
+  }
   float edOcc = min(edCav, 1.0);
   float edEdge = max(edCav - 1.0, 0.0);
   float edRoughMul = 1.0, edRoughAdd = 0.0, edMetalMul = 1.0;
@@ -818,6 +839,10 @@ export function createKitMaterial(o = {}) {
     uSetScale: { value: SET_SCALE.slice() },
     uSetBump: { value: SET_BUMP.slice() },
     uSetLayer: { value: SET_LAYER.slice() },
+    // baked maps of a Blender asset (src/char/assets.js attachAssetMaps); off by default: 1x1 neutral textures
+    uBakeN: { value: neutralTex('n') },
+    uBakeM: { value: neutralTex('m') },
+    uBakeOn: { value: 0 },
   };
   if (o.wearColor !== undefined && !Array.isArray(o.wearColor)) uniforms.uWearColor.value.set(o.wearColor);
   mat.userData.kit = uniforms;
@@ -883,6 +908,16 @@ export function createKitMaterial(o = {}) {
 }
 
 // ---- glow control ---------------------------------------------------------------------------------------------------
+
+const NEUTRAL = {};
+/** 1x1 neutral baked-map textures (normal +Y, mask: open, flat). */
+function neutralTex(kind) {
+  if (NEUTRAL[kind]) return NEUTRAL[kind];
+  const t = new THREE.DataTexture(new Uint8Array(kind === 'n' ? [128, 255, 128, 255] : [255, 128, 128, 255]), 1, 1, THREE.RGBAFormat);
+  t.needsUpdate = true;
+  NEUTRAL[kind] = t;
+  return t;
+}
 
 const CHANNELS = { inlay: 'uGlowA', vein: 'uGlowB', eye: 'uGlowC' };
 /** Default breathing of the glow channels at rest: [amount (fraction of the intensity), period (game seconds)]. */

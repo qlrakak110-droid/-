@@ -368,3 +368,27 @@ original (no names, banners, HUD signatures or designs of existing games).
 The mode treats every other module (post, env, vfx, cam, char, audio, fighters) as a read-only API and must restore the
 duel game on exit. Budgets: the 60 fps rule and the frame budgets above apply; at most 4 ordinary enemies alive
 (3 on low), each <= 16k triangles / <= 2 draw calls; the boss <= 80k triangles / <= 6 draw calls.
+
+## Blender asset pipeline (tools/blender, assets/, src/char/assets.js)
+
+Heroes may be modelled in headless Blender 5.3 (`/opt/blender-env/venv/bin/python`) by **committed Python scripts**:
+`tools/blender/heroes/<hero>.py` on the library `tools/blender/edlib.py` (reference and a minimal hero script:
+`tools/blender/README.md`). Generated files live in `assets/chars/<hero>/` (`<hero>.edm` binary, `<hero>.json` manifest
+with triangles, bytes, script hash, `index.js` generated module) and are rebuilt with `tools/blender/build_assets.sh
+<hero|all>`; no hand-made binary sources. `node tools/blender/export_rig.mjs` writes the game rigs to
+`tools/blender/rigs/<hero>.json` (every bone with parent, bind / zero matrices, length, kind; sockets, weapon grip
+frames, colliders, springs, cloth panels, proportions, sampled poses; axes: game +X forward, +Y up, metres).
+
+* **The rig is law.** Assets change what the skeleton wears and holds, never proportions, bones, sockets, weapon
+  lengths, grips, hand alignment or the main colliders. Designs add spring chains / cloth panels as before.
+* **Runtime.** `addAsset(kit, asset, { parts, slotMap, looks, design })` inside `design.build` feeds the asset's parts to
+  the kit as ordinary skinned pieces (weights by bone name; cloth-bound vertices by panel coordinates, valid on every
+  quality tier); `assetCloth(asset)` gives the runtime cloth panels draped in Blender; `attachAssetMaps(char, asset,
+  quality)` in `design.attach` binds optional baked maps. A hero asset decodes once (shared by a mirror match); only
+  targets that import `assets/chars/<hero>/index.js` embed it (esbuild `binary` loader in `tools/build.mjs`).
+* **Shader.** The shared character program reads optional baked maps: `uBakeN` (object-space normal in bind space,
+  game axes), `uBakeM` (R occlusion, G curvature, B albedo x 0.5) through a per-vertex `bake` (u, v, weight); without
+  them (`uBakeOn` 0, low tier) nothing changes. One program for every character remains (`edkit-v4`, `edkit-v4-cut`).
+* **Budgets per hero:** <= 60k triangles, <= 6 draw calls, asset <= 2.2 MB (geometry + textures, before base64), asset
+  decode + build <= 150 ms, page <= 12 MB. Pilot (VORN rig, `src/labs/asset.js`): 48.7k triangles, 4 draw calls, 1.41 MB
+  (108 KB baked maps), decode 1.3 ms + parts 12 ms + build ~38 ms, `char.update` 0.6 ms median (kit VORN 0.7 ms).

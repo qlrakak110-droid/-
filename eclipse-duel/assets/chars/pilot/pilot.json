@@ -1,0 +1,293 @@
+{
+ "hero": "pilot",
+ "file": "pilot.edm",
+ "bytes": 1448356,
+ "geometryBytes": 1338146,
+ "textureBytes": 110210,
+ "triangles": 48720,
+ "vertices": 34143,
+ "parts": [
+  {
+   "name": "body",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 3706,
+   "vertices": 2183,
+   "bones": 36,
+   "looks": [
+    "skin"
+   ]
+  },
+  {
+   "name": "eyes",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 200,
+   "vertices": 104,
+   "bones": 1,
+   "looks": [
+    "eye"
+   ]
+  },
+  {
+   "name": "robe",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 13000,
+   "vertices": 7352,
+   "bones": 39,
+   "looks": [
+    "robe",
+    "collar",
+    "dongjeong",
+    "trim",
+    "trousers",
+    "sash",
+    "wrap",
+    "leather",
+    "robeIn"
+   ]
+  },
+  {
+   "name": "armour",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 15248,
+   "vertices": 15326,
+   "bones": 20,
+   "looks": [
+    "leather",
+    "lamellar",
+    "lace"
+   ]
+  },
+  {
+   "name": "hat",
+   "slot": "gear",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 3282,
+   "vertices": 1799,
+   "bones": 1,
+   "looks": [
+    "leather",
+    "lace",
+    "bamboo",
+    "bambooDark",
+    "bronze"
+   ]
+  },
+  {
+   "name": "hair",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 3534,
+   "vertices": 1830,
+   "bones": 6,
+   "looks": [
+    "trim",
+    "hair"
+   ]
+  },
+  {
+   "name": "queueTassel",
+   "slot": "hair",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 232,
+   "vertices": 185,
+   "bones": 1,
+   "looks": [
+    "hair"
+   ]
+  },
+  {
+   "name": "spear",
+   "slot": "blade",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 2178,
+   "vertices": 1342,
+   "bones": 1,
+   "looks": [
+    "bronze",
+    "shaft",
+    "steel"
+   ]
+  },
+  {
+   "name": "spearTassel",
+   "slot": "hair",
+   "flags": [
+    "cutout",
+    "rigid"
+   ],
+   "triangles": 344,
+   "vertices": 290,
+   "bones": 1,
+   "looks": [
+    "horsehair"
+   ]
+  },
+  {
+   "name": "skirtF",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 3000,
+   "vertices": 1592,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "sash",
+    "robeIn"
+   ]
+  },
+  {
+   "name": "skirtBL",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1998,
+   "vertices": 1072,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "robeIn"
+   ]
+  },
+  {
+   "name": "skirtBR",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 1998,
+   "vertices": 1068,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "robeIn"
+   ]
+  }
+ ],
+ "looks": [
+  "skin",
+  "eye",
+  "robe",
+  "collar",
+  "dongjeong",
+  "trim",
+  "trousers",
+  "sash",
+  "wrap",
+  "leather",
+  "robeIn",
+  "lamellar",
+  "lace",
+  "bamboo",
+  "bambooDark",
+  "bronze",
+  "hair",
+  "shaft",
+  "steel",
+  "horsehair"
+ ],
+ "panels": [
+  {
+   "name": "skirtF",
+   "cols": 6,
+   "rows": 9
+  },
+  {
+   "name": "skirtBL",
+   "cols": 4,
+   "rows": 9
+  },
+  {
+   "name": "skirtBR",
+   "cols": 4,
+   "rows": 9
+  }
+ ],
+ "textures": [
+  {
+   "name": "pilot_hat_n",
+   "kind": "normal",
+   "bytes": 25946,
+   "size": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "pilot_hat_m",
+   "kind": "mask",
+   "bytes": 84264,
+   "size": [
+    1024,
+    512
+   ]
+  }
+ ],
+ "bonesUsed": [
+  "chest",
+  "deltoidL",
+  "deltoidR",
+  "elbowL",
+  "elbowR",
+  "elbowVolL",
+  "elbowVolR",
+  "fingerTipsL",
+  "fingerTipsR",
+  "fingersL",
+  "fingersR",
+  "footL",
+  "footR",
+  "foreArmL",
+  "foreArmR",
+  "foreArmTwistL",
+  "foreArmTwistR",
+  "handL",
+  "handR",
+  "head",
+  "hipJointL",
+  "hipJointR",
+  "hips",
+  "kneeL",
+  "kneeR",
+  "kneeVolL",
+  "kneeVolR",
+  "neck",
+  "queue1",
+  "queue2",
+  "queue3",
+  "queue4",
+  "shinL",
+  "shinR",
+  "shoulderL",
+  "shoulderR",
+  "spine",
+  "thighL",
+  "thighR",
+  "thighTwistL",
+  "thighTwistR",
+  "thumbL",
+  "thumbR",
+  "toeL",
+  "toeR",
+  "upperArmL",
+  "upperArmR",
+  "upperArmTwistL",
+  "upperArmTwistR",
+  "weaponR"
+ ],
+ "script": "19956114c548",
+ "buildSeconds": 75.2,
+ "blender": "5.3.0"
+}

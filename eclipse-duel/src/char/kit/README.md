@@ -593,3 +593,26 @@ Lab-only poses `artlab.<id>.hero / .combat / .strike` exist to judge the designs
 4. `kit.addPair` drops the vertex index when mirroring function options; `putPair()` works around it.
 5. **Spring chains**: a per-chain `wind` factor (like cloth) would let sash ends, veils and tassels answer `char.wind`;
    today they move with gravity, inertia and collision only.
+
+---
+
+## 11. Blender asset pipeline (tools/blender, src/char/assets.js)
+
+Heroes can also be modelled in Blender by scripts (`tools/blender/README.md`) and loaded as kit pieces. Asset looks
+are kit looks (`{ color, rough, metal, set, amt, inlay, vein, eye, occ, wear }`, the same texture sets and glow
+channels); per-vertex `ed_col`, `ed_cav` (AO + curvature baked in Blender), `ed_glow`, `ed_uvw` become the kit's colour,
+cavity, glow and uv data. Retune a look without re-running Blender: `addAsset(kit, asset, { looks: { robe: { color: [...] } } })`.
+
+```js
+import pilotAsset from '../../assets/chars/pilot/index.js';
+import { addAsset, assetCloth, attachAssetMaps } from '../char/assets.js';
+const design = { ...vorn, cloth: assetCloth(pilotAsset), materials: { cloth: {...}, gear: {...}, hair: { cutout: true }, blade: {...} },
+  build(kit) { addAsset(kit, pilotAsset, { design: this }); },
+  attach(char, quality) { attachAssetMaps(char, pilotAsset, quality); return attachGlow(char, GLOW); } };
+```
+
+**Baked maps** (`createKitMaterial` uniforms `uBakeN`, `uBakeM`, `uBakeOn`; vertex attribute `bake` = (u, v, weight)):
+an object-space normal map in bind space (game axes: no tangents, skinning rotates it like the vertex normal) and a
+mask map (R occlusion, G curvature 0.5 = flat, B albedo x 0.5). One map pair per slot material; the low tier skips them
+(vertex data only). Use them where they beat vertex data: weaves, embroidery, lamellar lacing, mask faces (the pilot's
+woven hat: 3.3k triangles + 108 KB of maps instead of a 10-17k-triangle plait).

@@ -397,7 +397,9 @@ def define_panel(name, grid, anchor='hips', rig=None, cols=None, rows=None, **pa
     if G[0, 0, 0] < G[0, -1, 0]:
         raise ValueError(f'panel {name}: columns must run from the fighter\'s left (+x in Blender) to his right (-x)')
     anchors = [anchor] * cols if isinstance(anchor, str) else list(anchor)
-    PANELS[name] = {'name': name, 'cols': cols, 'rows': rows, 'rest': G, 'anchors': anchors, 'params': params}
+    # the pinned edge in each anchor bone's game frame (bind pose): the runtime builds its cloth spec `top` from it
+    top = [[a, [round(float(x), 5) for x in rig.local(a, G[0, i])]] for i, a in enumerate(anchors)] if rig is not None else None
+    PANELS[name] = {'name': name, 'cols': cols, 'rows': rows, 'rest': G, 'anchors': anchors, 'params': params, 'top': top}
     return PANELS[name]
 
 

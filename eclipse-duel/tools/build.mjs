@@ -27,7 +27,9 @@ const result = await build({
   sourcemap: dev ? 'inline' : false,
   write: false,
   target: ['es2020'],
-  loader: { '.glsl': 'text', '.css': 'text', '.svg': 'text', '.txt': 'text' },
+  // '.edm': Blender hero assets (assets/chars/<hero>/<hero>.edm, tools/blender) embedded as Uint8Array, only when the
+  // target imports them (assets/chars/<hero>/index.js)
+  loader: { '.glsl': 'text', '.css': 'text', '.svg': 'text', '.txt': 'text', '.edm': 'binary' },
   define: { __DEV__: JSON.stringify(dev), __TARGET__: JSON.stringify(target) },
   legalComments: 'none',
   logLevel: 'warning',

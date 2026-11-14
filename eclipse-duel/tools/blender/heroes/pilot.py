@@ -28,26 +28,40 @@ P = rig.pt
 
 # ---- looks: storm violet, ink black, old gold (linear colours) ------------------------------------------------------------
 LK = {
-    'skin': ed.look('skin', color=(0.36, 0.22, 0.16), rough=0.62, set='leather', amt=0.15),
-    'robe': ed.look('robe', color=(0.075, 0.05, 0.11), rough=0.72, set='silk', amt=0.6),          # storm violet silk
-    'robeIn': ed.look('robeIn', color=(0.03, 0.028, 0.034), rough=0.8, set='hemp', amt=0.7),      # ink-black hemp under-layer
-    'collar': ed.look('collar', color=(0.02, 0.019, 0.024), rough=0.66, set='silk', amt=0.5),     # black lapel band
-    'dongjeong': ed.look('dongjeong', color=(0.55, 0.52, 0.46), rough=0.7, set='silk', amt=0.4),  # pale inner collar strip
-    'trim': ed.look('trim', color=(0.36, 0.25, 0.08), rough=0.42, metal=0.6, set='brocade', amt=1.0, vein=0.12),  # old-gold thunder trim
-    'sash': ed.look('sash', color=(0.022, 0.02, 0.026), rough=0.75, set='hemp', amt=0.8),
-    'trousers': ed.look('trousers', color=(0.035, 0.032, 0.04), rough=0.85, set='hemp', amt=0.9),
-    'wrap': ed.look('wrap', color=(0.16, 0.145, 0.13), rough=0.88, set='hemp', amt=1.0),          # undyed hemp wraps
-    'leather': ed.look('leather', color=(0.05, 0.038, 0.03), rough=0.55, set='leather', amt=0.9),
-    'lamellar': ed.look('lamellar', color=(0.028, 0.026, 0.034), rough=0.32, metal=0.0, set='lamellar', amt=1.0, wear=1.2),   # black lacquered plates
-    'lace': ed.look('lace', color=(0.42, 0.28, 0.085), rough=0.55, set='hemp', amt=0.5, vein=0.1),                       # old-gold lacing
-    'bamboo': ed.look('bamboo', color=(0.3, 0.22, 0.12), rough=0.6, set='bamboo', amt=0.8),
-    'bambooDark': ed.look('bambooDark', color=(0.12, 0.085, 0.05), rough=0.55, set='bamboo', amt=0.8),
-    'hair': ed.look('hair', color=(0.018, 0.016, 0.017), rough=0.45, set='hair', amt=1.0),
-    'shaft': ed.look('shaft', color=(0.06, 0.03, 0.04), rough=0.3, set='lacquer', amt=0.8),
-    'bronze': ed.look('bronze', color=(0.42, 0.27, 0.11), rough=0.38, metal=1.0, set='bronze', amt=0.9),
-    'steel': ed.look('steel', color=(0.56, 0.57, 0.6), rough=0.22, metal=1.0, set='blade', amt=1.0),
-    'horsehair': ed.look('horsehair', color=(0.2, 0.05, 0.22), rough=0.5, set='hair', amt=1.0),    # violet-dyed horsehair
+    'skin': ed.look('skin', color=(0.2, 0.12, 0.08), rough=0.6, set='leather', amt=0.15),
+    'robe': ed.look('robe', color=(0.05, 0.02, 0.09), rough=0.6, set='silk', amt=0.9),               # storm-violet silk
+    'robeIn': ed.look('robeIn', color=(0.012, 0.011, 0.014), rough=0.85, set='hemp', amt=0.8),       # ink-black hemp lining / under-layer
+    'collar': ed.look('collar', color=(0.01, 0.009, 0.012), rough=0.55, set='silk', amt=0.8),        # black lapel band
+    'dongjeong': ed.look('dongjeong', color=(0.42, 0.4, 0.36), rough=0.7, set='silk', amt=0.6),      # pale inner collar strip
+    'trim': ed.look('trim', color=(0.03, 0.012, 0.05), rough=0.5, set='brocade', amt=1.0),           # thunder brocade, old-gold thread
+    'sash': ed.look('sash', color=(0.016, 0.014, 0.018), rough=0.8, set='hemp', amt=0.9),
+    'trousers': ed.look('trousers', color=(0.018, 0.017, 0.022), rough=0.88, set='hemp', amt=1.0),
+    'wrap': ed.look('wrap', color=(0.12, 0.1, 0.075), rough=0.9, set='hemp', amt=1.0),               # undyed hemp wraps
+    'leather': ed.look('leather', color=(0.02, 0.016, 0.014), rough=0.58, set='leather', amt=1.0),
+    'lamellar': ed.look('lamellar', color=(0.014, 0.012, 0.016), rough=0.3, set='lacquer', amt=1.0, wear=0.35),   # black lacquered plates
+    'lace': ed.look('lace', color=(0.32, 0.2, 0.055), rough=0.6, set='hemp', amt=0.6, vein=0.12),               # old-gold lacing
+    'bamboo': ed.look('bamboo', color=(0.1, 0.068, 0.032), rough=0.45, set='hemp', amt=0.35),
+    'bambooDark': ed.look('bambooDark', color=(0.045, 0.032, 0.02), rough=0.5, set='hemp', amt=0.5),
+    'hair': ed.look('hair', color=(0.012, 0.011, 0.012), rough=0.42, set='hair', amt=1.0),
+    'shaft': ed.look('shaft', color=(0.032, 0.027, 0.03), rough=0.3, set='lacquer', amt=0.8),
+    'bronze': ed.look('bronze', color=(0.42, 0.27, 0.11), rough=0.36, metal=1.0, set='bronze', amt=0.9),
+    'steel': ed.look('steel', color=(0.2, 0.21, 0.25), rough=0.22, metal=1.0, set='blade', amt=1.0),
+    'horsehair': ed.look('horsehair', color=(0.07, 0.02, 0.11), rough=0.5, set='hair', amt=1.0),     # violet-dyed horsehair
+    'eye': ed.look('eye', color=(0.02, 0.016, 0.03), rough=0.6, set='hammered', amt=0.0, eye=1.0, emission=(0.7, 0.55, 1.0)),
 }
+MOTIF_THUNDER = 6
+
+def orient_out(obj, axis_pts):
+    """Make an open garment sheet's faces point away from its axis (the lining then goes inside)."""
+    V, N = ed.verts_of(obj), ed.normals_of(obj)
+    k, c, _ = ed.skin.path_param(V, np.asarray(axis_pts))
+    if float(np.mean(np.einsum('ij,ij->i', N, V - c))) < 0:
+        import bmesh
+        bm = bmesh.new(); bm.from_mesh(obj.data)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+        bm.to_mesh(obj.data); bm.free(); obj.data.update()
+    return obj
+
 
 # ---- 1. base body ---------------------------------------------------------------------------------------------------------------
 body = ed.body(rig, arm=arm, tris=12000)
@@ -92,6 +106,11 @@ def thick(obj, t, inner=None, offset=-1.0):
 
 def stage_done(n, name):
     if STAGE <= n:
+        for o in ed.bpy.context.scene.objects:
+            if o.type == 'MESH':
+                V = ed.verts_of(o)
+                if len(V):
+                    print('BBOX', o.name, np.round(V.min(0), 3), np.round(V.max(0), 3), len(V))
         if PREVIEW:
             ed.preview_sheet(HERO, name, height=2.25, samples=10)
         ed.log('stage', n, 'done', round(time.time() - T0, 1), 's')
@@ -140,6 +159,9 @@ for nm, path, lift in (('lapelU', LAP_UND, 0.003), ('lapelT', LAP_TOP, 0.007)):
     ed.assign_look(dj, LK['dongjeong'])
     collar.append(dj)
     tr = ed.ribbon(nm + '_trim', pts - side * sgn * 0.031 + nrm * 0.0032, width=0.011, normal=nrm, camber=0.2, nu=2, code=0.2)
+    # brocade uv: u along the band in band widths, v across, code = motif + glow through the thread
+    q = ed.get_attr(tr, 'ed_uvw'); Ltr = float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum())
+    ed.set_attr(tr, 'ed_uvw', np.stack([q[:, 1] * Ltr / 0.011 * 0.5, q[:, 0], np.full(len(q), MOTIF_THUNDER + 0.15)], axis=1), 'FLOAT_VECTOR')
     thick(tr, 0.002, offset=0.0)
     ed.assign_look(tr, LK['trim'])
     collar.append(tr)
@@ -159,21 +181,36 @@ S_skirt = S.subset(['torso', 'legR', 'legL'])
 hem_z = 0.36
 c0 = P('hips', [0.0, 0.055, 0])
 sk_axis = ed.ring_axis([c0, np.array([c0[0], c0[1] - 0.01, (c0[2] + hem_z) / 2]), np.array([c0[0], c0[1] - 0.02, hem_z])], 26)
-flare = lambda u, v: 0.05 + 0.075 * v ** 1.4 + 0.012 * np.cos(u * 2 * np.pi) ** 2 * v
+flare = lambda u, v: 0.045 + 0.12 * v ** 1.15 + 0.02 * np.cos(u * 2 * np.pi) ** 2 * v
 skirt = []
 for nm, arc_, n_ in (('skirtF', (-0.25, 0.25), 40), ('skirtBL', (0.21, 0.52), 26), ('skirtBR', (0.48, 0.79), 26)):
     sk = ed.wrap(nm, S_skirt, sk_axis, n=n_, offset=flare, arc=arc_, rmax=0.5)
     ed.pleats(sk, count=22, depth=0.011, grow=(0.0, 1.0), phase=0.13 if nm == 'skirtF' else 0.0)
     skirt.append(sk)
-ed.drape_settle = None
+# the drape collider is the convex hull of hips + legs (a skirt spans the gap between the legs, it does not fall into it)
+legs_hull = ed.wrap('_legs_hull', S_skirt, ed.ring_axis([c0, np.array([c0[0], c0[1], 0.25])], 20), n=48, offset=0.014)
+orient_out(legs_hull, [c0, np.array([c0[0], c0[1], 0.25])])     # Blender's collision keeps cloth on the normal side
 for sk in skirt:
-    ed.drape(sk, [body] + trousers, pin=lambda q, Pp: 1 - ed.smoothstep(0.06, 0.14, q[:, 1]), frames=32, mass=0.3, tension=20, bending=1.2, thickness=0.006)
-ed.remove_colliders([body] + trousers)
+    ed.drape(sk, [legs_hull], pin=lambda q, Pp: 1 - ed.smoothstep(0.06, 0.16, q[:, 1]), frames=12, mass=0.3, tension=25, bending=6.0, thickness=0.006)
+ed.remove_colliders([legs_hull])
+ed.delete(legs_hull)
+SKIRT_BONES = ['hips', 'spine', 'thighR', 'thighL', 'hipJointR', 'hipJointL', 'thighTwistR', 'thighTwistL']
 for sk in skirt:
     ed.push_out(sk, S, 0.012)
     ed.wrinkle(sk, amount=0.0025, scale=30, seed=5, stretch=(1.0, 1.0, 0.2))
     ed.hem(sk, 'v1', 0.022, 0.0025)
+    # runtime cloth: a verlet panel defined FROM the drape (the game's cloth starts where Blender left it); the upper
+    # skirt rides the hips / thighs by weights, the lower part is handed to the panel's particle bones
+    n_, r_ = sk['ed_grid']
+    G = ed.verts_of(sk)[: n_ * r_].reshape(r_, n_, 3)
+    if G[0, 0, 0] < G[0, -1, 0]:
+        G = G[:, ::-1]
+    pan = ed.define_panel(sk.name, G, anchor='hips', rig=rig, cols=6 if sk.name == 'skirtF' else 4, rows=9,
+                          damping=0.045, margin=0.02, thickness=0.01, wind=0.7, stretch=1.0, bend=0.35)
+    ed.transfer_weights(body, sk, arm, smooth=2, bones=SKIRT_BONES)
+    ed.bind_panel(sk, pan, share=lambda u, v: ed.smoothstep(0.1, 0.42, v))
     ed.assign_look(sk, LK['robe'])
+    orient_out(sk, sk_axis)
     thick(sk, 0.004, inner=LK['robeIn'])
 
 # sash: a wide band of black hemp at the waist, knotted at the front left with two hanging ends
@@ -197,7 +234,13 @@ for k_, (u0, ln, w) in enumerate(((0.12, 0.42, 0.06), (0.15, 0.34, 0.052))):
     ed.assign_look(e, LK['sash'])
     ends.append(e)
 # a fringe of old-gold thunder trim along each hem of the sash ends
-sash_all = ed.join([sash, knot] + ends, 'sash')
+sash_all = ed.join([sash, knot], 'sash')
+# the hanging ends lie on the front skirt panel: they take its skin weights and its runtime cloth binding
+pF = ed.skin.PANELS['skirtF']
+for e in ends:
+    ed.transfer_weights(body, e, arm, smooth=1, bones=SKIRT_BONES)
+    ed.bind_panel(e, pF, share=lambda u, v: ed.smoothstep(0.1, 0.42, v))
+skirt[0] = ed.join([skirt[0]] + ends, 'skirtF')
 
 # forearm and shin wraps (undyed hemp), boots
 wraps = []
@@ -207,7 +250,14 @@ for s in ('R', 'L'):
     e1, e2 = rig.vec(fa, [1, 0, 0]), rig.vec(fa, [0, 0, 1])
     rad = limb_radius(S.subset(['arm' + s]), a, b, e1, e2, [0, 0.35, 0.7, 1.0])
     rad = [[t, r + 0.004] for t, r in rad]
-    w = ed.helix_wrap('wrapA' + s, a, b, rad, turns=9, width=0.03, thick=0.0016, axes=(e1, e2), seed=31 if s == 'R' else 32)
+    w = ed.helix_wrap('wrapA' + s, a, b, rad, turns=9, width=0.03, thick=0.0016, sides=12, axes=(e1, e2), seed=31 if s == 'R' else 32)
+    ed.assign_look(w, LK['wrap'])
+    wraps.append(w)
+    # the wrap continues over the palm to the knuckles (fingers and thumb stay free to close on the haft)
+    hb = 'hand' + s
+    hz = 0.003 * (1 if s == 'R' else -1)
+    w = ed.helix_wrap('wrapH' + s, P(hb, [0, 0.012, hz]), P(hb, [0.004, -0.058, hz]), [[0, 0.031], [0.5, 0.039], [1, 0.044]], turns=4, width=0.026,
+                      thick=0.0015, sides=14, ellipse=0.42, axes=(rig.vec(hb, [1, 0, 0]), rig.vec(hb, [0, 0, 1])), seed=33 if s == 'R' else 34)
     ed.assign_look(w, LK['wrap'])
     wraps.append(w)
     sn = 'shin' + s
@@ -215,7 +265,7 @@ for s in ('R', 'L'):
     e1, e2 = rig.vec(sn, [1, 0, 0]), rig.vec(sn, [0, 0, 1])
     rad = limb_radius(S.subset(['leg' + s]), a, b, e1, e2, [0, 0.3, 0.6, 0.85, 1.0])
     rad = [[t, r + (0.015 if t < 0.1 else 0.008)] for t, r in rad]
-    w = ed.helix_wrap('wrapL' + s, a, b, rad, turns=10, width=0.036, thick=0.0018, axes=(e1, e2), seed=41 if s == 'R' else 42)
+    w = ed.helix_wrap('wrapL' + s, a, b, rad, turns=10, width=0.036, thick=0.0018, sides=12, axes=(e1, e2), seed=41 if s == 'R' else 42)
     ed.assign_look(w, LK['wrap'])
     wraps.append(w)
 boots = ed.keep_regions(body, [5], 'boots')
@@ -228,13 +278,13 @@ stage_done(3, 'stage3')
 
 # ---- 4. lamellar cuirass + left shoulder piece, hat, face wrap, hair, queue, spear --------------------------------------------------
 SL = ed.grid_surface(robe, 0.012)
-plates, lace = ed.lamellar('lamellar', SL, rows=8, cols=44, thick=0.0028, dome=0.0018, overlap=0.3, row_overlap=0.28, v_range=(0.2, 0.9),
-                           lace_r=0.0013, closed=True)
+plates, lace = ed.lamellar('lamellar', SL, rows=8, cols=36, thick=0.0028, dome=0.0018, overlap=0.3, row_overlap=0.28, v_range=(0.2, 0.9),
+                           lace_r=0.0014, closed=True, lod=0)
 ed.assign_look(plates, LK['lamellar'])
 ed.assign_look(lace, LK['lace'])
 SV = ed.grid_surface(sleeves[1], 0.014)
 splates, slace = ed.lamellar('shoulderL', SV, rows=4, cols=9, thick=0.0028, dome=0.002, overlap=0.3, row_overlap=0.3, u_range=(0.02, 0.5),
-                             v_range=(0.0, 0.42), lace_r=0.0013)
+                             v_range=(0.0, 0.42), lace_r=0.0014, lod=0)
 ed.assign_look(splates, LK['lamellar'])
 ed.assign_look(slace, LK['lace'])
 # the shoulder piece hangs from a leather strap over the collar
@@ -248,7 +298,7 @@ ed.assign_look(strap, LK['leather'])
 hat_up = rig.vec('head', [0, 1, 0])
 apex = P('head', [0.006, 0.405, 0])
 Hs = ed.cone_surface(apex, hat_up, 0.31, 0.25, bell=0.82, v0=0.035)
-weave = ed.weave('hat_weave', Hs, 48, 13, thick=0.0011, lift=0.0013, pattern=(2, 2), sub=2)
+weave = ed.weave('hat_weave', Hs, 40, 13, thick=0.0011, lift=0.0013, pattern=(2, 2), sub=2, across=2)
 ed.assign_look(weave, LK['bamboo'])
 lining = ed.lathe('hat_lining', [[0.31 * (0.035 + 0.965 * v) - 0.0005, 0.25 * (0.035 + 0.965 * v) ** 0.82 + 0.0035] for v in np.linspace(0, 1, 9)], 48,
                   origin=apex, axis=-hat_up)
@@ -266,7 +316,23 @@ for z in (1.0, -1.0):
     cords.append(ed.tube('hat_cord' + ('R' if z > 0 else 'L'), ed.polyline(np.array(cp), 14), 0.0028, 6))
 for c in cords:
     ed.assign_look(c, LK['lace'])
-hat = ed.join([weave, lining, rim, fin, band] + cords, 'hat')
+# game mesh: a smooth cone at the weave's mid-surface carrying the weave as baked maps (object-space normal, AO, strip
+# tones): ~0.9k triangles instead of the plait's ~10k
+prof = [[0.31 * (0.035 + 0.965 * v), 0.25 * (0.035 + 0.965 * v) ** 0.82] for v in np.linspace(0, 1, 12)]
+hat_low = ed.lathe('hat_low', prof, 48, origin=apex, axis=-hat_up, a1=359.999)
+ed.recalc_normals(hat_low)
+Vh, Nh = ed.verts_of(hat_low), ed.normals_of(hat_low)
+if float(np.mean(np.einsum('ij,ij->i', Nh, Vh - apex) * 0 + Nh @ hat_up)) < 0:
+    ed.recalc_normals(hat_low, inside=True)
+ed.uv_from_grid(hat_low)
+ed.assign_look(hat_low, LK['bamboo'])
+HAT_MAPS = ed.bake_object_maps([weave], hat_low, size=(1024, 512), name='pilot_hat', out_dir=os.path.join(ed.ROOT, 'build', 'bake', 'pilot'))
+hat_low['ed_maps'] = 'pilot_hat'
+ed.delete(weave)
+for o_ in [lining, rim, fin, band] + cords:
+    ed.set_attr(o_, 'ed_bakew', np.zeros(len(o_.data.vertices), dtype=np.float32))
+hat = ed.join([hat_low, lining, rim, fin, band] + cords, 'hat')
+hat['ed_maps'] = 'pilot_hat'
 
 # cloth face wrap from the bridge of the nose to the collar, with a tied tail at the nape
 S_head = S.subset(['head', 'neck', 'eyes'])
@@ -337,8 +403,83 @@ for x, w, th in zip(xs, half_w, half_t):
 blade = ed.loft('spear_blade', np.array(rings), caps=(True, False))
 ed.shade(blade, 28)
 ed.assign_look(blade, LK['steel'])
+# blade uv for the `blade` set: (metres along, 0 edge .. 1 midrib, temper height)
+Vb = ed.verts_of(blade)
+loc = Vb - o
+xa, ya = loc @ wx, loc @ wy
+hw_at = np.interp(xa, xs, half_w)
+ed.set_attr(blade, 'ed_uvw', np.stack([xa - XB, np.clip(1 - np.abs(ya) / np.maximum(hw_at, 1e-4), 0, 1), np.full(len(Vb), 0.42)], axis=1), 'FLOAT_VECTOR')
+
 tas = ed.tassel('spear_tassel', o + wx * (XB - 0.07) - np.array([0, 0, 0.012]), direction=(0, 0, -1), length=0.2, radius=0.024, strands=16, head=0.22)
 ed.assign_look(tas, LK['horsehair'])
-spear = ed.join([shaft, blade, guard, tas] + fit + gends, 'spear')
+spear = ed.join([shaft, blade, guard] + fit + gends, 'spear')
 
 stage_done(4, 'stage4')
+
+# ---- 5. what shows, skinning, baked surface data, budgets, export ----------------------------------------------------------------
+# glowing eyes in the shadow of the hat (the storm's violet-white: the `eye` glow channel)
+eyes = []
+for z in (1.0, -1.0):
+    e = ed.ellipsoid('eye', P('head', [0.101 * K, 0.116 * K, z * 0.034 * K]), [0.004 * K, 0.0055 * K, 0.013 * K],
+                     np.stack([rig.vec('head', [1, 0, 0]), rig.vec('head', [0, 1, 0]), rig.vec('head', [0, 0, 1])], axis=1), (10, 6))
+    ed.assign_look(e, LK['eye'])
+    eyes.append(e)
+eyes = ed.join(eyes, 'eyes')
+
+# haircap strands for the `hair` uv set: u across (strand units), v root -> tip
+q = ed.get_attr(haircap, 'ed_uv')
+ed.set_attr(haircap, 'ed_uvw', np.stack([q[:, 0] * 40.0, q[:, 1], np.zeros(len(q))], axis=1), 'FLOAT_VECTOR')
+
+garments = [robe] + sleeves + collar + trousers + [sash_all] + wraps + [strap, facewrap, haircap]
+for g in garments:
+    ed.transfer_weights(body, g, arm, smooth=1)
+ed.rigid_islands(plates, body, arm=arm)
+ed.rigid_islands(splates, body, arm=arm)
+ed.transfer_weights(body, lace, arm, smooth=1)
+ed.transfer_weights(body, slace, arm, smooth=1)
+ed.transfer_weights(body, eyes, arm, smooth=0, bones=['head'])
+ed.rigid(hat, 'head')
+ed.along_chain(queue, rig, 'queue', parent='head', root_blend=0.06)
+ed.rigid(qtie, 'queue1')
+ed.rigid(qend, 'queue4')
+ed.rigid(spear, 'weaponR')
+ed.rigid(tas, 'weaponR')
+
+# the body only where it shows: hands, the eyes' band of the face, the neck between wrap and collar
+covers = [robe, facewrap, haircap, hat] + sleeves + trousers + wraps + skirt + [boots, sash_all]
+reg = ed.get_attr(body, 'ed_region')
+removed = ed.cull_hidden(body, covers, keep=np.isin(reg, [3]))
+ed.log('body culled faces', removed)
+
+parts = [
+    (body, 'body', 'gear', ()), (eyes, 'eyes', 'gear', ()),
+    (ed.join([robe] + sleeves + collar + trousers + [sash_all] + wraps + [strap, facewrap], 'robe'), 'robe', 'cloth', ()),
+    (ed.join([plates, lace, splates, slace, boots], 'armour'), 'armour', 'gear', ()),
+    (hat, 'hat', 'gear', ('rigid',)),
+    (ed.join([haircap, queue, qtie], 'hair'), 'hair', 'gear', ()),
+    (qend, 'queueTassel', 'hair', ('cutout',)),
+    (spear, 'spear', 'blade', ('rigid',)),
+    (tas, 'spearTassel', 'hair', ('cutout', 'rigid')),
+]
+for sk in skirt:
+    parts.append((sk, sk.name, 'cloth', ('cloth',)))
+for i, (obj, name, slot, flags) in enumerate(parts):
+    ed.part(obj, name, slot, flags, order=i)
+
+objs = [p[0] for p in parts]
+BUDGET = {'robe': 13000, 'skirtF': 3000, 'skirtBL': 2000, 'skirtBR': 2000}
+for o in objs:
+    if o.name in BUDGET:
+        ed.decimate_to(o, BUDGET[o.name])
+tris = {o.name: ed.tri_count(o, evaluated=False) for o in objs}
+ed.log('triangles', sum(tris.values()), tris)
+ed.bake_cavity(objs, samples=24, distance=0.1)
+for o in objs:
+    rep = ed.weight_report(o)
+    if rep['unweighted'] or rep['max_influences'] > 4:
+        ed.log('WEIGHTS', o.name, rep)
+stage_done(5, 'stage5')
+manifest = ed.export_asset(HERO, objs, textures=HAT_MAPS, scripts=[os.path.abspath(__file__)] + [os.path.join(ed.HERE, 'ed', f) for f in sorted(os.listdir(os.path.join(ed.HERE, 'ed'))) if f.endswith('.py')])
+if PREVIEW:
+    ed.preview_sheet(HERO, 'final', height=2.25, samples=12)
+ed.log('pilot done', round(time.time() - T0, 1), 's')
