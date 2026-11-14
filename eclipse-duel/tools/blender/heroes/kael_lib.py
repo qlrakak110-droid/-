@@ -187,6 +187,9 @@ def sdf_mesh(name, fn, bmin, bmax, h=0.002, frame=None, rig=None, project=4, smo
         V = V @ M[:3, :3].T + M[:3, 3]
     obj = ed.new_mesh(name, V, Q.tolist(), coll)
     _largest_islands(obj)
+    # the nets come out wound inward after the move into bind space: face outward again (else AO bakes black and the
+    # object-space normal map is inverted: a dark chrome-looking piece in the engine)
+    ed.recalc_normals(obj)
     if smooth:
         EDM.smooth(obj, 0.35, smooth)
     ed.shade(obj)
@@ -422,3 +425,19 @@ def hammer(obj, amount=0.0004, scale=180.0, seed=3):
     d = EDM.fbm(P * scale, octaves=2, seed=seed)
     ed.set_verts(obj, P - Nn * (np.abs(d) * amount)[:, None])
     return obj
+
+
+def bake_maps_clean(high, low, **kw):
+    """ed.bake_object_maps with the low-poly target hidden from diffuse / shadow / glossy rays while baking: otherwise the
+    AO rays cast from the high-poly surface hit the coincident low-poly shell at once and the AO channel bakes black
+    (a dark, chrome-looking piece in the engine). Candidate for edlib (reported, not edited: shared library)."""
+    flags = ('visible_diffuse', 'visible_glossy', 'visible_shadow', 'visible_transmission', 'visible_volume_scatter')
+    saved = {f: getattr(low, f) for f in flags}
+    for f in flags:
+        setattr(low, f, False)
+    try:
+        recs = ed.bake_object_maps(high, low, **kw)
+    finally:
+        for f, v in saved.items():
+            setattr(low, f, v)
+    return recs

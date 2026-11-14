@@ -61,8 +61,8 @@ const SASH = [
 const JADE = chain('jade', 'hips', [0.096, 0.03, 0.098], [[0.0, -0.075, 0.004]], { tip: [0, -0.1, 0], stiffness: 36, damping: 3.2, gravity: 1.0, limit: 65, radius: 0.018 });
 // front skirt panels: a follower at the waist rides 62 % of the thigh swing, two spring bones carry the hem
 const SKIRT = [
-  skirtRig('skFR', { a0: 6, a1: 84, len: 0.6, follow: 'thighR', rx: 0.12, rz: 0.14, y: -0.02, n: 2, stiffness: 34, damping: 3.6, radius: 0.045, limit: 55 }),
-  skirtRig('skFL', { a0: -84, a1: -6, len: 0.6, follow: 'thighL', rx: 0.12, rz: 0.14, y: -0.02, n: 2, stiffness: 34, damping: 3.6, radius: 0.045, limit: 55 }),
+  skirtRig('skFR', { a0: 6, a1: 84, len: 0.6, follow: 'thighR', k: 0.86, rx: 0.12, rz: 0.14, y: -0.02, n: 2, stiffness: 70, damping: 5.0, gravity: 0.45, radius: 0.05, limit: 40 }),
+  skirtRig('skFL', { a0: -84, a1: -6, len: 0.6, follow: 'thighL', k: 0.86, rx: 0.12, rz: 0.14, y: -0.02, n: 2, stiffness: 70, damping: 5.0, gravity: 0.45, radius: 0.05, limit: 40 }),
 ];
 const RIGS = [HAIR, ...SLV, ...SASH, JADE, ...SKIRT];
 export const ISKA_CHAINS = { HAIR, SLV, SASH, JADE, SKIRT };

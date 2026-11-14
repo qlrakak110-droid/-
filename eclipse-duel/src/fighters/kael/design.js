@@ -2,11 +2,12 @@
 // (src/char/README.md "Design format"); the look is modelled in Blender by tools/blender/heroes/kael.py and loaded from
 // assets/chars/kael (src/char/assets.js).
 //
-// A broad, heavy master: a charred-black outer coat over a deep-red robe, both worn open at the chest over a scarred torso
-// bound with cloth bands; one snarling beast-face pauldron on the right shoulder (the saber rests in the cradle of its
+// A broad, heavy master: a charred-black outer coat over a deep-red robe, both worn open at the chest over a torso with
+// three old sword scars, bound with hemp bands; one snarling beast-face pauldron on the right shoulder (the saber rests in the cradle of its
 // mane in the stance); a thick crimson sash knotted at the left hip with long hanging ends; split coat tails (the back
 // pair on runtime cloth); forearms wrapped in cloth under bronze-studded leather bracers; heavy boots; an iron demon
-// half-mask (귀면) with sculpted brows, cheek ridges and fangs under a topknot, a loose mane and a short red headband;
+// half-mask (귀면) forged in planes (prism brows with flame tufts, cheekbones with a hard ridge, a flat-sided nose, a
+// snarling lip, bone fangs, swept horns) over a banded rust-red scarf, under a topknot, a loose mane and a red headband;
 // ember light through the brocade seams, the mask's cracks and the blade's blood groove. The 참마대도 keeps the exact
 // length, grips and sockets of WEAPON_SPECS.greatsword.
 //
@@ -24,6 +25,12 @@ import { greatsword, saberStripRig, WEAPON_SPECS, WEAPON_MATERIALS } from '../..
 /** Ember palette (linear HDR): core (8, 3, 0.6) -> (3, 0.5, 0.05). */
 const GLOW = { inlay: [6.2, 2.0, 0.34], vein: [2.6, 0.62, 0.07], eye: [9.5, 3.6, 0.8] };
 const RIM = [0.3, 0.36, 0.58, 3.0];
+/** Hard pieces take a tighter, dimmer rim: forged facets would otherwise sparkle along every ridge. */
+const RIM_GEAR = [0.15, 0.18, 0.3, 4.0];
+/** The mane: the strand lobe, the env map and the full rim turned the ink-black locks silver-grey (roster review). */
+const RIM_HAIR = [0.1, 0.12, 0.2, 4.0];
+/** Dark bronze: the patina stays a faint dark green in the deepest hollows (no teal on the fittings). */
+const AGED = { verdigris: [0.035, 0.05, 0.035], verdigrisAmount: 0.18 };
 
 // ---- spring chains (skinned in Blender: tools/blender/heroes/kael.py along_chain) -----------------------------------------
 /** The loose mane: three locks falling from the crown down the nape and over the upper back. */
@@ -42,6 +49,19 @@ const SASH = [
 /** The red cloth strip tied through the saber's ring pommel. */
 const STRIP = saberStripRig();
 const CHAINS = [...MANE, BAND, ...SASH, STRIP];
+/** Look retunes over the Blender looks (tools/blender/heroes/kael.py LK), judged in the engine. */
+const LOOKS = {
+  // roster review: the forged iron read as black chrome (mirror lobe of the env map on every facet) -> fire-blackened,
+  // matte iron whose light lives in the cracks; the mane read silver-grey -> ink-black hair; the skin read as a pink
+  // mannequin under the warm key -> darker, weathered, rougher
+  iron: { rough: 0.8, metal: 0.55 },
+  ironDark: { rough: 0.84, metal: 0.5 },
+  saberBack: { rough: 0.62 },
+  hair: { color: [0.014, 0.012, 0.011], rough: 0.7 },
+  skin: { color: [0.105, 0.06, 0.042], rough: 0.68 },
+  scar: { color: [0.14, 0.055, 0.045], rough: 0.5 },
+  scarf: { color: [0.11, 0.03, 0.017] },   // the rust-red scarf read as a black hood: it must part the mask from the coat
+};
 
 export const kael = {
   id: 'kael',
@@ -55,10 +75,10 @@ export const kael = {
   },
   glow: GLOW,
   materials: {
-    cloth: { envMapIntensity: 0.6, bump: 1, glow: GLOW, rim: RIM, thread: [0.5, 0.26, 0.07], wear: [0.4, 0.9, 0.55, 0] },
-    gear: { envMapIntensity: 0.95, bump: 1, glow: GLOW, rim: RIM, wear: [0.9, 0.85, 0.45, 0.9], wearColor: [0.3, 0.27, 0.24], grimeColor: [0.22, 0.17, 0.14], heatColor: [0.2, 0.075, 0.035], undercoat: [0.16, 0.03, 0.014] },
-    hair: { envMapIntensity: 0.5, bump: 1, cutout: true, glow: GLOW, rim: RIM },
-    blade: { ...WEAPON_MATERIALS.greatsword },
+    cloth: { ...AGED, envMapIntensity: 0.6, bump: 1, glow: GLOW, rim: RIM, thread: [0.5, 0.26, 0.07], wear: [0.4, 0.9, 0.55, 0] },
+    gear: { ...AGED, envMapIntensity: 0.6, polish: 0.1, bump: 1, glow: GLOW, rim: RIM_GEAR, wear: [0.22, 0.85, 0.45, 0.9], wearColor: [0.12, 0.105, 0.095], grimeColor: [0.22, 0.17, 0.14], heatColor: [0.2, 0.075, 0.035], undercoat: [0.16, 0.03, 0.014] },
+    hair: { envMapIntensity: 0.12, bump: 1, cutout: true, glow: GLOW, rim: RIM_HAIR, sheen: [0.35, 0.6, 1, 0.35], aniso: [0.45, 0.3, 0.1, 0.5] },
+    blade: { ...WEAPON_MATERIALS.greatsword, ...AGED },
   },
   bones: CHAINS.flatMap((c) => c.bones),
   springs: CHAINS.flatMap((c) => c.springs),
@@ -86,15 +106,29 @@ export const kael = {
 
   /** Baked maps (skipped on the low tier) + the runtime glow control (char.glow: flare / set / gain). */
   attach(char, quality) {
-    if (kaelAsset) attachAssetMaps(char, kaelAsset, quality);
+    // the game calls attach(char) without a quality: the tier is then read from the cloth grid the rig was built with
+    // (the low tier must skip the maps there too)
+    if (kaelAsset) attachAssetMaps(char, kaelAsset, quality || { tier: lowTier(char) ? 'low' : 'high' });
     return attachGlow(char, GLOW);
   },
 
   build(kit) {
     // bootstrap (tools/blender/export_rig.mjs before the asset exists): the kit saber gives the weapon extent
     if (!kaelAsset) { greatsword(kit, { bone: 'weaponR', slot: 'blade', strip: STRIP }); return; }
-    addAsset(kit, kaelAsset, { design: this });
+    addAsset(kit, kaelAsset, { design: this, looks: LOOKS });
   },
 };
+
+/** True when the rig's cloth grid is coarser than the asset's panels (ctx.quality.cloth < 1: the low tier). */
+function lowTier(char) {
+  const idx = char.rig && char.rig.index;
+  if (!idx) return false;
+  for (const spec of kael.cloth) {
+    let R = 0;
+    while (idx[`${spec.name}_0_${R}`] !== undefined) R++;
+    if (R && R < spec.rows) return true;
+  }
+  return false;
+}
 
 export default kael;

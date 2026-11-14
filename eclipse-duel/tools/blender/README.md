@@ -242,6 +242,14 @@ are skipped (`attachAssetMaps(char, ref, { tier: 'low' })`), vertex data stay. M
   (~15k with the shoulder piece) and bake the rest.
 * **Decimating lamellar / weaves** breaks their islands: decimate garments only, lower the generator resolution for
   pattern pieces.
+* **Baked maps streak like broken chrome along every ridge** (roster review, KAEL's mask and pauldron, ISKA's mask):
+  `uv_unwrap` (smart project) cuts UV seams through smooth surfaces, and the exporter splits a vertex per island, so
+  several asset vertices share one bind position + normal. `attachAssetMaps` matches merged-mesh vertices by that key
+  and used to keep only the last island's coordinates: one side of every seam sampled the other island (foreign
+  texels: wrong object-space normals, AO and curvature). `src/char/assets.js` now queues the duplicates and hands them
+  out in order (the kit's merge keeps the asset's vertex order). Seamless grid UVs (`uv_from_grid`, VORN's hat) never
+  showed it. If a bake looks wrong in the engine but right in the Blender preview, toggle `uBakeOn` on the slot material
+  first (`char.materials.gear.userData.kit.uBakeOn.value = 0`).
 * **Image orientation.** Blender writes v = 0 at the bottom row: textures load with `flipY = true`.
 * **Normal maps are object space in GAME axes** (`normal_r='NEG_Y', normal_g='POS_Z', normal_b='NEG_X'`): the shader
   uses them in bind space directly (no tangents); do not convert them to tangent space.

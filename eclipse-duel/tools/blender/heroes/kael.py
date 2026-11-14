@@ -44,12 +44,12 @@ LK = {
     'sash': ed.look('sash', color=(0.2, 0.016, 0.01), rough=0.62, set='silk', amt=1.0),
     'trousers': ed.look('trousers', color=(0.02, 0.018, 0.018), rough=0.88, set='hemp', amt=1.0),
     'wrap': ed.look('wrap', color=(0.11, 0.09, 0.07), rough=0.9, set='hemp', amt=1.0),
-    'scarf': ed.look('scarf', color=(0.04, 0.014, 0.011), rough=0.86, set='hemp', amt=1.0),
+    'scarf': ed.look('scarf', color=(0.075, 0.022, 0.014), rough=0.86, set='hemp', amt=1.0),               # rust-red hemp scarf
     'band': ed.look('band', color=(0.1, 0.075, 0.055), rough=0.92, set='hemp', amt=1.0),                       # chest bands (sweat-darkened hemp)
     'leather': ed.look('leather', color=(0.032, 0.018, 0.012), rough=0.6, set='leather', amt=1.0),
     'leatherDark': ed.look('leatherDark', color=(0.016, 0.012, 0.011), rough=0.58, set='leather', amt=1.0),
     'bronze': ed.look('bronze', color=(0.36, 0.2, 0.08), rough=0.38, metal=1.0, set='bronze', amt=0.9),
-    'iron': ed.look('iron', color=(0.045, 0.04, 0.038), rough=0.5, metal=0.85, set='scorched', amt=1.0),   # charred iron: cracks glow (per-vertex patches)
+    'iron': ed.look('iron', color=(0.045, 0.04, 0.038), rough=0.6, metal=0.85, set='scorched', amt=1.0),   # charred iron: cracks glow (per-vertex patches)
     'ironDark': ed.look('ironDark', color=(0.03, 0.028, 0.027), rough=0.6, metal=0.75, set='scorched', amt=1.0, vein=0.35),
     'fang': ed.look('fang', color=(0.32, 0.27, 0.2), rough=0.42, metal=0.0, set='jade', amt=0.4),               # old bone / ivory
     'eye': ed.look('eye', color=(0.02, 0.008, 0.004), rough=0.6, set='hammered', amt=0.0, eye=1.0, emission=(1.0, 0.45, 0.1)),
@@ -114,6 +114,22 @@ S = ed.body.last_sdf
 S_torso = S.subset(['torso', 'neck'])
 ed.assign_look(body, LK['skin'])
 ed.log('body', ed.tri_count(body))
+
+# old sword scars across the open chest and the belly: raised welts (scar tissue) in the glossier, redder scar look
+def _on_body(pts, it=8):
+    pts = np.asarray(pts, float)
+    for _ in range(it):
+        d = S_torso.eval(pts); g = S_torso.grad(pts)
+        pts = pts - (d / np.maximum(np.einsum('ij,ij->i', g, g), 1e-9))[:, None] * g
+    return pts
+SCARS = [ed.polyline(_on_body([P('chest', [0.22, 0.2, 0.1]), P('chest', [0.22, 0.1, 0.02]), P('chest', [0.22, 0.0, -0.07]), P('chest', [0.22, -0.05, -0.11])]), 40),
+         ed.polyline(_on_body([P('chest', [0.22, 0.13, -0.13]), P('chest', [0.22, 0.09, -0.07]), P('chest', [0.22, 0.06, -0.035])]), 18),
+         ed.polyline(_on_body([P('chest', [0.22, 0.03, 0.12]), P('chest', [0.22, 0.045, 0.06])]), 10)]
+SCARS = [_on_body(sc) for sc in SCARS]
+_Vb = ed.verts_of(body); _dsc = KL.dist_to_paths(_Vb, SCARS)
+ed.set_verts(body, _Vb + ed.normals_of(body) * (0.0016 * np.exp(-(_dsc / 0.004) ** 2))[:, None])
+_fd = np.array([min(_dsc[v] for v in p_.vertices) for p_ in body.data.polygons])
+ed.assign_look(body, LK['scar'], faces=np.nonzero(_fd < 0.0035)[0])
 
 sh = rig.local('chest', rig.head('upperArmR'))          # right shoulder joint in the chest frame
 
@@ -504,8 +520,15 @@ HP = lambda off: P('head', np.asarray(off) * K)
 S_head = S.subset(['head', 'neck', 'eyes'])
 fw_axis = ed.ring_axis([HP([0.03, 0.075, 0]), HP([0.01, 0.0, 0]), P('neck', [0.0, 0.03, 0])], 14)
 face = ed.wrap('facewrap', S_head, fw_axis, n=48, offset=lambda u, v: 0.007 + 0.008 * ed.smoothstep(0.2, 0.9, v), rmax=0.25)
-ed.wrinkle(face, amount=0.0028, scale=34, seed=51, stretch=(0.3, 0.3, 1.0))
+ed.wrinkle(face, amount=0.0022, scale=34, seed=51, stretch=(0.3, 0.3, 1.0))
 ed.push_out(face, S, 0.006)
+# wound in overlapping bands (a long hemp scarf wrapped round jaw and neck): a sawtooth relief along a shallow helix,
+# each band's lower edge standing proud of the next, a dark crease under it
+_q = ed.get_attr(face, 'ed_uv'); _ph = (_q[:, 1] * 6.5 + _q[:, 0] * 1.0) % 1.0
+_Vf = ed.verts_of(face); _Nf = ed.normals_of(face)
+ed.set_verts(face, _Vf + _Nf * (0.0045 * _ph ** 1.6)[:, None])
+_cav = ed.get_attr(face, 'ed_cav', np.ones(len(_Vf))).copy() if ed.get_attr(face, 'ed_cav') is not None else np.ones(len(_Vf))
+ed.set_attr(face, 'ed_cav', np.clip(_cav * (0.55 + 0.45 * ed.smoothstep(0.0, 0.25, _ph)), 0, 2))
 ed.assign_look(face, LK['scarf'])
 
 hc_axis = ed.ring_axis([HP([-0.012, 0.215, 0]), HP([-0.01, 0.06, 0])], 12)
@@ -545,8 +568,8 @@ rng = np.random.RandomState(9)
 for ci, ch in enumerate(('maneA', 'maneB', 'maneC')):
     cp = rig.chain_points(ch)
     zc = rig.local('head', cp[0])[2]
-    for j in range(10):
-        dz = rng.uniform(-0.026, 0.026)
+    for j in range(13):
+        dz = rng.uniform(-0.034, 0.034)
         # each lock leaves the hair cap at the crown, follows the skull back, then hangs along its chain
         head_run = [HP([0.0, 0.215, (zc + dz) * 0.7]), HP([-0.06, 0.205, (zc + dz) * 1.05]), HP([-0.095, 0.16, (zc + dz) * 1.1])]
         jit = rig.vec('head', [rng.uniform(-0.012, 0.004), 0, dz * 0.8])
@@ -556,8 +579,8 @@ for ci, ch in enumerate(('maneA', 'maneB', 'maneC')):
         path = path[: max(8, int(len(path) * ln_))]
         cen_h = P('head', [0.0, 0.1, 0.0])
         nrm_ = ed.normalize(path - cen_h)
-        w0 = rng.uniform(0.032, 0.046)
-        rb = ed.ribbon('mane_%s%d' % (ch, j), path + nrm_ * (0.004 + 0.002 * j), width=[[0, w0 * 0.8], [0.45, w0 * 1.25], [1, w0 * 0.35]], normal=nrm_, camber=0.3, nu=3)
+        w0 = rng.uniform(0.036, 0.052)
+        rb = ed.ribbon('mane_%s%d' % (ch, j), path + nrm_ * (0.004 + 0.0016 * j), width=[[0, w0 * 0.8], [0.45, w0 * 1.25], [1, w0 * 0.35]], normal=nrm_, camber=0.3, nu=3)
         qm = ed.get_attr(rb, 'ed_uv')
         ed.set_attr(rb, 'ed_uvw', np.stack([qm[:, 0] + j * 0.37 + ci, qm[:, 1], np.full(len(qm), 0.6)], axis=1), 'FLOAT_VECTOR')
         rb['ed_chain'] = ch
@@ -645,18 +668,18 @@ ed.along_chain(strip, rig, 'strip', param=chain_param(strip, 'strip'), parent='w
 mask_hi = ed.duplicate(mask_parts['mask'], 'mask_hi')
 pd_hi = ed.duplicate(pd_parts['shell'], 'pd_hi')
 HC = rig.pt('head', [0.0, 0.1, 0.0])
-cr_mask = KL.crack_paths(mask_hi, n=9, seed=11, step=0.0035, length=(8, 20), select=lambda V, N: np.einsum('ij,ij->i', N, ed.normalize(V - HC)) > 0.5)
+cr_mask = KL.crack_paths(mask_hi, n=4, seed=11, step=0.0035, length=(8, 18), select=lambda V, N: np.einsum('ij,ij->i', N, ed.normalize(V - HC)) > 0.5)
 DC = rig.pt('deltoidR', [0.0, 0.0, 0.0])
-cr_pd = KL.crack_paths(pd_hi, n=12, seed=13, step=0.0045, length=(10, 24), select=lambda V, N: np.einsum('ij,ij->i', N, ed.normalize(V - DC)) > 0.4)
+cr_pd = KL.crack_paths(pd_hi, n=6, seed=13, step=0.0045, length=(10, 22), select=lambda V, N: np.einsum('ij,ij->i', N, ed.normalize(V - DC)) > 0.4)
 for hi, cr in ((mask_hi, cr_mask), (pd_hi, cr_pd)):
     KL.hammer(hi, 0.00035, 160, seed=5)
     ed.engrave(hi, cr, width=0.0026, depth=0.0013, falloff=1.8)
 # budgets: decimate the dense pieces (cloth keeps its borders; the SDF sculpts go to their game resolution)
-for o_, n_ in ((mask_parts['mask'], 3600), (pd_parts['shell'], 5000), (coat, 5200), (face, 800), (sash, 1400)):
+for o_, n_ in ((mask_parts['mask'], 2900), (pd_parts['shell'], 4300), (coat, 4600), (face, 1500), (sash, 1200)):
     ed.decimate_to(o_, n_)
 # baked maps: one atlas for the gear slot (pauldron left half, mask right half): object-space normals + AO / albedo
 for lo, (u0, u1) in ((pd_parts['shell'], (0.0, 0.5)), (mask_parts['mask'], (0.5, 1.0))):
-    ed.uv_unwrap(lo, angle=60, margin=0.006)
+    ed.uv_unwrap(lo, angle=75, margin=0.005)
     me_ = lo.data
     uvl = me_.uv_layers['ed_bake']
     a_ = np.empty(len(me_.loops) * 2, dtype=np.float32); uvl.data.foreach_get('uv', a_)
@@ -664,22 +687,22 @@ for lo, (u0, u1) in ((pd_parts['shell'], (0.0, 0.5)), (mask_parts['mask'], (0.5,
     uvl.data.foreach_set('uv', a_.reshape(-1))
     ed.set_attr(lo, 'ed_bakew', np.ones(len(me_.vertices), dtype=np.float32))
 for tl in tails:
-    ed.decimate_to(tl, 1400 if tl.name in ('tailBL', 'tailBR') else 1200)
+    ed.decimate_to(tl, 1250 if tl.name in ('tailBL', 'tailBR') else 1050)
 for o_ in sleeves:
-    ed.decimate_to(o_, 1900)
+    ed.decimate_to(o_, 1650)
 for o_ in trousers:
-    ed.decimate_to(o_, 900)
+    ed.decimate_to(o_, 800)
 
 # ember light in the cracks of the mask and the pauldron: the authored cracks glow (hot core, soft halo) + hot patches
-for lo, cr, base, seed in ((mask_parts['mask'], cr_mask, 0.5, 5), (pd_parts['shell'], cr_pd, 0.45, 8)):
+for lo, cr, base, seed in ((mask_parts['mask'], cr_mask, 0.2, 5), (pd_parts['shell'], cr_pd, 0.14, 8)):
     KL.vein_patches(lo, base=base, f=10, seed=seed)
     dcr = KL.dist_to_paths(ed.verts_of(lo), cr)
     g = ed.get_attr(lo, 'ed_glow').copy()
-    g[:, 0] = np.maximum(g[:, 0], 0.85 * np.exp(-(dcr / 0.0035) ** 2))
-    g[:, 1] = np.maximum(g[:, 1], 0.9 * np.exp(-(dcr / 0.006) ** 2))
+    g[:, 0] = np.maximum(g[:, 0], 0.5 * np.exp(-(dcr / 0.0026) ** 2))
+    g[:, 1] = np.maximum(g[:, 1], 0.6 * np.exp(-(dcr / 0.0045) ** 2))
     ed.set_attr(lo, 'ed_glow', g, 'FLOAT_VECTOR')
 gear_low = ed.join([pd_parts['shell'], mask_parts['mask']], 'armour')
-GEAR_MAPS = ed.bake_object_maps([pd_hi, mask_hi], gear_low, size=(1024, 1024), name='kael_gear', out_dir=SCRATCH, extrusion=0.01, samples=16)
+GEAR_MAPS = KL.bake_maps_clean([pd_hi, mask_hi], gear_low, size=(1024, 1024), name='kael_gear', out_dir=SCRATCH, extrusion=0.01, samples=16)
 gear_low['ed_maps'] = 'kael_gear'
 ed.delete([pd_hi, mask_hi])
 extras = [o_ for k_, o_ in list(mask_parts.items()) + list(pd_parts.items()) if k_ not in ('mask', 'shell')]

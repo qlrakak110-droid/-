@@ -191,7 +191,16 @@ export function addAsset(kit, ref, o = {}) {
         // remember the baked-map coordinates by bind position + normal: attachAssetMaps() finds these vertices in the
         // merged slot mesh (the kit's merge keeps the exact float positions)
         const bk = bakeIndex(kit, slot, part.bake.maps);
-        for (let i = 0; i < vn; i++) { const v = v0 + i; if (d.uv[v * 3 + 2] > 0) bk.map.set(vkey(d.pos, d.nrm, v), [d.uv[v * 3], d.uv[v * 3 + 1], d.uv[v * 3 + 2]]); }
+        // UV seams: the exporter splits a vertex per UV island, so several asset vertices can share one bind position and
+        // normal; they are queued in asset order and handed out in the merged mesh's (same) order by attachAssetMaps.
+        // (A single entry per key gave one side of every smooth seam the other island's coordinates: streaks of foreign
+        // texels across the atlas, read as broken chrome along every ridge of a smart-projected bake.)
+        for (let i = 0; i < vn; i++) {
+          const v = v0 + i;
+          if (!(d.uv[v * 3 + 2] > 0)) continue;
+          const k = vkey(d.pos, d.nrm, v), e = [d.uv[v * 3], d.uv[v * 3 + 1], d.uv[v * 3 + 2]], q = bk.map.get(k);
+          if (q) q.push(e); else bk.map.set(k, [e]);
+        }
       }
       tris += run.in / 3;
     }
@@ -228,9 +237,14 @@ export function attachAssetMaps(char, ref, quality) {
     const g = mesh.geometry, P = g.attributes.position.array, N = g.attributes.normal.array, n = g.attributes.position.count;
     const arr = new Float32Array(n * 3);
     let hit = 0;
+    const used = new Map();   // key -> entries handed out (seam duplicates come in the same order as in the asset)
     for (let v = 0; v < n; v++) {
-      const e = b.map.get(vkey(P, N, v));
-      if (e) { arr[v * 3] = e[0]; arr[v * 3 + 1] = e[1]; arr[v * 3 + 2] = e[2]; hit++; }
+      const k = vkey(P, N, v), q = b.map.get(k);
+      if (!q) continue;
+      const j = used.get(k) || 0;
+      used.set(k, j + 1);
+      const e = q[Math.min(j, q.length - 1)];
+      arr[v * 3] = e[0]; arr[v * 3 + 1] = e[1]; arr[v * 3 + 2] = e[2]; hit++;
     }
     if (!hit) continue;
     g.setAttribute('bake', new THREE.BufferAttribute(arr, 3));

@@ -1,7 +1,7 @@
 # 설리화 雪梨花 (iska) — 빙월쌍도, the Frost-Moon Twin Blades of the Cold Moon Palace, modelled in headless Blender on the
 # game rig (rigs/iska.json; spring chains declared in src/fighters/iska/design.js).
 #
-#   /opt/blender-env/venv/bin/python tools/blender/heroes/iska.py [--stage N] [--no-preview] [--views]
+#   tools/blender/bl.sh tools/blender/heroes/iska.py [--stage N] [--no-preview] [--quick=bust,head,...]
 #   -> assets/chars/iska/ (iska.edm, iska.json, index.js) + shots/blender/iska/*.png
 #
 # Stages: 1 body, 2 garments (robe, high crossed collars, floating sleeves, sash, draped split skirt, trousers, wraps,
@@ -83,7 +83,9 @@ neck_base = P('neck', [0.0, 0.012, 0])
 waist = P('hips', [0.0, -0.035, 0])
 ax_t = ed.ring_axis([neck_base, P('chest', [0.0, 0.17, 0]), P('chest', [0.01, 0.05, 0]), P('spine', [0.01, 0.06, 0]), waist], 34)
 TAU = 2 * np.pi
-ease_t = lambda u, v: 0.004 + 0.016 * ed.smoothstep(0.35, 0.82, v) * (1 - ed.smoothstep(0.86, 1.0, v)) * (0.55 + 0.45 * np.cos(u * TAU) ** 2)
+VS = (neck_base[2] - (P('hips', [0.0, 0.152, 0])[2] + 0.015)) / (neck_base[2] - waist[2])   # the sash's top edge (v)
+# blousing above the sash only: under the sash the robe stays inside it (the sash's inner face is 2.1 cm off the body)
+ease_t = lambda u, v: 0.004 + 0.014 * ed.smoothstep(0.35, VS - 0.12, v) * (1 - ed.smoothstep(VS - 0.08, VS, v)) * (0.55 + 0.45 * np.cos(u * TAU) ** 2)
 robe = ed.wrap('robe_torso', S_torso, ax_t, n=64, offset=0.013, ease=ease_t)
 ed.push_out(robe, S, 0.006)
 # relax the shoulder rings (rays glancing along the shoulders leave spikes), then clear the body again
@@ -115,10 +117,10 @@ for f in bm.faces:
         dead.append(f)
 bmesh.ops.delete(bm, geom=dead, context='FACES')
 bm.to_mesh(robe.data); bm.free(); robe.data.update()
-ed.wrinkle(robe, amount=0.0022, scale=24, seed=3)
+ed.wrinkle(robe, amount=0.0013, scale=15, seed=3)
 IP.orient_out(robe, ax_t)
 ed.assign_look(robe, LK['moon'])
-thick(robe, 0.003, inner=LK['moonIn'], max_tris=1900)
+thick(robe, 0.003, inner=LK['moonIn'], max_tris=1600)
 
 # 2b. inner robe (deep indigo) filling the V, its own crossing higher, a pale 동정 strip on its collar edge
 ax_i = ed.ring_axis([neck_base, P('chest', [0.0, 0.17, 0]), P('chest', [0.01, 0.03, 0])], 16)
@@ -127,6 +129,7 @@ ed.push_out(inner, S, 0.004)
 IP.orient_out(inner, ax_i)
 ed.assign_look(inner, LK['indigo'])
 SI = ed.grid_surface(inner, 0.0, u_wrap=False)
+ed.decimate_to(inner, 700)
 def iu(us):                                  # signed turn -> the inner sheet's u (0..1 over its arc)
     return (us + 0.2) / 0.4
 inner_bits = []
@@ -168,9 +171,9 @@ collar = [stand]
 for nm, sgn, fn_edge, v1 in (('lapelU', -1, edge_und, VC + 0.04), ('lapelT', 1, edge_top, 0.74)):
     vs = np.linspace(0.0, v1, 40)
     # band centre half a band inside the robe from the edge (the robe side: away from the opening)
-    uv = [(float(fn_edge(v)) + sgn * 0.034, float(v)) for v in vs]
+    uv = [(float(fn_edge(v)) + sgn * 0.024, float(v)) for v in vs]      # the band straddles the cut edge (covers it)
     if sgn > 0:
-        uv = [(u if v < VC else float(fn_edge(v)) + 0.034, v) for u, v in uv]
+        uv = [(u if v < VC else float(fn_edge(v)) + 0.024, v) for u, v in uv]
     pts, nrm = surf_path(SR, uv, 46, 0.003)
     lap = ed.ribbon(nm, pts, width=[[0, 0.044], [0.1, BW], [1, BW]], normal=nrm, camber=0.04, nu=4)
     IP.brocade_uv(lap, float(np.linalg.norm(np.diff(pts, axis=0), axis=1).sum()), BW, MOON + 0.22)
@@ -195,13 +198,13 @@ for s_ in ('R', 'L'):
         bell = ed.smoothstep(s_el - 0.12, s_m + 0.12, sa)
         return 0.004 + 0.012 * ed.smoothstep(0.0, 0.12, sa) + bell * (0.012 + 0.065 * back ** 1.5)
     sv = IP.sleeve_shell('sleeve' + s_, S.subset(['arm' + s_]), axis, n=36, rows=30, offset=off, hem=hem, min_r=0.028)
-    ed.wrinkle(sv, amount=0.0045, scale=22, seed=11 if s_ == 'R' else 12, stretch=(1.0, 1.0, 1.0), along=None)
+    ed.wrinkle(sv, amount=0.0032, scale=15, seed=11 if s_ == 'R' else 12, stretch=(1.0, 1.0, 1.0), along=None)
     ed.push_out(sv, S, 0.006)
     SV_ = ed.grid_surface(sv, 0.0)
     cuffs.append(IP.closed_band('cuff' + s_, SV_, 0.965, 0.034, LK['band'], MOON + 0.3, n=72, lift=0.0025))
     IP.orient_out(sv, axis[:4])
     ed.assign_look(sv, LK['moon'])
-    thick(sv, 0.0035, inner=LK['moonIn'], max_tris=1150)
+    thick(sv, 0.0035, inner=LK['moonIn'], max_tris=950)
     sleeves.append(sv)
     # fitted under-sleeve, elbow -> wrist
     us_ax = ed.ring_axis([P(fa, [0, 0.02, 0]), P(fa, [0, -0.5 * Lf, 0]), P(fa, [0, -0.97 * Lf, 0])], 14)
@@ -218,11 +221,13 @@ sa_axis = ed.ring_axis([P('hips', [0.0, 0.152, 0]), P('hips', [0.0, 0.03, 0])], 
 sash = ed.wrap('sash', S_torso, sa_axis, n=80, offset=0.026)
 ed.wrinkle(sash, amount=0.0018, scale=46, seed=8, stretch=(1, 1, 0.25))
 SS = ed.grid_surface(sash, 0.0)
-sash_bits = [IP.closed_band('sash_edgeT', SS, 0.07, 0.016, LK['band'], MOON + 0.35, n=64, lift=0.004),
-             IP.closed_band('sash_edgeB', SS, 0.93, 0.016, LK['band'], MOON + 0.35, n=64, lift=0.004)]
+sash_bits = [IP.closed_band('sash_edgeT', SS, 0.07, 0.016, LK['band'], MOON + 0.35, n=48, lift=0.004),
+             IP.closed_band('sash_edgeB', SS, 0.93, 0.016, LK['band'], MOON + 0.35, n=48, lift=0.004)]
 IP.orient_out(sash, sa_axis)
 ed.assign_look(sash, LK['sash'])
-thick(sash, 0.005, offset=-1.0, max_tris=1000)
+thick(sash, 0.005, offset=-1.0, max_tris=800)
+# the robe under the sash goes (it would poke through the sash when the waist bends)
+ed.log('robe faces under the sash', ed.cull_hidden(robe, [sash], margin=0.004))
 cord_pts = np.array([ed.surface_normal(SS, u, 0.78)[0] + ed.surface_normal(SS, u, 0.78)[1] * 0.009 for u in np.linspace(0, 1, 65)])
 cord = ed.tube('sash_cord', cord_pts, 0.0034, 5, caps=False)
 ed.assign_look(cord, LK['cord'])
@@ -307,9 +312,10 @@ for sk in skirts:
 trousers, wraps = [], []
 for s_ in ('R', 'L'):
     ta = ed.ring_axis([P('thigh' + s_, [0.0, 0.03, 0]), P('thigh' + s_, [0, -0.5 * Lt, 0]), P('shin' + s_, [0, 0, 0]), P('shin' + s_, [0, -0.3 * Ls, 0])], 24)
-    tro = ed.wrap('trousers' + s_, S.subset(['leg' + s_]), ta, n=26, offset=lambda u, v: 0.01 + 0.012 * np.sin(np.clip(v, 0, 1) * np.pi) ** 0.8, rmax=0.3)
+    tro = ed.wrap('trousers' + s_, S.subset(['leg' + s_]), ta, n=26, offset=lambda u, v: 0.007 + 0.005 * np.sin(np.clip(v, 0, 1) * np.pi) ** 0.8, rmax=0.3)
     ed.wrinkle(tro, amount=0.0035, scale=24, seed=21 if s_ == 'R' else 22, stretch=(1.0, 1.0, 0.6))
     ed.push_out(tro, S, 0.006)
+    ed.decimate_to(tro, 1100)
     IP.orient_out(tro, ta)
     ed.assign_look(tro, LK['trousers'])
     trousers.append(tro)
@@ -318,7 +324,7 @@ for s_ in ('R', 'L'):
     e1, e2 = rig.vec(sn, [1, 0, 0]), rig.vec(sn, [0, 0, 1])
     rad = IP.limb_radius(S.subset(['leg' + s_]), a, b, e1, e2, [0, 0.25, 0.5, 0.8, 1.0])
     rad = [[t, r + (0.016 if t < 0.1 else 0.007)] for t, r in rad]
-    w = ed.helix_wrap('wrapL' + s_, a, b, rad, turns=11, width=0.032, thick=0.0017, sides=14, axes=(e1, e2), seed=41 if s_ == 'R' else 42)
+    w = ed.helix_wrap('wrapL' + s_, a, b, rad, turns=11, width=0.032, thick=0.0017, sides=10, axes=(e1, e2), seed=41 if s_ == 'R' else 42)
     ed.assign_look(w, LK['wrap'])
     wraps.append(w)
 shoes = ed.keep_regions(body, [5], 'shoes')
@@ -400,9 +406,42 @@ ed.set_attr(mask, 'ed_cav', np.ones(len(mask.data.vertices), dtype=np.float32))
 ed.engrave(mask, eng, width=0.0018, depth=0.0006, falloff=1.8)
 IP.orient_out(mask, [rig.pt('head', [-0.02, 0.05, 0]), rig.pt('head', [-0.02, 0.2, 0])])
 mask.data.materials.append(LK['silver'])
-thick(mask, 0.0032, inner=LK['maskIn'], max_tris=1200)
+# high-poly bake source: the same sheet subdivided, a raised border (a groove 3.5 mm inside the outline), frost fronds
+# sweeping from the eye slits to the temples, a fine hammered skin; baked into object-space normal + AO maps on the game
+# mask's grid UVs (iska_gear: one map pair for the gear slot)
+mask_hi = ed.duplicate(mask, 'mask_hi')
+ed.set_color(mask_hi, (1, 1, 1))              # tone of the albedo bake (B channel): neutral silver, grooves darken via ed_cav
+ed.subdivide(mask_hi, 1, simple=True)
+hi_paths = []
+for sg in (1, -1):
+    hi_paths.append(np.array([mask_pt(sg * a_, mask_y(a_)[0] + 0.0045) for a_ in np.linspace(1, 82, 40)]))   # lower border
+    hi_paths.append(np.array([mask_pt(sg * a_, mask_y(a_)[1] - 0.0045) for a_ in np.linspace(1, 82, 40)]))   # upper border
+    hi_paths.append(np.array([mask_pt(sg * (82 - 0.0), mask_y(82)[0] + 0.0045 + t * (mask_y(82)[1] - mask_y(82)[0] - 0.009)) for t in np.linspace(0, 1, 12)]))
+    for k_, (y0_, dy_, a1_) in enumerate(((0.121, 0.016, 70), (0.104, -0.006, 66), (0.131, 0.03, 58))):      # fronds off the slits
+        stem = np.array([mask_pt(sg * (36 + (a1_ - 36) * t), y0_ + dy_ * t ** 1.5) for t in np.linspace(0, 1, 14)])
+        hi_paths.append(stem)
+        for t in (0.3, 0.55, 0.8):                                                                         # barbs
+            a_b, y_b = 36 + (a1_ - 36) * t, y0_ + dy_ * t ** 1.5
+            for sy in (1, -1):
+                hi_paths.append(np.array([mask_pt(sg * (a_b + 5 * u_), y_b + sy * 0.0055 * u_) for u_ in np.linspace(0, 1, 4)]))
+ed.engrave(mask_hi, hi_paths, width=0.0011, depth=0.0005, falloff=1.6)
+Vh_, Nh_ = ed.verts_of(mask_hi), ed.normals_of(mask_hi)
+ed.set_verts(mask_hi, Vh_ + Nh_ * (ed.fbm(Vh_ * 420.0, octaves=2, seed=4) * 0.00012)[:, None])
+ed.decimate_to(mask, 1100)
+ed.uv_from_grid(mask)
+GEAR_MAPS = ed.bake_object_maps([mask_hi], mask, size=(1024, 512), name='iska_gear', out_dir=os.path.join(ed.ROOT, 'build', 'bake', 'iska'), extrusion=0.006, samples=16)
+ed.delete(mask_hi)
+thick(mask, 0.0032, inner=LK['maskIn'])
 ed.bevel(mask, 0.0009, 1, 50)
 IP.paint_by_normal(mask, [rig.pt('head', [-0.03, 0.05, 0]), rig.pt('head', [-0.03, 0.2, 0])], LK['silver'], LK['maskIn'])
+# only the silver face reads the maps (the lining and the rims share the outer UVs)
+_out = np.zeros(len(mask.data.vertices), dtype=np.float32)
+_sil = [i for i, m_ in enumerate(mask.data.materials) if m_ == LK['silver']]
+for p_ in mask.data.polygons:
+    if p_.material_index in _sil and p_.normal.length > 0:
+        for vi in p_.vertices:
+            _out[vi] = 1.0
+ed.set_attr(mask, 'ed_bakew', _out)
 # crescent crest: a silver crescent moon (horns up) standing on the brow, a frost crystal star in its hollow
 def crescent_outline(R=0.024, d=0.011, r2=0.0205, n=28):
     """Outline of a crescent: inside the circle (0, 0, R), outside the circle (0, d, r2), horns up."""
@@ -438,16 +477,45 @@ IP.orient_out(backing, [rig.pt('head', [-0.02, 0.05, 0]), rig.pt('head', [-0.02,
 ed.assign_look(backing, LK['maskIn'])
 eyes = ed.join(eyes + [backing], 'eyes')
 
-# 3b. gauze veil (면사) from under the mask over the mouth and chin, tucked into the high collar
-def veil_y(a):
-    return -0.07 + 0.012 * float(ed.smoothstep(40, 90, abs(a))), mask_y(a)[0] + 0.003
-VG, VAY = IP.head_grid(rig, S_head, (-92, 92), veil_y, 40, 18, lambda a, y: 0.0035 + 0.012 * float(ed.smoothstep(0.06, -0.06, y)) + 0.004 * float(ed.smoothstep(60, 92, abs(a))), smooth=3)
+# 3b. gauze veil (면사): a curtain of fine indigo gauze hung from behind the mask's lower edge. It drapes over the nose
+# and chin and then falls STRAIGHT (each column keeps the widest radius it met on the way down: a curtain, not a wrap
+# hugging the jaw), a soft point at the front, a few vertical gathers that deepen toward the hem.
+def veil_grid(nu=36, nv=18, a0=-80, a1=80):
+    fw, rt, up = rig.vec('head', [1, 0, 0]), rig.vec('head', [0, 0, 1]), rig.vec('head', [0, 1, 0])
+    AA = np.radians(np.linspace(-180, 180, 73)[:-1])
+    A = np.linspace(a0, a1, nu)
+    G = np.zeros((nv, nu, 3)); UVv = np.zeros((nv, nu, 2))
+    for i, a in enumerate(A):
+        ar = math.radians(a)
+        y_top = mask_y(a)[0] + 0.007
+        front = math.cos(ar) ** 2
+        y_bot = -0.028 - 0.05 * front ** 1.6
+        r_prev = 0.0
+        for j in range(nv):
+            t = j / (nv - 1)
+            y = y_top + (y_bot - y_top) * t
+            c = rig.pt('head', [-0.012, y, 0])
+            rb = ed.convexify(ed.body_radius(S_head, c, fw, rt, AA, rmax=0.2), AA, 30, True)
+            r = float(np.interp(ar, AA, rb, period=TAU)) + 0.003 + 0.003 * t
+            r = max(r, r_prev - 0.0042 * (0.5 + 0.5 * front))   # past the chin it is drawn back toward the neck (tied behind)
+            r_prev = r
+            G[j, i] = c + r * (math.cos(ar) * fw + math.sin(ar) * rt)
+            UVv[j, i] = (i / (nu - 1), 1 - t)
+    # gathers: vertical folds deepening toward the hem
+    for j in range(nv):
+        t = j / (nv - 1)
+        for i, a in enumerate(A):
+            ar = math.radians(a)
+            n_ = math.cos(ar) * fw + math.sin(ar) * rt
+            G[j, i] += n_ * (0.0022 * t ** 1.3 * math.sin(math.radians(a) * 7.0 + 0.6) + 0.0008 * t * math.sin(math.radians(a) * 17.0))
+    return G[::-1].copy(), UVv[::-1].copy()        # row 0 = bottom (grid_mesh convention)
+VG, VUV = veil_grid()
 veil = IP.grid_mesh('veil', VG)
-ed.wrinkle(veil, amount=0.0009, scale=36, seed=31, stretch=(1, 1, 0.2))
-ed.push_out(veil, S, 0.005)
+ed.smooth(veil, 0.35, 2)
+ed.push_out(veil, S, 0.004)
 IP.orient_out(veil, [rig.pt('head', [-0.02, -0.1, 0]), rig.pt('head', [-0.02, 0.2, 0])])
 qv = ed.get_attr(veil, 'ed_uv')
-ed.set_attr(veil, 'ed_uvw', np.stack([qv[:, 0] * 0.3, qv[:, 1] * 0.14, np.full(len(qv), 0.82)], axis=1), 'FLOAT_VECTOR')
+ed.set_attr(veil, 'ed_uvw', np.stack([qv[:, 0] * math.radians(160) * 0.1 / 0.02, qv[:, 1] * 0.12 / 0.02, np.full(len(qv), 0.62)], axis=1), 'FLOAT_VECTOR')
 ed.assign_look(veil, LK['gauze'])
 
 # 3c. hair: combed back from the mask's crown to the tie, a bun pierced by the 비녀, the long bound tail (spring chain hair)
@@ -477,7 +545,7 @@ ed.set_verts(bun, Vb_ + Nb_ * (np.abs(np.sin(ang_b * 9 + Vb_[:, 1] * 200)) ** 0.
 ed.set_attr(bun, 'ed_uvw', np.stack([ang_b * 4, (Vb_[:, 1] - Vb_[:, 1].min()) * 20, np.zeros(len(Vb_))], axis=1), 'FLOAT_VECTOR')
 ed.assign_look(bun, LK['hair'])
 tpath = ed.polyline(np.vstack([tie + np.array([0, 0.01, -0.006]), hp[1:]]), 60)
-NS = 24
+NS = 18
 sec = np.array([[math.cos(a) * (1 + 0.09 * math.cos(9 * a) + 0.05 * math.cos(5 * a + 1)), math.sin(a) * (1 + 0.09 * math.cos(9 * a) + 0.05 * math.cos(5 * a + 1)) * 0.72] for a in np.linspace(0, TAU, NS, endpoint=False)])
 tail = ed.sweep('hair_tail', tpath, sec, [[0, 0.015], [0.05, 0.018], [0.3, 0.024], [0.62, 0.023], [0.85, 0.016], [1.0, 0.005]], twist=lambda t: t * 2.4, caps=True,
                 up=np.array([1.0, 0, 0]))
@@ -567,7 +635,7 @@ for s_ in ('R', 'L'):
     ed.engrave(br, flake, width=0.0022, depth=0.0008)
     IP.orient_out(br, [P(fa, [0, 0, 0]), P(fa, [0, -Lf, 0])])
     br.data.materials.append(LK['silver'])
-    thick(br, 0.0026, inner=LK['maskIn'], max_tris=700)
+    thick(br, 0.0026, inner=LK['maskIn'], max_tris=560)
     ed.bevel(br, 0.0008, 1, 50)
     IP.paint_by_normal(br, [P(fa, [0, 0, 0]), P(fa, [0, -Lf, 0])], LK['silver'], LK['maskIn'])
     bracers.append(br)
@@ -603,17 +671,36 @@ ARM_BONES = lambda s_: ['chest', 'shoulder' + s_, 'deltoid' + s_, 'upperArm' + s
 
 # what the body shows: hands, the face under the gauze, the neck between the collar and the hair; the rest is culled
 covers = [robe, inner, mask, haircap, stand] + sleeves + unders + bracers + gloves + skirts + trousers + wraps + [shoes, sash] + collar[1:]
+# the garments copy their weights from an UNCULLED copy of the body (a culled body would hand them the weights of
+# whatever skin is left nearby: the neck, a stray patch)
+body_src = ed.duplicate(body, 'body_src')
+reg = ed.get_attr(body, 'ed_region')
+# torso, arms and legs are always under cloth (robe, sleeves + under-sleeves + bracers, trousers + wraps; the shoes are
+# their own copy of the feet): drop them outright (no skin poking through a fold); then cull what the rest hides
+from ed.body import _delete_verts
+_delete_verts(body, np.isin(reg, [0, 2, 4, 5]))
 reg = ed.get_attr(body, 'ed_region')
 removed = ed.cull_hidden(body, covers, keep=np.isin(reg, [3]))
 ed.log('body culled faces', removed)
 
 # torso garments ride the body exactly
 for g in [robe, inner, stand] + inner_bits + collar[1:]:
-    ed.transfer_weights(body, g, arm, smooth=1)
+    ed.transfer_weights(body_src, g, arm, smooth=1)
+# around the sash the robe (and the lapel running under it) takes the sash's own weights (hips / spine): the two move as
+# one, else the white silk slides out through the indigo sash when the waist twists
+z_lo, z_hi = P('hips', [0.0, 0.03, 0])[2], P('hips', [0.0, 0.152, 0])[2]
+for g in (robe, collar[2]):
+    W1 = ed.get_weights(g)
+    ed.transfer_weights(body_src, g, arm, smooth=2, bones=['hips', 'spine'])
+    W2 = ed.get_weights(g)
+    zz = ed.verts_of(g)[:, 2]
+    m = ed.smoothstep(z_lo - 0.07, z_lo - 0.02, zz) * (1 - ed.smoothstep(z_hi + 0.02, z_hi + 0.08, zz))
+    keys = set(W1) | set(W2)
+    ed.set_weights(g, ed.skin.limit_normalize({k_: W1.get(k_, 0) * (1 - m) + W2.get(k_, 0) * m for k_ in keys}))
 # sleeves: the arm inside them, the hanging back of the bell on the spring chain slvR / slvL
 for s_, sv, cf in zip(('R', 'L'), sleeves, cuffs):
     for o_ in (sv, cf):
-        ed.transfer_weights(body, o_, arm, smooth=2, bones=ARM_BONES(s_))
+        ed.transfer_weights(body_src, o_, arm, smooth=2, bones=ARM_BONES(s_))
         V_ = ed.verts_of(o_)
         cp = rig.chain_points('slv' + s_)
         k_, c_, d_ = ed.skin.path_param(V_, np.vstack([P('foreArm' + s_, [-0.03, 0.02, 0]), cp]))
@@ -626,14 +713,14 @@ for s_, sv, cf in zip(('R', 'L'), sleeves, cuffs):
         keys = set(Wb) | set(Wc)
         ed.set_weights(o_, ed.skin.limit_normalize({kk: Wb.get(kk, 0) * (1 - share) + Wc.get(kk, 0) * share for kk in keys}))
 for s_, o_ in [('R', unders[0]), ('L', unders[1])]:
-    ed.transfer_weights(body, o_, arm, smooth=1, bones=ARM_BONES(s_))
+    ed.transfer_weights(body_src, o_, arm, smooth=1, bones=ARM_BONES(s_))
 for s_, br in zip(('R', 'L'), bracers):
-    ed.transfer_weights(body, br, arm, smooth=2, bones=['foreArm' + s_, 'foreArmTwist' + s_])
+    ed.transfer_weights(body_src, br, arm, smooth=2, bones=['foreArm' + s_, 'foreArmTwist' + s_])
 for s_, gl in zip(('R', 'L'), gloves):
-    ed.transfer_weights(body, gl, arm, smooth=1, bones=['hand' + s_, 'foreArmTwist' + s_])
+    ed.transfer_weights(body_src, gl, arm, smooth=1, bones=['hand' + s_, 'foreArmTwist' + s_])
 # the sash and its cord ride the waist; the knot too; the ends hang on their chains
 for g in [sash, cord, knot] + sash_bits:
-    ed.transfer_weights(body, g, arm, smooth=2, bones=['hips', 'spine'])
+    ed.transfer_weights(body_src, g, arm, smooth=2, bones=['hips', 'spine'])
 ends = []
 for e, tb, nm in sash_ends:
     ed.along_chain(e, rig, nm, parent='hips', root_blend=0.1)
@@ -655,7 +742,7 @@ for sk in skirts:
         if G[0, 0, 0] < G[0, -1, 0]:
             G = G[:, ::-1]
         pan = ed.define_panel(nm, G, anchor='hips', rig=rig, cols=5, rows=9, damping=0.045, margin=0.022, thickness=0.01, wind=0.75, stretch=1.0, bend=0.35)
-        ed.transfer_weights(body, sk, arm, smooth=2, bones=SKIRT_BONES)
+        ed.transfer_weights(body_src, sk, arm, smooth=2, bones=SKIRT_BONES)
         ed.bind_panel(sk, pan, share=lambda u, v: ed.smoothstep(0.08, 0.4, v))
         cloth_panels[nm] = sk
     else:
@@ -672,9 +759,9 @@ for sk in skirts:
         ed.attach(sk, arm)
 for sk in skirts:
     IP.orient_out(sk, sk_axis)
-    thick(sk, 0.0035, inner=LK['moonIn'], max_tris=760)
+    thick(sk, 0.0035, inner=LK['moonIn'], max_tris=640)
 for g in trousers + wraps:
-    ed.transfer_weights(body, g, arm, smooth=1)
+    ed.transfer_weights(body_src, g, arm, smooth=1)
 # head pieces are rigid; the veil runs from the head into the collar (neck at the bottom)
 for o_ in (mask, eyes, crest, cstar, haircap, bun, hairpin):
     ed.rigid(o_, 'head')
@@ -688,10 +775,15 @@ ed.rigid(brooch, 'chest')
 for s_ in ('R', 'L'):
     ed.rigid(blades[s_], 'weapon' + s_)
 
+ed.delete(body_src)
 crest_all = ed.join([crest, cstar], 'crest')
+for o_ in (crest_all, eyes):
+    ed.set_attr(o_, 'ed_bakew', np.zeros(len(o_.data.vertices), dtype=np.float32))
+mask_part = ed.join([mask, crest_all, eyes], 'mask')
+mask_part['ed_maps'] = 'iska_gear'
 parts = [
     (body, 'body', 'gear', ()),
-    (ed.join([mask, crest_all, eyes], 'mask'), 'mask', 'gear', ('rigid',)),
+    (mask_part, 'mask', 'gear', ('rigid',)),
     (ed.join([haircap, bun, tail], 'hair'), 'hair', 'gear', ()),
     (ed.join([hairpin, tail_binds], 'hairOrnaments'), 'hairOrnaments', 'gear', ()),
     (ed.join([robe, inner, stand] + inner_bits + collar[1:], 'robe'), 'robe', 'cloth', ()),
@@ -710,12 +802,14 @@ for i, (obj, name, slot, flags) in enumerate(parts):
 objs = [p_[0] for p_ in parts]
 tris = {o_.name: ed.tri_count(o_, evaluated=False) for o_ in objs}
 ed.log('triangles before budget', sum(tris.values()), tris)
-BUDGET = {'robe': 7100, 'sleeves': 6800, 'sash': 4000, 'legs': 4100, 'skFL': 1900, 'skFR': 1900, 'skBL': 1800, 'skBR': 1800, 'body': 3700, 'mask': 4200,
-          'hair': 4300, 'fittings': 7000}
+# Only single-skin parts are decimated here: decimating a solidified garment collapses its outer skin into its lining
+# (the indigo lining then shows through the white silk in patches and the hems tear). Garment budgets are set on the
+# SHEETS before they are solidified (thick(max_tris=...)) and on the generators' resolutions.
+BUDGET = {'body': 3000, 'hair': 3500}
 for o_ in objs:
     if o_.name in BUDGET and tris[o_.name] > BUDGET[o_.name]:
         ed.decimate_to(o_, BUDGET[o_.name])
-tris = {o_.name: ed.tri_count(o_, evaluated=False) for o_ in objs}
+tris = {o_.name: ed.tri_count(o_, evaluated=True) for o_ in objs}
 ed.log('triangles', sum(tris.values()), tris)
 for o_ in objs:
     if ed.get_attr(o_, 'ed_bakew') is None:
@@ -728,7 +822,7 @@ for o_ in objs:
 stage_done(4, 'stage4')
 SCRIPTS = [os.path.abspath(__file__), os.path.join(os.path.dirname(os.path.abspath(__file__)), 'iska_parts.py')] + \
     [os.path.join(ed.HERE, 'ed', f) for f in sorted(os.listdir(os.path.join(ed.HERE, 'ed'))) if f.endswith('.py')]
-manifest = ed.export_asset(HERO, objs, scripts=SCRIPTS)
+manifest = ed.export_asset(HERO, objs, scripts=SCRIPTS, textures=GEAR_MAPS)
 if PREVIEW:
     ed.preview_sheet(HERO, 'final', height=H, samples=12)
 ed.log('iska done', round(time.time() - T0, 1), 's')

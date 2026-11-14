@@ -1,21 +1,22 @@
 {
  "hero": "kael",
  "file": "kael.edm",
- "bytes": 1904540,
- "geometryBytes": 1625610,
- "textureBytes": 278930,
- "triangles": 61941,
- "vertices": 38617,
+ "bytes": 2122760,
+ "geometryBytes": 1585550,
+ "textureBytes": 537210,
+ "triangles": 59621,
+ "vertices": 37905,
  "parts": [
   {
    "name": "body",
    "slot": "gear",
    "flags": [],
-   "triangles": 4878,
-   "vertices": 2844,
+   "triangles": 4898,
+   "vertices": 2893,
    "bones": 38,
    "looks": [
-    "skin"
+    "skin",
+    "scar"
    ]
   },
   {
@@ -48,8 +49,8 @@
    "name": "armour",
    "slot": "gear",
    "flags": [],
-   "triangles": 11380,
-   "vertices": 8843,
+   "triangles": 9884,
+   "vertices": 8379,
    "bones": 2,
    "looks": [
     "bronze",
@@ -75,8 +76,8 @@
    "name": "robe",
    "slot": "cloth",
    "flags": [],
-   "triangles": 20796,
-   "vertices": 11478,
+   "triangles": 19748,
+   "vertices": 10929,
    "bones": 39,
    "looks": [
     "leather",
@@ -121,8 +122,8 @@
    "flags": [
     "cutout"
    ],
-   "triangles": 2640,
-   "vertices": 1880,
+   "triangles": 3444,
+   "vertices": 2452,
    "bones": 10,
    "looks": [
     "hair"
@@ -162,8 +163,8 @@
    "name": "tailFL",
    "slot": "cloth",
    "flags": [],
-   "triangles": 1200,
-   "vertices": 682,
+   "triangles": 1050,
+   "vertices": 606,
    "bones": 6,
    "looks": [
     "coat",
@@ -177,8 +178,8 @@
    "flags": [
     "cloth"
    ],
-   "triangles": 1400,
-   "vertices": 791,
+   "triangles": 1250,
+   "vertices": 711,
    "bones": 6,
    "looks": [
     "coat",
@@ -192,8 +193,8 @@
    "flags": [
     "cloth"
    ],
-   "triangles": 1400,
-   "vertices": 797,
+   "triangles": 1250,
+   "vertices": 715,
    "bones": 6,
    "looks": [
     "coat",
@@ -205,8 +206,8 @@
    "name": "tailFR",
    "slot": "cloth",
    "flags": [],
-   "triangles": 1200,
-   "vertices": 691,
+   "triangles": 1050,
+   "vertices": 609,
    "bones": 6,
    "looks": [
     "coat",
@@ -217,6 +218,7 @@
  ],
  "looks": [
   "skin",
+  "scar",
   "leather",
   "leatherDark",
   "bronze",
@@ -255,7 +257,7 @@
   {
    "name": "kael_gear_n",
    "kind": "normal",
-   "bytes": 241648,
+   "bytes": 257364,
    "size": [
     1024,
     1024
@@ -264,7 +266,7 @@
   {
    "name": "kael_gear_m",
    "kind": "mask",
-   "bytes": 37282,
+   "bytes": 279846,
    "size": [
     1024,
     1024
@@ -339,7 +341,7 @@
   "upperArmTwistR",
   "weaponR"
  ],
- "script": "be8f37cee1c9",
- "buildSeconds": 139.4,
+ "script": "cfe37f427151",
+ "buildSeconds": 129.0,
  "blender": "5.3.0"
 }

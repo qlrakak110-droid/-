@@ -353,20 +353,35 @@ def pauldron(rig, LK, h=0.0024):
         d = KL.smax(d, -KL.sd_ell(q, fl(0.04, 0, 0.034), [0.026, 0.004, 0.012], rot), 0.002)
         # ---- mane: forged flame curls framing the top and sides of the face, swept hard back ---------------------------------
         mane = []
-        for k, ang in enumerate(np.linspace(-2.05, 2.05, 9)):
-            r0 = 0.096 + 0.01 * (k % 2)
-            base = fl(0.01 + r0 * math.cos(ang) * 0.85, r0 * math.sin(ang) * 1.02, -0.026)
+
+        def tongue(pts, radii, t=0.006):
+            """A forged flame tongue: a tapered path flattened into a blade lying on the cap (flat faces, bevelled edges)."""
+            pts = [np.asarray(p_, float) for p_ in pts]
+            nf = ed.normalize(pts[len(pts) // 2] - C)
+            dd = KL.sd_path(q, pts, radii)
+            return KL.cmax(dd, (q - pts[len(pts) // 2]) @ nf - t, 0.003)          # a flat outer facet, the volume kept
+        for k, ang in enumerate(np.linspace(-2.1, 2.1, 9)):
+            r0 = 0.094 + 0.008 * (k % 2)
+            base = fl(0.008 + r0 * math.cos(ang) * 0.85, r0 * math.sin(ang) * 1.02, -0.024)
             outv = ed.normalize(up * math.cos(ang) + side * math.sin(ang))
-            ln = 0.022 + 0.01 * (k % 2)
-            tip = base + outv * ln - F * 0.07 + up * 0.016
-            mid = base + outv * ln * 0.7 - F * 0.025
-            mane.append(KL.sd_path(q, [base, mid, tip], [0.02, 0.0145, 0.003]))
+            ln = 0.03 + 0.012 * (k % 2)
+            mid = base + outv * ln * 0.55 - F * 0.03
+            tip = base + outv * ln - F * 0.085 + up * 0.012
+            curl = tip + outv * 0.012 - F * 0.012
+            mane.append(tongue([base, mid, tip, curl], [0.022, 0.0165, 0.007, 0.0018], 0.0062))
+        # a second, inner row between the first (layered), shorter
+        for k, ang in enumerate(np.linspace(-1.85, 1.85, 8)):
+            r0 = 0.084
+            base = fl(0.008 + r0 * math.cos(ang) * 0.85, r0 * math.sin(ang) * 1.02, -0.012)
+            outv = ed.normalize(up * math.cos(ang) + side * math.sin(ang))
+            tip = base + outv * 0.026 - F * 0.05
+            mane.append(tongue([base, (base + tip) / 2 + outv * 0.004, tip], [0.017, 0.012, 0.0025], 0.0055))
         # back ruff behind the shoulder
         for k, b0 in enumerate((-0.07, -0.03, 0.01)):
             base = C + ed.normalize(np.array([-0.6, 0.3, 0.72])) * RC * 0.97 + np.array([0, b0 * 0.7, 0])
-            tip = base + ed.normalize(np.array([-0.9, 0.2 - k * 0.12, 0.3])) * 0.06
-            mane.append(KL.sd_path(q, [base, (base + tip) / 2 + np.array([0, 0.01, 0.012]), tip], [0.018, 0.012, 0.003]))
-        d = KL.smin(d, KL.union(mane, 0.008), 0.012)
+            tip = base + ed.normalize(np.array([-0.9, 0.2 - k * 0.12, 0.3])) * 0.07
+            mane.append(tongue([base, (base + tip) / 2 + np.array([0, 0.01, 0.012]), tip], [0.02, 0.014, 0.0025], 0.006))
+        d = KL.smin(d, KL.union(mane, 0.004), 0.008)
         # ---- cuts: eye pits (slanted), nostrils, the open snarling mouth --------------------------------------------------
         for s_ in (1, -1):
             te = 0.4
@@ -386,7 +401,7 @@ def pauldron(rig, LK, h=0.0024):
         return d
 
     rigM = rig
-    shell = KL.sdf_mesh('pauldron', fn, [-0.17, -0.2, -0.06], [0.2, 0.2, 0.26], h=h, frame='deltoidR', rig=rigM, project=4)
+    shell = KL.sdf_mesh('pauldron', fn, [-0.17, -0.2, -0.06], [0.2, 0.2, 0.26], h=h, frame='deltoidR', rig=rigM, project=4, smooth=1)
     ed.assign_look(shell, LK['iron'])
     out = {'shell': shell}
     # eyes (ember, deep in the pits), fangs (old bone), the bronze ring in the jaws
@@ -425,78 +440,155 @@ def _face_base(q, K):
     return d
 
 
-def mask(rig, LK, h=0.0016):
+def _prism(q, a, b, ra, rb, normals, inset, k=0.0022):
+    """A forged ridge along a -> b: a round cone cut by planes through the axis line pushed out by `inset` (fraction of the
+    local radius); each plane gives a flat facet, the chamfered intersections give bevelled edges that catch light."""
+    d = KL.sd_capsule(q, a, b, ra, rb)
+    ab = np.asarray(b, float) - np.asarray(a, float)
+    t = np.clip(((q - a) @ ab) / max(ab @ ab, 1e-12), 0, 1)
+    r = ra + (rb - ra) * t
+    for n in normals:
+        n = ed.normalize(np.asarray(n, float))
+        d = KL.cmax(d, (q - a) @ n - r * inset, k)
+    return d
+
+
+def _rx(a):
+    return np.array([[1, 0, 0], [0, math.cos(a), -math.sin(a)], [0, math.sin(a), math.cos(a)]])
+
+
+def _rz(a):
+    return np.array([[math.cos(a), -math.sin(a), 0], [math.sin(a), math.cos(a), 0], [0, 0, 1]])
+
+
+def mask(rig, LK, h=0.0015):
     """
-    The snarling iron demon half-mask: forehead to upper lip, wrapping to the temples. Heavy scowling brows with hard
-    top facets and a cleft between them, slanted eye slits, a broad flared nose with snarl wrinkles, sharp cheek ridges
-    sweeping to the temples, a curled upper lip with forged fangs hanging over the mouth, two short horns swept back
-    from the temples; a rolled edge all round. Returns {'mask', 'eyes'} (Blender bind space, head frame authored).
+    The snarling iron demon half-mask (귀면), forged in planes: the shell over forehead, eyes, nose and cheeks is cut into
+    flat facets (forehead, brow shelves, temples, cheek planes, muzzle) with chamfered edges, and the features are forged
+    prisms on it: heavy scowling brows with a top shelf, a front face and an undercut over deep eye sockets, a keel up the
+    forehead, cheek ridges sweeping to the temples (and a lower jaw ridge), a triangular nose bridge with snarl
+    wrinkles, flared nostrils, a curled upper lip with a notch, two short horns swept back from the temples, slanted eye
+    slits punched through. A leather strap runs round the back of the head. Returns {'mask', 'fangs', 'eyes', 'strap'}.
     """
     K = rig.K
     k = K
+    O = np.array([-0.006, 0.12, 0.0]) * k
+
+    def surf(d_):                                               # point of the face base along a ray from O
+        d_ = ed.normalize(np.asarray(d_, float))
+        lo, hi = 0.0, 0.25
+        for _ in range(40):
+            m = (lo + hi) / 2
+            if _face_base((O + d_ * m)[None, :], K)[0] < 0:
+                lo = m
+            else:
+                hi = m
+        return O + d_ * lo
+
+    T_OUT, T_IN = 0.0125 * k, 0.0045 * k
+    FAC = []
+    for dirc, n, depth in (((1, 0.62, 0), (0.86, 0.5, 0), 0.0035),                    # forehead
+                           ((0.75, 0.62, 0.5), (0.58, 0.5, 0.64), 0.003),             # upper forehead corners
+                           ((0.45, 0.3, 0.9), (0.3, 0.22, 0.93), 0.003),              # temples
+                           ((1, -0.2, 0.5), (0.72, -0.08, 0.69), 0.0035),             # cheek planes
+                           ((1, -0.55, 0.35), (0.72, -0.5, 0.48), 0.003),             # lower cheeks
+                           ((1, -0.45, 0), (0.96, -0.28, 0), 0.0025)):                 # muzzle front
+        for s_ in ((1, -1) if dirc[2] else (1,)):
+            dd = np.array(dirc, float) * [1, 1, s_]; nn = ed.normalize(np.array(n, float) * [1, 1, s_])
+            FAC.append((surf(dd) + nn * (T_OUT - depth), nn))
 
     def fn(q):
         B = _face_base(q, K)
-        outer = B - 0.0155 * k
-        inner = B - 0.0045 * k
-        d = np.maximum(outer, -inner)
-        # outline: the forehead top, the upper-lip line rising to the cheeks, the temples
+        outer = B - T_OUT
+        for p0, nn in FAC:
+            outer = KL.cmax(outer, (q - p0) @ nn, 0.003 * k)
+        outer = np.minimum(outer, B - 0.0088 * k)                 # facets never thin the shell below ~4 mm
         x, y, z = q[:, 0], q[:, 1], q[:, 2]
-        top = y - (0.183 * k + 0.014 * k * np.exp(-z ** 2 / 0.0003) - 0.9 * z ** 2)
-        bot = (0.052 * k + 1.6 * z ** 2) - y
-        back = (0.028 * k + 0.5 * np.maximum(y - 0.16 * k, 0) - 0.25 * np.maximum(0.1 * k - y, 0)) - x
-        d = KL.cmax(d, top, 0.004)
-        d = KL.cmax(d, bot, 0.004)
-        d = KL.cmax(d, back, 0.004)
+        # outline: forehead top (a widow's peak), the upper-lip line rising to the cheeks, the temples (curved back edge)
+        top = y - (0.186 * k + 0.016 * k * np.exp(-z ** 2 / 0.00025) - 0.95 * z ** 2)
+        bot = (0.053 * k + 1.5 * z ** 2) - y
+        back = (0.03 * k + 0.45 * np.maximum(y - 0.16 * k, 0) - 0.3 * np.maximum(0.095 * k - y, 0)) - x
+        clip = KL.cmax(KL.cmax(top, bot, 0.003 * k), back, 0.003 * k)
         feat = []
         for s_ in (1, -1):
-            # scowling brow: an inner low end, an outer high end, a hard upper facet
-            a = np.array([0.126, 0.141, s_ * 0.013]) * k; b = np.array([0.098, 0.17, s_ * 0.07]) * k
-            br = KL.sd_capsule(q, a, b, 0.0155 * k, 0.011 * k)
-            br = KL.cmax(br, (q - (a + b) / 2 - np.array([0, 0.007, 0]) * k) @ ed.normalize(np.array([0.45, 1.0, s_ * 0.25])), 0.003)
-            feat.append(br)
-            # cheek ridge: from the nostril wing to the temple
-            feat.append(KL.sd_capsule(q, np.array([0.128, 0.077, s_ * 0.026]) * k, np.array([0.083, 0.118, s_ * 0.074]) * k, 0.0062 * k, 0.0035 * k))
-            feat.append(KL.sd_capsule(q, np.array([0.117, 0.064, s_ * 0.042]) * k, np.array([0.074, 0.088, s_ * 0.079]) * k, 0.005 * k, 0.003 * k))
+            Z = np.array([1, 1, s_])
+            # scowling brow: a heavy mass, inner end low and forward, outer end high; a flat top shelf, a hard underside
+            bc = np.array([0.114, 0.156, 0.044]) * Z * k
+            bal = ed.normalize(np.array([-0.27, 0.33, 0.66]) * Z)
+            bfw = ed.normalize(np.array([1.0, 0.2, 0.25]) * Z - bal * (np.array([1.0, 0.2, 0.25]) * Z @ bal))
+            rot = np.stack([bfw, np.cross(bal, bfw) * s_, bal], axis=1)
+            brow = KL.sd_ell(q, bc, np.array([0.02, 0.0135, 0.047]) * k, rot)
+            brow = KL.cmax(brow, (q - bc - np.array([0, 0.0065, 0]) * k) @ ed.normalize(np.array([0.42, 1.0, 0.18]) * Z), 0.0025 * k)
+            brow = KL.cmax(brow, (q - bc + np.array([0, 0.0085, 0]) * k) @ ed.normalize(np.array([0.3, -1.0, -0.05]) * Z), 0.0025 * k)
+            feat.append(brow)
+            # flame tufts off the outer brow, swept up and back
+            for j, (u0, ln, up_) in enumerate(((0.55, 0.034, 0.5), (0.8, 0.042, 0.75), (1.0, 0.03, 1.0))):
+                base = bc + bal * 0.04 * k * (u0 - 0.35)
+                tip = base + (np.array([-0.55, up_, 0.45]) * Z) * ln * k
+                feat.append(KL.sd_path(q, [base, (base + tip) / 2 + np.array([0.004, 0.002, 0]) * k, tip], [0.0085 * k, 0.0055 * k, 0.0012 * k]))
+            # cheekbone: a broad mass with a hard lower edge (the cheek ridge) sweeping to the temple
+            cb = np.array([0.104, 0.098, 0.058]) * Z * k
+            ck = KL.sd_ell(q, cb, np.array([0.024, 0.018, 0.03]) * k, np.stack([ed.normalize(np.array([0.8, 0.0, 0.6]) * Z), [0, 1, 0],
+                                                                              ed.normalize(np.array([-0.6, 0.0, 0.8]) * Z)], axis=1))
+            ck = KL.cmax(ck, (q - cb + np.array([0, 0.004, 0]) * k) @ ed.normalize(np.array([0.35, -1.0, 0.25]) * Z), 0.002 * k)
+            feat.append(ck)
+            # snarl folds from the nose wing up the cheek
+            feat.append(KL.sd_capsule(q, np.array([0.134, 0.088, 0.03]) * Z * k, np.array([0.118, 0.112, 0.05]) * Z * k, 0.0052 * k, 0.003 * k))
             # flared nostril wing
-            feat.append(KL.sd_ell(q, np.array([0.128, 0.078, s_ * 0.021]) * k, np.array([0.011, 0.011, 0.012]) * k))
-            # curled upper lip
-            feat.append(KL.sd_capsule(q, np.array([0.133, 0.062, s_ * 0.004]) * k, np.array([0.112, 0.064, s_ * 0.05]) * k, 0.0068 * k, 0.004 * k))
+            feat.append(KL.sd_ell(q, np.array([0.132, 0.08, 0.026]) * Z * k, np.array([0.0125, 0.011, 0.0135]) * k))
+            # curled upper lip (the snarl M), its top-front facet
+            lp = KL.sd_capsule(q, np.array([0.14, 0.061, 0.006]) * Z * k, np.array([0.12, 0.066, 0.043]) * Z * k, 0.0078 * k, 0.0058 * k)
+            lp = KL.cmax(lp, (q - np.array([0.14, 0.064, 0.0]) * k) @ ed.normalize(np.array([0.7, 0.7, 0.15]) * Z), 0.002 * k)
+            feat.append(lp)
             # horn from the temple, swept back and up
-            hp = [np.array([0.076, 0.176, s_ * 0.075]) * k, np.array([0.042, 0.222, s_ * 0.1]) * k, np.array([-0.02, 0.262, s_ * 0.118]) * k]
-            feat.append(KL.sd_path(q, hp, [0.017 * k, 0.0105 * k, 0.0025 * k]))
-        # nose: bridge ridge + broad tip, snarl wrinkles
-        feat.append(KL.sd_capsule(q, np.array([0.126, 0.138, 0]) * k, np.array([0.14, 0.095, 0]) * k, 0.0085 * k, 0.012 * k))
-        feat.append(KL.sd_ell(q, np.array([0.137, 0.083, 0]) * k, np.array([0.015, 0.016, 0.02]) * k))
-        for i in range(2):
-            yy = (0.112 - i * 0.011) * k
-            feat.append(KL.sd_capsule(q, np.array([0.14 - i * 0.002, yy, -0.016]) * k, np.array([0.14 - i * 0.002, yy, 0.016]) * k, 0.0032 * k))
-        # forehead ridge between the brows
-        feat.append(KL.sd_capsule(q, np.array([0.124, 0.152, 0]) * k, np.array([0.112, 0.183, 0]) * k, 0.0085 * k, 0.006 * k))
-        d = KL.smin(d, KL.union(feat, 0.006 * k), 0.008 * k)
-        # cuts: slanted eye slits, nostrils, the cleft between the brows
+            hp = [np.array([0.075, 0.172, 0.076]) * Z * k, np.array([0.042, 0.212, 0.098]) * Z * k, np.array([-0.018, 0.242, 0.112]) * Z * k]
+            feat.append(KL.sd_path(q, hp, [0.0165 * k, 0.0105 * k, 0.0025 * k]))
+        # nose: a broad bridge with flat sides + a heavy tilted tip
+        feat.append(_prism(q, np.array([0.126, 0.14, 0]) * k, np.array([0.142, 0.097, 0]) * k, 0.0105 * k, 0.0145 * k,
+                           [(0.55, 0.12, 0.83), (0.55, 0.12, -0.83)], 0.45))
+        feat.append(KL.sd_ell(q, np.array([0.14, 0.085, 0]) * k, np.array([0.016, 0.0145, 0.021]) * k))
+        F = feat[0]
+        for f in feat[1:]:
+            F = KL.smin(F, f, 0.0035 * k)
+        d = KL.smin(outer, F, 0.0055 * k)
+        d = np.maximum(d, -(B - T_IN))
+        d = KL.cmax(d, clip, 0.003 * k)
+        # horns and tufts pass the outline: add them back above the cut
         for s_ in (1, -1):
-            ang = 0.32 * s_
-            rot = np.array([[1, 0, 0], [0, math.cos(ang), -math.sin(ang)], [0, math.sin(ang), math.cos(ang)]])
-            d = KL.smax(d, -KL.sd_ell(q, np.array([0.12, 0.121, s_ * 0.036]) * k, np.array([0.04, 0.0072, 0.019]) * k, rot), 0.0025 * k)
-            d = KL.smax(d, -KL.sd_ell(q, np.array([0.142, 0.072, s_ * 0.011]) * k, np.array([0.01, 0.0045, 0.006]) * k), 0.0015 * k)
-        d = KL.smax(d, -KL.sd_ell(q, np.array([0.13, 0.152, 0]) * k, np.array([0.02, 0.012, 0.0028]) * k), 0.0015 * k)
+            Z = np.array([1, 1, s_])
+            hp = [np.array([0.075, 0.172, 0.076]) * Z * k, np.array([0.042, 0.212, 0.098]) * Z * k, np.array([-0.018, 0.242, 0.112]) * Z * k]
+            d = KL.smin(d, KL.sd_path(q, hp, [0.0165 * k, 0.0105 * k, 0.0025 * k]), 0.003 * k)
+        # cuts: eye sockets (recessed, not through), slanted eye slits (through), nostrils, the cleft of the frown
+        for s_ in (1, -1):
+            Z = np.array([1, 1, s_])
+            sock = KL.sd_ell(q, np.array([0.12, 0.124, 0.037]) * Z * k, np.array([0.03, 0.0135, 0.024]) * k, _rx(0.3 * s_))
+            d = KL.smax(d, -np.maximum(sock, -(B - 0.0085 * k)), 0.0025 * k)
+            d = KL.smax(d, -KL.sd_ell(q, np.array([0.12, 0.123, 0.036]) * Z * k, np.array([0.04, 0.006, 0.018]) * k, _rx(0.32 * s_)), 0.0016 * k)
+            d = KL.smax(d, -KL.sd_ell(q, np.array([0.149, 0.075, 0.0125]) * Z * k, np.array([0.011, 0.005, 0.0065]) * k), 0.0014 * k)
+        # snarl wrinkles carved across the bridge, two frown furrows between the brows
+        for i in range(3):
+            yy = (0.121 - i * 0.0095) * k
+            xx = (0.1335 + 0.375 * (0.14 - yy / k) * 0.9 + 0.0115) * k
+            d = KL.smax(d, -KL.sd_capsule(q, np.array([xx, yy - 0.002 * k, -0.012 * k]), np.array([xx + 0.002 * k, yy, 0.0]), 0.0017 * k), 0.0009 * k)
+            d = KL.smax(d, -KL.sd_capsule(q, np.array([xx + 0.002 * k, yy, 0.0]), np.array([xx, yy - 0.002 * k, 0.012 * k]), 0.0017 * k), 0.0009 * k)
+        for s_ in (1, -1):
+            d = KL.smax(d, -KL.sd_capsule(q, np.array([0.134, 0.141, s_ * 0.0055]) * k, np.array([0.124, 0.17, s_ * 0.0075]) * k, 0.0019 * k), 0.001 * k)
         # the face inside stays clear
         d = KL.smax(d, -(B - 0.0028 * k), 0.001)
         return d
 
-    obj = KL.sdf_mesh('mask', fn, np.array([-0.04, 0.03, -0.15]) * k, np.array([0.175, 0.27, 0.15]) * k, h=h, frame='head', rig=rig, project=4)
+    obj = KL.sdf_mesh('mask', fn, np.array([-0.04, 0.035, -0.14]) * k, np.array([0.17, 0.265, 0.14]) * k, h=h, frame='head', rig=rig, project=5, smooth=1)
     ed.assign_look(obj, LK['iron'])
-    # forged fangs hanging from the curled lip over the mouth (iron, worn bright at the tips)
     R, o = KL.frame_mat(rig, 'head')
     toB = lambda p: R @ (np.asarray(p, float) * k) + o
+    # forged fangs hanging from the curled lip (old bone): two long curved canines, two short ones, slightly splayed
     fangs = []
-    for s_, z0, ln, r0 in ((1, 0.024, 0.036, 0.0066), (-1, 0.024, 0.036, 0.0066), (1, 0.009, 0.016, 0.0042), (-1, 0.009, 0.016, 0.0042)):
-        fangs.append(ed.capsule('mk_fang', toB([0.128, 0.06, s_ * z0]), toB([0.127, 0.06 - ln, s_ * (z0 - 0.002)]), r0, 0.0012, 10))
+    for s_, z0, ln, r0 in ((1, 0.025, 0.038, 0.0068), (-1, 0.025, 0.038, 0.0068), (1, 0.01, 0.017, 0.0044), (-1, 0.01, 0.017, 0.0044)):
+        a_ = toB([0.129, 0.061, s_ * z0]); m_ = toB([0.132, 0.061 - ln * 0.55, s_ * (z0 + 0.001)]); t_ = toB([0.127, 0.061 - ln, s_ * (z0 - 0.003)])
+        fangs.append(ed.tube('mk_fang', ed.polyline(np.array([a_, m_, t_]), 8), radius=[[0, r0], [0.5, r0 * 0.75], [1, 0.0011]], sides=10, caps=True))
     fangs = ed.join(fangs, 'mask_fangs')
     ed.assign_look(fangs, LK['fang'])
-    # ember eyes behind the slits
-    eyes = [ed.ellipsoid('mk_eye', toB([0.106, 0.12, s_ * 0.035]), np.array([0.006, 0.0055, 0.014]) * k, R @ np.array([[1, 0, 0], [0, math.cos(0.32 * s_), -math.sin(0.32 * s_)], [0, math.sin(0.32 * s_), math.cos(0.32 * s_)]]), (12, 8)) for s_ in (1, -1)]
+    eyes = [ed.ellipsoid('mk_eye', toB([0.105, 0.121, s_ * 0.035]), np.array([0.006, 0.0055, 0.014]) * k, R @ _rx(0.32 * s_), (12, 8)) for s_ in (1, -1)]
     eyes = ed.join(eyes, 'mask_eyes')
     ed.assign_look(eyes, LK['eye'])
     return {'mask': obj, 'fangs': fangs, 'eyes': eyes}

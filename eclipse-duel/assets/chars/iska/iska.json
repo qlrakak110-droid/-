@@ -1,19 +1,19 @@
 {
  "hero": "iska",
  "file": "iska.edm",
- "bytes": 1528768,
- "geometryBytes": 1528768,
- "textureBytes": 0,
- "triangles": 60623,
- "vertices": 36817,
+ "bytes": 1622228,
+ "geometryBytes": 1545930,
+ "textureBytes": 76298,
+ "triangles": 59390,
+ "vertices": 36457,
  "parts": [
   {
    "name": "body",
    "slot": "gear",
    "flags": [],
-   "triangles": 4000,
-   "vertices": 2357,
-   "bones": 37,
+   "triangles": 3000,
+   "vertices": 1622,
+   "bones": 15,
    "looks": [
     "skin"
    ]
@@ -24,8 +24,8 @@
    "flags": [
     "rigid"
    ],
-   "triangles": 4200,
-   "vertices": 3008,
+   "triangles": 5512,
+   "vertices": 4197,
    "bones": 1,
    "looks": [
     "silver",
@@ -38,8 +38,8 @@
    "name": "hair",
    "slot": "gear",
    "flags": [],
-   "triangles": 4300,
-   "vertices": 2202,
+   "triangles": 3500,
+   "vertices": 1802,
    "bones": 5,
    "looks": [
     "hair"
@@ -63,9 +63,9 @@
    "name": "robe",
    "slot": "cloth",
    "flags": [],
-   "triangles": 7600,
-   "vertices": 4007,
-   "bones": 17,
+   "triangles": 7427,
+   "vertices": 3982,
+   "bones": 18,
    "looks": [
     "moon",
     "moonIn",
@@ -78,9 +78,9 @@
    "name": "sleeves",
    "slot": "cloth",
    "flags": [],
-   "triangles": 7000,
-   "vertices": 3673,
-   "bones": 16,
+   "triangles": 6872,
+   "vertices": 3624,
+   "bones": 23,
    "looks": [
     "moon",
     "moonIn",
@@ -92,8 +92,8 @@
    "name": "sash",
    "slot": "cloth",
    "flags": [],
-   "triangles": 4400,
-   "vertices": 2229,
+   "triangles": 5184,
+   "vertices": 2621,
    "bones": 6,
    "looks": [
     "cord",
@@ -105,9 +105,9 @@
    "name": "legs",
    "slot": "cloth",
    "flags": [],
-   "triangles": 4200,
-   "vertices": 2470,
-   "bones": 17,
+   "triangles": 3960,
+   "vertices": 2262,
+   "bones": 16,
    "looks": [
     "trousers",
     "wrap"
@@ -117,9 +117,9 @@
    "name": "fittings",
    "slot": "gear",
    "flags": [],
-   "triangles": 7599,
-   "vertices": 4945,
-   "bones": 13,
+   "triangles": 7707,
+   "vertices": 4973,
+   "bones": 15,
    "looks": [
     "silver",
     "maskIn",
@@ -137,8 +137,8 @@
    "flags": [
     "cutout"
    ],
-   "triangles": 1858,
-   "vertices": 1166,
+   "triangles": 1722,
+   "vertices": 1094,
    "bones": 5,
    "looks": [
     "gauze",
@@ -186,8 +186,8 @@
    "name": "skFL",
    "slot": "cloth",
    "flags": [],
-   "triangles": 1768,
-   "vertices": 1018,
+   "triangles": 1528,
+   "vertices": 898,
    "bones": 4,
    "looks": [
     "moon",
@@ -201,9 +201,9 @@
    "flags": [
     "cloth"
    ],
-   "triangles": 1752,
-   "vertices": 998,
-   "bones": 6,
+   "triangles": 1512,
+   "vertices": 878,
+   "bones": 8,
    "looks": [
     "moon",
     "moonIn",
@@ -216,9 +216,9 @@
    "flags": [
     "cloth"
    ],
-   "triangles": 1752,
-   "vertices": 998,
-   "bones": 7,
+   "triangles": 1512,
+   "vertices": 878,
+   "bones": 8,
    "looks": [
     "moon",
     "moonIn",
@@ -229,8 +229,8 @@
    "name": "skFR",
    "slot": "cloth",
    "flags": [],
-   "triangles": 1768,
-   "vertices": 1018,
+   "triangles": 1528,
+   "vertices": 898,
    "bones": 4,
    "looks": [
     "moon",
@@ -280,17 +280,42 @@
    "rows": 9
   }
  ],
- "textures": [],
+ "textures": [
+  {
+   "name": "iska_gear_n",
+   "kind": "normal",
+   "bytes": 25988,
+   "size": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "iska_gear_m",
+   "kind": "mask",
+   "bytes": 50310,
+   "size": [
+    1024,
+    512
+   ]
+  }
+ ],
  "bonesUsed": [
   "chest",
   "deltoidL",
   "deltoidR",
+  "elbowL",
+  "elbowR",
+  "elbowVolL",
+  "elbowVolR",
   "fingerTipsL",
   "fingerTipsR",
   "fingersL",
   "fingersR",
   "footL",
   "footR",
+  "foreArmL",
+  "foreArmR",
   "foreArmTwistL",
   "foreArmTwistR",
   "hair1",
@@ -343,7 +368,7 @@
   "weaponL",
   "weaponR"
  ],
- "script": "2eaad03c5463",
- "buildSeconds": 84.6,
+ "script": "046ec39f6405",
+ "buildSeconds": 68.2,
  "blender": "5.3.0"
 }

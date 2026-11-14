@@ -1,4 +1,87 @@
-# src/fighters/iska — ISKA 이스카, 서릿별 무녀 · Froststar Oracle (design, motion, choreography)
+# src/fighters/iska — 설리화 雪梨花 · 빙월쌍도 氷月雙刀, the Frost-Moon Twin Blades (design, motion, choreography)
+
+## Current look: the Blender asset (`assets/chars/iska`, built by `tools/blender/heroes/iska.py`)
+
+`design.js` builds her whole visible surface from one Blender asset (`addAsset`); `kit.js` / `tailor.js` and the sections
+"Look", "Tailored cloth" and "Kit pieces" below describe the **previous kit build** (kept for reference, not imported by
+the design). Proportions, bones, rest poses, sockets, weapons (`WEAPON_SPECS.crescents`: lengths, grips) and the main
+body colliders are unchanged.
+
+**Rebuild:** `tools/blender/build_assets.sh iska --preview` (rig export + `heroes/iska.py`, ~100 s, preview sheet in
+`shots/blender/iska/final.png`), or `tools/blender/bl.sh tools/blender/heroes/iska.py [--no-preview] [--stage N]
+[--quick=bust,head,back,...]`. Re-run `node tools/blender/export_rig.mjs` after changing spring chains or panels in the
+design. Engine review: `node tools/shot.mjs iska_asset --do "__ED.lab.play('turntable')" ...` (`src/labs/iska_asset.js`:
+full, turntable, bust, face, back, waist, hands, pose, clip with her real clips, lineup sil / lit, stats, dispose, glow).
+
+### Parts (16 parts, 4 draw calls: cloth, gear, hair = cut-out, blade)
+
+| part | slot | what | binding |
+|---|---|---|---|
+| body | gear | anatomical base body; only head / neck and hands kept (torso, arms, legs, feet are always under cloth and are deleted; the rest culled under the garments) | bone heat + helper bones |
+| mask | gear | sculpted silver half-mask (nose ridge, brow crease, cheek planes, slanted eye slits snapped to an almond outline, bevelled rims, engraved brow sweeps), crescent-moon crest with a frost star, glowing eyes behind the slits | rigid `head`; **baked maps** `iska_gear` (object-space normal + AO / tone) from a high-poly with border grooves, frost fronds off the slits and a hammered skin |
+| hair | gear | combed hair cap with strand grooves, bun, long bound tail (twisted strand section) | cap rigid `head`; tail on spring chain `hair1-4` |
+| hairOrnaments | gear | 비녀 hairpin with crescent finial and dangling crystal, silver tail bindings, cord binding | head / `hair` chain |
+| robe | cloth | moon-white outer robe (crossed V cut, blousing above the sash only, indigo lining), indigo inner robe with pale 동정 strip, standing high collar, two brocade lapel bands that straddle the cut edge | body weights from an **unculled** body copy; around the sash the robe takes the sash's hips / spine weights |
+| sleeves | cloth | floating bell sleeves (mouth above the wrist in front, pouch hanging lower behind, brocade cuff), fitted indigo under-sleeves | arm bones; the hanging back blends onto spring chains `slvR/L` |
+| sash | cloth | wide figured indigo sash, snow-crystal edge bands, white cord, tied knot, two hanging ends with embroidered tips | hips / spine; ends on `sashA`, `sashB` |
+| legs | cloth | slim indigo trousers, helix-wrapped shins | leg bones |
+| fittings | gear | engraved silver bracers (wrist to sleeve mouth), fingerless leather palm wraps, cloth shoes with pale soles, moon brooch (`heart` socket), jade 노리개 (cord, knot, disc, cap) | forearm / hand / feet / chest / `jade` chain |
+| gauze | hair (cut-out) | 면사 veil hung from behind the mask (falls straight past the chin, drawn back to the neck, gathers; uv code 0.62 = sheer), tail-end strand cards, jade tassel | head → neck; `hair`, `jade` chains |
+| crescentR / crescentL | blade | 월아쌍도 on the exact kit outline: honed edge with secondary bevel, hollow-ground flats, fuller with the frost seam, blued spine, lobed guard with stars, knuckle bow, cord-wrapped grip, pommel, jade bead, ring | rigid `weaponR` / `weaponL` |
+| skFL, skFR | cloth | front skirt panels (split; open with the legs), hem + front-edge bands | follower `skF?0` (86 % of the thigh) + stiff springs `skF?1-2` |
+| skBL, skBR | cloth | back skirt panels draped by Blender cloth | runtime verlet cloth panels (5 x 9, `assetCloth`) below the hips |
+
+### Materials (looks → kit texture sets) and glow
+
+moon (silk, moon white), moonIn / indigo / trousers (silk / hemp, deep indigo), band (brocade: silver snow crystals,
+moon motif), sash (damask, faint frost vein), dongjeong, cord / wrap / shoe / sole (hemp), glove (leather), silver
+(engraved, vein 0.3), silverPlain, maskIn, jade, crystal (inlay + emission), eye (eye mask), hair / hairCut (hair),
+gauze, tassel, steel (blade set), spine (engraved), frost (inlay 1), gripWrap. Glow channels (`GLOW` in `design.js`,
+frost, linear HDR): **inlay** = the blades' frost seams and the crystals, **vein** = snow-crystal embroidery and engraved
+silver, **eye** = the mask's eyes. `design.attach(char, quality)` attaches the baked maps (skipped on the low tier) and
+returns `char.glow` (flare / set / gain).
+
+### Springs and cloth declared in `design.js`
+
+`hair` (4 bones), `slvR`, `slvL` (2 each), `sashA`, `sashB` (2 each), `jade` (1), `skFR`, `skFL` (follower + 2, stiffness 70,
+gravity 0.45: an apron that rides the thigh so the knee never comes through), back panels `skBL`, `skBR` (from the asset).
+Collider list unchanged (+ the default head / neck capsules written out).
+
+### Numbers (high tier, `iska_asset` lab, this machine)
+
+| | value | budget |
+|---|---|---|
+| triangles | 59,390 | ≤ 60k |
+| draw calls | 4 | ≤ 6 |
+| asset | 1.58 MB (geometry 1.51 MB + maps 75 KB) | ≤ 2.2 MB |
+| decode at boot | header 1.1 ms + parts 22.6 ms; a second ISKA builds in 37 ms | ≤ 150 ms |
+| first character | 504 ms (includes the kit's one-time texture-set generation) | — |
+| `char.update` median / p90 | idle 0.5 / 0.9, walkF 0.4 / 0.8, pirouette 0.4 / 0.5 ms | ≤ 1.0 ms |
+| low tier | same mesh, maps skipped, `char.update` 0.3 / 0.5 ms | — |
+| dispose (3 cycles) | geometries 12 → 12, textures 22 → 22, programs 17 → 17 | clean |
+
+### Roster review (art direction pass, 2026-11-14)
+
+* The silver mask's baked maps were hit by the baked-map seam bug (one side of every smart-project UV seam sampled the
+  other island: glare streaks over the engraving). Fixed in `src/char/assets.js` (tools/blender/README.md section 8);
+  the mask now reads as engraved, matte-ish silver. No change to the asset or `design.js`.
+* Measured in the art lab: 59,390 triangles, 4 draw calls; `char.update` 0.47 ms median (`cpu`, 240 frames x 5);
+  dispose clean (the first cycle can show the mask maps' async upload once).
+* Still open: the white robe reads as a smooth, tight shell in the bust (few folds above the sash; sleeves hug the
+  arm instead of floating), and the gauze veil covers the whole lower face as a blue net.
+
+### Pipeline lessons (iska.py)
+
+* Never decimate a part after `thick()` (solidify): the two skins collapse into each other (the lining shows through
+  in patches, hems tear). Garment budgets are set on the sheet (`thick(max_tris=)`) and generator resolutions.
+* Transfer garment weights from an unculled copy of the body (`body_src`), then cull.
+* Lapel bands straddle the V cut so the cut's stair-step never shows.
+* A bake high-poly needs `ed_col` (tone) set, else the albedo channel halves the colour; use simple subdivision on
+  sheets with holes (Catmull-Clark shrinks the slits and the bake picks up garbage there).
+
+
+# Previous design notes (kit build)
+
 
 The character design of ISKA (format: `src/char/README.md` section 6) plus the pieces only she uses. The fighter
 registry loads `index.js` (the full fighter module); her motion, choreography and ultimate are documented in

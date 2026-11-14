@@ -12,6 +12,31 @@ Written 2026-11-13 ~10:00 UTC, when every work team was stopped because the Fabl
   finally: stop at 95 % of the Fable limit, integrate, deliver a downloadable file and this handoff.
 * Originality rule (hard): nothing from an existing game / novel / comic — names, characters, designs, UI, sects.
 
+## 0. UPDATE 2026-11-14 — character modelling finished (Blender pipeline)
+
+After the first handoff the owner asked for "the modelling only" to be completed. Done, with Opus workers (the Fable
+window was at ~92 %):
+
+* **Blender asset pipeline is complete** (`tools/blender/`, read its README): rig export (`export_rig.mjs`), the
+  `edlib` library (body, garments, cloth draping, lamellar / weave / hair generators, decimation, UVs, Cycles
+  bakes, auto-skinning), the compact `.edm` asset format, the runtime loader `src/char/assets.js`, baked-map support
+  in the shared character shader, `build_assets.sh <hero|all>`.
+* **All three heroes are now Blender-built murim masters in the game** (`tools/blender/heroes/{kael,iska,vorn}*.py`
+  -> `assets/chars/<hero>/` -> `src/fighters/<hero>/design.js`): 59.6k / 59.4k / 58.7k triangles, 4 draw calls
+  each, `char.update` 0.4-0.6 ms, assets 2.12 / 1.58 / 1.73 MB. Proportions, bones, sockets, weapon lengths and
+  grips are unchanged, so the 108 clips still fit. Reports: `handoff/reports/blender.json`.
+* The game page is now **~9.6 MB** (`dist/heukil-murim.html`); budget 12 MB.
+* Known art gaps (from the art director): hands are blocky up close (`ed.hand()` in `tools/blender/ed/body.py`
+  needs a sculpt pass, then a rebuild of all three); ISKA's sleeves hug the arms instead of floating and her veil
+  covers the lower face as a net; VORN's face under the hat is a featureless dark head; KAEL's face scarf reads as a
+  black hood with a jagged neck edge. Triangles in a duel are ~426k on high (budget 350k).
+* Operational notes: the container was killed twice during Blender work (probably memory). Always run Blender
+  through `tools/blender/bl.sh` (memory cap) and keep a watchdog like the one in section 5 of the pipeline README /
+  this session (kill the largest Blender / Chromium process when MemAvailable < 1.5 GB). Blender must be reinstalled
+  on a fresh container (section 2).
+* Everything else in the table of section 3 is unchanged (motion pass, VFX / camera, arena, audio, RPG boss /
+  enemies / HUD are still interrupted or not started). In section 3, read the "Characters" and "Blender" rows as DONE.
+
 ## 1. Read these first
 
 | file | what it is |

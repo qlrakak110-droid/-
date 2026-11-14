@@ -1,0 +1,304 @@
+{
+ "hero": "vorn",
+ "file": "vorn.edm",
+ "bytes": 1731112,
+ "geometryBytes": 1595790,
+ "textureBytes": 135322,
+ "triangles": 58702,
+ "vertices": 39220,
+ "parts": [
+  {
+   "name": "body",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 3778,
+   "vertices": 2239,
+   "bones": 36,
+   "looks": [
+    "skin"
+   ]
+  },
+  {
+   "name": "eyes",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 200,
+   "vertices": 104,
+   "bones": 1,
+   "looks": [
+    "eye"
+   ]
+  },
+  {
+   "name": "robe",
+   "slot": "cloth",
+   "flags": [],
+   "triangles": 19188,
+   "vertices": 10588,
+   "bones": 41,
+   "looks": [
+    "robe",
+    "collar",
+    "dongjeong",
+    "trim",
+    "trousers",
+    "sash",
+    "wrap",
+    "leather",
+    "face"
+   ]
+  },
+  {
+   "name": "armour",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 14990,
+   "vertices": 14716,
+   "bones": 24,
+   "looks": [
+    "leather",
+    "lamellar",
+    "lace"
+   ]
+  },
+  {
+   "name": "hat",
+   "slot": "gear",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 4666,
+   "vertices": 2530,
+   "bones": 1,
+   "looks": [
+    "leather",
+    "lace",
+    "bamboo",
+    "bambooDark",
+    "bronze"
+   ]
+  },
+  {
+   "name": "hair",
+   "slot": "gear",
+   "flags": [],
+   "triangles": 3534,
+   "vertices": 1830,
+   "bones": 6,
+   "looks": [
+    "trim",
+    "hair"
+   ]
+  },
+  {
+   "name": "queueTassel",
+   "slot": "hair",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 232,
+   "vertices": 185,
+   "bones": 1,
+   "looks": [
+    "hair"
+   ]
+  },
+  {
+   "name": "spear",
+   "slot": "blade",
+   "flags": [
+    "rigid"
+   ],
+   "triangles": 4538,
+   "vertices": 2878,
+   "bones": 1,
+   "looks": [
+    "bronze",
+    "shaft",
+    "grip",
+    "steel",
+    "bolt"
+   ]
+  },
+  {
+   "name": "spearTassel",
+   "slot": "hair",
+   "flags": [
+    "cutout"
+   ],
+   "triangles": 376,
+   "vertices": 320,
+   "bones": 3,
+   "looks": [
+    "horsehair"
+   ]
+  },
+  {
+   "name": "skirtF",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 3100,
+   "vertices": 1640,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "trim",
+    "sash",
+    "robeIn"
+   ]
+  },
+  {
+   "name": "skirtBL",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 2050,
+   "vertices": 1098,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "trim",
+    "robeIn"
+   ]
+  },
+  {
+   "name": "skirtBR",
+   "slot": "cloth",
+   "flags": [
+    "cloth"
+   ],
+   "triangles": 2050,
+   "vertices": 1092,
+   "bones": 8,
+   "looks": [
+    "robe",
+    "trim",
+    "robeIn"
+   ]
+  }
+ ],
+ "looks": [
+  "skin",
+  "eye",
+  "robe",
+  "collar",
+  "dongjeong",
+  "trim",
+  "trousers",
+  "sash",
+  "wrap",
+  "leather",
+  "face",
+  "lamellar",
+  "lace",
+  "bamboo",
+  "bambooDark",
+  "bronze",
+  "hair",
+  "shaft",
+  "grip",
+  "steel",
+  "bolt",
+  "horsehair",
+  "robeIn"
+ ],
+ "panels": [
+  {
+   "name": "skirtF",
+   "cols": 6,
+   "rows": 9
+  },
+  {
+   "name": "skirtBL",
+   "cols": 4,
+   "rows": 9
+  },
+  {
+   "name": "skirtBR",
+   "cols": 4,
+   "rows": 9
+  }
+ ],
+ "textures": [
+  {
+   "name": "vorn_hat_n",
+   "kind": "normal",
+   "bytes": 34354,
+   "size": [
+    1024,
+    512
+   ]
+  },
+  {
+   "name": "vorn_hat_m",
+   "kind": "mask",
+   "bytes": 100968,
+   "size": [
+    1024,
+    512
+   ]
+  }
+ ],
+ "bonesUsed": [
+  "chest",
+  "deltoidL",
+  "deltoidR",
+  "elbowL",
+  "elbowR",
+  "elbowVolL",
+  "elbowVolR",
+  "fingerTipsL",
+  "fingerTipsR",
+  "fingersL",
+  "fingersR",
+  "footL",
+  "footR",
+  "foreArmL",
+  "foreArmR",
+  "foreArmTwistL",
+  "foreArmTwistR",
+  "handL",
+  "handR",
+  "head",
+  "hipJointL",
+  "hipJointR",
+  "hips",
+  "kneeL",
+  "kneeR",
+  "kneeVolL",
+  "kneeVolR",
+  "neck",
+  "queue1",
+  "queue2",
+  "queue3",
+  "queue4",
+  "shinL",
+  "shinR",
+  "shoulderL",
+  "shoulderR",
+  "spine",
+  "tassel1",
+  "tassel2",
+  "thighL",
+  "thighR",
+  "thighTwistL",
+  "thighTwistR",
+  "thumbL",
+  "thumbR",
+  "toeL",
+  "toeR",
+  "upperArmL",
+  "upperArmR",
+  "upperArmTwistL",
+  "upperArmTwistR",
+  "weaponR",
+  "wrapTail1",
+  "wrapTail2"
+ ],
+ "script": "1e6ba67d3f42",
+ "buildSeconds": 31.5,
+ "blender": "5.3.0"
+}

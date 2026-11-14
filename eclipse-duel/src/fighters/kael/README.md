@@ -10,8 +10,76 @@ orange → black smoke. Design brief and storyboard: `src/fighters/MOVES.md`; fr
 | `clips/` | the motion library (29 clips + 5 poses, `clips/NAMES.md`) | content |
 | `present.js` | choreography of every move, the projectiles, the ultimate's lock direction, fighter-wide hooks | content |
 | `fx.js` | Kael's signature presets (`kael.*`) and their particle definitions (module scope, compiled in `present.setup`) | content |
-| `design.js`, `kit.js` | armour, greatsword, half-cape (art team) | art |
+| `design.js` | 염무강's look: the Blender asset `assets/chars/kael` (+ rig data, materials, springs, glow) — section *Look* below | art |
+| `kit.js` | the earlier kit-built pieces (unused by the design since the Blender asset) | art |
 | `moves.js` | rules definition (balance team) | balance |
+
+## Look — 염무강 炎武剛 (Blender asset)
+
+MURIM.md: a broad, heavy master of the Red Sun Gate. Modelled entirely by code in headless Blender
+(`tools/blender/heroes/kael.py` + `kael_parts.py` (mask, pauldron, saber) + `kael_lib.py` (SDF tools, garment helpers),
+library `tools/blender/edlib`) on the exported game rig `tools/blender/rigs/kael.json`; loaded by `design.js` through
+`src/char/assets.js`. **Proportions, bones, sockets, colliders, weapon length / grips are unchanged** (the design keeps
+them verbatim; the saber is built on `WEAPON_SPECS.greatsword`: ring end −0.334, point 1.6, grips 0 / −0.17 / −0.27 /
+0.17 / 0.56, base 0.12).
+
+| part (EDM) | slot | tris | what |
+|---|---|---|---|
+| `body` | gear | 4.9k | SDF anatomical body (heavy build), culled to what shows: open chest with three raised sword scars (`scar` look), hands |
+| `boots` | gear | 4.1k | leather uppers over the feet, turned cuffs, two strapped bronze buckles, thick soles |
+| `bracers` | gear | 4.0k | moulded leather shells over the wraps, rolled rims, 3 x 5 domed bronze studs, laced inner seam (rigid on `foreArmTwist*`) |
+| `armour` | gear | 9.9k | the 귀면 iron demon half-mask (facetted shell, prism brows with flame tufts, cheekbones with a hard ridge, flat-sided nose, snarl lip, carved wrinkles / frown furrows, swept horns, bone fangs, ember eyes) + the beast-face pauldron on `deltoidR` (snarling guardian, faceted flame-tongue mane, back ruff, bronze ring in the jaws, saber cradle carved from the idle / walk blade path) — baked maps `kael_gear_n` / `kael_gear_m` |
+| `hairHard` | gear | 1.3k | hair cap, topknot (상투) with red cord tie and bronze pin |
+| `robe` | cloth | 19.7k | open charred-black coat (red facing + flame brocade trim, Red Sun emblem on the back, red lining), sleeves, red inner sleeves with cuffs, hemp chest bands, pauldron strap + boss, triple-wound crimson sash + tied knot, forearm / palm wraps, banded rust-red face scarf, headband + knot, hemp trousers |
+| `tailFL/FR` | cloth | 1.05k each | front coat tails (Blender cloth drape, skinned to hips / thighs) |
+| `tailBL/BR` | cloth (`cloth`) | 1.25k each | back coat tails: runtime verlet panels (4 x 8) from the drape |
+| `sashEnds`, `bandTails` | cloth | 0.9k / 0.2k | sash ends on springs `sashA/B`, headband tails on `band` |
+| `mane` | hair (cutout) | 3.4k | 39 strand locks over springs `maneA/B/C` |
+| `saber`, `strip` | blade | 6.3k / 0.2k | 참마대도: faceted blade (wide honed bevel, chamfered spine, clip point / false edge), blood groove with an ember seam, charred spine, bronze collar with flame tongues, lobed iron guard + bronze rims, oval hilt with a two-cord diamond wrap and ferrules, ring pommel with flame spurs; red strip on `strip` |
+
+**Total 59.6k triangles, 4 draw calls** (gear, cloth, hair, blade).
+
+**Materials** (Blender looks, linear, `kael.py` `LK`; retune in JS with `LOOKS` in design.js): `coat` damask black silk,
+`lining` / `robe` deep-red silk, `trim` flame brocade (gold thread), `sash` / `strip` crimson silk, `trousers` /
+`wrap` / `band` / `scarf` hemp, `leather` / `leatherDark`, `bronze` (verdigris damped in the slot materials: `AGED`),
+`iron` / `ironDark` scorched iron, `fang` old bone, `hair`, `steel` blade, `groove` (ember seam), `saberBack`, `skin`,
+`scar`, `eye`, `pit`.
+
+**Glow** (`kael.glow`, `attach()` returns `char.glow`): `inlay` = brocade embroidery + the saber's blood-groove seam +
+a few thin cracks on the mask and pauldron; `vein` = hot patches of the scorched iron (mask, pauldron) and the saber
+spine; `eye` = mask and pauldron eyes. Per-vertex masks come from the asset (`ed_glow`).
+
+**Springs / cloth:** `maneA/B/C` (3 x 3 bones), `band` (2), `sashA/B` (3 each), `strip` (saber) in `design.js`;
+cloth panels `tailBL` / `tailBR` from `assetCloth(kaelAsset)`; colliders unchanged (+ `head` / `neck`, which clips do
+not read).
+
+**Rebuild:** `tools/blender/bl.sh tools/blender/heroes/kael.py` (~2.5 min, previews in `shots/blender/kael/`);
+`--no-preview` (asset only, ~2 min), `--stage 1|2|3` (block-out / garments / high-poly sheet, then exit),
+`--only mask|pauldron|saber` (close-up sheet of one piece), `--pose idle` (sheets in a sampled game pose). Re-export
+the rig first if springs / panels change (`node tools/blender/export_rig.mjs`, or `tools/blender/build_assets.sh kael`).
+Engine review: `node tools/shot.mjs kael_asset --do "__ED.lab.play('bust')" ...` (scenarios in `src/labs/kael_asset.js`),
+game: `node tools/shot.mjs game --as bl-kael --hash "training=kael,iska&seed=7" ...`.
+
+**Numbers** (high tier, this machine): asset 2.12 MB (1.59 MB geometry, 0.54 MB maps; page `build/bl-kael.html`
+7.5 MB); header decode 1.4 ms, part decode 15–19 ms, a second Kael builds in 49 ms; the first Kael of a page takes
+~600 ms, dominated by the kit's one-time texture-set generation (not split out); `char.update` median 0.3–0.4 ms
+(p90 0.4–0.7) in idle / walk / light1; low tier 0.3 ms; 3 create / dispose cycles leave geometries, textures and
+programs unchanged.
+
+**Roster review (art direction pass, 2026-11-14).** The "broken chrome" on the mask and the pauldron was not the
+material: the baked atlas reached one side of every UV seam with the other island's texels (fixed in
+`src/char/assets.js`, see tools/blender/README.md section 8); both now read as matte, fire-blackened iron with the
+baked relief and ember cracks. JS retunes in `design.js` (no Blender rebuild): `LOOKS` iron / ironDark (rough 0.8 /
+0.84, metal 0.55 / 0.5), saberBack, hair (ink black, rough 0.7), skin (darker, weathered, rough 0.68), scar, scarf
+(rust red, brighter); gear material env 0.6, polish 0.1, edge wear 0.22 with a dark bare-metal colour (bronze and iron
+edges no longer flash white); hair material env 0.12, strand anisotropy 0.1 and a dimmer rim (`RIM_HAIR`): the mane was
+silver-grey. `attach(char)` without a quality (the game) now reads the tier from the cloth grid, so the low tier
+skips the maps in the game too. Numbers unchanged: 59,621 triangles, 4 draw calls, 2.12 MB; `char.update` 0.39 ms
+median (art lab `cpu`, 240 frames x 5); dispose clean (12 / 22 / 17). Captures: `shots/blender/review/`.
+
+**Known issues:** the face scarf's band
+relief reads only up close; the back tails' rest grid sits a little inside the pelvis / thigh capsules (runtime
+warning, harmless: the particles settle at the capsule surface).
 
 ## Wiring
 
